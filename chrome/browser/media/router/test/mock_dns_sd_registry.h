@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_MEDIA_ROUTER_TEST_MOCK_DNS_SD_REGISTRY_H_
 #define CHROME_BROWSER_MEDIA_ROUTER_TEST_MOCK_DNS_SD_REGISTRY_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/media/router/discovery/mdns/dns_sd_registry.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -27,7 +26,7 @@ class MockDnsSdRegistry : public DnsSdRegistry {
                          const DnsSdServiceList& services);
 
  private:
-  raw_ptr<DnsSdObserver, DanglingUntriaged> observer_;
+  DnsSdObserver* observer_;
 };
 
 }  // namespace media_router

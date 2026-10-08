@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,14 +29,13 @@
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/nix/xdg_util.h"
+#include "base/optional.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_executor.h"
-#include "remoting/base/logging.h"
 #include "remoting/base/string_resources.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "remoting/host/logging.h"
 #include "third_party/icu/source/common/unicode/unistr.h"
 #include "third_party/icu/source/i18n/unicode/coll.h"
 #include "ui/base/glib/glib_signal.h"
@@ -64,7 +63,7 @@ class SessionDialog {
       : choices_(std::move(choices)),
         callback_(std::move(callback)),
         cancel_callback_(std::move(cancel_callback)),
-        ui_(TakeGObject(gtk_builder_new_from_string(UI, -1))) {
+        ui_(gtk_builder_new_from_string(UI, -1)) {
     gtk_label_set_text(
         GTK_LABEL(gtk_builder_get_object(ui_, "message")),
         l10n_util::GetStringUTF8(IDS_SESSION_DIALOG_MESSAGE).c_str());
@@ -166,7 +165,7 @@ gboolean SessionDialog::OnClose(GtkWidget* dialog, GdkEvent*) {
   return true;
 }
 
-absl::optional<XSession> TryLoadSession(base::FilePath path) {
+base::Optional<XSession> TryLoadSession(base::FilePath path) {
   std::unique_ptr<GKeyFile, void (*)(GKeyFile*)> key_file(g_key_file_new(),
                                                           &g_key_file_free);
   GError* error;
@@ -175,14 +174,14 @@ absl::optional<XSession> TryLoadSession(base::FilePath path) {
                                  G_KEY_FILE_NONE, &error)) {
     LOG(WARNING) << "Failed to load " << path << ": " << error->message;
     g_error_free(error);
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Files without a "Desktop Entry" group can be ignored. (An empty file can be
   // put in a higher-priority directory to hide entries from a lower-priority
   // directory.)
   if (!g_key_file_has_group(key_file.get(), G_KEY_FILE_DESKTOP_GROUP)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Files with "NoDisplay" or "Hidden" set should be ignored.
@@ -190,7 +189,7 @@ absl::optional<XSession> TryLoadSession(base::FilePath path) {
        {G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY, G_KEY_FILE_DESKTOP_KEY_HIDDEN}) {
     if (g_key_file_get_boolean(key_file.get(), G_KEY_FILE_DESKTOP_GROUP, key,
                                nullptr)) {
-      return absl::nullopt;
+      return base::nullopt;
     }
   }
 
@@ -209,7 +208,7 @@ absl::optional<XSession> TryLoadSession(base::FilePath path) {
             : !base::ExecutableExistsInPath(base::Environment::Create().get(),
                                             try_exec_path.value())) {
       LOG(INFO) << "Rejecting " << path << " due to TryExec=" << try_exec_path;
-      return absl::nullopt;
+      return base::nullopt;
     }
   }
 
@@ -223,7 +222,7 @@ absl::optional<XSession> TryLoadSession(base::FilePath path) {
   } else {
     LOG(WARNING) << "Failed to load value of " << G_KEY_FILE_DESKTOP_KEY_NAME
                  << " from " << path;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   if (gchar* exec =
@@ -234,7 +233,7 @@ absl::optional<XSession> TryLoadSession(base::FilePath path) {
   } else {
     LOG(WARNING) << "Failed to load value of " << G_KEY_FILE_DESKTOP_KEY_EXEC
                  << " from " << path;
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Optional fields.
@@ -296,7 +295,7 @@ std::vector<XSession> CollectXSessions() {
        "default"});
 
   for (const auto& session : session_files) {
-    absl::optional<XSession> loaded_session = TryLoadSession(session.second);
+    base::Optional<XSession> loaded_session = TryLoadSession(session.second);
     if (loaded_session) {
       sessions.push_back(std::move(*loaded_session));
     }
@@ -337,7 +336,7 @@ void ExecXSession(base::OnceClosure quit_closure, XSession session) {
   if (!session.desktop_names.empty()) {
     std::unique_ptr<base::Environment> environment =
         base::Environment::Create();
-    environment->SetVar(base::nix::kXdgCurrentDesktopEnvVar,
+    environment->SetVar("XDG_CURRENT_DESKTOP",
                         base::JoinString(session.desktop_names, ":"));
   }
   execl(xsession_script.value().c_str(), xsession_script.value().c_str(),

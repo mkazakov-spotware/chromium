@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,13 @@ package org.chromium.chrome.browser.ntp.search;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.TextWatcher;
+import android.util.Pair;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.lens.LensEntryPoint;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.ui.base.DeviceFormFactor;
-import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /**
@@ -27,8 +25,6 @@ public class SearchBoxCoordinator {
     private final PropertyModel mModel;
     private final ViewGroup mView;
     private final SearchBoxMediator mMediator;
-    private boolean mIsIncognito;
-    private WindowAndroid mWindowAndroid;
 
     /** Constructor. */
     public SearchBoxCoordinator(Context context, ViewGroup parent) {
@@ -37,11 +33,8 @@ public class SearchBoxCoordinator {
         mMediator = new SearchBoxMediator(context, mModel, mView);
     }
 
-    public void initialize(ActivityLifecycleDispatcher activityLifecycleDispatcher,
-            boolean isIncognito, WindowAndroid windowAndroid) {
+    public void initialize(ActivityLifecycleDispatcher activityLifecycleDispatcher) {
         mMediator.initialize(activityLifecycleDispatcher);
-        mIsIncognito = isIncognito;
-        mWindowAndroid = windowAndroid;
     }
 
     public View getView() {
@@ -53,7 +46,7 @@ public class SearchBoxCoordinator {
     }
 
     public void destroy() {
-        mMediator.onDestroy();
+        mMediator.destroy();
     }
 
     public void setAlpha(float alpha) {
@@ -68,8 +61,8 @@ public class SearchBoxCoordinator {
         mModel.set(SearchBoxProperties.VISIBILITY, visible);
     }
 
-    public void setSearchText(String text) {
-        mModel.set(SearchBoxProperties.SEARCH_TEXT, text);
+    public void setSearchText(String text, boolean fromQueryTiles) {
+        mModel.set(SearchBoxProperties.SEARCH_TEXT, Pair.create(text, fromQueryTiles));
     }
 
     public void setSearchBoxClickListener(OnClickListener listener) {
@@ -92,52 +85,16 @@ public class SearchBoxCoordinator {
         mMediator.addVoiceSearchButtonClickListener(listener);
     }
 
-    public void setLensButtonVisibility(boolean visible) {
-        mModel.set(SearchBoxProperties.LENS_VISIBILITY, visible);
+    public void setChipText(String chipText) {
+        mMediator.setChipText(chipText);
     }
 
-    public void addLensButtonClickListener(OnClickListener listener) {
-        mMediator.addLensButtonClickListener(listener);
+    public void setChipDelegate(SearchBoxChipDelegate chipDelegate) {
+        mMediator.setChipDelegate(chipDelegate);
     }
 
-    public boolean isLensEnabled(@LensEntryPoint int lensEntryPoint) {
-        return mMediator.isLensEnabled(
-                lensEntryPoint, mIsIncognito, DeviceFormFactor.isWindowOnTablet(mWindowAndroid));
-    }
-
-    public void startLens(@LensEntryPoint int lensEntryPoint) {
-        mMediator.startLens(lensEntryPoint, mWindowAndroid, mIsIncognito);
-    }
-
-    public void setIncognitoMode(boolean isIncognito) {
-        mIsIncognito = isIncognito;
-    }
-
-    public void setHeight(int height) {
-        mMediator.setHeight(height);
-    }
-
-    public void setTopMargin(int topMargin) {
-        mMediator.setTopMargin(topMargin);
-    }
-
-    public void setEndPadding(int endPadding) {
-        mMediator.setEndPadding(endPadding);
-    }
-
-    public void setTextViewTranslationX(float translationX) {
-        mMediator.setTextViewTranslationX(translationX);
-    }
-
-    public void setButtonsHeight(int height) {
-        mMediator.setButtonsHeight(height);
-    }
-
-    public void setButtonsWidth(int width) {
-        mMediator.setButtonsWidth(width);
-    }
-
-    public void setLensButtonLeftMargin(int leftMargin) {
-        mMediator.setLensButtonLeftMargin(leftMargin);
+    public boolean isTextChangeFromTiles() {
+        Pair<String, Boolean> searchText = mModel.get(SearchBoxProperties.SEARCH_TEXT);
+        return searchText == null ? false : searchText.second;
     }
 }

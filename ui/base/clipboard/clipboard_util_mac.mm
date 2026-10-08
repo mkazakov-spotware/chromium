@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -98,6 +98,14 @@ UniquePasteboard::UniquePasteboard()
 
 UniquePasteboard::~UniquePasteboard() {
   [pasteboard_ releaseGlobally];
+
+  if (base::mac::IsOS10_12()) {
+    // On 10.12, move ownership to the autorelease pool rather than possibly
+    // triggering -[NSPasteboard dealloc] here. This is a speculative workaround
+    // for https://crbug.com/877979 where a call to __CFPasteboardDeallocate
+    // from here is triggering "Semaphore object deallocated while in use".
+    pasteboard_.autorelease();
+  }
 }
 
 // static
@@ -211,10 +219,10 @@ NSPasteboard* ClipboardUtil::PasteboardFromBuffer(ClipboardBuffer buffer) {
   NSString* buffer_type = nil;
   switch (buffer) {
     case ClipboardBuffer::kCopyPaste:
-      buffer_type = NSPasteboardNameGeneral;
+      buffer_type = NSGeneralPboard;
       break;
     case ClipboardBuffer::kDrag:
-      buffer_type = NSPasteboardNameDrag;
+      buffer_type = NSDragPboard;
       break;
     case ClipboardBuffer::kSelection:
       NOTREACHED();

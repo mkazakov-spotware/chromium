@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/values.h"
 #include "chromeos/components/quick_answers/utils/quick_answers_utils.h"
 
+namespace chromeos {
 namespace quick_answers {
 namespace {
 
@@ -42,6 +43,7 @@ bool KpEntityResultParser::Parse(const Value* result,
     const auto& answer = BuildKpEntityTitleText(
         base::StringPrintf(kAverageScoreTemplate, average_score.value()),
         aggregated_count->c_str());
+    quick_answer->primary_answer = answer;
     quick_answer->first_answer_row.push_back(
         std::make_unique<QuickAnswerResultText>(answer));
   } else {
@@ -52,6 +54,7 @@ bool KpEntityResultParser::Parse(const Value* result,
       return false;
     }
 
+    quick_answer->primary_answer = *localized_known_for_reason;
     quick_answer->first_answer_row.push_back(
         std::make_unique<QuickAnswerResultText>(*localized_known_for_reason));
   }
@@ -61,3 +64,4 @@ bool KpEntityResultParser::Parse(const Value* result,
 }
 
 }  // namespace quick_answers
+}  // namespace chromeos

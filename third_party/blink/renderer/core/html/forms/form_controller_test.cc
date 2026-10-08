@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,12 @@
 #include "third_party/blink/renderer/core/html/forms/html_form_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
-#include "third_party/blink/renderer/core/testing/null_execution_context.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
 TEST(DocumentStateTest, ToStateVectorConnected) {
-  ScopedNullExecutionContext execution_context;
-  auto& doc = *Document::CreateForTest(execution_context.GetExecutionContext());
+  auto& doc = *Document::CreateForTest();
   Element* html = doc.CreateRawElement(html_names::kHTMLTag);
   doc.appendChild(html);
   Node* body = html->appendChild(doc.CreateRawElement(html_names::kBodyTag));

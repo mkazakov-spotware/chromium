@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ typedef std::vector<scoped_refptr<X509Certificate>> CertificateList;
 
 namespace chromeos {
 
-typedef base::OnceCallback<void(
+typedef base::Callback<void(
     const scoped_refptr<net::X509Certificate>& selected_certificate)>
     CertificateSelectedCallback;
 
@@ -37,7 +37,7 @@ void ShowPlatformKeysCertificateSelector(
     content::WebContents* web_contents,
     const std::string& extension_id,
     const net::CertificateList& certificates,
-    CertificateSelectedCallback callback);
+    const CertificateSelectedCallback& callback);
 
 }  // namespace chromeos
 

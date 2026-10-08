@@ -32,83 +32,57 @@
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_CONTENT_SECURITY_POLICY_STRUCT_H_
 
 #include "services/network/public/mojom/content_security_policy.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_vector.h"
 
 namespace blink {
 
-struct WebCSPSource {
+// TODO(arthursonzogni): Remove this when BeginNavigation will be sent directly
+// from blink.
+enum WebWildcardDisposition {
+  kWebWildcardDispositionNoWildcard,
+  kWebWildcardDispositionHasWildcard
+};
+
+// TODO(arthursonzogni): Remove this when BeginNavigation will be sent directly
+// from blink.
+struct WebContentSecurityPolicySourceExpression {
   WebString scheme;
   WebString host;
-  int port = -1;
+  WebWildcardDisposition is_host_wildcard;
+  int port;
+  WebWildcardDisposition is_port_wildcard;
   WebString path;
-  bool is_host_wildcard;
-  bool is_port_wildcard;
 };
 
-struct WebCSPHashSource {
-  network::mojom::CSPHashAlgorithm algorithm;
-  WebVector<uint8_t> value;
-};
-
-struct WebCSPSourceList {
-  WebVector<WebCSPSource> sources;
-  WebVector<WebString> nonces;
-  WebVector<WebCSPHashSource> hashes;
+// TODO(arthursonzogni): Remove this when BeginNavigation will be sent directly
+// from blink.
+struct WebContentSecurityPolicySourceList {
   bool allow_self;
   bool allow_star;
-  bool allow_response_redirects;
-  bool allow_inline;
-  bool allow_eval;
-  bool allow_wasm_eval;
-  bool allow_wasm_unsafe_eval;
-  bool allow_dynamic;
-  bool allow_unsafe_hashes;
-  bool report_sample;
+  bool allow_redirects;
+  WebVector<WebContentSecurityPolicySourceExpression> sources;
 };
 
+// TODO(arthursonzogni): Remove this when BeginNavigation will be sent directly
+// from blink.
 struct WebContentSecurityPolicyDirective {
-  network::mojom::CSPDirectiveName name;
-  WebCSPSourceList source_list;
+  WebString name;
+  WebContentSecurityPolicySourceList source_list;
 };
 
-struct WebContentSecurityPolicyRawDirective {
-  network::mojom::CSPDirectiveName name;
-  WebString value;
-};
-
-struct WebCSPTrustedTypes {
-  WebVector<WebString> list;
-  bool allow_any;
-  bool allow_duplicates;
-};
-
-struct WebContentSecurityPolicyHeader {
-  WebString header_value;
-  network::mojom::ContentSecurityPolicyType type =
-      network::mojom::ContentSecurityPolicyType::kEnforce;
-  network::mojom::ContentSecurityPolicySource source =
-      network::mojom::ContentSecurityPolicySource::kHTTP;
-};
-
+// TODO(arthursonzogni): Remove this when BeginNavigation will be sent directly
+// from blink.
 struct WebContentSecurityPolicy {
-  WebCSPSource self_origin;
-  WebVector<WebContentSecurityPolicyRawDirective> raw_directives;
+  network::mojom::ContentSecurityPolicyType disposition;
+  network::mojom::ContentSecurityPolicySource source;
   WebVector<WebContentSecurityPolicyDirective> directives;
   bool upgrade_insecure_requests;
-  bool treat_as_public_address;
-  bool block_all_mixed_content;
-  network::mojom::WebSandboxFlags sandbox =
-      network::mojom::WebSandboxFlags::kNone;
-  WebContentSecurityPolicyHeader header;
-  bool use_reporting_api;
   WebVector<WebString> report_endpoints;
-  network::mojom::CSPRequireTrustedTypesFor require_trusted_types_for;
-  absl::optional<WebCSPTrustedTypes> trusted_types;
-  WebVector<WebString> parsing_errors;
+  WebString header;
+  bool use_reporting_api;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_CONTENT_SECURITY_POLICY_STRUCT_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "base/mac/mac_util.h"
 #include "base/mac/scoped_cftyperef.h"
 #include "base/memory/ptr_util.h"
-#include "base/notreached.h"
+#include "base/stl_util.h"
 #include "remoting/base/logging.h"
 
 namespace {
@@ -23,20 +23,14 @@ namespace remoting {
 
 class DesktopResizerMac : public DesktopResizer {
  public:
-  DesktopResizerMac() = default;
-  DesktopResizerMac(const DesktopResizerMac&) = delete;
-  DesktopResizerMac& operator=(const DesktopResizerMac&) = delete;
+  DesktopResizerMac();
 
   // DesktopResizer interface
-  ScreenResolution GetCurrentResolution(webrtc::ScreenId screen_id) override;
+  ScreenResolution GetCurrentResolution() override;
   std::list<ScreenResolution> GetSupportedResolutions(
-      const ScreenResolution& preferred,
-      webrtc::ScreenId screen_id) override;
-  void SetResolution(const ScreenResolution& resolution,
-                     webrtc::ScreenId screen_id) override;
-  void RestoreResolution(const ScreenResolution& original,
-                         webrtc::ScreenId screen_id) override;
-  void SetVideoLayout(const protocol::VideoLayout& layout) override;
+      const ScreenResolution& preferred) override;
+  void SetResolution(const ScreenResolution& resolution) override;
+  void RestoreResolution(const ScreenResolution& original) override;
 
  private:
   // If there is a single display, get its id and return true, otherwise return
@@ -46,10 +40,13 @@ class DesktopResizerMac : public DesktopResizer {
   void GetSupportedModesAndResolutions(
       base::ScopedCFTypeRef<CFMutableArrayRef>* modes,
       std::list<ScreenResolution>* resolutions);
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopResizerMac);
 };
 
-ScreenResolution DesktopResizerMac::GetCurrentResolution(
-    webrtc::ScreenId screen_id) {
+DesktopResizerMac::DesktopResizerMac() {}
+
+ScreenResolution DesktopResizerMac::GetCurrentResolution() {
   CGDirectDisplayID display;
   if (GetSoleDisplayId(&display)) {
     CGRect rect = CGDisplayBounds(display);
@@ -61,16 +58,14 @@ ScreenResolution DesktopResizerMac::GetCurrentResolution(
 }
 
 std::list<ScreenResolution> DesktopResizerMac::GetSupportedResolutions(
-    const ScreenResolution& preferred,
-    webrtc::ScreenId screen_id) {
+    const ScreenResolution& preferred) {
   base::ScopedCFTypeRef<CFMutableArrayRef> modes;
   std::list<ScreenResolution> resolutions;
   GetSupportedModesAndResolutions(&modes, &resolutions);
   return resolutions;
 }
 
-void DesktopResizerMac::SetResolution(const ScreenResolution& resolution,
-                                      webrtc::ScreenId screen_id) {
+void DesktopResizerMac::SetResolution(const ScreenResolution& resolution) {
   CGDirectDisplayID display;
   if (!GetSoleDisplayId(&display)) {
     return;
@@ -90,12 +85,8 @@ void DesktopResizerMac::SetResolution(const ScreenResolution& resolution,
           static_cast<const CGDisplayMode*>(
               CFArrayGetValueAtIndex(modes, index)));
       int depth = 0;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-      // TODO(https://crbug.com/1394415): Find non-deprecated replacement.
       base::ScopedCFTypeRef<CFStringRef> encoding(
           CGDisplayModeCopyPixelEncoding(mode));
-#pragma clang diagnostic pop
       if (CFStringCompare(encoding, CFSTR(IO32BitDirectPixels),
                           kCFCompareCaseInsensitive) == kCFCompareEqualTo) {
         depth = 32;
@@ -124,13 +115,8 @@ void DesktopResizerMac::SetResolution(const ScreenResolution& resolution,
   }
 }
 
-void DesktopResizerMac::RestoreResolution(const ScreenResolution& original,
-                                          webrtc::ScreenId screen_id) {
-  SetResolution(original, screen_id);
-}
-
-void DesktopResizerMac::SetVideoLayout(const protocol::VideoLayout& layout) {
-  NOTIMPLEMENTED();
+void DesktopResizerMac::RestoreResolution(const ScreenResolution& original) {
+  SetResolution(original);
 }
 
 void DesktopResizerMac::GetSupportedModesAndResolutions(
@@ -174,7 +160,7 @@ bool DesktopResizerMac::GetSoleDisplayId(CGDirectDisplayID* display) {
   CGDirectDisplayID displays[2];
   uint32_t num_displays;
   CGError err =
-      CGGetActiveDisplayList(std::size(displays), displays, &num_displays);
+      CGGetActiveDisplayList(base::size(displays), displays, &num_displays);
   if (err != kCGErrorSuccess || num_displays != 1) {
     return false;
   }

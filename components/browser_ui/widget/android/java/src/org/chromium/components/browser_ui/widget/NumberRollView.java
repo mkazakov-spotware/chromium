@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@ package org.chromium.components.browser_ui.widget;
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.util.AttributeSet;
-import android.util.FloatProperty;
+import android.util.Property;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
@@ -36,10 +35,10 @@ public class NumberRollView extends FrameLayout {
      * {@link NumberRollView#setNumberRoll(float)} and {@link NumberRollView#getNumberRoll()}
      * methods.
      */
-    public static final FloatProperty<NumberRollView> NUMBER_PROPERTY =
-            new FloatProperty<NumberRollView>("") {
+    public static final Property<NumberRollView, Float> NUMBER_PROPERTY =
+            new Property<NumberRollView, Float>(Float.class, "") {
                 @Override
-                public void setValue(NumberRollView view, float value) {
+                public void set(NumberRollView view, Float value) {
                     view.setNumberRoll(value);
                 }
 
@@ -156,11 +155,11 @@ public class NumberRollView extends FrameLayout {
     }
 
     /**
-     * Update the text color with {@link ColorStateList} for both {@link TextView}.
-     * @param resId The new text {@link ColorStateList} to use.
+     * Update the text appearance for both {@link TextView}.
+     * @param resId The new text appearance to use.
      */
-    public void setTextColorStateList(ColorStateList colorStateList) {
-        mUpNumber.setTextColor(colorStateList);
-        mDownNumber.setTextColor(colorStateList);
+    public void setTextAppearance(int resId) {
+        mUpNumber.setTextAppearance(mUpNumber.getContext(), resId);
+        mDownNumber.setTextAppearance(mDownNumber.getContext(), resId);
     }
 }

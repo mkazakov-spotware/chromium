@@ -28,7 +28,7 @@ var TestUtils = (function() {
   TestUtils.STORAGE = [
     {
       "name": "local storage",
-      "supported": function() { return !!window.localStorage; },
+      "supported": function() { !!window.localStorage; },
       "add": function() {
         return new Promise(function(resolve, reject) {
           localStorage.setItem(randomString(), randomString());

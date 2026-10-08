@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "ui/aura/window_targeter.h"
 
 namespace keyboard {
@@ -17,10 +18,6 @@ namespace keyboard {
 class ShapedWindowTargeter : public aura::WindowTargeter {
  public:
   explicit ShapedWindowTargeter(std::vector<gfx::Rect> hit_test_rects);
-
-  ShapedWindowTargeter(const ShapedWindowTargeter&) = delete;
-  ShapedWindowTargeter& operator=(const ShapedWindowTargeter&) = delete;
-
   ~ShapedWindowTargeter() override;
 
  private:
@@ -29,6 +26,8 @@ class ShapedWindowTargeter : public aura::WindowTargeter {
       aura::Window* target) const override;
 
   std::vector<gfx::Rect> hit_test_rects_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShapedWindowTargeter);
 };
 
 }  // namespace keyboard

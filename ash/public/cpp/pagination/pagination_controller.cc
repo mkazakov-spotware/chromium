@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/public/cpp/pagination/pagination_controller.h"
 
 #include "ash/public/cpp/pagination/pagination_model.h"
-#include "base/check.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/vector2d.h"
 
@@ -14,7 +13,7 @@ namespace ash {
 namespace {
 
 // Constants for dealing with scroll events.
-const int kMinScrollToSwitchPage = 10;
+const int kMinScrollToSwitchPage = 20;
 const int kMinHorizVelocityToSwitchPage = 800;
 
 const double kFinishTransitionThreshold = 0.33;
@@ -23,11 +22,12 @@ const double kFinishTransitionThreshold = 0.33;
 
 PaginationController::PaginationController(PaginationModel* model,
                                            ScrollAxis scroll_axis,
-                                           const RecordMetrics& record_metrics)
+                                           const RecordMetrics& record_metrics,
+                                           bool is_tablet_mode)
     : pagination_model_(model),
       scroll_axis_(scroll_axis),
-      record_metrics_(record_metrics) {
-  DCHECK(pagination_model_);
+      record_metrics_(record_metrics),
+      is_tablet_mode_(is_tablet_mode) {
   DCHECK(record_metrics_);
 }
 
@@ -82,18 +82,11 @@ bool PaginationController::OnGestureEvent(const ui::GestureEvent& event,
       float velocity = scroll_axis_ == SCROLL_AXIS_HORIZONTAL
                            ? details.velocity_x()
                            : details.velocity_y();
+      pagination_model_->EndScroll(true);
 
       if (fabs(velocity) > kMinHorizVelocityToSwitchPage) {
-        pagination_model_->EndScroll(true);
-
         const int delta = velocity < 0 ? 1 : -1;
         SelectPageAndRecordMetric(delta, event.type());
-      } else {
-        // If the gesture ends in a fling below page switch velocity threshold,
-        // decide whether to switch page depending on the scroll progress (if
-        // gesture ends with a slow fling after the user has dragged the page
-        // beyond page switch drag threshold, switch the page).
-        EndDrag(event);
       }
       return true;
     }
@@ -147,7 +140,7 @@ bool PaginationController::EndDrag(const ui::LocatedEvent& event) {
   pagination_model_->EndScroll(cancel_transition);
 
   if (!cancel_transition)
-    record_metrics_.Run(event.type());
+    record_metrics_.Run(event.type(), is_tablet_mode_);
 
   return true;
 }
@@ -155,7 +148,7 @@ bool PaginationController::EndDrag(const ui::LocatedEvent& event) {
 void PaginationController::SelectPageAndRecordMetric(int delta,
                                                      ui::EventType type) {
   if (pagination_model_->IsValidPageRelative(delta)) {
-    record_metrics_.Run(type);
+    record_metrics_.Run(type, is_tablet_mode_);
   }
   pagination_model_->SelectPageRelative(delta, true);
 }

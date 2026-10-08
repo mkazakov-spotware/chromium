@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,15 @@
 #define CONTENT_SHELL_BROWSER_SHELL_PLATFORM_DELEGATE_H_
 
 #include <memory>
-#include <string>
 
 #include "base/containers/flat_map.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_widget_types.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "content/public/browser/native_web_keyboard_event.h"
-#include "ui/display/screen.h"
 #endif
 
 class GURL;
@@ -49,10 +48,6 @@ class ShellPlatformDelegate {
   // cleanup.
   virtual void CleanUp(Shell* shell);
 
-  // Called from the Shell destructor after destroying the last one. This is
-  // usually a good time to call Shell::Shutdown().
-  virtual void DidCloseLastWindow();
-
   // Links the WebContents into the newly created window.
   virtual void SetContents(Shell* shell);
 
@@ -71,12 +66,11 @@ class ShellPlatformDelegate {
   virtual void SetIsLoading(Shell* shell, bool loading);
 
   // Set the title of shell window
-  virtual void SetTitle(Shell* shell, const std::u16string& title);
+  virtual void SetTitle(Shell* shell, const base::string16& title);
 
-  // Called when the main frame is created in the renderer process; forwarded
-  // from WebContentsObserver. If navigation creates a new main frame, this may
-  // occur more than once.
-  virtual void MainFrameCreated(Shell* shell);
+  // Called when a RenderView is created for a renderer process; forwarded from
+  // WebContentsObserver.
+  virtual void RenderViewReady(Shell* shell);
 
   // Allows platforms to override the JavascriptDialogManager. By default
   // returns null, which signals that the Shell should use its own instance.
@@ -98,24 +92,24 @@ class ShellPlatformDelegate {
   // destruction. Returns false if the Shell should destroy itself.
   virtual bool DestroyShell(Shell* shell);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Returns the native window. Valid after calling CreatePlatformWindow().
   virtual gfx::NativeWindow GetNativeWindow(Shell* shell);
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Activate (make key) the native window, and focus the web contents.
   virtual void ActivateContents(Shell* shell, WebContents* contents);
 
-  virtual void DidNavigatePrimaryMainFramePostCommit(Shell* shell,
-                                                     WebContents* contents);
+  virtual void DidNavigateMainFramePostCommit(Shell* shell,
+                                              WebContents* contents);
 
   virtual bool HandleKeyboardEvent(Shell* shell,
                                    WebContents* source,
                                    const NativeWebKeyboardEvent& event);
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void ToggleFullscreenModeForTab(Shell* shell,
                                   WebContents* web_contents,
                                   bool enter_fullscreen);
@@ -131,7 +125,7 @@ class ShellPlatformDelegate {
 #endif
 
  protected:
-#if defined(USE_AURA) && !defined(SHELL_USE_TOOLKIT_VIEWS)
+#if defined(USE_AURA) && !defined(TOOLKIT_VIEWS)
   // Helper to avoid duplicating aura's ShellPlatformDelegate in web tests. If
   // this hack gets expanded to become more expansive then we should just
   // duplicate the aura ShellPlatformDelegate code to the web test code impl in
@@ -140,9 +134,6 @@ class ShellPlatformDelegate {
 #endif
 
  private:
-#if BUILDFLAG(IS_MAC)
-  std::unique_ptr<display::ScopedNativeScreen> screen_;
-#endif
   // Data held for each Shell instance, since there is one ShellPlatformDelegate
   // for the whole browser process (shared across Shells). This is defined for
   // each platform implementation.

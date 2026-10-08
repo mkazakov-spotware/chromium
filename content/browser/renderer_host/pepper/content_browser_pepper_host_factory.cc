@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@
 #include "ppapi/proxy/ppapi_messages.h"
 #include "ppapi/shared_impl/ppapi_permissions.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "content/browser/renderer_host/pepper/pepper_vpn_provider_message_filter_chromeos.h"
 #endif
 
@@ -63,7 +63,7 @@ ContentBrowserPepperHostFactory::CreateResourceHost(
 
   // Make sure the plugin is giving us a valid instance for this resource.
   if (!host_->IsValidInstance(instance))
-    return nullptr;
+    return std::unique_ptr<ppapi::host::ResourceHost>();
 
   // Public interfaces.
   switch (message.type()) {
@@ -76,7 +76,7 @@ ContentBrowserPepperHostFactory::CreateResourceHost(
       if (!ppapi::UnpackMessage<PpapiHostMsg_FileSystem_Create>(
               message, &file_system_type)) {
         NOTREACHED();
-        return nullptr;
+        return std::unique_ptr<ppapi::host::ResourceHost>();
       }
       return std::unique_ptr<ppapi::host::ResourceHost>(
           new PepperFileSystemBrowserHost(host_, instance, resource,
@@ -103,7 +103,7 @@ ContentBrowserPepperHostFactory::CreateResourceHost(
       if (!ppapi::UnpackMessage<PpapiHostMsg_FileRef_CreateForFileAPI>(
               message, &file_system, &internal_path)) {
         NOTREACHED();
-        return nullptr;
+        return std::unique_ptr<ppapi::host::ResourceHost>();
       }
       return std::unique_ptr<ppapi::host::ResourceHost>(new PepperFileRefHost(
           host_, instance, resource, file_system, internal_path));
@@ -173,7 +173,7 @@ ContentBrowserPepperHostFactory::CreateResourceHost(
             new PepperPrintingHost(host_->GetPpapiHost(), instance, resource,
                                    std::move(manager)));
       }
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
       case PpapiHostMsg_VpnProvider_Create::ID: {
         scoped_refptr<PepperVpnProviderMessageFilter> vpn_provider(
             new PepperVpnProviderMessageFilter(host_, instance));
@@ -211,7 +211,7 @@ ContentBrowserPepperHostFactory::CreateResourceHost(
         new PepperNetworkMonitorHost(host_, instance, resource));
   }
 
-  return nullptr;
+  return std::unique_ptr<ppapi::host::ResourceHost>();
 }
 
 std::unique_ptr<ppapi::host::ResourceHost>
@@ -224,7 +224,7 @@ ContentBrowserPepperHostFactory::CreateAcceptedTCPSocket(
     mojo::ScopedDataPipeConsumerHandle receive_stream,
     mojo::ScopedDataPipeProducerHandle send_stream) {
   if (!CanCreateSocket())
-    return nullptr;
+    return std::unique_ptr<ppapi::host::ResourceHost>();
   scoped_refptr<PepperTCPSocketMessageFilter> tcp_socket(
       base::MakeRefCounted<PepperTCPSocketMessageFilter>(
           nullptr /* factory */, host_, instance, version));
@@ -244,7 +244,7 @@ ContentBrowserPepperHostFactory::CreateNewTCPSocket(
   scoped_refptr<ppapi::host::ResourceMessageFilter> tcp_socket(
       new PepperTCPSocketMessageFilter(this, host_, instance, version));
   if (!tcp_socket.get())
-    return nullptr;
+    return std::unique_ptr<ppapi::host::ResourceHost>();
 
   return std::unique_ptr<ppapi::host::ResourceHost>(
       new ppapi::host::MessageFilterHost(host_->GetPpapiHost(), instance,

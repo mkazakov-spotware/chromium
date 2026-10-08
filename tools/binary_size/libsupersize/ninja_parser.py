@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Extract source file information from .ninja files."""
@@ -19,7 +19,7 @@ import sys
 _REGEX = re.compile(r'build ([^:]+): \w+ (.*?)(?: *\||\n|$)')
 
 
-class _SourceMapper:
+class _SourceMapper(object):
   def __init__(self, dep_map, parsed_file_count):
     self._dep_map = dep_map
     self.parsed_file_count = parsed_file_count
@@ -35,20 +35,11 @@ class _SourceMapper:
     obj_name = path[start_idx + 1:-1]
     by_basename = self._dep_map.get(lib_name)
     if not by_basename:
-      if lib_name.endswith('rlib') and 'std/' in lib_name:
-        # Currently we use binary prebuilt static libraries of the Rust
-        # stdlib so we can't get source paths. That may change in future.
-        return '(Rust stdlib)/%s' % lib_name
       return None
-    if lib_name.endswith('.rlib'):
-      # Rust doesn't really have the concept of an object file because
-      # the compilation unit is the whole 'crate'. Return whichever
-      # filename was the crate root.
-      return next(iter(by_basename.values()))
     obj_path = by_basename.get(obj_name)
     if not obj_path:
       # Found the library, but it doesn't list the .o file.
-      logging.warning('no obj basename for %s %s', path, obj_name)
+      logging.warning('no obj basename for %s', path)
       return None
     return self._dep_map.get(obj_path)
 
@@ -77,11 +68,6 @@ def _ParseNinjaPathList(path_list):
   return [s.replace('\b', ' ') for s in ret.split()]
 
 
-def _OutputsAreObject(outputs):
-  return (outputs.endswith('.a') or outputs.endswith('.o')
-          or outputs.endswith('.rlib'))
-
-
 def _ParseOneFile(lines, dep_map, elf_path):
   sub_ninjas = []
   elf_inputs = None
@@ -92,7 +78,7 @@ def _ParseOneFile(lines, dep_map, elf_path):
     m = _REGEX.match(line)
     if m:
       outputs, srcs = m.groups()
-      if _OutputsAreObject(outputs):
+      if len(outputs) > 2 and outputs[-2] == '.' and outputs[-1] in 'ao':
         output = outputs.replace('\\ ', ' ')
         assert output not in dep_map, 'Duplicate output: ' + output
         if output[-1] == 'o':

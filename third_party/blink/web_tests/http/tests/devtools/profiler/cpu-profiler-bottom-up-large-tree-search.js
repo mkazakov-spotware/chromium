@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that search works for large bottom-up view of CPU profile.\n`);
-  await TestRunner.loadLegacyModule('profiler'); await TestRunner.loadTestModule('cpu_profiler_test_runner');
+  await TestRunner.loadModule('cpu_profiler_test_runner');
 
-  var nodesCount = 200;
+  var nodesCount = 1000;
   function buildTree(startId, count) {
     // Build a call tree of a chain form: foo1 -> foo2 -> foo3 -> ...
     // This should give a O(n^2) nodes in bottom-up tree.
@@ -53,12 +53,12 @@
   };
   var view = new Profiler.CPUProfileView(profileAndExpectations);
   view.viewSelectComboBox.setSelectedIndex(1);
-  view.changeView();
+  view._changeView();
   var tree = view.profileDataGridTree;
   if (!tree)
     TestRunner.addResult('no tree');
   tree.performSearch(new UI.SearchableView.SearchConfig('foo12', true, false), false);
-  for (var item of tree.searchResults) {
+  for (var item of tree._searchResults) {
     var node = item.profileNode;
     TestRunner.addResult(`${node.callUID}: ${node.functionName} ${node.self} ${node.total}`);
   }

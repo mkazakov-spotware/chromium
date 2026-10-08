@@ -1,8 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 module ui.mojom;
+
+import "mojo/public/mojom/base/string16.mojom";
 
 enum TextInputMode {
   kDefault,
@@ -56,7 +58,6 @@ enum ImeTextSpanType {
   kSuggestion,
   kMisspellingSuggestion,
   kAutocorrect,
-  kGrammarSuggestion,
 };
 
 // This enum represents the thickness of an underline segment of text,

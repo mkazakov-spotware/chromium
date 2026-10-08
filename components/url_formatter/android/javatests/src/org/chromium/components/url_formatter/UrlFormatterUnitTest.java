@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.Function;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
 import org.chromium.url.GURL;
 import org.chromium.url.GURLJavaTestHelper;
-
-import java.util.function.Function;
 
 /**
  * Unit tests for {@link UrlFormatter}.
@@ -56,20 +55,6 @@ public class UrlFormatterUnitTest {
                         "http://user:pass@google.com"));
         assertEquals("http://google.com",
                 UrlFormatter.formatUrlForDisplayOmitUsernamePassword("http://user@google.com"));
-    }
-
-    @Test
-    @SmallTest
-    public void testFormatUrlForDisplayOmitSchemeOmitTrivialSubdomains() {
-        Function<String, String> f =
-                UrlFormatter::formatUrlForDisplayOmitSchemeOmitTrivialSubdomains;
-
-        assertEquals("google.com/path", f.apply("http://user:pass@google.com/path"));
-        assertEquals("chrome://version", f.apply("chrome://version"));
-        assertEquals("äää.de", f.apply("https://äää.de"));
-        assertEquals("xn--4caaa.com", f.apply("https://äää.com"));
-        assertEquals("مثال.إختبار", f.apply("https://xn--mgbh0fb.xn--kgbechtv/"));
-        assertEquals("example.com/ test", f.apply("http://user:password@example.com/%20test"));
     }
 
     @Test

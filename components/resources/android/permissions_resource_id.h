@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,27 +24,23 @@
 
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_ACCESSIBILITY_EVENTS,
                     R.drawable.infobar_accessibility_events)
-DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_CLIPBOARD,
-                    R.drawable.gm_filled_content_paste_24)
+DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_CLIPBOARD, R.drawable.infobar_clipboard)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_FOLDER, R.drawable.ic_folder_blue_24dp)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_GEOLOCATION,
-                    R.drawable.gm_filled_location_on_24)
+                    R.drawable.infobar_geolocation)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_MEDIA_STREAM_CAMERA,
-                    R.drawable.gm_filled_videocam_24)
+                    R.drawable.infobar_camera)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_MEDIA_STREAM_MIC,
-                    R.drawable.gm_filled_mic_24)
-DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_MIDI, R.drawable.gm_filled_piano_24)
-DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_MULTIPLE_DOWNLOADS,
-                    R.drawable.infobar_downloading)
-DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_NFC, R.drawable.gm_filled_nfc_24)
+                    R.drawable.infobar_microphone)
+DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_MIDI, R.drawable.infobar_midi)
+DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_NFC, R.drawable.infobar_nfc)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_NOTIFICATIONS,
-                    R.drawable.gm_filled_notifications_24)
+                    R.drawable.infobar_desktop_notifications)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_PROTECTED_MEDIA_IDENTIFIER,
                     R.drawable.infobar_protected_media_identifier)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_WARNING, R.drawable.infobar_warning)
-DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_VR_HEADSET,
-                    R.drawable.gm_filled_cardboard_24)
+DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_VR_HEADSET, R.drawable.vr_headset)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_PERMISSION_COOKIE,
                     R.drawable.permission_cookie)
 DECLARE_RESOURCE_ID(IDR_ANDROID_INFOBAR_IDLE_DETECTION,
-                    R.drawable.gm_filled_devices_24)
+                    R.drawable.permission_idle_detection)

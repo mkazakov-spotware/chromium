@@ -24,8 +24,9 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_PATH_CONSUMER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_PATH_CONSUMER_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -36,11 +37,12 @@ class CORE_EXPORT SVGPathConsumer {
 
  public:
   SVGPathConsumer() = default;
-  SVGPathConsumer(const SVGPathConsumer&) = delete;
-  SVGPathConsumer& operator=(const SVGPathConsumer&) = delete;
   virtual ~SVGPathConsumer() = default;
 
   virtual void EmitSegment(const PathSegmentData&) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SVGPathConsumer);
 };
 
 }  // namespace blink

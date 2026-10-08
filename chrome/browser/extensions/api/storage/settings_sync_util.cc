@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include "base/values.h"
 #include "chrome/browser/extensions/api/storage/sync_value_store_cache.h"
 #include "components/sync/protocol/app_setting_specifics.pb.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
 #include "components/sync/protocol/extension_setting_specifics.pb.h"
+#include "components/sync/protocol/sync.pb.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/storage/backend_task_runner.h"
 #include "extensions/browser/api/storage/storage_frontend.h"
@@ -108,12 +108,15 @@ syncer::SyncChange CreateUpdate(
       CreateData(extension_id, key, value, type));
 }
 
-syncer::SyncChange CreateDelete(const std::string& extension_id,
-                                const std::string& key,
-                                syncer::ModelType type) {
+syncer::SyncChange CreateDelete(
+    const std::string& extension_id,
+    const std::string& key,
+    syncer::ModelType type) {
+  base::DictionaryValue no_value;
   return syncer::SyncChange(
-      FROM_HERE, syncer::SyncChange::ACTION_DELETE,
-      CreateData(extension_id, key, base::Value(base::Value::Dict()), type));
+      FROM_HERE,
+      syncer::SyncChange::ACTION_DELETE,
+      CreateData(extension_id, key, no_value, type));
 }
 
 base::OnceCallback<base::WeakPtr<syncer::SyncableService>()>

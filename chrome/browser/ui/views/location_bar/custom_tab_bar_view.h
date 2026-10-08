@@ -1,17 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_LOCATION_BAR_CUSTOM_TAB_BAR_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_LOCATION_BAR_CUSTOM_TAB_BAR_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
-#include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_menu_button.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "chrome/browser/ui/views/web_apps/web_app_menu_button.h"
 #include "ui/base/models/simple_menu_model.h"
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/context_menu_controller.h"
@@ -42,11 +41,10 @@ class CustomTabBarView : public views::AccessiblePaneView,
                          public IconLabelBubbleView::Delegate,
                          public LocationIconView::Delegate {
  public:
-  METADATA_HEADER(CustomTabBarView);
+  static const char kViewClassName[];
+
   CustomTabBarView(BrowserView* browser_view,
                    LocationBarView::Delegate* delegate);
-  CustomTabBarView(const CustomTabBarView&) = delete;
-  CustomTabBarView& operator=(const CustomTabBarView&) = delete;
   ~CustomTabBarView() override;
 
   LocationIconView* location_icon_view() { return location_icon_view_; }
@@ -54,6 +52,7 @@ class CustomTabBarView : public views::AccessiblePaneView,
 
   // views::AccessiblePaneView:
   gfx::Rect GetAnchorBoundsInScreen() const override;
+  const char* GetClassName() const override;
   void SetVisible(bool visible) override;
   gfx::Size CalculatePreferredSize() const override;
   void OnPaintBackground(gfx::Canvas* canvas) override;
@@ -82,8 +81,8 @@ class CustomTabBarView : public views::AccessiblePaneView,
                                      on_icon_fetched) const override;
 
   // Methods for testing.
-  std::u16string title_for_testing() const { return last_title_; }
-  std::u16string location_for_testing() const { return last_location_; }
+  base::string16 title_for_testing() const { return last_title_; }
+  base::string16 location_for_testing() const { return last_location_; }
   views::ImageButton* close_button_for_testing() const { return close_button_; }
   ui::SimpleMenuModel* context_menu_for_testing() const {
     return context_menu_model_.get();
@@ -92,6 +91,11 @@ class CustomTabBarView : public views::AccessiblePaneView,
   bool IsShowingOriginForTesting() const;
 
  private:
+  // Calculate the view's background and frame color from the current theme
+  // provider.
+  SkColor GetBackgroundColor() const;
+  SkColor GetDefaultFrameColor() const;
+
   // Takes the web contents for the custom tab bar back to the app scope.
   void GoBackToApp();
 
@@ -113,32 +117,37 @@ class CustomTabBarView : public views::AccessiblePaneView,
     return browser_->app_controller();
   }
 
+  // Convenience method to return the theme color from |app_controller_|.
+  base::Optional<SkColor> GetThemeColor() const;
+
   // Populates child elements with page details from the current WebContents.
   void UpdateContents();
 
-  bool GetShowTitle() const;
+  bool ShouldShowTitle() const;
 
   SkColor title_bar_color_;
   SkColor background_color_;
 
-  std::u16string last_title_;
-  std::u16string last_location_;
+  base::string16 last_title_;
+  base::string16 last_location_;
 
-  raw_ptr<views::ImageButton> close_button_ = nullptr;
-  raw_ptr<LocationBarView::Delegate> delegate_ = nullptr;
-  raw_ptr<LocationIconView> location_icon_view_ = nullptr;
-  raw_ptr<CustomTabBarTitleOriginView> title_origin_view_ = nullptr;
+  views::ImageButton* close_button_ = nullptr;
+  LocationBarView::Delegate* delegate_ = nullptr;
+  LocationIconView* location_icon_view_ = nullptr;
+  CustomTabBarTitleOriginView* title_origin_view_ = nullptr;
   std::unique_ptr<ui::SimpleMenuModel> context_menu_model_;
   std::unique_ptr<views::MenuRunner> context_menu_runner_;
-  raw_ptr<Browser> browser_ = nullptr;
+  Browser* browser_ = nullptr;
 
   // This remains a nullptr for Desktop PWAs and is non-null for Android apps
   // on ChromeOS.
-  raw_ptr<WebAppMenuButton> web_app_menu_button_ = nullptr;
+  WebAppMenuButton* web_app_menu_button_ = nullptr;
 
-  raw_ptr<views::FlexLayout> layout_manager_;
+  views::FlexLayout* layout_manager_;
 
   base::WeakPtrFactory<CustomTabBarView> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CustomTabBarView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_LOCATION_BAR_CUSTOM_TAB_BAR_VIEW_H_

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/cxx17_backports.h"
+#include "base/macros.h"
 #include "base/metrics/field_trial_params.h"
 #include "cc/layers/layer.h"
 #include "chrome/android/chrome_jni_headers/TabContentManager_jni.h"
@@ -36,7 +36,6 @@
 #include "ui/gfx/android/java_bitmap.h"
 #include "ui/gfx/geometry/dip_util.h"
 #include "ui/gfx/geometry/rect.h"
-#include "url/android/gurl_android.h"
 #include "url/gurl.h"
 
 using base::android::JavaParamRef;
@@ -54,7 +53,6 @@ class TabContentManager::TabReadbackRequest {
  public:
   TabReadbackRequest(content::RenderWidgetHostView* rwhv,
                      float thumbnail_scale,
-                     double aspect_ratio,
                      bool crop_to_match_aspect_ratio,
                      TabReadbackCallback end_callback)
       : thumbnail_scale_(thumbnail_scale),
@@ -72,6 +70,10 @@ class TabContentManager::TabReadbackRequest {
       return;
     }
     if (crop_to_match_aspect_ratio) {
+      double aspect_ratio = base::GetFieldTrialParamByFeatureAsDouble(
+          chrome::android::kTabGridLayoutAndroid, "thumbnail_aspect_ratio",
+          1.0);
+      aspect_ratio = ThumbnailCache::clampAspectRatio(aspect_ratio, 0.5, 2.0);
       int height = std::min(view_size_in_pixels.height(),
                             (int)(view_size_in_pixels.width() / aspect_ratio));
       view_size_in_pixels.set_height(height);
@@ -82,9 +84,6 @@ class TabContentManager::TabReadbackRequest {
     rwhv->CopyFromSurface(source_rect, thumbnail_size,
                           std::move(result_callback));
   }
-
-  TabReadbackRequest(const TabReadbackRequest&) = delete;
-  TabReadbackRequest& operator=(const TabReadbackRequest&) = delete;
 
   virtual ~TabReadbackRequest() {}
 
@@ -107,6 +106,8 @@ class TabContentManager::TabReadbackRequest {
   bool drop_after_readback_;
 
   base::WeakPtrFactory<TabReadbackRequest> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TabReadbackRequest);
 };
 
 // static
@@ -126,9 +127,10 @@ TabContentManager::TabContentManager(JNIEnv* env,
                                      jint compression_queue_max_size,
                                      jint write_queue_max_size,
                                      jboolean use_approximation_thumbnail,
-                                     jboolean save_jpeg_thumbnails,
-                                     jdouble jpeg_aspect_ratio)
+                                     jboolean save_jpeg_thumbnails)
     : weak_java_tab_content_manager_(env, obj) {
+  double jpeg_aspect_ratio = base::GetFieldTrialParamByFeatureAsDouble(
+      chrome::android::kTabGridLayoutAndroid, "thumbnail_aspect_ratio", 1.0);
   thumbnail_cache_ = std::make_unique<ThumbnailCache>(
       static_cast<size_t>(default_cache_size),
       static_cast<size_t>(approximation_cache_size),
@@ -256,7 +258,6 @@ void TabContentManager::CaptureThumbnail(
     const JavaParamRef<jobject>& tab,
     jfloat thumbnail_scale,
     jboolean write_to_cache,
-    jdouble aspect_ratio,
     const base::android::JavaParamRef<jobject>& j_callback) {
   TabAndroid* tab_android = TabAndroid::GetNativeTab(env, tab);
   DCHECK(tab_android);
@@ -274,10 +275,9 @@ void TabContentManager::CaptureThumbnail(
   }
   TabReadbackCallback readback_done_callback = base::BindOnce(
       &TabContentManager::OnTabReadback, weak_factory_.GetWeakPtr(), tab_id,
-      base::android::ScopedJavaGlobalRef<jobject>(j_callback), write_to_cache,
-      aspect_ratio);
+      base::android::ScopedJavaGlobalRef<jobject>(j_callback), write_to_cache);
   pending_tab_readbacks_[tab_id] = std::make_unique<TabReadbackRequest>(
-      rwhv, thumbnail_scale, aspect_ratio, !write_to_cache,
+      rwhv, thumbnail_scale, !write_to_cache,
       std::move(readback_done_callback));
 }
 
@@ -285,8 +285,7 @@ void TabContentManager::CacheTabWithBitmap(JNIEnv* env,
                                            const JavaParamRef<jobject>& obj,
                                            const JavaParamRef<jobject>& tab,
                                            const JavaParamRef<jobject>& bitmap,
-                                           jfloat thumbnail_scale,
-                                           jdouble aspect_ratio) {
+                                           jfloat thumbnail_scale) {
   TabAndroid* tab_android = TabAndroid::GetNativeTab(env, tab);
   DCHECK(tab_android);
   int tab_id = tab_android->GetAndroidId();
@@ -297,16 +296,15 @@ void TabContentManager::CacheTabWithBitmap(JNIEnv* env,
   skbitmap.setImmutable();
 
   if (thumbnail_cache_->CheckAndUpdateThumbnailMetaData(tab_id, url))
-    OnTabReadback(tab_id, nullptr, true, aspect_ratio, thumbnail_scale,
-                  skbitmap);
+    OnTabReadback(tab_id, nullptr, true, thumbnail_scale, skbitmap);
 }
 
 void TabContentManager::InvalidateIfChanged(JNIEnv* env,
                                             const JavaParamRef<jobject>& obj,
                                             jint tab_id,
-                                            const JavaParamRef<jobject>& jurl) {
-  std::unique_ptr<GURL> url = url::GURLAndroid::ToNativeGURL(env, jurl);
-  thumbnail_cache_->InvalidateThumbnailIfChanged(tab_id, *url);
+                                            const JavaParamRef<jstring>& jurl) {
+  thumbnail_cache_->InvalidateThumbnailIfChanged(
+      tab_id, GURL(base::android::ConvertJavaStringToUTF8(env, jurl)));
 }
 
 void TabContentManager::UpdateVisibleIds(
@@ -342,14 +340,13 @@ void TabContentManager::GetEtc1TabThumbnail(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& obj,
     jint tab_id,
-    jdouble aspect_ratio,
     const base::android::JavaParamRef<jobject>& j_callback) {
   thumbnail_cache_->DecompressThumbnailFromFile(
-      tab_id, aspect_ratio,
-      base::BindOnce(&TabContentManager::SendThumbnailToJava,
-                     weak_factory_.GetWeakPtr(),
-                     base::android::ScopedJavaGlobalRef<jobject>(j_callback),
-                     /* need_downsampling */ true, aspect_ratio));
+      tab_id,
+      base::BindRepeating(
+          &TabContentManager::SendThumbnailToJava, weak_factory_.GetWeakPtr(),
+          base::android::ScopedJavaGlobalRef<jobject>(j_callback),
+          /* need_downsampling */ true));
 }
 
 void TabContentManager::OnUIResourcesWereEvicted() {
@@ -366,7 +363,6 @@ void TabContentManager::OnTabReadback(
     int tab_id,
     base::android::ScopedJavaGlobalRef<jobject> j_callback,
     bool write_to_cache,
-    double aspect_ratio,
     float thumbnail_scale,
     const SkBitmap& bitmap) {
   TabReadbackRequestMap::iterator readback_iter =
@@ -376,37 +372,34 @@ void TabContentManager::OnTabReadback(
     pending_tab_readbacks_.erase(tab_id);
 
   if (j_callback) {
-    SendThumbnailToJava(j_callback, write_to_cache, aspect_ratio, true, bitmap);
+    SendThumbnailToJava(j_callback, write_to_cache, true, bitmap);
   }
 
   if (write_to_cache && thumbnail_scale > 0 && !bitmap.empty())
-    thumbnail_cache_->Put(tab_id, bitmap, thumbnail_scale, aspect_ratio);
+    thumbnail_cache_->Put(tab_id, bitmap, thumbnail_scale);
 }
 
 void TabContentManager::SendThumbnailToJava(
     base::android::ScopedJavaGlobalRef<jobject> j_callback,
     bool need_downsampling,
-    double aspect_ratio,
     bool result,
     const SkBitmap& bitmap) {
   ScopedJavaLocalRef<jobject> j_bitmap;
   if (!bitmap.isNull() && result) {
-    // We want to show thumbnails in a specific aspect ratio. Therefore, the
-    // thumbnail saved needs to be cropped to the target aspect ratio, otherwise
-    // it would be vertically center-aligned and the top would be hidden in
-    // portrait mode, or it would be shown in the wrong aspect ratio in
-    // landscape mode.
+    // In portrait mode, we want to show thumbnails in squares.
+    // Therefore, the thumbnail saved in portrait mode needs to be cropped to
+    // a square, or it would be vertically center-aligned, and the top would
+    // be hidden.
+    // It's fine to horizontally center-align thumbnail saved in landscape
+    // mode.
     int scale = need_downsampling ? 2 : 1;
-
-    int width = std::min(bitmap.width() / scale,
-                         (int)(bitmap.height() * aspect_ratio / scale));
-    int height = std::min(bitmap.height() / scale,
-                          (int)(bitmap.width() / aspect_ratio / scale));
-    // When cropping the thumbnails, we want to keep the top center portion.
-    int begin_x = (bitmap.width() / scale - width) / 2;
-    int end_x = begin_x + width;
-    SkIRect dest_subset = {begin_x, 0, end_x, height};
-
+    double aspect_ratio = base::GetFieldTrialParamByFeatureAsDouble(
+        chrome::android::kTabGridLayoutAndroid, "thumbnail_aspect_ratio", 1.0);
+    aspect_ratio = ThumbnailCache::clampAspectRatio(aspect_ratio, 0.5, 2.0);
+    SkIRect dest_subset = {
+        0, 0, bitmap.width() / scale,
+        std::min(bitmap.height() / scale,
+                 (int)(bitmap.width() / aspect_ratio / scale))};
     j_bitmap = gfx::ConvertToJavaBitmap(skia::ImageOperations::Resize(
         bitmap, skia::ImageOperations::RESIZE_BETTER, bitmap.width() / scale,
         bitmap.height() / scale, dest_subset));
@@ -438,12 +431,11 @@ jlong JNI_TabContentManager_Init(JNIEnv* env,
                                  jint compression_queue_max_size,
                                  jint write_queue_max_size,
                                  jboolean use_approximation_thumbnail,
-                                 jboolean save_jpeg_thumbnails,
-                                 jdouble jpeg_aspect_ratio) {
+                                 jboolean save_jpeg_thumbnails) {
   TabContentManager* manager = new TabContentManager(
       env, obj, default_cache_size, approximation_cache_size,
       compression_queue_max_size, write_queue_max_size,
-      use_approximation_thumbnail, save_jpeg_thumbnails, jpeg_aspect_ratio);
+      use_approximation_thumbnail, save_jpeg_thumbnails);
   return reinterpret_cast<intptr_t>(manager);
 }
 

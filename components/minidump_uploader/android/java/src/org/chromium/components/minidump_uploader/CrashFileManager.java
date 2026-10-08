@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
-import org.chromium.components.crash.anr.AnrCollector;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -56,7 +55,6 @@ public class CrashFileManager {
     public static final String CRASH_DUMP_DIR = "Crash Reports";
 
     private static final String CRASHPAD_DIR = "Crashpad";
-    private static final String ANR_DIR = "ANRs";
 
     // This should mirror the C++ CrashUploadList::kReporterLogFilename variable.
     @VisibleForTesting
@@ -212,13 +210,6 @@ public class CrashFileManager {
     }
 
     /**
-     * @return True iff the provided File was ready be uploaded for the first time.
-     */
-    public static boolean isReadyUploadForFirstTime(File fileToUpload) {
-        return fileToUpload.getName().contains(READY_FOR_UPLOAD_SUFFIX);
-    }
-
-    /**
      * Attempts to rename the given file to mark it as a forced upload. This is useful for allowing
      * users to manually initiate previously skipped uploads.
      *
@@ -357,24 +348,6 @@ public class CrashFileManager {
      */
     public boolean crashDirectoryExists() {
         return getCrashDirectory().isDirectory();
-    }
-
-    /**
-     * Collects ANRs from Android, then writes them as MIME files in the appropriate directory for
-     * crash to automatically upload.
-     */
-    public void collectAndWriteAnrs() {
-        if (ensureCrashDirExists()) {
-            File anrDir = new File(getCrashDirectory(), ANR_DIR);
-            anrDir.mkdir();
-
-            List<String> anrs = AnrCollector.collectAndWriteAnrs(anrDir);
-            if (anrs.isEmpty()) {
-                return;
-            }
-            File crashDir = getCrashDirectory();
-            CrashReportMimeWriter.rewriteAnrsAsMIMEs(anrs, crashDir);
-        }
     }
 
     /**

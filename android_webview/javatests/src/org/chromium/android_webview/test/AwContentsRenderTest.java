@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -128,8 +128,7 @@ public class AwContentsRenderTest {
                 }
             });
         });
-        Assert.assertTrue(
-                latch.await(AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        Assert.assertTrue(latch.await(AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
 
         final int width =
                 TestThreadUtils.runOnUiThreadBlockingNoException(() -> mContainerView.getWidth());

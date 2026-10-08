@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ class OverscrollBehaviorTest : public SimTest {
  protected:
   void SetUp() override;
 
-  void SetInnerOverscrollBehavior(String, String);
+  void SetInnerOverscrollBehavior(EOverscrollBehavior, EOverscrollBehavior);
 
   void ScrollBegin(double hint_x, double hint_y);
   void ScrollUpdate(double x, double y);
@@ -29,22 +29,17 @@ class OverscrollBehaviorTest : public SimTest {
 
 void OverscrollBehaviorTest::SetUp() {
   SimTest::SetUp();
-  v8::HandleScope HandleScope(
-      WebView().GetPage()->GetAgentGroupScheduler().Isolate());
-  ResizeView(gfx::Size(400, 400));
+  v8::HandleScope HandleScope(v8::Isolate::GetCurrent());
+  WebView().MainFrameViewWidget()->Resize(gfx::Size(400, 400));
   SimRequest request("https://example.com/test.html", "text/html");
   LoadURL("https://example.com/test.html");
   request.Complete(R"HTML(
-    <style>
-      #outer { height: 300px; width: 300px; overflow: scroll; }
-      #inner { height: 500px; width: 500px; overflow: scroll; }
-    </style>
-    <div id='outer'>
-      <div id='inner'>
+    <div id='outer' style='height: 300px; width: 300px; overflow:
+    scroll;'>
+      <div id='inner' style='height: 500px; width: 500px; overflow:
+    scroll;'>
         <div id='content' style='height: 700px; width: 700px;'>
-        </div>
-      </div>
-    </div>
+    </div></div></div>
   )HTML");
 
   Compositor().BeginFrame();
@@ -64,12 +59,15 @@ void OverscrollBehaviorTest::SetUp() {
   ASSERT_EQ(inner->scrollTop(), 0);
 }
 
-void OverscrollBehaviorTest::SetInnerOverscrollBehavior(String x, String y) {
-  GetDocument().getElementById("inner")->setAttribute(
-      html_names::kStyleAttr,
-      AtomicString(
-          String::Format("overscroll-behavior-x: %s; overscroll-behavior-y: %s",
-                         x.Utf8().c_str(), y.Utf8().c_str())));
+void OverscrollBehaviorTest::SetInnerOverscrollBehavior(EOverscrollBehavior x,
+                                                        EOverscrollBehavior y) {
+  Element* inner = GetDocument().getElementById("inner");
+  scoped_refptr<ComputedStyle> modified_style =
+      ComputedStyle::Clone(*inner->GetComputedStyle());
+  modified_style->SetOverscrollBehaviorX(x);
+  modified_style->SetOverscrollBehaviorY(y);
+  inner->GetLayoutObject()->SetModifiedStyleOutsideStyleRecalc(
+      std::move(modified_style), LayoutObject::ApplyStyleChanges::kNo);
 }
 
 void OverscrollBehaviorTest::ScrollBegin(double hint_x, double hint_y) {
@@ -82,7 +80,7 @@ void OverscrollBehaviorTest::ScrollBegin(double hint_x, double hint_y) {
   event.data.scroll_begin.delta_y_hint = -hint_y;
   event.data.scroll_begin.pointer_count = 1;
   event.SetFrameScale(1);
-  GetWebFrameWidget().DispatchThroughCcInputHandler(event);
+  GetDocument().GetFrame()->GetEventHandler().HandleGestureScrollEvent(event);
 }
 
 void OverscrollBehaviorTest::ScrollUpdate(double delta_x, double delta_y) {
@@ -94,7 +92,7 @@ void OverscrollBehaviorTest::ScrollUpdate(double delta_x, double delta_y) {
   event.data.scroll_update.delta_x = -delta_x;
   event.data.scroll_update.delta_y = -delta_y;
   event.SetFrameScale(1);
-  GetWebFrameWidget().DispatchThroughCcInputHandler(event);
+  GetDocument().GetFrame()->GetEventHandler().HandleGestureScrollEvent(event);
 }
 
 void OverscrollBehaviorTest::ScrollEnd() {
@@ -103,23 +101,18 @@ void OverscrollBehaviorTest::ScrollEnd() {
                         WebGestureDevice::kTouchscreen);
   event.SetPositionInWidget(gfx::PointF(20, 20));
   event.SetPositionInScreen(gfx::PointF(20, 20));
-  GetWebFrameWidget().DispatchThroughCcInputHandler(event);
+  GetDocument().GetFrame()->GetEventHandler().HandleGestureScrollEvent(event);
 }
 
 void OverscrollBehaviorTest::Scroll(double x, double y) {
-  // Commits property tree state, so cc sees updated overscroll-behavior.
-  Compositor().BeginFrame();
-
   ScrollBegin(x, y);
   ScrollUpdate(x, y);
   ScrollEnd();
-
-  // Applies viewport deltas, so main sees the new scroll offset.
-  Compositor().BeginFrame();
 }
 
 TEST_F(OverscrollBehaviorTest, AutoAllowsPropagation) {
-  SetInnerOverscrollBehavior("auto", "auto");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kAuto,
+                             EOverscrollBehavior::kAuto);
   Scroll(-100.0, -100.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 100);
@@ -127,7 +120,8 @@ TEST_F(OverscrollBehaviorTest, AutoAllowsPropagation) {
 }
 
 TEST_F(OverscrollBehaviorTest, ContainOnXPreventsPropagationsOnX) {
-  SetInnerOverscrollBehavior("contain", "auto");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kContain,
+                             EOverscrollBehavior::kAuto);
   Scroll(-100, 0.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 200);
@@ -135,7 +129,8 @@ TEST_F(OverscrollBehaviorTest, ContainOnXPreventsPropagationsOnX) {
 }
 
 TEST_F(OverscrollBehaviorTest, ContainOnXAllowsPropagationsOnY) {
-  SetInnerOverscrollBehavior("contain", "auto");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kContain,
+                             EOverscrollBehavior::kAuto);
   Scroll(0.0, -100.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 200);
@@ -143,7 +138,8 @@ TEST_F(OverscrollBehaviorTest, ContainOnXAllowsPropagationsOnY) {
 }
 
 TEST_F(OverscrollBehaviorTest, ContainOnXPreventsDiagonalPropagations) {
-  SetInnerOverscrollBehavior("contain", "auto");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kContain,
+                             EOverscrollBehavior::kAuto);
   Scroll(-100.0, -100.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 200);
@@ -151,7 +147,8 @@ TEST_F(OverscrollBehaviorTest, ContainOnXPreventsDiagonalPropagations) {
 }
 
 TEST_F(OverscrollBehaviorTest, ContainOnYPreventsPropagationsOnY) {
-  SetInnerOverscrollBehavior("auto", "contain");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kAuto,
+                             EOverscrollBehavior::kContain);
   Scroll(0.0, -100.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 200);
@@ -159,7 +156,8 @@ TEST_F(OverscrollBehaviorTest, ContainOnYPreventsPropagationsOnY) {
 }
 
 TEST_F(OverscrollBehaviorTest, ContainOnYAllowsPropagationsOnX) {
-  SetInnerOverscrollBehavior("auto", "contain");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kAuto,
+                             EOverscrollBehavior::kContain);
   Scroll(-100.0, 0.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 100);
@@ -167,7 +165,8 @@ TEST_F(OverscrollBehaviorTest, ContainOnYAllowsPropagationsOnX) {
 }
 
 TEST_F(OverscrollBehaviorTest, ContainOnYPreventsDiagonalPropagations) {
-  SetInnerOverscrollBehavior("auto", "contain");
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kAuto,
+                             EOverscrollBehavior::kContain);
   Scroll(-100.0, -100.0);
   Element* outer = GetDocument().getElementById("outer");
   ASSERT_EQ(outer->scrollLeft(), 200);
@@ -175,28 +174,14 @@ TEST_F(OverscrollBehaviorTest, ContainOnYPreventsDiagonalPropagations) {
 }
 
 TEST_F(OverscrollBehaviorTest, LatchToTheElementPreventedByOverscrollBehavior) {
-  SetInnerOverscrollBehavior("none", "none");
-  Compositor().BeginFrame();
+  SetInnerOverscrollBehavior(EOverscrollBehavior::kNone,
+                             EOverscrollBehavior::kNone);
   ScrollBegin(-100, 0);
-
-  // Always call BeginFrame between updates to force the last update to be
-  // handled via InputHandlerProxy::DeliverInputForBeginFrame.  This avoids
-  // interference from event coalescing in CompositorThreadEventQueue::Queue.
-  //
-  // Note: this test also requires ScrollPredictor to be disabled; that happens
-  // via TestWebFrameWidget::AllowsScrollResampling.
-  //
   ScrollUpdate(-100, 0);
-  Compositor().BeginFrame();
   ScrollUpdate(100, 0);
-  Compositor().BeginFrame();
   ScrollUpdate(0, -100);
-  Compositor().BeginFrame();
   ScrollUpdate(0, 100);
-  Compositor().BeginFrame();
-
   ScrollEnd();
-  Compositor().BeginFrame();
 
   Element* inner = GetDocument().getElementById("inner");
   ASSERT_EQ(inner->scrollLeft(), 100);

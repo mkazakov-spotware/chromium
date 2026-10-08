@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "gpu/command_buffer/client/cmd_buffer_helper.h"
@@ -85,12 +84,14 @@ class BaseRingBufferTest : public testing::Test {
   bool delay_set_token_;
 
   std::unique_ptr<int8_t[]> buffer_;
-  raw_ptr<int8_t> buffer_start_;
+  int8_t* buffer_start_;
   base::test::SingleThreadTaskEnvironment task_environment_;
 };
 
+#ifndef _MSC_VER
 const unsigned int BaseRingBufferTest::kBaseOffset;
 const unsigned int BaseRingBufferTest::kBufferSize;
+#endif
 
 // Test fixture for RingBuffer test - Creates a RingBuffer, using a
 // CommandBufferHelper with a mock AsyncAPIInterface for its interface (calling

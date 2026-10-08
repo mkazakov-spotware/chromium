@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_EVENTS_TEST_EVENTS_TEST_UTILS_H_
 #define UI_EVENTS_TEST_EVENTS_TEST_UTILS_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/events/event.h"
 #include "ui/events/event_dispatcher.h"
 #include "ui/events/event_target.h"
@@ -18,10 +18,6 @@ class EventSource;
 class EventTestApi {
  public:
   explicit EventTestApi(Event* event);
-
-  EventTestApi(const EventTestApi&) = delete;
-  EventTestApi& operator=(const EventTestApi&) = delete;
-
   virtual ~EventTestApi();
 
   void set_time_stamp(base::TimeTicks time_stamp) {
@@ -35,16 +31,14 @@ class EventTestApi {
  private:
   EventTestApi();
 
-  raw_ptr<Event> event_;
+  Event* event_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventTestApi);
 };
 
 class LocatedEventTestApi : public EventTestApi {
  public:
   explicit LocatedEventTestApi(LocatedEvent* located_event);
-
-  LocatedEventTestApi(const LocatedEventTestApi&) = delete;
-  LocatedEventTestApi& operator=(const LocatedEventTestApi&) = delete;
-
   ~LocatedEventTestApi() override;
 
   void set_location(const gfx::Point& location) {
@@ -57,16 +51,14 @@ class LocatedEventTestApi : public EventTestApi {
  private:
   LocatedEventTestApi();
 
-  raw_ptr<LocatedEvent> located_event_;
+  LocatedEvent* located_event_;
+
+  DISALLOW_COPY_AND_ASSIGN(LocatedEventTestApi);
 };
 
 class KeyEventTestApi : public EventTestApi {
  public:
   explicit KeyEventTestApi(KeyEvent* key_event);
-
-  KeyEventTestApi(const KeyEventTestApi&) = delete;
-  KeyEventTestApi& operator=(const KeyEventTestApi&) = delete;
-
   ~KeyEventTestApi() override;
 
   void set_is_char(bool is_char) {
@@ -78,15 +70,14 @@ class KeyEventTestApi : public EventTestApi {
  private:
   KeyEventTestApi();
 
-  raw_ptr<KeyEvent> key_event_;
+  KeyEvent* key_event_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyEventTestApi);
 };
 
 class EventTargetTestApi {
  public:
   explicit EventTargetTestApi(EventTarget* target);
-
-  EventTargetTestApi(const EventTargetTestApi&) = delete;
-  EventTargetTestApi& operator=(const EventTargetTestApi&) = delete;
 
   ui::EventHandlerList GetPreTargetHandlers() {
     ui::EventHandlerList list;
@@ -97,22 +88,23 @@ class EventTargetTestApi {
  private:
   EventTargetTestApi();
 
-  raw_ptr<EventTarget> target_;
+  EventTarget* target_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventTargetTestApi);
 };
 
 class EventSourceTestApi {
  public:
   explicit EventSourceTestApi(EventSource* event_source);
 
-  EventSourceTestApi(const EventSourceTestApi&) = delete;
-  EventSourceTestApi& operator=(const EventSourceTestApi&) = delete;
-
-  [[nodiscard]] EventDispatchDetails SendEventToSink(Event* event);
+  EventDispatchDetails SendEventToSink(Event* event) WARN_UNUSED_RESULT;
 
  private:
   EventSourceTestApi();
 
-  raw_ptr<EventSource> event_source_;
+  EventSource* event_source_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventSourceTestApi);
 };
 
 }  // namespace ui

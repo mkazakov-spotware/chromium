@@ -81,12 +81,7 @@ quad_list: [
                       height: 300
                     }
                     solid_color_quad: {
-                      color: {
-                        r: 0
-                        g: 0.439
-                        b: 1
-                        a: 1
-                      }
+                      color: 0xFF0070FF
                       force_anti_aliasing_off: false
                     }
                   }
@@ -143,12 +138,7 @@ quad_list: [
                       height: 300
                     }
                     solid_color_quad: {
-                      color: {
-                        r: 0.6
-                        g: 0.439
-                        b: 1
-                        a: 1
-                      }
+                      color: 0xFF9970FF
                       force_anti_aliasing_off: false
                     }
                   }
@@ -170,12 +160,7 @@ quad_list: [
               height: 300
             }
             solid_color_quad: {
-              color: {
-                r: 1
-                g: 0
-                b: 0.439
-                a: 1
-              }
+              color: 0xFFFF0070
               force_anti_aliasing_off: false
             }
           }

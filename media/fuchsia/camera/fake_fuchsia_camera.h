@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,14 @@
 #include <vector>
 
 #include "base/message_loop/message_pump_for_io.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace media {
 
-class FakeCameraStream final
-    : public fuchsia::camera3::testing::Stream_TestBase,
-      public base::MessagePumpForIO::ZxHandleWatcher {
+class FakeCameraStream : public fuchsia::camera3::testing::Stream_TestBase,
+                         public base::MessagePumpForIO::ZxHandleWatcher {
  public:
   static const gfx::Size kMaxFrameSize;
   static const gfx::Size kDefaultFrameSize;
@@ -48,7 +47,7 @@ class FakeCameraStream final
                                 uint8_t salt);
 
   FakeCameraStream();
-  ~FakeCameraStream() override;
+  ~FakeCameraStream() final;
 
   FakeCameraStream(const FakeCameraStream&) = delete;
   FakeCameraStream& operator=(const FakeCameraStream&) = delete;
@@ -76,22 +75,16 @@ class FakeCameraStream final
   struct Buffer;
 
   // fuchsia::camera3::Stream implementation.
-  void WatchResolution(WatchResolutionCallback callback) override;
-  void WatchOrientation(WatchOrientationCallback callback) override;
+  void WatchResolution(WatchResolutionCallback callback) final;
+  void WatchOrientation(WatchOrientationCallback callback) final;
   void SetBufferCollection(
       fidl::InterfaceHandle<fuchsia::sysmem::BufferCollectionToken>
-          token_handle) override;
-  void WatchBufferCollection(WatchBufferCollectionCallback callback) override;
-  void GetNextFrame(GetNextFrameCallback callback) override;
+          token_handle) final;
+  void WatchBufferCollection(WatchBufferCollectionCallback callback) final;
+  void GetNextFrame(GetNextFrameCallback callback) final;
 
   // fuchsia::camera3::testing::Stream_TestBase override.
   void NotImplemented_(const std::string& name) override;
-
-  void OnBufferCollectionSyncDone(
-      fidl::InterfaceHandle<fuchsia::sysmem::BufferCollectionToken>
-          token_for_client,
-      fidl::InterfaceHandle<fuchsia::sysmem::BufferCollectionToken>
-          failed_token);
 
   void OnBufferCollectionError(zx_status_t status);
 
@@ -117,7 +110,7 @@ class FakeCameraStream final
 
   // ZxHandleWatcher interface. Used to wait for frame release_fences to get
   // notified when the client releases a buffer.
-  void OnZxHandleSignalled(zx_handle_t handle, zx_signals_t signals) override;
+  void OnZxHandleSignalled(zx_handle_t handle, zx_signals_t signals) final;
 
   fidl::Binding<fuchsia::camera3::Stream> binding_;
 
@@ -125,28 +118,26 @@ class FakeCameraStream final
   fuchsia::camera3::Orientation orientation_ =
       fuchsia::camera3::Orientation::UP;
 
-  absl::optional<fuchsia::math::Size> resolution_update_ = fuchsia::math::Size{
+  base::Optional<fuchsia::math::Size> resolution_update_ = fuchsia::math::Size{
       kDefaultFrameSize.width(), kDefaultFrameSize.height()};
   WatchResolutionCallback watch_resolution_callback_;
 
-  absl::optional<fuchsia::camera3::Orientation> orientation_update_ =
+  base::Optional<fuchsia::camera3::Orientation> orientation_update_ =
       fuchsia::camera3::Orientation::UP;
   WatchOrientationCallback watch_orientation_callback_;
 
-  fuchsia::sysmem::BufferCollectionTokenPtr new_buffer_collection_token_;
-
-  absl::optional<fidl::InterfaceHandle<fuchsia::sysmem::BufferCollectionToken>>
-      new_buffer_collection_token_for_client_;
+  base::Optional<fidl::InterfaceHandle<fuchsia::sysmem::BufferCollectionToken>>
+      new_buffer_collection_token_;
   WatchBufferCollectionCallback watch_buffer_collection_callback_;
 
-  absl::optional<fuchsia::camera3::FrameInfo> next_frame_;
+  base::Optional<fuchsia::camera3::FrameInfo> next_frame_;
   GetNextFrameCallback get_next_frame_callback_;
 
   fuchsia::sysmem::AllocatorPtr sysmem_allocator_;
   fuchsia::sysmem::BufferCollectionPtr buffer_collection_;
 
-  absl::optional<base::RunLoop> wait_buffers_allocated_run_loop_;
-  absl::optional<base::RunLoop> wait_free_buffer_run_loop_;
+  base::Optional<base::RunLoop> wait_buffers_allocated_run_loop_;
+  base::Optional<base::RunLoop> wait_free_buffer_run_loop_;
 
   std::vector<std::unique_ptr<Buffer>> buffers_;
   size_t num_used_buffers_ = 0;
@@ -156,46 +147,33 @@ class FakeCameraStream final
   SysmemFailMode first_buffer_collection_fail_mode_ = SysmemFailMode::kNone;
 };
 
-class FakeCameraDevice final
-    : public fuchsia::camera3::testing::Device_TestBase {
+class FakeCameraDevice : public fuchsia::camera3::testing::Device_TestBase {
  public:
-  FakeCameraDevice();
-  ~FakeCameraDevice() override;
+  explicit FakeCameraDevice(FakeCameraStream* stream);
+  ~FakeCameraDevice() final;
 
   FakeCameraDevice(const FakeCameraDevice&) = delete;
   FakeCameraDevice& operator=(const FakeCameraDevice&) = delete;
 
   void Bind(fidl::InterfaceRequest<fuchsia::camera3::Device> request);
 
-  FakeCameraStream* stream() { return &stream_; }
-
-  // Sets a custom handler for GetIdentifier() messages.
-  void SetGetIdentifierHandler(
-      base::RepeatingCallback<void(GetIdentifierCallback)>
-          get_identifier_handler);
-
  private:
   // fuchsia::camera3::Device implementation.
-  void GetIdentifier(GetIdentifierCallback callback) override;
-  void GetConfigurations(GetConfigurationsCallback callback) override;
+  void GetIdentifier(GetIdentifierCallback callback) final;
+  void GetConfigurations(GetConfigurationsCallback callback) final;
   void ConnectToStream(
       uint32_t index,
-      fidl::InterfaceRequest<fuchsia::camera3::Stream> request) override;
+      fidl::InterfaceRequest<fuchsia::camera3::Stream> request) final;
 
   // fuchsia::camera3::testing::Device_TestBase override.
   void NotImplemented_(const std::string& name) override;
 
   fidl::BindingSet<fuchsia::camera3::Device> bindings_;
-
-  FakeCameraStream stream_;
-
-  base::RepeatingCallback<void(GetIdentifierCallback)> get_identifier_handler_;
+  FakeCameraStream* const stream_;
 };
 
 class FakeCameraDeviceWatcher {
  public:
-  using DevicesMap = std::map<uint64_t, std::unique_ptr<FakeCameraDevice>>;
-
   explicit FakeCameraDeviceWatcher(sys::OutgoingDirectory* outgoing_directory);
   ~FakeCameraDeviceWatcher();
 
@@ -204,49 +182,36 @@ class FakeCameraDeviceWatcher {
 
   void DisconnectClients();
 
-  const DevicesMap& devices() const { return devices_; }
-
-  // Removes camera device from the list and returns the corresponding
-  // FakeCameraStream and FakeCameraDevice. The caller may want to hold the
-  // returned object, e.g. to ensure that the corresponding FIDL connections
-  // are not dropped.
-  std::unique_ptr<FakeCameraDevice> RemoveDevice(uint64_t device_id);
+  FakeCameraStream* stream() { return &stream_; }
 
  private:
-  class Client final
-      : public fuchsia::camera3::testing::DeviceWatcher_TestBase {
+  class Client : public fuchsia::camera3::testing::DeviceWatcher_TestBase {
    public:
-    explicit Client(FakeCameraDeviceWatcher* device_watcher);
-    ~Client() override;
+    explicit Client(FakeCameraDevice* device);
+    ~Client() final;
 
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
 
-    void QueueEvent(fuchsia::camera3::WatchDevicesEvent event);
-
     // fuchsia::camera3::testing::DeviceWatcher_TestBase override.
-    void NotImplemented_(const std::string& name) override;
+    void NotImplemented_(const std::string& name) final;
 
     // fuchsia::camera3::DeviceWatcher implementation.
-    void WatchDevices(WatchDevicesCallback callback) override;
+    void WatchDevices(WatchDevicesCallback callback) final;
     void ConnectToDevice(
         uint64_t id,
-        fidl::InterfaceRequest<fuchsia::camera3::Device> request) override;
+        fidl::InterfaceRequest<fuchsia::camera3::Device> request) final;
 
    private:
-    bool initial_list_sent_ = false;
-    std::vector<fuchsia::camera3::WatchDevicesEvent> event_queue_;
-
-    WatchDevicesCallback watch_devices_callback_;
-    FakeCameraDeviceWatcher* const device_watcher_;
+    bool devices_sent_ = false;
+    FakeCameraDevice* const device_;
   };
 
   fidl::BindingSet<fuchsia::camera3::DeviceWatcher, std::unique_ptr<Client>>
       bindings_;
 
-  DevicesMap devices_;
-
-  uint64_t next_device_id_ = 1;
+  FakeCameraStream stream_;
+  FakeCameraDevice device_{&stream_};
 };
 
 }  // namespace media

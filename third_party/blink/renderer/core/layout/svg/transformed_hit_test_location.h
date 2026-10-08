@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_TRANSFORMED_HIT_TEST_LOCATION_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_TRANSFORMED_HIT_TEST_LOCATION_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/core/core_export.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/layout/hit_test_location.h"
 
 namespace blink {
@@ -18,7 +17,7 @@ class AffineTransform;
 //
 // Encapsulates logic to avoid creating/copying the HitTestLocation for example
 // if the AffineTransform is the identity.
-class CORE_EXPORT TransformedHitTestLocation {
+class TransformedHitTestLocation {
   DISALLOW_NEW();
 
  public:
@@ -40,7 +39,7 @@ class CORE_EXPORT TransformedHitTestLocation {
   explicit operator bool() const { return location_; }
 
  private:
-  absl::optional<HitTestLocation> storage_;
+  base::Optional<HitTestLocation> storage_;
   const HitTestLocation* location_;
 };
 

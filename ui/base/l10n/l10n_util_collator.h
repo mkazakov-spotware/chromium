@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 
 #include "base/component_export.h"
 #include "base/i18n/string_compare.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/icu/source/i18n/unicode/coll.h"
 
 namespace l10n_util {
@@ -38,7 +37,7 @@ class StringMethodComparatorWithCollator {
   }
 
  private:
-  raw_ptr<icu::Collator> collator_;
+  icu::Collator* collator_;
   Method method_;
 };
 
@@ -83,7 +82,7 @@ void SortStringsUsingMethod(const std::string& locale,
 // Compares two elements' string keys and returns true if the first element's
 // string key is less than the second element's string key. The Element must
 // have a method like the follow format to return the string key.
-// const std::u16string& GetStringKey() const;
+// const base::string16& GetStringKey() const;
 // This uses the locale specified in the constructor.
 template <class Element>
 class StringComparator {
@@ -93,23 +92,23 @@ class StringComparator {
 
   // Returns true if lhs precedes rhs.
   bool operator()(const Element& lhs, const Element& rhs) const {
-    const std::u16string& lhs_string_key = lhs.GetStringKey();
-    const std::u16string& rhs_string_key = rhs.GetStringKey();
+    const base::string16& lhs_string_key = lhs.GetStringKey();
+    const base::string16& rhs_string_key = rhs.GetStringKey();
 
-    return StringComparator<std::u16string>(collator_)(lhs_string_key,
+    return StringComparator<base::string16>(collator_)(lhs_string_key,
                                                        rhs_string_key);
   }
 
  private:
-  raw_ptr<icu::Collator> collator_;
+  icu::Collator* collator_;
 };
 
-// Specialization of operator() method for std::u16string version.
+// Specialization of operator() method for base::string16 version.
 template <>
 COMPONENT_EXPORT(UI_BASE)
-inline bool StringComparator<std::u16string>::operator()(
-    const std::u16string& lhs,
-    const std::u16string& rhs) const {
+inline bool StringComparator<base::string16>::operator()(
+    const base::string16& lhs,
+    const base::string16& rhs) const {
   // If we can not get collator instance for specified locale, just do simple
   // string compare.
   if (!collator_)
@@ -138,12 +137,12 @@ void SortVectorWithStringKey(const std::string& locale,
   if (U_FAILURE(error))
     collator.reset();
   StringComparator<Element> c(collator.get());
-  const auto begin = elements->begin() + static_cast<ptrdiff_t>(begin_index);
-  const auto end = elements->begin() + static_cast<ptrdiff_t>(end_index);
   if (needs_stable_sort) {
-    stable_sort(begin, end, c);
+    stable_sort(elements->begin() + begin_index,
+                elements->begin() + end_index,
+                c);
   } else {
-    sort(begin, end, c);
+    sort(elements->begin() + begin_index, elements->begin() + end_index, c);
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "gpu/gpu_export.h"
 
 namespace gpu {
@@ -42,14 +42,9 @@ class GPU_EXPORT FencedAllocator {
   // Status of a block of memory, for book-keeping.
   enum State { IN_USE, FREE, FREE_PENDING_TOKEN };
 
-  FencedAllocator() = delete;
-
   // Creates a FencedAllocator. Note that the size of the buffer is passed, but
   // not its base address: everything is handled as offsets into the buffer.
   FencedAllocator(uint32_t size, CommandBufferHelper* helper);
-
-  FencedAllocator(const FencedAllocator&) = delete;
-  FencedAllocator& operator=(const FencedAllocator&) = delete;
 
   ~FencedAllocator();
 
@@ -149,22 +144,19 @@ class GPU_EXPORT FencedAllocator {
   // the other functions that return a block index).
   Offset AllocInBlock(BlockIndex index, uint32_t size);
 
-  raw_ptr<CommandBufferHelper> helper_;
+  CommandBufferHelper *helper_;
   Container blocks_;
   uint32_t bytes_in_use_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(FencedAllocator);
 };
 
 // This class functions just like FencedAllocator, but its API uses pointers
 // instead of offsets.
 class FencedAllocatorWrapper {
  public:
-  FencedAllocatorWrapper() = delete;
-
   FencedAllocatorWrapper(uint32_t size, CommandBufferHelper* helper, void* base)
       : allocator_(size, helper), base_(base) {}
-
-  FencedAllocatorWrapper(const FencedAllocatorWrapper&) = delete;
-  FencedAllocatorWrapper& operator=(const FencedAllocatorWrapper&) = delete;
 
   // Allocates a block of memory. If the buffer is out of directly available
   // memory, this function may wait until memory that was freed "pending a
@@ -272,7 +264,8 @@ class FencedAllocatorWrapper {
 
  private:
   FencedAllocator allocator_;
-  raw_ptr<void> base_;
+  void* base_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(FencedAllocatorWrapper);
 };
 
 }  // namespace gpu

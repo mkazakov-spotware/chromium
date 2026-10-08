@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,10 +9,8 @@ import("//build/config/sysroot.gni")
 
 declare_args() {
   enable_linux_installer =
-      is_linux && !is_component_build && use_sysroot && !using_sanitizer &&
-      !is_chromeos_lacros && !is_chrome_for_testing_branded
-
-  enable_mac_installer = !is_chrome_for_testing_branded
+      is_linux && !is_chromeos && !is_component_build && use_sysroot &&
+      !using_sanitizer && !chromeos_is_browser_only
 }
 
 # Meta-target that forwards to the installer of the correct type (if any).
@@ -21,7 +19,7 @@ group("installer") {
     deps = [ "//chrome/installer/linux" ]
   }
 
-  if (enable_mac_installer && is_mac) {
+  if (is_mac) {
     deps = [ "//chrome/installer/mac" ]
   }
 }

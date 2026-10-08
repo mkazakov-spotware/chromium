@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 
 #include <stdint.h>
 
+#include <list>
 #include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/values.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
@@ -26,6 +25,7 @@ class Profile;
 
 namespace base {
 class FilePath;
+class ListValue;
 }
 
 namespace bookmarks {
@@ -65,8 +65,7 @@ class BookmarkEventRouter : public bookmarks::BookmarkModelObserver {
                          size_t new_index) override;
   void BookmarkNodeAdded(bookmarks::BookmarkModel* model,
                          const bookmarks::BookmarkNode* parent,
-                         size_t index,
-                         bool added_by_user) override;
+                         size_t index) override;
   void BookmarkNodeRemoved(bookmarks::BookmarkModel* model,
                            const bookmarks::BookmarkNode* parent,
                            size_t old_index,
@@ -89,11 +88,11 @@ class BookmarkEventRouter : public bookmarks::BookmarkModelObserver {
   // Helper to actually dispatch an event to extension listeners.
   void DispatchEvent(events::HistogramValue histogram_value,
                      const std::string& event_name,
-                     base::Value::List event_args);
+                     std::unique_ptr<base::ListValue> event_args);
 
-  raw_ptr<content::BrowserContext> browser_context_;
-  raw_ptr<bookmarks::BookmarkModel> model_;
-  raw_ptr<bookmarks::ManagedBookmarkService> managed_;
+  content::BrowserContext* browser_context_;
+  bookmarks::BookmarkModel* model_;
+  bookmarks::ManagedBookmarkService* managed_;
 };
 
 class BookmarksAPI : public BrowserContextKeyedAPI,
@@ -114,7 +113,7 @@ class BookmarksAPI : public BrowserContextKeyedAPI,
  private:
   friend class BrowserContextKeyedAPIFactory<BookmarksAPI>;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // BrowserContextKeyedAPI implementation.
   static const char* service_name() {
@@ -159,6 +158,7 @@ class BookmarksFunction : public ExtensionFunction,
   const bookmarks::BookmarkNode* CreateBookmarkNode(
       bookmarks::BookmarkModel* model,
       const api::bookmarks::CreateDetails& details,
+      const bookmarks::BookmarkNode::MetaInfoMap* meta_info,
       std::string* error);
 
   // Helper that checks if bookmark editing is enabled.

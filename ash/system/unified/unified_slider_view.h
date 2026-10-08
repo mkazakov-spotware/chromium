@@ -1,96 +1,91 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_UNIFIED_UNIFIED_SLIDER_VIEW_H_
 #define ASH_SYSTEM_UNIFIED_UNIFIED_SLIDER_VIEW_H_
 
-#include "ash/constants/quick_settings_catalogs.h"
-#include "ash/style/icon_button.h"
-#include "quick_settings_slider.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/views/controls/image_view.h"
-
-namespace gfx {
-struct VectorIcon;
-}  // namespace gfx
-
-namespace views {
-class Label;
-class Slider;
-class View;
-}  // namespace views
+#include "ash/system/unified/top_shortcut_button.h"
+#include "ui/gfx/vector_icon_types.h"
+#include "ui/views/controls/button/button.h"
+#include "ui/views/controls/slider.h"
+#include "ui/views/view.h"
 
 namespace ash {
 
 class UnifiedSliderListener : public views::SliderListener {
  public:
-  ~UnifiedSliderListener() override = default;
-
-  // Instantiates `UnifiedSliderView`. The view will be owned by views
-  // hierarchy. The view should be always deleted after the controller is
-  // destructed.
+  // Instantiates UnifiedSliderView. The view will be onwed by views hierarchy.
+  // The view should be always deleted after the controller is destructed.
   virtual views::View* CreateView() = 0;
 
-  // Returns the slider catalog name which is used for UMA tracking. Please
-  // remember to call the corresponding tracking method (`TrackToggleUMA` and
-  // `TrackValueChangeUMA`) in the `SliderButtonPressed` and
-  // `SliderValueChanged` implementation.
-  virtual QsSliderCatalogName GetCatalogName() = 0;
-
-  // Tracks the toggling behavior, usually happens in `SliderButtonPressed`.If
-  // the feature has no `target_toggle_state` state, pass `true` to this method.
-  void TrackToggleUMA(bool target_toggle_state);
-
-  // Tracks slider value change behavior, usually happens in
-  // `SliderValueChanged`.
-  void TrackValueChangeUMA(bool going_up);
+  ~UnifiedSliderListener() override = default;
 };
 
-// Base view class of a slider row in `UnifiedSystemTray`. It has a button on
-// the left side and a slider on the right side.
-// For QsRevamp: the slider has an `ImageView` icon on top of the slider.
+// A button used in a slider row of UnifiedSystemTray. The button is togglable.
+class UnifiedSliderButton : public views::ImageButton {
+ public:
+  UnifiedSliderButton(PressedCallback callback,
+                      const gfx::VectorIcon& icon,
+                      int accessible_name_id);
+  ~UnifiedSliderButton() override;
+
+  // Set the vector icon shown in a circle.
+  void SetVectorIcon(const gfx::VectorIcon& icon);
+
+  // Change the toggle state.
+  void SetToggled(bool toggled);
+
+  // views::ImageButton:
+  std::unique_ptr<views::InkDrop> CreateInkDrop() override;
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
+  std::unique_ptr<views::InkDropHighlight> CreateInkDropHighlight()
+      const override;
+  void PaintButtonContents(gfx::Canvas* canvas) override;
+  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
+  const char* GetClassName() const override;
+  gfx::Size CalculatePreferredSize() const override;
+  void OnThemeChanged() override;
+
+ private:
+  void UpdateVectorIcon();
+
+  // True if the button is currently toggled.
+  bool toggled_ = false;
+
+  const gfx::VectorIcon* icon_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedSliderButton);
+};
+
+// Base view class of a slider row in UnifiedSystemTray. It has a button on the
+// left side and a slider on the right side.
 class UnifiedSliderView : public views::View {
  public:
-  METADATA_HEADER(UnifiedSliderView);
-
-  // If `read_only` is set, the slider will not accept any user events.
-  // `slider_style` is `kDefaultSliderStyle` by default. `kRadioSliderStyle`
-  // should be set explicitly.
+  // If |readonly| is set, the slider will not accept any user events.
   UnifiedSliderView(views::Button::PressedCallback callback,
                     UnifiedSliderListener* listener,
                     const gfx::VectorIcon& icon,
                     int accessible_name_id,
-                    bool read_only = false,
-                    QuickSettingsSlider::Style slider_style =
-                        QuickSettingsSlider::Style::kDefault);
-
-  UnifiedSliderView(const UnifiedSliderView&) = delete;
-  UnifiedSliderView& operator=(const UnifiedSliderView&) = delete;
-
+                    bool readonly = false);
   ~UnifiedSliderView() override;
 
-  IconButton* button() { return button_; }
+  UnifiedSliderButton* button() { return button_; }
   views::Slider* slider() { return slider_; }
-  views::Label* toast_label() { return toast_label_; }
-  views::ImageView* slider_icon() { return slider_icon_; }
 
-  // Sets a slider value. If `by_user` is false, accessibility events will not
+  // Sets a slider value. If |by_user| is false, accessibility events will not
   // be triggered.
   void SetSliderValue(float value, bool by_user);
 
   // views::View:
-  void OnThemeChanged() override;
-
- protected:
-  void CreateToastLabel();
+  const char* GetClassName() const override;
 
  private:
   // Unowned. Owned by views hierarchy.
-  IconButton* button_ = nullptr;
-  views::Slider* slider_ = nullptr;
-  views::Label* toast_label_ = nullptr;
-  views::ImageView* slider_icon_ = nullptr;
+  UnifiedSliderButton* const button_;
+  views::Slider* const slider_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedSliderView);
 };
 
 }  // namespace ash

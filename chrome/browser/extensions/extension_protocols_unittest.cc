@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,10 @@
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-#include "base/test/power_monitor_test.h"
+#include "base/test/power_monitor_test_base.h"
 #include "base/test/test_file_util.h"
 #include "base/test/values_test_util.h"
 #include "base/values.h"
@@ -37,7 +38,9 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/info_map.h"
+#include "extensions/browser/media_router_extension_access_logger.h"
 #include "extensions/browser/unloaded_extension_reason.h"
+#include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_paths.h"
@@ -48,16 +51,17 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
-#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "services/network/test/test_url_loader_client.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_metrics.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
 #include "third_party/blink/public/common/privacy_budget/scoped_identifiability_test_sample_collector.h"
+#include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 
+using blink::mojom::ResourceType;
 using extensions::ExtensionRegistry;
 using network::mojom::URLLoader;
 using testing::_;
@@ -86,18 +90,17 @@ scoped_refptr<Extension> CreateTestExtension(const std::string& name,
                                              bool incognito_split_mode,
                                              const ExtensionId& extension_id) {
   base::DictionaryValue manifest;
-  manifest.SetStringKey("name", name);
-  manifest.SetStringKey("version", "1");
-  manifest.SetIntKey("manifest_version", 2);
-  manifest.SetStringKey("incognito",
-                        incognito_split_mode ? "split" : "spanning");
+  manifest.SetString("name", name);
+  manifest.SetString("version", "1");
+  manifest.SetInteger("manifest_version", 2);
+  manifest.SetString("incognito", incognito_split_mode ? "split" : "spanning");
 
   base::FilePath path = GetTestPath("response_headers");
 
   std::string error;
   scoped_refptr<Extension> extension(
-      Extension::Create(path, mojom::ManifestLocation::kInternal, manifest,
-                        Extension::NO_FLAGS, extension_id, &error));
+      Extension::Create(path, Manifest::INTERNAL, manifest, Extension::NO_FLAGS,
+                        extension_id, &error));
   EXPECT_TRUE(extension.get()) << error;
   return extension;
 }
@@ -124,9 +127,8 @@ scoped_refptr<Extension> CreateWebStoreExtension() {
   path = path.AppendASCII("web_store");
 
   std::string error;
-  scoped_refptr<Extension> extension(
-      Extension::Create(path, mojom::ManifestLocation::kComponent, *manifest,
-                        Extension::NO_FLAGS, &error));
+  scoped_refptr<Extension> extension(Extension::Create(
+      path, Manifest::COMPONENT, *manifest, Extension::NO_FLAGS, &error));
   EXPECT_TRUE(extension.get()) << error;
   return extension;
 }
@@ -140,10 +142,9 @@ scoped_refptr<const Extension> CreateTestResponseHeaderExtension() {
 }
 
 // Helper function to create a |ResourceRequest| for testing purposes.
-network::ResourceRequest CreateResourceRequest(
-    const std::string& method,
-    network::mojom::RequestDestination destination,
-    const GURL& url) {
+network::ResourceRequest CreateResourceRequest(const std::string& method,
+                                               ResourceType resource_type,
+                                               const GURL& url) {
   network::ResourceRequest request;
   request.method = method;
   request.url = url;
@@ -152,11 +153,19 @@ network::ResourceRequest CreateResourceRequest(
   request.request_initiator =
       url::Origin::Create(url);  // ensure initiator set.
   request.referrer_policy = blink::ReferrerUtils::GetDefaultNetReferrerPolicy();
-  request.destination = destination;
-  request.is_outermost_main_frame =
-      destination == network::mojom::RequestDestination::kDocument;
+  request.resource_type = static_cast<int>(resource_type);
+  request.is_main_frame =
+      resource_type == blink::mojom::ResourceType::kMainFrame;
   return request;
 }
+
+class MockMediaRouterExtensionAccessLogger
+    : public MediaRouterExtensionAccessLogger {
+ public:
+  ~MockMediaRouterExtensionAccessLogger() override = default;
+  MOCK_CONST_METHOD2(LogMediaRouterComponentExtensionUse,
+                     void(const url::Origin&, content::BrowserContext*));
+};
 
 // The result of either a URLRequest of a URLLoader response (but not both)
 // depending on the on test type.
@@ -165,10 +174,6 @@ class GetResult {
   GetResult(network::mojom::URLResponseHeadPtr response, int result)
       : response_(std::move(response)), result_(result) {}
   GetResult(GetResult&& other) : result_(other.result_) {}
-
-  GetResult(const GetResult&) = delete;
-  GetResult& operator=(const GetResult&) = delete;
-
   ~GetResult() = default;
 
   std::string GetResponseHeaderByName(const std::string& name) const {
@@ -183,6 +188,8 @@ class GetResult {
  private:
   network::mojom::URLResponseHeadPtr response_;
   int result_;
+
+  DISALLOW_COPY_AND_ASSIGN(GetResult);
 };
 
 }  // namespace
@@ -212,6 +219,10 @@ class ExtensionProtocolsTestBase : public testing::Test {
         browser_context(),
         std::make_unique<ChromeContentVerifierDelegate>(browser_context()));
     info_map()->SetContentVerifier(content_verifier_.get());
+
+    // Set up mocks.
+    ChromeExtensionsBrowserClient::SetMediaRouterAccessLoggerForTesting(
+        &media_router_access_logger_);
   }
 
   void TearDown() override {
@@ -219,6 +230,10 @@ class ExtensionProtocolsTestBase : public testing::Test {
     content_verifier_->Shutdown();
     // Shut down the PowerMonitor if initialized.
     base::PowerMonitor::ShutdownForTesting();
+
+    // Remove mocks.
+    ChromeExtensionsBrowserClient::SetMediaRouterAccessLoggerForTesting(
+        nullptr);
   }
 
   void SetProtocolHandler(bool is_incognito) {
@@ -226,9 +241,8 @@ class ExtensionProtocolsTestBase : public testing::Test {
         browser_context(), test_ukm_id_, false));
   }
 
-  GetResult RequestOrLoad(const GURL& url,
-                          network::mojom::RequestDestination destination) {
-    return LoadURL(url, destination);
+  GetResult RequestOrLoad(const GURL& url, ResourceType resource_type) {
+    return LoadURL(url, resource_type);
   }
 
   void AddExtension(const scoped_refptr<const Extension>& extension,
@@ -243,7 +257,7 @@ class ExtensionProtocolsTestBase : public testing::Test {
 
   void RemoveExtension(const scoped_refptr<const Extension>& extension,
                        const UnloadedExtensionReason reason) {
-    info_map()->RemoveExtension(extension->id());
+    info_map()->RemoveExtension(extension->id(), reason);
     EXPECT_TRUE(extension_registry()->RemoveEnabled(extension->id()));
     if (reason == UnloadedExtensionReason::DISABLE)
       EXPECT_TRUE(extension_registry()->AddDisabled(extension));
@@ -260,7 +274,7 @@ class ExtensionProtocolsTestBase : public testing::Test {
                    /*notifications_disabled=*/false);
     }
     return RequestOrLoad(extension->GetResourceURL(relative_path),
-                         network::mojom::RequestDestination::kDocument);
+                         blink::mojom::ResourceType::kMainFrame);
   }
 
   ExtensionRegistry* extension_registry() {
@@ -272,13 +286,14 @@ class ExtensionProtocolsTestBase : public testing::Test {
   }
 
   content::BrowserContext* browser_context() {
-    return force_incognito_ ? testing_profile_->GetPrimaryOTRProfile(
-                                  /*create_if_needed=*/true)
+    return force_incognito_ ? testing_profile_->GetPrimaryOTRProfile()
                             : testing_profile_.get();
   }
 
-  void EnableSimulationOfSystemSuspendForRequests() {
-    power_monitor_source_.emplace();
+  void SimulateSystemSuspendForRequests() {
+    power_monitor_source_ = new base::PowerMonitorTestSource();
+    base::PowerMonitor::Initialize(
+        std::unique_ptr<base::PowerMonitorSource>(power_monitor_source_));
   }
 
   void AddExtensionAndPerformResourceLoad(const ExtensionId& extension_id) {
@@ -292,9 +307,8 @@ class ExtensionProtocolsTestBase : public testing::Test {
 
     // Load the extension.
     {
-      auto get_result =
-          RequestOrLoad(extension->GetResourceURL("test.dat"),
-                        network::mojom::RequestDestination::kDocument);
+      auto get_result = RequestOrLoad(extension->GetResourceURL("test.dat"),
+                                      blink::mojom::ResourceType::kMainFrame);
       EXPECT_EQ(net::OK, get_result.result());
     }
   }
@@ -317,26 +331,24 @@ class ExtensionProtocolsTestBase : public testing::Test {
 
  protected:
   scoped_refptr<ContentVerifier> content_verifier_;
+  StrictMock<MockMediaRouterExtensionAccessLogger> media_router_access_logger_;
 
  private:
-  GetResult LoadURL(const GURL& url,
-                    network::mojom::RequestDestination destination) {
+  GetResult LoadURL(const GURL& url, ResourceType resource_type) {
+    constexpr int32_t kRoutingId = 81;
     constexpr int32_t kRequestId = 28;
 
     mojo::PendingRemote<network::mojom::URLLoader> loader;
     network::TestURLLoaderClient client;
     loader_factory_->CreateLoaderAndStart(
-        loader.InitWithNewPipeAndPassReceiver(), kRequestId,
+        loader.InitWithNewPipeAndPassReceiver(), kRoutingId, kRequestId,
         network::mojom::kURLLoadOptionNone,
-        CreateResourceRequest("GET", destination, url), client.CreateRemote(),
+        CreateResourceRequest("GET", resource_type, url), client.CreateRemote(),
         net::MutableNetworkTrafficAnnotationTag(TRAFFIC_ANNOTATION_FOR_TESTS));
 
-    // If `power_monitor_source_` is set, simulates power suspend and resume
-    // notifications. These notifications are posted tasks that will be executed
-    // by `client.RunUntilComplete()`.
     if (power_monitor_source_) {
-      power_monitor_source_->Suspend();
-      power_monitor_source_->Resume();
+      power_monitor_source_->GenerateSuspendEvent();
+      power_monitor_source_->GenerateResumeEvent();
     }
 
     client.RunUntilComplete();
@@ -353,7 +365,7 @@ class ExtensionProtocolsTestBase : public testing::Test {
   content::WebContents* web_contents() { return contents_.get(); }
 
   content::RenderFrameHost* main_rfh() {
-    return web_contents()->GetPrimaryMainFrame();
+    return web_contents()->GetMainFrame();
   }
 
   content::BrowserTaskEnvironment task_environment_;
@@ -364,8 +376,8 @@ class ExtensionProtocolsTestBase : public testing::Test {
   const bool force_incognito_;
   const ukm::SourceIdObj test_ukm_id_;
 
-  absl::optional<base::test::ScopedPowerMonitorTestSource>
-      power_monitor_source_;
+  // |power_monitor_source_| is owned by the global PowerMonitor.
+  base::PowerMonitorTestSource* power_monitor_source_ = nullptr;
 };
 
 class ExtensionProtocolsTest : public ExtensionProtocolsTestBase {
@@ -404,7 +416,7 @@ TEST_F(ExtensionProtocolsIncognitoTest, IncognitoRequest) {
       {"split enabled", true, true, true, false},
   };
 
-  for (size_t i = 0; i < std::size(cases); ++i) {
+  for (size_t i = 0; i < base::size(cases); ++i) {
     scoped_refptr<Extension> extension =
         CreateTestExtension(cases[i].name, cases[i].incognito_split_mode);
     AddExtension(extension, cases[i].incognito_enabled, false);
@@ -416,9 +428,8 @@ TEST_F(ExtensionProtocolsIncognitoTest, IncognitoRequest) {
       // It doesn't matter that the resource doesn't exist. If the resource
       // is blocked, we should see BLOCKED_BY_CLIENT. Otherwise, the request
       // should just fail because the file doesn't exist.
-      auto get_result =
-          RequestOrLoad(extension->GetResourceURL("404.html"),
-                        network::mojom::RequestDestination::kDocument);
+      auto get_result = RequestOrLoad(extension->GetResourceURL("404.html"),
+                                      blink::mojom::ResourceType::kMainFrame);
 
       if (cases[i].should_allow_main_frame_load) {
         EXPECT_EQ(net::ERR_FILE_NOT_FOUND, get_result.result())
@@ -465,7 +476,7 @@ TEST_F(ExtensionProtocolsTest, ComponentResourceRequest) {
 
     auto get_result =
         RequestOrLoad(extension->GetResourceURL("webstore_icon_16.png"),
-                      network::mojom::RequestDestination::kVideo);
+                      blink::mojom::ResourceType::kMedia);
     EXPECT_EQ(net::OK, get_result.result());
     CheckForContentLengthHeader(get_result);
     EXPECT_EQ("image/png", get_result.GetResponseHeaderByName(
@@ -482,7 +493,7 @@ TEST_F(ExtensionProtocolsTest, ComponentResourceRequest) {
 
     auto get_result =
         RequestOrLoad(extension->GetResourceURL("webstore_icon_16.png"),
-                      network::mojom::RequestDestination::kVideo);
+                      blink::mojom::ResourceType::kMedia);
     EXPECT_EQ(net::OK, get_result.result());
     CheckForContentLengthHeader(get_result);
     EXPECT_EQ("image/png", get_result.GetResponseHeaderByName(
@@ -505,7 +516,7 @@ TEST_F(ExtensionProtocolsTest, ResourceRequestResponseHeaders) {
 
   {
     auto get_result = RequestOrLoad(extension->GetResourceURL("test.dat"),
-                                    network::mojom::RequestDestination::kVideo);
+                                    blink::mojom::ResourceType::kMedia);
     EXPECT_EQ(net::OK, get_result.result());
 
     // Check that cache-related headers are set.
@@ -539,9 +550,8 @@ TEST_F(ExtensionProtocolsTest, AllowFrameRequests) {
   {
     blink::test::ScopedIdentifiabilityTestSampleCollector metrics;
 
-    auto get_result =
-        RequestOrLoad(extension->GetResourceURL("test.dat"),
-                      network::mojom::RequestDestination::kDocument);
+    auto get_result = RequestOrLoad(extension->GetResourceURL("test.dat"),
+                                    blink::mojom::ResourceType::kMainFrame);
     EXPECT_EQ(net::OK, get_result.result());
 
     ExpectExtensionAccessResult(extension, metrics.entries(),
@@ -557,7 +567,7 @@ TEST_F(ExtensionProtocolsTest, AllowFrameRequests) {
     blink::test::ScopedIdentifiabilityTestSampleCollector metrics;
 
     auto get_result = RequestOrLoad(extension->GetResourceURL("test.dat"),
-                                    network::mojom::RequestDestination::kVideo);
+                                    blink::mojom::ResourceType::kMedia);
     EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT, get_result.result());
 
     ExpectExtensionAccessResult(extension, metrics.entries(),
@@ -571,8 +581,7 @@ TEST_F(ExtensionProtocolsTest, MetadataFolder) {
   base::FilePath extension_dir = GetTestPath("metadata_folder");
   std::string error;
   scoped_refptr<Extension> extension = file_util::LoadExtension(
-      extension_dir, mojom::ManifestLocation::kInternal, Extension::NO_FLAGS,
-      &error);
+      extension_dir, Manifest::INTERNAL, Extension::NO_FLAGS, &error);
   ASSERT_NE(extension.get(), nullptr) << "error: " << error;
 
   // Loading "/test.html" should succeed.
@@ -623,7 +632,6 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForFileAccessErrors) {
     EXPECT_EQ(ContentVerifyJob::NONE, observer.WaitForJobFinished());
   }
 
-#if !BUILDFLAG(IS_FUCHSIA)  // Fuchsia does not support file permissions.
   // chmod -r 1024.js.
   {
     TestContentVerifySingleJobObserver observer(extension_id, kRelativePath);
@@ -637,7 +645,6 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForFileAccessErrors) {
     // TODO(lazyboy): We may want to update this to more closely reflect the
     // real flow.
   }
-#endif  // !BUILDFLAG(IS_FUCHSIA)
 
   // Delete 1024.js.
   {
@@ -686,19 +693,18 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForZeroByteFile) {
     EXPECT_EQ(ContentVerifyJob::NONE, observer.WaitForJobFinished());
   }
 
-#if !BUILDFLAG(IS_FUCHSIA)  // Fuchsia does not support file permissions.
   // chmod -r empty.js.
   // Unreadable empty file doesn't generate hash mismatch. Note that this is the
   // current behavior of ContentVerifyJob.
   // TODO(lazyboy): The behavior is probably incorrect.
   {
     TestContentVerifySingleJobObserver observer(extension_id, kRelativePath);
+    base::FilePath file_path = unzipped_path.AppendASCII(kEmptyJs);
     ASSERT_TRUE(base::MakeFileUnreadable(file_path));
     EXPECT_EQ(net::ERR_ACCESS_DENIED,
               DoRequestOrLoad(extension, kEmptyJs).result());
     EXPECT_EQ(ContentVerifyJob::NONE, observer.WaitForJobFinished());
   }
-#endif  // !BUILDFLAG(IS_FUCHSIA)
 
   // rm empty.js.
   // Deleted empty file doesn't generate hash mismatch. Note that this is the
@@ -706,6 +712,7 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForZeroByteFile) {
   // TODO(lazyboy): The behavior is probably incorrect.
   {
     TestContentVerifySingleJobObserver observer(extension_id, kRelativePath);
+    base::FilePath file_path = unzipped_path.AppendASCII(kEmptyJs);
     ASSERT_TRUE(base::DieFileDie(file_path, false));
     EXPECT_EQ(net::ERR_FILE_NOT_FOUND,
               DoRequestOrLoad(extension, kEmptyJs).result());
@@ -778,8 +785,8 @@ TEST_F(ExtensionProtocolsTest, MimeTypesForKnownFiles) {
         "web_accessible_resources": ["*"]
       })";
   test_dir.WriteManifest(kManifest);
-  std::unique_ptr<base::DictionaryValue> manifest = base::DictionaryValue::From(
-      base::Value::ToUniquePtrValue(base::test::ParseJson(kManifest)));
+  std::unique_ptr<base::DictionaryValue> manifest =
+      base::DictionaryValue::From(base::test::ParseJsonDeprecated(kManifest));
   ASSERT_TRUE(manifest);
 
   test_dir.WriteFile(FILE_PATH_LITERAL("json_file.json"), "{}");
@@ -792,7 +799,7 @@ TEST_F(ExtensionProtocolsTest, MimeTypesForKnownFiles) {
       ExtensionBuilder()
           .SetManifest(std::move(manifest))
           .SetPath(unpacked_path)
-          .SetLocation(mojom::ManifestLocation::kInternal)
+          .SetLocation(Manifest::INTERNAL)
           .Build();
   ASSERT_TRUE(extension);
 
@@ -810,16 +817,24 @@ TEST_F(ExtensionProtocolsTest, MimeTypesForKnownFiles) {
   for (const auto& test_case : test_cases) {
     SCOPED_TRACE(test_case.file_name);
     auto result = RequestOrLoad(extension->GetResourceURL(test_case.file_name),
-                                network::mojom::RequestDestination::kEmpty);
+                                blink::mojom::ResourceType::kSubResource);
     EXPECT_EQ(
         test_case.expected_mime_type,
         result.GetResponseHeaderByName(net::HttpRequestHeaders::kContentType));
   }
 }
 
+#if defined(OS_WIN)
+#define MAYBE_ExtensionRequestsNotAborted DISABLED_ExtensionRequestsNotAborted
+#else
+#define MAYBE_ExtensionRequestsNotAborted ExtensionRequestsNotAborted
+#endif
 // Tests that requests for extension resources (including the generated
 // background page) are not aborted on system suspend.
-TEST_F(ExtensionProtocolsTest, ExtensionRequestsNotAborted) {
+//
+// Flaky on Windows.
+// TODO(https://crbug.com/921687): Investigate and fix.
+TEST_F(ExtensionProtocolsTest, MAYBE_ExtensionRequestsNotAborted) {
   // Register a non-incognito extension protocol handler.
   SetProtocolHandler(false);
 
@@ -827,11 +842,10 @@ TEST_F(ExtensionProtocolsTest, ExtensionRequestsNotAborted) {
       GetTestPath("common").AppendASCII("background_script");
   std::string error;
   scoped_refptr<Extension> extension = file_util::LoadExtension(
-      extension_dir, mojom::ManifestLocation::kInternal, Extension::NO_FLAGS,
-      &error);
+      extension_dir, Manifest::INTERNAL, Extension::NO_FLAGS, &error);
   ASSERT_TRUE(extension.get()) << error;
 
-  EnableSimulationOfSystemSuspendForRequests();
+  SimulateSystemSuspendForRequests();
 
   // Request the generated background page. Ensure the request completes
   // successfully.
@@ -842,6 +856,20 @@ TEST_F(ExtensionProtocolsTest, ExtensionRequestsNotAborted) {
   // Request the background.js file. Ensure the request completes successfully.
   EXPECT_EQ(net::OK,
             DoRequestOrLoad(extension.get(), "background.js").result());
+}
+
+TEST_F(ExtensionProtocolsTest, MetricGeneratedForReleaseCastExtension) {
+  ExtensionId extension_id(extension_misc::kCastExtensionIdRelease);
+  EXPECT_CALL(media_router_access_logger_,
+              LogMediaRouterComponentExtensionUse(_, _));
+  AddExtensionAndPerformResourceLoad(extension_id);
+}
+
+TEST_F(ExtensionProtocolsTest, MetricGeneratedForDevCastExtension) {
+  ExtensionId extension_id(extension_misc::kCastExtensionIdDev);
+  EXPECT_CALL(media_router_access_logger_,
+              LogMediaRouterComponentExtensionUse(_, _));
+  AddExtensionAndPerformResourceLoad(extension_id);
 }
 
 }  // namespace extensions

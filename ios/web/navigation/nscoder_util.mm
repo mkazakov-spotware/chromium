@@ -1,10 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <stdint.h>
+#include <stdint.h>
 
-#import <string>
+#include <string>
 
 #import "ios/web/navigation/nscoder_util.h"
 

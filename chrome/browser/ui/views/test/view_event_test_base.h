@@ -1,11 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_TEST_VIEW_EVENT_TEST_BASE_H_
 #define CHROME_BROWSER_UI_VIEWS_TEST_VIEW_EVENT_TEST_BASE_H_
-
-#include "base/memory/raw_ptr.h"
 
 // We only want to use ViewEventTestBase in test targets which properly
 // isolate each test case by running each test in a separate process.
@@ -21,10 +19,9 @@
 #include "base/run_loop.h"
 #include "base/threading/thread.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 
-#if defined(USE_AURA) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(USE_AURA) && !defined(OS_CHROMEOS)
 namespace display {
 class Screen;
 }
@@ -125,7 +122,7 @@ class ViewEventTestBase : public ChromeViewsTestBase {
   // failures invokes Done.
   void RunTestMethod(base::OnceClosure task);
 
-#if defined(USE_AURA) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(USE_AURA) && !defined(OS_CHROMEOS)
   std::unique_ptr<display::Screen> screen_;
 #endif
 
@@ -133,7 +130,7 @@ class ViewEventTestBase : public ChromeViewsTestBase {
   std::unique_ptr<base::Thread> drag_event_thread_;
 
   base::RunLoop run_loop_;
-  raw_ptr<views::Widget> window_ = nullptr;
+  views::Widget* window_ = nullptr;
 };
 
 // Convenience macro for defining a ViewEventTestBase. See class description

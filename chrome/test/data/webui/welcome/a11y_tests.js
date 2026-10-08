@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,6 +27,8 @@ WelcomeA11y = class extends PolymerTest {
     return [
       '//third_party/mocha/mocha.js',
       '//chrome/test/data/webui/mocha_adapter.js',
+      '//ui/webui/resources/js/assert.js',
+      '//ui/webui/resources/js/util.js',
     ];
   }
 };
@@ -40,7 +42,7 @@ AccessibilityTest.define('WelcomeA11y', {
     'rules': {
       // TODO(crbug.com/761461): enable after addressing flaky tests.
       'color-contrast': {enabled: false},
-    },
+    }
   },
 
   // Optional. Filter on failures. Use this for individual false positives.
@@ -55,8 +57,8 @@ AccessibilityTest.define('WelcomeA11y', {
       assertEquals(
           'Make Chrome your own',
           document.body.querySelector('welcome-app')
-              .shadowRoot.querySelector('landing-view')
-              .shadowRoot.querySelector('h1')
+              .$$('landing-view')
+              .$$('h1')
               .textContent);
     },
   },

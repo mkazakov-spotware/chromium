@@ -1,15 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.contextualsearch;
 
-import android.app.Activity;
-
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayContentDelegate;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.StateChangeReason;
 import org.chromium.chrome.browser.compositor.bottombar.contextualsearch.ContextualSearchPanel;
-import org.chromium.chrome.browser.compositor.bottombar.contextualsearch.ContextualSearchPanelInterface;
 import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
 
 /**
@@ -22,7 +20,7 @@ public interface ContextualSearchManagementDelegate {
     /**
      * @return The ChromeActivity that associated with the manager.
      */
-    Activity getActivity();
+    ChromeActivity getChromeActivity();
 
     /**
      * Promotes the current Content View Core in the Contextual Search Panel to its own Tab.
@@ -33,7 +31,7 @@ public interface ContextualSearchManagementDelegate {
      * Sets the handle to the ContextualSearchPanel.
      * @param panel The ContextualSearchPanel.
      */
-    void setContextualSearchPanel(ContextualSearchPanelInterface panel);
+    void setContextualSearchPanel(ContextualSearchPanel panel);
 
     /**
      * Gets whether the device is running in compatibility mode for Contextual Search.
@@ -66,9 +64,6 @@ public interface ContextualSearchManagementDelegate {
      */
     void onCloseContextualSearch(@StateChangeReason int reason);
 
-    /** Notifies that the Panel has started a transition from an open state to the peeking state. */
-    void onPanelCollapsing();
-
     /**
      * @return An OverlayContentDelegate to watch events on the panel's content.
      */
@@ -80,27 +75,22 @@ public interface ContextualSearchManagementDelegate {
     void logCurrentState();
 
     /**
-     * Called when the Contextual Search panel is closed.
+     * Called when the Contextual Search panel's animation is finished and it's shown.
      */
     void onPanelFinishedShowing();
 
     /**
-     * Notifies that a Related Searches suggestion has been clicked, and whether it was shown in the
-     * Bar or the content area of the Panel.
-     * @param suggestionIndex The 0-based index into the list of suggestions provided by the
-     *        panel and presented in the UI. E.g. if the user clicked the second chip this value
-     *        would be 1.
+     * Called when the Contextual Search panel is resized.
      */
-    void onRelatedSearchesSuggestionClicked(int suggestionIndex);
+    void onPanelResized();
+
+    /**
+     * Called when the privacy Opt-in in the panel has been accepted.
+     */
+    void onPromoOptIn();
 
     /**
      * @return A {@link ScrimCoordinator} to fade the status bar in and out.
      */
     ScrimCoordinator getScrimCoordinator();
-
-    /**
-     * Returns whether the Delayed Intelligence Feature is currently active for the current user.
-     * A user must be in the undecided privacy state for Delayed Intelligence to take affect.
-     */
-    boolean isDelayedIntelligenceActive();
 }

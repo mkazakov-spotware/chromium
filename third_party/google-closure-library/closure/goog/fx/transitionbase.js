@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview An abstract base class for transitions. This is a simple
@@ -10,6 +18,7 @@
  * a simple event model, and animation status.
  */
 goog.provide('goog.fx.TransitionBase');
+goog.provide('goog.fx.TransitionBase.State');
 
 goog.require('goog.events.EventTarget');
 goog.require('goog.fx.Transition');  // Unreferenced: interface
@@ -25,7 +34,6 @@ goog.require('goog.fx.Transition');  // Unreferenced: interface
  * @extends {goog.events.EventTarget}
  */
 goog.fx.TransitionBase = function() {
-  'use strict';
   goog.fx.TransitionBase.base(this, 'constructor');
 
   /**
@@ -76,7 +84,7 @@ goog.fx.TransitionBase.prototype.play = goog.abstractMethod;
 /**
  * Stops the animation.
  *
- * @param {boolean=} opt_gotoEnd Optional boolean parameter to go the end of
+ * @param {boolean=} opt_gotoEnd Optional boolean parameter to go the the end of
  *     the animation.
  * @override
  */
@@ -94,7 +102,6 @@ goog.fx.TransitionBase.prototype.pause = goog.abstractMethod;
  * @return {goog.fx.TransitionBase.State} State of the animation.
  */
 goog.fx.TransitionBase.prototype.getStateInternal = function() {
-  'use strict';
   return this.state_;
 };
 
@@ -104,7 +111,6 @@ goog.fx.TransitionBase.prototype.getStateInternal = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.setStatePlaying = function() {
-  'use strict';
   this.state_ = goog.fx.TransitionBase.State.PLAYING;
 };
 
@@ -114,7 +120,6 @@ goog.fx.TransitionBase.prototype.setStatePlaying = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.setStatePaused = function() {
-  'use strict';
   this.state_ = goog.fx.TransitionBase.State.PAUSED;
 };
 
@@ -124,7 +129,6 @@ goog.fx.TransitionBase.prototype.setStatePaused = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.setStateStopped = function() {
-  'use strict';
   this.state_ = goog.fx.TransitionBase.State.STOPPED;
 };
 
@@ -133,7 +137,6 @@ goog.fx.TransitionBase.prototype.setStateStopped = function() {
  * @return {boolean} True iff the current state of the animation is playing.
  */
 goog.fx.TransitionBase.prototype.isPlaying = function() {
-  'use strict';
   return this.state_ == goog.fx.TransitionBase.State.PLAYING;
 };
 
@@ -142,7 +145,6 @@ goog.fx.TransitionBase.prototype.isPlaying = function() {
  * @return {boolean} True iff the current state of the animation is paused.
  */
 goog.fx.TransitionBase.prototype.isPaused = function() {
-  'use strict';
   return this.state_ == goog.fx.TransitionBase.State.PAUSED;
 };
 
@@ -151,7 +153,6 @@ goog.fx.TransitionBase.prototype.isPaused = function() {
  * @return {boolean} True iff the current state of the animation is stopped.
  */
 goog.fx.TransitionBase.prototype.isStopped = function() {
-  'use strict';
   return this.state_ == goog.fx.TransitionBase.State.STOPPED;
 };
 
@@ -162,7 +163,6 @@ goog.fx.TransitionBase.prototype.isStopped = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onBegin = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.BEGIN);
 };
 
@@ -173,7 +173,6 @@ goog.fx.TransitionBase.prototype.onBegin = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onEnd = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.END);
 };
 
@@ -184,7 +183,6 @@ goog.fx.TransitionBase.prototype.onEnd = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onFinish = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.FINISH);
 };
 
@@ -195,7 +193,6 @@ goog.fx.TransitionBase.prototype.onFinish = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onPause = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.PAUSE);
 };
 
@@ -206,7 +203,6 @@ goog.fx.TransitionBase.prototype.onPause = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onPlay = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.PLAY);
 };
 
@@ -217,7 +213,6 @@ goog.fx.TransitionBase.prototype.onPlay = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onResume = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.RESUME);
 };
 
@@ -228,7 +223,6 @@ goog.fx.TransitionBase.prototype.onResume = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.onStop = function() {
-  'use strict';
   this.dispatchAnimationEvent(goog.fx.Transition.EventType.STOP);
 };
 
@@ -239,6 +233,5 @@ goog.fx.TransitionBase.prototype.onStop = function() {
  * @protected
  */
 goog.fx.TransitionBase.prototype.dispatchAnimationEvent = function(type) {
-  'use strict';
   this.dispatchEvent(type);
 };

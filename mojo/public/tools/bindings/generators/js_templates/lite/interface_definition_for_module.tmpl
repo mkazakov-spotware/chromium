@@ -1,7 +1,7 @@
 {% macro generateMethodAnnotation(method) %}
   /**
 {%-   for param in method.parameters %}
-   * @param { {{param.kind|type_in_js_module_with_nullability}} } {{param.name|sanitize_identifier}}
+   * @param { {{param.kind|param_type_in_js_module}} } {{param.name|sanitize_identifier}}
 {%-   endfor -%}
 {%-   if method.response_parameters != None %}
 {%-     if method.response_parameters|length == 0 %}
@@ -9,7 +9,7 @@
 {%-     else %}
    * @return {!Promise<{
 {%-       for response_parameter in method.response_parameters %}
-        {{response_parameter.name}}: {{response_parameter.kind|type_in_js_module_with_nullability}},
+        {{response_parameter.name}}: {{response_parameter.kind|param_type_in_js_module}},
 {%-       endfor %}
    *  }>}
 {%-     endif %}
@@ -20,24 +20,16 @@
 /**
  * @implements {mojo.internal.interfaceSupport.PendingReceiver}
  */
-export class {{interface.name}}PendingReceiver {
-  /**
-   * @param {!MojoHandle|!mojo.internal.interfaceSupport.Endpoint} handle
-   */
+export const {{interface.name}}PendingReceiver = class {
+  /** @param {!MojoHandle} handle */
   constructor(handle) {
-    /** @public {!mojo.internal.interfaceSupport.Endpoint} */
-    this.handle = mojo.internal.interfaceSupport.getEndpointForReceiver(handle);
+    /** @public {!MojoHandle} */
+    this.handle = handle;
   }
-
-  /** @param {string=} scope */
-  bindInBrowser(scope = 'context') {
-    mojo.internal.interfaceSupport.bind(
-        this.handle, '{{mojom_namespace}}.{{interface.name}}', scope);
-  }
-}
+};
 
 /** @interface */
-export class {{interface.name}}Interface {
+export const {{interface.name}}Interface = class {
 {%-  for method in interface.methods %}
   {{generateMethodAnnotation(method)}}
   {{method.name}}(
@@ -46,21 +38,21 @@ export class {{interface.name}}Interface {
 {%-   endfor -%}
 ) {}
 {%- endfor %}
-}
+};
 
 /**
  * @implements { {{interface.name}}Interface }
  */
-export class {{interface.name}}Remote {
-  /** @param {MojoHandle|mojo.internal.interfaceSupport.Endpoint=} handle */
-  constructor(handle = undefined) {
+export const {{interface.name}}Remote = class {
+  /** @param {MojoHandle=} opt_handle */
+  constructor(opt_handle) {
     /**
      * @private {!mojo.internal.interfaceSupport.InterfaceRemoteBase<!{{interface.name}}PendingReceiver>}
      */
     this.proxy =
         new mojo.internal.interfaceSupport.InterfaceRemoteBase(
           {{interface.name}}PendingReceiver,
-          handle);
+          opt_handle);
 
     /**
      * @public {!mojo.internal.interfaceSupport.InterfaceRemoteBaseWrapper<!{{interface.name}}PendingReceiver>}
@@ -99,14 +91,14 @@ export class {{interface.name}}Remote {
         ]);
   }
 {%-  endfor %}
-}
+};
 
 /**
  * An object which receives request messages for the {{interface.name}}
  * mojom interface. Must be constructed over an object which implements that
  * interface.
  */
-export class {{interface.name}}Receiver {
+export const {{interface.name}}Receiver = class {
   /**
    * @param {!{{interface.name}}Interface } impl
    */
@@ -136,9 +128,9 @@ export class {{interface.name}}Receiver {
     /** @public {!mojo.internal.interfaceSupport.ConnectionErrorEventRouter} */
     this.onConnectionError = this.helper_internal_.getConnectionErrorEventRouter();
   }
-}
+};
 
-export class {{interface.name}} {
+export const {{interface.name}} = class {
   /**
    * @return {!string}
    */
@@ -155,10 +147,11 @@ export class {{interface.name}} {
    */
   static getRemote() {
     let remote = new {{interface.name}}Remote;
-    remote.$.bindNewPipeAndPassReceiver().bindInBrowser();
+    Mojo.bindInterface("{{mojom_namespace}}.{{interface.name}}",
+                       remote.$.bindNewPipeAndPassReceiver().handle);
     return remote;
   }
-}
+};
 
 {#--- Enums #}
 {% from "lite/enum_definition_for_module.tmpl" import enum_def with context %}
@@ -172,7 +165,7 @@ export class {{interface.name}} {
  * on this object for each message defined in the mojom interface, and each
  * receiver can have any number of listeners added to it.
  */
-export class {{interface.name}}CallbackRouter {
+export const {{interface.name}}CallbackRouter = class {
   constructor() {
     this.helper_internal_ = new mojo.internal.interfaceSupport.InterfaceReceiverHelperInternal(
       {{interface.name}}Remote);
@@ -215,4 +208,4 @@ export class {{interface.name}}CallbackRouter {
   removeListener(id) {
     return this.router_.removeListener(id);
   }
-}
+};

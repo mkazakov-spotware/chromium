@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include "base/logging.h"
 #include "third_party/leveldatabase/src/include/leveldb/status.h"
 
-namespace storage {
-struct BucketLocator;
-}  // namespace storage
+namespace url {
+class Origin;
+}
 
 namespace content {
 namespace indexed_db {
@@ -92,10 +92,14 @@ enum class IndexedDBAction {
 };
 
 void ReportOpenStatus(IndexedDBBackingStoreOpenResult result,
-                      const storage::BucketLocator& bucket_locator);
+                      const url::Origin& origin);
 
 void ReportInternalError(const char* type,
                          IndexedDBBackingStoreErrorSource location);
+
+void ReportSchemaVersion(int version, const url::Origin& origin);
+
+void ReportV2Schema(bool has_broken_blobs, const url::Origin& origin);
 
 void ReportLevelDBError(const std::string& histogram_name,
                         const leveldb::Status& s);

@@ -1,10 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_AURA_EXTRA_IMAGE_WINDOW_DELEGATE_H_
 #define UI_AURA_EXTRA_IMAGE_WINDOW_DELEGATE_H_
 
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/window_delegate.h"
 #include "ui/aura_extra/aura_extra_export.h"
@@ -14,9 +15,9 @@
 
 namespace aura_extra {
 
-// An ImageWindowDelegate paints an image for a Window. If there is uncovered
-// area, it also fills the window with a background color when specified.
-// The delegate does not consume any event.
+// An ImageWindowDelegate paints an image for a Window, possibly also filling
+// the window with a specified backround color. The delegate does not consume
+// any event.
 //
 // The delegate destroys itself when the Window is destroyed. This is done in
 // |OnWindowDestroyed()| function which subclasses can override to prevent
@@ -24,8 +25,6 @@ namespace aura_extra {
 class AURA_EXTRA_EXPORT ImageWindowDelegate : public aura::WindowDelegate {
  public:
   ImageWindowDelegate();
-  ImageWindowDelegate(const ImageWindowDelegate&) = delete;
-  ImageWindowDelegate& operator=(const ImageWindowDelegate&) = delete;
 
   void SetImage(const gfx::Image& image);
 
@@ -59,7 +58,7 @@ class AURA_EXTRA_EXPORT ImageWindowDelegate : public aura::WindowDelegate {
   void GetHitTestMask(SkPath* mask) const override;
 
  protected:
-  SkColor background_color_ = SK_ColorTRANSPARENT;
+  SkColor background_color_;
   gfx::Image image_;
   gfx::Vector2d offset_;
 
@@ -67,8 +66,10 @@ class AURA_EXTRA_EXPORT ImageWindowDelegate : public aura::WindowDelegate {
 
   // Keeps track of whether the window size matches the image size or not. If
   // the image size is smaller than the window size, then the delegate fills the
-  // missing regions with |background_color_| (default is transparent).
-  bool size_mismatch_ = false;
+  // missing regions with |background_color_| (defult is white).
+  bool size_mismatch_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageWindowDelegate);
 };
 
 }  // namespace aura_extra

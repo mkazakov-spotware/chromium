@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 
 #include "base/environment.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/numerics/safe_math.h"
 #include "base/strings/string_number_conversions.h"
@@ -138,9 +137,6 @@ class InstructionStoreReceptor : public InstructionReceptor {
     CHECK(encoded_);
   }
 
-  InstructionStoreReceptor(const InstructionStoreReceptor&) = delete;
-  InstructionStoreReceptor& operator=(const InstructionStoreReceptor&) = delete;
-
   CheckBool EmitPeRelocs() override {
     return encoded_->AddPeMakeRelocs(exe_type_);
   }
@@ -166,7 +162,9 @@ class InstructionStoreReceptor : public InstructionReceptor {
 
  private:
   ExecutableType exe_type_;
-  raw_ptr<EncodedProgram> encoded_;
+  EncodedProgram* encoded_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstructionStoreReceptor);
 };
 
 }  // namespace
@@ -610,7 +608,7 @@ class RelocBlock {
     pod.block_size += 2;
   }
 
-  [[nodiscard]] CheckBool Flush(SinkStream* buffer) {
+  CheckBool Flush(SinkStream* buffer) WARN_UNUSED_RESULT {
     bool ok = true;
     if (pod.block_size != 8) {
       if (pod.block_size % 4 != 0) {  // Pad to make size multiple of 4 bytes.

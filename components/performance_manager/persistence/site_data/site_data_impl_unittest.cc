@@ -1,14 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/performance_manager/persistence/site_data/site_data_impl.h"
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/test/bind.h"
+#include "base/test/task_environment.h"
 #include "components/performance_manager/persistence/site_data/unittest_utils.h"
-#include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -25,10 +26,9 @@ class TestSiteDataImpl : public SiteDataImpl {
   using SiteDataImpl::site_characteristics_for_testing;
   using SiteDataImpl::TimeDeltaToInternalRepresentation;
 
-  explicit TestSiteDataImpl(
-      const url::Origin& origin,
-      base::WeakPtr<SiteDataImpl::OnDestroyDelegate> delegate,
-      SiteDataStore* data_store)
+  explicit TestSiteDataImpl(const url::Origin& origin,
+                            SiteDataImpl::OnDestroyDelegate* delegate,
+                            SiteDataStore* data_store)
       : SiteDataImpl(origin, delegate, data_store) {}
 
   base::TimeDelta FeatureObservationTimestamp(
@@ -43,11 +43,7 @@ class TestSiteDataImpl : public SiteDataImpl {
 class MockDataStore : public testing::NoopSiteDataStore {
  public:
   MockDataStore() = default;
-
-  MockDataStore(const MockDataStore&) = delete;
-  MockDataStore& operator=(const MockDataStore&) = delete;
-
-  ~MockDataStore() override = default;
+  ~MockDataStore() = default;
 
   // Note: As move-only parameters (e.g. OnceCallback) aren't supported by mock
   // methods, add On... methods to pass a non-const reference to OnceCallback.
@@ -62,6 +58,9 @@ class MockDataStore : public testing::NoopSiteDataStore {
 
   MOCK_METHOD2(WriteSiteDataIntoStore,
                void(const url::Origin&, const SiteDataProto&));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockDataStore);
 };
 
 // Returns a SiteDataFeatureProto that indicates that a feature hasn't been
@@ -91,7 +90,7 @@ class SiteDataImplTest : public ::testing::Test {
 
   scoped_refptr<TestSiteDataImpl> GetDataImpl(
       const url::Origin& origin,
-      base::WeakPtr<SiteDataImpl::OnDestroyDelegate> destroy_delegate,
+      SiteDataImpl::OnDestroyDelegate* destroy_delegate,
       SiteDataStore* data_store) {
     return base::MakeRefCounted<TestSiteDataImpl>(origin, destroy_delegate,
                                                   data_store);
@@ -101,7 +100,7 @@ class SiteDataImplTest : public ::testing::Test {
   // locally so it can be run later.
   scoped_refptr<TestSiteDataImpl> GetDataImplAndInterceptReadCallback(
       const url::Origin& origin,
-      base::WeakPtr<SiteDataImpl::OnDestroyDelegate> destroy_delegate,
+      SiteDataImpl::OnDestroyDelegate* destroy_delegate,
       MockDataStore* mock_data_store,
       SiteDataStore::ReadSiteDataFromStoreCallback* read_cb) {
     auto read_from_store_mock_impl =
@@ -114,7 +113,7 @@ class SiteDataImplTest : public ::testing::Test {
                 OnReadSiteDataFromStore(::testing::_, ::testing::_))
         .WillOnce(::testing::Invoke(read_from_store_mock_impl));
     auto local_site_data =
-        GetDataImpl(origin, destroy_delegate_.GetWeakPtr(), mock_data_store);
+        GetDataImpl(origin, &destroy_delegate_, mock_data_store);
     ::testing::Mock::VerifyAndClear(mock_data_store);
     return local_site_data;
   }
@@ -122,7 +121,7 @@ class SiteDataImplTest : public ::testing::Test {
   const url::Origin kDummyOrigin = url::Origin::Create(GURL("foo.com"));
   const url::Origin kDummyOrigin2 = url::Origin::Create(GURL("bar.com"));
 
-  content::BrowserTaskEnvironment task_environment_{
+  base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
 
   // Use a NiceMock as there's no need to add expectations in these tests,
@@ -130,12 +129,12 @@ class SiteDataImplTest : public ::testing::Test {
   ::testing::NiceMock<testing::MockSiteDataImplOnDestroyDelegate>
       destroy_delegate_;
 
-  testing::NoopSiteDataStore data_store_;
+  testing::NoopSiteDataStore data_store;
 };
 
 TEST_F(SiteDataImplTest, BasicTestEndToEnd) {
   auto local_site_data =
-      GetDataImpl(kDummyOrigin, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin, &destroy_delegate_, &data_store);
 
   local_site_data->NotifySiteLoaded();
   local_site_data->NotifyLoadedSiteBackgrounded();
@@ -147,7 +146,7 @@ TEST_F(SiteDataImplTest, BasicTestEndToEnd) {
   // Advance the clock by a time lower than the minimum observation time for
   // the audio feature.
   AdvanceClock(SiteDataImpl::GetFeatureObservationWindowLengthForTesting() -
-               base::Seconds(1));
+               base::TimeDelta::FromSeconds(1));
 
   // The audio feature usage is still unknown as the observation window hasn't
   // expired.
@@ -192,7 +191,7 @@ TEST_F(SiteDataImplTest, BasicTestEndToEnd) {
 
 TEST_F(SiteDataImplTest, LastLoadedTime) {
   auto local_site_data =
-      GetDataImpl(kDummyOrigin, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin, &destroy_delegate_, &data_store);
 
   // Create a second instance of this object, simulates having several tab
   // owning it.
@@ -202,20 +201,20 @@ TEST_F(SiteDataImplTest, LastLoadedTime) {
   base::TimeDelta last_loaded_time =
       local_site_data->last_loaded_time_for_testing();
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   // Loading the site a second time shouldn't change the last loaded time.
   local_site_data2->NotifySiteLoaded();
   EXPECT_EQ(last_loaded_time, local_site_data2->last_loaded_time_for_testing());
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   // Unloading the site shouldn't update the last loaded time as there's still
   // a loaded instance.
   local_site_data2->NotifySiteUnloaded(TabVisibility::kForeground);
   EXPECT_EQ(last_loaded_time, local_site_data->last_loaded_time_for_testing());
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   local_site_data->NotifySiteUnloaded(TabVisibility::kForeground);
   EXPECT_NE(last_loaded_time, local_site_data->last_loaded_time_for_testing());
@@ -223,14 +222,14 @@ TEST_F(SiteDataImplTest, LastLoadedTime) {
 
 TEST_F(SiteDataImplTest, GetFeatureUsageForUnloadedSite) {
   auto local_site_data =
-      GetDataImpl(kDummyOrigin, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin, &destroy_delegate_, &data_store);
 
   local_site_data->NotifySiteLoaded();
   local_site_data->NotifyLoadedSiteBackgrounded();
   local_site_data->NotifyUsesAudioInBackground();
 
   AdvanceClock(SiteDataImpl::GetFeatureObservationWindowLengthForTesting() -
-               base::Seconds(1));
+               base::TimeDelta::FromSeconds(1));
   EXPECT_EQ(SiteFeatureUsage::kSiteFeatureInUse,
             local_site_data->UsesAudioInBackground());
   EXPECT_EQ(SiteFeatureUsage::kSiteFeatureUsageUnknown,
@@ -251,7 +250,7 @@ TEST_F(SiteDataImplTest, GetFeatureUsageForUnloadedSite) {
 
   // Advancing the clock shouldn't affect the observation duration for this
   // feature.
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
   EXPECT_EQ(observation_duration_before_unload,
             local_site_data->FeatureObservationDuration(
                 local_site_data->site_characteristics_for_testing()
@@ -262,7 +261,7 @@ TEST_F(SiteDataImplTest, GetFeatureUsageForUnloadedSite) {
   local_site_data->NotifySiteLoaded();
   local_site_data->NotifyLoadedSiteBackgrounded();
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   EXPECT_EQ(SiteFeatureUsage::kSiteFeatureInUse,
             local_site_data->UsesAudioInBackground());
@@ -276,9 +275,9 @@ TEST_F(SiteDataImplTest, AllDurationGetSavedOnUnload) {
   // This test helps making sure that the observation/timestamp fields get saved
   // for all the features being tracked.
   auto local_site_data =
-      GetDataImpl(kDummyOrigin, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin, &destroy_delegate_, &data_store);
 
-  const base::TimeDelta kInterval = base::Seconds(1);
+  const base::TimeDelta kInterval = base::TimeDelta::FromSeconds(1);
   const auto kIntervalInternalRepresentation =
       TestSiteDataImpl::TimeDeltaToInternalRepresentation(kInterval);
   const auto kZeroIntervalInternalRepresentation =
@@ -341,7 +340,7 @@ TEST_F(SiteDataImplTest, DestroyNotifiesDelegate) {
       strict_delegate;
   {
     auto local_site_data =
-        GetDataImpl(kDummyOrigin, strict_delegate.GetWeakPtr(), &data_store_);
+        GetDataImpl(kDummyOrigin, &strict_delegate, &data_store);
     EXPECT_CALL(strict_delegate,
                 OnSiteDataImplDestroyed(local_site_data.get()));
   }
@@ -358,7 +357,7 @@ TEST_F(SiteDataImplTest, OnInitCallbackMergePreviousObservations) {
   SiteDataStore::ReadSiteDataFromStoreCallback read_cb;
 
   auto local_site_data = GetDataImplAndInterceptReadCallback(
-      kDummyOrigin, destroy_delegate_.GetWeakPtr(), &mock_data_store, &read_cb);
+      kDummyOrigin, &destroy_delegate_, &mock_data_store, &read_cb);
 
   // Simulates audio in background usage before the callback gets called.
   local_site_data->NotifySiteLoaded();
@@ -373,16 +372,18 @@ TEST_F(SiteDataImplTest, OnInitCallbackMergePreviousObservations) {
 
   // Unload the site and save the last loaded time to make sure the
   // initialization doesn't overwrite it.
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
   local_site_data->NotifySiteUnloaded(TabVisibility::kBackground);
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
   auto last_loaded = local_site_data->last_loaded_time_for_testing();
 
   // Add a couple of performance samples.
   local_site_data->NotifyLoadTimePerformanceMeasurement(
-      base::Microseconds(100), base::Microseconds(1000), 2000u);
+      base::TimeDelta::FromMicroseconds(100),
+      base::TimeDelta::FromMicroseconds(1000), 2000u);
   local_site_data->NotifyLoadTimePerformanceMeasurement(
-      base::Microseconds(200), base::Microseconds(500), 1000u);
+      base::TimeDelta::FromMicroseconds(200),
+      base::TimeDelta::FromMicroseconds(500), 1000u);
 
   // Make sure the local performance samples are averaged as expected.
   EXPECT_EQ(2U, local_site_data->load_duration().num_datums());
@@ -414,7 +415,7 @@ TEST_F(SiteDataImplTest, OnInitCallbackMergePreviousObservations) {
   // Initialize a fake protobuf that indicates that this site updates its title
   // while in background and set a fake last loaded time (this should be
   // overridden once the callback runs).
-  absl::optional<SiteDataProto> test_proto = SiteDataProto();
+  base::Optional<SiteDataProto> test_proto = SiteDataProto();
   SiteDataFeatureProto unused_feature_proto = GetUnusedFeatureProto();
   test_proto->mutable_updates_title_in_background()->CopyFrom(
       GetUsedFeatureProto());
@@ -480,7 +481,7 @@ TEST_F(SiteDataImplTest, LateAsyncReadDoesntEraseData) {
   SiteDataStore::ReadSiteDataFromStoreCallback read_cb;
 
   auto local_site_data_writer = GetDataImplAndInterceptReadCallback(
-      kDummyOrigin, destroy_delegate_.GetWeakPtr(), &mock_data_store, &read_cb);
+      kDummyOrigin, &destroy_delegate_, &mock_data_store, &read_cb);
 
   local_site_data_writer->NotifySiteLoaded();
   local_site_data_writer->NotifyLoadedSiteBackgrounded();
@@ -509,7 +510,7 @@ TEST_F(SiteDataImplTest, LateAsyncReadDoesntBypassClearEvent) {
   SiteDataStore::ReadSiteDataFromStoreCallback read_cb;
 
   auto local_site_data = GetDataImplAndInterceptReadCallback(
-      kDummyOrigin, destroy_delegate_.GetWeakPtr(), &mock_data_store, &read_cb);
+      kDummyOrigin, &destroy_delegate_, &mock_data_store, &read_cb);
 
   local_site_data->NotifySiteLoaded();
   local_site_data->NotifyLoadedSiteBackgrounded();
@@ -526,13 +527,13 @@ TEST_F(SiteDataImplTest, LateAsyncReadDoesntBypassClearEvent) {
 
 TEST_F(SiteDataImplTest, BackgroundedCountTests) {
   auto local_site_data =
-      GetDataImpl(kDummyOrigin, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin, &destroy_delegate_, &data_store);
 
   // By default the tabs are expected to be foregrounded.
   EXPECT_EQ(0U, local_site_data->loaded_tabs_in_background_count_for_testing());
 
   local_site_data->NotifySiteLoaded();
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
   local_site_data->NotifyLoadedSiteBackgrounded();
 
   auto background_session_begin =
@@ -541,7 +542,7 @@ TEST_F(SiteDataImplTest, BackgroundedCountTests) {
 
   EXPECT_EQ(1U, local_site_data->loaded_tabs_in_background_count_for_testing());
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   // Add a second instance of this object, this one pretending to be in
   // foreground.
@@ -552,7 +553,7 @@ TEST_F(SiteDataImplTest, BackgroundedCountTests) {
   EXPECT_EQ(background_session_begin,
             local_site_data->background_session_begin_for_testing());
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   local_site_data->NotifyLoadedSiteForegrounded();
   EXPECT_EQ(0U, local_site_data->loaded_tabs_in_background_count_for_testing());
@@ -567,7 +568,7 @@ TEST_F(SiteDataImplTest, BackgroundedCountTests) {
 
   EXPECT_EQ(expected_observation_duration, observed_observation_duration);
 
-  AdvanceClock(base::Seconds(1));
+  AdvanceClock(base::TimeDelta::FromSeconds(1));
 
   local_site_data->NotifyLoadedSiteBackgrounded();
   EXPECT_EQ(1U, local_site_data->loaded_tabs_in_background_count_for_testing());
@@ -584,12 +585,12 @@ TEST_F(SiteDataImplTest, OptionalFieldsNotPopulatedWhenClean) {
   SiteDataStore::ReadSiteDataFromStoreCallback read_cb;
 
   auto local_site_data = GetDataImplAndInterceptReadCallback(
-      kDummyOrigin, destroy_delegate_.GetWeakPtr(), &mock_data_store, &read_cb);
+      kDummyOrigin, &destroy_delegate_, &mock_data_store, &read_cb);
 
   EXPECT_EQ(0u, local_site_data->cpu_usage_estimate().num_datums());
   EXPECT_EQ(0u, local_site_data->private_footprint_kb_estimate().num_datums());
 
-  absl::optional<SiteDataProto> test_proto = SiteDataProto();
+  base::Optional<SiteDataProto> test_proto = SiteDataProto();
 
   // Run the callback to indicate that the initialization has completed.
   std::move(read_cb).Run(test_proto);
@@ -621,18 +622,18 @@ TEST_F(SiteDataImplTest, FlushingStateToProtoDoesntAffectData) {
   // calling FlushStateToProto doesn't affect the data that gets recorded.
 
   auto local_site_data =
-      GetDataImpl(kDummyOrigin, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin, &destroy_delegate_, &data_store);
   auto local_site_data_ref =
-      GetDataImpl(kDummyOrigin2, destroy_delegate_.GetWeakPtr(), &data_store_);
+      GetDataImpl(kDummyOrigin2, &destroy_delegate_, &data_store);
 
   local_site_data->NotifySiteLoaded();
   local_site_data->NotifyLoadedSiteBackgrounded();
   local_site_data_ref->NotifySiteLoaded();
   local_site_data_ref->NotifyLoadedSiteBackgrounded();
 
-  AdvanceClock(base::Seconds(15));
+  AdvanceClock(base::TimeDelta::FromSeconds(15));
   local_site_data->FlushStateToProto();
-  AdvanceClock(base::Seconds(15));
+  AdvanceClock(base::TimeDelta::FromSeconds(15));
 
   local_site_data->NotifyUsesAudioInBackground();
   local_site_data_ref->NotifyUsesAudioInBackground();
@@ -662,7 +663,7 @@ TEST_F(SiteDataImplTest, DataLoadedCallbackInvoked) {
   SiteDataStore::ReadSiteDataFromStoreCallback read_cb;
 
   auto local_site_data = GetDataImplAndInterceptReadCallback(
-      kDummyOrigin, destroy_delegate_.GetWeakPtr(), &mock_data_store, &read_cb);
+      kDummyOrigin, &destroy_delegate_, &mock_data_store, &read_cb);
 
   EXPECT_FALSE(local_site_data->DataLoaded());
 
@@ -671,7 +672,7 @@ TEST_F(SiteDataImplTest, DataLoadedCallbackInvoked) {
       base::BindLambdaForTesting([&]() { callback_invoked = true; }));
 
   // Run the callback to indicate that the initialization has completed.
-  absl::optional<SiteDataProto> test_proto = SiteDataProto();
+  base::Optional<SiteDataProto> test_proto = SiteDataProto();
   std::move(read_cb).Run(test_proto);
 
   EXPECT_TRUE(callback_invoked);

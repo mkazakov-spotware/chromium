@@ -53,11 +53,11 @@ class LayoutSVGHiddenContainer : public LayoutSVGContainer {
     NOT_DESTROYED();
     return PhysicalRect();
   }
-  gfx::RectF VisualRectInLocalSVGCoordinates() const final {
+  FloatRect VisualRectInLocalSVGCoordinates() const final {
     NOT_DESTROYED();
-    return gfx::RectF();
+    return FloatRect();
   }
-  void AbsoluteQuads(Vector<gfx::QuadF>&,
+  void AbsoluteQuads(Vector<FloatQuad>&,
                      MapCoordinatesFlags mode = 0) const final {
     NOT_DESTROYED();
   }
@@ -65,7 +65,7 @@ class LayoutSVGHiddenContainer : public LayoutSVGContainer {
   bool NodeAtPoint(HitTestResult&,
                    const HitTestLocation&,
                    const PhysicalOffset& accumulated_offset,
-                   HitTestPhase) final;
+                   HitTestAction) final;
 };
 }  // namespace blink
 

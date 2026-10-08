@@ -28,14 +28,12 @@
     [CEReactions, Reflect=accept_charset] attribute DOMString acceptCharset;
     [CEReactions, URL] attribute USVString action;
     [CEReactions, Reflect, ReflectOnly=("on","off"), ReflectMissing="on", ReflectInvalid="on"] attribute DOMString autocomplete;
-    [CEReactions] attribute DOMString enctype;
-    [CEReactions] attribute DOMString encoding;
-    [CEReactions] attribute DOMString method;
+    [CEReactions, CustomElementCallbacks] attribute DOMString enctype;
+    [CEReactions, CustomElementCallbacks] attribute DOMString encoding;
+    [CEReactions, CustomElementCallbacks] attribute DOMString method;
     [CEReactions, Reflect] attribute DOMString name;
     [CEReactions, Reflect] attribute boolean noValidate;
     [CEReactions, Reflect] attribute DOMString target;
-    [RuntimeEnabled=FormRelAttribute, CEReactions, Reflect] attribute DOMString rel;
-    [RuntimeEnabled=FormRelAttribute, SameObject, PutForwards=value] readonly attribute DOMTokenList relList;
 
     readonly attribute HTMLFormControlsCollection elements;
     readonly attribute long length;
@@ -44,8 +42,8 @@
     [NotEnumerable] getter (RadioNodeList or Element) (DOMString name);
 
     [ImplementedAs=submitFromJavaScript] void submit();
-    [RaisesException] void requestSubmit(optional HTMLElement? submitter = null);
-    [CEReactions] void reset();
+    [RaisesException] void requestSubmit(optional HTMLElement submitter);
+    [CEReactions, CustomElementCallbacks] void reset();
     boolean checkValidity();
     boolean reportValidity();
 };

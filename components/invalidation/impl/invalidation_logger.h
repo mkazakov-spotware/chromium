@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,22 @@
 #include <map>
 #include <set>
 
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/time/time.h"
-#include "base/values.h"
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/invalidator_state.h"
+
+namespace base {
+class DictionaryValue;
+}  // namespace base
+
+namespace syncer {
+class TopicInvalidationMap;
+}  // namespace syncer
 
 namespace invalidation {
 
 class InvalidationLoggerObserver;
-class TopicInvalidationMap;
 
 // This class is in charge of logging invalidation-related information.
 // It is used store the state of the InvalidationService that owns this object
@@ -34,19 +40,17 @@ class InvalidationLogger {
 
  public:
   InvalidationLogger();
-  InvalidationLogger(const InvalidationLogger& other) = delete;
-  InvalidationLogger& operator=(const InvalidationLogger& other) = delete;
   ~InvalidationLogger();
 
   // Pass through to any registered InvalidationLoggerObservers.
   // We will do local logging here too.
   void OnRegistration(const std::string& details);
   void OnUnregistration(const std::string& details);
-  void OnStateChange(const InvalidatorState& new_state);
+  void OnStateChange(const syncer::InvalidatorState& new_state);
   void OnUpdatedTopics(
-      std::map<std::string, Topics> handler_updated_topics_map);
-  void OnDebugMessage(const base::Value::Dict& details);
-  void OnInvalidation(const TopicInvalidationMap& invalidations);
+      std::map<std::string, syncer::Topics> handler_updated_topics_map);
+  void OnDebugMessage(const base::DictionaryValue& details);
+  void OnInvalidation(const syncer::TopicInvalidationMap& invalidations);
 
   // Triggers messages to be sent to the Observers to provide them with
   // the current state of the logging.
@@ -74,20 +78,24 @@ class InvalidationLogger {
   base::ObserverList<InvalidationLoggerObserver>::Unchecked observer_list_;
 
   // The last InvalidatorState updated by the InvalidatorService.
-  InvalidatorState last_invalidator_state_ = TRANSIENT_INVALIDATION_ERROR;
+  syncer::InvalidatorState last_invalidator_state_;
   base::Time last_invalidator_state_timestamp_;
 
   // The map that contains every topic that is currently registered and its
   // owner.
-  std::map<std::string, Topics> handler_latest_topics_map_;
+  std::map<std::string, syncer::Topics> handler_latest_topics_map_;
 
   // The map that counts how many invalidations per Topic there has been.
-  TopicCountMap invalidation_count_;
+  syncer::TopicCountMap invalidation_count_;
 
   // The name of all invalidatorHandler registered (note that this is not
   // necessarily the same as the keys of latest_topics_, because they might
   // have not registered any Topic).
-  std::set<std::string> registered_handlers_;
+  // TODO(crbug.com/1049591): it should be std::set, once handlers names are
+  // unique.
+  std::multiset<std::string> registered_handlers_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvalidationLogger);
 };
 
 }  // namespace invalidation

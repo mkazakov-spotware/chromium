@@ -54,10 +54,11 @@ namespace {
 
 // unicodeToItem
 //
-// For the NSS PKCS#12 library, must convert char16_ts (shorts) to
+// For the NSS PKCS#12 library, must convert PRUnichars (shorts) to
 // a buffer of octets.  Must handle byte order correctly.
 // TODO: Is there a Mozilla way to do this?  In the string lib?
-void unicodeToItem(const char16_t* uni, SECItem* item) {
+void unicodeToItem(const PRUnichar *uni, SECItem *item)
+{
   int len = 0;
   while (uni[len++] != 0);
   SECITEM_AllocItem(NULL, item, sizeof(PRUnichar) * len);
@@ -145,7 +146,7 @@ pip_ucs2_ascii_conversion_fn(PRBool toUnicode,
 // Based on nsPKCS12Blob::ImportFromFileHelper.
 int nsPKCS12Blob_ImportHelper(const char* pkcs12_data,
                               size_t pkcs12_len,
-                              const std::u16string& password,
+                              const base::string16& password,
                               bool is_extractable,
                               bool try_zero_length_secitem,
                               PK11SlotInfo* slot,
@@ -283,6 +284,7 @@ finish:
   return import_result;
 }
 
+
 // Attempt to read the CKA_EXTRACTABLE attribute on a private key inside
 // a token. On success, store the attribute in |extractable| and return
 // SECSuccess.
@@ -340,7 +342,7 @@ void EnsurePKCS12Init() {
 int nsPKCS12Blob_Import(PK11SlotInfo* slot,
                         const char* pkcs12_data,
                         size_t pkcs12_len,
-                        const std::u16string& password,
+                        const base::string16& password,
                         bool is_extractable,
                         net::ScopedCERTCertificateList* imported_certs) {
   int rv = nsPKCS12Blob_ImportHelper(pkcs12_data, pkcs12_len, password,
@@ -375,7 +377,7 @@ int nsPKCS12Blob_Import(PK11SlotInfo* slot,
 //       set appropriate error codes
 int nsPKCS12Blob_Export(std::string* output,
                         const net::ScopedCERTCertificateList& certs,
-                        const std::u16string& password) {
+                        const base::string16& password) {
   int return_count = 0;
   SECStatus srv = SECSuccess;
   SEC_PKCS12ExportContext *ecx = NULL;

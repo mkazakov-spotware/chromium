@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -267,15 +267,16 @@ TEST(AudioBufferQueueTest, ReadS32) {
   std::unique_ptr<AudioBus> bus = AudioBus::Create(channels, 100);
   EXPECT_EQ(6, buffer.ReadFrames(6, 0, bus.get()));
   EXPECT_EQ(18, buffer.frames());
-  constexpr float kIncrement =
-      1.0f / static_cast<float>(std::numeric_limits<int32_t>::max());
-  VerifyBus(bus.get(), 0, 4, 4, kIncrement, kIncrement);
-  VerifyBus(bus.get(), 4, 2, 20, 9.0f * kIncrement, kIncrement);
+  VerifyBus(bus.get(), 0, 4, 4, 1.0f / std::numeric_limits<int32_t>::max(),
+            1.0f / std::numeric_limits<int32_t>::max());
+  VerifyBus(bus.get(), 4, 2, 20, 9.0f / std::numeric_limits<int32_t>::max(),
+            1.0f / std::numeric_limits<int32_t>::max());
 
   // Read the next 2 frames.
   EXPECT_EQ(2, buffer.ReadFrames(2, 0, bus.get()));
   EXPECT_EQ(16, buffer.frames());
-  VerifyBus(bus.get(), 0, 2, 20, 11.0f * kIncrement, kIncrement);
+  VerifyBus(bus.get(), 0, 2, 20, 11.0f / std::numeric_limits<int32_t>::max(),
+            1.0f / std::numeric_limits<int32_t>::max());
 }
 
 TEST(AudioBufferQueueTest, ReadF32Planar) {

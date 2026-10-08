@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,7 @@ MobileLabelFormatter::MobileLabelFormatter(
                      focused_field_type,
                      groups,
                      field_types) {
-  const FieldTypeGroup focused_group = AutofillType(focused_field_type).group();
+  const FieldTypeGroup focused_group = GetFocusedNonBillingGroup();
 
   could_show_email_ = HasUnfocusedEmailField(focused_group, groups) &&
                       !HaveSameEmailAddresses(profiles, app_locale);
@@ -69,7 +69,7 @@ MobileLabelFormatter::MobileLabelFormatter(
 
 MobileLabelFormatter::~MobileLabelFormatter() = default;
 
-std::u16string MobileLabelFormatter::GetLabelForProfile(
+base::string16 MobileLabelFormatter::GetLabelForProfile(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
   std::string label_variant = base::GetFieldTrialParamValueByFeature(
@@ -84,14 +84,14 @@ std::u16string MobileLabelFormatter::GetLabelForProfile(
   }
   // An unknown parameter was received.
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
 // The order in which pieces of data are considered--address, and then, if the
 // data is not the same across |profiles_|, phone number, email address, and
 // name--ensures that the label contains the most useful information given the
 // |focused_group| and the |focused_field_type_|.
-std::u16string MobileLabelFormatter::GetLabelForShowOneVariant(
+base::string16 MobileLabelFormatter::GetLabelForShowOneVariant(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
   if (ShowLabelAddress(focused_group)) {
@@ -125,7 +125,7 @@ std::u16string MobileLabelFormatter::GetLabelForShowOneVariant(
 // and email address--ensures that the label is formatted correctly for the
 // |focused_group|, the |focused_field_type_|, and the non-focused form fields
 // whose data is not the same across |profiles_|.
-std::u16string MobileLabelFormatter::GetLabelForShowAllVariant(
+base::string16 MobileLabelFormatter::GetLabelForShowAllVariant(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
   if (!(could_show_email_ || could_show_name_ ||
@@ -137,7 +137,7 @@ std::u16string MobileLabelFormatter::GetLabelForShowAllVariant(
     return GetDefaultLabel(profile, focused_group);
   }
 
-  std::vector<std::u16string> label_parts;
+  std::vector<base::string16> label_parts;
 
   // TODO(crbug.com/961819): Maybe put name after address for some app locales.
   if (could_show_name_) {
@@ -181,7 +181,7 @@ std::u16string MobileLabelFormatter::GetLabelForShowAllVariant(
 // The order in which pieces of data are considered--address, phone number,
 // email address, and name--ensures that the label contains the most useful
 // information given the |focused_group| and the |focused_field_type_|.
-std::u16string MobileLabelFormatter::GetDefaultLabel(
+base::string16 MobileLabelFormatter::GetDefaultLabel(
     const AutofillProfile& profile,
     FieldTypeGroup focused_group) const {
   if (ShowLabelAddress(focused_group)) {

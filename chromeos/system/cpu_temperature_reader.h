@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/component_export.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 
 namespace chromeos {
 namespace system {
@@ -38,10 +39,6 @@ class COMPONENT_EXPORT(CHROMEOS_SYSTEM) CPUTemperatureReader {
   };
 
   CPUTemperatureReader();
-
-  CPUTemperatureReader(const CPUTemperatureReader&) = delete;
-  CPUTemperatureReader& operator=(const CPUTemperatureReader&) = delete;
-
   ~CPUTemperatureReader();
 
   void set_hwmon_dir_for_test(const base::FilePath& dir) { hwmon_dir_ = dir; }
@@ -54,6 +51,8 @@ class COMPONENT_EXPORT(CHROMEOS_SYSTEM) CPUTemperatureReader {
  private:
   // Sysfs hwmon directory path.
   base::FilePath hwmon_dir_;
+
+  DISALLOW_COPY_AND_ASSIGN(CPUTemperatureReader);
 };
 
 }  // namespace system

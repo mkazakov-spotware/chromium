@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "components/autofill_assistant/browser/service.pb.h"
 
 namespace autofill_assistant {
@@ -48,12 +49,6 @@ class ClientStatus {
   // Returns the status details associated with this status.
   const ProcessedActionStatusDetailsProto& details() const { return details_; }
 
-  SlowWarningStatus slow_warning_status() const { return slow_warning_status_; }
-
-  void set_slow_warning_status(SlowWarningStatus status) {
-    slow_warning_status_ = status;
-  }
-
   // The output operator, for logging.
   friend std::ostream& operator<<(std::ostream& out,
                                   const ClientStatus& status);
@@ -62,7 +57,6 @@ class ClientStatus {
   ProcessedActionStatusProto status_;
   bool has_details_ = false;
   ProcessedActionStatusDetailsProto details_;
-  SlowWarningStatus slow_warning_status_ = NO_WARNING;
 };
 
 // An OK status.

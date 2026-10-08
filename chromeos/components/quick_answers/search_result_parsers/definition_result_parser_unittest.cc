@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,15 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
-#include "chromeos/components/quick_answers/test/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/color/color_id.h"
 
+namespace chromeos {
 namespace quick_answers {
 namespace {
+
 using base::Value;
-}  // namespace
+
+}
 
 class DefinitionResultParserTest : public testing::Test {
  public:
@@ -69,12 +70,6 @@ class DefinitionResultParserTest : public testing::Test {
     return result;
   }
 
-  void SetHeadWord(Value* result, const std::string& headword) {
-    result->FindListPath("dictionaryResult.entries")
-        ->GetList()[0]
-        .SetStringPath("headword", headword);
-  }
-
   std::unique_ptr<DefinitionResultParser> parser_;
 };
 
@@ -89,17 +84,18 @@ TEST_F(DefinitionResultParserTest, Success) {
   const auto& expected_answer =
       "incapable of being fully explored or understood.";
   EXPECT_EQ(ResultType::kDefinitionResult, quick_answer.result_type);
+  EXPECT_EQ(expected_answer, quick_answer.primary_answer);
+  EXPECT_EQ(expected_title, quick_answer.secondary_answer);
 
   EXPECT_EQ(1u, quick_answer.title.size());
   EXPECT_EQ(1u, quick_answer.first_answer_row.size());
   auto* answer =
       static_cast<QuickAnswerText*>(quick_answer.first_answer_row[0].get());
-  EXPECT_EQ(expected_answer,
-            GetQuickAnswerTextForTesting(quick_answer.first_answer_row));
-  EXPECT_EQ(ui::kColorLabelForegroundSecondary, answer->color_id);
+  EXPECT_EQ(base::UTF8ToUTF16(expected_answer), answer->text);
+  EXPECT_EQ(gfx::kGoogleGrey700, answer->color);
   auto* title = static_cast<QuickAnswerText*>(quick_answer.title[0].get());
-  EXPECT_EQ(expected_title, GetQuickAnswerTextForTesting(quick_answer.title));
-  EXPECT_EQ(ui::kColorLabelForeground, title->color_id);
+  EXPECT_EQ(base::UTF8ToUTF16(expected_title), title->text);
+  EXPECT_EQ(gfx::kGoogleGrey900, title->color);
 }
 
 TEST_F(DefinitionResultParserTest, EmptyValue) {
@@ -110,34 +106,10 @@ TEST_F(DefinitionResultParserTest, EmptyValue) {
 
 TEST_F(DefinitionResultParserTest, NoQueryTerm) {
   Value result =
-      BuildDictionaryResult("", "ˌənˈfaT͟Həməb(ə)",
+      BuildDictionaryResult("", "ˌənˈfaT͟Həməb(ə)l",
                             "incapable of being fully explored or understood.");
   QuickAnswer quick_answer;
   EXPECT_FALSE(parser_->Parse(&result, &quick_answer));
-}
-
-TEST_F(DefinitionResultParserTest, NoQueryTermShouldFallbackToHeadword) {
-  Value result =
-      BuildDictionaryResult("", "ˌənˈfaT͟Həməb(ə)",
-                            "incapable of being fully explored or understood.");
-  SetHeadWord(&result, "unfathomable");
-  QuickAnswer quick_answer;
-  EXPECT_TRUE(parser_->Parse(&result, &quick_answer));
-
-  const auto& expected_title = "unfathomable · /ˌənˈfaT͟Həməb(ə)/";
-  EXPECT_EQ(expected_title, GetQuickAnswerTextForTesting(quick_answer.title));
-}
-
-TEST_F(DefinitionResultParserTest, ShouldPrioritizeQueryTerm) {
-  Value result =
-      BuildDictionaryResult("Unfathomable", "ˌənˈfaT͟Həməb(ə)",
-                            "incapable of being fully explored or understood.");
-  SetHeadWord(&result, "Unfathomable");
-  QuickAnswer quick_answer;
-  EXPECT_TRUE(parser_->Parse(&result, &quick_answer));
-
-  const auto& expected_title = "Unfathomable · /ˌənˈfaT͟Həməb(ə)/";
-  EXPECT_EQ(expected_title, GetQuickAnswerTextForTesting(quick_answer.title));
 }
 
 TEST_F(DefinitionResultParserTest, NoPhonetic) {
@@ -150,9 +122,8 @@ TEST_F(DefinitionResultParserTest, NoPhonetic) {
   const auto& expected_answer =
       "incapable of being fully explored or understood.";
   EXPECT_EQ(ResultType::kDefinitionResult, quick_answer.result_type);
-  EXPECT_EQ(expected_answer,
-            GetQuickAnswerTextForTesting(quick_answer.first_answer_row));
-  EXPECT_EQ(expected_title, GetQuickAnswerTextForTesting(quick_answer.title));
+  EXPECT_EQ(expected_answer, quick_answer.primary_answer);
+  EXPECT_EQ(expected_title, quick_answer.secondary_answer);
 }
 
 TEST_F(DefinitionResultParserTest, NoDefinition) {
@@ -162,3 +133,4 @@ TEST_F(DefinitionResultParserTest, NoDefinition) {
 }
 
 }  // namespace quick_answers
+}  // namespace chromeos

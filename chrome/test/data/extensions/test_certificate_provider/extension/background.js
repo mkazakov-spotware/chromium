@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,70 +10,70 @@ function byteListFromArrayBuffer(arrayBuffer) {
   return Array.from(new Uint8Array(arrayBuffer));
 }
 
-// Returns the list of certificateProvider ClientCertificateInfo instances,
-// given the parsed JSON value received from the C++ handler.
-function clientCertificateInfoListFromJson(parsedCertInfoList) {
+// Returns the list of certificateProvider CertificateInfo instances, given the
+// parsed JSON value received from the C++ handler.
+function certInfoListFromParsedJson(parsedCertInfoList) {
   return parsedCertInfoList.map(parsedCertInfo => {
     const certInfo = Object.assign({}, parsedCertInfo);
-    certInfo.certificateChain[0] =
-        arrayBufferFromByteList(parsedCertInfo.certificateChain[0]);
+    certInfo.certificate = arrayBufferFromByteList(parsedCertInfo.certificate);
     return certInfo;
   });
 }
 
-// Transforms the certificateProvider signature request instance into a
-// JSON-ifiable value that may be sent to the C++ handler.
+// Transforms the certificateProvider SignRequest instance into a JSON-ifiable
+// value that may be sent to the C++ handler.
 function jsonifiableFromSignRequest(signRequest) {
   const transformedSignRequest = Object.assign({}, signRequest);
-  transformedSignRequest.input = byteListFromArrayBuffer(signRequest.input);
+  transformedSignRequest.digest = byteListFromArrayBuffer(signRequest.digest);
   transformedSignRequest.certificate =
       byteListFromArrayBuffer(signRequest.certificate);
   return transformedSignRequest;
 }
 
-// Listener for the chrome.certificateProvider.onCertificatesUpdateRequested
-// event.
-function onCertificatesUpdateRequested(request) {
-  // Request certificates from the C++ side.
-  chrome.test.sendMessage(
-      JSON.stringify(['getCertificates']),
-      onCertificatesResponseFromCpp.bind(null, request.certificatesRequestId));
+// Listener for the chrome.certificateProvider.onCertificatesRequested event.
+function onCertificatesRequested(reportCallback) {
+  requestCertificatesFromCpp(reportCallback);
 }
 
-// Calls chrome.certificateProvider.setCertificates with the given certificates.
-function onCertificatesResponseFromCpp(certificatesRequestId, response) {
-  const certInfoList = clientCertificateInfoListFromJson(JSON.parse(response));
-  let details = {clientCertificates: certInfoList};
-  if (certificatesRequestId !== null)
-    details.certificatesRequestId = certificatesRequestId;
-
-  chrome.certificateProvider.setCertificates(details);
-}
-
-// Listener for the chrome.certificateProvider.onSignatureRequested event.
-function onSignatureRequested(request) {
+// Listener for the chrome.certificateProvider.onSignDigestRequested event.
+function onSignDigestRequested(request, reportCallback) {
   requestSignatureFromCpp(
-      request, /* pinStatus= */ 'not_requested', /* pin= */ '');
+      request, /*pinStatus=*/ 'not_requested', /*pin=*/ '', reportCallback);
 }
 
-function requestSignatureFromCpp(signatureRequest, pinStatus, pin) {
+function requestCertificatesFromCpp(reportCertificatesCallback) {
+  chrome.test.sendMessage(
+      JSON.stringify(['onCertificatesRequested']),
+      onCertificatesResponseFromCpp.bind(null, reportCertificatesCallback));
+}
+
+function onCertificatesResponseFromCpp(reportCertificatesCallback, response) {
+  const certInfoList = certInfoListFromParsedJson(JSON.parse(response));
+  reportCertificatesCallback(certInfoList, rejectedCertificates => {
+    if (rejectedCertificates && rejectedCertificates.length) {
+      console.error(
+          'Rejected certificates: ' + JSON.stringify(rejectedCertificates));
+    }
+  });
+}
+
+function requestSignatureFromCpp(
+    signDigestRequest, pinStatus, pin, reportSignatureCallback) {
   chrome.test.sendMessage(
       JSON.stringify([
-        'onSignatureRequested', jsonifiableFromSignRequest(signatureRequest),
+        'onSignatureRequested', jsonifiableFromSignRequest(signDigestRequest),
         pinStatus, pin
       ]),
-      onSignatureResponseFromCpp.bind(null, signatureRequest));
+      onSignatureResponseFromCpp.bind(
+          null, signDigestRequest, reportSignatureCallback));
 }
 
-function onSignatureResponseFromCpp(signatureRequest, response) {
+function onSignatureResponseFromCpp(
+    signDigestRequest, reportSignatureCallback, response) {
   const parsedResponse = JSON.parse(response);
   if (parsedResponse === null) {
     // The C++ handler signaled an error.
-    const details = {
-      signRequestId: signatureRequest.signRequestId,
-      error: 'GENERAL_ERROR'
-    };
-    chrome.certificateProvider.reportSignature(details);
+    reportSignatureCallback();
     return;
   }
   if (parsedResponse.stopPinRequest) {
@@ -85,11 +85,7 @@ function onSignatureResponseFromCpp(signatureRequest, response) {
   }
   if (parsedResponse.signature) {
     // Forward the signature generated by the C++ handler.
-    const details = {
-      signRequestId: signatureRequest.signRequestId,
-      signature: arrayBufferFromByteList(parsedResponse.signature)
-    };
-    chrome.certificateProvider.reportSignature(details);
+    reportSignatureCallback(arrayBufferFromByteList(parsedResponse.signature));
   }
   if (parsedResponse.requestPin) {
     // The C++ handler asked to request the PIN. After the PIN is obtained,
@@ -102,25 +98,14 @@ function onSignatureResponseFromCpp(signatureRequest, response) {
           const pinStatus = chrome.runtime.lastError ?
               ('failed:' + chrome.runtime.lastError) :
               (pin ? 'ok' : 'canceled');
-          requestSignatureFromCpp(signatureRequest, pinStatus, pin);
+          requestSignatureFromCpp(
+              signDigestRequest, pinStatus, pin, reportSignatureCallback);
         });
   }
 }
 
-chrome.certificateProvider.onCertificatesUpdateRequested.addListener(
-    onCertificatesUpdateRequested);
+chrome.certificateProvider.onCertificatesRequested.addListener(
+    onCertificatesRequested);
 
-chrome.certificateProvider.onSignatureRequested.addListener(
-    onSignatureRequested);
-
-// Listen for messages that are 'setCertificates'.
-// When receiving one, call chrome.certificateProvider.setCertificates().
-chrome.test.onMessage.addListener((msg) => {
-  if (msg.name !== 'setCertificates')
-    return;
-
-  chrome.certificateProvider.setCertificates({
-    clientCertificates:
-        clientCertificateInfoListFromJson(msg.certificateInfoList)
-  });
-});
+chrome.certificateProvider.onSignDigestRequested.addListener(
+    onSignDigestRequested);

@@ -92,15 +92,14 @@ class PrettyDiff(Command):
 
     @staticmethod
     def _pretty_diff_file(diff):
-        # |diff|'s type is |bytes| because it can contain multiple text files
-        # of different encodings.
-        assert isinstance(diff, bytes)
+        # Diffs can contain multiple text files of different encodings
+        # so we always deal with them as byte arrays, not unicode strings.
+        assert isinstance(diff, str)
         diff_file = tempfile.NamedTemporaryFile(suffix='.html')
-        # We deocode |diff| as UTF-8 anyway because we generate a UTF-8 HTML.
-        diff_file.write(prettify_diff(diff.decode(errors='replace')).encode())
+        diff_file.write(prettify_diff(diff))
         diff_file.flush()
         return diff_file
 
     def _open_pretty_diff(self, file_path):
-        url = 'file://%s' % urllib.parse.quote(file_path)
+        url = 'file://%s' % urllib.quote(file_path)
         self._tool.user.open_url(url)

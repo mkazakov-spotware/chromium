@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/android/explore_sites/image_helper.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
@@ -33,10 +32,6 @@ class ImageHelper::Job {
       BitmapCallback bitmap_callback,
       EncodedImageList images,
       int pixel_size);
-
-  Job(const Job&) = delete;
-  Job& operator=(const Job&) = delete;
-
   ~Job();
 
   // Start begins the work that a Job performs (decoding and composition).
@@ -48,7 +43,7 @@ class ImageHelper::Job {
   std::unique_ptr<SkBitmap> CombineImages();
 
  private:
-  const raw_ptr<ImageHelper> image_helper_;
+  ImageHelper* const image_helper_;
   const ImageJobType job_type_;
   ImageJobFinishedCallback job_finished_callback_;
   BitmapCallback bitmap_callback_;
@@ -58,6 +53,8 @@ class ImageHelper::Job {
   std::vector<SkBitmap> bitmaps_;
 
   base::WeakPtrFactory<Job> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Job);
 };
 
 ImageHelper::Job::Job(ImageHelper* image_helper,
@@ -89,7 +86,7 @@ void ImageHelper::Job::Start() {
 
 void ImageHelper::Job::DecodeImageBytes(
     std::unique_ptr<EncodedImageBytes> image_bytes) {
-  data_decoder::DecodeImageCallback callback;
+  data_decoder::mojom::ImageDecoder::DecodeImageCallback callback;
   if (job_type_ == ImageJobType::kSiteIcon) {
     callback = base::BindOnce(&ImageHelper::Job::OnDecodeSiteImageDone,
                               weak_ptr_factory_.GetWeakPtr());
@@ -99,7 +96,7 @@ void ImageHelper::Job::DecodeImageBytes(
   }
 
   data_decoder::DecodeImage(&image_helper_->data_decoder_, *image_bytes,
-                            data_decoder::mojom::ImageCodec::kDefault, false,
+                            data_decoder::mojom::ImageCodec::DEFAULT, false,
                             data_decoder::kDefaultMaxSizeInBytes, gfx::Size(),
                             std::move(callback));
 }

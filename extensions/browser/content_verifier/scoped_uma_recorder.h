@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,6 @@ template <const char* RESULT_HISTOGRAM_NAME, const char* TIME_HISTOGRAM_NAME>
 class ScopedUMARecorder {
  public:
   ScopedUMARecorder() = default;
-
-  ScopedUMARecorder(const ScopedUMARecorder&) = delete;
-  ScopedUMARecorder& operator=(const ScopedUMARecorder&) = delete;
 
   ~ScopedUMARecorder() {
     if (recorded_)
@@ -40,6 +37,7 @@ class ScopedUMARecorder {
 
   bool recorded_ = false;
   base::ElapsedTimer timer_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedUMARecorder);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <windows.ui.notifications.h>
 #include <wrl/implements.h>
 
-#include <string>
+#include "base/strings/string16.h"
 
 class FakeIToastNotification
     : public Microsoft::WRL::RuntimeClass<
@@ -17,8 +17,8 @@ class FakeIToastNotification
           ABI::Windows::UI::Notifications::IToastNotification,
           ABI::Windows::UI::Notifications::IToastNotification2> {
  public:
-  explicit FakeIToastNotification(const std::wstring& xml,
-                                  const std::wstring& tag);
+  explicit FakeIToastNotification(const base::string16& xml,
+                                  const base::string16& tag);
   FakeIToastNotification(const FakeIToastNotification&) = delete;
   FakeIToastNotification& operator=(const FakeIToastNotification&) = delete;
   ~FakeIToastNotification() override = default;
@@ -58,10 +58,10 @@ class FakeIToastNotification
   HRESULT STDMETHODCALLTYPE get_SuppressPopup(boolean* value) override;
 
  private:
-  std::wstring xml_;
+  base::string16 xml_;
 
-  std::wstring group_;
-  std::wstring tag_;
+  base::string16 group_;
+  base::string16 tag_;
 };
 
 #endif  // CHROME_BROWSER_NOTIFICATIONS_WIN_FAKE_ITOASTNOTIFICATION_H_

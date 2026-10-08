@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@
 #include "remoting/protocol/message_serialization.h"
 #include "remoting/protocol/video_stats_stub.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 ClientVideoStatsDispatcher::ClientVideoStatsDispatcher(
     const std::string& stream_name,
@@ -42,4 +43,5 @@ void ClientVideoStatsDispatcher::OnIncomingMessage(
       HostFrameStats::FromFrameStatsMessage(*stats_proto));
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

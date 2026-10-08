@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include <stddef.h>
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "ui/aura/client/transient_window_client.h"
 #include "ui/wm/core/transient_window_manager.h"
 #include "ui/wm/core/window_util.h"
@@ -87,7 +88,8 @@ bool TransientWindowStackingClient::AdjustStacking(
   if (*direction == Window::STACK_ABOVE &&
       !HasTransientAncestor(*child, *target)) {
     const Window::Windows& siblings((*child)->parent()->children());
-    size_t target_i = base::ranges::find(siblings, *target) - siblings.begin();
+    size_t target_i =
+        std::find(siblings.begin(), siblings.end(), *target) - siblings.begin();
     while (target_i + 1 < siblings.size() &&
            HasTransientAncestor(siblings[target_i + 1], *target)) {
       ++target_i;

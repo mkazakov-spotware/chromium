@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,10 @@
 #include "base/android/jni_weak_ref.h"
 #include "base/bind.h"
 #include "base/containers/id_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "cc/resources/ui_resource_client.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace cc {
 class Layer;
@@ -44,10 +44,6 @@ class LayerTitleCache {
                   jint spinner_resource_id,
                   jint spinner_incognito_resource_id,
                   ui::ResourceManager* resource_manager);
-
-  LayerTitleCache(const LayerTitleCache&) = delete;
-  LayerTitleCache& operator=(const LayerTitleCache&) = delete;
-
   void Destroy(JNIEnv* env);
 
   // Called from Java, updates a native cc::Layer based on the new texture
@@ -87,7 +83,9 @@ class LayerTitleCache {
   int spinner_resource_id_;
   int spinner_incognito_resource_id_;
 
-  raw_ptr<ui::ResourceManager> resource_manager_;
+  ui::ResourceManager* resource_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(LayerTitleCache);
 };
 
 }  // namespace android

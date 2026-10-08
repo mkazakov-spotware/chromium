@@ -26,14 +26,13 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_TRACK_TRACK_EVENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_TRACK_TRACK_EVENT_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/html/track/track_base.h"
 
 namespace blink {
 
 class TrackEventInit;
-class V8UnionAudioTrackOrTextTrackOrVideoTrack;
+class VideoTrackOrAudioTrackOrTextTrack;
 
 class CORE_EXPORT TrackEvent final : public Event {
   DEFINE_WRAPPERTYPEINFO();
@@ -58,7 +57,7 @@ class CORE_EXPORT TrackEvent final : public Event {
 
   const AtomicString& InterfaceName() const override;
 
-  V8UnionAudioTrackOrTextTrackOrVideoTrack* track();
+  void track(VideoTrackOrAudioTrackOrTextTrack&);
 
   void Trace(Visitor*) const override;
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,11 +19,6 @@ class ArcPlayStoreAppContextMenu : public app_list::AppContextMenu {
   ArcPlayStoreAppContextMenu(app_list::AppContextMenuDelegate* delegate,
                              Profile* profile,
                              AppListControllerDelegate* controller);
-
-  ArcPlayStoreAppContextMenu(const ArcPlayStoreAppContextMenu&) = delete;
-  ArcPlayStoreAppContextMenu& operator=(const ArcPlayStoreAppContextMenu&) =
-      delete;
-
   ~ArcPlayStoreAppContextMenu() override;
 
   // AppListContextMenu overrides:
@@ -32,6 +27,9 @@ class ArcPlayStoreAppContextMenu : public app_list::AppContextMenu {
   // ui::SimpleMenuModel::Delegate overrides:
   void ExecuteCommand(int command_id, int event_flags) override;
   bool IsCommandIdEnabled(int command_id) const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ArcPlayStoreAppContextMenu);
 };
 
 #endif  // CHROME_BROWSER_UI_APP_LIST_ARC_ARC_PLAYSTORE_APP_CONTEXT_MENU_H_

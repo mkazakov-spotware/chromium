@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,22 @@
 #define GPU_IPC_COMMON_GPU_PREFERENCES_MOJOM_TRAITS_H_
 
 #include <vector>
-
-#include "base/notreached.h"
-#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+
 #include "gpu/config/gpu_preferences.h"
-#include "gpu/gpu_export.h"
 #include "gpu/ipc/common/gpu_preferences.mojom-shared.h"
 #include "ui/gfx/mojom/buffer_types_mojom_traits.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
 #include "base/message_loop/message_pump_type.h"
 #include "mojo/public/cpp/base/message_pump_type_mojom_traits.h"
+#include "ui/base/ui_base_features.h"
 #endif
 
 namespace mojo {
 
 template <>
-struct GPU_EXPORT EnumTraits<gpu::mojom::GrContextType, gpu::GrContextType> {
+struct EnumTraits<gpu::mojom::GrContextType, gpu::GrContextType> {
   static gpu::mojom::GrContextType ToMojom(gpu::GrContextType input) {
     switch (input) {
       case gpu::GrContextType::kGL:
@@ -59,8 +57,8 @@ struct GPU_EXPORT EnumTraits<gpu::mojom::GrContextType, gpu::GrContextType> {
 };
 
 template <>
-struct GPU_EXPORT EnumTraits<gpu::mojom::VulkanImplementationName,
-                             gpu::VulkanImplementationName> {
+struct EnumTraits<gpu::mojom::VulkanImplementationName,
+                  gpu::VulkanImplementationName> {
   static gpu::mojom::VulkanImplementationName ToMojom(
       gpu::VulkanImplementationName input) {
     switch (input) {
@@ -97,73 +95,7 @@ struct GPU_EXPORT EnumTraits<gpu::mojom::VulkanImplementationName,
 };
 
 template <>
-struct GPU_EXPORT
-    EnumTraits<gpu::mojom::WebGPUAdapterName, gpu::WebGPUAdapterName> {
-  static gpu::mojom::WebGPUAdapterName ToMojom(gpu::WebGPUAdapterName input) {
-    switch (input) {
-      case gpu::WebGPUAdapterName::kDefault:
-        return gpu::mojom::WebGPUAdapterName::kDefault;
-      case gpu::WebGPUAdapterName::kCompat:
-        return gpu::mojom::WebGPUAdapterName::kCompat;
-      case gpu::WebGPUAdapterName::kSwiftShader:
-        return gpu::mojom::WebGPUAdapterName::kSwiftShader;
-    }
-    NOTREACHED();
-    return gpu::mojom::WebGPUAdapterName::kDefault;
-  }
-  static bool FromMojom(gpu::mojom::WebGPUAdapterName input,
-                        gpu::WebGPUAdapterName* out) {
-    switch (input) {
-      case gpu::mojom::WebGPUAdapterName::kDefault:
-        *out = gpu::WebGPUAdapterName::kDefault;
-        return true;
-      case gpu::mojom::WebGPUAdapterName::kCompat:
-        *out = gpu::WebGPUAdapterName::kCompat;
-        return true;
-      case gpu::mojom::WebGPUAdapterName::kSwiftShader:
-        *out = gpu::WebGPUAdapterName::kSwiftShader;
-        return true;
-    }
-    return false;
-  }
-};
-
-template <>
-struct GPU_EXPORT EnumTraits<gpu::mojom::DawnBackendValidationLevel,
-                             gpu::DawnBackendValidationLevel> {
-  static gpu::mojom::DawnBackendValidationLevel ToMojom(
-      gpu::DawnBackendValidationLevel input) {
-    switch (input) {
-      case gpu::DawnBackendValidationLevel::kDisabled:
-        return gpu::mojom::DawnBackendValidationLevel::kDisabled;
-      case gpu::DawnBackendValidationLevel::kPartial:
-        return gpu::mojom::DawnBackendValidationLevel::kPartial;
-      case gpu::DawnBackendValidationLevel::kFull:
-        return gpu::mojom::DawnBackendValidationLevel::kFull;
-    }
-    NOTREACHED();
-    return gpu::mojom::DawnBackendValidationLevel::kDisabled;
-  }
-  static bool FromMojom(gpu::mojom::DawnBackendValidationLevel input,
-                        gpu::DawnBackendValidationLevel* out) {
-    switch (input) {
-      case gpu::mojom::DawnBackendValidationLevel::kDisabled:
-        *out = gpu::DawnBackendValidationLevel::kDisabled;
-        return true;
-      case gpu::mojom::DawnBackendValidationLevel::kPartial:
-        *out = gpu::DawnBackendValidationLevel::kPartial;
-        return true;
-      case gpu::mojom::DawnBackendValidationLevel::kFull:
-        *out = gpu::DawnBackendValidationLevel::kFull;
-        return true;
-    }
-    return false;
-  }
-};
-
-template <>
-struct GPU_EXPORT
-    StructTraits<gpu::mojom::GpuPreferencesDataView, gpu::GpuPreferences> {
+struct StructTraits<gpu::mojom::GpuPreferencesDataView, gpu::GpuPreferences> {
   static bool Read(gpu::mojom::GpuPreferencesDataView prefs,
                    gpu::GpuPreferences* out) {
     out->disable_accelerated_video_decode =
@@ -203,6 +135,7 @@ struct GPU_EXPORT
     out->enable_threaded_texture_mailboxes =
         prefs.enable_threaded_texture_mailboxes();
     out->gl_shader_interm_output = prefs.gl_shader_interm_output();
+    out->emulate_shader_precision = prefs.emulate_shader_precision();
     out->enable_android_surface_control =
         prefs.enable_android_surface_control();
     out->enable_gpu_service_logging = prefs.enable_gpu_service_logging();
@@ -222,6 +155,9 @@ struct GPU_EXPORT
     }
 
     out->ignore_gpu_blocklist = prefs.ignore_gpu_blocklist();
+    out->enable_oop_rasterization = prefs.enable_oop_rasterization();
+    out->disable_oop_rasterization = prefs.disable_oop_rasterization();
+    out->enable_oop_rasterization_ddl = prefs.enable_oop_rasterization_ddl();
     out->watchdog_starts_backgrounded = prefs.watchdog_starts_backgrounded();
     if (!prefs.ReadGrContextType(&out->gr_context_type))
       return false;
@@ -229,6 +165,8 @@ struct GPU_EXPORT
       return false;
     out->enable_vulkan_protected_memory =
         prefs.enable_vulkan_protected_memory();
+    out->enforce_vulkan_protected_memory =
+        prefs.enforce_vulkan_protected_memory();
     out->disable_vulkan_surface = prefs.disable_vulkan_surface();
     out->disable_vulkan_fallback_to_gl_for_testing =
         prefs.disable_vulkan_fallback_to_gl_for_testing();
@@ -238,22 +176,14 @@ struct GPU_EXPORT
     out->enable_gpu_benchmarking_extension =
         prefs.enable_gpu_benchmarking_extension();
     out->enable_webgpu = prefs.enable_webgpu();
-    out->enable_unsafe_webgpu = prefs.enable_unsafe_webgpu();
-    if (!prefs.ReadUseWebgpuAdapter(&out->use_webgpu_adapter))
-      return false;
-    if (!prefs.ReadEnableDawnBackendValidation(
-            &out->enable_dawn_backend_validation))
-      return false;
-    if (!prefs.ReadEnabledDawnFeaturesList(&out->enabled_dawn_features_list))
-      return false;
-    if (!prefs.ReadDisabledDawnFeaturesList(&out->disabled_dawn_features_list))
-      return false;
-
+    out->enable_dawn_backend_validation =
+        prefs.enable_dawn_backend_validation();
+    out->disable_dawn_robustness = prefs.disable_dawn_robustness();
     out->enable_gpu_blocked_time_metric =
         prefs.enable_gpu_blocked_time_metric();
     out->enable_perf_data_collection = prefs.enable_perf_data_collection();
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
     if (!prefs.ReadMessagePumpType(&out->message_pump_type))
       return false;
 #endif
@@ -261,9 +191,9 @@ struct GPU_EXPORT
     out->enable_native_gpu_memory_buffers =
         prefs.enable_native_gpu_memory_buffers();
 
-#if BUILDFLAG(IS_CHROMEOS)
-    out->enable_chromeos_direct_video_decoder =
-        prefs.enable_chromeos_direct_video_decoder();
+#if BUILDFLAG(IS_ASH)
+    out->platform_disallows_chromeos_direct_video_decoder =
+        prefs.platform_disallows_chromeos_direct_video_decoder();
 #endif
 
     return true;
@@ -360,6 +290,9 @@ struct GPU_EXPORT
   static bool gl_shader_interm_output(const gpu::GpuPreferences& prefs) {
     return prefs.gl_shader_interm_output;
   }
+  static bool emulate_shader_precision(const gpu::GpuPreferences& prefs) {
+    return prefs.emulate_shader_precision;
+  }
   static bool enable_android_surface_control(const gpu::GpuPreferences& prefs) {
     return prefs.enable_android_surface_control;
   }
@@ -383,6 +316,15 @@ struct GPU_EXPORT
   static bool ignore_gpu_blocklist(const gpu::GpuPreferences& prefs) {
     return prefs.ignore_gpu_blocklist;
   }
+  static bool enable_oop_rasterization(const gpu::GpuPreferences& prefs) {
+    return prefs.enable_oop_rasterization;
+  }
+  static bool disable_oop_rasterization(const gpu::GpuPreferences& prefs) {
+    return prefs.disable_oop_rasterization;
+  }
+  static bool enable_oop_rasterization_ddl(const gpu::GpuPreferences& prefs) {
+    return prefs.enable_oop_rasterization_ddl;
+  }
   static bool watchdog_starts_backgrounded(const gpu::GpuPreferences& prefs) {
     return prefs.watchdog_starts_backgrounded;
   }
@@ -395,6 +337,10 @@ struct GPU_EXPORT
   }
   static bool enable_vulkan_protected_memory(const gpu::GpuPreferences& prefs) {
     return prefs.enable_vulkan_protected_memory;
+  }
+  static bool enforce_vulkan_protected_memory(
+      const gpu::GpuPreferences& prefs) {
+    return prefs.enforce_vulkan_protected_memory;
   }
   static bool disable_vulkan_surface(const gpu::GpuPreferences& prefs) {
     return prefs.disable_vulkan_surface;
@@ -420,24 +366,11 @@ struct GPU_EXPORT
   static bool enable_webgpu(const gpu::GpuPreferences& prefs) {
     return prefs.enable_webgpu;
   }
-  static bool enable_unsafe_webgpu(const gpu::GpuPreferences& prefs) {
-    return prefs.enable_unsafe_webgpu;
-  }
-  static gpu::WebGPUAdapterName use_webgpu_adapter(
-      const gpu::GpuPreferences& prefs) {
-    return prefs.use_webgpu_adapter;
-  }
-  static gpu::DawnBackendValidationLevel enable_dawn_backend_validation(
-      const gpu::GpuPreferences& prefs) {
+  static bool enable_dawn_backend_validation(const gpu::GpuPreferences& prefs) {
     return prefs.enable_dawn_backend_validation;
   }
-  static const std::vector<std::string>& enabled_dawn_features_list(
-      const gpu::GpuPreferences& prefs) {
-    return prefs.enabled_dawn_features_list;
-  }
-  static const std::vector<std::string>& disabled_dawn_features_list(
-      const gpu::GpuPreferences& prefs) {
-    return prefs.disabled_dawn_features_list;
+  static bool disable_dawn_robustness(const gpu::GpuPreferences& prefs) {
+    return prefs.disable_dawn_robustness;
   }
   static bool enable_gpu_blocked_time_metric(const gpu::GpuPreferences& prefs) {
     return prefs.enable_gpu_blocked_time_metric;
@@ -445,7 +378,7 @@ struct GPU_EXPORT
   static bool enable_perf_data_collection(const gpu::GpuPreferences& prefs) {
     return prefs.enable_perf_data_collection;
   }
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
   static base::MessagePumpType message_pump_type(
       const gpu::GpuPreferences& prefs) {
     return prefs.message_pump_type;
@@ -455,10 +388,10 @@ struct GPU_EXPORT
       const gpu::GpuPreferences& prefs) {
     return prefs.enable_native_gpu_memory_buffers;
   }
-#if BUILDFLAG(IS_CHROMEOS)
-  static bool enable_chromeos_direct_video_decoder(
+#if BUILDFLAG(IS_ASH)
+  static bool platform_disallows_chromeos_direct_video_decoder(
       const gpu::GpuPreferences& prefs) {
-    return prefs.enable_chromeos_direct_video_decoder;
+    return prefs.platform_disallows_chromeos_direct_video_decoder;
   }
 #endif
 };

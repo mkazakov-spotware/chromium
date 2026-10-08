@@ -1,16 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/dbus/user_authentication_service_provider.h"
 
-#include <string>
-
-#include "ash/public/cpp/webauthn_dialog_controller.h"
+#include "ash/public/cpp/in_session_auth_dialog_controller.h"
+#include "ash/public/cpp/webauthn_request_registrar.h"
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/strings/string_number_conversions.h"
-#include "chromeos/components/webauthn/webauthn_request_registrar.h"
 #include "dbus/bus.h"
 #include "dbus/message.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
@@ -27,26 +24,16 @@ void UserAuthenticationServiceProvider::Start(
     scoped_refptr<dbus::ExportedObject> exported_object) {
   exported_object->ExportMethod(
       chromeos::kUserAuthenticationServiceInterface,
-      chromeos::kUserAuthenticationServiceShowAuthDialogV2Method,
+      chromeos::kUserAuthenticationServiceShowAuthDialogMethod,
       base::BindRepeating(&UserAuthenticationServiceProvider::ShowAuthDialog,
                           weak_ptr_factory_.GetWeakPtr()),
       base::BindOnce(&UserAuthenticationServiceProvider::OnExported,
                      weak_ptr_factory_.GetWeakPtr()));
-
   exported_object->ExportMethod(
       chromeos::kUserAuthenticationServiceInterface,
       chromeos::kUserAuthenticationServiceCancelMethod,
       base::BindRepeating(&UserAuthenticationServiceProvider::Cancel,
                           weak_ptr_factory_.GetWeakPtr()),
-      base::BindOnce(&UserAuthenticationServiceProvider::OnExported,
-                     weak_ptr_factory_.GetWeakPtr()));
-
-  exported_object->ExportMethod(
-      chromeos::kUserAuthenticationServiceInterface,
-      chromeos::kUserAuthenticationServiceIsAuthenticatorAvailableMethod,
-      base::BindRepeating(
-          &UserAuthenticationServiceProvider::IsAuthenticatorAvailable,
-          weak_ptr_factory_.GetWeakPtr()),
       base::BindOnce(&UserAuthenticationServiceProvider::OnExported,
                      weak_ptr_factory_.GetWeakPtr()));
 }
@@ -77,24 +64,23 @@ void UserAuthenticationServiceProvider::ShowAuthDialog(
     OnAuthFlowComplete(method_call, std::move(response_sender), false);
     return;
   }
-  std::string request_id;
-  if (!reader.PopString(&request_id)) {
+  uint64_t request_id = 0;
+  if (!reader.PopUint64(&request_id)) {
     LOG(ERROR) << "Unable to parse request id";
     OnAuthFlowComplete(method_call, std::move(response_sender), false);
     return;
   }
 
   aura::Window* source_window =
-      chromeos::webauthn::WebAuthnRequestRegistrar::Get()
-          ->GetWindowForRequestId(request_id);
+      WebAuthnRequestRegistrar::Get()->GetWindowForRequestId(request_id);
   if (!source_window) {
     LOG(ERROR) << "Cannot find window with the given request id";
     OnAuthFlowComplete(method_call, std::move(response_sender), false);
     return;
   }
 
-  auto* webauthn_dialog_controller = WebAuthNDialogController::Get();
-  webauthn_dialog_controller->ShowAuthenticationDialog(
+  auto* auth_dialog_controller = InSessionAuthDialogController::Get();
+  auth_dialog_controller->ShowAuthenticationDialog(
       source_window, origin_name,
       base::BindOnce(&UserAuthenticationServiceProvider::OnAuthFlowComplete,
                      weak_ptr_factory_.GetWeakPtr(), method_call,
@@ -117,29 +103,9 @@ void UserAuthenticationServiceProvider::OnAuthFlowComplete(
 void UserAuthenticationServiceProvider::Cancel(
     dbus::MethodCall* method_call,
     dbus::ExportedObject::ResponseSender response_sender) {
-  WebAuthNDialogController::Get()->Cancel();
+  InSessionAuthDialogController::Get()->Cancel();
   std::unique_ptr<dbus::Response> response =
       dbus::Response::FromMethodCall(method_call);
-  std::move(response_sender).Run(std::move(response));
-}
-
-void UserAuthenticationServiceProvider::IsAuthenticatorAvailable(
-    dbus::MethodCall* method_call,
-    dbus::ExportedObject::ResponseSender response_sender) {
-  auto* webauthn_dialog_controller = WebAuthNDialogController::Get();
-  webauthn_dialog_controller->CheckAvailability(base::BindOnce(
-      &UserAuthenticationServiceProvider::OnAvailabilityChecked,
-      weak_ptr_factory_.GetWeakPtr(), method_call, std::move(response_sender)));
-}
-
-void UserAuthenticationServiceProvider::OnAvailabilityChecked(
-    dbus::MethodCall* method_call,
-    dbus::ExportedObject::ResponseSender response_sender,
-    bool available) {
-  std::unique_ptr<dbus::Response> response =
-      dbus::Response::FromMethodCall(method_call);
-  dbus::MessageWriter writer(response.get());
-  writer.AppendBool(available);
   std::move(response_sender).Run(std::move(response));
 }
 

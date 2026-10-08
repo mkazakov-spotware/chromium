@@ -1,14 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef HEADLESS_PUBLIC_HEADLESS_SHELL_H_
 #define HEADLESS_PUBLIC_HEADLESS_SHELL_H_
 
-#include "build/build_config.h"
 #include "content/public/app/content_main.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "sandbox/win/src/sandbox_types.h"
 #endif
 
@@ -21,12 +20,12 @@ int HeadlessShellMain(const content::ContentMainParams& params);
 
 // Start the Headless Shell application. Intended to be called early in main().
 // Returns the exit code for the process.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 int HeadlessShellMain(HINSTANCE instance,
                       sandbox::SandboxInterfaceInfo* sandbox_info);
 #else
 int HeadlessShellMain(int argc, const char** argv);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }  // namespace headless
 
 #endif  // HEADLESS_PUBLIC_HEADLESS_SHELL_H_

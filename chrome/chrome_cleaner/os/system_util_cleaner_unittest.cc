@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include <aclapi.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 #include <stdint.h>
 #include <wincrypt.h>
 
@@ -27,9 +28,7 @@
 #include "base/test/scoped_path_override.h"
 #include "base/test/test_shortcut_win.h"
 #include "base/test/test_timeouts.h"
-#include "base/win/shlwapi.h"
 #include "base/win/shortcut.h"
-#include "base/win/sid.h"
 #include "chrome/chrome_cleaner/constants/chrome_cleaner_switches.h"
 #include "chrome/chrome_cleaner/constants/quarantine_constants.h"
 #include "chrome/chrome_cleaner/os/disk_util.h"
@@ -41,6 +40,7 @@
 #include "chrome/chrome_cleaner/test/test_scoped_service_handle.h"
 #include "chrome/chrome_cleaner/test/test_strings.h"
 #include "chrome/chrome_cleaner/test/test_util.h"
+#include "sandbox/win/src/sid.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -150,12 +150,11 @@ TEST_F(ServiceUtilCleanerRunningServiceTest, QuarantineFolderPermission) {
                 &owner_sid, /*psidGroup=*/nullptr, &dacl,
                 /*pSacl=*/nullptr, &security_descriptor));
 
-  const absl::optional<base::win::Sid> admin_sid = base::win::Sid::FromKnownSid(
-      base::win::WellKnownSid::kBuiltinAdministrators);
-  ASSERT_TRUE(admin_sid);
+  sandbox::Sid admin_sid(WinBuiltinAdministratorsSid);
+  ASSERT_TRUE(admin_sid.IsValid());
 
   // Check that the administrator group is the owner.
-  EXPECT_TRUE(::EqualSid(owner_sid, admin_sid->GetPSID()));
+  EXPECT_TRUE(::EqualSid(owner_sid, admin_sid.GetPSID()));
 
   EXPLICIT_ACCESS* explicit_access;
   ULONG entry_count;
@@ -173,7 +172,7 @@ TEST_F(ServiceUtilCleanerRunningServiceTest, QuarantineFolderPermission) {
   EXPECT_EQ(TRUSTEE_IS_SID, explicit_access[0].Trustee.TrusteeForm);
   // The trustee of the rule should be administrator group.
   EXPECT_TRUE(
-      ::EqualSid(explicit_access[0].Trustee.ptstrName, admin_sid->GetPSID()));
+      ::EqualSid(explicit_access[0].Trustee.ptstrName, admin_sid.GetPSID()));
 
   ::LocalFree(explicit_access);
   ::LocalFree(security_descriptor);

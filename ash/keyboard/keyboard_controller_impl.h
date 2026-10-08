@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,9 @@
 #include "ash/public/cpp/keyboard/keyboard_controller.h"
 #include "ash/public/cpp/keyboard/keyboard_controller_observer.h"
 #include "ash/public/cpp/session/session_observer.h"
-#include "base/containers/flat_set.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/time/time.h"
 
 class PrefChangeRegistrar;
 class PrefRegistrySimple;
@@ -47,10 +49,6 @@ class ASH_EXPORT KeyboardControllerImpl
  public:
   // |session_controller| is expected to outlive KeyboardControllerImpl.
   explicit KeyboardControllerImpl(SessionControllerImpl* session_controller);
-
-  KeyboardControllerImpl(const KeyboardControllerImpl&) = delete;
-  KeyboardControllerImpl& operator=(const KeyboardControllerImpl&) = delete;
-
   ~KeyboardControllerImpl() override;
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
@@ -92,8 +90,7 @@ class ASH_EXPORT KeyboardControllerImpl
   bool ShouldOverscroll() override;
   void AddObserver(KeyboardControllerObserver* observer) override;
   void RemoveObserver(KeyboardControllerObserver* observer) override;
-  absl::optional<KeyRepeatSettings> GetKeyRepeatSettings() override;
-  bool AreTopRowKeysFunctionKeys() override;
+  KeyRepeatSettings GetKeyRepeatSettings() override;
 
   // keyboard::KeyboardLayoutDelegate:
   aura::Window* GetContainerForDefaultDisplay() override;
@@ -130,12 +127,8 @@ class ASH_EXPORT KeyboardControllerImpl
   void OnKeyboardEnabledChanged(bool is_enabled) override;
 
   void ObservePrefs(PrefService* prefs);
-  // Sends an update event of key repeat settings to observers.
-  // On calling this, |pref_change_registrar_| must have been initialized.
   void SendKeyRepeatUpdate();
   void SendKeyboardConfigUpdate();
-
-  void SetEnableFlagFromCommandLine();
 
   std::unique_ptr<PrefChangeRegistrar> pref_change_registrar_;
   SessionControllerImpl* session_controller_;  // unowned
@@ -143,14 +136,12 @@ class ASH_EXPORT KeyboardControllerImpl
   std::unique_ptr<VirtualKeyboardController> virtual_keyboard_controller_;
   base::ObserverList<KeyboardControllerObserver>::Unchecked observers_;
 
-  // This set ensures that a user's keyboard settings are recorded only once per
-  // session.
-  base::flat_set<AccountId> recorded_accounts_;
-
   // This flag controls if the keyboard config is set from the policy settings.
   // Note: the flag value cannot be changed from 'true' to 'false' because
   // original config is not stored.
   bool keyboard_config_from_pref_enabled_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardControllerImpl);
 };
 
 }  // namespace ash

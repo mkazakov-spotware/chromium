@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "base/memory/discardable_memory_allocator.h"
 
 namespace base {
@@ -18,11 +19,6 @@ class TestDiscardableMemoryAllocator : public DiscardableMemoryAllocator {
  public:
   TestDiscardableMemoryAllocator() = default;
 
-  TestDiscardableMemoryAllocator(const TestDiscardableMemoryAllocator&) =
-      delete;
-  TestDiscardableMemoryAllocator& operator=(
-      const TestDiscardableMemoryAllocator&) = delete;
-
   // Overridden from DiscardableMemoryAllocator:
   std::unique_ptr<DiscardableMemory> AllocateLockedDiscardableMemory(
       size_t size) override;
@@ -32,6 +28,9 @@ class TestDiscardableMemoryAllocator : public DiscardableMemoryAllocator {
   void ReleaseFreeMemory() override {
     // Do nothing since it is backed by heap memory.
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestDiscardableMemoryAllocator);
 };
 
 }  // namespace base

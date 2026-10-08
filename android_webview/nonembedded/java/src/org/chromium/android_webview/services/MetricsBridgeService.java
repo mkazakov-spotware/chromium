@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 package org.chromium.android_webview.services;
@@ -17,7 +17,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import org.chromium.android_webview.common.services.IMetricsBridgeService;
 import org.chromium.android_webview.proto.MetricsBridgeRecords.HistogramRecord;
 import org.chromium.android_webview.proto.MetricsBridgeRecords.HistogramRecord.RecordType;
-import org.chromium.android_webview.services.ServicesStatsHelper.NonembeddedService;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.task.PostTask;
@@ -147,7 +146,6 @@ public final class MetricsBridgeService extends Service {
                 Log.e(TAG, "Failed reading proto log file", e);
             }
         });
-        ServicesStatsHelper.recordServiceLaunch(NonembeddedService.METRICS_BRIDGE_SERVICE);
     }
 
     public MetricsBridgeService() {

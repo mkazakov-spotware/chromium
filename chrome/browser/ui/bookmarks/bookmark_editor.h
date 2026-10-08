@@ -1,18 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_BOOKMARKS_BOOKMARK_EDITOR_H_
 #define CHROME_BROWSER_UI_BOOKMARKS_BOOKMARK_EDITOR_H_
 
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "components/bookmarks/browser/bookmark_node.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/native_widget_types.h"
 
 class GURL;
@@ -26,9 +23,6 @@ class BookmarkModel;
 // bookmark editor dialog.
 class BookmarkEditor {
  public:
-  // A callback which is run when clicking on the Save button in the editor.
-  using OnSaveCallback = base::OnceClosure;
-
   // An enumeration of the possible configurations offered.
   enum Configuration {
     // If Configuration is SHOW_TREE, a tree is shown allowing the user to
@@ -40,18 +34,6 @@ class BookmarkEditor {
   // Describes what the user is editing.
   class EditDetails {
    public:
-    struct BookmarkData {
-      BookmarkData();
-      BookmarkData(BookmarkData const& other);
-      ~BookmarkData();
-
-      std::u16string title;
-
-      // Exactly one of the following should be non-empty.
-      absl::optional<GURL> url;
-      std::vector<BookmarkData> children;
-    };
-
     // Returns the type of the existing or new node.
     bookmarks::BookmarkNode::Type GetNodeType() const;
 
@@ -68,7 +50,7 @@ class BookmarkEditor {
         const bookmarks::BookmarkNode* parent_node,
         size_t index,
         const GURL& url,
-        const std::u16string& title);
+        const base::string16& title);
 
     // Returns an EditDetails instance for the user adding a folder within a
     // given parent node with a specified index.
@@ -97,20 +79,23 @@ class BookmarkEditor {
     const Type type;
 
     // If type == EXISTING_NODE this gives the existing node.
-    raw_ptr<const bookmarks::BookmarkNode> existing_node = nullptr;
+    const bookmarks::BookmarkNode* existing_node = nullptr;
 
     // If type == NEW_URL or type == NEW_FOLDER this gives the initial parent
     // node to place the new node in.
-    raw_ptr<const bookmarks::BookmarkNode> parent_node = nullptr;
+    const bookmarks::BookmarkNode* parent_node = nullptr;
 
     // If type == NEW_URL or type == NEW_FOLDER this gives the index to insert
     // the new node at.
-    absl::optional<size_t> index;
+    base::Optional<size_t> index;
 
-    // If type == NEW_URL this contains the URL/title. If type == NEW_FOLDER,
-    // this contains the folder title and any urls/title pairs or nested
-    // folders it should contain.
-    BookmarkData bookmark_data;
+    // If type == NEW_URL this gives the URL/title.
+    GURL url;
+    base::string16 title;
+
+    // If type == NEW_FOLDER, this is the urls/title pairs to add to the
+    // folder.
+    std::vector<std::pair<GURL, base::string16> > urls;
 
    private:
     explicit EditDetails(Type node_type);
@@ -122,8 +107,7 @@ class BookmarkEditor {
   static void Show(gfx::NativeWindow parent_window,
                    Profile* profile,
                    const EditDetails& details,
-                   Configuration configuration,
-                   OnSaveCallback on_save_callback = base::DoNothing());
+                   Configuration configuration);
 
   // Modifies a bookmark node (assuming that there's no magic that needs to be
   // done regarding moving from one folder to another).  If a new node is
@@ -133,7 +117,7 @@ class BookmarkEditor {
       bookmarks::BookmarkModel* model,
       const bookmarks::BookmarkNode* parent,
       const EditDetails& details,
-      const std::u16string& new_title,
+      const base::string16& new_title,
       const GURL& new_url);
 
   // Modifies a bookmark node assuming that the parent of the node may have
@@ -144,7 +128,7 @@ class BookmarkEditor {
       bookmarks::BookmarkModel* model,
       const bookmarks::BookmarkNode* new_parent,
       const EditDetails& details,
-      const std::u16string& new_title,
+      const base::string16& new_title,
       const GURL& new_url);
 };
 

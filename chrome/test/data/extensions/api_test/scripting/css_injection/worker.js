@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@ const CSS_CYAN = 'body { background-color: cyan !important }';
 const CYAN = 'rgb(0, 255, 255)';
 const YELLOW = 'rgb(255, 255, 0)';
 
+const EXACTLY_ONE_FILE_ERROR = 'Exactly one file must be specified.';
+
 function getBodyColor() {
   const hostname = (new URL(location.href)).hostname;
   return hostname + ' ' + getComputedStyle(document.body).backgroundColor;
@@ -24,13 +26,18 @@ async function getSingleTab(query) {
 }
 
 async function getBodyColorsForTab(tabId) {
-  const results = await chrome.scripting.executeScript({
-    target: {
-      tabId: tabId,
-      allFrames: true,
-    },
-    func: getBodyColor,
+  const results = await new Promise(resolve => {
+    chrome.scripting.executeScript(
+        {
+          target: {
+            tabId: tabId,
+            allFrames: true,
+          },
+          function: getBodyColor,
+        },
+        resolve);
   });
+  chrome.test.assertNoLastError();
   return results.map(res => res.result);
 }
 
@@ -45,12 +52,17 @@ chrome.test.runTests([
   async function changeBackgroundFromString() {
     const query = {url: 'http://example.com/*'};
     const tab = await getSingleTab(query);
-    const results = await chrome.scripting.insertCSS({
-      target: {
-        tabId: tab.id,
-      },
-      css: CSS_GREEN,
+    const results = await new Promise(resolve => {
+      chrome.scripting.insertCSS(
+          {
+            target: {
+              tabId: tab.id,
+            },
+            css: CSS_GREEN,
+          },
+          resolve);
     });
+    chrome.test.assertNoLastError();
     chrome.test.assertEq(undefined, results);
     const colors = await getBodyColorsForTab(tab.id);
     chrome.test.assertEq(1, colors.length);
@@ -61,13 +73,18 @@ chrome.test.runTests([
   async function subframes() {
     const query = {url: 'http://subframes.example/*'};
     const tab = await getSingleTab(query);
-    const results = await chrome.scripting.insertCSS({
-      target: {
-        tabId: tab.id,
-        allFrames: true,
-      },
-      css: CSS_RED,
+    const results = await new Promise(resolve => {
+      chrome.scripting.insertCSS(
+          {
+            target: {
+              tabId: tab.id,
+              allFrames: true,
+            },
+            css: CSS_RED,
+          },
+          resolve);
     });
+    chrome.test.assertNoLastError();
     chrome.test.assertEq(undefined, results);
     const colors = await getBodyColorsForTab(tab.id);
     chrome.test.assertEq(2, colors.length);
@@ -90,13 +107,18 @@ chrome.test.runTests([
     });
     chrome.test.assertTrue(!!bComFrame);
 
-    const results = await chrome.scripting.insertCSS({
-      target: {
-        tabId: tab.id,
-        frameIds: [bComFrame.frameId],
-      },
-      css: CSS_BLUE,
+    const results = await new Promise(resolve => {
+      chrome.scripting.insertCSS(
+          {
+            target: {
+              tabId: tab.id,
+              frameIds: [bComFrame.frameId],
+            },
+            css: CSS_BLUE,
+          },
+          resolve);
     });
+    chrome.test.assertNoLastError();
     chrome.test.assertEq(undefined, results);
 
     const colors = await getBodyColorsForTab(tab.id);
@@ -111,128 +133,115 @@ chrome.test.runTests([
   async function changeBackgroundFromFile() {
     const query = {url: 'http://example.com/*'};
     const tab = await getSingleTab(query);
-    const results = await chrome.scripting.insertCSS({
-      target: {
-        tabId: tab.id,
-      },
-      files: ['css_file.css'],
+    const results = await new Promise(resolve => {
+      chrome.scripting.insertCSS(
+          {
+            target: {
+              tabId: tab.id,
+            },
+            files: ['css_file.css'],
+          },
+          resolve);
     });
+    chrome.test.assertNoLastError();
     chrome.test.assertEq(undefined, results);
     const colors = await getBodyColorsForTab(tab.id);
     chrome.test.assertEq(1, colors.length);
     chrome.test.assertEq(`example.com ${YELLOW}`, colors[0]);
-    chrome.test.succeed();
-  },
-
-  async function multipleFilesSpecified() {
-    const query = {url: 'http://example.com/*'};
-    const tab = await getSingleTab(query);
-    const target = {tabId: tab.id};
-    // Inject multiple files. css_file2.css sets the background color to purple
-    // and also sets font size to 1337px. Then, css_file.css sets the background
-    // to yellow.
-    // Since stylesheets inject in-order, the end result should be that the
-    // font size is 1337px (from css_file2.css) and the background is yellow
-    // (from css_file.css, the last to run).
-    const results = await chrome.scripting.insertCSS({
-      target: target,
-      files: ['css_file2.css', 'css_file.css'],
-    });
-    chrome.test.assertEq(undefined, results);
-    const colors = await getBodyColorsForTab(tab.id);
-    chrome.test.assertEq(1, colors.length);
-    chrome.test.assertEq(`example.com ${YELLOW}`, colors[0]);
-
-    const fontSizes = await chrome.scripting.executeScript({
-      target: target,
-      func: function() { return getComputedStyle(document.body).fontSize; },
-    });
-
-    chrome.test.assertEq(1, fontSizes.length);
-    chrome.test.assertEq('1337px', fontSizes[0].result);
-
     chrome.test.succeed();
   },
 
   async function noSuchTab() {
     const nonExistentTabId = 99999;
-    await chrome.test.assertPromiseRejects(
-        chrome.scripting.insertCSS({
+    // NOTE(devlin): We can't use a fancy `await` here, because the lastError
+    // won't be properly set. This will work better with true promise support,
+    // where this could be wrapped in an e.g. expectThrows().
+    chrome.scripting.insertCSS(
+        {
           target: {
             tabId: nonExistentTabId,
           },
           css: CSS_CYAN,
-        }),
-        `Error: No tab with id: ${nonExistentTabId}`);
-    chrome.test.succeed();
+        },
+        results => {
+          chrome.test.assertLastError(`No tab with id: ${nonExistentTabId}`);
+          chrome.test.assertEq(undefined, results);
+          chrome.test.succeed();
+        });
   },
 
   async function noSuchFile() {
     const noSuchFile = 'no_such_file.css';
     const query = {url: 'http://example.com/*'};
     let tab = await getSingleTab(query);
-    await chrome.test.assertPromiseRejects(
-        chrome.scripting.insertCSS({
+    // NOTE(devlin): We can't use a fancy `await` here, because the lastError
+    // won't be properly set. This will work better with true promise support,
+    // where this could be wrapped in an e.g. expectThrows().
+    chrome.scripting.insertCSS(
+        {
           target: {
             tabId: tab.id,
           },
           files: [noSuchFile],
-        }),
-        `Error: Could not load file: '${noSuchFile}'.`);
-    chrome.test.succeed();
+        },
+        results => {
+          chrome.test.assertLastError(`Could not load file: '${noSuchFile}'.`);
+          chrome.test.assertEq(undefined, results);
+          chrome.test.succeed();
+        });
   },
 
   async function noFilesSpecified() {
     const query = {url: 'http://example.com/*'};
     let tab = await getSingleTab(query);
-    await chrome.test.assertPromiseRejects(
-        chrome.scripting.insertCSS({
+    chrome.scripting.executeScript(
+        {
           target: {
             tabId: tab.id,
           },
           files: [],
-        }),
-        'Error: At least one file must be specified.');
-    chrome.test.succeed();
+        },
+        results => {
+          chrome.test.assertLastError(EXACTLY_ONE_FILE_ERROR);
+          chrome.test.assertEq(undefined, results);
+          chrome.test.succeed();
+        });
   },
 
-  async function duplicateFilesSpecified() {
+  async function multipleFilesSpecified() {
     const query = {url: 'http://example.com/*'};
     let tab = await getSingleTab(query);
-    await chrome.test.assertPromiseRejects(
-        chrome.scripting.insertCSS({
+    chrome.scripting.executeScript(
+        {
           target: {
             tabId: tab.id,
           },
-          files: ['css_file.js', 'css_file.js'],
-        }),
-        `Error: Duplicate file specified: 'css_file.js'.`);
-
-    // Try again with a preceding slash.
-    await chrome.test.assertPromiseRejects(
-        chrome.scripting.insertCSS({
-          target: {
-            tabId: tab.id,
-          },
-          files: ['css_file.js', '/css_file.js'],
-        }),
-        `Error: Duplicate file specified: '/css_file.js'.`);
-    chrome.test.succeed();
+          files: ['css_file.css', 'css_file2.css'],
+        },
+        results => {
+          chrome.test.assertLastError(EXACTLY_ONE_FILE_ERROR);
+          chrome.test.assertEq(undefined, results);
+          chrome.test.succeed();
+        });
   },
 
   async function disallowedPermission() {
     const query = {url: 'http://chromium.org/*'};
     const tab = await getSingleTab(query);
-    await chrome.test.assertPromiseRejects(
-        chrome.scripting.insertCSS({
+    chrome.scripting.insertCSS(
+        {
           target: {
             tabId: tab.id,
           },
           css: CSS_CYAN,
-        }),
-        `Error: Cannot access contents of url "${tab.url}". ` +
-            'Extension manifest must request permission ' +
-            'to access this host.');
-    chrome.test.succeed();
+        },
+        results => {
+          chrome.test.assertLastError(
+              `Cannot access contents of url "${tab.url}". ` +
+                  'Extension manifest must request permission ' +
+                  'to access this host.');
+          chrome.test.assertEq(undefined, results);
+          chrome.test.succeed();
+        });
   },
 ]);

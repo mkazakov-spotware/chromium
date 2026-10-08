@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,17 +15,10 @@
 
 namespace {
 // Total number of attachments.
-constexpr int kAttachmentCount = 5;
+constexpr int kAttachmentCount = 4;
 
 // Size of each attachment.
 constexpr int kTotalSize = 10;
-
-constexpr int kWifiCredentialsIdOk = 111;
-constexpr int kWifiCredentialsIdBad = 112;
-constexpr char kWifiSsidOk[] = "test_ssid1";
-constexpr char kWifiSsidBad[] = "test_ssid2";
-const WifiCredentialsAttachment::SecurityType kWifiSecurityType =
-    sharing::mojom::WifiCredentialsMetadata::SecurityType::kWpaPsk;
 
 }  // namespace
 
@@ -56,8 +49,7 @@ class PayloadTrackerTest : public testing::Test {
     }
 
     for (int i = kAttachmentCount / 2; i < kAttachmentCount; i++) {
-      TextAttachment text(TextAttachment::Type::kText, "text body.",
-                          /*title=*/absl::nullopt, /*mime_type=*/absl::nullopt);
+      TextAttachment text(TextAttachment::Type::kText, "text body.");
 
       AttachmentInfo info;
       info.payload_id = i;
@@ -66,25 +58,8 @@ class PayloadTrackerTest : public testing::Test {
       share_target_.text_attachments.push_back(std::move(text));
     }
 
-    WifiCredentialsAttachment wifi_credentials_ok(
-        kWifiCredentialsIdOk, kWifiSecurityType, kWifiSsidOk);
-
-    AttachmentInfo info;
-    info.payload_id = 4;
-    attachment_info_map_.emplace(wifi_credentials_ok.id(), std::move(info));
-
-    share_target_.wifi_credentials_attachments.push_back(
-        std::move(wifi_credentials_ok));
-
     // This attachment is not added to |attachment_info_map_|.
-    WifiCredentialsAttachment wifi_credentials_bad(
-        kWifiCredentialsIdBad, kWifiSecurityType, kWifiSsidBad);
-    share_target_.wifi_credentials_attachments.push_back(
-        std::move(wifi_credentials_bad));
-
-    // This attachment is not added to |attachment_info_map_|.
-    TextAttachment text(TextAttachment::Type::kText, "text body.",
-                        /*title=*/absl::nullopt, /*mime_type=*/absl::nullopt);
+    TextAttachment text(TextAttachment::Type::kText, "text body.");
     share_target_.text_attachments.push_back(std::move(text));
 
     payload_tracker_ = std::make_unique<PayloadTracker>(
@@ -142,28 +117,21 @@ TEST_F(PayloadTrackerTest, PayloadsComplete_Successful) {
       Run(testing::_,
           MetadataMatcher(TransferMetadataBuilder()
                               .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(20)
+                              .set_progress(25)
                               .build())));
   EXPECT_CALL(
       callback(),
       Run(testing::_,
           MetadataMatcher(TransferMetadataBuilder()
                               .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(40)
+                              .set_progress(50)
                               .build())));
   EXPECT_CALL(
       callback(),
       Run(testing::_,
           MetadataMatcher(TransferMetadataBuilder()
                               .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(60)
-                              .build())));
-  EXPECT_CALL(
-      callback(),
-      Run(testing::_,
-          MetadataMatcher(TransferMetadataBuilder()
-                              .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(80)
+                              .set_progress(75)
                               .build())));
   EXPECT_CALL(
       callback(),
@@ -210,7 +178,7 @@ TEST_F(PayloadTrackerTest, PayloadsInProgress) {
       Run(testing::_,
           MetadataMatcher(TransferMetadataBuilder()
                               .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(20)
+                              .set_progress(25)
                               .build())));
 
   MarkSuccessful(/*payload_id=*/0);
@@ -224,7 +192,7 @@ TEST_F(PayloadTrackerTest, MultipleInProgressUpdates_SamePercentage) {
       Run(testing::_,
           MetadataMatcher(TransferMetadataBuilder()
                               .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(20)
+                              .set_progress(25)
                               .build())));
 
   MarkSuccessful(/*payload_id=*/0);
@@ -240,7 +208,7 @@ TEST_F(PayloadTrackerTest, MultipleInProgressUpdates_HighFrequency) {
       Run(testing::_,
           MetadataMatcher(TransferMetadataBuilder()
                               .set_status(TransferMetadata::Status::kInProgress)
-                              .set_progress(20)
+                              .set_progress(25)
                               .build())));
 
   MarkSuccessful(/*payload_id=*/0);
@@ -251,5 +219,5 @@ TEST_F(PayloadTrackerTest, MultipleInProgressUpdates_HighFrequency) {
 TEST_F(PayloadTrackerTest, StatusUpdateForUnknownPayload) {
   EXPECT_CALL(callback(), Run(testing::_, testing::_)).Times(0);
 
-  MarkSuccessful(/*payload_id=*/5);
+  MarkSuccessful(/*payload_id=*/4);
 }

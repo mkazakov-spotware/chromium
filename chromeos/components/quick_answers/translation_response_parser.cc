@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "chromeos/components/quick_answers/search_result_parsers/result_parser.h"
 #include "chromeos/components/quick_answers/utils/quick_answers_utils.h"
 
+namespace chromeos {
 namespace quick_answers {
 
 TranslationResponseParser::TranslationResponseParser(
@@ -36,13 +37,13 @@ void TranslationResponseParser::OnJsonParsed(
     data_decoder::DataDecoder::ValueOrError result) {
   DCHECK(complete_callback_);
 
-  if (!result.has_value()) {
-    LOG(ERROR) << "JSON parsing failed: " << result.error();
+  if (!result.value) {
+    LOG(ERROR) << "JSON parsing failed: " << *result.error;
     std::move(complete_callback_).Run(nullptr);
     return;
   }
 
-  auto* translations = result->FindListPath("data.translations");
+  auto* translations = result.value->FindListPath("data.translations");
   if (!translations) {
     LOG(ERROR) << "Can't find translations result list.";
     std::move(complete_callback_).Run(nullptr);
@@ -62,6 +63,8 @@ void TranslationResponseParser::OnJsonParsed(
 
   auto quick_answer = std::make_unique<QuickAnswer>();
   quick_answer->result_type = ResultType::kTranslationResult;
+  quick_answer->primary_answer = translated_text;
+  quick_answer->secondary_answer = title_text;
   quick_answer->title.push_back(std::make_unique<QuickAnswerText>(title_text));
   quick_answer->first_answer_row.push_back(
       std::make_unique<QuickAnswerResultText>(translated_text));
@@ -70,3 +73,4 @@ void TranslationResponseParser::OnJsonParsed(
 }
 
 }  // namespace quick_answers
+}  // namespace chromeos

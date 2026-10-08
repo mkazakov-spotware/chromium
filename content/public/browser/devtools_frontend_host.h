@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "base/callback.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/values.h"
 #include "content/common/content_export.h"
 
 namespace base {
@@ -29,7 +28,7 @@ class RenderFrameHost;
 class DevToolsFrontendHost {
  public:
   using HandleMessageCallback =
-      base::RepeatingCallback<void(base::Value::Dict)>;
+      base::RepeatingCallback<void(const std::string&)>;
 
   // Creates a new DevToolsFrontendHost for RenderFrameHost where DevTools
   // frontend is loaded.

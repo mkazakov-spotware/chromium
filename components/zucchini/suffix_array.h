@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/containers/adapters.h"
+#include "base/macros.h"
 
 namespace zucchini {
 
@@ -210,9 +210,9 @@ class InducedSuffixSort {
 
       // Process each |lms_indices| backward, and assign them to the end of
       // their respective buckets, so relative order is preserved.
-      for (size_t lms_index : base::Reversed(lms_indices)) {
-        key_type key = str[lms_index];
-        suffix_array[--bucket_bounds[key]] = lms_index;
+      for (auto it = lms_indices.crbegin(); it != lms_indices.crend(); ++it) {
+        key_type key = str[*it];
+        suffix_array[--bucket_bounds[key]] = *it;
       }
 
       // Step 2
@@ -425,9 +425,8 @@ class InducedSuffixSort {
                   suffix_array);
     }
 
-    Implementation() = delete;
-    Implementation(const Implementation&) = delete;
-    const Implementation& operator=(const Implementation&) = delete;
+   private:
+    DISALLOW_IMPLICIT_CONSTRUCTORS(Implementation);
   };
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
@@ -47,32 +47,60 @@ const base::FilePath::CharType kServicesTestData[] =
 
 // Base class for any tests that just need a NetworkService and a
 // TaskEnvironment, and to create NetworkContexts using the NetworkService.
-class NetworkServiceIntegrationTest : public testing::Test {
+// Parametrized on whether or not the CertVerifierService feature is enabled.
+class NetworkServiceIntegrationTest : public testing::TestWithParam<bool> {
  public:
   NetworkServiceIntegrationTest()
       : task_environment_(base::test::TaskEnvironment::MainThreadType::IO),
         service_(network::NetworkService::CreateForTesting()),
         cert_verifier_service_impl_(
-            /*params=*/nullptr,
             cert_verifier_service_remote_.BindNewPipeAndPassReceiver()) {}
   ~NetworkServiceIntegrationTest() override = default;
+
+  void SetUp() override {
+    if (GetParam()) {
+      scoped_feature_list_.InitAndEnableFeature(
+          network::features::kCertVerifierService);
+    } else {
+      scoped_feature_list_.InitAndDisableFeature(
+          network::features::kCertVerifierService);
+    }
+  }
 
   void DestroyService() { service_.reset(); }
 
   network::mojom::NetworkContextParamsPtr CreateNetworkContextParams() {
-    mojo::PendingRemote<mojom::CertVerifierService> cv_service_remote;
+    network::mojom::CertVerifierCreationParamsPtr
+        cert_verifier_creation_params =
+            network::mojom::CertVerifierCreationParams::New();
+    network::mojom::CertVerifierParamsPtr cert_verifier_params;
+    if (base::FeatureList::IsEnabled(network::features::kCertVerifierService)) {
+      mojo::PendingRemote<mojom::CertVerifierService> cv_service_remote;
 
-    // Create a cert verifier service.
-    cert_verifier_service_impl_.GetNewCertVerifierForTesting(
-        cv_service_remote.InitWithNewPipeAndPassReceiver(),
-        mojom::CertVerifierCreationParams::New(),
-        &cert_net_fetcher_url_loader_);
+      auto cv_service_remote_params =
+          network::mojom::CertVerifierServiceRemoteParams::New();
+
+      // Create a cert verifier service.
+      cert_verifier_service_impl_.GetNewCertVerifierForTesting(
+          cv_service_remote.InitWithNewPipeAndPassReceiver(),
+          std::move(cert_verifier_creation_params),
+          &cert_net_fetcher_url_loader_);
+
+      cv_service_remote_params->cert_verifier_service =
+          std::move(cv_service_remote);
+
+      cert_verifier_params =
+          network::mojom::CertVerifierParams::NewRemoteParams(
+              std::move(cv_service_remote_params));
+    } else {
+      cert_verifier_params =
+          network::mojom::CertVerifierParams::NewCreationParams(
+              std::move(cert_verifier_creation_params));
+    }
 
     network::mojom::NetworkContextParamsPtr params =
         network::mojom::NetworkContextParams::New();
-    params->cert_verifier_params =
-        network::mojom::CertVerifierServiceRemoteParams::New(
-            std::move(cv_service_remote));
+    params->cert_verifier_params = std::move(cert_verifier_params);
     // Use a fixed proxy config, to avoid dependencies on local network
     // configuration.
     params->initial_proxy_config =
@@ -110,7 +138,7 @@ class NetworkServiceIntegrationTest : public testing::Test {
 
     loader_.reset();
     loader_factory->CreateLoaderAndStart(
-        loader_.BindNewPipeAndPassReceiver(), 1, options, request,
+        loader_.BindNewPipeAndPassReceiver(), 1, 1, options, request,
         client_->CreateRemote(),
         net::MutableNetworkTrafficAnnotationTag(TRAFFIC_ANNOTATION_FOR_TESTS));
   }
@@ -132,6 +160,7 @@ class NetworkServiceIntegrationTest : public testing::Test {
   }
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   base::test::TaskEnvironment task_environment_;
   std::unique_ptr<network::NetworkService> service_;
 
@@ -147,7 +176,7 @@ class NetworkServiceIntegrationTest : public testing::Test {
 };
 
 // CRLSets are not supported on iOS and Android system verifiers.
-#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_IOS) && !defined(OS_ANDROID)
 
 class NetworkServiceCRLSetTest : public NetworkServiceIntegrationTest {
  public:
@@ -169,7 +198,7 @@ class NetworkServiceCRLSetTest : public NetworkServiceIntegrationTest {
 };
 
 // Verifies CRLSets take effect if configured on the service.
-TEST_F(NetworkServiceCRLSetTest, CRLSetIsApplied) {
+TEST_P(NetworkServiceCRLSetTest, CRLSetIsApplied) {
   CreateNetworkContext(CreateNetworkContextParams());
 
   uint32_t options =
@@ -212,7 +241,7 @@ TEST_F(NetworkServiceCRLSetTest, CRLSetIsApplied) {
 
 // Verifies CRLSets configured before creating a new network context are
 // applied to that network context.
-TEST_F(NetworkServiceCRLSetTest, CRLSetIsPassedToNewContexts) {
+TEST_P(NetworkServiceCRLSetTest, CRLSetIsPassedToNewContexts) {
   // Send a CRLSet that blocks the leaf cert, even while no NetworkContexts
   // exist.
   std::string crl_set_bytes;
@@ -241,7 +270,7 @@ TEST_F(NetworkServiceCRLSetTest, CRLSetIsPassedToNewContexts) {
 }
 
 // Verifies newer CRLSets (by sequence number) are applied.
-TEST_F(NetworkServiceCRLSetTest, CRLSetIsUpdatedIfNewer) {
+TEST_P(NetworkServiceCRLSetTest, CRLSetIsUpdatedIfNewer) {
   // Send a CRLSet that only allows the root cert if it matches a known SPKI
   // hash (that matches the test server chain)
   std::string crl_set_bytes;
@@ -297,7 +326,7 @@ TEST_F(NetworkServiceCRLSetTest, CRLSetIsUpdatedIfNewer) {
 
 // Verifies that attempting to send an older CRLSet (by sequence number)
 // does not apply to existing or new contexts.
-TEST_F(NetworkServiceCRLSetTest, CRLSetDoesNotDowngrade) {
+TEST_P(NetworkServiceCRLSetTest, CRLSetDoesNotDowngrade) {
   // Send a CRLSet that blocks the root certificate by subject name.
   std::string crl_set_bytes;
   ASSERT_TRUE(base::ReadFileToString(net::GetTestCertsDirectory().AppendASCII(
@@ -369,10 +398,11 @@ TEST_F(NetworkServiceCRLSetTest, CRLSetDoesNotDowngrade) {
               net::CERT_STATUS_REVOKED);
 }
 
-#endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
+INSTANTIATE_TEST_SUITE_P(All, NetworkServiceCRLSetTest, ::testing::Bool());
+#endif  // !defined(OS_IOS) && !defined(OS_ANDROID)
 
 // TODO(crbug.com/860189): AIA tests fail on iOS
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #define MAYBE(test_name) DISABLED_##test_name
 #else
 #define MAYBE(test_name) test_name
@@ -417,7 +447,7 @@ class NetworkServiceAIATest : public NetworkServiceIntegrationTest {
   net::EmbeddedTestServer test_server_;
 };
 
-TEST_F(NetworkServiceAIATest, MAYBE(AIAFetching)) {
+TEST_P(NetworkServiceAIATest, MAYBE(AIAFetching)) {
   PerformAIATest();
 }
 
@@ -425,9 +455,10 @@ TEST_F(NetworkServiceAIATest, MAYBE(AIAFetching)) {
 // backing the CertNetFetcherURLLoader disconnects.
 // Only relevant if testing with the CertVerifierService, and the underlying
 // CertVerifier uses the CertNetFetcher.
-TEST_F(NetworkServiceAIATest,
+TEST_P(NetworkServiceAIATest,
        MAYBE(AIAFetchingWithURLLoaderFactoryDisconnect)) {
-  if (!cert_net_fetcher_url_loader()) {
+  if (!base::FeatureList::IsEnabled(network::features::kCertVerifierService) ||
+      !cert_net_fetcher_url_loader()) {
     // TODO(crbug.com/1015706): Switch to GTEST_SKIP().
     LOG(WARNING) << "Skipping AIA reconnection test because the underlying "
                     "cert verifier does not use a CertNetFetcherURLLoader.";
@@ -444,4 +475,5 @@ TEST_F(NetworkServiceAIATest,
   PerformAIATest();
 }
 
+INSTANTIATE_TEST_SUITE_P(All, NetworkServiceAIATest, ::testing::Bool());
 }  // namespace cert_verifier

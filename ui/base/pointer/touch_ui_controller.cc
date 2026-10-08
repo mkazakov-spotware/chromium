@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 #include "base/no_destructor.h"
 #include "base/task/current_thread.h"
 #include "base/trace_event/trace_event.h"
-#include "build/build_config.h"
 #include "ui/base/ui_base_switches.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
 #include "ui/gfx/win/singleton_hwnd.h"
@@ -27,14 +26,14 @@ namespace ui {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 bool IsTabletMode() {
-  return base::win::IsWindows10OrGreaterTabletMode(
+  return base::win::IsWindows10TabletMode(
       gfx::SingletonHwnd::GetInstance()->hwnd());
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 void RecordEnteredTouchMode() {
   base::RecordAction(base::UserMetricsAction("TouchMode.EnteredTouchMode"));
@@ -78,9 +77,9 @@ TouchUiController* TouchUiController::Get() {
 
 TouchUiController::TouchUiController(TouchUiState touch_ui_state)
     : touch_ui_state_(touch_ui_state) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (base::CurrentUIThread::IsSet() &&
-      base::win::GetVersion() >= base::win::Version::WIN10) {
+      (base::win::GetVersion() >= base::win::Version::WIN10)) {
     singleton_hwnd_observer_ =
         std::make_unique<gfx::SingletonHwndObserver>(base::BindRepeating(
             [](HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -106,8 +105,8 @@ void TouchUiController::OnTabletModeToggled(bool enabled) {
     TouchUiChanged();
 }
 
-base::CallbackListSubscription TouchUiController::RegisterCallback(
-    const base::RepeatingClosure& closure) {
+std::unique_ptr<TouchUiController::Subscription>
+TouchUiController::RegisterCallback(const base::RepeatingClosure& closure) {
   return callback_list_.Add(closure);
 }
 

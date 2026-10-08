@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,8 @@ namespace {
 // indefinitely. In most normal cases, reads will cause the delay buffer to
 // automatically prune its recording down to well under this maximum (e.g.,
 // around 100 milliseconds of audio).
-constexpr base::TimeDelta kDelayBufferSize = base::Milliseconds(1000);
+constexpr base::TimeDelta kDelayBufferSize =
+    base::TimeDelta::FromMilliseconds(1000);
 
 // A frequency at which people cannot discern tones that differ by 1 Hz. This is
 // based on research that shows people can discern tones only when they are more
@@ -163,7 +164,7 @@ void SnooperNode::OnData(const media::AudioBus& input_bus,
   write_reference_time_ = reference_time + input_bus_duration_;
 }
 
-absl::optional<base::TimeTicks> SnooperNode::SuggestLatestRenderTime(
+base::Optional<base::TimeTicks> SnooperNode::SuggestLatestRenderTime(
     FrameTicks duration) {
   DCHECK_GE(duration, 0);
 
@@ -171,7 +172,7 @@ absl::optional<base::TimeTicks> SnooperNode::SuggestLatestRenderTime(
   {
     base::AutoLock scoped_lock(lock_);
     if (write_position_ == kNullPosition) {
-      return absl::nullopt;  // OnData() never called yet.
+      return base::nullopt;  // OnData() never called yet.
     }
     checkpoint_time_ = write_reference_time_;
   }
@@ -179,7 +180,7 @@ absl::optional<base::TimeTicks> SnooperNode::SuggestLatestRenderTime(
   // Do not suggest any changes if OnData() has not been called since the last
   // call to this method. This may indicate an input discontinuity is occurring.
   if (checkpoint_time_ == last_checkpoint_time) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Suggest a render time by working backwards from the end time of the data

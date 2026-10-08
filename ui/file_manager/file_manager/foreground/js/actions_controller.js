@@ -1,23 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {contextMenuHandler} from './ui/context_menu_handler.js';
-
-import {DriveSyncHandler} from '../../externs/background/drive_sync_handler.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
-
-import {Action, ActionsModel} from './actions_model.js';
-import {DirectoryModel} from './directory_model.js';
-import {FileSelectionHandler} from './file_selection.js';
-import {FolderShortcutsDataModel} from './folder_shortcuts_data_model.js';
-import {MetadataModel} from './metadata/metadata_model.js';
-import {FileManagerUI} from './ui/file_manager_ui.js';
 
 /**
  * Manages actions for the current selection.
  */
-export class ActionsController {
+class ActionsController {
   /**
    * @param {!VolumeManager} volumeManager
    * @param {!MetadataModel} metadataModel
@@ -87,7 +75,7 @@ export class ActionsController {
 
     // Attach listeners to events based on user action to show the menu, which
     // updates the DOM.
-    contextMenuHandler.addEventListener(
+    cr.ui.contextMenuHandler.addEventListener(
         'show', this.onContextMenuShow_.bind(this));
     this.ui_.selectionMenuButton.addEventListener(
         'menushow', this.onMenuShow_.bind(this));

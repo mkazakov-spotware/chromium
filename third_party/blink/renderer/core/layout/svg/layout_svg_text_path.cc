@@ -36,7 +36,8 @@ PathPositionMapper::PathPositionMapper(const Path& path,
 
 PathPositionMapper::PositionType PathPositionMapper::PointAndNormalAtLength(
     float length,
-    PointAndTangent& point_and_tangent) {
+    FloatPoint& point,
+    float& angle) {
   if (length < 0)
     return kBeforePath;
   if (length > path_length_)
@@ -44,7 +45,7 @@ PathPositionMapper::PositionType PathPositionMapper::PointAndNormalAtLength(
   DCHECK_GE(length, 0);
   DCHECK_LE(length, path_length_);
 
-  point_and_tangent = position_calculator_.PointAndNormalAtLength(length);
+  position_calculator_.PointAndNormalAtLength(length, point, angle);
   return kOnPath;
 }
 

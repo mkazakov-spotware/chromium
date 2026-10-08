@@ -26,6 +26,5 @@
 [
     ImplementedAs=DOMWindowQuota
 ] partial interface Window {
-    [DeprecateAs=PrefixedStorageInfo,
-     RuntimeEnabled=PrefixedStorageInfo] readonly attribute DeprecatedStorageInfo webkitStorageInfo;
+    [DeprecateAs=PrefixedStorageInfo] readonly attribute DeprecatedStorageInfo webkitStorageInfo;
 };

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,16 @@
 #include "base/json/string_escape.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "net/base/escape.h"
 #include "net/base/net_module.h"
 #include "net/grit/net_resources.h"
 
 namespace net {
 
-std::string GetDirectoryListingHeader(const std::u16string& title) {
+std::string GetDirectoryListingHeader(const base::string16& title) {
   scoped_refptr<base::RefCountedMemory> header(
       NetModule::GetResource(IDR_DIR_HEADER_HTML));
   // This can be null in unit tests.
@@ -34,7 +34,7 @@ std::string GetDirectoryListingHeader(const std::u16string& title) {
   return result;
 }
 
-std::string GetDirectoryListingEntry(const std::u16string& name,
+std::string GetDirectoryListingEntry(const base::string16& name,
                                      const std::string& raw_bytes,
                                      bool is_dir,
                                      int64_t size,
@@ -44,10 +44,9 @@ std::string GetDirectoryListingEntry(const std::u16string& name,
   base::EscapeJSONString(name, true, &result);
   result.append(",");
   if (raw_bytes.empty()) {
-    base::EscapeJSONString(base::EscapePath(base::UTF16ToUTF8(name)), true,
-                           &result);
+    base::EscapeJSONString(EscapePath(base::UTF16ToUTF8(name)), true, &result);
   } else {
-    base::EscapeJSONString(base::EscapePath(raw_bytes), true, &result);
+    base::EscapeJSONString(EscapePath(raw_bytes), true, &result);
   }
 
   if (is_dir) {
@@ -61,7 +60,7 @@ std::string GetDirectoryListingEntry(const std::u16string& name,
   raw_size_string_stream << size << ",";
   result.append(raw_size_string_stream.str());
 
-  std::u16string size_string;
+  base::string16 size_string;
   if (size >= 0)
     size_string = base::FormatBytesUnlocalized(size);
   base::EscapeJSONString(size_string, true, &result);
@@ -69,7 +68,7 @@ std::string GetDirectoryListingEntry(const std::u16string& name,
   result.append(",");
 
   // |modified| can be NULL in FTP listings.
-  std::u16string modified_str;
+  base::string16 modified_str;
   if (modified.is_null()) {
     result.append("0,");
   } else {

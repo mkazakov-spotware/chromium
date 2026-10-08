@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,13 +15,13 @@
 #include "base/command_line.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
-#include "chrome/android/features/vr/split_jni_headers/VrShell_jni.h"
+#include "chrome/android/features/vr/jni_headers/VrShell_jni.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/android/vr/android_ui_gesture_target.h"
 #include "chrome/browser/android/vr/autocomplete_controller.h"
@@ -87,9 +87,11 @@ namespace vr {
 namespace {
 vr::VrShell* g_vr_shell_instance;
 
-constexpr base::TimeDelta kPollCapturingStateInterval = base::Seconds(0.2);
+constexpr base::TimeDelta kPollCapturingStateInterval =
+    base::TimeDelta::FromSecondsD(0.2);
 
-constexpr base::TimeDelta kAssetsComponentWaitDelay = base::Seconds(2);
+constexpr base::TimeDelta kAssetsComponentWaitDelay =
+    base::TimeDelta::FromSeconds(2);
 
 static constexpr float kInchesToMeters = 0.0254f;
 // Screen pixel density of the Google Pixel phone in pixels per inch.
@@ -142,8 +144,7 @@ VrShell::VrShell(JNIEnv* env,
                  bool pause_content,
                  bool low_density)
     : delegate_provider_(delegate),
-      main_thread_task_runner_(
-          base::SingleThreadTaskRunner::GetCurrentDefault()),
+      main_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       reprojected_rendering_(reprojected_rendering),
       display_size_meters_(display_width_meters, display_height_meters),
       display_size_pixels_(display_width_pixels, display_height_pixels),
@@ -575,7 +576,7 @@ void VrShell::SetDialogFloating(JNIEnv* env,
 void VrShell::ShowToast(JNIEnv* env,
                         const base::android::JavaParamRef<jobject>& obj,
                         jstring jtext) {
-  std::u16string text;
+  base::string16 text;
   base::android::ConvertJavaStringToUTF16(env, jtext, &text);
   gl_thread_->ShowPlatformToast(text);
 }
@@ -586,11 +587,12 @@ void VrShell::CancelToast(JNIEnv* env,
 }
 
 void VrShell::ConnectPresentingService(
+    device::mojom::VRDisplayInfoPtr display_info,
     device::mojom::XRRuntimeSessionOptionsPtr options) {
-  PostToGlThread(
-      FROM_HERE,
-      base::BindOnce(&BrowserRenderer::ConnectPresentingService,
-                     gl_thread_->GetBrowserRenderer(), std::move(options)));
+  PostToGlThread(FROM_HERE,
+                 base::BindOnce(&BrowserRenderer::ConnectPresentingService,
+                                gl_thread_->GetBrowserRenderer(),
+                                std::move(display_info), std::move(options)));
 }
 
 void VrShell::SetHistoryButtonsEnabled(JNIEnv* env,
@@ -713,7 +715,7 @@ void VrShell::UpdateWebInputIndices(
 }
 
 content::WebContents* VrShell::GetNonNativePageWebContents() const {
-  return !web_contents_is_native_page_ ? web_contents_.get() : nullptr;
+  return !web_contents_is_native_page_ ? web_contents_ : nullptr;
 }
 
 void VrShell::OnUnsupportedMode(UiUnsupportedMode mode) {
@@ -816,7 +818,7 @@ void VrShell::SetVoiceSearchActive(bool active) {
     std::string profile_locale = g_browser_process->GetApplicationLocale();
     speech_recognizer_.reset(new SpeechRecognizer(
         this, ui_,
-        profile->GetDefaultStoragePartition()
+        content::BrowserContext::GetDefaultStoragePartition(profile)
             ->GetURLLoaderFactoryForBrowserProcessIOThread(),
         profile->GetPrefs()->GetString(language::prefs::kAcceptLanguages),
         profile_locale));
@@ -861,8 +863,8 @@ void VrShell::RequestRecordAudioPermissionResult(
 }
 
 void VrShell::PollCapturingState() {
-  poll_capturing_state_task_.Reset(
-      base::BindOnce(&VrShell::PollCapturingState, base::Unretained(this)));
+  poll_capturing_state_task_.Reset(base::BindRepeating(
+      &VrShell::PollCapturingState, base::Unretained(this)));
   main_thread_task_runner_->PostDelayedTask(
       FROM_HERE, poll_capturing_state_task_.callback(),
       kPollCapturingStateInterval);
@@ -975,7 +977,7 @@ content::WebContents* VrShell::GetActiveWebContents() const {
 
 bool VrShell::ShouldDisplayURL() const {
   content::NavigationEntry* entry = GetNavigationEntry();
-  if (!entry || entry->IsInitialEntry()) {
+  if (!entry) {
     return ChromeLocationBarModelDelegate::ShouldDisplayURL();
   }
   GURL url = entry->GetVirtualURL();
@@ -991,7 +993,7 @@ bool VrShell::ShouldDisplayURL() const {
   return ChromeLocationBarModelDelegate::ShouldDisplayURL();
 }
 
-void VrShell::OnVoiceResults(const std::u16string& result) {
+void VrShell::OnVoiceResults(const base::string16& result) {
   JNIEnv* env = base::android::AttachCurrentThread();
   GURL url;
   bool input_was_url;
@@ -1172,7 +1174,7 @@ std::unique_ptr<PageInfo> VrShell::CreatePageInfo() {
   auto page_info = std::make_unique<PageInfo>(
       std::make_unique<ChromePageInfoDelegate>(web_contents_), web_contents_,
       entry->GetVirtualURL());
-  page_info->InitializeUiState(this, base::DoNothing());
+  page_info->InitializeUiState(this);
   return page_info;
 }
 

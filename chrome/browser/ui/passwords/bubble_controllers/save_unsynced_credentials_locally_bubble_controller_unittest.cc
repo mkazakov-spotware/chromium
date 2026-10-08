@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,10 @@ class SaveUnsyncedCredentialsLocallyBubbleControllerTest
  public:
   SaveUnsyncedCredentialsLocallyBubbleControllerTest() {
     unsynced_credentials_.resize(2);
-    unsynced_credentials_[0].username_value = u"user1";
-    unsynced_credentials_[0].password_value = u"password1";
-    unsynced_credentials_[1].username_value = u"user2";
-    unsynced_credentials_[1].password_value = u"password2";
+    unsynced_credentials_[0].username_value = ASCIIToUTF16("user1");
+    unsynced_credentials_[0].password_value = ASCIIToUTF16("password1");
+    unsynced_credentials_[1].username_value = ASCIIToUTF16("user2");
+    unsynced_credentials_[1].password_value = ASCIIToUTF16("password2");
   }
   ~SaveUnsyncedCredentialsLocallyBubbleControllerTest() override = default;
 

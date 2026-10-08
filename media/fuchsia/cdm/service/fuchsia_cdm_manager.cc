@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <fuchsia/media/drm/cpp/fidl.h>
 #include <lib/fidl/cpp/binding_set.h>
-#include <lib/fpromise/promise.h>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -19,12 +18,11 @@
 #include "base/fuchsia/fuchsia_logging.h"
 #include "base/hash/hash.h"
 #include "base/logging.h"
+#include "base/optional.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "base/time/time.h"
 #include "media/fuchsia/cdm/service/provisioning_fetcher_impl.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/origin.h"
 
 namespace media {
@@ -43,7 +41,7 @@ struct CdmDirectoryInfo {
 // addition of most-recently-modified calculation, and inclusion of directory
 // node sizes toward the total.
 CdmDirectoryInfo GetCdmDirectoryInfo(const base::FilePath& path) {
-  uint64_t directory_size = 0;
+  int64_t directory_size = 0;
   base::Time last_used;
   base::FileEnumerator enumerator(
       path, true /* recursive */,
@@ -128,7 +126,7 @@ std::string HexEncodeHash(const std::string& name) {
 }
 
 // Returns a nullopt if storage was created successfully.
-absl::optional<base::File::Error> CreateStorageDirectory(base::FilePath path) {
+base::Optional<base::File::Error> CreateStorageDirectory(base::FilePath path) {
   base::File::Error error;
   bool success = base::CreateDirectoryAndGetError(path, &error);
   if (!success) {
@@ -136,8 +134,6 @@ absl::optional<base::File::Error> CreateStorageDirectory(base::FilePath path) {
   }
   return {};
 }
-
-FuchsiaCdmManager* g_fuchsia_cdm_manager_instance = nullptr;
 
 }  // namespace
 
@@ -172,9 +168,10 @@ class FuchsiaCdmManager::KeySystemClient {
       CreateFetcherCB create_fetcher_callback,
       fidl::InterfaceRequest<fuchsia::media::drm::ContentDecryptionModule>
           request) {
-    absl::optional<DataStoreId> data_store_id = GetDataStoreIdForPath(
+    base::Optional<DataStoreId> data_store_id = GetDataStoreIdForPath(
         std::move(storage_path), std::move(create_fetcher_callback));
     if (!data_store_id) {
+      DLOG(ERROR) << "Unable to create DataStore for path: " << storage_path;
       request.Close(ZX_ERR_NO_RESOURCES);
       return;
     }
@@ -190,7 +187,7 @@ class FuchsiaCdmManager::KeySystemClient {
  private:
   using DataStoreId = uint32_t;
 
-  absl::optional<DataStoreId> GetDataStoreIdForPath(
+  base::Optional<DataStoreId> GetDataStoreIdForPath(
       base::FilePath storage_path,
       CreateFetcherCB create_fetcher_callback) {
     // If we have already added a data store id for that path, just use that
@@ -204,7 +201,7 @@ class FuchsiaCdmManager::KeySystemClient {
         base::OpenDirectoryHandle(storage_path);
     if (!data_directory.is_valid()) {
       DLOG(ERROR) << "Unable to OpenDirectory " << storage_path;
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     auto provisioning_fetcher = std::make_unique<ProvisioningFetcherImpl>(
@@ -220,8 +217,8 @@ class FuchsiaCdmManager::KeySystemClient {
 
     key_system_->AddDataStore(
         data_store_id, std::move(params),
-        [this, data_store_id, storage_path](
-            fpromise::result<void, fuchsia::media::drm::Error> result) {
+        [this, data_store_id,
+         storage_path](fit::result<void, fuchsia::media::drm::Error> result) {
           if (result.is_error()) {
             DLOG(ERROR) << "Failed to add data store " << data_store_id
                         << ", path: " << storage_path;
@@ -265,15 +262,10 @@ class FuchsiaCdmManager::KeySystemClient {
   base::flat_map<base::FilePath, DataStoreId> data_store_ids_by_path_;
 };
 
-// static
-FuchsiaCdmManager* FuchsiaCdmManager::GetInstance() {
-  return g_fuchsia_cdm_manager_instance;
-}
-
 FuchsiaCdmManager::FuchsiaCdmManager(
     CreateKeySystemCallbackMap create_key_system_callbacks_by_name,
     base::FilePath cdm_data_path,
-    absl::optional<uint64_t> cdm_data_quota_bytes)
+    base::Optional<uint64_t> cdm_data_quota_bytes)
     : create_key_system_callbacks_by_name_(
           std::move(create_key_system_callbacks_by_name)),
       cdm_data_path_(std::move(cdm_data_path)),
@@ -284,17 +276,11 @@ FuchsiaCdmManager::FuchsiaCdmManager(
   // CDM data directories that are in active use, the |storage_task_runner_| is
   // sequenced, thereby ensuring cleanup completes before any CDM activities
   // start.
-  if (cdm_data_quota_bytes_)
-    ApplyCdmStorageQuota(cdm_data_path_, *cdm_data_quota_bytes_);
-
-  DCHECK(!g_fuchsia_cdm_manager_instance);
-  g_fuchsia_cdm_manager_instance = this;
+  if (cdm_data_quota_bytes)
+    ApplyCdmStorageQuota(cdm_data_path_, *cdm_data_quota_bytes);
 }
 
-FuchsiaCdmManager::~FuchsiaCdmManager() {
-  DCHECK_EQ(g_fuchsia_cdm_manager_instance, this);
-  g_fuchsia_cdm_manager_instance = nullptr;
-}
+FuchsiaCdmManager::~FuchsiaCdmManager() = default;
 
 void FuchsiaCdmManager::CreateAndProvision(
     const std::string& key_system,
@@ -306,12 +292,11 @@ void FuchsiaCdmManager::CreateAndProvision(
 
   base::FilePath storage_path = GetStoragePath(key_system, origin);
 
-  auto task = base::BindOnce(&CreateStorageDirectory, storage_path);
   storage_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE, std::move(task),
+      FROM_HERE, base::BindOnce(&CreateStorageDirectory, storage_path),
       base::BindOnce(&FuchsiaCdmManager::CreateCdm, weak_factory_.GetWeakPtr(),
                      key_system, std::move(create_fetcher_cb),
-                     std::move(request), std::move(storage_path)));
+                     std::move(request), storage_path));
 }
 
 void FuchsiaCdmManager::set_on_key_system_disconnect_for_test_callback(
@@ -367,7 +352,7 @@ void FuchsiaCdmManager::CreateCdm(
     fidl::InterfaceRequest<fuchsia::media::drm::ContentDecryptionModule>
         request,
     base::FilePath storage_path,
-    absl::optional<base::File::Error> storage_creation_error) {
+    base::Optional<base::File::Error> storage_creation_error) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   if (storage_creation_error) {

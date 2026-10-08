@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,6 @@ import org.chromium.android_webview.AwContents.VisualStateCallback;
 import org.chromium.android_webview.AwContentsClient;
 import org.chromium.android_webview.test.util.CommonResources;
 import org.chromium.android_webview.test.util.GraphicsTestUtils;
-import org.chromium.android_webview.test.util.JSUtils;
 import org.chromium.android_webview.test.util.JavascriptEventObserver;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.test.util.CallbackHelper;
@@ -35,6 +34,7 @@ import org.chromium.content_public.browser.JavascriptInjector;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.io.ByteArrayInputStream;
@@ -193,7 +193,7 @@ public class VisualStateTest {
         });
 
         Assert.assertTrue(testFinishedSignal.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -265,9 +265,9 @@ public class VisualStateTest {
         });
 
         Assert.assertTrue(pageCommitCallbackOccurred.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
         Assert.assertTrue(testFinishedSignal.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -313,8 +313,8 @@ public class VisualStateTest {
                 awContents, awContentsClient.getOnPageFinishedHelper(), WAIT_FOR_JS_TEST_URL);
 
         Assert.assertTrue(readyToUpdateColor.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
-        JSUtils.clickNodeWithUserGesture(webContents, UPDATE_COLOR_CONTROL_ID);
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        DOMUtils.clickNode(webContents, UPDATE_COLOR_CONTROL_ID);
         Assert.assertTrue(jsObserver.waitForEvent(WAIT_TIMEOUT_MS));
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(
@@ -330,7 +330,7 @@ public class VisualStateTest {
                         }));
 
         Assert.assertTrue(testFinishedSignal.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -380,8 +380,8 @@ public class VisualStateTest {
                 awContents, awContentsClient.getOnPageFinishedHelper(), FULLSCREEN_TEST_URL);
 
         Assert.assertTrue(readyToEnterFullscreenSignal.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
-        JSUtils.clickNodeWithUserGesture(webContents, ENTER_FULLSCREEN_CONTROL_ID);
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+        DOMUtils.clickNode(webContents, ENTER_FULLSCREEN_CONTROL_ID);
         Assert.assertTrue(jsObserver.waitForEvent(WAIT_TIMEOUT_MS));
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(
@@ -398,7 +398,7 @@ public class VisualStateTest {
                 }));
 
         Assert.assertTrue(testFinishedSignal.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
     }
 
     private AwTestContainerView createDetachedTestContainerViewOnMainSync(
@@ -442,13 +442,13 @@ public class VisualStateTest {
         };
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            JavascriptInjector.fromWebContents(awContents.getWebContents(), false)
+            JavascriptInjector.fromWebContents(awContents.getWebContents())
                     .addPossiblyUnsafeInterface(pageChangeNotifier, "pageChangeNotifier", null);
             awContents.loadUrl(WAIT_FOR_JS_DETACHED_TEST_URL);
         });
 
         Assert.assertTrue(testFinishedSignal.await(
-                AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
+                AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS));
     }
 
     private static final LoadUrlParams createTestPageUrl(String backgroundColor) {

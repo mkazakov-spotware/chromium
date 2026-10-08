@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,9 @@
 
 #include <string>
 
-#include "base/callback_forward.h"
-
-namespace base {
-namespace trace_event {
-class TraceConfig;
-}
-}  // namespace base
+#include "base/compiler_specific.h"
+#include "base/time/time.h"
+#include "base/trace_event/trace_config.h"
 
 namespace tracing {
 
@@ -30,7 +26,7 @@ namespace tracing {
 //
 // See base/trace_event/trace_event.h for documentation of included and excluded
 // category_patterns.
-[[nodiscard]] bool BeginTracing(const std::string& category_patterns);
+bool BeginTracing(const std::string& category_patterns) WARN_UNUSED_RESULT;
 
 // Called from UI thread.
 // Begin tracing specified category_patterns on the browser.
@@ -40,17 +36,17 @@ namespace tracing {
 // |start_tracing_done_callback| will be called back.
 //
 // See base/trace_event/trace_config.h for documentation of configurations.
-[[nodiscard]] bool BeginTracingWithTraceConfig(
-    const base::trace_event::TraceConfig& trace_config);
+bool BeginTracingWithTraceConfig(
+    const base::trace_event::TraceConfig& trace_config) WARN_UNUSED_RESULT;
 
-using StartTracingDoneCallback = base::OnceClosure;
-[[nodiscard]] bool BeginTracingWithTraceConfig(
+typedef base::OnceCallback<void()> StartTracingDoneCallback;
+bool BeginTracingWithTraceConfig(
     const base::trace_event::TraceConfig& trace_config,
-    StartTracingDoneCallback start_tracing_done_callback);
+    StartTracingDoneCallback start_tracing_done_callback) WARN_UNUSED_RESULT;
 
 // Called from UI thread.
 // End trace and collect the trace output as a json string.
-[[nodiscard]] bool EndTracing(std::string* json_trace_output);
+bool EndTracing(std::string* json_trace_output) WARN_UNUSED_RESULT;
 
 }  // namespace tracing
 

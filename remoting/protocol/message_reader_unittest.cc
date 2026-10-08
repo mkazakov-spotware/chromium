@@ -1,8 +1,7 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
 #include <string>
 
 #include "base/bind.h"
@@ -24,7 +23,8 @@ using testing::DoAll;
 using testing::Mock;
 using testing::SaveArg;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 const char kTestMessage1[] = "Message1";
@@ -45,7 +45,9 @@ class MessageReaderTest : public testing::Test {
   void DeleteReader() { reader_.reset(); }
 
  protected:
-  void SetUp() override { reader_ = std::make_unique<MessageReader>(); }
+  void SetUp() override {
+    reader_.reset(new MessageReader());
+  }
 
   void InitReader() {
     reader_->StartReading(&socket_,
@@ -198,4 +200,5 @@ TEST_F(MessageReaderTest, DeleteFromCallback) {
   base::RunLoop().RunUntilIdle();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

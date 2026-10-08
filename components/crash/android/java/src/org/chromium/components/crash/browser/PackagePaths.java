@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@ package org.chromium.components.crash.browser;
 
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.text.TextUtils;
 
-import org.chromium.base.PackageUtils;
+import org.chromium.base.BuildInfo;
+import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
 
 import java.io.File;
@@ -31,15 +33,17 @@ public abstract class PackagePaths {
      */
     @CalledByNative
     public static String[] makePackagePaths(String arch) {
-        PackageInfo pi =
-                PackageUtils.getApplicationPackageInfo(PackageManager.GET_SHARED_LIBRARY_FILES
-                        | PackageManager.MATCH_UNINSTALLED_PACKAGES);
+        try {
+            PackageManager pm = ContextUtils.getApplicationContext().getPackageManager();
+            PackageInfo pi = pm.getPackageInfo(BuildInfo.getInstance().packageName,
+                    PackageManager.GET_SHARED_LIBRARY_FILES
+                            | PackageManager.MATCH_UNINSTALLED_PACKAGES);
 
-        List<String> zipPaths = new ArrayList<>(10);
-        zipPaths.add(pi.applicationInfo.sourceDir);
-        if (pi.applicationInfo.splitSourceDirs != null) {
-            Collections.addAll(zipPaths, pi.applicationInfo.splitSourceDirs);
-        }
+            List<String> zipPaths = new ArrayList<>(10);
+            zipPaths.add(pi.applicationInfo.sourceDir);
+            if (pi.applicationInfo.splitSourceDirs != null) {
+                Collections.addAll(zipPaths, pi.applicationInfo.splitSourceDirs);
+            }
 
             if (pi.applicationInfo.sharedLibraryFiles != null) {
                 Collections.addAll(zipPaths, pi.applicationInfo.sharedLibraryFiles);
@@ -71,5 +75,9 @@ public abstract class PackagePaths {
 
             return new String[] {TextUtils.join(File.pathSeparator, zipPaths),
                     TextUtils.join(File.pathSeparator, libPaths)};
+
+        } catch (NameNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

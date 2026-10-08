@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/callback.h"
 #include "base/files/file.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "storage/browser/file_system/file_system_url.h"
@@ -30,16 +30,12 @@ class LocalFileSyncStatus;
 // Expected to be called on and will callback on IO thread.
 class RootDeleteHelper {
  public:
-  typedef base::OnceCallback<void(base::File::Error)> FileStatusCallback;
+  typedef base::Callback<void(base::File::Error)> FileStatusCallback;
 
   RootDeleteHelper(storage::FileSystemContext* file_system_context,
                    LocalFileSyncStatus* sync_status,
                    const storage::FileSystemURL& url,
-                   FileStatusCallback callback);
-
-  RootDeleteHelper(const RootDeleteHelper&) = delete;
-  RootDeleteHelper& operator=(const RootDeleteHelper&) = delete;
-
+                   const FileStatusCallback& callback);
   ~RootDeleteHelper();
 
   void Run();
@@ -56,9 +52,11 @@ class RootDeleteHelper {
   FileStatusCallback callback_;
 
   // Not owned; owner of this instance owns it.
-  raw_ptr<LocalFileSyncStatus> sync_status_;
+  LocalFileSyncStatus* sync_status_;
 
   base::WeakPtrFactory<RootDeleteHelper> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(RootDeleteHelper);
 };
 
 }  // namespace sync_file_system

@@ -1,18 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/net/test_http_server.h"
 
-#include <memory>
 #include <utility>
 
-#include "base/base64.h"
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/message_loop/message_pump_type.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
@@ -33,8 +31,8 @@ TestHttpServer::~TestHttpServer() {
 }
 
 bool TestHttpServer::Start() {
-  bool thread_started = thread_.StartWithOptions(
-      base::Thread::Options(base::MessagePumpType::IO, 0));
+  base::Thread::Options options(base::MessagePumpType::IO, 0);
+  bool thread_started = thread_.StartWithOptions(options);
   EXPECT_TRUE(thread_started);
   if (!thread_started)
     return false;
@@ -61,7 +59,7 @@ void TestHttpServer::Stop() {
 }
 
 bool TestHttpServer::WaitForConnectionsToClose() {
-  return all_closed_event_.TimedWait(base::Seconds(10));
+  return all_closed_event_.TimedWait(base::TimeDelta::FromSeconds(10));
 }
 
 void TestHttpServer::SetRequestAction(WebSocketRequestAction action) {
@@ -127,16 +125,9 @@ void TestHttpServer::OnWebSocketMessage(int connection_id, std::string data) {
       server_->SendOverWebSocket(connection_id, data,
                                  TRAFFIC_ANNOTATION_FOR_TESTS);
       break;
-
     case kCloseOnMessage:
       server_->Close(connection_id);
       break;
-
-    case kEchoRawMessage:
-      std::string decoded_data;
-      base::Base64Decode(data, &decoded_data);
-      server_->SendRaw(connection_id, decoded_data,
-                       TRAFFIC_ANNOTATION_FOR_TESTS);
   }
 }
 
@@ -149,9 +140,9 @@ void TestHttpServer::OnClose(int connection_id) {
 void TestHttpServer::StartOnServerThread(bool* success,
                                          base::WaitableEvent* event) {
   std::unique_ptr<net::ServerSocket> server_socket(
-      new net::TCPServerSocket(nullptr, net::NetLogSource()));
+      new net::TCPServerSocket(NULL, net::NetLogSource()));
   server_socket->ListenWithAddressAndPort("127.0.0.1", 0, 1);
-  server_ = std::make_unique<net::HttpServer>(std::move(server_socket), this);
+  server_.reset(new net::HttpServer(std::move(server_socket), this));
 
   net::IPEndPoint address;
   int error = server_->GetLocalAddress(&address);
@@ -161,13 +152,13 @@ void TestHttpServer::StartOnServerThread(bool* success,
     web_socket_url_ = GURL(base::StringPrintf("ws://127.0.0.1:%d",
                                               address.port()));
   } else {
-    server_.reset();
+    server_.reset(NULL);
   }
   *success = server_.get();
   event->Signal();
 }
 
 void TestHttpServer::StopOnServerThread(base::WaitableEvent* event) {
-  server_.reset();
+  server_.reset(NULL);
   event->Signal();
 }

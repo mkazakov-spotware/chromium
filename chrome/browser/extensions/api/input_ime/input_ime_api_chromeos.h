@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,15 @@
 #include <string>
 #include <vector>
 
-#include "chrome/browser/ash/input_method/input_method_engine.h"
+#include "chrome/browser/extensions/api/input_ime/input_ime_event_router_base.h"
 #include "chrome/common/extensions/api/input_ime/input_components_handler.h"
 #include "extensions/browser/extension_function.h"
+
+namespace chromeos {
+
+class InputMethodEngine;
+
+}  // namespace chromeos
 
 namespace extensions {
 
@@ -152,6 +158,24 @@ class InputMethodPrivateFinishComposingTextFunction : public ExtensionFunction {
                              INPUTMETHODPRIVATE_FINISHCOMPOSINGTEXT)
 };
 
+class InputMethodPrivateNotifyImeMenuItemActivatedFunction
+    : public ExtensionFunction {
+ public:
+  InputMethodPrivateNotifyImeMenuItemActivatedFunction() = default;
+
+ protected:
+  ~InputMethodPrivateNotifyImeMenuItemActivatedFunction() override = default;
+
+  // ExtensionFunction:
+  ResponseAction Run() override;
+
+ private:
+  DECLARE_EXTENSION_FUNCTION("inputMethodPrivate.notifyImeMenuItemActivated",
+                             INPUTMETHODPRIVATE_NOTIFYIMEMENUITEMACTIVATED)
+  DISALLOW_COPY_AND_ASSIGN(
+      InputMethodPrivateNotifyImeMenuItemActivatedFunction);
+};
+
 class InputMethodPrivateGetCompositionBoundsFunction
     : public ExtensionFunction {
  public:
@@ -165,27 +189,20 @@ class InputMethodPrivateGetCompositionBoundsFunction
   ResponseAction Run() override;
 };
 
-class InputImeEventRouter {
+class InputImeEventRouter : public InputImeEventRouterBase {
  public:
   explicit InputImeEventRouter(Profile* profile);
-
-  InputImeEventRouter(const InputImeEventRouter&) = delete;
-  InputImeEventRouter& operator=(const InputImeEventRouter&) = delete;
-
-  ~InputImeEventRouter();
+  ~InputImeEventRouter() override;
 
   bool RegisterImeExtension(
       const std::string& extension_id,
       const std::vector<extensions::InputComponentInfo>& input_components);
   void UnregisterAllImes(const std::string& extension_id);
 
-  ash::input_method::InputMethodEngine* GetEngine(
-      const std::string& extension_id);
-
-  // Gets the input method engine if the extension is active.
-  ash::input_method::InputMethodEngine* GetEngineIfActive(
+  chromeos::InputMethodEngine* GetEngine(const std::string& extension_id);
+  chromeos::InputMethodEngineBase* GetEngineIfActive(
       const std::string& extension_id,
-      std::string* error);
+      std::string* error) override;
 
   std::string GetUnloadedExtensionId() const {
     return unloaded_component_extension_id_;
@@ -195,16 +212,14 @@ class InputImeEventRouter {
     unloaded_component_extension_id_ = extension_id;
   }
 
-  Profile* GetProfile() const { return profile_; }
-
  private:
   // The engine map from extension_id to an engine.
-  std::map<std::string, std::unique_ptr<ash::input_method::InputMethodEngine>>
+  std::map<std::string, std::unique_ptr<chromeos::InputMethodEngine>>
       engine_map_;
   // The first party ime extension which is unloaded unexpectedly.
   std::string unloaded_component_extension_id_;
 
-  Profile* profile_;
+  DISALLOW_COPY_AND_ASSIGN(InputImeEventRouter);
 };
 
 }  // namespace extensions

@@ -23,7 +23,6 @@
 
 #include "third_party/blink/renderer/core/svg/svg_path_query.h"
 
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/svg/svg_path_byte_stream_source.h"
 #include "third_party/blink/renderer/core/svg/svg_path_consumer.h"
 #include "third_party/blink/renderer/core/svg/svg_path_data.h"
@@ -44,7 +43,7 @@ class SVGPathTraversalState final : public SVGPathConsumer {
   }
 
   float TotalLength() const { return traversal_state_.total_length_; }
-  gfx::PointF ComputedPoint() const { return traversal_state_.current_; }
+  FloatPoint ComputedPoint() const { return traversal_state_.current_; }
 
   bool IsDone() const { return traversal_state_.success_; }
 
@@ -111,7 +110,7 @@ float SVGPathQuery::GetTotalLength() const {
   return traversal_state.TotalLength();
 }
 
-gfx::PointF SVGPathQuery::GetPointAtLength(float length) const {
+FloatPoint SVGPathQuery::GetPointAtLength(float length) const {
   SVGPathTraversalState traversal_state(
       PathTraversalState::kTraversalPointAtLength, length);
   ExecuteQuery(path_byte_stream_, traversal_state);

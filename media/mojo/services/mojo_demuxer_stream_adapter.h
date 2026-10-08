@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,15 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/demuxer_stream.h"
 #include "media/base/video_decoder_config.h"
 #include "media/mojo/mojom/demuxer_stream.mojom.h"
-#include "media/mojo/services/media_mojo_export.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace media {
 
@@ -25,7 +25,7 @@ class MojoDecoderBufferReader;
 // that is part of a Pipeline in a remote application. Roughly speaking, it
 // takes a mojo::Remote<mojom::DemuxerStream> and exposes it as a DemuxerStream
 // for use by media components.
-class MEDIA_MOJO_EXPORT MojoDemuxerStreamAdapter : public DemuxerStream {
+class MojoDemuxerStreamAdapter : public DemuxerStream {
  public:
   // |demuxer_stream| is connected to the mojom::DemuxerStream that |this|
   // will
@@ -36,10 +36,6 @@ class MEDIA_MOJO_EXPORT MojoDemuxerStreamAdapter : public DemuxerStream {
   MojoDemuxerStreamAdapter(
       mojo::PendingRemote<mojom::DemuxerStream> demuxer_stream,
       base::OnceClosure stream_ready_cb);
-
-  MojoDemuxerStreamAdapter(const MojoDemuxerStreamAdapter&) = delete;
-  MojoDemuxerStreamAdapter& operator=(const MojoDemuxerStreamAdapter&) = delete;
-
   ~MojoDemuxerStreamAdapter() override;
 
   // DemuxerStream implementation.
@@ -53,20 +49,20 @@ class MEDIA_MOJO_EXPORT MojoDemuxerStreamAdapter : public DemuxerStream {
  private:
   void OnStreamReady(Type type,
                      mojo::ScopedDataPipeConsumerHandle consumer_handle,
-                     const absl::optional<AudioDecoderConfig>& audio_config,
-                     const absl::optional<VideoDecoderConfig>& video_config);
+                     const base::Optional<AudioDecoderConfig>& audio_config,
+                     const base::Optional<VideoDecoderConfig>& video_config);
 
   // The callback from |demuxer_stream_| that a read operation has completed.
   // |read_cb| is a callback from the client who invoked Read() on |this|.
   void OnBufferReady(Status status,
                      mojom::DecoderBufferPtr buffer,
-                     const absl::optional<AudioDecoderConfig>& audio_config,
-                     const absl::optional<VideoDecoderConfig>& video_config);
+                     const base::Optional<AudioDecoderConfig>& audio_config,
+                     const base::Optional<VideoDecoderConfig>& video_config);
 
   void OnBufferRead(scoped_refptr<DecoderBuffer> buffer);
 
-  void UpdateConfig(const absl::optional<AudioDecoderConfig>& audio_config,
-                    const absl::optional<VideoDecoderConfig>& video_config);
+  void UpdateConfig(const base::Optional<AudioDecoderConfig>& audio_config,
+                    const base::Optional<VideoDecoderConfig>& video_config);
 
   // See constructor for descriptions.
   mojo::Remote<mojom::DemuxerStream> demuxer_stream_;
@@ -88,6 +84,7 @@ class MEDIA_MOJO_EXPORT MojoDemuxerStreamAdapter : public DemuxerStream {
   std::unique_ptr<MojoDecoderBufferReader> mojo_decoder_buffer_reader_;
 
   base::WeakPtrFactory<MojoDemuxerStreamAdapter> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(MojoDemuxerStreamAdapter);
 };
 
 }  // namespace media

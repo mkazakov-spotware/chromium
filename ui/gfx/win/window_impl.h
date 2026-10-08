@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "base/check_op.h"
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/gfx_export.h"
 #include "ui/gfx/native_widget_types.h"
@@ -42,10 +42,6 @@ class GFX_EXPORT WindowImpl : public MessageMapInterface {
   // |debugging_id| is reported with crashes to help attribute the code that
   // created the WindowImpl.
   explicit WindowImpl(const std::string& debugging_id = std::string());
-
-  WindowImpl(const WindowImpl&) = delete;
-  WindowImpl& operator=(const WindowImpl&) = delete;
-
   virtual ~WindowImpl();
 
   // Causes all generated windows classes to be unregistered at exit.
@@ -126,8 +122,9 @@ class GFX_EXPORT WindowImpl : public MessageMapInterface {
   // TODO(sky): nuke this when get crash data.
   bool got_create_ = false;
   bool got_valid_hwnd_ = false;
-  // For tracking whether this object has been destroyed. Must be last.
-  base::WeakPtrFactory<WindowImpl> weak_factory_{this};
+  bool* destroyed_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowImpl);
 };
 
 }  // namespace gfx

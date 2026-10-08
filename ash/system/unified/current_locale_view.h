@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/system/model/locale_model.h"
 #include "ash/system/tray/tray_item_view.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -15,10 +16,6 @@ namespace ash {
 class CurrentLocaleView : public TrayItemView, public LocaleModel::Observer {
  public:
   explicit CurrentLocaleView(Shelf* shelf);
-
-  CurrentLocaleView(const CurrentLocaleView&) = delete;
-  CurrentLocaleView& operator=(const CurrentLocaleView&) = delete;
-
   ~CurrentLocaleView() override;
 
   // LocaleModel::Observer:
@@ -27,6 +24,9 @@ class CurrentLocaleView : public TrayItemView, public LocaleModel::Observer {
   // views::TrayItemView:
   const char* GetClassName() const override;
   void HandleLocaleChange() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CurrentLocaleView);
 };
 
 }  // namespace ash

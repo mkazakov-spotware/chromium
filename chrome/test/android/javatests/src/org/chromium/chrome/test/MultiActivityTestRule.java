@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
-import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.test.util.ChromeApplicationTestUtils;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 
@@ -50,7 +50,7 @@ public class MultiActivityTestRule implements TestRule {
 
     private void waitForTabCreation(ChromeActivity activity) throws TimeoutException {
         final CallbackHelper newTabCreatorHelper = new CallbackHelper();
-        activity.getTabModelSelector().addObserver(new TabModelSelectorObserver() {
+        activity.getTabModelSelector().addObserver(new EmptyTabModelSelectorObserver() {
             @Override
             public void onNewTabCreated(Tab tab, @TabCreationState int creationState) {
                 newTabCreatorHelper.notifyCalled();

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -175,6 +175,13 @@ TEST(WebInputEventBuilderAndroidTest, DomKeySyntheticEvent) {
 TEST(WebInputEventBuilderAndroidTest, CutCopyPasteKey) {
   JNIEnv* env = AttachCurrentThread();
 
+  // The minimum Android NDK does not provide values for these yet:
+  enum {
+    AKEYCODE_CUT = 277,
+    AKEYCODE_COPY = 278,
+    AKEYCODE_PASTE = 279,
+  };
+
   struct DomKeyTestCase {
     int key_code;
     ui::DomKey key;
@@ -194,7 +201,7 @@ TEST(WebInputEventBuilderAndroidTest, CutCopyPasteKey) {
 TEST(WebInputEventBuilderAndroidTest, WebMouseEventCoordinates) {
   constexpr int kEventTimeMs = 5;
   const base::TimeTicks event_time =
-      base::TimeTicks() + base::Milliseconds(kEventTimeMs);
+      base::TimeTicks() + base::TimeDelta::FromMilliseconds(kEventTimeMs);
 
   ui::test::ScopedEventTestTickClock clock;
   clock.SetNowTicks(event_time);

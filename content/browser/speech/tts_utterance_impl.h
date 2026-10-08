@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,8 @@
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
-#include "base/unguessable_token.h"
-#include "base/values.h"
-#include "build/chromeos_buildflags.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/tts_utterance.h"
+#include "content/public/browser/web_contents_observer.h"
 
 namespace base {
 class Value;
@@ -26,22 +21,15 @@ class BrowserContext;
 class WebContents;
 
 // Implementation of TtsUtterance.
-class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
+class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance,
+                                        public WebContentsObserver {
  public:
   TtsUtteranceImpl(BrowserContext* browser_context, WebContents* web_contents);
-  TtsUtteranceImpl(content::BrowserContext* browser_context,
-                   bool should_always_be_spoken);
-
   ~TtsUtteranceImpl() override;
 
   bool was_created_with_web_contents() const {
     return was_created_with_web_contents_;
   }
-
-  void set_spoken_by_remote_engine(bool value) {
-    spoken_by_remote_engine_ = value;
-  }
-  bool spoken_by_remote_engine() const { return spoken_by_remote_engine_; }
 
   // TtsUtterance overrides.
   void OnTtsEvent(TtsEventType event_type,
@@ -54,8 +42,8 @@ class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
   void SetText(const std::string& text) override;
   const std::string& GetText() override;
 
-  void SetOptions(base::Value::Dict options) override;
-  const base::Value::Dict* GetOptions() override;
+  void SetOptions(const base::Value* options) override;
+  const base::Value* GetOptions() override;
 
   void SetSrcId(int src_id) override;
   int GetSrcId() override;
@@ -74,8 +62,8 @@ class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
                                const double volume) override;
   const UtteranceContinuousParameters& GetContinuousParameters() override;
 
-  void SetShouldClearQueue(bool value) override;
-  bool GetShouldClearQueue() override;
+  void SetCanEnqueue(bool can_enqueue) override;
+  bool GetCanEnqueue() override;
 
   void SetRequiredEventTypes(const std::set<TtsEventType>& types) override;
   const std::set<TtsEventType>& GetRequiredEventTypes() override;
@@ -95,25 +83,16 @@ class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
   int GetId() override;
   bool IsFinished() override;
 
-  // Returns the associated WebContents, may be null.
-  WebContents* GetWebContents() override;
-
-  bool ShouldAlwaysBeSpoken() override;
-
  private:
   // The BrowserContext that initiated this utterance.
-  raw_ptr<BrowserContext> browser_context_;
+  BrowserContext* browser_context_;
 
   // True if the constructor was supplied with a WebContents.
   const bool was_created_with_web_contents_;
-  base::WeakPtr<WebContents> web_contents_;
 
   // The content embedder engine ID of the engine providing TTS for this
   // utterance, or empty if native TTS is being used.
   std::string engine_id_;
-
-  // True if this utterance is spoken by a remote TTS engine.
-  bool spoken_by_remote_engine_ = false;
 
   // The unique ID of this utterance, used to associate callback functions
   // with utterances.
@@ -128,7 +107,7 @@ class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
 
   // The full options arg passed to tts.speak, which may include fields
   // other than the ones we explicitly parse, below.
-  base::Value::Dict options_;
+  std::unique_ptr<base::Value> options_;
 
   // The source engine's ID of this utterance, so that it can associate
   // events with the appropriate callback.
@@ -138,13 +117,13 @@ class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
   GURL src_url_;
 
   // The delegate to be called when an utterance event is fired.
-  raw_ptr<UtteranceEventDelegate> event_delegate_ = nullptr;
+  UtteranceEventDelegate* event_delegate_ = nullptr;
 
   // The parsed options.
   std::string voice_name_;
   std::string lang_;
   UtteranceContinuousParameters continuous_parameters_;
-  bool should_clear_queue_;
+  bool can_enqueue_;
   std::set<TtsEventType> required_event_types_;
   std::set<TtsEventType> desired_event_types_;
 
@@ -153,9 +132,6 @@ class CONTENT_EXPORT TtsUtteranceImpl : public TtsUtterance {
 
   // True if this utterance received an event indicating it's done.
   bool finished_;
-
-  // True if this utterance should always be spoken.
-  bool should_always_be_spoken_ = false;
 };
 
 }  // namespace content

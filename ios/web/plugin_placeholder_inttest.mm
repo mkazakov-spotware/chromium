@@ -1,22 +1,20 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/bind.h"
-#import "base/ios/ios_util.h"
-#import "base/strings/stringprintf.h"
-#import "base/strings/utf_string_conversions.h"
-#import "ios/testing/embedded_test_server_handlers.h"
-#import "ios/web/js_messaging/java_script_feature_util_impl.h"
-#import "ios/web/public/test/fakes/fake_web_client.h"
+#include "base/bind.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
+#include "ios/testing/embedded_test_server_handlers.h"
+#import "ios/web/public/test/fakes/test_web_client.h"
 #import "ios/web/public/test/navigation_test_util.h"
 #import "ios/web/public/test/web_test_with_web_state.h"
 #import "ios/web/public/test/web_view_content_test_util.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "net/test/embedded_test_server/http_request.h"
-#import "net/test/embedded_test_server/http_response.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "url/gurl.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/http_request.h"
+#include "net/test/embedded_test_server/http_response.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -25,8 +23,6 @@
 namespace {
 const char kPluginNotSupportedText[] =
     "hahaha, your plugin is not supported :D";
-const char16_t kPluginNotSupportedText16[] =
-    u"hahaha, your plugin is not supported :D";
 }
 
 namespace web {
@@ -35,13 +31,14 @@ namespace web {
 class PluginPlaceholderTest : public WebTestWithWebState {
  protected:
   PluginPlaceholderTest()
-      : WebTestWithWebState(std::make_unique<FakeWebClient>()) {
-    FakeWebClient* web_client = static_cast<FakeWebClient*>(GetWebClient());
-    web_client->SetPluginNotSupportedText(kPluginNotSupportedText16);
+      : WebTestWithWebState(std::make_unique<TestWebClient>()) {
+    TestWebClient* web_client = static_cast<TestWebClient*>(GetWebClient());
+    web_client->SetPluginNotSupportedText(
+        base::UTF8ToUTF16(kPluginNotSupportedText));
   }
 
-  // Sets up `server_` with `html` as response content.
-  [[nodiscard]] bool SetUpServer(const std::string& html) {
+  // Sets up |server_| with |html| as response content.
+  bool SetUpServer(const std::string& html) WARN_UNUSED_RESULT {
     server_.RegisterDefaultHandler(
         base::BindRepeating(&testing::HandlePageWithHtml, html));
     return server_.Start();
@@ -52,13 +49,6 @@ class PluginPlaceholderTest : public WebTestWithWebState {
 
 // Tests that a large <applet> with text fallback is untouched.
 TEST_F(PluginPlaceholderTest, AppletFallback) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Applet, text fallback";
   const char kFallbackText[] = "Java? On iOS? C'mon.";
   const std::string page =
@@ -71,7 +61,6 @@ TEST_F(PluginPlaceholderTest, AppletFallback) {
                          kPageDescription, kFallbackText);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that placeholder image is not displayed.
   EXPECT_TRUE(
@@ -85,13 +74,6 @@ TEST_F(PluginPlaceholderTest, AppletFallback) {
 
 // Tests placeholder for a large <applet> with no fallback.
 TEST_F(PluginPlaceholderTest, AppletOnly) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Applet, no fallback";
   const std::string page =
       base::StringPrintf("<html><body width='800' height='600'>"
@@ -102,7 +84,6 @@ TEST_F(PluginPlaceholderTest, AppletOnly) {
                          kPageDescription);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that plugin object is replaced with placeholder image.
   EXPECT_TRUE(
@@ -116,13 +97,6 @@ TEST_F(PluginPlaceholderTest, AppletOnly) {
 
 // Tests placeholder for a large <object> with a flash embed fallback.
 TEST_F(PluginPlaceholderTest, ObjectFlashEmbedFallback) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Object, embed fallback";
   const std::string page = base::StringPrintf(
       "<html><body width='800' height='600'>"
@@ -138,7 +112,6 @@ TEST_F(PluginPlaceholderTest, ObjectFlashEmbedFallback) {
       kPageDescription);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that plugin object is replaced with placeholder image.
   EXPECT_TRUE(
@@ -153,13 +126,6 @@ TEST_F(PluginPlaceholderTest, ObjectFlashEmbedFallback) {
 // Tests that a large <object> with an embed fallback of unspecified type is
 // untouched.
 TEST_F(PluginPlaceholderTest, ObjectUndefinedEmbedFallback) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Object, embed fallback";
   const std::string page = base::StringPrintf(
       "<html><body width='800' height='600'>"
@@ -174,7 +140,6 @@ TEST_F(PluginPlaceholderTest, ObjectUndefinedEmbedFallback) {
       kPageDescription);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that placeholder image is not displayed.
   EXPECT_TRUE(
@@ -187,13 +152,6 @@ TEST_F(PluginPlaceholderTest, ObjectUndefinedEmbedFallback) {
 
 // Tests that a large <object> with text fallback is untouched.
 TEST_F(PluginPlaceholderTest, ObjectFallback) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Object, text fallback";
   const char kFallbackText[] = "You don't have Flash. Tough luck!";
   const std::string page = base::StringPrintf(
@@ -208,7 +166,6 @@ TEST_F(PluginPlaceholderTest, ObjectFallback) {
       kPageDescription, kFallbackText);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that placeholder image is not displayed.
   EXPECT_TRUE(
@@ -222,13 +179,6 @@ TEST_F(PluginPlaceholderTest, ObjectFallback) {
 
 // Tests placeholder for a large <object> with no fallback.
 TEST_F(PluginPlaceholderTest, ObjectOnly) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Object, no fallback";
   const std::string page = base::StringPrintf(
       "<html><body width='800' height='600'>"
@@ -240,7 +190,6 @@ TEST_F(PluginPlaceholderTest, ObjectOnly) {
       kPageDescription);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that plugin object is replaced with placeholder image.
   EXPECT_TRUE(
@@ -254,13 +203,6 @@ TEST_F(PluginPlaceholderTest, ObjectOnly) {
 
 // Tests that a large png <object> is untouched.
 TEST_F(PluginPlaceholderTest, PNGObject) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "PNG object";
   const std::string page = base::StringPrintf(
       "<html><body width='800' height='600'>"
@@ -271,7 +213,6 @@ TEST_F(PluginPlaceholderTest, PNGObject) {
       kPageDescription);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that placeholder image is not displayed.
   EXPECT_TRUE(
@@ -284,13 +225,6 @@ TEST_F(PluginPlaceholderTest, PNGObject) {
 
 // Test that non-major plugins (e.g., top/side ads) don't get placeholders.
 TEST_F(PluginPlaceholderTest, SmallFlash) {
-  // Plugin Placeholder is no longer used as of iOS 14.5 as <applet> support is
-  // completely removed.
-  // TODO(crbug.com/1218221): Remove feature once app is iOS 14.5+.
-  if (base::ios::IsRunningOnOrLater(14, 5, 0)) {
-    return;
-  }
-
   const char kPageDescription[] = "Flash ads";
   const std::string page = base::StringPrintf(
       "<html><body width='800' height='600'>"
@@ -320,7 +254,6 @@ TEST_F(PluginPlaceholderTest, SmallFlash) {
       kPageDescription);
   ASSERT_TRUE(SetUpServer(page));
   test::LoadUrl(web_state(), server_.GetURL("/"));
-  ASSERT_TRUE(WaitUntilLoaded());
 
   // Verify that placeholder image is not displayed.
   EXPECT_TRUE(

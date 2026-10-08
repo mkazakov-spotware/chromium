@@ -1,12 +1,10 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import logging
 import os
-from chrome_ent_test.infra.core import before_all
-from chrome_ent_test.infra.core import environment
-from chrome_ent_test.infra.core import test
+from chrome_ent_test.infra.core import environment, before_all, test
 from infra import ChromeEnterpriseTestCase
 
 
@@ -44,7 +42,7 @@ class UrlAllowlistTest(ChromeEnterpriseTestCase):
 
   @test
   def test_AllowedUrlCanVisit(self):
-    output = self.openPage('https://youtube.com')
+    output = self.openPage('https://youtube.com/yt/about/')
     self.assertNotIn("ERR_BLOCKED_BY_ADMINISTRATOR", output)
 
   @test
@@ -54,7 +52,7 @@ class UrlAllowlistTest(ChromeEnterpriseTestCase):
 
   @test
   def test_AllowedUrlCanVisitIncognito(self):
-    output = self.openPage('https://youtube.com', incognito=True)
+    output = self.openPage('https://youtube.com/yt/about/', incognito=True)
     self.assertNotIn("ERR_BLOCKED_BY_ADMINISTRATOR", output)
 
   @test

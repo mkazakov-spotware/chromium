@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Definition of various formatters for logging. Please minimize
@@ -13,16 +21,15 @@
 goog.provide('goog.debug.Formatter');
 goog.provide('goog.debug.HtmlFormatter');
 goog.provide('goog.debug.TextFormatter');
-goog.provide('goog.debug.formatter');
 
 goog.require('goog.debug');
+goog.require('goog.debug.Logger');
 goog.require('goog.debug.RelativeTimeProvider');
 goog.require('goog.html.SafeHtml');
 goog.require('goog.html.SafeUrl');
 goog.require('goog.html.uncheckedconversions');
-goog.require('goog.log');
 goog.require('goog.string.Const');
-goog.requireType('goog.log.LogRecord');
+
 
 
 /**
@@ -32,8 +39,7 @@ goog.requireType('goog.log.LogRecord');
  * @param {string=} opt_prefix The prefix to place before text records.
  * @constructor
  */
-goog.debug.formatter.Formatter = function(opt_prefix) {
-  'use strict';
+goog.debug.Formatter = function(opt_prefix) {
   this.prefix_ = opt_prefix || '';
 
   /**
@@ -50,59 +56,58 @@ goog.debug.formatter.Formatter = function(opt_prefix) {
  * Whether to append newlines to the end of formatted log records.
  * @type {boolean}
  */
-goog.debug.formatter.Formatter.prototype.appendNewline = true;
+goog.debug.Formatter.prototype.appendNewline = true;
 
 
 /**
  * Whether to show absolute time in the DebugWindow.
  * @type {boolean}
  */
-goog.debug.formatter.Formatter.prototype.showAbsoluteTime = true;
+goog.debug.Formatter.prototype.showAbsoluteTime = true;
 
 
 /**
  * Whether to show relative time in the DebugWindow.
  * @type {boolean}
  */
-goog.debug.formatter.Formatter.prototype.showRelativeTime = true;
+goog.debug.Formatter.prototype.showRelativeTime = true;
 
 
 /**
  * Whether to show the logger name in the DebugWindow.
  * @type {boolean}
  */
-goog.debug.formatter.Formatter.prototype.showLoggerName = true;
+goog.debug.Formatter.prototype.showLoggerName = true;
 
 
 /**
  * Whether to show the logger exception text.
  * @type {boolean}
  */
-goog.debug.formatter.Formatter.prototype.showExceptionText = false;
+goog.debug.Formatter.prototype.showExceptionText = false;
 
 
 /**
  * Whether to show the severity level.
  * @type {boolean}
  */
-goog.debug.formatter.Formatter.prototype.showSeverityLevel = false;
+goog.debug.Formatter.prototype.showSeverityLevel = false;
 
 
 /**
  * Formats a record.
- * @param {?goog.log.LogRecord} logRecord the logRecord to format.
+ * @param {goog.debug.LogRecord} logRecord the logRecord to format.
  * @return {string} The formatted string.
  */
-goog.debug.formatter.Formatter.prototype.formatRecord = goog.abstractMethod;
+goog.debug.Formatter.prototype.formatRecord = goog.abstractMethod;
 
 
 /**
  * Formats a record as SafeHtml.
- * @param {?goog.log.LogRecord} logRecord the logRecord to format.
+ * @param {goog.debug.LogRecord} logRecord the logRecord to format.
  * @return {!goog.html.SafeHtml} The formatted string as SafeHtml.
  */
-goog.debug.formatter.Formatter.prototype.formatRecordAsHtml =
-    goog.abstractMethod;
+goog.debug.Formatter.prototype.formatRecordAsHtml = goog.abstractMethod;
 
 
 /**
@@ -110,9 +115,7 @@ goog.debug.formatter.Formatter.prototype.formatRecordAsHtml =
  * but can be changed.
  * @param {goog.debug.RelativeTimeProvider} provider The provider to use.
  */
-goog.debug.formatter.Formatter.prototype.setStartTimeProvider = function(
-    provider) {
-  'use strict';
+goog.debug.Formatter.prototype.setStartTimeProvider = function(provider) {
   this.startTimeProvider_ = provider;
 };
 
@@ -122,8 +125,7 @@ goog.debug.formatter.Formatter.prototype.setStartTimeProvider = function(
  * but can be changed.
  * @return {goog.debug.RelativeTimeProvider} The start time provider.
  */
-goog.debug.formatter.Formatter.prototype.getStartTimeProvider = function() {
-  'use strict';
+goog.debug.Formatter.prototype.getStartTimeProvider = function() {
   return this.startTimeProvider_;
 };
 
@@ -131,31 +133,26 @@ goog.debug.formatter.Formatter.prototype.getStartTimeProvider = function() {
 /**
  * Resets the start relative time.
  */
-goog.debug.formatter.Formatter.prototype.resetRelativeTimeStart = function() {
-  'use strict';
+goog.debug.Formatter.prototype.resetRelativeTimeStart = function() {
   this.startTimeProvider_.reset();
 };
 
 
 /**
  * Returns a string for the time/date of the LogRecord.
- * @param {?goog.log.LogRecord} logRecord The record to get a time stamp for.
+ * @param {goog.debug.LogRecord} logRecord The record to get a time stamp for.
  * @return {string} A string representation of the time/date of the LogRecord.
  * @private
  */
-goog.debug.formatter.Formatter.getDateTimeStamp_ = function(logRecord) {
-  'use strict';
+goog.debug.Formatter.getDateTimeStamp_ = function(logRecord) {
   var time = new Date(logRecord.getMillis());
-  return goog.debug.formatter.Formatter.getTwoDigitString_(
-             (time.getFullYear() - 2000)) +
-      goog.debug.formatter.Formatter.getTwoDigitString_((time.getMonth() + 1)) +
-      goog.debug.formatter.Formatter.getTwoDigitString_(time.getDate()) + ' ' +
-      goog.debug.formatter.Formatter.getTwoDigitString_(time.getHours()) + ':' +
-      goog.debug.formatter.Formatter.getTwoDigitString_(time.getMinutes()) +
-      ':' +
-      goog.debug.formatter.Formatter.getTwoDigitString_(time.getSeconds()) +
-      '.' +
-      goog.debug.formatter.Formatter.getTwoDigitString_(
+  return goog.debug.Formatter.getTwoDigitString_((time.getFullYear() - 2000)) +
+      goog.debug.Formatter.getTwoDigitString_((time.getMonth() + 1)) +
+      goog.debug.Formatter.getTwoDigitString_(time.getDate()) + ' ' +
+      goog.debug.Formatter.getTwoDigitString_(time.getHours()) + ':' +
+      goog.debug.Formatter.getTwoDigitString_(time.getMinutes()) + ':' +
+      goog.debug.Formatter.getTwoDigitString_(time.getSeconds()) + '.' +
+      goog.debug.Formatter.getTwoDigitString_(
           Math.floor(time.getMilliseconds() / 10));
 };
 
@@ -167,8 +164,7 @@ goog.debug.formatter.Formatter.getDateTimeStamp_ = function(logRecord) {
  * @return {string} A two-digit string representation of `n`.
  * @private
  */
-goog.debug.formatter.Formatter.getTwoDigitString_ = function(n) {
-  'use strict';
+goog.debug.Formatter.getTwoDigitString_ = function(n) {
   if (n < 10) {
     return '0' + n;
   }
@@ -180,15 +176,13 @@ goog.debug.formatter.Formatter.getTwoDigitString_ = function(n) {
  * Returns a string for the number of seconds relative to the start time.
  * Prepads with spaces so that anything less than 1000 seconds takes up the
  * same number of characters for better formatting.
- * @param {?goog.log.LogRecord} logRecord The log to compare time to.
+ * @param {goog.debug.LogRecord} logRecord The log to compare time to.
  * @param {number} relativeTimeStart The start time to compare to.
  * @return {string} The number of seconds of the LogRecord relative to the
  *     start time.
  * @private
  */
-goog.debug.formatter.Formatter.getRelativeTime_ = function(
-    logRecord, relativeTimeStart) {
-  'use strict';
+goog.debug.Formatter.getRelativeTime_ = function(logRecord, relativeTimeStart) {
   var ms = logRecord.getMillis() - relativeTimeStart;
   var sec = ms / 1000;
   var str = sec.toFixed(3);
@@ -216,14 +210,12 @@ goog.debug.formatter.Formatter.getRelativeTime_ = function(
  *
  * @param {string=} opt_prefix The prefix to place before text records.
  * @constructor
- * @extends {goog.debug.formatter.Formatter}
+ * @extends {goog.debug.Formatter}
  */
-goog.debug.formatter.HtmlFormatter = function(opt_prefix) {
-  'use strict';
-  goog.debug.formatter.Formatter.call(this, opt_prefix);
+goog.debug.HtmlFormatter = function(opt_prefix) {
+  goog.debug.Formatter.call(this, opt_prefix);
 };
-goog.inherits(
-    goog.debug.formatter.HtmlFormatter, goog.debug.formatter.Formatter);
+goog.inherits(goog.debug.HtmlFormatter, goog.debug.Formatter);
 
 
 /**
@@ -236,9 +228,8 @@ goog.inherits(
  *     will be left out of the stack trace.
  * @return {string} Details of exception, as HTML.
  */
-goog.debug.formatter.HtmlFormatter.exposeException = function(err, fn) {
-  'use strict';
-  var html = goog.debug.formatter.HtmlFormatter.exposeExceptionAsHtml(err, fn);
+goog.debug.HtmlFormatter.exposeException = function(err, fn) {
+  var html = goog.debug.HtmlFormatter.exposeExceptionAsHtml(err, fn);
   return goog.html.SafeHtml.unwrap(html);
 };
 
@@ -253,13 +244,12 @@ goog.debug.formatter.HtmlFormatter.exposeException = function(err, fn) {
  *     will be left out of the stack trace.
  * @return {!goog.html.SafeHtml} Details of exception.
  */
-goog.debug.formatter.HtmlFormatter.exposeExceptionAsHtml = function(err, fn) {
-  'use strict';
+goog.debug.HtmlFormatter.exposeExceptionAsHtml = function(err, fn) {
   try {
     var e = goog.debug.normalizeErrorObject(err);
     // Create the error message
     var viewSourceUrl =
-        goog.debug.formatter.HtmlFormatter.createViewSourceUrl_(e.fileName);
+        goog.debug.HtmlFormatter.createViewSourceUrl_(e.fileName);
     var error = goog.html.SafeHtml.concat(
         goog.html.SafeHtml.htmlEscapePreservingNewlinesAndSpaces(
             'Message: ' + e.message + '\nUrl: '),
@@ -284,8 +274,7 @@ goog.debug.formatter.HtmlFormatter.exposeExceptionAsHtml = function(err, fn) {
  *     fileName.
  * @private
  */
-goog.debug.formatter.HtmlFormatter.createViewSourceUrl_ = function(fileName) {
-  'use strict';
+goog.debug.HtmlFormatter.createViewSourceUrl_ = function(fileName) {
   if (fileName == null) {
     fileName = '';
   }
@@ -307,18 +296,16 @@ goog.debug.formatter.HtmlFormatter.createViewSourceUrl_ = function(fileName) {
  * @type {boolean}
  * @override
  */
-goog.debug.formatter.HtmlFormatter.prototype.showExceptionText = true;
+goog.debug.HtmlFormatter.prototype.showExceptionText = true;
 
 
 /**
  * Formats a record
- * @param {?goog.log.LogRecord} logRecord the logRecord to format.
+ * @param {goog.debug.LogRecord} logRecord the logRecord to format.
  * @return {string} The formatted string as html.
  * @override
  */
-goog.debug.formatter.HtmlFormatter.prototype.formatRecord = function(
-    logRecord) {
-  'use strict';
+goog.debug.HtmlFormatter.prototype.formatRecord = function(logRecord) {
   if (!logRecord) {
     return '';
   }
@@ -329,32 +316,30 @@ goog.debug.formatter.HtmlFormatter.prototype.formatRecord = function(
 
 /**
  * Formats a record.
- * @param {?goog.log.LogRecord} logRecord the logRecord to format.
+ * @param {goog.debug.LogRecord} logRecord the logRecord to format.
  * @return {!goog.html.SafeHtml} The formatted string as SafeHtml.
  * @override
  */
-goog.debug.formatter.HtmlFormatter.prototype.formatRecordAsHtml = function(
-    logRecord) {
-  'use strict';
+goog.debug.HtmlFormatter.prototype.formatRecordAsHtml = function(logRecord) {
   if (!logRecord) {
     return goog.html.SafeHtml.EMPTY;
   }
 
   var className;
   switch (logRecord.getLevel().value) {
-    case goog.log.Level.SHOUT.value:
+    case goog.debug.Logger.Level.SHOUT.value:
       className = 'dbg-sh';
       break;
-    case goog.log.Level.SEVERE.value:
+    case goog.debug.Logger.Level.SEVERE.value:
       className = 'dbg-sev';
       break;
-    case goog.log.Level.WARNING.value:
+    case goog.debug.Logger.Level.WARNING.value:
       className = 'dbg-w';
       break;
-    case goog.log.Level.INFO.value:
+    case goog.debug.Logger.Level.INFO.value:
       className = 'dbg-i';
       break;
-    case goog.log.Level.FINE.value:
+    case goog.debug.Logger.Level.FINE.value:
     default:
       className = 'dbg-f';
       break;
@@ -364,14 +349,12 @@ goog.debug.formatter.HtmlFormatter.prototype.formatRecordAsHtml = function(
   var sb = [];
   sb.push(this.prefix_, ' ');
   if (this.showAbsoluteTime) {
-    sb.push(
-        '[', goog.debug.formatter.Formatter.getDateTimeStamp_(logRecord), '] ');
+    sb.push('[', goog.debug.Formatter.getDateTimeStamp_(logRecord), '] ');
   }
   if (this.showRelativeTime) {
     sb.push(
-        '[',
-        goog.debug.formatter.Formatter.getRelativeTime_(
-            logRecord, this.startTimeProvider_.get()),
+        '[', goog.debug.Formatter.getRelativeTime_(
+                 logRecord, this.startTimeProvider_.get()),
         's] ');
   }
   if (this.showLoggerName) {
@@ -388,7 +371,7 @@ goog.debug.formatter.HtmlFormatter.prototype.formatRecordAsHtml = function(
   if (this.showExceptionText && logRecord.getException()) {
     exceptionHtml = goog.html.SafeHtml.concat(
         goog.html.SafeHtml.BR,
-        goog.debug.formatter.HtmlFormatter.exposeExceptionAsHtml(
+        goog.debug.HtmlFormatter.exposeExceptionAsHtml(
             logRecord.getException()));
   }
   var logRecordHtml = goog.html.SafeHtml.htmlEscapePreservingNewlinesAndSpaces(
@@ -416,37 +399,31 @@ goog.debug.formatter.HtmlFormatter.prototype.formatRecordAsHtml = function(
  *
  * @param {string=} opt_prefix The prefix to place before text records.
  * @constructor
- * @extends {goog.debug.formatter.Formatter}
+ * @extends {goog.debug.Formatter}
  * @final
  */
-goog.debug.formatter.TextFormatter = function(opt_prefix) {
-  'use strict';
-  goog.debug.formatter.Formatter.call(this, opt_prefix);
+goog.debug.TextFormatter = function(opt_prefix) {
+  goog.debug.Formatter.call(this, opt_prefix);
 };
-goog.inherits(
-    goog.debug.formatter.TextFormatter, goog.debug.formatter.Formatter);
+goog.inherits(goog.debug.TextFormatter, goog.debug.Formatter);
 
 
 /**
  * Formats a record as text
- * @param {?goog.log.LogRecord} logRecord the logRecord to format.
+ * @param {goog.debug.LogRecord} logRecord the logRecord to format.
  * @return {string} The formatted string.
  * @override
  */
-goog.debug.formatter.TextFormatter.prototype.formatRecord = function(
-    logRecord) {
-  'use strict';
+goog.debug.TextFormatter.prototype.formatRecord = function(logRecord) {
   var sb = [];
   sb.push(this.prefix_, ' ');
   if (this.showAbsoluteTime) {
-    sb.push(
-        '[', goog.debug.formatter.Formatter.getDateTimeStamp_(logRecord), '] ');
+    sb.push('[', goog.debug.Formatter.getDateTimeStamp_(logRecord), '] ');
   }
   if (this.showRelativeTime) {
     sb.push(
-        '[',
-        goog.debug.formatter.Formatter.getRelativeTime_(
-            logRecord, this.startTimeProvider_.get()),
+        '[', goog.debug.Formatter.getRelativeTime_(
+                 logRecord, this.startTimeProvider_.get()),
         's] ');
   }
 
@@ -459,9 +436,9 @@ goog.debug.formatter.TextFormatter.prototype.formatRecord = function(
   sb.push(logRecord.getMessage());
   if (this.showExceptionText) {
     var exception = logRecord.getException();
-    if (exception !== undefined) {
+    if (exception) {
       var exceptionText =
-          exception instanceof Error ? exception.message : String(exception);
+          exception instanceof Error ? exception.message : exception.toString();
       sb.push('\n', exceptionText);
     }
   }
@@ -474,32 +451,12 @@ goog.debug.formatter.TextFormatter.prototype.formatRecord = function(
 
 /**
  * Formats a record as text
- * @param {?goog.log.LogRecord} logRecord the logRecord to format.
+ * @param {goog.debug.LogRecord} logRecord the logRecord to format.
  * @return {!goog.html.SafeHtml} The formatted string as SafeHtml. This is
  *     just an HTML-escaped version of the text obtained from formatRecord().
  * @override
  */
-goog.debug.formatter.TextFormatter.prototype.formatRecordAsHtml = function(
-    logRecord) {
-  'use strict';
+goog.debug.TextFormatter.prototype.formatRecordAsHtml = function(logRecord) {
   return goog.html.SafeHtml.htmlEscapePreservingNewlinesAndSpaces(
-      goog.debug.formatter.TextFormatter.prototype.formatRecord(logRecord));
+      goog.debug.TextFormatter.prototype.formatRecord(logRecord));
 };
-
-// Aliases for the above formatters.
-// TODO(user): Delete these aliases when there are no more usages.
-
-/**
- * @constructor
- */
-goog.debug.Formatter = goog.debug.formatter.Formatter;
-
-/**
- * @constructor
- */
-goog.debug.TextFormatter = goog.debug.formatter.TextFormatter;
-
-/**
- * @constructor
- */
-goog.debug.HtmlFormatter = goog.debug.formatter.HtmlFormatter;

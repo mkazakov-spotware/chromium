@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 
+#include "base/values.h"
 
 namespace signin_internals_util {
 
@@ -18,9 +19,11 @@ namespace signin_internals_util {
 extern const char kSigninPrefPrefix[];
 extern const char kTokenPrefPrefix[];
 
-// Helper constants to access fields from SigninStatus (declared below).
-constexpr int SIGNIN_FIELDS_BEGIN = 0;
-constexpr int UNTIMED_FIELDS_BEGIN_UNTYPED = SIGNIN_FIELDS_BEGIN;
+// Helper enums to access fields from SigninStatus (declared below).
+enum {
+  SIGNIN_FIELDS_BEGIN = 0,
+  UNTIMED_FIELDS_BEGIN_UNTYPED = SIGNIN_FIELDS_BEGIN
+};
 
 enum UntimedSigninStatusField {
   UNTIMED_FIELDS_BEGIN = UNTIMED_FIELDS_BEGIN_UNTYPED,
@@ -30,8 +33,10 @@ enum UntimedSigninStatusField {
   UNTIMED_FIELDS_END
 };
 
-constexpr int UNTIMED_FIELDS_COUNT = UNTIMED_FIELDS_END - UNTIMED_FIELDS_BEGIN;
-constexpr int TIMED_FIELDS_BEGIN_UNTYPED = UNTIMED_FIELDS_END;
+enum {
+  UNTIMED_FIELDS_COUNT = UNTIMED_FIELDS_END - UNTIMED_FIELDS_BEGIN,
+  TIMED_FIELDS_BEGIN_UNTYPED = UNTIMED_FIELDS_END
+};
 
 enum TimedSigninStatusField {
   TIMED_FIELDS_BEGIN = TIMED_FIELDS_BEGIN_UNTYPED,
@@ -40,9 +45,11 @@ enum TimedSigninStatusField {
   TIMED_FIELDS_END
 };
 
-constexpr int TIMED_FIELDS_COUNT = TIMED_FIELDS_END - TIMED_FIELDS_BEGIN;
-constexpr int SIGNIN_FIELDS_END = TIMED_FIELDS_END;
-constexpr int SIGNIN_FIELDS_COUNT = SIGNIN_FIELDS_END - SIGNIN_FIELDS_BEGIN;
+enum {
+  TIMED_FIELDS_COUNT = TIMED_FIELDS_END - TIMED_FIELDS_BEGIN,
+  SIGNIN_FIELDS_END = TIMED_FIELDS_END,
+  SIGNIN_FIELDS_COUNT = SIGNIN_FIELDS_END - SIGNIN_FIELDS_BEGIN
+};
 
 // Returns the name of a SigninStatus field.
 std::string SigninStatusFieldToString(UntimedSigninStatusField field);

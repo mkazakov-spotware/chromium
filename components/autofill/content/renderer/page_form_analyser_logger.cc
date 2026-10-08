@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,30 +43,30 @@ void PageFormAnalyserLogger::Flush() {
       text += "[DOM] ";
       text += entry.message;
 
-      std::vector<blink::WebNode> nodes_to_log;
+      std::vector<blink::WebNode> nodesToLog;
       for (unsigned i = 0; i < entry.nodes.size(); ++i) {
         if (entry.nodes[i].IsElementNode()) {
           const blink::WebElement element =
-              entry.nodes[i].To<blink::WebElement>();
-          const blink::WebInputElement input_element =
-              element.DynamicTo<blink::WebInputElement>();
+              entry.nodes[i].ToConst<blink::WebElement>();
+          const blink::WebInputElement* webInputElement =
+              blink::ToWebInputElement(&element);
 
           // Filter out password inputs with values from being logged, as their
           // values are also logged.
-          const bool should_obfuscate =
-              !input_element.IsNull() &&
-              input_element.IsPasswordFieldForAutofill() &&
-              !input_element.Value().IsEmpty();
+          const bool shouldObfuscate =
+              webInputElement &&
+              webInputElement->IsPasswordFieldForAutofill() &&
+              !webInputElement->Value().IsEmpty();
 
-          if (!should_obfuscate) {
+          if (!shouldObfuscate) {
             text += " %o";
-            nodes_to_log.push_back(element);
+            nodesToLog.push_back(element);
           }
         }
       }
 
       blink::WebConsoleMessage message(level, blink::WebString::FromUTF8(text));
-      message.nodes = std::move(nodes_to_log);  // avoids copying node vectors.
+      message.nodes = std::move(nodesToLog);  // avoids copying node vectors.
       frame_->AddMessageToConsole(message);
     }
   }

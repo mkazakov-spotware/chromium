@@ -1,13 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/chrome_select_file_policy.h"
 
 #include <memory>
-#include <string>
 
 #include "base/files/file_path.h"
+#include "base/strings/string16.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/prefs/browser_prefs.h"
@@ -44,12 +44,12 @@ class FileSelectionUser : public ui::SelectFileDialog::Listener {
         this, std::make_unique<ChromeSelectFilePolicy>(nullptr));
 
     const base::FilePath file_path;
-    const std::u16string title = std::u16string();
+    const base::string16 title = base::string16();
 
     file_selection_initialisation_in_progress = true;
-    select_file_dialog_->SelectFile(
-        ui::SelectFileDialog::SELECT_OPEN_FILE, title, file_path, nullptr, 0,
-        base::FilePath::StringType(), nullptr, nullptr);
+    select_file_dialog_->SelectFile(ui::SelectFileDialog::SELECT_OPEN_FILE,
+                                    title, file_path, NULL, 0,
+                                    base::FilePath::StringType(), NULL, NULL);
     file_selection_initialisation_in_progress = false;
   }
 

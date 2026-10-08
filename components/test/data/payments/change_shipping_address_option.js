@@ -1,16 +1,65 @@
 /*
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
-let methodName = window.location.origin;
+let methodName = window.location.origin + '/pay';
 let request = undefined;
 
-/** Delegates handling of shipping address to the installed payment handler. */
-async function delegateShippingAddressToPaymentHandler() {
-  const registration = await navigator.serviceWorker.ready;
-  await registration.paymentManager.enableDelegations(['shippingAddress']);
+/**
+ * Installs the payment handler.
+ * @param {String} swApp The name of the service worker based payment app to
+ *     install.
+ */
+function install(swApp) { // eslint-disable-line no-unused-vars
+  navigator.serviceWorker.getRegistration(swApp)
+      .then((registration) => {
+        if (registration) {
+          output(
+              'serviceWorker.getRegistration()',
+              'The ServiceWorker is already installed.');
+          return;
+        }
+        navigator.serviceWorker.register(swApp)
+            .then(() => {
+              return navigator.serviceWorker.ready;
+            })
+            .then((registration) => {
+              if (!registration.paymentManager) {
+                output(
+                    'serviceWorker.register()',
+                    'PaymentManager API not found.');
+                return;
+              }
+
+              registration.paymentManager.enableDelegations(['shippingAddress'])
+                  .then(() => {
+                    registration.paymentManager.instruments
+                        .set('instrument-id', {
+                          name: 'Instrument Name',
+                          method: methodName,
+                        })
+                        .then(() => {
+                          output(
+                              'instruments.set()',
+                              'Payment handler installed.');
+                        })
+                        .catch((error) => {
+                          output('instruments.set() rejected with', error);
+                        });
+                  })
+                  .catch((error) => {
+                    output('enableDelegations() rejected with', error);
+                  });
+            })
+            .catch((error) => {
+              output('serviceWorker.register() rejected with', error);
+            });
+      })
+      .catch((error) => {
+        output('serviceWorker.getRegistration() rejected with', error);
+      });
 }
 
 /**
@@ -19,7 +68,7 @@ async function delegateShippingAddressToPaymentHandler() {
  * @param {PaymentRequest} request The PaymentRequest object for showing the
  *     payment sheet.
  */
-function outputChangeShippingAddressOptionReturnValue(request) {
+function outputChangeShippingAddressOptionReturnValue(request) { // eslint-disable-line no-unused-vars, max-len
   request.show()
       .then((response) => {
         response.complete('success').then(() => {
@@ -54,7 +103,7 @@ function createPaymentRequest() {
 /**
  * @return {PaymentRequest} The Payment Request object for testNoHandler().
  */
-function initTestNoHandler() {
+function initTestNoHandler() { // eslint-disable-line no-unused-vars
   createPaymentRequest();
   return request;
 }
@@ -63,7 +112,7 @@ function initTestNoHandler() {
  * @param {String} eventType The type of the event to listen for.
  * @return {PaymentRequest} The Payment Request object for testReject().
  */
-function initTestReject(eventType) {
+function initTestReject(eventType) { // eslint-disable-line no-unused-vars
   createPaymentRequest();
   request.addEventListener(eventType, (event) => {
     event.updateWith(Promise.reject('Error for test'));
@@ -75,7 +124,7 @@ function initTestReject(eventType) {
  * @param {String} eventType The type of the event to listen for.
  * @return {PaymentRequest} The Payment Request object for testThrow().
  */
-function initTestThrow(eventType) {
+function initTestThrow(eventType) { // eslint-disable-line no-unused-vars
   createPaymentRequest();
   request.addEventListener(eventType, (event) => {
     event.updateWith(new Promise(() => {
@@ -89,7 +138,7 @@ function initTestThrow(eventType) {
  * @param {String} eventType The type of the event to listen for.
  * @return {PaymentRequest} The Payment Request object for testDetails().
  */
-function initTestDetails(eventType) {
+function initTestDetails(eventType) { // eslint-disable-line no-unused-vars
   createPaymentRequest();
   request.addEventListener(eventType, (event) => {
     event.updateWith({
@@ -111,7 +160,7 @@ function initTestDetails(eventType) {
           ],
         },
         {
-          supportedMethods: methodName + '/other',
+          supportedMethods: methodName + '2',
           data: {soup: 'tomato'},
           total: {
             label: 'Modified total #2',

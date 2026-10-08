@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,16 +14,14 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.BuildConfig;
 import org.chromium.base.JniException;
 import org.chromium.base.NativeLibraryLoadedStatus;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.RequiresRestart;
-import org.chromium.build.BuildConfig;
-import org.chromium.build.annotations.MainDex;
 
 import java.util.concurrent.TimeoutException;
 
@@ -33,31 +31,23 @@ import java.util.concurrent.TimeoutException;
 @RunWith(BaseJUnit4ClassRunner.class)
 @JNINamespace("base")
 @MainDex
-@Batch(Batch.UNIT_TESTS)
 public class EarlyNativeTest {
-    private boolean mWasInitialized;
     private CallbackHelper mLoadMainDexStarted;
     private CallbackHelper mEnsureMainDexInitializedFinished;
 
     @Before
     public void setUp() {
-        mWasInitialized = LibraryLoader.getInstance().isInitialized();
-        LibraryLoader.getInstance().resetForTesting();
         mLoadMainDexStarted = new CallbackHelper();
         mEnsureMainDexInitializedFinished = new CallbackHelper();
     }
 
     @After
     public void tearDown() {
-        // Restore the simulated library state (due to the resetForTesting() call).
-        if (mWasInitialized) {
-            LibraryLoader.getInstance().ensureInitialized();
-        }
+        NativeLibraryLoadedStatus.setProvider(null);
     }
 
     private class TestLibraryLoader extends LibraryLoader {
         @Override
-        @SuppressWarnings("GuardedBy") // ErrorProne: should be guarded by 'mLock'
         protected void loadMainDexAlreadyLocked(ApplicationInfo appInfo, boolean inZygote) {
             mLoadMainDexStarted.notifyCalled();
             super.loadMainDexAlreadyLocked(appInfo, inZygote);
@@ -93,17 +83,12 @@ public class EarlyNativeTest {
 
         LibraryLoader.getInstance().ensureInitialized();
         Assert.assertTrue(LibraryLoader.getInstance().isInitialized());
-
-        // Test resetForTesting().
-        LibraryLoader.getInstance().resetForTesting();
-        Assert.assertFalse(LibraryLoader.getInstance().isInitialized());
-        LibraryLoader.getInstance().ensureInitialized();
-        Assert.assertTrue(LibraryLoader.getInstance().isInitialized());
     }
 
     private void doTestFullInitializationDoesntBlockMainDexInitialization(final boolean initialize)
             throws Exception {
         final TestLibraryLoader loader = new TestLibraryLoader();
+        loader.enableJniChecks();
         loader.setLibraryProcessType(LibraryProcessType.PROCESS_BROWSER);
         final Thread t1 = new Thread(() -> {
             if (initialize) {
@@ -127,14 +112,12 @@ public class EarlyNativeTest {
 
     @Test
     @SmallTest
-    @RequiresRestart("Uses custom LibraryLoader")
     public void testFullInitializationDoesntBlockMainDexInitialization() throws Exception {
         doTestFullInitializationDoesntBlockMainDexInitialization(true);
     }
 
     @Test
     @SmallTest
-    @RequiresRestart("Uses custom LibraryLoader")
     public void testLoadDoesntBlockMainDexInitialization() throws Exception {
         doTestFullInitializationDoesntBlockMainDexInitialization(false);
     }
@@ -142,8 +125,10 @@ public class EarlyNativeTest {
     @Test
     @SmallTest
     public void testNativeMethodsReadyAfterLibraryInitialized() {
-        // Test is a no-op if DCHECK isn't on.
-        if (!BuildConfig.ENABLE_ASSERTS) return;
+        // Test is a no-op if dcheck isn't on.
+        if (!BuildConfig.DCHECK_IS_ON) return;
+
+        LibraryLoader.getInstance().enableJniChecks();
 
         Assert.assertFalse(
                 NativeLibraryLoadedStatus.getProviderForTesting().areMainDexNativeMethodsReady());
@@ -167,7 +152,9 @@ public class EarlyNativeTest {
     @SmallTest
     public void testNativeMethodsNotReadyThrows() {
         // Test is a no-op if dcheck isn't on.
-        if (!BuildConfig.ENABLE_ASSERTS) return;
+        if (!BuildConfig.DCHECK_IS_ON) return;
+
+        LibraryLoader.getInstance().enableJniChecks();
 
         try {
             EarlyNativeTestJni.get().isCommandLineInitialized();

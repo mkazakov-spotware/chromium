@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/values.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
+#include "components/performance_manager/public/execution_context_priority/execution_context_priority.h"
 #include "components/performance_manager/public/graph/node_data_describer_registry.h"
 #include "components/performance_manager/public/graph/node_data_describer_util.h"
 
@@ -20,7 +21,7 @@ namespace {
 const char kDescriberName[] = "FrameNodeImpl";
 
 std::string ViewportIntersectionToString(
-    const absl::optional<gfx::Rect>& viewport_intersection) {
+    const base::Optional<gfx::Rect>& viewport_intersection) {
   if (!viewport_intersection.has_value())
     return "Nullopt";
 
@@ -66,15 +67,19 @@ base::Value FrameNodeImplDescriber::DescribeFrameNodeData(
                  impl->document_.has_nonempty_beforeunload);
   doc.SetBoolKey("network_almost_idle",
                  impl->document_.network_almost_idle.value());
+  doc.SetStringKey(
+      "origin_trial_freeze_policy",
+      MojoEnumToString(impl->document_.origin_trial_freeze_policy.value()));
   doc.SetBoolKey("had_form_interaction",
                  impl->document_.had_form_interaction.value());
   ret.SetKey("document", std::move(doc));
 
   // Frame node properties.
+  ret.SetIntKey("frame_tree_node_id", impl->frame_tree_node_id_);
   ret.SetIntKey("render_frame_id", impl->render_frame_id_);
   ret.SetStringKey("frame_token", impl->frame_token_.value().ToString());
-  ret.SetIntKey("browsing_instance_id", impl->browsing_instance_id_.value());
-  ret.SetIntKey("site_instance_id", impl->site_instance_id_.value());
+  ret.SetIntKey("browsing_instance_id", impl->browsing_instance_id_);
+  ret.SetIntKey("site_instance_id", impl->site_instance_id_);
   ret.SetStringKey("lifecycle_state",
                    MojoEnumToString(impl->lifecycle_state_.value()));
   ret.SetBoolKey("is_ad_frame", impl->is_ad_frame_.value());

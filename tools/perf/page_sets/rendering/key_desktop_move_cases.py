@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 from telemetry.page import shared_page_state
@@ -53,8 +53,7 @@ class GmailMouseScroll2018Page(KeyDesktopMoveCasesPage):
       }'''
 
   def RunNavigateSteps(self, action_runner):
-    # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-    google_login.ManualLoginGoogleAccount(action_runner)
+    google_login.NewLoginGoogleAccount(action_runner, 'googletest')
     super(GmailMouseScroll2018Page, self).RunNavigateSteps(action_runner)
     action_runner.WaitForJavaScriptCondition(
         'window.gmonkey !== undefined &&'

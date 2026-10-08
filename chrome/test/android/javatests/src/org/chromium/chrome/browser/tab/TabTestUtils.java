@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tab;
 
-import android.content.Context;
 import android.view.View;
 
 import org.chromium.base.ObserverList;
@@ -12,7 +11,6 @@ import org.chromium.base.ObserverList.RewindableIterator;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ResourceRequestBody;
-import org.chromium.url.GURL;
 
 /**
  * Exposes helper functions to be used in tests to instrument tab interaction.
@@ -40,7 +38,7 @@ public class TabTestUtils {
      */
     public static void simulatePageLoadFinished(Tab tab) {
         RewindableIterator<TabObserver> observers = ((TabImpl) tab).getTabObservers();
-        while (observers.hasNext()) observers.next().onPageLoadFinished(tab, tab.getUrl());
+        while (observers.hasNext()) observers.next().onPageLoadFinished(tab, tab.getUrlString());
     }
 
     /**
@@ -71,14 +69,14 @@ public class TabTestUtils {
         } else if (show && !isShowing) {
             SadTab sadTab = new SadTab(tab) {
                 @Override
-                public View createView(Context context, Runnable suggestionAction,
-                        Runnable buttonAction, boolean showSendFeedbackView, boolean isIncognito) {
-                    return new View(context);
+                public View createView(Runnable suggestionAction, Runnable buttonAction,
+                        boolean showSendFeedbackView, boolean isIncognito) {
+                    return new View(((TabImpl) tab).getThemedApplicationContext());
                 }
             };
             TestThreadUtils.runOnUiThreadBlocking(() -> {
                 SadTab.initForTesting(tab, sadTab);
-                sadTab.show(((TabImpl) tab).getThemedApplicationContext(), () -> {}, () -> {});
+                sadTab.show();
             });
         }
     }
@@ -148,7 +146,7 @@ public class TabTestUtils {
      *                            //ui/base/mojo/window_open_disposition.mojom.
      * @param isRendererInitiated Whether or not the renderer initiated this action.
      */
-    public static void openNewTab(Tab tab, GURL url, String extraHeaders,
+    public static void openNewTab(Tab tab, String url, String extraHeaders,
             ResourceRequestBody postData, int disposition, boolean isRendererInitiated) {
         getTabWebContentsDelegate(tab).openNewTab(
                 url, extraHeaders, postData, disposition, isRendererInitiated);

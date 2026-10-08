@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <windows.h>
 
 #include <memory>
-#include <string>
+
+#include "base/strings/string16.h"
 
 namespace base {
 class Process;
@@ -30,7 +31,7 @@ class ProcessInspector {
   virtual DWORD GetParentPid() const = 0;
 
   // Returns the command line of the process.
-  virtual const std::wstring& command_line() const = 0;
+  virtual const base::string16& command_line() const = 0;
 
  protected:
   ProcessInspector() = default;

@@ -70,13 +70,13 @@ const cssFile = 'fetch-request-css-base-url-style.css';
 
 base_url_test({
   framePath: SCOPE + '?fetch',
-  expectImageRequestPath: 'resources/sample.png',
+  expectImageRequestPath: 'resources/dummy.png',
   expectImageRequestReferrer: `resources/${cssFile}?fetch`,
   description: 'base URL when service worker does respondWith(fetch(responseUrl)).'});
 
 base_url_test({
   framePath: SCOPE + '?newResponse',
-  expectImageRequestPath: 'resources/request-url-path/sample.png',
+  expectImageRequestPath: 'resources/request-url-path/dummy.png',
   expectImageRequestReferrer: `resources/request-url-path/${cssFile}?newResponse`,
   description: 'base URL when service worker does respondWith(new Response()).'});
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,6 +21,9 @@
 // Notifies that the card nickname is invalid.
 - (void)creditCardMediatorHasInvalidNickname:
     (AutofillAddCreditCardMediator*)mediator;
+
+// Notifies that the credit card scanner needs to be shown.
+- (void)creditCardMediatorShowScanner:(AutofillAddCreditCardMediator*)mediator;
 
 // Notifies that the credit card is valid or the user cancel the view
 // controller.

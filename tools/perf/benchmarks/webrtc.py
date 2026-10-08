@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,7 +10,8 @@ from benchmarks import press
 
 
 @benchmark.Info(emails=['qiangchen@chromium.org', # For smoothness metrics
-                        'mbonadei@chromium.org'],
+                        'mbonadei@chromium.org',
+                        'phoglund@chromium.org'],
                 component='Blink>WebRTC',
                 documentation_url='http://bit.ly/webrtc-benchmark')
 class WebrtcPerfBenchmark(press._PressBenchmark):  # pylint: disable=protected-access

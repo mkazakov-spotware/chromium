@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,9 @@
 #define CONTENT_PUBLIC_TEST_TEST_NAVIGATION_THROTTLE_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "content/public/browser/navigation_throttle.h"
 
 namespace content {
@@ -34,10 +36,6 @@ class TestNavigationThrottle : public NavigationThrottle {
   };
 
   TestNavigationThrottle(NavigationHandle* handle);
-
-  TestNavigationThrottle(const TestNavigationThrottle&) = delete;
-  TestNavigationThrottle& operator=(const TestNavigationThrottle&) = delete;
-
   ~TestNavigationThrottle() override;
 
   // NavigationThrottle:
@@ -103,6 +101,8 @@ class TestNavigationThrottle : public NavigationThrottle {
   MethodProperties method_properties_[NUM_THROTTLE_METHODS];
 
   base::WeakPtrFactory<TestNavigationThrottle> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TestNavigationThrottle);
 };
 
 }  // namespace content

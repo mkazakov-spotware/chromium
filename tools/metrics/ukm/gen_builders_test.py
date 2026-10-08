@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -25,8 +25,8 @@ class GenBuildersTest(unittest.TestCase):
 
   def testGenerateCode(self):
     relpath = '.'
-    with open('../../tools/metrics/ukm/ukm.xml') as f:
-      data = ukm_model.UKM_XML_TYPE.Parse(f.read())
+    data = ukm_model.UKM_XML_TYPE.Parse(
+        open('../../tools/metrics/ukm/ukm.xml').read())
     event = data[ukm_model._EVENT_TYPE.tag][0]
     metric = event[ukm_model._METRIC_TYPE.tag][0]
     self.assertIsNotNone(event)

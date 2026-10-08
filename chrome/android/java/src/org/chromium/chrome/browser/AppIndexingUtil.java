@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
-import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.blink.mojom.DocumentMetadata;
 import org.chromium.blink.mojom.WebPage;
@@ -25,7 +24,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.url.GURL;
+import org.chromium.services.service_manager.InterfaceProvider;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -59,12 +58,8 @@ public class AppIndexingUtil {
         if (mTabModelSelectorImpl != null && isEnabledForDevice()) {
             mObserver = new TabModelSelectorTabObserver(mTabModelSelectorImpl) {
                 @Override
-                public void onPageLoadFinished(final Tab tab, GURL url) {
-                    // Part of scroll jank investigation http://crbug.com/1311003. Will remove
-                    // TraceEvent after the investigation is complete.
-                    try (TraceEvent te = TraceEvent.scoped("AppIndexingUtil::onPageLoadFinished")) {
-                        extractDocumentMetadata(tab);
-                    }
+                public void onPageLoadFinished(final Tab tab, String url) {
+                    extractDocumentMetadata(tab);
                 }
 
                 @Override
@@ -93,7 +88,7 @@ public class AppIndexingUtil {
         // 2. Cache hit, but no entity was found. Ignore.
         // 3. Cache miss, we need to parse the page.
         // Note that page view is reported unconditionally.
-        final String url = tab.getUrl().getSpec();
+        final String url = tab.getUrlString();
         if (wasPageVisitedRecently(url)) {
             if (lastPageVisitContainedEntity(url)) {
                 // Condition 1
@@ -127,7 +122,7 @@ public class AppIndexingUtil {
     @VisibleForTesting
     void reportPageView(Tab tab) {
         if (!isEnabledForTab(tab)) return;
-        getAppIndexingReporter().reportWebPageView(tab.getUrl().getSpec(), tab.getTitle());
+        getAppIndexingReporter().reportWebPageView(tab.getUrlString(), tab.getTitle());
     }
 
     @VisibleForTesting
@@ -177,9 +172,10 @@ public class AppIndexingUtil {
         RenderFrameHost mainFrame = webContents.getMainFrame();
         if (mainFrame == null) return null;
 
-        if (!mainFrame.isRenderFrameLive()) return null;
+        InterfaceProvider interfaces = mainFrame.getRemoteInterfaces();
+        if (interfaces == null) return null;
 
-        return mainFrame.getInterfaceToRendererFrame(DocumentMetadata.MANAGER);
+        return interfaces.getInterface(DocumentMetadata.MANAGER);
     }
 
     @VisibleForTesting
@@ -194,7 +190,8 @@ public class AppIndexingUtil {
 
     @VisibleForTesting
     boolean isEnabledForTab(Tab tab) {
-        boolean isHttpOrHttps = UrlUtilities.isHttpOrHttps(tab.getUrl());
+        final String url = tab.getUrlString();
+        boolean isHttpOrHttps = UrlUtilities.isHttpOrHttps(url);
         return isEnabledForDevice() && !tab.isIncognito() && isHttpOrHttps;
     }
 

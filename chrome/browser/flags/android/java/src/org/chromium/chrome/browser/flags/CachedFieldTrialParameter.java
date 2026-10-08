@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@ package org.chromium.chrome.browser.flags;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.build.BuildConfig;
-import org.chromium.build.annotations.CheckDiscard;
+import org.chromium.base.annotations.CheckDiscard;
+import org.chromium.base.annotations.RemovableInRelease;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 
 import java.lang.annotation.Retention;
@@ -24,15 +24,13 @@ public abstract class CachedFieldTrialParameter {
      * Data types of field trial parameters.
      */
     @IntDef({FieldTrialParameterType.STRING, FieldTrialParameterType.BOOLEAN,
-            FieldTrialParameterType.INT, FieldTrialParameterType.DOUBLE,
-            FieldTrialParameterType.ALL})
+            FieldTrialParameterType.INT, FieldTrialParameterType.DOUBLE})
     @Retention(RetentionPolicy.SOURCE)
     public @interface FieldTrialParameterType {
         int STRING = 0;
         int BOOLEAN = 1;
         int INT = 2;
         int DOUBLE = 3;
-        int ALL = 4;
     }
 
     @CheckDiscard("crbug.com/1067145")
@@ -41,21 +39,20 @@ public abstract class CachedFieldTrialParameter {
     private final String mFeatureName;
     private final String mParameterName;
     private final @FieldTrialParameterType int mType;
+    private final String mPreferenceKeyOverride;
 
-    CachedFieldTrialParameter(
-            String featureName, String parameterName, @FieldTrialParameterType int type) {
+    CachedFieldTrialParameter(String featureName, String parameterName,
+            @FieldTrialParameterType int type, String preferenceKeyOverride) {
         mFeatureName = featureName;
-        // parameterName does not apply to ALL (because it includes all parameters).
-        assert type != FieldTrialParameterType.ALL || parameterName.isEmpty();
         mParameterName = parameterName;
         mType = type;
+        mPreferenceKeyOverride = preferenceKeyOverride;
 
         registerInstance();
     }
 
+    @RemovableInRelease
     private void registerInstance() {
-        if (!BuildConfig.ENABLE_ASSERTS) return;
-
         if (sAllInstances == null) {
             sAllInstances = new HashSet<>();
         }
@@ -104,6 +101,10 @@ public abstract class CachedFieldTrialParameter {
      * @return The SharedPreferences key to cache the field trial parameter.
      */
     String getSharedPreferenceKey() {
+        if (mPreferenceKeyOverride != null) {
+            return mPreferenceKeyOverride;
+        }
+
         return generateSharedPreferenceKey(getFeatureName(), getParameterName());
     }
 

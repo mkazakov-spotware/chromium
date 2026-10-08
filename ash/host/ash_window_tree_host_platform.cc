@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 
 #include <utility>
 
-#include "ash/host/ash_window_tree_host_delegate.h"
 #include "ash/host/root_window_transformer.h"
 #include "ash/host/transformer_helper.h"
+#include "ash/shell.h"
+#include "ash/shell_delegate.h"
+#include "ash/window_factory.h"
 #include "base/feature_list.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/aura/null_window_targeter.h"
@@ -20,7 +22,7 @@
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/platform_window/platform_window.h"
 #include "ui/platform_window/platform_window_init_properties.h"
@@ -31,8 +33,8 @@ class ScopedEnableUnadjustedMouseEventsOzone
     : public aura::ScopedEnableUnadjustedMouseEvents {
  public:
   explicit ScopedEnableUnadjustedMouseEventsOzone(
-      ui::InputController* input_controller)
-      : input_controller_(input_controller) {
+      ui::InputController* input_controller) {
+    input_controller_ = input_controller;
     input_controller_->SuspendMouseAcceleration();
   }
 
@@ -45,31 +47,21 @@ class ScopedEnableUnadjustedMouseEventsOzone
 };
 
 AshWindowTreeHostPlatform::AshWindowTreeHostPlatform(
-    ui::PlatformWindowInitProperties properties,
-    AshWindowTreeHostDelegate* delegate)
+    ui::PlatformWindowInitProperties properties)
     : aura::WindowTreeHostPlatform(std::move(properties),
-                                   std::make_unique<aura::Window>(nullptr)),
-      delegate_(delegate),
+                                   window_factory::NewWindow()),
       transformer_helper_(this),
       input_controller_(
           ui::OzonePlatform::GetInstance()->GetInputController()) {
-  DCHECK(delegate_);
   CommonInit();
 }
 
-AshWindowTreeHostPlatform::AshWindowTreeHostPlatform(
-    std::unique_ptr<ui::PlatformWindow> platform_window,
-    AshWindowTreeHostDelegate* delegate,
-    size_t compositor_memory_limit_mb)
-    : aura::WindowTreeHostPlatform(std::make_unique<aura::Window>(nullptr)),
-      delegate_(delegate),
+AshWindowTreeHostPlatform::AshWindowTreeHostPlatform()
+    : aura::WindowTreeHostPlatform(window_factory::NewWindow()),
       transformer_helper_(this) {
-  DCHECK(delegate_);
-  CreateCompositor(/* force_software_compositor */ false,
-                   /* use_external_begin_frame_control */ false,
-                   /* enable_compositing_based_throttling */ false,
-                   compositor_memory_limit_mb);
-  SetPlatformWindow(std::move(platform_window));
+  CreateCompositor(viz::FrameSinkId(),
+                   /* force_software_compositor */ false,
+                   /* use_external_begin_frame_control */ false);
   CommonInit();
 }
 
@@ -90,8 +82,9 @@ void AshWindowTreeHostPlatform::ConfineCursorToBoundsInRoot(
   if (!allow_confine_cursor())
     return;
 
-  last_cursor_confine_bounds_in_pixels_ =
-      GetRootTransform().MapRect(bounds_in_root);
+  gfx::RectF bounds_f(bounds_in_root);
+  GetRootTransform().TransformRect(&bounds_f);
+  last_cursor_confine_bounds_in_pixels_ = gfx::ToEnclosingRect(bounds_f);
   platform_window()->ConfineCursorToBounds(
       last_cursor_confine_bounds_in_pixels_);
 }
@@ -101,32 +94,22 @@ gfx::Rect AshWindowTreeHostPlatform::GetLastCursorConfineBoundsInPixels()
   return last_cursor_confine_bounds_in_pixels_;
 }
 
-void AshWindowTreeHostPlatform::UpdateCursorConfig() {
-  const display::Display* display = delegate_->GetDisplayById(GetDisplayId());
-  if (!display) {
-    LOG(ERROR)
-        << "While updating cursor config, could not find display with id="
-        << GetDisplayId();
-    return;
-  }
-
+void AshWindowTreeHostPlatform::SetCursorConfig(
+    const display::Display& display,
+    display::Display::Rotation rotation) {
   // Scale all motion on High-DPI displays.
-  float scale = display->device_scale_factor();
+  float scale = display.device_scale_factor();
 
-  if (!display->IsInternal())
+  if (!display.IsInternal())
     scale *= 1.2;
 
   ui::CursorController::GetInstance()->SetCursorConfigForWindow(
-      GetAcceleratedWidget(), display->panel_rotation(), scale);
+      GetAcceleratedWidget(), rotation, scale);
 }
 
 void AshWindowTreeHostPlatform::ClearCursorConfig() {
   ui::CursorController::GetInstance()->ClearCursorConfigForWindow(
       GetAcceleratedWidget());
-}
-
-void AshWindowTreeHostPlatform::UpdateRootWindowSize() {
-  aura::WindowTreeHostPlatform::UpdateRootWindowSize();
 }
 
 void AshWindowTreeHostPlatform::SetRootWindowTransformer(
@@ -168,8 +151,7 @@ gfx::Transform AshWindowTreeHostPlatform::GetInverseRootTransform() const {
   return transformer_helper_.GetInverseTransform();
 }
 
-gfx::Rect
-AshWindowTreeHostPlatform::GetTransformedRootWindowBoundsFromPixelSize(
+gfx::Rect AshWindowTreeHostPlatform::GetTransformedRootWindowBoundsInPixels(
     const gfx::Size& host_size_in_pixels) const {
   return transformer_helper_.GetTransformedWindowBounds(host_size_in_pixels);
 }

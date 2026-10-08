@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/media_engagement_service.h"
 
 #include <functional>
-#include <vector>
 
 #include "base/bind.h"
 #include "base/time/clock.h"
@@ -16,13 +15,13 @@
 #include "chrome/browser/media/media_engagement_contents_observer.h"
 #include "chrome/browser/media/media_engagement_score.h"
 #include "chrome/browser/media/media_engagement_service_factory.h"
-#include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
+#include "chrome/browser/prefetch/no_state_prefetch/chrome_prerender_contents_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/history/core/browser/history_service.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_contents.h"
+#include "components/no_state_prefetch/browser/prerender_contents.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "media/base/media_switches.h"
@@ -32,12 +31,7 @@ namespace {
 
 // The current schema version of the MEI data. If this value is higher
 // than the stored value, all MEI data will be wiped.
-static const int kSchemaVersion = 5;
-
-// The schema version that adds an expiration duration to the media engagement
-// scores.
-// TODO: Remove this once kSchemaVersion is incremented beyond 5.
-static const int kSchemaVersionAddingExpiration = 5;
+static const int kSchemaVersion = 4;
 
 // Do not change the values of this enum as it is used for UMA.
 enum class MediaEngagementClearReason {
@@ -89,9 +83,8 @@ void MediaEngagementService::CreateWebContentsObserver(
     content::WebContents* web_contents) {
   DCHECK(IsEnabled());
 
-  // Ignore WebContents that are used for NoStatePrefetch.
-  if (prerender::ChromeNoStatePrefetchContentsDelegate::FromWebContents(
-          web_contents))
+  // Ignore WebContents that are used for prerender/prefetch.
+  if (prerender::ChromePrerenderContentsDelegate::FromWebContents(web_contents))
     return;
 
   MediaEngagementService* service =
@@ -121,26 +114,13 @@ MediaEngagementService::MediaEngagementService(Profile* profile,
   history::HistoryService* history = HistoryServiceFactory::GetForProfile(
       profile, ServiceAccessType::IMPLICIT_ACCESS);
   if (history)
-    history_service_observation_.Observe(history);
+    history->AddObserver(this);
 
   // If kSchemaVersion is higher than what we have stored we should wipe
   // all Media Engagement data.
   if (GetSchemaVersion() < kSchemaVersion) {
-    if (GetSchemaVersion() == kSchemaVersionAddingExpiration - 1) {
-      // Schema version 5 just adds an expiration time, so we can update
-      // all records with an expiration time instead of clearing all media
-      // engagement entries when upgrading from version 4 to 5.
-      // TODO: Remove this code once kSchemaVersion is incremented beyond 5.
-      std::vector<MediaEngagementScore> data = GetAllStoredScores();
-      for (MediaEngagementScore& score : data) {
-        // Recommit the score to update it with an expiration time.
-        score.Commit(true);
-      }
-    } else {
-      HostContentSettingsMapFactory::GetForProfile(profile_)
-          ->ClearSettingsForOneType(ContentSettingsType::MEDIA_ENGAGEMENT);
-    }
-
+    HostContentSettingsMapFactory::GetForProfile(profile_)
+        ->ClearSettingsForOneType(ContentSettingsType::MEDIA_ENGAGEMENT);
     SetSchemaVersion(kSchemaVersion);
   }
 }
@@ -168,7 +148,10 @@ void MediaEngagementService::ClearDataBetweenTime(
 }
 
 void MediaEngagementService::Shutdown() {
-  history_service_observation_.Reset();
+  history::HistoryService* history = HistoryServiceFactory::GetForProfile(
+      profile_, ServiceAccessType::IMPLICIT_ACCESS);
+  if (history)
+    history->RemoveObserver(this);
 }
 
 void MediaEngagementService::OnURLsDeleted(
@@ -303,13 +286,6 @@ MediaEngagementContentsObserver* MediaEngagementService::GetContentsObserverFor(
   return it == contents_observers_.end() ? nullptr : it->second;
 }
 
-void MediaEngagementService::SetHistoryServiceForTesting(
-    history::HistoryService* history) {
-  history_service_observation_.Reset();
-  if (history)
-    history_service_observation_.Observe(history);
-}
-
 Profile* MediaEngagementService::profile() const {
   return profile_;
 }
@@ -364,11 +340,12 @@ std::vector<MediaEngagementScore> MediaEngagementService::GetAllStoredScores()
     const auto& origin = it.first;
     auto* const site = it.second;
 
-    base::Value clone = site->setting_value.Clone();
-    DCHECK(clone.is_dict());
+    std::unique_ptr<base::Value> clone =
+        base::Value::ToUniquePtrValue(site->setting_value.Clone());
 
-    data.push_back(MediaEngagementScore(clock_, origin,
-                                        std::move(clone).TakeDict(), settings));
+    data.push_back(MediaEngagementScore(
+        clock_, origin, base::DictionaryValue::From(std::move(clone)),
+        settings));
   }
 
   return data;

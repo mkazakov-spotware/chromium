@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import android.content.Intent;
 import org.chromium.base.CommandLine;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.TraceEvent;
+import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.chrome.browser.firstrun.FirstRunFlowSequencer;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 
@@ -143,6 +143,8 @@ class NativeInitializationController {
             mOnResumePending = false;
             onResume();
         }
+
+        LibraryLoader.getInstance().onBrowserNativeInitializationComplete();
     }
 
     /**
@@ -216,32 +218,30 @@ class NativeInitializationController {
     }
 
     private void startNowAndProcessPendingItems() {
-        try (TraceEvent te = TraceEvent.scoped("startNowAndProcessPendingItems")) {
-            // onNewIntent and onActivityResult are called only when the activity is paused.
-            // To match the non-deferred behavior, onStart should be called before any processing
-            // of pending intents and activity results.
-            // Note that if we needed ChromeActivityNativeDelegate.onResumeWithNative(), the pending
-            // intents and activity results processing should have happened in the corresponding
-            // resumeNowAndProcessPendingItems, just before the call to
-            // ChromeActivityNativeDelegate.onResumeWithNative().
-            mActivityDelegate.onStartWithNative();
+        // onNewIntent and onActivityResult are called only when the activity is paused.
+        // To match the non-deferred behavior, onStart should be called before any processing
+        // of pending intents and activity results.
+        // Note that if we needed ChromeActivityNativeDelegate.onResumeWithNative(), the pending
+        // intents and activity results processing should have happened in the corresponding
+        // resumeNowAndProcessPendingItems, just before the call to
+        // ChromeActivityNativeDelegate.onResumeWithNative().
+        mActivityDelegate.onStartWithNative();
 
-            if (mPendingNewIntents != null) {
-                for (Intent intent : mPendingNewIntents) {
-                    mActivityDelegate.onNewIntentWithNative(intent);
-                }
-                mPendingNewIntents = null;
+        if (mPendingNewIntents != null) {
+            for (Intent intent : mPendingNewIntents) {
+                mActivityDelegate.onNewIntentWithNative(intent);
             }
+            mPendingNewIntents = null;
+        }
 
-            if (mPendingActivityResults != null) {
-                ActivityResult activityResult;
-                for (int i = 0; i < mPendingActivityResults.size(); i++) {
-                    activityResult = mPendingActivityResults.get(i);
-                    mActivityDelegate.onActivityResultWithNative(activityResult.requestCode,
-                            activityResult.resultCode, activityResult.data);
-                }
-                mPendingActivityResults = null;
+        if (mPendingActivityResults != null) {
+            ActivityResult activityResult;
+            for (int i = 0; i < mPendingActivityResults.size(); i++) {
+                activityResult = mPendingActivityResults.get(i);
+                mActivityDelegate.onActivityResultWithNative(activityResult.requestCode,
+                        activityResult.resultCode, activityResult.data);
             }
+            mPendingActivityResults = null;
         }
     }
 }

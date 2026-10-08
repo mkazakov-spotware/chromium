@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/zucchini/disassembler.h"
 #include "components/zucchini/image_utils.h"
 #include "components/zucchini/type_dex.h"
@@ -25,7 +25,6 @@ namespace zucchini {
 
 class DisassemblerDex : public Disassembler {
  public:
-  static constexpr uint16_t kVersion = 1;
   // Pools follow canonical order.
   enum ReferencePool : uint8_t {
     kStringId,
@@ -34,8 +33,8 @@ class DisassemblerDex : public Disassembler {
     kFieldId,
     kMethodId,
     // kClassDef,  // Unused
-    kCallSiteId,
-    kMethodHandle,
+    // kCallSiteId, // Unused
+    // kMethodHandle, // Unused
     kTypeList,
     kAnnotationSetRefList,
     kAnnotionSet,
@@ -45,7 +44,7 @@ class DisassemblerDex : public Disassembler {
     kAnnotation,
     kEncodedArray,
     kAnnotationsDirectory,
-    kCallSite,
+    // kCallSite, // Unused
     kNumPools
   };
 
@@ -71,21 +70,14 @@ class DisassemblerDex : public Disassembler {
     kTypeListToTypeId,
     kCodeToTypeId,
 
-    kCodeToProtoId,  // kProtoId
-    kMethodIdToProtoId,
+    kMethodIdToProtoId,  // kProtoId
 
     kCodeToFieldId,  // kFieldId
-    kMethodHandleToFieldId,
     kAnnotationsDirectoryToFieldId,
 
     kCodeToMethodId,  // kMethodId
-    kMethodHandleToMethodId,
     kAnnotationsDirectoryToMethodId,
     kAnnotationsDirectoryToParameterMethodId,
-
-    kCodeToCallSiteId,  // kCallSiteId
-
-    kCodeToMethodHandle,  // kMethodHandle
 
     kProtoIdToParametersTypeList,  // kTypeList
     kClassDefToInterfacesTypeList,
@@ -111,14 +103,15 @@ class DisassemblerDex : public Disassembler {
 
     kClassDefToAnnotationDirectory,  // kAnnotationsDirectory
 
-    kCallSiteIdToCallSite,  // kCallSite
+    // Intentionally ignored references (never appeared in test corpus).
+    // kMethodHandleToFieldId,
+    // kMethodHandleToMethodId,
+    // kCallSiteIdToCallSite,
 
     kNumTypes
   };
 
   DisassemblerDex();
-  DisassemblerDex(const DisassemblerDex&) = delete;
-  const DisassemblerDex& operator=(const DisassemblerDex&) = delete;
   ~DisassemblerDex() override;
 
   // Applies quick checks to determine if |image| *may* point to the start of an
@@ -178,13 +171,6 @@ class DisassemblerDex : public Disassembler {
   std::unique_ptr<ReferenceReader> MakeReadClassDefToStaticValuesEncodedArray(
       offset_t lo,
       offset_t hi);
-  std::unique_ptr<ReferenceReader> MakeReadCallSiteIdToCallSite32(offset_t lo,
-                                                                  offset_t hi);
-  std::unique_ptr<ReferenceReader> MakeReadMethodHandleToFieldId16(offset_t lo,
-                                                                   offset_t hi);
-  std::unique_ptr<ReferenceReader> MakeReadMethodHandleToMethodId16(
-      offset_t lo,
-      offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadTypeListToTypeId16(offset_t lo,
                                                               offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadAnnotationSetToAnnotation(
@@ -216,16 +202,10 @@ class DisassemblerDex : public Disassembler {
                                                             offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadCodeToTypeId16(offset_t lo,
                                                           offset_t hi);
-  std::unique_ptr<ReferenceReader> MakeReadCodeToProtoId16(offset_t lo,
-                                                           offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadCodeToFieldId16(offset_t lo,
                                                            offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadCodeToMethodId16(offset_t lo,
                                                             offset_t hi);
-  std::unique_ptr<ReferenceReader> MakeReadCodeToCallSiteId16(offset_t lo,
-                                                              offset_t hi);
-  std::unique_ptr<ReferenceReader> MakeReadCodeToMethodHandle16(offset_t lo,
-                                                                offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadCodeToRelCode8(offset_t lo,
                                                           offset_t hi);
   std::unique_ptr<ReferenceReader> MakeReadCodeToRelCode16(offset_t lo,
@@ -244,10 +224,6 @@ class DisassemblerDex : public Disassembler {
   std::unique_ptr<ReferenceWriter> MakeWriteFieldId32(MutableBufferView image);
   std::unique_ptr<ReferenceWriter> MakeWriteMethodId16(MutableBufferView image);
   std::unique_ptr<ReferenceWriter> MakeWriteMethodId32(MutableBufferView image);
-  std::unique_ptr<ReferenceWriter> MakeWriteCallSiteId16(
-      MutableBufferView image);
-  std::unique_ptr<ReferenceWriter> MakeWriteMethodHandle16(
-      MutableBufferView image);
   std::unique_ptr<ReferenceWriter> MakeWriteRelCode8(MutableBufferView image);
   std::unique_ptr<ReferenceWriter> MakeWriteRelCode16(MutableBufferView image);
   std::unique_ptr<ReferenceWriter> MakeWriteRelCode32(MutableBufferView image);
@@ -262,7 +238,7 @@ class DisassemblerDex : public Disassembler {
 
   bool ParseHeader();
 
-  raw_ptr<const dex::HeaderItem> header_ = nullptr;
+  const dex::HeaderItem* header_ = nullptr;
   int dex_version_ = 0;
   MapItemMap map_item_map_ = {};
   dex::MapItem string_map_item_ = {};
@@ -271,12 +247,12 @@ class DisassemblerDex : public Disassembler {
   dex::MapItem field_map_item_ = {};
   dex::MapItem method_map_item_ = {};
   dex::MapItem class_def_map_item_ = {};
-  dex::MapItem call_site_map_item_ = {};
-  dex::MapItem method_handle_map_item_ = {};
   dex::MapItem type_list_map_item_ = {};
+  dex::MapItem code_map_item_ = {};
+
+  // Optionally supported (not all DEX files have these).
   dex::MapItem annotation_set_ref_list_map_item_ = {};
   dex::MapItem annotation_set_map_item_ = {};
-  dex::MapItem code_map_item_ = {};
   dex::MapItem annotations_directory_map_item_ = {};
 
   // Sorted list of offsets of parsed items in |image_|.
@@ -289,6 +265,8 @@ class DisassemblerDex : public Disassembler {
   std::vector<offset_t> annotations_directory_item_method_annotation_offsets_;
   std::vector<offset_t>
       annotations_directory_item_parameter_annotation_offsets_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerDex);
 };
 
 }  // namespace zucchini

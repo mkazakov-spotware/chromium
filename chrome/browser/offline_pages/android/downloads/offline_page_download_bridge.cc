@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,10 @@
 #include "base/guid.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "chrome/android/chrome_jni_headers/OfflinePageDownloadBridge_jni.h"
 #include "chrome/browser/android/profile_key_util.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/download/android/download_controller_base.h"
-#include "chrome/browser/download/android/download_dialog_utils.h"
-#include "chrome/browser/download/android/duplicate_download_dialog_bridge.h"
-#include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/image_fetcher/image_decoder_impl.h"
 #include "chrome/browser/offline_items_collection/offline_content_aggregator_factory.h"
 #include "chrome/browser/offline_pages/android/downloads/offline_page_infobar_delegate.h"
@@ -75,11 +71,6 @@ namespace android {
 
 namespace {
 
-void OnDuplicateDialogConfirmed(base::OnceClosure callback, bool accepted) {
-  if (accepted)
-    std::move(callback).Run();
-}
-
 void OnShareInfoRetrieved(std::unique_ptr<OfflinePageShareHelper>,
                           ShareCallback share_callback,
                           ShareResult result,
@@ -107,12 +98,14 @@ class DownloadUIAdapterDelegate : public DownloadUIAdapter::Delegate {
       const OfflineItem& item,
       int64_t offline_id,
       const offline_items_collection::OpenParams& open_params) override;
+  bool MaybeSuppressNotification(const std::string& origin,
+                                 const ClientId& id) override;
   void GetShareInfoForItem(const ContentId& id,
                            ShareCallback share_callback) override;
 
  private:
   // Not owned, cached service pointer.
-  raw_ptr<OfflinePageModel> model_;
+  OfflinePageModel* model_;
 };
 
 DownloadUIAdapterDelegate::DownloadUIAdapterDelegate(OfflinePageModel* model)
@@ -132,18 +125,29 @@ void DownloadUIAdapterDelegate::OpenItem(
     const offline_items_collection::OpenParams& open_params) {
   JNIEnv* env = AttachCurrentThread();
   Java_OfflinePageDownloadBridge_openItem(
-      env, ConvertUTF8ToJavaString(env, item.url.spec()), offline_id,
+      env, ConvertUTF8ToJavaString(env, item.page_url.spec()), offline_id,
       static_cast<int>(open_params.launch_location),
       open_params.open_in_incognito,
       offline_pages::ShouldOfflinePagesInDownloadHomeOpenInCct());
+}
+
+bool DownloadUIAdapterDelegate::MaybeSuppressNotification(
+    const std::string& origin,
+    const ClientId& id) {
+  // Do not suppress notification if chrome.
+  if (origin == "" || !IsOfflinePagesSuppressNotificationsEnabled())
+    return false;
+  JNIEnv* env = AttachCurrentThread();
+  return Java_OfflinePageDownloadBridge_maybeSuppressNotification(
+      env, ConvertUTF8ToJavaString(env, origin),
+      ConvertUTF8ToJavaString(env, id.id));
 }
 
 void DownloadUIAdapterDelegate::GetShareInfoForItem(
     const ContentId& id,
     ShareCallback share_callback) {
   auto share_helper = std::make_unique<OfflinePageShareHelper>(model_);
-  auto* const share_helper_ptr = share_helper.get();
-  share_helper_ptr->GetShareInfo(
+  share_helper->GetShareInfo(
       id, base::BindOnce(&OnShareInfoRetrieved, std::move(share_helper),
                          std::move(share_callback)));
 }
@@ -206,9 +210,14 @@ void SavePageIfNotNavigatedAway(const GURL& url,
   offline_pages::RecentTabHelper* tab_helper =
       RecentTabHelper::FromWebContents(web_contents);
   if (!tab_helper) {
-    if (request_id != OfflinePageModel::kInvalidOfflineId &&
-        request_coordinator) {
-      request_coordinator->EnableForOffliner(request_id, client_id);
+    if (request_id != OfflinePageModel::kInvalidOfflineId) {
+      offline_pages::RequestCoordinator* request_coordinator =
+          offline_pages::RequestCoordinatorFactory::GetForBrowserContext(
+              web_contents->GetBrowserContext());
+      if (request_coordinator)
+        request_coordinator->EnableForOffliner(request_id, client_id);
+      else
+        DVLOG(1) << "SavePageIfNotNavigatedAway has no valid coordinator.";
     }
     return;
   }
@@ -233,12 +242,10 @@ void DuplicateCheckDone(const GURL& url,
 
   bool duplicate_request_exists =
       result == OfflinePageUtils::DuplicateCheckResult::DUPLICATE_REQUEST_FOUND;
-  base::OnceClosure callback = base::BindOnce(&SavePageIfNotNavigatedAway, url,
-                                              original_url, j_tab_ref, origin);
-  DuplicateDownloadDialogBridge::GetInstance()->Show(
-      url.spec(), DownloadDialogUtils::GetDisplayURLForPageURL(url),
-      -1 /*total_bytes*/, duplicate_request_exists, web_contents,
-      base::BindOnce(&OnDuplicateDialogConfirmed, std::move(callback)));
+  OfflinePageInfoBarDelegate::Create(
+      base::BindOnce(&SavePageIfNotNavigatedAway, url, original_url, j_tab_ref,
+                     origin),
+      url, duplicate_request_exists, web_contents);
 }
 
 
@@ -254,8 +261,7 @@ content::WebContents* GetWebContentsByFrameID(int render_process_id,
 content::WebContents::Getter GetWebContentsGetter(
     content::WebContents* web_contents) {
   // The FrameTreeNode ID should be used to access the WebContents.
-  int frame_tree_node_id =
-      web_contents->GetPrimaryMainFrame()->GetFrameTreeNodeId();
+  int frame_tree_node_id = web_contents->GetMainFrame()->GetFrameTreeNodeId();
   if (frame_tree_node_id != content::RenderFrameHost::kNoFrameTreeNodeId) {
     return base::BindRepeating(content::WebContents::FromFrameTreeNodeId,
                                frame_tree_node_id);
@@ -265,13 +271,13 @@ content::WebContents::Getter GetWebContentsGetter(
   // the WebContents.
   return base::BindRepeating(
       &GetWebContentsByFrameID,
-      web_contents->GetPrimaryMainFrame()->GetProcess()->GetID(),
-      web_contents->GetPrimaryMainFrame()->GetRoutingID());
+      web_contents->GetMainFrame()->GetProcess()->GetID(),
+      web_contents->GetMainFrame()->GetRoutingID());
 }
 
 void DownloadAsFile(content::WebContents* web_contents, const GURL& url) {
-  content::DownloadManager* dlm =
-      web_contents->GetBrowserContext()->GetDownloadManager();
+  content::DownloadManager* dlm = content::BrowserContext::GetDownloadManager(
+      web_contents->GetBrowserContext());
   std::unique_ptr<download::DownloadUrlParameters> dl_params(
       content::DownloadRequestUtils::CreateDownloadForWebContentsMainFrame(
           web_contents, url,

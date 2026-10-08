@@ -5,4 +5,3 @@ Leaving a large space between words
 above defeats the a11y text-run logic and
 ensures we have multiple runs to test the
 next-on-line / previous-on-line attributes.
-¶

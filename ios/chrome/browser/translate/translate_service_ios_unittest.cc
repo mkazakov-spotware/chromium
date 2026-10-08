@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ios/chrome/browser/translate/translate_service_ios.h"
 
-#include "ios/chrome/browser/url/chrome_url_constants.h"
+#include "ios/chrome/browser/chrome_url_constants.h"
+#include "ios/public/provider/chrome/browser/test_chrome_provider_initializer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
 #include "url/gurl.h"

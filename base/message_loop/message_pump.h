@@ -1,17 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_MESSAGE_LOOP_MESSAGE_PUMP_H_
 #define BASE_MESSAGE_LOOP_MESSAGE_PUMP_H_
 
-#include <memory>
 #include <utility>
 
 #include "base/base_export.h"
-#include "base/check.h"
 #include "base/check_op.h"
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/compiler_specific.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/message_loop/timer_slack.h"
 #include "base/sequence_checker.h"
@@ -58,15 +56,10 @@ class BASE_EXPORT MessagePump {
       // delayed tasks.
       TimeTicks delayed_run_time;
 
-      // A recent view of TimeTicks::Now(). Only valid if |delayed_run_time|
+      // A recent view of TimeTicks::Now(). Only valid if |next_task_run_time|
       // isn't null nor max. MessagePump impls should use remaining_delay()
       // instead of resampling Now() if they wish to sleep for a TimeDelta.
       TimeTicks recent_now;
-
-      // If true, native messages should be processed before executing more work
-      // from the Delegate. This is an optional hint; not all message pumpls
-      // implement this.
-      bool yield_to_native = false;
     };
 
     // Executes an immediate task or a ripe delayed task. Returns information
@@ -84,18 +77,16 @@ class BASE_EXPORT MessagePump {
     // the pump will now wait.
     virtual bool DoIdleWork() = 0;
 
-    class ScopedDoWorkItem {
+    class ScopedDoNativeWork {
      public:
-      ScopedDoWorkItem() : outer_(nullptr) {}
-
-      ~ScopedDoWorkItem() {
+      ~ScopedDoNativeWork() {
         if (outer_)
-          outer_->OnEndWorkItem();
+          outer_->OnEndNativeWork();
       }
 
-      ScopedDoWorkItem(ScopedDoWorkItem&& rhs)
+      ScopedDoNativeWork(ScopedDoNativeWork&& rhs)
           : outer_(std::exchange(rhs.outer_, nullptr)) {}
-      ScopedDoWorkItem& operator=(ScopedDoWorkItem&& rhs) {
+      ScopedDoNativeWork& operator=(ScopedDoNativeWork&& rhs) {
         outer_ = std::exchange(rhs.outer_, nullptr);
         return *this;
       }
@@ -103,23 +94,21 @@ class BASE_EXPORT MessagePump {
      private:
       friend Delegate;
 
-      explicit ScopedDoWorkItem(Delegate* outer) : outer_(outer) {
-        outer_->OnBeginWorkItem();
+      explicit ScopedDoNativeWork(Delegate* outer) : outer_(outer) {
+        outer_->OnBeginNativeWork();
       }
 
-      // `outer_` is not a raw_ptr<...> for performance reasons (based on
-      // analysis of sampling profiler data and tab_search:top100:2020).
-      RAW_PTR_EXCLUSION Delegate* outer_;
+      Delegate* outer_;
     };
 
-    // Called before a unit of work is executed. This allows reports
+    // Called before a unit of native work is executed. This allows reports
     // about individual units of work to be produced. The unit of work ends when
-    // the returned ScopedDoWorkItem goes out of scope.
+    // the returned ScopedDoNativeWork goes out of scope.
     // TODO(crbug.com/851163): Place calls for all platforms. Without this, some
     // state like the top-level "ThreadController active" trace event will not
-    // be correct when work is performed.
-    [[nodiscard]] ScopedDoWorkItem BeginWorkItem() {
-      return ScopedDoWorkItem(this);
+    // be correct when native work is performed.
+    ScopedDoNativeWork BeginNativeWork() WARN_UNUSED_RESULT {
+      return ScopedDoNativeWork(this);
     }
 
     // Called before the message pump starts waiting for work. This indicates
@@ -128,9 +117,9 @@ class BASE_EXPORT MessagePump {
     virtual void BeforeWait() = 0;
 
    private:
-    // Called upon entering/exiting a ScopedDoWorkItem.
-    virtual void OnBeginWorkItem() = 0;
-    virtual void OnEndWorkItem() = 0;
+    // Called upon entering/exiting a ScopedDoNativeWork.
+    virtual void OnBeginNativeWork() = 0;
+    virtual void OnEndNativeWork() = 0;
   };
 
   MessagePump();
@@ -142,16 +131,13 @@ class BASE_EXPORT MessagePump {
   // messages as well as for giving cycles to the delegate periodically. The
   // message pump should take care to mix delegate callbacks with native message
   // processing so neither type of event starves the other of cycles. Each call
-  // to a delegate function is considered the beginning of a new "unit of work".
+  // to a delegate function or DoInternalWork() is considered the beginning of a
+  // new "unit of work".
   //
   // The anatomy of a typical run loop:
   //
   //   for (;;) {
-  //     bool did_native_work = false;
-  //     {
-  //       auto scoped_do_work_item = state_->delegate->BeginWorkItem();
-  //       did_native_work = DoNativeWork();
-  //     }
+  //     bool did_internal_work = DoInternalWork();
   //     if (should_quit_)
   //       break;
   //
@@ -159,7 +145,7 @@ class BASE_EXPORT MessagePump {
   //     if (should_quit_)
   //       break;
   //
-  //     if (did_native_work || next_work_info.is_immediate())
+  //     if (did_internal_work || next_work_info.is_immediate())
   //       continue;
   //
   //     bool did_idle_work = delegate_->DoIdleWork();
@@ -173,12 +159,12 @@ class BASE_EXPORT MessagePump {
   //   }
   //
 
-  // Here, DoNativeWork is some private method of the message pump that is
+  // Here, DoInternalWork is some private method of the message pump that is
   // responsible for dispatching the next UI message or notifying the next IO
   // completion (for example).  WaitForWork is a private method that simply
   // blocks until there is more work of any type to do.
   //
-  // Notice that the run loop cycles between calling DoNativeWork and DoWork
+  // Notice that the run loop cycles between calling DoInternalWork and DoWork
   // methods. This helps ensure that none of these work queues starve the
   // others. This is important for message pumps that are used to drive
   // animations, for example.
@@ -227,8 +213,7 @@ class BASE_EXPORT MessagePump {
   // TODO(crbug.com/885371): Determine if this must be called to ensure that
   // delayed tasks run when a message pump outside the control of Run is
   // entered.
-  virtual void ScheduleDelayedWork(
-      const Delegate::NextWorkInfo& next_work_info) = 0;
+  virtual void ScheduleDelayedWork(const TimeTicks& delayed_work_time) = 0;
 
   // Sets the timer slack to the specified value.
   virtual void SetTimerSlack(TimerSlack timer_slack);

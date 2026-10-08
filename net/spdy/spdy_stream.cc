@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,14 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/abseil_string_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "base/values.h"
 #include "net/base/load_timing_info.h"
-#include "net/http/http_status_code.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_capture_mode.h"
 #include "net/log/net_log_event_type.h"
@@ -37,31 +37,31 @@ namespace {
 base::Value NetLogSpdyStreamErrorParams(spdy::SpdyStreamId stream_id,
                                         int net_error,
                                         base::StringPiece description) {
-  base::Value::Dict dict;
-  dict.Set("stream_id", static_cast<int>(stream_id));
-  dict.Set("net_error", ErrorToShortString(net_error));
-  dict.Set("description", description);
-  return base::Value(std::move(dict));
+  base::Value dict(base::Value::Type::DICTIONARY);
+  dict.SetIntKey("stream_id", static_cast<int>(stream_id));
+  dict.SetStringKey("net_error", ErrorToShortString(net_error));
+  dict.SetStringKey("description", description);
+  return dict;
 }
 
 base::Value NetLogSpdyStreamWindowUpdateParams(spdy::SpdyStreamId stream_id,
                                                int32_t delta,
                                                int32_t window_size) {
-  base::Value::Dict dict;
-  dict.Set("stream_id", static_cast<int>(stream_id));
-  dict.Set("delta", delta);
-  dict.Set("window_size", window_size);
-  return base::Value(std::move(dict));
+  base::Value dict(base::Value::Type::DICTIONARY);
+  dict.SetIntKey("stream_id", stream_id);
+  dict.SetIntKey("delta", delta);
+  dict.SetIntKey("window_size", window_size);
+  return dict;
 }
 
 base::Value NetLogSpdyDataParams(spdy::SpdyStreamId stream_id,
                                  int size,
                                  bool fin) {
-  base::Value::Dict dict;
-  dict.Set("stream_id", static_cast<int>(stream_id));
-  dict.Set("size", size);
-  dict.Set("fin", fin);
-  return base::Value(std::move(dict));
+  base::Value dict(base::Value::Type::DICTIONARY);
+  dict.SetIntKey("stream_id", static_cast<int>(stream_id));
+  dict.SetIntKey("size", size);
+  dict.SetBoolKey("fin", fin);
+  return dict;
 }
 
 }  // namespace
@@ -79,11 +79,12 @@ class SpdyStream::HeadersBufferProducer : public SpdyBufferProducer {
   std::unique_ptr<SpdyBuffer> ProduceBuffer() override {
     if (!stream_.get()) {
       NOTREACHED();
-      return nullptr;
+      return std::unique_ptr<SpdyBuffer>();
     }
     DCHECK_GT(stream_->stream_id(), 0u);
     return std::make_unique<SpdyBuffer>(stream_->ProduceHeadersFrame());
   }
+  size_t EstimateMemoryUsage() const override { return 0; }
 
  private:
   const base::WeakPtr<SpdyStream> stream_;
@@ -96,20 +97,29 @@ SpdyStream::SpdyStream(SpdyStreamType type,
                        int32_t initial_send_window_size,
                        int32_t max_recv_window_size,
                        const NetLogWithSource& net_log,
-                       const NetworkTrafficAnnotationTag& traffic_annotation,
-                       bool detect_broken_connection)
+                       const NetworkTrafficAnnotationTag& traffic_annotation)
     : type_(type),
+      stream_id_(0),
       url_(url),
       priority_(priority),
+      send_stalled_by_flow_control_(false),
       send_window_size_(initial_send_window_size),
       max_recv_window_size_(max_recv_window_size),
       recv_window_size_(max_recv_window_size),
-      last_recv_window_update_(base::TimeTicks::Now()),
+      unacked_recv_window_bytes_(0),
       session_(session),
+      delegate_(nullptr),
+      request_headers_valid_(false),
+      pending_send_status_(MORE_DATA_TO_SEND),
       request_time_(base::Time::Now()),
+      response_state_(READY_FOR_HEADERS),
+      io_state_(STATE_IDLE),
       net_log_(net_log),
-      traffic_annotation_(traffic_annotation),
-      detect_broken_connection_(detect_broken_connection) {
+      raw_received_bytes_(0),
+      raw_sent_bytes_(0),
+      recv_bytes_(0),
+      write_handler_guard_(false),
+      traffic_annotation_(traffic_annotation) {
   CHECK(type_ == SPDY_BIDIRECTIONAL_STREAM ||
         type_ == SPDY_REQUEST_RESPONSE_STREAM ||
         type_ == SPDY_PUSH_STREAM);
@@ -132,7 +142,7 @@ void SpdyStream::SetDelegate(Delegate* delegate) {
 
   if (io_state_ == STATE_HALF_CLOSED_LOCAL_UNCLAIMED) {
     DCHECK_EQ(type_, SPDY_PUSH_STREAM);
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&SpdyStream::PushedStreamReplay, GetWeakPtr()));
   }
@@ -322,16 +332,8 @@ void SpdyStream::IncreaseRecvWindowSize(int32_t delta_window_size) {
                                               recv_window_size_);
   });
 
-  // Update the receive window once half of the buffer is ready to be acked
-  // to prevent excessive window updates on fast downloads. Also send an update
-  // if too much time has elapsed since the last update to deal with
-  // slow-reading clients so the server doesn't think the stream is idle.
   unacked_recv_window_bytes_ += delta_window_size;
-  const base::TimeDelta elapsed =
-      base::TimeTicks::Now() - last_recv_window_update_;
-  if (unacked_recv_window_bytes_ > max_recv_window_size_ / 2 ||
-      elapsed >= session_->TimeToBufferSmallWindowUpdates()) {
-    last_recv_window_update_ = base::TimeTicks::Now();
+  if (unacked_recv_window_bytes_ > max_recv_window_size_ / 2) {
     session_->SendStreamWindowUpdate(
         stream_id_, static_cast<uint32_t>(unacked_recv_window_bytes_));
     unacked_recv_window_bytes_ = 0;
@@ -410,27 +412,22 @@ void SpdyStream::OnHeadersReceived(
 
       base::UmaHistogramSparse("Net.SpdyResponseCode", status);
 
-      // Include informational responses (1xx) in the TTFB as per the resource
-      // timing spec for responseStart.
+      // Include 1XX responses in the TTFB as per the resource timing spec
+      // for responseStart.
       if (recv_first_byte_time_.is_null())
         recv_first_byte_time_ = recv_first_byte_time;
-      // Also record the TTFB of non-informational responses.
-      if (status / 100 != 1) {
-        DCHECK(recv_first_byte_time_for_non_informational_response_.is_null());
-        recv_first_byte_time_for_non_informational_response_ =
-            recv_first_byte_time;
-      }
 
-      // Handle informational responses (1xx):
-      // * Pass through 101 Switching Protocols, because broken servers might
-      //   send this as a response to a WebSocket request, in which case it
-      //   needs to pass through so that the WebSocket layer can signal an
-      //   error.
-      // * Plumb 103 Early Hints to the delegate.
-      // * Ignore other informational responses.
-      if (status / 100 == 1 && status != HTTP_SWITCHING_PROTOCOLS) {
-        if (status == HTTP_EARLY_HINTS)
-          OnEarlyHintsReceived(response_headers, recv_first_byte_time);
+      // Ignore informational headers like 103 Early Hints.
+      // TODO(bnc): Add support for 103 Early Hints, https://crbug.com/671310.
+      // However, do not ignore 101 Switching Protocols, because broken
+      // servers might send this as a response to a WebSocket request,
+      // in which case it needs to pass through so that the WebSocket layer
+      // can signal an error.
+      if (status / 100 == 1 && status != 101) {
+        // Record the timing of the 103 Early Hints response for the experiment
+        // (https://crbug.com/1093693).
+        if (status == 103 && first_early_hints_time_.is_null())
+          first_early_hints_time_ = recv_first_byte_time;
         return;
       }
 
@@ -558,8 +555,6 @@ void SpdyStream::OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) {
   if (!buffer) {
     if (io_state_ == STATE_OPEN) {
       io_state_ = STATE_HALF_CLOSED_REMOTE;
-      // Inform the delegate of EOF. This may delete |this|.
-      delegate_->OnDataReceived(nullptr);
     } else if (io_state_ == STATE_HALF_CLOSED_LOCAL) {
       io_state_ = STATE_CLOSED;
       // Deletes |this|.
@@ -599,12 +594,21 @@ void SpdyStream::OnPaddingConsumed(size_t len) {
 
 void SpdyStream::OnFrameWriteComplete(spdy::SpdyFrameType frame_type,
                                       size_t frame_size) {
-  if (frame_type != spdy::SpdyFrameType::HEADERS &&
-      frame_type != spdy::SpdyFrameType::DATA) {
+  // PRIORITY writes are allowed at any time and do not trigger a state update.
+  if (frame_type == spdy::SpdyFrameType::PRIORITY) {
     return;
   }
 
+  // Frame types reserved in
+  // https://tools.ietf.org/html/draft-bishop-httpbis-grease-00 ought to be
+  // ignored.
+  if (static_cast<uint8_t>(frame_type) % 0x1f == 0x0b)
+    return;
+
   DCHECK_NE(type_, SPDY_PUSH_STREAM);
+  CHECK(frame_type == spdy::SpdyFrameType::HEADERS ||
+        frame_type == spdy::SpdyFrameType::DATA)
+      << frame_type;
 
   int result = (frame_type == spdy::SpdyFrameType::HEADERS)
                    ? OnHeadersSent()
@@ -828,10 +832,17 @@ bool SpdyStream::GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const {
   // first bytes of the HEADERS frame were received to BufferedSpdyFramer
   // (https://crbug.com/568024).
   load_timing_info->receive_headers_start = recv_first_byte_time_;
-  load_timing_info->receive_non_informational_headers_start =
-      recv_first_byte_time_for_non_informational_response_;
   load_timing_info->first_early_hints_time = first_early_hints_time_;
   return result;
+}
+
+size_t SpdyStream::EstimateMemoryUsage() const {
+  // TODO(xunjieli): https://crbug.com/669108. Estimate |pending_send_data_|
+  // once scoped_refptr support is in.
+  return base::trace_event::EstimateMemoryUsage(url_) +
+         base::trace_event::EstimateMemoryUsage(request_headers_) +
+         base::trace_event::EstimateMemoryUsage(pending_recv_data_) +
+         base::trace_event::EstimateMemoryUsage(response_headers_);
 }
 
 void SpdyStream::QueueNextDataFrame() {
@@ -889,35 +900,6 @@ void SpdyStream::QueueNextDataFrame() {
   session_->EnqueueStreamWrite(
       GetWeakPtr(), spdy::SpdyFrameType::DATA,
       std::make_unique<SimpleBufferProducer>(std::move(data_buffer)));
-}
-
-void SpdyStream::OnEarlyHintsReceived(
-    const spdy::Http2HeaderBlock& response_headers,
-    base::TimeTicks recv_first_byte_time) {
-  // Record the timing of the 103 Early Hints response for the experiment
-  // (https://crbug.com/1093693).
-  if (first_early_hints_time_.is_null())
-    first_early_hints_time_ = recv_first_byte_time;
-
-  // Transfer-encoding is a connection specific header.
-  if (response_headers.find("transfer-encoding") != response_headers.end()) {
-    const char error[] = "Received transfer-encoding header";
-    LogStreamError(ERR_HTTP2_PROTOCOL_ERROR, error);
-    session_->ResetStream(stream_id_, ERR_HTTP2_PROTOCOL_ERROR, error);
-    return;
-  }
-
-  if (type_ != SPDY_REQUEST_RESPONSE_STREAM || io_state_ == STATE_IDLE) {
-    const char error[] = "Early Hints received before request sent.";
-    LogStreamError(ERR_HTTP2_PROTOCOL_ERROR, error);
-    session_->ResetStream(stream_id_, ERR_HTTP2_PROTOCOL_ERROR, error);
-    return;
-  }
-
-  // `delegate_` must be attached at this point when `type_` is
-  // SPDY_REQUEST_RESPONSE_STREAM.
-  CHECK(delegate_);
-  delegate_->OnEarlyHintsReceived(response_headers);
 }
 
 void SpdyStream::SaveResponseHeaders(

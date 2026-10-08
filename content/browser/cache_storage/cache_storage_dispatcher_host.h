@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,19 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
-#include "components/services/storage/public/mojom/cache_storage_control.mojom.h"
 #include "content/browser/cache_storage/cache_storage_handle.h"
-#include "content/browser/cache_storage/cache_storage_manager.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/unique_associated_receiver_set.h"
 #include "mojo/public/cpp/bindings/unique_receiver_set.h"
 #include "third_party/blink/public/mojom/cache_storage/cache_storage.mojom.h"
 
-namespace network {
-struct CrossOriginEmbedderPolicy;
+namespace url {
+class Origin;
 }
 
-namespace storage {
-struct BucketLocator;
+namespace network {
+struct CrossOriginEmbedderPolicy;
 }
 
 namespace content {
@@ -35,15 +32,11 @@ class CacheStorageContextImpl;
 // from other sequences.
 class CacheStorageDispatcherHost {
  public:
-  CacheStorageDispatcherHost(
-      CacheStorageContextImpl* context,
-      scoped_refptr<storage::QuotaManagerProxy> quota_manager_proxy);
-
-  CacheStorageDispatcherHost(const CacheStorageDispatcherHost&) = delete;
-  CacheStorageDispatcherHost& operator=(const CacheStorageDispatcherHost&) =
-      delete;
-
+  CacheStorageDispatcherHost();
   ~CacheStorageDispatcherHost();
+
+  // Must be called before AddReceiver().
+  void Init(CacheStorageContextImpl* context);
 
   // Binds the CacheStorage Mojo receiver to this instance.
   // NOTE: The same CacheStorageDispatcherHost instance may be bound to
@@ -55,19 +48,8 @@ class CacheStorageDispatcherHost {
       const network::CrossOriginEmbedderPolicy& cross_origin_embedder_policy,
       mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
           coep_reporter,
-      const blink::StorageKey& storage_key,
-      const absl::optional<storage::BucketLocator>& bucket,
-      storage::mojom::CacheStorageOwner owner,
+      const url::Origin& origin,
       mojo::PendingReceiver<blink::mojom::CacheStorage> receiver);
-
-  base::WeakPtr<CacheStorageDispatcherHost> AsWeakPtr() {
-    return weak_ptr_factory_.GetWeakPtr();
-  }
-
-  bool WasNotifiedOfBucketDataDeletion(
-      const storage::BucketLocator& bucket_locator);
-
-  void NotifyBucketDataDeleted(const storage::BucketLocator& bucket_locator);
 
  private:
   class CacheStorageImpl;
@@ -78,27 +60,16 @@ class CacheStorageDispatcherHost {
       std::unique_ptr<CacheImpl> cache_impl,
       mojo::PendingAssociatedReceiver<blink::mojom::CacheStorageCache>
           receiver);
-  CacheStorageHandle OpenCacheStorage(
-      const storage::BucketLocator& bucket_locator,
-      storage::mojom::CacheStorageOwner owner);
-  void UpdateOrCreateDefaultBucket(
-      const blink::StorageKey& storage_key,
-      base::OnceCallback<void(storage::QuotaErrorOr<storage::BucketInfo>)>
-          callback);
+  CacheStorageHandle OpenCacheStorage(const url::Origin& origin);
 
-  // `this` is owned by `context_`.
-  const raw_ptr<CacheStorageContextImpl> context_;
-  scoped_refptr<storage::QuotaManagerProxy> quota_manager_proxy_;
+  scoped_refptr<CacheStorageContextImpl> context_;
 
   mojo::UniqueReceiverSet<blink::mojom::CacheStorage> receivers_;
   mojo::UniqueAssociatedReceiverSet<blink::mojom::CacheStorageCache>
       cache_receivers_;
 
-  std::set<storage::BucketLocator> deleted_buckets_;
-
   SEQUENCE_CHECKER(sequence_checker_);
-
-  base::WeakPtrFactory<CacheStorageDispatcherHost> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(CacheStorageDispatcherHost);
 };
 
 }  // namespace content

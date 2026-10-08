@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.MenuItemTest');
 goog.setTestOnly();
@@ -57,7 +65,6 @@ testSuite({
     const fakeDom = {};
     const fakeRenderer = {};
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const menuItem = new MenuItem('Item', model, fakeDom, fakeRenderer);
     assertEquals(
         'Content must have expected value', 'Item', menuItem.getContent());
@@ -246,7 +253,6 @@ testSuite({
         item.getRenderer().hasCheckBoxStructure(item.getElement()));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSelectableBehavior() {
     item.setSelectable(true);
     item.render(sandbox);
@@ -257,7 +263,6 @@ testSuite({
     assertTrue('Item must still be selected', item.isSelected());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testCheckableBehavior() {
     item.setCheckable(true);
     item.render(sandbox);
@@ -382,12 +387,7 @@ testSuite({
         'getCaption() must return the empty string', '', item.getCaption());
   },
 
-  /**
-     @suppress {visibility,missingProperties} suppression added to enable type
-     checking
-   */
   testHandleKeyEventInternalWithMnemonic() {
-    /** @suppress {visibility} suppression added to enable type checking */
     item.performActionInternal = recordFunction(item.performActionInternal);
     item.setMnemonic(KeyCodes.F);
     item.handleKeyEventInternal({'keyCode': KeyCodes.F});
@@ -396,12 +396,7 @@ testSuite({
         item.performActionInternal.getCallCount());
   },
 
-  /**
-     @suppress {visibility,missingProperties} suppression added to enable type
-     checking
-   */
   testHandleKeyEventInternalWithoutMnemonic() {
-    /** @suppress {visibility} suppression added to enable type checking */
     item.performActionInternal = recordFunction(item.performActionInternal);
     item.handleKeyEventInternal({'keyCode': KeyCodes.F});
     assertEquals(
@@ -610,7 +605,6 @@ testSuite({
     item.setActive(true);
     // Override performActionInternal() for testing purposes.
     let actionPerformed;
-    /** @suppress {visibility} suppression added to enable type checking */
     item.performActionInternal = () => {
       actionPerformed = true;
       return true;
@@ -630,10 +624,6 @@ testSuite({
     const parentElem = dom.getElement('parentComponent');
     parent.render(parentElem);
     parent.addChild(item);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     parent.openingCoords = COORDS_1;
     events.fireMouseUpEvent(item.getElement(), undefined, COORDS_2);
     assertTrue('Action should be performed on mouseup', actionPerformed);
@@ -642,10 +632,6 @@ testSuite({
     // item, and now the mouseup fires at the same coords.
     actionPerformed = false;
     item.setActive(true);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     parent.openingCoords = COORDS_2;
     events.fireMouseUpEvent(item.getElement(), undefined, COORDS_2);
     assertFalse('Action should not be performed on mouseup', actionPerformed);

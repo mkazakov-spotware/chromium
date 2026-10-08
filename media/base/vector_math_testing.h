@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ MEDIA_SHMEM_EXPORT std::pair<float, float> EWMAAndMaxPower_C(
     int len,
     float smoothing_factor);
 
-#if defined(ARCH_CPU_X86_FAMILY) && !BUILDFLAG(IS_NACL)
+#if defined(ARCH_CPU_X86_FAMILY) && !defined(OS_NACL)
 MEDIA_SHMEM_EXPORT void FMAC_SSE(const float src[],
                                  float scale,
                                  int len,
@@ -38,19 +38,6 @@ MEDIA_SHMEM_EXPORT void FMUL_SSE(const float src[],
                                  int len,
                                  float dest[]);
 MEDIA_SHMEM_EXPORT std::pair<float, float> EWMAAndMaxPower_SSE(
-    float initial_value,
-    const float src[],
-    int len,
-    float smoothing_factor);
-MEDIA_SHMEM_EXPORT void FMAC_AVX2(const float src[],
-                                  float scale,
-                                  int len,
-                                  float dest[]);
-MEDIA_SHMEM_EXPORT void FMUL_AVX2(const float src[],
-                                  float scale,
-                                  int len,
-                                  float dest[]);
-MEDIA_SHMEM_EXPORT std::pair<float, float> EWMAAndMaxPower_AVX2(
     float initial_value,
     const float src[],
     int len,

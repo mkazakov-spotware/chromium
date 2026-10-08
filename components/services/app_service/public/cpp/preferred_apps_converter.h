@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define COMPONENTS_SERVICES_APP_SERVICE_PUBLIC_CPP_PREFERRED_APPS_CONVERTER_H_
 
 #include "base/values.h"
-#include "components/services/app_service/public/cpp/preferred_app.h"
+#include "components/services/app_service/public/cpp/preferred_apps_list.h"
 
 namespace apps {
 
@@ -45,14 +45,16 @@ extern const char kVersionKey[];
 //    } ]
 // } ],
 // "version": 0}
-base::Value ConvertPreferredAppsToValue(const PreferredApps& preferred_apps);
+base::Value ConvertPreferredAppsToValue(
+    const PreferredAppsList::PreferredApps& preferred_apps,
+    bool upgraded_for_sharing = false);
 
 // Parse the base::Value read from JSON file back to preferred apps struct.
-PreferredApps ParseValueToPreferredApps(
+PreferredAppsList::PreferredApps ParseValueToPreferredApps(
     const base::Value& preferred_apps_value);
 
 // Upgrade the preferred apps struct to contain action in the filters.
-void UpgradePreferredApps(PreferredApps& preferred_apps);
+void UpgradePreferredApps(PreferredAppsList::PreferredApps& preferred_apps);
 
 // Check if the preferred apps file already upgraded for supporting sharing.
 bool IsUpgradedForSharing(const base::Value& preferred_apps_value);

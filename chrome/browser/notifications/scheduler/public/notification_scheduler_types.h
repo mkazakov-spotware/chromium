@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <map>
 #include <string>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace notifications {
 
@@ -31,13 +31,11 @@ enum class SchedulerClientType {
   kWebUI = 1,
   // Chrome update notification.
   kChromeUpdate = 2,
-  // Offline prefetch notification. (Deprecated)
+  // Offline prefetch notification.
   kPrefetch = 3,
   // Reading list weekly notification.
   kReadingList = 4,
-  // Feature guide specific notifications.
-  kFeatureGuide = 5,
-  kMaxValue = kFeatureGuide
+  kMaxValue = kReadingList
 };
 
 // The type of user feedback from a displayed notification.
@@ -139,7 +137,7 @@ struct UserActionData {
   std::map<std::string, std::string> custom_data;
 
   // The button click info, only available when the user clicked a button.
-  absl::optional<ButtonClickInfo> button_click_info;
+  base::Optional<ButtonClickInfo> button_click_info;
 };
 
 // Categorizes type of notification icons.

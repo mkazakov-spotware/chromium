@@ -1,8 +1,6 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "base/memory/raw_ptr.h"
 
 #import "chrome/browser/ui/views/apps/chrome_native_app_window_views_mac.h"
 
@@ -20,10 +18,9 @@
 @interface ResizeNotificationObserver : NSObject {
  @private
   // Weak. Owns us.
-  raw_ptr<ChromeNativeAppWindowViewsMac> _nativeAppWindow;
+  ChromeNativeAppWindowViewsMac* _nativeAppWindow;
 }
-- (instancetype)initForNativeAppWindow:
-    (ChromeNativeAppWindowViewsMac*)nativeAppWindow;
+- (id)initForNativeAppWindow:(ChromeNativeAppWindowViewsMac*)nativeAppWindow;
 - (void)onWindowWillStartLiveResize:(NSNotification*)notification;
 - (void)onWindowWillExitFullScreen:(NSNotification*)notification;
 - (void)onWindowDidExitFullScreen:(NSNotification*)notification;
@@ -32,8 +29,7 @@
 
 @implementation ResizeNotificationObserver
 
-- (instancetype)initForNativeAppWindow:
-    (ChromeNativeAppWindowViewsMac*)nativeAppWindow {
+- (id)initForNativeAppWindow:(ChromeNativeAppWindowViewsMac*)nativeAppWindow {
   if ((self = [super init])) {
     _nativeAppWindow = nativeAppWindow;
     [[NSNotificationCenter defaultCenter]
@@ -59,11 +55,6 @@
                         .GetNativeNSWindow()];
   }
   return self;
-}
-
-- (void)dealloc {
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [super dealloc];
 }
 
 - (void)onWindowWillStartLiveResize:(NSNotification*)notification {

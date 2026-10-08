@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include "third_party/blink/renderer/modules/sensor/sensor_proxy.h"
 
+#include "base/macros.h"
+
 namespace blink {
 
 class SensorProxyInspectorImpl final : public SensorProxy {
@@ -14,10 +16,6 @@ class SensorProxyInspectorImpl final : public SensorProxy {
   SensorProxyInspectorImpl(device::mojom::blink::SensorType sensor_type,
                            SensorProviderProxy* provider,
                            Page* page);
-
-  SensorProxyInspectorImpl(const SensorProxyInspectorImpl&) = delete;
-  SensorProxyInspectorImpl& operator=(const SensorProxyInspectorImpl&) = delete;
-
   ~SensorProxyInspectorImpl() override;
 
   void Trace(Visitor*) const override;
@@ -47,6 +45,8 @@ class SensorProxyInspectorImpl final : public SensorProxy {
   void Resume() override;
 
   bool suspended_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(SensorProxyInspectorImpl);
 };
 
 }  // namespace blink

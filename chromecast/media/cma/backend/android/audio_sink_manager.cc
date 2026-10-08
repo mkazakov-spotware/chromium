@@ -1,12 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/media/cma/backend/android/audio_sink_manager.h"
 
+#include <algorithm>
+
 #include "base/logging.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "chromecast/media/cma/backend/android/audio_sink_android.h"
 
 namespace chromecast {
@@ -17,11 +18,10 @@ namespace {
 class AudioSinkManagerInstance : public AudioSinkManager {
  public:
   AudioSinkManagerInstance() {}
-
-  AudioSinkManagerInstance(const AudioSinkManagerInstance&) = delete;
-  AudioSinkManagerInstance& operator=(const AudioSinkManagerInstance&) = delete;
-
   ~AudioSinkManagerInstance() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AudioSinkManagerInstance);
 };
 
 }  // namespace
@@ -30,6 +30,17 @@ class AudioSinkManagerInstance : public AudioSinkManager {
 AudioSinkManager* AudioSinkManager::Get() {
   static base::NoDestructor<AudioSinkManagerInstance> sink_manager_instance;
   return sink_manager_instance.get();
+}
+
+// static
+AudioSinkAndroid::SinkType AudioSinkManager::GetDefaultSinkType() {
+  return AudioSinkAndroid::kSinkTypeJavaBased;
+}
+
+// static
+bool AudioSinkManager::GetSessionIds(int* media_id, int* communication_id) {
+  return AudioSinkAndroid::GetSessionIds(GetDefaultSinkType(), media_id,
+                                         communication_id);
 }
 
 AudioSinkManager::AudioSinkManager() {}
@@ -55,7 +66,7 @@ void AudioSinkManager::Remove(AudioSinkAndroid* sink) {
 
   base::AutoLock lock(lock_);
 
-  auto it = base::ranges::find(sinks_, sink);
+  auto it = std::find(sinks_.begin(), sinks_.end(), sink);
   if (it == sinks_.end()) {
     LOG(WARNING) << __func__ << ": Cannot find sink";
     return;

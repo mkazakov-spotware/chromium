@@ -1,22 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {getDriveQuotaMetadata, getSizeStats} from '../../common/js/api.js';
-import {str, strf, util} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {DirectoryChangeEvent} from '../../externs/directory_change_event.js';
-
-import {DirectoryModel} from './directory_model.js';
-import {CommandHandler} from './file_manager_commands.js';
-import {ProvidersModel} from './providers_model.js';
-import {GearMenu} from './ui/gear_menu.js';
-import {MultiMenuButton} from './ui/multi_menu_button.js';
-import {ProvidersMenu} from './ui/providers_menu.js';
-
-export class GearMenuController {
+class GearMenuController {
   /**
-   * @param {!MultiMenuButton} gearButton
+   * @param {!cr.ui.MultiMenuButton} gearButton
+   * @param {!FilesToggleRippleElement} toggleRipple
    * @param {!GearMenu} gearMenu
    * @param {!ProvidersMenu} providersMenu
    * @param {!DirectoryModel} directoryModel
@@ -24,10 +13,13 @@ export class GearMenuController {
    * @param {!ProvidersModel} providersModel
    */
   constructor(
-      gearButton, gearMenu, providersMenu, directoryModel, commandHandler,
-      providersModel) {
-    /** @private @const {!MultiMenuButton} */
+      gearButton, toggleRipple, gearMenu, providersMenu, directoryModel,
+      commandHandler, providersModel) {
+    /** @private @const {!cr.ui.MultiMenuButton} */
     this.gearButton_ = gearButton;
+
+    /** @private @const {!FilesToggleRippleElement} */
+    this.toggleRipple_ = toggleRipple;
 
     /** @private @const {!GearMenu} */
     this.gearMenu_ = gearMenu;
@@ -45,6 +37,7 @@ export class GearMenuController {
     this.providersModel_ = providersModel;
 
     gearButton.addEventListener('menushow', this.onShowGearMenu_.bind(this));
+    gearButton.addEventListener('menuhide', this.onHideGearMenu_.bind(this));
     directoryModel.addEventListener(
         'directory-changed', this.onDirectoryChanged_.bind(this));
     chrome.fileManagerPrivate.onPreferencesChanged.addListener(
@@ -56,16 +49,44 @@ export class GearMenuController {
    * @private
    */
   onShowGearMenu_() {
+    this.toggleRipple_.activated = true;
     this.refreshRemainingSpace_(false); /* Without loading caption. */
+    this.updateNewServiceItem();
+  }
 
+  /**
+   * Update "New service" menu item to either directly show the Webstore dialog
+   * when there isn't any service/FSP extension installed, or display the
+   * providers menu with the currently installed extensions and also install new
+   * service.
+   *
+   * @private
+   */
+  updateNewServiceItem() {
     this.providersModel_.getMountableProviders().then(providers => {
-      const shouldHide = providers.length == 0;
-      if (!shouldHide) {
+      // Go straight to webstore to install the first provider.
+      let desiredMenu = '#install-new-extension';
+      let label = str('INSTALL_NEW_EXTENSION_LABEL');
+
+      const shouldDisplayProvidersMenu = providers.length > 0;
+      if (shouldDisplayProvidersMenu) {
+        // Open the providers menu with an installed provider and an install new
+        // provider option.
+        desiredMenu = '#new-service';
+        label = str('ADD_NEW_SERVICES_BUTTON_LABEL');
         // Trigger an update of the providers submenu.
         this.providersMenu_.updateSubMenu();
       }
-      this.gearMenu_.updateShowProviders(shouldHide);
+
+      this.gearMenu_.setNewServiceCommand(desiredMenu, label);
     });
+  }
+
+  /**
+   * @private
+   */
+  onHideGearMenu_() {
+    this.toggleRipple_.activated = false;
   }
 
   /**
@@ -102,36 +123,25 @@ export class GearMenuController {
 
     // TODO(mtomasz): Add support for remaining space indication for provided
     // file systems.
+    // TODO(fukino): Add support for remaining space indication for documents
+    // provider roots. crbug.com/953657.
     if (currentVolumeInfo.volumeType ==
             VolumeManagerCommon.VolumeType.PROVIDED ||
         currentVolumeInfo.volumeType ==
             VolumeManagerCommon.VolumeType.MEDIA_VIEW ||
+        currentVolumeInfo.volumeType ==
+            VolumeManagerCommon.VolumeType.DOCUMENTS_PROVIDER ||
         currentVolumeInfo.volumeType ==
             VolumeManagerCommon.VolumeType.ARCHIVE) {
       this.gearMenu_.setSpaceInfo(null, false);
       return;
     }
 
-    if (currentVolumeInfo.volumeType == VolumeManagerCommon.VolumeType.DRIVE) {
-      this.gearMenu_.setSpaceInfo(
-          getDriveQuotaMetadata().then(
-              quota /* chrome.fileManagerPrivate.DriveQuotaMetadata */ => ({
-                totalSize: quota.totalUserBytes,
-                usedSize: quota.usedUserBytes,
-                warningMessage: quota.organizationLimitExceeded ?
-                    strf('DRIVE_ORGANIZATION_STORAGE_FULL') :
-                    null,
-              })),
-          true);
-      return;
-    }
-
     this.gearMenu_.setSpaceInfo(
-        getSizeStats(currentVolumeInfo.volumeId)
-            .then(size /* chrome.fileManagerPrivate.MountPointSizeStats */ => ({
-                    totalSize: size.totalSize,
-                    usedSize: size.totalSize - size.remainingSize,
-                  })),
+        new Promise(fulfill => {
+          chrome.fileManagerPrivate.getSizeStats(
+              currentVolumeInfo.volumeId, fulfill);
+        }),
         true);
   }
 

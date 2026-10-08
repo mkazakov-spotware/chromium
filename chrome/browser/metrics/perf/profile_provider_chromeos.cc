@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,13 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/feature_list.h"
+#include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/metrics/perf/metric_provider.h"
 #include "chrome/browser/metrics/perf/perf_events_collector.h"
 #include "chrome/browser/metrics/perf/windowed_incognito_observer.h"
-#include "chromeos/ash/components/dbus/dbus_thread_manager.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
 #include "components/services/heap_profiling/public/cpp/settings.h"
 #include "content/public/common/content_switches.h"
 #include "third_party/metrics_proto/sampled_profile.pb.h"
@@ -20,12 +21,20 @@ namespace metrics {
 
 namespace {
 
+const base::Feature kBrowserJankinessProfiling{
+    "BrowserJankinessProfiling", base::FEATURE_DISABLED_BY_DEFAULT};
+
 const char kJankinessTriggerStatusHistogram[] =
     "ChromeOS.CWP.JankinessTriggerStatus";
 
 // The default value of minimum interval between jankiness collections is 30
 // minutes.
 const int kDefaultJankinessCollectionMinIntervalSec = 30 * 60;
+
+// Feature parameters that control the behavior of the jankiness trigger.
+constexpr base::FeatureParam<int> kJankinessCollectionMinIntervalSec{
+    &kBrowserJankinessProfiling, "JankinessCollectionMinIntervalSec",
+    kDefaultJankinessCollectionMinIntervalSec};
 
 enum class JankinessTriggerStatus {
   // Attempt to collect a profile triggered by browser jankiness.
@@ -44,13 +53,13 @@ bool IsNormalUserLoggedIn() {
 }  // namespace
 
 ProfileProvider::ProfileProvider()
-    : jankiness_collection_min_interval_(
-          base::Seconds(kDefaultJankinessCollectionMinIntervalSec)) {
+    : jankiness_collection_min_interval_(base::TimeDelta::FromSeconds(
+          kJankinessCollectionMinIntervalSec.Get())) {
   // Initialize the WindowedIncognitoMonitor on the UI thread.
   WindowedIncognitoMonitor::Init();
   // Register a perf events collector.
-  collectors_.push_back(std::make_unique<MetricProvider>(
-      std::make_unique<PerfCollector>(), g_browser_process->profile_manager()));
+  collectors_.push_back(
+      std::make_unique<MetricProvider>(std::make_unique<PerfCollector>()));
 }
 
 ProfileProvider::~ProfileProvider() {
@@ -85,10 +94,12 @@ void ProfileProvider::Init() {
   // ProfileProvider will recognize that the system is already logged in.
   LoggedInStateChanged();
 
-  // Set up the JankMonitor for watching browser jankiness.
-  jank_monitor_ = content::JankMonitor::Create();
-  jank_monitor_->SetUp();
-  jank_monitor_->AddObserver(this);
+  if (base::FeatureList::IsEnabled(kBrowserJankinessProfiling)) {
+    // Set up the JankMonitor for watching browser jankiness.
+    jank_monitor_ = content::JankMonitor::Create();
+    jank_monitor_->SetUp();
+    jank_monitor_->AddObserver(this);
+  }
 }
 
 bool ProfileProvider::GetSampledProfiles(
@@ -99,18 +110,6 @@ bool ProfileProvider::GetSampledProfiles(
     result = result || written;
   }
   return result;
-}
-
-void ProfileProvider::OnRecordingEnabled() {
-  for (auto& collector : collectors_) {
-    collector->EnableRecording();
-  }
-}
-
-void ProfileProvider::OnRecordingDisabled() {
-  for (auto& collector : collectors_) {
-    collector->DisableRecording();
-  }
 }
 
 void ProfileProvider::LoggedInStateChanged() {
@@ -125,7 +124,7 @@ void ProfileProvider::LoggedInStateChanged() {
   }
 }
 
-void ProfileProvider::SuspendDone(base::TimeDelta sleep_duration) {
+void ProfileProvider::SuspendDone(const base::TimeDelta& sleep_duration) {
   // A zero value for the suspend duration indicates that the suspend was
   // canceled. Do not collect anything if that's the case.
   if (sleep_duration.is_zero())
@@ -143,8 +142,7 @@ void ProfileProvider::SuspendDone(base::TimeDelta sleep_duration) {
   }
 }
 
-void ProfileProvider::OnSessionRestoreDone(Profile* profile,
-                                           int num_tabs_restored) {
+void ProfileProvider::OnSessionRestoreDone(int num_tabs_restored) {
   // Do not collect a profile unless logged in as a normal user.
   if (!IsNormalUserLoggedIn())
     return;

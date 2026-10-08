@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-#include <deque>
 #include <utility>
 #include <vector>
 
@@ -31,8 +30,8 @@ constexpr double kDummySim = 0.0;
 std::vector<int32_t> GenerateReferencesDeltaTest(
     std::vector<Reference>&& old_references,
     std::vector<Reference>&& new_references,
-    std::deque<offset_t>&& exp_old_targets,
-    std::deque<offset_t>&& exp_projected_old_targets,
+    std::vector<offset_t>&& exp_old_targets,
+    std::vector<offset_t>&& exp_projected_old_targets,
     EquivalenceMap&& equivalence_map) {
   // OffsetMapper needs image sizes for forward-projection overflow check. These
   // are tested elsewhere, so just use arbitrary large value.

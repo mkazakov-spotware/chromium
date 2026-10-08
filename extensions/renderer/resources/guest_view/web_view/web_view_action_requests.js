@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -90,8 +90,9 @@ WebViewActionRequest.prototype.handleActionRequestEvent = function() {
 
   if (defaultPrevented) {
     // Track the lifetime of |request| with the garbage collector.
+    var portId = -1;  // (hack) there is no Extension Port to release
     MessagingNatives.BindToGC(
-        request, $Function.bind(this.defaultAction, this));
+        request, $Function.bind(this.defaultAction, this), portId);
   } else {
     this.defaultAction();
   }
@@ -193,7 +194,10 @@ NewWindow.prototype.getInterfaceObject = function() {
         webViewImpl.onAttach(this.event.partition);
       }
 
-      webViewImpl.attachWindow(this.event.windowId);
+      var attached = webViewImpl.attachWindow(this.event.windowId);
+      if (!attached) {
+        window.console.error(ERROR_MSG_NEWWINDOW_UNABLE_TO_ATTACH);
+      }
 
       if (this.guestInstanceId != this.webViewImpl.guest.getId()) {
         // If the opener is already gone, then its guestInstanceId will be
@@ -207,7 +211,7 @@ NewWindow.prototype.getInterfaceObject = function() {
       // up the state created for the new window if attaching fails.
       CrashIfInvalidInstanceId(this.guestInstanceId, 'NewWindow attach');
       WebViewInternal.setPermission(this.guestInstanceId, this.requestId,
-                                    'allow');
+                                    attached ? 'allow' : 'deny');
     }, this),
     discard: $Function.bind(function() {
       this.validateCall();

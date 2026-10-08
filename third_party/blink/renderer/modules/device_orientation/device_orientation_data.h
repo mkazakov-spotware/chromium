@@ -26,9 +26,9 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_DEVICE_ORIENTATION_DEVICE_ORIENTATION_DATA_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_DEVICE_ORIENTATION_DEVICE_ORIENTATION_DATA_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -38,16 +38,16 @@ class MODULES_EXPORT DeviceOrientationData final
     : public GarbageCollected<DeviceOrientationData> {
  public:
   static DeviceOrientationData* Create();
-  static DeviceOrientationData* Create(const absl::optional<double>& alpha,
-                                       const absl::optional<double>& beta,
-                                       const absl::optional<double>& gamma,
+  static DeviceOrientationData* Create(const base::Optional<double>& alpha,
+                                       const base::Optional<double>& beta,
+                                       const base::Optional<double>& gamma,
                                        bool absolute);
   static DeviceOrientationData* Create(const DeviceOrientationEventInit*);
 
   DeviceOrientationData();
-  DeviceOrientationData(const absl::optional<double>& alpha,
-                        const absl::optional<double>& beta,
-                        const absl::optional<double>& gamma,
+  DeviceOrientationData(const base::Optional<double>& alpha,
+                        const base::Optional<double>& beta,
+                        const base::Optional<double>& gamma,
                         bool absolute);
 
   void Trace(Visitor* visitor) const {}
@@ -63,9 +63,9 @@ class MODULES_EXPORT DeviceOrientationData final
   bool CanProvideEventData() const;
 
  private:
-  absl::optional<double> alpha_;
-  absl::optional<double> beta_;
-  absl::optional<double> gamma_;
+  base::Optional<double> alpha_;
+  base::Optional<double> beta_;
+  base::Optional<double> gamma_;
   bool absolute_;
 };
 

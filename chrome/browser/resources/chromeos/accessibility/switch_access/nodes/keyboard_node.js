@@ -1,28 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {EventGenerator} from '../../common/event_generator.js';
-import {EventHandler} from '../../common/event_handler.js';
-import {RectUtil} from '../../common/rect_util.js';
-import {AutoScanManager} from '../auto_scan_manager.js';
-import {Navigator} from '../navigator.js';
-import {SwitchAccess} from '../switch_access.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-import {SwitchAccessPredicate} from '../switch_access_predicate.js';
-
-import {BackButtonNode} from './back_button_node.js';
-import {BasicNode, BasicRootNode} from './basic_node.js';
-import {GroupNode} from './group_node.js';
-import {SAChildNode, SARootNode} from './switch_access_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This class handles the behavior of keyboard nodes directly associated with a
  * single AutomationNode.
  */
-export class KeyboardNode extends BasicNode {
+class KeyboardNode extends BasicNode {
   /**
    * @param {!AutomationNode} node
    * @param {!SARootNode} parent
@@ -56,12 +40,12 @@ export class KeyboardNode extends BasicNode {
       return true;
     }
     if (!KeyboardNode.resetting &&
-        Navigator.byItem.currentGroupHasChild(this)) {
+        NavigationManager.currentGroupHasChild(this)) {
       // TODO(crbug/1130773): move this code to another location, if possible
       KeyboardNode.resetting = true;
       KeyboardRootNode.ignoreNextExit_ = true;
-      Navigator.byItem.exitKeyboard();
-      Navigator.byItem.enterKeyboard();
+      NavigationManager.exitKeyboard();
+      NavigationManager.enterKeyboard();
     }
 
     return false;
@@ -82,7 +66,7 @@ export class KeyboardNode extends BasicNode {
     // simulate a mouse click.
     const center = RectUtil.center(keyLocation);
     EventGenerator.sendMouseClick(
-        center.x, center.y, {delayMs: SAConstants.VK_KEY_PRESS_DURATION_MS});
+        center.x, center.y, SAConstants.VK_KEY_PRESS_DURATION_MS);
 
     return SAConstants.ActionResponse.CLOSE_MENU;
   }
@@ -92,7 +76,7 @@ export class KeyboardNode extends BasicNode {
  * This class handles the top-level Keyboard node, as well as the construction
  * of the Keyboard tree.
  */
-export class KeyboardRootNode extends BasicRootNode {
+class KeyboardRootNode extends BasicRootNode {
   /**
    * @param {!AutomationNode} groupNode
    * @private
@@ -168,12 +152,9 @@ export class KeyboardRootNode extends BasicRootNode {
       return;
     }
 
-    KeyboardRootNode.isVisible_ = KeyboardRootNode.isKeyboardVisible_();
+    KeyboardRootNode.isVisible_ =
+        SwitchAccessPredicate.isVisible(keyboardObject);
 
-    new EventHandler(
-        keyboardObject, chrome.automation.EventType.LOAD_COMPLETE,
-        KeyboardRootNode.checkVisibilityChanged_)
-        .start();
     new EventHandler(
         keyboardObject, chrome.automation.EventType.STATE_CHANGED,
         KeyboardRootNode.checkVisibilityChanged_, {exactMatch: true})
@@ -183,23 +164,12 @@ export class KeyboardRootNode extends BasicRootNode {
   // ================= Private static methods =================
 
   /**
-   * @return {boolean}
-   * @private
-   */
-  static isKeyboardVisible_() {
-    const keyboardObject = KeyboardRootNode.getKeyboardObject();
-    return Boolean(
-        keyboardObject && SwitchAccessPredicate.isVisible(keyboardObject) &&
-        keyboardObject.find({role: chrome.automation.RoleType.ROOT_WEB_AREA}));
-  }
-
-  /**
    * @param {chrome.automation.AutomationEvent} event
    * @private
    */
   static checkVisibilityChanged_(event) {
-    const keyboardObject = KeyboardRootNode.getKeyboardObject();
-    const currentlyVisible = KeyboardRootNode.isKeyboardVisible_();
+    const currentlyVisible =
+        SwitchAccessPredicate.isVisible(KeyboardRootNode.getKeyboardObject());
     if (currentlyVisible === KeyboardRootNode.isVisible_) {
       return;
     }
@@ -214,9 +184,9 @@ export class KeyboardRootNode extends BasicRootNode {
     }
 
     if (KeyboardRootNode.isVisible_) {
-      Navigator.byItem.enterKeyboard();
+      NavigationManager.enterKeyboard();
     } else {
-      Navigator.byItem.exitKeyboard();
+      NavigationManager.exitKeyboard();
     }
   }
 
@@ -226,7 +196,7 @@ export class KeyboardRootNode extends BasicRootNode {
    * @private
    */
   static findAndSetChildren_(root) {
-    const childConstructor = node => new KeyboardNode(node, root);
+    const childConstructor = (node) => new KeyboardNode(node, root);
     const interestingChildren =
         root.automationNode.findAll({role: chrome.automation.RoleType.BUTTON});
     /** @type {!Array<!SAChildNode>} */
@@ -243,7 +213,7 @@ export class KeyboardRootNode extends BasicRootNode {
    */
   static getKeyboardObject() {
     if (!this.object_ || !this.object_.role) {
-      this.object_ = Navigator.byItem.desktopNode.find(
+      this.object_ = NavigationManager.desktopNode.find(
           {role: chrome.automation.RoleType.KEYBOARD});
     }
     return this.object_;
@@ -258,11 +228,7 @@ export class KeyboardRootNode extends BasicRootNode {
       return;
     }
 
+    KeyboardRootNode.explicitStateChange_ = true;
     chrome.accessibilityPrivate.setVirtualKeyboardVisible(true);
   }
 }
-
-BasicRootNode.builders.push({
-  predicate: rootNode => rootNode.role === chrome.automation.RoleType.KEYBOARD,
-  builder: KeyboardRootNode.buildTree,
-});

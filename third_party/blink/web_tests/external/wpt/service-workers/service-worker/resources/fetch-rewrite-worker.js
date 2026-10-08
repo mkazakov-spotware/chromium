@@ -90,12 +90,8 @@ self.addEventListener('fetch', function(event) {
         var request = event.request;
         if (url) {
           request = new Request(url, init);
-        } else if (params['change-request']) {
-          request = new Request(request, init);
         }
-        const response_promise = params['navpreload'] ? event.preloadResponse
-                                                      : fetch(request);
-        response_promise.then(function(response) {
+        fetch(request).then(function(response) {
           var expectedType = params['expected_type'];
           if (expectedType && response.type !== expectedType) {
             // Resolve a JSON object with a failure instead of rejecting
@@ -135,10 +131,6 @@ self.addEventListener('fetch', function(event) {
                 })));
               }
             }
-          }
-
-          if (params['clone']) {
-            response = response.clone();
           }
 
           // |cache| means to bounce responses through Cache Storage and back.

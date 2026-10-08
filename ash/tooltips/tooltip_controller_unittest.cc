@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,9 +24,8 @@
 #include "ui/wm/public/tooltip_client.h"
 
 using views::corewm::TooltipController;
-using views::corewm::TooltipTrigger;
-using views::corewm::test::TooltipControllerTestHelper;
 using views::corewm::test::TooltipTestView;
+using views::corewm::test::TooltipControllerTestHelper;
 
 // The tests in this file exercise bits of TooltipController that are hard to
 // test outside of ash. Meaning these tests require the shell and related things
@@ -80,25 +79,24 @@ TooltipController* GetController() {
 class TooltipControllerTest : public AshTestBase {
  public:
   TooltipControllerTest() = default;
-
-  TooltipControllerTest(const TooltipControllerTest&) = delete;
-  TooltipControllerTest& operator=(const TooltipControllerTest&) = delete;
-
   ~TooltipControllerTest() override = default;
 
   void SetUp() override {
     AshTestBase::SetUp();
-    helper_ = std::make_unique<TooltipControllerTestHelper>(GetController());
+    helper_.reset(new TooltipControllerTestHelper(GetController()));
   }
 
  protected:
   std::unique_ptr<TooltipControllerTestHelper> helper_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TooltipControllerTest);
 };
 
 TEST_F(TooltipControllerTest, NonNullTooltipClient) {
   EXPECT_TRUE(::wm::GetTooltipClient(Shell::GetPrimaryRootWindow()) != NULL);
-  EXPECT_EQ(std::u16string(), helper_->GetTooltipText());
-  EXPECT_EQ(NULL, helper_->GetTooltipParentWindow());
+  EXPECT_EQ(base::string16(), helper_->GetTooltipText());
+  EXPECT_EQ(NULL, helper_->GetTooltipWindow());
   EXPECT_FALSE(helper_->IsTooltipVisible());
 }
 
@@ -106,14 +104,14 @@ TEST_F(TooltipControllerTest, HideTooltipWhenCursorHidden) {
   std::unique_ptr<views::Widget> widget(CreateNewWidgetOn(0));
   TooltipTestView* view = new TooltipTestView;
   AddViewToWidgetAndResize(widget.get(), view);
-  view->set_tooltip_text(u"Tooltip Text");
-  EXPECT_EQ(std::u16string(), helper_->GetTooltipText());
-  EXPECT_EQ(NULL, helper_->GetTooltipParentWindow());
+  view->set_tooltip_text(base::ASCIIToUTF16("Tooltip Text"));
+  EXPECT_EQ(base::string16(), helper_->GetTooltipText());
+  EXPECT_EQ(NULL, helper_->GetTooltipWindow());
 
   ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
   generator.MoveMouseRelativeTo(widget->GetNativeView(),
                                 view->bounds().CenterPoint());
-  std::u16string expected_tooltip = u"Tooltip Text";
+  base::string16 expected_tooltip = base::ASCIIToUTF16("Tooltip Text");
 
   // Mouse event triggers tooltip update so it becomes visible.
   EXPECT_TRUE(helper_->IsTooltipVisible());
@@ -122,15 +120,14 @@ TEST_F(TooltipControllerTest, HideTooltipWhenCursorHidden) {
   Shell::Get()->cursor_manager()->DisableMouseEvents();
   base::RunLoop().RunUntilIdle();
   EXPECT_FALSE(Shell::Get()->cursor_manager()->IsCursorVisible());
-  helper_->UpdateIfRequired(TooltipTrigger::kCursor);
+  helper_->UpdateIfRequired();
   EXPECT_FALSE(helper_->IsTooltipVisible());
 
   // Enable mouse event which shows the cursor and re-check.
   Shell::Get()->cursor_manager()->EnableMouseEvents();
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(Shell::Get()->cursor_manager()->IsCursorVisible());
-  generator.MoveMouseBy(0, 1);
-  helper_->UpdateIfRequired(TooltipTrigger::kCursor);
+  helper_->UpdateIfRequired();
   EXPECT_TRUE(helper_->IsTooltipVisible());
 }
 
@@ -141,14 +138,14 @@ TEST_F(TooltipControllerTest, TooltipsOnMultiDisplayShouldNotCrash) {
       CreateNewWidgetWithBoundsOn(0, gfx::Rect(10, 10, 100, 100)));
   TooltipTestView* view1 = new TooltipTestView;
   AddViewToWidgetAndResize(widget1.get(), view1);
-  view1->set_tooltip_text(u"Tooltip Text for view 1");
+  view1->set_tooltip_text(base::ASCIIToUTF16("Tooltip Text for view 1"));
   EXPECT_EQ(widget1->GetNativeView()->GetRootWindow(), root_windows[0]);
 
   std::unique_ptr<views::Widget> widget2(
       CreateNewWidgetWithBoundsOn(1, gfx::Rect(1200, 10, 100, 100)));
   TooltipTestView* view2 = new TooltipTestView;
   AddViewToWidgetAndResize(widget2.get(), view2);
-  view2->set_tooltip_text(u"Tooltip Text for view 2");
+  view2->set_tooltip_text(base::ASCIIToUTF16("Tooltip Text for view 2"));
   EXPECT_EQ(widget2->GetNativeView()->GetRootWindow(), root_windows[1]);
 
   // Show tooltip on second display.
@@ -169,25 +166,6 @@ TEST_F(TooltipControllerTest, TooltipsOnMultiDisplayShouldNotCrash) {
   generator1.MoveMouseRelativeTo(widget1->GetNativeView(),
                                  view1->bounds().CenterPoint());
   EXPECT_TRUE(helper_->IsTooltipVisible());
-}
-
-TEST_F(TooltipControllerTest, HideTooltipWhenViewHidden) {
-  std::unique_ptr<views::Widget> widget(CreateNewWidgetOn(0));
-  TooltipTestView* view = new TooltipTestView;
-  AddViewToWidgetAndResize(widget.get(), view);
-  view->set_tooltip_text(u"Tooltip Text");
-  EXPECT_EQ(std::u16string(), helper_->GetTooltipText());
-  EXPECT_EQ(nullptr, helper_->GetTooltipParentWindow());
-
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  generator.MoveMouseRelativeTo(widget->GetNativeView(),
-                                view->bounds().CenterPoint());
-
-  // Mouse event triggers tooltip update so it becomes visible.
-  EXPECT_TRUE(helper_->IsTooltipVisible());
-
-  view->SetVisible(false);
-  EXPECT_FALSE(helper_->IsTooltipVisible());
 }
 
 }  // namespace ash

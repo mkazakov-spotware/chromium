@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "services/network/udp_socket.h"
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
@@ -22,8 +23,6 @@
 #include "net/socket/udp_socket.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "services/network/public/mojom/udp_socket.mojom.h"
 #include "services/network/socket_factory.h"
@@ -39,10 +38,6 @@ const size_t kDatagramSize = 255;
 class SocketWrapperTestImpl : public UDPSocket::SocketWrapper {
  public:
   SocketWrapperTestImpl() {}
-
-  SocketWrapperTestImpl(const SocketWrapperTestImpl&) = delete;
-  SocketWrapperTestImpl& operator=(const SocketWrapperTestImpl&) = delete;
-
   ~SocketWrapperTestImpl() override {}
 
   int Connect(const net::IPEndPoint& remote_addr,
@@ -101,6 +96,9 @@ class SocketWrapperTestImpl : public UDPSocket::SocketWrapper {
     NOTREACHED();
     return net::ERR_NOT_IMPLEMENTED;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SocketWrapperTestImpl);
 };
 
 net::IPEndPoint GetLocalHostWithAnyPort() {
@@ -194,13 +192,7 @@ class UDPSocketTest : public testing::Test {
  public:
   UDPSocketTest()
       : task_environment_(base::test::TaskEnvironment::MainThreadType::IO),
-        url_request_context_(
-            net::CreateTestURLRequestContextBuilder()->Build()),
-        factory_(nullptr /*netlog*/, url_request_context_.get()) {}
-
-  UDPSocketTest(const UDPSocketTest&) = delete;
-  UDPSocketTest& operator=(const UDPSocketTest&) = delete;
-
+        factory_(nullptr /*netlog*/, &url_request_context_) {}
   ~UDPSocketTest() override {}
 
   void SetWrappedSocket(
@@ -217,8 +209,10 @@ class UDPSocketTest : public testing::Test {
 
  private:
   base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<net::URLRequestContext> url_request_context_;
+  net::TestURLRequestContext url_request_context_;
   SocketFactory factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(UDPSocketTest);
 };
 
 TEST_F(UDPSocketTest, Settings) {
@@ -287,7 +281,7 @@ TEST_F(UDPSocketTest, TestSendToWithConnect) {
 }
 
 // TODO(crbug.com/1014916): These two tests are very flaky on Fuchsia.
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #define MAYBE_TestReadSendTo DISABLED_TestReadSendTo
 #define MAYBE_TestUnexpectedSequences DISABLED_TestUnexpectedSequences
 #else
@@ -673,14 +667,14 @@ TEST_F(UDPSocketTest, TestReadZeroByte) {
   EXPECT_EQ(std::vector<uint8_t>(), result.data.value());
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Some Android devices do not support multicast socket.
 // The ones supporting multicast need WifiManager.MulticastLock to enable it.
 // https://developer.android.com/reference/android/net/wifi/WifiManager.MulticastLock.html
 #define MAYBE_JoinMulticastGroup DISABLED_JoinMulticastGroup
 #else
 #define MAYBE_JoinMulticastGroup JoinMulticastGroup
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 TEST_F(UDPSocketTest, MAYBE_JoinMulticastGroup) {
   const char kGroup[] = "237.132.100.17";
 

@@ -1,11 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "media/ffmpeg/ffmpeg_common.h"
-#include "media/ffmpeg/scoped_av_packet.h"
+#include "media/filters/ffmpeg_demuxer.h"
 #include "media/filters/ffmpeg_h264_to_annex_b_bitstream_converter.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -287,11 +288,6 @@ class FFmpegH264ToAnnexBBitstreamConverterTest : public testing::Test {
     test_parameters_.extradata_size = sizeof(kHeaderDataOkWithFieldLen4);
   }
 
-  FFmpegH264ToAnnexBBitstreamConverterTest(
-      const FFmpegH264ToAnnexBBitstreamConverterTest&) = delete;
-  FFmpegH264ToAnnexBBitstreamConverterTest& operator=(
-      const FFmpegH264ToAnnexBBitstreamConverterTest&) = delete;
-
   void CreatePacket(AVPacket* packet, const uint8_t* data, uint32_t data_size) {
     // Create new packet sized of |data_size| from |data|.
     EXPECT_EQ(av_new_packet(packet, data_size), 0);
@@ -300,12 +296,15 @@ class FFmpegH264ToAnnexBBitstreamConverterTest : public testing::Test {
 
   // Variable to hold valid dummy parameters for testing.
   AVCodecParameters test_parameters_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FFmpegH264ToAnnexBBitstreamConverterTest);
 };
 
 TEST_F(FFmpegH264ToAnnexBBitstreamConverterTest, Conversion_Success) {
   FFmpegH264ToAnnexBBitstreamConverter converter(&test_parameters_);
 
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   CreatePacket(test_packet.get(), kPacketDataOkWithFieldLen4,
                sizeof(kPacketDataOkWithFieldLen4));
 
@@ -320,7 +319,7 @@ TEST_F(FFmpegH264ToAnnexBBitstreamConverterTest, Conversion_SuccessBigPacket) {
   FFmpegH264ToAnnexBBitstreamConverter converter(&test_parameters_);
 
   // Create new packet with 1000 excess bytes.
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   static uint8_t excess_data[sizeof(kPacketDataOkWithFieldLen4) + 1000] = {0};
   memcpy(excess_data, kPacketDataOkWithFieldLen4,
          sizeof(kPacketDataOkWithFieldLen4));
@@ -344,7 +343,7 @@ TEST_F(FFmpegH264ToAnnexBBitstreamConverterTest, Conversion_FailureNullParams) {
   EXPECT_FALSE(converter.ConvertPacket(nullptr));
 
   // Create new packet to test actual conversion.
-  auto test_packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket test_packet(new AVPacket());
   CreatePacket(test_packet.get(), kPacketDataOkWithFieldLen4,
                sizeof(kPacketDataOkWithFieldLen4));
 

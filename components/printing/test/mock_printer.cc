@@ -1,23 +1,23 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/printing/test/mock_printer.h"
 
-#include <string>
-
 #include "base/files/file_util.h"
 #include "base/memory/shared_memory_mapping.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "components/printing/common/print.mojom.h"
+#include "components/printing/common/print_messages.h"
 #include "ipc/ipc_message_utils.h"
 #include "printing/metafile_skia.h"
 #include "printing/mojom/print.mojom.h"
 #include "printing/units.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "printing/pdf_metafile_cg_mac.h"
 #endif
 
@@ -82,8 +82,8 @@ MockPrinter::MockPrinter()
       preview_request_id_(0),
       print_scaling_option_(printing::mojom::PrintScalingOption::kSourceSize),
       display_header_footer_(false),
-      title_(u"title"),
-      url_(u"url"),
+      title_(base::ASCIIToUTF16("title")),
+      url_(base::ASCIIToUTF16("url")),
       use_invalid_settings_(false) {
   page_size_.SetSize(static_cast<int>(8.5 * dpi_),
                      static_cast<int>(11.0 * dpi_));
@@ -174,7 +174,7 @@ void MockPrinter::ScriptedPrint(int cookie,
 
 void MockPrinter::UpdateSettings(int cookie,
                                  printing::mojom::PrintPagesParams* params,
-                                 const printing::PageRanges& pages,
+                                 const std::vector<uint32_t>& pages,
                                  int margins_type,
                                  const gfx::Size& page_size,
                                  int scale_factor) {
@@ -204,21 +204,22 @@ void MockPrinter::SetPrintedPagesCount(int cookie, uint32_t number_pages) {
   pages_.clear();
 }
 
-void MockPrinter::PrintPage(printing::mojom::DidPrintDocumentParamsPtr params) {
+void MockPrinter::PrintPage(
+    const printing::mojom::DidPrintDocumentParams& params) {
   // Verify the input parameter and update the printer status so that the
   // RenderViewTest class can verify the this function finishes without errors.
   EXPECT_EQ(PRINTER_PRINTING, printer_status_);
-  EXPECT_EQ(document_cookie_, params->document_cookie);
+  EXPECT_EQ(document_cookie_, params.document_cookie);
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE)
+#if defined(OS_WIN) || defined(OS_APPLE)
   // Load the data sent from a RenderView object and create a PageData object.
-  ASSERT_TRUE(params->content->metafile_data_region.IsValid());
+  ASSERT_TRUE(params.content->metafile_data_region.IsValid());
   base::ReadOnlySharedMemoryMapping mapping =
-      params->content->metafile_data_region.Map();
+      params.content->metafile_data_region.Map();
   ASSERT_TRUE(mapping.IsValid());
   EXPECT_GT(mapping.size(), 0U);
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   printing::PdfMetafileCg metafile;
 #else
   printing::MetafileSkia metafile;

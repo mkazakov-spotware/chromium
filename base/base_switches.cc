@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/base_switches.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace switches {
 
@@ -30,20 +29,6 @@ const char kEnableFeatures[] = "enable-features";
 
 // Force low-end device mode when set.
 const char kEnableLowEndDeviceMode[]        = "enable-low-end-device-mode";
-
-// Enable the use of background thread priorities for background tasks in the
-// ThreadPool even on systems where it is disabled by default, e.g. due to
-// concerns about priority inversions.
-const char kEnableBackgroundThreadPool[] = "enable-background-thread-pool";
-
-// Handle to the shared memory segment containing field trial state that is to
-// be shared between processes. The argument to this switch is made of 4
-// segments, separated by commas:
-// 1. The platform-specific handle id for the shared memory as a string.
-// 2. The high 64 bits of the shared memory block GUID.
-// 3. The low 64 bits of the shared memory block GUID.
-// 4. The size of the shared memory segment as a string.
-const char kFieldTrialHandle[] = "field-trial-handle";
 
 // This option can be used to force field trials when testing changes locally.
 // The argument is a list of name and value pairs, separated by slashes. If a
@@ -124,7 +109,7 @@ const char kVModule[] = "vmodule";
 // Will wait for 60 seconds for a debugger to come to attach to the process.
 const char kWaitForDebugger[] = "wait-for-debugger";
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Disable high-resolution timer on Windows.
 const char kDisableHighResTimer[] = "disable-highres-timer";
 
@@ -132,10 +117,7 @@ const char kDisableHighResTimer[] = "disable-highres-timer";
 const char kDisableUsbKeyboardDetect[]      = "disable-usb-keyboard-detect";
 #endif
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS_ASH) && \
-    !BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS) && !BUILDFLAG(IS_LACROS)
 // The /dev/shm partition is too small in certain VM environments, causing
 // Chrome to fail or crash (see http://crbug.com/715363). Use this flag to
 // work-around this issue (a temporary directory will always be used to create
@@ -143,14 +125,14 @@ const char kDisableUsbKeyboardDetect[]      = "disable-usb-keyboard-detect";
 const char kDisableDevShmUsage[] = "disable-dev-shm-usage";
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 // Used for turning on Breakpad crash reporting in a debug environment where
 // crash reporting is typically compiled but disabled.
 const char kEnableCrashReporterForTesting[] =
     "enable-crash-reporter-for-testing";
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Enables the reached code profiler that samples all threads in all processes
 // to determine which functions are almost never executed.
 const char kEnableReachedCodeProfiler[] = "enable-reached-code-profiler";
@@ -170,20 +152,12 @@ const char kForceFieldTrialParams[] = "force-fieldtrial-params";
 
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-// TODO(crbug.com/1176772): Remove kEnableCrashpad and IsCrashpadEnabled() when
-// Crashpad is fully enabled on Linux. Indicates that Crashpad should be
-// enabled.
-extern const char kEnableCrashpad[] = "enable-crashpad";
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
-// Override the default scheduling boosting value for urgent tasks.
-// This can be adjusted if a specific chromeos device shows better perf/power
-// ratio (e.g. by running video conference tests).
-// Currently, this values directs to linux scheduler's utilization min clamp.
-// Range is 0(no biased load) ~ 100(mamximum load value).
-const char kSchedulerBoostUrgent[] = "scheduler-boost-urgent";
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+// Controls whether or not retired instruction counts are surfaced for threads
+// in trace events on Linux.
+//
+// This flag requires the BPF sandbox to be disabled.
+const char kEnableThreadInstructionCount[] = "enable-thread-instruction-count";
 #endif
 
 }  // namespace switches

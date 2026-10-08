@@ -1,8 +1,6 @@
 include_rules = [
   "+content/public/renderer",
-  "+content/public/common",
-  "+components/safe_browsing/core/common",
-  "+third_party/blink/public/common/loader/url_loader_throttle.h",
+  "+components/safe_browsing",
   "+third_party/blink/public/platform",
   "+third_party/blink/public/web",
   "+ipc",

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "content/common/content_export.h"
+#include "base/time/time.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "device/vr/public/mojom/vr_service.mojom-forward.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
@@ -25,8 +25,7 @@ class WebXRSessionTracker;
 // metrics that require state monitoring, such as durations, but also tracks
 // data we want attached to that, such as number of videos watched and how the
 // session was started.
-class CONTENT_EXPORT SessionMetricsHelper
-    : public content::WebContentsObserver {
+class SessionMetricsHelper : public content::WebContentsObserver {
  public:
   // Returns the SessionMetricsHelper singleton if it has been created for the
   // WebContents.
@@ -69,7 +68,7 @@ class CONTENT_EXPORT SessionMetricsHelper
       const MediaPlayerInfo& media_info,
       const content::MediaPlayerId&,
       WebContentsObserver::MediaStoppedReason reason) override;
-  void PrimaryPageChanged(content::Page& page) override;
+  void DidStartNavigation(content::NavigationHandle* handle) override;
 
   std::unique_ptr<SessionTimer> session_video_timer_;
   std::unique_ptr<SessionTimer> session_timer_;

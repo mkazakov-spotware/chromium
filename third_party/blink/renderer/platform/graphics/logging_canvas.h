@@ -53,17 +53,12 @@ class LoggingCanvas : public InterceptingCanvasBase {
   void onDrawOval(const SkRect&, const SkPaint&) override;
   void onDrawRRect(const SkRRect&, const SkPaint&) override;
   void onDrawPath(const SkPath&, const SkPaint&) override;
-  void onDrawImage2(const SkImage*,
-                    SkScalar,
-                    SkScalar,
-                    const SkSamplingOptions&,
-                    const SkPaint*) override;
-  void onDrawImageRect2(const SkImage*,
-                        const SkRect& src,
-                        const SkRect& dst,
-                        const SkSamplingOptions&,
-                        const SkPaint*,
-                        SrcRectConstraint) override;
+  void onDrawImage(const SkImage*, SkScalar, SkScalar, const SkPaint*) override;
+  void onDrawImageRect(const SkImage*,
+                       const SkRect* src,
+                       const SkRect& dst,
+                       const SkPaint*,
+                       SrcRectConstraint) override;
   void onDrawVerticesObject(const SkVertices*,
                             SkBlendMode bmode,
                             const SkPaint&) override;
@@ -82,8 +77,9 @@ class LoggingCanvas : public InterceptingCanvasBase {
   void onDrawPicture(const SkPicture*,
                      const SkMatrix*,
                      const SkPaint*) override;
-  void didSetM44(const SkM44&) override;
+  void didSetMatrix(const SkMatrix&) override;
   void didConcat44(const SkM44&) override;
+  void didConcat(const SkMatrix&) override;
   void didScale(SkScalar, SkScalar) override;
   void didTranslate(SkScalar, SkScalar) override;
   void willSave() override;

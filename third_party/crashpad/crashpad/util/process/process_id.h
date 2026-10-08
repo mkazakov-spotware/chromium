@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,27 +20,27 @@
 #include "base/format_macros.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <sys/types.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include <zircon/types.h>
 #endif
 
 namespace crashpad {
 
-#if BUILDFLAG(IS_POSIX) || DOXYGEN
+#if defined(OS_POSIX) || DOXYGEN
 //! \brief Alias for platform-specific type to represent a process.
 using ProcessID = pid_t;
 constexpr ProcessID kInvalidProcessID = -1;
 static_assert(std::is_same<ProcessID, int>::value, "Port.");
 #define PRI_PROCESS_ID "d"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 using ProcessID = DWORD;
 constexpr ProcessID kInvalidProcessID = 0;
 #define PRI_PROCESS_ID "lu"
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 using ProcessID = zx_koid_t;
 constexpr ProcessID kInvalidProcessID = ZX_KOID_INVALID;
 static_assert(std::is_same<ProcessID, int64_t>::value, "Port.");

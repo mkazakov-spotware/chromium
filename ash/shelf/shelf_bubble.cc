@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,9 @@ views::BubbleBorder::Arrow GetArrow(ash::ShelfAlignment alignment) {
 
 namespace ash {
 
-ShelfBubble::ShelfBubble(views::View* anchor, ShelfAlignment alignment)
+ShelfBubble::ShelfBubble(views::View* anchor,
+                         ShelfAlignment alignment,
+                         SkColor background_color)
     : views::BubbleDialogDelegateView(anchor, GetArrow(alignment)),
       background_animator_(
           /* Don't pass the Shelf so the translucent color is always used. */
@@ -45,14 +47,17 @@ ShelfBubble::ShelfBubble(views::View* anchor, ShelfAlignment alignment)
   set_parent_window(
       anchor_widget()->GetNativeWindow()->GetRootWindow()->GetChildById(
           kShellWindowId_SettingBubbleContainer));
-  // We override the role because the base class sets it to alert dialog,
-  // which results in each tooltip title being announced twice on screen
-  // readers each time it is shown.
-  SetAccessibleRole(ax::mojom::Role::kDialog);
 }
 
 ShelfBubble::~ShelfBubble() {
   background_animator_.RemoveObserver(this);
+}
+
+ax::mojom::Role ShelfBubble::GetAccessibleWindowRole() {
+  // We override the role because the base class sets it to alert dialog,
+  // which results in each tooltip title being announced twice on screen
+  // readers each time it is shown.
+  return ax::mojom::Role::kDialog;
 }
 
 void ShelfBubble::CreateBubble() {

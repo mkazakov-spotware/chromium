@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,17 @@ enum TestColorIds : ColorId {
   kColorTest2,
 
   kTestColorsEnd,
+};
+
+// Test-only color set IDs.
+enum TestColorSetIds : ColorSetId {
+  kTestColorSetsStart = kUiColorSetsEnd,
+
+  kColorSetTest0 = kTestColorSetsStart,
+  kColorSetTest1,
+  kColorSetTest2,
+
+  kTestColorSetsEnd,
 };
 
 }  // namespace ui

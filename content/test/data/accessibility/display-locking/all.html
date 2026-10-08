@@ -1,6 +1,5 @@
 <!--
 @BLINK-ALLOW:offscreen
-@AURALINUX-ALLOW:visible
 -->
 <div>
   <div style="height:10000px;">spacer so that everything below will be offscreen (and won't get viewport-activated)</div>
@@ -11,7 +10,7 @@
     </div>
   </div>
   normal text 1
-  <div id="nonViewportActivatable" hidden=until-found>
+  <div id="nonViewportActivatable" style="content-visibility: hidden-matchable">
     nested non-viewport-activatable locked element will not be in AX tree
   </div>
   normal text 2

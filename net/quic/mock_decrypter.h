@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,11 @@
 #include <cstdint>
 
 #include "base/compiler_specific.h"
-#include "net/base/net_export.h"
-#include "net/third_party/quiche/src/quiche/quic/core/crypto/quic_decrypter.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_types.h"
+#include "base/macros.h"
+#include "net/third_party/quiche/src/common/platform/api/quiche_string_piece.h"
+#include "net/third_party/quiche/src/quic/core/crypto/quic_decrypter.h"
+#include "net/third_party/quiche/src/quic/core/quic_types.h"
+#include "net/third_party/quiche/src/quic/platform/api/quic_export.h"
 
 namespace net {
 
@@ -22,11 +24,7 @@ namespace net {
 class MockDecrypter : public quic::QuicDecrypter {
  public:
   explicit MockDecrypter(quic::Perspective perspective);
-
-  MockDecrypter(const MockDecrypter&) = delete;
-  MockDecrypter& operator=(const MockDecrypter&) = delete;
-
-  ~MockDecrypter() override = default;
+  ~MockDecrypter() override {}
 
   // QuicCrypter implementation
   bool SetKey(absl::string_view key) override;
@@ -53,6 +51,9 @@ class MockDecrypter : public quic::QuicDecrypter {
   quic::QuicPacketCount GetIntegrityLimit() const override;
   absl::string_view GetKey() const override;
   absl::string_view GetNoncePrefix() const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockDecrypter);
 };
 
 }  // namespace net

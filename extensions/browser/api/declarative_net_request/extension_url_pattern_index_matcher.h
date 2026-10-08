@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #include <vector>
 
-#include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
 #include "components/url_pattern_index/url_pattern_index.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_matcher_base.h"
 
@@ -28,36 +26,28 @@ class ExtensionUrlPatternIndexMatcher final : public RulesetMatcherBase {
                                   const UrlPatternIndexList* index_list,
                                   const ExtensionMetadataList* metadata_list);
 
-  ExtensionUrlPatternIndexMatcher(const ExtensionUrlPatternIndexMatcher&) =
-      delete;
-  ExtensionUrlPatternIndexMatcher& operator=(
-      const ExtensionUrlPatternIndexMatcher&) = delete;
-
   // RulesetMatcherBase override:
   ~ExtensionUrlPatternIndexMatcher() override;
   std::vector<RequestAction> GetModifyHeadersActions(
       const RequestParams& params,
-      absl::optional<uint64_t> min_priority) const override;
-  bool IsExtraHeadersMatcher() const override;
-  size_t GetRulesCount() const override;
-
-  // Sets the disabled rule ids so that the disabled rules are not matched.
-  void SetDisabledRuleIds(base::flat_set<int> disabled_rule_ids);
-
-  const base::flat_set<int>& GetDisabledRuleIdsForTesting() const;
+      base::Optional<uint64_t> min_priority) const override;
+  bool IsExtraHeadersMatcher() const override {
+    return is_extra_headers_matcher_;
+  }
+  size_t GetRulesCount() const override { return rules_count_; }
 
  private:
   using UrlPatternIndexMatcher = url_pattern_index::UrlPatternIndexMatcher;
 
   // RulesetMatcherBase override:
-  absl::optional<RequestAction> GetAllowAllRequestsAction(
+  base::Optional<RequestAction> GetAllowAllRequestsAction(
       const RequestParams& params) const override;
-  absl::optional<RequestAction> GetBeforeRequestActionIgnoringAncestors(
+  base::Optional<RequestAction> GetBeforeRequestActionIgnoringAncestors(
       const RequestParams& params) const override;
 
   // Returns the highest priority action from
   // |flat::IndexType_before_request_except_allow_all_requests| index.
-  absl::optional<RequestAction> GetBeforeRequestActionHelper(
+  base::Optional<RequestAction> GetBeforeRequestActionHelper(
       const RequestParams& params) const;
 
   const url_pattern_index::flat::UrlRule* GetMatchingRule(
@@ -70,7 +60,7 @@ class ExtensionUrlPatternIndexMatcher final : public RulesetMatcherBase {
       const RequestParams& params,
       flat::IndexType index) const;
 
-  const raw_ptr<const ExtensionMetadataList> metadata_list_;
+  const ExtensionMetadataList* const metadata_list_;
 
   // UrlPatternIndexMatchers corresponding to entries in flat::IndexType.
   const std::vector<UrlPatternIndexMatcher> matchers_;
@@ -79,9 +69,7 @@ class ExtensionUrlPatternIndexMatcher final : public RulesetMatcherBase {
 
   const size_t rules_count_;
 
-  // Disabled rule ids. The ids are passed to the matching algorithm in the
-  // UrlPatternIndexMatcher so that the algorithm can skip the disabled rules.
-  base::flat_set<int> disabled_rule_ids_;
+  DISALLOW_COPY_AND_ASSIGN(ExtensionUrlPatternIndexMatcher);
 };
 
 }  // namespace declarative_net_request

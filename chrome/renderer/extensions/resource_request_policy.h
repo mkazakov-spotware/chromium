@@ -1,17 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_RENDERER_EXTENSIONS_RESOURCE_REQUEST_POLICY_H_
 #define CHROME_RENDERER_EXTENSIONS_RESOURCE_REQUEST_POLICY_H_
 
-#include <map>
+#include <set>
 
-#include "extensions/common/extension_guid.h"
+#include "base/macros.h"
 #include "extensions/common/extension_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/page_transition_types.h"
-#include "url/origin.h"
 
 class GURL;
 
@@ -27,10 +25,6 @@ class Extension;
 class ResourceRequestPolicy {
  public:
   explicit ResourceRequestPolicy(Dispatcher* dispatcher);
-
-  ResourceRequestPolicy(const ResourceRequestPolicy&) = delete;
-  ResourceRequestPolicy& operator=(const ResourceRequestPolicy&) = delete;
-
   ~ResourceRequestPolicy();
 
   void OnExtensionLoaded(const Extension& extension);
@@ -42,19 +36,16 @@ class ResourceRequestPolicy {
   // than those triggered through UI.
   bool CanRequestResource(const GURL& resource_url,
                           blink::WebLocalFrame* frame,
-                          ui::PageTransition transition_type,
-                          const absl::optional<url::Origin>& initiator_origin);
+                          ui::PageTransition transition_type);
 
  private:
-  // Determine if the host is web accessible.
-  bool IsWebAccessibleHost(const std::string& host);
-
   Dispatcher* dispatcher_;
 
-  // 1:1 mapping of extension IDs with any potentially web- or webview-
-  // accessible resources to their corresponding GUIDs.
-  using WebAccessibleHostMap = std::map<ExtensionId, ExtensionGuid>;
-  WebAccessibleHostMap web_accessible_resources_map_;
+  // The set of extension IDs with any potentially web- or webview-accessible
+  // resources.
+  std::set<ExtensionId> web_accessible_ids_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResourceRequestPolicy);
 };
 
 }  // namespace extensions

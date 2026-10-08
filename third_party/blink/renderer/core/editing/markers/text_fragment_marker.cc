@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,17 @@ namespace blink {
 
 TextFragmentMarker::TextFragmentMarker(unsigned start_offset,
                                        unsigned end_offset)
-    : HighlightPseudoMarker(start_offset, end_offset) {}
+    : TextMarkerBase(start_offset, end_offset) {
+  DCHECK_LT(start_offset, end_offset);
+}
 
 DocumentMarker::MarkerType TextFragmentMarker::GetType() const {
   return DocumentMarker::kTextFragment;
 }
 
-PseudoId TextFragmentMarker::GetPseudoId() const {
-  return kPseudoIdTargetText;
-}
-
-const AtomicString& TextFragmentMarker::GetPseudoArgument() const {
-  return g_null_atom;
+bool TextFragmentMarker::IsActiveMatch() const {
+  // The TextFragmentMarker is painted as an inactive text match marker.
+  return false;
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "content/common/content_export.h"
-#include "url/origin.h"
 
 namespace content {
 
@@ -24,11 +23,6 @@ class CONTENT_EXPORT NavigationControllerAndroid {
  public:
   explicit NavigationControllerAndroid(
       NavigationControllerImpl* navigation_controller);
-
-  NavigationControllerAndroid(const NavigationControllerAndroid&) = delete;
-  NavigationControllerAndroid& operator=(const NavigationControllerAndroid&) =
-      delete;
-
   ~NavigationControllerAndroid();
 
   NavigationControllerImpl* navigation_controller() const {
@@ -70,7 +64,7 @@ class CONTENT_EXPORT NavigationControllerAndroid {
   void GoToNavigationIndex(JNIEnv* env,
                            const base::android::JavaParamRef<jobject>& obj,
                            jint index);
-  base::android::ScopedJavaGlobalRef<jobject> LoadUrl(
+  void LoadUrl(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jstring>& url,
@@ -86,12 +80,7 @@ class CONTENT_EXPORT NavigationControllerAndroid {
       const base::android::JavaParamRef<jstring>& data_url_as_string,
       jboolean can_load_local_resources,
       jboolean is_renderer_initiated,
-      jboolean should_replace_current_entry,
-      const base::android::JavaParamRef<jobject>& j_initiator_origin,
-      jboolean has_user_gesture,
-      jboolean should_clear_history_list,
-      jlong input_start,
-      jlong navigation_ui_data_ptr);
+      jboolean should_replace_current_entry);
   void ClearSslPreferences(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& /* obj */);
@@ -102,8 +91,7 @@ class CONTENT_EXPORT NavigationControllerAndroid {
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& /* obj */,
       jboolean state,
-      jboolean reload_on_state_change,
-      jint source);
+      jboolean reload_on_state_change);
   base::android::ScopedJavaLocalRef<jobject> GetEntryAtIndex(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
@@ -149,12 +137,10 @@ class CONTENT_EXPORT NavigationControllerAndroid {
       jint index);
 
  private:
-  void SetUseDesktopUserAgentInternal(bool enabled,
-                                      bool reload_on_state_change);
-
-  raw_ptr<NavigationControllerImpl> navigation_controller_;
+  NavigationControllerImpl* navigation_controller_;
   base::android::ScopedJavaGlobalRef<jobject> obj_;
-  base::WeakPtrFactory<NavigationControllerAndroid> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(NavigationControllerAndroid);
 };
 
 }  // namespace content

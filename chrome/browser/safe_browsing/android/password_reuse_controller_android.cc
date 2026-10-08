@@ -1,16 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/android/password_reuse_controller_android.h"
 
-#include <memory>
-
 #include "base/callback.h"
 #include "chrome/browser/ui/android/safe_browsing/password_reuse_dialog_view_android.h"
-#include "components/safe_browsing/core/browser/password_protection/metrics_util.h"
+#include "components/safe_browsing/content/password_protection/metrics_util.h"
 #include "components/strings/grit/components_strings.h"
-#include "ui/android/window_android.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace safe_browsing {
@@ -20,91 +17,50 @@ PasswordReuseControllerAndroid::PasswordReuseControllerAndroid(
     ChromePasswordProtectionService* service,
     ReusedPasswordAccountType password_type,
     OnWarningDone done_callback)
-    : content::WebContentsObserver(web_contents),
-      service_(service),
+    : service_(service),
       url_(web_contents->GetLastCommittedURL()),
       password_type_(password_type),
       window_android_(web_contents->GetTopLevelNativeWindow()),
       done_callback_(std::move(done_callback)) {
   modal_construction_start_time_ = base::TimeTicks::Now();
-
-  // |service| can be nullptr in tests
-  if (service)
-    service_->AddObserver(this);
+  service_->AddObserver(this);
 }
 
 PasswordReuseControllerAndroid::~PasswordReuseControllerAndroid() {
-  if (service_)
-    service_->RemoveObserver(this);
-
+  service_->RemoveObserver(this);
   dialog_view_.reset();
   LogModalWarningDialogLifetime(modal_construction_start_time_);
 }
 
 void PasswordReuseControllerAndroid::ShowDialog() {
-  dialog_view_ = std::make_unique<PasswordReuseDialogViewAndroid>(this);
-
+  dialog_view_.reset(new PasswordReuseDialogViewAndroid(this));
   DCHECK(window_android_);
   dialog_view_->Show(window_android_);
-}
-
-void PasswordReuseControllerAndroid::ShowCheckPasswords() {
-  if (done_callback_)
-    std::move(done_callback_).Run(WarningAction::CHANGE_PASSWORD);
-
-  delete this;
-}
-
-void PasswordReuseControllerAndroid::IgnoreDialog() {
-  if (done_callback_)
-    std::move(done_callback_).Run(WarningAction::IGNORE_WARNING);
-
-  delete this;
 }
 
 void PasswordReuseControllerAndroid::CloseDialog() {
   if (done_callback_)
     std::move(done_callback_).Run(WarningAction::CLOSE);
-
   delete this;
 }
 
-std::u16string PasswordReuseControllerAndroid::GetPrimaryButtonText() const {
-  if (password_type_.account_type() == ReusedPasswordAccountType::GMAIL &&
-      password_type_.is_account_syncing()) {
-    return l10n_util::GetStringUTF16(IDS_PAGE_INFO_PROTECT_ACCOUNT_BUTTON);
-  } else if (password_type_.account_type() ==
-             ReusedPasswordAccountType::SAVED_PASSWORD) {
-    return l10n_util::GetStringUTF16(IDS_PAGE_INFO_CHECK_PASSWORDS_BUTTON);
-  }
-
+base::string16 PasswordReuseControllerAndroid::GetButtonText() const {
   return l10n_util::GetStringUTF16(IDS_CLOSE);
 }
 
-std::u16string PasswordReuseControllerAndroid::GetSecondaryButtonText() const {
-  if ((password_type_.account_type() == ReusedPasswordAccountType::GMAIL &&
-       password_type_.is_account_syncing()) ||
-      (password_type_.account_type() ==
-       ReusedPasswordAccountType::SAVED_PASSWORD)) {
-    return l10n_util::GetStringUTF16(
-        IDS_PAGE_INFO_IGNORE_PASSWORD_WARNING_BUTTON);
-  }
-
-  return std::u16string();
+base::string16 PasswordReuseControllerAndroid::GetWarningDetailText(
+    std::vector<size_t>* placeholder_offsets) const {
+  return service_->GetWarningDetailText(password_type_, placeholder_offsets);
 }
 
-std::u16string PasswordReuseControllerAndroid::GetWarningDetailText() const {
-  return service_->GetWarningDetailText(password_type_);
-}
-
-std::u16string PasswordReuseControllerAndroid::GetTitle() const {
-  if (password_type_.account_type() ==
-      ReusedPasswordAccountType::SAVED_PASSWORD) {
-    return l10n_util::GetStringUTF16(
-        IDS_PAGE_INFO_CHANGE_PASSWORD_SAVED_PASSWORD_SUMMARY);
-  }
-
+base::string16 PasswordReuseControllerAndroid::GetTitle() const {
   return l10n_util::GetStringUTF16(IDS_PAGE_INFO_CHANGE_PASSWORD_SUMMARY);
+}
+
+const std::vector<base::string16>
+PasswordReuseControllerAndroid::GetPlaceholdersForSavedPasswordWarningText()
+    const {
+  return service_->GetPlaceholdersForSavedPasswordWarningText();
 }
 
 void PasswordReuseControllerAndroid::OnGaiaPasswordChanged() {
@@ -133,11 +89,6 @@ WarningUIType PasswordReuseControllerAndroid::GetObserverType() {
 
 void PasswordReuseControllerAndroid::WebContentsDestroyed() {
   delete this;
-}
-
-void PasswordReuseControllerAndroid::SetReusedPasswordAccountTypeForTesting(
-    ReusedPasswordAccountType password_type) {
-  password_type_ = password_type;
 }
 
 }  // namespace safe_browsing

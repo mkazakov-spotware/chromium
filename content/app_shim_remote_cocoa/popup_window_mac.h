@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CONTENT_APP_SHIM_REMOTE_COCOA_POPUP_WINDOW_MAC_H_
 
 #import "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "content/public/common/widget_type.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -20,11 +21,8 @@ namespace remote_cocoa {
 class PopupWindowMac {
  public:
   PopupWindowMac(const gfx::Rect& content_rect,
+                 bool has_shadow,
                  RenderWidgetHostViewCocoa* cocoa_view);
-
-  PopupWindowMac(const PopupWindowMac&) = delete;
-  PopupWindowMac& operator=(const PopupWindowMac&) = delete;
-
   ~PopupWindowMac();
 
   NSWindow* window() { return popup_window_.get(); }
@@ -34,6 +32,8 @@ class PopupWindowMac {
 
   // Weak.
   RenderWidgetHostViewCocoa* cocoa_view_ = nil;
+
+  DISALLOW_COPY_AND_ASSIGN(PopupWindowMac);
 };
 
 }  // namespace remote_cocoa

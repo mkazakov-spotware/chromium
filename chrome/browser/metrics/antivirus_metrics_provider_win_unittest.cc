@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -18,7 +19,6 @@
 #include "chrome/services/util_win/util_win_impl.h"
 #include "components/variations/hashing.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -73,10 +73,6 @@ class AntiVirusMetricsProviderTest : public ::testing::TestWithParam<bool> {
     provider_.SetRemoteUtilWinForTesting(std::move(remote));
   }
 
-  AntiVirusMetricsProviderTest(const AntiVirusMetricsProviderTest&) = delete;
-  AntiVirusMetricsProviderTest& operator=(const AntiVirusMetricsProviderTest&) =
-      delete;
-
   void GetMetricsCallback() {
     // Check that the callback runs on the main loop.
     ASSERT_TRUE(thread_checker_.CalledOnValidThread());
@@ -99,19 +95,24 @@ class AntiVirusMetricsProviderTest : public ::testing::TestWithParam<bool> {
   // enabled or not.
   void SetFullNamesFeatureEnabled(bool enabled) {
     if (enabled) {
-      scoped_feature_list_.InitAndEnableFeature(kReportFullAVProductDetails);
+      scoped_feature_list_.InitAndEnableFeature(
+          AntiVirusMetricsProvider::kReportNamesFeature);
     } else {
-      scoped_feature_list_.InitAndDisableFeature(kReportFullAVProductDetails);
+      scoped_feature_list_.InitAndDisableFeature(
+          AntiVirusMetricsProvider::kReportNamesFeature);
     }
   }
 
   bool got_results_;
   bool expect_unhashed_value_;
   base::test::TaskEnvironment task_environment_;
-  absl::optional<UtilWinImpl> util_win_impl_;
+  base::Optional<UtilWinImpl> util_win_impl_;
   AntiVirusMetricsProvider provider_;
   base::test::ScopedFeatureList scoped_feature_list_;
   base::ThreadCheckerImpl thread_checker_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AntiVirusMetricsProviderTest);
 };
 
 // TODO(crbug.com/682286): Flaky on Windows 10.

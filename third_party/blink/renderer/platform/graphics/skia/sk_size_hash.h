@@ -26,6 +26,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_SKIA_SK_SIZE_HASH_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_SKIA_SK_SIZE_HASH_H_
 
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/skia/include/core/SkScalar.h"
 #include "third_party/skia/include/core/SkSize.h"
 
@@ -34,11 +35,14 @@ namespace WTF {
 template <>
 struct DefaultHash<SkSize> {
   STATIC_ONLY(DefaultHash);
-  static unsigned GetHash(const SkSize& key) {
-    return HashInts(key.width(), key.height());
-  }
-  static bool Equal(const SkSize& a, const SkSize& b) { return a == b; }
-  static const bool safe_to_compare_to_empty_or_deleted = true;
+  struct Hash {
+    STATIC_ONLY(Hash);
+    static unsigned GetHash(const SkSize& key) {
+      return HashInts(key.width(), key.height());
+    }
+    static bool Equal(const SkSize& a, const SkSize& b) { return a == b; }
+    static const bool safe_to_compare_to_empty_or_deleted = true;
+  };
 };
 
 template <>
@@ -57,11 +61,14 @@ struct HashTraits<SkSize> : GenericHashTraits<SkSize> {
 template <>
 struct DefaultHash<SkISize> {
   STATIC_ONLY(DefaultHash);
-  static unsigned GetHash(const SkISize& key) {
-    return HashInts(key.width(), key.height());
-  }
-  static bool Equal(const SkISize& a, const SkISize& b) { return a == b; }
-  static const bool safe_to_compare_to_empty_or_deleted = true;
+  struct Hash {
+    STATIC_ONLY(Hash);
+    static unsigned GetHash(const SkISize& key) {
+      return HashInts(key.width(), key.height());
+    }
+    static bool Equal(const SkISize& a, const SkISize& b) { return a == b; }
+    static const bool safe_to_compare_to_empty_or_deleted = true;
+  };
 };
 
 template <>

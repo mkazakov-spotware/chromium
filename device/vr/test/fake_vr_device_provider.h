@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "device/vr/public/cpp/vr_device_provider.h"
 #include "device/vr/vr_device_base.h"
 #include "device/vr/vr_export.h"
@@ -19,10 +18,6 @@ namespace device {
 class DEVICE_VR_EXPORT FakeVRDeviceProvider : public VRDeviceProvider {
  public:
   FakeVRDeviceProvider();
-
-  FakeVRDeviceProvider(const FakeVRDeviceProvider&) = delete;
-  FakeVRDeviceProvider& operator=(const FakeVRDeviceProvider&) = delete;
-
   ~FakeVRDeviceProvider() override;
 
   // Adds devices to the provider with the given device, which will be
@@ -30,13 +25,27 @@ class DEVICE_VR_EXPORT FakeVRDeviceProvider : public VRDeviceProvider {
   void AddDevice(std::unique_ptr<VRDeviceBase> device);
   void RemoveDevice(mojom::XRDeviceId device_id);
 
-  void Initialize(VRDeviceProviderClient* client) override;
+  void Initialize(
+      base::RepeatingCallback<void(mojom::XRDeviceId,
+                                   mojom::VRDisplayInfoPtr,
+                                   mojom::XRDeviceDataPtr,
+                                   mojo::PendingRemote<mojom::XRRuntime>)>
+          add_device_callback,
+      base::RepeatingCallback<void(mojom::XRDeviceId)> remove_device_callback,
+      base::OnceClosure initialization_complete) override;
   bool Initialized() override;
 
  private:
   std::vector<std::unique_ptr<VRDeviceBase>> devices_;
   bool initialized_;
-  raw_ptr<VRDeviceProviderClient> client_ = nullptr;
+  base::RepeatingCallback<void(mojom::XRDeviceId,
+                               mojom::VRDisplayInfoPtr,
+                               mojom::XRDeviceDataPtr,
+                               mojo::PendingRemote<mojom::XRRuntime>)>
+      add_device_callback_;
+  base::RepeatingCallback<void(mojom::XRDeviceId)> remove_device_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeVRDeviceProvider);
 };
 
 }  // namespace device

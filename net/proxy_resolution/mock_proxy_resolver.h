@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/net_errors.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/proxy_resolution/proxy_resolver.h"
 #include "net/proxy_resolution/proxy_resolver_factory.h"
 #include "url/gurl.h"
@@ -38,9 +38,9 @@ class MockAsyncProxyResolver : public ProxyResolver {
     ~Job();
 
    private:
-    raw_ptr<MockAsyncProxyResolver> resolver_;
+    MockAsyncProxyResolver* resolver_;
     const GURL url_;
-    raw_ptr<ProxyInfo> results_;
+    ProxyInfo* results_;
     CompletionOnceCallback callback_;
   };
 
@@ -61,7 +61,7 @@ class MockAsyncProxyResolver : public ProxyResolver {
 
   // ProxyResolver implementation.
   int GetProxyForURL(const GURL& url,
-                     const NetworkAnonymizationKey& network_anonymization_key,
+                     const NetworkIsolationKey& network_isolation_key,
                      ProxyInfo* results,
                      CompletionOnceCallback callback,
                      std::unique_ptr<Request>* request,
@@ -136,9 +136,9 @@ class MockAsyncProxyResolverFactory::Request
 
   void FactoryDestroyed();
 
-  raw_ptr<MockAsyncProxyResolverFactory> factory_;
+  MockAsyncProxyResolverFactory* factory_;
   const scoped_refptr<PacFileData> script_data_;
-  raw_ptr<std::unique_ptr<ProxyResolver>> resolver_;
+  std::unique_ptr<ProxyResolver>* resolver_;
   CompletionOnceCallback callback_;
 };
 
@@ -148,19 +148,18 @@ class ForwardingProxyResolver : public ProxyResolver {
  public:
   explicit ForwardingProxyResolver(ProxyResolver* impl);
 
-  ForwardingProxyResolver(const ForwardingProxyResolver&) = delete;
-  ForwardingProxyResolver& operator=(const ForwardingProxyResolver&) = delete;
-
   // ProxyResolver overrides.
   int GetProxyForURL(const GURL& query_url,
-                     const NetworkAnonymizationKey& network_anonymization_key,
+                     const NetworkIsolationKey& network_isolation_key,
                      ProxyInfo* results,
                      CompletionOnceCallback callback,
                      std::unique_ptr<Request>* request,
                      const NetLogWithSource& net_log) override;
 
  private:
-  raw_ptr<ProxyResolver> impl_;
+  ProxyResolver* impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(ForwardingProxyResolver);
 };
 
 }  // namespace net

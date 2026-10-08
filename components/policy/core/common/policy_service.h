@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list_types.h"
-#include "base/scoped_observation_traits.h"
 #include "build/build_config.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_namespace.h"
@@ -21,7 +20,7 @@ namespace policy {
 
 class ConfigurationPolicyProvider;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 namespace android {
 class PolicyServiceAndroid;
 }
@@ -36,7 +35,7 @@ class PolicyServiceAndroid;
 // BrowserProcess as a global singleton.
 class POLICY_EXPORT PolicyService {
  public:
-  class POLICY_EXPORT Observer : public base::CheckedObserver {
+  class POLICY_EXPORT Observer {
    public:
     // Invoked whenever policies for the given |ns| namespace are modified.
     // This is only invoked for changes that happen after AddObserver is called.
@@ -61,19 +60,20 @@ class POLICY_EXPORT PolicyService {
     // will wait for cloud policies to be fetched when the local cache is not
     // available, which may take some time depending on user's network.
     virtual void OnFirstPoliciesLoaded(PolicyDomain domain) {}
+
+   protected:
+    virtual ~Observer() {}
   };
 
   class POLICY_EXPORT ProviderUpdateObserver : public base::CheckedObserver {
    public:
-    // Invoked when the contents of a policy update signaled by |provider| are
-    // available through PolicyService::GetPolicies.
-    // This is intentionally also called if the policy update signaled by
-    // |provider| did not change the effective policy values. Note that multiple
-    // policy updates by |provider| can result in a single call to this
-    // function, e.g. if a subsequent policy update is signaled before the
-    // previous one has been processed by the PolicyService.
-    // Also note that when this is called, PolicyService's Observers may not
-    // have been called with the update that triggered this call yet.
+    // Invoked when a policy update signaled by |provider| has been propagated
+    // to the PolicyService's Observers and its contents are now available
+    // through PolicyService::GetPolicies. This is intentionally also called if
+    // the policy update signaled by |provider| did not change the effective
+    // policy values. Note that multiple policy updates by |provider| can result
+    // in a single call to this function, e.g. if a subsequent policy update is
+    // signaled before the previous one has been processed by the PolicyService.
     virtual void OnProviderUpdatePropagated(
         ConfigurationPolicyProvider* provider) = 0;
   };
@@ -129,7 +129,7 @@ class POLICY_EXPORT PolicyService {
   // GetPolicies() is guaranteed to return the updated values at that point.
   virtual void RefreshPolicies(base::OnceClosure callback) = 0;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Get the PolicyService JNI bridge instance.
   virtual android::PolicyServiceAndroid* GetPolicyServiceAndroid() = 0;
 #endif
@@ -148,8 +148,6 @@ class POLICY_EXPORT PolicyChangeRegistrar : public PolicyService::Observer {
   // outlive |this|.
   PolicyChangeRegistrar(PolicyService* policy_service,
                         const PolicyNamespace& ns);
-  PolicyChangeRegistrar(const PolicyChangeRegistrar&) = delete;
-  PolicyChangeRegistrar& operator=(const PolicyChangeRegistrar&) = delete;
 
   ~PolicyChangeRegistrar() override;
 
@@ -167,30 +165,13 @@ class POLICY_EXPORT PolicyChangeRegistrar : public PolicyService::Observer {
  private:
   typedef std::map<std::string, UpdateCallback> CallbackMap;
 
-  raw_ptr<PolicyService> policy_service_;
+  PolicyService* policy_service_;
   PolicyNamespace ns_;
   CallbackMap callback_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(PolicyChangeRegistrar);
 };
 
 }  // namespace policy
-
-namespace base {
-
-template <>
-struct ScopedObservationTraits<policy::PolicyService,
-                               policy::PolicyService::ProviderUpdateObserver> {
-  static void AddObserver(
-      policy::PolicyService* source,
-      policy::PolicyService::ProviderUpdateObserver* observer) {
-    source->AddProviderUpdateObserver(observer);
-  }
-  static void RemoveObserver(
-      policy::PolicyService* source,
-      policy::PolicyService::ProviderUpdateObserver* observer) {
-    source->RemoveProviderUpdateObserver(observer);
-  }
-};
-
-}  // namespace base
 
 #endif  // COMPONENTS_POLICY_CORE_COMMON_POLICY_SERVICE_H_

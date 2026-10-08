@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that responseReceived is called on NetworkDispatcher for downloads.\n`);
-  await TestRunner.loadTestModule('network_test_runner');
+
+  await TestRunner.loadModule('browser_sdk');
   await TestRunner.showPanel('network');
 
   await TestRunner.evaluateInPagePromise(`
@@ -21,9 +22,8 @@
   TestRunner.addSniffer(SDK.NetworkDispatcher.prototype, 'loadingFinished', loadingFinished);
   TestRunner.addIframe('resources/download.zzz');
 
-  function responseReceived(event) {
-    var request = NetworkTestRunner.networkLog().requestByManagerAndId(
-        TestRunner.networkManager, event.requestId);
+  function responseReceived(requestId, time, resourceType, response) {
+    var request = SDK.NetworkLog.instance().requestByManagerAndId(TestRunner.networkManager, requestId);
 
     if (/download\.zzz/.exec(request.url())) {
       TestRunner.addResult('Received response for download.zzz');
@@ -32,16 +32,14 @@
     }
   }
 
-  function loadingFinished(event) {
-    var request = NetworkTestRunner.networkLog().requestByManagerAndId(
-        TestRunner.networkManager, event.requestId);
+  function loadingFinished(requestId, finishTime) {
+    var request = SDK.NetworkLog.instance().requestByManagerAndId(TestRunner.networkManager, requestId);
 
     if (/download\.zzz/.exec(request.url())) TestRunner.completeTest();
   }
 
-  function loadingFailed(event) {
-    var request = NetworkTestRunner.networkLog().requestByManagerAndId(
-        TestRunner.networkManager, event.requestId);
+  function loadingFailed(requestId, time, localizedDescription, canceled) {
+    var request = SDK.NetworkLog.instance().requestByManagerAndId(TestRunner.networkManager, requestId);
 
     if (/download\.zzz/.exec(request.url())) TestRunner.completeTest();
   }

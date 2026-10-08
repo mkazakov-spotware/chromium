@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,14 @@
 
 namespace printing {
 
-NupParameters::NupParameters(int pages_per_sheet, bool is_source_landscape) {
-  SetParameters(pages_per_sheet, is_source_landscape);
+NupParameters::NupParameters() {
+  Clear();
+}
+
+void NupParameters::Clear() {
+  landscape_ = false;
+  num_pages_on_x_axis_ = 1;
+  num_pages_on_y_axis_ = 1;
 }
 
 // static

@@ -1,8 +1,17 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// All Rights Reserved
 
 /**
  * @fileoverview A driver for testing renderers.
@@ -34,7 +43,6 @@ goog.require('goog.ui.ControlRenderer');
  */
 goog.testing.ui.RendererHarness = function(
     renderer, renderParent, decorateParent) {
-  'use strict';
   goog.Disposable.call(this);
 
   /**
@@ -106,7 +114,6 @@ goog.testing.ui.RendererHarness.prototype.verified_ = false;
  */
 goog.testing.ui.RendererHarness.prototype.attachControlAndRender = function(
     control) {
-  'use strict';
   this.renderControl_ = control;
 
   control.setRenderer(this.renderer_);
@@ -122,12 +129,11 @@ goog.testing.ui.RendererHarness.prototype.attachControlAndRender = function(
  */
 goog.testing.ui.RendererHarness.prototype.attachControlAndDecorate = function(
     control) {
-  'use strict';
   this.decorateControl_ = control;
 
   control.setRenderer(this.renderer_);
 
-  const child = this.decorateParent_.firstChild;
+  var child = this.decorateParent_.firstChild;
   assertEquals(
       'The decorated node must be an element', goog.dom.NodeType.ELEMENT,
       child.nodeType);
@@ -140,7 +146,6 @@ goog.testing.ui.RendererHarness.prototype.attachControlAndDecorate = function(
  * Assert that the rendered element and the decorated element match.
  */
 goog.testing.ui.RendererHarness.prototype.assertDomMatches = function() {
-  'use strict';
   assert(
       'Both elements were not generated',
       !!(this.renderControl_ && this.decorateControl_));
@@ -157,7 +162,6 @@ goog.testing.ui.RendererHarness.prototype.assertDomMatches = function() {
  * @protected
  */
 goog.testing.ui.RendererHarness.prototype.disposeInternal = function() {
-  'use strict';
   // If the harness was not verified appropriately, throw an exception.
   assert(
       'Expected assertDomMatches to be called',

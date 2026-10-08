@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,17 +35,14 @@ bool MarkUrlRenderedSync(sql::Database* db,
   // in the database. For GetOperation, the operation name is already set.
   // This statement ensures that the item's operation_name is assigned, and that
   // an item can't be reassigned an operation name.
-  static constexpr char kSql[] =
-      // clang-format off
-      "UPDATE prefetch_items "
-          "SET state=?,"
-              "final_archived_url=?,"
-              "archive_body_name=?,"
-              "archive_body_length=?,"
-              "operation_name=? "
-          "WHERE requested_url=? AND state IN (?,?) "
-              "AND operation_name IN ('',?)";
-  // clang-format on
+  static const char kSql[] = R"(UPDATE prefetch_items
+    SET state = ?,
+        final_archived_url = ?,
+        archive_body_name = ?,
+        archive_body_length = ?,
+        operation_name = ?
+    WHERE requested_url = ? AND state IN (?, ?) AND operation_name IN ("", ?)
+  )";
 
   sql::Statement statement(db->GetCachedStatement(SQL_FROM_HERE, kSql));
   DCHECK(statement.is_valid());
@@ -81,15 +78,12 @@ void MarkUrlFailedSync(sql::Database* db,
                        PrefetchItemErrorCode final_status) {
   DCHECK_NE(page.status, RenderStatus::RENDERED);
 
-  static constexpr char kSql[] =
-      // clang-format off
-      "UPDATE prefetch_items "
-          "SET state=?,"
-              "error_code=?,"
-              "operation_name=? "
-          "WHERE requested_url=? AND state IN (?,?) "
-              "AND operation_name IN ('',?)";
-  // clang-format on
+  static const char kSql[] = R"(UPDATE prefetch_items
+    SET state = ?,
+        error_code = ?,
+        operation_name = ?
+    WHERE requested_url = ? AND state IN (?, ?) AND operation_name IN ("", ?)
+  )";
 
   sql::Statement statement(db->GetCachedStatement(SQL_FROM_HERE, kSql));
   DCHECK(statement.is_valid());
@@ -117,11 +111,11 @@ void MarkUrlFailedSync(sql::Database* db,
 void MarkAwaitingGCMSync(sql::Database* db,
                          const RenderPageInfo& page,
                          const std::string& operation_name) {
-  static constexpr char kSql[] =
-      // clang-format off
-      "UPDATE prefetch_items "
-          "SET state=?,operation_name=? "
-          "WHERE state=? AND requested_url=?";
+  static const char kSql[] = R"(UPDATE prefetch_items
+    SET state = ?,
+        operation_name = ?
+    WHERE state = ? AND requested_url = ?
+  )";
 
   sql::Statement statement(db->GetCachedStatement(SQL_FROM_HERE, kSql));
   DCHECK(statement.is_valid());

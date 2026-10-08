@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "ash/shell.h"
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_event_dispatcher.h"
@@ -35,9 +35,6 @@ class CallbackRunningObserver {
         animation_aborted_(false),
         callback_(std::move(callback)) {}
 
-  CallbackRunningObserver(const CallbackRunningObserver&) = delete;
-  CallbackRunningObserver& operator=(const CallbackRunningObserver&) = delete;
-
   void AddNewAnimator(ui::LayerAnimator* animator) {
     auto observer = std::make_unique<Observer>(animator, this);
     animator->AddObserver(observer.get());
@@ -48,11 +45,10 @@ class CallbackRunningObserver {
   void OnSingleTaskCompleted() {
     completed_counter_++;
     if (completed_counter_ >= observer_list_.size()) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                    this);
+      base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
       if (!animation_aborted_)
-        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-            FROM_HERE, std::move(callback_));
+        base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                      std::move(callback_));
     }
   }
 
@@ -66,9 +62,6 @@ class CallbackRunningObserver {
    public:
     Observer(ui::LayerAnimator* animator, CallbackRunningObserver* observer)
         : animator_(animator), observer_(observer) {}
-
-    Observer(const Observer&) = delete;
-    Observer& operator=(const Observer&) = delete;
 
    protected:
     // ui::LayerAnimationObserver overrides:
@@ -90,12 +83,16 @@ class CallbackRunningObserver {
    private:
     ui::LayerAnimator* animator_;
     CallbackRunningObserver* observer_;
+
+    DISALLOW_COPY_AND_ASSIGN(Observer);
   };
 
   size_t completed_counter_;
   bool animation_aborted_;
   std::vector<std::unique_ptr<Observer>> observer_list_;
   base::OnceClosure callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(CallbackRunningObserver);
 };
 
 }  // namespace
@@ -132,7 +129,7 @@ void DisplayAnimator::StartFadeOutAnimation(base::OnceClosure callback) {
 
     ui::ScopedLayerAnimationSettings settings(hiding_layer->GetAnimator());
     settings.SetTransitionDuration(
-        base::Milliseconds(kFadingAnimationDurationInMS));
+        base::TimeDelta::FromMilliseconds(kFadingAnimationDurationInMS));
     observer->AddNewAnimator(hiding_layer->GetAnimator());
     hiding_layer->SetOpacity(1.0f);
     hiding_layer->SetVisible(true);
@@ -142,9 +139,10 @@ void DisplayAnimator::StartFadeOutAnimation(base::OnceClosure callback) {
   // In case that OnDisplayModeChanged() isn't called or its animator is
   // canceled due to some unknown errors, we set a timer to clear these
   // hiding layers.
-  timer_ = std::make_unique<base::OneShotTimer>();
-  timer_->Start(FROM_HERE, base::Seconds(kFadingTimeoutDurationInSeconds), this,
-                &DisplayAnimator::ClearHidingLayers);
+  timer_.reset(new base::OneShotTimer());
+  timer_->Start(FROM_HERE,
+                base::TimeDelta::FromSeconds(kFadingTimeoutDurationInSeconds),
+                this, &DisplayAnimator::ClearHidingLayers);
 }
 
 void DisplayAnimator::StartFadeInAnimation() {
@@ -190,7 +188,7 @@ void DisplayAnimator::StartFadeInAnimation() {
 
     ui::ScopedLayerAnimationSettings settings(hiding_layer->GetAnimator());
     settings.SetTransitionDuration(
-        base::Milliseconds(kFadingAnimationDurationInMS));
+        base::TimeDelta::FromMilliseconds(kFadingAnimationDurationInMS));
     observer->AddNewAnimator(hiding_layer->GetAnimator());
     hiding_layer->SetOpacity(0.0f);
     hiding_layer->SetVisible(false);

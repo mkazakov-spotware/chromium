@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 #define CHROME_BROWSER_UI_VIEWS_MEDIA_ROUTER_PRESENTATION_RECEIVER_WINDOW_VIEW_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/command_updater_delegate.h"
 #include "chrome/browser/command_updater_impl.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
@@ -19,7 +18,6 @@
 #include "chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h"
 #include "chrome/browser/ui/views/exclusive_access_bubble_views_context.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/widget/widget_delegate.h"
 
 class ExclusiveAccessBubbleViews;
@@ -27,7 +25,7 @@ class PresentationReceiverWindowDelegate;
 class PresentationReceiverWindowFrame;
 class LocationBarModelImpl;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 class FullscreenWindowObserver;
 #endif
 
@@ -44,13 +42,8 @@ class PresentationReceiverWindowView final
       public ExclusiveAccessBubbleViewsContext,
       public ui::AcceleratorProvider {
  public:
-  METADATA_HEADER(PresentationReceiverWindowView);
   PresentationReceiverWindowView(PresentationReceiverWindowFrame* frame,
                                  PresentationReceiverWindowDelegate* delegate);
-  PresentationReceiverWindowView(const PresentationReceiverWindowView&) =
-      delete;
-  PresentationReceiverWindowView& operator=(
-      const PresentationReceiverWindowView&) = delete;
   ~PresentationReceiverWindowView() final;
 
   void Init();
@@ -81,7 +74,8 @@ class PresentationReceiverWindowView final
   content::WebContents* GetActiveWebContents() const final;
 
   // views::WidgetDelegateView overrides.
-  std::u16string GetWindowTitle() const final;
+  void DeleteDelegate() final;
+  base::string16 GetWindowTitle() const final;
 
   // ui::AcceleratorTarget overrides.
   bool AcceleratorPressed(const ui::Accelerator& accelerator) final;
@@ -97,9 +91,7 @@ class PresentationReceiverWindowView final
       const GURL& url,
       ExclusiveAccessBubbleType bubble_type,
       ExclusiveAccessBubbleHideCallback bubble_first_hide_callback,
-      bool notify_download,
       bool force_update) final;
-  bool IsExclusiveAccessBubbleDisplayed() const final;
   void OnExclusiveAccessUserInput() final;
   content::WebContents* GetActiveWebContents() final;
   bool CanUserExitFullscreen() const final;
@@ -124,19 +116,21 @@ class PresentationReceiverWindowView final
   // Updates the UI in response to a change to fullscreen state.
   void OnFullscreenChanged();
 
-  const raw_ptr<PresentationReceiverWindowFrame> frame_;
-  const raw_ptr<PresentationReceiverWindowDelegate> delegate_;
-  std::u16string title_;
+  PresentationReceiverWindowFrame* const frame_;
+  PresentationReceiverWindowDelegate* const delegate_;
+  base::string16 title_;
   const std::unique_ptr<LocationBarModelImpl> location_bar_model_;
   CommandUpdaterImpl command_updater_;
-  raw_ptr<LocationBarView> location_bar_view_ = nullptr;
+  LocationBarView* location_bar_view_ = nullptr;
   ExclusiveAccessManager exclusive_access_manager_;
   ui::Accelerator fullscreen_accelerator_;
   std::unique_ptr<ExclusiveAccessBubbleViews> exclusive_access_bubble_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   std::unique_ptr<FullscreenWindowObserver> window_observer_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(PresentationReceiverWindowView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_MEDIA_ROUTER_PRESENTATION_RECEIVER_WINDOW_VIEW_H_

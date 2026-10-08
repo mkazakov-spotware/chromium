@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,52 +6,96 @@
  * @fileoverview 'os-settings-add-languages-dialog' is a dialog for enabling
  * languages.
  */
+Polymer({
+  is: 'os-settings-add-languages-dialog',
 
-import './add_items_dialog.js';
+  behaviors: [
+    CrScrollableBehavior,
+    FindShortcutBehavior,
+  ],
 
-import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  properties: {
+    /** @type {!LanguagesModel|undefined} */
+    languages: {
+      type: Object,
+      notify: true,
+    },
 
-import {Item} from './add_items_dialog.js';
-import {LanguageHelper, LanguagesModel} from './languages_types.js';
-import {getTemplate} from './os_add_languages_dialog.html.js';
+    /** @type {!LanguageHelper} */
+    languageHelper: Object,
 
-/** @polymer */
-class OsSettingsAddLanguagesDialogElement extends PolymerElement {
-  static get is() {
-    return 'os-settings-add-languages-dialog';
-  }
-
-  static get template() {
-    return getTemplate();
-  }
-
-  static get properties() {
-    return {
-      /** @type {!LanguagesModel|undefined} */
-      languages: {
-        type: Object,
-        notify: true,
+    /** @private {!Set<string>} */
+    languagesToAdd_: {
+      type: Object,
+      value() {
+        return new Set();
       },
+    },
 
-      /** @type {!LanguageHelper} */
-      languageHelper: Object,
-    };
-  }
+    /** @private */
+    disableActionButton_: {
+      type: Boolean,
+      value: true,
+    },
+
+    /** @private */
+    filterValue_: {
+      type: String,
+      value: '',
+    },
+  },
+
+  /** @override */
+  attached() {
+    this.$.dialog.showModal();
+  },
+
+  // Override FindShortcutBehavior methods.
+  handleFindShortcut(modalContextOpen) {
+    // Assumes this is the only open modal.
+    const searchInput = this.$.search.getSearchInput();
+    searchInput.scrollIntoViewIfNeeded();
+    if (!this.searchInputHasFocus()) {
+      searchInput.focus();
+    }
+    return true;
+  },
+
+  // Override FindShortcutBehavior methods.
+  searchInputHasFocus() {
+    return this.$.search.getSearchInput() ===
+        this.$.search.shadowRoot.activeElement;
+  },
 
   /**
-   * @return {!Array<!Item>} A list of languages to be displayed in the dialog.
+   * @param {!CustomEvent<string>} e
+   * @private
+   */
+  onSearchChanged_(e) {
+    this.filterValue_ = e.detail;
+  },
+
+  /**
+   * @return {!Array<!chrome.languageSettingsPrivate.Language>} A list of
+   *     languages to be displayed.
    * @private
    */
   getLanguages_() {
-    return this.languages.supported
-        .filter(language => this.languageHelper.canEnableLanguage(language))
-        .map(language => ({
-               id: language.code,
-               name: this.getDisplayText_(language),
-               searchTerms: [language.displayName, language.nativeDisplayName],
-               disabledByPolicy: false,
-             }));
-  }
+    const filterValue =
+        this.filterValue_ ? this.filterValue_.toLowerCase() : null;
+    return this.languages.supported.filter(language => {
+      if (!this.languageHelper.canEnableLanguage(language)) {
+        return false;
+      }
+
+      if (filterValue === null) {
+        return true;
+      }
+
+      return language.displayName.toLowerCase().includes(filterValue) ||
+          language.nativeDisplayName.toLowerCase().includes(filterValue);
+    });
+  },
 
   /**
    * @param {!chrome.languageSettingsPrivate.Language} language
@@ -65,20 +109,65 @@ class OsSettingsAddLanguagesDialogElement extends PolymerElement {
       displayText += ' - ' + language.nativeDisplayName;
     }
     return displayText;
-  }
+  },
+
+  /**
+   * True if the user has chosen to add this language (checked its checkbox).
+   * @param {string} languageCode
+   * @return {boolean}
+   * @private
+   */
+  willAdd_(languageCode) {
+    return this.languagesToAdd_.has(languageCode);
+  },
+
+  /**
+   * Handler for checking or unchecking a language item.
+   * @param {!{model: !{item: !chrome.languageSettingsPrivate.Language},
+   *           target: !Element}} e
+   * @private
+   */
+  onLanguageCheckboxChange_(e) {
+    // Add or remove the item to the Set. No need to worry about data binding:
+    // willAdd_ is called to initialize the checkbox state (in case the
+    // iron-list re-uses a previous checkbox), and the checkbox can only be
+    // changed after that by user action.
+    const language = e.model.item;
+    if (e.target.checked) {
+      this.languagesToAdd_.add(language.code);
+    } else {
+      this.languagesToAdd_.delete(language.code);
+    }
+
+    this.disableActionButton_ = !this.languagesToAdd_.size;
+  },
+
+  /** @private */
+  onCancelButtonTap_() {
+    this.$.dialog.close();
+  },
 
   /**
    * Enables the checked languages.
-   * @param {!CustomEvent<!Set<string>>} e
    * @private
    */
-  onItemsAdded_(e) {
-    e.detail.forEach(languageCode => {
+  onActionButtonTap_() {
+    this.$.dialog.close();
+    this.languagesToAdd_.forEach(languageCode => {
       this.languageHelper.enableLanguage(languageCode);
     });
-  }
-}
+  },
 
-customElements.define(
-    OsSettingsAddLanguagesDialogElement.is,
-    OsSettingsAddLanguagesDialogElement);
+  /**
+   * @param {!KeyboardEvent} e
+   * @private
+   */
+  onKeydown_(e) {
+    // Close dialog if 'esc' is pressed and the search box is already empty.
+    if (e.key === 'Escape' && !this.$.search.getValue().trim()) {
+      this.$.dialog.close();
+    } else if (e.key !== 'PageDown' && e.key !== 'PageUp') {
+      this.$.search.scrollIntoViewIfNeeded();
+    }
+  },
+});

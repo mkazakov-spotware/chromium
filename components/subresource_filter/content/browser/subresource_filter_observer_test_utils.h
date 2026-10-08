@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,18 @@
 #define COMPONENTS_SUBRESOURCE_FILTER_CONTENT_BROWSER_SUBRESOURCE_FILTER_OBSERVER_TEST_UTILS_H_
 
 #include <map>
-#include <set>
 #include <utility>
 
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/scoped_observation.h"
-#include "components/safe_browsing/core/browser/db/util.h"
-#include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
+#include "components/safe_browsing/core/db/util.h"
+#include "components/safe_browsing/core/db/v4_protocol_manager_util.h"
 #include "components/subresource_filter/content/browser/subresource_filter_observer.h"
 #include "components/subresource_filter/content/browser/subresource_filter_observer_manager.h"
 #include "components/subresource_filter/core/common/load_policy.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -34,11 +34,6 @@ class TestSubresourceFilterObserver : public SubresourceFilterObserver,
                                       public content::WebContentsObserver {
  public:
   explicit TestSubresourceFilterObserver(content::WebContents* web_contents);
-
-  TestSubresourceFilterObserver(const TestSubresourceFilterObserver&) = delete;
-  TestSubresourceFilterObserver& operator=(
-      const TestSubresourceFilterObserver&) = delete;
-
   ~TestSubresourceFilterObserver() override;
 
   // SubresourceFilterObserver:
@@ -46,45 +41,43 @@ class TestSubresourceFilterObserver : public SubresourceFilterObserver,
   void OnPageActivationComputed(
       content::NavigationHandle* navigation_handle,
       const mojom::ActivationState& activation_state) override;
-  void OnChildFrameNavigationEvaluated(
+  void OnSubframeNavigationEvaluated(
       content::NavigationHandle* navigation_handle,
-      LoadPolicy load_policy) override;
-  void OnIsAdFrameChanged(content::RenderFrameHost* render_frame_host,
-                          bool is_ad_frame) override;
+      LoadPolicy load_policy,
+      bool is_ad_subframe) override;
+  void OnAdSubframeDetected(
+      content::RenderFrameHost* render_frame_host) override;
 
   // content::WebContentsObserver
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
 
-  absl::optional<mojom::ActivationLevel> GetPageActivation(
+  base::Optional<mojom::ActivationLevel> GetPageActivation(
       const GURL& url) const;
-  absl::optional<LoadPolicy> GetChildFrameLoadPolicy(const GURL& url) const;
-
-  bool GetIsAdFrame(int frame_tree_node_id) const;
-
-  absl::optional<mojom::ActivationLevel> GetPageActivationForLastCommittedLoad()
+  base::Optional<LoadPolicy> GetSubframeLoadPolicy(const GURL& url) const;
+  base::Optional<bool> GetIsAdSubframe(int frame_tree_node_id) const;
+  base::Optional<mojom::ActivationLevel> GetPageActivationForLastCommittedLoad()
       const;
 
   using SafeBrowsingCheck =
       std::pair<safe_browsing::SBThreatType, safe_browsing::ThreatMetadata>;
-  absl::optional<SafeBrowsingCheck> GetSafeBrowsingResult(
+  base::Optional<SafeBrowsingCheck> GetSafeBrowsingResult(
       const GURL& url) const;
 
  private:
-  std::map<GURL, LoadPolicy> child_frame_load_evaluations_;
-
-  // Set of FrameTreeNode IDs representing frames tagged as ads.
-  std::set<int> ad_frames_;
+  std::map<GURL, LoadPolicy> subframe_load_evaluations_;
+  std::map<int, bool> ad_subframe_evaluations_;
 
   std::map<GURL, mojom::ActivationLevel> page_activations_;
   std::map<GURL, SafeBrowsingCheck> safe_browsing_checks_;
   std::map<content::NavigationHandle*, mojom::ActivationLevel>
       pending_activations_;
-  absl::optional<mojom::ActivationLevel> last_committed_activation_;
+  base::Optional<mojom::ActivationLevel> last_committed_activation_;
 
   base::ScopedObservation<SubresourceFilterObserverManager,
                           SubresourceFilterObserver>
       scoped_observation_{this};
+  DISALLOW_COPY_AND_ASSIGN(TestSubresourceFilterObserver);
 };
 
 }  // namespace subresource_filter

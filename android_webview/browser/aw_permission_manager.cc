@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,15 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/logging.h"
-#include "components/permissions/permission_util.h"
 #include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/permission_controller.h"
-#include "content/public/browser/permission_result.h"
+#include "content/public/browser/permission_type.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/blink/public/common/permissions/permission_utils.h"
 
-using blink::PermissionType;
 using blink::mojom::PermissionStatus;
+using content::PermissionType;
 
 using RequestPermissionsCallback =
     base::OnceCallback<void(const std::vector<PermissionStatus>&)>;
@@ -44,9 +42,6 @@ void PermissionRequestResponseCallbackWrapper(
 class LastRequestResultCache {
  public:
   LastRequestResultCache() = default;
-
-  LastRequestResultCache(const LastRequestResultCache&) = delete;
-  LastRequestResultCache& operator=(const LastRequestResultCache&) = delete;
 
   void SetResult(PermissionType permission,
                  const GURL& requesting_origin,
@@ -151,6 +146,8 @@ class LastRequestResultCache {
 
   using StatusMap = std::unordered_map<std::string, PermissionStatus>;
   StatusMap pmi_result_cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(LastRequestResultCache);
 };
 
 class AwPermissionManager::PendingRequest {
@@ -237,19 +234,20 @@ AwPermissionManager::~AwPermissionManager() {
   CancelPermissionRequests();
 }
 
-void AwPermissionManager::RequestPermission(
+int AwPermissionManager::RequestPermission(
     PermissionType permission,
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     bool user_gesture,
     base::OnceCallback<void(PermissionStatus)> callback) {
-  RequestPermissions(std::vector<PermissionType>(1, permission),
-                     render_frame_host, requesting_origin, user_gesture,
-                     base::BindOnce(&PermissionRequestResponseCallbackWrapper,
-                                    std::move(callback)));
+  return RequestPermissions(
+      std::vector<PermissionType>(1, permission), render_frame_host,
+      requesting_origin, user_gesture,
+      base::BindOnce(&PermissionRequestResponseCallbackWrapper,
+                     std::move(callback)));
 }
 
-void AwPermissionManager::RequestPermissions(
+int AwPermissionManager::RequestPermissions(
     const std::vector<PermissionType>& permissions,
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
@@ -257,7 +255,7 @@ void AwPermissionManager::RequestPermissions(
     base::OnceCallback<void(const std::vector<PermissionStatus>&)> callback) {
   if (permissions.empty()) {
     std::move(callback).Run(std::vector<PermissionStatus>());
-    return;
+    return content::PermissionController::kNoPendingOperation;
   }
 
   const GURL& embedding_origin = LastCommittedOrigin(render_frame_host);
@@ -329,6 +327,7 @@ void AwPermissionManager::RequestPermissions(
       case PermissionType::NOTIFICATIONS:
       case PermissionType::DURABLE_STORAGE:
       case PermissionType::BACKGROUND_SYNC:
+      case PermissionType::FLASH:
       case PermissionType::ACCESSIBILITY_EVENTS:
       case PermissionType::CLIPBOARD_READ_WRITE:
       case PermissionType::CLIPBOARD_SANITIZED_WRITE:
@@ -341,9 +340,8 @@ void AwPermissionManager::RequestPermissions(
       case PermissionType::AR:
       case PermissionType::STORAGE_ACCESS_GRANT:
       case PermissionType::CAMERA_PAN_TILT_ZOOM:
-      case PermissionType::WINDOW_MANAGEMENT:
-      case PermissionType::LOCAL_FONTS:
-      case PermissionType::DISPLAY_CAPTURE:
+      case PermissionType::WINDOW_PLACEMENT:
+      case PermissionType::FONT_ACCESS:
         NOTIMPLEMENTED() << "RequestPermissions is not implemented for "
                          << static_cast<int>(permissions[i]);
         pending_request_raw->SetPermissionStatus(permissions[i],
@@ -374,7 +372,7 @@ void AwPermissionManager::RequestPermissions(
   // If delegate resolve the permission synchronously, all requests could be
   // already resolved here.
   if (!pending_requests_.Lookup(request_id))
-    return;
+    return content::PermissionController::kNoPendingOperation;
 
   // If requests are resolved without calling delegate functions, e.g.
   // PermissionType::MIDI is permitted within the previous for-loop, all
@@ -386,7 +384,10 @@ void AwPermissionManager::RequestPermissions(
         std::move(pending_request_raw->callback);
     pending_requests_.Remove(request_id);
     std::move(completed_callback).Run(results);
+    return content::PermissionController::kNoPendingOperation;
   }
+
+  return request_id;
 }
 
 // static
@@ -442,17 +443,6 @@ void AwPermissionManager::ResetPermission(PermissionType permission,
   result_cache_->ClearResult(permission, requesting_origin, embedding_origin);
 }
 
-void AwPermissionManager::RequestPermissionsFromCurrentDocument(
-    const std::vector<PermissionType>& permissions,
-    content::RenderFrameHost* render_frame_host,
-    bool user_gesture,
-    base::OnceCallback<void(const std::vector<blink::mojom::PermissionStatus>&)>
-        callback) {
-  RequestPermissions(permissions, render_frame_host,
-                     LastCommittedOrigin(render_frame_host), user_gesture,
-                     std::move(callback));
-}
-
 PermissionStatus AwPermissionManager::GetPermissionStatus(
     PermissionType permission,
     const GURL& requesting_origin,
@@ -469,47 +459,27 @@ PermissionStatus AwPermissionManager::GetPermissionStatus(
   return PermissionStatus::DENIED;
 }
 
-content::PermissionResult
-AwPermissionManager::GetPermissionResultForOriginWithoutContext(
-    blink::PermissionType permission,
-    const url::Origin& origin) {
-  blink::mojom::PermissionStatus status =
-      GetPermissionStatus(permission, origin.GetURL(), origin.GetURL());
-
-  return content::PermissionResult(
-      status, content::PermissionStatusSource::UNSPECIFIED);
-}
-
-PermissionStatus AwPermissionManager::GetPermissionStatusForCurrentDocument(
+PermissionStatus AwPermissionManager::GetPermissionStatusForFrame(
     PermissionType permission,
-    content::RenderFrameHost* render_frame_host) {
+    content::RenderFrameHost* render_frame_host,
+    const GURL& requesting_origin) {
   return GetPermissionStatus(
-      permission,
-      permissions::PermissionUtil::GetLastCommittedOriginAsURL(
-          render_frame_host),
-      permissions::PermissionUtil::GetLastCommittedOriginAsURL(
-          render_frame_host->GetMainFrame()));
+      permission, requesting_origin,
+      content::WebContents::FromRenderFrameHost(render_frame_host)
+          ->GetLastCommittedURL()
+          .GetOrigin());
 }
 
-PermissionStatus AwPermissionManager::GetPermissionStatusForWorker(
+int AwPermissionManager::SubscribePermissionStatusChange(
     PermissionType permission,
-    content::RenderProcessHost* render_process_host,
-    const GURL& worker_origin) {
-  return GetPermissionStatus(permission, worker_origin, worker_origin);
-}
-
-AwPermissionManager::SubscriptionId
-AwPermissionManager::SubscribePermissionStatusChange(
-    PermissionType permission,
-    content::RenderProcessHost* render_process_host,
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     base::RepeatingCallback<void(PermissionStatus)> callback) {
-  return SubscriptionId();
+  return content::PermissionController::kNoPendingOperation;
 }
 
 void AwPermissionManager::UnsubscribePermissionStatusChange(
-    SubscriptionId subscription_id) {}
+    int subscription_id) {}
 
 void AwPermissionManager::CancelPermissionRequest(int request_id) {
   PendingRequest* pending_request = pending_requests_.Lookup(request_id);
@@ -565,6 +535,7 @@ void AwPermissionManager::CancelPermissionRequest(int request_id) {
       case PermissionType::AUDIO_CAPTURE:
       case PermissionType::VIDEO_CAPTURE:
       case PermissionType::BACKGROUND_SYNC:
+      case PermissionType::FLASH:
       case PermissionType::ACCESSIBILITY_EVENTS:
       case PermissionType::CLIPBOARD_READ_WRITE:
       case PermissionType::CLIPBOARD_SANITIZED_WRITE:
@@ -577,9 +548,8 @@ void AwPermissionManager::CancelPermissionRequest(int request_id) {
       case PermissionType::AR:
       case PermissionType::STORAGE_ACCESS_GRANT:
       case PermissionType::CAMERA_PAN_TILT_ZOOM:
-      case PermissionType::WINDOW_MANAGEMENT:
-      case PermissionType::LOCAL_FONTS:
-      case PermissionType::DISPLAY_CAPTURE:
+      case PermissionType::WINDOW_PLACEMENT:
+      case PermissionType::FONT_ACCESS:
         NOTIMPLEMENTED() << "CancelPermission not implemented for "
                          << static_cast<int>(permission);
         break;
@@ -614,65 +584,6 @@ void AwPermissionManager::CancelPermissionRequests() {
   DCHECK(pending_requests_.IsEmpty());
 }
 
-void AwPermissionManager::SetOriginCanReadEnumerateDevicesAudioLabels(
-    const GURL& origin,
-    bool audio) {
-  if (origin.spec().empty() || origin.SchemeIsFile())
-    return;
-  auto it = enumerate_devices_labels_cache_.find(origin);
-  if (it == enumerate_devices_labels_cache_.end()) {
-    enumerate_devices_labels_cache_[origin] = std::make_pair(audio, false);
-  } else {
-    it->second.first = audio;
-  }
-}
-
-void AwPermissionManager::SetOriginCanReadEnumerateDevicesVideoLabels(
-    const GURL& origin,
-    bool video) {
-  if (origin.spec().empty() || origin.SchemeIsFile())
-    return;
-  auto it = enumerate_devices_labels_cache_.find(origin);
-  if (it == enumerate_devices_labels_cache_.end())
-    enumerate_devices_labels_cache_[origin] = std::make_pair(false, video);
-  else
-    it->second.second = video;
-}
-
-bool AwPermissionManager::ShouldShowEnumerateDevicesAudioLabels(
-    const GURL& origin) {
-  auto it = enumerate_devices_labels_cache_.find(origin);
-  if (it == enumerate_devices_labels_cache_.end())
-    return false;
-  return it->second.first;
-}
-
-bool AwPermissionManager::ShouldShowEnumerateDevicesVideoLabels(
-    const GURL& origin) {
-  auto it = enumerate_devices_labels_cache_.find(origin);
-  if (it == enumerate_devices_labels_cache_.end())
-    return false;
-  return it->second.second;
-}
-
-void AwPermissionManager::ClearEnumerateDevicesCachedPermission(
-    const GURL& origin,
-    bool remove_audio,
-    bool remove_video) {
-  if (origin.spec().empty())
-    return;
-  auto it = enumerate_devices_labels_cache_.find(origin);
-  if (it == enumerate_devices_labels_cache_.end())
-    return;
-  else if (remove_audio && remove_video) {
-    enumerate_devices_labels_cache_.erase(origin);
-  } else if (remove_audio) {
-    it->second.first = false;
-  } else if (remove_video) {
-    it->second.second = false;
-  }
-}
-
 int AwPermissionManager::GetRenderProcessID(
     content::RenderFrameHost* render_frame_host) {
   return render_frame_host->GetProcess()->GetID();
@@ -685,13 +596,12 @@ int AwPermissionManager::GetRenderFrameID(
 
 GURL AwPermissionManager::LastCommittedOrigin(
     content::RenderFrameHost* render_frame_host) {
-  return permissions::PermissionUtil::GetLastCommittedOriginAsURL(
-      render_frame_host);
+  return content::WebContents::FromRenderFrameHost(render_frame_host)
+      ->GetLastCommittedURL().GetOrigin();
 }
 
 AwBrowserPermissionRequestDelegate* AwPermissionManager::GetDelegate(
-    int render_process_id,
-    int render_frame_id) {
+    int render_process_id, int render_frame_id) {
   return AwBrowserPermissionRequestDelegate::FromID(render_process_id,
                                                     render_frame_id);
 }

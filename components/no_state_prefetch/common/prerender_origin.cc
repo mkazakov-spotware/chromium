@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/no_state_prefetch/common/prerender_origin.h"
 
 #include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 
 namespace prerender {
 
@@ -28,10 +29,9 @@ const char* kOriginNames[] = {
     "[Deprecated] Offline",
     "Navigation Predictor",
     "Isolated Prerender",
-    "Speculation Rules Same Origin Prerender",
     "Max",
 };
-static_assert(std::size(kOriginNames) == ORIGIN_MAX + 1,
+static_assert(base::size(kOriginNames) == ORIGIN_MAX + 1,
               "prerender origin name count mismatch");
 
 }  // namespace

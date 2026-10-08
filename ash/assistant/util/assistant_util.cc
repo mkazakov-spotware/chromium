@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <string>
 
 #include "ash/assistant/model/assistant_ui_model.h"
-#include "ash/constants/devicetype.h"
 #include "base/strings/string_util.h"
+#include "chromeos/constants/devicetype.h"
 
 namespace {
 
@@ -19,6 +19,8 @@ bool g_override_is_google_device = false;
 namespace ash {
 namespace assistant {
 namespace util {
+
+using chromeos::assistant::AssistantEntryPoint;
 
 bool IsStartingSession(AssistantVisibility new_visibility,
                        AssistantVisibility old_visibility) {
@@ -40,9 +42,12 @@ bool IsVoiceEntryPoint(AssistantEntryPoint entry_point, bool prefer_voice) {
       return prefer_voice;
     case AssistantEntryPoint::kUnspecified:
     case AssistantEntryPoint::kDeepLink:
+    case AssistantEntryPoint::kLauncherChip:
     case AssistantEntryPoint::kLauncherSearchResult:
+    case AssistantEntryPoint::kProactiveSuggestions:
     case AssistantEntryPoint::kSetup:
     case AssistantEntryPoint::kStylus:
+    case AssistantEntryPoint::kBloom:
       return false;
   }
 }

@@ -1,24 +1,10 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/zoom/page_zoom.h"
-
-#include <algorithm>
-
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
-
-namespace {
-bool ZoomValueExists(const std::vector<double>& zoom_values,
-                     double expected_zoom_value) {
-  for (double zoom_value : zoom_values) {
-    if (blink::PageZoomValuesEqual(zoom_value, expected_zoom_value))
-      return true;
-  }
-  return false;
-}
-}  // namespace
 
 TEST(PageTestZoom, PresetZoomFactors) {
   // Fetch a vector of preset zoom factors, including a custom value that we
@@ -33,10 +19,27 @@ TEST(PageTestZoom, PresetZoomFactors) {
   EXPECT_DOUBLE_EQ(factors.front(), blink::kMinimumPageZoomFactor);
   EXPECT_DOUBLE_EQ(factors.back(), blink::kMaximumPageZoomFactor);
 
-  EXPECT_TRUE(std::is_sorted(factors.begin(), factors.end()));
+  // Iterate through the vector, with the following checks:
+  // 1. The values are in sorted order.
+  // 2. The custom value is exists.
+  // 3. The 100% value exists.
+  bool found_custom_value = false;
+  bool found_100_percent = false;
+  double last_value = 0;
 
-  EXPECT_TRUE(ZoomValueExists(factors, custom_value));
-  EXPECT_TRUE(ZoomValueExists(factors, 1.0));  // 100%
+  std::vector<double>::const_iterator i;
+  for (i = factors.begin(); i != factors.end(); ++i) {
+    double factor = *i;
+    EXPECT_GT(factor, last_value);
+    if (blink::PageZoomValuesEqual(factor, custom_value))
+      found_custom_value = true;
+    if (blink::PageZoomValuesEqual(factor, 1.0))
+      found_100_percent = true;
+    last_value = factor;
+  }
+
+  EXPECT_TRUE(found_custom_value);
+  EXPECT_TRUE(found_100_percent);
 }
 
 TEST(PageTestZoom, PresetZoomLevels) {
@@ -48,10 +51,27 @@ TEST(PageTestZoom, PresetZoomLevels) {
   // Expect at least 10 zoom levels.
   EXPECT_GE(levels.size(), 10U);
 
-  EXPECT_TRUE(std::is_sorted(levels.begin(), levels.end()));
+  // Iterate through the vector, with the following checks:
+  // 1. The values are in sorted order.
+  // 2. The custom value is exists.
+  // 3. The 100% value exists.
+  bool found_custom_value = false;
+  bool found_100_percent = false;
+  double last_value = -99;
 
-  EXPECT_TRUE(ZoomValueExists(levels, custom_value));
-  EXPECT_TRUE(ZoomValueExists(levels, 0));  // 100% expressed as a zoom level
+  std::vector<double>::const_iterator i;
+  for (i = levels.begin(); i != levels.end(); ++i) {
+    double level = *i;
+    EXPECT_GT(level, last_value);
+    if (blink::PageZoomValuesEqual(level, custom_value))
+      found_custom_value = true;
+    if (blink::PageZoomValuesEqual(level, 0))
+      found_100_percent = true;
+    last_value = level;
+  }
+
+  EXPECT_TRUE(found_custom_value);
+  EXPECT_TRUE(found_100_percent);
 }
 
 TEST(PageTestZoom, InvalidCustomFactor) {

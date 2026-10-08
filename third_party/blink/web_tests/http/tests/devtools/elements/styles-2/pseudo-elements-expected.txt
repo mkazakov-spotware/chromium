@@ -39,21 +39,6 @@ element.style { ()
 [$#inspected:after$] { (<style>)
     content: "AFTER";
 
-======== Pseudo ::grammar-error element ========
-[expanded] 
-[$#inspected::grammar-error$] { (<style>)
-    color: teal;
-
-======== Pseudo ::highlight(bar) element ========
-[expanded] 
-[$#inspected::highlight(bar)$] { (<style>)
-    color: cyan;
-
-======== Pseudo ::highlight(foo) element ========
-[expanded] 
-[$#inspected::highlight(foo)$] { (<style>)
-    color: fuchsia;
-
 ======== Pseudo ::marker element ========
 [expanded] 
 [$#inspected::marker$] { (<style>)
@@ -68,14 +53,9 @@ element.style { ()
     text-align: start !important;
     text-align-last: start !important;
 
-======== Pseudo ::spelling-error element ========
-[expanded] 
-[$#inspected::spelling-error$] { (<style>)
-    color: orange;
-
 ======== Pseudo ::target-text element ========
 [expanded] 
-[$#inspected::target-text$] { (<style>)
+#inspected::target-text { (<style>)
     color: green;
 
 

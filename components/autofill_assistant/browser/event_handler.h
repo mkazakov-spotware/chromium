@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,12 @@
 
 #include <string>
 
+#include "base/macros.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "components/autofill_assistant/browser/service.pb.h"
 #include "components/autofill_assistant/browser/user_model.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace autofill_assistant {
 
@@ -32,15 +34,11 @@ class EventHandler {
   };
 
   EventHandler();
-
-  EventHandler(const EventHandler&) = delete;
-  EventHandler& operator=(const EventHandler&) = delete;
-
   ~EventHandler();
 
   void DispatchEvent(const EventKey& key);
 
-  static absl::optional<EventKey> CreateEventKeyFromProto(
+  static base::Optional<EventKey> CreateEventKeyFromProto(
       const EventProto& proto);
 
   void AddObserver(Observer* observer);
@@ -49,6 +47,7 @@ class EventHandler {
  private:
   base::ReentrantObserverList<Observer> observers_{
       base::ObserverListPolicy::EXISTING_ONLY};
+  DISALLOW_COPY_AND_ASSIGN(EventHandler);
 };
 
 // Intended for debugging.

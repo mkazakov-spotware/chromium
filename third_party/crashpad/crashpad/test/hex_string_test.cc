@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,7 @@
 
 #include "test/hex_string.h"
 
-#include <iterator>
-
+#include "base/stl_util.h"
 #include "gtest/gtest.h"
 
 namespace crashpad {
@@ -26,7 +25,7 @@ TEST(HexString, HexString) {
   EXPECT_EQ(BytesToHexString(nullptr, 0), "");
 
   static constexpr char kBytes[] = "Abc123xyz \x0a\x7f\xf0\x9f\x92\xa9_";
-  EXPECT_EQ(BytesToHexString(kBytes, std::size(kBytes)),
+  EXPECT_EQ(BytesToHexString(kBytes, base::size(kBytes)),
             "41626331323378797a200a7ff09f92a95f00");
 }
 

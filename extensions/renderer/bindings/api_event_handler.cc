@@ -1,24 +1,22 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/bindings/api_event_handler.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/supports_user_data.h"
 #include "base/values.h"
 #include "content/public/renderer/v8_value_converter.h"
-#include "extensions/common/mojom/event_dispatcher.mojom.h"
-#include "extensions/renderer/bindings/api_response_validator.h"
 #include "extensions/renderer/bindings/event_emitter.h"
 #include "extensions/renderer/bindings/get_per_context_data.h"
 #include "extensions/renderer/bindings/js_runner.h"
@@ -109,11 +107,6 @@ APIEventHandler::APIEventHandler(
       context_owner_id_getter_(context_owner_id_getter),
       exception_handler_(exception_handler) {}
 APIEventHandler::~APIEventHandler() {}
-
-void APIEventHandler::SetResponseValidator(
-    std::unique_ptr<APIResponseValidator> validator) {
-  api_response_validator_ = std::move(validator);
-}
 
 v8::Local<v8::Object> APIEventHandler::CreateEventInstance(
     const std::string& event_name,
@@ -206,7 +199,8 @@ void APIEventHandler::InvalidateCustomEvent(v8::Local<v8::Context> context,
   }
 
   emitter->Invalidate(context);
-  auto emitter_entry = base::ranges::find(data->anonymous_emitters, event);
+  auto emitter_entry = std::find(data->anonymous_emitters.begin(),
+                                 data->anonymous_emitters.end(), event);
   if (emitter_entry == data->anonymous_emitters.end()) {
     NOTREACHED();
     return;
@@ -217,8 +211,8 @@ void APIEventHandler::InvalidateCustomEvent(v8::Local<v8::Context> context,
 
 void APIEventHandler::FireEventInContext(const std::string& event_name,
                                          v8::Local<v8::Context> context,
-                                         const base::Value::List& args,
-                                         mojom::EventFilteringInfoPtr filter) {
+                                         const base::ListValue& args,
+                                         const EventFilteringInfo* filter) {
   // Don't bother converting arguments if there are no listeners.
   // NOTE(devlin): This causes a double data and EventEmitter lookup, since
   // the v8 version below also checks for listeners. This should be very cheap,
@@ -233,11 +227,11 @@ void APIEventHandler::FireEventInContext(const std::string& event_name,
       content::V8ValueConverter::Create();
 
   std::vector<v8::Local<v8::Value>> v8_args;
-  v8_args.reserve(args.size());
+  v8_args.reserve(args.GetSize());
   for (const auto& arg : args)
-    v8_args.push_back(converter->ToV8Value(arg, context));
+    v8_args.push_back(converter->ToV8Value(&arg, context));
 
-  FireEventInContext(event_name, context, &v8_args, std::move(filter),
+  FireEventInContext(event_name, context, &v8_args, filter,
                      JSRunner::ResultCallback());
 }
 
@@ -245,7 +239,7 @@ void APIEventHandler::FireEventInContext(
     const std::string& event_name,
     v8::Local<v8::Context> context,
     std::vector<v8::Local<v8::Value>>* arguments,
-    mojom::EventFilteringInfoPtr filter,
+    const EventFilteringInfo* filter,
     JSRunner::ResultCallback callback) {
   APIEventPerContextData* data =
       APIEventPerContextData::GetFrom(context, kDontCreateIfMissing);
@@ -262,18 +256,7 @@ void APIEventHandler::FireEventInContext(
 
   auto massager_iter = data->massagers.find(event_name);
   if (massager_iter == data->massagers.end()) {
-    // Validate the event arguments if there are no massagers (and validation is
-    // enabled). Unfortunately, massagers both transform the event args from
-    // unexpected -> expected and (badly!) from expected -> unexpected. As such,
-    // we simply don't validate if there's a massager attached to the event.
-    // TODO(crbug.com/1329587): Ideally, we'd be able to validate the response
-    // after the massagers run. This requires fixing our schema for at least
-    // chrome.permissions events.
-    if (api_response_validator_) {
-      api_response_validator_->ValidateEvent(context, event_name, *arguments);
-    }
-
-    emitter->Fire(context, arguments, std::move(filter), std::move(callback));
+    emitter->Fire(context, arguments, filter, std::move(callback));
   } else {
     DCHECK(!callback) << "Can't use an event callback with argument massagers.";
 
@@ -307,7 +290,7 @@ void APIEventHandler::FireEventInContext(
 
     v8::Local<v8::Value> massager_args[] = {args_array, dispatch_event};
     JSRunner::Get(context)->RunJSFunction(
-        massager, context, std::size(massager_args), massager_args);
+        massager, context, base::size(massager_args), massager_args);
   }
 }
 

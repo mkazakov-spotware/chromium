@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 
 #include <map>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/protocol/stream_channel_factory.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class DatagramChannelFactory;
 class P2PDatagramSocket;
@@ -22,10 +23,6 @@ class PseudoTcpChannelFactory : public StreamChannelFactory {
   // |datagram_channel_factory| must outlive this object.
   explicit PseudoTcpChannelFactory(
       DatagramChannelFactory* datagram_channel_factory);
-
-  PseudoTcpChannelFactory(const PseudoTcpChannelFactory&) = delete;
-  PseudoTcpChannelFactory& operator=(const PseudoTcpChannelFactory&) = delete;
-
   ~PseudoTcpChannelFactory() override;
 
   // StreamChannelFactory interface.
@@ -43,11 +40,14 @@ class PseudoTcpChannelFactory : public StreamChannelFactory {
                             ChannelCreatedCallback callback,
                             int result);
 
-  raw_ptr<DatagramChannelFactory> datagram_channel_factory_;
+  DatagramChannelFactory* datagram_channel_factory_;
 
   PendingSocketsMap pending_sockets_;
+
+  DISALLOW_COPY_AND_ASSIGN(PseudoTcpChannelFactory);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_PSEUDOTCP_CHANNEL_FACTORY_H_

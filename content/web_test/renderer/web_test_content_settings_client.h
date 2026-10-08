@@ -1,10 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_WEB_TEST_RENDERER_WEB_TEST_CONTENT_SETTINGS_CLIENT_H_
 #define CONTENT_WEB_TEST_RENDERER_WEB_TEST_CONTENT_SETTINGS_CLIENT_H_
 
+#include <map>
+
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/blink/public/platform/web_content_settings_client.h"
 #include "url/origin.h"
@@ -35,7 +39,6 @@ class WebTestContentSettingsClient : public blink::WebContentSettingsClient {
   bool AllowStorageAccessSync(StorageType storage_type) override;
   bool AllowRunningInsecureContent(bool enabled_per_settings,
                                    const blink::WebURL& url) override;
-  bool IncreaseSharedElementTransitionCallbackTimeout() const override;
 
  private:
   TestRunner* const test_runner_;

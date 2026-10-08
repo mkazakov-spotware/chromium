@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,8 @@ namespace paint_preview {
 namespace {
 
 base::FilePath ToFilePath(base::StringPiece path_str) {
-#if BUILDFLAG(IS_WIN)
-  return base::FilePath(base::UTF8ToWide(path_str));
+#if defined(OS_WIN)
+  return base::FilePath(base::UTF8ToUTF16(path_str));
 #else
   return base::FilePath(path_str);
 #endif

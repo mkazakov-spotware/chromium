@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 
 #include "base/bind.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "remoting/base/string_resources.h"
 #include "ui/base/glib/glib_signal.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -27,9 +27,6 @@ class GtkFileChooserOnUiThread {
   GtkFileChooserOnUiThread(
       scoped_refptr<base::SequencedTaskRunner> caller_task_runner,
       base::WeakPtr<FileChooserLinux> file_chooser_linux);
-
-  GtkFileChooserOnUiThread(const GtkFileChooserOnUiThread&) = delete;
-  GtkFileChooserOnUiThread& operator=(const GtkFileChooserOnUiThread&) = delete;
 
   ~GtkFileChooserOnUiThread();
 
@@ -49,15 +46,14 @@ class GtkFileChooserOnUiThread {
   GObject* file_dialog_ = nullptr;
   scoped_refptr<base::SequencedTaskRunner> caller_task_runner_;
   base::WeakPtr<FileChooserLinux> file_chooser_linux_;
+
+  DISALLOW_COPY_AND_ASSIGN(GtkFileChooserOnUiThread);
 };
 
 class FileChooserLinux : public FileChooser {
  public:
   FileChooserLinux(scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
                    ResultCallback callback);
-
-  FileChooserLinux(const FileChooserLinux&) = delete;
-  FileChooserLinux& operator=(const FileChooserLinux&) = delete;
 
   ~FileChooserLinux() override;
 
@@ -70,6 +66,8 @@ class FileChooserLinux : public FileChooser {
   FileChooser::ResultCallback callback_;
   base::SequenceBound<GtkFileChooserOnUiThread> gtk_file_chooser_on_ui_thread_;
   base::WeakPtrFactory<FileChooserLinux> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FileChooserLinux);
 };
 
 GtkFileChooserOnUiThread::GtkFileChooserOnUiThread(
@@ -156,7 +154,7 @@ FileChooserLinux::FileChooserLinux(
     : callback_(std::move(callback)) {
   gtk_file_chooser_on_ui_thread_ =
       base::SequenceBound<GtkFileChooserOnUiThread>(
-          ui_task_runner, base::SequencedTaskRunner::GetCurrentDefault(),
+          ui_task_runner, base::SequencedTaskRunnerHandle::Get(),
           weak_ptr_factory_.GetWeakPtr());
 }
 

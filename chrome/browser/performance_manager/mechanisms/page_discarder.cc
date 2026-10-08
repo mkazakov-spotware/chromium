@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/performance_manager/mechanisms/page_discarder.h"
 
 #include "base/bind.h"
+#include "base/callback_forward.h"
 #include "base/task/task_traits.h"
 #include "build/build_config.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
@@ -23,60 +24,32 @@ namespace performance_manager {
 namespace mechanism {
 namespace {
 
-bool disabled_for_testing = false;
-
-// Discards pages on the UI thread. Returns true if at least 1 page is
-// discarded.
-// TODO(crbug/1241049): Returns the remaining reclaim target so
-// UrgentlyDiscardMultiplePages can keep reclaiming until the reclaim target is
-// met or there is no discardable page.
-bool DiscardPagesOnUIThread(
-    const std::vector<std::pair<WebContentsProxy, uint64_t>>& proxies_and_rss) {
+// Discards a page on the UI thread.
+bool DiscardPageOnUIThread(const WebContentsProxy& contents_proxy) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  if (disabled_for_testing)
+  content::WebContents* const contents = contents_proxy.Get();
+  if (!contents)
     return false;
 
-  bool result = false;
-  for (auto proxy : proxies_and_rss) {
-    content::WebContents* const contents = proxy.first.Get();
-    if (!contents)
-      continue;
+  auto* lifecycle_unit =
+      resource_coordinator::TabLifecycleUnitSource::GetTabLifecycleUnitExternal(
+          contents);
+  if (!lifecycle_unit)
+    return false;
 
-    auto* lifecycle_unit = resource_coordinator::TabLifecycleUnitSource::
-        GetTabLifecycleUnitExternal(contents);
-    if (!lifecycle_unit)
-      continue;
-
-    if (lifecycle_unit->DiscardTab(
-            resource_coordinator::LifecycleUnitDiscardReason::URGENT,
-            /*resident_set_size_estimate=*/proxy.second)) {
-      result = true;
-    }
-  }
-  return result;
+  return lifecycle_unit->DiscardTab(
+      resource_coordinator::LifecycleUnitDiscardReason::URGENT);
 }
 
 }  // namespace
 
-// static
-void PageDiscarder::DisableForTesting() {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  disabled_for_testing = true;
-}
-
-void PageDiscarder::DiscardPageNodes(
-    const std::vector<const PageNode*>& page_nodes,
+void PageDiscarder::DiscardPageNode(
+    const PageNode* page_node,
     base::OnceCallback<void(bool)> post_discard_cb) {
-  std::vector<std::pair<WebContentsProxy, uint64_t>> proxies_and_rss;
-  proxies_and_rss.reserve(page_nodes.size());
-  for (auto* page_node : page_nodes) {
-    proxies_and_rss.emplace_back(page_node->GetContentsProxy(),
-                                 page_node->EstimateResidentSetSize());
-  }
+  DCHECK(page_node);
   content::GetUIThreadTaskRunner({})->PostTaskAndReplyWithResult(
       FROM_HERE,
-      base::BindOnce(&DiscardPagesOnUIThread, std::move(proxies_and_rss)),
+      base::BindOnce(&DiscardPageOnUIThread, page_node->GetContentsProxy()),
       std::move(post_discard_cb));
 }
 

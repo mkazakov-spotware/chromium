@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/table_view/cells/table_view_text_edit_item.h"
 
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -17,7 +16,7 @@
 using TableViewTextEditItemTest = PlatformTest;
 
 // Tests that the label and text field are set properly after a call to
-// `configureCell:`.
+// |configureCell:|.
 TEST_F(TableViewTextEditItemTest, ConfigureCell) {
   TableViewTextEditItem* item = [[TableViewTextEditItem alloc] initWithType:0];
   NSString* name = @"Name";

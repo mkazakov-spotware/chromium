@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2016 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /** @fileoverview Unit tests for HTML Sanitizer */
 
@@ -62,7 +70,6 @@ function assertSanitizedHtml(originalHtml, expectedHtml, opt_sanitizer) {
 /**
  * @param {!SafeHtml} safeHtml Sanitized HTML which contains a style.
  * @return {string} cssText contained within SafeHtml.
- * @suppress {strictMissingProperties} suppression added to enable type checking
  */
 function getStyle(safeHtml) {
   const tmpElement = dom.safeHtmlToNode(safeHtml);
@@ -76,6 +83,25 @@ function getStyle(safeHtml) {
  */
 function otag(tag) {
   return `data-sanitizer-original-tag="${tag}"`;
+}
+
+/**
+ * Sanitize content, let the browser apply its own HTML tree correction by
+ * attaching the content to the document, and then assert it matches the
+ * expected value.
+ * @param {string} expected
+ * @param {string} input
+ */
+function assertAfterInsertionEquals(expected, input) {
+  const sanitizer =
+      new Builder().allowFormTag().allowStyleTag().withStyleContainer().build();
+  input = SafeHtml.unwrap(sanitizer.sanitize(input));
+  const div = document.createElement('div');
+  document.body.appendChild(div);
+  div.innerHTML = input;
+  googTestingDom.assertHtmlMatches(
+      expected, div.innerHTML, true /* opt_strictAttributes */);
+  div.parentNode.removeChild(div);
 }
 
 // TODO(pelizzi): name of test does not make sense
@@ -347,7 +373,7 @@ testSuite({
     // grave accent char as seen here:
     // Browser support: [NS8.1-G|FF2.0]
     safeHtml = '';
-    xssHtml = '<BODY onload!#$%&()*~+-_.,:;?@[/|]^`=alert("XSS")>';
+    xssHtml = '<BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>';
     assertSanitizedHtml(xssHtml, safeHtml);
 
     // Non-alpha-non-digit part 3 XSS. Yair Amit brought this to my attention
@@ -603,7 +629,7 @@ testSuite({
     // into an infinite loop of alerts):
     // Browser support: [IE6.0|NS8.1-IE]
     safeHtml = '';
-    xssHtml = '<STYLE>@import\'ja\vasc\ript:alert(window)\';</STYLE>';
+    xssHtml = '<STYLE>@im\port\'\ja\vasc\ript:alert(window)\';</STYLE>';
     assertSanitizedHtml(xssHtml, safeHtml);
 
     // STYLE attribute using a comment to break up expression (Thanks to Roman
@@ -811,7 +837,7 @@ testSuite({
     });
   },
 
-  testAllowWhitelistedCustomElementsTags() {
+  testCustomTagsAttributes() {
     let html = '<my-custom-div>Testing</my-custom-div>';
     const safeHtml = '<span>Testing</span>';
     assertSanitizedHtml(html, safeHtml);
@@ -822,31 +848,19 @@ testSuite({
         html, expectedHtml,
         new Builder()
             .allowCssStyles()
-            .allowCustomElementTag('my-cool-div')
-            .build());
-  },
-
-  testAllowWithelistedCustomElementsAttributes() {
-    let html =
-        '<my-div my-attr="yes" my-bool-attr not-whitelisted="no">Testing</my-div>';
-    const expectedHtml = '<my-div my-attr="yes" my-bool-attr>Testing</my-div>';
-    assertSanitizedHtml(
-        html, expectedHtml,
-        new Builder()
-            .allowCssStyles()
-            .allowCustomElementTag('my-div', ['my-attr', 'my-bool-attr'])
+            .allowCustomElementTags(['my-cool-div'])
             .build());
   },
 
 
   testDisallowedCustomElementsWhitelistingTags() {
     assertThrows(() => {
-      new Builder().allowCustomElementTag('script').build();
+      new Builder().allowCustomElementTags(['script']).build();
     });
 
     // Reserved tag names.
     assertThrows(() => {
-      new Builder().allowCustomElementTag('font-face').build();
+      new Builder().allowCustomElementTags(['font-face']).build();
     });
   },
 
@@ -1324,11 +1338,18 @@ testSuite({
     if (!isSupported) {
       return;
     }
-    googObject.getKeys(TagWhitelist).forEach(tag => {
+    googArray.forEach(googObject.getKeys(TagWhitelist), (tag) => {
       if (googArray.contains(
               [
-                'BR', 'IMG', 'AREA', 'COL', 'COLGROUP', 'HR', 'INPUT', 'SOURCE',
-                'WBR'
+                'BR',
+                'IMG',
+                'AREA',
+                'COL',
+                'COLGROUP',
+                'HR',
+                'INPUT',
+                'SOURCE',
+                'WBR',
               ],
               tag)) {
         return;  // empty elements, ok
@@ -1365,20 +1386,26 @@ testSuite({
     if (!isSupported) {
       return;
     }
-    googObject.getKeys(TagWhitelist).forEach(tag => {
+    googArray.forEach(googObject.getKeys(TagWhitelist), (tag) => {
       if (googArray.contains(
               [
-                'CAPTION', 'STYLE', 'TABLE', 'TBODY', 'TD', 'TR', 'TEXTAREA',
-                'TFOOT', 'THEAD', 'TH'
+                'CAPTION',
+                'STYLE',
+                'TABLE',
+                'TBODY',
+                'TD',
+                'TR',
+                'TEXTAREA',
+                'TFOOT',
+                'THEAD',
+                'TH',
               ],
               tag)) {
-        return;
+        return;  // consistent in whitelist, ok
       }
-      // consistent in whitelist, ok
       if (googArray.contains(['COL', 'COLGROUP'], tag)) {
-        return;
+        return;  // potential problems
       }
-      // potential problems
       // TODO(pelizzi): Skip testing for FORM tags on Chrome until b/32550695
       // is fixed.
       if (tag == 'FORM' && userAgent.WEBKIT) {
@@ -1388,9 +1415,8 @@ testSuite({
       if (googArray.contains(
               [
                 'BR', 'IMG', 'AREA', 'COL', 'COLGROUP', 'HR', 'INPUT', 'SOURCE',
-                'WBR'
-              ]  // empty elements, ok
-              ,
+                'WBR'  // empty elements, ok
+              ],
               tag)) {
         input = '<span>a<' + tag.toLowerCase() + '>a</span>';
       } else {
@@ -1589,22 +1615,4 @@ testSuite({
         input, input,
         new Builder().allowCssStyles().inlineStyleRules().build());
   },
-
-  testMathStyleXSS() {
-    const input = '<math><style><a>{} *{background: red url(https://wherever)}';
-    const output = '';
-    assertSanitizedHtml(
-        input, output,
-        new Builder().allowStyleTag().withStyleContainer().build());
-  },
-
-  testMathStyleXSS_withoutMath() {
-    // Just checking that there are no issues without the use of MATH.
-    const input = '<span><style><a>{} *{background-url: url(https://wherever)}';
-    const output = '<span><style>*{}</style></span>';
-    assertSanitizedHtml(
-        input, output,
-        new Builder().allowStyleTag().withStyleContainer().build());
-  },
-
 });

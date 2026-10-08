@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,8 @@ ECSignatureCreatorImpl::ECSignatureCreatorImpl(ECPrivateKey* key)
 
 ECSignatureCreatorImpl::~ECSignatureCreatorImpl() = default;
 
-bool ECSignatureCreatorImpl::Sign(base::span<const uint8_t> data,
+bool ECSignatureCreatorImpl::Sign(const uint8_t* data,
+                                  int data_len,
                                   std::vector<uint8_t>* signature) {
   OpenSSLErrStackTracer err_tracer(FROM_HERE);
   bssl::ScopedEVP_MD_CTX ctx;
@@ -32,7 +33,7 @@ bool ECSignatureCreatorImpl::Sign(base::span<const uint8_t> data,
   if (!ctx.get() ||
       !EVP_DigestSignInit(ctx.get(), nullptr, EVP_sha256(), nullptr,
                           key_->key()) ||
-      !EVP_DigestSignUpdate(ctx.get(), data.data(), data.size()) ||
+      !EVP_DigestSignUpdate(ctx.get(), data, data_len) ||
       !EVP_DigestSignFinal(ctx.get(), nullptr, &sig_len)) {
     return false;
   }

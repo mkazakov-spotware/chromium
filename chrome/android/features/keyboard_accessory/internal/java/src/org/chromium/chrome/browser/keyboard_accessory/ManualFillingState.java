@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@ import android.util.SparseArray;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.keyboard_accessory.data.CachedProviderAdapter;
-import org.chromium.chrome.browser.keyboard_accessory.data.ConditionalProviderAdapter;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.AccessorySheetData;
 import org.chromium.chrome.browser.keyboard_accessory.data.PropertyProvider;
@@ -31,34 +29,21 @@ class ManualFillingState {
             AccessoryTabType.PASSWORDS,
             AccessoryTabType.CREDIT_CARDS,
             AccessoryTabType.ADDRESSES,
+            AccessoryTabType.TOUCH_TO_FILL,
     };
     private final WebContents mWebContents;
     private final SparseArray<SheetState> mSheetStates = new SparseArray<>();
-    private final SparseArray<KeyboardAccessoryData.Tab> mAvailableTabs = new SparseArray<>();
-    private @Nullable ManualFillingComponent.UpdateAccessorySheetDelegate mUpdater;
     private @Nullable CachedProviderAdapter<KeyboardAccessoryData.Action[]> mActionsProvider;
     private boolean mWebContentsShowing;
 
     private static class SheetState {
         @Nullable
-        Provider<AccessorySheetData> mDataProvider;
-
-        /**
-         *  @deprecated Storing a sheet per WebContents is too expensive. Instead, reuse the already
-         *              constructed, browser-scoped sheets in the {@link ManualFillingMediator}!
-         *              The state knows about {@link #mAvailableTabs} which is sufficient to request
-         *              updates via {@link #requestRecentSheets()} for browser-scoped sheets.
-         */
-        @Deprecated
+        CachedProviderAdapter<AccessorySheetData> mDataProvider;
         @Nullable
         AccessorySheetTabCoordinator mSheet;
 
-        // TODO(crbug.com/1169167): Remove this method when the legacy accessory is cleaned up.
         void notifyProviderObservers() {
-            if (mDataProvider instanceof CachedProviderAdapter) {
-                ((CachedProviderAdapter<AccessorySheetData>) mDataProvider)
-                        .notifyAboutCachedItems();
-            }
+            if (mDataProvider != null) mDataProvider.notifyAboutCachedItems();
         }
     }
 
@@ -73,9 +58,7 @@ class ManualFillingState {
             mWebContentsShowing = true;
             if (mActionsProvider != null) mActionsProvider.notifyAboutCachedItems();
             for (int state : TAB_ORDER) {
-                if (mAvailableTabs.get(state, null) != null) {
-                    getStateFor(state).notifyProviderObservers();
-                }
+                getStateFor(state).notifyProviderObservers();
             }
         }
 
@@ -111,28 +94,15 @@ class ManualFillingState {
         if (mActionsProvider != null) mActionsProvider.notifyAboutCachedItems();
         for (int state : TAB_ORDER) {
             // TODO(fhorschig): This needs controller tests for each state in the order!
-            if (mAvailableTabs.get(state, null) != null) {
-                getStateFor(state).notifyProviderObservers();
-            }
-        }
-    }
-    void setSheetUpdater(ManualFillingComponent.UpdateAccessorySheetDelegate delegate) {
-        mUpdater = delegate;
-    }
-
-    void requestRecentSheets() {
-        for (@AccessoryTabType int type : TAB_ORDER) {
-            if (mAvailableTabs.get(type, null) != null && mUpdater != null) {
-                mUpdater.requestSheet(type);
-            }
+            getStateFor(state).notifyProviderObservers();
         }
     }
 
     KeyboardAccessoryData.Tab[] getTabs() {
         ArrayList<KeyboardAccessoryData.Tab> tabs = new ArrayList<>();
         for (@AccessoryTabType int type : TAB_ORDER) {
-            KeyboardAccessoryData.Tab tab = mAvailableTabs.get(type, null);
-            if (tab != null) tabs.add(mAvailableTabs.get(type));
+            SheetState state = getStateFor(type);
+            if (state.mSheet != null) tabs.add(state.mSheet.getTab());
         }
         return tabs.toArray(new KeyboardAccessoryData.Tab[0]);
     }
@@ -178,12 +148,6 @@ class ManualFillingState {
      */
     void wrapSheetDataProvider(
             @AccessoryTabType int tabType, PropertyProvider<AccessorySheetData> provider) {
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_KEYBOARD_ACCESSORY)) {
-            // Don't use caching when the new keyboard accessory is enabled.
-            getStateFor(tabType).mDataProvider =
-                    new ConditionalProviderAdapter<>(provider, () -> mWebContentsShowing);
-            return;
-        }
         getStateFor(tabType).mDataProvider =
                 new CachedProviderAdapter<>(provider, null, this::onAdapterReceivedNewData);
     }
@@ -196,38 +160,13 @@ class ManualFillingState {
         return getStateFor(tabType).mDataProvider;
     }
 
-    /**
-     *  @deprecated Storing a sheet per WebContents is too expensive. Reuse the already constructed,
-     *              browser-scoped sheets in the {@link ManualFillingMediator} instead!
-     */
-    @Deprecated
     void setAccessorySheet(
             @AccessoryTabType int tabType, @Nullable AccessorySheetTabCoordinator sheet) {
-        assert !ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_KEYBOARD_ACCESSORY)
-            : "Storing sheets in a WebContents-scoped cache is too expensive!";
         getStateFor(tabType).mSheet = sheet;
     }
 
-    /**
-     * Makes a tab available to the state. If there is already a tab of the same state, this fails.
-     * @param tab The @{@link KeyboardAccessoryData.Tab} to track.
-     * @return True iff the tab was added. False if the a tab of that type was already added.
-     */
-    boolean addAvailableTab(KeyboardAccessoryData.Tab tab) {
-        if (mAvailableTabs.get(tab.getRecordingType(), null) != null) return false;
-        mAvailableTabs.put(tab.getRecordingType(), tab);
-        return true;
-    }
-
-    /**
-     *  @deprecated Storing a sheet per WebContents is too expensive. Reuse the already constructed,
-     *              browser-scoped sheets in the {@link ManualFillingMediator} instead!
-     */
-    @Deprecated
     @Nullable
     AccessorySheetTabCoordinator getAccessorySheet(@AccessoryTabType int tabType) {
-        assert !ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_KEYBOARD_ACCESSORY)
-            : "Storing sheets in a WebContents-scoped cache is too expensive!";
         return getStateFor(tabType).mSheet;
     }
 

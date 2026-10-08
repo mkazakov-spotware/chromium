@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,13 @@
 #include <string>
 
 #include "base/callback.h"
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "ipc/ipc_channel.h"
+#include "ipc/ipc_message.h"
+#include "ipc/ipc_message_macros.h"
 #include "mojo/public/cpp/platform/named_platform_channel.h"
 #include "mojo/public/cpp/system/isolated_connection.h"
+#include "remoting/host/chromoting_messages.h"
 #include "remoting/host/security_key/security_key_auth_handler.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -38,7 +41,6 @@ void FakeSecurityKeyIpcServer::SendRequest(const std::string& message_data) {
 
 void FakeSecurityKeyIpcServer::CloseChannel() {
   ipc_channel_.reset();
-  security_key_forwarder_.reset();
   mojo_connection_.reset();
   std::move(channel_closed_callback_).Run();
 }
@@ -48,39 +50,19 @@ base::WeakPtr<FakeSecurityKeyIpcServer> FakeSecurityKeyIpcServer::AsWeakPtr() {
 }
 
 bool FakeSecurityKeyIpcServer::OnMessageReceived(const IPC::Message& message) {
-  ADD_FAILURE() << "Unexpected call to OnMessageReceived()";
-  return false;
+  bool handled = true;
+  IPC_BEGIN_MESSAGE_MAP(FakeSecurityKeyIpcServer, message)
+    IPC_MESSAGE_HANDLER(ChromotingRemoteSecurityKeyToNetworkMsg_Request,
+                        SendRequest)
+    IPC_MESSAGE_UNHANDLED(handled = false)
+  IPC_END_MESSAGE_MAP()
+
+  EXPECT_TRUE(handled);
+  return handled;
 }
 
 void FakeSecurityKeyIpcServer::OnChannelConnected(int32_t peer_pid) {
-  if (simulate_invalid_session_) {
-    CloseChannel();
-  } else {
-    std::move(connect_callback_).Run();
-  }
-}
-
-void FakeSecurityKeyIpcServer::BindAssociatedInterface(
-    mojo::ScopedInterfaceEndpointHandle handle) {
-  EXPECT_FALSE(security_key_forwarder_.is_bound());
-
-  mojo::PendingAssociatedReceiver<mojom::SecurityKeyForwarder> pending_receiver(
-      std::move(handle));
-  security_key_forwarder_.Bind(std::move(pending_receiver));
-}
-
-void FakeSecurityKeyIpcServer::OnSecurityKeyRequest(
-    const std::string& request_data,
-    OnSecurityKeyRequestCallback callback) {
-  // If a second request is received before responding, then close the channel
-  // to simulate the behavior in the real implementation.
-  if (request_callback_) {
-    CloseChannel();
-    return;
-  }
-
-  request_callback_ = std::move(callback);
-  send_message_callback_.Run(connection_id_, request_data);
+  std::move(connect_callback_).Run();
 }
 
 bool FakeSecurityKeyIpcServer::CreateChannel(
@@ -88,7 +70,7 @@ bool FakeSecurityKeyIpcServer::CreateChannel(
     base::TimeDelta request_timeout) {
   mojo::NamedPlatformChannel::Options options;
   options.server_name = server_name;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   options.enforce_uniqueness = false;
 #endif
   mojo::NamedPlatformChannel channel(options);
@@ -96,22 +78,8 @@ bool FakeSecurityKeyIpcServer::CreateChannel(
   mojo_connection_ = std::make_unique<mojo::IsolatedConnection>();
   ipc_channel_ = IPC::Channel::CreateServer(
       mojo_connection_->Connect(channel.TakeServerEndpoint()).release(), this,
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
   EXPECT_NE(nullptr, ipc_channel_);
-
-  auto* associated_interface_support =
-      ipc_channel_->GetAssociatedInterfaceSupport();
-  if (!associated_interface_support) {
-    ADD_FAILURE() << "Couldn't retrieve GetAssociatedInterfaceSupport helper.";
-    ipc_channel_.reset();
-    return false;
-  }
-
-  associated_interface_support->AddGenericAssociatedInterface(
-      mojom::SecurityKeyForwarder::Name_,
-      base::BindRepeating(&FakeSecurityKeyIpcServer::BindAssociatedInterface,
-                          base::Unretained(this)));
-
   return ipc_channel_->Connect();
 }
 
@@ -127,8 +95,18 @@ bool FakeSecurityKeyIpcServer::SendResponse(const std::string& message_data) {
     return true;
   }
 
-  std::move(request_callback_).Run(message_data);
-  return true;
+  return ipc_channel_->Send(
+      new ChromotingNetworkToRemoteSecurityKeyMsg_Response(message_data));
+}
+
+void FakeSecurityKeyIpcServer::SendConnectionReadyMessage() {
+  ipc_channel_->Send(
+      new ChromotingNetworkToRemoteSecurityKeyMsg_ConnectionReady());
+}
+
+void FakeSecurityKeyIpcServer::SendInvalidSessionMessage() {
+  ipc_channel_->Send(
+      new ChromotingNetworkToRemoteSecurityKeyMsg_InvalidSession());
 }
 
 FakeSecurityKeyIpcServerFactory::FakeSecurityKeyIpcServerFactory() {

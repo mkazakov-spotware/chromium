@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 #include <memory>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
 #include "components/invalidation/impl/channels_states.h"
 #include "components/invalidation/impl/fcm_sync_network_channel.h"
 #include "components/invalidation/impl/per_user_topic_subscription_manager.h"
@@ -18,8 +17,9 @@
 #include "components/invalidation/public/ack_handler.h"
 #include "components/invalidation/public/invalidation_util.h"
 #include "components/invalidation/public/invalidator_state.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
 
-namespace invalidation {
+namespace syncer {
 
 class TopicInvalidationMap;
 
@@ -38,7 +38,7 @@ class FCMInvalidationListener
  public:
   class Delegate {
    public:
-    virtual ~Delegate() = default;
+    virtual ~Delegate();
 
     virtual void OnInvalidate(const TopicInvalidationMap& invalidations) = 0;
 
@@ -47,9 +47,7 @@ class FCMInvalidationListener
 
   explicit FCMInvalidationListener(
       std::unique_ptr<FCMSyncNetworkChannel> network_channel);
-  FCMInvalidationListener(const FCMInvalidationListener& other) = delete;
-  FCMInvalidationListener& operator=(const FCMInvalidationListener& other) =
-      delete;
+
   ~FCMInvalidationListener() override;
 
   void Start(Delegate* delegate,
@@ -67,8 +65,9 @@ class FCMInvalidationListener
   void ClearInstanceIDToken();
 
   // AckHandler implementation.
-  void Acknowledge(const Topic& topic, const AckHandle& handle) override;
-  void Drop(const Topic& topic, const AckHandle& handle) override;
+  void Acknowledge(const Topic& topic,
+                   const syncer::AckHandle& handle) override;
+  void Drop(const Topic& topic, const syncer::AckHandle& handle) override;
 
   // FCMSyncNetworkChannel::Observer implementation.
   void OnFCMChannelStateChanged(FcmChannelState state) override;
@@ -78,7 +77,8 @@ class FCMInvalidationListener
       SubscriptionChannelState state) override;
 
   virtual void RequestDetailedStatus(
-      const base::RepeatingCallback<void(base::Value::Dict)>& callback) const;
+      const base::RepeatingCallback<void(const base::DictionaryValue&)>&
+          callback) const;
 
   void StartForTest(Delegate* delegate);
   void EmitStateChangeForTest(InvalidatorState state);
@@ -123,11 +123,11 @@ class FCMInvalidationListener
   void EmitSavedInvalidations(const TopicInvalidationMap& to_emit);
 
   // Generate a Dictionary with all the debugging information.
-  base::Value::Dict CollectDebugData() const;
+  base::DictionaryValue CollectDebugData() const;
 
   std::unique_ptr<FCMSyncNetworkChannel> network_channel_;
   UnackedInvalidationsMap unacked_invalidations_map_;
-  raw_ptr<Delegate> delegate_ = nullptr;
+  Delegate* delegate_ = nullptr;
 
   // The set of topics for which we want to receive invalidations. We'll pass
   // these to |per_user_topic_subscription_manager_| for (un)subscription.
@@ -148,8 +148,10 @@ class FCMInvalidationListener
   bool topics_update_requested_ = false;
 
   base::WeakPtrFactory<FCMInvalidationListener> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FCMInvalidationListener);
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_IMPL_FCM_INVALIDATION_LISTENER_H_

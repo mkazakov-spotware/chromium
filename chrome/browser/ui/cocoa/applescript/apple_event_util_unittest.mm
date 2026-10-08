@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "base/json/json_reader.h"
 #include "base/mac/scoped_aedesc.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
@@ -95,7 +96,7 @@ std::string AEDescToString(const AEDesc* aedesc) {
     //  'utxt'("string here")
     case typeUnicodeText: {
       size_t byte_length = AEGetDescDataSize(aedesc);
-      std::vector<char16_t> data_vector(byte_length / sizeof(char16_t));
+      std::vector<base::char16> data_vector(byte_length / sizeof(base::char16));
       OSErr err = AEGetDescData(aedesc, data_vector.data(), byte_length);
       if (err != noErr) {
         NOTREACHED();
@@ -103,7 +104,7 @@ std::string AEDescToString(const AEDesc* aedesc) {
       }
       return FourCharToString(typeUnicodeText) + "(\"" +
              base::UTF16ToUTF8(
-                 std::u16string(data_vector.begin(), data_vector.end())) +
+                 base::string16(data_vector.begin(), data_vector.end())) +
              "\")";
     }
     // Lists look like:
@@ -228,11 +229,11 @@ TEST_F(AppleEventUtilTest, ValueToAppleEventDescriptor) {
       typeAEList },
   };
 
-  for (size_t i = 0; i < std::size(cases); ++i) {
-    absl::optional<base::Value> value =
-        base::JSONReader::Read(cases[i].json_input);
+  for (size_t i = 0; i < base::size(cases); ++i) {
+    std::unique_ptr<base::Value> value =
+        base::JSONReader::ReadDeprecated(cases[i].json_input);
     NSAppleEventDescriptor* descriptor =
-        chrome::mac::ValueToAppleEventDescriptor(&*value);
+        chrome::mac::ValueToAppleEventDescriptor(value.get());
 
     EXPECT_EQ(cases[i].expected_aedesc_dump,
               AEDescToString([descriptor aeDesc]))

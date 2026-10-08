@@ -1,151 +1,216 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {AutomationPredicate} from '../../common/automation_predicate.js';
-import {AutomationUtil} from '../../common/automation_util.js';
-import {constants} from '../../common/constants.js';
-import {CursorRange} from '../../common/cursors/range.js';
-import {InstanceChecker} from '../../common/instance_checker.js';
-import {LocalStorage} from '../../common/local_storage.js';
-import {AbstractEarcons} from '../common/abstract_earcons.js';
-import {NavBraille} from '../common/braille/nav_braille.js';
-import {ContentScriptBridge} from '../common/content_script_bridge.js';
-import {LocaleOutputHelper} from '../common/locale_output_helper.js';
-import {Msgs} from '../common/msgs.js';
-import {PanelCommand, PanelCommandType} from '../common/panel_command.js';
-import {QueueMode, TtsSpeechProperties} from '../common/tts_types.js';
-import {JaPhoneticMap} from '../third_party/tamachiyomi/ja_phonetic_map.js';
-
-import {AutoScrollHandler} from './auto_scroll_handler.js';
-import {BrailleBackground} from './braille/braille_background.js';
-import {BrailleCommandHandler} from './braille/braille_command_handler.js';
-import {ChromeVox} from './chromevox.js';
-import {ChromeVoxState} from './chromevox_state.js';
-import {ChromeVoxBackground} from './classic_background.js';
-import {ClipboardHandler} from './clipboard_handler.js';
-import {CommandHandler} from './command_handler.js';
-import {DesktopAutomationHandler} from './desktop_automation_handler.js';
-import {DesktopAutomationInterface} from './desktop_automation_interface.js';
-import {DownloadHandler} from './download_handler.js';
-import {Earcons} from './earcons.js';
-import {FindHandler} from './find_handler.js';
-import {FocusAutomationHandler} from './focus_automation_handler.js';
-import {FocusBounds} from './focus_bounds.js';
-import {GestureCommandHandler} from './gesture_command_handler.js';
-import {BackgroundKeyboardHandler} from './keyboard_handler.js';
-import {LiveRegions} from './live_regions.js';
-import {EventStreamLogger} from './logging/event_stream_logger.js';
-import {LogStore} from './logging/log_store.js';
-import {MathHandler} from './math_handler.js';
-import {MediaAutomationHandler} from './media_automation_handler.js';
-import {Output} from './output/output.js';
-import {OutputCustomEvent} from './output/output_types.js';
-import {PageLoadSoundHandler} from './page_load_sound_handler.js';
-import {PanelBackground} from './panel/panel_background.js';
-import {ChromeVoxPrefs} from './prefs.js';
-import {RangeAutomationHandler} from './range_automation_handler.js';
-import {TtsBackground} from './tts_background.js';
-
 /**
- * @fileoverview The entry point for all ChromeVox related code for the
+ * @fileoverview The entry point for all ChromeVox2 related code for the
  * background page.
  */
 
+goog.provide('Background');
+
+goog.require('AutomationPredicate');
+goog.require('AutomationUtil');
+goog.require('BackgroundKeyboardHandler');
+goog.require('BrailleCommandData');
+goog.require('BrailleCommandHandler');
+goog.require('BrailleKeyCommand');
+goog.require('ChromeVoxBackground');
+goog.require('ChromeVoxEditableTextBase');
+goog.require('ChromeVoxState');
+goog.require('CommandHandler');
+goog.require('DesktopAutomationHandler');
+goog.require('DownloadHandler');
+goog.require('ExtensionBridge');
+goog.require('FindHandler');
+goog.require('FocusAutomationHandler');
+goog.require('GestureCommandHandler');
+goog.require('InstanceChecker');
+goog.require('LiveRegions');
+goog.require('LocaleOutputHelper');
+goog.require('MathHandler');
+goog.require('MediaAutomationHandler');
+goog.require('NavBraille');
+goog.require('NextEarcons');
+goog.require('NodeIdentifier');
+goog.require('Notifications');
+goog.require('Output');
+goog.require('Output.EventType');
+goog.require('PanelCommand');
+goog.require('PhoneticData');
+goog.require('RangeAutomationHandler');
+goog.require('UserAnnotationHandler');
+goog.require('constants');
+goog.require('cursors.Cursor');
+
+
+goog.scope(function() {
+const AutomationNode = chrome.automation.AutomationNode;
 const Dir = constants.Dir;
+const EventType = chrome.automation.EventType;
 const RoleType = chrome.automation.RoleType;
 const StateType = chrome.automation.StateType;
-/** ChromeVox background page. */
-export class Background extends ChromeVoxState {
+
+/**
+ * ChromeVox2 background page.
+ */
+Background = class extends ChromeVoxState {
   constructor() {
     super();
 
-    /** @private {CursorRange} */
+    // Initialize legacy background page first.
+    ChromeVoxBackground.init();
+    LocaleOutputHelper.init();
+
+    /**
+     * @type {cursors.Range}
+     * @private
+     */
     this.currentRange_ = null;
 
-    /** @private {!AbstractEarcons} */
-    this.earcons_ = new Earcons();
+    /** @type {!AbstractEarcons} @private */
+    this.nextEarcons_ = new NextEarcons();
 
-    /** @private {boolean} */
-    this.isReadingContinuously_ = false;
-
-    /** @private {CursorRange} */
-    this.pageSel_ = null;
-
-    /** @private {CursorRange} */
-    this.previousRange_ = null;
-
-    /** @private {boolean} */
-    this.talkBackEnabled_ = false;
-
-    this.init_();
-  }
-
-  /** @private */
-  init_() {
-    // Initialize braille, prefs, TTS, and legacy background page first.
-    BrailleBackground.init();
-    ChromeVoxPrefs.init();
-    TtsBackground.init();
-    ChromeVoxBackground.init();
-
-    chrome.accessibilityPrivate.onIntroduceChromeVox.addListener(
-        () => this.onIntroduceChromeVox_());
-
-    // Export globals on ChromeVox.
-    ChromeVox.braille = BrailleBackground.instance;
     // Read-only earcons.
     Object.defineProperty(ChromeVox, 'earcons', {
-      get: () => this.earcons_,
+      get: (function() {
+             return this.nextEarcons_;
+           }).bind(this)
     });
 
+    Object.defineProperty(ChromeVox, 'modKeyStr', {
+      get() {
+        return 'Search';
+      }
+    });
+
+    Object.defineProperty(ChromeVox, 'typingEcho', {
+      get() {
+        return parseInt(localStorage['typingEcho'], 10);
+      },
+      set(v) {
+        localStorage['typingEcho'] = v;
+      }
+    });
+
+    Object.defineProperty(ChromeVox, 'typingEcho', {
+      get() {
+        const typingEcho = parseInt(localStorage['typingEcho'], 10) || 0;
+        return typingEcho;
+      },
+      set(value) {
+        localStorage['typingEcho'] = value;
+      }
+    });
+
+    ExtensionBridge.addMessageListener(this.onMessage_);
+
+    /** @type {!BackgroundKeyboardHandler} @private */
+    this.keyboardHandler_ = new BackgroundKeyboardHandler();
+
+    /** @type {!LiveRegions} @private */
+    this.liveRegions_ = new LiveRegions(this);
+
+    document.addEventListener('copy', this.onClipboardEvent_);
+    document.addEventListener('cut', this.onClipboardEvent_);
+    document.addEventListener('paste', this.onClipboardEvent_);
+
+    /** @private {boolean} */
+    this.preventPasteOutput_ = false;
+
+    /**
+     * Maps a non-desktop root automation node to a range position suitable for
+     *     restoration.
+     * @type {WeakMap<AutomationNode, cursors.Range>}
+     * @private
+     */
+    this.focusRecoveryMap_ = new WeakMap();
+
+    /** @private {cursors.Range} */
+    this.pageSel_;
+
+    /** @type {boolean} */
+    this.talkBackEnabled = false;
+
+    // Initialize various handlers for automation.
+    DesktopAutomationHandler.init();
+    /** @private {!RangeAutomationHandler} */
+    this.rangeAutomationHandler_ = new RangeAutomationHandler();
+    /** @private {!FocusAutomationHandler} */
+    this.focusAutomationHandler_ = new FocusAutomationHandler();
+    /** @private {!MediaAutomationHandler} */
+    this.mediaAutomationHandler_ = new MediaAutomationHandler();
+
+    CommandHandler.init();
+    FindHandler.init();
+    DownloadHandler.init();
+    PhoneticData.init();
+    UserAnnotationHandler.init();
+
+    Notifications.onStartup();
+
     chrome.accessibilityPrivate.onAnnounceForAccessibility.addListener(
-        announceText => {
+        (announceText) => {
           ChromeVox.tts.speak(announceText.join(' '), QueueMode.FLUSH);
         });
     chrome.accessibilityPrivate.onCustomSpokenFeedbackToggled.addListener(
-        enabled => this.talkBackEnabled_ = enabled);
-    chrome.accessibilityPrivate.onIntroduceChromeVox.addListener(
-        () => this.onIntroduceChromeVox_());
-    chrome.accessibilityPrivate.onShowChromeVoxTutorial.addListener(() => {
-      (new PanelCommand(PanelCommandType.TUTORIAL)).send();
-    });
-  }
-
-  static async init() {
-    // Initialize storage and legacy background first.
-    await LocalStorage.init();
-    ChromeVoxBackground.init();
-
-    ChromeVoxState.instance = new Background();
-
-    AutoScrollHandler.init();
-    BackgroundKeyboardHandler.init();
-    BrailleCommandHandler.init();
-    ClipboardHandler.init();
-    CommandHandler.init();
-    DesktopAutomationHandler.init();
-    DownloadHandler.init();
-    EventStreamLogger.init();
-    FindHandler.init();
-    FocusAutomationHandler.init();
-    JaPhoneticData.init(JaPhoneticMap.MAP);
-    LiveRegions.init();
-    LocaleOutputHelper.init();
-    LogStore.init();
-    MediaAutomationHandler.init();
-    PageLoadSoundHandler.init();
-    PanelBackground.init();
-    RangeAutomationHandler.init();
+        (enabled) => {
+          this.talkBackEnabled = enabled;
+        });
 
     // Set the darkScreen state to false, since the display will be on whenever
     // ChromeVox starts.
     sessionStorage.setItem('darkScreen', 'false');
 
-    ChromeVoxState.resolveReadyPromise_();
+    // A self-contained class to start and stop progress sounds before any
+    // speech has been generated on startup. This is important in cases where
+    // speech is severely delayed.
+    /** @implements {TtsCapturingEventListener} */
+    const ProgressPlayer = class {
+      constructor() {
+        ChromeVox.tts.addCapturingEventListener(this);
+        ChromeVox.earcons.playEarcon(Earcon.CHROMEVOX_LOADING);
+      }
+
+      /** @override */
+      onTtsStart() {
+        ChromeVox.earcons.playEarcon(Earcon.CHROMEVOX_LOADED);
+        ChromeVox.tts.removeCapturingEventListener(this);
+      }
+
+      /** @override */
+      onTtsEnd() {}
+      /** @override */
+      onTtsInterrupted() {}
+    };
+    new ProgressPlayer();
+
+    chrome.loginState.getSessionState((sessionState) => {
+      // If starting ChromeVox from OOBE, start the tutorial.
+      if (sessionState === chrome.loginState.SessionState.IN_OOBE_SCREEN) {
+        chrome.chromeosInfoPrivate.isTabletModeEnabled((enabled) => {
+          // Only start the tutorial if we are not in tablet mode. This
+          // is a temporary workaround until we implement a touch-specific
+          // tutorial.
+          if (!enabled) {
+            (new PanelCommand(PanelCommandType.TUTORIAL)).send();
+          }
+        });
+      }
+    });
   }
 
-  /** @override */
+  /**
+   * Maps the last node with range in a given root.
+   * @type {WeakMap<AutomationNode>}
+   */
+  get focusRecoveryMap() {
+    return this.focusRecoveryMap_;
+  }
+
+  /**
+   * @override
+   */
   getCurrentRange() {
     if (this.currentRange_ && this.currentRange_.isValid()) {
       return this.currentRange_;
@@ -153,51 +218,33 @@ export class Background extends ChromeVoxState {
     return null;
   }
 
-  /** @override */
-  get isReadingContinuously() {
-    return this.isReadingContinuously_;
-  }
-
-  /** @override */
-  get pageSel() {
-    return this.pageSel_;
-  }
-
-  /** @override */
-  get talkBackEnabled() {
-    return this.talkBackEnabled_;
-  }
-
-  /** @override */
+  /**
+   * @override
+   */
   getCurrentRangeWithoutRecovery() {
     return this.currentRange_;
   }
 
   /**
-   * @param {CursorRange} newRange The new range.
-   * @param {boolean=} opt_fromEditing
    * @override
    */
-  setCurrentRange(newRange, opt_fromEditing) {
+  setCurrentRange(newRange) {
     // Clear anything that was frozen on the braille display whenever
     // the user navigates.
     ChromeVox.braille.thaw();
 
-    // There's nothing to be updated in this case.
-    if ((!newRange && !this.currentRange_) ||
-        (newRange && !newRange.isValid())) {
-      FocusBounds.set([]);
+    if (newRange && !newRange.isValid()) {
+      ChromeVoxState.instance.setFocusBounds([]);
       return;
     }
 
-    this.previousRange_ = this.currentRange_;
     this.currentRange_ = newRange;
-
-    ChromeVoxState.ready().then(ChromeVoxState.observers.forEach(
-        observer => observer.onCurrentRangeChanged(newRange, opt_fromEditing)));
+    ChromeVoxState.observers.forEach(function(observer) {
+      observer.onCurrentRangeChanged(newRange);
+    });
 
     if (!this.currentRange_) {
-      FocusBounds.set([]);
+      ChromeVoxState.instance.setFocusBounds([]);
       return;
     }
 
@@ -216,42 +263,15 @@ export class Background extends ChromeVoxState {
     position.y = loc.top + loc.height / 2;
     let url = root.docUrl;
     url = url.substring(0, url.indexOf('#')) || url;
-    ChromeVoxState.position[url] = position;
-  }
-
-  /** @override */
-  set isReadingContinuously(newValue) {
-    this.isReadingContinuously_ = newValue;
-  }
-
-  /** @override */
-  set pageSel(newPageSel) {
-    this.pageSel_ = newPageSel;
-  }
-
-  /** @override */
-  get typingEcho() {
-    return LocalStorage.get('typingEcho');
-  }
-
-  /** @override */
-  set typingEcho(newTypingEcho) {
-    LocalStorage.set('typingEcho', newTypingEcho);
+    ChromeVox.position[url] = position;
   }
 
   /**
-   * Navigate to the given range - it both sets the range and outputs it.
-   * @param {!CursorRange} range The new range.
-   * @param {boolean=} opt_focus Focus the range; defaults to true.
-   * @param {TtsSpeechProperties=} opt_speechProps Speech properties.
-   * @param {boolean=} opt_skipSettingSelection If true, does not set
-   *     the selection, otherwise it does by default.
    * @override
    */
-  navigateToRange(range, opt_focus, opt_speechProps, opt_skipSettingSelection) {
+  navigateToRange(range, opt_focus, opt_speechProps, opt_shouldSetSelection) {
     opt_focus = opt_focus === undefined ? true : opt_focus;
-    opt_speechProps = opt_speechProps || new TtsSpeechProperties();
-    opt_skipSettingSelection = opt_skipSettingSelection || false;
+    opt_speechProps = opt_speechProps || {};
     const prevRange = this.currentRange_;
 
     // Specialization for math output.
@@ -285,7 +305,7 @@ export class Background extends ChromeVoxState {
       if (pageRootStart !== pageRootEnd || pageRootStart !== curRootStart ||
           pageRootEnd !== curRootEnd) {
         o.format('@end_selection');
-        DesktopAutomationInterface.instance.ignoreDocumentSelectionFromAction(
+        DesktopAutomationHandler.instance.ignoreDocumentSelectionFromAction(
             false);
         this.pageSel_ = null;
       } else {
@@ -308,13 +328,13 @@ export class Background extends ChromeVoxState {
         const wasBackwardSel =
             this.pageSel_.start.compare(this.pageSel_.end) === Dir.BACKWARD ||
             dir === Dir.BACKWARD;
-        this.pageSel_ = new CursorRange(
+        this.pageSel_ = new cursors.Range(
             this.pageSel_.start, wasBackwardSel ? range.start : range.end);
         if (this.pageSel_) {
           this.pageSel_.select();
         }
       }
-    } else if (!opt_skipSettingSelection) {
+    } else if (opt_shouldSetSelection) {
       // Ensure we don't select the editable when we first encounter it.
       let lca = null;
       if (range.start.node && prevRange.start.node) {
@@ -328,7 +348,8 @@ export class Background extends ChromeVoxState {
     }
 
     o.withRichSpeechAndBraille(
-         selectedRange || range, prevRange, OutputCustomEvent.NAVIGATE)
+         selectedRange || range, prevRange, Output.EventType.NAVIGATE)
+        .withQueueMode(QueueMode.FLUSH)
         .withInitialSpeechProperties(opt_speechProps);
 
     if (msg) {
@@ -340,38 +361,106 @@ export class Background extends ChromeVoxState {
     }
   }
 
-  /** @override */
+  /**
+   * Open the options page in a new tab.
+   */
+  showOptionsPage() {
+    const optionsPage = {url: '/chromevox/options/options.html'};
+    chrome.tabs.create(optionsPage);
+  }
+
+  /**
+   * @override
+   */
   onBrailleKeyEvent(evt, content) {
     return BrailleCommandHandler.onBrailleKeyEvent(evt, content);
   }
 
-  /** @override */
-  restoreLastValidRangeIfNeeded() {
-    // Never restore range when TalkBack is enabled as commands such as
-    // Search+Left, go directly to TalkBack.
-    if (this.talkBackEnabled) {
-      return;
-    }
+  /**
+   * @param {Object} msg A message sent from a content script.
+   * @param {Port} port
+   * @private
+   */
+  onMessage_(msg, port) {
+    const target = msg['target'];
+    const action = msg['action'];
 
-    if (!this.currentRange_ || !this.currentRange_.isValid()) {
-      this.setCurrentRange(this.previousRange_);
-    }
-  }
-
-  /** @private */
-  async setCurrentRangeToFocus_() {
-    const focus =
-        await new Promise(resolve => chrome.automation.getFocus(resolve));
-    if (focus) {
-      this.setCurrentRange(CursorRange.fromNode(focus));
-    } else {
-      this.setCurrentRange(null);
+    switch (target) {
+      case 'next':
+        if (action === 'getIsClassicEnabled') {
+          const url = msg['url'];
+          const isClassicEnabled = false;
+          port.postMessage({target: 'next', isClassicEnabled});
+        } else if (action === 'onCommand') {
+          CommandHandler.onCommand(msg['command']);
+        } else if (action === 'flushNextUtterance') {
+          Output.forceModeForNextSpeechUtterance(QueueMode.FLUSH);
+        }
+        break;
     }
   }
 
   /**
-   * @param {!CursorRange} range
-   * @param {CursorRange} prevRange
+   * @override
+   */
+  markCurrentRange() {
+    if (!this.currentRange) {
+      return;
+    }
+
+    const root = AutomationUtil.getTopLevelRoot(this.currentRange.start.node);
+    if (root) {
+      this.focusRecoveryMap_.set(root, this.currentRange);
+    }
+  }
+
+  /**
+   * Detects various clipboard events and provides spoken output.
+   *
+   * Note that paste is explicitly skipped sometimes because during a copy or
+   * cut, the copied or cut text is retrieved by pasting into a fake text
+   * area. To prevent this from triggering paste output, this staste is
+   * tracked via a field.
+   * @param {!Event} evt
+   * @private
+   */
+  onClipboardEvent_(evt) {
+    let text = '';
+    if (evt.type === 'paste') {
+      if (this.preventPasteOutput_) {
+        this.preventPasteOutput_ = false;
+        return;
+      }
+      text = evt.clipboardData.getData('text');
+      ChromeVox.tts.speak(Msgs.getMsg(evt.type, [text]), QueueMode.QUEUE);
+    } else if (evt.type === 'copy' || evt.type === 'cut') {
+      this.preventPasteOutput_ = true;
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      document.execCommand('paste');
+      const clipboardContent = textarea.value;
+      textarea.remove();
+      ChromeVox.tts.speak(
+          Msgs.getMsg(evt.type, [clipboardContent]), QueueMode.FLUSH);
+      ChromeVoxState.instance.pageSel_ = null;
+    }
+  }
+
+  /** @private */
+  setCurrentRangeToFocus_() {
+    chrome.automation.getFocus(function(focus) {
+      if (focus) {
+        this.setCurrentRange(cursors.Range.fromNode(focus));
+      } else {
+        this.setCurrentRange(null);
+      }
+    }.bind(this));
+  }
+
+  /**
+   * @param {!cursors.Range} range
+   * @param {cursors.Range} prevRange
    * @private
    */
   setFocusToRange_(range, prevRange) {
@@ -385,10 +474,11 @@ export class Background extends ChromeVoxState {
           AutomationUtil.getUniqueAncestors(prevRange.start.node, start);
 
       entered
-          .filter(
-              ancestor => ancestor.role === RoleType.PLUGIN_OBJECT ||
-                  ancestor.role === RoleType.IFRAME)
-          .forEach(container => {
+          .filter((f) => {
+            return f.role === RoleType.PLUGIN_OBJECT ||
+                f.role === RoleType.IFRAME;
+          })
+          .forEach((container) => {
             if (!container.state[StateType.FOCUSED]) {
               container.focus();
             }
@@ -399,8 +489,10 @@ export class Background extends ChromeVoxState {
       return;
     }
 
-    const isFocusableLinkOrControl = node => node.state[StateType.FOCUSABLE] &&
-        AutomationPredicate.linkOrControl(node);
+    const isFocusableLinkOrControl = function(node) {
+      return node.state[StateType.FOCUSABLE] &&
+          AutomationPredicate.linkOrControl(node);
+    };
 
     // Next, try to focus the start or end node.
     if (!AutomationPredicate.structuralContainer(start) &&
@@ -439,17 +531,6 @@ export class Background extends ChromeVoxState {
   }
 
   /**
-   * Handles the onIntroduceChromeVox event.
-   * @private
-   */
-  onIntroduceChromeVox_() {
-    ChromeVox.tts.speak(
-        Msgs.getMsg('chromevox_intro'), QueueMode.QUEUE,
-        new TtsSpeechProperties({doNotInterrupt: true}));
-    ChromeVox.braille.write(NavBraille.fromText(Msgs.getMsg('intro_brl')));
-  }
-
-  /**
    * Converts a list of globs, as used in the extension manifest, to a regular
    * expression that matches if and only if any of the globs in the list
    * matches.
@@ -461,14 +542,17 @@ export class Background extends ChromeVoxState {
     return new RegExp(
         '^(' +
         globs
-            .map(
-                glob => glob.replace(/[.+^$(){}|[\]\\]/g, '\\$&')
-                            .replace(/\*/g, '.*')
-                            .replace(/\?/g, '.'))
+            .map(function(glob) {
+              return glob.replace(/[.+^$(){}|[\]\\]/g, '\\$&')
+                  .replace(/\*/g, '.*')
+                  .replace(/\?/g, '.');
+            })
             .join('|') +
         ')$');
   }
-}
+};
 
 InstanceChecker.closeExtraInstances();
-Background.init();
+new Background();
+
+});  // goog.scope

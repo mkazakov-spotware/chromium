@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ASH_PUBLIC_CPP_NOTE_TAKING_CLIENT_H_
 
 #include "ash/public/cpp/ash_public_export.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -14,9 +15,6 @@ namespace ash {
 class ASH_PUBLIC_EXPORT NoteTakingClient {
  public:
   static NoteTakingClient* GetInstance();
-
-  NoteTakingClient(const NoteTakingClient&) = delete;
-  NoteTakingClient& operator=(const NoteTakingClient&) = delete;
 
   // Returns true when it can create notes.
   virtual bool CanCreateNote() = 0;
@@ -27,6 +25,9 @@ class ASH_PUBLIC_EXPORT NoteTakingClient {
  protected:
   NoteTakingClient();
   virtual ~NoteTakingClient();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NoteTakingClient);
 };
 
 }  // namespace ash

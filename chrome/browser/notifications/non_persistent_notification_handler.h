@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,8 @@ class NonPersistentNotificationHandler : public NotificationHandler {
   void OnClick(Profile* profile,
                const GURL& origin,
                const std::string& notification_id,
-               const absl::optional<int>& action_index,
-               const absl::optional<std::u16string>& reply,
+               const base::Optional<int>& action_index,
+               const base::Optional<base::string16>& reply,
                base::OnceClosure completed_closure) override;
   void DisableNotifications(Profile* profile, const GURL& origin) override;
   void OpenSettings(Profile* profile, const GURL& origin) override;

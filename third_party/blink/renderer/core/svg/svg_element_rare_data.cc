@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
 #include "third_party/blink/renderer/core/svg/animation/element_smil_animations.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -32,19 +32,12 @@ const ComputedStyle* SVGElementRareData::OverrideComputedStyle(
     const ComputedStyle* parent_style) {
   DCHECK(element);
   if (!override_computed_style_ || needs_override_computed_style_update_) {
-    auto style_recalc_context = StyleRecalcContext::FromAncestors(*element);
-
-    StyleRequest style_request;
-    style_request.parent_override = parent_style;
-    style_request.layout_parent_override = parent_style;
-    style_request.matching_behavior = kMatchAllRulesExcludingSMIL;
-
     // The style computed here contains no CSS Animations/Transitions or SMIL
     // induced rules - this is needed to compute the "base value" for the SMIL
     // animation sandwhich model.
     override_computed_style_ =
-        element->GetDocument().GetStyleResolver().ResolveStyle(
-            element, style_recalc_context, style_request);
+        element->GetDocument().GetStyleResolver().StyleForElement(
+            element, parent_style, parent_style, kMatchAllRulesExcludingSMIL);
     needs_override_computed_style_update_ = false;
   }
   DCHECK(override_computed_style_);

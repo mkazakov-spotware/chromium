@@ -1,10 +1,10 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Utility classes (and functions, in the future) for graph operations."""
 
 import functools
-from typing import Dict, Generic, List, Optional, Tuple, TypeVar
+from typing import Dict, List, Optional, Tuple
 
 
 def sorted_nodes_by_name(nodes):
@@ -18,10 +18,10 @@ def sorted_edges_by_name(edges):
     Prioritizes sorting by the first node in an edge."""
     return sorted(edges, key=lambda edge: (edge[0].name, edge[1].name))
 
-@functools.total_ordering
-class Node:
-    """A node/vertex in a directed graph."""
 
+@functools.total_ordering
+class Node(object):  # pylint: disable=useless-object-inheritance
+    """A node/vertex in a directed graph."""
     def __init__(self, unique_key: str):
         """Initializes a new node with the given key.
 
@@ -32,17 +32,14 @@ class Node:
         self._outbound = set()
         self._inbound = set()
 
-    def __eq__(self, other: 'Node'):
+    def __eq__(self, other: 'Node'):  # pylint: disable=missing-function-docstring
         return self._unique_key == other._unique_key
 
-    def __lt__(self, other: 'Node'):
+    def __lt__(self, other: 'Node'):  # pylint: disable=missing-function-docstring
         return self._unique_key < other._unique_key
 
-    def __hash__(self):
+    def __hash__(self):  # pylint: disable=missing-function-docstring
         return hash(self._unique_key)
-
-    def __str__(self) -> str:
-        return self.name
 
     @property
     def name(self):
@@ -74,18 +71,13 @@ class Node:
         return None
 
 
-T = TypeVar('T', bound=Node)
-
-
-class Graph(Generic[T]):
+class Graph(object):  # pylint: disable=useless-object-inheritance
     """A directed graph data structure.
 
-    Maintains an internal Dict[str, T] _key_to_node mapping the unique key of
-    nodes to their Node objects. Allows subclasses to specify their own Node
-    subclasses via Generic typing.
+    Maintains an internal Dict[str, Node] _key_to_node
+    mapping the unique key of nodes to their Node objects.
     """
-
-    def __init__(self):
+    def __init__(self):  # pylint: disable=missing-function-docstring
         self._key_to_node = {}
         self._edges = []
 
@@ -100,27 +92,26 @@ class Graph(Generic[T]):
         return len(self.edges)
 
     @property
-    def nodes(self) -> List[T]:
+    def nodes(self) -> List:
         """A list of Nodes in the graph."""
         return list(self._key_to_node.values())
 
     @property
-    def edges(self) -> List[Tuple[T, T]]:
+    def edges(self) -> List[Tuple]:
         """A list of tuples (begin, end) representing directed edges."""
         return self._edges
 
-    def get_node_by_key(self, key: str) -> Optional[T]:
-        """Returns a node by that key or None if no such node exists."""
+    def get_node_by_key(self, key: str):  # pylint: disable=missing-function-docstring
         return self._key_to_node.get(key)
 
-    def create_node_from_key(self, key: str) -> T:
+    def create_node_from_key(self, key: str):
         """Given a unique key, creates and returns a Node object.
 
         Should be overridden by child classes.
         """
-        return Node(key)  # type: ignore
+        return Node(key)
 
-    def add_node_if_new(self, key: str) -> T:
+    def add_node_if_new(self, key: str) -> Node:
         """Adds a Node to the graph.
 
         A new Node object is constructed from the given key and added.
@@ -132,12 +123,11 @@ class Graph(Generic[T]):
         Returns:
             The Node with the given key in the graph.
         """
-        try:
-            return self._key_to_node[key]
-        except KeyError:
+        node = self._key_to_node.get(key)
+        if node is None:
             node = self.create_node_from_key(key)
             self._key_to_node[key] = node
-            return node
+        return node
 
     def add_edge_if_new(self, src: str, dest: str) -> bool:
         """Adds a directed edge to the graph.

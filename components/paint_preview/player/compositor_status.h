@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,6 @@ enum class CompositorStatus : int {
   TIMED_OUT,
   STOPPED_DUE_TO_MEMORY_PRESSURE,
   SKIPPED_DUE_TO_MEMORY_PRESSURE,
-  // Used by long screenshots code only when call to requestBitmap fails.
-  REQUEST_BITMAP_FAILURE,
   COUNT,
 };
 

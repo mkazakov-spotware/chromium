@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,13 +48,6 @@ void CardUnmaskPromptViewAndroid::Show() {
                              view_android->GetWindowAndroid()->GetJavaObject());
 }
 
-void CardUnmaskPromptViewAndroid::Dismiss() {
-  if (!java_object_internal_)
-    return;
-  Java_CardUnmaskBridge_dismiss(base::android::AttachCurrentThread(),
-                                java_object_internal_);
-}
-
 bool CardUnmaskPromptViewAndroid::CheckUserInputValidity(
     JNIEnv* env,
     const JavaParamRef<jobject>& obj,
@@ -69,11 +62,13 @@ void CardUnmaskPromptViewAndroid::OnUserInput(
     const JavaParamRef<jstring>& cvc,
     const JavaParamRef<jstring>& month,
     const JavaParamRef<jstring>& year,
+    jboolean should_store_locally,
     jboolean enable_fido_auth) {
   controller_->OnUnmaskPromptAccepted(
       base::android::ConvertJavaStringToUTF16(env, cvc),
       base::android::ConvertJavaStringToUTF16(env, month),
-      base::android::ConvertJavaStringToUTF16(env, year), enable_fido_auth);
+      base::android::ConvertJavaStringToUTF16(env, year), should_store_locally,
+      enable_fido_auth);
 }
 
 void CardUnmaskPromptViewAndroid::OnNewCardLinkClicked(
@@ -105,7 +100,10 @@ void CardUnmaskPromptViewAndroid::PromptDismissed(
 
 void CardUnmaskPromptViewAndroid::ControllerGone() {
   controller_ = nullptr;
-  Dismiss();
+  JNIEnv* env = base::android::AttachCurrentThread();
+  if (!java_object_internal_)
+    return;
+  Java_CardUnmaskBridge_dismiss(env, java_object_internal_);
 }
 
 void CardUnmaskPromptViewAndroid::DisableAndWaitForVerification() {
@@ -117,7 +115,7 @@ void CardUnmaskPromptViewAndroid::DisableAndWaitForVerification() {
 }
 
 void CardUnmaskPromptViewAndroid::GotVerificationResult(
-    const std::u16string& error_message,
+    const base::string16& error_message,
     bool allow_retry) {
   auto java_object = GetOrCreateJavaObject();
   if (!java_object)
@@ -156,9 +154,12 @@ CardUnmaskPromptViewAndroid::GetOrCreateJavaObject() {
              env, reinterpret_cast<intptr_t>(this), dialog_title, instructions,
              confirm,
              ResourceMapper::MapToJavaDrawableId(controller_->GetCvcImageRid()),
-             ResourceMapper::MapToJavaDrawableId(
-                 controller_->GetGooglePayImageRid()),
-             controller_->IsCardLocal(), controller_->IsVirtualCard(),
+             base::FeatureList::IsEnabled(
+                 features::kAutofillDownstreamCvcPromptUseGooglePayLogo)
+                 ? ResourceMapper::MapToJavaDrawableId(
+                       controller_->GetGooglePayImageRid())
+                 : -1,
+             controller_->IsCardLocal(),
              controller_->ShouldRequestExpirationDate(),
              controller_->GetStoreLocallyStartState(),
              controller_->ShouldOfferWebauthn(),

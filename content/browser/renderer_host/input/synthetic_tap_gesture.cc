@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,11 @@ namespace content {
 SyntheticTapGesture::SyntheticTapGesture(
     const SyntheticTapGestureParams& params)
     : params_(params),
-      gesture_source_type_(content::mojom::GestureSourceType::kDefaultInput),
+      gesture_source_type_(SyntheticGestureParams::DEFAULT_INPUT),
       state_(SETUP) {
   DCHECK_GE(params_.duration_ms, 0);
-  if (params_.gesture_source_type ==
-      content::mojom::GestureSourceType::kDefaultInput)
-    params_.gesture_source_type =
-        content::mojom::GestureSourceType::kTouchInput;
+  if (params_.gesture_source_type == SyntheticGestureParams::DEFAULT_INPUT)
+    params_.gesture_source_type = SyntheticGestureParams::TOUCH_INPUT;
 }
 
 SyntheticTapGesture::~SyntheticTapGesture() {}
@@ -29,22 +27,20 @@ SyntheticGesture::Result SyntheticTapGesture::ForwardInputEvents(
     const base::TimeTicks& timestamp, SyntheticGestureTarget* target) {
   if (state_ == SETUP) {
     gesture_source_type_ = params_.gesture_source_type;
-    if (gesture_source_type_ ==
-        content::mojom::GestureSourceType::kDefaultInput)
+    if (gesture_source_type_ == SyntheticGestureParams::DEFAULT_INPUT)
       gesture_source_type_ = target->GetDefaultSyntheticGestureSourceType();
 
     state_ = PRESS;
   }
 
-  DCHECK_NE(gesture_source_type_,
-            content::mojom::GestureSourceType::kDefaultInput);
+  DCHECK_NE(gesture_source_type_, SyntheticGestureParams::DEFAULT_INPUT);
 
   if (!synthetic_pointer_driver_)
-    synthetic_pointer_driver_ = SyntheticPointerDriver::Create(
-        gesture_source_type_, params_.from_devtools_debugger);
+    synthetic_pointer_driver_ =
+        SyntheticPointerDriver::Create(gesture_source_type_);
 
-  if (gesture_source_type_ == content::mojom::GestureSourceType::kTouchInput ||
-      gesture_source_type_ == content::mojom::GestureSourceType::kMouseInput)
+  if (gesture_source_type_ == SyntheticGestureParams::TOUCH_INPUT ||
+      gesture_source_type_ == SyntheticGestureParams::MOUSE_INPUT)
     ForwardTouchOrMouseInputEvents(timestamp, target);
   else
     return SyntheticGesture::GESTURE_SOURCE_TYPE_NOT_IMPLEMENTED;
@@ -99,7 +95,7 @@ void SyntheticTapGesture::ForwardTouchOrMouseInputEvents(
 }
 
 base::TimeDelta SyntheticTapGesture::GetDuration() const {
-  return base::Milliseconds(params_.duration_ms);
+  return base::TimeDelta::FromMilliseconds(params_.duration_ms);
 }
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 
 #include <mfapi.h>
 
-#include "base/win/windows_version.h"
-#include "media/base/media_util.h"
 #include "media/test/pipeline_integration_test_base.h"
 #include "media/test/test_media_source.h"
 
@@ -61,29 +59,19 @@ class MediaFoundationRendererIntegrationTest
         base::Unretained(this)));
   }
 
-  MediaFoundationRendererIntegrationTest(
-      const MediaFoundationRendererIntegrationTest&) = delete;
-  MediaFoundationRendererIntegrationTest& operator=(
-      const MediaFoundationRendererIntegrationTest&) = delete;
-
  private:
   std::unique_ptr<Renderer> CreateMediaFoundationRenderer(
-      absl::optional<RendererType> /*renderer_type*/) {
-    LUID empty_luid{0, 0};
+      base::Optional<RendererFactoryType> factory_type) {
     auto renderer = std::make_unique<MediaFoundationRenderer>(
-        task_environment_.GetMainThreadTaskRunner(),
-        std::make_unique<NullMediaLog>(), empty_luid,
+        /*muted=*/false, task_environment_.GetMainThreadTaskRunner(),
         /*force_dcomp_mode_for_testing=*/true);
     return renderer;
   }
+
+  DISALLOW_COPY_AND_ASSIGN(MediaFoundationRendererIntegrationTest);
 };
 
 TEST_F(MediaFoundationRendererIntegrationTest, BasicPlayback) {
-  // TODO(crbug.com/1240681): This test is very flaky on win10-20h2.
-  if (base::win::OSInfo::GetInstance()->version() >=
-      base::win::Version::WIN10_20H2) {
-    GTEST_SKIP() << "Skipping test for WIN10_20H2 and greater";
-  }
   if (!CanDecodeVp9())
     return;
 
@@ -93,11 +81,6 @@ TEST_F(MediaFoundationRendererIntegrationTest, BasicPlayback) {
 }
 
 TEST_F(MediaFoundationRendererIntegrationTest, BasicPlayback_MediaSource) {
-  // TODO(crbug.com/1240681): This test is very flaky on win10-20h2.
-  if (base::win::OSInfo::GetInstance()->version() >=
-      base::win::Version::WIN10_20H2) {
-    GTEST_SKIP() << "Skipping test for WIN10_20H2 and greater";
-  }
   if (!CanDecodeVp9())
     return;
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -113,10 +113,9 @@ namespace manifest_keys = extensions::manifest_keys;
 
 scoped_refptr<Extension> CreateExtension(const base::DictionaryValue& manifest,
                                          std::string* error) {
-  scoped_refptr<Extension> extension =
-      Extension::Create(base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
-                        extensions::mojom::ManifestLocation::kInvalidLocation,
-                        manifest, Extension::NO_FLAGS, error);
+  scoped_refptr<Extension> extension = Extension::Create(
+      base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
+      Manifest::INVALID_LOCATION, manifest, Extension::NO_FLAGS, error);
   return extension;
 }
 
@@ -155,16 +154,16 @@ TEST(OverrideSettingsTest, ParseManifest) {
   std::string error;
   scoped_refptr<Extension> extension = CreateExtension(kManifest, &error);
   ASSERT_TRUE(extension.get());
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  ASSERT_TRUE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+#if defined(OS_WIN) || defined(OS_MAC)
+  ASSERT_TRUE(extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 
   SettingsOverrides* settings_override = static_cast<SettingsOverrides*>(
       extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
   ASSERT_TRUE(settings_override->search_engine);
   EXPECT_TRUE(settings_override->search_engine->is_default);
-  const auto& search_engine = settings_override->search_engine;
+  const ChromeSettingsOverrides::SearchProvider* search_engine =
+      settings_override->search_engine.get();
   EXPECT_EQ("first", *search_engine->name);
   EXPECT_EQ("firstkey", *search_engine->keyword);
   EXPECT_EQ("http://www.foo.com/s?q={searchTerms}", search_engine->search_url);
@@ -180,7 +179,7 @@ TEST(OverrideSettingsTest, ParseManifest) {
   EXPECT_EQ(GURL("http://www.homepage.com"), *settings_override->homepage);
 #else
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -189,22 +188,22 @@ TEST(OverrideSettingsTest, ParsePrepopulatedId) {
   scoped_refptr<Extension> extension =
       CreateExtension(kPrepopulatedManifest, &error);
   ASSERT_TRUE(extension.get());
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  ASSERT_TRUE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+#if defined(OS_WIN) || defined(OS_MAC)
+  ASSERT_TRUE(extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 
   SettingsOverrides* settings_override = static_cast<SettingsOverrides*>(
       extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
   ASSERT_TRUE(settings_override->search_engine);
   EXPECT_TRUE(settings_override->search_engine->is_default);
-  const auto& search_engine = settings_override->search_engine;
+  const ChromeSettingsOverrides::SearchProvider* search_engine =
+      settings_override->search_engine.get();
   ASSERT_TRUE(search_engine->prepopulated_id);
   EXPECT_EQ("http://www.foo.com/s?q={searchTerms}", search_engine->search_url);
   EXPECT_EQ(3, *search_engine->prepopulated_id);
 #else
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -213,9 +212,8 @@ TEST(OverrideSettingsTest, ParseManifestBrokenHomepageButCorrectStartupPages) {
   scoped_refptr<Extension> extension =
       CreateExtension(kManifestBrokenHomepageButCorrectStartupPages, &error);
   ASSERT_TRUE(extension.get());
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  ASSERT_TRUE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+#if defined(OS_WIN) || defined(OS_MAC)
+  ASSERT_TRUE(extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 
   SettingsOverrides* settings_override = static_cast<SettingsOverrides*>(
       extension->GetManifestData(manifest_keys::kSettingsOverride));
@@ -224,7 +222,7 @@ TEST(OverrideSettingsTest, ParseManifestBrokenHomepageButCorrectStartupPages) {
             settings_override->startup_pages);
 #else
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -233,9 +231,8 @@ TEST(OverrideSettingsTest, ParseManifestBrokenStartupPagesButCorrectHomepage) {
   scoped_refptr<Extension> extension =
       CreateExtension(kManifestBrokenStartupPagesButCorrectHomepage, &error);
   ASSERT_TRUE(extension.get());
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  ASSERT_TRUE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+#if defined(OS_WIN) || defined(OS_MAC)
+  ASSERT_TRUE(extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
   SettingsOverrides* settings_override = static_cast<SettingsOverrides*>(
       extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
@@ -243,7 +240,7 @@ TEST(OverrideSettingsTest, ParseManifestBrokenStartupPagesButCorrectHomepage) {
   EXPECT_EQ(GURL("http://www.homepage.com"), *settings_override->homepage);
 #else
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -251,7 +248,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestEmptySettingsOverride) {
   std::string error;
   scoped_refptr<Extension> extension =
       CreateExtension(kBrokenManifestEmpty, &error);
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN) || defined(OS_MAC)
   EXPECT_FALSE(extension.get());
   EXPECT_EQ(
       extensions::ErrorUtils::FormatErrorMessage(
@@ -261,7 +258,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestEmptySettingsOverride) {
 #else
   ASSERT_TRUE(extension.get());
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -269,7 +266,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestHomepage) {
   std::string error;
   scoped_refptr<Extension> extension =
       CreateExtension(kBrokenManifestHomepage, &error);
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN) || defined(OS_MAC)
   EXPECT_FALSE(extension.get());
   EXPECT_EQ(extensions::ErrorUtils::FormatErrorMessage(
                 extensions::manifest_errors::kInvalidHomepageOverrideURL,
@@ -278,7 +275,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestHomepage) {
 #else
   ASSERT_TRUE(extension.get());
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -286,7 +283,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestStartupPages) {
   std::string error;
   scoped_refptr<Extension> extension =
       CreateExtension(kBrokenManifestStartupPages, &error);
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN) || defined(OS_MAC)
   EXPECT_FALSE(extension.get());
   EXPECT_EQ(
       extensions::ErrorUtils::FormatErrorMessage(
@@ -295,7 +292,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestStartupPages) {
 #else
   ASSERT_TRUE(extension.get());
   EXPECT_FALSE(
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+      extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
 }
 
@@ -331,7 +328,7 @@ TEST(OverrideSettingsTest, SearchProviderMissingKeys) {
     std::string error;
     scoped_refptr<Extension> extension = CreateExtensionWithSearchProvider(
         std::move(provider_with_missing_key), &error);
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN) || defined(OS_MAC)
     EXPECT_FALSE(extension.get());
     EXPECT_EQ(extensions::ErrorUtils::FormatErrorMessage(
                   extensions::manifest_errors::kInvalidSearchEngineMissingKeys,
@@ -340,7 +337,7 @@ TEST(OverrideSettingsTest, SearchProviderMissingKeys) {
 #else
     ASSERT_TRUE(extension.get());
     EXPECT_FALSE(
-        extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
+        extension->manifest()->HasPath(manifest_keys::kSettingsOverride));
 #endif
   }
 }

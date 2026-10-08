@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "content/test/fuzzer/controller_presentation_service_delegate_for_fuzzing.h"
 
 #include "base/notreached.h"
+#include "base/task/post_task.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "third_party/blink/public/mojom/presentation/presentation.mojom-mojolpm.h"
@@ -36,8 +37,8 @@ void ControllerPresentationServiceDelegateForFuzzing::AddObserver(
     int render_frame_id,
     ControllerPresentationServiceDelegate::Observer* observer) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  observers_[content::GlobalRenderFrameHostId(render_process_id,
-                                              render_frame_id)] = observer;
+  observers_[content::GlobalFrameRoutingId(render_process_id,
+                                           render_frame_id)] = observer;
 }
 
 void ControllerPresentationServiceDelegateForFuzzing::RemoveObserver(
@@ -45,7 +46,7 @@ void ControllerPresentationServiceDelegateForFuzzing::RemoveObserver(
     int render_frame_id) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   observers_.erase(
-      content::GlobalRenderFrameHostId(render_process_id, render_frame_id));
+      content::GlobalFrameRoutingId(render_process_id, render_frame_id));
 }
 
 void ControllerPresentationServiceDelegateForFuzzing::Reset(
@@ -157,8 +158,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   GURL url;
   if (!mojolpm::FromProto(proto_url, url))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallListenersGetAvailabilityUrl,
                      GetWeakPtr(), std::move(url)));
@@ -183,8 +184,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::ScreenAvailability screen_availability;
   if (!mojolpm::FromProto(proto_screen_availability, screen_availability))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallListenersOnScreenAvailabilityChanged,
                      GetWeakPtr(), std::move(url),
@@ -209,8 +210,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::PresentationConnectionResultPtr result;
   if (!mojolpm::FromProto(proto_result, result))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallSetDefaultPresentationUrls,
                      GetWeakPtr(), std::move(result)));
@@ -233,8 +234,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::PresentationConnectionResultPtr result;
   if (!mojolpm::FromProto(proto_result, result))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallStartPresentationSuccess,
                      GetWeakPtr(), std::move(result)));
@@ -258,8 +259,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::PresentationErrorPtr error;
   if (!mojolpm::FromProto(proto_error, error))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallStartPresentationError,
                      GetWeakPtr(), std::move(error)));
@@ -281,8 +282,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::PresentationConnectionResultPtr result;
   if (!mojolpm::FromProto(proto_result, result))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallReconnectPresentationSuccess,
                      GetWeakPtr(), std::move(result)));
@@ -304,8 +305,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::PresentationErrorPtr error;
   if (!mojolpm::FromProto(proto_error, error))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallReconnectPresentationError,
                      GetWeakPtr(), std::move(error)));
@@ -328,8 +329,8 @@ void ControllerPresentationServiceDelegateForFuzzing::
   blink::mojom::PresentationConnectionState connection_state;
   if (!mojolpm::FromProto(proto_connection_state, connection_state))
     return;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&ControllerPresentationServiceDelegateForFuzzing::
                          CallListenForConnectionStateChangeStateChanged,
                      GetWeakPtr(), std::move(connection_state)));

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "components/autofill/core/common/form_data.h"
-#include "components/autofill/core/common/unique_ids.h"
+#include "components/autofill/core/common/renderer_id.h"
 #include "third_party/blink/public/web/web_form_control_element.h"
 #include "third_party/blink/public/web/web_input_element.h"
 
@@ -34,8 +34,7 @@ using UsernameDetectorCache =
 const std::vector<FieldRendererId>& GetPredictionsFieldBasedOnHtmlAttributes(
     const std::vector<blink::WebFormControlElement>& all_control_elements,
     const FormData& form_data,
-    UsernameDetectorCache* username_detector_cache,
-    const blink::WebFormElement& form);
+    UsernameDetectorCache* username_detector_cache);
 
 }  // namespace autofill
 

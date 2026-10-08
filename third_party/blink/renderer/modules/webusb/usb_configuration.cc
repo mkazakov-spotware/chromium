@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,9 +33,6 @@ USBConfiguration::USBConfiguration(const USBDevice* device,
     : device_(device), configuration_index_(configuration_index) {
   DCHECK(device_);
   DCHECK_LT(configuration_index_, device_->Info().configurations.size());
-
-  for (wtf_size_t i = 0; i < Info().interfaces.size(); ++i)
-    interfaces_.push_back(USBInterface::Create(this, i));
 }
 
 const USBDevice* USBConfiguration::Device() const {
@@ -52,12 +49,14 @@ const device::mojom::blink::UsbConfigurationInfo& USBConfiguration::Info()
 }
 
 HeapVector<Member<USBInterface>> USBConfiguration::interfaces() const {
-  return interfaces_;
+  HeapVector<Member<USBInterface>> interfaces;
+  for (wtf_size_t i = 0; i < Info().interfaces.size(); ++i)
+    interfaces.push_back(USBInterface::Create(this, i));
+  return interfaces;
 }
 
 void USBConfiguration::Trace(Visitor* visitor) const {
   visitor->Trace(device_);
-  visitor->Trace(interfaces_);
   ScriptWrappable::Trace(visitor);
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include "base/files/scoped_temp_dir.h"
@@ -170,12 +169,12 @@ TEST_F(MetadataDatabaseIndexOnDiskTest, SetEntryTest) {
 
   WriteToDB();
 
-  metadata = std::make_unique<FileMetadata>();
+  metadata.reset(new FileMetadata);
   ASSERT_TRUE(index()->GetFileMetadata("test_file_id", metadata.get()));
   EXPECT_TRUE(metadata->has_details());
   EXPECT_EQ("test_title", metadata->details().title());
 
-  tracker = std::make_unique<FileTracker>();
+  tracker.reset(new FileTracker);
   ASSERT_TRUE(index()->GetFileTracker(tracker_id, tracker.get()));
   EXPECT_EQ("test_file_id", tracker->file_id());
 
@@ -591,7 +590,7 @@ TEST_F(MetadataDatabaseIndexOnDiskTest, TrackerIDSetDetailsTest) {
   EXPECT_FALSE(idset.has_active());
 
   // Activate one file tracker.
-  file_tracker = std::make_unique<FileTracker>();
+  file_tracker.reset(new FileTracker);
   index()->GetFileTracker(kFileTrackerID2, file_tracker.get());
   file_tracker->set_active(true);
   index()->StoreFileTracker(std::move(file_tracker));

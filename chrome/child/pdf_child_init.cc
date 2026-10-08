@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/command_line.h"
 #include "base/no_destructor.h"
 #include "base/win/current_module.h"
@@ -14,14 +14,13 @@
 #include "base/win/windows_version.h"
 #include "content/public/child/child_thread.h"
 #include "content/public/common/content_switches.h"
-#include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "sandbox/policy/sandbox_type.h"
 #include "sandbox/policy/switches.h"
 #endif
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 typedef decltype(::GetFontData)* GetFontDataPtr;
 GetFontDataPtr g_original_get_font_data = nullptr;
 
@@ -46,21 +45,20 @@ DWORD WINAPI GetFontDataPatch(HDC hdc,
   }
   return rv;
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace
 
-void MaybePatchGdiGetFontData() {
-#if BUILDFLAG(IS_WIN)
+void MaybeInitializeGDI() {
+#if defined(OS_WIN)
   // Only patch utility processes which explicitly need GDI.
-  auto& command_line = *base::CommandLine::ForCurrentProcess();
-  auto service_sandbox_type =
-      sandbox::policy::SandboxTypeFromCommandLine(command_line);
+  sandbox::policy::SandboxType service_sandbox_type =
+      sandbox::policy::SandboxTypeFromCommandLine(
+          *base::CommandLine::ForCurrentProcess());
   bool need_gdi =
-      service_sandbox_type == sandbox::mojom::Sandbox::kPrintCompositor ||
-      service_sandbox_type == sandbox::mojom::Sandbox::kPdfConversion ||
-      (service_sandbox_type == sandbox::mojom::Sandbox::kRenderer &&
-       command_line.HasSwitch(switches::kPdfRenderer));
+      service_sandbox_type == sandbox::policy::SandboxType::kPpapi ||
+      service_sandbox_type == sandbox::policy::SandboxType::kPrintCompositor ||
+      service_sandbox_type == sandbox::policy::SandboxType::kPdfConversion;
   if (!need_gdi)
     return;
 
@@ -71,13 +69,13 @@ void MaybePatchGdiGetFontData() {
   HMODULE module = CURRENT_MODULE();
 #endif  // defined(COMPONENT_BUILD)
 
-  // Need to patch GetFontData() for font loading to work correctly.
-  // TODO(crbug.com/pdfium/11): Can be removed once PDFium switches to use Skia.
+  // Need to patch GetFontData() for font loading to work correctly. This can be
+  // removed once PDFium switches to use Skia. https://crbug.com/pdfium/11
   static base::NoDestructor<base::win::IATPatchFunction> patch_get_font_data;
   patch_get_font_data->PatchFromModule(
       module, "gdi32.dll", "GetFontData",
       reinterpret_cast<void*>(GetFontDataPatch));
   g_original_get_font_data = reinterpret_cast<GetFontDataPtr>(
       patch_get_font_data->original_function());
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }

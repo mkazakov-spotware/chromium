@@ -1,13 +1,6 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assertEquals, assertThrows} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {reportPromise} from '../../../common/js/test_error_reporting.js';
-
-import {MetadataModel} from './metadata_model.js';
-import {MetadataProvider} from './metadata_provider.js';
 
 /** @final */
 class TestMetadataProvider extends MetadataProvider {
@@ -87,7 +80,7 @@ function getProperty(result, property) {
   return result[property];
 }
 
-export function testMetadataModelBasic(callback) {
+function testMetadataModelBasic(callback) {
   let provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -103,7 +96,7 @@ export function testMetadataModelBasic(callback) {
       callback);
 }
 
-export function testMetadataModelRequestForCachedProperty(callback) {
+function testMetadataModelRequestForCachedProperty(callback) {
   let provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -125,8 +118,7 @@ export function testMetadataModelRequestForCachedProperty(callback) {
       callback);
 }
 
-export function testMetadataModelRequestForCachedAndNonCachedProperty(
-    callback) {
+function testMetadataModelRequestForCachedAndNonCachedProperty(callback) {
   let provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -159,7 +151,7 @@ export function testMetadataModelRequestForCachedAndNonCachedProperty(
       callback);
 }
 
-export function testMetadataModelRequestForCachedAndNonCachedEntry(callback) {
+function testMetadataModelRequestForCachedAndNonCachedEntry(callback) {
   let provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -184,8 +176,7 @@ export function testMetadataModelRequestForCachedAndNonCachedEntry(callback) {
       callback);
 }
 
-export function testMetadataModelRequestBeforeCompletingPreviousRequest(
-    callback) {
+function testMetadataModelRequestBeforeCompletingPreviousRequest(callback) {
   let provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -204,7 +195,7 @@ export function testMetadataModelRequestBeforeCompletingPreviousRequest(
       callback);
 }
 
-export function testMetadataModelNotUpdateCachedResultAfterRequest(callback) {
+function testMetadataModelNotUpdateCachedResultAfterRequest(callback) {
   let provider = new ManualTestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -235,7 +226,7 @@ export function testMetadataModelNotUpdateCachedResultAfterRequest(callback) {
       callback);
 }
 
-export function testMetadataModelGetCache(callback) {
+function testMetadataModelGetCache(callback) {
   let provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -254,7 +245,7 @@ export function testMetadataModelGetCache(callback) {
       callback);
 }
 
-export function testMetadataModelUnknownProperty() {
+function testMetadataModelUnknownProperty() {
   const provider = new TestMetadataProvider();
   const model = new MetadataModel(provider);
 
@@ -263,7 +254,7 @@ export function testMetadataModelUnknownProperty() {
   });
 }
 
-export function testMetadataModelEmptyResult(callback) {
+function testMetadataModelEmptyResult(callback) {
   const provider = new TestEmptyMetadataProvider();
   const model = new MetadataModel(provider);
 

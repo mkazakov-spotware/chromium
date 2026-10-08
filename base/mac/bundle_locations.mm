@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include "base/mac/foundation_util.h"
 #include "base/strings/sys_string_conversions.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 // NSBundle isn't threadsafe, all functions in this file must be called on the
 // main thread.
@@ -78,4 +79,5 @@ void SetOverrideFrameworkBundlePath(const FilePath& file_path) {
   AssignOverridePath(file_path, &g_override_framework_bundle);
 }
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

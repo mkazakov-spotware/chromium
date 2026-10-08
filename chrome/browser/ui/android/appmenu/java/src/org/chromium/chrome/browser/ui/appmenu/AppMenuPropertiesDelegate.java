@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,10 @@ package org.chromium.chrome.browser.ui.appmenu;
 
 import android.os.Bundle;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 
-import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
-
-import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 
 import java.util.List;
 
@@ -19,24 +17,15 @@ import java.util.List;
  * App Menu helper that handles hiding and showing menu items based on activity state.
  */
 public interface AppMenuPropertiesDelegate {
-    int INVALID_ITEM_ID = -1;
-
-    /**
-     * Provides unique custom item view type across all custom binders.
-     */
-    public interface CustomItemViewTypeProvider {
-        /**
-         * Return custom item view type from menu item id.
-         * @param id The menu item id.
-         * @return The custom item view type.
-         */
-        int fromMenuItemId(int id);
-    }
-
     /**
      * Called when the containing activity is being destroyed.
      */
     void destroy();
+
+    /**
+     * @return The resource id for the menu to use in {@link AppMenu}.
+     */
+    int getAppMenuLayoutId();
 
     /**
      * @return A list of {@link CustomViewBinder}s to use for binding specific menu items or null if
@@ -44,18 +33,6 @@ public interface AppMenuPropertiesDelegate {
      */
     @Nullable
     List<CustomViewBinder> getCustomViewBinders();
-
-    /**
-     * Gets the menu items for app menu.
-     * @param customItemViewTypeProvider Interface for obtaining custom item view type from menu
-     *         item id. The view type returned from this interface will be unique across all custom
-     *         binders and should be used to to create the ListItem's that populate the ModelList
-     *         returned by #getMenuItems.
-     * @param handler The {@link AppMenuHandler} associated with {@code menu}.
-     * @return The {@link ModelList} which contains the menu items for app menu.
-     */
-    ModelList getMenuItems(
-            CustomItemViewTypeProvider customItemViewTypeProvider, AppMenuHandler handler);
 
     /**
      * Allows the delegate to show and hide items before the App Menu is shown. It is called every
@@ -69,10 +46,10 @@ public interface AppMenuPropertiesDelegate {
     /**
      * Gets a bundle of (optional) extra data associated with the provided MenuItem.
      *
-     * @param itemId The id of the menu item for which to return the Bundle.
+     * @param item The {@link MenuItem} for which to return the Bundle.
      * @return A {@link Bundle} for the provided MenuItem containing extra data, if any.
      */
-    Bundle getBundleForMenuItem(int itemId);
+    Bundle getBundleForMenuItem(MenuItem item);
 
     /**
      * Notify the delegate that the load state changed.
@@ -140,15 +117,11 @@ public interface AppMenuPropertiesDelegate {
     boolean shouldShowIconBeforeItem();
 
     /**
-     * Called to record that the menu item {@code menuItemId} was highlighted.
+     * Record the user selections if users make selected similar MenuItems.
+     *
+     * @param previousMenuItemId The previous selected MenuItem Id.
+     * @param currentMenuItemId The current selected MenuItem Id.
+     * @return Whether the pattern is recorded.
      */
-    void recordHighlightedMenuItemShown(@Nullable @IdRes Integer menuItemId);
-
-    /**
-     * Called to record that user clicked on highlighted menu item {@code menuItemId}.
-     */
-    void recordHighlightedMenuItemClicked(@Nullable @IdRes Integer menuItemId);
-
-    /** Returns whether the menu icon is positioned at the start. */
-    boolean isMenuIconAtStart();
+    boolean recordAppMenuSimilarSelectionIfNeeded(int previousMenuItemId, int currentMenuItemId);
 }

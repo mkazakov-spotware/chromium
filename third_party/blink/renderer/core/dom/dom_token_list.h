@@ -29,8 +29,7 @@
 #include "third_party/blink/renderer/core/dom/qualified_name.h"
 #include "third_party/blink/renderer/core/dom/space_split_string.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -44,7 +43,7 @@ class CORE_EXPORT DOMTokenList : public ScriptWrappable {
 
  public:
   DOMTokenList(Element& element, const QualifiedName& attr)
-      : attribute_name_(attr), element_(element) {}
+      : element_(element), attribute_name_(attr) {}
   DOMTokenList(const DOMTokenList&) = delete;
   DOMTokenList& operator=(const DOMTokenList&) = delete;
   ~DOMTokenList() override = default;
@@ -61,8 +60,8 @@ class CORE_EXPORT DOMTokenList : public ScriptWrappable {
                const AtomicString& new_token,
                ExceptionState&);
   bool supports(const AtomicString&, ExceptionState&);
-  AtomicString value() const;
-  void setValue(const AtomicString&);
+  virtual AtomicString value() const;
+  virtual void setValue(const AtomicString&);
   AtomicString toString() const { return value(); }
 
   // This function should be called when the associated attribute value was
@@ -86,12 +85,12 @@ class CORE_EXPORT DOMTokenList : public ScriptWrappable {
   void UpdateWithTokenSet(const SpaceSplitString&);
 
   SpaceSplitString token_set_;
+  const Member<Element> element_;
   // Normal DOMTokenList instances is associated to an attribute name.
   // So |attribute_name_| is typically an html_names::kFooAttr.
   // CustomStateTokenList is associated to no attribute name.
   // |attribute_name_| is |g_null_name| in that case.
   const QualifiedName attribute_name_;
-  const Member<Element> element_;
   bool is_in_update_step_ = false;
 };
 

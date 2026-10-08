@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/files/file_util.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_thread_priority.h"
 #include "ui/display/win/display_info.h"
@@ -67,11 +68,9 @@ void ColorProfileReader::UpdateIfNeeded() {
 
   // Enumerate device profile paths on a background thread.  When this
   // completes it will run another task on a background thread to read
-  // the profiles. This can impact the color of the browser so we want
-  // to set this to a higher priority to complete the task earlier
-  // during startup.
+  // the profiles.
   base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
       base::BindOnce(
           &ColorProfileReader::BuildDeviceToPathMapOnBackgroundThread),
       base::BindOnce(&ColorProfileReader::BuildDeviceToPathMapCompleted,
@@ -101,7 +100,7 @@ void ColorProfileReader::BuildDeviceToPathMapCompleted(
   device_to_path_map_ = new_device_to_path_map;
 
   base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
       base::BindOnce(&ColorProfileReader::ReadProfilesOnBackgroundThread,
                      new_device_to_path_map),
       base::BindOnce(&ColorProfileReader::ReadProfilesCompleted,
@@ -134,7 +133,7 @@ void ColorProfileReader::ReadProfilesCompleted(
     const std::string& profile_data = entry.second;
     if (!profile_data.empty()) {
       int64_t display_id =
-          internal::DisplayInfo::DeviceIdFromDeviceName(device_name.c_str());
+          DisplayInfo::DeviceIdFromDeviceName(device_name.c_str());
       display_id_to_profile_map_[display_id] =
           gfx::ICCProfile::FromData(profile_data.data(), profile_data.size());
     }

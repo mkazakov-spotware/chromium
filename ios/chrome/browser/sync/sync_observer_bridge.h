@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #import <Foundation/Foundation.h>
 
 #include "base/compiler_specific.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "components/sync/driver/sync_service.h"
 #include "components/sync/driver/sync_service_observer.h"
 
-@protocol SyncObserverModelBridge <NSObject>
+@protocol SyncObserverModelBridge<NSObject>
 - (void)onSyncStateChanged;
 @optional
 - (void)onSyncConfigurationCompleted;
@@ -21,12 +22,9 @@
 // C++ class to monitor profile sync status in Objective-C type.
 class SyncObserverBridge : public syncer::SyncServiceObserver {
  public:
-  // `service` must outlive the SyncObserverBridge.
+  // |service| must outlive the SyncObserverBridge.
   SyncObserverBridge(id<SyncObserverModelBridge> delegate,
                      syncer::SyncService* service);
-
-  SyncObserverBridge(const SyncObserverBridge&) = delete;
-  SyncObserverBridge& operator=(const SyncObserverBridge&) = delete;
 
   ~SyncObserverBridge() override;
 
@@ -36,8 +34,10 @@ class SyncObserverBridge : public syncer::SyncServiceObserver {
 
  private:
   __weak id<SyncObserverModelBridge> delegate_ = nil;
-  base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
-      scoped_observation_{this};
+  ScopedObserver<syncer::SyncService, syncer::SyncServiceObserver>
+      scoped_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncObserverBridge);
 };
 
 #endif  // IOS_CHROME_BROWSER_SYNC_SYNC_OBSERVER_BRIDGE_H_

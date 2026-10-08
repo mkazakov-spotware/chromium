@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromeos/services/network_config/public/cpp/cros_network_config_util.h"
-#include "components/onc/onc_constants.h"
 
-namespace chromeos::network_config {
+namespace chromeos {
+namespace network_config {
 
 // This matches logic in NetworkTypePattern and should be kept in sync.
 bool NetworkTypeMatchesType(mojom::NetworkType network_type,
@@ -71,19 +71,5 @@ int GetWirelessSignalStrength(const mojom::NetworkStateProperties* network) {
   return 0;
 }
 
-bool IsInhibited(const mojom::DeviceStateProperties* device) {
-  return device->inhibit_reason != mojom::InhibitReason::kNotInhibited;
-}
-
-base::Value::Dict UserApnListToOnc(const std::string& network_guid,
-                                   base::Value::List user_apn_list) {
-  base::Value::Dict onc;
-  onc.Set(::onc::network_config::kGUID, network_guid);
-  onc.Set(::onc::network_config::kType, ::onc::network_type::kCellular);
-  base::Value::Dict type_dict;
-  type_dict.Set(::onc::cellular::kUserAPNList, std::move(user_apn_list));
-  onc.Set(::onc::network_type::kCellular, std::move(type_dict));
-  return onc;
-}
-
-}  // namespace chromeos::network_config
+}  // namespace network_config
+}  // namespace chromeos

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <string>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "dbus/mock_bus.h"
 #include "dbus/mock_object_proxy.h"
@@ -42,10 +41,6 @@ const char kUPowerDisplayDevicePath[] =
 class MockUPowerObject {
  public:
   MockUPowerObject() {}
-
-  MockUPowerObject(const MockUPowerObject&) = delete;
-  MockUPowerObject& operator=(const MockUPowerObject&) = delete;
-
   void ConnectToSignal(
       const std::string& interface_name,
       const std::string& signal_name,
@@ -64,6 +59,9 @@ class MockUPowerObject {
   std::string daemon_version;
   std::list<std::string> devices;
   std::string display_device;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockUPowerObject);
 };
 
 void MockUPowerObject::ConnectToSignal(
@@ -174,10 +172,6 @@ class MockBatteryObject {
   MockBatteryObject(dbus::Bus* bus,
                     const std::string& object_path,
                     MockBatteryProperties* properties);
-
-  MockBatteryObject(const MockBatteryObject&) = delete;
-  MockBatteryObject& operator=(const MockBatteryObject&) = delete;
-
   void ConnectToSignal(
       const std::string& interface_name,
       const std::string& signal_name,
@@ -192,7 +186,7 @@ class MockBatteryObject {
   void SignalPropertyChanged(const std::string& property_name);
 
   scoped_refptr<dbus::MockObjectProxy> proxy;
-  raw_ptr<MockBatteryProperties> properties;
+  MockBatteryProperties* properties;
   dbus::ObjectProxy::SignalCallback signal_callback_changed;
   dbus::ObjectProxy::SignalCallback signal_callback_properties_changed;
 
@@ -200,6 +194,8 @@ class MockBatteryObject {
   void AppendPropertyToWriter(dbus::MessageWriter* writer,
                               const std::string& property_name);
   void AppendAllPropertiesToWriter(dbus::MessageWriter* writer);
+
+  DISALLOW_COPY_AND_ASSIGN(MockBatteryObject);
 };
 
 MockBatteryObject::MockBatteryObject(dbus::Bus* bus,
@@ -350,11 +346,6 @@ void MockBatteryObject::AppendAllPropertiesToWriter(
 class BatteryStatusManagerLinuxTest : public testing::Test {
  public:
   BatteryStatusManagerLinuxTest() {}
-
-  BatteryStatusManagerLinuxTest(const BatteryStatusManagerLinuxTest&) = delete;
-  BatteryStatusManagerLinuxTest& operator=(
-      const BatteryStatusManagerLinuxTest&) = delete;
-
   void SetUp() override;
 
   MockBatteryObject& SetUpDisplayDeviceProxy(MockBatteryProperties* properties);
@@ -400,6 +391,8 @@ class BatteryStatusManagerLinuxTest : public testing::Test {
   std::unique_ptr<BatteryStatusManagerLinux> manager_;
   int count_battery_updates_ = 0;
   mojom::BatteryStatus last_status_;
+
+  DISALLOW_COPY_AND_ASSIGN(BatteryStatusManagerLinuxTest);
 };
 
 void BatteryStatusManagerLinuxTest::SetUp() {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,13 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_READABLE_STREAM_H_
 
 #include <stdint.h>
-#include <memory>
 
+#include "base/optional.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_typedefs.h"
-#include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/streams/readable_stream_byob_reader.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_default_reader.h"
-#include "third_party/blink/renderer/core/streams/transferable_streams.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -25,11 +20,9 @@ namespace blink {
 class AbortSignal;
 class ExceptionState;
 class MessagePort;
-class ReadableByteStreamController;
-class ReadableStreamController;
 class ReadableStreamDefaultController;
+class ReadableStreamDefaultReaderOrReadableStreamBYOBReader;
 class ReadableStreamGetReaderOptions;
-class ReadableStreamTransferringOptimizer;
 class ReadableWritablePair;
 class ScriptPromise;
 class ScriptState;
@@ -38,8 +31,8 @@ class StreamAlgorithm;
 class StreamPipeOptions;
 class StreamPromiseResolver;
 class StreamStartAlgorithm;
-class UnderlyingByteSourceBase;
 class UnderlyingSourceBase;
+class Visitor;
 class WritableStream;
 
 // C++ implementation of ReadableStream.
@@ -72,36 +65,29 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
     Member<AbortSignal> signal_;
   };
 
-  enum State : uint8_t { kReadable, kClosed, kErrored };
-
-  // Zero-argument form of the constructor called from JavaScript.
+  // Create* functions create an appropriate subclass depending on which
+  // implementation is selected by blink features.
   static ReadableStream* Create(ScriptState*, ExceptionState&);
-
-  // One-argument constructor called from JavaScript.
   static ReadableStream* Create(ScriptState*,
                                 ScriptValue underlying_source,
                                 ExceptionState&);
+  enum State : uint8_t { kReadable, kClosed, kErrored };
 
-  // Two-argument constructor called from JavaScript.
+  // Implements ReadableStream::Create() when this implementation is enabled.
   static ReadableStream* Create(ScriptState* script_state,
                                 ScriptValue underlying_source,
                                 ScriptValue strategy,
                                 ExceptionState& exception_state);
 
-  // Entry point to create a ReadableStream from other C++ APIs.
+  // Implements ReadableStream::CreateWithCountQueueingStrategy() when this
+  // implementation is enabled.
+  //
+  // TODO(ricea): Replace this API with something more efficient when the old
+  // implementation is gone.
   static ReadableStream* CreateWithCountQueueingStrategy(
       ScriptState* script_state,
       UnderlyingSourceBase* underlying_source,
       size_t high_water_mark);
-  // Specifying true for `allow_per_chunk_transferring` implies the following:
-  //  1. Each chunk has never been exposed to scripts.
-  //  2. Each chunk is transferable.
-  static ReadableStream* CreateWithCountQueueingStrategy(
-      ScriptState* script_state,
-      UnderlyingSourceBase* underlying_source,
-      size_t high_water_mark,
-      AllowPerChunkTransferring allow_per_chunk_transferring,
-      std::unique_ptr<ReadableStreamTransferringOptimizer> optimizer);
 
   // CreateReadableStream():
   // https://streams.spec.whatwg.org/#create-readable-stream
@@ -113,38 +99,9 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
                                 StrategySizeAlgorithm* size_algorithm,
                                 ExceptionState&);
 
-  // Entry point to create a ReadableByteStream from other C++ APIs.
-  // CreateReadableByteStream():
-  // https://streams.spec.whatwg.org/#abstract-opdef-createreadablebytestream
-  static ReadableStream* CreateByteStream(
-      ScriptState*,
-      UnderlyingByteSourceBase* underlying_byte_source);
-
-  static void InitByteStream(ScriptState*,
-                             ReadableStream*,
-                             UnderlyingByteSourceBase* underlying_byte_source,
-                             ExceptionState&);
-  static void InitByteStream(ScriptState*,
-                             ReadableStream*,
-                             ReadableByteStreamController*,
-                             StreamStartAlgorithm* start_algorithm,
-                             StreamAlgorithm* pull_algorithm,
-                             StreamAlgorithm* cancel_algorithm,
-                             ExceptionState&);
-
   ReadableStream();
 
   ~ReadableStream() override;
-
-  // See CreateWithCountQueueingStrategy() comment above for how to use
-  // `allow_per_chunk_transferring`.
-  void InitWithCountQueueingStrategy(
-      ScriptState*,
-      UnderlyingSourceBase*,
-      size_t high_water_mark,
-      AllowPerChunkTransferring allow_per_chunk_transferring,
-      std::unique_ptr<ReadableStreamTransferringOptimizer>,
-      ExceptionState&);
 
   // https://streams.spec.whatwg.org/#rs-constructor
   bool locked() const;
@@ -154,20 +111,20 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
   // https://streams.spec.whatwg.org/#rs-cancel
   ScriptPromise cancel(ScriptState*, ScriptValue reason, ExceptionState&);
 
-  V8ReadableStreamReader* getReader(ScriptState* script_state,
-                                    ExceptionState& exception_state);
+  void getReader(
+      ScriptState*,
+      ReadableStreamDefaultReaderOrReadableStreamBYOBReader& return_value,
+      ExceptionState&);
 
   // https://streams.spec.whatwg.org/#rs-get-reader
-  V8ReadableStreamReader* getReader(
-      ScriptState* script_state,
-      const ReadableStreamGetReaderOptions* options,
-      ExceptionState& exception_state);
+  void getReader(
+      ScriptState*,
+      ReadableStreamGetReaderOptions* options,
+      ReadableStreamDefaultReaderOrReadableStreamBYOBReader& return_value,
+      ExceptionState&);
 
   ReadableStreamDefaultReader* GetDefaultReaderForTesting(ScriptState*,
                                                           ExceptionState&);
-
-  ReadableStreamBYOBReader* GetBYOBReaderForTesting(ScriptState*,
-                                                    ExceptionState&);
 
   ReadableStream* pipeThrough(ScriptState*,
                               ReadableWritablePair* transform,
@@ -210,16 +167,11 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
 
   void LockAndDisturb(ScriptState*);
 
-  // https://streams.spec.whatwg.org/#readablestream-close
-  void CloseStream(ScriptState*, ExceptionState&);
-
   void Serialize(ScriptState*, MessagePort* port, ExceptionState&);
 
-  static ReadableStream* Deserialize(
-      ScriptState*,
-      MessagePort* port,
-      std::unique_ptr<ReadableStreamTransferringOptimizer> optimizer,
-      ExceptionState&);
+  static ReadableStream* Deserialize(ScriptState*,
+                                     MessagePort* port,
+                                     ExceptionState&);
 
   // Returns a reader that doesn't have the |for_author_code_| flag set. This is
   // used in contexts where reads should not be interceptable by user code. This
@@ -246,17 +198,6 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
                               WritableStream*,
                               PipeOptions*);
 
-  // https://streams.spec.whatwg.org/#acquire-readable-stream-reader
-  static ReadableStreamDefaultReader* AcquireDefaultReader(ScriptState*,
-                                                           ReadableStream*,
-                                                           bool for_author_code,
-                                                           ExceptionState&);
-
-  // https://streams.spec.whatwg.org/#acquire-readable-stream-byob-reader
-  static ReadableStreamBYOBReader* AcquireBYOBReader(ScriptState*,
-                                                     ReadableStream*,
-                                                     ExceptionState&);
-
   //
   // Functions exported for use by TransformStream. Not part of the standard.
   //
@@ -273,30 +214,19 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
     return stream->state_ == kErrored;
   }
 
-  ReadableStreamController* GetController() {
+  ReadableStreamDefaultController* GetController() {
     return readable_stream_controller_;
   }
 
   v8::Local<v8::Value> GetStoredError(v8::Isolate*) const;
 
-  std::unique_ptr<ReadableStreamTransferringOptimizer>
-  TakeTransferringOptimizer();
-
-  void SetAllowPerChunkTransferringForTesting(AllowPerChunkTransferring value) {
-    allow_per_chunk_transferring_ = value;
-  }
-
   void Trace(Visitor*) const override;
 
  private:
-  friend class ReadableByteStreamController;
-  friend class ReadableStreamBYOBReader;
   friend class ReadableStreamDefaultController;
   friend class ReadableStreamDefaultReader;
   friend class ReadableStreamGenericReader;
 
-  class PullAlgorithm;
-  class CancelAlgorithm;
   class PipeToEngine;
   class ReadHandleImpl;
   class TeeEngine;
@@ -311,9 +241,11 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
   // https://streams.spec.whatwg.org/#initialize-readable-stream
   static void Initialize(ReadableStream*);
 
-  static void AddReadIntoRequest(ScriptState*,
-                                 ReadableStream*,
-                                 ReadableStreamBYOBReader::ReadIntoRequest*);
+  // https://streams.spec.whatwg.org/#acquire-readable-stream-reader
+  static ReadableStreamDefaultReader* AcquireDefaultReader(ScriptState*,
+                                                           ReadableStream*,
+                                                           bool for_author_code,
+                                                           ExceptionState&);
 
   // https://streams.spec.whatwg.org/#readable-stream-add-read-request
   static StreamPromiseResolver* AddReadRequest(ScriptState*, ReadableStream*);
@@ -335,29 +267,14 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
   // https://streams.spec.whatwg.org/#readable-stream-error
   static void Error(ScriptState*, ReadableStream*, v8::Local<v8::Value> e);
 
-  // https://streams.spec.whatwg.org/#readable-stream-fulfill-read-into-request
-  static void FulfillReadIntoRequest(ScriptState*,
-                                     ReadableStream*,
-                                     DOMArrayBufferView* chunk,
-                                     bool done);
-
   // https://streams.spec.whatwg.org/#readable-stream-fulfill-read-request
   static void FulfillReadRequest(ScriptState*,
                                  ReadableStream*,
                                  v8::Local<v8::Value> chunk,
                                  bool done);
 
-  // https://streams.spec.whatwg.org/#readable-stream-get-num-read-into-requests
-  static int GetNumReadIntoRequests(const ReadableStream*);
-
   // https://streams.spec.whatwg.org/#readable-stream-get-num-read-requests
   static int GetNumReadRequests(const ReadableStream*);
-
-  // https://streams.spec.whatwg.org/#readable-stream-has-byob-reader
-  static bool HasBYOBReader(const ReadableStream*);
-
-  // https://streams.spec.whatwg.org/#readable-stream-has-default-reader
-  static bool HasDefaultReader(const ReadableStream*);
 
   //
   // TODO(ricea): Functions for transferable streams.
@@ -371,14 +288,10 @@ class CORE_EXPORT ReadableStream : public ScriptWrappable {
       ExceptionState& exception_state);
 
   bool is_disturbed_ = false;
-  // When set to true, each chunk can be transferred instead of cloned on
-  // transferring the stream.
-  AllowPerChunkTransferring allow_per_chunk_transferring_{false};
   State state_ = kReadable;
-  Member<ReadableStreamController> readable_stream_controller_;
+  Member<ReadableStreamDefaultController> readable_stream_controller_;
   Member<ReadableStreamGenericReader> reader_;
   TraceWrapperV8Reference<v8::Value> stored_error_;
-  std::unique_ptr<ReadableStreamTransferringOptimizer> transferring_optimizer_;
 };
 
 }  // namespace blink

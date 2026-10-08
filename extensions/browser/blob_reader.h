@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -42,9 +43,6 @@ class BlobReader : public blink::mojom::BlobReaderClient,
                    const std::string& blob_uuid,
                    BlobReadCallback callback);
 
-  BlobReader(const BlobReader&) = delete;
-  BlobReader& operator=(const BlobReader&) = delete;
-
   ~BlobReader() override;
 
  private:
@@ -56,10 +54,10 @@ class BlobReader : public blink::mojom::BlobReaderClient,
   static void Read(content::BrowserContext* browser_context,
                    const std::string& blob_uuid,
                    BlobReadCallback callback,
-                   absl::optional<BlobReader::Range> range);
+                   base::Optional<BlobReader::Range> range);
 
   BlobReader(mojo::PendingRemote<blink::mojom::Blob> blob,
-             absl::optional<Range> range);
+             base::Optional<Range> range);
   void Start(base::OnceClosure callback);
 
   // blink::mojom::BlobReaderClient:
@@ -76,14 +74,16 @@ class BlobReader : public blink::mojom::BlobReaderClient,
 
   base::OnceClosure callback_;
   mojo::Remote<blink::mojom::Blob> blob_;
-  absl::optional<Range> read_range_;
+  base::Optional<Range> read_range_;
 
   mojo::Receiver<blink::mojom::BlobReaderClient> receiver_{this};
   std::unique_ptr<mojo::DataPipeDrainer> data_pipe_drainer_;
 
-  absl::optional<uint64_t> blob_length_;
+  base::Optional<uint64_t> blob_length_;
   std::unique_ptr<std::string> blob_data_;
   bool data_complete_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(BlobReader);
 };
 
 #endif  // EXTENSIONS_BROWSER_BLOB_READER_H_

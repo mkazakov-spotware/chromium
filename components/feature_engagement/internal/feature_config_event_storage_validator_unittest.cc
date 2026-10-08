@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,12 +19,10 @@ namespace feature_engagement {
 
 namespace {
 
-BASE_FEATURE(kEventStorageTestFeatureFoo,
-             "test_foo",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE(kEventStorageTestFeatureBar,
-             "test_bar",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kEventStorageTestFeatureFoo{
+    "test_foo", base::FEATURE_DISABLED_BY_DEFAULT};
+const base::Feature kEventStorageTestFeatureBar{
+    "test_bar", base::FEATURE_DISABLED_BY_DEFAULT};
 
 FeatureConfig kNeverStored;
 FeatureConfig kStoredInUsed1Day;
@@ -106,11 +104,6 @@ class FeatureConfigEventStorageValidatorTest : public ::testing::Test {
     InitializeStorageFeatureConfigs();
   }
 
-  FeatureConfigEventStorageValidatorTest(
-      const FeatureConfigEventStorageValidatorTest&) = delete;
-  FeatureConfigEventStorageValidatorTest& operator=(
-      const FeatureConfigEventStorageValidatorTest&) = delete;
-
   void UseConfig(const FeatureConfig& foo_config) {
     FeatureVector features = {&kEventStorageTestFeatureFoo};
 
@@ -180,6 +173,9 @@ class FeatureConfigEventStorageValidatorTest : public ::testing::Test {
   FeatureConfigEventStorageValidator validator_;
   uint32_t current_day_;
   base::test::ScopedFeatureList scoped_feature_list_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FeatureConfigEventStorageValidatorTest);
 };
 
 }  // namespace

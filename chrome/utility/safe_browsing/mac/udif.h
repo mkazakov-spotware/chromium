@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "base/mac/scoped_cftyperef.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace safe_browsing {
 namespace dmg {
@@ -45,10 +45,6 @@ class UDIFParser {
  public:
   // Constructs an instance from a stream.
   explicit UDIFParser(ReadStream* stream);
-
-  UDIFParser(const UDIFParser&) = delete;
-  UDIFParser& operator=(const UDIFParser&) = delete;
-
   ~UDIFParser();
 
   // Parses the UDIF file. This method must be called before any other method.
@@ -81,13 +77,14 @@ class UDIFParser {
   // Parses the blkx plist trailer structure.
   bool ParseBlkx();
 
-  const raw_ptr<ReadStream>
-      stream_;  // The stream backing the UDIF image. Weak.
+  ReadStream* const stream_;  // The stream backing the UDIF image. Weak.
   std::vector<std::string> partition_names_;  // The names of all partitions.
   // All blocks in the UDIF image.
   std::vector<std::unique_ptr<const UDIFBlock>> blocks_;
   uint16_t block_size_;  // The image's block size, in bytes.
   std::vector<uint8_t> signature_blob_;  // DMG signature.
+
+  DISALLOW_COPY_AND_ASSIGN(UDIFParser);
 };
 
 }  // namespace dmg

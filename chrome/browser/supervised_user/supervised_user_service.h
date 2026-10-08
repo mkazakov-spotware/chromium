@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,45 +10,49 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "base/callback.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/net/file_downloader.h"
 #include "chrome/browser/supervised_user/supervised_user_denylist.h"
 #include "chrome/browser/supervised_user/supervised_user_url_filter.h"
 #include "chrome/browser/supervised_user/supervised_users.h"
-#include "chrome/browser/supervised_user/web_approvals_manager.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/sync/driver/sync_type_preference_provider.h"
 #include "extensions/buildflags/buildflags.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/supervised_user/parent_permission_dialog.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/management_policy.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "chrome/browser/ui/browser_list_observer.h"
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
+class PermissionRequestCreator;
 class PrefService;
 class Profile;
 class SupervisedUserServiceObserver;
 class SupervisedUserSettingsService;
+class SupervisedUserSiteList;
 class SupervisedUserURLFilter;
+class SupervisedUserAllowlistService;
 
 namespace base {
 class FilePath;
 class Version;
-}  // namespace base
+}
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 namespace extensions {
@@ -58,45 +62,34 @@ class Extension;
 
 namespace user_prefs {
 class PrefRegistrySyncable;
-}  // namespace user_prefs
+}
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 class Browser;
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 // This class handles all the information related to a given supervised profile
-// (e.g. the default URL filtering behavior, or manual allowlist/denylist
-// overrides).
+// (e.g. the installed content packs, the default URL filtering behavior, or
+// manual allowlist/denylist overrides).
 class SupervisedUserService : public KeyedService,
 #if BUILDFLAG(ENABLE_EXTENSIONS)
                               public extensions::ExtensionRegistryObserver,
                               public extensions::ManagementPolicy::Provider,
 #endif
                               public syncer::SyncTypePreferenceProvider,
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
                               public BrowserListObserver,
 #endif
                               public SupervisedUserURLFilter::Observer {
  public:
+  using SuccessCallback = base::OnceCallback<void(bool)>;
+
   class Delegate {
    public:
     virtual ~Delegate() {}
-    // Allows the delegate to handle the (de)activation in a custom way.
-    virtual void SetActive(bool active) = 0;
-  };
-
-  // These enum values represent the source from which the supervised user's
-  // denylist has been loaded from. These values are logged to UMA. Entries
-  // should not be renumbered and numeric values should never be reused. Please
-  // keep in sync with "FamilyUserDenylistSource" in
-  // src/tools/metrics/histograms/enums.xml
-  enum class DenylistSource {
-    kNoSource = 0,
-    kDenylist = 1,
-    kOldDenylist = 2,  // Deprecated.
-    // Used for UMA. Update kMaxValue to the last value. Add future entries
-    // above this comment. Sync with enums.xml.
-    kMaxValue = kOldDenylist,
+    // Returns true to indicate that the delegate handled the (de)activation, or
+    // false to indicate that the SupervisedUserService itself should handle it.
+    virtual bool SetActive(bool active) = 0;
   };
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -111,20 +104,9 @@ class SupervisedUserService : public KeyedService,
   };
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
-  SupervisedUserService(const SupervisedUserService&) = delete;
-  SupervisedUserService& operator=(const SupervisedUserService&) = delete;
-
   ~SupervisedUserService() override;
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
-
-  static const char* GetDenylistSourceHistogramForTesting();
-
-  static base::FilePath GetDenylistPathForTesting();
-
-  WebApprovalsManager& web_approvals_manager() {
-    return web_approvals_manager_;
-  }
 
   // Initializes this object.
   void Init();
@@ -135,6 +117,20 @@ class SupervisedUserService : public KeyedService,
   // the history view. Both this method and the returned filter may only be used
   // on the UI thread.
   SupervisedUserURLFilter* GetURLFilter();
+
+  // Returns the allowlist service.
+  SupervisedUserAllowlistService* GetAllowlistService();
+
+  const std::vector<scoped_refptr<SupervisedUserSiteList>>& allowlists() const {
+    return allowlists_;
+  }
+
+  // Whether the user can request to get access to blocked URLs or to new
+  // extensions.
+  bool AccessRequestsEnabled();
+
+  // Adds an access request for the given URL.
+  void AddURLAccessRequest(const GURL& url, SuccessCallback callback);
 
   // Get the string used to identify an extension install or update request.
   // Public for testing.
@@ -165,12 +161,14 @@ class SupervisedUserService : public KeyedService,
 
   // Returns a message saying that extensions can only be modified by the
   // custodian.
-  std::u16string GetExtensionsLockedMessage() const;
+  base::string16 GetExtensionsLockedMessage() const;
+
+  bool IsSupervisedUserIframeFilterEnabled() const;
 
   static std::string GetEduCoexistenceLoginUrl();
 
-  // Returns true if the user is a type of Family Link supervised account, this
-  // includes Unicorn, Geller, and Griffin accounts.
+  // Returns true if the user is a type of Family Link Child account,
+  // but will not return true for a Legacy Supervised user (or non child users).
   bool IsChild() const;
 
   bool IsSupervisedUserExtensionInstallEnabled() const;
@@ -182,28 +180,34 @@ class SupervisedUserService : public KeyedService,
   void AddObserver(SupervisedUserServiceObserver* observer);
   void RemoveObserver(SupervisedUserServiceObserver* observer);
 
+  void AddPermissionRequestCreator(
+      std::unique_ptr<PermissionRequestCreator> creator);
+
   // ProfileKeyedService override:
   void Shutdown() override;
 
   // SyncTypePreferenceProvider implementation:
-  bool IsCustomPassphraseAllowed() const override;
+  bool IsEncryptEverythingAllowed() const override;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // BrowserListObserver implementation:
   void OnBrowserSetLastActive(Browser* browser) override;
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
   // SupervisedUserURLFilter::Observer implementation:
   void OnSiteListUpdated() override;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   bool signout_required_after_supervision_enabled() {
     return signout_required_after_supervision_enabled_;
   }
   void set_signout_required_after_supervision_enabled() {
     signout_required_after_supervision_enabled_ = true;
   }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
+
+  void SetPrimaryPermissionCreatorForTest(
+      std::unique_ptr<PermissionRequestCreator> permission_creator);
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Updates the set of approved extensions to add approval for |extension|.
@@ -229,12 +233,6 @@ class SupervisedUserService : public KeyedService,
   void RecordExtensionEnablementUmaMetrics(bool enabled) const;
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
-  // TODO(https://crbug.com/1288986): Enable web filter metrics reporting in
-  // LaCrOS.
-  // Reports FamilyUser.WebFilterType and FamilyUser.ManagedSiteList
-  // metrics. Ignores reporting when AreWebFilterPrefsDefault() is true.
-  void ReportNonDefaultWebFilterValue() const;
-
  private:
   friend class SupervisedUserServiceExtensionTestBase;
   friend class SupervisedUserServiceFactory;
@@ -244,6 +242,9 @@ class SupervisedUserService : public KeyedService,
   FRIEND_TEST_ALL_PREFIXES(
       SupervisedUserServiceExtensionTest,
       ExtensionManagementPolicyProviderWithSUInitiatedInstalls);
+
+  using CreatePermissionRequestCallback =
+      base::RepeatingCallback<void(PermissionRequestCreator*, SuccessCallback)>;
 
   // Use |SupervisedUserServiceFactory::GetForProfile(..)| to get
   // an instance of this service.
@@ -257,10 +258,10 @@ class SupervisedUserService : public KeyedService,
   // extensions::ManagementPolicy::Provider implementation:
   std::string GetDebugPolicyProviderName() const override;
   bool UserMayLoad(const extensions::Extension* extension,
-                   std::u16string* error) const override;
+                   base::string16* error) const override;
   bool MustRemainDisabled(const extensions::Extension* extension,
                           extensions::disable_reason::DisableReason* reason,
-                          std::u16string* error) const override;
+                          base::string16* error) const override;
 
   // extensions::ExtensionRegistryObserver overrides:
   void OnExtensionInstalled(content::BrowserContext* browser_context,
@@ -323,15 +324,27 @@ class SupervisedUserService : public KeyedService,
   // Returns the PrefService associated with |profile_|.
   PrefService* GetPrefService();
 
+  size_t FindEnabledPermissionRequestCreator(size_t start);
+  void AddPermissionRequestInternal(
+      const CreatePermissionRequestCallback& create_request,
+      SuccessCallback callback,
+      size_t index);
+  void OnPermissionRequestIssued(
+      const CreatePermissionRequestCallback& create_request,
+      SuccessCallback callback,
+      size_t index,
+      bool success);
+
   void OnSupervisedUserIdChanged();
 
   void OnDefaultFilteringBehaviorChanged();
 
-  bool IsSafeSitesEnabled() const;
-
   void OnSafeSitesSettingChanged();
 
   void UpdateAsyncUrlChecker();
+
+  void OnSiteListsChanged(
+      const std::vector<scoped_refptr<SupervisedUserSiteList>>& site_lists);
 
   // Asynchronously loads a denylist from a binary file at |path| and applies
   // it to the URL filters. If no file exists at |path| yet, downloads a file
@@ -341,10 +354,6 @@ class SupervisedUserService : public KeyedService,
   void OnDenylistFileChecked(const base::FilePath& path,
                              const GURL& url,
                              bool file_exists);
-
-  // Tries loading an older copy of the denylist if the new denylist fails to
-  // load.
-  void TryLoadingOldDenylist(const base::FilePath& path, bool file_exists);
 
   // Asynchronously loads a denylist from a binary file at |path| and applies
   // it to the URL filters.
@@ -366,11 +375,11 @@ class SupervisedUserService : public KeyedService,
   void UpdateManualURLs();
 
   // Owns us via the KeyedService mechanism.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   bool active_;
 
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
 
   PrefChangeRegistrar pref_change_registrar_;
 
@@ -397,32 +406,28 @@ class SupervisedUserService : public KeyedService,
   SupervisedUserDenylist denylist_;
   std::unique_ptr<FileDownloader> denylist_downloader_;
 
-  // Manages local and remote web approvals.
-  WebApprovalsManager web_approvals_manager_;
+  std::unique_ptr<SupervisedUserAllowlistService> allowlist_service_;
+
+  std::vector<scoped_refptr<SupervisedUserSiteList>> allowlists_;
+
+  // Used to create permission requests.
+  std::vector<std::unique_ptr<PermissionRequestCreator>> permissions_creators_;
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  base::ScopedObservation<extensions::ExtensionRegistry,
-                          extensions::ExtensionRegistryObserver>
-      registry_observation_{this};
+  ScopedObserver<extensions::ExtensionRegistry,
+                 extensions::ExtensionRegistryObserver>
+      registry_observer_{this};
 #endif
 
   base::ObserverList<SupervisedUserServiceObserver>::Unchecked observer_list_;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   bool signout_required_after_supervision_enabled_ = false;
 #endif
 
-  // TODO(https://crbug.com/1288986): Enable web filter metrics reporting in
-  // LaCrOS.
-  // When there is change between WebFilterType::kTryToBlockMatureSites and
-  // WebFilterType::kCertainSites, both
-  // prefs::kDefaultSupervisedUserFilteringBehavior and
-  // prefs::kSupervisedUserSafeSites change. Uses this member to avoid duplicate
-  // reports. Initialized in the SetActive().
-  SupervisedUserURLFilter::WebFilterType current_web_filter_type_ =
-      SupervisedUserURLFilter::WebFilterType::kMaxValue;
-
   base::WeakPtrFactory<SupervisedUserService> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SupervisedUserService);
 };
 
 #endif  // CHROME_BROWSER_SUPERVISED_USER_SUPERVISED_USER_SERVICE_H_

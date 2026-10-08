@@ -1,39 +1,33 @@
 /*
- * Copyright 2016 The Chromium Authors
+ * Copyright 2016 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
-/**
- * Launches the PaymentRequest UI and always fails to complete the transaction.
- *
- * @param {sequence<PaymentMethodData>} methodData - An array of payment method
- *        objects.
- */
-function buyWithMethods(methodData) {
-  failComplete(methodData)
-      .then((result) => print(result))
-      .catch((error) => print(error.message));
-}
+/* global PaymentRequest:false */
 
 /**
- * Launches the PaymentRequest UI and always fails to complete the transaction,
- * returning 'Transaction failed' if there was no error.
- *
- * @param {sequence<PaymentMethodData>} methodData - An array of payment method
- *        objects.
- * @return {string} - 'Transaction failed' if there was no error, otherwise the
- *        error message.
+ * Launches the PaymentRequest UI and always fails to complete the transaction.
  */
-async function failComplete(methodData) {
+function buy() { // eslint-disable-line no-unused-vars
   try {
-    const request = new PaymentRequest(
-        methodData,
-        {total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}}});
-    const response = await request.show();
-    await response.complete('fail');
-    return 'Transaction failed';
+    new PaymentRequest(
+        [{supportedMethods: 'basic-card', data: {supportedNetworks: ['visa']}}],
+        {total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}}})
+        .show()
+        .then(function(resp) {
+          resp.complete('fail')
+              .then(function() {
+                print('Transaction failed');
+              })
+              .catch(function(error) {
+                print(error.message);
+              });
+        })
+        .catch(function(error) {
+          print(error.message);
+        });
   } catch (error) {
-    return error.toString();
+    print(error.message);
   }
 }

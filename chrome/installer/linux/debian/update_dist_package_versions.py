@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,13 +22,16 @@ import urllib2
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 SUPPORTED_DEBIAN_RELEASES = {
+    'Debian 8 (Jessie)': 'jessie',
+    'Debian 9 (Stretch)': 'stretch',
     'Debian 10 (Buster)': 'buster',
-    # TODO: bullseye-updates does not have a .gz file.
-    # 'Debian 11 (Bullseye)': 'bullseye',
 }
 
 SUPPORTED_UBUNTU_RELEASES = {
+    'Ubuntu 14.04 (Trusty)': 'trusty',
+    'Ubuntu 16.04 (Xenial)': 'xenial',
     'Ubuntu 18.04 (Bionic)': 'bionic',
+    'Ubuntu 19.10 (Eoan)': 'eoan',
     'Ubuntu 20.04 (Focal)': 'focal',
 }
 
@@ -45,7 +48,9 @@ PACKAGE_FILTER = set([
     "libexpat1",
     "libgbm1",
     "libgcc1",
+    "libgdk-pixbuf2.0-0",
     "libglib2.0-0",
+    "libgtk-3-0",
     "libnspr4",
     "libnss3",
     "libpango-1.0-0",
@@ -54,6 +59,7 @@ PACKAGE_FILTER = set([
     "libuuid1",
     "libx11-6",
     "libx11-xcb1",
+    "libxkbcommon0",
     "libxcb1",
     "libxcb-dri3-0",
     "libxcomposite1",
@@ -62,10 +68,8 @@ PACKAGE_FILTER = set([
     "libxext6",
     "libxfixes3",
     "libxi6",
-    "libxkbcommon0",
     "libxrandr2",
     "libxrender1",
-    "libxshmfence1",
     "libxss1",
     "libxtst6",
 ])

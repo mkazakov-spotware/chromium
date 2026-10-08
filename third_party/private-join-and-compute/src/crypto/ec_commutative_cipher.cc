@@ -77,7 +77,8 @@ StatusOr<std::string> ECCommutativeCipher::Encrypt(
   if (!status_or_point.ok()) {
     return status_or_point.status();
   }
-  ASSIGN_OR_RETURN(ECPoint encrypted_point, Encrypt(status_or_point.value()));
+  ASSIGN_OR_RETURN(ECPoint encrypted_point,
+                   Encrypt(status_or_point.ValueOrDie()));
   return encrypted_point.ToBytesCompressed();
 }
 

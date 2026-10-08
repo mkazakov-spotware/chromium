@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/check_op.h"
 #include "base/memory/ptr_util.h"
-#include "base/types/cxx23_to_underlying.h"
+#include "base/stl_util.h"
 
 namespace base {
 namespace internal {
@@ -41,20 +41,20 @@ class PriorityQueue::TaskSourceAndSortKey {
   // call.
   RegisteredTaskSource take_task_source() {
     DCHECK(task_source_);
-    task_source_->ClearImmediateHeapHandle();
+    task_source_->ClearHeapHandle();
     return std::move(task_source_);
   }
 
   // Compares this TaskSourceAndSortKey to |other| based on their respective
-  // |sort_key_|. Used for a max-heap.
-  bool operator<(const TaskSourceAndSortKey& other) const {
-    return sort_key_ < other.sort_key_;
+  // |sort_key_|. Required by IntrusiveHeap.
+  bool operator<=(const TaskSourceAndSortKey& other) const {
+    return sort_key_ <= other.sort_key_;
   }
 
   // Required by IntrusiveHeap.
   void SetHeapHandle(const HeapHandle& handle) {
     DCHECK(task_source_);
-    task_source_->SetImmediateHeapHandle(handle);
+    task_source_->SetHeapHandle(handle);
   }
 
   // Required by IntrusiveHeap.
@@ -62,13 +62,13 @@ class PriorityQueue::TaskSourceAndSortKey {
     // Ensure |task_source_| is not nullptr, which may be the case if
     // take_task_source() was called before this.
     if (task_source_)
-      task_source_->ClearImmediateHeapHandle();
+      task_source_->ClearHeapHandle();
   }
 
   // Required by IntrusiveHeap.
   HeapHandle GetHeapHandle() const {
     if (task_source_)
-      return task_source_->GetImmediateHeapHandle();
+      return task_source_->GetHeapHandle();
     return HeapHandle::Invalid();
   }
 
@@ -106,7 +106,7 @@ void PriorityQueue::Push(RegisteredTaskSource task_source,
 
 const TaskSourceSortKey& PriorityQueue::PeekSortKey() const {
   DCHECK(!IsEmpty());
-  return container_.top().sort_key();
+  return container_.Min().sort_key();
 }
 
 RegisteredTaskSource& PriorityQueue::PeekTaskSource() const {
@@ -115,7 +115,7 @@ RegisteredTaskSource& PriorityQueue::PeekTaskSource() const {
   // The const_cast on Min() is okay since modifying the TaskSource cannot alter
   // the sort order of TaskSourceAndSortKey.
   auto& task_source_and_sort_key =
-      const_cast<PriorityQueue::TaskSourceAndSortKey&>(container_.top());
+      const_cast<PriorityQueue::TaskSourceAndSortKey&>(container_.Min());
   return task_source_and_sort_key.task_source();
 }
 
@@ -126,12 +126,12 @@ RegisteredTaskSource PriorityQueue::PopTaskSource() {
   // transactionally being popped from |container_| right after and taking its
   // TaskSource does not alter its sort order.
   auto& task_source_and_sort_key =
-      const_cast<TaskSourceAndSortKey&>(container_.top());
+      const_cast<TaskSourceAndSortKey&>(container_.Min());
   DecrementNumTaskSourcesForPriority(
       task_source_and_sort_key.sort_key().priority());
   RegisteredTaskSource task_source =
       task_source_and_sort_key.take_task_source();
-  container_.pop();
+  container_.Pop();
   return task_source;
 }
 
@@ -140,7 +140,7 @@ RegisteredTaskSource PriorityQueue::RemoveTaskSource(
   if (IsEmpty())
     return nullptr;
 
-  const HeapHandle heap_handle = task_source.immediate_heap_handle();
+  const HeapHandle heap_handle = task_source.heap_handle();
   if (!heap_handle.IsValid())
     return nullptr;
 
@@ -162,7 +162,7 @@ void PriorityQueue::UpdateSortKey(const TaskSource& task_source,
   if (IsEmpty())
     return;
 
-  const HeapHandle heap_handle = task_source.immediate_heap_handle();
+  const HeapHandle heap_handle = task_source.heap_handle();
   if (!heap_handle.IsValid())
     return;
 
@@ -175,7 +175,7 @@ void PriorityQueue::UpdateSortKey(const TaskSource& task_source,
   DecrementNumTaskSourcesForPriority(old_sort_key.priority());
   IncrementNumTaskSourcesForPriority(sort_key.priority());
 
-  container_.Replace(
+  container_.ChangeKey(
       heap_handle,
       TaskSourceAndSortKey(std::move(registered_task_source), sort_key));
 }
@@ -194,12 +194,12 @@ void PriorityQueue::EnableFlushTaskSourcesOnDestroyForTesting() {
 }
 
 void PriorityQueue::DecrementNumTaskSourcesForPriority(TaskPriority priority) {
-  DCHECK_GT(num_task_sources_per_priority_[base::to_underlying(priority)], 0U);
-  --num_task_sources_per_priority_[base::to_underlying(priority)];
+  DCHECK_GT(num_task_sources_per_priority_[static_cast<int>(priority)], 0U);
+  --num_task_sources_per_priority_[static_cast<int>(priority)];
 }
 
 void PriorityQueue::IncrementNumTaskSourcesForPriority(TaskPriority priority) {
-  ++num_task_sources_per_priority_[base::to_underlying(priority)];
+  ++num_task_sources_per_priority_[static_cast<int>(priority)];
 }
 
 }  // namespace internal

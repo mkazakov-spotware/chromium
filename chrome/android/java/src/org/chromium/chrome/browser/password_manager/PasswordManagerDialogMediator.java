@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@ package org.chromium.chrome.browser.password_manager;
 import static org.chromium.chrome.browser.password_manager.PasswordManagerDialogProperties.ILLUSTRATION_VISIBLE;
 
 import android.content.res.Resources;
-import android.graphics.drawable.Drawable;
 import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
-import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.Callback;
 import org.chromium.base.task.PostTask;
@@ -31,6 +29,7 @@ class PasswordManagerDialogMediator implements View.OnLayoutChangeListener {
     private final ModalDialogManager mDialogManager;
     private final View mAndroidContentView;
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
+    private final int mContainerHeightResource;
 
     private PropertyModel.Builder mHostDialogModelBuilder;
     private PropertyModel mHostDialogModel;
@@ -67,22 +66,18 @@ class PasswordManagerDialogMediator implements View.OnLayoutChangeListener {
 
     PasswordManagerDialogMediator(PropertyModel.Builder hostDialogModelBuilder,
             ModalDialogManager manager, View androidContentView,
-            BrowserControlsStateProvider controlsStateProvider) {
+            BrowserControlsStateProvider controlsStateProvider, int containerHeightResource) {
         mDialogManager = manager;
         mHostDialogModelBuilder = hostDialogModelBuilder;
         mAndroidContentView = androidContentView;
         mBrowserControlsStateProvider = controlsStateProvider;
+        mContainerHeightResource = containerHeightResource;
         mAndroidContentView.addOnLayoutChangeListener(this);
     }
 
     void initialize(PropertyModel model, View view, PasswordManagerDialogContents contents) {
         mResources = view.getResources();
         mModel = model;
-        if (contents.getPrimaryButtonIconId() != 0) {
-            Drawable drawable = AppCompatResources.getDrawable(
-                    view.getContext(), contents.getPrimaryButtonIconId());
-            mHostDialogModelBuilder.with(ModalDialogProperties.POSITIVE_BUTTON_ICON, drawable);
-        }
         mHostDialogModel =
                 mHostDialogModelBuilder.with(ModalDialogProperties.CUSTOM_VIEW, view)
                         .with(ModalDialogProperties.CONTROLLER,
@@ -92,12 +87,8 @@ class PasswordManagerDialogMediator implements View.OnLayoutChangeListener {
                                 contents.getPrimaryButtonText())
                         .with(ModalDialogProperties.NEGATIVE_BUTTON_TEXT,
                                 contents.getSecondaryButtonText())
-                        .with(ModalDialogProperties.BUTTON_STYLES,
-                                contents.isPrimaryButtonFilled()
-                                        ? ModalDialogProperties.ButtonStyles
-                                                  .PRIMARY_FILLED_NEGATIVE_OUTLINE
-                                        : ModalDialogProperties.ButtonStyles
-                                                  .PRIMARY_OUTLINE_NEGATIVE_OUTLINE)
+                        .with(ModalDialogProperties.PRIMARY_BUTTON_FILLED,
+                                contents.isPrimaryButtonFilled())
                         .build();
         mDialogType = contents.getDialogType();
     }

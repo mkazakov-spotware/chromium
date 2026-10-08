@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 #include <utility>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -65,12 +66,12 @@ void IdentityAPI::SetGaiaIdForExtension(const std::string& extension_id,
                                         std::make_unique<base::Value>(gaia_id));
 }
 
-absl::optional<std::string> IdentityAPI::GetGaiaIdForExtension(
+base::Optional<std::string> IdentityAPI::GetGaiaIdForExtension(
     const std::string& extension_id) {
   std::string gaia_id;
   if (!extension_prefs_->ReadPrefAsString(extension_id, kIdentityGaiaIdPref,
                                           &gaia_id)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return gaia_id;
 }
@@ -90,10 +91,14 @@ void IdentityAPI::EraseStaleGaiaIdsForAllExtensions() {
   extensions::ExtensionIdList extensions;
   extension_prefs_->GetExtensions(&extensions);
   for (const ExtensionId& extension_id : extensions) {
-    absl::optional<std::string> gaia_id = GetGaiaIdForExtension(extension_id);
+    base::Optional<std::string> gaia_id = GetGaiaIdForExtension(extension_id);
     if (!gaia_id)
       continue;
-    if (!base::Contains(accounts, *gaia_id, &CoreAccountInfo::gaia)) {
+    auto account_it = std::find_if(accounts.begin(), accounts.end(),
+                                   [&](const CoreAccountInfo& account) {
+                                     return account.gaia == *gaia_id;
+                                   });
+    if (account_it == accounts.end()) {
       EraseGaiaIdForExtension(extension_id);
     }
   }
@@ -104,7 +109,9 @@ void IdentityAPI::SetConsentResult(const std::string& result,
   on_set_consent_result_callback_list_.Notify(result, window_id);
 }
 
-base::CallbackListSubscription IdentityAPI::RegisterOnSetConsentResultCallback(
+std::unique_ptr<base::RepeatingCallbackList<
+    IdentityAPI::OnSetConsentResultSignature>::Subscription>
+IdentityAPI::RegisterOnSetConsentResultCallback(
     const base::RepeatingCallback<OnSetConsentResultSignature>& callback) {
   return on_set_consent_result_callback_list_.Add(callback);
 }
@@ -122,8 +129,8 @@ BrowserContextKeyedAPIFactory<IdentityAPI>* IdentityAPI::GetFactoryInstance() {
   return g_identity_api_factory.Pointer();
 }
 
-base::CallbackListSubscription IdentityAPI::RegisterOnShutdownCallback(
-    base::OnceClosure cb) {
+std::unique_ptr<base::OnceCallbackList<void()>::Subscription>
+IdentityAPI::RegisterOnShutdownCallback(base::OnceClosure cb) {
   return on_shutdown_callback_list_.Add(std::move(cb));
 }
 
@@ -172,7 +179,7 @@ void IdentityAPI::FireOnAccountSignInChanged(const std::string& gaia_id,
   api::identity::AccountInfo api_account_info;
   api_account_info.id = gaia_id;
 
-  auto args =
+  std::unique_ptr<base::ListValue> args =
       api::identity::OnSignInChanged::Create(api_account_info, is_signed_in);
   std::unique_ptr<Event> event(new Event(
       events::IDENTITY_ON_SIGN_IN_CHANGED,

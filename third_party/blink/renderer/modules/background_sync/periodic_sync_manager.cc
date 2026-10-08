@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_background_sync_options.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -38,14 +37,6 @@ ScriptPromise PeriodicSyncManager::registerPeriodicSync(
     return ScriptPromise();
   }
 
-  ExecutionContext* execution_context = ExecutionContext::From(script_state);
-  if (execution_context->IsInFencedFrame()) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotAllowedError,
-        "Periodic Background Sync is not allowed in fenced frames.");
-    return ScriptPromise();
-  }
-
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
 
@@ -54,22 +45,13 @@ ScriptPromise PeriodicSyncManager::registerPeriodicSync(
 
   GetBackgroundSyncServiceRemote()->Register(
       std::move(sync_registration), registration_->RegistrationId(),
-      resolver->WrapCallbackInScriptScope(WTF::BindOnce(
-          &PeriodicSyncManager::RegisterCallback, WrapPersistent(this))));
+      WTF::Bind(&PeriodicSyncManager::RegisterCallback, WrapPersistent(this),
+                WrapPersistent(resolver)));
 
   return promise;
 }
 
 ScriptPromise PeriodicSyncManager::getTags(ScriptState* script_state) {
-  ExecutionContext* execution_context = ExecutionContext::From(script_state);
-  if (execution_context->IsInFencedFrame()) {
-    return ScriptPromise::RejectWithDOMException(
-        script_state,
-        MakeGarbageCollected<DOMException>(
-            DOMExceptionCode::kNotAllowedError,
-            "Periodic Background Sync is not allowed in fenced frames."));
-  }
-
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
 
@@ -85,23 +67,14 @@ ScriptPromise PeriodicSyncManager::getTags(ScriptState* script_state) {
   // process instead of the registrations themselves.
   GetBackgroundSyncServiceRemote()->GetRegistrations(
       registration_->RegistrationId(),
-      resolver->WrapCallbackInScriptScope(
-          WTF::BindOnce(&PeriodicSyncManager::GetRegistrationsCallback,
-                        WrapPersistent(this))));
+      WTF::Bind(&PeriodicSyncManager::GetRegistrationsCallback,
+                WrapPersistent(this), WrapPersistent(resolver)));
+
   return promise;
 }
 
 ScriptPromise PeriodicSyncManager::unregister(ScriptState* script_state,
                                               const String& tag) {
-  ExecutionContext* execution_context = ExecutionContext::From(script_state);
-  if (execution_context->IsInFencedFrame()) {
-    return ScriptPromise::RejectWithDOMException(
-        script_state,
-        MakeGarbageCollected<DOMException>(
-            DOMExceptionCode::kNotAllowedError,
-            "Periodic Background Sync is not allowed in fenced frames."));
-  }
-
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
 
@@ -113,8 +86,8 @@ ScriptPromise PeriodicSyncManager::unregister(ScriptState* script_state,
 
   GetBackgroundSyncServiceRemote()->Unregister(
       registration_->RegistrationId(), tag,
-      resolver->WrapCallbackInScriptScope(WTF::BindOnce(
-          &PeriodicSyncManager::UnregisterCallback, WrapPersistent(this))));
+      WTF::Bind(&PeriodicSyncManager::UnregisterCallback, WrapPersistent(this),
+                WrapPersistent(resolver)));
   return promise;
 }
 
@@ -141,25 +114,21 @@ void PeriodicSyncManager::RegisterCallback(
       NOTREACHED();
       break;
     case mojom::blink::BackgroundSyncError::STORAGE:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kUnknownError, "Unknown error."));
       break;
     case mojom::blink::BackgroundSyncError::NOT_ALLOWED:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kInvalidAccessError,
           "Attempted to register a sync event without a "
           "window or registration tag too long."));
       break;
     case mojom::blink::BackgroundSyncError::PERMISSION_DENIED:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kNotAllowedError, "Permission denied."));
       break;
     case mojom::blink::BackgroundSyncError::NO_SERVICE_WORKER:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kInvalidStateError,
           "Registration failed - no active Service Worker"));
       break;
@@ -186,13 +155,11 @@ void PeriodicSyncManager::GetRegistrationsCallback(
       NOTREACHED();
       break;
     case mojom::blink::BackgroundSyncError::STORAGE:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kUnknownError, "Unknown error."));
       break;
     case mojom::blink::BackgroundSyncError::NO_SERVICE_WORKER:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kUnknownError, "No service worker is active."));
       break;
   }
@@ -206,13 +173,11 @@ void PeriodicSyncManager::UnregisterCallback(
       resolver->Resolve();
       break;
     case mojom::blink::BackgroundSyncError::NO_SERVICE_WORKER:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kUnknownError, "No service worker is active."));
       break;
     case mojom::blink::BackgroundSyncError::STORAGE:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+      resolver->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kUnknownError, "Unknown error."));
       break;
     case mojom::blink::BackgroundSyncError::NOT_FOUND:

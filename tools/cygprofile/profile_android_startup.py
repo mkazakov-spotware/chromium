@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2015 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright (c) 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,6 +10,7 @@ support for web page replay, device forwarding, and fake certificate authority
 to make runs repeatable.
 """
 
+from __future__ import print_function
 
 import argparse
 import logging
@@ -43,7 +44,7 @@ class NoProfileDataError(Exception):
   """An error used to indicate that no profile data was collected."""
 
   def __init__(self, value):
-    super().__init__()
+    super(NoProfileDataError, self).__init__()
     self.value = value
 
   def __str__(self):
@@ -76,7 +77,7 @@ def _SimulateSwipe(device, x1, y1, x2, y2):
   device.RunShellCommand(['input', 'swipe'] + args)
 
 
-class WprManager:
+class WprManager(object):
   """A utility to download a WPR archive, host it, and forward device ports to
   it.
   """
@@ -174,7 +175,7 @@ class WprManager:
     forwarder.Forwarder.UnmapAllDevicePorts(self._device)
 
 
-class AndroidProfileTool:
+class AndroidProfileTool(object):
   """A utility for generating orderfile profile data for chrome on android.
 
   Runs cygprofile_unittest found in output_directory, does profiling runs,
@@ -528,7 +529,7 @@ def main():
 
   apk = apk_helper.ApkHelper(args.apk_path)
   package_info = None
-  for p in constants.PACKAGE_INFO.items():
+  for p in constants.PACKAGE_INFO.itervalues():
     if p.package == apk.GetPackageName():
       package_info = p
       break

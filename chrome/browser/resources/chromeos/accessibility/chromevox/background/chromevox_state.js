@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,121 +7,112 @@
  *     ChromeVox state, to avoid direct dependencies on the Background
  *     object and to facilitate mocking for tests.
  */
-import {constants} from '../../common/constants.js';
-import {CursorRange} from '../../common/cursors/range.js';
-import {BrailleKeyEvent} from '../common/braille/braille_key_types.js';
-import {NavBraille} from '../common/braille/nav_braille.js';
-import {BridgeConstants} from '../common/bridge_constants.js';
-import {BridgeHelper} from '../common/bridge_helper.js';
-import {TtsSpeechProperties} from '../common/tts_types.js';
 
-import {UserActionMonitor} from './user_action_monitor.js';
+goog.provide('ChromeVoxState');
+goog.provide('ChromeVoxStateObserver');
+
+goog.require('cursors.Cursor');
+goog.require('cursors.Range');
+goog.require('BrailleKeyEvent');
+goog.require('UserActionMonitor');
 
 /**
- * An interface implemented by objects to observe ChromeVox state changes.
+ * An interface implemented by objects that want to observe ChromeVox state
+ * changes.
  * @interface
  */
-export class ChromeVoxStateObserver {
+ChromeVoxStateObserver = function() {};
+
+ChromeVoxStateObserver.prototype = {
   /**
-   * @param {CursorRange} range The new range.
-   * @param {boolean=} opt_fromEditing
+   * @param {cursors.Range} range The new range.
    */
-  onCurrentRangeChanged(range, opt_fromEditing) {}
-}
+  onCurrentRangeChanged(range) {}
+};
 
-export class ChromeVoxState {
-  /** @param {ChromeVoxStateObserver} observer */
-  static addObserver(observer) {
-    ChromeVoxState.observers.push(observer);
+/**
+ * ChromeVox2 state object.
+ * @constructor
+ */
+ChromeVoxState = function() {
+  if (ChromeVoxState.instance) {
+    throw 'Trying to create two instances of singleton ChromeVoxState.';
+  }
+  const backgroundWindow = chrome.extension.getBackgroundPage();
+  // Only install the singleton instance if we are within the background page
+  // context. Otherwise, take the instance from the background page (e.g. for
+  // the panel page).
+  if (backgroundWindow === window) {
+    ChromeVoxState.instance = this;
+  } else {
+    Object.defineProperty(ChromeVoxState, 'instance', {
+      get: () => {
+        return backgroundWindow.ChromeVoxState.instance;
+      }
+    });
+    return;
   }
 
-  /** @param {ChromeVoxStateObserver} observer */
-  static removeObserver(observer) {
-    const index = ChromeVoxState.observers.indexOf(observer);
-    if (index > -1) {
-      ChromeVoxState.observers.splice(index, 1);
-    }
-  }
+  /** @private {!Array<!chrome.accessibilityPrivate.ScreenRect>} */
+  this.focusBounds_ = [];
+  /** @private {UserActionMonitor} */
+  this.userActionMonitor_ = null;
+};
 
-  /** @return {!Promise} */
-  static ready() {
-    return ChromeVoxState.readyPromise_;
-  }
+/**
+ * @type {ChromeVoxState}
+ */
+ChromeVoxState.instance;
 
-  /** Can be overridden to initialize values and state when first created. */
-  init() {}
+/**
+ * Holds the un-composite tts object.
+ * @type {Object}
+ */
+ChromeVoxState.backgroundTts;
 
-  /** @return {CursorRange} */
+/**
+ * @type {boolean}
+ */
+ChromeVoxState.isReadingContinuously;
+
+ChromeVoxState.prototype = {
+  /** @type {cursors.Range} */
   get currentRange() {
     return this.getCurrentRange();
-  }
+  },
 
   /**
-   * @return {CursorRange} The current range.
+   * @return {cursors.Range} The current range.
    * @protected
    */
   getCurrentRange() {
     return null;
-  }
-
-  /** @return {boolean} */
-  get isReadingContinuously() {
-    return false;
-  }
-
-  /** @return {CursorRange} */
-  get pageSel() {
-    return null;
-  }
-
-  /** @return {boolean} */
-  get talkBackEnabled() {
-    return false;
-  }
+  },
 
   /**
    * Return the current range, but focus recovery is not applied to it.
-   * @return {CursorRange} The current range.
+   * @return {cursors.Range} The current range.
    */
-  getCurrentRangeWithoutRecovery() {}
+  getCurrentRangeWithoutRecovery: goog.abstractMethod,
 
   /**
-   * @param {CursorRange} newRange The new range.
-   * @param {boolean=} opt_fromEditing
+   * @param {cursors.Range} newRange The new range.
    */
-  setCurrentRange(newRange, opt_fromEditing) {}
-
-  /**
-   * @param {boolean} newValue
-   */
-  set isReadingContinuously(newValue) {}
-
-  /**
-   * @param {CursorRange} newPageSel
-   */
-  set pageSel(newPageSel) {}
-
-  /** @return {number} */
-  get typingEcho() {}
-
-  /** @param {number} newTypingEcho */
-  set typingEcho(newTypingEcho) {}
-
+  setCurrentRange: goog.abstractMethod,
   /**
    * Navigate to the given range - it both sets the range and outputs it.
-   * @param {!CursorRange} range The new range.
+   * @param {!cursors.Range} range The new range.
    * @param {boolean=} opt_focus Focus the range; defaults to true.
-   * @param {TtsSpeechProperties=} opt_speechProps Speech properties.
-   * @param {boolean=} opt_skipSettingSelection If true, does not set
-   *     the selection, otherwise it does by default.
+   * @param {Object=} opt_speechProps Speech properties.
+   * @param {boolean=} opt_shouldSetSelection If true, does set
+   *     the selection.
    */
-  navigateToRange(range, opt_focus, opt_speechProps, opt_skipSettingSelection) {
-  }
+  navigateToRange: goog.abstractMethod,
 
   /**
-   * Restores the last valid ChromeVox range.
+   * Save the current ChromeVox range.
    */
-  restoreLastValidRangeIfNeeded() {}
+  markCurrentRange: goog.abstractMethod,
 
   /**
    * Handles a braille command.
@@ -129,25 +120,73 @@ export class ChromeVoxState {
    * @param {!NavBraille} content
    * @return {boolean} True if evt was processed.
    */
-  onBrailleKeyEvent(evt, content) {}
-}
+  onBrailleKeyEvent: goog.abstractMethod,
 
-/** @type {ChromeVoxState} */
-ChromeVoxState.instance;
+  /**
+   * Gets the bounds of the focus ring.
+   * @return {Array<chrome.accessibilityPrivate.ScreenRect>}
+   */
+  getFocusBounds() {
+    return this.focusBounds_;
+  },
+
+  /**
+   * Sets the bounds of the focus ring.
+   * @param {!Array<!chrome.accessibilityPrivate.ScreenRect>} bounds
+   */
+  setFocusBounds(bounds) {
+    this.focusBounds_ = bounds;
+    chrome.accessibilityPrivate.setFocusRings([{
+      rects: bounds,
+      type: chrome.accessibilityPrivate.FocusType.GLOW,
+      color: constants.FOCUS_COLOR
+    }]);
+  },
+
+  /**
+   * Gets the user action monitor.
+   * @return {UserActionMonitor}
+   */
+  getUserActionMonitor() {
+    return this.userActionMonitor_;
+  },
+
+  /**
+   * Creates a new user action monitor.
+   * @param {!Array<{
+   *    type: string,
+   *    value: (string|Object),
+   *    beforeActionMsg: (string|undefined),
+   *    afterActionMsg: (string|undefined)
+   * }>} actions
+   * @param {function(): void} callback
+   */
+  createUserActionMonitor(actions, callback) {
+    this.userActionMonitor_ = new UserActionMonitor(actions, callback);
+  },
+
+  /** Destroys the user action monitor */
+  destroyUserActionMonitor() {
+    this.userActionMonitor_ = null;
+  },
+};
 
 /** @type {!Array<ChromeVoxStateObserver>} */
 ChromeVoxState.observers = [];
 
-/** @type {!Object<string, constants.Point>} */
-ChromeVoxState.position = {};
+/**
+ * @param {ChromeVoxStateObserver} observer
+ */
+ChromeVoxState.addObserver = function(observer) {
+  ChromeVoxState.observers.push(observer);
+};
 
-/** @protected {function()} */
-ChromeVoxState.resolveReadyPromise_;
-/** @private {!Promise} */
-ChromeVoxState.readyPromise_ =
-    new Promise(resolve => ChromeVoxState.resolveReadyPromise_ = resolve);
-
-BridgeHelper.registerHandler(
-    BridgeConstants.ChromeVoxState.TARGET,
-    BridgeConstants.ChromeVoxState.Action.CLEAR_CURRENT_RANGE,
-    () => ChromeVoxState.instance.setCurrentRange(null));
+/**
+ * @param {ChromeVoxStateObserver} observer
+ */
+ChromeVoxState.removeObserver = function(observer) {
+  const index = ChromeVoxState.observers.indexOf(observer);
+  if (index > -1) {
+    ChromeVoxState.observers.splice(index, 1);
+  }
+};

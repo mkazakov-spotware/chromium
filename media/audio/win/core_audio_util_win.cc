@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include "base/callback.h"
 #include "base/command_line.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -25,9 +26,7 @@
 #include "base/win/windows_version.h"
 #include "media/audio/audio_device_description.h"
 #include "media/audio/audio_features.h"
-#include "media/base/channel_layout.h"
 #include "media/base/media_switches.h"
-#include "media/base/win/mf_helpers.h"
 
 using Microsoft::WRL::ComPtr;
 using base::win::ScopedCoMem;
@@ -100,6 +99,55 @@ void LogUMAPreferredOutputParams(UmaLogStep step, HRESULT hr) {
     case UmaLogStep::GET_SHARED_MODE_ENGINE_PERIOD:
       // TODO(crbug.com/892044): add histogram logging.
       break;
+  }
+}
+
+// Converts Microsoft's channel configuration to ChannelLayout.
+// This mapping is not perfect but the best we can do given the current
+// ChannelLayout enumerator and the Windows-specific speaker configurations
+// defined in ksmedia.h. Don't assume that the channel ordering in
+// ChannelLayout is exactly the same as the Windows specific configuration.
+// As an example: KSAUDIO_SPEAKER_7POINT1_SURROUND is mapped to
+// CHANNEL_LAYOUT_7_1 but the positions of Back L, Back R and Side L, Side R
+// speakers are different in these two definitions.
+ChannelLayout ChannelConfigToChannelLayout(ChannelConfig config) {
+  switch (config) {
+    case KSAUDIO_SPEAKER_MONO:
+      DVLOG(2) << "KSAUDIO_SPEAKER_MONO=>CHANNEL_LAYOUT_MONO";
+      return CHANNEL_LAYOUT_MONO;
+    case KSAUDIO_SPEAKER_STEREO:
+      DVLOG(2) << "KSAUDIO_SPEAKER_STEREO=>CHANNEL_LAYOUT_STEREO";
+      return CHANNEL_LAYOUT_STEREO;
+    case KSAUDIO_SPEAKER_QUAD:
+      DVLOG(2) << "KSAUDIO_SPEAKER_QUAD=>CHANNEL_LAYOUT_QUAD";
+      return CHANNEL_LAYOUT_QUAD;
+    case KSAUDIO_SPEAKER_SURROUND:
+      DVLOG(2) << "KSAUDIO_SPEAKER_SURROUND=>CHANNEL_LAYOUT_4_0";
+      return CHANNEL_LAYOUT_4_0;
+    case KSAUDIO_SPEAKER_5POINT1:
+      DVLOG(2) << "KSAUDIO_SPEAKER_5POINT1=>CHANNEL_LAYOUT_5_1_BACK";
+      return CHANNEL_LAYOUT_5_1_BACK;
+    case KSAUDIO_SPEAKER_5POINT1_SURROUND:
+      DVLOG(2) << "KSAUDIO_SPEAKER_5POINT1_SURROUND=>CHANNEL_LAYOUT_5_1";
+      return CHANNEL_LAYOUT_5_1;
+    case KSAUDIO_SPEAKER_7POINT1:
+      DVLOG(2) << "KSAUDIO_SPEAKER_7POINT1=>CHANNEL_LAYOUT_7_1_WIDE";
+      return CHANNEL_LAYOUT_7_1_WIDE;
+    case KSAUDIO_SPEAKER_7POINT1_SURROUND:
+      DVLOG(2) << "KSAUDIO_SPEAKER_7POINT1_SURROUND=>CHANNEL_LAYOUT_7_1";
+      return CHANNEL_LAYOUT_7_1;
+    case KSAUDIO_SPEAKER_DIRECTOUT:
+      // When specifying the wave format for a direct-out stream, an application
+      // should set the dwChannelMask member of the WAVEFORMATEXTENSIBLE
+      // structure to the value KSAUDIO_SPEAKER_DIRECTOUT, which is zero.
+      // A channel mask of zero indicates that no speaker positions are defined.
+      // As always, the number of channels in the stream is specified in the
+      // Format.nChannels member.
+      DVLOG(2) << "KSAUDIO_SPEAKER_DIRECTOUT=>CHANNEL_LAYOUT_DISCRETE";
+      return CHANNEL_LAYOUT_DISCRETE;
+    default:
+      DVLOG(2) << "Unsupported channel configuration: " << config;
+      return CHANNEL_LAYOUT_UNSUPPORTED;
   }
 }
 
@@ -429,7 +477,7 @@ ComPtr<IMMDevice> CreateDeviceInternal(const std::string& device_id,
     // interface for the *rendering* endpoint device.
     hr = device_enum->GetDefaultAudioEndpoint(eRender, role, &endpoint_device);
   } else {
-    hr = device_enum->GetDevice(base::UTF8ToWide(device_id).c_str(),
+    hr = device_enum->GetDevice(base::UTF8ToUTF16(device_id).c_str(),
                                 &endpoint_device);
   }
   DVLOG_IF(1, FAILED(hr)) << "Create Device failed: " << std::hex << hr;
@@ -565,8 +613,14 @@ HRESULT GetPreferredAudioParametersInternal(IAudioClient* client,
 
   // Retrieve the current channel configuration (e.g. CHANNEL_LAYOUT_STEREO).
   ChannelLayout channel_layout = GetChannelLayout(format);
-  int channels = ChannelLayoutToChannelCount(channel_layout);
-  if (channel_layout == CHANNEL_LAYOUT_DISCRETE) {
+
+  AudioParameters audio_params(
+      AudioParameters::AUDIO_PCM_LOW_LATENCY, channel_layout, sample_rate,
+      frames_per_buffer,
+      AudioParameters::HardwareCapabilities(min_frames_per_buffer,
+                                            max_frames_per_buffer));
+
+  if (audio_params.channel_layout() == CHANNEL_LAYOUT_DISCRETE) {
     if (!is_output_device) {
       // Set the number of channels explicitly to two for input devices if
       // the channel layout is discrete to ensure that the parameters are valid
@@ -575,7 +629,7 @@ HRESULT GetPreferredAudioParametersInternal(IAudioClient* client,
       // input stream implementation instead.
       // See crbug.com/868026 for examples where this approach is needed.
       DVLOG(1) << "Forcing number of channels to 2 for CHANNEL_LAYOUT_DISCRETE";
-      channels = 2;
+      audio_params.set_channels_for_discrete(2);
     } else {
       // Some output devices return CHANNEL_LAYOUT_DISCRETE. Keep this channel
       // format but update the number of channels with the correct value. The
@@ -583,16 +637,9 @@ HRESULT GetPreferredAudioParametersInternal(IAudioClient* client,
       // See crbug.com/957886 for more details.
       DVLOG(1) << "Setting number of channels to " << format->nChannels
                << " for CHANNEL_LAYOUT_DISCRETE";
-      channels = format->nChannels;
+      audio_params.set_channels_for_discrete(format->nChannels);
     }
   }
-
-  AudioParameters audio_params(
-      AudioParameters::AUDIO_PCM_LOW_LATENCY, {channel_layout, channels},
-      sample_rate, frames_per_buffer,
-      AudioParameters::HardwareCapabilities(min_frames_per_buffer,
-                                            max_frames_per_buffer));
-
   DVLOG(1) << audio_params.AsHumanReadableString();
   DCHECK(audio_params.IsValid());
   *params = audio_params;
@@ -605,7 +652,7 @@ HRESULT GetPreferredAudioParametersInternal(IAudioClient* client,
 // CoreAudioUtil::WaveFormatWrapper implementation.
 WAVEFORMATEXTENSIBLE* CoreAudioUtil::WaveFormatWrapper::GetExtensible() const {
   CHECK(IsExtensible());
-  return reinterpret_cast<WAVEFORMATEXTENSIBLE*>(ptr_.get());
+  return reinterpret_cast<WAVEFORMATEXTENSIBLE*>(ptr_);
 }
 
 bool CoreAudioUtil::WaveFormatWrapper::IsExtensible() const {
@@ -638,7 +685,7 @@ std::string CoreAudioUtil::ErrorToString(HRESULT hresult) {
   // method returns the HRESULT minus 0x80040200; otherwise, it returns zero.
   return base::StringPrintf("HRESULT: 0x%08lX, WCode: %u, message: \"%s\"",
                             error.Error(), error.WCode(),
-                            base::WideToUTF8(error.ErrorMessage()).c_str());
+                            base::UTF16ToUTF8(error.ErrorMessage()).c_str());
 }
 
 std::string CoreAudioUtil::WaveFormatToString(const WaveFormatWrapper format) {
@@ -671,7 +718,7 @@ std::string CoreAudioUtil::WaveFormatToString(const WaveFormatWrapper format) {
 
 base::TimeDelta CoreAudioUtil::ReferenceTimeToTimeDelta(REFERENCE_TIME time) {
   // Each unit of reference time is 100 nanoseconds <=> 0.1 microsecond.
-  return base::Microseconds(0.1 * time + 0.5);
+  return base::TimeDelta::FromMicroseconds(0.1 * time + 0.5);
 }
 
 uint32_t CoreAudioUtil::GetIAudioClientVersion() {
@@ -1088,7 +1135,7 @@ HRESULT CoreAudioUtil::GetPreferredAudioParameters(const std::string& device_id,
       params->channel_layout() != CHANNEL_LAYOUT_DISCRETE) {
     DLOG(WARNING)
         << "Replacing existing audio parameter with predefined version";
-    params->Reset(params->format(), media::ChannelLayoutConfig::Stereo(),
+    params->Reset(params->format(), CHANNEL_LAYOUT_STEREO,
                   params->sample_rate(), params->frames_per_buffer());
   }
 

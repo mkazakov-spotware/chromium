@@ -1,14 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chromecast.base;
 
+import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
+import static android.content.pm.PackageManager.PERMISSION_DENIED;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.provider.Settings.Global.DEVICE_NAME;
 import static android.provider.Settings.Global.DEVICE_PROVISIONED;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -75,6 +79,20 @@ public class CastSettingsManagerTest {
         assertFalse(mCastSettingsManager.isCastEnabled());
         assertTrue(Settings.Global.putInt(mContentResolver, DEVICE_PROVISIONED, 1));
         assertTrue(mCastSettingsManager.isCastEnabled());
+    }
+
+    @Test
+    public void testUpdateGlobalDeviceNameUpdatesDeviceNameWithPermission() {
+        when(mContext.checkSelfPermission(WRITE_SECURE_SETTINGS)).thenReturn(PERMISSION_GRANTED);
+        assertTrue(CastSettingsManager.updateGlobalDeviceName("newName"));
+        assertEquals("newName", mCastSettingsManager.getDeviceName());
+    }
+
+    @Test
+    public void testUpdateGlobalDeviceNameReturnsFalseWithoutPermission() {
+        when(mContext.checkSelfPermission(WRITE_SECURE_SETTINGS)).thenReturn(PERMISSION_DENIED);
+        assertFalse(CastSettingsManager.updateGlobalDeviceName("newName2"));
+        assertNotEquals("newName2", mCastSettingsManager.getDeviceName());
     }
 
     @Test

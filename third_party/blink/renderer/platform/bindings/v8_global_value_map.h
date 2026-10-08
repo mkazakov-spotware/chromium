@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ class V8GlobalValueMapTraits {
   typedef HashMap<KeyType, v8::PersistentContainerValue> Impl;
   typedef typename Impl::iterator Iterator;
   static size_t Size(const Impl* impl) { return impl->size(); }
-  static bool Empty(Impl* impl) { return impl->empty(); }
+  static bool Empty(Impl* impl) { return impl->IsEmpty(); }
   static void Swap(Impl& impl, Impl& other) { impl.swap(other); }
   static Iterator Begin(Impl* impl) { return impl->begin(); }
   static Iterator End(Impl* impl) { return impl->end(); }
@@ -48,8 +48,7 @@ class V8GlobalValueMapTraits {
     return old_value;
   }
   static v8::PersistentContainerValue Get(const Impl* impl, KeyType key) {
-    auto it = impl->find(key);
-    return it != impl->end() ? it->value : 0;
+    return impl->at(key);
   }
 
   static v8::PersistentContainerValue Remove(Impl* impl, KeyType key) {

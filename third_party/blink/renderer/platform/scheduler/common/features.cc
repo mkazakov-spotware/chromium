@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,21 @@
 #include "base/command_line.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/switches.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 namespace scheduler {
 
 namespace {
 
-enum class PolicyOverride { kNoOverride, kForceDisable, kForceEnable };
+enum class PolicyOverride { NO_OVERRIDE, FORCE_DISABLE, FORCE_ENABLE };
 
 bool g_intensive_wake_up_throttling_policy_override_cached_ = false;
 
 // Returns the IntensiveWakeUpThrottling policy settings. This is checked once
 // on first access and cached. Note that that this is *not* thread-safe!
 PolicyOverride GetIntensiveWakeUpThrottlingPolicyOverride() {
-  static PolicyOverride policy = PolicyOverride::kNoOverride;
+  static PolicyOverride policy = PolicyOverride::NO_OVERRIDE;
   if (g_intensive_wake_up_throttling_policy_override_cached_)
     return policy;
 
@@ -32,13 +33,13 @@ PolicyOverride GetIntensiveWakeUpThrottlingPolicyOverride() {
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           switches::kIntensiveWakeUpThrottlingPolicy);
   if (value == switches::kIntensiveWakeUpThrottlingPolicy_ForceEnable) {
-    policy = PolicyOverride::kForceEnable;
+    policy = PolicyOverride::FORCE_ENABLE;
   } else if (value == switches::kIntensiveWakeUpThrottlingPolicy_ForceDisable) {
-    policy = PolicyOverride::kForceDisable;
+    policy = PolicyOverride::FORCE_DISABLE;
   } else {
     // Necessary in testing configurations, as the policy can be parsed
     // repeatedly.
-    policy = PolicyOverride::kNoOverride;
+    policy = PolicyOverride::NO_OVERRIDE;
   }
 
   return policy;
@@ -53,8 +54,8 @@ void ClearIntensiveWakeUpThrottlingPolicyOverrideCacheForTesting() {
 bool IsIntensiveWakeUpThrottlingEnabled() {
   // If policy is present then respect it.
   auto policy = GetIntensiveWakeUpThrottlingPolicyOverride();
-  if (policy != PolicyOverride::kNoOverride)
-    return policy == PolicyOverride::kForceEnable;
+  if (policy != PolicyOverride::NO_OVERRIDE)
+    return policy == PolicyOverride::FORCE_ENABLE;
   // Otherwise respect the base::Feature.
   return base::FeatureList::IsEnabled(features::kIntensiveWakeUpThrottling);
 }
@@ -63,7 +64,29 @@ bool IsIntensiveWakeUpThrottlingEnabled() {
 // that admins get consistent behaviour that clients can't override. Otherwise
 // use the base::FeatureParams.
 
-base::TimeDelta GetIntensiveWakeUpThrottlingGracePeriod(bool loading) {
+base::TimeDelta GetIntensiveWakeUpThrottlingDurationBetweenWakeUps() {
+  DCHECK(IsIntensiveWakeUpThrottlingEnabled());
+
+  // Controls the period during which at most 1 wake up from throttleable
+  // TaskQueues in a page can take place.
+  static const base::FeatureParam<int>
+      kIntensiveWakeUpThrottling_DurationBetweenWakeUpsSeconds{
+          &features::kIntensiveWakeUpThrottling,
+          kIntensiveWakeUpThrottling_DurationBetweenWakeUpsSeconds_Name,
+          kIntensiveWakeUpThrottling_DurationBetweenWakeUpsSeconds_Default};
+
+  int seconds =
+      kIntensiveWakeUpThrottling_DurationBetweenWakeUpsSeconds_Default;
+  if (GetIntensiveWakeUpThrottlingPolicyOverride() ==
+      PolicyOverride::NO_OVERRIDE) {
+    seconds = kIntensiveWakeUpThrottling_DurationBetweenWakeUpsSeconds.Get();
+  }
+  return base::TimeDelta::FromSeconds(seconds);
+}
+
+base::TimeDelta GetIntensiveWakeUpThrottlingGracePeriod() {
+  DCHECK(IsIntensiveWakeUpThrottlingEnabled());
+
   // Controls the time that elapses after a page is backgrounded before the
   // throttling policy takes effect.
   static const base::FeatureParam<int>
@@ -74,49 +97,47 @@ base::TimeDelta GetIntensiveWakeUpThrottlingGracePeriod(bool loading) {
 
   int seconds = kIntensiveWakeUpThrottling_GracePeriodSeconds_Default;
   if (GetIntensiveWakeUpThrottlingPolicyOverride() ==
-      PolicyOverride::kNoOverride) {
+      PolicyOverride::NO_OVERRIDE) {
     seconds = kIntensiveWakeUpThrottling_GracePeriodSeconds.Get();
-    if (!loading && base::FeatureList::IsEnabled(
-                        features::kQuickIntensiveWakeUpThrottlingAfterLoading))
-      seconds = kIntensiveWakeUpThrottling_GracePeriodSeconds_Loaded;
   }
-  return base::Seconds(seconds);
+  return base::TimeDelta::FromSeconds(seconds);
 }
 
-base::TimeDelta GetForegroundTimersThrottledWakeUpInterval() {
-  constexpr int kForegroundTimersThrottling_WakeUpIntervalMillis_Default = 32;
-  static const base::FeatureParam<int>
-      kForegroundTimersThrottledWakeUpIntervalMills{
-          &features::kThrottleForegroundTimers,
-          "ForegroundTimersThrottledWakeUpIntervalMills",
-          kForegroundTimersThrottling_WakeUpIntervalMillis_Default};
-  return base::Milliseconds(
-      kForegroundTimersThrottledWakeUpIntervalMills.Get());
+base::TimeDelta GetTimeToInhibitIntensiveThrottlingOnTitleOrFaviconUpdate() {
+  DCHECK(IsIntensiveWakeUpThrottlingEnabled());
+
+  constexpr int kDefaultSeconds = 3;
+
+  static const base::FeatureParam<int> kFeatureParam{
+      &features::kIntensiveWakeUpThrottling,
+      "inhibit_seconds_on_title_or_favicon_update_seconds", kDefaultSeconds};
+
+  int seconds = kDefaultSeconds;
+  if (GetIntensiveWakeUpThrottlingPolicyOverride() ==
+      PolicyOverride::NO_OVERRIDE) {
+    seconds = kFeatureParam.Get();
+  }
+
+  return base::TimeDelta::FromSeconds(seconds);
 }
 
-BASE_FEATURE(kThreadedScrollPreventRenderingStarvation,
-             "ThreadedScrollPreventRenderingStarvation",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+bool CanIntensivelyThrottleLowNestingLevel() {
+  DCHECK(IsIntensiveWakeUpThrottlingEnabled());
 
-BASE_FEATURE(kPrioritizeCompositingAfterDelayTrials,
-             "PrioritizeCompositingAfterDelayTrials",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+  static const base::FeatureParam<bool> kFeatureParam{
+      &features::kIntensiveWakeUpThrottling,
+      kIntensiveWakeUpThrottling_CanIntensivelyThrottleLowNestingLevel_Name,
+      kIntensiveWakeUpThrottling_CanIntensivelyThrottleLowNestingLevel_Default};
 
-const base::FeatureParam<CompositorTQPolicyDuringThreadedScroll>::Option
-    kCompositorTQPolicyDuringThreadedScrollOptions[] = {
-        {CompositorTQPolicyDuringThreadedScroll::kLowPriorityWithAntiStarvation,
-         "low-priority-with-anti-starvation"},
-        {CompositorTQPolicyDuringThreadedScroll::
-             kNormalPriorityWithAntiStarvation,
-         "normal-priority-with-anti-starvation"},
-        {CompositorTQPolicyDuringThreadedScroll::kVeryHighPriorityAlways,
-         "very-high-priority-always"}};
+  bool value =
+      kIntensiveWakeUpThrottling_CanIntensivelyThrottleLowNestingLevel_Default;
+  if (GetIntensiveWakeUpThrottlingPolicyOverride() ==
+      PolicyOverride::NO_OVERRIDE) {
+    value = kFeatureParam.Get();
+  }
 
-const base::FeatureParam<CompositorTQPolicyDuringThreadedScroll>
-    kCompositorTQPolicyDuringThreadedScroll{
-        &kThreadedScrollPreventRenderingStarvation, "policy",
-        CompositorTQPolicyDuringThreadedScroll::kLowPriorityWithAntiStarvation,
-        &kCompositorTQPolicyDuringThreadedScrollOptions};
+  return value;
+}
 
 }  // namespace scheduler
 }  // namespace blink

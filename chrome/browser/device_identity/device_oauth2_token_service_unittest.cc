@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,9 @@
 #include <set>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -27,16 +25,10 @@
 #include "google_apis/gaia/oauth2_access_token_manager_test_util.h"
 #include "net/http/http_status_code.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-namespace {
-const char kRobotEmail[] = "service_acct@system.gserviceaccount.com";
-const char kWrongRobotEmail[] = "WRONG_service_acct@system.gserviceaccount.com";
-}  // namespace
 
 class MockDeviceOAuth2TokenStore : public DeviceOAuth2TokenStore {
  public:
@@ -61,9 +53,9 @@ class MockDeviceOAuth2TokenStore : public DeviceOAuth2TokenStore {
     TriggerTrustedAccountIdCallback(true);
   }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   void SetAccountEmail(const std::string& account_email) override {
-    account_id_ = CoreAccountId::FromRobotEmail(account_email);
+    account_id_ = CoreAccountId::FromEmail(account_email);
   }
 #endif
 
@@ -107,15 +99,14 @@ class DeviceOAuth2TokenServiceTest : public testing::Test {
   void SetUpDefaultValues() {
     CreateService();
     token_store_->SetRefreshTokenForTesting("device_refresh_token_4_test");
-    SetRobotAccountId(kRobotEmail);
+    SetRobotAccountId("service_acct@g.com");
     AssertConsumerTokensAndErrors(0, 0);
 
     token_store_->TriggerInitCallback(true, true);
   }
 
-  void SetRobotAccountId(const std::string& robot_email) {
-    token_store_->SetAccountIdForTesting(
-        CoreAccountId::FromRobotEmail(robot_email));
+  void SetRobotAccountId(const std::string& account_id) {
+    token_store_->SetAccountIdForTesting(CoreAccountId::FromEmail(account_id));
   }
 
   std::unique_ptr<OAuth2AccessTokenManager::Request> StartTokenRequest() {
@@ -148,17 +139,6 @@ class DeviceOAuth2TokenServiceTest : public testing::Test {
     return "{ \"email\": \"" + email +
            "\","
            "  \"user_id\": \"1234567890\" }";
-  }
-
-  std::string GetInvalidScopeResponse(const std::string& scope) {
-    return "{ \"error\": \"invalid_scope\", "
-           "\"error_description\": \"Some requested scopes were invalid. "
-           "{invalid\\u003d[" +
-           scope +
-           "}\", "
-           "\"error_uri\": "
-           "\"https://developers.google.com/identity/protocols/oauth2\""
-           "}";
   }
 
   bool RefreshTokenIsAvailable() {
@@ -212,7 +192,7 @@ class DeviceOAuth2TokenServiceTest : public testing::Test {
   std::unique_ptr<DeviceOAuth2TokenService, TokenServiceDeleter>
       oauth2_service_;
   TestingOAuth2AccessTokenManagerConsumer consumer_;
-  raw_ptr<MockDeviceOAuth2TokenStore> token_store_;
+  MockDeviceOAuth2TokenStore* token_store_;
 };
 
 void DeviceOAuth2TokenServiceTest::ReturnOAuthUrlFetchResults(
@@ -249,8 +229,8 @@ void DeviceOAuth2TokenServiceTest::PerformURLFetchesWithResults(
 void DeviceOAuth2TokenServiceTest::PerformURLFetches() {
   PerformURLFetchesWithResults(
       net::HTTP_OK, GetValidTokenResponse("tokeninfo_access_token", 3600),
-      net::HTTP_OK, GetValidTokenInfoResponse(kRobotEmail), net::HTTP_OK,
-      GetValidTokenResponse("scoped_access_token", 3600));
+      net::HTTP_OK, GetValidTokenInfoResponse("service_acct@g.com"),
+      net::HTTP_OK, GetValidTokenResponse("scoped_access_token", 3600));
 }
 
 void DeviceOAuth2TokenServiceTest::AssertConsumerTokensAndErrors(
@@ -274,7 +254,7 @@ TEST_F(DeviceOAuth2TokenServiceTest, RefreshTokenValidation_Success) {
 TEST_F(DeviceOAuth2TokenServiceTest, RefreshTokenValidation_SuccessAsyncLoad) {
   CreateService();
   token_store()->SetRefreshTokenForTesting("device_refresh_token_4_test");
-  SetRobotAccountId(kRobotEmail);
+  SetRobotAccountId("service_acct@g.com");
 
   std::unique_ptr<OAuth2AccessTokenManager::Request> request =
       StartTokenRequest();
@@ -304,7 +284,7 @@ TEST_F(DeviceOAuth2TokenServiceTest, RefreshTokenValidation_Cancel) {
 TEST_F(DeviceOAuth2TokenServiceTest, RefreshTokenValidation_InitFailure) {
   CreateService();
   token_store()->SetRefreshTokenForTesting("device_refresh_token_4_test");
-  SetRobotAccountId(kRobotEmail);
+  SetRobotAccountId("service_acct@g.com");
   token_store()->TriggerInitCallback(false, true);
 
   EXPECT_FALSE(RefreshTokenIsAvailable());
@@ -323,7 +303,7 @@ TEST_F(DeviceOAuth2TokenServiceTest,
       StartTokenRequest();
 
   PerformURLFetchesWithResults(net::HTTP_UNAUTHORIZED, "", net::HTTP_OK,
-                               GetValidTokenInfoResponse(kRobotEmail),
+                               GetValidTokenInfoResponse("service_acct@g.com"),
                                net::HTTP_OK,
                                GetValidTokenResponse("ignored", 3600));
 
@@ -337,32 +317,11 @@ TEST_F(DeviceOAuth2TokenServiceTest,
       StartTokenRequest();
 
   PerformURLFetchesWithResults(net::HTTP_OK, "invalid response", net::HTTP_OK,
-                               GetValidTokenInfoResponse(kRobotEmail),
+                               GetValidTokenInfoResponse("service_acct@g.com"),
                                net::HTTP_OK,
                                GetValidTokenResponse("ignored", 3600));
 
   AssertConsumerTokensAndErrors(0, 1);
-}
-
-TEST_F(DeviceOAuth2TokenServiceTest,
-       RefreshTokenValidation_Failure_InvalidScope) {
-  SetUpDefaultValues();
-  std::unique_ptr<OAuth2AccessTokenManager::Request> request =
-      StartTokenRequest();
-
-  PerformURLFetchesWithResults(
-      net::HTTP_OK, GetValidTokenResponse("tokeninfo_access_token", 3600),
-      net::HTTP_OK, GetValidTokenInfoResponse(kRobotEmail),
-      net::HTTP_BAD_REQUEST, GetInvalidScopeResponse("test_scope"));
-
-  AssertConsumerTokensAndErrors(0, 1);
-  EXPECT_EQ(consumer_.last_error_.state(),
-            GoogleServiceAuthError::SCOPE_LIMITED_UNRECOVERABLE_ERROR);
-  EXPECT_EQ(
-      consumer_.last_error_.error_message(),
-      "{ \"error\": \"invalid_scope\", \"error_description\": \"Some requested "
-      "scopes were invalid. {invalid\\u003d[test_scope}\", \"error_uri\": "
-      "\"https://developers.google.com/identity/protocols/oauth2\"}");
 }
 
 TEST_F(DeviceOAuth2TokenServiceTest,
@@ -401,7 +360,7 @@ TEST_F(DeviceOAuth2TokenServiceTest,
 
   PerformURLFetchesWithResults(
       net::HTTP_OK, GetValidTokenResponse("tokeninfo_access_token", 3600),
-      net::HTTP_OK, GetValidTokenInfoResponse(kRobotEmail),
+      net::HTTP_OK, GetValidTokenInfoResponse("service_acct@g.com"),
       net::HTTP_BAD_REQUEST, "");
 
   AssertConsumerTokensAndErrors(0, 1);
@@ -415,8 +374,8 @@ TEST_F(DeviceOAuth2TokenServiceTest,
 
   PerformURLFetchesWithResults(
       net::HTTP_OK, GetValidTokenResponse("tokeninfo_access_token", 3600),
-      net::HTTP_OK, GetValidTokenInfoResponse(kRobotEmail), net::HTTP_OK,
-      "invalid request");
+      net::HTTP_OK, GetValidTokenInfoResponse("service_acct@g.com"),
+      net::HTTP_OK, "invalid request");
 
   AssertConsumerTokensAndErrors(0, 1);
 }
@@ -426,12 +385,12 @@ TEST_F(DeviceOAuth2TokenServiceTest, RefreshTokenValidation_Failure_BadOwner) {
   std::unique_ptr<OAuth2AccessTokenManager::Request> request =
       StartTokenRequest();
 
-  SetRobotAccountId(kWrongRobotEmail);
+  SetRobotAccountId("WRONG_service_acct@g.com");
 
   PerformURLFetchesWithResults(
       net::HTTP_OK, GetValidTokenResponse("tokeninfo_access_token", 3600),
-      net::HTTP_OK, GetValidTokenInfoResponse(kRobotEmail), net::HTTP_OK,
-      GetValidTokenResponse("ignored", 3600));
+      net::HTTP_OK, GetValidTokenInfoResponse("service_acct@g.com"),
+      net::HTTP_OK, GetValidTokenResponse("ignored", 3600));
 
   AssertConsumerTokensAndErrors(0, 1);
 }
@@ -443,7 +402,7 @@ TEST_F(DeviceOAuth2TokenServiceTest, RefreshTokenValidation_Retry) {
 
   PerformURLFetchesWithResults(
       net::HTTP_INTERNAL_SERVER_ERROR, "", net::HTTP_OK,
-      GetValidTokenInfoResponse(kRobotEmail), net::HTTP_OK,
+      GetValidTokenInfoResponse("service_acct@g.com"), net::HTTP_OK,
       GetValidTokenResponse("ignored", 3600));
 
   AssertConsumerTokensAndErrors(0, 1);

@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/media_session/audio_focus_request.h"
 
-#include "base/task/single_thread_task_runner.h"
 #include "services/media_session/audio_focus_manager.h"
 
 namespace media_session {
@@ -191,7 +190,7 @@ void AudioFocusRequest::OnConnectionError() {
 
   encountered_error_ = true;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&AudioFocusManager::AbandonAudioFocusInternal,
                                 owner_, id_));
 }

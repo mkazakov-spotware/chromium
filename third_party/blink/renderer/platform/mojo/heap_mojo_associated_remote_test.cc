@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,37 @@
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/heap_observer_set.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
-#include "third_party/blink/renderer/platform/mojo/mojo_binding_context.h"
-#include "third_party/blink/renderer/platform/testing/mock_context_lifecycle_notifier.h"
-#include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
 namespace {
+
+class MockContext final : public GarbageCollected<MockContext>,
+                          public ContextLifecycleNotifier {
+ public:
+  void AddContextLifecycleObserver(
+      ContextLifecycleObserver* observer) override {
+    observers_.AddObserver(observer);
+  }
+  void RemoveContextLifecycleObserver(
+      ContextLifecycleObserver* observer) override {
+    observers_.RemoveObserver(observer);
+  }
+
+  void NotifyContextDestroyed() {
+    observers_.ForEachObserver([](ContextLifecycleObserver* observer) {
+      observer->ContextDestroyed();
+    });
+  }
+
+  void Trace(Visitor* visitor) const override {
+    visitor->Trace(observers_);
+    ContextLifecycleNotifier::Trace(visitor);
+  }
+
+ private:
+  HeapObserverSet<ContextLifecycleObserver> observers_;
+};
 
 class ServiceImpl : public sample::blink::Service {
  public:
@@ -41,7 +65,7 @@ template <HeapMojoWrapperMode Mode>
 class AssociatedRemoteOwner
     : public GarbageCollected<AssociatedRemoteOwner<Mode>> {
  public:
-  explicit AssociatedRemoteOwner(MockContextLifecycleNotifier* context)
+  explicit AssociatedRemoteOwner(MockContext* context)
       : associated_remote_(context) {}
   explicit AssociatedRemoteOwner(
       HeapMojoAssociatedRemote<sample::blink::Service, Mode> associated_remote)
@@ -60,7 +84,7 @@ template <HeapMojoWrapperMode Mode>
 class HeapMojoAssociatedRemoteDestroyContextBaseTest : public TestSupportingGC {
  protected:
   void SetUp() override {
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<MockContext>();
     owner_ = MakeGarbageCollected<AssociatedRemoteOwner<Mode>>(context_);
     scoped_refptr<base::NullTaskRunner> null_task_runner =
         base::MakeRefCounted<base::NullTaskRunner>();
@@ -70,7 +94,7 @@ class HeapMojoAssociatedRemoteDestroyContextBaseTest : public TestSupportingGC {
   }
 
   ServiceImpl impl_;
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<MockContext> context_;
   Persistent<AssociatedRemoteOwner<Mode>> owner_;
 };
 
@@ -84,26 +108,25 @@ class HeapMojoAssociatedRemoteDisconnectWithReasonHandlerBaseTest
  protected:
   void SetUp() override {
     CHECK(!disconnected_with_reason_);
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<MockContext>();
     owner_ = MakeGarbageCollected<AssociatedRemoteOwner<Mode>>(context_);
     scoped_refptr<base::NullTaskRunner> null_task_runner =
         base::MakeRefCounted<base::NullTaskRunner>();
     impl_.associated_receiver().Bind(
         owner_->associated_remote().BindNewEndpointAndPassReceiver(
             null_task_runner));
-    impl_.associated_receiver().set_disconnect_with_reason_handler(
-        WTF::BindOnce(
-            [](HeapMojoAssociatedRemoteDisconnectWithReasonHandlerBaseTest*
-                   associated_remote_test,
-               const uint32_t custom_reason, const std::string& description) {
-              associated_remote_test->run_loop().Quit();
-              associated_remote_test->disconnected_with_reason() = true;
-            },
-            WTF::Unretained(this)));
+    impl_.associated_receiver().set_disconnect_with_reason_handler(WTF::Bind(
+        [](HeapMojoAssociatedRemoteDisconnectWithReasonHandlerBaseTest*
+               associated_remote_test,
+           const uint32_t custom_reason, const std::string& description) {
+          associated_remote_test->run_loop().Quit();
+          associated_remote_test->disconnected_with_reason() = true;
+        },
+        WTF::Unretained(this)));
   }
 
   ServiceImpl impl_;
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<MockContext> context_;
   Persistent<AssociatedRemoteOwner<Mode>> owner_;
   base::RunLoop run_loop_;
   bool disconnected_with_reason_ = false;
@@ -113,7 +136,7 @@ template <HeapMojoWrapperMode Mode>
 class HeapMojoAssociatedRemoteMoveBaseTest : public TestSupportingGC {
  protected:
   void SetUp() override {
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<MockContext>();
     HeapMojoAssociatedRemote<sample::blink::Service, Mode> associated_remote(
         context_);
     owner_ = MakeGarbageCollected<AssociatedRemoteOwner<Mode>>(
@@ -126,7 +149,7 @@ class HeapMojoAssociatedRemoteMoveBaseTest : public TestSupportingGC {
   }
 
   ServiceImpl impl_;
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<MockContext> context_;
   Persistent<AssociatedRemoteOwner<Mode>> owner_;
 };
 

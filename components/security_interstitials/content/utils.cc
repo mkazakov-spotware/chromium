@@ -1,44 +1,37 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/security_interstitials/content/utils.h"
 
-#include <string>
-
 #include "base/command_line.h"
 #include "base/files/file_util.h"
-#include "base/notreached.h"
 #include "base/process/launch.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
 #include "components/security_interstitials/content/android/jni_headers/DateAndTimeSettingsHelper_jni.h"
 #endif
 
-#if BUILDFLAG(IS_MAC)
-#include "base/mac/mac_util.h"
-#endif
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/base_paths_win.h"
 #include "base/path_service.h"
+#include "base/strings/string16.h"
 #endif
 
 namespace security_interstitials {
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS) && !defined(OS_FUCHSIA)
 void LaunchDateAndTimeSettings() {
 // The code for each OS is completely separate, in order to avoid bugs like
 // https://crbug.com/430877 .
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_DateAndTimeSettingsHelper_openDateAndTimeSettings(env);
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   struct ClockCommand {
     const char* const pathname;
     const char* const argument;
@@ -78,14 +71,19 @@ void LaunchDateAndTimeSettings() {
   options.allow_new_privs = true;
   base::LaunchProcess(command, options);
 
-#elif BUILDFLAG(IS_MAC)
-  base::mac::OpenSystemSettingsPane(base::mac::SystemSettingsPane::kDateTime);
+#elif defined(OS_APPLE)
+  base::CommandLine command(base::FilePath("/usr/bin/open"));
+  command.AppendArg("/System/Library/PreferencePanes/DateAndTime.prefPane");
 
-#elif BUILDFLAG(IS_WIN)
+  base::LaunchOptions options;
+  options.wait = false;
+  base::LaunchProcess(command, options);
+
+#elif defined(OS_WIN)
   base::FilePath path;
   base::PathService::Get(base::DIR_SYSTEM, &path);
-  static const wchar_t kControlPanelExe[] = L"control.exe";
-  path = path.Append(std::wstring(kControlPanelExe));
+  static const base::char16 kControlPanelExe[] = L"control.exe";
+  path = path.Append(base::string16(kControlPanelExe));
   base::CommandLine command(path);
   command.AppendArg(std::string("/name"));
   command.AppendArg(std::string("Microsoft.DateAndTime"));
@@ -94,9 +92,6 @@ void LaunchDateAndTimeSettings() {
   options.wait = false;
   base::LaunchProcess(command, options);
 
-#elif BUILDFLAG(IS_FUCHSIA)
-  // TODO(crbug.com/1233494): Send to the platform settings.
-  NOTIMPLEMENTED_LOG_ONCE();
 #else
 #error Unsupported target architecture.
 #endif

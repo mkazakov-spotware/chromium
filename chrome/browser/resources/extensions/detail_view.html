@@ -25,7 +25,7 @@
 
   @media (prefers-color-scheme: dark) {
     #enable-section .enabled-text {
-      color: var(--google-blue-300);
+      color: var(--google-blue-refresh-300);
     }
   }
 
@@ -58,11 +58,8 @@
   }
 
   .inspectable-view {
-    display: inline;
     height: 20px;
-    overflow-wrap: anywhere;
     width: auto;  /* override the default button size of 24x24 */
-    word-break: normal;
   }
 
   @media (prefers-color-scheme: light) {
@@ -89,20 +86,6 @@
     width: 18px;
   }
 
-  .link-icon-button {
-    --iron-icon-height: var(--cr-icon-size);
-    --iron-icon-width: var(--cr-icon-size);
-    margin-inline-start: 6px;
-  }
-
-  #allowlist-warning {
-    flex: 1;
-  }
-
-  #allowlist-warning .warning-icon {
-    --iron-icon-fill-color: var(--warning-color);
-  }
-
   ul {
     margin: 0;
     padding-inline-start: 20px;
@@ -114,18 +97,10 @@
 
   extensions-toggle-row {
     box-sizing: border-box;
-    padding: var(--cr-section-vertical-padding) var(--cr-section-padding);
-  }
-
-  #show-access-requests-toggle {
-    margin-inline-start: var(--cr-section-indent-width);
-    min-height: var(--cr-section-min-height);
-    padding: 0;
-  }
-
-  #access-toggle-and-link {
-    color: var(--cr-primary-text-color);
-    display: flex;
+    padding-inline-end: 0;
+    padding-inline-start: 0;
+    --toggle-row-label-horizontal-padding: var(--cr-section-padding);
+    --toggle-row-label-vertical-padding: var(--cr-section-vertical-padding);
   }
 
   #load-path {
@@ -146,17 +121,17 @@
     width: var(--cr-icon-size);
   }
 </style>
-<div id="cr-container-shadow-top" class="cr-container-shadow has-shadow"></div>
 <div class="page-container" id="container">
   <div class="page-content">
     <div class="page-header">
       <cr-icon-button class="icon-arrow-back no-overlap" id="closeButton"
-          aria-label$="[[getBackButtonAriaLabel_(data.name)]]"
-          aria-roledescription$="[[
-              getBackButtonAriaRoleDescription_(data.name)]]"
-          on-click="onCloseButtonTap_">
+          aria-label="$i18n{back}" on-click="onCloseButtonTap_">
       </cr-icon-button>
-      <img id="icon" src="[[data.iconUrl]]" alt="">
+      <img id="icon" src="[[data.iconUrl]]"
+          alt$="[[appOrExtension(
+              data.type,
+              '$i18nPolymer{appIcon}',
+              '$i18nPolymer{extensionIcon}')]]">
       <span id="name" class="cr-title-text" role="heading" aria-level="1">
         [[data.name]]
       </span>
@@ -197,7 +172,7 @@
         </cr-toggle>
       </div>
     </div>
-    <div id="warnings" hidden$="[[!hasSevereWarnings_(data.*)]]">
+    <div id="warnings" hidden$="[[!hasWarnings_(data.*)]]">
       <div id="runtime-warnings" hidden$="[[!data.runtimeWarnings.length]]"
           class="cr-row continuation warning control-line">
         <iron-icon class="warning-icon" icon="cr:error"></iron-icon>
@@ -218,8 +193,7 @@
         <iron-icon class="warning-icon" icon="cr:warning"></iron-icon>
         <span>
           $i18n{itemSuspiciousInstall}
-          <a target="_blank" href="$i18n{suspiciousInstallHelpUrl}"
-              aria-label="$i18n{itemSuspiciousInstallLearnMore}">
+          <a target="_blank" href="$i18n{suspiciousInstallHelpUrl}">
             $i18n{learnMore}
           </a>
         </span>
@@ -244,19 +218,6 @@
         <iron-icon class="warning-icon" icon="cr:warning"></iron-icon>
         <span>$i18n{updateRequiredByPolicy}</span>
       </div>
-    </div>
-    <div id="allowlist-warning" class="cr-row continuation"
-        hidden$="[[!showAllowlistWarning_(data.*)]]">
-      <iron-icon class="warning-icon"
-          icon="extensions-icons:safebrowsing_warning">
-      </iron-icon>
-      <span class="cr-secondary-text">
-        $i18n{itemAllowlistWarning}
-        <a href="$i18n{enhancedSafeBrowsingWarningHelpUrl}" target="_blank"
-            aria-label="$i18n{itemAllowlistWarningLearnMoreLabel}">
-          $i18n{learnMore}
-        </a>
-      </span>
     </div>
     <div class="section">
       <div class="section-title" role="heading" aria-level="2">
@@ -298,7 +259,7 @@
             <li hidden="[[data.views.length]]">
               $i18n{noActiveViews}
             </li>
-            <template is="dom-repeat" items="[[sortedViews_]]">
+            <template is="dom-repeat" items="[[data.views]]">
               <li>
                 <a is="action-link" class="inspectable-view"
                     on-click="onInspectTap_">
@@ -316,7 +277,7 @@
       </div>
       <div class="section-content">
         <span id="no-permissions" hidden$="[[hasPermissions_(data.*)]]">
-          [[getNoPermissionsString_(data.*, enableEnhancedSiteControls)]]
+          $i18n{itemPermissionsEmpty}
         </span>
         <ul id="permissions-list"
             hidden$="[[!data.permissions.simplePermissions.length]]">
@@ -331,63 +292,36 @@
               </ul>
             </li>
           </template>
-          <li hidden$="[[showSiteAccessSection_(data.*,
-              enableEnhancedSiteControls)]]">
-            $i18n{itemSiteAccessEmpty}
-          </li>
         </ul>
       </div>
     </div>
-    <template is="dom-if" if="[[showSiteAccessSection_(data.*,
-        enableEnhancedSiteControls)]]">
-      <div class="section hr">
-        <div class="section-title" role="heading" aria-level="2"
-            hidden$="[[enableEnhancedSiteControls]]">
-          $i18n{itemSiteAccess}
-        </div>
-        <div class="section-content">
-          <span id="no-site-access"
-              hidden$="[[showSiteAccessContent_(data.*)]]">
-            $i18n{itemSiteAccessEmpty}
-          </span>
-          <template is="dom-if"
-              if="[[showFreeformRuntimeHostPermissions_(data.*)]]">
-            <extensions-runtime-host-permissions
-                permissions="[[data.permissions.runtimeHostPermissions]]"
-                enable-enhanced-site-controls="[[enableEnhancedSiteControls]]"
-                delegate="[[delegate]]"
-                item-id="[[data.id]]">
-            </extensions-runtime-host-permissions>
-          </template>
-          <template is="dom-if"
-              if="[[showHostPermissionsToggleList_(data.*)]]">
-            <extensions-host-permissions-toggle-list
-                permissions="[[data.permissions.runtimeHostPermissions]]"
-                enable-enhanced-site-controls="[[enableEnhancedSiteControls]]"
-                delegate="[[delegate]]"
-                item-id="[[data.id]]">
-            </extensions-host-permissions-toggle-list>
-          </template>
-          <template is="dom-if" if="[[showEnableAccessRequestsToggle_(
-                data.*, enableEnhancedSiteControls)]]">
-            <extensions-toggle-row id="show-access-requests-toggle"
-                          checked="[[data.showAccessRequestsInToolbar]]"
-                          class="hr"
-                          on-change="onShowAccessRequestsChange_">
-              <div id="access-toggle-and-link">
-                <span>$i18n{itemShowAccessRequestsInToolbar}</span>
-                <a class="link-icon-button"
-                    aria-label="$i18n{itemShowAccessRequestsLearnMore}"
-                    href="$i18n{showAccessRequestsInToolbarLearnMoreLink}"
-                    target="_blank">
-                  <iron-icon icon="cr:help-outline"></iron-icon>
-                </a>
-              </div>
-            </extensions-toggle-row>
-          </template>
-        </div>
+    <div class="section hr">
+      <div class="section-title" role="heading" aria-level="2">
+        $i18n{itemSiteAccess}
       </div>
-    </template>
+      <div class="section-content">
+        <span id="no-site-access"
+            hidden$="[[showSiteAccessContent_(data.*)]]">
+          $i18n{itemSiteAccessEmpty}
+        </span>
+        <template is="dom-if"
+            if="[[showFreeformRuntimeHostPermissions_(data.*)]]">
+          <extensions-runtime-host-permissions
+              permissions="[[data.permissions.runtimeHostPermissions]]"
+              delegate="[[delegate]]"
+              item-id="[[data.id]]">
+          </extensions-runtime-host-permissions>
+        </template>
+        <template is="dom-if"
+            if="[[showHostPermissionsToggleList_(data.*)]]">
+          <extensions-host-permissions-toggle-list
+              permissions="[[data.permissions.runtimeHostPermissions]]"
+              delegate="[[delegate]]"
+              item-id="[[data.id]]">
+          </extensions-host-permissions-toggle-list>
+        </template>
+      </div>
+    </div>
     <template is="dom-if"
         if="[[hasDependentExtensions_(data.dependentExtensions.splices)]]">
       <div class="section hr">
@@ -436,7 +370,7 @@
         </template>
       </div>
     </template>
-    <cr-link-row class="hr" id="extensionsOptions"
+    <cr-link-row class="hr" id="extensions-options"
         disabled="[[!isEnabled_(data.state)]]"
         hidden="[[!shouldShowOptionsLink_(data.*)]]"
         label="$i18n{itemOptions}" on-click="onExtensionOptionsTap_"

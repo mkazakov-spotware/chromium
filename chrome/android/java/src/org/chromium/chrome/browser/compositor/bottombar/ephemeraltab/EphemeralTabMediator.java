@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,6 +35,7 @@ public class EphemeralTabMediator {
 
     private final BottomSheetController mBottomSheetController;
     private final EphemeralTabCoordinator.FaviconLoader mFaviconLoader;
+    private final EphemeralTabMetrics mMetrics;
     private final int mTopControlsHeightDp;
 
     private WebContents mWebContents;
@@ -47,9 +48,11 @@ public class EphemeralTabMediator {
      * Constructor.
      */
     public EphemeralTabMediator(BottomSheetController bottomSheetController,
-            EphemeralTabCoordinator.FaviconLoader faviconLoader, int topControlsHeightDp) {
+            EphemeralTabCoordinator.FaviconLoader faviconLoader, EphemeralTabMetrics metrics,
+            int topControlsHeightDp) {
         mBottomSheetController = bottomSheetController;
         mFaviconLoader = faviconLoader;
+        mMetrics = metrics;
         mTopControlsHeightDp = topControlsHeightDp;
     }
 
@@ -72,14 +75,14 @@ public class EphemeralTabMediator {
     /**
      * Loads a new URL into the tab and makes it visible.
      */
-    void requestShowContent(GURL url, String title) {
+    void requestShowContent(String url, String title) {
         loadUrl(url);
         mSheetContent.updateTitle(title);
         mBottomSheetController.requestShowContent(mSheetContent, true);
     }
 
-    private void loadUrl(GURL url) {
-        mWebContents.getNavigationController().loadUrl(new LoadUrlParams(url.getSpec()));
+    private void loadUrl(String url) {
+        mWebContents.getNavigationController().loadUrl(new LoadUrlParams(url));
     }
 
     private void createWebContentsObserver() {
@@ -96,8 +99,9 @@ public class EphemeralTabMediator {
             }
 
             @Override
-            public void didStartNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-                if (!navigation.isSameDocument()) {
+            public void didStartNavigation(NavigationHandle navigation) {
+                mMetrics.recordNavigateLink();
+                if (navigation.isInMainFrame() && !navigation.isSameDocument()) {
                     GURL url = navigation.getUrl();
                     if (url.equals(mCurrentUrl)) return;
 
@@ -117,32 +121,24 @@ public class EphemeralTabMediator {
             }
 
             @Override
-            public void didStartNavigationNoop(NavigationHandle navigation) {
-                if (!navigation.isInPrimaryMainFrame()) return;
-            }
-
-            @Override
             public void titleWasSet(String title) {
                 mSheetContent.updateTitle(title);
             }
 
             @Override
-            public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-                if (navigation.hasCommitted()) {
-                    mIsOnErrorPage = navigation.isErrorPage();
-                    mSheetContent.updateURL(mWebContents.get().getVisibleUrl());
-                } else {
-                    // Not viewable contents such as download. Show a toast and close the tab.
-                    Toast.makeText(ContextUtils.getApplicationContext(),
-                                 R.string.ephemeral_tab_sheet_not_viewable, Toast.LENGTH_SHORT)
-                            .show();
-                    mBottomSheetController.hideContent(mSheetContent, /* animate= */ true);
+            public void didFinishNavigation(NavigationHandle navigation) {
+                if (navigation.isInMainFrame()) {
+                    if (navigation.hasCommitted()) {
+                        mIsOnErrorPage = navigation.isErrorPage();
+                        mSheetContent.updateURL(mWebContents.get().getVisibleUrl());
+                    } else {
+                        // Not viewable contents such as download. Show a toast and close the tab.
+                        Toast.makeText(ContextUtils.getApplicationContext(),
+                                     R.string.ephemeral_tab_sheet_not_viewable, Toast.LENGTH_SHORT)
+                                .show();
+                        mBottomSheetController.hideContent(mSheetContent, /* animate= */ true);
+                    }
                 }
-            }
-
-            @Override
-            public void didFinishNavigationNoop(NavigationHandle navigation) {
-                if (navigation.isInPrimaryMainFrame()) return;
             }
         };
     }
@@ -163,20 +159,20 @@ public class EphemeralTabMediator {
             }
 
             @Override
-            public void openNewTab(GURL url, String extraHeaders, ResourceRequestBody postData,
+            public void openNewTab(String url, String extraHeaders, ResourceRequestBody postData,
                     int disposition, boolean isRendererInitiated) {
                 // We never open a separate tab when navigating in a preview tab.
                 loadUrl(url);
             }
 
             @Override
-            public boolean shouldCreateWebContents(GURL targetUrl) {
+            public boolean shouldCreateWebContents(String targetUrl) {
                 loadUrl(targetUrl);
                 return false;
             }
 
             @Override
-            public void loadingStateChanged(boolean shouldShowLoadingUI) {
+            public void loadingStateChanged(boolean toDifferentDocument) {
                 boolean isLoading = mWebContents != null && mWebContents.isLoading();
                 if (isLoading) {
                     if (mSheetContent == null) return;

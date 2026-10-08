@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <memory>
 
+#include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/process/process.h"
 #include "content/public/browser/browser_child_process_observer.h"
 
@@ -15,16 +17,11 @@ namespace performance_manager {
 
 class ProcessNodeImpl;
 
-// Responsible for maintaining the process nodes for the browser, the GPU and
-// utility process.
+// Responsible for maintaining the process nodes for the browser and the GPU
+// process.
 class BrowserChildProcessWatcher : public content::BrowserChildProcessObserver {
  public:
   BrowserChildProcessWatcher();
-
-  BrowserChildProcessWatcher(const BrowserChildProcessWatcher&) = delete;
-  BrowserChildProcessWatcher& operator=(const BrowserChildProcessWatcher&) =
-      delete;
-
   ~BrowserChildProcessWatcher() override;
 
   // Initialize this watcher.
@@ -46,18 +43,19 @@ class BrowserChildProcessWatcher : public content::BrowserChildProcessObserver {
       const content::ChildProcessData& data,
       const content::ChildProcessTerminationInfo& info) override;
 
-  void TrackedProcessExited(int id, int exit_code);
+  void GPUProcessExited(int id, int exit_code);
 
   static void OnProcessLaunched(const base::Process& process,
-                                const std::string& metrics_name,
                                 ProcessNodeImpl* process_node);
 
   std::unique_ptr<ProcessNodeImpl> browser_process_node_;
 
-  // This map keeps track of all GPU and Utility processes by their unique ID
-  // from |content::ChildProcessData|. Apparently more than one GPU process can
-  // be existent at a time, though secondaries are very transient.
-  base::flat_map<int, std::unique_ptr<ProcessNodeImpl>> tracked_process_nodes_;
+  // Apparently more than one GPU process can be existent at a time, though
+  // secondaries are very transient. This map keeps track of all GPU processes
+  // by their unique ID from |content::ChildProcessData|.
+  base::flat_map<int, std::unique_ptr<ProcessNodeImpl>> gpu_process_nodes_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserChildProcessWatcher);
 };
 
 }  // namespace performance_manager

@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# Copyright 2019 The Chromium Authors
+#!/usr/bin/python
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 '''
@@ -44,7 +44,7 @@ import bisect
 # Below sessions are contents for test files
 this_year = str(datetime.datetime.now().year)
 
-_INST_TEST_FILE = '''// Copyright %s The Chromium Authors
+_INST_TEST_FILE = '''// Copyright %s The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,16 +55,16 @@ package %s;
 import org.junit.runner.RunWith;
 
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 
 /** Instrumentation tests for {@link %s}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
-public class %sInstrumentationTest extends BlankUiTestActivityTestCase {
+public class %sInstrumentationTest extends DummyUiActivityTestCase {
 
 }
 '''
 
-_UNIT_TEST_FILE = '''// Copyright %s The Chromium Authors
+_UNIT_TEST_FILE = '''// Copyright %s The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 

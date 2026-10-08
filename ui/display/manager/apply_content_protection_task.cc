@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/ranges/algorithm.h"
 #include "ui/display/manager/display_layout_manager.h"
-#include "ui/display/manager/display_manager_util.h"
+#include "ui/display/manager/display_util.h"
 #include "ui/display/types/display_snapshot.h"
 #include "ui/display/types/native_display_delegate.h"
 
@@ -114,8 +113,10 @@ void ApplyContentProtectionTask::OnGetHDCPState(
       hdcped_displays;
   // Lookup the displays again since display configuration may have changed.
   for (const auto& request : hdcp_requests_) {
-    auto it = base::ranges::find(displays, request.display_id,
-                                 &DisplaySnapshot::display_id);
+    auto it = std::find_if(displays.begin(), displays.end(),
+                           [id = request.display_id](DisplaySnapshot* display) {
+                             return id == display->display_id();
+                           });
     if (it == displays.end()) {
       std::move(callback_).Run(Status::FAILURE);
       return;

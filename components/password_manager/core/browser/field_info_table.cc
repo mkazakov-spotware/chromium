@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ namespace {
 
 constexpr char kFieldInfoTableName[] = "field_info";
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // Represents columns of the FieldInfoTable. Used with SQL queries that use all
 // the columns.
 enum class FieldInfoTableColumn {
@@ -53,8 +53,9 @@ std::vector<FieldInfo> StatementToFieldInfo(sql::Statement* s) {
         s->ColumnInt(GetColumnNumber(FieldInfoTableColumn::kFieldSignature)));
     results.back().field_type = static_cast<autofill::ServerFieldType>(
         s->ColumnInt(GetColumnNumber(FieldInfoTableColumn::kFieldType)));
-    results.back().create_time =
-        s->ColumnTime(GetColumnNumber(FieldInfoTableColumn::kCreateTime));
+    results.back().create_time = base::Time::FromDeltaSinceWindowsEpoch(
+        (base::TimeDelta::FromMicroseconds(s->ColumnInt64(
+            GetColumnNumber(FieldInfoTableColumn::kCreateTime)))));
   }
   return results;
 }
@@ -70,16 +71,16 @@ bool operator==(const FieldInfo& lhs, const FieldInfo& rhs) {
 
 void FieldInfoTable::Init(sql::Database* db) {
   db_ = db;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Local predictions on Android are not reliable, so they are not used now.
   // Remove the table which might have created in the old versions.
   // TODO(https://crbug.com/1051914): remove this after M-83.
   DropTableIfExists();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 bool FieldInfoTable::CreateTableIfNecessary() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return true;
 #else
   if (db_->DoesTableExist(kFieldInfoTableName))
@@ -87,7 +88,7 @@ bool FieldInfoTable::CreateTableIfNecessary() {
   SQLTableBuilder builder(kFieldInfoTableName);
   InitializeFieldInfoBuilder(&builder);
   return builder.CreateTable(db_);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 bool FieldInfoTable::DropTableIfExists() {
@@ -97,7 +98,7 @@ bool FieldInfoTable::DropTableIfExists() {
 }
 
 bool FieldInfoTable::AddRow(const FieldInfo& field) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return false;
 #else
   sql::Statement s(db_->GetCachedStatement(
@@ -111,29 +112,29 @@ bool FieldInfoTable::AddRow(const FieldInfo& field) {
               field.field_signature.value());
   s.BindInt(GetColumnNumber(FieldInfoTableColumn::kFieldType),
             field.field_type);
-  s.BindTime(GetColumnNumber(FieldInfoTableColumn::kCreateTime),
-             field.create_time);
+  s.BindInt64(GetColumnNumber(FieldInfoTableColumn::kCreateTime),
+              field.create_time.ToDeltaSinceWindowsEpoch().InMicroseconds());
   return s.Run();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 bool FieldInfoTable::RemoveRowsByTime(base::Time remove_begin,
                                       base::Time remove_end) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return false;
 #else
   sql::Statement s(
       db_->GetCachedStatement(SQL_FROM_HERE,
                               "DELETE FROM field_info WHERE "
                               "create_time >= ? AND create_time < ?"));
-  s.BindTime(0, remove_begin);
-  s.BindTime(1, remove_end);
+  s.BindInt64(0, remove_begin.ToDeltaSinceWindowsEpoch().InMicroseconds());
+  s.BindInt64(1, remove_end.ToDeltaSinceWindowsEpoch().InMicroseconds());
   return s.Run();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 std::vector<FieldInfo> FieldInfoTable::GetAllRows() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return std::vector<FieldInfo>();
 #else
   sql::Statement s(db_->GetCachedStatement(
@@ -141,13 +142,13 @@ std::vector<FieldInfo> FieldInfoTable::GetAllRows() {
       "SELECT form_signature, field_signature, field_type, create_time FROM "
       "field_info"));
   return StatementToFieldInfo(&s);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 // Returns all FieldInfo from the database which have |form_signature|.
 std::vector<FieldInfo> FieldInfoTable::GetAllRowsForFormSignature(
     uint64_t form_signature) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return std::vector<FieldInfo>();
 #else
   sql::Statement s(
@@ -157,7 +158,7 @@ std::vector<FieldInfo> FieldInfoTable::GetAllRowsForFormSignature(
                               "WHERE form_signature = ?"));
   s.BindInt64(0, form_signature);
   return StatementToFieldInfo(&s);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 }  // namespace password_manager

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "third_party/icu/source/common/unicode/uversion.h"
 
 U_NAMESPACE_BEGIN
@@ -24,13 +25,14 @@ class ScopedRestoreICUDefaultLocale {
  public:
   ScopedRestoreICUDefaultLocale();
   explicit ScopedRestoreICUDefaultLocale(const std::string& locale);
-  ScopedRestoreICUDefaultLocale(const ScopedRestoreICUDefaultLocale&) = delete;
-  ScopedRestoreICUDefaultLocale& operator=(
-      const ScopedRestoreICUDefaultLocale&) = delete;
   ~ScopedRestoreICUDefaultLocale();
 
  private:
   const std::string default_locale_;
+
+  ScopedRestoreICUDefaultLocale(const ScopedRestoreICUDefaultLocale&) = delete;
+  ScopedRestoreICUDefaultLocale& operator=(
+      const ScopedRestoreICUDefaultLocale&) = delete;
 };
 
 // In unit tests, prefer ScopedRestoreDefaultTimezone over

@@ -1,12 +1,11 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/ozone.gni")
 import("//build/config/ui.gni")
 
-assert(ozone_platform_x11)
+assert(use_x11 || ozone_platform_x11)
 
 component("x11") {
   output_name = "x11_events_platform"
@@ -34,12 +33,11 @@ component("x11") {
 
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
     "//ui/base:features",
     "//ui/events/keycodes:x11",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps += [ "//ui/events/ozone" ]
   }
 
@@ -50,6 +48,7 @@ component("x11") {
     ]
     configs += [ "//build/config/linux:glib" ]
   } else {
+    assert(ozone_platform_x11)
     sources += [
       "x11_event_watcher_fdwatch.cc",
       "x11_event_watcher_fdwatch.h",

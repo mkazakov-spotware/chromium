@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 #include <stdint.h>
 
-#include "build/build_config.h"
+#include "base/compiler_specific.h"
 #include "gtest/gtest.h"
 #include "test/gtest_death.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <crtdbg.h>
 #endif
 
@@ -91,19 +91,21 @@ TEST(AlignedAllocator, AlignedVector) {
 }
 
 void BadAlignmentTest() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Suppress the assertion MessageBox() normally displayed by the CRT in debug
-  // mode. In release mode, _CrtSetReportMode() is #defined to ((int)0), so
-  // |previous| would appear unused, thus the [[maybe_unused]].
-  [[maybe_unused]] int previous =
-      _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
+  // mode.
+  int previous = _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
+
+  // In release mode, _CrtSetReportMode() is #defined to ((int)0), so |previous|
+  // would appear unused.
+  ALLOW_UNUSED_LOCAL(previous);
 #endif
 
   // Alignment constraints must be powers of 2. 7 is not valid.
   AlignedVector<int, 7> bad_aligned_vector;
   bad_aligned_vector.push_back(0);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   _CrtSetReportMode(_CRT_ASSERT, previous);
 #endif
 }

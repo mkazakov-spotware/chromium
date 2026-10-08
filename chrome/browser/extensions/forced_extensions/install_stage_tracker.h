@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,25 +6,22 @@
 #define CHROME_BROWSER_EXTENSIONS_FORCED_EXTENSIONS_INSTALL_STAGE_TRACKER_H_
 
 #include <map>
-#include <string>
+#include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
-#include "base/time/time.h"
-#include "build/chromeos_buildflags.h"
+#include "base/optional.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "extensions/browser/install/crx_install_error.h"
+#include "extensions/browser/install/sandboxed_unpacker_failure_reason.h"
 #include "extensions/browser/install_stage.h"
 #include "extensions/browser/updater/extension_downloader_delegate.h"
 #include "extensions/browser/updater/safe_manifest_parser.h"
 #include "extensions/common/extension_id.h"
-#include "extensions/common/manifest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "components/user_manager/user_type.h"  // nogncheck
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#include "components/user_manager/user_manager.h"
+#endif  // defined(OS_CHROMEOS)
 
 class Profile;
 
@@ -228,12 +225,9 @@ class InstallStageTracker : public KeyedService {
     // force-installed to anything else.
     OVERRIDDEN_BY_SETTINGS = 27,
 
-    // The extension is marked as replaced by system app.
-    REPLACED_BY_SYSTEM_APP = 28,
-
     // Magic constant used by the histogram macros.
     // Always update it to the max value.
-    kMaxValue = REPLACED_BY_SYSTEM_APP,
+    kMaxValue = OVERRIDDEN_BY_SETTINGS,
   };
 
   // Status for the app returned by server while fetching manifest when status
@@ -279,86 +273,79 @@ class InstallStageTracker : public KeyedService {
     kMaxValue = kBandwidthLimit,
   };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Contains information about the current user.
   struct UserInfo {
-    UserInfo();
     UserInfo(const UserInfo&);
-    UserInfo(user_manager::UserType user_type,
-             bool is_new_user,
-             bool is_user_present);
+    UserInfo(user_manager::UserType user_type, bool is_new_user);
 
     user_manager::UserType user_type = user_manager::USER_TYPE_REGULAR;
-    const bool is_new_user = false;
-    const bool is_user_present = false;
+    bool is_new_user = false;
   };
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
   // Contains information about extension installation: failure reason, if any
   // reported, specific details in case of CRX install error, current
   // installation stage if known.
   struct InstallationData {
     InstallationData();
-    ~InstallationData();
     InstallationData(const InstallationData&);
 
-    absl::optional<Stage> install_stage;
-    absl::optional<InstallCreationStage> install_creation_stage;
-    absl::optional<ExtensionDownloaderDelegate::Stage> downloading_stage;
-    absl::optional<ExtensionDownloaderDelegate::CacheStatus>
+    base::Optional<Stage> install_stage;
+    base::Optional<InstallCreationStage> install_creation_stage;
+    base::Optional<ExtensionDownloaderDelegate::Stage> downloading_stage;
+    base::Optional<ExtensionDownloaderDelegate::CacheStatus>
         downloading_cache_status;
-    absl::optional<FailureReason> failure_reason;
-    absl::optional<CrxInstallErrorDetail> install_error_detail;
-    // Network error codes and fetch tries when applicable:
-    // * failure_reason is CRX_FETCH_FAILED or MANIFEST_FETCH_FAILED
-    // * `downloading_stage` is DOWNLOAD_MANIFEST_RETRY or DOWNLOAD_CRX_RETRY.
-    absl::optional<int> network_error_code;
-    absl::optional<int> response_code;
-    absl::optional<int> fetch_tries;
+    base::Optional<FailureReason> failure_reason;
+    base::Optional<CrxInstallErrorDetail> install_error_detail;
+    // Network error codes when failure_reason is CRX_FETCH_FAILED or
+    // MANIFEST_FETCH_FAILED.
+    base::Optional<int> network_error_code;
+    base::Optional<int> response_code;
+    // Number of fetch tries made when failure reason is CRX_FETCH_FAILED or
+    // MANIFEST_FETCH_FAILED.
+    base::Optional<int> fetch_tries;
     // Unpack failure reason in case of
     // CRX_INSTALL_ERROR_SANDBOXED_UNPACKER_FAILURE.
-    absl::optional<SandboxedUnpackerFailureReason> unpacker_failure_reason;
+    base::Optional<SandboxedUnpackerFailureReason> unpacker_failure_reason;
     // Type of extension, assigned during CRX installation process.
-    absl::optional<Manifest::Type> extension_type;
+    base::Optional<Manifest::Type> extension_type;
     // Error detail when the fetched manifest was invalid. This includes errors
     // occurred while parsing the manifest and errors occurred due to the
     // internal details of the parsed manifest.
-    absl::optional<ManifestInvalidError> manifest_invalid_error;
+    base::Optional<ManifestInvalidError> manifest_invalid_error;
     // Info field in the update manifest returned by the server when no update
     // is available.
-    absl::optional<NoUpdatesInfo> no_updates_info;
+    base::Optional<NoUpdatesInfo> no_updates_info;
     // Type of app status error received from update server when manifest was
     // fetched.
-    absl::optional<AppStatusError> app_status_error;
+    base::Optional<AppStatusError> app_status_error;
     // Time at which the download is started.
-    absl::optional<base::TimeTicks> download_manifest_started_time;
+    base::Optional<base::TimeTicks> download_manifest_started_time;
     // Time at which the update manifest is downloaded and successfully parsed
     // from the server.
-    absl::optional<base::TimeTicks> download_manifest_finish_time;
+    base::Optional<base::TimeTicks> download_manifest_finish_time;
     // See InstallationStage enum.
-    absl::optional<InstallationStage> installation_stage;
+    base::Optional<InstallationStage> installation_stage;
     // Time at which the download of CRX is started.
-    absl::optional<base::TimeTicks> download_CRX_started_time;
+    base::Optional<base::TimeTicks> download_CRX_started_time;
     // Time at which CRX is downloaded.
-    absl::optional<base::TimeTicks> download_CRX_finish_time;
+    base::Optional<base::TimeTicks> download_CRX_finish_time;
     // Time at which signature verification of CRX is started.
-    absl::optional<base::TimeTicks> verification_started_time;
+    base::Optional<base::TimeTicks> verification_started_time;
     // Time at which copying of extension archive into the working directory is
     // started.
-    absl::optional<base::TimeTicks> copying_started_time;
+    base::Optional<base::TimeTicks> copying_started_time;
     // Time at which unpacking of the extension archive is started.
-    absl::optional<base::TimeTicks> unpacking_started_time;
+    base::Optional<base::TimeTicks> unpacking_started_time;
     // Time at which the extension archive has been successfully unpacked and
     // the expectation checks before extension installation are started.
-    absl::optional<base::TimeTicks> checking_expectations_started_time;
+    base::Optional<base::TimeTicks> checking_expectations_started_time;
     // Time at which the extension has passed the expectation checks and the
     // installation is started.
-    absl::optional<base::TimeTicks> finalizing_started_time;
+    base::Optional<base::TimeTicks> finalizing_started_time;
     // Time at which the installation process is complete.
-    absl::optional<base::TimeTicks> installation_complete_time;
-    // Detailed error description when extension failed to install with
-    // SandboxedUnpackerFailureReason equal to UNPACKER_CLIENT FAILED.
-    absl::optional<std::u16string> unpacker_client_failed_error;
+    base::Optional<base::TimeTicks> installation_complete_time;
   };
 
   class Observer : public base::CheckedObserver {
@@ -403,14 +390,15 @@ class InstallStageTracker : public KeyedService {
   InstallStageTracker(const InstallStageTracker&) = delete;
   InstallStageTracker& operator=(const InstallStageTracker&) = delete;
 
-  // Returns instance of InstallStageTracker for a BrowserContext.
+  // Convenience function to get the InstallStageTracker for a BrowserContext.
   static InstallStageTracker* Get(content::BrowserContext* context);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Returns user type of the user associated with the `profile` and whether the
-  // user is new or not if there is an active user.
+#if defined(OS_CHROMEOS)
+  // Returns user type of the user associated with the |profile| and whether the
+  // user is new or not. This method should be used only if there is a user
+  // associated with the profile.
   static UserInfo GetUserInfo(Profile* profile);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
   void ReportInfoOnNoUpdatesFailure(const ExtensionId& id,
                                     const std::string& info);
@@ -426,9 +414,6 @@ class InstallStageTracker : public KeyedService {
   void ReportInstallationStage(const ExtensionId& id, Stage stage);
   void ReportInstallCreationStage(const ExtensionId& id,
                                   InstallCreationStage stage);
-  void ReportFetchErrorCodes(
-      const ExtensionId& id,
-      const ExtensionDownloaderDelegate::FailureData& failure_data);
   void ReportFetchError(
       const ExtensionId& id,
       FailureReason reason,
@@ -451,9 +436,9 @@ class InstallStageTracker : public KeyedService {
                              CrxInstallErrorDetail crx_install_error);
   void ReportSandboxedUnpackerFailureReason(
       const ExtensionId& id,
-      const CrxInstallError& crx_install_error);
+      SandboxedUnpackerFailureReason unpacker_failure_reason);
 
-  // Retrieves known information for installation of extension `id`.
+  // Retrieves known information for installation of extension |id|.
   // Returns empty data if not found.
   InstallationData Get(const ExtensionId& id);
   static std::string GetFormattedInstallationData(const InstallationData& data);
@@ -465,15 +450,15 @@ class InstallStageTracker : public KeyedService {
   void RemoveObserver(Observer* observer);
 
  private:
-  // Maps the current app status to AppStatusError enum.
+  // Helper function that maps the current app status to AppStatusError enum.
   AppStatusError GetManifestInvalidAppStatusError(const std::string& status);
 
-  // Reports installation failures to the observers.
+  // Helper function to report installation failures to the observers.
   void NotifyObserversOfFailure(const ExtensionId& id,
                                 FailureReason reason,
                                 const InstallationData& data);
 
-  raw_ptr<const content::BrowserContext> browser_context_;
+  const content::BrowserContext* browser_context_;
 
   std::map<ExtensionId, InstallationData> installation_data_map_;
 

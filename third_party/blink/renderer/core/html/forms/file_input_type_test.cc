@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/clipboard/data_object.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/fileapi/file_list.h"
 #include "third_party/blink/renderer/core/frame/frame_test_helpers.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -20,9 +19,8 @@
 #include "third_party/blink/renderer/core/loader/empty_clients.h"
 #include "third_party/blink/renderer/core/page/drag_data.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
-#include "third_party/blink/renderer/core/testing/null_execution_context.h"
 #include "third_party/blink/renderer/platform/file_metadata.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/wtf/date_math.h"
 
 namespace blink {
@@ -53,9 +51,7 @@ TEST(FileInputTypeTest, createFileList) {
   files.push_back(CreateFileChooserFileInfoFileSystem(
       url, base::Time::FromJsTime(1.0 * kMsPerDay + 3), 64));
 
-  ScopedNullExecutionContext execution_context;
-  FileList* list = FileInputType::CreateFileList(
-      execution_context.GetExecutionContext(), files, base::FilePath());
+  FileList* list = FileInputType::CreateFileList(files, base::FilePath());
   ASSERT_TRUE(list);
   ASSERT_EQ(2u, list->length());
 
@@ -63,7 +59,7 @@ TEST(FileInputTypeTest, createFileList) {
   EXPECT_EQ("display-name", list->item(0)->name());
   EXPECT_TRUE(list->item(0)->FileSystemURL().IsEmpty());
 
-  EXPECT_TRUE(list->item(1)->GetPath().empty());
+  EXPECT_TRUE(list->item(1)->GetPath().IsEmpty());
   EXPECT_EQ("non-native-file", list->item(1)->name());
   EXPECT_EQ(url, list->item(1)->FileSystemURL());
   EXPECT_EQ(64u, list->item(1)->size());
@@ -71,16 +67,14 @@ TEST(FileInputTypeTest, createFileList) {
 }
 
 TEST(FileInputTypeTest, ignoreDroppedNonNativeFiles) {
-  ScopedNullExecutionContext execution_context;
-  auto* document =
-      Document::CreateForTest(execution_context.GetExecutionContext());
+  auto* document = Document::CreateForTest();
   auto* input =
       MakeGarbageCollected<HTMLInputElement>(*document, CreateElementFlags());
   InputType* file_input = MakeGarbageCollected<FileInputType>(*input);
 
   DataObject* native_file_raw_drag_data = DataObject::Create();
-  const DragData native_file_drag_data(native_file_raw_drag_data, gfx::PointF(),
-                                       gfx::PointF(), kDragOperationCopy);
+  const DragData native_file_drag_data(native_file_raw_drag_data, FloatPoint(),
+                                       FloatPoint(), kDragOperationCopy);
   native_file_drag_data.PlatformData()->Add(
       MakeGarbageCollected<File>("/native/path"));
   native_file_drag_data.PlatformData()->SetFilesystemId("fileSystemId");
@@ -91,13 +85,13 @@ TEST(FileInputTypeTest, ignoreDroppedNonNativeFiles) {
 
   DataObject* non_native_file_raw_drag_data = DataObject::Create();
   const DragData non_native_file_drag_data(non_native_file_raw_drag_data,
-                                           gfx::PointF(), gfx::PointF(),
+                                           FloatPoint(), FloatPoint(),
                                            kDragOperationCopy);
   FileMetadata metadata;
   metadata.length = 1234;
   const KURL url("filesystem:http://example.com/isolated/hash/non-native-file");
-  non_native_file_drag_data.PlatformData()->Add(File::CreateForFileSystemFile(
-      url, metadata, File::kIsUserVisible, BlobDataHandle::Create()));
+  non_native_file_drag_data.PlatformData()->Add(
+      File::CreateForFileSystemFile(url, metadata, File::kIsUserVisible));
   non_native_file_drag_data.PlatformData()->SetFilesystemId("fileSystemId");
   file_input->ReceiveDroppedFiles(&non_native_file_drag_data);
   // Dropping non-native files should not change the existing files.
@@ -107,9 +101,7 @@ TEST(FileInputTypeTest, ignoreDroppedNonNativeFiles) {
 }
 
 TEST(FileInputTypeTest, setFilesFromPaths) {
-  ScopedNullExecutionContext execution_context;
-  auto* document =
-      Document::CreateForTest(execution_context.GetExecutionContext());
+  auto* document = Document::CreateForTest();
   auto* input =
       MakeGarbageCollected<HTMLInputElement>(*document, CreateElementFlags());
   InputType* file_input = MakeGarbageCollected<FileInputType>(*input);
@@ -142,9 +134,12 @@ TEST(FileInputTypeTest, setFilesFromPaths) {
 }
 
 TEST(FileInputTypeTest, DropTouchesNoPopupOpeningObserver) {
+  Page::PageClients page_clients;
+  FillWithEmptyClients(page_clients);
   auto* chrome_client = MakeGarbageCollected<WebKitDirectoryChromeClient>();
+  page_clients.chrome_client = chrome_client;
   auto page_holder =
-      std::make_unique<DummyPageHolder>(gfx::Size(), chrome_client);
+      std::make_unique<DummyPageHolder>(IntSize(), &page_clients);
   Document& doc = page_holder->GetDocument();
 
   doc.body()->setInnerHTML("<input type=file webkitdirectory>");
@@ -153,7 +148,7 @@ TEST(FileInputTypeTest, DropTouchesNoPopupOpeningObserver) {
   base::RunLoop run_loop;
   MockFileChooser chooser(doc.GetFrame()->GetBrowserInterfaceBroker(),
                           run_loop.QuitClosure());
-  DragData drag_data(DataObject::Create(), gfx::PointF(), gfx::PointF(),
+  DragData drag_data(DataObject::Create(), FloatPoint(), FloatPoint(),
                      kDragOperationCopy);
   drag_data.PlatformData()->Add(MakeGarbageCollected<File>("/foo/bar"));
   input.ReceiveDroppedFiles(&drag_data);
@@ -167,7 +162,7 @@ TEST(FileInputTypeTest, DropTouchesNoPopupOpeningObserver) {
 
 TEST(FileInputTypeTest, BeforePseudoCrash) {
   std::unique_ptr<DummyPageHolder> page_holder =
-      std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
+      std::make_unique<DummyPageHolder>(IntSize(800, 600));
   Document& doc = page_holder->GetDocument();
   doc.documentElement()->setInnerHTML(R"HTML(
 <style>

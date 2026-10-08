@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ bool UpdatePrefetchItemsSync(sql::Database* db,
 
   sql::Statement statement(db->GetCachedStatement(SQL_FROM_HERE, kSql));
   statement.BindInt(0, static_cast<int>(PrefetchItemState::RECEIVED_GCM));
-  statement.BindTime(1, OfflineTimeNow());
+  statement.BindInt64(1, store_utils::ToDatabaseTime(OfflineTimeNow()));
   statement.BindInt(2, static_cast<int>(PrefetchItemState::AWAITING_GCM));
   statement.BindString(3, operation_name);
 

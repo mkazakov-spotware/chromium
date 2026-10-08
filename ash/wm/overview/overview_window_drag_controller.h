@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,15 @@
 #include "ash/ash_export.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/point_f.h"
-
-namespace ui {
-class PresentationTimeRecorder;
-}
 
 namespace ash {
 
 class OverviewGrid;
 class OverviewItem;
 class OverviewSession;
+class PresentationTimeRecorder;
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
@@ -93,11 +91,6 @@ class ASH_EXPORT OverviewWindowDragController {
   OverviewWindowDragController(OverviewSession* overview_session,
                                OverviewItem* item,
                                bool is_touch_dragging);
-
-  OverviewWindowDragController(const OverviewWindowDragController&) = delete;
-  OverviewWindowDragController& operator=(const OverviewWindowDragController&) =
-      delete;
-
   ~OverviewWindowDragController();
 
   void InitiateDrag(const gfx::PointF& location_in_screen);
@@ -118,15 +111,11 @@ class ASH_EXPORT OverviewWindowDragController {
 
   OverviewItem* item() { return item_; }
 
+  DragBehavior current_drag_behavior() { return current_drag_behavior_; }
+
   bool is_touch_dragging() const { return is_touch_dragging_; }
 
-  DragBehavior current_drag_behavior_for_testing() const {
-    return current_drag_behavior_;
-  }
-
  private:
-  class ScopedFloatDragHelper;
-
   enum NormalDragAction {
     kToGrid = 0,
     kToDesk = 1,
@@ -175,10 +164,6 @@ class ASH_EXPORT OverviewWindowDragController {
   void RecordNormalDrag(NormalDragAction action,
                         bool is_dragged_to_other_display) const;
   void RecordDragToClose(DragToCloseAction action) const;
-
-  // Called by `float_drag_helper_` to destroy itself as it may need to live
-  // after a gesture is completed if there is an animation.
-  void DestroyFloatDragHelper();
 
   OverviewSession* overview_session_;
 
@@ -235,6 +220,8 @@ class ASH_EXPORT OverviewWindowDragController {
   // True if the Virtual Desks bar is created and dragging to desks is enabled.
   const bool virtual_desks_bar_enabled_;
 
+  const bool are_multi_display_overview_and_splitview_enabled_;
+
   // The opacity of |item_| changes if we are in drag to close mode. Store the
   // original opacity of |item_| and restore it to the item when we leave drag
   // to close mode.
@@ -244,16 +231,11 @@ class ASH_EXPORT OverviewWindowDragController {
   bool did_move_ = false;
 
   // Records the presentation time of window drag operation in overview mode.
-  std::unique_ptr<ui::PresentationTimeRecorder> presentation_time_recorder_;
+  std::unique_ptr<PresentationTimeRecorder> presentation_time_recorder_;
 
-  SplitViewController::SnapPosition snap_position_ =
-      SplitViewController::SnapPosition::kNone;
+  SplitViewController::SnapPosition snap_position_ = SplitViewController::NONE;
 
-  // Helper class that encapsulates the logic needed to alter the floated
-  // windows' container during a drag. May stay alive shortly after a drag is
-  // completed to keep the float container stacked below for the drag end
-  // animation.
-  std::unique_ptr<ScopedFloatDragHelper> float_drag_helper_;
+  DISALLOW_COPY_AND_ASSIGN(OverviewWindowDragController);
 };
 
 }  // namespace ash

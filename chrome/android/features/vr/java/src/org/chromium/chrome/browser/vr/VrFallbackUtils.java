@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,8 @@ import org.chromium.content_public.browser.UiThreadTaskTraits;
                     new NotificationManagerProxyImpl(context);
             Notification notification =
                     NotificationWrapperBuilderFactory
-                            .createNotificationWrapperBuilder(ChromeChannelDefinitions.ChannelId.VR)
+                            .createNotificationWrapperBuilder(
+                                    true, ChromeChannelDefinitions.ChannelId.VR)
                             .setContentTitle(context.getResources().getString(
                                     R.string.vr_preparing_vr_notification_title))
                             .setContentText(context.getResources().getString(

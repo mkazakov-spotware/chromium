@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "base/files/file_util.h"
 #include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "storage/browser/blob/blob_data_handle.h"
@@ -138,8 +139,8 @@ mojom::WriteBlobToFileResult CopyFileAndMaybeWriteTimeModified(
     base::Time expected_last_modified_copy_from,
     const base::FilePath& copy_to,
     int64_t offset,
-    absl::optional<int64_t> size,
-    absl::optional<base::Time> last_modified,
+    base::Optional<int64_t> size,
+    base::Optional<base::Time> last_modified,
     bool flush_on_close) {
   // Do a full file copy if the sizes match and there is no offset.
   if (offset == 0) {
@@ -200,7 +201,7 @@ mojom::WriteBlobToFileResult CopyFileAndMaybeWriteTimeModified(
 
 mojom::WriteBlobToFileResult CreateEmptyFileAndMaybeSetModifiedTime(
     base::FilePath file_path,
-    absl::optional<base::Time> last_modified,
+    base::Optional<base::Time> last_modified,
     bool flush_on_write) {
   base::File file(file_path,
                   base::File::FLAG_CREATE_ALWAYS | base::File::FLAG_WRITE);
@@ -223,7 +224,7 @@ mojom::WriteBlobToFileResult CreateEmptyFileAndMaybeSetModifiedTime(
 
 void HandleModifiedTimeOnBlobFileWriteComplete(
     base::FilePath file_path,
-    absl::optional<base::Time> last_modified,
+    base::Optional<base::Time> last_modified,
     bool flush_on_write,
     mojom::BlobStorageContext::WriteBlobToFileCallback callback,
     base::File::Error rv,
@@ -251,7 +252,7 @@ void HandleModifiedTimeOnBlobFileWriteComplete(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
         base::BindOnce(
             [](int64_t bytes_written, base::FilePath file_path,
-               absl::optional<base::Time> last_modified) {
+               base::Optional<base::Time> last_modified) {
               if (!base::TouchFile(file_path, last_modified.value(),
                                    last_modified.value())) {
                 // If the file modification time isn't set correctly, then
@@ -272,7 +273,7 @@ void WriteConstructedBlobToFile(
     std::unique_ptr<BlobDataHandle> blob_handle,
     const base::FilePath& file_path,
     bool flush_on_write,
-    absl::optional<base::Time> last_modified,
+    base::Optional<base::Time> last_modified,
     mojom::BlobStorageContext::WriteBlobToFileCallback callback,
     BlobStatus status) {
   DCHECK(!last_modified || !last_modified.value().is_null());
@@ -290,11 +291,11 @@ void WriteConstructedBlobToFile(
     const BlobDataItem& item = *items[0];
     if (item.type() == BlobDataItem::Type::kFile) {
       // The File API cannot handle uint64_t.
-      absl::optional<int64_t> optional_size = item.length();
+      base::Optional<int64_t> optional_size = item.length();
       if (item.length() == blink::BlobUtils::kUnknownSize) {
         // The blob system uses a special value (max uint64_t) to denote an
         // unknown file size. This means the whole file should be copied.
-        optional_size = absl::nullopt;
+        optional_size = base::nullopt;
       } else if (item.length() > std::numeric_limits<int64_t>::max()) {
         std::move(callback).Run(mojom::WriteBlobToFileResult::kError);
         return;
@@ -346,7 +347,7 @@ void WriteBlobToFile(
     std::unique_ptr<BlobDataHandle> blob_handle,
     const base::FilePath& file_path,
     bool flush_on_write,
-    absl::optional<base::Time> last_modified,
+    base::Optional<base::Time> last_modified,
     mojom::BlobStorageContext::WriteBlobToFileCallback callback) {
   auto* blob_handle_ptr = blob_handle.get();
   blob_handle_ptr->RunOnConstructionComplete(base::BindOnce(

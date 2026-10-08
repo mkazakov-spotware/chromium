@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2005 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Bubble component - handles display, hiding, etc. of the
@@ -19,7 +27,6 @@ goog.require('goog.dom');
 goog.require('goog.dom.TagName');
 goog.require('goog.dom.ViewportSizeMonitor');
 goog.require('goog.dom.classlist');
-goog.require('goog.dom.safe');
 goog.require('goog.editor.style');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventTarget');
@@ -33,7 +40,6 @@ goog.require('goog.positioning.Corner');
 goog.require('goog.positioning.Overflow');
 goog.require('goog.positioning.OverflowStatus');
 goog.require('goog.string');
-goog.require('goog.string.Const');
 goog.require('goog.style');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.PopupBase');
@@ -49,7 +55,6 @@ goog.require('goog.userAgent');
  * @extends {goog.events.EventTarget}
  */
 goog.ui.editor.Bubble = function(parent, zIndex) {
-  'use strict';
   goog.ui.editor.Bubble.base(this, 'constructor');
 
   /**
@@ -110,9 +115,8 @@ goog.ui.editor.Bubble = function(parent, zIndex) {
    */
   this.closeBox_ = this.dom_.createDom(goog.dom.TagName.DIV, {
     'className': goog.getCssName('tr_bubble_closebox'),
+    'innerHTML': '&nbsp;'
   });
-  goog.dom.safe.setInnerHtmlFromConstant(
-      this.closeBox_, goog.string.Const.from('&nbsp;'));
   this.bubbleContents_.appendChild(this.closeBox_);
 
   // We make bubbles unselectable so that clicking on them does not steal focus
@@ -146,7 +150,6 @@ goog.ui.editor.Bubble.BUBBLE_CLASSNAME = goog.getCssName('tr_bubble');
  * @protected
  */
 goog.ui.editor.Bubble.prototype.createBubbleDom = function(dom, container) {
-  'use strict';
   return container;
 };
 
@@ -162,7 +165,6 @@ goog.ui.editor.Bubble.prototype.logger =
 
 /** @override */
 goog.ui.editor.Bubble.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.editor.Bubble.base(this, 'disposeInternal');
 
   goog.dom.removeNode(this.bubbleContainer_);
@@ -180,7 +182,6 @@ goog.ui.editor.Bubble.prototype.disposeInternal = function() {
  * @return {Element} The element that where the bubble's contents go.
  */
 goog.ui.editor.Bubble.prototype.getContentElement = function() {
-  'use strict';
   return this.bubbleContents_;
 };
 
@@ -190,7 +191,6 @@ goog.ui.editor.Bubble.prototype.getContentElement = function() {
  * @protected
  */
 goog.ui.editor.Bubble.prototype.getContainerElement = function() {
-  'use strict';
   return this.bubbleContainer_;
 };
 
@@ -202,7 +202,6 @@ goog.ui.editor.Bubble.prototype.getContainerElement = function() {
  * @template T
  */
 goog.ui.editor.Bubble.prototype.getEventHandler = function() {
-  'use strict';
   return this.eventHandler_;
 };
 
@@ -212,7 +211,6 @@ goog.ui.editor.Bubble.prototype.getEventHandler = function() {
  * @private
  */
 goog.ui.editor.Bubble.prototype.handleWindowResize_ = function() {
-  'use strict';
   if (this.isVisible()) {
     this.reposition();
   }
@@ -224,7 +222,6 @@ goog.ui.editor.Bubble.prototype.handleWindowResize_ = function() {
  * @param {boolean} autoHide Whether to autohide on an external click.
  */
 goog.ui.editor.Bubble.prototype.setAutoHide = function(autoHide) {
-  'use strict';
   this.popup_.setAutoHide(autoHide);
 };
 
@@ -235,11 +232,8 @@ goog.ui.editor.Bubble.prototype.setAutoHide = function(autoHide) {
  * @return {boolean} Whether there is already a panel of the given type.
  */
 goog.ui.editor.Bubble.prototype.hasPanelOfType = function(type) {
-  'use strict';
-  return goog.object.some(this.panels_, function(panel) {
-    'use strict';
-    return panel.type == type;
-  });
+  return goog.object.some(
+      this.panels_, function(panel) { return panel.type == type; });
 };
 
 
@@ -259,9 +253,8 @@ goog.ui.editor.Bubble.prototype.hasPanelOfType = function(type) {
  */
 goog.ui.editor.Bubble.prototype.addPanel = function(
     type, title, targetElement, contentFn, opt_preferTopPosition) {
-  'use strict';
-  const id = goog.string.createUniqueString();
-  const panel = new goog.ui.editor.Bubble.Panel_(
+  var id = goog.string.createUniqueString();
+  var panel = new goog.ui.editor.Bubble.Panel_(
       this.dom_, id, type, title, targetElement, !opt_preferTopPosition);
   this.panels_[id] = panel;
 
@@ -271,11 +264,11 @@ goog.ui.editor.Bubble.prototype.addPanel = function(
   // to treat it as a panel element, and we also ensure it stays as the last
   // element.  The intention here is not to create any artificial order, but
   // just to ensure that it is always consistent.
-  let nextElement;
-  for (let i = 0, len = this.bubbleContents_.childNodes.length - 1; i < len;
+  var nextElement;
+  for (var i = 0, len = this.bubbleContents_.childNodes.length - 1; i < len;
        i++) {
-    const otherChild = this.bubbleContents_.childNodes[i];
-    const otherPanel = this.panels_[otherChild.id];
+    var otherChild = this.bubbleContents_.childNodes[i];
+    var otherPanel = this.panels_[otherChild.id];
     if (otherPanel.type > type) {
       nextElement = otherChild;
       break;
@@ -287,7 +280,7 @@ goog.ui.editor.Bubble.prototype.addPanel = function(
   contentFn(panel.getContentElement());
   goog.editor.style.makeUnselectable(panel.element, this.eventHandler_);
 
-  const numPanels = goog.object.getCount(this.panels_);
+  var numPanels = goog.object.getCount(this.panels_);
   if (numPanels == 1) {
     this.openBubble_();
   } else if (numPanels == 2) {
@@ -306,12 +299,11 @@ goog.ui.editor.Bubble.prototype.addPanel = function(
  * @param {string} id The id of the panel.
  */
 goog.ui.editor.Bubble.prototype.removePanel = function(id) {
-  'use strict';
-  const panel = this.panels_[id];
+  var panel = this.panels_[id];
   goog.dom.removeNode(panel.element);
   delete this.panels_[id];
 
-  const numPanels = goog.object.getCount(this.panels_);
+  var numPanels = goog.object.getCount(this.panels_);
   if (numPanels <= 1) {
     goog.dom.classlist.remove(
         goog.asserts.assert(this.bubbleContainer_),
@@ -331,7 +323,6 @@ goog.ui.editor.Bubble.prototype.removePanel = function(id) {
  * @private
  */
 goog.ui.editor.Bubble.prototype.openBubble_ = function() {
-  'use strict';
   this.eventHandler_
       .listen(this.closeBox_, goog.events.EventType.CLICK, this.closeBubble_)
       .listen(
@@ -350,7 +341,6 @@ goog.ui.editor.Bubble.prototype.openBubble_ = function() {
  * @private
  */
 goog.ui.editor.Bubble.prototype.closeBubble_ = function() {
-  'use strict';
   this.popup_.setVisible(false);
 };
 
@@ -361,9 +351,8 @@ goog.ui.editor.Bubble.prototype.closeBubble_ = function() {
  * @protected
  */
 goog.ui.editor.Bubble.prototype.handlePopupHide = function() {
-  'use strict';
   // Remove the panel elements.
-  for (let panelId in this.panels_) {
+  for (var panelId in this.panels_) {
     goog.dom.removeNode(this.panels_[panelId].element);
   }
 
@@ -383,7 +372,6 @@ goog.ui.editor.Bubble.prototype.handlePopupHide = function() {
  * @return {boolean} True if visible false if not.
  */
 goog.ui.editor.Bubble.prototype.isVisible = function() {
-  'use strict';
   return this.popup_.isVisible();
 };
 
@@ -413,7 +401,6 @@ goog.ui.editor.Bubble.MARGIN_BOX_ = new goog.math.Box(
  * @protected
  */
 goog.ui.editor.Bubble.prototype.getMarginBox = function() {
-  'use strict';
   return goog.ui.editor.Bubble.MARGIN_BOX_;
 };
 
@@ -424,21 +411,20 @@ goog.ui.editor.Bubble.prototype.getMarginBox = function() {
  * to.
  */
 goog.ui.editor.Bubble.prototype.reposition = function() {
-  'use strict';
-  let targetElement = null;
-  let preferBottomPosition = true;
-  for (let panelId in this.panels_) {
-    const panel = this.panels_[panelId];
+  var targetElement = null;
+  var preferBottomPosition = true;
+  for (var panelId in this.panels_) {
+    var panel = this.panels_[panelId];
     // We don't care which targetElement we get, so we just take the last one.
     targetElement = panel.targetElement;
     preferBottomPosition = preferBottomPosition && panel.preferBottomPosition;
   }
-  let status = goog.positioning.OverflowStatus.FAILED;
+  var status = goog.positioning.OverflowStatus.FAILED;
 
   // Fix for bug when bubbleContainer and targetElement have
   // opposite directionality, the bubble should anchor to the END of
   // the targetElement instead of START.
-  const reverseLayout =
+  var reverseLayout =
       (goog.style.isRightToLeft(this.bubbleContainer_) !=
        goog.style.isRightToLeft(targetElement));
 
@@ -492,14 +478,13 @@ goog.ui.editor.Bubble.prototype.reposition = function() {
  */
 goog.ui.editor.Bubble.prototype.positionAtAnchor_ = function(
     targetCorner, bubbleCorner, overflow) {
-  'use strict';
-  let targetElement = null;
-  for (let panelId in this.panels_) {
+  var targetElement = null;
+  for (var panelId in this.panels_) {
     // For now, we use the outermost element.  This assumes the multiple
     // elements this panel is showing for contain each other - in the event
     // that is not generally the case this may need to be updated to pick
     // the lowest or highest element depending on targetCorner.
-    const candidate = this.panels_[panelId].targetElement;
+    var candidate = this.panels_[panelId].targetElement;
     if (!targetElement || goog.dom.contains(candidate, targetElement)) {
       targetElement = this.panels_[panelId].targetElement;
     }
@@ -533,7 +518,6 @@ goog.ui.editor.Bubble.prototype.getViewportBox = goog.functions.NULL;
  */
 goog.ui.editor.Bubble.Panel_ = function(
     dom, id, type, title, targetElement, preferBottomPosition) {
-  'use strict';
   /**
    * The type of bubble panel.
    * @type {string}
@@ -573,6 +557,5 @@ goog.ui.editor.Bubble.Panel_ = function(
  * @return {Element} The element in the panel where content should go.
  */
 goog.ui.editor.Bubble.Panel_.prototype.getContentElement = function() {
-  'use strict';
   return /** @type {Element} */ (this.element.lastChild);
 };

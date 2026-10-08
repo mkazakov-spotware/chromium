@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,8 @@ namespace internal {
 namespace {
 
 // Activate the power management events that affect task scheduling.
-BASE_FEATURE(kUsePowerMonitorWithThreadController,
-             "UsePowerMonitorWithThreadController",
-             FEATURE_ENABLED_BY_DEFAULT);
+const Feature kUsePowerMonitorWithThreadController{
+    "UsePowerMonitorWithThreadController", FEATURE_ENABLED_BY_DEFAULT};
 
 // TODO(1074332): Remove this when the experiment becomes the default.
 bool g_use_thread_controller_power_monitor_ = false;
@@ -27,7 +26,7 @@ bool g_use_thread_controller_power_monitor_ = false;
 ThreadControllerPowerMonitor::ThreadControllerPowerMonitor() = default;
 
 ThreadControllerPowerMonitor::~ThreadControllerPowerMonitor() {
-  PowerMonitor::RemovePowerSuspendObserver(this);
+  PowerMonitor::RemoveObserver(this);
 }
 
 void ThreadControllerPowerMonitor::BindToCurrentThread() {
@@ -35,10 +34,10 @@ void ThreadControllerPowerMonitor::BindToCurrentThread() {
   // ThreadController::SetDefaultTaskRunner() re-initializes the
   // ThreadController).
   if (is_observer_registered_)
-    PowerMonitor::RemovePowerSuspendObserver(this);
+    PowerMonitor::RemoveObserver(this);
 
   // Register the observer to deliver notifications on the current thread.
-  PowerMonitor::AddPowerSuspendObserver(this);
+  PowerMonitor::AddObserver(this);
   is_observer_registered_ = true;
 }
 
@@ -69,9 +68,8 @@ void ThreadControllerPowerMonitor::OnSuspend() {
     return;
   DCHECK(!is_power_suspended_);
 
-  TRACE_EVENT_BEGIN("base", "ThreadController::Suspended",
-                    perfetto::Track(reinterpret_cast<uint64_t>(this),
-                                    perfetto::ThreadTrack::Current()));
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("base", "ThreadController::Suspended",
+                                    this);
   is_power_suspended_ = true;
 }
 
@@ -82,9 +80,8 @@ void ThreadControllerPowerMonitor::OnResume() {
   // It is possible a suspend was already happening before the observer was
   // added to the power monitor. Ignoring the resume notification in that case.
   if (is_power_suspended_) {
-    TRACE_EVENT_END("base" /* ThreadController::Suspended */,
-                    perfetto::Track(reinterpret_cast<uint64_t>(this),
-                                    perfetto::ThreadTrack::Current()));
+    TRACE_EVENT_NESTABLE_ASYNC_END0("base", "ThreadController::Suspended",
+                                    this);
     is_power_suspended_ = false;
   }
 }

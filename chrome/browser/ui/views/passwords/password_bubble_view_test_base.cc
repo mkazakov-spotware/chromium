@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,9 @@ class TestManagePasswordsUIController : public ManagePasswordsUIController {
   base::WeakPtr<PasswordsModelDelegate> GetModelDelegateProxy() override {
     return model_delegate_;
   }
+
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override {}
 
  private:
   base::WeakPtr<PasswordsModelDelegate> model_delegate_;
@@ -61,13 +64,8 @@ PasswordBubbleViewTestBase::PasswordBubbleViewTestBase()
   // |test_web_contents_|, and will be retrieved correctly via
   // ManagePasswordsUIController::FromWebContents in
   // PasswordsModelDelegateFromWebContents().
-  TestManagePasswordsUIController* controller =
-      new TestManagePasswordsUIController(
-          test_web_contents_.get(),
-          model_delegate_weak_ptr_factory_.GetWeakPtr());
-  // Set a stub password manager client to avoid a DCHECK failure in
-  // |ManagePasswordsState|.
-  controller->set_client(&password_manager_client_);
+  new TestManagePasswordsUIController(
+      test_web_contents_.get(), model_delegate_weak_ptr_factory_.GetWeakPtr());
 }
 
 PasswordBubbleViewTestBase::~PasswordBubbleViewTestBase() = default;

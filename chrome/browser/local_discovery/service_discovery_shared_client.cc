@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "build/build_config.h"
 #include "net/net_buildflags.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "chrome/browser/local_discovery/service_discovery_client_mac_factory.h"
 #endif
 
@@ -44,19 +44,19 @@ ServiceDiscoverySharedClient::~ServiceDiscoverySharedClient() {
 scoped_refptr<ServiceDiscoverySharedClient>
     ServiceDiscoverySharedClient::GetInstance() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-#if BUILDFLAG(ENABLE_MDNS) || BUILDFLAG(IS_MAC)
+#if BUILDFLAG(ENABLE_MDNS) || defined(OS_MAC)
   if (g_service_discovery_client)
     return g_service_discovery_client;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   return ServiceDiscoveryClientMacFactory::CreateInstance();
 #else
   return base::MakeRefCounted<ServiceDiscoveryClientMdns>();
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 #else
   NOTIMPLEMENTED();
   return nullptr;
-#endif  // BUILDFLAG(ENABLE_MDNS) || BUILDFLAG(IS_MAC)
+#endif  // BUILDFLAG(ENABLE_MDNS) || defined(OS_MAC)
 }
 
 }  // namespace local_discovery

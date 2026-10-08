@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,16 +23,18 @@ constexpr char kLongLog[] = TEN_LINES TEN_LINES TEN_LINES TEN_LINES TEN_LINES;
 constexpr char kLogsAttachmentName[] = "system_logs.zip";
 constexpr int kTestProductId = 3490;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-constexpr int kDefaultProductId = 208;  // ChromeOS default product ID.
+#if defined(OS_CHROMEOS) || BUILDFLAG(IS_LACROS)
+constexpr int kDefaultProductId = 208;  // ChromeOS & Lacros default product ID.
 #else
 constexpr int kDefaultProductId = 237;  // Chrome default product ID.
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }  // namespace
 
 class FeedbackCommonTest : public testing::Test {
  protected:
-  FeedbackCommonTest() : feedback_(new FeedbackCommon()) {}
+  FeedbackCommonTest()
+      : feedback_(new FeedbackCommon()) {
+  }
 
   ~FeedbackCommonTest() override {}
 
@@ -115,16 +117,4 @@ TEST_F(FeedbackCommonTest, TestAllCrashIdsRetention) {
   feedback_->PrepareReport(&report_);
 
   EXPECT_EQ(1, report_.web_data().product_specific_data_size());
-}
-
-TEST_F(FeedbackCommonTest, IncludeInSystemLogs) {
-  bool google_email = true;
-  EXPECT_TRUE(FeedbackCommon::IncludeInSystemLogs(kOne, google_email));
-  EXPECT_TRUE(FeedbackCommon::IncludeInSystemLogs(
-      feedback::FeedbackReport::kAllCrashReportIdsKey, google_email));
-
-  google_email = false;
-  EXPECT_TRUE(FeedbackCommon::IncludeInSystemLogs(kOne, google_email));
-  EXPECT_FALSE(FeedbackCommon::IncludeInSystemLogs(
-      feedback::FeedbackReport::kAllCrashReportIdsKey, google_email));
 }

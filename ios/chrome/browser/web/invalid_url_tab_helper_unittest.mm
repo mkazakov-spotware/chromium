@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 
 #import "ios/net/protocol_handler_util.h"
 #import "ios/web/public/navigation/web_state_policy_decider.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "net/base/net_errors.h"
-#import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
-#import "url/url_constants.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "net/base/net_errors.h"
+#include "testing/gtest_mac.h"
+#include "testing/platform_test.h"
+#include "url/url_constants.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,31 +24,19 @@ class InvalidUrlTabHelperTest : public PlatformTest {
     InvalidUrlTabHelper::CreateForWebState(&web_state_);
   }
 
-  // Returns PolicyDecision for URL request with given `spec` and `transition`.
+  // Returns PolicyDecision for URL request with given |spec| and |transition|.
   web::WebStatePolicyDecider::PolicyDecision GetPolicy(
       NSString* spec,
       ui::PageTransition transition) {
     NSURL* url = [NSURL URLWithString:spec];
     NSURLRequest* request = [[NSURLRequest alloc] initWithURL:url];
-    const web::WebStatePolicyDecider::RequestInfo info(
-        transition,
-        /*target_frame_is_main=*/true,
-        /*target_frame_is_cross_origin=*/false,
-        /*has_user_gesture=*/false);
-    __block bool callback_called = false;
-    __block web::WebStatePolicyDecider::PolicyDecision policy_decision =
-        web::WebStatePolicyDecider::PolicyDecision::Allow();
-    auto callback =
-        base::BindOnce(^(web::WebStatePolicyDecider::PolicyDecision decision) {
-          policy_decision = decision;
-          callback_called = true;
-        });
-    web_state_.ShouldAllowRequest(request, info, std::move(callback));
-    EXPECT_TRUE(callback_called);
-    return policy_decision;
+    web::WebStatePolicyDecider::RequestInfo info(transition,
+                                                 /*target_frame_is_main=*/true,
+                                                 /*has_user_gesture=*/false);
+    return web_state_.ShouldAllowRequest(request, info);
   }
 
-  web::FakeWebState web_state_;
+  web::TestWebState web_state_;
 };
 
 // Tests that navigation is allowed for https url link.

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <iostream>
 
 #include "base/check.h"
-#include "base/json/values_util.h"
+#include "base/no_destructor.h"
 #include "base/notreached.h"
+#include "base/util/values/values_util.h"
 #include "base/values.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 
@@ -29,8 +30,8 @@ AXTreeID::AXTreeID(const std::string& string) {
     type_ = ax::mojom::AXTreeIDType::kUnknown;
   } else {
     type_ = ax::mojom::AXTreeIDType::kToken;
-    absl::optional<base::UnguessableToken> token =
-        base::ValueToUnguessableToken(base::Value(string));
+    base::Optional<base::UnguessableToken> token =
+        util::ValueToUnguessableToken(base::Value(string));
     CHECK(token);
     token_ = *token;
   }
@@ -43,10 +44,7 @@ AXTreeID AXTreeID::FromString(const std::string& string) {
 
 // static
 AXTreeID AXTreeID::FromToken(const base::UnguessableToken& token) {
-  AXTreeID id;
-  id.type_ = ax::mojom::AXTreeIDType::kToken;
-  id.token_ = token;
-  return id;
+  return AXTreeID(token.ToString());
 }
 
 // static
@@ -61,8 +59,11 @@ std::string AXTreeID::ToString() const {
     case ax::mojom::AXTreeIDType::kUnknown:
       return "";
     case ax::mojom::AXTreeIDType::kToken:
-      return base::UnguessableTokenToValue(*token_).GetString();
+      return util::UnguessableTokenToValue(*token_).GetString();
   }
+
+  NOTREACHED();
+  return std::string();
 }
 
 void swap(AXTreeID& first, AXTreeID& second) {
@@ -104,8 +105,9 @@ std::ostream& operator<<(std::ostream& stream, const AXTreeID& value) {
 }
 
 const AXTreeID& AXTreeIDUnknown() {
-  static const AXTreeID ax_tree_id_unknown(ax::mojom::AXTreeIDType::kUnknown);
-  return ax_tree_id_unknown;
+  static const base::NoDestructor<AXTreeID> ax_tree_id_unknown(
+      ax::mojom::AXTreeIDType::kUnknown);
+  return *ax_tree_id_unknown;
 }
 
 }  // namespace ui

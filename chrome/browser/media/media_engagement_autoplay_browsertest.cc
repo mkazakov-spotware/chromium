@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #include "base/files/file_util.h"
 #include "base/json/json_writer.h"
 #include "base/path_service.h"
-#include "base/process/launch.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/threading/thread_restrictions.h"
@@ -29,8 +28,18 @@
 namespace {
 
 base::FilePath GetPythonPath() {
-  // Every environment should have python3.
-  return base::FilePath(FILE_PATH_LITERAL("python3"));
+#if defined(OS_WIN)
+  // Windows bots do not have python installed and available on the PATH.
+  // Please see infra/doc/users/python.md
+  base::FilePath bot_path =
+      base::FilePath(FILE_PATH_LITERAL("c:/infra-system/bin/python.exe"));
+
+  if (base::PathExists(bot_path))
+    return bot_path;
+  return base::FilePath(FILE_PATH_LITERAL("python.exe"));
+#else
+  return base::FilePath(FILE_PATH_LITERAL("python"));
+#endif
 }
 
 const base::FilePath kTestDataPath = base::FilePath(
@@ -38,13 +47,13 @@ const base::FilePath kTestDataPath = base::FilePath(
 
 const char kMediaEngagementTestDataPath[] = "chrome/test/data/media/engagement";
 
-const std::u16string kAllowedTitle = u"Allowed";
+const base::string16 kAllowedTitle = base::ASCIIToUTF16("Allowed");
 
-const std::u16string kDeniedTitle = u"Denied";
+const base::string16 kDeniedTitle = base::ASCIIToUTF16("Denied");
 
 const base::FilePath kEmptyDataPath = kTestDataPath.AppendASCII("empty.pb");
 
-const std::vector<base::test::FeatureRef> kFeatures = {
+const std::vector<base::Feature> kFeatures = {
     media::kMediaEngagementBypassAutoplayPolicies,
     media::kPreloadMediaEngagementData};
 
@@ -149,30 +158,23 @@ class MediaEngagementAutoplayBrowserTest
 
     // Write JSON file with the server origin in it.
     base::ListValue list;
-    list.Append(origin.Serialize());
+    list.AppendString(origin.Serialize());
     std::string json_data;
     base::JSONWriter::Write(list, &json_data);
     EXPECT_TRUE(base::WriteFile(input_path, json_data));
 
-    // Get the source root. The make_dafsa.py script is in here.
-    base::FilePath src_root;
-    EXPECT_TRUE(
-        base::PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, &src_root));
-
-    // Get the generated root. The protobuf-generated files are in here.
-    base::FilePath gen_root;
-    EXPECT_TRUE(
-        base::PathService::Get(base::DIR_GEN_TEST_DATA_ROOT, &gen_root));
+    // Get the path to the "generator" binary in the module path.
+    base::FilePath module_dir;
+    EXPECT_TRUE(base::PathService::Get(base::DIR_MODULE, &module_dir));
 
     // Launch the generator and wait for it to finish.
     base::CommandLine cmd(GetPythonPath());
-    cmd.AppendArgPath(src_root.Append(
+    cmd.AppendArgPath(module_dir.Append(
         FILE_PATH_LITERAL("tools/media_engagement_preload/make_dafsa.py")));
-    cmd.AppendArgPath(gen_root);
     cmd.AppendArgPath(input_path);
     cmd.AppendArgPath(output_path);
     base::Process process = base::LaunchProcess(cmd, base::LaunchOptions());
-    EXPECT_TRUE(process.WaitForExit(nullptr));
+    EXPECT_TRUE(process.WaitForExit(0));
 
     // Load the preloaded list.
     EXPECT_TRUE(
@@ -190,7 +192,7 @@ class MediaEngagementAutoplayBrowserTest
   }
 
  private:
-  std::u16string WaitAndGetTitle() {
+  base::string16 WaitAndGetTitle() {
     content::TitleWatcher title_watcher(GetWebContents(), kAllowedTitle);
     title_watcher.AlsoWaitForTitle(kDeniedTitle);
     return title_watcher.WaitAndGetTitle();
@@ -295,14 +297,8 @@ IN_PROC_BROWSER_TEST_P(MediaEngagementAutoplayBrowserTest,
   ExpectAutoplayAllowedIfEnabled();
 }
 
-// Disabled due to being flaky. crbug.com/1212507
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_UsePreloadedData_Allowed DISABLED_UsePreloadedData_Allowed
-#else
-#define MAYBE_UsePreloadedData_Allowed UsePreloadedData_Allowed
-#endif
 IN_PROC_BROWSER_TEST_P(MediaEngagementAutoplayBrowserTest,
-                       MAYBE_UsePreloadedData_Allowed) {
+                       UsePreloadedData_Allowed) {
   // Autoplay should be blocked by default if we have a bad score.
   SetScores(PrimaryOrigin(), 0, 0);
   LoadTestPage("engagement_autoplay_test.html");

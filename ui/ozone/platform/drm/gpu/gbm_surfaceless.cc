@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,20 +10,16 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/notreached.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/trace_event/trace_event.h"
-#include "ui/gfx/gpu_fence_handle.h"
+#include "ui/gfx/gpu_fence.h"
 #include "ui/gfx/presentation_feedback.h"
-#include "ui/gl/gl_bindings.h"
 #include "ui/ozone/common/egl_util.h"
 #include "ui/ozone/platform/drm/gpu/drm_device.h"
 #include "ui/ozone/platform/drm/gpu/drm_framebuffer.h"
 #include "ui/ozone/platform/drm/gpu/drm_window_proxy.h"
 #include "ui/ozone/platform/drm/gpu/gbm_surface_factory.h"
-
-#if BUILDFLAG(USE_OPENGL_APITRACE)
-#include "ui/gl/gl_implementation.h"
-#endif
 
 namespace ui {
 
@@ -38,15 +34,16 @@ void WaitForFence(EGLDisplay display, EGLSyncKHR fence) {
 }  // namespace
 
 GbmSurfaceless::GbmSurfaceless(GbmSurfaceFactory* surface_factory,
-                               gl::GLDisplayEGL* display,
                                std::unique_ptr<DrmWindowProxy> window,
                                gfx::AcceleratedWidget widget)
-    : SurfacelessEGL(display, gfx::Size()),
+    : SurfacelessEGL(gfx::Size()),
       surface_factory_(surface_factory),
       window_(std::move(window)),
       widget_(widget),
       has_implicit_external_sync_(
-          display->ext->b_EGL_ARM_implicit_external_sync) {
+          HasEGLExtension("EGL_ARM_implicit_external_sync")),
+      has_image_flush_external_(
+          HasEGLExtension("EGL_EXT_image_flush_external")) {
   surface_factory_->RegisterSurface(window_->widget(), this);
   supports_plane_gpu_fences_ = window_->SupportsGpuFences();
   unsubmitted_frames_.push_back(std::make_unique<PendingFrame>());
@@ -63,18 +60,22 @@ bool GbmSurfaceless::Initialize(gl::GLSurfaceFormat format) {
   return true;
 }
 
-gfx::SwapResult GbmSurfaceless::SwapBuffers(PresentationCallback callback,
-                                            gl::FrameData data) {
+gfx::SwapResult GbmSurfaceless::SwapBuffers(PresentationCallback callback) {
   NOTREACHED();
   return gfx::SwapResult::SWAP_FAILED;
 }
 
 bool GbmSurfaceless::ScheduleOverlayPlane(
-    gl::OverlayImage image,
-    std::unique_ptr<gfx::GpuFence> gpu_fence,
-    const gfx::OverlayPlaneData& overlay_plane_data) {
-  unsubmitted_frames_.back()->overlays.emplace_back(
-      std::move(image), std::move(gpu_fence), overlay_plane_data);
+    int z_order,
+    gfx::OverlayTransform transform,
+    gl::GLImage* image,
+    const gfx::Rect& bounds_rect,
+    const gfx::RectF& crop_rect,
+    bool enable_blend,
+    std::unique_ptr<gfx::GpuFence> gpu_fence) {
+  unsubmitted_frames_.back()->overlays.push_back(
+      gl::GLSurfaceOverlay(z_order, transform, image, bounds_rect, crop_rect,
+                           enable_blend, std::move(gpu_fence)));
   return true;
 }
 
@@ -108,8 +109,7 @@ gfx::SwapResult GbmSurfaceless::PostSubBuffer(int x,
                                               int y,
                                               int width,
                                               int height,
-                                              PresentationCallback callback,
-                                              gl::FrameData data) {
+                                              PresentationCallback callback) {
   // The actual sub buffer handling is handled at higher layers.
   NOTREACHED();
   return gfx::SwapResult::SWAP_FAILED;
@@ -117,8 +117,7 @@ gfx::SwapResult GbmSurfaceless::PostSubBuffer(int x,
 
 void GbmSurfaceless::SwapBuffersAsync(
     SwapCompletionCallback completion_callback,
-    PresentationCallback presentation_callback,
-    gl::FrameData data) {
+    PresentationCallback presentation_callback) {
   TRACE_EVENT0("drm", "GbmSurfaceless::SwapBuffersAsync");
   // If last swap failed, don't try to schedule new ones.
   if (!last_swap_buffers_result_) {
@@ -129,13 +128,12 @@ void GbmSurfaceless::SwapBuffersAsync(
     return;
   }
 
-  if (!supports_plane_gpu_fences_ || requires_gl_flush_on_swap_buffers_) {
+  if ((!has_image_flush_external_ && !supports_plane_gpu_fences_) ||
+      requires_gl_flush_on_swap_buffers_) {
     glFlush();
   }
 
-#if BUILDFLAG(USE_OPENGL_APITRACE)
-  gl::TerminateFrame();  // Notify end of frame at buffer swap request.
-#endif
+  unsubmitted_frames_.back()->Flush();
 
   PendingFrame* frame = unsubmitted_frames_.back().get();
   frame->completion_callback = std::move(completion_callback);
@@ -164,7 +162,7 @@ void GbmSurfaceless::SwapBuffersAsync(
   CHECK_NE(fence, EGL_NO_SYNC_KHR) << "eglCreateSyncKHR failed";
 
   base::OnceClosure fence_wait_task =
-      base::BindOnce(&WaitForFence, GetEGLDisplay(), fence);
+      base::BindOnce(&WaitForFence, GetDisplay(), fence);
 
   base::OnceClosure fence_retired_callback = base::BindOnce(
       &GbmSurfaceless::FenceRetired, weak_factory_.GetWeakPtr(), frame);
@@ -181,11 +179,10 @@ void GbmSurfaceless::PostSubBufferAsync(
     int width,
     int height,
     SwapCompletionCallback completion_callback,
-    PresentationCallback presentation_callback,
-    gl::FrameData data) {
+    PresentationCallback presentation_callback) {
   // The actual sub buffer handling is handled at higher layers.
   SwapBuffersAsync(std::move(completion_callback),
-                   std::move(presentation_callback), std::move(data));
+                   std::move(presentation_callback));
 }
 
 EGLConfig GbmSurfaceless::GetConfig() {
@@ -205,7 +202,7 @@ EGLConfig GbmSurfaceless::GetConfig() {
                                EGL_SURFACE_TYPE,
                                EGL_DONT_CARE,
                                EGL_NONE};
-    config_ = ChooseEGLConfig(GetEGLDisplay(), config_attribs);
+    config_ = ChooseEGLConfig(GetDisplay(), config_attribs);
   }
   return config_;
 }
@@ -239,6 +236,11 @@ bool GbmSurfaceless::PendingFrame::ScheduleOverlayPlanes(
   return true;
 }
 
+void GbmSurfaceless::PendingFrame::Flush() {
+  for (const auto& overlay : overlays)
+    overlay.Flush();
+}
+
 void GbmSurfaceless::SubmitFrame() {
   DCHECK(!unsubmitted_frames_.empty());
 
@@ -257,8 +259,7 @@ void GbmSurfaceless::SubmitFrame() {
         submitted_frame_->ScheduleOverlayPlanes(widget_);
 
     if (!schedule_planes_succeeded) {
-      OnSubmission(gfx::SwapResult::SWAP_FAILED,
-                   /*release_fence=*/gfx::GpuFenceHandle());
+      OnSubmission(gfx::SwapResult::SWAP_FAILED, nullptr);
       OnPresentation(gfx::PresentationFeedback::Failure());
       return;
     }
@@ -276,7 +277,7 @@ EGLSyncKHR GbmSurfaceless::InsertFence(bool implicit) {
   const EGLint attrib_list[] = {EGL_SYNC_CONDITION_KHR,
                                 EGL_SYNC_PRIOR_COMMANDS_IMPLICIT_EXTERNAL_ARM,
                                 EGL_NONE};
-  return eglCreateSyncKHR(GetEGLDisplay(), EGL_SYNC_FENCE_KHR,
+  return eglCreateSyncKHR(GetDisplay(), EGL_SYNC_FENCE_KHR,
                           implicit ? attrib_list : NULL);
 }
 
@@ -286,12 +287,8 @@ void GbmSurfaceless::FenceRetired(PendingFrame* frame) {
 }
 
 void GbmSurfaceless::OnSubmission(gfx::SwapResult result,
-                                  gfx::GpuFenceHandle release_fence) {
+                                  std::unique_ptr<gfx::GpuFence> out_fence) {
   submitted_frame_->swap_result = result;
-  if (!release_fence.is_null()) {
-    std::move(submitted_frame_->completion_callback)
-        .Run(gfx::SwapCompletionResult(result, std::move(release_fence)));
-  }
 }
 
 void GbmSurfaceless::OnPresentation(const gfx::PresentationFeedback& feedback) {
@@ -305,9 +302,8 @@ void GbmSurfaceless::OnPresentation(const gfx::PresentationFeedback& feedback) {
   submitted_frame_->overlays.clear();
 
   gfx::SwapResult result = submitted_frame_->swap_result;
-  if (submitted_frame_->completion_callback)
-    std::move(submitted_frame_->completion_callback)
-        .Run(gfx::SwapCompletionResult(result));
+  std::move(submitted_frame_->completion_callback)
+      .Run(gfx::SwapCompletionResult(result));
   std::move(submitted_frame_->presentation_callback).Run(feedback_copy);
   submitted_frame_.reset();
 

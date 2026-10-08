@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,11 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "base/values.h"
 #include "components/viz/common/surfaces/surface_info.h"
 #include "content/common/content_param_traits.h"
+#include "content/common/resource_messages.h"
 #include "content/public/common/content_constants.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_utils.h"
@@ -71,7 +73,7 @@ TEST(IPCMessageTest, Bitmap) {
   IPC::Message bad_msg(1, 2, IPC::Message::PRIORITY_NORMAL);
   // Copy the first message block over to |bad_msg|.
   const char* fixed_data;
-  size_t fixed_data_size;
+  int fixed_data_size;
   iter = base::PickleIterator(msg);
   EXPECT_TRUE(iter.ReadData(&fixed_data, &fixed_data_size));
   bad_msg.WriteData(fixed_data, fixed_data_size);
@@ -86,32 +88,54 @@ TEST(IPCMessageTest, Bitmap) {
   EXPECT_FALSE(IPC::ParamTraits<SkBitmap>::Read(&bad_msg, &iter, &bad_output));
 }
 
-TEST(IPCMessageTest, ValueDict) {
-  base::Value::Dict input;
-  input.Set("null", base::Value());
-  input.Set("bool", true);
-  input.Set("int", 42);
+TEST(IPCMessageTest, ListValue) {
+  base::ListValue input;
+  input.AppendDouble(42.42);
+  input.AppendString("forty");
+  input.Append(std::make_unique<base::Value>());
 
-  base::Value::Dict subdict;
-  subdict.Set("str", "forty two");
-  subdict.Set("bool", false);
+  IPC::Message msg(1, 2, IPC::Message::PRIORITY_NORMAL);
+  IPC::WriteParam(&msg, input);
 
-  base::Value::List sublist;
-  sublist.Append(42.42);
-  sublist.Append("forty");
-  sublist.Append("two");
-  subdict.Set("list", std::move(sublist));
+  base::ListValue output;
+  base::PickleIterator iter(msg);
+  EXPECT_TRUE(IPC::ReadParam(&msg, &iter, &output));
+
+  EXPECT_TRUE(input.Equals(&output));
+
+  // Also test the corrupt case.
+  IPC::Message bad_msg(1, 2, IPC::Message::PRIORITY_NORMAL);
+  bad_msg.WriteInt(99);
+  iter = base::PickleIterator(bad_msg);
+  EXPECT_FALSE(IPC::ReadParam(&bad_msg, &iter, &output));
+}
+
+TEST(IPCMessageTest, DictionaryValue) {
+  base::DictionaryValue input;
+  input.Set("null", std::make_unique<base::Value>());
+  input.SetBoolean("bool", true);
+  input.SetInteger("int", 42);
+
+  auto subdict = std::make_unique<base::DictionaryValue>();
+  subdict->SetString("str", "forty two");
+  subdict->SetBoolean("bool", false);
+
+  auto sublist = std::make_unique<base::ListValue>();
+  sublist->AppendDouble(42.42);
+  sublist->AppendString("forty");
+  sublist->AppendString("two");
+  subdict->Set("list", std::move(sublist));
 
   input.Set("dict", std::move(subdict));
 
   IPC::Message msg(1, 2, IPC::Message::PRIORITY_NORMAL);
   IPC::WriteParam(&msg, input);
 
-  base::Value::Dict output;
+  base::DictionaryValue output;
   base::PickleIterator iter(msg);
   EXPECT_TRUE(IPC::ReadParam(&msg, &iter, &output));
 
-  EXPECT_EQ(input, output);
+  EXPECT_TRUE(input.Equals(&output));
 
   // Also test the corrupt case.
   IPC::Message bad_msg(1, 2, IPC::Message::PRIORITY_NORMAL);
@@ -153,7 +177,6 @@ TEST(IPCMessageTest, SSLInfo) {
   const net::SHA256HashValue kCertPublicKeyHashValue = {{0x01, 0x02}};
   in.public_key_hashes.push_back(net::HashValue(kCertPublicKeyHashValue));
   in.pinning_failure_log = "foo";
-  in.encrypted_client_hello = true;
 
   scoped_refptr<net::ct::SignedCertificateTimestamp> sct(
       new net::ct::SignedCertificateTimestamp());
@@ -195,7 +218,6 @@ TEST(IPCMessageTest, SSLInfo) {
   ASSERT_EQ(in.handshake_type, out.handshake_type);
   ASSERT_EQ(in.public_key_hashes, out.public_key_hashes);
   ASSERT_EQ(in.pinning_failure_log, out.pinning_failure_log);
-  ASSERT_EQ(in.encrypted_client_hello, out.encrypted_client_hello);
 
   ASSERT_EQ(in.signed_certificate_timestamps.size(),
             out.signed_certificate_timestamps.size());

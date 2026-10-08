@@ -1,2 +1,5 @@
-mixins: "//content/public/android/java/src/org/chromium/content/browser/remoteobjects/COMMON_METADATA"
+monorail {
+  component: "Mobile>WebView"
+}
 
+team_email: "android-webview-dev@chromium.org"

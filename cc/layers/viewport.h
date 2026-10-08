@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "cc/layers/layer_impl.h"
 #include "ui/gfx/geometry/vector2d_f.h"
 
@@ -74,7 +73,7 @@ class CC_EXPORT Viewport {
   gfx::Vector2dF ScrollAnimated(const gfx::Vector2dF& delta,
                                 base::TimeDelta delayed_by);
 
-  gfx::PointF TotalScrollOffset() const;
+  gfx::ScrollOffset TotalScrollOffset() const;
 
   void PinchUpdate(float magnify_delta, const gfx::Point& anchor);
   void PinchEnd(const gfx::Point& anchor, bool snap_to_min);
@@ -118,7 +117,7 @@ class CC_EXPORT Viewport {
   // Sends the delta to the browser controls, returns the amount applied.
   gfx::Vector2dF ScrollBrowserControls(const gfx::Vector2dF& delta);
 
-  float MaxUserReachableTotalScrollOffsetY() const;
+  gfx::ScrollOffset MaxTotalScrollOffset() const;
 
   ScrollNode* InnerScrollNode() const;
   ScrollNode* OuterScrollNode() const;
@@ -126,7 +125,7 @@ class CC_EXPORT Viewport {
 
   void SnapPinchAnchorIfWithinMargin(const gfx::Point& anchor);
 
-  raw_ptr<LayerTreeHostImpl> host_impl_;
+  LayerTreeHostImpl* host_impl_;
 
   bool pinch_zoom_active_;
 

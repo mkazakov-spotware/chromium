@@ -83,9 +83,6 @@ struct _htmlEntityDesc {
 /*
  * There is only few public functions.
  */
-XML_DEPRECATED
-XMLPUBFUN void XMLCALL
-			htmlInitAutoClose	(void);
 XMLPUBFUN const htmlElemDesc * XMLCALL
 			htmlTagLookup	(const xmlChar *tag);
 XMLPUBFUN const htmlEntityDesc * XMLCALL
@@ -100,22 +97,16 @@ XMLPUBFUN int XMLCALL
 			htmlAutoCloseTag(htmlDocPtr doc,
 					 const xmlChar *name,
 					 htmlNodePtr elem);
-XML_DEPRECATED
 XMLPUBFUN const htmlEntityDesc * XMLCALL
 			htmlParseEntityRef(htmlParserCtxtPtr ctxt,
 					 const xmlChar **str);
-XML_DEPRECATED
 XMLPUBFUN int XMLCALL
 			htmlParseCharRef(htmlParserCtxtPtr ctxt);
-XML_DEPRECATED
 XMLPUBFUN void XMLCALL
 			htmlParseElement(htmlParserCtxtPtr ctxt);
 
 XMLPUBFUN htmlParserCtxtPtr XMLCALL
 			htmlNewParserCtxt(void);
-XMLPUBFUN htmlParserCtxtPtr XMLCALL
-			htmlNewSAXParserCtxt(const htmlSAXHandler *sax,
-					     void *userData);
 
 XMLPUBFUN htmlParserCtxtPtr XMLCALL
 			htmlCreateMemoryParserCtxt(const char *buffer,
@@ -123,7 +114,6 @@ XMLPUBFUN htmlParserCtxtPtr XMLCALL
 
 XMLPUBFUN int XMLCALL
 			htmlParseDocument(htmlParserCtxtPtr ctxt);
-XML_DEPRECATED
 XMLPUBFUN htmlDocPtr XMLCALL
 			htmlSAXParseDoc	(const xmlChar *cur,
 					 const char *encoding,
@@ -132,10 +122,6 @@ XMLPUBFUN htmlDocPtr XMLCALL
 XMLPUBFUN htmlDocPtr XMLCALL
 			htmlParseDoc	(const xmlChar *cur,
 					 const char *encoding);
-XMLPUBFUN htmlParserCtxtPtr XMLCALL
-			htmlCreateFileParserCtxt(const char *filename,
-	                                         const char *encoding);
-XML_DEPRECATED
 XMLPUBFUN htmlDocPtr XMLCALL
 			htmlSAXParseFile(const char *filename,
 					 const char *encoding,

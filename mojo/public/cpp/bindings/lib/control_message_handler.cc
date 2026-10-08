@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
-#include <tuple>
 #include <utility>
 
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "mojo/public/cpp/bindings/interface_endpoint_client.h"
-#include "mojo/public/cpp/bindings/lib/message_fragment.h"
 #include "mojo/public/cpp/bindings/lib/serialization.h"
 #include "mojo/public/cpp/bindings/lib/validation_util.h"
 #include "mojo/public/cpp/bindings/message.h"
@@ -103,13 +101,17 @@ bool ControlMessageHandler::Run(
           message->mutable_payload());
   interface_control::RunMessageParamsPtr params_ptr;
   Deserialize<interface_control::RunMessageParamsDataView>(params, &params_ptr,
-                                                           message);
+                                                           &context_);
   auto& input = *params_ptr->input;
-  interface_control::RunOutputPtr output;
+  interface_control::RunOutputPtr output = interface_control::RunOutput::New();
   if (input.is_query_version()) {
-    output = interface_control::RunOutput::NewQueryVersionResult(
+    output->set_query_version_result(
         interface_control::QueryVersionResult::New());
     output->get_query_version_result()->version = interface_version_;
+  } else if (input.is_flush_for_testing()) {
+    output.reset();
+  } else {
+    output.reset();
   }
 
   auto response_params_ptr = interface_control::RunResponseMessageParams::New();
@@ -117,11 +119,12 @@ bool ControlMessageHandler::Run(
   Message response_message(interface_control::kRunMessageId,
                            Message::kFlagIsResponse, 0, 0, nullptr);
   response_message.set_request_id(message->request_id());
-  MessageFragment<interface_control::internal::RunResponseMessageParams_Data>
-      response_fragment(response_message);
+  interface_control::internal::RunResponseMessageParams_Data::BufferWriter
+      response_writer;
   Serialize<interface_control::RunResponseMessageParamsDataView>(
-      response_params_ptr, response_fragment);
-  std::ignore = responder->Accept(&response_message);
+      response_params_ptr, response_message.payload_buffer(), &response_writer,
+      &context_);
+  ignore_result(responder->Accept(&response_message));
   return true;
 }
 
@@ -132,12 +135,12 @@ bool ControlMessageHandler::RunOrClosePipe(Message* message) {
           message->mutable_payload());
   interface_control::RunOrClosePipeMessageParamsPtr params_ptr;
   Deserialize<interface_control::RunOrClosePipeMessageParamsDataView>(
-      params, &params_ptr, message);
+      params, &params_ptr, &context_);
   auto& input = *params_ptr->input;
   if (input.is_require_version())
     return interface_version_ >= input.get_require_version()->version;
   if (input.is_enable_idle_tracking()) {
-    return owner_->AcceptEnableIdleTracking(base::Microseconds(
+    return owner_->AcceptEnableIdleTracking(base::TimeDelta::FromMicroseconds(
         input.get_enable_idle_tracking()->timeout_in_microseconds));
   }
   if (input.is_message_ack())

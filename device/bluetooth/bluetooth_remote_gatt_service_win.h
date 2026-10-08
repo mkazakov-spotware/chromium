@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 #include <vector>
 
 #include "base/files/file.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "device/bluetooth/bluetooth_low_energy_defs_win.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service.h"
 
@@ -37,11 +36,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWin
       bool is_primary,
       BluetoothRemoteGattServiceWin* parent_service,
       scoped_refptr<base::SequencedTaskRunner> ui_task_runner);
-
-  BluetoothRemoteGattServiceWin(const BluetoothRemoteGattServiceWin&) = delete;
-  BluetoothRemoteGattServiceWin& operator=(
-      const BluetoothRemoteGattServiceWin&) = delete;
-
   ~BluetoothRemoteGattServiceWin() override;
 
   // Override BluetoothRemoteGattService interfaces.
@@ -89,13 +83,13 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWin
   void RemoveIncludedCharacteristic(std::string identifier);
   void ClearIncludedCharacteristics();
 
-  raw_ptr<BluetoothAdapterWin> adapter_;
-  raw_ptr<BluetoothDeviceWin> device_;
+  BluetoothAdapterWin* adapter_;
+  BluetoothDeviceWin* device_;
   base::FilePath service_path_;
   BluetoothUUID service_uuid_;
   uint16_t service_attribute_handle_;
   bool is_primary_;
-  raw_ptr<BluetoothRemoteGattServiceWin> parent_service_;
+  BluetoothRemoteGattServiceWin* parent_service_;
   scoped_refptr<base::SequencedTaskRunner> ui_task_runner_;
   std::string service_identifier_;
 
@@ -116,6 +110,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothRemoteGattServiceWin
   int discovery_pending_count_ = 0;
 
   base::WeakPtrFactory<BluetoothRemoteGattServiceWin> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(BluetoothRemoteGattServiceWin);
 };
 
 }  // namespace device.

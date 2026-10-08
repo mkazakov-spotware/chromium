@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,14 @@
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
-#include "ash/style/ash_color_id.h"
 #include "ash/style/ash_color_provider.h"
 #include "ash/wallpaper/wallpaper_controller_impl.h"
-#include "base/bind.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/color_analysis.h"
+#include "ui/gfx/color_utils.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/button/label_button.h"
@@ -75,6 +74,11 @@ constexpr int kPinRequestViewMinimumHeightDp =
     kAccessCodeToPinKeyboardDistanceDp + kPinKeyboardToFooterDistanceDp +
     kArrowButtonSizeDp + kPinRequestViewMainHorizontalInsetDp;  // = 266
 
+constexpr int kAlpha70Percent = 178;
+constexpr int kAlpha74Percent = 189;
+
+constexpr SkColor kErrorColor = gfx::kGoogleRed300;
+
 bool IsTabletMode() {
   return Shell::Get()->tablet_mode_controller()->InTabletMode();
 }
@@ -89,10 +93,10 @@ PinRequest::~PinRequest() = default;
 // Label button that displays focus ring.
 class PinRequestView::FocusableLabelButton : public views::LabelButton {
  public:
-  FocusableLabelButton(PressedCallback callback, const std::u16string& text)
+  FocusableLabelButton(PressedCallback callback, const base::string16& text)
       : views::LabelButton(std::move(callback), text) {
     SetInstallFocusRingOnFocus(true);
-    views::FocusRing::Get(this)->SetColorId(ui::kColorAshFocusRing);
+    focus_ring()->SetColor(ShelfConfig::Get()->shelf_focus_border_color());
     SetFocusBehavior(FocusBehavior::ALWAYS);
   }
 
@@ -147,9 +151,21 @@ PinRequestViewState PinRequestView::TestApi::state() const {
 
 // static
 SkColor PinRequestView::GetChildUserDialogColor(bool using_blur) {
-  return AshColorProvider::Get()->GetBaseLayerColor(
-      using_blur ? AshColorProvider::BaseLayerType::kTransparent80
-                 : AshColorProvider::BaseLayerType::kOpaque);
+  SkColor color = AshColorProvider::Get()->GetBaseLayerColor(
+      AshColorProvider::BaseLayerType::kOpaque);
+
+  SkColor extracted_color =
+      Shell::Get()->wallpaper_controller()->GetProminentColor(
+          color_utils::ColorProfile(color_utils::LumaRange::DARK,
+                                    color_utils::SaturationRange::MUTED));
+
+  if (extracted_color != kInvalidWallpaperColor &&
+      extracted_color != SK_ColorTRANSPARENT) {
+    color = color_utils::GetResultingPaintColor(
+        SkColorSetA(SK_ColorBLACK, kAlpha70Percent), extracted_color);
+  }
+
+  return using_blur ? SkColorSetA(color, kAlpha74Percent) : color;
 }
 
 // TODO(crbug.com/1061008): Make dialog look good on small screens with high
@@ -172,8 +188,8 @@ PinRequestView::PinRequestView(PinRequest request, Delegate* delegate)
   // Main view contains all other views aligned vertically and centered.
   auto layout = std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
-      gfx::Insets::VH(kPinRequestViewVerticalInsetDp,
-                      kPinRequestViewHorizontalInsetDp),
+      gfx::Insets(kPinRequestViewVerticalInsetDp,
+                  kPinRequestViewHorizontalInsetDp),
       0);
   layout->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kStart);
   layout->set_cross_axis_alignment(
@@ -300,8 +316,7 @@ PinRequestView::PinRequestView(PinRequest request, Delegate* delegate)
 
   add_spacer(kDescriptionToAccessCodeDistanceDp);
 
-  auto* color_provider = GetColorProvider();
-  LoginPalette palette = CreateDefaultLoginPalette(color_provider);
+  LoginPalette palette = CreateDefaultLoginPalette();
 
   // Access code input view.
   if (request.pin_length.has_value()) {
@@ -331,14 +346,13 @@ PinRequestView::PinRequestView(PinRequest request, Delegate* delegate)
 
   // Pin keyboard. Note that the keyboard's own submit button is disabled via
   // passing a null |on_submit| callback.
-  pin_keyboard_view_ =
-      new LoginPinView(LoginPinView::Style::kAlphanumeric,
-                       CreateDefaultLoginPalette(color_provider),
-                       base::BindRepeating(&AccessCodeInput::InsertDigit,
-                                           base::Unretained(access_code_view_)),
-                       base::BindRepeating(&AccessCodeInput::Backspace,
-                                           base::Unretained(access_code_view_)),
-                       /*on_submit=*/LoginPinView::OnPinSubmit());
+  pin_keyboard_view_ = new LoginPinView(
+      LoginPinView::Style::kAlphanumeric, CreateDefaultLoginPalette(),
+      base::BindRepeating(&AccessCodeInput::InsertDigit,
+                          base::Unretained(access_code_view_)),
+      base::BindRepeating(&AccessCodeInput::Backspace,
+                          base::Unretained(access_code_view_)),
+      /*on_submit=*/LoginPinView::OnPinSubmit());
   // Backspace key is always enabled and |access_code_| field handles it.
   pin_keyboard_view_->OnPasswordTextChanged(false);
   AddChildView(pin_keyboard_view_);
@@ -356,7 +370,10 @@ PinRequestView::PinRequestView(PinRequest request, Delegate* delegate)
 
   help_button_ = new FocusableLabelButton(
       base::BindRepeating(
-          [](PinRequestView* view) { view->delegate_->OnHelp(); }, this),
+          [](PinRequestView* view) {
+            view->delegate_->OnHelp(view->GetWidget()->GetNativeWindow());
+          },
+          this),
       l10n_util::GetStringUTF16(IDS_ASH_LOGIN_PIN_REQUEST_HELP));
   help_button_->SetPaintToLayer();
   help_button_->layer()->SetFillsBoundsOpaquely(false);
@@ -385,7 +402,7 @@ PinRequestView::PinRequestView(PinRequest request, Delegate* delegate)
 
   pin_keyboard_view_->SetVisible(PinKeyboardVisible());
 
-  tablet_mode_observation_.Observe(Shell::Get()->tablet_mode_controller());
+  tablet_mode_observer_.Add(Shell::Get()->tablet_mode_controller());
 
   SetPreferredSize(GetPinRequestViewSize());
 }
@@ -414,7 +431,7 @@ views::View* PinRequestView::GetInitiallyFocusedView() {
   return access_code_view_;
 }
 
-std::u16string PinRequestView::GetAccessibleWindowTitle() const {
+base::string16 PinRequestView::GetAccessibleWindowTitle() const {
   return default_accessible_title_;
 }
 
@@ -440,11 +457,11 @@ void PinRequestView::OnTabletModeEnded() {
 }
 
 void PinRequestView::OnTabletControllerDestroyed() {
-  tablet_mode_observation_.Reset();
+  tablet_mode_observer_.RemoveAll();
 }
 
 void PinRequestView::SubmitCode() {
-  absl::optional<std::string> code = access_code_view_->GetCode();
+  base::Optional<std::string> code = access_code_view_->GetCode();
   DCHECK(code.has_value());
 
   SubmissionResult result = delegate_->OnPinSubmitted(*code);
@@ -473,8 +490,8 @@ void PinRequestView::OnBack() {
 }
 
 void PinRequestView::UpdateState(PinRequestViewState state,
-                                 const std::u16string& title,
-                                 const std::u16string& description) {
+                                 const base::string16& title,
+                                 const base::string16& description) {
   state_ = state;
   title_label_->SetText(title);
   description_label_->SetText(description);
@@ -488,8 +505,6 @@ void PinRequestView::UpdateState(PinRequestViewState state,
       return;
     }
     case PinRequestViewState::kError: {
-      const SkColor kErrorColor = AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kTextColorAlert);
       access_code_view_->SetInputColor(kErrorColor);
       title_label_->SetEnabledColor(kErrorColor);
       // Read out the error.
@@ -534,7 +549,7 @@ void PinRequestView::OnInputChange(bool last_field_active, bool complete) {
 
     // Moving focus is delayed by using PostTask to allow for proper
     // a11y announcements.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&PinRequestView::FocusSubmitButton,
                                   weak_ptr_factory_.GetWeakPtr()));
   }
@@ -546,14 +561,6 @@ void PinRequestView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
   node_data->SetName(default_accessible_title_);
 }
 
-void PinRequestView::OnThemeChanged() {
-  views::DialogDelegateView::OnThemeChanged();
-  auto* color_provider = GetColorProvider();
-  access_code_view_->SetInputColor(
-      color_provider->GetColor(kColorAshTextColorPrimary));
-  pin_keyboard_view_->UpdatePalette(CreateDefaultLoginPalette(color_provider));
-}
-
 // If |pin_keyboard_always_enabled_| is not set, pin keyboard is only shown in
 // tablet mode.
 bool PinRequestView::PinKeyboardVisible() const {
@@ -561,14 +568,12 @@ bool PinRequestView::PinKeyboardVisible() const {
 }
 
 gfx::Size PinRequestView::GetPinRequestViewSize() const {
-  int height =
-      kPinRequestViewMinimumHeightDp +
-      std::min(static_cast<int>(title_label_->GetRequiredLines()),
-               kTitleMaxLines) *
-          kTitleLineHeightDp +
-      std::min(static_cast<int>(description_label_->GetRequiredLines()),
-               kDescriptionMaxLines) *
-          kDescriptionTextLineHeightDp;
+  int height = kPinRequestViewMinimumHeightDp +
+               std::min(int{title_label_->GetRequiredLines()}, kTitleMaxLines) *
+                   kTitleLineHeightDp +
+               std::min(int{description_label_->GetRequiredLines()},
+                        kDescriptionMaxLines) *
+                   kDescriptionTextLineHeightDp;
   if (PinKeyboardVisible())
     height += kPinKeyboardHeightDp;
   return gfx::Size(kPinRequestViewWidthDp, height);

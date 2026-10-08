@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -128,11 +128,13 @@ std::string GetSpellCheckerLanguage() {
 }
 
 bool SpellCheckerAvailable() {
+  // If this file was compiled, then we know that we are on OS X 10.5 at least
+  // and can safely return true here.
   return true;
 }
 
 bool SpellCheckerProvidesPanel() {
-  // macOS has a Spelling Panel, so we can return true here.
+  // OS X has a Spelling Panel, so we can return true here.
   return true;
 }
 
@@ -156,7 +158,7 @@ void ShowSpellingPanel(bool show) {
   }
 }
 
-void UpdateSpellingPanelWithMisspelledWord(const std::u16string& word) {
+void UpdateSpellingPanelWithMisspelledWord(const base::string16& word) {
   NSString * word_to_display = base::SysUTF16ToNSString(word);
   [SharedSpellChecker()
       performSelectorOnMainThread:
@@ -195,7 +197,7 @@ void DisableLanguage(PlatformSpellChecker* spell_checker_instance,
 
 static int last_seen_tag_;
 
-bool CheckSpelling(const std::u16string& word_to_check, int tag) {
+bool CheckSpelling(const base::string16& word_to_check, int tag) {
   last_seen_tag_ = tag;
 
   // -[NSSpellChecker checkSpellingOfString] returns an NSRange that
@@ -205,12 +207,10 @@ bool CheckSpelling(const std::u16string& word_to_check, int tag) {
   // Convert the word to an NSString.
   NSString* NS_word_to_check = base::SysUTF16ToNSString(word_to_check);
   // Check the spelling, starting at the beginning of the word.
-  spell_range = [SharedSpellChecker() checkSpellingOfString:NS_word_to_check
-                                                 startingAt:0
-                                                   language:nil
-                                                       wrap:NO
-                                     inSpellDocumentWithTag:tag
-                                                  wordCount:nullptr];
+  spell_range = [SharedSpellChecker()
+                  checkSpellingOfString:NS_word_to_check startingAt:0
+                  language:nil wrap:NO inSpellDocumentWithTag:tag
+                  wordCount:NULL];
 
   // If the length of the misspelled word == 0,
   // then there is no misspelled word.
@@ -218,8 +218,8 @@ bool CheckSpelling(const std::u16string& word_to_check, int tag) {
   return word_correct;
 }
 
-void FillSuggestionList(const std::u16string& wrong_word,
-                        std::vector<std::u16string>* optional_suggestions) {
+void FillSuggestionList(const base::string16& wrong_word,
+                        std::vector<base::string16>* optional_suggestions) {
   NSString* ns_wrong_word = base::SysUTF16ToNSString(wrong_word);
   NSSpellChecker* checker = SharedSpellChecker();
   NSString* language = [checker language];
@@ -237,13 +237,13 @@ void FillSuggestionList(const std::u16string& wrong_word,
 }
 
 void AddWord(PlatformSpellChecker* spell_checker_instance,
-             const std::u16string& word) {
+             const base::string16& word) {
   NSString* word_to_add = base::SysUTF16ToNSString(word);
   [SharedSpellChecker() learnWord:word_to_add];
 }
 
 void RemoveWord(PlatformSpellChecker* spell_checker_instance,
-                const std::u16string& word) {
+                const base::string16& word) {
   NSString *word_to_remove = base::SysUTF16ToNSString(word);
   [SharedSpellChecker() unlearnWord:word_to_remove];
 }
@@ -254,7 +254,7 @@ int GetDocumentTag() {
 }
 
 void IgnoreWord(PlatformSpellChecker* spell_checker_instance,
-                const std::u16string& word) {
+                const base::string16& word) {
   [SharedSpellChecker() ignoreWord:base::SysUTF16ToNSString(word)
             inSpellDocumentWithTag:last_seen_tag_];
 }
@@ -265,7 +265,7 @@ void CloseDocumentWithTag(int tag) {
 
 void RequestTextCheck(PlatformSpellChecker* spell_checker_instance,
                       int document_tag,
-                      const std::u16string& text,
+                      const base::string16& text,
                       TextCheckCompleteCallback passed_callback) {
   NSString* text_to_check = base::SysUTF16ToNSString(text);
   NSRange range_to_check = NSMakeRange(0, [text_to_check length]);
@@ -291,9 +291,10 @@ void RequestTextCheck(PlatformSpellChecker* spell_checker_instance,
 
             // In this use case, the spell checker should never
             // return anything but a single range per result.
-            check_results.emplace_back(SpellCheckResult::SPELLING,
-                                       [result range].location,
-                                       [result range].length);
+            check_results.push_back(SpellCheckResult(
+                SpellCheckResult::SPELLING,
+                [result range].location,
+                [result range].length));
           }
           // TODO(groby): Verify we don't need to post from here.
           std::move(callback).Run(check_results);

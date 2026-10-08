@@ -14,16 +14,10 @@
 <div id="log"></div>
 <script>
 
-var numberOfChildNodesInConnectedCallback = 0;
-
-class MyCustomElement extends HTMLElement {
-    connectedCallback() {
-        numberOfChildNodesInConnectedCallback = this.childNodes.length;
-    }
-}
+class MyCustomElement extends HTMLElement { }
 customElements.define('my-custom-element', MyCustomElement);
 
-document.write('<my-custom-element>hello <b>world</b></my-custom-element>');
+document.write('<my-custom-element></my-custom-element>');
 
 test(function () {
     var instance = document.querySelector('my-custom-element');
@@ -32,11 +26,6 @@ test(function () {
     assert_true(instance instanceof MyCustomElement);
 
 }, 'HTML parser must instantiate custom elements inside document.write');
-
-test(function () {
-  assert_equals(numberOfChildNodesInConnectedCallback, 0);
-
-}, 'HTML parser should call connectedCallback before appending child nodes inside document.write');
 
 </script>
 </body>

@@ -39,7 +39,7 @@
 #define CHANNELS 2
 #define FRAMESIZE 5760
 
-void test_overflow(void)
+int test_overflow(void)
 {
   OpusDecoder *decoder;
   int result;
@@ -51,7 +51,7 @@ void test_overflow(void)
   fprintf(stderr, "  Checking for padding overflow... ");
   if (!in || !out) {
     fprintf(stderr, "FAIL (out of memory)\n");
-    test_failed();
+    return -1;
   }
   in[0] = 0xff;
   in[1] = 0x41;
@@ -71,18 +71,21 @@ void test_overflow(void)
   }
 
   fprintf(stderr, "OK.\n");
+
+  return 1;
 }
 
 int main(void)
 {
   const char *oversion;
+  int tests = 0;;
 
   iseed = 0;
   oversion = opus_get_version_string();
   if (!oversion) test_failed();
   fprintf(stderr, "Testing %s padding.\n", oversion);
 
-  test_overflow();
+  tests += test_overflow();
 
   fprintf(stderr, "All padding tests passed.\n");
 

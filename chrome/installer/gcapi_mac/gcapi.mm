@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,8 +66,8 @@ bool IsOSXVersionSupported() {
   // 10.2.
   int mac_os_x_minor_version = darwin_major_version - 4;
 
-  // Chrome is known to work on 10.11 - 10.15.
-  return mac_os_x_minor_version >= 11 && mac_os_x_minor_version <= 15;
+  // Chrome is known to work on 10.10 - 10.15.
+  return mac_os_x_minor_version >= 10 && mac_os_x_minor_version <= 15;
 }
 
 // Returns the pid/gid of the logged-in user, even if getuid() claims that the
@@ -98,7 +98,7 @@ enum TicketKind { kSystemTicket, kUserTicket };
 NSString* AdjustHomedir(NSString* s, const char* home_dir) {
   if (![s hasPrefix:@"~~"])
     return s;
-  NSString* ns_home_dir = @(home_dir);
+  NSString* ns_home_dir = [NSString stringWithUTF8String:home_dir];
   return [ns_home_dir stringByAppendingString:[s substringFromIndex:2]];
 }
 
@@ -141,7 +141,7 @@ BOOL FindChromeTicket(TicketKind kind,
         @"com.google.Chrome",
       ];
       if (geteuid() == 0 && kind == kUserTicket) {
-        NSString* run_as = @(user->pw_name);
+        NSString* run_as = [NSString stringWithUTF8String:user->pw_name];
         [task setLaunchPath:@"/usr/bin/sudo"];
         arguments = [@[ @"-u", run_as, ks_path ]
             arrayByAddingObjectsFromArray:arguments];
@@ -224,13 +224,14 @@ BOOL CreatePathToFile(NSString* path, const passwd* user) {
   // user paths just the owner may.
   NSMutableDictionary* attributes = [NSMutableDictionary dictionary];
   if (user) {
-    attributes[NSFilePosixPermissions] =
-        [NSNumber numberWithShort:kUserPermissions];
-    attributes[NSFileOwnerAccountID] = [NSNumber numberWithInt:user->pw_uid];
+    [attributes setObject:[NSNumber numberWithShort:kUserPermissions]
+                   forKey:NSFilePosixPermissions];
+    [attributes setObject:[NSNumber numberWithInt:user->pw_uid]
+                   forKey:NSFileOwnerAccountID];
   } else {
-    attributes[NSFilePosixPermissions] =
-        [NSNumber numberWithShort:kAdminPermissions];
-    attributes[NSFileGroupOwnerAccountName] = @"admin";
+    [attributes setObject:[NSNumber numberWithShort:kAdminPermissions]
+                   forKey:NSFilePosixPermissions];
+    [attributes setObject:@"admin" forKey:NSFileGroupOwnerAccountName];
   }
 
   NSFileManager* manager = [NSFileManager defaultManager];
@@ -275,7 +276,7 @@ NSString* WriteData(NSData* data,
 
 NSString* WriteBrandCode(const char* brand_code, const passwd* user) {
   NSDictionary* brand_dict = @{
-    kBrandKey : @(brand_code),
+    kBrandKey : [NSString stringWithUTF8String:brand_code],
   };
   NSData* contents = [NSPropertyListSerialization
       dataFromPropertyList:brand_dict
@@ -295,7 +296,7 @@ BOOL WriteMasterPrefs(const char* master_prefs_contents,
 }
 
 NSString* PathToFramework(NSString* app_path, NSDictionary* info_plist) {
-  NSString* version = info_plist[@"CFBundleShortVersionString"];
+  NSString* version = [info_plist objectForKey:@"CFBundleShortVersionString"];
   if (!version)
     return nil;
   return [NSString pathWithComponents:@[
@@ -362,7 +363,7 @@ int InstallGoogleChrome(const char* source_path,
     if (!user)
       return 0;
 
-    NSString* app_path = @(source_path);
+    NSString* app_path = [NSString stringWithUTF8String:source_path];
     NSString* info_plist_path =
         [app_path stringByAppendingPathComponent:@"Contents/Info.plist"];
     NSDictionary* info_plist =
@@ -386,7 +387,7 @@ int InstallGoogleChrome(const char* source_path,
         // groups, which can lead to problems (e.g. if "admin" is one of the
         // dropped groups).
         // Since geteuid() is 0, su won't prompt for a password.
-        NSString* run_as = @(user->pw_name);
+        NSString* run_as = [NSString stringWithUTF8String:user->pw_name];
         [task setLaunchPath:@"/usr/bin/su"];
 
         NSString* single_quote_escape = @"'\"'\"'";
@@ -419,7 +420,7 @@ int InstallGoogleChrome(const char* source_path,
     }
 
     // Set brand code. If Chrome's Info.plist contains a brand code, use that.
-    NSString* info_plist_brand = info_plist[kBrandKey];
+    NSString* info_plist_brand = [info_plist objectForKey:kBrandKey];
     if (info_plist_brand &&
         [info_plist_brand respondsToSelector:@selector(UTF8String)])
       brand_code = [info_plist_brand UTF8String];
@@ -429,8 +430,9 @@ int InstallGoogleChrome(const char* source_path,
         isbrandchar(brand_code[1]) && isbrandchar(brand_code[2]) &&
         isbrandchar(brand_code[3]);
 
+    NSString* brand_path = nil;
     if (valid_brand_code)
-      WriteBrandCode(brand_code, user);
+      brand_path = WriteBrandCode(brand_code, user);
 
     // Write master prefs.
     if (master_prefs_contents)

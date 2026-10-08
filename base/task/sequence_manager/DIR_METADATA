@@ -1,3 +1,1 @@
-monorail {
-  component: "Internals>SequenceManager"
-}
+team_email: "scheduler-dev@chromium.org"

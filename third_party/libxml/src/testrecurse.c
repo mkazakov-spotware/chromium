@@ -13,10 +13,11 @@
 #include "libxml.h"
 #include <stdio.h>
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) || defined(__CYGWIN__)
 #include <unistd.h>
 #endif
 #include <string.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -55,7 +56,7 @@ struct testDesc {
 static int checkTestFile(const char *filename);
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
 
 #include <windows.h>
 #include <io.h>
@@ -642,7 +643,7 @@ static int checkTestFile(const char *filename) {
     if (stat(filename, &buf) == -1)
         return(0);
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
     if (!(buf.st_mode & _S_IFREG))
         return(0);
 #else

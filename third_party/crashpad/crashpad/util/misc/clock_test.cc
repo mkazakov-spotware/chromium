@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,10 @@
 #include <sys/types.h>
 
 #include <algorithm>
-#include <iterator>
 
 #include "base/format_macros.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
-#include "build/build_config.h"
 #include "gtest/gtest.h"
 
 namespace crashpad {
@@ -42,17 +41,17 @@ TEST(Clock, ClockMonotonicNanoseconds) {
     EXPECT_GE(now, last);
   }
 
-#if !BUILDFLAG(IS_WIN)  // No SleepNanoseconds implemented on Windows.
+#if !defined(OS_WIN)  // No SleepNanoseconds implemented on Windows.
   // SleepNanoseconds() should sleep for at least the value of the clock’s
   // resolution, so the clock’s value should definitely increase after a sleep.
   // EXPECT_GT can be used instead of EXPECT_GE after the sleep.
   SleepNanoseconds(1);
   now = ClockMonotonicNanoseconds();
   EXPECT_GT(now, start);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
-#if !BUILDFLAG(IS_WIN)  // No SleepNanoseconds implemented on Windows.
+#if !defined(OS_WIN)  // No SleepNanoseconds implemented on Windows.
 
 void TestSleepNanoseconds(uint64_t nanoseconds) {
   uint64_t start = ClockMonotonicNanoseconds();
@@ -83,7 +82,7 @@ TEST(Clock, SleepNanoseconds) {
       static_cast<uint64_t>(5E7),  // 50 milliseconds
   };
 
-  for (size_t index = 0; index < std::size(kTestData); ++index) {
+  for (size_t index = 0; index < base::size(kTestData); ++index) {
     const uint64_t nanoseconds = kTestData[index];
     SCOPED_TRACE(base::StringPrintf(
         "index %zu, nanoseconds %" PRIu64, index, nanoseconds));
@@ -92,7 +91,7 @@ TEST(Clock, SleepNanoseconds) {
   }
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 }  // namespace
 }  // namespace test

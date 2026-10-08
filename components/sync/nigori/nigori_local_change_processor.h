@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "components/sync/model/model_error.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/model_type_state.pb.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace syncer {
 
@@ -22,16 +23,14 @@ struct EntityData;
 
 struct NigoriMetadataBatch {
   NigoriMetadataBatch();
-
-  NigoriMetadataBatch(const NigoriMetadataBatch&) = delete;
-  NigoriMetadataBatch& operator=(const NigoriMetadataBatch&) = delete;
-
   NigoriMetadataBatch(NigoriMetadataBatch&& other);
-
   ~NigoriMetadataBatch();
 
   sync_pb::ModelTypeState model_type_state;
-  absl::optional<sync_pb::EntityMetadata> entity_metadata;
+  base::Optional<sync_pb::EntityMetadata> entity_metadata;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NigoriMetadataBatch);
 };
 
 // Interface analogous to ModelTypeChangeProcessor for Nigori, used to propagate
@@ -39,10 +38,6 @@ struct NigoriMetadataBatch {
 class NigoriLocalChangeProcessor {
  public:
   NigoriLocalChangeProcessor() = default;
-
-  NigoriLocalChangeProcessor(const NigoriLocalChangeProcessor&) = delete;
-  NigoriLocalChangeProcessor& operator=(const NigoriLocalChangeProcessor&) =
-      delete;
 
   virtual ~NigoriLocalChangeProcessor() = default;
 
@@ -79,6 +74,9 @@ class NigoriLocalChangeProcessor {
   // false, and ModelReadyToSync() has already been called, then Put and Delete
   // will no-op and can be omitted by bridge.
   virtual bool IsTrackingMetadata() = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NigoriLocalChangeProcessor);
 };
 
 }  // namespace syncer

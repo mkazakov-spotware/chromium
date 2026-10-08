@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -237,7 +237,8 @@ bool FromProto(const ::mojolpm::DataPipeConsumerHandle& input,
     options.capacity_num_bytes =
         std::min(input.new_().capacity_num_bytes(), kPipeCapacityMaxSize);
 
-    if (MOJO_RESULT_OK == mojo::CreateDataPipe(&options, producer, consumer)) {
+    if (MOJO_RESULT_OK ==
+        mojo::CreateDataPipe(&options, &producer, &consumer)) {
       result = true;
       output = std::move(consumer);
       mojolpm::GetContext()->AddInstance(std::move(producer));
@@ -275,7 +276,8 @@ bool FromProto(const ::mojolpm::DataPipeProducerHandle& input,
     options.capacity_num_bytes =
         std::min(input.new_().capacity_num_bytes(), kPipeCapacityMaxSize);
 
-    if (MOJO_RESULT_OK == mojo::CreateDataPipe(&options, producer, consumer)) {
+    if (MOJO_RESULT_OK ==
+        mojo::CreateDataPipe(&options, &producer, &consumer)) {
       result = true;
       output = std::move(producer);
       mojolpm::GetContext()->AddInstance(std::move(consumer));
@@ -340,7 +342,8 @@ void HandleDataPipeRead(const ::mojolpm::DataPipeRead& input) {
     options.capacity_num_bytes = std::min(
         input.handle().new_().capacity_num_bytes(), kPipeCapacityMaxSize);
 
-    if (MOJO_RESULT_OK == mojo::CreateDataPipe(&options, producer, consumer)) {
+    if (MOJO_RESULT_OK ==
+        mojo::CreateDataPipe(&options, &producer, &consumer)) {
       int id = mojolpm::GetContext()->AddInstance(std::move(consumer));
       mojolpm::GetContext()->AddInstance(std::move(producer));
       consumer_ptr = mojolpm::GetContext()
@@ -378,7 +381,8 @@ void HandleDataPipeWrite(const ::mojolpm::DataPipeWrite& input) {
     options.capacity_num_bytes = std::min(
         input.handle().new_().capacity_num_bytes(), kPipeCapacityMaxSize);
 
-    if (MOJO_RESULT_OK == mojo::CreateDataPipe(&options, producer, consumer)) {
+    if (MOJO_RESULT_OK ==
+        mojo::CreateDataPipe(&options, &producer, &consumer)) {
       mojolpm::GetContext()->AddInstance(std::move(consumer));
       int id = mojolpm::GetContext()->AddInstance(std::move(producer));
       producer_ptr = mojolpm::GetContext()

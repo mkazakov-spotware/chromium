@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
@@ -44,10 +45,6 @@ class InstanceIDHandler {
                               const std::string& extra_data)>;
 
   InstanceIDHandler();
-
-  InstanceIDHandler(const InstanceIDHandler&) = delete;
-  InstanceIDHandler& operator=(const InstanceIDHandler&) = delete;
-
   virtual ~InstanceIDHandler();
 
   // Token service.
@@ -55,6 +52,7 @@ class InstanceIDHandler {
                         const std::string& authorized_entity,
                         const std::string& scope,
                         base::TimeDelta time_to_live,
+                        const std::map<std::string, std::string>& options,
                         GetTokenCallback callback) = 0;
   virtual void ValidateToken(const std::string& app_id,
                              const std::string& authorized_entity,
@@ -75,6 +73,9 @@ class InstanceIDHandler {
   virtual void RemoveInstanceIDData(const std::string& app_id) = 0;
   virtual void GetInstanceIDData(const std::string& app_id,
                                  GetInstanceIDDataCallback callback) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InstanceIDHandler);
 };
 
 // Bridge between GCM users in Chrome and the platform-specific implementation.
@@ -111,10 +112,6 @@ class GCMDriver {
   GCMDriver(
       const base::FilePath& store_path,
       const scoped_refptr<base::SequencedTaskRunner>& blocking_task_runner);
-
-  GCMDriver(const GCMDriver&) = delete;
-  GCMDriver& operator=(const GCMDriver&) = delete;
-
   virtual ~GCMDriver();
 
   // Registers |sender_ids| for an app. *Use |InstanceID| instead in new code.*
@@ -260,6 +257,10 @@ class GCMDriver {
   virtual base::Time GetLastTokenFetchTime() = 0;
   virtual void SetLastTokenFetchTime(const base::Time& time) = 0;
 
+  // Sets whether or not GCM should try to wake the system from suspend in order
+  // to send a heartbeat message.
+  virtual void WakeFromSuspendForHeartbeat(bool wake) = 0;
+
   // These methods must only be used by the InstanceID system.
   // The InstanceIDHandler provides an implementation for the InstanceID system.
   virtual InstanceIDHandler* GetInstanceIDHandlerInternal() = 0;
@@ -388,6 +389,8 @@ class GCMDriver {
   GCMAppHandlerMap app_handlers_;
 
   base::WeakPtrFactory<GCMDriver> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GCMDriver);
 };
 
 }  // namespace gcm

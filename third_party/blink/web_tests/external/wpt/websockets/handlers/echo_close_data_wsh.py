@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import six
+from mod_pywebsocket import msgutil
 
 _GOODBYE_MESSAGE = u'Goodbye'
 
@@ -14,7 +16,7 @@ def web_socket_transfer_data(request):
         line = request.ws_stream.receive_message()
         if line is None:
             return
-        if isinstance(line, str):
+        if isinstance(line, six.text_type):
             if line == _GOODBYE_MESSAGE:
                 return
                 request.ws_stream.send_message(line, binary=False)

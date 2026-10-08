@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.ModalPopupTest');
 goog.setTestOnly();
@@ -55,11 +63,9 @@ testSuite({
     aria.removeState(main, State.HIDDEN);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testOrientationChange() {
     let i = 0;
     popup = new ModalPopup();
-    /** @suppress {visibility} suppression added to enable type checking */
     popup.resizeBackgroundTask_ = () => {
       i++;
     };
@@ -198,10 +204,6 @@ testSuite({
       beforeShowCallCount++;
     };
     let showCallCount = false;
-    /**
-     * @suppress {strictPrimitiveOperators} suppression added to enable type
-     * checking
-     */
     const showHandler = () => {
       assertEquals(
           'BEFORE_SHOW is not dispatched before SHOW', 1, beforeShowCallCount);
@@ -227,10 +229,6 @@ testSuite({
       beforeHideCallCount++;
     };
     let hideCallCount = false;
-    /**
-     * @suppress {strictPrimitiveOperators} suppression added to enable type
-     * checking
-     */
     const hideHandler = () => {
       assertEquals(
           'BEFORE_HIDE is not dispatched before HIDE', 1, beforeHideCallCount);
@@ -433,7 +431,6 @@ testSuite({
     }
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSetupBackwardTabWrapResetsFlagAfterTimeout() {
     popup.setupBackwardTabWrap();
     assertTrue(

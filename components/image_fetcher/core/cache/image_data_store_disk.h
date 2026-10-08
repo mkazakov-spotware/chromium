@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/image_fetcher/core/cache/image_data_store.h"
 #include "components/image_fetcher/core/cache/image_store_types.h"
@@ -25,10 +26,6 @@ class ImageDataStoreDisk : public ImageDataStore {
   // be postfixed with a special directory.
   ImageDataStoreDisk(base::FilePath generic_storage_path,
                      scoped_refptr<base::SequencedTaskRunner> task_runner);
-
-  ImageDataStoreDisk(const ImageDataStoreDisk&) = delete;
-  ImageDataStoreDisk& operator=(const ImageDataStoreDisk&) = delete;
-
   ~ImageDataStoreDisk() override;
 
   // ImageDataStorage:
@@ -64,6 +61,8 @@ class ImageDataStoreDisk : public ImageDataStore {
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   base::WeakPtrFactory<ImageDataStoreDisk> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImageDataStoreDisk);
 };
 }  // namespace image_fetcher
 

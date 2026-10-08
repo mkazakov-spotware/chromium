@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@ IN_PROC_BROWSER_TEST_F(StatusBubbleMacInteractiveUITest,
   EXPECT_FALSE(NSApp.hidden);
   [NSApp hide:nil];
   EXPECT_TRUE(NSApp.hidden);
-  status_bubble->SetStatus(u"Testing");
+  status_bubble->SetStatus(base::UTF8ToUTF16("Testing"));
   EXPECT_TRUE(NSApp.hidden);
   [NSApp unhide:nil];
   EXPECT_FALSE(NSApp.hidden);

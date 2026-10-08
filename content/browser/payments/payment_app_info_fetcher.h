@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,17 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/stored_payment_app.h"
-#include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "third_party/blink/public/common/manifest/manifest.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
 namespace content {
 
-// Lives on the UI thread.
 class PaymentAppInfoFetcher {
  public:
   struct PaymentAppInfo {
@@ -32,27 +33,36 @@ class PaymentAppInfoFetcher {
   using PaymentAppInfoFetchCallback =
       base::OnceCallback<void(std::unique_ptr<PaymentAppInfo> app_info)>;
 
-  PaymentAppInfoFetcher() = delete;
-  PaymentAppInfoFetcher(const PaymentAppInfoFetcher&) = delete;
-  PaymentAppInfoFetcher& operator=(const PaymentAppInfoFetcher&) = delete;
-
+  // Only accessed on the service worker core thread.
   static void Start(
       const GURL& context_url,
       scoped_refptr<ServiceWorkerContextWrapper> service_worker_context,
       PaymentAppInfoFetchCallback callback);
 
  private:
+  // Only accessed on the UI thread.
+  static void StartOnUI(
+      const GURL& context_url,
+      const std::unique_ptr<std::vector<GlobalFrameRoutingId>>&
+          frame_routing_ids,
+      PaymentAppInfoFetchCallback callback);
+
+  // Keeps track of the web contents.
+  // Only accessed on the UI thread.
+  class WebContentsHelper : public WebContentsObserver {
+   public:
+    explicit WebContentsHelper(WebContents* web_contents);
+    ~WebContentsHelper() override;
+  };
+
+  // Only accessed on the UI thread.
   class SelfDeleteFetcher {
    public:
     explicit SelfDeleteFetcher(PaymentAppInfoFetchCallback callback);
-
-    SelfDeleteFetcher(const SelfDeleteFetcher&) = delete;
-    SelfDeleteFetcher& operator=(const SelfDeleteFetcher&) = delete;
-
     ~SelfDeleteFetcher();
 
     void Start(const GURL& context_url,
-               const std::unique_ptr<std::vector<GlobalRenderFrameHostId>>&
+               const std::unique_ptr<std::vector<GlobalFrameRoutingId>>&
                    frame_routing_ids);
 
    private:
@@ -60,7 +70,7 @@ class PaymentAppInfoFetcher {
 
     // The WebContents::GetManifestCallback.
     void FetchPaymentAppManifestCallback(const GURL& url,
-                                         blink::mojom::ManifestPtr manifest);
+                                         const blink::Manifest& manifest);
 
     // The ManifestIconDownloader::IconFetchCallback.
     void OnIconFetched(const SkBitmap& icon);
@@ -71,11 +81,15 @@ class PaymentAppInfoFetcher {
 
     GURL manifest_url_;
     GURL icon_url_;
-    base::WeakPtr<WebContents> web_contents_;
+    std::unique_ptr<WebContentsHelper> web_contents_helper_;
     std::unique_ptr<PaymentAppInfo> fetched_payment_app_info_;
     PaymentAppInfoFetchCallback callback_;
     base::WeakPtrFactory<SelfDeleteFetcher> weak_ptr_factory_{this};
+
+    DISALLOW_COPY_AND_ASSIGN(SelfDeleteFetcher);
   };
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PaymentAppInfoFetcher);
 };
 
 }  // namespace content

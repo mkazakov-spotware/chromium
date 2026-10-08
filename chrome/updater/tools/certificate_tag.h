@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace updater {
 namespace tools {
@@ -24,15 +24,15 @@ class Binary {
 
   // Parse a signed, Windows PE binary. Note that the returned structure
   // contains pointers into the given data.
-  static absl::optional<Binary> Parse(base::span<const uint8_t> binary);
+  static base::Optional<Binary> Parse(base::span<const uint8_t> binary);
 
   // tag returns the embedded tag, if any.
-  const absl::optional<base::span<const uint8_t>>& tag() const;
+  const base::Optional<base::span<const uint8_t>>& tag() const;
 
   // SetTag returns an updated version of the binary that contains the given
   // tag, or |nullopt| on error. If the binary already contains a tag then it
   // will be replaced.
-  absl::optional<std::vector<uint8_t>> SetTag(
+  base::Optional<std::vector<uint8_t>> SetTag(
       base::span<const uint8_t> tag) const;
 
  private:
@@ -49,7 +49,7 @@ class Binary {
   base::span<const uint8_t> content_info_;
 
   // tag_ contains the embedded tag, or |nullopt| if there isn't one.
-  absl::optional<base::span<const uint8_t>> tag_;
+  base::Optional<base::span<const uint8_t>> tag_;
 
   // attr_cert_offset_ is the offset in the file where the |WIN_CERTIFICATE|
   // structure appears. (This is the last structure in the file.)

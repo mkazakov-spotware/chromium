@@ -1,18 +1,18 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 var exceptionHandler = require('uncaught_exception_handler');
-var SetIconCommon = requireNative('setIcon').SetIconCommon;
-var inServiceWorker = requireNative('utils').isInServiceWorker();
+var natives = requireNative('setIcon');
+var SetIconCommon = natives.SetIconCommon;
+var inServiceWorker = natives.IsInServiceWorker();
 
 function loadImagePathForServiceWorker(path, callback, failureCallback) {
   let fetchPromise = fetch(path);
 
   let blobPromise = $Promise.then(fetchPromise, (response) => {
     if (!response.ok) {
-      // This error is caught below.
-      throw $Error.self('Response from fetching icon not ok.');
+      throw $Error.self('Could not fetch action icon \'' + path + '\'.');
     }
     return response.blob();
   });
@@ -32,9 +32,7 @@ function loadImagePathForServiceWorker(path, callback, failureCallback) {
   });
 
   $Promise.catch(imageDataPromise, function(error) {
-    var message = `Failed to set icon '${path}': ` +
-        exceptionHandler.safeErrorToString(error, true);
-    failureCallback(message);
+    failureCallback(exceptionHandler.safeErrorToString(error, true));
   });
 }
 
@@ -43,7 +41,6 @@ function loadImagePathForNonServiceWorker(path, callback, failureCallback) {
   img.onerror = function() {
     var message = 'Could not load action icon \'' + path + '\'.';
     console.error(message);
-    failureCallback(message);
   };
   img.onload = function() {
     var canvas = document.createElement('canvas');
@@ -136,21 +133,11 @@ function setIcon(details, callback, failureCallback) {
       var detailKeyCount = 0;
       for (var iconSize in details.path) {
         ++detailKeyCount;
-        loadImagePath(
-            details.path[iconSize],
-            function(size, imageData) {
-              details.imageData[size] = imageData;
-              if (--detailKeyCount == 0) {
-                callback(SetIconCommon(details));
-              }
-            }.bind(null, iconSize),
-            function(errorMessage) {
-              if (failureCallback) {
-                failureCallback(errorMessage);
-                // Only report the first error.
-                failureCallback = null;
-              }
-            });
+        loadImagePath(details.path[iconSize], function(size, imageData) {
+          details.imageData[size] = imageData;
+          if (--detailKeyCount == 0)
+            callback(SetIconCommon(details));
+        }.bind(null, iconSize), failureCallback);
       }
       if (detailKeyCount == 0)
         throw new Error('The path property must not be empty.');
@@ -167,21 +154,4 @@ function setIcon(details, callback, failureCallback) {
   throw new Error('Either the path or imageData property must be specified.');
 }
 
-// Returns a common handler function used by several extension APIs when setting
-// the extension icon.
-function getSetIconHandler(methodName) {
-  return function(details, successCallback, failureCallback) {
-    var onIconRetrieved = function(iconSpec) {
-      bindingUtil.sendRequest(
-          methodName, [iconSpec, successCallback],
-          /*options=*/ undefined);
-    };
-    setIcon(details, onIconRetrieved, failureCallback);
-  };
-}
-
-// TODO(crbug.com/462542): The setIcon export is only used by the declarative
-// content custom bindings and it actually has some major problems with how it
-// uses it. When that is resolved we can likely remove this export.
 exports.$set('setIcon', setIcon);
-exports.$set('getSetIconHandler', getSetIconHandler);

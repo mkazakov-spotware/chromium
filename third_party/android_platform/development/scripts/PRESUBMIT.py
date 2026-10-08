@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """scripts presubmit script
@@ -8,27 +8,23 @@ for more details about the presubmit API built into depot_tools.
 """
 
 
-USE_PYTHON3 = True
-
-
 def CommonChecks(input_api, output_api):
   output = []
-  output.extend(
-    input_api.canned_checks.RunPylint(input_api, output_api, version='2.6'))
+  output.extend(input_api.canned_checks.RunPylint(input_api, output_api))
 
-  # These tests fail on Windows and don't need to run there.
-  if not input_api.is_windows:
-    py_tests = input_api.canned_checks.GetUnitTestsRecursively(
-        input_api,
-        output_api,
-        input_api.PresubmitLocalPath(),
-        files_to_check=[r'.+_test\.py$'],
-        files_to_skip=[],
-        run_on_python2=False,
-        run_on_python3=True,
-        skip_shebang_check=True)
+  py_tests = input_api.canned_checks.GetUnitTestsRecursively(
+      input_api,
+      output_api,
+      input_api.PresubmitLocalPath(),
+      files_to_check=[r'.+_test\.py$'],
+      files_to_skip=[])
 
-    output.extend(input_api.RunTests(py_tests, False))
+  output.extend(input_api.RunTests(py_tests, False))
+
+  if input_api.is_committing:
+    output.extend(
+        input_api.canned_checks.PanProjectChecks(
+            input_api, output_api, owners_check=False))
   return output
 
 

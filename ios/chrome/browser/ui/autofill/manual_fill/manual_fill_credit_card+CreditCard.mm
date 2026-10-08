@@ -1,16 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/manual_fill/manual_fill_credit_card+CreditCard.h"
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/autofill/core/browser/autofill_data_util.h"
-#import "components/autofill/core/browser/data_model/credit_card.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/autofill/core/browser/autofill_data_util.h"
+#include "components/autofill/core/browser/data_model/credit_card.h"
 #import "components/autofill/ios/browser/credit_card_util.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "url/gurl.h"
+#include "ios/chrome/browser/application_context.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -38,15 +38,12 @@
   // Unicode characters used in card number:
   //  - 0x0020 - Space.
   //  - 0x2060 - WORD-JOINER (makes string undivisible).
-  constexpr char16_t separator[] = {0x2060, 0x0020, 0};
-  const std::u16string digits = creditCard.LastFourDigits();
-  NSString* obfuscatedNumber =
-      base::SysUTF16ToNSString(autofill::CreditCard::GetMidlineEllipsisDots(4) +
-                               std::u16string(separator) +
-                               autofill::CreditCard::GetMidlineEllipsisDots(4) +
-                               std::u16string(separator) +
-                               autofill::CreditCard::GetMidlineEllipsisDots(4) +
-                               std::u16string(separator) + digits);
+  constexpr base::char16 separator[] = {0x2060, 0x0020, 0};
+  const base::string16 digits = creditCard.LastFourDigits();
+  NSString* obfuscatedNumber = base::SysUTF16ToNSString(
+      autofill::kMidlineEllipsis + base::string16(separator) +
+      autofill::kMidlineEllipsis + base::string16(separator) +
+      autofill::kMidlineEllipsis + base::string16(separator) + digits);
 
   // Use 2 digits year.
   NSString* expirationYear =

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
-#include "chrome/common/chrome_switches.h"
 
 namespace {
 
@@ -52,22 +51,13 @@ int WINAPI wWinMain(HINSTANCE instance,
   base::CommandLine chrome_command_line(chrome_dir.Append(kChromeExecutable));
 
   // Forward all command line arguments.
-  const std::vector<std::wstring>& argv =
+  const std::vector<base::string16>& argv =
       base::CommandLine::ForCurrentProcess()->argv();
   // The first one is always the current executable path.
   CHECK(argv.size() > 0);
   CHECK_EQ(base::FilePath(argv[0]).BaseName().value(), kChromeProxyExecutable);
   for (size_t i = 1; i < argv.size(); ++i)
     chrome_command_line.AppendArgNative(argv[i]);
-
-  // Pass to Chrome the path of the shortcut, if any, that launched
-  // chrome_proxy.exe. This is used to record LaunchMode metrics.
-  STARTUPINFOW si = {sizeof(si)};
-  ::GetStartupInfoW(&si);
-  if (si.dwFlags & STARTF_TITLEISLINKNAME) {
-    chrome_command_line.AppendSwitchNative(switches::kSourceShortcut,
-                                           si.lpTitle);
-  }
 
   base::LaunchOptions launch_options;
   launch_options.current_directory = chrome_dir;

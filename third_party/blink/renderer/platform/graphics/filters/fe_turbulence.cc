@@ -25,9 +25,10 @@
 
 #include "third_party/blink/renderer/platform/graphics/filters/fe_turbulence.h"
 
-#include "base/types/optional_util.h"
 #include "third_party/blink/renderer/platform/graphics/filters/filter.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_stream.h"
+#include "third_party/skia/include/effects/SkPaintImageFilter.h"
+#include "third_party/skia/include/effects/SkPerlinNoiseShader.h"
 
 namespace blink {
 
@@ -122,13 +123,13 @@ sk_sp<PaintFilter> FETurbulence::CreateImageFilter() {
     base_frequency_x = base_frequency_y = 0;
   }
 
-  absl::optional<PaintFilter::CropRect> crop_rect = GetCropRect();
+  PaintFilter::CropRect rect = GetCropRect();
   TurbulencePaintFilter::TurbulenceType type =
       GetType() == FETURBULENCE_TYPE_FRACTALNOISE
           ? TurbulencePaintFilter::TurbulenceType::kFractalNoise
           : TurbulencePaintFilter::TurbulenceType::kTurbulence;
-  const SkISize size = SkISize::Make(FilterPrimitiveSubregion().width(),
-                                     FilterPrimitiveSubregion().height());
+  const SkISize size = SkISize::Make(FilterPrimitiveSubregion().Width(),
+                                     FilterPrimitiveSubregion().Height());
   // Frequency should be scaled by page zoom, but not by primitiveUnits.
   // So we apply only the transform scale (as Filter::apply*Scale() do)
   // and not the target bounding box scale (as SVGFilter::apply*Scale()
@@ -143,8 +144,7 @@ sk_sp<PaintFilter> FETurbulence::CreateImageFilter() {
   return sk_make_sp<TurbulencePaintFilter>(
       type, SkFloatToScalar(base_frequency_x),
       SkFloatToScalar(base_frequency_y), capped_num_octaves,
-      SkFloatToScalar(Seed()), StitchTiles() ? &size : nullptr,
-      base::OptionalToPtr(crop_rect));
+      SkFloatToScalar(Seed()), StitchTiles() ? &size : nullptr, &rect);
 }
 
 static WTF::TextStream& operator<<(WTF::TextStream& ts,

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,6 +26,9 @@
                                       StartupInformation,
                                       BrowsingDataCommands,
                                       AppStateObserver>
+
+// The application window.
+@property(nonatomic, strong) UIWindow* window;
 
 // Contains information about the application state, for example whether the
 // safe mode is activated.

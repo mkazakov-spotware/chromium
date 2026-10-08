@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
@@ -41,6 +38,21 @@ class IPC_MESSAGE_SUPPORT_EXPORT SyncMessage : public Message {
   // Note that this can only be called once, and the caller is responsible
   // for deleting the deserializer when they're done.
   MessageReplyDeserializer* GetReplyDeserializer();
+
+  // If this message can cause the receiver to block while waiting for user
+  // input (i.e. by calling MessageBox), then the caller needs to pump window
+  // messages and dispatch asynchronous messages while waiting for the reply.
+  // This call enables message pumping behavior while waiting for a reply to
+  // this message.
+  void EnableMessagePumping() {
+    header()->flags |= PUMPING_MSGS_BIT;
+  }
+
+  // Indicates whether window messages should be pumped while waiting for a
+  // reply to this message.
+  bool ShouldPumpMessages() const {
+    return (header()->flags & PUMPING_MSGS_BIT) != 0;
+  }
 
   // Returns true if the message is a reply to the given request id.
   static bool IsMessageReplyTo(const Message& msg, int request_id);
@@ -86,8 +98,8 @@ struct PendingSyncMsg {
       : id(id), deserializer(d), done_event(e), send_result(false) {}
 
   int id;
-  raw_ptr<MessageReplyDeserializer, DanglingUntriaged> deserializer;
-  raw_ptr<base::WaitableEvent, DanglingUntriaged> done_event;
+  MessageReplyDeserializer* deserializer;
+  base::WaitableEvent* done_event;
   bool send_result;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -110,7 +110,7 @@ void WINAPI ServiceMain(DWORD argc, LPTSTR* argv) {
   // terminated at any time.
 }
 
-constexpr wchar_t kLogFileExtension[] = L"log";
+constexpr base::char16 kLogFileExtension[] = L"log";
 
 }  // namespace
 
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
   // Service main.
 
   // SERVICE_TABLE_ENTRY::lpServiceName takes a non-const string.
-  wchar_t empty_string[] = L"";
+  base::char16 empty_string[] = L"";
 
   SERVICE_TABLE_ENTRY dispatch_table[] = {{empty_string, ServiceMain},
                                           {nullptr, nullptr}};

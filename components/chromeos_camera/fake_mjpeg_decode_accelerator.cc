@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/memory/shared_memory_mapping.h"
-#include "base/memory/unsafe_shared_memory_region.h"
-#include "base/task/single_thread_task_runner.h"
-#include "media/base/bind_to_current_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "media/base/unaligned_shared_memory.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_types.h"
 
@@ -19,7 +18,7 @@ namespace chromeos_camera {
 
 FakeMjpegDecodeAccelerator::FakeMjpegDecodeAccelerator(
     const scoped_refptr<base::SingleThreadTaskRunner>& io_task_runner)
-    : client_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : client_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       io_task_runner_(std::move(io_task_runner)),
       decoder_thread_("FakeMjpegDecoderThread") {}
 
@@ -27,32 +26,18 @@ FakeMjpegDecodeAccelerator::~FakeMjpegDecodeAccelerator() {
   DCHECK(client_task_runner_->BelongsToCurrentThread());
 }
 
-void FakeMjpegDecodeAccelerator::InitializeOnTaskRunner(
-    MjpegDecodeAccelerator::Client* client,
-    InitCB init_cb) {
+bool FakeMjpegDecodeAccelerator::Initialize(
+    MjpegDecodeAccelerator::Client* client) {
   DCHECK(client_task_runner_->BelongsToCurrentThread());
   client_ = client;
 
   if (!decoder_thread_.Start()) {
     DLOG(ERROR) << "Failed to start decoding thread.";
-    std::move(init_cb).Run(false);
-    return;
+    return false;
   }
-
   decoder_task_runner_ = decoder_thread_.task_runner();
-  std::move(init_cb).Run(true);
-}
 
-void FakeMjpegDecodeAccelerator::InitializeAsync(
-    MjpegDecodeAccelerator::Client* client,
-    InitCB init_cb) {
-  DCHECK(client_task_runner_->BelongsToCurrentThread());
-
-  client_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&FakeMjpegDecodeAccelerator::InitializeOnTaskRunner,
-                     weak_factory_.GetWeakPtr(), client,
-                     media::BindToCurrentLoop(std::move(init_cb))));
+  return true;
 }
 
 void FakeMjpegDecodeAccelerator::Decode(
@@ -60,10 +45,10 @@ void FakeMjpegDecodeAccelerator::Decode(
     scoped_refptr<media::VideoFrame> video_frame) {
   DCHECK(io_task_runner_->BelongsToCurrentThread());
 
-  base::UnsafeSharedMemoryRegion src_shm_region = bitstream_buffer.TakeRegion();
-  base::WritableSharedMemoryMapping src_shm_mapping =
-      src_shm_region.MapAt(bitstream_buffer.offset(), bitstream_buffer.size());
-  if (!src_shm_mapping.IsValid()) {
+  auto src_shm = std::make_unique<media::UnalignedSharedMemory>(
+      bitstream_buffer.TakeRegion(), bitstream_buffer.size(),
+      false /* read_only */);
+  if (!src_shm->MapAt(bitstream_buffer.offset(), bitstream_buffer.size())) {
     DLOG(ERROR) << "Unable to map shared memory in FakeMjpegDecodeAccelerator";
     NotifyError(bitstream_buffer.id(),
                 MjpegDecodeAccelerator::UNREADABLE_INPUT);
@@ -75,7 +60,7 @@ void FakeMjpegDecodeAccelerator::Decode(
       FROM_HERE,
       base::BindOnce(&FakeMjpegDecodeAccelerator::DecodeOnDecoderThread,
                      base::Unretained(this), bitstream_buffer.id(),
-                     std::move(video_frame), std::move(src_shm_mapping)));
+                     std::move(video_frame), std::move(src_shm)));
 }
 
 void FakeMjpegDecodeAccelerator::Decode(
@@ -90,14 +75,14 @@ void FakeMjpegDecodeAccelerator::Decode(
 void FakeMjpegDecodeAccelerator::DecodeOnDecoderThread(
     int32_t task_id,
     scoped_refptr<media::VideoFrame> video_frame,
-    base::WritableSharedMemoryMapping src_shm_mapping) {
+    std::unique_ptr<media::UnalignedSharedMemory> src_shm) {
   DCHECK(decoder_task_runner_->BelongsToCurrentThread());
 
   // Do not actually decode the Jpeg data.
   // Instead, just fill the output buffer with zeros.
   size_t allocation_size = media::VideoFrame::AllocationSize(
       media::PIXEL_FORMAT_I420, video_frame->coded_size());
-  memset(video_frame->writable_data(0), 0, allocation_size);
+  memset(video_frame->data(0), 0, allocation_size);
 
   client_task_runner_->PostTask(
       FROM_HERE,

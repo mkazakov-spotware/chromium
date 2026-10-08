@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,15 @@
 #include <memory>
 #include <vector>
 
+#include "build/build_config.h"
+#include "content/common/content_export.h"
+
 namespace content {
 
 class ZygoteForkDelegate;
 
 // |delegate| must outlive this call.
-bool ZygoteMain(
+CONTENT_EXPORT bool ZygoteMain(
     std::vector<std::unique_ptr<ZygoteForkDelegate>> fork_delegates);
 
 }  // namespace content

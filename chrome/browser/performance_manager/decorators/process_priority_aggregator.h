@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,6 @@ class ProcessPriorityAggregator
   class Data;
 
   ProcessPriorityAggregator();
-
-  ProcessPriorityAggregator(const ProcessPriorityAggregator&) = delete;
-  ProcessPriorityAggregator& operator=(const ProcessPriorityAggregator&) =
-      delete;
-
   ~ProcessPriorityAggregator() override;
 
   // GraphObserver implementation:
@@ -59,6 +54,9 @@ class ProcessPriorityAggregator
       const execution_context::ExecutionContext* ec,
       const execution_context_priority::PriorityAndReason& previous_value)
       override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ProcessPriorityAggregator);
 };
 
 // This struct is attached to process nodes using NodeAttachedData.

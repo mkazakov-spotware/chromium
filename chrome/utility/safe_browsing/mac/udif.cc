@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,14 @@
 #include <uuid/uuid.h>
 
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include "base/logging.h"
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_cftyperef.h"
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
-#include "base/numerics/ostream_operators.h"
 #include "base/numerics/safe_math.h"
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/utility/safe_browsing/mac/convert_big_endian.h"
 #include "chrome/utility/safe_browsing/mac/read_stream.h"
@@ -44,7 +42,7 @@ struct UDIFChecksum {
 static void ConvertBigEndian(UDIFChecksum* checksum) {
   ConvertBigEndian(&checksum->type);
   ConvertBigEndian(&checksum->size);
-  for (size_t i = 0; i < std::size(checksum->data); ++i) {
+  for (size_t i = 0; i < base::size(checksum->data); ++i) {
     ConvertBigEndian(&checksum->data[i]);
   }
 }
@@ -79,7 +77,7 @@ struct UDIFResourceFile {
 
   uint8_t  reserved2[40];
 
-  UDIFChecksum main_checksum;
+  UDIFChecksum master_checksum;
 
   uint32_t image_variant;
   uint64_t sector_count;
@@ -111,7 +109,7 @@ static void ConvertBigEndian(UDIFResourceFile* file) {
   ConvertBigEndian(&file->plist_length);
   ConvertBigEndian(&file->code_signature_offset);
   ConvertBigEndian(&file->code_signature_length);
-  ConvertBigEndian(&file->main_checksum);
+  ConvertBigEndian(&file->master_checksum);
   ConvertBigEndian(&file->image_variant);
   ConvertBigEndian(&file->sector_count);
   // Reserved fields are skipped.
@@ -192,9 +190,6 @@ class UDIFBlock {
  public:
   UDIFBlock() : block_() {}
 
-  UDIFBlock(const UDIFBlock&) = delete;
-  UDIFBlock& operator=(const UDIFBlock&) = delete;
-
   bool ParseBlockData(const UDIFBlockData* block_data,
                       size_t block_data_size,
                       uint16_t sector_size) {
@@ -269,6 +264,8 @@ class UDIFBlock {
  private:
   UDIFBlockData block_;
   std::vector<UDIFBlockChunk> chunks_;
+
+  DISALLOW_COPY_AND_ASSIGN(UDIFBlock);
 };
 
 #pragma pack(pop)
@@ -286,10 +283,6 @@ class UDIFPartitionReadStream : public ReadStream {
   UDIFPartitionReadStream(ReadStream* stream,
                           uint16_t block_size,
                           const UDIFBlock* partition_block);
-
-  UDIFPartitionReadStream(const UDIFPartitionReadStream&) = delete;
-  UDIFPartitionReadStream& operator=(const UDIFPartitionReadStream&) = delete;
-
   ~UDIFPartitionReadStream() override;
 
   bool Read(uint8_t* buffer, size_t buffer_size, size_t* bytes_read) override;
@@ -297,12 +290,14 @@ class UDIFPartitionReadStream : public ReadStream {
   off_t Seek(off_t offset, int whence) override;
 
  private:
-  const raw_ptr<ReadStream> stream_;  // The UDIF stream.
+  ReadStream* const stream_;  // The UDIF stream.
   const uint16_t block_size_;  // The UDIF block size.
-  const raw_ptr<const UDIFBlock> block_;  // The block for this partition.
+  const UDIFBlock* const block_;  // The block for this partition.
   uint64_t current_chunk_;  // The current chunk number.
   // The current chunk stream.
   std::unique_ptr<UDIFBlockChunkReadStream> chunk_stream_;
+
+  DISALLOW_COPY_AND_ASSIGN(UDIFPartitionReadStream);
 };
 
 // A ReadStream for a single block chunk, which transparently handles
@@ -312,10 +307,6 @@ class UDIFBlockChunkReadStream : public ReadStream {
   UDIFBlockChunkReadStream(ReadStream* stream,
                            uint16_t block_size,
                            const UDIFBlockChunk* chunk);
-
-  UDIFBlockChunkReadStream(const UDIFBlockChunkReadStream&) = delete;
-  UDIFBlockChunkReadStream& operator=(const UDIFBlockChunkReadStream&) = delete;
-
   ~UDIFBlockChunkReadStream() override;
 
   bool Read(uint8_t* buffer, size_t buffer_size, size_t* bytes_read) override;
@@ -341,12 +332,14 @@ class UDIFBlockChunkReadStream : public ReadStream {
   // |chunk_->compressed_offset| into |out_data|.
   bool ReadCompressedData(std::vector<uint8_t>* out_data);
 
-  const raw_ptr<ReadStream> stream_;           // The UDIF stream.
-  const raw_ptr<const UDIFBlockChunk> chunk_;  // The chunk to be read.
+  ReadStream* const stream_;  // The UDIF stream.
+  const UDIFBlockChunk* const chunk_;  // The chunk to be read.
   size_t length_in_bytes_;  // The decompressed length in bytes.
   size_t offset_;  // The offset into the decompressed buffer.
   std::vector<uint8_t> decompress_buffer_;  // Decompressed data buffer.
   bool did_decompress_;  // Whether or not the chunk has been decompressed.
+
+  DISALLOW_COPY_AND_ASSIGN(UDIFBlockChunkReadStream);
 };
 
 }  // namespace
@@ -465,11 +458,14 @@ bool UDIFParser::ParseBlkx() {
   }
 
   CFErrorRef error = nullptr;
-  base::ScopedCFTypeRef<CFPropertyListRef> plist(
-      CFPropertyListCreateWithData(kCFAllocatorDefault, plist_data,
-                                   kCFPropertyListImmutable, nullptr, &error));
-
-  CFDictionaryRef plist_dict = base::mac::CFCast<CFDictionaryRef>(plist.get());
+  base::ScopedCFTypeRef<CFDictionaryRef> plist(
+      base::mac::CFCast<CFDictionaryRef>(
+           CFPropertyListCreateWithData(kCFAllocatorDefault,
+                                        plist_data,
+                                        kCFPropertyListImmutable,
+                                        nullptr,
+                                        &error)),
+      base::scoped_policy::RETAIN);
   base::ScopedCFTypeRef<CFErrorRef> error_ref(error);
   if (error) {
     base::ScopedCFTypeRef<CFStringRef> error_string(
@@ -479,13 +475,13 @@ bool UDIFParser::ParseBlkx() {
     return false;
   }
 
-  if (!plist_dict) {
+  if (!plist) {
     DLOG(ERROR) << "Plist is not a dictionary";
     return false;
   }
 
   auto* resource_fork = base::mac::GetValueFromDictionary<CFDictionaryRef>(
-      plist_dict, CFSTR("resource-fork"));
+      plist.get(), CFSTR("resource-fork"));
   if (!resource_fork) {
     DLOG(ERROR) << "No resource-fork entry in plist";
     return false;
@@ -634,8 +630,8 @@ bool UDIFPartitionReadStream::Read(uint8_t* buffer,
     // A chunk stream may exist if the last read from this chunk was partial,
     // or if the stream was Seek()ed.
     if (!chunk_stream_) {
-      chunk_stream_ = std::make_unique<UDIFBlockChunkReadStream>(
-          stream_, block_size_, chunk);
+      chunk_stream_.reset(
+          new UDIFBlockChunkReadStream(stream_, block_size_, chunk));
     }
     DCHECK_EQ(chunk, chunk_stream_->chunk());
 
@@ -715,8 +711,8 @@ off_t UDIFPartitionReadStream::Seek(off_t offset, int whence) {
   }
 
   if (!chunk_stream_ || chunk != chunk_stream_->chunk()) {
-    chunk_stream_ =
-        std::make_unique<UDIFBlockChunkReadStream>(stream_, block_size_, chunk);
+    chunk_stream_.reset(
+        new UDIFBlockChunkReadStream(stream_, block_size_, chunk));
   }
   current_chunk_ = chunk_number;
   if (chunk_stream_->Seek(

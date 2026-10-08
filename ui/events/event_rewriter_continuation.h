@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,14 +19,15 @@ class EventRewriterContinuation {
   virtual ~EventRewriterContinuation() = default;
 
   // Send an event to the sink, via any later rewriters.
-  [[nodiscard]] virtual EventDispatchDetails SendEvent(const Event* event) = 0;
+  virtual EventDispatchDetails SendEvent(const Event* event)
+      WARN_UNUSED_RESULT = 0;
 
   // Send an event directly to the sink, bypassing any later rewriters.
-  [[nodiscard]] virtual EventDispatchDetails SendEventFinally(
-      const Event* event) = 0;
+  virtual EventDispatchDetails SendEventFinally(const Event* event)
+      WARN_UNUSED_RESULT = 0;
 
   // Discard an event, bypassing any later rewriters.
-  [[nodiscard]] virtual EventDispatchDetails DiscardEvent() = 0;
+  virtual EventDispatchDetails DiscardEvent() WARN_UNUSED_RESULT = 0;
 };
 
 }  // namespace ui

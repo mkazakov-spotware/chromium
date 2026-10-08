@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "ash/public/cpp/ash_public_export.h"
 #include "ash/public/cpp/ime_controller_client.h"
 #include "ash/public/cpp/ime_info.h"
+#include "base/strings/string16.h"
 
 namespace gfx {
 class Rect;
@@ -71,7 +72,7 @@ class ASH_PUBLIC_EXPORT ImeController {
   // The view fades out after a delay and close itself.
   // The anchor bounds is in the universal screen coordinates in DIP.
   virtual void ShowModeIndicator(const gfx::Rect& anchor_bounds,
-                                 const std::u16string& ime_short_name) = 0;
+                                 const base::string16& ime_short_name) = 0;
 
  protected:
   ImeController();

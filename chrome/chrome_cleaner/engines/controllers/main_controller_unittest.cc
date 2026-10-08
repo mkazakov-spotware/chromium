@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "chrome/chrome_cleaner/engines/controllers/main_controller.h"
@@ -10,14 +10,13 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/chrome_cleaner/components/component_api.h"
 #include "chrome/chrome_cleaner/components/component_manager.h"
 #include "chrome/chrome_cleaner/constants/chrome_cleaner_switches.h"
 #include "chrome/chrome_cleaner/ipc/chrome_prompt_ipc.h"
-#include "chrome/chrome_cleaner/ipc/chrome_prompt_test_util.h"
+#include "chrome/chrome_cleaner/ipc/mock_chrome_prompt_ipc.h"
 #include "chrome/chrome_cleaner/logging/logging_service_api.h"
 #include "chrome/chrome_cleaner/logging/registry_logger.h"
 #include "chrome/chrome_cleaner/os/file_remover_api.h"
@@ -59,7 +58,7 @@ class TestEngineFacade : public EngineFacadeInterface {
                DoneCallback done_callback) override {
       start_called_ = true;
       pups_to_remove_ = pup_ids;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE, base::BindOnce(std::move(done_callback), clean_result_),
           delay_before_done_);
     }
@@ -68,7 +67,7 @@ class TestEngineFacade : public EngineFacadeInterface {
                          DoneCallback done_callback) override {
       pups_to_remove_ = pup_ids;
       post_reboot_clean_called_ = true;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(std::move(done_callback),
                          post_reboot_clean_return_value_),
@@ -104,10 +103,10 @@ class TestEngineFacade : public EngineFacadeInterface {
     bool Start(const FoundUwSCallback& found_uws_callback,
                DoneCallback done_callback) override {
       for (UwSId pup_id : found_pups_) {
-        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        base::ThreadTaskRunnerHandle::Get()->PostTask(
             FROM_HERE, base::BindOnce(found_uws_callback, pup_id));
       }
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(std::move(done_callback), scan_result_, found_pups_),
           delay_before_done_);
@@ -128,7 +127,7 @@ class TestEngineFacade : public EngineFacadeInterface {
   Cleaner* GetCleaner() override { return &test_cleaner_; }
 
   base::TimeDelta GetScanningWatchdogTimeout() const override {
-    return base::Milliseconds(150);
+    return base::TimeDelta::FromMilliseconds(150);
   }
 };
 
@@ -180,7 +179,7 @@ class TestMainController : public MainController {
         const FilePathSet& files_to_remove,
         const std::vector<std::wstring>& registry_keys) override {
       confirm_cleanup_called_ = true;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&MainDialogDelegate::AcceptedCleanup,
                          base::Unretained(delegate()), accept_cleanup_),
@@ -191,6 +190,10 @@ class TestMainController : public MainController {
       delegate()->OnClose();
     }
     void Close() override { delegate()->OnClose(); }
+    void DisableExtensions(const std::vector<std::wstring>& extensions,
+                           base::OnceCallback<void(bool)> on_disable) override {
+      std::move(on_disable).Run(true);
+    }
     void set_user_response_delay(base::TimeDelta delay) {
       user_response_delay_ = delay;
     }
@@ -615,14 +618,15 @@ class MainControllerWatchdogTest : public MainControllerTest {
 TEST_P(MainControllerWatchdogTest, Success) {
   SimpleTestPUPData test_pup_data(kFakePupId, PUPData::FLAGS_ACTION_REMOVE);
   test_main_controller()->set_scanning_watchdog_timeout(
-      base::Milliseconds(500));
-  test_scanner()->delay_before_done_ = base::Milliseconds(50);
+      base::TimeDelta::FromMilliseconds(500));
+  test_scanner()->delay_before_done_ = base::TimeDelta::FromMilliseconds(50);
   test_main_controller()->set_user_response_watchdog_timeout(
-      base::Milliseconds(500));
-  test_main_controller()->set_user_response_delay(base::Milliseconds(50));
+      base::TimeDelta::FromMilliseconds(500));
+  test_main_controller()->set_user_response_delay(
+      base::TimeDelta::FromMilliseconds(50));
   test_main_controller()->set_cleaning_watchdog_timeout(
-      base::Milliseconds(500));
-  test_cleaner()->delay_before_done_ = base::Milliseconds(50);
+      base::TimeDelta::FromMilliseconds(500));
+  test_cleaner()->delay_before_done_ = base::TimeDelta::FromMilliseconds(50);
   test_scanner()->found_pups_.push_back(kFakePupId);
   ExpectSuccess(RESULT_CODE_SUCCESS);
 }
@@ -630,13 +634,13 @@ TEST_P(MainControllerWatchdogTest, Success) {
 TEST_P(MainControllerWatchdogTest, ScannerHangsNoRemovableUwS) {
   SimpleTestPUPData test_pup_data(kFakePupId, 0);
   test_scanner()->found_pups_.push_back(kFakePupId);
-  test_scanner()->delay_before_done_ = base::Milliseconds(300);
+  test_scanner()->delay_before_done_ = base::TimeDelta::FromMilliseconds(300);
   // Note: There is a single timeout for the process running in cleanup
   // execution mode, that will include both the scanner and the cleaner steps.
   // This test simulates the scanner hanging in that scenario to make sure that
   // the watchdog timeout is triggered.
   test_main_controller()->set_cleaning_watchdog_timeout(
-      base::Milliseconds(200));
+      base::TimeDelta::FromMilliseconds(200));
 
   if (scanning_mode()) {
     ExpectDeath(RESULT_CODE_WATCHDOG_TIMEOUT_WITHOUT_REMOVABLE_UWS);
@@ -650,13 +654,13 @@ TEST_P(MainControllerWatchdogTest, ScannerHangsNoRemovableUwS) {
 TEST_P(MainControllerWatchdogTest, ScannerHangsWithRemovableUwS) {
   SimpleTestPUPData test_pup_data(kFakePupId, PUPData::FLAGS_ACTION_REMOVE);
   test_scanner()->found_pups_.push_back(kFakePupId);
-  test_scanner()->delay_before_done_ = base::Milliseconds(300);
+  test_scanner()->delay_before_done_ = base::TimeDelta::FromMilliseconds(300);
   // Note: There is a single timeout for the process running in cleanup
   // execution mode, that will include both the scanner and the cleaner steps.
   // This test simulates the scanner hanging in that scenario, to make sure that
   // the watchdog timeout is triggered.
   test_main_controller()->set_cleaning_watchdog_timeout(
-      base::Milliseconds(200));
+      base::TimeDelta::FromMilliseconds(200));
 
   if (scanning_mode()) {
     ExpectDeath(RESULT_CODE_WATCHDOG_TIMEOUT_WITH_REMOVABLE_UWS);
@@ -671,15 +675,16 @@ TEST_P(MainControllerWatchdogTest, ScannerHangsWaitingForUserResponse) {
   SimpleTestPUPData test_pup_data(kFakePupId, PUPData::FLAGS_ACTION_REMOVE);
   test_scanner()->found_pups_.push_back(kFakePupId);
   test_main_controller()->set_user_response_watchdog_timeout(
-      base::Milliseconds(50));
-  test_main_controller()->set_user_response_delay(base::Milliseconds(500));
+      base::TimeDelta::FromMilliseconds(50));
+  test_main_controller()->set_user_response_delay(
+      base::TimeDelta::FromMilliseconds(500));
   // Note: There is a single timeout for the process running in cleanup
   // execution mode, that will include both the scanner and the cleaner steps.
   // Even though the process in cleanup execution mode doesn't wait for a user
   // response, we still want to test that scenario in case requirements change
   // in the future.
   test_main_controller()->set_cleaning_watchdog_timeout(
-      base::Milliseconds(200));
+      base::TimeDelta::FromMilliseconds(200));
 
   // Only scanning mode should set a user-response watchdog.
   if (scanning_mode()) {
@@ -694,8 +699,9 @@ TEST_P(MainControllerWatchdogTest, ScannerHangsWaitingForUserResponse) {
 TEST_P(MainControllerWatchdogTest, CleanerHangs) {
   SimpleTestPUPData test_pup_data(kFakePupId, PUPData::FLAGS_ACTION_REMOVE);
   test_scanner()->found_pups_.push_back(kFakePupId);
-  test_main_controller()->set_cleaning_watchdog_timeout(base::Milliseconds(50));
-  test_cleaner()->delay_before_done_ = base::Milliseconds(500);
+  test_main_controller()->set_cleaning_watchdog_timeout(
+      base::TimeDelta::FromMilliseconds(50));
+  test_cleaner()->delay_before_done_ = base::TimeDelta::FromMilliseconds(500);
 
   if (cleanup_mode()) {
     ExpectDeath(RESULT_CODE_WATCHDOG_TIMEOUT_CLEANING);

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <memory>
 #include <vector>
+
+#include "base/macros.h"
 
 class RegistryEntry;
 
@@ -21,14 +23,12 @@ class RegistryEntry;
 class ScopedUserProtocolEntry {
  public:
   explicit ScopedUserProtocolEntry(const wchar_t* protocol);
-
-  ScopedUserProtocolEntry(const ScopedUserProtocolEntry&) = delete;
-  ScopedUserProtocolEntry& operator=(const ScopedUserProtocolEntry&) = delete;
-
   ~ScopedUserProtocolEntry();
 
  private:
   std::vector<std::unique_ptr<RegistryEntry>> entries_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedUserProtocolEntry);
 };
 
 #endif  // CHROME_INSTALLER_UTIL_SCOPED_USER_PROTOCOL_ENTRY_H_

@@ -1,19 +1,19 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef DEVICE_BLUETOOTH_BLUETOOTH_ADVERTISEMENT_MAC_H_
 #define DEVICE_BLUETOOTH_BLUETOOTH_ADVERTISEMENT_MAC_H_
 
-#include "base/memory/raw_ptr.h"
-
 #import <CoreBluetooth/CoreBluetooth.h>
 
+#include <memory>
+
+#include "base/macros.h"
 #include "dbus/object_path.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 #include "device/bluetooth/bluetooth_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -33,14 +33,10 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdvertisementMac
   };
 
   BluetoothAdvertisementMac(
-      absl::optional<BluetoothAdvertisement::UUIDList> service_uuids,
+      std::unique_ptr<BluetoothAdvertisement::UUIDList> service_uuids,
       BluetoothAdapter::CreateAdvertisementCallback callback,
       BluetoothAdapter::AdvertisementErrorCallback error_callback,
       BluetoothLowEnergyAdvertisementManagerMac* advertisement_manager);
-
-  BluetoothAdvertisementMac(const BluetoothAdvertisementMac&) = delete;
-  BluetoothAdvertisementMac& operator=(const BluetoothAdvertisementMac&) =
-      delete;
 
   // BluetoothAdvertisement overrides:
   void Unregister(SuccessCallback success_callback,
@@ -54,9 +50,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdvertisementMac
 
   bool is_advertisement_pending() { return status_ == ADVERTISEMENT_PENDING; }
 
-  const BluetoothAdvertisement::UUIDList& service_uuids() {
-    return *service_uuids_;
-  }
+  BluetoothAdvertisement::UUIDList service_uuids() { return *service_uuids_; }
 
  private:
   friend class BluetoothLowEnergyAdvertisementManagerMac;
@@ -73,11 +67,13 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdvertisementMac
 
   void InvokeSuccessCallback();
 
-  absl::optional<BluetoothAdvertisement::UUIDList> service_uuids_;
+  std::unique_ptr<BluetoothAdvertisement::UUIDList> service_uuids_;
   BluetoothAdapter::CreateAdvertisementCallback success_callback_;
   BluetoothAdapter::AdvertisementErrorCallback error_callback_;
-  raw_ptr<BluetoothLowEnergyAdvertisementManagerMac> advertisement_manager_;
+  BluetoothLowEnergyAdvertisementManagerMac* advertisement_manager_;
   Status status_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothAdvertisementMac);
 };
 
 }  // namespace device

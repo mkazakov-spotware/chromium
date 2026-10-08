@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,11 @@ void SystemGestureEventFilter::OnMouseEvent(ui::MouseEvent* event) {
       ui::GetTouchScreensAvailability() ==
           ui::TouchScreensAvailability::ENABLED) {
     base::RecordAction(base::UserMetricsAction("Mouse_Down"));
+  }
+
+  if (event->IsMouseWheelEvent() && wm_gesture_handler_ &&
+      wm_gesture_handler_->ProcessWheelEvent(*event)) {
+    event->StopPropagation();
   }
 }
 

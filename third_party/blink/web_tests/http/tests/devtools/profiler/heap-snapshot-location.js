@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@ async function assertLocation(section, select_row) {
   let rowWithLocation = instanceRow;
 
   if (select_row) {
-    rowWithLocation = HeapProfilerTestRunner.findMatchingRow(n => n.referenceName === select_row, rowWithLocation);
+    rowWithLocation = HeapProfilerTestRunner.findMatchingRow(n => n._referenceName === select_row, rowWithLocation);
   }
 
   let linkNode;
   do {
-    linkNode = rowWithLocation.element().querySelector('.heap-object-source-link .devtools-link');
+    linkNode = rowWithLocation._element.querySelector('.heap-object-source-link .devtools-link');
     await new Promise(r => requestAnimationFrame(r));
   } while (!linkNode);
 
@@ -24,7 +24,7 @@ async function assertLocation(section, select_row) {
 (async function() {
   TestRunner.addResult(`Test that objects have source links in heap snapshot view.\n`);
 
-  await TestRunner.loadTestModule('heap_profiler_test_runner');
+  await TestRunner.loadModule('heap_profiler_test_runner');
   await TestRunner.showPanel('heap_profiler');
   await TestRunner.evaluateInPagePromise(`
       class MyTestClass {

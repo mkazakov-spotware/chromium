@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,13 +20,10 @@ static constexpr gfx::Rect kNonEmptyIntersection(0, 0, 10, 10);
 
 class FrameVisibilityDecoratorTest : public GraphTestHarness {
  public:
-  using Super = GraphTestHarness;
-
   FrameVisibilityDecoratorTest() = default;
   ~FrameVisibilityDecoratorTest() override = default;
 
   void SetUp() override {
-    Super::SetUp();
     graph()->PassToGraph(std::make_unique<FrameVisibilityDecorator>());
 
     process_node_ = CreateNode<ProcessNodeImpl>();

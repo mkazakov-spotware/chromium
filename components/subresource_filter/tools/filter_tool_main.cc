@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -99,8 +99,8 @@ int main(int argc, char* argv[]) {
                         base::File::FLAG_OPEN | base::File::FLAG_READ);
 
   if (!rules_file.IsValid()) {
-    LOG(ERROR) << "Could not open file: "
-               << command_line.GetSwitchValueASCII(kSwitchRuleset);
+    std::cerr << "Could not open file: "
+              << command_line.GetSwitchValueASCII(kSwitchRuleset) << std::endl;
     PrintHelp();
     return 1;
   }
@@ -114,15 +114,15 @@ int main(int argc, char* argv[]) {
   subresource_filter::FilterTool filter_tool(std::move(ruleset), &std::cout);
 
   std::string cmd;
-#if BUILDFLAG(IS_WIN)
-  cmd = base::WideToASCII(args[0]);
+#if defined(OS_WIN)
+  cmd = base::UTF16ToASCII(args[0]);
 #else
   cmd = args[0];
 #endif
 
   if (cmd != kMatchCommand && cmd != kMatchRulesCommand &&
       cmd != kMatchBatchCommand) {
-    LOG(ERROR) << "Not a recognized command " << cmd;
+    std::cerr << "Not a recognized command " << cmd << std::endl;
     PrintHelp();
     return 1;
   }
@@ -136,8 +136,8 @@ int main(int argc, char* argv[]) {
         if (!command_line.HasSwitch(arg))
           missing_args.push_back(arg);
       }
-      LOG(ERROR) << "Missing arguments for match command: "
-                 << base::JoinString(missing_args, ",");
+      std::cerr << "Missing arguments for match command: "
+                << base::JoinString(missing_args, ",") << std::endl;
       PrintHelp();
       return 1;
     }
@@ -156,8 +156,9 @@ int main(int argc, char* argv[]) {
   if (command_line.HasSwitch(kSwitchMinMatches) &&
       !base::StringToInt(command_line.GetSwitchValueASCII(kSwitchMinMatches),
                          &min_match_count)) {
-    LOG(ERROR) << "Could not convert min matches to integer: "
-               << command_line.GetSwitchValueASCII(kSwitchMinMatches);
+    std::cerr << "Could not convert min matches to integer: "
+              << command_line.GetSwitchValueASCII(kSwitchMinMatches)
+              << std::endl;
     PrintHelp();
     return 1;
   }

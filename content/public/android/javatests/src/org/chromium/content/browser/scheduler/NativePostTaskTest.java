@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.PowerMonitor;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskRunner;
 import org.chromium.base.task.TaskTraits;
@@ -149,7 +148,7 @@ public class NativePostTaskTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/938316")
+    @DisabledTest
     public void testCreateTaskRunnerMigrationToNative() throws Exception {
         final Object lock = new Object();
         final AtomicBoolean taskExecuted = new AtomicBoolean();
@@ -233,8 +232,7 @@ public class NativePostTaskTest {
 
     private void startNativeScheduler() {
         NativeLibraryTestUtils.loadNativeLibraryNoBrowserProcess();
-        PowerMonitor.createForTests();
-        ContentMain.start(/* startMinimalBrowser */ false);
+        ContentMain.start(/* startServiceManagerOnly */ false);
         ThreadPoolTestHelpers.enableThreadPoolExecutionForTesting();
     }
 }

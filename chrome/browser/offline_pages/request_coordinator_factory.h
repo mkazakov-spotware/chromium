@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_OFFLINE_PAGES_REQUEST_COORDINATOR_FACTORY_H_
 #define CHROME_BROWSER_OFFLINE_PAGES_REQUEST_COORDINATOR_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "content/public/browser/browser_context.h"
 
 namespace base {
@@ -18,15 +19,11 @@ namespace offline_pages {
 class RequestCoordinator;
 
 // A factory to create one unique RequestCoordinator.
-class RequestCoordinatorFactory : public ProfileKeyedServiceFactory {
+class RequestCoordinatorFactory : public BrowserContextKeyedServiceFactory {
  public:
   static RequestCoordinatorFactory* GetInstance();
   static RequestCoordinator* GetForBrowserContext(
       content::BrowserContext* context);
-
-  RequestCoordinatorFactory(const RequestCoordinatorFactory&) = delete;
-  RequestCoordinatorFactory& operator=(const RequestCoordinatorFactory&) =
-      delete;
 
  private:
   friend struct base::DefaultSingletonTraits<RequestCoordinatorFactory>;
@@ -36,6 +33,8 @@ class RequestCoordinatorFactory : public ProfileKeyedServiceFactory {
 
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(RequestCoordinatorFactory);
 };
 
 }  // namespace offline_pages

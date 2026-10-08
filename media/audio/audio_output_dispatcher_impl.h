@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/timer/timer.h"
 #include "media/audio/audio_io.h"
 #include "media/audio/audio_manager.h"
@@ -39,11 +40,6 @@ class MEDIA_EXPORT AudioOutputDispatcherImpl
                             const AudioParameters& params,
                             const std::string& output_device_id,
                             base::TimeDelta close_delay);
-
-  AudioOutputDispatcherImpl(const AudioOutputDispatcherImpl&) = delete;
-  AudioOutputDispatcherImpl& operator=(const AudioOutputDispatcherImpl&) =
-      delete;
-
   ~AudioOutputDispatcherImpl() override;
 
   // AudioOutputDispatcher implementation.
@@ -99,6 +95,7 @@ class MEDIA_EXPORT AudioOutputDispatcherImpl
   int audio_stream_id_;
 
   base::WeakPtrFactory<AudioOutputDispatcherImpl> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(AudioOutputDispatcherImpl);
 };
 
 }  // namespace media

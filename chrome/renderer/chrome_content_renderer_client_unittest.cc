@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/common/privacy_budget/scoped_privacy_budget_config.h"
+#include "components/data_reduction_proxy/core/common/data_reduction_proxy_headers.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/webplugininfo.h"
 #include "extensions/buildflags/buildflags.h"
@@ -32,6 +33,7 @@
 #endif
 
 #if BUILDFLAG(ENABLE_NACL)
+#include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_plugin_params.h"
 #endif
@@ -44,10 +46,6 @@ using blink::WebVector;
 
 using content::WebPluginInfo;
 using content::WebPluginMimeType;
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-using extensions::mojom::ManifestLocation;
-#endif
 
 namespace {
 
@@ -74,7 +72,7 @@ void AddContentTypeHandler(content::WebPluginInfo* info,
   content::WebPluginMimeType mime_type_info;
   mime_type_info.mime_type = mime_type;
   mime_type_info.additional_params.emplace_back(
-      u"nacl", base::UTF8ToUTF16(manifest_url));
+      base::UTF8ToUTF16("nacl"), base::UTF8ToUTF16(manifest_url));
   info->mime_types.push_back(mime_type_info);
 }
 
@@ -92,23 +90,21 @@ class ChromeContentRendererClientTest : public testing::Test {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 scoped_refptr<const extensions::Extension> CreateTestExtension(
-    ManifestLocation location,
-    bool is_from_webstore,
-    bool is_hosted_app,
-    const std::string& app_url) {
+    extensions::Manifest::Location location, bool is_from_webstore,
+    bool is_hosted_app, const std::string& app_url) {
   int flags = is_from_webstore ?
       extensions::Extension::FROM_WEBSTORE:
       extensions::Extension::NO_FLAGS;
 
   base::DictionaryValue manifest;
-  manifest.SetStringKey("name", "NaCl Extension");
-  manifest.SetStringKey("version", "1");
-  manifest.SetIntKey("manifest_version", 2);
+  manifest.SetString("name", "NaCl Extension");
+  manifest.SetString("version", "1");
+  manifest.SetInteger("manifest_version", 2);
   if (is_hosted_app) {
-    base::ListValue url_list;
-    url_list.Append(app_url);
-    manifest.SetPath(extensions::manifest_keys::kWebURLs, std::move(url_list));
-    manifest.SetStringPath(extensions::manifest_keys::kLaunchWebURL, app_url);
+    auto url_list = std::make_unique<base::ListValue>();
+    url_list->AppendString(app_url);
+    manifest.Set(extensions::manifest_keys::kWebURLs, std::move(url_list));
+    manifest.SetString(extensions::manifest_keys::kLaunchWebURL, app_url);
   }
   std::string error;
   return extensions::Extension::Create(base::FilePath(), location, manifest,
@@ -117,21 +113,23 @@ scoped_refptr<const extensions::Extension> CreateTestExtension(
 
 scoped_refptr<const extensions::Extension> CreateExtension(
     bool is_from_webstore) {
-  return CreateTestExtension(ManifestLocation::kInternal, is_from_webstore,
-                             kNotHostedApp, std::string());
+  return CreateTestExtension(
+      extensions::Manifest::INTERNAL, is_from_webstore, kNotHostedApp,
+      std::string());
 }
 
 scoped_refptr<const extensions::Extension> CreateExtensionWithLocation(
-    ManifestLocation location,
-    bool is_from_webstore) {
+    extensions::Manifest::Location location, bool is_from_webstore) {
   return CreateTestExtension(
       location, is_from_webstore, kNotHostedApp, std::string());
 }
 
 scoped_refptr<const extensions::Extension> CreateHostedApp(
     bool is_from_webstore, const std::string& app_url) {
-  return CreateTestExtension(ManifestLocation::kInternal, is_from_webstore,
-                             kHostedApp, app_url);
+  return CreateTestExtension(extensions::Manifest::INTERNAL,
+                             is_from_webstore,
+                             kHostedApp,
+                             app_url);
 }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
@@ -162,7 +160,7 @@ TEST_F(ChromeContentRendererClientTest, NaClRestriction) {
   {
     EXPECT_TRUE(ChromeContentRendererClient::IsNativeNaClAllowed(
         GURL(kExtensionUrl), kNaClRestricted,
-        CreateExtensionWithLocation(ManifestLocation::kUnpacked,
+        CreateExtensionWithLocation(extensions::Manifest::UNPACKED,
                                     kExtensionNotFromWebStore)
             .get()));
   }
@@ -170,14 +168,14 @@ TEST_F(ChromeContentRendererClientTest, NaClRestriction) {
   {
     EXPECT_TRUE(ChromeContentRendererClient::IsNativeNaClAllowed(
         GURL(kExtensionUrl), kNaClRestricted,
-        CreateExtensionWithLocation(ManifestLocation::kComponent,
+        CreateExtensionWithLocation(extensions::Manifest::COMPONENT,
                                     kExtensionNotFromWebStore)
             .get()));
   }
   {
     EXPECT_TRUE(ChromeContentRendererClient::IsNativeNaClAllowed(
         GURL(kExtensionUrl), kNaClRestricted,
-        CreateExtensionWithLocation(ManifestLocation::kExternalComponent,
+        CreateExtensionWithLocation(extensions::Manifest::EXTERNAL_COMPONENT,
                                     kExtensionNotFromWebStore)
             .get()));
   }
@@ -186,13 +184,14 @@ TEST_F(ChromeContentRendererClientTest, NaClRestriction) {
   {
     EXPECT_TRUE(ChromeContentRendererClient::IsNativeNaClAllowed(
         GURL(kExtensionUrl), kNaClRestricted,
-        CreateExtensionWithLocation(ManifestLocation::kExternalPolicy,
+        CreateExtensionWithLocation(extensions::Manifest::EXTERNAL_POLICY,
                                     kExtensionNotFromWebStore)
             .get()));
     EXPECT_TRUE(ChromeContentRendererClient::IsNativeNaClAllowed(
         GURL(kExtensionUrl), kNaClRestricted,
-        CreateExtensionWithLocation(ManifestLocation::kExternalPolicyDownload,
-                                    kExtensionNotFromWebStore)
+        CreateExtensionWithLocation(
+            extensions::Manifest::EXTERNAL_POLICY_DOWNLOAD,
+            kExtensionNotFromWebStore)
             .get()));
   }
   // CWS extensions are allowed without --enable-nacl if called from an

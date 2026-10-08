@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,17 @@
 #include "base/test/bind.h"
 #include "base/time/time.h"
 #include "chrome/browser/nearby_sharing/fake_nearby_connection.h"
+#include "chrome/browser/nearby_sharing/mock_nearby_process_manager.h"
 #include "chrome/services/sharing/public/proto/wire_format.pb.h"
-#include "chromeos/ash/services/nearby/public/cpp/mock_nearby_process_manager.h"
-#include "chromeos/ash/services/nearby/public/cpp/mock_nearby_sharing_decoder.h"
+#include "chrome/test/base/testing_profile.h"
+#include "chromeos/services/nearby/public/cpp/mock_nearby_sharing_decoder.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
 
-constexpr base::TimeDelta kTimeout = base::Milliseconds(1000);
+constexpr base::TimeDelta kTimeout = base::TimeDelta::FromMilliseconds(1000);
 
 std::vector<uint8_t> GetIntroductionFrame() {
   sharing::nearby::Frame frame = sharing::nearby::Frame();
@@ -47,13 +48,13 @@ std::vector<uint8_t> GetCancelFrame() {
 }
 
 void ExpectIntroductionFrame(
-    const absl::optional<sharing::mojom::V1FramePtr>& frame) {
+    const base::Optional<sharing::mojom::V1FramePtr>& frame) {
   ASSERT_TRUE(frame);
   EXPECT_TRUE((*frame)->is_introduction());
 }
 
 void ExpectCancelFrame(
-    const absl::optional<sharing::mojom::V1FramePtr>& frame) {
+    const base::Optional<sharing::mojom::V1FramePtr>& frame) {
   ASSERT_TRUE(frame);
   EXPECT_TRUE((*frame)->is_cancel_frame());
 }
@@ -63,29 +64,21 @@ void ExpectCancelFrame(
 class IncomingFramesReaderTest : public testing::Test {
  public:
   IncomingFramesReaderTest()
-      : frames_reader_(&mock_process_manager_, &mock_nearby_connection_) {}
+      : frames_reader_(&mock_process_manager_,
+                       &profile_,
+                       &mock_nearby_connection_) {}
 
   ~IncomingFramesReaderTest() override = default;
 
   void SetUp() override {
-    EXPECT_CALL(mock_process_manager_, GetNearbyProcessReference)
-        .WillRepeatedly([&](ash::nearby::NearbyProcessManager::
-                                NearbyProcessStoppedCallback) {
-          auto mock_reference_ptr =
-              std::make_unique<ash::nearby::MockNearbyProcessManager::
-                                   MockNearbyProcessReference>();
-
-          EXPECT_CALL(*(mock_reference_ptr.get()), GetNearbySharingDecoder)
-              .WillRepeatedly(
-                  testing::ReturnRef(mock_decoder_.shared_remote()));
-
-          return mock_reference_ptr;
-        });
+    EXPECT_CALL(mock_process_manager_,
+                GetOrStartNearbySharingDecoder(testing::Eq(&profile_)))
+        .WillRepeatedly(testing::Return(&mock_decoder_));
   }
 
   FakeNearbyConnection& connection() { return mock_nearby_connection_; }
 
-  testing::StrictMock<ash::nearby::MockNearbySharingDecoder>& decoder() {
+  testing::StrictMock<chromeos::nearby::MockNearbySharingDecoder>& decoder() {
     return mock_decoder_;
   }
 
@@ -93,10 +86,10 @@ class IncomingFramesReaderTest : public testing::Test {
 
  private:
   content::BrowserTaskEnvironment task_environment_;
+  TestingProfile profile_;
   FakeNearbyConnection mock_nearby_connection_;
-  testing::StrictMock<ash::nearby::MockNearbyProcessManager>
-      mock_process_manager_;
-  testing::StrictMock<ash::nearby::MockNearbySharingDecoder> mock_decoder_;
+  testing::StrictMock<MockNearbyProcessManager> mock_process_manager_;
+  testing::StrictMock<chromeos::nearby::MockNearbySharingDecoder> mock_decoder_;
   IncomingFramesReader frames_reader_;
 };
 
@@ -105,20 +98,14 @@ TEST_F(IncomingFramesReaderTest, ReadTimedOut) {
 
   base::RunLoop run_loop;
   frames_reader().ReadFrame(
-      sharing::mojom::V1Frame::Tag::kIntroduction,
+      sharing::mojom::V1Frame::Tag::INTRODUCTION,
       base::BindLambdaForTesting(
-          [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+          [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
             EXPECT_FALSE(frame);
             run_loop.Quit();
           }),
       kTimeout);
   run_loop.Run();
-
-  // Ensure that the OnDataReadFromConnection callback is not run since the read
-  // timed out.
-  EXPECT_FALSE(connection().has_read_callback_been_run());
-  // Ensure that the IncomingFramesReader does not close the connection.
-  EXPECT_FALSE(connection().IsClosed());
 }
 
 TEST_F(IncomingFramesReaderTest, ReadAnyFrameSuccessful) {
@@ -129,20 +116,21 @@ TEST_F(IncomingFramesReaderTest, ReadAnyFrameSuccessful) {
               DecodeFrame(testing::Eq(introduction_frame), testing::_))
       .WillOnce(testing::Invoke(
           [&](const std::vector<uint8_t>& data,
-              ash::nearby::MockNearbySharingDecoder::DecodeFrameCallback
+              chromeos::nearby::MockNearbySharingDecoder::DecodeFrameCallback
                   callback) {
             sharing::mojom::V1FramePtr mojo_v1frame =
-                sharing::mojom::V1Frame::NewIntroduction(
-                    sharing::mojom::IntroductionFrame::New());
+                sharing::mojom::V1Frame::New();
+            mojo_v1frame->set_introduction(
+                sharing::mojom::IntroductionFrame::New());
 
-            sharing::mojom::FramePtr mojo_frame =
-                sharing::mojom::Frame::NewV1(std::move(mojo_v1frame));
+            sharing::mojom::FramePtr mojo_frame = sharing::mojom::Frame::New();
+            mojo_frame->set_v1(std::move(mojo_v1frame));
             std::move(callback).Run(std::move(mojo_frame));
           }));
 
   base::RunLoop run_loop;
   frames_reader().ReadFrame(base::BindLambdaForTesting(
-      [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+      [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
         ExpectIntroductionFrame(frame);
         run_loop.Quit();
       }));
@@ -157,22 +145,23 @@ TEST_F(IncomingFramesReaderTest, ReadSuccessful) {
               DecodeFrame(testing::Eq(introduction_frame), testing::_))
       .WillOnce(testing::Invoke(
           [&](const std::vector<uint8_t>& data,
-              ash::nearby::MockNearbySharingDecoder::DecodeFrameCallback
+              chromeos::nearby::MockNearbySharingDecoder::DecodeFrameCallback
                   callback) {
             sharing::mojom::V1FramePtr mojo_v1frame =
-                sharing::mojom::V1Frame::NewIntroduction(
-                    sharing::mojom::IntroductionFrame::New());
+                sharing::mojom::V1Frame::New();
+            mojo_v1frame->set_introduction(
+                sharing::mojom::IntroductionFrame::New());
 
-            sharing::mojom::FramePtr mojo_frame =
-                sharing::mojom::Frame::NewV1(std::move(mojo_v1frame));
+            sharing::mojom::FramePtr mojo_frame = sharing::mojom::Frame::New();
+            mojo_frame->set_v1(std::move(mojo_v1frame));
             std::move(callback).Run(std::move(mojo_frame));
           }));
 
   base::RunLoop run_loop;
   frames_reader().ReadFrame(
-      sharing::mojom::V1Frame::Tag::kIntroduction,
+      sharing::mojom::V1Frame::Tag::INTRODUCTION,
       base::BindLambdaForTesting(
-          [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+          [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
             ExpectIntroductionFrame(frame);
             run_loop.Quit();
           }),
@@ -190,36 +179,37 @@ TEST_F(IncomingFramesReaderTest, ReadSuccessful_JumbledFramesOrdering) {
   EXPECT_CALL(decoder(), DecodeFrame(testing::_, testing::_))
       .WillOnce(testing::Invoke(
           [&](const std::vector<uint8_t>& data,
-              ash::nearby::MockNearbySharingDecoder::DecodeFrameCallback
+              chromeos::nearby::MockNearbySharingDecoder::DecodeFrameCallback
                   callback) {
             EXPECT_EQ(cancel_frame, data);
             sharing::mojom::V1FramePtr mojo_v1frame =
-                sharing::mojom::V1Frame::NewCancelFrame(
-                    sharing::mojom::CancelFrame::New());
+                sharing::mojom::V1Frame::New();
+            mojo_v1frame->set_cancel_frame(sharing::mojom::CancelFrame::New());
 
-            sharing::mojom::FramePtr mojo_frame =
-                sharing::mojom::Frame::NewV1(std::move(mojo_v1frame));
+            sharing::mojom::FramePtr mojo_frame = sharing::mojom::Frame::New();
+            mojo_frame->set_v1(std::move(mojo_v1frame));
             std::move(callback).Run(std::move(mojo_frame));
           }))
       .WillOnce(testing::Invoke(
           [&](const std::vector<uint8_t>& data,
-              ash::nearby::MockNearbySharingDecoder::DecodeFrameCallback
+              chromeos::nearby::MockNearbySharingDecoder::DecodeFrameCallback
                   callback) {
             EXPECT_EQ(introduction_frame, data);
             sharing::mojom::V1FramePtr mojo_v1frame =
-                sharing::mojom::V1Frame::NewIntroduction(
-                    sharing::mojom::IntroductionFrame::New());
+                sharing::mojom::V1Frame::New();
+            mojo_v1frame->set_introduction(
+                sharing::mojom::IntroductionFrame::New());
 
-            sharing::mojom::FramePtr mojo_frame =
-                sharing::mojom::Frame::NewV1(std::move(mojo_v1frame));
+            sharing::mojom::FramePtr mojo_frame = sharing::mojom::Frame::New();
+            mojo_frame->set_v1(std::move(mojo_v1frame));
             std::move(callback).Run(std::move(mojo_frame));
           }));
 
   base::RunLoop run_loop_introduction;
   frames_reader().ReadFrame(
-      sharing::mojom::V1Frame::Tag::kIntroduction,
+      sharing::mojom::V1Frame::Tag::INTRODUCTION,
       base::BindLambdaForTesting(
-          [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+          [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
             ExpectIntroductionFrame(frame);
             run_loop_introduction.Quit();
           }),
@@ -237,36 +227,37 @@ TEST_F(IncomingFramesReaderTest, JumbledFramesOrdering_ReadFromCache) {
   EXPECT_CALL(decoder(), DecodeFrame(testing::_, testing::_))
       .WillOnce(testing::Invoke(
           [&](const std::vector<uint8_t>& data,
-              ash::nearby::MockNearbySharingDecoder::DecodeFrameCallback
+              chromeos::nearby::MockNearbySharingDecoder::DecodeFrameCallback
                   callback) {
             EXPECT_EQ(cancel_frame, data);
             sharing::mojom::V1FramePtr mojo_v1frame =
-                sharing::mojom::V1Frame::NewCancelFrame(
-                    sharing::mojom::CancelFrame::New());
+                sharing::mojom::V1Frame::New();
+            mojo_v1frame->set_cancel_frame(sharing::mojom::CancelFrame::New());
 
-            sharing::mojom::FramePtr mojo_frame =
-                sharing::mojom::Frame::NewV1(std::move(mojo_v1frame));
+            sharing::mojom::FramePtr mojo_frame = sharing::mojom::Frame::New();
+            mojo_frame->set_v1(std::move(mojo_v1frame));
             std::move(callback).Run(std::move(mojo_frame));
           }))
       .WillOnce(testing::Invoke(
           [&](const std::vector<uint8_t>& data,
-              ash::nearby::MockNearbySharingDecoder::DecodeFrameCallback
+              chromeos::nearby::MockNearbySharingDecoder::DecodeFrameCallback
                   callback) {
             EXPECT_EQ(introduction_frame, data);
             sharing::mojom::V1FramePtr mojo_v1frame =
-                sharing::mojom::V1Frame::NewIntroduction(
-                    sharing::mojom::IntroductionFrame::New());
+                sharing::mojom::V1Frame::New();
+            mojo_v1frame->set_introduction(
+                sharing::mojom::IntroductionFrame::New());
 
-            sharing::mojom::FramePtr mojo_frame =
-                sharing::mojom::Frame::NewV1(std::move(mojo_v1frame));
+            sharing::mojom::FramePtr mojo_frame = sharing::mojom::Frame::New();
+            mojo_frame->set_v1(std::move(mojo_v1frame));
             std::move(callback).Run(std::move(mojo_frame));
           }));
 
   base::RunLoop run_loop_introduction;
   frames_reader().ReadFrame(
-      sharing::mojom::V1Frame::Tag::kIntroduction,
+      sharing::mojom::V1Frame::Tag::INTRODUCTION,
       base::BindLambdaForTesting(
-          [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+          [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
             ExpectIntroductionFrame(frame);
             run_loop_introduction.Quit();
           }),
@@ -276,7 +267,7 @@ TEST_F(IncomingFramesReaderTest, JumbledFramesOrdering_ReadFromCache) {
   // Reading any frame should return CancelFrame.
   base::RunLoop run_loop_cancel;
   frames_reader().ReadFrame(base::BindLambdaForTesting(
-      [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+      [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
         ExpectCancelFrame(frame);
         run_loop_cancel.Quit();
       }));
@@ -288,9 +279,9 @@ TEST_F(IncomingFramesReaderTest, ReadAfterConnectionClosed) {
 
   base::RunLoop run_loop_before_close;
   frames_reader().ReadFrame(
-      sharing::mojom::V1Frame::Tag::kIntroduction,
+      sharing::mojom::V1Frame::Tag::INTRODUCTION,
       base::BindLambdaForTesting(
-          [&](absl::optional<sharing::mojom::V1FramePtr> frame) {
+          [&](base::Optional<sharing::mojom::V1FramePtr> frame) {
             EXPECT_FALSE(frame);
             run_loop_before_close.Quit();
           }),

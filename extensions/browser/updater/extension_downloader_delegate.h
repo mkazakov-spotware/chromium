@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,9 @@
 #include "base/callback.h"
 #include "base/time/time.h"
 #include "extensions/browser/crx_file_info.h"
-#include "extensions/browser/updater/extension_downloader_types.h"
+#include "extensions/browser/updater/manifest_fetch_data.h"
 #include "extensions/browser/updater/safe_manifest_parser.h"
 #include "extensions/common/extension_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 
@@ -49,8 +48,6 @@ class ExtensionDownloaderDelegate {
     // There was an update for this extension but the download of the crx
     // failed.
     CRX_FETCH_FAILED,
-
-    kMaxValue = CRX_FETCH_FAILED,
   };
 
   // Passed as an argument to OnExtensionDownloadStageChanged() to detail how
@@ -164,12 +161,9 @@ class ExtensionDownloaderDelegate {
   struct FailureData {
     FailureData();
     FailureData(const FailureData& other);
-    static FailureData CreateFromNetworkResponse(int net_error,
-                                                 int response_code,
-                                                 int failure_count);
     FailureData(const int net_error_code, const int fetch_attempts);
     FailureData(const int net_error_code,
-                const absl::optional<int> response,
+                const base::Optional<int> response,
                 const int fetch_attempts);
     explicit FailureData(ManifestInvalidError manifest_invalid_error);
     FailureData(ManifestInvalidError manifest_invalid_error,
@@ -178,23 +172,23 @@ class ExtensionDownloaderDelegate {
     ~FailureData();
 
     // Network error code in case of CRX_FETCH_FAILED or MANIFEST_FETCH_FAILED.
-    const absl::optional<int> network_error_code;
+    const base::Optional<int> network_error_code;
     // Response code in case of CRX_FETCH_FAILED or MANIFEST_FETCH_FAILED.
-    const absl::optional<int> response_code;
+    const base::Optional<int> response_code;
     // Number of fetch attempts made in case of CRX_FETCH_FAILED or
     // MANIFEST_FETCH_FAILED.
-    const absl::optional<int> fetch_tries;
+    const base::Optional<int> fetch_tries;
     // Type of error occurred when fetched manifest was invalid. This includes
     // errors occurred while parsing the update manifest and the errors in the
     // internal details of the parsed manifest.
-    const absl::optional<ManifestInvalidError> manifest_invalid_error;
+    const base::Optional<ManifestInvalidError> manifest_invalid_error;
     // Info field in the update manifest returned by the server. Currently it is
     // only set when no update is available and install fails with the error
     // CRX_FETCH_URL_EMPTY.
-    const absl::optional<std::string> additional_info;
+    const base::Optional<std::string> additional_info;
     // Type of app status error returned by update server on fetching the update
     // manifest.
-    const absl::optional<std::string> app_status_error;
+    const base::Optional<std::string> app_status_error;
   };
 
   // A callback that is called to indicate if ExtensionDownloader should ignore
@@ -234,11 +228,6 @@ class ExtensionDownloaderDelegate {
                                          const std::set<int>& request_ids,
                                          const FailureData& data);
 
-  // Invoked when an manifest or CRX of extension fails to download, but a retry
-  // is triggered.
-  virtual void OnExtensionDownloadRetry(const ExtensionId& id,
-                                        const FailureData& data);
-
   // Invoked if the extension had an update available and its crx was
   // successfully downloaded to |path|. |ownership_passed| is true if delegate
   // should get ownership of the file. The downloader may be able to get the
@@ -272,7 +261,11 @@ class ExtensionDownloaderDelegate {
   // if PingData should not be included for this extension's update check
   // (this is the default).
   virtual bool GetPingDataForExtension(const ExtensionId& id,
-                                       DownloadPingData* ping);
+                                       ManifestFetchData::PingData* ping);
+
+  // Invoked to get the update url data for this extension's update url, if
+  // there is any. The default implementation returns an empty string.
+  virtual std::string GetUpdateUrlData(const ExtensionId& id);
 
   // Invoked to determine whether extension |id| is currently
   // pending installation.

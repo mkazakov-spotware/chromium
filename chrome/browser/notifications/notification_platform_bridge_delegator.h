@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/ref_counted.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/notifications/displayed_notifications_dispatch_callback.h"
 #include "chrome/browser/notifications/notification_common.h"
 #include "chrome/browser/notifications/notification_handler.h"
@@ -20,11 +22,11 @@
 class Profile;
 
 // This class is responsible for delegating notification events to either the
-// system NotificationPlatformBridge or fall back to Chrome's own message
-// center implementation. This can happen if there is no system support for
+// native NotificationPlatformBridge or fall back to Chrome's own message
+// center implementation. This can happen if there is no native support for
 // notifications on this platform (or it has been disabled via flags). We also
 // delegate to the message center if the given notification type is not
-// supported on the system bridge.
+// supported on the native bridge.
 class NotificationPlatformBridgeDelegator {
  public:
   NotificationPlatformBridgeDelegator(Profile* profile,
@@ -48,18 +50,18 @@ class NotificationPlatformBridgeDelegator {
 
  private:
   // Returns the NotificationPlatformBridge to use for |type|. This method is
-  // expected to return a valid bridge, either the system or message center one.
+  // expected to return a valid bridge, either the native or message center one.
   NotificationPlatformBridge* GetBridgeForType(NotificationHandler::Type type);
 
-  // Called when the |system_bridge_| may have been initialized.
-  void OnSystemNotificationPlatformBridgeReady(bool success);
+  // Called when the |native_bridge_| may have been initialized.
+  void OnNativeNotificationPlatformBridgeReady(bool success);
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Bridge responsible for displaying notifications on the platform. The
   // message center's bridge is maintained for platforms where it is available.
-  raw_ptr<NotificationPlatformBridge> message_center_bridge_;
-  raw_ptr<NotificationPlatformBridge> system_bridge_;
+  std::unique_ptr<NotificationPlatformBridge> message_center_bridge_;
+  NotificationPlatformBridge* native_bridge_;
   base::OnceClosure ready_callback_;
 
   base::WeakPtrFactory<NotificationPlatformBridgeDelegator> weak_factory_{this};

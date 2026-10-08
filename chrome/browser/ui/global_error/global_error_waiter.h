@@ -1,12 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_GLOBAL_ERROR_GLOBAL_ERROR_WAITER_H_
 #define CHROME_BROWSER_UI_GLOBAL_ERROR_GLOBAL_ERROR_WAITER_H_
 
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/ui/global_error/global_error_observer.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
 
@@ -19,10 +20,6 @@ namespace test {
 class GlobalErrorWaiter : public GlobalErrorObserver {
  public:
   explicit GlobalErrorWaiter(Profile* profile);
-
-  GlobalErrorWaiter(const GlobalErrorWaiter&) = delete;
-  GlobalErrorWaiter& operator=(const GlobalErrorWaiter&) = delete;
-
   ~GlobalErrorWaiter() override;
 
   // GlobalErrorObserver:
@@ -35,8 +32,10 @@ class GlobalErrorWaiter : public GlobalErrorObserver {
  private:
   bool errors_changed_ = false;
   base::RunLoop run_loop_;
-  base::ScopedObservation<GlobalErrorService, GlobalErrorObserver>
-      scoped_observation_{this};
+  ScopedObserver<GlobalErrorService, GlobalErrorObserver> scoped_observer_{
+      this};
+
+  DISALLOW_COPY_AND_ASSIGN(GlobalErrorWaiter);
 };
 
 }  // namespace test

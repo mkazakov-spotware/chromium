@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -69,72 +69,44 @@ public class SecurityButtonAnimationDelegate {
         mSecurityButtonHideAnimator.playSequentially(fadeOut, translateLeft);
     }
 
-    /** {@see SecurityButtonAnimationDelegate#updateSecurityButton(int, boolean, boolean)} */
-    public void updateSecurityButton(int securityIconResource, boolean animate) {
-        updateSecurityButton(securityIconResource, animate, /*isActualResourceChange*/ true);
-    }
-
     /**
-     * Based on |securityIconResource|, updates the security status icon.
+     * Based on |securityIconResource|, animates the security status icon in or out.
      * @param securityIconResource The updated resource to be assigned to the security status icon.
-     * @param animate When this is true, the update is performed via an animation: If
-     * |securityIconResource| is null, the icon is animated to the left and faded out; otherwise,
-     * the icon is animated to the right and faded in. If false, the updates are performed
-     * immediately without animation.
-     * @param isActualResourceChange If the resource id is different from what was previously set.
+     * When this is null, the icon is animated to the left and faded out.
      */
-    public void updateSecurityButton(
-            int securityIconResource, boolean animate, boolean isActualResourceChange) {
+    public void updateSecurityButton(int securityIconResource) {
         if (securityIconResource == 0) {
             // No icon to display.
             mSecurityButton.setImageDrawable(null);
-            hideSecurityButton(animate);
+            hideSecurityButton();
         } else {
-            if (isActualResourceChange) {
-                mSecurityButton.setImageResource(securityIconResource);
-            }
-            showSecurityButton(animate);
+            // ImageView#setImageResource is no-op if given resource is the current one.
+            mSecurityButton.setImageResource(securityIconResource);
+            showSecurityButton();
         }
     }
 
     /**
-     * Shows the security button, either immediately or via an animation.
+     * Starts the animation to show the security button.
      */
-    private void showSecurityButton(boolean animate) {
+    private void showSecurityButton() {
         if (mSecurityButtonHideAnimator.isStarted()) mSecurityButtonHideAnimator.cancel();
         if (mSecurityButtonShowAnimator.isStarted()
                 || mSecurityButton.getVisibility() == View.VISIBLE) {
             return;
         }
-
         mSecurityButtonShowAnimator.start();
-
-        if (!animate) {
-            // Directly update to end state without animation.
-            mSecurityButtonShowAnimator.end();
-        }
     }
 
     /**
-     * Hides the security button, either immediately or via an animation.
+     * Starts the animation to hide the security button.
      */
-    private void hideSecurityButton(boolean animate) {
+    private void hideSecurityButton() {
         if (mSecurityButtonShowAnimator.isStarted()) mSecurityButtonShowAnimator.cancel();
         if (mSecurityButtonHideAnimator.isStarted()
                 || mTitleUrlContainer.getTranslationX() == -mSecurityButtonWidth) {
             return;
         }
-
         mSecurityButtonHideAnimator.start();
-
-        if (!animate) {
-            // Directly update to end state without animation.
-            mSecurityButtonHideAnimator.end();
-        }
-    }
-
-    /** Returns whether an animation is currently running. */
-    public boolean isInAnimation() {
-        return mSecurityButtonHideAnimator.isStarted() || mSecurityButtonShowAnimator.isStarted();
     }
 }

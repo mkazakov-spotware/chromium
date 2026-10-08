@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/test/launcher/unit_test_launcher.h"
 #include "base/test/test_suite.h"
@@ -27,10 +28,6 @@ namespace {
 class UIChromeOSTestSuite : public base::TestSuite {
  public:
   UIChromeOSTestSuite(int argc, char** argv) : base::TestSuite(argc, argv) {}
-
-  UIChromeOSTestSuite(const UIChromeOSTestSuite&) = delete;
-  UIChromeOSTestSuite& operator=(const UIChromeOSTestSuite&) = delete;
-
   ~UIChromeOSTestSuite() override {}
 
  protected:
@@ -53,6 +50,8 @@ class UIChromeOSTestSuite : public base::TestSuite {
 
  private:
   std::unique_ptr<aura::Env> env_;
+
+  DISALLOW_COPY_AND_ASSIGN(UIChromeOSTestSuite);
 };
 
 }  // namespace

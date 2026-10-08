@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that automapping is capable of mapping file:// urls.\n`);
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
 
   var app_js = {content: 'console.log(\'foo.js!\');', time: null};
 
@@ -14,7 +14,7 @@
     'file:///usr/local/node/app.js': app_js,
   });
 
-  var fs = new BindingsTestRunner.TestFileSystem('/usr/local/node');
+  var fs = new BindingsTestRunner.TestFileSystem('file:///usr/local/node');
   BindingsTestRunner.addFiles(fs, {
     'app.js': app_js,
   });

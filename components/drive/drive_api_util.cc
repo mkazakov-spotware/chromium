@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 
 #include "base/files/file.h"
 #include "base/hash/md5.h"
-#include "base/strings/strcat.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -55,13 +56,13 @@ std::string EscapeQueryStringValue(const std::string& str) {
 
 std::string TranslateQuery(const std::string& original_query) {
   // In order to handle non-ascii white spaces correctly, convert to UTF16.
-  std::u16string query = base::UTF8ToUTF16(original_query);
-  const std::u16string kDelimiter =
-      base::StrCat({base::kWhitespaceUTF16, u"\""});
+  base::string16 query = base::UTF8ToUTF16(original_query);
+  const base::string16 kDelimiter(
+      base::kWhitespaceUTF16 + base::ASCIIToUTF16("\""));
 
   std::string result;
   for (size_t index = query.find_first_not_of(base::kWhitespaceUTF16);
-       index != std::u16string::npos;
+       index != base::string16::npos;
        index = query.find_first_not_of(base::kWhitespaceUTF16, index)) {
     bool is_exclusion = (query[index] == '-');
     if (is_exclusion)
@@ -72,12 +73,12 @@ std::string TranslateQuery(const std::string& original_query) {
     }
 
     size_t begin_token = index;
-    std::u16string token;
+    base::string16 token;
     if (query[begin_token] == '"') {
       // Quoted query.
       ++begin_token;
       size_t end_token = query.find('"', begin_token);
-      if (end_token == std::u16string::npos) {
+      if (end_token == base::string16::npos) {
         // This is kind of syntax error, since quoted string isn't finished.
         // However, the query is built by user manually, so here we treat
         // whole remaining string as a token as a fallback, by appending
@@ -90,7 +91,7 @@ std::string TranslateQuery(const std::string& original_query) {
       index = end_token + 1;  // Consume last '"', too.
     } else {
       size_t end_token = query.find_first_of(kDelimiter, begin_token);
-      if (end_token == std::u16string::npos) {
+      if (end_token == base::string16::npos) {
         end_token = query.length();
       }
 
@@ -165,7 +166,7 @@ std::string GetMd5Digest(const base::FilePath& file_path,
 }
 
 bool IsKnownHostedDocumentMimeType(const std::string& mime_type) {
-  for (size_t i = 0; i < std::size(kHostedDocumentKinds); ++i) {
+  for (size_t i = 0; i < base::size(kHostedDocumentKinds); ++i) {
     if (mime_type == kHostedDocumentKinds[i].mime_type)
       return true;
   }
@@ -174,7 +175,7 @@ bool IsKnownHostedDocumentMimeType(const std::string& mime_type) {
 
 bool HasHostedDocumentExtension(const base::FilePath& path) {
   const std::string extension = base::FilePath(path.Extension()).AsUTF8Unsafe();
-  for (size_t i = 0; i < std::size(kHostedDocumentKinds); ++i) {
+  for (size_t i = 0; i < base::size(kHostedDocumentKinds); ++i) {
     if (extension == kHostedDocumentKinds[i].extension)
       return true;
   }

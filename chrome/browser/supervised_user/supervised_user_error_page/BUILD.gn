@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -16,11 +16,16 @@ static_library("supervised_user_error_page") {
     "//base",
     "//chrome/app:generated_resources",
     "//chrome/browser:resources_grit",
-    "//chrome/browser/supervised_user/supervised_user_features",
     "//components/signin/public/base",
     "//ui/base",
     "//url",
   ]
+}
+
+if (is_android) {
+  java_cpp_enum("enums_srcjar") {
+    sources = [ "supervised_user_error_page.h" ]
+  }
 }
 
 source_set("unit_tests") {
@@ -32,7 +37,6 @@ source_set("unit_tests") {
     "//base/test:test_support",
     "//chrome/app:generated_resources",
     "//chrome/browser:resources_grit",
-    "//chrome/browser/supervised_user/supervised_user_features",
     "//testing/gmock",
     "//testing/gtest",
     "//ui/base",

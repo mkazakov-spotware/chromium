@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/c/pp_resource.h"
@@ -35,6 +36,9 @@
   F(PPB_FileIO_API)                     \
   F(PPB_FileRef_API)                    \
   F(PPB_FileSystem_API)                 \
+  F(PPB_Find_API)                       \
+  F(PPB_Flash_FontFile_API)             \
+  F(PPB_Flash_Fullscreen_API)           \
   F(PPB_Gamepad_API)                    \
   F(PPB_Graphics2D_API)                 \
   F(PPB_Graphics3D_API)                 \
@@ -50,6 +54,7 @@
   F(PPB_NetworkList_API)                \
   F(PPB_NetworkMonitor_API)             \
   F(PPB_NetworkProxy_API)               \
+  F(PPB_PDF_API)                        \
   F(PPB_Printing_API)                   \
   F(PPB_Scrollbar_API)                  \
   F(PPB_TCPServerSocket_Private_API)    \
@@ -101,8 +106,6 @@ enum ResourceObjectType { OBJECT_IS_IMPL, OBJECT_IS_PROXY };
 class PPAPI_SHARED_EXPORT Resource
     : public base::RefCountedThreadSafe<Resource> {
  public:
-  Resource() = delete;
-
   // Constructor for impl and non-proxied, instance-only objects.
   //
   // For constructing "impl" (non-proxied) objects, this just takes the
@@ -136,9 +139,6 @@ class PPAPI_SHARED_EXPORT Resource
   // PPB_MessageLoop resource for the main thread.
   struct Untracked {};
   explicit Resource(Untracked);
-
-  Resource(const Resource&) = delete;
-  Resource& operator=(const Resource&) = delete;
 
   virtual ~Resource();
 
@@ -228,6 +228,8 @@ class PPAPI_SHARED_EXPORT Resource
   // See the getters above.
   PP_Resource pp_resource_;
   HostResource host_resource_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Resource);
 };
 
 // Template-based dynamic casting. These specializations forward to the

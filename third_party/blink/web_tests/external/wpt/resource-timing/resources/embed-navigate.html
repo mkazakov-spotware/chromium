@@ -3,16 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <title>Resource Timing embed navigate</title>
-</head>
-<body>
 <script src="/common/get-host-info.sub.js"></script>
 <script src="nested-contexts.js"></script>
 <script>
-  setup_navigate_test();
+    setup_navigate_test();
 </script>
-<embed id="target" type="text/html">
+<div id=log></div>
+<embed type="text/html">
 <script>
-  target.src = pre_navigate_url;
+    document.getElementsByTagName("embed")[0].src = pre_navigate_url;
 </script>
-</body>
-</html>

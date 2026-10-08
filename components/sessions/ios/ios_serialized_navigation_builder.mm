@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,10 +29,8 @@ IOSSerializedNavigationBuilder::FromNavigationItem(
   navigation.title_ = item.GetTitle();
   navigation.transition_type_ = item.GetTransitionType();
   navigation.timestamp_ = item.GetTimestamp();
-
-  const web::FaviconStatus& favicon_status = item.GetFaviconStatus();
-  if (favicon_status.valid)
-    navigation.favicon_url_ = favicon_status.url;
+  if (item.GetFavicon().valid)
+    navigation.favicon_url_ = item.GetFavicon().url;
 
   return navigation;
 }
@@ -72,9 +70,7 @@ IOSSerializedNavigationBuilder::ToNavigationItem(
   item->SetTimestamp(navigation->timestamp_);
 
   if (navigation->favicon_url_.is_valid()) {
-    web::FaviconStatus favicon_status = item->GetFaviconStatus();
-    favicon_status.url = navigation->favicon_url_;
-    item->SetFaviconStatus(favicon_status);
+    item->GetFavicon().url = navigation->favicon_url_;
   }
 
   return item;

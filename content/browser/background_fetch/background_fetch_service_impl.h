@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,41 +9,30 @@
 #include <utility>
 #include <vector>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/sequence_checker.h"
 #include "content/browser/background_fetch/background_fetch_context.h"
 #include "content/common/content_export.h"
-#include "net/base/isolation_info.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/background_fetch/background_fetch.mojom.h"
-
-namespace net {
-class NetworkAnonymizationKey;
-}  // namespace net
+#include "url/origin.h"
 
 namespace content {
 
-struct ServiceWorkerVersionBaseInfo;
+struct ServiceWorkerVersionInfo;
 
 class CONTENT_EXPORT BackgroundFetchServiceImpl
     : public blink::mojom::BackgroundFetchService {
  public:
   BackgroundFetchServiceImpl(
       scoped_refptr<BackgroundFetchContext> background_fetch_context,
-      blink::StorageKey storage_key,
-      net::IsolationInfo isolation_info,
-      RenderProcessHost* rph,
-      RenderFrameHostImpl* rfh);
-
-  BackgroundFetchServiceImpl(const BackgroundFetchServiceImpl&) = delete;
-  BackgroundFetchServiceImpl& operator=(const BackgroundFetchServiceImpl&) =
-      delete;
-
+      url::Origin origin,
+      int render_frame_tree_node_id,
+      WebContents::Getter wc_getter);
   ~BackgroundFetchServiceImpl() override;
 
   static void CreateForWorker(
-      const net::NetworkIsolationKey& network_isolation_key,
-      const ServiceWorkerVersionBaseInfo& info,
+      const ServiceWorkerVersionInfo& info,
       mojo::PendingReceiver<blink::mojom::BackgroundFetchService> receiver);
 
   static void CreateForFrame(
@@ -66,29 +55,30 @@ class CONTENT_EXPORT BackgroundFetchServiceImpl
                        GetDeveloperIdsCallback callback) override;
 
  private:
+  static void CreateOnCoreThread(
+      scoped_refptr<BackgroundFetchContext> background_fetch_context,
+      url::Origin origin,
+      int render_frame_tree_node_id,
+      WebContents::Getter wc_getter,
+      mojo::PendingReceiver<blink::mojom::BackgroundFetchService> receiver);
+
   // Validates and returns whether the |developer_id|, |unique_id|, |requests|
   // and |title| respectively have valid values. The renderer will be flagged
   // for having sent a bad message if the values are invalid.
-  [[nodiscard]] bool ValidateDeveloperId(const std::string& developer_id);
-  [[nodiscard]] bool ValidateUniqueId(const std::string& unique_id);
-  [[nodiscard]] bool ValidateRequests(
-      const std::vector<blink::mojom::FetchAPIRequestPtr>& requests);
+  bool ValidateDeveloperId(const std::string& developer_id) WARN_UNUSED_RESULT;
+  bool ValidateUniqueId(const std::string& unique_id) WARN_UNUSED_RESULT;
+  bool ValidateRequests(const std::vector<blink::mojom::FetchAPIRequestPtr>&
+                            requests) WARN_UNUSED_RESULT;
 
   // The Background Fetch context on which operations will be dispatched.
   scoped_refptr<BackgroundFetchContext> background_fetch_context_;
 
-  const blink::StorageKey storage_key_;
+  const url::Origin origin_;
 
-  net::IsolationInfo isolation_info_;
+  int render_frame_tree_node_id_;
+  WebContents::Getter wc_getter_;
 
-  int rph_id_;
-
-  // Identifies the RenderFrameHost that is using this service, if any. May not
-  // resolve to a host if the frame has already been destroyed or a worker is
-  // using this service.
-  GlobalRenderFrameHostId rfh_id_;
-
-  SEQUENCE_CHECKER(sequence_checker_);
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchServiceImpl);
 };
 
 }  // namespace content

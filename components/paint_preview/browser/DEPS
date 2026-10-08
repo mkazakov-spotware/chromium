@@ -1,6 +1,5 @@
 include_rules = [
   "+cc/base",
-  "+chromeos/lacros",
   "+components/discardable_memory/service",
   "+components/keyed_service/core",
   "+components/services/paint_preview_compositor/public/mojom",
@@ -10,7 +9,7 @@ include_rules = [
   "+content/public/browser",
   "+content/public/test",
   "+services/metrics/public/cpp",
+  "+sandbox/policy/sandbox_type.h",
   "+third_party/blink/public/common",
   "+third_party/zlib/google",
-  "+ui/accessibility",
 ]

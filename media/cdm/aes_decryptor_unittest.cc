@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/cdm/aes_decryptor.h"
 
 #include <stdint.h>
-
 #include <memory>
 #include <set>
 #include <string>
@@ -14,8 +13,8 @@
 #include "base/bind.h"
 #include "base/debug/leak_annotations.h"
 #include "base/json/json_reader.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/values.h"
@@ -27,17 +26,16 @@
 #include "media/base/decryptor.h"
 #include "media/base/media_switches.h"
 #include "media/base/mock_filters.h"
+#include "media/cdm/cdm_module.h"
 #include "media/media_buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest-param-test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
-// GN check does not understand conditionals. Android & Fuchsia need nogncheck.
-#include "media/cdm/api/content_decryption_module.h"  // nogncheck
+#include "media/cdm/api/content_decryption_module.h"
 #include "media/cdm/cdm_adapter.h"
 #include "media/cdm/cdm_auxiliary_helper.h"
-#include "media/cdm/cdm_module.h"
 #include "media/cdm/external_clear_key_test_helper.h"
 #include "media/cdm/mock_helpers.h"
 #include "media/cdm/simple_cdm_allocator.h"
@@ -61,8 +59,8 @@ MATCHER(NotEmpty, "") {
 }
 MATCHER(IsJSONDictionary, "") {
   std::string result(arg.begin(), arg.end());
-  absl::optional<base::Value> root = base::JSONReader::Read(result);
-  return (root && root->type() == base::Value::Type::DICT);
+  base::Optional<base::Value> root = base::JSONReader::Read(result);
+  return (root && root->type() == base::Value::Type::DICTIONARY);
 }
 MATCHER(IsNullTime, "") {
   return arg.is_null();
@@ -237,15 +235,15 @@ class AesDecryptorTest : public testing::TestWithParam<TestType> {
   AesDecryptorTest()
       : original_data_(kOriginalData, kOriginalData + kOriginalDataSize),
         encrypted_data_(kEncryptedData,
-                        kEncryptedData + std::size(kEncryptedData)),
+                        kEncryptedData + base::size(kEncryptedData)),
         subsample_encrypted_data_(
             kSubsampleEncryptedData,
-            kSubsampleEncryptedData + std::size(kSubsampleEncryptedData)),
-        key_id_(kKeyId, kKeyId + std::size(kKeyId)),
-        iv_(kIv, kIv + std::size(kIv)),
+            kSubsampleEncryptedData + base::size(kSubsampleEncryptedData)),
+        key_id_(kKeyId, kKeyId + base::size(kKeyId)),
+        iv_(kIv, kIv + base::size(kIv)),
         normal_subsample_entries_(
             kSubsampleEntriesNormal,
-            kSubsampleEntriesNormal + std::size(kSubsampleEntriesNormal)) {}
+            kSubsampleEntriesNormal + base::size(kSubsampleEntriesNormal)) {}
 
   MOCK_METHOD2(BufferDecrypted,
                void(Decryptor::Status, scoped_refptr<DecoderBuffer>));
@@ -254,23 +252,24 @@ class AesDecryptorTest : public testing::TestWithParam<TestType> {
   void SetUp() override {
     if (GetParam() == TestType::kAesDecryptor) {
       OnCdmCreated(
-          new AesDecryptor(
-              base::BindRepeating(&MockCdmClient::OnSessionMessage,
-                                  base::Unretained(&cdm_client_)),
-              base::BindRepeating(&MockCdmClient::OnSessionClosed,
-                                  base::Unretained(&cdm_client_)),
-              base::BindRepeating(&MockCdmClient::OnSessionKeysChange,
-                                  base::Unretained(&cdm_client_)),
-              base::BindRepeating(&MockCdmClient::OnSessionExpirationUpdate,
-                                  base::Unretained(&cdm_client_))),
+          new AesDecryptor(base::Bind(&MockCdmClient::OnSessionMessage,
+                                      base::Unretained(&cdm_client_)),
+                           base::Bind(&MockCdmClient::OnSessionClosed,
+                                      base::Unretained(&cdm_client_)),
+                           base::Bind(&MockCdmClient::OnSessionKeysChange,
+                                      base::Unretained(&cdm_client_)),
+                           base::Bind(&MockCdmClient::OnSessionExpirationUpdate,
+                                      base::Unretained(&cdm_client_))),
           std::string());
     } else if (GetParam() == TestType::kCdmAdapter) {
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
+      CdmConfig cdm_config;  // default settings of false are sufficient.
+
       // Enable use of External Clear Key CDM.
       scoped_feature_list_.InitWithFeatures(
           {media::kExternalClearKeyForTesting}, {});
 
-      helper_ = std::make_unique<ExternalClearKeyTestHelper>();
+      helper_.reset(new ExternalClearKeyTestHelper());
 
 #if BUILDFLAG(ENABLE_CDM_HOST_VERIFICATION)
       CdmModule::GetInstance()->Initialize(helper_->LibraryPath(), {});
@@ -284,18 +283,18 @@ class AesDecryptorTest : public testing::TestWithParam<TestType> {
       std::unique_ptr<CdmAllocator> allocator(new SimpleCdmAllocator());
       std::unique_ptr<CdmAuxiliaryHelper> cdm_helper(
           new MockCdmAuxiliaryHelper(std::move(allocator)));
-      CdmAdapter::Create(
-          helper_->CdmConfig(), create_cdm_func, std::move(cdm_helper),
-          base::BindRepeating(&MockCdmClient::OnSessionMessage,
-                              base::Unretained(&cdm_client_)),
-          base::BindRepeating(&MockCdmClient::OnSessionClosed,
-                              base::Unretained(&cdm_client_)),
-          base::BindRepeating(&MockCdmClient::OnSessionKeysChange,
-                              base::Unretained(&cdm_client_)),
-          base::BindRepeating(&MockCdmClient::OnSessionExpirationUpdate,
-                              base::Unretained(&cdm_client_)),
-          base::BindOnce(&AesDecryptorTest::OnCdmCreated,
-                         base::Unretained(this)));
+      CdmAdapter::Create(helper_->KeySystemName(),
+                         cdm_config, create_cdm_func, std::move(cdm_helper),
+                         base::Bind(&MockCdmClient::OnSessionMessage,
+                                    base::Unretained(&cdm_client_)),
+                         base::Bind(&MockCdmClient::OnSessionClosed,
+                                    base::Unretained(&cdm_client_)),
+                         base::Bind(&MockCdmClient::OnSessionKeysChange,
+                                    base::Unretained(&cdm_client_)),
+                         base::Bind(&MockCdmClient::OnSessionExpirationUpdate,
+                                    base::Unretained(&cdm_client_)),
+                         base::BindOnce(&AesDecryptorTest::OnCdmCreated,
+                                        base::Unretained(this)));
 
       base::RunLoop().RunUntilIdle();
 #else
@@ -379,8 +378,7 @@ class AesDecryptorTest : public testing::TestWithParam<TestType> {
 
   // Closes the session specified by |session_id|.
   void CloseSession(const std::string& session_id) {
-    EXPECT_CALL(cdm_client_,
-                OnSessionClosed(session_id, CdmSessionClosedReason::kClose));
+    EXPECT_CALL(cdm_client_, OnSessionClosed(session_id));
     cdm_->CloseSession(session_id, CreatePromise(RESOLVED));
   }
 
@@ -498,7 +496,7 @@ class AesDecryptorTest : public testing::TestWithParam<TestType> {
 
   StrictMock<MockCdmClient> cdm_client_;
   scoped_refptr<ContentDecryptionModule> cdm_;
-  raw_ptr<Decryptor> decryptor_;
+  Decryptor* decryptor_;
   std::string session_id_;
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
@@ -592,7 +590,7 @@ TEST_P(AesDecryptorTest, CreateSessionWithCencInitData) {
   EXPECT_CALL(cdm_client_, OnSessionMessage(NotEmpty(), _, IsJSONDictionary()));
   cdm_->CreateSessionAndGenerateRequest(
       CdmSessionType::kTemporary, EmeInitDataType::CENC,
-      std::vector<uint8_t>(init_data, init_data + std::size(init_data)),
+      std::vector<uint8_t>(init_data, init_data + base::size(init_data)),
       CreateSessionPromise(RESOLVED));
 }
 
@@ -603,7 +601,7 @@ TEST_P(AesDecryptorTest, CreateSessionWithKeyIdsInitData) {
   EXPECT_CALL(cdm_client_, OnSessionMessage(NotEmpty(), _, IsJSONDictionary()));
   cdm_->CreateSessionAndGenerateRequest(
       CdmSessionType::kTemporary, EmeInitDataType::KEYIDS,
-      std::vector<uint8_t>(init_data, init_data + std::size(init_data) - 1),
+      std::vector<uint8_t>(init_data, init_data + base::size(init_data) - 1),
       CreateSessionPromise(RESOLVED));
 }
 
@@ -675,14 +673,14 @@ TEST_P(AesDecryptorTest, MultipleKeysAndFrames) {
   // The second key is also available.
   encrypted_buffer = CreateEncryptedBuffer(
       std::vector<uint8_t>(kEncryptedData2,
-                           kEncryptedData2 + std::size(kEncryptedData2)),
-      std::vector<uint8_t>(kKeyId2, kKeyId2 + std::size(kKeyId2)),
-      std::vector<uint8_t>(kIv2, kIv2 + std::size(kIv2)),
+                           kEncryptedData2 + base::size(kEncryptedData2)),
+      std::vector<uint8_t>(kKeyId2, kKeyId2 + base::size(kKeyId2)),
+      std::vector<uint8_t>(kIv2, kIv2 + base::size(kIv2)),
       no_subsample_entries_);
   ASSERT_NO_FATAL_FAILURE(DecryptAndExpect(
       encrypted_buffer,
       std::vector<uint8_t>(kOriginalData2,
-                           kOriginalData2 + std::size(kOriginalData2) - 1),
+                           kOriginalData2 + base::size(kOriginalData2) - 1),
       SUCCESS));
 }
 
@@ -744,7 +742,7 @@ TEST_P(AesDecryptorTest, SubsampleWrongSize) {
 
   std::vector<SubsampleEntry> subsample_entries_wrong_size(
       kSubsampleEntriesWrongSize,
-      kSubsampleEntriesWrongSize + std::size(kSubsampleEntriesWrongSize));
+      kSubsampleEntriesWrongSize + base::size(kSubsampleEntriesWrongSize));
 
   scoped_refptr<DecoderBuffer> encrypted_buffer = CreateEncryptedBuffer(
       subsample_encrypted_data_, key_id_, iv_, subsample_entries_wrong_size);
@@ -758,7 +756,7 @@ TEST_P(AesDecryptorTest, SubsampleInvalidTotalSize) {
   std::vector<SubsampleEntry> subsample_entries_invalid_total_size(
       kSubsampleEntriesInvalidTotalSize,
       kSubsampleEntriesInvalidTotalSize +
-          std::size(kSubsampleEntriesInvalidTotalSize));
+          base::size(kSubsampleEntriesInvalidTotalSize));
 
   scoped_refptr<DecoderBuffer> encrypted_buffer =
       CreateEncryptedBuffer(subsample_encrypted_data_, key_id_, iv_,
@@ -773,7 +771,7 @@ TEST_P(AesDecryptorTest, SubsampleClearBytesOnly) {
 
   std::vector<SubsampleEntry> clear_only_subsample_entries(
       kSubsampleEntriesClearOnly,
-      kSubsampleEntriesClearOnly + std::size(kSubsampleEntriesClearOnly));
+      kSubsampleEntriesClearOnly + base::size(kSubsampleEntriesClearOnly));
 
   scoped_refptr<DecoderBuffer> encrypted_buffer = CreateEncryptedBuffer(
       original_data_, key_id_, iv_, clear_only_subsample_entries);
@@ -787,7 +785,7 @@ TEST_P(AesDecryptorTest, SubsampleCypherBytesOnly) {
 
   std::vector<SubsampleEntry> cypher_only_subsample_entries(
       kSubsampleEntriesCypherOnly,
-      kSubsampleEntriesCypherOnly + std::size(kSubsampleEntriesCypherOnly));
+      kSubsampleEntriesCypherOnly + base::size(kSubsampleEntriesCypherOnly));
 
   scoped_refptr<DecoderBuffer> encrypted_buffer = CreateEncryptedBuffer(
       encrypted_data_, key_id_, iv_, cypher_only_subsample_entries);
@@ -1034,8 +1032,8 @@ TEST_P(AesDecryptorTest, JWKKey) {
 }
 
 TEST_P(AesDecryptorTest, GetKeyIds) {
-  std::vector<uint8_t> key_id1(kKeyId, kKeyId + std::size(kKeyId));
-  std::vector<uint8_t> key_id2(kKeyId2, kKeyId2 + std::size(kKeyId2));
+  std::vector<uint8_t> key_id1(kKeyId, kKeyId + base::size(kKeyId));
+  std::vector<uint8_t> key_id2(kKeyId2, kKeyId2 + base::size(kKeyId2));
 
   std::string session_id = CreateSession(key_id_);
   EXPECT_FALSE(KeysInfoContains(key_id1));
@@ -1053,7 +1051,7 @@ TEST_P(AesDecryptorTest, GetKeyIds) {
 }
 
 TEST_P(AesDecryptorTest, NoKeysChangeForSameKey) {
-  std::vector<uint8_t> key_id(kKeyId, kKeyId + std::size(kKeyId));
+  std::vector<uint8_t> key_id(kKeyId, kKeyId + base::size(kKeyId));
 
   std::string session_id = CreateSession(key_id_);
   EXPECT_FALSE(KeysInfoContains(key_id));
@@ -1072,7 +1070,7 @@ TEST_P(AesDecryptorTest, NoKeysChangeForSameKey) {
 }
 
 TEST_P(AesDecryptorTest, RandomSessionIDs) {
-  std::vector<uint8_t> key_id(kKeyId, kKeyId + std::size(kKeyId));
+  std::vector<uint8_t> key_id(kKeyId, kKeyId + base::size(kKeyId));
   const size_t kNumIterations = 25;
   std::set<std::string> seen_sessions;
 

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -384,18 +384,13 @@ void PipelineController::SetVolume(float volume) {
 }
 
 void PipelineController::SetLatencyHint(
-    absl::optional<base::TimeDelta> latency_hint) {
+    base::Optional<base::TimeDelta> latency_hint) {
   DCHECK(!latency_hint || (*latency_hint >= base::TimeDelta()));
   pipeline_->SetLatencyHint(latency_hint);
 }
 
 void PipelineController::SetPreservesPitch(bool preserves_pitch) {
   pipeline_->SetPreservesPitch(preserves_pitch);
-}
-
-void PipelineController::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
-  pipeline_->SetWasPlayedWithUserActivation(was_played_with_user_activation);
 }
 
 base::TimeDelta PipelineController::GetMediaTime() const {
@@ -434,18 +429,13 @@ void PipelineController::OnEnabledAudioTracksChanged(
 }
 
 void PipelineController::OnSelectedVideoTrackChanged(
-    absl::optional<MediaTrack::Id> selected_track_id) {
+    base::Optional<MediaTrack::Id> selected_track_id) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
   pending_video_track_change_ = true;
   pending_video_track_change_id_ = selected_track_id;
 
   Dispatch();
-}
-
-void PipelineController::OnExternalVideoFrameRequest() {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  pipeline_->OnExternalVideoFrameRequest();
 }
 
 void PipelineController::FireOnTrackChangeCompleteForTesting(State set_to) {

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "base/command_line.h"
 #include "base/hash/hash.h"
 #include "base/logging.h"
-#include "base/observer_list.h"
 #include "base/strings/string_split.h"
+#include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "ui/display/display.h"
 #include "ui/display/display_switches.h"
@@ -32,7 +32,8 @@ constexpr uint16_t kReservedManufacturerID = 1 << 15;
 constexpr uint32_t kProductCodeHash = 3692486807;
 
 // Delay for Configure().
-constexpr base::TimeDelta kConfigureDisplayDelay = base::Milliseconds(200);
+constexpr base::TimeDelta kConfigureDisplayDelay =
+    base::TimeDelta::FromMilliseconds(200);
 
 bool AreModesEqual(const display::DisplayMode& lhs,
                    const display::DisplayMode& rhs) {
@@ -130,11 +131,10 @@ void FakeDisplayDelegate::GetDisplays(GetDisplaysCallback callback) {
 
 void FakeDisplayDelegate::Configure(
     const std::vector<display::DisplayConfigurationParams>& config_requests,
-    ConfigureCallback callback,
-    uint32_t modeset_flag) {
-  bool config_success = true;
+    ConfigureCallback callback) {
+  base::flat_map<int64_t, bool> statuses;
   for (const auto& config : config_requests) {
-    bool request_success = false;
+    bool configure_success = false;
 
     if (config.mode.has_value()) {
       // Find display snapshot of display ID.
@@ -147,20 +147,19 @@ void FakeDisplayDelegate::Configure(
         // Check that config mode is appropriate for the display snapshot.
         for (const auto& existing_mode : snapshot->get()->modes()) {
           if (AreModesEqual(*existing_mode.get(), *config.mode.value().get())) {
-            request_success = true;
+            configure_success = true;
             break;
           }
         }
       }
     } else {
       // This is a request to turn off the display.
-      request_success = true;
+      configure_success = true;
     }
-    config_success &= request_success;
+    statuses.insert(std::make_pair(config.id, configure_success));
   }
 
-  configure_callbacks_.push(
-      base::BindOnce(std::move(callback), config_success));
+  configure_callbacks_.push(base::BindOnce(std::move(callback), statuses));
 
   // Start the timer if it's not already running. If there are multiple queued
   // configuration requests then ConfigureDone() will handle starting the
@@ -198,11 +197,7 @@ bool FakeDisplayDelegate::SetGammaCorrection(
   return false;
 }
 
-void FakeDisplayDelegate::SetPrivacyScreen(int64_t display_id,
-                                           bool enabled,
-                                           SetPrivacyScreenCallback callback) {
-  std::move(callback).Run(false);
-}
+void FakeDisplayDelegate::SetPrivacyScreen(int64_t display_id, bool enabled) {}
 
 void FakeDisplayDelegate::AddObserver(NativeDisplayObserver* observer) {
   observers_.AddObserver(observer);

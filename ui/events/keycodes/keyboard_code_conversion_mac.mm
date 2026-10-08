@@ -1,17 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ui/events/keycodes/keyboard_code_conversion_mac.h"
 
-#import <Carbon/Carbon.h>
-
 #include <algorithm>
+
+#import <Carbon/Carbon.h>
 
 #include "base/check_op.h"
 #include "base/mac/mac_logging.h"
 #include "base/mac/scoped_cftyperef.h"
 #include "base/memory/scoped_policy.h"
+#include "base/stl_util.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
 
 namespace ui {
@@ -221,9 +222,9 @@ const KeyCodeMap kKeyCodesMap[] = {
 bool IsKeypadOrNumericKeyEvent(NSEvent* event) {
   // Check that this is the type of event that has a keyCode.
   switch ([event type]) {
-    case NSEventTypeKeyDown:
-    case NSEventTypeKeyUp:
-    case NSEventTypeFlagsChanged:
+    case NSKeyDown:
+    case NSKeyUp:
+    case NSFlagsChanged:
       break;
     default:
       return false;
@@ -421,10 +422,6 @@ DomKey DomKeyFromKeyCode(unsigned short keyCode) {
       return DomKey::ARROW_UP;
     case kVK_ContextMenu:
       return DomKey::CONTEXT_MENU;
-    case kVK_JIS_Eisu:
-      return DomKey::EISU;
-    case kVK_JIS_Kana:
-      return DomKey::KANJI_MODE;
     default:
       return DomKey::NONE;
   }
@@ -533,15 +530,15 @@ UniChar MacKeycodeAndModifiersToCharacter(unsigned short mac_keycode,
   // Convert NSEvent modifiers to format UCKeyTranslate accepts. See docs
   // on UCKeyTranslate for more info.
   int unicode_modifiers = 0;
-  if (modifiers & NSEventModifierFlagShift)
+  if (modifiers & NSShiftKeyMask)
     unicode_modifiers |= shiftKey;
-  if (modifiers & NSEventModifierFlagCapsLock)
+  if (modifiers & NSAlphaShiftKeyMask)
     unicode_modifiers |= alphaLock;
-  // if (modifiers & NSEventModifierFlagControl)
+  // if (modifiers & NSControlKeyMask)
   //   unicode_modifiers |= controlKey;
-  if (modifiers & NSEventModifierFlagOption)
+  if (modifiers & NSAlternateKeyMask)
     unicode_modifiers |= optionKey;
-  // if (modifiers & NSEventModifierFlagCommand)
+  // if (modifiers & NSCommandKeyMask)
   //   unicode_modifiers |= cmdKey;
   UInt32 modifier_key_state = (unicode_modifiers >> 8) & 0xFF;
 
@@ -570,15 +567,15 @@ int MacKeyCodeForWindowsKeyCode(KeyboardCode keycode,
                                 unichar* keyboard_character) {
   // In release code, |flags| is used to lookup accelerators, so logic to handle
   // caps lock properly isn't implemented.
-  DCHECK_EQ(0u, flags & NSEventModifierFlagCapsLock);
+  DCHECK_EQ(0u, flags & NSAlphaShiftKeyMask);
 
   KeyCodeMap from;
   from.keycode = keycode;
 
   const KeyCodeMap* ptr = std::lower_bound(
-      kKeyCodesMap, kKeyCodesMap + std::size(kKeyCodesMap), from);
+      kKeyCodesMap, kKeyCodesMap + base::size(kKeyCodesMap), from);
 
-  if (ptr >= kKeyCodesMap + std::size(kKeyCodesMap) ||
+  if (ptr >= kKeyCodesMap + base::size(kKeyCodesMap) ||
       ptr->keycode != keycode || ptr->macKeycode == -1)
     return -1;
 
@@ -592,7 +589,7 @@ int MacKeyCodeForWindowsKeyCode(KeyboardCode keycode,
   *us_keyboard_shifted_character = ptr->characterIgnoringAllModifiers;
 
   // Fill in |us_keyboard_shifted_character| according to flags.
-  if (flags & NSEventModifierFlagShift) {
+  if (flags & NSShiftKeyMask) {
     if (keycode >= VKEY_0 && keycode <= VKEY_9) {
       *us_keyboard_shifted_character =
           kShiftCharsForNumberKeys[keycode - VKEY_0];
@@ -787,8 +784,7 @@ KeyboardCode KeyboardCodeFromNSEvent(NSEvent* event) {
   // Numeric keys 0-9 should always return |keyCode| 0-9.
   // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode#Printable_keys_in_standard_position
   if (!IsKeypadOrNumericKeyEvent(event) &&
-      ([event type] == NSEventTypeKeyDown ||
-       [event type] == NSEventTypeKeyUp)) {
+      ([event type] == NSKeyDown || [event type] == NSKeyUp)) {
     // Handles Dvorak-QWERTY Cmd case.
     // https://github.com/WebKit/webkit/blob/4d41c98b1de467f5d2a8fcba84d7c5268f11b0cc/Source/WebCore/platform/mac/PlatformEventFactoryMac.mm#L329
     NSString* characters = [event characters];
@@ -832,7 +828,7 @@ DomKey DomKeyFromNSEvent(NSEvent* event) {
   // Apply the lookup based on the character first since that has the
   // Keyboard layout and modifiers already applied; whereas the keyCode
   // doesn't.
-  if ([event type] == NSEventTypeKeyDown || [event type] == NSEventTypeKeyUp) {
+  if ([event type] == NSKeyDown || [event type] == NSKeyUp) {
     // Cannot use [event characters] to check whether it's a dead key, because
     // KeyUp event has the character form of the dead key in [event characters].
     bool is_dead_key = false;
@@ -841,12 +837,6 @@ DomKey DomKeyFromNSEvent(NSEvent* event) {
         [event keyCode], [event modifierFlags], &is_dead_key);
     if (is_dead_key)
       return DomKey::DeadKeyFromCombiningCharacter(dead_dom_key_char);
-
-    // Mac Eisu Kana key events have a space symbol (U+0020) as [event
-    // characters]. However, the symbol is not generated for users and the event
-    // is just used for enabling/disabling an IME.
-    if ([event keyCode] == kVK_JIS_Eisu || [event keyCode] == kVK_JIS_Kana)
-      return DomKeyFromKeyCode([event keyCode]);
 
     // [event characters] will have dead key state applied.
     NSString* characters = [event characters];
@@ -861,9 +851,8 @@ DomKey DomKeyFromNSEvent(NSEvent* event) {
         // Unicode 'Other, Control' General Category.
         // https://w3c.github.io/uievents-key/#selecting-key-attribute-values
         bool unused_is_dead_key;
-        const int kAllowedModifiersMask = NSEventModifierFlagShift |
-                                          NSEventModifierFlagCapsLock |
-                                          NSEventModifierFlagOption;
+        const int kAllowedModifiersMask =
+            NSShiftKeyMask | NSAlphaShiftKeyMask | NSAlternateKeyMask;
         // MacKeycodeAndModifiersToCharacter() is efficient (around 6E-4 ms).
         dom_key_char = MacKeycodeAndModifiersToCharacter(
             [event keyCode], [event modifierFlags] & kAllowedModifiersMask,
@@ -889,8 +878,6 @@ UniChar TranslatedUnicodeCharFromKeyCode(TISInputSourceRef input_source,
 
   CFDataRef layout_data = static_cast<CFDataRef>(TISGetInputSourceProperty(
       input_source, kTISPropertyUnicodeKeyLayoutData));
-  if (!layout_data)
-    return 0xFFFD;  // REPLACEMENT CHARACTER
 
   const UCKeyboardLayout* keyboard_layout =
       reinterpret_cast<const UCKeyboardLayout*>(CFDataGetBytePtr(layout_data));

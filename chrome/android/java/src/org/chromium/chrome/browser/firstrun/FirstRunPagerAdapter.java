@@ -1,57 +1,50 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.firstrun;
 
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentActivity;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentStatePagerAdapter;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Adapter used to provide First Run pages to the FirstRunActivity ViewPager.
  */
-class FirstRunPagerAdapter extends FragmentStateAdapter {
+class FirstRunPagerAdapter extends FragmentStatePagerAdapter {
     private final List<FirstRunPage> mPages;
 
-    private final List<FirstRunFragment> mFragments = new ArrayList<>();
+    private boolean mStopAtTheFirstPage;
 
-    public FirstRunPagerAdapter(FragmentActivity activity, List<FirstRunPage> pages) {
-        super(activity);
+    public FirstRunPagerAdapter(FragmentManager fragmentManager, List<FirstRunPage> pages) {
+        super(fragmentManager);
         assert pages != null;
         assert pages.size() > 0;
         mPages = pages;
     }
 
     /**
-     * Returns the FirstRunFragment at the passed-in position. Returns null if the fragment has not
-     * yet been instantiated by RecyclerView.
+     * Controls progression beyond the first page.
+     * @param stop True if no progression beyond the first page is allowed.
      */
-    public FirstRunFragment getFirstRunFragment(int position) {
-        return (position < mFragments.size()) ? mFragments.get(position) : null;
-    }
-
-    @Override
-    public Fragment createFragment(int position) {
-        assert position >= 0 && position < mPages.size();
-        Fragment fragment = mPages.get(position).instantiateFragment();
-
-        for (int i = mFragments.size(); i <= position; i++) {
-            mFragments.add(null);
+    void setStopAtTheFirstPage(boolean stop) {
+        if (stop != mStopAtTheFirstPage) {
+            mStopAtTheFirstPage = stop;
+            notifyDataSetChanged();
         }
-
-        // Caching fragment is OK because FirstRunActivity retains all of the fragments via
-        // ViewPager2#setOffscreenPageLimit(). See crbug.com/740897 for details.
-        mFragments.set(position, (FirstRunFragment) fragment);
-
-        return fragment;
     }
 
     @Override
-    public int getItemCount() {
+    public Fragment getItem(int position) {
+        assert position >= 0 && position < mPages.size();
+        return mPages.get(position).instantiateFragment();
+    }
+
+    @Override
+    public int getCount() {
+        if (mStopAtTheFirstPage) return 1;
         return mPages.size();
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,31 +7,19 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/web/print/web_state_printer.h"
+#import "ios/chrome/browser/web/web_state_printer.h"
 
 // Interface for printing.
 @interface PrintController : NSObject <WebStatePrinter>
 
-// `baseViewController` is the default VC to present print preview in case it
-// is not specified in the command.
-- (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
-    NS_DESIGNATED_INITIALIZER;
+// The view controller the system print dialog should be presented from.
+// Set this before calling any print methods.
+@property(nonatomic, weak) UIViewController* baseViewController;
 
-- (instancetype)init NS_UNAVAILABLE;
+// Shows print UI for |view| with |title|.
+- (void)printView:(UIView*)view withTitle:(NSString*)title;
 
-// Shows print UI for `view` with `title`.
-// Print preview will be presented on top of `baseViewController`.
-- (void)printView:(UIView*)view
-             withTitle:(NSString*)title
-    baseViewController:(UIViewController*)baseViewController;
-
-// Shows print UI for `image` with `title`.
-// Print preview will be presented on top of `baseViewController`.
-- (void)printImage:(UIImage*)image
-                 title:(NSString*)title
-    baseViewController:(UIViewController*)baseViewController;
-
-// Dismisses the print dialog with animation if `animated`.
+// Dismisses the print dialog with animation if |animated|.
 - (void)dismissAnimated:(BOOL)animated;
 
 @end

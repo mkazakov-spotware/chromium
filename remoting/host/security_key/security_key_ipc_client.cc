@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,14 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
-#include "build/build_config.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_listener.h"
+#include "ipc/ipc_message.h"
+#include "ipc/ipc_message_macros.h"
+#include "remoting/host/chromoting_messages.h"
+#include "remoting/host/ipc_constants.h"
 #include "remoting/host/security_key/security_key_ipc_constants.h"
-
-#if BUILDFLAG(IS_WIN)
-#include <Windows.h>
-#endif
 
 namespace remoting {
 
@@ -72,12 +71,8 @@ bool SecurityKeyIpcClient::SendSecurityKeyRequest(
   }
 
   response_callback_ = std::move(response_callback);
-  security_key_forwarder_->OnSecurityKeyRequest(
-      request_payload,
-      base::BindOnce(&SecurityKeyIpcClient::OnSecurityKeyResponse,
-                     base::Unretained(this)));
-
-  return true;
+  return ipc_channel_->Send(
+      new ChromotingRemoteSecurityKeyToNetworkMsg_Request(request_payload));
 }
 
 void SecurityKeyIpcClient::CloseIpcConnection() {
@@ -97,14 +92,26 @@ void SecurityKeyIpcClient::SetExpectedIpcServerSessionIdForTest(
 
 bool SecurityKeyIpcClient::OnMessageReceived(const IPC::Message& message) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  CHECK(false) << "Unexpected call to OnMessageReceived: " << message.type();
-  return false;
+
+  bool handled = true;
+  IPC_BEGIN_MESSAGE_MAP(SecurityKeyIpcClient, message)
+    IPC_MESSAGE_HANDLER(ChromotingNetworkToRemoteSecurityKeyMsg_Response,
+                        OnSecurityKeyResponse)
+    IPC_MESSAGE_HANDLER(ChromotingNetworkToRemoteSecurityKeyMsg_ConnectionReady,
+                        OnConnectionReady)
+    IPC_MESSAGE_HANDLER(ChromotingNetworkToRemoteSecurityKeyMsg_InvalidSession,
+                        OnInvalidSession)
+    IPC_MESSAGE_UNHANDLED(handled = false)
+  IPC_END_MESSAGE_MAP()
+
+  CHECK(handled) << "Received unexpected IPC type: " << message.type();
+  return handled;
 }
 
 void SecurityKeyIpcClient::OnChannelConnected(int32_t peer_pid) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DWORD peer_session_id;
   if (!ProcessIdToSessionId(peer_pid, &peer_session_id)) {
     PLOG(ERROR) << "ProcessIdToSessionId failed";
@@ -119,16 +126,12 @@ void SecurityKeyIpcClient::OnChannelConnected(int32_t peer_pid) {
     std::move(connection_error_callback_).Run();
     return;
   }
-#endif  // BUILDFLAG(IS_WIN)
-
-  std::move(connected_callback_).Run();
+#endif  // defined(OS_WIN)
 }
 
 void SecurityKeyIpcClient::OnChannelError() {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-  security_key_forwarder_.reset();
-  ipc_channel_.reset();
   if (connection_error_callback_) {
     std::move(connection_error_callback_).Run();
   }
@@ -148,6 +151,34 @@ void SecurityKeyIpcClient::OnSecurityKeyResponse(
   }
 }
 
+void SecurityKeyIpcClient::OnConnectionReady() {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  if (!connected_callback_) {
+    LOG(ERROR) << "Unexpected ConnectionReady message received.";
+    if (connection_error_callback_) {
+      std::move(connection_error_callback_).Run();
+    }
+    return;
+  }
+
+  std::move(connected_callback_).Run(/*connection_usable=*/true);
+}
+
+void SecurityKeyIpcClient::OnInvalidSession() {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  if (!connected_callback_) {
+    LOG(ERROR) << "Unexpected InvalidSession message received.";
+    if (connection_error_callback_) {
+      std::move(connection_error_callback_).Run();
+    }
+    return;
+  }
+
+  std::move(connected_callback_).Run(/*connection_usable=*/false);
+}
+
 void SecurityKeyIpcClient::ConnectToIpcChannel() {
   DCHECK(thread_checker_.CalledOnValidThread());
 
@@ -155,26 +186,23 @@ void SecurityKeyIpcClient::ConnectToIpcChannel() {
   CloseIpcConnection();
 
   if (!channel_handle_.is_valid() && !CheckForSecurityKeyIpcServerChannel()) {
-    LOG(ERROR) << "Invalid channel handle.";
-    OnChannelError();
+    if (connection_error_callback_) {
+      std::move(connection_error_callback_).Run();
+    }
     return;
   }
 
   ipc_channel_ = IPC::Channel::CreateClient(
       mojo_connection_.Connect(std::move(channel_handle_)).release(), this,
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-
-  if (!ipc_channel_->Connect()) {
-    LOG(ERROR) << "Failed to connect IPC Channel.";
-    OnChannelError();
+      base::ThreadTaskRunnerHandle::Get());
+  if (ipc_channel_->Connect()) {
     return;
   }
+  ipc_channel_.reset();
 
-  auto* associated_interface_support =
-      ipc_channel_->GetAssociatedInterfaceSupport();
-
-  associated_interface_support->GetRemoteAssociatedInterface(
-      security_key_forwarder_.BindNewEndpointAndPassReceiver());
+  if (connection_error_callback_) {
+    std::move(connection_error_callback_).Run();
+  }
 }
 
 }  // namespace remoting

@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef PPAPI_HOST_INSTANCE_MESSAGE_FILTER_H_
 #define PPAPI_HOST_INSTANCE_MESSAGE_FILTER_H_
 
+#include "base/macros.h"
 #include "ppapi/host/ppapi_host_export.h"
 
 namespace IPC {
@@ -19,10 +20,6 @@ class PpapiHost;
 class PPAPI_HOST_EXPORT InstanceMessageFilter {
  public:
   explicit InstanceMessageFilter(PpapiHost* host);
-
-  InstanceMessageFilter(const InstanceMessageFilter&) = delete;
-  InstanceMessageFilter& operator=(const InstanceMessageFilter&) = delete;
-
   virtual ~InstanceMessageFilter();
 
   // Processes an instance message from the plugin process. Returns true if the
@@ -34,6 +31,8 @@ class PPAPI_HOST_EXPORT InstanceMessageFilter {
 
  private:
   PpapiHost* host_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstanceMessageFilter);
 };
 
 }  // namespace host

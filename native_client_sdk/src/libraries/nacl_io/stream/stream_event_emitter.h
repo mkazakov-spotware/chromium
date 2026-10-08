@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,9 +22,6 @@ class StreamEventEmitter : public EventEmitter {
  public:
   StreamEventEmitter();
 
-  StreamEventEmitter(const StreamEventEmitter&) = delete;
-  StreamEventEmitter& operator=(const StreamEventEmitter&) = delete;
-
   void AttachStream(StreamNode* stream);
   void DetachStream();
 
@@ -37,6 +34,7 @@ class StreamEventEmitter : public EventEmitter {
 
  protected:
   StreamNode* stream_;
+  DISALLOW_COPY_AND_ASSIGN(StreamEventEmitter);
 };
 
 }  // namespace nacl_io

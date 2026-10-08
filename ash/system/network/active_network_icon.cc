@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/model/system_tray_model.h"
 #include "ash/system/network/network_icon.h"
-#include "ash/system/network/network_utils.h"
 #include "ash/system/network/tray_network_state_model.h"
 #include "ash/system/tray/tray_constants.h"
-#include "base/bind.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chromeos/services/network_config/public/cpp/cros_network_config_util.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -52,9 +51,9 @@ ActiveNetworkIcon::~ActiveNetworkIcon() {
 }
 
 void ActiveNetworkIcon::GetConnectionStatusStrings(Type type,
-                                                   std::u16string* a11y_name,
-                                                   std::u16string* a11y_desc,
-                                                   std::u16string* tooltip) {
+                                                   base::string16* a11y_name,
+                                                   base::string16* a11y_desc,
+                                                   base::string16* tooltip) {
   const NetworkStateProperties* network = nullptr;
   switch (type) {
     case Type::kSingle:
@@ -69,7 +68,7 @@ void ActiveNetworkIcon::GetConnectionStatusStrings(Type type,
       break;
   }
 
-  std::u16string network_name;
+  base::string16 network_name;
   if (network) {
     network_name = network->type == NetworkType::kEthernet
                        ? l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_ETHERNET)
@@ -79,25 +78,19 @@ void ActiveNetworkIcon::GetConnectionStatusStrings(Type type,
   if (network && network->type == NetworkType::kCellular &&
       network->type_state->get_cellular()->activation_state ==
           ActivationStateType::kActivating) {
-    std::u16string activating_string = l10n_util::GetStringFUTF16(
+    base::string16 activating_string = l10n_util::GetStringFUTF16(
         IDS_ASH_STATUS_TRAY_NETWORK_ACTIVATING, network_name);
     if (a11y_name)
       *a11y_name = activating_string;
     if (a11y_desc)
-      *a11y_desc = std::u16string();
+      *a11y_desc = base::string16();
     if (tooltip)
       *tooltip = activating_string;
   } else if (network && chromeos::network_config::StateIsConnected(
                             network->connection_state)) {
-    std::u16string connected_string;
-    if (auto portal_subtext = GetPortalStateSubtext(network->portal_state)) {
-      connected_string = l10n_util::GetStringFUTF16(
-          IDS_ASH_STATUS_TRAY_NETWORK_PORTAL, network_name, *portal_subtext);
-    } else {
-      connected_string = l10n_util::GetStringFUTF16(
-          IDS_ASH_STATUS_TRAY_NETWORK_CONNECTED, network_name);
-    }
-    std::u16string signal_strength_string;
+    base::string16 connected_string = l10n_util::GetStringFUTF16(
+        IDS_ASH_STATUS_TRAY_NETWORK_CONNECTED, network_name);
+    base::string16 signal_strength_string;
     if (chromeos::network_config::NetworkTypeMatchesType(
             network->type, NetworkType::kWireless)) {
       // Retrieve the string describing the signal strength, if it is applicable
@@ -130,16 +123,16 @@ void ActiveNetworkIcon::GetConnectionStatusStrings(Type type,
                      ? connected_string
                      : l10n_util::GetStringFUTF16(
                            IDS_ASH_STATUS_TRAY_NETWORK_CONNECTED_TOOLTIP,
-                           connected_string, signal_strength_string);
+                           network_name, signal_strength_string);
     }
   } else if (network &&
              network->connection_state == ConnectionStateType::kConnecting) {
-    std::u16string connecting_string = l10n_util::GetStringFUTF16(
+    base::string16 connecting_string = l10n_util::GetStringFUTF16(
         IDS_ASH_STATUS_TRAY_NETWORK_CONNECTING, network_name);
     if (a11y_name)
       *a11y_name = connecting_string;
     if (a11y_desc)
-      *a11y_desc = std::u16string();
+      *a11y_desc = base::string16();
     if (tooltip)
       *tooltip = connecting_string;
   } else {
@@ -148,7 +141,7 @@ void ActiveNetworkIcon::GetConnectionStatusStrings(Type type,
           IDS_ASH_STATUS_TRAY_NETWORK_NOT_CONNECTED_A11Y);
     }
     if (a11y_desc)
-      *a11y_desc = std::u16string();
+      *a11y_desc = base::string16();
     if (tooltip) {
       *tooltip = l10n_util::GetStringUTF16(
           IDS_ASH_STATUS_TRAY_NETWORK_DISCONNECTED_TOOLTIP);
@@ -294,26 +287,10 @@ void ActiveNetworkIcon::SetCellularUninitializedMsg() {
     return;
   }
 
-  // If cellular is scanning, we want to show a 'connecting' image. However,
-  // there may be some cases where cellular's scanning property is true while
-  // the device is disabling. In this instance, we don't want to show
-  // 'connecting'. Only set cellular_uninitialized_msg_ to scanning if the
-  // device is scanning and enabled or enabling.
-  if (cellular &&
-      (cellular->device_state == DeviceStateType::kEnabled ||
-       cellular->device_state == DeviceStateType::kEnabling) &&
-      cellular->scanning) {
+  if (cellular && cellular->scanning) {
     cellular_uninitialized_msg_ = IDS_ASH_STATUS_TRAY_MOBILE_SCANNING;
     uninitialized_state_time_ = base::Time::Now();
     return;
-  }
-
-  // If cellular is not scanning and cellular device is enabled reset cellular
-  // initializing state.
-  if (cellular && !cellular->scanning &&
-      (cellular->device_state == DeviceStateType::kEnabled ||
-       cellular->device_state == DeviceStateType::kEnabling)) {
-    cellular_uninitialized_msg_ = 0;
   }
 
   // There can be a delay between leaving the Initializing state and when
@@ -331,14 +308,11 @@ void ActiveNetworkIcon::ActiveNetworkStateChanged() {
   SetCellularUninitializedMsg();
 }
 
-void ActiveNetworkIcon::DeviceStateListChanged() {
-  SetCellularUninitializedMsg();
-}
-
 void ActiveNetworkIcon::NetworkListChanged() {
   if (purge_timer_.IsRunning())
     return;
-  purge_timer_.Start(FROM_HERE, base::Milliseconds(kPurgeDelayMs),
+  purge_timer_.Start(FROM_HERE,
+                     base::TimeDelta::FromMilliseconds(kPurgeDelayMs),
                      base::BindOnce(&ActiveNetworkIcon::PurgeNetworkIconCache,
                                     weak_ptr_factory_.GetWeakPtr()));
 }

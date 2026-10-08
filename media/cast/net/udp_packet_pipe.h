@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,6 @@ class UdpPacketPipeReader {
  public:
   explicit UdpPacketPipeReader(
       mojo::ScopedDataPipeConsumerHandle consumer_handle);
-
-  UdpPacketPipeReader(const UdpPacketPipeReader&) = delete;
-  UdpPacketPipeReader& operator=(const UdpPacketPipeReader&) = delete;
 
   ~UdpPacketPipeReader();
 
@@ -40,6 +37,8 @@ class UdpPacketPipeReader {
   MojoDataPipeReader data_pipe_reader_;
 
   uint16_t current_packet_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(UdpPacketPipeReader);
 };
 
 // Writes UDP packets into the data mojo pipe. The size of each packet is
@@ -48,9 +47,6 @@ class UdpPacketPipeWriter {
  public:
   explicit UdpPacketPipeWriter(
       mojo::ScopedDataPipeProducerHandle producer_handle);
-
-  UdpPacketPipeWriter(const UdpPacketPipeWriter&) = delete;
-  UdpPacketPipeWriter& operator=(const UdpPacketPipeWriter&) = delete;
 
   ~UdpPacketPipeWriter();
 
@@ -75,6 +71,8 @@ class UdpPacketPipeWriter {
   MojoDataPipeWriter data_pipe_writer_;
 
   uint16_t current_packet_size_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(UdpPacketPipeWriter);
 };
 
 }  // namespace cast

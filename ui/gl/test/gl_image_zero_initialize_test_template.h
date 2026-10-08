@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,15 @@ class GLImageZeroInitializeTest : public GLImageTest<GLImageTestDelegate> {};
 TYPED_TEST_SUITE_P(GLImageZeroInitializeTest);
 
 TYPED_TEST_P(GLImageZeroInitializeTest, ZeroInitialize) {
-  if (this->delegate_.SkipTest(this->display_))
-    GTEST_SKIP() << "Skip ZeroInitialize because GL initialization failed";
+  if (this->delegate_.SkipTest())
+    return;
+
+#if defined(OS_APPLE)
+  // This functionality is disabled on Yosemite because it is suspected of
+  // causing performance regressions on old hardware. https://crbug.com/606850.
+  if (base::mac::IsOS10_10())
+    return;
+#endif
 
   const gfx::Size image_size(256, 256);
 

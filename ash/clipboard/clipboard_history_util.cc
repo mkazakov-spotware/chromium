@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,69 +8,60 @@
 
 #include "ash/clipboard/clipboard_history_item.h"
 #include "ash/metrics/histogram_macros.h"
-#include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
-#include "ash/style/ash_color_provider.h"
-#include "ash/style/dark_light_mode_controller_impl.h"
-#include "base/files/file_path.h"
-#include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chromeos/ui/base/file_icon_util.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "ui/base/clipboard/clipboard_data.h"
 #include "ui/base/clipboard/custom_data_helper.h"
-#include "ui/gfx/paint_vector_icon.h"
 
-namespace ash::clipboard_history_util {
+namespace ash {
+namespace ClipboardHistoryUtil {
 
 namespace {
 
-constexpr char16_t kFileSystemSourcesType[] = u"fs/sources";
+constexpr char kFileSystemSourcesType[] = "fs/sources";
 
 // The array of formats in order of decreasing priority.
 constexpr ui::ClipboardInternalFormat kPrioritizedFormats[] = {
-    ui::ClipboardInternalFormat::kPng,
-    ui::ClipboardInternalFormat::kHtml,
-    ui::ClipboardInternalFormat::kText,
-    ui::ClipboardInternalFormat::kRtf,
-    ui::ClipboardInternalFormat::kFilenames,
-    ui::ClipboardInternalFormat::kBookmark,
-    ui::ClipboardInternalFormat::kWeb,
+    ui::ClipboardInternalFormat::kBitmap,   ui::ClipboardInternalFormat::kHtml,
+    ui::ClipboardInternalFormat::kText,     ui::ClipboardInternalFormat::kRtf,
+    ui::ClipboardInternalFormat::kBookmark, ui::ClipboardInternalFormat::kWeb,
     ui::ClipboardInternalFormat::kCustom};
 
 }  // namespace
 
-absl::optional<ui::ClipboardInternalFormat> CalculateMainFormat(
+base::Optional<ui::ClipboardInternalFormat> CalculateMainFormat(
     const ui::ClipboardData& data) {
   for (const auto& format : kPrioritizedFormats) {
     if (ContainsFormat(data, format)) {
+      if (chromeos::features::IsClipboardHistorySimpleRenderEnabled()) {
+        if (format == ui::ClipboardInternalFormat::kHtml &&
+            (data.markup_data().find("<img") == std::string::npos) &&
+            (data.markup_data().find("<table") == std::string::npos)) {
+          continue;
+        }
+      }
       return format;
     }
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-DisplayFormat CalculateDisplayFormat(const ui::ClipboardData& data) {
+ClipboardHistoryDisplayFormat CalculateDisplayFormat(
+    const ui::ClipboardData& data) {
   switch (CalculateMainFormat(data).value()) {
-    case ui::ClipboardInternalFormat::kPng:
-      return DisplayFormat::kPng;
+    case ui::ClipboardInternalFormat::kBitmap:
+      return ClipboardHistoryDisplayFormat::kBitmap;
     case ui::ClipboardInternalFormat::kHtml:
-      if ((data.markup_data().find("<img") == std::string::npos) &&
-          (data.markup_data().find("<table") == std::string::npos)) {
-        return DisplayFormat::kText;
-      }
-      return DisplayFormat::kHtml;
+      return ClipboardHistoryDisplayFormat::kHtml;
     case ui::ClipboardInternalFormat::kText:
     case ui::ClipboardInternalFormat::kSvg:
     case ui::ClipboardInternalFormat::kRtf:
     case ui::ClipboardInternalFormat::kBookmark:
     case ui::ClipboardInternalFormat::kWeb:
-      return DisplayFormat::kText;
-    case ui::ClipboardInternalFormat::kFilenames:
-      return DisplayFormat::kFile;
     case ui::ClipboardInternalFormat::kCustom:
-      return ContainsFileSystemData(data) ? DisplayFormat::kFile
-                                          : DisplayFormat::kText;
+      return ClipboardHistoryDisplayFormat::kText;
   }
 }
 
@@ -95,62 +86,21 @@ bool ContainsFileSystemData(const ui::ClipboardData& data) {
   return !GetFileSystemSources(data).empty();
 }
 
-void GetSplitFileSystemData(const ui::ClipboardData& data,
-                            std::vector<base::StringPiece16>* source_list,
-                            std::u16string* sources) {
-  DCHECK(sources);
-  DCHECK(sources->empty());
-  DCHECK(source_list);
-  DCHECK(source_list->empty());
-
-  *sources = GetFileSystemSources(data);
-  if (sources->empty()) {
-    // Not a file system data.
-    return;
-  }
-
-  // Split sources into a list.
-  *source_list = base::SplitStringPiece(*sources, u"\n", base::TRIM_WHITESPACE,
-                                        base::SPLIT_WANT_NONEMPTY);
-}
-
-size_t GetCountOfCopiedFiles(const ui::ClipboardData& data) {
-  std::u16string sources;
-  std::vector<base::StringPiece16> source_list;
-  GetSplitFileSystemData(data, &source_list, &sources);
-
-  if (sources.empty()) {
-    // Not a file system data.
-    return 0;
-  }
-
-  return source_list.size();
-}
-
-std::u16string GetFileSystemSources(const ui::ClipboardData& data) {
-  // Outside of the Files app, file system sources are written as filenames.
-  if (ContainsFormat(data, ui::ClipboardInternalFormat::kFilenames)) {
-    std::vector<std::string> sources;
-    for (const ui::FileInfo& filename : data.filenames())
-      sources.push_back(filename.path.value());
-    return base::UTF8ToUTF16(base::JoinString(sources, "\n"));
-  }
-
-  // Within the Files app, file system sources are written as custom data.
+base::string16 GetFileSystemSources(const ui::ClipboardData& data) {
   if (!ContainsFormat(data, ui::ClipboardInternalFormat::kCustom))
-    return std::u16string();
+    return base::string16();
 
   // Attempt to read file system sources in the custom data.
-  std::u16string sources;
-  ui::ReadCustomDataForType(data.custom_data_data().c_str(),
-                            data.custom_data_data().size(),
-                            kFileSystemSourcesType, &sources);
+  base::string16 sources;
+  ui::ReadCustomDataForType(
+      data.custom_data_data().c_str(), data.custom_data_data().size(),
+      base::UTF8ToUTF16(kFileSystemSourcesType), &sources);
 
   return sources;
 }
 
 bool IsSupported(const ui::ClipboardData& data) {
-  const absl::optional<ui::ClipboardInternalFormat> format =
+  const base::Optional<ui::ClipboardInternalFormat> format =
       CalculateMainFormat(data);
 
   // Empty `data` is not supported.
@@ -165,16 +115,7 @@ bool IsSupported(const ui::ClipboardData& data) {
 }
 
 bool IsEnabledInCurrentMode() {
-  const auto* session_controller = Shell::Get()->session_controller();
-
-  // The clipboard history menu is enabled only when a user has logged in and
-  // login UI is hidden.
-  if (session_controller->GetSessionState() !=
-      session_manager::SessionState::ACTIVE) {
-    return false;
-  }
-
-  switch (session_controller->login_status()) {
+  switch (Shell::Get()->session_controller()->login_status()) {
     case LoginStatus::NOT_LOGGED_IN:
     case LoginStatus::LOCKED:
     case LoginStatus::KIOSK_APP:
@@ -182,31 +123,10 @@ bool IsEnabledInCurrentMode() {
       return false;
     case LoginStatus::USER:
     case LoginStatus::GUEST:
-    case LoginStatus::CHILD:
+    case LoginStatus::SUPERVISED:
       return true;
   }
 }
 
-gfx::ImageSkia GetIconForFileClipboardItem(const ClipboardHistoryItem& item,
-                                           const std::string& file_name) {
-  DCHECK_EQ(DisplayFormat::kFile, CalculateDisplayFormat(item.data()));
-  const int copied_files_count = GetCountOfCopiedFiles(item.data());
-
-  if (copied_files_count == 0)
-    return gfx::ImageSkia();
-  if (copied_files_count == 1) {
-    return chromeos::GetIconForPath(
-        base::FilePath(file_name),
-        ash::DarkLightModeControllerImpl::Get()->IsDarkModeEnabled());
-  }
-  constexpr std::array<const gfx::VectorIcon*, 9> icons = {
-      &kTwoFilesIcon,   &kThreeFilesIcon, &kFourFilesIcon,
-      &kFiveFilesIcon,  &kSixFilesIcon,   &kSevenFilesIcon,
-      &kEightFilesIcon, &kNineFilesIcon,  &kMoreThanNineFilesIcon};
-  int icon_index = std::min(copied_files_count - 2, (int)icons.size() - 1);
-  const SkColor icon_color = ash::AshColorProvider::Get()->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kIconColorPrimary);
-  return CreateVectorIcon(*icons[icon_index], icon_color);
-}
-
-}  // namespace ash::clipboard_history_util
+}  // namespace ClipboardHistoryUtil
+}  // namespace ash

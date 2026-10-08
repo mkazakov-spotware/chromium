@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,8 @@ void FakeBluetoothDebugManagerClient::Init(
     const std::string& bluetooth_service_name) {}
 
 void FakeBluetoothDebugManagerClient::SetLogLevels(
+    const uint8_t dispatcher_level,
+    const uint8_t newblue_level,
     const uint8_t bluez_level,
     const uint8_t kernel_level,
     base::OnceClosure callback,
@@ -25,7 +27,7 @@ void FakeBluetoothDebugManagerClient::SetLogLevels(
     return;
   }
 
-  bluez_level_ = bluez_level;
+  dispatcher_level_ = dispatcher_level;
   std::move(callback).Run();
 }
 

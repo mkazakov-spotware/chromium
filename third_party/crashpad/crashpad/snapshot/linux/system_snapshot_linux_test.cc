@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,12 +29,7 @@ namespace crashpad {
 namespace test {
 namespace {
 
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_Basic DISABLED_Basic
-#else
-#define MAYBE_Basic Basic
-#endif
-TEST(SystemSnapshotLinux, MAYBE_Basic) {
+TEST(SystemSnapshotLinux, Basic) {
   FakePtraceConnection connection;
   ASSERT_TRUE(connection.Initialize(getpid()));
 
@@ -52,9 +47,7 @@ TEST(SystemSnapshotLinux, MAYBE_Basic) {
 
   uint64_t current_hz, max_hz;
   system.CPUFrequency(&current_hz, &max_hz);
-  // For short-term loads, modern CPUs can boost single-core frequency beyond
-  // the advertised base clock. Let's assume this is no more than a factor 2.
-  EXPECT_GE(max_hz * 2, current_hz);
+  EXPECT_GE(max_hz, current_hz);
 
   int major, minor, bugfix;
   std::string build;
@@ -70,11 +63,11 @@ TEST(SystemSnapshotLinux, MAYBE_Basic) {
   system.CPURevision();
   system.NXEnabled();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   EXPECT_FALSE(system.MachineDescription().empty());
 #else
   system.MachineDescription();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 #if defined(ARCH_CPU_X86_FAMILY)
   system.CPUX86Signature();

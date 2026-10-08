@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/message_center/ash_message_center_lock_screen_controller.h"
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/notifier_catalogs.h"
 #include "ash/login/ui/lock_screen.h"
-#include "ash/public/cpp/system/toast_data.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/ash_pref_names.h"
+#include "ash/public/cpp/toast_data.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shell.h"
@@ -24,7 +23,7 @@
 namespace ash {
 
 // static private
-absl::optional<AshMessageCenterLockScreenController::Mode>
+base::Optional<AshMessageCenterLockScreenController::Mode>
     AshMessageCenterLockScreenController::overridden_mode_for_testing_;
 
 // static
@@ -69,7 +68,7 @@ AshMessageCenterLockScreenController::GetMode() {
 
 // static, only for testing
 void AshMessageCenterLockScreenController::OverrideModeForTest(
-    absl::optional<AshMessageCenterLockScreenController::Mode> new_mode) {
+    base::Optional<AshMessageCenterLockScreenController::Mode> new_mode) {
   overridden_mode_for_testing_ = new_mode;
 }
 
@@ -127,7 +126,7 @@ void AshMessageCenterLockScreenController::EncourageUserToUnlock(
     unified_system_tray->CloseBubble();
   }
 
-  std::u16string message;
+  base::string16 message;
   if (message_id != -1) {
     message = l10n_util::GetStringUTF16(message_id);
   } else {
@@ -143,8 +142,7 @@ void AshMessageCenterLockScreenController::EncourageUserToUnlock(
 
   // TODO(yoshiki): Update UI after the UX finalizes.
   Shell::Get()->toast_manager()->Show(
-      ToastData(kToastId, ToastCatalogName::kEncourageUnlock, message,
-                ToastData::kInfiniteDuration,
+      ToastData(kToastId, message, ToastData::kInfiniteDuration, base::nullopt,
                 /*visible_on_lock_screen=*/true));
 }
 

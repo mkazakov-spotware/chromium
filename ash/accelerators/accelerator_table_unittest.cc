@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/accelerators/accelerator_table.h"
 #include "base/hash/md5.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -16,10 +17,10 @@ namespace ash {
 namespace {
 
 // The number of non-Search-based accelerators.
-constexpr int kNonSearchAcceleratorsNum = 109;
+constexpr int kNonSearchAcceleratorsNum = 102;
 // The hash of non-Search-based accelerators. See HashAcceleratorData().
 constexpr char kNonSearchAcceleratorsHash[] =
-    "2cada710fecfc1ae0fa22ecad7900f16";
+    "75a67571e0b9a4ab7515360d1c474729";
 
 struct Cmp {
   bool operator()(const AcceleratorData& lhs,
@@ -32,12 +33,14 @@ struct Cmp {
 
 std::string AcceleratorDataToString(const AcceleratorData& accelerator) {
   return base::StringPrintf(
-      "trigger_on_press=%s keycode=%d shift=%s control=%s alt=%s search=%s",
+      "trigger_on_press=%s keycode=%d shift=%s control=%s alt=%s search=%s "
+      "action=%d",
       accelerator.trigger_on_press ? "true" : "false", accelerator.keycode,
       (accelerator.modifiers & ui::EF_SHIFT_DOWN) ? "true" : "false",
       (accelerator.modifiers & ui::EF_CONTROL_DOWN) ? "true" : "false",
       (accelerator.modifiers & ui::EF_ALT_DOWN) ? "true" : "false",
-      (accelerator.modifiers & ui::EF_COMMAND_DOWN) ? "true" : "false");
+      (accelerator.modifiers & ui::EF_COMMAND_DOWN) ? "true" : "false",
+      accelerator.action);
 }
 
 std::string HashAcceleratorData(
@@ -127,8 +130,8 @@ TEST(AcceleratorTableTest, CheckDeprecatedAccelerators) {
   for (size_t i = 0; i < kDeprecatedAcceleratorsDataLength; ++i) {
     // There must never be any duplicated actions.
     const DeprecatedAcceleratorData& data = kDeprecatedAcceleratorsData[i];
-    EXPECT_TRUE(actions.insert(data.action).second)
-        << "Deprecated action: " << data.action;
+    EXPECT_TRUE(actions.insert(data.action).second) << "Deprecated action: "
+                                                    << data.action;
 
     // The UMA histogram name must be of the format "Ash.Accelerators.*"
     std::string uma_histogram(data.uma_histogram_name);

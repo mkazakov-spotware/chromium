@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,6 @@ NSString* FakeOmniboxAccessibilityID() {
   return @"NTPHomeFakeOmniboxAccessibilityID";
 }
 
-NSString* DiscoverHeaderTitleAccessibilityID() {
-  return @"DiscoverHeaderTitleAccessibilityID";
-}
-
-NSString* NTPLogoAccessibilityID() {
-  return @"NTPLogoAccessibilityID";
-}
-
 const CGFloat kMostVisitedBottomMarginIPad = 80;
 const CGFloat kMostVisitedBottomMarginIPhone = 60;
 const CGFloat kSuggestionPeekingHeight = 60;
@@ -30,7 +22,7 @@ const CGFloat kSuggestionPeekingHeight = 60;
 const CGFloat kIdentityAvatarDimension = 32;
 const CGFloat kIdentityAvatarMargin = 16;
 
-UIColor* NTPBackgroundColor() {
+UIColor* kNTPBackgroundColor() {
   return [UIColor colorNamed:kBackgroundColor];
 }
 

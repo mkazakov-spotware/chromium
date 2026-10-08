@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,7 +61,10 @@ public final class ContentSwitches {{
     // Native switch kServiceSandboxType
     public static final String SWITCH_SERVICE_SANDBOX_TYPE = "service-sandbox-type";
 
-    // "None" sandbox, meaning the process shouldn't be sandboxed.
+    // Native switch value kNetworkSandbox
+    public static final String NETWORK_SANDBOX_TYPE = "network";
+
+    // Native switch kNoneSandbox, only honored on non-public Chromecast builds.
     public static final String NONE_SANDBOX_TYPE = "none";
 
 {NATIVE_STRINGS}

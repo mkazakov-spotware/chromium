@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,24 +33,21 @@ namespace viz {
 // quad's transform maps the content space to the target space.
 class VIZ_COMMON_EXPORT DrawQuad {
  public:
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
   enum class Material {
-    kInvalid = 0,
-    kDebugBorder = 1,
-    kPictureContent = 2,
+    kInvalid,
+    kDebugBorder,
+    kPictureContent,
     // This is the compositor, pre-aggregation, draw quad.
-    kCompositorRenderPass = 3,
+    kCompositorRenderPass,
     // This is the viz, post-aggregation, draw quad.
-    kAggregatedRenderPass = 4,
-    kSolidColor = 5,
-    kSharedElement = 6,
-    // kStreamVideoContent = 7,  // Removed. Replaced with kTextureContent.
-    kSurfaceContent = 8,
-    kTextureContent = 9,
-    kTiledContent = 10,
-    kYuvVideoContent = 11,
-    kVideoHole = 12,
+    kAggregatedRenderPass,
+    kSolidColor,
+    kStreamVideoContent,
+    kSurfaceContent,
+    kTextureContent,
+    kTiledContent,
+    kYuvVideoContent,
+    kVideoHole,
     kMaxValue = kVideoHole
   };
 
@@ -79,13 +76,9 @@ class VIZ_COMMON_EXPORT DrawQuad {
 
   bool IsDebugQuad() const { return material == Material::kDebugBorder; }
 
-  bool ShouldDrawWithBlendingForReasonOtherThanMaskFilter() const {
-    return needs_blending || shared_quad_state->opacity < 1.0f ||
-           shared_quad_state->blend_mode != SkBlendMode::kSrcOver;
-  }
-
   bool ShouldDrawWithBlending() const {
-    return ShouldDrawWithBlendingForReasonOtherThanMaskFilter() ||
+    return needs_blending || shared_quad_state->opacity < 1.0f ||
+           shared_quad_state->blend_mode != SkBlendMode::kSrcOver ||
            !shared_quad_state->mask_filter_info.IsEmpty();
   }
 
@@ -146,11 +139,11 @@ class VIZ_COMMON_EXPORT DrawQuad {
  protected:
   DrawQuad();
 
-  void SetAll(const SharedQuadState* quad_state,
-              Material m,
-              const gfx::Rect& r,
-              const gfx::Rect& visible_r,
-              bool blending);
+  void SetAll(const SharedQuadState* shared_quad_state,
+              Material material,
+              const gfx::Rect& rect,
+              const gfx::Rect& visible_rect,
+              bool needs_blending);
   virtual void ExtendValue(base::trace_event::TracedValue* value) const = 0;
 };
 

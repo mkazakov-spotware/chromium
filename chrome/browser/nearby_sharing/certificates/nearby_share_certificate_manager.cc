@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,15 +32,15 @@ void NearbyShareCertificateManager::Stop() {
   OnStop();
 }
 
-absl::optional<NearbyShareEncryptedMetadataKey>
+base::Optional<NearbyShareEncryptedMetadataKey>
 NearbyShareCertificateManager::EncryptPrivateCertificateMetadataKey(
     nearby_share::mojom::Visibility visibility) {
-  absl::optional<NearbySharePrivateCertificate> cert =
+  base::Optional<NearbySharePrivateCertificate> cert =
       GetValidPrivateCertificate(visibility);
   if (!cert)
-    return absl::nullopt;
+    return base::nullopt;
 
-  absl::optional<NearbyShareEncryptedMetadataKey> encrypted_key =
+  base::Optional<NearbyShareEncryptedMetadataKey> encrypted_key =
       cert->EncryptMetadataKey();
 
   // Every salt consumed to encrypt the metadata encryption key is tracked by
@@ -51,26 +51,26 @@ NearbyShareCertificateManager::EncryptPrivateCertificateMetadataKey(
   return encrypted_key;
 }
 
-absl::optional<std::vector<uint8_t>>
+base::Optional<std::vector<uint8_t>>
 NearbyShareCertificateManager::SignWithPrivateCertificate(
     nearby_share::mojom::Visibility visibility,
     base::span<const uint8_t> payload) const {
-  absl::optional<NearbySharePrivateCertificate> cert =
+  base::Optional<NearbySharePrivateCertificate> cert =
       GetValidPrivateCertificate(visibility);
   if (!cert)
-    return absl::nullopt;
+    return base::nullopt;
 
   return cert->Sign(payload);
 }
 
-absl::optional<std::vector<uint8_t>>
+base::Optional<std::vector<uint8_t>>
 NearbyShareCertificateManager::HashAuthenticationTokenWithPrivateCertificate(
     nearby_share::mojom::Visibility visibility,
     base::span<const uint8_t> authentication_token) const {
-  absl::optional<NearbySharePrivateCertificate> cert =
+  base::Optional<NearbySharePrivateCertificate> cert =
       GetValidPrivateCertificate(visibility);
   if (!cert)
-    return absl::nullopt;
+    return base::nullopt;
 
   return cert->HashAuthenticationToken(authentication_token);
 }

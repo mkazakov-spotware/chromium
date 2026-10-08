@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,12 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
+#include "base/files/file_util.h"
 #include "base/location.h"
+#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/task_runner.h"
-#include "base/types/pass_key.h"
+#include "base/task_runner.h"
+#include "base/task_runner_util.h"
 #include "net/base/file_stream.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
@@ -28,24 +30,24 @@ const int kOpenFlagsForRead =
 using GetFileInfoCallback =
     base::OnceCallback<void(base::File::Error, const base::File::Info&)>;
 
-base::FileErrorOr<base::File::Info> DoGetFileInfo(
+FileErrorOr<base::File::Info> DoGetFileInfo(
     const base::FilePath& path,
     scoped_refptr<FilesystemProxyFileStreamReader::SharedFilesystemProxy>
         shared_filesystem_proxy) {
   if (!shared_filesystem_proxy->data->PathExists(path)) {
-    return base::unexpected(base::File::FILE_ERROR_NOT_FOUND);
+    return base::File::FILE_ERROR_NOT_FOUND;
   }
 
-  absl::optional<base::File::Info> info =
+  base::Optional<base::File::Info> info =
       shared_filesystem_proxy->data->GetFileInfo(path);
   if (!info.has_value()) {
-    return base::unexpected(base::File::FILE_ERROR_FAILED);
+    return base::File::FILE_ERROR_FAILED;
   }
 
   return std::move(*info);
 }
 
-base::FileErrorOr<base::File> DoOpenFile(
+FileErrorOr<base::File> DoOpenFile(
     const base::FilePath& path,
     scoped_refptr<FilesystemProxyFileStreamReader::SharedFilesystemProxy>
         shared_filesystem_proxy) {
@@ -62,10 +64,9 @@ std::unique_ptr<FileStreamReader> FileStreamReader::CreateForFilesystemProxy(
     const base::Time& expected_modification_time) {
   DCHECK(filesystem_proxy);
   constexpr bool emit_metrics = false;
-  return std::make_unique<FilesystemProxyFileStreamReader>(
+  return base::WrapUnique(new FilesystemProxyFileStreamReader(
       std::move(task_runner), file_path, std::move(filesystem_proxy),
-      initial_offset, expected_modification_time, emit_metrics,
-      base::PassKey<FileStreamReader>());
+      initial_offset, expected_modification_time, emit_metrics));
 }
 
 std::unique_ptr<FileStreamReader>
@@ -77,10 +78,9 @@ FileStreamReader::CreateForIndexedDBDataItemReader(
     const base::Time& expected_modification_time) {
   DCHECK(filesystem_proxy);
   constexpr bool emit_metrics = true;
-  return std::make_unique<FilesystemProxyFileStreamReader>(
+  return base::WrapUnique(new FilesystemProxyFileStreamReader(
       std::move(task_runner), file_path, std::move(filesystem_proxy),
-      initial_offset, expected_modification_time, emit_metrics,
-      base::PassKey<FileStreamReader>());
+      initial_offset, expected_modification_time, emit_metrics));
 }
 
 FilesystemProxyFileStreamReader::~FilesystemProxyFileStreamReader() = default;
@@ -103,8 +103,8 @@ int FilesystemProxyFileStreamReader::Read(
 
 int64_t FilesystemProxyFileStreamReader::GetLength(
     net::Int64CompletionOnceCallback callback) {
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      task_runner_.get(), FROM_HERE,
       base::BindOnce(&DoGetFileInfo, file_path_, shared_filesystem_proxy_),
       base::BindOnce(
           &FilesystemProxyFileStreamReader::DidGetFileInfoForGetLength,
@@ -118,8 +118,7 @@ FilesystemProxyFileStreamReader::FilesystemProxyFileStreamReader(
     std::unique_ptr<storage::FilesystemProxy> filesystem_proxy,
     int64_t initial_offset,
     const base::Time& expected_modification_time,
-    bool emit_metrics,
-    base::PassKey<FileStreamReader> /*pass_key*/)
+    bool emit_metrics)
     : task_runner_(std::move(task_runner)),
       shared_filesystem_proxy_(base::MakeRefCounted<SharedFilesystemProxy>(
           std::move(filesystem_proxy))),
@@ -151,16 +150,16 @@ void FilesystemProxyFileStreamReader::DidVerifyForOpen(
   }
 
   callback_ = std::move(callback);
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      task_runner_.get(), FROM_HERE,
       base::BindOnce(&DoOpenFile, file_path_, shared_filesystem_proxy_),
       base::BindOnce(&FilesystemProxyFileStreamReader::DidOpenFile,
                      weak_factory_.GetWeakPtr()));
 }
 
 void FilesystemProxyFileStreamReader::DidOpenFile(
-    base::FileErrorOr<base::File> open_result) {
-  if (!open_result.has_value()) {
+    FileErrorOr<base::File> open_result) {
+  if (open_result.is_error()) {
     std::move(callback_).Run(open_result.error());
     return;
   }
@@ -213,16 +212,16 @@ void FilesystemProxyFileStreamReader::DidOpenForRead(
 
 void FilesystemProxyFileStreamReader::DidGetFileInfoForGetLength(
     net::Int64CompletionOnceCallback callback,
-    base::FileErrorOr<base::File::Info> result) {
+    FileErrorOr<base::File::Info> result) {
   // TODO(enne): track rate of missing blobs for http://crbug.com/1131151
   if (emit_metrics_) {
-    bool file_was_found = result.has_value() ||
+    bool file_was_found = !result.is_error() ||
                           result.error() != base::File::FILE_ERROR_NOT_FOUND;
     UMA_HISTOGRAM_BOOLEAN("WebCore.IndexedDB.FoundBlobFileForValue",
                           file_was_found);
   }
 
-  if (!result.has_value()) {
+  if (result.is_error()) {
     std::move(callback).Run(net::FileErrorToNetError(result.error()));
     return;
   }

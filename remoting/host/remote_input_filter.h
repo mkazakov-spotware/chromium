@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <list>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "remoting/protocol/input_event_tracker.h"
 #include "remoting/protocol/input_stub.h"
@@ -23,10 +23,6 @@ class RemoteInputFilter : public protocol::InputStub {
   // Creates a filter forwarding events to the specified InputEventTracker.
   // The filter needs a tracker to release buttons & keys when blocking input.
   explicit RemoteInputFilter(protocol::InputEventTracker* event_tracker);
-
-  RemoteInputFilter(const RemoteInputFilter&) = delete;
-  RemoteInputFilter& operator=(const RemoteInputFilter&) = delete;
-
   ~RemoteInputFilter() override;
 
   // Informs the filter that local mouse or touch activity has been detected.
@@ -54,7 +50,7 @@ class RemoteInputFilter : public protocol::InputStub {
   bool ShouldIgnoreInput() const;
   void LocalInputDetected();
 
-  raw_ptr<protocol::InputEventTracker> event_tracker_;
+  protocol::InputEventTracker* event_tracker_;
 
   // Queue of recently-injected mouse positions and keypresses used to
   // distinguish echoes of injected events from movements from a local
@@ -67,6 +63,8 @@ class RemoteInputFilter : public protocol::InputStub {
 
   // If |true| than the filter assumes that injecting input causes an echo.
   bool expect_local_echo_;
+
+  DISALLOW_COPY_AND_ASSIGN(RemoteInputFilter);
 };
 
 }  // namespace remoting

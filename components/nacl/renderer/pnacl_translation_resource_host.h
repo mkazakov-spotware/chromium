@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <map>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "ipc/ipc_platform_file.h"
 #include "ipc/message_filter.h"
 #include "ppapi/c/pp_bool.h"
@@ -37,12 +38,8 @@ class PnaclTranslationResourceHost : public IPC::MessageFilter {
 
   explicit PnaclTranslationResourceHost(
       scoped_refptr<base::SingleThreadTaskRunner> io_task_runner);
-
-  PnaclTranslationResourceHost(const PnaclTranslationResourceHost&) = delete;
-  PnaclTranslationResourceHost& operator=(const PnaclTranslationResourceHost&) =
-      delete;
-
-  void RequestNexeFd(PP_Instance instance,
+  void RequestNexeFd(int render_view_id,
+                     PP_Instance instance,
                      const nacl::PnaclCacheInfo& cache_info,
                      RequestNexeFdCallback callback);
   void ReportTranslationFinished(PP_Instance instance, PP_Bool success);
@@ -61,7 +58,8 @@ class PnaclTranslationResourceHost : public IPC::MessageFilter {
   void OnFilterRemoved() override;
   void OnChannelClosing() override;
 
-  void SendRequestNexeFd(PP_Instance instance,
+  void SendRequestNexeFd(int render_view_id,
+                         PP_Instance instance,
                          const nacl::PnaclCacheInfo& cache_info,
                          RequestNexeFdCallback callback);
   void SendReportTranslationFinished(PP_Instance instance,
@@ -76,6 +74,7 @@ class PnaclTranslationResourceHost : public IPC::MessageFilter {
   // Should be accessed on the io thread.
   IPC::Sender* sender_;
   CacheRequestInfoMap pending_cache_requests_;
+  DISALLOW_COPY_AND_ASSIGN(PnaclTranslationResourceHost);
 };
 
 #endif  // COMPONENTS_NACL_RENDERER_PNACL_TRANSLATION_RESOURCE_HOST_H_

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -77,7 +77,8 @@ void CallbackProfileDescriptionConverter(void* user_data, int32_t result) {
 
 }  // namespace
 
-VideoEncoder::VideoEncoder() {}
+VideoEncoder::VideoEncoder() {
+}
 
 VideoEncoder::VideoEncoder(const InstanceHandle& instance) {
   if (has_interface<PPB_VideoEncoder_0_2>()) {
@@ -89,11 +90,7 @@ VideoEncoder::VideoEncoder(const InstanceHandle& instance) {
   }
 }
 
-VideoEncoder::VideoEncoder(const VideoEncoder& other) : Resource(other) {}
-
-VideoEncoder& VideoEncoder::operator=(const VideoEncoder& other) {
-  Resource::operator=(other);
-  return *this;
+VideoEncoder::VideoEncoder(const VideoEncoder& other) : Resource(other) {
 }
 
 int32_t VideoEncoder::GetSupportedProfiles(const CompletionCallbackWithOutput<

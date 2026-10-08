@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/content_settings/generated_notification_pref.h"
-
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/extensions/api/settings_private/generated_pref_test_base.h"
 #include "chrome/test/base/testing_profile.h"
@@ -169,10 +167,10 @@ void SetupManagedTestConditions(
     sync_preferences::TestingPrefServiceSyncable* prefs,
     const NotificationSettingManagedTestCase& test_case) {
   auto provider = std::make_unique<content_settings::MockProvider>();
-  provider->SetWebsiteSetting(ContentSettingsPattern::Wildcard(),
-                              ContentSettingsPattern::Wildcard(),
-                              ContentSettingsType::NOTIFICATIONS,
-                              base::Value(test_case.default_content_setting));
+  provider->SetWebsiteSetting(
+      ContentSettingsPattern::Wildcard(), ContentSettingsPattern::Wildcard(),
+      ContentSettingsType::NOTIFICATIONS,
+      std::make_unique<base::Value>(test_case.default_content_setting));
   HostContentSettingsMap::ProviderType provider_type;
   switch (test_case.default_content_setting_source) {
     case content_settings::SETTING_SOURCE_POLICY:
@@ -225,12 +223,19 @@ void ValidateManagedPreference(
   if (pref->user_selectable_values) {
     for (const auto& value : *pref->user_selectable_values) {
       pref_user_selectable_values.push_back(
-          static_cast<NotificationSetting>(value.GetInt()));
+          static_cast<NotificationSetting>(value->GetInt()));
     }
   }
+  EXPECT_EQ(pref_user_selectable_values.size(),
+            test_case.expected_user_selectable_values.size());
 
-  EXPECT_TRUE(base::ranges::equal(pref_user_selectable_values,
-                                  test_case.expected_user_selectable_values));
+  // Avoid crashing the test if the previous check fails.
+  if (pref_user_selectable_values.size() ==
+      test_case.expected_user_selectable_values.size()) {
+    EXPECT_TRUE(std::equal(pref_user_selectable_values.begin(),
+                           pref_user_selectable_values.end(),
+                           test_case.expected_user_selectable_values.begin()));
+  }
 }
 
 }  // namespace
@@ -311,10 +316,10 @@ TEST_F(GeneratedNotificationPrefTest, UpdatePreferenceInvalidAction) {
 
   // Make notification content setting not user modifiable.
   auto provider = std::make_unique<content_settings::MockProvider>();
-  provider->SetWebsiteSetting(ContentSettingsPattern::Wildcard(),
-                              ContentSettingsPattern::Wildcard(),
-                              ContentSettingsType::NOTIFICATIONS,
-                              base::Value(ContentSetting::CONTENT_SETTING_ASK));
+  provider->SetWebsiteSetting(
+      ContentSettingsPattern::Wildcard(), ContentSettingsPattern::Wildcard(),
+      ContentSettingsType::NOTIFICATIONS,
+      std::make_unique<base::Value>(ContentSetting::CONTENT_SETTING_ASK));
 
   content_settings::TestUtils::OverrideProvider(
       map, std::move(provider), HostContentSettingsMap::POLICY_PROVIDER);

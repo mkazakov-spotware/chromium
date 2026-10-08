@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,15 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "components/image_fetcher/core/image_fetcher.h"
 #include "components/image_fetcher/core/image_fetcher_types.h"
 #include "components/image_fetcher/core/request_metadata.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/url_request/referrer_policy.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace network {
@@ -34,15 +35,11 @@ class ImageDataFetcher {
   // thread is required.
   explicit ImageDataFetcher(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
-
-  ImageDataFetcher(const ImageDataFetcher&) = delete;
-  ImageDataFetcher& operator=(const ImageDataFetcher&) = delete;
-
   ~ImageDataFetcher();
 
   // Sets an upper limit for image downloads.
   // Already running downloads are not affected.
-  void SetImageDownloadLimit(absl::optional<int64_t> max_download_bytes);
+  void SetImageDownloadLimit(base::Optional<int64_t> max_download_bytes);
 
   // Fetches the raw image bytes from the given |image_url| and calls the given
   // |callback|. The callback is run even if fetching the URL fails. In case
@@ -102,9 +99,11 @@ class ImageDataFetcher {
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
 
   // Upper limit for the number of bytes to download per image.
-  absl::optional<int64_t> max_download_bytes_;
+  base::Optional<int64_t> max_download_bytes_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(ImageDataFetcher);
 };
 
 }  // namespace image_fetcher

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_types.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
@@ -26,13 +26,13 @@ GlobalError::~GlobalError() {}
 GlobalError::Severity GlobalError::GetSeverity() { return SEVERITY_MEDIUM; }
 
 ui::ImageModel GlobalError::MenuItemIcon() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return ui::ImageModel(
       ui::ResourceBundle::GetSharedInstance().GetNativeImageNamed(
           IDR_INPUT_ALERT_MENU));
 #else
   return ui::ImageModel::FromVectorIcon(kBrowserToolsErrorIcon,
-                                        ui::kColorAlertMediumSeverity);
+                                        gfx::kGoogleYellow700);
 #endif
 }
 
@@ -66,7 +66,7 @@ bool GlobalErrorWithStandardBubble::ShouldShowCloseButton() const {
   return false;
 }
 
-std::u16string
+base::string16
 GlobalErrorWithStandardBubble::GetBubbleViewDetailsButtonLabel() {
   return {};
 }

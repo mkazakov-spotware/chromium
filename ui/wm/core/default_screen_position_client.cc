@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,11 @@ void DefaultScreenPositionClient::SetBounds(aura::Window* window,
 
 gfx::Point DefaultScreenPositionClient::GetRootWindowOriginInScreen(
     const aura::Window* root_window) {
-  return root_window->GetHost()->GetBoundsInDIP().origin();
+  aura::Window* window = const_cast<aura::Window*>(root_window);
+  display::Screen* screen = display::Screen::GetScreen();
+  gfx::Rect screen_bounds = root_window->GetHost()->GetBoundsInPixels();
+  gfx::Rect dip_bounds = screen->ScreenToDIPRectInWindow(window, screen_bounds);
+  return dip_bounds.origin();
 }
 
 }  // namespace wm

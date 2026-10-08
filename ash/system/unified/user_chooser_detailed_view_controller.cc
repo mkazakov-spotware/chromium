@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/unified/user_chooser_detailed_view_controller.h"
-
-#include <memory>
 
 #include "ash/multi_profile_uma.h"
 #include "ash/session/session_controller_impl.h"
@@ -12,7 +10,6 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/unified/unified_system_tray_controller.h"
 #include "ash/system/unified/user_chooser_view.h"
-#include "components/user_manager/user_type.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace ash {
@@ -36,12 +33,10 @@ bool UserChooserDetailedViewController::IsUserChooserEnabled() {
   if (session->IsUserSessionBlocked())
     return false;
 
-  // Only allow for regular user session.
-  if (session->GetPrimaryUserSession()->user_info.type !=
-      user_manager::USER_TYPE_REGULAR) {
+  // Don't show if we cannot add or switch users.
+  if (session->GetAddUserPolicy() != AddUserSessionPolicy::ALLOWED &&
+      session->NumberOfLoggedInUsers() <= 1)
     return false;
-  }
-
   return true;
 }
 
@@ -75,11 +70,11 @@ void UserChooserDetailedViewController::HandleAddUserAction() {
   // ShowMultiProfileLogin may delete us.
 }
 
-std::unique_ptr<views::View> UserChooserDetailedViewController::CreateView() {
-  return std::make_unique<UserChooserView>(this);
+views::View* UserChooserDetailedViewController::CreateView() {
+  return new UserChooserView(this);
 }
 
-std::u16string UserChooserDetailedViewController::GetAccessibleName() const {
+base::string16 UserChooserDetailedViewController::GetAccessibleName() const {
   return l10n_util::GetStringUTF16(
       IDS_ASH_QUICK_SETTINGS_BUBBLE_USER_SETTINGS_ACCESSIBLE_DESCRIPTION);
 }

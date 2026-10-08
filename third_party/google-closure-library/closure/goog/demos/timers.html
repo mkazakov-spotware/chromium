@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <!--
-Copyright The Closure Library Authors. All Rights Reserved.
+Copyright 2010 The Closure Library Authors. All Rights Reserved.
 
 Use of this source code is governed by the Apache License, Version 2.0.
 See the COPYING file for details.
@@ -120,7 +120,7 @@ See the COPYING file for details.
       }
 
       var seconds = getSeconds('delaySeconds');
-      if (typeof seconds !== 'number') {
+      if (!goog.isNumber(seconds)) {
         return;
       }
       delay = new goog.async.Delay(delayedAction, inMs(seconds));
@@ -164,7 +164,7 @@ See the COPYING file for details.
      */
     var doThrottleStart = function() {
       var seconds = getSeconds('throttleSeconds');
-      if (typeof seconds !== 'number') {
+      if (!goog.isNumber(seconds)) {
         return;
       }
       // Get rid of an old one, if it exists.
@@ -212,7 +212,7 @@ See the COPYING file for details.
      */
     var doTimerStart = function() {
       var seconds = getSeconds('timerSeconds');
-      if (typeof seconds !== 'number') {
+      if (!goog.isNumber(seconds)) {
         return;
       }
       if (timer) {
@@ -265,7 +265,7 @@ See the COPYING file for details.
         return;
       }
       var seconds = getSeconds('doOnceSeconds');
-      if (typeof seconds !== 'number') {
+      if (!goog.isNumber(seconds)) {
         return;
       }
       goog.dom.setTextContent(doOnceStatus, 'Will call action in ' + seconds +

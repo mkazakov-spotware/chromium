@@ -1,16 +1,20 @@
-<style include="animations chooser-shared">
+<style include="animations chooser-shared-css">
   .apps-ask {
     text-align: center;
   }
 
   .chrome-logo {
-    background-image: url(../images/module_icons/add_bookmarks.svg);
-    background-position: center bottom;
-    background-size: 170px 170px;
-    height: 146px;
+    content: url(../images/module_icons/google_light.svg);
+    height: 38px;
     margin: auto;
-    margin-bottom: 32px;
-    width: 170px;
+    margin-bottom: 16px;
+    width: 42px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .chrome-logo {
+      content: url(../images/module_icons/google_dark.svg);
+    }
   }
 
   h1 {
@@ -177,7 +181,7 @@
       </cr-button>
       <step-indicator model="[[indicatorModel]]"></step-indicator>
       <cr-button class="action-button" disabled$="[[!hasAppsSelected_]]"
-          on-click="onNextClicked_">
+          on-click="onGetStartedClicked_">
         $i18n{next}
         <iron-icon icon="cr:chevron-right"></iron-icon>
       </cr-button>

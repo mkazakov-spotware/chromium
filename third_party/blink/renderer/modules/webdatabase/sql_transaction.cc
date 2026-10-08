@@ -28,6 +28,7 @@
 
 #include "third_party/blink/renderer/modules/webdatabase/sql_transaction.h"
 
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/modules/webdatabase/database.h"
 #include "third_party/blink/renderer/modules/webdatabase/database_authorizer.h"
@@ -102,7 +103,8 @@ SQLTransaction::SQLTransaction(Database* db,
       read_only_(read_only) {
   DCHECK(IsMainThread());
   DCHECK(database_);
-  async_task_context_.Schedule(db->GetExecutionContext(), "SQLTransaction");
+  probe::AsyncTaskScheduled(db->GetExecutionContext(), "SQLTransaction",
+                            &async_task_id_);
 }
 
 SQLTransaction::~SQLTransaction() = default;
@@ -152,7 +154,7 @@ SQLTransaction::StateFunction SQLTransaction::StateFunctionFor(
       &SQLTransaction::DeliverSuccessCallback            // 12.
   };
 
-  DCHECK(std::size(kStateFunctions) ==
+  DCHECK(base::size(kStateFunctions) ==
          static_cast<int>(SQLTransactionState::kNumberOfStates));
   DCHECK(state < SQLTransactionState::kNumberOfStates);
 
@@ -183,8 +185,8 @@ SQLTransactionState SQLTransaction::NextStateForTransactionError() {
 
 SQLTransactionState SQLTransaction::DeliverTransactionCallback() {
   bool should_deliver_error_callback = false;
-  probe::AsyncTask async_task(database_->GetExecutionContext(),
-                              &async_task_context_, "transaction");
+  probe::AsyncTask async_task(database_->GetExecutionContext(), &async_task_id_,
+                              "transaction");
 
   // Spec 4.3.2 4: Invoke the transaction callback with the new SQLTransaction
   // object.
@@ -208,7 +210,7 @@ SQLTransactionState SQLTransaction::DeliverTransactionCallback() {
 
 SQLTransactionState SQLTransaction::DeliverTransactionErrorCallback() {
   probe::AsyncTask async_task(database_->GetExecutionContext(),
-                              &async_task_context_);
+                              &async_task_id_);
 
   // Spec 4.3.2.10: If exists, invoke error callback with the last
   // error to have occurred in this transaction.
@@ -273,7 +275,7 @@ SQLTransactionState SQLTransaction::DeliverQuotaIncreaseCallback() {
 SQLTransactionState SQLTransaction::DeliverSuccessCallback() {
   DCHECK(IsMainThread());
   probe::AsyncTask async_task(database_->GetExecutionContext(),
-                              &async_task_context_);
+                              &async_task_id_);
 
   // Spec 4.3.2.8: Deliver success callback.
   if (OnSuccessCallback* success_callback = success_callback_.Release())
@@ -345,7 +347,7 @@ void SQLTransaction::executeSql(ScriptState* script_state,
 void SQLTransaction::executeSql(
     ScriptState* script_state,
     const String& sql_statement,
-    const absl::optional<HeapVector<ScriptValue>>& arguments,
+    const base::Optional<HeapVector<ScriptValue>>& arguments,
     V8SQLStatementCallback* callback,
     V8SQLStatementErrorCallback* callback_error,
     ExceptionState& exception_state) {

@@ -3,27 +3,20 @@ Tests Application Panel preview for resources of different types.
 Initial state:
 Application
   Manifest (selected)
-    Identity
-    Presentation
-    Protocol Handlers
-    Icons
   Service Workers
   Storage
 Storage
   Local Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   Session Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   IndexedDB
   Web SQL
   Cookies
     http://127.0.0.1:8000
-  Trust Tokens
-  Interest Groups
-  Shared Storage
 Cache
   Cache Storage
-  Back/forward cache
+  Application Cache
 Background Services
   Background Fetch
   Background Sync
@@ -31,7 +24,6 @@ Background Services
   Payment Handler
   Periodic Background Sync
   Push Messaging
-  Reporting API
 Frames
   top
     Images
@@ -43,27 +35,20 @@ log: visible view: unknown
 Revealed json-value.js:
 Application
   Manifest
-    Identity
-    Presentation
-    Protocol Handlers
-    Icons
   Service Workers
   Storage
 Storage
   Local Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   Session Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   IndexedDB
   Web SQL
   Cookies
     http://127.0.0.1:8000
-  Trust Tokens
-  Interest Groups
-  Shared Storage
 Cache
   Cache Storage
-  Back/forward cache
+  Application Cache
 Background Services
   Background Fetch
   Background Sync
@@ -71,7 +56,6 @@ Background Services
   Payment Handler
   Periodic Background Sync
   Push Messaging
-  Reporting API
 Frames
   top
     Images
@@ -83,27 +67,20 @@ log: visible view: json
 Revealed image.png:
 Application
   Manifest
-    Identity
-    Presentation
-    Protocol Handlers
-    Icons
   Service Workers
   Storage
 Storage
   Local Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   Session Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   IndexedDB
   Web SQL
   Cookies
     http://127.0.0.1:8000
-  Trust Tokens
-  Interest Groups
-  Shared Storage
 Cache
   Cache Storage
-  Back/forward cache
+  Application Cache
 Background Services
   Background Fetch
   Background Sync
@@ -111,7 +88,6 @@ Background Services
   Payment Handler
   Periodic Background Sync
   Push Messaging
-  Reporting API
 Frames
   top
     Images
@@ -123,27 +99,20 @@ log: visible view: image
 Revealed resources-panel-resource-preview.js:
 Application
   Manifest
-    Identity
-    Presentation
-    Protocol Handlers
-    Icons
   Service Workers
   Storage
 Storage
   Local Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   Session Storage
-    http://127.0.0.1:8000/
+    http://127.0.0.1:8000
   IndexedDB
   Web SQL
   Cookies
     http://127.0.0.1:8000
-  Trust Tokens
-  Interest Groups
-  Shared Storage
 Cache
   Cache Storage
-  Back/forward cache
+  Application Cache
 Background Services
   Background Fetch
   Background Sync
@@ -151,7 +120,6 @@ Background Services
   Payment Handler
   Periodic Background Sync
   Push Messaging
-  Reporting API
 Frames
   top
     Images

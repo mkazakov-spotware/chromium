@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/client/client_telemetry_logger.h"
 
-#include <memory>
 #include <string>
 
 #include "base/containers/circular_deque.h"
@@ -22,13 +21,17 @@ static bool Contains(const remoting::ChromotingEvent& actual,
   auto actual_dict = actual.CopyDictionaryValue();
   auto expected_dict = expected.CopyDictionaryValue();
 
-  for (const auto expected_item : *expected_dict) {
-    const std::string& key = expected_item.first;
-    const base::Value* out_value = actual_dict->Find(key);
+  base::DictionaryValue::Iterator expected_it(*expected_dict);
 
-    if (!out_value || expected_item.second != *out_value) {
+  while (!expected_it.IsAtEnd()) {
+    const std::string& key = expected_it.key();
+    const base::Value* out_value = nullptr;
+
+    if (!actual_dict->Get(key, &out_value) ||
+        !expected_it.value().Equals(out_value)) {
       return false;
     }
+    expected_it.Advance();
   }
   return true;
 }
@@ -85,10 +88,10 @@ class ClientTelemetryLoggerTest : public testing::Test {
 };
 
 void ClientTelemetryLoggerTest::SetUp() {
-  log_writer_ = std::make_unique<FakeLogWriter>();
-  logger_ = std::make_unique<ClientTelemetryLogger>(
+  log_writer_.reset(new FakeLogWriter());
+  logger_.reset(new ClientTelemetryLogger(
       log_writer_.get(), ChromotingEvent::Mode::ME2ME,
-      ChromotingEvent::SessionEntryPoint::CONNECT_BUTTON);
+      ChromotingEvent::SessionEntryPoint::CONNECT_BUTTON));
 }
 
 TEST_F(ClientTelemetryLoggerTest, LogSessionStateChange) {
@@ -150,7 +153,7 @@ TEST_F(ClientTelemetryLoggerTest, SessionIdExpiration) {
   // kMaxSessionIdAgeDays = 1. Fake the generation time to be 2 days ago and
   // force it to expire.
   logger_->SetSessionIdGenerationTimeForTest(base::TimeTicks::Now() -
-                                             base::Days(2));
+                                             base::TimeDelta::FromDays(2));
   protocol::PerformanceTracker perf_tracker;
   logger_->LogStatistics(perf_tracker);
   EXPECT_NE(last_id, logger_->session_id());

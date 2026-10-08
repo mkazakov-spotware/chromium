@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ class Isolate;
 
 namespace content {
 
-// Get or create a "chrome" object in the global object.
 CONTENT_EXPORT v8::Local<v8::Object> GetOrCreateChromeObject(
     v8::Isolate* isolate,
     v8::Local<v8::Context> context);

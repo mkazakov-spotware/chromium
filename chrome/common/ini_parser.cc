@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 #include <stddef.h>
 
 #include "base/check.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_tokenizer.h"
-#include "base/values.h"
 
 INIParser::INIParser() : used_(false) {}
 
@@ -20,9 +18,9 @@ void INIParser::Parse(const std::string& content) {
   used_ = true;
   base::StringTokenizer tokenizer(content, "\r\n");
 
-  base::StringPiece current_section;
+  std::string current_section;
   while (tokenizer.GetNext()) {
-    base::StringPiece line = tokenizer.token_piece();
+    std::string line = tokenizer.token();
     if (line.empty()) {
       // Skips the empty line.
       continue;
@@ -36,9 +34,9 @@ void INIParser::Parse(const std::string& content) {
       current_section = line.substr(1);
       size_t end = current_section.rfind(']');
       if (end != std::string::npos)
-        current_section = current_section.substr(0, end);
+        current_section.erase(end);
     } else {
-      base::StringPiece key, value;
+      std::string key, value;
       size_t equal = line.find('=');
       if (equal != std::string::npos) {
         key = line.substr(0, equal);
@@ -53,13 +51,14 @@ DictionaryValueINIParser::DictionaryValueINIParser() {}
 
 DictionaryValueINIParser::~DictionaryValueINIParser() {}
 
-void DictionaryValueINIParser::HandleTriplet(base::StringPiece section,
-                                             base::StringPiece key,
-                                             base::StringPiece value) {
+void DictionaryValueINIParser::HandleTriplet(const std::string& section,
+                                             const std::string& key,
+                                             const std::string& value) {
+
   // Checks whether the section and key contain a '.' character.
-  // Those sections and keys break `base::Value::Dict`'s path format when not
+  // Those sections and keys break DictionaryValue's path format when not
   // using the *WithoutPathExpansion methods.
   if (section.find('.') == std::string::npos &&
       key.find('.') == std::string::npos)
-    root_.SetByDottedPath(base::StrCat({section, ".", key}), value);
+    root_.SetString(section + "." + key, value);
 }

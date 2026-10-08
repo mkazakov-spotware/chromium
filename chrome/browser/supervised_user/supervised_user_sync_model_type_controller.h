@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_SUPERVISED_USER_SUPERVISED_USER_SYNC_MODEL_TYPE_CONTROLLER_H_
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/sync/driver/syncable_service_based_model_type_controller.h"
 
 class Profile;
@@ -24,19 +24,15 @@ class SupervisedUserSyncModelTypeController
       const base::RepeatingClosure& dump_stack,
       syncer::OnceModelTypeStoreFactory store_factory,
       base::WeakPtr<syncer::SyncableService> syncable_service);
-
-  SupervisedUserSyncModelTypeController(
-      const SupervisedUserSyncModelTypeController&) = delete;
-  SupervisedUserSyncModelTypeController& operator=(
-      const SupervisedUserSyncModelTypeController&) = delete;
-
   ~SupervisedUserSyncModelTypeController() override;
 
   // DataTypeController override.
   PreconditionState GetPreconditionState() const override;
 
  private:
-  const raw_ptr<const Profile> profile_;
+  const Profile* const profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(SupervisedUserSyncModelTypeController);
 };
 
 #endif  // CHROME_BROWSER_SUPERVISED_USER_SUPERVISED_USER_SYNC_MODEL_TYPE_CONTROLLER_H_

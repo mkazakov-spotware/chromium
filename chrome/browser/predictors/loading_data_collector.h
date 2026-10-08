@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,28 +10,19 @@
 #include <string>
 
 #include "base/containers/flat_set.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
-#include "base/types/id_type.h"
+#include "base/memory/weak_ptr.h"
 #include "chrome/browser/predictors/loading_predictor_config.h"
-#include "services/metrics/public/cpp/ukm_source_id.h"
+#include "chrome/browser/predictors/navigation_id.h"
 #include "services/network/public/mojom/fetch_api.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom-forward.h"
 #include "url/gurl.h"
 #include "url/origin.h"
-
-namespace content {
-class NavigationHandle;
-}  // namespace content
 
 namespace predictors {
 
 class LoadingStatsCollector;
 struct OptimizationGuidePrediction;
 class ResourcePrefetchPredictor;
-using NavigationId = base::IdType64<content::NavigationHandle>;
 
 // Data collected for origin-based prediction, for a single origin during a
 // page load (see PageRequestSummary).
@@ -48,9 +39,7 @@ struct OriginRequestSummary {
 
 // Stores the data learned from a single navigation.
 struct PageRequestSummary {
-  PageRequestSummary(ukm::SourceId ukm_source_id,
-                     const GURL& main_frame_url,
-                     base::TimeTicks creation_time);
+  explicit PageRequestSummary(const NavigationID& navigation_id);
   PageRequestSummary(const PageRequestSummary& other);
   ~PageRequestSummary();
   void UpdateOrAddResource(
@@ -80,7 +69,7 @@ struct PageRequestSummary {
 
   // The time for which the first resource prefetch was initiated for the
   // navigation.
-  absl::optional<base::TimeTicks> first_prefetch_initiated;
+  base::Optional<base::TimeTicks> first_prefetch_initiated;
 
  private:
   void UpdateOrAddToOrigins(
@@ -101,41 +90,37 @@ class LoadingDataCollector {
 
   // |LoadingPredictorTabHelper| calls the below functions to inform the
   // collector of navigation and resource load events.
-  virtual void RecordStartNavigation(NavigationId navigation_id,
-                                     ukm::SourceId ukm_source_id,
-                                     const GURL& main_frame_url,
-                                     base::TimeTicks creation_time);
-  virtual void RecordFinishNavigation(NavigationId navigation_id,
-                                      const GURL& old_main_frame_url,
-                                      const GURL& new_main_frame_url,
+  virtual void RecordStartNavigation(const NavigationID& navigation_id);
+  virtual void RecordFinishNavigation(const NavigationID& old_navigation_id,
+                                      const NavigationID& new_navigation_id,
                                       bool is_error_page);
   virtual void RecordResourceLoadComplete(
-      NavigationId navigation_id,
+      const NavigationID& navigation_id,
       const blink::mojom::ResourceLoadInfo& resource_load_info);
 
   // Called when a preconnect is initiated for the navigation.
-  virtual void RecordPreconnectInitiated(NavigationId navigation_id,
+  virtual void RecordPreconnectInitiated(const NavigationID& navigation_id,
                                          const GURL& preconnect_url);
   // Called when a prefetch is initiated for the navigation.
-  virtual void RecordPrefetchInitiated(NavigationId navigation_id,
+  virtual void RecordPrefetchInitiated(const NavigationID& navigation_id,
                                        const GURL& prefetch_url);
 
   // Called when the main frame of a page completes loading. We treat this point
   // as the "completion" of the navigation. The resources requested by the page
   // up to this point are the only ones considered.
   virtual void RecordMainFrameLoadComplete(
-      NavigationId navigation_id,
-      const absl::optional<OptimizationGuidePrediction>&
+      const NavigationID& navigation_id,
+      const base::Optional<OptimizationGuidePrediction>&
           optimization_guide_prediction);
 
   // Called after the main frame's first contentful paint.
   virtual void RecordFirstContentfulPaint(
-      NavigationId navigation_id,
-      base::TimeTicks first_contentful_paint);
+      const NavigationID& navigation_id,
+      const base::TimeTicks& first_contentful_paint);
 
  private:
   using NavigationMap =
-      std::map<NavigationId, std::unique_ptr<PageRequestSummary>>;
+      std::map<NavigationID, std::unique_ptr<PageRequestSummary>>;
 
   friend class LoadingDataCollectorTest;
 
@@ -161,6 +146,7 @@ class LoadingDataCollector {
   static void SetAllowPortInUrlsForTesting(bool state);
 
   bool ShouldRecordResourceLoad(
+      const NavigationID& navigation_id,
       const blink::mojom::ResourceLoadInfo& resource_load_info) const;
 
   // Returns true if the resource has a supported type.
@@ -169,10 +155,10 @@ class LoadingDataCollector {
       const std::string& mime_type);
 
   // Cleanup inflight_navigations_ and call a cleanup for stats_collector_.
-  void CleanupAbandonedNavigations(NavigationId navigation_id);
+  void CleanupAbandonedNavigations(const NavigationID& navigation_id);
 
-  const raw_ptr<ResourcePrefetchPredictor> predictor_;
-  const raw_ptr<LoadingStatsCollector> stats_collector_;
+  ResourcePrefetchPredictor* const predictor_;
+  LoadingStatsCollector* const stats_collector_;
   const LoadingPredictorConfig config_;
 
   NavigationMap inflight_navigations_;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include "base/bind.h"
 #include "base/containers/flat_set.h"
+#include "base/optional.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/events/event.h"
 #include "ui/events/keyboard_hook.h"
 #include "ui/events/keycodes/dom/dom_code.h"
@@ -23,11 +23,6 @@ namespace ui {
 class ModifierKeyboardHookWinTest : public testing::Test {
  public:
   ModifierKeyboardHookWinTest();
-
-  ModifierKeyboardHookWinTest(const ModifierKeyboardHookWinTest&) = delete;
-  ModifierKeyboardHookWinTest& operator=(const ModifierKeyboardHookWinTest&) =
-      delete;
-
   ~ModifierKeyboardHookWinTest() override;
 
   // testing::Test overrides.
@@ -55,6 +50,8 @@ class ModifierKeyboardHookWinTest : public testing::Test {
   std::unique_ptr<KeyboardHookWinBase> keyboard_hook_;
   std::vector<KeyEvent> key_events_;
   std::unique_ptr<ScopedKeyboardLayout> keyboard_layout_;
+
+  DISALLOW_COPY_AND_ASSIGN(ModifierKeyboardHookWinTest);
 };
 
 ModifierKeyboardHookWinTest::ModifierKeyboardHookWinTest() = default;
@@ -63,7 +60,7 @@ ModifierKeyboardHookWinTest::~ModifierKeyboardHookWinTest() = default;
 
 void ModifierKeyboardHookWinTest::SetUp() {
   keyboard_hook_ = KeyboardHookWinBase::CreateModifierKeyboardHookForTesting(
-      absl::optional<base::flat_set<DomCode>>(),
+      base::Optional<base::flat_set<DomCode>>(),
       base::BindRepeating(&ModifierKeyboardHookWinTest::HandleKeyPress,
                           base::Unretained(this)));
 

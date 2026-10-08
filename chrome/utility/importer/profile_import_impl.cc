@@ -1,17 +1,16 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/utility/importer/profile_import_impl.h"
 
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
@@ -23,9 +22,22 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
 
+#if defined(OS_MAC)
+#include <stdlib.h>
+
+#include "chrome/common/importer/firefox_importer_utils.h"
+#endif
+
 ProfileImportImpl::ProfileImportImpl(
     mojo::PendingReceiver<chrome::mojom::ProfileImport> receiver)
-    : receiver_(this, std::move(receiver)) {}
+    : receiver_(this, std::move(receiver)) {
+#if defined(OS_MAC)
+  std::string dylib_path = GetFirefoxDylibPath().value();
+  if (!dylib_path.empty())
+    ::setenv("DYLD_FALLBACK_LIBRARY_PATH", dylib_path.c_str(),
+             1 /* overwrite */);
+#endif
+}
 
 ProfileImportImpl::~ProfileImportImpl() = default;
 
@@ -45,8 +57,8 @@ void ProfileImportImpl::StartImport(
   items_to_import_ = items;
 
   // Create worker thread in which importer runs.
-  import_thread_ = std::make_unique<base::Thread>("import_thread");
-#if BUILDFLAG(IS_WIN)
+  import_thread_.reset(new base::Thread("import_thread"));
+#if defined(OS_WIN)
   import_thread_->init_com_with_mta(false);
 #endif
   if (!import_thread_->Start()) {

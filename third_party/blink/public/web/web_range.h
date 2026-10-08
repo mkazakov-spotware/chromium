@@ -42,10 +42,10 @@ class LocalFrame;
 class PlainTextRange;
 class Range;
 
-class BLINK_EXPORT WebRange final {
+class WebRange final {
  public:
-  WebRange(int start, int length);
-  WebRange();
+  BLINK_EXPORT WebRange(int start, int length);
+  BLINK_EXPORT WebRange();
 
   int StartOffset() const { return start_; }
   int EndOffset() const { return end_; }
@@ -55,10 +55,10 @@ class BLINK_EXPORT WebRange final {
   bool IsEmpty() const { return start_ == end_; }
 
 #if INSIDE_BLINK
-  WebRange(const EphemeralRange&);
-  WebRange(const PlainTextRange&);
+  BLINK_EXPORT WebRange(const EphemeralRange&);
+  BLINK_EXPORT WebRange(const PlainTextRange&);
 
-  EphemeralRange CreateEphemeralRange(LocalFrame*) const;
+  BLINK_EXPORT EphemeralRange CreateEphemeralRange(LocalFrame*) const;
 #endif
 
  private:
@@ -70,4 +70,4 @@ class BLINK_EXPORT WebRange final {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_RANGE_H_
+#endif

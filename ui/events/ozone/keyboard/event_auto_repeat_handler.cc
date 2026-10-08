@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/ozone/keyboard/event_auto_repeat_handler.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event_constants.h"
 
@@ -19,8 +19,8 @@ constexpr int kRepeatIntervalMs = 50;
 }  // namespace
 
 EventAutoRepeatHandler::EventAutoRepeatHandler(Delegate* delegate)
-    : repeat_delay_(base::Milliseconds(kRepeatDelayMs)),
-      repeat_interval_(base::Milliseconds(kRepeatIntervalMs)),
+    : repeat_delay_(base::TimeDelta::FromMilliseconds(kRepeatDelayMs)),
+      repeat_interval_(base::TimeDelta::FromMilliseconds(kRepeatIntervalMs)),
       delegate_(delegate) {
   DCHECK(delegate_);
 }
@@ -79,7 +79,7 @@ void EventAutoRepeatHandler::StopKeyRepeat() {
 }
 
 void EventAutoRepeatHandler::ScheduleKeyRepeat(const base::TimeDelta& delay) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&EventAutoRepeatHandler::OnRepeatTimeout,
                      weak_ptr_factory_.GetWeakPtr(), repeat_sequence_),

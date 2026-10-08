@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2012 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -94,10 +94,6 @@ def main(argv):
                       'codesearch.')
   parser.add_argument("--plugin",
                       help="Relative path to custom generator plugin.")
-  #   TODO(crbug.com/1237958): Remove allow_optional when proto rolls to 3.15.
-  parser.add_argument("--allow-optional",
-                      action='store_true',
-                      help="Enables experimental_allow_proto3_optional.")
   parser.add_argument("--plugin-options",
                       help="Custom generator plugin options.")
   parser.add_argument("--cc-options",
@@ -112,14 +108,6 @@ def main(argv):
   parser.add_argument(
       "--descriptor-set-dependency-file",
       help="Path to write the dependency file for descriptor set.")
-  # The meaning of this flag is flipped compared to the corresponding protoc
-  # flag due to this script previously passing --include_imports. Removing the
-  # --include_imports is likely to have unintended consequences.
-  parser.add_argument(
-      "--exclude-imports",
-      help="Do not include imported files into generated descriptor.",
-      action="store_true",
-      default=False)
   parser.add_argument("protos", nargs="+",
                       help="Input protobuf definition file(s).")
 
@@ -155,9 +143,6 @@ def main(argv):
     if options.cc_options:
       cc_options_list.append(options.cc_options)
 
-    if options.allow_optional:
-      protoc_cmd += ["--experimental_allow_proto3_optional"]
-
     cc_options = FormatGeneratorOptions(','.join(cc_options_list))
     protoc_cmd += ["--cpp_out", cc_options + cc_out_dir]
     for filename in protos:
@@ -179,16 +164,15 @@ def main(argv):
 
   if options.descriptor_set_out:
     protoc_cmd += ["--descriptor_set_out", options.descriptor_set_out]
-    if not options.exclude_imports:
-      protoc_cmd += ["--include_imports"]
+    protoc_cmd += ["--include_imports"]
 
   dependency_file_data = None
   if options.descriptor_set_out and options.descriptor_set_dependency_file:
-    protoc_cmd += ['--dependency_out', options.descriptor_set_dependency_file]
-    ret = subprocess.call(protoc_cmd)
+      protoc_cmd += ['--dependency_out', options.descriptor_set_dependency_file]
+      ret = subprocess.call(protoc_cmd)
 
-    with open(options.descriptor_set_dependency_file, 'rb') as f:
-      dependency_file_data = f.read().decode('utf-8')
+      with open(options.descriptor_set_dependency_file, 'r') as f:
+        dependency_file_data = f.read().decode('utf-8')
 
   ret = subprocess.call(protoc_cmd)
   if ret != 0:

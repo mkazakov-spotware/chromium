@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ const char ImageEncoderUtils::kDefaultRequestedMimeType[] = "image/png";
 
 namespace {
 // This enum is used in a UMA histogram; the values should not be changed.
-enum RequestedImageMimeType : uint8_t {
+enum RequestedImageMimeType {
   kRequestedImageMimeTypePng = 0,
   kRequestedImageMimeTypeJpeg = 1,
   kRequestedImageMimeTypeWebp = 2,

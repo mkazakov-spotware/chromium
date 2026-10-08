@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/infobars/infobar_observer.h"
 
 InfoBarObserver::InfoBarObserver(infobars::InfoBarManager* manager, Type type)
-    : type_(type) {
+    : type_(type), infobar_observer_(this) {
   // There may be no |manager| if the browser window is currently closing.
   if (manager)
-    infobar_observation_.Observe(manager);
+    infobar_observer_.Add(manager);
 }
 
 InfoBarObserver::~InfoBarObserver() {}
@@ -16,7 +16,7 @@ InfoBarObserver::~InfoBarObserver() {}
 void InfoBarObserver::Wait() {
   // When there is no manager being observed, there is nothing to wait on, so
   // return immediately.
-  if (infobar_observation_.IsObserving())
+  if (infobar_observer_.IsObservingSources())
     run_loop_.Run();
 }
 
@@ -35,8 +35,7 @@ void InfoBarObserver::OnInfoBarReplaced(infobars::InfoBar* old_infobar,
 void InfoBarObserver::OnManagerShuttingDown(infobars::InfoBarManager* manager) {
   if (run_loop_.running())
     run_loop_.Quit();
-  DCHECK(infobar_observation_.IsObservingSource(manager));
-  infobar_observation_.Reset();
+  infobar_observer_.Remove(manager);
 }
 
 void InfoBarObserver::OnNotified(Type type) {

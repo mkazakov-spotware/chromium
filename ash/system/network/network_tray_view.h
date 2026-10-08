@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,10 @@
 #include "ash/system/network/network_icon_animation_observer.h"
 #include "ash/system/network/tray_network_state_observer.h"
 #include "ash/system/tray/tray_item_view.h"
+#include "base/macros.h"
 
 namespace ash {
+namespace tray {
 
 // View class containing an ImageView for a network icon in the tray.
 // The ActiveNetworkIcon::Type parameter determines what type of icon is
@@ -23,25 +25,21 @@ class NetworkTrayView : public TrayItemView,
                         public SessionObserver,
                         public TrayNetworkStateObserver {
  public:
-  NetworkTrayView(const NetworkTrayView&) = delete;
-  NetworkTrayView& operator=(const NetworkTrayView&) = delete;
-
   ~NetworkTrayView() override;
 
   NetworkTrayView(Shelf* shelf, ActiveNetworkIcon::Type type);
 
-  std::u16string GetAccessibleNameString() const;
+  base::string16 GetAccessibleNameString() const;
 
   const char* GetClassName() const override;
 
   // views::View:
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   views::View* GetTooltipHandlerForPoint(const gfx::Point& point) override;
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
+  base::string16 GetTooltipText(const gfx::Point& p) const override;
 
   // TrayItemView:
   void HandleLocaleChange() override;
-  void OnThemeChanged() override;
 
   // network_icon::AnimationObserver:
   void NetworkIconChanged() override;
@@ -65,17 +63,20 @@ class NetworkTrayView : public TrayItemView,
 
   // The name provided by GetAccessibleNodeData, which includes the network
   // name and connection state.
-  std::u16string accessible_name_;
+  base::string16 accessible_name_;
 
   // The description provided by GetAccessibleNodeData. For wifi networks this
   // is the signal strength of the network. Otherwise it is empty.
-  std::u16string accessible_description_;
+  base::string16 accessible_description_;
 
   // The tooltip for the icon. Includes the network name and signal strength
   // (for wireless networks).
-  std::u16string tooltip_;
+  base::string16 tooltip_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkTrayView);
 };
 
+}  // namespace tray
 }  // namespace ash
 
 #endif  // ASH_SYSTEM_NETWORK_NETWORK_TRAY_VIEW_H_

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.base;
 import android.content.Context;
 import android.os.PersistableBundle;
 
-import org.chromium.base.BundleUtils;
 import org.chromium.components.minidump_uploader.MinidumpUploadJob;
 import org.chromium.components.minidump_uploader.MinidumpUploadJobService;
 
@@ -25,8 +24,8 @@ public class SplitCompatMinidumpUploadJobService extends MinidumpUploadJobServic
 
     @Override
     protected void attachBaseContext(Context context) {
-        context = SplitCompatApplication.createChromeContext(context);
-        mImpl = (Impl) BundleUtils.newInstance(context, mServiceClassName);
+        context = SplitCompatUtils.createChromeContext(context);
+        mImpl = (Impl) SplitCompatUtils.newInstance(context, mServiceClassName);
         mImpl.setService(this);
         super.attachBaseContext(context);
     }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,19 +15,16 @@
 #include "base/containers/flat_map.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
+#include "base/optional.h"
 #include "chromeos/components/sensors/mojom/cros_sensor_service.mojom.h"
 #include "chromeos/components/sensors/mojom/sensor.mojom.h"
-#include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
 class PlatformSensorProviderChromeOS
     : public PlatformSensorProviderLinuxBase,
-      public chromeos::sensors::mojom::SensorHalClient,
-      public chromeos::sensors::mojom::SensorServiceNewDevicesObserver {
+      public chromeos::sensors::mojom::SensorHalClient {
  public:
   PlatformSensorProviderChromeOS();
   PlatformSensorProviderChromeOS(const PlatformSensorProviderChromeOS&) =
@@ -40,19 +37,12 @@ class PlatformSensorProviderChromeOS
   void SetUpChannel(mojo::PendingRemote<chromeos::sensors::mojom::SensorService>
                         pending_remote) override;
 
-  // chromeos::sensors::mojom::SensorServiceNewDevicesObserver overrides:
-  void OnNewDeviceAdded(
-      int32_t iio_device_id,
-      const std::vector<chromeos::sensors::mojom::DeviceType>& types) override;
-
  protected:
   // PlatformSensorProviderLinuxBase overrides:
   void CreateSensorInternal(mojom::SensorType type,
                             SensorReadingSharedBuffer* reading_buffer,
                             CreateSensorCallback callback) override;
   void FreeResources() override;
-
-  bool IsFusionSensorType(mojom::SensorType type) const override;
   bool IsSensorTypeAvailable(mojom::SensorType type) const override;
 
  private:
@@ -75,8 +65,8 @@ class PlatformSensorProviderChromeOS
 
     std::vector<mojom::SensorType> types;
     bool ignored = false;
-    absl::optional<SensorLocation> location;
-    absl::optional<double> scale;
+    base::Optional<SensorLocation> location;
+    base::Optional<double> scale;
 
     // Temporarily stores the remote, waiting for its attributes information.
     // It'll be passed to PlatformSensorChromeOS' constructor as an argument
@@ -84,42 +74,30 @@ class PlatformSensorProviderChromeOS
     mojo::Remote<chromeos::sensors::mojom::SensorDevice> remote;
   };
 
-  absl::optional<SensorLocation> ParseLocation(
-      const absl::optional<std::string>& location);
+  base::Optional<SensorLocation> ParseLocation(
+      const base::Optional<std::string>& location);
 
-  absl::optional<int32_t> GetDeviceId(mojom::SensorType type) const;
+  base::Optional<int32_t> GetDeviceId(mojom::SensorType type) const;
 
   void RegisterSensorClient();
-  void OnSensorHalClientFailure(base::TimeDelta reconnection_delay);
+  void OnSensorHalClientFailure();
 
   void OnSensorServiceDisconnect();
-
-  void OnNewDevicesObserverDisconnect();
 
   void ResetSensorService();
 
   void GetAllDeviceIdsCallback(const SensorIdTypesMap& ids_types);
-  void RegisterDevice(
-      int32_t id,
-      const std::vector<chromeos::sensors::mojom::DeviceType>& types);
-
   void GetAttributesCallback(
       int32_t id,
-      const std::vector<absl::optional<std::string>>& values);
+      const std::vector<base::Optional<std::string>>& values);
   void IgnoreSensor(SensorData& sensor);
   bool AreAllSensorsReady() const;
 
-  void OnSensorDeviceDisconnect(int32_t id,
-                                uint32_t custom_reason_code,
-                                const std::string& description);
-
-  void ReplaceAndRemoveSensor(mojom::SensorType type);
-
+  void OnSensorDeviceDisconnect(int32_t id);
   void ProcessSensorsIfPossible();
 
   void DetermineMotionSensors();
   void DetermineLightSensor();
-  void UpdateSensorIdMapping(const mojom::SensorType& type, int32_t id);
 
   // Remove Mojo remotes of the unused devices, as they'll never be used.
   void RemoveUnusedSensorDeviceRemotes();
@@ -133,10 +111,6 @@ class PlatformSensorProviderChromeOS
 
   // The Mojo remote to query and request for devices.
   mojo::Remote<chromeos::sensors::mojom::SensorService> sensor_service_remote_;
-
-  // The Mojo channel to get notified when new devices are added to IIO Service.
-  mojo::Receiver<chromeos::sensors::mojom::SensorServiceNewDevicesObserver>
-      new_devices_observer_{this};
 
   // The flag of sensor ids received or not to help determine if all sensors are
   // ready. It's needed when there is no sensor at all.
@@ -152,9 +126,6 @@ class PlatformSensorProviderChromeOS
 
   FRIEND_TEST_ALL_PREFIXES(PlatformSensorProviderChromeOSTest,
                            CheckUnsupportedTypes);
-  FRIEND_TEST_ALL_PREFIXES(PlatformSensorProviderChromeOSTest,
-                           SensorDeviceDisconnectWithReason);
-  FRIEND_TEST_ALL_PREFIXES(PlatformSensorProviderChromeOSTest, ReconnectClient);
 };
 
 }  // namespace device

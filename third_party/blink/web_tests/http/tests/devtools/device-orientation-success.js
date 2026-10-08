@@ -1,21 +1,23 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Test device orientation\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.addScriptTag('/resources/testharness.js');
+  await TestRunner.addScriptTag('/resources/sensor-helpers.js');
+  await TestRunner.addScriptTag('/gen/layout_test_data/mojo/public/js/mojo_bindings.js');
+  await TestRunner.addScriptTag('/gen/services/device/public/mojom/sensor.mojom.js');
+  await TestRunner.addScriptTag('/gen/services/device/public/mojom/sensor_provider.mojom.js');
   await TestRunner.evaluateInPagePromise(`
       var sensorProvider = null;
       var mockAlpha = 1.1;
       var mockBeta = 2.2;
       var mockGamma = 3.3;
 
-      async function setUpDeviceOrientation()
+      function setUpDeviceOrientation()
       {
-          const {sensorMocks, setMockSensorDataForType} =
-              await import('/resources/sensor-helpers.js');
           sensorProvider = sensorMocks();
           let mockDataPromise = setMockSensorDataForType(
               sensorProvider,

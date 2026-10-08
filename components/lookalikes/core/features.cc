@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 namespace lookalikes {
 namespace features {
 
-BASE_FEATURE(kDetectComboSquattingLookalikes,
-             "ComboSquattingLookalikes",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kDetectTargetEmbeddingLookalikes{
+    "TargetEmbeddingLookalikes", base::FEATURE_DISABLED_BY_DEFAULT};
+
+const base::Feature kLookalikeInterstitialForPunycode{
+    "LookalikeInterstitialForPunycode", base::FEATURE_ENABLED_BY_DEFAULT};
 
 }  // namespace features
 }  // namespace lookalikes

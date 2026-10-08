@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.payments;
 import androidx.test.filters.MediumTest;
 
 import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -19,8 +20,6 @@ import org.chromium.chrome.browser.autofill.AutofillTestHelper;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.CreditCard;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.payments.PaymentRequestTestRule.AppPresence;
-import org.chromium.chrome.browser.payments.PaymentRequestTestRule.FactorySpeed;
 import org.chromium.chrome.browser.payments.PaymentRequestTestRule.MainActivityStartCallback;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabModel;
@@ -28,6 +27,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.ui.test.util.DisableAnimationsTestRule;
 
 import java.util.concurrent.TimeoutException;
 
@@ -38,9 +38,13 @@ import java.util.concurrent.TimeoutException;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class PaymentRequestTabTest implements MainActivityStartCallback {
+    // Disable animations to reduce flakiness.
+    @ClassRule
+    public static DisableAnimationsTestRule sNoAnimationsRule = new DisableAnimationsTestRule();
+
     @Rule
     public PaymentRequestTestRule mPaymentRequestTestRule =
-            new PaymentRequestTestRule("payment_request_metrics_test.html", this);
+            new PaymentRequestTestRule("payment_request_dynamic_shipping_test.html", this);
 
     @Override
     public void onMainActivityStarted() throws TimeoutException {
@@ -59,14 +63,7 @@ public class PaymentRequestTabTest implements MainActivityStartCallback {
     @MediumTest
     @Feature({"Payments"})
     public void testDismissOnTabSwitch() throws TimeoutException {
-        // Install two apps to force showing the payment request UI.
-        mPaymentRequestTestRule.addPaymentAppFactory(
-                "https://bobpay.com", AppPresence.HAVE_APPS, FactorySpeed.FAST_FACTORY);
-        mPaymentRequestTestRule.addPaymentAppFactory(
-                "https://kylepay.com/webpay", AppPresence.HAVE_APPS, FactorySpeed.FAST_FACTORY);
-
-        mPaymentRequestTestRule.triggerUIAndWait(
-                "buyWithUrlMethods", mPaymentRequestTestRule.getReadyToPay());
+        mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyForInput());
         Assert.assertEquals(0, mPaymentRequestTestRule.getDismissed().getCallCount());
         TestThreadUtils.runOnUiThreadBlocking(
                 (Runnable) () -> mPaymentRequestTestRule.getActivity().getTabCreator(false).createNewTab(
@@ -76,19 +73,13 @@ public class PaymentRequestTabTest implements MainActivityStartCallback {
     }
 
     /** If the user closes the tab, the dialog is dismissed. */
+    //@MediumTest
+    //@Feature({"Payments"})
+    // Disabled due to recent flakiness: crbug.com/661450.
     @Test
-    @MediumTest
-    @Feature({"Payments"})
-    @DisabledTest(message = "Flaky - crbug.com/648773")
+    @DisabledTest
     public void testDismissOnTabClose() throws TimeoutException {
-        // Install two apps to force showing the payment request UI.
-        mPaymentRequestTestRule.addPaymentAppFactory(
-                "https://bobpay.com", AppPresence.HAVE_APPS, FactorySpeed.FAST_FACTORY);
-        mPaymentRequestTestRule.addPaymentAppFactory(
-                "https://kylepay.com/webpay", AppPresence.HAVE_APPS, FactorySpeed.FAST_FACTORY);
-
-        mPaymentRequestTestRule.triggerUIAndWait(
-                "buyWithUrlMethods", mPaymentRequestTestRule.getReadyToPay());
+        mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyForInput());
         Assert.assertEquals(0, mPaymentRequestTestRule.getDismissed().getCallCount());
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             TabModel currentModel = mPaymentRequestTestRule.getActivity().getCurrentTabModel();
@@ -102,14 +93,7 @@ public class PaymentRequestTabTest implements MainActivityStartCallback {
     @MediumTest
     @Feature({"Payments"})
     public void testDismissOnTabNavigate() throws TimeoutException {
-        // Install two apps to force showing the payment request UI.
-        mPaymentRequestTestRule.addPaymentAppFactory(
-                "https://bobpay.com", AppPresence.HAVE_APPS, FactorySpeed.FAST_FACTORY);
-        mPaymentRequestTestRule.addPaymentAppFactory(
-                "https://kylepay.com/webpay", AppPresence.HAVE_APPS, FactorySpeed.FAST_FACTORY);
-
-        mPaymentRequestTestRule.triggerUIAndWait(
-                "buyWithUrlMethods", mPaymentRequestTestRule.getReadyToPay());
+        mPaymentRequestTestRule.triggerUIAndWait(mPaymentRequestTestRule.getReadyForInput());
         Assert.assertEquals(0, mPaymentRequestTestRule.getDismissed().getCallCount());
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             TabModel currentModel = mPaymentRequestTestRule.getActivity().getCurrentTabModel();

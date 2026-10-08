@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <set>
 #include <vector>
+
+#include "base/compiler_specific.h"
 
 class ChromeBrowserState;
 
@@ -18,11 +20,12 @@ class BookmarkNode;
 // Removes all user bookmarks and clears bookmark-related pref. Requires
 // bookmark model to be loaded.
 // Return true if the bookmarks were successfully removed and false otherwise.
-[[nodiscard]] bool RemoveAllUserBookmarksIOS(ChromeBrowserState* browser_state);
+bool RemoveAllUserBookmarksIOS(ChromeBrowserState* browser_state)
+    WARN_UNUSED_RESULT;
 
 // Returns the permanent nodes whose url children are considered uncategorized
 // and whose folder children should be shown in the bookmark menu.
-// `model` must be loaded.
+// |model| must be loaded.
 std::vector<const bookmarks::BookmarkNode*> PrimaryPermanentNodes(
     bookmarks::BookmarkModel* model);
 
@@ -32,8 +35,8 @@ std::vector<const bookmarks::BookmarkNode*> PrimaryPermanentNodes(
 std::vector<const bookmarks::BookmarkNode*> RootLevelFolders(
     bookmarks::BookmarkModel* model);
 
-// Returns whether `node` is a primary permanent node in the sense of
-// `PrimaryPermanentNodes`.
+// Returns whether |node| is a primary permanent node in the sense of
+// |PrimaryPermanentNodes|.
 bool IsPrimaryPermanentNode(const bookmarks::BookmarkNode* node,
                             bookmarks::BookmarkModel* model);
 

@@ -1,12 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/main_content/main_content_ui_state.h"
 
-#import <ostream>
+#include <ostream>
 
-#import "base/check_op.h"
+#include "base/check_op.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,7 +25,7 @@
 // Whether the scroll view is decelerating.
 @property(nonatomic, assign, getter=isDecelerating) BOOL decelerating;
 
-// Updates `scrolling` based `dragging` and `decelerating`.
+// Updates |scrolling| based |dragging| and |decelerating|.
 - (void)updateIsScrolling;
 
 @end
@@ -116,7 +117,7 @@
   if (!self.panGesture)
     return;
   DCHECK_EQ(panGesture, self.panGesture);
-  // UIScrollView does not sent a `-scrollViewDidEndDecelerating:` signal after
+  // UIScrollView does not sent a |-scrollViewDidEndDecelerating:| signal after
   // pixel alignments, so the state should not be considered decelerating if the
   // target content offset is less than a pixel away from the current value.
   CGFloat singlePixel = 1.0 / [UIScreen mainScreen].scale;

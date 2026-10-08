@@ -48,11 +48,11 @@ const AtomicString& URLInputType::FormControlType() const {
 }
 
 bool URLInputType::TypeMismatchFor(const String& value) const {
-  return !value.empty() && !KURL(NullURL(), value).IsValid();
+  return !value.IsEmpty() && !KURL(NullURL(), value).IsValid();
 }
 
 bool URLInputType::TypeMismatch() const {
-  return TypeMismatchFor(GetElement().Value());
+  return TypeMismatchFor(GetElement().value());
 }
 
 String URLInputType::TypeMismatchText() const {

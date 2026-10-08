@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,48 +12,36 @@
 #include "device/vr/android/mailbox_to_surface_bridge.h"
 #include "device/vr/android/web_xr_presentation_state.h"
 #include "gpu/command_buffer/common/shared_image_usage.h"
-#include "gpu/command_buffer/service/ahardwarebuffer_utils.h"
-#include "gpu/config/gpu_driver_bug_workaround_type.h"
 #include "gpu/ipc/common/gpu_memory_buffer_impl_android_hardware_buffer.h"
-#include "ui/gfx/color_space.h"
 #include "ui/gfx/gpu_fence.h"
 #include "ui/gl/android/scoped_java_surface.h"
 #include "ui/gl/android/surface_texture.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_fence_egl.h"
+#include "ui/gl/gl_image_ahardwarebuffer.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/init/gl_factory.h"
 
 namespace device {
 
-// static
-bool ArImageTransport::disable_shared_buffer_ = false;
-
-bool ArImageTransport::UseSharedBuffer() {
-  // When available (Android O and up), use AHardwareBuffer-based shared
-  // images for frame transport, unless disabled due to bugs.
-  static bool val = base::AndroidHardwareBufferCompat::IsSupportAvailable();
-  return val && !ArImageTransport::disable_shared_buffer_;
-}
-
 ArImageTransport::ArImageTransport(
     std::unique_ptr<MailboxToSurfaceBridge> mailbox_bridge)
-    : gl_thread_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : gl_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       mailbox_bridge_(std::move(mailbox_bridge)) {
   DVLOG(2) << __func__;
 }
 
 ArImageTransport::~ArImageTransport() = default;
 
-void ArImageTransport::DestroySharedBuffers(WebXrPresentationState* webxr) {
+void ArImageTransport::DestroySharedBuffers(vr::WebXrPresentationState* webxr) {
   DVLOG(2) << __func__;
   DCHECK(IsOnGlThread());
 
   if (!webxr || !UseSharedBuffer())
     return;
 
-  std::vector<std::unique_ptr<WebXrSharedBuffer>> buffers =
+  std::vector<std::unique_ptr<vr::WebXrSharedBuffer>> buffers =
       webxr->TakeSharedBuffers();
   for (auto& buffer : buffers) {
     if (!buffer->mailbox_holder.mailbox.IsZero()) {
@@ -67,8 +55,8 @@ void ArImageTransport::DestroySharedBuffers(WebXrPresentationState* webxr) {
   }
 }
 
-void ArImageTransport::Initialize(WebXrPresentationState* webxr,
-                                  XrInitStatusCallback callback) {
+void ArImageTransport::Initialize(vr::WebXrPresentationState* webxr,
+                                  base::OnceClosure callback) {
   DCHECK(IsOnGlThread());
   DVLOG(2) << __func__;
 
@@ -79,7 +67,11 @@ void ArImageTransport::Initialize(WebXrPresentationState* webxr,
 
   glGenFramebuffersEXT(1, &camera_fbo_);
 
-  if (UseSharedBuffer()) {
+  // When available (Android O and up), use AHardwareBuffer-based shared
+  // images for frame transport.
+  shared_buffer_draw_ = base::AndroidHardwareBufferCompat::IsSupportAvailable();
+
+  if (shared_buffer_draw_) {
     DVLOG(2) << __func__ << ": UseSharedBuffer()=true";
   } else {
     DVLOG(2) << __func__ << ": UseSharedBuffer()=false, setting up surface";
@@ -97,42 +89,13 @@ void ArImageTransport::Initialize(WebXrPresentationState* webxr,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
-void ArImageTransport::OnMailboxBridgeReady(XrInitStatusCallback callback) {
+void ArImageTransport::OnMailboxBridgeReady(base::OnceClosure callback) {
   DVLOG(2) << __func__;
   DCHECK(IsOnGlThread());
 
   DCHECK(mailbox_bridge_->IsConnected());
 
-  bool success = true;
-  if (UseSharedBuffer()) {
-    bool shared_buffer_not_usable = mailbox_bridge_->IsGpuWorkaroundEnabled(
-        gpu::DISABLE_RENDERING_TO_RGB_EXTERNAL_TEXTURE);
-    DVLOG(1) << __func__
-             << ": shared_buffer_not_usable=" << shared_buffer_not_usable;
-    if (shared_buffer_not_usable) {
-      // This is a bug workaround for shared buffer mode being unusable due to
-      // device GLES driver bugs, see https://crbug.com/1355946 for an example.
-      // We want to retry initialization with UseSharedBuffers forced to false.
-      //
-      // It would be nice if we could avoid this retry and just do the right
-      // thing on the first attempt, but unfortunately that's difficult due to
-      // the initialization order. We only know that the GPU bug workaround is
-      // necessary after the GPU process connection is established (this is when
-      // OnMailboxBridgeReady gets called). However, in order to establish the
-      // GPU process connection, we already have to decide if we want to use
-      // shared buffers or not - when not using shared buffers, we need to set
-      // up a Surface/SurfaceTexture pair first, and doing that requires a local
-      // GL context. However, setting up the local GL context wants to know if
-      // we'll be using compositor mode which requires knowing if we're using
-      // shared buffer mode. This is a circular dependency. Instead, just fail
-      // the first initialization attempt, force UseSharedBuffers to false,
-      // and try again a single time.
-      ArImageTransport::disable_shared_buffer_ = true;
-      DCHECK(!UseSharedBuffer());
-      success = false;
-    }
-  }
-  std::move(callback).Run(success);
+  std::move(callback).Run();
 }
 
 void ArImageTransport::SetFrameAvailableCallback(
@@ -162,8 +125,8 @@ void ArImageTransport::OnFrameAvailable() {
   // UV transform, that's usually a Y flip.
   transport_surface_texture_->GetTransformMatrix(
       &transport_surface_texture_uv_matrix_[0]);
-  transport_surface_texture_uv_transform_ =
-      gfx::Transform::ColMajorF(transport_surface_texture_uv_matrix_);
+  transport_surface_texture_uv_transform_.matrix().setColMajorf(
+      transport_surface_texture_uv_matrix_);
 
   on_transport_frame_available_.Run(transport_surface_texture_uv_transform_);
 }
@@ -172,9 +135,9 @@ GLuint ArImageTransport::GetCameraTextureId() {
   return camera_texture_id_arcore_;
 }
 
-bool ArImageTransport::ResizeSharedBuffer(WebXrPresentationState* webxr,
+bool ArImageTransport::ResizeSharedBuffer(vr::WebXrPresentationState* webxr,
                                           const gfx::Size& size,
-                                          WebXrSharedBuffer* buffer) {
+                                          vr::WebXrSharedBuffer* buffer) {
   DCHECK(IsOnGlThread());
 
   if (buffer->size == size)
@@ -193,7 +156,7 @@ bool ArImageTransport::ResizeSharedBuffer(WebXrPresentationState* webxr,
   DVLOG(2) << __FUNCTION__ << ": width=" << size.width()
            << " height=" << size.height();
   // Remove reference to previous image (if any).
-  buffer->local_eglimage.reset();
+  buffer->local_glimage = nullptr;
 
   static constexpr gfx::BufferFormat format = gfx::BufferFormat::RGBA_8888;
   static constexpr gfx::BufferUsage usage = gfx::BufferUsage::SCANOUT;
@@ -204,7 +167,7 @@ bool ArImageTransport::ResizeSharedBuffer(WebXrPresentationState* webxr,
       gpu::GpuMemoryBufferImpl::DestructionCallback());
 
   uint32_t shared_image_usage = gpu::SHARED_IMAGE_USAGE_SCANOUT |
-                                gpu::SHARED_IMAGE_USAGE_DISPLAY_READ |
+                                gpu::SHARED_IMAGE_USAGE_DISPLAY |
                                 gpu::SHARED_IMAGE_USAGE_GLES2;
   buffer->mailbox_holder = mailbox_bridge_->CreateSharedImage(
       buffer->gmb.get(), gfx::ColorSpace(), shared_image_usage);
@@ -212,19 +175,18 @@ bool ArImageTransport::ResizeSharedBuffer(WebXrPresentationState* webxr,
            << buffer->mailbox_holder.mailbox.ToDebugString() << ", SyncToken="
            << buffer->mailbox_holder.sync_token.ToDebugString();
 
+  auto img = base::MakeRefCounted<gl::GLImageAHardwareBuffer>(size);
+
   base::android::ScopedHardwareBufferHandle ahb =
       buffer->gmb->CloneHandle().android_hardware_buffer;
-
-  // Create an EGLImage for the buffer.
-  auto egl_image = gpu::CreateEGLImageFromAHardwareBuffer(ahb.get());
-  if (!egl_image.is_valid()) {
+  bool ret = img->Initialize(ahb.get(), false /* preserved */);
+  if (!ret) {
     DLOG(WARNING) << __FUNCTION__ << ": ERROR: failed to initialize image!";
     return false;
   }
-
   glBindTexture(GL_TEXTURE_EXTERNAL_OES, buffer->local_texture);
-  glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image.get());
-  buffer->local_eglimage = std::move(egl_image);
+  img->BindTexImage(GL_TEXTURE_EXTERNAL_OES);
+  buffer->local_glimage = std::move(img);
 
   // Save size to avoid resize next time.
   DVLOG(1) << __FUNCTION__ << ": resized to " << size.width() << "x"
@@ -233,16 +195,16 @@ bool ArImageTransport::ResizeSharedBuffer(WebXrPresentationState* webxr,
   return true;
 }
 
-std::unique_ptr<WebXrSharedBuffer> ArImageTransport::CreateBuffer() {
-  std::unique_ptr<WebXrSharedBuffer> buffer =
-      std::make_unique<WebXrSharedBuffer>();
+std::unique_ptr<vr::WebXrSharedBuffer> ArImageTransport::CreateBuffer() {
+  std::unique_ptr<vr::WebXrSharedBuffer> buffer =
+      std::make_unique<vr::WebXrSharedBuffer>();
   // Local resources
   glGenTextures(1, &buffer->local_texture);
   return buffer;
 }
 
 gpu::MailboxHolder ArImageTransport::TransferFrame(
-    WebXrPresentationState* webxr,
+    vr::WebXrPresentationState* webxr,
     const gfx::Size& frame_size,
     const gfx::Transform& uv_transform) {
   DCHECK(IsOnGlThread());
@@ -252,13 +214,13 @@ gpu::MailboxHolder ArImageTransport::TransferFrame(
     webxr->GetAnimatingFrame()->shared_buffer = CreateBuffer();
   }
 
-  WebXrSharedBuffer* shared_buffer =
+  vr::WebXrSharedBuffer* shared_buffer =
       webxr->GetAnimatingFrame()->shared_buffer.get();
   ResizeSharedBuffer(webxr, frame_size, shared_buffer);
   // Sanity check that the lazily created/resized buffer looks valid.
   DCHECK(!shared_buffer->mailbox_holder.mailbox.IsZero());
-  DCHECK(shared_buffer->local_eglimage.is_valid());
-  DCHECK_EQ(shared_buffer->size, frame_size);
+  DCHECK(shared_buffer->local_glimage);
+  DCHECK_EQ(shared_buffer->local_glimage->GetSize(), frame_size);
 
   // We don't need to create a sync token here. ResizeSharedBuffer has created
   // one on reallocation, including initial buffer creation, and we can use
@@ -276,7 +238,7 @@ gpu::MailboxHolder ArImageTransport::TransferFrame(
 }
 
 gpu::MailboxHolder ArImageTransport::TransferCameraImageFrame(
-    WebXrPresentationState* webxr,
+    vr::WebXrPresentationState* webxr,
     const gfx::Size& frame_size,
     const gfx::Transform& uv_transform) {
   DCHECK(IsOnGlThread());
@@ -286,7 +248,7 @@ gpu::MailboxHolder ArImageTransport::TransferCameraImageFrame(
     webxr->GetAnimatingFrame()->camera_image_shared_buffer = CreateBuffer();
   }
 
-  WebXrSharedBuffer* camera_image_shared_buffer =
+  vr::WebXrSharedBuffer* camera_image_shared_buffer =
       webxr->GetAnimatingFrame()->camera_image_shared_buffer.get();
   bool was_resized =
       ResizeSharedBuffer(webxr, frame_size, camera_image_shared_buffer);
@@ -305,8 +267,8 @@ gpu::MailboxHolder ArImageTransport::TransferCameraImageFrame(
   }
   // Sanity checks for the camera image buffer.
   DCHECK(!camera_image_shared_buffer->mailbox_holder.mailbox.IsZero());
-  DCHECK(camera_image_shared_buffer->local_eglimage.is_valid());
-  DCHECK_EQ(camera_image_shared_buffer->size, frame_size);
+  DCHECK(camera_image_shared_buffer->local_glimage);
+  DCHECK_EQ(camera_image_shared_buffer->local_glimage->GetSize(), frame_size);
 
   // Temporarily change drawing buffer to the camera image buffer.
   if (!camera_image_fbo_) {
@@ -333,7 +295,7 @@ gpu::MailboxHolder ArImageTransport::TransferCameraImageFrame(
 
   std::unique_ptr<gl::GLFence> gl_fence = gl::GLFence::CreateForGpuFence();
   std::unique_ptr<gfx::GpuFence> gpu_fence = gl_fence->GetGpuFence();
-  mailbox_bridge_->WaitForClientGpuFence(*gpu_fence);
+  mailbox_bridge_->WaitForClientGpuFence(gpu_fence.release());
 
   mailbox_bridge_->GenSyncToken(
       &camera_image_shared_buffer->mailbox_holder.sync_token);
@@ -369,14 +331,14 @@ void ArImageTransport::ServerWaitForGpuFence(
 }
 
 void ArImageTransport::CopyDrawnImageToFramebuffer(
-    WebXrPresentationState* webxr,
+    vr::WebXrPresentationState* webxr,
     const gfx::Size& frame_size,
     const gfx::Transform& uv_transform) {
   DVLOG(2) << __func__;
 
   GLuint source_texture;
   if (UseSharedBuffer()) {
-    WebXrSharedBuffer* shared_buffer =
+    vr::WebXrSharedBuffer* shared_buffer =
         webxr->GetRenderingFrame()->shared_buffer.get();
     source_texture = shared_buffer->local_texture;
   } else {
@@ -400,10 +362,9 @@ void ArImageTransport::CopyTextureToFramebuffer(
     const gfx::Transform& uv_transform) {
   DVLOG(2) << __func__;
   // Don't need face culling, depth testing, blending, etc. Turn it all off.
-  // It would be a bit more efficient to do this one time on initialization,
-  // but that would only be safe if ARCore and ArRenderer were guaranteed to
-  // not modify these states. For now, keep the redundant operations to avoid
-  // potential hard-to-find bugs.
+  // TODO(klausw): see if we can do this one time on initialization. That would
+  // be a tiny bit more efficient, but is only safe if ARCore and ArRenderer
+  // don't modify these states.
   glDisable(GL_CULL_FACE);
   glDisable(GL_SCISSOR_TEST);
   glDisable(GL_POLYGON_OFFSET_FILL);
@@ -411,7 +372,7 @@ void ArImageTransport::CopyTextureToFramebuffer(
 
   // Draw the ARCore texture!
   float uv_transform_floats[16];
-  uv_transform.GetColMajorF(uv_transform_floats);
+  uv_transform.matrix().asColMajorf(uv_transform_floats);
   ar_renderer_->Draw(texture, uv_transform_floats);
 }
 

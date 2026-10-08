@@ -8,26 +8,29 @@
 
   <link rel="author" title="Gérard Talbot" href="http://www.gtalbot.org/BrowserBugsSection/css21testsuite/">
 
-  <link rel="stylesheet" href="../support/highlights.css">
   <style>
-  #ref
+  div
     {
       font-size: 60px;
-      position: relative;
+      line-height: 1;
+    }
+
+  span#outer
+    {
       color: transparent;
     }
 
-  #ref > div
-    {
-      position: absolute;
-    }
-
-  #spelling-error > span
+  span#inner
     {
       background-color: yellow;
     }
 
-  #selection > span
+  div#overlapping-line
+    {
+      margin-top: -60px; /* -1lh unfortunately is not implemented */
+    }
+
+  div#overlapping-line > span
     {
       background-color: rgba(0%, 50%, 100%, 0.5);
       /*
@@ -50,8 +53,10 @@
     <li>if there is no red.
   </ul>
 
-  <div id="ref" class="highlight_reftest">
-    <div id="spelling-error"><span>Txet</span> sample</div>
-    <div id="selection"><span>Txet sample</span></div>
-    Txet sample
-  </div>
+  <!--
+  The bad spelling of Txet is intentional and part of this test
+  -->
+
+  <div id="overlapped-line"><span id="outer"><span id="inner">Txet</span> sample</span></div>
+
+  <div id="overlapping-line"><span>Txet sample</span></div>

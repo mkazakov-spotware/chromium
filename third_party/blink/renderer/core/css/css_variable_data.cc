@@ -1,11 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/css/css_variable_data.h"
 
-#include "base/containers/span.h"
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/renderer/core/css/css_syntax_definition.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
@@ -17,17 +15,17 @@ namespace blink {
 template <typename CharacterType>
 static void UpdateTokens(const CSSParserTokenRange& range,
                          const String& backing_string,
-                         CSSParserToken* result) {
+                         Vector<CSSParserToken>& result) {
   const CharacterType* current_offset =
       backing_string.GetCharacters<CharacterType>();
   for (const CSSParserToken& token : range) {
     if (token.HasStringBacking()) {
       unsigned length = token.Value().length();
       StringView string(current_offset, length);
-      new (result++) CSSParserToken(token.CopyWithUpdatedString(string));
+      result.push_back(token.CopyWithUpdatedString(string));
       current_offset += length;
     } else {
-      new (result++) CSSParserToken(token);
+      result.push_back(token);
     }
   }
   DCHECK(current_offset == backing_string.GetCharacters<CharacterType>() +
@@ -41,7 +39,6 @@ static bool IsFontUnitToken(CSSParserToken token) {
     case CSSPrimitiveValue::UnitType::kEms:
     case CSSPrimitiveValue::UnitType::kChs:
     case CSSPrimitiveValue::UnitType::kExs:
-    case CSSPrimitiveValue::UnitType::kIcs:
       return true;
     default:
       return false;
@@ -51,11 +48,6 @@ static bool IsFontUnitToken(CSSParserToken token) {
 static bool IsRootFontUnitToken(CSSParserToken token) {
   return token.GetType() == kDimensionToken &&
          token.GetUnitType() == CSSPrimitiveValue::UnitType::kRems;
-}
-
-static bool IsLineHeightUnitToken(CSSParserToken token) {
-  return token.GetType() == kDimensionToken &&
-         token.GetUnitType() == CSSPrimitiveValue::UnitType::kLhs;
 }
 
 String CSSVariableData::Serialize() const {
@@ -72,8 +64,8 @@ String CSSVariableData::Serialize() const {
       StringBuilder serialized_text;
       serialized_text.Append(original_text_);
       serialized_text.Resize(serialized_text.length() - 1);
-      DCHECK_NE(0u, num_tokens_);
-      const CSSParserToken& last = TokenInternalPtr()[num_tokens_ - 1];
+      DCHECK(!tokens_.IsEmpty());
+      const CSSParserToken& last = tokens_.back();
       if (last.GetType() != kStringToken)
         serialized_text.Append(kReplacementCharacter);
 
@@ -84,7 +76,7 @@ String CSSVariableData::Serialize() const {
       if (last.GetType() == kUrlToken)
         serialized_text.Append(')');
 
-      return serialized_text.ReleaseString();
+      return serialized_text.ToString();
     }
 
     return original_text_;
@@ -93,12 +85,12 @@ String CSSVariableData::Serialize() const {
 }
 
 bool CSSVariableData::operator==(const CSSVariableData& other) const {
-  return base::ranges::equal(Tokens(), other.Tokens());
+  return Tokens() == other.Tokens();
 }
 
 void CSSVariableData::ConsumeAndUpdateTokens(const CSSParserTokenRange& range) {
-  DCHECK_EQ(num_tokens_, 0u);
-  DCHECK(backing_string_.empty());
+  DCHECK_EQ(tokens_.size(), 0u);
+  DCHECK_EQ(backing_strings_.size(), 0u);
   StringBuilder string_builder;
   CSSParserTokenRange local_range = range;
 
@@ -108,60 +100,27 @@ void CSSVariableData::ConsumeAndUpdateTokens(const CSSParserTokenRange& range) {
       string_builder.Append(token.Value());
     has_font_units_ |= IsFontUnitToken(token);
     has_root_font_units_ |= IsRootFontUnitToken(token);
-    has_line_height_units_ |= IsLineHeightUnitToken(token);
-    ++num_tokens_;
   }
-  backing_string_ = string_builder.ToAtomicString();
-  if (backing_string_.Is8Bit())
-    UpdateTokens<LChar>(range, backing_string_, TokenInternalPtr());
+  String backing_string = string_builder.ToString();
+  backing_strings_.push_back(backing_string);
+  if (backing_string.Is8Bit())
+    UpdateTokens<LChar>(range, backing_string, tokens_);
   else
-    UpdateTokens<UChar>(range, backing_string_, TokenInternalPtr());
+    UpdateTokens<UChar>(range, backing_string, tokens_);
 }
-
-#if EXPENSIVE_DCHECKS_ARE_ON()
-
-namespace {
-
-template <typename CharacterType>
-bool IsSubspan(base::span<const CharacterType> inner,
-               base::span<const CharacterType> outer) {
-  // Note that base::span uses CheckedContiguousIterator, which restricts
-  // which comparisons are allowed. Therefore we must avoid begin()/end() here.
-  return inner.data() >= outer.data() &&
-         (inner.data() + inner.size()) <= (outer.data() + outer.size());
-}
-
-bool TokenValueIsBacked(const CSSParserToken& token,
-                        const String& backing_string) {
-  StringView value = token.Value();
-  if (value.Is8Bit() != backing_string.Is8Bit())
-    return false;
-  return value.Is8Bit() ? IsSubspan(value.Span8(), backing_string.Span8())
-                        : IsSubspan(value.Span16(), backing_string.Span16());
-}
-
-}  // namespace
-
-void CSSVariableData::VerifyStringBacking() const {
-  for (const CSSParserToken& token : Tokens()) {
-    DCHECK(!token.HasStringBacking() ||
-           TokenValueIsBacked(token, backing_string_))
-        << "Token value is not backed: " << token.Value().ToString();
-  }
-}
-
-#endif  // EXPENSIVE_DCHECKS_ARE_ON()
 
 CSSVariableData::CSSVariableData(const CSSTokenizedValue& tokenized_value,
                                  bool is_animation_tainted,
-                                 bool needs_variable_resolution)
+                                 bool needs_variable_resolution,
+                                 const KURL& base_url,
+                                 const WTF::TextEncoding& charset)
     : original_text_(tokenized_value.text.ToString()),
       is_animation_tainted_(is_animation_tainted),
-      needs_variable_resolution_(needs_variable_resolution) {
+      needs_variable_resolution_(needs_variable_resolution),
+      base_url_(base_url.IsValid() ? base_url.GetString() : String()),
+      charset_(charset) {
+  DCHECK(!tokenized_value.range.AtEnd());
   ConsumeAndUpdateTokens(tokenized_value.range);
-#if EXPENSIVE_DCHECKS_ARE_ON()
-  VerifyStringBacking();
-#endif  // EXPENSIVE_DCHECKS_ARE_ON()
 }
 
 const CSSValue* CSSVariableData::ParseForSyntax(

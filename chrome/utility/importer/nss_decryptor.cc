@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,14 +18,13 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "chrome/common/importer/importer_data_types.h"
-#include "crypto/crypto_buildflags.h"
 #include "sql/database.h"
 #include "sql/statement.h"
 
-#if BUILDFLAG(USE_NSS_CERTS)
+#if defined(USE_NSS_CERTS)
 #include <pk11pub.h>
 #include <pk11sdr.h>
-#endif  // BUILDFLAG(USE_NSS_CERTS)
+#endif  // defined(USE_NSS_CERTS)
 
 // This method is based on some Firefox code in
 //   security/manager/ssl/src/nsSDR.cpp
@@ -72,8 +71,8 @@
 struct FirefoxRawPasswordInfo {
   std::string host;
   std::string realm;
-  std::u16string username_element;
-  std::u16string password_element;
+  base::string16 username_element;
+  base::string16 password_element;
   std::string encrypted_username;
   std::string encrypted_password;
   std::string form_action;
@@ -91,20 +90,20 @@ importer::ImportedPasswordForm CreateBlockedPasswordForm(
 
   importer::ImportedPasswordForm form;
   form.url = GURL(blocked_host).ReplaceComponents(rep);
-  form.signon_realm = form.url.DeprecatedGetOriginAsURL().spec();
+  form.signon_realm = form.url.GetOrigin().spec();
   form.blocked_by_user = true;
   return form;
 }
 
 }  // namespace
 
-std::u16string NSSDecryptor::Decrypt(const std::string& crypt) const {
+base::string16 NSSDecryptor::Decrypt(const std::string& crypt) const {
   // Do nothing if NSS is not loaded.
   if (!is_nss_initialized_)
-    return std::u16string();
+    return base::string16();
 
   if (crypt.empty())
-    return std::u16string();
+    return base::string16();
 
   // The old style password is encoded in base64. They are identified
   // by a leading '~'. Otherwise, we should decrypt the text.
@@ -112,12 +111,12 @@ std::u16string NSSDecryptor::Decrypt(const std::string& crypt) const {
   if (crypt[0] != '~') {
     std::string decoded_data;
     if (!base::Base64Decode(crypt, &decoded_data))
-      return std::u16string();
+      return base::string16();
     PK11SlotInfo* slot = GetKeySlotForDB();
-    SECStatus result = PK11_Authenticate(slot, PR_TRUE, nullptr);
+    SECStatus result = PK11_Authenticate(slot, PR_TRUE, NULL);
     if (result != SECSuccess) {
       FreeSlot(slot);
-      return std::u16string();
+      return base::string16();
     }
 
     SECItem request;
@@ -127,11 +126,11 @@ std::u16string NSSDecryptor::Decrypt(const std::string& crypt) const {
     SECItem reply;
     reply.data = nullptr;
     reply.len = 0;
-#if BUILDFLAG(USE_NSS_CERTS)
-    result = PK11SDR_DecryptWithSlot(slot, &request, &reply, nullptr);
+#if defined(USE_NSS_CERTS)
+    result = PK11SDR_DecryptWithSlot(slot, &request, &reply, NULL);
 #else
     result = PK11SDR_Decrypt(&request, &reply, NULL);
-#endif  // BUILDFLAG(USE_NSS_CERTS)
+#endif  // defined(USE_NSS_CERTS)
     if (result == SECSuccess)
       plain.assign(reinterpret_cast<char*>(reply.data), reply.len);
 
@@ -140,10 +139,156 @@ std::u16string NSSDecryptor::Decrypt(const std::string& crypt) const {
   } else {
     // Deletes the leading '~' before decoding.
     if (!base::Base64Decode(crypt.substr(1), &plain))
-      return std::u16string();
+      return base::string16();
   }
 
   return base::UTF8ToUTF16(plain);
+}
+
+// There are three versions of password files. They store saved user
+// names and passwords.
+// References:
+// http://kb.mozillazine.org/Signons.txt
+// http://kb.mozillazine.org/Signons2.txt
+// http://kb.mozillazine.org/Signons3.txt
+void NSSDecryptor::ParseSignons(
+    const base::FilePath& signon_file,
+    std::vector<importer::ImportedPasswordForm>* forms) {
+  forms->clear();
+
+  std::string content;
+  base::ReadFileToString(signon_file, &content);
+
+  // Splits the file content into lines.
+  std::vector<std::string> lines = base::SplitString(
+      content, "\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
+
+  // The first line is the file version. We skip the unknown versions.
+  if (lines.empty())
+    return;
+  int version;
+  if (lines[0] == "#2c")
+    version = 1;
+  else if (lines[0] == "#2d")
+    version = 2;
+  else if (lines[0] == "#2e")
+    version = 3;
+  else
+    return;
+
+  // Reads never-saved list. Domains are stored one per line.
+  size_t i;
+  for (i = 1; i < lines.size() && lines[i].compare(".") != 0; ++i)
+    forms->push_back(CreateBlockedPasswordForm(lines[i]));
+  ++i;
+
+  // Reads saved passwords. The information is stored in blocks
+  // seperated by lines that only contain a dot. We find a block
+  // by the seperator and parse them one by one.
+  while (i < lines.size()) {
+    size_t begin = i;
+    size_t end = i + 1;
+    while (end < lines.size() && lines[end].compare(".") != 0)
+      ++end;
+    i = end + 1;
+
+    // A block has at least five lines.
+    if (end - begin < 5)
+      continue;
+
+    FirefoxRawPasswordInfo raw_password_info;
+
+    // The first line is the site URL.
+    // For HTTP authentication logins, the URL may contain http realm,
+    // which will be in bracket:
+    //   sitename:8080 (realm)
+    const char kRealmBracketBegin[] = " (";
+    const char kRealmBracketEnd[] = ")";
+    if (lines[begin].find(kRealmBracketBegin) != std::string::npos) {
+      size_t start = lines[begin].find(kRealmBracketBegin);
+      raw_password_info.host = lines[begin].substr(0, start);
+      start += sizeof(kRealmBracketBegin) - 1;
+      size_t end = lines[begin].rfind(kRealmBracketEnd);
+      raw_password_info.realm = lines[begin].substr(start, end - start);
+    } else {
+      raw_password_info.host = lines[begin];
+    }
+
+    ++begin;
+
+    // There may be multiple username/password pairs for this site.
+    // In this case, they are saved in one block without a seperated
+    // line (contains a dot).
+    while (begin + 4 < end) {
+      // The user name.
+      raw_password_info.username_element = base::UTF8ToUTF16(lines[begin++]);
+      raw_password_info.encrypted_username = lines[begin++];
+      // The element name has a leading '*'.
+      if (lines[begin].at(0) == '*') {
+        raw_password_info.password_element =
+            base::UTF8ToUTF16(lines[begin++].substr(1));
+        raw_password_info.encrypted_password = lines[begin++];
+      } else {
+        // Maybe the file is bad, we skip to next block.
+        break;
+      }
+      // The action attribute from the form element. This line exists
+      // in versin 2 or above.
+      if (version >= 2) {
+        if (begin < end)
+          raw_password_info.form_action = lines[begin];
+        ++begin;
+      }
+      // Version 3 has an extra line for further use.
+      if (version == 3)
+        ++begin;
+
+      importer::ImportedPasswordForm form;
+      if (CreatePasswordFormFromRawInfo(raw_password_info, &form))
+        forms->push_back(form);
+    }
+  }
+}
+
+bool NSSDecryptor::ReadAndParseSignons(
+    const base::FilePath& sqlite_file,
+    std::vector<importer::ImportedPasswordForm>* forms) {
+  sql::Database db;
+  if (!db.Open(sqlite_file))
+    return false;
+
+  const char query[] = "SELECT hostname FROM moz_disabledHosts";
+  sql::Statement s(db.GetUniqueStatement(query));
+  if (!s.is_valid())
+    return false;
+
+  // Read domains for which passwords are never saved.
+  while (s.Step())
+    forms->push_back(CreateBlockedPasswordForm(s.ColumnString(0)));
+
+  const char query2[] = "SELECT hostname, httpRealm, formSubmitURL, "
+                        "usernameField, passwordField, encryptedUsername, "
+                        "encryptedPassword FROM moz_logins";
+
+  sql::Statement s2(db.GetUniqueStatement(query2));
+  if (!s2.is_valid())
+    return false;
+
+  while (s2.Step()) {
+    FirefoxRawPasswordInfo raw_password_info;
+    raw_password_info.host = s2.ColumnString(0);
+    raw_password_info.realm = s2.ColumnString(1);
+    // The user name, password and action.
+    raw_password_info.username_element = s2.ColumnString16(3);
+    raw_password_info.encrypted_username = s2.ColumnString(5);
+    raw_password_info.password_element = s2.ColumnString16(4);
+    raw_password_info.encrypted_password = s2.ColumnString(6);
+    raw_password_info.form_action = s2.ColumnString(2);
+    importer::ImportedPasswordForm form;
+    if (CreatePasswordFormFromRawInfo(raw_password_info, &form))
+      forms->push_back(form);
+  }
+  return true;
 }
 
 bool NSSDecryptor::ReadAndParseLogins(
@@ -151,15 +296,15 @@ bool NSSDecryptor::ReadAndParseLogins(
     std::vector<importer::ImportedPasswordForm>* forms) {
   std::string json_content;
   base::ReadFileToString(json_file, &json_content);
-  absl::optional<base::Value> parsed_json =
+  base::Optional<base::Value> parsed_json =
       base::JSONReader::Read(json_content);
   if (!parsed_json || !parsed_json->is_dict())
     return false;
 
-  const base::Value* disabled_hosts =
+  const base::Value* blacklist_domains =
       parsed_json->FindListKey("disabledHosts");
-  if (disabled_hosts) {
-    for (const auto& value : disabled_hosts->GetList()) {
+  if (blacklist_domains) {
+    for (const auto& value : blacklist_domains->GetList()) {
       if (!value.is_string())
         continue;
       forms->push_back(CreateBlockedPasswordForm(value.GetString()));
@@ -228,7 +373,7 @@ bool NSSDecryptor::CreatePasswordFormFromRawInfo(
     return false;
 
   form->url = url.ReplaceComponents(rep);
-  form->signon_realm = form->url.DeprecatedGetOriginAsURL().spec();
+  form->signon_realm = form->url.GetOrigin().spec();
   if (!raw_password_info.realm.empty()) {
     form->signon_realm += raw_password_info.realm;
     // Non-empty realm indicates that it's not html form authentication entry.

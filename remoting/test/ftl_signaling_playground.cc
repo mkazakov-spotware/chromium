@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,9 @@
 #include "base/memory/ptr_util.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "base/time/time.h"
-#include "components/webrtc/thread_wrapper.h"
+#include "jingle/glue/thread_wrapper.h"
 #include "remoting/base/logging.h"
 #include "remoting/base/oauth_token_getter_impl.h"
 #include "remoting/base/oauth_token_getter_proxy.h"
@@ -57,7 +58,7 @@ constexpr char kSwitchNameHostId[] = "host-id";
 constexpr char kSwitchNameUseChromotocol[] = "use-chromotocol";
 
 // Delay to allow sending session-terminate before tearing down.
-constexpr base::TimeDelta kTearDownDelay = base::Seconds(2);
+constexpr base::TimeDelta kTearDownDelay = base::TimeDelta::FromSeconds(2);
 
 const char* SignalStrategyErrorToString(SignalStrategy::Error error) {
   switch (error) {
@@ -95,7 +96,7 @@ void FtlSignalingPlayground::PrintHelp() {
 }
 
 void FtlSignalingPlayground::StartLoop() {
-  webrtc::ThreadWrapper::EnsureForCurrentMessageLoop();
+  jingle_glue::JingleThreadWrapper::EnsureForCurrentMessageLoop();
 
   base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
   std::string username = cmd_line->GetSwitchValueASCII(kSwitchNameUsername);
@@ -107,7 +108,7 @@ void FtlSignalingPlayground::StartLoop() {
 
   auto url_request_context_getter =
       base::MakeRefCounted<URLRequestContextGetter>(
-          base::SingleThreadTaskRunner::GetCurrentDefault());
+          base::ThreadTaskRunnerHandle::Get());
   url_loader_factory_owner_ =
       std::make_unique<network::TransitionalURLLoaderFactoryOwner>(
           url_request_context_getter);
@@ -251,9 +252,8 @@ void FtlSignalingPlayground::InitializeTransport() {
       protocol::NetworkSettings::NAT_TRAVERSAL_FULL);
   auto transport_context = base::MakeRefCounted<protocol::TransportContext>(
       std::make_unique<protocol::ChromiumPortAllocatorFactory>(),
-      webrtc::ThreadWrapper::current()->SocketServer(),
-      url_loader_factory_owner_->GetURLLoaderFactory(), nullptr,
-      network_settings, transport_role_);
+      url_loader_factory_owner_->GetURLLoaderFactory(), network_settings,
+      transport_role_);
   auto close_callback =
       base::BindOnce(&FtlSignalingPlayground::AsyncTearDownAndRunCallback,
                      base::Unretained(this));

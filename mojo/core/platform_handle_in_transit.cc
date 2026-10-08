@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,13 @@
 
 #include <utility>
 
-#include "base/debug/alias.h"
 #include "base/logging.h"
 #include "base/process/process_handle.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
-#include <ntstatus.h>
+#if defined(OS_WIN)
 #include <windows.h>
 
-#include "base/win/nt_status.h"
 #include "base/win/scoped_handle.h"
 #endif
 
@@ -24,52 +21,24 @@ namespace core {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 HANDLE TransferHandle(HANDLE handle,
                       base::ProcessHandle from_process,
-                      base::ProcessHandle to_process,
-                      PlatformHandleInTransit::TransferTargetTrustLevel trust) {
-  if (trust == PlatformHandleInTransit::kUntrustedTarget) {
-    // TODO(https://crbug.com/1335974): Implement additional constraints
-    // regarding what type of handles may or may not be transferred to untrusted
-    // processes.
-  }
-
-  HANDLE out_handle;
+                      base::ProcessHandle to_process) {
   BOOL result =
-      ::DuplicateHandle(from_process, handle, to_process, &out_handle, 0, FALSE,
+      ::DuplicateHandle(from_process, handle, to_process, &handle, 0, FALSE,
                         DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
   if (result) {
-    return out_handle;
-  }
-
-  const DWORD error = ::GetLastError();
-
-  // ERROR_ACCESS_DENIED may indicate that the remote process (which could be
-  // either the source or destination process here) is already terminated or has
-  // begun termination and therefore no longer has a handle table. We don't want
-  // these cases to crash because we know they happen in practice and are
-  // largely unavoidable.
-  if (error == ERROR_ACCESS_DENIED &&
-      base::win::GetLastNtStatus() == STATUS_PROCESS_IS_TERMINATING) {
-    DVLOG(1) << "DuplicateHandle from " << from_process << " to " << to_process
-             << " for handle " << handle
-             << " failed due to process termination";
+    return handle;
+  } else {
+    DPLOG(ERROR) << "DuplicateHandle failed";
     return INVALID_HANDLE_VALUE;
   }
-
-  base::debug::Alias(&handle);
-  base::debug::Alias(&from_process);
-  base::debug::Alias(&to_process);
-  base::debug::Alias(&error);
-  PLOG(FATAL) << "DuplicateHandle failed from " << from_process << " to "
-              << to_process << " for handle " << handle;
-  return INVALID_HANDLE_VALUE;
 }
 
-void CloseHandleInProcess(HANDLE handle, const base::Process& process) {
+void CloseHandleInProcess(HANDLE handle, const ScopedProcessHandle& process) {
   DCHECK_NE(handle, INVALID_HANDLE_VALUE);
-  DCHECK(process.IsValid());
+  DCHECK(process.is_valid());
 
   // The handle lives in |process|, so we close it there using a special
   // incantation of |DuplicateHandle()|.
@@ -79,7 +48,7 @@ void CloseHandleInProcess(HANDLE handle, const base::Process& process) {
   // handle from the source process...". Note that although the documentation
   // says that the target *handle* address must be NULL, it seems that the
   // target process handle being NULL is what really matters here.
-  BOOL result = ::DuplicateHandle(process.Handle(), handle, nullptr, &handle, 0,
+  BOOL result = ::DuplicateHandle(process.get(), handle, NULL, &handle, 0,
                                   FALSE, DUPLICATE_CLOSE_SOURCE);
   if (!result) {
     DPLOG(ERROR) << "DuplicateHandle failed";
@@ -100,8 +69,8 @@ PlatformHandleInTransit::PlatformHandleInTransit(
 }
 
 PlatformHandleInTransit::~PlatformHandleInTransit() {
-#if BUILDFLAG(IS_WIN)
-  if (!owning_process_.IsValid()) {
+#if defined(OS_WIN)
+  if (!owning_process_.is_valid()) {
     DCHECK_EQ(remote_handle_, INVALID_HANDLE_VALUE);
     return;
   }
@@ -112,8 +81,8 @@ PlatformHandleInTransit::~PlatformHandleInTransit() {
 
 PlatformHandleInTransit& PlatformHandleInTransit::operator=(
     PlatformHandleInTransit&& other) {
-#if BUILDFLAG(IS_WIN)
-  if (owning_process_.IsValid()) {
+#if defined(OS_WIN)
+  if (owning_process_.is_valid()) {
     DCHECK_NE(remote_handle_, INVALID_HANDLE_VALUE);
     CloseHandleInProcess(remote_handle_, owning_process_);
   }
@@ -127,28 +96,27 @@ PlatformHandleInTransit& PlatformHandleInTransit::operator=(
 }
 
 PlatformHandle PlatformHandleInTransit::TakeHandle() {
-  DCHECK(!owning_process_.IsValid());
+  DCHECK(!owning_process_.is_valid());
   return std::move(handle_);
 }
 
 void PlatformHandleInTransit::CompleteTransit() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   remote_handle_ = INVALID_HANDLE_VALUE;
 #endif
   handle_.release();
-  owning_process_ = base::Process();
+  owning_process_ = ScopedProcessHandle();
 }
 
 bool PlatformHandleInTransit::TransferToProcess(
-    base::Process target_process,
-    TransferTargetTrustLevel trust) {
-  DCHECK(target_process.IsValid());
-  DCHECK(!owning_process_.IsValid());
+    ScopedProcessHandle target_process) {
+  DCHECK(target_process.is_valid());
+  DCHECK(!owning_process_.is_valid());
   DCHECK(handle_.is_valid());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   remote_handle_ =
       TransferHandle(handle_.ReleaseHandle(), base::GetCurrentProcessHandle(),
-                     target_process.Handle(), trust);
+                     target_process.get());
   if (remote_handle_ == INVALID_HANDLE_VALUE)
     return false;
 #endif
@@ -156,7 +124,7 @@ bool PlatformHandleInTransit::TransferToProcess(
   return true;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // static
 bool PlatformHandleInTransit::IsPseudoHandle(HANDLE handle) {
   // Note that there appears to be no official documentation covering the
@@ -177,8 +145,7 @@ PlatformHandle PlatformHandleInTransit::TakeIncomingRemoteHandle(
     HANDLE handle,
     base::ProcessHandle owning_process) {
   return PlatformHandle(base::win::ScopedHandle(
-      TransferHandle(handle, owning_process, base::GetCurrentProcessHandle(),
-                     kTrustedTarget)));
+      TransferHandle(handle, owning_process, base::GetCurrentProcessHandle())));
 }
 #endif
 

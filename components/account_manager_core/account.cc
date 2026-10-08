@@ -1,41 +1,28 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/account_manager_core/account.h"
 
-#include "base/check.h"
-
 namespace account_manager {
 
-AccountKey::AccountKey(const std::string& id, AccountType type)
-    : id_(id), account_type_(type) {
-  DCHECK(!id_.empty());
+bool AccountKey::IsValid() const {
+  return !id.empty();
 }
 
 bool AccountKey::operator<(const AccountKey& other) const {
-  return std::tie(id_, account_type_) <
-         std::tie(other.id_, other.account_type_);
+  if (id != other.id) {
+    return id < other.id;
+  }
+
+  return account_type < other.account_type;
 }
 
 bool AccountKey::operator==(const AccountKey& other) const {
-  return std::tie(id_, account_type_) ==
-         std::tie(other.id_, other.account_type_);
+  return id == other.id && account_type == other.account_type;
 }
 
 bool AccountKey::operator!=(const AccountKey& other) const {
-  return !(*this == other);
-}
-
-bool Account::operator<(const Account& other) const {
-  return std::tie(key, raw_email) < std::tie(other.key, other.raw_email);
-}
-
-bool Account::operator==(const Account& other) const {
-  return std::tie(key, raw_email) == std::tie(other.key, other.raw_email);
-}
-
-bool Account::operator!=(const Account& other) const {
   return !(*this == other);
 }
 
@@ -55,8 +42,8 @@ std::ostream& operator<<(std::ostream& os, const AccountType& account_type) {
 
 COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE)
 std::ostream& operator<<(std::ostream& os, const AccountKey& account_key) {
-  os << "{ id: " << account_key.id()
-     << ", account_type: " << account_key.account_type() << " }";
+  os << "{ id: " << account_key.id
+     << ", account_type: " << account_key.account_type << " }";
 
   return os;
 }

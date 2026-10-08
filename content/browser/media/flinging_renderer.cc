@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
+#include "content/browser/renderer_host/render_frame_host_delegate.h"
+#include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/presentation_service_delegate.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/browser/render_process_host.h"
-#include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
 
 namespace content {
@@ -45,7 +45,9 @@ std::unique_ptr<FlingingRenderer> FlingingRenderer::Create(
 
   ControllerPresentationServiceDelegate* presentation_delegate =
       browser_client->GetControllerPresentationServiceDelegate(
-          WebContents::FromRenderFrameHost(render_frame_host));
+          static_cast<RenderFrameHostImpl*>(render_frame_host)
+              ->delegate()
+              ->GetAsWebContents());
 
   if (!presentation_delegate)
     return nullptr;
@@ -71,7 +73,7 @@ void FlingingRenderer::Initialize(media::MediaResource* media_resource,
 }
 
 void FlingingRenderer::SetLatencyHint(
-    absl::optional<base::TimeDelta> latency_hint) {}
+    base::Optional<base::TimeDelta> latency_hint) {}
 
 void FlingingRenderer::Flush(base::OnceClosure flush_cb) {
   DVLOG(2) << __func__;
@@ -115,10 +117,6 @@ void FlingingRenderer::SetVolume(float volume) {
 
 base::TimeDelta FlingingRenderer::GetMediaTime() {
   return controller_->GetApproximateCurrentTime();
-}
-
-media::RendererType FlingingRenderer::GetRendererType() {
-  return media::RendererType::kFlinging;
 }
 
 void FlingingRenderer::SetExpectedPlayState(PlayState state) {

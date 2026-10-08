@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,23 +10,36 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/plugins/plugin_registry.mojom-blink.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
+#include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
+#include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
+#include "url/url_util.h"
+
+using testing::Eq;
+using testing::Property;
 
 namespace blink {
 namespace {
 
 class MockPluginRegistry : public mojom::blink::PluginRegistry {
  public:
-  void GetPlugins(bool refresh, GetPluginsCallback callback) override {
-    DidGetPlugins(refresh);
+  void GetPlugins(bool refresh,
+                  const scoped_refptr<const SecurityOrigin>& origin,
+                  GetPluginsCallback callback) override {
+    DidGetPlugins(refresh, *origin);
     std::move(callback).Run(Vector<mojom::blink::PluginInfoPtr>());
   }
 
-  MOCK_METHOD(void, DidGetPlugins, (bool));
+  MOCK_METHOD2(DidGetPlugins, void(bool, const SecurityOrigin&));
 };
 
-TEST(PluginDataTest, UpdatePluginList) {
+// Regression test for https://crbug.com/862282
+TEST(PluginDataTest, NonStandardUrlSchemeRequestsPluginsWithUniqueOrigin) {
   ScopedTestingPlatformSupport<TestingPlatformSupport> support;
+  // Create a scheme that's local but nonstandard, as in bug 862282.
+  url::ScopedSchemeRegistryForTests scoped_registry;
+  url::AddLocalScheme("nonstandard-862282");
+  SchemeRegistry::RegisterURLSchemeAsLocal("nonstandard-862282");
 
   MockPluginRegistry mock_plugin_registry;
   mojo::Receiver<mojom::blink::PluginRegistry> registry_receiver(
@@ -44,10 +57,15 @@ TEST(PluginDataTest, UpdatePluginList) {
           },
           WTF::Unretained(&registry_receiver)));
 
-  EXPECT_CALL(mock_plugin_registry, DidGetPlugins(false));
+  EXPECT_CALL(
+      mock_plugin_registry,
+      DidGetPlugins(false, Property(&SecurityOrigin::IsOpaque, Eq(false))));
 
+  scoped_refptr<SecurityOrigin> non_standard_origin =
+      SecurityOrigin::CreateFromString("nonstandard-862282:foo/bar");
+  EXPECT_FALSE(non_standard_origin->IsOpaque());
   auto* plugin_data = MakeGarbageCollected<PluginData>();
-  plugin_data->UpdatePluginList();
+  plugin_data->UpdatePluginList(non_standard_origin.get());
 }
 
 }  // namespace

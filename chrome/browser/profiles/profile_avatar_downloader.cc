@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/profiles/profile_avatar_downloader.h"
 
-#include <memory>
 #include <string>
 
 #include "base/callback.h"
@@ -51,10 +50,11 @@ ProfileAvatarDownloader::ProfileAvatarDownloader(size_t icon_index,
             "No content is being uploaded or saved; this request merely "
             "downloads a publicly available PNG file."
         })");
-  fetcher_ = std::make_unique<BitmapFetcher>(url, this, traffic_annotation);
+  fetcher_.reset(new BitmapFetcher(url, this, traffic_annotation));
 }
 
-ProfileAvatarDownloader::~ProfileAvatarDownloader() = default;
+ProfileAvatarDownloader::~ProfileAvatarDownloader() {
+}
 
 void ProfileAvatarDownloader::Start() {
   SystemNetworkContextManager* system_network_context_manager =
@@ -66,8 +66,9 @@ void ProfileAvatarDownloader::Start() {
       system_network_context_manager->GetURLLoaderFactory();
   if (loader_factory) {
     fetcher_->Init(
+        std::string(),
         net::ReferrerPolicy::REDUCE_GRANULARITY_ON_TRANSITION_CROSS_ORIGIN,
-        network::mojom::CredentialsMode::kOmit);
+        network::mojom::CredentialsMode::kInclude);
     fetcher_->Start(loader_factory);
   }
 }

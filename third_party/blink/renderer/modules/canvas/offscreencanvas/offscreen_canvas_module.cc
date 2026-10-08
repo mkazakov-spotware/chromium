@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,30 +12,25 @@
 
 namespace blink {
 
-V8OffscreenRenderingContext* OffscreenCanvasModule::getContext(
+void OffscreenCanvasModule::getContext(
     ExecutionContext* execution_context,
     OffscreenCanvas& offscreen_canvas,
-    const String& context_id,
+    const String& id,
     const CanvasContextCreationAttributesModule* attributes,
+    OffscreenRenderingContext& result,
     ExceptionState& exception_state) {
   if (offscreen_canvas.IsNeutered()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "OffscreenCanvas object is detached");
-    return nullptr;
-  }
-  CanvasContextCreationAttributesCore canvas_context_creation_attributes;
-  if (!ToCanvasContextCreationAttributes(
-          attributes, canvas_context_creation_attributes, exception_state)) {
-    return nullptr;
+    return;
   }
 
   // OffscreenCanvas cannot be transferred after getContext, so this execution
   // context will always be the right one from here on.
   CanvasRenderingContext* context = offscreen_canvas.GetCanvasRenderingContext(
-      execution_context, context_id, canvas_context_creation_attributes);
-  if (!context)
-    return nullptr;
-  return context->AsV8OffscreenRenderingContext();
+      execution_context, id, ToCanvasContextCreationAttributes(attributes));
+  if (context)
+    context->SetOffscreenCanvasGetContextResult(result);
 }
 
 }  // namespace blink

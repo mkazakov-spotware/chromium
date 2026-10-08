@@ -1,29 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {dispatchSimpleEvent} from 'chrome://resources/ash/common/cr_deprecated.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {mountGuest} from '../../common/js/api.js';
-import {AsyncQueue, ConcurrentQueue} from '../../common/js/async_util.js';
-import {createDOMError} from '../../common/js/dom_utils.js';
-import {metrics} from '../../common/js/metrics.js';
-import {createTrashReaders} from '../../common/js/trash.js';
-import {util} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {FakeEntry, FilesAppDirEntry} from '../../externs/files_app_entry_interfaces.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
-
-import {constants} from './constants.js';
-import {FileListModel} from './file_list_model.js';
-import {MetadataModel} from './metadata/metadata_model.js';
 
 /**
  * Scanner of the entries.
  */
-export class ContentScanner {
+class ContentScanner {
   constructor() {
     this.cancelled_ = false;
   }
@@ -39,13 +21,8 @@ export class ContentScanner {
    * @param {function()} successCallback Called when the scan is completed
    *     successfully.
    * @param {function(DOMError)} errorCallback Called an error occurs.
-   * @param {boolean=} invalidateCache True to invalidate the backend scanning
-   *     result cache. This param only works if the corresponding backend
-   *     scanning supports cache.
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {}
+  scan(entriesCallback, successCallback, errorCallback) {}
 
   /**
    * Request cancelling of the running scan. When the cancelling is done,
@@ -59,7 +36,7 @@ export class ContentScanner {
 /**
  * Scanner of the entries in a directory.
  */
-export class DirectoryContentScanner extends ContentScanner {
+class DirectoryContentScanner extends ContentScanner {
   /**
    * @param {DirectoryEntry|FilesAppDirEntry} entry The directory to be read.
    */
@@ -72,13 +49,12 @@ export class DirectoryContentScanner extends ContentScanner {
    * Starts to read the entries in the directory.
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
+  scan(entriesCallback, successCallback, errorCallback) {
     if (!this.entry_ || !this.entry_.createReader) {
       // If entry is not specified or if entry doesn't implement createReader,
       // we cannot read it.
-      errorCallback(createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
+      errorCallback(
+          util.createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
       return;
     }
 
@@ -87,7 +63,7 @@ export class DirectoryContentScanner extends ContentScanner {
     const readEntries = () => {
       reader.readEntries(entries => {
         if (this.cancelled_) {
-          errorCallback(createDOMError(util.FileError.ABORT_ERR));
+          errorCallback(util.createDOMError(util.FileError.ABORT_ERR));
           return;
         }
 
@@ -103,14 +79,13 @@ export class DirectoryContentScanner extends ContentScanner {
       }, errorCallback);
     };
     readEntries();
-    return;
   }
 }
 
 /**
  * Scanner of the entries for the search results on Drive File System.
  */
-export class DriveSearchContentScanner extends ContentScanner {
+class DriveSearchContentScanner extends ContentScanner {
   /** @param {string} query The query string. */
   constructor(query) {
     super();
@@ -121,14 +96,12 @@ export class DriveSearchContentScanner extends ContentScanner {
    * Starts to search on Drive File System.
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
+  scan(entriesCallback, successCallback, errorCallback) {
     // Let's give another search a chance to cancel us before we begin.
     setTimeout(() => {
       // Check cancelled state before read the entries.
       if (this.cancelled_) {
-        errorCallback(createDOMError(util.FileError.ABORT_ERR));
+        errorCallback(util.createDOMError(util.FileError.ABORT_ERR));
         return;
       }
       chrome.fileManagerPrivate.searchDrive(
@@ -138,15 +111,15 @@ export class DriveSearchContentScanner extends ContentScanner {
             }
 
             if (this.cancelled_) {
-              errorCallback(createDOMError(util.FileError.ABORT_ERR));
+              errorCallback(util.createDOMError(util.FileError.ABORT_ERR));
               return;
             }
 
             // TODO(tbarzic): Improve error handling.
             if (!entries) {
-              console.warn('Drive search encountered an error.');
+              console.error('Drive search encountered an error.');
               errorCallback(
-                  createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
+                  util.createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
               return;
             }
 
@@ -163,7 +136,6 @@ export class DriveSearchContentScanner extends ContentScanner {
             successCallback();
           });
     }, DriveSearchContentScanner.SCAN_DELAY_);
-    return;
   }
 }
 
@@ -188,7 +160,7 @@ DriveSearchContentScanner.MAX_RESULTS_ = 100;
  * Scanner of the entries of the file name search on the directory tree, whose
  * root is entry.
  */
-export class LocalSearchContentScanner extends ContentScanner {
+class LocalSearchContentScanner extends ContentScanner {
   /**
    * @param {DirectoryEntry} entry The root of the search target directory tree.
    * @param {string} query The query of the search.
@@ -203,9 +175,7 @@ export class LocalSearchContentScanner extends ContentScanner {
    * Starts the file name search.
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
+  scan(entriesCallback, successCallback, errorCallback) {
     util.readEntriesRecursively(assert(this.entry_), (entries) => {
       const matchEntries = entries.filter(
           entry => entry.name.toLowerCase().indexOf(this.query_) >= 0);
@@ -213,16 +183,15 @@ export class LocalSearchContentScanner extends ContentScanner {
         entriesCallback(matchEntries);
       }
     }, successCallback, errorCallback, () => this.cancelled_);
-    return;
   }
 }
 
 /**
  * Scanner of the entries for the metadata search on Drive File System.
  */
-export class DriveMetadataSearchContentScanner extends ContentScanner {
+class DriveMetadataSearchContentScanner extends ContentScanner {
   /**
-   * @param {!chrome.fileManagerPrivate.SearchType} searchType The
+   * @param {!DriveMetadataSearchContentScanner.SearchType} searchType The
    *     option of the search.
    */
   constructor(searchType) {
@@ -234,23 +203,21 @@ export class DriveMetadataSearchContentScanner extends ContentScanner {
    * Starts to metadata-search on Drive File System.
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
+  scan(entriesCallback, successCallback, errorCallback) {
     chrome.fileManagerPrivate.searchDriveMetadata(
         {query: '', types: this.searchType_, maxResults: 100}, results => {
           if (chrome.runtime.lastError) {
             console.error(chrome.runtime.lastError.message);
           }
           if (this.cancelled_) {
-            errorCallback(createDOMError(util.FileError.ABORT_ERR));
+            errorCallback(util.createDOMError(util.FileError.ABORT_ERR));
             return;
           }
 
           if (!results) {
-            console.warn('Drive search encountered an error.');
+            console.error('Drive search encountered an error.');
             errorCallback(
-                createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
+                util.createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
             return;
           }
 
@@ -262,29 +229,34 @@ export class DriveMetadataSearchContentScanner extends ContentScanner {
           }
           successCallback();
         });
-    return;
   }
 }
 
-export class RecentContentScanner extends ContentScanner {
+/**
+ * The search types on the Drive File System.
+ * @enum {!chrome.fileManagerPrivate.SearchType}
+ */
+DriveMetadataSearchContentScanner.SearchType = {
+  SEARCH_ALL: chrome.fileManagerPrivate.SearchType.ALL,
+  SEARCH_SHARED_WITH_ME: chrome.fileManagerPrivate.SearchType.SHARED_WITH_ME,
+  SEARCH_RECENT_FILES: chrome.fileManagerPrivate.SearchType.EXCLUDE_DIRECTORIES,
+  SEARCH_OFFLINE: chrome.fileManagerPrivate.SearchType.OFFLINE,
+};
+Object.freeze(DriveMetadataSearchContentScanner.SearchType);
+
+class RecentContentScanner extends ContentScanner {
   /**
    * @param {string} query Search query.
-   * @param {VolumeManager} volumeManager Volume manager.
    * @param {chrome.fileManagerPrivate.SourceRestriction=} opt_sourceRestriction
    * @param {chrome.fileManagerPrivate.RecentFileType=} opt_recentFileType
    */
-  constructor(query, volumeManager, opt_sourceRestriction, opt_recentFileType) {
+  constructor(query, opt_sourceRestriction, opt_recentFileType) {
     super();
 
     /**
      * @private {string}
      */
     this.query_ = query.toLowerCase();
-
-    /**
-     * @private {VolumeManager}
-     */
-    this.volumeManager_ = volumeManager;
 
     /**
      * @private {chrome.fileManagerPrivate.SourceRestriction}
@@ -302,43 +274,28 @@ export class RecentContentScanner extends ContentScanner {
   /**
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
-    /** @type {function(!FileEntry): boolean} */
-    const isMatchQuery = (entry) =>
-        entry.name.toLowerCase().indexOf(this.query_) >= 0;
-    /**
-     * Files app launched with "volumeFilter" launch parameter will filter out
-     * some volumes. Before returning the recent entries, we need to check if
-     * the entry's volume location is valid or not (crbug.com/1333385/#c17).
-     */
-    /** @type {function(!FileEntry): boolean} */
-    const isAllowedVolume = (entry) =>
-        this.volumeManager_.getVolumeInfo(entry) !== null;
+  scan(entriesCallback, successCallback, errorCallback) {
     chrome.fileManagerPrivate.getRecentFiles(
-        this.sourceRestriction_, this.recentFileType_, invalidateCache,
-        entries => {
+        this.sourceRestriction_, this.recentFileType_, entries => {
           if (chrome.runtime.lastError) {
             console.error(chrome.runtime.lastError.message);
             errorCallback(
-                createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
+                util.createDOMError(util.FileError.INVALID_MODIFICATION_ERR));
             return;
           }
           if (entries.length > 0) {
             entriesCallback(entries.filter(
-                entry => isMatchQuery(entry) && isAllowedVolume(entry)));
+                entry => entry.name.toLowerCase().indexOf(this.query_) >= 0));
           }
           successCallback();
         });
-    return;
   }
 }
 
 /**
  * Scanner of media-view volumes.
  */
-export class MediaViewContentScanner extends ContentScanner {
+class MediaViewContentScanner extends ContentScanner {
   /**
    * @param {!DirectoryEntry} rootEntry The root entry of the media-view volume.
    */
@@ -354,13 +311,11 @@ export class MediaViewContentScanner extends ContentScanner {
    * hierarchy. We need to list files under the root directory to provide
    * flatten view. A file will not be shown in multiple directories in
    * media-view hierarchy since no folders will be added in media documents
-   * provider. We can list all files without duplication by just retrieving
+   * provider. We can list all files without duplication by just retrieveing
    * files in directories recursively.
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
+  scan(entriesCallback, successCallback, errorCallback) {
     // To provide flatten view of files, this media-view scanner retrieves files
     // in directories inside the media's root entry recursively.
     util.readEntriesRecursively(
@@ -383,104 +338,22 @@ export class MediaViewContentScanner extends ContentScanner {
  * is mounted as a disk volume and hide the fake root item while the
  * disk volume exists.
  */
-export class CrostiniMounter extends ContentScanner {
+class CrostiniMounter extends ContentScanner {
   /**
    * @override
    */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
+  scan(entriesCallback, successCallback, errorCallback) {
     chrome.fileManagerPrivate.mountCrostini(() => {
       if (chrome.runtime.lastError) {
-        console.warn(`Cannot mount Crostini volume: ${
-            chrome.runtime.lastError.message}`);
-        errorCallback(createDOMError(
-            constants.CROSTINI_CONNECT_ERR, chrome.runtime.lastError.message));
+        console.error(
+            'mountCrostini error: ', chrome.runtime.lastError.message);
+        errorCallback(util.createDOMError(
+            DirectoryModel.CROSTINI_CONNECT_ERR,
+            chrome.runtime.lastError.message));
         return;
       }
       successCallback();
     });
-    return;
-  }
-}
-
-/**
- * Shows an empty list and spinner whilst starting and mounting a Guest OS's
- * shared files.
- *
- * When FilesApp starts, the related placeholder root entry is shown which uses
- * this GuestOsMounter as its ContentScanner. When the mount succeeds it will
- * show up as a disk volume. NavigationListModel.reorderNavigationItems_ will
- * detect thew new volume and hide the placeholder root item while the disk
- * volume exists.
- */
-export class GuestOsMounter extends ContentScanner {
-  /**
-   * @param {number} guest_id The id of the GuestOsMountProvider to use
-   */
-  constructor(guest_id) {
-    super();
-
-    /** @private @const {number} */
-    this.guest_id_ = guest_id;
-  }
-
-  /**
-   * @override
-   */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
-    try {
-      await mountGuest(this.guest_id_);
-      successCallback();
-    } catch (error) {
-      errorCallback(createDOMError(
-          // TODO(crbug/1293229): Strings
-          constants.CROSTINI_CONNECT_ERR, error));
-    }
-    return;
-  }
-}
-
-/**
- * Read all the Trash directories for content.
- */
-export class TrashContentScanner extends ContentScanner {
-  /**
-   * @param {!VolumeManager} volumeManager Identifies the underlying filesystem.
-   */
-  constructor(volumeManager) {
-    super();
-
-    this.readers_ = createTrashReaders(volumeManager);
-  }
-
-  /**
-   * Scan all the trash directories for content.
-   * @override
-   */
-  async scan(
-      entriesCallback, successCallback, errorCallback,
-      invalidateCache = false) {
-    const readEntries = (idx) => {
-      if (this.readers_.length === idx) {
-        // All Trash directories have been read.
-        successCallback();
-        return;
-      }
-      this.readers_[idx].readEntries(entries => {
-        if (this.cancelled_) {
-          errorCallback(createDOMError(util.FileError.ABORT_ERR));
-          return;
-        }
-
-        entriesCallback(entries);
-        readEntries(idx + 1);
-      }, errorCallback);
-    };
-    readEntries(0);
-    return;
   }
 }
 
@@ -488,7 +361,7 @@ export class TrashContentScanner extends ContentScanner {
  * This class manages filters and determines a file should be shown or not.
  * When filters are changed, a 'changed' event is fired.
  */
-export class FileFilter extends EventTarget {
+class FileFilter extends cr.EventTarget {
   /** @param {!VolumeManager} volumeManager */
   constructor(volumeManager) {
     super();
@@ -498,6 +371,8 @@ export class FileFilter extends EventTarget {
      * @private
      */
     this.filters_ = {};
+    this.setHiddenFilesVisible(false);
+    this.setAllAndroidFoldersVisible(false);
 
     /**
      * @type {!VolumeManager}
@@ -506,18 +381,6 @@ export class FileFilter extends EventTarget {
      */
     this.volumeManager_ = volumeManager;
 
-    /**
-     * Setup initial filters.
-     */
-    this.setupInitialFilters_();
-  }
-
-  /**
-   * @private
-   */
-  setupInitialFilters_() {
-    this.setHiddenFilesVisible(false);
-    this.setAllAndroidFoldersVisible(false);
     this.hideAndroidDownload();
   }
 
@@ -528,7 +391,7 @@ export class FileFilter extends EventTarget {
    */
   addFilter(name, callback) {
     this.filters_[name] = callback;
-    dispatchSimpleEvent(this, 'changed');
+    cr.dispatchSimpleEvent(this, 'changed');
   }
 
   /**
@@ -536,7 +399,7 @@ export class FileFilter extends EventTarget {
    */
   removeFilter(name) {
     delete this.filters_[name];
-    dispatchSimpleEvent(this, 'changed');
+    cr.dispatchSimpleEvent(this, 'changed');
   }
 
   /**
@@ -656,7 +519,7 @@ FileFilter.WINDOWS_HIDDEN = ['$RECYCLE.BIN'];
  * A context of DirectoryContents.
  * TODO(yoshiki): remove this. crbug.com/224869.
  */
-export class FileListContext {
+class FileListContext {
   /**
    * @param {FileFilter} fileFilter The file-filter context.
    * @param {!MetadataModel} metadataModel
@@ -683,15 +546,34 @@ export class FileListContext {
      * @public {!Array<string>}
      * @const
      */
-    this.prefetchPropertyNames = Array.from(new Set([
-      ...constants.LIST_CONTAINER_METADATA_PREFETCH_PROPERTY_NAMES,
-      ...constants.ACTIONS_MODEL_METADATA_PREFETCH_PROPERTY_NAMES,
-      ...constants.FILE_SELECTION_METADATA_PREFETCH_PROPERTY_NAMES,
-      ...constants.DLP_METADATA_PREFETCH_PROPERTY_NAMES,
-    ]));
+    this.prefetchPropertyNames = FileListContext.createPrefetchPropertyNames_();
 
     /** @public {!VolumeManager} */
     this.volumeManager = volumeManager;
+  }
+
+  /**
+   * @return {!Array<string>}
+   * @private
+   */
+  static createPrefetchPropertyNames_() {
+    const set = {};
+    for (let i = 0;
+         i < constants.LIST_CONTAINER_METADATA_PREFETCH_PROPERTY_NAMES.length;
+         i++) {
+      set[constants.LIST_CONTAINER_METADATA_PREFETCH_PROPERTY_NAMES[i]] = true;
+    }
+    for (let i = 0;
+         i < constants.ACTIONS_MODEL_METADATA_PREFETCH_PROPERTY_NAMES.length;
+         i++) {
+      set[constants.ACTIONS_MODEL_METADATA_PREFETCH_PROPERTY_NAMES[i]] = true;
+    }
+    for (let i = 0;
+         i < constants.FILE_SELECTION_METADATA_PREFETCH_PROPERTY_NAMES.length;
+         i++) {
+      set[constants.FILE_SELECTION_METADATA_PREFETCH_PROPERTY_NAMES[i]] = true;
+    }
+    return Object.keys(set);
   }
 }
 
@@ -702,7 +584,7 @@ export class FileListContext {
  * results.
  * TODO(hidehiko): Remove EventTarget from this.
  */
-export class DirectoryContents extends EventTarget {
+class DirectoryContents extends cr.EventTarget {
   /**
    *
    * @param {FileListContext} context The file list context.
@@ -728,7 +610,7 @@ export class DirectoryContents extends EventTarget {
 
     this.scannerFactory_ = scannerFactory;
     this.scanner_ = null;
-    this.processNewEntriesQueue_ = new AsyncQueue();
+    this.processNewEntriesQueue_ = new AsyncUtil.Queue();
     this.scanCancelled_ = false;
 
     /**
@@ -862,11 +744,8 @@ export class DirectoryContents extends EventTarget {
    *
    * @param {boolean} refresh True to refresh metadata, or false to use cached
    *     one.
-   * @param {boolean} invalidateCache True to invalidate the backend scanning
-   *     result cache. This param only works if the corresponding backend
-   *     scanning supports cache.
    */
-  scan(refresh, invalidateCache) {
+  scan(refresh) {
     /**
      * Invoked when the scanning is completed successfully.
      * @this {DirectoryContents}
@@ -891,7 +770,7 @@ export class DirectoryContents extends EventTarget {
     this.scanner_ = this.scannerFactory_();
     this.scanner_.scan(
         this.onNewEntries_.bind(this, refresh), completionCallback.bind(this),
-        errorCallback.bind(this), invalidateCache);
+        errorCallback.bind(this));
   }
 
   /**
@@ -971,7 +850,7 @@ export class DirectoryContents extends EventTarget {
     this.onScanFinished_();
 
     this.processNewEntriesQueue_.cancel();
-    dispatchSimpleEvent(this, 'scan-cancelled');
+    cr.dispatchSimpleEvent(this, 'scan-cancelled');
   }
 
   /**
@@ -997,7 +876,8 @@ export class DirectoryContents extends EventTarget {
       // Call callback first, so isScanning() returns false in the event
       // handlers.
       callback();
-      dispatchSimpleEvent(this, 'scan-completed');
+
+      cr.dispatchSimpleEvent(this, 'scan-completed');
     });
   }
 
@@ -1034,10 +914,6 @@ export class DirectoryContents extends EventTarget {
       return;
     }
 
-    if (entries.length === 0) {
-      return;
-    }
-
     // Caching URL to reduce a number of calls of toURL in sort.
     // This is a temporary solution. We need to fix a root cause of slow toURL.
     // See crbug.com/370908 for detail.
@@ -1045,22 +921,32 @@ export class DirectoryContents extends EventTarget {
       entry['cachedUrl'] = entry.toURL();
     });
 
+    if (entries.length === 0) {
+      return;
+    }
+
+    // Enlarge the cache size into the new filelist size.
+    const newListSize = this.fileList_.length + entries.length;
+
     this.processNewEntriesQueue_.run(callbackOuter => {
       const finish = () => {
         if (!this.scanCancelled_) {
-          // From new entries remove all entries that are rejected by the
-          // filters or are already present in the current file list.
+          let entriesFiltered = [].filter.call(
+              entries,
+              this.context_.fileFilter.filter.bind(this.context_.fileFilter));
+
+          // Just before inserting entries into the file list, check and avoid
+          // duplication.
           const currentURLs = {};
-          for (let i = 0; i < this.fileList_.length; ++i) {
+          for (let i = 0; i < this.fileList_.length; i++) {
             currentURLs[this.fileList_.item(i).toURL()] = true;
           }
-          const entriesFiltered = entries.filter(
-              (e) => this.context_.fileFilter.filter(e) &&
-                  !(e['cachedUrl'] in currentURLs));
-
+          entriesFiltered = entriesFiltered.filter(entry => {
+            return !currentURLs[entry.toURL()];
+          });
           // Update the filelist without waiting the metadata.
           this.fileList_.push.apply(this.fileList_, entriesFiltered);
-          dispatchSimpleEvent(this, 'scan-updated');
+          cr.dispatchSimpleEvent(this, 'scan-updated');
         }
         callbackOuter();
       };
@@ -1068,7 +954,7 @@ export class DirectoryContents extends EventTarget {
       // entries into smaller chunks to reduce UI latency.
       // TODO(hidehiko,mtomasz): This should be handled in MetadataCache.
       const MAX_CHUNK_SIZE = 25;
-      const prefetchMetadataQueue = new ConcurrentQueue(4);
+      const prefetchMetadataQueue = new AsyncUtil.ConcurrentQueue(4);
       for (let i = 0; i < entries.length; i += MAX_CHUNK_SIZE) {
         if (prefetchMetadataQueue.isCancelled()) {
           break;

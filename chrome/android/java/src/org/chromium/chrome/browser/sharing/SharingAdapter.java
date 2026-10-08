@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@ import androidx.appcompat.content.res.AppCompatResources;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.sharing.SharingServiceProxy.DeviceInfo;
 import org.chromium.components.sync.protocol.SharingSpecificFields;
-import org.chromium.components.sync_device_info.FormFactor;
 import org.chromium.ui.widget.ChromeImageView;
 
 import java.util.ArrayList;
@@ -87,12 +86,14 @@ public class SharingAdapter extends BaseAdapter {
     }
 
     private static Drawable getDrawableForDeviceType(Context context, DeviceInfo targetDevice) {
-        // TODO(crbug.com/1368080): Investigate the need to add a tablet device case.
-        switch (targetDevice.formFactor) {
-            case FormFactor.DESKTOP: {
+        switch (targetDevice.deviceType) {
+            case TYPE_CROS:
+            case TYPE_LINUX:
+            case TYPE_MAC:
+            case TYPE_WIN: {
                 return AppCompatResources.getDrawable(context, R.drawable.computer_black_24dp);
             }
-            case FormFactor.PHONE: {
+            case TYPE_PHONE: {
                 return AppCompatResources.getDrawable(context, R.drawable.smartphone_black_24dp);
             }
             default:

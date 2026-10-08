@@ -27,9 +27,6 @@
 
 #include <numeric>
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
-
 namespace blink {
 
 FilterOperations::FilterOperations() = default;
@@ -58,8 +55,9 @@ bool FilterOperations::CanInterpolateWith(const FilterOperations& other) const {
   auto can_interpolate = [](FilterOperation* operation) {
     return FilterOperation::CanInterpolate(operation->GetType());
   };
-  if (!base::ranges::all_of(Operations(), can_interpolate) ||
-      !base::ranges::all_of(other.Operations(), can_interpolate)) {
+  if (!std::all_of(Operations().begin(), Operations().end(), can_interpolate) ||
+      !std::all_of(other.Operations().begin(), other.Operations().end(),
+                   can_interpolate)) {
     return false;
   }
 
@@ -72,8 +70,8 @@ bool FilterOperations::CanInterpolateWith(const FilterOperations& other) const {
   return true;
 }
 
-gfx::RectF FilterOperations::MapRect(const gfx::RectF& rect) const {
-  auto accumulate_mapped_rect = [](const gfx::RectF& rect,
+FloatRect FilterOperations::MapRect(const FloatRect& rect) const {
+  auto accumulate_mapped_rect = [](const FloatRect& rect,
                                    const Member<FilterOperation>& op) {
     return op->MapRect(rect);
   };
@@ -82,32 +80,34 @@ gfx::RectF FilterOperations::MapRect(const gfx::RectF& rect) const {
 }
 
 bool FilterOperations::HasFilterThatAffectsOpacity() const {
-  return base::ranges::any_of(operations_, [](const auto& operation) {
-    return operation->AffectsOpacity();
-  });
+  return std::any_of(
+      operations_.begin(), operations_.end(),
+      [](const auto& operation) { return operation->AffectsOpacity(); });
 }
 
 bool FilterOperations::HasFilterThatMovesPixels() const {
-  return base::ranges::any_of(operations_, [](const auto& operation) {
-    return operation->MovesPixels();
-  });
+  return std::any_of(
+      operations_.begin(), operations_.end(),
+      [](const auto& operation) { return operation->MovesPixels(); });
 }
 
 bool FilterOperations::HasReferenceFilter() const {
-  return base::Contains(operations_, FilterOperation::OperationType::kReference,
-                        &FilterOperation::GetType);
+  return std::any_of(
+      operations_.begin(), operations_.end(), [](const auto& operation) {
+        return operation->GetType() == FilterOperation::REFERENCE;
+      });
 }
 
 void FilterOperations::AddClient(SVGResourceClient& client) const {
   for (FilterOperation* operation : operations_) {
-    if (operation->GetType() == FilterOperation::OperationType::kReference)
+    if (operation->GetType() == FilterOperation::REFERENCE)
       To<ReferenceFilterOperation>(*operation).AddClient(client);
   }
 }
 
 void FilterOperations::RemoveClient(SVGResourceClient& client) const {
   for (FilterOperation* operation : operations_) {
-    if (operation->GetType() == FilterOperation::OperationType::kReference)
+    if (operation->GetType() == FilterOperation::REFERENCE)
       To<ReferenceFilterOperation>(*operation).RemoveClient(client);
   }
 }

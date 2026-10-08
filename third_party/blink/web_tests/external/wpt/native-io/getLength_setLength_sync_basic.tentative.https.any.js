@@ -5,34 +5,44 @@
 'use strict';
 
 test(testCase => {
-  reserveAndCleanupCapacitySync(testCase);
+  const file = nativeIO.openSync('test_file');
+  testCase.add_cleanup(() => {
+    file.close();
+    nativeIO.deleteSync('test_file');
+  });
 
-  const file = createFileSync(testCase, 'test_file', [97, 98, 99, 100]);
+  const writtenBytes = Uint8Array.from([97, 98, 99, 100]);
+  file.write(writtenBytes, 0);
 
   file.setLength(3);
-  const readBuffer = readIoFileSync(file);
+  const readBytes = readIoFileSync(file);
 
   const remainingBytes = Uint8Array.from([97, 98, 99]);
   assert_array_equals(
-    readBuffer, remainingBytes,
-    'NativeIOFileSync.setLength() should remove bytes from the end of ' +
-    'a file when decreasing its length.');
+      readBytes, remainingBytes,
+      'NativeIOFileSync.setLength() should remove bytes from the end of ' +
+        'a file when decreasing its length.');
 }, 'NativeIOFileSync.setLength shrinks a file and' +
-' NativeIOFileSync.getLength reports its new length.');
+     ' NativeIOFileSync.getLength reports its new length.');
 
 test(testCase => {
-  reserveAndCleanupCapacitySync(testCase);
+  const file = nativeIO.openSync('test_file');
+  testCase.add_cleanup(() => {
+    file.close();
+    nativeIO.deleteSync('test_file');
+  });
 
-  const file = createFileSync(testCase, 'test_file', [97, 98, 99, 100]);
+  const writtenBytes = Uint8Array.from([97, 98, 99, 100]);
+  file.write(writtenBytes, 0);
 
   file.setLength(5);
-  const readBuffer = readIoFileSync(file);
+  const readBytes = readIoFileSync(file);
 
   const expectedBytes = Uint8Array.from([97, 98, 99, 100, 0]);
 
   assert_array_equals(
-    readBuffer, expectedBytes,
-    'NativeIOFileSync.setLength() should append zeros when increasing' +
-    ' the file size.');
+      readBytes, expectedBytes,
+      'NativeIOFileSync.setLength() should append zeros when increasing' +
+        ' the file size.');
 }, 'NativeIOFileSync.setLength appends zeros to a file and ' +
-'NativeIOFileSync.getLength reports its new length.');
+     'NativeIOFileSync.getLength reports its new length.');

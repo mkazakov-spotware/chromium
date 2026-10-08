@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,7 @@ void DownloadJob::Start(DownloadFile* download_file_,
                               weak_ptr_factory_.GetWeakPtr(), callback),
           base::BindRepeating(&DownloadJob::CancelRequestWithOffset,
                               weak_ptr_factory_.GetWeakPtr()),
-          received_slices));
+          received_slices, IsParallelizable()));
 }
 
 void DownloadJob::OnDownloadFileInitialized(

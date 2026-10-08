@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelega
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -42,11 +42,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @SuppressWarnings("ArraysAsListWithZeroOrOneArgument")
 @RunWith(ChromeJUnit4ClassRunner.class)
-public class TabSelectionEditorLayoutBinderTest extends BlankUiTestActivityTestCase {
+public class TabSelectionEditorLayoutBinderTest extends DummyUiActivityTestCase {
     private TabSelectionEditorLayout mEditorLayoutView;
-    private PropertyModel mModel;
+    private PropertyModel mModel = new PropertyModel(TabSelectionEditorProperties.ALL_KEYS);
     private PropertyModelChangeProcessor mMCP;
-    private SelectionDelegate<Integer> mSelectionDelegate;
+    private SelectionDelegate<Integer> mSelectionDelegate = new SelectionDelegate<>();
     private ViewGroup mParentView;
 
     @Override
@@ -56,8 +56,6 @@ public class TabSelectionEditorLayoutBinderTest extends BlankUiTestActivityTestC
         mParentView = new LinearLayout(getActivity());
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mModel = new PropertyModel(TabSelectionEditorProperties.ALL_KEYS);
-            mSelectionDelegate = new SelectionDelegate<>();
             getActivity().setContentView(mParentView);
             mEditorLayoutView =
                     (TabSelectionEditorLayout) getActivity().getLayoutInflater().inflate(
@@ -87,7 +85,7 @@ public class TabSelectionEditorLayoutBinderTest extends BlankUiTestActivityTestC
 
     @Override
     public void tearDownTest() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
+        mMCP.destroy();
         super.tearDownTest();
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/check_op.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/singleton.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "device/gamepad/gamepad_consumer.h"
@@ -23,7 +24,8 @@ namespace {
 GamepadService* g_gamepad_service = nullptr;
 }  // namespace
 
-GamepadService::GamepadService() {
+GamepadService::GamepadService()
+    : main_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()) {
   SetInstance(this);
 }
 
@@ -31,7 +33,8 @@ GamepadService::GamepadService(std::unique_ptr<GamepadDataFetcher> fetcher)
     : provider_(std::make_unique<GamepadProvider>(
           /*connection_change_client=*/this,
           std::move(fetcher),
-          /*polling_thread=*/nullptr)) {
+          /*polling_thread=*/nullptr)),
+      main_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()) {
   SetInstance(this);
 }
 
@@ -64,7 +67,7 @@ void GamepadService::StartUp(
 }
 
 bool GamepadService::ConsumerBecameActive(GamepadConsumer* consumer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
 
   if (!provider_) {
     provider_ = std::make_unique<GamepadProvider>(
@@ -131,7 +134,7 @@ bool GamepadService::ConsumerBecameInactive(GamepadConsumer* consumer) {
 }
 
 bool GamepadService::RemoveConsumer(GamepadConsumer* consumer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
 
   auto it = consumers_.find(consumer);
   if (it == consumers_.end())
@@ -146,7 +149,7 @@ bool GamepadService::RemoveConsumer(GamepadConsumer* consumer) {
 
 void GamepadService::RegisterForUserGesture(base::OnceClosure closure) {
   DCHECK(consumers_.size() > 0);
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
   provider_->RegisterForUserGesture(std::move(closure));
 }
 
@@ -157,25 +160,19 @@ void GamepadService::Terminate() {
 void GamepadService::OnGamepadConnectionChange(bool connected,
                                                uint32_t index,
                                                const Gamepad& pad) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (connected) {
-    OnGamepadConnected(index, pad);
+    main_thread_task_runner_->PostTask(
+        FROM_HERE, base::BindOnce(&GamepadService::OnGamepadConnected,
+                                  base::Unretained(this), index, pad));
   } else {
-    OnGamepadDisconnected(index, pad);
-  }
-}
-
-void GamepadService::OnGamepadChange(mojom::GamepadChangesPtr changes) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  for (auto& it : consumers_) {
-    if (it.did_observe_user_gesture && it.is_active)
-      it.consumer->OnGamepadChanged(*changes);
+    main_thread_task_runner_->PostTask(
+        FROM_HERE, base::BindOnce(&GamepadService::OnGamepadDisconnected,
+                                  base::Unretained(this), index, pad));
   }
 }
 
 void GamepadService::OnGamepadConnected(uint32_t index, const Gamepad& pad) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
 
   for (auto it = consumers_.begin(); it != consumers_.end(); ++it) {
     if (it->did_observe_user_gesture && it->is_active)
@@ -184,7 +181,7 @@ void GamepadService::OnGamepadConnected(uint32_t index, const Gamepad& pad) {
 }
 
 void GamepadService::OnGamepadDisconnected(uint32_t index, const Gamepad& pad) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
 
   for (auto it = consumers_.begin(); it != consumers_.end(); ++it) {
     if (it->did_observe_user_gesture && it->is_active)
@@ -220,12 +217,12 @@ void GamepadService::ResetVibrationActuator(
 }
 
 base::ReadOnlySharedMemoryRegion GamepadService::DuplicateSharedMemoryRegion() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
   return provider_->DuplicateSharedMemoryRegion();
 }
 
 void GamepadService::OnUserGesture() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
 
   gesture_callback_pending_ = false;
 

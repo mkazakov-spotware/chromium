@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,7 @@ CloseBubbleOnTabActivationHelper::CloseBubbleOnTabActivationHelper(
 }
 
 CloseBubbleOnTabActivationHelper::~CloseBubbleOnTabActivationHelper() {
-  if (browser_)
-    browser_->tab_strip_model()->RemoveObserver(this);
+  browser_->tab_strip_model()->RemoveObserver(this);
 }
 
 void CloseBubbleOnTabActivationHelper::OnTabStripModelChanged(
@@ -35,11 +34,4 @@ void CloseBubbleOnTabActivationHelper::OnTabStripModelChanged(
       bubble_widget->Close();
     owner_bubble_ = nullptr;
   }
-}
-
-void CloseBubbleOnTabActivationHelper::OnTabStripModelDestroyed(
-    TabStripModel* tab_strip_model) {
-  DCHECK(browser_);
-  browser_->tab_strip_model()->RemoveObserver(this);
-  browser_ = nullptr;
 }

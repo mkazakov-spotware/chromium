@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Test that watch expressions expansion state is restored after update.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
   await TestRunner.showPanel('sources');
   await TestRunner.evaluateInPagePromise(`
       var globalObject = {
@@ -29,16 +29,17 @@
       }());
   `);
 
-  var watchExpressionsPane = Sources.WatchExpressionsSidebarPane.instance();
-  UI.panels.sources.sidebarPaneStack
-      .showView(UI.panels.sources.watchSidebarPane)
+  var watchExpressionsPane =
+      self.runtime.sharedInstance(Sources.WatchExpressionsSidebarPane);
+  UI.panels.sources._sidebarPaneStack
+      .showView(UI.panels.sources._watchSidebarPane)
       .then(() => {
         watchExpressionsPane.doUpdate();
-        watchExpressionsPane.createWatchExpression('globalObject');
-        watchExpressionsPane.createWatchExpression('windowAlias');
-        watchExpressionsPane.createWatchExpression('array');
-        watchExpressionsPane.createWatchExpression('func');
-        watchExpressionsPane.saveExpressions();
+        watchExpressionsPane._createWatchExpression('globalObject');
+        watchExpressionsPane._createWatchExpression('windowAlias');
+        watchExpressionsPane._createWatchExpression('array');
+        watchExpressionsPane._createWatchExpression('func');
+        watchExpressionsPane._saveExpressions();
         TestRunner.deprecatedRunAfterPendingDispatches(step2);
       });
 
@@ -47,7 +48,7 @@
     var expandArray = expandWatchExpression.bind(
         null, ['array', '[200 \u2026 299]', '299'], step3);
     var expandFunc = expandWatchExpression.bind(
-        null, ['func', '[[FunctionLocation]]'], expandArray);
+        null, ['func', '[[Scopes]]', '0', 'a'], expandArray);
     expandWatchExpression(['globalObject', 'foo', 'bar'], expandFunc);
   }
 
@@ -64,24 +65,23 @@
   }
 
   function dumpWatchExpressions() {
-    var pane = Sources.WatchExpressionsSidebarPane.instance();
+    var pane = self.runtime.sharedInstance(Sources.WatchExpressionsSidebarPane);
 
-    for (var i = 0; i < pane.watchExpressions.length; i++) {
-      var watch = pane.watchExpressions[i];
+    for (var i = 0; i < pane._watchExpressions.length; i++) {
+      var watch = pane._watchExpressions[i];
       TestRunner.addResult(
           watch.expression() + ': ' +
-          watch.treeElement().object.description);
+          watch._treeElement._object._description);
       dumpObjectPropertiesTreeElement(
-          watch.treeElement(), '  ');
+          watch._treeElement, '  ');
     }
   }
 
   function dumpObjectPropertiesTreeElement(treeElement, indent) {
-    if (treeElement.property && treeElement.property.name === '[[Scopes]]') return;
     if (treeElement.property)
       addResult(
           indent + treeElement.property.name + ': ' +
-          treeElement.property.value.description);
+          treeElement.property.value._description);
     else if (typeof treeElement.title === 'string')
       addResult(indent + treeElement.title);
 
@@ -119,12 +119,12 @@
   }
 
   function expandWatchExpression(path, callback) {
-    var pane = Sources.WatchExpressionsSidebarPane.instance();
+    var pane = self.runtime.sharedInstance(Sources.WatchExpressionsSidebarPane);
     var expression = path.shift();
-    for (var i = 0; i < pane.watchExpressions.length; i++) {
-      var watch = pane.watchExpressions[i];
+    for (var i = 0; i < pane._watchExpressions.length; i++) {
+      var watch = pane._watchExpressions[i];
       if (watch.expression() === expression) {
-        expandProperties(watch.treeElement(), path, callback);
+        expandProperties(watch._treeElement, path, callback);
         break;
       }
     }

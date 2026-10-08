@@ -1,29 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {dispatchSimpleEvent} from 'chrome://resources/ash/common/cr_deprecated.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {FileType} from '../../common/js/file_type.js';
-import {util} from '../../common/js/util.js';
-import {AllowedPaths} from '../../common/js/volume_manager_types.js';
-import {FileOperationManager} from '../../externs/background/file_operation_manager.js';
-import {Store} from '../../externs/ts/store.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
-import {updateSelection} from '../../state/actions/current_directory.js';
-import {getStore} from '../../state/store.js';
-
-import {constants} from './constants.js';
-import {DirectoryModel} from './directory_model.js';
-import {MetadataModel} from './metadata/metadata_model.js';
-import {ListContainer} from './ui/list_container.js';
 
 /**
  * The current selection object.
  */
-export class FileSelection {
+class FileSelection {
   /**
    * @param {!Array<number>} indexes
    * @param {!Array<Entry>} entries
@@ -73,6 +55,11 @@ export class FileSelection {
     this.anyFilesHosted = true;
 
     /**
+     * @public {?string}
+     */
+    this.iconType = null;
+
+    /**
      * @private {Promise<boolean>}
      */
     this.additionalPromise_ = null;
@@ -81,6 +68,15 @@ export class FileSelection {
     this.hasReadOnlyEntry_ = false;
 
     entries.forEach(entry => {
+      if (this.iconType == null) {
+        this.iconType = FileType.getIcon(entry);
+      } else if (this.iconType != 'unknown') {
+        const iconType = FileType.getIcon(entry);
+        if (this.iconType != iconType) {
+          this.iconType = 'unknown';
+        }
+      }
+
       if (entry.isFile) {
         this.fileCount += 1;
       } else {
@@ -135,7 +131,7 @@ export class FileSelection {
 /**
  * This object encapsulates everything related to current selection.
  */
-export class FileSelectionHandler extends EventTarget {
+class FileSelectionHandler extends cr.EventTarget {
   /**
    * @param {!DirectoryModel} directoryModel
    * @param {!FileOperationManager} fileOperationManager
@@ -184,15 +180,6 @@ export class FileSelectionHandler extends EventTarget {
     this.selectionUpdateTimer_ = 0;
 
     /**
-     * requestAnimationFrame used to debounce the calls to update the Store.
-     * @private {?number}
-     */
-    this.updateStoreRaf_ = null;
-
-    /** @private {!Store} */
-    this.store_ = getStore();
-
-    /**
      * The time, in ms since the epoch, when it is OK to post next throttled
      * selection event. Can be directly compared with Date.now().
      * @private {number}
@@ -205,11 +192,10 @@ export class FileSelectionHandler extends EventTarget {
      */
     this.allowedPaths_ = allowedPaths;
 
-    // Listens to changes in the selection model to propagate to other parts.
-    directoryModel.getFileListSelection().addEventListener(
-        'change', this.onFileSelectionChanged.bind(this));
-
-    // Register events to update file selections.
+    util.addEventListenerToBackgroundComponent(
+        assert(fileOperationManager), 'entries-changed',
+        this.onFileSelectionChanged.bind(this));
+    // Register evnets to update file selections.
     directoryModel.addEventListener(
         'directory-changed', this.onFileSelectionChanged.bind(this));
   }
@@ -240,13 +226,9 @@ export class FileSelectionHandler extends EventTarget {
         indexes.length <
             FileSelectionHandler.NUMBER_OF_ITEMS_HEAVY_TO_COMPUTE) {
       // The previous selection change happened a while ago and there is few
-      // selected items, so computation is lightweight. Update the UI with
-      // 1 millisecond of delay.
-      updateDelay = 1;
-    }
-
-    if (!this.updateStoreRaf_) {
-      this.updateStoreRaf_ = requestAnimationFrame(() => this.updateStore_());
+      // selected items, so computation is lightweight. Update the UI without
+      // delay.
+      updateDelay = 0;
     }
 
     const selection = this.selection;
@@ -255,7 +237,7 @@ export class FileSelectionHandler extends EventTarget {
       this.updateFileSelectionAsync_(selection);
     }, updateDelay);
 
-    dispatchSimpleEvent(this, FileSelectionHandler.EventType.CHANGE);
+    cr.dispatchSimpleEvent(this, FileSelectionHandler.EventType.CHANGE);
   }
 
   /**
@@ -277,22 +259,9 @@ export class FileSelectionHandler extends EventTarget {
 
       this.nextThrottledEventTime_ =
           Date.now() + FileSelectionHandler.UPDATE_DELAY;
-      dispatchSimpleEvent(
+      cr.dispatchSimpleEvent(
           this, FileSelectionHandler.EventType.CHANGE_THROTTLED);
     });
-  }
-
-  /**
-   * Sends the current selection to the Store.
-   * @private
-   */
-  updateStore_() {
-    this.updateStoreRaf_ = null;
-    const entries = this.selection.entries;
-    this.store_.dispatch(updateSelection({
-      selectedKeys: entries.map(e => e.toURL()),
-      entries,
-    }));
   }
 
   /**
@@ -331,41 +300,6 @@ export class FileSelectionHandler extends EventTarget {
     return this.allowedPaths_ !== AllowedPaths.ANY_PATH_OR_URL &&
         this.selection.anyFilesHosted;
   }
-
-  /**
-   * Returns true if any file/directory in the selection is blocked by DLP
-   * policy.
-   * @return {boolean}
-   */
-  isDlpBlocked() {
-    const selectedIndexes =
-        this.directoryModel_.getFileListSelection().selectedIndexes;
-    const selectedEntries = selectedIndexes.map(index => {
-      return /** @type {!Entry} */ (
-          this.directoryModel_.getFileList().item(index));
-    });
-
-    for (const entry of selectedEntries) {
-      if (!entry.isDirectory) {
-        // TODO(b/259183224): Add proper checks; files are blocked if their
-        // source is not allowed to be opened by the files app dialog caller.
-        return false;
-      }
-      // The entry is a directory, which can only be blocked if it's a
-      // disabled volume/DLP component.
-      // TODO(b/259184588): Properly handle case when VolumeInfo is not
-      // available. E.g. for Crostini we might not have VolumeInfo before it's
-      // mounted.
-      const volumeInfo = this.volumeManager_.getVolumeInfo(entry);
-      if (!volumeInfo) {
-        continue;
-      }
-      if (this.volumeManager_.isDisabled(volumeInfo.volumeType)) {
-        return true;
-      }
-    }
-    return false;
-  }
 }
 
 /**
@@ -382,7 +316,7 @@ FileSelectionHandler.EventType = {
    * If multiple changes are happened during the term, only one CHANGE_THROTTLED
    * event is dispatched.
    */
-  CHANGE_THROTTLED: 'changethrottled',
+  CHANGE_THROTTLED: 'changethrottled'
 };
 
 /**

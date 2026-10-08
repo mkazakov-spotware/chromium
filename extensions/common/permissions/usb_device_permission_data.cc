@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,19 +28,19 @@ const char kInterfaceIdKey[] = "interfaceId";
 const char kInterfaceClassKey[] = "interfaceClass";
 
 bool ExtractFromDict(const std::string& key,
-                     const base::Value::Dict* dict_value,
+                     const base::DictionaryValue* dict_value,
                      int max,
                      int* value) {
-  absl::optional<int> temp = dict_value->FindInt(key);
-  if (!temp) {
+  int temp;
+  if (!dict_value->GetInteger(key, &temp)) {
     *value = UsbDevicePermissionData::SPECIAL_VALUE_ANY;
     return true;
   }
 
-  if (*temp < UsbDevicePermissionData::SPECIAL_VALUE_ANY || *temp > max)
+  if (temp < UsbDevicePermissionData::SPECIAL_VALUE_ANY || temp > max)
     return false;
 
-  *value = *temp;
+  *value = temp;
   return true;
 }
 
@@ -86,10 +86,10 @@ bool UsbDevicePermissionData::Check(
 
 std::unique_ptr<base::Value> UsbDevicePermissionData::ToValue() const {
   base::DictionaryValue* result = new base::DictionaryValue();
-  result->SetIntKey(kVendorIdKey, vendor_id_);
-  result->SetIntKey(kProductIdKey, product_id_);
-  result->SetIntKey(kInterfaceIdKey, interface_id_);
-  result->SetIntKey(kInterfaceClassKey, interface_class_);
+  result->SetInteger(kVendorIdKey, vendor_id_);
+  result->SetInteger(kProductIdKey, product_id_);
+  result->SetInteger(kInterfaceIdKey, interface_id_);
+  result->SetInteger(kInterfaceClassKey, interface_class_);
   return std::unique_ptr<base::Value>(result);
 }
 
@@ -97,8 +97,8 @@ bool UsbDevicePermissionData::FromValue(const base::Value* value) {
   if (!value)
     return false;
 
-  const base::Value::Dict* dict_value = value->GetIfDict();
-  if (!dict_value)
+  const base::DictionaryValue* dict_value;
+  if (!value->GetAsDictionary(&dict_value))
     return false;
 
   const int kMaxId = std::numeric_limits<uint16_t>::max();

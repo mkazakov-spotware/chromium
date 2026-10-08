@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/strings/sys_string_conversions.h"
 #include "components/autofill/core/browser/form_structure.h"
-#include "components/autofill/core/common/dense_set.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -21,12 +20,11 @@
     _name = base::SysUTF16ToNSString(formStructure.form_name());
 
     _type = CWVAutofillFormTypeUnknown;
-    autofill::DenseSet<autofill::FormType> formTypes =
-        formStructure.GetFormTypes();
-    if (formTypes.contains(autofill::FormType::kAddressForm)) {
+    std::set<autofill::FormType> formTypes = formStructure.GetFormTypes();
+    if (formTypes.find(autofill::ADDRESS_FORM) != formTypes.end()) {
       _type |= CWVAutofillFormTypeAddresses;
     }
-    if (formTypes.contains(autofill::FormType::kCreditCardForm)) {
+    if (formTypes.find(autofill::CREDIT_CARD_FORM) != formTypes.end()) {
       _type |= CWVAutofillFormTypeCreditCards;
     }
     // Underlying autofill code does not parse password fields because it does

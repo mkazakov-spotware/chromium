@@ -1,9 +1,5 @@
-import pytest
-
-from webdriver.error import NoSuchElementException
-
 from tests.support.asserts import assert_success
-from tests.support.helpers import wait_for_new_handle
+from tests.support.inline import inline
 from tests.support.sync import Poll
 
 
@@ -14,7 +10,7 @@ def element_click(session, element):
             element_id=element.id))
 
 
-def test_numbers_link(session, server_config, inline):
+def test_numbers_link(session, server_config):
     link = "/webdriver/tests/element_click/support/input.html"
     session.url = inline("<a href={url}>123456</a>".format(url=link))
     element = session.find.css("a", all=False)
@@ -26,7 +22,7 @@ def test_numbers_link(session, server_config, inline):
     assert session.url == "http://{host}:{port}{url}".format(host=host, port=port, url=link)
 
 
-def test_multi_line_link(session, server_config, inline):
+def test_multi_line_link(session, server_config):
     link = "/webdriver/tests/element_click/support/input.html"
     session.url = inline("""
         <p style="background-color: yellow; width: 50px;">
@@ -41,7 +37,7 @@ def test_multi_line_link(session, server_config, inline):
     assert session.url == "http://{host}:{port}{url}".format(host=host, port=port, url=link)
 
 
-def test_link_unload_event(session, server_config, inline):
+def test_link_unload_event(session, server_config):
     link = "/webdriver/tests/element_click/support/input.html"
     session.url = inline("""
         <body onunload="checkUnload()">
@@ -72,7 +68,7 @@ def test_link_unload_event(session, server_config, inline):
     assert response is True
 
 
-def test_link_hash(session, inline):
+def test_link_hash(session):
     id = "anchor"
     session.url = inline("""
         <a href="#{url}">aaaa</a>
@@ -97,94 +93,34 @@ def test_link_hash(session, inline):
             """, args=(element,)) is True
 
 
-@pytest.mark.parametrize("target", [
-    "",
-    "_blank",
-    "_parent",
-    "_self",
-    "_top",
-])
-def test_link_from_toplevel_context_with_target(session, inline, target):
-    target_page = inline("<p id='foo'>foo</p>")
+def test_link_open_target_in_new_window(session, url):
+    orig_handles = session.handles
 
-    session.url = inline("<a href='{}' target='{}'>click</a>".format(target_page, target))
+    session.url = inline("""
+        <a href="{}" target="_blank">Open in new window</a>
+    """.format(inline("<p id=foo")))
     element = session.find.css("a", all=False)
 
-    orig_handles = session.handles
-
     response = element_click(session, element)
     assert_success(response)
 
-    if target == "_blank":
-        session.window_handle = wait_for_new_handle(session, orig_handles)
+    def find_new_handle(session):
+        new_handles = list(set(session.handles) - set(orig_handles))
+        if new_handles and len(new_handles) == 1:
+            return new_handles[0]
+        return None
 
     wait = Poll(
         session,
         timeout=5,
-        ignored_exceptions=NoSuchElementException,
-        message="Expected element has not been found")
-    wait.until(lambda s: s.find.css("#foo"))
+        message="No new window has been opened")
+    new_handle = wait.until(find_new_handle)
+
+    session.window_handle = new_handle
+    session.find.css("#foo")
 
 
-@pytest.mark.parametrize("target", [
-    "",
-    "_blank",
-    "_parent",
-    "_self",
-    "_top",
-])
-def test_link_from_nested_context_with_target(session, inline, iframe, target):
-    target_page = inline("<p id='foo'>foo</p>")
-
-    session.url = inline(iframe("<a href='{}' target='{}'>click</a>".format(target_page, target)))
-    frame = session.find.css("iframe", all=False)
-    session.switch_frame(frame)
-    element = session.find.css("a".format(target), all=False)
-
-    orig_handles = session.handles
-
-    response = element_click(session, element)
-    assert_success(response)
-
-    if target == "_blank":
-        session.window_handle = wait_for_new_handle(session, orig_handles)
-
-    # With the current browsing context removed the navigation should
-    # not timeout. Switch to the target context, and wait until the expected
-    # element is available.
-    if target == "_parent":
-        session.switch_frame("parent")
-    elif target == "_top":
-        session.switch_frame(None)
-
-    wait = Poll(
-        session,
-        timeout=5,
-        ignored_exceptions=NoSuchElementException,
-        message="Expected element has not been found")
-    wait.until(lambda s: s.find.css("#foo"))
-
-
-# Capability needed as long as no valid certificate is available:
-#   https://github.com/web-platform-tests/wpt/issues/28847
-@pytest.mark.capabilities({"acceptInsecureCerts": True})
-def test_link_cross_origin(session, inline, url):
-    base_path = ("/webdriver/tests/support/html/subframe.html" +
-                 "?pipe=header(Cross-Origin-Opener-Policy,same-origin")
-    target_page = url(base_path, protocol="https", domain="alt")
-
-    session.url = inline("<a href='{}'>click me</a>".format(target_page), protocol="https")
-    link = session.find.css("a", all=False)
-
-    response = element_click(session, link)
-    assert_success(response)
-
-    assert session.url == target_page
-
-    session.find.css("#delete", all=False)
-
-
-def test_link_closes_window(session, inline):
+def test_link_closes_window(session):
     new_handle = session.new_window()
     session.window_handle = new_handle
 

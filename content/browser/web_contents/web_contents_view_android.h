@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"
 #include "content/browser/web_contents/web_contents_view.h"
 #include "content/public/browser/web_contents_view_delegate.h"
@@ -34,11 +34,7 @@ class WebContentsViewAndroid : public WebContentsView,
                                public ui::EventHandlerAndroid {
  public:
   WebContentsViewAndroid(WebContentsImpl* web_contents,
-                         std::unique_ptr<WebContentsViewDelegate> delegate);
-
-  WebContentsViewAndroid(const WebContentsViewAndroid&) = delete;
-  WebContentsViewAndroid& operator=(const WebContentsViewAndroid&) = delete;
-
+                         WebContentsViewDelegate* delegate);
   ~WebContentsViewAndroid() override;
 
   void SetContentUiEventHandler(std::unique_ptr<ContentUiEventHandler> handler);
@@ -77,16 +73,14 @@ class WebContentsViewAndroid : public WebContentsView,
       RenderWidgetHost* render_widget_host) override;
   RenderWidgetHostViewBase* CreateViewForChildWidget(
       RenderWidgetHost* render_widget_host) override;
-  void SetPageTitle(const std::u16string& title) override;
+  void SetPageTitle(const base::string16& title) override;
   void RenderViewReady() override;
   void RenderViewHostChanged(RenderViewHost* old_host,
                              RenderViewHost* new_host) override;
   void SetOverscrollControllerEnabled(bool enabled) override;
-  void OnCapturerCountChanged() override;
-  void FullscreenStateChanged(bool is_fullscreen) override;
 
   // Backend implementation of RenderViewHostDelegateView.
-  void ShowContextMenu(RenderFrameHost& render_frame_host,
+  void ShowContextMenu(RenderFrameHost* render_frame_host,
                        const ContextMenuParams& params) override;
   void ShowPopupMenu(
       RenderFrameHost* render_frame_host,
@@ -102,11 +96,10 @@ class WebContentsViewAndroid : public WebContentsView,
   void StartDragging(const DropData& drop_data,
                      blink::DragOperationsMask allowed_ops,
                      const gfx::ImageSkia& image,
-                     const gfx::Vector2d& cursor_offset,
-                     const gfx::Rect& drag_obj_rect,
+                     const gfx::Vector2d& image_offset,
                      const blink::mojom::DragEventSourceInfo& event_info,
                      RenderWidgetHostImpl* source_rwh) override;
-  void UpdateDragCursor(ui::mojom::DragOperation operation) override;
+  void UpdateDragCursor(blink::DragOperation operation) override;
   void GotFocus(RenderWidgetHostImpl* render_widget_host) override;
   void LostFocus(RenderWidgetHostImpl* render_widget_host) override;
   void TakeFocus(bool reverse) override;
@@ -129,7 +122,7 @@ class WebContentsViewAndroid : public WebContentsView,
   bool ScrollTo(float x, float y) override;
   void OnSizeChanged() override;
   void OnPhysicalBackingSizeChanged(
-      absl::optional<base::TimeDelta> deadline_override) override;
+      base::Optional<base::TimeDelta> deadline_override) override;
   void OnBrowserControlsHeightChanged() override;
   void OnControlsResizeViewChanged() override;
   void NotifyVirtualKeyboardOverlayRect(
@@ -156,7 +149,7 @@ class WebContentsViewAndroid : public WebContentsView,
   SelectPopup* GetSelectPopup();
 
   // The WebContents whose contents we display.
-  raw_ptr<WebContentsImpl> web_contents_;
+  WebContentsImpl* web_contents_;
 
   // Handles UI events in Java layer when necessary.
   std::unique_ptr<ContentUiEventHandler> content_ui_event_handler_;
@@ -171,26 +164,19 @@ class WebContentsViewAndroid : public WebContentsView,
   ui::ViewAndroid view_;
 
   // Interface used to get notified of events from the synchronous compositor.
-  raw_ptr<SynchronousCompositorClient> synchronous_compositor_client_;
+  SynchronousCompositorClient* synchronous_compositor_client_;
 
-  raw_ptr<SelectionPopupController, DanglingUntriaged>
-      selection_popup_controller_ = nullptr;
+  SelectionPopupController* selection_popup_controller_ = nullptr;
 
   int device_orientation_ = 0;
 
   // Show/hide popup UI for <select> tag.
   std::unique_ptr<SelectPopup> select_popup_;
 
-  // Whether drag went beyond the movement threshold to be considered as an
-  // intentional drag. If true, ::ShowContextMenu will be ignored.
-  bool drag_exceeded_movement_threshold_ = false;
-  // Whether there's an active drag process.
-  bool is_active_drag_ = false;
-  // The first drag location during a specific drag process.
-  gfx::PointF drag_entered_location_;
-
   gfx::PointF drag_location_;
   gfx::PointF drag_screen_location_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsViewAndroid);
 };
 
 } // namespace content

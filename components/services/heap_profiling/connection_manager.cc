@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,8 @@ struct ConnectionManager::Connection {
 
   bool HeapDumpNeedsVmRegions() {
     return stack_mode == mojom::StackMode::NATIVE_WITHOUT_THREAD_NAMES ||
-           stack_mode == mojom::StackMode::NATIVE_WITH_THREAD_NAMES;
+           stack_mode == mojom::StackMode::NATIVE_WITH_THREAD_NAMES ||
+           stack_mode == mojom::StackMode::MIXED;
   }
 
   mojo::Remote<mojom::ProfilingClient> client;
@@ -73,7 +74,7 @@ struct ConnectionManager::Connection {
 };
 
 ConnectionManager::ConnectionManager() {
-  metrics_timer_.Start(FROM_HERE, base::Hours(24),
+  metrics_timer_.Start(FROM_HERE, base::TimeDelta::FromHours(24),
                        base::BindRepeating(&ConnectionManager::ReportMetrics,
                                            base::Unretained(this)));
 }
@@ -164,7 +165,6 @@ void ConnectionManager::ReportMetrics() {
 
 void ConnectionManager::DumpProcessesForTracing(
     bool strip_path_from_mapped_files,
-    bool write_proto,
     DumpProcessesForTracingCallback callback,
     VmRegions vm_regions) {
   base::AutoLock lock(connections_lock_);
@@ -185,11 +185,6 @@ void ConnectionManager::DumpProcessesForTracing(
   for (auto& it : connections_) {
     base::ProcessId pid = it.first;
     Connection* connection = it.second.get();
-    // TODO(ssid): Stop writing JSON to traces when proto output is enabled,
-    // https://crbug.com/1228548.
-    if (write_proto)
-      connection->client->AddHeapProfileToTrace(base::DoNothing());
-
     connection->client->RetrieveHeapProfile(base::BindOnce(
         &ConnectionManager::HeapProfileRetrieved, weak_factory_.GetWeakPtr(),
         tracking, pid, connection->process_type, strip_path_from_mapped_files,

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,7 @@ BackgroundFetchDescription::BackgroundFetchDescription(
     uint64_t download_total_bytes,
     uint64_t upload_total_bytes,
     std::vector<std::string> outstanding_guids,
-    bool start_paused,
-    absl::optional<net::IsolationInfo> isolation_info)
+    bool start_paused)
     : job_unique_id(job_unique_id),
       origin(origin),
       title(title),
@@ -31,8 +30,7 @@ BackgroundFetchDescription::BackgroundFetchDescription(
       download_total_bytes(download_total_bytes),
       upload_total_bytes(upload_total_bytes),
       outstanding_guids(std::move(outstanding_guids)),
-      start_paused(start_paused),
-      isolation_info(std::move(isolation_info)) {}
+      start_paused(start_paused) {}
 
 BackgroundFetchDescription::~BackgroundFetchDescription() = default;
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import android.os.RemoteException;
 
 import androidx.annotation.NonNull;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.weblayer_private.interfaces.ObjectWrapper;
 
 /**
@@ -21,6 +20,7 @@ import org.chromium.weblayer_private.interfaces.ObjectWrapper;
  * This class is a thin wrapper that forwards lifecycle events to the WebLayer implementation, which
  * in turn manages a system notification and {@link MediaSession}. This service will be in the
  * foreground when the MediaSession is active.
+ * @since 85
  */
 public class MediaSessionService extends MediaPlaybackBaseService {
     // A helper to automatically pause the media session when a user removes headphones.
@@ -50,7 +50,7 @@ public class MediaSessionService extends MediaPlaybackBaseService {
         };
 
         IntentFilter filter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
-        ContextUtils.registerProtectedBroadcastReceiver(this, mAudioBecomingNoisyReceiver, filter);
+        registerReceiver(mAudioBecomingNoisyReceiver, filter);
     }
 
     @Override

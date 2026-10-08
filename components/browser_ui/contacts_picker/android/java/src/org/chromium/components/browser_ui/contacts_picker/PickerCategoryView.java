@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.contacts_picker;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.view.LayoutInflater;
@@ -16,6 +17,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.components.browser_ui.util.BitmapCache;
@@ -157,14 +159,16 @@ public class PickerCategoryView extends OptimizedFrameLayout
         mSelectionDelegate.addObserver(this);
 
         Resources resources = context.getResources();
-        int iconColor = context.getColor(R.color.default_favicon_background_color);
+        int iconColor =
+                ApiCompatibilityUtils.getColor(resources, R.color.default_favicon_background_color);
         mIconGenerator = new RoundedIconGenerator(resources, ICON_SIZE_DP, ICON_SIZE_DP,
                 ICON_CORNER_RADIUS_DP, iconColor, ICON_TEXT_SIZE_DP);
 
         View root = LayoutInflater.from(context).inflate(R.layout.contacts_picker_dialog, this);
         mSelectableListLayout =
                 (SelectableListLayout<ContactDetails>) root.findViewById(R.id.selectable_list);
-        mSelectableListLayout.initializeEmptyView(R.string.contacts_picker_no_contacts_found);
+        mSelectableListLayout.initializeEmptyView(R.string.contacts_picker_no_contacts_found,
+                R.string.contacts_picker_no_contacts_found);
 
         mPickerAdapter = adapter;
         mPickerAdapter.init(this, context, formattedOrigin);
@@ -172,7 +176,8 @@ public class PickerCategoryView extends OptimizedFrameLayout
         int titleId = multiSelectionAllowed ? R.string.contacts_picker_select_contacts
                                             : R.string.contacts_picker_select_contact;
         mToolbar = (ContactsPickerToolbar) mSelectableListLayout.initializeToolbar(
-                R.layout.contacts_picker_toolbar, mSelectionDelegate, titleId, 0, 0, null, false);
+                R.layout.contacts_picker_toolbar, mSelectionDelegate, titleId, 0, 0, null, false,
+                false);
         mToolbar.setNavigationOnClickListener(this);
         mToolbar.initializeSearchView(this, R.string.contacts_picker_search, 0);
         mToolbar.setDelegate(delegate);
@@ -205,9 +210,13 @@ public class PickerCategoryView extends OptimizedFrameLayout
         mDialog = dialog;
         mListener = listener;
 
-        mDialog.setOnCancelListener(dialog1
-                -> executeAction(
-                        ContactsPickerListener.ContactsPickerAction.CANCEL, null, ACTION_CANCEL));
+        mDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+            @Override
+            public void onCancel(DialogInterface dialog) {
+                executeAction(
+                        ContactsPickerListener.ContactsPickerAction.CANCEL, null, ACTION_CANCEL);
+            }
+        });
 
         mPickerAdapter.notifyDataSetChanged();
     }
@@ -220,7 +229,7 @@ public class PickerCategoryView extends OptimizedFrameLayout
         mPreviousSelection = new HashSet<ContactDetails>(mSelectionDelegate.getSelectedItems());
         mSearchButton.setVisibility(GONE);
         mPickerAdapter.setSearchMode(true);
-        mToolbar.showSearchView(true);
+        mToolbar.showSearchView();
     }
 
     // SelectableListToolbar.SearchDelegate:
@@ -457,8 +466,8 @@ public class PickerCategoryView extends OptimizedFrameLayout
             int percentageShared, int propertiesRequested) {
         RecordHistogram.recordEnumeratedHistogram(
                 "Android.ContactsPicker.DialogAction", action, ACTION_BOUNDARY);
-        RecordHistogram.recordCount1MHistogram("Android.ContactsPicker.ContactCount", contactCount);
-        RecordHistogram.recordCount1MHistogram("Android.ContactsPicker.SelectCount", selectCount);
+        RecordHistogram.recordCountHistogram("Android.ContactsPicker.ContactCount", contactCount);
+        RecordHistogram.recordCountHistogram("Android.ContactsPicker.SelectCount", selectCount);
         RecordHistogram.recordPercentageHistogram(
                 "Android.ContactsPicker.SelectPercentage", percentageShared);
         RecordHistogram.recordEnumeratedHistogram("Android.ContactsPicker.PropertiesRequested",

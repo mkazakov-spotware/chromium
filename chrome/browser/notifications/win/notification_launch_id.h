@@ -1,14 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_NOTIFICATIONS_WIN_NOTIFICATION_LAUNCH_ID_H_
 #define CHROME_BROWSER_NOTIFICATIONS_WIN_NOTIFICATION_LAUNCH_ID_H_
 
-#include <string>
-
 #include "base/command_line.h"
-#include "base/files/file_path.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/notifications/notification_handler.h"
 #include "url/gurl.h"
 
@@ -96,11 +94,10 @@ class NotificationLaunchId {
 
   // Extracts the profile ID from |launch_id_str|.
   static std::string GetProfileIdFromLaunchId(
-      const std::wstring& launch_id_str);
+      const base::string16& launch_id_str);
 
-  // Retrieves the profile basename from the notification launch command line,
-  // if any.
-  static base::FilePath GetNotificationLaunchProfileBaseName(
+  // Retrieves the profile ID from the notification launch command line if any
+  static std::string GetNotificationLaunchProfileId(
       const base::CommandLine& command_line);
 
  private:

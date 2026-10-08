@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,14 @@
 
 #include "ash/accessibility/accessibility_observer.h"
 #include "ash/system/unified/detailed_view_controller.h"
+#include "base/macros.h"
 
 namespace ash {
 
+namespace tray {
 class AccessibilityDetailedView;
+}  // namespace tray
+
 class DetailedViewDelegate;
 class UnifiedSystemTrayController;
 
@@ -23,17 +27,11 @@ class UnifiedAccessibilityDetailedViewController
  public:
   explicit UnifiedAccessibilityDetailedViewController(
       UnifiedSystemTrayController* tray_controller);
-
-  UnifiedAccessibilityDetailedViewController(
-      const UnifiedAccessibilityDetailedViewController&) = delete;
-  UnifiedAccessibilityDetailedViewController& operator=(
-      const UnifiedAccessibilityDetailedViewController&) = delete;
-
   ~UnifiedAccessibilityDetailedViewController() override;
 
-  // DetailedViewController:
-  std::unique_ptr<views::View> CreateView() override;
-  std::u16string GetAccessibleName() const override;
+  // DetailedViewControllerBase:
+  views::View* CreateView() override;
+  base::string16 GetAccessibleName() const override;
 
   // AccessibilityObserver:
   void OnAccessibilityStatusChanged() override;
@@ -41,7 +39,9 @@ class UnifiedAccessibilityDetailedViewController
  private:
   const std::unique_ptr<DetailedViewDelegate> detailed_view_delegate_;
 
-  AccessibilityDetailedView* view_ = nullptr;
+  tray::AccessibilityDetailedView* view_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedAccessibilityDetailedViewController);
 };
 
 }  // namespace ash

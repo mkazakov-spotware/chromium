@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -108,12 +108,3 @@ void ErrorInfo::ClearError() {
   error_type = ErrorType::NONE;
   net_error = 0;
 }
-
-CustomBackground::CustomBackground() = default;
-CustomBackground::CustomBackground(const CustomBackground&) = default;
-CustomBackground::CustomBackground(CustomBackground&&) = default;
-CustomBackground::~CustomBackground() = default;
-
-CustomBackground& CustomBackground::operator=(const CustomBackground&) =
-    default;
-CustomBackground& CustomBackground::operator=(CustomBackground&&) = default;

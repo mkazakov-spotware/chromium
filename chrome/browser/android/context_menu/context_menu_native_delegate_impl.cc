@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/android/context_menu/context_menu_native_delegate_impl.h"
-
-#include <utility>
 
 #include "base/android/callback_android.h"
 #include "base/android/jni_array.h"
@@ -14,7 +12,6 @@
 #include "chrome/browser/image_decoder/image_decoder.h"
 #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
 #include "components/embedder_support/android/contextmenu/context_menu_builder.h"
-#include "components/lens/lens_metadata.mojom.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "ui/gfx/android/java_bitmap.h"
@@ -26,10 +23,6 @@ namespace {
 
 class ContextMenuImageRequest : public ImageDecoder::ImageRequest {
  public:
-  ContextMenuImageRequest() = delete;
-  ContextMenuImageRequest(const ContextMenuImageRequest&) = delete;
-  ContextMenuImageRequest& operator=(const ContextMenuImageRequest&) = delete;
-
   static void Start(const JavaRef<jobject>& jcallback,
                     const std::vector<uint8_t>& thumbnail_data) {
     auto* request = new ContextMenuImageRequest(jcallback);
@@ -54,6 +47,8 @@ class ContextMenuImageRequest : public ImageDecoder::ImageRequest {
       : jcallback_(jcallback) {}
 
   const base::android::ScopedJavaGlobalRef<jobject> jcallback_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ContextMenuImageRequest);
 };
 
 chrome::mojom::ImageFormat ToChromeMojomImageFormat(int image_format) {
@@ -77,8 +72,7 @@ void OnRetrieveImageForShare(
     const JavaRef<jobject>& jcallback,
     const std::vector<uint8_t>& thumbnail_data,
     const gfx::Size& original_size,
-    const std::string& image_extension,
-    const std::vector<lens::mojom::LatencyLogPtr>) {
+    const std::string& image_extension) {
   JNIEnv* env = base::android::AttachCurrentThread();
   auto j_data = base::android::ToJavaByteArray(env, thumbnail_data);
   auto j_extension =
@@ -94,8 +88,7 @@ void OnRetrieveImageForContextMenu(
     const JavaRef<jobject>& jcallback,
     const std::vector<uint8_t>& thumbnail_data,
     const gfx::Size& original_size,
-    const std::string& filename_extension,
-    const std::vector<lens::mojom::LatencyLogPtr>) {
+    const std::string& filename_extension) {
   ContextMenuImageRequest::Start(jcallback, thumbnail_data);
 }
 
@@ -124,7 +117,7 @@ void ContextMenuNativeDelegateImpl::SearchForImage(
     return;
 
   CoreTabHelper::FromWebContents(web_contents_)
-      ->SearchByImage(render_frame_host, context_menu_params_->src_url);
+      ->SearchByImageInNewTab(render_frame_host, context_menu_params_->src_url);
 }
 
 void ContextMenuNativeDelegateImpl::RetrieveImageForShare(
@@ -174,9 +167,9 @@ void ContextMenuNativeDelegateImpl::RetrieveImageInternal(
   auto* thumbnail_capturer_proxy = chrome_render_frame.get();
   thumbnail_capturer_proxy->RequestImageForContextNode(
       max_width_px * max_height_px, gfx::Size(max_width_px, max_height_px),
-      image_format, chrome::mojom::kDefaultQuality,
+      image_format,
       base::BindOnce(
-          std::move(retrieve_callback), std::move(chrome_render_frame),
+          std::move(retrieve_callback), base::Passed(&chrome_render_frame),
           base::android::ScopedJavaGlobalRef<jobject>(env, jcallback)));
 }
 

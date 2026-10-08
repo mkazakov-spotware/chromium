@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,15 +18,14 @@ bool SetAsDefaultProtocolClient(const std::string& protocol) {
   return false;
 }
 
-DefaultWebClientSetPermission
-GetPlatformSpecificDefaultWebClientSetPermission() {
+DefaultWebClientSetPermission GetDefaultWebClientSetPermission() {
   NOTIMPLEMENTED();
   return SET_DEFAULT_NOT_ALLOWED;
 }
 
-std::u16string GetApplicationNameForProtocol(const GURL& url) {
+base::string16 GetApplicationNameForProtocol(const GURL& url) {
   NOTIMPLEMENTED();
-  return std::u16string();
+  return base::string16();
 }
 
 DefaultWebClientState GetDefaultBrowser() {

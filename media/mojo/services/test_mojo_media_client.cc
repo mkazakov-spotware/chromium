@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,13 @@
 
 #include <memory>
 
-#include "base/callback_helpers.h"
 #include "base/run_loop.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "media/audio/audio_device_description.h"
 #include "media/audio/audio_manager.h"
+#include "media/audio/audio_output_stream_sink.h"
 #include "media/audio/audio_thread_impl.h"
-#include "media/audio/null_audio_sink.h"
 #include "media/base/cdm_factory.h"
 #include "media/base/media.h"
 #include "media/base/media_log.h"
@@ -21,7 +20,7 @@
 #include "media/base/renderer_factory.h"
 #include "media/cdm/default_cdm_factory.h"
 #include "media/renderers/default_decoder_factory.h"
-#include "media/renderers/renderer_impl_factory.h"
+#include "media/renderers/default_renderer_factory.h"
 
 namespace media {
 
@@ -57,31 +56,30 @@ std::unique_ptr<Renderer> TestMojoMediaClient::CreateRenderer(
     const std::string& /* audio_device_id */) {
   // If called the first time, do one time initialization.
   if (!decoder_factory_) {
-    decoder_factory_ = std::make_unique<media::DefaultDecoderFactory>(nullptr);
+    decoder_factory_.reset(new media::DefaultDecoderFactory(nullptr));
   }
 
-  media::MediaPlayerLoggingID player_id = media::GetNextMediaPlayerLoggingID();
-
   if (!renderer_factory_) {
-#if BUILDFLAG(IS_ANDROID)
-    renderer_factory_ = std::make_unique<RendererImplFactory>(
+#if defined(OS_ANDROID)
+    renderer_factory_ = std::make_unique<DefaultRendererFactory>(
         media_log, decoder_factory_.get(),
-        RendererImplFactory::GetGpuFactoriesCB(), player_id);
+        DefaultRendererFactory::GetGpuFactoriesCB());
 #else
-    renderer_factory_ = std::make_unique<RendererImplFactory>(
+    renderer_factory_ = std::make_unique<DefaultRendererFactory>(
         media_log, decoder_factory_.get(),
-        RendererImplFactory::GetGpuFactoriesCB(), player_id, nullptr);
+        DefaultRendererFactory::GetGpuFactoriesCB(), nullptr);
 #endif
   }
 
-  // We cannot share the NullAudioSink or NullVideoSink among different
+  // We cannot share AudioOutputStreamSink or NullVideoSink among different
   // RendererImpls. Thus create one for each Renderer creation.
-  auto audio_sink = base::MakeRefCounted<NullAudioSink>(task_runner);
+  auto audio_sink = base::MakeRefCounted<AudioOutputStreamSink>();
   auto video_sink = std::make_unique<NullVideoSink>(
-      false, base::Seconds(1.0 / 60), NullVideoSink::NewFrameCB(), task_runner);
+      false, base::TimeDelta::FromSecondsD(1.0 / 60),
+      NullVideoSink::NewFrameCB(), task_runner);
   auto* video_sink_ptr = video_sink.get();
 
-  // Hold created sinks since RendererImplFactory only takes raw pointers to
+  // Hold created sinks since DefaultRendererFactory only takes raw pointers to
   // the sinks. We are not cleaning up them even after a created Renderer is
   // destroyed. But this is fine since this class is only used for tests.
   audio_sinks_.push_back(audio_sink);

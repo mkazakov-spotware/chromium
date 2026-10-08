@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 
 #import <objc/runtime.h>
 
-#import <memory>
+#include <memory>
 
-#import "base/check.h"
+#include "base/check.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_controller.h"
+#import "ios/chrome/browser/ui/fullscreen/fullscreen_features.h"
 #import "ios/chrome/browser/ui/fullscreen/scoped_fullscreen_disabler.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -36,10 +37,10 @@ const void* const kFullscreenDisablerKey = &kFullscreenDisablerKey;
 @property(nonatomic, readonly) FullscreenController* controller;
 
 // Factory method that returns the disabler wrapper associated with
-// `coordinator`, lazily instantiating it if necessary.
+// |coordinator|, lazily instantiating it if necessary.
 + (instancetype)wrapperForCoordinator:(ChromeCoordinator*)coordinator;
 
-// Initializer for a wrapper that disables `controller`.
+// Initializer for a wrapper that disables |controller|.
 - (instancetype)initWithFullscreenController:(FullscreenController*)controller
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -62,8 +63,12 @@ const void* const kFullscreenDisablerKey = &kFullscreenDisablerKey;
   ScopedFullscreenDisablerWrapper* wrapper =
       objc_getAssociatedObject(coordinator, kFullscreenDisablerKey);
   if (!wrapper) {
-    FullscreenController* controller =
-        FullscreenController::FromBrowser(coordinator.browser);
+    FullscreenController* controller;
+    if (fullscreen::features::ShouldScopeFullscreenControllerToBrowser()) {
+      controller = FullscreenController::FromBrowser(coordinator.browser);
+    } else {
+      controller = FullscreenController::FromBrowserState(browserState);
+    }
     wrapper = [[ScopedFullscreenDisablerWrapper alloc]
         initWithFullscreenController:controller];
     objc_setAssociatedObject(coordinator, kFullscreenDisablerKey, wrapper,

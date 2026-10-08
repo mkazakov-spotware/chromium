@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <map>
 
-#include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 
@@ -19,24 +19,16 @@ namespace ash {
 // launcher if home launcher is enabled. Only need to do so if we need
 // to scale up and down the source window when dragging a tab window out
 // of it.
-class ASH_EXPORT TabletModeBrowserWindowDragSessionWindowsHider
+class TabletModeBrowserWindowDragSessionWindowsHider
     : public aura::WindowObserver {
  public:
   TabletModeBrowserWindowDragSessionWindowsHider(aura::Window* source_window,
                                                  aura::Window* dragged_window);
-
-  TabletModeBrowserWindowDragSessionWindowsHider(
-      const TabletModeBrowserWindowDragSessionWindowsHider&) = delete;
-  TabletModeBrowserWindowDragSessionWindowsHider& operator=(
-      const TabletModeBrowserWindowDragSessionWindowsHider&) = delete;
-
   ~TabletModeBrowserWindowDragSessionWindowsHider() override;
 
   // aura::WindowObserver:
   void OnWindowDestroying(aura::Window* window) override;
   void OnWindowVisibilityChanged(aura::Window* window, bool visible) override;
-
-  int GetWindowVisibilityMapSizeForTesting() const;
 
  private:
   // The window from which the drag originated.
@@ -53,6 +45,8 @@ class ASH_EXPORT TabletModeBrowserWindowDragSessionWindowsHider
   // except the dragged window and the source window should stay hidden during
   // dragging.
   std::map<aura::Window*, bool> window_visibility_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(TabletModeBrowserWindowDragSessionWindowsHider);
 };
 
 }  // namespace ash

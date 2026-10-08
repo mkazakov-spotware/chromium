@@ -1,17 +1,17 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/gc_callback.h"
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/extension_set.h"
 #include "extensions/common/features/feature.h"
-#include "extensions/renderer/bindings/test_js_runner.h"
 #include "extensions/renderer/scoped_web_frame.h"
 #include "extensions/renderer/script_context.h"
 #include "extensions/renderer/script_context_set.h"
@@ -35,9 +35,6 @@ enum CallbackType { NATIVE, NATIVE_WITH_NO_FALLBACK, JS, JS_WITH_NO_FALLBACK };
 class GCCallbackTest : public testing::TestWithParam<CallbackType> {
  public:
   GCCallbackTest() : script_context_set_(&active_extensions_) {}
-
-  GCCallbackTest(const GCCallbackTest&) = delete;
-  GCCallbackTest& operator=(const GCCallbackTest&) = delete;
 
  protected:
   ScriptContextSet& script_context_set() { return script_context_set_; }
@@ -68,22 +65,21 @@ class GCCallbackTest : public testing::TestWithParam<CallbackType> {
     v8::Isolate* isolate = script_context->isolate();
     v8::HandleScope handle_scope(isolate);
     v8::Local<v8::Object> object = v8::Object::New(isolate);
-    base::OnceClosure fallback;
+    base::Closure fallback;
     if (has_fallback())
-      fallback = base::BindOnce(SetToTrue, fallback_invoked);
+      fallback = base::Bind(SetToTrue, fallback_invoked);
     if (GetParam() == JS) {
       v8::Local<v8::FunctionTemplate> unreachable_function =
-          gin::CreateFunctionTemplate(
-              isolate, base::BindRepeating(SetToTrue, callback_invoked));
+          gin::CreateFunctionTemplate(isolate,
+                                      base::Bind(SetToTrue, callback_invoked));
       v8::Local<v8::Context> v8_context = isolate->GetCurrentContext();
       return new GCCallback(
           script_context, object,
           unreachable_function->GetFunction(v8_context).ToLocalChecked(),
-          std::move(fallback));
+          fallback);
     }
     return new GCCallback(script_context, object,
-                          base::BindOnce(SetToTrue, callback_invoked),
-                          std::move(fallback));
+                          base::Bind(SetToTrue, callback_invoked), fallback);
   }
 
   bool has_fallback() const {
@@ -109,13 +105,10 @@ class GCCallbackTest : public testing::TestWithParam<CallbackType> {
         web_frame_.frame()->MainWorldScriptContext();
     DCHECK(!local_v8_context.IsEmpty());
     v8_context_.Reset(isolate, local_v8_context);
-    test_js_runner_ =
-        std::make_unique<TestJSRunner::Scope>(std::make_unique<TestJSRunner>());
   }
 
   void TearDown() override {
     v8_context_.Reset();
-    test_js_runner_.reset();
     RequestGarbageCollection();
   }
 
@@ -127,7 +120,8 @@ class GCCallbackTest : public testing::TestWithParam<CallbackType> {
   ExtensionIdSet active_extensions_;
   ScriptContextSet script_context_set_;
   v8::Global<v8::Context> v8_context_;
-  std::unique_ptr<TestJSRunner::Scope> test_js_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(GCCallbackTest);
 };
 
 TEST_P(GCCallbackTest, GCBeforeContextInvalidated) {

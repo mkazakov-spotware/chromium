@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,8 @@ class MediaNotificationDeviceProvider {
   // Register a callback that will be invoked with the list of audio output
   // devices currently available. After the first invocation the callback will
   // be run whenever a change in connected audio devices is detected.
-  virtual base::CallbackListSubscription
+  virtual std::unique_ptr<MediaNotificationDeviceProvider::
+                              GetOutputDevicesCallbackList::Subscription>
   RegisterOutputDeviceDescriptionsCallback(GetOutputDevicesCallback cb) = 0;
 
   // Query the system for audio output devices and reply via callback.

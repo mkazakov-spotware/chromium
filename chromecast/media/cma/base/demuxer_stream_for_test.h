@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <list>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/media/cma/base/demuxer_stream_adapter.h"
 #include "media/base/decoder_buffer.h"
@@ -37,10 +38,6 @@ class DemuxerStreamForTest : public ::media::DemuxerStream {
                        int cycle_count,
                        int delayed_frame_count,
                        const std::list<int>& config_idx);
-
-  DemuxerStreamForTest(const DemuxerStreamForTest&) = delete;
-  DemuxerStreamForTest& operator=(const DemuxerStreamForTest&) = delete;
-
   ~DemuxerStreamForTest() override;
 
   // ::media::DemuxerStream implementation.
@@ -64,6 +61,8 @@ class DemuxerStreamForTest : public ::media::DemuxerStream {
 
   // Number of frames sent so far.
   int frame_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(DemuxerStreamForTest);
 };
 
 }  // namespace media

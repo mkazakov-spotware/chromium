@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,12 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/net/net_error_tab_helper.h"
@@ -40,9 +42,9 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/mime_util.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/download/android/download_controller_base.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 namespace offline_pages {
 namespace {
@@ -93,7 +95,8 @@ void CheckDuplicateOngoingDownloads(
           UMA_HISTOGRAM_CUSTOM_COUNTS(
               "OfflinePages.DownloadRequestTimeSinceDuplicateRequested",
               (OfflineTimeNow() - latest_request_time).InSeconds(),
-              base::Seconds(1).InSeconds(), base::Days(7).InSeconds(), 50);
+              base::TimeDelta::FromSeconds(1).InSeconds(),
+              base::TimeDelta::FromDays(7).InSeconds(), 50);
 
           std::move(callback).Run(
               OfflinePageUtils::DuplicateCheckResult::DUPLICATE_REQUEST_FOUND);
@@ -130,8 +133,7 @@ content::WebContents* GetWebContentsByFrameID(int render_process_id,
 content::WebContents::Getter GetWebContentsGetter(
     content::WebContents* web_contents) {
   // The FrameTreeNode ID should be used to access the WebContents.
-  int frame_tree_node_id =
-      web_contents->GetPrimaryMainFrame()->GetFrameTreeNodeId();
+  int frame_tree_node_id = web_contents->GetMainFrame()->GetFrameTreeNodeId();
   if (frame_tree_node_id != content::RenderFrameHost::kNoFrameTreeNodeId) {
     return base::BindRepeating(content::WebContents::FromFrameTreeNodeId,
                                frame_tree_node_id);
@@ -141,8 +143,8 @@ content::WebContents::Getter GetWebContentsGetter(
   // the WebContents.
   return base::BindRepeating(
       &GetWebContentsByFrameID,
-      web_contents->GetPrimaryMainFrame()->GetProcess()->GetID(),
-      web_contents->GetPrimaryMainFrame()->GetRoutingID());
+      web_contents->GetMainFrame()->GetProcess()->GetID(),
+      web_contents->GetMainFrame()->GetRoutingID());
 }
 
 void AcquireFileAccessPermissionDoneForScheduleDownload(
@@ -188,7 +190,7 @@ void OfflinePageUtils::SelectPagesWithCriteria(
   OfflinePageModel* offline_page_model =
       OfflinePageModelFactory::GetForKey(key);
   if (!offline_page_model) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback), std::vector<OfflinePageItem>()));
     return;
@@ -284,7 +286,8 @@ void OfflinePageUtils::CheckDuplicateDownloads(
       UMA_HISTOGRAM_CUSTOM_COUNTS(
           "OfflinePages.DownloadRequestTimeSinceDuplicateSaved",
           (OfflineTimeNow() - latest_saved_time).InSeconds(),
-          base::Seconds(1).InSeconds(), base::Days(7).InSeconds(), 50);
+          base::TimeDelta::FromSeconds(1).InSeconds(),
+          base::TimeDelta::FromDays(7).InSeconds(), 50);
 
       std::move(callback).Run(DuplicateCheckResult::DUPLICATE_PAGE_FOUND);
     }
@@ -383,7 +386,7 @@ bool OfflinePageUtils::IsShowingTrustedOfflinePage(
 void OfflinePageUtils::AcquireFileAccessPermission(
     content::WebContents* web_contents,
     base::OnceCallback<void(bool)> callback) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   content::WebContents::Getter web_contents_getter =
       GetWebContentsGetter(web_contents);
   DownloadControllerBase::Get()->AcquireFileAccessPermission(
@@ -391,7 +394,7 @@ void OfflinePageUtils::AcquireFileAccessPermission(
 #else
   // Not needed in other platforms.
   std::move(callback).Run(true /*granted*/);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 }  // namespace offline_pages

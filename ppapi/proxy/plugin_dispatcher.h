@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/process/process.h"
@@ -114,10 +115,6 @@ class PPAPI_PROXY_EXPORT PluginDispatcher
    public:
     Sender(base::WeakPtr<PluginDispatcher> plugin_dispatcher,
            scoped_refptr<IPC::SyncMessageFilter> sync_filter);
-
-    Sender(const Sender&) = delete;
-    Sender& operator=(const Sender&) = delete;
-
     ~Sender() override;
 
     bool SendMessage(IPC::Message* msg);
@@ -128,6 +125,8 @@ class PPAPI_PROXY_EXPORT PluginDispatcher
    private:
     base::WeakPtr<PluginDispatcher> plugin_dispatcher_;
     scoped_refptr<IPC::SyncMessageFilter> sync_filter_;
+
+    DISALLOW_COPY_AND_ASSIGN(Sender);
   };
 
   // Constructor for the plugin side. The init and shutdown functions will be
@@ -147,10 +146,6 @@ class PPAPI_PROXY_EXPORT PluginDispatcher
   PluginDispatcher(PP_GetInterface_Func get_interface,
                    const PpapiPermissions& permissions,
                    bool incognito);
-
-  PluginDispatcher(const PluginDispatcher&) = delete;
-  PluginDispatcher& operator=(const PluginDispatcher&) = delete;
-
   virtual ~PluginDispatcher();
 
   // The plugin side maintains a mapping from PP_Instance to Dispatcher so
@@ -258,6 +253,8 @@ class PPAPI_PROXY_EXPORT PluginDispatcher
   bool incognito_;
 
   scoped_refptr<Sender> sender_;
+
+  DISALLOW_COPY_AND_ASSIGN(PluginDispatcher);
 };
 
 }  // namespace proxy

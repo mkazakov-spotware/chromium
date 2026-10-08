@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser.picker;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.os.Build;
 import android.text.format.DateFormat;
@@ -120,6 +121,7 @@ public abstract class TwoFieldDatePicker extends FrameLayout {
      * Assumes that the order of month and year in the locale is also the right order
      * for the spinner columns.
      */
+    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
     private void reorderSpinners() {
         boolean posInserted = false;
         boolean yearInserted = false;

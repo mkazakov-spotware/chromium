@@ -33,8 +33,7 @@
 namespace blink {
 
 bool WebTextInputInfo::Equals(const WebTextInputInfo& other) const {
-  return node_id == other.node_id && type == other.type &&
-         value == other.value && flags == other.flags &&
+  return type == other.type && value == other.value && flags == other.flags &&
          selection_start == other.selection_start &&
          selection_end == other.selection_end &&
          composition_start == other.composition_start &&

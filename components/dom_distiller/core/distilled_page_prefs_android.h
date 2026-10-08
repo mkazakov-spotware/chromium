@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/dom_distiller/core/distilled_page_prefs.h"
 
 namespace dom_distiller {
@@ -19,11 +19,6 @@ class DistilledPagePrefsAndroid {
   DistilledPagePrefsAndroid(JNIEnv* env,
                             jobject obj,
                             DistilledPagePrefs* distilled_page_prefs_ptr);
-
-  DistilledPagePrefsAndroid(const DistilledPagePrefsAndroid&) = delete;
-  DistilledPagePrefsAndroid& operator=(const DistilledPagePrefsAndroid&) =
-      delete;
-
   virtual ~DistilledPagePrefsAndroid();
   void SetFontFamily(JNIEnv* env,
                      const base::android::JavaParamRef<jobject>& obj,
@@ -48,7 +43,9 @@ class DistilledPagePrefsAndroid {
                       jlong obs);
 
  private:
-  raw_ptr<DistilledPagePrefs> distilled_page_prefs_;
+  DistilledPagePrefs* distilled_page_prefs_;
+
+  DISALLOW_COPY_AND_ASSIGN(DistilledPagePrefsAndroid);
 };
 
 class DistilledPagePrefsObserverAndroid : public DistilledPagePrefs::Observer {

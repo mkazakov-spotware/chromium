@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "extensions/browser/extension_host_registry.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/common/extension_id.h"
 
@@ -26,8 +25,8 @@ namespace apps {
 // Monitors apps being reloaded and performs app specific actions (like launch
 // or restart) on them. Also provides an interface to schedule these actions.
 class AppLoadService : public KeyedService,
-                       public extensions::ExtensionRegistryObserver,
-                       public extensions::ExtensionHostRegistry::Observer {
+                       public content::NotificationObserver,
+                       public extensions::ExtensionRegistryObserver {
  public:
   enum PostReloadActionType {
     LAUNCH_FOR_RELOAD,
@@ -44,8 +43,6 @@ class AppLoadService : public KeyedService,
   };
 
   explicit AppLoadService(content::BrowserContext* context);
-  AppLoadService(const AppLoadService&) = delete;
-  AppLoadService& operator=(const AppLoadService&) = delete;
   ~AppLoadService() override;
 
   // KeyedService support:
@@ -73,10 +70,10 @@ class AppLoadService : public KeyedService,
   static AppLoadService* Get(content::BrowserContext* context);
 
  private:
-  // extensions::ExtensionHostRegistry::Observer:
-  void OnExtensionHostCompletedFirstLoad(
-      content::BrowserContext* browser_context,
-      extensions::ExtensionHost* host) override;
+  // content::NotificationObserver.
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
   // extensions::ExtensionRegistryObserver.
   void OnExtensionUnloaded(content::BrowserContext* browser_context,
@@ -90,11 +87,10 @@ class AppLoadService : public KeyedService,
   // Map of extension id to reload action. Absence from the map implies
   // no action.
   std::map<std::string, PostReloadAction> post_reload_actions_;
-  raw_ptr<content::BrowserContext> context_;
+  content::NotificationRegistrar registrar_;
+  content::BrowserContext* context_;
 
-  base::ScopedObservation<extensions::ExtensionHostRegistry,
-                          extensions::ExtensionHostRegistry::Observer>
-      host_registry_observation_{this};
+  DISALLOW_COPY_AND_ASSIGN(AppLoadService);
 };
 
 }  // namespace apps

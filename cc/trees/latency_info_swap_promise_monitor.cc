@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/threading/platform_thread.h"
 #include "cc/trees/latency_info_swap_promise.h"
 #include "cc/trees/layer_tree_host_impl.h"
 #include "cc/trees/layer_tree_impl.h"
@@ -33,33 +34,16 @@ namespace cc {
 LatencyInfoSwapPromiseMonitor::LatencyInfoSwapPromiseMonitor(
     ui::LatencyInfo* latency,
     SwapPromiseManager* swap_promise_manager)
-    : latency_(latency), swap_promise_manager_(swap_promise_manager) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(main_sequence_checker_);
-  DCHECK(swap_promise_manager);
-  swap_promise_manager_->InsertLatencyInfoSwapPromiseMonitor(this);
-}
+    : SwapPromiseMonitor(swap_promise_manager), latency_(latency) {}
 
 LatencyInfoSwapPromiseMonitor::LatencyInfoSwapPromiseMonitor(
     ui::LatencyInfo* latency,
     LayerTreeHostImpl* host_impl)
-    : latency_(latency), host_impl_(host_impl) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(impl_sequence_checker_);
-  DCHECK(host_impl);
-  host_impl_->InsertLatencyInfoSwapPromiseMonitor(this);
-}
+    : SwapPromiseMonitor(host_impl), latency_(latency) {}
 
-LatencyInfoSwapPromiseMonitor::~LatencyInfoSwapPromiseMonitor() {
-  if (swap_promise_manager_) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(main_sequence_checker_);
-    swap_promise_manager_->RemoveLatencyInfoSwapPromiseMonitor(this);
-  } else if (host_impl_) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(impl_sequence_checker_);
-    host_impl_->RemoveLatencyInfoSwapPromiseMonitor(this);
-  }
-}
+LatencyInfoSwapPromiseMonitor::~LatencyInfoSwapPromiseMonitor() = default;
 
 void LatencyInfoSwapPromiseMonitor::OnSetNeedsCommitOnMain() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(main_sequence_checker_);
   if (AddRenderingScheduledComponent(latency_, true /* on_main */)) {
     std::unique_ptr<SwapPromise> swap_promise(
         new LatencyInfoSwapPromise(*latency_));
@@ -68,7 +52,6 @@ void LatencyInfoSwapPromiseMonitor::OnSetNeedsCommitOnMain() {
 }
 
 void LatencyInfoSwapPromiseMonitor::OnSetNeedsRedrawOnImpl() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(impl_sequence_checker_);
   if (AddRenderingScheduledComponent(latency_, false /* on_main */)) {
     std::unique_ptr<SwapPromise> swap_promise(
         new LatencyInfoSwapPromise(*latency_));

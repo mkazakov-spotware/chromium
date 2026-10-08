@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,18 @@
 
 #include <memory>
 
-#include "base/files/file_path.h"
+#include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/metrics/field_trial.h"
 #include "base/metrics/persistent_histogram_allocator.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_simple_task_runner.h"
-#include "components/metrics/clean_exit_beacon.h"
 #include "components/metrics/metrics_pref_names.h"
 #include "components/metrics/metrics_service.h"
-#include "components/metrics/metrics_state_manager.h"
 #include "components/metrics/metrics_switches.h"
 #include "components/metrics/persistent_histograms.h"
 #include "components/prefs/testing_pref_service.h"
@@ -40,9 +38,6 @@ class TestClient : public AndroidMetricsServiceClient {
         sampled_in_rate_per_mille_(1000),
         package_name_rate_per_mille_(1000),
         record_package_name_for_app_type_(true) {}
-
-  TestClient(const TestClient&) = delete;
-  TestClient& operator=(const TestClient&) = delete;
 
   ~TestClient() override = default;
 
@@ -76,8 +71,9 @@ class TestClient : public AndroidMetricsServiceClient {
   void SetSampleBucketValue(int per_mille) { sample_bucket_value_ = per_mille; }
 
   // Expose the super class implementation for testing.
+  using AndroidMetricsServiceClient::GetAppPackageNameInternal;
+  using AndroidMetricsServiceClient::IsInPackageNameSample;
   using AndroidMetricsServiceClient::IsInSample;
-  using AndroidMetricsServiceClient::ShouldRecordPackageName;
 
  protected:
   void OnMetricsStart() override {}
@@ -110,6 +106,7 @@ class TestClient : public AndroidMetricsServiceClient {
   int sampled_in_rate_per_mille_;
   int package_name_rate_per_mille_;
   bool record_package_name_for_app_type_;
+  DISALLOW_COPY_AND_ASSIGN(TestClient);
 };
 
 std::unique_ptr<TestingPrefServiceSimple> CreateTestPrefs() {
@@ -135,11 +132,6 @@ class AndroidMetricsServiceClientTest : public testing::Test {
     base::SetRecordActionTaskRunner(task_runner_);
   }
 
-  AndroidMetricsServiceClientTest(const AndroidMetricsServiceClientTest&) =
-      delete;
-  AndroidMetricsServiceClientTest& operator=(
-      const AndroidMetricsServiceClientTest&) = delete;
-
   const int64_t test_begin_time_;
 
   content::BrowserTaskEnvironment* task_environment() {
@@ -152,30 +144,9 @@ class AndroidMetricsServiceClientTest : public testing::Test {
  private:
   content::BrowserTaskEnvironment task_environment_;
   scoped_refptr<base::TestSimpleTaskRunner> task_runner_;
-};
 
-// Verify that Chrome does not start watching for browser crashes before setting
-// up field trials. For Android embedders, Chrome should not watch for crashes
-// then because, at the time of field trial set-up, it is not possible to know
-// whether the embedder will come to foreground. The embedder may remain in the
-// background for the browser process lifetime, and in this case, Chrome should
-// not watch for crashes so that exiting is not considered a crash. Embedders
-// start watching for crashes when foregrounding via
-// MetricsService::OnAppEnterForeground().
-TEST_F(AndroidMetricsServiceClientTest,
-       DoNotWatchForCrashesBeforeFieldTrialSetUp) {
-  auto prefs = CreateTestPrefs();
-  auto client = std::make_unique<TestClient>();
-  client->Initialize(prefs.get());
-  EXPECT_TRUE(client->metrics_state_manager()
-                  ->clean_exit_beacon()
-                  ->GetUserDataDirForTesting()
-                  .empty());
-  EXPECT_TRUE(client->metrics_state_manager()
-                  ->clean_exit_beacon()
-                  ->GetBeaconFilePathForTesting()
-                  .empty());
-}
+  DISALLOW_COPY_AND_ASSIGN(AndroidMetricsServiceClientTest);
+};
 
 TEST_F(AndroidMetricsServiceClientTest, TestSetConsentTrueBeforeInit) {
   auto prefs = CreateTestPrefs();
@@ -256,7 +227,7 @@ TEST_F(AndroidMetricsServiceClientTest,
   client->SetHaveMetricsConsent(true, true);
   client->SetRecordPackageNameForAppType(false);
   client->SetInPackageNameSample(true);
-  std::string package_name = client->GetAppPackageNameIfLoggable();
+  std::string package_name = client->GetAppPackageName();
   EXPECT_TRUE(package_name.empty());
 }
 
@@ -268,7 +239,7 @@ TEST_F(AndroidMetricsServiceClientTest,
   client->SetHaveMetricsConsent(true, true);
   client->SetRecordPackageNameForAppType(true);
   client->SetInPackageNameSample(false);
-  std::string package_name = client->GetAppPackageNameIfLoggable();
+  std::string package_name = client->GetAppPackageName();
   EXPECT_TRUE(package_name.empty());
 }
 
@@ -279,7 +250,7 @@ TEST_F(AndroidMetricsServiceClientTest, TestCanUploadPackageName) {
   client->SetHaveMetricsConsent(true, true);
   client->SetRecordPackageNameForAppType(true);
   client->SetInPackageNameSample(true);
-  std::string package_name = client->GetAppPackageNameIfLoggable();
+  std::string package_name = client->GetAppPackageName();
   EXPECT_FALSE(package_name.empty());
 }
 
@@ -287,8 +258,8 @@ TEST_F(AndroidMetricsServiceClientTest, TestGetPackageNameInternal) {
   auto prefs = CreateTestPrefs();
   prefs->SetString(metrics::prefs::kMetricsClientID, kTestClientId);
   auto client = CreateAndInitTestClient(prefs.get());
-  // Make sure GetPackageName returns a non-empty string.
-  EXPECT_FALSE(client->GetAppPackageName().empty());
+  // Make sure GetPackageNameInternal returns a non-empty string.
+  EXPECT_FALSE(client->GetAppPackageNameInternal().empty());
 }
 
 TEST_F(AndroidMetricsServiceClientTest,
@@ -305,7 +276,7 @@ TEST_F(AndroidMetricsServiceClientTest,
     client->SetSampleBucketValue(value);
     EXPECT_TRUE(client->IsInSample())
         << "Value " << value << " should be in-sample";
-    EXPECT_TRUE(client->ShouldRecordPackageName())
+    EXPECT_TRUE(client->IsInPackageNameSample())
         << "Value " << value << " should be in the package name sample";
   }
   // After this, the only thing we care about is that we're out of sample (the
@@ -332,7 +303,7 @@ TEST_F(AndroidMetricsServiceClientTest,
     client->SetSampleBucketValue(value);
     EXPECT_TRUE(client->IsInSample())
         << "Value " << value << " should be in-sample";
-    EXPECT_TRUE(client->ShouldRecordPackageName())
+    EXPECT_TRUE(client->IsInPackageNameSample())
         << "Value " << value << " should be in the package name sample";
   }
   // After this (but until we hit the sample rate), clients should be in sample
@@ -341,7 +312,7 @@ TEST_F(AndroidMetricsServiceClientTest,
     client->SetSampleBucketValue(value);
     EXPECT_TRUE(client->IsInSample())
         << "Value " << value << " should be in-sample";
-    EXPECT_FALSE(client->ShouldRecordPackageName())
+    EXPECT_FALSE(client->IsInPackageNameSample())
         << "Value " << value << " should be out of the package name sample";
   }
   // After this, the only thing we care about is that we're out of sample (the
@@ -355,7 +326,8 @@ TEST_F(AndroidMetricsServiceClientTest,
 }
 
 TEST_F(AndroidMetricsServiceClientTest, TestCanForceEnableMetrics) {
-  ForceEnableMetricsReportingForTesting();
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      metrics::switches::kForceEnableMetricsReporting);
 
   auto prefs = CreateTestPrefs();
   auto client = std::make_unique<TestClient>();
@@ -372,7 +344,8 @@ TEST_F(AndroidMetricsServiceClientTest, TestCanForceEnableMetrics) {
 
 TEST_F(AndroidMetricsServiceClientTest,
        TestCanForceEnableMetricsIfAlreadyEnabled) {
-  ForceEnableMetricsReportingForTesting();
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      metrics::switches::kForceEnableMetricsReporting);
 
   auto prefs = CreateTestPrefs();
   auto client = std::make_unique<TestClient>();
@@ -389,7 +362,8 @@ TEST_F(AndroidMetricsServiceClientTest,
 
 TEST_F(AndroidMetricsServiceClientTest,
        TestCannotForceEnableMetricsIfAppOptsOut) {
-  ForceEnableMetricsReportingForTesting();
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      metrics::switches::kForceEnableMetricsReporting);
 
   auto prefs = CreateTestPrefs();
   auto client = std::make_unique<TestClient>();
@@ -422,30 +396,6 @@ TEST_F(AndroidMetricsServiceClientTest,
   client->SetHaveMetricsConsent(/* user_consent= */ true,
                                 /* app_consent= */ true);
   client->SetInSample(false);
-  client->Initialize(prefs.get());
-  task_environment()->RunUntilIdle();
-
-  EXPECT_FALSE(base::PathExists(upload_dir));
-}
-
-TEST_F(AndroidMetricsServiceClientTest,
-       TestBrowserMetricsDirClearedIfNoConsent) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeatureWithParameters(
-      base::kPersistentHistogramsFeature, {{"storage", "MappedFile"}});
-
-  base::FilePath metrics_dir;
-  ASSERT_TRUE(base::PathService::Get(base::DIR_ANDROID_APP_DATA, &metrics_dir));
-  InstantiatePersistentHistograms(metrics_dir);
-  base::FilePath upload_dir = metrics_dir.AppendASCII(kBrowserMetricsName);
-  ASSERT_TRUE(base::PathExists(upload_dir));
-
-  auto prefs = CreateTestPrefs();
-  auto client = std::make_unique<TestClient>();
-
-  // Setup the client isn't in sample.
-  client->SetHaveMetricsConsent(/* user_consent= */ false,
-                                /* app_consent= */ false);
   client->Initialize(prefs.get());
   task_environment()->RunUntilIdle();
 

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Popup Emoji Picker implementation. This provides a UI widget
@@ -27,12 +35,6 @@ goog.require('goog.positioning.Corner');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.Popup');
 goog.require('goog.ui.emoji.EmojiPicker');
-goog.requireType('goog.dom.DomHelper');
-goog.requireType('goog.events.BrowserEvent');
-goog.requireType('goog.events.Event');
-goog.requireType('goog.ui.PopupBase');
-goog.requireType('goog.ui.TabPane.TabLocation');
-goog.requireType('goog.ui.emoji.Emoji');
 
 
 
@@ -48,7 +50,6 @@ goog.requireType('goog.ui.emoji.Emoji');
  * @final
  */
 goog.ui.emoji.PopupEmojiPicker = function(defaultImgUrl, opt_domHelper) {
-  'use strict';
   goog.ui.Component.call(this, opt_domHelper);
 
   this.emojiPicker_ =
@@ -112,7 +113,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.toggleMode_ = true;
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.addEmojiGroup = function(
     title, emojiGroup) {
-  'use strict';
   this.emojiPicker_.addEmojiGroup(title, emojiGroup);
 };
 
@@ -122,7 +122,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.addEmojiGroup = function(
  * @param {boolean} toggle The toggle mode to use.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setToggleMode = function(toggle) {
-  'use strict';
   this.toggleMode_ = toggle;
 };
 
@@ -132,7 +131,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setToggleMode = function(toggle) {
  * @return {boolean} toggle.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getToggleMode = function() {
-  'use strict';
   return this.toggleMode_;
 };
 
@@ -147,7 +145,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getToggleMode = function() {
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setDelayedLoad = function(
     shouldDelay) {
-  'use strict';
   if (this.emojiPicker_) {
     this.emojiPicker_.setDelayedLoad(shouldDelay);
   }
@@ -159,7 +156,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setDelayedLoad = function(
  * @param {boolean} focusable Whether the emoji picker should accept focus.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setFocusable = function(focusable) {
-  'use strict';
   this.focusable_ = focusable;
   if (this.emojiPicker_) {
     // TODO(user): In next revision sort the behavior of passing state to
@@ -175,7 +171,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setFocusable = function(focusable) {
  * @param {string} urlPrefix Prefix that should be prepended to all URLs.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setUrlPrefix = function(urlPrefix) {
-  'use strict';
   this.emojiPicker_.setUrlPrefix(urlPrefix);
 };
 
@@ -188,7 +183,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setUrlPrefix = function(urlPrefix) {
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setTabLocation = function(
     tabLocation) {
-  'use strict';
   this.emojiPicker_.setTabLocation(tabLocation);
 };
 
@@ -200,7 +194,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setTabLocation = function(
  * @param {number} numRows Number of rows per grid.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setNumRows = function(numRows) {
-  'use strict';
   this.emojiPicker_.setNumRows(numRows);
 };
 
@@ -212,7 +205,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setNumRows = function(numRows) {
  * @param {number} numCols Number of columns per grid.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setNumColumns = function(numCols) {
-  'use strict';
   this.emojiPicker_.setNumColumns(numCols);
 };
 
@@ -225,7 +217,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setNumColumns = function(numCols) {
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setProgressiveRender = function(
     progressive) {
-  'use strict';
   if (this.emojiPicker_) {
     this.emojiPicker_.setProgressiveRender(progressive);
   }
@@ -238,7 +229,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setProgressiveRender = function(
  * @return {number} The number of emoji groups in this picker.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getNumEmojiGroups = function() {
-  'use strict';
   return this.emojiPicker_.getNumEmojiGroups();
 };
 
@@ -247,7 +237,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getNumEmojiGroups = function() {
  * Causes the emoji imgs to be loaded into the picker. Used for delayed loading.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.loadImages = function() {
-  'use strict';
   if (this.emojiPicker_) {
     this.emojiPicker_.loadImages();
   }
@@ -256,14 +245,12 @@ goog.ui.emoji.PopupEmojiPicker.prototype.loadImages = function() {
 
 /** @override */
 goog.ui.emoji.PopupEmojiPicker.prototype.createDom = function() {
-  'use strict';
   goog.ui.emoji.PopupEmojiPicker.superClass_.createDom.call(this);
 
   this.emojiPicker_.createDom();
 
   this.getElement().className = goog.getCssName('goog-ui-popupemojipicker');
-  this.getElement().appendChild(
-      /** @type {!Node} */ (this.emojiPicker_.getElement()));
+  this.getElement().appendChild(this.emojiPicker_.getElement());
 
   this.popup_ = new goog.ui.Popup(this.getElement());
   this.getElement().unselectable = 'on';
@@ -272,7 +259,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.createDom = function() {
 
 /** @override */
 goog.ui.emoji.PopupEmojiPicker.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.emoji.PopupEmojiPicker.superClass_.disposeInternal.call(this);
   this.emojiPicker_ = null;
   this.lastTarget_ = null;
@@ -289,7 +275,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.disposeInternal = function() {
  * @param {Element} element The element to attach to.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.attach = function(element) {
-  'use strict';
   // TODO(user): standardize event type, popups should use MOUSEDOWN, but
   // currently apps are using click.
   this.getHandler().listen(element, goog.events.EventType.CLICK, this.show_);
@@ -302,7 +287,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.attach = function(element) {
  * @param {Element} element The element to detach from.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.detach = function(element) {
-  'use strict';
   this.getHandler().unlisten(element, goog.events.EventType.CLICK, this.show_);
 };
 
@@ -311,7 +295,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.detach = function(element) {
  * @return {goog.ui.emoji.EmojiPicker} The emoji picker instance.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getEmojiPicker = function() {
-  'use strict';
   return this.emojiPicker_;
 };
 
@@ -322,7 +305,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getEmojiPicker = function() {
  * @return {boolean} Whether the Popup autohides on an external click.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getAutoHide = function() {
-  'use strict';
   return !!this.popup_ && this.popup_.getAutoHide();
 };
 
@@ -335,7 +317,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getAutoHide = function() {
  * @param {boolean} autoHide Whether to autohide on an external click.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setAutoHide = function(autoHide) {
-  'use strict';
   if (this.popup_) {
     this.popup_.setAutoHide(autoHide);
   }
@@ -350,7 +331,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setAutoHide = function(autoHide) {
  *     set.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getAutoHideRegion = function() {
-  'use strict';
   return this.popup_ && this.popup_.getAutoHideRegion();
 };
 
@@ -363,7 +343,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getAutoHideRegion = function() {
  * @param {Element} element The DOM element for autohide.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.setAutoHideRegion = function(element) {
-  'use strict';
   if (this.popup_) {
     this.popup_.setAutoHideRegion(element);
   }
@@ -380,7 +359,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.setAutoHideRegion = function(element) {
  * @return {goog.ui.PopupBase?} The popup, or null if it hasn't been created.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getPopup = function() {
-  'use strict';
   return this.popup_;
 };
 
@@ -389,7 +367,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getPopup = function() {
  * @return {Element} The last element that triggered the popup.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getLastTarget = function() {
-  'use strict';
   return this.lastTarget_;
 };
 
@@ -398,7 +375,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getLastTarget = function() {
  * @return {goog.ui.emoji.Emoji} The currently selected emoji.
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.getSelectedEmoji = function() {
-  'use strict';
   return this.emojiPicker_.getSelectedEmoji();
 };
 
@@ -411,7 +387,6 @@ goog.ui.emoji.PopupEmojiPicker.prototype.getSelectedEmoji = function() {
  * @private
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.show_ = function(e) {
-  'use strict';
   if (this.popup_.isOrWasRecentlyVisible() && this.toggleMode_ &&
       this.lastTarget_ == e.currentTarget) {
     this.popup_.setVisible(false);
@@ -433,6 +408,5 @@ goog.ui.emoji.PopupEmojiPicker.prototype.show_ = function(e) {
  * @private
  */
 goog.ui.emoji.PopupEmojiPicker.prototype.onEmojiPicked_ = function(e) {
-  'use strict';
   this.popup_.setVisible(false);
 };

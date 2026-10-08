@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ void BeginUserExperiment(const InstallerState& installer_state,
 
 // Runs the experiment for the current user.
 void RunUserExperiment(const base::CommandLine& command_line,
-                       const InitialPreferences& initial_preferences,
+                       const InitialPreferences& master_preferences,
                        InstallationState* original_state,
                        InstallerState* installer_state);
 

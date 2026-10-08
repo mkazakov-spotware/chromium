@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted_memory.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -19,9 +18,9 @@ namespace device {
 
 namespace {
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 const uint64_t kTestDeviceId = 123;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 const wchar_t* kTestDeviceId = L"123";
 #else
 const char* kTestDeviceId = "123";
@@ -38,12 +37,8 @@ const uint64_t kMaxReportSizeBytes = 10;
 // input report.
 class FakeHidConnection : public HidConnection {
  public:
-  explicit FakeHidConnection(scoped_refptr<HidDeviceInfo> device)
-      : HidConnection(device,
-                      /*allow_protected_reports=*/false,
-                      /*allow_fido_reports=*/false) {}
-  FakeHidConnection(const FakeHidConnection&) = delete;
-  FakeHidConnection& operator=(const FakeHidConnection&) = delete;
+  FakeHidConnection(scoped_refptr<HidDeviceInfo> device)
+      : HidConnection(device) {}
 
   // HidConnection implementation.
   void PlatformClose() override {}
@@ -66,6 +61,8 @@ class FakeHidConnection : public HidConnection {
 
  private:
   ~FakeHidConnection() override = default;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeHidConnection);
 };
 
 // A test implementation of HidConnectionClient that signals once an input
@@ -73,8 +70,6 @@ class FakeHidConnection : public HidConnection {
 class TestHidConnectionClient : public mojom::HidConnectionClient {
  public:
   TestHidConnectionClient() = default;
-  TestHidConnectionClient(const TestHidConnectionClient&) = delete;
-  TestHidConnectionClient& operator=(const TestHidConnectionClient&) = delete;
   ~TestHidConnectionClient() override = default;
 
   void Bind(mojo::PendingReceiver<mojom::HidConnectionClient> receiver) {
@@ -99,6 +94,8 @@ class TestHidConnectionClient : public mojom::HidConnectionClient {
   mojo::Receiver<mojom::HidConnectionClient> receiver_{this};
   uint8_t report_id_ = 0;
   std::vector<uint8_t> buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestHidConnectionClient);
 };
 
 // A utility for capturing the state returned by mojom::HidConnection I/O
@@ -106,13 +103,11 @@ class TestHidConnectionClient : public mojom::HidConnectionClient {
 class TestIoCallback {
  public:
   TestIoCallback() = default;
-  TestIoCallback(const TestIoCallback&) = delete;
-  TestIoCallback& operator=(const TestIoCallback&) = delete;
   ~TestIoCallback() = default;
 
   void SetReadResult(bool result,
                      uint8_t report_id,
-                     const absl::optional<std::vector<uint8_t>>& buffer) {
+                     const base::Optional<std::vector<uint8_t>>& buffer) {
     result_ = result;
     report_id_ = report_id;
     has_buffer_ = buffer.has_value();
@@ -158,8 +153,6 @@ class TestIoCallback {
 class HidConnectionImplTest : public DeviceServiceTestBase {
  public:
   HidConnectionImplTest() = default;
-  HidConnectionImplTest(HidConnectionImplTest&) = delete;
-  HidConnectionImplTest& operator=(HidConnectionImplTest&) = delete;
 
  protected:
   void SetUp() override {
@@ -182,15 +175,13 @@ class HidConnectionImplTest : public DeviceServiceTestBase {
   }
 
   scoped_refptr<HidDeviceInfo> CreateTestDevice() {
-    auto collection = mojom::HidCollectionInfo::New();
-    collection->usage = mojom::HidUsageAndPage::New(0, 0);
-    collection->report_ids.push_back(kTestReportId);
+    auto hid_collection_info = mojom::HidCollectionInfo::New();
+    hid_collection_info->usage = mojom::HidUsageAndPage::New(0, 0);
+    hid_collection_info->report_ids.push_back(kTestReportId);
     return base::MakeRefCounted<HidDeviceInfo>(
-        kTestDeviceId, /*physical_device_id=*/"1", "interface id",
-        /*vendor_id=*/0x1234, /*product_id=*/0xabcd, "product name",
-        "serial number", mojom::HidBusType::kHIDBusTypeUSB,
-        std::move(collection), kMaxReportSizeBytes, kMaxReportSizeBytes,
-        /*max_feature_report_size=*/0);
+        kTestDeviceId, "1", 0x1234, 0xabcd, "product name", "serial number",
+        mojom::HidBusType::kHIDBusTypeUSB, std::move(hid_collection_info),
+        kMaxReportSizeBytes, kMaxReportSizeBytes, 0);
   }
 
   std::vector<uint8_t> CreateTestReportBuffer(uint8_t report_id, size_t size) {
@@ -202,8 +193,7 @@ class HidConnectionImplTest : public DeviceServiceTestBase {
   }
 
   mojo::PendingRemote<mojom::HidConnection> hid_connection_;
-  raw_ptr<HidConnectionImpl>
-      hid_connection_impl_;  // Owned by |hid_connection_|.
+  HidConnectionImpl* hid_connection_impl_;  // Owned by |hid_connection_|.
   scoped_refptr<FakeHidConnection> fake_connection_;
   std::unique_ptr<TestHidConnectionClient> connection_client_;
 };

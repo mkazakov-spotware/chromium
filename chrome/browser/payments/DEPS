@@ -1,7 +1,4 @@
 include_rules = [
- "+chrome/android/java/src/org/chromium/chrome/browser/payments",
- "+components/webauthn",
- "+content/public/android/java/src/org/chromium/content_public/browser",
  "+third_party/libaddressinput",
 ]
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ NGOffsetMappingBuilder::SourceNodeScope::~SourceNodeScope() {
 
 void NGOffsetMappingBuilder::ReserveCapacity(unsigned capacity) {
   unit_ranges_.ReserveCapacityForSize(capacity);
-  mapping_units_.reserve(capacity * 1.5);
+  mapping_units_.ReserveCapacity(capacity * 1.5);
 }
 
 void NGOffsetMappingBuilder::AppendIdentityMapping(unsigned length) {
@@ -139,7 +139,7 @@ void NGOffsetMappingBuilder::CollapseTrailingSpace(unsigned space_offset) {
   unsigned text_content_offset = container_unit->TextContentStart();
   unsigned offset_to_collapse = space_offset - text_content_offset;
 
-  HeapVector<NGOffsetMappingUnit, 3> new_units;
+  Vector<NGOffsetMappingUnit, 3> new_units;
   if (offset_to_collapse) {
     new_units.emplace_back(NGOffsetMappingUnitType::kIdentity, layout_object,
                            dom_offset, dom_offset + offset_to_collapse,
@@ -160,11 +160,10 @@ void NGOffsetMappingBuilder::CollapseTrailingSpace(unsigned space_offset) {
   }
 
   // TODO(xiaochengh): Optimize if this becomes performance bottleneck.
-  wtf_size_t position = base::checked_cast<wtf_size_t>(
-      std::distance(mapping_units_.begin(), container_unit));
+  unsigned position = std::distance(mapping_units_.begin(), container_unit);
   mapping_units_.EraseAt(position);
   mapping_units_.InsertVector(position, new_units);
-  wtf_size_t new_unit_end = position + new_units.size();
+  unsigned new_unit_end = position + new_units.size();
   while (new_unit_end && new_unit_end < mapping_units_.size() &&
          mapping_units_[new_unit_end - 1].Concatenate(
              mapping_units_[new_unit_end])) {
@@ -202,8 +201,7 @@ void NGOffsetMappingBuilder::RestoreTrailingCollapsibleSpace(
       return;
     // When we collapsed multiple spaces, e.g. <b>   </b>.
     mapping_units_.insert(
-        base::checked_cast<wtf_size_t>(
-            std::distance(mapping_units_.begin(), &unit) + 1),
+        std::distance(mapping_units_.begin(), &unit) + 1,
         NGOffsetMappingUnit(NGOffsetMappingUnitType::kCollapsed, layout_text,
                             unit.dom_end_, original_dom_end,
                             unit.text_content_end_, unit.text_content_end_));
@@ -218,7 +216,7 @@ void NGOffsetMappingBuilder::SetDestinationString(String string) {
   destination_string_ = string;
 }
 
-NGOffsetMapping* NGOffsetMappingBuilder::Build() {
+std::unique_ptr<NGOffsetMapping> NGOffsetMappingBuilder::Build() {
   // All mapping units are already built. Scan them to build mapping ranges.
   for (unsigned range_start = 0; range_start < mapping_units_.size();) {
     const LayoutObject& layout_object =
@@ -241,7 +239,7 @@ NGOffsetMapping* NGOffsetMappingBuilder::Build() {
     range_start = range_end;
   }
 
-  return MakeGarbageCollected<NGOffsetMapping>(
+  return std::make_unique<NGOffsetMapping>(
       std::move(mapping_units_), std::move(unit_ranges_), destination_string_);
 }
 

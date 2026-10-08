@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "chrome/browser/download/download_prefs.h"
@@ -46,9 +47,8 @@ constexpr char kTabReactivatedPrefix[] = "TabReactivated-";
 constexpr char kTabOpenedPrefix[] = "TabOpened-";
 
 // Enables Hashed Logging for CrOSAction.
-BASE_FEATURE(kCrOSActionStructuredMetrics,
-             "CrOSActionStructuredMetrics",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kCrOSActionStructuredMetrics{
+    "CrOSActionStructuredMetrics", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Represents the events of the CrOSActionRecorder.
 // This enum is used for a histogram and should not be renumbered and the old
@@ -359,18 +359,16 @@ void CrOSActionRecorder::LogCrOSActionAsStructuredMetrics(
 
   if (ConsumePrefix(&action_name, kSearchResultLaunchedPrefix)) {
     // SearchReultLaunched.
-    metrics::structured::events::v2::hindsight::
-        CrOSActionEvent_SearchResultLaunched()
-            .SetQuery(
-                base::NumberToString(FindWithDefault(conditions, "Query")))
-            .SetResultType(FindWithDefault(conditions, "ResultType"))
-            .SetSearchResultId(action_name)
-            .SetSequenceId(sequence_id_)
-            .SetTimeSinceLastAction(time_since_last_action)
-            .Record();
+    metrics::structured::events::CrOSActionEvent_SearchResultLaunched()
+        .SetQuery(base::NumberToString(FindWithDefault(conditions, "Query")))
+        .SetResultType(FindWithDefault(conditions, "ResultType"))
+        .SetSearchResultId(action_name)
+        .SetSequenceId(sequence_id_)
+        .SetTimeSinceLastAction(time_since_last_action)
+        .Record();
   } else if (ConsumePrefix(&action_name, kFileOpenedPrefix)) {
     // FileOpened.
-    metrics::structured::events::v2::hindsight::CrOSActionEvent_FileOpened()
+    metrics::structured::events::CrOSActionEvent_FileOpened()
         .SetFilename(action_name)
         .SetOpenType(FindWithDefault(conditions, "open_type"))
         .SetSequenceId(sequence_id_)
@@ -378,7 +376,7 @@ void CrOSActionRecorder::LogCrOSActionAsStructuredMetrics(
         .Record();
   } else if (ConsumePrefix(&action_name, kSettingChangedPrefix)) {
     // SettingChanged.
-    metrics::structured::events::v2::hindsight::CrOSActionEvent_SettingChanged()
+    metrics::structured::events::CrOSActionEvent_SettingChanged()
         .SetSettingId(FindWithDefault(conditions, "SettingId"))
         .SetSettingType(FindWithDefault(conditions, "SettingType"))
         .SetPreviousValue(FindWithDefault(conditions, "PreviousValue"))
@@ -388,22 +386,20 @@ void CrOSActionRecorder::LogCrOSActionAsStructuredMetrics(
         .Record();
   } else if (ConsumePrefix(&action_name, kTabNavigatedPrefix)) {
     // Navigate to a new tab.
-    metrics::structured::events::v2::hindsight::
-        CrOSActionEvent_TabEvent_TabNavigated()
-            .SetURL(action_name)
-            .SetVisibility(FindWithDefault(conditions, "Visibility"))
-            .SetPageTransition(FindWithDefault(conditions, "PageTransition"))
-            .SetSequenceId(sequence_id_)
-            .SetTimeSinceLastAction(time_since_last_action)
-            .Record();
+    metrics::structured::events::CrOSActionEvent_TabEvent_TabNavigated()
+        .SetURL(action_name)
+        .SetVisibility(FindWithDefault(conditions, "Visibility"))
+        .SetPageTransition(FindWithDefault(conditions, "PageTransition"))
+        .SetSequenceId(sequence_id_)
+        .SetTimeSinceLastAction(time_since_last_action)
+        .Record();
   } else if (ConsumePrefix(&action_name, kTabReactivatedPrefix)) {
     // Reactivate an old tab.
-    metrics::structured::events::v2::hindsight::
-        CrOSActionEvent_TabEvent_TabReactivated()
-            .SetURL(action_name)
-            .SetSequenceId(sequence_id_)
-            .SetTimeSinceLastAction(time_since_last_action)
-            .Record();
+    metrics::structured::events::CrOSActionEvent_TabEvent_TabReactivated()
+        .SetURL(action_name)
+        .SetSequenceId(sequence_id_)
+        .SetTimeSinceLastAction(time_since_last_action)
+        .Record();
   } else if (ConsumePrefix(&action_name, kTabOpenedPrefix)) {
     // Open a tab from current tab.
     // current tab is stored as a condition with value -1.
@@ -414,15 +410,14 @@ void CrOSActionRecorder::LogCrOSActionAsStructuredMetrics(
       }
     }
 
-    metrics::structured::events::v2::hindsight::
-        CrOSActionEvent_TabEvent_TabOpened()
-            .SetURL(current_url)
-            .SetURLOpened(action_name)
-            .SetWindowOpenDisposition(
-                FindWithDefault(conditions, "WindowOpenDisposition"))
-            .SetSequenceId(sequence_id_)
-            .SetTimeSinceLastAction(time_since_last_action)
-            .Record();
+    metrics::structured::events::CrOSActionEvent_TabEvent_TabOpened()
+        .SetURL(current_url)
+        .SetURLOpened(action_name)
+        .SetWindowOpenDisposition(
+            FindWithDefault(conditions, "WindowOpenDisposition"))
+        .SetSequenceId(sequence_id_)
+        .SetTimeSinceLastAction(time_since_last_action)
+        .Record();
   }
 }
 

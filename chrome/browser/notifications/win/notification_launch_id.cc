@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/notifications/notification_platform_bridge.h"
 #include "chrome/common/chrome_switches.h"
 
 namespace {
@@ -171,8 +170,8 @@ std::string NotificationLaunchId::Serialize() const {
 
 // static
 std::string NotificationLaunchId::GetProfileIdFromLaunchId(
-    const std::wstring& launch_id_str) {
-  NotificationLaunchId launch_id(base::WideToUTF8(launch_id_str));
+    const base::string16& launch_id_str) {
+  NotificationLaunchId launch_id(base::UTF16ToUTF8(launch_id_str));
 
   // The launch_id_invalid failure is logged via HandleActivation(). We don't
   // re-log it here, which would skew the UMA failure metrics.
@@ -180,13 +179,11 @@ std::string NotificationLaunchId::GetProfileIdFromLaunchId(
 }
 
 // static
-base::FilePath NotificationLaunchId::GetNotificationLaunchProfileBaseName(
+std::string NotificationLaunchId::GetNotificationLaunchProfileId(
     const base::CommandLine& command_line) {
   if (command_line.HasSwitch(switches::kNotificationLaunchId)) {
-    return NotificationPlatformBridge::GetProfileBaseNameFromProfileId(
-        NotificationLaunchId::GetProfileIdFromLaunchId(
-            command_line.GetSwitchValueNative(
-                switches::kNotificationLaunchId)));
+    return NotificationLaunchId::GetProfileIdFromLaunchId(
+        command_line.GetSwitchValueNative(switches::kNotificationLaunchId));
   }
-  return base::FilePath();
+  return std::string();
 }

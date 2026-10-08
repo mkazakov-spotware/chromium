@@ -3,16 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <title>Resource Timing embed navigate - back button navigation</title>
-</head>
-<body onunload="/*disable bfcache*/">
+<body onunload="/*disable bfcache*/"></body>
 <script src="/common/get-host-info.sub.js"></script>
 <script src="nested-contexts.js"></script>
 <script>
-  setup_back_navigation("embed-navigate-back.html");
+setup_back_navigation("embed-navigate-back.html");
 </script>
-<embed id="target" type="text/html">
+<embed type="text/html">
 <script>
-  target.src = pre_navigate_url;
+    document.getElementsByTagName("embed")[0].src = pre_navigate_url;
 </script>
-</body>
-</html>

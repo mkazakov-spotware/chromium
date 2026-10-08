@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,19 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/feature_list.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/services/font/fontconfig_matching.h"
 #include "mojo/public/cpp/system/platform_handle.h"
-#include "pdf/buildflags.h"
+#include "ppapi/buildflags/buildflags.h"
 #include "skia/ext/skia_utils_base.h"
 #include "ui/gfx/font_fallback_linux.h"
 #include "ui/gfx/font_render_params.h"
 
-#if BUILDFLAG(ENABLE_PDF)
-#include "components/services/font/pdf_fontconfig_matching.h"  // nogncheck
+#if BUILDFLAG(ENABLE_PLUGINS)
+#include "components/services/font/ppapi_fontconfig_matching.h"  // nogncheck
 #endif
 
 static_assert(
@@ -79,14 +77,11 @@ font_service::mojom::RenderStyleSwitch ConvertSubpixelRendering(
   return font_service::mojom::RenderStyleSwitch::NO_PREFERENCE;
 }
 
-// The maximum number of entries to keep in the font family matching cache.
-constexpr int kCacheFontFamilyMaxSize = 3000;
-
 }  // namespace
 
 namespace font_service {
 
-FontServiceApp::FontServiceApp() : match_cache_(kCacheFontFamilyMaxSize) {}
+FontServiceApp::FontServiceApp() = default;
 
 FontServiceApp::~FontServiceApp() = default;
 
@@ -105,58 +100,37 @@ void FontServiceApp::MatchFamilyName(const std::string& family_name,
   SkFontStyle result_style;
   SkFontConfigInterface* fc =
       SkFontConfigInterface::GetSingletonDirectInterface();
-  SkFontStyle font_style(
-      requested_style->weight, requested_style->width,
-      static_cast<SkFontStyle::Slant>(requested_style->slant));
+  const bool r = fc->matchFamilyName(
+      family_name.data(),
+      SkFontStyle(requested_style->weight, requested_style->width,
+                  static_cast<SkFontStyle::Slant>(requested_style->slant)),
+      &result_identity, &result_family, &result_style);
 
-  // Check for presence in cache.
-  MatchCacheKey key;
-  key.family_name = family_name;
-  key.font_style = font_style;
-  auto it = match_cache_.Get(key);
-  if (it != match_cache_.end()) {
-    std::move(callback).Run(
-        it->second.identity ? it->second.identity.Clone() : nullptr,
-        it->second.family_name, it->second.style.Clone());
-    return;
-  }
-
-  const bool r =
-      fc->matchFamilyName(family_name.data(), font_style, &result_identity,
-                          &result_family, &result_style);
-
-  mojom::FontIdentityPtr identity = nullptr;
-  mojom::TypefaceStylePtr style(mojom::TypefaceStyle::New());
-  std::string result_family_cppstring = result_family.c_str();
-
-  if (r) {
-    // Stash away the returned path, so we can give it an ID (index)
-    // which will later be given to us in a request to open the file.
-    base::FilePath path(result_identity.fString.c_str());
-    size_t index = FindOrAddPath(path);
-
-    identity = mojom::FontIdentity::New();
-    identity->id = static_cast<uint32_t>(index);
-    identity->ttc_index = result_identity.fTTCIndex;
-    identity->filepath = path;
-
-    style->weight = result_style.weight();
-    style->width = result_style.width();
-    style->slant = static_cast<mojom::TypefaceSlant>(result_style.slant());
-  } else {
+  if (!r) {
+    mojom::TypefaceStylePtr style(mojom::TypefaceStyle::New());
     style->weight = SkFontStyle().weight();
     style->width = SkFontStyle().width();
     style->slant = static_cast<mojom::TypefaceSlant>(SkFontStyle().slant());
+    std::move(callback).Run(nullptr, "", std::move(style));
+    return;
   }
 
-  // Add to the cache.
-  MatchCacheValue value;
-  value.family_name = result_family_cppstring;
-  value.identity = identity ? identity.Clone() : nullptr;
-  value.style = style.Clone();
-  match_cache_.Put(key, std::move(value));
+  // Stash away the returned path, so we can give it an ID (index)
+  // which will later be given to us in a request to open the file.
+  base::FilePath path(result_identity.fString.c_str());
+  size_t index = FindOrAddPath(path);
 
-  std::move(callback).Run(std::move(identity), result_family_cppstring,
+  mojom::FontIdentityPtr identity(mojom::FontIdentity::New());
+  identity->id = static_cast<uint32_t>(index);
+  identity->ttc_index = result_identity.fTTCIndex;
+  identity->filepath = path;
+
+  mojom::TypefaceStylePtr style(mojom::TypefaceStyle::New());
+  style->weight = result_style.weight();
+  style->width = result_style.width();
+  style->slant = static_cast<mojom::TypefaceSlant>(result_style.slant());
+
+  std::move(callback).Run(std::move(identity), result_family.c_str(),
                           std::move(style));
 }
 
@@ -235,7 +209,7 @@ void FontServiceApp::MatchFontByPostscriptNameOrFullFontName(
   TRACE_EVENT0("fonts",
                "FontServiceApp::MatchFontByPostscriptNameOrFullFontName");
 
-  absl::optional<FontConfigLocalMatching::FontConfigMatchResult> match_result =
+  base::Optional<FontConfigLocalMatching::FontConfigMatchResult> match_result =
       FontConfigLocalMatching::FindFontByPostscriptNameOrFullFontName(family);
   if (match_result) {
     uint32_t fontconfig_interface_id = FindOrAddPath(match_result->file_path);
@@ -248,7 +222,6 @@ void FontServiceApp::MatchFontByPostscriptNameOrFullFontName(
   std::move(callback).Run(nullptr);
 }
 
-#if BUILDFLAG(ENABLE_PDF)
 void FontServiceApp::MatchFontWithFallback(
     const std::string& family,
     bool is_bold,
@@ -258,6 +231,7 @@ void FontServiceApp::MatchFontWithFallback(
     MatchFontWithFallbackCallback callback) {
   TRACE_EVENT0("fonts", "FontServiceApp::MatchFontWithFallback");
 
+#if BUILDFLAG(ENABLE_PLUGINS)
   base::File matched_font_file;
   int font_file_descriptor = MatchFontFaceWithFallback(
       family, is_bold, is_italic, charset, fallbackFamilyType);
@@ -265,8 +239,10 @@ void FontServiceApp::MatchFontWithFallback(
   if (!matched_font_file.IsValid())
     matched_font_file = base::File();
   std::move(callback).Run(std::move(matched_font_file));
+#else
+  NOTREACHED();
+#endif
 }
-#endif  // BUILDFLAG(ENABLE_PDF)
 
 size_t FontServiceApp::FindOrAddPath(const base::FilePath& path) {
   TRACE_EVENT1("fonts", "FontServiceApp::FindOrAddPath", "path",
@@ -279,9 +255,5 @@ size_t FontServiceApp::FindOrAddPath(const base::FilePath& path) {
   paths_.emplace_back(path);
   return count;
 }
-
-FontServiceApp::MatchCacheValue::MatchCacheValue() = default;
-FontServiceApp::MatchCacheValue::~MatchCacheValue() = default;
-FontServiceApp::MatchCacheValue::MatchCacheValue(MatchCacheValue&&) = default;
 
 }  // namespace font_service

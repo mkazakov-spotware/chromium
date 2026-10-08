@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/browsing_data/core/counters/browsing_data_counter.h"
 
 class Profile;
@@ -21,23 +21,17 @@ class HostedAppsCounter : public browsing_data::BrowsingDataCounter {
     HostedAppsResult(const HostedAppsCounter* source,
                      ResultInt num_apps,
                      const std::vector<std::string>& examples);
-
-    HostedAppsResult(const HostedAppsResult&) = delete;
-    HostedAppsResult& operator=(const HostedAppsResult&) = delete;
-
     ~HostedAppsResult() override;
 
     const std::vector<std::string>& examples() const { return examples_; }
 
    private:
     const std::vector<std::string> examples_;
+
+    DISALLOW_COPY_AND_ASSIGN(HostedAppsResult);
   };
 
   explicit HostedAppsCounter(Profile* profile);
-
-  HostedAppsCounter(const HostedAppsCounter&) = delete;
-  HostedAppsCounter& operator=(const HostedAppsCounter&) = delete;
-
   ~HostedAppsCounter() override;
 
   const char* GetPrefName() const override;
@@ -46,7 +40,9 @@ class HostedAppsCounter : public browsing_data::BrowsingDataCounter {
   // BrowsingDataCounter:
   void Count() override;
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(HostedAppsCounter);
 };
 
 #endif  // CHROME_BROWSER_BROWSING_DATA_COUNTERS_HOSTED_APPS_COUNTER_H_

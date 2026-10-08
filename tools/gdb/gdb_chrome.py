@@ -1,4 +1,4 @@
-# Copyright 2011 The Chromium Authors
+# Copyright (c) 2011 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """GDB support for Chrome types.
@@ -99,9 +99,9 @@ class String16Printer(StringPrinter):
     return blink.ustring_to_string(self.val['_M_dataplus']['_M_p'])
 
 
-pp_set.add_printer('string16',
-                   '^string16|std::basic_string<(unsigned short|char16_t).*>$',
-                   String16Printer)
+pp_set.add_printer(
+    'string16', '^string16|std::basic_string<(unsigned short|base::char16).*>$',
+    String16Printer)
 
 
 class GURLPrinter(StringPrinter):
@@ -184,10 +184,7 @@ class CallbackPrinter(Printer):
     return '...'
 
 
-pp_set.add_printer('base::OnceCallback', '^base::OnceCallback<.*>$',
-                   CallbackPrinter)
-pp_set.add_printer('base::RepeatingCallback', '^base::RepeatingCallback<.*>$',
-                   CallbackPrinter)
+pp_set.add_printer('base::Callback', '^base::Callback<.*>$', CallbackPrinter)
 
 
 class LocationPrinter(Printer):
@@ -231,17 +228,17 @@ class LockPrinter(Printer):
 pp_set.add_printer('base::Lock', '^base::Lock$', LockPrinter)
 
 
-class AbslOptionalPrinter(Printer):
+class BaseOptionalPrinter(Printer):
 
   def to_string(self):
-    if self.val['engaged_']:
-      return "%s: %s" % (str(self.val.type.tag), self.val['data_'])
+    if self.val['storage_']['is_populated_']:
+      return "%s: %s" % (str(self.val.type.tag), self.val['storage_']['value_'])
     else:
       return "%s: is empty" % str(self.val.type.tag)
 
 
-pp_set.add_printer('absl::optional', '^absl::optional<.*>$',
-                   AbslOptionalPrinter)
+pp_set.add_printer('base::Optional', '^base::Optional<.*>$',
+                   BaseOptionalPrinter)
 
 
 class TimeDeltaPrinter(object):
@@ -297,7 +294,7 @@ class FlatTreePrinter(object):
     # Python is much more complicated and this output is reasonable.
     # (Without this printer, a flat_map will output 7 lines of internal
     # template goop before the vector contents.)
-    return 'base::flat_tree with ' + str(self.val['body_'])
+    return 'base::flat_tree with ' + str(self.val['impl_']['body_'])
 
 
 pp_set.add_printer('base::flat_map', '^base::flat_map<.*>$', FlatTreePrinter)
@@ -465,7 +462,7 @@ class AtomicPrinter(Printer):
     return self.val['__a_']['__a_value']
 
 
-pp_set.add_printer('std::Cr::__atomic', '^std::Cr::(__)?atomic<.*>$',
+pp_set.add_printer('std::__Cr::atomic', '^std::__Cr::atomic<.*>$',
                    AtomicPrinter)
 
 gdb.printing.register_pretty_printer(gdb, pp_set, replace=_DEBUGGING)

@@ -13,29 +13,27 @@ testOverriddenConstructorName()
 testThrowConstructorName()
 {}
 testOverriddenIsFinite()
-Arguments(2) ['arg1', 'arg2', callee: ƒ, Symbol(Symbol.iterator): ƒ]
+Arguments(2) ["arg1", "arg2", callee: ƒ, Symbol(Symbol.iterator): ƒ]
 testOverriddenError()
-{result: 'PASS'}
+{result: "PASS"}
 restoreError()
-{result: 'PASS'}
+{result: "PASS"}
 testOverriddenToString(function func() {}, true)
-ƒ func() {}
+ƒ Function
 testOverriddenToString(function func() {}, false)
-ƒ func() {}
+ƒ Function
 testOverriddenToString(new Function, true)
-ƒ anonymous(
-) {
-
-}
+ƒ Function
 testOverriddenToString(new Function, false)
-ƒ anonymous(
-) {
-
-}
+ƒ Function
 testOverriddenToString(/^regex$/, true)
 /^regex$/
 testOverriddenToString(/^regex$/, false)
 /^regex$/
+testOverriddenToString(new Date, true)
+Date
+testOverriddenToString(new Date, false)
+Date
 testOverriddenToString({}, true)
 {toString: ƒ, valueOf: ƒ}
 testOverriddenToString({}, false)

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,11 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/win/com_init_util.h"
 #include "base/win/scoped_variant.h"
 #include "chrome/installer/util/install_util.h"
@@ -39,9 +41,6 @@ class TaskbarIconFinder {
   // Constructs a new finder and immediately starts running it on a dedicated
   // automation task in a multi-threaded COM apartment.
   explicit TaskbarIconFinder(TaskbarIconFinderResultCallback result_callback);
-
-  TaskbarIconFinder(const TaskbarIconFinder&) = delete;
-  TaskbarIconFinder& operator=(const TaskbarIconFinder&) = delete;
 
  private:
   // Receives the result computed on the automation task, passes the results to
@@ -76,6 +75,8 @@ class TaskbarIconFinder {
 
   // The caller's callback.
   TaskbarIconFinderResultCallback result_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskbarIconFinder);
 };
 
 TaskbarIconFinder::TaskbarIconFinder(
@@ -90,7 +91,7 @@ TaskbarIconFinder::TaskbarIconFinder(
   // for automation clients.
   base::ThreadPool::PostTask(
       FROM_HERE, base::BindOnce(&TaskbarIconFinder::RunOnComTask,
-                                base::SequencedTaskRunner::GetCurrentDefault(),
+                                base::SequencedTaskRunnerHandle::Get(),
                                 base::Unretained(this)));
 }
 

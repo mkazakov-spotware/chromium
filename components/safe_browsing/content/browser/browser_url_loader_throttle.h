@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/strcat.h"
+#include "base/task/post_task.h"
 #include "base/time/time.h"
 #include "content/public/browser/browser_thread.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
@@ -50,9 +51,6 @@ class BrowserURLLoaderThrottle : public blink::URLLoaderThrottle {
       int frame_tree_node_id,
       base::WeakPtr<RealTimeUrlLookupServiceBase> url_lookup_service);
 
-  BrowserURLLoaderThrottle(const BrowserURLLoaderThrottle&) = delete;
-  BrowserURLLoaderThrottle& operator=(const BrowserURLLoaderThrottle&) = delete;
-
   ~BrowserURLLoaderThrottle() override;
 
   // blink::URLLoaderThrottle implementation.
@@ -68,7 +66,6 @@ class BrowserURLLoaderThrottle : public blink::URLLoaderThrottle {
   void WillProcessResponse(const GURL& response_url,
                            network::mojom::URLResponseHead* response_head,
                            bool* defer) override;
-  const char* NameForLoggingWillProcessResponse() override;
 
  private:
   // CheckerOnIO handles calling methods on SafeBrowsingUrlCheckerImpl, which
@@ -80,9 +77,7 @@ class BrowserURLLoaderThrottle : public blink::URLLoaderThrottle {
 
   using NativeUrlCheckNotifier =
       base::OnceCallback<void(bool /* proceed */,
-                              bool /* showed_interstitial */,
-                              bool /* did_perform_real_time_check */,
-                              bool /* did_check_allowlist */)>;
+                              bool /* showed_interstitial */)>;
 
   // |web_contents_getter| is used for displaying SafeBrowsing UI when
   // necessary.
@@ -96,11 +91,7 @@ class BrowserURLLoaderThrottle : public blink::URLLoaderThrottle {
   // |slow_check| indicates whether it reports the result of a slow check.
   // (Please see comments of CheckerOnIO::OnCheckUrlResult() for what slow check
   // means).
-  void OnCompleteCheck(bool slow_check,
-                       bool proceed,
-                       bool showed_interstitial,
-                       bool did_perform_real_time_check,
-                       bool did_check_allowlist);
+  void OnCompleteCheck(bool slow_check, bool proceed, bool showed_interstitial);
 
   // Called to skip future safe browsing checks and resume the request if
   // necessary.
@@ -117,16 +108,15 @@ class BrowserURLLoaderThrottle : public blink::URLLoaderThrottle {
   size_t pending_slow_checks_ = 0;
   bool blocked_ = false;
 
-  // The time when |WillStartRequest| is called.
-  base::TimeTicks start_request_time_;
-  bool is_start_request_called_ = false;
-
   // The time when we started deferring the request.
   base::TimeTicks defer_start_time_;
   bool deferred_ = false;
 
   // The total delay caused by SafeBrowsing deferring the resource load.
   base::TimeDelta total_delay_;
+  // Whether the interstitial page has been shown and therefore user action has
+  // been involved.
+  bool user_action_involved_ = false;
 
   GURL original_url_;
 
@@ -135,16 +125,9 @@ class BrowserURLLoaderThrottle : public blink::URLLoaderThrottle {
 
   std::unique_ptr<CheckerOnIO> io_checker_;
 
-  // Metric suffix for the URL lookup service.
-  std::string url_lookup_service_metric_suffix_;
-
-  // Whether real time lookup is enabled for the user.
-  bool real_time_lookup_enabled_;
-
-  // Tracks how many times |WillProcessResponse| is called.
-  int will_process_response_count_ = 0;
-
   base::WeakPtrFactory<BrowserURLLoaderThrottle> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserURLLoaderThrottle);
 };
 
 }  // namespace safe_browsing

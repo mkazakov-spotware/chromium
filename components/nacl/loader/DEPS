@@ -1,5 +1,4 @@
 include_rules = [
-  "+components/power_monitor",
   "+components/nacl",
   "+content/public/app/sandbox_helper_win.h",
   "+content/public/common",
@@ -29,6 +28,9 @@ include_rules = [
   # For message scanning and handle conversion in nacl_ipc_adapter.cc:
   "+ppapi/proxy/nacl_message_scanner.h",
   "+ppapi/proxy/serialized_handle.h",
+
+  # For setting FDs in non-SFI mode.
+  "+ppapi/nacl_irt",
 
   # For sending PpapiHostMsg_ChannelCreated in nacl_ipc_adapter.cc:
   "+ppapi/proxy/ppapi_messages.h",

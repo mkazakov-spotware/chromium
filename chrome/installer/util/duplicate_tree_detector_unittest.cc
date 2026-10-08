@@ -1,14 +1,14 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <windows.h>
 
 #include <fstream>
-#include <string>
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "chrome/installer/util/duplicate_tree_detector.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -24,7 +24,7 @@ class DuplicateTreeDetectorTest : public testing::Test {
 
   // Simple function to dump some text into a new file.
   void CreateTextFile(const std::string& filename,
-                      const std::wstring& contents) {
+                      const base::string16& contents) {
     std::wofstream file;
     file.open(filename.c_str());
     ASSERT_TRUE(file.is_open());

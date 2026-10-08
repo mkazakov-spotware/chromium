@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "services/device/public/mojom/mtp_file_entry.mojom.h"
 
@@ -19,10 +20,6 @@ class MTPDeviceObjectEnumerator {
  public:
   explicit MTPDeviceObjectEnumerator(
       std::vector<device::mojom::MtpFileEntryPtr> entries);
-
-  MTPDeviceObjectEnumerator(const MTPDeviceObjectEnumerator&) = delete;
-  MTPDeviceObjectEnumerator& operator=(const MTPDeviceObjectEnumerator&) =
-      delete;
 
   ~MTPDeviceObjectEnumerator();
 
@@ -53,6 +50,8 @@ class MTPDeviceObjectEnumerator {
 
   // Initially false. Set to true after Next() has been called.
   bool is_index_ready_;
+
+  DISALLOW_COPY_AND_ASSIGN(MTPDeviceObjectEnumerator);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_CHROMEOS_MTP_DEVICE_OBJECT_ENUMERATOR_H_

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,19 +21,12 @@ base::RepeatingClosure BindLambda(Functor callable) {
 
 class DataPipeDrainerTest : public testing::Test,
                             public DataPipeDrainer::Client {
- public:
-  DataPipeDrainerTest(const DataPipeDrainerTest&) = delete;
-  DataPipeDrainerTest& operator=(const DataPipeDrainerTest&) = delete;
-
  protected:
   DataPipeDrainerTest() {
-    ScopedDataPipeProducerHandle producer_handle;
-    ScopedDataPipeConsumerHandle consumer_handle;
-    EXPECT_EQ(CreateDataPipe(nullptr, producer_handle, consumer_handle),
-              MOJO_RESULT_OK);
-    drainer_ =
-        std::make_unique<DataPipeDrainer>(this, std::move(consumer_handle));
-    producer_handle_ = std::move(producer_handle);
+    DataPipe pipe;
+    drainer_ = std::make_unique<DataPipeDrainer>(
+        this, std::move(pipe.consumer_handle));
+    producer_handle_ = std::move(pipe.producer_handle);
   }
 
   ScopedDataPipeProducerHandle producer_handle_;
@@ -48,6 +41,8 @@ class DataPipeDrainerTest : public testing::Test,
   base::test::SingleThreadTaskEnvironment task_environment_;
   std::string data_;
   std::unique_ptr<DataPipeDrainer> drainer_;
+
+  DISALLOW_COPY_AND_ASSIGN(DataPipeDrainerTest);
 };
 
 TEST_F(DataPipeDrainerTest, TestCompleteIsCalledOnce) {

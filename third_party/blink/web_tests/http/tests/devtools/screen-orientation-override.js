@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Test screen orientation override.\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
 
   await TestRunner.navigatePromise('resources/screen-orientation-resource.html');
 
-  ProtocolClient.test.suppressRequestErrors = false;
+  Protocol.test.suppressRequestErrors = false;
   function addDumpResult(next) {
     TestRunner.evaluateInPage('dump()', dumpCallback);
 
@@ -66,16 +66,16 @@
       testError(120, 'wrongType', next);
     },
 
+    function setPortraitPrimary(next) {
+      testOverride(0, 'portraitPrimary', next);
+    },
+
     function setPortraitSecondary(next) {
       testOverride(180, 'portraitSecondary', next);
     },
 
     function setLandscapePrimary(next) {
       testOverride(90, 'landscapePrimary', next);
-    },
-
-      function setPortraitPrimary(next) {
-      testOverride(0, 'portraitPrimary', next);
     },
 
     function restoresAfterReload(next) {
@@ -94,7 +94,7 @@
       }
 
       function dumpCallback(result) {
-        TestRunner.addResult('Equals to initial: ' + (original === result ? 'true' : 'false' + '. Expected: ' + original + ', actual: ' + result));
+        TestRunner.addResult('Equals to initial: ' + (original === result ? 'true' : 'false'));
         next();
       }
     }

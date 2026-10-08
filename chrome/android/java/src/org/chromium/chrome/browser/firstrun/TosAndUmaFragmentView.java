@@ -1,16 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.firstrun;
 
 import android.content.Context;
-import android.os.Build;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 
 import org.chromium.chrome.R;
@@ -18,29 +17,26 @@ import org.chromium.chrome.R;
 /**
  * Base view for fre_tosanduma.xml. This view may change child view placement when changing screen
  * dimensions (e.g. on rotation).
- *
- * See https://crbug.com/1151537 for illustration.
  */
-public class TosAndUmaFragmentView extends RelativeLayout {
+public class TosAndUmaFragmentView extends FrameLayout {
     private ScrollView mScrollView;
 
     private LinearLayout mMainLayout;
 
     // The "title and content" contains the mTitle, mContentWrapper, and mLoadingSpinner that is
     // visible when waiting for policy to be loaded.
-    private View mTitleAndContent;
+    private LinearLayout mTitleAndContent;
 
     // The "content wrapper" contains the ToS text and the UMA check box.
-    private View mContentWrapper;
+    private LinearLayout mContentWrapper;
 
     // The "bottom group" contains the accept & continue button, and a small spinner that displays
     // in its place when waiting for C++ to load before processing the FRE screen.
-    private View mBottomGroup;
+    private FrameLayout mBottomGroup;
 
     private View mTitle;
     private View mLogo;
     private View mLoadingSpinnerContainer;
-    private View mPrivacyDisclaimer;
     private View mShadow;
 
     private int mLastHeight;
@@ -54,15 +50,7 @@ public class TosAndUmaFragmentView extends RelativeLayout {
     private int mLandscapeTopPadding;
     private int mHeadlineSize;
     private int mContentMargin;
-    private int mAcceptButtonHeight;
-    private int mBottomGroupVerticalMarginRegular;
-    private int mBottomGroupVerticalMarginSmall;
-
-    // Store the bottom margins for different screen orientations. We are using a smaller bottom
-    // margin when the content becomes scrollable. Storing margins per orientation because there are
-    // cases where content is scrollable in landscape mode while not in portrait mode.
-    private int mBottomMarginPortrait;
-    private int mBottomMarginLandscape;
+    private int mButtonBarHeight;
 
     /**
      * Constructor for inflating via XML.
@@ -85,7 +73,6 @@ public class TosAndUmaFragmentView extends RelativeLayout {
         mTitle = findViewById(R.id.title);
         mLogo = findViewById(R.id.image);
         mLoadingSpinnerContainer = findViewById(R.id.loading_view_container);
-        mPrivacyDisclaimer = findViewById(R.id.privacy_disclaimer);
         mShadow = findViewById(R.id.shadow);
 
         // Set up shadow.
@@ -104,16 +91,7 @@ public class TosAndUmaFragmentView extends RelativeLayout {
                 getResources().getDimensionPixelSize(R.dimen.fre_landscape_top_padding);
         mHeadlineSize = getResources().getDimensionPixelSize(R.dimen.headline_size);
         mContentMargin = getResources().getDimensionPixelSize(R.dimen.fre_content_margin);
-        mAcceptButtonHeight = getResources().getDimensionPixelSize(R.dimen.min_touch_target_size);
-
-        mBottomGroupVerticalMarginRegular =
-                getResources().getDimensionPixelSize(R.dimen.fre_button_vertical_margin);
-        mBottomGroupVerticalMarginSmall =
-                getResources().getDimensionPixelSize(R.dimen.fre_button_vertical_margin_small);
-
-        // Default bottom margin to "regular", consistent with what is defined in xml.
-        mBottomMarginPortrait = mBottomGroupVerticalMarginRegular;
-        mBottomMarginLandscape = mBottomGroupVerticalMarginRegular;
+        mButtonBarHeight = getResources().getDimensionPixelSize(R.dimen.fre_tos_button_bar_height);
     }
 
     @Override
@@ -147,84 +125,26 @@ public class TosAndUmaFragmentView extends RelativeLayout {
             setSpinnerLayoutParams(useWideScreenLayout, width, height);
 
             setContentLayoutParams(useWideScreenLayout);
-            setPrivacyDisclaimerLayoutParams(useWideScreenLayout);
 
             setBottomGroupLayoutParams(useWideScreenLayout);
         }
 
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
-        // Do another round of view adjustments that depends on sizes assigned to children views in
-        // super#onMeasure. If the state of any view is changed in this process, trigger another
-        // round of measure to make changes take effect.
-        boolean changed = doPostMeasureAdjustment();
-        if (changed) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        }
+        updateShadowVisibility();
     }
 
     private boolean shouldUseWideScreen(int width, int height) {
-        int maxButtonBarHeight = mAcceptButtonHeight + 2 * mBottomGroupVerticalMarginRegular;
-        return (height >= mImageSize + 2 * maxButtonBarHeight) && (width > 1.5 * height);
+        return (height >= mImageSize + 2 * mButtonBarHeight) && (width > 1.5 * height);
     }
 
-    /**
-     * Adjust views after measure, when every view components has an initial size assigned.
-     * @return Whether any change happened to children views.
-     */
-    private boolean doPostMeasureAdjustment() {
-        boolean changed = updateShadowVisibility();
-        changed |= assignSmallBottomMarginIfNecessary();
-        return changed;
-    }
-
-    private boolean updateShadowVisibility() {
-        int newVisibility = mScrollView.canScrollVertically(1) ? VISIBLE : GONE;
-        if (newVisibility == mShadow.getVisibility()) {
-            return false;
-        }
-        mShadow.setVisibility(newVisibility);
-        return true;
-    }
-
-    /**
-     * When content is scrollable, use a smaller margin to present more content on screen.
-     * Note that once we change to using a smaller margin we currently will never switch back to the
-     * default margin size (e.g. enter then exit multi-window).
-     *
-     * TODO(https://crbug.com/1159198): Adjust the margin according to the size of
-     * TosAndUmaFragmentView.
-     */
-    private boolean assignSmallBottomMarginIfNecessary() {
-        // Check the width and height of TosAndUmaFragmentView. This function may be executed
-        // between transitioning from landscape to portrait. If the current measure spec (mLastWidth
-        // and mLastHeight) is different than the size actually measured (getHeight() &&
-        // getWidth()), the results from mScrollView#canScrollVertically could be stale. In such
-        // cases, it is safe to early return here, as current measure is in transition and a
-        // follow-up measure will be triggered when the measured spec and actual size matches.
-        if (getHeight() != mLastHeight || getWidth() != mLastWidth) {
-            return false;
-        }
-
-        // Do not assign margins if the content is not scrollable.
-        if (!mScrollView.canScrollVertically(1) && !mScrollView.canScrollVertically(-1)) {
-            return false;
-        }
-
-        MarginLayoutParams params = (MarginLayoutParams) mBottomGroup.getLayoutParams();
-        if (params.bottomMargin == mBottomGroupVerticalMarginSmall) {
-            return false;
-        }
-
-        if (shouldUseLandscapeBottomMargin()) {
-            mBottomMarginLandscape = mBottomGroupVerticalMarginSmall;
+    private void updateShadowVisibility() {
+        if (mScrollView.canScrollVertically(1)) {
+            mShadow.setVisibility(VISIBLE);
+            mShadow.bringToFront();
         } else {
-            mBottomMarginPortrait = mBottomGroupVerticalMarginSmall;
+            mShadow.setVisibility(GONE);
         }
-        params.setMargins(params.leftMargin, mBottomGroupVerticalMarginSmall, params.rightMargin,
-                mBottomGroupVerticalMarginSmall);
-        mBottomGroup.setLayoutParams(params);
-        return true;
     }
 
     private void setSpinnerLayoutParams(boolean useWideScreen, int width, int height) {
@@ -302,44 +222,14 @@ public class TosAndUmaFragmentView extends RelativeLayout {
         mContentWrapper.setLayoutParams(contentWrapperLayoutParams);
     }
 
-    private void setPrivacyDisclaimerLayoutParams(boolean useWideScreen) {
-        LinearLayout.LayoutParams privacyDisclaimerParams =
-                (LinearLayout.LayoutParams) mPrivacyDisclaimer.getLayoutParams();
-        privacyDisclaimerParams.gravity = useWideScreen ? Gravity.START : Gravity.CENTER;
-        privacyDisclaimerParams.setMarginStart(useWideScreen ? 0 : mContentMargin);
-        mPrivacyDisclaimer.setLayoutParams(privacyDisclaimerParams);
-    }
-
     private void setBottomGroupLayoutParams(boolean useWideScreen) {
-        RelativeLayout.LayoutParams bottomGroupParams =
-                (RelativeLayout.LayoutParams) mBottomGroup.getLayoutParams();
-        int removedRule =
-                useWideScreen ? RelativeLayout.CENTER_HORIZONTAL : RelativeLayout.ALIGN_PARENT_END;
-        int addedRule =
-                useWideScreen ? RelativeLayout.ALIGN_PARENT_END : RelativeLayout.CENTER_HORIZONTAL;
-
-        // Remove left & right align. On M, #removeRule on ALIGN_PARENT_END does not translate
-        // into removing ALIGN_PARENT_LEFT or RIGHT automatically. This is fixed on M+ in Android.
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
-            bottomGroupParams.removeRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-            bottomGroupParams.removeRule(RelativeLayout.ALIGN_PARENT_LEFT);
-        }
-
-        bottomGroupParams.removeRule(removedRule);
-        bottomGroupParams.addRule(addedRule);
-
-        int bottomMargin =
-                shouldUseLandscapeBottomMargin() ? mBottomMarginLandscape : mBottomMarginPortrait;
-        bottomGroupParams.setMargins(bottomGroupParams.leftMargin, bottomMargin,
-                bottomGroupParams.rightMargin, bottomMargin);
-        mBottomGroup.setLayoutParams(bottomGroupParams);
+        FrameLayout.LayoutParams bottomGroupParams =
+                (FrameLayout.LayoutParams) mBottomGroup.getLayoutParams();
+        bottomGroupParams.gravity = useWideScreen ? Gravity.END | Gravity.BOTTOM
+                                                  : Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
     }
 
     private int getTitleAndContentLayoutTopPadding(boolean useWideScreen) {
         return useWideScreen ? mLandscapeTopPadding : 0;
-    }
-
-    private boolean shouldUseLandscapeBottomMargin() {
-        return mLastWidth > mLastHeight;
     }
 }

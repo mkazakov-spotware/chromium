@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,7 +96,7 @@ bool Init() {
 
   // Sanity check: third_party_dlls should only be enabled in the browser
   // process at this time.
-  if (!install_static::IsBrowserProcess())
+  if (install_static::IsNonBrowserProcess())
     return false;
 
   // Zero tolerance for unsupported versions of Windows.  Third-party control
@@ -107,7 +107,7 @@ bool Init() {
   if (!ResetStatusCodes())
     AddStatusCode(ThirdPartyStatus::kStatusCodeResetFailure);
 
-  // 1) Initialize the blocklist from file
+  // 1) Initialize the blacklist from file
   ThirdPartyStatus status = InitFromFile();
   if (status != ThirdPartyStatus::kSuccess) {
     AddStatusCode(status);

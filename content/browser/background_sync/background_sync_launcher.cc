@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,11 @@
 #include "base/callback.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "content/browser/background_sync/background_sync_context_impl.h"
 #include "content/public/browser/background_sync_context.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/callback_android.h"
 #endif
 
@@ -38,16 +37,18 @@ BackgroundSyncLauncher* BackgroundSyncLauncher::Get() {
 }
 
 // static
-base::TimeDelta BackgroundSyncLauncher::GetSoonestWakeupDelta(
+void BackgroundSyncLauncher::GetSoonestWakeupDelta(
     blink::mojom::BackgroundSyncType sync_type,
-    BrowserContext* browser_context) {
+    BrowserContext* browser_context,
+    base::OnceCallback<void(base::TimeDelta)> callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  return Get()->GetSoonestWakeupDeltaImpl(sync_type, browser_context);
+  Get()->GetSoonestWakeupDeltaImpl(sync_type, browser_context,
+                                   std::move(callback));
 }
 
 // static
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void BackgroundSyncLauncher::FireBackgroundSyncEvents(
     BrowserContext* browser_context,
     blink::mojom::BackgroundSyncType sync_type,
@@ -67,20 +68,22 @@ void BackgroundSyncLauncher::FireBackgroundSyncEventsImpl(
   if (sync_type == blink::mojom::BackgroundSyncType::PERIODIC)
     last_browser_wakeup_for_periodic_sync_ = base::Time::Now();
   base::RepeatingClosure done_closure = base::BarrierClosure(
-      browser_context->GetStoragePartitionCount(),
+      content::BrowserContext::GetStoragePartitionCount(browser_context),
       base::BindOnce(base::android::RunRunnableAndroid,
                      base::android::ScopedJavaGlobalRef<jobject>(j_runnable)));
 
-  browser_context->ForEachStoragePartition(base::BindRepeating(
-      [](blink::mojom::BackgroundSyncType sync_type,
-         base::OnceClosure done_closure, StoragePartition* storage_partition) {
-        BackgroundSyncContext* sync_context =
-            storage_partition->GetBackgroundSyncContext();
-        DCHECK(sync_context);
-        sync_context->FireBackgroundSyncEvents(sync_type,
-                                               std::move(done_closure));
-      },
-      sync_type, std::move(done_closure)));
+  BrowserContext::ForEachStoragePartition(
+      browser_context, base::BindRepeating(
+                           [](blink::mojom::BackgroundSyncType sync_type,
+                              base::OnceClosure done_closure,
+                              StoragePartition* storage_partition) {
+                             BackgroundSyncContext* sync_context =
+                                 storage_partition->GetBackgroundSyncContext();
+                             DCHECK(sync_context);
+                             sync_context->FireBackgroundSyncEvents(
+                                 sync_type, std::move(done_closure));
+                           },
+                           sync_type, std::move(done_closure)));
 }
 #endif
 
@@ -99,7 +102,7 @@ void BackgroundSyncLauncher::SetGlobalSoonestWakeupDelta(
     soonest_wakeup_delta_periodic_ = set_to;
 }
 
-base::TimeDelta BackgroundSyncLauncher::GetGlobalSoonestWakeupDelta(
+base::TimeDelta& BackgroundSyncLauncher::GetGlobalSoonestWakeupDelta(
     blink::mojom::BackgroundSyncType sync_type) {
   if (sync_type == blink::mojom::BackgroundSyncType::ONE_SHOT)
     return soonest_wakeup_delta_one_shot_;
@@ -107,33 +110,47 @@ base::TimeDelta BackgroundSyncLauncher::GetGlobalSoonestWakeupDelta(
     return soonest_wakeup_delta_periodic_;
 }
 
-base::TimeDelta BackgroundSyncLauncher::GetSoonestWakeupDeltaImpl(
+void BackgroundSyncLauncher::GetSoonestWakeupDeltaImpl(
     blink::mojom::BackgroundSyncType sync_type,
-    BrowserContext* browser_context) {
+    BrowserContext* browser_context,
+    base::OnceCallback<void(base::TimeDelta)> callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  SetGlobalSoonestWakeupDelta(sync_type, base::TimeDelta::Max());
-  browser_context->ForEachStoragePartition(base::BindRepeating(
-      &BackgroundSyncLauncher::GetSoonestWakeupDeltaForStoragePartition,
-      base::Unretained(this), sync_type));
+  base::RepeatingClosure done_closure = base::BarrierClosure(
+      content::BrowserContext::GetStoragePartitionCount(browser_context),
+      base::BindOnce(&BackgroundSyncLauncher::SendSoonestWakeupDelta,
+                     base::Unretained(this), sync_type, std::move(callback)));
 
-  return GetGlobalSoonestWakeupDelta(sync_type);
+  SetGlobalSoonestWakeupDelta(sync_type, base::TimeDelta::Max());
+  BrowserContext::ForEachStoragePartition(
+      browser_context,
+      base::BindRepeating(
+          &BackgroundSyncLauncher::GetSoonestWakeupDeltaForStoragePartition,
+          base::Unretained(this), sync_type, std::move(done_closure)));
 }
 
 void BackgroundSyncLauncher::GetSoonestWakeupDeltaForStoragePartition(
     blink::mojom::BackgroundSyncType sync_type,
+    base::OnceClosure done_closure,
     StoragePartition* storage_partition) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  BackgroundSyncContextImpl* sync_context =
-      static_cast<BackgroundSyncContextImpl*>(
-          storage_partition->GetBackgroundSyncContext());
+  BackgroundSyncContext* sync_context =
+      storage_partition->GetBackgroundSyncContext();
   DCHECK(sync_context);
 
-  base::TimeDelta wakeup_delta = sync_context->GetSoonestWakeupDelta(
-      sync_type, last_browser_wakeup_for_periodic_sync_);
-  if (wakeup_delta < GetGlobalSoonestWakeupDelta(sync_type))
-    SetGlobalSoonestWakeupDelta(sync_type, wakeup_delta);
+  sync_context->GetSoonestWakeupDelta(
+      sync_type, last_browser_wakeup_for_periodic_sync_,
+      base::BindOnce(
+          [](base::OnceClosure done_closure,
+             base::TimeDelta* soonest_wakeup_delta,
+             base::TimeDelta wakeup_delta) {
+            DCHECK_CURRENTLY_ON(BrowserThread::UI);
+            *soonest_wakeup_delta =
+                std::min(*soonest_wakeup_delta, wakeup_delta);
+            std::move(done_closure).Run();
+          },
+          std::move(done_closure), &GetGlobalSoonestWakeupDelta(sync_type)));
 }
 
 void BackgroundSyncLauncher::SendSoonestWakeupDelta(
@@ -141,6 +158,7 @@ void BackgroundSyncLauncher::SendSoonestWakeupDelta(
     base::OnceCallback<void(base::TimeDelta)> callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
+  std::move(callback).Run(GetGlobalSoonestWakeupDelta(sync_type));
 }
 
 }  // namespace content

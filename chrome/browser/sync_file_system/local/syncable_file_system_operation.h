@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,36 +11,24 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/types/pass_key.h"
 #include "storage/browser/file_system/file_system_operation.h"
 #include "storage/browser/file_system/file_system_url.h"
 
 namespace storage {
 class FileSystemContext;
 class FileSystemOperationContext;
-}  // namespace storage
+}
 
 namespace sync_file_system {
 
-class SyncFileSystemBackend;
 class SyncableFileOperationRunner;
 
 // A wrapper class of FileSystemOperation for syncable file system.
 class SyncableFileSystemOperation : public storage::FileSystemOperation {
  public:
-  // Exposed for std::make_unique. Instances should be obtained from the factory
-  // method SyncFileSystemBackend::CreateFileSystemOperation().
-  SyncableFileSystemOperation(
-      const storage::FileSystemURL& url,
-      storage::FileSystemContext* file_system_context,
-      std::unique_ptr<storage::FileSystemOperationContext> operation_context,
-      base::PassKey<SyncFileSystemBackend>);
-
-  SyncableFileSystemOperation(const SyncableFileSystemOperation&) = delete;
-  SyncableFileSystemOperation& operator=(const SyncableFileSystemOperation&) =
-      delete;
-
   ~SyncableFileSystemOperation() override;
 
   // storage::FileSystemOperation overrides.
@@ -53,17 +41,13 @@ class SyncableFileSystemOperation : public storage::FileSystemOperation {
                        StatusCallback callback) override;
   void Copy(const storage::FileSystemURL& src_url,
             const storage::FileSystemURL& dest_url,
-            CopyOrMoveOptionSet options,
+            CopyOrMoveOption option,
             ErrorBehavior error_behavior,
-            std::unique_ptr<storage::CopyOrMoveHookDelegate>
-                copy_or_move_hook_delegate,
+            const CopyProgressCallback& progress_callback,
             StatusCallback callback) override;
   void Move(const storage::FileSystemURL& src_url,
             const storage::FileSystemURL& dest_url,
-            CopyOrMoveOptionSet options,
-            ErrorBehavior error_behavior,
-            std::unique_ptr<storage::CopyOrMoveHookDelegate>
-                copy_or_move_hook_delegate,
+            CopyOrMoveOption option,
             StatusCallback callback) override;
   void DirectoryExists(const storage::FileSystemURL& url,
                        StatusCallback callback) override;
@@ -93,7 +77,7 @@ class SyncableFileSystemOperation : public storage::FileSystemOperation {
                  const base::Time& last_modified_time,
                  StatusCallback callback) override;
   void OpenFile(const storage::FileSystemURL& url,
-                uint32_t file_flags,
+                int file_flags,
                 OpenFileCallback callback) override;
   void Cancel(StatusCallback cancel_callback) override;
   void CreateSnapshotFile(const storage::FileSystemURL& path,
@@ -107,12 +91,12 @@ class SyncableFileSystemOperation : public storage::FileSystemOperation {
                        StatusCallback callback) override;
   void CopyFileLocal(const storage::FileSystemURL& src_url,
                      const storage::FileSystemURL& dest_url,
-                     CopyOrMoveOptionSet options,
+                     CopyOrMoveOption option,
                      const CopyFileProgressCallback& progress_callback,
                      StatusCallback callback) override;
   void MoveFileLocal(const storage::FileSystemURL& src_url,
                      const storage::FileSystemURL& dest_url,
-                     CopyOrMoveOptionSet options,
+                     CopyOrMoveOption option,
                      StatusCallback callback) override;
   base::File::Error SyncGetPlatformPath(const storage::FileSystemURL& url,
                                         base::FilePath* platform_path) override;
@@ -123,6 +107,11 @@ class SyncableFileSystemOperation : public storage::FileSystemOperation {
 
   // Only SyncFileSystemBackend can create a new operation directly.
   friend class SyncFileSystemBackend;
+
+  SyncableFileSystemOperation(
+      const storage::FileSystemURL& url,
+      storage::FileSystemContext* file_system_context,
+      std::unique_ptr<storage::FileSystemOperationContext> operation_context);
 
   void DidFinish(base::File::Error status);
   void DidWrite(const WriteCallback& callback,
@@ -141,6 +130,8 @@ class SyncableFileSystemOperation : public storage::FileSystemOperation {
   StatusCallback completion_callback_;
 
   base::WeakPtrFactory<SyncableFileSystemOperation> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SyncableFileSystemOperation);
 };
 
 }  // namespace sync_file_system

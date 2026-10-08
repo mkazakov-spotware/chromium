@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,16 +34,6 @@ LocalFrame* InspectedFrames::FrameWithSecurityOrigin(
   return nullptr;
 }
 
-LocalFrame* InspectedFrames::FrameWithStorageKey(const String& key_raw_string) {
-  for (LocalFrame* frame : *this) {
-    if (static_cast<StorageKey>(frame->DomWindow()->GetStorageKey())
-            .Serialize() == key_raw_string.Utf8()) {
-      return frame;
-    }
-  }
-  return nullptr;
-}
-
 InspectedFrames::Iterator::Iterator(LocalFrame* root, LocalFrame* current)
     : root_(root), current_(current) {}
 
@@ -70,11 +60,11 @@ InspectedFrames::Iterator InspectedFrames::Iterator::operator++(int) {
   return Iterator(root_, old);
 }
 
-bool InspectedFrames::Iterator::operator==(const Iterator& other) const {
+bool InspectedFrames::Iterator::operator==(const Iterator& other) {
   return current_ == other.current_ && root_ == other.root_;
 }
 
-bool InspectedFrames::Iterator::operator!=(const Iterator& other) const {
+bool InspectedFrames::Iterator::operator!=(const Iterator& other) {
   return !(*this == other);
 }
 

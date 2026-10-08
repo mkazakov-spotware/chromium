@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
+#include "base/macros.h"
 #include "components/autofill/core/browser/payments/credit_card_save_manager.h"
 
 // A protocol to be adopted by EarlGrey tests to get notified of actions that
@@ -37,12 +38,6 @@ class CreditCardSaveManagerTestObserverBridge
   explicit CreditCardSaveManagerTestObserverBridge(
       CreditCardSaveManager* credit_card_save_manager,
       id<CreditCardSaveManagerTestObserver> observer);
-
-  CreditCardSaveManagerTestObserverBridge(
-      const CreditCardSaveManagerTestObserverBridge&) = delete;
-  CreditCardSaveManagerTestObserverBridge& operator=(
-      const CreditCardSaveManagerTestObserverBridge&) = delete;
-
   ~CreditCardSaveManagerTestObserverBridge() override = default;
 
   // CreditCardSaveManager::ObserverForTest:
@@ -55,6 +50,8 @@ class CreditCardSaveManagerTestObserverBridge
 
  private:
   __weak id<CreditCardSaveManagerTestObserver> observer_ = nil;
+
+  DISALLOW_COPY_AND_ASSIGN(CreditCardSaveManagerTestObserverBridge);
 };
 
 }  // namespace autofill

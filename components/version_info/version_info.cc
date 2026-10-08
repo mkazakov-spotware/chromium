@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,28 +8,16 @@
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/sanitizer_buildflags.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/version.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/version_info/version_info_values.h"
 
 namespace version_info {
 
-const std::string& GetProductNameAndVersionForUserAgent() {
-  static const base::NoDestructor<std::string> product_and_version(
-      "Chrome/" + GetVersionNumber());
-  return *product_and_version;
-}
-
-const std::string GetProductNameAndVersionForReducedUserAgent(
-    const std::string& build_version) {
-  std::string product_and_version;
-  base::StrAppend(&product_and_version, {"Chrome/", GetMajorVersionNumber(),
-                                         ".0.", build_version, ".0"});
-  return product_and_version;
+std::string GetProductNameAndVersionForUserAgent() {
+  return "Chrome/" + GetVersionNumber();
 }
 
 std::string GetProductName() {
@@ -40,13 +28,9 @@ std::string GetVersionNumber() {
   return PRODUCT_VERSION;
 }
 
-int GetMajorVersionNumberAsInt() {
-  DCHECK(GetVersion().IsValid());
-  return GetVersion().components()[0];
-}
-
 std::string GetMajorVersionNumber() {
-  return base::NumberToString(GetMajorVersionNumberAsInt());
+  DCHECK(version_info::GetVersion().IsValid());
+  return base::NumberToString(version_info::GetVersion().components()[0]);
 }
 
 const base::Version& GetVersion() {
@@ -63,30 +47,28 @@ bool IsOfficialBuild() {
 }
 
 std::string GetOSType() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return "Windows";
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
   return "iOS";
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
   return "Mac OS X";
-#elif BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_CHROMEOS)
 # if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  return "ChromeOS";
+  return "Chrome OS";
 # else
-  return "ChromiumOS";
+  return "Chromium OS";
 # endif
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   return "Android";
-#elif BUILDFLAG(IS_LINUX)
+#elif defined(OS_LINUX)
   return "Linux";
-#elif BUILDFLAG(IS_FREEBSD)
+#elif defined(OS_FREEBSD)
   return "FreeBSD";
-#elif BUILDFLAG(IS_OPENBSD)
+#elif defined(OS_OPENBSD)
   return "OpenBSD";
-#elif BUILDFLAG(IS_SOLARIS)
+#elif defined(OS_SOLARIS)
   return "Solaris";
-#elif BUILDFLAG(IS_FUCHSIA)
-  return "Fuchsia";
 #else
   return "Unknown";
 #endif

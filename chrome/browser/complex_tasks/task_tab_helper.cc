@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,12 +16,12 @@
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/navigation_entry.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/android/chrome_jni_headers/TaskTabHelper_jni.h"
 #include "chrome/browser/android/tab_android.h"
 
 using base::android::JavaParamRef;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 namespace {
 bool DoesTransitionContinueTask(ui::PageTransition transition) {
@@ -40,7 +40,7 @@ namespace tasks {
 
 TaskTabHelper::TaskTabHelper(content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<TaskTabHelper>(*web_contents) {}
+      last_pruned_navigation_entry_index_(-1) {}
 
 TaskTabHelper::~TaskTabHelper() {}
 
@@ -132,11 +132,16 @@ void TaskTabHelper::UpdateAndRecordTaskIds(
         navigation_task_id->set_parent_id(prev_navigation_task_id->id());
         navigation_task_id->set_root_id(prev_navigation_task_id->root_id());
       }
-    } else if (GetParentTaskId() != -1) {
-      // If the previous_entry_index is -1, this is a new tab. Use the parent
-      // task-id for the case of cross tab navigations (such as window.open).
-      navigation_task_id->set_parent_id(GetParentTaskId());
-      navigation_task_id->set_root_id(GetParentRootTaskId());
+#if defined(OS_ANDROID)
+      else {
+        // Cross-tab navigation - only supported in Android. In this case
+        // the parent and parent root Task IDs are passed from the Java layer
+        if (this->GetParentTaskId() != -1) {
+          navigation_task_id->set_parent_id(this->GetParentTaskId());
+          navigation_task_id->set_root_id(this->GetParentRootTaskId());
+        }
+      }
+#endif  // defined(OS_ANDROID)
     }
   } else {
     navigation_task_id->set_root_id(navigation_task_id->id());
@@ -171,29 +176,19 @@ void TaskTabHelper::RecordHubAndSpokeNavigationUsage(int spokes) {
   base::UmaHistogramExactLinear(histogram_name, spokes, 100);
 }
 
+#if defined(OS_ANDROID)
 int64_t TaskTabHelper::GetParentTaskId() {
-#if BUILDFLAG(IS_ANDROID)
   TabAndroid* tab_android = TabAndroid::FromWebContents(web_contents());
-  return tab_android && Java_TaskTabHelper_getParentTaskId(
-                            base::android::AttachCurrentThread(),
-                            tab_android->GetJavaObject());
-#else
-  return -1;
-#endif
+  return Java_TaskTabHelper_getParentTaskId(
+      base::android::AttachCurrentThread(), tab_android->GetJavaObject());
 }
 
 int64_t TaskTabHelper::GetParentRootTaskId() {
-#if BUILDFLAG(IS_ANDROID)
   TabAndroid* tab_android = TabAndroid::FromWebContents(web_contents());
-  return tab_android && Java_TaskTabHelper_getParentRootTaskId(
-                            base::android::AttachCurrentThread(),
-                            tab_android->GetJavaObject());
-#else
-  return -1;
-#endif
+  return Java_TaskTabHelper_getParentRootTaskId(
+      base::android::AttachCurrentThread(), tab_android->GetJavaObject());
 }
 
-#if BUILDFLAG(IS_ANDROID)
 jlong JNI_TaskTabHelper_GetTaskId(JNIEnv* env,
                                   const JavaParamRef<jobject>& jweb_contents) {
   sessions::NavigationTaskId* navigation_task_id =
@@ -216,8 +211,8 @@ jlong JNI_TaskTabHelper_GetRootTaskId(
   }
   return -1;
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(TaskTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(TaskTabHelper)
 
 }  // namespace tasks

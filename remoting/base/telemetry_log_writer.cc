@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/adapters.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/logging.h"
 #include "net/http/http_status_code.h"
@@ -154,11 +153,11 @@ void TelemetryLogWriter::OnSendLogResult(
                  << "status: " << status.error_message();
 
     // Reverse iterating + push_front in order to restore the order of logs.
-    for (auto& entry : base::Reversed(sending_entries_)) {
-      if (entry.send_attempts() >= kMaxSendAttempts) {
+    for (auto i = sending_entries_.rbegin(); i < sending_entries_.rend(); i++) {
+      if (i->send_attempts() >= kMaxSendAttempts) {
         break;
       }
-      pending_entries_.push_front(std::move(entry));
+      pending_entries_.push_front(std::move(*i));
     }
   } else {
     backoff_.InformOfRequest(true);

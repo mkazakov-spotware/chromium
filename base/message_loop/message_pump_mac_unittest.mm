@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/cancelable_callback.h"
 #include "base/mac/scoped_cftyperef.h"
 #import "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "base/task/current_thread.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -37,7 +38,7 @@ namespace {
 // This function posts |task| and runs the given |mode|.
 void RunTaskInMode(CFRunLoopMode mode, OnceClosure task) {
   // Since this task is "ours" rather than a system task, allow nesting.
-  CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
+  CurrentThread::ScopedNestableTaskAllower allow;
   CancelableOnceClosure cancelable(std::move(task));
   ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, cancelable.callback());
   while (CFRunLoopRunInMode(mode, 0, true) == kCFRunLoopRunHandledSource)
@@ -123,7 +124,7 @@ TEST(MessagePumpMacTest, QuitWithModalWindow) {
       test::SingleThreadTaskEnvironment::MainThreadType::UI);
   NSWindow* window =
       [[[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
-                                   styleMask:NSWindowStyleMaskBorderless
+                                   styleMask:NSBorderlessWindowMask
                                      backing:NSBackingStoreBuffered
                                        defer:NO] autorelease];
 
@@ -132,7 +133,7 @@ TEST(MessagePumpMacTest, QuitWithModalWindow) {
   RunLoop run_loop;
   ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&] {
-        CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
+        CurrentThread::ScopedNestableTaskAllower allow;
         ScopedPumpMessagesInPrivateModes pump_private;
         [NSApp runModalForWindow:window];
       }));

@@ -1,10 +1,27 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview Add functionality related to getting search engine details.
+ * @fileoverview Add functionality related to getting image data.
  */
+goog.provide('__crWeb.searchEngine');
+
+/**
+ * Namespace for this file. It depends on |__gCrWeb| having already been
+ * injected.
+ */
+__gCrWeb.searchEngine = {};
+
+/**
+ * Store common namespace object in a global __gCrWeb object referenced by a
+ * string, so it does not get renamed by closure compiler during the
+ * minification.
+ */
+__gCrWeb['searchEngine'] = __gCrWeb.searchEngine;
+
+/* Beginning of anonymous object. */
+(function() {
 
 /**
  * Encodes |url| in "application/x-www-form-urlencoded" content type of <form>.
@@ -273,8 +290,8 @@ document.addEventListener('submit', function(event) {
   }
   let url = generateSearchableUrl_(event.target);
   if (url) {
-    __gCrWeb.common.sendWebKitMessage( 'SearchEngineMessage',
-        {'command': 'searchableUrl', 'url': url});
+    __gCrWeb.message.invokeOnHost(
+        {'command': 'searchEngine.searchableUrl', 'url': url});
   }
 }, false);
 
@@ -289,8 +306,8 @@ function findOpenSearchLink() {
   let links = document.getElementsByTagName('link');
   for (let i = 0; i < links.length; ++i) {
     if (links[i].type == 'application/opensearchdescription+xml') {
-      __gCrWeb.common.sendWebKitMessage( 'SearchEngineMessage', {
-        'command': 'openSearch',
+      __gCrWeb.message.invokeOnHost({
+        'command': 'searchEngine.openSearch',
         'pageUrl': document.URL,
         'osddUrl': links[i].href
       });
@@ -306,3 +323,5 @@ if (document.readyState == 'complete') {
 } else {
   window.addEventListener('load', findOpenSearchLink);
 }
+
+}());  // End of anonymous object

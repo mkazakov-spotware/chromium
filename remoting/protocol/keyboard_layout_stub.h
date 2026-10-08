@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,10 @@
 #ifndef REMOTING_PROTOCOL_KEYBOARD_LAYOUT_STUB_H_
 #define REMOTING_PROTOCOL_KEYBOARD_LAYOUT_STUB_H_
 
-namespace remoting::protocol {
+#include "base/macros.h"
+
+namespace remoting {
+namespace protocol {
 
 class KeyboardLayout;
 
@@ -24,6 +27,7 @@ class KeyboardLayoutStub {
   KeyboardLayoutStub() = default;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_KEYBOARD_LAYOUT_STUB_H_

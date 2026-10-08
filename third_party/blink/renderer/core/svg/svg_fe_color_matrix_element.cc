@@ -25,7 +25,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg/svg_enumeration_map.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -78,8 +78,7 @@ bool SVGFEColorMatrixElement::SetFilterEffectAttribute(
 }
 
 void SVGFEColorMatrixElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kTypeAttr ||
       attr_name == svg_names::kValuesAttr) {
     SVGElement::InvalidationGuard invalidation_guard(this);
@@ -93,7 +92,7 @@ void SVGFEColorMatrixElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFEColorMatrixElement::Build(SVGFilterBuilder* filter_builder,

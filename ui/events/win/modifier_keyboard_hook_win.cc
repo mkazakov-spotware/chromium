@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,14 @@
 #include <utility>
 
 #include "base/logging.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
 #include "ui/events/keycodes/keyboard_code_conversion.h"
 #include "ui/events/win/events_win_utils.h"
-#include "ui/events/win/keyboard_hook_monitor_impl.h"
 #include "ui/gfx/native_widget_types.h"
 
 namespace ui {
@@ -109,14 +109,9 @@ bool IsModifierKey(DWORD vk) {
 
 class ModifierKeyboardHookWinImpl : public KeyboardHookWinBase {
  public:
-  ModifierKeyboardHookWinImpl(absl::optional<base::flat_set<DomCode>> dom_codes,
+  ModifierKeyboardHookWinImpl(base::Optional<base::flat_set<DomCode>> dom_codes,
                               KeyEventCallback callback,
                               bool enable_hook_registration);
-
-  ModifierKeyboardHookWinImpl(const ModifierKeyboardHookWinImpl&) = delete;
-  ModifierKeyboardHookWinImpl& operator=(const ModifierKeyboardHookWinImpl&) =
-      delete;
-
   ~ModifierKeyboardHookWinImpl() override;
 
   // KeyboardHookWinBase implementation.
@@ -136,8 +131,6 @@ class ModifierKeyboardHookWinImpl : public KeyboardHookWinBase {
 
   void ClearModifierStates();
 
-  KeyboardHookMonitorImpl* GetKeyboardHookMonitor();
-
   static ModifierKeyboardHookWinImpl* instance_;
 
   // Tracks the last non-located key down seen in order to determine if the
@@ -149,13 +142,15 @@ class ModifierKeyboardHookWinImpl : public KeyboardHookWinBase {
   // synthesized left control key event followed by the right alt key event.
   // This sequence occurs on the initial keypress and every repeat.
   int altgr_sequence_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(ModifierKeyboardHookWinImpl);
 };
 
 // static
 ModifierKeyboardHookWinImpl* ModifierKeyboardHookWinImpl::instance_ = nullptr;
 
 ModifierKeyboardHookWinImpl::ModifierKeyboardHookWinImpl(
-    absl::optional<base::flat_set<DomCode>> dom_codes,
+    base::Optional<base::flat_set<DomCode>> dom_codes,
     KeyEventCallback callback,
     bool enable_hook_registration)
     : KeyboardHookWinBase(std::move(dom_codes),
@@ -170,16 +165,12 @@ ModifierKeyboardHookWinImpl::~ModifierKeyboardHookWinImpl() {
 
   DCHECK_EQ(instance_, this);
   instance_ = nullptr;
-
-  KeyboardHookMonitorImpl::GetInstance()->NotifyHookUnregistered();
 }
 
 bool ModifierKeyboardHookWinImpl::Register() {
   // Only one instance of this class can be registered at a time.
   DCHECK(!instance_);
   instance_ = this;
-
-  KeyboardHookMonitorImpl::GetInstance()->NotifyHookRegistered();
 
   return KeyboardHookWinBase::Register(reinterpret_cast<HOOKPROC>(
       &ModifierKeyboardHookWinImpl::ProcessKeyEvent));
@@ -252,8 +243,8 @@ bool ModifierKeyboardHookWinImpl::ProcessKeyEventMessage(WPARAM w_param,
           : LocatedToNonLocatedKeyboardCode(static_cast<KeyboardCode>(vk));
 
   bool is_repeat = false;
-  CHROME_MSG msg = {nullptr, static_cast<UINT>(w_param), non_located_vk,
-                    GetLParamFromScanCode(scan_code), time_stamp};
+  MSG msg = {nullptr, w_param, non_located_vk, GetLParamFromScanCode(scan_code),
+             time_stamp};
   EventType event_type = EventTypeFromMSG(msg);
   if (event_type == ET_KEY_PRESSED) {
     UpdateModifierState(vk, /*key_down=*/true);
@@ -315,7 +306,7 @@ LRESULT CALLBACK ModifierKeyboardHookWinImpl::ProcessKeyEvent(int code,
 
 // static
 std::unique_ptr<KeyboardHook> KeyboardHook::CreateModifierKeyboardHook(
-    absl::optional<base::flat_set<DomCode>> dom_codes,
+    base::Optional<base::flat_set<DomCode>> dom_codes,
     gfx::AcceleratedWidget accelerated_widget,
     KeyEventCallback callback) {
   std::unique_ptr<ModifierKeyboardHookWinImpl> keyboard_hook =
@@ -329,10 +320,9 @@ std::unique_ptr<KeyboardHook> KeyboardHook::CreateModifierKeyboardHook(
   return keyboard_hook;
 }
 
-// static
 std::unique_ptr<KeyboardHookWinBase>
 KeyboardHookWinBase::CreateModifierKeyboardHookForTesting(
-    absl::optional<base::flat_set<DomCode>> dom_codes,
+    base::Optional<base::flat_set<DomCode>> dom_codes,
     KeyEventCallback callback) {
   return std::make_unique<ModifierKeyboardHookWinImpl>(
       std::move(dom_codes), std::move(callback),

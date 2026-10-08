@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,11 +14,12 @@ source_set("metrics_private") {
     "metrics_private_delegate.h",
   ]
 
-  deps = [
-    "//components/variations",
-    "//content/public/browser",
-    "//extensions/common/api",
+  configs += [
+    # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+    "//build/config/compiler:no_size_t_to_int_warning",
   ]
+
+  deps = [ "//extensions/common/api" ]
 
   public_deps = [ "//extensions/browser:browser_sources" ]
 }

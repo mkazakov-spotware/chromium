@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,15 @@
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/test/scoped_field_trial_list_resetter.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/memory/madv_free_discardable_memory_posix.h"
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 namespace base {
 
 class DiscardableMemoryBackingFieldTrialTest : public ::testing::Test {
@@ -73,7 +74,7 @@ TEST_F(DiscardableMemoryBackingFieldTrialTest,
   EXPECT_EQ(backing, DiscardableMemoryBacking::kMadvFree);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 TEST_F(DiscardableMemoryBackingFieldTrialTest, AshmemBackingMatchesTrialGroup) {
   std::unique_ptr<test::ScopedFeatureList> scoped_feature =
       GetScopedFeatureListForDiscardableMemoryTrialGroup(
@@ -83,9 +84,8 @@ TEST_F(DiscardableMemoryBackingFieldTrialTest, AshmemBackingMatchesTrialGroup) {
   DiscardableMemoryBacking backing = GetDiscardableMemoryBacking();
   EXPECT_EQ(backing, DiscardableMemoryBacking::kSharedMemory);
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 }  // namespace base
 
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) ||
-        // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)

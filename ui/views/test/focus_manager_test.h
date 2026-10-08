@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/views/focus/widget_focus_manager.h"
 #include "ui/views/test/views_test_base.h"
 #include "ui/views/widget/widget_delegate.h"
@@ -24,10 +24,6 @@ class FocusManagerTest : public ViewsTestBase, public WidgetDelegate {
   using FocusChangeReason = FocusManager::FocusChangeReason;
 
   FocusManagerTest();
-
-  FocusManagerTest(const FocusManagerTest&) = delete;
-  FocusManagerTest& operator=(const FocusManagerTest&) = delete;
-
   ~FocusManagerTest() override;
 
   // Convenience to obtain the focus manager for the test's hosting widget.
@@ -55,10 +51,12 @@ class FocusManagerTest : public ViewsTestBase, public WidgetDelegate {
   void SetAccessiblePanes(const std::vector<View*>& panes);
 
  private:
-  raw_ptr<View> contents_view_;
-  raw_ptr<FocusChangeListener> focus_change_listener_ = nullptr;
-  raw_ptr<WidgetFocusChangeListener> widget_focus_change_listener_ = nullptr;
+  View* contents_view_;
+  FocusChangeListener* focus_change_listener_ = nullptr;
+  WidgetFocusChangeListener* widget_focus_change_listener_ = nullptr;
   std::vector<View*> accessible_panes_;
+
+  DISALLOW_COPY_AND_ASSIGN(FocusManagerTest);
 };
 
 using ViewPair = std::pair<View*, View*>;
@@ -67,10 +65,6 @@ using ViewPair = std::pair<View*, View*>;
 class TestFocusChangeListener : public FocusChangeListener {
  public:
   TestFocusChangeListener();
-
-  TestFocusChangeListener(const TestFocusChangeListener&) = delete;
-  TestFocusChangeListener& operator=(const TestFocusChangeListener&) = delete;
-
   ~TestFocusChangeListener() override;
 
   const std::vector<ViewPair>& focus_changes() const { return focus_changes_; }
@@ -83,17 +77,14 @@ class TestFocusChangeListener : public FocusChangeListener {
  private:
   // A vector of which views lost/gained focus.
   std::vector<ViewPair> focus_changes_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestFocusChangeListener);
 };
 
 // Use to record widget focus change notifications.
 class TestWidgetFocusChangeListener : public WidgetFocusChangeListener {
  public:
   TestWidgetFocusChangeListener();
-
-  TestWidgetFocusChangeListener(const TestWidgetFocusChangeListener&) = delete;
-  TestWidgetFocusChangeListener& operator=(
-      const TestWidgetFocusChangeListener&) = delete;
-
   ~TestWidgetFocusChangeListener() override;
 
   const std::vector<gfx::NativeView>& focus_changes() const {
@@ -108,6 +99,8 @@ class TestWidgetFocusChangeListener : public WidgetFocusChangeListener {
   // Parameter received via OnNativeFocusChanged in oldest-to-newest-received
   // order.
   std::vector<gfx::NativeView> focus_changes_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWidgetFocusChangeListener);
 };
 
 }  // namespace views

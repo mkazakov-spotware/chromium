@@ -1,13 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/frame/navigator_language.h"
 
-#include "services/network/public/cpp/features.h"
-#include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/platform/language.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -19,14 +18,14 @@ Vector<String> ParseAndSanitize(const String& accept_languages) {
   // Sanitizing tokens. We could do that more extensively but we should assume
   // that the accept languages are already sane and support BCP47. It is
   // likely a waste of time to make sure the tokens matches that spec here.
-  for (wtf_size_t i = 0; i < languages.size(); ++i) {
+  for (size_t i = 0; i < languages.size(); ++i) {
     String& token = languages[i];
     token = token.StripWhiteSpace();
     if (token.length() >= 3 && token[2] == '_')
       token.replace(2, 1, "-");
   }
 
-  if (languages.empty())
+  if (languages.IsEmpty())
     languages.push_back(DefaultLanguage());
 
   return languages;
@@ -36,12 +35,35 @@ NavigatorLanguage::NavigatorLanguage(ExecutionContext* execution_context)
     : execution_context_(execution_context) {}
 
 AtomicString NavigatorLanguage::language() {
-  return AtomicString(languages().front());
+  if (RuntimeEnabledFeatures::NavigatorLanguageInInsecureContextEnabled() ||
+      (execution_context_ && execution_context_->IsSecureContext())) {
+    return AtomicString(languages().front());
+  }
+  return AtomicString();
 }
 
 const Vector<String>& NavigatorLanguage::languages() {
+  if (RuntimeEnabledFeatures::NavigatorLanguageInInsecureContextEnabled() ||
+      (execution_context_ && execution_context_->IsSecureContext())) {
+    EnsureUpdatedLanguage();
+    return languages_;
+  }
+  DEFINE_STATIC_LOCAL(const Vector<String>, empty_vector, {});
+  return empty_vector;
+}
+
+AtomicString NavigatorLanguage::SerializeLanguagesForClientHintHeader() {
   EnsureUpdatedLanguage();
-  return languages_;
+
+  StringBuilder builder;
+  for (size_t i = 0; i < languages_.size(); i++) {
+    if (i)
+      builder.Append(", ");
+    builder.Append('"');
+    builder.Append(languages_[i]);
+    builder.Append('"');
+  }
+  return builder.ToAtomicString();
 }
 
 bool NavigatorLanguage::IsLanguagesDirty() const {
@@ -67,12 +89,6 @@ void NavigatorLanguage::EnsureUpdatedLanguage() {
       languages_ = ParseAndSanitize(accept_languages_override);
     } else {
       languages_ = ParseAndSanitize(GetAcceptLanguages());
-      if (RuntimeEnabledFeatures::ReduceAcceptLanguageEnabled(
-              execution_context_)) {
-        languages_ = Vector<String>({languages_.front()});
-        UseCounter::Count(execution_context_,
-                          WebFeature::kReduceAcceptLanguage);
-      }
     }
 
     languages_dirty_ = false;

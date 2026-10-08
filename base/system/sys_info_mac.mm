@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,28 +13,23 @@
 #include <sys/types.h>
 
 #include "base/check_op.h"
-#include "base/feature_list.h"
 #include "base/mac/mac_util.h"
 #include "base/mac/scoped_mach_port.h"
 #include "base/notreached.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/process/process_metrics.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/system/sys_info_internal.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 
 namespace {
 
-bool g_is_cpu_security_mitigation_enabled = false;
-
 // Queries sysctlbyname() for the given key and returns the value from the
 // system or the empty string on failure.
 std::string GetSysctlValue(const char* key_name) {
   char value[256];
-  size_t len = std::size(value);
+  size_t len = base::size(value);
   if (sysctlbyname(key_name, &value, &len, nullptr, 0) == 0) {
     DCHECK_GE(len, 1u);
     DCHECK_EQ('\0', value[len - 1]);
@@ -44,31 +39,6 @@ std::string GetSysctlValue(const char* key_name) {
 }
 
 }  // namespace
-
-namespace internal {
-
-absl::optional<int> NumberOfPhysicalProcessors() {
-  int value;
-  size_t length = sizeof(value);
-
-  if (sysctlbyname("hw.physicalcpu_max", &value, &length, nullptr, 0) != 0)
-    return absl::nullopt;
-  return value;
-}
-
-absl::optional<int> NumberOfProcessorsWhenCpuSecurityMitigationEnabled() {
-  if (!g_is_cpu_security_mitigation_enabled ||
-      !FeatureList::IsEnabled(kNumberOfCoresWithCpuSecurityMitigation)) {
-    return absl::nullopt;
-  }
-  return NumberOfPhysicalProcessors();
-}
-
-}  // namespace internal
-
-BASE_FEATURE(kNumberOfCoresWithCpuSecurityMitigation,
-             "NumberOfCoresWithCpuSecurityMitigation",
-             FEATURE_DISABLED_BY_DEFAULT);
 
 // static
 std::string SysInfo::OperatingSystemName() {
@@ -88,24 +58,13 @@ void SysInfo::OperatingSystemVersionNumbers(int32_t* major_version,
                                             int32_t* bugfix_version) {
   NSOperatingSystemVersion version =
       [[NSProcessInfo processInfo] operatingSystemVersion];
-  *major_version = saturated_cast<int32_t>(version.majorVersion);
-  *minor_version = saturated_cast<int32_t>(version.minorVersion);
-  *bugfix_version = saturated_cast<int32_t>(version.patchVersion);
+  *major_version = version.majorVersion;
+  *minor_version = version.minorVersion;
+  *bugfix_version = version.patchVersion;
 }
 
 // static
-std::string SysInfo::OperatingSystemArchitecture() {
-  switch (mac::GetCPUType()) {
-    case mac::CPUType::kIntel:
-      return "x86_64";
-    case mac::CPUType::kTranslatedIntel:
-    case mac::CPUType::kArm:
-      return "arm64";
-  }
-}
-
-// static
-uint64_t SysInfo::AmountOfPhysicalMemoryImpl() {
+int64_t SysInfo::AmountOfPhysicalMemoryImpl() {
   struct host_basic_info hostinfo;
   mach_msg_type_number_t count = HOST_BASIC_INFO_COUNT;
   base::mac::ScopedMachSendRight host(mach_host_self());
@@ -116,17 +75,17 @@ uint64_t SysInfo::AmountOfPhysicalMemoryImpl() {
     return 0;
   }
   DCHECK_EQ(HOST_BASIC_INFO_COUNT, count);
-  return hostinfo.max_mem;
+  return static_cast<int64_t>(hostinfo.max_mem);
 }
 
 // static
-uint64_t SysInfo::AmountOfAvailablePhysicalMemoryImpl() {
+int64_t SysInfo::AmountOfAvailablePhysicalMemoryImpl() {
   SystemMemoryInfoKB info;
   if (!GetSystemMemoryInfo(&info))
     return 0;
   // We should add inactive file-backed memory also but there is no such
   // information from Mac OS unfortunately.
-  return checked_cast<uint64_t>(info.free + info.speculative) * 1024;
+  return static_cast<int64_t>(info.free + info.speculative) * 1024;
 }
 
 // static
@@ -147,11 +106,6 @@ SysInfo::HardwareInfo SysInfo::GetHardwareInfoSync() {
   DCHECK(IsStringUTF8(info.manufacturer));
   DCHECK(IsStringUTF8(info.model));
   return info;
-}
-
-// static
-void SysInfo::SetIsCpuSecurityMitigationsEnabled(bool is_enabled) {
-  g_is_cpu_security_mitigation_enabled = is_enabled;
 }
 
 }  // namespace base

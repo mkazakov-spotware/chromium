@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,31 +9,13 @@
 #include "base/base64.h"
 #include "base/mac/mac_logging.h"
 #include "base/mac/scoped_cftyperef.h"
-#include "base/no_destructor.h"
 #include "base/rand_util.h"
 #include "build/branding_buildflags.h"
 #include "crypto/apple_keychain.h"
 
 using crypto::AppleKeychain;
 
-#if defined(ALLOW_RUNTIME_CONFIGURABLE_KEY_STORAGE)
-using KeychainNameContainerType = base::NoDestructor<std::string>;
-#else
-using KeychainNameContainerType = const base::NoDestructor<std::string>;
-#endif
-
 namespace {
-
-// These two strings ARE indeed user facing.  But they are used to access
-// the encryption keyword.  So as to not lose encrypted data when system
-// locale changes we DO NOT LOCALIZE.
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-const char kDefaultServiceName[] = "Chrome Safe Storage";
-const char kDefaultAccountName[] = "Chrome";
-#else
-const char kDefaultServiceName[] = "Chromium Safe Storage";
-const char kDefaultAccountName[] = "Chromium";
-#endif
 
 // Generates a random password and adds it to the Keychain.  The added password
 // is returned from the function.  If an error occurs, an empty password is
@@ -62,17 +44,16 @@ std::string AddRandomPasswordToKeychain(const AppleKeychain& keychain,
 
 }  // namespace
 
-// static
-KeychainPassword::KeychainNameType& KeychainPassword::GetServiceName() {
-  static KeychainNameContainerType service_name(kDefaultServiceName);
-  return *service_name;
-}
-
-// static
-KeychainPassword::KeychainNameType& KeychainPassword::GetAccountName() {
-  static KeychainNameContainerType account_name(kDefaultAccountName);
-  return *account_name;
-}
+// These two strings ARE indeed user facing.  But they are used to access
+// the encryption keyword.  So as to not lose encrypted data when system
+// locale changes we DO NOT LOCALIZE.
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+const char KeychainPassword::service_name[] = "Chrome Safe Storage";
+const char KeychainPassword::account_name[] = "Chrome";
+#else
+const char KeychainPassword::service_name[] = "Chromium Safe Storage";
+const char KeychainPassword::account_name[] = "Chromium";
+#endif
 
 KeychainPassword::KeychainPassword(const AppleKeychain& keychain)
     : keychain_(keychain) {}
@@ -83,9 +64,8 @@ std::string KeychainPassword::GetPassword() const {
   UInt32 password_length = 0;
   void* password_data = nullptr;
   OSStatus error = keychain_.FindGenericPassword(
-      GetServiceName().size(), GetServiceName().c_str(),
-      GetAccountName().size(), GetAccountName().c_str(), &password_length,
-      &password_data, nullptr);
+      strlen(service_name), service_name, strlen(account_name), account_name,
+      &password_length, &password_data, nullptr);
 
   if (error == noErr) {
     std::string password =
@@ -95,8 +75,8 @@ std::string KeychainPassword::GetPassword() const {
   }
 
   if (error == errSecItemNotFound) {
-    std::string password = AddRandomPasswordToKeychain(
-        keychain_, GetServiceName(), GetAccountName());
+    std::string password =
+        AddRandomPasswordToKeychain(keychain_, service_name, account_name);
     return password;
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,16 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/metrics/field_trial_params.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/omnibox/browser/autocomplete_match.h"
-#import "components/omnibox/browser/autocomplete_provider.h"
-#import "components/omnibox/browser/suggestion_answer.h"
-#import "ios/chrome/browser/ui/omnibox/omnibox_ui_features.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/omnibox/browser/autocomplete_match.h"
+#include "components/omnibox/browser/suggestion_answer.h"
 #import "ios/chrome/browser/ui/omnibox/omnibox_util.h"
 #import "ios/chrome/browser/ui/omnibox/popup/omnibox_icon_formatter.h"
-#import "ios/chrome/browser/ui/omnibox/popup/popup_swift.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
+#import "ios/chrome/browser/ui/util/ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
+#import "ios/chrome/common/ui/colors/dynamic_color_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -24,17 +23,20 @@
 #endif
 
 namespace {
-
-/// The color of the main text of a suggest cell.
-UIColor* SuggestionTextColor() {
-  return [UIColor colorNamed:kTextPrimaryColor];
+// The color of the main text of a suggest cell.
+UIColor* SuggestionTextColor(bool incognito) {
+  return color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextPrimaryColor], incognito,
+      [UIColor colorNamed:kTextPrimaryDarkColor]);
 }
-/// The color of the detail text of a suggest cell.
-UIColor* SuggestionDetailTextColor() {
-  return [UIColor colorNamed:kTextSecondaryColor];
+// The color of the detail text of a suggest cell.
+UIColor* SuggestionDetailTextColor(bool incognito) {
+  return color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextSecondaryColor], incognito,
+      [UIColor colorNamed:kTextSecondaryDarkColor]);
 }
-/// The color of the text in the portion of a search suggestion that matches the
-/// omnibox input text.
+// The color of the text in the portion of a search suggestion that matches the
+// omnibox input text.
 UIColor* DimColor() {
   return [UIColor colorWithWhite:(161 / 255.0) alpha:1.0];
 }
@@ -47,7 +49,6 @@ UIColor* DimColorIncognito() {
 @implementation AutocompleteMatchFormatter {
   AutocompleteMatch _match;
 }
-@synthesize suggestionSectionId;
 
 - (instancetype)initWithMatch:(const AutocompleteMatch&)match {
   self = [super init];
@@ -64,14 +65,8 @@ UIColor* DimColorIncognito() {
 #pragma mark - NSObject
 
 - (NSString*)description {
-  NSString* description = [NSString
-      stringWithFormat:@"<%@ %p> %@ (%@)", self.class, self,
-                       self.text.string, self.detailText.string];
-  if (self.pedalData) {
-    description =
-        [description stringByAppendingFormat:@" P:[%@]", self.pedalData.title];
-  }
-  return description;
+  return [NSString
+      stringWithFormat:@"%@ (%@)", self.text.string, self.detailText.string];
 }
 
 #pragma mark AutocompleteSuggestion
@@ -82,6 +77,13 @@ UIColor* DimColorIncognito() {
 
 - (BOOL)hasAnswer {
   return _match.answer.has_value();
+}
+
+- (BOOL)hasImage {
+  BOOL hasAnswerImage =
+      self.hasAnswer && _match.answer->second_line().image_url().is_valid();
+  BOOL hasRichEntityImage = !_match.image_url.is_empty();
+  return hasAnswerImage || hasRichEntityImage;
 }
 
 - (BOOL)isURL {
@@ -95,7 +97,7 @@ UIColor* DimColorIncognito() {
           attributedStringWithString:base::SysUTF16ToNSString(_match.contents)
                      classifications:&_match.contents_class
                            smallFont:NO
-                               color:SuggestionDetailTextColor()
+                               color:SuggestionDetailTextColor(self.incognito)
                             dimColor:DimColor()];
       return [self addExtraTextFromAnswerLine:_match.answer->first_line()
                            toAttributedString:detailBaseText
@@ -105,9 +107,9 @@ UIColor* DimColorIncognito() {
                            useDeemphasizedStyling:YES];
     }
   } else {
-    // The detail text should be the URL (`_match.contents`) for non-search
-    // suggestions and the entity type (`_match.description`) for search entity
-    // suggestions. For all other search suggestions, `_match.description` is
+    // The detail text should be the URL (|_match.contents|) for non-search
+    // suggestions and the entity type (|_match.description|) for search entity
+    // suggestions. For all other search suggestions, |_match.description| is
     // the name of the currently selected search engine, which for mobile we
     // suppress.
     NSString* detailText = nil;
@@ -121,11 +123,10 @@ UIColor* DimColorIncognito() {
     // suggestions. For non-search suggestions (URLs), a highlight color is used
     // instead.
     UIColor* suggestionDetailTextColor = nil;
-    if (_match.type != AutocompleteMatchType::SEARCH_SUGGEST_ENTITY ||
-        IsOmniboxActionsVisualTreatment2()) {
-      suggestionDetailTextColor = SuggestionDetailTextColor();
+    if (_match.type == AutocompleteMatchType::SEARCH_SUGGEST_ENTITY) {
+      suggestionDetailTextColor = SuggestionTextColor(self.incognito);
     } else {
-      suggestionDetailTextColor = SuggestionTextColor();
+      suggestionDetailTextColor = SuggestionDetailTextColor(self.incognito);
     }
     DCHECK(suggestionDetailTextColor);
     return [self attributedStringWithString:detailText
@@ -140,6 +141,7 @@ UIColor* DimColorIncognito() {
   OmniboxIconFormatter* icon =
       [[OmniboxIconFormatter alloc] initWithMatch:_match];
   icon.defaultSearchEngineIsGoogle = self.defaultSearchEngineIsGoogle;
+  icon.incognito = self.incognito;
   return icon;
 }
 
@@ -154,22 +156,13 @@ UIColor* DimColorIncognito() {
     return 1;
 }
 
-- (NSNumber*)suggestionGroupId {
-  if (!_match.suggestion_group_id.has_value()) {
-    return nil;
-  }
-
-  return [NSNumber
-      numberWithInt:static_cast<int>(_match.suggestion_group_id.value())];
-}
-
 - (NSAttributedString*)text {
   if (self.hasAnswer) {
     if (!_match.answer->IsExceptedFromLineReversal()) {
       return [self attributedStringWithAnswerLine:_match.answer->second_line()
                            useDeemphasizedStyling:NO];
     } else {
-      UIColor* suggestionTextColor = SuggestionTextColor();
+      UIColor* suggestionTextColor = SuggestionTextColor(self.incognito);
       UIColor* dimColor = self.incognito ? DimColorIncognito() : DimColor();
       NSAttributedString* attributedBaseText = [self
           attributedStringWithString:base::SysUTF16ToNSString(_match.contents)
@@ -182,9 +175,9 @@ UIColor* DimColorIncognito() {
                        useDeemphasizedStyling:NO];
     }
   } else {
-    // The text should be search term (`_match.contents`) for searches,
-    // otherwise page title (`_match.description`).
-    std::u16string textString =
+    // The text should be search term (|_match.contents|) for searches,
+    // otherwise page title (|_match.description|).
+    base::string16 textString =
         !self.isURL ? _match.contents : _match.description;
     NSString* text = base::SysUTF16ToNSString(textString);
 
@@ -195,7 +188,7 @@ UIColor* DimColorIncognito() {
 
     const ACMatchClassifications* textClassifications =
         !self.isURL ? &_match.contents_class : &_match.description_class;
-    UIColor* suggestionTextColor = SuggestionTextColor();
+    UIColor* suggestionTextColor = SuggestionTextColor(self.incognito);
     UIColor* dimColor = self.incognito ? DimColorIncognito() : DimColor();
 
     return [self attributedStringWithString:text
@@ -206,81 +199,56 @@ UIColor* DimColorIncognito() {
   }
 }
 
-- (NSAttributedString*)omniboxPreviewText {
-  return [[NSAttributedString alloc]
-      initWithString:base::SysUTF16ToNSString(_match.fill_into_edit)];
-}
-
-/// The primary purpose of this list is to omit the "what you typed" types,
-/// since those are simply the input in the omnibox and copying the text back to
-/// the omnibox would be a noop. However, this list also omits other types that
-/// are deprecated or not launched on iOS.
+// The primary purpose of this list is to omit the "what you typed" types, since
+// those are simply the input in the omnibox and copying the text back to the
+// omnibox would be a noop. However, this list also omits other types that are
+// deprecated or not launched on iOS.
 - (BOOL)isAppendable {
   return _match.type == AutocompleteMatchType::BOOKMARK_TITLE ||
          _match.type == AutocompleteMatchType::CALCULATOR ||
          _match.type == AutocompleteMatchType::HISTORY_BODY ||
-         _match.type == AutocompleteMatchType::HISTORY_CLUSTER ||
          _match.type == AutocompleteMatchType::HISTORY_KEYWORD ||
          _match.type == AutocompleteMatchType::HISTORY_TITLE ||
          _match.type == AutocompleteMatchType::HISTORY_URL ||
          _match.type == AutocompleteMatchType::NAVSUGGEST ||
          _match.type == AutocompleteMatchType::NAVSUGGEST_PERSONALIZED ||
-         _match.type == AutocompleteMatchType::PHYSICAL_WEB_DEPRECATED ||
-         _match.type == AutocompleteMatchType::SEARCH_HISTORY ||
+         _match.type == AutocompleteMatchType::SEARCH_SUGGEST_PERSONALIZED ||
+         _match.type == AutocompleteMatchType::SEARCH_SUGGEST_TAIL ||
          _match.type == AutocompleteMatchType::SEARCH_SUGGEST ||
          _match.type == AutocompleteMatchType::SEARCH_SUGGEST_ENTITY ||
          _match.type == AutocompleteMatchType::SEARCH_SUGGEST_PERSONALIZED ||
          _match.type == AutocompleteMatchType::SEARCH_SUGGEST_TAIL ||
-         _match.type == AutocompleteMatchType::STARTER_PACK;
+         _match.type == AutocompleteMatchType::PHYSICAL_WEB_DEPRECATED;
+}
+
+- (GURL)imageURL {
+  if (self.hasAnswer && _match.answer->second_line().image_url().is_valid()) {
+    return _match.answer->second_line().image_url();
+  } else {
+    return GURL(_match.image_url);
+  }
+}
+
+- (GURL)faviconPageURL {
+  return _match.destination_url;
+}
+
+- (UIImage*)suggestionTypeIcon {
+  DCHECK(
+      !(self.isIncognito && _match.type == AutocompleteMatchType::CALCULATOR))
+      << "Calculator answers are never shown in incognito mode because input "
+         "is never sent to the search provider.";
+  return GetOmniboxSuggestionIconForAutocompleteMatchType(_match.type,
+                                                          self.isStarred);
 }
 
 - (BOOL)isTabMatch {
-  return _match.has_tab_match.value_or(false);
-}
-
-- (BOOL)isClipboardMatch {
-  return _match.type == AutocompleteMatchType::CLIPBOARD_URL ||
-         _match.type == AutocompleteMatchType::CLIPBOARD_TEXT ||
-         _match.type == AutocompleteMatchType::CLIPBOARD_IMAGE;
-}
-
-- (id<OmniboxPedal>)pedal {
-  return self.pedalData;
-}
-
-- (UIImage*)matchTypeIcon {
-  return GetOmniboxSuggestionIconForAutocompleteMatchType(
-      _match.type, /* is_starred */ false);
-}
-
-- (BOOL)isMatchTypeSearch {
-  return AutocompleteMatch::IsSearchType(_match.type);
-}
-
-- (CrURL*)destinationUrl {
-  return [[CrURL alloc] initWithGURL:_match.destination_url];
-}
-
-- (const AutocompleteMatch&)autocompleteMatch {
-  return _match;
-}
-
-#pragma mark tail suggest
-
-- (BOOL)isTailSuggestion {
-  return _match.type == AutocompleteMatchType::SEARCH_SUGGEST_TAIL;
-}
-
-- (NSString*)commonPrefix {
-  if (!self.isTailSuggestion) {
-    return @"";
-  }
-  return base::SysUTF16ToNSString(_match.tail_suggest_common_prefix);
+  return _match.has_tab_match;
 }
 
 #pragma mark helpers
 
-/// Create a string to display for an entire answer line.
+// Create a string to display for an entire answer line.
 - (NSAttributedString*)
     attributedStringWithAnswerLine:(const SuggestionAnswer::ImageLine&)line
             useDeemphasizedStyling:(BOOL)useDeemphasizedStyling {
@@ -298,10 +266,10 @@ UIColor* DimColorIncognito() {
                    useDeemphasizedStyling:useDeemphasizedStyling];
 }
 
-/// Adds the `additional_text` and `status_text` from `line` to the given
-/// attributed string. This is necessary because answers get their main text
-/// from the match contents instead of the ImageLine's text_fields. This is
-/// because those fields contain server-provided formatting, which aren't used.
+// Adds the |additional_text| and |status_text| from |line| to the given
+// attributed string. This is necessary because answers get their main text
+// from the match contents instead of the ImageLine's text_fields. This is
+// because those fields contain server-provided formatting, which aren't used.
 - (NSAttributedString*)
     addExtraTextFromAnswerLine:(const SuggestionAnswer::ImageLine&)line
             toAttributedString:(NSAttributedString*)attributedString
@@ -328,15 +296,15 @@ UIColor* DimColorIncognito() {
   return result;
 }
 
-/// Create a string to display for a textual part ("textfield") of a suggestion
-/// answer.
+// Create a string to display for a textual part ("textfield") of a suggestion
+// answer.
 - (NSAttributedString*)
     attributedStringForTextfield:(const SuggestionAnswer::TextField*)field
           useDeemphasizedStyling:(BOOL)useDeemphasizedStyling {
-  const std::u16string& string = field->text();
+  const base::string16& string = field->text();
 
   NSString* unescapedString =
-      base::SysUTF16ToNSString(base::UnescapeForHTML(string));
+      base::SysUTF16ToNSString(net::UnescapeForHTML(string));
 
   NSDictionary* attributes =
       [self formattingAttributesForSuggestionStyle:field->style()
@@ -346,10 +314,10 @@ UIColor* DimColorIncognito() {
                                          attributes:attributes];
 }
 
-/// Return correct formatting attributes for the given style.
-/// `useDeemphasizedStyling` is necessary because some styles (e.g. SUPERIOR)
-/// should take their color from the surrounding line; they don't have a fixed
-/// color.
+// Return correct formatting attributes for the given style.
+// |useDeemphasizedStyling| is necessary because some styles (e.g. SUPERIOR)
+// should take their color from the surrounding line; they don't have a fixed
+// color.
 - (NSDictionary<NSAttributedStringKey, id>*)
     formattingAttributesForSuggestionStyle:(SuggestionAnswer::TextStyle)style
                     useDeemphasizedStyling:(BOOL)useDeemphasizedStyling {
@@ -361,8 +329,9 @@ UIColor* DimColorIncognito() {
                     UIFontDescriptorTraitTightLeading]
           : [UIFontDescriptor
                 preferredFontDescriptorWithTextStyle:UIFontTextStyleBody];
-  UIColor* defaultColor = useDeemphasizedStyling ? SuggestionDetailTextColor()
-                                                 : SuggestionTextColor();
+  UIColor* defaultColor = useDeemphasizedStyling
+                              ? SuggestionDetailTextColor(self.incognito)
+                              : SuggestionTextColor(self.incognito);
 
   switch (style) {
     case SuggestionAnswer::TextStyle::NORMAL:
@@ -431,7 +400,7 @@ UIColor* DimColorIncognito() {
   }
 }
 
-/// Create a formatted string given text and classifications.
+// Create a formatted string given text and classifications.
 - (NSMutableAttributedString*)
     attributedStringWithString:(NSString*)text
                classifications:(const ACMatchClassifications*)classifications

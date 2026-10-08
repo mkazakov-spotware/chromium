@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,10 +28,6 @@ namespace crashpad {
 class MemoryMapFuchsia {
  public:
   MemoryMapFuchsia();
-
-  MemoryMapFuchsia(const MemoryMapFuchsia&) = delete;
-  MemoryMapFuchsia& operator=(const MemoryMapFuchsia&) = delete;
-
   ~MemoryMapFuchsia();
 
   //! \brief Initializes this object with information about the mapped memory
@@ -57,6 +53,8 @@ class MemoryMapFuchsia {
  private:
   std::vector<zx_info_maps_t> map_entries_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(MemoryMapFuchsia);
 };
 
 }  // namespace crashpad

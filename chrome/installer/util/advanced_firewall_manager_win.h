@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,11 @@
 #include <stdint.h>
 #include <wrl/client.h>
 
-#include <string>
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 
 namespace installer {
 
@@ -23,15 +24,11 @@ namespace installer {
 class AdvancedFirewallManager {
  public:
   AdvancedFirewallManager();
-
-  AdvancedFirewallManager(const AdvancedFirewallManager&) = delete;
-  AdvancedFirewallManager& operator=(const AdvancedFirewallManager&) = delete;
-
   ~AdvancedFirewallManager();
 
   // Initializes object to manage application win name |app_name| and path
   // |app_path|.
-  bool Init(const std::wstring& app_name, const base::FilePath& app_path);
+  bool Init(const base::string16& app_name, const base::FilePath& app_path);
 
   // Returns true if firewall is enabled.
   bool IsFirewallEnabled();
@@ -41,12 +38,12 @@ class AdvancedFirewallManager {
 
   // Adds a firewall rule allowing inbound connections to the application on UDP
   // port |port|. Replaces the rule if it already exists. Needs elevation.
-  bool AddUDPRule(const std::wstring& rule_name,
-                  const std::wstring& description,
+  bool AddUDPRule(const base::string16& rule_name,
+                  const base::string16& description,
                   uint16_t port);
 
   // Deletes all rules with specified name. Needs elevation.
-  void DeleteRuleByName(const std::wstring& rule_name);
+  void DeleteRuleByName(const base::string16& rule_name);
 
   // Deletes all rules for current app. Needs elevation.
   void DeleteAllRules();
@@ -56,8 +53,8 @@ class AdvancedFirewallManager {
 
   // Creates a firewall rule allowing inbound connections to UDP port |port|.
   Microsoft::WRL::ComPtr<INetFwRule> CreateUDPRule(
-      const std::wstring& rule_name,
-      const std::wstring& description,
+      const base::string16& rule_name,
+      const base::string16& description,
       uint16_t port);
 
   // Returns the list of rules applying to the application.
@@ -66,10 +63,12 @@ class AdvancedFirewallManager {
   // Deletes rules. Needs elevation.
   void DeleteRule(Microsoft::WRL::ComPtr<INetFwRule> rule);
 
-  std::wstring app_name_;
+  base::string16 app_name_;
   base::FilePath app_path_;
   Microsoft::WRL::ComPtr<INetFwPolicy2> firewall_policy_;
   Microsoft::WRL::ComPtr<INetFwRules> firewall_rules_;
+
+  DISALLOW_COPY_AND_ASSIGN(AdvancedFirewallManager);
 };
 
 }  // namespace installer

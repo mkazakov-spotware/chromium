@@ -1,13 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.keyboard_accessory.sheet_tabs;
 
-import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.RootMatchers.isDialog;
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -23,9 +19,9 @@ import static org.junit.Assert.assertTrue;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Switch;
 import android.widget.TextView;
 
-import androidx.appcompat.widget.SwitchCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.filters.MediumTest;
 
@@ -50,8 +46,8 @@ import org.chromium.chrome.browser.keyboard_accessory.sheet_component.AccessoryS
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabModel.AccessorySheetDataPiece;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.ui.widget.ChipView;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class PasswordAccessorySheetModernViewTest {
-    private AccessorySheetTabModel mModel;
+    private final AccessorySheetTabModel mModel = new AccessorySheetTabModel();
     private AtomicReference<RecyclerView> mView = new AtomicReference<>();
 
     @Rule
@@ -72,8 +68,6 @@ public class PasswordAccessorySheetModernViewTest {
     public void setUp() throws InterruptedException {
         mActivityTestRule.startMainActivityOnBlankPage();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mModel = new AccessorySheetTabModel();
-
             AccessorySheetCoordinator accessorySheet =
                     new AccessorySheetCoordinator(mActivityTestRule.getActivity().findViewById(
                             R.id.keyboard_accessory_sheet_stub));
@@ -154,50 +148,19 @@ public class PasswordAccessorySheetModernViewTest {
 
     @Test
     @MediumTest
-    public void testAddingUserInfoWithObfuscatedTextAndNullCallbackRendersDialog()
-            throws ExecutionException {
-        final AtomicReference<Boolean> clicked = new AtomicReference<>(false);
-        assertThat(mView.get().getChildCount(), is(0));
-
-        UserInfo usernameEnabled = new UserInfo("", false);
-        usernameEnabled.addField(
-                new UserInfoField("username1", "username1", "", false, item -> clicked.set(true)));
-        usernameEnabled.addField(
-                new UserInfoField("pa55w0rd", "Password for username1", "", true, null));
-
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mModel.add(new AccessorySheetDataPiece(
-                    usernameEnabled, AccessorySheetDataPiece.Type.PASSWORD_INFO));
-        });
-
-        CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(1)));
-
-        assertThat(getNameSuggestion().getPrimaryTextView().getText(), is("username1"));
-        assertThat(getPasswordSuggestion().getPrimaryTextView().getText(), is("pa55w0rd"));
-        assertThat(getPasswordSuggestion().getPrimaryTextView().getTransformationMethod(),
-                instanceOf(PasswordTransformationMethod.class));
-
-        TestThreadUtils.runOnUiThreadBlocking(getNameSuggestion()::performClick);
-        assertThat(clicked.get(), is(true));
-        TestThreadUtils.runOnUiThreadBlocking(getPasswordSuggestion()::performClick);
-        assertInsecureFillingDialog();
-    }
-
-    @Test
-    @MediumTest
     public void testAddingUserInfoTitlesAreRenderedIfNotEmpty() {
         assertThat(mView.get().getChildCount(), is(0));
         final UserInfoField kUnusedInfoField =
                 new UserInfoField("Unused Name", "Unused Password", "", false, cb -> {});
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            UserInfo sameOriginInfo = new UserInfo("", true);
+            UserInfo sameOriginInfo = new UserInfo("", false);
             sameOriginInfo.addField(kUnusedInfoField);
             sameOriginInfo.addField(kUnusedInfoField);
             mModel.add(new AccessorySheetDataPiece(
                     sameOriginInfo, AccessorySheetDataPiece.Type.PASSWORD_INFO));
 
-            UserInfo pslOriginInfo = new UserInfo("other.origin.eg", false);
+            UserInfo pslOriginInfo = new UserInfo("other.origin.eg", true);
             pslOriginInfo.addField(kUnusedInfoField);
             pslOriginInfo.addField(kUnusedInfoField);
             mModel.add(new AccessorySheetDataPiece(
@@ -235,8 +198,8 @@ public class PasswordAccessorySheetModernViewTest {
 
         View switchView = mView.get().findViewById(R.id.option_toggle_switch);
         assertThat(switchView, is(not(nullValue())));
-        assertThat(switchView, instanceOf(SwitchCompat.class));
-        assertFalse(((SwitchCompat) switchView).isChecked());
+        assertThat(switchView, instanceOf(Switch.class));
+        assertFalse(((Switch) switchView).isChecked());
     }
 
     @Test
@@ -292,16 +255,5 @@ public class PasswordAccessorySheetModernViewTest {
         assertThat(view, is(not(nullValue())));
         assertThat(view, instanceOf(ChipView.class));
         return (ChipView) view;
-    }
-
-    private void assertInsecureFillingDialog() {
-        CriteriaHelper.pollInstrumentationThread(() -> {
-            onView(withText(R.string.passwords_not_secure_filling))
-                    .inRoot(isDialog())
-                    .check(matches(isDisplayed()));
-            onView(withText(R.string.passwords_not_secure_filling_details))
-                    .inRoot(isDialog())
-                    .check(matches(isDisplayed()));
-        });
     }
 }

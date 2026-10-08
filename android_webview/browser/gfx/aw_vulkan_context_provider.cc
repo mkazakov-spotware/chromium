@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/native_library.h"
-#include "base/ranges/algorithm.h"
 #include "gpu/config/skia_limits.h"
 #include "gpu/vulkan/init/gr_vk_memory_allocator_impl.h"
 #include "gpu/vulkan/init/vulkan_factory.h"
@@ -41,17 +40,14 @@ bool InitVulkanForWebView(VkInstance instance,
 
   // If we are re-initing, we don't need to re-load the shared library or
   // re-bind unassociated pointers. These shouldn't change.
-  if (!vulkan_function_pointers->vkGetInstanceProcAddr) {
+  if (!vulkan_function_pointers->vulkan_loader_library) {
     base::NativeLibraryLoadError native_library_load_error;
-    base::NativeLibrary vulkan_loader_library = base::LoadNativeLibrary(
+    vulkan_function_pointers->vulkan_loader_library = base::LoadNativeLibrary(
         base::FilePath("libvulkan.so"), &native_library_load_error);
-    if (!vulkan_loader_library)
+    if (!vulkan_function_pointers->vulkan_loader_library)
       return false;
-    if (!vulkan_function_pointers
-             ->BindUnassociatedFunctionPointersFromLoaderLib(
-                 vulkan_loader_library)) {
+    if (!vulkan_function_pointers->BindUnassociatedFunctionPointers())
       return false;
-    }
   }
 
   // These vars depend on |instance| and |device| and should be
@@ -204,7 +200,8 @@ void AwVulkanContextProvider::EnqueueSecondaryCBSemaphores(
     std::vector<VkSemaphore> semaphores) {
   post_submit_semaphores_.reserve(post_submit_semaphores_.size() +
                                   semaphores.size());
-  base::ranges::copy(semaphores, std::back_inserter(post_submit_semaphores_));
+  std::copy(semaphores.begin(), semaphores.end(),
+            std::back_inserter(post_submit_semaphores_));
 }
 
 void AwVulkanContextProvider::EnqueueSecondaryCBPostSubmitTask(
@@ -212,9 +209,9 @@ void AwVulkanContextProvider::EnqueueSecondaryCBPostSubmitTask(
   post_submit_tasks_.push_back(std::move(closure));
 }
 
-absl::optional<uint32_t> AwVulkanContextProvider::GetSyncCpuMemoryLimit()
+base::Optional<uint32_t> AwVulkanContextProvider::GetSyncCpuMemoryLimit()
     const {
-  return absl::optional<uint32_t>();
+  return base::Optional<uint32_t>();
 }
 
 bool AwVulkanContextProvider::Initialize(AwDrawFn_InitVkParams* params) {

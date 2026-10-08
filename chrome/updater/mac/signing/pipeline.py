@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -23,13 +23,11 @@ def _sign_app(paths, config, dest_dir):
             the operations are completed.
     """
     commands.copy_files(os.path.join(paths.input, config.app_dir), paths.work)
-    commands.copy_files(os.path.join(paths.input, "UpdaterSetup"), paths.work)
     parts.sign_all(paths, config)
     commands.make_dir(dest_dir)
-    commands.move_file(os.path.join(paths.work, config.app_dir),
-                       os.path.join(dest_dir, config.app_dir))
-    commands.move_file(os.path.join(paths.work, "UpdaterSetup"),
-                       os.path.dirname(dest_dir))
+    commands.move_file(
+        os.path.join(paths.work, config.app_dir),
+        os.path.join(dest_dir, config.app_dir))
 
 
 def _package_and_sign_dmg(paths, config):
@@ -43,9 +41,8 @@ def _package_and_sign_dmg(paths, config):
         The path to the signed DMG file.
     """
     dmg_path = _package_dmg(paths, config)
-    product = model.CodeSignedProduct(dmg_path,
-                                      config.packaging_basename,
-                                      sign_with_identifier=True)
+    product = model.CodeSignedProduct(
+        dmg_path, config.packaging_basename, sign_with_identifier=True)
     signing.sign_part(paths, config, product)
     signing.verify_part(paths, product)
     return dmg_path
@@ -82,40 +79,16 @@ def _package_dmg(paths, config):
         config.app_product,
         '--copy',
         '{}:/'.format(app_path),
-        '--copy',
-        '{}/chrome/updater/.install:/.keystone_install'.format(paths.input),
     ]
     commands.run_command(pkg_dmg)
     return dmg_path
 
 
-def _package_zip(paths, config):
-    """Packages an Updater application bundle into a ZIP.
-
-    Args:
-        paths: A |model.Paths| object.
-        config: The |config.CodeSignConfig| object.
-
-    Returns:
-        A path to the produced ZIP file.
-    """
-    zip_path = os.path.join(paths.output,
-                            '{}.zip'.format(config.packaging_basename))
-    prep_dir = os.path.join(paths.work, 'zip_prep')
-    commands.make_dir(prep_dir)
-    commands.copy_files(os.path.join(paths.work, config.app_dir), prep_dir)
-    commands.copy_files('{}/chrome/updater/.install'.format(paths.input),
-                        prep_dir)
-    commands.zip(zip_path, prep_dir)
-    return zip_path
-
-
 def sign_all(orig_paths,
              config,
              disable_packaging=False,
-             notarization=model.NotarizeAndStapleLevel.STAPLE,
-             skip_brands=[],
-             channels=[]):
+             do_notarization=True,
+             skip_brands=[]):
     """Code signs, packages, and signs the package, placing the result into
     |orig_paths.output|. |orig_paths.input| must contain the products to
     customize and sign.
@@ -124,11 +97,11 @@ def sign_all(orig_paths,
         orig_paths: A |model.Paths| object.
         config: The |config.CodeSignConfig| object.
         disable_packaging: Ignored.
-        notarization: The level of notarization to be performed. If
-            |disable_packaging| is False, the dmg will undergo the same
-            notarization.
+        do_notarization: If True, the signed application bundle will be sent for
+            notarization by Apple. The resulting notarization ticket will then
+            be stapled. The stapled application will be packaged in the DMG and
+            then the DMG itself will be notarized and stapled.
         skip_brands: Ignored.
-        channels: Ignored.
     """
     with commands.WorkDirectory(orig_paths) as notary_paths:
         # First, sign and optionally submit the notarization requests.
@@ -138,7 +111,7 @@ def sign_all(orig_paths,
                                     config.packaging_basename)
             _sign_app(paths, config, dest_dir)
 
-            if notarization.should_notarize():
+            if do_notarization:
                 zip_file = os.path.join(notary_paths.work,
                                         config.packaging_basename + '.zip')
                 commands.run_command([
@@ -149,29 +122,24 @@ def sign_all(orig_paths,
                 uuid = notarize.submit(zip_file, config)
 
         # Wait for the app notarization result to come back and staple.
-        if notarization.should_wait():
+        if do_notarization:
             for _ in notarize.wait_for_results([uuid], config):
                 pass  # We are only waiting for a single notarization.
-            if notarization.should_staple():
-                notarize.staple_bundled_parts(
-                    # Only staple to the outermost app.
-                    parts.get_parts(config)[-1:],
-                    notary_paths.replace_work(
-                        os.path.join(notary_paths.work,
-                                     config.packaging_basename)))
+            notarize.staple_bundled_parts(
+                parts.get_parts(config).values(),
+                notary_paths.replace_work(
+                    os.path.join(notary_paths.work,
+                                 config.packaging_basename)))
 
         # Package.
-        commands.move_file(os.path.join(notary_paths.work, "UpdaterSetup"),
-                           orig_paths.output)
-        package_paths = orig_paths.replace_work(
-            os.path.join(notary_paths.work, config.packaging_basename))
-        _package_zip(package_paths, config)
-        dmg_path = _package_and_sign_dmg(package_paths, config)
+        dmg_path = _package_and_sign_dmg(
+            orig_paths.replace_work(
+                os.path.join(notary_paths.work, config.packaging_basename)),
+            config)
 
         # Notarize the package, then staple.
-        if notarization.should_wait():
+        if do_notarization:
             for _ in notarize.wait_for_results(
                 [notarize.submit(dmg_path, config)], config):
                 pass  # We are only waiting for a single notarization.
-            if notarization.should_staple():
-                notarize.staple(dmg_path)
+            notarize.staple(dmg_path)

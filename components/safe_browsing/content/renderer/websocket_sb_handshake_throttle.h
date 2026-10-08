@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "components/safe_browsing/content/common/safe_browsing.mojom.h"
 #include "components/safe_browsing/core/common/safe_browsing_url_checker.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -26,11 +28,6 @@ class WebSocketSBHandshakeThrottle : public blink::WebSocketHandshakeThrottle,
  public:
   WebSocketSBHandshakeThrottle(mojom::SafeBrowsing* safe_browsing,
                                int render_frame_id);
-
-  WebSocketSBHandshakeThrottle(const WebSocketSBHandshakeThrottle&) = delete;
-  WebSocketSBHandshakeThrottle& operator=(const WebSocketSBHandshakeThrottle&) =
-      delete;
-
   ~WebSocketSBHandshakeThrottle() override;
 
   void ThrottleHandshake(const blink::WebURL& url,
@@ -47,17 +44,12 @@ class WebSocketSBHandshakeThrottle : public blink::WebSocketHandshakeThrottle,
   };
 
   // mojom::UrlCheckNotifier implementation.
-  void OnCompleteCheck(bool proceed,
-                       bool showed_interstitial,
-                       bool did_perform_real_time_check,
-                       bool did_check_allowlist) override;
+  void OnCompleteCheck(bool proceed, bool showed_interstitial) override;
 
   void OnCheckResult(
       mojo::PendingReceiver<mojom::UrlCheckNotifier> slow_check_notifier,
       bool proceed,
-      bool showed_interstitial,
-      bool did_perform_real_time_check,
-      bool did_check_allowlist);
+      bool showed_interstitial);
   void OnMojoDisconnect();
 
   const int render_frame_id_;
@@ -72,6 +64,8 @@ class WebSocketSBHandshakeThrottle : public blink::WebSocketHandshakeThrottle,
   State state_ = State::kInitial;
 
   base::WeakPtrFactory<WebSocketSBHandshakeThrottle> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WebSocketSBHandshakeThrottle);
 };
 
 }  // namespace safe_browsing

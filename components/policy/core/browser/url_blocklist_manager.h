@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,21 +10,22 @@
 
 #include <map>
 #include <memory>
+#include <string>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
+#include "components/policy/core/browser/url_util.h"
 #include "components/policy/policy_export.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/url_matcher/url_matcher.h"
-#include "components/url_matcher/url_util.h"
 #include "url/gurl.h"
 
 class PrefService;
 
 namespace base {
+class ListValue;
 class SequencedTaskRunner;
 }  // namespace base
 
@@ -48,18 +49,16 @@ class POLICY_EXPORT URLBlocklist {
   };
 
   URLBlocklist();
-  URLBlocklist(const URLBlocklist&) = delete;
-  URLBlocklist& operator=(const URLBlocklist&) = delete;
   virtual ~URLBlocklist();
 
   // URLs matching one of the |filters| will be blocked. The filter format is
   // documented at
-  // http://www.chromium.org/administrators/url-blocklist-filter-format.
-  void Block(const base::Value::List& filters);
+  // http://www.chromium.org/administrators/url-blacklist-filter-format.
+  void Block(const base::ListValue* filters);
 
   // URLs matching one of the |filters| will be allowed. If a URL is both
   // Blocked and Allowed, Allow takes precedence.
-  void Allow(const base::Value::List& filters);
+  void Allow(const base::ListValue* filters);
 
   // Returns true if the URL is blocked.
   bool IsURLBlocked(const GURL& url) const;
@@ -71,26 +70,22 @@ class POLICY_EXPORT URLBlocklist {
 
  private:
   // Returns true if |lhs| takes precedence over |rhs|.
-  static bool FilterTakesPrecedence(
-      const url_matcher::util::FilterComponents& lhs,
-      const url_matcher::util::FilterComponents& rhs);
+  static bool FilterTakesPrecedence(const url_util::FilterComponents& lhs,
+                                    const url_util::FilterComponents& rhs);
 
-  base::MatcherStringPattern::ID id_ = 0;
-  std::map<base::MatcherStringPattern::ID, url_matcher::util::FilterComponents>
+  url_matcher::URLMatcherConditionSet::ID id_;
+  std::map<url_matcher::URLMatcherConditionSet::ID, url_util::FilterComponents>
       filters_;
   std::unique_ptr<url_matcher::URLMatcher> url_matcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(URLBlocklist);
 };
 
 // Tracks the blocklist policies for a given profile, and updates it on changes.
 class POLICY_EXPORT URLBlocklistManager {
  public:
-  // Must be constructed on the UI thread and either of |blocklist_pref_path| or
-  // |allowlist_pref_path| should be valid.
-  URLBlocklistManager(PrefService* pref_service,
-                      absl::optional<std::string> blocklist_pref_path,
-                      absl::optional<std::string> allowlist_pref_path);
-  URLBlocklistManager(const URLBlocklistManager&) = delete;
-  URLBlocklistManager& operator=(const URLBlocklistManager&) = delete;
+  // Must be constructed on the UI thread.
+  explicit URLBlocklistManager(PrefService* pref_service);
   virtual ~URLBlocklistManager();
 
   // Returns true if |url| is blocked by the current blocklist.
@@ -117,10 +112,7 @@ class POLICY_EXPORT URLBlocklistManager {
  private:
   // Used to track the policies and update the blocklist on changes.
   PrefChangeRegistrar pref_change_registrar_;
-  raw_ptr<PrefService> pref_service_;  // Weak.
-
-  const absl::optional<std::string> blocklist_pref_path_;
-  const absl::optional<std::string> allowlist_pref_path_;
+  PrefService* pref_service_;  // Weak.
 
   // Used to post tasks to a background thread.
   scoped_refptr<base::SequencedTaskRunner> background_task_runner_;
@@ -138,6 +130,8 @@ class POLICY_EXPORT URLBlocklistManager {
 
   // Used to post update tasks to the UI thread.
   base::WeakPtrFactory<URLBlocklistManager> ui_weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(URLBlocklistManager);
 };
 
 }  // namespace policy

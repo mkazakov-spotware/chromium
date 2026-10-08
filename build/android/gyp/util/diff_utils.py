@@ -1,4 +1,6 @@
-# Copyright 2019 The Chromium Authors
+#!/usr/bin/env python
+#
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -34,15 +36,7 @@ def _GenerateDiffWithOnlyAdditons(expected_path, actual_data):
       '{}\n'.format(l.rstrip()) for l in actual_data.splitlines() if l.strip()
   ]
 
-  # This helps the diff to not over-anchor on comments or closing braces in
-  # proguard configs.
-  def is_junk_line(l):
-    l = l.strip()
-    if l.startswith('# File:'):
-      return False
-    return l == '' or l == '}' or l.startswith('#')
-
-  diff = difflib.ndiff(expected_lines, actual_lines, linejunk=is_junk_line)
+  diff = difflib.ndiff(expected_lines, actual_lines)
   filtered_diff = (l for l in diff if l.startswith('+'))
   return ''.join(filtered_diff)
 
@@ -94,10 +88,9 @@ def AddCommandLineFlags(parser):
                      help='Verify the expectation and exit.')
 
 
-def CheckExpectations(actual_data, options, custom_msg=''):
-  if options.actual_file:
-    with build_utils.AtomicOutput(options.actual_file) as f:
-      f.write(actual_data.encode('utf8'))
+def CheckExpectations(actual_data, options):
+  with build_utils.AtomicOutput(options.actual_file) as f:
+    f.write(actual_data)
   if options.expected_file_base:
     actual_data = _GenerateDiffWithOnlyAdditons(options.expected_file_base,
                                                 actual_data)
@@ -113,23 +106,18 @@ https://chromium.googlesource.com/chromium/src/+/HEAD/chrome/android/expectation
 LogDog tip: Use "Raw log" or "Switch to lite mode" before copying:
 https://bugs.chromium.org/p/chromium/issues/detail?id=984616
 
-{}
-
 To update expectations, run:
 ########### START ###########
  patch -p1 <<'END_DIFF'
 {}
 END_DIFF
 ############ END ############
-""".format(custom_msg, diff_text)
+""".format(diff_text)
 
     sys.stderr.write(fail_msg)
-
-  if fail_msg and options.fail_on_expectations:
-    # Don't write failure file when failing on expectations or else the target
-    # will not be re-run on subsequent ninja invocations.
-    sys.exit(1)
 
   if options.failure_file:
     with open(options.failure_file, 'w') as f:
       f.write(fail_msg)
+  if fail_msg and options.fail_on_expectations:
+    sys.exit(1)

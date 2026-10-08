@@ -1,6 +1,4 @@
-import pytest
-from webdriver import error
-
+from tests.support.inline import inline
 from tests.support.asserts import assert_error, assert_success
 
 
@@ -9,7 +7,7 @@ def back(session):
         "POST", "session/{session_id}/back".format(**vars(session)))
 
 
-def test_null_response_value(session, inline):
+def test_null_response_value(session):
     session.url = inline("<div>")
     session.url = inline("<p>")
 
@@ -33,24 +31,7 @@ def test_no_browsing_history(session):
     assert_success(response)
 
 
-def test_basic(session, inline):
-    url = inline("<div id=foo>")
-
-    session.url = url
-    session.url = inline("<div id=bar>")
-    element = session.find.css("#bar", all=False)
-
-    response = back(session)
-    assert_success(response)
-
-    with pytest.raises(error.StaleElementReferenceException):
-        element.property("id")
-
-    assert session.url == url
-    assert session.find.css("#foo", all=False)
-
-
-def test_data_urls(session, inline):
+def test_data_urls(session):
     test_pages = [
         inline("<p id=1>"),
         inline("<p id=2>"),
@@ -65,7 +46,7 @@ def test_data_urls(session, inline):
     assert session.url == test_pages[0]
 
 
-def test_dismissed_beforeunload(session, inline):
+def test_dismissed_beforeunload(session):
     url_beforeunload = inline("""
       <input type="text">
       <script>
@@ -107,7 +88,7 @@ def test_fragments(session, url):
     assert session.url == test_pages[0]
 
 
-def test_history_pushstate(session, inline):
+def test_history_pushstate(session, url):
     pushstate_page = inline("""
       <script>
         function pushState() {
@@ -130,7 +111,7 @@ def test_history_pushstate(session, inline):
     assert session.execute_script("return history.state;") is None
 
 
-def test_removed_iframe(session, url, inline):
+def test_removed_iframe(session, url):
     page = inline("<p>foo")
 
     session.url = page
@@ -143,27 +124,3 @@ def test_removed_iframe(session, url, inline):
     assert_success(response)
 
     assert session.url == page
-
-
-# Capability needed as long as no valid certificate is available:
-#   https://github.com/web-platform-tests/wpt/issues/28847
-@pytest.mark.capabilities({"acceptInsecureCerts": True})
-def test_cross_origin(session, url):
-    base_path = ("/webdriver/tests/support/html/subframe.html" +
-                 "?pipe=header(Cross-Origin-Opener-Policy,same-origin")
-    first_page = url(base_path, protocol="https")
-    second_page = url(base_path, protocol="https", domain="alt")
-
-    session.url = first_page
-    session.url = second_page
-
-    elem = session.find.css("#delete", all=False)
-
-    response = back(session)
-    assert_success(response)
-
-    assert session.url == first_page
-
-    with pytest.raises(error.StaleElementReferenceException):
-        elem.click()
-    elem = session.find.css("#delete", all=False)

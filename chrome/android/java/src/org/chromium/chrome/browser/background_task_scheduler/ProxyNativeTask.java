@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,7 +79,7 @@ public final class ProxyNativeTask extends NativeBackgroundTask {
     }
 
     @Override
-    protected boolean supportsMinimalBrowser() {
+    protected boolean supportsServiceManagerOnly() {
         // Return true here if you want your task to be run in reduced mode.
         return false;
     }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define CHROME_BROWSER_GOOGLE_GOOGLE_UPDATE_POLICY_FETCHER_WIN_H_
 
 #include <memory>
-#include <string>
 
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/policy/core/browser/policy_conversions.h"
@@ -17,7 +17,7 @@ class PolicyMap;
 }
 
 struct GoogleUpdateState {
-  std::wstring version;
+  base::string16 version;
   base::Time last_checked_time;
 };
 

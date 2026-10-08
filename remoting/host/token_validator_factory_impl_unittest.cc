@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -23,7 +23,6 @@
 #include "net/url_request/url_request_test_util.h"
 #include "remoting/base/rsa_key_pair.h"
 #include "remoting/base/test_rsa_key_pair.h"
-#include "remoting/protocol/token_validator.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -95,25 +94,18 @@ class TokenValidatorFactoryImplTest : public testing::Test {
     net::URLRequestFilter::GetInstance()->ClearHandlers();
   }
 
-  void SuccessCallback(
-      const protocol::TokenValidator::ValidationResult& validation_result) {
-    EXPECT_TRUE(validation_result.is_success());
-    EXPECT_FALSE(validation_result.is_error());
-    EXPECT_TRUE(!validation_result.success().empty());
+  void SuccessCallback(const std::string& shared_secret) {
+    EXPECT_FALSE(shared_secret.empty());
     run_loop_.QuitWhenIdle();
   }
 
-  void FailureCallback(
-      const protocol::TokenValidator::ValidationResult& validation_result) {
-    EXPECT_TRUE(validation_result.is_error());
-    EXPECT_FALSE(validation_result.is_success());
+  void FailureCallback(const std::string& shared_secret) {
+    EXPECT_TRUE(shared_secret.empty());
     run_loop_.QuitWhenIdle();
   }
 
-  void DeleteOnFailureCallback(
-      const protocol::TokenValidator::ValidationResult& validation_result) {
-    EXPECT_TRUE(validation_result.is_error());
-    EXPECT_FALSE(validation_result.is_success());
+  void DeleteOnFailureCallback(const std::string& shared_secret) {
+    EXPECT_TRUE(shared_secret.empty());
     token_validator_.reset();
     run_loop_.QuitWhenIdle();
   }
@@ -132,18 +124,18 @@ class TokenValidatorFactoryImplTest : public testing::Test {
   }
 
   static std::string CreateResponse(const std::string& scope) {
-    base::Value::Dict response_dict;
-    response_dict.Set("access_token", kSharedSecret);
-    response_dict.Set("token_type", "shared_secret");
-    response_dict.Set("scope", scope);
+    base::DictionaryValue response_dict;
+    response_dict.SetString("access_token", kSharedSecret);
+    response_dict.SetString("token_type", "shared_secret");
+    response_dict.SetString("scope", scope);
     std::string response;
     base::JSONWriter::Write(response_dict, &response);
     return response;
   }
 
   static std::string CreateErrorResponse(const std::string& error) {
-    base::Value::Dict response_dict;
-    response_dict.Set("error", error);
+    base::DictionaryValue response_dict;
+    response_dict.SetString("error", error);
     std::string response;
     base::JSONWriter::Write(response_dict, &response);
     return response;

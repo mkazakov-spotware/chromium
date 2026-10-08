@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define BASE_TRACE_EVENT_TYPED_MACROS_EMBEDDER_SUPPORT_H_
 
 #include "base/base_export.h"
-#include "base/memory/raw_ptr.h"
 #include "base/trace_event/trace_event.h"
 #include "third_party/perfetto/include/perfetto/tracing/internal/track_event_internal.h"
 #include "third_party/perfetto/protos/perfetto/trace/track_event/track_event.pbzero.h"
@@ -34,10 +33,7 @@ class BASE_EXPORT TrackEventHandle {
   // into the event. Note that |listener| must outlive the TRACE_EVENT call,
   // i.e. cannot be destroyed until OnTrackEventCompleted() is called. Ownership
   // of both TrackEvent and the listener remains with the caller.
-  TrackEventHandle(TrackEvent*,
-                   IncrementalState*,
-                   CompletionListener*,
-                   bool filter_debug_annotations);
+  TrackEventHandle(TrackEvent*, IncrementalState*, CompletionListener*);
 
   // Creates an invalid handle.
   TrackEventHandle();
@@ -51,15 +47,10 @@ class BASE_EXPORT TrackEventHandle {
 
   IncrementalState* incremental_state() const { return incremental_state_; }
 
-  bool ShouldFilterDebugAnnotations() const {
-    return filter_debug_annotations_;
-  }
-
  private:
-  raw_ptr<TrackEvent> event_;
-  raw_ptr<IncrementalState> incremental_state_;
-  raw_ptr<CompletionListener> listener_;
-  const bool filter_debug_annotations_ = false;
+  TrackEvent* event_;
+  IncrementalState* incremental_state_;
+  CompletionListener* listener_;
 };
 
 // Handle to a TracePacket which notifies a listener upon its destruction (after
@@ -100,20 +91,18 @@ class BASE_EXPORT TracePacketHandle {
 
  private:
   PerfettoPacketHandle packet_;
-  raw_ptr<CompletionListener> listener_;
+  CompletionListener* listener_;
 };
 
 using PrepareTrackEventFunction = TrackEventHandle (*)(TraceEvent*);
 using PrepareTracePacketFunction = TracePacketHandle (*)();
-using EmitEmptyTracePacketFunction = void (*)();
 
 // Embedder should call this (only once) to set the callback invoked when a
 // typed event should be emitted. The callback functions may be executed on any
 // thread.
 BASE_EXPORT void EnableTypedTraceEvents(
     PrepareTrackEventFunction typed_event_callback,
-    PrepareTracePacketFunction trace_packet_callback,
-    EmitEmptyTracePacketFunction empty_packet_callback);
+    PrepareTracePacketFunction trace_packet_callback);
 
 BASE_EXPORT void ResetTypedTraceEventsForTesting();
 

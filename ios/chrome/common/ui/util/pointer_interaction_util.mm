@@ -1,16 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
 
-#import <ostream>
+#include <ostream>
 
-#import "base/check_op.h"
+#include "base/check_op.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+#if defined(__IPHONE_13_4)
 
 namespace {
 // Returns a pointer style with a hover effect with a slight tint and no pointer
@@ -157,3 +159,5 @@ API_AVAILABLE(ios(13.4))
 }
 
 @end
+
+#endif  // defined(__IPHONE_13_4)

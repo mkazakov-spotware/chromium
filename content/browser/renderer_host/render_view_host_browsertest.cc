@@ -1,7 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -35,12 +36,6 @@ class RenderViewHostTestWebContentsObserver : public WebContentsObserver {
   explicit RenderViewHostTestWebContentsObserver(WebContents* web_contents)
       : WebContentsObserver(web_contents),
         navigation_count_(0) {}
-
-  RenderViewHostTestWebContentsObserver(
-      const RenderViewHostTestWebContentsObserver&) = delete;
-  RenderViewHostTestWebContentsObserver& operator=(
-      const RenderViewHostTestWebContentsObserver&) = delete;
-
   ~RenderViewHostTestWebContentsObserver() override {}
 
   void DidFinishNavigation(NavigationHandle* navigation_handle) override {
@@ -62,6 +57,8 @@ class RenderViewHostTestWebContentsObserver : public WebContentsObserver {
  private:
   net::IPEndPoint observed_remote_endpoint_;
   int navigation_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderViewHostTestWebContentsObserver);
 };
 
 IN_PROC_BROWSER_TEST_F(RenderViewHostTest, FrameNavigateSocketAddress) {
@@ -85,23 +82,19 @@ IN_PROC_BROWSER_TEST_F(RenderViewHostTest, BasicRenderFrameHost) {
   GURL test_url = embedded_test_server()->GetURL("/simple_page.html");
   EXPECT_TRUE(NavigateToURL(shell(), test_url));
 
-  FrameTreeNode* old_root =
-      static_cast<WebContentsImpl*>(shell()->web_contents())
-          ->GetPrimaryFrameTree()
-          .root();
+  FrameTreeNode* old_root = static_cast<WebContentsImpl*>(
+      shell()->web_contents())->GetFrameTree()->root();
   EXPECT_TRUE(old_root->current_frame_host());
 
   ShellAddedObserver new_shell_observer;
-  EXPECT_TRUE(ExecJs(shell(), "window.open();"));
+  EXPECT_TRUE(ExecuteScript(shell(), "window.open();"));
   Shell* new_shell = new_shell_observer.GetShell();
-  FrameTreeNode* new_root =
-      static_cast<WebContentsImpl*>(new_shell->web_contents())
-          ->GetPrimaryFrameTree()
-          .root();
+  FrameTreeNode* new_root = static_cast<WebContentsImpl*>(
+      new_shell->web_contents())->GetFrameTree()->root();
 
   EXPECT_TRUE(new_root->current_frame_host());
-  EXPECT_NE(old_root->current_frame_host()->GetRoutingID(),
-            new_root->current_frame_host()->GetRoutingID());
+  EXPECT_NE(old_root->current_frame_host()->routing_id(),
+            new_root->current_frame_host()->routing_id());
 }
 
 IN_PROC_BROWSER_TEST_F(RenderViewHostTest, IsFocusedElementEditable) {
@@ -112,8 +105,47 @@ IN_PROC_BROWSER_TEST_F(RenderViewHostTest, IsFocusedElementEditable) {
 
   WebContents* contents = shell()->web_contents();
   EXPECT_FALSE(contents->IsFocusedElementEditable());
-  EXPECT_TRUE(ExecJs(shell(), "focus_textfield();"));
+  EXPECT_TRUE(ExecuteScript(shell(), "focus_textfield();"));
   EXPECT_TRUE(contents->IsFocusedElementEditable());
+}
+
+// Flaky on Linux (https://crbug.com/559192).
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#define MAYBE_ReleaseSessionOnCloseACK DISABLED_ReleaseSessionOnCloseACK
+#else
+#define MAYBE_ReleaseSessionOnCloseACK ReleaseSessionOnCloseACK
+#endif
+IN_PROC_BROWSER_TEST_F(RenderViewHostTest, MAYBE_ReleaseSessionOnCloseACK) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL test_url = embedded_test_server()->GetURL(
+      "/access-session-storage.html");
+  EXPECT_TRUE(NavigateToURL(shell(), test_url));
+
+  // Make a new Shell, a seperate tab with it's own session namespace and
+  // have it start loading a url but still be in progress.
+  ShellAddedObserver new_shell_observer;
+  EXPECT_TRUE(ExecuteScript(shell(), "window.open();"));
+  Shell* new_shell = new_shell_observer.GetShell();
+  new_shell->LoadURL(test_url);
+  RenderViewHost* rvh =
+      new_shell->web_contents()->GetMainFrame()->GetRenderViewHost();
+  SiteInstance* site_instance = rvh->GetSiteInstance();
+  scoped_refptr<SessionStorageNamespace> session_namespace =
+      rvh->GetDelegate()->GetSessionStorageNamespace(site_instance);
+  EXPECT_FALSE(session_namespace->HasOneRef());
+
+  // Close it, or rather start the close operation. The session namespace
+  // should remain until RPH gets an ACK from the renderer about having
+  // closed the view.
+  new_shell->Close();
+  EXPECT_FALSE(session_namespace->HasOneRef());
+
+  // Do something that causes ipc queues to flush and tasks in
+  // flight to complete such that we should have received the ACK.
+  EXPECT_TRUE(NavigateToURL(shell(), test_url));
+
+  // Verify we have the only remaining reference to the namespace.
+  EXPECT_TRUE(session_namespace->HasOneRef());
 }
 
 }  // namespace content

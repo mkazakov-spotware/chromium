@@ -1,13 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_URL_LOADER_FACTORY_MANAGER_H_
 #define EXTENSIONS_BROWSER_URL_LOADER_FACTORY_MANAGER_H_
 
-#include "base/types/pass_key.h"
+#include "base/macros.h"
 #include "content/public/browser/navigation_handle.h"
 #include "extensions/common/extension.h"
+#include "extensions/common/host_id.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "url/gurl.h"
@@ -23,7 +24,7 @@ class Origin;
 
 namespace extensions {
 
-class ContentScriptTracker;
+class URLLoaderFactoryManagerBrowserTest;
 
 // This class manages URLLoaderFactory objects that handle network requests that
 // require extension-specific permissions (related to relaxed CORB and CORS).
@@ -34,30 +35,27 @@ class URLLoaderFactoryManager {
  public:
   // Only static methods.
   URLLoaderFactoryManager() = delete;
-  URLLoaderFactoryManager(const URLLoaderFactoryManager&) = delete;
-  URLLoaderFactoryManager& operator=(const URLLoaderFactoryManager&) = delete;
 
-  // Invoked when `navigation` is ready to commit with the set of `extensions`
-  // asked to inject content script into the target frame using
-  // declarations in the extension manifest approach:
-  // https://developer.chrome.com/docs/extensions/mv2/content_scripts/#declaratively
-  static void WillInjectContentScriptsWhenNavigationCommits(
-      base::PassKey<ContentScriptTracker> pass_key,
-      content::NavigationHandle* navigation,
-      const std::vector<const Extension*>& extensions);
+  // To be called before a navigation commits (to ensure that the renderer gets
+  // the special URLLoaderFactory before injecting content scripts declared in
+  // an extension manifest).
+  //
+  // This method will inspect all enabled extensions and ask RenderFrameHost to
+  // create separate URLLoaderFactory objects for the extensions that declare in
+  // their manifest desire to inject content scripts into the target of the
+  // |navigation|.
+  static void ReadyToCommitNavigation(content::NavigationHandle* navigation);
 
-  // Invoked when `extension` asks to inject a content script into `frame`
-  // (invoked before an IPC with the content script injection request is
-  // actually sent to the renderer process).  This covers injections via
-  // `chrome.declarativeContent` and `chrome.scripting.executeScript` APIs -
-  // see:
-  // https://developer.chrome.com/docs/extensions/mv2/content_scripts/#programmatic
-  // and
-  // https://developer.chrome.com/docs/extensions/reference/declarativeContent/#type-RequestContentScript
-  static void WillProgrammaticallyInjectContentScript(
-      base::PassKey<ContentScriptTracker> pass_key,
-      content::RenderFrameHost* frame,
-      const Extension& extension);
+  // To be called before ExtensionMsg_ExecuteCode is sent to a renderer process
+  // (to ensure that the renderer gets the special URLLoaderFactory before
+  // injecting content script requested via chrome.tabs.executeScript).
+  //
+  // This method may ask RenderFrameHost to create a separate URLLoaderFactory
+  // object for extension identified by |host_id|.  The caller needs to ensure
+  // that if |host_id.type() == HostID::EXTENSIONS|, then the extension with the
+  // given id exists and is enabled.
+  static void WillExecuteCode(content::RenderFrameHost* frame,
+                              const HostID& host_id);
 
   // Creates a URLLoaderFactory that should be used for requests initiated from
   // |process| by |origin|.
@@ -70,7 +68,8 @@ class URLLoaderFactoryManager {
   //   if the factory will be used by an extension frame (e.g. from an extension
   //   background page).
   // - "content script": For most extensions no changes are made to
-  //   |factory_params|, but platform apps might need to set app-specific
+  //   |factory_params| (e.g. for non-allowlisted and/or manifest V3+
+  //   extensions), but some extensions might need to set extension-specific
   //   security properties in the URLLoaderFactory used by content scripts.
   // The method recognizes the intended consumer based on |origin| ("web" vs
   // other cases) and |is_for_isolated_world| ("extension" vs "content script").
@@ -89,14 +88,27 @@ class URLLoaderFactoryManager {
   //                                 |           |             |
   // URLLoaderFactoryParams:         |           |             |
   // - request_initiator_origin_lock |    web    |  extension  |     web
-  // - overridden properties?        |    no     |     yes     |  if needed
-  //    - is_corb_enabled            | secure-   |  ext-based  | ext-based for
-  //    - ..._access_patterns        |  -default |             | platform apps
+  // - overridden properties?        |   no      |     yes     |  if needed
+  //    - is_corb_enabled            | secure    |  ext-based  | ext-based if
+  //    - ..._access_patterns        |   default |             |   allowlisted
   static void OverrideURLLoaderFactoryParams(
       content::BrowserContext* browser_context,
       const url::Origin& origin,
       bool is_for_isolated_world,
       network::mojom::URLLoaderFactoryParams* factory_params);
+
+ private:
+  // If |extension|'s manifest declares that it may inject JavaScript content
+  // script into the |navigating_frame| / |navigation_target|, then
+  // DoContentScriptsMatchNavigation returns true.  Otherwise it may return
+  // either true or false.  Note that this method ignores CSS content scripts.
+  static bool DoContentScriptsMatchNavigatingFrame(
+      const Extension& extension,
+      content::RenderFrameHost* navigating_frame,
+      const GURL& navigation_target);
+  friend class URLLoaderFactoryManagerBrowserTest;
+
+  DISALLOW_COPY_AND_ASSIGN(URLLoaderFactoryManager);
 };
 
 }  // namespace extensions

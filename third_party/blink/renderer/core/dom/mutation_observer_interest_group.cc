@@ -44,7 +44,7 @@ MutationObserverInterestGroup* MutationObserverInterestGroup::CreateIfNeeded(
   HeapHashMap<Member<MutationObserver>, MutationRecordDeliveryOptions>
       observers;
   target.GetRegisteredMutationObserversOfType(observers, type, attribute_name);
-  if (observers.empty())
+  if (observers.IsEmpty())
     return nullptr;
 
   return MakeGarbageCollected<MutationObserverInterestGroup>(observers,
@@ -56,7 +56,7 @@ MutationObserverInterestGroup::MutationObserverInterestGroup(
         observers,
     MutationRecordDeliveryOptions old_value_flag)
     : old_value_flag_(old_value_flag) {
-  DCHECK(!observers.empty());
+  DCHECK(!observers.IsEmpty());
   observers_.swap(observers);
 }
 

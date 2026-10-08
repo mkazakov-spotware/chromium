@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,10 @@ import androidx.test.filters.MediumTest;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -26,7 +24,6 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.net.test.EmbeddedTestServer;
@@ -36,15 +33,9 @@ import java.util.concurrent.Callable;
 /** Integration tests for the Last 1 feature of Offline Pages. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class RecentTabsTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private static final String TEST_PAGE = "/chrome/test/data/android/about.html";
     private static final int TIMEOUT_MS = 5000;
@@ -55,6 +46,7 @@ public class RecentTabsTest {
 
     @Before
     public void setUp() throws Exception {
+        mActivityTestRule.startMainActivityOnBlankPage();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             // Ensure we start in an offline state.
             NetworkChangeNotifier.forceConnectivityState(false);
@@ -78,7 +70,7 @@ public class RecentTabsTest {
     @MediumTest
     public void testLastNPageSavedWhenTabSwitched() throws Exception {
         // The tab of interest.
-        Tab tab = sActivityTestRule.loadUrlInNewTab(mTestPage);
+        Tab tab = mActivityTestRule.loadUrlInNewTab(mTestPage);
 
         final ClientId firstTabClientId =
                 new ClientId(OfflinePageBridge.LAST_N_NAMESPACE, Integer.toString(tab.getId()));
@@ -91,7 +83,7 @@ public class RecentTabsTest {
         // so we can definitely snapshot after onload (which is what |loadUrlInNewTab| waits for).
 
         // Switch to a new tab to cause the WebContents hidden event.
-        sActivityTestRule.loadUrlInNewTab("about:blank");
+        mActivityTestRule.loadUrlInNewTab("about:blank");
 
         waitForPageWithClientId(firstTabClientId);
     }
@@ -107,12 +99,12 @@ public class RecentTabsTest {
     @MediumTest
     public void testLastNClosingTabIsNotSaved() throws Exception {
         // Create the tab of interest.
-        final Tab tab = sActivityTestRule.loadUrlInNewTab(mTestPage);
+        final Tab tab = mActivityTestRule.loadUrlInNewTab(mTestPage);
         final ClientId firstTabClientId =
                 new ClientId(OfflinePageBridge.LAST_N_NAMESPACE, Integer.toString(tab.getId()));
 
         // The tab should be foreground and so no snapshot should exist.
-        TabModelSelector tabModelSelector = sActivityTestRule.getActivity().getTabModelSelector();
+        TabModelSelector tabModelSelector = mActivityTestRule.getActivity().getTabModelSelector();
         Assert.assertEquals(tabModelSelector.getCurrentTab(), tab);
         Assert.assertFalse(tab.isHidden());
         Assert.assertNull(OfflineTestUtil.getPageByClientId(firstTabClientId));
@@ -141,14 +133,14 @@ public class RecentTabsTest {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             tabModel.cancelTabClosure(tab.getId());
             int tabIndex = TabModelUtils.getTabIndexById(tabModel, tab.getId());
-            TabModelUtils.setIndex(tabModel, tabIndex, false);
+            TabModelUtils.setIndex(tabModel, tabIndex);
         });
         Assert.assertFalse(tab.isHidden());
         Assert.assertFalse(tab.isClosing());
         Assert.assertEquals(tabModelSelector.getCurrentTab(), tab);
 
         // Finally switch to a new tab and check that a snapshot is created.
-        Tab newTab = sActivityTestRule.loadUrlInNewTab("about:blank");
+        Tab newTab = mActivityTestRule.loadUrlInNewTab("about:blank");
         Assert.assertEquals(tabModelSelector.getCurrentTab(), newTab);
         Assert.assertTrue(tab.isHidden());
         waitForPageWithClientId(firstTabClientId);

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,14 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/shared_worker_service.h"
 #include "content/public/browser/storage_partition.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 
 namespace browsing_data {
 
 SharedWorkerHelper::SharedWorkerInfo::SharedWorkerInfo(
     const GURL& worker,
     const std::string& name,
-    const blink::StorageKey& storage_key)
-    : worker(worker), name(name), storage_key(storage_key) {}
+    const url::Origin& constructor_origin)
+    : worker(worker), name(name), constructor_origin(constructor_origin) {}
 
 SharedWorkerHelper::SharedWorkerInfo::SharedWorkerInfo(
     const SharedWorkerInfo& other) = default;
@@ -31,13 +30,15 @@ SharedWorkerHelper::SharedWorkerInfo::~SharedWorkerInfo() = default;
 
 bool SharedWorkerHelper::SharedWorkerInfo::operator<(
     const SharedWorkerInfo& other) const {
-  return std::tie(worker, name, storage_key) <
-         std::tie(other.worker, other.name, other.storage_key);
+  return std::tie(worker, name, constructor_origin) <
+         std::tie(other.worker, other.name, other.constructor_origin);
 }
 
 SharedWorkerHelper::SharedWorkerHelper(
-    content::StoragePartition* storage_partition)
-    : storage_partition_(storage_partition) {}
+    content::StoragePartition* storage_partition,
+    content::ResourceContext* resource_context)
+    : storage_partition_(storage_partition),
+      resource_context_(resource_context) {}
 
 SharedWorkerHelper::~SharedWorkerHelper() = default;
 
@@ -54,27 +55,28 @@ void SharedWorkerHelper::StartFetching(FetchCallback callback) {
 void SharedWorkerHelper::DeleteSharedWorker(
     const GURL& worker,
     const std::string& name,
-    const blink::StorageKey& storage_key) {
+    const url::Origin& constructor_origin) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  storage_partition_->GetSharedWorkerService()->TerminateWorker(worker, name,
-                                                                storage_key);
+  storage_partition_->GetSharedWorkerService()->TerminateWorker(
+      worker, name, constructor_origin);
 }
 
 CannedSharedWorkerHelper::CannedSharedWorkerHelper(
-    content::StoragePartition* storage_partition)
-    : SharedWorkerHelper(storage_partition) {}
+    content::StoragePartition* storage_partition,
+    content::ResourceContext* resource_context)
+    : SharedWorkerHelper(storage_partition, resource_context) {}
 
 CannedSharedWorkerHelper::~CannedSharedWorkerHelper() = default;
 
 void CannedSharedWorkerHelper::AddSharedWorker(
     const GURL& worker,
     const std::string& name,
-    const blink::StorageKey& storage_key) {
+    const url::Origin& constructor_origin) {
   if (!HasWebScheme(worker))
     return;  // Non-websafe state is not considered browsing data.
 
   pending_shared_worker_info_.insert(
-      SharedWorkerInfo(worker, name, storage_key));
+      SharedWorkerInfo(worker, name, constructor_origin));
 }
 
 void CannedSharedWorkerHelper::Reset() {
@@ -108,13 +110,13 @@ void CannedSharedWorkerHelper::StartFetching(FetchCallback callback) {
 void CannedSharedWorkerHelper::DeleteSharedWorker(
     const GURL& worker,
     const std::string& name,
-    const blink::StorageKey& storage_key) {
+    const url::Origin& constructor_origin) {
   for (auto it = pending_shared_worker_info_.begin();
        it != pending_shared_worker_info_.end();) {
     if (it->worker == worker && it->name == name &&
-        it->storage_key == storage_key) {
+        it->constructor_origin == constructor_origin) {
       SharedWorkerHelper::DeleteSharedWorker(it->worker, it->name,
-                                             it->storage_key);
+                                             it->constructor_origin);
       it = pending_shared_worker_info_.erase(it);
     } else {
       ++it;

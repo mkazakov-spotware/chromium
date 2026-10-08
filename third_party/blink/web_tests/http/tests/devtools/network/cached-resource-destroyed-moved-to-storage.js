@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
     `Tests content is moved from cached resource to resource agent's data storage when cached resource is destroyed.\n`
   );
 
-  await TestRunner.loadTestModule('network_test_runner');
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('network_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('network');
 
   await TestRunner.evaluateInPagePromise(`
@@ -65,7 +65,7 @@
   }
 
   function step6() {
-    delete imageRequest.contentData;
+    delete imageRequest._contentData;
     imageRequest.requestContent().then(step7);
   }
 

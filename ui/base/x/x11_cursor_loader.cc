@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,23 +18,19 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/no_destructor.h"
 #include "base/sequence_checker.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "base/time/time.h"
+#include "base/task_runner_util.h"
+#include "ui/base/cursor/cursor_theme_manager.h"
 #include "ui/base/x/x11_util.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/x11_atom_cache.h"
 #include "ui/gfx/x/xproto.h"
-#include "ui/gfx/x/xproto_util.h"
-
-#if BUILDFLAG(IS_LINUX)
-#include "ui/linux/linux_ui.h"
-#endif
 
 extern "C" {
 const char* XcursorLibraryPath(void);
@@ -199,7 +195,8 @@ std::vector<std::string> GetBaseThemes(const base::FilePath& abspath) {
 }
 
 base::FilePath CanonicalizePath(base::FilePath path) {
-  std::vector<std::string> components = path.GetComponents();
+  std::vector<std::string> components;
+  path.GetComponents(&components);
   if (components[0] == "~") {
     path = base::GetHomeDir();
     for (size_t i = 1; i < components.size(); i++)
@@ -230,7 +227,7 @@ scoped_refptr<base::RefCountedMemory> ReadCursorFromTheme(
 
     std::string contents;
     if (base::ReadFileToString(cursor_dir.Append(name), &contents))
-      return base::MakeRefCounted<base::RefCountedString>(std::move(contents));
+      return base::RefCountedString::TakeString(&contents);
 
     if (base_themes.empty())
       base_themes = GetBaseThemes(theme_dir.Append(kThemeInfo));
@@ -249,17 +246,16 @@ scoped_refptr<base::RefCountedMemory> ReadCursorFile(
     const std::string& rm_xcursor_theme) {
   constexpr const char kDefaultTheme[] = "default";
   std::string themes[] = {
-#if BUILDFLAG(IS_LINUX)
-    // The toolkit theme has the highest priority.
-    LinuxUi::instance() ? LinuxUi::instance()->GetCursorThemeName()
-                        : std::string(),
-#endif
+      // The toolkit theme has the highest priority.
+      CursorThemeManager::GetInstance()
+          ? CursorThemeManager::GetInstance()->GetCursorThemeName()
+          : std::string(),
 
-    // Next try Xcursor.theme.
-    rm_xcursor_theme,
+      // Next try Xcursor.theme.
+      rm_xcursor_theme,
 
-    // As a last resort, use the default theme.
-    kDefaultTheme,
+      // As a last resort, use the default theme.
+      kDefaultTheme,
   };
 
   for (const std::string& theme : themes) {
@@ -294,15 +290,14 @@ XCursorLoader::XCursorLoader(x11::Connection* connection)
     : connection_(connection) {
   auto ver_cookie = connection_->render().QueryVersion(
       {x11::Render::major_version, x11::Render::minor_version});
-  auto pf_cookie = connection_->render().QueryPictFormats();
+  auto pf_cookie = connection_->render().QueryPictFormats({});
   cursor_font_ = connection_->GenerateId<x11::Font>();
   connection_->OpenFont({cursor_font_, "cursor"});
 
-  std::vector<char> resource_manager;
-  if (GetArrayProperty(connection_->default_root(), x11::Atom::RESOURCE_MANAGER,
-                       &resource_manager)) {
-    ParseXResources(
-        base::StringPiece(resource_manager.data(), resource_manager.size()));
+  std::string resource_manager;
+  if (ui::GetStringProperty(connection_->default_root(), "RESOURCE_MANAGER",
+                            &resource_manager)) {
+    ParseXResources(resource_manager);
   }
 
   if (auto reply = ver_cookie.Sync()) {
@@ -313,7 +308,7 @@ XCursorLoader::XCursorLoader(x11::Connection* connection)
   if (auto pf_reply = pf_cookie.Sync())
     pict_format_ = GetRenderARGBFormat(*pf_reply.reply);
 
-  for (uint16_t i = 0; i < std::size(cursor_names); i++)
+  for (uint16_t i = 0; i < base::size(cursor_names); i++)
     cursor_name_to_char_[cursor_names[i]] = i;
 }
 
@@ -326,9 +321,10 @@ scoped_refptr<X11Cursor> XCursorLoader::LoadCursor(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto cursor = base::MakeRefCounted<X11Cursor>();
   if (SupportsCreateCursor()) {
-    base::ThreadPool::PostTaskAndReplyWithResult(
+    base::PostTaskAndReplyWithResult(
         FROM_HERE,
-        {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+        {base::ThreadPool(), base::MayBlock(),
+         base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
         base::BindOnce(ReadCursorImages, names, rm_xcursor_theme_,
                        GetPreferredCursorSize()),
         base::BindOnce(&XCursorLoader::LoadCursorImpl,
@@ -351,8 +347,7 @@ scoped_refptr<X11Cursor> XCursorLoader::CreateCursor(
     auto cursor = CreateCursor(image.bitmap, image.hotspot);
     cursors.push_back(cursor);
     elements.push_back(x11::Render::AnimationCursorElement{
-        cursor->xcursor_,
-        static_cast<uint32_t>(image.frame_delay.InMilliseconds())});
+        cursor->xcursor_, image.frame_delay_ms});
   }
 
   if (elements.empty())
@@ -371,8 +366,8 @@ scoped_refptr<X11Cursor> XCursorLoader::CreateCursor(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto pixmap = connection_->GenerateId<x11::Pixmap>();
   auto gc = connection_->GenerateId<x11::GraphicsContext>();
-  uint16_t width = bitmap.width();
-  uint16_t height = bitmap.height();
+  int width = bitmap.width();
+  int height = bitmap.height();
   connection_->CreatePixmap(
       {32, pixmap, connection_->default_root(), width, height});
   connection_->CreateGC({gc, pixmap});
@@ -383,8 +378,8 @@ scoped_refptr<X11Cursor> XCursorLoader::CreateCursor(
   auto* connection = x11::Connection::Get();
   x11::PutImageRequest put_image_request{
       .format = x11::ImageFormat::ZPixmap,
-      .drawable = pixmap,
-      .gc = gc,
+      .drawable = static_cast<x11::Pixmap>(pixmap),
+      .gc = static_cast<x11::GraphicsContext>(gc),
       .width = width,
       .height = height,
       .depth = 32,
@@ -396,9 +391,7 @@ scoped_refptr<X11Cursor> XCursorLoader::CreateCursor(
   connection_->render().CreatePicture({pic, pixmap, pict_format_});
 
   auto cursor = connection_->GenerateId<x11::Cursor>();
-  connection_->render().CreateCursor({cursor, pic,
-                                      static_cast<uint16_t>(hotspot.x()),
-                                      static_cast<uint16_t>(hotspot.y())});
+  connection_->render().CreateCursor({cursor, pic, hotspot.x(), hotspot.y()});
 
   connection_->render().FreePicture({pic});
   connection_->FreePixmap({pixmap});
@@ -420,12 +413,10 @@ void XCursorLoader::LoadCursorImpl(
     auto core_char = CursorNamesToChar(names);
     constexpr uint16_t kFontCursorFgColor = 0;
     constexpr uint16_t kFontCursorBgColor = 65535;
-    connection_->CreateGlyphCursor({xcursor, cursor_font_, cursor_font_,
-                                    static_cast<uint16_t>(2 * core_char),
-                                    static_cast<uint16_t>(2 * core_char + 1),
-                                    kFontCursorFgColor, kFontCursorFgColor,
-                                    kFontCursorFgColor, kFontCursorBgColor,
-                                    kFontCursorBgColor, kFontCursorBgColor});
+    connection_->CreateGlyphCursor(
+        {xcursor, cursor_font_, cursor_font_, 2 * core_char, 2 * core_char + 1,
+         kFontCursorFgColor, kFontCursorFgColor, kFontCursorFgColor,
+         kFontCursorBgColor, kFontCursorBgColor, kFontCursorBgColor});
   }
   cursor->SetCursor(xcursor);
 }
@@ -443,13 +434,11 @@ uint32_t XCursorLoader::GetPreferredCursorSize() const {
   if (base::StringToInt(GetEnv(kXcursorSizeEnv), &size) && size > 0)
     return size;
 
-#if BUILDFLAG(IS_LINUX)
   // Let the toolkit have the next say.
-  auto* linux_ui = LinuxUi::instance();
-  size = linux_ui ? linux_ui->GetCursorThemeSize() : 0;
+  auto* manager = CursorThemeManager::GetInstance();
+  size = manager ? manager->GetCursorThemeSize() : 0;
   if (size > 0)
     return size;
-#endif
 
   // Use Xcursor.size from RESOURCE_MANAGER if available.
   if (rm_xcursor_size_)
@@ -465,7 +454,7 @@ uint32_t XCursorLoader::GetPreferredCursorSize() const {
          kScreenCursorRatio;
 }
 
-void XCursorLoader::ParseXResources(base::StringPiece resources) {
+void XCursorLoader::ParseXResources(const std::string& resources) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   base::StringPairs pairs;
   base::SplitStringIntoKeyValuePairs(resources, ':', '\n', &pairs);
@@ -517,7 +506,7 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
 
   auto ReadU32s = [&](void* dest, size_t len) {
     DCHECK_EQ(len % 4, 0u);
-    if (offset >= file->size() || offset + len > file->size())
+    if (offset + len > file->size())
       return false;
     const auto* src32 = reinterpret_cast<const uint32_t*>(mem + offset);
     auto* dest32 = reinterpret_cast<uint32_t*>(dest);
@@ -542,6 +531,7 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
     uint32_t position;
   };
   std::vector<TableOfContentsEntry> toc;
+  toc.reserve(header.ntoc);
   for (uint32_t i = 0; i < header.ntoc; i++) {
     TableOfContentsEntry entry;
     if (!ReadU32s(&entry, sizeof(TableOfContentsEntry)))
@@ -590,9 +580,8 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
     bitmap.allocN32Pixels(image.width, image.height);
     if (!ReadU32s(bitmap.getPixels(), bitmap.computeByteSize()))
       continue;
-    images.push_back(XCursorLoader::Image{bitmap,
-                                          gfx::Point(image.xhot, image.yhot),
-                                          base::Milliseconds(image.delay)});
+    images.push_back(XCursorLoader::Image{
+        bitmap, gfx::Point(image.xhot, image.yhot), image.delay});
   }
   return images;
 }

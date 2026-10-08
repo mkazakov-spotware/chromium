@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# Copyright 2014 The Chromium Authors
+#!/usr/bin/python
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,39 +8,29 @@
 
 import argparse
 import hashlib
-import io
 import os
+import StringIO
+import urllib2
 import zipfile
 
 
-try:
-  from urllib.request import Request, urlopen
-except ImportError:  # For Py2 compatibility
-  from urllib2 import Request, urlopen
-
-
-def MakeZip(directory=None, files=None, mtime=(2022, 11, 11, 11, 11, 11)):
+def MakeZip(directory=None, files=None):
   """Construct a zip file.
 
   Args:
     directory: Include Python source files from this directory
     files: Include these files
-    mtime: A fixed modification time to assign all files in the zip file, for
-           deterministic output.
 
   Returns:
     A tuple of the buffer containing the zip file and its MD5 hash.
   """
-  buf = io.BytesIO()
+  buf = StringIO.StringIO()
   archive = zipfile.PyZipFile(buf, 'w')
   if directory is not None:
     archive.writepy(directory)
   if files is not None:
-    for path in files:
-      with open(path, 'rb') as f:
-        file_info = zipfile.ZipInfo(os.path.basename(path), mtime)
-        file_contents = f.read()
-        archive.writestr(file_info, file_contents)
+    for f in files:
+      archive.write(f, os.path.basename(f))
   archive.close()
   content = buf.getvalue()
   buf.close()
@@ -49,24 +39,24 @@ def MakeZip(directory=None, files=None, mtime=(2022, 11, 11, 11, 11, 11)):
 
 
 def EncodeBody(filename, buf):
-  return b'\r\n'.join([
-      b'--foo',
-      b'Content-Disposition: form-data; name="file"; filename="%s"' %
-      filename,
-      b'Content-Type: application/octet-stream',
-      b'',
+  return '\r\n'.join([
+      '--foo',
+      'Content-Disposition: form-data; name="file"; filename="{}"'
+      .format(filename),
+      'Content-Type: application/octet-stream',
+      '',
       buf,
-      b'--foo--',
-      b''
+      '--foo--',
+      ''
   ])
 
 
 def UploadZip(content, md5, host):
-  filename = b'usb_gadget-%s.zip' % md5.encode('utf-8')
-  req = Request(url='http://{}/update'.format(host),
-                data=EncodeBody(filename, content))
+  filename = 'usb_gadget-{}.zip'.format(md5)
+  req = urllib2.Request(url='http://{}/update'.format(host),
+                        data=EncodeBody(filename, content))
   req.add_header('Content-Type', 'multipart/form-data; boundary=foo')
-  urlopen(req)
+  urllib2.urlopen(req)
 
 
 def main():
@@ -95,7 +85,7 @@ def main():
     with open(args.zip_file, 'wb') as zip_file:
       zip_file.write(content)
   if args.hash_file:
-    with open(args.hash_file, 'w') as hash_file:
+    with open(args.hash_file, 'wb') as hash_file:
       hash_file.write(md5)
   if args.upload:
     UploadZip(content, md5, args.upload)

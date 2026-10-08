@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,12 @@ package org.chromium.net.impl;
 import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
 import static android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE;
 
-import android.util.Log;
-
 import org.chromium.net.BidirectionalStream;
 import org.chromium.net.ExperimentalBidirectionalStream;
 import org.chromium.net.NetworkQualityRttListener;
 import org.chromium.net.NetworkQualityThroughputListener;
 import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.UrlRequest;
-import org.chromium.net.impl.CronetLogger.CronetEngineBuilderInfo;
-import org.chromium.net.impl.CronetLogger.CronetSource;
-import org.chromium.net.impl.CronetLogger.CronetVersion;
 
 import java.io.IOException;
 import java.net.Proxy;
@@ -35,23 +30,16 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 /**
  * {@link java.net.HttpURLConnection} backed CronetEngine.
  *
  * <p>Does not support netlogs, transferred data measurement, bidistream, cache, or priority.
  */
 public final class JavaCronetEngine extends CronetEngineBase {
-    private static final String TAG = JavaCronetEngine.class.getSimpleName();
-
     private final String mUserAgent;
     private final ExecutorService mExecutorService;
-    private final int mCronetEngineId;
-    private final CronetLogger mLogger;
-    private final AtomicInteger mActiveRequestCount = new AtomicInteger();
 
     public JavaCronetEngine(CronetEngineBuilderImpl builder) {
-        mCronetEngineId = hashCode();
         // On android, all background threads (and all threads that are part
         // of background processes) are put in a cgroup that is allowed to
         // consume up to 5% of CPU - these worker threads spend the vast
@@ -75,37 +63,6 @@ public final class JavaCronetEngine extends CronetEngineBase {
                         });
                     }
                 });
-        mLogger = CronetLoggerFactory.createLogger(
-                builder.getContext(), CronetSource.CRONET_SOURCE_FALLBACK);
-        try {
-            mLogger.logCronetEngineCreation(mCronetEngineId, new CronetEngineBuilderInfo(builder),
-                    buildCronetVersion(), CronetSource.CRONET_SOURCE_FALLBACK);
-        } catch (RuntimeException e) {
-            // Handle any issue gracefully, we should never crash due failures while logging.
-            Log.e(TAG, "Error while trying to log JavaCronetEngine creation: ", e);
-        }
-    }
-
-    /**
-     * Increment the number of active requests.
-     */
-    void incrementActiveRequestCount() {
-        mActiveRequestCount.incrementAndGet();
-    }
-
-    /**
-     * Decrement the number of active requests.
-     */
-    void decrementActiveRequestCount() {
-        mActiveRequestCount.decrementAndGet();
-    }
-
-    int getCronetEngineId() {
-        return mCronetEngineId;
-    }
-
-    CronetLogger getCronetLogger() {
-        return mLogger;
     }
 
     @Override
@@ -114,13 +71,8 @@ public final class JavaCronetEngine extends CronetEngineBase {
             boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
-            int idempotency, long networkHandle) {
-        if (networkHandle != DEFAULT_NETWORK_HANDLE) {
-            throw new UnsupportedOperationException(
-                    "The multi-network API is not supported by the Java implementation "
-                    + "of Cronet Engine");
-        }
-        return new JavaUrlRequest(this, callback, mExecutorService, executor, url, mUserAgent,
+            int idempotency) {
+        return new JavaUrlRequest(callback, mExecutorService, executor, url, mUserAgent,
                 allowDirectExecutor, trafficStatsTagSet, trafficStatsTag, trafficStatsUidSet,
                 trafficStatsUid);
     }
@@ -131,7 +83,7 @@ public final class JavaCronetEngine extends CronetEngineBase {
             List<Map.Entry<String, String>> requestHeaders, @StreamPriority int priority,
             boolean delayRequestHeadersUntilFirstFlush, Collection<Object> connectionAnnotations,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
-            int trafficStatsUid, long networkHandle) {
+            int trafficStatsUid) {
         throw new UnsupportedOperationException(
                 "Can't create a bidi stream - httpurlconnection doesn't have those APIs");
     }
@@ -147,15 +99,6 @@ public final class JavaCronetEngine extends CronetEngineBase {
     @Override
     public String getVersionString() {
         return "CronetHttpURLConnection/" + ImplVersion.getCronetVersionWithLastChange();
-    }
-
-    private CronetVersion buildCronetVersion() {
-        String version = getVersionString();
-        // getVersionString()'s output looks like "Cronet/w.x.y.z@hash". CronetVersion only cares
-        // about the "w.x.y.z" bit.
-        version = version.split("/")[1];
-        version = version.split("@")[0];
-        return new CronetVersion(version);
     }
 
     @Override
@@ -195,18 +138,6 @@ public final class JavaCronetEngine extends CronetEngineBase {
     @Override
     public int getDownstreamThroughputKbps() {
         return CONNECTION_METRIC_UNKNOWN;
-    }
-
-    @Override
-    public int getActiveRequestCount() {
-        return mActiveRequestCount.get();
-    }
-
-    @Override
-    public void bindToNetwork(long networkHandle) {
-        throw new UnsupportedOperationException(
-                "The multi-network API is not supported by the Java implementation "
-                + "of Cronet Engine");
     }
 
     @Override

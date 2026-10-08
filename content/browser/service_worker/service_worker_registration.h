@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,13 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/observer_list.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "content/common/content_export.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
-#include "third_party/blink/public/mojom/service_worker/navigation_preload_state.mojom.h"
-#include "third_party/blink/public/mojom/service_worker/service_worker_ancestor_frame_type.mojom.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_registration.mojom.h"
 #include "url/gurl.h"
 
@@ -75,23 +72,14 @@ class CONTENT_EXPORT ServiceWorkerRegistration
   // tests.
   ServiceWorkerRegistration(
       const blink::mojom::ServiceWorkerRegistrationOptions& options,
-      const blink::StorageKey& key,
       int64_t registration_id,
-      base::WeakPtr<ServiceWorkerContextCore> context,
-      blink::mojom::AncestorFrameType ancestor_frame_type);
-
-  ServiceWorkerRegistration(const ServiceWorkerRegistration&) = delete;
-  ServiceWorkerRegistration& operator=(const ServiceWorkerRegistration&) =
-      delete;
+      base::WeakPtr<ServiceWorkerContextCore> context);
 
   int64_t id() const { return registration_id_; }
   const GURL& scope() const { return scope_; }
-  const blink::StorageKey& key() const { return key_; }
+  const url::Origin& origin() const { return origin_; }
   blink::mojom::ServiceWorkerUpdateViaCache update_via_cache() const {
     return update_via_cache_;
-  }
-  blink::mojom::AncestorFrameType ancestor_frame_type() const {
-    return ancestor_frame_type_;
   }
 
   bool is_deleted() const { return status_ != Status::kIntact; }
@@ -269,7 +257,7 @@ class CONTENT_EXPORT ServiceWorkerRegistration
   };
 
   const GURL scope_;
-  const blink::StorageKey key_;
+  const url::Origin origin_;
   blink::mojom::ServiceWorkerUpdateViaCache update_via_cache_;
   const int64_t registration_id_;
   Status status_;
@@ -298,10 +286,7 @@ class CONTENT_EXPORT ServiceWorkerRegistration
   // longer considered a lame duck.
   base::RepeatingTimer lame_duck_timer_;
 
-  // TODO(crbug.com/1159778): Remove once the bug is fixed.
-  bool in_activate_waiting_version_ = false;
-
-  const blink::mojom::AncestorFrameType ancestor_frame_type_;
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerRegistration);
 };
 
 }  // namespace content

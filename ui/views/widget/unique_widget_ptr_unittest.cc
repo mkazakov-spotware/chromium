@@ -1,14 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/widget/unique_widget_ptr.h"
 
 #include <memory>
-#include <utility>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/views/test/views_test_base.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
@@ -31,7 +29,7 @@ class UniqueWidgetPtrTest : public ViewsTestBase, public WidgetObserver {
   std::unique_ptr<Widget> AllocateTestWidget() override {
     auto widget = ViewsTestBase::AllocateTestWidget();
     widget->Init(CreateParams(Widget::InitParams::TYPE_WINDOW_FRAMELESS));
-    widget_observation_.Observe(widget.get());
+    widget_observer_.Add(widget.get());
     return widget;
   }
 
@@ -48,14 +46,13 @@ class UniqueWidgetPtrTest : public ViewsTestBase, public WidgetObserver {
   void OnWidgetDestroying(Widget* widget) override {
     ASSERT_NE(widget_, nullptr);
     ASSERT_EQ(widget_, widget);
-    ASSERT_TRUE(widget_observation_.IsObservingSource(widget_.get()));
-    widget_observation_.Reset();
+    widget_observer_.Remove(widget_);
     widget_ = nullptr;
   }
 
  private:
-  raw_ptr<Widget> widget_ = nullptr;
-  base::ScopedObservation<Widget, WidgetObserver> widget_observation_{this};
+  Widget* widget_ = nullptr;
+  ScopedObserver<Widget, WidgetObserver> widget_observer_{this};
 };
 
 // Make sure explicitly resetting the |unique_widget_ptr| variable properly
@@ -84,7 +81,7 @@ TEST_F(UniqueWidgetPtrTest, TestMoveAssign) {
     unique_widget_ptr = std::move(unique_widget_ptr2);
     EXPECT_EQ(unique_widget_ptr->GetContentsView(),
               widget()->GetContentsView());
-    EXPECT_FALSE(unique_widget_ptr2);  // NOLINT
+    EXPECT_FALSE(unique_widget_ptr2);
     unique_widget_ptr.reset();
     EXPECT_FALSE(unique_widget_ptr);
   }
@@ -101,7 +98,7 @@ TEST_F(UniqueWidgetPtrTest, TestMoveConstruct) {
     UniqueWidgetPtr unique_widget_ptr = std::move(unique_widget_ptr2);
     EXPECT_EQ(unique_widget_ptr->GetContentsView(),
               widget()->GetContentsView());
-    EXPECT_FALSE(unique_widget_ptr2);  // NOLINT
+    EXPECT_FALSE(unique_widget_ptr2);
     unique_widget_ptr.reset();
     EXPECT_FALSE(unique_widget_ptr);
   }

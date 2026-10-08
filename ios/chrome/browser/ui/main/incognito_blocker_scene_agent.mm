@@ -1,12 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/main/incognito_blocker_scene_agent.h"
 
-#import "base/ios/ios_util.h"
-#import "base/mac/bundle_locations.h"
-#import "base/mac/foundation_util.h"
+#include "base/mac/bundle_locations.h"
+#include "base/mac/foundation_util.h"
+#import "ios/chrome/browser/ui/util/multi_window_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -59,7 +59,7 @@
 - (void)sceneState:(SceneState*)sceneState
     transitionedToActivationLevel:(SceneActivationLevel)level {
   if (level == SceneActivationLevelBackground &&
-      (sceneState.incognitoContentVisible || sceneState.QRScannerVisible)) {
+      sceneState.incognitoContentVisible) {
     // If the current BVC is incognito, or if we are in the tab switcher and
     // there are incognito tabs visible, place a full screen view containing
     // the switcher background to hide any incognito content.
@@ -74,9 +74,17 @@
 #pragma mark - private
 
 - (void)showOverlay {
-  NSArray<UIWindow*>* windows = self.sceneState.scene.windows;
+  NSArray<UIWindow*>* windows = nil;
 
-  // Adding `self.overlayView` to sceneState.window won't cover overlay windows
+  if (IsMultiwindowSupported()) {
+    if (@available(iOS 13, *)) {
+      windows = self.sceneState.scene.windows;
+    }
+  } else {
+    windows = UIApplication.sharedApplication.windows;
+  }
+
+  // Adding |self.overlayView| to sceneState.window won't cover overlay windows
   // such as fullscreen video.  Instead use the topmost window.
 
   NSArray<UIWindow*>* sortedWindows =

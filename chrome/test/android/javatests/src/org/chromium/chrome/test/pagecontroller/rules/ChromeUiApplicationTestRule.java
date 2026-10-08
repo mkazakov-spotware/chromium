@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@ import org.junit.rules.ExternalResource;
 
 import org.chromium.base.Log;
 import org.chromium.chrome.test.pagecontroller.controllers.PageController;
-import org.chromium.chrome.test.pagecontroller.controllers.first_run.SyncConfirmationViewPageController;
+import org.chromium.chrome.test.pagecontroller.controllers.first_run.DataSaverController;
+import org.chromium.chrome.test.pagecontroller.controllers.first_run.SyncController;
 import org.chromium.chrome.test.pagecontroller.controllers.first_run.TOSController;
 import org.chromium.chrome.test.pagecontroller.controllers.ntp.NewTabPageController;
 import org.chromium.chrome.test.pagecontroller.utils.UiAutomatorUtils;
@@ -59,8 +60,12 @@ public class ChromeUiApplicationTestRule extends ExternalResource {
             ((TOSController) controller).acceptAndContinue();
             controller = detectPageOnFirstRun();
         }
-        if (controller instanceof SyncConfirmationViewPageController) {
-            ((SyncConfirmationViewPageController) controller).clickNoThanks();
+        if (controller instanceof DataSaverController) {
+            ((DataSaverController) controller).clickNext();
+            controller = detectPageOnFirstRun();
+        }
+        if (controller instanceof SyncController) {
+            ((SyncController) controller).clickNoThanks();
             controller = detectPageOnFirstRun();
         }
         if (controller instanceof NewTabPageController) {
@@ -100,8 +105,7 @@ public class ChromeUiApplicationTestRule extends ExternalResource {
      * @throws UiLocationException If page can't be determined.
      */
     private static PageController detectPageOnFirstRun() {
-        return detectPageAmong(TOSController.getInstance(),
-                SyncConfirmationViewPageController.getInstance(),
-                NewTabPageController.getInstance());
+        return detectPageAmong(TOSController.getInstance(), SyncController.getInstance(),
+                DataSaverController.getInstance(), NewTabPageController.getInstance());
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,13 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/thread_annotations.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
@@ -31,10 +33,6 @@ class MIDI_EXPORT TaskService final {
   static constexpr RunnerId kDefaultRunnerId = 0;
 
   TaskService();
-
-  TaskService(const TaskService&) = delete;
-  TaskService& operator=(const TaskService&) = delete;
-
   ~TaskService();
 
   // Issues an InstanceId internally to post tasks via PostBoundTask() and
@@ -45,8 +43,8 @@ class MIDI_EXPORT TaskService final {
   // false, that happens when the BindInstance() is called twice without
   // unbinding the previous instance, or the UnbindInstance() is called without
   // any successful BindInstance() call.
-  [[nodiscard]] bool BindInstance();
-  [[nodiscard]] bool UnbindInstance();
+  bool BindInstance() WARN_UNUSED_RESULT;
+  bool UnbindInstance() WARN_UNUSED_RESULT;
 
   // Checks if the current thread belongs to the specified runner.
   bool IsOnTaskRunner(RunnerId runner_id);
@@ -113,6 +111,8 @@ class MIDI_EXPORT TaskService final {
   // Verifies all UnbindInstance() calls occur on the same sequence as
   // BindInstance().
   SEQUENCE_CHECKER(instance_binding_sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(TaskService);
 };
 
 }  // namespace midi

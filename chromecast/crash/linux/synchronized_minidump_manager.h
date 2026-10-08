@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/values.h"
 #include "chromecast/crash/linux/dump_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace chromecast {
 
@@ -48,10 +48,6 @@ class SynchronizedMinidumpManager {
 
   // Number of dumps allowed per period.
   static const int kRatelimitPeriodMaxDumps;
-
-  SynchronizedMinidumpManager(const SynchronizedMinidumpManager&) = delete;
-  SynchronizedMinidumpManager& operator=(const SynchronizedMinidumpManager&) =
-      delete;
 
   virtual ~SynchronizedMinidumpManager();
 
@@ -134,8 +130,7 @@ class SynchronizedMinidumpManager {
 
   // Write deserialized |dumps| to |lockfile_path_| and the deserialized
   // |metadata| to |metadata_path_|.
-  bool WriteFiles(const base::Value::List& dumps,
-                  const base::Value::Dict& metadata);
+  bool WriteFiles(const base::ListValue* dumps, const base::Value* metadata);
 
   // Creates an empty lock file and an initialized metadata file.
   bool InitializeFiles();
@@ -146,8 +141,10 @@ class SynchronizedMinidumpManager {
   const base::FilePath lockfile_path_;
   const base::FilePath metadata_path_;
   int lockfile_fd_;
-  absl::optional<base::Value::Dict> metadata_;
-  absl::optional<base::Value::List> dumps_;
+  std::unique_ptr<base::Value> metadata_;
+  std::unique_ptr<base::ListValue> dumps_;
+
+  DISALLOW_COPY_AND_ASSIGN(SynchronizedMinidumpManager);
 };
 
 }  // namespace chromecast

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 #include <map>
 #include <set>
 
-#include "base/containers/contains.h"
 #include "base/containers/stack.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "ui/display/types/display_constants.h"
 
 namespace display {
@@ -84,9 +83,11 @@ UnifiedDesktopLayoutMatrix BuildDisplayMatrix(const DisplayLayout& layout) {
     int64_t current_display_id = placement.display_id;
     base::stack<DisplayPlacement> unhandled_displays;
     while (displays_cells.count(current_display_id) == 0) {
-      auto placement_iter =
-          base::ranges::find(layout.placement_list, current_display_id,
-                             &DisplayPlacement::display_id);
+      auto placement_iter = std::find_if(
+          layout.placement_list.begin(), layout.placement_list.end(),
+          [current_display_id](const DisplayPlacement& p) {
+            return p.display_id == current_display_id;
+          });
       DCHECK(placement_iter != layout.placement_list.end());
       unhandled_displays.emplace(*placement_iter);
       current_display_id = placement_iter->parent_display_id;
@@ -214,8 +215,12 @@ bool BuildUnifiedDesktopMatrix(const DisplayIdList& ids_list,
   for (const auto& id : ids_list) {
     if (id == layout.primary_id)
       continue;
-    if (!base::Contains(layout.placement_list, id,
-                        &DisplayPlacement::display_id)) {
+    const auto iter =
+        std::find_if(layout.placement_list.begin(), layout.placement_list.end(),
+                     [id](const DisplayPlacement& placement) {
+                       return placement.display_id == id;
+                     });
+    if (iter == layout.placement_list.end()) {
       LOG(ERROR) << "Display with ID: " << id << " has no placement.";
       return false;
     }

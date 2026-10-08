@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@ import org.chromium.weblayer_private.interfaces.IBrowserFragment;
 import org.chromium.weblayer_private.interfaces.ICrashReporterController;
 import org.chromium.weblayer_private.interfaces.IObjectWrapper;
 import org.chromium.weblayer_private.interfaces.IProfile;
+import org.chromium.weblayer_private.interfaces.IRemoteFragmentClient;
 import org.chromium.weblayer_private.interfaces.IMediaRouteDialogFragment;
+import org.chromium.weblayer_private.interfaces.ISiteSettingsFragment;
 import org.chromium.weblayer_private.interfaces.IWebLayerClient;
 
 interface IWebLayer {
@@ -24,7 +26,8 @@ interface IWebLayer {
   // WebLayer can call methods on Fragment.
   // @param fragmentArgs Bundle of arguments with which the Fragment was created on the client side
   // (see Fragment#setArguments).
-  IBrowserFragment createBrowserFragmentImpl(in IObjectWrapper fragmentArgs) = 3;
+  IBrowserFragment createBrowserFragmentImpl(in IRemoteFragmentClient fragmentClient,
+      in IObjectWrapper fragmentArgs) = 3;
 
   // Create or get the profile matching profileName.
   IProfile getProfile(in String profileName) = 4;
@@ -66,36 +69,46 @@ interface IWebLayer {
   // Forwards broadcast from a notification to the implementation.
   void onReceivedBroadcast(in IObjectWrapper appContext, in Intent intent) = 11;
 
+  // Added in Version 82.
   void enumerateAllProfileNames(in IObjectWrapper valueCallback) = 12;
 
+  // Added in Version 83.
   void setClient(in IWebLayerClient client) = 13;
 
+  // Added in Version 84.
   String getUserAgentString() = 14;
 
+  // Added in Version 84.
   void registerExternalExperimentIDs(in String trialName, in int[] experimentIds) = 15;
 
+  // Creates the WebLayer counterpart to a SiteSettingsFragment - a SiteSettingsFragmentImpl
+  //
+  // @param fragmentClient Representative of the Fragment on the client side through which
+  // WebLayer can call methods on Fragment.
+  // @param fragmentArgs Bundle of arguments with which the Fragment was created on the client side
+  // (see Fragment#setArguments).
+  // Added in Version 84.
+  ISiteSettingsFragment createSiteSettingsFragmentImpl(
+      in IRemoteFragmentClient remoteFragmentClient,
+      in IObjectWrapper fragmentArgs) = 16;
+
+  // Added in Version 85.
   void onMediaSessionServiceStarted(in IObjectWrapper sessionService, in Intent intent) = 17;
   void onMediaSessionServiceDestroyed() = 18;
 
+  // Added in Version 86.
   IBinder initializeImageDecoder(in IObjectWrapper appContext,
                                  in IObjectWrapper remoteContext) = 19;
 
+  // Added in Version 87.
   IObjectWrapper getApplicationContext() = 20;
-  IMediaRouteDialogFragment createMediaRouteDialogFragmentImpl() = 21;
+  IMediaRouteDialogFragment createMediaRouteDialogFragmentImpl(
+      in IRemoteFragmentClient remoteFragmentClient) = 21;
   IProfile getIncognitoProfile(in String profileName) = 24;
 
   // Added in Version 88.
   void onRemoteMediaServiceStarted(in IObjectWrapper sessionService, in Intent intent) = 22;
   void onRemoteMediaServiceDestroyed(int id) = 23;
-
-  // Creates an instance of GooglePayDataCallbacksService. Added in Version 92.
-  IObjectWrapper createGooglePayDataCallbacksService() = 26;
-
-  // Creates an instance of PaymentDetailsUpdateService. Added in Version 92.
-  IObjectWrapper createPaymentDetailsUpdateService() = 27;
-
-  // Added in Version 101.
-  String getXClientDataHeader() = 28;
 
   // WARNING: when choosing next value make sure you look back for the max, as
   // merges may mean the last function does not have the max value.

@@ -1,13 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/password_manager/core/browser/export/csv_writer.h"
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define CSV_EOL_SEQUENCE "\r\n"
 #else
 #define CSV_EOL_SEQUENCE "\n"
@@ -19,9 +20,6 @@ class CSVWriterTest : public testing::Test {
  public:
   CSVWriterTest() = default;
 
-  CSVWriterTest(const CSVWriterTest&) = delete;
-  CSVWriterTest& operator=(const CSVWriterTest&) = delete;
-
   void SetUp() override {
     column_names_.push_back("foo");
     column_names_.push_back("bar");
@@ -30,6 +28,9 @@ class CSVWriterTest : public testing::Test {
  protected:
   std::vector<std::string> column_names_;
   std::vector<std::map<std::string, std::string>> records_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CSVWriterTest);
 };
 
 TEST_F(CSVWriterTest, EmptyData) {

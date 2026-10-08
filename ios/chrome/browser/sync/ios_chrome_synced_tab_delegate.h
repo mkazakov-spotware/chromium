@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "components/sessions/core/session_id.h"
 #include "components/sync_sessions/synced_tab_delegate.h"
 #import "ios/web/public/web_state_user_data.h"
@@ -21,10 +22,6 @@ class IOSChromeSyncedTabDelegate
     : public sync_sessions::SyncedTabDelegate,
       public web::WebStateUserData<IOSChromeSyncedTabDelegate> {
  public:
-  IOSChromeSyncedTabDelegate(const IOSChromeSyncedTabDelegate&) = delete;
-  IOSChromeSyncedTabDelegate& operator=(const IOSChromeSyncedTabDelegate&) =
-      delete;
-
   ~IOSChromeSyncedTabDelegate() override;
 
   // SyncedTabDelegate:
@@ -36,11 +33,13 @@ class IOSChromeSyncedTabDelegate
   int GetCurrentEntryIndex() const override;
   int GetEntryCount() const override;
   GURL GetVirtualURLAtIndex(int i) const override;
+  GURL GetFaviconURLAtIndex(int i) const override;
+  ui::PageTransition GetTransitionAtIndex(int i) const override;
   std::string GetPageLanguageAtIndex(int i) const override;
   void GetSerializedNavigationAtIndex(
       int i,
       sessions::SerializedNavigationEntry* serialized_entry) const override;
-  bool ProfileHasChildAccount() const override;
+  bool ProfileIsSupervised() const override;
   const std::vector<std::unique_ptr<const sessions::SerializedNavigationEntry>>*
   GetBlockedNavigations() const override;
   bool IsPlaceholderTab() const override;
@@ -58,13 +57,15 @@ class IOSChromeSyncedTabDelegate
   // Storage must be used if slim navigation is enabled and the tab has not be
   // displayed.
   // If the session storage must be used and was not fetched yet, bet it from
-  // `web_state_`.
+  // |web_state_|.
   bool GetSessionStorageIfNeeded() const;
 
   web::WebState* web_state_;
   mutable CRWSessionStorage* session_storage_;
 
   WEB_STATE_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(IOSChromeSyncedTabDelegate);
 };
 
 #endif  // IOS_CHROME_BROWSER_SYNC_IOS_CHROME_SYNCED_TAB_DELEGATE_H_

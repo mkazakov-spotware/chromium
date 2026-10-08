@@ -1,16 +1,16 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests that buffer usage update are sent when recording trace events and TimelineLifecycleDelegate methods are properly invoked in the expected order.\n`);
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
   await TestRunner.showPanel('timeline');
 
   class TestTimelineControllerClient {
     constructor() {
-      this.hadLoadingProgress = false;
+      this._hadLoadingProgress = false;
     }
 
     recordingProgress() {
@@ -26,9 +26,9 @@
     }
 
     loadingProgress() {
-      if (this.hadLoadingProgress)
+      if (this._hadLoadingProgress)
         return;
-      this.hadLoadingProgress = true;
+      this._hadLoadingProgress = true;
       TestRunner.addResult('TimelineControllerClient.loadingProgress');
     }
 
@@ -42,7 +42,7 @@
     }
   };
 
-  let controller = new Timeline.TimelineController(SDK.targetManager.mainFrameTarget(), new TestTimelineControllerClient());
+  let controller = new Timeline.TimelineController(SDK.targetManager.mainTarget(), new TestTimelineControllerClient());
   controller.startRecording({}, []).then(() => {
     TestRunner.addResult('TimelineControllerClient.recordingStarted');
   });

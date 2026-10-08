@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,21 +59,17 @@ void ReadableStreamGenericReader::GenericRelease(
     ScriptState* script_state,
     ReadableStreamGenericReader* reader) {
   // https://streams.spec.whatwg.org/#readable-stream-reader-generic-release
-  // 1. Let stream be reader.[[stream]].
-  ReadableStream* stream = reader->owner_readable_stream_;
+  // 1. Assert: reader.[[ownerReadableStream]] is not undefined.
+  DCHECK(reader->owner_readable_stream_);
 
-  // 2. Assert: stream is not undefined.
-  DCHECK(stream);
-
-  // 3. Assert: stream.[[reader]] is reader.
-  DCHECK_EQ(stream->reader_, reader);
+  // 2. Assert: reader.[[ownerReadableStream]].[[reader]] is reader.
+  DCHECK_EQ(reader->owner_readable_stream_->reader_, reader);
 
   auto* isolate = script_state->GetIsolate();
 
-  // 4. If stream.[[state]] is "readable", reject reader.[[closedPromise]] with
-  // a TypeError exception.
-  if (stream->state_ == ReadableStream::kReadable) {
-    reader->closed_promise_->MarkAsSilent(isolate);
+  // 3. If reader.[[ownerReadableStream]].[[state]] is "readable", reject
+  //    reader.[[closedPromise]] with a TypeError exception.
+  if (reader->owner_readable_stream_->state_ == ReadableStream::kReadable) {
     reader->closed_promise_->Reject(
         script_state,
         v8::Exception::TypeError(V8String(
@@ -81,25 +77,22 @@ void ReadableStreamGenericReader::GenericRelease(
             "This readable stream reader has been released and cannot be used "
             "to monitor the stream's state")));
   } else {
-    // 5. Otherwise, set reader.[[closedPromise]] to a promise rejected with a
-    // TypeError exception.
-    reader->closed_promise_ = StreamPromiseResolver::CreateRejectedAndSilent(
+    // 4. Otherwise, set reader.[[closedPromise]] to a promise rejected with a
+    //    TypeError exception.
+    reader->closed_promise_ = StreamPromiseResolver::CreateRejected(
         script_state, v8::Exception::TypeError(V8String(
                           isolate,
                           "This readable stream reader has been released and "
                           "cannot be used to monitor the stream's state")));
   }
 
-  // 6. Set reader.[[closedPromise]].[[PromiseIsHandled]] to true.
+  // 5. Set reader.[[closedPromise]].[[PromiseIsHandled]] to true.
   reader->closed_promise_->MarkAsHandled(isolate);
 
-  // 7. Perform ! stream.[[controller]].[[ReleaseSteps]]().
-  stream->readable_stream_controller_->ReleaseSteps();
+  // 6. Set reader.[[ownerReadableStream]].[[reader]] to undefined.
+  reader->owner_readable_stream_->reader_ = nullptr;
 
-  // 8. Set stream.[[reader]] to undefined.
-  stream->reader_ = nullptr;
-
-  // 9. Set reader.[[stream]] to undefined.
+  // 7. Set reader.[[ownerReadableStream]] to undefined.
   reader->owner_readable_stream_ = nullptr;
 }
 
@@ -135,7 +128,7 @@ void ReadableStreamGenericReader::GenericInitialize(
   reader->owner_readable_stream_ = stream;
 
   // 2. Set stream.[[reader]] to reader.
-  stream->reader_ = reader;
+  stream->reader_ = static_cast<ReadableStreamDefaultReader*>(reader);
 
   switch (stream->state_) {
     // 3. If stream.[[state]] is "readable",
@@ -159,7 +152,7 @@ void ReadableStreamGenericReader::GenericInitialize(
 
       // b. Set reader.[[closedPromise]] to a promise rejected with stream.
       //    [[storedError]].
-      reader->closed_promise_ = StreamPromiseResolver::CreateRejectedAndSilent(
+      reader->closed_promise_ = StreamPromiseResolver::CreateRejected(
           script_state, stream->GetStoredError(isolate));
 
       // c. Set reader.[[closedPromise]].[[PromiseIsHandled]] to true.

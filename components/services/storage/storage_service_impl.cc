@@ -1,11 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/services/storage/storage_service_impl.h"
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/services/storage/dom_storage/storage_area_impl.h"
 #include "components/services/storage/filesystem_proxy_factory.h"
@@ -24,7 +25,7 @@ namespace {
 
 // We don't use out-of-process Storage Service on Android, so we can avoid
 // pulling all the related code (including Directory mojom) into the build.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // The name under which we register our own sandboxed VFS instance when running
 // out-of-process.
 constexpr char kVfsName[] = "storage_service";
@@ -60,7 +61,7 @@ void StorageServiceImpl::EnableAggressiveDomStorageFlushing() {
   StorageAreaImpl::EnableAggressiveCommitDelay();
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 void StorageServiceImpl::SetDataDirectory(
     const base::FilePath& path,
     mojo::PendingRemote<mojom::Directory> directory) {
@@ -76,7 +77,7 @@ void StorageServiceImpl::SetDataDirectory(
       io_task_runner_,
       base::BindRepeating(&StorageServiceImpl::BindDataDirectoryReceiver,
                           weak_ptr_factory_.GetWeakPtr()),
-      base::SequencedTaskRunner::GetCurrentDefault()));
+      base::SequencedTaskRunnerHandle::Get()));
 
   // Prevent SQLite from trying to use mmap, as SandboxedVfs does not currently
   // support this.
@@ -90,10 +91,10 @@ void StorageServiceImpl::SetDataDirectory(
       kVfsName, std::make_unique<SandboxedVfsDelegate>(CreateFilesystemProxy()),
       /*make_default=*/true);
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 void StorageServiceImpl::BindPartition(
-    const absl::optional<base::FilePath>& path,
+    const base::Optional<base::FilePath>& path,
     mojo::PendingReceiver<mojom::Partition> receiver) {
   if (path.has_value()) {
     if (!path->IsAbsolute()) {
@@ -131,7 +132,7 @@ void StorageServiceImpl::RemovePartition(PartitionImpl* partition) {
     partitions_.erase(iter);
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 void StorageServiceImpl::BindDataDirectoryReceiver(
     mojo::PendingReceiver<mojom::Directory> receiver) {
   DCHECK(remote_data_directory_.is_bound());

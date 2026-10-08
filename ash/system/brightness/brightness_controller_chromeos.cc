@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,27 @@
 
 #include <utility>
 
+#include "base/metrics/user_metrics.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "chromeos/dbus/power_manager/backlight.pb.h"
+#include "ui/base/accelerators/accelerator.h"
 
 namespace ash {
 namespace system {
 
-void BrightnessControllerChromeos::HandleBrightnessDown() {
+void BrightnessControllerChromeos::HandleBrightnessDown(
+    const ui::Accelerator& accelerator) {
+  if (accelerator.key_code() == ui::VKEY_BRIGHTNESS_DOWN)
+    base::RecordAction(base::UserMetricsAction("Accel_BrightnessDown_F6"));
+
   chromeos::PowerManagerClient::Get()->DecreaseScreenBrightness(true);
 }
 
-void BrightnessControllerChromeos::HandleBrightnessUp() {
+void BrightnessControllerChromeos::HandleBrightnessUp(
+    const ui::Accelerator& accelerator) {
+  if (accelerator.key_code() == ui::VKEY_BRIGHTNESS_UP)
+    base::RecordAction(base::UserMetricsAction("Accel_BrightnessUp_F7"));
+
   chromeos::PowerManagerClient::Get()->IncreaseScreenBrightness();
 }
 
@@ -34,7 +44,7 @@ void BrightnessControllerChromeos::SetBrightnessPercent(double percent,
 }
 
 void BrightnessControllerChromeos::GetBrightnessPercent(
-    base::OnceCallback<void(absl::optional<double>)> callback) {
+    base::OnceCallback<void(base::Optional<double>)> callback) {
   chromeos::PowerManagerClient::Get()->GetScreenBrightnessPercent(
       std::move(callback));
 }

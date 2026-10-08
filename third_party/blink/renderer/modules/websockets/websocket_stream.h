@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBSOCKETS_WEBSOCKET_STREAM_H_
 
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
-#include "third_party/blink/renderer/core/dom/abort_signal.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/websockets/websocket_channel_client.h"
@@ -14,7 +13,6 @@
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "v8/include/v8.h"
 
@@ -26,6 +24,7 @@ class ScriptPromise;
 class ScriptPromiseResolver;
 class ScriptState;
 class ScriptValue;
+class Visitor;
 class WebSocketChannel;
 class WebSocketCloseInfo;
 class WebSocketStreamOptions;
@@ -127,8 +126,6 @@ class MODULES_EXPORT WebSocketStream final
 
   Member<UnderlyingSource> source_;
   Member<UnderlyingSink> sink_;
-
-  Member<AbortSignal::AlgorithmHandle> abort_handle_;
 
   WebSocketCommon common_;
 

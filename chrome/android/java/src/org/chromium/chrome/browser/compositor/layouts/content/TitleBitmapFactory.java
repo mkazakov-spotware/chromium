@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.InflateException;
 
-import androidx.appcompat.content.res.AppCompatResources;
-
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
 
 /**
@@ -45,11 +44,9 @@ public class TitleBitmapFactory {
      */
     public TitleBitmapFactory(Context context, boolean incognito) {
         Resources res = context.getResources();
-        int textColor = AppCompatResources
-                                .getColorStateList(context,
-                                        incognito ? R.color.compositor_tab_title_bar_text_incognito
-                                                  : R.color.compositor_tab_title_bar_text)
-                                .getDefaultColor();
+        int textColor = ApiCompatibilityUtils.getColor(res, incognito
+                ? R.color.compositor_tab_title_bar_text_incognito
+                : R.color.compositor_tab_title_bar_text);
         float textSize = res.getDimension(R.dimen.compositor_tab_title_text_size);
 
         boolean fakeBoldText = res.getBoolean(R.bool.compositor_tab_title_fake_bold_text);

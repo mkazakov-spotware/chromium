@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,10 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.widget.MoreProgressButton;
+import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate;
 
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
@@ -34,26 +34,23 @@ public class HistoryAdapterTest {
 
     @Mock
     private MoreProgressButton mMockButton;
-    @Mock
-    private HistoryContentManager mContentManager;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
         mHistoryProvider = new StubbedHistoryProvider();
-        mAdapter = new HistoryAdapter(
-                mContentManager, mHistoryProvider, new ObservableSupplierImpl<>(), (vg) -> null);
+        mAdapter = new HistoryAdapter(new SelectionDelegate<HistoryItem>(), null, mHistoryProvider);
         mAdapter.generateHeaderItemsForTest();
         mAdapter.generateFooterItemsForTest(mMockButton);
     }
 
     private void initializeAdapter() {
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
     }
 
     @Test
     public void testInitialize_Empty() {
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
         checkAdapterContents(mAdapter, false, false);
     }
 
@@ -64,7 +61,7 @@ public class HistoryAdapterTest {
         HistoryItem item1 = StubbedHistoryProvider.createHistoryItem(0, timestamp);
         mHistoryProvider.addItem(item1);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
 
         // There should be three items - the header, a date and the history item.
         checkAdapterContents(mAdapter, true, false, null, null, item1);
@@ -80,7 +77,7 @@ public class HistoryAdapterTest {
         HistoryItem item2 = StubbedHistoryProvider.createHistoryItem(1, timestamp);
         mHistoryProvider.addItem(item2);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
 
         // There should be four items - the list header, a date header and two history items.
         checkAdapterContents(mAdapter, true, false, null, null, item1, item2);
@@ -114,7 +111,7 @@ public class HistoryAdapterTest {
         HistoryItem item2 = StubbedHistoryProvider.createHistoryItem(1, timestamp2);
         mHistoryProvider.addItem(item2);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
 
         // There should be five items - the list header, a date header, a history item, another
         // date header and another history item.
@@ -149,7 +146,7 @@ public class HistoryAdapterTest {
         HistoryItem item2 = StubbedHistoryProvider.createHistoryItem(1, timestamp2);
         mHistoryProvider.addItem(item2);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
         checkAdapterContents(mAdapter, true, false, null, null, item1, null, item2);
 
         mAdapter.search("google");
@@ -190,7 +187,7 @@ public class HistoryAdapterTest {
         HistoryItem item7 = StubbedHistoryProvider.createHistoryItem(1, timestamp3);
         mHistoryProvider.addItem(item7);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
 
         // Only the first five of the seven items should be loaded.
         checkAdapterContents(
@@ -212,7 +209,7 @@ public class HistoryAdapterTest {
         HistoryItem item1 = StubbedHistoryProvider.createHistoryItem(0, timestamp);
         mHistoryProvider.addItem(item1);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
 
         checkAdapterContents(mAdapter, true, false, null, null, item1);
 
@@ -233,7 +230,7 @@ public class HistoryAdapterTest {
         HistoryItem item2 = StubbedHistoryProvider.createHistoryItem(5, timestamp);
         mHistoryProvider.addItem(item2);
 
-        mAdapter.startLoadingItems();
+        mAdapter.initialize();
 
         checkAdapterContents(mAdapter, true, false, null, null, item1, item2);
         Assert.assertEquals(ContextUtils.getApplicationContext().getString(

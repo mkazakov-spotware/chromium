@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,12 @@
 
 #import <Cocoa/Cocoa.h>
 
-#include "base/no_destructor.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "ui/base/clipboard/clipboard_constants.h"
 
 namespace ui {
 
 // ClipboardFormatType implementation.
-// MacOS formats are implemented via Uniform Type Identifiers, documented here:
-// https://developer.apple.com/library/archive/documentation/General/Conceptual/DevPedia-CocoaCore/UniformTypeIdentifier.html#//apple_ref/doc/uid/TP40008195-CH60
 ClipboardFormatType::ClipboardFormatType() : data_(nil) {}
 
 ClipboardFormatType::ClipboardFormatType(NSString* native_format)
@@ -61,30 +55,6 @@ bool ClipboardFormatType::operator<(const ClipboardFormatType& other) const {
   return [data_ compare:other.data_] == NSOrderedAscending;
 }
 
-// static
-std::string ClipboardFormatType::WebCustomFormatName(int index) {
-  return base::StrCat({"com.web.custom.format", base::NumberToString(index)});
-}
-
-// static
-std::string ClipboardFormatType::WebCustomFormatMapName() {
-  return "com.web.custom.format.map";
-}
-
-// static
-const ClipboardFormatType& ClipboardFormatType::WebCustomFormatMap() {
-  static base::NoDestructor<ClipboardFormatType> type(
-      base::SysUTF8ToNSString(ClipboardFormatType::WebCustomFormatMapName()));
-  return *type;
-}
-
-// static
-ClipboardFormatType ClipboardFormatType::CustomPlatformType(
-    const std::string& format_string) {
-  DCHECK(base::IsStringASCII(format_string));
-  return ClipboardFormatType::Deserialize(format_string);
-}
-
 // Various predefined ClipboardFormatTypes.
 
 // static
@@ -94,60 +64,48 @@ ClipboardFormatType ClipboardFormatType::GetType(
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::FilenamesType() {
-  static base::NoDestructor<ClipboardFormatType> type(NSFilenamesPboardType);
-  return *type;
-}
-
-// static
-const ClipboardFormatType& ClipboardFormatType::UrlType() {
+const ClipboardFormatType& ClipboardFormatType::GetUrlType() {
   static base::NoDestructor<ClipboardFormatType> type(NSURLPboardType);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::PlainTextType() {
+const ClipboardFormatType& ClipboardFormatType::GetPlainTextType() {
   static base::NoDestructor<ClipboardFormatType> type(NSPasteboardTypeString);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::HtmlType() {
+const ClipboardFormatType& ClipboardFormatType::GetHtmlType() {
   static base::NoDestructor<ClipboardFormatType> type(NSHTMLPboardType);
   return *type;
 }
 
-const ClipboardFormatType& ClipboardFormatType::SvgType() {
+const ClipboardFormatType& ClipboardFormatType::GetSvgType() {
   static base::NoDestructor<ClipboardFormatType> type(kImageSvg);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::RtfType() {
+const ClipboardFormatType& ClipboardFormatType::GetRtfType() {
   static base::NoDestructor<ClipboardFormatType> type(NSRTFPboardType);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::PngType() {
-  static base::NoDestructor<ClipboardFormatType> type(NSPasteboardTypePNG);
+const ClipboardFormatType& ClipboardFormatType::GetBitmapType() {
+  static base::NoDestructor<ClipboardFormatType> type(NSTIFFPboardType);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::BitmapType() {
-  static base::NoDestructor<ClipboardFormatType> type(NSPasteboardTypeTIFF);
-  return *type;
-}
-
-// static
-const ClipboardFormatType& ClipboardFormatType::WebKitSmartPasteType() {
+const ClipboardFormatType& ClipboardFormatType::GetWebKitSmartPasteType() {
   static base::NoDestructor<ClipboardFormatType> type(kWebSmartPastePboardType);
   return *type;
 }
 
 // static
-const ClipboardFormatType& ClipboardFormatType::WebCustomDataType() {
+const ClipboardFormatType& ClipboardFormatType::GetWebCustomDataType() {
   static base::NoDestructor<ClipboardFormatType> type(kWebCustomDataPboardType);
   return *type;
 }

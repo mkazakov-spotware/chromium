@@ -39,7 +39,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/testing/null_execution_context.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -48,68 +48,44 @@ namespace {
 
 typedef ScriptPromise::InternalResolver Resolver;
 
-template <typename T, typename... Args>
-ScriptFunction* CreateFunction(ScriptState* script_state, Args&&... args) {
-  return MakeGarbageCollected<ScriptFunction>(
-      script_state, MakeGarbageCollected<T>(std::forward<Args>(args)...));
-}
-
-class FunctionForScriptPromiseTest : public ScriptFunction::Callable {
+class FunctionForScriptPromiseTest : public ScriptFunction {
  public:
-  explicit FunctionForScriptPromiseTest(ScriptValue* output)
-      : output_(output) {}
+  static v8::Local<v8::Function> CreateFunction(ScriptState* script_state,
+                                                ScriptValue* output) {
+    FunctionForScriptPromiseTest* self =
+        MakeGarbageCollected<FunctionForScriptPromiseTest>(script_state,
+                                                           output);
+    return self->BindToV8Function();
+  }
 
-  ScriptValue Call(ScriptState*, ScriptValue value) override {
+  FunctionForScriptPromiseTest(ScriptState* script_state, ScriptValue* output)
+      : ScriptFunction(script_state), output_(output) {}
+
+ private:
+  ScriptValue Call(ScriptValue value) override {
     DCHECK(!value.IsEmpty());
     *output_ = value;
     return value;
   }
 
- private:
   ScriptValue* output_;
 };
 
-class ThrowingCallable : public ScriptFunction::Callable {
+class ThrowingFunction : public ScriptFunction {
  public:
+  static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+    auto* self = MakeGarbageCollected<ThrowingFunction>(script_state);
+    return self->BindToV8Function();
+  }
+
+  ThrowingFunction(ScriptState* script_state) : ScriptFunction(script_state) {}
+
  private:
-  ScriptValue Call(ScriptState* script_state, ScriptValue value) override {
-    v8::Isolate* isolate = script_state->GetIsolate();
+  ScriptValue Call(ScriptValue value) override {
+    v8::Isolate* isolate = GetScriptState()->GetIsolate();
     isolate->ThrowException(v8::Undefined(isolate));
     return ScriptValue();
   }
-};
-
-class NotReached : public ScriptFunction::Callable {
-  ScriptValue Call(ScriptState* script_state, ScriptValue value) override {
-    ADD_FAILURE() << "This function should not be called.";
-    return ScriptValue();
-  }
-};
-
-class ScriptValueHolder final : public GarbageCollected<ScriptValueHolder> {
- public:
-  const ScriptValue& Value() const { return value_; }
-  void SetValue(const ScriptValue& value) { value_ = value; }
-  void Trace(Visitor* visitor) const { visitor->Trace(value_); }
-
- private:
-  ScriptValue value_;
-};
-
-class CapturingCallable final : public ScriptFunction::Callable {
- public:
-  explicit CapturingCallable(ScriptValueHolder* holder) : holder_(holder) {}
-  ScriptValue Call(ScriptState*, ScriptValue value) override {
-    holder_->SetValue(value);
-    return value;
-  }
-  void Trace(Visitor* visitor) const override {
-    visitor->Trace(holder_);
-    Callable::Trace(visitor);
-  }
-
- private:
-  Member<ScriptValueHolder> holder_;
 };
 
 String ToString(v8::Local<v8::Context> context, const ScriptValue& value) {
@@ -136,47 +112,25 @@ TEST(ScriptPromiseTest, ThenResolve) {
   Resolver resolver(scope.GetScriptState());
   ScriptPromise promise = resolver.Promise();
   ScriptValue on_fulfilled, on_rejected;
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   ASSERT_FALSE(promise.IsEmpty());
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
   resolver.Resolve(V8String(scope.GetIsolate(), "hello"));
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_fulfilled));
   EXPECT_TRUE(on_rejected.IsEmpty());
-}
-
-TEST(ScriptPromiseTest, ThenResolveScriptFunction) {
-  V8TestingScope scope;
-  Resolver resolver(scope.GetScriptState());
-  ScriptPromise promise = resolver.Promise();
-  auto* const on_fulfilled = MakeGarbageCollected<ScriptValueHolder>();
-  promise.Then(
-      CreateFunction<CapturingCallable>(scope.GetScriptState(), on_fulfilled),
-      CreateFunction<NotReached>(scope.GetScriptState()));
-
-  ASSERT_FALSE(promise.IsEmpty());
-  EXPECT_TRUE(on_fulfilled->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-  resolver.Resolve(V8String(scope.GetIsolate(), "hello"));
-
-  EXPECT_TRUE(on_fulfilled->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-
-  EXPECT_EQ("hello", ToString(scope.GetContext(), on_fulfilled->Value()));
 }
 
 TEST(ScriptPromiseTest, ResolveThen) {
@@ -185,37 +139,19 @@ TEST(ScriptPromiseTest, ResolveThen) {
   ScriptPromise promise = resolver.Promise();
   ScriptValue on_fulfilled, on_rejected;
   resolver.Resolve(V8String(scope.GetIsolate(), "hello"));
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   ASSERT_FALSE(promise.IsEmpty());
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_fulfilled));
   EXPECT_TRUE(on_rejected.IsEmpty());
-}
-
-TEST(ScriptPromiseTest, ResolveThenScriptFunction) {
-  V8TestingScope scope;
-  Resolver resolver(scope.GetScriptState());
-  ScriptPromise promise = resolver.Promise();
-  auto* const on_fulfilled = MakeGarbageCollected<ScriptValueHolder>();
-  resolver.Resolve(V8String(scope.GetIsolate(), "hello"));
-  promise.Then(
-      CreateFunction<CapturingCallable>(scope.GetScriptState(), on_fulfilled),
-      CreateFunction<NotReached>(scope.GetScriptState()));
-
-  ASSERT_FALSE(promise.IsEmpty());
-  EXPECT_TRUE(on_fulfilled->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-
-  EXPECT_EQ("hello", ToString(scope.GetContext(), on_fulfilled->Value()));
 }
 
 TEST(ScriptPromiseTest, ThenReject) {
@@ -223,47 +159,25 @@ TEST(ScriptPromiseTest, ThenReject) {
   Resolver resolver(scope.GetScriptState());
   ScriptPromise promise = resolver.Promise();
   ScriptValue on_fulfilled, on_rejected;
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   ASSERT_FALSE(promise.IsEmpty());
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
   resolver.Reject(V8String(scope.GetIsolate(), "hello"));
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_rejected));
-}
-
-TEST(ScriptPromiseTest, ThenRejectScriptFunction) {
-  V8TestingScope scope;
-  Resolver resolver(scope.GetScriptState());
-  ScriptPromise promise = resolver.Promise();
-  auto* const on_rejected = MakeGarbageCollected<ScriptValueHolder>();
-  promise.Then(
-      CreateFunction<NotReached>(scope.GetScriptState()),
-      CreateFunction<CapturingCallable>(scope.GetScriptState(), on_rejected));
-
-  ASSERT_FALSE(promise.IsEmpty());
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-  resolver.Reject(V8String(scope.GetIsolate(), "hello"));
-
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-
-  EXPECT_EQ("hello", ToString(scope.GetContext(), on_rejected->Value()));
 }
 
 TEST(ScriptPromiseTest, ThrowingOnFulfilled) {
@@ -273,12 +187,12 @@ TEST(ScriptPromiseTest, ThrowingOnFulfilled) {
   ScriptValue on_rejected, on_fulfilled2, on_rejected2;
 
   promise =
-      promise.Then(CreateFunction<ThrowingCallable>(scope.GetScriptState()),
-                   CreateFunction<FunctionForScriptPromiseTest>(
+      promise.Then(ThrowingFunction::CreateFunction(scope.GetScriptState()),
+                   FunctionForScriptPromiseTest::CreateFunction(
                        scope.GetScriptState(), &on_rejected));
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled2),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected2));
 
   ASSERT_FALSE(promise.IsEmpty());
@@ -286,44 +200,18 @@ TEST(ScriptPromiseTest, ThrowingOnFulfilled) {
   EXPECT_TRUE(on_fulfilled2.IsEmpty());
   EXPECT_TRUE(on_rejected2.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
   resolver.Resolve(V8String(scope.GetIsolate(), "hello"));
 
   EXPECT_TRUE(on_rejected.IsEmpty());
   EXPECT_TRUE(on_fulfilled2.IsEmpty());
   EXPECT_TRUE(on_rejected2.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_rejected.IsEmpty());
   EXPECT_TRUE(on_fulfilled2.IsEmpty());
   EXPECT_FALSE(on_rejected2.IsEmpty());
-}
-
-TEST(ScriptPromiseTest, ThrowingOnFulfilledScriptFunction) {
-  V8TestingScope scope;
-  Resolver resolver(scope.GetScriptState());
-  ScriptPromise promise = resolver.Promise();
-  auto* const on_rejected = MakeGarbageCollected<ScriptValueHolder>();
-
-  promise =
-      promise.Then(CreateFunction<ThrowingCallable>(scope.GetScriptState()),
-                   CreateFunction<NotReached>(scope.GetScriptState()));
-  promise.Then(
-      CreateFunction<NotReached>(scope.GetScriptState()),
-      CreateFunction<CapturingCallable>(scope.GetScriptState(), on_rejected));
-
-  ASSERT_FALSE(promise.IsEmpty());
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-  resolver.Resolve(V8String(scope.GetIsolate(), "hello"));
-
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-
-  EXPECT_FALSE(on_rejected->Value().IsEmpty());
 }
 
 TEST(ScriptPromiseTest, ThrowingOnRejected) {
@@ -333,12 +221,12 @@ TEST(ScriptPromiseTest, ThrowingOnRejected) {
   ScriptValue on_fulfilled, on_fulfilled2, on_rejected2;
 
   promise =
-      promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+      promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                        scope.GetScriptState(), &on_fulfilled2),
-                   CreateFunction<ThrowingCallable>(scope.GetScriptState()));
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+                   ThrowingFunction::CreateFunction(scope.GetScriptState()));
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled2),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected2));
 
   ASSERT_FALSE(promise.IsEmpty());
@@ -346,44 +234,18 @@ TEST(ScriptPromiseTest, ThrowingOnRejected) {
   EXPECT_TRUE(on_fulfilled2.IsEmpty());
   EXPECT_TRUE(on_rejected2.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
   resolver.Reject(V8String(scope.GetIsolate(), "hello"));
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_fulfilled2.IsEmpty());
   EXPECT_TRUE(on_rejected2.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_fulfilled2.IsEmpty());
   EXPECT_FALSE(on_rejected2.IsEmpty());
-}
-
-TEST(ScriptPromiseTest, ThrowingOnRejectedScriptFunction) {
-  V8TestingScope scope;
-  Resolver resolver(scope.GetScriptState());
-  ScriptPromise promise = resolver.Promise();
-  auto* const on_rejected = MakeGarbageCollected<ScriptValueHolder>();
-
-  promise =
-      promise.Then(CreateFunction<NotReached>(scope.GetScriptState()),
-                   CreateFunction<ThrowingCallable>(scope.GetScriptState()));
-  promise.Then(
-      CreateFunction<NotReached>(scope.GetScriptState()),
-      CreateFunction<CapturingCallable>(scope.GetScriptState(), on_rejected));
-
-  ASSERT_FALSE(promise.IsEmpty());
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-  resolver.Reject(V8String(scope.GetIsolate(), "hello"));
-
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-
-  EXPECT_FALSE(on_rejected->Value().IsEmpty());
 }
 
 TEST(ScriptPromiseTest, RejectThen) {
@@ -392,37 +254,19 @@ TEST(ScriptPromiseTest, RejectThen) {
   ScriptPromise promise = resolver.Promise();
   ScriptValue on_fulfilled, on_rejected;
   resolver.Reject(V8String(scope.GetIsolate(), "hello"));
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   ASSERT_FALSE(promise.IsEmpty());
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_rejected));
-}
-
-TEST(ScriptPromiseTest, RejectThenScriptFunction) {
-  V8TestingScope scope;
-  Resolver resolver(scope.GetScriptState());
-  ScriptPromise promise = resolver.Promise();
-  auto* const on_rejected = MakeGarbageCollected<ScriptValueHolder>();
-  resolver.Reject(V8String(scope.GetIsolate(), "hello"));
-  promise.Then(
-      CreateFunction<NotReached>(scope.GetScriptState()),
-      CreateFunction<CapturingCallable>(scope.GetScriptState(), on_rejected));
-
-  ASSERT_FALSE(promise.IsEmpty());
-  EXPECT_TRUE(on_rejected->Value().IsEmpty());
-
-  scope.PerformMicrotaskCheckpoint();
-
-  EXPECT_EQ("hello", ToString(scope.GetContext(), on_rejected->Value()));
 }
 
 TEST(ScriptPromiseTest, CastPromise) {
@@ -445,13 +289,13 @@ TEST(ScriptPromiseTest, CastNonPromise) {
       ScriptPromise::Cast(scope.GetScriptState(), ScriptValue(value));
   ScriptPromise promise2 =
       ScriptPromise::Cast(scope.GetScriptState(), ScriptValue(value));
-  promise1.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise1.Then(FunctionForScriptPromiseTest::CreateFunction(
                     scope.GetScriptState(), &on_fulfilled1),
-                CreateFunction<FunctionForScriptPromiseTest>(
+                FunctionForScriptPromiseTest::CreateFunction(
                     scope.GetScriptState(), &on_rejected1));
-  promise2.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise2.Then(FunctionForScriptPromiseTest::CreateFunction(
                     scope.GetScriptState(), &on_fulfilled2),
-                CreateFunction<FunctionForScriptPromiseTest>(
+                FunctionForScriptPromiseTest::CreateFunction(
                     scope.GetScriptState(), &on_rejected2));
 
   ASSERT_FALSE(promise1.IsEmpty());
@@ -466,7 +310,7 @@ TEST(ScriptPromiseTest, CastNonPromise) {
   EXPECT_TRUE(on_rejected1.IsEmpty());
   EXPECT_TRUE(on_rejected2.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_fulfilled1));
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_fulfilled2));
@@ -482,9 +326,9 @@ TEST(ScriptPromiseTest, Reject) {
       ScriptValue(scope.GetIsolate(), V8String(scope.GetIsolate(), "hello"));
   ScriptPromise promise =
       ScriptPromise::Reject(scope.GetScriptState(), ScriptValue(value));
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   ASSERT_FALSE(promise.IsEmpty());
@@ -493,7 +337,7 @@ TEST(ScriptPromiseTest, Reject) {
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_EQ("hello", ToString(scope.GetContext(), on_rejected));
@@ -506,16 +350,16 @@ TEST(ScriptPromiseTest, RejectWithExceptionState) {
       scope.GetScriptState(),
       MakeGarbageCollected<DOMException>(DOMExceptionCode::kSyntaxError,
                                          "some syntax error"));
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   ASSERT_FALSE(promise.IsEmpty());
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_EQ("SyntaxError: some syntax error",
@@ -530,18 +374,18 @@ TEST(ScriptPromiseTest, AllWithEmptyPromises) {
       ScriptPromise::All(scope.GetScriptState(), HeapVector<ScriptPromise>());
   ASSERT_FALSE(promise.IsEmpty());
 
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_FALSE(on_fulfilled.IsEmpty());
-  EXPECT_TRUE(ToStringArray(scope.GetIsolate(), on_fulfilled).empty());
+  EXPECT_TRUE(ToStringArray(scope.GetIsolate(), on_fulfilled).IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 }
 
@@ -557,15 +401,15 @@ TEST(ScriptPromiseTest, AllWithResolvedPromises) {
 
   ScriptPromise promise = ScriptPromise::All(scope.GetScriptState(), promises);
   ASSERT_FALSE(promise.IsEmpty());
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_FALSE(on_fulfilled.IsEmpty());
   Vector<String> values = ToStringArray(scope.GetIsolate(), on_fulfilled);
@@ -587,15 +431,15 @@ TEST(ScriptPromiseTest, AllWithRejectedPromise) {
 
   ScriptPromise promise = ScriptPromise::All(scope.GetScriptState(), promises);
   ASSERT_FALSE(promise.IsEmpty());
-  promise.Then(CreateFunction<FunctionForScriptPromiseTest>(
+  promise.Then(FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_fulfilled),
-               CreateFunction<FunctionForScriptPromiseTest>(
+               FunctionForScriptPromiseTest::CreateFunction(
                    scope.GetScriptState(), &on_rejected));
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_TRUE(on_rejected.IsEmpty());
 
-  scope.PerformMicrotaskCheckpoint();
+  v8::MicrotasksScope::PerformCheckpoint(scope.GetIsolate());
 
   EXPECT_TRUE(on_fulfilled.IsEmpty());
   EXPECT_FALSE(on_rejected.IsEmpty());

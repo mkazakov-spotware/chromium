@@ -1,16 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync_file_system/drive_backend/sync_task_token.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/sync_file_system/drive_backend/sync_task_manager.h"
 #include "chrome/browser/sync_file_system/drive_backend/task_dependency_manager.h"
@@ -24,12 +23,12 @@ const int64_t SyncTaskToken::kMinimumBackgroundTaskTokenID = 1;
 
 // static
 std::unique_ptr<SyncTaskToken> SyncTaskToken::CreateForTesting(
-    SyncStatusCallback callback) {
-  return base::WrapUnique(new SyncTaskToken(
-      base::WeakPtr<SyncTaskManager>(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), kTestingTaskTokenID,
-      nullptr,  // task_blocker
-      std::move(callback)));
+    const SyncStatusCallback& callback) {
+  return base::WrapUnique(new SyncTaskToken(base::WeakPtr<SyncTaskManager>(),
+                                            base::ThreadTaskRunnerHandle::Get(),
+                                            kTestingTaskTokenID,
+                                            nullptr,  // task_blocker
+                                            callback));
 }
 
 // static
@@ -54,10 +53,10 @@ std::unique_ptr<SyncTaskToken> SyncTaskToken::CreateForBackgroundTask(
 }
 
 void SyncTaskToken::UpdateTask(const base::Location& location,
-                               SyncStatusCallback callback) {
+                               const SyncStatusCallback& callback) {
   DCHECK(callback_.is_null());
   location_ = location;
-  callback_ = std::move(callback);
+  callback_ = callback;
   DVLOG(2) << "Token updated: " << location_.ToString();
 }
 
@@ -66,7 +65,7 @@ SyncTaskToken::~SyncTaskToken() {}
 // static
 SyncStatusCallback SyncTaskToken::WrapToCallback(
     std::unique_ptr<SyncTaskToken> token) {
-  return base::BindOnce(&SyncTaskManager::NotifyTaskDone, std::move(token));
+  return base::Bind(&SyncTaskManager::NotifyTaskDone, base::Passed(&token));
 }
 
 void SyncTaskToken::set_task_blocker(
@@ -83,7 +82,7 @@ void SyncTaskToken::clear_task_blocker() {
 }
 
 void SyncTaskToken::InitializeTaskLog(const std::string& task_description) {
-  task_log_ = std::make_unique<TaskLogger::TaskLog>();
+  task_log_.reset(new TaskLogger::TaskLog);
   task_log_->start_time = base::TimeTicks::Now();
   task_log_->task_description = task_description;
 
@@ -120,11 +119,11 @@ SyncTaskToken::SyncTaskToken(
     const scoped_refptr<base::SequencedTaskRunner>& task_runner,
     int64_t token_id,
     std::unique_ptr<TaskBlocker> task_blocker,
-    SyncStatusCallback callback)
+    const SyncStatusCallback& callback)
     : manager_(manager),
       task_runner_(task_runner),
       token_id_(token_id),
-      callback_(std::move(callback)),
+      callback_(callback),
       task_blocker_(std::move(task_blocker)) {}
 
 }  // namespace drive_backend

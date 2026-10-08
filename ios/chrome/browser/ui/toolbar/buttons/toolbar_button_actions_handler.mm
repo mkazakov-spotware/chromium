@@ -1,21 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_button_actions_handler.h"
 
-#import "base/mac/foundation_util.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/ui/commands/activity_service_commands.h"
+#include "base/mac/foundation_util.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
 #import "ios/chrome/browser/ui/commands/browser_commands.h"
 #import "ios/chrome/browser/ui/commands/find_in_page_commands.h"
 #import "ios/chrome/browser/ui/commands/omnibox_commands.h"
 #import "ios/chrome/browser/ui/commands/open_new_tab_command.h"
-#import "ios/chrome/browser/web/web_navigation_browser_agent.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,49 +22,54 @@
 @implementation ToolbarButtonActionsHandler
 
 - (void)backAction {
-  self.navigationAgent->GoBack();
+  [self.dispatcher goBack];
 }
 
 - (void)forwardAction {
-  self.navigationAgent->GoForward();
+  [self.dispatcher goForward];
 }
 
 - (void)tabGridTouchDown {
-  [self.applicationHandler prepareTabSwitcher];
+  [self.dispatcher prepareTabSwitcher];
 }
 
 - (void)tabGridTouchUp {
-  [self.applicationHandler displayTabSwitcherInGridLayout];
+  [self.dispatcher displayTabSwitcherInGridLayout];
 }
 
 - (void)toolsMenuAction {
-  [self.menuHandler showToolsMenuPopup];
+  [self.dispatcher showToolsMenuPopup];
 }
 
 - (void)shareAction {
-  [self.activityHandler sharePage];
+  [self.dispatcher sharePage];
 }
 
 - (void)reloadAction {
-  self.navigationAgent->Reload();
+  [self.dispatcher reload];
 }
 
 - (void)stopAction {
-  self.navigationAgent->StopLoading();
+  [self.dispatcher stopLoading];
 }
 
-- (void)newTabAction:(id)sender {
+- (void)bookmarkAction {
+  [self.dispatcher bookmarkCurrentPage];
+}
+
+- (void)searchAction:(id)sender {
+  [self.dispatcher closeFindInPage];
   UIView* senderView = base::mac::ObjCCastStrict<UIView>(sender);
   CGPoint center = [senderView.superview convertPoint:senderView.center
                                                toView:nil];
   OpenNewTabCommand* command =
       [OpenNewTabCommand commandWithIncognito:self.incognito
                                   originPoint:center];
-  [self.applicationHandler openURLInNewTab:command];
+  [self.dispatcher openURLInNewTab:command];
 }
 
 - (void)cancelOmniboxFocusAction {
-  [self.omniboxHandler cancelOmniboxEdit];
+  [self.dispatcher cancelOmniboxEdit];
 }
 
 @end

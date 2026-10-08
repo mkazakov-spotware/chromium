@@ -33,8 +33,6 @@ introduced. The specifics of the rotation follow:
 
   * Please also monitor these candidates for closing as WontFix:
 
-    * [Untriaged bugs labeled Hotlist-Recharge-Cold](https://bugs.chromium.org/p/chromium/issues/list?colspec=ID%20Pri%20M%20Stars%20ReleaseBlock%20Component%20Status%20Owner%20Summary%20OS%20Modified&x=m&y=releaseblock&cells=ids&q=is%3Aopen%20component%3ABlink%3EWebGL%20status%3AUntriaged%20label%3Ahotlist-recharge-cold&can=2)
-
     * [Open bugs needing feedback of some sort, not updated in the last 30
       days](https://bugs.chromium.org/p/chromium/issues/list?can=2&q=is%3Aopen+component%3ABlink%3EWebGL+label%3ANeeds+modified%3Ctoday-30&colspec=ID+Pri+M+Stars+ReleaseBlock+Component+Status+Owner+Summary+OS+Modified&x=m&y=releaseblock&cells=ids)
 
@@ -86,15 +84,10 @@ bugs during that shift. Bugs that aren't handled during a given shift stay with
 the triager; they don't spill over to the next shift, unless there's agreement
 with the person next on the triage rotation.
 
-Please create a saved query in Monorail for `component:Blink>WebGL` and select
-"Notify Immediately" to get emails for every change to a WebGL bug.
-
 This is intended to be a lightweight rotation that shouldn't take too much of
 the triager's time. For this reason it's scheduled independently of other shifts
-like [pixel wrangling], and may overlap. If any conflicts do
+like [pixel wrangling](pixel_wrangling.md), and may overlap. If any conflicts do
 arise, please reach out or swap shifts.
-
-[pixel wrangling]: http://go/gpu-pixel-wrangler
 
 The rotation is [managed
 here](https://rotations.corp.google.com/rotation/6257611988008960) via the

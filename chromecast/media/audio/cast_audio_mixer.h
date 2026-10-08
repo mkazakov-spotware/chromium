@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <set>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "media/audio/audio_io.h"
@@ -25,10 +26,6 @@ class CastAudioManager;
 class CastAudioMixer : public ::media::AudioOutputStream::AudioSourceCallback {
  public:
   explicit CastAudioMixer(CastAudioManager* audio_manager);
-
-  CastAudioMixer(const CastAudioMixer&) = delete;
-  CastAudioMixer& operator=(const CastAudioMixer&) = delete;
-
   ~CastAudioMixer() override;
 
   virtual ::media::AudioOutputStream* MakeStream(
@@ -40,7 +37,7 @@ class CastAudioMixer : public ::media::AudioOutputStream::AudioSourceCallback {
   // ::media::AudioOutputStream::AudioSourceCallback implementation
   int OnMoreData(base::TimeDelta delay,
                  base::TimeTicks delay_timestamp,
-                 const ::media::AudioGlitchInfo& glitch_info,
+                 int prior_frames_skipped,
                  ::media::AudioBus* dest) override;
   void OnError(ErrorType type) override;
 
@@ -60,6 +57,7 @@ class CastAudioMixer : public ::media::AudioOutputStream::AudioSourceCallback {
   ::media::AudioOutputStream* output_stream_;
 
   THREAD_CHECKER(audio_thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(CastAudioMixer);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "ui/gfx/image/image_skia.h"
 
@@ -26,20 +26,17 @@ class ShellLinkItem : public base::RefCountedThreadSafe<ShellLinkItem> {
  public:
   ShellLinkItem();
 
-  ShellLinkItem(const ShellLinkItem&) = delete;
-  ShellLinkItem& operator=(const ShellLinkItem&) = delete;
-
-  const std::u16string& title() const { return title_; }
-  const base::FilePath& icon_path() const { return icon_path_; }
+  const base::string16& title() const { return title_; }
+  const base::string16& icon_path() const { return icon_path_; }
   const std::string& url() const { return url_; }
   int icon_index() const { return icon_index_; }
   const gfx::ImageSkia& icon_image() const { return icon_image_; }
 
-  std::wstring GetArguments() const;
+  base::string16 GetArguments() const;
   base::CommandLine* GetCommandLine();
 
-  void set_title(const std::u16string& title) { title_ = title; }
-  void set_icon(const base::FilePath& path, int index) {
+  void set_title(const base::string16& title) { title_ = title; }
+  void set_icon(const base::string16& path, int index) {
     icon_path_ = path;
     icon_index_ = index;
   }
@@ -57,10 +54,10 @@ class ShellLinkItem : public base::RefCountedThreadSafe<ShellLinkItem> {
   base::CommandLine command_line_;
 
   // The string to be displayed in a JumpList.
-  std::u16string title_;
+  base::string16 title_;
 
   // The absolute path to an icon to be displayed in a JumpList.
-  base::FilePath icon_path_;
+  base::string16 icon_path_;
 
   // The tab URL corresponding to this link's favicon.
   std::string url_;
@@ -74,6 +71,8 @@ class ShellLinkItem : public base::RefCountedThreadSafe<ShellLinkItem> {
   // Note that an icon path must be supplied to IShellLink, so users of this
   // class must save icon data to disk.
   gfx::ImageSkia icon_image_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShellLinkItem);
 };
 
 typedef std::vector<scoped_refptr<ShellLinkItem> > ShellLinkItemList;
@@ -97,11 +96,7 @@ typedef std::vector<scoped_refptr<ShellLinkItem> > ShellLinkItemList;
 //   not changed, all its items must be added in each update.
 class JumpListUpdater {
  public:
-  explicit JumpListUpdater(const std::wstring& app_user_model_id);
-
-  JumpListUpdater(const JumpListUpdater&) = delete;
-  JumpListUpdater& operator=(const JumpListUpdater&) = delete;
-
+  explicit JumpListUpdater(const base::string16& app_user_model_id);
   ~JumpListUpdater();
 
   // Returns true if JumpLists are enabled on this OS.
@@ -127,16 +122,16 @@ class JumpListUpdater {
   // because special steps are required for updating them.
   // |max_items| specifies the maximum number of items from |link_items| to add
   // to the JumpList.
-  bool AddCustomCategory(const std::u16string& category_name,
+  bool AddCustomCategory(const base::string16& category_name,
                          const ShellLinkItemList& link_items,
                          size_t max_items);
 
   // Removes the Windows JumpList for an app with given app_user_model_id.
-  static bool DeleteJumpList(const std::wstring& app_user_model_id);
+  static bool DeleteJumpList(const base::string16& app_user_model_id);
 
  private:
   // The app ID.
-  std::wstring app_user_model_id_;
+  base::string16 app_user_model_id_;
 
   // Windows API interface used to modify JumpLists.
   Microsoft::WRL::ComPtr<ICustomDestinationList> destination_list_;
@@ -144,6 +139,8 @@ class JumpListUpdater {
   // The current user setting for "Number of recent items to display in Jump
   // Lists" option in the "Taskbar and Start Menu Properties".
   size_t user_max_items_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpListUpdater);
 };
 
 #endif  // CHROME_BROWSER_WIN_JUMPLIST_UPDATER_H_

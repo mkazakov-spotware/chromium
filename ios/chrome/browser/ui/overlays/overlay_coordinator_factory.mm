@@ -1,14 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/overlays/overlay_coordinator_factory.h"
 
-#import <ostream>
-
-#import "base/check.h"
-#import "base/notreached.h"
-#import "ios/chrome/browser/overlays/public/overlay_request_support.h"
+#include "base/check.h"
+#include "base/notreached.h"
+#include "ios/chrome/browser/overlays/public/overlay_request_support.h"
 #import "ios/chrome/browser/ui/overlays/infobar_banner/infobar_banner_supported_overlay_coordinator_classes.h"
 #import "ios/chrome/browser/ui/overlays/infobar_modal/infobar_modal_supported_overlay_coordinator_classes.h"
 #import "ios/chrome/browser/ui/overlays/overlay_coordinator_factory+initialization.h"
@@ -78,7 +76,7 @@
 #pragma mark - Helpers
 
 // Returns the OverlayRequestCoordinator subclass responsible for showing
-// `request`'s overlay UI.
+// |request|'s overlay UI.
 - (Class)coordinatorClassForRequest:(OverlayRequest*)request {
   NSArray<Class>* supportedClasses =
       self.supportedOverlayRequestCoordinatorClasses;

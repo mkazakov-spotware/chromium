@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,7 +46,6 @@ struct VR_UI_EXPORT ColorScheme {
 
   ColorScheme();
   ColorScheme(const ColorScheme& other);
-  ColorScheme& operator=(const ColorScheme& other);
 
   // These colors should be named generically, if possible, so that they can be
   // meaningfully reused by multiple elements.

@@ -1,25 +1,25 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync_file_system/drive_backend/metadata_database.h"
 
 #include <algorithm>
-#include <memory>
 #include <unordered_set>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/containers/adapters.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/location.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task_runner_util.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/sync_file_system/drive_backend/drive_backend_constants.h"
@@ -74,9 +74,9 @@ base::FilePath ReverseConcatPathComponents(
 
   base::FilePath::StringType result;
   result.reserve(total_size);
-  for (const base::FilePath& component : base::Reversed(components)) {
+  for (auto itr = components.rbegin(); itr != components.rend(); ++itr) {
     result.append(1, base::FilePath::kSeparators[0]);
-    result.append(component.value());
+    result.append(itr->value());
   }
 
   return base::FilePath(result).NormalizePathSeparators();
@@ -188,7 +188,7 @@ std::unique_ptr<FileTracker> CreateInitialAppRootTracker(
 std::unique_ptr<FileTracker> CloneFileTracker(const FileTracker* obj) {
   if (!obj)
     return nullptr;
-  return std::make_unique<FileTracker>(*obj);
+  return std::unique_ptr<FileTracker>(new FileTracker(*obj));
 }
 
 // Returns true if |db| has no content.
@@ -218,12 +218,15 @@ SyncStatusCode OpenDatabase(const base::FilePath& path,
   std::unique_ptr<leveldb::DB> db;
   leveldb::Status db_status =
       leveldb_env::OpenDB(options, path.AsUTF8Unsafe(), &db);
+  UMA_HISTOGRAM_ENUMERATION("SyncFileSystem.Database.Open",
+                            leveldb_env::GetLevelDBStatusUMAValue(db_status),
+                            leveldb_env::LEVELDB_STATUS_MAX);
   SyncStatusCode status = LevelDBStatusToSyncStatusCode(db_status);
   if (status != SYNC_STATUS_OK) {
     return status;
   }
 
-  *db_out = std::make_unique<LevelDBWrapper>(std::move(db));
+  db_out->reset(new LevelDBWrapper(std::move(db)));
   *created = IsDatabaseEmpty(db_out->get());
   return status;
 }
@@ -337,11 +340,11 @@ void RemoveAllDescendantTrackers(int64_t root_tracker_id,
 
   // Remove trackers in the reversed order.
   std::unordered_set<std::string> affected_file_ids;
-  for (int64_t tracker_id : base::Reversed(to_be_removed)) {
+  for (auto itr = to_be_removed.rbegin(); itr != to_be_removed.rend(); ++itr) {
     FileTracker tracker;
-    index->GetFileTracker(tracker_id, &tracker);
+    index->GetFileTracker(*itr, &tracker);
     affected_file_ids.insert(tracker.file_id());
-    index->RemoveFileTracker(tracker_id);
+    index->RemoveFileTracker(*itr);
   }
 
   for (auto itr = affected_file_ids.begin(); itr != affected_file_ids.end();
@@ -845,8 +848,8 @@ bool MetadataDatabase::FindNearestActiveAncestor(
     return false;
   }
 
-  std::vector<base::FilePath::StringType> components =
-      full_path.GetComponents();
+  std::vector<base::FilePath::StringType> components;
+  full_path.GetComponents(&components);
   path_out->clear();
 
   for (size_t i = 0; i < components.size(); ++i) {
@@ -1147,12 +1150,11 @@ MetadataDatabase::ActivationStatus MetadataDatabase::TryActivateTracker(
       std::unique_ptr<FileTracker> tracker_to_be_deactivated(new FileTracker);
       if (index_->GetFileTracker(same_title_trackers.active_tracker(),
                                  tracker_to_be_deactivated.get())) {
-        const std::string tracker_file_id =
-            tracker_to_be_deactivated->file_id();
+        const std::string file_id = tracker_to_be_deactivated->file_id();
         tracker_to_be_deactivated->set_active(false);
         index_->StoreFileTracker(std::move(tracker_to_be_deactivated));
 
-        MarkTrackersDirtyByFileID(tracker_file_id, index_.get());
+        MarkTrackersDirtyByFileID(file_id, index_.get());
       } else {
         NOTREACHED();
       }
@@ -1562,8 +1564,9 @@ SyncStatusCode MetadataDatabase::WriteToDatabase() {
   return LevelDBStatusToSyncStatusCode(db_->Commit());
 }
 
-base::Value::List MetadataDatabase::DumpFiles(const std::string& app_id) {
-  base::Value::List files;
+std::unique_ptr<base::ListValue> MetadataDatabase::DumpFiles(
+    const std::string& app_id) {
+  std::unique_ptr<base::ListValue> files(new base::ListValue);
 
   FileTracker app_root_tracker;
   if (!FindAppRootTracker(app_id, &app_root_tracker))
@@ -1582,37 +1585,36 @@ base::Value::List MetadataDatabase::DumpFiles(const std::string& app_id) {
       NOTREACHED();
       continue;
     }
-
-    base::Value::Dict file;
+    std::unique_ptr<base::DictionaryValue> file(new base::DictionaryValue);
 
     base::FilePath path = BuildDisplayPathForTracker(tracker);
-    file.Set("path", path.AsUTF8Unsafe());
+    file->SetString("path", path.AsUTF8Unsafe());
     if (tracker.has_synced_details()) {
-      file.Set("title", tracker.synced_details().title());
-      file.Set("type", FileKindToString(tracker.synced_details().file_kind()));
+      file->SetString("title", tracker.synced_details().title());
+      file->SetString("type",
+                      FileKindToString(tracker.synced_details().file_kind()));
     }
 
-    base::Value::Dict details;
-    details.Set("file_id", tracker.file_id());
+    auto details = std::make_unique<base::DictionaryValue>();
+    details->SetString("file_id", tracker.file_id());
     if (tracker.has_synced_details() &&
-        tracker.synced_details().file_kind() == FILE_KIND_FILE) {
-      details.Set("md5", tracker.synced_details().md5());
-    }
-    details.Set("active", tracker.active() ? "true" : "false");
-    details.Set("dirty", tracker.dirty() ? "true" : "false");
+        tracker.synced_details().file_kind() == FILE_KIND_FILE)
+      details->SetString("md5", tracker.synced_details().md5());
+    details->SetString("active", tracker.active() ? "true" : "false");
+    details->SetString("dirty", tracker.dirty() ? "true" : "false");
 
-    file.Set("details", std::move(details));
+    file->Set("details", std::move(details));
 
-    files.Append(std::move(file));
+    files->Append(std::move(file));
   }
 
   return files;
 }
 
-base::Value::List MetadataDatabase::DumpDatabase() {
-  base::Value::List list;
-  list.Append(DumpTrackers());
-  list.Append(DumpMetadata());
+std::unique_ptr<base::ListValue> MetadataDatabase::DumpDatabase() {
+  std::unique_ptr<base::ListValue> list(new base::ListValue);
+  list->Append(DumpTrackers());
+  list->Append(DumpMetadata());
   return list;
 }
 
@@ -1625,23 +1627,23 @@ bool MetadataDatabase::HasNewerFileMetadata(const std::string& file_id,
   return metadata.details().change_id() >= change_id;
 }
 
-base::Value::List MetadataDatabase::DumpTrackers() {
-  base::Value::List trackers;
+std::unique_ptr<base::ListValue> MetadataDatabase::DumpTrackers() {
+  std::unique_ptr<base::ListValue> trackers(new base::ListValue);
 
   // Append the first element for metadata.
-  base::Value::Dict metadata;
-  static constexpr const char* kTrackerKeys[] = {
-      "tracker_id", "path",  "file_id",        "tracker_kind", "app_id",
-      "active",     "dirty", "folder_listing", "demoted",      "title",
-      "kind",       "md5",   "etag",           "missing",      "change_id",
+  std::unique_ptr<base::DictionaryValue> metadata(new base::DictionaryValue);
+  const char *trackerKeys[] = {
+    "tracker_id", "path", "file_id", "tracker_kind", "app_id",
+    "active", "dirty", "folder_listing", "demoted",
+    "title", "kind", "md5", "etag", "missing", "change_id",
   };
-  base::Value::List keys;
-  for (const char* str : kTrackerKeys) {
-    keys.Append(str);
-  }
-  metadata.Set("title", "Trackers");
-  metadata.Set("keys", std::move(keys));
-  trackers.Append(std::move(metadata));
+  std::vector<std::string> key_strings(trackerKeys,
+                                       trackerKeys + base::size(trackerKeys));
+  auto keys = std::make_unique<base::ListValue>();
+  keys->AppendStrings(key_strings);
+  metadata->SetString("title", "Trackers");
+  metadata->Set("keys", std::move(keys));
+  trackers->Append(std::move(metadata));
 
   // Append tracker data.
   std::vector<int64_t> tracker_ids(index_->GetAllTrackerIDs());
@@ -1654,57 +1656,56 @@ base::Value::List MetadataDatabase::DumpTrackers() {
       continue;
     }
 
-    base::Value::Dict dict;
+    std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
     base::FilePath path = BuildDisplayPathForTracker(tracker);
-    dict.Set("tracker_id", base::NumberToString(tracker_id));
-    dict.Set("path", path.AsUTF8Unsafe());
-    dict.Set("file_id", tracker.file_id());
+    dict->SetString("tracker_id", base::NumberToString(tracker_id));
+    dict->SetString("path", path.AsUTF8Unsafe());
+    dict->SetString("file_id", tracker.file_id());
     TrackerKind tracker_kind = tracker.tracker_kind();
-    dict.Set("tracker_kind",
-             tracker_kind == TRACKER_KIND_APP_ROOT
-                 ? "AppRoot"
-                 : tracker_kind == TRACKER_KIND_DISABLED_APP_ROOT
-                       ? "Disabled App"
-                       : tracker.tracker_id() == GetSyncRootTrackerID()
-                             ? "SyncRoot"
-                             : "Regular");
-    dict.Set("app_id", tracker.app_id());
-    dict.Set("active", tracker.active() ? "true" : "false");
-    dict.Set("dirty", tracker.dirty() ? "true" : "false");
-    dict.Set("folder_listing",
-             tracker.needs_folder_listing() ? "needed" : "no");
+    dict->SetString(
+        "tracker_kind",
+        tracker_kind == TRACKER_KIND_APP_ROOT ? "AppRoot" :
+        tracker_kind == TRACKER_KIND_DISABLED_APP_ROOT ? "Disabled App" :
+        tracker.tracker_id() == GetSyncRootTrackerID() ? "SyncRoot" :
+        "Regular");
+    dict->SetString("app_id", tracker.app_id());
+    dict->SetString("active", tracker.active() ? "true" : "false");
+    dict->SetString("dirty", tracker.dirty() ? "true" : "false");
+    dict->SetString("folder_listing",
+                    tracker.needs_folder_listing() ? "needed" : "no");
 
     bool is_demoted = index_->IsDemotedDirtyTracker(tracker.tracker_id());
-    dict.Set("demoted", is_demoted ? "true" : "false");
+    dict->SetString("demoted", is_demoted ? "true" : "false");
     if (tracker.has_synced_details()) {
       const FileDetails& details = tracker.synced_details();
-      dict.Set("title", details.title());
-      dict.Set("kind", FileKindToString(details.file_kind()));
-      dict.Set("md5", details.md5());
-      dict.Set("etag", details.etag());
-      dict.Set("missing", details.missing() ? "true" : "false");
-      dict.Set("change_id", base::NumberToString(details.change_id()));
+      dict->SetString("title", details.title());
+      dict->SetString("kind", FileKindToString(details.file_kind()));
+      dict->SetString("md5", details.md5());
+      dict->SetString("etag", details.etag());
+      dict->SetString("missing", details.missing() ? "true" : "false");
+      dict->SetString("change_id", base::NumberToString(details.change_id()));
     }
-    trackers.Append(std::move(dict));
+    trackers->Append(std::move(dict));
   }
   return trackers;
 }
 
-base::Value::List MetadataDatabase::DumpMetadata() {
-  base::Value::List files;
+std::unique_ptr<base::ListValue> MetadataDatabase::DumpMetadata() {
+  std::unique_ptr<base::ListValue> files(new base::ListValue);
 
   // Append the first element for metadata.
-  base::Value::Dict metadata;
-  static constexpr const char* kFileKeys[] = {"file_id",   "title",  "type",
-                                              "md5",       "etag",   "missing",
-                                              "change_id", "parents"};
-  base::Value::List keys;
-  for (const char* str : kFileKeys) {
-    keys.Append(str);
-  }
-  metadata.Set("title", "Metadata");
-  metadata.Set("keys", std::move(keys));
-  files.Append(std::move(metadata));
+  std::unique_ptr<base::DictionaryValue> metadata(new base::DictionaryValue);
+  const char *fileKeys[] = {
+    "file_id", "title", "type", "md5", "etag", "missing",
+    "change_id", "parents"
+  };
+  std::vector<std::string> key_strings(fileKeys,
+                                       fileKeys + base::size(fileKeys));
+  auto keys = std::make_unique<base::ListValue>();
+  keys->AppendStrings(key_strings);
+  metadata->SetString("title", "Metadata");
+  metadata->Set("keys", std::move(keys));
+  files->Append(std::move(metadata));
 
   // Append metadata data.
   std::vector<std::string> metadata_ids(index_->GetAllMetadataIDs());
@@ -1717,23 +1718,23 @@ base::Value::List MetadataDatabase::DumpMetadata() {
       continue;
     }
 
-    base::Value::Dict dict;
-    dict.Set("file_id", file_id);
+    std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
+    dict->SetString("file_id", file_id);
     if (file.has_details()) {
       const FileDetails& details = file.details();
-      dict.Set("title", details.title());
-      dict.Set("type", FileKindToString(details.file_kind()));
-      dict.Set("md5", details.md5());
-      dict.Set("etag", details.etag());
-      dict.Set("missing", details.missing() ? "true" : "false");
-      dict.Set("change_id", base::NumberToString(details.change_id()));
+      dict->SetString("title", details.title());
+      dict->SetString("type", FileKindToString(details.file_kind()));
+      dict->SetString("md5", details.md5());
+      dict->SetString("etag", details.etag());
+      dict->SetString("missing", details.missing() ? "true" : "false");
+      dict->SetString("change_id", base::NumberToString(details.change_id()));
 
       std::vector<base::StringPiece> parents;
       for (int i = 0; i < details.parent_folder_ids_size(); ++i)
         parents.push_back(details.parent_folder_ids(i));
-      dict.Set("parents", base::JoinString(parents, ","));
+      dict->SetString("parents", base::JoinString(parents, ","));
     }
-    files.Append(std::move(dict));
+    files->Append(std::move(dict));
   }
   return files;
 }

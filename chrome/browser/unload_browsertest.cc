@@ -1,13 +1,17 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#if defined(OS_POSIX)
+#include <signal.h>
+#endif
 
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -26,10 +30,10 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "content/public/test/test_navigation_observer.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 
+using base::TimeDelta;
 using content::BrowserThread;
 
 const char NOLISTENERS_HTML[] =
@@ -132,7 +136,7 @@ class UnloadTest : public InProcessBrowserTest {
       command_line->AppendSwitch(embedder_support::kDisablePopupBlocking);
     } else if (strstr(test_info->name(), "BrowserTerminateBeforeUnload") !=
                nullptr) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
       DisableSIGTERMHandling();
 #endif
     }
@@ -144,8 +148,8 @@ class UnloadTest : public InProcessBrowserTest {
 
   void CheckTitle(const char* expected_title, bool wait = false) {
     auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
-    std::u16string expected = base::ASCIIToUTF16(expected_title);
-    std::u16string actual;
+    base::string16 expected = base::ASCIIToUTF16(expected_title);
+    base::string16 actual;
     if (wait)
       actual = content::TitleWatcher(web_contents, expected).WaitAndGetTitle();
     else
@@ -154,17 +158,17 @@ class UnloadTest : public InProcessBrowserTest {
   }
 
   void NavigateToDataURL(const char* html_content, const char* expected_title) {
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), GURL(std::string("data:text/html,") + html_content)));
+    ui_test_utils::NavigateToURL(
+        browser(), GURL(std::string("data:text/html,") + html_content));
     CheckTitle(expected_title);
   }
 
   void NavigateToNolistenersFileTwice() {
     ASSERT_TRUE(embedded_test_server()->Start());
     GURL url(embedded_test_server()->GetURL("/title2.html"));
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     CheckTitle("Title Of Awesomeness");
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     CheckTitle("Title Of Awesomeness");
   }
 
@@ -176,7 +180,7 @@ class UnloadTest : public InProcessBrowserTest {
     GURL url(embedded_test_server()->GetURL("/title2.html"));
     ui_test_utils::NavigateToURLWithDisposition(
         browser(), url, WindowOpenDisposition::CURRENT_TAB, 0);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     CheckTitle("Title Of Awesomeness");
   }
 
@@ -322,7 +326,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserCloseBeforeUnloadCancel) {
   // window, to ensure that in-flight IPCs from the renderer reach the browser.
   // Otherwise the browser won't put up the beforeunload dialog because it's
   // waiting for an ack from the renderer.
-  std::u16string expected_title = u"cancelled";
+  base::string16 expected_title = base::ASCIIToUTF16("cancelled");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
   ClickModalDialogButton(false);
@@ -373,15 +377,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserListForceCloseWithBeforeUnload) {
 
 // Tests closing the browser by BrowserList::CloseAllBrowsersWithProfile, with a
 // beforeunload handler and clicking Stay in the beforeunload confirm dialog.
-// TODO(crbug.com/1372484): Flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_BrowserListCloseBeforeUnloadCancel \
-  DISABLED_BrowserListCloseBeforeUnloadCancel
-#else
-#define MAYBE_BrowserListCloseBeforeUnloadCancel \
-  BrowserListCloseBeforeUnloadCancel
-#endif
-IN_PROC_BROWSER_TEST_F(UnloadTest, MAYBE_BrowserListCloseBeforeUnloadCancel) {
+IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserListCloseBeforeUnloadCancel) {
   NavigateToDataURL(BEFORE_UNLOAD_HTML, "beforeunload");
   PrepareForDialog(browser());
 
@@ -398,7 +394,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, MAYBE_BrowserListCloseBeforeUnloadCancel) {
   // window, to ensure that in-flight IPCs from the renderer reach the browser.
   // Otherwise the browser won't put up the beforeunload dialog because it's
   // waiting for an ack from the renderer.
-  std::u16string expected_title = u"cancelled";
+  base::string16 expected_title = base::ASCIIToUTF16("cancelled");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
   ClickModalDialogButton(false);
@@ -463,7 +459,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserListDoubleCloseBeforeUnloadCancel) {
   // window, to ensure that in-flight IPCs from the renderer reach the browser.
   // Otherwise the browser won't put up the beforeunload dialog because it's
   // waiting for an ack from the renderer.
-  std::u16string expected_title = u"cancelled";
+  base::string16 expected_title = base::ASCIIToUTF16("cancelled");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
   ClickModalDialogButton(false);
@@ -507,7 +503,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest,
   // window, to ensure that in-flight IPCs from the renderer reach the browser.
   // Otherwise the browser won't put up the beforeunload dialog because it's
   // waiting for an ack from the renderer.
-  std::u16string expected_title = u"cancelled";
+  base::string16 expected_title = base::ASCIIToUTF16("cancelled");
   content::TitleWatcher title_watcher(
       browser()->tab_strip_model()->GetActiveWebContents(), expected_title);
   ClickModalDialogButton(false);
@@ -518,7 +514,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest,
 
 // Tests terminating the browser with a beforeunload handler.
 // Currently only ChromeOS shuts down gracefully.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserTerminateBeforeUnload) {
   NavigateToDataURL(BEFORE_UNLOAD_HTML, "beforeunload");
   EXPECT_EQ(kill(base::GetCurrentProcessHandle(), SIGTERM), 0);
@@ -620,59 +616,6 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserCloseTabWhenOtherTabHasListener) {
   CheckTitle("only_one_unload");
 }
 
-// Tests that visibilitychange is only dispatched once on tab close.
-IN_PROC_BROWSER_TEST_F(UnloadTest, VisibilityChangeOnlyDispatchedOnce) {
-  EXPECT_TRUE(embedded_test_server()->Start());
-  // Start on a.com and open a popup to another page in a.com.
-  GURL opener_url(embedded_test_server()->GetURL("a.com", "/title1.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), opener_url));
-  content::WebContents* opener_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-
-  GURL popup_url(embedded_test_server()->GetURL("a.com", "/title2.html"));
-  content::TestNavigationObserver popup_observer(nullptr);
-  popup_observer.StartWatchingNewWebContents();
-  EXPECT_TRUE(ExecuteScript(opener_contents,
-                            "window.open('" + popup_url.spec() + "');"));
-  popup_observer.Wait();
-  ASSERT_EQ(2, browser()->tab_strip_model()->count());
-  content::WebContents* popup_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_NE(opener_contents, popup_contents);
-  content::RenderFrameHost* popup_rfh = popup_contents->GetPrimaryMainFrame();
-
-  // In the popup, add a visibilitychange handler that ensures we only see the
-  // visibilitychange event fired once on tab close.
-  EXPECT_TRUE(ExecJs(popup_rfh, R"(
-            localStorage.setItem('visibilitychange_storage', 'not_dispatched');
-            var dispatched_visibilitychange = false;
-            document.onvisibilitychange = function(e) {
-              if (dispatched_visibilitychange) {
-                // We shouldn't dispatch visibilitychange more than once.
-                localStorage.setItem('visibilitychange_storage',
-                  'dispatched_more_than_once');
-              } else if (document.visibilityState != 'hidden') {
-                // We should dispatch the event when the visibilityState is
-                // 'hidden'.
-                localStorage.setItem('visibilitychange_storage', 'not_hidden');
-              } else {
-                localStorage.setItem('visibilitychange_storage',
-                  'dispatched_once');
-              }
-              dispatched_visibilitychange = true;
-            })"));
-
-  // Close the popup.
-  content::WebContentsDestroyedWatcher destroyed_watcher(popup_contents);
-  EXPECT_TRUE(ExecuteScript(popup_contents, "window.close();"));
-  destroyed_watcher.Wait();
-
-  // Check that we've only dispatched visibilitychange once.
-  EXPECT_EQ("dispatched_once",
-            EvalJs(opener_contents,
-                   "localStorage.getItem('visibilitychange_storage')"));
-}
-
 IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserListForceCloseAfterNormalClose) {
   NavigateToDataURL(BEFORE_UNLOAD_HTML, "beforeunload");
 
@@ -703,7 +646,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserCloseWithCrossSiteIframe) {
 
   // Navigate to a page with an iframe.
   GURL main_url(embedded_test_server()->GetURL("a.com", "/iframe.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), main_url));
+  ui_test_utils::NavigateToURL(browser(), main_url);
 
   // Navigate iframe cross-site.
   GURL frame_url(embedded_test_server()->GetURL("b.com", "/title1.html"));
@@ -713,7 +656,7 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserCloseWithCrossSiteIframe) {
 
   // Install a dialog-showing beforeunload handler in the iframe.
   content::RenderFrameHost* child =
-      ChildFrameAt(web_contents->GetPrimaryMainFrame(), 0);
+      ChildFrameAt(web_contents->GetMainFrame(), 0);
   EXPECT_TRUE(
       ExecuteScript(child, "window.onbeforeunload = () => { return 'x' };"));
 
@@ -730,13 +673,13 @@ IN_PROC_BROWSER_TEST_F(UnloadTest, BrowserCloseWithSameSiteIframe) {
 
   // Navigate to a page with a same-site iframe.
   GURL main_url(embedded_test_server()->GetURL("a.com", "/iframe.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), main_url));
+  ui_test_utils::NavigateToURL(browser(), main_url);
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::RenderFrameHost* child =
-      ChildFrameAt(web_contents->GetPrimaryMainFrame(), 0);
+      ChildFrameAt(web_contents->GetMainFrame(), 0);
   EXPECT_EQ(child->GetSiteInstance(),
-            web_contents->GetPrimaryMainFrame()->GetSiteInstance());
+            web_contents->GetMainFrame()->GetSiteInstance());
 
   // Install a dialog-showing beforeunload handler in the iframe.
   EXPECT_TRUE(

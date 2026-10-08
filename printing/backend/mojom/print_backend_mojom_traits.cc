@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,7 @@
 
 #include <map>
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
-#include "build/build_config.h"
 #include "ui/gfx/geometry/mojom/geometry.mojom-shared.h"
 #include "ui/gfx/geometry/mojom/geometry_mojom_traits.h"
 
@@ -40,7 +38,7 @@ struct less<::printing::PrinterSemanticCapsAndDefaults::Paper> {
   }
 };
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 template <>
 struct less<::printing::AdvancedCapability> {
   bool operator()(const ::printing::AdvancedCapability& lhs,
@@ -50,7 +48,7 @@ struct less<::printing::AdvancedCapability> {
     return lhs.display_name < rhs.display_name;
   }
 };
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace std
 
@@ -75,39 +73,6 @@ class DuplicateChecker {
 }  // namespace
 
 // static
-bool StructTraits<printing::mojom::PrinterBasicInfoDataView,
-                  printing::PrinterBasicInfo>::
-    Read(printing::mojom::PrinterBasicInfoDataView data,
-         printing::PrinterBasicInfo* out) {
-  if (!data.ReadPrinterName(&out->printer_name) ||
-      !data.ReadDisplayName(&out->display_name) ||
-      !data.ReadPrinterDescription(&out->printer_description)) {
-    return false;
-  }
-  out->printer_status = data.printer_status();
-  out->is_default = data.is_default();
-  if (!data.ReadOptions(&out->options))
-    return false;
-
-  // There should be a non-empty value for `printer_name` since it needs to
-  // uniquely identify the printer with the operating system among multiple
-  // possible destinations.
-  if (out->printer_name.empty()) {
-    DLOG(ERROR) << "The printer name must not be empty.";
-    return false;
-  }
-  // There should be a non-empty value for `display_name` since it needs to
-  // uniquely identify the printer in user dialogs among multiple possible
-  // destinations.
-  if (out->display_name.empty()) {
-    DLOG(ERROR) << "The printer's display name must not be empty.";
-    return false;
-  }
-
-  return true;
-}
-
-// static
 bool StructTraits<printing::mojom::PaperDataView,
                   printing::PrinterSemanticCapsAndDefaults::Paper>::
     Read(printing::mojom::PaperDataView data,
@@ -116,7 +81,7 @@ bool StructTraits<printing::mojom::PaperDataView,
          data.ReadVendorId(&out->vendor_id) && data.ReadSizeUm(&out->size_um);
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 // static
 printing::mojom::AdvancedCapabilityType
 EnumTraits<printing::mojom::AdvancedCapabilityType,
@@ -178,26 +143,7 @@ bool StructTraits<printing::mojom::AdvancedCapabilityDataView,
          data.ReadDefaultValue(&out->default_value) &&
          data.ReadValues(&out->values);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_WIN)
-// static
-bool StructTraits<printing::mojom::PageOutputQualityAttributeDataView,
-                  printing::PageOutputQualityAttribute>::
-    Read(printing::mojom::PageOutputQualityAttributeDataView data,
-         printing::PageOutputQualityAttribute* out) {
-  return data.ReadDisplayName(&out->display_name) && data.ReadName(&out->name);
-}
-
-// static
-bool StructTraits<printing::mojom::PageOutputQualityDataView,
-                  printing::PageOutputQuality>::
-    Read(printing::mojom::PageOutputQualityDataView data,
-         printing::PageOutputQuality* out) {
-  return data.ReadQualities(&out->qualities) &&
-         data.ReadDefaultQuality(&out->default_quality);
-}
-#endif
+#endif  // defined(OS_CHROMEOS)
 
 // static
 bool StructTraits<printing::mojom::PrinterSemanticCapsAndDefaultsDataView,
@@ -221,11 +167,11 @@ bool StructTraits<printing::mojom::PrinterSemanticCapsAndDefaultsDataView,
     return false;
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   out->pin_supported = data.pin_supported();
   if (!data.ReadAdvancedCapabilities(&out->advanced_capabilities))
     return false;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
   // Extra validity checks.
 
@@ -235,10 +181,23 @@ bool StructTraits<printing::mojom::PrinterSemanticCapsAndDefaultsDataView,
     return false;
   }
 
-  // There should not be duplicates in certain arrays.
+  // There should be at least one item in `papers`.
+  if (out->papers.empty()) {
+    DLOG(ERROR) << "The available papers must not be empty.";
+    return false;
+  }
+
+  // There should not be duplicates in any of the arrays.
   DuplicateChecker<printing::mojom::DuplexMode> duplex_modes_dup_checker;
   if (duplex_modes_dup_checker.HasDuplicates(out->duplex_modes)) {
     DLOG(ERROR) << "Duplicate duplex_modes detected.";
+    return false;
+  }
+
+  DuplicateChecker<printing::PrinterSemanticCapsAndDefaults::Paper>
+      papers_dup_checker;
+  if (papers_dup_checker.HasDuplicates(out->papers)) {
+    DLOG(ERROR) << "Duplicate papers detected.";
     return false;
   }
 
@@ -249,7 +208,13 @@ bool StructTraits<printing::mojom::PrinterSemanticCapsAndDefaultsDataView,
     return false;
   }
 
-#if BUILDFLAG(IS_CHROMEOS)
+  DuplicateChecker<gfx::Size> dpis_dup_checker;
+  if (dpis_dup_checker.HasDuplicates(out->dpis)) {
+    DLOG(ERROR) << "Duplicate dpis detected.";
+    return false;
+  }
+
+#if defined(OS_CHROMEOS)
   DuplicateChecker<printing::AdvancedCapability>
       advanced_capabilities_dup_checker;
   if (advanced_capabilities_dup_checker.HasDuplicates(
@@ -257,38 +222,8 @@ bool StructTraits<printing::mojom::PrinterSemanticCapsAndDefaultsDataView,
     DLOG(ERROR) << "Duplicate advanced_capabilities detected.";
     return false;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
-#if BUILDFLAG(IS_WIN)
-  if (!data.ReadPageOutputQuality(&out->page_output_quality)) {
-    return false;
-  }
-  DuplicateChecker<printing::PageOutputQualityAttribute>
-      page_output_quality_dup_checker;
-  if (out->page_output_quality) {
-    printing::PageOutputQualityAttributes qualities =
-        out->page_output_quality->qualities;
-    absl::optional<std::string> default_quality =
-        out->page_output_quality->default_quality;
-
-    // If non-null `default_quality`, there should be a matching element in
-    // `qualities` array.
-    if (default_quality) {
-      if (!base::Contains(qualities, *default_quality,
-                          &printing::PageOutputQualityAttribute::name)) {
-        DLOG(ERROR) << "Non-null default quality, but page output qualities "
-                       "does not contain default quality";
-        return false;
-      }
-    }
-
-    // There should be no duplicates in `qualities` array.
-    if (page_output_quality_dup_checker.HasDuplicates(qualities)) {
-      DLOG(ERROR) << "Duplicate page output qualities detected.";
-      return false;
-    }
-  }
-#endif
   return true;
 }
 

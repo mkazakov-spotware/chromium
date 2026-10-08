@@ -33,13 +33,15 @@
 
 #include <memory>
 
-#include "base/task/single_thread_task_runner.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/loader/request_context_frame_type.mojom-blink-forward.h"
+#include "third_party/blink/public/mojom/timing/worker_timing_container.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/resource_load_info_notifier_wrapper.h"
 #include "third_party/blink/public/platform/resource_request_blocked_reason.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_initiator_info.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_priority.h"
@@ -52,7 +54,8 @@
 namespace blink {
 
 enum class ResourceType : uint8_t;
-class PermissionsPolicy;
+class ClientHintsPreferences;
+class FeaturePolicy;
 class KURL;
 struct ResourceLoaderOptions;
 class ResourceTimingInfo;
@@ -68,8 +71,6 @@ class WebScopedVirtualTimePauser;
 class PLATFORM_EXPORT FetchContext : public GarbageCollected<FetchContext> {
  public:
   FetchContext() = default;
-  FetchContext(const FetchContext&) = delete;
-  FetchContext& operator=(const FetchContext&) = delete;
 
   static FetchContext& NullInstance() {
     return *MakeGarbageCollected<FetchContext>();
@@ -101,32 +102,25 @@ class PLATFORM_EXPORT FetchContext : public GarbageCollected<FetchContext> {
                               WebScopedVirtualTimePauser& virtual_time_pauser,
                               ResourceType);
 
+  // WARNING: |info| can be modified by the implementation of this method
+  // despite the fact that it is given as const-ref. Namely, if
+  // |worker_timing_receiver_| is set implementations may take (move out) the
+  // field.
+  // TODO(shimazu): Fix this. Eventually ResourceTimingInfo should become a mojo
+  // struct and this should take a moved-value of it.
   virtual void AddResourceTiming(const ResourceTimingInfo&);
   virtual bool AllowImage(bool, const KURL&) const { return false; }
-  virtual absl::optional<ResourceRequestBlockedReason> CanRequest(
+  virtual base::Optional<ResourceRequestBlockedReason> CanRequest(
       ResourceType,
       const ResourceRequest&,
       const KURL&,
       const ResourceLoaderOptions&,
       ReportingDisposition,
-      const absl::optional<ResourceRequest::RedirectInfo>& redirect_info)
+      const base::Optional<ResourceRequest::RedirectInfo>& redirect_info)
       const {
     return ResourceRequestBlockedReason::kOther;
   }
-  // In derived classes, performs *only* a SubresourceFilter check for whether
-  // the request can go through or should be blocked.
-  virtual absl::optional<ResourceRequestBlockedReason>
-  CanRequestBasedOnSubresourceFilterOnly(
-      ResourceType,
-      const ResourceRequest&,
-      const KURL&,
-      const ResourceLoaderOptions&,
-      ReportingDisposition,
-      const absl::optional<ResourceRequest::RedirectInfo>& redirect_info)
-      const {
-    return ResourceRequestBlockedReason::kOther;
-  }
-  virtual absl::optional<ResourceRequestBlockedReason> CheckCSPForRequest(
+  virtual base::Optional<ResourceRequestBlockedReason> CheckCSPForRequest(
       mojom::blink::RequestContextType,
       network::mojom::RequestDestination request_destination,
       const KURL&,
@@ -141,6 +135,7 @@ class PLATFORM_EXPORT FetchContext : public GarbageCollected<FetchContext> {
   // stored in the FetchContext implementation. Used by ResourceFetcher to
   // prepare a ResourceRequest instance at the start of resource loading.
   virtual void PopulateResourceRequest(ResourceType,
+                                       const ClientHintsPreferences&,
                                        const FetchParameters::ResourceWidth&,
                                        ResourceRequest&,
                                        const ResourceLoaderOptions&);
@@ -153,20 +148,25 @@ class PLATFORM_EXPORT FetchContext : public GarbageCollected<FetchContext> {
     return MakeGarbageCollected<FetchContext>();
   }
 
-  virtual const PermissionsPolicy* GetPermissionsPolicy() const {
-    return nullptr;
-  }
+  virtual const FeaturePolicy* GetFeaturePolicy() const { return nullptr; }
 
   // Determine if the request is on behalf of an advertisement. If so, return
-  // true. Checks `resource_request.Url()` unless `alias_url` is non-null, in
-  // which case it checks the latter.
+  // true.
   virtual bool CalculateIfAdSubresource(
-      const ResourceRequestHead& resource_request,
-      const absl::optional<KURL>& alias_url,
+      const ResourceRequest& resource_request,
       ResourceType type,
       const FetchInitiatorInfo& initiator_info) {
     return false;
   }
+
+  virtual PreviewsState previews_state() const {
+    return PreviewsTypes::kPreviewsUnspecified;
+  }
+
+  // Returns a receiver corresponding to a request with |request_id|.
+  // Null if the request has not been intercepted by a service worker.
+  virtual mojo::PendingReceiver<mojom::blink::WorkerTimingContainer>
+  TakePendingWorkerTimingReceiver(int request_id);
 
   // Returns a wrapper of ResourceLoadInfoNotifier to notify loading stats.
   virtual std::unique_ptr<ResourceLoadInfoNotifierWrapper>
@@ -174,15 +174,10 @@ class PLATFORM_EXPORT FetchContext : public GarbageCollected<FetchContext> {
     return nullptr;
   }
 
-  // Returns if the request context is for prerendering or not.
-  virtual bool IsPrerendering() const { return false; }
-
-  // Update SubresourceLoad metrics.
-  virtual void UpdateSubresourceLoadMetrics(
-      uint32_t number_of_subresources_loaded,
-      uint32_t number_of_subresource_loads_handled_by_service_worker) {}
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FetchContext);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_FETCH_CONTEXT_H_
+#endif

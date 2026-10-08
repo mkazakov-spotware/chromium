@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "net/base/net_export.h"
 #include "net/websockets/websocket_errors.h"
 #include "net/websockets/websocket_frame.h"
@@ -26,10 +27,6 @@ namespace net {
 class NET_EXPORT WebSocketFrameParser {
  public:
   WebSocketFrameParser();
-
-  WebSocketFrameParser(const WebSocketFrameParser&) = delete;
-  WebSocketFrameParser& operator=(const WebSocketFrameParser&) = delete;
-
   ~WebSocketFrameParser();
 
   // Decodes the given byte stream and stores parsed WebSocket frames in
@@ -81,9 +78,11 @@ class NET_EXPORT WebSocketFrameParser {
   std::unique_ptr<WebSocketFrameHeader> current_frame_header_;
 
   // Amount of payload data read so far for the current frame.
-  uint64_t frame_offset_ = 0;
+  uint64_t frame_offset_;
 
-  WebSocketError websocket_error_ = kWebSocketNormalClosure;
+  WebSocketError websocket_error_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebSocketFrameParser);
 };
 
 }  // namespace net

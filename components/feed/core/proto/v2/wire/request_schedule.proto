@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@ syntax = "proto2";
 
 package feedwire;
 
-import "components/feed/core/proto/v2/wire/duration.proto";
-
 option optimize_for = LITE_RUNTIME;
+
+import "components/feed/core/proto/v2/wire/duration.proto";
 
 message RequestSchedule {
   message TimeBasedSchedule {
-    repeated Duration refresh_time_from_response_time = 1;
+    repeated feedwire.Duration refresh_time_from_response_time = 1;
   }
-  oneof schedule {
-    TimeBasedSchedule time_based_schedule = 1;
-  }
+
+  oneof schedule { TimeBasedSchedule time_based_schedule = 1; }
 }

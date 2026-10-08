@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,8 @@
 #include "base/logging.h"
 #include "base/run_loop.h"
 #include "content/public/browser/font_list_async.h"
-#include "third_party/blink/public/common/privacy_budget/identifiable_token_builder.h"
 #include "third_party/blink/renderer/platform/fonts/font_global_context.h"
 #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
-#include "third_party/blink/renderer/platform/privacy_budget/identifiability_digest_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
 
 namespace privacy_budget {
@@ -82,12 +80,11 @@ const std::pair<blink::FontSelectionValue, std::string>
 };
 
 const char kOutputHeader[] =
-    "Family name\tPostScript name\tweight\twidth\tslope\ttypeface "
-    "digest\tdefault family name lookup digest\tdefault PostScript name lookup "
-    "digest\tPostScript name string digest";
+    "Family name\tPostScript name\tweight\twidth\tslope\tdigest "
+    "(int64_t)\tdigest (uint64_t)";
 const char kOutputSeparator[] = "\t";
 
-FontIndexer::FontIndexer() : font_cache_(&blink::FontCache::Get()) {}
+FontIndexer::FontIndexer() : font_cache_(blink::FontCache::GetFontCache()) {}
 FontIndexer::~FontIndexer() = default;
 
 void FontIndexer::PrintAllFonts() {
@@ -97,14 +94,18 @@ void FontIndexer::PrintAllFonts() {
   WaitForFontListToLoad();
 }
 
-void FontIndexer::FontListHasLoaded(base::Value::List list) {
+void FontIndexer::FontListHasLoaded(std::unique_ptr<base::ListValue> list) {
   std::cout << kOutputHeader << std::endl;
 
-  for (const auto& i : list) {
-    DCHECK(i.is_list());
-    const base::Value::List& font = i.GetList();
+  for (size_t i = 0; i < list->GetSize(); i++) {
+    base::ListValue* font;
+    bool has_font = list->GetList(i, &font);
+    DCHECK(has_font);
 
-    std::string non_localized_name = font[0].GetString();
+    std::string non_localized_name;
+    bool has_value = font->GetString(0, &non_localized_name);
+    DCHECK(has_value);
+
     PrintAllFontsWithName(non_localized_name.c_str());
   }
 
@@ -120,7 +121,7 @@ bool FontIndexer::DoesFontHaveDigest(WTF::AtomicString name,
       font_cache_->GetFontData(font_description, name);
   DCHECK(font_data);
   return blink::FontGlobalContext::Get()
-             .GetOrComputeTypefaceDigest(font_data->PlatformData())
+             ->GetOrComputeTypefaceDigest(font_data->PlatformData())
              .ToUkmMetricValue() == digest;
 }
 
@@ -174,7 +175,7 @@ void FontIndexer::PrintAllFontsWithName(WTF::AtomicString name) {
         font_cache_->GetFontData(blink::FontDescription(), name);
     default_font_digest =
         font_data ? blink::FontGlobalContext::Get()
-                        .GetOrComputeTypefaceDigest(font_data->PlatformData())
+                        ->GetOrComputeTypefaceDigest(font_data->PlatformData())
                         .ToUkmMetricValue()
                   : 0;
   }
@@ -233,52 +234,18 @@ void FontIndexer::PrintAllFontsWithName(WTF::AtomicString name) {
 
         if (scoped_refptr<blink::SimpleFontData> font_data =
                 font_cache_->GetFontData(font_description, name)) {
-          uint64_t typeface_digest =
+          int64_t digest =
               blink::FontGlobalContext::Get()
-                  .GetOrComputeTypefaceDigest(font_data->PlatformData())
+                  ->GetOrComputeTypefaceDigest(font_data->PlatformData())
                   .ToUkmMetricValue();
-          if (set_of_digests.insert(typeface_digest).is_new_entry) {
-            WTF::String postscript_name =
-                font_data->PlatformData().GetPostScriptName();
-
-            // Matches behavior in FontMatchingMetrics for lookups using the
-            // family name and the PostScript name, respectively, with default
-            // FontSelectionRequests.
-            uint64_t default_family_name_lookup_digest;
-            {
-              blink::IdentifiableTokenBuilder builder;
-              builder.AddValue(
-                  blink::FontDescription().GetFontSelectionRequest().GetHash());
-              builder.AddToken(
-                  blink::IdentifiabilityBenignCaseFoldingStringToken(name));
-              default_family_name_lookup_digest =
-                  builder.GetToken().ToUkmMetricValue();
-            }
-            uint64_t default_postscript_name_lookup_digest;
-            {
-              blink::IdentifiableTokenBuilder builder;
-              builder.AddValue(
-                  blink::FontDescription().GetFontSelectionRequest().GetHash());
-              builder.AddToken(
-                  blink::IdentifiabilityBenignCaseFoldingStringToken(
-                      postscript_name));
-              default_postscript_name_lookup_digest =
-                  builder.GetToken().ToUkmMetricValue();
-            }
-            uint64_t postscript_name_string_digest =
-                blink::IdentifiabilityBenignStringToken(postscript_name)
-                    .ToUkmMetricValue();
-
+          if (set_of_digests.insert(digest).is_new_entry) {
             std::cout << name.Ascii() << kOutputSeparator
-                      << postscript_name.Ascii() << kOutputSeparator
-                      << weight_pair.second << kOutputSeparator
-                      << width_pair.second << kOutputSeparator
-                      << slope_pair.second << kOutputSeparator
-                      << typeface_digest << kOutputSeparator
-                      << default_family_name_lookup_digest << kOutputSeparator
-                      << default_postscript_name_lookup_digest
-                      << kOutputSeparator << postscript_name_string_digest
-                      << std::endl;
+                      << font_data->PlatformData().GetPostScriptName().Ascii()
+                      << kOutputSeparator << weight_pair.second
+                      << kOutputSeparator << width_pair.second
+                      << kOutputSeparator << slope_pair.second
+                      << kOutputSeparator << digest << kOutputSeparator
+                      << static_cast<uint64_t>(digest) << std::endl;
           }
         }
       }

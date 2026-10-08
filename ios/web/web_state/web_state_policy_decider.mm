@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,17 +64,16 @@ WebStatePolicyDecider::~WebStatePolicyDecider() {
   }
 }
 
-void WebStatePolicyDecider::ShouldAllowRequest(
+WebStatePolicyDecider::PolicyDecision WebStatePolicyDecider::ShouldAllowRequest(
     NSURLRequest* request,
-    RequestInfo request_info,
-    PolicyDecisionCallback callback) {
-  std::move(callback).Run(PolicyDecision::Allow());
+    const WebStatePolicyDecider::RequestInfo& request_info) {
+  return WebStatePolicyDecider::PolicyDecision::Allow();
 }
 
 void WebStatePolicyDecider::ShouldAllowResponse(
     NSURLResponse* response,
-    ResponseInfo response_info,
-    PolicyDecisionCallback callback) {
+    bool for_main_frame,
+    base::OnceCallback<void(PolicyDecision)> callback) {
   std::move(callback).Run(PolicyDecision::Allow());
 }
 

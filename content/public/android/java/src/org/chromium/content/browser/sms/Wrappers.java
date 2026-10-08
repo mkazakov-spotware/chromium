@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,6 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Build;
-import android.os.Handler;
-
-import androidx.annotation.RequiresApi;
 
 import com.google.android.gms.auth.api.phone.SmsCodeBrowserClient;
 import com.google.android.gms.auth.api.phone.SmsCodeRetriever;
@@ -63,11 +59,9 @@ class Wrappers {
     static class WebOTPServiceContext extends ContextWrapper {
         private BroadcastReceiver mVerificationReceiver;
         private BroadcastReceiver mUserConsentReceiver;
-        private final SmsProviderGms mSmsProviderGms;
 
-        public WebOTPServiceContext(Context context, SmsProviderGms provider) {
+        public WebOTPServiceContext(Context context) {
             super(context);
-            mSmsProviderGms = provider;
         }
 
         public SmsVerificationReceiver getRegisteredVerificationReceiver() {
@@ -78,45 +72,18 @@ class Wrappers {
             return (SmsUserConsentReceiver) mUserConsentReceiver;
         }
 
-        public SmsVerificationReceiver createVerificationReceiverForTesting() {
-            return new SmsVerificationReceiver(mSmsProviderGms, this);
-        }
+        // ---------------------------------------------------------------------
+        // Context overrides:
 
-        private void onRegisterReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+        @Override
+        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
             if (filter.hasAction(SmsCodeRetriever.SMS_CODE_RETRIEVED_ACTION)) {
                 mVerificationReceiver = receiver;
             } else {
                 mUserConsentReceiver = receiver;
             }
-        }
 
-        // ---------------------------------------------------------------------
-        // Context overrides:
-
-        @Override
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
-                String permission, Handler handler) {
-            onRegisterReceiver(receiver, filter);
-            return super.registerReceiver(receiver, filter, permission, handler);
-        }
-
-        @Override
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
-            throw new RuntimeException(); // Not implemented.
-        }
-
-        @Override
-        @RequiresApi(Build.VERSION_CODES.O)
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
-                String permission, Handler handler, int flags) {
-            onRegisterReceiver(receiver, filter);
-            return super.registerReceiver(receiver, filter, permission, handler, flags);
-        }
-
-        @Override
-        @RequiresApi(Build.VERSION_CODES.O)
-        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter, int flags) {
-            throw new RuntimeException(); // Not implemented.
+            return super.registerReceiver(receiver, filter);
         }
 
         @Override

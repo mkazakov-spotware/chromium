@@ -1,11 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_CONTENT_RENDERER_HTML_BASED_USERNAME_DETECTOR_VOCABULARY_H_
 #define COMPONENTS_AUTOFILL_CONTENT_RENDERER_HTML_BASED_USERNAME_DETECTOR_VOCABULARY_H_
-
-#include <stddef.h>
 
 namespace autofill {
 
@@ -13,33 +11,33 @@ namespace autofill {
 // If field values contain at least one negative word, then the field is
 // excluded from the list of possible usernames.
 extern const char* const kNegativeLatin[];
-extern const size_t kNegativeLatinSize;
+extern const int kNegativeLatinSize;
 extern const char* const kNegativeNonLatin[];
-extern const size_t kNegativeNonLatinSize;
+extern const int kNegativeNonLatinSize;
 
 // Translations of "username".
 extern const char* const kUsernameLatin[];
-extern const size_t kUsernameLatinSize;
+extern const int kUsernameLatinSize;
 extern const char* const kUsernameNonLatin[];
-extern const size_t kUsernameNonLatinSize;
+extern const int kUsernameNonLatinSize;
 
 // Translations of "user".
 extern const char* const kUserLatin[];
-extern const size_t kUserLatinSize;
+extern const int kUserLatinSize;
 extern const char* const kUserNonLatin[];
-extern const size_t kUserNonLatinSize;
+extern const int kUserNonLatinSize;
 
 // Words that certainly point to a username field, if they appear in developer
 // value. They are technical words, because they can only be used as variable
 // names, and not as stand-alone words.
 extern const char* const kTechnicalWords[];
-extern const size_t kTechnicalWordsSize;
+extern const int kTechnicalWordsSize;
 
 // Words that might point to a username field.They have the smallest priority
 // in the heuristic, because there are also field attribute values that
 // contain them, but are not username fields.
 extern const char* const kWeakWords[];
-extern const size_t kWeakWordsSize;
+extern const int kWeakWordsSize;
 
 }  // namespace autofill
 

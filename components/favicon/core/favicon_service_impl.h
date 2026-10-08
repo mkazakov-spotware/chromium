@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 
 #include "base/callback.h"
 #include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/favicon/core/favicon_service.h"
@@ -39,10 +39,6 @@ class FaviconServiceImpl : public FaviconService {
   // |history_service| most not be nullptr and  must outlive this object.
   FaviconServiceImpl(std::unique_ptr<FaviconClient> favicon_client,
                      history::HistoryService* history_service);
-
-  FaviconServiceImpl(const FaviconServiceImpl&) = delete;
-  FaviconServiceImpl& operator=(const FaviconServiceImpl&) = delete;
-
   ~FaviconServiceImpl() override;
 
   // FaviconService implementation.
@@ -103,7 +99,7 @@ class FaviconServiceImpl : public FaviconService {
   void SetImportedFavicons(
       const favicon_base::FaviconUsageDataList& favicon_usage) override;
   void AddPageNoVisitForBookmark(const GURL& url,
-                                 const std::u16string& title) override;
+                                 const base::string16& title) override;
   void MergeFavicon(const GURL& page_url,
                     const GURL& icon_url,
                     favicon_base::IconType icon_type,
@@ -165,7 +161,9 @@ class FaviconServiceImpl : public FaviconService {
 
   std::unordered_set<MissingFaviconURLHash> missing_favicon_urls_;
   std::unique_ptr<FaviconClient> favicon_client_;
-  raw_ptr<history::HistoryService> history_service_;
+  history::HistoryService* history_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(FaviconServiceImpl);
 };
 
 }  // namespace favicon

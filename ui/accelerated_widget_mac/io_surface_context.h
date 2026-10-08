@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <OpenGL/OpenGL.h>
 
+#include <map>
+#include <memory>
 
 #include "base/mac/scoped_nsobject.h"
 #include "base/memory/ref_counted.h"
@@ -52,7 +54,7 @@ class IOSurfaceContext
   IOSurfaceContext(
       Type type,
       base::ScopedTypeRef<CGLContextObj> clg_context_strong);
-  ~IOSurfaceContext() override;
+  virtual ~IOSurfaceContext();
 
   Type type_;
   base::ScopedTypeRef<CGLContextObj> cgl_context_;

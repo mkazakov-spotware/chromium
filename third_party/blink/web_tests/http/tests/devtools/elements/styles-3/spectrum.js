@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests ColorPicker.Spectrum\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
 
   function setColor(inputColor, format) {
@@ -20,17 +20,17 @@
 
   function checkAlphaChange(inputColor, format) {
     setColor(inputColor, format);
-    spectrum.hsv[3] = 0;
-    spectrum.innerSetColor(spectrum._hsv, undefined, undefined /* colorName */, undefined, ColorPicker.Spectrum._ChangeSource.Other);
+    spectrum._hsv[3] = 0;
+    spectrum._innerSetColor(spectrum._hsv, undefined, undefined /* colorName */, undefined, ColorPicker.Spectrum._ChangeSource.Other);
     TestRunner.addResult(spectrum.colorString());
   }
 
   function checkNextFormat(inputColor, format) {
     setColor(inputColor, format);
-    spectrum.formatViewSwitch();
-    TestRunner.addResult(spectrum.colorFormat);
-    spectrum.formatViewSwitch();
-    TestRunner.addResult(spectrum.colorFormat);
+    spectrum._formatViewSwitch();
+    TestRunner.addResult(spectrum._colorFormat);
+    spectrum._formatViewSwitch();
+    TestRunner.addResult(spectrum._colorFormat);
   }
 
   var spectrum = new ColorPicker.Spectrum();
@@ -43,9 +43,7 @@
     {string: 'rgb(1 2 3 / 20%)', format: cf.RGB}, {string: 'rgbA(1 2 3)', format: cf.RGB},
     {string: 'rgba(1.5 2.6 3.1)', format: cf.RGB}, {string: 'hsl(1, 100%, 50%)', format: cf.HSL},
     {string: 'hsl(1 100% 50%)', format: cf.HSL}, {string: 'hsla(1, 100%, 50%, 0.2)', format: cf.HSLA},
-    {string: 'hsl(1 100% 50% / 20%)', format: cf.HSL}, {string: 'hsL(1deg  100% 50%  /  20%)', format: cf.HSL},
-    {string: 'hwb(1 100% 50%)', format: cf.HWB}, {string: 'hwb(100grad 100% 50% / 0.2)', format: cf.HWB},
-    {string: 'hwb(1rad 20% 50% / 20%)', format: cf.HWB}, {string: 'hwB(1deg  20% 50%  /  20%)', format: cf.HWB}
+    {string: 'hsl(1 100% 50% / 20%)', format: cf.HSL}, {string: 'hsL(1deg  100% 50%  /  20%)', format: cf.HSL}
   ];
 
   TestRunner.addResult('--- Testing colorString()');

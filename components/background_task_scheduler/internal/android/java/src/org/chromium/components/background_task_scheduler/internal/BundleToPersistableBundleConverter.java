@@ -1,9 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.background_task_scheduler.internal;
 
+import android.annotation.TargetApi;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.PersistableBundle;
 
@@ -22,6 +24,7 @@ import java.util.Set;
  * a {@link PersistableBundle} in the case of using {@link android.app.job.JobScheduler} as the
  * backend for scheduling.
  */
+@TargetApi(Build.VERSION_CODES.LOLLIPOP_MR1)
 class BundleToPersistableBundleConverter {
     /**
      * A Result which contains the resulting {@link PersistableBundle} after a conversion, and also

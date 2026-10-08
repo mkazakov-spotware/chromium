@@ -1,23 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/login/ui/login_error_bubble.h"
 #include "ash/login/ui/login_test_base.h"
-#include "base/memory/weak_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 
 namespace ash {
-
-namespace {
-
-class AnchorView : public views::View,
-                   public base::SupportsWeakPtr<AnchorView> {};
-
-}  // namespace
 
 using LoginErrorBubbleTest = LoginTestBase;
 
@@ -27,10 +19,14 @@ TEST_F(LoginErrorBubbleTest, PersistentEventHandling) {
       views::BoxLayout::Orientation::kVertical));
   SetWidget(CreateWidgetWithContent(container));
 
-  auto* anchor_view = new AnchorView();
+  auto* anchor_view = new views::View;
   container->AddChildView(anchor_view);
 
-  auto* bubble = new LoginErrorBubble(anchor_view->AsWeakPtr());
+  auto* label = new views::Label(base::UTF8ToUTF16("A message"),
+                                 views::style::CONTEXT_LABEL,
+                                 views::style::STYLE_PRIMARY);
+
+  auto* bubble = new LoginErrorBubble(label /*content*/, anchor_view);
   bubble->set_persistent(true);
   container->AddChildView(bubble);
 

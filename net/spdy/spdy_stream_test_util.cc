@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,13 @@
 #include <cstddef>
 #include <utility>
 
-#include "base/strings/string_piece.h"
+#include "base/stl_util.h"
 #include "net/spdy/spdy_stream.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::test {
+namespace net {
+
+namespace test {
 
 ClosingDelegate::ClosingDelegate(
     const base::WeakPtr<SpdyStream>& stream) : stream_(stream) {
@@ -21,9 +23,6 @@ ClosingDelegate::ClosingDelegate(
 ClosingDelegate::~ClosingDelegate() = default;
 
 void ClosingDelegate::OnHeadersSent() {}
-
-void ClosingDelegate::OnEarlyHintsReceived(
-    const spdy::Http2HeaderBlock& headers) {}
 
 void ClosingDelegate::OnHeadersReceived(
     const spdy::Http2HeaderBlock& response_headers,
@@ -49,8 +48,12 @@ NetLogSource ClosingDelegate::source_dependency() const {
   return NetLogSource();
 }
 
-StreamDelegateBase::StreamDelegateBase(const base::WeakPtr<SpdyStream>& stream)
-    : stream_(stream) {}
+StreamDelegateBase::StreamDelegateBase(
+    const base::WeakPtr<SpdyStream>& stream)
+    : stream_(stream),
+      stream_id_(0),
+      send_headers_completed_(false) {
+}
 
 StreamDelegateBase::~StreamDelegateBase() = default;
 
@@ -58,12 +61,6 @@ void StreamDelegateBase::OnHeadersSent() {
   stream_id_ = stream_->stream_id();
   EXPECT_NE(stream_id_, 0u);
   send_headers_completed_ = true;
-}
-
-void StreamDelegateBase::OnEarlyHintsReceived(
-    const spdy::Http2HeaderBlock& headers) {
-  EXPECT_EQ(stream_->type() != SPDY_PUSH_STREAM, send_headers_completed_);
-  early_hints_.push_back(headers.Clone());
 }
 
 void StreamDelegateBase::OnHeadersReceived(
@@ -109,7 +106,8 @@ std::string StreamDelegateBase::TakeReceivedData() {
   size_t len = received_data_queue_.GetTotalSize();
   std::string received_data(len, '\0');
   if (len > 0) {
-    EXPECT_EQ(len, received_data_queue_.Dequeue(std::data(received_data), len));
+    EXPECT_EQ(len,
+              received_data_queue_.Dequeue(base::data(received_data), len));
   }
   return received_data;
 }
@@ -132,17 +130,6 @@ StreamDelegateDoNothing::StreamDelegateDoNothing(
 
 StreamDelegateDoNothing::~StreamDelegateDoNothing() = default;
 
-StreamDelegateConsumeData::StreamDelegateConsumeData(
-    const base::WeakPtr<SpdyStream>& stream)
-    : StreamDelegateBase(stream) {}
-
-StreamDelegateConsumeData::~StreamDelegateConsumeData() = default;
-
-void StreamDelegateConsumeData::OnDataReceived(
-    std::unique_ptr<SpdyBuffer> buffer) {
-  buffer->Consume(buffer->GetRemainingSize());
-}
-
 StreamDelegateSendImmediate::StreamDelegateSendImmediate(
     const base::WeakPtr<SpdyStream>& stream,
     base::StringPiece data)
@@ -157,7 +144,7 @@ void StreamDelegateSendImmediate::OnHeadersReceived(
                                         pushed_request_headers);
   if (data_.data()) {
     scoped_refptr<StringIOBuffer> buf =
-        base::MakeRefCounted<StringIOBuffer>(std::string(data_));
+        base::MakeRefCounted<StringIOBuffer>(data_.as_string());
     stream()->SendData(buf.get(), buf->size(), MORE_DATA_TO_SEND);
   }
 }
@@ -166,7 +153,7 @@ StreamDelegateWithBody::StreamDelegateWithBody(
     const base::WeakPtr<SpdyStream>& stream,
     base::StringPiece data)
     : StreamDelegateBase(stream),
-      buf_(base::MakeRefCounted<StringIOBuffer>(std::string(data))) {}
+      buf_(base::MakeRefCounted<StringIOBuffer>(data.as_string())) {}
 
 StreamDelegateWithBody::~StreamDelegateWithBody() = default;
 
@@ -188,16 +175,6 @@ void StreamDelegateCloseOnHeaders::OnHeadersReceived(
   stream()->Cancel(ERR_ABORTED);
 }
 
-StreamDelegateDetectEOF::StreamDelegateDetectEOF(
-    const base::WeakPtr<SpdyStream>& stream)
-    : StreamDelegateBase(stream) {}
+}  // namespace test
 
-StreamDelegateDetectEOF::~StreamDelegateDetectEOF() = default;
-
-void StreamDelegateDetectEOF::OnDataReceived(
-    std::unique_ptr<SpdyBuffer> buffer) {
-  if (!buffer)
-    eof_detected_ = true;
-}
-
-}  // namespace net::test
+}  // namespace net

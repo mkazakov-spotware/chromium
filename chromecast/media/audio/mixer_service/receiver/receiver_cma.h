@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 
 #include "base/containers/flat_map.h"
-#include "chromecast/media/audio/mixer_service/mixer_service_transport.pb.h"
+#include "base/macros.h"
+#include "chromecast/media/audio/mixer_service/mixer_service.pb.h"
 #include "chromecast/media/audio/mixer_service/receiver/receiver.h"
 
 namespace chromecast {
@@ -21,10 +22,6 @@ class MixerSocket;
 class ReceiverCma : public Receiver {
  public:
   explicit ReceiverCma(MediaPipelineBackendManager* backend_manager);
-
-  ReceiverCma(const ReceiverCma&) = delete;
-  ReceiverCma& operator=(const ReceiverCma&) = delete;
-
   ~ReceiverCma() override;
 
   MediaPipelineBackendManager* backend_manager() const {
@@ -54,6 +51,8 @@ class ReceiverCma : public Receiver {
 
   base::flat_map<Stream*, std::unique_ptr<Stream>> streams_;
   base::flat_map<UnusedSocket*, std::unique_ptr<UnusedSocket>> unused_sockets_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReceiverCma);
 };
 
 }  // namespace mixer_service

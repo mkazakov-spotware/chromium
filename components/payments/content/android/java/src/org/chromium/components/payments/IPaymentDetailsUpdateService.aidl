@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@ package org.chromium.components.payments;
 
 import android.os.Bundle;
 
-import org.chromium.components.payments.IPaymentDetailsUpdateServiceCallback;
+import IPaymentDetailsUpdateServiceCallback;
 
 /**
  * Helper interface used by the invoked native payment app to notify the

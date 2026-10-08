@@ -67,10 +67,7 @@ class PLATFORM_EXPORT HTTPHeaderMap final {
   void Clear() { headers_.clear(); }
   bool Contains(const AtomicString& k) const { return headers_.Contains(k); }
   const AtomicString& Get(const AtomicString& k) const {
-    const auto it = headers_.find(k);
-    if (it == headers_.end())
-      return g_null_atom;
-    return it->value;
+    return headers_.at(k);
   }
   AddResult Set(const AtomicString& k, const AtomicString& v) {
     SECURITY_DCHECK(!k.Contains('\n') && !k.Contains('\r'));

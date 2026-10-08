@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "ios/web/public/test/fakes/fake_browser_state.h"
+#include "ios/web/public/test/fakes/test_browser_state.h"
 #include "ios/web/public/test/scoped_testing_web_client.h"
 #include "ios/web/public/test/web_task_environment.h"
 #include "testing/platform_test.h"
@@ -15,7 +15,6 @@
 namespace web {
 
 class BrowserState;
-class JavaScriptFeature;
 class WebClient;
 class WebTestRenderProcessCrashObserver;
 
@@ -29,32 +28,21 @@ class WebTest : public PlatformTest {
           WebTaskEnvironment::Options = WebTaskEnvironment::Options::DEFAULT);
   ~WebTest() override;
 
-  void SetUp() override;
-
-  // Creates and returns a BrowserState for use in tests. The default
-  // implementation returns a FakeBrowserState, but subclasses can override this
-  // to supply a custom BrowserState.
-  virtual std::unique_ptr<BrowserState> CreateBrowserState();
-
-  // Manually overrides the built in JavaScriptFeatures and those from
-  // `GetWebClient()::GetJavaScriptFeatures()`. This is intended to be used to
-  // replace an instance of a built in feature with one created by the test.
-  // NOTE: Do not call this when using a ChromeWebClient or
-  // `FakeWebClient::SetJavaScriptFeatures` as this will override those
-  // features.
-  void OverrideJavaScriptFeatures(std::vector<JavaScriptFeature*> features);
-
   // Returns the WebClient that is used for testing.
   virtual web::WebClient* GetWebClient();
 
   // Returns the BrowserState that is used for testing.
-  BrowserState* GetBrowserState();
+  virtual BrowserState* GetBrowserState();
 
-  // If called with `true`, prevents the test fixture from automatically failing
+  // If called with |true|, prevents the test fixture from automatically failing
   // when a render process crashes during the test.  This is useful for tests
   // that intentionally crash the render process.  By default, the WebTest
   // fixture will fail if a render process crashes.
   void SetIgnoreRenderProcessCrashesDuringTesting(bool allow);
+
+  // Sets a SharedURLLoaderFactory for |browser_state_|.
+  void SetSharedURLLoaderFactory(
+      scoped_refptr<network::SharedURLLoaderFactory> shared_url_loader_factory);
 
  private:
   // The WebClient used in tests.
@@ -62,7 +50,7 @@ class WebTest : public PlatformTest {
   // The threads used for testing.
   web::WebTaskEnvironment task_environment_;
   // The browser state used in tests.
-  std::unique_ptr<BrowserState> browser_state_;
+  TestBrowserState browser_state_;
 
   // Triggers test failures if a render process dies during the test.
   std::unique_ptr<WebTestRenderProcessCrashObserver> crash_observer_;

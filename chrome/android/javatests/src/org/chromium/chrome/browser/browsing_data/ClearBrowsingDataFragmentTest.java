@@ -1,14 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browsing_data;
-
-import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
-import static androidx.test.espresso.matcher.RootMatchers.isDialog;
-import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -21,13 +15,9 @@ import static org.mockito.Mockito.when;
 
 import android.os.Build;
 import android.support.test.InstrumentationRegistry;
-import android.text.Spanned;
-import android.text.style.ClickableSpan;
-import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.Spinner;
-import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.collection.ArraySet;
@@ -35,17 +25,11 @@ import androidx.fragment.app.Fragment;
 import androidx.preference.CheckBoxPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.test.espresso.NoMatchingViewException;
-import androidx.test.espresso.UiController;
-import androidx.test.espresso.ViewAction;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
-import androidx.viewpager2.widget.ViewPager2;
+import androidx.viewpager.widget.PagerAdapter;
+import androidx.viewpager.widget.ViewPager;
 
-import com.google.android.material.tabs.TabLayout;
-
-import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,7 +40,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.stubbing.Answer;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -66,15 +49,12 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browsing_data.ClearBrowsingDataFragment.DialogOption;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.notifications.channels.SiteChannelsManager;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.SettingsActivity;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
-import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
+import org.chromium.chrome.test.util.browser.signin.AccountManagerTestRule;
 import org.chromium.components.browser_ui.settings.SpinnerPreference;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.Arrays;
@@ -85,7 +65,6 @@ import java.util.Set;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class ClearBrowsingDataFragmentTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
@@ -98,7 +77,7 @@ public class ClearBrowsingDataFragmentTest {
                     new SettingsActivityTestRule<>(ClearBrowsingDataTabsFragment.class);
 
     @Rule
-    public final SigninTestRule mSigninTestRule = new SigninTestRule();
+    public final AccountManagerTestRule mAccountManagerTestRule = new AccountManagerTestRule();
 
     @Rule
     public JniMocker mJniMocker = new JniMocker();
@@ -168,38 +147,6 @@ public class ClearBrowsingDataFragmentTest {
         return settingsActivity;
     }
 
-    @Test
-    @LargeTest
-    public void testSigningOut() {
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
-        mSettingsActivityTestRule.startSettingsActivity();
-        CriteriaHelper.pollUiThread(() -> {
-            return mSettingsActivityTestRule.getActivity().findViewById(R.id.menu_id_general_help)
-                    != null;
-        });
-
-        final ClearBrowsingDataFragment clearBrowsingDataFragment =
-                mSettingsActivityTestRule.getFragment();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            RecyclerView recyclerView =
-                    clearBrowsingDataFragment.getView().findViewById(R.id.recycler_view);
-            recyclerView.scrollToPosition(recyclerView.getAdapter().getItemCount() - 1);
-        });
-        onView(withText(clearBrowsingDataFragment.buildSignOutOfChromeText().toString()))
-                .perform(clickOnSignOutLink());
-        onView(withText(R.string.continue_button)).inRoot(isDialog()).perform(click());
-        CriteriaHelper.pollUiThread(
-                ()
-                        -> !IdentityServicesProvider.get()
-                                    .getIdentityManager(Profile.getLastUsedRegularProfile())
-                                    .hasPrimaryAccount(ConsentLevel.SIGNIN),
-                "Account should be signed out!");
-
-        // Footer should be hidden after sign-out.
-        onView(withText(clearBrowsingDataFragment.buildSignOutOfChromeText().toString()))
-                .check(doesNotExist());
-    }
-
     /**
      * Test that Clear Browsing Data offers two tabs and records a preference when switched.
      */
@@ -218,18 +165,17 @@ public class ClearBrowsingDataFragmentTest {
         verify(mBrowsingDataBridgeMock).getLastClearBrowsingDataTab(any());
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            ViewPager2 viewPager = (ViewPager2) preferences.getView().findViewById(
+            ViewPager viewPager = (ViewPager) preferences.getView().findViewById(
                     R.id.clear_browsing_data_viewpager);
-            RecyclerView.Adapter adapter = viewPager.getAdapter();
-            Assert.assertEquals(2, adapter.getItemCount());
+            PagerAdapter adapter = viewPager.getAdapter();
+            Assert.assertEquals(2, adapter.getCount());
             Assert.assertEquals(1, viewPager.getCurrentItem());
-            TabLayout tabLayout = preferences.getView().findViewById(R.id.clear_browsing_data_tabs);
             Assert.assertEquals(InstrumentationRegistry.getTargetContext().getString(
                                         R.string.clear_browsing_data_basic_tab_title),
-                    tabLayout.getTabAt(0).getText());
+                    adapter.getPageTitle(0));
             Assert.assertEquals(InstrumentationRegistry.getTargetContext().getString(
                                         R.string.prefs_section_advanced),
-                    tabLayout.getTabAt(1).getText());
+                    adapter.getPageTitle(1));
             viewPager.setCurrentItem(0);
         });
         // Verify the tab preference is saved.
@@ -388,7 +334,7 @@ public class ClearBrowsingDataFragmentTest {
     @LargeTest
     public void testDialogAboutOtherFormsOfBrowsingHistory() {
         // Sign in.
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mAccountManagerTestRule.addTestAccountThenSigninAndEnableSync();
         OtherFormsOfHistoryDialogFragment.clearShownPreferenceForTesting();
 
         // History is not selected. We still need to select some other datatype, otherwise the
@@ -524,7 +470,7 @@ public class ClearBrowsingDataFragmentTest {
     @Feature({"SiteEngagement"})
     public void testImportantSitesDialogNoFiltering() throws Exception {
         // Sign in.
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mAccountManagerTestRule.addTestAccountThenSigninAndEnableSync();
 
         final String[] importantOrigins = {"http://www.facebook.com", "https://www.google.com"};
         // First mark our origins as important.
@@ -557,7 +503,7 @@ public class ClearBrowsingDataFragmentTest {
     @Feature({"SiteEngagement"})
     public void testImportantSitesDialogNoopOnCancel() throws Exception {
         // Sign in.
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mAccountManagerTestRule.addTestAccountThenSigninAndEnableSync();
 
         final String[] importantOrigins = {"http://www.facebook.com", "http://www.google.com"};
         // First mark our origins as important.
@@ -589,7 +535,7 @@ public class ClearBrowsingDataFragmentTest {
     @Feature({"SiteEngagement"})
     public void testImportantSitesDialog() throws Exception {
         // Sign in.
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mAccountManagerTestRule.addTestAccountThenSigninAndEnableSync();
 
         final String kKeepDomain = "https://www.chrome.com";
         final String kClearDomain = "https://www.google.com";
@@ -645,35 +591,5 @@ public class ClearBrowsingDataFragmentTest {
                         .thenReturn(enabled);
             }
         });
-    }
-
-    // TODO(https://crbug.com/1334586): Move this to a test util class.
-    private ViewAction clickOnSignOutLink() {
-        return new ViewAction() {
-            @Override
-            public Matcher<View> getConstraints() {
-                return Matchers.instanceOf(TextView.class);
-            }
-
-            @Override
-            public String getDescription() {
-                return "Clicks on the sign out link in the clear browsing data footer";
-            }
-
-            @Override
-            public void perform(UiController uiController, View view) {
-                TextView textView = (TextView) view;
-                Spanned spannedString = (Spanned) textView.getText();
-                ClickableSpan[] spans =
-                        spannedString.getSpans(0, spannedString.length(), ClickableSpan.class);
-                if (spans.length != 1) {
-                    throw new NoMatchingViewException.Builder()
-                            .includeViewHierarchy(true)
-                            .withRootView(textView)
-                            .build();
-                }
-                spans[0].onClick(view);
-            }
-        };
     }
 }

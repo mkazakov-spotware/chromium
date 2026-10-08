@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,8 +58,8 @@ DownloadShelfTest::DownloadShelfTest() {
   ON_CALL(*download_item(), IsTemporary()).WillByDefault(Return(false));
   ON_CALL(*download_item(), ShouldOpenFileBasedOnExtension())
       .WillByDefault(Return(false));
-  content::DownloadItemUtils::AttachInfoForTesting(download_item(),
-                                                   profile_.get(), nullptr);
+  content::DownloadItemUtils::AttachInfo(download_item(), profile_.get(),
+                                         nullptr);
 
   auto download_manager =
       std::make_unique<::testing::NiceMock<content::MockDownloadManager>>();
@@ -68,7 +68,8 @@ DownloadShelfTest::DownloadShelfTest() {
   ON_CALL(*download_manager, GetBrowserContext())
       .WillByDefault(Return(profile_.get()));
 
-  profile_->SetDownloadManagerForTesting(std::move(download_manager));
+  content::BrowserContext::SetDownloadManagerForTesting(
+      profile_.get(), std::move(download_manager));
 }
 
 } // namespace

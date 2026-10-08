@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,23 +25,23 @@
 #include "url/gurl.h"
 
 using extensions::api::manifest_types::ChromeSettingsOverrides;
-using extensions::mojom::APIPermissionID;
 
 namespace extensions {
 namespace {
 
-absl::optional<GURL> CreateManifestURL(const std::string& url) {
-  absl::optional<GURL> manifest_url(absl::in_place, url);
-  if (!manifest_url->is_valid() || !manifest_url->SchemeIsHTTPOrHTTPS())
-    return absl::nullopt;
+std::unique_ptr<GURL> CreateManifestURL(const std::string& url) {
+  std::unique_ptr<GURL> manifest_url(new GURL(url));
+  if (!manifest_url->is_valid() ||
+      !manifest_url->SchemeIsHTTPOrHTTPS())
+    return std::unique_ptr<GURL>();
   return manifest_url;
 }
 
-absl::optional<GURL> ParseHomepage(const ChromeSettingsOverrides& overrides,
-                                   std::u16string* error) {
+std::unique_ptr<GURL> ParseHomepage(const ChromeSettingsOverrides& overrides,
+                                    base::string16* error) {
   if (!overrides.homepage)
-    return absl::nullopt;
-  absl::optional<GURL> manifest_url = CreateManifestURL(*overrides.homepage);
+    return std::unique_ptr<GURL>();
+  std::unique_ptr<GURL> manifest_url = CreateManifestURL(*overrides.homepage);
   if (!manifest_url) {
     *error = extensions::ErrorUtils::FormatErrorMessageUTF16(
         manifest_errors::kInvalidHomepageOverrideURL, *overrides.homepage);
@@ -50,7 +50,7 @@ absl::optional<GURL> ParseHomepage(const ChromeSettingsOverrides& overrides,
 }
 
 std::vector<GURL> ParseStartupPage(const ChromeSettingsOverrides& overrides,
-                                   std::u16string* error) {
+                                   base::string16* error) {
   std::vector<GURL> urls;
   if (!overrides.startup_pages)
     return urls;
@@ -58,30 +58,31 @@ std::vector<GURL> ParseStartupPage(const ChromeSettingsOverrides& overrides,
   for (std::vector<std::string>::const_iterator i =
        overrides.startup_pages->begin(); i != overrides.startup_pages->end();
        ++i) {
-    absl::optional<GURL> manifest_url = CreateManifestURL(*i);
+    std::unique_ptr<GURL> manifest_url = CreateManifestURL(*i);
     if (!manifest_url) {
       *error = extensions::ErrorUtils::FormatErrorMessageUTF16(
           manifest_errors::kInvalidStartupOverrideURL, *i);
     } else {
-      urls.push_back(std::move(*manifest_url));
+      urls.push_back(GURL());
+      urls.back().Swap(manifest_url.get());
     }
   }
   return urls;
 }
 
-absl::optional<ChromeSettingsOverrides::SearchProvider> ParseSearchEngine(
+std::unique_ptr<ChromeSettingsOverrides::SearchProvider> ParseSearchEngine(
     ChromeSettingsOverrides* overrides,
-    std::u16string* error) {
+    base::string16* error) {
   if (!overrides->search_provider)
-    return absl::nullopt;
+    return std::unique_ptr<ChromeSettingsOverrides::SearchProvider>();
   if (!CreateManifestURL(overrides->search_provider->search_url)) {
     *error = extensions::ErrorUtils::FormatErrorMessageUTF16(
         manifest_errors::kInvalidSearchEngineURL,
         overrides->search_provider->search_url);
-    return absl::nullopt;
+    return std::unique_ptr<ChromeSettingsOverrides::SearchProvider>();
   }
   if (overrides->search_provider->prepopulated_id)
-    return std::move(*overrides->search_provider);
+    return std::move(overrides->search_provider);
 
   auto get_missing_key_error = [](const char* missing_key) {
     return extensions::ErrorUtils::FormatErrorMessageUTF16(
@@ -90,27 +91,27 @@ absl::optional<ChromeSettingsOverrides::SearchProvider> ParseSearchEngine(
 
   if (!overrides->search_provider->name) {
     *error = get_missing_key_error("name");
-    return absl::nullopt;
+    return nullptr;
   }
   if (!overrides->search_provider->keyword) {
     *error = get_missing_key_error("keyword");
-    return absl::nullopt;
+    return nullptr;
   }
   if (!overrides->search_provider->encoding) {
     *error = get_missing_key_error("encoding");
-    return absl::nullopt;
+    return nullptr;
   }
   if (!overrides->search_provider->favicon_url) {
     *error = get_missing_key_error("favicon_url");
-    return absl::nullopt;
+    return nullptr;
   }
   if (!CreateManifestURL(*overrides->search_provider->favicon_url)) {
     *error = extensions::ErrorUtils::FormatErrorMessageUTF16(
         manifest_errors::kInvalidSearchEngineURL,
         *overrides->search_provider->favicon_url);
-    return absl::nullopt;
+    return std::unique_ptr<ChromeSettingsOverrides::SearchProvider>();
   }
-  return std::move(*overrides->search_provider);
+  return std::move(overrides->search_provider);
 }
 
 std::string FormatUrlForDisplay(const GURL& url) {
@@ -137,10 +138,9 @@ SettingsOverridesHandler::SettingsOverridesHandler() {}
 SettingsOverridesHandler::~SettingsOverridesHandler() {}
 
 bool SettingsOverridesHandler::Parse(Extension* extension,
-                                     std::u16string* error) {
-  const base::Value* dict =
-      extension->manifest()->FindPath(manifest_keys::kSettingsOverride);
-  CHECK(dict != nullptr);
+                                     base::string16* error) {
+  const base::Value* dict = NULL;
+  CHECK(extension->manifest()->Get(manifest_keys::kSettingsOverride, &dict));
   std::unique_ptr<ChromeSettingsOverrides> settings(
       ChromeSettingsOverrides::FromValue(*dict, error));
   if (!settings)
@@ -150,11 +150,11 @@ bool SettingsOverridesHandler::Parse(Extension* extension,
   // parse failure should result in hard error. Currently, Parse fails only when
   // all of these fail to parse.
   auto info = std::make_unique<SettingsOverrides>();
-  std::u16string homepage_error;
+  base::string16 homepage_error;
   info->homepage = ParseHomepage(*settings, &homepage_error);
-  std::u16string search_engine_error;
+  base::string16 search_engine_error;
   info->search_engine = ParseSearchEngine(settings.get(), &search_engine_error);
-  std::u16string startup_pages_error;
+  base::string16 startup_pages_error;
   info->startup_pages = ParseStartupPage(*settings, &startup_pages_error);
   if (!info->homepage && !info->search_engine && info->startup_pages.empty()) {
     if (!homepage_error.empty()) {
@@ -175,7 +175,7 @@ bool SettingsOverridesHandler::Parse(Extension* extension,
     PermissionsParser::AddAPIPermission(
         extension, new SettingsOverrideAPIPermission(
                        PermissionsInfo::GetInstance()->GetByID(
-                           APIPermissionID::kSearchProvider),
+                           APIPermission::kSearchProvider),
                        FormatUrlForDisplay(*CreateManifestURL(
                            info->search_engine->search_url))));
   }
@@ -184,7 +184,7 @@ bool SettingsOverridesHandler::Parse(Extension* extension,
         extension,
         new SettingsOverrideAPIPermission(
             PermissionsInfo::GetInstance()->GetByID(
-                APIPermissionID::kStartupPages),
+                APIPermission::kStartupPages),
             // We only support one startup page even though the type of the
             // manifest property is a list, only the first one is used.
             FormatUrlForDisplay(info->startup_pages[0])));
@@ -193,7 +193,7 @@ bool SettingsOverridesHandler::Parse(Extension* extension,
     PermissionsParser::AddAPIPermission(
         extension,
         new SettingsOverrideAPIPermission(
-            PermissionsInfo::GetInstance()->GetByID(APIPermissionID::kHomepage),
+            PermissionsInfo::GetInstance()->GetByID(APIPermission::kHomepage),
             FormatUrlForDisplay(*(info->homepage))));
   }
   extension->SetManifestData(manifest_keys::kSettingsOverride, std::move(info));

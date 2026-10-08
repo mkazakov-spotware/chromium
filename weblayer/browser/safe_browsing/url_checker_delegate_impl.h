@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_BROWSER_SAFE_BROWSING_URL_CHECKER_DELEGATE_IMPL_H_
 #define WEBLAYER_BROWSER_SAFE_BROWSING_URL_CHECKER_DELEGATE_IMPL_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/safe_browsing/core/browser/url_checker_delegate.h"
 #include "content/public/browser/web_contents.h"
@@ -13,21 +14,16 @@ namespace security_interstitials {
 struct UnsafeResource;
 }
 
-namespace safe_browsing {
-class SafeBrowsingUIManager;
-}
-
 namespace weblayer {
+
+class SafeBrowsingUIManager;
 
 class UrlCheckerDelegateImpl : public safe_browsing::UrlCheckerDelegate {
  public:
   UrlCheckerDelegateImpl(
       scoped_refptr<safe_browsing::SafeBrowsingDatabaseManager>
           database_manager,
-      scoped_refptr<safe_browsing::SafeBrowsingUIManager> ui_manager);
-
-  UrlCheckerDelegateImpl(const UrlCheckerDelegateImpl&) = delete;
-  UrlCheckerDelegateImpl& operator=(const UrlCheckerDelegateImpl&) = delete;
+      scoped_refptr<SafeBrowsingUIManager> ui_manager);
 
   void SetSafeBrowsingDisabled(bool disabled);
 
@@ -35,7 +31,7 @@ class UrlCheckerDelegateImpl : public safe_browsing::UrlCheckerDelegate {
   ~UrlCheckerDelegateImpl() override;
 
   // Implementation of UrlCheckerDelegate:
-  void MaybeDestroyNoStatePrefetchContents(
+  void MaybeDestroyPrerenderContents(
       content::WebContents::OnceGetter web_contents_getter) override;
   void StartDisplayingBlockingPageHelper(
       const security_interstitials::UnsafeResource& resource,
@@ -47,8 +43,6 @@ class UrlCheckerDelegateImpl : public safe_browsing::UrlCheckerDelegate {
       const security_interstitials::UnsafeResource& resource,
       bool is_main_frame) override;
   bool IsUrlAllowlisted(const GURL& url) override;
-  void SetPolicyAllowlistDomains(
-      const std::vector<std::string>& allowlist_domains) override;
   bool ShouldSkipRequestCheck(const GURL& original_url,
                               int frame_tree_node_id,
                               int render_process_id,
@@ -65,8 +59,10 @@ class UrlCheckerDelegateImpl : public safe_browsing::UrlCheckerDelegate {
       const security_interstitials::UnsafeResource& resource);
 
   scoped_refptr<safe_browsing::SafeBrowsingDatabaseManager> database_manager_;
-  scoped_refptr<safe_browsing::SafeBrowsingUIManager> ui_manager_;
+  scoped_refptr<SafeBrowsingUIManager> ui_manager_;
   safe_browsing::SBThreatTypeSet threat_types_;
+
+  DISALLOW_COPY_AND_ASSIGN(UrlCheckerDelegateImpl);
 };
 
 }  // namespace weblayer

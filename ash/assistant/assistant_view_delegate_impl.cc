@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,15 +19,14 @@
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
-#include "base/command_line.h"
-#include "chromeos/ash/services/assistant/public/cpp/features.h"
-#include "chromeos/ash/services/assistant/public/cpp/switches.h"
+#include "chromeos/services/assistant/public/cpp/features.h"
 
 namespace ash {
 
 namespace {
 
 using assistant::ui::kOnboardingMaxSessionsShown;
+using chromeos::assistant::features::IsBetterOnboardingEnabled;
 
 }  // namespace
 
@@ -94,11 +93,16 @@ void AssistantViewDelegateImpl::OnDialogPlateContentsCommitted(
     observer.OnDialogPlateContentsCommitted(text);
 }
 
+void AssistantViewDelegateImpl::OnHostViewVisibilityChanged(bool visible) {
+  for (AssistantViewDelegateObserver& observer : view_delegate_observers_)
+    observer.OnHostViewVisibilityChanged(visible);
+}
+
 void AssistantViewDelegateImpl::OnNotificationButtonPressed(
     const std::string& notification_id,
     int notification_button_index) {
   assistant_controller_->notification_controller()->OnNotificationClicked(
-      notification_id, notification_button_index, /*reply=*/absl::nullopt);
+      notification_id, notification_button_index, /*reply=*/base::nullopt);
 }
 
 void AssistantViewDelegateImpl::OnOnboardingShown() {
@@ -118,11 +122,8 @@ void AssistantViewDelegateImpl::OnSuggestionPressed(
 }
 
 bool AssistantViewDelegateImpl::ShouldShowOnboarding() const {
-  // UI developers need to be able to force the onboarding flow.
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          assistant::switches::kForceAssistantOnboarding)) {
-    return true;
-  }
+  if (!IsBetterOnboardingEnabled())
+    return false;
 
   // Once a user has had an interaction with Assistant, we will no longer show
   // onboarding in that user session.
@@ -150,7 +151,7 @@ bool AssistantViewDelegateImpl::ShouldShowOnboarding() const {
   // The feature will start to show only for new users which we define as users
   // who haven't had an interaction with Assistant in the last 28 days.
   return interaction_controller->GetTimeDeltaSinceLastInteraction() >=
-         base::Days(28);
+         base::TimeDelta::FromDays(28);
 }
 
 }  // namespace ash

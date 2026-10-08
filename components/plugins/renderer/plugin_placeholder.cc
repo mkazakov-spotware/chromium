@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/plugins/renderer/plugin_placeholder.h"
 
-#include "base/metrics/user_metrics_action.h"
 #include "base/strings/string_util.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_thread.h"
@@ -32,7 +31,7 @@ PluginPlaceholderBase::PluginPlaceholderBase(
     const std::string& html_data)
     : content::RenderFrameObserver(render_frame),
       plugin_params_(params),
-      plugin_(WebViewPlugin::Create(render_frame->GetWebFrame()->View(),
+      plugin_(WebViewPlugin::Create(render_frame->GetRenderView(),
                                     this,
                                     render_frame
                                         ? render_frame->GetBlinkPreferences()
@@ -101,7 +100,7 @@ void PluginPlaceholderBase::HidePlugin() {
       parent = parent.ParentNode();
       if (!parent.IsElementNode())
         continue;
-      element = parent.To<blink::WebElement>();
+      element = parent.ToConst<blink::WebElement>();
       if (element.HasAttribute("style")) {
         std::string style_str = element.GetAttribute("style").Utf8();
         if (RE2::PartialMatch(style_str, width_str) &&
@@ -132,7 +131,7 @@ void PluginPlaceholderBase::NotifyPlaceholderReadyForTestingCallback() {
       blink::WebSerializedScriptValue::Serialize(
           blink::MainThreadIsolate(),
           content::V8ValueConverter::Create()->ToV8Value(
-              value,
+              &value,
               element.GetDocument().GetFrame()->MainWorldScriptContext()));
   blink::WebDOMMessageEvent msg_event(message_data);
 

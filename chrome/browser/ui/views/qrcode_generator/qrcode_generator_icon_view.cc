@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
-#include "chrome/browser/sharing_hub/sharing_hub_features.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.h"
 #include "chrome/browser/ui/views/qrcode_generator/qrcode_generator_bubble.h"
@@ -15,7 +14,6 @@
 #include "components/omnibox/browser/omnibox_view.h"
 #include "content/public/browser/browser_context.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 
 namespace qrcode_generator {
 
@@ -26,8 +24,7 @@ QRCodeGeneratorIconView::QRCodeGeneratorIconView(
     : PageActionIconView(command_updater,
                          IDC_QRCODE_GENERATOR,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "QRCodeGenerator"),
+                         page_action_icon_delegate),
       bubble_requested_(false) {
   SetVisible(false);
   SetLabel(l10n_util::GetStringUTF16(IDS_OMNIBOX_QRCODE_GENERATOR_ICON_LABEL));
@@ -58,17 +55,10 @@ void QRCodeGeneratorIconView::UpdateImpl() {
   if (!omnibox_view)
     return;
 
-  // The bubble is anchored to the sharing hub icon when the sharing hub is
-  // enabled, so this icon is no longer required.
-  if (sharing_hub::SharingHubOmniboxEnabled(
-          web_contents->GetBrowserContext())) {
-    SetVisible(false);
-    return;
-  }
-
   bool feature_available =
       QRCodeGeneratorBubbleController::IsGeneratorAvailable(
-          web_contents->GetLastCommittedURL());
+          web_contents->GetLastCommittedURL(),
+          web_contents->GetBrowserContext()->IsOffTheRecord());
 
   bool visible = GetBubble() != nullptr ||
                  (feature_available && omnibox_view->model()->has_focus() &&
@@ -98,7 +88,11 @@ const gfx::VectorIcon& QRCodeGeneratorIconView::GetVectorIcon() const {
   return kQrcodeGeneratorIcon;
 }
 
-std::u16string QRCodeGeneratorIconView::GetTextForTooltipAndAccessibleName()
+const char* QRCodeGeneratorIconView::GetClassName() const {
+  return "QRCodeGeneratorIconView";
+}
+
+base::string16 QRCodeGeneratorIconView::GetTextForTooltipAndAccessibleName()
     const {
   return l10n_util::GetStringUTF16(IDS_OMNIBOX_QRCODE_GENERATOR_ICON_TOOLTIP);
 }
@@ -106,8 +100,5 @@ std::u16string QRCodeGeneratorIconView::GetTextForTooltipAndAccessibleName()
 bool QRCodeGeneratorIconView::ShouldShowLabel() const {
   return false;
 }
-
-BEGIN_METADATA(QRCodeGeneratorIconView, PageActionIconView)
-END_METADATA
 
 }  // namespace qrcode_generator

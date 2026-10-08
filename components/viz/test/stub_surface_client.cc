@@ -1,8 +1,6 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include <vector>
 
 #include "components/viz/test/stub_surface_client.h"
 
@@ -14,17 +12,10 @@ StubSurfaceClient::StubSurfaceClient() = default;
 
 StubSurfaceClient::~StubSurfaceClient() = default;
 
-std::vector<PendingCopyOutputRequest> StubSurfaceClient::TakeCopyOutputRequests(
+std::vector<std::unique_ptr<CopyOutputRequest>>
+StubSurfaceClient::TakeCopyOutputRequests(
     const LocalSurfaceId& latest_surface_id) {
-  return std::vector<PendingCopyOutputRequest>();
-}
-
-bool StubSurfaceClient::IsVideoCaptureStarted() {
-  return false;
-}
-
-base::flat_set<base::PlatformThreadId> StubSurfaceClient::GetThreadIds() {
-  return {};
+  return std::vector<std::unique_ptr<CopyOutputRequest>>();
 }
 
 }  // namespace viz

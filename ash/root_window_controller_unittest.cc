@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,13 +17,13 @@
 #include "ash/session/test_session_controller_client.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
+#include "ash/window_factory.h"
 #include "ash/wm/system_modal_container_layout_manager.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "ash/wm/window_properties.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "base/run_loop.h"
-#include "base/strings/stringprintf.h"
 #include "ui/aura/client/focus_change_observer.h"
 #include "ui/aura/client/focus_client.h"
 #include "ui/aura/client/window_parenting_client.h"
@@ -55,10 +55,6 @@ class DeleteOnBlurDelegate : public aura::test::TestWindowDelegate,
                              public aura::client::FocusChangeObserver {
  public:
   DeleteOnBlurDelegate() : window_(nullptr) {}
-
-  DeleteOnBlurDelegate(const DeleteOnBlurDelegate&) = delete;
-  DeleteOnBlurDelegate& operator=(const DeleteOnBlurDelegate&) = delete;
-
   ~DeleteOnBlurDelegate() override = default;
 
   void SetWindow(aura::Window* window) {
@@ -78,6 +74,8 @@ class DeleteOnBlurDelegate : public aura::test::TestWindowDelegate,
   }
 
   aura::Window* window_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeleteOnBlurDelegate);
 };
 
 aura::LayoutManager* GetLayoutManager(RootWindowController* controller,
@@ -134,10 +132,10 @@ class RootWindowControllerTest : public AshTestBase {
 
 TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   // Windows origin should be doubled when moved to the 1st display.
-  UpdateDisplay("600x500,300x250");
+  UpdateDisplay("600x600,300x300");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
-  int bottom_inset = 250 - ShelfConfig::Get()->shelf_size();
+  int bottom_inset = 300 - ShelfConfig::Get()->shelf_size();
   views::Widget* normal = CreateTestWidget(gfx::Rect(650, 10, 100, 100));
   EXPECT_EQ(root_windows[1], normal->GetNativeView()->GetRootWindow());
   EXPECT_EQ("650,10 100x100", normal->GetWindowBoundsInScreen().ToString());
@@ -166,8 +164,8 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   fullscreen->SetFullscreen(true);
   EXPECT_EQ(root_windows[1], fullscreen->GetNativeView()->GetRootWindow());
 
-  EXPECT_EQ("600,0 300x250", fullscreen->GetWindowBoundsInScreen().ToString());
-  EXPECT_EQ("0,0 300x250",
+  EXPECT_EQ("600,0 300x300", fullscreen->GetWindowBoundsInScreen().ToString());
+  EXPECT_EQ("0,0 300x300",
             fullscreen->GetNativeView()->GetBoundsInRootWindow().ToString());
 
   views::Widget* unparented_control = new Widget;
@@ -178,8 +176,8 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   unparented_control->Init(std::move(params));
   EXPECT_EQ(root_windows[1],
             unparented_control->GetNativeView()->GetRootWindow());
-  EXPECT_EQ(kShellWindowId_UnparentedContainer,
-            unparented_control->GetNativeView()->parent()->GetId());
+  EXPECT_EQ(kShellWindowId_UnparentedControlContainer,
+            unparented_control->GetNativeView()->parent()->id());
 
   // Make sure a window that will delete itself when losing focus
   // will not crash.
@@ -191,7 +189,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   aura::client::GetFocusClient(root_windows[0])->FocusWindow(d2);
   tracker.Add(d2);
 
-  UpdateDisplay("600x500");
+  UpdateDisplay("600x600");
 
   // d2 must have been deleted.
   EXPECT_FALSE(tracker.Contains(d2));
@@ -201,7 +199,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   EXPECT_EQ("100,20 100x100",
             normal->GetNativeView()->GetBoundsInRootWindow().ToString());
 
-  bottom_inset = 500 - ShelfConfig::Get()->shelf_size();
+  bottom_inset = 600 - ShelfConfig::Get()->shelf_size();
 
   // First clear fullscreen status, since both fullscreen and maximized windows
   // share the same desktop workspace, which cancels the shelf status.
@@ -226,8 +224,8 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
 
   EXPECT_EQ(root_windows[0], fullscreen->GetNativeView()->GetRootWindow());
   EXPECT_TRUE(fullscreen->IsFullscreen());
-  EXPECT_EQ("0,0 600x500", fullscreen->GetWindowBoundsInScreen().ToString());
-  EXPECT_EQ("0,0 600x500",
+  EXPECT_EQ("0,0 600x600", fullscreen->GetWindowBoundsInScreen().ToString());
+  EXPECT_EQ("0,0 600x600",
             fullscreen->GetNativeView()->GetBoundsInRootWindow().ToString());
 
   // Test if the restore bounds are correctly updated.
@@ -244,17 +242,17 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   // Test if the unparented widget has moved.
   EXPECT_EQ(root_windows[0],
             unparented_control->GetNativeView()->GetRootWindow());
-  EXPECT_EQ(kShellWindowId_UnparentedContainer,
-            unparented_control->GetNativeView()->parent()->GetId());
+  EXPECT_EQ(kShellWindowId_UnparentedControlContainer,
+            unparented_control->GetNativeView()->parent()->id());
 }
 
 TEST_F(RootWindowControllerTest, MoveWindows_Modal) {
-  UpdateDisplay("500x400,500x600");
+  UpdateDisplay("500x500,500x500");
 
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   // Emulate virtual screen coordinate system.
-  root_windows[0]->SetBounds(gfx::Rect(0, 0, 500, 400));
-  root_windows[1]->SetBounds(gfx::Rect(500, 0, 500, 600));
+  root_windows[0]->SetBounds(gfx::Rect(0, 0, 500, 500));
+  root_windows[1]->SetBounds(gfx::Rect(500, 0, 500, 500));
 
   views::Widget* normal = CreateTestWidget(gfx::Rect(300, 10, 100, 100));
   EXPECT_EQ(root_windows[0], normal->GetNativeView()->GetRootWindow());
@@ -270,7 +268,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_Modal) {
   generator_1st.ClickLeftButton();
   EXPECT_TRUE(wm::IsActiveWindow(modal->GetNativeView()));
 
-  UpdateDisplay("500x400");
+  UpdateDisplay("500x500");
   EXPECT_EQ(root_windows[0], modal->GetNativeView()->GetRootWindow());
   EXPECT_TRUE(wm::IsActiveWindow(modal->GetNativeView()));
   generator_1st.ClickLeftButton();
@@ -281,7 +279,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_Modal) {
 TEST_F(RootWindowControllerTest, MoveWindows_LockWindowsInUnified) {
   display_manager()->SetUnifiedDesktopEnabled(true);
 
-  UpdateDisplay("500x400");
+  UpdateDisplay("500x500");
   const int kLockScreenWindowId = 1000;
 
   RootWindowController* controller = Shell::GetPrimaryRootWindowController();
@@ -291,41 +289,41 @@ TEST_F(RootWindowControllerTest, MoveWindows_LockWindowsInUnified) {
 
   views::Widget* lock_screen =
       CreateModalWidgetWithParent(gfx::Rect(10, 10, 100, 100), lock_container);
-  lock_screen->GetNativeWindow()->SetId(kLockScreenWindowId);
+  lock_screen->GetNativeWindow()->set_id(kLockScreenWindowId);
   lock_screen->SetFullscreen(true);
 
   ASSERT_EQ(lock_screen->GetNativeWindow(),
             controller->GetRootWindow()->GetChildById(kLockScreenWindowId));
-  EXPECT_EQ("0,0 500x400", lock_screen->GetNativeWindow()->bounds().ToString());
+  EXPECT_EQ("0,0 500x500", lock_screen->GetNativeWindow()->bounds().ToString());
 
   // Switch to unified.
-  UpdateDisplay("500x400,500x400");
+  UpdateDisplay("500x500,500x500");
 
   // In unified mode, RWC is created
   controller = Shell::GetPrimaryRootWindowController();
 
   ASSERT_EQ(lock_screen->GetNativeWindow(),
             controller->GetRootWindow()->GetChildById(kLockScreenWindowId));
-  EXPECT_EQ("0,0 500x400", lock_screen->GetNativeWindow()->bounds().ToString());
+  EXPECT_EQ("0,0 500x500", lock_screen->GetNativeWindow()->bounds().ToString());
 
   // Switch to mirror.
-  display_manager()->SetMirrorMode(display::MirrorMode::kNormal, absl::nullopt);
+  display_manager()->SetMirrorMode(display::MirrorMode::kNormal, base::nullopt);
   EXPECT_TRUE(display_manager()->IsInMirrorMode());
 
   controller = Shell::GetPrimaryRootWindowController();
   ASSERT_EQ(lock_screen->GetNativeWindow(),
             controller->GetRootWindow()->GetChildById(kLockScreenWindowId));
-  EXPECT_EQ("0,0 500x400", lock_screen->GetNativeWindow()->bounds().ToString());
+  EXPECT_EQ("0,0 500x500", lock_screen->GetNativeWindow()->bounds().ToString());
 
   // Switch to unified.
-  display_manager()->SetMirrorMode(display::MirrorMode::kOff, absl::nullopt);
+  display_manager()->SetMirrorMode(display::MirrorMode::kOff, base::nullopt);
   EXPECT_TRUE(display_manager()->IsInUnifiedMode());
 
   controller = Shell::GetPrimaryRootWindowController();
 
   ASSERT_EQ(lock_screen->GetNativeWindow(),
             controller->GetRootWindow()->GetChildById(kLockScreenWindowId));
-  EXPECT_EQ("0,0 500x400", lock_screen->GetNativeWindow()->bounds().ToString());
+  EXPECT_EQ("0,0 500x500", lock_screen->GetNativeWindow()->bounds().ToString());
 
   // Switch to single display.
   UpdateDisplay("600x500");
@@ -341,7 +339,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_LockWindowsInUnified) {
 
 // Tests that the moved windows maintain MRU ordering.
 TEST_F(RootWindowControllerTest, MoveWindows_MaintainMRUordering) {
-  UpdateDisplay("600x500,300x250");
+  UpdateDisplay("600x600,300x300");
 
   display::Screen* screen = display::Screen::GetScreen();
   const display::Display primary_display = screen->GetPrimaryDisplay();
@@ -381,7 +379,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_MaintainMRUordering) {
 }
 
 TEST_F(RootWindowControllerTest, ModalContainer) {
-  UpdateDisplay("600x500");
+  UpdateDisplay("600x600");
   RootWindowController* controller = Shell::GetPrimaryRootWindowController();
   EXPECT_TRUE(Shell::Get()->session_controller()->IsActiveUserSessionStarted());
   EXPECT_EQ(GetLayoutManager(controller, kShellWindowId_SystemModalContainer),
@@ -415,7 +413,7 @@ TEST_F(RootWindowControllerTest, ModalContainer) {
 }
 
 TEST_F(RootWindowControllerTest, ModalContainerNotLoggedInLoggedIn) {
-  UpdateDisplay("600x500");
+  UpdateDisplay("600x600");
 
   // Configure login screen environment.
   SessionControllerImpl* session_controller =
@@ -454,7 +452,7 @@ TEST_F(RootWindowControllerTest, ModalContainerNotLoggedInLoggedIn) {
 }
 
 TEST_F(RootWindowControllerTest, ModalContainerBlockedSession) {
-  UpdateDisplay("600x500");
+  UpdateDisplay("600x600");
   RootWindowController* controller = Shell::GetPrimaryRootWindowController();
   aura::Window* lock_container =
       controller->GetContainer(kShellWindowId_LockScreenContainer);
@@ -494,7 +492,7 @@ TEST_F(RootWindowControllerTest, ModalContainerBlockedSession) {
 }
 
 TEST_F(RootWindowControllerTest, GetWindowForFullscreenMode) {
-  UpdateDisplay("600x500");
+  UpdateDisplay("600x600");
   RootWindowController* controller = Shell::GetPrimaryRootWindowController();
 
   Widget* w1 = CreateTestWidget(gfx::Rect(0, 0, 100, 100));
@@ -525,7 +523,7 @@ TEST_F(RootWindowControllerTest, GetWindowForFullscreenMode) {
 }
 
 TEST_F(RootWindowControllerTest, MultipleDisplaysGetWindowForFullscreenMode) {
-  UpdateDisplay("600x500,600x500");
+  UpdateDisplay("600x600,600x600");
   Shell::RootWindowControllerList controllers =
       Shell::Get()->GetAllRootWindowControllers();
 
@@ -561,7 +559,7 @@ TEST_F(RootWindowControllerTest, MultipleDisplaysGetWindowForFullscreenMode) {
 
 // Test that ForWindow() works with multiple displays and child widgets.
 TEST_F(RootWindowControllerTest, ForWindow) {
-  UpdateDisplay("600x500,600x500");
+  UpdateDisplay("600x600,600x600");
   Shell::RootWindowControllerList controllers =
       Shell::Get()->GetAllRootWindowControllers();
   ASSERT_EQ(2u, controllers.size());
@@ -590,7 +588,7 @@ TEST_F(RootWindowControllerTest, ForWindow) {
 // Test that user session window can't be focused if user session blocked by
 // some overlapping UI.
 TEST_F(RootWindowControllerTest, FocusBlockedWindow) {
-  UpdateDisplay("600x500");
+  UpdateDisplay("600x600");
   RootWindowController* controller = Shell::GetPrimaryRootWindowController();
   aura::Window* lock_container =
       controller->GetContainer(kShellWindowId_LockScreenContainer);
@@ -618,10 +616,6 @@ TEST_F(RootWindowControllerTest, FocusBlockedWindow) {
 class DestroyedWindowObserver : public aura::WindowObserver {
  public:
   DestroyedWindowObserver() : destroyed_(false), window_(nullptr) {}
-
-  DestroyedWindowObserver(const DestroyedWindowObserver&) = delete;
-  DestroyedWindowObserver& operator=(const DestroyedWindowObserver&) = delete;
-
   ~DestroyedWindowObserver() override { Shutdown(); }
 
   void SetWindow(Window* window) {
@@ -647,14 +641,16 @@ class DestroyedWindowObserver : public aura::WindowObserver {
 
   bool destroyed_;
   Window* window_;
+
+  DISALLOW_COPY_AND_ASSIGN(DestroyedWindowObserver);
 };
 
 // Verifies shutdown doesn't delete windows that are not owned by the parent.
 TEST_F(RootWindowControllerTest, DontDeleteWindowsNotOwnedByParent) {
   DestroyedWindowObserver observer1;
   aura::test::TestWindowDelegate delegate1;
-  std::unique_ptr<aura::Window> window1 = std::make_unique<aura::Window>(
-      &delegate1, aura::client::WINDOW_TYPE_CONTROL);
+  std::unique_ptr<aura::Window> window1 =
+      window_factory::NewWindow(&delegate1, aura::client::WINDOW_TYPE_CONTROL);
   window1->set_owned_by_parent(false);
   observer1.SetWindow(window1.get());
   window1->Init(ui::LAYER_NOT_DRAWN);
@@ -662,8 +658,7 @@ TEST_F(RootWindowControllerTest, DontDeleteWindowsNotOwnedByParent) {
       window1.get(), Shell::GetPrimaryRootWindow(), gfx::Rect());
 
   DestroyedWindowObserver observer2;
-  std::unique_ptr<aura::Window> window2 =
-      std::make_unique<aura::Window>(nullptr);
+  std::unique_ptr<aura::Window> window2 = window_factory::NewWindow();
   window2->set_owned_by_parent(false);
   observer2.SetWindow(window2.get());
   window2->Init(ui::LAYER_NOT_DRAWN);
@@ -707,12 +702,6 @@ class VirtualKeyboardRootWindowControllerTest
     : public RootWindowControllerTest {
  public:
   VirtualKeyboardRootWindowControllerTest() = default;
-
-  VirtualKeyboardRootWindowControllerTest(
-      const VirtualKeyboardRootWindowControllerTest&) = delete;
-  VirtualKeyboardRootWindowControllerTest& operator=(
-      const VirtualKeyboardRootWindowControllerTest&) = delete;
-
   ~VirtualKeyboardRootWindowControllerTest() override = default;
 
   void SetUp() override {
@@ -729,14 +718,14 @@ class VirtualKeyboardRootWindowControllerTest
     keyboard::KeyboardUIController::Get()->EnsureCaretInWorkAreaForTest(
         occluded_bounds);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VirtualKeyboardRootWindowControllerTest);
 };
 
 class MockTextInputClient : public ui::DummyTextInputClient {
  public:
   MockTextInputClient() : ui::DummyTextInputClient(ui::TEXT_INPUT_TYPE_TEXT) {}
-
-  MockTextInputClient(const MockTextInputClient&) = delete;
-  MockTextInputClient& operator=(const MockTextInputClient&) = delete;
 
   void EnsureCaretNotInRect(const gfx::Rect& rect) override {
     caret_exclude_rect_ = rect;
@@ -746,15 +735,13 @@ class MockTextInputClient : public ui::DummyTextInputClient {
 
  private:
   gfx::Rect caret_exclude_rect_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockTextInputClient);
 };
 
 class TargetHitTestEventHandler : public ui::test::TestEventHandler {
  public:
   TargetHitTestEventHandler() = default;
-
-  TargetHitTestEventHandler(const TargetHitTestEventHandler&) = delete;
-  TargetHitTestEventHandler& operator=(const TargetHitTestEventHandler&) =
-      delete;
 
   // ui::test::TestEventHandler overrides.
   void OnMouseEvent(ui::MouseEvent* event) override {
@@ -762,6 +749,9 @@ class TargetHitTestEventHandler : public ui::test::TestEventHandler {
       ui::test::TestEventHandler::OnMouseEvent(event);
     event->StopPropagation();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TargetHitTestEventHandler);
 };
 
 // Test for http://crbug.com/263599. Virtual keyboard should be able to receive
@@ -899,7 +889,7 @@ TEST_F(VirtualKeyboardRootWindowControllerTest, EnsureCaretInWorkArea) {
 
 TEST_F(VirtualKeyboardRootWindowControllerTest,
        EnsureCaretInWorkAreaWithMultipleDisplays) {
-  UpdateDisplay("600x500,600x500");
+  UpdateDisplay("500x500,600x600");
   const int64_t primary_display_id =
       display::Screen::GetScreen()->GetPrimaryDisplay().id();
   const int64_t secondary_display_id = GetSecondaryDisplay().id();
@@ -1046,10 +1036,6 @@ TEST_F(VirtualKeyboardRootWindowControllerTest, DisplayRotation) {
 class EventObserver : public ui::EventHandler {
  public:
   EventObserver() = default;
-
-  EventObserver(const EventObserver&) = delete;
-  EventObserver& operator=(const EventObserver&) = delete;
-
   ~EventObserver() override = default;
 
   int GetEventCount(ui::EventType type) { return event_counts_[type]; }
@@ -1063,6 +1049,8 @@ class EventObserver : public ui::EventHandler {
   }
 
   std::map<ui::EventType, int> event_counts_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventObserver);
 };
 
 // Tests that tapping/clicking inside the keyboard does not give it focus.

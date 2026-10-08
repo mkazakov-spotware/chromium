@@ -1,23 +1,19 @@
-// META: script=constants.sub.js
-// META: variant=
-// META: variant=?wss
-// META: variant=?wpt_flags=h2
+// META: script=websocket.sub.js
 
-var test = async_test("Create WebSocket - set binaryType to something other than blob or arraybuffer - SYNTAX_ERR is returned - Connection should be closed");
+var testOpen = async_test("Create WebSocket - set binaryType to something other than blob or arraybuffer - SYNTAX_ERR is returned - Connection should be opened");
+var testClose = async_test("Create WebSocket - set binaryType to something other than blob or arraybuffer - SYNTAX_ERR is returned - Connection should be closed");
 
-let wsocket = CreateWebSocket(false, false);
-let opened = false;
+var wsocket = CreateWebSocket(true, false, false);
 
-wsocket.addEventListener('open', test.step_func(function(evt) {
-  opened = true;
+wsocket.addEventListener('open', testOpen.step_func(function(evt) {
   assert_equals(wsocket.binaryType, "blob");
   wsocket.binaryType = "notBlobOrArrayBuffer";
   assert_equals(wsocket.binaryType, "blob");
   wsocket.close();
+  testOpen.done();
 }), true);
 
-wsocket.addEventListener('close', test.step_func(function(evt) {
-  assert_true(opened, "connection should be opened");
+wsocket.addEventListener('close', testClose.step_func(function(evt) {
   assert_true(evt.wasClean, "wasClean should be true");
-  test.done();
+  testClose.done();
 }), true);

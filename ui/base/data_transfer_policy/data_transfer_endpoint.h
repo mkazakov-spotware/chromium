@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_DATA_TRANSFER_POLICY_DATA_TRANSFER_ENDPOINT_H_
 #define UI_BASE_DATA_TRANSFER_POLICY_DATA_TRANSFER_ENDPOINT_H_
 
-#include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "url/gurl.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
+#include "url/origin.h"
 
 namespace ui {
 
@@ -17,17 +17,16 @@ namespace ui {
 enum class EndpointType {
   kDefault = 0,  // This type shouldn't be used if any of the following types is
                  // a better match.
-  kUrl = 1,      // Website URL e.g. www.example.com.
-  kClipboardHistory = 2,  // Clipboard History UI has privileged access to any
+#if defined(OS_CHROMEOS) || (OS_LINUX) || (OS_FUCHSIA)
+  kGuestOs = 1,  // Guest OS: PluginVM, Crostini.
+#endif           // defined(OS_CHROMEOS) || (OS_LINUX) || (OS_FUCHSIA)
+#if defined(OS_CHROMEOS)
+  kArc = 2,               // ARC.
+#endif                    // defined(OS_CHROMEOS)
+  kUrl = 3,               // Website URL e.g. www.example.com.
+  kClipboardHistory = 4,  // Clipboard History UI has privileged access to any
                           // clipboard data.
-#if BUILDFLAG(IS_CHROMEOS)
-  kUnknownVm = 3,  // The VM type is not identified.
-  kArc = 4,        // ARC.
-  kBorealis = 5,   // Borealis OS.
-  kCrostini = 6,   // Crostini.
-  kPluginVm = 7,   // Plugin VM App.
-  kLacros = 8,     // Lacros browser.
-#endif             // BUILDFLAG(IS_CHROMEOS)
+  kMaxValue = kClipboardHistory
 };
 
 // DataTransferEndpoint represents:
@@ -41,9 +40,7 @@ enum class EndpointType {
 // if the data read is not allowed.)
 class COMPONENT_EXPORT(UI_BASE_DATA_TRANSFER_POLICY) DataTransferEndpoint {
  public:
-  // In case DataTransferEndpoint is constructed from a RenderFrameHost object,
-  // please use the url of its main frame.
-  explicit DataTransferEndpoint(const GURL& url,
+  explicit DataTransferEndpoint(const url::Origin& origin,
                                 bool notify_if_restricted = true);
   // This constructor shouldn't be used if |type| == EndpointType::kUrl.
   explicit DataTransferEndpoint(EndpointType type,
@@ -52,34 +49,27 @@ class COMPONENT_EXPORT(UI_BASE_DATA_TRANSFER_POLICY) DataTransferEndpoint {
   DataTransferEndpoint(const DataTransferEndpoint& other);
   DataTransferEndpoint(DataTransferEndpoint&& other);
 
-  DataTransferEndpoint& operator=(const DataTransferEndpoint& other);
-  DataTransferEndpoint& operator=(DataTransferEndpoint&& other);
+  DataTransferEndpoint& operator=(const DataTransferEndpoint& other) = delete;
+  DataTransferEndpoint& operator=(DataTransferEndpoint&& other) = delete;
 
   bool operator==(const DataTransferEndpoint& other) const;
-  bool operator!=(const DataTransferEndpoint& other) const {
-    return !(*this == other);
-  }
 
   ~DataTransferEndpoint();
 
   bool IsUrlType() const { return type_ == EndpointType::kUrl; }
 
-  const GURL* GetURL() const;
+  const url::Origin* origin() const { return base::OptionalOrNullptr(origin_); }
 
   EndpointType type() const { return type_; }
 
   bool notify_if_restricted() const { return notify_if_restricted_; }
 
-  // Returns true if both of the endpoints have the same url_ and type_ ==
-  // kUrl.
-  bool IsSameURLWith(const DataTransferEndpoint& other) const;
-
  private:
   // This variable should always have a value representing the object type.
-  EndpointType type_;
-  // The URL of the data endpoint. It always has a value if `type_` ==
+  const EndpointType type_;
+  // The url::Origin of the data endpoint. It always has a value if `type_` ==
   // EndpointType::kUrl, otherwise it's empty.
-  absl::optional<GURL> url_;
+  const base::Optional<url::Origin> origin_;
   // This variable should be set to true, if paste is initiated by the user.
   // Otherwise it should be set to false, so the user won't see a notification
   // when the data is restricted by the rules of data leak prevention policy

@@ -1,63 +1,34 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import './app_management_cros_shared_style.css.js';
-import './app_management_cros_shared_vars.css.js';
-import 'chrome://resources/cr_elements/cr_icons.css.js';
+Polymer({
+  is: 'app-management-app-item',
 
-import {App, AppType} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {AppManagementEntryPoint, AppManagementEntryPointsHistogramName} from 'chrome://resources/cr_components/app_management/constants.js';
-import {getAppIcon} from 'chrome://resources/cr_components/app_management/util.js';
-import {assertNotReached} from 'chrome://resources/js/assert.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  behaviors: [
+    app_management.StoreClient,
+  ],
 
-import {AppManagementStoreClient, AppManagementStoreClientInterface} from './store_client.js';
-import {AppManagementEntryPointType} from './types.js';
-import {openAppDetailPage} from './util.js';
+  properties: {
+    /** @type {App} */
+    app: {
+      type: Object,
+    },
+  },
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {AppManagementStoreClientInterface}
- */
-const AppManagementAppItemElementBase =
-    mixinBehaviors([AppManagementStoreClient], PolymerElement);
-
-/** @polymer */
-class AppManagementAppItemElement extends AppManagementAppItemElementBase {
-  static get is() {
-    return 'app-management-app-item';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /** @type {App} */
-      app: {
-        type: Object,
-      },
-    };
-  }
-
-  ready() {
-    super.ready();
-
-    this.addEventListener('click', this.onClick_);
-  }
+  listeners: {
+    'click': 'onClick_',
+  },
 
   /**
    * @private
    */
   onClick_() {
-    openAppDetailPage(this.app.id);
+    app_management.util.openAppDetailPage(this.app.id);
     chrome.metricsPrivate.recordEnumerationValue(
         AppManagementEntryPointsHistogramName,
         this.getAppManagementEntryPoint_(this.app.type),
         Object.keys(AppManagementEntryPoint).length);
-  }
+  },
 
   /**
    * @param {App} app
@@ -65,34 +36,25 @@ class AppManagementAppItemElement extends AppManagementAppItemElementBase {
    * @private
    */
   iconUrlFromId_(app) {
-    return getAppIcon(app);
-  }
+    return app_management.util.getAppIcon(app);
+  },
 
   /**
    * @param {AppType} appType
-   * @return {AppManagementEntryPointType}
+   * @return {AppManagementEntryPoint}
    */
   getAppManagementEntryPoint_(appType) {
     switch (appType) {
       case AppType.kArc:
-        return AppManagementEntryPoint.MAIN_VIEW_ARC;
-      case AppType.kChromeApp:
-      case AppType.kStandaloneBrowser:
-      case AppType.kStandaloneBrowserChromeApp:
-        // TODO(https://crbug.com/1225848): Figure out appropriate behavior for
-        // Lacros-hosted chrome-apps.
-        return AppManagementEntryPoint.MAIN_VIEW_CHROME_APP;
+        return AppManagementEntryPoint.MainViewArc;
+      case AppType.kExtension:
+        return AppManagementEntryPoint.MainViewChromeApp;
       case AppType.kWeb:
-        return AppManagementEntryPoint.MAIN_VIEW_WEB_APP;
+        return AppManagementEntryPoint.MainViewWebApp;
       case AppType.kPluginVm:
-        return AppManagementEntryPoint.MAIN_VIEW_PLUGIN_VM;
-      case AppType.kBorealis:
-        return AppManagementEntryPoint.MAIN_VIEW_BOREALIS;
+        return AppManagementEntryPoint.MainViewPluginVm;
       default:
         assertNotReached();
     }
-  }
-}
-
-customElements.define(
-    AppManagementAppItemElement.is, AppManagementAppItemElement);
+  },
+});

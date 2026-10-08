@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <memory>
 
-#include "cc/base/math_util.h"
-#include "components/viz/common/features.h"
 #include "components/viz/service/display/overlay_strategy_underlay.h"
 #include "ui/gfx/android/android_surface_control_compat.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -33,19 +31,7 @@ gfx::RectF ClipFromOrigin(gfx::RectF input) {
 }  // namespace
 
 OverlayProcessorSurfaceControl::OverlayProcessorSurfaceControl()
-    : OverlayProcessorUsingStrategy(),
-      use_real_color_space_(features::UseRealVideoColorSpaceForDisplay()) {
-  // Android webview never sets |frame_sequence_number_| for the overlay
-  // processor. Android Chrome does set this variable because it does call draw.
-  // However, it also may not update this variable when displaying an overlay.
-  // Therefore, our damage tracking for overlays is incorrect and we must ignore
-  // the thresholding of prioritization.
-
-  // TODO(crbug.com/1358093): We should take issue into account when trying to
-  // find a replacement for number-of-scanouts.
-  prioritization_config_.changing_threshold = false;
-  prioritization_config_.damage_rate_threshold = false;
-
+    : OverlayProcessorUsingStrategy() {
   strategies_.push_back(std::make_unique<OverlayStrategyUnderlay>(
       this, OverlayStrategyUnderlay::OpaqueMode::AllowTransparentCandidates));
 }
@@ -60,27 +46,19 @@ bool OverlayProcessorSurfaceControl::NeedsSurfaceDamageRectList() const {
   return true;
 }
 
-void OverlayProcessorSurfaceControl::CheckOverlaySupportImpl(
+void OverlayProcessorSurfaceControl::CheckOverlaySupport(
     const OverlayProcessorInterface::OutputSurfaceOverlayPlane* primary_plane,
     OverlayCandidateList* candidates) {
   DCHECK(!candidates->empty());
 
   for (auto& candidate : *candidates) {
-    // If we're going to use real color space from media codec, we should check
-    // if it's supported.
-    if (use_real_color_space_) {
-      if (!gfx::SurfaceControl::SupportsColorSpace(candidate.color_space)) {
-        candidate.overlay_handled = false;
-        return;
-      }
-    } else {
-      candidate.color_space = gfx::ColorSpace::CreateSRGB();
-      candidate.hdr_metadata.reset();
+    if (!gfx::SurfaceControl::SupportsColorSpace(candidate.color_space)) {
+      candidate.overlay_handled = false;
+      return;
     }
 
     // Check if screen rotation matches.
-    if (absl::get<gfx::OverlayTransform>(candidate.transform) !=
-        display_transform_) {
+    if (candidate.transform != display_transform_) {
       candidate.overlay_handled = false;
       return;
     }
@@ -88,8 +66,8 @@ void OverlayProcessorSurfaceControl::CheckOverlaySupportImpl(
 
     gfx::RectF orig_display_rect = candidate.display_rect;
     gfx::RectF display_rect = orig_display_rect;
-    if (candidate.clip_rect)
-      display_rect.Intersect(gfx::RectF(*candidate.clip_rect));
+    if (candidate.is_clipped)
+      display_rect.Intersect(gfx::RectF(candidate.clip_rect));
     // The framework doesn't support display rects positioned at a negative
     // offset.
     display_rect = ClipFromOrigin(display_rect);
@@ -103,11 +81,8 @@ void OverlayProcessorSurfaceControl::CheckOverlaySupportImpl(
     const gfx::Transform display_inverse = gfx::OverlayTransformToTransform(
         gfx::InvertOverlayTransform(display_transform_),
         gfx::SizeF(viewport_size_));
-    orig_display_rect = display_inverse.MapRect(orig_display_rect);
-    display_rect = display_inverse.MapRect(display_rect);
-
-    candidate.unclipped_display_rect = orig_display_rect;
-    candidate.unclipped_uv_rect = candidate.uv_rect;
+    display_inverse.TransformRect(&orig_display_rect);
+    display_inverse.TransformRect(&display_rect);
 
     candidate.display_rect = gfx::RectF(gfx::ToEnclosingRect(display_rect));
     candidate.uv_rect = cc::MathUtil::ScaleRectProportional(
@@ -117,7 +92,7 @@ void OverlayProcessorSurfaceControl::CheckOverlaySupportImpl(
 }
 
 void OverlayProcessorSurfaceControl::AdjustOutputSurfaceOverlay(
-    absl::optional<OutputSurfaceOverlayPlane>* output_surface_plane) {
+    base::Optional<OutputSurfaceOverlayPlane>* output_surface_plane) {
   // For surface control, we should always have a valid |output_surface_plane|
   // here.
   DCHECK(output_surface_plane && output_surface_plane->has_value());
@@ -134,7 +109,7 @@ void OverlayProcessorSurfaceControl::AdjustOutputSurfaceOverlay(
   const gfx::Transform display_inverse = gfx::OverlayTransformToTransform(
       gfx::InvertOverlayTransform(display_transform_),
       gfx::SizeF(viewport_size_));
-  plane.display_rect = display_inverse.MapRect(plane.display_rect);
+  display_inverse.TransformRect(&plane.display_rect);
   plane.display_rect = gfx::RectF(gfx::ToEnclosingRect(plane.display_rect));
 
   // Call the base class implementation.
@@ -156,7 +131,9 @@ gfx::Rect OverlayProcessorSurfaceControl::GetOverlayDamageRectForOutputSurface(
                                                 viewport_size_.width());
   auto transform = gfx::OverlayTransformToTransform(
       display_transform_, gfx::SizeF(viewport_size_pre_display_transform));
-  return transform.MapRect(gfx::ToEnclosingRect(candidate.display_rect));
+  gfx::RectF transformed_rect(candidate.display_rect);
+  transform.TransformRect(&transformed_rect);
+  return gfx::ToEnclosedRect(transformed_rect);
 }
 
 void OverlayProcessorSurfaceControl::SetDisplayTransformHint(

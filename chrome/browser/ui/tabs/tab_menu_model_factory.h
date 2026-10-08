@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "ui/base/models/simple_menu_model.h"
 
 class TabStripModel;
-class TabMenuModelDelegate;
 
 // A factory to create menu models for tab menu.
 class TabMenuModelFactory {
@@ -22,7 +21,6 @@ class TabMenuModelFactory {
 
   virtual std::unique_ptr<ui::SimpleMenuModel> Create(
       ui::SimpleMenuModel::Delegate* delegate,
-      TabMenuModelDelegate* tab_menu_model_delegate,
       TabStripModel* tab_strip,
       int index);
 };

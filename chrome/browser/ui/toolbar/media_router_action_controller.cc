@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/toolbar/media_router_action_controller.h"
 
 #include "base/bind.h"
-#include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/pref_names.h"
@@ -14,7 +12,6 @@
 #include "components/media_router/browser/media_router_factory.h"
 #include "components/media_router/browser/media_router_metrics.h"
 #include "components/media_router/common/pref_names.h"
-#include "components/media_router/common/providers/cast/cast_media_source.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -24,7 +21,9 @@ MediaRouterActionController::MediaRouterActionController(Profile* profile)
           profile,
           media_router::MediaRouterFactory::GetApiForBrowserContext(profile)) {}
 
-MediaRouterActionController::~MediaRouterActionController() = default;
+MediaRouterActionController::~MediaRouterActionController() {
+  DCHECK_EQ(dialog_count_, 0u);
+}
 
 // static
 bool MediaRouterActionController::IsActionShownByPolicy(Profile* profile) {
@@ -32,8 +31,8 @@ bool MediaRouterActionController::IsActionShownByPolicy(Profile* profile) {
   const PrefService::Preference* pref =
       profile->GetPrefs()->FindPreference(prefs::kShowCastIconInToolbar);
   bool show = false;
-  if (pref->IsManaged() && pref->GetValue()->is_bool())
-    show = pref->GetValue()->GetBool();
+  if (pref->IsManaged())
+    pref->GetValue()->GetAsBoolean(&show);
   return show;
 }
 
@@ -61,30 +60,14 @@ void MediaRouterActionController::OnIssuesCleared() {
 }
 
 void MediaRouterActionController::OnRoutesUpdated(
-    const std::vector<media_router::MediaRoute>& routes) {
+    const std::vector<media_router::MediaRoute>& routes,
+    const std::vector<media_router::MediaRoute::Id>& joinable_route_ids) {
   has_local_display_route_ =
-      base::ranges::any_of(
-          routes, [this](const media_router::MediaRoute& route) {
-            // The Cast icon should be hidden if there only are
-            // non-local and non-display routes.
-            if (!route.is_local()) {
-              return false;
-            }
-            // When this feature is disabled, we show the Cast icon
-            // regardless of the media source.
-            if (!media_router::GlobalMediaControlsCastStartStopEnabled(
-                    this->profile_)) {
-              return true;
-            }
-            // When the feature is enabled, presentation routes are
-            // controlled through the global media controls most of the
-            // time. So we do not request to show the Cast icon when
-            // there only are presentation routes.
-            // In other words, the Cast icon is shown when there are
-            // mirroring or local file sources.
-            return route.media_source().IsTabMirroringSource() ||
-                   route.media_source().IsDesktopMirroringSource();
-          });
+      std::find_if(routes.begin(), routes.end(),
+                   [](const media_router::MediaRoute& route) {
+                     return route.is_local() && route.for_display();
+                   }) != routes.end();
+
   MaybeAddOrRemoveAction();
 }
 
@@ -165,11 +148,14 @@ MediaRouterActionController::MediaRouterActionController(
   pref_change_registrar_.Init(profile->GetPrefs());
   pref_change_registrar_.Add(
       prefs::kShowCastIconInToolbar,
-      base::BindRepeating(&MediaRouterActionController::MaybeAddOrRemoveAction,
-                          base::Unretained(this)));
-  if (!profile_->IsOffTheRecord()) {
+      base::Bind(&MediaRouterActionController::MaybeAddOrRemoveAction,
+                 base::Unretained(this)));
+  if (profile_->IsRegularProfile()) {
     media_router::MediaRouterMetrics::RecordIconStateAtInit(
         MediaRouterActionController::GetAlwaysShowActionPref(profile_));
+    media_router::MediaRouterMetrics::RecordCloudPrefAtInit(
+        profile_->GetPrefs()->GetBoolean(
+            media_router::prefs::kMediaRouterEnableCloudServices));
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <string>
 
+#include "base/optional.h"
 #include "components/download/database/download_info.h"
 #include "components/download/database/download_namespace.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace download {
 
@@ -27,7 +27,7 @@ struct DownloadDBEntry {
   std::string GetGuid() const;
 
   // Information about a regular download.
-  absl::optional<DownloadInfo> download_info;
+  base::Optional<DownloadInfo> download_info;
 };
 
 }  // namespace download

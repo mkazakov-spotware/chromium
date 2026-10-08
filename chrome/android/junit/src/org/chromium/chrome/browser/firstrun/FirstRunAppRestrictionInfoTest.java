@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,37 +21,53 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
-import org.robolectric.shadows.ShadowUserManager;
 
+import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.metrics.UmaRecorderHolder;
+import org.chromium.base.metrics.test.ShadowRecordHistogram;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.test.ShadowPostTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.PayloadCallbackHelper;
 import org.chromium.components.policy.PolicySwitches;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.testing.local.CustomShadowUserManager;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Unit test for {@link FirstRunAppRestrictionInfo}.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE, shadows = {ShadowPostTask.class, ShadowUserManager.class})
-@LooperMode(LooperMode.Mode.LEGACY)
+@Config(manifest = Config.NONE,
+        shadows = {ShadowRecordHistogram.class, ShadowPostTask.class,
+                CustomShadowUserManager.class})
 public class FirstRunAppRestrictionInfoTest {
     private static final List<String> HISTOGRAM_NAMES =
             Arrays.asList("Enterprise.FirstRun.AppRestrictionLoadTime",
                     "Enterprise.FirstRun.AppRestrictionLoadTime.Medium");
 
+    private static class BooleanInputCallbackHelper extends CallbackHelper {
+        boolean mLastInput;
+
+        void notifyCalledWithInput(boolean input) {
+            mLastInput = input;
+            notifyCalled();
+        }
+
+        void assertCallbackHelperCalledWithInput(boolean expected) throws TimeoutException {
+            waitForFirst();
+            Assert.assertEquals("Callback helper should be called once.", 1, getCallCount());
+            Assert.assertEquals(expected, mLastInput);
+        }
+    }
+
     @Mock
     private Bundle mMockBundle;
+    @Mock
+    private CommandLine mCommandLine;
 
     private boolean mPauseDuringPostTask;
     private Runnable mPendingPostTask;
@@ -59,7 +75,7 @@ public class FirstRunAppRestrictionInfoTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        UmaRecorderHolder.resetForTesting();
+        ShadowRecordHistogram.reset();
         ShadowPostTask.setTestImpl(new ShadowPostTask.TestImpl() {
             @Override
             public void postDelayedTask(TaskTraits taskTraits, Runnable task, long delay) {
@@ -73,59 +89,60 @@ public class FirstRunAppRestrictionInfoTest {
 
         Context context = ContextUtils.getApplicationContext();
         UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-        ShadowUserManager shadowUserManager = shadowOf(userManager);
+        CustomShadowUserManager shadowUserManager = (CustomShadowUserManager) shadowOf(userManager);
         shadowUserManager.setApplicationRestrictions(context.getPackageName(), mMockBundle);
     }
 
     @After
     public void tearDown() {
         FirstRunAppRestrictionInfo.setInitializedInstanceForTest(null);
+        CommandLine.reset();
     }
 
     private void verifyHistograms(int expectedCallCount) {
         for (String name : HISTOGRAM_NAMES) {
             Assert.assertEquals("Histogram record count doesn't match.", expectedCallCount,
-                    RecordHistogram.getHistogramTotalCountForTesting(name));
+                    ShadowRecordHistogram.getHistogramTotalCountForTesting(name));
         }
     }
 
     @Test
     @SmallTest
-    public void testInitWithRestriction() {
+    public void testInitWithRestriction() throws TimeoutException {
         testInitImpl(true);
     }
 
     @Test
     @SmallTest
-    public void testInitWithoutRestriction() {
+    public void testInitWithoutRestriction() throws TimeoutException {
         testInitImpl(false);
     }
 
-    private void testInitImpl(boolean withRestriction) {
+    private void testInitImpl(boolean withRestriction) throws TimeoutException {
         Mockito.when(mMockBundle.isEmpty()).thenReturn(!withRestriction);
-        final PayloadCallbackHelper<Boolean> appResCallbackHelper = new PayloadCallbackHelper<>();
+        final BooleanInputCallbackHelper callbackHelper = new BooleanInputCallbackHelper();
         final CallbackHelper completionCallbackHelper = new CallbackHelper();
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             FirstRunAppRestrictionInfo info = FirstRunAppRestrictionInfo.takeMaybeInitialized();
-            info.getHasAppRestriction(appResCallbackHelper::notifyCalled);
+            info.getHasAppRestriction(callbackHelper::notifyCalledWithInput);
             info.getCompletionElapsedRealtimeMs(
                     (ignored) -> completionCallbackHelper.notifyCalled());
         });
 
-        Assert.assertEquals(withRestriction, appResCallbackHelper.getOnlyPayloadBlocking());
+        callbackHelper.assertCallbackHelperCalledWithInput(withRestriction);
         Assert.assertEquals(1, completionCallbackHelper.getCallCount());
         verifyHistograms(1);
     }
 
     @Test
     @SmallTest
-    public void testQueuedCallback() {
+    public void testQueuedCallback() throws TimeoutException {
         Mockito.when(mMockBundle.isEmpty()).thenReturn(false);
 
-        final PayloadCallbackHelper<Boolean> appResCallbackHelper1 = new PayloadCallbackHelper<>();
-        final PayloadCallbackHelper<Boolean> appResCallbackHelper2 = new PayloadCallbackHelper<>();
-        final PayloadCallbackHelper<Boolean> appResCallbackHelper3 = new PayloadCallbackHelper<>();
+        final BooleanInputCallbackHelper callbackHelper1 = new BooleanInputCallbackHelper();
+        final BooleanInputCallbackHelper callbackHelper2 = new BooleanInputCallbackHelper();
+        final BooleanInputCallbackHelper callbackHelper3 = new BooleanInputCallbackHelper();
         final CallbackHelper completionCallbackHelper1 = new CallbackHelper();
         final CallbackHelper completionCallbackHelper2 = new CallbackHelper();
         final CallbackHelper completionCallbackHelper3 = new CallbackHelper();
@@ -133,9 +150,9 @@ public class FirstRunAppRestrictionInfoTest {
         mPauseDuringPostTask = true;
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             FirstRunAppRestrictionInfo info = FirstRunAppRestrictionInfo.takeMaybeInitialized();
-            info.getHasAppRestriction(appResCallbackHelper1::notifyCalled);
-            info.getHasAppRestriction(appResCallbackHelper2::notifyCalled);
-            info.getHasAppRestriction(appResCallbackHelper3::notifyCalled);
+            info.getHasAppRestriction(callbackHelper1::notifyCalledWithInput);
+            info.getHasAppRestriction(callbackHelper2::notifyCalledWithInput);
+            info.getHasAppRestriction(callbackHelper3::notifyCalledWithInput);
             info.getCompletionElapsedRealtimeMs(
                     (ignored) -> completionCallbackHelper1.notifyCalled());
             info.getCompletionElapsedRealtimeMs(
@@ -144,12 +161,12 @@ public class FirstRunAppRestrictionInfoTest {
                     (ignored) -> completionCallbackHelper3.notifyCalled());
         });
 
-        Assert.assertEquals("CallbackHelper should not triggered yet.", 0,
-                appResCallbackHelper1.getCallCount());
-        Assert.assertEquals("CallbackHelper should not triggered yet.", 0,
-                appResCallbackHelper2.getCallCount());
-        Assert.assertEquals("CallbackHelper should not triggered yet.", 0,
-                appResCallbackHelper3.getCallCount());
+        Assert.assertEquals(
+                "CallbackHelper should not triggered yet.", 0, callbackHelper1.getCallCount());
+        Assert.assertEquals(
+                "CallbackHelper should not triggered yet.", 0, callbackHelper2.getCallCount());
+        Assert.assertEquals(
+                "CallbackHelper should not triggered yet.", 0, callbackHelper3.getCallCount());
         Assert.assertEquals("CallbackHelper should not triggered yet.", 0,
                 completionCallbackHelper1.getCallCount());
         Assert.assertEquals("CallbackHelper should not triggered yet.", 0,
@@ -160,9 +177,9 @@ public class FirstRunAppRestrictionInfoTest {
         // Initialized the AppRestrictionInfo and wait until initialized.
         TestThreadUtils.runOnUiThreadBlocking(() -> mPendingPostTask.run());
 
-        Assert.assertTrue(appResCallbackHelper1.getOnlyPayloadBlocking());
-        Assert.assertTrue(appResCallbackHelper2.getOnlyPayloadBlocking());
-        Assert.assertTrue(appResCallbackHelper3.getOnlyPayloadBlocking());
+        callbackHelper1.assertCallbackHelperCalledWithInput(true);
+        callbackHelper2.assertCallbackHelperCalledWithInput(true);
+        callbackHelper3.assertCallbackHelperCalledWithInput(true);
         Assert.assertEquals(1, completionCallbackHelper1.getCallCount());
         Assert.assertEquals(1, completionCallbackHelper2.getCallCount());
         Assert.assertEquals(1, completionCallbackHelper3.getCallCount());
@@ -173,13 +190,13 @@ public class FirstRunAppRestrictionInfoTest {
     @Test
     @SmallTest
     public void testDestroy() {
-        final PayloadCallbackHelper<Boolean> appResCallbackHelper = new PayloadCallbackHelper<>();
+        final BooleanInputCallbackHelper callbackHelper = new BooleanInputCallbackHelper();
         final CallbackHelper completionCallbackHelper = new CallbackHelper();
         mPauseDuringPostTask = true;
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             FirstRunAppRestrictionInfo info = FirstRunAppRestrictionInfo.takeMaybeInitialized();
-            info.getHasAppRestriction(appResCallbackHelper::notifyCalled);
+            info.getHasAppRestriction(callbackHelper::notifyCalledWithInput);
             info.getCompletionElapsedRealtimeMs(
                     (ignored) -> completionCallbackHelper.notifyCalled());
 
@@ -190,7 +207,7 @@ public class FirstRunAppRestrictionInfoTest {
         });
 
         Assert.assertEquals(
-                "CallbackHelper should not triggered yet.", 0, appResCallbackHelper.getCallCount());
+                "CallbackHelper should not triggered yet.", 0, callbackHelper.getCallCount());
         Assert.assertEquals("CallbackHelper should not triggered yet.", 0,
                 completionCallbackHelper.getCallCount());
         verifyHistograms(0);
@@ -198,14 +215,19 @@ public class FirstRunAppRestrictionInfoTest {
 
     @Test
     @SmallTest
-    @CommandLineFlags.Add({PolicySwitches.CHROME_POLICY})
-    public void testCommandLine() {
-        final PayloadCallbackHelper<Boolean> appResCallbackHelper = new PayloadCallbackHelper<>();
+    public void testCommandLine() throws TimeoutException {
+        // TODO(https://crbug.com/1119410): Switch to @CommandLineFlag once supported for junit.
+        CommandLine.setInstanceForTesting(mCommandLine);
+        Mockito.when(mCommandLine.hasSwitch(Mockito.eq(PolicySwitches.CHROME_POLICY)))
+                .thenReturn(true);
+
+        final BooleanInputCallbackHelper callbackHelper = new BooleanInputCallbackHelper();
         TestThreadUtils.runOnUiThreadBlocking(
                 ()
                         -> FirstRunAppRestrictionInfo.takeMaybeInitialized().getHasAppRestriction(
-                                appResCallbackHelper::notifyCalled));
-        Assert.assertTrue(appResCallbackHelper.getOnlyPayloadBlocking());
+                                callbackHelper::notifyCalledWithInput));
+        callbackHelper.assertCallbackHelperCalledWithInput(true);
+
         verifyHistograms(1);
     }
 }

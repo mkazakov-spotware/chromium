@@ -1,15 +1,19 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ANDROID_WEBVIEW_RENDERER_AW_KEY_SYSTEMS_H_
 #define ANDROID_WEBVIEW_RENDERER_AW_KEY_SYSTEMS_H_
 
-#include "media/base/key_system_info.h"
+#include <memory>
+#include <vector>
+
+#include "media/base/key_system_properties.h"
 
 namespace android_webview {
 
-void AwAddKeySystems(media::KeySystemInfos* key_systems_properties);
+void AwAddKeySystems(std::vector<std::unique_ptr<media::KeySystemProperties>>*
+                         key_systems_properties);
 
 }  // namespace android_webview
 

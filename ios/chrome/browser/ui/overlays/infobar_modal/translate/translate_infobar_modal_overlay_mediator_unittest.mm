@@ -1,26 +1,29 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/overlays/infobar_modal/translate/translate_infobar_modal_overlay_mediator.h"
 
-#import "base/ios/ios_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/translate/core/browser/translate_step.h"
-#import "ios/chrome/browser/infobars/infobar_ios.h"
+#include "base/ios/ios_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/infobars/core/infobar_feature.h"
+#include "ios/chrome/browser/infobars/infobar_ios.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/infobar_modal_overlay_responses.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/translate_infobar_modal_overlay_request_config.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/translate_infobar_modal_overlay_responses.h"
-#import "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
-#import "ios/chrome/browser/overlays/public/overlay_request.h"
-#import "ios/chrome/browser/overlays/public/overlay_response.h"
-#import "ios/chrome/browser/overlays/test/fake_overlay_request_callback_installer.h"
+#include "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
+#include "ios/chrome/browser/overlays/public/overlay_request.h"
+#include "ios/chrome/browser/overlays/public/overlay_response.h"
+#include "ios/chrome/browser/overlays/test/fake_overlay_request_callback_installer.h"
 #import "ios/chrome/browser/translate/fake_translate_infobar_delegate.h"
 #import "ios/chrome/browser/ui/infobars/coordinators/infobar_translate_modal_consumer.h"
+#import "ios/chrome/browser/ui/infobars/infobar_feature.h"
 #import "ios/chrome/browser/ui/infobars/modals/test/fake_infobar_translate_modal_consumer.h"
-#import "testing/gmock/include/gmock/gmock.h"
-#import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#import "ios/chrome/browser/ui/infobars/test/fake_infobar_ui_delegate.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/gtest_mac.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "third_party/ocmock/gtest_support.h"
 
@@ -32,33 +35,28 @@ using translate_infobar_overlays::TranslateModalRequestConfig;
 using translate_infobar_modal_responses::RevertTranslation;
 using translate_infobar_modal_responses::ToggleAlwaysTranslate;
 using translate_infobar_modal_responses::ToggleNeverTranslateSourceLanguage;
-using translate_infobar_modal_responses::ToggleNeverPromptSite;
+using translate_infobar_modal_responses::ToggleBlacklistSite;
 using translate_infobar_modal_responses::UpdateLanguageInfo;
 using translate_infobar_modal_responses::UpdateLanguageInfo;
 
-// Base test fixture for TranslateInfobarModalOverlayMediator. The state of the
-// mediator's consumer is expected to vary based on the current TranslateStep.
-// Derived test fixtures are used to verify this behaviour.
+// Test fixture for TranslateInfobarModalOverlayMediator.
 class TranslateInfobarModalOverlayMediatorTest : public PlatformTest {
  public:
-  TranslateInfobarModalOverlayMediatorTest(
-      translate::TranslateStep step,
-      translate::TranslateErrors error_type)
+  TranslateInfobarModalOverlayMediatorTest()
       : infobar_(
-            InfobarType::kInfobarTypeTranslate,
-            delegate_factory_.CreateFakeTranslateInfoBarDelegate("fr",
-                                                                 "en",
-                                                                 step,
-                                                                 error_type)),
+            [[FakeInfobarUIDelegate alloc] init],
+            delegate_factory_.CreateFakeTranslateInfoBarDelegate("fr", "en")),
         callback_installer_(
             &callback_receiver_,
             {InfobarModalMainActionResponse::ResponseSupport(),
              RevertTranslation::ResponseSupport(),
              ToggleNeverTranslateSourceLanguage::ResponseSupport(),
-             ToggleNeverPromptSite::ResponseSupport(),
+             ToggleBlacklistSite::ResponseSupport(),
              ToggleAlwaysTranslate::ResponseSupport()}),
         delegate_(
             OCMStrictProtocolMock(@protocol(OverlayRequestMediatorDelegate))) {
+    scoped_feature_list_.InitWithFeatures({kIOSInfobarUIReboot},
+                                          {kInfobarUIRebootOnlyiOS13});
     request_ = OverlayRequest::CreateWithConfig<TranslateModalRequestConfig>(
         &infobar_);
     callback_installer_.InstallCallbacks(request_.get());
@@ -66,13 +64,6 @@ class TranslateInfobarModalOverlayMediatorTest : public PlatformTest {
         initWithRequest:request_.get()];
     mediator_.delegate = delegate_;
   }
-
-  // Default constructor using TRANSLATE_STEP_BEFORE_TRANSLATE as the
-  // translate step.
-  TranslateInfobarModalOverlayMediatorTest()
-      : TranslateInfobarModalOverlayMediatorTest(
-            translate::TranslateStep::TRANSLATE_STEP_BEFORE_TRANSLATE,
-            translate::TranslateErrors::NONE) {}
 
   ~TranslateInfobarModalOverlayMediatorTest() override {
     EXPECT_CALL(callback_receiver_, CompletionCallback(request_.get()));
@@ -84,6 +75,7 @@ class TranslateInfobarModalOverlayMediatorTest : public PlatformTest {
   }
 
  protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
   FakeTranslateInfoBarDelegateFactory delegate_factory_;
   InfoBarIOS infobar_;
   MockOverlayRequestCallbackReceiver callback_receiver_;
@@ -94,34 +86,34 @@ class TranslateInfobarModalOverlayMediatorTest : public PlatformTest {
 };
 
 // Tests that a TranslateInfobarModalOverlayMediator correctly sets up its
-// consumer while in a "before translate" step.
+// consumer.
 TEST_F(TranslateInfobarModalOverlayMediatorTest, SetUpConsumer) {
   FakeInfobarTranslateModalConsumer* consumer =
       [[FakeInfobarTranslateModalConsumer alloc] init];
   mediator_.consumer = consumer;
 
-  EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().source_language_name()),
+  EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().original_language_name()),
               consumer.sourceLanguage);
   EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().target_language_name()),
               consumer.targetLanguage);
   EXPECT_TRUE(consumer.enableTranslateActionButton);
   EXPECT_FALSE(consumer.updateLanguageBeforeTranslate);
   EXPECT_FALSE(consumer.displayShowOriginalButton);
-  EXPECT_FALSE(consumer.shouldAlwaysTranslate);
+  EXPECT_TRUE(consumer.shouldAlwaysTranslate);
   EXPECT_TRUE(consumer.shouldDisplayNeverTranslateLanguageButton);
   EXPECT_TRUE(consumer.isTranslatableLanguage);
   EXPECT_TRUE(consumer.shouldDisplayNeverTranslateSiteButton);
-  EXPECT_FALSE(consumer.isSiteOnNeverPromptList);
+  EXPECT_FALSE(consumer.isSiteBlacklisted);
 }
 
 // Tests that TranslateInfobarModalOverlayMediator calls RevertTranslation when
-// its showSourceLanguage API is called.
-TEST_F(TranslateInfobarModalOverlayMediatorTest, ShowSourceLanguage) {
+// its showOriginalLanguage API is called.
+TEST_F(TranslateInfobarModalOverlayMediatorTest, ShowOriginalLanguage) {
   EXPECT_CALL(
       callback_receiver_,
       DispatchCallback(request_.get(), RevertTranslation::ResponseSupport()));
   OCMExpect([delegate_ stopOverlayForMediator:mediator_]);
-  [mediator_ showSourceLanguage];
+  [mediator_ showOriginalLanguage];
 }
 
 // Tests that TranslateInfobarModalOverlayMediator calls UpdateLanguageInfo and
@@ -137,8 +129,10 @@ TEST_F(TranslateInfobarModalOverlayMediatorTest, UpdateLanguageInfo) {
   if (![currentLanguage isEqual:@"en-US"])
     return;
 
-  const int portuguese_index = 67;
-  const int spanish_index = 81;
+  // Language indexes are different on iOS 14.
+  // TODO(crbug.com/1102968): Avoid hard-coding indexes here.
+  const int portuguese_index = base::ios::IsRunningOnIOS14OrLater() ? 67 : 69;
+  const int spanish_index = base::ios::IsRunningOnIOS14OrLater() ? 81 : 83;
 
   [mediator_ didSelectSourceLanguageIndex:portuguese_index
                                  withName:@"Portuguese"];
@@ -187,77 +181,12 @@ TEST_F(TranslateInfobarModalOverlayMediatorTest, NeverTranslateSourceLanguage) {
   [mediator_ neverTranslateSourceLanguage];
 }
 
-// Tests that TranslateInfobarModalOverlayMediator calls ToggleNeverPromptSite
+// Tests that TranslateInfobarModalOverlayMediator calls ToggleBlacklistSite
 // when its neverTranslateSite API is called.
 TEST_F(TranslateInfobarModalOverlayMediatorTest, NeverTranslateSite) {
-  EXPECT_CALL(callback_receiver_,
-              DispatchCallback(request_.get(),
-                               ToggleNeverPromptSite::ResponseSupport()));
+  EXPECT_CALL(
+      callback_receiver_,
+      DispatchCallback(request_.get(), ToggleBlacklistSite::ResponseSupport()));
   OCMExpect([delegate_ stopOverlayForMediator:mediator_]);
   [mediator_ neverTranslateSite];
-}
-
-// Test fixture for TranslateInfobarModalOverlayMediator using the
-// TRANSLATE_STEP_AFTER_TRANSLATE translate step.
-class TranslateInfobarModalOverlayMediatorAfterTranslateTest
-    : public TranslateInfobarModalOverlayMediatorTest {
- public:
-  TranslateInfobarModalOverlayMediatorAfterTranslateTest()
-      : TranslateInfobarModalOverlayMediatorTest(
-            translate::TranslateStep::TRANSLATE_STEP_AFTER_TRANSLATE,
-            translate::TranslateErrors::NONE) {}
-};
-
-// Tests that a TranslateInfobarModalOverlayMediator correctly sets up its
-// consumer while in an "after translate" step.
-TEST_F(TranslateInfobarModalOverlayMediatorAfterTranslateTest, SetUpConsumer) {
-  FakeInfobarTranslateModalConsumer* consumer =
-      [[FakeInfobarTranslateModalConsumer alloc] init];
-  mediator_.consumer = consumer;
-
-  EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().source_language_name()),
-              consumer.sourceLanguage);
-  EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().target_language_name()),
-              consumer.targetLanguage);
-  EXPECT_FALSE(consumer.enableTranslateActionButton);
-  EXPECT_FALSE(consumer.updateLanguageBeforeTranslate);
-  EXPECT_TRUE(consumer.displayShowOriginalButton);
-  EXPECT_FALSE(consumer.shouldAlwaysTranslate);
-  EXPECT_FALSE(consumer.shouldDisplayNeverTranslateLanguageButton);
-  EXPECT_TRUE(consumer.isTranslatableLanguage);
-  EXPECT_FALSE(consumer.shouldDisplayNeverTranslateSiteButton);
-  EXPECT_FALSE(consumer.isSiteOnNeverPromptList);
-}
-
-// Test fixture for TranslateInfobarModalOverlayMediator using the
-// TRANSLATE_STEP_TRANSLATE_ERROR translate step.
-class TranslateInfobarModalOverlayMediatorTranslateErrorTest
-    : public TranslateInfobarModalOverlayMediatorTest {
- public:
-  TranslateInfobarModalOverlayMediatorTranslateErrorTest()
-      : TranslateInfobarModalOverlayMediatorTest(
-            translate::TranslateStep::TRANSLATE_STEP_TRANSLATE_ERROR,
-            translate::TranslateErrors::TRANSLATION_ERROR) {}
-};
-
-// Tests that a TranslateInfobarModalOverlayMediator correctly sets up its
-// consumer while in a "translate error" step. This is expected to behave the
-// same as in the "before translate" step.
-TEST_F(TranslateInfobarModalOverlayMediatorTranslateErrorTest, SetUpConsumer) {
-  FakeInfobarTranslateModalConsumer* consumer =
-      [[FakeInfobarTranslateModalConsumer alloc] init];
-  mediator_.consumer = consumer;
-
-  EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().source_language_name()),
-              consumer.sourceLanguage);
-  EXPECT_NSEQ(base::SysUTF16ToNSString(delegate().target_language_name()),
-              consumer.targetLanguage);
-  EXPECT_TRUE(consumer.enableTranslateActionButton);
-  EXPECT_FALSE(consumer.updateLanguageBeforeTranslate);
-  EXPECT_FALSE(consumer.displayShowOriginalButton);
-  EXPECT_FALSE(consumer.shouldAlwaysTranslate);
-  EXPECT_TRUE(consumer.shouldDisplayNeverTranslateLanguageButton);
-  EXPECT_TRUE(consumer.isTranslatableLanguage);
-  EXPECT_TRUE(consumer.shouldDisplayNeverTranslateSiteButton);
-  EXPECT_FALSE(consumer.isSiteOnNeverPromptList);
 }

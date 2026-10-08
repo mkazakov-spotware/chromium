@@ -1,17 +1,19 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BROWSER_UI_SITE_SETTINGS_ANDROID_FEATURES_H_
 #define COMPONENTS_BROWSER_UI_SITE_SETTINGS_ANDROID_FEATURES_H_
 
-#include "base/feature_list.h"
+namespace base {
+struct Feature;
+}  // namespace base
 
 namespace browser_ui {
 
-// Improved 'All sites' and 'Site settings' pages on Android.
-BASE_DECLARE_FEATURE(kSiteDataImprovements);
-BASE_DECLARE_FEATURE(kRequestDesktopSiteExceptionsDowngrade);
+// Enables messaging in the site settings UI to tell users notifications are
+// disabled for the entire app
+extern const base::Feature kAppNotificationStatusMessaging;
 
 }  // namespace browser_ui
 

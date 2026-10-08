@@ -1,13 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/background_fetch/storage/get_request_blob_task.h"
-
 #include "base/bind.h"
-#include "base/trace_event/trace_event.h"
 #include "content/browser/background_fetch/background_fetch_request_match_params.h"
 #include "content/browser/background_fetch/storage/database_helpers.h"
+#include "content/browser/cache_storage/cache_storage.h"
 #include "content/common/background_fetch/background_fetch_types.h"
 #include "third_party/blink/public/common/cache_storage/cache_storage_utils.h"
 
@@ -30,13 +29,15 @@ void GetRequestBlobTask::Start() {
   int64_t trace_id = blink::cache_storage::CreateTraceId();
   TRACE_EVENT_WITH_FLOW0("CacheStorage", "GetRequestBlobTask::Start",
                          TRACE_ID_GLOBAL(trace_id), TRACE_EVENT_FLAG_FLOW_OUT);
-
-  OpenCache(registration_id_, trace_id,
-            base::BindOnce(&GetRequestBlobTask::DidOpenCache,
-                           weak_factory_.GetWeakPtr(), trace_id));
+  CacheStorageHandle cache_storage = GetOrOpenCacheStorage(registration_id_);
+  cache_storage.value()->OpenCache(
+      /* cache_name= */ registration_id_.unique_id(), trace_id,
+      base::BindOnce(&GetRequestBlobTask::DidOpenCache,
+                     weak_factory_.GetWeakPtr(), trace_id));
 }
 
 void GetRequestBlobTask::DidOpenCache(int64_t trace_id,
+                                      CacheStorageCacheHandle handle,
                                       blink::mojom::CacheStorageError error) {
   TRACE_EVENT_WITH_FLOW0("CacheStorage", "GetRequestBlobTask::DidOpenCache",
                          TRACE_ID_GLOBAL(trace_id),
@@ -46,34 +47,35 @@ void GetRequestBlobTask::DidOpenCache(int64_t trace_id,
     return;
   }
 
+  DCHECK(handle.value());
   auto request =
       BackgroundFetchSettledFetch::CloneRequest(request_info_->fetch_request());
   request->url = MakeCacheUrlUnique(request->url, registration_id_.unique_id(),
                                     request_info_->request_index());
 
-  auto match_options = blink::mojom::CacheQueryOptions::New();
-  cache_storage_cache_remote()->Keys(
-      std::move(request), std::move(match_options), trace_id,
+  handle.value()->GetAllMatchedEntries(
+      std::move(request), /* match_options= */ nullptr, trace_id,
       base::BindOnce(&GetRequestBlobTask::DidMatchRequest,
-                     weak_factory_.GetWeakPtr(), trace_id));
+                     weak_factory_.GetWeakPtr(), handle.Clone(), trace_id));
 }
 
 void GetRequestBlobTask::DidMatchRequest(
+    CacheStorageCacheHandle handle,
     int64_t trace_id,
-    blink::mojom::CacheKeysResultPtr result) {
+    blink::mojom::CacheStorageError error,
+    std::vector<CacheStorageCache::CacheEntry> entries) {
   TRACE_EVENT_WITH_FLOW0("CacheStorage", "GetRequestBlobTask::DidMatchRequest",
                          TRACE_ID_GLOBAL(trace_id), TRACE_EVENT_FLAG_FLOW_IN);
 
-  if (result->is_status() || result->get_keys().size() == 0) {
+  if (error != blink::mojom::CacheStorageError::kSuccess || entries.empty()) {
     SetStorageErrorAndFinish(BackgroundFetchStorageError::kCacheStorageError);
     return;
   }
 
-  auto& keys = result->get_keys();
-  DCHECK_EQ(keys.size(), 1u);
-  DCHECK(keys[0]->blob);
+  DCHECK_EQ(entries.size(), 1u);
+  DCHECK(entries[0].first->blob);
 
-  blob_ = std::move(keys[0]->blob);
+  blob_ = std::move(entries[0].first->blob);
   FinishWithError(blink::mojom::BackgroundFetchError::NONE);
 }
 

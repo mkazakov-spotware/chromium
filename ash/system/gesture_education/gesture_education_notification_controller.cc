@@ -1,12 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/gesture_education/gesture_education_notification_controller.h"
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/notifier_catalogs.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/public/cpp/system_tray_client.h"
@@ -14,7 +13,6 @@
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/model/system_tray_model.h"
-#include "base/bind.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
@@ -31,13 +29,13 @@ const char GestureEducationNotificationController::kNotificationId[] =
 GestureEducationNotificationController::
     GestureEducationNotificationController() {
   Shell::Get()->session_controller()->AddObserver(this);
-  tablet_mode_observation_.Observe(Shell::Get()->tablet_mode_controller());
+  tablet_mode_observer_.Add(Shell::Get()->tablet_mode_controller());
 }
 
 GestureEducationNotificationController::
     ~GestureEducationNotificationController() {
   Shell::Get()->session_controller()->RemoveObserver(this);
-  tablet_mode_observation_.Reset();
+  tablet_mode_observer_.RemoveAll();
 }
 
 void GestureEducationNotificationController::MaybeShowNotification() {
@@ -70,7 +68,7 @@ void GestureEducationNotificationController::OnTabletModeStarted() {
 }
 
 void GestureEducationNotificationController::OnTabletControllerDestroyed() {
-  tablet_mode_observation_.Reset();
+  tablet_mode_observer_.RemoveAll();
 }
 
 void GestureEducationNotificationController::RegisterProfilePrefs(
@@ -89,10 +87,9 @@ void GestureEducationNotificationController::
       CreateSystemNotification(
           message_center::NOTIFICATION_TYPE_SIMPLE, kNotificationId,
           GetNotificationTitle(), GetNotificationMessage(),
-          std::u16string() /* display_source */, GURL(),
+          base::string16() /* display_source */, GURL(),
           message_center::NotifierId(
-              message_center::NotifierType::SYSTEM_COMPONENT, kNotificationId,
-              NotificationCatalogName::kGestureEducation),
+              message_center::NotifierType::SYSTEM_COMPONENT, kNotificationId),
           message_center::RichNotificationData(),
           base::MakeRefCounted<message_center::HandleNotificationClickDelegate>(
               base::BindRepeating(&GestureEducationNotificationController::
@@ -116,12 +113,12 @@ void GestureEducationNotificationController::ResetPrefForTest() {
   }
 }
 
-std::u16string GestureEducationNotificationController::GetNotificationMessage()
+base::string16 GestureEducationNotificationController::GetNotificationMessage()
     const {
   return l10n_util::GetStringUTF16(IDS_GESTURE_NOTIFICATION_MESSAGE_LEARN_MORE);
 }
 
-std::u16string GestureEducationNotificationController::GetNotificationTitle()
+base::string16 GestureEducationNotificationController::GetNotificationTitle()
     const {
   return l10n_util::GetStringUTF16(IDS_GESTURE_NOTIFICATION_TITLE);
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@ import android.app.backup.BackupDataInput;
 import android.app.backup.BackupDataOutput;
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
-
-import org.chromium.base.BundleUtils;
 
 import java.io.IOException;
 
@@ -28,8 +26,8 @@ public class SplitCompatBackupAgent extends BackupAgent {
 
     @Override
     protected void attachBaseContext(Context context) {
-        context = SplitCompatApplication.createChromeContext(context);
-        mImpl = (Impl) BundleUtils.newInstance(context, mBackupAgentClassName);
+        context = SplitCompatUtils.createChromeContext(context);
+        mImpl = (Impl) SplitCompatUtils.newInstance(context, mBackupAgentClassName);
         mImpl.setBackupAgent(this);
         super.attachBaseContext(context);
     }

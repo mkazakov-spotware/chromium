@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
 #include "base/component_export.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/views/view.h"
 
 namespace views {
@@ -35,7 +35,6 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantZeroStateView
   const char* GetClassName() const override;
   gfx::Size CalculatePreferredSize() const override;
   void ChildPreferredSizeChanged(views::View* child) override;
-  void OnThemeChanged() override;
 
   // AssistantController:
   void OnAssistantControllerDestroying() override;
@@ -44,8 +43,8 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantZeroStateView
   void OnUiVisibilityChanged(
       AssistantVisibility new_visibility,
       AssistantVisibility old_visibility,
-      absl::optional<AssistantEntryPoint> entry_point,
-      absl::optional<AssistantExitPoint> exit_point) override;
+      base::Optional<AssistantEntryPoint> entry_point,
+      base::Optional<AssistantExitPoint> exit_point) override;
 
  private:
   void InitLayout();
@@ -58,8 +57,8 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantZeroStateView
   AssistantOnboardingView* onboarding_view_ = nullptr;
   views::Label* greeting_label_ = nullptr;
 
-  base::ScopedObservation<AssistantController, AssistantControllerObserver>
-      assistant_controller_observation_{this};
+  ScopedObserver<AssistantController, AssistantControllerObserver>
+      assistant_controller_observer_{this};
 };
 
 }  // namespace ash

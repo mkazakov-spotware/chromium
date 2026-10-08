@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,11 +46,6 @@ class ASH_EXPORT LoginPublicAccountUserView : public NonAccessibleView {
 
   LoginPublicAccountUserView(const LoginUserInfo& user,
                              const Callbacks& callbacks);
-
-  LoginPublicAccountUserView(const LoginPublicAccountUserView&) = delete;
-  LoginPublicAccountUserView& operator=(const LoginPublicAccountUserView&) =
-      delete;
-
   ~LoginPublicAccountUserView() override;
 
   void SetAuthEnabled(bool enabled, bool animate);
@@ -85,6 +80,8 @@ class ASH_EXPORT LoginPublicAccountUserView : public NonAccessibleView {
   bool ignore_hover_ = false;
   bool auth_enabled_ = false;
   LoginUserView* user_view_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(LoginPublicAccountUserView);
 };
 
 }  // namespace ash

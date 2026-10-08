@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_BASE_PASSPHRASE_ENUMS_H_
 #define COMPONENTS_SYNC_BASE_PASSPHRASE_ENUMS_H_
 
+#include "base/optional.h"
 #include "components/sync/protocol/nigori_specifics.pb.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace syncer {
 
@@ -17,8 +17,6 @@ namespace syncer {
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.sync
 enum class PassphraseType {
   // GAIA-based passphrase (deprecated).
-  // TODO(crbug.com/1201684): Some codepaths use this value as a synonym for
-  // an unknown passphrase type. Rename to reflect this or use absl::optional<>.
   kImplicitPassphrase = 0,
   // Keystore passphrase.
   kKeystorePassphrase = 1,
@@ -42,11 +40,11 @@ bool IsExplicitPassphrase(PassphraseType type);
 sync_pb::NigoriSpecifics::PassphraseType ProtoPassphraseInt32ToProtoEnum(
     ::google::protobuf::int32 type);
 
-// Returns absl::nullopt if |type| represents an unknown value, likely coming
+// Returns base::nullopt if |type| represents an unknown value, likely coming
 // from a future version of the browser. Note however that if the field is not
 // populated, it defaults to IMPLICIT_PASSPHRASE for backwards compatibility
 // reasons.
-absl::optional<PassphraseType> ProtoPassphraseInt32ToEnum(
+base::Optional<PassphraseType> ProtoPassphraseInt32ToEnum(
     ::google::protobuf::int32 type);
 
 sync_pb::NigoriSpecifics::PassphraseType EnumPassphraseTypeToProto(
@@ -57,16 +55,17 @@ sync_pb::NigoriSpecifics::PassphraseType EnumPassphraseTypeToProto(
 enum class KeyDerivationMethod {
   PBKDF2_HMAC_SHA1_1003 = 0,  // PBKDF2-HMAC-SHA1 with 1003 iterations.
   SCRYPT_8192_8_11 = 1,  // scrypt with N = 2^13, r = 8, p = 11 and random salt.
+  UNSUPPORTED = 2,       // Unsupported method, likely from a future version.
 };
 
 // This function accepts an integer and not KeyDerivationMethod from the proto
-// in order to be able to handle new, unknown values. Returns nullopt if value
-// is unknown (indicates protocol violation or value coming from newer version)
-// and PBKDF2_HMAC_SHA1_1003 if value is unspecified (indicates value coming
-// from older version, that is not aware of the field).
-absl::optional<KeyDerivationMethod> ProtoKeyDerivationMethodToEnum(
+// in order to be able to handle new, unknown values.
+KeyDerivationMethod ProtoKeyDerivationMethodToEnum(
     ::google::protobuf::int32 method);
-
+// Note that KeyDerivationMethod::UNSUPPORTED is an invalid input for this
+// function, since it corresponds to a method that we are not aware of and so
+// cannot meaningfully convert. The caller is responsible for ensuring that
+// KeyDerivationMethod::UNSUPPORTED is never passed to this function.
 sync_pb::NigoriSpecifics::KeyDerivationMethod EnumKeyDerivationMethodToProto(
     KeyDerivationMethod method);
 

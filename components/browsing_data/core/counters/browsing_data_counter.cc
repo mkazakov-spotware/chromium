@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -70,9 +70,8 @@ base::Time BrowsingDataCounter::GetPeriodEnd() {
 
 void BrowsingDataCounter::Restart() {
   DCHECK(initialized_);
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN1(
-      "browsing_data", "BrowsingDataCounter::Restart", TRACE_ID_LOCAL(this),
-      "data_type", GetPrefName());
+  TRACE_EVENT_ASYNC_BEGIN1("browsing_data", "BrowsingDataCounter::Restart",
+                           this, "data_type", GetPrefName());
   if (state_ == State::IDLE) {
     DCHECK(!timer_.IsRunning());
     DCHECK(!staged_result_);
@@ -85,8 +84,10 @@ void BrowsingDataCounter::Restart() {
   state_transitions_.push_back(state_);
 
   if (use_delay_) {
-    timer_.Start(FROM_HERE, base::Milliseconds(kDelayUntilShowCalculatingMs),
-                 this, &BrowsingDataCounter::TransitionToShowCalculating);
+    timer_.Start(
+        FROM_HERE,
+        base::TimeDelta::FromMilliseconds(kDelayUntilShowCalculatingMs), this,
+        &BrowsingDataCounter::TransitionToShowCalculating);
   } else {
     state_ = State::READY_TO_REPORT_RESULT;
   }
@@ -102,9 +103,8 @@ void BrowsingDataCounter::ReportResult(ResultInt value) {
 void BrowsingDataCounter::ReportResult(std::unique_ptr<Result> result) {
   DCHECK(initialized_);
   DCHECK(result->Finished());
-  TRACE_EVENT_NESTABLE_ASYNC_END1(
-      "browsing_data", "BrowsingDataCounter::Restart", TRACE_ID_LOCAL(this),
-      "data_type", GetPrefName());
+  TRACE_EVENT_ASYNC_END1("browsing_data", "BrowsingDataCounter::Restart", this,
+                         "data_type", GetPrefName());
   switch (state_) {
     case State::RESTARTED:
     case State::READY_TO_REPORT_RESULT:
@@ -114,11 +114,8 @@ void BrowsingDataCounter::ReportResult(std::unique_ptr<Result> result) {
       staged_result_ = std::move(result);
       return;
     case State::IDLE:
-      NOTREACHED() << "State::IDLE";
-      return;
     case State::REPORT_STAGED_RESULT:
-      NOTREACHED() << "State::REPORT_STAGED_RESULT";
-      return;
+      NOTREACHED();
   }
 }
 
@@ -151,8 +148,10 @@ void BrowsingDataCounter::TransitionToShowCalculating() {
   state_transitions_.push_back(state_);
 
   callback_.Run(std::make_unique<Result>(this));
-  timer_.Start(FROM_HERE, base::Milliseconds(kDelayUntilReadyToShowResultMs),
-               this, &BrowsingDataCounter::TransitionToReadyToReportResult);
+  timer_.Start(
+      FROM_HERE,
+      base::TimeDelta::FromMilliseconds(kDelayUntilReadyToShowResultMs),
+      this, &BrowsingDataCounter::TransitionToReadyToReportResult);
 }
 
 void BrowsingDataCounter::TransitionToReadyToReportResult() {

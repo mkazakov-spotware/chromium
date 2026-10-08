@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SERVICE_WORKER_EXTENDABLE_MESSAGE_EVENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_SERVICE_WORKER_EXTENDABLE_MESSAGE_EVENT_H_
 
-#include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
-#include "third_party/blink/renderer/bindings/core/v8/serialization/transferables.h"
 #include "third_party/blink/renderer/bindings/core/v8/world_safe_v8_reference.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_extendable_message_event_init.h"
 #include "third_party/blink/renderer/modules/event_modules.h"
@@ -14,11 +12,6 @@
 #include "third_party/blink/renderer/modules/service_worker/extendable_event.h"
 
 namespace blink {
-
-class MessagePort;
-class ServiceWorker;
-class ServiceWorkerClient;
-class V8UnionClientOrMessagePortOrServiceWorker;
 
 class MODULES_EXPORT ExtendableMessageEvent final : public ExtendableEvent {
   DEFINE_WRAPPERTYPEINFO();
@@ -73,7 +66,7 @@ class MODULES_EXPORT ExtendableMessageEvent final : public ExtendableEvent {
   bool isDataDirty() const { return false; }
   const String& origin() const { return origin_; }
   const String& lastEventId() const { return last_event_id_; }
-  V8UnionClientOrMessagePortOrServiceWorker* source() const;
+  void source(ClientOrServiceWorkerOrMessagePort& result) const;
   MessagePortArray ports() const;
 
   const AtomicString& InterfaceName() const override;

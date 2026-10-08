@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.net.xpc.NativeMessagingTransportTest');
 goog.setTestOnly();
@@ -40,14 +48,13 @@ function checkSignalConnected(
       oneSidedHandshake /* opt_oneSidedHandshake */, 2 /* protocolVerion */);
   let sentPayloads = [];
   transport.send = (service, payload) => {
-    assertEquals(netXpc.TRANSPORT_SERVICE, service);
+    assertEquals(netXpc.TRANSPORT_SERVICE_, service);
     sentPayloads.push(payload);
   };
   function assertSent(payloads) {
     assertArrayEquals(payloads, sentPayloads);
     sentPayloads = [];
   }
-  /** @suppress {visibility} suppression added to enable type checking */
   const endpointId = transport.endpointId_;
   const peerEndpointId1 = 'abc123';
   const peerEndpointId2 = 'def234';
@@ -106,7 +113,6 @@ function createMockEvent(origin, data) {
   return event;
 }
 
-/** @suppress {checkTypes} suppression added to enable type checking */
 function getTestChannel(domHelper = undefined) {
   const cfg = {};
   cfg[CfgFields.CHANNEL_NAME] = 'test_channel';
@@ -118,12 +124,10 @@ function getTestChannel(domHelper = undefined) {
 
 testSuite({
   tearDown() {
-    /** @suppress {visibility} suppression added to enable type checking */
     NativeMessagingTransport.activeCount_ = {};
     events.removeAll(window.postMessage ? window : document, 'message');
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConstructor() {
     const xpc = getTestChannel();
 
@@ -132,7 +136,6 @@ testSuite({
         false /* opt_oneSidedHandshake */, 2 /* opt_protocolVersion */);
     assertEquals('http://g.com:80', t.peerHostname_);
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     t = new NativeMessagingTransport(
         xpc, null /* peerHostName */, undefined /* opt_domHelper */,
         false /* opt_oneSidedHandshake */, 2 /* opt_protocolVersion */);
@@ -140,7 +143,6 @@ testSuite({
     t.dispose();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConstructorDom() {
     const xpc = getTestChannel();
 
@@ -149,7 +151,6 @@ testSuite({
         false /* opt_oneSidedHandshake */, 2 /* opt_protocolVersion */);
     assertEquals('http://g.com:80', t.peerHostname_);
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t2 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -161,7 +162,6 @@ testSuite({
     const xpc = getTestChannel();
     const listenedObj = window.postMessage ? window : document;
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t0 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -169,7 +169,6 @@ testSuite({
     t0.dispose();
     assertEquals(0, events.removeAll(listenedObj, 'message'));
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t1 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -177,11 +176,9 @@ testSuite({
     t1.dispose();
     assertEquals(0, events.removeAll(listenedObj, 'message'));
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t2 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t3 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -195,7 +192,6 @@ testSuite({
     const xpc = getTestChannel(dom.getDomHelper());
     const listenedObj = window.postMessage ? window : document;
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t0 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -203,7 +199,6 @@ testSuite({
     t0.dispose();
     assertEquals(0, events.removeAll(listenedObj, 'message'));
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t1 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -211,11 +206,9 @@ testSuite({
     t1.dispose();
     assertEquals(0, events.removeAll(listenedObj, 'message'));
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t2 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t3 = new NativeMessagingTransport(
         xpc, null /* peerHostName */, false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -225,10 +218,6 @@ testSuite({
     assertEquals(1, events.removeAll(listenedObj, 'message'));
   },
 
-  /**
-     @suppress {visibility,checkTypes} suppression added to enable type
-     checking
-   */
   testBogusMessages() {
     let e = createMockEvent('origin_unknown', 'bogus_message');
     assertFalse(NativeMessagingTransport.messageReceived_(e));
@@ -240,10 +229,6 @@ testSuite({
     assertFalse(NativeMessagingTransport.messageReceived_(e));
   },
 
-  /**
-     @suppress {visibility,checkTypes} suppression added to enable type
-     checking
-   */
   testSendingMessagesToUnconnectedInnerPeer() {
     const xpc = getTestChannel();
 
@@ -258,7 +243,6 @@ testSuite({
     // Construct an unconnected inner peer.
     xpc.getRole = () => CrossPageChannelRole.INNER;
     xpc.isConnected = () => false;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const t = new NativeMessagingTransport(
         xpc, 'http://g.com', false /* opt_oneSidedHandshake */,
         2 /* opt_protocolVersion */);
@@ -292,22 +276,18 @@ testSuite({
     t.dispose();
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSignalConnected_innerFrame() {
     checkSignalConnected(false /* oneSidedHandshake */, true /* innerFrame */);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSignalConnected_outerFrame() {
     checkSignalConnected(false /* oneSidedHandshake */, false /* innerFrame */);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSignalConnected_singleSided_innerFrame() {
     checkSignalConnected(true /* oneSidedHandshake */, true /* innerFrame */);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSignalConnected_singleSided_outerFrame() {
     checkSignalConnected(true /* oneSidedHandshake */, false /* innerFrame */);
   },

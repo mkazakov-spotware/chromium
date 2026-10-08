@@ -27,15 +27,12 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_GRID_H_
 
 #include <memory>
-
 #include "third_party/blink/renderer/core/layout/grid.h"
 #include "third_party/blink/renderer/core/layout/grid_layout_utils.h"
 #include "third_party/blink/renderer/core/layout/grid_track_sizing_algorithm.h"
 #include "third_party/blink/renderer/core/layout/layout_block.h"
-#include "third_party/blink/renderer/core/layout/ng/grid/layout_ng_grid_interface.h"
 #include "third_party/blink/renderer/core/layout/order_iterator.h"
 #include "third_party/blink/renderer/core/style/grid_positions_resolver.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 
 namespace blink {
 
@@ -55,11 +52,10 @@ struct ContentAlignmentData {
 
 enum GridAxisPosition { kGridAxisStart, kGridAxisEnd, kGridAxisCenter };
 
-class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
+class LayoutGrid final : public LayoutBlock {
  public:
   explicit LayoutGrid(Element*);
   ~LayoutGrid() override;
-  void Trace(Visitor*) const override;
 
   static LayoutGrid* CreateAnonymous(Document*);
   const char* GetName() const override {
@@ -71,21 +67,15 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
 
   void DirtyGrid();
 
-  const LayoutNGGridInterface* ToLayoutNGGridInterface() const final {
-    NOT_DESTROYED();
-    return this;
-  }
+  Vector<LayoutUnit> TrackSizesForComputedStyle(GridTrackSizingDirection) const;
 
-  Vector<LayoutUnit, 1> TrackSizesForComputedStyle(
-      GridTrackSizingDirection) const final;
-
-  Vector<LayoutUnit> ColumnPositions() const final {
+  const Vector<LayoutUnit>& ColumnPositions() const {
     NOT_DESTROYED();
     DCHECK(!grid_->NeedsItemsPlacement());
     return column_positions_;
   }
 
-  Vector<LayoutUnit> RowPositions() const final {
+  const Vector<LayoutUnit>& RowPositions() const {
     NOT_DESTROYED();
     DCHECK(!grid_->NeedsItemsPlacement());
     return row_positions_;
@@ -99,16 +89,13 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
     return grid_->Cell(row, column);
   }
 
-  wtf_size_t AutoRepeatCountForDirection(
-      GridTrackSizingDirection direction) const final {
-    NOT_DESTROYED();
-    return base::checked_cast<wtf_size_t>(grid_->AutoRepeatTracks(direction));
+  size_t AutoRepeatCountForDirection(GridTrackSizingDirection direction) const {
+    return grid_->AutoRepeatTracks(direction);
   }
 
-  wtf_size_t ExplicitGridStartForDirection(
-      GridTrackSizingDirection direction) const final {
-    NOT_DESTROYED();
-    return base::checked_cast<wtf_size_t>(grid_->ExplicitGridStart(direction));
+  size_t ExplicitGridStartForDirection(
+      GridTrackSizingDirection direction) const {
+    return grid_->ExplicitGridStart(direction);
   }
 
   LayoutUnit TranslateRTLCoordinate(LayoutUnit) const;
@@ -120,9 +107,9 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
   // it out how to remove this dependency.
   LayoutUnit GuttersSize(const Grid&,
                          GridTrackSizingDirection,
-                         wtf_size_t start_line,
-                         wtf_size_t span,
-                         absl::optional<LayoutUnit> available_size) const;
+                         size_t start_line,
+                         size_t span,
+                         base::Optional<LayoutUnit> available_size) const;
   bool CachedHasDefiniteLogicalHeight() const;
   bool IsBaselineAlignmentForChild(const LayoutBox& child) const;
   bool IsBaselineAlignmentForChild(const LayoutBox& child, GridAxis) const;
@@ -132,19 +119,19 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
       const LayoutBox& child,
       const ComputedStyle* = nullptr) const;
 
-  LayoutUnit GridGap(GridTrackSizingDirection) const final;
-  LayoutUnit GridItemOffset(GridTrackSizingDirection) const final;
+  LayoutUnit GridGap(GridTrackSizingDirection) const;
+  LayoutUnit GridItemOffset(GridTrackSizingDirection) const;
 
   void UpdateGridAreaLogicalSize(LayoutBox&, LayoutSize) const;
 
   StyleContentAlignmentData ContentAlignment(GridTrackSizingDirection) const;
 
-  wtf_size_t ExplicitGridEndForDirection(GridTrackSizingDirection) const final;
+  size_t ExplicitGridEndForDirection(GridTrackSizingDirection) const;
 
   // Exposed for testing *ONLY*.
   Grid* InternalGrid() const {
     NOT_DESTROYED();
-    return grid_;
+    return grid_.get();
   }
 
  protected:
@@ -179,44 +166,41 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
   bool ExplicitGridDidResize(const ComputedStyle&) const;
   bool NamedGridLinesDefinitionDidChange(const ComputedStyle&) const;
 
-  wtf_size_t ComputeAutoRepeatTracksCount(
+  size_t ComputeAutoRepeatTracksCount(
       GridTrackSizingDirection,
-      absl::optional<LayoutUnit> available_size) const;
-  wtf_size_t ClampAutoRepeatTracks(GridTrackSizingDirection,
-                                   wtf_size_t auto_repeat_tracks) const;
+      base::Optional<LayoutUnit> available_size) const;
+  size_t ClampAutoRepeatTracks(GridTrackSizingDirection,
+                               size_t auto_repeat_tracks) const;
 
   std::unique_ptr<OrderedTrackIndexSet> ComputeEmptyTracksForAutoRepeat(
       Grid&,
       GridTrackSizingDirection) const;
 
-  void PerformGridItemsPreLayout(const GridTrackSizingAlgorithm*) const;
+  void PerformGridItemsPreLayout(const GridTrackSizingAlgorithm&) const;
 
   void PlaceItemsOnGrid(
-      GridTrackSizingAlgorithm*,
-      absl::optional<LayoutUnit> available_logical_width) const;
+      GridTrackSizingAlgorithm&,
+      base::Optional<LayoutUnit> available_logical_width) const;
   void PopulateExplicitGridAndOrderIterator(Grid&) const;
   std::unique_ptr<GridArea> CreateEmptyGridAreaAtSpecifiedPositionsOutsideGrid(
       const Grid&,
       const LayoutBox&,
       GridTrackSizingDirection,
       const GridSpan& specified_positions) const;
-  void PlaceSpecifiedMajorAxisItemsOnGrid(
-      Grid&,
-      const HeapVector<Member<LayoutBox>>&) const;
-  void PlaceAutoMajorAxisItemsOnGrid(
-      Grid&,
-      const HeapVector<Member<LayoutBox>>&) const;
+  void PlaceSpecifiedMajorAxisItemsOnGrid(Grid&,
+                                          const Vector<LayoutBox*>&) const;
+  void PlaceAutoMajorAxisItemsOnGrid(Grid&, const Vector<LayoutBox*>&) const;
   void PlaceAutoMajorAxisItemOnGrid(
       Grid&,
       LayoutBox&,
-      std::pair<wtf_size_t, wtf_size_t>& auto_placement_cursor) const;
+      std::pair<size_t, size_t>& auto_placement_cursor) const;
   GridTrackSizingDirection AutoPlacementMajorAxisDirection() const;
   GridTrackSizingDirection AutoPlacementMinorAxisDirection() const;
 
-  absl::optional<LayoutUnit> OverrideIntrinsicContentLogicalSize(
+  base::Optional<LayoutUnit> OverrideIntrinsicContentLogicalSize(
       GridTrackSizingDirection) const;
 
-  void ComputeTrackSizesForIndefiniteSize(GridTrackSizingAlgorithm*,
+  void ComputeTrackSizesForIndefiniteSize(GridTrackSizingAlgorithm&,
                                           GridTrackSizingDirection) const;
   void ComputeTrackSizesForDefiniteSize(GridTrackSizingDirection,
                                         LayoutUnit free_space);
@@ -315,12 +299,12 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
   LayoutUnit RowAxisBaselineOffsetForChild(const LayoutBox&) const;
 
   LayoutUnit GridGap(GridTrackSizingDirection,
-                     absl::optional<LayoutUnit> available_size) const;
+                     base::Optional<LayoutUnit> available_size) const;
 
   size_t GridItemSpan(const LayoutBox&, GridTrackSizingDirection);
 
-  wtf_size_t NonCollapsedTracks(GridTrackSizingDirection) const;
-  wtf_size_t NumTracks(GridTrackSizingDirection, const Grid&) const;
+  size_t NonCollapsedTracks(GridTrackSizingDirection) const;
+  size_t NumTracks(GridTrackSizingDirection, const Grid&) const;
 
   static LayoutUnit OverrideContainingBlockContentSizeForChild(
       const LayoutBox& child,
@@ -329,33 +313,25 @@ class LayoutGrid final : public LayoutBlock, public LayoutNGGridInterface {
                                                      LineDirectionMode);
   static const StyleContentAlignmentData& ContentAlignmentNormalBehavior();
 
-  bool AspectRatioPrefersInline(const LayoutBox& child,
-                                bool block_flow_is_column_axis);
-
-  Member<Grid> grid_;
-  Member<GridTrackSizingAlgorithm> track_sizing_algorithm_;
+  std::unique_ptr<Grid> grid_;
+  GridTrackSizingAlgorithm track_sizing_algorithm_;
 
   Vector<LayoutUnit> row_positions_;
   Vector<LayoutUnit> column_positions_;
   ContentAlignmentData offset_between_columns_;
   ContentAlignmentData offset_between_rows_;
 
-  typedef HeapHashMap<Member<const LayoutBox>, absl::optional<wtf_size_t>>
+  typedef HashMap<const LayoutBox*, base::Optional<size_t>>
       OutOfFlowPositionsMap;
   OutOfFlowPositionsMap column_of_positioned_item_;
   OutOfFlowPositionsMap row_of_positioned_item_;
 
   bool has_any_orthogonal_item_{false};
   bool baseline_items_cached_{false};
-  absl::optional<bool> has_definite_logical_height_;
+  base::Optional<bool> has_definite_logical_height_;
 };
 
-template <>
-struct DowncastTraits<LayoutGrid> {
-  static bool AllowFrom(const LayoutObject& object) {
-    return object.IsLayoutGrid();
-  }
-};
+DEFINE_LAYOUT_OBJECT_TYPE_CASTS(LayoutGrid, IsLayoutGrid());
 
 }  // namespace blink
 

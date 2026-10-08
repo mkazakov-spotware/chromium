@@ -1,13 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/web_state/policy_decision_state_tracker.h"
 
-#import "base/callback.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
-#import "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/callback.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -28,7 +29,7 @@ class PolicyDecisionStateTrackerTest : public PlatformTest {
   }
 
   PolicyDecisionStateTracker policy_decision_state_tracker_;
-  absl::optional<WebStatePolicyDecider::PolicyDecision> policy_decision_;
+  base::Optional<WebStatePolicyDecider::PolicyDecision> policy_decision_;
 };
 
 // Tests the case where every decision received is to allow the navigation, and
@@ -132,7 +133,7 @@ TEST_F(PolicyDecisionStateTrackerTest, CancelSync) {
   EXPECT_TRUE(policy_decision_->ShouldCancelNavigation());
   EXPECT_FALSE(policy_decision_->ShouldDisplayError());
 
-  // Verify that additional calls into `policy_decision_state_tracker_` do not
+  // Verify that additional calls into |policy_decision_state_tracker_| do not
   // lead to additional calls to its callback, which would crash since the
   // callback is a OnceCallback.
   int num_decisions_requested = 4;
@@ -302,7 +303,7 @@ class PolicyDecisionStateTrackerDestructionTest : public PlatformTest {
   }
 
   std::unique_ptr<PolicyDecisionStateTracker> policy_decision_state_tracker_;
-  absl::optional<WebStatePolicyDecider::PolicyDecision> policy_decision_;
+  base::Optional<WebStatePolicyDecider::PolicyDecision> policy_decision_;
 };
 
 // Tests the case where no decisions have been received by the time the

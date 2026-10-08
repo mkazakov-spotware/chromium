@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,16 @@ MTPDeviceAsyncDelegate::ReadBytesRequest::ReadBytesRequest(
     net::IOBuffer* buf,
     int64_t offset,
     int buf_len,
-    ReadBytesSuccessCallback success_callback,
-    ErrorCallback error_callback)
+    const ReadBytesSuccessCallback& success_callback,
+    const ErrorCallback& error_callback)
     : file_id(file_id),
       buf(buf),
       offset(offset),
       buf_len(buf_len),
-      success_callback(std::move(success_callback)),
-      error_callback(std::move(error_callback)) {}
+      success_callback(success_callback),
+      error_callback(error_callback) {}
 
 MTPDeviceAsyncDelegate::ReadBytesRequest::ReadBytesRequest(
-    ReadBytesRequest&& other) = default;
+    const ReadBytesRequest& other) = default;
 
-MTPDeviceAsyncDelegate::ReadBytesRequest::~ReadBytesRequest() = default;
+MTPDeviceAsyncDelegate::ReadBytesRequest::~ReadBytesRequest() {}

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/i18n/case_conversion.h"
 #include "base/memory/singleton.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/autofill/core/browser/grit/autofill_address_rewriter_resources_map.h"
 #include "third_party/re2/src/re2/re2.h"
@@ -36,8 +35,8 @@ static bool ExtractRegionRulesData(const std::string& region,
   int resource_id = 0;
   std::string resource_key = GetMapKey(region);
   for (size_t i = 0; i < kAutofillAddressRewriterResourcesSize; ++i) {
-    if (kAutofillAddressRewriterResources[i].path == resource_key) {
-      resource_id = kAutofillAddressRewriterResources[i].id;
+    if (kAutofillAddressRewriterResources[i].name == resource_key) {
+      resource_id = kAutofillAddressRewriterResources[i].value;
       break;
     }
   }
@@ -69,7 +68,7 @@ void CompileRulesFromData(const std::string& data_string,
     data.remove_prefix(token_end + 1);
 
     token_end = data.find('\n');
-    std::string rewrite_string(data.substr(0, token_end));
+    std::string rewrite_string = data.substr(0, token_end).as_string();
     compiled_rules->emplace_back(std::move(pattern), std::move(rewrite_string));
     data.remove_prefix(token_end + 1);
   }
@@ -82,9 +81,6 @@ class Cache {
  public:
   // Return the singleton instance of the cache.
   static Cache* GetInstance() { return base::Singleton<Cache>::get(); }
-
-  Cache(const Cache&) = delete;
-  Cache& operator=(const Cache&) = delete;
 
   // If the rules for |region| have already been compiled and cached, return a
   // pointer to them. Otherwise, find the rules for |region| (returning nullptr
@@ -138,12 +134,13 @@ class Cache {
   CompiledRuleCache data_;
 
   friend struct base::DefaultSingletonTraits<Cache>;
+  DISALLOW_COPY_AND_ASSIGN(Cache);
 };
 
 }  // namespace
 
 AddressRewriter AddressRewriter::ForCountryCode(
-    const std::u16string& country_code) {
+    const base::string16& country_code) {
   const std::string region =
       base::UTF16ToUTF8(base::i18n::ToUpper(country_code));
   const CompiledRuleVector* rules =
@@ -162,7 +159,7 @@ AddressRewriter AddressRewriter::ForCustomRules(
   return rewriter;
 }
 
-std::u16string AddressRewriter::Rewrite(const std::u16string& text) const {
+base::string16 AddressRewriter::Rewrite(const base::string16& text) const {
   if (impl_ == nullptr)
     return base::CollapseWhitespace(text, true);
 

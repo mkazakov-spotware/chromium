@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,6 @@ void GetKeyEquivalentAndModifierMaskFromAccelerator(
     cocoa_modifiers |= NSEventModifierFlagOption;
   if (accelerator.IsCmdDown())
     cocoa_modifiers |= NSEventModifierFlagCommand;
-  if (accelerator.IsFunctionDown())
-    cocoa_modifiers |= NSEventModifierFlagFunction;
 
   unichar shifted_character;
   unichar character;

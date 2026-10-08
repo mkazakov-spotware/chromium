@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "services/service_manager/public/cpp/binder_registry.h"
@@ -25,10 +26,6 @@ class AppClient : public Service,
  public:
   explicit AppClient(
       mojo::PendingReceiver<service_manager::mojom::Service> receiver);
-
-  AppClient(const AppClient&) = delete;
-  AppClient& operator=(const AppClient&) = delete;
-
   ~AppClient() override;
 
   // Service:
@@ -51,6 +48,8 @@ class AppClient : public Service,
   ServiceReceiver service_receiver_;
   BinderRegistry registry_;
   mojo::ReceiverSet<mojom::LifecycleControl> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppClient);
 };
 
 }  // namespace test

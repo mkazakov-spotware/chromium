@@ -1,9 +1,9 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SANDBOX_WIN_SRC_POLICY_LOW_LEVEL_H_
-#define SANDBOX_WIN_SRC_POLICY_LOW_LEVEL_H_
+#ifndef SANDBOX_SRC_POLICY_LOW_LEVEL_H__
+#define SANDBOX_SRC_POLICY_LOW_LEVEL_H__
 
 #include <stddef.h>
 #include <stdint.h>
@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "sandbox/win/src/ipc_tags.h"
 #include "sandbox/win/src/policy_engine_opcodes.h"
 #include "sandbox/win/src/policy_engine_params.h"
@@ -79,14 +79,9 @@ class PolicyRule;
 // Provides the means to collect rules into a policy store (memory)
 class LowLevelPolicy {
  public:
-  LowLevelPolicy() = delete;
-
   // policy_store: must contain allocated memory and the internal
   // size fields set to correct values.
   explicit LowLevelPolicy(PolicyGlobal* policy_store);
-
-  LowLevelPolicy(const LowLevelPolicy&) = delete;
-  LowLevelPolicy& operator=(const LowLevelPolicy&) = delete;
 
   // Destroys all the policy rules.
   ~LowLevelPolicy();
@@ -103,11 +98,12 @@ class LowLevelPolicy {
 
  private:
   struct RuleNode {
-    raw_ptr<const PolicyRule> rule;
+    const PolicyRule* rule;
     IpcTag service;
   };
   std::list<RuleNode> rules_;
-  raw_ptr<PolicyGlobal> policy_store_;
+  PolicyGlobal* policy_store_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(LowLevelPolicy);
 };
 
 // There are 'if' rules and 'if not' comparisons
@@ -140,7 +136,7 @@ class PolicyRule {
   // string: is the desired matching pattern.
   // match_opts: if the pattern matching is case sensitive or not.
   bool AddStringMatch(RuleType rule_type,
-                      uint8_t parameter,
+                      int16_t parameter,
                       const wchar_t* string,
                       StringMatchOptions match_opts);
 
@@ -150,7 +146,7 @@ class PolicyRule {
   // number: the value to compare the input to.
   // comparison_op: the comparison kind (equal, logical and, etc).
   bool AddNumberMatch(RuleType rule_type,
-                      uint8_t parameter,
+                      int16_t parameter,
                       uint32_t number,
                       RuleOp comparison_op);
 
@@ -168,7 +164,7 @@ class PolicyRule {
   // in AddStringMatch.
   bool GenStringOpcode(RuleType rule_type,
                        StringMatchOptions match_opts,
-                       uint8_t parameter,
+                       uint16_t parameter,
                        int state,
                        bool last_call,
                        int* skip_count,
@@ -182,12 +178,12 @@ class PolicyRule {
                   size_t opcode_size,
                   char* data_start,
                   size_t* data_size) const;
-  raw_ptr<PolicyBuffer> buffer_;
-  raw_ptr<OpcodeFactory> opcode_factory_;
+  PolicyBuffer* buffer_;
+  OpcodeFactory* opcode_factory_;
   EvalResult action_;
   bool done_;
 };
 
 }  // namespace sandbox
 
-#endif  // SANDBOX_WIN_SRC_POLICY_LOW_LEVEL_H_
+#endif  // SANDBOX_SRC_POLICY_LOW_LEVEL_H__

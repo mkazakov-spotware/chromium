@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_PUBLIC_BROWSER_RENDER_PROCESS_HOST_CREATION_OBSERVER_H_
 #define CONTENT_PUBLIC_BROWSER_RENDER_PROCESS_HOST_CREATION_OBSERVER_H_
 
+#include "base/macros.h"
 #include "content/common/content_export.h"
 
 namespace content {
@@ -15,11 +16,6 @@ class RenderProcessHost;
 // This can only be used on the UI thread.
 class CONTENT_EXPORT RenderProcessHostCreationObserver {
  public:
-  RenderProcessHostCreationObserver(const RenderProcessHostCreationObserver&) =
-      delete;
-  RenderProcessHostCreationObserver& operator=(
-      const RenderProcessHostCreationObserver&) = delete;
-
   virtual ~RenderProcessHostCreationObserver();
 
   // This method is invoked when the process was successfully launched. Note
@@ -28,6 +24,9 @@ class CONTENT_EXPORT RenderProcessHostCreationObserver {
 
  protected:
   RenderProcessHostCreationObserver();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(RenderProcessHostCreationObserver);
 };
 
 }  // namespace content

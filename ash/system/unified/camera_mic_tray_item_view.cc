@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/unified/camera_mic_tray_item_view.h"
-
 #include <algorithm>
-#include <string>
 
 #include "ash/public/cpp/media_controller.h"
 #include "ash/public/cpp/vm_camera_mic_constants.h"
@@ -16,7 +14,9 @@
 #include "ash/system/model/system_tray_model.h"
 #include "ash/system/tray/tray_constants.h"
 #include "base/feature_list.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/paint_vector_icon.h"
@@ -58,17 +58,16 @@ CameraMicTrayItemView::~CameraMicTrayItemView() {
   shell->session_controller()->RemoveObserver(this);
 }
 
-void CameraMicTrayItemView::OnVmMediaNotificationChanged(bool camera,
-                                                         bool mic,
-                                                         bool camera_and_mic) {
+void CameraMicTrayItemView::OnVmMediaCaptureChanged(
+    MediaCaptureState capture_state) {
   switch (type_) {
     case Type::kCamera:
-      active_ = camera || camera_and_mic;
-      with_mic_ = camera_and_mic;
-      FetchMessage();
+      active_ = (capture_state == MediaCaptureState::kVideo ||
+                 capture_state == MediaCaptureState::kAudioVideo);
       break;
     case Type::kMic:
-      active_ = mic;
+      active_ = (capture_state == MediaCaptureState::kAudio ||
+                 capture_state == MediaCaptureState::kAudioVideo);
       break;
   }
   Update();
@@ -81,10 +80,12 @@ const char* CameraMicTrayItemView::GetClassName() const {
 void CameraMicTrayItemView::Update() {
   // Hide for non-primary session because we only show the indicators for VMs
   // for now, and VMs support only the primary session.
-  SetVisible(active_ && is_primary_session_);
+  SetVisible(active_ && is_primary_session_ &&
+             base::FeatureList::IsEnabled(
+                 chromeos::features::kVmCameraMicIndicatorsAndNotifications));
 }
 
-std::u16string CameraMicTrayItemView::GetAccessibleNameString() const {
+base::string16 CameraMicTrayItemView::GetAccessibleNameString() const {
   return message_;
 }
 
@@ -93,7 +94,7 @@ views::View* CameraMicTrayItemView::GetTooltipHandlerForPoint(
   return GetLocalBounds().Contains(point) ? this : nullptr;
 }
 
-std::u16string CameraMicTrayItemView::GetTooltipText(
+base::string16 CameraMicTrayItemView::GetTooltipText(
     const gfx::Point& p) const {
   return message_;
 }
@@ -111,9 +112,7 @@ void CameraMicTrayItemView::HandleLocaleChange() {
 void CameraMicTrayItemView::FetchMessage() {
   switch (type_) {
     case Type::kCamera:
-      message_ = l10n_util::GetStringUTF16(
-          with_mic_ ? IDS_ASH_CAMERA_MIC_VM_USING_CAMERA_AND_MIC
-                    : IDS_ASH_CAMERA_MIC_VM_USING_CAMERA);
+      message_ = l10n_util::GetStringUTF16(IDS_ASH_CAMERA_MIC_VM_USING_CAMERA);
       break;
     case Type::kMic:
       message_ = l10n_util::GetStringUTF16(IDS_ASH_CAMERA_MIC_VM_USING_MIC);

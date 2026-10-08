@@ -26,16 +26,11 @@
 
 #include "third_party/blink/renderer/core/accessibility/ax_object_cache.h"
 #include "third_party/blink/renderer/core/css/selector_checker.h"
-#include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/dom/events/event_dispatch_forbidden_scope.h"
-#include "third_party/blink/renderer/core/event_type_names.h"
-#include "third_party/blink/renderer/core/events/keyboard_event.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/html/forms/html_form_element.h"
-#include "third_party/blink/renderer/core/html/forms/listed_element.h"
 #include "third_party/blink/renderer/core/html/forms/validity_state.h"
 #include "third_party/blink/renderer/core/html/parser/html_parser_idioms.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
@@ -52,7 +47,7 @@ HTMLFormControlElement::HTMLFormControlElement(const QualifiedName& tag_name,
       autofill_state_(WebAutofillState::kNotFilled),
       blocks_form_submission_(false) {
   SetHasCustomStyleCallbacks();
-  static uint64_t next_free_unique_id = 1;
+  static unsigned next_free_unique_id = 0;
   unique_renderer_form_control_id_ = next_free_unique_id++;
 }
 
@@ -65,7 +60,7 @@ void HTMLFormControlElement::Trace(Visitor* visitor) const {
 
 String HTMLFormControlElement::formAction() const {
   const AtomicString& action = FastGetAttribute(html_names::kFormactionAttr);
-  if (action.empty()) {
+  if (action.IsEmpty()) {
     return GetDocument().Url();
   }
   return GetDocument().CompleteURL(StripLeadingAndTrailingHTMLSpaces(action));
@@ -129,7 +124,7 @@ void HTMLFormControlElement::ParseAttribute(
     UseCounter::Count(GetDocument(), WebFeature::kFormAttribute);
   } else if (name == html_names::kReadonlyAttr) {
     if (params.old_value.IsNull() != params.new_value.IsNull()) {
-      ReadonlyAttributeChanged();
+      UpdateWillValidateCache();
       PseudoStateChanged(CSSSelector::kPseudoReadOnly);
       PseudoStateChanged(CSSSelector::kPseudoReadWrite);
       InvalidateIfHasEffectiveAppearance();
@@ -184,19 +179,6 @@ void HTMLFormControlElement::SetAutofillState(WebAutofillState autofill_state) {
 
   autofill_state_ = autofill_state;
   PseudoStateChanged(CSSSelector::kPseudoAutofill);
-  PseudoStateChanged(CSSSelector::kPseudoWebKitAutofill);
-  PseudoStateChanged(CSSSelector::kPseudoAutofillSelected);
-  PseudoStateChanged(CSSSelector::kPseudoAutofillPreviewed);
-}
-
-void HTMLFormControlElement::SetPreventHighlightingOfAutofilledFields(
-    bool prevent_highlighting) {
-  if (prevent_highlighting == prevent_highlighting_of_autofilled_fields_)
-    return;
-
-  prevent_highlighting_of_autofilled_fields_ = prevent_highlighting;
-  PseudoStateChanged(CSSSelector::kPseudoAutofill);
-  PseudoStateChanged(CSSSelector::kPseudoWebKitAutofill);
   PseudoStateChanged(CSSSelector::kPseudoAutofillSelected);
   PseudoStateChanged(CSSSelector::kPseudoAutofillPreviewed);
 }
@@ -205,19 +187,8 @@ void HTMLFormControlElement::SetAutofillSection(const WebString& section) {
   autofill_section_ = section;
 }
 
-bool HTMLFormControlElement::IsAutocompleteEmailUrlOrPassword() const {
-  DEFINE_STATIC_LOCAL(HashSet<AtomicString>, values,
-                      ({"username", "new-password", "current-password", "url",
-                        "email", "impp"}));
-  const AtomicString& autocomplete =
-      FastGetAttribute(html_names::kAutocompleteAttr);
-  if (autocomplete.IsNull())
-    return false;
-  return values.Contains(autocomplete.LowerASCII());
-}
-
 const AtomicString& HTMLFormControlElement::autocapitalize() const {
-  if (!FastGetAttribute(html_names::kAutocapitalizeAttr).empty())
+  if (!FastGetAttribute(html_names::kAutocapitalizeAttr).IsEmpty())
     return HTMLElement::autocapitalize();
 
   // If the form control itself does not have the autocapitalize attribute set,
@@ -293,7 +264,7 @@ bool HTMLFormControlElement::IsKeyboardFocusable() const {
     return HTMLElement::IsKeyboardFocusable();
 
   // Skip tabIndex check in a parent class.
-  return IsBaseElementFocusable();
+  return IsFocusable();
 }
 
 bool HTMLFormControlElement::MayTriggerVirtualKeyboard() const {
@@ -320,100 +291,6 @@ bool HTMLFormControlElement::IsSuccessfulSubmitButton() const {
   return CanBeSuccessfulSubmitButton() && !IsDisabledFormControl();
 }
 
-// The element is returned if a) that element exists, b) it is a valid Popover
-// element, and c) this form control supports popover triggering. If multiple
-// toggle attributes are present:
-//  1. Only one idref will ever be used, if multiple attributes are present.
-//  2. If 'popovertoggletarget' is present, its IDREF will be used.
-//  3. If 'popovershowtarget' is present and 'popovertoggletarget' isn't present
-//     or its value doesn't match that of popovershowtarget, only
-//     popovershowtarget will be used.
-//  4. If both 'popovershowtarget' and 'popoverhidetarget' are present and their
-//     values match, the behavior is to toggle.
-HTMLFormControlElement::PopoverTargetElement
-HTMLFormControlElement::popoverTargetElement() const {
-  const PopoverTargetElement no_element{.element = nullptr,
-                                        .action = PopoverTriggerAction::kNone,
-                                        .attribute_name = g_null_name};
-  if (!RuntimeEnabledFeatures::HTMLPopoverAttributeEnabled(
-          GetDocument().GetExecutionContext()) ||
-      !IsInTreeScope() ||
-      SupportsPopoverTriggering() == PopoverTriggerSupport::kNone) {
-    return no_element;
-  }
-
-  AtomicString idref;
-  QualifiedName attribute_name = html_names::kPopovertoggletargetAttr;
-  PopoverTriggerAction action = PopoverTriggerAction::kToggle;
-  if (FastHasAttribute(html_names::kPopovertoggletargetAttr)) {
-    idref = FastGetAttribute(html_names::kPopovertoggletargetAttr);
-  } else if (FastHasAttribute(html_names::kPopovershowtargetAttr)) {
-    idref = FastGetAttribute(html_names::kPopovershowtargetAttr);
-    action = PopoverTriggerAction::kShow;
-    attribute_name = html_names::kPopovershowtargetAttr;
-  }
-  if (FastHasAttribute(html_names::kPopoverhidetargetAttr)) {
-    if (idref.IsNull()) {
-      idref = FastGetAttribute(html_names::kPopoverhidetargetAttr);
-      action = PopoverTriggerAction::kHide;
-      attribute_name = html_names::kPopoverhidetargetAttr;
-    } else if (FastGetAttribute(html_names::kPopoverhidetargetAttr) == idref) {
-      action = PopoverTriggerAction::kToggle;
-      // Leave attribute_name as-is in this case.
-    }
-  }
-  if (idref.IsNull())
-    return no_element;
-  HTMLElement* popover_element =
-      DynamicTo<HTMLElement>(GetTreeScope().getElementById(idref));
-  if (!popover_element || !popover_element->HasPopoverAttribute())
-    return no_element;
-  return PopoverTargetElement{.element = popover_element,
-                              .action = action,
-                              .attribute_name = attribute_name};
-}
-
-void HTMLFormControlElement::DefaultEventHandler(Event& event) {
-  if (!IsDisabledFormControl()) {
-    auto popover = popoverTargetElement();
-    if (popover.element) {
-      auto trigger_support = SupportsPopoverTriggering();
-      DCHECK_NE(popover.action, PopoverTriggerAction::kNone);
-      DCHECK_NE(trigger_support, PopoverTriggerSupport::kNone);
-      // Note that the order is: `mousedown` which runs popover light dismiss
-      // code, then (for clicked elements) focus is set to the clicked
-      // element, then |DOMActivate| runs here. Also note that the light
-      // dismiss code will not hide popovers when an activating element is
-      // clicked. Taking that together, if the clicked control is a triggering
-      // element for a popover, light dismiss will do nothing, focus will be set
-      // to the triggering element, then this code will run and will set focus
-      // to the previously focused element. If instead the clicked control is
-      // not a triggering element, then the light dismiss code will hide the
-      // popover and set focus to the previously focused element, then the
-      // normal focus management code will reset focus to the clicked control.
-      bool can_show =
-          popover.element->IsPopoverReady(PopoverTriggerAction::kShow) &&
-          (popover.action == PopoverTriggerAction::kToggle ||
-           popover.action == PopoverTriggerAction::kShow);
-      bool can_hide =
-          popover.element->IsPopoverReady(PopoverTriggerAction::kHide) &&
-          (popover.action == PopoverTriggerAction::kToggle ||
-           popover.action == PopoverTriggerAction::kHide);
-      if (event.type() == event_type_names::kDOMActivate &&
-          (!Form() || !IsSuccessfulSubmitButton())) {
-        if (can_hide) {
-          popover.element->HidePopoverInternal(
-              HidePopoverFocusBehavior::kFocusPreviousElement,
-              HidePopoverForcingLevel::kHideAfterAnimations);
-        } else if (can_show) {
-          popover.element->InvokePopover(this);
-        }
-      }
-    }
-  }
-  HTMLElement::DefaultEventHandler(event);
-}
-
 // static
 const HTMLFormControlElement*
 HTMLFormControlElement::EnclosingFormControlElement(const Node* node) {
@@ -425,7 +302,7 @@ HTMLFormControlElement::EnclosingFormControlElement(const Node* node) {
 String HTMLFormControlElement::NameForAutofill() const {
   String full_name = GetName();
   String trimmed_name = full_name.StripWhiteSpace();
-  if (!trimmed_name.empty())
+  if (!trimmed_name.IsEmpty())
     return trimmed_name;
   full_name = GetIdAttribute();
   trimmed_name = full_name.StripWhiteSpace();
@@ -448,18 +325,10 @@ int32_t HTMLFormControlElement::GetAxId() const {
   if (!document.IsActive() || !document.View())
     return 0;
   if (AXObjectCache* cache = document.ExistingAXObjectCache()) {
-    LocalFrameView* local_frame_view = document.View();
-    if (local_frame_view->IsUpdatingLifecycle()) {
-      // Autofill (the caller of this code) can end up making calls to get AXIDs
-      // of form elements during, e.g. resize observer callbacks, which are
-      // in the middle up updating the document lifecycle. In these cases, just
-      // return the existing AXID of the element.
-      return cache->GetExistingAXID(const_cast<HTMLFormControlElement*>(this));
-    }
-
     if (document.NeedsLayoutTreeUpdate() || document.View()->NeedsLayout() ||
-        document.Lifecycle().GetState() < DocumentLifecycle::kPrePaintClean) {
-      document.View()->UpdateAllLifecyclePhasesExceptPaint(
+        document.Lifecycle().GetState() <
+            DocumentLifecycle::kCompositingAssignmentsClean) {
+      document.View()->UpdateLifecycleToCompositingCleanPlusScrolling(
           DocumentUpdateReason::kAccessibility);
     }
     return cache->GetAXID(const_cast<HTMLFormControlElement*>(this));

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,8 @@
 namespace re2 {
 class RE2;
 }  // namespace re2
+
+using autofill::structured_address::AddressComponent;
 
 namespace autofill {
 namespace structured_address {
@@ -45,13 +47,13 @@ class NameMiddle : public AddressComponent {
   // type.
   bool ConvertAndGetTheValueForAdditionalFieldTypeName(
       const std::string& type_name,
-      std::u16string* value) const override;
+      base::string16* value) const override;
 
   // Implements support for setting the |MIDDLE_NAME_INITIAL| type.
   bool ConvertAndSetValueForAdditionalFieldTypeName(
       const std::string& type_name,
-      const std::u16string& value,
-      const structured_address::VerificationStatus& status) override;
+      const base::string16& value,
+      const VerificationStatus& status) override;
 };
 
 // Atomic component that represents the first part of a last name.
@@ -112,22 +114,23 @@ class NameLast : public AddressComponent {
 // Compound that represents a full name. It contains a honorific, a first
 // name, a middle name and a last name. The last name is a compound itself.
 //
-//                     +------------+
-//                     | NAME_FULL  |
-//                     +------------+
-//                    /       |      \
-//                   /        |       \
-//                  /         |        \
-//    +------------+  +-------------+   +-----------+
-//    | NAME_FIRST |  | NAME_MIDDLE |   | NAME_LAST |
-//    +------------+  +-------------+   +-----------+
-//                                     /      |      \
+//                     +----------+
+//                     | NAME_FULL|
+//                     +----------+
+//                    /  |      |  \
+//                  /    |      |    \
+//                /      |      |      \
+//              /        |      |        \
+// +------------+ +--------+ +---------+ +-------+
+// | _HONORIFIC | | _FIRST | | _MIDDLE | | _LAST |
+// +------------+ +--------+ +---------+ +-------+
+//                                        /   |   \
+//                                      /     |     \
 //                                    /       |       \
-//                                   /        |        \
 //                                  /         |         \
-//                          +--------+ +--------------+ +---------+
-//                          | _FIRST | | _CONJUNCTION | | _SECOND |
-//                          +--------+ +--------------+ +---------+
+//                         +--------+ +-----------+ +---------+
+//                         | _FIRST | | _CONJUNC. | | _SECOND |
+//                         +--------+ +-----------+ +---------+
 //
 class NameFull : public AddressComponent {
  public:
@@ -136,69 +139,23 @@ class NameFull : public AddressComponent {
   NameFull(const NameFull& other);
   ~NameFull() override;
 
-  void MigrateLegacyStructure(bool is_verified_profile) override;
+  // Migrates from a legacy structure in which name tokens are imported without
+  // a status.
+  void MigrateLegacyStructure(bool is_verified_profile);
 
  protected:
   std::vector<const re2::RE2*> GetParseRegularExpressionsByRelevance()
       const override;
 
   // Returns the format string to create the full name from its subcomponents.
-  std::u16string GetBestFormatString() const override;
+  base::string16 GetBestFormatString() const override;
 
  private:
+  // TODO(crbug.com/1113617): Honorifics are temporally disabled.
+  // NameHonorific name_honorific_;
   NameFirst name_first_{this};
   NameMiddle name_middle_{this};
   NameLast name_last_{this};
-};
-
-// Atomic component that represents a honorific prefix.
-class NameHonorificPrefix : public AddressComponent {
- public:
-  explicit NameHonorificPrefix(AddressComponent* parent);
-  ~NameHonorificPrefix() override;
-};
-
-// Compound that represent a full name and a honorific prefix.
-//
-//             +-----------------------+
-//             | NAME_FULL_WITH_PREFIX |
-//             +-----------------------+
-//                   /            \
-//                  /              \
-//                 /                \
-//                /                  \
-//   +-------------------+      +------------+
-//   | HONORIFIC_PREFIX  |      | NAME_FULL  |
-//   +-------------------+      +------------+
-//                             /       |      \
-//                            /        |       \
-//                           /         |        \
-//             +------------+  +-------------+   +-----------+
-//             | NAME_FIRST |  | NAME_MIDDLE |   | NAME_LAST |
-//             +------------+  +-------------+   +-----------+
-//                                              /      |      \
-//                                             /       |       \
-//                                            /        |        \
-//                                           /         |         \
-//                                   +--------+ +--------------+ +---------+
-//                                   | _FIRST | | _CONJUNCTION | | _SECOND |
-//                                   +--------+ +--------------+ +---------+
-//
-class NameFullWithPrefix : public AddressComponent {
- public:
-  NameFullWithPrefix();
-  explicit NameFullWithPrefix(AddressComponent* parent);
-  NameFullWithPrefix(const NameFullWithPrefix& other);
-  ~NameFullWithPrefix() override;
-
-  void MigrateLegacyStructure(bool is_verified_profile) override;
-
- protected:
-  std::vector<const re2::RE2*> GetParseRegularExpressionsByRelevance()
-      const override;
-
-  NameHonorificPrefix honorific_prefix_{this};
-  NameFull name_full_{this};
 };
 
 }  // namespace structured_address

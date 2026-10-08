@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 #define COMPONENTS_GCM_DRIVER_FAKE_GCM_DRIVER_H_
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/gcm_driver/gcm_driver.h"
 
 namespace base {
-class FilePath;
 class SequencedTaskRunner;
 }
 
@@ -19,12 +19,8 @@ namespace gcm {
 class FakeGCMDriver : public GCMDriver {
  public:
   FakeGCMDriver();
-  FakeGCMDriver(
-      const base::FilePath& store_path,
+  explicit FakeGCMDriver(
       const scoped_refptr<base::SequencedTaskRunner>& blocking_task_runner);
-
-  FakeGCMDriver(const FakeGCMDriver&) = delete;
-  FakeGCMDriver& operator=(const FakeGCMDriver&) = delete;
 
   ~FakeGCMDriver() override;
 
@@ -50,6 +46,7 @@ class FakeGCMDriver : public GCMDriver {
   void RemoveAccountMapping(const CoreAccountId& account_id) override;
   base::Time GetLastTokenFetchTime() override;
   void SetLastTokenFetchTime(const base::Time& time) override;
+  void WakeFromSuspendForHeartbeat(bool wake) override;
   InstanceIDHandler* GetInstanceIDHandlerInternal() override;
   void AddHeartbeatInterval(const std::string& scope, int interval_ms) override;
   void RemoveHeartbeatInterval(const std::string& scope) override;
@@ -66,6 +63,9 @@ class FakeGCMDriver : public GCMDriver {
                 const OutgoingMessage& message) override;
   void RecordDecryptionFailure(const std::string& app_id,
                                GCMDecryptionResult result) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakeGCMDriver);
 };
 
 }  // namespace gcm

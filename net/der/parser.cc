@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,15 @@
 #include "base/check.h"
 #include "net/der/parse_values.h"
 
-namespace net::der {
+namespace net {
 
-Parser::Parser() {
+namespace der {
+
+Parser::Parser() : advance_len_(0) {
   CBS_init(&cbs_, nullptr, 0);
 }
 
-Parser::Parser(const Input& input) {
+Parser::Parser(const Input& input) : advance_len_(0) {
   CBS_init(&cbs_, input.UnsafeData(), input.Length());
 }
 
@@ -59,9 +61,9 @@ bool Parser::ReadTagAndValue(Tag* tag, Input* out) {
   return true;
 }
 
-bool Parser::ReadOptionalTag(Tag tag, absl::optional<Input>* out) {
+bool Parser::ReadOptionalTag(Tag tag, base::Optional<Input>* out) {
   if (!HasMore()) {
-    *out = absl::nullopt;
+    *out = base::nullopt;
     return true;
   }
   Tag actual_tag;
@@ -74,13 +76,13 @@ bool Parser::ReadOptionalTag(Tag tag, absl::optional<Input>* out) {
     *out = value;
   } else {
     advance_len_ = 0;
-    *out = absl::nullopt;
+    *out = base::nullopt;
   }
   return true;
 }
 
 bool Parser::ReadOptionalTag(Tag tag, Input* out, bool* present) {
-  absl::optional<Input> tmp_out;
+  base::Optional<Input> tmp_out;
   if (!ReadOptionalTag(tag, &tmp_out))
     return false;
   *present = tmp_out.has_value();
@@ -139,11 +141,11 @@ bool Parser::ReadUint64(uint64_t* out) {
   return ParseUint64(encoded_int, out);
 }
 
-absl::optional<BitString> Parser::ReadBitString() {
+bool Parser::ReadBitString(BitString* bit_string) {
   Input value;
   if (!ReadTag(kBitString, &value))
-    return absl::nullopt;
-  return ParseBitString(value);
+    return false;
+  return ParseBitString(value, bit_string);
 }
 
 bool Parser::ReadGeneralizedTime(GeneralizedTime* out) {
@@ -153,4 +155,6 @@ bool Parser::ReadGeneralizedTime(GeneralizedTime* out) {
   return ParseGeneralizedTime(value, out);
 }
 
-}  // namespace net::der
+}  // namespace der
+
+}  // namespace net

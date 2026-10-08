@@ -1,13 +1,11 @@
 #!/usr/bin/env python
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Given a binary, uses dpkg-shlibdeps to check that its package dependencies
 are satisfiable on all supported debian-based distros.
 """
-
-from __future__ import print_function
 
 import argparse
 import json
@@ -57,17 +55,17 @@ elif arch == 'mips64el':
   cmd.extend(['-l%s/usr/lib/mips64el-linux-gnuabi64' % sysroot,
               '-l%s/lib/mips64el-linux-gnuabi64' % sysroot])
 else:
-  print('Unsupported architecture ' + arch)
+  print 'Unsupported architecture ' + arch
   sys.exit(1)
 cmd.extend(['-l%s/usr/lib' % sysroot, '-O', '-e', binary])
 
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                        cwd=sysroot, encoding='utf-8')
+                        cwd=sysroot)
 (stdout, stderr) = proc.communicate()
 exit_code = proc.wait()
 if exit_code != 0:
-  print('dpkg-shlibdeps failed with exit code %d' % exit_code)
-  print('stderr was:\n%s' % stderr)
+  print 'dpkg-shlibdeps failed with exit code ' + str(exit_code)
+  print 'stderr was ' + stderr
   sys.exit(1)
 
 SHLIBS_DEPENDS_PREFIX = 'shlibs:Depends='
@@ -79,23 +77,7 @@ deps = deps_str.split(', ')
 interval_sets = []
 if deps_str != '':
   for dep in deps:
-    interval_set = package_version_interval.parse_interval_set(dep)
-    # Chrome depends on libgcc_s, is from the package libgcc1.  However, in
-    # Bullseye, the package was renamed to libgcc-s1.  To avoid adding a dep
-    # on the newer package, this hack skips the dep.  This is safe because
-    # libgcc-s1 is a dependency of libc6.  This hack can be removed once
-    # support for Debian Buster and Ubuntu Bionic are dropped.
-    if interval_set.intervals[0].package == 'libgcc-s1':
-      assert len(interval_set.intervals) == 1
-      interval = interval_set.intervals[0]
-      # Ensure there's not a maximum version.
-      assert interval.end == (
-          package_version_interval.PackageVersionIntervalEndpoint(
-              True, None, None))
-      # The GCC version in Ubuntu Trusty is 4.8, so use that as the minimum.
-      assert interval.contains(deb_version.DebVersion('4.8'))
-      continue
-    interval_sets.append(interval_set)
+    interval_sets.append(package_version_interval.parse_interval_set(dep))
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 deps_file = os.path.join(script_dir, 'dist_package_versions.json')
@@ -116,10 +98,9 @@ if distro_check:
           dep_satisfiable = True
           break
       if not dep_satisfiable:
-        print(
+        print >> sys.stderr, (
             'Dependency %s not satisfiable on distro %s caused by binary %s' % (
-                interval_set.formatted(), distro, os.path.basename(binary)),
-            file=sys.stderr)
+                interval_set.formatted(), distro, os.path.basename(binary)))
         ret_code = 1
 if ret_code == 0:
   with open(dep_filename, 'w') as dep_file:

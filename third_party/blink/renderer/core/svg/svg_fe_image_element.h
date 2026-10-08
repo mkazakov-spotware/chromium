@@ -24,8 +24,7 @@
 #include "third_party/blink/renderer/core/loader/resource/image_resource_observer.h"
 #include "third_party/blink/renderer/core/svg/svg_filter_primitive_standard_attributes.h"
 #include "third_party/blink/renderer/core/svg/svg_uri_reference.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -55,7 +54,7 @@ class SVGFEImageElement final : public SVGFilterPrimitiveStandardAttributes,
   void Trace(Visitor*) const override;
 
  private:
-  void SvgAttributeChanged(const SvgAttributeChangedParams&) override;
+  void SvgAttributeChanged(const QualifiedName&) override;
   void ImageNotifyFinished(ImageResourceContent*) override;
   String DebugName() const override { return "SVGFEImageElement"; }
 

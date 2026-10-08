@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/navigation_observer.h"
-
-#include <memory>
 
 #include "base/bind.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -28,7 +26,7 @@ bool g_repeat_prompting = false;
 
 NavigationObserver::NavigationObserver(Profile* profile) : profile_(profile) {
   RegisterForNotifications();
-  extension_registry_observation_.Observe(ExtensionRegistry::Get(profile));
+  extension_registry_observer_.Add(ExtensionRegistry::Get(profile));
 }
 
 NavigationObserver::~NavigationObserver() {}
@@ -101,14 +99,14 @@ void NavigationObserver::PromptToEnableExtensionIfNecessary(
     in_progress_prompt_extension_id_ = extension->id();
     in_progress_prompt_navigation_controller_ = nav_controller;
 
-    extension_install_prompt_ = std::make_unique<ExtensionInstallPrompt>(
-        nav_controller->DeprecatedGetWebContents());
+    extension_install_prompt_.reset(
+        new ExtensionInstallPrompt(nav_controller->GetWebContents()));
     ExtensionInstallPrompt::PromptType type =
         ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(profile_,
                                                                   extension);
     extension_install_prompt_->ShowDialog(
-        base::BindRepeating(&NavigationObserver::OnInstallPromptDone,
-                            weak_factory_.GetWeakPtr()),
+        base::Bind(&NavigationObserver::OnInstallPromptDone,
+                   weak_factory_.GetWeakPtr()),
         extension, nullptr,
         std::make_unique<ExtensionInstallPrompt::Prompt>(type),
         ExtensionInstallPrompt::GetDefaultShowDialogCallback());
@@ -116,11 +114,7 @@ void NavigationObserver::PromptToEnableExtensionIfNecessary(
 }
 
 void NavigationObserver::OnInstallPromptDone(
-    ExtensionInstallPrompt::DoneCallbackPayload payload) {
-  // This dialog doesn't support the "withhold permissions" checkbox.
-  DCHECK_NE(payload.result,
-            ExtensionInstallPrompt::Result::ACCEPTED_WITH_WITHHELD_PERMISSIONS);
-
+    ExtensionInstallPrompt::Result result) {
   // The extension was already uninstalled.
   if (in_progress_prompt_extension_id_.empty())
     return;
@@ -130,7 +124,7 @@ void NavigationObserver::OnInstallPromptDone(
       in_progress_prompt_extension_id_, ExtensionRegistry::EVERYTHING);
   CHECK(extension);
 
-  if (payload.result == ExtensionInstallPrompt::Result::ACCEPTED) {
+  if (result == ExtensionInstallPrompt::Result::ACCEPTED) {
     NavigationController* nav_controller =
         in_progress_prompt_navigation_controller_;
     CHECK(nav_controller);
@@ -140,6 +134,17 @@ void NavigationObserver::OnInstallPromptDone(
     // Grant permissions, re-enable the extension, and then reload the tab.
     extension_service->GrantPermissionsAndEnableExtension(extension);
     nav_controller->Reload(content::ReloadType::NORMAL, true);
+  } else {
+    // TODO(devlin): These metrics aren't very useful, since they're lumped in
+    // with the same for re-enabling/canceling when the extension first gets
+    // disabled, which is likely significantly more common (though impossible to
+    // tell). We need to separate these.
+    std::string histogram_name =
+       result == ExtensionInstallPrompt::Result::USER_CANCELED
+            ? "ReEnableCancel"
+            : "ReEnableAbort";
+    ExtensionService::RecordPermissionMessagesHistogram(extension,
+                                                        histogram_name.c_str());
   }
 
   in_progress_prompt_extension_id_.clear();

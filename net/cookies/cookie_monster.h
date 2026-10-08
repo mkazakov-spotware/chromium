@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,20 +14,20 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/callback_forward.h"
 #include "base/containers/circular_deque.h"
-#include "base/containers/flat_map.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/strings/string_piece.h"
-#include "base/thread_annotations.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "net/base/net_export.h"
-#include "net/base/schemeful_site.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_access_delegate.h"
 #include "net/cookies/cookie_constants.h"
@@ -35,8 +35,11 @@
 #include "net/cookies/cookie_monster_change_dispatcher.h"
 #include "net/cookies/cookie_store.h"
 #include "net/log/net_log_with_source.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
+
+namespace base {
+class HistogramBase;
+}  // namespace base
 
 namespace net {
 
@@ -87,8 +90,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // not legal to have domain cookies without an eTLD+1).  This rule
   // excludes cookies for, e.g, ".com", ".co.uk", or ".internalnetwork".
   // This behavior is the same as the behavior in Firefox v 3.6.10.
-  // CookieMap does not store cookies that were set with the Partitioned
-  // attribute, those are stored in PartitionedCookieMap.
 
   // NOTE(deanm):
   // I benchmarked hash_multimap vs multimap.  We're going to be query-heavy
@@ -103,18 +104,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
       std::multimap<std::string, std::unique_ptr<CanonicalCookie>>;
   using CookieMapItPair = std::pair<CookieMap::iterator, CookieMap::iterator>;
   using CookieItVector = std::vector<CookieMap::iterator>;
-
-  // PartitionedCookieMap only stores cookies that were set with the Partitioned
-  // attribute. The map is double-keyed on cookie's partition key and
-  // the cookie's effective domain of the cookie (the key of CookieMap).
-  // We store partitioned cookies in a separate map so that the queries for a
-  // request's unpartitioned and partitioned cookies will both be more
-  // efficient (since querying two smaller maps is more efficient that querying
-  // one larger map twice).
-  using PartitionedCookieMap =
-      std::map<CookiePartitionKey, std::unique_ptr<CookieMap>>;
-  using PartitionedCookieMapIterators =
-      std::pair<PartitionedCookieMap::iterator, CookieMap::iterator>;
 
   // Cookie garbage collection thresholds.  Based off of the Mozilla defaults.
   // When the number of cookies gets to k{Domain,}MaxCookies
@@ -138,11 +127,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // Max number of keys to store for domains that have been purged.
   static const size_t kMaxDomainPurgedKeys;
 
-  // Partitioned cookie garbage collection thresholds.
-  static const size_t kPerPartitionDomainMaxCookieBytes;
-  static const size_t kPerPartitionDomainMaxCookies;
-  // TODO(crbug.com/1225444): Add global limit to number of partitioned cookies.
-
   // Quota for cookies with {low, medium, high} priorities within a domain.
   static const size_t kDomainCookiesQuotaLow;
   static const size_t kDomainCookiesQuotaMedium;
@@ -157,16 +141,14 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // this class, but it must remain valid for the duration of the cookie
   // monster's existence. If |store| is NULL, then no backing store will be
   // updated. |net_log| must outlive the CookieMonster and can be null.
-  CookieMonster(scoped_refptr<PersistentCookieStore> store, NetLog* net_log);
+  CookieMonster(scoped_refptr<PersistentCookieStore> store,
+                NetLog* net_log);
 
   // Only used during unit testing.
   // |net_log| must outlive the CookieMonster.
   CookieMonster(scoped_refptr<PersistentCookieStore> store,
                 base::TimeDelta last_access_threshold,
                 NetLog* net_log);
-
-  CookieMonster(const CookieMonster&) = delete;
-  CookieMonster& operator=(const CookieMonster&) = delete;
 
   ~CookieMonster() override;
 
@@ -179,16 +161,12 @@ class NET_EXPORT CookieMonster : public CookieStore {
   void SetAllCookiesAsync(const CookieList& list, SetCookiesCallback callback);
 
   // CookieStore implementation.
-  void SetCanonicalCookieAsync(
-      std::unique_ptr<CanonicalCookie> cookie,
-      const GURL& source_url,
-      const CookieOptions& options,
-      SetCookiesCallback callback,
-      absl::optional<CookieAccessResult> cookie_access_result =
-          absl::nullopt) override;
+  void SetCanonicalCookieAsync(std::unique_ptr<CanonicalCookie> cookie,
+                               const GURL& source_url,
+                               const CookieOptions& options,
+                               SetCookiesCallback callback) override;
   void GetCookieListWithOptionsAsync(const GURL& url,
                                      const CookieOptions& options,
-                                     const CookiePartitionKeyCollection& s,
                                      GetCookieListCallback callback) override;
   void GetAllCookiesAsync(GetAllCookiesCallback callback) override;
   void GetAllCookiesWithAccessSemanticsAsync(
@@ -200,36 +178,34 @@ class NET_EXPORT CookieMonster : public CookieStore {
       DeleteCallback callback) override;
   void DeleteAllMatchingInfoAsync(CookieDeletionInfo delete_info,
                                   DeleteCallback callback) override;
-  void DeleteSessionCookiesAsync(DeleteCallback callback) override;
-  void DeleteMatchingCookiesAsync(DeletePredicate predicate,
-                                  DeleteCallback callback) override;
+  void DeleteSessionCookiesAsync(DeleteCallback) override;
   void FlushStore(base::OnceClosure callback) override;
   void SetForceKeepSessionState() override;
   CookieChangeDispatcher& GetChangeDispatcher() override;
   void SetCookieableSchemes(const std::vector<std::string>& schemes,
                             SetCookieableSchemesCallback callback) override;
-  absl::optional<bool> SiteHasCookieInOtherPartition(
-      const net::SchemefulSite& site,
-      const absl::optional<CookiePartitionKey>& partition_key) const override;
 
   // Enables writing session cookies into the cookie database. If this this
   // method is called, it must be called before first use of the instance
   // (i.e. as part of the instance initialization process).
   void SetPersistSessionCookies(bool persist_session_cookies);
 
+  // Determines if the scheme of the URL is a scheme that cookies will be
+  // stored for.
+  bool IsCookieableScheme(const std::string& scheme);
+
   // The default list of schemes the cookie monster can handle.
   static const char* const kDefaultCookieableSchemes[];
   static const int kDefaultCookieableSchemesCount;
+
+  void DumpMemoryStats(base::trace_event::ProcessMemoryDump* pmd,
+                       const std::string& parent_absolute_name) const override;
 
   // Find a key based on the given domain, which will be used to find all
   // cookies potentially relevant to it. This is used for lookup in cookies_ as
   // well as for PersistentCookieStore::LoadCookiesForKey. See comment on keys
   // before the CookieMap typedef.
   static std::string GetKey(base::StringPiece domain);
-
-  // Exposes the comparison function used when sorting cookies.
-  static bool CookieSorter(const CanonicalCookie* cc1,
-                           const CanonicalCookie* cc2);
 
   // Triggers immediate recording of stats that are typically reported
   // periodically.
@@ -284,7 +260,7 @@ class NET_EXPORT CookieMonster : public CookieStore {
     // Cookies evicted during domain-level garbage collection.
     DELETE_COOKIE_EVICTED_DOMAIN = 6,
 
-    // Cookies evicted during global garbage collection, which takes place after
+    // Cookies evicted during global garbage collection (which takes place after
     // domain-level garbage collection fails to bring the cookie store under
     // the overall quota.
     DELETE_COOKIE_EVICTED_GLOBAL = 7,
@@ -305,18 +281,13 @@ class NET_EXPORT CookieMonster : public CookieStore {
     // right after expired cookies.
     DELETE_COOKIE_NON_SECURE = 12,
 
-    // Partitioned cookies evicted during per-partition domain-level garbage
-    // collection.
-    DELETE_COOKIE_EVICTED_PER_PARTITION_DOMAIN = 13,
-
-    DELETE_COOKIE_LAST_ENTRY = 14,
+    DELETE_COOKIE_LAST_ENTRY = 13
   };
 
   // This enum is used to generate a histogramed bitmask measureing the types
   // of stored cookies. Please do not reorder the list when adding new entries.
   // New items MUST be added at the end of the list, just before
   // COOKIE_TYPE_LAST_ENTRY;
-  // There will be 2^COOKIE_TYPE_LAST_ENTRY buckets in the linear histogram.
   enum CookieType {
     COOKIE_TYPE_SAME_SITE = 0,
     COOKIE_TYPE_HTTPONLY,
@@ -328,20 +299,20 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // sources of Secure and non-Secure cookies: that is, whether such
   // cookies are set by origins with cryptographic or non-cryptographic
   // schemes. Please do not reorder the list when adding new
-  // entries. New items MUST be added at the end of the list, and kMaxValue
-  // should be updated to the last value.
+  // entries. New items MUST be added at the end of the list, just
+  // before COOKIE_SOURCE_LAST_ENTRY.
   //
-  // CookieSource::k(Non)SecureCookie(Non)CryptographicScheme means
+  // COOKIE_SOURCE_(NON)SECURE_COOKIE_(NON)CRYPTOGRAPHIC_SCHEME means
   // that a cookie was set or overwritten from a URL with the given type
   // of scheme. This enum should not be used when cookies are *cleared*,
   // because its purpose is to understand if Chrome can deprecate the
   // ability of HTTP urls to set/overwrite Secure cookies.
-  enum class CookieSource : uint8_t {
-    kSecureCookieCryptographicScheme = 0,
-    kSecureCookieNoncryptographicScheme,
-    kNonsecureCookieCryptographicScheme,
-    kNonsecureCookieNoncryptographicScheme,
-    kMaxValue = kNonsecureCookieNoncryptographicScheme
+  enum CookieSource {
+    COOKIE_SOURCE_SECURE_COOKIE_CRYPTOGRAPHIC_SCHEME = 0,
+    COOKIE_SOURCE_SECURE_COOKIE_NONCRYPTOGRAPHIC_SCHEME,
+    COOKIE_SOURCE_NONSECURE_COOKIE_CRYPTOGRAPHIC_SCHEME,
+    COOKIE_SOURCE_NONSECURE_COOKIE_NONCRYPTOGRAPHIC_SCHEME,
+    COOKIE_SOURCE_LAST_ENTRY
   };
 
   // Enum for collecting metrics on how frequently a cookie is sent to the same
@@ -376,16 +347,10 @@ class NET_EXPORT CookieMonster : public CookieStore {
   //
   // |options| indicates if this setting operation is allowed
   // to affect http_only or same-site cookies.
-  //
-  // |cookie_access_result| is an optional input status, to allow for status
-  // chaining from callers. It helps callers provide the status of a
-  // canonical cookie that may have warnings associated with it.
-  void SetCanonicalCookie(
-      std::unique_ptr<CanonicalCookie> cookie,
-      const GURL& source_url,
-      const CookieOptions& options,
-      SetCookiesCallback callback,
-      absl::optional<CookieAccessResult> cookie_access_result = absl::nullopt);
+  void SetCanonicalCookie(std::unique_ptr<CanonicalCookie> cookie,
+                          const GURL& source_url,
+                          const CookieOptions& options,
+                          SetCookiesCallback callback);
 
   void GetAllCookies(GetAllCookiesCallback callback);
 
@@ -393,26 +358,21 @@ class NET_EXPORT CookieMonster : public CookieStore {
       GetAllCookiesWithAccessSemanticsCallback callback,
       const CookieList& cookie_list);
 
-  void GetCookieListWithOptions(
-      const GURL& url,
-      const CookieOptions& options,
-      const CookiePartitionKeyCollection& cookie_partition_key_collection,
-      GetCookieListCallback callback);
+  void GetCookieListWithOptions(const GURL& url,
+                                const CookieOptions& options,
+                                GetCookieListCallback callback);
 
   void DeleteAllCreatedInTimeRange(
       const CookieDeletionInfo::TimeRange& creation_range,
       DeleteCallback callback);
 
-  // Returns whether |cookie| matches |delete_info|.
-  bool MatchCookieDeletionInfo(const CookieDeletionInfo& delete_info,
-                               const net::CanonicalCookie& cookie);
+  void DeleteAllMatchingInfo(net::CookieDeletionInfo delete_info,
+                             DeleteCallback callback);
 
   void DeleteCanonicalCookie(const CanonicalCookie& cookie,
                              DeleteCallback callback);
 
-  void DeleteMatchingCookies(DeletePredicate predicate,
-                             DeletionCause cause,
-                             DeleteCallback callback);
+  void DeleteSessionCookies(DeleteCallback callback);
 
   // The first access to the cookie store initializes it. This method should be
   // called before any access to the cookie store.
@@ -456,26 +416,15 @@ class NET_EXPORT CookieMonster : public CookieStore {
 
   // Checks for any duplicate cookies for CookieMap key |key| which lie between
   // |begin| and |end|. If any are found, all but the most recent are deleted.
-  //
-  // If |cookie_partition_it| is not nullopt, then this function trims cookies
-  // from the CookieMap in |partitioned_cookies_| at |cookie_partition_it|
-  // instead of trimming cookies from |cookies_|.
-  void TrimDuplicateCookiesForKey(
-      const std::string& key,
-      CookieMap::iterator begin,
-      CookieMap::iterator end,
-      absl::optional<PartitionedCookieMap::iterator> cookie_partition_it);
+  void TrimDuplicateCookiesForKey(const std::string& key,
+                                  CookieMap::iterator begin,
+                                  CookieMap::iterator end);
 
   void SetDefaultCookieableSchemes();
 
-  std::vector<CanonicalCookie*> FindCookiesForRegistryControlledHost(
+  void FindCookiesForRegistryControlledHost(
       const GURL& url,
-      CookieMap* cookie_map = nullptr,
-      PartitionedCookieMap::iterator* partition_it = nullptr);
-
-  std::vector<CanonicalCookie*> FindPartitionedCookiesForRegistryControlledHost(
-      const CookiePartitionKey& cookie_partition_key,
-      const GURL& url);
+      std::vector<CanonicalCookie*>* cookies);
 
   void FilterCookiesWithOptions(const GURL url,
                                 const CookieOptions options,
@@ -486,10 +435,10 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // Possibly delete an existing cookie equivalent to |cookie_being_set| (same
   // path, domain, and name).
   //
-  // |allowed_to_set_secure_cookie| indicates if the source may override
-  // existing secure cookies. If the source is not trustworthy, and there is an
-  // existing "equivalent" cookie that is Secure, that cookie will be preserved,
-  // under "Leave Secure Cookies Alone" (see
+  // |source_secure| indicates if the source may override existing secure
+  // cookies. If the source is not secure, and there is an existing "equivalent"
+  // cookie that is Secure, that cookie will be preserved, under "Leave Secure
+  // Cookies Alone" (see
   // https://tools.ietf.org/html/draft-ietf-httpbis-cookie-alone-01).
   // ("equivalent" here is in quotes because the equivalency check for the
   // purposes of preserving existing Secure cookies is slightly more inclusive.)
@@ -506,48 +455,23 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // the function. The function will update |*status| with exclusion reasons if
   // a secure cookie was skipped or an httponly cookie was skipped.
   //
-  // If |cookie_partition_it| is nullopt, it will search |cookies_| for
-  // duplicates of |cookie_being_set|. Otherwise, |cookie_partition_it|'s value
-  // is the iterator of the CookieMap in |partitioned_cookies_| we should search
-  // for duplicates.
-  //
   // NOTE: There should never be more than a single matching equivalent cookie.
   void MaybeDeleteEquivalentCookieAndUpdateStatus(
       const std::string& key,
       const CanonicalCookie& cookie_being_set,
-      bool allowed_to_set_secure_cookie,
+      bool source_secure,
       bool skip_httponly,
       bool already_expired,
       base::Time* creation_date_to_inherit,
-      CookieInclusionStatus* status,
-      absl::optional<PartitionedCookieMap::iterator> cookie_partition_it);
+      CookieInclusionStatus* status);
 
-  // Inserts `cc` into cookies_. Returns an iterator that points to the inserted
-  // cookie in `cookies_`. Guarantee: all iterators to `cookies_` remain valid.
-  // Dispatches the change to `change_dispatcher_` iff `dispatch_change` is
-  // true.
+  // Inserts |cc| into cookies_. Returns an iterator that points to the inserted
+  // cookie in cookies_. Guarantee: all iterators to cookies_ remain valid.
   CookieMap::iterator InternalInsertCookie(
       const std::string& key,
       std::unique_ptr<CanonicalCookie> cc,
       bool sync_to_store,
-      const CookieAccessResult& access_result,
-      bool dispatch_change = true);
-
-  // Returns true if the cookie should be (or is already) synced to the store.
-  // Used for cookies during insertion and deletion into the in-memory store.
-  bool ShouldUpdatePersistentStore(CanonicalCookie* cc);
-
-  void LogCookieTypeToUMA(CanonicalCookie* cc,
-                          const CookieAccessResult& access_result);
-
-  // Inserts `cc` into partitioned_cookies_. Should only be used when
-  // cc->IsPartitioned() is true.
-  PartitionedCookieMapIterators InternalInsertPartitionedCookie(
-      std::string key,
-      std::unique_ptr<CanonicalCookie> cc,
-      bool sync_to_store,
-      const CookieAccessResult& access_result,
-      bool dispatch_change = true);
+      const CookieAccessResult& access_result);
 
   // Sets all cookies from |list| after deleting any equivalent cookie.
   // For data gathering purposes, this routine is treated as if it is
@@ -564,36 +488,13 @@ class NET_EXPORT CookieMonster : public CookieStore {
                             bool sync_to_store,
                             DeletionCause deletion_cause);
 
-  // Deletes a Partitioned cookie. Returns true if the deletion operation
-  // resulted in the CookieMap the cookie was stored in was deleted.
-  //
-  // If the CookieMap which contains the deleted cookie only has one entry, then
-  // this function will also delete the CookieMap from PartitionedCookieMap.
-  // This may invalidate the |cookie_partition_it| argument.
-  void InternalDeletePartitionedCookie(
-      PartitionedCookieMap::iterator partition_it,
-      CookieMap::iterator cookie_it,
-      bool sync_to_store,
-      DeletionCause deletion_cause);
-
   // If the number of cookies for CookieMap key |key|, or globally, are
   // over the preset maximums above, garbage collect, first for the host and
   // then globally.  See comments above garbage collection threshold
-  // constants for details. Also removes expired cookies.
+  // constants for details.
   //
   // Returns the number of cookies deleted (useful for debugging).
   size_t GarbageCollect(const base::Time& current, const std::string& key);
-
-  // Run garbage collection for PartitionedCookieMap keys |cookie_partition_key|
-  // and |key|.
-  //
-  // Partitioned cookies are subject to different limits than unpartitioned
-  // cookies in order to prevent leaking entropy about user behavior across
-  // cookie partitions.
-  size_t GarbageCollectPartitionedCookies(
-      const base::Time& current,
-      const CookiePartitionKey& cookie_partition_key,
-      const std::string& key);
 
   // Helper for GarbageCollect(). Deletes up to |purge_goal| cookies with a
   // priority less than or equal to |priority| from |cookies|, while ensuring
@@ -618,22 +519,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
   size_t GarbageCollectExpired(const base::Time& current,
                                const CookieMapItPair& itpair,
                                CookieItVector* cookie_its);
-
-  // Deletes all expired cookies in the double-keyed PartitionedCookie map in
-  // the CookieMap at |cookie_partition_it|. It deletes all cookies in that
-  // CookieMap in |itpair|. If |cookie_its| is non-NULL, all non-expired cookies
-  // from |itpair| are appended to |cookie_its|.
-  //
-  // Returns the number of cookies deleted.
-  size_t GarbageCollectExpiredPartitionedCookies(
-      const base::Time& current,
-      const PartitionedCookieMap::iterator& cookie_partition_it,
-      const CookieMapItPair& itpair,
-      CookieItVector* cookie_its);
-
-  // Helper function to garbage collect all expired cookies in
-  // PartitionedCookieMap.
-  void GarbageCollectAllExpiredPartitionedCookies(const base::Time& current);
 
   // Helper for GarbageCollect(). Deletes all cookies in the range specified by
   // [|it_begin|, |it_end|). Returns the number of cookies deleted.
@@ -672,12 +557,9 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // cookies. Returns whether stats were recorded.
   bool DoRecordPeriodicStats();
 
-  // Records periodic stats related to First-Party Sets usage. Note that since
-  // First-Party Sets presents a potentially asynchronous interface, these stats
-  // may be collected asynchronously w.r.t. the rest of the stats collected by
-  // `RecordPeriodicStats`.
-  void RecordPeriodicFirstPartySetsStats(
-      base::flat_map<SchemefulSite, FirstPartySetEntry> sets) const;
+  // Initialize the histogram_* variables below; should only be called from
+  // the constructor.
+  void InitializeHistograms();
 
   // Defers the callback until the full coookie database has been loaded. If
   // it's already been loaded, runs the callback synchronously.
@@ -703,34 +585,35 @@ class NET_EXPORT CookieMonster : public CookieStore {
       int source_port,
       CookieSourceScheme source_scheme);
 
+  // Histogram variables; see CookieMonster::InitializeHistograms() in
+  // cookie_monster.cc for details.
+  base::HistogramBase* histogram_expiration_duration_minutes_secure_;
+  base::HistogramBase* histogram_expiration_duration_minutes_non_secure_;
+  base::HistogramBase* histogram_count_;
+  base::HistogramBase* histogram_cookie_type_;
+  base::HistogramBase* histogram_cookie_source_scheme_;
+  base::HistogramBase* histogram_time_blocked_on_load_;
+
   // Set of keys (eTLD+1's) for which non-expired cookies have
   // been evicted for hitting the per-domain max. The size of this set is
   // histogrammed periodically. The size is limited to |kMaxDomainPurgedKeys|.
-  std::set<std::string> domain_purged_keys_ GUARDED_BY_CONTEXT(thread_checker_);
+  std::set<std::string> domain_purged_keys_;
 
   // The number of distinct keys (eTLD+1's) currently present in the |cookies_|
   // multimap. This is histogrammed periodically.
-  size_t num_keys_ = 0u;
+  size_t num_keys_;
 
-  CookieMap cookies_ GUARDED_BY_CONTEXT(thread_checker_);
-
-  PartitionedCookieMap partitioned_cookies_ GUARDED_BY_CONTEXT(thread_checker_);
-
-  // Number of distinct partitioned cookies globally. This is used to enforce a
-  // global maximum on the number of partitioned cookies.
-  size_t num_partitioned_cookies_ = 0u;
-
-  bool same_party_attribute_enabled_ = false;
+  CookieMap cookies_;
 
   CookieMonsterChangeDispatcher change_dispatcher_;
 
   // Indicates whether the cookie store has been initialized.
-  bool initialized_ = false;
+  bool initialized_;
 
   // Indicates whether the cookie store has started fetching all cookies.
-  bool started_fetching_all_cookies_ = false;
+  bool started_fetching_all_cookies_;
   // Indicates whether the cookie store has finished fetching all cookies.
-  bool finished_fetching_all_cookies_ = false;
+  bool finished_fetching_all_cookies_;
 
   // List of domain keys that have been loaded from the DB.
   std::set<std::string> keys_loaded_;
@@ -739,19 +622,18 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // until all cookies for the associated domain key eTLD+1 are loaded from the
   // backend store.
   std::map<std::string, base::circular_deque<base::OnceClosure>>
-      tasks_pending_for_key_ GUARDED_BY_CONTEXT(thread_checker_);
+      tasks_pending_for_key_;
 
   // Queues tasks that are blocked until all cookies are loaded from the backend
   // store.
-  base::circular_deque<base::OnceClosure> tasks_pending_
-      GUARDED_BY_CONTEXT(thread_checker_);
+  base::circular_deque<base::OnceClosure> tasks_pending_;
 
   // Once a global cookie task has been seen, all per-key tasks must be put in
   // |tasks_pending_| instead of |tasks_pending_for_key_| to ensure a reasonable
   // view of the cookie store. This is more to ensure fancy cookie export/import
   // code has a consistent view of the CookieStore, rather than out of concern
   // for typical use.
-  bool seen_global_task_ = false;
+  bool seen_global_task_;
 
   NetLogWithSource net_log_;
 
@@ -776,11 +658,13 @@ class NET_EXPORT CookieMonster : public CookieStore {
 
   base::Time last_statistic_record_time_;
 
-  bool persist_session_cookies_ = false;
+  bool persist_session_cookies_;
 
-  THREAD_CHECKER(thread_checker_);
+  base::ThreadChecker thread_checker_;
 
   base::WeakPtrFactory<CookieMonster> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CookieMonster);
 };
 
 typedef base::RefCountedThreadSafe<CookieMonster::PersistentCookieStore>
@@ -792,9 +676,6 @@ class NET_EXPORT CookieMonster::PersistentCookieStore
   typedef base::OnceCallback<void(
       std::vector<std::unique_ptr<CanonicalCookie>>)>
       LoadedCallback;
-
-  PersistentCookieStore(const PersistentCookieStore&) = delete;
-  PersistentCookieStore& operator=(const PersistentCookieStore&) = delete;
 
   // Initializes the store and retrieves the existing cookies. This will be
   // called only once at startup. The callback will return all the cookies
@@ -833,11 +714,12 @@ class NET_EXPORT CookieMonster::PersistentCookieStore
   virtual void Flush(base::OnceClosure callback) = 0;
 
  protected:
-  PersistentCookieStore() = default;
-  virtual ~PersistentCookieStore() = default;
+  PersistentCookieStore() {}
+  virtual ~PersistentCookieStore() {}
 
  private:
   friend class base::RefCountedThreadSafe<PersistentCookieStore>;
+  DISALLOW_COPY_AND_ASSIGN(PersistentCookieStore);
 };
 
 }  // namespace net

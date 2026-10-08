@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "build/build_config.h"
@@ -34,10 +35,6 @@ class SafeBrowsingService;
 class BrowserProcess {
  public:
   explicit BrowserProcess(std::unique_ptr<PrefService> local_state);
-
-  BrowserProcess(const BrowserProcess&) = delete;
-  BrowserProcess& operator=(const BrowserProcess&) = delete;
-
   ~BrowserProcess();
 
   static BrowserProcess* GetInstance();
@@ -59,7 +56,7 @@ class BrowserProcess {
   // Browsing subresource filter. May be null.
   subresource_filter::RulesetService* subresource_filter_ruleset_service();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   SafeBrowsingService* GetSafeBrowsingService();
   void StopSafeBrowsingService();
 #endif
@@ -81,11 +78,13 @@ class BrowserProcess {
   std::unique_ptr<subresource_filter::RulesetService>
       subresource_filter_ruleset_service_;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::unique_ptr<SafeBrowsingService> safe_browsing_service_;
 #endif
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserProcess);
 };
 
 }  // namespace weblayer

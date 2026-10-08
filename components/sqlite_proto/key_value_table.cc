@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sqlite_proto/key_value_table.h"
-
-#include <stdint.h>
 
 #include "base/strings/stringprintf.h"
 #include "third_party/protobuf/src/google/protobuf/message_lite.h"
@@ -18,10 +16,10 @@ void BindDataToStatement(const std::string& key,
                          sql::Statement* statement) {
   statement->BindString(0, key);
 
-  size_t size = data.ByteSizeLong();
-  std::vector<uint8_t> proto_buffer(size);
+  int size = data.ByteSize();
+  std::vector<char> proto_buffer(size);
   data.SerializeToArray(proto_buffer.data(), size);
-  statement->BindBlob(1, proto_buffer);
+  statement->BindBlob(1, proto_buffer.data(), size);
 }
 
 std::string GetSelectAllSql(const std::string& table_name) {

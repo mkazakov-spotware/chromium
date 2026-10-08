@@ -1,11 +1,12 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_INFOBARS_CONFIRM_INFOBAR_H_
 #define CHROME_BROWSER_UI_VIEWS_INFOBARS_CONFIRM_INFOBAR_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/views/infobars/infobar_view.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 
@@ -22,10 +23,6 @@ class MdTextButton;
 class ConfirmInfoBar : public InfoBarView {
  public:
   explicit ConfirmInfoBar(std::unique_ptr<ConfirmInfoBarDelegate> delegate);
-
-  ConfirmInfoBar(const ConfirmInfoBar&) = delete;
-  ConfirmInfoBar& operator=(const ConfirmInfoBar&) = delete;
-
   ~ConfirmInfoBar() override;
 
   // InfoBarView:
@@ -37,7 +34,7 @@ class ConfirmInfoBar : public InfoBarView {
 
  protected:
   // InfoBarView:
-  int GetContentMinimumWidth() const override;
+  int ContentMinimumWidth() const override;
 
  private:
   void OkButtonPressed();
@@ -47,11 +44,13 @@ class ConfirmInfoBar : public InfoBarView {
   // uses this to determine how much space the label and link can take.
   int NonLabelWidth() const;
 
-  raw_ptr<views::Label> label_ = nullptr;
-  raw_ptr<views::MdTextButton> ok_button_ = nullptr;
-  raw_ptr<views::MdTextButton> cancel_button_ = nullptr;
-  raw_ptr<views::Link> link_ = nullptr;
+  views::Label* label_ = nullptr;
+  views::MdTextButton* ok_button_ = nullptr;
+  views::MdTextButton* cancel_button_ = nullptr;
+  views::Link* link_ = nullptr;
   std::unique_ptr<ElevationIconSetter> elevation_icon_setter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConfirmInfoBar);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_INFOBARS_CONFIRM_INFOBAR_H_

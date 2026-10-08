@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,8 +45,6 @@ import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.NavigationHistory;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.url.GURL;
-import org.chromium.url.JUnitTestGURLs;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -130,8 +128,8 @@ public class TabAttributeCacheUnitTest {
 
     @Test
     public void updateUrl() {
-        GURL url = JUnitTestGURLs.getGURL(JUnitTestGURLs.EXAMPLE_URL);
-        doReturn(url).when(mTab1).getUrl();
+        String url = "url 1";
+        doReturn(url).when(mTab1).getUrlString();
 
         Assert.assertNotEquals(url, TabAttributeCache.getUrl(TAB1_ID));
 
@@ -145,8 +143,8 @@ public class TabAttributeCacheUnitTest {
 
     @Test
     public void updateUrl_incognito() {
-        String url = JUnitTestGURLs.EXAMPLE_URL;
-        doReturn(JUnitTestGURLs.getGURL(url)).when(mTab1).getUrl();
+        String url = "url 1";
+        doReturn(url).when(mTab1).getUrlString();
         doReturn(true).when(mTab1).isIncognito();
 
         mTabObserverCaptor.getValue().onUrlUpdated(mTab1);
@@ -204,37 +202,13 @@ public class TabAttributeCacheUnitTest {
     }
 
     @Test
-    public void updateTimestamp() {
-        long timestamp = 1337;
-        doReturn(timestamp).when(mCriticalPersistedTabData1).getTimestampMillis();
-
-        Assert.assertNotEquals(timestamp, TabAttributeCache.getTimestampMillis(TAB1_ID));
-
-        mTabObserverCaptor.getValue().onTimestampChanged(mTab1, timestamp);
-        Assert.assertEquals(timestamp, TabAttributeCache.getTimestampMillis(TAB1_ID));
-
-        mTabModelSelectorObserverCaptor.getValue().onTabStateInitialized();
-        mTabModelObserverCaptor.getValue().tabClosureCommitted(mTab1);
-        Assert.assertNotEquals(timestamp, TabAttributeCache.getTimestampMillis(TAB1_ID));
-    }
-
-    @Test
-    public void updateTimestamp_incognito() {
-        long timestamp = 1337;
-        doReturn(timestamp).when(mCriticalPersistedTabData1).getTimestampMillis();
-        doReturn(true).when(mTab1).isIncognito();
-
-        mTabObserverCaptor.getValue().onTimestampChanged(mTab1, timestamp);
-        Assert.assertNotEquals(timestamp, TabAttributeCache.getTimestampMillis(TAB1_ID));
-    }
-
-    @Test
     public void updateLastSearchTerm() {
         String searchTerm = "chromium";
 
         LastSearchTermProvider lastSearchTermProvider = mock(LastSearchTermProvider.class);
         TabAttributeCache.setLastSearchTermMockForTesting(lastSearchTermProvider);
         NavigationHandle navigationHandle = mock(NavigationHandle.class);
+        doReturn(true).when(navigationHandle).isInMainFrame();
 
         Assert.assertNull(TabAttributeCache.getLastSearchTerm(TAB1_ID));
 
@@ -242,20 +216,24 @@ public class TabAttributeCacheUnitTest {
         WebContents webContents = mock(WebContents.class);
         doReturn(webContents).when(mTab1).getWebContents();
 
-        mTabObserverCaptor.getValue().onDidFinishNavigationInPrimaryMainFrame(
-                mTab1, navigationHandle);
+        mTabObserverCaptor.getValue().onDidFinishNavigation(mTab1, navigationHandle);
         Assert.assertEquals(searchTerm, TabAttributeCache.getLastSearchTerm(TAB1_ID));
+
+        // Non-main frame should not propagate.
+        doReturn("another").when(lastSearchTermProvider).getLastSearchTerm(mTab1);
+        doReturn(false).when(navigationHandle).isInMainFrame();
+        mTabObserverCaptor.getValue().onDidFinishNavigation(mTab1, navigationHandle);
+        Assert.assertEquals(searchTerm, TabAttributeCache.getLastSearchTerm(TAB1_ID));
+        doReturn(true).when(navigationHandle).isInMainFrame();
 
         // Empty strings should propagate.
         doReturn("").when(lastSearchTermProvider).getLastSearchTerm(mTab1);
-        mTabObserverCaptor.getValue().onDidFinishNavigationInPrimaryMainFrame(
-                mTab1, navigationHandle);
+        mTabObserverCaptor.getValue().onDidFinishNavigation(mTab1, navigationHandle);
         Assert.assertEquals("", TabAttributeCache.getLastSearchTerm(TAB1_ID));
 
         // Null should also propagate.
         doReturn(null).when(lastSearchTermProvider).getLastSearchTerm(mTab1);
-        mTabObserverCaptor.getValue().onDidFinishNavigationInPrimaryMainFrame(
-                mTab1, navigationHandle);
+        mTabObserverCaptor.getValue().onDidFinishNavigation(mTab1, navigationHandle);
         Assert.assertNull(TabAttributeCache.getLastSearchTerm(TAB1_ID));
 
         mTabModelSelectorObserverCaptor.getValue().onTabStateInitialized();
@@ -272,16 +250,16 @@ public class TabAttributeCacheUnitTest {
         TabAttributeCache.setLastSearchTermMockForTesting(lastSearchTermProvider);
         doReturn(searchTerm).when(lastSearchTermProvider).getLastSearchTerm(mTab1);
 
-        mTabObserverCaptor.getValue().onDidFinishNavigationInPrimaryMainFrame(mTab1, null);
+        mTabObserverCaptor.getValue().onDidFinishNavigation(mTab1, null);
         Assert.assertNull(TabAttributeCache.getLastSearchTerm(TAB1_ID));
     }
 
     @Test
     public void findLastSearchTerm() {
-        GURL otherUrl = JUnitTestGURLs.getGURL(JUnitTestGURLs.EXAMPLE_URL);
-        GURL searchUrl = JUnitTestGURLs.getGURL(JUnitTestGURLs.SEARCH_URL);
+        String otherUrl = "https://example.com";
+        String searchUrl = "https://www.google.com/search?q=test";
         String searchTerm = "test";
-        GURL searchUrl2 = JUnitTestGURLs.getGURL(JUnitTestGURLs.SEARCH_2_URL);
+        String searchUrl2 = "https://www.google.com/search?q=query";
         String searchTerm2 = "query";
 
         TemplateUrlService service = Mockito.mock(TemplateUrlService.class);
@@ -301,7 +279,7 @@ public class TabAttributeCacheUnitTest {
         NavigationEntry navigationEntry0 = mock(NavigationEntry.class);
         doReturn(navigationEntry1).when(navigationHistory).getEntryAtIndex(1);
         doReturn(navigationEntry0).when(navigationHistory).getEntryAtIndex(0);
-        doReturn(otherUrl).when(mTab1).getUrl();
+        doReturn(otherUrl).when(mTab1).getUrlString();
 
         // No searches.
         doReturn(otherUrl).when(navigationEntry1).getOriginalUrl();
@@ -329,11 +307,11 @@ public class TabAttributeCacheUnitTest {
 
         // Skip if the SRP is showing.
         doReturn(2).when(navigationHistory).getCurrentEntryIndex();
-        doReturn(searchUrl).when(mTab1).getUrl();
+        doReturn(searchUrl).when(mTab1).getUrlString();
         Assert.assertNull(TabAttributeCache.findLastSearchTerm(mTab1));
 
         // Reset current SRP.
-        doReturn(otherUrl).when(mTab1).getUrl();
+        doReturn(otherUrl).when(mTab1).getUrlString();
         Assert.assertEquals(searchTerm, TabAttributeCache.findLastSearchTerm(mTab1));
 
         verify(navigationHistory, never()).getEntryAtIndex(eq(2));
@@ -354,17 +332,15 @@ public class TabAttributeCacheUnitTest {
 
     @Test
     public void onTabStateInitialized() {
-        GURL url1 = JUnitTestGURLs.getGURL(JUnitTestGURLs.EXAMPLE_URL);
-        doReturn(url1).when(mTab1).getUrl();
+        String url1 = "url 1";
+        doReturn(url1).when(mTab1).getUrlString();
         String title1 = "title 1";
         doReturn(title1).when(mTab1).getTitle();
         int rootId1 = 1337;
         doReturn(rootId1).when(mCriticalPersistedTabData1).getRootId();
-        long timestamp1 = 123456;
-        doReturn(timestamp1).when(mCriticalPersistedTabData1).getTimestampMillis();
 
-        GURL url2 = JUnitTestGURLs.getGURL(JUnitTestGURLs.URL_2);
-        doReturn(url2).when(mTab2).getUrl();
+        String url2 = "url 2";
+        doReturn(url2).when(mTab2).getUrlString();
         String title2 = "title 2";
         doReturn(title2).when(mTab2).getTitle();
         int rootId2 = 42;
@@ -385,7 +361,6 @@ public class TabAttributeCacheUnitTest {
         Assert.assertNotEquals(url1, TabAttributeCache.getUrl(TAB1_ID));
         Assert.assertNotEquals(title1, TabAttributeCache.getTitle(TAB1_ID));
         Assert.assertNotEquals(rootId1, TabAttributeCache.getRootId(TAB1_ID));
-        Assert.assertNotEquals(timestamp1, TabAttributeCache.getTimestampMillis(TAB1_ID));
         Assert.assertNotEquals(searchTerm, TabAttributeCache.getLastSearchTerm(TAB1_ID));
 
         Assert.assertNotEquals(url2, TabAttributeCache.getUrl(TAB2_ID));
@@ -397,7 +372,6 @@ public class TabAttributeCacheUnitTest {
         Assert.assertEquals(url1, TabAttributeCache.getUrl(TAB1_ID));
         Assert.assertEquals(title1, TabAttributeCache.getTitle(TAB1_ID));
         Assert.assertEquals(rootId1, TabAttributeCache.getRootId(TAB1_ID));
-        Assert.assertEquals(timestamp1, TabAttributeCache.getTimestampMillis(TAB1_ID));
         Assert.assertEquals(searchTerm, TabAttributeCache.getLastSearchTerm(TAB1_ID));
 
         Assert.assertEquals(url2, TabAttributeCache.getUrl(TAB2_ID));

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_registry.h"
@@ -27,11 +27,6 @@ class ExtensionActionStorageManager : public ExtensionActionAPI::Observer,
                                       public ExtensionRegistryObserver {
  public:
   explicit ExtensionActionStorageManager(content::BrowserContext* context);
-
-  ExtensionActionStorageManager(const ExtensionActionStorageManager&) = delete;
-  ExtensionActionStorageManager& operator=(
-      const ExtensionActionStorageManager&) = delete;
-
   ~ExtensionActionStorageManager() override;
 
  private:
@@ -49,21 +44,23 @@ class ExtensionActionStorageManager : public ExtensionActionAPI::Observer,
   // Reads/Writes the ExtensionAction's default values to/from storage.
   void WriteToStorage(ExtensionAction* extension_action);
   void ReadFromStorage(const std::string& extension_id,
-                       absl::optional<base::Value> value);
+                       std::unique_ptr<base::Value> value);
 
   // Returns the Extensions StateStore for the |browser_context_|.
   // May return NULL.
   StateStore* GetStateStore();
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
-  base::ScopedObservation<ExtensionActionAPI, ExtensionActionAPI::Observer>
-      extension_action_observation_{this};
+  ScopedObserver<ExtensionActionAPI, ExtensionActionAPI::Observer>
+      extension_action_observer_{this};
 
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
 
   base::WeakPtrFactory<ExtensionActionStorageManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionActionStorageManager);
 };
 
 }  // namespace extensions

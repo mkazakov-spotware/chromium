@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,15 +18,8 @@ class MockClientContext : public ClientContext {
   MockClientContext();
   ~MockClientContext() override;
 
-  MOCK_METHOD(void,
-              Update,
-              (const TriggerContext& trigger_context),
-              (override));
-  MOCK_METHOD(void,
-              UpdateJsFlowLibraryLoaded,
-              (bool js_flow_library_loaded),
-              (override));
-  MOCK_METHOD(ClientContextProto, AsProto, (), (const override));
+  MOCK_METHOD1(Update, void(const TriggerContext& trigger_context));
+  MOCK_CONST_METHOD0(AsProto, ClientContextProto());
 };
 
 }  // namespace autofill_assistant

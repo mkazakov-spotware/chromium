@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <sys/types.h>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/file/file_seeker.h"
 
@@ -64,10 +65,6 @@ class FileReaderInterface : public virtual FileSeekerInterface {
 class WeakFileHandleFileReader : public FileReaderInterface {
  public:
   explicit WeakFileHandleFileReader(FileHandle file_handle);
-
-  WeakFileHandleFileReader(const WeakFileHandleFileReader&) = delete;
-  WeakFileHandleFileReader& operator=(const WeakFileHandleFileReader&) = delete;
-
   ~WeakFileHandleFileReader() override;
 
   // FileReaderInterface:
@@ -92,6 +89,8 @@ class WeakFileHandleFileReader : public FileReaderInterface {
   // construction because no file descriptor will be available until
   // FileReader::Open() is called.
   friend class FileReader;
+
+  DISALLOW_COPY_AND_ASSIGN(WeakFileHandleFileReader);
 };
 
 //! \brief A file reader implementation that wraps traditional system file
@@ -99,10 +98,6 @@ class WeakFileHandleFileReader : public FileReaderInterface {
 class FileReader : public FileReaderInterface {
  public:
   FileReader();
-
-  FileReader(const FileReader&) = delete;
-  FileReader& operator=(const FileReader&) = delete;
-
   ~FileReader() override;
 
   // FileReaderInterface:
@@ -142,6 +137,8 @@ class FileReader : public FileReaderInterface {
  private:
   ScopedFileHandle file_;
   WeakFileHandleFileReader weak_file_handle_file_reader_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileReader);
 };
 
 }  // namespace crashpad

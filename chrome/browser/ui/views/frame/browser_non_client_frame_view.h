@@ -1,19 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_NON_CLIENT_FRAME_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_NON_CLIENT_FRAME_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/scoped_observer.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
-#include "chrome/browser/ui/views/frame/browser_frame.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "chrome/browser/ui/views/tabs/tab_strip.h"
+#include "chrome/browser/ui/views/tabs/tab_strip_observer.h"
+#include "chrome/browser/ui/views/tabs/tab_strip_types.h"
+#include "ui/views/widget/widget.h"
 #include "ui/views/window/non_client_view.h"
 
+class BrowserFrame;
 class BrowserView;
-class TabSearchBubbleHost;
 class WebAppFrameToolbarView;
 
 // Type used for functions whose return values depend on the active state of
@@ -27,17 +29,14 @@ enum class BrowserFrameActiveState {
 // A specialization of the NonClientFrameView object that provides additional
 // Browser-specific methods.
 class BrowserNonClientFrameView : public views::NonClientFrameView,
-                                  public ProfileAttributesStorage::Observer {
+                                  public ProfileAttributesStorage::Observer,
+                                  public TabStripObserver {
  public:
-  METADATA_HEADER(BrowserNonClientFrameView);
   // The minimum total height users should have to use as a drag handle to move
   // the window with.
   static constexpr int kMinimumDragHeight = 8;
 
   BrowserNonClientFrameView(BrowserFrame* frame, BrowserView* browser_view);
-  BrowserNonClientFrameView(const BrowserNonClientFrameView&) = delete;
-  BrowserNonClientFrameView& operator=(const BrowserNonClientFrameView&) =
-      delete;
   ~BrowserNonClientFrameView() override;
 
   BrowserView* browser_view() const { return browser_view_; }
@@ -46,7 +45,7 @@ class BrowserNonClientFrameView : public views::NonClientFrameView,
   // Called when BrowserView creates all it's child views.
   virtual void OnBrowserViewInitViewsComplete();
 
-  // Called after the browser window is fullscreened or unfullscreened.
+  // Called on Mac after the browser window is fullscreened or unfullscreened.
   virtual void OnFullscreenStateChanged();
 
   // Returns whether the caption buttons are drawn at the leading edge (i.e. the
@@ -103,15 +102,20 @@ class BrowserNonClientFrameView : public views::NonClientFrameView,
 
   // Returns the color of the browser frame, which is also the color of the
   // tabstrip background.
-  virtual SkColor GetFrameColor(BrowserFrameActiveState active_state) const;
+  SkColor GetFrameColor(BrowserFrameActiveState active_state =
+                            BrowserFrameActiveState::kUseCurrent) const;
 
   // Called by BrowserView to signal the frame color has changed and needs
   // to be repainted.
   virtual void UpdateFrameColor();
 
+  // Returns COLOR_TOOLBAR_TOP_SEPARATOR[,_INACTIVE] depending on the activation
+  // state of the window.
+  SkColor GetToolbarTopSeparatorColor() const;
+
   // For non-transparent windows, returns the background tab image resource ID
   // if the image has been customized, directly or indirectly, by the theme.
-  absl::optional<int> GetCustomBackgroundId(
+  base::Optional<int> GetCustomBackgroundId(
       BrowserFrameActiveState active_state) const;
 
   // Updates the throbber.
@@ -119,17 +123,6 @@ class BrowserNonClientFrameView : public views::NonClientFrameView,
 
   // Provided for platform-specific updates of minimum window size.
   virtual void UpdateMinimumSize();
-
-  // Updates the state of the title bar when window controls overlay is enabled
-  // or disabled.
-  virtual void WindowControlsOverlayEnabledChanged() {}
-
-  // Set the visibility of the window controls overlay toggle button.
-  void SetWindowControlsOverlayToggleVisible(bool visible);
-
-  // Updates the visibility of the title bar based on the visibility of the
-  // borderless mode.
-  void UpdateBorderlessModeEnabled();
 
   // views::NonClientFrameView:
   using views::NonClientFrameView::ShouldPaintAsActive;
@@ -141,25 +134,6 @@ class BrowserNonClientFrameView : public views::NonClientFrameView,
   WebAppFrameToolbarView* web_app_frame_toolbar_for_testing() {
     return web_app_frame_toolbar_;
   }
-
-  // Gets the TabSearchBubbleHost if present in the NonClientFrameView. Can
-  // return null.
-  virtual TabSearchBubbleHost* GetTabSearchBubbleHost();
-
-  // Returns the insets from the edge of the native window to the client view in
-  // DIPs. The value is left-to-right even on RTL locales. That is,
-  // insets.left() will be on the left in screen coordinates.
-  virtual gfx::Insets MirroredFrameBorderInsets() const;
-
-  // Returns the insets from the client view to the input region. The returned
-  // insets will be negative, such that view_rect.Inset(GetInputInsets()) will
-  // be the input region.
-  virtual gfx::Insets GetInputInsets() const;
-
-  // Gets the rounded-rect that will be used to clip the window frame when
-  // drawing. The region will be as if the window was restored, and will be in
-  // view coordinates.
-  virtual SkRRect GetRestoredClipRegion() const;
 
  protected:
   // Called when |frame_|'s "paint as active" state has changed.
@@ -178,11 +152,13 @@ class BrowserNonClientFrameView : public views::NonClientFrameView,
 
   // views::NonClientFrameView:
   void ChildPreferredSizeChanged(views::View* child) override;
+  bool DoesIntersectRect(const views::View* target,
+                         const gfx::Rect& rect) const override;
 
   // ProfileAttributesStorage::Observer:
   void OnProfileAdded(const base::FilePath& profile_path) override;
   void OnProfileWasRemoved(const base::FilePath& profile_path,
-                           const std::u16string& profile_name) override;
+                           const base::string16& profile_name) override;
   void OnProfileAvatarChanged(const base::FilePath& profile_path) override;
   void OnProfileHighResAvatarLoaded(
       const base::FilePath& profile_path) override;
@@ -199,28 +175,33 @@ class BrowserNonClientFrameView : public views::NonClientFrameView,
   }
 
  private:
-#if BUILDFLAG(IS_WIN)
-  // ui::EventHandler:
-  void OnGestureEvent(ui::GestureEvent* event) override;
-
   // views::NonClientFrameView:
+#if defined(OS_WIN)
   int GetSystemMenuY() const override;
-#endif  // BUILDFLAG(IS_WIN)
+#endif
+
+  // Get the |frame_| theme provider since it should be non-null even before
+  // we're added to the view hierarchy.
+  const ui::ThemeProvider* GetFrameThemeProvider() const;
 
   // The frame that hosts this view.
-  const raw_ptr<BrowserFrame, DanglingUntriaged> frame_;
+  BrowserFrame* const frame_;
 
   // The BrowserView hosted within this View.
-  const raw_ptr<BrowserView, DanglingUntriaged> browser_view_;
+  BrowserView* const browser_view_;
 
   // Menu button and page status icons. Only used by web-app windows.
-  raw_ptr<WebAppFrameToolbarView, DanglingUntriaged> web_app_frame_toolbar_ =
-      nullptr;
+  WebAppFrameToolbarView* web_app_frame_toolbar_ = nullptr;
 
-  base::CallbackListSubscription paint_as_active_subscription_ =
-      frame_->RegisterPaintAsActiveChangedCallback(
-          base::BindRepeating(&BrowserNonClientFrameView::PaintAsActiveChanged,
-                              base::Unretained(this)));
+  std::unique_ptr<views::Widget::PaintAsActiveCallbackList::Subscription>
+      paint_as_active_subscription_ =
+          frame_->RegisterPaintAsActiveChangedCallback(base::BindRepeating(
+              &BrowserNonClientFrameView::PaintAsActiveChanged,
+              base::Unretained(this)));
+
+  ScopedObserver<TabStrip, TabStripObserver> tab_strip_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserNonClientFrameView);
 };
 
 namespace chrome {

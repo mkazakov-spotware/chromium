@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,25 +7,21 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_element_id.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace cc {
 class AnimationHost;
-class AnimationTimeline;
 }
 
 namespace blink {
 class GraphicsContext;
-class LinkHighlightImpl;
-class LayoutObject;
-class LocalFrame;
-class Node;
 class Page;
-class PaintArtifactCompositor;
+class LinkHighlightImpl;
+class CompositorAnimationTimeline;
+class LocalFrame;
+class LayoutObject;
 
 class CORE_EXPORT LinkHighlight final : public GarbageCollected<LinkHighlight> {
  public:
@@ -38,19 +34,18 @@ class CORE_EXPORT LinkHighlight final : public GarbageCollected<LinkHighlight> {
 
   void SetTapHighlight(Node*);
 
-  void UpdateOpacityAndRequestAnimation();
+  void StartHighlightAnimationIfNeeded();
 
   void AnimationHostInitialized(cc::AnimationHost&);
   void WillCloseAnimationHost();
 
-  bool IsHighlighting(const LayoutObject& object) const {
-    return impl_ && IsHighlightingInternal(object);
+  bool NeedsHighlightEffect(const LayoutObject& object) const {
+    return impl_ && NeedsHighlightEffectInternal(object);
   }
 
   void UpdateBeforePrePaint();
   void UpdateAfterPrePaint();
   void Paint(GraphicsContext&) const;
-  void UpdateAfterPaint(const PaintArtifactCompositor*);
 
  private:
   friend class LinkHighlightImplTest;
@@ -64,12 +59,12 @@ class CORE_EXPORT LinkHighlight final : public GarbageCollected<LinkHighlight> {
     return *page_;
   }
 
-  bool IsHighlightingInternal(const LayoutObject& object) const;
+  bool NeedsHighlightEffectInternal(const LayoutObject& object) const;
 
   Member<Page> page_;
   std::unique_ptr<LinkHighlightImpl> impl_;
   cc::AnimationHost* animation_host_ = nullptr;
-  scoped_refptr<cc::AnimationTimeline> timeline_;
+  std::unique_ptr<CompositorAnimationTimeline> timeline_;
 };
 
 }  // namespace blink

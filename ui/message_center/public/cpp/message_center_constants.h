@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ namespace message_center {
 // Square image sizes in DIPs.
 const int kNotificationButtonIconSize = 16;
 const int kNotificationIconSize = 80;
-const int kQuickSettingIconSizeInDp = 48;
 // A border is applied to images that have a non-preferred aspect ratio.
 const int kNotificationImageBorderSize = 10;
 const int kNotificationPreferredImageWidth = 360;
@@ -27,9 +26,6 @@ const int kNotificationPreferredImageHeight = 240;
 const int kSmallImageSize = 16;
 const int kSmallImageSizeMD = 18;
 const int kSmallImagePadding = 4;
-
-// Rounded corners are applied to large and small images in ash
-constexpr int kImageCornerRadius = 8;
 
 // Limits.
 const size_t kMaxVisibleMessageCenterNotifications = 100;
@@ -53,7 +49,7 @@ const int kContextMessageViewWidth =
     kNotificationWidth - kTextLeftPadding - kTextRightPadding;
 // space between buttons and frame.
 const int kControlButtonPadding = 2;
-const int kControlButtonBorderSize = 4;
+const int kControlButtonBorderSize = 6;
 
 // Text sizes.
 const int kTitleFontSize = 14;        // For title only.
@@ -62,24 +58,16 @@ const int kTitleLineHeight = 20;      // In DIPs.
 const int kMessageFontSize = 12;      // For everything but title.
 const int kMessageLineHeight = 18;    // In DIPs.
 
-// Line limits.
-const int kMaxTitleLines = 2;
-const int kMessageCollapsedLineLimit = 2;
-const int kMessageExpandedLineLimit = 5;
-const int kContextMessageLineLimit = 1;
-
-// Title.
-constexpr int kMinPixelsPerTitleCharacter = 4;
-
-// Message.
-
-// Max number of lines for message_label_.
-constexpr int kMaxLinesForMessageLabel = 1;
-constexpr int kMaxLinesForExpandedMessageLabel = 4;
-
-// Character limit = pixels per line * line limit / min. pixels per character.
-constexpr size_t kMessageCharacterLimit =
-    kNotificationWidth * kMessageExpandedLineLimit / 3;
+// Colors.
+// Background of the card.
+constexpr SkColor kNotificationBackgroundColor = SK_ColorWHITE;
+// The focus border.
+constexpr SkColor kFocusBorderColor = SkColorSetRGB(64, 128, 250);
+// Foreground of small icon image.
+constexpr SkColor kSmallImageMaskForegroundColor = SK_ColorWHITE;
+// Background of small icon image.
+constexpr SkColor kSmallImageMaskBackgroundColor =
+    SkColorSetRGB(0xa3, 0xa3, 0xa3);
 
 // For list notifications.
 // Not used when --enabled-new-style-notification is set.
@@ -101,12 +89,20 @@ const int kButtonHorizontalPadding = 16;   // In DIPs.
 const int kButtonIconTopPadding = 11;      // In DIPs.
 const int kButtonIconToTitlePadding = 16;  // In DIPs.
 
+constexpr SkColor kHoveredButtonBackgroundColor = SkColorSetRGB(243, 243, 243);
+
 // Progress bar.
 const int kProgressBarTopPadding = 16;
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 const int kProgressBarThickness = 5;
 const int kProgressBarCornerRadius = 3;
 #endif
+
+// Line limits.
+const int kMaxTitleLines = 2;
+const int kMessageCollapsedLineLimit = 2;
+const int kMessageExpandedLineLimit = 5;
+const int kContextMessageLineLimit = 1;
 
 // Around notifications ////////////////////////////////////////////////////////
 
@@ -124,10 +120,6 @@ constexpr int kMarginBetweenPopups = 10;
 // The corners are only rounded in Chrome OS.
 constexpr int kNotificationCornerRadius = 2;
 
-// Animation Durations
-constexpr int kNotificationResizeAnimationDurationMs = 200;
-
-constexpr char kIdSuffixForGroupContainerNotification[] = "_copy";
 }  // namespace message_center
 
 #endif  // UI_MESSAGE_CENTER_PUBLIC_CPP_MESSAGE_CENTER_CONSTANTS_H_

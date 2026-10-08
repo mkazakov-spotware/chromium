@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/memory/singleton.h"
 #include "ui/events/devices/x11/device_data_manager_x11.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/future.h"
 
 namespace ui {
 
@@ -22,8 +21,8 @@ DeviceListCacheX11* DeviceListCacheX11::GetInstance() {
 }
 
 void DeviceListCacheX11::UpdateDeviceList(x11::Connection* connection) {
-  auto x_future = connection->xinput().ListInputDevices();
-  auto xi_future = connection->xinput().XIQueryDevice();
+  auto x_future = connection->xinput().ListInputDevices({});
+  auto xi_future = connection->xinput().XIQueryDevice({});
   connection->Flush();
   if (auto reply = x_future.Sync())
     x_dev_list_ = reply->devices;

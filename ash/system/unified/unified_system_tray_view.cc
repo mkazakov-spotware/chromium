@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include <numeric>
 
-#include "ash/constants/ash_features.h"
+#include "ash/public/cpp/ash_features.h"
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/system/media/unified_media_controls_container.h"
 #include "ash/system/message_center/ash_message_center_lock_screen_controller.h"
-#include "ash/system/notification_center/notification_center_view.h"
+#include "ash/system/message_center/unified_message_center_view.h"
 #include "ash/system/tray/interacted_by_tap_recorder.h"
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/unified/detailed_view_controller.h"
@@ -21,6 +21,7 @@
 #include "ash/system/unified/notification_hidden_view.h"
 #include "ash/system/unified/page_indicator_view.h"
 #include "ash/system/unified/top_shortcuts_view.h"
+#include "ash/system/unified/unified_managed_device_view.h"
 #include "ash/system/unified/unified_system_info_view.h"
 #include "ash/system/unified/unified_system_tray_controller.h"
 #include "ash/system/unified/unified_system_tray_model.h"
@@ -28,7 +29,6 @@
 #include "media/base/media_switches.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/message_center/message_center.h"
@@ -47,9 +47,6 @@ class DetailedViewContainer : public views::View {
  public:
   DetailedViewContainer() = default;
 
-  DetailedViewContainer(const DetailedViewContainer&) = delete;
-  DetailedViewContainer& operator=(const DetailedViewContainer&) = delete;
-
   ~DetailedViewContainer() override = default;
 
   // views::View:
@@ -60,6 +57,9 @@ class DetailedViewContainer : public views::View {
   }
 
   const char* GetClassName() const override { return "DetailedViewContainer"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DetailedViewContainer);
 };
 
 class AccessibilityFocusHelperView : public views::View {
@@ -193,12 +193,8 @@ UnifiedSystemTrayView::UnifiedSystemTrayView(
 
   auto add_layered_child = [](views::View* parent, views::View* child) {
     parent->AddChildView(child);
-    // In dark light mode, we switch TrayBubbleView to use a textured layer
-    // instead of solid color layer, so no need to create an extra layer here.
-    if (!features::IsDarkLightModeEnabled()) {
-      child->SetPaintToLayer();
-      child->layer()->SetFillsBoundsOpaquely(false);
-    }
+    child->SetPaintToLayer();
+    child->layer()->SetFillsBoundsOpaquely(false);
   };
 
   SessionControllerImpl* session_controller =
@@ -224,6 +220,11 @@ UnifiedSystemTrayView::UnifiedSystemTrayView(
 
   system_tray_container_->AddChildView(sliders_container_);
 
+  if (features::IsManagedDeviceUIRedesignEnabled()) {
+    managed_device_view_ = new UnifiedManagedDeviceView(controller_);
+    add_layered_child(system_tray_container_, managed_device_view_);
+  }
+
   add_layered_child(system_tray_container_, system_info_view_);
 
   system_tray_container_->SetFlexForView(page_indicator_view_);
@@ -242,6 +243,10 @@ UnifiedSystemTrayView::~UnifiedSystemTrayView() = default;
 void UnifiedSystemTrayView::SetMaxHeight(int max_height) {
   max_height_ = max_height;
 
+  int managed_device_view_height =
+      managed_device_view_ ? managed_device_view_->GetPreferredSize().height()
+                           : 0;
+
   int media_controls_container_height =
       media_controls_container_ ? media_controls_container_->GetExpandedHeight()
                                 : 0;
@@ -254,7 +259,8 @@ void UnifiedSystemTrayView::SetMaxHeight(int max_height) {
       page_indicator_view_->GetPreferredSize().height() -
       media_controls_container_height -
       sliders_container_->GetExpandedHeight() -
-      system_info_view_->GetPreferredSize().height());
+      system_info_view_->GetPreferredSize().height() -
+      managed_device_view_height);
 }
 
 void UnifiedSystemTrayView::AddFeaturePodButton(FeaturePodButton* button) {
@@ -262,6 +268,8 @@ void UnifiedSystemTrayView::AddFeaturePodButton(FeaturePodButton* button) {
 }
 
 void UnifiedSystemTrayView::AddSliderView(views::View* slider_view) {
+  slider_view->SetPaintToLayer();
+  slider_view->layer()->SetFillsBoundsOpaquely(false);
   sliders_container_->AddChildView(slider_view);
 }
 
@@ -284,22 +292,20 @@ void UnifiedSystemTrayView::ShowMediaControls() {
     PreferredSizeChanged();
 }
 
-void UnifiedSystemTrayView::SetDetailedView(
-    std::unique_ptr<views::View> detailed_view) {
+void UnifiedSystemTrayView::SetDetailedView(views::View* detailed_view) {
   auto system_tray_size = system_tray_container_->GetPreferredSize();
   system_tray_container_->SetVisible(false);
 
-  detailed_view_container_->RemoveAllChildViews();
-  views::View* view =
-      detailed_view_container_->AddChildView(std::move(detailed_view));
+  detailed_view_container_->RemoveAllChildViews(true /* delete_children */);
+  detailed_view_container_->AddChildView(detailed_view);
   detailed_view_container_->SetVisible(true);
   detailed_view_container_->SetPreferredSize(system_tray_size);
-  view->InvalidateLayout();
+  detailed_view->InvalidateLayout();
   Layout();
 }
 
 void UnifiedSystemTrayView::ResetDetailedView() {
-  detailed_view_container_->RemoveAllChildViews();
+  detailed_view_container_->RemoveAllChildViews(true /* delete_children */);
   detailed_view_container_->SetVisible(false);
   if (media_controls_container_)
     media_controls_container_->MaybeShowMediaControls();
@@ -340,6 +346,9 @@ void UnifiedSystemTrayView::SetExpandedAmount(double expanded_amount) {
 }
 
 int UnifiedSystemTrayView::GetExpandedSystemTrayHeight() const {
+  int managed_device_view_height =
+      managed_device_view_ ? managed_device_view_->GetPreferredSize().height()
+                           : 0;
   int media_controls_container_height =
       media_controls_container_ ? media_controls_container_->GetExpandedHeight()
                                 : 0;
@@ -351,16 +360,22 @@ int UnifiedSystemTrayView::GetExpandedSystemTrayHeight() const {
          page_indicator_view_->GetExpandedHeight() +
          sliders_container_->GetExpandedHeight() +
          media_controls_container_height +
-         system_info_view_->GetPreferredSize().height();
+         system_info_view_->GetPreferredSize().height() +
+         managed_device_view_height;
 }
 
 int UnifiedSystemTrayView::GetCollapsedSystemTrayHeight() const {
+  int managed_device_view_height =
+      managed_device_view_ && managed_device_view_->GetVisible()
+          ? managed_device_view_->GetPreferredSize().height()
+          : 0;
   return (notification_hidden_view_->GetVisible()
               ? notification_hidden_view_->GetPreferredSize().height()
               : 0) +
          top_shortcuts_view_->GetPreferredSize().height() +
          feature_pods_container_->GetCollapsedHeight() +
-         system_info_view_->GetPreferredSize().height();
+         system_info_view_->GetPreferredSize().height() +
+         managed_device_view_height;
 }
 
 int UnifiedSystemTrayView::GetCurrentHeight() const {
@@ -371,7 +386,7 @@ int UnifiedSystemTrayView::GetVisibleFeaturePodCount() const {
   return feature_pods_container_->GetVisibleCount();
 }
 
-std::u16string UnifiedSystemTrayView::GetDetailedViewAccessibleName() const {
+base::string16 UnifiedSystemTrayView::GetDetailedViewAccessibleName() const {
   return controller_->detailed_view_controller()->GetAccessibleName();
 }
 

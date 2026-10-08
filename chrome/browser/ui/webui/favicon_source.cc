@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@
 #include "chrome/browser/history/top_sites_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/instant_service.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/favicon/core/history_ui_favicon_request_handler.h"
@@ -37,9 +36,6 @@
 #include "url/gurl.h"
 
 namespace {
-
-// Generous cap to guard against out-of-memory issues.
-constexpr int kMaxDesiredSizeInPixel = 2048;
 
 // web_contents->GetLastCommittedURL in general will not necessarily yield the
 // original URL that started the request, but we're only interested in verifying
@@ -70,7 +66,8 @@ FaviconSource::FaviconSource(Profile* profile,
                              chrome::FaviconUrlFormat url_format)
     : profile_(profile->GetOriginalProfile()), url_format_(url_format) {}
 
-FaviconSource::~FaviconSource() {}
+FaviconSource::~FaviconSource() {
+}
 
 std::string FaviconSource::GetSource() {
   switch (url_format_) {
@@ -93,32 +90,21 @@ void FaviconSource::StartDataRequest(
       FaviconServiceFactory::GetForProfile(profile_,
                                            ServiceAccessType::EXPLICIT_ACCESS);
   if (!favicon_service) {
-    SendDefaultResponse(std::move(callback), wc_getter);
+    SendDefaultResponse(std::move(callback));
     return;
   }
 
   chrome::ParsedFaviconPath parsed;
   bool success = chrome::ParseFaviconPath(path, url_format_, &parsed);
   if (!success) {
-    SendDefaultResponse(std::move(callback), wc_getter);
+    SendDefaultResponse(std::move(callback));
     return;
   }
 
   GURL page_url(parsed.page_url);
   GURL icon_url(parsed.icon_url);
   if (!page_url.is_valid() && !icon_url.is_valid()) {
-    SendDefaultResponse(std::move(callback), wc_getter,
-                        parsed.force_light_mode);
-    return;
-  }
-
-  const int desired_size_in_pixel =
-      std::ceil(parsed.size_in_dip * parsed.device_scale_factor);
-
-  // Guard against out-of-memory issues.
-  if (desired_size_in_pixel > kMaxDesiredSizeInPixel) {
-    SendDefaultResponse(std::move(callback), wc_getter,
-                        parsed.force_light_mode);
+    SendDefaultResponse(std::move(callback));
     return;
   }
 
@@ -134,6 +120,9 @@ void FaviconSource::StartDataRequest(
     }
   }
 
+  int desired_size_in_pixel =
+      std::ceil(parsed.size_in_dip * parsed.device_scale_factor);
+
   if (parsed.page_url.empty()) {
     // Request by icon url.
 
@@ -142,8 +131,7 @@ void FaviconSource::StartDataRequest(
     favicon_service->GetRawFavicon(
         icon_url, favicon_base::IconType::kFavicon, desired_size_in_pixel,
         base::BindOnce(&FaviconSource::OnFaviconDataAvailable,
-                       base::Unretained(this), std::move(callback), parsed,
-                       wc_getter),
+                       base::Unretained(this), std::move(callback), parsed),
         &cancelable_task_tracker_);
   } else {
     // Intercept requests for prepopulated pages if TopSites exists.
@@ -152,8 +140,8 @@ void FaviconSource::StartDataRequest(
     if (top_sites) {
       for (const auto& prepopulated_page : top_sites->GetPrepopulatedPages()) {
         if (page_url == prepopulated_page.most_visited.url) {
-          ui::ResourceScaleFactor resource_scale_factor =
-              ui::GetSupportedResourceScaleFactor(parsed.device_scale_factor);
+          ui::ScaleFactor resource_scale_factor =
+              ui::GetSupportedScaleFactor(parsed.device_scale_factor);
           std::move(callback).Run(
               ui::ResourceBundle::GetSharedInstance()
                   .LoadDataResourceBytesForScale(prepopulated_page.favicon_id,
@@ -175,8 +163,7 @@ void FaviconSource::StartDataRequest(
           page_url, {favicon_base::IconType::kFavicon}, desired_size_in_pixel,
           fallback_to_host,
           base::BindOnce(&FaviconSource::OnFaviconDataAvailable,
-                         base::Unretained(this), std::move(callback), parsed,
-                         wc_getter),
+                         base::Unretained(this), std::move(callback), parsed),
           &cancelable_task_tracker_);
       return;
     }
@@ -188,19 +175,19 @@ void FaviconSource::StartDataRequest(
             HistoryUiFaviconRequestHandlerFactory::GetForBrowserContext(
                 profile_);
     if (!history_ui_favicon_request_handler) {
-      SendDefaultResponse(std::move(callback), parsed, wc_getter);
+      SendDefaultResponse(std::move(callback), parsed);
       return;
     }
     history_ui_favicon_request_handler->GetRawFaviconForPageURL(
         page_url, desired_size_in_pixel,
         base::BindOnce(&FaviconSource::OnFaviconDataAvailable,
                        weak_ptr_factory_.GetWeakPtr(), std::move(callback),
-                       parsed, wc_getter),
+                       parsed),
         parsed_history_ui_origin);
   }
 }
 
-std::string FaviconSource::GetMimeType(const GURL&) {
+std::string FaviconSource::GetMimeType(const std::string&) {
   // We need to explicitly return a mime type, otherwise if the user tries to
   // drag the image they get no extension.
   return "image/png";
@@ -228,34 +215,28 @@ bool FaviconSource::ShouldServiceRequest(
                                              render_process_id);
 }
 
-ui::NativeTheme* FaviconSource::GetNativeTheme(
-    const content::WebContents::Getter& wc_getter) {
-  return webui::GetNativeTheme(wc_getter.Run());
+ui::NativeTheme* FaviconSource::GetNativeTheme() {
+  return ui::NativeTheme::GetInstanceForNativeUi();
 }
 
 void FaviconSource::OnFaviconDataAvailable(
     content::URLDataSource::GotDataCallback callback,
     const chrome::ParsedFaviconPath& parsed,
-    const content::WebContents::Getter& wc_getter,
     const favicon_base::FaviconRawBitmapResult& bitmap_result) {
   if (bitmap_result.is_valid()) {
     // Forward the data along to the networking system.
     std::move(callback).Run(bitmap_result.bitmap_data.get());
   } else {
-    SendDefaultResponse(std::move(callback), parsed, wc_getter);
+    SendDefaultResponse(std::move(callback), parsed);
   }
 }
 
 void FaviconSource::SendDefaultResponse(
     content::URLDataSource::GotDataCallback callback,
-    const chrome::ParsedFaviconPath& parsed,
-    const content::WebContents::Getter& wc_getter) {
+    const chrome::ParsedFaviconPath& parsed) {
   if (!parsed.show_fallback_monogram) {
     SendDefaultResponse(std::move(callback), parsed.size_in_dip,
-                        parsed.device_scale_factor,
-                        parsed.force_light_mode
-                            ? false
-                            : GetNativeTheme(wc_getter)->ShouldUseDarkColors());
+                        parsed.device_scale_factor);
     return;
   }
   int icon_size = std::ceil(parsed.size_in_dip * parsed.device_scale_factor);
@@ -268,32 +249,25 @@ void FaviconSource::SendDefaultResponse(
 }
 
 void FaviconSource::SendDefaultResponse(
-    content::URLDataSource::GotDataCallback callback,
-    const content::WebContents::Getter& wc_getter,
-    bool force_light_mode) {
-  SendDefaultResponse(std::move(callback), 16, 1.0f,
-                      force_light_mode
-                          ? false
-                          : GetNativeTheme(wc_getter)->ShouldUseDarkColors());
+    content::URLDataSource::GotDataCallback callback) {
+  SendDefaultResponse(std::move(callback), 16, 1.0f);
 }
 
 void FaviconSource::SendDefaultResponse(
     content::URLDataSource::GotDataCallback callback,
     int size_in_dip,
-    float scale_factor,
-    bool dark_mode) {
+    float scale_factor) {
+  const bool dark = GetNativeTheme()->ShouldUseDarkColors();
   int resource_id;
   switch (size_in_dip) {
     case 64:
-      resource_id =
-          dark_mode ? IDR_DEFAULT_FAVICON_DARK_64 : IDR_DEFAULT_FAVICON_64;
+      resource_id = dark ? IDR_DEFAULT_FAVICON_DARK_64 : IDR_DEFAULT_FAVICON_64;
       break;
     case 32:
-      resource_id =
-          dark_mode ? IDR_DEFAULT_FAVICON_DARK_32 : IDR_DEFAULT_FAVICON_32;
+      resource_id = dark ? IDR_DEFAULT_FAVICON_DARK_32 : IDR_DEFAULT_FAVICON_32;
       break;
     default:
-      resource_id = dark_mode ? IDR_DEFAULT_FAVICON_DARK : IDR_DEFAULT_FAVICON;
+      resource_id = dark ? IDR_DEFAULT_FAVICON_DARK : IDR_DEFAULT_FAVICON;
       break;
   }
   std::move(callback).Run(LoadIconBytes(scale_factor, resource_id));
@@ -302,5 +276,5 @@ void FaviconSource::SendDefaultResponse(
 base::RefCountedMemory* FaviconSource::LoadIconBytes(float scale_factor,
                                                      int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytesForScale(
-      resource_id, ui::GetSupportedResourceScaleFactor(scale_factor));
+      resource_id, ui::GetSupportedScaleFactor(scale_factor));
 }

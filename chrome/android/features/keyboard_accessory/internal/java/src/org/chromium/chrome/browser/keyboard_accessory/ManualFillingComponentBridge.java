@@ -1,10 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.keyboard_accessory;
-
-import static org.chromium.base.ThreadUtils.assertOnUiThread;
 
 import android.app.Activity;
 import android.util.SparseArray;
@@ -14,58 +12,48 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.Callback;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.supplier.Supplier;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.AccessorySheetData;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.Action;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.FooterCommand;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.OptionToggle;
-import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PromoCodeInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.PropertyProvider;
 import org.chromium.chrome.browser.keyboard_accessory.data.UserInfoField;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 
 class ManualFillingComponentBridge {
     private final SparseArray<PropertyProvider<AccessorySheetData>> mProviders =
             new SparseArray<>();
     private PropertyProvider<Action[]> mActionProvider;
     private final WindowAndroid mWindowAndroid;
-    private final WebContents mWebContents;
     private long mNativeView;
     private final ManualFillingComponent.Observer mDestructionObserver = this::onComponentDestroyed;
 
-    private ManualFillingComponentBridge(
-            long nativeView, WindowAndroid windowAndroid, WebContents webContents) {
+    private ManualFillingComponentBridge(long nativeView, WindowAndroid windowAndroid) {
         mNativeView = nativeView;
         mWindowAndroid = windowAndroid;
-        mWebContents = webContents;
     }
 
     PropertyProvider<AccessorySheetData> getOrCreateProvider(@AccessoryTabType int tabType) {
         PropertyProvider<AccessorySheetData> provider = mProviders.get(tabType);
         if (provider != null) return provider;
         if (getManualFillingComponent() == null) return null;
-        if (mProviders.size() == 0) { // True iff the component is available for the first time.
-            getManualFillingComponent().registerSheetUpdateDelegate(
-                    mWebContents, this::requestSheet);
-        }
         provider = new PropertyProvider<>();
         mProviders.put(tabType, provider);
-        getManualFillingComponent().registerSheetDataProvider(mWebContents, tabType, provider);
+        getManualFillingComponent().registerSheetDataProvider(tabType, provider);
         return provider;
     }
 
     @CalledByNative
     private static ManualFillingComponentBridge create(
-            long nativeView, WindowAndroid windowAndroid, WebContents webContents) {
-        return new ManualFillingComponentBridge(nativeView, windowAndroid, webContents);
+            long nativeView, WindowAndroid windowAndroid) {
+        return new ManualFillingComponentBridge(nativeView, windowAndroid);
     }
 
     @CalledByNative
     private void onItemsAvailable(Object objAccessorySheetData) {
-        assertOnUiThread();
         AccessorySheetData accessorySheetData = (AccessorySheetData) objAccessorySheetData;
         PropertyProvider<AccessorySheetData> provider =
                 getOrCreateProvider(accessorySheetData.getSheetType());
@@ -100,7 +88,7 @@ class ManualFillingComponentBridge {
         }
         if (mActionProvider == null && getManualFillingComponent() != null) {
             mActionProvider = new PropertyProvider<>(AccessoryAction.GENERATE_PASSWORD_AUTOMATIC);
-            getManualFillingComponent().registerActionProvider(mWebContents, mActionProvider);
+            getManualFillingComponent().registerActionProvider(mActionProvider);
         }
         if (mActionProvider != null) mActionProvider.notifyObservers(generationAction);
     }
@@ -151,13 +139,6 @@ class ManualFillingComponentBridge {
     }
 
     @CalledByNative
-    private void showAccessorySheetTab(int tabType) {
-        if (getManualFillingComponent() != null) {
-            getManualFillingComponent().showAccessorySheetTab(tabType);
-        }
-    }
-
-    @CalledByNative
     private void addOptionToggleToAccessorySheetData(Object objAccessorySheetData,
             String displayText, boolean enabled, @AccessoryAction int accessoryAction) {
         ((AccessorySheetData) objAccessorySheetData)
@@ -170,16 +151,16 @@ class ManualFillingComponentBridge {
 
     @CalledByNative
     private Object addUserInfoToAccessorySheetData(
-            Object objAccessorySheetData, String origin, boolean isExactMatch, GURL iconUrl) {
-        UserInfo userInfo = new UserInfo(origin, isExactMatch, iconUrl);
+            Object objAccessorySheetData, String origin, boolean isPslMatch) {
+        UserInfo userInfo = new UserInfo(origin, isPslMatch);
         ((AccessorySheetData) objAccessorySheetData).getUserInfoList().add(userInfo);
         return userInfo;
     }
 
     @CalledByNative
     private void addFieldToUserInfo(Object objUserInfo, @AccessoryTabType int sheetType,
-            String displayText, String textToFill, String a11yDescription, String guid,
-            boolean isObfuscated, boolean selectable) {
+            String displayText, String a11yDescription, String guid, boolean isObfuscated,
+            boolean selectable) {
         Callback<UserInfoField> callback = null;
         if (selectable) {
             callback = (field) -> {
@@ -192,40 +173,7 @@ class ManualFillingComponentBridge {
         }
         ((UserInfo) objUserInfo)
                 .getFields()
-                .add(new UserInfoField.Builder()
-                                .setDisplayText(displayText)
-                                .setTextToFill(textToFill)
-                                .setA11yDescription(a11yDescription)
-                                .setId(guid)
-                                .setIsObfuscated(isObfuscated)
-                                .setCallback(callback)
-                                .build());
-    }
-
-    @CalledByNative
-    private void addPromoCodeInfoToAccessorySheetData(Object objAccessorySheetData,
-            @AccessoryTabType int sheetType, String displayText, String textToFill,
-            String a11yDescription, String guid, boolean isObfuscated, String detailsText) {
-        PromoCodeInfo promoCodeInfo = new PromoCodeInfo();
-        ((AccessorySheetData) objAccessorySheetData).getPromoCodeInfoList().add(promoCodeInfo);
-
-        Callback<UserInfoField> callback = null;
-        callback = (field) -> {
-            assert mNativeView != 0 : "Controller was destroyed but the bridge wasn't!";
-            ManualFillingMetricsRecorder.recordSuggestionSelected(sheetType, field.isObfuscated());
-            ManualFillingComponentBridgeJni.get().onFillingTriggered(
-                    mNativeView, ManualFillingComponentBridge.this, sheetType, field);
-        };
-        ((PromoCodeInfo) promoCodeInfo)
-                .setPromoCode(new UserInfoField.Builder()
-                                      .setDisplayText(displayText)
-                                      .setTextToFill(textToFill)
-                                      .setA11yDescription(a11yDescription)
-                                      .setId(guid)
-                                      .setIsObfuscated(isObfuscated)
-                                      .setCallback(callback)
-                                      .build());
-        ((PromoCodeInfo) promoCodeInfo).setDetailsText(detailsText);
+                .add(new UserInfoField(displayText, a11yDescription, guid, isObfuscated, callback));
     }
 
     @CalledByNative
@@ -242,16 +190,15 @@ class ManualFillingComponentBridge {
 
     @VisibleForTesting
     public static void cachePasswordSheetData(WebContents webContents, String[] userNames,
-            String[] passwords, boolean originDenylisted) {
+            String[] passwords, boolean originBlacklisted) {
         ManualFillingComponentBridgeJni.get().cachePasswordSheetDataForTesting(
-                webContents, userNames, passwords, originDenylisted);
+                webContents, userNames, passwords, originBlacklisted);
     }
 
     @VisibleForTesting
-    public static void notifyFocusedFieldType(
-            WebContents webContents, long focusedFieldId, int focusedFieldType) {
+    public static void notifyFocusedFieldType(WebContents webContents, int focusedFieldType) {
         ManualFillingComponentBridgeJni.get().notifyFocusedFieldTypeForTesting(
-                webContents, focusedFieldId, focusedFieldType);
+                webContents, focusedFieldType);
     }
 
     @VisibleForTesting
@@ -266,29 +213,16 @@ class ManualFillingComponentBridge {
     }
 
     private ManualFillingComponent getManualFillingComponent() {
-        Supplier<ManualFillingComponent> manualFillingComponentSupplier =
-                ManualFillingComponentSupplier.from(mWindowAndroid);
-        if (manualFillingComponentSupplier == null) return null;
-
-        ManualFillingComponent component = manualFillingComponentSupplier.get();
-        if (component != null) {
-            component.addObserver(mDestructionObserver);
-        }
-
-        return component;
+        ChromeActivity activity = (ChromeActivity) mWindowAndroid.getActivity().get();
+        if (activity == null) return null; // Has the activity died since it was last checked?
+        activity.getManualFillingComponent().addObserver(mDestructionObserver);
+        return activity.getManualFillingComponent();
     }
 
     private void onComponentDestroyed() {
         if (mNativeView != 0) {
             ManualFillingComponentBridgeJni.get().onViewDestroyed(
                     mNativeView, ManualFillingComponentBridge.this);
-        }
-    }
-
-    private void requestSheet(int sheetType) {
-        if (mNativeView != 0) {
-            ManualFillingComponentBridgeJni.get().requestAccessorySheet(
-                    mNativeView, ManualFillingComponentBridge.this, sheetType);
         }
     }
 
@@ -302,12 +236,9 @@ class ManualFillingComponentBridge {
                 ManualFillingComponentBridge caller, int accessoryAction, boolean enabled);
         void onViewDestroyed(
                 long nativeManualFillingViewAndroid, ManualFillingComponentBridge caller);
-        void requestAccessorySheet(long nativeManualFillingViewAndroid,
-                ManualFillingComponentBridge caller, int sheetType);
         void cachePasswordSheetDataForTesting(WebContents webContents, String[] userNames,
-                String[] passwords, boolean originDenylisted);
-        void notifyFocusedFieldTypeForTesting(
-                WebContents webContents, long focusedFieldId, int focusedFieldType);
+                String[] passwords, boolean originBlacklisted);
+        void notifyFocusedFieldTypeForTesting(WebContents webContents, int focusedFieldType);
         void signalAutoGenerationStatusForTesting(WebContents webContents, boolean available);
         void disableServerPredictionsForTesting();
     }

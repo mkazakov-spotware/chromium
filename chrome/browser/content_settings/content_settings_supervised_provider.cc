@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/values.h"
 #include "chrome/browser/supervised_user/supervised_user_constants.h"
 #include "chrome/browser/supervised_user/supervised_user_settings_service.h"
 
@@ -62,7 +61,8 @@ SupervisedProvider::SupervisedProvider(
                               base::Unretained(this)));
 }
 
-SupervisedProvider::~SupervisedProvider() = default;
+SupervisedProvider::~SupervisedProvider() {
+}
 
 std::unique_ptr<RuleIterator> SupervisedProvider::GetRuleIterator(
     ContentSettingsType content_type,
@@ -72,16 +72,18 @@ std::unique_ptr<RuleIterator> SupervisedProvider::GetRuleIterator(
 }
 
 void SupervisedProvider::OnSupervisedSettingsAvailable(
-    const base::Value::Dict& settings) {
+    const base::DictionaryValue* settings) {
   std::vector<ContentSettingsType> to_notify;
   // Entering locked scope to update content settings.
   {
     base::AutoLock auto_lock(lock_);
     for (const auto& entry : kContentSettingsFromSupervisedSettingsMap) {
       ContentSetting new_setting = CONTENT_SETTING_DEFAULT;
-      if (settings.Find(entry.setting_name)) {
-        DCHECK(settings.Find(entry.setting_name)->is_bool());
-        if (settings.FindBool(entry.setting_name).value_or(false))
+      if (settings && settings->HasKey(entry.setting_name)) {
+        bool new_is_set = false;
+        bool is_bool = settings->GetBoolean(entry.setting_name, &new_is_set);
+        DCHECK(is_bool);
+        if (new_is_set)
           new_setting = entry.content_setting;
       }
       if (new_setting != value_map_.GetContentSetting(entry.content_type)) {
@@ -91,8 +93,7 @@ void SupervisedProvider::OnSupervisedSettingsAvailable(
     }
   }
   for (ContentSettingsType type : to_notify) {
-    NotifyObservers(ContentSettingsPattern::Wildcard(),
-                    ContentSettingsPattern::Wildcard(), type);
+    NotifyObservers(ContentSettingsPattern(), ContentSettingsPattern(), type);
   }
 }
 
@@ -102,7 +103,7 @@ bool SupervisedProvider::SetWebsiteSetting(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type,
-    base::Value&& value,
+    std::unique_ptr<base::Value>&& value,
     const ContentSettingConstraints& constraints) {
   return false;
 }
@@ -114,7 +115,7 @@ void SupervisedProvider::ClearAllContentSettingsRules(
 void SupervisedProvider::ShutdownOnUIThread() {
   DCHECK(CalledOnValidThread());
   RemoveAllObservers();
-  user_settings_subscription_ = {};
+  user_settings_subscription_.reset();
 }
 
 }  // namespace content_settings

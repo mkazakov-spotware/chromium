@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/manifest_handler.h"
@@ -32,8 +32,7 @@ struct WebAccessibleResourcesInfo : public Extension::ManifestData {
     Entry(URLPatternSet resources,
           URLPatternSet matches,
           std::vector<ExtensionId> extension_ids,
-          bool use_dynamic_url,
-          bool allow_all_extensions);
+          bool use_dynamic_url);
 
     // List of web accessible extension resources.
     URLPatternSet resources;
@@ -42,27 +41,18 @@ struct WebAccessibleResourcesInfo : public Extension::ManifestData {
     URLPatternSet matches;
 
     // List of extension ids allowed to access resources.
-    base::flat_set<ExtensionId> extension_ids;
+    std::vector<ExtensionId> extension_ids;
 
     // Optionally true to require dynamic urls from sites not in |matches|.
     bool use_dynamic_url;
-
-    // True if "*" is defined as an extension id in the manifest.
-    bool allow_all_extensions;
   };
 
   // Returns true if the specified resource is web accessible.
-  static bool IsResourceWebAccessible(
-      const Extension* extension,
-      const std::string& relative_path,
-      const absl::optional<url::Origin>& initiator_origin);
+  static bool IsResourceWebAccessible(const Extension* extension,
+                                      const std::string& relative_path);
 
   // Returns true when 'web_accessible_resources' are defined for the extension.
   static bool HasWebAccessibleResources(const Extension* extension);
-
-  // Accessor for use_dynamic_url.
-  static bool ShouldUseDynamicUrl(const Extension* extension,
-                                  const std::string& resource);
 
   // The list of entries for the web-accessible resources of the extension.
   std::vector<Entry> web_accessible_resources;
@@ -72,17 +62,14 @@ struct WebAccessibleResourcesInfo : public Extension::ManifestData {
 class WebAccessibleResourcesHandler : public ManifestHandler {
  public:
   WebAccessibleResourcesHandler();
-
-  WebAccessibleResourcesHandler(const WebAccessibleResourcesHandler&) = delete;
-  WebAccessibleResourcesHandler& operator=(
-      const WebAccessibleResourcesHandler&) = delete;
-
   ~WebAccessibleResourcesHandler() override;
 
-  bool Parse(Extension* extension, std::u16string* error) override;
+  bool Parse(Extension* extension, base::string16* error) override;
 
  private:
   base::span<const char* const> Keys() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(WebAccessibleResourcesHandler);
 };
 
 }  // namespace extensions

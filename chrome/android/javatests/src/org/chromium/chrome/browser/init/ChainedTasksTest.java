@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.task.ChainedTasks;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
@@ -196,5 +195,18 @@ public class ChainedTasksTest {
         tasks.start(false);
         Assert.assertFalse(finished.tryAcquire(TIMEOUT_MS, TimeUnit.MILLISECONDS));
         Assert.assertEquals(expectedMessages, messages);
+    }
+
+    @Test
+    @SmallTest
+    public void testThreadRestrictions() {
+        ChainedTasks tasks = new ChainedTasks();
+        tasks.start(false);
+        try {
+            tasks.cancel();
+            Assert.fail("Cancel should not be callable from a non-UI thread");
+        } catch (IllegalStateException e) {
+            // Expected.
+        }
     }
 }

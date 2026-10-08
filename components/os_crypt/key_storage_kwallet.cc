@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/os_crypt/key_storage_kwallet.h"
 
-#include <tuple>
 #include <utility>
 
 #include "base/base64.h"
@@ -21,7 +20,7 @@ KeyStorageKWallet::~KeyStorageKWallet() {
   // The handle is shared between programs that are using the same wallet.
   // Closing the wallet is a nop in the typical case.
   bool success = true;
-  std::ignore = kwallet_dbus_->Close(handle_, false, app_name_, &success);
+  ignore_result(kwallet_dbus_->Close(handle_, false, app_name_, &success));
   kwallet_dbus_->GetSessionBus()->ShutdownAndBlock();
 }
 
@@ -81,24 +80,24 @@ KeyStorageKWallet::InitResult KeyStorageKWallet::InitWallet() {
   return InitResult::PERMANENT_FAIL;
 }
 
-absl::optional<std::string> KeyStorageKWallet::GetKeyImpl() {
+base::Optional<std::string> KeyStorageKWallet::GetKeyImpl() {
   // Get handle
   KWalletDBus::Error error =
       kwallet_dbus_->Open(wallet_name_, app_name_, &handle_);
   if (error || handle_ == kInvalidHandle)
-    return absl::nullopt;
+    return base::nullopt;
 
   // Create folder
   if (!InitFolder())
-    return absl::nullopt;
+    return base::nullopt;
 
   // Read password
-  absl::optional<std::string> password;
+  base::Optional<std::string> password;
   error =
       kwallet_dbus_->ReadPassword(handle_, KeyStorageLinux::kFolderName,
                                   KeyStorageLinux::kKey, app_name_, &password);
   if (error)
-    return absl::nullopt;
+    return base::nullopt;
 
   // If there is no entry, generate and write a new password.
   if (!password.has_value()) {
@@ -109,7 +108,7 @@ absl::optional<std::string> KeyStorageKWallet::GetKeyImpl() {
                                          KeyStorageLinux::kKey, password_,
                                          app_name_, &success);
     if (error || !success)
-      return absl::nullopt;
+      return base::nullopt;
     password = std::move(password_);
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/callback.h"
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread.h"
 
@@ -27,10 +28,6 @@ class NativeMessagingReader {
       MessageCallback;
 
   explicit NativeMessagingReader(base::File file);
-
-  NativeMessagingReader(const NativeMessagingReader&) = delete;
-  NativeMessagingReader& operator=(const NativeMessagingReader&) = delete;
-
   ~NativeMessagingReader();
 
   // Begin reading messages from the Native Messaging client webapp, calling
@@ -69,6 +66,8 @@ class NativeMessagingReader {
   // Allows the reader to be deleted safely even when tasks may be pending on
   // it.
   base::WeakPtrFactory<NativeMessagingReader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(NativeMessagingReader);
 };
 
 }  // namespace remoting

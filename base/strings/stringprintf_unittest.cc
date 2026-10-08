@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -35,7 +36,7 @@ TEST(StringPrintfTest, StringPrintfEmpty) {
 
 TEST(StringPrintfTest, StringPrintfMisc) {
   EXPECT_EQ("123hello w", StringPrintf("%3d%2s %1c", 123, "hello", 'w'));
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   EXPECT_EQ(L"123hello w", StringPrintf(L"%3d%2ls %1lc", 123, L"hello", 'w'));
   EXPECT_EQ(u"123hello w", StringPrintf(u"%3d%2ls %1lc", 123, u"hello", 'w'));
 #endif
@@ -46,7 +47,7 @@ TEST(StringPrintfTest, StringAppendfEmptyString) {
   StringAppendF(&value, "%s", "");
   EXPECT_EQ("Hello", value);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::wstring valuew(L"Hello");
   StringAppendF(&valuew, L"%ls", L"");
   EXPECT_EQ(L"Hello", valuew);
@@ -62,7 +63,7 @@ TEST(StringPrintfTest, StringAppendfString) {
   StringAppendF(&value, " %s", "World");
   EXPECT_EQ("Hello World", value);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::wstring valuew(L"Hello");
   StringAppendF(&valuew, L" %ls", L"World");
   EXPECT_EQ(L"Hello World", valuew);
@@ -78,7 +79,7 @@ TEST(StringPrintfTest, StringAppendfInt) {
   StringAppendF(&value, " %d", 123);
   EXPECT_EQ("Hello 123", value);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::wstring valuew(L"Hello");
   StringAppendF(&valuew, L" %d", 123);
   EXPECT_EQ(L"Hello 123", valuew);
@@ -108,7 +109,7 @@ TEST(StringPrintfTest, StringPrintfBounds) {
     SStringPrintf(&out, "%s", src);
     EXPECT_STREQ(src, out.c_str());
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     srcw[kSrcLen - i] = 0;
     std::wstring outw;
     SStringPrintf(&outw, L"%ls", srcw);
@@ -139,9 +140,9 @@ TEST(StringPrintfTest, Grow) {
 
   const int kRefSize = 320000;
   char* ref = new char[kRefSize];
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   sprintf_s(ref, kRefSize, fmt, src, src, src, src, src, src, src);
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   snprintf(ref, kRefSize, fmt, src, src, src, src, src, src, src);
 #endif
 
@@ -154,7 +155,7 @@ TEST(StringPrintfTest, StringAppendV) {
   StringAppendVTestHelper(&out, "%d foo %s", 1, "bar");
   EXPECT_EQ("1 foo bar", out);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::wstring outw;
   StringAppendVTestHelper(&outw, L"%d foo %ls", 1, L"bar");
   EXPECT_EQ(L"1 foo bar", outw);
@@ -184,7 +185,7 @@ TEST(StringPrintfTest, GrowBoundary) {
   EXPECT_STREQ(src, out.c_str());
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST(StringPrintfTest, Invalid) {
   wchar_t invalid[2];
   invalid[0] = 0xffff;

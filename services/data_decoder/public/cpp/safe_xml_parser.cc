@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/values.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -88,7 +89,7 @@ bool GetXmlElementNamespacePrefix(const base::Value& element,
 
   // The namespaces dictionary is prefix -> URI, so we have to do a reverse
   // lookup.
-  for (auto item : namespaces->DictItems()) {
+  for (const auto& item : namespaces->DictItems()) {
     if (item.second.GetString() == namespace_uri) {
       *prefix = item.first;
       return true;

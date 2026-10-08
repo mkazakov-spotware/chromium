@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,10 @@
 
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "base/time/time.h"
 #include "components/web_cache/public/mojom/web_cache.mojom.h"
 #include "content/public/browser/render_process_host.h"
@@ -60,9 +61,6 @@ class WebCacheManager : public content::RenderProcessHostCreationObserver,
   // is called, a WebCacheManager object is constructed and returned.
   // Subsequent calls will return the same object.
   static WebCacheManager* GetInstance();
-
-  WebCacheManager(const WebCacheManager&) = delete;
-  WebCacheManager& operator=(const WebCacheManager&) = delete;
 
   // When a render process is created, it registers itself with the cache
   // manager host, causing the renderer to be allocated cache resources.
@@ -139,14 +137,8 @@ class WebCacheManager : public content::RenderProcessHostCreationObserver,
   // each renderer is permitted to consume for its cache.
   typedef std::list<Allocation> AllocationStrategy;
 
-  struct WebCacheInfo {
-    WebCacheInfo();
-    ~WebCacheInfo();
-    mojo::Remote<mojom::WebCache> service;
-    uint64_t last_capacity;
-  };
   // The key is the unique id of every render process host.
-  typedef std::map<int, WebCacheInfo> WebCacheServicesMap;
+  typedef std::map<int, mojo::Remote<mojom::WebCache>> WebCacheServicesMap;
 
   // This class is a singleton.  Do not instantiate directly. Call GetInstance()
   // instead.
@@ -251,18 +243,16 @@ class WebCacheManager : public content::RenderProcessHostCreationObserver,
   // recently than they have been active.
   std::set<int> inactive_renderers_;
 
-  // True if a delayed call to ReviseAllocationStrategy() is pending.
-  bool callback_pending_ = false;
-
   // Maps every renderer_id with its corresponding
   // mojo::Remote<mojom::WebCache>.
   WebCacheServicesMap web_cache_services_;
 
-  base::ScopedMultiSourceObservation<content::RenderProcessHost,
-                                     content::RenderProcessHostObserver>
-      rph_observations_{this};
+  ScopedObserver<content::RenderProcessHost, content::RenderProcessHostObserver>
+      rph_observers_{this};
 
   base::WeakPtrFactory<WebCacheManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WebCacheManager);
 };
 
 }  // namespace web_cache

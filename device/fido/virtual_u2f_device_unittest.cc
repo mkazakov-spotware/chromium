@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -21,7 +20,7 @@ namespace device {
 namespace {
 
 using TestCallbackReceiver =
-    test::ValueCallbackReceiver<absl::optional<std::vector<uint8_t>>>;
+    test::ValueCallbackReceiver<base::Optional<std::vector<uint8_t>>>;
 
 void SendCommand(VirtualU2fDevice* device, base::span<const uint8_t> command) {
   device->DeviceTransact(fido_parsing_utils::Materialize(command),

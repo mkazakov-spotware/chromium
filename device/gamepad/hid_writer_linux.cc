@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/gamepad/hid_writer_linux.h"
-
-#include <unistd.h>
 
 #include "base/posix/eintr_wrapper.h"
 

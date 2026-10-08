@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,10 @@
 #import <Cocoa/Cocoa.h>
 
 namespace ui {
-ScopedCurrentNSAppearance::ScopedCurrentNSAppearance(bool dark,
-                                                     bool high_contrast) {
+ScopedCurrentNSAppearance::ScopedCurrentNSAppearance(bool dark) {
   if (@available(macOS 10.14, *)) {
-    NSAppearanceName appearance;
-
-    if (dark) {
-      appearance = high_contrast
-                       ? NSAppearanceNameAccessibilityHighContrastDarkAqua
-                       : NSAppearanceNameDarkAqua;
-    } else {
-      appearance = high_contrast ? NSAppearanceNameAccessibilityHighContrastAqua
-                                 : NSAppearanceNameAqua;
-    }
-
+    NSAppearanceName appearance =
+        dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua;
     [NSAppearance
         setCurrentAppearance:[NSAppearance appearanceNamed:appearance]];
   }

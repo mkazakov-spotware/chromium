@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,30 +11,30 @@
 namespace viz {
 
 SolidColorDrawQuad::SolidColorDrawQuad()
-    : color(SkColors::kTransparent), force_anti_aliasing_off(false) {}
+    : color(0), force_anti_aliasing_off(false) {}
 
 void SolidColorDrawQuad::SetNew(const SharedQuadState* shared_quad_state,
                                 const gfx::Rect& rect,
                                 const gfx::Rect& visible_rect,
-                                SkColor4f c,
-                                bool anti_aliasing_off) {
-  bool needs_blending = !c.isOpaque();
+                                SkColor color,
+                                bool force_anti_aliasing_off) {
+  bool needs_blending = SkColorGetA(color) != 255;
   DrawQuad::SetAll(shared_quad_state, DrawQuad::Material::kSolidColor, rect,
                    visible_rect, needs_blending);
-  color = c;
-  force_anti_aliasing_off = anti_aliasing_off;
+  this->color = color;
+  this->force_anti_aliasing_off = force_anti_aliasing_off;
 }
 
 void SolidColorDrawQuad::SetAll(const SharedQuadState* shared_quad_state,
                                 const gfx::Rect& rect,
                                 const gfx::Rect& visible_rect,
                                 bool needs_blending,
-                                SkColor4f c,
-                                bool anti_aliasing_off) {
+                                SkColor color,
+                                bool force_anti_aliasing_off) {
   DrawQuad::SetAll(shared_quad_state, DrawQuad::Material::kSolidColor, rect,
                    visible_rect, needs_blending);
-  color = c;
-  force_anti_aliasing_off = anti_aliasing_off;
+  this->color = color;
+  this->force_anti_aliasing_off = force_anti_aliasing_off;
 }
 
 const SolidColorDrawQuad* SolidColorDrawQuad::MaterialCast(
@@ -45,7 +45,7 @@ const SolidColorDrawQuad* SolidColorDrawQuad::MaterialCast(
 
 void SolidColorDrawQuad::ExtendValue(
     base::trace_event::TracedValue* value) const {
-  value->SetString("color", color_utils::SkColor4fToRgbaString(color));
+  value->SetString("color", color_utils::SkColorToRgbaString(color));
   value->SetBoolean("force_anti_aliasing_off", force_anti_aliasing_off);
 }
 

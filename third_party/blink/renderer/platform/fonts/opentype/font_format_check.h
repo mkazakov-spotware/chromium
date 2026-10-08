@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_OPENTYPE_FONT_FORMAT_CHECK_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_OPENTYPE_FONT_FORMAT_CHECK_H_
 
-#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/skia/include/core/SkData.h"
@@ -14,18 +13,14 @@
 
 namespace blink {
 
-class PLATFORM_EXPORT FontFormatCheck {
+class FontFormatCheck {
   STACK_ALLOCATED();
 
  public:
-  explicit FontFormatCheck(sk_sp<SkData>);
+  FontFormatCheck(sk_sp<SkData>);
   bool IsVariableFont();
   bool IsCbdtCblcColorFont();
-  bool IsColrCpalColorFont() {
-    return IsColrCpalColorFontV0() || IsColrCpalColorFontV1();
-  }
-  bool IsColrCpalColorFontV0();
-  bool IsColrCpalColorFontV1();
+  bool IsColrCpalColorFont();
   bool IsSbixColorFont();
   bool IsCff2OutlineFont();
   bool IsColorFont();
@@ -39,16 +34,11 @@ class PLATFORM_EXPORT FontFormatCheck {
 
   static VariableFontSubType ProbeVariableFont(sk_sp<SkTypeface>);
 
-  // hb-common.h: typedef uint32_t hb_tag_t;
-  using TableTagsVector = Vector<uint32_t>;
-
-  enum class COLRVersion { kCOLRV0, kCOLRV1, kNoCOLR };
-
  private:
-  TableTagsVector table_tags_;
-  COLRVersion colr_version_ = COLRVersion::kNoCOLR;
+  // hb-common.h: typedef uint32_t hb_tag_t;
+  Vector<uint32_t> table_tags_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_OPENTYPE_FONT_FORMAT_CHECK_H_
+#endif

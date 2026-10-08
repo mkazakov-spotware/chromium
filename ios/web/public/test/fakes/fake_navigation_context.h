@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #include "url/gurl.h"
@@ -18,9 +19,6 @@ class WebState;
 // Tracks information related to a single navigation.
 class FakeNavigationContext : public NavigationContext {
  public:
-  FakeNavigationContext(const FakeNavigationContext&) = delete;
-  FakeNavigationContext& operator=(const FakeNavigationContext&) = delete;
-
   ~FakeNavigationContext() override;
   FakeNavigationContext();
 
@@ -37,7 +35,6 @@ class FakeNavigationContext : public NavigationContext {
   NSError* GetError() const override;
   net::HttpResponseHeaders* GetResponseHeaders() const override;
   bool IsRendererInitiated() const override;
-  HttpsUpgradeType GetFailedHttpsUpgradeType() const override;
 
   // Setters for navigation context data members.
   void SetWebState(std::unique_ptr<WebState> web_state);
@@ -66,6 +63,8 @@ class FakeNavigationContext : public NavigationContext {
   __strong NSError* error_ = nil;
   scoped_refptr<net::HttpResponseHeaders> response_headers_;
   bool renderer_initiated_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeNavigationContext);
 };
 
 }  // namespace web

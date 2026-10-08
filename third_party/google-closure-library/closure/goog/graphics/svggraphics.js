@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -31,16 +39,6 @@ goog.require('goog.math');
 goog.require('goog.math.Size');
 goog.require('goog.style');
 goog.require('goog.userAgent');
-goog.requireType('goog.graphics.AffineTransform');
-goog.requireType('goog.graphics.Element');
-goog.requireType('goog.graphics.EllipseElement');
-goog.requireType('goog.graphics.Fill');
-goog.requireType('goog.graphics.GroupElement');
-goog.requireType('goog.graphics.ImageElement');
-goog.requireType('goog.graphics.PathElement');
-goog.requireType('goog.graphics.RectElement');
-goog.requireType('goog.graphics.StrokeAndFillElement');
-goog.requireType('goog.graphics.TextElement');
 
 
 
@@ -65,7 +63,6 @@ goog.requireType('goog.graphics.TextElement');
  */
 goog.graphics.SvgGraphics = function(
     width, height, opt_coordWidth, opt_coordHeight, opt_domHelper) {
-  'use strict';
   goog.graphics.AbstractGraphics.call(
       this, width, height, opt_coordWidth, opt_coordHeight, opt_domHelper);
 
@@ -142,7 +139,6 @@ goog.graphics.SvgGraphics.prototype.defsElement_;
  */
 goog.graphics.SvgGraphics.prototype.createSvgElement_ = function(
     tagName, opt_attributes) {
-  'use strict';
   var element = this.dom_.getDocument().createElementNS(
       goog.graphics.SvgGraphics.SVG_NS_, tagName);
 
@@ -162,7 +158,6 @@ goog.graphics.SvgGraphics.prototype.createSvgElement_ = function(
  */
 goog.graphics.SvgGraphics.prototype.setElementAttributes = function(
     element, attributes) {
-  'use strict';
   for (var key in attributes) {
     element.setAttribute(key, attributes[key]);
   }
@@ -178,9 +173,8 @@ goog.graphics.SvgGraphics.prototype.setElementAttributes = function(
  * @private
  */
 goog.graphics.SvgGraphics.prototype.append_ = function(element, opt_group) {
-  'use strict';
   var parent = opt_group || this.canvasElement;
-  parent.getElement().appendChild(/** @type {!Node} */ (element.getElement()));
+  parent.getElement().appendChild(element.getElement());
 };
 
 
@@ -191,7 +185,6 @@ goog.graphics.SvgGraphics.prototype.append_ = function(element, opt_group) {
  * @override
  */
 goog.graphics.SvgGraphics.prototype.setElementFill = function(element, fill) {
-  'use strict';
   var svgElement = element.getElement();
   if (fill instanceof goog.graphics.SolidFill) {
     svgElement.setAttribute('fill', fill.getColor());
@@ -261,7 +254,6 @@ goog.graphics.SvgGraphics.prototype.setElementFill = function(element, fill) {
  */
 goog.graphics.SvgGraphics.prototype.setElementStroke = function(
     element, stroke) {
-  'use strict';
   var svgElement = element.getElement();
   if (stroke) {
     svgElement.setAttribute('stroke', stroke.getColor());
@@ -295,11 +287,9 @@ goog.graphics.SvgGraphics.prototype.setElementStroke = function(
  */
 goog.graphics.SvgGraphics.prototype.setElementTransform = function(
     element, x, y, angle, centerX, centerY) {
-  'use strict';
   element.getElement().setAttribute(
-      'transform',
-      'translate(' + x + ',' + y + ') rotate(' + angle + ' ' + centerX + ' ' +
-          centerY + ')');
+      'transform', 'translate(' + x + ',' + y + ') rotate(' + angle + ' ' +
+          centerX + ' ' + centerY + ')');
 };
 
 
@@ -312,7 +302,6 @@ goog.graphics.SvgGraphics.prototype.setElementTransform = function(
  */
 goog.graphics.SvgGraphics.prototype.setElementAffineTransform = function(
     element, affineTransform) {
-  'use strict';
   var t = affineTransform;
   var substr = [
     t.getScaleX(), t.getShearY(), t.getShearX(), t.getScaleY(),
@@ -327,7 +316,6 @@ goog.graphics.SvgGraphics.prototype.setElementAffineTransform = function(
  * @override
  */
 goog.graphics.SvgGraphics.prototype.createDom = function() {
-  'use strict';
   // Set up the standard attributes.
   var attributes =
       {'width': this.width, 'height': this.height, 'overflow': 'hidden'};
@@ -357,7 +345,6 @@ goog.graphics.SvgGraphics.prototype.createDom = function() {
  * @override
  */
 goog.graphics.SvgGraphics.prototype.setCoordOrigin = function(left, top) {
-  'use strict';
   this.coordLeft = left;
   this.coordTop = top;
 
@@ -373,7 +360,6 @@ goog.graphics.SvgGraphics.prototype.setCoordOrigin = function(left, top) {
  */
 goog.graphics.SvgGraphics.prototype.setCoordSize = function(
     coordWidth, coordHeight) {
-  'use strict';
   goog.graphics.SvgGraphics.superClass_.setCoordSize.apply(this, arguments);
   this.setViewBox_();
 };
@@ -384,7 +370,6 @@ goog.graphics.SvgGraphics.prototype.setCoordSize = function(
  * @private
  */
 goog.graphics.SvgGraphics.prototype.getViewBox_ = function() {
-  'use strict';
   return this.coordLeft + ' ' + this.coordTop + ' ' +
       (this.coordWidth ? this.coordWidth + ' ' + this.coordHeight : '');
 };
@@ -395,7 +380,6 @@ goog.graphics.SvgGraphics.prototype.getViewBox_ = function() {
  * @private
  */
 goog.graphics.SvgGraphics.prototype.setViewBox_ = function() {
-  'use strict';
   if (this.coordWidth || this.coordLeft || this.coordTop) {
     this.getElement().setAttribute('preserveAspectRatio', 'none');
     if (this.useManualViewbox_) {
@@ -414,7 +398,6 @@ goog.graphics.SvgGraphics.prototype.setViewBox_ = function() {
  * @suppress {strictPrimitiveOperators} Part of the go/strict_warnings_migration
  */
 goog.graphics.SvgGraphics.prototype.updateManualViewBox_ = function() {
-  'use strict';
   if (!this.isInDocument() ||
       !(this.coordWidth || this.coordLeft || !this.coordTop)) {
     return;
@@ -448,14 +431,12 @@ goog.graphics.SvgGraphics.prototype.updateManualViewBox_ = function() {
  */
 goog.graphics.SvgGraphics.prototype.setSize = function(
     pixelWidth, pixelHeight) {
-  'use strict';
   goog.style.setSize(this.getElement(), pixelWidth, pixelHeight);
 };
 
 
 /** @override */
 goog.graphics.SvgGraphics.prototype.getPixelSize = function() {
-  'use strict';
   if (!goog.userAgent.GECKO) {
     return this.isInDocument() ?
         goog.style.getSize(this.getElement()) :
@@ -500,7 +481,6 @@ goog.graphics.SvgGraphics.prototype.getPixelSize = function() {
  * @override
  */
 goog.graphics.SvgGraphics.prototype.clear = function() {
-  'use strict';
   this.canvasElement.clear();
   goog.dom.removeChildren(this.defsElement_);
   this.defs_ = {};
@@ -525,7 +505,6 @@ goog.graphics.SvgGraphics.prototype.clear = function() {
  */
 goog.graphics.SvgGraphics.prototype.drawEllipse = function(
     cx, cy, rx, ry, stroke, fill, opt_group) {
-  'use strict';
   var element = this.createSvgElement_(
       'ellipse', {'cx': cx, 'cy': cy, 'rx': rx, 'ry': ry});
   var wrapper =
@@ -553,7 +532,6 @@ goog.graphics.SvgGraphics.prototype.drawEllipse = function(
  */
 goog.graphics.SvgGraphics.prototype.drawRect = function(
     x, y, width, height, stroke, fill, opt_group) {
-  'use strict';
   var element = this.createSvgElement_(
       'rect', {'x': x, 'y': y, 'width': width, 'height': height});
   var wrapper = new goog.graphics.SvgRectElement(element, this, stroke, fill);
@@ -578,7 +556,6 @@ goog.graphics.SvgGraphics.prototype.drawRect = function(
  */
 goog.graphics.SvgGraphics.prototype.drawImage = function(
     x, y, width, height, src, opt_group) {
-  'use strict';
   var element = this.createSvgElement_('image', {
     'x': x,
     'y': y,
@@ -615,7 +592,6 @@ goog.graphics.SvgGraphics.prototype.drawImage = function(
  */
 goog.graphics.SvgGraphics.prototype.drawTextOnLine = function(
     text, x1, y1, x2, y2, align, font, stroke, fill, opt_group) {
-  'use strict';
   var angle = Math.round(goog.math.angle(x1, y1, x2, y2));
   var dx = x2 - x1;
   var dy = y2 - y1;
@@ -682,7 +658,7 @@ goog.graphics.SvgGraphics.prototype.drawTextOnLine = function(
  */
 goog.graphics.SvgGraphics.prototype.drawPath = function(
     path, stroke, fill, opt_group) {
-  'use strict';
+
   var element = this.createSvgElement_(
       'path', {'d': goog.graphics.SvgGraphics.getSvgPath(path)});
   var wrapper = new goog.graphics.SvgPathElement(element, this, stroke, fill);
@@ -700,10 +676,8 @@ goog.graphics.SvgGraphics.prototype.drawPath = function(
  * @suppress {deprecated} goog.graphics is deprecated.
  */
 goog.graphics.SvgGraphics.getSvgPath = function(path) {
-  'use strict';
   var list = [];
   path.forEachSegment(function(segment, args) {
-    'use strict';
     switch (segment) {
       case goog.graphics.Path.Segment.MOVETO:
         list.push('M');
@@ -742,7 +716,6 @@ goog.graphics.SvgGraphics.getSvgPath = function(path) {
  * @override
  */
 goog.graphics.SvgGraphics.prototype.createGroup = function(opt_group) {
-  'use strict';
   var element = this.createSvgElement_('g');
   var parent = opt_group || this.canvasElement;
   parent.getElement().appendChild(element);
@@ -760,7 +733,6 @@ goog.graphics.SvgGraphics.prototype.createGroup = function(opt_group) {
  * @override
  */
 goog.graphics.SvgGraphics.prototype.getTextWidth = function(text, font) {
-  'use strict';
   // TODO(user) Implement
   throw new Error("unimplemented method");
 };
@@ -775,7 +747,6 @@ goog.graphics.SvgGraphics.prototype.getTextWidth = function(text, font) {
  * @return {string} The assigned id of the defElement.
  */
 goog.graphics.SvgGraphics.prototype.addDef = function(defKey, defElement) {
-  'use strict';
   if (defKey in this.defs_) {
     return this.defs_[defKey];
   }
@@ -799,7 +770,6 @@ goog.graphics.SvgGraphics.prototype.addDef = function(defKey, defElement) {
  *     not found.
  */
 goog.graphics.SvgGraphics.prototype.getDef = function(defKey) {
-  'use strict';
   return defKey in this.defs_ ? this.defs_[defKey] : null;
 };
 
@@ -810,11 +780,10 @@ goog.graphics.SvgGraphics.prototype.getDef = function(defKey) {
  *     if two definitions are equal they should have the same key.
  */
 goog.graphics.SvgGraphics.prototype.removeDef = function(defKey) {
-  'use strict';
   var id = this.getDef(defKey);
   if (id) {
     var element = this.dom_.getElement(id);
-    this.defsElement_.removeChild(/** @type {!Node} */ (element));
+    this.defsElement_.removeChild(element);
     delete this.defs_[defKey];
   }
 };
@@ -822,7 +791,6 @@ goog.graphics.SvgGraphics.prototype.removeDef = function(defKey) {
 
 /** @override */
 goog.graphics.SvgGraphics.prototype.enterDocument = function() {
-  'use strict';
   var oldPixelSize = this.getPixelSize();
   goog.graphics.SvgGraphics.superClass_.enterDocument.call(this);
 
@@ -853,7 +821,6 @@ goog.graphics.SvgGraphics.prototype.enterDocument = function() {
 
 /** @override */
 goog.graphics.SvgGraphics.prototype.exitDocument = function() {
-  'use strict';
   goog.graphics.SvgGraphics.superClass_.exitDocument.call(this);
 
   // Stop polling.
@@ -872,7 +839,6 @@ goog.graphics.SvgGraphics.prototype.exitDocument = function() {
  * @protected
  */
 goog.graphics.SvgGraphics.prototype.disposeInternal = function() {
-  'use strict';
   delete this.defs_;
   delete this.defsElement_;
   delete this.canvasElement;
@@ -895,7 +861,6 @@ goog.graphics.SvgGraphics.resizeCheckTimer_;
  * @private
  */
 goog.graphics.SvgGraphics.getResizeCheckTimer_ = function() {
-  'use strict';
   if (!goog.graphics.SvgGraphics.resizeCheckTimer_) {
     goog.graphics.SvgGraphics.resizeCheckTimer_ = new goog.Timer(400);
     goog.graphics.SvgGraphics.resizeCheckTimer_.start();
@@ -908,6 +873,5 @@ goog.graphics.SvgGraphics.getResizeCheckTimer_ = function() {
 
 /** @override */
 goog.graphics.SvgGraphics.prototype.isDomClonable = function() {
-  'use strict';
   return true;
 };

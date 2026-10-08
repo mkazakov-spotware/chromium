@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,9 +58,6 @@ class RankerModelLoaderImpl : public RankerModelLoader {
       base::FilePath model_path,
       GURL model_url,
       std::string uma_prefix);
-
-  RankerModelLoaderImpl(const RankerModelLoaderImpl&) = delete;
-  RankerModelLoaderImpl& operator=(const RankerModelLoaderImpl&) = delete;
 
   ~RankerModelLoaderImpl() override;
 
@@ -166,6 +163,8 @@ class RankerModelLoaderImpl : public RankerModelLoader {
 
   // Creates weak pointer references to the loader.
   base::WeakPtrFactory<RankerModelLoaderImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(RankerModelLoaderImpl);
 };
 
 }  // namespace assist_ranker

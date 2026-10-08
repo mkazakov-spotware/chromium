@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/guid.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
@@ -65,8 +66,10 @@ TEST(AddressPhoneFormLabelFormatterTest, GetLabelsForUSProfilesAndFocusedName) {
 
   EXPECT_THAT(
       formatter->GetLabels(),
-      ElementsAre(ConstructLabelLine({u"(617) 730-2000", u"333 Washington St"}),
-                  u"151 Irving Ave", u"(617) 523-2338", std::u16string()));
+      ElementsAre(ConstructLabelLine({base::ASCIIToUTF16("(617) 730-2000"),
+                                      base::ASCIIToUTF16("333 Washington St")}),
+                  base::ASCIIToUTF16("151 Irving Ave"),
+                  base::ASCIIToUTF16("(617) 523-2338"), base::string16()));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -100,8 +103,10 @@ TEST(AddressPhoneFormLabelFormatterTest,
 
   EXPECT_THAT(
       formatter->GetLabels(),
-      ElementsAre(ConstructLabelLine({u"John F Kennedy", u"(617) 730-2000"}),
-                  u"Jackie Kennedy", u"(617) 523-2338", std::u16string()));
+      ElementsAre(ConstructLabelLine({base::ASCIIToUTF16("John F Kennedy"),
+                                      base::ASCIIToUTF16("(617) 730-2000")}),
+                  base::ASCIIToUTF16("Jackie Kennedy"),
+                  base::ASCIIToUTF16("(617) 523-2338"), base::string16()));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -135,8 +140,10 @@ TEST(AddressPhoneFormLabelFormatterTest,
 
   EXPECT_THAT(
       formatter->GetLabels(),
-      ElementsAre(ConstructLabelLine({u"333 Washington St", u"(617) 730-2000"}),
-                  u"151 Irving Ave", u"(617) 523-2338", std::u16string()));
+      ElementsAre(ConstructLabelLine({base::ASCIIToUTF16("333 Washington St"),
+                                      base::ASCIIToUTF16("(617) 730-2000")}),
+                  base::ASCIIToUTF16("151 Irving Ave"),
+                  base::ASCIIToUTF16("(617) 523-2338"), base::string16()));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -170,9 +177,11 @@ TEST(AddressPhoneFormLabelFormatterTest,
 
   EXPECT_THAT(
       formatter->GetLabels(),
-      ElementsAre(ConstructLabelLine({u"John F Kennedy", u"333 Washington St"}),
-                  u"Jackie Kennedy", u"Paul Revere House, 19 North Square",
-                  std::u16string()));
+      ElementsAre(ConstructLabelLine({base::ASCIIToUTF16("John F Kennedy"),
+                                      base::ASCIIToUTF16("333 Washington St")}),
+                  base::ASCIIToUTF16("Jackie Kennedy"),
+                  base::ASCIIToUTF16("Paul Revere House, 19 North Square"),
+                  base::string16()));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest, GetLabelsForBRProfilesAndFocusedName) {
@@ -197,9 +206,11 @@ TEST(AddressPhoneFormLabelFormatterTest, GetLabelsForBRProfilesAndFocusedName) {
   EXPECT_THAT(
       formatter->GetLabels(),
       ElementsAre(ConstructLabelLine(
-                      {u"(11) 2648-0254", u"Av. Pedro Álvares Cabral, 1301"}),
+                      {base::ASCIIToUTF16("(11) 2648-0254"),
+                       base::UTF8ToUTF16("Av. Pedro Álvares Cabral, 1301")}),
                   ConstructLabelLine(
-                      {u"(21) 98765-0000", u"Estr. Dona Castorina, 110"})));
+                      {base::ASCIIToUTF16("(21) 98765-0000"),
+                       base::ASCIIToUTF16("Estr. Dona Castorina, 110")})));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -224,8 +235,10 @@ TEST(AddressPhoneFormLabelFormatterTest,
 
   EXPECT_THAT(
       formatter->GetLabels(),
-      ElementsAre(ConstructLabelLine({u"Tarsila do Amaral", u"(11) 2648-0254"}),
-                  ConstructLabelLine({u"Artur Avila", u"(21) 98765-0000"})));
+      ElementsAre(ConstructLabelLine({base::ASCIIToUTF16("Tarsila do Amaral"),
+                                      base::ASCIIToUTF16("(11) 2648-0254")}),
+                  ConstructLabelLine({base::ASCIIToUTF16("Artur Avila"),
+                                      base::ASCIIToUTF16("(21) 98765-0000")})));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -248,11 +261,14 @@ TEST(AddressPhoneFormLabelFormatterTest,
   const std::unique_ptr<LabelFormatter> formatter = LabelFormatter::Create(
       profiles, "pt-BR", ADDRESS_HOME_ZIP, GetFieldTypes());
 
-  EXPECT_THAT(formatter->GetLabels(),
-              ElementsAre(ConstructLabelLine({u"Av. Pedro Álvares Cabral, 1301",
-                                              u"(11) 2648-0254"}),
-                          ConstructLabelLine({u"Estr. Dona Castorina, 110",
-                                              u"(21) 98765-0000"})));
+  EXPECT_THAT(
+      formatter->GetLabels(),
+      ElementsAre(
+          ConstructLabelLine(
+              {base::UTF8ToUTF16("Av. Pedro Álvares Cabral, 1301"),
+               base::ASCIIToUTF16("(11) 2648-0254")}),
+          ConstructLabelLine({base::ASCIIToUTF16("Estr. Dona Castorina, 110"),
+                              base::ASCIIToUTF16("(21) 98765-0000")})));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -277,10 +293,12 @@ TEST(AddressPhoneFormLabelFormatterTest,
 
   EXPECT_THAT(
       formatter->GetLabels(),
-      ElementsAre(
-          ConstructLabelLine(
-              {u"Tarsila do Amaral", u"Av. Pedro Álvares Cabral, 1301"}),
-          ConstructLabelLine({u"Artur Avila", u"Estr. Dona Castorina, 110"})));
+      ElementsAre(ConstructLabelLine(
+                      {base::ASCIIToUTF16("Tarsila do Amaral"),
+                       base::UTF8ToUTF16("Av. Pedro Álvares Cabral, 1301")}),
+                  ConstructLabelLine(
+                      {base::ASCIIToUTF16("Artur Avila"),
+                       base::ASCIIToUTF16("Estr. Dona Castorina, 110")})));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest,
@@ -297,8 +315,10 @@ TEST(AddressPhoneFormLabelFormatterTest,
       {NAME_FULL, PHONE_HOME_WHOLE_NUMBER, ADDRESS_HOME_ZIP});
 
   // Checks that only address fields in the form are shown in the label.
-  EXPECT_THAT(formatter->GetLabels(),
-              ElementsAre(ConstructLabelLine({u"John F Kennedy", u"02445"})));
+  EXPECT_THAT(
+      formatter->GetLabels(),
+      ElementsAre(ConstructLabelLine({base::ASCIIToUTF16("John F Kennedy"),
+                                      base::ASCIIToUTF16("02445")})));
 }
 
 TEST(AddressPhoneFormLabelFormatterTest, GetLabelsForFormWithoutName) {
@@ -310,11 +330,12 @@ TEST(AddressPhoneFormLabelFormatterTest, GetLabelsForFormWithoutName) {
 
   const std::vector<AutofillProfile*> profiles{&profile};
   const std::unique_ptr<LabelFormatter> formatter = LabelFormatter::Create(
-      profiles, "en-US", ADDRESS_HOME_LINE1,
-      {ADDRESS_HOME_LINE1, ADDRESS_HOME_ZIP, PHONE_HOME_WHOLE_NUMBER});
+      profiles, "en-US", ADDRESS_BILLING_LINE1,
+      {ADDRESS_BILLING_LINE1, ADDRESS_BILLING_ZIP, PHONE_HOME_WHOLE_NUMBER});
 
   // Checks that the name does not appear in the labels.
-  EXPECT_THAT(formatter->GetLabels(), ElementsAre(u"(617) 523-2338"));
+  EXPECT_THAT(formatter->GetLabels(),
+              ElementsAre(base::ASCIIToUTF16("(617) 523-2338")));
 }
 
 }  // namespace

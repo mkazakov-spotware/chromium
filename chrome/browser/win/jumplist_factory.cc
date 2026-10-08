@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/win/jumplist.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 // static
 JumpList* JumpListFactory::GetForProfile(Profile* profile) {
@@ -21,7 +22,10 @@ JumpListFactory* JumpListFactory::GetInstance() {
   return base::Singleton<JumpListFactory>::get();
 }
 
-JumpListFactory::JumpListFactory() : ProfileKeyedServiceFactory("JumpList") {
+JumpListFactory::JumpListFactory()
+    : BrowserContextKeyedServiceFactory(
+          "JumpList",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(TabRestoreServiceFactory::GetInstance());
   DependsOn(TopSitesFactory::GetInstance());
   DependsOn(FaviconServiceFactory::GetInstance());

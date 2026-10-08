@@ -23,11 +23,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_RESOLVER_FILTER_OPERATION_RESOLVER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_RESOLVER_FILTER_OPERATION_RESOLVER_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
 #include "third_party/blink/renderer/core/css_value_keywords.h"
 #include "third_party/blink/renderer/core/style/filter_operations.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -35,16 +34,13 @@ class CSSFunctionValue;
 class CSSValue;
 class StyleResolverState;
 
-enum class CSSPropertyID;
-
 class CORE_EXPORT FilterOperationResolver {
   STATIC_ONLY(FilterOperationResolver);
 
  public:
   static FilterOperation::OperationType FilterOperationForType(CSSValueID);
   static FilterOperations CreateFilterOperations(StyleResolverState&,
-                                                 const CSSValue&,
-                                                 CSSPropertyID);
+                                                 const CSSValue&);
   static FilterOperations CreateOffscreenFilterOperations(const CSSValue&,
                                                           const Font&);
   static double ResolveNumericArgumentForFunction(

@@ -1,18 +1,19 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/at_exit.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/debug/debugger.h"
 #include "base/debug/stack_trace.h"
+#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
-#include "base/metrics/field_trial.h"
+#include "base/macros.h"
 #include "base/process/launch.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -22,12 +23,8 @@
 #include "services/service_manager/public/cpp/service_executable/service_main.h"
 #include "services/service_manager/public/mojom/service.mojom.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/bundle_locations.h"
-#endif
-
-#if BUILDFLAG(IS_WIN)
-#include <windows.h>
 #endif
 
 namespace {
@@ -49,9 +46,9 @@ void WaitForDebuggerIfNecessary() {
       }
     }
     if (apps_to_debug.empty() || base::Contains(apps_to_debug, app)) {
-#if BUILDFLAG(IS_WIN)
-      std::wstring appw = base::UTF8ToWide(app);
-      std::wstring message = base::UTF8ToWide(
+#if defined(OS_WIN)
+      base::string16 appw = base::UTF8ToUTF16(app);
+      base::string16 message = base::UTF8ToUTF16(
           base::StringPrintf("%s - %ld", app.c_str(), GetCurrentProcessId()));
       MessageBox(NULL, message.c_str(), appw.c_str(), MB_OK | MB_SETFOREGROUND);
 #else
@@ -68,7 +65,7 @@ int main(int argc, char** argv) {
   base::AtExitManager at_exit;
   base::CommandLine::Init(argc, argv);
 
-#if !defined(OFFICIAL_BUILD) && BUILDFLAG(IS_WIN)
+#if !defined(OFFICIAL_BUILD) && defined(OS_WIN)
   base::RouteStdioToConsole(false);
 #endif
 
@@ -91,15 +88,7 @@ int main(int argc, char** argv) {
 #endif
 
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  std::unique_ptr<base::FieldTrialList> field_trial_list =
-      std::make_unique<base::FieldTrialList>();
-  // Create field trials according to --force-fieldtrials param.
-  base::FieldTrialList::CreateTrialsFromCommandLine(*command_line, -1);
-  // Enable and disable features according to --enable-features and
-  // --disable-features.
-  std::unique_ptr<base::FeatureList> feature_list =
-      std::make_unique<base::FeatureList>();
-  feature_list->InitializeFromCommandLine(
+  base::FeatureList::InitializeInstance(
       command_line->GetSwitchValueASCII(switches::kEnableFeatures),
       command_line->GetSwitchValueASCII(switches::kDisableFeatures));
 

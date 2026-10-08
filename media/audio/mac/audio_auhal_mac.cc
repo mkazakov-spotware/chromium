@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -16,7 +15,7 @@
 #include "base/callback_helpers.h"
 #include "base/logging.h"
 #include "base/mac/mac_logging.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/trace_event.h"
 #include "media/audio/mac/audio_manager_mac.h"
@@ -24,8 +23,6 @@
 #include "media/base/audio_timestamp_helper.h"
 
 namespace media {
-
-namespace {
 
 // Mapping from Chrome's channel layout to CoreAudio layout. This must match the
 // layout of the Channels enum in |channel_layout.h|
@@ -53,7 +50,9 @@ static_assert(0 == LEFT && 1 == RIGHT && 2 == CENTER && 3 == LFE &&
                   10 == CHANNELS_MAX,
               "Channel positions must match CoreAudio channel order.");
 
-void WrapBufferList(AudioBufferList* buffer_list, AudioBus* bus, int frames) {
+static void WrapBufferList(AudioBufferList* buffer_list,
+                           AudioBus* bus,
+                           int frames) {
   const int channels = bus->channels();
   const int buffer_list_channels = buffer_list->mNumberBuffers;
   CHECK_EQ(channels, buffer_list_channels);
@@ -69,14 +68,14 @@ void WrapBufferList(AudioBufferList* buffer_list, AudioBus* bus, int frames) {
 // Sets the stream format on the AUHAL to PCM Float32 non-interleaved for the
 // given number of channels on the given scope and element. The created stream
 // description will be stored in |desc|.
-bool SetStreamFormat(int channels,
-                     int sample_rate,
-                     AudioUnit audio_unit,
-                     AudioStreamBasicDescription* format) {
+static bool SetStreamFormat(int channels,
+                            int sample_rate,
+                            AudioUnit audio_unit,
+                            AudioStreamBasicDescription* format) {
   format->mSampleRate = sample_rate;
   format->mFormatID = kAudioFormatLinearPCM;
-  format->mFormatFlags = AudioFormatFlags{kAudioFormatFlagsNativeFloatPacked} |
-                         kLinearPCMFormatFlagIsNonInterleaved;
+  format->mFormatFlags =
+      kAudioFormatFlagsNativeFloatPacked | kLinearPCMFormatFlagIsNonInterleaved;
   format->mBytesPerPacket = sizeof(Float32);
   format->mFramesPerPacket = 1;
   format->mBytesPerFrame = sizeof(Float32);
@@ -95,9 +94,9 @@ bool SetStreamFormat(int channels,
 
 // Converts |channel_layout| into CoreAudio format and sets up the AUHAL with
 // our layout information so it knows how to remap the channels.
-void SetAudioChannelLayout(int channels,
-                           ChannelLayout channel_layout,
-                           AudioUnit audio_unit) {
+static void SetAudioChannelLayout(int channels,
+                                  ChannelLayout channel_layout,
+                                  AudioUnit audio_unit) {
   DCHECK(audio_unit);
   DCHECK_GT(channels, 0);
   DCHECK_GT(channel_layout, CHANNEL_LAYOUT_UNSUPPORTED);
@@ -154,43 +153,40 @@ void SetAudioChannelLayout(int channels,
   }
 }
 
-void ReportFramesRequestedUma(int number_of_frames_requested) {
-  // A value of 0 indicates that we got the buffer size we asked for.
-  base::UmaHistogramCounts1M("Media.Audio.Render.FramesRequested",
-                             number_of_frames_requested);
-}
-
-}  // namespace
-
 AUHALStream::AUHALStream(AudioManagerMac* manager,
                          const AudioParameters& params,
                          AudioDeviceID device,
                          const AudioManager::LogCallback& log_callback)
     : manager_(manager),
       params_(params),
-      source_(nullptr),
+      number_of_frames_(params_.frames_per_buffer()),
+      number_of_frames_requested_(0),
+      source_(NULL),
       device_(device),
       volume_(1),
       stopped_(true),
+      current_lost_frames_(0),
       last_sample_time_(0.0),
       last_number_of_frames_(0),
-      glitch_reporter_(SystemGlitchReporter::StreamType::kRender),
+      total_lost_frames_(0),
+      largest_glitch_frames_(0),
+      glitches_detected_(0),
       log_callback_(log_callback) {
   // We must have a manager.
-  DVLOG(1) << __FUNCTION__ << " this " << this << " params "
-           << params.AsHumanReadableString();
   DCHECK(manager_);
   DCHECK(params_.IsValid());
   DCHECK_NE(device, kAudioObjectUnknown);
 }
 
 AUHALStream::~AUHALStream() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   CHECK(!audio_unit_);
+
+  ReportAndResetStats();
 }
 
 bool AUHALStream::Open() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!output_bus_);
   DCHECK(!audio_unit_);
 
@@ -207,28 +203,11 @@ bool AUHALStream::Open() {
         params_.sample_rate());
   }
 
-  DVLOG(1) << __FUNCTION__ << " this " << this << " received hardware latency "
-           << hardware_latency_;
   return configured;
 }
 
 void AUHALStream::Close() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  DVLOG(1) << __FUNCTION__ << " this " << this;
-
-  if (audio_unit_) {
-    Stop();
-
-    // Clear the render callback to try and prevent any callbacks from coming
-    // in after we've called stop. https://crbug.com/737527.
-    AURenderCallbackStruct callback = {0};
-    auto result = AudioUnitSetProperty(
-        audio_unit_->audio_unit(), kAudioUnitProperty_SetRenderCallback,
-        kAudioUnitScope_Input, AUElement::OUTPUT, &callback, sizeof(callback));
-    OSSTATUS_DLOG_IF(ERROR, result != noErr, result)
-        << "Failed to clear input callback.";
-  }
-
+  DCHECK(thread_checker_.CalledOnValidThread());
   audio_unit_.reset();
   // Inform the audio manager that we have been closed. This will cause our
   // destruction. Also include the device ID as a signal to the audio manager
@@ -238,7 +217,7 @@ void AUHALStream::Close() {
 }
 
 void AUHALStream::Start(AudioSourceCallback* callback) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(callback);
   if (!audio_unit_) {
     DLOG(ERROR) << "Open() has not been called successfully";
@@ -246,12 +225,9 @@ void AUHALStream::Start(AudioSourceCallback* callback) {
   }
 
   if (!stopped_) {
-    base::AutoLock al(lock_);
     CHECK_EQ(source_, callback);
     return;
   }
-
-  DVLOG(1) << __FUNCTION__ << " this " << this;
 
   // Check if we should defer Start() for http://crbug.com/160920.
   if (manager_->ShouldDeferStreamStart()) {
@@ -261,17 +237,14 @@ void AUHALStream::Start(AudioSourceCallback* callback) {
         base::BindOnce(&AUHALStream::Start, base::Unretained(this), callback));
     manager_->GetTaskRunner()->PostDelayedTask(
         FROM_HERE, deferred_start_cb_.callback(),
-        base::Seconds(AudioManagerMac::kStartDelayInSecsForPowerEvents));
+        base::TimeDelta::FromSeconds(
+            AudioManagerMac::kStartDelayInSecsForPowerEvents));
     return;
   }
 
   stopped_ = false;
-
-  {
-    base::AutoLock al(lock_);
-    DCHECK(!audio_fifo_);
-    source_ = callback;
-  }
+  audio_fifo_.reset();
+  source_ = callback;
 
   OSStatus result = AudioOutputUnitStart(audio_unit_->audio_unit());
   if (result == noErr)
@@ -287,49 +260,18 @@ void AUHALStream::Start(AudioSourceCallback* callback) {
 void AUHALStream::Flush() {}
 
 void AUHALStream::Stop() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   deferred_start_cb_.Cancel();
   if (stopped_)
     return;
 
-  DVLOG(1) << __FUNCTION__ << " this " << this;
-
   OSStatus result = AudioOutputUnitStop(audio_unit_->audio_unit());
   OSSTATUS_DLOG_IF(ERROR, result != noErr, result)
       << "AudioOutputUnitStop() failed.";
-
-  {
-    base::AutoLock al(lock_);
-    if (result != noErr)
-      source_->OnError(AudioSourceCallback::ErrorType::kUnknown);
-    source_ = nullptr;
-
-    if (last_sample_time_) {  // Report stats if the stream has been active.
-      if (!audio_fifo_)  // Unexpected buffer size has never been requested.
-        ReportFramesRequestedUma(0);
-
-      SystemGlitchReporter::Stats stats =
-          glitch_reporter_.GetLongTermStatsAndReset();
-
-      std::string log_message = base::StringPrintf(
-          "AU out: (num_glitches_detected=[%d], cumulative_audio_lost=[%llu "
-          "ms], "
-          "largest_glitch=[%llu ms])",
-          stats.glitches_detected, stats.total_glitch_duration.InMilliseconds(),
-          stats.largest_glitch_duration.InMilliseconds());
-
-      if (!log_callback_.is_null())
-        log_callback_.Run(log_message);
-      if (stats.glitches_detected > 0) {
-        DLOG(WARNING) << log_message;
-      }
-    }
-
-    last_sample_time_ = 0;
-    last_number_of_frames_ = 0;
-    audio_fifo_.reset();
-  }
-
+  if (result != noErr)
+    source_->OnError(AudioSourceCallback::ErrorType::kUnknown);
+  ReportAndResetStats();
+  source_ = nullptr;
   stopped_ = true;
 }
 
@@ -351,37 +293,25 @@ OSStatus AUHALStream::Render(AudioUnitRenderActionFlags* flags,
                              UInt32 number_of_frames,
                              AudioBufferList* data) {
   TRACE_EVENT2("audio", "AUHALStream::Render", "input buffer size",
-               params_.frames_per_buffer(), "output buffer size",
-               number_of_frames);
-
-  base::AutoLock al(lock_);
-
-  // There's no documentation on what we should return here, but if we're here
-  // something is wrong so just return an AudioUnit error that looks reasonable.
-  if (!source_)
-    return kAudioUnitErr_Uninitialized;
+               number_of_frames_, "output buffer size", number_of_frames);
 
   UpdatePlayoutTimestamp(output_time_stamp);
 
   // If the stream parameters change for any reason, we need to insert a FIFO
   // since the OnMoreData() pipeline can't handle frame size changes.
-  if (number_of_frames != static_cast<UInt32>(params_.frames_per_buffer())) {
+  if (number_of_frames != number_of_frames_) {
     // Create a FIFO on the fly to handle any discrepancies in callback rates.
     if (!audio_fifo_) {
-      DVLOG(1) << __FUNCTION__ << " this " << this
-               << "Audio frame size changed from "
-               << params_.frames_per_buffer() << " to " << number_of_frames
-               << " adding FIFO to compensate.";
-      audio_fifo_ = std::make_unique<AudioPullFifo>(
-          params_.channels(), params_.frames_per_buffer(),
-          base::BindRepeating(&AUHALStream::ProvideInput,
-                              base::Unretained(this)));
-      // Report it only once the first time the change happens.
-      ReportFramesRequestedUma(number_of_frames);
-    } else if (last_number_of_frames_ != number_of_frames) {
-      DVLOG(3) << __FUNCTION__ << " this " << this
-               << "Audio frame size changed from " << last_number_of_frames_
-               << " to " << number_of_frames << " FIFO already exists.";
+      // TODO(grunell): We'll only care about the first buffer size change,
+      // any further changes will be ignored. It would be nice to have all
+      // changes reflected in UMA stats.
+      number_of_frames_requested_ = number_of_frames;
+      DVLOG(1) << "Audio frame size changed from " << number_of_frames_
+               << " to " << number_of_frames << " adding FIFO to compensate.";
+      audio_fifo_.reset(
+          new AudioPullFifo(params_.channels(), number_of_frames_,
+                            base::BindRepeating(&AUHALStream::ProvideInput,
+                                                base::Unretained(this))));
     }
   }
 
@@ -401,8 +331,6 @@ OSStatus AUHALStream::Render(AudioUnitRenderActionFlags* flags,
 }
 
 void AUHALStream::ProvideInput(int frame_delay, AudioBus* dest) {
-  TRACE_EVENT1("audio", "AUHALStream::ProvideInput", "frames", dest->frames());
-  lock_.AssertAcquired();
   DCHECK(source_);
 
   const base::TimeTicks playout_time =
@@ -412,8 +340,9 @@ void AUHALStream::ProvideInput(int frame_delay, AudioBus* dest) {
   const base::TimeDelta delay = playout_time - now;
 
   // Supply the input data and render the output data.
-  source_->OnMoreData(delay, now, glitch_info_accumulator_.GetAndReset(), dest);
+  source_->OnMoreData(delay, now, current_lost_frames_, dest);
   dest->Scale(volume_);
+  current_lost_frames_ = 0;
 }
 
 // AUHAL callback.
@@ -448,23 +377,23 @@ base::TimeTicks AUHALStream::GetPlayoutTime(
 }
 
 void AUHALStream::UpdatePlayoutTimestamp(const AudioTimeStamp* timestamp) {
-  lock_.AssertAcquired();
-
   if ((timestamp->mFlags & kAudioTimeStampSampleTimeValid) == 0)
     return;
 
   if (last_sample_time_) {
     DCHECK_NE(0U, last_number_of_frames_);
-    UInt32 sample_time_diff =
+    UInt32 diff =
         static_cast<UInt32>(timestamp->mSampleTime - last_sample_time_);
-    DCHECK_GE(sample_time_diff, last_number_of_frames_);
-    UInt32 lost_frames = sample_time_diff - last_number_of_frames_;
-    base::TimeDelta lost_audio_duration =
-        AudioTimestampHelper::FramesToTime(lost_frames, params_.sample_rate());
-    glitch_reporter_.UpdateStats(lost_audio_duration);
-    if (!lost_audio_duration.is_zero()) {
-      glitch_info_accumulator_.Add(
-          AudioGlitchInfo{.duration = lost_audio_duration, .count = 1});
+    if (diff != last_number_of_frames_) {
+      DCHECK_GT(diff, last_number_of_frames_);
+      // We're being asked to render samples post what we expected. Update the
+      // glitch count etc and keep a record of the largest glitch.
+      auto lost_frames = diff - last_number_of_frames_;
+      total_lost_frames_ += lost_frames;
+      current_lost_frames_ += lost_frames;
+      if (lost_frames > largest_glitch_frames_)
+        largest_glitch_frames_ = lost_frames;
+      ++glitches_detected_;
     }
   }
 
@@ -472,8 +401,47 @@ void AUHALStream::UpdatePlayoutTimestamp(const AudioTimeStamp* timestamp) {
   last_sample_time_ = timestamp->mSampleTime;
 }
 
+void AUHALStream::ReportAndResetStats() {
+  if (!last_sample_time_)
+    return;  // No stats gathered to report.
+
+  // A value of 0 indicates that we got the buffer size we asked for.
+  UMA_HISTOGRAM_COUNTS_1M("Media.Audio.Render.FramesRequested",
+                          number_of_frames_requested_);
+  // Even if there aren't any glitches, we want to record it to get a feel for
+  // how often we get no glitches vs the alternative.
+  UMA_HISTOGRAM_CUSTOM_COUNTS("Media.Audio.Render.Glitches", glitches_detected_,
+                              1, 999999, 100);
+
+  auto lost_frames_ms = (total_lost_frames_ * 1000) / params_.sample_rate();
+
+  std::string log_message = base::StringPrintf(
+      "AU out: Total glitches=%d. Total frames lost=%d (%d ms).",
+      glitches_detected_, total_lost_frames_, lost_frames_ms);
+
+  if (!log_callback_.is_null())
+    log_callback_.Run(log_message);
+
+  if (glitches_detected_ != 0) {
+    UMA_HISTOGRAM_COUNTS_1M("Media.Audio.Render.LostFramesInMs",
+                            lost_frames_ms);
+    auto largest_glitch_ms =
+        (largest_glitch_frames_ * 1000) / params_.sample_rate();
+    UMA_HISTOGRAM_COUNTS_1M("Media.Audio.Render.LargestGlitchMs",
+                            largest_glitch_ms);
+    DLOG(WARNING) << log_message;
+  }
+
+  number_of_frames_requested_ = 0;
+  glitches_detected_ = 0;
+  last_sample_time_ = 0;
+  last_number_of_frames_ = 0;
+  total_lost_frames_ = 0;
+  largest_glitch_frames_ = 0;
+}
+
 bool AUHALStream::ConfigureAUHAL() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   std::unique_ptr<ScopedAudioUnit> local_audio_unit(
       new ScopedAudioUnit(device_, AUElement::OUTPUT));
@@ -485,8 +453,11 @@ bool AUHALStream::ConfigureAUHAL() {
     return false;
   }
 
+  bool size_was_changed = false;
+  size_t io_buffer_frame_size = 0;
   if (!manager_->MaybeChangeBufferSize(device_, local_audio_unit->audio_unit(),
-                                       0, params_.frames_per_buffer())) {
+                                       0, number_of_frames_, &size_was_changed,
+                                       &io_buffer_frame_size)) {
     return false;
   }
 

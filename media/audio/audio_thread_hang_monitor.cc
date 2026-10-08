@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,8 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/power_monitor/power_monitor.h"
 #include "base/process/process.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread_checker.h"
@@ -32,7 +33,8 @@ namespace {
 constexpr int kMaxFailedPingsCount = 3;
 
 // The default deadline after which we consider the audio thread hung.
-constexpr base::TimeDelta kDefaultHangDeadline = base::Minutes(3);
+constexpr base::TimeDelta kDefaultHangDeadline =
+    base::TimeDelta::FromMinutes(3);
 
 }  // namespace
 
@@ -42,7 +44,7 @@ AudioThreadHangMonitor::SharedAtomicFlag::~SharedAtomicFlag() {}
 // static
 AudioThreadHangMonitor::Ptr AudioThreadHangMonitor::Create(
     HangAction hang_action,
-    absl::optional<base::TimeDelta> hang_deadline,
+    base::Optional<base::TimeDelta> hang_deadline,
     const base::TickClock* clock,
     scoped_refptr<base::SingleThreadTaskRunner> audio_thread_task_runner,
     scoped_refptr<base::SequencedTaskRunner> monitor_task_runner) {
@@ -71,7 +73,7 @@ bool AudioThreadHangMonitor::IsAudioThreadHung() const {
 
 AudioThreadHangMonitor::AudioThreadHangMonitor(
     HangAction hang_action,
-    absl::optional<base::TimeDelta> hang_deadline,
+    base::Optional<base::TimeDelta> hang_deadline,
     const base::TickClock* clock,
     scoped_refptr<base::SingleThreadTaskRunner> audio_thread_task_runner)
     : clock_(clock),
@@ -123,7 +125,7 @@ void AudioThreadHangMonitor::CheckIfAudioThreadIsAlive() {
   // An unexpected |time_since_last_check| may indicate that the system has been
   // in sleep mode, in which case the audio thread may have had insufficient
   // time to respond to the ping. In such a case, skip the check for now.
-  if (time_since_last_check > ping_interval_ + base::Seconds(1))
+  if (time_since_last_check > ping_interval_ + base::TimeDelta::FromSeconds(1))
     return;
 
   const bool audio_thread_responded_to_last_ping = alive_flag_->flag_;

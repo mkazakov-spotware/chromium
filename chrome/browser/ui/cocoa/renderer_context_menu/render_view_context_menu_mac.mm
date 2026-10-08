@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 #include <utility>
 
 #include "base/mac/mac_util.h"
+#include "base/macros.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/grit/generated_resources.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
-#include "third_party/blink/public/common/context_menu_data/context_menu_data.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/resources/grit/ui_resources.h"
@@ -23,7 +23,7 @@
 // Relies on the tag being set to the command id.
 
 RenderViewContextMenuMac::RenderViewContextMenuMac(
-    content::RenderFrameHost& render_frame_host,
+    content::RenderFrameHost* render_frame_host,
     const content::ContextMenuParams& params)
     : RenderViewContextMenu(render_frame_host, params),
       text_services_context_menu_(this) {}
@@ -58,20 +58,20 @@ bool RenderViewContextMenuMac::IsCommandIdEnabled(int command_id) const {
   return RenderViewContextMenu::IsCommandIdEnabled(command_id);
 }
 
-std::u16string RenderViewContextMenuMac::GetSelectedText() const {
+base::string16 RenderViewContextMenuMac::GetSelectedText() const {
   return params_.selection_text;
 }
 
 bool RenderViewContextMenuMac::IsTextDirectionEnabled(
     base::i18n::TextDirection direction) const {
   return ParamsForTextDirection(direction) &
-         blink::ContextMenuData::kCheckableMenuItemEnabled;
+         blink::WebContextMenuData::kCheckableMenuItemEnabled;
 }
 
 bool RenderViewContextMenuMac::IsTextDirectionChecked(
     base::i18n::TextDirection direction) const {
   return ParamsForTextDirection(direction) &
-         blink::ContextMenuData::kCheckableMenuItemChecked;
+         blink::WebContextMenuData::kCheckableMenuItemChecked;
 }
 
 void RenderViewContextMenuMac::UpdateTextDirection(
@@ -95,24 +95,25 @@ void RenderViewContextMenuMac::AppendPlatformEditableItems() {
 
 void RenderViewContextMenuMac::InitToolkitMenu() {
   if (params_.input_field_type ==
-      blink::mojom::ContextMenuDataInputFieldType::kPassword)
+      blink::ContextMenuDataInputFieldType::kPassword)
     return;
 
   if (!params_.selection_text.empty() && params_.link_url.is_empty()) {
     // In case the user has selected a word that triggers spelling suggestions,
     // show the dictionary lookup under the group that contains the command to
     // “Add to Dictionary.”
-    const absl::optional<size_t> index_opt =
+    int index =
         menu_model_.GetIndexOfCommandId(IDC_SPELLCHECK_ADD_TO_DICTIONARY);
-    size_t index = index_opt.value_or(0);
-    if (index_opt.has_value()) {
+    if (index < 0) {
+      index = 0;
+    } else {
       while (menu_model_.GetTypeAt(index) != ui::MenuModel::TYPE_SEPARATOR) {
         index++;
       }
-      ++index;  // Place it below the separator.
+      index += 1; // Place it below the separator.
     }
 
-    std::u16string printable_selection_text = PrintableSelectionText();
+    base::string16 printable_selection_text = PrintableSelectionText();
     EscapeAmpersands(&printable_selection_text);
     menu_model_.InsertItemAt(
         index++, IDC_CONTENT_CONTEXT_LOOK_UP,

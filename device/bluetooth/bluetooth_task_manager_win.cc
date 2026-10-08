@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,10 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_thread_priority.h"
 #include "device/bluetooth/bluetooth_classic_win.h"
@@ -342,7 +343,7 @@ void BluetoothTaskManagerWin::LogPollingError(const char* message,
   // Check if we need to discard this message
   if (!current_logging_batch_ticks_.is_null()) {
     if (base::TimeTicks::Now() - current_logging_batch_ticks_ <=
-        base::Milliseconds(kLogPeriodInMilliseconds)) {
+        base::TimeDelta::FromMilliseconds(kLogPeriodInMilliseconds)) {
       if (current_logging_batch_count_ >= kMaxMessagesPerLogPeriod)
         return;
     } else {
@@ -412,7 +413,7 @@ void BluetoothTaskManagerWin::PollAdapter() {
   // Re-poll.
   bluetooth_task_runner_->PostDelayedTask(
       FROM_HERE, base::BindOnce(&BluetoothTaskManagerWin::PollAdapter, this),
-      base::Milliseconds(kPollIntervalMs));
+      base::TimeDelta::FromMilliseconds(kPollIntervalMs));
 }
 
 void BluetoothTaskManagerWin::PostAdapterStateToUi() {

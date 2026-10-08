@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <set>
 
-#include "base/memory/raw_ptr.h"
 #include "components/offline_pages/core/prefetch/prefetch_types.h"
 
 namespace offline_pages {
@@ -19,10 +18,6 @@ class PrefetchDispatcher;
 class PrefetchImporter {
  public:
   explicit PrefetchImporter(PrefetchDispatcher* dispatcher);
-
-  PrefetchImporter(const PrefetchImporter&) = delete;
-  PrefetchImporter& operator=(const PrefetchImporter&) = delete;
-
   virtual ~PrefetchImporter() = default;
 
   // Imports the downloaded archive by moving the file into archive directory
@@ -47,7 +42,9 @@ class PrefetchImporter {
   void NotifyArchiveImported(int64_t offline_id, bool success);
 
  private:
-  raw_ptr<PrefetchDispatcher> dispatcher_;
+  PrefetchDispatcher* dispatcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchImporter);
 };
 
 }  // namespace offline_pages

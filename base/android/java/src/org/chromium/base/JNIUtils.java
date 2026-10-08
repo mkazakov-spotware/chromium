@@ -1,52 +1,35 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base;
 
-import android.os.Build;
-
 import org.chromium.base.annotations.CalledByNative;
-import org.chromium.build.annotations.MainDex;
-
-import java.util.Map;
+import org.chromium.base.annotations.MainDex;
 
 /**
  * This class provides JNI-related methods to the native library.
  */
 @MainDex
 public class JNIUtils {
-    private static final String TAG = "JNIUtils";
     private static Boolean sSelectiveJniRegistrationEnabled;
     private static ClassLoader sJniClassLoader;
 
     /**
-     * Returns a ClassLoader which can load Java classes from the specified split.
-     *
-     * @param splitName Name of the split, or empty string for the base split.
+     * This returns a ClassLoader that is capable of loading Chromium Java code. Such a ClassLoader
+     * is needed for the few cases where the JNI mechanism is unable to automatically determine the
+     * appropriate ClassLoader instance.
      */
     @CalledByNative
-    private static ClassLoader getSplitClassLoader(String splitName) {
-        if (!splitName.isEmpty()) {
-            boolean isInstalled = BundleUtils.isIsolatedSplitInstalled(splitName);
-            Log.i(TAG, "Init JNI Classloader for %s. isInstalled=%b", splitName, isInstalled);
-            if (isInstalled) {
-                return BundleUtils.getOrCreateSplitClassLoader(splitName);
-            } else {
-                assert Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
-                    : "Should not hit splitcompat mode for Android T+. You might have a "
-                                + "generate_jni() target that declares split_name, but includes "
-                                + "a .java file from the base split (https://crbug.com/1394148).";
-                // Split was installed by PlayCore in "compat" mode, meaning that our base module's
-                // ClassLoader was patched to add the splits' dex file to it.
-            }
+    public static Object getClassLoader() {
+        if (sJniClassLoader == null) {
+            return JNIUtils.class.getClassLoader();
         }
-        return sJniClassLoader != null ? sJniClassLoader : JNIUtils.class.getClassLoader();
+        return sJniClassLoader;
     }
 
     /**
      * Sets the ClassLoader to be used for loading Java classes from native.
-     *
      * @param classLoader the ClassLoader to use.
      */
     public static void setClassLoader(ClassLoader classLoader) {
@@ -71,20 +54,5 @@ public class JNIUtils {
     public static void enableSelectiveJniRegistration() {
         assert sSelectiveJniRegistrationEnabled == null;
         sSelectiveJniRegistrationEnabled = true;
-    }
-
-    /**
-     * Helper to convert from java maps to two arrays for JNI.
-     */
-    public static <K, V> void splitMap(Map<K, V> map, K[] outKeys, V[] outValues) {
-        assert map.size() == outKeys.length;
-        assert outValues.length == outKeys.length;
-
-        int i = 0;
-        for (Map.Entry<K, V> entry : map.entrySet()) {
-            outKeys[i] = entry.getKey();
-            outValues[i] = entry.getValue();
-            i++;
-        }
     }
 }

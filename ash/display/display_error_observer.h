@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include "ash/ash_export.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/display/manager/display_configurator.h"
 
 namespace ash {
@@ -17,16 +19,15 @@ class ASH_EXPORT DisplayErrorObserver
     : public display::DisplayConfigurator::Observer {
  public:
   DisplayErrorObserver();
-
-  DisplayErrorObserver(const DisplayErrorObserver&) = delete;
-  DisplayErrorObserver& operator=(const DisplayErrorObserver&) = delete;
-
   ~DisplayErrorObserver() override;
 
   // display::DisplayConfigurator::Observer overrides:
   void OnDisplayModeChangeFailed(
       const display::DisplayConfigurator::DisplayStateList& displays,
       display::MultipleDisplayState failed_new_state) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisplayErrorObserver);
 };
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@
 #include "ipc/ipc_param_traits.h"
 #include "mojo/public/cpp/bindings/lib/array_internal.h"
 #include "mojo/public/cpp/bindings/lib/bindings_internal.h"
-#include "mojo/public/cpp/bindings/lib/message_fragment.h"
 #include "mojo/public/cpp/bindings/lib/serialization_forward.h"
 #include "mojo/public/cpp/bindings/lib/serialization_util.h"
 #include "mojo/public/interfaces/bindings/native_struct.mojom.h"
@@ -33,20 +32,24 @@ namespace internal {
 struct COMPONENT_EXPORT(MOJO_CPP_BINDINGS) UnmappedNativeStructSerializerImpl {
   static void Serialize(
       const native::NativeStructPtr& input,
-      MessageFragment<native::internal::NativeStruct_Data>& fragment);
+      Buffer* buffer,
+      native::internal::NativeStruct_Data::BufferWriter* writer,
+      SerializationContext* context);
 
   static bool Deserialize(native::internal::NativeStruct_Data* input,
                           native::NativeStructPtr* output,
-                          Message* message);
+                          SerializationContext* context);
 
   static void SerializeMessageContents(
-      IPC::Message* ipc_message,
-      MessageFragment<native::internal::NativeStruct_Data>& fragment);
+      IPC::Message* message,
+      Buffer* buffer,
+      native::internal::NativeStruct_Data::BufferWriter* writer,
+      SerializationContext* context);
 
   static bool DeserializeMessageAttachments(
       native::internal::NativeStruct_Data* data,
-      Message* message,
-      IPC::Message* ipc_message);
+      SerializationContext* context,
+      IPC::Message* message);
 };
 
 template <typename MaybeConstUserType>
@@ -56,16 +59,18 @@ struct NativeStructSerializerImpl {
 
   static void Serialize(
       MaybeConstUserType& value,
-      MessageFragment<native::internal::NativeStruct_Data>& fragment) {
-    IPC::Message ipc_message;
-    Traits::Write(&ipc_message, value);
-    UnmappedNativeStructSerializerImpl::SerializeMessageContents(&ipc_message,
-                                                                 fragment);
+      Buffer* buffer,
+      native::internal::NativeStruct_Data::BufferWriter* writer,
+      SerializationContext* context) {
+    IPC::Message message;
+    Traits::Write(&message, value);
+    UnmappedNativeStructSerializerImpl::SerializeMessageContents(
+        &message, buffer, writer, context);
   }
 
   static bool Deserialize(native::internal::NativeStruct_Data* data,
                           UserType* out,
-                          Message* message) {
+                          SerializationContext* context) {
     if (!data)
       return false;
 
@@ -93,7 +98,7 @@ struct NativeStructSerializerImpl {
                                 header->num_bytes + sizeof(ArrayHeader));
       base::PickleIterator iter(message_view);
       if (!UnmappedNativeStructSerializerImpl::DeserializeMessageAttachments(
-              data, message, &message_view)) {
+              data, context, &message_view)) {
         return false;
       }
 

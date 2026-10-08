@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,9 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/values.h"
 #include "content/public/browser/global_routing_id.h"
 #include "extensions/browser/api/declarative_net_request/request_action.h"
@@ -25,7 +27,6 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/url_response_head.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -36,36 +37,34 @@ class ExtensionNavigationUIData;
 // Helper struct to initialize WebRequestInfo.
 struct WebRequestInfoInitParams {
   WebRequestInfoInitParams();
+  WebRequestInfoInitParams(WebRequestInfoInitParams&& other);
+  WebRequestInfoInitParams& operator=(WebRequestInfoInitParams&& other);
 
   // Initializes a WebRequestInfoInitParams from information provided over a
   // URLLoaderFactory interface.
   WebRequestInfoInitParams(
       uint64_t request_id,
       int render_process_id,
-      int frame_routing_id,
+      int render_frame_id,
       std::unique_ptr<ExtensionNavigationUIData> navigation_ui_data,
+      int32_t routing_id,
       const network::ResourceRequest& request,
       bool is_download,
       bool is_async,
       bool is_service_worker_script,
-      absl::optional<int64_t> navigation_id,
+      base::Optional<int64_t> navigation_id,
       ukm::SourceIdObj ukm_source_id);
-
-  WebRequestInfoInitParams(const WebRequestInfoInitParams&) = delete;
-  WebRequestInfoInitParams(WebRequestInfoInitParams&& other);
-
-  WebRequestInfoInitParams& operator=(const WebRequestInfoInitParams&) = delete;
-  WebRequestInfoInitParams& operator=(WebRequestInfoInitParams&& other);
 
   ~WebRequestInfoInitParams();
 
   uint64_t id = 0;
   GURL url;
   int render_process_id = -1;
-  int frame_routing_id = MSG_ROUTING_NONE;
+  int routing_id = MSG_ROUTING_NONE;
+  int frame_id = -1;
   std::string method;
   bool is_navigation_request = false;
-  absl::optional<url::Origin> initiator;
+  base::Optional<url::Origin> initiator;
   WebRequestResourceType web_request_type = WebRequestResourceType::OTHER;
   bool is_async = false;
   net::HttpRequestHeaders extra_request_headers;
@@ -76,22 +75,21 @@ struct WebRequestInfoInitParams {
   int web_view_embedder_process_id = -1;
   ExtensionApiFrameIdMap::FrameData frame_data;
   bool is_service_worker_script = false;
-  absl::optional<int64_t> navigation_id;
+  base::Optional<int64_t> navigation_id;
   ukm::SourceIdObj ukm_source_id = ukm::kInvalidSourceIdObj;
-  content::GlobalRenderFrameHostId parent_routing_id;
+  content::GlobalFrameRoutingId parent_routing_id;
 
  private:
   void InitializeWebViewAndFrameData(
       const ExtensionNavigationUIData* navigation_ui_data);
+
+  DISALLOW_COPY_AND_ASSIGN(WebRequestInfoInitParams);
 };
 
 // A URL request representation used by WebRequest API internals. This structure
 // carries information about an in-progress request.
 struct WebRequestInfo {
   explicit WebRequestInfo(WebRequestInfoInitParams params);
-
-  WebRequestInfo(const WebRequestInfo&) = delete;
-  WebRequestInfo& operator=(const WebRequestInfo&) = delete;
 
   ~WebRequestInfo();
 
@@ -109,9 +107,12 @@ struct WebRequestInfo {
   // applicable (i.e. if initiated by the browser).
   const int render_process_id;
 
-  // The frame routing ID of the frame which initiated this request, or
-  // MSG_ROUTING_NONE if the request was not initiated by a frame.
-  const int frame_routing_id = MSG_ROUTING_NONE;
+  // The routing ID of the object which initiated the request, if applicable.
+  const int routing_id = MSG_ROUTING_NONE;
+
+  // The render frame ID of the frame which initiated this request, or -1 if
+  // the request was not initiated by a frame.
+  const int frame_id;
 
   // The HTTP method used for the request, if applicable.
   const std::string method;
@@ -121,7 +122,7 @@ struct WebRequestInfo {
 
   // The origin of the context which initiated the request. May be null for
   // browser-initiated requests such as navigations.
-  const absl::optional<url::Origin> initiator;
+  const base::Optional<url::Origin> initiator;
 
   // Extension API frame data corresponding to details of the frame which
   // initiate this request.
@@ -168,22 +169,23 @@ struct WebRequestInfo {
   // since this is lazily computed. Cached to avoid redundant computations.
   // Valid when not null. In case no actions are taken, populated with an empty
   // vector.
-  mutable absl::optional<std::vector<declarative_net_request::RequestAction>>
+  mutable base::Optional<std::vector<declarative_net_request::RequestAction>>
       dnr_actions;
 
   const bool is_service_worker_script;
 
   // Valid if this request corresponds to a navigation.
-  const absl::optional<int64_t> navigation_id;
+  const base::Optional<int64_t> navigation_id;
 
   // UKM source to associate metrics with for this request.
   const ukm::SourceIdObj ukm_source_id;
 
   // ID of the RenderFrameHost corresponding to the parent frame. Only valid for
   // document subresource and sub-frame requests.
-  // TODO(karandeepb, mcnee): For subresources, having "parent" in the name is
-  // misleading. This should be renamed to indicate that this is the initiator.
-  const content::GlobalRenderFrameHostId parent_routing_id;
+  const content::GlobalFrameRoutingId parent_routing_id;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebRequestInfo);
 };
 
 }  // namespace extensions

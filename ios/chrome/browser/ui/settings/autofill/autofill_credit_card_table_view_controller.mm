@@ -1,45 +1,42 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/autofill/autofill_credit_card_table_view_controller.h"
 
-#import "base/check.h"
-#import "base/mac/foundation_util.h"
-#import "base/metrics/user_metrics.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/autofill/core/browser/personal_data_manager.h"
-#import "components/autofill/core/common/autofill_prefs.h"
+#include "base/check.h"
+#include "base/mac/foundation_util.h"
+#include "base/metrics/user_metrics.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/common/autofill_prefs.h"
 #import "components/autofill/ios/browser/credit_card_util.h"
 #import "components/autofill/ios/browser/personal_data_manager_observer_bridge.h"
-#import "components/password_manager/core/common/password_manager_features.h"
-#import "components/prefs/pref_service.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/autofill/personal_data_manager_factory.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/main/browser.h"
-#import "ios/chrome/browser/net/crurl.h"
+#include "components/prefs/pref_service.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/autofill/personal_data_manager_factory.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_add_credit_card_coordinator.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_constants.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_credit_card_edit_table_view_controller.h"
-#import "ios/chrome/browser/ui/settings/autofill/cells/autofill_card_item.h"
+#import "ios/chrome/browser/ui/settings/autofill/cells/autofill_data_item.h"
+#import "ios/chrome/browser/ui/settings/autofill/features.h"
+#import "ios/chrome/browser/ui/settings/cells/settings_switch_cell.h"
+#import "ios/chrome/browser/ui/settings/cells/settings_switch_item.h"
 #import "ios/chrome/browser/ui/settings/elements/enterprise_info_popover_view_controller.h"
-#import "ios/chrome/browser/ui/settings/settings_root_table_view_controller+toolbar_add.h"
+#include "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_info_button_cell.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_info_button_item.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_switch_cell.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_text_header_footer_item.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "net/base/mac/url_conversions.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -83,12 +80,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
 // stop the observer callback from acting on user-initiated changes.
 @property(nonatomic, readwrite, assign) BOOL deletionInProgress;
 
+// Button to add a new credit card.
+@property(nonatomic, strong) UIBarButtonItem* addPaymentMethodButton;
+
 // Coordinator to add new credit card.
 @property(nonatomic, strong)
     AutofillAddCreditCardCoordinator* addCreditCardCoordinator;
-
-// Add button for the toolbar.
-@property(nonatomic, strong) UIBarButtonItem* addButtonInToolbar;
 
 @end
 
@@ -98,11 +95,13 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 - (instancetype)initWithBrowser:(Browser*)browser {
   DCHECK(browser);
-
-  self = [super initWithStyle:ChromeTableViewStyle()];
+  UITableViewStyle style = base::FeatureList::IsEnabled(kSettingsRefresh)
+                               ? UITableViewStylePlain
+                               : UITableViewStyleGrouped;
+  self = [super initWithStyle:style];
   if (self) {
     self.title = l10n_util::GetNSString(IDS_AUTOFILL_PAYMENT_METHODS);
-    self.shouldDisableDoneButtonOnEdit = YES;
+    self.shouldHideDoneButton = YES;
     _browser = browser;
     _personalDataManager =
         autofill::PersonalDataManagerFactory::GetForBrowserState(
@@ -125,6 +124,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.tableView.accessibilityIdentifier = kAutofillCreditCardTableViewId;
   self.navigationController.toolbar.accessibilityIdentifier =
       kAutofillPaymentMethodsToolbarId;
+
+  [self setToolbarItems:@[ [self flexibleSpace], self.addPaymentMethodButton ]
+               animated:YES];
   [self updateUIForEditState];
   [self loadModel];
 }
@@ -133,14 +135,28 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [super setEditing:editing animated:animated];
   if (editing) {
     self.deleteButton.enabled = NO;
+    [self showDeleteButton];
+    [self setSwitchItemEnabled:NO itemType:ItemTypeAutofillCardSwitch];
+  } else {
+    [self hideDeleteButton];
+    [self setSwitchItemEnabled:YES itemType:ItemTypeAutofillCardSwitch];
   }
-  [self setSwitchItemEnabled:!editing itemType:ItemTypeAutofillCardSwitch];
   [self updateUIForEditState];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
   [super viewWillAppear:animated];
   self.navigationController.toolbarHidden = NO;
+}
+
+- (BOOL)shouldHideToolbar {
+  // There is a bug from apple that this method might be called in this view
+  // controller even if it is not the top view controller.
+  if (self.navigationController.topViewController == self) {
+    return NO;
+  }
+
+  return [super shouldHideToolbar];
 }
 
 #pragma mark - ChromeTableViewController
@@ -150,7 +166,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   TableViewModel* model = self.tableViewModel;
 
   [model addSectionWithIdentifier:SectionIdentifierSwitches];
-  if (_browser->GetBrowserState()->GetPrefs()->IsManagedPreference(
+  if (base::FeatureList::IsEnabled(kEnableIOSManagedSettingsUI) &&
+      _browser->GetBrowserState()->GetPrefs()->IsManagedPreference(
           autofill::prefs::kAutofillCreditCardEnabled)) {
     [model addItem:[self cardManagedItem]
         toSectionWithIdentifier:SectionIdentifierSwitches];
@@ -185,8 +202,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 }
 
 - (TableViewItem*)cardSwitchItem {
-  TableViewSwitchItem* switchItem =
-      [[TableViewSwitchItem alloc] initWithType:ItemTypeAutofillCardSwitch];
+  SettingsSwitchItem* switchItem =
+      [[SettingsSwitchItem alloc] initWithType:ItemTypeAutofillCardSwitch];
   switchItem.text =
       l10n_util::GetNSString(IDS_AUTOFILL_ENABLE_CREDIT_CARDS_TOGGLE_LABEL);
   switchItem.on = [self isAutofillCreditCardEnabled];
@@ -228,7 +245,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   NSString* creditCardName = autofill::GetCreditCardName(
       creditCard, GetApplicationContext()->GetApplicationLocale());
 
-  AutofillCardItem* item = [[AutofillCardItem alloc] initWithType:ItemTypeCard];
+  AutofillDataItem* item = [[AutofillDataItem alloc] initWithType:ItemTypeCard];
   item.text = creditCardName;
   item.leadingDetailText = autofill::GetCreditCardIdentifierString(creditCard);
   item.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -258,41 +275,18 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 #pragma mark - SettingsRootTableViewController
 
+- (BOOL)shouldShowEditButton {
+  return YES;
+}
+
 - (BOOL)editButtonEnabled {
+  DCHECK([self shouldShowEditButton]);
   return [self localCreditCardsExist];
 }
 
 - (void)deleteItems:(NSArray<NSIndexPath*>*)indexPaths {
   // Do not call super as this also deletes the section if it is empty.
   [self deleteItemAtIndexPaths:indexPaths];
-}
-
-- (BOOL)shouldHideToolbar {
-  // There is a bug from apple that this method might be called in this view
-  // controller even if it is not the top view controller.
-  if (self.navigationController.topViewController == self) {
-    return NO;
-  }
-
-  return [super shouldHideToolbar];
-}
-
-- (BOOL)shouldShowEditDoneButton {
-  // The "Done" button in the navigation bar closes the sheet.
-  return NO;
-}
-
-- (void)updateUIForEditState {
-  [super updateUIForEditState];
-  [self updatedToolbarForEditState];
-}
-
-- (UIBarButtonItem*)customLeftToolbarButton {
-  if (self.tableView.isEditing) {
-    return nil;
-  }
-
-  return self.addButtonInToolbar;
 }
 
 #pragma mark - Actions
@@ -330,8 +324,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     case ItemTypeHeader:
       break;
     case ItemTypeAutofillCardSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::mac::ObjCCastStrict<TableViewSwitchCell>(cell);
+      SettingsSwitchCell* switchCell =
+          base::mac::ObjCCastStrict<SettingsSwitchCell>(cell);
       [switchCell.switchView addTarget:self
                                 action:@selector(autofillCardSwitchChanged:)
                       forControlEvents:UIControlEventValueChanged];
@@ -356,26 +350,25 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)autofillCardSwitchChanged:(UISwitch*)switchView {
   [self setSwitchItemOn:[switchView isOn] itemType:ItemTypeAutofillCardSwitch];
   [self setAutofillCreditCardEnabled:[switchView isOn]];
-  self.addButtonInToolbar.enabled = [self isAutofillCreditCardEnabled];
 }
 
 #pragma mark - Switch Helpers
 
-// Sets switchItem's state to `on`. It is important that there is only one item
-// of `switchItemType` in SectionIdentifierSwitches.
+// Sets switchItem's state to |on|. It is important that there is only one item
+// of |switchItemType| in SectionIdentifierSwitches.
 - (void)setSwitchItemOn:(BOOL)on itemType:(ItemType)switchItemType {
   NSIndexPath* switchPath =
       [self.tableViewModel indexPathForItemType:switchItemType
                               sectionIdentifier:SectionIdentifierSwitches];
-  TableViewSwitchItem* switchItem =
-      base::mac::ObjCCastStrict<TableViewSwitchItem>(
+  SettingsSwitchItem* switchItem =
+      base::mac::ObjCCastStrict<SettingsSwitchItem>(
           [self.tableViewModel itemAtIndexPath:switchPath]);
   switchItem.on = on;
 }
 
-// Sets switchItem's enabled status to `enabled` and reconfigures the
+// Sets switchItem's enabled status to |enabled| and reconfigures the
 // corresponding cell. It is important that there is no more than one item of
-// `switchItemType` in SectionIdentifierSwitches.
+// |switchItemType| in SectionIdentifierSwitches.
 - (void)setSwitchItemEnabled:(BOOL)enabled itemType:(ItemType)switchItemType {
   TableViewModel* model = self.tableViewModel;
 
@@ -386,8 +379,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   NSIndexPath* switchPath =
       [model indexPathForItemType:switchItemType
                 sectionIdentifier:SectionIdentifierSwitches];
-  TableViewSwitchItem* switchItem =
-      base::mac::ObjCCastStrict<TableViewSwitchItem>(
+  SettingsSwitchItem* switchItem =
+      base::mac::ObjCCastStrict<SettingsSwitchItem>(
           [model itemAtIndexPath:switchPath]);
   [switchItem setEnabled:enabled];
   [self reconfigureCellsForItems:@[ switchItem ]];
@@ -437,11 +430,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 - (BOOL)tableView:(UITableView*)tableView
     canEditRowAtIndexPath:(NSIndexPath*)indexPath {
-  // Only autofill card cells are editable.
+  // Only autofill data cells are editable.
   TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
-  if ([item isKindOfClass:[AutofillCardItem class]]) {
-    AutofillCardItem* autofillItem =
-        base::mac::ObjCCastStrict<AutofillCardItem>(item);
+  if ([item isKindOfClass:[AutofillDataItem class]]) {
+    AutofillDataItem* autofillItem =
+        base::mac::ObjCCastStrict<AutofillDataItem>(item);
     return [autofillItem isDeletable];
   }
   return NO;
@@ -460,7 +453,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)deleteItemAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths {
   self.deletionInProgress = YES;
   for (NSIndexPath* indexPath in indexPaths) {
-    AutofillCardItem* item = base::mac::ObjCCastStrict<AutofillCardItem>(
+    AutofillDataItem* item = base::mac::ObjCCastStrict<AutofillDataItem>(
         [self.tableViewModel itemAtIndexPath:indexPath]);
     _personalDataManager->RemoveByGUID(item.GUID);
   }
@@ -508,9 +501,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
       }];
 }
 
-// Opens new view controller `AutofillAddCreditCardViewController` for fillig
+// Opens new view controller |AutofillAddCreditCardViewController| for fillig
 // credit card details.
-- (void)handleAddPayment {
+- (void)handleAddPayment:(id)sender {
   base::RecordAction(
       base::UserMetricsAction("MobileAddCreditCard.AddPaymentMethodButton"));
 
@@ -548,26 +541,49 @@ typedef NS_ENUM(NSInteger, ItemType) {
       _browser->GetBrowserState()->GetPrefs(), isEnabled);
 }
 
-#pragma mark - PopoverLabelViewControllerDelegate
-
-- (void)didTapLinkURL:(NSURL*)URL {
-  [self view:nil didTapLinkURL:[[CrURL alloc] initWithNSURL:URL]];
+- (UIBarButtonItem*)addPaymentMethodButton {
+  if (!_addPaymentMethodButton) {
+    _addPaymentMethodButton = [[UIBarButtonItem alloc]
+        initWithTitle:l10n_util::GetNSString(
+                          IDS_IOS_MANUAL_FALLBACK_ADD_PAYMENT_METHOD)
+                style:UIBarButtonItemStylePlain
+               target:self
+               action:@selector(handleAddPayment:)];
+    _addPaymentMethodButton.accessibilityIdentifier =
+        kSettingsAddPaymentMethodButtonId;
+  }
+  return _addPaymentMethodButton;
 }
 
 #pragma mark - Private
 
-// Returns a toolbar button for starting the "Add Credit Card" flow.
-- (UIBarButtonItem*)addButtonInToolbar {
-  if (!_addButtonInToolbar) {
-    _addButtonInToolbar =
-        [self addButtonWithAction:@selector(addButtonCallback)];
-    _addButtonInToolbar.enabled = [self isAutofillCreditCardEnabled];
-  }
-  return _addButtonInToolbar;
+// Create a flexible space item to be used in the toolbar.
+- (UIBarButtonItem*)flexibleSpace {
+  return [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                           target:nil
+                           action:nil];
 }
 
-- (void)addButtonCallback {
-  [self handleAddPayment];
+// Adds delete button to the bottom toolbar.
+- (void)showDeleteButton {
+  NSArray* customToolbarItems =
+      @[ self.deleteButton, [self flexibleSpace], self.addPaymentMethodButton ];
+  [self setToolbarItems:customToolbarItems animated:YES];
+}
+
+// Removes delete button from the bottom toolbar.
+- (void)hideDeleteButton {
+  NSArray* customToolbarItems =
+      @[ [self flexibleSpace], self.addPaymentMethodButton ];
+  [self setToolbarItems:customToolbarItems animated:YES];
+}
+
+#pragma mark - PopoverLabelViewControllerDelegate
+
+- (void)didTapLinkURL:(NSURL*)URL {
+  GURL convertedURL = net::GURLWithNSURL(URL);
+  [self view:nil didTapLinkURL:convertedURL];
 }
 
 @end

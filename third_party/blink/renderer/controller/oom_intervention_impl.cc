@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/controller/oom_intervention_impl.h"
 
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -21,16 +20,46 @@
 #include "third_party/blink/renderer/core/loader/frame_load_request.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
-#include "third_party/blink/renderer/platform/scheduler/public/main_thread.h"
 
 namespace blink {
 
 namespace {
-
-base::debug::CrashKeyString* GetStateCrashKey() {
+enum class OomInterventionState {
+  // Initial value for a variable.
+  None,
+  // Before the intervention has been triggered.
+  Before,
+  // While the intervention is active.
+  During,
+  // After the intervention has triggered at least once.
+  After
+};
+void UpdateStateCrashKey(OomInterventionState next_state) {
+  static OomInterventionState current_state = OomInterventionState::None;
+  // Once an intervention is trigger, the state shall never go back to the
+  // Before state.
+  if (next_state == OomInterventionState::Before &&
+      current_state != OomInterventionState::None)
+    return;
+  if (current_state == next_state)
+    return;
+  current_state = next_state;
   static auto* crash_key = base::debug::AllocateCrashKeyString(
       "oom_intervention_state", base::debug::CrashKeySize::Size32);
-  return crash_key;
+  switch (current_state) {
+    case OomInterventionState::None:
+      base::debug::SetCrashKeyString(crash_key, "none");
+      break;
+    case OomInterventionState::Before:
+      base::debug::SetCrashKeyString(crash_key, "before");
+      break;
+    case OomInterventionState::During:
+      base::debug::SetCrashKeyString(crash_key, "during");
+      break;
+    case OomInterventionState::After:
+      base::debug::SetCrashKeyString(crash_key, "after");
+      break;
+  }
 }
 
 void NavigateLocalAdsFrames(LocalFrame* frame) {
@@ -39,7 +68,7 @@ void NavigateLocalAdsFrames(LocalFrame* frame) {
   for (Frame* child = frame->Tree().FirstChild(); child;
        child = child->Tree().TraverseNext(frame)) {
     if (auto* child_local_frame = DynamicTo<LocalFrame>(child)) {
-      if (child_local_frame->IsAdFrame()) {
+      if (child_local_frame->IsAdSubframe()) {
         FrameLoadRequest request(frame->DomWindow(),
                                  ResourceRequest(BlankURL()));
         child_local_frame->Navigate(request, WebFrameLoadType::kStandard);
@@ -53,31 +82,21 @@ void NavigateLocalAdsFrames(LocalFrame* frame) {
 }  // namespace
 
 // static
-void OomInterventionImpl::BindReceiver(
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+void OomInterventionImpl::Create(
     mojo::PendingReceiver<mojom::blink::OomIntervention> receiver) {
-  mojo::MakeSelfOwnedReceiver(
-      std::make_unique<OomInterventionImpl>(
-          base::PassKey<OomInterventionImpl>(), task_runner),
-      std::move(receiver), task_runner);
+  mojo::MakeSelfOwnedReceiver(std::make_unique<OomInterventionImpl>(),
+                              std::move(receiver));
 }
 
-OomInterventionImpl::OomInterventionImpl(
-    base::PassKey<OomInterventionImpl> pass_key,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner)
-    : OomInterventionImpl(std::move(task_runner)) {}
-
-OomInterventionImpl::OomInterventionImpl(
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner)
-    : task_runner_(std::move(task_runner)) {
-  static bool initial_crash_key_set = false;
-  if (!initial_crash_key_set) {
-    initial_crash_key_set = true;
-    base::debug::SetCrashKeyString(GetStateCrashKey(), "before");
-  }
+OomInterventionImpl::OomInterventionImpl()
+    : delayed_report_timer_(Thread::MainThread()->GetTaskRunner(),
+                            this,
+                            &OomInterventionImpl::TimerFiredUMAReport) {
+  UpdateStateCrashKey(OomInterventionState::Before);
 }
 
 OomInterventionImpl::~OomInterventionImpl() {
+  UpdateStateCrashKey(OomInterventionState::After);
   MemoryUsageMonitorInstance().RemoveObserver(this);
 }
 
@@ -130,8 +149,15 @@ void OomInterventionImpl::Check(MemoryUsage usage) {
                   current_memory.current_vm_size_kb * 1024 >
                       detection_args_->virtual_memory_thresold;
 
+  // Report memory stats every second to send UMA.
+  ReportMemoryStats(current_memory);
+
   if (oom_detected) {
-    base::debug::SetCrashKeyString(GetStateCrashKey(), "during");
+    UpdateStateCrashKey(OomInterventionState::During);
+
+    UMA_HISTOGRAM_MEMORY_MB(
+        "Memory.Experimental.OomIntervention.V8UsageBefore",
+        base::saturated_cast<int>(usage.v8_bytes / 1024 / 1024));
 
     if (navigate_ads_enabled_ || purge_v8_memory_enabled_) {
       for (const auto& page : Page::OrdinaryPages()) {
@@ -151,16 +177,100 @@ void OomInterventionImpl::Check(MemoryUsage usage) {
     if (renderer_pause_enabled_) {
       // The ScopedPagePauser is destroyed when the intervention is declined and
       // mojo strong binding is disconnected.
-      pauser_ = std::make_unique<ScopedPagePauser>();
+      pauser_.reset(new ScopedPagePauser);
     }
 
     host_->OnHighMemoryUsage();
     MemoryUsageMonitorInstance().RemoveObserver(this);
     // Send memory pressure notification to trigger GC.
-    task_runner_->PostTask(FROM_HERE, base::BindOnce(&TriggerGC));
+    Thread::MainThread()->GetTaskRunner()->PostTask(FROM_HERE,
+                                                    base::BindOnce(&TriggerGC));
     // Notify V8GCForContextDispose that page navigation gc is needed when
     // intervention runs, as it indicates that memory usage is high.
     V8GCForContextDispose::Instance().SetForcePageNavigationGC();
+
+    // Report the memory impact of intervention after 10, 20, 30 seconds.
+    metrics_at_intervention_ = current_memory;
+    number_of_report_needed_ = 3;
+    delayed_report_timer_.StartRepeating(base::TimeDelta::FromSeconds(10),
+                                         FROM_HERE);
+  }
+}
+
+void OomInterventionImpl::ReportMemoryStats(
+    OomInterventionMetrics& current_memory) {
+  UMA_HISTOGRAM_MEMORY_MB(
+      "Memory.Experimental.OomIntervention.RendererBlinkUsage",
+      base::saturated_cast<base::Histogram::Sample>(
+          current_memory.current_blink_usage_kb / 1024));
+  UMA_HISTOGRAM_MEMORY_LARGE_MB(
+      "Memory.Experimental.OomIntervention."
+      "RendererPrivateMemoryFootprint",
+      base::saturated_cast<base::Histogram::Sample>(
+          current_memory.current_private_footprint_kb / 1024));
+  UMA_HISTOGRAM_MEMORY_MB(
+      "Memory.Experimental.OomIntervention.RendererSwapFootprint",
+      base::saturated_cast<base::Histogram::Sample>(
+          current_memory.current_swap_kb / 1024));
+  UMA_HISTOGRAM_MEMORY_LARGE_MB(
+      "Memory.Experimental.OomIntervention.RendererVmSize",
+      base::saturated_cast<base::Histogram::Sample>(
+          current_memory.current_vm_size_kb / 1024));
+}
+
+int ToMemoryUsageDeltaSample(uint64_t after_kb, uint64_t before_kb) {
+  int delta_mb = (base::saturated_cast<int>(before_kb) -
+                  base::saturated_cast<int>(after_kb)) /
+                 1024;
+  return std::min(std::max(delta_mb, -500), 500);
+}
+
+void OomInterventionImpl::TimerFiredUMAReport(TimerBase*) {
+  MemoryUsage usage = MemoryUsageMonitorInstance().GetCurrentMemoryUsage();
+  OomInterventionMetrics current_memory =
+      CrashMemoryMetricsReporterImpl::MemoryUsageToMetrics(usage);
+  int blink_usage_delta =
+      ToMemoryUsageDeltaSample(current_memory.current_blink_usage_kb,
+                               metrics_at_intervention_.current_blink_usage_kb);
+  int private_footprint_delta = ToMemoryUsageDeltaSample(
+      current_memory.current_private_footprint_kb,
+      metrics_at_intervention_.current_private_footprint_kb);
+  int v8_usage_mb = base::saturated_cast<int>(usage.v8_bytes / 1024 / 1024);
+  switch (number_of_report_needed_--) {
+    case 3:
+      UMA_HISTOGRAM_MEMORY_MB(
+          "Memory.Experimental.OomIntervention.V8UsageAfter10secs",
+          v8_usage_mb);
+      base::UmaHistogramSparse(
+          "Memory.Experimental.OomIntervention.ReducedBlinkUsageAfter10secs2",
+          blink_usage_delta);
+      base::UmaHistogramSparse(
+          "Memory.Experimental.OomIntervention.ReducedRendererPMFAfter10secs2",
+          private_footprint_delta);
+      break;
+    case 2:
+      UMA_HISTOGRAM_MEMORY_MB(
+          "Memory.Experimental.OomIntervention.V8UsageAfter20secs",
+          v8_usage_mb);
+      base::UmaHistogramSparse(
+          "Memory.Experimental.OomIntervention.ReducedBlinkUsageAfter20secs2",
+          blink_usage_delta);
+      base::UmaHistogramSparse(
+          "Memory.Experimental.OomIntervention.ReducedRendererPMFAfter20secs2",
+          private_footprint_delta);
+      break;
+    case 1:
+      UMA_HISTOGRAM_MEMORY_MB(
+          "Memory.Experimental.OomIntervention.V8UsageAfter30secs",
+          v8_usage_mb);
+      base::UmaHistogramSparse(
+          "Memory.Experimental.OomIntervention.ReducedBlinkUsageAfter30secs2",
+          blink_usage_delta);
+      base::UmaHistogramSparse(
+          "Memory.Experimental.OomIntervention.ReducedRendererPMFAfter30secs2",
+          private_footprint_delta);
+      delayed_report_timer_.Stop();
+      break;
   }
 }
 

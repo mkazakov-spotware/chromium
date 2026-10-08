@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,15 +15,14 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.JniMocker;
-import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.common.BrowserControlsState;
 import org.chromium.ui.base.WindowAndroid;
 
 import java.lang.ref.WeakReference;
@@ -31,7 +30,6 @@ import java.lang.ref.WeakReference;
 /** Unit tests for {@link TabBrowserControlsConstraintsHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@LooperMode(LooperMode.Mode.LEGACY)
 public class TabBrowserControlsConstraintsHelperTest {
     private final UserDataHost mUserDataHost = new UserDataHost();
 
@@ -77,7 +75,7 @@ public class TabBrowserControlsConstraintsHelperTest {
         initHelper();
         Mockito.verify(mDelegateFactory, Mockito.never())
                 .createBrowserControlsVisibilityDelegate(mTab);
-        mRegisteredTabObserver.onInitialized(mTab, null);
+        mRegisteredTabObserver.onInitialized(mTab, null, null, 0);
         Mockito.verify(mDelegateFactory, Mockito.times(1))
                 .createBrowserControlsVisibilityDelegate(mTab);
         verifyUpdateState(BrowserControlsState.BOTH);
@@ -128,7 +126,7 @@ public class TabBrowserControlsConstraintsHelperTest {
         initHelper();
         Mockito.verify(mDelegateFactory, Mockito.never())
                 .createBrowserControlsVisibilityDelegate(mTab);
-        mRegisteredTabObserver.onInitialized(mTab, null);
+        mRegisteredTabObserver.onInitialized(mTab, null, null, 0);
         Mockito.verify(mDelegateFactory).createBrowserControlsVisibilityDelegate(mTab);
         Mockito.verifyNoMoreInteractions(mDelegateFactory);
         verifyUpdateState(BrowserControlsState.BOTH);
@@ -159,7 +157,7 @@ public class TabBrowserControlsConstraintsHelperTest {
         initHelper();
         Mockito.verify(mDelegateFactory, Mockito.never())
                 .createBrowserControlsVisibilityDelegate(mTab);
-        mRegisteredTabObserver.onInitialized(mTab, null);
+        mRegisteredTabObserver.onInitialized(mTab, null, null, 0);
         Mockito.verify(mDelegateFactory).createBrowserControlsVisibilityDelegate(mTab);
         Mockito.verifyNoMoreInteractions(mDelegateFactory);
         verifyUpdateState(BrowserControlsState.BOTH);
@@ -173,7 +171,7 @@ public class TabBrowserControlsConstraintsHelperTest {
         initHelper();
         Mockito.verify(mDelegateFactory, Mockito.never())
                 .createBrowserControlsVisibilityDelegate(mTab);
-        mRegisteredTabObserver.onInitialized(mTab, null);
+        mRegisteredTabObserver.onInitialized(mTab, null, null, 0);
         Mockito.verify(mDelegateFactory).createBrowserControlsVisibilityDelegate(mTab);
         Mockito.verifyNoMoreInteractions(mDelegateFactory);
         verifyUpdateState(BrowserControlsState.BOTH);

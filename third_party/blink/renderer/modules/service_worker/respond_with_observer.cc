@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,13 +23,12 @@ void RespondWithObserver::WillDispatchEvent() {
 }
 
 void RespondWithObserver::DidDispatchEvent(
-    ScriptState* script_state,
     DispatchEventResult dispatch_result) {
   if (state_ != kInitial)
     return;
 
   if (dispatch_result == DispatchEventResult::kNotCanceled) {
-    OnNoResponse(script_state);
+    OnNoResponse();
   } else {
     OnResponseRejected(ServiceWorkerResponseError::kDefaultPrevented);
   }
@@ -67,7 +66,9 @@ void RespondWithObserver::RespondWith(ScriptState* script_state,
       script_state, script_promise, exception_state,
       WTF::BindRepeating(&RespondWithObserver::ResponseWasFulfilled,
                          WrapPersistent(this), WrapPersistent(script_state),
-                         exception_state.GetContext()),
+                         exception_state.Context(),
+                         WTF::Unretained(exception_state.InterfaceName()),
+                         WTF::Unretained(exception_state.PropertyName())),
       WTF::BindRepeating(&RespondWithObserver::ResponseWasRejected,
                          WrapPersistent(this),
                          ServiceWorkerResponseError::kPromiseRejected));
@@ -88,16 +89,13 @@ void RespondWithObserver::ResponseWasRejected(ServiceWorkerResponseError error,
 
 void RespondWithObserver::ResponseWasFulfilled(
     ScriptState* script_state,
-    const ExceptionContext& exception_context,
+    ExceptionState::ContextType context_type,
+    const char* interface_name,
+    const char* property_name,
     const ScriptValue& value) {
-  OnResponseFulfilled(script_state, value, exception_context);
+  OnResponseFulfilled(script_state, value, context_type, interface_name,
+                      property_name);
   state_ = kDone;
-}
-
-bool RespondWithObserver::WaitUntil(ScriptState* script_state,
-                                    ScriptPromise promise,
-                                    ExceptionState& exception_state) {
-  return observer_->WaitUntil(script_state, promise, exception_state);
 }
 
 RespondWithObserver::RespondWithObserver(ExecutionContext* context,

@@ -28,6 +28,9 @@
 
 import optparse
 
+from blinkpy.common import exit_codes
+from blinkpy.common.system.executive_mock import MockExecutive
+from blinkpy.web_tests.models import test_run_results
 from blinkpy.web_tests.port import browser_test
 from blinkpy.web_tests.port import browser_test_driver
 from blinkpy.web_tests.port import port_testcase
@@ -78,7 +81,7 @@ class BrowserTestWinTest(_BrowserTestTestCaseMixin,
     port_name = 'win'
     port_maker = browser_test.BrowserTestWinPort
     os_name = 'win'
-    os_version = 'win11'
+    os_version = 'win7'
     driver_name_endswith = 'browser_tests.exe'
     timeout_ms = 20000
 

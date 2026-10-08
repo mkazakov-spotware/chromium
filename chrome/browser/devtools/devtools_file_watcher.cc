@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/devtools/devtools_file_watcher.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <set>
@@ -15,11 +16,10 @@
 #include "base/files/file_path_watcher.h"
 #include "base/files/file_util.h"
 #include "base/memory/ref_counted.h"
-#include "base/ranges/algorithm.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/time/time.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/memory_dump_provider.h"
 #include "content/public/browser/browser_thread.h"
@@ -66,11 +66,12 @@ class DevToolsFileWatcher::SharedFileWatcher
 };
 
 DevToolsFileWatcher::SharedFileWatcher::SharedFileWatcher()
-    : last_dispatch_cost_(base::Milliseconds(kDefaultThrottleTimeout)) {
+    : last_dispatch_cost_(
+          base::TimeDelta::FromMilliseconds(kDefaultThrottleTimeout)) {
   DevToolsFileWatcher::s_shared_watcher_ = this;
   base::trace_event::MemoryDumpManager::GetInstance()
       ->RegisterDumpProviderWithSequencedTaskRunner(
-          this, "DevTools", base::SequencedTaskRunner::GetCurrentDefault(),
+          this, "DevTools", base::SequencedTaskRunnerHandle::Get(),
           base::trace_event::MemoryDumpProvider::Options());
 }
 
@@ -113,7 +114,7 @@ void DevToolsFileWatcher::SharedFileWatcher::AddListener(
 void DevToolsFileWatcher::SharedFileWatcher::RemoveListener(
     DevToolsFileWatcher* watcher) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  auto it = base::ranges::find(listeners_, watcher);
+  auto it = std::find(listeners_.begin(), listeners_.end(), watcher);
   listeners_.erase(it);
   if (listeners_.empty()) {
     file_path_times_.clear();
@@ -128,11 +129,10 @@ void DevToolsFileWatcher::SharedFileWatcher::AddWatch(
     return;
   if (!base::FilePathWatcher::RecursiveWatchAvailable())
     return;
-  watchers_[path] = std::make_unique<base::FilePathWatcher>();
+  watchers_[path].reset(new base::FilePathWatcher());
   bool success = watchers_[path]->Watch(
-      path, base::FilePathWatcher::Type::kRecursive,
-      base::BindRepeating(&SharedFileWatcher::DirectoryChanged,
-                          base::Unretained(this)));
+      path, true,
+      base::Bind(&SharedFileWatcher::DirectoryChanged, base::Unretained(this)));
   if (!success)
     return;
 
@@ -170,11 +170,12 @@ void DevToolsFileWatcher::SharedFileWatcher::DirectoryChanged(
 
   base::Time now = base::Time::Now();
   // Quickly dispatch first chunk.
-  base::TimeDelta shedule_for = now - last_event_time_ > last_dispatch_cost_
-                                    ? base::Milliseconds(kFirstThrottleTimeout)
-                                    : last_dispatch_cost_ * 2;
+  base::TimeDelta shedule_for =
+      now - last_event_time_ > last_dispatch_cost_ ?
+          base::TimeDelta::FromMilliseconds(kFirstThrottleTimeout) :
+          last_dispatch_cost_ * 2;
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(
           &DevToolsFileWatcher::SharedFileWatcher::DispatchNotifications, this),
@@ -191,9 +192,9 @@ void DevToolsFileWatcher::SharedFileWatcher::DispatchNotifications() {
   std::vector<std::string> removed_paths;
   std::vector<std::string> changed_paths;
 
-  for (const auto& pending_path : pending_paths_) {
-    FilePathTimesMap& old_times = file_path_times_[pending_path];
-    FilePathTimesMap current_times = GetModificationTimes(pending_path);
+  for (const auto& path : pending_paths_) {
+    FilePathTimesMap& old_times = file_path_times_[path];
+    FilePathTimesMap current_times = GetModificationTimes(path);
     for (const auto& path_time : current_times) {
       const base::FilePath& path = path_time.first;
       auto old_timestamp = old_times.find(path);

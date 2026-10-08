@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "net/base/address_list.h"
@@ -27,15 +28,13 @@ const int kReadBufferSize = 65536;  // Maximum size of a packet.
 const uint16_t kDefaultMtu = 1280;
 }  // namespace
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class PseudoTcpAdapter::Core : public cricket::IPseudoTcpNotify,
                                public base::RefCounted<Core> {
  public:
   explicit Core(std::unique_ptr<P2PDatagramSocket> socket);
-
-  Core(const Core&) = delete;
-  Core& operator=(const Core&) = delete;
 
   // Functions used to implement net::StreamSocket.
   int Read(const scoped_refptr<net::IOBuffer>& buffer,
@@ -117,6 +116,8 @@ class PseudoTcpAdapter::Core : public cricket::IPseudoTcpNotify,
   scoped_refptr<net::IOBuffer> socket_read_buffer_;
 
   base::OneShotTimer timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(Core);
 };
 
 PseudoTcpAdapter::Core::Core(std::unique_ptr<P2PDatagramSocket> socket)
@@ -415,7 +416,8 @@ void PseudoTcpAdapter::Core::AdjustClock() {
   long timeout = 0;
   if (pseudo_tcp_.GetNextClock(PseudoTcp::Now(), timeout)) {
     timer_.Stop();
-    timer_.Start(FROM_HERE, base::Milliseconds(std::max(timeout, 0L)), this,
+    timer_.Start(FROM_HERE,
+                 base::TimeDelta::FromMilliseconds(std::max(timeout, 0L)), this,
                  &PseudoTcpAdapter::Core::HandleTcpClock);
   }
 }
@@ -502,4 +504,5 @@ void PseudoTcpAdapter::SetWriteWaitsForSend(bool write_waits_for_send) {
   core_->SetWriteWaitsForSend(write_waits_for_send);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/task_manager/providers/child_process_task.h"
@@ -48,10 +49,9 @@ class ChildProcessTaskTest
     : public testing::Test,
       public TaskProviderObserver {
  public:
-  ChildProcessTaskTest() = default;
-  ChildProcessTaskTest(const ChildProcessTaskTest&) = delete;
-  ChildProcessTaskTest& operator=(const ChildProcessTaskTest&) = delete;
-  ~ChildProcessTaskTest() override = default;
+  ChildProcessTaskTest() {}
+
+  ~ChildProcessTaskTest() override {}
 
   // task_manager::TaskProviderObserver:
   void TaskAdded(Task* task) override {
@@ -78,6 +78,8 @@ class ChildProcessTaskTest
 
  private:
   content::BrowserTaskEnvironment task_environment_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChildProcessTaskTest);
 };
 
 // Performs a basic test.
@@ -109,9 +111,9 @@ TEST_F(ChildProcessTaskTest, TestAll) {
   EXPECT_TRUE(provided_tasks_.empty());
 
   const int unique_id = 245;
-  const std::u16string name(u"Test Task");
-  const std::u16string expected_name(
-      l10n_util::GetStringFUTF16(IDS_TASK_MANAGER_PLUGIN_PREFIX, name));
+  const base::string16 name(base::UTF8ToUTF16("Test Task"));
+  const base::string16 expected_name(l10n_util::GetStringFUTF16(
+      IDS_TASK_MANAGER_PLUGIN_PREFIX, name));
 
   ChildProcessData data2(content::PROCESS_TYPE_PPAPI_PLUGIN);
   data2.SetProcess(base::Process::Current());
@@ -127,7 +129,7 @@ TEST_F(ChildProcessTaskTest, TestAll) {
   EXPECT_EQ(expected_name, task->title());
   EXPECT_EQ(Task::PLUGIN, task->GetType());
   EXPECT_EQ(unique_id, task->GetChildProcessUniqueID());
-  EXPECT_EQ(std::u16string(), task->GetProfileName());
+  EXPECT_EQ(base::string16(), task->GetProfileName());
   EXPECT_FALSE(task->ReportsSqliteMemory());
   EXPECT_FALSE(task->ReportsWebCacheStats());
 
@@ -137,9 +139,9 @@ TEST_F(ChildProcessTaskTest, TestAll) {
 
   const int64_t bytes_read = 1024;
   task->OnNetworkBytesRead(bytes_read);
-  task->Refresh(base::Seconds(1), REFRESH_TYPE_NETWORK_USAGE);
+  task->Refresh(base::TimeDelta::FromSeconds(1), REFRESH_TYPE_NETWORK_USAGE);
 
-  EXPECT_EQ(bytes_read, task->GetNetworkUsageRate());
+  EXPECT_EQ(bytes_read, task->network_usage_rate());
 
   // Clearing the observer won't notify us of any tasks removals even though
   // tasks will be actually deleted.

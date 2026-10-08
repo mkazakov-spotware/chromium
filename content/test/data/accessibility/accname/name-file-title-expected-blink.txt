@@ -1,2 +1,0 @@
-# BUG? The expected result is 'foo'
-button name='No file chosen, Choose File' nameFrom=value

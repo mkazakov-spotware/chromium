@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/values.h"
+#include "build/chromeos_buildflags.h"
 #include "dbus/bus.h"
 #include "dbus/object_manager.h"
 #include "dbus/values_util.h"
@@ -48,11 +49,6 @@ class BluetoothGattCharacteristicClientImpl
       public dbus::ObjectManager::Interface {
  public:
   BluetoothGattCharacteristicClientImpl() : object_manager_(nullptr) {}
-
-  BluetoothGattCharacteristicClientImpl(
-      const BluetoothGattCharacteristicClientImpl&) = delete;
-  BluetoothGattCharacteristicClientImpl& operator=(
-      const BluetoothGattCharacteristicClientImpl&) = delete;
 
   ~BluetoothGattCharacteristicClientImpl() override {
     object_manager_->UnregisterInterface(
@@ -105,7 +101,8 @@ class BluetoothGattCharacteristicClientImpl
 
     // Append empty option dict
     dbus::MessageWriter writer(&method_call);
-    dbus::AppendValueData(&writer, base::Value::Dict());
+    base::DictionaryValue dict;
+    dbus::AppendValueData(&writer, dict);
 
     object_proxy->CallMethodWithErrorCallback(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
@@ -136,11 +133,12 @@ class BluetoothGattCharacteristicClientImpl
     writer.AppendArrayOfBytes(value.data(), value.size());
 
     // Append option dict
-    base::Value::Dict dict;
+    base::DictionaryValue dict;
     if (!type_option.empty()) {
       // NB: the "type" option was added in BlueZ 5.51. Older versions of BlueZ
       // will ignore this option.
-      dict.Set(bluetooth_gatt_characteristic::kOptionType, type_option);
+      dict.SetStringKey(bluetooth_gatt_characteristic::kOptionType,
+                        type_option);
     }
     dbus::AppendValueData(&writer, dict);
 
@@ -170,7 +168,8 @@ class BluetoothGattCharacteristicClientImpl
     dbus::MessageWriter writer(&method_call);
     writer.AppendArrayOfBytes(value.data(), value.size());
 
-    dbus::AppendValueData(&writer, base::Value::Dict());
+    base::DictionaryValue dict;
+    dbus::AppendValueData(&writer, dict);
 
     object_proxy->CallMethodWithErrorCallback(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
@@ -184,9 +183,9 @@ class BluetoothGattCharacteristicClientImpl
   // BluetoothGattCharacteristicClient override.
   void StartNotify(
       const dbus::ObjectPath& object_path,
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
       device::BluetoothGattCharacteristic::NotificationType notification_type,
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
       base::OnceClosure callback,
       ErrorCallback error_callback) override {
     dbus::ObjectProxy* object_proxy =
@@ -199,10 +198,10 @@ class BluetoothGattCharacteristicClientImpl
     dbus::MethodCall method_call(
         bluetooth_gatt_characteristic::kBluetoothGattCharacteristicInterface,
         bluetooth_gatt_characteristic::kStartNotify);
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
     dbus::MessageWriter writer(&method_call);
     writer.AppendByte(static_cast<uint8_t>(notification_type));
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
     object_proxy->CallMethodWithErrorCallback(
         &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
@@ -313,7 +312,7 @@ class BluetoothGattCharacteristicClientImpl
     if (bytes)
       value.assign(bytes, bytes + length);
 
-    std::move(callback).Run(/*error_code=*/absl::nullopt, value);
+    std::move(callback).Run(value);
   }
 
   // Called when a response for a failed method call is received.
@@ -332,7 +331,7 @@ class BluetoothGattCharacteristicClientImpl
     std::move(error_callback).Run(error_name, error_message);
   }
 
-  raw_ptr<dbus::ObjectManager> object_manager_;
+  dbus::ObjectManager* object_manager_;
 
   // List of observers interested in event notifications from us.
   base::ObserverList<BluetoothGattCharacteristicClient::Observer>::Unchecked
@@ -344,6 +343,8 @@ class BluetoothGattCharacteristicClientImpl
   // invalidate its weak pointers before any other members are destroyed.
   base::WeakPtrFactory<BluetoothGattCharacteristicClientImpl> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothGattCharacteristicClientImpl);
 };
 
 BluetoothGattCharacteristicClient::BluetoothGattCharacteristicClient() =

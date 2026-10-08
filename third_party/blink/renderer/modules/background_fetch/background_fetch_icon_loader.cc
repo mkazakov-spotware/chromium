@@ -1,18 +1,19 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// found in the LiICENSE file.
 
 #include "third_party/blink/renderer/modules/background_fetch/background_fetch_icon_loader.h"
 
 #include "base/time/time.h"
 #include "third_party/blink/public/common/manifest/manifest_icon_selector.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_image_resource.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/modules/background_fetch/background_fetch_bridge.h"
 #include "third_party/blink/renderer/modules/manifest/image_resource_type_converters.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_impl.h"
@@ -23,7 +24,7 @@ namespace blink {
 
 namespace {
 
-constexpr base::TimeDelta kIconFetchTimeout = base::Seconds(30);
+constexpr base::TimeDelta kIconFetchTimeout = base::TimeDelta::FromSeconds(30);
 constexpr int kMinimumIconSizeInPx = 0;
 
 }  // namespace
@@ -40,10 +41,10 @@ void BackgroundFetchIconLoader::Start(
   DCHECK(bridge);
 
   icons_ = std::move(icons);
-  bridge->GetIconDisplaySize(WTF::BindOnce(
-      &BackgroundFetchIconLoader::DidGetIconDisplaySizeIfSoLoadIcon,
-      WrapWeakPersistent(this), WrapWeakPersistent(execution_context),
-      std::move(icon_callback)));
+  bridge->GetIconDisplaySize(
+      WTF::Bind(&BackgroundFetchIconLoader::DidGetIconDisplaySizeIfSoLoadIcon,
+                WrapWeakPersistent(this), WrapWeakPersistent(execution_context),
+                std::move(icon_callback)));
 }
 
 void BackgroundFetchIconLoader::DidGetIconDisplaySizeIfSoLoadIcon(
@@ -76,17 +77,15 @@ void BackgroundFetchIconLoader::DidGetIconDisplaySizeIfSoLoadIcon(
   resource_request.SetPriority(ResourceLoadPriority::kMedium);
   resource_request.SetKeepalive(true);
   resource_request.SetMode(network::mojom::RequestMode::kNoCors);
-  resource_request.SetTargetAddressSpace(
-      network::mojom::IPAddressSpace::kUnknown);
   resource_request.SetCredentialsMode(
       network::mojom::CredentialsMode::kInclude);
   resource_request.SetSkipServiceWorker(true);
   resource_request.SetTimeoutInterval(kIconFetchTimeout);
 
-  threaded_icon_loader_->Start(
-      execution_context, resource_request, icon_display_size_pixels,
-      WTF::BindOnce(&BackgroundFetchIconLoader::DidGetIcon,
-                    WrapWeakPersistent(this)));
+  threaded_icon_loader_->Start(execution_context, resource_request,
+                               icon_display_size_pixels,
+                               WTF::Bind(&BackgroundFetchIconLoader::DidGetIcon,
+                                         WrapWeakPersistent(this)));
 }
 
 KURL BackgroundFetchIconLoader::PickBestIconForDisplay(

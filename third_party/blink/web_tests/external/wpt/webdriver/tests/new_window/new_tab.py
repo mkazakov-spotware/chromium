@@ -1,4 +1,5 @@
 from tests.support.asserts import assert_success
+from tests.support.inline import inline
 
 from . import opener, window_name
 
@@ -31,7 +32,7 @@ def test_keeps_current_window_handle(session):
     assert session.window_handle == original_handle
 
 
-def test_opens_about_blank_in_new_tab(session, inline):
+def test_opens_about_blank_in_new_tab(session):
     url = inline("<p>foo")
     session.url = url
 
@@ -61,29 +62,3 @@ def test_sets_no_opener(session):
 
     session.window_handle = value["handle"]
     assert opener(session) is None
-
-
-def test_focus_content(session, inline):
-    response = new_window(session, type_hint="tab")
-    value = assert_success(response)
-    assert value["type"] == "tab"
-
-    session.window_handle = value["handle"]
-
-    session.url = inline("""
-        <span contenteditable="true"> abc </span>
-        <script>
-            const selection = getSelection();
-            window.onload = async() => {
-                const initial = document.querySelector("span");
-                initial.focus();
-                initial.setAttribute(
-                    "_focused",
-                    selection.anchorNode == initial.firstChild
-                );
-            }
-        </script>
-    """)
-
-    elem = session.find.css("span", all=False)
-    assert elem.attribute("_focused") == "true"

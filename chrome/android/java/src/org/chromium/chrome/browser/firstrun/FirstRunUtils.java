@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,18 +16,12 @@ import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.browser.metrics.UmaSessionStats;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
-import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.components.signin.AccountManagerFacade;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
-import org.chromium.components.signin.AccountUtils;
 
 /** Provides first run related utility functions. */
 public class FirstRunUtils {
     private static Boolean sHasGoogleAccountAuthenticator;
-    private static final int DEFAULT_SKIP_TOS_EXIT_DELAY_MS = 1000;
-    private static final int A11Y_DELAY_FACTOR = 2;
-
-    private static boolean sDisableDelayOnExitFreForTest;
 
     /**
      * Synchronizes first run native and Java preferences.
@@ -66,11 +60,10 @@ public class FirstRunUtils {
 
     /**
      * Sets the EULA/Terms of Services state as "ACCEPTED".
-     * @param allowMetricsAndCrashUploading True if the user allows to upload crash dumps and
-     *         collect stats.
+     * @param allowCrashUpload True if the user allows to upload crash dumps and collect stats.
      */
-    static void acceptTermsOfService(boolean allowMetricsAndCrashUploading) {
-        UmaSessionStats.changeMetricsReportingConsent(allowMetricsAndCrashUploading);
+    public static void acceptTermsOfService(boolean allowCrashUpload) {
+        UmaSessionStats.changeMetricsReportingConsent(allowCrashUpload);
         SharedPreferencesManager.getInstance().writeBoolean(
                 ChromePreferenceKeys.FIRST_RUN_CACHED_TOS_ACCEPTED, true);
         setEulaAccepted();
@@ -94,16 +87,8 @@ public class FirstRunUtils {
     }
 
     @VisibleForTesting
-    static void resetHasGoogleAccountAuthenticator() {
-        sHasGoogleAccountAuthenticator = null;
-    }
-
-    @VisibleForTesting
     static boolean hasGoogleAccounts() {
-        return !AccountUtils
-                        .getAccountsIfFulfilledOrEmpty(
-                                AccountManagerFacadeProvider.getInstance().getAccounts())
-                        .isEmpty();
+        return !AccountManagerFacadeProvider.getInstance().tryGetGoogleAccounts().isEmpty();
     }
 
     @SuppressLint("InlinedApi")
@@ -124,7 +109,6 @@ public class FirstRunUtils {
     /**
      * Sets the preference that signals when the user has accepted the EULA.
      */
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     public static void setEulaAccepted() {
         FirstRunUtilsJni.get().setEulaAccepted();
     }
@@ -134,29 +118,6 @@ public class FirstRunUtils {
      */
     public static boolean isCctTosDialogEnabled() {
         return FirstRunUtilsJni.get().getCctTosDialogEnabled();
-    }
-
-    /**
-     * The the number of ms delay before exiting FRE with policy. By default the delay would be
-     * {@link #DEFAULT_SKIP_TOS_EXIT_DELAY_MS}, while in a11y mode it will be extended by a factor
-     * of {@link #A11Y_DELAY_FACTOR}. This is intended to avoid screen reader being interrupted, but
-     * it is likely not going to work perfectly for all languages.
-     *
-     * @return The number of ms delay before exiting FRE with policy.
-     */
-    public static int getSkipTosExitDelayMs() {
-        if (sDisableDelayOnExitFreForTest) return 0;
-
-        int durationMs = DEFAULT_SKIP_TOS_EXIT_DELAY_MS;
-        if (ChromeAccessibilityUtil.get().isTouchExplorationEnabled()) {
-            durationMs *= A11Y_DELAY_FACTOR;
-        }
-        return durationMs;
-    }
-
-    @VisibleForTesting
-    public static void setDisableDelayOnExitFreForTest(boolean isDisable) {
-        sDisableDelayOnExitFreForTest = isDisable;
     }
 
     @NativeMethods

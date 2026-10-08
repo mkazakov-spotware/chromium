@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ const int kUnboundedSize = 0;
 void SetResizableStyleMask(NSWindow* window, bool resizable) {
   NSUInteger style_mask = [window styleMask];
   if (resizable)
-    style_mask |= NSWindowStyleMaskResizable;
+    style_mask |= NSResizableWindowMask;
   else
-    style_mask &= ~NSWindowStyleMaskResizable;
+    style_mask &= ~NSResizableWindowMask;
   [window setStyleMask:style_mask];
 }
 

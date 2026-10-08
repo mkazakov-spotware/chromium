@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -73,7 +73,7 @@ void HidConnectionImpl::OnRead(ReadCallback callback,
                                scoped_refptr<base::RefCountedBytes> buffer,
                                size_t size) {
   if (!success) {
-    std::move(callback).Run(false, 0, absl::nullopt);
+    std::move(callback).Run(false, 0, base::nullopt);
     return;
   }
   DCHECK(buffer);
@@ -117,7 +117,7 @@ void HidConnectionImpl::OnGetFeatureReport(
     scoped_refptr<base::RefCountedBytes> buffer,
     size_t size) {
   if (!success) {
-    std::move(callback).Run(false, absl::nullopt);
+    std::move(callback).Run(false, base::nullopt);
     return;
   }
   DCHECK(buffer);

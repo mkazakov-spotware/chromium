@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,28 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include "base/compiler_specific.h"
 #import "base/mac/scoped_nsautorelease_pool.h"
 #import "base/mac/scoped_nsobject.h"
 #import "base/strings/sys_string_conversions.h"
 #include "testing/platform_test.h"
-#include "ui/display/screen.h"
 
 // CocoaTestHelperWindow behaves differently from a regular NSWindow in the
 // following ways:
 // - It allows -isKeyWindow to be manipulated to test things like focus rings
 //   (which background windows won't normally display).
+// - It ignores its real occlusion state and returns a value based on
+//   pretendIsOccluded.
 // - It ignores the system setting for full keyboard access and returns a value
 //   based on pretendFullKeyboardAccessIsEnabled.
 @interface CocoaTestHelperWindow : NSWindow
 
 // Value to return for -isKeyWindow.
 @property(nonatomic) BOOL pretendIsKeyWindow;
+
+// Value to return for -occlusionState. Setting posts a
+// NSWindowDidChangeOcclusionStateNotification.
+@property(nonatomic) BOOL pretendIsOccluded;
 
 // Value to return for -isOnActiveSpace. Posts
 // NSWorkspaceActiveSpaceDidChangeNotification when set.
@@ -57,6 +63,8 @@
 
 - (BOOL)isKeyWindow;
 
+- (NSWindowOcclusionState)occlusionState;
+
 @end
 
 namespace ui {
@@ -75,8 +83,6 @@ class CocoaTestHelper {
   CocoaTestHelperWindow* test_window();
 
  private:
-  display::ScopedNativeScreen screen_;
-
   // Return a set of currently open windows. Avoiding NSArray so
   // contents aren't retained, the pointer values can only be used for
   // comparison purposes.  Using std::set to make progress-checking

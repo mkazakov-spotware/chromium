@@ -1,29 +1,18 @@
 /*
- * Copyright 2016 The Chromium Authors
+ * Copyright 2016 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
-/**
- * Launches the PaymentRequest UI that requests payer name.
- *
- * Legacy entry function until basic-card is removed.
- */
-function buy() {
-  buyWithMethods(
-      [{supportedMethods: 'basic-card', data: {supportedNetworks: ['visa']}}]);
-}
+/* global PaymentRequest:false */
 
 /**
- * Launches the PaymentRequest UI that offers free shipping worldwide.
- *
- * @param {sequence<PaymentMethodData>} methodData - An array of payment method
- *        objects.
+ * Launches the PaymentRequest UI that requests payer name.
  */
-function buyWithMethods(methodData) {
+function buy() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
-        methodData,
+        [{supportedMethods: 'basic-card', data: {supportedNetworks: ['visa']}}],
         {total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}}},
         {requestPayerName: true})
         .show()

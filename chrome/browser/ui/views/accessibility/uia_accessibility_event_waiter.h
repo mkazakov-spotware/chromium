@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/process/process_handle.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
@@ -25,8 +24,8 @@
 
 struct UiaAccessibilityWaiterInfo {
   HWND hwnd;
-  std::wstring role;
-  std::wstring name;
+  base::string16 role;
+  base::string16 name;
   ax::mojom::Event event;
 };
 
@@ -59,7 +58,7 @@ class UiaAccessibilityEventWaiter {
     UiaAccessibilityWaiterInfo info_;
 
    private:
-    raw_ptr<UiaAccessibilityEventWaiter> owner_ = nullptr;
+    UiaAccessibilityEventWaiter* owner_ = nullptr;
 
     Microsoft::WRL::ComPtr<IUIAutomation> uia_;
     Microsoft::WRL::ComPtr<IUIAutomationElement> root_;
@@ -79,10 +78,6 @@ class UiaAccessibilityEventWaiter {
                          public IUIAutomationEventHandler {
      public:
       EventHandler();
-
-      EventHandler(const EventHandler&) = delete;
-      EventHandler& operator=(const EventHandler&) = delete;
-
       virtual ~EventHandler();
 
       void Init(UiaAccessibilityEventWaiter::Thread* owner,
@@ -116,12 +111,14 @@ class UiaAccessibilityEventWaiter {
                                            EVENTID event_id) override;
 
       // Points to the waiter to receive notifications.
-      raw_ptr<UiaAccessibilityEventWaiter::Thread> owner_ = nullptr;
+      UiaAccessibilityEventWaiter::Thread* owner_ = nullptr;
 
      private:
       bool MatchesNameRole(IUIAutomationElement* sender);
 
       Microsoft::WRL::ComPtr<IUIAutomationElement> root_;
+
+      DISALLOW_COPY_AND_ASSIGN(EventHandler);
     };
     Microsoft::WRL::ComPtr<CComObject<EventHandler>> uia_event_handler_;
   };

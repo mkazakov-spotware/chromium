@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import collections
 import math
 import sys
 
@@ -58,8 +57,7 @@ def cleanup_session(session):
         This also includes bringing it out of maximized, minimized,
         or fullscreened state.
         """
-        if session.capabilities.get("setWindowRect"):
-            session.window.size = defaults.WINDOW_SIZE
+        session.window.size = defaults.WINDOW_SIZE
 
     @ignore_exceptions
     def _restore_windows(session):
@@ -106,20 +104,6 @@ def _windows(session, exclude=None):
 def clear_all_cookies(session):
     """Removes all cookies associated with the current active document"""
     session.transport.send("DELETE", "session/%s/cookie" % session.session_id)
-
-
-def deep_update(source, overrides):
-    """
-    Update a nested dictionary or similar mapping.
-    Modify ``source`` in place.
-    """
-    for key, value in overrides.items():
-        if isinstance(value, collections.abc.Mapping) and value:
-            returned = deep_update(source.get(key, {}), value)
-            source[key] = returned
-        else:
-            source[key] = overrides[key]
-    return source
 
 
 def document_dimensions(session):
@@ -237,27 +221,3 @@ def available_screen_size(session):
             screen.availHeight - screen.availTop,
         ];
         """))
-
-def filter_dict(source, d):
-    """Filter `source` dict to only contain same keys as `d` dict.
-
-    :param source: dictionary to filter.
-    :param d: dictionary whose keys determine the filtering.
-    """
-    return {k: source[k] for k in d.keys()}
-
-
-def wait_for_new_handle(session, handles_before):
-    def find_new_handle(session):
-        new_handles = list(set(session.handles) - set(handles_before))
-        if new_handles and len(new_handles) == 1:
-            return new_handles[0]
-        return None
-
-    wait = Poll(
-        session,
-        timeout=5,
-        message="No new window has been opened")
-
-    return wait.until(find_new_handle)
-

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,23 @@
 #include <stddef.h>
 #include <sys/prctl.h>
 
+#include <map>
+
 #include "base/android/java_exception_reporter.h"
 #include "base/android/jni_string.h"
-#include "base/android/jni_utils.h"
 #include "base/debug/debugging_buildflags.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/threading/thread_local.h"
-#include "build/build_config.h"
 
-namespace base {
-namespace android {
 namespace {
+using base::android::GetClass;
+using base::android::MethodID;
+using base::android::ScopedJavaLocalRef;
 
-JavaVM* g_jvm = nullptr;
-jobject g_class_loader = nullptr;
+JavaVM* g_jvm = NULL;
+base::LazyInstance<base::android::ScopedJavaGlobalRef<jobject>>::Leaky
+    g_class_loader = LAZY_INSTANCE_INITIALIZER;
 jmethodID g_class_loader_load_class_method_id = 0;
 
 #if BUILDFLAG(CAN_UNWIND_WITH_FRAME_POINTERS)
@@ -31,39 +33,10 @@ base::LazyInstance<base::ThreadLocalPointer<void>>::Leaky
 
 bool g_fatal_exception_occurred = false;
 
-ScopedJavaLocalRef<jclass> GetClassInternal(JNIEnv* env,
-                                            const char* class_name,
-                                            jobject class_loader) {
-  jclass clazz;
-  if (class_loader != nullptr) {
-    // ClassLoader.loadClass expects a classname with components separated by
-    // dots instead of the slashes that JNIEnv::FindClass expects. The JNI
-    // generator generates names with slashes, so we have to replace them here.
-    // TODO(torne): move to an approach where we always use ClassLoader except
-    // for the special case of base::android::GetClassLoader(), and change the
-    // JNI generator to generate dot-separated names. http://crbug.com/461773
-    size_t bufsize = strlen(class_name) + 1;
-    char dotted_name[bufsize];
-    memmove(dotted_name, class_name, bufsize);
-    for (size_t i = 0; i < bufsize; ++i) {
-      if (dotted_name[i] == '/') {
-        dotted_name[i] = '.';
-      }
-    }
-
-    clazz = static_cast<jclass>(
-        env->CallObjectMethod(class_loader, g_class_loader_load_class_method_id,
-                              ConvertUTF8ToJavaString(env, dotted_name).obj()));
-  } else {
-    clazz = env->FindClass(class_name);
-  }
-  if (ClearException(env) || !clazz) {
-    LOG(FATAL) << "Failed to find class " << class_name;
-  }
-  return ScopedJavaLocalRef<jclass>(env, clazz);
-}
-
 }  // namespace
+
+namespace base {
+namespace android {
 
 JNIEnv* AttachCurrentThread() {
   DCHECK(g_jvm);
@@ -84,11 +57,7 @@ JNIEnv* AttachCurrentThread() {
       args.name = thread_name;
     }
 
-#if BUILDFLAG(IS_ANDROID)
     ret = g_jvm->AttachCurrentThread(&env, &args);
-#else
-    ret = g_jvm->AttachCurrentThread(reinterpret_cast<void**>(&env), &args);
-#endif
     CHECK_EQ(JNI_OK, ret);
   }
   return env;
@@ -98,14 +67,10 @@ JNIEnv* AttachCurrentThreadWithName(const std::string& thread_name) {
   DCHECK(g_jvm);
   JavaVMAttachArgs args;
   args.version = JNI_VERSION_1_2;
-  args.name = const_cast<char*>(thread_name.c_str());
-  args.group = nullptr;
-  JNIEnv* env = nullptr;
-#if BUILDFLAG(IS_ANDROID)
+  args.name = thread_name.c_str();
+  args.group = NULL;
+  JNIEnv* env = NULL;
   jint ret = g_jvm->AttachCurrentThread(&env, &args);
-#else
-  jint ret = g_jvm->AttachCurrentThread(reinterpret_cast<void**>(&env), &args);
-#endif
   CHECK_EQ(JNI_OK, ret);
   return env;
 }
@@ -123,11 +88,13 @@ void InitVM(JavaVM* vm) {
 }
 
 bool IsVMInitialized() {
-  return g_jvm != nullptr;
+  return g_jvm != NULL;
 }
 
-void InitGlobalClassLoader(JNIEnv* env) {
-  DCHECK(g_class_loader == nullptr);
+void InitReplacementClassLoader(JNIEnv* env,
+                                const JavaRef<jobject>& class_loader) {
+  DCHECK(g_class_loader.Get().is_null());
+  DCHECK(!class_loader.is_null());
 
   ScopedJavaLocalRef<jclass> class_loader_clazz =
       GetClass(env, "java/lang/ClassLoader");
@@ -138,57 +105,53 @@ void InitGlobalClassLoader(JNIEnv* env) {
                        "(Ljava/lang/String;)Ljava/lang/Class;");
   CHECK(!ClearException(env));
 
-  // GetClassLoader() caches the reference, so we do not need to wrap it in a
-  // smart pointer as well.
-  g_class_loader = GetClassLoader(env);
-}
-
-ScopedJavaLocalRef<jclass> GetClass(JNIEnv* env,
-                                    const char* class_name,
-                                    const char* split_name) {
-  return GetClassInternal(env, class_name,
-                          GetSplitClassLoader(env, split_name));
+  DCHECK(env->IsInstanceOf(class_loader.obj(), class_loader_clazz.obj()));
+  g_class_loader.Get().Reset(class_loader);
 }
 
 ScopedJavaLocalRef<jclass> GetClass(JNIEnv* env, const char* class_name) {
-  return GetClassInternal(env, class_name, g_class_loader);
-}
+  jclass clazz;
+  if (!g_class_loader.Get().is_null()) {
+    // ClassLoader.loadClass expects a classname with components separated by
+    // dots instead of the slashes that JNIEnv::FindClass expects. The JNI
+    // generator generates names with slashes, so we have to replace them here.
+    // TODO(torne): move to an approach where we always use ClassLoader except
+    // for the special case of base::android::GetClassLoader(), and change the
+    // JNI generator to generate dot-separated names. http://crbug.com/461773
+    size_t bufsize = strlen(class_name) + 1;
+    char dotted_name[bufsize];
+    memmove(dotted_name, class_name, bufsize);
+    for (size_t i = 0; i < bufsize; ++i) {
+      if (dotted_name[i] == '/') {
+        dotted_name[i] = '.';
+      }
+    }
 
-// This is duplicated with LazyGetClass below because these are performance
-// sensitive.
-jclass LazyGetClass(JNIEnv* env,
-                    const char* class_name,
-                    const char* split_name,
-                    std::atomic<jclass>* atomic_class_id) {
-  const jclass value = atomic_class_id->load(std::memory_order_acquire);
-  if (value)
-    return value;
-  ScopedJavaGlobalRef<jclass> clazz;
-  clazz.Reset(GetClass(env, class_name, split_name));
-  jclass cas_result = nullptr;
-  if (atomic_class_id->compare_exchange_strong(cas_result, clazz.obj(),
-                                               std::memory_order_acq_rel)) {
-    // We intentionally leak the global ref since we now storing it as a raw
-    // pointer in |atomic_class_id|.
-    return clazz.Release();
+    clazz = static_cast<jclass>(
+        env->CallObjectMethod(g_class_loader.Get().obj(),
+                              g_class_loader_load_class_method_id,
+                              ConvertUTF8ToJavaString(env, dotted_name).obj()));
   } else {
-    return cas_result;
+    clazz = env->FindClass(class_name);
   }
+  if (ClearException(env) || !clazz) {
+    LOG(FATAL) << "Failed to find class " << class_name;
+  }
+  return ScopedJavaLocalRef<jclass>(env, clazz);
 }
 
-// This is duplicated with LazyGetClass above because these are performance
-// sensitive.
-jclass LazyGetClass(JNIEnv* env,
-                    const char* class_name,
-                    std::atomic<jclass>* atomic_class_id) {
-  const jclass value = atomic_class_id->load(std::memory_order_acquire);
+jclass LazyGetClass(
+    JNIEnv* env,
+    const char* class_name,
+    std::atomic<jclass>* atomic_class_id) {
+  const jclass value = std::atomic_load(atomic_class_id);
   if (value)
     return value;
   ScopedJavaGlobalRef<jclass> clazz;
   clazz.Reset(GetClass(env, class_name));
   jclass cas_result = nullptr;
-  if (atomic_class_id->compare_exchange_strong(cas_result, clazz.obj(),
-                                               std::memory_order_acq_rel)) {
+  if (std::atomic_compare_exchange_strong(atomic_class_id, &cas_result,
+                                          clazz.obj())) {
     // We intentionally leak the global ref since we now storing it as a raw
     // pointer in |atomic_class_id|.
     return clazz.Release();
@@ -217,17 +180,17 @@ jmethodID MethodID::Get(JNIEnv* env,
 // If |atomic_method_id| set, it'll return immediately. Otherwise, it'll call
 // into ::Get() above. If there's a race, it's ok since the values are the same
 // (and the duplicated effort will happen only once).
-template <MethodID::Type type>
+template<MethodID::Type type>
 jmethodID MethodID::LazyGet(JNIEnv* env,
                             jclass clazz,
                             const char* method_name,
                             const char* jni_signature,
                             std::atomic<jmethodID>* atomic_method_id) {
-  const jmethodID value = atomic_method_id->load(std::memory_order_acquire);
+  const jmethodID value = std::atomic_load(atomic_method_id);
   if (value)
     return value;
   jmethodID id = MethodID::Get<type>(env, clazz, method_name, jni_signature);
-  atomic_method_id->store(id, std::memory_order_release);
+  std::atomic_store(atomic_method_id, id);
   return id;
 }
 

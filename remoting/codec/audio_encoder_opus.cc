@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "media/base/audio_bus.h"
 #include "media/base/multi_channel_resampler.h"
@@ -63,7 +64,7 @@ void AudioEncoderOpus::InitEncoder() {
     return;
   }
 
-  opus_encoder_ctl(encoder_.get(), OPUS_SET_BITRATE(kOutputBitrateBps));
+  opus_encoder_ctl(encoder_, OPUS_SET_BITRATE(kOutputBitrateBps));
 
   frame_size_ = sampling_rate_ * kFrameSizeMs /
       base::Time::kMillisecondsPerSecond;
@@ -74,7 +75,7 @@ void AudioEncoderOpus::InitEncoder() {
     // TODO(sergeyu): Figure out the right buffer size to use per packet instead
     // of using media::SincResampler::kDefaultRequestSize.
     resampler_ = std::make_unique<media::MultiChannelResampler>(
-        channels_, sampling_rate_ / double{kOpusSamplingRate},
+        channels_, static_cast<double>(sampling_rate_) / kOpusSamplingRate,
         media::SincResampler::kDefaultRequestSize,
         base::BindRepeating(&AudioEncoderOpus::FetchBytesToResample,
                             base::Unretained(this)));
@@ -198,7 +199,7 @@ std::unique_ptr<AudioPacket> AudioEncoderOpus::Encode(
     data->resize(kFrameSamples * kBytesPerSample * channels_);
 
     // Encode.
-    unsigned char* buffer = reinterpret_cast<unsigned char*>(std::data(*data));
+    unsigned char* buffer = reinterpret_cast<unsigned char*>(base::data(*data));
     int result = opus_encode(encoder_, pcm_buffer, kFrameSamples,
                              buffer, data->length());
     if (result < 0) {

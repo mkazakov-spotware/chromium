@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,14 @@
 
 namespace safe_browsing {
 
-TestBinaryUploadService::TestBinaryUploadService() = default;
+TestBinaryUploadService::TestBinaryUploadService()
+    : BinaryUploadService(/*url_loader_factory=*/nullptr,
+                          /*profile=*/nullptr,
+                          /*binary_fcm_service=*/nullptr) {}
 
 void TestBinaryUploadService::MaybeUploadForDeepScanning(
     std::unique_ptr<Request> request) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  last_request_ = request->content_analysis_request();
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&Request::FinishRequest, std::move(request),
                                 saved_result_, saved_response_));

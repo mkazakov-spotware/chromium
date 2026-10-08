@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,6 +27,14 @@ MEDIA_EXPORT void InitializeMediaLibrary();
 // process that should then call this method.
 MEDIA_EXPORT void InitializeMediaLibraryInSandbox(int64_t libyuv_cpu_flags,
                                                   int64_t libavutil_cpu_flags);
+
+#if defined(OS_ANDROID)
+// Tells the media library it has support for OS level decoders. Should only be
+// used for actual decoders (e.g. MediaCodec) and not full-featured players
+// (e.g. MediaPlayer).
+MEDIA_EXPORT void EnablePlatformDecoderSupport();
+MEDIA_EXPORT bool HasPlatformDecoderSupport();
+#endif
 
 }  // namespace media
 

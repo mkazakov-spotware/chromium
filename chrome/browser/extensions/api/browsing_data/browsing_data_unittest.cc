@@ -1,14 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/callback.h"
 #include "base/json/json_string_value_serializer.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/stringprintf.h"
 #include "base/values.h"
-#include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
+#include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/extensions/api/browsing_data/browsing_data_api.h"
 #include "chrome/browser/extensions/extension_function_test_utils.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -36,17 +34,17 @@ namespace {
 enum OriginTypeMask {
   UNPROTECTED_WEB = content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB,
   PROTECTED_WEB = content::BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB,
-  EXTENSION = chrome_browsing_data_remover::ORIGIN_TYPE_EXTENSION
+  EXTENSION = ChromeBrowsingDataRemoverDelegate::ORIGIN_TYPE_EXTENSION
 };
 
-// TODO(http://crbug.com/1266606): appcache is a noop and should be removed.
 const char kRemoveEverythingArguments[] =
     R"([{"since": 1000}, {
-    "appcache": true, "cache": true, "cookies": true, "downloads": true,
-    "fileSystems": true, "formData": true, "history": true, "indexedDB": true,
-    "localStorage": true, "serverBoundCertificates": true, "passwords": true,
-    "pluginData": true, "serviceWorkers": true, "cacheStorage": true, "webSQL":
-    true
+    "appcache": true, "cache": true, "cookies": true,
+    "downloads": true, "fileSystems": true, "formData": true,
+    "history": true, "indexedDB": true, "localStorage": true,
+    "serverBoundCertificates": true, "passwords": true,
+    "pluginData": true, "serviceWorkers": true, "cacheStorage": true,
+    "webSQL": true
     }])";
 
 class BrowsingDataApiTest : public ExtensionServiceTestBase {
@@ -61,7 +59,7 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     params.window = browser_window_.get();
     browser_ = std::unique_ptr<Browser>(Browser::Create(params));
 
-    remover_ = profile()->GetBrowsingDataRemover();
+    remover_ = content::BrowserContext::GetBrowsingDataRemover(profile());
     remover_->SetEmbedderDelegate(&delegate_);
   }
 
@@ -82,11 +80,12 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     return remover_->GetLastUsedOriginTypeMaskForTesting();
   }
 
-  uint64_t GetAsMask(const base::Value* dict,
+  uint64_t GetAsMask(const base::DictionaryValue* dict,
                      std::string path,
                      uint64_t mask_value) {
-    EXPECT_TRUE(dict->FindBoolKey(path));
-    return *dict->FindBoolKey(path) ? mask_value : 0;
+    bool result;
+    EXPECT_TRUE(dict->GetBoolean(path, &result)) << "for " << path;
+    return result ? mask_value : 0;
   }
 
   void RunBrowsingDataRemoveFunctionAndCompareRemovalMask(
@@ -141,11 +140,15 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     scoped_refptr<BrowsingDataSettingsFunction> function =
         new BrowsingDataSettingsFunction();
     SCOPED_TRACE("settings");
-    std::unique_ptr<base::Value> result = RunFunctionAndReturnSingleResult(
-        function.get(), std::string("[]"), browser());
-    EXPECT_TRUE(result->is_dict());
-    ASSERT_TRUE(result->FindDoublePath("options.since"));
-    double since = *result->FindDoublePath("options.since");
+    std::unique_ptr<base::Value> result_value(RunFunctionAndReturnSingleResult(
+        function.get(), std::string("[]"), browser()));
+
+    base::DictionaryValue* result;
+    EXPECT_TRUE(result_value->GetAsDictionary(&result));
+    base::DictionaryValue* options;
+    EXPECT_TRUE(result->GetDictionary("options", &options));
+    double since;
+    EXPECT_TRUE(options->GetDouble("since", &since));
 
     double expected_since = 0;
     if (since_pref != browsing_data::TimePeriod::ALL_TIME) {
@@ -160,7 +163,7 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     EXPECT_LE(expected_since, since + 10.0 * 1000.0);
   }
 
-  void SetPrefsAndVerifySettings(uint64_t data_type_flags,
+  void SetPrefsAndVerifySettings(int data_type_flags,
                                  uint64_t expected_origin_type_mask,
                                  uint64_t expected_removal_mask) {
     PrefService* prefs = browser()->profile()->GetPrefs();
@@ -173,30 +176,33 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     prefs->SetBoolean(
         browsing_data::prefs::kDeleteCookies,
         !!(data_type_flags & content::BrowsingDataRemover::DATA_TYPE_COOKIES));
-    prefs->SetBoolean(
-        browsing_data::prefs::kDeleteBrowsingHistory,
-        !!(data_type_flags & chrome_browsing_data_remover::DATA_TYPE_HISTORY));
-    prefs->SetBoolean(browsing_data::prefs::kDeleteFormData,
+    prefs->SetBoolean(browsing_data::prefs::kDeleteBrowsingHistory,
                       !!(data_type_flags &
-                         chrome_browsing_data_remover::DATA_TYPE_FORM_DATA));
+                         ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY));
+    prefs->SetBoolean(
+        browsing_data::prefs::kDeleteFormData,
+        !!(data_type_flags &
+           ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA));
     prefs->SetBoolean(browsing_data::prefs::kDeleteDownloadHistory,
                       !!(data_type_flags &
                          content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS));
     prefs->SetBoolean(
         browsing_data::prefs::kDeleteHostedAppsData,
+        !!(data_type_flags & ChromeBrowsingDataRemoverDelegate::
+                                 DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY));
+    prefs->SetBoolean(
+        browsing_data::prefs::kDeletePasswords,
         !!(data_type_flags &
-           chrome_browsing_data_remover::DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY));
-    prefs->SetBoolean(browsing_data::prefs::kDeletePasswords,
-                      !!(data_type_flags &
-                         chrome_browsing_data_remover::DATA_TYPE_PASSWORDS));
-    prefs->SetBoolean(prefs::kClearPluginLSODataEnabled,
-                      !!(data_type_flags &
-                         chrome_browsing_data_remover::DATA_TYPE_PLUGIN_DATA));
+           ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS));
+    prefs->SetBoolean(
+        prefs::kClearPluginLSODataEnabled,
+        !!(data_type_flags &
+           ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PLUGIN_DATA));
 
     VerifyRemovalMask(expected_origin_type_mask, expected_removal_mask);
   }
 
-  void SetBasicPrefsAndVerifySettings(uint64_t data_type_flags,
+  void SetBasicPrefsAndVerifySettings(int data_type_flags,
                                       uint64_t expected_origin_type_mask,
                                       uint64_t expected_removal_mask) {
     PrefService* prefs = browser()->profile()->GetPrefs();
@@ -209,12 +215,13 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     prefs->SetBoolean(
         browsing_data::prefs::kDeleteCookiesBasic,
         !!(data_type_flags & content::BrowsingDataRemover::DATA_TYPE_COOKIES));
-    prefs->SetBoolean(
-        browsing_data::prefs::kDeleteBrowsingHistoryBasic,
-        !!(data_type_flags & chrome_browsing_data_remover::DATA_TYPE_HISTORY));
-    prefs->SetBoolean(prefs::kClearPluginLSODataEnabled,
+    prefs->SetBoolean(browsing_data::prefs::kDeleteBrowsingHistoryBasic,
                       !!(data_type_flags &
-                         chrome_browsing_data_remover::DATA_TYPE_PLUGIN_DATA));
+                         ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY));
+    prefs->SetBoolean(
+        prefs::kClearPluginLSODataEnabled,
+        !!(data_type_flags &
+           ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PLUGIN_DATA));
 
     VerifyRemovalMask(expected_origin_type_mask, expected_removal_mask);
   }
@@ -224,22 +231,27 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
     scoped_refptr<BrowsingDataSettingsFunction> function =
         new BrowsingDataSettingsFunction();
     SCOPED_TRACE("settings");
-    std::unique_ptr<base::Value> result(RunFunctionAndReturnSingleResult(
+    std::unique_ptr<base::Value> result_value(RunFunctionAndReturnSingleResult(
         function.get(), std::string("[]"), browser()));
 
-    EXPECT_TRUE(result->is_dict());
+    base::DictionaryValue* result;
+    EXPECT_TRUE(result_value->GetAsDictionary(&result));
 
-    base::Value* origin_types = result->FindDictPath("options.originTypes");
-    EXPECT_TRUE(origin_types);
+    base::DictionaryValue* options;
+    EXPECT_TRUE(result->GetDictionary("options", &options));
+    base::DictionaryValue* origin_types;
+    EXPECT_TRUE(options->GetDictionary("originTypes", &origin_types));
     uint64_t origin_type_mask =
         GetAsMask(origin_types, "unprotectedWeb", UNPROTECTED_WEB) |
         GetAsMask(origin_types, "protectedWeb", PROTECTED_WEB) |
         GetAsMask(origin_types, "extension", EXTENSION);
     EXPECT_EQ(expected_origin_type_mask, origin_type_mask);
 
-    base::Value* data_to_remove = result->FindDictKey("dataToRemove");
-    EXPECT_TRUE(data_to_remove);
+    base::DictionaryValue* data_to_remove;
+    EXPECT_TRUE(result->GetDictionary("dataToRemove", &data_to_remove));
     uint64_t removal_mask =
+        GetAsMask(data_to_remove, "appcache",
+                  content::BrowsingDataRemover::DATA_TYPE_APP_CACHE) |
         GetAsMask(data_to_remove, "cache",
                   content::BrowsingDataRemover::DATA_TYPE_CACHE) |
         GetAsMask(data_to_remove, "cacheStorage",
@@ -251,9 +263,9 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
         GetAsMask(data_to_remove, "fileSystems",
                   content::BrowsingDataRemover::DATA_TYPE_FILE_SYSTEMS) |
         GetAsMask(data_to_remove, "formData",
-                  chrome_browsing_data_remover::DATA_TYPE_FORM_DATA) |
+                  ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA) |
         GetAsMask(data_to_remove, "history",
-                  chrome_browsing_data_remover::DATA_TYPE_HISTORY) |
+                  ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY) |
         GetAsMask(data_to_remove, "indexedDB",
                   content::BrowsingDataRemover::DATA_TYPE_INDEXED_DB) |
         GetAsMask(data_to_remove, "localStorage",
@@ -261,7 +273,7 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
         // PluginData is not supported anymore.
         GetAsMask(data_to_remove, "pluginData", 0) |
         GetAsMask(data_to_remove, "passwords",
-                  chrome_browsing_data_remover::DATA_TYPE_PASSWORDS) |
+                  ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS) |
         GetAsMask(data_to_remove, "serviceWorkers",
                   content::BrowsingDataRemover::DATA_TYPE_SERVICE_WORKERS) |
         GetAsMask(data_to_remove, "webSQL",
@@ -317,7 +329,7 @@ class BrowsingDataApiTest : public ExtensionServiceTestBase {
  private:
   std::unique_ptr<TestBrowserWindow> browser_window_;
   std::unique_ptr<Browser> browser_;
-  raw_ptr<content::BrowsingDataRemover> remover_;
+  content::BrowsingDataRemover* remover_;
   content::MockBrowsingDataRemoverDelegate delegate_;
 };
 
@@ -327,6 +339,7 @@ TEST_F(BrowsingDataApiTest, RemovalProhibited) {
   PrefService* prefs = browser()->profile()->GetPrefs();
   prefs->SetBoolean(prefs::kAllowDeletingBrowserHistory, false);
 
+  CheckRemovalPermitted("{\"appcache\": true}", true);
   CheckRemovalPermitted("{\"cache\": true}", true);
   CheckRemovalPermitted("{\"cacheStorage\": true}", true);
   CheckRemovalPermitted("{\"cookies\": true}", true);
@@ -372,9 +385,9 @@ TEST_F(BrowsingDataApiTest, RemoveBrowsingDataAll) {
            ~content::BrowsingDataRemover::DATA_TYPE_EMBEDDER_DOM_STORAGE) |
           content::BrowsingDataRemover::DATA_TYPE_CACHE |
           content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS |
-          chrome_browsing_data_remover::DATA_TYPE_FORM_DATA |
-          chrome_browsing_data_remover::DATA_TYPE_HISTORY |
-          chrome_browsing_data_remover::DATA_TYPE_PASSWORDS,
+          ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA |
+          ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY |
+          ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS,
       GetRemovalMask());
 }
 
@@ -406,6 +419,8 @@ TEST_F(BrowsingDataApiTest, BrowsingDataOriginTypeMask) {
 
 TEST_F(BrowsingDataApiTest, BrowsingDataRemovalMask) {
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
+      "appcache", content::BrowsingDataRemover::DATA_TYPE_APP_CACHE);
+  RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
       "cache", content::BrowsingDataRemover::DATA_TYPE_CACHE);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
       "cacheStorage", content::BrowsingDataRemover::DATA_TYPE_CACHE_STORAGE);
@@ -416,15 +431,15 @@ TEST_F(BrowsingDataApiTest, BrowsingDataRemovalMask) {
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
       "fileSystems", content::BrowsingDataRemover::DATA_TYPE_FILE_SYSTEMS);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
-      "formData", chrome_browsing_data_remover::DATA_TYPE_FORM_DATA);
+      "formData", ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
-      "history", chrome_browsing_data_remover::DATA_TYPE_HISTORY);
+      "history", ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
       "indexedDB", content::BrowsingDataRemover::DATA_TYPE_INDEXED_DB);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
       "localStorage", content::BrowsingDataRemover::DATA_TYPE_LOCAL_STORAGE);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
-      "passwords", chrome_browsing_data_remover::DATA_TYPE_PASSWORDS);
+      "passwords", ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS);
   RunBrowsingDataRemoveWithKeyAndCompareRemovalMask(
       "serviceWorkers",
       content::BrowsingDataRemover::DATA_TYPE_SERVICE_WORKERS);
@@ -435,9 +450,10 @@ TEST_F(BrowsingDataApiTest, BrowsingDataRemovalMask) {
 // Test an arbitrary combination of data types.
 TEST_F(BrowsingDataApiTest, BrowsingDataRemovalMaskCombination) {
   RunBrowsingDataRemoveFunctionAndCompareRemovalMask(
-      "{\"cookies\": true, \"history\": true}",
-      content::BrowsingDataRemover::DATA_TYPE_COOKIES |
-          chrome_browsing_data_remover::DATA_TYPE_HISTORY);
+      "{\"appcache\": true, \"cookies\": true, \"history\": true}",
+      content::BrowsingDataRemover::DATA_TYPE_APP_CACHE |
+          content::BrowsingDataRemover::DATA_TYPE_COOKIES |
+          ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY);
 }
 
 // Make sure the remove() function accepts the format produced by settings().
@@ -456,19 +472,20 @@ TEST_F(BrowsingDataApiTest, BrowsingDataRemovalInputFromSettings) {
   prefs->SetBoolean(prefs::kClearPluginLSODataEnabled, false);
   uint64_t expected_mask = content::BrowsingDataRemover::DATA_TYPE_CACHE |
                            content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS |
-                           chrome_browsing_data_remover::DATA_TYPE_HISTORY;
+                           ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY;
   std::string json;
   // Scoping for the traces.
   {
     scoped_refptr<BrowsingDataSettingsFunction> settings_function =
         new BrowsingDataSettingsFunction();
     SCOPED_TRACE("settings_json");
-    std::unique_ptr<base::Value> result(RunFunctionAndReturnSingleResult(
+    std::unique_ptr<base::Value> result_value(RunFunctionAndReturnSingleResult(
         settings_function.get(), std::string("[]"), browser()));
 
-    EXPECT_TRUE(result->is_dict());
-    base::Value* data_to_remove = result->FindDictKey("dataToRemove");
-    EXPECT_TRUE(data_to_remove);
+    base::DictionaryValue* result;
+    EXPECT_TRUE(result_value->GetAsDictionary(&result));
+    base::DictionaryValue* data_to_remove;
+    EXPECT_TRUE(result->GetDictionary("dataToRemove", &data_to_remove));
 
     JSONStringValueSerializer serializer(&json);
     EXPECT_TRUE(serializer.Serialize(*data_to_remove));
@@ -486,6 +503,8 @@ TEST_F(BrowsingDataApiTest, BrowsingDataRemovalInputFromSettings) {
 }
 
 TEST_F(BrowsingDataApiTest, ShortcutFunctionRemovalMask) {
+  RunAndCompareRemovalMask<BrowsingDataRemoveAppcacheFunction>(
+      content::BrowsingDataRemover::DATA_TYPE_APP_CACHE);
   RunAndCompareRemovalMask<BrowsingDataRemoveCacheFunction>(
       content::BrowsingDataRemover::DATA_TYPE_CACHE);
   RunAndCompareRemovalMask<BrowsingDataRemoveCacheStorageFunction>(
@@ -497,15 +516,15 @@ TEST_F(BrowsingDataApiTest, ShortcutFunctionRemovalMask) {
   RunAndCompareRemovalMask<BrowsingDataRemoveFileSystemsFunction>(
       content::BrowsingDataRemover::DATA_TYPE_FILE_SYSTEMS);
   RunAndCompareRemovalMask<BrowsingDataRemoveFormDataFunction>(
-      chrome_browsing_data_remover::DATA_TYPE_FORM_DATA);
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA);
   RunAndCompareRemovalMask<BrowsingDataRemoveHistoryFunction>(
-      chrome_browsing_data_remover::DATA_TYPE_HISTORY);
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY);
   RunAndCompareRemovalMask<BrowsingDataRemoveIndexedDBFunction>(
       content::BrowsingDataRemover::DATA_TYPE_INDEXED_DB);
   RunAndCompareRemovalMask<BrowsingDataRemoveLocalStorageFunction>(
       content::BrowsingDataRemover::DATA_TYPE_LOCAL_STORAGE);
   RunAndCompareRemovalMask<BrowsingDataRemovePasswordsFunction>(
-      chrome_browsing_data_remover::DATA_TYPE_PASSWORDS);
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS);
   RunAndCompareRemovalMask<BrowsingDataRemoveServiceWorkersFunction>(
       content::BrowsingDataRemover::DATA_TYPE_SERVICE_WORKERS);
   RunAndCompareRemovalMask<BrowsingDataRemoveWebSQLFunction>(
@@ -529,28 +548,29 @@ TEST_F(BrowsingDataApiTest, SettingsFunctionEmpty) {
 TEST_F(BrowsingDataApiTest, SettingsFunctionSimple) {
   SetPrefsAndVerifySettings(content::BrowsingDataRemover::DATA_TYPE_CACHE, 0,
                             content::BrowsingDataRemover::DATA_TYPE_CACHE);
-  SetPrefsAndVerifySettings(chrome_browsing_data_remover::DATA_TYPE_HISTORY, 0,
-                            chrome_browsing_data_remover::DATA_TYPE_HISTORY);
-  SetPrefsAndVerifySettings(chrome_browsing_data_remover::DATA_TYPE_FORM_DATA,
-                            0,
-                            chrome_browsing_data_remover::DATA_TYPE_FORM_DATA);
+  SetPrefsAndVerifySettings(
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY, 0,
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY);
+  SetPrefsAndVerifySettings(
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA, 0,
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA);
   SetPrefsAndVerifySettings(content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS,
                             0,
                             content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS);
-  SetPrefsAndVerifySettings(chrome_browsing_data_remover::DATA_TYPE_PASSWORDS,
-                            0,
-                            chrome_browsing_data_remover::DATA_TYPE_PASSWORDS);
+  SetPrefsAndVerifySettings(
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS, 0,
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS);
   SetBasicPrefsAndVerifySettings(content::BrowsingDataRemover::DATA_TYPE_CACHE,
                                  0,
                                  content::BrowsingDataRemover::DATA_TYPE_CACHE);
   SetBasicPrefsAndVerifySettings(
-      chrome_browsing_data_remover::DATA_TYPE_HISTORY, 0,
-      chrome_browsing_data_remover::DATA_TYPE_HISTORY);
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY, 0,
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY);
 }
 
 // Test cookie and app data settings.
 TEST_F(BrowsingDataApiTest, SettingsFunctionSiteData) {
-  uint64_t supported_site_data =
+  int supported_site_data =
       (content::BrowsingDataRemover::DATA_TYPE_COOKIES |
        content::BrowsingDataRemover::DATA_TYPE_DOM_STORAGE) &
       ~content::BrowsingDataRemover::DATA_TYPE_BACKGROUND_FETCH &
@@ -558,12 +578,13 @@ TEST_F(BrowsingDataApiTest, SettingsFunctionSiteData) {
   SetPrefsAndVerifySettings(content::BrowsingDataRemover::DATA_TYPE_COOKIES,
                             UNPROTECTED_WEB, supported_site_data);
   SetPrefsAndVerifySettings(
-      chrome_browsing_data_remover::DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY,
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY,
       PROTECTED_WEB, supported_site_data);
-  SetPrefsAndVerifySettings(
-      content::BrowsingDataRemover::DATA_TYPE_COOKIES |
-          chrome_browsing_data_remover::DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY,
-      PROTECTED_WEB | UNPROTECTED_WEB, supported_site_data);
+  SetPrefsAndVerifySettings(content::BrowsingDataRemover::DATA_TYPE_COOKIES |
+                                ChromeBrowsingDataRemoverDelegate::
+                                    DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY,
+                            PROTECTED_WEB | UNPROTECTED_WEB,
+                            supported_site_data);
   SetBasicPrefsAndVerifySettings(
       content::BrowsingDataRemover::DATA_TYPE_COOKIES, UNPROTECTED_WEB,
       supported_site_data);
@@ -571,7 +592,7 @@ TEST_F(BrowsingDataApiTest, SettingsFunctionSiteData) {
 
 // Test an arbitrary assortment of settings.
 TEST_F(BrowsingDataApiTest, SettingsFunctionAssorted) {
-  uint64_t supported_site_data =
+  int supported_site_data =
       (content::BrowsingDataRemover::DATA_TYPE_COOKIES |
        content::BrowsingDataRemover::DATA_TYPE_DOM_STORAGE) &
       ~content::BrowsingDataRemover::DATA_TYPE_BACKGROUND_FETCH &
@@ -579,10 +600,11 @@ TEST_F(BrowsingDataApiTest, SettingsFunctionAssorted) {
 
   SetPrefsAndVerifySettings(
       content::BrowsingDataRemover::DATA_TYPE_COOKIES |
-          chrome_browsing_data_remover::DATA_TYPE_HISTORY |
+          ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY |
           content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS,
       UNPROTECTED_WEB,
-      supported_site_data | chrome_browsing_data_remover::DATA_TYPE_HISTORY |
+      supported_site_data |
+          ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY |
           content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS);
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ui/events/event.h"
 #include "ui/events/events_export.h"
 #include "ui/events/gestures/gesture_recognizer.h"
@@ -18,10 +19,6 @@ namespace ui {
 class EVENTS_EXPORT GestureRecognizerImplMac : public GestureRecognizer {
  public:
   GestureRecognizerImplMac();
-
-  GestureRecognizerImplMac(const GestureRecognizerImplMac&) = delete;
-  GestureRecognizerImplMac& operator=(const GestureRecognizerImplMac&) = delete;
-
   ~GestureRecognizerImplMac() override;
 
  private:
@@ -53,8 +50,8 @@ class EVENTS_EXPORT GestureRecognizerImplMac : public GestureRecognizer {
   bool CancelActiveTouches(GestureConsumer* consumer) override;
   void AddGestureEventHelper(GestureEventHelper* helper) override;
   void RemoveGestureEventHelper(GestureEventHelper* helper) override;
-  bool DoesConsumerHaveActiveTouch(GestureConsumer* consumer) const override;
-  void SendSynthesizedEndEvents(GestureConsumer* consumer) override;
+
+  DISALLOW_COPY_AND_ASSIGN(GestureRecognizerImplMac);
 };
 
 }  // namespace ui

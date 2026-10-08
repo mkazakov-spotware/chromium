@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include <utility>
 
 #include "base/metrics/field_trial_params.h"
+#include "base/optional.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/feature_engagement/public/event_constants.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/public/tracker.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -23,10 +23,12 @@ const char kNewTabOpenedTimeoutParamName[] = "x_new_tab_opened_timeout";
 
 // Default timeouts, if a field trial isn't present (only used for interactive
 // testing).
-const base::TimeDelta kDefaultTabMinimumActiveDuration = base::Seconds(10);
-const base::TimeDelta kDefaultNewTabOpenedTimeout = base::Seconds(10);
+const base::TimeDelta kDefaultTabMinimumActiveDuration =
+    base::TimeDelta::FromSeconds(10);
+const base::TimeDelta kDefaultNewTabOpenedTimeout =
+    base::TimeDelta::FromSeconds(10);
 
-absl::optional<base::TimeDelta> GetTimeoutFromFieldTrialParam(
+base::Optional<base::TimeDelta> GetTimeoutFromFieldTrialParam(
     const std::string& name) {
   std::string str = base::GetFieldTrialParamValueByFeature(
       feature_engagement::kIPHReopenTabFeature, name);
@@ -34,10 +36,10 @@ absl::optional<base::TimeDelta> GetTimeoutFromFieldTrialParam(
   if (!str.empty()) {
     base::StringToInt(str, &timeout_seconds);
     DCHECK_GT(timeout_seconds, 0);
-    return base::Seconds(timeout_seconds);
+    return base::TimeDelta::FromSeconds(timeout_seconds);
   }
 
-  return absl::optional<base::TimeDelta>();
+  return base::Optional<base::TimeDelta>();
 }
 
 }  // namespace

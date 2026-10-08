@@ -1,5 +1,0 @@
-include_rules = [
-  "+components/aggregation_service",
-  "+net/http/structured_headers.h",
-  "+services/network/public/cpp",
-]

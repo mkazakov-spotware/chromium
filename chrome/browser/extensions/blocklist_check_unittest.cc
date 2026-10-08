@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/blocklist_check.h"
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/extensions/blocklist.h"
 #include "chrome/browser/extensions/test_blocklist.h"
 #include "chrome/browser/extensions/test_extension_prefs.h"
@@ -21,7 +21,7 @@ namespace {
 class BlocklistCheckTest : public testing::Test {
  public:
   BlocklistCheckTest()
-      : test_prefs_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      : test_prefs_(base::ThreadTaskRunnerHandle::Get()),
         blocklist_(test_prefs_.prefs()) {}
 
  protected:
@@ -54,8 +54,8 @@ TEST_F(BlocklistCheckTest, BlocklistedMalware) {
   BlocklistCheck check(blocklist(), extension_);
   runner_.RunUntilComplete(&check);
 
-  EXPECT_THAT(runner_.errors(), testing::UnorderedElementsAre(
-                                    PreloadCheck::Error::kBlocklistedId));
+  EXPECT_THAT(runner_.errors(),
+              testing::UnorderedElementsAre(PreloadCheck::BLOCKLISTED_ID));
   EXPECT_TRUE(check.GetErrorMessage().empty());
 }
 

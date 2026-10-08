@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define COMPONENTS_MEDIA_ROUTER_BROWSER_ANDROID_FLINGING_CONTROLLER_BRIDGE_H_
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "media/base/flinging_controller.h"
 #include "media/base/media_controller.h"
@@ -19,10 +18,6 @@ class FlingingControllerBridge : public media::FlingingController,
  public:
   explicit FlingingControllerBridge(
       base::android::ScopedJavaGlobalRef<jobject> controller);
-
-  FlingingControllerBridge(const FlingingControllerBridge&) = delete;
-  FlingingControllerBridge& operator=(const FlingingControllerBridge&) = delete;
-
   ~FlingingControllerBridge() override;
 
   // FlingingController implementation.
@@ -51,7 +46,9 @@ class FlingingControllerBridge : public media::FlingingController,
   // Observer to be notified of media status changes from the Java side.
   // NOTE: We don't manage a collection of observers because FlingingRenderer is
   // the only observer that subscribes to |this|, with a 1:1 relationship.
-  raw_ptr<media::MediaStatusObserver> observer_ = nullptr;
+  media::MediaStatusObserver* observer_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(FlingingControllerBridge);
 };
 
 }  // namespace media_router

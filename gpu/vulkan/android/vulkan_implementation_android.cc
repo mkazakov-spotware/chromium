@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,8 +31,16 @@ bool VulkanImplementationAndroid::InitializeVulkanInstance(bool using_surface) {
       VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
       VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME};
 
-  return vulkan_instance_.Initialize(base::FilePath("libvulkan.so"),
-                                     required_extensions, {});
+  VulkanFunctionPointers* vulkan_function_pointers =
+      gpu::GetVulkanFunctionPointers();
+
+  base::NativeLibraryLoadError native_library_load_error;
+  vulkan_function_pointers->vulkan_loader_library = base::LoadNativeLibrary(
+      base::FilePath("libvulkan.so"), &native_library_load_error);
+  if (!vulkan_function_pointers->vulkan_loader_library)
+    return false;
+
+  return vulkan_instance_.Initialize(required_extensions, {});
 }
 
 VulkanInstance* VulkanImplementationAndroid::GetVulkanInstance() {
@@ -53,7 +61,8 @@ std::unique_ptr<VulkanSurface> VulkanImplementationAndroid::CreateViewSurface(
   }
 
   return std::make_unique<VulkanSurface>(vulkan_instance_.vk_instance(), window,
-                                         surface);
+                                         surface,
+                                         false /* use_protected_memory */);
 }
 
 bool VulkanImplementationAndroid::GetPhysicalDevicePresentationSupport(
@@ -82,10 +91,10 @@ VulkanImplementationAndroid::GetOptionalDeviceExtensions() {
       VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
       VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
       VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+      VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
       VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
       VK_KHR_SWAPCHAIN_EXTENSION_NAME,
       VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
-      VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
   };
 }
 
@@ -129,7 +138,6 @@ VulkanImplementationAndroid::GetExternalImageHandleType() {
 }
 
 bool VulkanImplementationAndroid::CanImportGpuMemoryBuffer(
-    VulkanDeviceQueue* device_queue,
     gfx::GpuMemoryBufferType memory_buffer_type) {
   return false;
 }
@@ -139,8 +147,7 @@ VulkanImplementationAndroid::CreateImageFromGpuMemoryHandle(
     VulkanDeviceQueue* device_queue,
     gfx::GpuMemoryBufferHandle gmb_handle,
     gfx::Size size,
-    VkFormat vk_format,
-    const gfx::ColorSpace& color_space) {
+    VkFormat vk_formae) {
   // TODO(sergeyu): Move code from CreateVkImageAndImportAHB() here and remove
   // CreateVkImageAndImportAHB().
   NOTIMPLEMENTED();

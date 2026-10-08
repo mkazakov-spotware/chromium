@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,22 +54,6 @@ bool EvaluateTriggerCondition(
       return static_trigger_conditions.is_in_experiment(proto.experiment_id());
     case TriggerScriptConditionProto::kKeyboardHidden:
       return !dynamic_trigger_conditions.GetKeyboardVisible();
-    case TriggerScriptConditionProto::kScriptParameterMatch:
-      return static_trigger_conditions.script_parameter_matches(
-          proto.script_parameter_match());
-    case TriggerScriptConditionProto::kPathPattern:
-      return dynamic_trigger_conditions.GetPathPatternMatches(
-          proto.path_pattern());
-    case TriggerScriptConditionProto::kDomainWithScheme:
-      return dynamic_trigger_conditions.GetDomainAndSchemeMatches(
-          GURL(proto.domain_with_scheme()));
-    case TriggerScriptConditionProto::kDocumentReadyState: {
-      absl::optional<DocumentReadyState> state =
-          dynamic_trigger_conditions.GetDocumentReadyState(
-              Selector(proto.document_ready_state().frame()));
-      return state.has_value() &&
-             *state >= proto.document_ready_state().min_document_ready_state();
-    }
     case TriggerScriptConditionProto::TYPE_NOT_SET:
       return true;
   }

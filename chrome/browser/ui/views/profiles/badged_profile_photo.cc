@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,11 @@
 
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/controls/image_view.h"
 
 namespace {
@@ -33,18 +30,14 @@ constexpr int kBadgedProfilePhotoHeight = BadgedProfilePhoto::kImageSize;
 // including the (transparent) border.
 class CustomImageView : public views::ImageView {
  public:
-  METADATA_HEADER(CustomImageView);
   CustomImageView() = default;
-  CustomImageView(const CustomImageView&) = delete;
-  CustomImageView& operator=(const CustomImageView&) = delete;
 
  private:
   // views::ImageView:
   void OnPaint(gfx::Canvas* canvas) override;
-};
 
-BEGIN_METADATA(CustomImageView, views::ImageView)
-END_METADATA
+  DISALLOW_COPY_AND_ASSIGN(CustomImageView);
+};
 
 void CustomImageView::OnPaint(gfx::Canvas* canvas) {
   // Remove the part of the ImageView that contains the badge.
@@ -71,33 +64,42 @@ class BadgeView : public ::views::ImageView {
     ::views::ImageView::OnThemeChanged();
     switch (badge_type_) {
       case BadgedProfilePhoto::BADGE_TYPE_SUPERVISOR:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kSupervisorAccountCircleIcon, ui::kColorIcon, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(
+            kSupervisorAccountCircleIcon, kBadgeIconSize,
+            GetNativeTheme()->GetSystemColor(
+                ui::NativeTheme::kColorId_DefaultIconColor)));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_CHILD:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kAccountChildCircleIcon, ui::kColorIcon, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(
+            kAccountChildCircleIcon, kBadgeIconSize,
+            GetNativeTheme()->GetSystemColor(
+                ui::NativeTheme::kColorId_DefaultIconColor)));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_SYNC_COMPLETE:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kSyncCircleIcon, ui::kColorAlertLowSeverity, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(
+            kSyncCircleIcon, kBadgeIconSize,
+            GetNativeTheme()->GetSystemColor(
+                ui::NativeTheme::kColorId_AlertSeverityLow)));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_SYNC_ERROR:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kSyncErrorCircleIcon, ui::kColorAlertHighSeverity, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(
+            kSyncErrorCircleIcon, kBadgeIconSize,
+            GetNativeTheme()->GetSystemColor(
+                ui::NativeTheme::kColorId_AlertSeverityHigh)));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_SYNC_PAUSED:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kSyncPausedCircleIcon,
-            ui::kColorButtonBackgroundProminent, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(
+            kSyncPausedCircleIcon, kBadgeIconSize,
+            GetNativeTheme()->GetSystemColor(
+                ui::NativeTheme::kColorId_ProminentButtonColor)));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_SYNC_DISABLED:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kSyncCircleIcon, ui::kColorIconDisabled, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(kSyncCircleIcon, kBadgeIconSize,
+                                       gfx::kGoogleGrey400));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_SYNC_OFF:
-        SetImage(ui::ImageModel::FromVectorIcon(
-            kSyncPausedCircleIcon, ui::kColorIcon, kBadgeIconSize));
+        SetImage(gfx::CreateVectorIcon(kSyncPausedCircleIcon, kBadgeIconSize,
+                                       gfx::kGoogleGrey600));
         break;
       case BadgedProfilePhoto::BADGE_TYPE_NONE:
         NOTREACHED();
@@ -112,6 +114,9 @@ class BadgeView : public ::views::ImageView {
 
 }  // namespace
 
+// static
+const char BadgedProfilePhoto::kViewClassName[] = "BadgedProfilePhoto";
+
 // BadgedProfilePhoto -------------------------------------------------
 
 BadgedProfilePhoto::BadgedProfilePhoto(BadgeType badge_type,
@@ -120,7 +125,7 @@ BadgedProfilePhoto::BadgedProfilePhoto(BadgeType badge_type,
 
   // Create and add image view for profile icon.
   gfx::Image profile_photo_circular = profiles::GetSizedAvatarIcon(
-      profile_photo, kImageSize, kImageSize, profiles::SHAPE_CIRCLE);
+      profile_photo, true, kImageSize, kImageSize, profiles::SHAPE_CIRCLE);
   views::ImageView* profile_photo_view = badge_type == BADGE_TYPE_NONE
                                              ? new views::ImageView()
                                              : new CustomImageView();
@@ -135,5 +140,6 @@ BadgedProfilePhoto::BadgedProfilePhoto(BadgeType badge_type,
       gfx::Size(kBadgedProfilePhotoWidth, kBadgedProfilePhotoHeight));
 }
 
-BEGIN_METADATA(BadgedProfilePhoto, views::View)
-END_METADATA
+const char* BadgedProfilePhoto::GetClassName() const {
+  return kViewClassName;
+}

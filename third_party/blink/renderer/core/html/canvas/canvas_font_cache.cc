@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,12 @@
 
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/memory_pressure_listener.h"
 
 namespace {
@@ -31,18 +30,13 @@ namespace blink {
 CanvasFontCache::CanvasFontCache(Document& document)
     : document_(&document), pruning_scheduled_(false) {
   FontFamily font_family;
-  font_family.SetFamily(defaultFontFamily,
-                        FontFamily::InferredTypeFor(defaultFontFamily));
+  font_family.SetFamily(defaultFontFamily);
   FontDescription default_font_description;
   default_font_description.SetFamily(font_family);
   default_font_description.SetSpecifiedSize(defaultFontSize);
   default_font_description.SetComputedSize(defaultFontSize);
-  ComputedStyleBuilder builder =
-      document.IsActive()
-          ? document.GetStyleResolver().CreateComputedStyleBuilder()
-          : ComputedStyleBuilder(*ComputedStyle::CreateInitialStyleSingleton());
-  builder.SetFontDescription(default_font_description);
-  default_font_style_ = builder.TakeStyle();
+  default_font_style_ = ComputedStyle::Create();
+  default_font_style_->SetFontDescription(default_font_description);
 }
 
 CanvasFontCache::~CanvasFontCache() {

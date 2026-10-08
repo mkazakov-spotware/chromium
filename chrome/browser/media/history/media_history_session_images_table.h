@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/strings/string_util.h"
 #include "chrome/browser/media/history/media_history_table_base.h"
 #include "sql/init_status.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace base {
@@ -48,7 +47,7 @@ class MediaHistorySessionImagesTable : public MediaHistoryTableBase {
   // Saves the link and returns whether it was successful.
   bool LinkImage(const int64_t session_id,
                  const int64_t image_id,
-                 const absl::optional<gfx::Size> size);
+                 const base::Optional<gfx::Size> size);
 
   // Gets all the images for a session.
   std::vector<media_session::MediaImage> GetImagesForSession(

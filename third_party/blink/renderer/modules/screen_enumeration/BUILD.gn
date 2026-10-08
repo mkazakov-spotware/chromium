@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,18 +6,12 @@ import("//third_party/blink/renderer/modules/modules.gni")
 
 blink_modules_sources("screen_enumeration") {
   sources = [
-    "screen_detailed.cc",
-    "screen_detailed.h",
-    "screen_details.cc",
-    "screen_details.h",
-    "window_screens.cc",
-    "window_screens.h",
+    "global_screen_enumeration.cc",
+    "global_screen_enumeration.h",
   ]
 
   public_deps = [
     "//third_party/blink/renderer/platform",
     "//ui/display/mojom:mojom_blink",
   ]
-
-  deps = [ "//third_party/blink/renderer/modules/permissions" ]
 }

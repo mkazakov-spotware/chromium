@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,8 @@ int GetFontSizeDeltaIgnoringUserOrLocaleSettings(int desired_font_size) {
 
 void ApplyCommonFontStyles(int context,
                            int style,
-                           ui::ResourceBundle::FontDetails& details) {
+                           int* size_delta,
+                           gfx::Font::Weight* weight) {
   switch (context) {
     case CONTEXT_TOOLBAR_BUTTON: {
       int height = ui::TouchUiController::Get()->touch_ui() ? 22 : 17;
@@ -62,13 +63,12 @@ void ApplyCommonFontStyles(int context,
       // don't actually have a target font size, so we just need to supply any
       // sufficiently-large value for the second argument here. |height| will
       // always be sufficiently large, since dips are smaller than pts.
-      details.size_delta =
-          GetFontSizeDeltaBoundedByAvailableHeight(height, height);
+      *size_delta = GetFontSizeDeltaBoundedByAvailableHeight(height, height);
       break;
     }
     case CONTEXT_TAB_COUNTER: {
-      details.size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(14);
-      details.weight = gfx::Font::Weight::BOLD;
+      *size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(14);
+      *weight = gfx::Font::Weight::BOLD;
       break;
     }
     case CONTEXT_OMNIBOX_PRIMARY:
@@ -77,9 +77,9 @@ void ApplyCommonFontStyles(int context,
           GetFontSizeDeltaBoundedByAvailableHeight(
               LocationBarView::GetAvailableTextHeight(),
               ui::TouchUiController::Get()->touch_ui() ? 15 : 14);
-      details.size_delta = omnibox_primary_delta;
+      *size_delta = omnibox_primary_delta;
       if (context == CONTEXT_OMNIBOX_DEEMPHASIZED)
-        --details.size_delta;
+        --*size_delta;
       break;
     }
     case CONTEXT_OMNIBOX_DECORATION: {
@@ -88,26 +88,33 @@ void ApplyCommonFontStyles(int context,
       // primary omnibox font and incrementally reduce its size until it fit.
       // In default configurations, it would obtain 11. Deriving fonts is slow,
       // so don't bother starting at 14.
-      const int omnibox_decoration_delta =
+      static const int omnibox_decoration_delta =
           GetFontSizeDeltaBoundedByAvailableHeight(
               LocationBarView::GetAvailableDecorationTextHeight(), 11);
-      details.size_delta = omnibox_decoration_delta;
+      *size_delta = omnibox_decoration_delta;
       break;
     }
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case CONTEXT_WINDOWS10_NATIVE:
       // Adjusts default font size up to match Win10 modern UI.
-      details.size_delta = 15 - gfx::PlatformFont::kDefaultBaseFontSize;
+      *size_delta = 15 - gfx::PlatformFont::kDefaultBaseFontSize;
       break;
 #endif
-    case CONTEXT_IPH_BUBBLE_TITLE:
-      details.size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(18);
+    case CONTEXT_IPH_BUBBLE_TITLE: {
+      *size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(18);
       break;
-    case CONTEXT_IPH_BUBBLE_BODY:
-      details.size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(14);
+    }
+    case CONTEXT_IPH_BUBBLE_BODY_WITH_TITLE: {
+      *size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(13);
       break;
-    case CONTEXT_SIDE_PANEL_TITLE:
-      details.size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(13);
+    }
+    case CONTEXT_IPH_BUBBLE_BODY_WITHOUT_TITLE: {
+      *size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(14);
       break;
+    }
+    case CONTEXT_IPH_BUBBLE_BUTTON: {
+      *size_delta = GetFontSizeDeltaIgnoringUserOrLocaleSettings(13);
+      break;
+    }
   }
 }

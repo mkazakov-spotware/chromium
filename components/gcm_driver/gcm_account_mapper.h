@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/gcm_driver/gcm_app_handler.h"
 #include "components/gcm_driver/gcm_client.h"
@@ -35,10 +35,6 @@ class GCMAccountMapper : public GCMAppHandler {
                                    const IncomingMessage& message)>;
 
   explicit GCMAccountMapper(GCMDriver* gcm_driver);
-
-  GCMAccountMapper(const GCMAccountMapper&) = delete;
-  GCMAccountMapper& operator=(const GCMAccountMapper&) = delete;
-
   ~GCMAccountMapper() override;
 
   void Initialize(const AccountMappings& account_mappings,
@@ -110,13 +106,13 @@ class GCMAccountMapper : public GCMAppHandler {
   void SetClockForTesting(base::Clock* clock);
 
   // GCMDriver owns GCMAccountMapper.
-  raw_ptr<GCMDriver> gcm_driver_;
+  GCMDriver* gcm_driver_;
 
   // Callback to GCMDriver to dispatch messages sent to Gaia ID.
   DispatchMessageCallback dispatch_message_callback_;
 
   // Clock for timestamping status changes.
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 
   // Currnetly tracked account mappings.
   AccountMappings accounts_;
@@ -129,6 +125,8 @@ class GCMAccountMapper : public GCMAppHandler {
   bool initialized_;
 
   base::WeakPtrFactory<GCMAccountMapper> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GCMAccountMapper);
 };
 
 }  // namespace gcm

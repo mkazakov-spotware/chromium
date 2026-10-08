@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests "reload" from within inspector window while on pause.`);
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
   await TestRunner.showPanel('sources');
   await TestRunner.navigatePromise(
       'resources/debugger-reload-breakpoints-with-source-maps.html');
@@ -40,7 +40,8 @@
   function waitUntilReady() {
     var expectedBreakpointLocations = [[16, 4]];
     var paneElement =
-        Sources.JavaScriptBreakpointsSidebarPane.instance().contentElement;
+        self.runtime.sharedInstance(Sources.JavaScriptBreakpointsSidebarPane)
+            .contentElement;
     var entries = Array.from(paneElement.querySelectorAll('.breakpoint-entry'));
     for (var entry of entries) {
       var uiLocation = Sources.JavaScriptBreakpointsSidebarPane.retrieveLocationForElement(entry);

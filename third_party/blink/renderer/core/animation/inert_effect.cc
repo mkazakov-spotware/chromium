@@ -37,45 +37,33 @@ namespace blink {
 InertEffect::InertEffect(KeyframeEffectModelBase* model,
                          const Timing& timing,
                          bool paused,
-                         absl::optional<AnimationTimeDelta> inherited_time,
-                         absl::optional<AnimationTimeDelta> timeline_duration,
-                         double playback_rate)
+                         base::Optional<double> inherited_time,
+                         base::Optional<TimelinePhase> inherited_phase)
     : AnimationEffect(timing),
       model_(model),
       paused_(paused),
       inherited_time_(inherited_time),
-      timeline_duration_(timeline_duration),
-      playback_rate_(playback_rate) {}
+      inherited_phase_(inherited_phase) {}
 
 void InertEffect::Sample(HeapVector<Member<Interpolation>>& result) const {
-  UpdateInheritedTime(inherited_time_, /* at_scroll_timeline_boundary */ false,
-                      /* is_idle */ false, playback_rate_,
-                      kTimingUpdateOnDemand);
+  UpdateInheritedTime(inherited_time_, inherited_phase_, kTimingUpdateOnDemand);
   if (!IsInEffect()) {
     result.clear();
     return;
   }
 
-  absl::optional<double> iteration = CurrentIteration();
+  base::Optional<double> iteration = CurrentIteration();
   DCHECK(iteration);
   DCHECK_GE(iteration.value(), 0);
-  model_->Sample(ClampTo<int>(iteration.value(), 0), Progress().value(),
-                 NormalizedTiming().iteration_duration, result);
-}
-
-bool InertEffect::Affects(const PropertyHandle& property) const {
-  return model_->Affects(property);
+  model_->Sample(clampTo<int>(iteration.value(), 0), Progress().value(),
+                 SpecifiedTiming().IterationDuration(), result);
 }
 
 AnimationTimeDelta InertEffect::CalculateTimeToEffectChange(
     bool,
-    absl::optional<AnimationTimeDelta>,
+    base::Optional<double>,
     AnimationTimeDelta) const {
   return AnimationTimeDelta::Max();
-}
-
-absl::optional<AnimationTimeDelta> InertEffect::TimelineDuration() const {
-  return timeline_duration_;
 }
 
 void InertEffect::Trace(Visitor* visitor) const {

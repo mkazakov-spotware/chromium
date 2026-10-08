@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -121,38 +121,32 @@ TEST_P(UriConsistencyTest, QueryBuilding) {
 // Build normalized URI from encoded components and make sure that it is
 // equal to the value returned by GetNormalized().
 TEST_P(UriConsistencyTest, UriBuilding) {
-  std::string scheme = uri_.GetScheme();
-  if (!scheme.empty())
-    scheme += ":";
+  std::string expected_uri = uri_.GetScheme() + ":";
 
   // Build a part of URI called Authority (Userinfo@Host:Port).
   std::string authority_encoded;
   if (!uri_.GetUserinfoEncoded().empty())
     authority_encoded = uri_.GetUserinfoEncoded() + "@";
   authority_encoded += uri_.GetHostEncoded();
-  std::string authority_with_port_encoded = authority_encoded;
-  if (uri_.GetPort() != -1) {
-    if (uri_.GetPort() != Uri::GetDefaultPort(uri_.GetScheme()))
-      authority_encoded += ":" + base::NumberToString(uri_.GetPort());
-    authority_with_port_encoded += ":" + base::NumberToString(uri_.GetPort());
+  if (uri_.GetPort() != -1 &&
+      uri_.GetPort() != Uri::GetDefaultPort(uri_.GetScheme())) {
+    authority_encoded += ":" + base::NumberToString(uri_.GetPort());
   }
-  // If Authority is not empty, prefix it with "//".
+  // If Authority is not empty, add it to |expected_uri|.
   if (!authority_encoded.empty())
-    authority_encoded = "//" + authority_encoded;
-  if (!authority_with_port_encoded.empty())
-    authority_with_port_encoded = "//" + authority_with_port_encoded;
+    expected_uri += "//" + authority_encoded;
 
-  // Build Path, Query and Fragment.
-  std::string path_query_fragment_encoded = uri_.GetPathEncodedAsString();
-  if (!uri_.GetQueryEncodedAsString().empty())
-    path_query_fragment_encoded += "?" + uri_.GetQueryEncodedAsString();
+  // Add Path and Query.
+  expected_uri += uri_.GetPathEncodedAsString();
+  const std::string expected_query = uri_.GetQueryEncodedAsString();
+  if (!expected_query.empty())
+    expected_uri += "?" + expected_query;
+
+  // Add Fragment to |expected_uri|.
   if (!uri_.GetFragmentEncoded().empty())
-    path_query_fragment_encoded += "#" + uri_.GetFragmentEncoded();
+    expected_uri += "#" + uri_.GetFragmentEncoded();
 
-  EXPECT_EQ(uri_.GetNormalized(false),
-            scheme + authority_encoded + path_query_fragment_encoded);
-  EXPECT_EQ(uri_.GetNormalized(true),
-            scheme + authority_with_port_encoded + path_query_fragment_encoded);
+  EXPECT_EQ(uri_.GetNormalized(), expected_uri);
 }
 
 // Checks if the normalization algorithm is consistent.
@@ -160,8 +154,7 @@ TEST_P(UriConsistencyTest, Normalization) {
   // Normalization of normalized uri must not change it.
   Uri uri2(uri_.GetNormalized());
   EXPECT_EQ(uri2.GetLastParsingError().status, Uri::ParserStatus::kNoErrors);
-  EXPECT_EQ(uri_.GetNormalized(true), uri2.GetNormalized(true));
-  EXPECT_EQ(uri_.GetNormalized(false), uri2.GetNormalized(false));
+  EXPECT_EQ(uri_.GetNormalized(), uri2.GetNormalized());
 
   // Normalization of normalized Path must not change it.
   uri2.SetPathEncoded(uri_.GetPathEncodedAsString());

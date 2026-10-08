@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_ASSISTANT_UI_LOGO_VIEW_SHAPE_SHAPE_H_
 #define ASH_ASSISTANT_UI_LOGO_VIEW_SHAPE_SHAPE_H_
 
+#include "base/macros.h"
 #include "cc/paint/paint_flags.h"
 #include "third_party/skia/include/core/SkPath.h"
 
@@ -16,10 +17,6 @@ namespace ash {
 class Shape {
  public:
   explicit Shape(float dot_size);
-
-  Shape(const Shape&) = delete;
-  Shape& operator=(const Shape&) = delete;
-
   virtual ~Shape();
 
   float dot_size() const { return dot_size_; }
@@ -55,6 +52,8 @@ class Shape {
   float second_stroke_width_ = 0.0f;
 
   cc::PaintFlags::Cap cap_ = cc::PaintFlags::kRound_Cap;
+
+  DISALLOW_COPY_AND_ASSIGN(Shape);
 };
 
 }  // namespace ash

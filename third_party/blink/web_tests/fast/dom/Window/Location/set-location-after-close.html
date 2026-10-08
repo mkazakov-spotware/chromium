@@ -10,7 +10,7 @@ description("Updating window.location after the window has been closed, without 
 
 if (window.testRunner) {
     testRunner.dumpAsText();
-    testRunner.setPopupBlockingEnabled(false);
+    testRunner.setCanOpenWindows();
     testRunner.waitUntilDone();
 }
 

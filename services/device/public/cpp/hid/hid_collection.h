@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "services/device/public/cpp/hid/hid_report_descriptor_item.h"
 #include "services/device/public/cpp/hid/hid_report_item.h"
 #include "services/device/public/mojom/hid.mojom.h"
@@ -84,7 +83,7 @@ class HidCollection {
       HidItemStateTable& state);
 
   // The parent collection, or nullptr if this is a top level collection.
-  const raw_ptr<HidCollection> parent_;
+  HidCollection* const parent_;
 
   // The children of this collection in the order they were encountered in the
   // report descriptor.

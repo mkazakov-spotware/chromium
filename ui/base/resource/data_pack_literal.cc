@@ -1,13 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include <stddef.h>
 
 #include "ui/base/resource/data_pack_literal.h"
 #include "ui/base/resource/resource_bundle.h"
 
 namespace ui {
 
-const uint8_t kSamplePakContentsV4[] = {
+const char kSamplePakContentsV4[] = {
     0x04, 0x00, 0x00, 0x00,              // header(version
     0x04, 0x00, 0x00, 0x00,              //        no. entries
     0x01,                                //        encoding)
@@ -21,7 +23,7 @@ const uint8_t kSamplePakContentsV4[] = {
 
 const size_t kSamplePakSizeV4 = sizeof(kSamplePakContentsV4);
 
-const uint8_t kSampleCompressPakContentsV5[] = {
+const char kSampleCompressPakContentsV5[] = {
     0x05, 0x00, 0x00, 0x00,              // version
     0x01, 0x00, 0x00, 0x00,              // encoding + padding
     0x03, 0x00, 0x01, 0x00,              // num_resources, num_aliases
@@ -49,7 +51,7 @@ const uint8_t kSampleCompressPakContentsV5[] = {
 
 const size_t kSampleCompressPakSizeV5 = sizeof(kSampleCompressPakContentsV5);
 
-const uint8_t kSampleCompressScaledPakContents[] = {
+const char kSampleCompressScaledPakContents[] = {
     0x05, 0x00, 0x00, 0x00,              // version
     0x01, 0x00, 0x00, 0x00,              // encoding + padding
     0x03, 0x00, 0x01, 0x00,              // num_resources, num_aliases
@@ -74,7 +76,7 @@ const uint8_t kSampleCompressScaledPakContents[] = {
 const size_t kSampleCompressScaledPakSize =
     sizeof(kSampleCompressScaledPakContents);
 
-const uint8_t kSampleCorruptPakContents[] = {
+const char kSampleCorruptPakContents[] = {
     0x04, 0x00, 0x00, 0x00,              // header(version
     0x04, 0x00, 0x00, 0x00,              //        no. entries
     0x01,                                //        encoding)
@@ -89,7 +91,7 @@ const uint8_t kSampleCorruptPakContents[] = {
 
 const size_t kSampleCorruptPakSize = sizeof(kSampleCorruptPakContents);
 
-const uint8_t kSamplePakContents2x[] = {
+const char kSamplePakContents2x[] = {
     0x04, 0x00, 0x00, 0x00,              // header(version
     0x01, 0x00, 0x00, 0x00,              //        no. entries
     0x01,                                //        encoding)
@@ -100,7 +102,7 @@ const uint8_t kSamplePakContents2x[] = {
 
 const size_t kSamplePakSize2x = sizeof(kSamplePakContents2x);
 
-const uint8_t kEmptyPakContents[] = {
+const char kEmptyPakContents[] = {
     0x04, 0x00, 0x00, 0x00,             // header(version
     0x00, 0x00, 0x00, 0x00,             //        no. entries
     0x01,                               //        encoding)

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,18 @@
 import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
 import './crostini_upgrader.mojom-lite.js';
 
-import {addSingletonGetter} from 'chrome://resources/ash/common/cr_deprecated.js';
+import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
 
 export class BrowserProxy {
   constructor() {
-    /** @type {ash.crostiniUpgrader.mojom.PageCallbackRouter} */
-    this.callbackRouter = new ash.crostiniUpgrader.mojom.PageCallbackRouter();
-    /** @type {ash.crostiniUpgrader.mojom.PageHandlerRemote} */
-    this.handler = new ash.crostiniUpgrader.mojom.PageHandlerRemote();
+    /** @type {chromeos.crostiniUpgrader.mojom.PageCallbackRouter} */
+    this.callbackRouter =
+        new chromeos.crostiniUpgrader.mojom.PageCallbackRouter();
+    /** @type {chromeos.crostiniUpgrader.mojom.PageHandlerRemote} */
+    this.handler = new chromeos.crostiniUpgrader.mojom.PageHandlerRemote();
 
-    const factory = ash.crostiniUpgrader.mojom.PageHandlerFactory.getRemote();
+    const factory =
+        chromeos.crostiniUpgrader.mojom.PageHandlerFactory.getRemote();
     factory.createPageHandler(
         this.callbackRouter.$.bindNewPipeAndPassRemote(),
         this.handler.$.bindNewPipeAndPassReceiver());

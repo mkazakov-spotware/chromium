@@ -1,79 +1,76 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/browsing_data/browsing_data_remover_impl.h"
+#include "ios/chrome/browser/browsing_data/browsing_data_remover_impl.h"
 
 #import <WebKit/WebKit.h>
 
-#import <set>
-#import <string>
+#include <set>
+#include <string>
 
-#import "base/bind.h"
-#import "base/callback.h"
-#import "base/callback_helpers.h"
-#import "base/files/file_path.h"
+#include "base/bind.h"
+#include "base/callback.h"
+#include "base/callback_helpers.h"
+#include "base/files/file_path.h"
 #import "base/ios/block_types.h"
-#import "base/logging.h"
-#import "base/metrics/histogram_macros.h"
-#import "base/metrics/user_metrics.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/task/sequenced_task_runner.h"
-#import "base/threading/sequenced_task_runner_handle.h"
-#import "components/autofill/core/browser/personal_data_manager.h"
-#import "components/autofill/core/browser/strike_database.h"
-#import "components/autofill/core/browser/webdata/autofill_webdata_service.h"
-#import "components/autofill/core/common/autofill_payments_features.h"
-#import "components/history/core/browser/history_service.h"
-#import "components/keyed_service/core/service_access_type.h"
-#import "components/language/core/browser/url_language_histogram.h"
-#import "components/omnibox/browser/omnibox_prefs.h"
-#import "components/open_from_clipboard/clipboard_recent_content.h"
-#import "components/password_manager/core/browser/password_store_interface.h"
-#import "components/prefs/pref_service.h"
-#import "components/search_engines/template_url_service.h"
-#import "components/sessions/core/tab_restore_service.h"
-#import "components/signin/ios/browser/account_consistency_service.h"
-#import "components/signin/public/base/signin_pref_names.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/autofill/personal_data_manager_factory.h"
-#import "ios/chrome/browser/autofill/strike_database_factory.h"
-#import "ios/chrome/browser/bookmarks/bookmark_remover_helper.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/browser_state/ios_chrome_io_thread.h"
-#import "ios/chrome/browser/browsing_data/browsing_data_features.h"
-#import "ios/chrome/browser/browsing_data/browsing_data_remove_mask.h"
-#import "ios/chrome/browser/crash_report/crash_helper.h"
-#import "ios/chrome/browser/external_files/external_file_remover.h"
-#import "ios/chrome/browser/external_files/external_file_remover_factory.h"
-#import "ios/chrome/browser/history/history_service_factory.h"
-#import "ios/chrome/browser/history/web_history_service_factory.h"
-#import "ios/chrome/browser/https_upgrades/https_upgrade_service_factory.h"
-#import "ios/chrome/browser/language/url_language_histogram_factory.h"
-#import "ios/chrome/browser/optimization_guide/optimization_guide_service.h"
-#import "ios/chrome/browser/optimization_guide/optimization_guide_service_factory.h"
-#import "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
-#import "ios/chrome/browser/reading_list/reading_list_remover_helper.h"
-#import "ios/chrome/browser/search_engines/template_url_service_factory.h"
-#import "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
+#include "base/logging.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
+#include "base/sequenced_task_runner.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/task/post_task.h"
+#include "base/threading/sequenced_task_runner_handle.h"
+#include "components/autofill/core/browser/payments/strike_database.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
+#include "components/autofill/core/common/autofill_payments_features.h"
+#include "components/history/core/browser/history_service.h"
+#include "components/keyed_service/core/service_access_type.h"
+#include "components/language/core/browser/url_language_histogram.h"
+#include "components/omnibox/browser/omnibox_prefs.h"
+#include "components/open_from_clipboard/clipboard_recent_content.h"
+#include "components/password_manager/core/browser/password_store.h"
+#include "components/prefs/pref_service.h"
+#include "components/search_engines/template_url_service.h"
+#include "components/sessions/core/tab_restore_service.h"
+#include "components/signin/ios/browser/account_consistency_service.h"
+#include "components/signin/public/base/signin_pref_names.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/autofill/personal_data_manager_factory.h"
+#include "ios/chrome/browser/autofill/strike_database_factory.h"
+#include "ios/chrome/browser/bookmarks/bookmark_remover_helper.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browsing_data/browsing_data_features.h"
+#include "ios/chrome/browser/browsing_data/browsing_data_remove_mask.h"
+#include "ios/chrome/browser/external_files/external_file_remover.h"
+#include "ios/chrome/browser/external_files/external_file_remover_factory.h"
+#include "ios/chrome/browser/history/history_service_factory.h"
+#include "ios/chrome/browser/history/web_history_service_factory.h"
+#include "ios/chrome/browser/ios_chrome_io_thread.h"
+#include "ios/chrome/browser/language/url_language_histogram_factory.h"
+#include "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
+#include "ios/chrome/browser/reading_list/reading_list_remover_helper.h"
+#import "ios/chrome/browser/safe_browsing/safe_browsing_service.h"
+#include "ios/chrome/browser/search_engines/template_url_service_factory.h"
+#include "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
 #import "ios/chrome/browser/sessions/session_service_ios.h"
-#import "ios/chrome/browser/signin/account_consistency_service_factory.h"
-#import "ios/chrome/browser/snapshots/snapshots_util.h"
-#import "ios/chrome/browser/web/font_size/font_size_tab_helper.h"
-#import "ios/chrome/browser/webdata_services/web_data_service_factory.h"
-#import "ios/components/security_interstitials/https_only_mode/https_upgrade_service.h"
-#import "ios/components/security_interstitials/safe_browsing/safe_browsing_service.h"
-#import "ios/net/http_cache_helper.h"
+#include "ios/chrome/browser/signin/account_consistency_service_factory.h"
+#include "ios/chrome/browser/snapshots/snapshots_util.h"
+#import "ios/chrome/browser/web/font_size_tab_helper.h"
+#include "ios/chrome/browser/webdata_services/web_data_service_factory.h"
+#include "ios/net/http_cache_helper.h"
 #import "ios/web/common/web_view_creation_util.h"
 #import "ios/web/public/browsing_data/browsing_data_removing_util.h"
-#import "ios/web/public/thread/web_task_traits.h"
-#import "ios/web/public/thread/web_thread.h"
-#import "net/base/net_errors.h"
-#import "net/cookies/cookie_store.h"
-#import "net/http/transport_security_state.h"
-#import "net/url_request/url_request_context.h"
-#import "net/url_request/url_request_context_getter.h"
-#import "url/gurl.h"
+#include "ios/web/public/thread/web_task_traits.h"
+#include "ios/web/public/thread/web_thread.h"
+#import "ios/web/web_state/ui/wk_web_view_configuration_provider.h"
+#include "net/base/net_errors.h"
+#include "net/cookies/cookie_store.h"
+#include "net/http/transport_security_state.h"
+#include "net/url_request/url_request_context.h"
+#include "net/url_request/url_request_context_getter.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -135,8 +132,8 @@ void ClearCookies(
   net::CookieStore* cookie_store =
       request_context_getter->GetURLRequestContext()->cookie_store();
   cookie_store->DeleteAllCreatedInTimeRangeAsync(
-      creation_range,
-      base::BindOnce(&DeleteCallbackAdapter, std::move(callback)));
+      creation_range, AdaptCallbackForRepeating(base::BindOnce(
+                          &DeleteCallbackAdapter, std::move(callback))));
 }
 
 }  // namespace
@@ -275,28 +272,23 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
       base::SequencedTaskRunnerHandle::Get();
 
   // Note: Before adding any method below, make sure that it can finish clearing
-  // browsing data even if `browser_state` is destroyed after this method call.
+  // browsing data even if |browser_state)| is destroyed after this method call.
 
   if (IsRemoveDataMaskSet(mask, BrowsingDataRemoveMask::REMOVE_HISTORY)) {
     if (session_service_) {
-      const base::FilePath& state_path = browser_state_->GetStatePath();
-      [session_service_
-          deleteAllSessionFilesInDirectory:state_path
-                                completion:
-                                    CreatePendingTaskCompletionClosure()];
+      NSString* state_path = base::SysUTF8ToNSString(
+          browser_state_->GetStatePath().AsUTF8Unsafe());
+      [session_service_ deleteAllSessionFilesInBrowserStateDirectory:state_path
+          completion:CreatePendingTaskCompletionClosure()];
     }
 
     // Remove the screenshots taken by the system when backgrounding the
     // application. Partial removal based on timePeriod is not required.
     ClearIOSSnapshots(CreatePendingTaskCompletionClosure());
-
-    // Remove all HTTPS-Only Mode allowlist decisions.
-    HttpsUpgradeService* https_upgrade_service =
-        HttpsUpgradeServiceFactory::GetForBrowserState(browser_state_);
-    https_upgrade_service->ClearAllowlist(delete_begin, delete_end);
   }
 
-  auto io_thread_task_runner = web::GetIOThreadTaskRunner({});
+  constexpr base::TaskTraits task_traits = {
+      web::WebThread::IO, base::TaskShutdownBehavior::BLOCK_SHUTDOWN};
 
   if (IsRemoveDataMaskSet(mask, BrowsingDataRemoveMask::REMOVE_COOKIES)) {
     if (!browser_state_->IsOffTheRecord()) {
@@ -306,8 +298,8 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
     }
     net::CookieDeletionInfo::TimeRange deletion_time_range =
         net::CookieDeletionInfo::TimeRange(delete_begin, delete_end);
-    io_thread_task_runner->PostTask(
-        FROM_HERE,
+    base::PostTask(
+        FROM_HERE, task_traits,
         base::BindOnce(
             &ClearCookies, context_getter_, deletion_time_range,
             base::BindOnce(base::IgnoreResult(&base::TaskRunner::PostTask),
@@ -355,8 +347,8 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
     IOSChromeIOThread* ios_chrome_io_thread =
         GetApplicationContext()->GetIOSChromeIOThread();
     if (ios_chrome_io_thread) {
-      io_thread_task_runner->PostTaskAndReply(
-          FROM_HERE,
+      base::PostTaskAndReply(
+          FROM_HERE, task_traits,
           base::BindOnce(&IOSChromeIOThread::ClearHostCache,
                          base::Unretained(ios_chrome_io_thread)),
           CreatePendingTaskCompletionClosure());
@@ -369,10 +361,11 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
       TemplateURLService* keywords_model =
           ios::TemplateURLServiceFactory::GetForBrowserState(browser_state_);
       if (keywords_model && !keywords_model->loaded()) {
-        template_url_subscription_ = keywords_model->RegisterOnLoadedCallback(
-            base::BindOnce(&BrowsingDataRemoverImpl::OnKeywordsLoaded,
-                           GetWeakPtr(), delete_begin, delete_end,
-                           CreatePendingTaskCompletionClosure()));
+        template_url_subscription_ =
+            keywords_model->RegisterOnLoadedCallback(AdaptCallbackForRepeating(
+                base::BindOnce(&BrowsingDataRemoverImpl::OnKeywordsLoaded,
+                               GetWeakPtr(), delete_begin, delete_end,
+                               CreatePendingTaskCompletionClosure())));
         keywords_model->Load();
       } else if (keywords_model) {
         keywords_model->RemoveAutoGeneratedBetween(delete_begin, delete_end);
@@ -419,23 +412,19 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
     if (language_histogram) {
       language_histogram->ClearHistory(delete_begin, delete_end);
     }
-
-    crash_helper::ClearReportsBetween(delete_begin, delete_end);
   }
 
   if (IsRemoveDataMaskSet(mask, BrowsingDataRemoveMask::REMOVE_PASSWORDS)) {
     base::RecordAction(base::UserMetricsAction("ClearBrowsingData_Passwords"));
-    password_manager::PasswordStoreInterface* password_store =
+    password_manager::PasswordStore* password_store =
         IOSChromePasswordStoreFactory::GetForBrowserState(
             browser_state_, ServiceAccessType::EXPLICIT_ACCESS)
             .get();
 
     if (password_store) {
-      // It doesn't matter whether any logins were removed so bool argument can
-      // be omitted.
       password_store->RemoveLoginsCreatedBetween(
           delete_begin, delete_end,
-          IgnoreArgument<bool>(CreatePendingTaskCompletionClosure()));
+          AdaptCallbackForRepeating(CreatePendingTaskCompletionClosure()));
     }
   }
 
@@ -472,8 +461,9 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
 
   if (IsRemoveDataMaskSet(mask, BrowsingDataRemoveMask::REMOVE_CACHE)) {
     base::RecordAction(base::UserMetricsAction("ClearBrowsingData_Cache"));
-    ClearHttpCache(context_getter_, io_thread_task_runner, delete_begin,
-                   delete_end,
+    ClearHttpCache(context_getter_,
+                   base::CreateSingleThreadTaskRunner(task_traits),
+                   delete_begin, delete_end,
                    base::BindOnce(&NetCompletionCallbackAdapter,
                                   CreatePendingTaskCompletionClosure()));
   }
@@ -483,8 +473,6 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
       IsRemoveDataMaskSet(mask, BrowsingDataRemoveMask::REMOVE_COOKIES)) {
     browser_state_->GetPrefs()->SetString(omnibox::kZeroSuggestCachedResults,
                                           std::string());
-    browser_state_->GetPrefs()->SetDict(
-        omnibox::kZeroSuggestCachedResultsWithURL, base::Value::Dict());
   }
 
   if (IsRemoveDataMaskSet(mask, BrowsingDataRemoveMask::REMOVE_DOWNLOADS)) {
@@ -492,7 +480,8 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
         ExternalFileRemoverFactory::GetForBrowserState(browser_state_);
     if (external_file_remover) {
       external_file_remover->RemoveAfterDelay(
-          base::Seconds(0), CreatePendingTaskCompletionClosure());
+          base::TimeDelta::FromSeconds(0),
+          CreatePendingTaskCompletionClosure());
     }
   }
 
@@ -531,7 +520,7 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
     // The user just changed the account and chose to clear the previously
     // existing data. As browsing data is being cleared, it is fine to clear the
     // last username, as there will be no data to be merged.
-    browser_state_->GetPrefs()->ClearPref(prefs::kGoogleServicesLastGaiaId);
+    browser_state_->GetPrefs()->ClearPref(prefs::kGoogleServicesLastAccountId);
     browser_state_->GetPrefs()->ClearPref(prefs::kGoogleServicesLastUsername);
   }
 
@@ -543,7 +532,8 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
   // Always wipe accumulated network related data (TransportSecurityState and
   // HttpServerPropertiesManager data).
   browser_state_->ClearNetworkingHistorySince(
-      delete_begin, CreatePendingTaskCompletionClosure());
+      delete_begin,
+      AdaptCallbackForRepeating(CreatePendingTaskCompletionClosure()));
 
   // Remove browsing data stored in WKWebsiteDataStore if necessary.
   RemoveDataFromWKWebsiteDataStore(delete_begin, mask);
@@ -565,13 +555,14 @@ void BrowsingDataRemoverImpl::RemoveImpl(base::Time delete_begin,
       MAX_CHOICE_VALUE);
 }
 
-// Removes directories for sessions with `session_ids`
+// Removes directories for sessions with |SessionIDs|
 void BrowsingDataRemoverImpl::RemoveSessionsData(
     NSArray<NSString*>* session_ids) {
   [[SessionServiceIOS sharedService]
-      deleteSessions:session_ids
-           directory:browser_state_->GetStatePath()
-          completion:base::DoNothing()];
+                 deleteSessions:session_ids
+      fromBrowserStateDirectory:base::SysUTF8ToNSString(
+                                    browser_state_->GetStatePath()
+                                        .AsUTF8Unsafe())];
 }
 
 // TODO(crbug.com/619783): removing data from WkWebsiteDataStore should be
@@ -616,7 +607,7 @@ void BrowsingDataRemoverImpl::OnKeywordsLoaded(base::Time delete_begin,
   TemplateURLService* model =
       ios::TemplateURLServiceFactory::GetForBrowserState(browser_state_);
   model->RemoveAutoGeneratedBetween(delete_begin, delete_end);
-  template_url_subscription_ = {};
+  template_url_subscription_.reset();
   std::move(callback).Run();
 }
 
@@ -631,10 +622,6 @@ void BrowsingDataRemoverImpl::NotifyRemovalComplete() {
           ios::AccountConsistencyServiceFactory::GetForBrowserState(
               browser_state_)) {
     account_consistency_service->OnBrowsingDataRemoved();
-  }
-  if (OptimizationGuideService* optimization_guide_service =
-          OptimizationGuideServiceFactory::GetForBrowserState(browser_state_)) {
-    optimization_guide_service->OnBrowsingDataRemoved();
   }
 
   {

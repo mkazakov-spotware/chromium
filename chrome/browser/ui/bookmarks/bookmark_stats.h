@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,59 +9,42 @@
 
 class Profile;
 
-namespace bookmarks {
-class BookmarkNode;
-struct BookmarkNodeData;
-}  // namespace bookmarks
-
 // This enum is used for the Bookmarks.EntryPoint histogram.
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
-enum class BookmarkEntryPoint {
-  kAccelerator = 0,
-  kStarGesture = 1,
-  kStarKey = 2,
-  kStarMouse = 3,
+enum BookmarkEntryPoint {
+  BOOKMARK_ENTRY_POINT_ACCELERATOR,
+  BOOKMARK_ENTRY_POINT_STAR_GESTURE,
+  BOOKMARK_ENTRY_POINT_STAR_KEY,
+  BOOKMARK_ENTRY_POINT_STAR_MOUSE,
 
-  kMaxValue = kStarMouse
+  BOOKMARK_ENTRY_POINT_LIMIT  // Keep this last.
 };
 
 // This enum is used for the Bookmarks.LaunchLocation histogram.
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
-enum class BookmarkLaunchLocation {
-  kNone,
-  kAttachedBar = 0,
-  // kDetachedBar = 1, (deprecated)
+enum BookmarkLaunchLocation {
+  BOOKMARK_LAUNCH_LOCATION_NONE,
+  BOOKMARK_LAUNCH_LOCATION_ATTACHED_BAR = 0,
+  // BOOKMARK_LAUNCH_LOCATION_DETACHED_BAR = 1, (deprecated)
   // These two are kind of sub-categories of the bookmark bar. Generally
   // a launch from a context menu or subfolder could be classified in one of
   // the other two bar buckets, but doing so is difficult because the menus
   // don't know of their greater place in Chrome.
-  kSubfolder = 2,
-  kContextMenu = 3,
+  BOOKMARK_LAUNCH_LOCATION_BAR_SUBFOLDER = 2,
+  BOOKMARK_LAUNCH_LOCATION_CONTEXT_MENU = 3,
 
   // Bookmarks menu within app menu.
-  kAppMenu = 4,
+  BOOKMARK_LAUNCH_LOCATION_APP_MENU = 4,
   // Bookmark manager.
-  kManager = 5,
+  BOOKMARK_LAUNCH_LOCATION_MANAGER = 5,
   // Autocomplete suggestion.
-  kOmnibox = 6,
+  BOOKMARK_LAUNCH_LOCATION_OMNIBOX = 6,
   // System application menu (e.g. on Mac).
-  kTopMenu = 7,
+  BOOKMARK_LAUNCH_LOCATION_TOP_MENU = 7,
 
-  // Bookmarks top level folder (i.e. bookmarks bar, other bookmarks) within the
-  // side panel.
-  kSidePanelFolder = 8,
-  // Bookmarks subfolder within the side panel.
-  kSidePanelSubfolder = 9,
-  // Reading list tab within the side panel.
-  kSidePanelPendingList = 10,
-  // Reading list bubble in the bookmarks bar.
-  kReadingListDialog = 11,
-  // Context menu for a bookmark node in the side panel.
-  kSidePanelContextMenu = 12,
-
-  kMaxValue = kSidePanelContextMenu
+  BOOKMARK_LAUNCH_LOCATION_LIMIT  // Keep this last.
 };
 
 // Records the launch of a bookmark for UMA purposes.
@@ -78,12 +61,6 @@ void RecordBookmarkFolderOpen(BookmarkLaunchLocation location);
 // Records the user opening the apps page for UMA purposes.
 void RecordBookmarkAppsPageOpen(BookmarkLaunchLocation location);
 
-// Records that the user edited or renamed a bookmark.
-void RecordBookmarkEdited(BookmarkLaunchLocation location);
-
-// Records that the user removed a bookmark.
-void RecordBookmarkRemoved(BookmarkLaunchLocation location);
-
 // Records the user adding a bookmark via star action, drag and drop, via
 // Bookmark this tab... and Bookmark all tabs... buttons. For the Bookmark
 // open tabs... the action is recorded only once and not as many times as
@@ -92,11 +69,5 @@ void RecordBookmarksAdded(const Profile* profile);
 
 // Records the user bookmarking all tabs, along with the open tabs count.
 void RecordBookmarkAllTabsWithTabsCount(const Profile* profile, int count);
-
-// Records that a bookmark or bookmarks were dropped. Determines the type of
-// drop operation based on the data and parent node.
-void RecordBookmarkDropped(const bookmarks::BookmarkNodeData& data,
-                           const bookmarks::BookmarkNode* parent_node,
-                           bool is_reorder);
 
 #endif  // CHROME_BROWSER_UI_BOOKMARKS_BOOKMARK_STATS_H_

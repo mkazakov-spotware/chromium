@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,14 +28,11 @@ static const uint8_t kT1ResponseWithCacheFlushBit[] = {
 
 TEST(RecordParsedTest, ParseSingleRecord) {
   DnsRecordParser parser(kT1ResponseDatagram, sizeof(kT1ResponseDatagram),
-                         sizeof(dns_protocol::Header), kT1RecordCount);
+                         sizeof(dns_protocol::Header));
   std::unique_ptr<const RecordParsed> record;
   const CnameRecordRdata* rdata;
 
-  std::string dotted_qname;
-  uint16_t qtype;
-  parser.ReadQuestion(dotted_qname, qtype);
-
+  parser.SkipQuestion();
   record = RecordParsed::CreateFrom(&parser, base::Time());
   EXPECT_TRUE(record != nullptr);
 
@@ -53,17 +50,14 @@ TEST(RecordParsedTest, ParseSingleRecord) {
 
 TEST(RecordParsedTest, CacheFlushBitCompare) {
   DnsRecordParser parser1(kT1ResponseDatagram, sizeof(kT1ResponseDatagram),
-                          sizeof(dns_protocol::Header), kT1RecordCount);
-  std::string dotted_qname;
-  uint16_t qtype;
-  parser1.ReadQuestion(dotted_qname, qtype);
-
+                         sizeof(dns_protocol::Header));
+  parser1.SkipQuestion();
   std::unique_ptr<const RecordParsed> record1 =
       RecordParsed::CreateFrom(&parser1, base::Time());
 
   DnsRecordParser parser2(kT1ResponseWithCacheFlushBit,
-                          sizeof(kT1ResponseWithCacheFlushBit), 0,
-                          kT1RecordCount);
+                          sizeof(kT1ResponseWithCacheFlushBit),
+                          0);
 
   std::unique_ptr<const RecordParsed> record2 =
       RecordParsed::CreateFrom(&parser2, base::Time());
@@ -89,8 +83,7 @@ TEST(RecordParsedTest, ParseUnknownRdata) {
       "\000\014"
       // RDATA="garbage data"
       "garbage data";
-  DnsRecordParser parser(kRecordData, sizeof(kRecordData) - 1, 0 /* offset */,
-                         /*num_records=*/1);
+  DnsRecordParser parser(kRecordData, sizeof(kRecordData) - 1, 0 /* offset */);
 
   std::unique_ptr<const RecordParsed> record =
       RecordParsed::CreateFrom(&parser, base::Time());
@@ -131,8 +124,7 @@ TEST(RecordParsedTest, EqualityHandlesUnknownRdata) {
       "\000\004"
       // RDATA=8.8.8.8
       "\010\010\010\010";
-  DnsRecordParser parser(kData, sizeof(kData) - 1, 0 /* offset */,
-                         /*num_records=*/2);
+  DnsRecordParser parser(kData, sizeof(kData) - 1, 0 /* offset */);
 
   std::unique_ptr<const RecordParsed> unknown_record =
       RecordParsed::CreateFrom(&parser, base::Time());
@@ -172,8 +164,7 @@ TEST(RecordParsedTest, RejectMalformedRdata) {
       "\000\001"
       // RDATA=truncated name
       "\001";
-  DnsRecordParser parser(kRecordData, sizeof(kRecordData) - 1, 0 /* offset */,
-                         /*num_records=*/1);
+  DnsRecordParser parser(kRecordData, sizeof(kRecordData) - 1, 0 /* offset */);
 
   std::unique_ptr<const RecordParsed> record =
       RecordParsed::CreateFrom(&parser, base::Time());

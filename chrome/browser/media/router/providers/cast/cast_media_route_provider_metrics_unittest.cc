@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,19 +19,19 @@ TEST(CastMediaRouteProviderMetricsTest, RecordAppAvailabilityResult) {
 
   RecordAppAvailabilityResult(
       cast_channel::GetAppAvailabilityResult::kAvailable,
-      base::Milliseconds(111));
+      base::TimeDelta::FromMilliseconds(111));
   RecordAppAvailabilityResult(
       cast_channel::GetAppAvailabilityResult::kUnavailable,
-      base::Milliseconds(222));
+      base::TimeDelta::FromMilliseconds(222));
   tester.ExpectTimeBucketCount(kHistogramAppAvailabilitySuccess,
-                               base::Milliseconds(111), 1);
+                               base::TimeDelta::FromMilliseconds(111), 1);
   tester.ExpectTimeBucketCount(kHistogramAppAvailabilitySuccess,
-                               base::Milliseconds(222), 1);
+                               base::TimeDelta::FromMilliseconds(222), 1);
 
   RecordAppAvailabilityResult(cast_channel::GetAppAvailabilityResult::kUnknown,
-                              base::Milliseconds(333));
+                              base::TimeDelta::FromMilliseconds(333));
   tester.ExpectTimeBucketCount(kHistogramAppAvailabilityFailure,
-                               base::Milliseconds(333), 1);
+                               base::TimeDelta::FromMilliseconds(333), 1);
 }
 
 TEST(CastMediaRouteProviderMetricsTest, RecordSupportedAppTypesValue) {

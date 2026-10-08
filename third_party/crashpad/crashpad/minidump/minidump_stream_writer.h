@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <windows.h>
 #include <dbghelp.h>
 
+#include "base/macros.h"
 #include "minidump/minidump_extensions.h"
 #include "minidump/minidump_writable.h"
 
@@ -31,9 +32,6 @@ namespace internal {
 //! MinidumpFileWriter object.
 class MinidumpStreamWriter : public MinidumpWritable {
  public:
-  MinidumpStreamWriter(const MinidumpStreamWriter&) = delete;
-  MinidumpStreamWriter& operator=(const MinidumpStreamWriter&) = delete;
-
   ~MinidumpStreamWriter() override;
 
   //! \brief Returns an object’s stream type.
@@ -58,6 +56,8 @@ class MinidumpStreamWriter : public MinidumpWritable {
 
  private:
   MINIDUMP_DIRECTORY directory_list_entry_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpStreamWriter);
 };
 
 }  // namespace internal

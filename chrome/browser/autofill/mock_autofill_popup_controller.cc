@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 
 namespace autofill {
 
-MockAutofillPopupController::MockAutofillPopupController()
-    : default_font_desc_setter_("Arial, Times New Roman, 15px") {}
+MockAutofillPopupController::MockAutofillPopupController() {
+  gfx::FontList::SetDefaultFontDescription("Arial, Times New Roman, 15px");
+}
 
 MockAutofillPopupController::~MockAutofillPopupController() = default;
 

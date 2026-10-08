@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,13 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/strings/string_piece.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/trace_event_analyzer.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class CommandLine;
@@ -41,11 +41,6 @@ class HttpResponse;
 class TabCapturePerformanceTestBase : public InProcessBrowserTest {
  public:
   TabCapturePerformanceTestBase();
-
-  TabCapturePerformanceTestBase(const TabCapturePerformanceTestBase&) = delete;
-  TabCapturePerformanceTestBase& operator=(
-      const TabCapturePerformanceTestBase&) = delete;
-
   ~TabCapturePerformanceTestBase() override;
 
   // SetUp overrides to enable pixel output, configure the embedded test server,
@@ -111,14 +106,14 @@ class TabCapturePerformanceTestBase : public InProcessBrowserTest {
   // These are how long the browser is run with trace event recording taking
   // place.
   static constexpr base::TimeDelta kFullRunObservationPeriod =
-      base::Seconds(15);
+      base::TimeDelta::FromSeconds(15);
   static constexpr base::TimeDelta kQuickRunObservationPeriod =
-      base::Seconds(4);
+      base::TimeDelta::FromSeconds(4);
 
   // If sending a message to the extension fails, because the extension has not
   // started its message listener yet, how long before the next retry?
   static constexpr base::TimeDelta kSendMessageRetryPeriod =
-      base::Milliseconds(250);
+      base::TimeDelta::FromMilliseconds(250);
 
   // Note: The hostname must match the pattern found in the Extension's manifest
   // file, or it will not be able to send/receive messaging from the test web
@@ -137,7 +132,7 @@ class TabCapturePerformanceTestBase : public InProcessBrowserTest {
   // that would also preempt BEST_EFFORT tasks in utility processes, and
   // TabCapturePerformanceTest.Performance relies on BEST_EFFORT tasks in
   // utility process for tracing.
-  absl::optional<base::ThreadPoolInstance::ScopedBestEffortExecutionFence>
+  base::Optional<base::ThreadPoolInstance::ScopedBestEffortExecutionFence>
       best_effort_fence_;
 
   bool is_full_performance_run_ = false;
@@ -151,10 +146,12 @@ class TabCapturePerformanceTestBase : public InProcessBrowserTest {
   std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
       const net::test_server::HttpRequest& request);
 
-  raw_ptr<const extensions::Extension, DanglingUntriaged> extension_ = nullptr;
+  const extensions::Extension* extension_ = nullptr;
 
   // Manages the Audio Service feature set, enabled for these performance tests.
   base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(TabCapturePerformanceTestBase);
 };
 
 #endif  // CHROME_BROWSER_EXTENSIONS_API_TAB_CAPTURE_TAB_CAPTURE_PERFORMANCE_TEST_BASE_H_

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,21 @@ import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.contrib.RecyclerViewActions.actionOnItem;
 import static androidx.test.espresso.contrib.RecyclerViewActions.scrollTo;
+import static androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
-import static org.chromium.chrome.browser.keyboard_accessory.ManualFillingTestHelper.selectTabWithDescription;
+import static org.chromium.chrome.browser.keyboard_accessory.ManualFillingTestHelper.selectTabAtPosition;
 import static org.chromium.chrome.browser.keyboard_accessory.ManualFillingTestHelper.whenDisplayed;
 import static org.chromium.chrome.browser.keyboard_accessory.tab_layout_component.KeyboardAccessoryTabTestHelper.isKeyboardAccessoryTabLayout;
+
+import android.widget.TextView;
 
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
@@ -30,8 +36,6 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.ChromeWindow;
 import org.chromium.chrome.browser.autofill.AutofillTestHelper;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.CreditCard;
@@ -45,7 +49,6 @@ import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.browser.Features.DisableFeatures;
 import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.ui.test.util.UiDisableIf;
 
 import java.util.concurrent.TimeoutException;
 
@@ -85,7 +88,7 @@ public class CreditCardAccessoryIntegrationTest {
     @Test
     @SmallTest
     @EnableFeatures({ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID})
-    public void testCreditCardSheetAvailable_whenManualFallbackEnabled() {
+    public void testCreditCardSheetAvailable() {
         mHelper.loadTestPage(false);
 
         CriteriaHelper.pollUiThread(() -> {
@@ -95,24 +98,8 @@ public class CreditCardAccessoryIntegrationTest {
 
     @Test
     @SmallTest
-    @EnableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_MANUAL_FALLBACK_FOR_VIRTUAL_CARDS})
-    @DisableFeatures({ChromeFeatureList.AUTOFILL_KEYBOARD_ACCESSORY,
-            ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID})
-    public void
-    testCreditCardSheetAvailable_whenManualFallbackForVirtualCardsEnabled() {
-        mHelper.loadTestPage(false);
-
-        CriteriaHelper.pollUiThread(() -> {
-            return mHelper.getOrCreateCreditCardAccessorySheet() != null;
-        }, "Credit Card sheet should be bound to accessory sheet.");
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures({ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID,
-            ChromeFeatureList.AUTOFILL_ENABLE_MANUAL_FALLBACK_FOR_VIRTUAL_CARDS})
-    public void
-    testCreditCardSheetUnavailableWithoutFeature() {
+    @DisableFeatures({ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID})
+    public void testCreditCardSheetUnavailableWithoutFeature() {
         mHelper.loadTestPage(false);
 
         Assert.assertNull("Credit Card sheet should not have been created.",
@@ -122,7 +109,6 @@ public class CreditCardAccessoryIntegrationTest {
     @Test
     @SmallTest
     @EnableFeatures({ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID})
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/1182626
     public void testDisplaysEmptyStateMessageWithoutSavedCards() throws TimeoutException {
         mHelper.loadTestPage(false);
 
@@ -131,12 +117,9 @@ public class CreditCardAccessoryIntegrationTest {
         mHelper.waitForKeyboardAccessoryToBeShown();
 
         // Click the tab to show the sheet and hide the keyboard.
-        whenDisplayed(withId(R.id.bar_items_view))
-                .perform(scrollTo(isKeyboardAccessoryTabLayout()),
-                        actionOnItem(isKeyboardAccessoryTabLayout(),
-                                selectTabWithDescription(
-                                        R.string.credit_card_accessory_sheet_toggle)));
-
+        whenDisplayed(allOf(withContentDescription(R.string.credit_card_accessory_sheet_toggle),
+                              not(isAssignableFrom(TextView.class))))
+                .perform(click());
         mHelper.waitForKeyboardToDisappear();
         whenDisplayed(withId(R.id.credit_card_sheet));
         onView(withText(containsString("No saved payment methods"))).check(matches(isDisplayed()));
@@ -145,19 +128,16 @@ public class CreditCardAccessoryIntegrationTest {
     @Test
     @MediumTest
     @EnableFeatures({ChromeFeatureList.AUTOFILL_MANUAL_FALLBACK_ANDROID})
-    @DisabledTest(message = "https://crbug.com/1392789, https://crbug.com/1182626")
     public void testFillsSuggestionOnClick() throws TimeoutException {
         loadTestPage(FakeKeyboard::new);
-        mHelper.clickNodeAndShowKeyboard("CREDIT_CARD_NAME_FULL", 1);
+        mHelper.clickNodeAndShowKeyboard("CREDIT_CARD_NAME_FULL");
         DOMUtils.focusNode(mActivityTestRule.getWebContents(), "CREDIT_CARD_NAME_FULL");
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
-        // Scroll to last element and click the first icon:
+        // Scroll to last element and click the second icon:
         whenDisplayed(withId(R.id.bar_items_view))
                 .perform(scrollTo(isKeyboardAccessoryTabLayout()),
-                        actionOnItem(isKeyboardAccessoryTabLayout(),
-                                selectTabWithDescription(
-                                        R.string.credit_card_accessory_sheet_toggle)));
+                        actionOnItem(isKeyboardAccessoryTabLayout(), selectTabAtPosition(1)));
 
         // Wait for the sheet to come up and be stable.
         whenDisplayed(withId(R.id.credit_card_sheet));

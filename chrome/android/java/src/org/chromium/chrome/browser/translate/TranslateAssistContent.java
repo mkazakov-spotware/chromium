@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,9 @@ import androidx.annotation.Nullable;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import org.chromium.base.FeatureList;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.flags.MutableFlagWithSafeDefault;
 import org.chromium.chrome.browser.tab.Tab;
 
 import java.lang.annotation.Retention;
@@ -30,8 +30,6 @@ public class TranslateAssistContent {
     public static final String IN_LANGUAGE_KEY = "inLanguage";
     public static final String WORK_TRANSLATION_KEY = "workTranslation";
     public static final String TRANSLATION_OF_WORK_KEY = "translationOfWork";
-    private static final MutableFlagWithSafeDefault sTranslateAssistContentFlag =
-            new MutableFlagWithSafeDefault(ChromeFeatureList.TRANSLATE_ASSIST_CONTENT, false);
 
     /**
      * Represents the result of attempting to attach translate data to AssistContent.
@@ -81,7 +79,8 @@ public class TranslateAssistContent {
      */
     public static @Nullable String getTranslateDataForTab(
             @Nullable Tab tab, boolean isInOverviewMode) {
-        if (!sTranslateAssistContentFlag.isEnabled()) {
+        if (!FeatureList.isInitialized()
+                || !ChromeFeatureList.isEnabled(ChromeFeatureList.TRANSLATE_ASSIST_CONTENT)) {
             recordTranslateAssistContentResultUMA(TranslateAssistContentResult.FEATURE_DISABLED);
             return null;
         } else if (isInOverviewMode) {
@@ -104,8 +103,8 @@ public class TranslateAssistContent {
                 return structuredData.toString();
             }
 
-            String sourceLanguageCode = TranslateBridge.getSourceLanguage(tab);
-            if (TextUtils.isEmpty(sourceLanguageCode)) {
+            String originalLanguageCode = TranslateBridge.getOriginalLanguage(tab);
+            if (TextUtils.isEmpty(originalLanguageCode)) {
                 recordTranslateAssistContentResultUMA(
                         TranslateAssistContentResult.MISSING_ORIGINAL_LANGUAGE);
                 return structuredData.toString();
@@ -121,7 +120,7 @@ public class TranslateAssistContent {
             String targetLanguageCode = TranslateBridge.getTargetLanguage();
 
             structuredData.put(IN_LANGUAGE_KEY, currentLanguageCode);
-            if (currentLanguageCode.equals(sourceLanguageCode)) {
+            if (currentLanguageCode.equals(originalLanguageCode)) {
                 if (!TextUtils.isEmpty(targetLanguageCode)) {
                     structuredData.put(WORK_TRANSLATION_KEY,
                             new JSONObject().put(IN_LANGUAGE_KEY, targetLanguageCode));
@@ -130,7 +129,7 @@ public class TranslateAssistContent {
                         TranslateAssistContentResult.TRANSLATABLE_PAGE);
             } else {
                 structuredData.put(TRANSLATION_OF_WORK_KEY,
-                        new JSONObject().put(IN_LANGUAGE_KEY, sourceLanguageCode));
+                        new JSONObject().put(IN_LANGUAGE_KEY, originalLanguageCode));
                 recordTranslateAssistContentResultUMA(TranslateAssistContentResult.TRANSLATED_PAGE);
             }
             return structuredData.toString();

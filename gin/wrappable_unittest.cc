@@ -1,10 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gin/wrappable.h"
-
 #include "base/check.h"
+#include "base/macros.h"
 #include "gin/arguments.h"
 #include "gin/handle.h"
 #include "gin/object_template_builder.h"
@@ -13,9 +13,6 @@
 #include "gin/test/v8_test.h"
 #include "gin/try_catch.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "v8/include/v8-function.h"
-#include "v8/include/v8-message.h"
-#include "v8/include/v8-script.h"
 
 namespace gin {
 
@@ -30,8 +27,6 @@ void NonMemberMethod() {}
 class BaseClass {
  public:
   BaseClass() : value_(23) {}
-  BaseClass(const BaseClass&) = delete;
-  BaseClass& operator=(const BaseClass&) = delete;
   virtual ~BaseClass() = default;
 
   // So the compiler doesn't complain that |value_| is unused.
@@ -39,14 +34,13 @@ class BaseClass {
 
  private:
   int value_;
+
+  DISALLOW_COPY_AND_ASSIGN(BaseClass);
 };
 
 class MyObject : public BaseClass,
                  public Wrappable<MyObject> {
  public:
-  MyObject(const MyObject&) = delete;
-  MyObject& operator=(const MyObject&) = delete;
-
   static WrapperInfo kWrapperInfo;
 
   static gin::Handle<MyObject> Create(v8::Isolate* isolate) {
@@ -70,6 +64,8 @@ class MyObject : public BaseClass,
 
  private:
   int value_;
+
+  DISALLOW_COPY_AND_ASSIGN(MyObject);
 };
 
 class MyObject2 : public Wrappable<MyObject2> {
@@ -79,9 +75,6 @@ class MyObject2 : public Wrappable<MyObject2> {
 
 class MyNamedObject : public Wrappable<MyNamedObject> {
  public:
-  MyNamedObject(const MyNamedObject&) = delete;
-  MyNamedObject& operator=(const MyNamedObject&) = delete;
-
   static WrapperInfo kWrapperInfo;
 
   static gin::Handle<MyNamedObject> Create(v8::Isolate* isolate) {
@@ -99,6 +92,9 @@ class MyNamedObject : public Wrappable<MyNamedObject> {
   }
   const char* GetTypeName() final { return "MyNamedObject"; }
   ~MyNamedObject() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MyNamedObject);
 };
 
 WrapperInfo MyObject::kWrapperInfo = { kEmbedderNativeGin };
@@ -211,7 +207,7 @@ TEST_F(WrappableTest, MethodInvocationErrorsOnUnnamedObject) {
     v8::Local<v8::Function> func;
     EXPECT_TRUE(ConvertFromV8(isolate, val, &func));
     v8::Local<v8::Value> argv[] = {function_to_run, context_object};
-    func->Call(context, v8::Undefined(isolate), std::size(argv), argv)
+    func->Call(context, v8::Undefined(isolate), base::size(argv), argv)
         .FromMaybe(v8::Local<v8::Value>());
     if (!try_catch.HasCaught())
       return std::string();
@@ -267,7 +263,7 @@ TEST_F(WrappableTest, MethodInvocationErrorsOnNamedObject) {
     v8::Local<v8::Function> func;
     EXPECT_TRUE(ConvertFromV8(isolate, val, &func));
     v8::Local<v8::Value> argv[] = {function_to_run, context_object};
-    func->Call(context, v8::Undefined(isolate), std::size(argv), argv)
+    func->Call(context, v8::Undefined(isolate), base::size(argv), argv)
         .FromMaybe(v8::Local<v8::Value>());
     if (!try_catch.HasCaught())
       return std::string();
@@ -298,10 +294,6 @@ TEST_F(WrappableTest, MethodInvocationErrorsOnNamedObject) {
 class MyObjectWithLazyProperties
     : public Wrappable<MyObjectWithLazyProperties> {
  public:
-  MyObjectWithLazyProperties(const MyObjectWithLazyProperties&) = delete;
-  MyObjectWithLazyProperties& operator=(const MyObjectWithLazyProperties&) =
-      delete;
-
   static WrapperInfo kWrapperInfo;
 
   static gin::Handle<MyObjectWithLazyProperties> Create(v8::Isolate* isolate) {
@@ -330,6 +322,7 @@ class MyObjectWithLazyProperties
   }
 
   int access_count_ = 0;
+  DISALLOW_COPY_AND_ASSIGN(MyObjectWithLazyProperties);
 };
 
 WrapperInfo MyObjectWithLazyProperties::kWrapperInfo = {kEmbedderNativeGin};

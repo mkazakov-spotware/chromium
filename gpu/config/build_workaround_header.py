@@ -1,25 +1,25 @@
-#!/usr/bin/env python3
-# Copyright 2018 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """code generator for gpu workaround definitions"""
 
-import argparse
 import os
+import os.path
 import sys
-import typing
+from optparse import OptionParser
 
-_LICENSE = """// Copyright 2018 The Chromium Authors
+_LICENSE = """// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 """
 
 _DO_NOT_EDIT_WARNING = ("// This file is auto-generated from\n" +
-  "//    //gpu/config/build_workaround_header.py\n" +
+  "//    " + __file__ + "\n" +
   "// DO NOT EDIT!\n\n")
 
-def merge_files_into_workarounds(files: typing.List[str]) -> typing.List[str]:
+def merge_files_into_workarounds(files):
   workarounds = set()
   for filename in files:
     with open(filename, 'r') as f:
@@ -27,7 +27,7 @@ def merge_files_into_workarounds(files: typing.List[str]) -> typing.List[str]:
   return sorted(list(workarounds))
 
 
-def write_header(filename: str, workarounds: typing.List[str]) -> None:
+def write_header(filename, workarounds):
   max_workaround_len = len(max(workarounds, key=len))
 
   with open(filename, 'w') as f:
@@ -50,23 +50,20 @@ def write_header(filename: str, workarounds: typing.List[str]) -> None:
     f.write('// The End\n')
 
 
-def main():
-  parser = argparse.ArgumentParser(
-      description='Generate GPU workaround definitions')
-  parser.add_argument(
+def main(argv):
+  usage = "usage: %prog [options] file1 file2 file3 etc"
+  parser = OptionParser(usage=usage)
+  parser.add_option(
       "--output-file",
+      dest="output_file",
       default="gpu_driver_bug_workaround_autogen.h",
       help="the name of the header file to write")
-  parser.add_argument(
-      'files',
-      nargs='+',
-      help='1 or more files to process')
 
-  args = parser.parse_args()
+  (options, _) = parser.parse_args(args=argv)
 
-  workarounds = merge_files_into_workarounds(args.files)
-  write_header(args.output_file, workarounds)
+  workarounds = merge_files_into_workarounds(parser.largs)
+  write_header(options.output_file, workarounds)
 
 
 if __name__ == '__main__':
-  sys.exit(main())
+  sys.exit(main(sys.argv[1:]))

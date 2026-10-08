@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,12 @@
 // signals the fact that the software keyboard or IME updated the text (and as
 // such that state is reflected in the shared buffer at the time the event is
 // fired).
-
-// Spec draft:
-// https://w3c.github.io/editing/docs/EditContext/index.html#textupdateevent
-
+// Explainer: https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/master/EditContext/explainer.md
 [
     Exposed=Window,
     RuntimeEnabled=EditContext
 ] interface TextUpdateEvent : Event {
-    constructor(DOMString type, optional TextUpdateEventInit options = {});
+    constructor(optional TextUpdateEventInit options = {});
     readonly attribute unsigned long updateRangeStart;
     readonly attribute unsigned long updateRangeEnd;
     readonly attribute DOMString updateText;

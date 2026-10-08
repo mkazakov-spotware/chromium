@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.Callback;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -24,7 +23,6 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.payments.CSPChecker;
 import org.chromium.components.payments.PaymentManifestDownloader;
 import org.chromium.components.payments.PaymentManifestDownloader.ManifestDownloadCallback;
 import org.chromium.net.test.EmbeddedTestServer;
@@ -101,14 +99,7 @@ public class PaymentManifestDownloaderTest implements ManifestDownloadCallback {
         mActivityTestRule.startMainActivityOnBlankPage();
         mServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
         mActivityTestRule.runOnUiThread((Runnable) () -> {
-            mDownloader.initialize(
-                    mActivityTestRule.getActivity().getCurrentWebContents(), new CSPChecker() {
-                        @Override
-                        public void allowConnectToSource(GURL url, GURL urlBeforeRedirects,
-                                boolean didFollowRedirect, Callback<Boolean> resultCallback) {
-                            resultCallback.onResult(/*allow=*/true);
-                        }
-                    });
+            mDownloader.initialize(mActivityTestRule.getActivity().getCurrentWebContents());
             mTestOrigin = PaymentManifestDownloader.createOpaqueOriginForTest();
         });
         mDownloadComplete = false;

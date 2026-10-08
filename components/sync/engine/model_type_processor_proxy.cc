@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ ModelTypeProcessorProxy::ModelTypeProcessorProxy(
     const scoped_refptr<base::SequencedTaskRunner>& task_runner)
     : processor_(processor), task_runner_(task_runner) {}
 
-ModelTypeProcessorProxy::~ModelTypeProcessorProxy() = default;
+ModelTypeProcessorProxy::~ModelTypeProcessorProxy() {}
 
 void ModelTypeProcessorProxy::ConnectSync(std::unique_ptr<CommitQueue> worker) {
   task_runner_->PostTask(
@@ -70,19 +70,10 @@ void ModelTypeProcessorProxy::OnCommitFailed(SyncCommitError commit_error) {
 
 void ModelTypeProcessorProxy::OnUpdateReceived(
     const sync_pb::ModelTypeState& type_state,
-    UpdateResponseDataList updates,
-    absl::optional<sync_pb::GarbageCollectionDirective> gc_directive) {
+    UpdateResponseDataList updates) {
   task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&ModelTypeProcessor::OnUpdateReceived, processor_,
-                     type_state, std::move(updates), std::move(gc_directive)));
-}
-
-void ModelTypeProcessorProxy::StorePendingInvalidations(
-    std::vector<sync_pb::ModelTypeState::Invalidation> invalidations_to_store) {
-  task_runner_->PostTask(
-      FROM_HERE, base::BindOnce(&ModelTypeProcessor::StorePendingInvalidations,
-                                processor_, std::move(invalidations_to_store)));
+      FROM_HERE, base::BindOnce(&ModelTypeProcessor::OnUpdateReceived,
+                                processor_, type_state, std::move(updates)));
 }
 
 }  // namespace syncer

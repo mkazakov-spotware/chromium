@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,21 +15,19 @@
 #include "base/containers/span.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chromeos/printing/ppd_metadata_parser.h"
 #include "chromeos/printing/ppd_provider.h"
 #include "chromeos/printing/printer_config_cache.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace chromeos {
 
@@ -92,7 +90,7 @@ class ForwardIndexSearchContext {
   // forward index metadata for all |emms_|.
   void PostCallback() {
     DCHECK(CurrentEmmIsLast());
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cb_), cb_arg_));
   }
 
@@ -473,7 +471,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     // SetLocaleForTesting() before composition and get this cop-out
     // for free.
     if (!metadata_locale_.empty()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), true));
       return;
     }
@@ -520,7 +518,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
 
     const auto metadata_name = GetPrintersMetadataName(manufacturer);
     if (!metadata_name.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), false, ParsedPrinters{}));
       return;
     }
@@ -567,7 +565,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     // obviously out of range.
     if (vendor_id < 0 || vendor_id > kSixteenBitsMaximum || product_id < 0 ||
         product_id > kSixteenBitsMaximum) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), std::string()));
       return;
     }
@@ -705,13 +703,13 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     if (!result.succeeded) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), false));
       return;
     }
     const auto parsed = ParseLocales(result.contents);
     if (!parsed.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), false));
       return;
     }
@@ -719,7 +717,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     // SetMetadataLocale() _can_ fail, but that would be an
     // extraordinarily bad thing - i.e. that the Chrome OS Printing
     // serving root is itself in an invalid state.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(cb), SetMetadataLocale(parsed.value())));
   }
@@ -739,7 +737,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
       manufacturers_for_cb.push_back(iter.first);
     }
     std::sort(manufacturers_for_cb.begin(), manufacturers_for_cb.end());
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(cb), PpdProvider::CallbackResultCode::SUCCESS,
                        manufacturers_for_cb));
@@ -755,7 +753,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     if (!result.succeeded) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(cb),
                          PpdProvider::CallbackResultCode::SERVER_ERROR,
@@ -765,7 +763,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
 
     const auto parsed = ParseManufacturers(result.contents);
     if (!parsed.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(cb),
                          PpdProvider::CallbackResultCode::INTERNAL_ERROR,
@@ -782,7 +780,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
   // Called by GetPrinters().
   // Returns the known name for the Printers metadata named by
   // |manufacturer|.
-  absl::optional<std::string> GetPrintersMetadataName(
+  base::Optional<std::string> GetPrintersMetadataName(
       base::StringPiece manufacturer) {
     PpdMetadataPathSpecifier manufacturers_path(
         PpdMetadataPathSpecifier::Type::kManufacturers);
@@ -792,14 +790,14 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     if (!cached_manufacturers_.contains(manufacturers_metadata_name)) {
       // This is likely a bug: we don't have the expected manufacturers
       // metadata.
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     const ParsedMetadataWithTimestamp<ParsedManufacturers>& manufacturers =
         cached_manufacturers_.at(manufacturers_metadata_name);
     if (!manufacturers.value.contains(manufacturer)) {
       // This is likely a bug: we don't know about this manufacturer.
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     PpdMetadataPathSpecifier printers_path(
@@ -818,7 +816,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
   void OnPrintersAvailable(base::StringPiece metadata_name,
                            GetPrintersCallback cb) {
     const auto& parsed_printers = cached_printers_.at(metadata_name);
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cb), true, parsed_printers.value));
   }
 
@@ -832,14 +830,14 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     if (!result.succeeded) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), false, ParsedPrinters{}));
       return;
     }
 
     const auto parsed = ParsePrinters(result.contents);
     if (!parsed.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), false, ParsedPrinters{}));
       return;
     }
@@ -973,7 +971,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
       effective_make_and_model = iter->second;
     }
 
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(cb), std::move(effective_make_and_model)));
   }
@@ -988,15 +986,15 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
                          FindDeviceInUsbIndexCallback cb,
                          const PrinterConfigCache::FetchResult& fetch_result) {
     if (!fetch_result.succeeded) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), std::string()));
       return;
     }
 
-    absl::optional<ParsedUsbIndex> parsed =
+    base::Optional<ParsedUsbIndex> parsed =
         ParseUsbIndex(fetch_result.contents);
     if (!parsed.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), std::string()));
       return;
     }
@@ -1027,7 +1025,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
       manufacturer_name = iter->second;
     }
 
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cb), manufacturer_name));
   }
 
@@ -1046,15 +1044,15 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
       GetUsbManufacturerNameCallback cb,
       const PrinterConfigCache::FetchResult& fetch_result) {
     if (!fetch_result.succeeded) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), std::string()));
       return;
     }
 
-    const absl::optional<ParsedUsbVendorIdMap> parsed =
+    const base::Optional<ParsedUsbVendorIdMap> parsed =
         ParseUsbVendorIdMap(fetch_result.contents);
     if (!parsed.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(std::move(cb), std::string()));
       return;
     }
@@ -1082,7 +1080,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     // We expect this reverse index shard to contain the decomposition
     // for |effective_make_and_model|.
     if (!parsed_reverse_index.value.contains(effective_make_and_model)) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(cb),
                          PpdProvider::CallbackResultCode::NOT_FOUND, "", ""));
@@ -1092,7 +1090,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     const ReverseIndexLeaf& leaf =
         parsed_reverse_index.value.at(effective_make_and_model);
 
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(cb), PpdProvider::CallbackResultCode::SUCCESS,
                        leaf.manufacturer, leaf.model));
@@ -1109,7 +1107,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     if (!result.succeeded) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(cb),
                          PpdProvider::CallbackResultCode::SERVER_ERROR, "",
@@ -1119,7 +1117,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
 
     const auto parsed = ParseReverseIndex(result.contents);
     if (!parsed.has_value()) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      base::SequencedTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(cb),
                          PpdProvider::CallbackResultCode::INTERNAL_ERROR, "",
@@ -1135,7 +1133,7 @@ class PpdMetadataManagerImpl : public PpdMetadataManager {
   }
 
   const std::string browser_locale_;
-  raw_ptr<const base::Clock> clock_;
+  const base::Clock* clock_;
 
   // The closest match to |browser_locale_| for which the serving root
   // claims to serve metadata.

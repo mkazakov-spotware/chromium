@@ -22,15 +22,13 @@
 #include "third_party/blink/renderer/core/svg/svg_graphics_element.h"
 
 #include "third_party/blink/renderer/core/css/style_change_reason.h"
-#include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_transform_list.h"
 #include "third_party/blink/renderer/core/svg/svg_element_rare_data.h"
 #include "third_party/blink/renderer/core/svg/svg_matrix_tear_off.h"
 #include "third_party/blink/renderer/core/svg/svg_rect_tear_off.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/transforms/affine_transform.h"
 
 namespace blink {
@@ -73,7 +71,7 @@ AffineTransform SVGGraphicsElement::ComputeCTM(
     if (!svg_element)
       break;
 
-    ctm = svg_element->LocalCoordinateSpaceTransform(mode).PreConcat(ctm);
+    ctm = svg_element->LocalCoordinateSpaceTransform(mode).Multiply(ctm);
 
     switch (mode) {
       case kNearestViewportScope:
@@ -129,9 +127,7 @@ AffineTransform* SVGGraphicsElement::AnimateMotionTransform() {
   return EnsureSVGRareData()->AnimateMotionTransform();
 }
 
-void SVGGraphicsElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGGraphicsElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   // Reattach so the isValid() check will be run again during layoutObject
   // creation.
   if (SVGTests::IsKnownAttribute(attr_name)) {
@@ -149,10 +145,12 @@ void SVGGraphicsElement::SvgAttributeChanged(
     // away with removing the InvalidationGuard?
     SetNeedsStyleRecalc(kLocalStyleChange,
                         StyleChangeReasonForTracing::FromAttribute(attr_name));
+    if (LayoutObject* object = GetLayoutObject())
+      MarkForLayoutAndParentResourceInvalidation(*object);
     return;
   }
 
-  SVGElement::SvgAttributeChanged(params);
+  SVGElement::SvgAttributeChanged(attr_name);
 }
 
 SVGElement* SVGGraphicsElement::nearestViewportElement() const {
@@ -175,24 +173,19 @@ SVGElement* SVGGraphicsElement::farthestViewportElement() const {
   return farthest;
 }
 
-gfx::RectF SVGGraphicsElement::GetBBox() {
+FloatRect SVGGraphicsElement::GetBBox() {
   DCHECK(GetLayoutObject());
   return GetLayoutObject()->ObjectBoundingBox();
 }
 
 SVGRectTearOff* SVGGraphicsElement::getBBoxFromJavascript() {
-  GetDocument().UpdateStyleAndLayoutForNode(this,
-                                            DocumentUpdateReason::kJavaScript);
+  GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kJavaScript);
 
   // FIXME: Eventually we should support getBBox for detached elements.
-  gfx::RectF bounding_box;
-  if (const auto* layout_object = GetLayoutObject()) {
-    bounding_box = GetBBox();
-
-    if (layout_object->IsSVGText() || layout_object->IsSVGInline())
-      UseCounter::Count(GetDocument(), WebFeature::kGetBBoxForText);
-  }
-  return SVGRectTearOff::CreateDetached(bounding_box);
+  FloatRect boundingBox;
+  if (GetLayoutObject())
+    boundingBox = GetBBox();
+  return SVGRectTearOff::CreateDetached(boundingBox);
 }
 
 }  // namespace blink

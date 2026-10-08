@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,17 @@
 #include <atlsecurity.h>
 #include <sddl.h>
 
-#include <string>
 #include <type_traits>
 
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/logging.h"
-#include "base/no_destructor.h"
-#include "base/process/launch.h"
-#include "base/task/single_thread_task_executor.h"
+#include "base/stl_util.h"
 #include "base/win/scoped_com_initializer.h"
 #include "chrome/updater/app/server/win/com_classes.h"
 #include "chrome/updater/app/server/win/com_classes_legacy.h"
 #include "chrome/updater/app/server/win/server.h"
-#include "chrome/updater/constants.h"
-#include "chrome/updater/util/win_util.h"
-#include "chrome/updater/win/win_constants.h"
+#include "chrome/updater/win/constants.h"
+#include "chrome/updater/win/wrl_module.h"
 
 namespace updater {
 
@@ -32,32 +27,17 @@ namespace {
 // debugging purposes.
 constexpr char kConsoleSwitchName[] = "console";
 
-bool IsInternalService() {
-  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-             kServerServiceSwitch) == kServerUpdateServiceInternalSwitchValue;
-}
-
-HRESULT RunWakeTask() {
-  base::CommandLine run_updater_wake_command(
-      base::CommandLine::ForCurrentProcess()->GetProgram());
-  run_updater_wake_command.AppendSwitch(kWakeSwitch);
-  run_updater_wake_command.AppendSwitch(kSystemSwitch);
-  run_updater_wake_command.AppendSwitch(kEnableLoggingSwitch);
-  run_updater_wake_command.AppendSwitchASCII(kLoggingModuleSwitch,
-                                             kLoggingModuleSwitchValue);
-  VLOG(2) << "Launching Wake command: "
-          << run_updater_wake_command.GetCommandLineString();
-
-  base::LaunchOptions options;
-  options.start_hidden = true;
-  const base::Process process =
-      base::LaunchProcess(run_updater_wake_command, options);
-  return process.IsValid() ? S_OK : HRESULTFromLastError();
-}
-
 }  // namespace
 
-int ServiceMain::RunWindowsService(const base::CommandLine* command_line) {
+int ServiceMain::RunComService(const base::CommandLine* command_line) {
+  base::win::ScopedCOMInitializer com_initializer(
+      base::win::ScopedCOMInitializer::kMTA);
+  if (!com_initializer.Succeeded()) {
+    LOG(ERROR) << "Failed to initialize COM";
+    return CO_E_INITIALIZATIONFAILED;
+  }
+
+  // Run the COM service.
   ServiceMain* service = ServiceMain::GetInstance();
   if (!service->InitWithCommandLine(command_line))
     return ERROR_BAD_ARGUMENTS;
@@ -91,7 +71,9 @@ int ServiceMain::Start() {
   return (this->*run_routine_)();
 }
 
-ServiceMain::ServiceMain() {
+ServiceMain::ServiceMain()
+    : exit_signal_(base::WaitableEvent::ResetPolicy::MANUAL,
+                   base::WaitableEvent::InitialState::NOT_SIGNALED) {
   service_status_.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
   service_status_.dwCurrentState = SERVICE_STOPPED;
   service_status_.dwControlsAccepted = SERVICE_ACCEPT_STOP;
@@ -99,11 +81,65 @@ ServiceMain::ServiceMain() {
 
 ServiceMain::~ServiceMain() = default;
 
+void ServiceMain::CreateWRLModule() {
+  Microsoft::WRL::Module<Microsoft::WRL::OutOfProc>::Create(
+      this, &ServiceMain::SignalExit);
+}
+
+// When _ServiceMain gets called, it initializes COM, and then calls Run().
+// Run() initializes security, then calls RegisterClassObject().
+HRESULT ServiceMain::RegisterClassObject() {
+  auto& module = Microsoft::WRL::Module<Microsoft::WRL::OutOfProc>::GetModule();
+
+  Microsoft::WRL::ComPtr<IUnknown> factory;
+  unsigned int flags = Microsoft::WRL::ModuleType::OutOfProc;
+
+  HRESULT hr = Microsoft::WRL::Details::CreateClassFactory<
+      Microsoft::WRL::SimpleClassFactory<UpdaterImpl>>(
+      &flags, nullptr, __uuidof(IClassFactory), &factory);
+  if (FAILED(hr)) {
+    LOG(ERROR) << "Factory creation failed; hr: " << hr;
+    return hr;
+  }
+
+  Microsoft::WRL::ComPtr<IClassFactory> class_factory;
+  hr = factory.As(&class_factory);
+  if (FAILED(hr)) {
+    LOG(ERROR) << "IClassFactory object creation failed; hr: " << hr;
+    return hr;
+  }
+
+  // The pointer in this array is unowned. Do not release it.
+  IClassFactory* class_factories[] = {class_factory.Get()};
+  static_assert(
+      std::extent<decltype(cookies_)>() == base::size(class_factories),
+      "Arrays cookies_ and class_factories must be the same size.");
+
+  IID class_ids[] = {__uuidof(UpdaterClass)};
+  DCHECK_EQ(base::size(cookies_), base::size(class_ids));
+  static_assert(std::extent<decltype(cookies_)>() == base::size(class_ids),
+                "Arrays cookies_ and class_ids must be the same size.");
+
+  hr = module.RegisterCOMObject(nullptr, class_ids, class_factories, cookies_,
+                                base::size(cookies_));
+  if (FAILED(hr)) {
+    LOG(ERROR) << "RegisterCOMObject failed; hr: " << hr;
+    return hr;
+  }
+
+  return hr;
+}
+
+void ServiceMain::UnregisterClassObject() {
+  auto& module = Microsoft::WRL::Module<Microsoft::WRL::OutOfProc>::GetModule();
+  const HRESULT hr =
+      module.UnregisterCOMObject(nullptr, cookies_, base::size(cookies_));
+  LOG_IF(ERROR, FAILED(hr)) << "UnregisterCOMObject failed; hr: " << hr;
+}
+
 int ServiceMain::RunAsService() {
-  const std::wstring service_name = GetServiceName(IsInternalService());
-  const SERVICE_TABLE_ENTRY dispatch_table[] = {
-      {const_cast<LPTSTR>(service_name.c_str()),
-       &ServiceMain::ServiceMainEntry},
+  static constexpr SERVICE_TABLE_ENTRY dispatch_table[] = {
+      {const_cast<LPTSTR>(kWindowsServiceName), &ServiceMain::ServiceMainEntry},
       {nullptr, nullptr}};
 
   if (!::StartServiceCtrlDispatcher(dispatch_table)) {
@@ -114,20 +150,31 @@ int ServiceMain::RunAsService() {
   return service_status_.dwWin32ExitCode;
 }
 
-void ServiceMain::ServiceMainImpl(const base::CommandLine& command_line) {
-  service_status_handle_ =
-      ::RegisterServiceCtrlHandler(GetServiceName(IsInternalService()).c_str(),
-                                   &ServiceMain::ServiceControlHandler);
+void ServiceMain::ServiceMainImpl() {
+  service_status_handle_ = ::RegisterServiceCtrlHandler(
+      kWindowsServiceName, &ServiceMain::ServiceControlHandler);
   if (service_status_handle_ == nullptr) {
     PLOG(ERROR) << "RegisterServiceCtrlHandler failed";
     return;
   }
   SetServiceStatus(SERVICE_RUNNING);
 
+  service_status_.dwWin32ExitCode = ERROR_SUCCESS;
+  service_status_.dwCheckPoint = 0;
+  service_status_.dwWaitHint = 0;
+
+  // Initialize COM for the current thread.
+  base::win::ScopedCOMInitializer com_initializer(
+      base::win::ScopedCOMInitializer::kMTA);
+  if (!com_initializer.Succeeded()) {
+    LOG(ERROR) << "Failed to initialize COM";
+    SetServiceStatus(SERVICE_STOPPED);
+    return;
+  }
+
   // When the Run function returns, the service has stopped.
-  // `hr` can be either a HRESULT or a Windows error code.
-  const HRESULT hr = Run(command_line);
-  if (hr != S_OK) {
+  const HRESULT hr = Run();
+  if (FAILED(hr)) {
     service_status_.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     service_status_.dwServiceSpecificExitCode = hr;
   }
@@ -136,7 +183,7 @@ void ServiceMain::ServiceMainImpl(const base::CommandLine& command_line) {
 }
 
 int ServiceMain::RunInteractive() {
-  return RunCOMServer();
+  return Run();
 }
 
 // static
@@ -145,7 +192,7 @@ void ServiceMain::ServiceControlHandler(DWORD control) {
   switch (control) {
     case SERVICE_CONTROL_STOP:
       self->SetServiceStatus(SERVICE_STOP_PENDING);
-      AppServerSingletonInstance()->Stop();
+      self->SignalExit();
       break;
 
     default:
@@ -154,42 +201,28 @@ void ServiceMain::ServiceControlHandler(DWORD control) {
 }
 
 // static
-void WINAPI ServiceMain::ServiceMainEntry(DWORD argc, wchar_t* argv[]) {
-  ServiceMain::GetInstance()->ServiceMainImpl(base::CommandLine(argc, argv));
+void WINAPI ServiceMain::ServiceMainEntry(DWORD argc, base::char16* argv[]) {
+  ServiceMain::GetInstance()->ServiceMainImpl();
 }
 
 void ServiceMain::SetServiceStatus(DWORD state) {
-  ::InterlockedExchange(&service_status_.dwCurrentState, state);
+  service_status_.dwCurrentState = state;
   ::SetServiceStatus(service_status_handle_, &service_status_);
 }
 
-HRESULT ServiceMain::Run(const base::CommandLine& command_line) {
-  if (command_line.HasSwitch(kComServiceSwitch)) {
-    VLOG(2) << "Running COM server within the Windows Service";
-    return RunCOMServer();
-  }
-
-  VLOG(2) << "Running Wake task from the Windows Service";
-  return RunWakeTask();
-}
-
-HRESULT ServiceMain::RunCOMServer() {
-  base::SingleThreadTaskExecutor service_task_executor(
-      base::MessagePumpType::UI);
-
-  // Initialize COM for the current thread.
-  base::win::ScopedCOMInitializer com_initializer(
-      base::win::ScopedCOMInitializer::kMTA);
-  if (!com_initializer.Succeeded()) {
-    LOG(ERROR) << "Failed to initialize COM";
-    return CO_E_INITIALIZATIONFAILED;
-  }
-
+HRESULT ServiceMain::Run() {
   HRESULT hr = InitializeComSecurity();
   if (FAILED(hr))
     return hr;
 
-  return AppServerSingletonInstance()->Run();
+  CreateWRLModule();
+  hr = RegisterClassObject();
+  if (SUCCEEDED(hr)) {
+    WaitForExitSignal();
+    UnregisterClassObject();
+  }
+
+  return hr;
 }
 
 // static
@@ -197,11 +230,9 @@ HRESULT ServiceMain::InitializeComSecurity() {
   CDacl dacl;
   constexpr auto com_rights_execute_local =
       COM_RIGHTS_EXECUTE | COM_RIGHTS_EXECUTE_LOCAL;
-  if (!dacl.AddAllowedAce(Sids::System(), com_rights_execute_local) ||
-      !dacl.AddAllowedAce(Sids::Admins(), com_rights_execute_local) ||
-      !dacl.AddAllowedAce(Sids::Interactive(), com_rights_execute_local)) {
-    return E_ACCESSDENIED;
-  }
+  dacl.AddAllowedAce(Sids::System(), com_rights_execute_local);
+  dacl.AddAllowedAce(Sids::Admins(), com_rights_execute_local);
+  dacl.AddAllowedAce(Sids::Interactive(), com_rights_execute_local);
 
   CSecurityDesc sd;
   sd.SetDacl(dacl);
@@ -209,30 +240,18 @@ HRESULT ServiceMain::InitializeComSecurity() {
   sd.SetOwner(Sids::Admins());
   sd.SetGroup(Sids::Admins());
 
-  // These are the flags being set:
-  // EOAC_DYNAMIC_CLOAKING: DCOM uses the thread token (if present) when
-  //   determining the client's identity. Useful when impersonating another
-  //   user.
-  // EOAC_SECURE_REFS: Authenticates distributed reference count calls to
-  //   prevent malicious users from releasing objects that are still being used.
-  // EOAC_DISABLE_AAA: Causes any activation where a server process would be
-  //   launched under the caller's identity (activate-as-activator) to fail with
-  //   E_ACCESSDENIED.
-  // EOAC_NO_CUSTOM_MARSHAL: reduces the chances of executing arbitrary DLLs
-  //   because it allows the marshaling of only CLSIDs that are implemented in
-  //   Ole32.dll, ComAdmin.dll, ComSvcs.dll, or Es.dll, or that implement the
-  //   CATID_MARSHALER category ID.
-  // RPC_C_AUTHN_LEVEL_PKT_PRIVACY: prevents replay attacks, verifies that none
-  //   of the data transferred between the client and server has been modified,
-  //   ensures that the data transferred can only be seen unencrypted by the
-  //   client and the server.
   return ::CoInitializeSecurity(
       const_cast<SECURITY_DESCRIPTOR*>(sd.GetPSECURITY_DESCRIPTOR()), -1,
       nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IDENTIFY,
-      nullptr,
-      EOAC_DYNAMIC_CLOAKING | EOAC_DISABLE_AAA | EOAC_SECURE_REFS |
-          EOAC_NO_CUSTOM_MARSHAL,
-      nullptr);
+      nullptr, EOAC_DYNAMIC_CLOAKING | EOAC_NO_CUSTOM_MARSHAL, nullptr);
+}
+
+void ServiceMain::WaitForExitSignal() {
+  exit_signal_.Wait();
+}
+
+void ServiceMain::SignalExit() {
+  exit_signal_.Signal();
 }
 
 }  // namespace updater

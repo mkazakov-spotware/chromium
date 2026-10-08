@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/containers/flat_map.h"
 #include "ui/display/types/native_display_observer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/ozone/demo/renderer_factory.h"
@@ -28,10 +29,6 @@ class WindowManager : public display::NativeDisplayObserver {
  public:
   explicit WindowManager(std::unique_ptr<RendererFactory> renderer_factory,
                          base::OnceClosure quit_closure);
-
-  WindowManager(const WindowManager&) = delete;
-  WindowManager& operator=(const WindowManager&) = delete;
-
   ~WindowManager() override;
 
   void Quit();
@@ -44,7 +41,7 @@ class WindowManager : public display::NativeDisplayObserver {
       const std::vector<display::DisplaySnapshot*>& displays);
   void OnDisplayConfigured(const int64_t display_id,
                            const gfx::Rect& bounds,
-                           bool config_success);
+                           const base::flat_map<int64_t, bool>& statuses);
 
   // display::NativeDisplayDelegate:
   void OnConfigurationChanged() override;
@@ -65,6 +62,8 @@ class WindowManager : public display::NativeDisplayObserver {
   // happens, the event is deferred. This is set to true and a display
   // configuration will be scheduled after the current one finishes.
   bool should_configure_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowManager);
 };
 
 }  // namespace ui

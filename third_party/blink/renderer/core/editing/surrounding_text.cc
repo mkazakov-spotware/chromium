@@ -51,15 +51,14 @@ EphemeralRange ComputeRangeFromFrameSelection(LocalFrame* frame) {
 
 }  // namespace
 
-SurroundingText::SurroundingText(LocalFrame* frame, wtf_size_t max_length)
+SurroundingText::SurroundingText(LocalFrame* frame, size_t max_length)
     : SurroundingText(ComputeRangeFromFrameSelection(frame), max_length) {}
 
-SurroundingText::SurroundingText(const EphemeralRange& range,
-                                 wtf_size_t max_length)
+SurroundingText::SurroundingText(const EphemeralRange& range, size_t max_length)
     : start_offset_in_text_content_(0), end_offset_in_text_content_(0) {
   const Position start_position = range.StartPosition();
   const Position end_position = range.EndPosition();
-  const wtf_size_t half_max_length = max_length / 2;
+  const unsigned half_max_length = max_length / 2;
 
   Document* document = start_position.GetDocument();
 
@@ -99,10 +98,7 @@ SurroundingText::SurroundingText(const EphemeralRange& range,
       EphemeralRange(Position::FirstPositionInNode(*root_element)
                          .ParentAnchoredEquivalent(),
                      start_position),
-      TextIteratorBehavior::Builder()
-          .SetStopsOnFormControls(true)
-          .SetEmitsPunctuationForReplacedElements(true)
-          .Build());
+      TextIteratorBehavior::Builder().SetStopsOnFormControls(true).Build());
   if (!backwards_iterator.AtEnd())
     backwards_iterator.Advance(half_max_length);
 
@@ -130,16 +126,16 @@ String SurroundingText::TextContent() const {
   return text_content_;
 }
 
-wtf_size_t SurroundingText::StartOffsetInTextContent() const {
+size_t SurroundingText::StartOffsetInTextContent() const {
   return start_offset_in_text_content_;
 }
 
-wtf_size_t SurroundingText::EndOffsetInTextContent() const {
+size_t SurroundingText::EndOffsetInTextContent() const {
   return end_offset_in_text_content_;
 }
 
 bool SurroundingText::IsEmpty() const {
-  return text_content_.empty();
+  return text_content_.IsEmpty();
 }
 
 }  // namespace blink

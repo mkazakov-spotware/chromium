@@ -23,19 +23,16 @@
 
 #include "third_party/blink/renderer/core/style/style_generated_image.h"
 
-#include "third_party/blink/renderer/core/css/css_gradient_value.h"
 #include "third_party/blink/renderer/core/css/css_image_generator_value.h"
-#include "third_party/blink/renderer/core/css/css_paint_value.h"
+#include "third_party/blink/renderer/platform/geometry/float_size.h"
 #include "third_party/blink/renderer/platform/geometry/layout_size.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
-#include "ui/gfx/geometry/size_f.h"
 
 namespace blink {
 
-StyleGeneratedImage::StyleGeneratedImage(const CSSImageGeneratorValue& value,
-                                         const ContainerSizes& container_sizes)
+StyleGeneratedImage::StyleGeneratedImage(const CSSImageGeneratorValue& value)
     : image_generator_value_(const_cast<CSSImageGeneratorValue*>(&value)),
-      container_sizes_(container_sizes) {
+      fixed_size_(image_generator_value_->IsFixedSize()) {
   is_generated_image_ = true;
   if (value.IsPaintValue())
     is_paint_image_ = true;
@@ -45,8 +42,6 @@ bool StyleGeneratedImage::IsEqual(const StyleImage& other) const {
   if (!other.IsGeneratedImage())
     return false;
   const auto& other_generated = To<StyleGeneratedImage>(other);
-  if (!container_sizes_.SizesEqual(other_generated.container_sizes_))
-    return false;
   return image_generator_value_ == other_generated.image_generator_value_;
 }
 
@@ -57,17 +52,21 @@ CSSValue* StyleGeneratedImage::CssValue() const {
 CSSValue* StyleGeneratedImage::ComputedCSSValue(
     const ComputedStyle& style,
     bool allow_visited_style) const {
-  if (auto* image_gradient_value =
-          DynamicTo<cssvalue::CSSGradientValue>(image_generator_value_.Get())) {
-    return image_gradient_value->ComputedCSSValue(style, allow_visited_style);
-  }
-  DCHECK(IsA<CSSPaintValue>(image_generator_value_.Get()));
-  return image_generator_value_;
+  return image_generator_value_->ComputedCSSValue(style, allow_visited_style);
 }
 
-gfx::SizeF StyleGeneratedImage::ImageSize(float multiplier,
-                                          const gfx::SizeF& default_object_size,
-                                          RespectImageOrientationEnum) const {
+FloatSize StyleGeneratedImage::ImageSize(const Document& document,
+                                         float multiplier,
+                                         const FloatSize& default_object_size,
+                                         RespectImageOrientationEnum) const {
+  if (fixed_size_) {
+    FloatSize unzoomed_default_object_size = default_object_size;
+    unzoomed_default_object_size.Scale(1 / multiplier);
+    return ApplyZoom(FloatSize(image_generator_value_->FixedSize(
+                         document, unzoomed_default_object_size)),
+                     multiplier);
+  }
+
   return default_object_size;
 }
 
@@ -86,17 +85,13 @@ bool StyleGeneratedImage::IsUsingCustomProperty(
                                                        document);
 }
 
-bool StyleGeneratedImage::IsUsingCurrentColor() const {
-  return image_generator_value_->IsUsingCurrentColor();
-}
-
 scoped_refptr<Image> StyleGeneratedImage::GetImage(
     const ImageResourceObserver& observer,
     const Document& document,
     const ComputedStyle& style,
-    const gfx::SizeF& target_size) const {
+    const FloatSize& target_size) const {
   return image_generator_value_->GetImage(observer, document, style,
-                                          container_sizes_, target_size);
+                                          target_size);
 }
 
 bool StyleGeneratedImage::KnownToBeOpaque(const Document& document,
@@ -106,7 +101,6 @@ bool StyleGeneratedImage::KnownToBeOpaque(const Document& document,
 
 void StyleGeneratedImage::Trace(Visitor* visitor) const {
   visitor->Trace(image_generator_value_);
-  visitor->Trace(container_sizes_);
   StyleImage::Trace(visitor);
 }
 

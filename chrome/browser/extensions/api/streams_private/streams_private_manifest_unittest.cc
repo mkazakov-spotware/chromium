@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ TEST_F(StreamsPrivateManifestTest, ValidMimeTypesHandlerMIMETypes) {
 
   ASSERT_TRUE(extension.get());
   MimeTypesHandler* handler = MimeTypesHandler::GetHandler(extension.get());
-  ASSERT_TRUE(handler != nullptr);
+  ASSERT_TRUE(handler != NULL);
 
   EXPECT_FALSE(handler->CanHandleMIMEType("text/html"));
   EXPECT_TRUE(handler->CanHandleMIMEType("text/plain"));
@@ -63,7 +63,7 @@ TEST_F(StreamsPrivateManifestTest, MimeTypesHandlerMIMETypesNotAllowlisted) {
   ASSERT_TRUE(extension.get());
 
   MimeTypesHandler* handler = MimeTypesHandler::GetHandler(extension.get());
-  ASSERT_TRUE(handler == nullptr);
+  ASSERT_TRUE(handler == NULL);
 }
 
 }  // namespace

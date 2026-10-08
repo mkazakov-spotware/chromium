@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,9 @@
 
 #import <Foundation/Foundation.h>
 
+// Vertical offset from the top, to center search bar and cancel button in the
+// header.
+extern const float kTableViewNavigationVerticalOffsetForSearchHeader;
 // The Alpha value used by the SearchBar when disabled.
 extern const float kTableViewNavigationAlphaForDisabledSearchBar;
 // The duration for scrim to fade in or out.

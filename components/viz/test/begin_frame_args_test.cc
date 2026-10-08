@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/test/begin_frame_args_test.h"
 
 #include <stdint.h>
-#include <ostream>
 
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
@@ -43,9 +42,9 @@ BeginFrameArgs CreateBeginFrameArgsForTesting(
     int64_t interval) {
   return BeginFrameArgs::Create(
       location, source_id, sequence_number,
-      base::TimeTicks() + base::Microseconds(frame_time),
-      base::TimeTicks() + base::Microseconds(deadline),
-      base::Microseconds(interval), BeginFrameArgs::NORMAL);
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(frame_time),
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(deadline),
+      base::TimeDelta::FromMicroseconds(interval), BeginFrameArgs::NORMAL);
 }
 
 BeginFrameArgs CreateBeginFrameArgsForTesting(
@@ -58,9 +57,9 @@ BeginFrameArgs CreateBeginFrameArgsForTesting(
     BeginFrameArgs::BeginFrameArgsType type) {
   return BeginFrameArgs::Create(
       location, source_id, sequence_number,
-      base::TimeTicks() + base::Microseconds(frame_time),
-      base::TimeTicks() + base::Microseconds(deadline),
-      base::Microseconds(interval), type);
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(frame_time),
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(deadline),
+      base::TimeDelta::FromMicroseconds(interval), type);
 }
 
 BeginFrameArgs CreateBeginFrameArgsForTesting(
@@ -80,8 +79,7 @@ BeginFrameArgs CreateBeginFrameArgsForTesting(
 bool operator==(const BeginFrameArgs& lhs, const BeginFrameArgs& rhs) {
   return (lhs.type == rhs.type) && (lhs.frame_id == rhs.frame_id) &&
          (lhs.frame_time == rhs.frame_time) && (lhs.deadline == rhs.deadline) &&
-         (lhs.interval == rhs.interval) &&
-         (lhs.frames_throttled_since_last == rhs.frames_throttled_since_last);
+         (lhs.interval == rhs.interval);
 }
 
 ::std::ostream& operator<<(::std::ostream& os, const BeginFrameArgs& args) {
@@ -94,8 +92,7 @@ void PrintTo(const BeginFrameArgs& args, ::std::ostream* os) {
       << args.frame_id.source_id << ", " << args.frame_id.sequence_number
       << ", " << args.frame_time.since_origin().InMicroseconds() << ", "
       << args.deadline.since_origin().InMicroseconds() << ", "
-      << args.interval.InMicroseconds() << "us, "
-      << args.frames_throttled_since_last << ")";
+      << args.interval.InMicroseconds() << "us)";
 }
 
 bool operator==(const BeginFrameAck& lhs, const BeginFrameAck& rhs) {

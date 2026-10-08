@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -104,6 +104,13 @@ bool ReadRegistryValue(const RegKeyPath& key_path,
                        std::wstring* content,
                        uint32_t* content_type,
                        RegistryError* error);
+
+// Write a registry value of type REG_SZ, REG_EXPAND_SZ or REG_MULTI_SZ. Return
+// false on failure.
+bool WriteRegistryValue(const wchar_t* value_name,
+                        const std::wstring& content,
+                        uint32_t content_type,
+                        base::win::RegKey* reg_key);
 
 // Return a string representation of a potentially non-string registry type
 // value. For string types, |raw_content| is simply copied into |content|, so

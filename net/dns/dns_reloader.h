@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_OPENBSD)
+#if defined(OS_POSIX) && !defined(OS_APPLE) && !defined(OS_OPENBSD)
 namespace net {
 
 // Call on the network thread before calling DnsReloaderMaybeReload() anywhere.
@@ -18,6 +18,6 @@ void EnsureDnsReloaderInit();
 void DnsReloaderMaybeReload();
 
 }  // namespace net
-#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_OPENBSD)
+#endif  // defined(OS_POSIX) && !defined(OS_APPLE) && !defined(OS_OPENBSD)
 
 #endif  // NET_DNS_DNS_RELOADER_H_

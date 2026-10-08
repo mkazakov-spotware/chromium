@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,8 @@
 #include "remoting/protocol/session_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -27,10 +28,6 @@ const uint8_t kDummyAudioData = 0x8B;
 class FakeAudioConsumer : public AudioStub {
  public:
   FakeAudioConsumer() {}
-
-  FakeAudioConsumer(const FakeAudioConsumer&) = delete;
-  FakeAudioConsumer& operator=(const FakeAudioConsumer&) = delete;
-
   ~FakeAudioConsumer() override = default;
 
   base::WeakPtr<FakeAudioConsumer> GetWeakPtr(){
@@ -46,6 +43,8 @@ class FakeAudioConsumer : public AudioStub {
 
  private:
   base::WeakPtrFactory<FakeAudioConsumer> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeAudioConsumer);
 };
 
 }  // namespace
@@ -123,8 +122,9 @@ TEST_F(AudioDecodeSchedulerTest, Shutdown) {
 
   audio_scheduler.reset();
   audio_consumer.reset();
-  // TODO(nicholss): This test does not really test anything. Add a way to get a
-  // count of the calls to AddAudioPacket.
+  // TODO(nicholss): This test does not really test anything. Add a way to get
+  // a count of the calls to AddAudioPacket.
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

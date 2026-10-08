@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 #include <algorithm>
 #include <cmath>
 
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 
 namespace blink {
 
 namespace {
 
-// Minimum and maximum viewport scale factors. The min value is
-// additionally clamped by kMinViewportScale in xr_view.cc.
+// Minimum and maximum viewport scale factors.
 constexpr float kMinScale = 0.25f;
 constexpr float kMaxScale = 1.0f;
 
@@ -49,8 +48,8 @@ void XRSessionViewportScaler::ResetLoad() {
 }
 
 void XRSessionViewportScaler::UpdateRenderingTimeRatio(float new_value) {
-  gpu_load_ += base::clamp(kLoadDecay * (new_value - gpu_load_), -kMaxChange,
-                           kMaxChange);
+  gpu_load_ += base::ClampToRange(kLoadDecay * (new_value - gpu_load_),
+                                  -kMaxChange, kMaxChange);
   float old_scale = scale_;
   if (gpu_load_ > kLoadHigh && scale_ > kMinScale) {
     scale_ *= kScaleStep;
@@ -59,7 +58,7 @@ void XRSessionViewportScaler::UpdateRenderingTimeRatio(float new_value) {
     scale_ /= kScaleStep;
     scale_ = round(scale_ * kRound) / kRound;
   }
-  scale_ = base::clamp(scale_, kMinScale, kMaxScale);
+  scale_ = base::ClampToRange(scale_, kMinScale, kMaxScale);
   if (scale_ != old_scale) {
     ResetLoad();
   }

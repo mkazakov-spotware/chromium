@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,12 @@
 #include <memory>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
+#include "base/strings/string16.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/test_reg_util_win.h"
 #include "base/win/scoped_handle.h"
-#include "chrome/credential_provider/extension/extension_utils.h"
 #include "chrome/credential_provider/extension/os_service_manager.h"
 #include "chrome/credential_provider/extension/task_manager.h"
 #include "chrome/credential_provider/gaiacp/associated_user_validator.h"
@@ -73,7 +70,7 @@ class FakeOSProcessManager : public OSProcessManager {
       base::win::ScopedProcessInformation* procinfo) override;
 
  private:
-  raw_ptr<OSProcessManager> original_manager_;
+  OSProcessManager* original_manager_;
   DWORD next_rid_ = 0;
 };
 
@@ -133,7 +130,7 @@ class FakeOSUserManager : public OSUserManager {
 
   HRESULT GetUserFullname(const wchar_t* domain,
                           const wchar_t* username,
-                          std::wstring* fullname) override;
+                          base::string16* fullname) override;
 
   HRESULT ModifyUserAccessWithLogonHours(const wchar_t* domain,
                                          const wchar_t* username,
@@ -148,8 +145,6 @@ class FakeOSUserManager : public OSUserManager {
     is_device_domain_joined_ = is_device_domain_joined;
   }
 
-  void FailFindUserBySID(const wchar_t* sid, int number_of_failures);
-
   struct UserInfo {
     UserInfo(const wchar_t* domain,
              const wchar_t* password,
@@ -162,11 +157,11 @@ class FakeOSUserManager : public OSUserManager {
 
     bool operator==(const UserInfo& other) const;
 
-    std::wstring domain;
-    std::wstring password;
-    std::wstring fullname;
-    std::wstring comment;
-    std::wstring sid;
+    base::string16 domain;
+    base::string16 password;
+    base::string16 fullname;
+    base::string16 comment;
+    base::string16 sid;
   };
   const UserInfo GetUserInfo(const wchar_t* username);
 
@@ -178,12 +173,12 @@ class FakeOSUserManager : public OSUserManager {
   // the given gaia id. If |email| is non-empty, sets the email to use for
   // reauth to be this one.
   // |sid| is allocated and filled with the SID of the new user.
-  HRESULT CreateTestOSUser(const std::wstring& username,
-                           const std::wstring& password,
-                           const std::wstring& fullname,
-                           const std::wstring& comment,
-                           const std::wstring& gaia_id,
-                           const std::wstring& email,
+  HRESULT CreateTestOSUser(const base::string16& username,
+                           const base::string16& password,
+                           const base::string16& fullname,
+                           const base::string16& comment,
+                           const base::string16& gaia_id,
+                           const base::string16& email,
                            BSTR* sid);
 
   // Creates a fake user with the given |username|, |password|, |fullname|,
@@ -191,17 +186,17 @@ class FakeOSUserManager : public OSUserManager {
   // user with the given gaia id. If |email| is non-empty, sets the email to
   // use for reauth to be this one.
   // |sid| is allocated and filled with the SID of the new user.
-  HRESULT CreateTestOSUser(const std::wstring& username,
-                           const std::wstring& password,
-                           const std::wstring& fullname,
-                           const std::wstring& comment,
-                           const std::wstring& gaia_id,
-                           const std::wstring& email,
-                           const std::wstring& domain,
+  HRESULT CreateTestOSUser(const base::string16& username,
+                           const base::string16& password,
+                           const base::string16& fullname,
+                           const base::string16& comment,
+                           const base::string16& gaia_id,
+                           const base::string16& email,
+                           const base::string16& domain,
                            BSTR* sid);
 
   size_t GetUserCount() const { return username_to_info_.size(); }
-  std::vector<std::pair<std::wstring, std::wstring>> GetUsers() const;
+  std::vector<std::pair<base::string16, base::string16>> GetUsers() const;
 
   void SetFailureReason(FAILEDOPERATIONS failed_operaetion,
                         HRESULT failure_reason) {
@@ -215,12 +210,11 @@ class FakeOSUserManager : public OSUserManager {
   void RestoreOperation(FAILEDOPERATIONS op) { failure_reasons_.erase(op); }
 
  private:
-  raw_ptr<OSUserManager> original_manager_;
+  OSUserManager* original_manager_;
   DWORD next_rid_ = 0;
-  std::map<std::wstring, UserInfo> username_to_info_;
+  std::map<base::string16, UserInfo> username_to_info_;
   bool is_device_domain_joined_ = false;
   std::map<FAILEDOPERATIONS, HRESULT> failure_reasons_;
-  std::map<std::wstring, int> to_be_failed_find_user_sids_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -236,7 +230,7 @@ class FakeScopedLsaPolicyFactory {
   // names to their corresponding data strings.  The term "private" here is
   // used to reflect the name of the underlying OS calls.  This data is meant
   // to be shared by all ScopedLsaPolicy instances created by this factory.
-  using PrivateDataMap = std::map<std::wstring, std::wstring>;
+  using PrivateDataMap = std::map<base::string16, base::string16>;
   PrivateDataMap& private_data() { return private_data_; }
 
  private:
@@ -258,9 +252,10 @@ class FakeScopedLsaPolicy : public ScopedLsaPolicy {
                               size_t length) override;
   bool PrivateDataExists(const wchar_t* key) override;
   HRESULT AddAccountRights(PSID sid,
-                           const std::vector<std::wstring>& rights) override;
-  HRESULT RemoveAccountRights(PSID sid,
-                              const std::vector<std::wstring>& rights) override;
+                           const std::vector<base::string16>& rights) override;
+  HRESULT RemoveAccountRights(
+      PSID sid,
+      const std::vector<base::string16>& rights) override;
   HRESULT RemoveAccount(PSID sid) override;
 
  private:
@@ -272,7 +267,7 @@ class FakeScopedLsaPolicy : public ScopedLsaPolicy {
     return factory_->private_data();
   }
 
-  raw_ptr<FakeScopedLsaPolicyFactory> factory_;
+  FakeScopedLsaPolicyFactory* factory_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -285,10 +280,10 @@ class FakeScopedUserProfileFactory {
   virtual ~FakeScopedUserProfileFactory();
 
  private:
-  std::unique_ptr<ScopedUserProfile> Create(const std::wstring& sid,
-                                            const std::wstring& domain,
-                                            const std::wstring& username,
-                                            const std::wstring& password);
+  std::unique_ptr<ScopedUserProfile> Create(const base::string16& sid,
+                                            const base::string16& domain,
+                                            const base::string16& username,
+                                            const base::string16& password);
 
   ScopedUserProfile::CreatorCallback original_creator_;
 };
@@ -300,10 +295,10 @@ class FakeScopedUserProfile : public ScopedUserProfile {
  private:
   friend class FakeScopedUserProfileFactory;
 
-  FakeScopedUserProfile(const std::wstring& sid,
-                        const std::wstring& domain,
-                        const std::wstring& username,
-                        const std::wstring& password);
+  FakeScopedUserProfile(const base::string16& sid,
+                        const base::string16& domain,
+                        const base::string16& username,
+                        const base::string16& password);
   ~FakeScopedUserProfile() override;
 
   bool is_valid_ = false;
@@ -416,7 +411,7 @@ class FakeWinHttpUrlFetcher : public WinHttpUrlFetcher {
   std::string response_;
   HANDLE send_response_event_handle_;
   HRESULT response_hr_ = S_OK;
-  raw_ptr<RequestData> request_data_ = nullptr;
+  RequestData* request_data_ = nullptr;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -431,7 +426,7 @@ class FakeAssociatedUserValidator : public AssociatedUserValidator {
   using AssociatedUserValidator::IsUserAccessBlockedForTesting;
 
  private:
-  raw_ptr<AssociatedUserValidator> original_validator_ = nullptr;
+  AssociatedUserValidator* original_validator_ = nullptr;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -452,7 +447,7 @@ class FakeChromeAvailabilityChecker : public ChromeAvailabilityChecker {
   void SetHasSupportedChrome(HasSupportedChromeCheckType has_supported_chrome);
 
  private:
-  raw_ptr<ChromeAvailabilityChecker> original_checker_ = nullptr;
+  ChromeAvailabilityChecker* original_checker_ = nullptr;
 
   // Used during tests to force the credential provider to believe if a
   // supported Chrome version is installed or not. In production a real
@@ -475,7 +470,7 @@ class FakeInternetAvailabilityChecker : public InternetAvailabilityChecker {
       HasInternetConnectionCheckType has_internet_connection);
 
  private:
-  raw_ptr<InternetAvailabilityChecker> original_checker_ = nullptr;
+  InternetAvailabilityChecker* original_checker_ = nullptr;
 
   // Used during tests to force the credential provider to believe if an
   // internet connection is possible or not.  In production the value is
@@ -498,7 +493,7 @@ class FakePasswordRecoveryManager : public PasswordRecoveryManager {
   using PasswordRecoveryManager::SetRequestTimeoutForTesting;
 
  private:
-  raw_ptr<PasswordRecoveryManager> original_validator_ = nullptr;
+  PasswordRecoveryManager* original_validator_ = nullptr;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -515,7 +510,7 @@ class FakeGemDeviceDetailsManager : public GemDeviceDetailsManager {
   using GemDeviceDetailsManager::SetRequestTimeoutForTesting;
 
  private:
-  raw_ptr<GemDeviceDetailsManager> original_manager_ = nullptr;
+  GemDeviceDetailsManager* original_manager_ = nullptr;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -579,9 +574,9 @@ class FakeEventLoggingApiManager : public EventLoggingApiManager {
   ~FakeEventLoggingApiManager() override;
 
  private:
-  raw_ptr<EventLoggingApiManager> original_manager_ = nullptr;
+  EventLoggingApiManager* original_manager_ = nullptr;
 
-  const raw_ref<const std::vector<EventLogEntry>> logs_;
+  const std::vector<EventLogEntry>& logs_;
   EVT_HANDLE query_handle_, publisher_metadata_, render_context_;
   DWORD last_error_;
   size_t next_event_idx_;
@@ -604,7 +599,7 @@ class FakeEventLogsUploadManager : public EventLogsUploadManager {
   uint64_t GetNumLogsUploaded();
 
  private:
-  raw_ptr<EventLogsUploadManager> original_manager_ = nullptr;
+  EventLogsUploadManager* original_manager_ = nullptr;
   FakeEventLoggingApiManager api_manager_;
 };
 
@@ -617,29 +612,29 @@ class FakeUserPoliciesManager : public UserPoliciesManager {
   ~FakeUserPoliciesManager() override;
 
   HRESULT FetchAndStoreCloudUserPolicies(
-      const std::wstring& sid,
+      const base::string16& sid,
       const std::string& access_token) override;
 
   // Specify the policy to use for a user.
-  void SetUserPolicies(const std::wstring& sid, const UserPolicies& policies);
+  void SetUserPolicies(const base::string16& sid, const UserPolicies& policies);
 
-  bool GetUserPolicies(const std::wstring& sid,
+  bool GetUserPolicies(const base::string16& sid,
                        UserPolicies* policies) const override;
 
   // Specify whether user policy is valid for a user.
-  void SetUserPolicyStaleOrMissing(const std::wstring& sid, bool status);
+  void SetUserPolicyStaleOrMissing(const base::string16& sid, bool status);
 
-  bool IsUserPolicyStaleOrMissing(const std::wstring& sid) const override;
+  bool IsUserPolicyStaleOrMissing(const base::string16& sid) const override;
 
   // Returns the number of times FetchAndStoreCloudUserPolicies method was
   // called.
   int GetNumTimesFetchAndStoreCalled() const;
 
  private:
-  raw_ptr<UserPoliciesManager> original_manager_ = nullptr;
-  std::map<std::wstring, UserPolicies> user_policies_;
+  UserPoliciesManager* original_manager_ = nullptr;
+  std::map<base::string16, UserPolicies> user_policies_;
   int num_times_fetch_called_ = 0;
-  std::map<std::wstring, bool> user_policies_stale_;
+  std::map<base::string16, bool> user_policies_stale_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -655,7 +650,7 @@ class FakeDevicePoliciesManager : public DevicePoliciesManager {
   void GetDevicePolicies(DevicePolicies* device_policies) override;
 
  private:
-  raw_ptr<DevicePoliciesManager> original_manager_ = nullptr;
+  DevicePoliciesManager* original_manager_ = nullptr;
   DevicePolicies device_policies_;
 };
 
@@ -669,7 +664,7 @@ class FakeGCPWFiles : public GCPWFiles {
   std::vector<base::FilePath::StringType> GetEffectiveInstallFiles() override;
 
  private:
-  raw_ptr<GCPWFiles> original_files = nullptr;
+  GCPWFiles* original_files = nullptr;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -727,8 +722,8 @@ class FakeOSServiceManager : public extension::OSServiceManager {
   std::condition_variable cv;
 
   // Original instance of OSServiceManager.
-  raw_ptr<extension::OSServiceManager> os_service_manager_ = nullptr;
-  std::map<std::wstring, ServiceInfo> service_lookup_from_name_;
+  extension::OSServiceManager* os_service_manager_ = nullptr;
+  std::map<base::string16, ServiceInfo> service_lookup_from_name_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -738,19 +733,16 @@ class FakeTaskManager : public extension::TaskManager {
   FakeTaskManager();
   ~FakeTaskManager() override;
 
-  int NumOfTimesExecuted(const std::string& task_name) {
-    return num_of_times_executed_[task_name];
-  }
+  int NumOfTimesExecuted() { return num_of_times_executed_; }
 
  private:
-  void ExecuteTask(scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-                   const std::string& task_name) override;
+  void RunTasksInternal() override;
 
   // Original instance of TaskManager.
-  raw_ptr<extension::TaskManager> task_manager_ = nullptr;
+  extension::TaskManager* task_manager_ = nullptr;
 
-  // Counts the number of execution per task.
-  std::map<std::string, int> num_of_times_executed_;
+  int num_of_times_executed_;
+  base::Time start_time_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -765,7 +757,7 @@ class FakeTokenGenerator : public TokenGenerator {
   void SetTokensForTesting(const std::vector<std::string>& test_tokens);
 
  private:
-  raw_ptr<TokenGenerator> token_generator_ = nullptr;
+  TokenGenerator* token_generator_ = nullptr;
   std::vector<std::string> test_tokens_;
 };
 

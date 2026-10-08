@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@ import static org.chromium.chrome.browser.password_manager.PasswordManagerDialog
 
 import android.view.View;
 
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 
@@ -28,10 +29,9 @@ class PasswordManagerDialogViewBinder {
         } else if (ILLUSTRATION_VISIBLE == propertyKey) {
             dialogView.updateIllustrationVisibility(model.get(ILLUSTRATION_VISIBLE));
             dialogView.updateHelpIcon(!model.get(ILLUSTRATION_VISIBLE));
-            // TODO(crbug.com/1271552): Cropping was needed for previous image version.
-            // Depending on feature status, remove this or inline the cropping into
-            // password_manager_dialog_with_help_button.xml.
-            if (!PasswordManagerHelper.usesUnifiedPasswordManagerBranding()) {
+            // TODO(crbug.com/1092444): Depending on feature status, remove this or inline the
+            //  cropping into password_manager_dialog_with_help_button.xml.
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.PASSWORD_CHECK)) {
                 dialogView.cropImageToText();
             }
         } else if (TITLE == propertyKey) {

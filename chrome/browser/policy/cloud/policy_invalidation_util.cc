@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,14 +16,14 @@ constexpr char kFcmPolicyPublicTopicPrefix[] = "cs-";
 
 }  // namespace
 
-bool IsPublicInvalidationTopic(const invalidation::Topic& topic) {
+bool IsPublicInvalidationTopic(const syncer::Topic& topic) {
   return base::StartsWith(topic, kFcmPolicyPublicTopicPrefix,
                           base::CompareCase::SENSITIVE);
 }
 
 bool GetCloudPolicyTopicFromPolicy(
     const enterprise_management::PolicyData& policy,
-    invalidation::Topic* topic) {
+    syncer::Topic* topic) {
   if (!policy.has_policy_invalidation_topic() ||
       policy.policy_invalidation_topic().empty()) {
     return false;
@@ -34,7 +34,7 @@ bool GetCloudPolicyTopicFromPolicy(
 
 bool GetRemoteCommandTopicFromPolicy(
     const enterprise_management::PolicyData& policy,
-    invalidation::Topic* topic) {
+    syncer::Topic* topic) {
   if (!policy.has_command_invalidation_topic() ||
       policy.command_invalidation_topic().empty()) {
     return false;
@@ -43,7 +43,7 @@ bool GetRemoteCommandTopicFromPolicy(
   return true;
 }
 
-bool IsInvalidationExpired(const invalidation::Invalidation& invalidation,
+bool IsInvalidationExpired(const syncer::Invalidation& invalidation,
                            const base::Time& last_fetch_time,
                            const base::Time& current_time) {
   // If the version is unknown, consider the invalidation invalid if the
@@ -57,7 +57,8 @@ bool IsInvalidationExpired(const invalidation::Invalidation& invalidation,
   // invalidation occurred before the last fetch, then the invalidation
   // is expired.
   base::Time invalidation_time =
-      base::Time::UnixEpoch() + base::Microseconds(invalidation.version()) +
+      base::Time::UnixEpoch() +
+      base::TimeDelta::FromMicroseconds(invalidation.version()) +
       invalidation_timeouts::kMaxInvalidationTimeDelta;
   return invalidation_time < last_fetch_time;
 }

@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.toolbar.top;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.text.TextUtils;
 
 import androidx.test.filters.SmallTest;
@@ -36,6 +37,7 @@ import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.UiRestriction;
+import org.chromium.ui.util.ColorUtils;
 
 /**
  * Contains tests for the brand color feature.
@@ -52,6 +54,7 @@ public class BrandColorTest {
     private ToolbarPhone mToolbar;
     private ToolbarDataProvider mToolbarDataProvider;
     private int mDefaultColor;
+    private boolean mSupportsDarkStatusIcons;
 
     private static String getUrlWithBrandColor(String brandColor) {
         String brandColorMetaTag = TextUtils.isEmpty(brandColor)
@@ -73,7 +76,13 @@ public class BrandColorTest {
         });
         if (!SysUtils.isLowEndDevice()) {
             final int expectedStatusBarColor;
-            expectedStatusBarColor = brandColor == mDefaultColor ? mDefaultColor : brandColor;
+            if (mSupportsDarkStatusIcons) {
+                expectedStatusBarColor = brandColor == mDefaultColor ? Color.WHITE : brandColor;
+            } else {
+                expectedStatusBarColor = brandColor == mDefaultColor
+                        ? Color.BLACK
+                        : ColorUtils.getDarkenedColorForStatusBar(brandColor);
+            }
             CriteriaHelper.pollUiThread(() -> {
                 Criteria.checkThat(mActivityTestRule.getActivity().getWindow().getStatusBarColor(),
                         Matchers.is(expectedStatusBarColor));
@@ -86,7 +95,10 @@ public class BrandColorTest {
         mToolbar = (ToolbarPhone) mActivityTestRule.getActivity().findViewById(R.id.toolbar);
         mToolbarDataProvider = mToolbar.getToolbarDataProvider();
         mDefaultColor = ChromeColors.getDefaultThemeColor(
-                mActivityTestRule.getActivity(), /* isIncognito = */ false);
+                mActivityTestRule.getActivity().getResources(), /* isIncognito = */ false);
+        // TODO(https://crbug.com/871805): Use helper class to determine whether dark status icons
+        // are supported.
+        mSupportsDarkStatusIcons = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
     }
 
     /**

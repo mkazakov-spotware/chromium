@@ -5,23 +5,15 @@
   await dp.Page.enable();
   await dp.Page.setLifecycleEventsEnabled({ enabled: true });
 
-  const expectedEvents = new Set([
-    'init',
-    'load',
-    'DOMContentLoaded',
-    'networkAlmostIdle',
-    'networkIdle',
-    'InteractiveTime',
-  ]);
-
+  var events = [];
   dp.Page.onLifecycleEvent(event => {
     // Filter out firstMeaningfulPaint and friends.
     if (event.params.name.startsWith('first'))
       return;
-    if (!expectedEvents.delete(event.params.name)) {
-      testRunner.log(`FAIL: unexpected event name: ${event.params.name}`);
-    }
-    if (expectedEvents.size === 0) {
+    events.push(event);
+    if (event.params.name === 'networkIdle') {
+      var names = events.map(event => event.params.name);
+      testRunner.log(names);
       testRunner.completeTest();
     }
   });

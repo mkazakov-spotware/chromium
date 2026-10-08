@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/android/jni_weak_ref.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/platform_input_handler.h"
 #include "chrome/browser/vr/text_edit_action.h"
 
@@ -22,10 +23,6 @@ namespace vr {
 class VrInputConnection {
  public:
   explicit VrInputConnection(content::WebContents* web_contents);
-
-  VrInputConnection(const VrInputConnection&) = delete;
-  VrInputConnection& operator=(const VrInputConnection&) = delete;
-
   ~VrInputConnection();
 
   void OnKeyboardEdit(const TextEdits& edits);
@@ -40,6 +37,8 @@ class VrInputConnection {
  private:
   base::android::ScopedJavaGlobalRef<jobject> j_object_;
   std::queue<vr::TextStateUpdateCallback> text_state_update_callbacks_;
+
+  DISALLOW_COPY_AND_ASSIGN(VrInputConnection);
 };
 
 }  // namespace vr

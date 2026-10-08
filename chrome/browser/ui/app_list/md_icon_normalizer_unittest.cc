@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,7 +82,7 @@ TEST_F(MdIconNormalizerTest, SquareIcon) {
   // Add a transparent hole in the middle, should scale the same as above.
   gfx::RectF inner_frame = kIconFrame;
   constexpr int kInset = 4;
-  inner_frame.Inset(kInset);
+  inner_frame.Inset(kInset, kInset);
   canvas->DrawRect(inner_frame, flags_transparent);
   ExpectScaledSize(kGuidelineSizeSquare, kIconFrame.width());
 
@@ -95,8 +95,7 @@ TEST_F(MdIconNormalizerTest, SquareIcon) {
   // Half size square is too small to be scaled.
   ResetCanvas();
   gfx::RectF half_frame = kIconFrame;
-  half_frame.Inset(
-      gfx::InsetsF::VH(kIconFrame.height() / 4, kIconFrame.width() / 4));
+  half_frame.Inset(kIconFrame.width() / 4, kIconFrame.height() / 4);
   canvas->DrawRect(half_frame, flags_opaque);
   EXPECT_EQ(1, GetScale());
 }
@@ -134,7 +133,7 @@ TEST_F(MdIconNormalizerTest, RectangularIcon) {
   // Same height rectangle, 7:8 aspect ratio, scale should be greater.
   ResetCanvas();
   rect = kIconFrame;
-  rect.Inset(gfx::InsetsF::VH(0, kIconSize / 16));
+  rect.Inset(kIconSize / 16, 0);
   canvas->DrawRect(rect, flags_opaque);
   const float scale_7_8 = GetScale();
   EXPECT_LT(scale_square, scale_7_8);
@@ -142,14 +141,14 @@ TEST_F(MdIconNormalizerTest, RectangularIcon) {
   // 3:4 aspect ratio, scale should be greater still.
   ResetCanvas();
   rect = kIconFrame;
-  rect.Inset(gfx::InsetsF::VH(0, kIconSize / 8));
+  rect.Inset(kIconSize / 8, 0);
   const float scale_3_4 = GetScale();
   EXPECT_LT(scale_7_8, scale_3_4);
 
   // 1:2 aspect ratio, should not scale.
   ResetCanvas();
   rect = kIconFrame;
-  rect.Inset(gfx::InsetsF::VH(0, kIconSize / 4));
+  rect.Inset(kIconSize / 4, 0);
   canvas->DrawRect(rect, flags_opaque);
   EXPECT_EQ(1, GetScale());
 }
@@ -215,7 +214,7 @@ TEST_F(MdIconNormalizerTest, Opacity) {
 
   gfx::RectF frame = kIconFrame;
   constexpr int kInset = 4;
-  frame.Inset(kInset);
+  frame.Inset(kInset, kInset);
 
   gfx::RectF shadow = frame;
   frame.Offset(kInset, kInset);

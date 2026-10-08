@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_VIDEO_CAPTURE_TEST_MOCK_DEVICES_CHANGED_OBSERVER_H_
 #define SERVICES_VIDEO_CAPTURE_TEST_MOCK_DEVICES_CHANGED_OBSERVER_H_
 
+#include "services/video_capture/public/mojom/device_factory.mojom.h"
 #include "services/video_capture/public/mojom/devices_changed_observer.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 

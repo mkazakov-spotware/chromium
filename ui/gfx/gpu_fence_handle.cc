@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,18 @@
 
 #include "base/debug/alias.h"
 #include "base/notreached.h"
-#include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 
 #include "base/posix/eintr_wrapper.h"
 #endif
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include "base/fuchsia/fuchsia_logging.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #include "base/process/process_handle.h"
 #endif
@@ -34,11 +33,11 @@ GpuFenceHandle& GpuFenceHandle::operator=(GpuFenceHandle&& other) = default;
 GpuFenceHandle::~GpuFenceHandle() = default;
 
 bool GpuFenceHandle::is_null() const {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   return !owned_fd.is_valid();
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   return !owned_event.is_valid();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return !owned_handle.IsValid();
 #else
   return true;
@@ -46,23 +45,20 @@ bool GpuFenceHandle::is_null() const {
 }
 
 GpuFenceHandle GpuFenceHandle::Clone() const {
-  if (is_null())
-    return GpuFenceHandle();
-
   gfx::GpuFenceHandle handle;
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   const int duped_handle = HANDLE_EINTR(dup(owned_fd.get()));
   if (duped_handle < 0)
     return GpuFenceHandle();
   handle.owned_fd = base::ScopedFD(duped_handle);
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   zx_status_t status =
       owned_event.duplicate(ZX_RIGHT_SAME_RIGHTS, &handle.owned_event);
   if (status != ZX_OK) {
     ZX_DLOG(ERROR, status) << "zx_handle_duplicate";
     return GpuFenceHandle();
   }
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   const base::ProcessHandle process = ::GetCurrentProcess();
   HANDLE duplicated_handle = INVALID_HANDLE_VALUE;
   const BOOL result =

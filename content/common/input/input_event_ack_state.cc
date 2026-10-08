@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,8 @@ const char* InputEventResultStateToString(
       return "CONSUMED";
     case blink::mojom::InputEventResultState::kNotConsumed:
       return "NOT_CONSUMED";
+    case blink::mojom::InputEventResultState::kConsumedShouldBubble:
+      return "CONSUMED_SHOULD_BUBBLE";
     case blink::mojom::InputEventResultState::kNoConsumerExists:
       return "NO_CONSUMER_EXISTS";
     case blink::mojom::InputEventResultState::kIgnored:

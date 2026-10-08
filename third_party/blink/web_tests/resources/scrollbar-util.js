@@ -53,10 +53,7 @@ function getScrollbarButtonScrollDelta(scroller) {
   }
 
   percentBasedDelta = (size) => {
-    return internals.runtimeFlags.percentBasedScrollingEnabled ? {
-      x: SCROLLBAR_SCROLL_PERCENTAGE * size.x,
-      y: SCROLLBAR_SCROLL_PERCENTAGE * size.y
-    } : {
+    return {
       x: Math.floor(SCROLLBAR_SCROLL_PERCENTAGE * size.x),
       y: Math.floor(SCROLLBAR_SCROLL_PERCENTAGE * size.y)
     }
@@ -91,25 +88,15 @@ const SCROLLBAR_SCROLL_PERCENTAGE = 0.125;
 // scrolling is not enabled.
 const SCROLLBAR_SCROLL_PIXELS = 40;
 
-function hasScrollbarArrows() {
-  if (internals.overlayScrollbarsEnabled)
-    return false;
-
-  // Mac scrollbars do not have arrow keys.
-  if (navigator.platform.toUpperCase().indexOf('MAC') >= 0)
-    return false;
-
-  return true;
-}
-
 // TODO(arakeri): Add helpers for arrow widths.
+
 /*
   Getters for the center point in a scroller's scrollbar buttons (CSS visual
   coordinates). An empty argument requests the point for the main frame's
   scrollbars.
 */
 function downArrow(scroller) {
-  assert_true(hasScrollbarArrows());
+  assert_true(!internals.overlayScrollbarsEnabled);
   const TRACK_WIDTH = calculateScrollbarThickness();
   const BUTTON_WIDTH = TRACK_WIDTH;
   const SCROLL_CORNER = TRACK_WIDTH;
@@ -129,7 +116,7 @@ function downArrow(scroller) {
 }
 
 function upArrow(scroller) {
-  assert_true(hasScrollbarArrows());
+  assert_true(!internals.overlayScrollbarsEnabled);
   const TRACK_WIDTH = calculateScrollbarThickness();
   const BUTTON_WIDTH = TRACK_WIDTH;
   if (typeof(scroller) == 'undefined') {
@@ -148,7 +135,7 @@ function upArrow(scroller) {
 }
 
 function leftArrow(scroller) {
-  assert_true(hasScrollbarArrows());
+  assert_true(!internals.overlayScrollbarsEnabled);
   const TRACK_WIDTH = calculateScrollbarThickness();
   const BUTTON_WIDTH = TRACK_WIDTH;
   if (typeof(scroller) == 'undefined') {
@@ -167,7 +154,7 @@ function leftArrow(scroller) {
 }
 
 function rightArrow(scroller) {
-  assert_true(hasScrollbarArrows());
+  assert_true(!internals.overlayScrollbarsEnabled);
   const TRACK_WIDTH = calculateScrollbarThickness();
   const BUTTON_WIDTH = TRACK_WIDTH;
   const SCROLL_CORNER = TRACK_WIDTH;
@@ -202,24 +189,5 @@ function verticalThumb(scroller) {
   const scrollerRect = scroller.getBoundingClientRect();
   const thumbPoint = { x : scrollerRect.right - TRACK_WIDTH / 2,
                        y : scrollerRect.top + BUTTON_WIDTH + 2 };
-  return cssClientToCssVisual(thumbPoint);
-}
-
-// Returns a point that falls within the given scroller's horizontal thumb part.
-function horizontalThumb(scroller) {
-  assert_equals(scroller.scrollLeft, 0,
-                "horizontalThumb() requires scroller to have scrollLeft of 0");
-  const TRACK_WIDTH = calculateScrollbarThickness();
-  const BUTTON_WIDTH = calculateScrollbarButtonWidth();
-  if (scroller === document.documentElement || typeof(scroller) == 'undefined') {
-    // HTML element is special, since scrollbars are not part of its client rect
-    // and page scale doesn't affect the scrollbars. Use window properties instead.
-    let x = BUTTON_WIDTH + 6;
-    let y = window.innerHeight - TRACK_WIDTH / 2;
-    return {x: x, y: y};
-  }
-  const scrollerRect = scroller.getBoundingClientRect();
-  const thumbPoint = { x: scrollerRect.left + BUTTON_WIDTH + 2,
-                       y: scrollerRect.bottom - TRACK_WIDTH / 2 };
   return cssClientToCssVisual(thumbPoint);
 }

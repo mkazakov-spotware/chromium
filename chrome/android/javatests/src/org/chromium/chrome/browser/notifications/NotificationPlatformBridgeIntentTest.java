@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.notifications;
 
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.support.test.InstrumentationRegistry;
@@ -20,12 +21,13 @@ import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.settings.SettingsActivity;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.util.ActivityTestUtils;
+import org.chromium.chrome.test.util.ActivityUtils;
 import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings;
 
@@ -69,7 +71,7 @@ public class NotificationPlatformBridgeIntentTest {
                         .setClassName(context, ChromeLauncherActivity.class.getName())
                         .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-        SettingsActivity activity = ActivityTestUtils.waitForActivity(
+        SettingsActivity activity = ActivityUtils.waitForActivity(
                 InstrumentationRegistry.getInstrumentation(), SettingsActivity.class,
                 new Runnable() {
                     @Override
@@ -80,7 +82,7 @@ public class NotificationPlatformBridgeIntentTest {
         Assert.assertNotNull("Could not find the Settings activity", activity);
 
         SingleCategorySettings fragment =
-                ActivityTestUtils.waitForFragmentToAttach(activity, SingleCategorySettings.class);
+                ActivityUtils.waitForFragmentToAttach(activity, SingleCategorySettings.class);
         Assert.assertNotNull("Could not find the SingleCategorySettings fragment", fragment);
     }
 
@@ -109,7 +111,7 @@ public class NotificationPlatformBridgeIntentTest {
                         .putExtra(NotificationConstants.EXTRA_NOTIFICATION_TAG,
                                 "p#https://example.com#0" /* notificationId */);
 
-        SettingsActivity activity = ActivityTestUtils.waitForActivity(
+        SettingsActivity activity = ActivityUtils.waitForActivity(
                 InstrumentationRegistry.getInstrumentation(), SettingsActivity.class,
                 new Runnable() {
                     @Override
@@ -120,7 +122,7 @@ public class NotificationPlatformBridgeIntentTest {
         Assert.assertNotNull("Could not find the Settings activity", activity);
 
         SingleWebsiteSettings fragment =
-                ActivityTestUtils.waitForFragmentToAttach(activity, SingleWebsiteSettings.class);
+                ActivityUtils.waitForFragmentToAttach(activity, SingleWebsiteSettings.class);
         Assert.assertNotNull("Could not find the SingleWebsiteSettings fragment", fragment);
     }
 
@@ -134,6 +136,7 @@ public class NotificationPlatformBridgeIntentTest {
      */
     @Test
     @MediumTest
+    @DisabledTest(message = "https://crbug.com/950635")
     @Feature({"Browser", "Notifications"})
     public void testLaunchProcessForNotificationActivation() throws Exception {
         Assert.assertFalse("The native library should not be loaded yet",
@@ -152,7 +155,11 @@ public class NotificationPlatformBridgeIntentTest {
         intent.putExtra(
                 NotificationConstants.EXTRA_NOTIFICATION_INFO_ORIGIN, "https://example.com");
 
-        context.sendBroadcast(intent);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                context, 0 /* request code */, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        // Send the pending intent. This will begin starting up the browser process.
+        pendingIntent.send();
 
         CriteriaHelper.pollUiThread(() -> {
             Criteria.checkThat("Browser process was never started.",

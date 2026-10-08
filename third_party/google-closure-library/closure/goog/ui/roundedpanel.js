@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Class definition for a rounded corner panel.
@@ -29,8 +37,6 @@ goog.require('goog.math.Coordinate');
 goog.require('goog.style');
 goog.require('goog.ui.Component');
 goog.require('goog.userAgent');
-goog.requireType('goog.graphics.AbstractGraphics');
-goog.requireType('goog.math.Size');
 
 
 /**
@@ -52,11 +58,12 @@ goog.requireType('goog.math.Size');
 goog.ui.RoundedPanel.create = function(
     radius, borderWidth, borderColor, opt_backgroundColor, opt_corners,
     opt_domHelper) {
-  'use strict';
   // This variable checks for the presence of Safari 3.0+ or Gecko 1.9+,
   // which can leverage special CSS styles to create rounded corners.
   var isCssReady =
-      goog.userAgent.WEBKIT || goog.userAgent.GECKO || goog.userAgent.EDGE;
+      (goog.userAgent.WEBKIT && goog.userAgent.isVersionOrHigher('500')) ||
+      (goog.userAgent.GECKO && goog.userAgent.isVersionOrHigher('1.9a')) ||
+      goog.userAgent.EDGE;
 
   if (isCssReady) {
     // Safari 3.0+ and Firefox 3.0+ support this instance.
@@ -127,7 +134,6 @@ goog.ui.RoundedPanel.Classes_ = {
 goog.ui.BaseRoundedPanel = function(
     radius, borderWidth, borderColor, opt_backgroundColor, opt_corners,
     opt_domHelper) {
-  'use strict';
   goog.ui.Component.call(this, opt_domHelper);
 
   /**
@@ -167,6 +173,7 @@ goog.ui.BaseRoundedPanel = function(
   this.corners_ = opt_corners || goog.ui.RoundedPanel.Corner.NONE;
 };
 goog.inherits(goog.ui.BaseRoundedPanel, goog.ui.Component);
+goog.tagUnsealableClass(goog.ui.BaseRoundedPanel);
 
 
 /**
@@ -193,7 +200,6 @@ goog.ui.BaseRoundedPanel.prototype.contentElement_;
  * @override
  */
 goog.ui.BaseRoundedPanel.prototype.decorateInternal = function(element) {
-  'use strict';
   goog.ui.BaseRoundedPanel.superClass_.decorateInternal.call(this, element);
   goog.dom.classlist.add(
       goog.asserts.assert(this.getElement()),
@@ -219,7 +225,6 @@ goog.ui.BaseRoundedPanel.prototype.decorateInternal = function(element) {
 
 /** @override */
 goog.ui.BaseRoundedPanel.prototype.disposeInternal = function() {
-  'use strict';
   if (this.backgroundElement_) {
     this.getDomHelper().removeNode(this.backgroundElement_);
     this.backgroundElement_ = null;
@@ -235,7 +240,6 @@ goog.ui.BaseRoundedPanel.prototype.disposeInternal = function() {
  * @override
  */
 goog.ui.BaseRoundedPanel.prototype.getContentElement = function() {
-  'use strict';
   return this.contentElement_;
 };
 
@@ -261,7 +265,6 @@ goog.ui.BaseRoundedPanel.prototype.getContentElement = function() {
 goog.ui.CssRoundedPanel = function(
     radius, borderWidth, borderColor, opt_backgroundColor, opt_corners,
     opt_domHelper) {
-  'use strict';
   goog.ui.BaseRoundedPanel.call(
       this, radius, borderWidth, borderColor, opt_backgroundColor, opt_corners,
       opt_domHelper);
@@ -277,7 +280,6 @@ goog.inherits(goog.ui.CssRoundedPanel, goog.ui.BaseRoundedPanel);
  * @override
  */
 goog.ui.CssRoundedPanel.prototype.decorateInternal = function(element) {
-  'use strict';
   goog.ui.CssRoundedPanel.superClass_.decorateInternal.call(this, element);
 
   // Set the border width and background color, if needed.
@@ -324,7 +326,6 @@ goog.ui.CssRoundedPanel.prototype.decorateInternal = function(element) {
  * @return {string} The CSS style based on the specified corner.
  */
 goog.ui.CssRoundedPanel.prototype.getStyle_ = function(corner) {
-  'use strict';
   // Determine the proper corner to work with.
   var cssCorner, suffixLeft, suffixRight;
   if (goog.userAgent.WEBKIT) {
@@ -377,7 +378,6 @@ goog.ui.CssRoundedPanel.prototype.getStyle_ = function(corner) {
 goog.ui.GraphicsRoundedPanel = function(
     radius, borderWidth, borderColor, opt_backgroundColor, opt_corners,
     opt_domHelper) {
-  'use strict';
   goog.ui.BaseRoundedPanel.call(
       this, radius, borderWidth, borderColor, opt_backgroundColor, opt_corners,
       opt_domHelper);
@@ -456,7 +456,6 @@ goog.ui.GraphicsRoundedPanel.BORDER_WIDTH_FACTOR_ = 1 / 2;
  * @override
  */
 goog.ui.GraphicsRoundedPanel.prototype.decorateInternal = function(element) {
-  'use strict';
   goog.ui.GraphicsRoundedPanel.superClass_.decorateInternal.call(this, element);
 
   // Calculate the points and angles for creating the rounded corners. Then
@@ -520,7 +519,6 @@ goog.ui.GraphicsRoundedPanel.prototype.decorateInternal = function(element) {
 
 /** @override */
 goog.ui.GraphicsRoundedPanel.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.GraphicsRoundedPanel.superClass_.disposeInternal.call(this);
   this.graphics_.dispose();
   delete this.graphics_;
@@ -540,7 +538,6 @@ goog.ui.GraphicsRoundedPanel.prototype.disposeInternal = function() {
  */
 goog.ui.GraphicsRoundedPanel.prototype.calculateArcParameters_ = function(
     elementSize) {
-  'use strict';
   // Initialize the arrays containing the key points and angles.
   this.radii_ = [];
   this.cornerStarts_ = [];

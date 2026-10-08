@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 #include "base/logging.h"
 #include "base/time/time.h"
 #include "base/win/scoped_handle.h"
-#include "chrome/updater/updater_scope.h"
-#include "chrome/updater/util/win_util.h"
-#include "chrome/updater/win/win_constants.h"
+#include "chrome/updater/win/constants.h"
+#include "chrome/updater/win/util.h"
 
 namespace updater {
 
@@ -24,7 +23,7 @@ class ScopedPrefsLockImpl {
   ScopedPrefsLockImpl& operator=(const ScopedPrefsLockImpl&) = delete;
   ~ScopedPrefsLockImpl();
 
-  bool Initialize(UpdaterScope scope, base::TimeDelta timeout);
+  bool Initialize(bool is_machine, base::TimeDelta timeout);
 
  private:
   base::win::ScopedHandle mutex_;
@@ -36,22 +35,21 @@ ScopedPrefsLock::ScopedPrefsLock(std::unique_ptr<ScopedPrefsLockImpl> impl)
 ScopedPrefsLock::~ScopedPrefsLock() = default;
 
 std::unique_ptr<ScopedPrefsLock> AcquireGlobalPrefsLock(
-    UpdaterScope scope,
     base::TimeDelta timeout) {
   auto lock = std::make_unique<ScopedPrefsLockImpl>();
 
-  VLOG(2) << "Trying to acquire the lock.";
-  if (!lock->Initialize(scope, timeout))
+  // TODO(crbug.com/1096654): need to pass is_machine instead of 'false' here.
+  DVLOG(2) << "Trying to acquire the lock.";
+  if (!lock->Initialize(false, timeout))
     return nullptr;
-  VLOG(2) << "Lock acquired.";
+  DVLOG(2) << "Lock acquired.";
 
   return std::make_unique<ScopedPrefsLock>(std::move(lock));
 }
 
-bool ScopedPrefsLockImpl::Initialize(UpdaterScope scope,
-                                     base::TimeDelta timeout) {
-  NamedObjectAttributes lock_attr =
-      GetNamedObjectAttributes(kPrefsAccessMutex, scope);
+bool ScopedPrefsLockImpl::Initialize(bool is_machine, base::TimeDelta timeout) {
+  NamedObjectAttributes lock_attr;
+  GetNamedObjectAttributes(kPrefsAccessMutex, is_machine, &lock_attr);
   mutex_.Set(::CreateMutex(&lock_attr.sa, false, lock_attr.name.c_str()));
   if (!mutex_.IsValid())
     return false;
@@ -63,7 +61,7 @@ bool ScopedPrefsLockImpl::Initialize(UpdaterScope scope,
 ScopedPrefsLockImpl::~ScopedPrefsLockImpl() {
   if (mutex_.IsValid()) {
     ::ReleaseMutex(mutex_.Get());
-    VLOG(2) << "Lock released.";
+    DVLOG(2) << "Lock released.";
   }
 }
 

@@ -65,11 +65,7 @@ class RasterInterface;
 namespace webgpu {
 class WebGPUInterface;
 }
-}  // namespace gpu
-
-namespace viz {
-class RasterContextProvider;
-}  // namespace viz
+}
 
 namespace blink {
 enum AntialiasingMode {
@@ -97,7 +93,7 @@ class WebGraphicsContext3DProvider {
   virtual gpu::raster::RasterInterface* RasterInterface() = 0;
   virtual gpu::webgpu::WebGPUInterface* WebGPUInterface() = 0;
   virtual bool IsContextLost() = 0;  // Has the GPU driver lost this context?
-  virtual bool BindToCurrentSequence() = 0;
+  virtual bool BindToCurrentThread() = 0;
   virtual GrDirectContext* GetGrContext() = 0;
   virtual const gpu::Capabilities& GetCapabilities() const = 0;
   virtual const gpu::GpuFeatureInfo& GetGpuFeatureInfo() const = 0;
@@ -115,9 +111,8 @@ class WebGraphicsContext3DProvider {
   virtual void CopyVideoFrame(media::PaintCanvasVideoRenderer* video_render,
                               media::VideoFrame* video_frame,
                               cc::PaintCanvas* canvas) = 0;
-  virtual viz::RasterContextProvider* RasterContextProvider() const = 0;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_GRAPHICS_CONTEXT_3D_PROVIDER_H_
+#endif

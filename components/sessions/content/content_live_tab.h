@@ -1,11 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SESSIONS_CONTENT_CONTENT_LIVE_TAB_H_
 #define COMPONENTS_SESSIONS_CONTENT_CONTENT_LIVE_TAB_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/supports_user_data.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/core/live_tab.h"
@@ -26,9 +26,6 @@ class SESSIONS_EXPORT ContentLiveTab
     : public LiveTab,
       public base::SupportsUserData::Data {
  public:
-  ContentLiveTab(const ContentLiveTab&) = delete;
-  ContentLiveTab& operator=(const ContentLiveTab&) = delete;
-
   ~ContentLiveTab() override;
 
   // Returns the ContentLiveTab associated with |web_contents|, creating it if
@@ -59,7 +56,9 @@ class SESSIONS_EXPORT ContentLiveTab
     return web_contents_->GetController();
   }
 
-  raw_ptr<content::WebContents> web_contents_;
+  content::WebContents* web_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentLiveTab);
 };
 
 }  // namespace sessions

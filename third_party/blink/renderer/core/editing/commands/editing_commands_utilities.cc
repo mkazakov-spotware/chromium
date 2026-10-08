@@ -23,13 +23,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/editing/commands/editing_commands_utilities.h"
 
-#include "third_party/blink/public/web/web_local_frame_client.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/editing/commands/selection_for_undo_step.h"
@@ -47,7 +46,7 @@
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 
 namespace blink {
@@ -141,7 +140,7 @@ bool AreIdenticalElements(const Node& first, const Node& second) {
   if (!first_element->HasEquivalentAttributes(*second_element))
     return false;
 
-  return IsEditable(*first_element) && IsEditable(*second_element);
+  return HasEditableStyle(*first_element) && HasEditableStyle(*second_element);
 }
 
 // FIXME: need to dump this
@@ -426,8 +425,8 @@ bool CanMergeLists(const Element& first_list, const Element& second_list) {
   return first_list.HasTagName(
              second_list
                  .TagQName())  // make sure the list types match (ol vs. ul)
-         && IsEditable(first_list) &&
-         IsEditable(second_list)  // both lists are editable
+         && HasEditableStyle(first_list) &&
+         HasEditableStyle(second_list)  // both lists are editable
          &&
          RootEditableElement(first_list) ==
              RootEditableElement(second_list)  // don't cross editing boundaries
@@ -499,7 +498,7 @@ VisibleSelection SelectionForParagraphIteration(
 
 const String& NonBreakingSpaceString() {
   DEFINE_STATIC_LOCAL(String, non_breaking_space_string,
-                      (&kNoBreakSpaceCharacter, 1u));
+                      (&kNoBreakSpaceCharacter, 1));
   return non_breaking_space_string;
 }
 
@@ -507,11 +506,12 @@ const String& NonBreakingSpaceString() {
 // which assumes a document has a valid HTML structure. We should make the
 // editing code more robust, and should remove this hack. crbug.com/580941.
 void TidyUpHTMLStructure(Document& document) {
-  // IsEditable() needs up-to-date ComputedStyle.
+  // hasEditableStyle() needs up-to-date ComputedStyle.
   document.UpdateStyleAndLayoutTree();
   const bool needs_valid_structure =
-      IsEditable(document) ||
-      (document.documentElement() && IsEditable(*document.documentElement()));
+      HasEditableStyle(document) ||
+      (document.documentElement() &&
+       HasEditableStyle(*document.documentElement()));
   if (!needs_valid_structure)
     return;
 
@@ -581,11 +581,11 @@ InputEvent::InputType DeletionInputTypeFromTextGranularity(
 void DispatchEditableContentChangedEvents(Element* start_root,
                                           Element* end_root) {
   if (start_root) {
-    start_root->DefaultEventHandler(
+    start_root->DispatchEvent(
         *Event::Create(event_type_names::kWebkitEditableContentChanged));
   }
   if (end_root && end_root != start_root) {
-    end_root->DefaultEventHandler(
+    end_root->DispatchEvent(
         *Event::Create(event_type_names::kWebkitEditableContentChanged));
   }
 }
@@ -655,8 +655,7 @@ void ChangeSelectionAfterCommand(LocalFrame* frame,
   if (!selection_did_not_change_dom_position)
     return;
   frame->Client()->DidChangeSelection(
-      !frame->Selection().GetSelectionInDOMTree().IsRange(),
-      blink::SyncCondition::kNotForced);
+      frame->Selection().GetSelectionInDOMTree().Type() != kRangeSelection);
 }
 
 InputEvent::EventIsComposing IsComposingFromCommand(

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define MEDIA_BASE_MEDIA_LOG_RECORD_H_
 
 #include <stdint.h>
+#include <memory>
 
 #include "base/time/time.h"
 #include "base/values.h"
@@ -22,17 +23,10 @@ struct MediaLogRecord {
   MediaLogRecord& operator=(const MediaLogRecord& event) {
     id = event.id;
     type = event.type;
-    params = event.params.Clone();
+    std::unique_ptr<base::DictionaryValue> event_copy(event.params.DeepCopy());
+    params.Swap(event_copy.get());
     time = event.time;
     return *this;
-  }
-
-  bool operator==(const MediaLogRecord& other) const {
-    return id == other.id && type == other.type && params == other.params &&
-           time == other.time;
-  }
-  bool operator!=(const MediaLogRecord& other) const {
-    return !(*this == other);
   }
 
   enum class Type {
@@ -45,7 +39,7 @@ struct MediaLogRecord {
     // See media/base/media_log_events.h for info.
     kMediaEventTriggered,
 
-    // Represents the contents some TypedStatus<T>
+    // TODO(tmathmeyer) use media::Status eventually instead of PipelineStatus
     kMediaStatus,
 
     kMaxValue = kMediaStatus,
@@ -53,7 +47,7 @@ struct MediaLogRecord {
 
   int32_t id;
   Type type;
-  base::Value::Dict params;
+  base::DictionaryValue params;
   base::TimeTicks time;
 };
 

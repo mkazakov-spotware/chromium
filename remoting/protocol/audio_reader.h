@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,28 +6,28 @@
 #define REMOTING_PROTOCOL_AUDIO_READER_H_
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/protocol/channel_dispatcher_base.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class AudioStub;
 
 class AudioReader : public ChannelDispatcherBase {
  public:
   explicit AudioReader(AudioStub* audio_stub);
-
-  AudioReader(const AudioReader&) = delete;
-  AudioReader& operator=(const AudioReader&) = delete;
-
   ~AudioReader() override;
 
  private:
   void OnIncomingMessage(std::unique_ptr<CompoundBuffer> message) override;
 
-  raw_ptr<AudioStub> audio_stub_;
+  AudioStub* audio_stub_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioReader);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_AUDIO_READER_H_

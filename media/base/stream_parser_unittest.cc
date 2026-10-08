@@ -1,14 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <map>
 #include <sstream>
 
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "media/base/stream_parser.h"
 #include "media/base/stream_parser_buffer.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -61,10 +62,6 @@ static void GenerateBuffers(const int* decode_timestamps,
 }
 
 class StreamParserTest : public testing::Test {
- public:
-  StreamParserTest(const StreamParserTest&) = delete;
-  StreamParserTest& operator=(const StreamParserTest&) = delete;
-
  protected:
   StreamParserTest() = default;
 
@@ -72,8 +69,8 @@ class StreamParserTest : public testing::Test {
   // returns true.
   size_t CountMatchingMergedBuffers(
       bool (*predicate)(scoped_refptr<StreamParserBuffer> buffer)) {
-    return static_cast<size_t>(
-        base::ranges::count_if(merged_buffers_, predicate));
+    return static_cast<size_t>(std::count_if(merged_buffers_.begin(),
+                                             merged_buffers_.end(), predicate));
   }
 
   // Appends test audio buffers in the sequence described by |decode_timestamps|
@@ -224,6 +221,8 @@ class StreamParserTest : public testing::Test {
  private:
   StreamParser::BufferQueueMap buffer_queue_map_;
   BufferQueue merged_buffers_;
+
+  DISALLOW_COPY_AND_ASSIGN(StreamParserTest);
 };
 
 TEST_F(StreamParserTest, MergeBufferQueues_AllEmpty) {

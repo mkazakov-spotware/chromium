@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/network_switches.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/test/base/android/android_browser_test.h"
 #else
 #include "chrome/test/base/in_process_browser_test.h"
@@ -41,11 +41,11 @@ class NetLogPlatformBrowserTestBase : public PlatformBrowserTest {
     // started before this method is called, but completes asynchronously.
     //
     // Try for up to 5 seconds to read the netlog file.
-    constexpr auto kMaxWaitTime = base::Seconds(5);
-    constexpr auto kWaitInterval = base::Milliseconds(50);
+    constexpr auto kMaxWaitTime = base::TimeDelta::FromSeconds(5);
+    constexpr auto kWaitInterval = base::TimeDelta::FromMilliseconds(50);
     int tries_left = kMaxWaitTime / kWaitInterval;
 
-    absl::optional<base::Value> parsed_net_log;
+    base::Optional<base::Value> parsed_net_log;
     while (true) {
       std::string file_contents;
       ASSERT_TRUE(base::ReadFileToString(net_log_path_, &file_contents));
@@ -82,10 +82,22 @@ class NetLogPlatformBrowserTestBase : public PlatformBrowserTest {
 };
 
 // This is an integration test to ensure that CertVerifyProc netlog events
-// continue to be logged even though cert verification is no longer performed in
-// the network process.
-class CertVerifyProcNetLogBrowserTest : public NetLogPlatformBrowserTestBase {
+// continue to be logged once cert verification is moved out of the network
+// service process. (See crbug.com/1015134 and crbug.com/1040681.)
+class CertVerifyProcNetLogBrowserTest
+    : public NetLogPlatformBrowserTestBase,
+      public testing::WithParamInterface<bool> {
  public:
+  void SetUpInProcessBrowserTestFixture() override {
+    if (GetParam()) {
+      scoped_feature_list_.InitAndEnableFeature(
+          network::features::kCertVerifierService);
+    } else {
+      scoped_feature_list_.InitAndDisableFeature(
+          network::features::kCertVerifierService);
+    }
+  }
+
   void SetUpOnMainThread() override {
     PlatformBrowserTest::SetUpOnMainThread();
 
@@ -96,29 +108,27 @@ class CertVerifyProcNetLogBrowserTest : public NetLogPlatformBrowserTestBase {
   }
 
   void VerifyNetLog(base::Value* parsed_net_log) override {
-    base::Value::Dict* main = parsed_net_log->GetIfDict();
-    ASSERT_TRUE(main);
+    base::DictionaryValue* main;
+    ASSERT_TRUE(parsed_net_log->GetAsDictionary(&main));
 
-    base::Value::List* events = main->FindList("events");
+    base::Value* events = main->FindListKey("events");
     ASSERT_TRUE(events);
 
     bool found_cert_verify_proc_event = false;
-    for (const auto& event_val : *events) {
-      ASSERT_TRUE(event_val.is_dict());
-      const base::Value::Dict& event = event_val.GetDict();
-      absl::optional<int> event_type = event.FindInt("type");
+    for (const auto& event : events->GetList()) {
+      base::Optional<int> event_type = event.FindIntKey("type");
       ASSERT_TRUE(event_type.has_value());
       if (event_type ==
           static_cast<int>(net::NetLogEventType::CERT_VERIFY_PROC)) {
-        absl::optional<int> phase = event.FindInt("phase");
+        base::Optional<int> phase = event.FindIntKey("phase");
         if (!phase.has_value() ||
             *phase != static_cast<int>(net::NetLogEventPhase::BEGIN)) {
           continue;
         }
-        const base::Value::Dict* params = event.FindDict("params");
+        const base::Value* params = event.FindDictKey("params");
         if (!params)
           continue;
-        const std::string* host = params->FindString("host");
+        const std::string* host = params->FindStringKey("host");
         if (host && *host == kTestHost) {
           found_cert_verify_proc_event = true;
           break;
@@ -132,10 +142,11 @@ class CertVerifyProcNetLogBrowserTest : public NetLogPlatformBrowserTestBase {
   const std::string kTestHost = "netlog-example.a.test";
 
  protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
   net::EmbeddedTestServer https_server_{net::EmbeddedTestServer::TYPE_HTTPS};
 };
 
-IN_PROC_BROWSER_TEST_F(CertVerifyProcNetLogBrowserTest, Test) {
+IN_PROC_BROWSER_TEST_P(CertVerifyProcNetLogBrowserTest, Test) {
   ASSERT_TRUE(https_server_.Start());
 
   // Request using a unique host name to ensure that the cert verification wont
@@ -148,8 +159,12 @@ IN_PROC_BROWSER_TEST_F(CertVerifyProcNetLogBrowserTest, Test) {
   // Technically there is no guarantee that if the cert verifier is running out
   // of process that the netlog mojo messages will be delivered before the cert
   // verification mojo result. See:
-  // https://chromium.googlesource.com/chromium/src/+/main/docs/mojo_ipc_conversion.md#Ordering-Considerations
+  // https://chromium.googlesource.com/chromium/src/+/master/docs/mojo_ipc_conversion.md#Ordering-Considerations
   // Hopefully this won't be flaky.
   base::RunLoop().RunUntilIdle();
   content::FlushNetworkServiceInstanceForTesting();
 }
+
+INSTANTIATE_TEST_SUITE_P(CertVerifierService,
+                         CertVerifyProcNetLogBrowserTest,
+                         ::testing::Bool());

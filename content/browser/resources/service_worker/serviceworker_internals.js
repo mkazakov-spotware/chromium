@@ -1,25 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/js/jstemplate_compiled.js';
+cr.define('serviceworker', function() {
+  'use strict';
 
-import {addWebUiListener, sendWithPromise} from 'chrome://resources/js/cr.js';
-import {$} from 'chrome://resources/js/util_ts.js';
-
-function initialize() {
-  addWebUiListener('partition-data', onPartitionData);
-  addWebUiListener('running-state-changed', onRunningStateChanged);
-  addWebUiListener('error-reported', onErrorReported);
-  addWebUiListener('console-message-reported', onConsoleMessageReported);
-  addWebUiListener('version-state-changed', onVersionStateChanged);
-  addWebUiListener('registration-completed', onRegistrationCompleted);
-  addWebUiListener('registration-deleted', onRegistrationDeleted);
-  update();
-}
+  function initialize() {
+    update();
+  }
 
   function update() {
-    sendWithPromise('GetOptions').then(onOptions);
+    chrome.send('GetOptions');
     chrome.send('getAllRegistrations');
   }
 
@@ -59,12 +50,32 @@ function initialize() {
     return function(event) {
       const link = event.target;
       progressNodeFor(link).style.display = 'inline';
-      sendWithPromise(command, link.cmdArgs).then(() => {
-        progressNodeFor(link).style.display = 'none';
-        update();
-      });
+      sendCommand(command, link.cmdArgs, (function(status) {
+                                           progressNodeFor(link).style.display =
+                                               'none';
+                                         }).bind(null, link));
       return false;
     };
+  }
+
+  const commandCallbacks = [];
+  function sendCommand(command, args, callback) {
+    let callbackId = 0;
+    while (callbackId in commandCallbacks) {
+      callbackId++;
+    }
+    commandCallbacks[callbackId] = callback;
+    chrome.send(command, [callbackId, args]);
+  }
+
+  // Fired from the backend after the command call has completed.
+  function onOperationComplete(status, callbackId) {
+    const callback = commandCallbacks[callbackId];
+    delete commandCallbacks[callbackId];
+    if (callback) {
+      callback(status);
+    }
+    update();
   }
 
   const allLogMessages = {};
@@ -129,14 +140,14 @@ function initialize() {
   }
 
   // Fired once per partition from the backend.
-  function onPartitionData(registrations, partition_id, partition_path) {
+  function onPartitionData(
+      live_registrations, live_versions, stored_registrations, partition_id,
+      partition_path) {
     const unregisteredRegistrations = [];
     const unregisteredVersions = [];
-    const storedRegistrations = registrations.storedRegistrations;
     getUnregisteredWorkers(
-        storedRegistrations, registrations.liveRegistrations,
-        registrations.liveVersions, unregisteredRegistrations,
-        unregisteredVersions);
+        stored_registrations, live_registrations, live_versions,
+        unregisteredRegistrations, unregisteredVersions);
     let template;
     const container = $('serviceworker-list');
     // Existing templates are keyed by partition_id. This allows
@@ -153,7 +164,7 @@ function initialize() {
       container.appendChild(template);
     }
     const fillLogFunc = fillLogForVersion.bind(this, container, partition_id);
-    storedRegistrations.forEach(function(registration) {
+    stored_registrations.forEach(function(registration) {
       [registration.active, registration.waiting].forEach(fillLogFunc);
     });
     unregisteredRegistrations.forEach(function(registration) {
@@ -162,11 +173,11 @@ function initialize() {
     unregisteredVersions.forEach(fillLogFunc);
     jstProcess(
         new JsEvalContext({
-          stored_registrations: storedRegistrations,
+          stored_registrations: stored_registrations,
           unregistered_registrations: unregisteredRegistrations,
           unregistered_versions: unregisteredVersions,
           partition_id: partition_id,
-          partition_path: partition_path,
+          partition_path: partition_path
         }),
         template);
     for (let i = 0; i < COMMANDS.length; ++i) {
@@ -229,4 +240,18 @@ function initialize() {
     }
   }
 
-  document.addEventListener('DOMContentLoaded', initialize);
+  return {
+    initialize: initialize,
+    onOptions: onOptions,
+    onOperationComplete: onOperationComplete,
+    onPartitionData: onPartitionData,
+    onRunningStateChanged: onRunningStateChanged,
+    onErrorReported: onErrorReported,
+    onConsoleMessageReported: onConsoleMessageReported,
+    onVersionStateChanged: onVersionStateChanged,
+    onRegistrationCompleted: onRegistrationCompleted,
+    onRegistrationDeleted: onRegistrationDeleted,
+  };
+});
+
+document.addEventListener('DOMContentLoaded', serviceworker.initialize);

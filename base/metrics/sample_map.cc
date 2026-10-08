@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/check.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/stl_util.h"
 
 namespace base {
 
@@ -77,10 +78,11 @@ void SampleMapIterator::SkipEmptyBuckets() {
 
 SampleMap::SampleMap() : SampleMap(0) {}
 
-SampleMap::SampleMap(uint64_t id)
-    : HistogramSamples(id, std::make_unique<LocalMetadata>()) {}
+SampleMap::SampleMap(uint64_t id) : HistogramSamples(id, new LocalMetadata()) {}
 
-SampleMap::~SampleMap() = default;
+SampleMap::~SampleMap() {
+  delete static_cast<LocalMetadata*>(meta());
+}
 
 void SampleMap::Accumulate(Sample value, Count count) {
   sample_counts_[value] += count;

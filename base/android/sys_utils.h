@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,6 @@ class BASE_EXPORT SysUtils {
   static bool IsLowEndDeviceFromJni();
   // Returns true if system has low available memory.
   static bool IsCurrentlyLowMemory();
-  // Returns amount of physical ram detected in KB, or 0 if detection failed.
-  static int AmountOfPhysicalMemoryKB();
 };
 
 }  // namespace android

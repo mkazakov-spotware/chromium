@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -104,32 +104,37 @@ function replaceNotificationOptionURLs(notification_details, callback) {
   });
 }
 
-function generateHandler(name) {
-  return function(
-      id, notification_details, success_callback, failure_callback) {
-    // Since we need to modify the details object, we copy it to avoid those
-    // changes also being made to the object on the caller's side.
+function genHandle(name, failure_function) {
+  return function(id, input_notification_details, callback) {
     // TODO(dewittj): Remove this hack. This is used as a way to deep
     // copy a complex JSON object.
-    var notification_details_copy = $JSON.parse(
-        $JSON.stringify(notification_details));
-    replaceNotificationOptionURLs(notification_details_copy, function(success) {
+    var notification_details = $JSON.parse(
+        $JSON.stringify(input_notification_details));
+    var that = this;
+    var stack = exceptionHandler.getExtensionStackTrace();
+    replaceNotificationOptionURLs(notification_details, function(success) {
       if (success) {
         bindingUtil.sendRequest(
-            name, [id, notification_details_copy, success_callback], undefined);
+            name, [id, notification_details, callback], undefined);
         return;
       }
-      failure_callback('Unable to download all specified images.');
+      bindingUtil.runCallbackWithLastError(
+          'Unable to download all specified images.',
+          $Function.bind(failure_function, null,
+                         callback || function() {}, id));
     });
   };
 }
 
-apiBridge.registerCustomHook( function(bindingsAPI) {
+var handleCreate = genHandle('notifications.create',
+                             function(callback, id) { callback(id); });
+var handleUpdate = genHandle('notifications.update',
+                             function(callback, id) { callback(false); });
+
+var notificationsCustomHook = function(bindingsAPI, extensionId) {
   var apiFunctions = bindingsAPI.apiFunctions;
+  apiFunctions.setHandleRequest('create', handleCreate);
+  apiFunctions.setHandleRequest('update', handleUpdate);
+};
 
-  apiFunctions.setHandleRequest(
-      'create', generateHandler('notifications.create'));
-
-  apiFunctions.setHandleRequest(
-      'update', generateHandler('notifications.update'));
-});
+apiBridge.registerCustomHook(notificationsCustomHook);

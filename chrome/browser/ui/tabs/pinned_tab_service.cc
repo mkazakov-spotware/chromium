@@ -1,21 +1,19 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/tabs/pinned_tab_service.h"
 
-#include "base/bind.h"
-#include "chrome/browser/lifetime/application_lifetime_desktop.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "content/public/browser/notification_service.h"
 
 PinnedTabService::PinnedTabService(Profile* profile) : profile_(profile) {
-  closing_all_browsers_subscription_ = chrome::AddClosingAllBrowsersCallback(
-      base::BindRepeating(&PinnedTabService::OnClosingAllBrowsersChanged,
-                          base::Unretained(this)));
+  registrar_.Add(this, chrome::NOTIFICATION_CLOSE_ALL_BROWSERS_REQUEST,
+                 content::NotificationService::AllSources());
 
   for (Browser* browser : *BrowserList::GetInstance())
     OnBrowserAdded(browser);
@@ -27,7 +25,9 @@ PinnedTabService::~PinnedTabService() {
   BrowserList::RemoveObserver(this);
 }
 
-void PinnedTabService::OnClosingAllBrowsersChanged(bool closing) {
+void PinnedTabService::Observe(int type,
+                               const content::NotificationSource& source,
+                               const content::NotificationDetails& details) {
   // Saving of tabs happens when the user exits the application or closes the
   // last browser window. After saving, |need_to_write_pinned_tabs_| is set to
   // false to make sure subsequent window closures don't overwrite the pinned
@@ -43,7 +43,8 @@ void PinnedTabService::OnClosingAllBrowsersChanged(bool closing) {
   //   * pinned tabs are saved, without the window with the pinned tabs,
   //     over-writing the correct state.
   // Saving is re-enabled if a new tab or window is opened.
-  if (closing && TabStripModelObserver::IsObservingAny(this))
+  DCHECK_EQ(type, chrome::NOTIFICATION_CLOSE_ALL_BROWSERS_REQUEST);
+  if (TabStripModelObserver::IsObservingAny(this))
     WritePinnedTabsIfNecessary();
 }
 

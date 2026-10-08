@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.modelutil;
 
 import android.animation.ObjectAnimator;
-import android.util.FloatProperty;
+import android.util.Property;
 
 import org.chromium.ui.modelutil.PropertyModel.WritableFloatPropertyKey;
 
@@ -28,11 +28,11 @@ public class PropertyModelAnimatorFactory {
         return ObjectAnimator.ofFloat(model, customProperty, targetValue);
     }
 
-    private static class PropertyModelFloatProp extends FloatProperty<PropertyModel> {
+    private static class PropertyModelFloatProp extends Property<PropertyModel, Float> {
         final WritableFloatPropertyKey mKey;
 
         public PropertyModelFloatProp(WritableFloatPropertyKey key) {
-            super(key.toString());
+            super(Float.class, key.toString());
             mKey = key;
         }
 
@@ -42,7 +42,7 @@ public class PropertyModelAnimatorFactory {
         }
 
         @Override
-        public void setValue(PropertyModel model, float value) {
+        public void set(PropertyModel model, Float value) {
             model.set(mKey, value);
         }
     }

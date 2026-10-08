@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.RemoteViews;
-
-import androidx.core.app.NotificationCompat;
 
 /**
  * Abstraction over Notification.Builder and NotificationCompat.Builder interfaces.
@@ -67,17 +65,7 @@ public interface NotificationWrapperBuilder {
     /**
      * @param actionType is for UMA. In Chrome, this is {@link NotificationUmaTracker.ActionType}.
      */
-    NotificationWrapperBuilder addAction(
-            Notification.Action action, int flags, int actionType, int requestCode);
-
-    @Deprecated
-    NotificationWrapperBuilder addAction(NotificationCompat.Action action);
-
-    /**
-     * @param actionType is for UMA. In Chrome, this is {@link NotificationUmaTracker.ActionType}.
-     */
-    NotificationWrapperBuilder addAction(
-            NotificationCompat.Action action, int flags, int actionType, int requestCode);
+    NotificationWrapperBuilder addAction(Notification.Action action, int flags, int actionType);
 
     @Deprecated
     NotificationWrapperBuilder setDeleteIntent(PendingIntent intent);
@@ -104,8 +92,6 @@ public interface NotificationWrapperBuilder {
 
     NotificationWrapperBuilder setSound(Uri sound);
 
-    NotificationWrapperBuilder setSilent(boolean silent);
-
     NotificationWrapperBuilder setDefaults(int defaults);
 
     NotificationWrapperBuilder setOnlyAlertOnce(boolean onlyAlertOnce);
@@ -114,18 +100,13 @@ public interface NotificationWrapperBuilder {
 
     NotificationWrapperBuilder setContent(RemoteViews views);
 
-    NotificationWrapperBuilder setBigPictureStyle(Bitmap bigPicture, CharSequence summaryText);
+    NotificationWrapperBuilder setStyle(Notification.BigPictureStyle style);
 
-    NotificationWrapperBuilder setBigTextStyle(CharSequence bigText);
+    NotificationWrapperBuilder setStyle(Notification.BigTextStyle bigTextStyle);
 
     NotificationWrapperBuilder setMediaStyle(MediaSessionCompat session, int[] actions);
 
     NotificationWrapperBuilder setCategory(String category);
-
-    /**
-     * Sets the lifetime of a notification. Does nothing prior to Oreo.
-     */
-    NotificationWrapperBuilder setTimeoutAfter(long ms);
 
     NotificationWrapper buildWithBigContentView(RemoteViews bigView);
 

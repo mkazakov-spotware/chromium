@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,12 +67,10 @@ using TextAttachmentTextTitleTest =
 }  // namespace
 
 TEST_P(TextAttachmentTextTitleTest, TextTitleMatches) {
-  TextAttachment attachment(GetParam().type, GetParam().text_body,
-                            /*title=*/absl::nullopt,
-                            /*mime_type=*/absl::nullopt);
+  TextAttachment attachment(GetParam().type, GetParam().text_body);
   EXPECT_EQ(GetParam().expected_text_title, attachment.text_title());
 }
 
-INSTANTIATE_TEST_SUITE_P(TextAttachmentTextTitleTest,
-                         TextAttachmentTextTitleTest,
-                         testing::ValuesIn(kTextAttachmentTextTitleTestData));
+INSTANTIATE_TEST_CASE_P(TextAttachmentTextTitleTest,
+                        TextAttachmentTextTitleTest,
+                        testing::ValuesIn(kTextAttachmentTextTitleTestData));

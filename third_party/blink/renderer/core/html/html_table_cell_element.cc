@@ -99,16 +99,19 @@ void HTMLTableCellElement::CollectStyleForPresentationAttribute(
     MutableCSSPropertyValueSet* style) {
   if (name == html_names::kNowrapAttr) {
     AddPropertyToPresentationAttributeStyle(style, CSSPropertyID::kWhiteSpace,
-                                            CSSValueID::kNowrap);
+                                            CSSValueID::kWebkitNowrap);
   } else if (name == html_names::kWidthAttr) {
-    if (!value.empty()) {
-      AddHTMLLengthToStyle(style, CSSPropertyID::kWidth, value,
-                           kAllowPercentageValues, kDontAllowZeroValues);
+    if (!value.IsEmpty()) {
+      int width_int = value.ToInt();
+      if (width_int > 0)  // width="0" is ignored for compatibility with WinIE.
+        AddHTMLLengthToStyle(style, CSSPropertyID::kWidth, value);
     }
   } else if (name == html_names::kHeightAttr) {
-    if (!value.empty()) {
-      AddHTMLLengthToStyle(style, CSSPropertyID::kHeight, value,
-                           kAllowPercentageValues, kDontAllowZeroValues);
+    if (!value.IsEmpty()) {
+      int height_int = value.ToInt();
+      if (height_int >
+          0)  // height="0" is ignored for compatibility with WinIE.
+        AddHTMLLengthToStyle(style, CSSPropertyID::kHeight, value);
     }
   } else {
     HTMLTablePartElement::CollectStyleForPresentationAttribute(name, value,

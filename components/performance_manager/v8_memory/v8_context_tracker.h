@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/types/pass_key.h"
+#include "base/util/type_safety/pass_key.h"
 #include "components/performance_manager/public/execution_context/execution_context.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/graph_registered.h"
@@ -97,7 +96,7 @@ class V8ContextTracker final
     // A pointer to the upstream ExecutionContextState that this V8Context is
     // associated with. Note that this can be nullptr for V8Contexts that are
     // not associated with an ExecutionContext.
-    raw_ptr<ExecutionContextState> execution_context_state;
+    ExecutionContextState* const execution_context_state;
 
     // Whether or not this context is detached. A context becomes detached
     // when the blink::ExecutionContext it was associated with is torn down.
@@ -136,7 +135,7 @@ class V8ContextTracker final
   // parent frame. See the V8ContextWorldType enum for a description of the
   // relationship between world types, world names and execution contexts.
   void OnV8ContextCreated(
-      base::PassKey<ProcessNodeImpl> key,
+      util::PassKey<ProcessNodeImpl> key,
       ProcessNodeImpl* process_node,
       const mojom::V8ContextDescription& description,
       mojom::IframeAttributionDataPtr iframe_attribution_data);
@@ -148,14 +147,14 @@ class V8ContextTracker final
   // context. All ExecutionContext-associated V8Contexts will have this method
   // called before they are destroyed, and it will not be called for other
   // V8Contexts (they are never considered detached).
-  void OnV8ContextDetached(base::PassKey<ProcessNodeImpl> key,
+  void OnV8ContextDetached(util::PassKey<ProcessNodeImpl> key,
                            ProcessNodeImpl* process_node,
                            const blink::V8ContextToken& v8_context_token);
 
   // Notifies the tracker that a V8Context has been garbage collected. This will
   // only be called after OnV8ContextDetached if the OnV8ContextCreated had a
   // non-empty |execution_context_token|.
-  void OnV8ContextDestroyed(base::PassKey<ProcessNodeImpl> key,
+  void OnV8ContextDestroyed(util::PassKey<ProcessNodeImpl> key,
                             ProcessNodeImpl* process_node,
                             const blink::V8ContextToken& v8_context_token);
 
@@ -166,7 +165,7 @@ class V8ContextTracker final
   // be called for bookkeeping. This should only be called once for a given
   // |remote_frame_token|.
   void OnRemoteIframeAttached(
-      base::PassKey<ProcessNodeImpl> key,
+      util::PassKey<FrameNodeImpl> key,
       FrameNodeImpl* parent_frame_node,
       const blink::RemoteFrameToken& remote_frame_token,
       mojom::IframeAttributionDataPtr iframe_attribution_data);
@@ -181,7 +180,7 @@ class V8ContextTracker final
   // |remote_frame_token|, and only after a matching "OnRemoteIframeAttached"
   // call.
   void OnRemoteIframeDetached(
-      base::PassKey<ProcessNodeImpl> key,
+      util::PassKey<FrameNodeImpl> key,
       FrameNodeImpl* parent_frame_node,
       const blink::RemoteFrameToken& remote_frame_token);
 
@@ -190,7 +189,6 @@ class V8ContextTracker final
 
   void OnRemoteIframeAttachedForTesting(
       FrameNodeImpl* frame_node,
-      FrameNodeImpl* parent_frame_node,
       const blink::RemoteFrameToken& remote_frame_token,
       mojom::IframeAttributionDataPtr iframe_attribution_data);
 
@@ -231,7 +229,6 @@ class V8ContextTracker final
   void OnRemoteIframeAttachedImpl(
       mojo::ReportBadMessageCallback bad_message_callback,
       FrameNodeImpl* frame_node,
-      FrameNodeImpl* parent_frame_node,
       const blink::RemoteFrameToken& remote_frame_token,
       mojom::IframeAttributionDataPtr iframe_attribution_data);
 

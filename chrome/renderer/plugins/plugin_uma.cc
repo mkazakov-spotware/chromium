@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <cstring>
 
 #include "base/metrics/histogram_macros.h"
-#include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "content/public/common/content_constants.h"
 
@@ -123,19 +123,19 @@ PluginUMAReporter::PluginType PluginUMAReporter::SrcToPluginType(
   std::string file_extension;
   ExtractFileExtension(src, &file_extension);
   if (CStringArrayContainsCString(kWindowsMediaPlayerExtensions,
-                                  std::size(kWindowsMediaPlayerExtensions),
+                                  base::size(kWindowsMediaPlayerExtensions),
                                   file_extension.c_str())) {
     return WINDOWS_MEDIA_PLAYER;
   }
 
   if (CStringArrayContainsCString(kQuickTimeExtensions,
-                                  std::size(kQuickTimeExtensions),
+                                  base::size(kQuickTimeExtensions),
                                   file_extension.c_str())) {
     return QUICKTIME;
   }
 
   if (CStringArrayContainsCString(kRealPlayerExtensions,
-                                  std::size(kRealPlayerExtensions),
+                                  base::size(kRealPlayerExtensions),
                                   file_extension.c_str())) {
     return REALPLAYER;
   }

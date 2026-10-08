@@ -22,7 +22,7 @@ Object.assign(MathMLFeatureDetection, {
             let font_face = new FontFace('HasOperatorLargeopTestFont',
                 'url(/fonts/math/largeop-displayoperatorminheight5000.woff)');
             document.fonts.add(font_face);
-            await font_face.load();
+            await document.fonts.ready;
             var math = document.body.lastElementChild;
             var mo = math.getElementsByTagName("mo");
             this._has_operator_largeop =
@@ -47,7 +47,7 @@ Object.assign(MathMLFeatureDetection, {
             let font_face = new FontFace('HasOperatorLargeopTestFont',
                 'url(/fonts/math/largeop-displayoperatorminheight5000.woff)');
             document.fonts.add(font_face);
-            await font_face.load();
+            await document.fonts.ready;
             var math = document.body.lastElementChild;
             var mo = math.getElementsByTagName("mo");
             this._has_operator_stretchy =
@@ -72,7 +72,7 @@ Object.assign(MathMLFeatureDetection, {
             let font_face = new FontFace('HasOperatorLargeopTestFont',
                 'url(/fonts/math/largeop-displayoperatorminheight5000.woff)');
             document.fonts.add(font_face);
-            await font_face.load();
+            await document.fonts.ready;
             var math = document.body.lastElementChild;
             var mo = math.getElementsByTagName("mo");
             this._has_operator_symmetric =

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,12 +39,12 @@ class SocketsTcpUnitTest : public ApiUnitTest {
 TEST_F(SocketsTcpUnitTest, Create) {
   // Create SocketCreateFunction and put it on BrowserThread
   SocketsTcpCreateFunction* function = new SocketsTcpCreateFunction();
+  function->set_work_task_runner(base::SequencedTaskRunnerHandle::Get());
 
   // Run tests
-  absl::optional<base::Value> result = RunFunctionAndReturnValue(
-      function, "[{\"persistent\": true, \"name\": \"foo\"}]");
-  ASSERT_TRUE(result);
-  ASSERT_TRUE(result->is_dict());
+  std::unique_ptr<base::DictionaryValue> result(RunFunctionAndReturnDictionary(
+      function, "[{\"persistent\": true, \"name\": \"foo\"}]"));
+  ASSERT_TRUE(result.get());
 }
 
 }  // namespace api

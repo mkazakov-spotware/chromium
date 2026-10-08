@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/callback.h"
 #include "base/memory/weak_ptr.h"
+#include "base/values.h"
 #include "components/autofill/core/browser/autofill_client.h"
 #include "components/autofill/core/browser/payments/card_unmask_delegate.h"
 #include "components/autofill/core/browser/payments/legal_message_line.h"
@@ -20,10 +21,6 @@ class AutofillProfile;
 class CreditCard;
 class FormStructure;
 }  // namespace autofill
-
-namespace web {
-class WebFrame;
-}  // namespace web
 
 // WebView extension of AutofillClientIOSBridge.
 @protocol CWVAutofillClientIOSBridge<AutofillClientIOSBridge>
@@ -38,15 +35,28 @@ class WebFrame;
                             callback:(autofill::AutofillClient::
                                           UploadSaveCardPromptCallback)callback;
 
+// Bridge For AutofillClient's method |ConfirmAccountNameFixFlow|.
+- (void)
+    confirmCreditCardAccountName:(const base::string16&)name
+                        callback:
+                            (base::OnceCallback<void(const base::string16&)>)
+                                callback;
+
+// Bridge For AutofillClient's method |ConfirmExpirationDateFixFlow|.
+- (void)confirmCreditCardExpirationWithCard:(const autofill::CreditCard&)card
+                                   callback:
+                                       (base::OnceCallback<void(
+                                            const base::string16&,
+                                            const base::string16&)>)callback;
+
 // Bridge for AutofillClient's method |CreditCardUploadCompleted|.
 - (void)handleCreditCardUploadCompleted:(BOOL)cardSaved;
 
 // Bridge for AutofillClient's method |ShowUnmaskPrompt|.
-- (void)showUnmaskPromptForCard:(const autofill::CreditCard&)creditCard
-        cardUnmaskPromptOptions:
-            (const autofill::CardUnmaskPromptOptions&)cardUnmaskPromptOptions
-                       delegate:(base::WeakPtr<autofill::CardUnmaskDelegate>)
-                                    delegate;
+- (void)
+showUnmaskPromptForCard:(const autofill::CreditCard&)creditCard
+                 reason:(autofill::AutofillClient::UnmaskCardReason)reason
+               delegate:(base::WeakPtr<autofill::CardUnmaskDelegate>)delegate;
 
 // Bridge for AutofillClient's method |onUnmaskVerificationResult|.
 - (void)didReceiveUnmaskVerificationResult:
@@ -57,15 +67,7 @@ class WebFrame;
 
 // Bridge for AutofillClient's method |PropagateAutofillPredictions|.
 - (void)propagateAutofillPredictionsForForms:
-            (const std::vector<autofill::FormStructure*>&)forms
-                                     inFrame:(web::WebFrame*)frame;
-
-// Bridge for AutofillClient's method |ConfirmSaveAddressProfile|.
-- (void)
-    confirmSaveAddressProfile:(const autofill::AutofillProfile&)profile
-              originalProfile:(const autofill::AutofillProfile*)originalProfile
-                     callback:(autofill::AutofillClient ::
-                                   AddressProfileSavePromptCallback)callback;
+    (const std::vector<autofill::FormStructure*>&)forms;
 
 @end
 

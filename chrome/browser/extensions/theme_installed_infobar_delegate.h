@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,26 +8,25 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "chrome/browser/themes/theme_service.h"
-#include "chrome/browser/themes/theme_service_observer.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/common/extension_id.h"
 #include "third_party/skia/include/core/SkColor.h"
 
-namespace infobars {
-class ContentInfoBarManager;
-}
+class InfoBarService;
 
 // When a user installs a theme, we display it immediately, but provide an
 // infobar allowing them to cancel.
 class ThemeInstalledInfoBarDelegate : public ConfirmInfoBarDelegate,
-                                      public ThemeServiceObserver {
+                                      public content::NotificationObserver {
  public:
   // Creates a theme installed infobar and delegate and adds the infobar to
-  // |infobar_manager|, replacing any previous theme infobar.
+  // |infobar_service|, replacing any previous theme infobar.
   static void Create(
-      infobars::ContentInfoBarManager* infobar_manager,
+      InfoBarService* infobar_service,
       ThemeService* theme_service,
       const std::string& theme_name,
       const std::string& theme_id,
@@ -45,15 +44,17 @@ class ThemeInstalledInfoBarDelegate : public ConfirmInfoBarDelegate,
   infobars::InfoBarDelegate::InfoBarIdentifier GetIdentifier() const override;
   const gfx::VectorIcon& GetVectorIcon() const override;
   ThemeInstalledInfoBarDelegate* AsThemePreviewInfobarDelegate() override;
-  std::u16string GetMessageText() const override;
+  base::string16 GetMessageText() const override;
   int GetButtons() const override;
-  std::u16string GetButtonLabel(InfoBarButton button) const override;
+  base::string16 GetButtonLabel(InfoBarButton button) const override;
   bool Cancel() override;
 
-  // ThemeServiceObserver:
-  void OnThemeChanged() override;
+  // content::NotificationObserver:
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
-  raw_ptr<ThemeService> theme_service_;
+  ThemeService* theme_service_;
 
   // Name of theme that's just been installed.
   std::string theme_name_;
@@ -63,6 +64,9 @@ class ThemeInstalledInfoBarDelegate : public ConfirmInfoBarDelegate,
 
   // Used to undo theme install.
   std::unique_ptr<ThemeService::ThemeReinstaller> prev_theme_reinstaller_;
+
+  // Registers and unregisters us for notifications.
+  content::NotificationRegistrar registrar_;
 };
 
 #endif  // CHROME_BROWSER_EXTENSIONS_THEME_INSTALLED_INFOBAR_DELEGATE_H_

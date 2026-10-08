@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,7 +50,7 @@
 // platform.
 // Notifications from the Java side always arrive on the main thread. The
 // delegate then forwards these notifications to the threads of each observer
-// (network change notifier). The network change notifier then processes the
+// (network change notifier). The network change notifier than processes the
 // state change, and notifies each of its observers on their threads.
 //
 // This can also be seen as:
@@ -66,7 +66,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread.h"
@@ -74,14 +75,13 @@
 
 namespace net {
 
-// Expose handles::kInvalidNetworkHandle out to Java as NetId.INVALID. The
-// notion of a NetID is an Android framework one, see android.net.Network.netId.
-// NetworkChangeNotifierAndroid implements handles::NetworkHandle to simply be
-// the NetID.
+// Expose kInvalidNetworkHandle out to Java as NetId.INVALID. The notion of
+// a NetID is an Android framework one, see android.net.Network.netId.
+// NetworkChangeNotifierAndroid implements NetworkHandle to simply be the NetID.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.net
 enum NetId {
-  // Cannot use |handles::kInvalidNetworkHandle| here as the Java generator
-  // fails, instead enforce their equality with CHECK in
+  // Cannot use |kInvalidNetworkHandle| here as the Java generator fails,
+  // instead enforce their equality with CHECK in
   // NetworkChangeNotifierAndroid().
   INVALID = -1
 };
@@ -116,17 +116,12 @@ class NetworkChangeNotifierAndroid::BlockingThreadObjects {
 
 NetworkChangeNotifierAndroid::~NetworkChangeNotifierAndroid() {
   ClearGlobalPointer();
-  delegate_->UnregisterObserver(this);
+  delegate_->RemoveObserver(this);
 }
 
 NetworkChangeNotifier::ConnectionType
 NetworkChangeNotifierAndroid::GetCurrentConnectionType() const {
   return delegate_->GetCurrentConnectionType();
-}
-
-NetworkChangeNotifier::ConnectionCost
-NetworkChangeNotifierAndroid::GetCurrentConnectionCost() {
-  return delegate_->GetCurrentConnectionCost();
 }
 
 NetworkChangeNotifier::ConnectionSubtype
@@ -146,11 +141,12 @@ void NetworkChangeNotifierAndroid::ForceNetworkHandlesSupportedForTesting() {
 }
 
 bool NetworkChangeNotifierAndroid::AreNetworkHandlesCurrentlySupported() const {
-  // Notifications for API using handles::NetworkHandles and querying using
-  // handles::NetworkHandles only implemented for Android versions >= L.
+  // Notifications for API using NetworkHandles and querying using
+  // NetworkHandles only implemented for Android versions >= L.
   return force_network_handles_supported_for_testing_ ||
          (base::android::BuildInfo::GetInstance()->sdk_int() >=
               base::android::SDK_VERSION_LOLLIPOP &&
+          !delegate_->IsProcessBoundToNetwork() &&
           !delegate_->RegisterNetworkCallbackFailed());
 }
 
@@ -161,21 +157,17 @@ void NetworkChangeNotifierAndroid::GetCurrentConnectedNetworks(
 
 NetworkChangeNotifier::ConnectionType
 NetworkChangeNotifierAndroid::GetCurrentNetworkConnectionType(
-    handles::NetworkHandle network) const {
+    NetworkHandle network) const {
   return delegate_->GetNetworkConnectionType(network);
 }
 
-handles::NetworkHandle NetworkChangeNotifierAndroid::GetCurrentDefaultNetwork()
-    const {
+NetworkChangeNotifier::NetworkHandle
+NetworkChangeNotifierAndroid::GetCurrentDefaultNetwork() const {
   return delegate_->GetCurrentDefaultNetwork();
 }
 
 void NetworkChangeNotifierAndroid::OnConnectionTypeChanged() {
   BlockingThreadObjects::NotifyNetworkChangeNotifierObservers();
-}
-
-void NetworkChangeNotifierAndroid::OnConnectionCostChanged() {
-  NetworkChangeNotifier::NotifyObserversOfConnectionCostChange();
 }
 
 void NetworkChangeNotifierAndroid::OnMaxBandwidthChanged(
@@ -185,42 +177,37 @@ void NetworkChangeNotifierAndroid::OnMaxBandwidthChanged(
                                                              type);
 }
 
-void NetworkChangeNotifierAndroid::OnNetworkConnected(
-    handles::NetworkHandle network) {
+void NetworkChangeNotifierAndroid::OnNetworkConnected(NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeType::kConnected, network);
+      NetworkChangeType::CONNECTED, network);
 }
 
 void NetworkChangeNotifierAndroid::OnNetworkSoonToDisconnect(
-    handles::NetworkHandle network) {
+    NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeType::kSoonToDisconnect, network);
+      NetworkChangeType::SOON_TO_DISCONNECT, network);
 }
 
 void NetworkChangeNotifierAndroid::OnNetworkDisconnected(
-    handles::NetworkHandle network) {
+    NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeType::kDisconnected, network);
+      NetworkChangeType::DISCONNECTED, network);
 }
 
-void NetworkChangeNotifierAndroid::OnNetworkMadeDefault(
-    handles::NetworkHandle network) {
+void NetworkChangeNotifierAndroid::OnNetworkMadeDefault(NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeType::kMadeDefault, network);
-}
-
-void NetworkChangeNotifierAndroid::OnDefaultNetworkActive() {
-  NetworkChangeNotifier::NotifyObserversOfDefaultNetworkActive();
+      NetworkChangeType::MADE_DEFAULT, network);
 }
 
 NetworkChangeNotifierAndroid::NetworkChangeNotifierAndroid(
     NetworkChangeNotifierDelegateAndroid* delegate)
     : NetworkChangeNotifier(NetworkChangeCalculatorParamsAndroid()),
       delegate_(delegate),
-      blocking_thread_objects_(nullptr, base::OnTaskRunnerDeleter(nullptr)) {
-  static_assert(NetId::INVALID == handles::kInvalidNetworkHandle,
-                "handles::kInvalidNetworkHandle doesn't match NetId::INVALID");
-  delegate_->RegisterObserver(this);
+      blocking_thread_objects_(nullptr, base::OnTaskRunnerDeleter(nullptr)),
+      force_network_handles_supported_for_testing_(false) {
+  CHECK_EQ(NetId::INVALID, NetworkChangeNotifier::kInvalidNetworkHandle)
+      << "kInvalidNetworkHandle doesn't match NetId::INVALID";
+  delegate_->AddObserver(this);
   // Since Android P, ConnectivityManager's signals include VPNs so we don't
   // need to use AddressTrackerLinux.
   if (base::android::BuildInfo::GetInstance()->sdk_int() <
@@ -252,23 +239,11 @@ NetworkChangeNotifierAndroid::NetworkChangeCalculatorParamsAndroid() {
   // IPAddressChanged is produced immediately prior to ConnectionTypeChanged
   // so delay IPAddressChanged so they get merged with the following
   // ConnectionTypeChanged signal.
-  params.ip_address_offline_delay_ = base::Seconds(1);
-  params.ip_address_online_delay_ = base::Seconds(1);
-  params.connection_type_offline_delay_ = base::Seconds(0);
-  params.connection_type_online_delay_ = base::Seconds(0);
+  params.ip_address_offline_delay_ = base::TimeDelta::FromSeconds(1);
+  params.ip_address_online_delay_ = base::TimeDelta::FromSeconds(1);
+  params.connection_type_offline_delay_ = base::TimeDelta::FromSeconds(0);
+  params.connection_type_online_delay_ = base::TimeDelta::FromSeconds(0);
   return params;
-}
-
-bool NetworkChangeNotifierAndroid::IsDefaultNetworkActiveInternal() {
-  return delegate_->IsDefaultNetworkActive();
-}
-
-void NetworkChangeNotifierAndroid::DefaultNetworkActiveObserverAdded() {
-  delegate_->DefaultNetworkActiveObserverAdded();
-}
-
-void NetworkChangeNotifierAndroid::DefaultNetworkActiveObserverRemoved() {
-  delegate_->DefaultNetworkActiveObserverRemoved();
 }
 
 }  // namespace net

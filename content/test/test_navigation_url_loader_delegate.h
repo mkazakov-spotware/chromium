@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,13 @@
 
 #include <memory>
 
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/optional.h"
+#include "base/time/time.h"
 #include "content/browser/loader/navigation_url_loader_delegate.h"
 #include "net/url_request/redirect_info.h"
 #include "services/network/public/mojom/url_response_head.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class RunLoop;
@@ -23,12 +26,6 @@ namespace content {
 class TestNavigationURLLoaderDelegate : public NavigationURLLoaderDelegate {
  public:
   TestNavigationURLLoaderDelegate();
-
-  TestNavigationURLLoaderDelegate(const TestNavigationURLLoaderDelegate&) =
-      delete;
-  TestNavigationURLLoaderDelegate& operator=(
-      const TestNavigationURLLoaderDelegate&) = delete;
-
   ~TestNavigationURLLoaderDelegate() override;
 
   const net::RedirectInfo& redirect_info() const { return redirect_info_; }
@@ -53,29 +50,26 @@ class TestNavigationURLLoaderDelegate : public NavigationURLLoaderDelegate {
   void WaitForRequestRedirected();
   void WaitForResponseStarted();
   void WaitForRequestFailed();
+  void WaitForRequestStarted();
 
   void ReleaseURLLoaderClientEndpoints();
 
   // NavigationURLLoaderDelegate implementation.
   void OnRequestRedirected(
       const net::RedirectInfo& redirect_info,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
       network::mojom::URLResponseHeadPtr response) override;
   void OnResponseStarted(
       network::mojom::URLLoaderClientEndpointsPtr url_loader_client_endpoints,
       network::mojom::URLResponseHeadPtr response_head,
       mojo::ScopedDataPipeConsumerHandle response_body,
-      GlobalRequestID request_id,
+      const GlobalRequestID& request_id,
       bool is_download,
-      blink::NavigationDownloadPolicy download_policy,
-      net::NetworkAnonymizationKey network_anonymization_key,
-      absl::optional<SubresourceLoaderParams> subresource_loader_params,
-      EarlyHints early_hints) override;
+      NavigationDownloadPolicy download_policy,
+      base::Optional<SubresourceLoaderParams> subresource_loader_params)
+      override;
   void OnRequestFailed(
       const network::URLLoaderCompletionStatus& status) override;
-  absl::optional<NavigationEarlyHintsManagerParams>
-  CreateNavigationEarlyHintsManagerParams(
-      const network::mojom::EarlyHints& early_hints) override;
+  void OnRequestStarted(base::TimeTicks timestamp) override;
 
  private:
   net::RedirectInfo redirect_info_;
@@ -91,8 +85,11 @@ class TestNavigationURLLoaderDelegate : public NavigationURLLoaderDelegate {
   std::unique_ptr<base::RunLoop> request_redirected_;
   std::unique_ptr<base::RunLoop> response_started_;
   std::unique_ptr<base::RunLoop> request_failed_;
+  std::unique_ptr<base::RunLoop> request_started_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNavigationURLLoaderDelegate);
 };
 
 }  // namespace content
 
-#endif  // CONTENT_TEST_TEST_NAVIGATION_URL_LOADER_DELEGATE_H_
+#endif  // CONTENT_TEST_TEST_NAVIGATION_URL_LOADER_DELEGATE_H

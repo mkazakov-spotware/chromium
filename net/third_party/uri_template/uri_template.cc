@@ -28,8 +28,8 @@
 #include <string>
 #include <vector>
 
-#include "base/strings/escape.h"
 #include "base/strings/string_split.h"
+#include "net/base/escape.h"
 
 using std::string;
 
@@ -74,9 +74,9 @@ struct UriTemplateConfig {
     string escaped;
     if (allow_reserved_expansion_) {
       // Reserved expansion passes through reserved and pct-encoded characters.
-      escaped = base::EscapeExternalHandlerValue(value);
+      escaped = net::EscapeExternalHandlerValue(value);
     } else {
-      escaped = base::EscapeAllExceptUnreserved(value);
+      escaped = net::EscapeAllExceptUnreserved(value);
     }
     return escaped;
   }

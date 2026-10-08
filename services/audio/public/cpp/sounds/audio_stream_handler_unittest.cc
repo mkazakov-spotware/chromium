@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,10 @@
 #include "base/compiler_specific.h"
 #include "base/location.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/test/test_message_loop.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/audio/audio_io.h"
 #include "media/audio/simple_sources.h"
 #include "media/audio/test_audio_thread.h"
@@ -45,11 +47,11 @@ TEST_F(AudioStreamHandlerTest, Play) {
   std::unique_ptr<AudioStreamHandler> audio_stream_handler;
 
   SetObserverForTesting(&observer);
-  audio_stream_handler =
-      std::make_unique<AudioStreamHandler>(base::DoNothing(), data);
+  audio_stream_handler.reset(new AudioStreamHandler(base::DoNothing(), data));
 
   ASSERT_TRUE(audio_stream_handler->IsInitialized());
-  EXPECT_EQ(base::Microseconds(20u), audio_stream_handler->duration());
+  EXPECT_EQ(base::TimeDelta::FromMicroseconds(20u),
+            audio_stream_handler->duration());
 
   ASSERT_TRUE(audio_stream_handler->Play());
 
@@ -69,23 +71,23 @@ TEST_F(AudioStreamHandlerTest, ConsecutivePlayRequests) {
   std::unique_ptr<AudioStreamHandler> audio_stream_handler;
 
   SetObserverForTesting(&observer);
-  audio_stream_handler =
-      std::make_unique<AudioStreamHandler>(base::DoNothing(), data);
+  audio_stream_handler.reset(new AudioStreamHandler(base::DoNothing(), data));
 
   ASSERT_TRUE(audio_stream_handler->IsInitialized());
-  EXPECT_EQ(base::Microseconds(20u), audio_stream_handler->duration());
+  EXPECT_EQ(base::TimeDelta::FromMicroseconds(20u),
+            audio_stream_handler->duration());
 
   ASSERT_TRUE(audio_stream_handler->Play());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(base::IgnoreResult(&AudioStreamHandler::Play),
                      base::Unretained(audio_stream_handler.get())),
-      base::Seconds(1));
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::TimeDelta::FromSeconds(1));
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&AudioStreamHandler::Stop,
                      base::Unretained(audio_stream_handler.get())),
-      base::Seconds(2));
+      base::TimeDelta::FromSeconds(2));
 
   run_loop.Run();
 

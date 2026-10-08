@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,11 +64,11 @@ bool StructTraits<blink::mojom::RendererPreferencesDataView,
   if (!data.ReadAcceptLanguages(&out->accept_languages))
     return false;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   if (!data.ReadSystemFontFamilyName(&out->system_font_family_name))
     return false;
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (!data.ReadCaptionFontFamilyName(&out->caption_font_family_name))
     return false;
   out->caption_font_height = data.caption_font_height();
@@ -99,17 +99,12 @@ bool StructTraits<blink::mojom::RendererPreferencesDataView,
   out->arrow_bitmap_width_horizontal_scroll_bar_in_dips =
       data.arrow_bitmap_width_horizontal_scroll_bar_in_dips();
 #endif
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_X11) || defined(USE_OZONE)
   out->selection_clipboard_buffer_available =
       data.selection_clipboard_buffer_available();
 #endif
   out->plugin_fullscreen_allowed = data.plugin_fullscreen_allowed();
   out->caret_browsing_enabled = data.caret_browsing_enabled();
-
-  if (!data.ReadExplicitlyAllowedNetworkPorts(
-          &out->explicitly_allowed_network_ports)) {
-    return false;
-  }
 
   return true;
 }

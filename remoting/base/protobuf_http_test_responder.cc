@@ -1,11 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/base/protobuf_http_test_responder.h"
 
-#include "base/containers/adapters.h"
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "net/http/http_status_code.h"
 #include "remoting/base/protobuf_http_client_messages.pb.h"
@@ -36,11 +37,7 @@ bool ProtobufHttpTestResponder::ParseRequestMessage(
     google::protobuf::MessageLite* out_message) {
   std::string unified_data;
   for (const auto& data_element : *resource_request.request_body->elements()) {
-    if (data_element.type() == network::DataElement::Tag::kBytes) {
-      const auto piece =
-          data_element.As<network::DataElementBytes>().AsStringPiece();
-      unified_data.append(piece.data(), piece.size());
-    }
+    unified_data.append(data_element.bytes(), data_element.length());
   }
   return out_message->ParseFromString(unified_data);
 }
@@ -101,10 +98,11 @@ bool ProtobufHttpTestResponder::GetRequestMessage(
     const std::string& url,
     google::protobuf::MessageLite* out_message) {
   base::RunLoop().RunUntilIdle();
-  auto pending_request_it = base::ranges::find(
-      base::Reversed(*test_url_loader_factory_.pending_requests()), url,
-      [](const network::TestURLLoaderFactory::PendingRequest& request) {
-        return request.request.url.spec();
+  auto pending_request_it = std::find_if(
+      test_url_loader_factory_.pending_requests()->rbegin(),
+      test_url_loader_factory_.pending_requests()->rend(),
+      [url](const network::TestURLLoaderFactory::PendingRequest& request) {
+        return request.request.url.spec() == url;
       });
   if (pending_request_it ==
       test_url_loader_factory_.pending_requests()->rend()) {

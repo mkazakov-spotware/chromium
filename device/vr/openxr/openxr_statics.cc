@@ -1,20 +1,20 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/vr/openxr/openxr_statics.h"
-
-#include "build/build_config.h"
 #include "device/vr/openxr/openxr_util.h"
 
 namespace device {
 
-OpenXrStatics* OpenXrStatics::GetInstance() {
-  return base::Singleton<OpenXrStatics,
-                         base::LeakySingletonTraits<OpenXrStatics>>::get();
-}
-
 OpenXrStatics::OpenXrStatics() : instance_(XR_NULL_HANDLE) {}
+
+OpenXrStatics::~OpenXrStatics() {
+  if (instance_ != XR_NULL_HANDLE) {
+    xrDestroyInstance(instance_);
+    instance_ = XR_NULL_HANDLE;
+  }
+}
 
 XrInstance OpenXrStatics::GetXrInstance() {
   if (instance_ == XR_NULL_HANDLE &&
@@ -37,11 +37,10 @@ bool OpenXrStatics::IsApiAvailable() {
   return GetXrInstance() != XR_NULL_HANDLE;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Returns the LUID of the adapter the OpenXR runtime is on. Returns {0, 0} if
 // the LUID could not be determined.
-CHROME_LUID OpenXrStatics::GetLuid(
-    const OpenXrExtensionHelper& extension_helper) {
+LUID OpenXrStatics::GetLuid(const OpenXrExtensionHelper& extension_helper) {
   if (GetXrInstance() == XR_NULL_HANDLE)
     return {0, 0};
 
@@ -60,8 +59,7 @@ CHROME_LUID OpenXrStatics::GetLuid(
               instance_, system, &graphics_requirements)))
     return {0, 0};
 
-  const LUID& luid = graphics_requirements.adapterLuid;
-  return CHROME_LUID{luid.LowPart, luid.HighPart};
+  return graphics_requirements.adapterLuid;
 }
 #endif
 

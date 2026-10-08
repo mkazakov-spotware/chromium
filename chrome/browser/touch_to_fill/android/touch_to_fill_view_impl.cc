@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,15 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
-#include "base/time/time.h"
 #include "chrome/browser/touch_to_fill/android/jni_headers/Credential_jni.h"
 #include "chrome/browser/touch_to_fill/android/jni_headers/TouchToFillBridge_jni.h"
-#include "chrome/browser/touch_to_fill/android/jni_headers/WebAuthnCredential_jni.h"
-#include "chrome/browser/touch_to_fill/touch_to_fill_controller.h"  // nogncheck
-#include "chrome/browser/touch_to_fill/touch_to_fill_webauthn_credential.h"  // nogncheck
-#include "chrome/browser/ui/passwords/ui_utils.h"
+#include "chrome/browser/touch_to_fill/touch_to_fill_controller.h"
+#include "chrome/browser/ui/passwords/manage_passwords_view_utils.h"
 #include "components/password_manager/core/browser/origin_credential_store.h"
 #include "ui/android/view_android.h"
 #include "ui/android/window_android.h"
-#include "url/android/gurl_android.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -45,19 +42,7 @@ UiCredential ConvertJavaCredential(JNIEnv* env,
       UiCredential::IsPublicSuffixMatch(
           Java_Credential_isPublicSuffixMatch(env, credential)),
       UiCredential::IsAffiliationBasedMatch(
-          Java_Credential_isAffiliationBasedMatch(env, credential)),
-      base::Time::FromJavaTime(
-          Java_Credential_lastUsedMsSinceEpoch(env, credential)));
-}
-
-TouchToFillWebAuthnCredential ConvertJavaWebAuthnCredential(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& credential) {
-  return TouchToFillWebAuthnCredential(
-      TouchToFillWebAuthnCredential::Username(ConvertJavaStringToUTF16(
-          env, Java_WebAuthnCredential_getUsername(env, credential))),
-      TouchToFillWebAuthnCredential::BackendId(ConvertJavaStringToUTF8(
-          env, Java_WebAuthnCredential_getId(env, credential))));
+          Java_Credential_isAffiliationBasedMatch(env, credential)));
 }
 
 }  // namespace
@@ -76,24 +61,16 @@ TouchToFillViewImpl::~TouchToFillViewImpl() {
 void TouchToFillViewImpl::Show(
     const GURL& url,
     IsOriginSecure is_origin_secure,
-    base::span<const password_manager::UiCredential> credentials,
-    base::span<const TouchToFillWebAuthnCredential> webauthn_credentials,
-    bool trigger_submission) {
-  if (!RecreateJavaObject()) {
-    // It's possible that the constructor cannot access the bottom sheet clank
-    // component. That case may be temporary but we can't let users in a waiting
-    // state so report that TouchToFill is dismissed in order to show the normal
-    // Android keyboard (plus keyboard accessory) instead.
-    controller_->OnDismiss();
+    base::span<const password_manager::UiCredential> credentials) {
+  if (!RecreateJavaObject())
     return;
-  }
   // Serialize the |credentials| span into a Java array and instruct the bridge
   // to show it together with |url| to the user.
   JNIEnv* env = AttachCurrentThread();
-  base::android::ScopedJavaLocalRef<jobjectArray> credential_array =
+  auto credential_array =
       Java_TouchToFillBridge_createCredentialArray(env, credentials.size());
   for (size_t i = 0; i < credentials.size(); ++i) {
-    const password_manager::UiCredential& credential = credentials[i];
+    const auto& credential = credentials[i];
     Java_TouchToFillBridge_insertCredential(
         env, credential_array, i,
         ConvertUTF16ToJavaString(env, credential.username()),
@@ -101,25 +78,12 @@ void TouchToFillViewImpl::Show(
         ConvertUTF16ToJavaString(env, GetDisplayUsername(credential)),
         ConvertUTF8ToJavaString(env, credential.origin().Serialize()),
         credential.is_public_suffix_match().value(),
-        credential.is_affiliation_based_match().value(),
-        credential.last_used().ToJavaTime());
-  }
-
-  base::android::ScopedJavaLocalRef<jobjectArray> webauthn_credential_array =
-      Java_TouchToFillBridge_createWebAuthnCredentialArray(
-          env, webauthn_credentials.size());
-  for (size_t i = 0; i < webauthn_credentials.size(); ++i) {
-    const TouchToFillWebAuthnCredential& credential = webauthn_credentials[i];
-    Java_TouchToFillBridge_insertWebAuthnCredential(
-        env, webauthn_credential_array, i,
-        ConvertUTF16ToJavaString(env, credential.username().value()),
-        ConvertUTF8ToJavaString(env, credential.id().value()));
+        credential.is_affiliation_based_match().value());
   }
 
   Java_TouchToFillBridge_showCredentials(
-      env, java_object_internal_, url::GURLAndroid::FromNativeGURL(env, url),
-      is_origin_secure.value(), webauthn_credential_array, credential_array,
-      trigger_submission);
+      env, java_object_internal_, ConvertUTF8ToJavaString(env, url.spec()),
+      is_origin_secure.value(), credential_array);
 }
 
 void TouchToFillViewImpl::OnCredentialSelected(const UiCredential& credential) {
@@ -134,13 +98,6 @@ void TouchToFillViewImpl::OnCredentialSelected(
     JNIEnv* env,
     const JavaParamRef<jobject>& credential) {
   OnCredentialSelected(ConvertJavaCredential(env, credential));
-}
-
-void TouchToFillViewImpl::OnWebAuthnCredentialSelected(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& credential) {
-  controller_->OnWebAuthnCredentialSelected(
-      ConvertJavaWebAuthnCredential(env, credential));
 }
 
 void TouchToFillViewImpl::OnManagePasswordsSelected(JNIEnv* env) {

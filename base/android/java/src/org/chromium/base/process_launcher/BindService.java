@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base.process_launcher;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -14,10 +15,9 @@ import android.os.Handler;
 import android.os.Process;
 import android.os.UserHandle;
 
-import androidx.annotation.RequiresApi;
-
+import org.chromium.base.BuildConfig;
+import org.chromium.base.BuildInfo;
 import org.chromium.base.compat.ApiHelperForQ;
-import org.chromium.build.BuildConfig;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
@@ -29,8 +29,7 @@ final class BindService {
     private static Method sBindServiceAsUserMethod;
 
     static boolean supportVariableConnections() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                && !BuildConfig.IS_INCREMENTAL_INSTALL;
+        return BuildInfo.isAtLeastQ() && !BuildConfig.IS_INCREMENTAL_INSTALL;
     }
 
     // Note that handler is not guaranteed to be used, and client still need to correctly handle
@@ -42,7 +41,7 @@ final class BindService {
                     context, intent, flags, instanceName, executor, connection);
         }
 
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.N) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             return bindServiceByCall(context, intent, connection, flags);
         }
 
@@ -63,7 +62,7 @@ final class BindService {
         return context.bindService(intent, connection, flags);
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
+    @TargetApi(Build.VERSION_CODES.N)
     @SuppressLint("DiscouragedPrivateApi")
     private static boolean bindServiceByReflection(Context context, Intent intent,
             ServiceConnection connection, int flags, Handler handler)

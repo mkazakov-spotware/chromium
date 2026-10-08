@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,13 @@
 #include "base/strings/string_piece.h"
 #include "third_party/boringssl/src/include/openssl/x509v3.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 class SPKIHash;
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net
 
 // Decodes the PEM block in |pem_data| and attempts to parse the resulting
 // structure. Returns a pointer to a X509 instance if successful and NULL

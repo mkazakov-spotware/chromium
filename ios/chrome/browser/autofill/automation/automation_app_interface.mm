@@ -1,16 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/autofill/automation/automation_app_interface.h"
 
-#import "base/guid.h"
-#import "base/json/json_reader.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "base/values.h"
-#import "components/autofill/core/browser/personal_data_manager.h"
-#import "ios/chrome/browser/autofill/personal_data_manager_factory.h"
+#include "base/guid.h"
+#include "base/json/json_reader.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/values.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
+#include "ios/chrome/browser/autofill/personal_data_manager_factory.h"
 #import "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/app/tab_test_util.h"
@@ -47,11 +47,10 @@ autofill::ServerFieldType ServerFieldTypeFromString(const std::string& str,
           autofill_type.GetStorableType();
     }
 
-    for (size_t i = static_cast<size_t>(autofill::HtmlFieldType::kUnspecified);
-         i <= static_cast<size_t>(autofill::HtmlFieldType::kMaxValue); ++i) {
+    for (size_t i = autofill::HTML_TYPE_UNSPECIFIED;
+         i < autofill::HTML_TYPE_UNRECOGNIZED; ++i) {
       autofill::AutofillType autofill_type(
-          static_cast<autofill::HtmlFieldType>(i),
-          autofill::HtmlFieldMode::kNone);
+          static_cast<autofill::HtmlFieldType>(i), autofill::HTML_MODE_NONE);
       string_to_field_type_map[autofill_type.ToString()] =
           autofill_type.GetStorableType();
     }
@@ -76,8 +75,7 @@ autofill::ServerFieldType ServerFieldTypeFromString(const std::string& str,
 //   { "type": "NAME_FIRST", "value": "Satsuki" },
 //   { "type": "NAME_LAST", "value": "Yumizuka" },
 //  ],
-NSError* PrepareAutofillProfileWithValues(
-    const base::Value::List* autofill_profile) {
+NSError* PrepareAutofillProfileWithValues(const base::Value* autofill_profile) {
   if (!autofill_profile) {
     return testing::NSErrorWithLocalizedDescription(
         @"Unable to find autofill profile in parsed JSON value.");
@@ -88,21 +86,23 @@ NSError* PrepareAutofillProfileWithValues(
   autofill::CreditCard credit_card(base::GenerateGUID(),
                                    "https://www.example.com/");
 
+  base::Value::ConstListView profile_entries_list = autofill_profile->GetList();
+
   // For each type-value dictionary in the autofill profile list, validate it,
   // then add it to the appropriate profile.
-  for (const auto& profile_list_item : *autofill_profile) {
-    const base::Value::Dict* entry = profile_list_item.GetIfDict();
-    if (!entry) {
+  for (const auto& it_entry : profile_entries_list) {
+    const base::DictionaryValue* entry = nullptr;
+    if (!it_entry.GetAsDictionary(&entry)) {
       return testing::NSErrorWithLocalizedDescription(
           @"Failed to extract an entry!");
     }
 
-    const base::Value* type_container = entry->Find("type");
-    if (!type_container->is_string()) {
+    const base::Value* type_container = entry->FindKey("type");
+    if (base::Value::Type::STRING != type_container->type()) {
       return testing::NSErrorWithLocalizedDescription(@"Type is not a string!");
     }
-    const base::Value* value_container = entry->Find("value");
-    if (!value_container->is_string()) {
+    const base::Value* value_container = entry->FindKey("value");
+    if (base::Value::Type::STRING != value_container->type()) {
       return testing::NSErrorWithLocalizedDescription(
           @"Value is not a string!");
     }
@@ -147,7 +147,7 @@ NSError* PrepareAutofillProfileWithValues(
 @implementation AutomationAppInterface
 
 + (NSError*)setAutofillAutomationProfile:(NSString*)profileJSON {
-  absl::optional<base::Value> readResult =
+  base::Optional<base::Value> readResult =
       base::JSONReader::Read(base::SysNSStringToUTF8(profileJSON));
   if (!readResult.has_value()) {
     return testing::NSErrorWithLocalizedDescription(
@@ -155,9 +155,8 @@ NSError* PrepareAutofillProfileWithValues(
   }
 
   base::Value recipeRoot = std::move(readResult).value();
-
-  const base::Value::List* autofillProfile =
-      recipeRoot.GetDict().FindList("autofillProfile");
+  const base::Value* autofillProfile =
+      recipeRoot.FindKeyOfType("autofillProfile", base::Value::Type::LIST);
   return PrepareAutofillProfileWithValues(autofillProfile);
 }
 

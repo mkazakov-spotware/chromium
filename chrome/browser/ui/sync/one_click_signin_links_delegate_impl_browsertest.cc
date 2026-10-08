@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,7 @@
 
 using OneClickSigninLinksDelegateBrowserTest = InProcessBrowserTest;
 
-// Disabled due to flakiness on Linux, https://crbug.com/1287471
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_LearnMoreLink DISABLED_LearnMoreLink
-#else
-#define MAYBE_LearnMoreLink LearnMoreLink
-#endif
-IN_PROC_BROWSER_TEST_F(OneClickSigninLinksDelegateBrowserTest,
-                       MAYBE_LearnMoreLink) {
+IN_PROC_BROWSER_TEST_F(OneClickSigninLinksDelegateBrowserTest, LearnMoreLink) {
   std::unique_ptr<OneClickSigninLinksDelegate> delegate_(
       new OneClickSigninLinksDelegateImpl(browser()));
 

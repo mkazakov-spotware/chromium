@@ -1,14 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/toolbar_container/toolbar_container_coordinator.h"
 
-#import <memory>
+#include <memory>
 
 #import "base/mac/foundation_util.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_controller.h"
+#import "ios/chrome/browser/ui/fullscreen/fullscreen_features.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_ui_updater.h"
 #import "ios/chrome/browser/ui/toolbar_container/toolbar_container_view_controller.h"
 #import "ios/chrome/browser/ui/toolbar_container/toolbar_height_range.h"
@@ -87,9 +88,15 @@
   self.containerViewController.collapsesSafeArea = !isPrimary;
   [self startToolbarCoordinators];
   // Start observing fullscreen events.
+  if (fullscreen::features::ShouldScopeFullscreenControllerToBrowser()) {
     _fullscreenUIUpdater = std::make_unique<FullscreenUIUpdater>(
         FullscreenController::FromBrowser(self.browser),
         self.containerViewController);
+  } else {
+    _fullscreenUIUpdater = std::make_unique<FullscreenUIUpdater>(
+        FullscreenController::FromBrowserState(self.browser->GetBrowserState()),
+        self.containerViewController);
+  }
   self.started = YES;
 }
 

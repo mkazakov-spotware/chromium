@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2012 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -69,16 +69,12 @@ class ElementGeneratorTest(unittest.TestCase):
 
   def testGenerateClassFieldContent(self):
     lines = []
-    GenerateFieldContent('', {
-        'type': 'class',
-        'default': 'absl::nullopt'
-    }, None, lines, '  ', {})
-    self.assertEquals(['  absl::nullopt,'], lines)
+    GenerateFieldContent('', {'type': 'class', 'default': 'base::nullopt'},
+                         None, lines, '  ', {})
+    self.assertEquals(['  base::nullopt,'], lines)
     lines = []
-    GenerateFieldContent('', {
-        'type': 'class',
-        'default': 'absl::nullopt'
-    }, 'true', lines, '  ', {})
+    GenerateFieldContent('', {'type': 'class', 'default': 'base::nullopt'},
+                         'true', lines, '  ', {})
     self.assertEquals(['  true,'], lines)
     lines = []
     GenerateFieldContent('', {'type': 'class'}, 'false', lines, '  ', {})

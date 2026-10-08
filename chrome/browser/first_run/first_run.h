@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,9 +67,6 @@ struct MasterPrefs {
   std::vector<GURL> bookmarks;
   std::string import_bookmarks_path;
   std::string suppress_default_browser_prompt_for_version;
-#if BUILDFLAG(IS_MAC)
-  bool confirm_to_quit;
-#endif
 };
 
 void RegisterProfilePrefs(
@@ -79,7 +76,7 @@ void RegisterProfilePrefs(
 // run for this user.
 bool IsChromeFirstRun();
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Returns true if |command_line|'s switches explicitly specify that first run
 // should be suppressed in the current run.
 bool IsFirstRunSuppressed(const base::CommandLine& command_line);
@@ -122,6 +119,18 @@ bool ShouldShowWelcomePage();
 // Returns true if |contents| hosts one of the welcome pages.
 bool IsOnWelcomePage(content::WebContents* contents);
 
+// Sets a flag that will cause ShouldDoPersonalDataManagerFirstRun()
+// to return true exactly once, so that the browser loads
+// PersonalDataManager once the main message loop gets going.
+void SetShouldDoPersonalDataManagerFirstRun();
+
+// Returns true if the autofill personal data manager first-run action
+// should be taken.
+//
+// This will return true only once, the first time it is called after
+// SetShouldDoPersonalDataManagerFirstRun() is called.
+bool ShouldDoPersonalDataManagerFirstRun();
+
 // Automatically imports items requested by |profile|'s configuration (sum of
 // policies and initial prefs). Also imports bookmarks from file if
 // |import_bookmarks_path| is not empty.
@@ -132,7 +141,7 @@ void AutoImport(Profile* profile,
 // linux. |make_chrome_default_for_user| is the value of
 // kMakeChromeDefaultForUser in master_preferences which contributes to the
 // decision of making chrome default browser in post import tasks.
-void DoPostImportTasks(bool make_chrome_default_for_user);
+void DoPostImportTasks(Profile* profile, bool make_chrome_default_for_user);
 
 // Returns the current state of AutoImport as recorded in a bitfield formed from
 // values in AutoImportState.

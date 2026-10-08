@@ -1,10 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.compositor.layouts;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -21,14 +23,14 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.compositor.bottombar.contextualsearch.ContextualSearchPanel;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
+import org.chromium.chrome.browser.compositor.overlays.toolbar.TopToolbarOverlayCoordinator;
+import org.chromium.chrome.browser.compositor.scene_layer.ScrollingBottomViewSceneLayer;
+import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.SceneOverlay;
-import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
-import org.chromium.chrome.browser.toolbar.bottom.ScrollingBottomViewSceneLayer;
-import org.chromium.chrome.browser.toolbar.top.TopToolbarOverlayCoordinator;
 
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +58,7 @@ public class SceneOverlayTest {
     private ObservableSupplier<TabContentManager> mTabContentManagerSupplier;
 
     @Mock
-    private TopUiThemeColorProvider mTopUiThemeColorProvider;
+    private OneshotSupplierImpl<LayoutStateProvider> mLayoutStateProviderOneshotSupplier;
 
     private LayoutManagerImpl mLayoutManager;
 
@@ -67,9 +69,10 @@ public class SceneOverlayTest {
         when(mLayoutManagerHost.getContext()).thenReturn(mContext);
         when(mContext.getResources()).thenReturn(mResources);
         when(mResources.getDisplayMetrics()).thenReturn(mDisplayMetrics);
+        doNothing().when(mLayoutStateProviderOneshotSupplier).set(any());
 
         mLayoutManager = new LayoutManagerImpl(mLayoutManagerHost, mContainerView,
-                mTabContentManagerSupplier, () -> mTopUiThemeColorProvider);
+                mTabContentManagerSupplier, null, mLayoutStateProviderOneshotSupplier);
     }
 
     @Test
@@ -79,17 +82,9 @@ public class SceneOverlayTest {
 
         // Use different class names so the overlays can be uniquely identified.
         SceneOverlay overlay1 = Mockito.mock(SceneOverlay.class);
-        when(overlay1.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
         SceneOverlay overlay2 = Mockito.mock(TopToolbarOverlayCoordinator.class);
-        when(overlay2.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
         SceneOverlay overlay3 = Mockito.mock(ScrollingBottomViewSceneLayer.class);
-        when(overlay3.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
         SceneOverlay overlay4 = Mockito.mock(ContextualSearchPanel.class);
-        when(overlay4.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
 
         HashMap<Class, Integer> orderMap = new HashMap<>();
         orderMap.put(overlay1.getClass(), 0);
@@ -122,14 +117,8 @@ public class SceneOverlayTest {
         assertEquals("The overlay list should be empty.", 0, overlays.size());
 
         SceneOverlay overlay1 = Mockito.mock(SceneOverlay.class);
-        when(overlay1.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
         SceneOverlay overlay2 = Mockito.mock(SceneOverlay.class);
-        when(overlay2.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
         SceneOverlay overlay3 = Mockito.mock(SceneOverlay.class);
-        when(overlay3.getHandleBackPressChangedSupplier())
-                .thenReturn(new ObservableSupplierImpl<>());
 
         HashMap<Class, Integer> orderMap = new HashMap<>();
         orderMap.put(overlay1.getClass(), 0);

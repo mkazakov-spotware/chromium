@@ -1,86 +1,79 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_DIRECT_SOCKETS_DIRECT_SOCKETS_SERVICE_IMPL_H_
 #define CONTENT_BROWSER_DIRECT_SOCKETS_DIRECT_SOCKETS_SERVICE_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+#include <string>
+
+#include "base/callback.h"
 #include "content/common/content_export.h"
-#include "content/public/browser/document_service.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "mojo/public/cpp/bindings/pending_remote.h"
-#include "mojo/public/cpp/bindings/unique_receiver_set.h"
-#include "net/base/address_list.h"
-#include "net/traffic_annotation/network_traffic_annotation.h"
+#include "net/base/ip_address.h"
+#include "net/base/net_errors.h"
 #include "third_party/blink/public/mojom/direct_sockets/direct_sockets.mojom.h"
 
-namespace network::mojom {
+namespace network {
+namespace mojom {
 class NetworkContext;
-}  // namespace network::mojom
+}
+}  // namespace network
 
 namespace content {
 
-class DirectSocketsDelegate;
-
 // Implementation of the DirectSocketsService Mojo service.
 class CONTENT_EXPORT DirectSocketsServiceImpl
-    : public DocumentService<blink::mojom::DirectSocketsService> {
+    : public blink::mojom::DirectSocketsService,
+      public WebContentsObserver {
  public:
-  ~DirectSocketsServiceImpl() override;
+  using PermissionCallback = base::RepeatingCallback<
+      net::Error(const blink::mojom::DirectSocketOptions&, net::IPAddress&)>;
+
+  explicit DirectSocketsServiceImpl(RenderFrameHost& frame_host);
+  ~DirectSocketsServiceImpl() override = default;
+
+  DirectSocketsServiceImpl(const DirectSocketsServiceImpl&) = delete;
+  DirectSocketsServiceImpl& operator=(const DirectSocketsServiceImpl&) = delete;
 
   static void CreateForFrame(
-      RenderFrameHost*,
+      RenderFrameHost* render_frame_host,
       mojo::PendingReceiver<blink::mojom::DirectSocketsService> receiver);
 
-  static content::DirectSocketsDelegate* GetDelegate();
-
-  // blink::mojom::DirectSocketsService:
+  // blink::mojom::DirectSocketsService override:
   void OpenTcpSocket(
       blink::mojom::DirectSocketOptionsPtr options,
+      const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
       mojo::PendingReceiver<network::mojom::TCPConnectedSocket> socket,
       mojo::PendingRemote<network::mojom::SocketObserver> observer,
       OpenTcpSocketCallback callback) override;
   void OpenUdpSocket(
       blink::mojom::DirectSocketOptionsPtr options,
-      mojo::PendingReceiver<blink::mojom::DirectUDPSocket> receiver,
+      mojo::PendingReceiver<network::mojom::UDPSocket> receiver,
       mojo::PendingRemote<network::mojom::UDPSocketListener> listener,
       OpenUdpSocketCallback callback) override;
 
-  static net::NetworkTrafficAnnotationTag TrafficAnnotation();
+  // WebContentsObserver override:
+  void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
+  void WebContentsDestroyed() override;
 
-  // Testing:
+  static void SetPermissionCallbackForTesting(PermissionCallback callback);
+
   static void SetNetworkContextForTesting(network::mojom::NetworkContext*);
 
  private:
-  DirectSocketsServiceImpl(
-      RenderFrameHost*,
-      mojo::PendingReceiver<blink::mojom::DirectSocketsService> receiver);
+  friend class DirectSocketsUnitTest;
 
-  network::mojom::NetworkContext* GetNetworkContext() const;
+  // Returns net::OK and populates |remote_address| if the options are valid and
+  // the connection is permitted.
+  net::Error ValidateOptions(const blink::mojom::DirectSocketOptions& options,
+                             net::IPAddress& remote_address);
 
-  void OnResolveCompleteForTcpSocket(
-      blink::mojom::DirectSocketOptionsPtr,
-      mojo::PendingReceiver<network::mojom::TCPConnectedSocket>,
-      mojo::PendingRemote<network::mojom::SocketObserver>,
-      OpenTcpSocketCallback,
-      int result,
-      const absl::optional<net::AddressList>& resolved_addresses);
+  network::mojom::NetworkContext* GetNetworkContext();
 
-  void OnResolveCompleteForUdpSocket(
-      blink::mojom::DirectSocketOptionsPtr,
-      mojo::PendingReceiver<blink::mojom::DirectUDPSocket>,
-      mojo::PendingRemote<network::mojom::UDPSocketListener>,
-      OpenUdpSocketCallback,
-      int result,
-      const absl::optional<net::AddressList>& resolved_addresses);
-
-  mojo::UniqueReceiverSet<blink::mojom::DirectUDPSocket>
-      direct_udp_socket_receivers_;
-
-  base::WeakPtrFactory<DirectSocketsServiceImpl> weak_ptr_factory_{this};
+  RenderFrameHost* frame_host_;
 };
 
 }  // namespace content

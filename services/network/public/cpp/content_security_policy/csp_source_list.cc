@@ -1,16 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/public/cpp/content_security_policy/csp_source_list.h"
 
-#include "base/check_op.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/containers/flat_set.h"
 #include "base/ranges/algorithm.h"
 #include "services/network/public/cpp/content_security_policy/content_security_policy.h"
+#include "services/network/public/cpp/content_security_policy/csp_context.h"
 #include "services/network/public/cpp/content_security_policy/csp_source.h"
-#include "services/network/public/mojom/content_security_policy.mojom-shared.h"
 
 namespace network {
 
@@ -20,12 +18,10 @@ namespace {
 
 bool AllowFromSources(const GURL& url,
                       const std::vector<mojom::CSPSourcePtr>& sources,
-                      const mojom::CSPSource& self_source,
-                      bool has_followed_redirect,
-                      bool is_opaque_fenced_frame) {
+                      CSPContext* context,
+                      bool has_followed_redirect) {
   for (const auto& source : sources) {
-    if (CheckCSPSource(*source, url, self_source, has_followed_redirect,
-                       is_opaque_fenced_frame))
+    if (CheckCSPSource(source, url, context, has_followed_redirect))
       return true;
   }
   return false;
@@ -47,15 +43,13 @@ void IntersectHashes(base::flat_set<mojom::CSPHashSourcePtr>& a,
 bool IsScriptDirective(CSPDirectiveName directive) {
   return directive == CSPDirectiveName::ScriptSrc ||
          directive == CSPDirectiveName::ScriptSrcAttr ||
-         directive == CSPDirectiveName::ScriptSrcElem ||
-         directive == CSPDirectiveName::DefaultSrc;
+         directive == CSPDirectiveName::ScriptSrcElem;
 }
 
 bool IsStyleDirective(CSPDirectiveName directive) {
   return directive == CSPDirectiveName::StyleSrc ||
          directive == CSPDirectiveName::StyleSrcAttr ||
-         directive == CSPDirectiveName::StyleSrcElem ||
-         directive == CSPDirectiveName::DefaultSrc;
+         directive == CSPDirectiveName::StyleSrcElem;
 }
 
 bool AllowAllInline(CSPDirectiveName directive,
@@ -79,14 +73,14 @@ base::flat_set<std::string> IntersectSchemesOnly(
     const std::vector<mojom::CSPSourcePtr>& list_b) {
   base::flat_set<std::string> schemes_a;
   for (const auto& source_a : list_a) {
-    if (CSPSourceIsSchemeOnly(*source_a)) {
+    if (CSPSourceIsSchemeOnly(source_a)) {
       AddSourceSchemesToSet(schemes_a, source_a.get());
     }
   }
 
   base::flat_set<std::string> intersection;
   for (const auto& source_b : list_b) {
-    if (CSPSourceIsSchemeOnly(*source_b)) {
+    if (CSPSourceIsSchemeOnly(source_b)) {
       if (schemes_a.contains(source_b->scheme))
         AddSourceSchemesToSet(intersection, source_b.get());
       else if (source_b->scheme == url::kHttpScheme &&
@@ -104,13 +98,14 @@ base::flat_set<std::string> IntersectSchemesOnly(
 
 std::vector<mojom::CSPSourcePtr> ExpandSchemeStarAndSelf(
     const mojom::CSPSourceList& source_list,
-    const mojom::CSPSource* self) {
+    const mojom::CSPSource& self) {
   std::vector<mojom::CSPSourcePtr> result;
   for (const mojom::CSPSourcePtr& item : source_list.sources) {
     mojom::CSPSourcePtr new_item = item->Clone();
     if (new_item->scheme.empty()) {
-      if (self && !self->scheme.empty())
-        new_item->scheme = self->scheme;
+      if (self.scheme.empty())
+        continue;
+      new_item->scheme = self.scheme;
     }
     result.push_back(std::move(new_item));
   }
@@ -122,16 +117,15 @@ std::vector<mojom::CSPSourcePtr> ExpandSchemeStarAndSelf(
         url::kWsScheme, "", url::PORT_UNSPECIFIED, "", false, false));
     result.push_back(mojom::CSPSource::New(
         url::kHttpScheme, "", url::PORT_UNSPECIFIED, "", false, false));
-    if (self && !self->scheme.empty()) {
+    if (!self.scheme.empty()) {
       result.push_back(mojom::CSPSource::New(
-          self->scheme, "", url::PORT_UNSPECIFIED, "", false, false));
+          self.scheme, "", url::PORT_UNSPECIFIED, "", false, false));
     }
   }
 
-  if (source_list.allow_self && self && !self->scheme.empty() &&
-      !self->host.empty()) {
+  if (source_list.allow_self && !self.scheme.empty() && !self.host.empty()) {
     // If |self| is an opaque origin we should ignore it.
-    result.push_back(self->Clone());
+    result.push_back(self.Clone());
   }
   return result;
 }
@@ -139,7 +133,7 @@ std::vector<mojom::CSPSourcePtr> ExpandSchemeStarAndSelf(
 std::vector<mojom::CSPSourcePtr> IntersectSources(
     const mojom::CSPSourceList& source_list_a,
     const std::vector<mojom::CSPSourcePtr>& source_list_b,
-    const mojom::CSPSource* self) {
+    const mojom::CSPSource& self) {
   auto schemes = IntersectSchemesOnly(source_list_a.sources, source_list_b);
 
   std::vector<mojom::CSPSourcePtr> normalized;
@@ -166,7 +160,7 @@ std::vector<mojom::CSPSourcePtr> IntersectSources(
       if (schemes.contains(source_b->scheme))
         continue;
       if (mojom::CSPSourcePtr local_match =
-              CSPSourcesIntersect(*source_a, *source_b)) {
+              CSPSourcesIntersect(source_a, source_b)) {
         normalized.emplace_back(std::move(local_match));
       }
     }
@@ -185,70 +179,59 @@ bool UrlSourceListSubsumes(
   // |source_list_a|.
   return base::ranges::all_of(source_list_b, [&](const auto& source_b) {
     return base::ranges::any_of(source_list_a, [&](const auto& source_a) {
-      return CSPSourceSubsumes(*source_a, *source_b);
+      return CSPSourceSubsumes(source_a, source_b);
     });
   });
 }
 
 }  // namespace
 
-bool CheckCSPSourceList(mojom::CSPDirectiveName directive_name,
-                        const mojom::CSPSourceList& source_list,
+bool CheckCSPSourceList(const mojom::CSPSourceListPtr& source_list,
                         const GURL& url,
-                        const mojom::CSPSource& self_source,
+                        CSPContext* context,
                         bool has_followed_redirect,
-                        bool is_response_check,
-                        bool is_opaque_fenced_frame) {
-  if (is_opaque_fenced_frame)
-    DCHECK_EQ(directive_name, mojom::CSPDirectiveName::FencedFrameSrc);
-
+                        bool is_response_check) {
   // If the source list allows all redirects, the decision can't be made until
   // the response is received.
-  if (directive_name == mojom::CSPDirectiveName::NavigateTo &&
-      source_list.allow_response_redirects && !is_response_check) {
+  if (source_list->allow_response_redirects && !is_response_check)
     return true;
-  }
 
   // Wildcards match network schemes ('http', 'https', 'ftp', 'ws', 'wss'), and
   // the scheme of the protected resource:
   // https://w3c.github.io/webappsec-csp/#match-url-to-source-expression. Other
   // schemes, including custom schemes, must be explicitly listed in a source
   // list.
-  // Note: Opaque fenced frames only allow https urls, therefore it's fine to
-  // allow '*'.
-  // TODO(crbug.com/1243568): Update the return condition below if opaque
-  // fenced frames can map to non-https potentially trustworthy urls to avoid
-  // privacy leak.
-  if (source_list.allow_star) {
+  if (source_list->allow_star) {
     if (url.SchemeIsHTTPOrHTTPS() || url.SchemeIsWSOrWSS() ||
         url.SchemeIs("ftp")) {
       return true;
     }
-    if (!self_source.scheme.empty() && url.SchemeIs(self_source.scheme))
+    if (context->self_source() && url.SchemeIs(context->self_source()->scheme))
       return true;
   }
 
-  if (source_list.allow_self &&
-      CheckCSPSource(self_source, url, self_source, has_followed_redirect,
-                     is_opaque_fenced_frame)) {
+  if (source_list->allow_self && context->self_source() &&
+      CheckCSPSource(context->self_source(), url, context,
+                     has_followed_redirect)) {
     return true;
   }
 
-  return AllowFromSources(url, source_list.sources, self_source,
-                          has_followed_redirect, is_opaque_fenced_frame);
+  return AllowFromSources(url, source_list->sources, context,
+                          has_followed_redirect);
 }
 
 bool CSPSourceListSubsumes(
     const mojom::CSPSourceList& source_list_a,
     const std::vector<const mojom::CSPSourceList*>& source_list_b,
     CSPDirectiveName directive,
-    const mojom::CSPSource* origin_b) {
+    const url::Origin& origin_b) {
   if (source_list_b.empty())
     return false;
 
   auto it = source_list_b.begin();
   bool allow_inline_b = (*it)->allow_inline;
   bool allow_eval_b = (*it)->allow_eval;
+  bool allow_wasm_eval_b = (*it)->allow_wasm_eval;
   bool allow_dynamic_b = (*it)->allow_dynamic;
   bool allow_unsafe_hashes_b = (*it)->allow_unsafe_hashes;
   bool is_hash_or_nonce_present_b =
@@ -256,8 +239,10 @@ bool CSPSourceListSubsumes(
   base::flat_set<std::string> nonces_b((*it)->nonces);
   base::flat_set<mojom::CSPHashSourcePtr> hashes_b(mojo::Clone((*it)->hashes));
 
+  auto origin_b_as_csp_source = mojom::CSPSource::New(
+      origin_b.scheme(), origin_b.host(), origin_b.port(), "", false, false);
   std::vector<mojom::CSPSourcePtr> normalized_sources_b =
-      ExpandSchemeStarAndSelf(**it, origin_b);
+      ExpandSchemeStarAndSelf(**it, *origin_b_as_csp_source);
 
   ++it;
   for (; it != source_list_b.end(); ++it) {
@@ -265,6 +250,7 @@ bool CSPSourceListSubsumes(
     // 'strict-dynamic' is specified.
     allow_inline_b = allow_inline_b && (*it)->allow_inline;
     allow_eval_b = allow_eval_b && (*it)->allow_eval;
+    allow_wasm_eval_b = allow_wasm_eval_b && (*it)->allow_wasm_eval;
     allow_dynamic_b = allow_dynamic_b && (*it)->allow_dynamic;
     allow_unsafe_hashes_b = allow_unsafe_hashes_b && (*it)->allow_unsafe_hashes;
     is_hash_or_nonce_present_b =
@@ -276,7 +262,7 @@ bool CSPSourceListSubsumes(
         mojo::Clone((*it)->hashes));
     IntersectHashes(hashes_b, item_hashes);
     normalized_sources_b =
-        IntersectSources(**it, normalized_sources_b, origin_b);
+        IntersectSources(**it, normalized_sources_b, *origin_b_as_csp_source);
   }
 
   // If source_list_b enforces some nonce, then source_list_a must contain
@@ -296,6 +282,8 @@ bool CSPSourceListSubsumes(
 
   if (IsScriptDirective(directive) || IsStyleDirective(directive)) {
     if (!source_list_a.allow_eval && allow_eval_b)
+      return false;
+    if (!source_list_a.allow_wasm_eval && allow_wasm_eval_b)
       return false;
     if (!source_list_a.allow_unsafe_hashes && allow_unsafe_hashes_b)
       return false;
@@ -322,7 +310,7 @@ bool CSPSourceListSubsumes(
 
   // If embedding CSP specifies `self`, `self` refers to the embedee's origin.
   std::vector<mojom::CSPSourcePtr> normalized_sources_a =
-      ExpandSchemeStarAndSelf(source_list_a, origin_b);
+      ExpandSchemeStarAndSelf(source_list_a, *origin_b_as_csp_source);
   return UrlSourceListSubsumes(normalized_sources_a, normalized_sources_b);
 }
 
@@ -344,7 +332,7 @@ std::string ToString(const mojom::CSPSourceListPtr& source_list) {
   for (const auto& source : source_list->sources) {
     if (!is_empty)
       text << " ";
-    text << ToString(*source);
+    text << ToString(source);
     is_empty = false;
   }
 

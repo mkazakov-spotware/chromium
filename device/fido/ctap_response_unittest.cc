@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
+#include "base/stl_util.h"
 #include "components/cbor/reader.h"
 #include "components/cbor/values.h"
 #include "components/cbor/writer.h"
@@ -14,7 +15,6 @@
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_parsing_utils.h"
 #include "device/fido/fido_test_data.h"
-#include "device/fido/fido_transport_protocol.h"
 #include "device/fido/fido_types.h"
 #include "device/fido/opaque_attestation_statement.h"
 #include "device/fido/p256_public_key.h"
@@ -426,7 +426,7 @@ std::vector<uint8_t> GetTestSignResponse() {
 
 // Get a subset of the response for testing error handling.
 std::vector<uint8_t> GetTestCorruptedSignResponse(size_t length) {
-  DCHECK_LE(length, std::size(test_data::kTestU2fSignResponse));
+  DCHECK_LE(length, base::size(test_data::kTestU2fSignResponse));
   return fido_parsing_utils::Materialize(fido_parsing_utils::ExtractSpan(
       test_data::kTestU2fSignResponse, 0, length));
 }
@@ -438,7 +438,7 @@ std::vector<uint8_t> GetTestCredentialRawIdBytes() {
 
 // DecodeCBOR parses a CBOR structure, ignoring the first byte of |in|, which is
 // assumed to be a CTAP2 status byte.
-absl::optional<cbor::Value> DecodeCBOR(base::span<const uint8_t> in) {
+base::Optional<cbor::Value> DecodeCBOR(base::span<const uint8_t> in) {
   CHECK(!in.empty());
   return cbor::Reader::Read(in.subspan(1));
 }
@@ -499,7 +499,7 @@ TEST(CTAPResponseTest, TestReadMakeCredentialResponse) {
       certificate.GetArray()[0].GetBytestring(),
       ::testing::ElementsAreArray(test_data::kCtap2MakeCredentialCertificate));
   EXPECT_THAT(
-      make_credential_response->attestation_object.GetCredentialId(),
+      make_credential_response->raw_credential_id(),
       ::testing::ElementsAreArray(test_data::kCtap2MakeCredentialCredentialId));
 }
 
@@ -508,7 +508,7 @@ TEST(CTAPResponseTest, TestMakeCredentialNoneAttestationResponse) {
       FidoTransportProtocol::kUsbHumanInterfaceDevice,
       DecodeCBOR(test_data::kTestMakeCredentialResponse));
   ASSERT_TRUE(make_credential_response);
-  make_credential_response->attestation_object.EraseAttestationStatement(
+  make_credential_response->EraseAttestationStatement(
       AttestationObject::AAGUID::kErase);
   EXPECT_THAT(make_credential_response->GetCBOREncodedAttestationObject(),
               ::testing::ElementsAreArray(test_data::kNoneAttestationResponse));
@@ -518,19 +518,16 @@ TEST(CTAPResponseTest, TestMakeCredentialNoneAttestationResponse) {
 // https://fidoalliance.org/specs/fido-v2.0-rd-20170927/fido-client-to-authenticator-protocol-v2.0-rd-20170927.html
 TEST(CTAPResponseTest, TestReadGetAssertionResponse) {
   auto get_assertion_response = ReadCTAPGetAssertionResponse(
-      FidoTransportProtocol::kBluetoothLowEnergy,
       DecodeCBOR(test_data::kDeviceGetAssertionResponse));
   ASSERT_TRUE(get_assertion_response);
-  EXPECT_EQ(*get_assertion_response->transport_used,
-            FidoTransportProtocol::kBluetoothLowEnergy);
-  ASSERT_TRUE(get_assertion_response->num_credentials);
-  EXPECT_EQ(*get_assertion_response->num_credentials, 1u);
+  ASSERT_TRUE(get_assertion_response->num_credentials());
+  EXPECT_EQ(*get_assertion_response->num_credentials(), 1u);
 
   EXPECT_THAT(
-      get_assertion_response->authenticator_data.SerializeToByteArray(),
+      get_assertion_response->auth_data().SerializeToByteArray(),
       ::testing::ElementsAreArray(test_data::kCtap2GetAssertionAuthData));
   EXPECT_THAT(
-      get_assertion_response->signature,
+      get_assertion_response->signature(),
       ::testing::ElementsAreArray(test_data::kCtap2GetAssertionSignature));
 }
 
@@ -542,7 +539,7 @@ TEST(CTAPResponseTest, TestParseRegisterResponseData) {
           test_data::kApplicationParameter,
           test_data::kTestU2fRegisterResponse);
   ASSERT_TRUE(response);
-  EXPECT_THAT(response->attestation_object.GetCredentialId(),
+  EXPECT_THAT(response->raw_credential_id(),
               ::testing::ElementsAreArray(test_data::kU2fSignKeyHandle));
   EXPECT_EQ(GetTestAttestationObjectBytes(),
             response->GetCBOREncodedAttestationObject());
@@ -640,7 +637,7 @@ TEST(CTAPResponseTest, TestSerializeAuthenticatorDataForSign) {
 
   EXPECT_THAT(
       AuthenticatorData(test_data::kApplicationParameter, flags,
-                        test_data::kTestSignatureCounter, absl::nullopt)
+                        test_data::kTestSignatureCounter, base::nullopt)
           .SerializeToByteArray(),
       ::testing::ElementsAreArray(test_data::kTestSignAuthenticatorData));
 }
@@ -650,11 +647,11 @@ TEST(CTAPResponseTest, TestParseSignResponseData) {
       test_data::kApplicationParameter, GetTestSignResponse(),
       GetTestCredentialRawIdBytes());
   ASSERT_TRUE(response);
-  EXPECT_EQ(GetTestCredentialRawIdBytes(), response->credential->id);
+  EXPECT_EQ(GetTestCredentialRawIdBytes(), response->raw_credential_id());
   EXPECT_THAT(
-      response->authenticator_data.SerializeToByteArray(),
+      response->auth_data().SerializeToByteArray(),
       ::testing::ElementsAreArray(test_data::kTestSignAuthenticatorData));
-  EXPECT_THAT(response->signature,
+  EXPECT_THAT(response->signature(),
               ::testing::ElementsAreArray(test_data::kU2fSignature));
 }
 
@@ -737,11 +734,12 @@ TEST(CTAPResponseTest, TestReadGetInfoResponseWithDuplicateVersion) {
 
   // Find the first of the duplicate versions and change it to a different
   // value. That should be sufficient to make the data parsable.
-  static constexpr base::StringPiece kU2Fv9 = "U2F_V9";
-  uint8_t* first_version = base::ranges::search(get_info, kU2Fv9);
+  static const char kU2Fv9[] = "U2F_V9";
+  uint8_t* first_version =
+      std::search(get_info, get_info + sizeof(get_info), kU2Fv9, kU2Fv9 + 6);
   ASSERT_TRUE(first_version);
   memcpy(first_version, "U2F_V3", 6);
-  absl::optional<AuthenticatorGetInfoResponse> response =
+  base::Optional<AuthenticatorGetInfoResponse> response =
       ReadCTAPGetInfoResponse(get_info);
   ASSERT_TRUE(response);
   EXPECT_EQ(1u, response->versions.size());
@@ -795,7 +793,7 @@ TEST(CTAPResponseTest, TestSerializeGetInfoResponse) {
   response.options = std::move(options);
   response.max_msg_size = 1200;
   response.pin_protocols.emplace({PINUVAuthProtocol::kV1});
-  response.algorithms.reset();
+  response.algorithms.clear();
 
   EXPECT_THAT(AuthenticatorGetInfoResponse::EncodeToCBOR(response),
               ::testing::ElementsAreArray(
@@ -846,7 +844,7 @@ TEST(CTAPResponseTest, TestSerializeMakeCredentialResponse) {
           test_data::kCtap2MakeCredentialCredentialId),
       std::make_unique<PublicKey>(
           static_cast<int32_t>(CoseAlgorithmIdentifier::kEs256),
-          kCoseEncodedPublicKey, absl::nullopt));
+          kCoseEncodedPublicKey, base::nullopt));
   AuthenticatorData authenticator_data(application_parameter, flag,
                                        signature_counter,
                                        std::move(attested_credential_data));

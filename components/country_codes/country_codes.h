@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,11 @@
 
 #include <string>
 
-class PrefRegistrySimple;
 class PrefService;
+
+namespace user_prefs {
+class PrefRegistrySyncable;
+}
 
 namespace country_codes {
 
@@ -24,8 +27,7 @@ namespace country_codes {
 // prepopulation has been run at least once.
 extern const char kCountryIDAtInstall[];
 
-constexpr int kCountryIDUnknown = -1;
-constexpr char kCountryCodeUnknown[] = "";
+const int kCountryIDUnknown = -1;
 
 // Takes in each of the two characters of a ISO 3166-1 country code, and
 // converts it into an int value to be used as a reference to that country.
@@ -33,17 +35,15 @@ constexpr int CountryCharsToCountryID(char c1, char c2) {
   return c1 << 8 | c2;
 }
 
-void RegisterProfilePrefs(PrefRegistrySimple* registry);
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
-// Returns the identifier for the user current country.
+// Returns the identifier for the user current country. Used to update the list
+// of search engines when user switches device region settings. For use on iOS
+// only.
+// TODO(ios): Once user can customize search engines ( http://crbug.com/153047 )
+// this declaration should be removed and the definition in the .cc file be
+// moved back to the anonymous namespace.
 int GetCurrentCountryID();
-
-// Converts a country's ID to its corresponding two-letter code. If unknown or
-// invalid, |kCountryCodeUnknown| is returned.
-std::string CountryIDToCountryString(int country_id);
-
-// Gets the two-letter code for the user's current country.
-std::string GetCurrentCountryCode();
 
 // Converts a two-letter country code to an integer-based country identifier.
 int CountryStringToCountryID(const std::string& country);

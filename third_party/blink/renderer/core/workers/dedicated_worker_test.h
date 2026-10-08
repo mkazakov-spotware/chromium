@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 namespace blink {
 
-class DedicatedWorker;
 class DedicatedWorkerThreadForTest;
 class DedicatedWorkerMessagingProxyForTest;
 
@@ -19,18 +18,19 @@ class DedicatedWorkerTest : public PageTestBase {
   DedicatedWorkerTest() = default;
 
   void SetUp() override;
+
   void TearDown() override;
 
-  DedicatedWorker* WorkerObject() { return worker_object_; }
+  void DispatchMessageEvent();
+
   DedicatedWorkerMessagingProxyForTest* WorkerMessagingProxy();
+
   DedicatedWorkerThreadForTest* GetWorkerThread();
 
-  void StartWorker();
-  void EvaluateClassicScript(const String& source_code);
+  void StartWorker(const String& source_code);
   void WaitUntilWorkerIsRunning();
 
  private:
-  Persistent<DedicatedWorker> worker_object_;
   Persistent<DedicatedWorkerMessagingProxyForTest> worker_messaging_proxy_;
 };
 

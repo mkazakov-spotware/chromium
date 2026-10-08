@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,13 @@
 #include <utility>
 
 #include "base/memory/ref_counted.h"
-#include "base/values.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
+namespace base {
+class Value;
+class DictionaryValue;
+class ListValue;
+}
 
 class ExtensionFunction;
 
@@ -57,15 +61,15 @@ class ExtensionApiUnittest : public BrowserWithTestWindowTest {
       ExtensionFunction* function,
       const std::string& args);
 
-  // Return the function result as a base::Value::Dict, or absl::nullopt.
-  // This will EXPECT-fail if the result is not a base::Value::Dict.
-  absl::optional<base::Value::Dict> RunFunctionAndReturnDictionary(
+  // Return the function result as a base::DictionaryValue, or NULL.
+  // This will EXPECT-fail if the result is not a DictionaryValue.
+  std::unique_ptr<base::DictionaryValue> RunFunctionAndReturnDictionary(
       ExtensionFunction* function,
       const std::string& args);
 
-  // Return the function result as a base::Value, or NULL.
-  // This will EXPECT-fail if the result is not a list.
-  std::unique_ptr<base::Value> RunFunctionAndReturnList(
+  // Return the function result as a base::ListValue, or NULL.
+  // This will EXPECT-fail if the result is not a ListValue.
+  std::unique_ptr<base::ListValue> RunFunctionAndReturnList(
       ExtensionFunction* function,
       const std::string& args);
 

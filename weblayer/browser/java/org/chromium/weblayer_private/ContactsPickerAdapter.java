@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.weblayer_private;
 
 import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.RemoteException;
 import android.text.TextUtils;
@@ -17,6 +16,7 @@ import androidx.annotation.Nullable;
 
 import org.chromium.components.browser_ui.contacts_picker.ContactDetails;
 import org.chromium.components.browser_ui.contacts_picker.PickerAdapter;
+import org.chromium.components.browser_ui.util.AvatarGenerator;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.weblayer_private.interfaces.IUserIdentityCallbackClient;
 import org.chromium.weblayer_private.interfaces.ObjectWrapper;
@@ -72,10 +72,9 @@ public class ContactsPickerAdapter extends PickerAdapter {
         try {
             name = identityCallback.getFullName();
             ValueCallback<Bitmap> onAvatarLoaded = (Bitmap returnedAvatar) -> {
-                ContactsPickerAdapter strongThis = weakThis.get();
-                if (strongThis == null) return;
+                if (weakThis.get() == null) return;
 
-                strongThis.updateOwnerInfoWithIcon(returnedAvatar);
+                weakThis.get().updateOwnerInfoWithIcon(returnedAvatar);
             };
             identityCallback.getAvatar(getIconRawPixelSize(), ObjectWrapper.wrap(onAvatarLoaded));
         } catch (RemoteException e) {
@@ -98,19 +97,18 @@ public class ContactsPickerAdapter extends PickerAdapter {
 
     @Nullable
     private IUserIdentityCallbackClient getUserIdentityCallback() {
+        if (WebLayerFactoryImpl.getClientMajorVersion() < 87) {
+            return null;
+        }
+
         return BrowserImpl.fromWindowAndroid(mWindowAndroid)
                 .getProfile()
                 .getUserIdentityCallbackClient();
     }
 
     private void updateOwnerInfoWithIcon(Bitmap icon) {
-        if (icon == null) return;
-
-        mAvatar = icon.copy(icon.getConfig(), true);
-        mAvatar.setDensity(
-                mWindowAndroid.getContext().get().getResources().getConfiguration().densityDpi);
-
-        if (mSelfContactSynthesized) {
+        mAvatar = icon;
+        if (mSelfContactSynthesized && mAvatar != null) {
             getAllContacts().get(0).setSelfIcon(createAvatarDrawable());
             update();
         }
@@ -120,9 +118,7 @@ public class ContactsPickerAdapter extends PickerAdapter {
         if (mAvatar == null) return null;
 
         Resources res = mWindowAndroid.getContext().get().getResources();
-        int sideLength = getIconRawPixelSize();
-        return new BitmapDrawable(
-                res, Bitmap.createScaledBitmap(mAvatar, sideLength, sideLength, true));
+        return AvatarGenerator.makeRoundAvatar(res, mAvatar, getIconRawPixelSize());
     }
 
     private int getIconRawPixelSize() {

@@ -1,38 +1,30 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_GLIB_SCOPED_GOBJECT_H_
 #define UI_BASE_GLIB_SCOPED_GOBJECT_H_
 
-#include <glib-object.h>
-
-#include "base/check.h"
-#include "base/memory/raw_ptr.h"
-
-// Similar to a std::shared_ptr for GObject types.
+// Similar in spirit to a std::unique_ptr.
 template <typename T>
 class ScopedGObject {
  public:
-  ScopedGObject() = default;
+  ScopedGObject() : obj_(nullptr) {}
 
-  ScopedGObject(const ScopedGObject<T>& other) : obj_(other.obj_) { Ref(); }
+  explicit ScopedGObject(T* obj) : obj_(obj) { Ref(); }
+
+  ScopedGObject(const ScopedGObject<T>& other) = delete;
 
   ScopedGObject(ScopedGObject<T>&& other) : obj_(other.obj_) {
     other.obj_ = nullptr;
   }
 
-  ~ScopedGObject() { Unref(); }
+  ~ScopedGObject() { reset(); }
 
-  ScopedGObject<T>& operator=(const ScopedGObject<T>& other) {
-    Unref();
-    obj_ = other.obj_;
-    Ref();
-    return *this;
-  }
+  ScopedGObject<T>& operator=(const ScopedGObject<T>& other) = delete;
 
   ScopedGObject<T>& operator=(ScopedGObject<T>&& other) {
-    Unref();
+    reset();
     obj_ = other.obj_;
     other.obj_ = nullptr;
     return *this;
@@ -42,25 +34,17 @@ class ScopedGObject {
 
   operator T*() { return obj_; }
 
+  void reset(T* obj = nullptr) {
+    Unref();
+    obj_ = obj;
+    Ref();
+  }
+
  private:
-  template <typename U>
-  friend ScopedGObject<U> TakeGObject(U* obj);
-  template <typename U>
-  friend ScopedGObject<U> WrapGObject(U* obj);
-
-  explicit ScopedGObject(T* obj) : obj_(obj) {}
-
-  void RefSink() {
+  void Ref() {
     // Remove the floating reference from |obj_| if it has one.
     if (obj_ && g_object_is_floating(obj_))
       g_object_ref_sink(obj_);
-  }
-
-  void Ref() {
-    if (obj_) {
-      DCHECK(!g_object_is_floating(obj_));
-      g_object_ref(obj_);
-    }
   }
 
   // This function is necessary so that gtk can overload it in
@@ -70,26 +54,7 @@ class ScopedGObject {
       g_object_unref(obj_);
   }
 
-  raw_ptr<T> obj_ = nullptr;
+  T* obj_;
 };
-
-// Create a ScopedGObject and do not increase the GObject's reference count.
-// This is usually used to reference a newly-created GObject, which are created
-// with a reference count of 1 by default.
-template <typename T>
-ScopedGObject<T> TakeGObject(T* obj) {
-  ScopedGObject<T> scoped(obj);
-  scoped.RefSink();
-  return scoped;
-}
-
-// Create a ScopedGObject and increase the GObject's reference count by 1.
-// This is usually used to reference an existing GObject.
-template <typename T>
-ScopedGObject<T> WrapGObject(T* obj) {
-  ScopedGObject<T> scoped(obj);
-  scoped.Ref();
-  return scoped;
-}
 
 #endif  // UI_BASE_GLIB_SCOPED_GOBJECT_H_

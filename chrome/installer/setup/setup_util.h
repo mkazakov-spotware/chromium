@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,13 +15,11 @@
 #include <string>
 #include <vector>
 
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
-#include "base/win/windows_types.h"
 #include "chrome/installer/util/lzma_util.h"
 #include "chrome/installer/util/util_constants.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-
-class WorkItemList;
 
 namespace base {
 class CommandLine;
@@ -103,13 +101,16 @@ bool ContainsUnsupportedSwitch(const base::CommandLine& cmd_line);
 // Returns true if the processor is supported by chrome.
 bool IsProcessorSupported();
 
+// Returns the "...\\Commands\\|name|" registry key for a product's |reg_data|.
+base::string16 GetCommandKey(const wchar_t* name);
+
 // Deletes all values and subkeys of the key |path| under |root|, preserving
 // the keys named in |keys_to_preserve| (each of which must be an ASCII string).
 // The key itself is deleted if no subkeys are preserved.
 void DeleteRegistryKeyPartial(
     HKEY root,
-    const std::wstring& path,
-    const std::vector<std::wstring>& keys_to_preserve);
+    const base::string16& path,
+    const std::vector<base::string16>& keys_to_preserve);
 
 // Returns true if downgrade is allowed by installer data.
 bool IsDowngradeAllowed(const InitialPreferences& prefs);
@@ -136,45 +137,23 @@ void DoLegacyCleanups(const InstallerState& installer_state,
 // a null time in case of error.
 base::Time GetConsoleSessionStartTime();
 
-// Returns a DM token decoded from the base-64 `encoded_token`, or null in case
+// Returns a DM token decoded from the base-64 |encoded_token|, or null in case
 // of a decoding error.  The returned DM token is an opaque binary blob and
 // should not be treated as an ASCII or UTF-8 string.
-absl::optional<std::string> DecodeDMTokenSwitchValue(
-    const std::wstring& encoded_token);
-
-// Returns a nonce decoded from the base-64 `encoded_nonce`, or null in case
-// of a decoding error.  The returned nonce is an opaque binary blob and
-// should not be treated as an ASCII or UTF-8 string.
-absl::optional<std::string> DecodeNonceSwitchValue(
-    const std::string& encoded_nonce);
+base::Optional<std::string> DecodeDMTokenSwitchValue(
+    const base::string16& encoded_token);
 
 // Saves a DM token to a global location on the machine accessible to all
 // install modes of the browser (i.e., stable and all three side-by-side modes).
 bool StoreDMToken(const std::string& token);
 
-// Deletes any existing DMToken from the global location on the machine.
-bool DeleteDMToken();
-
 // Returns the file path to notification_helper.exe (in |version| directory).
 base::FilePath GetNotificationHelperPath(const base::FilePath& target_path,
                                          const base::Version& version);
 
-// Returns the file path to chrome_wer.dll (in `version` directory).
-base::FilePath GetWerHelperPath(const base::FilePath& target_path,
-                                const base::Version& version);
-
-// Returns the WER runtime exception helper module registry path.
-std::wstring GetWerHelperRegistryPath();
-
 // Returns the file path to elevation_service.exe (in |version| directory).
 base::FilePath GetElevationServicePath(const base::FilePath& target_path,
                                        const base::Version& version);
-
-// Adds or removes downgrade version registry value.
-void AddUpdateDowngradeVersionItem(HKEY root,
-                                   const base::Version& current_version,
-                                   const base::Version& new_version,
-                                   WorkItemList* list);
 
 }  // namespace installer
 

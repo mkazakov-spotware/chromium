@@ -1,10 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_DEBUG_LEAK_ANNOTATIONS_H_
 #define BASE_DEBUG_LEAK_ANNOTATIONS_H_
 
+#include "base/macros.h"
 #include "build/build_config.h"
 
 // This file defines macros which can be used to annotate intentional memory
@@ -18,19 +19,16 @@
 // ANNOTATE_LEAKING_OBJECT_PTR(X): the heap object referenced by pointer X will
 // be annotated as a leak.
 
-#if defined(LEAK_SANITIZER) && !BUILDFLAG(IS_NACL)
+#if defined(LEAK_SANITIZER) && !defined(OS_NACL)
 
 #include <sanitizer/lsan_interface.h>
 
 class ScopedLeakSanitizerDisabler {
  public:
   ScopedLeakSanitizerDisabler() { __lsan_disable(); }
-
-  ScopedLeakSanitizerDisabler(const ScopedLeakSanitizerDisabler&) = delete;
-  ScopedLeakSanitizerDisabler& operator=(const ScopedLeakSanitizerDisabler&) =
-      delete;
-
   ~ScopedLeakSanitizerDisabler() { __lsan_enable(); }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScopedLeakSanitizerDisabler);
 };
 
 #define ANNOTATE_SCOPED_MEMORY_LEAK \

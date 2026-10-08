@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,10 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
-#include "chrome/browser/win/conflicts/module_blocklist_cache_util.h"
+#include "base/task_runner_util.h"
+#include "chrome/browser/win/conflicts/module_blacklist_cache_util.h"
 #include "chrome/chrome_elf/third_party_dlls/public_api.h"
 
 namespace {
@@ -53,7 +55,7 @@ DrainLogOnBackgroundTask() {
       // No log path should be empty.
       DCHECK(entry->path_len);
       blocked_modules.emplace_back(
-          base::UTF8ToWide(base::StringPiece(entry->path, entry->path_len)),
+          base::UTF8ToUTF16(base::StringPiece(entry->path, entry->path_len)),
           entry->module_size, entry->time_date_stamp);
     }
 
@@ -90,8 +92,9 @@ void ModuleLoadAttemptLogListener::OnObjectSignaled(HANDLE object) {
 }
 
 void ModuleLoadAttemptLogListener::StartDrainingLogs() {
-  background_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&DrainLogOnBackgroundTask),
+  base::PostTaskAndReplyWithResult(
+      background_task_runner_.get(), FROM_HERE,
+      base::BindOnce(&DrainLogOnBackgroundTask),
       base::BindOnce(&ModuleLoadAttemptLogListener::OnLogDrained,
                      weak_ptr_factory_.GetWeakPtr()));
 }
@@ -124,7 +127,7 @@ bool ModuleLoadAttemptLogListener::GetDriveLetterPath(
 
     for (const auto& element : device_to_letter_path_mapping_) {
       const base::FilePath& device_root = element.first;
-      const std::wstring& drive_letter_root = element.second;
+      const base::string16& drive_letter_root = element.second;
       if (device_root.IsParent(device_path)) {
         *drive_letter_path = base::FilePath(
             drive_letter_root +

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/strings/strcat.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/apdu/apdu_response.h"
 #include "components/cbor/writer.h"
 #include "device/fido/device_response_converter.h"
@@ -27,12 +27,12 @@ AuthenticatorGetInfoResponse DefaultAuthenticatorInfo() {
 
 // static
 std::unique_ptr<MockFidoDevice> MockFidoDevice::MakeU2f() {
-  return std::make_unique<MockFidoDevice>(ProtocolVersion::kU2f, absl::nullopt);
+  return std::make_unique<MockFidoDevice>(ProtocolVersion::kU2f, base::nullopt);
 }
 
 // static
 std::unique_ptr<MockFidoDevice> MockFidoDevice::MakeCtap(
-    absl::optional<AuthenticatorGetInfoResponse> device_info) {
+    base::Optional<AuthenticatorGetInfoResponse> device_info) {
   if (!device_info) {
     device_info = DefaultAuthenticatorInfo();
   }
@@ -50,13 +50,13 @@ MockFidoDevice::MakeU2fWithGetInfoExpectation() {
   device->StubGetDisplayName();
   device->ExpectWinkedAtLeastOnce();
   device->ExpectCtap2CommandAndRespondWith(
-      CtapRequestCommand::kAuthenticatorGetInfo, absl::nullopt);
+      CtapRequestCommand::kAuthenticatorGetInfo, base::nullopt);
   return device;
 }
 
 // static
 std::unique_ptr<MockFidoDevice> MockFidoDevice::MakeCtapWithGetInfoExpectation(
-    absl::optional<base::span<const uint8_t>> get_info_response) {
+    base::Optional<base::span<const uint8_t>> get_info_response) {
   if (!get_info_response) {
     get_info_response = test_data::kTestAuthenticatorGetInfoResponse;
   }
@@ -72,11 +72,11 @@ std::unique_ptr<MockFidoDevice> MockFidoDevice::MakeCtapWithGetInfoExpectation(
 }
 
 std::vector<uint8_t> MockFidoDevice::EncodeCBORRequest(
-    std::pair<CtapRequestCommand, absl::optional<cbor::Value>> request) {
+    std::pair<CtapRequestCommand, base::Optional<cbor::Value>> request) {
   std::vector<uint8_t> request_bytes;
 
   if (request.second) {
-    absl::optional<std::vector<uint8_t>> cbor_bytes =
+    base::Optional<std::vector<uint8_t>> cbor_bytes =
         cbor::Writer::Write(*request.second);
     DCHECK(cbor_bytes);
     request_bytes = std::move(*cbor_bytes);
@@ -94,7 +94,7 @@ MATCHER_P(IsCtap2Command, expected_command, "") {
 MockFidoDevice::MockFidoDevice() = default;
 MockFidoDevice::MockFidoDevice(
     ProtocolVersion protocol_version,
-    absl::optional<AuthenticatorGetInfoResponse> device_info)
+    base::Optional<AuthenticatorGetInfoResponse> device_info)
     : MockFidoDevice() {
   set_supported_protocol(protocol_version);
   if (device_info) {
@@ -137,12 +137,12 @@ void MockFidoDevice::StubGetId() {
 
 void MockFidoDevice::ExpectCtap2CommandAndRespondWith(
     CtapRequestCommand command,
-    absl::optional<base::span<const uint8_t>> response,
+    base::Optional<base::span<const uint8_t>> response,
     base::TimeDelta delay,
     testing::Matcher<base::span<const uint8_t>> request_matcher) {
   auto data = fido_parsing_utils::MaterializeOrNull(response);
-  auto send_response = [data(std::move(data)), delay](DeviceCallback& cb) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  auto send_response = [ data(std::move(data)), delay ](DeviceCallback & cb) {
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, base::BindOnce(std::move(cb), std::move(data)), delay);
   };
 
@@ -164,11 +164,11 @@ void MockFidoDevice::ExpectCtap2CommandAndRespondWithError(
 
 void MockFidoDevice::ExpectRequestAndRespondWith(
     base::span<const uint8_t> request,
-    absl::optional<base::span<const uint8_t>> response,
+    base::Optional<base::span<const uint8_t>> response,
     base::TimeDelta delay) {
   auto data = fido_parsing_utils::MaterializeOrNull(response);
-  auto send_response = [data(std::move(data)), delay](DeviceCallback& cb) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  auto send_response = [ data(std::move(data)), delay ](DeviceCallback & cb) {
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, base::BindOnce(std::move(cb), std::move(data)), delay);
   };
 
@@ -201,7 +201,7 @@ void MockFidoDevice::SetDeviceTransport(
 
 void MockFidoDevice::StubGetDisplayName() {
   EXPECT_CALL(*this, GetDisplayName())
-      .WillRepeatedly(testing::Return(std::string()));
+      .WillRepeatedly(testing::Return(base::string16()));
 }
 
 }  // namespace device

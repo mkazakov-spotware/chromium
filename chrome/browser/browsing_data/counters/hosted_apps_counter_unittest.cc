@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 #include "base/bind.h"
 #include "base/guid.h"
-#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/browsing_data/core/browsing_data_utils.h"
@@ -32,7 +31,7 @@ using extensions::ListBuilder;
 class HostedAppsCounterTest : public testing::Test {
  public:
   void SetUp() override {
-    profile_ = std::make_unique<TestingProfile>();
+    profile_.reset(new TestingProfile());
     extension_registry_ = extensions::ExtensionRegistry::Get(profile_.get());
 
     SetHostedAppsDeletionPref(true);
@@ -42,7 +41,9 @@ class HostedAppsCounterTest : public testing::Test {
   // Adding and removing apps and extensions. ----------------------------------
 
   std::string AddExtension() {
-    return AddItem(base::GenerateGUID(), /*app_manifest=*/nullptr);
+    return AddItem(
+        base::GenerateGUID(),
+        std::unique_ptr<base::DictionaryValue>());
   }
 
   std::string AddPackagedApp() {
@@ -140,7 +141,7 @@ class HostedAppsCounterTest : public testing::Test {
  private:
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
-  raw_ptr<extensions::ExtensionRegistry> extension_registry_;
+  extensions::ExtensionRegistry* extension_registry_;
 
   bool finished_;
   browsing_data::BrowsingDataCounter::ResultInt num_apps_;

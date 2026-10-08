@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window_state.h"
@@ -24,11 +23,9 @@
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "ui/gfx/geometry/rect.h"
 
 typedef InProcessBrowserTest PreservedWindowPlacement;
-using ::testing::Optional;
 
 IN_PROC_BROWSER_TEST_F(PreservedWindowPlacement, PRE_Test) {
   browser()->window()->SetBounds(gfx::Rect(20, 30, 600, 600));
@@ -36,7 +33,7 @@ IN_PROC_BROWSER_TEST_F(PreservedWindowPlacement, PRE_Test) {
 
 // Fails on Chrome OS as the browser thinks it is restarting after a crash, see
 // http://crbug.com/168044
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #define MAYBE_Test DISABLED_Test
 #else
 #define MAYBE_Test Test
@@ -67,7 +64,7 @@ class PreferenceServiceTest : public InProcessBrowserTest {
     EXPECT_TRUE(base::PathExists(original_pref_file_));
     EXPECT_TRUE(base::CopyFile(original_pref_file_, tmp_pref_file_));
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // Make the copy writable.  On POSIX we assume the umask allows files
     // we create to be writable.
     EXPECT_TRUE(::SetFileAttributesW(tmp_pref_file_.value().c_str(),
@@ -81,7 +78,7 @@ class PreferenceServiceTest : public InProcessBrowserTest {
   base::FilePath tmp_pref_file_;
 };
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN) || defined(OS_MAC)
 // This test verifies that the window position from the prefs file is restored
 // when the app restores.  This doesn't really make sense on Linux, where
 // the window manager might fight with you over positioning.  However, we
@@ -108,22 +105,32 @@ IN_PROC_BROWSER_TEST_F(PreferenceServiceTest, Test) {
   gfx::Rect bounds = browser()->window()->GetRestoredBounds();
 
   // Retrieve the expected rect values from "Preferences"
+  int bottom = 0;
   std::string kBrowserWindowPlacement(prefs::kBrowserWindowPlacement);
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".bottom"),
-              Optional(bounds.y() + bounds.height()));
+  EXPECT_TRUE(root_dict->GetInteger(kBrowserWindowPlacement + ".bottom",
+      &bottom));
+  EXPECT_EQ(bottom, bounds.y() + bounds.height());
 
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".top"),
-              Optional(bounds.y()));
+  int top = 0;
+  EXPECT_TRUE(root_dict->GetInteger(kBrowserWindowPlacement + ".top",
+      &top));
+  EXPECT_EQ(top, bounds.y());
 
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".left"),
-              Optional(bounds.x()));
+  int left = 0;
+  EXPECT_TRUE(root_dict->GetInteger(kBrowserWindowPlacement + ".left",
+      &left));
+  EXPECT_EQ(left, bounds.x());
 
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".right"),
-              Optional(bounds.x() + bounds.width()));
+  int right = 0;
+  EXPECT_TRUE(root_dict->GetInteger(kBrowserWindowPlacement + ".right",
+      &right));
+  EXPECT_EQ(right, bounds.x() + bounds.width());
 
   // Find if launched window is maximized.
   bool is_window_maximized = browser()->window()->IsMaximized();
-  EXPECT_THAT(root_dict->FindBoolPath(kBrowserWindowPlacement + ".maximized"),
-              Optional(is_window_maximized));
+  bool is_maximized = false;
+  EXPECT_TRUE(root_dict->GetBoolean(kBrowserWindowPlacement + ".maximized",
+      &is_maximized));
+  EXPECT_EQ(is_maximized, is_window_maximized);
 }
 #endif

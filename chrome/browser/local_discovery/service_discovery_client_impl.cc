@@ -1,16 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/location.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/local_discovery/service_discovery_client_impl.h"
 #include "net/dns/public/dns_protocol.h"
 #include "net/dns/record_rdata.h"
@@ -148,11 +148,10 @@ void ServiceWatcherImpl::OnRecordUpdate(
     return;
   }
 
-  if (!base::Contains(services_, record->name()))
-    return;
-
   DCHECK(record->type() == net::dns_protocol::kTypeSRV ||
          record->type() == net::dns_protocol::kTypeTXT);
+  DCHECK(services_.find(record->name()) != services_.end());
+
   if (record->type() == net::dns_protocol::kTypeSRV) {
     if (update == net::MDnsListener::RECORD_REMOVED)
       RemoveSRV(record->name());
@@ -241,7 +240,7 @@ void ServiceWatcherImpl::AddService(const std::string& service) {
 
   std::unique_ptr<ServiceListeners>& listener = services_[service];
   if (!listener) {
-    listener = std::make_unique<ServiceListeners>(service, this, mdns_client_);
+    listener.reset(new ServiceListeners(service, this, mdns_client_));
     bool success = listener->Start();
     DCHECK(success);
     listener->SetActiveRefresh(actively_refresh_services_);
@@ -263,7 +262,7 @@ void ServiceWatcherImpl::DeferUpdate(ServiceWatcher::UpdateType update_type,
   auto it = services_.find(service_name);
   if (it != services_.end() && !it->second->update_pending()) {
     it->second->set_update_pending(true);
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&ServiceWatcherImpl::DeliverDeferredUpdate,
                                   AsWeakPtr(), update_type, service_name));
   }
@@ -315,11 +314,11 @@ void ServiceWatcherImpl::OnNsecRecord(const std::string& name,
 
 void ServiceWatcherImpl::ScheduleQuery(int timeout_seconds) {
   if (timeout_seconds <= kMaxRequeryTimeSeconds) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&ServiceWatcherImpl::SendQuery, AsWeakPtr(),
                        timeout_seconds * 2 /*next_timeout_seconds*/),
-        base::Seconds(timeout_seconds));
+        base::TimeDelta::FromSeconds(timeout_seconds));
   }
 }
 
@@ -540,9 +539,9 @@ void LocalDomainResolverImpl::OnTransactionComplete(
         base::BindOnce(&LocalDomainResolverImpl::SendResolvedAddresses,
                        base::Unretained(this)));
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, timeout_callback_.callback(),
-        base::Milliseconds(kLocalDomainSecondAddressTimeoutMs));
+        base::TimeDelta::FromMilliseconds(kLocalDomainSecondAddressTimeoutMs));
   } else if (transactions_finished_ == 2
       || address_family_ != net::ADDRESS_FAMILY_UNSPECIFIED) {
     SendResolvedAddresses();

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,8 @@
 #include <utility>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "third_party/leveldatabase/src/include/leveldb/comparator.h"
 #include "third_party/leveldatabase/src/include/leveldb/db.h"
 #include "third_party/leveldatabase/src/include/leveldb/filter_policy.h"
@@ -25,9 +24,6 @@ namespace content {
 
 // Encapsulates a leveldb database and comparator, allowing them to be used
 // safely across thread boundaries.
-// Because the `RequestDestruction` method is called on shutdown, and blocks
-// shutdown, all references to this object MUST be on task runner that
-// BLOCK_SHUTDOWN. Otherwise it introduces a potential hang on shutdown.
 class LevelDBState : public base::RefCountedThreadSafe<LevelDBState> {
  public:
   static scoped_refptr<LevelDBState> CreateForDiskDB(
@@ -74,7 +70,7 @@ class LevelDBState : public base::RefCountedThreadSafe<LevelDBState> {
   ~LevelDBState();
 
   const std::unique_ptr<leveldb::Env> in_memory_env_;
-  raw_ptr<const leveldb::Comparator> comparator_;
+  const leveldb::Comparator* comparator_;
   const std::unique_ptr<leveldb::DB> db_;
   const base::FilePath database_path_;
   const std::string name_for_tracing_;
@@ -85,7 +81,7 @@ class LevelDBState : public base::RefCountedThreadSafe<LevelDBState> {
   // |signal_on_destruction_| is written only once (when
   // |destruction_requested_| transitions from false to true) and read only once
   // in the destructor, so it is thread-compatible.
-  raw_ptr<base::WaitableEvent> signal_on_destruction_ = nullptr;
+  base::WaitableEvent* signal_on_destruction_ = nullptr;
 };
 
 }  // namespace content

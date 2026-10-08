@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,13 +21,6 @@ class MockInSessionAuthDialogClient : public InSessionAuthDialogClient {
 
   // InSessionAuthDialogClient:
   MOCK_METHOD(void,
-              StartAuthSession,
-              (base::OnceCallback<void(bool)>),
-              (override));
-
-  MOCK_METHOD(void, InvalidateAuthSession, (), (override));
-
-  MOCK_METHOD(void,
               AuthenticateUserWithPasswordOrPin,
               (const std::string& password,
                bool authenticated_by_pin,
@@ -45,10 +38,7 @@ class MockInSessionAuthDialogClient : public InSessionAuthDialogClient {
                base::OnceCallback<void(bool)> callback),
               (override));
 
-  MOCK_METHOD(void,
-              EndFingerprintAuthSession,
-              (base::OnceClosure callback),
-              (override));
+  MOCK_METHOD(void, EndFingerprintAuthSession, (), (override));
 
   MOCK_METHOD(void,
               CheckPinAuthAvailability,

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,9 +37,10 @@ ExtensionActionIconFactory::ExtensionActionIconFactory(
       action_(action),
       observer_(observer),
       should_check_icons_(extension->location() !=
-                          extensions::mojom::ManifestLocation::kUnpacked) {
+                          extensions::Manifest::UNPACKED),
+      icon_image_observer_(this) {
   if (action->default_icon_image())
-    icon_image_observation_.Observe(action->default_icon_image());
+    icon_image_observer_.Add(action->default_icon_image());
 }
 
 ExtensionActionIconFactory::~ExtensionActionIconFactory() {}
@@ -52,7 +53,7 @@ void ExtensionActionIconFactory::OnExtensionIconImageChanged(IconImage* image) {
 
 void ExtensionActionIconFactory::OnExtensionIconImageDestroyed(
     IconImage* image) {
-  icon_image_observation_.Reset();
+  icon_image_observer_.RemoveAll();
 }
 
 gfx::Image ExtensionActionIconFactory::GetIcon(int tab_id) {
@@ -75,6 +76,11 @@ gfx::Image ExtensionActionIconFactory::GetIcon(int tab_id) {
           extensions::image_util::IsIconSufficientlyVisible(*bitmap);
       UMA_HISTOGRAM_BOOLEAN("Extensions.ManifestIconSetIconWasVisibleForPacked",
                             is_sufficiently_visible);
+      const bool is_sufficiently_visible_rendered = extensions::ui_util::
+          IsRenderedIconSufficientlyVisibleForBrowserContext(*bitmap, profile_);
+      UMA_HISTOGRAM_BOOLEAN(
+          "Extensions.ManifestIconSetIconWasVisibleForPackedRendered",
+          is_sufficiently_visible_rendered);
       if (!is_sufficiently_visible && !g_allow_invisible_icons) {
         icon = action_->GetPlaceholderIconImage();
       }

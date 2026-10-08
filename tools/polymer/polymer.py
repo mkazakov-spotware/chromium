@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -87,14 +87,12 @@ _preserve_url_scheme = False
 # Use an OrderedDict, since the order these redirects are applied matters.
 _chrome_redirects = OrderedDict([
     ('//resources/polymer/v1_0/', POLYMER_V1_DIR),
-    ('//resources/ash/common/', 'ash/webui/common/resources/'),
     ('//resources/', 'ui/webui/resources/'),
 ])
 
 _chrome_reverse_redirects = {
     POLYMER_V3_DIR: '//resources/polymer/v3_0/',
     'ui/webui/resources/': '//resources/',
-    'ash/webui/common/resources/': '//resources/ash/common/',
 }
 
 
@@ -161,19 +159,13 @@ class Dependency:
         self.input_scheme = 'chrome'
       return POLYMER_V3_DIR + 'polymer/polymer_bundled.min.js'
 
-    extension = ('.js'
-                 if self.html_path_normalized in _migrated_imports else '.m.js')
-
     if re.match(r'ui/webui/resources/html/', self.html_path_normalized):
       return (self.html_path_normalized
           .replace(r'ui/webui/resources/html/', 'ui/webui/resources/js/')
-          .replace(r'.html', extension))
+          .replace(r'.html', '.m.js'))
 
-    # TODO(crbug.com/1184053): Remove when remaining OOBE files have been
-    # checked in as Polymer3.
-    if self.html_path_normalized == 'ui/webui/resources/cr_elements/icons.html':
-      return 'ui/webui/resources/cr_elements/icons.html.js'
-
+    extension = (
+        '.js' if self.html_path_normalized in _migrated_imports else '.m.js')
     return self.html_path_normalized.replace(r'.html', extension)
 
   def _to_js(self):
@@ -210,7 +202,7 @@ class Dependency:
     return 'import \'%s\';' % self.js_path
 
 
-def _generate_js_imports(html_file, html_type):
+def _generate_js_imports(html_file):
   output = []
   imports_start_offset = -1
   imports_end_index = -1
@@ -235,19 +227,7 @@ def _generate_js_imports(html_file, html_type):
 
         # Convert HTML import URL to equivalent JS import URL.
         dep = Dependency(html_file, match.group(1))
-
-        auto_imports = _auto_imports
-
-        # Override default polymer.html auto import for non dom-module cases.
-        if html_type == 'iron-iconset':
-          auto_imports = _auto_imports.copy()
-          auto_imports["ui/webui/resources/html/polymer.html"] = ["html"]
-        elif html_type == 'custom-style' or html_type == 'style-module':
-          auto_imports = _auto_imports.copy()
-          del auto_imports["ui/webui/resources/html/polymer.html"]
-
-        js_import = dep.to_js_import(auto_imports)
-
+        js_import = dep.to_js_import(_auto_imports)
         if dep.html_path_normalized in _ignore_imports:
           output.append('// ' + js_import)
         else:
@@ -389,27 +369,16 @@ def process_v3_ready(js_file, html_file):
     lines = f.readlines()
 
   HTML_TEMPLATE_REGEX = '{__html_template__}'
-  found = 0
   for i, line in enumerate(lines):
-    if HTML_TEMPLATE_REGEX in line:
-      found += 1
-      line = line.replace(HTML_TEMPLATE_REGEX, html_template)
-      lines[i] = line
-
-  if found == 0:
-    raise AssertionError('No HTML placeholder ' + HTML_TEMPLATE_REGEX +
-                         ' found in ' + js_file)
-
-  if found > 1:
-    raise AssertionError('Multiple HTML placeholders ' + HTML_TEMPLATE_REGEX +
-                         ' found in ' + js_file)
+    line = line.replace(HTML_TEMPLATE_REGEX, html_template)
+    lines[i] = line
 
   out_filename = os.path.basename(js_file)
   return lines, out_filename
 
 def _process_dom_module(js_file, html_file):
   html_template = _extract_template(html_file, 'dom-module')
-  js_imports = _generate_js_imports(html_file, 'dom-module')
+  js_imports = _generate_js_imports(html_file)
 
   # Remove IFFE opening/closing lines.
   IIFE_OPENING = '(function() {\n'
@@ -427,15 +396,10 @@ def _process_dom_module(js_file, html_file):
   # Ignore lines with an ignore annotation.
   IGNORE_LINE_REGEX = '\s*/\* #ignore \*/(\S|\s)*'
 
-  # Special syntax used for files using ES class syntax. (OOBE screens)
-  JS_IMPORTS_PLACEHOLDER_REGEX = '/* #js_imports_placeholder */';
-  HTML_TEMPLATE_PLACEHOLDER_REGEX = '/* #html_template_placeholder */';
-
   with io.open(js_file, encoding='utf-8') as f:
     lines = f.readlines()
 
   imports_added = False
-  html_content_added = False
   iife_found = False
   cr_define_found = False
   cr_define_end_line = -1
@@ -454,33 +418,18 @@ def _process_dom_module(js_file, html_file):
         line = '\n'.join(js_imports) + '\n\n'
         cr_define_found = True
         imports_added = True
-      elif JS_IMPORTS_PLACEHOLDER_REGEX in line:
-        line = line.replace(JS_IMPORTS_PLACEHOLDER_REGEX,
-                            '\n'.join(js_imports) + '\n')
-        imports_added = True
-      elif 'Polymer({\n' in line:
+      elif line.startswith('Polymer({\n'):
         # Place the JS imports right before the opening "Polymer({" line.
-        line = '\n'.join(js_imports) + '\n\n' + line
+        line = line.replace(
+            r'Polymer({', '%s\n\nPolymer({' % '\n'.join(js_imports))
         imports_added = True
 
-    # Place the HTML content right after the opening "Polymer({" line if using
-    # the Polymer() factory method, or replace HTML_TEMPLATE_PLACEHOLDER_REGEX
-    # with the HTML content if the files is using ES6 class syntax.
-    # Note: There is currently an assumption that only one Polymer() declaration,
-    # or one class declaration exists per file.
-    error_message = """Multiple Polymer() declarations found, or mixed ES6 class
-                       syntax with Polymer() declarations in the same file"""
-    if 'Polymer({' in line:
-      assert not html_content_added, error_message
-      line = line.replace(
-          r'Polymer({',
-          'Polymer({\n  _template: html`%s`,' % html_template)
-      html_content_added = True
-    elif HTML_TEMPLATE_PLACEHOLDER_REGEX in line:
-      assert not html_content_added, error_message
-      line = line.replace(HTML_TEMPLATE_PLACEHOLDER_REGEX,
-        'static get template() {\n    return html`%s`;\n  }' % html_template)
-      html_content_added = True
+    # Place the HTML content right after the opening "Polymer({" line.
+    # Note: There is currently an assumption that only one Polymer() declaration
+    # exists per file.
+    line = line.replace(
+        r'Polymer({',
+        'Polymer({\n  _template: html`%s`,' % html_template)
 
     line = line.replace(EXPORT_LINE_REGEX, 'export')
 
@@ -511,7 +460,7 @@ def _process_dom_module(js_file, html_file):
 
 def _process_style_module(js_file, html_file):
   html_template = _extract_template(html_file, 'style-module')
-  js_imports = _generate_js_imports(html_file, 'style-module')
+  js_imports = _generate_js_imports(html_file)
 
   style_id = _extract_dom_module_id(html_file)
 
@@ -519,7 +468,7 @@ def _process_style_module(js_file, html_file):
   # correctly. Without this they are resolved with respect to the main HTML
   # documents location (unlike Polymer2). Note: This is assuming that only style
   # modules under ui/webui/resources/ are processed by polymer_modulizer(), for
-  # example cr_icons.css.html.
+  # example cr_icons_css.html.
   js_template = \
 """%(js_imports)s
 const template = document.createElement('template');
@@ -538,7 +487,7 @@ document.body.appendChild(template.content.cloneNode(true));""" % {
 
 def _process_custom_style(js_file, html_file):
   html_template = _extract_template(html_file, 'custom-style')
-  js_imports = _generate_js_imports(html_file, 'custom-style')
+  js_imports = _generate_js_imports(html_file)
 
   js_template = \
 """%(js_imports)s
@@ -554,7 +503,7 @@ document.head.appendChild($_documentContainer.content);""" % {
 
 def _process_iron_iconset(js_file, html_file):
   html_template = _extract_template(html_file, 'iron-iconset')
-  js_imports = _generate_js_imports(html_file, 'iron-iconset')
+  js_imports = _generate_js_imports(html_file)
 
   js_template = \
 """%(js_imports)s

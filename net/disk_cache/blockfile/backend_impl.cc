@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/disk_cache/blockfile/backend_impl.h"
 
 #include <limits>
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -20,17 +19,18 @@
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram.h"
 #include "base/rand_util.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/synchronization/waitable_event.h"
 #include "base/system/sys_info.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "base/trace_event/process_memory_dump.h"
 #include "base/trace_event/trace_event.h"
 #include "net/base/net_errors.h"
 #include "net/disk_cache/backend_cleanup_tracker.h"
@@ -46,6 +46,7 @@
 #define CACHE_UMA_BACKEND_IMPL_OBJ this
 
 using base::Time;
+using base::TimeDelta;
 using base::TimeTicks;
 
 namespace {
@@ -158,6 +159,7 @@ BackendImpl::BackendImpl(
       background_queue_(this, FallbackToInternalIfNull(cache_thread)),
       path_(path),
       block_files_(path),
+      mask_(0),
       user_flags_(0),
       net_log_(net_log) {
   TRACE_EVENT0("disk_cache", "BackendImpl::BackendImpl");
@@ -207,8 +209,9 @@ BackendImpl::~BackendImpl() {
   }
 }
 
-void BackendImpl::Init(CompletionOnceCallback callback) {
+net::Error BackendImpl::Init(CompletionOnceCallback callback) {
   background_queue_.Init(std::move(callback));
+  return net::ERR_IO_PENDING;
 }
 
 int BackendImpl::SyncInit() {
@@ -314,8 +317,8 @@ int BackendImpl::SyncInit() {
     // Create a recurrent timer of 30 secs.
     DCHECK(background_queue_.BackgroundIsCurrentSequence());
     int timer_delay = unit_test_ ? 1000 : 30000;
-    timer_ = std::make_unique<base::RepeatingTimer>();
-    timer_->Start(FROM_HERE, base::Milliseconds(timer_delay), this,
+    timer_.reset(new base::RepeatingTimer());
+    timer_->Start(FROM_HERE, TimeDelta::FromMilliseconds(timer_delay), this,
                   &BackendImpl::OnStatsTimer);
   }
 
@@ -336,9 +339,7 @@ void BackendImpl::CleanupCache() {
 
     if (user_flags_ & kNoRandom) {
       // This is a net_unittest, verify that we are not 'leaking' entries.
-      // TODO(https://crbug.com/1184679): Refactor this and eliminate the
-      //    WaitForPendingIOForTesting API.
-      File::WaitForPendingIOForTesting(&num_pending_io_);
+      File::WaitForPendingIO(&num_pending_io_);
       DCHECK(!num_refs_);
     } else {
       File::DropPendingIO();
@@ -411,7 +412,7 @@ int BackendImpl::SyncDoomEntriesBetween(const base::Time initial_time,
     return net::ERR_FAILED;
 
   scoped_refptr<EntryImpl> node;
-  auto iterator = std::make_unique<Rankings::Iterator>();
+  std::unique_ptr<Rankings::Iterator> iterator(new Rankings::Iterator());
   scoped_refptr<EntryImpl> next = OpenNextEntryImpl(iterator.get());
   if (!next)
     return net::OK;
@@ -453,7 +454,7 @@ int BackendImpl::SyncDoomEntriesSince(const base::Time initial_time) {
 
   stats_.OnEvent(Stats::DOOM_RECENT);
   for (;;) {
-    auto iterator = std::make_unique<Rankings::Iterator>();
+    std::unique_ptr<Rankings::Iterator> iterator(new Rankings::Iterator());
     scoped_refptr<EntryImpl> entry = OpenNextEntryImpl(iterator.get());
     if (!entry)
       return net::OK;
@@ -513,7 +514,7 @@ scoped_refptr<EntryImpl> BackendImpl::OpenEntryImpl(const std::string& key) {
     cache_entry = nullptr;
   }
 
-  int64_t current_size = data_->header.num_bytes / (1024 * 1024);
+  int current_size = data_->header.num_bytes / (1024 * 1024);
   int64_t total_hours = stats_.GetCounter(Stats::TIMER) / 120;
   int64_t no_use_hours = stats_.GetCounter(Stats::LAST_REPORT_TIMER) / 120;
   int64_t use_hours = total_hours - no_use_hours;
@@ -593,8 +594,8 @@ scoped_refptr<EntryImpl> BackendImpl::CreateEntryImpl(const std::string& key) {
     return nullptr;
   }
 
-  auto cache_entry =
-      base::MakeRefCounted<EntryImpl>(this, entry_address, false);
+  scoped_refptr<EntryImpl> cache_entry(
+      new EntryImpl(this, entry_address, false));
   IncreaseNumRefs();
 
   if (!cache_entry->CreateEntry(node_address, key, hash)) {
@@ -746,7 +747,7 @@ bool BackendImpl::CreateExternalFile(Addr* address) {
     }
     base::FilePath name = GetFileName(file_address);
     int flags = base::File::FLAG_READ | base::File::FLAG_WRITE |
-                base::File::FLAG_CREATE | base::File::FLAG_WIN_EXCLUSIVE_WRITE;
+                base::File::FLAG_CREATE | base::File::FLAG_EXCLUSIVE_WRITE;
     base::File file(name, flags);
     if (!file.IsValid()) {
       base::File::Error error = file.error_details();
@@ -1051,7 +1052,7 @@ void BackendImpl::CriticalError(int error) {
   disabled_ = true;
 
   if (!num_refs_)
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&BackendImpl::RestartCache, GetWeakPtr(), true));
 }
@@ -1296,7 +1297,8 @@ class BackendImpl::IteratorImpl : public Backend::Iterator {
  public:
   explicit IteratorImpl(base::WeakPtr<InFlightBackendIO> background_queue)
       : background_queue_(background_queue),
-        iterator_(std::make_unique<Rankings::Iterator>()) {}
+        iterator_(new Rankings::Iterator()) {
+  }
 
   ~IteratorImpl() override {
     if (background_queue_)
@@ -1316,7 +1318,8 @@ class BackendImpl::IteratorImpl : public Backend::Iterator {
 };
 
 std::unique_ptr<Backend::Iterator> BackendImpl::CreateIterator() {
-  return std::make_unique<IteratorImpl>(GetBackgroundQueue());
+  return std::unique_ptr<Backend::Iterator>(
+      new IteratorImpl(GetBackgroundQueue()));
 }
 
 void BackendImpl::GetStats(StatsItems* stats) {
@@ -1352,6 +1355,13 @@ void BackendImpl::OnExternalCacheHit(const std::string& key) {
   background_queue_.OnExternalCacheHit(key);
 }
 
+size_t BackendImpl::DumpMemoryStats(
+    base::trace_event::ProcessMemoryDump* pmd,
+    const std::string& parent_absolute_name) const {
+  // TODO(xunjieli): Implement this. crbug.com/669108.
+  return 0u;
+}
+
 // ------------------------------------------------------------------------
 
 // We just created a new file so we're going to write the header and set the
@@ -1361,6 +1371,11 @@ bool BackendImpl::CreateBackingStore(disk_cache::File* file) {
 
   IndexHeader header;
   header.table_len = DesiredIndexTableLen(max_size_);
+
+  // We need file version 2.1 for the new eviction algorithm.
+  if (new_eviction_)
+    header.version = 0x20001;
+
   header.create_time = Time::Now().ToInternalValue();
 
   if (!file->Write(&header, sizeof(header), 0))
@@ -1382,7 +1397,7 @@ bool BackendImpl::CreateBackingStore(disk_cache::File* file) {
   static_assert(sizeof(disk_cache::IndexHeader) < kPageSize,
                 "Code below assumes it wouldn't overwrite header by starting "
                 "at kPageSize");
-  auto page = std::make_unique<char[]>(kPageSize);
+  std::unique_ptr<char[]> page(new char[kPageSize]);
   memset(page.get(), 0, kPageSize);
 
   for (size_t offset = kPageSize; offset < size; offset += kPageSize) {
@@ -1400,8 +1415,7 @@ bool BackendImpl::InitBackingStore(bool* file_created) {
   base::FilePath index_name = path_.AppendASCII(kIndexName);
 
   int flags = base::File::FLAG_READ | base::File::FLAG_WRITE |
-              base::File::FLAG_OPEN_ALWAYS |
-              base::File::FLAG_WIN_EXCLUSIVE_WRITE;
+              base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_EXCLUSIVE_WRITE;
   base::File base_file(index_name, flags);
   if (!base_file.IsValid())
     return false;
@@ -1409,7 +1423,8 @@ bool BackendImpl::InitBackingStore(bool* file_created) {
   bool ret = true;
   *file_created = base_file.created();
 
-  auto file = base::MakeRefCounted<disk_cache::File>(std::move(base_file));
+  scoped_refptr<disk_cache::File> file(
+      new disk_cache::File(std::move(base_file)));
   if (*file_created)
     ret = CreateBackingStore(file.get());
 
@@ -1417,7 +1432,7 @@ bool BackendImpl::InitBackingStore(bool* file_created) {
   if (!ret)
     return false;
 
-  index_ = base::MakeRefCounted<MappedFile>();
+  index_ = new MappedFile();
   data_ = static_cast<Index*>(index_->Init(index_name, 0));
   if (!data_) {
     LOG(ERROR) << "Unable to map Index file";
@@ -1489,7 +1504,7 @@ bool BackendImpl::InitStats() {
   if (!file)
     return false;
 
-  auto data = std::make_unique<char[]>(size);
+  std::unique_ptr<char[]> data(new char[size]);
   size_t offset = address.start_block() * address.BlockSize() +
                   kBlockHeaderSize;
   if (!file->Read(data.get(), size, offset))
@@ -1504,7 +1519,7 @@ bool BackendImpl::InitStats() {
 
 void BackendImpl::StoreStats() {
   int size = stats_.StorageSize();
-  auto data = std::make_unique<char[]>(size);
+  std::unique_ptr<char[]> data(new char[size]);
   Addr address;
   size = stats_.SerializeStats(data.get(), size, &address);
   DCHECK(size);
@@ -1532,7 +1547,7 @@ void BackendImpl::RestartCache(bool failure) {
   if (failure) {
     DCHECK(!num_refs_);
     DCHECK(open_entries_.empty());
-    CleanupDirectorySync(path_);
+    DelayedCacheCleanup(path_);
   } else {
     DeleteCache(path_, false);
   }
@@ -1584,12 +1599,18 @@ int BackendImpl::NewEntry(Addr address, scoped_refptr<EntryImpl>* entry) {
     return ERR_INVALID_ADDRESS;
   }
 
-  auto cache_entry = base::MakeRefCounted<EntryImpl>(this, address, read_only_);
+  scoped_refptr<EntryImpl> cache_entry(
+      new EntryImpl(this, address, read_only_));
   IncreaseNumRefs();
   *entry = nullptr;
 
+  TimeTicks start = TimeTicks::Now();
   if (!cache_entry->entry()->Load())
     return ERR_READ_FAILURE;
+
+  if (IsLoaded()) {
+    CACHE_UMA(AGE_MS, "LoadTime", 0, start);
+  }
 
   if (!cache_entry->SanityCheck()) {
     LOG(WARNING) << "Messed up entry found.";
@@ -1846,7 +1867,7 @@ void BackendImpl::DecreaseNumRefs() {
   num_refs_--;
 
   if (!num_refs_ && disabled_)
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&BackendImpl::RestartCache, GetWeakPtr(), true));
 }
@@ -1868,14 +1889,14 @@ void BackendImpl::LogStats() {
   StatsItems stats;
   GetStats(&stats);
 
-  for (const auto& stat : stats)
-    VLOG(1) << stat.first << ": " << stat.second;
+  for (size_t index = 0; index < stats.size(); index++)
+    VLOG(1) << stats[index].first << ": " << stats[index].second;
 }
 
 void BackendImpl::ReportStats() {
   CACHE_UMA(COUNTS, "Entries", 0, data_->header.num_entries);
 
-  int64_t current_size = data_->header.num_bytes / (1024 * 1024);
+  int current_size = data_->header.num_bytes / (1024 * 1024);
   int max_size = max_size_ / (1024 * 1024);
   int hit_ratio_as_percentage = stats_.GetHitRatio();
 
@@ -1948,7 +1969,7 @@ void BackendImpl::ReportStats() {
   int64_t trim_rate = stats_.GetCounter(Stats::TRIM_ENTRY) / use_hours;
   CACHE_UMA(COUNTS, "TrimRate", 0, static_cast<int>(trim_rate));
 
-  int64_t avg_size = data_->header.num_bytes / GetEntryCount();
+  int avg_size = data_->header.num_bytes / GetEntryCount();
   CACHE_UMA(COUNTS, "EntrySize", 0, avg_size);
   CACHE_UMA(COUNTS, "EntriesFull", 0, data_->header.num_entries);
 
@@ -1973,22 +1994,17 @@ void BackendImpl::ReportStats() {
 
   stats_.ResetRatios();
   stats_.SetCounter(Stats::TRIM_ENTRY, 0);
+
+  if (GetCacheType() == net::DISK_CACHE)
+    block_files_.ReportStats();
 }
 
 void BackendImpl::UpgradeTo2_1() {
   // 2.1 is basically the same as 2.0, except that new fields are actually
   // updated by the new eviction algorithm.
-  DCHECK_EQ(kVersion2_0, data_->header.version);
-  data_->header.version = kVersion2_1;
+  DCHECK(0x20000 == data_->header.version);
+  data_->header.version = 0x20001;
   data_->header.lru.sizes[Rankings::NO_USE] = data_->header.num_entries;
-}
-
-void BackendImpl::UpgradeTo3_0() {
-  // 3.0 uses a 64-bit size field.
-  DCHECK(kVersion2_0 == data_->header.version ||
-         kVersion2_1 == data_->header.version);
-  data_->header.version = kVersion3_0;
-  data_->header.num_bytes = data_->header.old_v2_num_bytes;
 }
 
 bool BackendImpl::CheckIndex() {
@@ -2000,25 +2016,23 @@ bool BackendImpl::CheckIndex() {
     return false;
   }
 
-  if (data_->header.magic != kIndexMagic) {
-    LOG(ERROR) << "Invalid file magic";
-    return false;
-  }
-
-  // 2.0 + new_eviction needs conversion to 2.1.
-  if (data_->header.version == kVersion2_0 && new_eviction_) {
-    UpgradeTo2_1();
-  }
-
-  // 2.0 or 2.1 can be upgraded to 3.0
-  if (data_->header.version == kVersion2_0 ||
-      data_->header.version == kVersion2_1) {
-    UpgradeTo3_0();
-  }
-
-  if (kCurrentVersion != data_->header.version) {
-    LOG(ERROR) << "Invalid file version";
-    return false;
+  if (new_eviction_) {
+    // We support versions 2.0 and 2.1, upgrading 2.0 to 2.1.
+    if (kIndexMagic != data_->header.magic ||
+        kCurrentVersion >> 16 != data_->header.version >> 16) {
+      LOG(ERROR) << "Invalid file version or magic";
+      return false;
+    }
+    if (kCurrentVersion == data_->header.version) {
+      // We need file version 2.1 for the new eviction algorithm.
+      UpgradeTo2_1();
+    }
+  } else {
+    if (kIndexMagic != data_->header.magic ||
+        kCurrentVersion != data_->header.version) {
+      LOG(ERROR) << "Invalid file version or magic";
+      return false;
+    }
   }
 
   if (!data_->header.table_len) {
@@ -2099,7 +2113,7 @@ bool BackendImpl::CheckEntry(EntryImpl* cache_entry) {
   bool ok = block_files_.IsValid(cache_entry->entry()->address());
   ok = ok && block_files_.IsValid(cache_entry->rankings()->address());
   EntryStore* data = cache_entry->entry()->Data();
-  for (size_t i = 0; i < std::size(data->data_addr); i++) {
+  for (size_t i = 0; i < base::size(data->data_addr); i++) {
     if (data->data_addr[i]) {
       Addr address(data->data_addr[i]);
       if (address.is_block_file())
@@ -2111,39 +2125,25 @@ bool BackendImpl::CheckEntry(EntryImpl* cache_entry) {
 }
 
 int BackendImpl::MaxBuffersSize() {
-  static uint64_t total_memory = base::SysInfo::AmountOfPhysicalMemory();
+  static int64_t total_memory = base::SysInfo::AmountOfPhysicalMemory();
   static bool done = false;
 
   if (!done) {
-    done = true;
+    const int kMaxBuffersSize = 30 * 1024 * 1024;
 
-    // We want to use up to 2% of the computer's memory, limit 30 MB.
+    // We want to use up to 2% of the computer's memory.
     total_memory = total_memory * 2 / 100;
-    constexpr uint64_t kMaxBuffersSize = 30 * 1024 * 1024;
-    if (total_memory > kMaxBuffersSize || total_memory == 0)
+    if (total_memory > kMaxBuffersSize || total_memory <= 0)
       total_memory = kMaxBuffersSize;
+
+    done = true;
   }
 
   return static_cast<int>(total_memory);
 }
 
 void BackendImpl::FlushForTesting() {
-  if (!g_internal_cache_thread.IsCreated()) {
-    return;
-  }
-
   g_internal_cache_thread.Get().FlushForTesting();
-}
-
-void BackendImpl::FlushAsynchronouslyForTesting(base::OnceClosure callback) {
-  if (!g_internal_cache_thread.IsCreated()) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(callback));
-    return;
-  }
-
-  InternalCacheThread()->PostTaskAndReply(FROM_HERE, base::BindOnce([]() {}),
-                                          std::move(callback));
 }
 
 }  // namespace disk_cache

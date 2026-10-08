@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "content/browser/browser_interface_binders.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -28,10 +28,6 @@ namespace {
 class MockBatteryMonitor : public device::mojom::BatteryMonitor {
  public:
   MockBatteryMonitor() = default;
-
-  MockBatteryMonitor(const MockBatteryMonitor&) = delete;
-  MockBatteryMonitor& operator=(const MockBatteryMonitor&) = delete;
-
   ~MockBatteryMonitor() override = default;
 
   void Bind(mojo::PendingReceiver<device::mojom::BatteryMonitor> receiver) {
@@ -70,6 +66,8 @@ class MockBatteryMonitor : public device::mojom::BatteryMonitor {
   device::mojom::BatteryStatus status_;
   bool status_to_report_ = false;
   mojo::Receiver<device::mojom::BatteryMonitor> receiver_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MockBatteryMonitor);
 };
 
 class BatteryMonitorTest : public ContentBrowserTest {
@@ -79,16 +77,14 @@ class BatteryMonitorTest : public ContentBrowserTest {
     // Because Device Service also runs in this process(browser process), here
     // we can directly set our binder to intercept interface requests against
     // it.
-    OverrideBatteryMonitorBinderForTesting(
+    RenderProcessHostImpl::OverrideBatteryMonitorBinderForTesting(
         base::BindRepeating(&MockBatteryMonitor::Bind,
                             base::Unretained(mock_battery_monitor_.get())));
   }
 
-  BatteryMonitorTest(const BatteryMonitorTest&) = delete;
-  BatteryMonitorTest& operator=(const BatteryMonitorTest&) = delete;
-
   ~BatteryMonitorTest() override {
-    OverrideBatteryMonitorBinderForTesting(base::NullCallback());
+    RenderProcessHostImpl::OverrideBatteryMonitorBinderForTesting(
+        base::NullCallback());
   }
 
  protected:
@@ -98,6 +94,8 @@ class BatteryMonitorTest : public ContentBrowserTest {
 
  private:
   std::unique_ptr<MockBatteryMonitor> mock_battery_monitor_;
+
+  DISALLOW_COPY_AND_ASSIGN(BatteryMonitorTest);
 };
 
 IN_PROC_BROWSER_TEST_F(BatteryMonitorTest, NavigatorGetBatteryInfo) {

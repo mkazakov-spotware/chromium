@@ -1,16 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/html/html_image_element.h"
 
 #include <memory>
-
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 
@@ -22,7 +20,7 @@ class HTMLImageElementTest : public PageTestBase {
   static constexpr int kViewportHeight = 600;
 
   void SetUp() override {
-    PageTestBase::SetUp(gfx::Size(kViewportWidth, kViewportHeight));
+    PageTestBase::SetUp(IntSize(kViewportWidth, kViewportHeight));
   }
 };
 

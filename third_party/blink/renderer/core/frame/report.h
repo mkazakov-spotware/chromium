@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ struct CORE_EXPORT ReportType {
   static constexpr const char kDeprecation[] = "deprecation";
   static constexpr const char kDocumentPolicyViolation[] =
       "document-policy-violation";
-  static constexpr const char kPermissionsPolicyViolation[] =
+  static constexpr const char kFeaturePolicyViolation[] =
       "permissions-policy-violation";
   static constexpr const char kIntervention[] = "intervention";
 };

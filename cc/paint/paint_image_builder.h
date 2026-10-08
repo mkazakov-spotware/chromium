@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,10 +85,6 @@ class CC_PAINT_EXPORT PaintImageBuilder {
   }
   PaintImageBuilder&& set_is_high_bit_depth(bool is_high_bit_depth) {
     paint_image_.is_high_bit_depth_ = is_high_bit_depth;
-    return std::move(*this);
-  }
-  PaintImageBuilder&& set_may_be_lcp_candidate(bool may_be_lcp_candidate) {
-    paint_image_.may_be_lcp_candidate_ = may_be_lcp_candidate;
     return std::move(*this);
   }
   PaintImageBuilder&& set_repetition_count(int count) {

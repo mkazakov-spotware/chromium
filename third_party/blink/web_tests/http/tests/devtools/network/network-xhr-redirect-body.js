@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   await TestRunner.addResult(`Tests that XHR redirects preserve request body.`);
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   var offset;

@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_BROWSER_BACKGROUND_SYNC_BACKGROUND_SYNC_DELEGATE_IMPL_H_
 #define WEBLAYER_BROWSER_BACKGROUND_SYNC_BACKGROUND_SYNC_DELEGATE_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "components/background_sync/background_sync_delegate.h"
 #include "url/origin.h"
@@ -23,14 +22,8 @@ class BackgroundSyncDelegateImpl
   explicit BackgroundSyncDelegateImpl(content::BrowserContext* browser_context);
   ~BackgroundSyncDelegateImpl() override;
 
-#if !BUILDFLAG(IS_ANDROID)
-  std::unique_ptr<
-      content::BackgroundSyncController::BackgroundSyncEventKeepAlive>
-  CreateBackgroundSyncEventKeepAlive() override;
-#endif  // !BUILDFLAG(IS_ANDROID)
-
   void GetUkmSourceId(const url::Origin& origin,
-                      base::OnceCallback<void(absl::optional<ukm::SourceId>)>
+                      base::OnceCallback<void(base::Optional<ukm::SourceId>)>
                           callback) override;
   void Shutdown() override;
   HostContentSettingsMap* GetHostContentSettingsMap() override;
@@ -38,17 +31,17 @@ class BackgroundSyncDelegateImpl
   void NoteSuspendedPeriodicSyncOrigins(
       std::set<url::Origin> suspended_origins) override;
   int GetSiteEngagementPenalty(const GURL& url) override;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void ScheduleBrowserWakeUpWithDelay(
       blink::mojom::BackgroundSyncType sync_type,
       base::TimeDelta delay) override;
   void CancelBrowserWakeup(blink::mojom::BackgroundSyncType sync_type) override;
   bool ShouldDisableBackgroundSync() override;
   bool ShouldDisableAndroidNetworkDetection() override;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
  private:
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 };
 
 }  // namespace weblayer

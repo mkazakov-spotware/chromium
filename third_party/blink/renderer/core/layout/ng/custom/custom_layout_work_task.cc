@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/layout/ng/custom/custom_layout_work_task.h"
 
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
 #include "third_party/blink/renderer/core/layout/ng/custom/custom_intrinsic_sizes.h"
 #include "third_party/blink/renderer/core/layout/ng/custom/custom_layout_child.h"
@@ -48,17 +47,18 @@ void CustomLayoutWorkTask::Trace(Visitor* visitor) const {
   visitor->Trace(options_);
 }
 
-void CustomLayoutWorkTask::Run(const NGConstraintSpace& parent_space,
-                               const ComputedStyle& parent_style,
-                               const LayoutUnit child_available_block_size,
-                               bool* child_depends_on_block_constraints) {
+void CustomLayoutWorkTask::Run(
+    const NGConstraintSpace& parent_space,
+    const ComputedStyle& parent_style,
+    const LayoutUnit child_percentage_resolution_block_size_for_min_max,
+    bool* child_depends_on_percentage_block_size) {
   DCHECK(token_->IsValid());
   NGLayoutInputNode child = child_->GetLayoutNode();
 
   if (type_ == CustomLayoutWorkTask::TaskType::kIntrinsicSizes) {
-    RunIntrinsicSizesTask(parent_space, parent_style,
-                          child_available_block_size, child,
-                          child_depends_on_block_constraints);
+    RunIntrinsicSizesTask(parent_style,
+                          child_percentage_resolution_block_size_for_min_max,
+                          child, child_depends_on_percentage_block_size);
   } else {
     DCHECK_EQ(type_, CustomLayoutWorkTask::TaskType::kLayoutFragment);
     RunLayoutFragmentTask(parent_space, parent_style, child);
@@ -131,43 +131,42 @@ void CustomLayoutWorkTask::RunLayoutFragmentTask(
   builder.SetAvailableSize(available_size);
   builder.SetPercentageResolutionSize(percentage_size);
   builder.SetReplacedPercentageResolutionSize(percentage_size);
+  builder.SetIsShrinkToFit(child.Style().LogicalWidth().IsAuto());
   builder.SetIsFixedInlineSize(is_fixed_inline_size);
   builder.SetIsFixedBlockSize(is_fixed_block_size);
+  builder.SetNeedsBaseline(true);
   if (child.IsLayoutNGCustom())
     builder.SetCustomLayoutData(std::move(constraint_data_));
   auto space = builder.ToConstraintSpace();
-  auto* result =
-      To<NGBlockNode>(child).Layout(space, nullptr /* break_token */);
+  auto result = To<NGBlockNode>(child).Layout(space, nullptr /* break_token */);
 
   NGBoxFragment fragment(parent_space.GetWritingDirection(),
                          To<NGPhysicalBoxFragment>(result->PhysicalFragment()));
 
   resolver_->Resolve(MakeGarbageCollected<CustomLayoutFragment>(
-      child_, token_, std::move(result), fragment.Size(),
-      fragment.FirstBaseline(), resolver_->GetScriptState()->GetIsolate()));
+      child_, token_, std::move(result), fragment.Size(), fragment.Baseline(),
+      resolver_->GetScriptState()->GetIsolate()));
 }
 
 void CustomLayoutWorkTask::RunIntrinsicSizesTask(
-    const NGConstraintSpace& parent_space,
     const ComputedStyle& parent_style,
-    const LayoutUnit child_available_block_size,
+    const LayoutUnit child_percentage_resolution_block_size_for_min_max,
     NGLayoutInputNode child,
-    bool* child_depends_on_block_constraints) {
+    bool* child_depends_on_percentage_block_size) {
   DCHECK_EQ(type_, CustomLayoutWorkTask::TaskType::kIntrinsicSizes);
   DCHECK(resolver_);
 
-  NGMinMaxConstraintSpaceBuilder builder(parent_space, parent_style, child,
-                                         /* is_new_fc */ true);
-  builder.SetAvailableBlockSize(child_available_block_size);
-  const auto space = builder.ToConstraintSpace();
-
+  MinMaxSizesInput input(child_percentage_resolution_block_size_for_min_max,
+                         MinMaxSizesType::kContent);
   MinMaxSizesResult result = ComputeMinAndMaxContentContribution(
-      parent_style, To<NGBlockNode>(child), space);
+      parent_style, To<NGBlockNode>(child), input);
   resolver_->Resolve(MakeGarbageCollected<CustomIntrinsicSizes>(
       child_, token_, result.sizes.min_size, result.sizes.max_size));
 
-  if (child_depends_on_block_constraints)
-    *child_depends_on_block_constraints |= result.depends_on_block_constraints;
+  if (child_depends_on_percentage_block_size) {
+    *child_depends_on_percentage_block_size |=
+        result.depends_on_percentage_block_size;
+  }
 }
 
 }  // namespace blink

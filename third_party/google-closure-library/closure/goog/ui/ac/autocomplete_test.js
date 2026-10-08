@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.ac.AutoCompleteTest');
 goog.setTestOnly();
@@ -86,7 +94,6 @@ class TestRend extends Renderer {
     super(dom.getElement('test-area'));
   }
 
-  /** @suppress {visibility} suppression added to enable type checking */
   getRenderedRows() {
     return this.rows_;
   }
@@ -129,7 +136,6 @@ testSuite({
   testMaxMatches() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -149,31 +155,23 @@ testSuite({
     ac.setToken('');
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testHiliteViaMouse() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     let updates = 0;
     const row = null;
     let rowNode = null;
     handler.listen(rend, AutoComplete.EventType.ROW_HILITE, (evt) => {
       updates++;
-      /**
-       * @suppress {missingProperties} suppression added to enable type
-       * checking
-       */
       rowNode = evt.rowNode;
     });
     const ac = new AutoComplete(ds, rend, select);
     ac.setMaxMatches(4);
     ac.setToken('the');
-    // Need to set the startRenderingRows_ time to something long ago,
-    // otherwise the mouse event will not be fired.  (The autocomplete logic
-    // waits for some time to pass after rendering before firing mouseover
-    // events.)
-    /** @suppress {visibility} suppression added to enable type checking */
+    // Need to set the startRenderingRows_ time to something long ago, otherwise
+    // the mouse event will not be fired.  (The autocomplete logic waits for
+    // some time to pass after rendering before firing mouseover events.)
     rend.startRenderingRows_ = -1;
     const hilitedRowDiv = rend.getRowDiv(3);
     events.fireMouseOverEvent(hilitedRowDiv);
@@ -182,20 +180,16 @@ testSuite({
         googString.contains(rowNode.innerHTML, 'mice@myotherdomain.com'));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testMouseClickBeforeHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setMaxMatches(4);
     ac.setToken('the');
-    // Need to set the startRenderingRows_ time to something long ago,
-    // otherwise the mouse event will not be fired.  (The autocomplete logic
-    // waits for some time to pass after rendering before firing mouseover
-    // events.)
-    /** @suppress {visibility} suppression added to enable type checking */
+    // Need to set the startRenderingRows_ time to something long ago, otherwise
+    // the mouse event will not be fired.  (The autocomplete logic waits for
+    // some time to pass after rendering before firing mouseover events.)
     rend.startRenderingRows_ = -1;
 
     // hilite row 3...
@@ -212,7 +206,6 @@ testSuite({
   testMouseClickOnFirstRowBeforeHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setAutoHilite(false);
@@ -247,16 +240,13 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSelectEventEmptyRow() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setMaxMatches(4);
     ac.setToken('the');
-    /** @suppress {visibility} suppression added to enable type checking */
     rend.startRenderingRows_ = -1;
 
     // hilight row 2 ('the.mice@...')
@@ -273,7 +263,6 @@ testSuite({
   testSuggestionsUpdateEvent() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     let updates = 0;
@@ -300,7 +289,6 @@ testSuite({
   testGetRowCount() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     assertEquals(0, ac.getRowCount());
@@ -314,13 +302,12 @@ testSuite({
   },
 
   /**
-   * Try using next and prev to navigate past the ends with default behavior
-   * of allowFreeSelect_ and wrap_.
+   * Try using next and prev to navigate past the ends with default behavior of
+   * allowFreeSelect_ and wrap_.
    */
   testHiliteNextPrev_default() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -367,13 +354,12 @@ testSuite({
   },
 
   /**
-   * Try using next and prev to navigate past the ends with default behavior
-   * of allowFreeSelect_ and wrap_ and with a disabled first row.
+   * Try using next and prev to navigate past the ends with default behavior of
+   * allowFreeSelect_ and wrap_ and with a disabled first row.
    */
   testHiliteNextPrevWithDisabledFirstRow_default() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -413,13 +399,12 @@ testSuite({
   },
 
   /**
-   * Try using next and prev to navigate past the ends with default behavior
-   * of allowFreeSelect_ and wrap_ and with a disabled middle row.
+   * Try using next and prev to navigate past the ends with default behavior of
+   * allowFreeSelect_ and wrap_ and with a disabled middle row.
    */
   testHiliteNextPrevWithDisabledMiddleRow_default() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -459,13 +444,12 @@ testSuite({
   },
 
   /**
-   * Try using next and prev to navigate past the ends with default behavior
-   * of allowFreeSelect_ and wrap_ and with a disabled last row.
+   * Try using next and prev to navigate past the ends with default behavior of
+   * allowFreeSelect_ and wrap_ and with a disabled last row.
    */
   testHiliteNextPrevWithDisabledLastRow_default() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -509,7 +493,6 @@ testSuite({
   testHiliteNextPrev_allowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setAllowFreeSelect(true);
@@ -560,7 +543,6 @@ testSuite({
   testHiliteNextPrevWithDisabledFirstRow_allowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setAllowFreeSelect(true);
@@ -607,7 +589,6 @@ testSuite({
   testHiliteNextPrevWithDisabledMiddleRow_allowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setAllowFreeSelect(true);
@@ -654,7 +635,6 @@ testSuite({
   testHiliteNextPrevWithDisabledLastRow_allowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setAllowFreeSelect(true);
@@ -700,7 +680,6 @@ testSuite({
   testHiliteNextPrev_wrap() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -748,7 +727,6 @@ testSuite({
   testHiliteNextPrevWithDisabledFirstRow_wrap() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -768,8 +746,8 @@ testSuite({
       checkHilitedIndex(rend, 1);
       ac.hiliteNext();
       checkHilitedIndex(rend, 2);
-      // try going over the edge. Since wrap is on and first row is
-      // disabled, this will go back to 1.
+      // try going over the edge. Since wrap is on and first row is disabled,
+      // this will go back to 1.
       ac.hiliteNext();
       checkHilitedIndex(rend, 1);
 
@@ -793,7 +771,6 @@ testSuite({
   testHiliteNextPrevWithDisabledMiddleRow_wrap() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -837,7 +814,6 @@ testSuite({
   testHiliteNextPrevWithDisabledLastRow_wrap() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -856,8 +832,8 @@ testSuite({
       checkHilitedIndex(rend, 0);
       ac.hiliteNext();
       checkHilitedIndex(rend, 1);
-      // try going over the edge since last row is disabled. Since wrap is
-      // on, this will go back to 0.
+      // try going over the edge since last row is disabled. Since wrap is on,
+      // this will go back to 0.
       ac.hiliteNext();
       checkHilitedIndex(rend, 0);
 
@@ -882,7 +858,6 @@ testSuite({
   testHiliteNextPrev_wrapAndAllowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -937,7 +912,6 @@ testSuite({
   testHiliteNextPrevWithDisabledFirstRow_wrapAndAllowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -958,8 +932,7 @@ testSuite({
       checkHilitedIndex(rend, 1);
       ac.hiliteNext();
       checkHilitedIndex(rend, 2);
-      // try going over the edge. Since free select is on, this should go to
-      // -1.
+      // try going over the edge. Since free select is on, this should go to -1.
       ac.hiliteNext();
       checkHilitedIndex(rend, -1);
 
@@ -988,7 +961,6 @@ testSuite({
   testHiliteNextPrevWithDisabledMiddleRow_wrapAndAllowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1009,8 +981,7 @@ testSuite({
       ac.hiliteNext();
       // Second row is disabled and should be skipped.
       checkHilitedIndex(rend, 2);
-      // try going over the edge. Since free select is on, this should go to
-      // -1
+      // try going over the edge. Since free select is on, this should go to -1
       ac.hiliteNext();
       checkHilitedIndex(rend, -1);
 
@@ -1039,7 +1010,6 @@ testSuite({
   testHiliteNextPrevWithDisabledLastRow_wrapAndAllowFreeSelect() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1059,8 +1029,8 @@ testSuite({
       checkHilitedIndex(rend, 0);
       ac.hiliteNext();
       checkHilitedIndex(rend, 1);
-      // try going over the edge since last row is disabled. Since free
-      // select is on, this should go to -1
+      // try going over the edge since last row is disabled. Since free select
+      // is on, this should go to -1
       ac.hiliteNext();
       checkHilitedIndex(rend, -1);
 
@@ -1089,7 +1059,6 @@ testSuite({
   testHiliteNextPrev_wrapAndAllowFreeSelectNoAutoHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1152,7 +1121,6 @@ testSuite({
   testHiliteNextPrevWithDisabledFirstRow_wrapAndAllowFreeSelectNoAutoHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1181,8 +1149,7 @@ testSuite({
       checkHilitedIndex(rend, 1);
       ac.hiliteNext();
       checkHilitedIndex(rend, 2);
-      // try going over the edge. Since free select is on, this should go to
-      // -1
+      // try going over the edge. Since free select is on, this should go to -1
       ac.hiliteNext();
       checkHilitedIndex(rend, -1);
 
@@ -1206,13 +1173,11 @@ testSuite({
 
   /**
    * Try using next and prev to navigate past the ends with wrap_ on
-   * allowFreeSelect_ on AND turn autoHilite_ off, and a disabled middle
-   * row.
+   * allowFreeSelect_ on AND turn autoHilite_ off, and a disabled middle row.
    */
   testHiliteNextPrevWithDisabledMiddleRow_wrapAndAllowFreeSelectNoAutoHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1241,8 +1206,7 @@ testSuite({
       ac.hiliteNext();
       // Second row is disabled
       checkHilitedIndex(rend, 2);
-      // try going over the edge. Since free select is on, this should go to
-      // -1.
+      // try going over the edge. Since free select is on, this should go to -1.
       ac.hiliteNext();
       checkHilitedIndex(rend, -1);
 
@@ -1272,7 +1236,6 @@ testSuite({
   testHiliteNextPrevWithDisabledLastRow_wrapAndAllowFreeSelectNoAutoHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1301,8 +1264,7 @@ testSuite({
       checkHilitedIndex(rend, 0);
       ac.hiliteNext();
       checkHilitedIndex(rend, 1);
-      // try going over the edge. Since free select is on, this should go to
-      // -1.
+      // try going over the edge. Since free select is on, this should go to -1.
       ac.hiliteNext();
       checkHilitedIndex(rend, -1);
 
@@ -1327,7 +1289,6 @@ testSuite({
   testHiliteWithChangingNumberOfRows() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setAutoHilite(true);
@@ -1363,13 +1324,12 @@ testSuite({
   },
 
   /**
-   * Checks that autohilite is disabled when there is no token; this allows
-   * the user to tab out of an empty autocomplete.
+   * Checks that autohilite is disabled when there is no token; this allows the
+   * user to tab out of an empty autocomplete.
    */
   testNoAutoHiliteWhenTokenIsEmpty() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1392,7 +1352,6 @@ testSuite({
   testPreserveHilitedWithoutAutoHilite() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1426,7 +1385,6 @@ testSuite({
   testAutoHiliteFromMatcherTrue() {
     const ds = new MockDS(true);
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1444,7 +1402,6 @@ testSuite({
   testAutoHiliteFromMatcherFalse() {
     const ds = new MockDS(false);
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setWrap(true);
@@ -1458,14 +1415,10 @@ testSuite({
     checkHilitedIndex(rend, -1);
   },
 
-  /**
-     Hilite using ids, the way mouse-based hiliting would work.
-     @suppress {visibility} suppression added to enable type checking
-   */
+  /** Hilite using ids, the way mouse-based hiliting would work. */
   testHiliteId() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -1486,7 +1439,6 @@ testSuite({
   testSelection() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     let ac;
 
@@ -1510,7 +1462,6 @@ testSuite({
   testDismiss() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
 
     // dismiss empty
@@ -1535,7 +1486,6 @@ testSuite({
   testTriggerSuggestionsOnUpdate() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
 
@@ -1566,7 +1516,6 @@ testSuite({
   testDispose() {
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setToken('the');
@@ -1585,7 +1534,6 @@ testSuite({
     }
     const ds = new MockDS();
     const rend = new TestRend();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const select = new MockSelect();
     const ac = new AutoComplete(ds, rend, select);
     ac.setTarget(inputElement);
@@ -1627,7 +1575,6 @@ testSuite({
     mockControl.$verifyAll();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testDetachInputWithAnchor() {
     const mockRenderer = mockControl.createLooseMock(Renderer, true);
     const mockInputHandler = mockControl.createLooseMock(InputHandler, true);

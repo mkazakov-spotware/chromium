@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/qr_generator/qr_generator_util.h"
 
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -37,8 +37,7 @@ class QRGeneratorUtilTest : public PlatformTest {
 };
 
 // Tests that the GenerateQRCode utility function creates a valid QR code image.
-// TODO(crbug.com/1214776): reenable this test.
-TEST_F(QRGeneratorUtilTest, DISABLED_GenerateQRCode_ValidData) {
+TEST_F(QRGeneratorUtilTest, GenerateQRCode_ValidData) {
   NSData* qrData = [sampleUrl_ dataUsingEncoding:NSUTF8StringEncoding];
 
   UIImage* qrImage = GenerateQRCode(qrData, imageSize_);

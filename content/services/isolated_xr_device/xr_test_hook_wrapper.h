@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ class XRTestHookWrapper : public VRTestHook {
       mojo::PendingRemote<device_test::mojom::XRTestHook> hook_info);
   virtual ~XRTestHookWrapper();
 
-  void OnFrameSubmitted(const std::vector<ViewData>& views) override;
+  void OnFrameSubmitted(SubmittedFrameData frame_data) override;
   DeviceConfig WaitGetDeviceConfig() override;
   PoseFrameData WaitGetPresentingPose() override;
   PoseFrameData WaitGetMagicWindowPose() override;
@@ -34,7 +34,6 @@ class XRTestHookWrapper : public VRTestHook {
   TrackedDeviceClass WaitGetTrackedDeviceClass(unsigned int index) override;
   ControllerFrameData WaitGetControllerData(unsigned int index) override;
   device_test::mojom::EventData WaitGetEventData() override;
-  bool WaitGetCanCreateSession() override;
   void AttachCurrentThread() override;
   void DetachCurrentThread() override;
 

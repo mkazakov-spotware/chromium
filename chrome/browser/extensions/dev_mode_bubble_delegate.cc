@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,8 +35,8 @@ DevModeBubbleDelegate::~DevModeBubbleDelegate() {
 }
 
 bool DevModeBubbleDelegate::ShouldIncludeExtension(const Extension* extension) {
-  return (extension->location() == mojom::ManifestLocation::kUnpacked ||
-          extension->location() == mojom::ManifestLocation::kCommandLine);
+  return (extension->location() == Manifest::UNPACKED ||
+          extension->location() == Manifest::COMMAND_LINE);
 }
 
 void DevModeBubbleDelegate::AcknowledgeExtension(
@@ -49,40 +49,44 @@ void DevModeBubbleDelegate::PerformAction(const ExtensionIdList& list) {
     service()->DisableExtension(list[i], disable_reason::DISABLE_USER_ACTION);
 }
 
-std::u16string DevModeBubbleDelegate::GetTitle() const {
+base::string16 DevModeBubbleDelegate::GetTitle() const {
   return l10n_util::GetStringUTF16(IDS_EXTENSIONS_DISABLE_DEVELOPER_MODE_TITLE);
 }
 
-std::u16string DevModeBubbleDelegate::GetMessageBody(
+base::string16 DevModeBubbleDelegate::GetMessageBody(
     bool anchored_to_browser_action,
     int extension_count) const {
   return l10n_util::GetStringUTF16(IDS_EXTENSIONS_DISABLE_DEVELOPER_MODE_BODY);
 }
 
-std::u16string DevModeBubbleDelegate::GetOverflowText(
-    const std::u16string& overflow_count) const {
+base::string16 DevModeBubbleDelegate::GetOverflowText(
+    const base::string16& overflow_count) const {
   return l10n_util::GetStringFUTF16(
             IDS_EXTENSIONS_DISABLED_AND_N_MORE,
             overflow_count);
 }
 
-std::u16string DevModeBubbleDelegate::GetLearnMoreLabel() const {
-  return std::u16string();
+base::string16 DevModeBubbleDelegate::GetLearnMoreLabel() const {
+  return base::string16();
 }
 
 GURL DevModeBubbleDelegate::GetLearnMoreUrl() const {
   return GURL();
 }
 
-std::u16string DevModeBubbleDelegate::GetActionButtonLabel() const {
+base::string16 DevModeBubbleDelegate::GetActionButtonLabel() const {
   return l10n_util::GetStringUTF16(IDS_DISABLE);
 }
 
-std::u16string DevModeBubbleDelegate::GetDismissButtonLabel() const {
-  return std::u16string();
+base::string16 DevModeBubbleDelegate::GetDismissButtonLabel() const {
+  return base::string16();
 }
 
 bool DevModeBubbleDelegate::ShouldCloseOnDeactivate() const {
+  return false;
+}
+
+bool DevModeBubbleDelegate::ShouldAcknowledgeOnDeactivate() const {
   return false;
 }
 
@@ -108,8 +112,24 @@ bool DevModeBubbleDelegate::ShouldShowExtensionList() const {
   return false;
 }
 
+bool DevModeBubbleDelegate::ShouldHighlightExtensions() const {
+  return true;
+}
+
 bool DevModeBubbleDelegate::ShouldLimitToEnabledExtensions() const {
   return true;
+}
+
+void DevModeBubbleDelegate::LogExtensionCount(size_t count) {
+  UMA_HISTOGRAM_COUNTS_100(
+      "ExtensionBubble.ExtensionsInDevModeCount", count);
+}
+
+void DevModeBubbleDelegate::LogAction(
+    ExtensionMessageBubbleController::BubbleAction action) {
+  UMA_HISTOGRAM_ENUMERATION(
+      "ExtensionBubble.DevModeUserSelection",
+      action, ExtensionMessageBubbleController::ACTION_BOUNDARY);
 }
 
 bool DevModeBubbleDelegate::SupportsPolicyIndicator() {

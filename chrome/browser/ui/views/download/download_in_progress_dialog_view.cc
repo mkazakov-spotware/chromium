@@ -1,36 +1,37 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/download/download_in_progress_dialog_view.h"
 
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/fill_layout.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 
 // static
 void DownloadInProgressDialogView::Show(
     gfx::NativeWindow parent,
     int download_count,
     Browser::DownloadCloseType dialog_type,
-    base::OnceCallback<void(bool)> callback) {
-  DownloadInProgressDialogView* window = new DownloadInProgressDialogView(
-      download_count, dialog_type, std::move(callback));
+    const base::Callback<void(bool)>& callback) {
+  DownloadInProgressDialogView* window =
+      new DownloadInProgressDialogView(download_count, dialog_type, callback);
   constrained_window::CreateBrowserModalDialogViews(window, parent)->Show();
 }
 
 DownloadInProgressDialogView::DownloadInProgressDialogView(
     int download_count,
     Browser::DownloadCloseType dialog_type,
-    base::OnceCallback<void(bool)> callback)
-    : callback_(std::move(callback)) {
+    const base::Callback<void(bool)>& callback)
+    : callback_(callback) {
   SetTitle(l10n_util::GetPluralStringFUTF16(IDS_ABANDON_DOWNLOAD_DIALOG_TITLE,
                                             download_count));
   SetShowCloseButton(false);
@@ -44,14 +45,12 @@ DownloadInProgressDialogView::DownloadInProgressDialogView(
       l10n_util::GetStringUTF16(IDS_ABANDON_DOWNLOAD_DIALOG_CONTINUE_BUTTON));
   SetLayoutManager(std::make_unique<views::FillLayout>());
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kText));
-  set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
-      views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH));
+      views::TEXT, views::TEXT));
 
   auto run_callback = [](DownloadInProgressDialogView* dialog, bool accept) {
     // Note that accepting this dialog means "cancel the download", while cancel
     // means "continue the download".
-    std::move(dialog->callback_).Run(accept);
+    dialog->callback_.Run(accept);
   };
   SetAcceptCallback(base::BindOnce(run_callback, base::Unretained(this), true));
   SetCancelCallback(
@@ -81,9 +80,18 @@ DownloadInProgressDialogView::DownloadInProgressDialogView(
   message_label->SetMultiLine(true);
   message_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   AddChildView(message_label.release());
+
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::DOWNLOAD_IN_PROGRESS);
 }
 
 DownloadInProgressDialogView::~DownloadInProgressDialogView() = default;
+
+gfx::Size DownloadInProgressDialogView::CalculatePreferredSize() const {
+  const int width = ChromeLayoutProvider::Get()->GetDistanceMetric(
+                        views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH) -
+                    margins().width();
+  return gfx::Size(width, GetHeightForWidth(width));
+}
 
 BEGIN_METADATA(DownloadInProgressDialogView, views::DialogDelegateView)
 END_METADATA

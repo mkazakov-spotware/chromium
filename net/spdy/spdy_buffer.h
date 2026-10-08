@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "net/base/net_export.h"
 
@@ -55,9 +56,6 @@ class NET_EXPORT_PRIVATE SpdyBuffer {
   // non-NULL and |size| must be non-zero.
   SpdyBuffer(const char* data, size_t size);
 
-  SpdyBuffer(const SpdyBuffer&) = delete;
-  SpdyBuffer& operator=(const SpdyBuffer&) = delete;
-
   // If there are bytes remaining in the buffer, triggers a call to
   // any consume callbacks with a DISCARD source.
   ~SpdyBuffer();
@@ -88,6 +86,9 @@ class NET_EXPORT_PRIVATE SpdyBuffer {
   // http://crbug.com/249725 .)
   scoped_refptr<IOBuffer> GetIOBufferForRemainingData();
 
+  // Returns the estimate of dynamically allocated memory in bytes.
+  size_t EstimateMemoryUsage() const;
+
  private:
   void ConsumeHelper(size_t consume_size, ConsumeSource consume_source);
 
@@ -100,7 +101,9 @@ class NET_EXPORT_PRIVATE SpdyBuffer {
 
   const scoped_refptr<SharedFrame> shared_frame_;
   std::vector<ConsumeCallback> consume_callbacks_;
-  size_t offset_ = 0;
+  size_t offset_;
+
+  DISALLOW_COPY_AND_ASSIGN(SpdyBuffer);
 };
 
 }  // namespace net

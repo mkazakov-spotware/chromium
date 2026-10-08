@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/task/sequence_manager/test/mock_time_message_pump.h"
 
 #include <algorithm>
-#include <ostream>
 
 #include "base/auto_reset.h"
 #include "base/notreached.h"
@@ -82,8 +81,8 @@ void MockTimeMessagePump::Quit() {
 void MockTimeMessagePump::ScheduleWork() {}
 
 void MockTimeMessagePump::ScheduleDelayedWork(
-    const Delegate::NextWorkInfo& next_work_info) {
-  next_wake_up_time_ = next_work_info.delayed_run_time;
+    const TimeTicks& delayed_work_time) {
+  next_wake_up_time_ = delayed_work_time;
 }
 
 }  // namespace sequence_manager

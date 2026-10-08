@@ -1,13 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/containers/flat_map.h"
 
 #include <string>
-#include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_piece.h"
 #include "base/test/move_only_int.h"
@@ -21,36 +21,6 @@
 using ::testing::ElementsAre;
 
 namespace base {
-
-namespace {
-
-struct Unsortable {
-  int value;
-};
-
-bool operator==(const Unsortable& lhs, const Unsortable& rhs) {
-  return lhs.value == rhs.value;
-}
-
-bool operator<(const Unsortable& lhs, const Unsortable& rhs) = delete;
-bool operator<=(const Unsortable& lhs, const Unsortable& rhs) = delete;
-bool operator>(const Unsortable& lhs, const Unsortable& rhs) = delete;
-bool operator>=(const Unsortable& lhs, const Unsortable& rhs) = delete;
-
-class ImplicitInt {
- public:
-  // NOLINTNEXTLINE(google-explicit-constructor)
-  ImplicitInt(int data) : data_(data) {}
-
- private:
-  friend bool operator<(const ImplicitInt& lhs, const ImplicitInt& rhs) {
-    return lhs.data_ < rhs.data_;
-  }
-
-  int data_;
-};
-
-}  // namespace
 
 TEST(FlatMap, IncompleteType) {
   struct A {
@@ -107,42 +77,6 @@ TEST(FlatMap, InitializerListConstructor) {
                                 std::make_pair(3, 3), std::make_pair(4, 4),
                                 std::make_pair(5, 5), std::make_pair(8, 8),
                                 std::make_pair(10, 10)));
-}
-
-TEST(FlatMap, SortedRangeConstructor) {
-  using PairType = std::pair<int, Unsortable>;
-  using MapType = flat_map<int, Unsortable>;
-  MapType::value_type input_vals[] = {{1, {1}}, {2, {1}}, {3, {1}}};
-  MapType map(sorted_unique, std::begin(input_vals), std::end(input_vals));
-  EXPECT_THAT(
-      map, ElementsAre(PairType(1, {1}), PairType(2, {1}), PairType(3, {1})));
-}
-
-TEST(FlatMap, SortedCopyFromVectorConstructor) {
-  using PairType = std::pair<int, Unsortable>;
-  using MapType = flat_map<int, Unsortable>;
-  std::vector<PairType> vect{{1, {1}}, {2, {1}}};
-  MapType map(sorted_unique, vect);
-  EXPECT_THAT(map, ElementsAre(PairType(1, {1}), PairType(2, {1})));
-}
-
-TEST(FlatMap, SortedMoveFromVectorConstructor) {
-  using PairType = std::pair<int, Unsortable>;
-  using MapType = flat_map<int, Unsortable>;
-  std::vector<PairType> vect{{1, {1}}, {2, {1}}};
-  MapType map(sorted_unique, std::move(vect));
-  EXPECT_THAT(map, ElementsAre(PairType(1, {1}), PairType(2, {1})));
-}
-
-TEST(FlatMap, SortedInitializerListConstructor) {
-  using PairType = std::pair<int, Unsortable>;
-  flat_map<int, Unsortable> map(
-      sorted_unique,
-      {{1, {1}}, {2, {2}}, {3, {3}}, {4, {4}}, {5, {5}}, {8, {8}}, {10, {10}}});
-  EXPECT_THAT(map,
-              ElementsAre(PairType(1, {1}), PairType(2, {2}), PairType(3, {3}),
-                          PairType(4, {4}), PairType(5, {5}), PairType(8, {8}),
-                          PairType(10, {10})));
 }
 
 TEST(FlatMap, InitializerListAssignment) {
@@ -229,7 +163,7 @@ TEST(FlatMap, AtFunction) {
   EXPECT_EQ("b", m.at(2));
 
   // Const reference works.
-  const std::string& const_ref = std::as_const(m).at(1);
+  const std::string& const_ref = base::as_const(m).at(1);
   EXPECT_EQ("a", const_ref);
 
   // Reference works, can operate on the string.
@@ -243,7 +177,7 @@ TEST(FlatMap, AtFunction) {
   // Heterogeneous look-up works.
   base::flat_map<std::string, int> m2 = {{"a", 1}, {"b", 2}};
   EXPECT_EQ(1, m2.at(base::StringPiece("a")));
-  EXPECT_EQ(2, std::as_const(m2).at(base::StringPiece("b")));
+  EXPECT_EQ(2, base::as_const(m2).at(base::StringPiece("b")));
 }
 
 // insert_or_assign(K&&, M&&)
@@ -423,8 +357,6 @@ TEST(FlatMap, UsingTransparentCompare) {
   m1.count(x);
   m.find(x);
   m1.find(x);
-  m.contains(x);
-  m1.contains(x);
   m.equal_range(x);
   m1.equal_range(x);
   m.lower_bound(x);
@@ -438,27 +370,6 @@ TEST(FlatMap, UsingTransparentCompare) {
   m.emplace(ExplicitInt(1), 0);
   m.erase(m.begin());
   m.erase(m.cbegin());
-}
-
-TEST(FlatMap, UsingInitializerList) {
-  base::flat_map<ImplicitInt, int> m;
-  const auto& m1 = m;
-
-  // Check if the calls can be resolved. Correctness is checked in flat_tree
-  // tests.
-  m.count({1});
-  m1.count({2});
-  m.find({3});
-  m1.find({4});
-  m.contains({5});
-  m1.contains({6});
-  m.equal_range({7});
-  m1.equal_range({8});
-  m.lower_bound({9});
-  m1.lower_bound({10});
-  m.upper_bound({11});
-  m1.upper_bound({12});
-  m.erase({13});
 }
 
 }  // namespace base

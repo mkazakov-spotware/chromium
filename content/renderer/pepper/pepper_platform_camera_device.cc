@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "content/public/renderer/ppapi_gfx_conversion.h"
+#include "content/renderer/pepper/gfx_conversion.h"
 #include "content/renderer/pepper/pepper_camera_device_host.h"
 #include "content/renderer/pepper/pepper_media_device_manager.h"
 #include "content/renderer/render_frame_impl.h"
@@ -95,10 +95,7 @@ void PepperPlatformCameraDevice::OnDeviceOpened(int request_id,
         device_manager->GetSessionID(PP_DEVICETYPE_DEV_VIDEOCAPTURE, label);
     blink::WebVideoCaptureImplManager* manager =
         RenderThreadImpl::current()->video_capture_impl_manager();
-    RenderFrameImpl* render_frame =
-        RenderFrameImpl::FromRoutingID(render_frame_id_);
-    release_device_cb_ = manager->UseDevice(
-        session_id_, render_frame->GetBrowserInterfaceBroker());
+    release_device_cb_ = manager->UseDevice(session_id_);
   }
 
   handler_->OnInitialized(succeeded);

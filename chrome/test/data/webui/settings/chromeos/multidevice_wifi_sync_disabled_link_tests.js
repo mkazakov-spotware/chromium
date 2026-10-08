@@ -1,11 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {Router, routes} from 'chrome://os-settings/chromeos/os_settings.js';
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// clang-format off
+// #import 'chrome://os-settings/chromeos/os_settings.js';
 
-import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+// #import {Router, routes} from 'chrome://os-settings/chromeos/os_settings.js';
+// #import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
+// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// clang-format on
 
 suite('Multidevice', function() {
   let localizedLink = null;
@@ -15,21 +19,19 @@ suite('Multidevice', function() {
     localizedLink =
         document.createElement('settings-multidevice-wifi-sync-disabled-link');
     document.body.appendChild(localizedLink);
-    flush();
+    Polymer.dom.flush();
   });
 
   teardown(function() {
     localizedLink.remove();
-    Router.getInstance().resetRouteForTesting();
+    settings.Router.getInstance().resetRouteForTesting();
   });
 
   test('Contains 2 links with aria-labels', async () => {
-    const chromeSyncLink =
-        localizedLink.shadowRoot.querySelector('#chromeSyncLink');
+    const chromeSyncLink = localizedLink.$$('#chromeSyncLink');
     assertTrue(!!chromeSyncLink);
     assertTrue(chromeSyncLink.hasAttribute('aria-label'));
-    const learnMoreLink =
-        localizedLink.shadowRoot.querySelector('#learnMoreLink');
+    const learnMoreLink = localizedLink.$$('#learnMoreLink');
     assertTrue(!!learnMoreLink);
     assertTrue(learnMoreLink.hasAttribute('aria-label'));
   });
@@ -42,11 +44,18 @@ suite('Multidevice', function() {
   });
 
   test('ChromeSyncLink navigates to appropriate route', async () => {
-    const chromeSyncLink =
-        localizedLink.shadowRoot.querySelector('#chromeSyncLink');
+    const chromeSyncLink = localizedLink.$$('#chromeSyncLink');
     chromeSyncLink.click();
-    flush();
+    Polymer.dom.flush();
 
-    assertEquals(Router.getInstance().getCurrentRoute(), routes.OS_SYNC);
+    if (loadTimeData.getBoolean('splitSettingsSyncEnabled')) {
+      assertEquals(
+          settings.Router.getInstance().getCurrentRoute(),
+          settings.routes.OS_SYNC);
+    } else {
+      assertEquals(
+          settings.Router.getInstance().getCurrentRoute(),
+          settings.routes.SYNC_ADVANCED);
+    }
   });
 });

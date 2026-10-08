@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,30 +8,38 @@
 #include <stdint.h>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/memory/singleton.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/task_traits.h"
+#include "base/sequenced_task_runner.h"
+#include "base/stl_util.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/updater/chromeos_extension_cache_delegate.h"
 #include "chrome/browser/extensions/updater/local_extension_cache.h"
 #include "chrome/common/extensions/extension_constants.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_service.h"
+#include "content/public/browser/notification_source.h"
 #include "extensions/browser/install/crx_install_error.h"
 #include "extensions/browser/install/sandboxed_unpacker_failure_reason.h"
 
 namespace extensions {
 
 ExtensionCacheImpl::ExtensionCacheImpl(
-    std::unique_ptr<ChromeOSExtensionCacheDelegate> delegate)
+    std::unique_ptr<ChromeOSExtensionCacheDelegate> delegate,
+    base::TaskPriority task_priority)
     : cache_(new LocalExtensionCache(
           delegate->GetCacheDir(),
           delegate->GetMaximumCacheSize(),
           delegate->GetMaximumCacheAge(),
           base::ThreadPool::CreateSequencedTaskRunner(
-              {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
+              {base::MayBlock(), task_priority,
                base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN}))) {
+  notification_registrar_.Add(
+      this, extensions::NOTIFICATION_EXTENSION_INSTALL_ERROR,
+      content::NotificationService::AllBrowserContextsAndSources());
   cache_->Init(true, base::BindOnce(&ExtensionCacheImpl::OnCacheInitialized,
                                     weak_ptr_factory_.GetWeakPtr()));
 }
@@ -100,29 +108,38 @@ void ExtensionCacheImpl::OnCacheInitialized() {
   }
 }
 
-bool ExtensionCacheImpl::OnInstallFailed(const std::string& id,
-                                         const std::string& hash,
-                                         const CrxInstallError& error) {
-  if (!cache_)
-    return false;
+void ExtensionCacheImpl::Observe(int type,
+                                 const content::NotificationSource& source,
+                                 const content::NotificationDetails& details) {
+  DCHECK_EQ(extensions::NOTIFICATION_EXTENSION_INSTALL_ERROR, type);
 
-  if (error.type() == extensions::CrxInstallErrorType::DECLINED) {
+  if (!cache_)
+    return;
+
+  extensions::CrxInstaller* installer =
+      content::Source<extensions::CrxInstaller>(source).ptr();
+  const std::string& id = installer->expected_id();
+  const std::string& hash = installer->expected_hash();
+  const extensions::CrxInstallError* error =
+      content::Details<const extensions::CrxInstallError>(details).ptr();
+  const auto error_type = error->type();
+
+  if (error_type == extensions::CrxInstallErrorType::DECLINED) {
     DVLOG(2) << "Extension install was declined, file kept";
-    return false;
+    return;
   }
   // Remove and retry download if the crx present in the cache is corrupted or
   // not according to the expectations,
-  if (error.IsCrxVerificationFailedError() ||
-      error.IsCrxExpectationsFailedError()) {
+  if (error->IsCrxVerificationFailedError() ||
+      error->IsCrxExpectationsFailedError()) {
     if (cache_->ShouldRetryDownload(id, hash)) {
       cache_->RemoveExtension(id, hash);
-      return true;
+      installer->set_verification_check_failed(true);
     }
-    return false;
+    return;
   }
 
   cache_->RemoveExtension(id, hash);
-  return true;
 }
 
 }  // namespace extensions

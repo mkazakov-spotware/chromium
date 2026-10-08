@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/content_setting.h"
 
-#include "base/containers/contains.h"
 #include "base/strings/stringprintf.h"
 #include "base/values.h"
 #include "extensions/renderer/bindings/api_binding_types.h"
@@ -22,32 +21,19 @@
 #include "gin/handle.h"
 #include "gin/object_template_builder.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
-#include "v8/include/v8-object.h"
 
 namespace extensions {
 
 namespace {
 
 // Content settings that are deprecated.
-const char* const kDeprecatedTypesToAllow[] = {
-    "fullscreen",
-    "mouselock",
+const char* const kDeprecatedTypes[] = {
+    "fullscreen", "mouselock",
 };
-const char* const kDeprecatedTypesToBlock[] = {
-    "plugins",
-    "ppapi-broker",
-};
-
-const char* GetForcedValueForDeprecatedSetting(base::StringPiece type) {
-  if (base::Contains(kDeprecatedTypesToAllow, type))
-    return "allow";
-  DCHECK(base::Contains(kDeprecatedTypesToBlock, type));
-  return "block";
-}
 
 bool IsDeprecated(base::StringPiece type) {
-  return base::Contains(kDeprecatedTypesToAllow, type) ||
-         base::Contains(kDeprecatedTypesToBlock, type);
+  return std::find(std::begin(kDeprecatedTypes), std::end(kDeprecatedTypes),
+                   type) != std::end(kDeprecatedTypes);
 }
 
 }  // namespace
@@ -55,20 +41,19 @@ bool IsDeprecated(base::StringPiece type) {
 v8::Local<v8::Object> ContentSetting::Create(
     v8::Isolate* isolate,
     const std::string& property_name,
-    const base::Value::List* property_values,
+    const base::ListValue* property_values,
     APIRequestHandler* request_handler,
     APIEventHandler* event_handler,
     APITypeReferenceMap* type_refs,
     const BindingAccessChecker* access_checker) {
-  CHECK_GE(property_values->size(), 2u);
-  const std::string& pref_name = (*property_values)[0].GetString();
-  const base::Value& value_spec = (*property_values)[1u];
-  CHECK(value_spec.is_dict());
+  std::string pref_name;
+  CHECK(property_values->GetString(0u, &pref_name));
+  const base::DictionaryValue* value_spec = nullptr;
+  CHECK(property_values->GetDictionary(1u, &value_spec));
 
   gin::Handle<ContentSetting> handle = gin::CreateHandle(
-      isolate, new ContentSetting(
-                   request_handler, type_refs, access_checker, pref_name,
-                   static_cast<const base::DictionaryValue&>(value_spec)));
+      isolate, new ContentSetting(request_handler, type_refs, access_checker,
+                                  pref_name, *value_spec));
   return handle.ToV8().As<v8::Object>();
 }
 
@@ -178,12 +163,12 @@ void ContentSetting::HandleFunction(const std::string& method_name,
     if (!parse_result.callback.IsEmpty()) {
       std::vector<v8::Local<v8::Value>> args;
       if (method_name == "get") {
-        // Populate the result to avoid breaking extensions.
+        // Deprecated settings are always set to "allow". Populate the result to
+        // avoid breaking extensions.
         v8::Local<v8::Object> object = v8::Object::New(isolate);
         v8::Maybe<bool> result = object->CreateDataProperty(
             context, gin::StringToSymbol(isolate, "setting"),
-            gin::StringToSymbol(
-                isolate, GetForcedValueForDeprecatedSetting(pref_name_)));
+            gin::StringToSymbol(isolate, "allow"));
         // Since we just defined this object, CreateDataProperty() should never
         // fail.
         CHECK(result.ToChecked());
@@ -211,16 +196,11 @@ void ContentSetting::HandleFunction(const std::string& method_name,
     }
   }
 
-  parse_result.arguments_list->GetList().Insert(
-      parse_result.arguments_list->GetList().begin(), base::Value(pref_name_));
-
-  v8::Local<v8::Promise> promise = request_handler_->StartRequest(
-      context, "contentSettings." + method_name,
-      std::move(parse_result.arguments_list), parse_result.async_type,
-      parse_result.callback, v8::Local<v8::Function>(),
-      binding::ResultModifierFunction());
-  if (!promise.IsEmpty())
-    arguments->Return(promise);
+  parse_result.arguments->Insert(0u, std::make_unique<base::Value>(pref_name_));
+  request_handler_->StartRequest(context, "contentSettings." + method_name,
+                                 std::move(parse_result.arguments),
+                                 parse_result.callback,
+                                 v8::Local<v8::Function>());
 }
 
 }  // namespace extensions

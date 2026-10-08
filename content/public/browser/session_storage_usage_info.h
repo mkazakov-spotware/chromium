@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 #define CONTENT_PUBLIC_BROWSER_SESSION_STORAGE_USAGE_INFO_H_
 
 #include "content/common/content_export.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
+#include "url/gurl.h"
 
 namespace content {
 
 // Used to report Session Storage usage info by DOMStorageContext.
 struct CONTENT_EXPORT SessionStorageUsageInfo {
-  blink::StorageKey storage_key;
+  GURL origin;
   std::string namespace_id;
 };
 

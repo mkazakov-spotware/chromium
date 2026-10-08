@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define UI_BASE_WIN_POWER_SETTING_CHANGE_LISTENER_H_
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
 
 namespace ui {
 
@@ -14,8 +13,6 @@ namespace ui {
 class COMPONENT_EXPORT(UI_BASE) PowerSettingChangeListener {
  public:
   virtual void OnDisplayStateChanged(bool display_on) = 0;
-  virtual void OnResume() = 0;
-  virtual void OnSuspend() = 0;
 
  protected:
   virtual ~PowerSettingChangeListener() = default;
@@ -30,7 +27,7 @@ class COMPONENT_EXPORT(UI_BASE) ScopedPowerSettingChangeListener {
   ~ScopedPowerSettingChangeListener();
 
  private:
-  raw_ptr<PowerSettingChangeListener> listener_;
+  PowerSettingChangeListener* listener_;
 
   ScopedPowerSettingChangeListener(const ScopedPowerSettingChangeListener&) =
       delete;

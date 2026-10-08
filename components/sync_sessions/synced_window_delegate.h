@@ -1,9 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_SESSIONS_SYNCED_WINDOW_DELEGATE_H_
 #define COMPONENTS_SYNC_SESSIONS_SYNCED_WINDOW_DELEGATE_H_
+
+#include <set>
 
 #include "components/sessions/core/session_id.h"
 

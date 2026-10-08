@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,11 @@
 #include <vector>
 
 #include "base/location.h"
-#include "base/logging.h"
-#include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/sys_byteorder.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "components/webrtc/net_address_utils.h"
+#include "jingle/glue/utils.h"
 #include "net/base/ip_address.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/network_interfaces.h"
@@ -53,33 +51,20 @@ IpcNetworkManager::IpcNetworkManager(
     std::unique_ptr<webrtc::MdnsResponderInterface> mdns_responder)
     : network_list_manager_(network_list_manager),
       mdns_responder_(std::move(mdns_responder)) {
-  DETACH_FROM_THREAD(thread_checker_);
-  network_list_manager->AddNetworkListObserver(this);
+  network_list_manager_->AddNetworkListObserver(this);
 }
 
 IpcNetworkManager::~IpcNetworkManager() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  DCHECK(!network_list_manager_);
-}
-
-void IpcNetworkManager::ContextDestroyed() {
-  DCHECK(network_list_manager_);
+  DCHECK(!start_count_);
   network_list_manager_->RemoveNetworkListObserver(this);
-  network_list_manager_ = nullptr;
-}
-
-base::WeakPtr<IpcNetworkManager>
-IpcNetworkManager::AsWeakPtrForSignalingThread() {
-  return weak_factory_.GetWeakPtr();
 }
 
 void IpcNetworkManager::StartUpdating() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (network_list_received_) {
     // Post a task to avoid reentrancy.
     base::ThreadTaskRunnerHandle::Get()->PostTask(
-        FROM_HERE, WTF::BindOnce(&IpcNetworkManager::SendNetworksChangedSignal,
-                                 weak_factory_.GetWeakPtr()));
+        FROM_HERE, WTF::Bind(&IpcNetworkManager::SendNetworksChangedSignal,
+                             weak_factory_.GetWeakPtr()));
   } else {
     VLOG(1) << "IpcNetworkManager::StartUpdating called; still waiting for "
                "network list from browser process.";
@@ -88,7 +73,6 @@ void IpcNetworkManager::StartUpdating() {
 }
 
 void IpcNetworkManager::StopUpdating() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DCHECK_GT(start_count_, 0);
   --start_count_;
 }
@@ -97,7 +81,6 @@ void IpcNetworkManager::OnNetworkListChanged(
     const net::NetworkInterfaceList& list,
     const net::IPAddress& default_ipv4_local_address,
     const net::IPAddress& default_ipv6_local_address) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   // Update flag if network list received for the first time.
   if (!network_list_received_) {
     VLOG(1) << "IpcNetworkManager received network list from browser process "
@@ -112,9 +95,10 @@ void IpcNetworkManager::OnNetworkListChanged(
 
   // rtc::Network uses these prefix_length to compare network
   // interfaces discovered.
-  std::vector<std::unique_ptr<rtc::Network>> networks;
+  std::vector<rtc::Network*> networks;
   for (auto it = list.begin(); it != list.end(); it++) {
-    rtc::IPAddress ip_address = webrtc::NetIPAddressToRtcIPAddress(it->address);
+    rtc::IPAddress ip_address =
+        jingle_glue::NetIPAddressToRtcIPAddress(it->address);
     DCHECK(!ip_address.IsNil());
 
     rtc::IPAddress prefix = rtc::TruncateIP(ip_address, it->prefix_length);
@@ -125,16 +109,8 @@ void IpcNetworkManager::OnNetworkListChanged(
     if (adapter_type == rtc::ADAPTER_TYPE_UNKNOWN) {
       adapter_type = rtc::GetAdapterTypeFromName(it->name.c_str());
     }
-    rtc::AdapterType underlying_adapter_type = rtc::ADAPTER_TYPE_UNKNOWN;
-    if (it->mac_address.has_value() && IsVpnMacAddress(*it->mac_address)) {
-      underlying_adapter_type = adapter_type;
-      adapter_type = rtc::ADAPTER_TYPE_VPN;
-    }
-    auto network = CreateNetwork(it->name, it->name, prefix, it->prefix_length,
-                                 adapter_type);
-    if (adapter_type == rtc::ADAPTER_TYPE_VPN) {
-      network->set_underlying_type_for_vpn(underlying_adapter_type);
-    }
+    std::unique_ptr<rtc::Network> network(new rtc::Network(
+        it->name, it->name, prefix, it->prefix_length, adapter_type));
     network->set_default_local_address_provider(this);
     network->set_mdns_responder_provider(this);
 
@@ -157,7 +133,7 @@ void IpcNetworkManager::OnNetworkListChanged(
       use_default_ipv6_address |= (default_ipv6_local_address == it->address);
     }
     network->AddIP(iface_addr);
-    networks.push_back(std::move(network));
+    networks.push_back(network.release());
   }
 
   // Update the default local addresses.
@@ -165,23 +141,23 @@ void IpcNetworkManager::OnNetworkListChanged(
   rtc::IPAddress ipv6_default;
   if (use_default_ipv4_address) {
     ipv4_default =
-        webrtc::NetIPAddressToRtcIPAddress(default_ipv4_local_address);
+        jingle_glue::NetIPAddressToRtcIPAddress(default_ipv4_local_address);
   }
   if (use_default_ipv6_address) {
     ipv6_default =
-        webrtc::NetIPAddressToRtcIPAddress(default_ipv6_local_address);
+        jingle_glue::NetIPAddressToRtcIPAddress(default_ipv6_local_address);
   }
   set_default_local_addresses(ipv4_default, ipv6_default);
 
   if (Platform::Current()->AllowsLoopbackInPeerConnection()) {
     std::string name_v4("loopback_ipv4");
     rtc::IPAddress ip_address_v4(INADDR_LOOPBACK);
-    auto network_v4 = CreateNetwork(name_v4, name_v4, ip_address_v4, 32,
-                                    rtc::ADAPTER_TYPE_UNKNOWN);
+    rtc::Network* network_v4 = new rtc::Network(name_v4, name_v4, ip_address_v4,
+                                                32, rtc::ADAPTER_TYPE_UNKNOWN);
     network_v4->set_default_local_address_provider(this);
     network_v4->set_mdns_responder_provider(this);
     network_v4->AddIP(ip_address_v4);
-    networks.push_back(std::move(network_v4));
+    networks.push_back(network_v4);
 
     rtc::IPAddress ipv6_default_address;
     // Only add IPv6 loopback if we can get default local address for IPv6. If
@@ -191,18 +167,18 @@ void IpcNetworkManager::OnNetworkListChanged(
       DCHECK(!ipv6_default_address.IsNil());
       std::string name_v6("loopback_ipv6");
       rtc::IPAddress ip_address_v6(in6addr_loopback);
-      auto network_v6 = CreateNetwork(name_v6, name_v6, ip_address_v6, 64,
-                                      rtc::ADAPTER_TYPE_UNKNOWN);
+      rtc::Network* network_v6 = new rtc::Network(
+          name_v6, name_v6, ip_address_v6, 64, rtc::ADAPTER_TYPE_UNKNOWN);
       network_v6->set_default_local_address_provider(this);
       network_v6->set_mdns_responder_provider(this);
       network_v6->AddIP(ip_address_v6);
-      networks.push_back(std::move(network_v6));
+      networks.push_back(network_v6);
     }
   }
 
   bool changed = false;
   NetworkManager::Stats stats;
-  MergeNetworkList(std::move(networks), &changed, &stats);
+  MergeNetworkList(networks, &changed, &stats);
   if (changed)
     SignalNetworksChanged();
 
@@ -214,12 +190,10 @@ void IpcNetworkManager::OnNetworkListChanged(
 }
 
 webrtc::MdnsResponderInterface* IpcNetworkManager::GetMdnsResponder() const {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   return mdns_responder_.get();
 }
 
 void IpcNetworkManager::SendNetworksChangedSignal() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   SignalNetworksChanged();
 }
 

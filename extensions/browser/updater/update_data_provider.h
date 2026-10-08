@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,11 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "extensions/browser/updater/extension_installer.h"
 #include "extensions/browser/updater/extension_update_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class FilePath;
@@ -43,15 +43,12 @@ class UpdateDataProvider : public base::RefCounted<UpdateDataProvider> {
   // an update for an extension.
   explicit UpdateDataProvider(content::BrowserContext* browser_context);
 
-  UpdateDataProvider(const UpdateDataProvider&) = delete;
-  UpdateDataProvider& operator=(const UpdateDataProvider&) = delete;
-
   // Notify this object that the associated browser context is being shut down
   // the pointer to the context should be dropped and no more work should be
   // done.
   void Shutdown();
 
-  std::vector<absl::optional<update_client::CrxComponent>> GetData(
+  std::vector<base::Optional<update_client::CrxComponent>> GetData(
       bool install_immediately,
       const ExtensionUpdateDataMap& update_info,
       const std::vector<std::string>& ids);
@@ -67,13 +64,9 @@ class UpdateDataProvider : public base::RefCounted<UpdateDataProvider> {
                           bool install_immediately,
                           UpdateClientCallback update_client_callback);
 
-  void InstallUpdateCallback(const std::string& extension_id,
-                             const std::string& public_key,
-                             const base::FilePath& unpacked_dir,
-                             bool install_immediately,
-                             UpdateClientCallback update_client_callback);
+  content::BrowserContext* browser_context_;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  DISALLOW_COPY_AND_ASSIGN(UpdateDataProvider);
 };
 
 }  // namespace extensions

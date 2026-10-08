@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/signin/core/browser/signin_error_controller.h"
 
-#include "base/observer_list.h"
 #include "components/signin/public/base/signin_metrics.h"
 
 SigninErrorController::SigninErrorController(
@@ -14,7 +13,7 @@ SigninErrorController::SigninErrorController(
       identity_manager_(identity_manager),
       auth_error_(GoogleServiceAuthError::AuthErrorNone()) {
   DCHECK(identity_manager_);
-  scoped_identity_manager_observation_.Observe(identity_manager_.get());
+  scoped_identity_manager_observation_.Observe(identity_manager_);
 
   Update();
 }
@@ -22,8 +21,7 @@ SigninErrorController::SigninErrorController(
 SigninErrorController::~SigninErrorController() = default;
 
 void SigninErrorController::Shutdown() {
-  DCHECK(scoped_identity_manager_observation_.IsObserving());
-  scoped_identity_manager_observation_.Reset();
+  scoped_identity_manager_observation_.RemoveObservation();
 }
 
 void SigninErrorController::Update() {
@@ -32,7 +30,7 @@ void SigninErrorController::Update() {
   bool error_changed = false;
 
   const CoreAccountId& primary_account_id =
-      identity_manager_->GetPrimaryAccountId(signin::ConsentLevel::kSignin);
+      identity_manager_->GetPrimaryAccountId();
 
   if (identity_manager_->HasAccountWithRefreshTokenInPersistentErrorState(
           primary_account_id)) {
@@ -150,12 +148,17 @@ void SigninErrorController::OnErrorStateOfRefreshTokenUpdatedForAccount(
   Update();
 }
 
-void SigninErrorController::OnPrimaryAccountChanged(
-    const signin::PrimaryAccountChangeEvent& event) {
-  if (event.GetEventTypeFor(signin::ConsentLevel::kSync) ==
-      signin::PrimaryAccountChangeEvent::Type::kNone) {
+void SigninErrorController::OnPrimaryAccountSet(
+    const CoreAccountInfo& primary_account_info) {
+  // Ignore updates to the primary account if not in PRIMARY_ACCOUNT mode.
+  if (account_mode_ != AccountMode::PRIMARY_ACCOUNT)
     return;
-  }
+
+  Update();
+}
+
+void SigninErrorController::OnPrimaryAccountCleared(
+    const CoreAccountInfo& previous_primary_account_info) {
   // Ignore updates to the primary account if not in PRIMARY_ACCOUNT mode.
   if (account_mode_ != AccountMode::PRIMARY_ACCOUNT)
     return;

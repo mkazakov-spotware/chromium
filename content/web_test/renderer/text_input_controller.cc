@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/web_test/renderer/text_input_controller.h"
 
-#include "content/web_test/renderer/web_frame_test_proxy.h"
+#include "base/macros.h"
+#include "content/web_test/renderer/web_view_test_proxy.h"
 #include "gin/arguments.h"
 #include "gin/handle.h"
 #include "gin/object_template_builder.h"
@@ -30,10 +31,6 @@ class TextInputControllerBindings
  public:
   static gin::WrapperInfo kWrapperInfo;
 
-  TextInputControllerBindings(const TextInputControllerBindings&) = delete;
-  TextInputControllerBindings& operator=(const TextInputControllerBindings&) =
-      delete;
-
   static void Install(base::WeakPtr<TextInputController> controller,
                       blink::WebLocalFrame* frame);
 
@@ -53,19 +50,18 @@ class TextInputControllerBindings
   void ExtendSelectionAndDelete(int before, int after);
   void DeleteSurroundingText(int before, int after);
   void SetMarkedText(const std::string& text, int start, int length);
-  void SetMarkedTextFromExistingText(int start, int end);
+  void SetMarkedTextFromExistingText(int start, int length);
   bool HasMarkedText();
   std::vector<int> MarkedRange();
   std::vector<int> SelectedRange();
-  std::vector<int> FirstRectForCharacterRange(uint32_t location,
-                                              uint32_t length);
+  std::vector<int> FirstRectForCharacterRange(unsigned location,
+                                              unsigned length);
   void SetComposition(const std::string& text);
-  void SetCompositionWithReplacementRange(const std::string& text,
-                                          int replacement_start,
-                                          int replacement_end);
   void ForceTextInputStateUpdate();
 
   base::WeakPtr<TextInputController> controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(TextInputControllerBindings);
 };
 
 gin::WrapperInfo TextInputControllerBindings::kWrapperInfo = {
@@ -122,9 +118,6 @@ TextInputControllerBindings::GetObjectTemplateBuilder(v8::Isolate* isolate) {
       .SetMethod("firstRectForCharacterRange",
                  &TextInputControllerBindings::FirstRectForCharacterRange)
       .SetMethod("setComposition", &TextInputControllerBindings::SetComposition)
-      .SetMethod(
-          "setCompositionWithReplacementRange",
-          &TextInputControllerBindings::SetCompositionWithReplacementRange)
       .SetMethod("forceTextInputStateUpdate",
                  &TextInputControllerBindings::ForceTextInputStateUpdate);
 }
@@ -186,22 +179,15 @@ std::vector<int> TextInputControllerBindings::SelectedRange() {
 }
 
 std::vector<int> TextInputControllerBindings::FirstRectForCharacterRange(
-    uint32_t location,
-    uint32_t length) {
+    unsigned location,
+    unsigned length) {
   return controller_ ? controller_->FirstRectForCharacterRange(location, length)
                      : std::vector<int>();
 }
 
 void TextInputControllerBindings::SetComposition(const std::string& text) {
   if (controller_)
-    controller_->SetComposition(text, -1, -1);
-}
-void TextInputControllerBindings::SetCompositionWithReplacementRange(
-    const std::string& text,
-    int replacement_start,
-    int replacement_end) {
-  if (controller_)
-    controller_->SetComposition(text, replacement_start, replacement_end);
+    controller_->SetComposition(text);
 }
 void TextInputControllerBindings::ForceTextInputStateUpdate() {
   if (controller_)
@@ -209,9 +195,8 @@ void TextInputControllerBindings::ForceTextInputStateUpdate() {
 }
 // TextInputController ---------------------------------------------------------
 
-TextInputController::TextInputController(
-    WebFrameTestProxy* web_frame_test_proxy)
-    : web_frame_test_proxy_(web_frame_test_proxy) {}
+TextInputController::TextInputController(WebViewTestProxy* web_view_test_proxy)
+    : web_view_test_proxy_(web_view_test_proxy) {}
 
 TextInputController::~TextInputController() {}
 
@@ -363,9 +348,9 @@ std::vector<int> TextInputController::SelectedRange() {
 }
 
 std::vector<int> TextInputController::FirstRectForCharacterRange(
-    uint32_t location,
-    uint32_t length) {
-  gfx::Rect rect;
+    unsigned location,
+    unsigned length) {
+  blink::WebRect rect;
   if (!view()->FocusedFrame() ||
       !view()->FocusedFrame()->FirstRectForCharacterRange(location, length,
                                                           rect)) {
@@ -373,17 +358,15 @@ std::vector<int> TextInputController::FirstRectForCharacterRange(
   }
 
   std::vector<int> int_array(4);
-  int_array[0] = rect.x();
-  int_array[1] = rect.y();
-  int_array[2] = rect.width();
-  int_array[3] = rect.height();
+  int_array[0] = rect.x;
+  int_array[1] = rect.y;
+  int_array[2] = rect.width;
+  int_array[3] = rect.height;
 
   return int_array;
 }
 
-void TextInputController::SetComposition(const std::string& text,
-                                         int replacement_range_start,
-                                         int replacement_range_end) {
+void TextInputController::SetComposition(const std::string& text) {
   // Sends a keydown event with key code = 0xE5 to emulate input method
   // behavior.
   blink::WebKeyboardEvent key_down(blink::WebInputEvent::Type::kRawKeyDown,
@@ -405,26 +388,24 @@ void TextInputController::SetComposition(const std::string& text,
       ui::ImeTextSpan::Type::kComposition, 0, textLength,
       ui::ImeTextSpan::Thickness::kThin,
       ui::ImeTextSpan::UnderlineStyle::kSolid, SK_ColorTRANSPARENT));
-  blink::WebRange replacement_range =
-      (replacement_range_start == -1 && replacement_range_end == -1)
-          ? blink::WebRange()
-          : blink::WebRange(replacement_range_start,
-                            replacement_range_end - replacement_range_start);
   if (auto* controller = GetInputMethodController()) {
     controller->SetComposition(
         newText, blink::WebVector<ui::ImeTextSpan>(std::move(ime_text_spans)),
-        replacement_range, textLength, textLength);
+        blink::WebRange(), textLength, textLength);
   }
 }
 
 void TextInputController::ForceTextInputStateUpdate() {
-  blink::WebFrameWidget* frame_widget =
-      web_frame_test_proxy_->GetLocalRootWebFrameWidget();
-  frame_widget->ShowVirtualKeyboard();
+  // TODO(lukasza): Finish adding OOPIF support to the web tests harness.
+  RenderFrameImpl* main_frame = web_view_test_proxy_->GetMainRenderFrame();
+  CHECK(main_frame) << "WebView does not have a local main frame and"
+                    << " cannot handle input method controller tasks.";
+  RenderWidget* main_widget = main_frame->GetLocalRootRenderWidget();
+  main_widget->GetWebWidget()->ShowVirtualKeyboard();
 }
 
 blink::WebView* TextInputController::view() {
-  return web_frame_test_proxy_->GetWebFrame()->View();
+  return web_view_test_proxy_->GetWebView();
 }
 
 blink::WebInputMethodController*

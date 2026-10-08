@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,12 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/threading/thread_restrictions.h"
 #include "components/remote_cocoa/app_shim/select_file_dialog_bridge.h"
 #include "components/remote_cocoa/browser/window.h"
 #include "components/remote_cocoa/common/native_widget_ns_window.mojom.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "ui/shell_dialogs/select_file_policy.h"
-#include "url/gurl.h"
 
 using remote_cocoa::mojom::SelectFileDialogType;
 using remote_cocoa::mojom::SelectFileTypeInfo;
@@ -48,14 +46,12 @@ void SelectFileDialogImpl::FileWasSelected(
     bool was_cancelled,
     const std::vector<base::FilePath>& files,
     int index) {
-  auto it = base::ranges::find(dialog_data_list_, dialog_data,
-                               [](const DialogData& d) { return &d; });
+  auto it = std::find_if(
+      dialog_data_list_.begin(), dialog_data_list_.end(),
+      [dialog_data](const DialogData& d) { return &d == dialog_data; });
   DCHECK(it != dialog_data_list_.end());
   void* params = dialog_data->params;
   dialog_data_list_.erase(it);
-
-  if (dialog_closed_callback_for_testing_)
-    dialog_closed_callback_for_testing_.Run();
 
   if (!listener_)
     return;
@@ -73,14 +69,13 @@ void SelectFileDialogImpl::FileWasSelected(
 
 void SelectFileDialogImpl::SelectFileImpl(
     Type type,
-    const std::u16string& title,
+    const base::string16& title,
     const base::FilePath& default_path,
     const FileTypeInfo* file_types,
     int file_type_index,
     const base::FilePath::StringType& default_extension,
     gfx::NativeWindow gfx_window,
-    void* params,
-    const GURL* caller) {
+    void* params) {
   DCHECK(type == SELECT_FOLDER || type == SELECT_UPLOAD_FOLDER ||
          type == SELECT_EXISTING_FOLDER || type == SELECT_OPEN_FILE ||
          type == SELECT_OPEN_MULTI_FILE || type == SELECT_SAVEAS_FILE);
@@ -171,7 +166,7 @@ SelectFileDialogImpl::~SelectFileDialogImpl() {
       listener_->FileSelectionCanceled(dialog_data.params);
   }
 
-  // Cancel the NSSavePanels by destroying their bridges.
+  // Cancel the NSSavePanels be destroying their bridges.
   dialog_data_list_.clear();
 }
 

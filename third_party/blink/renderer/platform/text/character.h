@@ -31,14 +31,13 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_CHARACTER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_CHARACTER_H_
 
-#include <unicode/uchar.h>
-
 #include "base/containers/span.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/text/character_property.h"
 #include "third_party/blink/renderer/platform/text/text_direction.h"
 #include "third_party/blink/renderer/platform/text/text_run.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/text/ascii_ctype.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -81,18 +80,20 @@ class PLATFORM_EXPORT Character {
 
   static unsigned ExpansionOpportunityCount(base::span<const LChar>,
                                             TextDirection,
-                                            bool& is_after_expansion);
+                                            bool& is_after_expansion,
+                                            const TextJustify);
   static unsigned ExpansionOpportunityCount(base::span<const UChar>,
                                             TextDirection,
-                                            bool& is_after_expansion);
+                                            bool& is_after_expansion,
+                                            const TextJustify);
   static unsigned ExpansionOpportunityCount(const TextRun& run,
                                             bool& is_after_expansion) {
-    if (run.Is8Bit()) {
+    if (run.Is8Bit())
       return ExpansionOpportunityCount(run.Span8(), run.Direction(),
-                                       is_after_expansion);
-    }
+                                       is_after_expansion,
+                                       run.GetTextJustify());
     return ExpansionOpportunityCount(run.Span16(), run.Direction(),
-                                     is_after_expansion);
+                                     is_after_expansion, run.GetTextJustify());
   }
 
   static bool IsUprightInMixedVertical(UChar32 character);
@@ -221,4 +222,4 @@ class PLATFORM_EXPORT Character {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_CHARACTER_H_
+#endif

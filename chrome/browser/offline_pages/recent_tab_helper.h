@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/offline_pages/core/offline_page_model.h"
 #include "components/offline_pages/core/snapshot_controller.h"
@@ -48,16 +47,13 @@ class RecentTabHelper
     kMaxValue = kSamePageSameQuality,
   };
 
-  RecentTabHelper(const RecentTabHelper&) = delete;
-  RecentTabHelper& operator=(const RecentTabHelper&) = delete;
-
   ~RecentTabHelper() override;
 
   // content::WebContentsObserver
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
-  void PrimaryMainDocumentElementAvailable() override;
-  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
+  void DocumentAvailableInMainFrame() override;
+  void DocumentOnLoadCompletedInMainFrame() override;
   void WebContentsDestroyed() override;
   void OnVisibilityChanged(content::Visibility visibility) override;
 
@@ -109,9 +105,6 @@ class RecentTabHelper
                                      const std::string& origin);
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(RecentTabHelperFencedFrameTest,
-                           FencedFrameDoesNotChangePageQuality);
-
   struct SnapshotProgressInfo;
 
   explicit RecentTabHelper(content::WebContents* web_contents);
@@ -139,7 +132,7 @@ class RecentTabHelper
 
   // Page model is a service, no ownership. Can be null - for example, in
   // case when tab is in incognito profile.
-  raw_ptr<OfflinePageModel> page_model_ = nullptr;
+  OfflinePageModel* page_model_ = nullptr;
 
   // If false, never make snapshots off the attached WebContents.
   // Not page-specific.
@@ -190,6 +183,8 @@ class RecentTabHelper
   base::WeakPtrFactory<RecentTabHelper> weak_ptr_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(RecentTabHelper);
 };
 
 }  // namespace offline_pages

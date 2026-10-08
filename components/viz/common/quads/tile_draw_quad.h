@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include "components/viz/common/quads/content_draw_quad_base.h"
-#include "components/viz/common/resources/resource_id.h"
 #include "components/viz/common/viz_common_export.h"
 
 namespace viz {
@@ -24,7 +23,7 @@ class VIZ_COMMON_EXPORT TileDrawQuad : public ContentDrawQuadBase {
               const gfx::Rect& rect,
               const gfx::Rect& visible_rect,
               bool needs_blending,
-              ResourceId resource_id,
+              unsigned resource_id,
               // |tex_coord_rect| contains non-normalized coordinates.
               // TODO(reveman): Make the use of normalized vs non-normalized
               // coordinates consistent across all quad types: crbug.com/487370
@@ -38,7 +37,7 @@ class VIZ_COMMON_EXPORT TileDrawQuad : public ContentDrawQuadBase {
               const gfx::Rect& rect,
               const gfx::Rect& visible_rect,
               bool needs_blending,
-              ResourceId resource_id,
+              unsigned resource_id,
               // |tex_coord_rect| contains non-normalized coordinates.
               // TODO(reveman): Make the use of normalized vs non-normalized
               // coordinates consistent across all quad types: crbug.com/487370

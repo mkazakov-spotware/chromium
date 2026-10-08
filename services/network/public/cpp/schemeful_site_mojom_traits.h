@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ class Origin;
 namespace mojo {
 
 template <>
-struct COMPONENT_EXPORT(NETWORK_CPP_SCHEMEFUL)
+struct COMPONENT_EXPORT(NETWORK_CPP_BASE)
     StructTraits<network::mojom::SchemefulSiteDataView, net::SchemefulSite> {
   static const url::Origin& site_as_origin(const net::SchemefulSite& input) {
     return input.site_as_origin_;

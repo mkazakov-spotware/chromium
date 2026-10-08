@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
+#include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "chrome/services/cups_proxy/public/mojom/proxy.mojom.h"
 
@@ -26,9 +27,6 @@ class ProxyManager;
 // internally.
 class CupsProxyService {
  public:
-  CupsProxyService(const CupsProxyService&) = delete;
-  CupsProxyService& operator=(const CupsProxyService&) = delete;
-
   // Spawns the global service instance.
   static void Spawn(std::unique_ptr<CupsProxyServiceDelegate> delegate);
 
@@ -49,6 +47,7 @@ class CupsProxyService {
   std::unique_ptr<ProxyManager> proxy_manager_;
 
   base::WeakPtrFactory<CupsProxyService> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(CupsProxyService);
 };
 
 }  // namespace cups_proxy

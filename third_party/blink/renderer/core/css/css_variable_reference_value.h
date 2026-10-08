@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,16 +13,18 @@
 
 namespace blink {
 
-class CSSVariableReferenceValue final : public CSSValue {
+class CSSVariableReferenceValue : public CSSValue {
  public:
-  explicit CSSVariableReferenceValue(scoped_refptr<CSSVariableData> data)
-      : CSSValue(kVariableReferenceClass), data_(std::move(data)) {}
+  CSSVariableReferenceValue(scoped_refptr<CSSVariableData> data)
+      : CSSValue(kVariableReferenceClass),
+        data_(std::move(data)),
+        parser_context_(nullptr) {}
 
   CSSVariableReferenceValue(scoped_refptr<CSSVariableData> data,
                             const CSSParserContext& context)
       : CSSValue(kVariableReferenceClass),
-        parser_context_(context),
-        data_(std::move(data)) {}
+        data_(std::move(data)),
+        parser_context_(context) {}
 
   CSSVariableData* VariableDataValue() const { return data_.get(); }
   const CSSParserContext* ParserContext() const {
@@ -39,8 +41,8 @@ class CSSVariableReferenceValue final : public CSSValue {
   void TraceAfterDispatch(blink::Visitor*) const;
 
  private:
-  const Member<const CSSParserContext> parser_context_;
   scoped_refptr<CSSVariableData> data_;
+  Member<const CSSParserContext> parser_context_;
 };
 
 template <>

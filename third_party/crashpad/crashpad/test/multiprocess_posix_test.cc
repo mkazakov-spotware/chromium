@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "base/macros.h"
 #include "gtest/gtest.h"
 #include "test/gtest_death.h"
 #include "util/file/file_io.h"
@@ -29,9 +30,6 @@ namespace {
 class TestMultiprocess final : public Multiprocess {
  public:
   TestMultiprocess() : Multiprocess() {}
-
-  TestMultiprocess(const TestMultiprocess&) = delete;
-  TestMultiprocess& operator=(const TestMultiprocess&) = delete;
 
   ~TestMultiprocess() {}
 
@@ -68,6 +66,8 @@ class TestMultiprocess final : public Multiprocess {
     CheckedReadFileExactly(ReadPipeHandle(), &c, 1);
     EXPECT_EQ(c, 'm');
   }
+
+  DISALLOW_COPY_AND_ASSIGN(TestMultiprocess);
 };
 
 TEST(Multiprocess, Multiprocess) {
@@ -94,9 +94,6 @@ class TestMultiprocessUnclean final : public Multiprocess {
     }
   }
 
-  TestMultiprocessUnclean(const TestMultiprocessUnclean&) = delete;
-  TestMultiprocessUnclean& operator=(const TestMultiprocessUnclean&) = delete;
-
   ~TestMultiprocessUnclean() {}
 
  private:
@@ -118,6 +115,8 @@ class TestMultiprocessUnclean final : public Multiprocess {
   }
 
   TerminationType type_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMultiprocessUnclean);
 };
 
 TEST(Multiprocess, SuccessfulExit) {
@@ -156,13 +155,7 @@ class TestMultiprocessClosePipe final : public Multiprocess {
       : Multiprocess(),
         who_closes_(who_closes),
         what_closes_(what_closes) {
-    // Fails under "threadsafe" mode on macOS 10.11.
-    testing::GTEST_FLAG(death_test_style) = "fast";
   }
-
-  TestMultiprocessClosePipe(const TestMultiprocessClosePipe&) = delete;
-  TestMultiprocessClosePipe& operator=(const TestMultiprocessClosePipe&) =
-      delete;
 
   ~TestMultiprocessClosePipe() {}
 
@@ -246,6 +239,8 @@ class TestMultiprocessClosePipe final : public Multiprocess {
 
   WhoCloses who_closes_;
   WhatCloses what_closes_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMultiprocessClosePipe);
 };
 
 TEST(MultiprocessDeathTest, ParentClosesReadPipe) {

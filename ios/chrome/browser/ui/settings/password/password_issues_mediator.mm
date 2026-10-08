@@ -1,17 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/password/password_issues_mediator.h"
 
-#import "components/password_manager/core/browser/ui/insecure_credentials_manager.h"
-#import "components/sync/driver/sync_service.h"
-#import "ios/chrome/browser/favicon/favicon_loader.h"
-#import "ios/chrome/browser/net/crurl.h"
-#import "ios/chrome/browser/passwords/password_check_observer_bridge.h"
-#import "ios/chrome/browser/passwords/password_manager_util_ios.h"
+#include "components/password_manager/core/browser/ui/insecure_credentials_manager.h"
+#include "ios/chrome/browser/passwords/password_check_observer_bridge.h"
+#import "ios/chrome/browser/ui/settings/password/password_issue_with_form.h"
 #import "ios/chrome/browser/ui/settings/password/password_issues_consumer.h"
-#import "ios/chrome/common/ui/favicon/favicon_constants.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -22,35 +18,23 @@
 
   std::unique_ptr<PasswordCheckObserverBridge> _passwordCheckObserver;
 
-  std::vector<password_manager::CredentialUIEntry>
-      _unmutedCompromisedCredentials;
+  std::vector<password_manager::CredentialWithPassword> _compromisedCredentials;
 }
 
 // Object storing the time of the previous successful re-authentication.
-// This is meant to be used by the `ReauthenticationModule` for keeping
+// This is meant to be used by the |ReauthenticationModule| for keeping
 // re-authentications valid for a certain time interval within the scope
 // of the Password Issues Screen.
 @property(nonatomic, strong, readonly) NSDate* successfulReauthTime;
-
-// FaviconLoader is a keyed service that uses LargeIconService to retrieve
-// favicon images.
-@property(nonatomic, assign) FaviconLoader* faviconLoader;
-
-// Service to know whether passwords are synced.
-@property(nonatomic, assign) syncer::SyncService* syncService;
 
 @end
 
 @implementation PasswordIssuesMediator
 
 - (instancetype)initWithPasswordCheckManager:
-                    (IOSChromePasswordCheckManager*)manager
-                               faviconLoader:(FaviconLoader*)faviconLoader
-                                 syncService:(syncer::SyncService*)syncService {
+    (IOSChromePasswordCheckManager*)manager {
   self = [super init];
   if (self) {
-    _syncService = syncService;
-    _faviconLoader = faviconLoader;
     _manager = manager;
     _passwordCheckObserver.reset(
         new PasswordCheckObserverBridge(self, manager));
@@ -65,9 +49,17 @@
   [self fetchPasswordIssues];
 }
 
-- (void)deleteCredential:
-    (const password_manager::CredentialUIEntry&)credential {
-  _manager->GetSavedPasswordsPresenter()->RemoveCredential(credential);
+- (void)deletePassword:(const password_manager::PasswordForm&)password {
+  for (const auto& credential : _compromisedCredentials) {
+    if (std::tie(credential.signon_realm, credential.username,
+                 credential.password) == std::tie(password.signon_realm,
+                                                  password.username_value,
+                                                  password.password_value)) {
+      _manager->DeleteCompromisedPasswordForm(password);
+      return;
+    }
+  }
+  _manager->DeletePasswordForm(password);
   // TODO:(crbug.com/1075494) - Update list of compromised passwords without
   // awaiting compromisedCredentialsDidChange.
 }
@@ -78,7 +70,8 @@
   // No-op.
 }
 
-- (void)compromisedCredentialsDidChange {
+- (void)compromisedCredentialsDidChange:
+    (password_manager::InsecureCredentialsManager::CredentialsView)credentials {
   [self fetchPasswordIssues];
 }
 
@@ -86,10 +79,13 @@
 
 - (void)fetchPasswordIssues {
   DCHECK(self.consumer);
-  _unmutedCompromisedCredentials = _manager->GetUnmutedCompromisedCredentials();
+  _compromisedCredentials = _manager->GetCompromisedCredentials();
   NSMutableArray* passwords = [[NSMutableArray alloc] init];
-  for (auto credential : _unmutedCompromisedCredentials) {
-    [passwords addObject:[[PasswordIssue alloc] initWithCredential:credential]];
+  for (auto credential : _compromisedCredentials) {
+    const password_manager::PasswordForm form =
+        _manager->GetSavedPasswordsFor(credential)[0];
+    [passwords
+        addObject:[[PasswordIssueWithForm alloc] initWithPasswordForm:form]];
   }
 
   NSSortDescriptor* origin = [[NSSortDescriptor alloc] initWithKey:@"website"
@@ -110,18 +106,6 @@
 
 - (NSDate*)lastSuccessfulReauthTime {
   return [self successfulReauthTime];
-}
-
-#pragma mark - TableViewFaviconDataSource
-
-- (void)faviconForURL:(CrURL*)URL
-           completion:(void (^)(FaviconAttributes*))completion {
-  syncer::SyncService* syncService = self.syncService;
-  BOOL isPasswordSyncEnabled =
-      password_manager_util::IsPasswordSyncNormalEncryptionEnabled(syncService);
-  self.faviconLoader->FaviconForPageUrl(
-      URL.gurl, kDesiredMediumFaviconSizePt, kMinFaviconSizePt,
-      /*fallback_to_google_server=*/isPasswordSyncEnabled, completion);
 }
 
 @end

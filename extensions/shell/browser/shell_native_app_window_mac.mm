@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,6 +26,19 @@
 
 @end
 
+// TODO(yoz): Do we need to handle commands (keyboard shortcuts)?
+// Do we need need ChromeEventProcessingWindow or UnderlayOpenGLHostingWindow?
+@interface ShellNSWindow : NSWindow
+@end
+
+@implementation ShellNSWindow
+
+- (BOOL)_isTitleHidden {
+  return YES;
+}
+
+@end
+
 namespace extensions {
 
 ShellNativeAppWindowMac::ShellNativeAppWindowMac(
@@ -33,25 +46,22 @@ ShellNativeAppWindowMac::ShellNativeAppWindowMac(
     const AppWindow::CreateParams& params)
     : ShellNativeAppWindow(app_window, params) {
   base::scoped_nsobject<NSWindow> shell_window;
-  NSUInteger style_mask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
+  NSUInteger style_mask = NSTitledWindowMask | NSClosableWindowMask;
 
   NSRect cocoa_bounds = gfx::ScreenRectToNSRect(
       params.GetInitialWindowBounds(gfx::Insets()));
 
-  // TODO(yoz): Do we need to handle commands (keyboard shortcuts)?
-  // Do we need need ChromeEventProcessingWindow or UnderlayOpenGLHostingWindow?
-  shell_window.reset([[NSWindow alloc]
-      initWithContentRect:cocoa_bounds
-                styleMask:style_mask
-                  backing:NSBackingStoreBuffered
-                    defer:NO]);
+  shell_window.reset(
+      [[ShellNSWindow alloc] initWithContentRect:cocoa_bounds
+                                       styleMask:style_mask
+                                         backing:NSBackingStoreBuffered
+                                           defer:NO]);
   [shell_window setReleasedWhenClosed:NO];
-  [shell_window setTitleVisibility:NSWindowTitleHidden];
 
   window_controller_.reset([[ShellNativeAppWindowController alloc]
                             initWithWindow:shell_window]);
 
-  [window() setDelegate:window_controller_];
+  [[window_controller_ window] setDelegate:window_controller_];
   [window_controller_ setAppWindow:this];
 
   NSView* view = app_window->web_contents()->GetNativeView().GetNativeNSView();
@@ -91,7 +101,7 @@ bool ShellNativeAppWindowMac::IsVisible() const {
 
 void ShellNativeAppWindowMac::Activate() {
   // TODO(yoz): Activate in front of other applications.
-  [window() makeKeyAndOrderFront:window_controller_];
+  [[window_controller_ window] makeKeyAndOrderFront:window_controller_];
 }
 
 void ShellNativeAppWindowMac::Deactivate() {
@@ -114,13 +124,13 @@ gfx::Size ShellNativeAppWindowMac::GetContentMaximumSize() const {
 }
 
 void ShellNativeAppWindowMac::WindowWillClose() {
-  [window_controller_ setAppWindow:nullptr];
+  [window_controller_ setAppWindow:NULL];
   app_window()->OnNativeWindowChanged();
   app_window()->OnNativeClose();
 }
 
-NSWindow* ShellNativeAppWindowMac::window() const {
-  return [window_controller_ window];
+ShellNSWindow* ShellNativeAppWindowMac::window() const {
+  return base::mac::ObjCCastStrict<ShellNSWindow>([window_controller_ window]);
 }
 
 }  // namespace extensions

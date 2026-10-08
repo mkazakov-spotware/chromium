@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,11 @@
 
 #include "mojo/public/cpp/bindings/remote.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink.h"
 #include "third_party/blink/public/platform/web_audio_device.h"
 #include "third_party/blink/public/platform/web_audio_latency_hint.h"
-#include "third_party/blink/public/platform/web_audio_sink_descriptor.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_union_audiocontextlatencycategory_double.h"
 #include "third_party/blink/renderer/core/core_initializer.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
@@ -24,8 +20,7 @@
 namespace blink {
 
 namespace {
-
-bool web_audio_device_paused_;
+static bool web_audio_device_paused_;
 
 class MockWebAudioDeviceForAudioContext : public WebAudioDevice {
  public:
@@ -49,10 +44,11 @@ class MockWebAudioDeviceForAudioContext : public WebAudioDevice {
 class AudioContextTestPlatform : public TestingPlatformSupport {
  public:
   std::unique_ptr<WebAudioDevice> CreateAudioDevice(
-      const WebAudioSinkDescriptor& sink_descriptor,
-      unsigned number_of_output_channels,
+      unsigned number_of_input_channels,
+      unsigned number_of_channels,
       const WebAudioLatencyHint& latency_hint,
-      WebAudioDevice::RenderCallback*) override {
+      WebAudioDevice::RenderCallback*,
+      const WebString& device_id) override {
     double buffer_size = 0;
     const double interactive_size = AudioHardwareBufferSize();
     const double balanced_size = AudioHardwareBufferSize() * 2;
@@ -69,7 +65,7 @@ class AudioContextTestPlatform : public TestingPlatformSupport {
         break;
       case WebAudioLatencyHint::kCategoryExact:
         buffer_size =
-            ClampTo(latency_hint.Seconds() * AudioHardwareSampleRate(),
+            clampTo(latency_hint.Seconds() * AudioHardwareSampleRate(),
                     static_cast<double>(AudioHardwareBufferSize()),
                     static_cast<double>(playback_size));
         break;
@@ -86,7 +82,7 @@ class AudioContextTestPlatform : public TestingPlatformSupport {
   size_t AudioHardwareBufferSize() override { return 128; }
 };
 
-}  // namespace
+}  // anonymous namespace
 
 class AudioContextTest : public PageTestBase {
  protected:
@@ -96,9 +92,8 @@ class AudioContextTest : public PageTestBase {
   ~AudioContextTest() override { platform_.reset(); }
 
   void SetUp() override {
-    PageTestBase::SetUp(gfx::Size());
-    CoreInitializer::GetInstance().ProvideModulesToPage(GetPage(),
-                                                        base::EmptyString());
+    PageTestBase::SetUp(IntSize());
+    CoreInitializer::GetInstance().ProvideModulesToPage(GetPage(), nullptr);
   }
 
   void ResetAudioContextManagerForAudioContext(AudioContext* audio_context) {
@@ -118,17 +113,15 @@ class AudioContextTest : public PageTestBase {
 TEST_F(AudioContextTest, AudioContextOptions_WebAudioLatencyHint) {
   AudioContextOptions* interactive_options = AudioContextOptions::Create();
   interactive_options->setLatencyHint(
-      MakeGarbageCollected<V8UnionAudioContextLatencyCategoryOrDouble>(
-          V8AudioContextLatencyCategory(
-              V8AudioContextLatencyCategory::Enum::kInteractive)));
+      AudioContextLatencyCategoryOrDouble::FromAudioContextLatencyCategory(
+          "interactive"));
   AudioContext* interactive_context = AudioContext::Create(
       GetDocument(), interactive_options, ASSERT_NO_EXCEPTION);
 
   AudioContextOptions* balanced_options = AudioContextOptions::Create();
   balanced_options->setLatencyHint(
-      MakeGarbageCollected<V8UnionAudioContextLatencyCategoryOrDouble>(
-          V8AudioContextLatencyCategory(
-              V8AudioContextLatencyCategory::Enum::kBalanced)));
+      AudioContextLatencyCategoryOrDouble::FromAudioContextLatencyCategory(
+          "balanced"));
   AudioContext* balanced_context = AudioContext::Create(
       GetDocument(), balanced_options, ASSERT_NO_EXCEPTION);
   EXPECT_GT(balanced_context->baseLatency(),
@@ -136,16 +129,15 @@ TEST_F(AudioContextTest, AudioContextOptions_WebAudioLatencyHint) {
 
   AudioContextOptions* playback_options = AudioContextOptions::Create();
   playback_options->setLatencyHint(
-      MakeGarbageCollected<V8UnionAudioContextLatencyCategoryOrDouble>(
-          V8AudioContextLatencyCategory(
-              V8AudioContextLatencyCategory::Enum::kPlayback)));
+      AudioContextLatencyCategoryOrDouble::FromAudioContextLatencyCategory(
+          "playback"));
   AudioContext* playback_context = AudioContext::Create(
       GetDocument(), playback_options, ASSERT_NO_EXCEPTION);
   EXPECT_GT(playback_context->baseLatency(), balanced_context->baseLatency());
 
   AudioContextOptions* exact_too_small_options = AudioContextOptions::Create();
   exact_too_small_options->setLatencyHint(
-      MakeGarbageCollected<V8UnionAudioContextLatencyCategoryOrDouble>(
+      AudioContextLatencyCategoryOrDouble::FromDouble(
           interactive_context->baseLatency() / 2));
   AudioContext* exact_too_small_context = AudioContext::Create(
       GetDocument(), exact_too_small_options, ASSERT_NO_EXCEPTION);
@@ -157,15 +149,14 @@ TEST_F(AudioContextTest, AudioContextOptions_WebAudioLatencyHint) {
       2;
   AudioContextOptions* exact_ok_options = AudioContextOptions::Create();
   exact_ok_options->setLatencyHint(
-      MakeGarbageCollected<V8UnionAudioContextLatencyCategoryOrDouble>(
-          exact_latency_sec));
+      AudioContextLatencyCategoryOrDouble::FromDouble(exact_latency_sec));
   AudioContext* exact_ok_context = AudioContext::Create(
       GetDocument(), exact_ok_options, ASSERT_NO_EXCEPTION);
   EXPECT_EQ(exact_ok_context->baseLatency(), exact_latency_sec);
 
   AudioContextOptions* exact_too_big_options = AudioContextOptions::Create();
   exact_too_big_options->setLatencyHint(
-      MakeGarbageCollected<V8UnionAudioContextLatencyCategoryOrDouble>(
+      AudioContextLatencyCategoryOrDouble::FromDouble(
           playback_context->baseLatency() * 2));
   AudioContext* exact_too_big_context = AudioContext::Create(
       GetDocument(), exact_too_big_options, ASSERT_NO_EXCEPTION);
@@ -199,20 +190,6 @@ TEST_F(AudioContextTest, ExecutionContextPaused) {
   GetFrame().DomWindow()->SetLifecycleState(
       mojom::FrameLifecycleState::kRunning);
   EXPECT_FALSE(web_audio_device_paused_);
-}
-
-// Test initialization/uninitialization of MediaDeviceService.
-TEST_F(AudioContextTest, MediaDevicesService) {
-  AudioContextOptions* options = AudioContextOptions::Create();
-  AudioContext* audio_context =
-      AudioContext::Create(GetDocument(), options, ASSERT_NO_EXCEPTION);
-
-  EXPECT_FALSE(audio_context->is_media_device_service_initialized_);
-  audio_context->InitializeMediaDeviceService();
-  EXPECT_TRUE(audio_context->is_media_device_service_initialized_);
-  audio_context->UninitializeMediaDeviceService();
-  EXPECT_FALSE(audio_context->media_device_service_.is_bound());
-  EXPECT_FALSE(audio_context->media_device_service_receiver_.is_bound());
 }
 
 }  // namespace blink

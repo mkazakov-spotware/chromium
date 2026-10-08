@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,11 +49,6 @@ struct DownloadRow {
 
   // The site URL for the site instance that initiated the download.
   GURL site_url;
-
-  // The serialized proto for embedder-specific data that pertains to the site
-  // instance that initiated the download. The embedder is responsible for
-  // serializing and deserializing this data.
-  std::string embedder_download_data;
 
   // The URL of the tab that initiated the download, if any. Not changed by
   // UpdateDownload().
@@ -106,7 +101,7 @@ struct DownloadRow {
   std::string hash;
 
   // The id of the download in the database. Is not changed by UpdateDownload().
-  // Note: This field should be considered deprecated in favor of `guid` below.
+  // Note: This field should be considered deprecated in favor of |guid| below.
   // See http://crbug.com/593020.
   DownloadId id = kInvalidDownloadId;
 
@@ -130,11 +125,6 @@ struct DownloadRow {
   // Data slices that have been downloaded so far. The slices must be ordered
   // by their offset.
   std::vector<DownloadSliceInfo> download_slice_info;
-
-  // The serialized string of the download's |reroute_info| proto.
-  // TODO(b/234867373): delete reroute_info_serialized once FileSystem Connector
-  // code is removed.
-  std::string reroute_info_serialized;
 };
 
 }  // namespace history

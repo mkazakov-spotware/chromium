@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,15 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/no_destructor.h"
 #include "base/threading/sequence_local_storage_slot.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chromecast/browser/application_media_info_manager.h"
 #include "chromecast/browser/cast_browser_interface_binders.h"
 #include "chromecast/browser/cast_browser_main_parts.h"
 #include "chromecast/browser/cast_browser_process.h"
 #include "chromecast/browser/media/media_caps_impl.h"
-#include "chromecast/browser/metrics/metrics_helper_impl.h"
 #include "chromecast/browser/service_connector.h"
 #include "chromecast/chromecast_buildflags.h"
 #include "chromecast/media/cdm/cast_cdm_factory.h"
@@ -35,9 +35,18 @@
 #include "media/mojo/services/media_service.h"  // nogncheck
 #endif  // BUILDFLAG(ENABLE_CAST_RENDERER)
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_EXTERNAL_MOJO_SERVICES)
+#include "chromecast/external_mojo/broker_service/broker_service.h"  // nogncheck
+#endif
+
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_OZONE)
+#include "chromecast/browser/webview/js_channel_service.h"
+#include "chromecast/common/mojom/js_channel.mojom.h"
+#endif
+
+#if !defined(OS_ANDROID)
 #include "chromecast/browser/memory_pressure_controller_impl.h"
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 namespace chromecast {
 namespace shell {
@@ -67,9 +76,17 @@ void CreateMediaDrmStorage(
   // The object will be deleted on connection error, or when the frame navigates
   // away.
   new cdm::MediaDrmStorageImpl(
-      *render_frame_host, pref_service, base::BindRepeating(&CreateOriginId),
+      render_frame_host, pref_service, base::BindRepeating(&CreateOriginId),
       base::BindRepeating(&AllowEmptyOriginIdCB), std::move(receiver));
 }
+
+#if BUILDFLAG(ENABLE_EXTERNAL_MOJO_SERVICES)
+void StartExternalMojoBrokerService(
+    mojo::PendingReceiver<service_manager::mojom::Service> receiver) {
+  service_manager::Service::RunAsyncUntilTermination(
+      std::make_unique<external_mojo::BrokerService>(std::move(receiver)));
+}
+#endif  // BUILDFLAG(ENABLE_EXTERNAL_MOJO_SERVICES)
 
 }  // namespace
 
@@ -77,28 +94,22 @@ void CastContentBrowserClient::ExposeInterfacesToRenderer(
     service_manager::BinderRegistry* registry,
     blink::AssociatedInterfaceRegistry* associated_registry,
     content::RenderProcessHost* render_process_host) {
-  registry->AddInterface<media::mojom::MediaCaps>(
+  registry->AddInterface(
       base::BindRepeating(
           &media::MediaCapsImpl::AddReceiver,
           base::Unretained(cast_browser_main_parts_->media_caps())),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
 
-  registry->AddInterface<metrics::mojom::MetricsHelper>(
-      base::BindRepeating(
-          &metrics::MetricsHelperImpl::AddReceiver,
-          base::Unretained(cast_browser_main_parts_->metrics_helper())),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
   if (!memory_pressure_controller_) {
     memory_pressure_controller_.reset(new MemoryPressureControllerImpl());
   }
 
-  registry->AddInterface<mojom::MemoryPressureController>(
+  registry->AddInterface(
       base::BindRepeating(&MemoryPressureControllerImpl::AddReceiver,
                           base::Unretained(memory_pressure_controller_.get())),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
+      base::ThreadTaskRunnerHandle::Get());
+#endif  // !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
 }
 
 void CastContentBrowserClient::BindMediaServiceReceiver(
@@ -119,9 +130,9 @@ void CastContentBrowserClient::BindMediaServiceReceiver(
     bool mixer_audio_enabled;
     GetApplicationMediaInfo(&application_session_id, &mixer_audio_enabled,
                             render_frame_host);
-    media::ApplicationMediaInfoManager::Create(
-        render_frame_host, std::move(application_session_id),
-        mixer_audio_enabled, std::move(r));
+    media::CreateApplicationMediaInfoManager(render_frame_host,
+                                             std::move(application_session_id),
+                                             mixer_audio_enabled, std::move(r));
     return;
   }
 }
@@ -152,22 +163,18 @@ void CastContentBrowserClient::CreateMediaService(
   if (!video_geometry_setter_service_) {
     CreateVideoGeometrySetterServiceOnMediaThread();
   }
-
-  // Using base::Unretained is safe here because this class will persist for
-  // the duration of the browser process' lifetime.
   auto mojo_media_client = std::make_unique<media::CastMojoMediaClient>(
       GetCmaBackendFactory(),
       base::BindRepeating(&CastContentBrowserClient::CreateCdmFactory,
                           base::Unretained(this)),
-      GetVideoModeSwitcher(), GetVideoResolutionPolicy(),
-      browser_main_parts()->media_connector(),
-      base::BindRepeating(&CastContentBrowserClient::IsBufferingEnabled,
-                          base::Unretained(this)));
+      GetVideoModeSwitcher(), GetVideoResolutionPolicy());
   mojo_media_client->SetVideoGeometrySetterService(
       video_geometry_setter_service_.get());
 
-  static base::SequenceLocalStorageSlot<::media::MediaService> service;
-  service.emplace(std::move(mojo_media_client), std::move(receiver));
+  static base::NoDestructor<
+      base::SequenceLocalStorageSlot<::media::MediaService>>
+      service;
+  service->emplace(std::move(mojo_media_client), std::move(receiver));
 }
 
 void CastContentBrowserClient::CreateVideoGeometrySetterServiceOnMediaThread() {
@@ -178,8 +185,7 @@ void CastContentBrowserClient::CreateVideoGeometrySetterServiceOnMediaThread() {
       std::unique_ptr<media::VideoGeometrySetterService,
                       base::OnTaskRunnerDeleter>(
           new media::VideoGeometrySetterService,
-          base::OnTaskRunnerDeleter(
-              base::SingleThreadTaskRunner::GetCurrentDefault()));
+          base::OnTaskRunnerDeleter(base::ThreadTaskRunnerHandle::Get()));
 }
 
 void CastContentBrowserClient::BindVideoGeometrySetterServiceOnMediaThread(
@@ -206,7 +212,28 @@ void CastContentBrowserClient::BindGpuHostReceiver(
 
 void CastContentBrowserClient::RunServiceInstance(
     const service_manager::Identity& identity,
-    mojo::PendingReceiver<service_manager::mojom::Service>* receiver) {}
+    mojo::PendingReceiver<service_manager::mojom::Service>* receiver) {
+#if BUILDFLAG(ENABLE_EXTERNAL_MOJO_SERVICES)
+  if (identity.name() == external_mojo::BrokerService::kServiceName) {
+    StartExternalMojoBrokerService(std::move(*receiver));
+    return;
+  }
+#endif  // BUILDFLAG(ENABLE_EXTERNAL_MOJO_SERVICES)
+}
+
+void CastContentBrowserClient::BindHostReceiverForRenderer(
+    content::RenderProcessHost* render_process_host,
+    mojo::GenericPendingReceiver receiver) {
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_OZONE)
+  if (auto r = receiver.As<::chromecast::mojom::JsChannelBindingProvider>()) {
+    JsChannelService::Create(render_process_host, std::move(r),
+                             base::ThreadTaskRunnerHandle::Get());
+    return;
+  }
+#endif
+  ContentBrowserClient::BindHostReceiverForRenderer(render_process_host,
+                                                    std::move(receiver));
+}
 
 }  // namespace shell
 }  // namespace chromecast

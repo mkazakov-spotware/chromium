@@ -1,11 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/touch.h"
 
-#include "base/ranges/algorithm.h"
-#include "base/trace_event/trace_event.h"
 #include "components/exo/input_trace.h"
 #include "components/exo/seat.h"
 #include "components/exo/shell_surface_util.h"
@@ -13,9 +11,7 @@
 #include "components/exo/touch_delegate.h"
 #include "components/exo/touch_stylus_delegate.h"
 #include "components/exo/wm_helper.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/wm/core/capture_controller.h"
 #include "ui/wm/core/window_util.h"
@@ -29,8 +25,9 @@ gfx::PointF EventLocationInWindow(ui::TouchEvent* event, aura::Window* window) {
 
   gfx::Transform transform;
   target->GetTargetTransformRelativeTo(root, &transform);
-  gfx::PointF point = event->root_location_f();
-  return transform.InverseMapPoint(point).value_or(point);
+  auto point = gfx::Point3F(event->root_location_f());
+  transform.TransformPointReverse(&point);
+  return point.AsPointF();
 }
 
 }  // namespace
@@ -44,11 +41,11 @@ Touch::Touch(TouchDelegate* delegate, Seat* seat)
 }
 
 Touch::~Touch() {
-  WMHelper::GetInstance()->RemovePreTargetHandler(this);
   delegate_->OnTouchDestroying(this);
   if (HasStylusDelegate())
     stylus_delegate_->OnTouchDestroying(this);
   CancelAllTouches();
+  WMHelper::GetInstance()->RemovePreTargetHandler(this);
 }
 
 void Touch::SetStylusDelegate(TouchStylusDelegate* delegate) {
@@ -63,8 +60,7 @@ bool Touch::HasStylusDelegate() const {
 // ui::EventHandler overrides:
 
 void Touch::OnTouchEvent(ui::TouchEvent* event) {
-  if (seat_->was_shutdown() || event->handled())
-    return;
+  seat_->SetLastPointerLocation(event->root_location_f());
 
   bool send_details = false;
 
@@ -208,9 +204,9 @@ Surface* Touch::GetEffectiveTargetForEvent(ui::LocatedEvent* event) const {
 }
 
 void Touch::CancelAllTouches() {
-  base::ranges::for_each(surface_touch_count_map_, [this](auto& it) {
-    it.first->RemoveSurfaceObserver(this);
-  });
+  std::for_each(surface_touch_count_map_.begin(),
+                surface_touch_count_map_.end(),
+                [this](auto& it) { it.first->RemoveSurfaceObserver(this); });
   touch_points_surface_map_.clear();
   surface_touch_count_map_.clear();
 }

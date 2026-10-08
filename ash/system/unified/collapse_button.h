@@ -1,37 +1,37 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_UNIFIED_COLLAPSE_BUTTON_H_
 #define ASH_SYSTEM_UNIFIED_COLLAPSE_BUTTON_H_
 
-#include "ash/style/icon_button.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "ash/system/unified/custom_shape_button.h"
 
 namespace ash {
 
-// The button with `kUnifiedMenuExpandIcon`. This button can be set as expanded
-// or collapsed through SetExpandedAmount and the icon will be rotated on the
-// `expanded_amount_`. Expanded is the default state.
-class CollapseButton : public IconButton {
+// Collapse button shown in TopShortcutsView with TopShortcutButtons.
+// UnifiedSystemTrayBubble will support collapsed state where the height of the
+// bubble is smaller, and some rows and labels will be omitted.
+// By pressing the button, the state of the bubble will be toggled.
+class CollapseButton : public CustomShapeButton {
  public:
-  METADATA_HEADER(CollapseButton);
-
   explicit CollapseButton(PressedCallback callback);
-
-  CollapseButton(const CollapseButton&) = delete;
-  CollapseButton& operator=(const CollapseButton&) = delete;
-
   ~CollapseButton() override;
 
   // Change the expanded state. The icon will change.
   void SetExpandedAmount(double expanded_amount);
 
-  // IconButton:
+  // CustomShapeButton:
+  gfx::Size CalculatePreferredSize() const override;
+  SkPath CreateCustomShapePath(const gfx::Rect& bounds) const override;
   void PaintButtonContents(gfx::Canvas* canvas) override;
+  const char* GetClassName() const override;
+  void OnThemeChanged() override;
 
  private:
   double expanded_amount_ = 1.0;
+
+  DISALLOW_COPY_AND_ASSIGN(CollapseButton);
 };
 
 }  // namespace ash

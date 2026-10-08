@@ -1,18 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'chrome://diagnostics/realtime_cpu_chart.js';
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
 
-import {RealtimeCpuChartElement} from 'chrome://diagnostics/realtime_cpu_chart.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
-
-import {assertEquals, assertFalse, assertGT, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
+import {assertEquals, assertFalse, assertGT, assertTrue} from '../../chai_assert.js';
+import {flushTasks} from '../../test_util.m.js';
 
 import * as diagnostics_test_utils from './diagnostics_test_utils.js';
 
-suite('realtimeCpuChartTestSuite', function() {
+export function realtimeCpuChartTestSuite() {
   /** @type {?RealtimeCpuChartElement} */
   let realtimeCpuChartElement = null;
 
@@ -47,21 +44,21 @@ suite('realtimeCpuChartTestSuite', function() {
   }
 
   /**
-   * Get frameDuration_ private member for testing.
+   * Get refreshInterval_ private member for testing.
    * @suppress {visibility} // access private member
    */
-  function getFrameDuration() {
+  function getRefreshInterval() {
     assertTrue(!!realtimeCpuChartElement);
-    return realtimeCpuChartElement.frameDuration_;
+    return realtimeCpuChartElement.refreshInterval_;
   }
 
   /**
-   * Get padding_ private member for testing.
+   * Get margin_ private member for testing.
    * @suppress {visibility} // access private member
    */
-  function getPaddings() {
+  function getMargins() {
     assertTrue(!!realtimeCpuChartElement);
-    return realtimeCpuChartElement.padding_;
+    return realtimeCpuChartElement.margin_;
   }
 
   /**
@@ -76,7 +73,7 @@ suite('realtimeCpuChartTestSuite', function() {
         flushTasks().then(() => {
           resolve();
         });
-      }, getFrameDuration());
+      }, getRefreshInterval());
     });
   }
 
@@ -85,43 +82,40 @@ suite('realtimeCpuChartTestSuite', function() {
     const system = 30;
     return initializeRealtimeCpuChart(user, system).then(() => {
       diagnostics_test_utils.assertElementContainsText(
-          realtimeCpuChartElement.shadowRoot.querySelector('#legend-user>span'),
-          `${user}`);
+          realtimeCpuChartElement.$$('#legend-user>span'), `${user}`);
       diagnostics_test_utils.assertElementContainsText(
-          realtimeCpuChartElement.shadowRoot.querySelector(
-              '#legend-system>span'),
-          `${system}`);
+          realtimeCpuChartElement.$$('#legend-system>span'), `${system}`);
 
       assertEquals(user, realtimeCpuChartElement.user);
       assertEquals(system, realtimeCpuChartElement.system);
     });
   });
 
-  test('ChartAreaBoundary', () => {
-    const user = 10;
-    const system = 30;
-    return initializeRealtimeCpuChart(user, system).then(() => {
-      const svg = realtimeCpuChartElement.shadowRoot.querySelector('#chart');
-      const boundary =
-          realtimeCpuChartElement.shadowRoot.querySelector('#defClip>rect');
+  test(
+      'ChartAreaBoundary',
+      /** @suppress {visibility} access private member for test */ () => {
+        const user = 10;
+        const system = 30;
+        return initializeRealtimeCpuChart(user, system).then(() => {
+          const svg = realtimeCpuChartElement.$$('#chart');
+          const boundary = realtimeCpuChartElement.$$('#defClip>rect');
 
-      // Chart area boundary must fit within svg.
-      assertGT(
-          Number(svg.getAttribute('width')),
-          Number(boundary.getAttribute('width')));
-      assertGT(
-          Number(svg.getAttribute('height')),
-          Number(boundary.getAttribute('height')));
+          // Chart area boundary must fit within svg.
+          assertGT(
+              Number(svg.getAttribute('width')),
+              Number(boundary.getAttribute('width')));
+          assertGT(
+              Number(svg.getAttribute('height')),
+              Number(boundary.getAttribute('height')));
 
-      const chartGroup =
-          realtimeCpuChartElement.shadowRoot.querySelector('#chartGroup');
+          const chartGroup = realtimeCpuChartElement.$$('#chartGroup');
 
-      // Margins are in effect.
-      assertEquals(
-          `translate(${getPaddings().left},${getPaddings().top})`,
-          chartGroup.getAttribute('transform'));
-    });
-  });
+          // Margins are in effect.
+          assertEquals(
+              `translate(${getMargins().left},${getMargins().top})`,
+              chartGroup.getAttribute('transform'));
+        });
+      });
 
   test('InitializePlot', () => {
     const user = 10;
@@ -129,23 +123,20 @@ suite('realtimeCpuChartTestSuite', function() {
 
     return initializeRealtimeCpuChart(user, system).then(() => {
       // yAxis is drawn.
-      assertTrue(!!realtimeCpuChartElement.shadowRoot.querySelector(
-          '#gridLines>path.domain'));
+      assertTrue(!!realtimeCpuChartElement.$$('#gridLines>path.domain'));
 
       // Correct number of yAxis ticks drawn.
       assertEquals(
-          5,
+          3,
           realtimeCpuChartElement.shadowRoot
               .querySelectorAll('#gridLines>g.tick')
               .length);
 
       // Plot lines are drawn.
-      assertTrue(!!realtimeCpuChartElement.shadowRoot
-                       .querySelector('#plotGroup>path.user-area')
+      assertTrue(!!realtimeCpuChartElement.$$('#plotGroup>path.user-area')
                        .getAttribute('d'));
-      assertTrue(!!realtimeCpuChartElement.shadowRoot
-                       .querySelector('#plotGroup>path.system-area')
+      assertTrue(!!realtimeCpuChartElement.$$('#plotGroup>path.system-area')
                        .getAttribute('d'));
     });
   });
-});
+}

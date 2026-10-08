@@ -1,61 +1,50 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/trust_tokens/operation_timing_request_helper_wrapper.h"
 
-#include "net/http/http_request_headers.h"
-
 namespace network {
 
 OperationTimingRequestHelperWrapper::OperationTimingRequestHelperWrapper(
-    std::unique_ptr<TrustTokenOperationMetricsRecorder> metrics_recorder,
+    mojom::TrustTokenOperationType type,
     std::unique_ptr<TrustTokenRequestHelper> helper)
-    : recorder_(std::move(metrics_recorder)), helper_(std::move(helper)) {}
+    : type_(type), helper_(std::move(helper)) {}
 
 OperationTimingRequestHelperWrapper::~OperationTimingRequestHelperWrapper() =
     default;
 
 void OperationTimingRequestHelperWrapper::Begin(
-    const GURL& url,
-    base::OnceCallback<void(absl::optional<net::HttpRequestHeaders>,
-                            mojom::TrustTokenOperationStatus)> done) {
-  recorder_->BeginBegin();
+    net::URLRequest* request,
+    base::OnceCallback<void(mojom::TrustTokenOperationStatus)> done) {
+  recorder_.BeginBegin(type_);
   helper_->Begin(
-      url, base::BindOnce(&OperationTimingRequestHelperWrapper::FinishBegin,
-                          weak_factory_.GetWeakPtr(), std::move(done)));
+      request, base::BindOnce(&OperationTimingRequestHelperWrapper::FinishBegin,
+                              weak_factory_.GetWeakPtr(), std::move(done)));
 }
 
 void OperationTimingRequestHelperWrapper::Finalize(
-    net::HttpResponseHeaders& response_headers,
+    mojom::URLResponseHead* response,
     base::OnceCallback<void(mojom::TrustTokenOperationStatus)> done) {
-  recorder_->BeginFinalize();
+  recorder_.BeginFinalize();
   helper_->Finalize(
-      response_headers,
+      response,
       base::BindOnce(&OperationTimingRequestHelperWrapper::FinishFinalize,
                      weak_factory_.GetWeakPtr(), std::move(done)));
 }
 
 void OperationTimingRequestHelperWrapper::FinishBegin(
-    base::OnceCallback<void(absl::optional<net::HttpRequestHeaders>,
-                            mojom::TrustTokenOperationStatus)> done,
-    absl::optional<net::HttpRequestHeaders> request_headers,
+    base::OnceCallback<void(mojom::TrustTokenOperationStatus)> done,
     mojom::TrustTokenOperationStatus status) {
-  recorder_->FinishBegin(status);
-  std::move(done).Run(std::move(request_headers), status);
+  recorder_.FinishBegin(status);
+  std::move(done).Run(status);
 }
 
 void OperationTimingRequestHelperWrapper::FinishFinalize(
     base::OnceCallback<void(mojom::TrustTokenOperationStatus)> done,
     mojom::TrustTokenOperationStatus status) {
-  recorder_->FinishFinalize(status);
+  recorder_.FinishFinalize(status);
   std::move(done).Run(status);
-}
-
-mojom::TrustTokenOperationResultPtr
-OperationTimingRequestHelperWrapper::CollectOperationResultWithStatus(
-    mojom::TrustTokenOperationStatus status) {
-  return helper_->CollectOperationResultWithStatus(status);
 }
 
 }  // namespace network

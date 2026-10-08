@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ AppViewGuestInternalAttachFrameFunction::
 ExtensionFunction::ResponseAction
 AppViewGuestInternalAttachFrameFunction::Run() {
   std::unique_ptr<appview::AttachFrame::Params> params(
-      appview::AttachFrame::Params::Create(args()));
+      appview::AttachFrame::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
   GURL url = extension()->GetResourceURL(params->url);
@@ -43,7 +43,7 @@ AppViewGuestInternalDenyRequestFunction::
 ExtensionFunction::ResponseAction
 AppViewGuestInternalDenyRequestFunction::Run() {
   std::unique_ptr<appview::DenyRequest::Params> params(
-      appview::DenyRequest::Params::Create(args()));
+      appview::DenyRequest::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
   // Since the URL passed into AppViewGuest:::CompletePendingRequest is invalid,

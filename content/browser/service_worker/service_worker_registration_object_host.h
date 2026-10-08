@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/service_worker/service_worker_registration.h"
@@ -40,12 +40,6 @@ class CONTENT_EXPORT ServiceWorkerRegistrationObjectHost
       base::WeakPtr<ServiceWorkerContextCore> context,
       ServiceWorkerContainerHost* container_host,
       scoped_refptr<ServiceWorkerRegistration> registration);
-
-  ServiceWorkerRegistrationObjectHost(
-      const ServiceWorkerRegistrationObjectHost&) = delete;
-  ServiceWorkerRegistrationObjectHost& operator=(
-      const ServiceWorkerRegistrationObjectHost&) = delete;
-
   ~ServiceWorkerRegistrationObjectHost() override;
 
   // Establishes a new mojo connection into |receivers_|.
@@ -145,7 +139,7 @@ class CONTENT_EXPORT ServiceWorkerRegistrationObjectHost
 
   // |container_host_| is valid throughout lifetime of |this| because it owns
   // |this|.
-  raw_ptr<ServiceWorkerContainerHost> container_host_;
+  ServiceWorkerContainerHost* container_host_;
   base::WeakPtr<ServiceWorkerContextCore> context_;
   scoped_refptr<ServiceWorkerRegistration> registration_;
 
@@ -159,6 +153,8 @@ class CONTENT_EXPORT ServiceWorkerRegistrationObjectHost
 
   base::WeakPtrFactory<ServiceWorkerRegistrationObjectHost> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerRegistrationObjectHost);
 };
 
 }  // namespace content

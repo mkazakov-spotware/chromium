@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsSessionToken;
 
 import org.chromium.base.Log;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
-import org.chromium.chrome.browser.browserservices.metrics.TrustedWebActivityUmaRecorder;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.webapk.lib.common.WebApkConstants;
@@ -47,8 +46,7 @@ public class ManageTrustedWebActivityDataActivity extends AppCompatActivity {
             finish();
             return;
         }
-        new TrustedWebActivityUmaRecorder(
-                ChromeBrowserInitializer.getInstance()::runNowOrAfterFullBrowserStarted)
+        new TrustedWebActivityUmaRecorder(ChromeBrowserInitializer.getInstance())
                 .recordOpenedSettingsViaManageSpace();
 
         if (isWebApk) {
@@ -77,7 +75,7 @@ public class ManageTrustedWebActivityDataActivity extends AppCompatActivity {
         }
 
         CustomTabsConnection connection =
-                ChromeApplicationImpl.getComponent().resolveCustomTabsConnection();
+                ChromeApplication.getComponent().resolveCustomTabsConnection();
         return connection.getClientPackageNameForSession(session);
     }
 

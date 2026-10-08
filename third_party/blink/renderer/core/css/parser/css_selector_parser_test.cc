@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 #include "third_party/blink/renderer/core/css/parser/css_tokenizer.h"
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -42,9 +41,9 @@ class SelectorParseTest : public ::testing::TestWithParam<SelectorTestCase> {};
 TEST_P(SelectorParseTest, Parse) {
   auto param = GetParam();
   SCOPED_TRACE(param.input);
-  CSSSelectorList* list = css_test_helpers::ParseSelectorList(param.input);
+  CSSSelectorList list = css_test_helpers::ParseSelectorList(param.input);
   const char* expected = param.expected ? param.expected : param.input;
-  EXPECT_EQ(String(expected), list->SelectorsText());
+  EXPECT_EQ(String(expected), list.SelectorsText());
 }
 
 TEST(CSSSelectorParserTest, ValidANPlusB) {
@@ -141,6 +140,28 @@ TEST(CSSSelectorParserTest, InvalidANPlusB) {
   }
 }
 
+TEST(CSSSelectorParserTest, ShadowDomPseudoInCompound) {
+  const char* test_cases[][2] = {{"::content", "::content"},
+                                 {".a::content", ".a::content"},
+                                 {"::content.a", "::content.a"},
+                                 {"::content.a.b", "::content.a.b"},
+                                 {".a::content.b", ".a::content.b"},
+                                 {"::content:not(#id)", "::content:not(#id)"}};
+
+  for (auto** test_case : test_cases) {
+    SCOPED_TRACE(test_case[0]);
+    CSSTokenizer tokenizer(test_case[0]);
+    const auto tokens = tokenizer.TokenizeToEOF();
+    CSSParserTokenRange range(tokens);
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
+        range,
+        MakeGarbageCollected<CSSParserContext>(
+            kHTMLStandardMode, SecureContextMode::kInsecureContext),
+        nullptr);
+    EXPECT_EQ(test_case[1], list.SelectorsText());
+  }
+}
+
 TEST(CSSSelectorParserTest, PseudoElementsInCompoundLists) {
   const char* test_cases[] = {":not(::before)",
                               ":not(::content)",
@@ -151,17 +172,16 @@ TEST(CSSSelectorParserTest, PseudoElementsInCompoundLists) {
                               ":-webkit-any(::after, ::before)",
                               ":-webkit-any(::content, span)"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_EQ(vector.size(), 0u);
+        nullptr);
+    EXPECT_FALSE(list.IsValid());
   }
 }
 
@@ -174,17 +194,16 @@ TEST(CSSSelectorParserTest, ValidSimpleAfterPseudoElementInCompound) {
                               "::slotted(span)::before",
                               "::slotted(div)::after"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_GT(vector.size(), 0u);
+        nullptr);
+    EXPECT_TRUE(list.IsValid());
   }
 }
 
@@ -209,73 +228,16 @@ TEST(CSSSelectorParserTest, InvalidSimpleAfterPseudoElementInCompound) {
       "::slotted(.class)::first-line",
       "::slotted([attr])::-webkit-scrollbar"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_EQ(vector.size(), 0u);
-  }
-}
-
-TEST(CSSSelectorParserTest, TransitionPseudoStyles) {
-  struct TestCase {
-    const char* selector;
-    bool valid;
-    const char* argument;
-    CSSSelector::PseudoType type;
-  };
-
-  TestCase test_cases[] = {
-      {"html::view-transition-group(*)", true, nullptr,
-       CSSSelector::kPseudoViewTransitionGroup},
-      {"html::view-transition-group(foo)", true, "foo",
-       CSSSelector::kPseudoViewTransitionGroup},
-      {"html::view-transition-image-pair(foo)", true, "foo",
-       CSSSelector::kPseudoViewTransitionImagePair},
-      {"html::view-transition-old(foo)", true, "foo",
-       CSSSelector::kPseudoViewTransitionOld},
-      {"html::view-transition-new(foo)", true, "foo",
-       CSSSelector::kPseudoViewTransitionNew},
-      {"::view-transition-group(foo)", true, "foo",
-       CSSSelector::kPseudoViewTransitionGroup},
-      {"div::view-transition-group(*)", true, nullptr,
-       CSSSelector::kPseudoViewTransitionGroup},
-      {"::view-transition-group(*)::before", false, nullptr,
-       CSSSelector::kPseudoUnknown},
-      {"::view-transition-group(*):hover", false, nullptr,
-       CSSSelector::kPseudoUnknown},
-  };
-
-  HeapVector<CSSSelector> arena;
-  for (const auto& test_case : test_cases) {
-    SCOPED_TRACE(test_case.selector);
-    CSSTokenizer tokenizer(test_case.selector);
-    const auto tokens = tokenizer.TokenizeToEOF();
-    CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range,
-        MakeGarbageCollected<CSSParserContext>(
-            kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_EQ(!vector.empty(), test_case.valid);
-    if (!test_case.valid)
-      continue;
-
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    ASSERT_TRUE(list->HasOneSelector());
-
-    auto* selector = list->First();
-    while (selector->TagHistory())
-      selector = selector->TagHistory();
-
-    EXPECT_EQ(selector->GetPseudoType(), test_case.type);
-    EXPECT_EQ(selector->Argument(), test_case.argument);
+        nullptr);
+    EXPECT_FALSE(list.IsValid());
   }
 }
 
@@ -285,17 +247,32 @@ TEST(CSSSelectorParserTest, WorkaroundForInvalidCustomPseudoInUAStyle) {
       "video::-webkit-media-text-track-region-container.scrolling",
       "input[type=\"range\" i]::-webkit-media-slider-container > div"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kUASheetMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_GT(vector.size(), 0u);
+        nullptr);
+    EXPECT_TRUE(list.IsValid());
+  }
+}
+
+TEST(CSSSelectorParserTest, ValidPseudoElementInNonRightmostCompound) {
+  const char* test_cases[] = {"::content *", "::content div::before"};
+
+  for (auto* test_case : test_cases) {
+    CSSTokenizer tokenizer(test_case);
+    const auto tokens = tokenizer.TokenizeToEOF();
+    CSSParserTokenRange range(tokens);
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
+        range,
+        MakeGarbageCollected<CSSParserContext>(
+            kHTMLStandardMode, SecureContextMode::kInsecureContext),
+        nullptr);
+    EXPECT_TRUE(list.IsValid());
   }
 }
 
@@ -304,17 +281,16 @@ TEST(CSSSelectorParserTest, InvalidPseudoElementInNonRightmostCompound) {
                               "::-webkit-scrollbar *", "::cue *",
                               "::selection *"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_EQ(vector.size(), 0u);
+        nullptr);
+    EXPECT_FALSE(list.IsValid());
   }
 }
 
@@ -325,14 +301,13 @@ TEST(CSSSelectorParserTest, UnresolvedNamespacePrefix) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    EXPECT_EQ(vector.size(), 0u);
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_FALSE(list.IsValid());
   }
 }
 
@@ -343,14 +318,13 @@ TEST(CSSSelectorParserTest, UnexpectedPipe) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    EXPECT_EQ(vector.size(), 0u);
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_FALSE(list.IsValid());
   }
 }
 
@@ -372,17 +346,15 @@ TEST(CSSSelectorParserTest, SerializedUniversal) {
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
   sheet->ParserAddNamespace("ns", "http://ns.org");
 
-  HeapVector<CSSSelector> arena;
   for (auto** test_case : test_cases) {
     SCOPED_TRACE(test_case[0]);
     CSSTokenizer tokenizer(test_case[0]);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    EXPECT_TRUE(list->IsValid());
-    EXPECT_EQ(test_case[1], list->SelectorsText());
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_TRUE(list.IsValid());
+    EXPECT_EQ(test_case[1], list.SelectorsText());
   }
 }
 
@@ -393,15 +365,14 @@ TEST(CSSSelectorParserTest, AttributeSelectorUniversalInvalid) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     SCOPED_TRACE(test_case);
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    EXPECT_EQ(vector.size(), 0u);
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_FALSE(list.IsValid());
   }
 }
 
@@ -416,27 +387,25 @@ TEST(CSSSelectorParserTest, InternalPseudo) {
                               ":-internal-spatial-navigation-interest",
                               ":-internal-video-persistent",
                               ":-internal-video-persistent-ancestor"};
-
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     SCOPED_TRACE(test_case);
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
 
-    base::span<CSSSelector> author_vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList author_list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_EQ(author_vector.size(), 0u);
+        nullptr);
+    EXPECT_FALSE(author_list.IsValid());
 
-    base::span<CSSSelector> ua_vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList ua_list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kUASheetMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_GT(ua_vector.size(), 0u);
+        nullptr);
+    EXPECT_TRUE(ua_list.IsValid());
   }
 }
 
@@ -472,6 +441,44 @@ INSTANTIATE_TEST_SUITE_P(InvalidPseudoIsArguments,
                          SelectorParseTest,
                          testing::ValuesIn(invalid_pseudo_is_argments_data));
 
+// To reduce complexity, ShadowDOM v0 features are not supported in
+// combination with nested complex selectors, e.g. :is/:where.
+static const SelectorTestCase shadow_v0_with_nested_complex_data[] = {
+    // clang-format off
+    {":is(.a) ::content", ""},
+    {":is(.a /deep/ .b)", ":is()"},
+    {":is(::content)", ":is()"},
+    {":is(::shadow)", ":is()"},
+    {":is(::content .a)", ":is()"},
+    {":is(::shadow .b)", ":is()"},
+    {":is(.a)::shadow", ""},
+    {":is(.a) ::content", ""},
+    {":is(.a) ::shadow", ""},
+    {"::content :is(.a)", ""},
+    {"::shadow :is(.a)", ""},
+    {":is(.a) /deep/ .b", ""},
+    {":.a /deep/ :is(.b)", ""},
+    {":where(.a /deep/ .b)", ":where()"},
+    {":where(.a) ::shadow", ""},
+    {":not(.a .b)::shadow", ""},
+    {":not(.a .b)::content", ""},
+    {":not(.a .b) ::shadow", ""},
+    {":not(.a .b) ::content", ""},
+    {":not(.a, .b) ::content", ""},
+    {":not(.a .b) /deep/ .c", ""},
+    {":not(.a, .b) /deep/ .c", ""},
+    {".a /deep/ :not(.b .c)", ""},
+    // For backwards compatibility, ShadowDOM v0 features are allowed if
+    // there is a single compound argument to :not().
+    {":not(.a) /deep/ .b", ":not(.a) /deep/ .b"},
+    {":not(.a)::content", ":not(.a)::content"},
+    // clang-format on
+};
+
+INSTANTIATE_TEST_SUITE_P(ShadowDomV0WithNestedComplexSelector,
+                         SelectorParseTest,
+                         testing::ValuesIn(shadow_v0_with_nested_complex_data));
+
 static const SelectorTestCase is_where_nesting_data[] = {
     // clang-format off
     // These pseudos only accept compound selectors:
@@ -487,7 +494,7 @@ static const SelectorTestCase is_where_nesting_data[] = {
     {"::cue(:is(.a .b))", "::cue(:is())"},
     {"::cue(:is(.a + .b))", "::cue(:is())"},
     {"::cue(:is(.a, .b + .c))", "::cue(:is(.a))"},
-    // Only user-action pseudos + :--state are allowed after kPseudoPart:
+    // Only user-action pseudos + :state() are allowed after kPseudoPart:
     {"::part(foo):is(.a)", "::part(foo):is()"},
     {"::part(foo):is(.a:hover)", "::part(foo):is()"},
     {"::part(foo):is(:hover.a)", "::part(foo):is()"},
@@ -498,7 +505,7 @@ static const SelectorTestCase is_where_nesting_data[] = {
     {"::part(foo):is(:hover, :where(.a))",
      "::part(foo):is(:hover, :where())"},
     {"::part(foo):is(:hover, .a)", "::part(foo):is(:hover)"},
-    {"::part(foo):is(:--bar, .a)", "::part(foo):is(:--bar)"},
+    {"::part(foo):is(:state(bar), .a)", "::part(foo):is(:state(bar))"},
     {"::part(foo):is(:enabled)", "::part(foo):is()"},
     // Only scrollbar pseudos after kPseudoScrollbar:
     {"::-webkit-scrollbar:is(:focus)", "::-webkit-scrollbar:is()"},
@@ -512,7 +519,6 @@ static const SelectorTestCase is_where_nesting_data[] = {
 
     // Valid selectors:
     {":is(.a, .b)"},
-    {":is(.a\n)", ":is(.a)"},
     {":is(.a .b, .c)"},
     {":is(.a :is(.b .c), .d)"},
     {":is(.a :where(.b .c), .d)"},
@@ -527,7 +533,6 @@ static const SelectorTestCase is_where_nesting_data[] = {
     {":host(:is(.a))"},
     {":host(:is(div.a))"},
     {":host(:is(.a, .b))"},
-    {":host(:is(.a\n))", ":host(:is(.a))"},
     {":host-context(:is(.a))"},
     {":host-context(:is(div.a))"},
     {":host-context(:is(.a, .b))"},
@@ -539,7 +544,7 @@ static const SelectorTestCase is_where_nesting_data[] = {
     {"::part(foo):is(:is(:hover))"},
     {"::part(foo):is(:focus, :hover)"},
     {"::part(foo):is(:focus, :is(:hover))"},
-    {"::part(foo):is(:focus, :--bar)"},
+    {"::part(foo):is(:focus, :state(bar))"},
     {"::-webkit-scrollbar:is(:enabled)"},
     {"::selection:is(:window-inactive)"},
     {"::-webkit-input-placeholder:is(:hover)"},
@@ -583,23 +588,22 @@ INSTANTIATE_TEST_SUITE_P(IsWhereForgiving,
                          testing::ValuesIn(is_where_forgiving_data));
 namespace {
 
-AtomicString TagLocalName(const CSSSelector* selector) {
+const auto TagLocalName = [](const CSSSelector* selector) {
   return selector->TagQName().LocalName();
-}
+};
 
-AtomicString AttributeLocalName(const CSSSelector* selector) {
+const auto AttributeLocalName = [](const CSSSelector* selector) {
   return selector->Attribute().LocalName();
-}
+};
 
-AtomicString SelectorValue(const CSSSelector* selector) {
+const auto SelectorValue = [](const CSSSelector* selector) {
   return selector->Value();
-}
+};
 
 struct ASCIILowerTestCase {
   const char* input;
   const char16_t* expected;
-  using GetterFn = AtomicString(const CSSSelector*);
-  GetterFn* getter;
+  std::function<AtomicString(const CSSSelector*)> getter;
 };
 
 }  // namespace
@@ -615,18 +619,15 @@ TEST(CSSSelectorParserTest, ASCIILowerHTMLStrict) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
 
-  HeapVector<CSSSelector> arena;
   for (auto test_case : test_cases) {
     SCOPED_TRACE(test_case.input);
     CSSTokenizer tokenizer(test_case.input);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    EXPECT_GT(vector.size(), 0u);
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    EXPECT_TRUE(list->IsValid());
-    const CSSSelector* selector = list->First();
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_TRUE(list.IsValid());
+    const CSSSelector* selector = list.First();
     ASSERT_TRUE(selector);
     EXPECT_EQ(AtomicString(test_case.expected), test_case.getter(selector));
   }
@@ -643,40 +644,36 @@ TEST(CSSSelectorParserTest, ASCIILowerHTMLQuirks) {
       kHTMLQuirksMode, SecureContextMode::kInsecureContext);
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
 
-  HeapVector<CSSSelector> arena;
   for (auto test_case : test_cases) {
     SCOPED_TRACE(test_case.input);
     CSSTokenizer tokenizer(test_case.input);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    EXPECT_GT(vector.size(), 0u);
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    EXPECT_TRUE(list->IsValid());
-    const CSSSelector* selector = list->First();
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_TRUE(list.IsValid());
+    const CSSSelector* selector = list.First();
     ASSERT_TRUE(selector);
     EXPECT_EQ(AtomicString(test_case.expected), test_case.getter(selector));
   }
 }
 
 TEST(CSSSelectorParserTest, ShadowPartPseudoElementValid) {
-  const char* test_cases[] = {"::part(ident)", "host::part(ident)",
+  const char* test_cases[] = {"::part(ident)",
+                              "host::part(ident)",
                               "host::part(ident):hover"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     SCOPED_TRACE(test_case);
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    EXPECT_EQ(test_case, list->SelectorsText().Utf8());
+        nullptr);
+    EXPECT_EQ(test_case, list.SelectorsText());
   }
 }
 
@@ -686,28 +683,24 @@ TEST(CSSSelectorParserTest, ShadowPartAndBeforeAfterPseudoElementValid) {
       "::part(ident)::placeholder",  "::part(ident)::first-line",
       "::part(ident)::first-letter", "::part(ident)::selection"};
 
-  HeapVector<CSSSelector> arena;
   for (auto* test_case : test_cases) {
     SCOPED_TRACE(test_case);
     CSSTokenizer tokenizer(test_case);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
+    CSSSelectorList list = CSSSelectorParser::ParseSelector(
         range,
         MakeGarbageCollected<CSSParserContext>(
             kHTMLStandardMode, SecureContextMode::kInsecureContext),
-        /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-    EXPECT_GT(vector.size(), 0u);
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    EXPECT_TRUE(list->IsValid());
-    EXPECT_EQ(test_case, list->SelectorsText());
+        nullptr);
+    EXPECT_EQ(test_case, list.SelectorsText());
   }
 }
 
 static bool IsCounted(const char* selector,
                       CSSParserMode mode,
                       WebFeature feature) {
-  auto dummy_holder = std::make_unique<DummyPageHolder>(gfx::Size(500, 500));
+  auto dummy_holder = std::make_unique<DummyPageHolder>(IntSize(500, 500));
   Document* doc = &dummy_holder->GetDocument();
   Page::InsertOrdinaryPageForTesting(&dummy_holder->GetPage());
   auto* context = MakeGarbageCollected<CSSParserContext>(
@@ -720,9 +713,7 @@ static bool IsCounted(const char* selector,
   CSSTokenizer tokenizer(selector);
   const auto tokens = tokenizer.TokenizeToEOF();
   CSSParserTokenRange range(tokens);
-  HeapVector<CSSSelector> arena;
-  CSSSelectorParser::ParseSelector(
-      range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
+  CSSSelectorParser::ParseSelector(range, context, sheet);
 
   return doc->IsUseCounted(feature);
 }
@@ -770,6 +761,8 @@ TEST(CSSSelectorParserTest, UseCountShadowPseudo) {
               WebFeature::kCSSSelectorWebkitDatetimeEditWeekField);
   ExpectCount("::-webkit-datetime-edit-year-field",
               WebFeature::kCSSSelectorWebkitDatetimeEditYearField);
+  ExpectCount("::-webkit-details-marker",
+              WebFeature::kCSSSelectorWebkitDetailsMarker);
   ExpectCount("::-webkit-file-upload-button",
               WebFeature::kCSSSelectorWebkitFileUploadButton);
   ExpectCount("::-webkit-inner-spin-button",
@@ -880,7 +873,7 @@ TEST(CSSSelectorParserTest, ImplicitShadowCrossingCombinators) {
       {
           "*::placeholder",
           {
-              {"placeholder", CSSSelector::kUAShadow},
+              {"placeholder", CSSSelector::kShadowPseudo},
               {g_null_atom, CSSSelector::kSubSelector},
           },
       },
@@ -894,7 +887,7 @@ TEST(CSSSelectorParserTest, ImplicitShadowCrossingCombinators) {
       {
           "::slotted(*)::placeholder",
           {
-              {"placeholder", CSSSelector::kUAShadow},
+              {"placeholder", CSSSelector::kShadowPseudo},
               {"slotted", CSSSelector::kShadowSlot},
               {g_null_atom, CSSSelector::kSubSelector},
           },
@@ -909,7 +902,7 @@ TEST(CSSSelectorParserTest, ImplicitShadowCrossingCombinators) {
       {
           "video::-webkit-media-controls",
           {
-              {"-webkit-media-controls", CSSSelector::kUAShadow},
+              {"-webkit-media-controls", CSSSelector::kShadowPseudo},
               {"video", CSSSelector::kSubSelector},
           },
       },
@@ -919,17 +912,15 @@ TEST(CSSSelectorParserTest, ImplicitShadowCrossingCombinators) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
   auto* sheet = MakeGarbageCollected<StyleSheetContents>(context);
 
-  HeapVector<CSSSelector> arena;
   for (auto test_case : test_cases) {
     SCOPED_TRACE(test_case.input);
     CSSTokenizer tokenizer(test_case.input);
     const auto tokens = tokenizer.TokenizeToEOF();
     CSSParserTokenRange range(tokens);
-    base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-        range, context, /*parent_rule_for_nesting=*/nullptr, sheet, arena);
-    CSSSelectorList* list = CSSSelectorList::AdoptSelectorVector(vector);
-    EXPECT_TRUE(list->IsValid());
-    const CSSSelector* selector = list->First();
+    CSSSelectorList list =
+        CSSSelectorParser::ParseSelector(range, context, sheet);
+    EXPECT_TRUE(list.IsValid());
+    const CSSSelector* selector = list.First();
     for (auto sub_expectation : test_case.expectation) {
       ASSERT_TRUE(selector);
       AtomicString selector_value = selector->Match() == CSSSelector::kTag
@@ -942,139 +933,5 @@ TEST(CSSSelectorParserTest, ImplicitShadowCrossingCombinators) {
     EXPECT_FALSE(selector);
   }
 }
-
-TEST(CSSSelectorParserTest, WebKitScrollbarPseudoParsing) {
-  const char* test_cases[] = {"::-webkit-resizer",
-                              "::-webkit-scrollbar",
-                              "::-webkit-scrollbar-button",
-                              "::-webkit-scrollbar-corner",
-                              "::-webkit-scrollbar-thumb",
-                              "::-webkit-scrollbar-track",
-                              "::-webkit-scrollbar-track-piece"};
-
-  HeapVector<CSSSelector> arena;
-  bool enabled_states[] = {false, true};
-  for (auto state : enabled_states) {
-    ScopedWebKitScrollbarStylingForTest scoped_feature(state);
-    for (auto* test_case : test_cases) {
-      CSSTokenizer tokenizer(test_case);
-      const auto tokens = tokenizer.TokenizeToEOF();
-      CSSParserTokenRange range(tokens);
-      base::span<CSSSelector> vector = CSSSelectorParser::ParseSelector(
-          range,
-          MakeGarbageCollected<CSSParserContext>(
-              kHTMLStandardMode, SecureContextMode::kInsecureContext),
-          /*parent_rule_for_nesting=*/nullptr, nullptr, arena);
-      EXPECT_EQ(vector.size(), state ? 1u : 0u);
-    }
-  }
-}
-
-// TODO(blee@igalia.com) Workaround to make :has() unforgiving to avoid
-// JQuery :has() issue: https://github.com/w3c/csswg-drafts/issues/7676
-// :has() should be valid after all arguments are dropped.
-static const SelectorTestCase invalid_pseudo_has_arguments_data[] = {
-    // clang-format off
-    // restrict use of nested :has()
-    {":has(:has(.a))", "" /* should be ":has()" */},
-
-    // restrict use of pseudo element inside :has()
-    {":has(::-webkit-progress-bar)", "" /* should be ":has()" */},
-    {":has(::-webkit-progress-value)", "" /* should be ":has()" */},
-    {":has(::-webkit-slider-runnable-track)", "" /* should be ":has()" */},
-    {":has(::-webkit-slider-thumb)", "" /* should be ":has()" */},
-    {":has(::after)", "" /* should be ":has()" */},
-    {":has(::backdrop)", "" /* should be ":has()" */},
-    {":has(::before)", "" /* should be ":has()" */},
-    {":has(::cue)", "" /* should be ":has()" */},
-    {":has(::first-letter)", "" /* should be ":has()" */},
-    {":has(::first-line)", "" /* should be ":has()" */},
-    {":has(::grammar-error)", "" /* should be ":has()" */},
-    {":has(::marker)", "" /* should be ":has()" */},
-    {":has(::placeholder)", "" /* should be ":has()" */},
-    {":has(::selection)", "" /* should be ":has()" */},
-    {":has(::slotted(*))", "" /* should be ":has()" */},
-    {":has(::part(foo))", "" /* should be ":has()" */},
-    {":has(::spelling-error)", "" /* should be ":has()" */},
-    {":has(:after)", "" /* should be ":has()" */},
-    {":has(:before)", "" /* should be ":has()" */},
-    {":has(:cue)", "" /* should be ":has()" */},
-    {":has(:first-letter)", "" /* should be ":has()" */},
-    {":has(:first-line)", "" /* should be ":has()" */},
-    // clang-format on
-};
-
-INSTANTIATE_TEST_SUITE_P(InvalidPseudoHasArguments,
-                         SelectorParseTest,
-                         testing::ValuesIn(invalid_pseudo_has_arguments_data));
-
-static const SelectorTestCase has_forgiving_data[] = {
-    // clang-format off
-    {":has(.a, :has(.b), .c)", ":has(.a, .c)"},
-    {":has(.a, :has(.b))", ":has(.a)"},
-    {":has(:has(.a), .b)", ":has(.b)"},
-
-    // TODO(blee@igalia.com) Workaround to make :has() unforgiving to avoid
-    // JQuery :has() issue: https://github.com/w3c/csswg-drafts/issues/7676
-    // :has() should be valid after all arguments are dropped.
-    {":has(:has(.a))", "" /* should be ":has()" */},
-    {":has(,,  ,, )", "" /* should be ":has()" */},
-
-    {":has(.a,,,,)", ":has(.a)"},
-    {":has(,,.a,,)", ":has(.a)"},
-    {":has(,,,,.a)", ":has(.a)"},
-    {":has(@x {,.b,}, .a)", ":has(.a)"},
-    {":has({,.b,} @x, .a)", ":has(.a)"},
-    {":has((@x), .a)", ":has(.a)"},
-    {":has((.b), .a)", ":has(.a)"},
-    {":has(:is(:foo))", ":has(:is())"},
-    {":has(:is(:has(.a)))", ":has(:is())"},
-    // clang-format on
-};
-
-INSTANTIATE_TEST_SUITE_P(HasForgiving,
-                         SelectorParseTest,
-                         testing::ValuesIn(has_forgiving_data));
-
-// TODO(blee@igalia.com) Workaround to make :has() unforgiving to avoid
-// JQuery :has() issue: https://github.com/w3c/csswg-drafts/issues/7676
-// :has() should be valid after all arguments are dropped.
-static const SelectorTestCase has_nesting_data[] = {
-    // clang-format off
-    // :has() is not allowed in the pseudos accepting only compound selectors:
-    {"::slotted(:has(.a))", "" /* should be "::slotted(:has())" */},
-    {":host(:has(.a))", "" /* should be ":host(:has())" */},
-    {":host-context(:has(.a))", "" /* should be ":host-context(:has())" */},
-    {"::cue(:has(.a))", "" /* should be "::cue(:has())" */},
-    // :has() is not allowed after pseudo elements:
-    {"::part(foo):has(:hover)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:hover:focus)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:focus, :hover)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:focus)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:focus, :--bar)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(.a)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(.a:hover)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:hover.a)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:hover + .a)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(.a + :hover)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:hover:enabled)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:enabled:hover)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:hover, :where(.a))",
-     "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:hover, .a)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:--bar, .a)", "" /* should be "::part(foo):has()" */},
-    {"::part(foo):has(:enabled)", "" /* should be "::part(foo):has()" */},
-    {"::-webkit-scrollbar:has(:enabled)",
-     "" /* should be "::-webkit-scrollbar:has()" */},
-    {"::selection:has(:window-inactive)",
-     "" /* should be "::selection:has()" */},
-    {"::-webkit-input-placeholder:has(:hover)",
-     "" /* should be "::-webkit-input-placeholder:has()" */},
-    // clang-format on
-};
-
-INSTANTIATE_TEST_SUITE_P(NestedHasSelectorValidity,
-                         SelectorParseTest,
-                         testing::ValuesIn(has_nesting_data));
 
 }  // namespace blink

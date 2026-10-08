@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 
 #include "base/callback_forward.h"
 #include "base/hash/sha1.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 
 namespace base {
@@ -34,29 +35,27 @@ class SupervisedUserDenylist {
   };
 
   SupervisedUserDenylist();
-
-  SupervisedUserDenylist(const SupervisedUserDenylist&) = delete;
-  SupervisedUserDenylist& operator=(const SupervisedUserDenylist&) = delete;
-
   ~SupervisedUserDenylist();
 
   // Asynchronously read a denylist from the given file, replacing any previous
   // entries. |done_callback| will be run after reading finishes (successfully
   // or not), but not if the SupervisedUserDenylist is destroyed before that.
   void ReadFromFile(const base::FilePath& path,
-                    const base::RepeatingClosure& done_callback);
+                    const base::Closure& done_callback);
 
   bool HasURL(const GURL& url) const;
 
   size_t GetEntryCount() const;
 
  private:
-  void OnReadFromFileCompleted(const base::RepeatingClosure& done_callback,
+  void OnReadFromFileCompleted(const base::Closure& done_callback,
                                std::unique_ptr<std::vector<Hash>> host_hashes);
 
   std::vector<Hash> host_hashes_;
 
   base::WeakPtrFactory<SupervisedUserDenylist> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SupervisedUserDenylist);
 };
 
 #endif  // CHROME_BROWSER_SUPERVISED_USER_SUPERVISED_USER_DENYLIST_H_

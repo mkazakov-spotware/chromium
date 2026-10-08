@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,21 +10,17 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
+#include "base/location.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/views/views_delegate.h"
 
-class Profile;
 class ScopedKeepAlive;
-class ScopedProfileKeepAlive;
 
 class ChromeViewsDelegate : public views::ViewsDelegate {
  public:
   ChromeViewsDelegate();
-
-  ChromeViewsDelegate(const ChromeViewsDelegate&) = delete;
-  ChromeViewsDelegate& operator=(const ChromeViewsDelegate&) = delete;
-
   ~ChromeViewsDelegate() override;
 
   // views::ViewsDelegate:
@@ -36,30 +32,21 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
                                const std::string& window_name,
                                gfx::Rect* bounds,
                                ui::WindowShowState* show_state) const override;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   ProcessMenuAcceleratorResult ProcessAcceleratorWhileMenuShowing(
       const ui::Accelerator& accelerator) override;
-  bool ShouldCloseMenuIfMouseCaptureLost() const override;
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<views::NonClientFrameView> CreateDefaultNonClientFrameView(
       views::Widget* widget) override;
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   HICON GetDefaultWindowIcon() const override;
   HICON GetSmallWindowIcon() const override;
   int GetAppbarAutohideEdges(HMONITOR monitor,
                              base::OnceClosure callback) override;
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  bool WindowManagerProvidesTitleBar(bool maximized) override;
-#endif
-
-#if BUILDFLAG(IS_LINUX)
+#elif defined(OS_LINUX) && !defined(OS_CHROMEOS)
   gfx::ImageSkia* GetDefaultWindowIcon() const override;
+  bool WindowManagerProvidesTitleBar(bool maximized) override;
 #endif
 
   void AddRef() override;
@@ -68,13 +55,13 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
   void OnBeforeWidgetInit(
       views::Widget::InitParams* params,
       views::internal::NativeWidgetDelegate* delegate) override;
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   ui::ContextFactory* GetContextFactory() override;
 #endif
   std::string GetApplicationName() override;
 
  private:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   typedef std::map<HMONITOR, int> AppbarAutohideEdgeMap;
 
   // Callback on main thread with the edges. |returned_edges| is the value that
@@ -85,7 +72,7 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
                                 int edges);
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Called from GetSavedWindowPlacement() on ChromeOS to adjust the bounds.
   void AdjustSavedWindowPlacementChromeOS(const views::Widget* widget,
                                           gfx::Rect* bounds) const;
@@ -100,15 +87,9 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
   // to do that translation.
   unsigned int ref_count_ = 0u;
 
-  // Prevents BrowserProcess teardown while |ref_count_| is non-zero.
   std::unique_ptr<ScopedKeepAlive> keep_alive_;
 
-  // Prevents Profile* deletion while |ref_count_| is non-zero. See the
-  // DestroyProfileOnBrowserClose flag.
-  std::map<Profile*, std::unique_ptr<ScopedProfileKeepAlive>>
-      profile_keep_alives_;
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   AppbarAutohideEdgeMap appbar_autohide_edge_map_;
   // If true we're in the process of notifying a callback from
   // GetAutohideEdges().start a new query.
@@ -116,6 +97,8 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
 
   base::WeakPtrFactory<ChromeViewsDelegate> weak_factory_{this};
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeViewsDelegate);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_CHROME_VIEWS_DELEGATE_H_

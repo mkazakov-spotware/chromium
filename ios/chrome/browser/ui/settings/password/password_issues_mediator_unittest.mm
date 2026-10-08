@@ -1,31 +1,26 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/password/password_issues_mediator.h"
 
-#import "base/strings/string_piece.h"
-#import "base/strings/string_util.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/password_manager/core/browser/password_manager_test_utils.h"
-#import "components/password_manager/core/browser/test_password_store.h"
-#import "components/password_manager/core/browser/ui/credential_ui_entry.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/favicon/favicon_loader.h"
-#import "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
+#include "base/strings/string_piece.h"
+#include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/password_manager/core/browser/password_manager_test_utils.h"
+#include "components/password_manager/core/browser/test_password_store.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/main/test_browser.h"
-#import "ios/chrome/browser/passwords/ios_chrome_password_check_manager.h"
-#import "ios/chrome/browser/passwords/ios_chrome_password_check_manager_factory.h"
-#import "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
-#import "ios/chrome/browser/passwords/password_check_observer_bridge.h"
-#import "ios/chrome/browser/sync/sync_setup_service_factory.h"
-#import "ios/chrome/browser/sync/sync_setup_service_mock.h"
+#include "ios/chrome/browser/passwords/ios_chrome_password_check_manager.h"
+#include "ios/chrome/browser/passwords/ios_chrome_password_check_manager_factory.h"
+#include "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
+#include "ios/chrome/browser/passwords/password_check_observer_bridge.h"
 #import "ios/chrome/browser/ui/settings/password/password_issues_consumer.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_controller_test.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gmock/include/gmock/gmock.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/gtest_mac.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -42,7 +37,8 @@ constexpr char kUsername2[] = "bob";
 constexpr char kPassword[] = "s3cre3t";
 
 using password_manager::PasswordForm;
-using password_manager::InsecureCredential;
+using password_manager::CompromisedCredentials;
+using password_manager::CompromiseType;
 using password_manager::TestPasswordStore;
 
 // Sets test password store and returns pointer to it.
@@ -57,13 +53,23 @@ scoped_refptr<TestPasswordStore> CreateAndUseTestPasswordStore(
           .get()));
 }
 
+// Returns compromised credential structure.
+CompromisedCredentials MakeCompromised(base::StringPiece signon_realm,
+                                       base::StringPiece username) {
+  return {
+      std::string(signon_realm),
+      base::ASCIIToUTF16(username),
+      base::Time::Now(),
+      CompromiseType::kLeaked,
+  };
+}
 }  // namespace
 
 // Test class that conforms to PasswordIssuesConsumer in order to test the
 // consumer methods are called correctly.
 @interface FakePasswordIssuesConsumer : NSObject <PasswordIssuesConsumer>
 
-@property(nonatomic) NSArray<PasswordIssue*>* passwords;
+@property(nonatomic) NSArray<id<PasswordIssue>>* passwords;
 
 @property(nonatomic, assign) BOOL passwordIssuesListChangedWasCalled;
 
@@ -71,7 +77,7 @@ scoped_refptr<TestPasswordStore> CreateAndUseTestPasswordStore(
 
 @implementation FakePasswordIssuesConsumer
 
-- (void)setPasswordIssues:(NSArray<PasswordIssue*>*)passwords {
+- (void)setPasswordIssues:(NSArray<id<PasswordIssue>>*)passwords {
   _passwords = passwords;
   _passwordIssuesListChangedWasCalled = YES;
 }
@@ -85,9 +91,6 @@ class PasswordIssuesMediatorTest : public BlockCleanupTest {
     BlockCleanupTest::SetUp();
     // Create BrowserState.
     TestChromeBrowserState::Builder test_cbs_builder;
-    test_cbs_builder.AddTestingFactory(
-        SyncSetupServiceFactory::GetInstance(),
-        base::BindRepeating(&SyncSetupServiceMock::CreateKeyedService));
     chrome_browser_state_ = test_cbs_builder.Build();
 
     store_ = CreateAndUseTestPasswordStore(chrome_browser_state_.get());
@@ -98,12 +101,7 @@ class PasswordIssuesMediatorTest : public BlockCleanupTest {
     consumer_ = [[FakePasswordIssuesConsumer alloc] init];
 
     mediator_ = [[PasswordIssuesMediator alloc]
-        initWithPasswordCheckManager:password_check_.get()
-                       faviconLoader:IOSChromeFaviconLoaderFactory::
-                                         GetForBrowserState(
-                                             chrome_browser_state_.get())
-                         syncService:SyncServiceFactory::GetForBrowserState(
-                                         chrome_browser_state_.get())];
+        initWithPasswordCheckManager:password_check_.get()];
     mediator_.consumer = consumer_;
   }
 
@@ -117,12 +115,10 @@ class PasswordIssuesMediatorTest : public BlockCleanupTest {
     form.password_value = base::ASCIIToUTF16(password);
     form.url = GURL(website + "/login");
     form.action = GURL(website + "/action");
-    form.username_element = u"email";
-    form.password_issues = {
-        {password_manager::InsecureType::kLeaked,
-         password_manager::InsecurityMetadata(
-             base::Time::Now(), password_manager::IsMuted(false))}};
+    form.username_element = base::ASCIIToUTF16("email");
+
     store()->AddLogin(form);
+    store()->AddCompromisedCredentials(MakeCompromised(website, username));
   }
 
   TestPasswordStore* store() { return store_.get(); }
@@ -134,7 +130,7 @@ class PasswordIssuesMediatorTest : public BlockCleanupTest {
   void RunUntilIdle() { task_environment_.RunUntilIdle(); }
 
  private:
-  web::WebTaskEnvironment task_environment_;
+  base::test::TaskEnvironment task_environment_;
   std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
   scoped_refptr<TestPasswordStore> store_;
   scoped_refptr<IOSChromePasswordCheckManager> password_check_;
@@ -154,7 +150,7 @@ TEST_F(PasswordIssuesMediatorTest, TestPasswordIssuesChanged) {
 
   EXPECT_EQ(1u, [[consumer() passwords] count]);
 
-  PasswordIssue* password = [[consumer() passwords] objectAtIndex:0];
+  id<PasswordIssue> password = [[consumer() passwords] objectAtIndex:0];
 
   EXPECT_NSEQ(@"alice", password.username);
   EXPECT_NSEQ(@"example.com", password.website);
@@ -168,7 +164,7 @@ TEST_F(PasswordIssuesMediatorTest, TestPasswordDeletion) {
   EXPECT_EQ(1u, [[consumer() passwords] count]);
 
   auto password = store()->stored_passwords().at(kExampleCom).at(0);
-  [mediator() deleteCredential:password_manager::CredentialUIEntry(password)];
+  [mediator() deletePassword:password];
   RunUntilIdle();
   EXPECT_EQ(0u, [[consumer() passwords] count]);
 }

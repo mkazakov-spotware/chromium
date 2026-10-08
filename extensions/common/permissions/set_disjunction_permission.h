@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,11 @@
 
 #include "base/json/json_writer.h"
 #include "base/ranges/algorithm.h"
-#include "base/stl_util.h"
 #include "base/values.h"
+#include "extensions/common/extension_messages.h"
 #include "extensions/common/permissions/api_permission.h"
+#include "ipc/ipc_message.h"
+#include "ipc/ipc_message_utils.h"
 
 namespace extensions {
 
@@ -37,8 +39,11 @@ class SetDisjunctionPermission : public APIPermission {
 
   // APIPermission overrides
   bool Check(const APIPermission::CheckParam* param) const override {
-    for (const auto& item : data_set_) {
-      if (item.Check(param))
+    for (typename std::set<PermissionDataType>::const_iterator i =
+             data_set_.begin();
+         i != data_set_.end();
+         ++i) {
+      if (i->Check(param))
         return true;
     }
     return false;
@@ -101,25 +106,31 @@ class SetDisjunctionPermission : public APIPermission {
       std::string* error,
       std::vector<std::string>* unhandled_permissions) override {
     data_set_.clear();
+    const base::ListValue* list = NULL;
 
     if (!value) {
       // treat null as an empty list.
       return true;
     }
 
-    if (!value->is_list()) {
+    if (!value->GetAsList(&list)) {
       if (error)
         *error = "Cannot parse the permission list. It's not a list.";
       return false;
     }
 
-    for (const base::Value& item_value : value->GetList()) {
+    for (size_t i = 0; i < list->GetSize(); ++i) {
+      const base::Value* item_value = NULL;
+      bool got_item = list->Get(i, &item_value);
+      DCHECK(got_item);
+      DCHECK(item_value);
+
       PermissionDataType data;
-      if (data.FromValue(&item_value)) {
+      if (data.FromValue(item_value)) {
         data_set_.insert(data);
       } else {
         std::string unknown_permission;
-        base::JSONWriter::Write(item_value, &unknown_permission);
+        base::JSONWriter::Write(*item_value, &unknown_permission);
         if (unhandled_permissions) {
           unhandled_permissions->push_back(unknown_permission);
         } else {
@@ -135,11 +146,23 @@ class SetDisjunctionPermission : public APIPermission {
   }
 
   std::unique_ptr<base::Value> ToValue() const override {
-    base::Value::List list;
-    for (const auto& item : data_set_) {
-      list.Append(base::Value::FromUniquePtrValue(item.ToValue()));
+    base::ListValue* list = new base::ListValue();
+    typename std::set<PermissionDataType>::const_iterator i;
+    for (i = data_set_.begin(); i != data_set_.end(); ++i) {
+      std::unique_ptr<base::Value> item_value(i->ToValue());
+      list->Append(std::move(item_value));
     }
-    return std::make_unique<base::Value>(std::move(list));
+    return std::unique_ptr<base::Value>(list);
+  }
+
+  void Write(base::Pickle* m) const override { IPC::WriteParam(m, data_set_); }
+
+  bool Read(const base::Pickle* m, base::PickleIterator* iter) override {
+    return IPC::ReadParam(m, iter, &data_set_);
+  }
+
+  void Log(std::string* log) const override {
+    IPC::LogParam(data_set_, log);
   }
 
  protected:

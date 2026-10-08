@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,23 @@
 #include "ui/gfx/geometry/rect.h"
 
 namespace content {
+
+bool LoggingEnabled() {
+  static bool logging_enabled =
+      base::FeatureList::IsEnabled(features::kPrecisionTouchpadLogging);
+
+  return logging_enabled;
+}
+
+// TODO(crbug.com/914914) This is added for help us getting debug log on
+// machine with scrolling issue on Windows Precision Touchpad. We will remove it
+// after Windows Precision Touchpad scrolling issue fixed.
+void DebugLogging(const std::string& s, HRESULT hr) {
+  if (!LoggingEnabled())
+    return;
+
+  LOG(ERROR) << "Windows PTP: " << s << " " << hr;
+}
 
 // static
 std::unique_ptr<DirectManipulationHelper>
@@ -74,7 +91,9 @@ DirectManipulationHelper::DirectManipulationHelper(HWND window,
 
 void DirectManipulationHelper::OnAnimationStep(base::TimeTicks timestamp) {
   // Simulate 1 frame in update_manager_.
-  update_manager_->Update(nullptr);
+  HRESULT hr = update_manager_->Update(nullptr);
+  if (!SUCCEEDED(hr))
+    DebugLogging("UpdateManager update failed.", hr);
 }
 
 void DirectManipulationHelper::OnCompositingShuttingDown(
@@ -91,18 +110,24 @@ bool DirectManipulationHelper::Initialize(ui::WindowEventTarget* event_target) {
   HRESULT hr =
       ::CoCreateInstance(CLSID_DirectManipulationManager, nullptr,
                          CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&manager_));
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("DirectManipulationManager create failed.", hr);
     return false;
+  }
 
   // Since we want to use fake viewport, we need UpdateManager to tell a fake
   // fake render frame.
   hr = manager_->GetUpdateManager(IID_PPV_ARGS(&update_manager_));
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Get UpdateManager failed.", hr);
     return false;
+  }
 
   hr = manager_->CreateViewport(nullptr, window_, IID_PPV_ARGS(&viewport_));
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport create failed.", hr);
     return false;
+  }
 
   DIRECTMANIPULATION_CONFIGURATION configuration =
       DIRECTMANIPULATION_CONFIGURATION_INTERACTION |
@@ -114,15 +139,19 @@ bool DirectManipulationHelper::Initialize(ui::WindowEventTarget* event_target) {
       DIRECTMANIPULATION_CONFIGURATION_SCALING;
 
   hr = viewport_->ActivateConfiguration(configuration);
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport set ActivateConfiguration failed.", hr);
     return false;
+  }
 
   // Since we are using fake viewport and only want to use Direct Manipulation
   // for touchpad, we need to use MANUALUPDATE option.
   hr = viewport_->SetViewportOptions(
       DIRECTMANIPULATION_VIEWPORT_OPTIONS_MANUALUPDATE);
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport set ViewportOptions failed.", hr);
     return false;
+  }
 
   event_handler_ =
       Microsoft::WRL::Make<DirectManipulationEventHandler>(event_target);
@@ -133,29 +162,40 @@ bool DirectManipulationHelper::Initialize(ui::WindowEventTarget* event_target) {
   // IDirectManipulationViewportEventHandler.
   hr = viewport_->AddEventHandler(window_, event_handler_.Get(),
                                   &view_port_handler_cookie_);
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport add EventHandler failed.", hr);
     return false;
+  }
 
   // Set default rect for viewport before activate.
   gfx::Size viewport_size_in_pixels = {1000, 1000};
   event_handler_->SetViewportSizeInPixels(viewport_size_in_pixels);
   RECT rect = gfx::Rect(viewport_size_in_pixels).ToRECT();
   hr = viewport_->SetViewportRect(&rect);
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport set rect failed.", hr);
     return false;
+  }
 
   hr = manager_->Activate(window_);
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("DirectManipulationManager activate failed.", hr);
     return false;
+  }
 
   hr = viewport_->Enable();
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport enable failed.", hr);
     return false;
+  }
 
   hr = update_manager_->Update(nullptr);
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("UpdateManager update failed.", hr);
     return false;
+  }
 
+  DebugLogging("DirectManipulation initialization complete", S_OK);
   return true;
 }
 
@@ -165,11 +205,15 @@ void DirectManipulationHelper::SetSizeInPixels(
     return;
 
   HRESULT hr = viewport_->Stop();
-  if (!SUCCEEDED(hr))
+  if (!SUCCEEDED(hr)) {
+    DebugLogging("Viewport stop failed.", hr);
     return;
+  }
 
   RECT rect = gfx::Rect(size_in_pixels).ToRECT();
   hr = viewport_->SetViewportRect(&rect);
+  if (!SUCCEEDED(hr))
+    DebugLogging("Viewport set rect failed.", hr);
 }
 
 void DirectManipulationHelper::OnPointerHitTest(WPARAM w_param) {
@@ -190,7 +234,9 @@ void DirectManipulationHelper::OnPointerHitTest(WPARAM w_param) {
       base::win::GetUser32FunctionPointer("GetPointerType"));
   if (get_pointer_type && get_pointer_type(pointer_id, &pointer_type) &&
       pointer_type == PT_TOUCHPAD) {
-    viewport_->SetContact(pointer_id);
+    HRESULT hr = viewport_->SetContact(pointer_id);
+    if (!SUCCEEDED(hr))
+      DebugLogging("Viewport set contact failed.", hr);
   }
 }
 
@@ -220,14 +266,25 @@ void DirectManipulationHelper::Destroy() {
   if (event_handler_)
     event_handler_->SetDirectManipulationHelper(nullptr);
 
+  HRESULT hr;
   if (viewport_) {
-    viewport_->Stop();
-    viewport_->RemoveEventHandler(view_port_handler_cookie_);
-    viewport_->Abandon();
+    hr = viewport_->Stop();
+    if (!SUCCEEDED(hr))
+      DebugLogging("Viewport stop failed.", hr);
+
+    hr = viewport_->RemoveEventHandler(view_port_handler_cookie_);
+    if (!SUCCEEDED(hr))
+      DebugLogging("Viewport remove event handler failed.", hr);
+
+    hr = viewport_->Abandon();
+    if (!SUCCEEDED(hr))
+      DebugLogging("Viewport abandon failed.", hr);
   }
 
   if (manager_) {
-    manager_->Deactivate(window_);
+    hr = manager_->Deactivate(window_);
+    if (!SUCCEEDED(hr))
+      DebugLogging("DirectManipulationManager deactivate failed.", hr);
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CONTENT_BROWSER_RENDERER_HOST_RENDER_WIDGET_HOST_OWNER_DELEGATE_H_
 
 #include "build/build_config.h"
+#include "content/common/content_export.h"
 #include "third_party/blink/public/common/widget/visual_properties.h"
 
 namespace blink {
@@ -25,8 +26,14 @@ struct NativeWebKeyboardEvent;
 //  intended to be temporary until the RenderViewHostImpl and
 //  RenderWidgetHostImpl classes are disentangled; see http://crbug.com/542477
 //  and http://crbug.com/478281.
-class RenderWidgetHostOwnerDelegate {
+class CONTENT_EXPORT RenderWidgetHostOwnerDelegate {
  public:
+  // The RenderWidgetHost has been initialized.
+  virtual void RenderWidgetDidInit() = 0;
+
+  // The RenderWidget finished the first visually non-empty paint.
+  virtual void RenderWidgetDidFirstVisuallyNonEmptyPaint() = 0;
+
   // The RenderWidgetHost got the focus.
   virtual void RenderWidgetGotFocus() = 0;
 

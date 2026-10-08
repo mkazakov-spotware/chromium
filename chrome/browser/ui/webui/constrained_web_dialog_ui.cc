@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/render_frame_host.h"
@@ -40,16 +40,14 @@ class ConstrainedWebDialogDelegateUserData
  public:
   explicit ConstrainedWebDialogDelegateUserData(
       ConstrainedWebDialogDelegate* delegate) : delegate_(delegate) {}
-  ~ConstrainedWebDialogDelegateUserData() override = default;
-  ConstrainedWebDialogDelegateUserData(
-      const ConstrainedWebDialogDelegateUserData&) = delete;
-  ConstrainedWebDialogDelegateUserData& operator=(
-      const ConstrainedWebDialogDelegateUserData&) = delete;
+  ~ConstrainedWebDialogDelegateUserData() override {}
 
   ConstrainedWebDialogDelegate* delegate() { return delegate_; }
 
  private:
-  raw_ptr<ConstrainedWebDialogDelegate> delegate_;  // unowned
+  ConstrainedWebDialogDelegate* delegate_;  // unowned
+
+  DISALLOW_COPY_AND_ASSIGN(ConstrainedWebDialogDelegateUserData);
 };
 
 }  // namespace
@@ -61,9 +59,10 @@ ConstrainedWebDialogUI::ConstrainedWebDialogUI(content::WebUI* web_ui)
 #endif
 }
 
-ConstrainedWebDialogUI::~ConstrainedWebDialogUI() = default;
+ConstrainedWebDialogUI::~ConstrainedWebDialogUI() {
+}
 
-void ConstrainedWebDialogUI::WebUIRenderFrameCreated(
+void ConstrainedWebDialogUI::RenderFrameCreated(
     RenderFrameHost* render_frame_host) {
   // Add a "dialogClose" callback which matches WebDialogUI behavior.
   web_ui()->RegisterMessageCallback(
@@ -87,22 +86,14 @@ void ConstrainedWebDialogUI::WebUIRenderFrameCreated(
   dialog_delegate->OnDialogShown(web_ui());
 }
 
-void ConstrainedWebDialogUI::OnDialogCloseMessage(
-    const base::Value::List& args) {
+void ConstrainedWebDialogUI::OnDialogCloseMessage(const base::ListValue* args) {
   ConstrainedWebDialogDelegate* delegate = GetConstrainedDelegate();
   if (!delegate)
     return;
 
   std::string json_retval;
-  if (!args.empty()) {
-    if (args[0].is_string()) {
-      json_retval = args[0].GetString();
-    } else {
-      NOTREACHED() << "Could not read JSON argument";
-    }
-  }
-
-  DCHECK(delegate->GetWebDialogDelegate());
+  if (!args->empty() && !args->GetString(0, &json_retval))
+    NOTREACHED() << "Could not read JSON argument";
   delegate->GetWebDialogDelegate()->OnDialogClosed(json_retval);
   delegate->OnDialogCloseFromWebUI();
 }
@@ -128,5 +119,5 @@ ConstrainedWebDialogDelegate* ConstrainedWebDialogUI::GetConstrainedDelegate() {
           web_ui()->GetWebContents()->
               GetUserData(&kConstrainedWebDialogDelegateUserDataKey));
 
-  return user_data ? user_data->delegate() : nullptr;
+  return user_data ? user_data->delegate() : NULL;
 }

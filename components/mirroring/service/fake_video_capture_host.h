@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 
 #include <string>
 
-#include "base/token.h"
-#include "base/unguessable_token.h"
 #include "media/capture/mojom/video_capture.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -18,14 +16,10 @@
 
 namespace mirroring {
 
-class FakeVideoCaptureHost : public media::mojom::VideoCaptureHost {
+class FakeVideoCaptureHost final : public media::mojom::VideoCaptureHost {
  public:
   explicit FakeVideoCaptureHost(
       mojo::PendingReceiver<media::mojom::VideoCaptureHost> receiver);
-
-  FakeVideoCaptureHost(const FakeVideoCaptureHost&) = delete;
-  FakeVideoCaptureHost& operator=(const FakeVideoCaptureHost&) = delete;
-
   ~FakeVideoCaptureHost() override;
 
   // mojom::VideoCaptureHost implementations
@@ -33,7 +27,7 @@ class FakeVideoCaptureHost : public media::mojom::VideoCaptureHost {
   MOCK_METHOD3(ReleaseBuffer,
                void(const base::UnguessableToken&,
                     int32_t,
-                    const media::VideoCaptureFeedback&));
+                    const media::VideoFrameFeedback&));
   MOCK_METHOD1(Pause, void(const base::UnguessableToken&));
   MOCK_METHOD3(Resume,
                void(const base::UnguessableToken&,
@@ -63,13 +57,11 @@ class FakeVideoCaptureHost : public media::mojom::VideoCaptureHost {
   // Create one video frame and send it to |observer_|.
   void SendOneFrame(const gfx::Size& size, base::TimeTicks capture_time);
 
-  // Get the most recent capture parameters passed to Start().
-  media::VideoCaptureParams GetVideoCaptureParams() const;
-
  private:
   mojo::Receiver<media::mojom::VideoCaptureHost> receiver_;
   mojo::Remote<media::mojom::VideoCaptureObserver> observer_;
-  media::VideoCaptureParams last_params_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeVideoCaptureHost);
 };
 
 }  // namespace mirroring

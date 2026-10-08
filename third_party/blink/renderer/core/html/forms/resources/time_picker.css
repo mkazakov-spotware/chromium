@@ -1,4 +1,4 @@
-/* Copyright 2019 The Chromium Authors
+/* Copyright (C) 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -90,6 +90,7 @@
   }
 
   .time-cell {
+    border: 1px solid transparent;
     color: #ffffff;
   }
 
@@ -102,6 +103,6 @@
   .time-cell.selected {
     background-color: #99C8FF;
     color: #3B3B3B;
-    border-color: #FFFFFF;
+    border: 1px solid #FFFFFF;
   }
 }

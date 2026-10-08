@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <dwrite.h>
 #include <dwrite_2.h>
 #include <dwrite_3.h>
-
 #include <set>
-#include <string>
+
+#include "base/location.h"
+#include "base/strings/string16.h"
 
 namespace content {
 
@@ -22,18 +23,18 @@ const HRESULT kErrorFontFileUtilEmptyFilePath =
     MAKE_HRESULT(SEVERITY_ERROR, FACILITY_ITF, 0xD002);
 
 HRESULT FontFilePathAndTtcIndex(IDWriteFontFace* font,
-                                std::wstring& file_path,
+                                base::string16& file_path,
                                 uint32_t& ttc_index);
 HRESULT FontFilePathAndTtcIndex(IDWriteFont* font,
-                                std::wstring& file_path,
+                                base::string16& file_path,
                                 uint32_t& ttc_index);
 HRESULT AddFilesForFont(IDWriteFont* font,
-                        const std::u16string& windows_fonts_path,
-                        std::set<std::wstring>* path_set,
-                        std::set<std::wstring>* custom_font_path_set,
+                        const base::string16& windows_fonts_path,
+                        std::set<base::string16>* path_set,
+                        std::set<base::string16>* custom_font_path_set,
                         uint32_t* ttc_index);
 
-std::u16string GetWindowsFontsPath();
+base::string16 GetWindowsFontsPath();
 
 }  // namespace content
 

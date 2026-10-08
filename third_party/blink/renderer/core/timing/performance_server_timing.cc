@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,18 +29,11 @@ ScriptValue PerformanceServerTiming::toJSONForBinding(
 Vector<mojom::blink::ServerTimingInfoPtr>
 PerformanceServerTiming::ParseServerTimingToMojo(
     const ResourceTimingInfo& info) {
-  const ResourceResponse& response = info.FinalResponse();
-  return ParseServerTimingFromHeaderValueToMojo(
-      response.HttpHeaderField(http_names::kServerTiming));
-}
-
-Vector<mojom::blink::ServerTimingInfoPtr>
-PerformanceServerTiming::ParseServerTimingFromHeaderValueToMojo(
-    const String& value) {
-  std::unique_ptr<ServerTimingHeaderVector> headers =
-      ParseServerTimingHeader(value);
   Vector<mojom::blink::ServerTimingInfoPtr> result;
-  result.reserve(headers->size());
+  const ResourceResponse& response = info.FinalResponse();
+  std::unique_ptr<ServerTimingHeaderVector> headers = ParseServerTimingHeader(
+      response.HttpHeaderField(http_names::kServerTiming));
+  result.ReserveCapacity(headers->size());
   for (const auto& header : *headers) {
     result.emplace_back(mojom::blink::ServerTimingInfo::New(
         header->Name(), header->Duration(), header->Description()));
@@ -54,7 +47,7 @@ PerformanceServerTiming::ParseServerTiming(const ResourceTimingInfo& info) {
   const ResourceResponse& response = info.FinalResponse();
   std::unique_ptr<ServerTimingHeaderVector> headers = ParseServerTimingHeader(
       response.HttpHeaderField(http_names::kServerTiming));
-  result.reserve(headers->size());
+  result.ReserveCapacity(headers->size());
   for (const auto& header : *headers) {
     result.push_back(MakeGarbageCollected<PerformanceServerTiming>(
         header->Name(), header->Duration(), header->Description()));

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <stddef.h>
 
-#include <deque>
 #include <vector>
 
 #include "components/zucchini/image_utils.h"
@@ -22,11 +21,11 @@ class TargetSource;
 // with a list of associated reference types, only used during patch generation.
 class TargetPool {
  public:
-  using const_iterator = std::deque<offset_t>::const_iterator;
+  using const_iterator = std::vector<offset_t>::const_iterator;
 
   TargetPool();
   // Initializes the object with given sorted and unique |targets|.
-  explicit TargetPool(std::deque<offset_t>&& targets);
+  explicit TargetPool(std::vector<offset_t>&& targets);
   TargetPool(TargetPool&&);
   TargetPool(const TargetPool&);
   ~TargetPool();
@@ -63,7 +62,7 @@ class TargetPool {
   void FilterAndProject(const OffsetMapper& offset_mapper);
 
   // Accessors for testing.
-  const std::deque<offset_t>& targets() const { return targets_; }
+  const std::vector<offset_t>& targets() const { return targets_; }
   const std::vector<TypeTag>& types() const { return types_; }
 
   // Returns the number of targets.
@@ -73,7 +72,7 @@ class TargetPool {
 
  private:
   std::vector<TypeTag> types_;     // Enumerates type_tag for this pool.
-  std::deque<offset_t> targets_;   // Targets for pool in ascending order.
+  std::vector<offset_t> targets_;  // Targets for pool in ascending order.
 };
 
 }  // namespace zucchini

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,7 @@
 #include "ui/gfx/native_widget_types.h"
 
 namespace gfx {
-class ImageSkia;
 class Point;
-class Vector2d;
 }
 
 namespace ui {
@@ -30,29 +28,18 @@ class DragDropClientObserver;
 // An interface implemented by an object that controls a drag and drop session.
 class AURA_EXPORT DragDropClient {
  public:
-  virtual ~DragDropClient() = default;
+  virtual ~DragDropClient() {}
 
   // Initiates a drag and drop session. Returns the drag operation that was
   // applied at the end of the drag drop session. |screen_location| is in
   // screen coordinates. At most one drag and drop operation is allowed.
   // It must not start drag operation while |IsDragDropInProgress| returns true.
-  virtual ui::mojom::DragOperation StartDragAndDrop(
-      std::unique_ptr<ui::OSExchangeData> data,
-      aura::Window* root_window,
-      aura::Window* source_window,
-      const gfx::Point& screen_location,
-      int allowed_operations,
-      ui::mojom::DragEventSource source) = 0;
-
-#if BUILDFLAG(IS_LINUX)
-  // Updates the drag image. An empty |image| may be used to hide a previously
-  // set non-empty drag image, and a non-empty |image| shows the drag image
-  // again if it was previously hidden.
-  //
-  // This must be called during an active drag and drop session.
-  virtual void UpdateDragImage(const gfx::ImageSkia& image,
-                               const gfx::Vector2d& offset) = 0;
-#endif  // BUILDFLAG(IS_LINUX)
+  virtual int StartDragAndDrop(std::unique_ptr<ui::OSExchangeData> data,
+                               aura::Window* root_window,
+                               aura::Window* source_window,
+                               const gfx::Point& screen_location,
+                               int operation,
+                               ui::mojom::DragEventSource source) = 0;
 
   // Called when a drag and drop session is cancelled.
   virtual void DragCancel() = 0;

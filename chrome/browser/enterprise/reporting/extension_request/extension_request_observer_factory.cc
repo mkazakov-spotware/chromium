@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/enterprise/reporting/extension_request/extension_request_observer_factory.h"
 
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/enterprise/reporting/extension_request/extension_request_observer.h"
 #include "chrome/browser/profiles/profile_manager.h"
 
 namespace enterprise_reporting {
@@ -17,8 +18,8 @@ ExtensionRequestObserverFactory::ExtensionRequestObserverFactory(
   } else {
     ProfileManager* profile_manager = g_browser_process->profile_manager();
     profile_manager->AddObserver(this);
-    for (Profile* loaded_profile : profile_manager->GetLoadedProfiles())
-      OnProfileAdded(loaded_profile);
+    for (Profile* profile : profile_manager->GetLoadedProfiles())
+      OnProfileAdded(profile);
   }
 }
 
@@ -34,25 +35,6 @@ ExtensionRequestObserverFactory::~ExtensionRequestObserverFactory() {
   }
 }
 
-bool ExtensionRequestObserverFactory::IsReportEnabled() {
-  return !report_trigger_.is_null();
-}
-
-void ExtensionRequestObserverFactory::EnableReport(
-    ExtensionRequestObserver::ReportTrigger trigger) {
-  report_trigger_ = trigger;
-  for (const auto& observerItem : observers_) {
-    observerItem.second->EnableReport(trigger);
-  }
-}
-
-void ExtensionRequestObserverFactory::DisableReport() {
-  report_trigger_.Reset();
-  for (const auto& observerItem : observers_) {
-    observerItem.second->DisableReport();
-  }
-}
-
 void ExtensionRequestObserverFactory::OnProfileAdded(Profile* profile) {
   if (profile->IsSystemProfile() || profile->IsGuestSession() ||
       profile->IsOffTheRecord()) {
@@ -64,10 +46,8 @@ void ExtensionRequestObserverFactory::OnProfileAdded(Profile* profile) {
 
   // Listen for OnProfileWillBeDestroyed() on this profile.
   profile->AddObserver(this);
-  auto observer = std::make_unique<ExtensionRequestObserver>(profile);
-  if (report_trigger_)
-    observer->EnableReport(report_trigger_);
-  observers_.emplace(profile, std::move(observer));
+  observers_.emplace(profile,
+                     std::make_unique<ExtensionRequestObserver>(profile));
 }
 
 void ExtensionRequestObserverFactory::OnProfileMarkedForPermanentDeletion(

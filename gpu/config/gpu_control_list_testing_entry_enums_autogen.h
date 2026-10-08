@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -89,10 +89,9 @@ enum GpuControlListTestingEntryEnum {
   kGpuControlListEntryTest_SubpixelFontRenderingDontCare = 73,
   kGpuControlListEntryTest_IntelDriverVendorEntry = 74,
   kGpuControlListEntryTest_IntelDriverVersionEntry = 75,
-  kGpuControlListEntryTest_DeviceRevisionEntry = 76,
-  kGpuControlListEntryTest_DeviceRevisionUnspecifiedEntry = 77,
-  kGpuControlListEntryTest_AnyDriverVersion = 78,
-  kGpuControlListEntryTest_ActiveDriverVersion = 79,
+  kGpuControlListEntryTest_IntelOldDriverVersionEntry = 76,
+  kGpuControlListEntryTest_DeviceRevisionEntry = 77,
+  kGpuControlListEntryTest_DeviceRevisionUnspecifiedEntry = 78,
 };
 }  // namespace gpu
 

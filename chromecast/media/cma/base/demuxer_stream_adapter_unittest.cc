@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,14 @@
 
 #include "base/bind.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chromecast/media/api/decoder_buffer_base.h"
 #include "chromecast/media/cma/base/balanced_media_task_runner_factory.h"
@@ -32,10 +34,6 @@ namespace media {
 class DemuxerStreamAdapterTest : public testing::Test {
  public:
   DemuxerStreamAdapterTest();
-
-  DemuxerStreamAdapterTest(const DemuxerStreamAdapterTest&) = delete;
-  DemuxerStreamAdapterTest& operator=(const DemuxerStreamAdapterTest&) = delete;
-
   ~DemuxerStreamAdapterTest() override;
 
   void Initialize(::media::DemuxerStream* demuxer_stream);
@@ -67,6 +65,8 @@ class DemuxerStreamAdapterTest : public testing::Test {
   std::unique_ptr<DemuxerStreamForTest> demuxer_stream_;
 
   std::unique_ptr<CodedFrameProvider> coded_frame_provider_;
+
+  DISALLOW_COPY_AND_ASSIGN(DemuxerStreamAdapterTest);
 };
 
 DemuxerStreamAdapterTest::DemuxerStreamAdapterTest()
@@ -78,9 +78,10 @@ DemuxerStreamAdapterTest::~DemuxerStreamAdapterTest() {
 
 void DemuxerStreamAdapterTest::Initialize(
     ::media::DemuxerStream* demuxer_stream) {
-  coded_frame_provider_.reset(new DemuxerStreamAdapter(
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      scoped_refptr<BalancedMediaTaskRunnerFactory>(), demuxer_stream));
+  coded_frame_provider_.reset(
+      new DemuxerStreamAdapter(base::ThreadTaskRunnerHandle::Get(),
+                               scoped_refptr<BalancedMediaTaskRunnerFactory>(),
+                               demuxer_stream));
 }
 
 void DemuxerStreamAdapterTest::Start() {
@@ -89,11 +90,11 @@ void DemuxerStreamAdapterTest::Start() {
   // TODO(damienv): currently, test assertions which fail do not trigger the
   // exit of the unit test, the message loop is still running. Find a different
   // way to exit the unit test.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&DemuxerStreamAdapterTest::OnTestTimeout,
                      base::Unretained(this)),
-      base::Seconds(5));
+      base::TimeDelta::FromSeconds(5));
 
   coded_frame_provider_->Read(base::BindOnce(
       &DemuxerStreamAdapterTest::OnNewFrame, base::Unretained(this)));
@@ -116,8 +117,8 @@ void DemuxerStreamAdapterTest::OnNewFrame(
   }
 
   ASSERT_TRUE(buffer.get() != NULL);
-  ASSERT_EQ(base::Microseconds(buffer->timestamp()),
-            base::Milliseconds(40 * frame_received_count_));
+  ASSERT_EQ(base::TimeDelta::FromMicroseconds(buffer->timestamp()),
+            base::TimeDelta::FromMilliseconds(40 * frame_received_count_));
   frame_received_count_++;
 
   if (frame_received_count_ >= total_frames_) {
@@ -134,7 +135,7 @@ void DemuxerStreamAdapterTest::OnNewFrame(
     base::OnceClosure flush_cb = base::BindOnce(
         &DemuxerStreamAdapterTest::OnFlushCompleted, base::Unretained(this));
     if (use_post_task_for_flush_) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(&CodedFrameProvider::Flush,
                          base::Unretained(coded_frame_provider_.get()),
@@ -165,7 +166,7 @@ TEST_F(DemuxerStreamAdapterTest, NoDelay) {
 
   base::test::SingleThreadTaskEnvironment task_environment;
   Initialize(demuxer_stream_.get());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&DemuxerStreamAdapterTest::Start, base::Unretained(this)));
   base::RunLoop().Run();
@@ -185,7 +186,7 @@ TEST_F(DemuxerStreamAdapterTest, AllDelayed) {
 
   base::test::SingleThreadTaskEnvironment task_environment;
   Initialize(demuxer_stream_.get());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&DemuxerStreamAdapterTest::Start, base::Unretained(this)));
   base::RunLoop().Run();
@@ -206,7 +207,7 @@ TEST_F(DemuxerStreamAdapterTest, AllDelayedEarlyFlush) {
 
   base::test::SingleThreadTaskEnvironment task_environment;
   Initialize(demuxer_stream_.get());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&DemuxerStreamAdapterTest::Start, base::Unretained(this)));
   base::RunLoop().Run();

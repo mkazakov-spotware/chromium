@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/callback.h"
 #include "base/component_export.h"
 #include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "device/fido/fido_device_discovery.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
@@ -37,10 +38,6 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoHidDiscovery
       device::mojom::HidManagerClient {
  public:
   explicit FidoHidDiscovery(base::flat_set<VidPid> ignore_list = {});
-
-  FidoHidDiscovery(const FidoHidDiscovery&) = delete;
-  FidoHidDiscovery& operator=(const FidoHidDiscovery&) = delete;
-
   ~FidoHidDiscovery() override;
 
   // Sets a callback for this class to use when binding a HidManager receiver.
@@ -55,7 +52,6 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoHidDiscovery
   // device::mojom::HidManagerClient implementation:
   void DeviceAdded(device::mojom::HidDeviceInfoPtr device_info) override;
   void DeviceRemoved(device::mojom::HidDeviceInfoPtr device_info) override;
-  void DeviceChanged(device::mojom::HidDeviceInfoPtr device_info) override;
 
   void OnGetDevices(std::vector<device::mojom::HidDeviceInfoPtr> devices);
 
@@ -64,6 +60,8 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoHidDiscovery
   HidDeviceFilter filter_;
   base::flat_set<VidPid> ignore_list_;
   base::WeakPtrFactory<FidoHidDiscovery> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FidoHidDiscovery);
 };
 
 }  // namespace device

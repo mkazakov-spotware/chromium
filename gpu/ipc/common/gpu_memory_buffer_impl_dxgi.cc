@@ -1,8 +1,7 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include <d3d11.h>
-#include <dxgi1_2.h>
 #include <wrl.h>
 
 #include "base/bind.h"
@@ -10,8 +9,6 @@
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/unguessable_token.h"
-#include "gpu/command_buffer/client/gpu_memory_buffer_manager.h"
 #include "gpu/ipc/common/gpu_memory_buffer_impl_dxgi.h"
 #include "gpu/ipc/common/gpu_memory_buffer_support.h"
 #include "ui/gfx/buffer_format_util.h"
@@ -23,21 +20,15 @@ namespace gpu {
 GpuMemoryBufferImplDXGI::~GpuMemoryBufferImplDXGI() {}
 
 std::unique_ptr<GpuMemoryBufferImplDXGI>
-GpuMemoryBufferImplDXGI::CreateFromHandle(
-    gfx::GpuMemoryBufferHandle handle,
-    const gfx::Size& size,
-    gfx::BufferFormat format,
-    gfx::BufferUsage usage,
-    DestructionCallback callback,
-    GpuMemoryBufferManager* gpu_memory_buffer_manager,
-    scoped_refptr<base::UnsafeSharedMemoryPool> pool,
-    base::span<uint8_t> premapped_memory) {
+GpuMemoryBufferImplDXGI::CreateFromHandle(gfx::GpuMemoryBufferHandle handle,
+                                          const gfx::Size& size,
+                                          gfx::BufferFormat format,
+                                          gfx::BufferUsage usage,
+                                          DestructionCallback callback) {
   DCHECK(handle.dxgi_handle.IsValid());
-  DCHECK(handle.dxgi_token.has_value());
-  return base::WrapUnique(new GpuMemoryBufferImplDXGI(
-      handle.id, size, format, std::move(callback),
-      std::move(handle.dxgi_handle), std::move(handle.dxgi_token.value()),
-      gpu_memory_buffer_manager, std::move(pool), premapped_memory));
+  return base::WrapUnique(
+      new GpuMemoryBufferImplDXGI(handle.id, size, format, std::move(callback),
+                                  std::move(handle.dxgi_handle)));
 }
 
 base::OnceClosure GpuMemoryBufferImplDXGI::AllocateForTesting(
@@ -58,8 +49,8 @@ base::OnceClosure GpuMemoryBufferImplDXGI::AllocateForTesting(
          usage == gfx::BufferUsage::SCANOUT);
 
   D3D11_TEXTURE2D_DESC desc = {
-      static_cast<UINT>(size.width()),
-      static_cast<UINT>(size.height()),
+      size.width(),
+      size.height(),
       1,
       1,
       DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -93,65 +84,14 @@ base::OnceClosure GpuMemoryBufferImplDXGI::AllocateForTesting(
 }
 
 bool GpuMemoryBufferImplDXGI::Map() {
-  base::AutoLock auto_lock(map_lock_);
-  if (map_count_++)
-    return true;
-
-  if (premapped_memory_.data()) {
-    return true;
-  }
-
-  DCHECK(!shared_memory_handle_);
-  CHECK(gpu_memory_buffer_manager_);
-  CHECK(shared_memory_pool_);
-
-  shared_memory_handle_ = shared_memory_pool_->MaybeAllocateBuffer(
-      gfx::BufferSizeForBufferFormat(size_, format_));
-  if (!shared_memory_handle_) {
-    --map_count_;
-    return false;
-  }
-
-  // Need to perform mapping in GPU process
-  if (!gpu_memory_buffer_manager_->CopyGpuMemoryBufferSync(
-          CloneHandle(), shared_memory_handle_->GetRegion().Duplicate())) {
-    shared_memory_handle_.reset();
-    --map_count_;
-    return false;
-  }
-
-  return true;
+  return false;  // The current implementation doesn't support mapping.
 }
 
 void* GpuMemoryBufferImplDXGI::memory(size_t plane) {
-  AssertMapped();
-
-  if (plane > gfx::NumberOfPlanesForLinearBufferFormat(format_) ||
-      (!shared_memory_handle_ && !premapped_memory_.data())) {
-    return nullptr;
-  }
-
-  uint8_t* plane_addr =
-      (premapped_memory_.data() ? premapped_memory_.data()
-                                : shared_memory_handle_->GetMapping()
-                                      .GetMemoryAsSpan<uint8_t>()
-                                      .data());
-  // This is safe, since we already checked that the requested plane is
-  // valid for current buffer format.
-  plane_addr += gfx::BufferOffsetForBufferFormat(size_, format_, plane);
-  return plane_addr;
+  return nullptr;  // The current implementation doesn't support mapping.
 }
 
-void GpuMemoryBufferImplDXGI::Unmap() {
-  base::AutoLock al(map_lock_);
-  DCHECK_GT(map_count_, 0u);
-  if (--map_count_)
-    return;
-
-  if (shared_memory_handle_) {
-    shared_memory_handle_.reset();
-  }
-}
+void GpuMemoryBufferImplDXGI::Unmap() {}
 
 int GpuMemoryBufferImplDXGI::stride(size_t plane) const {
   return gfx::RowSizeForBufferFormat(size_.width(), format_, plane);
@@ -175,13 +115,7 @@ gfx::GpuMemoryBufferHandle GpuMemoryBufferImplDXGI::CloneHandle() const {
   if (!result)
     DPLOG(ERROR) << "Failed to duplicate DXGI resource handle.";
   handle.dxgi_handle.Set(duplicated_handle);
-  handle.dxgi_token = dxgi_token_;
-
   return handle;
-}
-
-HANDLE GpuMemoryBufferImplDXGI::GetHandle() const {
-  return dxgi_handle_.Get();
 }
 
 GpuMemoryBufferImplDXGI::GpuMemoryBufferImplDXGI(
@@ -189,23 +123,8 @@ GpuMemoryBufferImplDXGI::GpuMemoryBufferImplDXGI(
     const gfx::Size& size,
     gfx::BufferFormat format,
     DestructionCallback callback,
-    base::win::ScopedHandle dxgi_handle,
-    gfx::DXGIHandleToken dxgi_token,
-    gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
-    scoped_refptr<base::UnsafeSharedMemoryPool> pool,
-    base::span<uint8_t> premapped_memory)
+    base::win::ScopedHandle dxgi_handle)
     : GpuMemoryBufferImpl(id, size, format, std::move(callback)),
-      dxgi_handle_(std::move(dxgi_handle)),
-      dxgi_token_(std::move(dxgi_token)),
-      gpu_memory_buffer_manager_(gpu_memory_buffer_manager),
-      shared_memory_pool_(std::move(pool)),
-      premapped_memory_(premapped_memory) {
-  if (premapped_memory_.data() &&
-      premapped_memory_.size() <
-          gfx::BufferSizeForBufferFormat(size_, format_)) {
-    LOG(ERROR)
-        << "GpuMemoryBufferImplDXGI: Premapped memory has insufficient size.";
-    premapped_memory_ = base::span<uint8_t>();
-  }
-}
+      dxgi_handle_(std::move(dxgi_handle)) {}
+
 }  // namespace gpu

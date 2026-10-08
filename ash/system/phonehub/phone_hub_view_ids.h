@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,9 @@ enum PhoneHubViewID {
   kTaskContinuationView,
 
   // Notification opt in view and its components.
-  kMultideviceFeatureOptInView,
-
-  // Sub feature opt in view buttons
-  kSubFeatureOptInConfirmButton,
-  kSubFeatureOptInDismissButton,
+  kNotificationOptInView,
+  kNotificationOptInSetUpButton,
+  kNotificationOptInDismissButton,
 
   // Onboarding view and its components.
   kOnboardingView,
@@ -32,8 +30,9 @@ enum PhoneHubViewID {
   kOnboardingDismissPromptView,
   kOnboardingDismissAckButton,
 
-  // Phone disconnected view and its components.
+  // Connection error view and its components.
   kDisconnectedView,
+  kReconnectingView,
   kDisconnectedLearnMoreButton,
   kDisconnectedRefreshButton,
 
@@ -42,14 +41,7 @@ enum PhoneHubViewID {
   kBluetoothDisabledLearnMoreButton,
 
   kPhoneConnectedView,
-  kPhoneConnectingView,
-  kTetherConnectionPendingView,
-
-  kPhoneHubRecentAppsView,
-
-  // Camera roll view and its components.
-  kCameraRollView,
-  kAppStreamLauncherView,
+  kInitialConnectingView,
 };
 
 }  // namespace ash

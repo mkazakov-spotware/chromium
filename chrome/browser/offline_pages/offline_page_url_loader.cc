@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "base/check_op.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "chrome/browser/offline_pages/offline_page_utils.h"
 #include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
 #include "components/offline_pages/core/offline_page_feature.h"
@@ -20,13 +20,14 @@
 #include "net/url_request/referrer_policy.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
+#include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 
 namespace offline_pages {
 
 namespace {
 
-constexpr uint32_t kBufferSize = 4096;
+constexpr size_t kBufferSize = 4096;
 
 content::WebContents* GetWebContents(int frame_tree_node_id) {
   return content::WebContents::FromFrameTreeNodeId(frame_tree_node_id);
@@ -91,7 +92,9 @@ OfflinePageURLLoader::OfflinePageURLLoader(
     : navigation_ui_data_(navigation_ui_data),
       frame_tree_node_id_(frame_tree_node_id),
       transition_type_(tentative_resource_request.transition_type),
-      loader_callback_(std::move(callback)) {
+      loader_callback_(std::move(callback)),
+      is_offline_preview_allowed_(tentative_resource_request.previews_state &
+                                  blink::PreviewsTypes::OFFLINE_PAGE_ON) {
   // TODO(crbug.com/876527): Figure out how offline page interception should
   // interact with URLLoaderThrottles. It might be incorrect to use
   // |tentative_resource_request.headers| here, since throttles can rewrite
@@ -113,7 +116,7 @@ void OfflinePageURLLoader::FollowRedirect(
     const std::vector<std::string>& removed_headers,
     const net::HttpRequestHeaders& modified_headers,
     const net::HttpRequestHeaders& modified_cors_exempt_headers,
-    const absl::optional<GURL>& new_url) {
+    const base::Optional<GURL>& new_url) {
   NOTREACHED();
 }
 
@@ -204,6 +207,10 @@ void OfflinePageURLLoader::SetOfflinePageNavigationUIData(
   navigation_data->SetOfflinePageNavigationUIData(std::move(offline_page_data));
 }
 
+bool OfflinePageURLLoader::ShouldAllowPreview() const {
+  return is_offline_preview_allowed_;
+}
+
 int OfflinePageURLLoader::GetPageTransition() const {
   return transition_type_;
 }
@@ -253,9 +260,8 @@ void OfflinePageURLLoader::OnReceiveResponse(
       &OfflinePageURLLoader::OnMojoDisconnect, weak_ptr_factory_.GetWeakPtr()));
   client_.Bind(std::move(client));
 
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  if (mojo::CreateDataPipe(kBufferSize, producer_handle_, consumer_handle) !=
-      MOJO_RESULT_OK) {
+  mojo::DataPipe pipe(kBufferSize);
+  if (!pipe.consumer_handle.is_valid()) {
     Finish(net::ERR_FAILED);
     return;
   }
@@ -282,12 +288,14 @@ void OfflinePageURLLoader::OnReceiveResponse(
   response_head->mime_type = "multipart/related";
   response_head->content_length = file_size;
 
-  client_->OnReceiveResponse(std::move(response_head),
-                             std::move(consumer_handle), absl::nullopt);
+  client_->OnReceiveResponse(std::move(response_head));
+  client_->OnStartLoadingResponseBody(std::move(pipe.consumer_handle));
+
+  producer_handle_ = std::move(pipe.producer_handle);
 
   handle_watcher_ = std::make_unique<mojo::SimpleWatcher>(
       FROM_HERE, mojo::SimpleWatcher::ArmingPolicy::MANUAL,
-      base::SequencedTaskRunner::GetCurrentDefault());
+      base::SequencedTaskRunnerHandle::Get());
   handle_watcher_->Watch(
       producer_handle_.get(), MOJO_HANDLE_SIGNAL_WRITABLE,
       MOJO_WATCH_CONDITION_SATISFIED,

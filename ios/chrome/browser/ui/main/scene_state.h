@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,22 +65,23 @@ typedef NS_ENUM(NSUInteger, SceneActivationLevel) {
 @property(nonatomic) BOOL incognitoContentVisible;
 
 // Window for the associated scene, if any.
-@property(nonatomic, readonly) UIWindow* window;
+@property(nonatomic, strong) UIWindow* window;
 
-// The scene object backing this scene state. It's in a 1-to-1 relationship and
-// the window scene owns this object (indirectly through scene delegate).
-@property(nonatomic, weak) UIWindowScene* scene;
+@property(nonatomic, weak) UIWindowScene* scene API_AVAILABLE(ios(13));
 
-// Connection options of `scene`, if any, from when the scene was connected.
-@property(nonatomic, strong) UISceneConnectionOptions* connectionOptions;
+@property(nonatomic, strong)
+    UISceneConnectionOptions* connectionOptions API_AVAILABLE(ios(13));
 
 // The interface provider associated with this scene.
 @property(nonatomic, strong, readonly) id<BrowserInterfaceProvider>
     interfaceProvider;
 
-// The persistent identifier for the scene session. This should be used instead
-// of -[UISceneSession persistentIdentifier].
+// The persistent identifier for the scene session.
 @property(nonatomic, readonly) NSString* sceneSessionID;
+
+// True if First Run UI (terms of service & sync sign-in) is being presented
+// in a modal dialog.
+@property(nonatomic, assign) BOOL presentingFirstRunUI;
 
 // The controller for this scene.
 @property(nonatomic, weak) SceneController* controller;
@@ -92,33 +93,19 @@ typedef NS_ENUM(NSUInteger, SceneActivationLevel) {
 // external intent.
 @property(nonatomic, assign) BOOL startupHadExternalIntent;
 
-// URLs passed to `UIWindowSceneDelegate scene:openURLContexts:` that needs to
+// URLs passed to |UIWindowSceneDelegate scene:openURLContexts:| that needs to
 // be open next time the scene is activated.
 // Setting the property to not nil will add the new URL contexts to the set.
 // Setting the property to nil will clear the set.
-@property(nonatomic) NSSet<UIOpenURLContext*>* URLContextsToOpen;
+@property(nonatomic)
+    NSSet<UIOpenURLContext*>* URLContextsToOpen API_AVAILABLE(ios(13));
 
 // A NSUserActivity that has been passed to
-// `UISceneDelegate scene:continueUserActivity:` and needs to be opened.
+// |UISceneDelegate scene:continueUserActivity:| and needs to be opened.
 @property(nonatomic) NSUserActivity* pendingUserActivity;
 
-// YES if the UI is enabled. The browser UI objects are available when this is
-// YES.
-@property(nonatomic, assign) BOOL UIEnabled;
-
-// YES if the QR scanner is visible.
-@property(nonatomic, assign) BOOL QRScannerVisible;
-
-// YES if the visible NTP should be modified for the Start Surface.
-//
-// This flag is set by SceneController to YES when the Start Surface should be
-// shown. It is checked by the NewTabPageCoordinator to modify the NTP
-// accordingly, and then reset it to NO.
-@property(nonatomic, assign) BOOL modifytVisibleNTPForStartSurface;
-
-// YES if sign-in is in progress which covers the authentication flow and the
-// sign-in prompt UI.
-@property(nonatomic, assign) BOOL signinInProgress;
+// A flag that keeps track of the UI initialization for the controlled scene.
+@property(nonatomic, assign) BOOL hasInitializedUI;
 
 // Adds an observer to this scene state. The observers will be notified about
 // scene state changes per SceneStateObserver protocol.
@@ -133,11 +120,11 @@ typedef NS_ENUM(NSUInteger, SceneActivationLevel) {
 // Array of all agents added to this scene state.
 - (NSArray*)connectedAgents;
 
-// Retrieves per-session preference for `key`. May return nil if the key is
+// Retrieves per-session preference for |key|. May return nil if the key is
 // not found.
 - (NSObject*)sessionObjectForKey:(NSString*)key;
 
-// Stores `object` as a per-session preference if supported by the device or
+// Stores |object| as a per-session preference if supported by the device or
 // into NSUserDefaults otherwise (old table, phone, ...).
 - (void)setSessionObject:(NSObject*)object forKey:(NSString*)key;
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,10 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "base/threading/thread_checker_impl.h"
 #include "base/time/time.h"
@@ -24,15 +25,12 @@
 #include "components/download/public/common/download_destination_observer.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
 #include "components/download/public/common/download_item.h"
-#include "components/download/public/common/download_item_rename_progress_update.h"
 #include "components/download/public/common/download_job.h"
 #include "components/download/public/common/download_url_parameters.h"
 #include "components/download/public/common/resume_mode.h"
 #include "components/download/public/common/url_loader_factory_provider.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "services/device/public/mojom/wake_lock_provider.mojom.h"
-#include "services/network/public/mojom/fetch_api.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -53,20 +51,16 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   struct COMPONENTS_DOWNLOAD_EXPORT RequestInfo {
     RequestInfo(const std::vector<GURL>& url_chain,
                 const GURL& referrer_url,
-                const std::string& serialized_embedder_download_data,
+                const GURL& site_url,
                 const GURL& tab_url,
                 const GURL& tab_referrer_url,
-                const absl::optional<url::Origin>& request_initiator,
+                const base::Optional<url::Origin>& request_initiator,
                 const std::string& suggested_filename,
                 const base::FilePath& forced_file_path,
                 ui::PageTransition transition_type,
                 bool has_user_gesture,
                 const std::string& remote_address,
-                base::Time start_time,
-                ::network::mojom::CredentialsMode credentials_mode,
-                const absl::optional<net::IsolationInfo>& isolation_info,
-                int64_t range_request_from,
-                int64_t range_request_to);
+                base::Time start_time);
     RequestInfo();
     explicit RequestInfo(const RequestInfo& other);
     explicit RequestInfo(const GURL& url);
@@ -78,11 +72,8 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
     // The URL of the page that initiated the download.
     GURL referrer_url;
 
-    // The serialized embedder download data for the site instance that
-    // initiated this download. The embedder can use this field to add
-    // additional information about the download, such as the
-    // StoragePartitionConfig that pertains to it.
-    std::string serialized_embedder_download_data;
+    // Site URL for the site instance that initiated this download.
+    GURL site_url;
 
     // The URL of the tab that initiated the download.
     GURL tab_url;
@@ -91,7 +82,7 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
     GURL tab_referrer_url;
 
     // The origin of the requester that originally initiated the download.
-    absl::optional<url::Origin> request_initiator;
+    base::Optional<url::Origin> request_initiator;
 
     // Filename suggestion from DownloadSaveInfo. It could, among others, be the
     // suggested filename in 'download' attribute of an anchor. Details:
@@ -113,18 +104,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
 
     // Time the download was started.
     base::Time start_time;
-
-    // The credentials mode of the request.
-    ::network::mojom::CredentialsMode credentials_mode =
-        ::network::mojom::CredentialsMode::kInclude;
-
-    // Isolation info for the request.
-    absl::optional<net::IsolationInfo> isolation_info;
-
-    // Range request offsets. Used only for explicitly download part of the
-    // content.
-    int64_t range_request_from = kInvalidRange;
-    int64_t range_request_to = kInvalidRange;
   };
 
   // Information about the current state of the download destination.
@@ -194,10 +173,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
       const base::FilePath& target_path,
       const std::vector<GURL>& url_chain,
       const GURL& referrer_url,
-      const std::string& serialized_embedder_download_data,
+      const GURL& site_url,
       const GURL& tab_url,
       const GURL& tab_referrer_url,
-      const absl::optional<url::Origin>& request_initiator,
+      const base::Optional<url::Origin>& request_initiator,
       const std::string& mime_type,
       const std::string& original_mime_type,
       base::Time start_time,
@@ -217,9 +196,7 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
       base::Time last_access_time,
       bool transient,
       const std::vector<DownloadItem::ReceivedSlice>& received_slices,
-      const DownloadItemRerouteInfo& reroute_info,
-      int64_t range_request_from,
-      int64_t range_request_to,
+      base::Optional<DownloadSchedule> download_schedule,
       std::unique_ptr<DownloadEntry> download_entry);
 
   // Constructing for a regular download.
@@ -236,9 +213,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
                    const GURL& url,
                    const std::string& mime_type,
                    DownloadJob::CancelRequestCallback cancel_request_callback);
-
-  DownloadItemImpl(const DownloadItemImpl&) = delete;
-  DownloadItemImpl& operator=(const DownloadItemImpl&) = delete;
 
   ~DownloadItemImpl() override;
 
@@ -269,15 +243,14 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   bool IsDone() const override;
   int64_t GetBytesWasted() const override;
   int32_t GetAutoResumeCount() const override;
-  bool IsOffTheRecord() const override;
   const GURL& GetURL() const override;
   const std::vector<GURL>& GetUrlChain() const override;
   const GURL& GetOriginalUrl() const override;
   const GURL& GetReferrerUrl() const override;
-  const std::string& GetSerializedEmbedderDownloadData() const override;
+  const GURL& GetSiteUrl() const override;
   const GURL& GetTabUrl() const override;
   const GURL& GetTabReferrerUrl() const override;
-  const absl::optional<url::Origin>& GetRequestInitiator() const override;
+  const base::Optional<url::Origin>& GetRequestInitiator() const override;
   std::string GetSuggestedFilename() const override;
   const scoped_refptr<const net::HttpResponseHeaders>& GetResponseHeaders()
       const override;
@@ -301,8 +274,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   bool GetFileExternallyRemoved() const override;
   void DeleteFile(base::OnceCallback<void(bool)> callback) override;
   DownloadFile* GetDownloadFile() override;
-  DownloadItemRenameHandler* GetRenameHandler() override;
-  const DownloadItemRerouteInfo& GetRerouteInfo() const override;
   bool IsDangerous() const override;
   bool IsMixedContent() const override;
   DownloadDangerType GetDangerType() const override;
@@ -326,14 +297,14 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   bool GetOpened() const override;
   base::Time GetLastAccessTime() const override;
   bool IsTransient() const override;
-  bool RequireSafetyChecks() const override;
   bool IsParallelDownload() const override;
   DownloadCreationType GetDownloadCreationType() const override;
-  ::network::mojom::CredentialsMode GetCredentialsMode() const override;
-  const absl::optional<net::IsolationInfo>& GetIsolationInfo() const override;
+  const base::Optional<DownloadSchedule>& GetDownloadSchedule() const override;
   void OnContentCheckCompleted(DownloadDangerType danger_type,
                                DownloadInterruptReason reason) override;
   void OnAsyncScanningCompleted(DownloadDangerType danger_type) override;
+  void OnDownloadScheduleChanged(
+      base::Optional<DownloadSchedule> schedule) override;
   void SetOpenWhenComplete(bool open) override;
   void SetOpened(bool opened) override;
   void SetLastAccessTime(base::Time last_access_time) override;
@@ -412,8 +383,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
 
   // Gets the approximate memory usage of this item.
   size_t GetApproximateMemoryUsage() const;
-
-  std::pair<int64_t, int64_t> GetRangeRequestOffset() const;
 
  private:
   // Fine grained states of a download.
@@ -591,22 +560,31 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   // be used (see TargetDisposition). |danger_type| is the danger level of
   // |target_path| as determined by the caller. |intermediate_path| is the path
   // to use to store the download until OnDownloadCompleting() is called.
-  // If |display_name| is empty, the download should keep its current display
-  // name. Otherwise, the new display name should be used.
   virtual void OnDownloadTargetDetermined(
       const base::FilePath& target_path,
       TargetDisposition disposition,
       DownloadDangerType danger_type,
       MixedContentStatus mixed_content_status,
       const base::FilePath& intermediate_path,
-      const base::FilePath& display_name,
-      const std::string& mime_type,
+      base::Optional<DownloadSchedule> download_schedule,
       DownloadInterruptReason interrupt_reason);
 
   void OnDownloadRenamedToIntermediateName(DownloadInterruptReason reason,
                                            const base::FilePath& full_path);
 
   void OnTargetResolved();
+
+  // If |download_schedule_| presents, maybe interrupt the download and start
+  // later. Returns whether the download should be started later.
+  bool MaybeDownloadLater();
+
+  // Returns whether the download should proceed later based on network
+  // condition and user scheduled start time defined in |download_schedule_|.
+  bool ShouldDownloadLater() const;
+
+  // Swap the |download_schedule_| with new data, may pass in base::nullopt to
+  // remove the schedule.
+  void SwapDownloadSchedule(base::Optional<DownloadSchedule> download_schedule);
 
   // If all pre-requisites have been met, complete download processing, i.e. do
   // internal cleanup, file rename, and potentially auto-open.  (Dangerous
@@ -617,15 +595,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   // This may perform final rename if necessary and will eventually call
   // DownloadItem::Completed().
   void OnDownloadCompleting();
-
-  // Called by |rename_handler_| to update state variables when necessary.
-  // This may update |destination_info_.target_file_path| as confirmed by
-  // rerouted location to be reflected in the UI/UX, and attach other reroute
-  // specific metadata into |reroute_info_| to be persisted into the databases.
-  // However, this will not transition the internal |state_|, because the
-  // |rename_handler_| will eventually run OnDownloadRenamedToFinalName() on
-  // completion.
-  void OnRenameHandlerUpdate(const DownloadItemRenameProgressUpdate& update);
 
   void OnDownloadRenamedToFinalName(DownloadInterruptReason reason,
                                     const base::FilePath& full_path);
@@ -783,7 +752,7 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   base::ObserverList<Observer>::Unchecked observers_;
 
   // Our delegate.
-  raw_ptr<DownloadItemImplDelegate> delegate_ = nullptr;
+  DownloadItemImplDelegate* delegate_ = nullptr;
 
   // A flag for indicating if the download should be opened at completion.
   bool open_when_complete_ = false;
@@ -818,9 +787,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
 
   // Whether the download item should be transient and not shown in the UI.
   bool transient_ = false;
-
-  // Whether the download requires safe browsing check.
-  bool require_safety_checks_ = true;
 
   // Did the delegate delay calling Complete on this download?
   bool delegate_delayed_complete_ = false;
@@ -893,14 +859,14 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItemImpl
   // The MixedContentStatus if determined.
   MixedContentStatus mixed_content_status_ = MixedContentStatus::UNKNOWN;
 
-  // A handler for renaming and helping with display the item.
-  std::unique_ptr<DownloadItemRenameHandler> rename_handler_;
-  // Metadata specific to the rename handler.
-  DownloadItemRerouteInfo reroute_info_;
+  // Defines when to start the download. Used by download later feature.
+  base::Optional<DownloadSchedule> download_schedule_;
 
   THREAD_CHECKER(thread_checker_);
 
   base::WeakPtrFactory<DownloadItemImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadItemImpl);
 };
 
 }  // namespace download

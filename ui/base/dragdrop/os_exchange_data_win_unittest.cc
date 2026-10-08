@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "base/win/scoped_hglobal.h"
@@ -21,7 +19,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
 #include "ui/base/clipboard/clipboard_format_type.h"
-#include "ui/base/clipboard/file_info.h"
+#include "ui/base/dragdrop/file_info/file_info.h"
 #include "ui/base/dragdrop/os_exchange_data_provider_win.h"
 #include "url/gurl.h"
 
@@ -146,7 +144,7 @@ class OSExchangeDataWinTest : public ::testing::Test {
 TEST_F(OSExchangeDataWinTest, StringDataAccessViaCOM) {
   OSExchangeData data;
   std::wstring input = L"O hai googlz.";
-  data.SetString(base::AsString16(input));
+  data.SetString(input);
   Microsoft::WRL::ComPtr<IDataObject> com_data(
       OSExchangeDataProviderWin::GetIDataObject(data));
 
@@ -189,10 +187,10 @@ TEST_F(OSExchangeDataWinTest, StringDataWritingViaCOM) {
   OSExchangeData data2(data.provider().Clone());
   EXPECT_TRUE(data2.HasURL(FilenameToURLPolicy::CONVERT_FILENAMES));
   GURL url_from_data;
-  std::u16string title;
+  std::wstring title;
   EXPECT_TRUE(data2.GetURLAndTitle(FilenameToURLPolicy::CONVERT_FILENAMES,
                                    &url_from_data, &title));
-  GURL reference_url(base::AsStringPiece16(input));
+  GURL reference_url(input);
   EXPECT_EQ(reference_url.spec(), url_from_data.spec());
 }
 
@@ -237,16 +235,16 @@ TEST_F(OSExchangeDataWinTest, RemoveData) {
   OSExchangeData data2(data.provider().Clone());
   EXPECT_TRUE(data2.HasURL(FilenameToURLPolicy::CONVERT_FILENAMES));
   GURL url_from_data;
-  std::u16string title;
+  std::wstring title;
   EXPECT_TRUE(data2.GetURLAndTitle(FilenameToURLPolicy::CONVERT_FILENAMES,
                                    &url_from_data, &title));
-  EXPECT_EQ(GURL(base::AsStringPiece16(input2)).spec(), url_from_data.spec());
+  EXPECT_EQ(GURL(input2).spec(), url_from_data.spec());
 }
 
 TEST_F(OSExchangeDataWinTest, URLDataAccessViaCOM) {
   OSExchangeData data;
   GURL url("http://www.google.com/");
-  data.SetURL(url, std::u16string());
+  data.SetURL(url, L"");
   Microsoft::WRL::ComPtr<IDataObject> com_data(
       OSExchangeDataProviderWin::GetIDataObject(data));
 
@@ -267,8 +265,8 @@ TEST_F(OSExchangeDataWinTest, MultipleFormatsViaCOM) {
   OSExchangeData data;
   std::string url_spec = "http://www.google.com/";
   GURL url(url_spec);
-  std::u16string text = u"O hai googlz.";
-  data.SetURL(url, u"Google");
+  std::wstring text = L"O hai googlz.";
+  data.SetURL(url, L"Google");
   data.SetString(text);
 
   Microsoft::WRL::ComPtr<IDataObject> com_data(
@@ -300,8 +298,8 @@ TEST_F(OSExchangeDataWinTest, MultipleFormatsViaCOM) {
 
 TEST_F(OSExchangeDataWinTest, EnumerationViaCOM) {
   OSExchangeData data;
-  data.SetURL(GURL("http://www.google.com/"), std::u16string());
-  data.SetString(u"O hai googlz.");
+  data.SetURL(GURL("http://www.google.com/"), L"");
+  data.SetString(L"O hai googlz.");
 
   CLIPFORMAT cfstr_file_group_descriptor =
       RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR);
@@ -390,7 +388,7 @@ TEST_F(OSExchangeDataWinTest, TestURLExchangeFormatsViaCOM) {
   OSExchangeData data;
   std::string url_spec = "http://www.google.com/";
   GURL url(url_spec);
-  std::u16string url_title = u"www.google.com";
+  std::wstring url_title = L"www.google.com";
   data.SetURL(url, url_title);
 
   // File contents access via COM
@@ -719,15 +717,16 @@ TEST_F(OSExchangeDataWinTest, VirtualFilesDuplicateNamesCaseInsensitivity) {
 }
 
 TEST_F(OSExchangeDataWinTest, VirtualFilesInvalidAndDuplicateNames) {
-  const std::wstring kInvalidFileNameCharacters(
+  const base::string16 kInvalidFileNameCharacters(
       FILE_PATH_LITERAL("\\/:*?\"<>|"));
-  const std::wstring kInvalidFilePathCharacters(FILE_PATH_LITERAL("/*?\"<>|"));
+  const base::string16 kInvalidFilePathCharacters(
+      FILE_PATH_LITERAL("/*?\"<>|"));
   const base::FilePath kPathWithInvalidFileNameCharacters =
       base::FilePath(kInvalidFileNameCharacters)
           .AddExtension(FILE_PATH_LITERAL("txt"));
   const base::FilePath kEmptyDisplayName(FILE_PATH_LITERAL(""));
   const base::FilePath kMaxPathDisplayName =
-      base::FilePath(std::wstring(MAX_PATH - 5, L'a'))
+      base::FilePath(base::string16(MAX_PATH - 5, L'a'))
           .AddExtension(FILE_PATH_LITERAL("txt"));
 
   const std::vector<std::pair<base::FilePath, std::string>>
@@ -763,7 +762,7 @@ TEST_F(OSExchangeDataWinTest, VirtualFilesInvalidAndDuplicateNames) {
     EXPECT_EQ(kTestFilenamesAndContents.size(), file_infos.size());
     for (size_t i = 0; i < file_infos.size(); i++) {
       // Check that display name does not contain invalid characters.
-      EXPECT_EQ(std::wstring::npos,
+      EXPECT_EQ(std::string::npos,
                 file_infos[i].display_name.value().find_first_of(
                     kInvalidFileNameCharacters));
       // Check that display name is unique.
@@ -791,7 +790,7 @@ TEST_F(OSExchangeDataWinTest, VirtualFilesInvalidAndDuplicateNames) {
     EXPECT_EQ(kTestFilenamesAndContents.size(), file_infos.size());
     for (size_t i = 0; i < retrieved_virtual_files_.size(); i++) {
       // Check that display name does not contain invalid characters.
-      EXPECT_EQ(std::wstring::npos,
+      EXPECT_EQ(std::string::npos,
                 retrieved_virtual_files_[i].display_name.value().find_first_of(
                     kInvalidFileNameCharacters));
       // Check that display name is unique.
@@ -802,7 +801,7 @@ TEST_F(OSExchangeDataWinTest, VirtualFilesInvalidAndDuplicateNames) {
       }
       // Check that temp file path does not contain invalid characters (except
       // for separator).
-      EXPECT_EQ(std::wstring::npos,
+      EXPECT_EQ(std::string::npos,
                 retrieved_virtual_files_[i].path.value().find_first_of(
                     kInvalidFilePathCharacters));
       // Check that temp file path is unique.
@@ -904,10 +903,10 @@ TEST_F(OSExchangeDataWinTest, VirtualFilesEmptyContents) {
 TEST_F(OSExchangeDataWinTest, CFHtml) {
   OSExchangeData data;
   GURL url("http://www.google.com/");
-  std::u16string html(
-      u"<HTML>\n<BODY>\n"
-      u"<b>bold.</b> <i><b>This is bold italic.</b></i>\n"
-      u"</BODY>\n</HTML>");
+  std::wstring html(
+      L"<HTML>\n<BODY>\n"
+      L"<b>bold.</b> <i><b>This is bold italic.</b></i>\n"
+      L"</BODY>\n</HTML>");
   data.SetHtml(html, url);
 
   // Check the CF_HTML too.
@@ -916,10 +915,10 @@ TEST_F(OSExchangeDataWinTest, CFHtml) {
       "StartFragment:0000000175\r\nEndFragment:0000000252\r\n"
       "SourceURL:http://www.google.com/\r\n<html>\r\n<body>\r\n"
       "<!--StartFragment-->");
-  expected_cf_html += base::UTF16ToUTF8(html);
+  expected_cf_html += base::WideToUTF8(html);
   expected_cf_html.append("<!--EndFragment-->\r\n</body>\r\n</html>");
 
-  FORMATETC format = ClipboardFormatType::HtmlType().ToFormatEtc();
+  FORMATETC format = ClipboardFormatType::GetHtmlType().ToFormatEtc();
   STGMEDIUM medium;
   IDataObject* data_object = OSExchangeDataProviderWin::GetIDataObject(data);
   EXPECT_EQ(S_OK, data_object->GetData(&format, &medium));
@@ -931,18 +930,18 @@ TEST_F(OSExchangeDataWinTest, CFHtml) {
 
 TEST_F(OSExchangeDataWinTest, SetURLWithMaxPath) {
   OSExchangeData data;
-  std::u16string long_title(MAX_PATH + 1, u'a');
+  std::wstring long_title(MAX_PATH + 1, L'a');
   data.SetURL(GURL("http://google.com"), long_title);
 }
 
 TEST_F(OSExchangeDataWinTest, ProvideURLForPlainTextURL) {
   OSExchangeData data;
-  data.SetString(u"http://google.com");
+  data.SetString(L"http://google.com");
 
   OSExchangeData data2(data.provider().Clone());
   ASSERT_TRUE(data2.HasURL(FilenameToURLPolicy::CONVERT_FILENAMES));
   GURL read_url;
-  std::u16string title;
+  std::wstring title;
   EXPECT_TRUE(data2.GetURLAndTitle(FilenameToURLPolicy::CONVERT_FILENAMES,
                                    &read_url, &title));
   EXPECT_EQ(GURL("http://google.com"), read_url);

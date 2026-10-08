@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,13 @@ import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
+import org.chromium.components.signin.AccountManagerFacade;
 import org.chromium.components.signin.base.AccountInfo;
-import org.chromium.components.signin.base.CoreAccountId;
 import org.chromium.components.signin.base.CoreAccountInfo;
 
-import java.util.List;
 /**
  * IdentityManager provides access to native IdentityManager's public API to java components.
  */
@@ -31,11 +29,17 @@ public class IdentityManager {
      */
     public interface Observer {
         /**
-         * Called for all types of changes to the primary account such as - primary account
-         * set/cleared or sync consent granted/revoked in C++.
-         * @param eventDetails Details about the primary account change event.
+         * Called when an account becomes the user's primary account.
+         * This method is not called during a reauth.
          */
-        default void onPrimaryAccountChanged(PrimaryAccountChangeEvent eventDetails) {}
+        default void onPrimaryAccountSet(CoreAccountInfo account) {}
+
+        /**
+         * Called when the user moves from having a primary account to no longer having a primary
+         * account (note that the user may still have an *unconsented* primary account after this
+         * event).
+         */
+        default void onPrimaryAccountCleared(CoreAccountInfo account) {}
 
         /**
          * Called when the Gaia cookie has been deleted explicitly by a user action, e.g. from
@@ -55,24 +59,23 @@ public class IdentityManager {
             extends ProfileOAuth2TokenServiceDelegate.GetAccessTokenCallback {}
 
     private long mNativeIdentityManager;
-    private final ProfileOAuth2TokenServiceDelegate mProfileOAuth2TokenServiceDelegate;
+    private ProfileOAuth2TokenServiceDelegate mProfileOAuth2TokenServiceDelegate;
 
     private final ObserverList<Observer> mObservers = new ObserverList<>();
-    private Callback<CoreAccountInfo> mRefreshTokenUpdateObserver;
 
     /**
      * Called by native to create an instance of IdentityManager.
      */
     @CalledByNative
-    @VisibleForTesting
-    public static IdentityManager create(long nativeIdentityManager,
+    private static IdentityManager create(long nativeIdentityManager,
             ProfileOAuth2TokenServiceDelegate profileOAuth2TokenServiceDelegate) {
+        assert nativeIdentityManager != 0;
         return new IdentityManager(nativeIdentityManager, profileOAuth2TokenServiceDelegate);
     }
 
-    private IdentityManager(long nativeIdentityManager,
+    @VisibleForTesting
+    public IdentityManager(long nativeIdentityManager,
             ProfileOAuth2TokenServiceDelegate profileOAuth2TokenServiceDelegate) {
-        assert nativeIdentityManager != 0;
         mNativeIdentityManager = nativeIdentityManager;
         mProfileOAuth2TokenServiceDelegate = profileOAuth2TokenServiceDelegate;
     }
@@ -100,14 +103,23 @@ public class IdentityManager {
     }
 
     /**
-     * Called for all types of changes to the primary account such as - primary account set/cleared
-     * or sync consent granted/revoked in C++.
+     * Notifies observers that the primary account was set in C++.
+     */
+    @CalledByNative
+    private void onPrimaryAccountSet(CoreAccountInfo account) {
+        for (Observer observer : mObservers) {
+            observer.onPrimaryAccountSet(account);
+        }
+    }
+
+    /**
+     * Notifies observers that the primary account was cleared in C++.
      */
     @CalledByNative
     @VisibleForTesting
-    public void onPrimaryAccountChanged(PrimaryAccountChangeEvent eventDetails) {
+    public void onPrimaryAccountCleared(CoreAccountInfo account) {
         for (Observer observer : mObservers) {
-            observer.onPrimaryAccountChanged(eventDetails);
+            observer.onPrimaryAccountCleared(account);
         }
     }
 
@@ -131,21 +143,10 @@ public class IdentityManager {
     }
 
     /**
-     * Called when the refresh token of the give account gets updated.
-     */
-    @CalledByNative
-    private void onRefreshTokenUpdatedForAccount(CoreAccountInfo coreAccountInfo) {
-        if (mRefreshTokenUpdateObserver != null) {
-            mRefreshTokenUpdateObserver.onResult(coreAccountInfo);
-        }
-    }
-
-    /**
      * Returns whether the user's primary account is available.
-     * @param consentLevel {@link ConsentLevel} necessary for the caller.
      */
-    public boolean hasPrimaryAccount(@ConsentLevel int consentLevel) {
-        return getPrimaryAccountInfo(consentLevel) != null;
+    public boolean hasPrimaryAccount() {
+        return getPrimaryAccountInfo(ConsentLevel.SYNC) != null;
     }
 
     /**
@@ -156,12 +157,20 @@ public class IdentityManager {
         return IdentityManagerJni.get().getAccountsWithRefreshTokens(mNativeIdentityManager);
     }
 
+    // TODO(https://crbug.com/1046746): Remove this after migrating internal usages.
+    /** @deprecated Use {@link #getPrimaryAccountInfo(int)} instead. */
+    @Deprecated
+    public @Nullable CoreAccountInfo getPrimaryAccountInfo() {
+        return getPrimaryAccountInfo(ConsentLevel.SYNC);
+    }
+
     /**
      * Provides access to the core information of the user's primary account.
      * Returns non-null if the primary account was set AND the required consent level was granted,
      * null otherwise.
      *
-     * @param consentLevel {@link ConsentLevel} necessary for the caller.
+     * @param consentLevel {@link ConsentLevel} necessary for the caller. Most features should use
+     *         {@link ConsentLevel.SYNC}.
      */
     public @Nullable CoreAccountInfo getPrimaryAccountInfo(@ConsentLevel int consentLevel) {
         return IdentityManagerJni.get().getPrimaryAccountInfo(mNativeIdentityManager, consentLevel);
@@ -171,20 +180,11 @@ public class IdentityManager {
      * Looks up and returns information for account with given |email|. If the account
      * cannot be found, return a null value.
      */
-    public @Nullable AccountInfo findExtendedAccountInfoByEmailAddress(String email) {
-        return IdentityManagerJni.get().findExtendedAccountInfoByEmailAddress(
-                mNativeIdentityManager, email);
-    }
-
-    /**
-     * Refreshes extended {@link AccountInfo} with image for the given
-     * list of {@link CoreAccountInfo} if the existing ones are stale.
-     */
-    public void refreshAccountInfoIfStale(List<CoreAccountInfo> accountInfos) {
-        for (CoreAccountInfo accountInfo : accountInfos) {
-            IdentityManagerJni.get().refreshAccountInfoIfStale(
-                    mNativeIdentityManager, accountInfo.getId());
-        }
+    public @Nullable AccountInfo findExtendedAccountInfoForAccountWithRefreshTokenByEmailAddress(
+            String email) {
+        return IdentityManagerJni.get()
+                .findExtendedAccountInfoForAccountWithRefreshTokenByEmailAddress(
+                        mNativeIdentityManager, email);
     }
 
     /**
@@ -202,6 +202,27 @@ public class IdentityManager {
     }
 
     /**
+     * Call this method to retrieve an OAuth2 access token for the given account and scope. Please
+     * note that this method expects a scope with 'oauth2:' prefix.
+     *
+     * @deprecated Use getAccessToken instead. crbug.com/1014098: This method is available as a
+     *         workaround for a callsite where native is not initialized yet.
+     *
+     * @param accountManagerFacade AccountManagerFacade to request the access token from.
+     * @param account the account to get the access token for.
+     * @param scope The scope to get an auth token for (with Android-style 'oauth2:' prefix).
+     * @param callback called on successful and unsuccessful fetching of auth token.
+     */
+    @MainThread
+    @Deprecated
+    public static void getAccessTokenWithFacade(AccountManagerFacade accountManagerFacade,
+            Account account, String scope, GetAccessTokenCallback callback) {
+        // TODO(crbug.com/934688) The following should call a JNI method instead.
+        ProfileOAuth2TokenServiceDelegate.getAccessTokenWithFacade(
+                accountManagerFacade, account, scope, callback);
+    }
+
+    /**
      * Called by native to invalidate an OAuth2 token. Please note that the token is invalidated
      * asynchronously.
      */
@@ -213,9 +234,24 @@ public class IdentityManager {
         mProfileOAuth2TokenServiceDelegate.invalidateAccessToken(accessToken);
     }
 
-    @VisibleForTesting
-    public void setRefreshTokenUpdateObserverForTests(Callback<CoreAccountInfo> callback) {
-        mRefreshTokenUpdateObserver = callback;
+    /**
+     * Invalidates the old token (if non-null/non-empty) and asynchronously generates a new one.
+     *
+     * @deprecated Use invalidateAccessToken and getAccessToken instead. TODO(crbug.com/1002894):
+     *         This method is needed by InvalidationClientService which is not necessary anymore.
+     *
+     * @param accountManagerFacade AccountManagerFacade to request the access token from.
+     * @param account the account to get the access token for.
+     * @param oldToken The old token to be invalidated or null.
+     * @param scope The scope to get an auth token for (with Android-style 'oauth2:' prefix).
+     * @param callback called on successful and unsuccessful fetching of auth token.
+     */
+    @Deprecated
+    public static void getNewAccessTokenWithFacade(AccountManagerFacade accountManagerFacade,
+            Account account, @Nullable String oldToken, String scope,
+            GetAccessTokenCallback callback) {
+        ProfileOAuth2TokenServiceDelegate.getNewAccessTokenWithFacade(
+                accountManagerFacade, account, oldToken, scope, callback);
     }
 
     @NativeMethods
@@ -223,8 +259,8 @@ public class IdentityManager {
         @Nullable
         CoreAccountInfo getPrimaryAccountInfo(long nativeIdentityManager, int consentLevel);
         @Nullable
-        AccountInfo findExtendedAccountInfoByEmailAddress(long nativeIdentityManager, String email);
+        AccountInfo findExtendedAccountInfoForAccountWithRefreshTokenByEmailAddress(
+                long nativeIdentityManager, String email);
         CoreAccountInfo[] getAccountsWithRefreshTokens(long nativeIdentityManager);
-        void refreshAccountInfoIfStale(long nativeIdentityManager, CoreAccountId coreAccountId);
     }
 }

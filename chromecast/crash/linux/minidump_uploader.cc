@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,9 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/path_service.h"
-#include "base/strings/string_number_conversions.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_split.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/base/cast_paths.h"
 #include "chromecast/base/pref_names.h"
 #include "chromecast/base/version.h"
@@ -61,7 +61,7 @@ std::unique_ptr<PrefService> CreatePrefService() {
 
   PrefServiceFactory prefServiceFactory;
   prefServiceFactory.SetUserPrefsFile(
-      prefs_path, base::SingleThreadTaskRunner::GetCurrentDefault().get());
+      prefs_path, base::ThreadTaskRunnerHandle::Get().get());
   return prefServiceFactory.Create(registry);
 }
 
@@ -140,7 +140,6 @@ bool MinidumpUploader::DoWork() {
     const DumpInfo& dump = *(dumps.front());
     const base::FilePath dump_path(dump.crashed_process_dump());
     base::FilePath log_path(dump.logfile());
-    const std::vector<std::string>& attachments(dump.attachments());
 
     bool ignore_and_erase_dump = false;
     if (!opt_in_stats) {
@@ -170,12 +169,6 @@ bool MinidumpUploader::DoWork() {
     if (ignore_and_erase_dump) {
       base::DeleteFile(dump_path);
       base::DeleteFile(log_path);
-      for (const auto& attachment : attachments) {
-        base::FilePath attachment_path(attachment);
-        if (attachment_path.DirName() == dump_path.DirName()) {
-          base::DeleteFile(attachment_path);
-        }
-      }
       dumps.erase(dumps.begin());
       continue;
     }
@@ -186,12 +179,6 @@ bool MinidumpUploader::DoWork() {
     if (!dump_path.empty() && !base::GetFileSize(dump_path, &size)) {
       // either the file does not exist, or there was an error logging its
       // path, or settings its permission; regardless, we can't upload it.
-      for (const auto& attachment : attachments) {
-        base::FilePath attachment_path(attachment);
-        if (attachment_path.DirName() == dump_path.DirName()) {
-          base::DeleteFile(attachment_path);
-        }
-      }
       dumps.erase(dumps.begin());
       continue;
     }
@@ -215,22 +202,12 @@ bool MinidumpUploader::DoWork() {
     LOG(INFO) << "Uploading crash to " << upload_location_;
     CastCrashdumpData crashdump_data;
     crashdump_data.product = kProductName;
-    crashdump_data.version = GetVersionString(
-        dump.params().cast_release_version, dump.params().cast_build_number);
+    crashdump_data.version = GetVersionString();
     crashdump_data.guid = client_id;
     crashdump_data.ptime = uptime_stream.str();
     crashdump_data.comments = comment.str();
     crashdump_data.minidump_pathname = dump_path.value();
     crashdump_data.crash_server = upload_location_;
-
-    // set upload_file parameter based on exec_name
-    std::string upload_filename;
-    if (dump.params().exec_name == "kernel") {
-      upload_filename = "upload_file_ramoops";
-    } else {
-      upload_filename = "upload_file_minidump";
-    }
-    crashdump_data.upload_filename = std::move(upload_filename);
 
     // Depending on if a testing CastCrashdumpUploader object has been set,
     // assign |g| as a reference to the correct object.
@@ -241,13 +218,6 @@ bool MinidumpUploader::DoWork() {
       LOG(ERROR) << "Could not attach log file " << log_path.value();
       // Don't fail to upload just because of this.
       comment << "Could not attach log file " << log_path.value() << ". ";
-    }
-
-    int attachment_count = 0;
-    for (const auto& attachment : attachments) {
-      std::string label =
-          "attachment_" + base::NumberToString(attachment_count++);
-      g.AddAttachment(label, attachment);
     }
 
     // Dump some Android properties directly into product data.
@@ -278,14 +248,8 @@ bool MinidumpUploader::DoWork() {
     if (!dump.params().reason.empty()) {
       g.SetParameter("reason", dump.params().reason);
     }
-    if (!dump.params().exec_name.empty()) {
-      g.SetParameter("exec_name", dump.params().exec_name);
-    }
     if (!dump.params().stadia_session_id.empty()) {
       g.SetParameter("stadia_session_id", dump.params().stadia_session_id);
-    }
-    if (!dump.params().signature.empty()) {
-      g.SetParameter("signature", dump.params().signature);
     }
     if (!dump.params().extra_info.empty()) {
       std::vector<std::string> pairs = base::SplitString(dump.params().extra_info,
@@ -329,17 +293,6 @@ bool MinidumpUploader::DoWork() {
     if (!log_path.empty() && !base::DeleteFile(log_path)) {
       LOG(WARNING) << "remove log " << log_path.value() << " failed"
                    << strerror(errno);
-    }
-    // delete the attachments
-    if (!dump_path.empty()) {
-      for (const auto& attachment : attachments) {
-        base::FilePath attachment_path(attachment);
-        if (attachment_path.DirName() == dump_path.DirName() &&
-            !base::DeleteFile(attachment_path)) {
-          LOG(WARNING) << "remove attachment " << attachment << " failed"
-                       << strerror(errno);
-        }
-      }
     }
     ++num_uploaded;
   }

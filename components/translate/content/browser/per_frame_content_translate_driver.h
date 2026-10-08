@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <map>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "components/services/language_detection/public/cpp/language_detection_service.h"
 #include "components/translate/content/browser/content_translate_driver.h"
 #include "components/translate/content/common/translate.mojom.h"
@@ -23,6 +23,7 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 
 namespace content {
+class NavigationController;
 class WebContents;
 }  // namespace content
 
@@ -39,14 +40,8 @@ struct LanguageDetectionDetails;
 class PerFrameContentTranslateDriver : public ContentTranslateDriver {
  public:
   PerFrameContentTranslateDriver(
-      content::WebContents& web_contents,
+      content::NavigationController* nav_controller,
       language::UrlLanguageHistogram* url_language_histogram);
-
-  PerFrameContentTranslateDriver(const PerFrameContentTranslateDriver&) =
-      delete;
-  PerFrameContentTranslateDriver& operator=(
-      const PerFrameContentTranslateDriver&) = delete;
-
   ~PerFrameContentTranslateDriver() override;
 
   // TranslateDriver methods.
@@ -57,13 +52,15 @@ class PerFrameContentTranslateDriver : public ContentTranslateDriver {
   void RevertTranslation(int page_seq_no) override;
 
   // content::WebContentsObserver implementation.
+  void NavigationEntryCommitted(
+      const content::LoadCommittedDetails& load_details) override;
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
   void DOMContentLoaded(content::RenderFrameHost* render_frame_host) override;
-  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
+  void DocumentOnLoadCompletedInMainFrame() override;
 
   void OnPageLanguageDetermined(const LanguageDetectionDetails& details,
-                                bool page_level_translation_critiera_met);
+                                bool page_needs_translation);
 
  private:
   friend class PerFrameContentTranslateDriverTest;
@@ -78,17 +75,14 @@ class PerFrameContentTranslateDriver : public ContentTranslateDriver {
     void Report();
 
     int pending_request_count = 0;
-    bool outermost_main_frame_success = false;
+    bool main_frame_success = false;
     int frame_request_count = 0;
     int frame_success_count = 0;
-    TranslateErrors outermost_main_frame_error = TranslateErrors::NONE;
-    std::vector<TranslateErrors> frame_errors;
+    TranslateErrors::Type main_frame_error = TranslateErrors::NONE;
+    std::vector<TranslateErrors::Type> frame_errors;
   };
 
   void StartLanguageDetection();
-
-  void InitiateTranslationIfReload(
-      content::NavigationHandle* navigation_handle);
 
   void TranslateFrame(const std::string& translate_script,
                       const std::string& source_lang,
@@ -109,7 +103,7 @@ class PerFrameContentTranslateDriver : public ContentTranslateDriver {
       bool has_no_translate_meta);
 
   void OnPageContents(base::TimeTicks capture_begin_time,
-                      const std::u16string& contents);
+                      const base::string16& contents);
 
   void OnPageContentsLanguage(
       mojo::Remote<language_detection::mojom::LanguageDetectionService>
@@ -127,9 +121,9 @@ class PerFrameContentTranslateDriver : public ContentTranslateDriver {
       bool is_main_frame,
       mojo::AssociatedRemote<mojom::TranslateAgent> translate_agent,
       bool cancelled,
-      const std::string& source_lang,
+      const std::string& original_lang,
       const std::string& translated_lang,
-      TranslateErrors error_type);
+      TranslateErrors::Type error_type);
 
   int IncrementSeqNo(int seq_no) { return (seq_no % 100000) + 1; }
 
@@ -158,6 +152,8 @@ class PerFrameContentTranslateDriver : public ContentTranslateDriver {
 
   base::WeakPtrFactory<PerFrameContentTranslateDriver> weak_pointer_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(PerFrameContentTranslateDriver);
 };
 
 }  // namespace translate

@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,7 +10,7 @@ from selenium.common.exceptions import NoSuchElementException
 from pywinauto.application import Application
 from pywinauto.findwindows import ElementNotFoundError
 
-from test_util import create_chrome_webdriver
+import test_util
 
 FLAGS = flags.FLAGS
 
@@ -23,7 +23,7 @@ def main(argv):
   #Always set useAutomationExtension as false to avoid failing launch Chrome
   #https://bugs.chromium.org/p/chromedriver/issues/detail?id=2930
   chrome_options.add_experimental_option("useAutomationExtension", False)
-  driver = create_chrome_webdriver(chrome_options=chrome_options)
+  driver = test_util.create_chrome_webdriver(chrome_options=chrome_options)
   app = Application(backend="uia")
   app.connect(title_re='.*Chrome|.*Chromium')
   driver.get(FLAGS.url)

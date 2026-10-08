@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_METRICS_STABILITY_METRICS_PROVIDER_H_
 #define COMPONENTS_METRICS_STABILITY_METRICS_PROVIDER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/metrics/metrics_provider.h"
@@ -21,19 +20,21 @@ class SystemProfileProto;
 class StabilityMetricsProvider : public MetricsProvider {
  public:
   explicit StabilityMetricsProvider(PrefService* local_state);
-
-  StabilityMetricsProvider(const StabilityMetricsProvider&) = delete;
-  StabilityMetricsProvider& operator=(const StabilityMetricsProvider&) = delete;
-
   ~StabilityMetricsProvider() override;
 
   static void RegisterPrefs(PrefRegistrySimple* registry);
+
+  void RecordBreakpadRegistration(bool success);
+  void RecordBreakpadHasDebugger(bool has_debugger);
+
+  void CheckLastSessionEndCompleted();
+  void MarkSessionEndCompleted(bool end_completed);
 
   void LogCrash(base::Time last_live_timestamp);
   void LogLaunch();
 
  private:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // This function is virtual for testing. The |last_live_timestamp| is a
   // time point where the previous browser was known to be alive, and is used
   // to determine whether the system session embedding that timestamp terminated
@@ -53,7 +54,9 @@ class StabilityMetricsProvider : public MetricsProvider {
   void ProvideStabilityMetrics(
       SystemProfileProto* system_profile_proto) override;
 
-  raw_ptr<PrefService> local_state_;
+  PrefService* local_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(StabilityMetricsProvider);
 };
 
 }  // namespace metrics

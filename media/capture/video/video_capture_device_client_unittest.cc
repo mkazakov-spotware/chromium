@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,10 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "media/base/limits.h"
-#include "media/base/video_frame.h"
 #include "media/capture/video/mock_gpu_memory_buffer_manager.h"
 #include "media/capture/video/mock_video_frame_receiver.h"
 #include "media/capture/video/video_capture_buffer_pool_impl.h"
@@ -23,9 +22,9 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
 #include "media/capture/video/chromeos/video_capture_jpeg_decoder.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 
 using ::testing::_;
 using ::testing::AtLeast;
@@ -39,11 +38,11 @@ namespace media {
 
 namespace {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
 std::unique_ptr<VideoCaptureJpegDecoder> ReturnNullPtrAsJpecDecoder() {
   return nullptr;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
 
 }  // namespace
 
@@ -56,13 +55,13 @@ class VideoCaptureDeviceClientTest : public ::testing::Test {
  public:
   VideoCaptureDeviceClientTest() {
     scoped_refptr<VideoCaptureBufferPoolImpl> buffer_pool(
-        new VideoCaptureBufferPoolImpl(VideoCaptureBufferType::kSharedMemory,
-                                       2));
+        new VideoCaptureBufferPoolImpl(
+            VideoCaptureBufferType::kSharedMemory, 2));
     auto controller = std::make_unique<NiceMock<MockVideoFrameReceiver>>();
     receiver_ = controller.get();
     gpu_memory_buffer_manager_ =
         std::make_unique<unittest_internal::MockGpuMemoryBufferManager>();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
     device_client_ = std::make_unique<VideoCaptureDeviceClient>(
         VideoCaptureBufferType::kSharedMemory, std::move(controller),
         buffer_pool, base::BindRepeating(&ReturnNullPtrAsJpecDecoder));
@@ -70,20 +69,18 @@ class VideoCaptureDeviceClientTest : public ::testing::Test {
     device_client_ = std::make_unique<VideoCaptureDeviceClient>(
         VideoCaptureBufferType::kSharedMemory, std::move(controller),
         buffer_pool);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ASH)
   }
-
-  VideoCaptureDeviceClientTest(const VideoCaptureDeviceClientTest&) = delete;
-  VideoCaptureDeviceClientTest& operator=(const VideoCaptureDeviceClientTest&) =
-      delete;
-
   ~VideoCaptureDeviceClientTest() override = default;
 
  protected:
-  raw_ptr<NiceMock<MockVideoFrameReceiver>> receiver_;
+  NiceMock<MockVideoFrameReceiver>* receiver_;
   std::unique_ptr<unittest_internal::MockGpuMemoryBufferManager>
       gpu_memory_buffer_manager_;
   std::unique_ptr<VideoCaptureDeviceClient> device_client_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureDeviceClientTest);
 };
 
 // A small test for reference and to verify VideoCaptureDeviceClient is
@@ -113,8 +110,8 @@ TEST_F(VideoCaptureDeviceClientTest, Minimal) {
   std::unique_ptr<gfx::GpuMemoryBuffer> buffer =
       gpu_memory_buffer_manager_->CreateFakeGpuMemoryBuffer(
           kBufferDimensions, gfx::BufferFormat::YUV_420_BIPLANAR,
-          gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE,
-          gpu::kNullSurfaceHandle, nullptr);
+          gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE,
+          gpu::kNullSurfaceHandle);
   {
     InSequence s;
     const int expected_buffer_id = 0;
@@ -154,8 +151,7 @@ TEST_F(VideoCaptureDeviceClientTest, FailsSilentlyGivenInvalidFrameFormat) {
   std::unique_ptr<gfx::GpuMemoryBuffer> buffer =
       gpu_memory_buffer_manager_->CreateFakeGpuMemoryBuffer(
           kBufferDimensions, gfx::BufferFormat::YUV_420_BIPLANAR,
-          gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE, gpu::kNullSurfaceHandle,
-          nullptr);
+          gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE, gpu::kNullSurfaceHandle);
   EXPECT_CALL(*receiver_, MockOnFrameReadyInBuffer(_, _, _)).Times(0);
   device_client_->OnIncomingCapturedGfxBuffer(
       buffer.get(), kFrameFormat, 0 /*clockwise rotation*/, base::TimeTicks(),
@@ -231,7 +227,7 @@ TEST_F(VideoCaptureDeviceClientTest, DataCaptureGoodPixelFormats) {
     PIXEL_FORMAT_NV21,
     PIXEL_FORMAT_YUY2,
     PIXEL_FORMAT_UYVY,
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS)
     PIXEL_FORMAT_RGB24,
 #endif
     PIXEL_FORMAT_ARGB,
@@ -245,9 +241,7 @@ TEST_F(VideoCaptureDeviceClientTest, DataCaptureGoodPixelFormats) {
     EXPECT_CALL(*receiver_, OnLog(_)).Times(1);
     EXPECT_CALL(*receiver_, MockOnFrameReadyInBuffer(_, _, _)).Times(1);
     device_client_->OnIncomingCapturedData(
-        data,
-        media::VideoFrame::AllocationSize(params.requested_format.pixel_format,
-                                          params.requested_format.frame_size),
+        data, params.requested_format.ImageAllocationSize(),
         params.requested_format, kColorSpace, 0 /* clockwise_rotation */,
         false /* flip_y */, base::TimeTicks(), base::TimeDelta());
     Mock::VerifyAndClearExpectations(receiver_);
@@ -287,9 +281,7 @@ TEST_F(VideoCaptureDeviceClientTest, CheckRotationsAndCrops) {
         .Times(1)
         .WillOnce(SaveArg<2>(&coded_size));
     device_client_->OnIncomingCapturedData(
-        data,
-        media::VideoFrame::AllocationSize(params.requested_format.pixel_format,
-                                          params.requested_format.frame_size),
+        data, params.requested_format.ImageAllocationSize(),
         params.requested_format, gfx::ColorSpace(), size_and_rotation.rotation,
         false /* flip_y */, base::TimeTicks(), base::TimeDelta());
 
@@ -314,7 +306,7 @@ TEST_F(VideoCaptureDeviceClientTest, CheckRotationsAndCrops) {
             size_and_rotation.input_resolution,
             gfx::BufferFormat::YUV_420_BIPLANAR,
             gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE,
-            gpu::kNullSurfaceHandle, nullptr);
+            gpu::kNullSurfaceHandle);
 
     gfx::Size coded_size;
     EXPECT_CALL(*receiver_, MockOnFrameReadyInBuffer(_, _, _))

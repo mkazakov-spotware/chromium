@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,64 +10,29 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/containers/flat_map.h"
-#include "base/feature_list.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
+#include "chrome/browser/ui/hats/hats_survey_status_checker.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
 class WebContents;
 }
 
-namespace user_prefs {
-class PrefRegistrySyncable;
-}
-
 class Browser;
+class PrefRegistrySimple;
 class Profile;
 
 // Trigger identifiers currently used; duplicates not allowed.
-extern const char kHatsSurveyTriggerAccuracyTips[];
-extern const char kHatsSurveyTriggerAutofillAddress[];
-extern const char kHatsSurveyTriggerAutofillCard[];
-extern const char kHatsSurveyTriggerAutofillPassword[];
-extern const char kHatsSurveyTriggerDevToolsIssuesCOEP[];
-extern const char kHatsSurveyTriggerDevToolsIssuesMixedContent[];
-extern const char kHatsSurveyTriggerDevToolsIssuesCookiesSameSite[];
-extern const char kHatsSurveyTriggerDevToolsIssuesHeavyAd[];
-extern const char kHatsSurveyTriggerDevToolsIssuesCSP[];
-extern const char kHatsSurveyTriggerJourneysHistoryEntrypoint[];
-extern const char kHatsSurveyTriggerJourneysOmniboxEntrypoint[];
-extern const char kHatsSurveyTriggerNtpModules[];
-extern const char kHatsSurveyTriggerNtpPhotosModuleOptOut[];
-extern const char kHatsSurveyTriggerPermissionsPostPrompt[];
-extern const char kHatsSurveyTriggerPrivacyGuide[];
-extern const char kHatsSurveyTriggerPrivacySandbox[];
+extern const char kHatsSurveyTriggerTesting[];
+extern const char kHatsSurveyTriggerSatisfaction[];
 extern const char kHatsSurveyTriggerSettings[];
 extern const char kHatsSurveyTriggerSettingsPrivacy[];
-extern const char kHatsSurveyTriggerTesting[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySandbox3ConsentAccept[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySandbox3ConsentDecline[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySandbox3NoticeDismiss[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySandbox3NoticeOk[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySandbox3NoticeSettings[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySandbox3NoticeLearnMore[];
-extern const char kHatsSurveyTriggerTrustSafetyPrivacySettings[];
-extern const char kHatsSurveyTriggerTrustSafetyTrustedSurface[];
-extern const char kHatsSurveyTriggerTrustSafetyTransactions[];
-extern const char kHatsSurveyTriggerTrustSafetyV2BrowsingData[];
-extern const char kHatsSurveyTriggerTrustSafetyV2ControlGroup[];
-extern const char kHatsSurveyTriggerTrustSafetyV2PasswordCheck[];
-extern const char kHatsSurveyTriggerTrustSafetyV2SafetyCheck[];
-extern const char kHatsSurveyTriggerTrustSafetyV2TrustedSurface[];
-extern const char kHatsSurveyTriggerTrustSafetyV2PrivacyGuide[];
-extern const char kHatsSurveyTriggerWhatsNew[];
+extern const char kHatsSurveyTriggerDevToolsIssuesCookiesSameSite[];
 
 // The Trigger ID for a test HaTS Next survey which is available for testing
 // and demo purposes when the migration feature flag is enabled.
@@ -77,58 +42,28 @@ extern const char kHatsNextSurveyTriggerIDTesting[];
 // reason why not.
 extern const char kHatsShouldShowSurveyReasonHistogram[];
 
-// Key-value mapping type for survey's product specific bits data.
-typedef std::map<std::string, bool> SurveyBitsData;
-
-// Key-value mapping type for survey's product specific string data.
-typedef std::map<std::string, std::string> SurveyStringData;
-
 // This class provides the client side logic for determining if a
 // survey should be shown for any trigger based on input from a finch
 // configuration. It is created on a per profile basis.
 class HatsService : public KeyedService {
  public:
   struct SurveyConfig {
-    // Constructs a SurveyConfig by inspecting |feature|. This includes checking
-    // if the feature is enabled, as well as inspecting the feature parameters
-    // for the survey probability, and if |presupplied_trigger_id| is not
-    // provided, the trigger ID. To pass any product specific data for the
-    // survey, configure fields here, matches are CHECK enforced.
-    SurveyConfig(
-        const base::Feature* feature,
-        const std::string& trigger,
-        const absl::optional<std::string>& presupplied_trigger_id =
-            absl::nullopt,
-        const std::vector<std::string>& product_specific_bits_data_fields = {},
-        const std::vector<std::string>& product_specific_string_data_fields =
-            {});
-    SurveyConfig();
-    SurveyConfig(const SurveyConfig&);
-    ~SurveyConfig();
+    SurveyConfig(double probability, std::string en_site_id, bool user_prompted)
+        : probability_(probability),
+          en_site_id_(std::move(en_site_id)),
+          user_prompted_(user_prompted) {}
 
-    // Whether the survey is currently enabled and can be shown.
-    bool enabled = false;
+    SurveyConfig() = default;
 
     // Probability [0,1] of how likely a chosen user will see the survey.
-    double probability = 0.0f;
+    double probability_;
 
-    // The trigger for this survey within the browser.
-    std::string trigger;
-
-    // Trigger ID for the survey.
-    std::string trigger_id;
+    // Site ID for the survey.
+    std::string en_site_id_;
 
     // The survey will prompt every time because the user has explicitly decided
     // to take the survey e.g. clicking a link.
-    bool user_prompted = false;
-
-    // Product Specific Bit Data fields which are sent with the survey
-    // response.
-    std::vector<std::string> product_specific_bits_data_fields;
-
-    // Product Specific String Data fields which are sent with the survey
-    // response.
-    std::vector<std::string> product_specific_string_data_fields;
+    bool user_prompted_;
   };
 
   struct SurveyMetadata {
@@ -136,23 +71,20 @@ class HatsService : public KeyedService {
     ~SurveyMetadata();
 
     // Trigger specific metadata.
-    absl::optional<int> last_major_version;
-    absl::optional<base::Time> last_survey_started_time;
-    absl::optional<bool> is_survey_full;
-    absl::optional<base::Time> last_survey_check_time;
+    base::Optional<int> last_major_version;
+    base::Optional<base::Time> last_survey_started_time;
+    base::Optional<bool> is_survey_full;
+    base::Optional<base::Time> last_survey_check_time;
 
     // Metadata affecting all triggers.
-    absl::optional<base::Time> any_last_survey_started_time;
+    base::Optional<base::Time> any_last_survey_started_time;
   };
 
   class DelayedSurveyTask : public content::WebContentsObserver {
    public:
     DelayedSurveyTask(HatsService* hats_service,
                       const std::string& trigger,
-                      content::WebContents* web_contents,
-                      const SurveyBitsData& product_specific_bits_data,
-                      const SurveyStringData& product_specific_string_data,
-                      bool require_same_origin);
+                      content::WebContents* web_contents);
 
     // Not copyable or movable
     DelayedSurveyTask(const DelayedSurveyTask&) = delete;
@@ -165,8 +97,6 @@ class HatsService : public KeyedService {
     void Launch();
 
     // content::WebContentsObserver
-    void DidFinishNavigation(
-        content::NavigationHandle* navigation_handle) override;
     void WebContentsDestroyed() override;
 
     // Returns a weak pointer to this object.
@@ -178,11 +108,8 @@ class HatsService : public KeyedService {
     }
 
    private:
-    raw_ptr<HatsService> hats_service_;
+    HatsService* hats_service_;
     std::string trigger_;
-    SurveyBitsData product_specific_bits_data_;
-    SurveyStringData product_specific_string_data_;
-    bool require_same_origin_;
     base::WeakPtrFactory<DelayedSurveyTask> weak_ptr_factory_{this};
   };
 
@@ -209,38 +136,25 @@ class HatsService : public KeyedService {
     kMaxValue = kNoRejectedByHatsService,
   };
 
-  explicit HatsService(Profile* profile);
-
-  HatsService(const HatsService&) = delete;
-  HatsService& operator=(const HatsService&) = delete;
-
   ~HatsService() override;
 
-  static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
+  explicit HatsService(Profile* profile);
+
+  static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
   // Launches survey with identifier |trigger| if appropriate.
   // |success_callback| is called when the survey is shown to the user.
   // |failure_callback| is called if the survey does not launch for any reason.
-  // |product_specific_bits_data| and |product_specific_string_data| must
-  // contain key-value pairs where the keys match the field names set for the
-  // survey in hats_service.cc, and the values are those which will be
-  // associated with the survey response. Field's matches are CHECK enforced.
   virtual void LaunchSurvey(
       const std::string& trigger,
       base::OnceClosure success_callback = base::DoNothing(),
-      base::OnceClosure failure_callback = base::DoNothing(),
-      const SurveyBitsData& product_specific_bits_data = {},
-      const SurveyStringData& product_specific_string_data = {});
+      base::OnceClosure failure_callback = base::DoNothing());
 
   // Launches survey (with id |trigger|) with a timeout |timeout_ms| if
   // appropriate. Survey will be shown at the active window/tab by the
   // time of launching. Rejects (and returns false) if the underlying task
   // posting fails.
-  virtual bool LaunchDelayedSurvey(
-      const std::string& trigger,
-      int timeout_ms,
-      const SurveyBitsData& product_specific_bits_data = {},
-      const SurveyStringData& product_specific_string_data = {});
+  virtual bool LaunchDelayedSurvey(const std::string& trigger, int timeout_ms);
 
   // Launches survey (with id |trigger|) with a timeout |timeout_ms| for tab
   // |web_contents| if appropriate. |web_contents| required to be non-nullptr.
@@ -248,20 +162,17 @@ class HatsService : public KeyedService {
   // is also cancelled if |web_contents| not visible at the time of launch.
   // Rejects (and returns false) if there is already an identical delayed-task
   // (same |trigger| and same |web_contents|) waiting to be fulfilled. Also
-  // rejects if the underlying task posting fails. If |require_same_origin| is
-  // set, additionally requires that |web_contents| remain on the same origin.
+  // rejects if the underlying task posting fails.
   virtual bool LaunchDelayedSurveyForWebContents(
       const std::string& trigger,
       content::WebContents* web_contents,
-      int timeout_ms,
-      const SurveyBitsData& product_specific_bits_data = {},
-      const SurveyStringData& product_specific_string_data = {},
-      bool require_same_origin = false);
+      int timeout_ms);
 
   // Updates the user preferences to record that the survey associated with
-  // |survey_id| was shown to the user. |trigger_id| is the HaTS next Trigger
-  // ID for the survey.
-  void RecordSurveyAsShown(std::string trigger_id);
+  // |survey_id| was shown to the user. |survey_id| is the unique_id provided
+  // to the HaTS Service to identify a survey. This is the trigger ID for HaTS
+  // Next, and the site ID for HaTS v1.
+  void RecordSurveyAsShown(std::string survey_id);
 
   // Indicates to the service that the HaTS Next dialog has been closed.
   // Virtual to allow mocking in tests.
@@ -269,6 +180,8 @@ class HatsService : public KeyedService {
 
   void SetSurveyMetadataForTesting(const SurveyMetadata& metadata);
   void GetSurveyMetadataForTesting(HatsService::SurveyMetadata* metadata) const;
+  void SetSurveyCheckerForTesting(
+      std::unique_ptr<HatsSurveyStatusChecker> checker);
   bool HasPendingTasks();
 
   // Whether the survey specified by |trigger| can be shown to the user. This
@@ -277,38 +190,17 @@ class HatsService : public KeyedService {
   // in network conditions, or intervening calls to this API.
   bool CanShowSurvey(const std::string& trigger) const;
 
-  // Whether the user is eligible for any survey (of the type |user_prompted|
-  // or not) to be shown. A return value of false is always a true-negative, and
-  // means the user is currently ineligible for all surveys. A return value of
-  // true should not be interpreted as a guarantee that requests to show a
-  // survey will succeed. Virtual to allow mocking in tests.
-  virtual bool CanShowAnySurvey(bool user_prompted) const;
-
-  // Returns whether a HaTS Next dialog currently exists, regardless of whether
-  // it is being shown or not.
-  bool hats_next_dialog_exists_for_testing() {
-    return hats_next_dialog_exists_;
-  }
-
  private:
   friend class DelayedSurveyTask;
-  FRIEND_TEST_ALL_PREFIXES(HatsServiceProbabilityOne, SingleHatsNextDialog);
+  FRIEND_TEST_ALL_PREFIXES(HatsServiceHatsNext, SingleHatsNextDialog);
 
-  using SurveyConfigs = base::flat_map<std::string, SurveyConfig>;
+  void LaunchSurveyForWebContents(const std::string& trigger,
+                                  content::WebContents* web_contents);
 
-  void LaunchSurveyForWebContents(
-      const std::string& trigger,
-      content::WebContents* web_contents,
-      const SurveyBitsData& product_specific_bits_data,
-      const SurveyStringData& product_specific_string_data);
-
-  void LaunchSurveyForBrowser(
-      Browser* browser,
-      const std::string& trigger,
-      base::OnceClosure success_callback,
-      base::OnceClosure failure_callback,
-      const SurveyBitsData& product_specific_bits_data,
-      const SurveyStringData& product_specific_string_data);
+  void LaunchSurveyForBrowser(Browser* browser,
+                              const std::string& trigger,
+                              base::OnceClosure success_callback,
+                              base::OnceClosure failure_callback);
 
   // Returns true is the survey trigger specified should be shown.
   bool ShouldShowSurvey(const std::string& trigger) const;
@@ -316,30 +208,34 @@ class HatsService : public KeyedService {
   // Check whether the survey is reachable and under capacity and show it.
   // |success_callback| is called when the survey is shown to the user.
   // |failure_callback| is called if the survey does not launch for any reason.
-  // The matches of field names with the `SurveyConfig` are CHECK enforced.
-  void CheckSurveyStatusAndMaybeShow(
-      Browser* browser,
-      const std::string& trigger,
-      base::OnceClosure success_callback,
-      base::OnceClosure failure_callback,
-      const SurveyBitsData& product_specific_bits_data,
-      const SurveyStringData& product_specific_string_data);
+  void CheckSurveyStatusAndMaybeShow(Browser* browser,
+                                     const std::string& trigger,
+                                     base::OnceClosure success_callback,
+                                     base::OnceClosure failure_callback);
 
-  // Remove |task| from the set of |pending_tasks_|.
+  // Callbacks for survey capacity checking.
+  void ShowSurvey(Browser* browser, const std::string& trigger);
+
+  void OnSurveyStatusError(const std::string& trigger,
+                           HatsSurveyStatusChecker::Status error);
   void RemoveTask(const DelayedSurveyTask& task);
 
   // Profile associated with this service.
-  const raw_ptr<Profile> profile_;
+  Profile* const profile_;
+
+  std::unique_ptr<HatsSurveyStatusChecker> checker_;
 
   std::set<DelayedSurveyTask> pending_tasks_;
 
-  SurveyConfigs survey_configs_by_triggers_;
+  base::flat_map<std::string, SurveyConfig> survey_configs_by_triggers_;
 
   // Whether a HaTS Next dialog currently exists (regardless of whether it
   // is being shown to the user).
   bool hats_next_dialog_exists_ = false;
 
   base::WeakPtrFactory<HatsService> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(HatsService);
 };
 
 #endif  // CHROME_BROWSER_UI_HATS_HATS_SERVICE_H_

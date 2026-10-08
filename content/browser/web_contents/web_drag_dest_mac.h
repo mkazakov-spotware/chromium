@@ -1,16 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_WEB_CONTENTS_WEB_DRAG_DEST_MAC_H_
 #define CONTENT_BROWSER_WEB_CONTENTS_WEB_DRAG_DEST_MAC_H_
 
-#include "base/memory/raw_ptr.h"
-
 #import <Cocoa/Cocoa.h>
 
 #include <memory>
 
+#include "base/strings/string16.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/common/drop_data.h"
@@ -45,10 +44,9 @@ struct DropContext {
               int modifier_flags,
               base::WeakPtr<content::RenderWidgetHostImpl> target_rwh);
   DropContext(const DropContext& other);
-  DropContext(DropContext&& other);
   ~DropContext();
 
-  content::DropData drop_data;
+  const content::DropData drop_data;
   const gfx::PointF client_pt;
   const gfx::PointF screen_pt;
   const int modifier_flags;
@@ -70,10 +68,10 @@ CONTENT_EXPORT
 @interface WebDragDest : NSObject {
  @private
   // Our associated WebContentsImpl. Weak reference.
-  raw_ptr<content::WebContentsImpl, DanglingUntriaged> _webContents;
+  content::WebContentsImpl* _webContents;
 
   // Delegate; weak.
-  raw_ptr<content::WebDragDestDelegate, DanglingUntriaged> _delegate;
+  content::WebDragDestDelegate* _delegate;
 
   // Updated asynchronously during a drag to tell us whether or not we should
   // allow the drop.
@@ -131,7 +129,7 @@ CONTENT_EXPORT
 - (BOOL)performDragOperation:(const remote_cocoa::mojom::DraggingInfo*)info
     withWebContentsViewDelegate:
         (content::WebContentsViewDelegate*)webContentsViewDelegate;
-- (void)completeDropAsync:(absl::optional<content::DropData>)dropData
+- (void)completeDropAsync:(BOOL)success
               withContext:(const content::DropContext)context;
 
 // Helper to call WebWidgetHostInputEventRouter::GetRenderWidgetHostAtPoint().

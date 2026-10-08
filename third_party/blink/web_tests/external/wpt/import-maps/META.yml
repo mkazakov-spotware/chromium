@@ -1,4 +1,4 @@
-spec: https://wicg.github.io/import-maps/
+spec: https://github.com/WICG/import-maps
 suggested_reviewers:
   - domenic
   - hiroshige-g

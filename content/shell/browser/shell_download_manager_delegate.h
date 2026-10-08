@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <stdint.h>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/download_manager_delegate.h"
 
@@ -19,11 +20,6 @@ class DownloadManager;
 class ShellDownloadManagerDelegate : public DownloadManagerDelegate {
  public:
   ShellDownloadManagerDelegate();
-
-  ShellDownloadManagerDelegate(const ShellDownloadManagerDelegate&) = delete;
-  ShellDownloadManagerDelegate& operator=(const ShellDownloadManagerDelegate&) =
-      delete;
-
   ~ShellDownloadManagerDelegate() override;
 
   void SetDownloadManager(DownloadManager* manager);
@@ -58,10 +54,12 @@ class ShellDownloadManagerDelegate : public DownloadManagerDelegate {
                           DownloadTargetCallback callback,
                           const base::FilePath& suggested_path);
 
-  raw_ptr<DownloadManager> download_manager_;
+  DownloadManager* download_manager_;
   base::FilePath default_download_path_;
   bool suppress_prompting_;
   base::WeakPtrFactory<ShellDownloadManagerDelegate> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ShellDownloadManagerDelegate);
 };
 
 }  // namespace content

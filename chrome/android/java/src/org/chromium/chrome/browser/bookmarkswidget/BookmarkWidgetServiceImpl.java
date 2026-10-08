@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,27 +21,26 @@ import androidx.annotation.UiThread;
 
 import com.google.android.apps.chrome.appwidget.bookmarks.BookmarkThumbnailWidgetProvider;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.task.PostTask;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserver;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
-import org.chromium.chrome.browser.bookmarks.BookmarkModelObserver;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.night_mode.SystemNightModeMonitor;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
 import org.chromium.components.bookmarks.BookmarkId;
-import org.chromium.components.bookmarks.BookmarkItem;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
 import org.chromium.components.favicon.IconType;
 import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.components.favicon.LargeIconBridge.LargeIconCallback;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
-import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -117,7 +116,7 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
      */
     private static class Bookmark {
         public String title;
-        public GURL url;
+        public String url;
         public BookmarkId id;
         public BookmarkId parentId;
         public boolean isFolder;
@@ -179,10 +178,11 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
             mLargeIconBridge = new LargeIconBridge(Profile.getLastUsedRegularProfile());
             mMinIconSizeDp = (int) res.getDimension(R.dimen.default_favicon_min_size);
             mDisplayedIconSize = res.getDimensionPixelSize(R.dimen.default_favicon_size);
-            mIconGenerator = FaviconUtils.createRoundedRectangleIconGenerator(context);
+            mIconGenerator =
+                    FaviconUtils.createRoundedRectangleIconGenerator(context.getResources());
 
             mRemainingTaskCount = 1;
-            mBookmarkModel = BookmarkModel.getForProfile(Profile.getLastUsedRegularProfile());
+            mBookmarkModel = new BookmarkModel();
             mBookmarkModel.finishLoadingBookmarkModel(new Runnable() {
                 @Override
                 public void run() {
@@ -248,7 +248,7 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
                     taskFinished();
                 }
             };
-            mLargeIconBridge.getLargeIconForUrl(bookmark.url, mMinIconSizeDp, callback);
+            mLargeIconBridge.getLargeIconForStringUrl(bookmark.url, mMinIconSizeDp, callback);
         }
 
         @UiThread
@@ -262,6 +262,7 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
 
         @UiThread
         private void destroy() {
+            mBookmarkModel.destroy();
             mLargeIconBridge.destroy();
         }
     }
@@ -288,7 +289,8 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
             mContext = context;
             mWidgetId = widgetId;
             mPreferences = getWidgetState(mWidgetId);
-            mIconColor = mContext.getColor(R.color.default_icon_color_baseline);
+            mIconColor = ApiCompatibilityUtils.getColor(
+                    mContext.getResources(), R.color.default_icon_color);
             SystemNightModeMonitor.getInstance().addObserver(this);
         }
 
@@ -302,7 +304,7 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
                 RecordUserAction.record("BookmarkNavigatorWidgetAdded");
             }
 
-            mBookmarkModel = BookmarkModel.getForProfile(Profile.getLastUsedRegularProfile());
+            mBookmarkModel = new BookmarkModel();
             mBookmarkModel.addObserver(new BookmarkModelObserver() {
                 @Override
                 public void bookmarkModelLoaded() {
@@ -344,9 +346,11 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
         @BinderThread
         @Override
         public void onDestroy() {
-            PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT,
-                    () -> { SystemNightModeMonitor.getInstance().removeObserver(this); });
+            PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT, () -> {
+                if (mBookmarkModel != null) mBookmarkModel.destroy();
+            });
             deleteWidgetState(mWidgetId);
+            SystemNightModeMonitor.getInstance().removeObserver(this);
         }
 
         @BinderThread
@@ -462,7 +466,7 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
             }
 
             String title = bookmark.title;
-            String url = bookmark.url.getSpec();
+            String url = bookmark.url;
             BookmarkId id =
                     (bookmark == mCurrentFolder.folder) ? mCurrentFolder.parent.id : bookmark.id;
 
@@ -491,7 +495,6 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
                                  .putExtra(EXTRA_FOLDER_ID, id.toString());
             } else {
                 fillIn = new Intent(Intent.ACTION_VIEW);
-                fillIn.putExtra(IntentHandler.EXTRA_PAGE_TRANSITION_BOOKMARK_ID, id.toString());
                 if (!TextUtils.isEmpty(url)) {
                     fillIn = fillIn.addCategory(Intent.CATEGORY_BROWSABLE).setData(Uri.parse(url));
                 } else {
@@ -504,7 +507,8 @@ public class BookmarkWidgetServiceImpl extends BookmarkWidgetService.Impl {
 
         @Override
         public void onSystemNightModeChanged() {
-            mIconColor = mContext.getColor(R.color.default_icon_color_baseline);
+            mIconColor = ApiCompatibilityUtils.getColor(
+                    mContext.getResources(), R.color.default_icon_color);
             redrawWidget(mWidgetId);
         }
     }

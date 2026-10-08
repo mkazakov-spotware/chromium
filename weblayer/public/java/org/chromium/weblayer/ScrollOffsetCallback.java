@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,10 @@ package org.chromium.weblayer;
  * Because of WebLayer's multi-process architecture, this function can not be used to reliably
  * synchronize the painting of other Views with WebLayer's Views. It's entirely possible one will
  * render before or after the other.
+ *
+ * @since 87
  */
-abstract class ScrollOffsetCallback {
+public abstract class ScrollOffsetCallback {
     /**
      * Called when the vertical scroll location of the content of a Tab changes.
      *

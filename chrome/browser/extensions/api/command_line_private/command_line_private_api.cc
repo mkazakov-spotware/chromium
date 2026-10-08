@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ namespace command_line_private = api::command_line_private;
 
 ExtensionFunction::ResponseAction CommandLinePrivateHasSwitchFunction::Run() {
   std::unique_ptr<command_line_private::HasSwitch::Params> params(
-      command_line_private::HasSwitch::Params::Create(args()));
+      command_line_private::HasSwitch::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
 
   if (params->name.empty())

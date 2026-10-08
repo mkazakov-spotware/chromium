@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -42,10 +42,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SocketFactory
   // |this|.
   SocketFactory(net::NetLog* net_log,
                 net::URLRequestContext* url_request_context);
-
-  SocketFactory(const SocketFactory&) = delete;
-  SocketFactory& operator=(const SocketFactory&) = delete;
-
   virtual ~SocketFactory();
 
   // These all correspond to the NetworkContext methods of the same name.
@@ -58,7 +54,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SocketFactory
       mojo::PendingReceiver<mojom::TCPServerSocket> receiver,
       mojom::NetworkContext::CreateTCPServerSocketCallback callback);
   void CreateTCPConnectedSocket(
-      const absl::optional<net::IPEndPoint>& local_addr,
+      const base::Optional<net::IPEndPoint>& local_addr,
       const net::AddressList& remote_addr_list,
       mojom::TCPConnectedSocketOptionsPtr tcp_connected_socket_options,
       const net::NetworkTrafficAnnotationTag& traffic_annotation,
@@ -99,15 +95,17 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SocketFactory
       std::unique_ptr<TCPConnectedSocket> socket,
       mojo::PendingReceiver<mojom::TCPConnectedSocket> receiver) override;
 
-  const raw_ptr<net::NetLog> net_log_;
+  net::NetLog* const net_log_;
 
-  raw_ptr<net::ClientSocketFactory> client_socket_factory_;
+  net::ClientSocketFactory* client_socket_factory_;
   TLSSocketFactory tls_socket_factory_;
   mojo::UniqueReceiverSet<mojom::UDPSocket> udp_socket_receivers_;
   mojo::UniqueReceiverSet<mojom::TCPServerSocket> tcp_server_socket_receivers_;
   mojo::UniqueReceiverSet<mojom::TCPConnectedSocket>
       tcp_connected_socket_receiver_;
   mojo::UniqueReceiverSet<mojom::TCPBoundSocket> tcp_bound_socket_receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(SocketFactory);
 };
 
 }  // namespace network

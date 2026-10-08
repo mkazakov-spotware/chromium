@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,10 @@
 namespace commander {
 
 CommandItemViewModel::CommandItemViewModel(
-    const std::u16string& title,
+    const base::string16& title,
     const std::vector<gfx::Range>& matched_ranges,
     CommandItem::Entity entity_type,
-    const std::u16string& annotation)
+    const base::string16& annotation)
     : title(title),
       matched_ranges(matched_ranges),
       entity_type(entity_type),

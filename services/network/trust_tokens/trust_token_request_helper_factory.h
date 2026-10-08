@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "net/http/http_request_headers.h"
+#include "base/no_destructor.h"
+#include "base/optional.h"
 #include "net/log/net_log_with_source.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/mojom/trust_tokens.mojom.h"
@@ -95,10 +95,8 @@ class TrustTokenRequestHelperFactory {
   // |request|'s Trust Tokens parameters, using |store| to access persistent
   // state.
   virtual void CreateTrustTokenHelperForRequest(
-      const url::Origin& top_frame_origin,
-      const net::HttpRequestHeaders& headers,
+      const net::URLRequest& request,
       const mojom::TrustTokenParams& params,
-      const net::NetLogWithSource& net_log,
       base::OnceCallback<void(TrustTokenStatusOrRequestHelper)> done);
 
  private:
@@ -112,8 +110,8 @@ class TrustTokenRequestHelperFactory {
       base::OnceCallback<void(TrustTokenStatusOrRequestHelper)> done,
       TrustTokenStore* store);
 
-  raw_ptr<PendingTrustTokenStore> store_;
-  raw_ptr<const TrustTokenKeyCommitmentGetter> key_commitment_getter_;
+  PendingTrustTokenStore* store_;
+  const TrustTokenKeyCommitmentGetter* key_commitment_getter_;
   base::RepeatingCallback<mojom::NetworkContextClient*(void)>
       context_client_provider_;
   base::RepeatingCallback<bool(void)> authorizer_;

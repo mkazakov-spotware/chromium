@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/test/task_environment.h"
 #include "components/favicon/core/test/mock_favicon_service.h"
 #include "components/favicon_base/favicon_callback.h"
@@ -67,7 +66,7 @@ class FaviconHelperTest : public testing::Test {
  protected:
   base::test::TaskEnvironment task_environment_;
   favicon::MockFaviconService mock_favicon_service_;
-  raw_ptr<FaviconHelper> favicon_helper_ = new FaviconHelper();
+  FaviconHelper* favicon_helper_ = new FaviconHelper();
   std::vector<favicon_base::FaviconRawBitmapResult> raw_bitmap_results_;
   favicon_base::FaviconResultsCallback
       get_composed_favicon_raw_results_callback_;
@@ -90,9 +89,10 @@ TEST_F(FaviconHelperTest, GetLargestSizeIndex) {
 
 TEST_F(FaviconHelperTest, GetComposedFaviconImage) {
   raw_bitmap_results_.clear();
-  GURL url1 = GURL("http://www.tab1.com");
-  GURL url2 = GURL("http://www.tab2.com");
-  std::vector<GURL> urls = {url1, url2};
+  std::vector<std::string> urls = {"http://www.tab1.com",
+                                   "http://www.tab2.com"};
+  GURL url1 = GURL(urls[0]);
+  GURL url2 = GURL(urls[1]);
 
   EXPECT_CALL(mock_favicon_service_,
               GetRawFaviconForPageURL(url1, _, _, 16, _, _))
@@ -112,10 +112,11 @@ TEST_F(FaviconHelperTest, GetComposedFaviconImage) {
 
 TEST_F(FaviconHelperTest, GetComposedFaviconImageWithOneFaviconFailed) {
   raw_bitmap_results_.clear();
-  GURL url1 = GURL("http://www.tab1.com");
-  GURL url2 = GURL("http://www.tab2.com");
-  GURL url3 = GURL("http://www.tab3.com");
-  std::vector<GURL> urls = {url1, url2, url3};
+  std::vector<std::string> urls = {"http://www.tab1.com", "http://www.tab2.com",
+                                   "http://www.tab3.com"};
+  GURL url1 = GURL(urls[0]);
+  GURL url2 = GURL(urls[1]);
+  GURL url3 = GURL(urls[2]);
 
   EXPECT_CALL(mock_favicon_service_,
               GetRawFaviconForPageURL(url1, _, _, 16, _, _))
@@ -143,10 +144,11 @@ TEST_F(FaviconHelperTest, GetComposedFaviconImageWithOneFaviconFailed) {
 
 TEST_F(FaviconHelperTest, GetComposedFaviconImageOrderMatchesInput) {
   raw_bitmap_results_.clear();
-  GURL url1 = GURL("http://www.tab1.com");
-  GURL url2 = GURL("http://www.tab2.com");
-  GURL url3 = GURL("http://www.tab3.com");
-  std::vector<GURL> urls = {url1, url2, url3};
+  std::vector<std::string> urls = {"http://www.tab1.com", "http://www.tab2.com",
+                                   "http://www.tab3.com"};
+  GURL url1 = GURL(urls[0]);
+  GURL url2 = GURL(urls[1]);
+  GURL url3 = GURL(urls[2]);
 
   EXPECT_CALL(mock_favicon_service_,
               GetRawFaviconForPageURL(url1, _, _, 16, _, _))
@@ -158,7 +160,7 @@ TEST_F(FaviconHelperTest, GetComposedFaviconImageOrderMatchesInput) {
                    favicon_base::FaviconRawBitmapCallback callback,
                    base::CancelableTaskTracker* tracker) {
         tracker->PostTask(
-            base::SingleThreadTaskRunner::GetCurrentDefault().get(), FROM_HERE,
+            base::ThreadTaskRunnerHandle::Get().get(), FROM_HERE,
             base::BindOnce(
                 [](favicon_base::FaviconRawBitmapCallback callback, GURL url,
                    int size) {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,10 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/adapters.h"
-#include "base/containers/contains.h"
-#include "base/memory/unsafe_shared_memory_region.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/no_destructor.h"
 #include "base/process/process.h"
-#include "base/tracing/tracing_tls.h"
+#include "base/task/post_task.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/tracing/public/cpp/perfetto/shared_memory.h"
@@ -33,7 +31,7 @@ constexpr char kSharedBufferIsValidMetricName[] = "Tracing.SharedBufferIsValid";
 
 namespace tracing {
 
-ProducerClient::ProducerClient(base::tracing::PerfettoTaskRunner* task_runner)
+ProducerClient::ProducerClient(PerfettoTaskRunner* task_runner)
     : PerfettoProducer(task_runner) {
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
@@ -49,12 +47,12 @@ void ProducerClient::Connect(
     return;
   }
 
-  base::UnsafeSharedMemoryRegion shm;
+  mojo::ScopedSharedBufferHandle shm;
   {
     base::AutoLock lock(lock_);
-    shm = shared_memory_->CloneRegion();
+    shm = shared_memory_->Clone();
   }
-  CHECK(shm.IsValid());
+  CHECK(shm.is_valid());
 
   mojo::PendingRemote<mojom::ProducerClient> client;
   auto client_receiver = client.InitWithNewPipeAndPassReceiver();
@@ -73,7 +71,7 @@ void ProducerClient::Connect(
 
 void ProducerClient::BindInProcessSharedMemoryArbiter(
     perfetto::TracingService::ProducerEndpoint* producer_endpoint,
-    base::tracing::PerfettoTaskRunner* task_runner) {
+    PerfettoTaskRunner* task_runner) {
   DCHECK(!in_process_arbiter_task_runner_);
   in_process_arbiter_task_runner_ = task_runner;
 
@@ -87,10 +85,6 @@ void ProducerClient::BindInProcessSharedMemoryArbiter(
     arbiter = shared_memory_arbiter_.get();
   }
   arbiter->BindToProducerEndpoint(producer_endpoint, task_runner);
-}
-
-void ProducerClient::Disconnect() {
-  LOG(DFATAL) << "Not implemented yet";
 }
 
 void ProducerClient::BindStartupTargetBuffer(
@@ -219,8 +213,8 @@ void ProducerClient::StartDataSource(
                 }
 
                 DCHECK_CALLED_ON_VALID_SEQUENCE(weak_ptr->sequence_checker_);
-                data_source->StartTracing(id, weak_ptr.get(),
-                                          data_source_config);
+                data_source->StartTracingWithID(id, weak_ptr.get(),
+                                                data_source_config);
 
                 // TODO(eseckler): Consider plumbing this callback through
                 // |data_source|.
@@ -244,16 +238,10 @@ void ProducerClient::StopDataSource(uint64_t id,
       data_source->StopTracing(base::BindOnce(
           [](base::WeakPtr<ProducerClient> weak_ptr,
              StopDataSourceCallback callback, uint64_t id) {
-            if (!weak_ptr) {
-              std::move(callback).Run();
-              return;
-            }
-            DCHECK_CALLED_ON_VALID_SEQUENCE(weak_ptr->sequence_checker_);
-            // Flush any commits that might have been batched by
-            // SharedMemoryArbiter.
-            weak_ptr->MaybeSharedMemoryArbiter()
-                ->FlushPendingCommitDataRequests();
             std::move(callback).Run();
+            if (!weak_ptr)
+              return;
+            DCHECK_CALLED_ON_VALID_SEQUENCE(weak_ptr->sequence_checker_);
             base::AutoLock lock(weak_ptr->lock_);
             --weak_ptr->data_sources_tracing_;
           },
@@ -272,7 +260,8 @@ void ProducerClient::Flush(uint64_t flush_request_id,
 
   // N^2, optimize once there's more than a couple of possible data sources.
   for (auto* data_source : PerfettoTracedProcess::Get()->data_sources()) {
-    if (base::Contains(data_source_ids, data_source->data_source_id())) {
+    if (std::find(data_source_ids.begin(), data_source_ids.end(),
+                  data_source->data_source_id()) != data_source_ids.end()) {
       data_source->Flush(base::BindRepeating(
           [](base::WeakPtr<ProducerClient> weak_ptr, uint64_t id) {
             if (weak_ptr) {
@@ -308,9 +297,9 @@ void ProducerClient::CommitData(const perfetto::CommitDataRequest& commit,
   // We need to make sure the CommitData IPC is sent off without triggering any
   // trace events, as that could stall waiting for SMB chunks to be freed up
   // which requires the tracing service to receive the IPC.
-  if (!base::tracing::GetThreadIsInTraceEventTLS()->Get()) {
-    base::tracing::AutoThreadLocalBoolean thread_is_in_trace_event(
-        base::tracing::GetThreadIsInTraceEventTLS());
+  if (!TraceEventDataSource::GetThreadIsInTraceEventTLS()->Get()) {
+    AutoThreadLocalBoolean thread_is_in_trace_event(
+        TraceEventDataSource::GetThreadIsInTraceEventTLS());
 
     producer_host_->CommitData(commit, std::move(commit_callback));
     return;
@@ -338,10 +327,6 @@ void ProducerClient::NotifyFlushComplete(perfetto::FlushRequestID id) {
 }
 
 void ProducerClient::RegisterDataSource(const perfetto::DataSourceDescriptor&) {
-  NOTREACHED();
-}
-
-void ProducerClient::UpdateDataSource(const perfetto::DataSourceDescriptor&) {
   NOTREACHED();
 }
 
@@ -403,13 +388,12 @@ bool ProducerClient::InitSharedMemoryIfNeeded() {
 
   // The shared memory buffer is always provided by the ProducerClient, but only
   // created upon the first tracing request.
-  shared_memory_ =
-      std::make_unique<ChromeBaseSharedMemory>(GetPreferredSmbSizeBytes());
+  shared_memory_ = std::make_unique<MojoSharedMemory>(kSMBSizeBytes);
 
-  // TODO(crbug/1057614): We see shared memory region creation fail on windows
+  // TODO(crbug/1057614): We see shared memory buffer creation fail on windows
   // in the field. Investigate why this can happen. Gather statistics on
   // failure rates.
-  bool valid = shared_memory_->region().IsValid();
+  bool valid = shared_memory_->shared_buffer().is_valid();
   base::UmaHistogramBoolean(kSharedBufferIsValidMetricName, valid);
 
   if (!valid) {
@@ -420,10 +404,6 @@ bool ProducerClient::InitSharedMemoryIfNeeded() {
 
   shared_memory_arbiter_ = perfetto::SharedMemoryArbiter::CreateUnboundInstance(
       shared_memory_.get(), kSMBPageSizeBytes);
-  shared_memory_arbiter_->SetDirectSMBPatchingSupportedByService();
-  shared_memory_arbiter_->EnableDirectSMBPatching();
-  shared_memory_arbiter_->SetBatchCommitsDuration(
-      kShmArbiterBatchCommitDurationMs);
   return true;
 }
 
@@ -457,8 +437,8 @@ void ProducerClient::BindClientAndHostPipesOnSequence(
   // the MetadataSource first to ensure that it's also ready. Once the
   // Perfetto Observer interface is ready, we can remove this.
   const auto& data_sources = PerfettoTracedProcess::Get()->data_sources();
-  for (const auto* data_source : base::Reversed(data_sources)) {
-    NewDataSourceAdded(data_source);
+  for (auto it = data_sources.crbegin(); it != data_sources.crend(); ++it) {
+    NewDataSourceAdded(*it);
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 #include <utility>
 
 #include "third_party/blink/renderer/modules/indexeddb/idb_key_range.h"
-#include "third_party/blink/renderer/modules/indexeddb/web_idb_cursor.h"
+#include "third_party/blink/renderer/modules/indexeddb/web_idb_cursor_impl.h"
+#include "third_party/blink/renderer/modules/indexeddb/web_idb_database_callbacks.h"
 
 namespace blink {
 // static
@@ -20,14 +21,14 @@ IndexedDBDispatcher* IndexedDBDispatcher::GetInstanceForCurrentThread() {
 IndexedDBDispatcher::IndexedDBDispatcher() = default;
 
 // static
-void IndexedDBDispatcher::RegisterCursor(WebIDBCursor* cursor) {
+void IndexedDBDispatcher::RegisterCursor(WebIDBCursorImpl* cursor) {
   IndexedDBDispatcher* this_ptr = GetInstanceForCurrentThread();
   DCHECK(!this_ptr->cursors_.Contains(cursor));
   this_ptr->cursors_.insert(cursor);
 }
 
 // static
-void IndexedDBDispatcher::UnregisterCursor(WebIDBCursor* cursor) {
+void IndexedDBDispatcher::UnregisterCursor(WebIDBCursorImpl* cursor) {
   IndexedDBDispatcher* this_ptr = GetInstanceForCurrentThread();
   DCHECK(this_ptr->cursors_.Contains(cursor));
   this_ptr->cursors_.erase(cursor);
@@ -36,9 +37,9 @@ void IndexedDBDispatcher::UnregisterCursor(WebIDBCursor* cursor) {
 // static
 void IndexedDBDispatcher::ResetCursorPrefetchCaches(
     int64_t transaction_id,
-    WebIDBCursor* except_cursor) {
+    WebIDBCursorImpl* except_cursor) {
   IndexedDBDispatcher* this_ptr = GetInstanceForCurrentThread();
-  for (WebIDBCursor* cursor : this_ptr->cursors_) {
+  for (WebIDBCursorImpl* cursor : this_ptr->cursors_) {
     if (cursor != except_cursor && cursor->transaction_id() == transaction_id)
       cursor->ResetPrefetchCache();
   }

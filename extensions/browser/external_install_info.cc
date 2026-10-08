@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ ExternalInstallInfoFile::ExternalInstallInfoFile(
     const std::string& extension_id,
     const base::Version& version,
     const base::FilePath& path,
-    mojom::ManifestLocation crx_location,
+    Manifest::Location crx_location,
     int creation_flags,
     bool mark_acknowledged,
     bool install_immediately)
@@ -36,7 +36,7 @@ ExternalInstallInfoUpdateUrl::ExternalInstallInfoUpdateUrl(
     const std::string& extension_id,
     const std::string& install_parameter,
     GURL update_url,
-    mojom::ManifestLocation download_location,
+    Manifest::Location download_location,
     int creation_flags,
     bool mark_acknowledged)
     : ExternalInstallInfo(extension_id, creation_flags, mark_acknowledged),

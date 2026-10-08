@@ -397,9 +397,7 @@
     };
 
     // In addition to test harness's async_test() properties parameter, this
-    // function recognizes a custom properties dict with custom entries:
-    //   - allow_media_element_error: don't immediately fail on media player error
-    //   - enable_controls: add the default chromium media controls (timeline, play, volume) to the player
+    // function recognizes the property allow_media_element_error.
     window['mediasource_testafterdataloaded'] = function(testFunction, description, properties)
     {
         mediasource_test(function(test, mediaElement, mediaSource)
@@ -413,9 +411,6 @@
 
             if (properties == null || properties.allow_media_element_error == null || !properties.allow_media_element_error)
                 test.failOnEvent(mediaElement, 'error');
-
-            if (properties !== undefined && properties.enable_controls !== undefined && properties.enable_controls)
-                mediaElement.setAttribute('controls', true);
 
             var sourceBuffer = mediaSource.addSourceBuffer(segmentInfo.type);
             MediaSourceUtil.loadBinaryData(test, segmentInfo.url, function(mediaData)

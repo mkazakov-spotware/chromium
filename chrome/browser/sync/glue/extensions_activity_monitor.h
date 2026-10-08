@@ -1,57 +1,32 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_GLUE_EXTENSIONS_ACTIVITY_MONITOR_H_
 #define CHROME_BROWSER_SYNC_GLUE_EXTENSIONS_ACTIVITY_MONITOR_H_
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/scoped_observation.h"
-#include "content/public/browser/browser_context.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/buildflags/buildflags.h"
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "chrome/browser/extensions/api/bookmarks/bookmarks_api_watcher.h"
-#endif
 
 namespace syncer {
 class ExtensionsActivity;
 }
 
-namespace extensions {
-class BookmarksFunction;
-class Extension;
-}  // namespace extensions
-
 namespace browser_sync {
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-using BookmarksApiWatcherObserver = extensions::BookmarksApiWatcher::Observer;
-#else
-// Provides a stub class to inherit from to support overriding the destructor.
-class BookmarksApiWatcherObserver {
- public:
-  virtual ~BookmarksApiWatcherObserver() {}
-};
-#endif
-
 // Observe and record usage of extension bookmark API.
-class ExtensionsActivityMonitor : public BookmarksApiWatcherObserver {
+class ExtensionsActivityMonitor : public content::NotificationObserver {
  public:
-  explicit ExtensionsActivityMonitor(content::BrowserContext* context);
-
-  ExtensionsActivityMonitor(const ExtensionsActivityMonitor&) = delete;
-  ExtensionsActivityMonitor& operator=(const ExtensionsActivityMonitor&) =
-      delete;
-
+  ExtensionsActivityMonitor();
   ~ExtensionsActivityMonitor() override;
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  // content::BookmarksApiWatcher:
-  void OnBookmarksApiInvoked(
-      const extensions::Extension* ext,
-      const extensions::BookmarksFunction* func) override;
-#endif
+  // content::NotificationObserver implementation.
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
   const scoped_refptr<syncer::ExtensionsActivity>& GetExtensionsActivity();
 
@@ -59,10 +34,11 @@ class ExtensionsActivityMonitor : public BookmarksApiWatcherObserver {
   scoped_refptr<syncer::ExtensionsActivity> extensions_activity_;
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  base::ScopedObservation<extensions::BookmarksApiWatcher,
-                          extensions::BookmarksApiWatcher::Observer>
-      bookmarks_api_observation_{this};
+  // Used only on UI loop.
+  content::NotificationRegistrar registrar_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionsActivityMonitor);
 };
 
 }  // namespace browser_sync

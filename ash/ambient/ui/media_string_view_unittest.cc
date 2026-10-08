@@ -1,23 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/ambient/ui/media_string_view.h"
 
-#include <string>
-
 #include "ash/ambient/ambient_constants.h"
 #include "ash/ambient/test/ambient_ash_test_base.h"
 #include "ash/ambient/ui/ambient_container_view.h"
-#include "ash/constants/ash_pref_names.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/shell.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "services/media_session/public/mojom/media_session.mojom.h"
-#include "ui/compositor/layer.h"
-#include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/test/views_test_utils.h"
 
 namespace ash {
 
@@ -37,7 +33,7 @@ class MediaStringViewTest : public AmbientAshTestBase {
     AmbientAshTestBase::TearDown();
   }
 
-  const std::u16string& GetText() {
+  const base::string16& GetText() {
     return GetMediaStringViewTextLabel()->GetText();
   }
 };
@@ -47,12 +43,12 @@ TEST_F(MediaStringViewTest, ShowMediaTitleAndArtist) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
 
   SimulateMediaMetadataChanged(metadata);
 
-  const std::u16string expected_text = u"title \u2022 artist";
+  const base::string16 expected_text = base::UTF8ToUTF16("title \u2022 artist");
   EXPECT_EQ(GetMediaStringViewTextLabel()->GetText(), expected_text);
 }
 
@@ -61,8 +57,8 @@ TEST_F(MediaStringViewTest, TextContainerFitsWidthOfShortText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
 
   SimulateMediaMetadataChanged(metadata);
 
@@ -77,8 +73,8 @@ TEST_F(MediaStringViewTest, TextContainerHasMaxWidthWithLongText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
 
   SimulateMediaMetadataChanged(metadata);
 
@@ -96,8 +92,8 @@ TEST_F(MediaStringViewTest, HasNoAnimationWithShortText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"name";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("name");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
@@ -108,7 +104,7 @@ TEST_F(MediaStringViewTest, HasNoAnimationWithShortText) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 }
@@ -121,8 +117,8 @@ TEST_F(MediaStringViewTest, HasAnimationWithLongText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
@@ -133,7 +129,7 @@ TEST_F(MediaStringViewTest, HasAnimationWithLongText) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_TRUE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 }
@@ -146,8 +142,8 @@ TEST_F(MediaStringViewTest, ShouldStopAndStartAnimationWhenTextChanges) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
@@ -158,13 +154,13 @@ TEST_F(MediaStringViewTest, ShouldStopAndStartAnimationWhenTextChanges) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_TRUE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 
   // Change to another long text.
-  metadata.title = u"Another super duper long title";
-  metadata.artist = u"Another super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("Another super duper long title");
+  metadata.artist = base::ASCIIToUTF16("Another super duper long artist name");
   SimulateMediaMetadataChanged(metadata);
 
   EXPECT_GT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
@@ -172,7 +168,7 @@ TEST_F(MediaStringViewTest, ShouldStopAndStartAnimationWhenTextChanges) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_TRUE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 }
@@ -185,8 +181,8 @@ TEST_F(MediaStringViewTest, ShouldStartAndStopAnimationWhenTextChanges) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"name";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("name");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
@@ -197,13 +193,13 @@ TEST_F(MediaStringViewTest, ShouldStartAndStopAnimationWhenTextChanges) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 
   // Change to long text.
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
   SimulateMediaMetadataChanged(metadata);
 
   EXPECT_GT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
@@ -211,13 +207,13 @@ TEST_F(MediaStringViewTest, ShouldStartAndStopAnimationWhenTextChanges) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_TRUE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 
   // Change to short text.
-  metadata.title = u"title";
-  metadata.artist = u"name";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("name");
   SimulateMediaMetadataChanged(metadata);
 
   EXPECT_LT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
@@ -225,7 +221,7 @@ TEST_F(MediaStringViewTest, ShouldStartAndStopAnimationWhenTextChanges) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 }
@@ -238,8 +234,8 @@ TEST_F(MediaStringViewTest, PauseMediaWillNotStopAnimationWithLongText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
@@ -250,7 +246,7 @@ TEST_F(MediaStringViewTest, PauseMediaWillNotStopAnimationWithLongText) {
 
   EXPECT_FALSE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
-  task_environment()->FastForwardBy(base::Milliseconds(100));
+  task_environment()->FastForwardBy(base::TimeDelta::FromMilliseconds(100));
   EXPECT_TRUE(
       GetMediaStringViewTextLabel()->layer()->GetAnimator()->is_animating());
 
@@ -266,20 +262,18 @@ TEST_F(MediaStringViewTest, HasNoMaskLayerWithShortText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
   SimulateMediaMetadataChanged(metadata);
   // Force re-layout.
-  for (auto* view : GetContainerViews())
-    views::test::RunScheduledLayout(view);
+  container_view()->Layout();
 
   EXPECT_LT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
             kMediaStringMaxWidthDip);
-  EXPECT_TRUE(
-      GetMediaStringViewTextContainer()->layer()->gradient_mask().IsEmpty());
+  EXPECT_FALSE(GetMediaStringViewTextContainer()->layer()->layer_mask_layer());
 }
 
 TEST_F(MediaStringViewTest, HasMaskLayerWithLongText) {
@@ -287,20 +281,18 @@ TEST_F(MediaStringViewTest, HasMaskLayerWithLongText) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
   SimulateMediaMetadataChanged(metadata);
   // Force re-layout.
-  for (auto* view : GetContainerViews())
-    views::test::RunScheduledLayout(view);
+  container_view()->Layout();
 
   EXPECT_GT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
             kMediaStringMaxWidthDip);
-  EXPECT_FALSE(
-      GetMediaStringViewTextContainer()->layer()->gradient_mask().IsEmpty());
+  EXPECT_TRUE(GetMediaStringViewTextContainer()->layer()->layer_mask_layer());
 }
 
 TEST_F(MediaStringViewTest, MaskLayerShouldUpdate) {
@@ -308,48 +300,42 @@ TEST_F(MediaStringViewTest, MaskLayerShouldUpdate) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);
   SimulateMediaMetadataChanged(metadata);
   // Force re-layout.
-  for (auto* view : GetContainerViews())
-    views::test::RunScheduledLayout(view);
+  container_view()->Layout();
 
   EXPECT_LT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
             kMediaStringMaxWidthDip);
-  EXPECT_TRUE(
-      GetMediaStringViewTextContainer()->layer()->gradient_mask().IsEmpty());
+  EXPECT_FALSE(GetMediaStringViewTextContainer()->layer()->layer_mask_layer());
 
   // Change to long text.
-  metadata.title = u"A super duper long title";
-  metadata.artist = u"A super duper long artist name";
+  metadata.title = base::ASCIIToUTF16("A super duper long title");
+  metadata.artist = base::ASCIIToUTF16("A super duper long artist name");
 
   SimulateMediaMetadataChanged(metadata);
   // Force re-layout.
-  for (auto* view : GetContainerViews())
-    views::test::RunScheduledLayout(view);
+  container_view()->Layout();
 
   EXPECT_GT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
             kMediaStringMaxWidthDip);
-  EXPECT_FALSE(
-      GetMediaStringViewTextContainer()->layer()->gradient_mask().IsEmpty());
+  EXPECT_TRUE(GetMediaStringViewTextContainer()->layer()->layer_mask_layer());
 
   // Change to short text.
-  metadata.title = u"title";
-  metadata.artist = u"artist";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
 
   SimulateMediaMetadataChanged(metadata);
   // Force re-layout.
-  for (auto* view : GetContainerViews())
-    views::test::RunScheduledLayout(view);
+  container_view()->Layout();
 
   EXPECT_LT(GetMediaStringViewTextLabel()->GetPreferredSize().width(),
             kMediaStringMaxWidthDip);
-  EXPECT_TRUE(
-      GetMediaStringViewTextContainer()->layer()->gradient_mask().IsEmpty());
+  EXPECT_FALSE(GetMediaStringViewTextContainer()->layer()->layer_mask_layer());
 }
 
 TEST_F(MediaStringViewTest, ShowWhenMediaIsPlaying) {
@@ -400,8 +386,8 @@ TEST_F(MediaStringViewTest, ShouldHasDifferentTransform) {
 
   // Sets metadata for current session.
   media_session::MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
 
   SimulateMediaPlaybackStateChanged(
       media_session::mojom::MediaPlaybackState::kPlaying);

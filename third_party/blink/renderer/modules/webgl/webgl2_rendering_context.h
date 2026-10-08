@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "third_party/blink/renderer/bindings/modules/v8/v8_typedefs.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context_factory.h"
 #include "third_party/blink/renderer/modules/webgl/webgl2_rendering_context_base.h"
 
@@ -31,7 +31,6 @@ class WebGLMultiDraw;
 class WebGLMultiDrawInstancedBaseVertexBaseInstance;
 class KHRParallelShaderCompile;
 class WebGLVideoTexture;
-class WebGLWebCodecsVideoFrame;
 
 class WebGL2RenderingContext : public WebGL2RenderingContextBase {
   DEFINE_WRAPPERTYPEINFO();
@@ -40,33 +39,34 @@ class WebGL2RenderingContext : public WebGL2RenderingContextBase {
   class Factory : public CanvasRenderingContextFactory {
    public:
     Factory() = default;
-
-    Factory(const Factory&) = delete;
-    Factory& operator=(const Factory&) = delete;
-
     ~Factory() override = default;
 
     CanvasRenderingContext* Create(
         CanvasRenderingContextHost*,
         const CanvasContextCreationAttributesCore&) override;
-    CanvasRenderingContext::CanvasRenderingAPI GetRenderingAPI()
-        const override {
-      return CanvasRenderingContext::CanvasRenderingAPI::kWebgl2;
+    CanvasRenderingContext::ContextType GetContextType() const override {
+      return CanvasRenderingContext::kContextWebgl2;
     }
     void OnError(HTMLCanvasElement*, const String& error) override;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Factory);
   };
 
   WebGL2RenderingContext(
       CanvasRenderingContextHost*,
       std::unique_ptr<WebGraphicsContext3DProvider>,
-      const Platform::GraphicsInfo&,
+      bool using_gpu_compositing,
       const CanvasContextCreationAttributesCore& requested_attributes);
 
+  CanvasRenderingContext::ContextType GetContextType() const override {
+    return CanvasRenderingContext::kContextWebgl2;
+  }
   ImageBitmap* TransferToImageBitmap(ScriptState*) final;
   String ContextName() const override { return "WebGL2RenderingContext"; }
   void RegisterContextExtensions() override;
-  V8RenderingContext* AsV8RenderingContext() final;
-  V8OffscreenRenderingContext* AsV8OffscreenRenderingContext() final;
+  void SetCanvasGetContextResult(RenderingContext&) final;
+  void SetOffscreenCanvasGetContextResult(OffscreenRenderingContext&) final;
 
   void Trace(Visitor*) const override;
 
@@ -98,9 +98,8 @@ class WebGL2RenderingContext : public WebGL2RenderingContextBase {
   Member<WebGLMultiDrawInstancedBaseVertexBaseInstance>
       webgl_multi_draw_instanced_base_vertex_base_instance_;
   Member<WebGLVideoTexture> webgl_video_texture_;
-  Member<WebGLWebCodecsVideoFrame> webgl_webcodecs_video_frame_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL2_RENDERING_CONTEXT_H_
+#endif

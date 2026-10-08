@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "remoting/base/compound_buffer.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 NamedMessagePipeHandler::NamedMessagePipeHandler(
     const std::string& name,
@@ -25,7 +26,7 @@ NamedMessagePipeHandler::NamedMessagePipeHandler(
 NamedMessagePipeHandler::~NamedMessagePipeHandler() = default;
 
 void NamedMessagePipeHandler::Close() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   if (connected()) {
     OnDisconnecting();
     is_connected_ = false;
@@ -35,7 +36,7 @@ void NamedMessagePipeHandler::Close() {
 
 void NamedMessagePipeHandler::Send(const google::protobuf::MessageLite& message,
                                    base::OnceClosure done) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(connected());
   pipe_->Send(const_cast<google::protobuf::MessageLite*>(&message),
               std::move(done));
@@ -49,7 +50,7 @@ void NamedMessagePipeHandler::OnConnected() {}
 void NamedMessagePipeHandler::OnDisconnecting() {}
 
 void NamedMessagePipeHandler::OnMessagePipeOpen() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!is_connected_);
   is_connected_ = true;
   OnConnected();
@@ -57,7 +58,7 @@ void NamedMessagePipeHandler::OnMessagePipeOpen() {
 
 void NamedMessagePipeHandler::OnMessageReceived(
     std::unique_ptr<CompoundBuffer> message) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   OnIncomingMessage(std::move(message));
 }
 
@@ -65,4 +66,5 @@ void NamedMessagePipeHandler::OnMessagePipeClosed() {
   Close();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

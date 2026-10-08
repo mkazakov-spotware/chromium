@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,18 @@
 
 namespace content {
 
-WebContentsObserver::WebContentsObserver(WebContents* web_contents) {
+WebContentsObserver::WebContentsObserver(WebContents* web_contents)
+    : web_contents_(nullptr) {
   Observe(web_contents);
 }
 
-WebContentsObserver::WebContentsObserver() = default;
+WebContentsObserver::WebContentsObserver()
+    : web_contents_(nullptr) {
+}
 
 WebContentsObserver::~WebContentsObserver() {
   if (web_contents_)
-    static_cast<WebContentsImpl*>(web_contents_)->RemoveObserver(this);
+    web_contents_->RemoveObserver(this);
 }
 
 WebContents* WebContentsObserver::web_contents() const {
@@ -30,10 +33,10 @@ void WebContentsObserver::Observe(WebContents* web_contents) {
     return;
   }
   if (web_contents_)
-    static_cast<WebContentsImpl*>(web_contents_)->RemoveObserver(this);
-  web_contents_ = web_contents;
+    web_contents_->RemoveObserver(this);
+  web_contents_ = static_cast<WebContentsImpl*>(web_contents);
   if (web_contents_) {
-    static_cast<WebContentsImpl*>(web_contents_)->AddObserver(this);
+    web_contents_->AddObserver(this);
   }
 }
 
@@ -43,8 +46,25 @@ bool WebContentsObserver::OnMessageReceived(
   return false;
 }
 
+bool WebContentsObserver::ShowPopupMenu(
+    RenderFrameHost* render_frame_host,
+    mojo::PendingRemote<blink::mojom::PopupMenuClient>* popup_client,
+    const gfx::Rect& bounds,
+    int32_t item_height,
+    double font_size,
+    int32_t selected_item,
+    std::vector<blink::mojom::MenuItemPtr>* menu_items,
+    bool right_aligned,
+    bool allow_multiple_selection) {
+  return false;
+}
+
+bool WebContentsObserver::OnMessageReceived(const IPC::Message& message) {
+  return false;
+}
+
 void WebContentsObserver::ResetWebContents() {
-  static_cast<WebContentsImpl*>(web_contents_)->RemoveObserver(this);
+  web_contents_->RemoveObserver(this);
   web_contents_ = nullptr;
 }
 

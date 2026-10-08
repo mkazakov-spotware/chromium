@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "extensions/common/mojom/event_dispatcher.mojom-forward.h"
+#include "base/macros.h"
 #include "extensions/renderer/bindings/api_binding_types.h"
 #include "v8/include/v8.h"
 
@@ -19,6 +19,7 @@ class DictionaryValue;
 
 namespace extensions {
 class ListenerTracker;
+struct EventFilteringInfo;
 
 // A base class to hold listeners for a given event. This allows for adding,
 // removing, and querying listeners in the list, and calling a callback when
@@ -48,9 +49,6 @@ class APIEventListeners {
   using ContextOwnerIdGetter =
       base::RepeatingCallback<std::string(v8::Local<v8::Context>)>;
 
-  APIEventListeners(const APIEventListeners&) = delete;
-  APIEventListeners& operator=(const APIEventListeners&) = delete;
-
   virtual ~APIEventListeners() = default;
 
   // Adds the given |listener| to the list, possibly associating it with the
@@ -75,7 +73,7 @@ class APIEventListeners {
 
   // Returns the listeners that should be notified for the given |filter|.
   virtual std::vector<v8::Local<v8::Function>> GetListeners(
-      mojom::EventFilteringInfoPtr filter,
+      const EventFilteringInfo* filter,
       v8::Local<v8::Context> context) = 0;
 
   // Invalidates the list.
@@ -83,6 +81,9 @@ class APIEventListeners {
 
  protected:
   APIEventListeners() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(APIEventListeners);
 };
 
 // A listener list implementation that doesn't support filtering. Each event
@@ -95,10 +96,6 @@ class UnfilteredEventListeners final : public APIEventListeners {
                            int max_listeners,
                            bool supports_lazy_listeners,
                            ListenerTracker* listener_tracker);
-
-  UnfilteredEventListeners(const UnfilteredEventListeners&) = delete;
-  UnfilteredEventListeners& operator=(const UnfilteredEventListeners&) = delete;
-
   ~UnfilteredEventListeners() override;
 
   bool AddListener(v8::Local<v8::Function> listener,
@@ -110,7 +107,7 @@ class UnfilteredEventListeners final : public APIEventListeners {
   bool HasListener(v8::Local<v8::Function> listener) override;
   size_t GetNumListeners() override;
   std::vector<v8::Local<v8::Function>> GetListeners(
-      mojom::EventFilteringInfoPtr filter,
+      const EventFilteringInfo* filter,
       v8::Local<v8::Context> context) override;
   void Invalidate(v8::Local<v8::Context> context) override;
 
@@ -156,6 +153,8 @@ class UnfilteredEventListeners final : public APIEventListeners {
   // null if this is a set of listeners for an unmanaged event. If
   // non-null, required to outlive this object.
   ListenerTracker* listener_tracker_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(UnfilteredEventListeners);
 };
 
 // A listener list implementation that supports filtering. Events should only
@@ -170,10 +169,6 @@ class FilteredEventListeners final : public APIEventListeners {
                          int max_listeners,
                          bool supports_lazy_listeners,
                          ListenerTracker* listener_tracker);
-
-  FilteredEventListeners(const FilteredEventListeners&) = delete;
-  FilteredEventListeners& operator=(const FilteredEventListeners&) = delete;
-
   ~FilteredEventListeners() override;
 
   bool AddListener(v8::Local<v8::Function> listener,
@@ -185,7 +180,7 @@ class FilteredEventListeners final : public APIEventListeners {
   bool HasListener(v8::Local<v8::Function> listener) override;
   size_t GetNumListeners() override;
   std::vector<v8::Local<v8::Function>> GetListeners(
-      mojom::EventFilteringInfoPtr filter,
+      const EventFilteringInfo* filter,
       v8::Local<v8::Context> context) override;
   void Invalidate(v8::Local<v8::Context> context) override;
 
@@ -224,6 +219,8 @@ class FilteredEventListeners final : public APIEventListeners {
   // The listener tracker to notify of added or removed listeners. Required to
   // outlive this object. Must be non-null.
   ListenerTracker* listener_tracker_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(FilteredEventListeners);
 };
 
 }  // namespace extensions

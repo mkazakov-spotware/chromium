@@ -1,8 +1,6 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {DataSeries} from './line_chart/data_series.js';
 
 /**
  * @fileoverview Typedef use by chrome://sys-internals.
@@ -18,7 +16,7 @@ import {DataSeries} from './line_chart/data_series.js';
  *   user: number,
  * }}
  */
-export var GeneralCpuType;
+var GeneralCpuType;
 
 /**
  * For info page.
@@ -29,7 +27,7 @@ export var GeneralCpuType;
  *   used: number,
  * }}
  */
-export var GeneralMemoryType;
+var GeneralMemoryType;
 
 /**
  * For info page.
@@ -40,7 +38,7 @@ export var GeneralMemoryType;
  *   total: number,
  * }}
  */
-export var GeneralZramType;
+var GeneralZramType;
 
 /**
  * @typedef {{
@@ -49,33 +47,33 @@ export var GeneralZramType;
  *   zram: GeneralZramType,
  * }}
  */
-export var GeneralInfoType;
+var GeneralInfoType;
 
 /**
- * @typedef {Array<!DataSeries>|null}
+ * @typedef {Array<!LineChart.DataSeries>|null}
  */
-export var CpuDataSeriesSet;
-
-/**
- * @typedef {{
- *   memUsed: !DataSeries,
- *   swapUsed: !DataSeries,
- *   pswpin: !DataSeries,
- *   pswpout: !DataSeries
- * }}
- */
-export var MemoryDataSeriesSet;
+var CpuDataSeriesSet;
 
 /**
  * @typedef {{
- *   origDataSize: !DataSeries,
- *   comprDataSize: !DataSeries,
- *   memUsedTotal: !DataSeries,
- *   numReads: !DataSeries,
- *   numWrites: !DataSeries
+ *   memUsed: !LineChart.DataSeries,
+ *   swapUsed: !LineChart.DataSeries,
+ *   pswpin: !LineChart.DataSeries,
+ *   pswpout: !LineChart.DataSeries
  * }}
  */
-export var ZramDataSeriesSet;
+var MemoryDataSeriesSet;
+
+/**
+ * @typedef {{
+ *   origDataSize: !LineChart.DataSeries,
+ *   comprDataSize: !LineChart.DataSeries,
+ *   memUsedTotal: !LineChart.DataSeries,
+ *   numReads: !LineChart.DataSeries,
+ *   numWrites: !LineChart.DataSeries
+ * }}
+ */
+var ZramDataSeriesSet;
 
 /**
  * @typedef {{
@@ -84,9 +82,9 @@ export var ZramDataSeriesSet;
  *   zram: ZramDataSeriesSet,
  * }}
  */
-export var DataSeriesSet;
+var DataSeriesSet;
 
 /**
  * @typedef {{value: number, timestamp: number}}
  */
-export var CounterType;
+var CounterType;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,9 @@ void ExtensionsTestSuite::Initialize() {
   content::ContentTestSuiteBase::Initialize();
   gl::GLSurfaceTestSupport::InitializeOneOff();
 
-  // Register the chrome-extension:// scheme via this circuitous path.
+  // Register the chrome-extension:// scheme via this circuitous path. Note
+  // that this does not persistently set up a ContentClient; individual tests
+  // must use content::SetContentClient().
   {
     ExtensionsContentClient content_client;
     RegisterContentSchemes(&content_client);
@@ -75,17 +77,17 @@ void ExtensionsTestSuite::Initialize() {
   extensions::RegisterPathProvider();
 
   base::FilePath extensions_shell_and_test_pak_path;
-  base::PathService::Get(base::DIR_ASSETS, &extensions_shell_and_test_pak_path);
+  base::PathService::Get(base::DIR_MODULE, &extensions_shell_and_test_pak_path);
   ui::ResourceBundle::InitSharedInstanceWithPakPath(
       extensions_shell_and_test_pak_path.AppendASCII(
           "extensions_shell_and_test.pak"));
 
-  client_ = std::make_unique<extensions::TestExtensionsClient>();
+  client_.reset(new extensions::TestExtensionsClient());
   extensions::ExtensionsClient::Set(client_.get());
 }
 
 void ExtensionsTestSuite::Shutdown() {
-  extensions::ExtensionsClient::Set(nullptr);
+  extensions::ExtensionsClient::Set(NULL);
   client_.reset();
 
   ui::ResourceBundle::CleanupSharedInstance();
@@ -95,10 +97,7 @@ void ExtensionsTestSuite::Shutdown() {
 }  // namespace
 
 int main(int argc, char** argv) {
-  content::UnitTestTestSuite test_suite(
-      new ExtensionsTestSuite(argc, argv),
-      base::BindRepeating(
-          content::UnitTestTestSuite::CreateTestContentClients));
+  content::UnitTestTestSuite test_suite(new ExtensionsTestSuite(argc, argv));
   return base::LaunchUnitTests(argc, argv,
                                base::BindOnce(&content::UnitTestTestSuite::Run,
                                               base::Unretained(&test_suite)));

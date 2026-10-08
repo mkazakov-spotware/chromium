@@ -44,14 +44,14 @@ class SVGPath final : public SVGPropertyBase {
   typedef void TearOffType;
 
   SVGPath();
-  explicit SVGPath(const cssvalue::CSSPathValue&);
+  explicit SVGPath(cssvalue::CSSPathValue*);
   ~SVGPath() override;
 
   const SVGPathByteStream& ByteStream() const {
     return path_value_->ByteStream();
   }
   StylePath* GetStylePath() const { return path_value_->GetStylePath(); }
-  const cssvalue::CSSPathValue& PathValue() const { return *path_value_; }
+  cssvalue::CSSPathValue* PathValue() const { return path_value_.Get(); }
 
   // SVGPropertyBase:
   SVGPath* Clone() const;
@@ -77,7 +77,7 @@ class SVGPath final : public SVGPropertyBase {
   void Trace(Visitor*) const override;
 
  private:
-  Member<const cssvalue::CSSPathValue> path_value_;
+  Member<cssvalue::CSSPathValue> path_value_;
 };
 
 template <>
@@ -89,4 +89,4 @@ struct DowncastTraits<SVGPath> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_PATH_H_
+#endif

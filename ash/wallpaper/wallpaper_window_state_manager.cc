@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,8 @@ WallpaperWindowStateManager::~WallpaperWindowStateManager() = default;
 
 void WallpaperWindowStateManager::MinimizeInactiveWindows(
     const std::string& user_id_hash) {
-  if (!base::Contains(user_id_hash_window_list_map_, user_id_hash)) {
+  if (user_id_hash_window_list_map_.find(user_id_hash) ==
+      user_id_hash_window_list_map_.end()) {
     user_id_hash_window_list_map_[user_id_hash] = std::set<aura::Window*>();
   }
   std::set<aura::Window*>* results =
@@ -69,7 +70,8 @@ void WallpaperWindowStateManager::RestoreMinimizedWindows(
   UserIDHashWindowListMap::iterator it =
       user_id_hash_window_list_map_.find(user_id_hash);
   if (it == user_id_hash_window_list_map_.end()) {
-    DVLOG(1) << "No minimized window state saved";
+    DCHECK(false) << "This should only be called after calling "
+                  << "MinimizeInactiveWindows.";
     return;
   }
 
@@ -94,7 +96,7 @@ void WallpaperWindowStateManager::RemoveObserverIfUnreferenced(
   for (UserIDHashWindowListMap::iterator iter =
            user_id_hash_window_list_map_.begin();
        iter != user_id_hash_window_list_map_.end(); ++iter) {
-    if (base::Contains(iter->second, window))
+    if (iter->second.find(window) != iter->second.end())
       return;
   }
   // Remove observer if |window| is not observed by any users.

@@ -1,14 +1,12 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 goog.module('goog.graphics.PathTest');
 goog.setTestOnly();
 
 const AffineTransform = goog.require('goog.graphics.AffineTransform');
 const Path = goog.require('goog.graphics.Path');
+const googArray = goog.require('goog.array');
 const graphics = goog.require('goog.testing.graphics');
 const testSuite = goog.require('goog.testing.testSuite');
 
@@ -21,10 +19,17 @@ testSuite({
   },
 
   testGetSegmentCount() {
-    assertArrayEquals([2, 2, 6, 6, 0], [
-      Path.Segment.MOVETO, Path.Segment.LINETO, Path.Segment.CURVETO,
-      Path.Segment.ARCTO, Path.Segment.CLOSE
-    ].map(Path.getSegmentCount));
+    assertArrayEquals(
+        [2, 2, 6, 6, 0],
+        googArray.map(
+            [
+              Path.Segment.MOVETO,
+              Path.Segment.LINETO,
+              Path.Segment.CURVETO,
+              Path.Segment.ARCTO,
+              Path.Segment.CLOSE,
+            ],
+            Path.getSegmentCount));
   },
 
   testSimpleMoveTo() {
@@ -123,7 +128,6 @@ testSuite({
         ['M', 58.66, 70, 'A', 10, 20, 30, 30, 55, 77.32], path);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testArcNonConnectClose() {
     const path = new Path();
     path.moveTo(0, 0);
@@ -169,7 +173,6 @@ testSuite({
     graphics.assertPathEquals(['M', 10, 0, 'A', 10, 10, 0, 360, 10, 0], path);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testClose() {
     const path = new Path();
     try {
@@ -244,7 +247,6 @@ testSuite({
     assertRoughlyEquals(70, p[1], 0.01);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testArcToAsCurves() {
     const path = new Path();
     path.moveTo(58.66, 70);

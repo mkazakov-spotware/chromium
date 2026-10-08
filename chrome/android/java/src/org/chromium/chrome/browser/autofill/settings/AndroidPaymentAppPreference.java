@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,7 @@ public class AndroidPaymentAppPreference extends Preference {
     public void onBindViewHolder(PreferenceViewHolder holder) {
         super.onBindViewHolder(holder);
 
+        // TODO(crbug.com/971791): Simplify this or replace it with a custom preference layout.
         int iconSize =
                 getContext().getResources().getDimensionPixelSize(R.dimen.payments_favicon_size);
         View iconView = holder.findViewById(android.R.id.icon);

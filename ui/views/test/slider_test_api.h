@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_TEST_SLIDER_TEST_API_H_
 #define UI_VIEWS_TEST_SLIDER_TEST_API_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace views {
 
@@ -20,10 +20,6 @@ namespace test {
 class SliderTestApi {
  public:
   explicit SliderTestApi(Slider* slider);
-
-  SliderTestApi(const SliderTestApi&) = delete;
-  SliderTestApi& operator=(const SliderTestApi&) = delete;
-
   virtual ~SliderTestApi();
 
   // Set the SliderListener on the Slider.
@@ -32,7 +28,9 @@ class SliderTestApi {
   int initial_button_offset() const;
 
  private:
-  raw_ptr<Slider> slider_;
+  Slider* slider_;
+
+  DISALLOW_COPY_AND_ASSIGN(SliderTestApi);
 };
 
 }  // namespace test

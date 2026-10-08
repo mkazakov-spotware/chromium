@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,12 @@
 #include "base/functional/not_fn.h"
 #include "base/ranges/algorithm.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_store_interface.h"
+#include "components/password_manager/core/browser/password_store.h"
 
 AllPasswordsBottomSheetHelper::AllPasswordsBottomSheetHelper(
-    password_manager::PasswordStoreInterface* store) {
+    password_manager::PasswordStore* store) {
   DCHECK(store);
-  store->GetAllLoginsWithAffiliationAndBrandingInformation(
-      weak_ptr_factory_.GetWeakPtr());
+  store->GetAllLoginsWithAffiliationAndBrandingInformation(this);
 }
 
 AllPasswordsBottomSheetHelper::~AllPasswordsBottomSheetHelper() = default;

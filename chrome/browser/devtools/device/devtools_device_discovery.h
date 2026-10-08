@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
@@ -20,9 +21,6 @@ class DevToolsDeviceDiscovery {
  public:
   class RemotePage : public base::RefCountedThreadSafe<RemotePage> {
    public:
-    RemotePage(const RemotePage&) = delete;
-    RemotePage& operator=(const RemotePage&) = delete;
-
     scoped_refptr<AndroidDeviceManager::Device> device() { return device_; }
     const std::string& socket() { return browser_id_; }
     const std::string& frontend_url() { return frontend_url_; }
@@ -45,15 +43,14 @@ class DevToolsDeviceDiscovery {
     std::string frontend_url_;
     base::Value dict_;
     scoped_refptr<content::DevToolsAgentHost> agent_host_;
+
+    DISALLOW_COPY_AND_ASSIGN(RemotePage);
   };
 
   using RemotePages = std::vector<scoped_refptr<RemotePage>>;
 
   class RemoteBrowser : public base::RefCountedThreadSafe<RemoteBrowser> {
    public:
-    RemoteBrowser(const RemoteBrowser&) = delete;
-    RemoteBrowser& operator=(const RemoteBrowser&) = delete;
-
     const std::string& serial() { return serial_; }
     const std::string& socket() { return browser_id_; }
     const std::string& display_name() { return display_name_; }
@@ -85,15 +82,14 @@ class DevToolsDeviceDiscovery {
     std::string version_;
     std::string browser_target_id_;
     RemotePages pages_;
+
+    DISALLOW_COPY_AND_ASSIGN(RemoteBrowser);
   };
 
   using RemoteBrowsers = std::vector<scoped_refptr<RemoteBrowser>>;
 
   class RemoteDevice : public base::RefCountedThreadSafe<RemoteDevice> {
    public:
-    RemoteDevice(const RemoteDevice&) = delete;
-    RemoteDevice& operator=(const RemoteDevice&) = delete;
-
     std::string serial() { return serial_; }
     std::string model() { return model_; }
     bool is_connected() { return connected_; }
@@ -114,6 +110,8 @@ class DevToolsDeviceDiscovery {
     bool connected_;
     RemoteBrowsers browsers_;
     gfx::Size screen_size_;
+
+    DISALLOW_COPY_AND_ASSIGN(RemoteDevice);
   };
 
   using RemoteDevices = std::vector<scoped_refptr<RemoteDevice>>;
@@ -122,18 +120,14 @@ class DevToolsDeviceDiscovery {
       std::pair<scoped_refptr<AndroidDeviceManager::Device>,
                 scoped_refptr<RemoteDevice>>;
   using CompleteDevices = std::vector<CompleteDevice>;
-  using DeviceListCallback =
-      base::RepeatingCallback<void(const CompleteDevices&)>;
+  using DeviceListCallback = base::Callback<void(const CompleteDevices&)>;
 
-  DevToolsDeviceDiscovery(AndroidDeviceManager* device_manager,
-                          DeviceListCallback callback);
-
-  DevToolsDeviceDiscovery(const DevToolsDeviceDiscovery&) = delete;
-  DevToolsDeviceDiscovery& operator=(const DevToolsDeviceDiscovery&) = delete;
-
+  DevToolsDeviceDiscovery(
+      AndroidDeviceManager* device_manager,
+      const DeviceListCallback& callback);
   ~DevToolsDeviceDiscovery();
 
-  void SetScheduler(base::RepeatingCallback<void(base::OnceClosure)> scheduler);
+  void SetScheduler(base::Callback<void(const base::Closure&)> scheduler);
 
   static scoped_refptr<content::DevToolsAgentHost> CreateBrowserAgentHost(
       scoped_refptr<AndroidDeviceManager::Device> device,
@@ -147,8 +141,10 @@ class DevToolsDeviceDiscovery {
 
   AndroidDeviceManager* device_manager_;
   const DeviceListCallback callback_;
-  base::RepeatingCallback<void(base::OnceClosure)> task_scheduler_;
+  base::Callback<void(const base::Closure&)> task_scheduler_;
   base::WeakPtrFactory<DevToolsDeviceDiscovery> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DevToolsDeviceDiscovery);
 };
 
 #endif  // CHROME_BROWSER_DEVTOOLS_DEVICE_DEVTOOLS_DEVICE_DISCOVERY_H_

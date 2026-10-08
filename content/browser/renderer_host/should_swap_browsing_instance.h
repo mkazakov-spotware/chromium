@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,30 +18,23 @@ enum class ShouldSwapBrowsingInstance {
   kNo_HasRelatedActiveContents = 3,
   kNo_DoesNotHaveSite = 4,
   kNo_SourceURLSchemeIsNotHTTPOrHTTPS = 5,
-  // 6: kNo_DestinationURLSchemeIsNotHTTPOrHTTPS was removed as the scheme of
-  // the destination URL should not affect back-forward cache eligibility, so
-  // we don't need to avoid doing a proactive BrowsingInstance swap due to it.
+  kNo_DestinationURLSchemeIsNotHTTPOrHTTPS = 6,
   kNo_SameSiteNavigation = 7,
-  // 8: kNo_ReloadingErrorPage was removed as the special case that forced
-  // reusing a SiteInstance for auto-reload was fixed. (see
-  // https://crbug.com/1045524).
+  kNo_ReloadingErrorPage = 8,
   kNo_AlreadyHasMatchingBrowsingInstance = 9,
   kNo_RendererDebugURL = 10,
   kNo_NotNeededForBackForwardCache = 11,
   kYes_CrossSiteProactiveSwap = 12,
   kYes_SameSiteProactiveSwap = 13,
   kNo_SameDocumentNavigation = 14,
-  kNo_SameUrlNavigation = 15,
+  kNo_SamePageNavigation = 15,
   kNo_WillReplaceEntry = 16,
   kNo_Reload = 17,
   kNo_Guest = 18,
   kNo_HasNotComittedAnyNavigation = 19,
-  // 20: kNo_UnloadHandlerExistsOnSameSiteNavigation was removed as it's not
-  // triggering BrowsingInstance swap anymore. See
-  // https://groups.google.com/a/google.com/g/chrome-bfcache/c/L-ZreZDY4n0
-  kNo_NotPrimaryMainFrame = 21,
+  kNo_UnloadHandlerExistsOnSameSiteNavigation = 20,
 
-  kMaxValue = kNo_NotPrimaryMainFrame
+  kMaxValue = kNo_UnloadHandlerExistsOnSameSiteNavigation
 };
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "dbus/bus.h"
 #include "dbus/message.h"
 #include "dbus/object_path.h"
@@ -33,11 +34,6 @@ namespace bluez {
 // "Value" property.
 class DEVICE_BLUETOOTH_EXPORT BluetoothGattDescriptorServiceProvider {
  public:
-  BluetoothGattDescriptorServiceProvider(
-      const BluetoothGattDescriptorServiceProvider&) = delete;
-  BluetoothGattDescriptorServiceProvider& operator=(
-      const BluetoothGattDescriptorServiceProvider&) = delete;
-
   virtual ~BluetoothGattDescriptorServiceProvider();
 
   // Send a PropertyChanged signal to notify the Bluetooth daemon that the value
@@ -74,6 +70,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothGattDescriptorServiceProvider {
 
  protected:
   BluetoothGattDescriptorServiceProvider();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BluetoothGattDescriptorServiceProvider);
 };
 
 }  // namespace bluez

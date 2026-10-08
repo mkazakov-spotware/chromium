@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,18 @@ OverlayPlane::OverlayPlane() {}
 
 OverlayPlane::OverlayPlane(scoped_refptr<gfx::NativePixmap> pixmap,
                            std::unique_ptr<gfx::GpuFence> gpu_fence,
-                           const gfx::OverlayPlaneData& overlay_plane_data)
+                           int z_order,
+                           gfx::OverlayTransform plane_transform,
+                           const gfx::Rect& display_bounds,
+                           const gfx::RectF& crop_rect,
+                           bool enable_blend)
     : pixmap(std::move(pixmap)),
       gpu_fence(std::move(gpu_fence)),
-      overlay_plane_data(overlay_plane_data) {}
+      z_order(z_order),
+      plane_transform(plane_transform),
+      display_bounds(display_bounds),
+      crop_rect(crop_rect),
+      enable_blend(enable_blend) {}
 
 OverlayPlane::OverlayPlane(OverlayPlane&& other) = default;
 

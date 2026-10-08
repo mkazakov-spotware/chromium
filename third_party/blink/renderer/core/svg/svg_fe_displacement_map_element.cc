@@ -24,7 +24,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg/svg_enumeration_map.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -91,8 +91,7 @@ bool SVGFEDisplacementMapElement::SetFilterEffectAttribute(
 }
 
 void SVGFEDisplacementMapElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kXChannelSelectorAttr ||
       attr_name == svg_names::kYChannelSelectorAttr ||
       attr_name == svg_names::kScaleAttr) {
@@ -107,7 +106,7 @@ void SVGFEDisplacementMapElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFEDisplacementMapElement::Build(
@@ -124,7 +123,7 @@ FilterEffect* SVGFEDisplacementMapElement::Build(
       filter, x_channel_selector_->CurrentEnumValue(),
       y_channel_selector_->CurrentEnumValue(), scale_->CurrentValue()->Value());
   FilterEffectVector& input_effects = effect->InputEffects();
-  input_effects.reserve(2);
+  input_effects.ReserveCapacity(2);
   input_effects.push_back(input1);
   input_effects.push_back(input2);
   return effect;

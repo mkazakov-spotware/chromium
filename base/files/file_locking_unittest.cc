@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include "base/files/file.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/test/multiprocess_test.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/platform_thread.h"
@@ -65,7 +66,7 @@ bool WaitForEventWithTimeout(const FilePath& signal_dir,
   while (!CheckEvent(signal_dir, signal_file)) {
     if (base::Time::Now() > finish_by)
       return false;
-    base::PlatformThread::Sleep(base::Milliseconds(10));
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(10));
   }
   return true;
 }
@@ -132,8 +133,6 @@ MULTIPROCESS_TEST_MAIN(ChildMain) {
 class FileLockingTest : public testing::Test {
  public:
   FileLockingTest() = default;
-  FileLockingTest(const FileLockingTest&) = delete;
-  FileLockingTest& operator=(const FileLockingTest&) = delete;
 
  protected:
   void SetUp() override {
@@ -194,6 +193,9 @@ class FileLockingTest : public testing::Test {
   base::ScopedTempDir temp_dir_;
   base::File lock_file_;
   base::Process lock_child_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FileLockingTest);
 };
 
 // Test that locks are released by Unlock().
@@ -285,7 +287,7 @@ TEST_F(FileLockingTest, UnlockOnExitShared) {
 
 // Test that killing the process releases the lock.  This should cover crashing.
 // Flaky on Android (http://crbug.com/747518)
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_UnlockOnTerminate DISABLED_UnlockOnTerminate
 #else
 #define MAYBE_UnlockOnTerminate UnlockOnTerminate

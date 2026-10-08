@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/test/mock_log.h"
 #include "net/base/net_errors.h"
@@ -17,7 +18,8 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::test {
+namespace net {
+namespace test {
 
 // A GMock matcher that checks whether the argument is the expected net::Error.
 // On failure, the expected and actual net::Error names will be printed.
@@ -46,13 +48,10 @@ class StringPieceHasSubstrMatcher {
  public:
   explicit StringPieceHasSubstrMatcher(const std::string& substring)
       : substring_(substring) {}
-  StringPieceHasSubstrMatcher(const StringPieceHasSubstrMatcher&) = default;
-  StringPieceHasSubstrMatcher& operator=(const StringPieceHasSubstrMatcher&) =
-      default;
 
   bool MatchAndExplain(base::StringPiece s,
                        ::testing::MatchResultListener* listener) const {
-    return s.find(substring_) != std::string::npos;
+    return s.as_string().find(substring_) != std::string::npos;
   }
 
   // Describe what this matcher matches.
@@ -65,7 +64,9 @@ class StringPieceHasSubstrMatcher {
   }
 
  private:
-  std::string substring_;
+  const std::string substring_;
+
+  DISALLOW_ASSIGN(StringPieceHasSubstrMatcher);
 };
 
 // Internal implementation for the EXPECT_DFATAL and ASSERT_DFATAL
@@ -166,6 +167,7 @@ class StringPieceHasSubstrMatcher {
 
 #endif  // DCHECK_IS_ON()
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net
 
 #endif  // NET_TEST_GTEST_UTIL_H_

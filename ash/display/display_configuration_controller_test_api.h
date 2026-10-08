@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
+
 namespace ash {
 class DisplayConfigurationController;
 class ScreenRotationAnimator;
@@ -18,11 +20,6 @@ class DisplayConfigurationControllerTestApi {
  public:
   explicit DisplayConfigurationControllerTestApi(
       DisplayConfigurationController* controller);
-
-  DisplayConfigurationControllerTestApi(
-      const DisplayConfigurationControllerTestApi&) = delete;
-  DisplayConfigurationControllerTestApi& operator=(
-      const DisplayConfigurationControllerTestApi&) = delete;
 
   // Wrapper functions for DisplayConfigurationController.
   void SetDisplayAnimator(bool enable);
@@ -35,6 +32,8 @@ class DisplayConfigurationControllerTestApi {
 
  private:
   DisplayConfigurationController* controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayConfigurationControllerTestApi);
 };
 
 }  // namespace ash

@@ -1,9 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// clang-format off
+// #import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
+// clang-format on
+
 /** @interface */
-export class ManageA11yPageBrowserProxy {
+/* #export */ class ManageA11yPageBrowserProxy {
   /**
    * Opens the options page for Chrome Vox.
    */
@@ -31,30 +35,12 @@ export class ManageA11yPageBrowserProxy {
    * is returned by the 'initial-data-ready' WebUI listener event.
    */
   manageA11yPageReady() {}
-
-  /**
-   * Opens the ChromeVox tutorial.
-   */
-  showChromeVoxTutorial() {}
 }
-
-/** @type {?ManageA11yPageBrowserProxy} */
-let instance = null;
 
 /**
  * @implements {ManageA11yPageBrowserProxy}
  */
-export class ManageA11yPageBrowserProxyImpl {
-  /** @return {!ManageA11yPageBrowserProxy} */
-  static getInstance() {
-    return instance || (instance = new ManageA11yPageBrowserProxyImpl());
-  }
-
-  /** @param {!ManageA11yPageBrowserProxy} obj */
-  static setInstanceForTesting(obj) {
-    instance = obj;
-  }
-
+/* #export */ class ManageA11yPageBrowserProxyImpl {
   /** @override */
   showChromeVoxSettings() {
     chrome.send('showChromeVoxSettings');
@@ -79,9 +65,8 @@ export class ManageA11yPageBrowserProxyImpl {
   manageA11yPageReady() {
     chrome.send('manageA11yPageReady');
   }
-
-  /** @override */
-  showChromeVoxTutorial() {
-    chrome.send('showChromeVoxTutorial');
-  }
 }
+
+// The singleton instance_ is replaced with a test version of this wrapper
+// during testing.
+cr.addSingletonGetter(ManageA11yPageBrowserProxyImpl);

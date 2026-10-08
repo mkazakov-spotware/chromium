@@ -1,11 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PERMISSIONS_PREDICTION_SERVICE_FACTORY_H_
 #define CHROME_BROWSER_PERMISSIONS_PREDICTION_SERVICE_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
 
@@ -17,7 +18,7 @@ namespace permissions {
 class PredictionService;
 }
 
-class PredictionServiceFactory : public ProfileKeyedServiceFactory {
+class PredictionServiceFactory : public BrowserContextKeyedServiceFactory {
  public:
   static permissions::PredictionService* GetForProfile(Profile* profile);
   static PredictionServiceFactory* GetInstance();
@@ -33,6 +34,9 @@ class PredictionServiceFactory : public ProfileKeyedServiceFactory {
 
   // BrowserContextKeyedServiceFactory
   KeyedService* BuildServiceInstanceFor(
+      content::BrowserContext* context) const override;
+
+  content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
 };
 

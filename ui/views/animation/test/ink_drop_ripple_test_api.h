@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/compositor/test/multi_layer_animator_test_controller.h"
 #include "ui/compositor/test/multi_layer_animator_test_controller_delegate.h"
 
@@ -28,10 +28,6 @@ class InkDropRippleTestApi
       public ui::test::MultiLayerAnimatorTestControllerDelegate {
  public:
   explicit InkDropRippleTestApi(InkDropRipple* ink_drop_ripple);
-
-  InkDropRippleTestApi(const InkDropRippleTestApi&) = delete;
-  InkDropRippleTestApi& operator=(const InkDropRippleTestApi&) = delete;
-
   ~InkDropRippleTestApi() override;
 
   // Gets the opacity of the ink drop.
@@ -49,7 +45,9 @@ class InkDropRippleTestApi
 
  private:
   // The InkDropedRipple to provide internal access to.
-  raw_ptr<InkDropRipple> ink_drop_ripple_;
+  InkDropRipple* ink_drop_ripple_;
+
+  DISALLOW_COPY_AND_ASSIGN(InkDropRippleTestApi);
 };
 
 }  // namespace test

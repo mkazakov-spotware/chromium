@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,9 +22,9 @@ class DualMetricMeasurement(story_test.StoryTest):
     else:
       self._enable_tracing = False
 
-  def WillRunStory(self, platform, story=None):
+  def WillRunStory(self, platform):
     if self._enable_tracing:
-      self._tbm_test.WillRunStory(platform, story)
+      self._tbm_test.WillRunStory(platform)
 
   def Measure(self, platform, results):
     for value in results.current_story.GetMeasurements():

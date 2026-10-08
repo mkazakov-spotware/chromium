@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,10 +23,7 @@ def main(argv):
   option_parser.add_option('--includes',
                            help='Directories to add as import search paths.')
   option_parser.add_option('--srcjar', help='Path for srcjar output.')
-  build_utils.AddDepfileOption(option_parser)
   options, args = option_parser.parse_args(argv[1:])
-
-  options.includes = build_utils.ParseGnList(options.includes)
 
   with build_utils.TempDir() as temp_dir:
     for f in args:
@@ -36,7 +33,10 @@ def main(argv):
       aidl_cmd += [
         '-p' + s for s in build_utils.ParseGnList(options.imports)
       ]
-      aidl_cmd += ['-I' + s for s in options.includes]
+      if options.includes is not None:
+        aidl_cmd += [
+          '-I' + s for s in build_utils.ParseGnList(options.includes)
+        ]
       aidl_cmd += [
         f,
         output
@@ -52,12 +52,6 @@ def main(argv):
           arcname = '%s/%s' % (
               pkg_name.replace('.', '/'), os.path.basename(path))
           build_utils.AddToZipHermetic(srcjar, arcname, data=data)
-
-  if options.depfile:
-    include_files = []
-    for include_dir in options.includes:
-      include_files += build_utils.FindInDirectory(include_dir, '*.java')
-    build_utils.WriteDepfile(options.depfile, options.srcjar, include_files)
 
 
 if __name__ == '__main__':

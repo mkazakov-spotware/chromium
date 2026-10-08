@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,10 @@ import androidx.browser.customtabs.CustomTabsService;
 import androidx.browser.customtabs.CustomTabsSessionToken;
 
 import org.chromium.base.Log;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.OriginVerifier;
 import org.chromium.chrome.browser.browserservices.SessionDataHolder;
 import org.chromium.chrome.browser.browserservices.SessionHandler;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.CustomButtonParams;
-import org.chromium.chrome.browser.browserservices.verification.ChromeOriginVerifier;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.customtabs.content.CustomTabIntentHandler;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarCoordinator;
@@ -74,11 +73,6 @@ public class CustomTabSessionHandler implements SessionHandler, StartStopWithNat
         mActivity = activity;
         mSessionDataHolder = sessionDataHolder;
         lifecycleDispatcher.register(this);
-
-        // The active handler will also get set in onStartWithNative, but since native may take some
-        // time to initialize, we eagerly set it here to catch any messages the Custom Tabs Client
-        // sends our way before that triggers.
-        mSessionDataHolder.setActiveHandler(this);
     }
 
     @Override
@@ -122,7 +116,7 @@ public class CustomTabSessionHandler implements SessionHandler, StartStopWithNat
     @Nullable
     public String getCurrentUrl() {
         Tab tab = mTabProvider.getTab();
-        return tab == null ? null : tab.getUrl().getSpec();
+        return tab == null ? null : tab.getUrlString();
     }
 
     @Override
@@ -133,7 +127,7 @@ public class CustomTabSessionHandler implements SessionHandler, StartStopWithNat
 
         NavigationEntry entry = tab.getWebContents().getNavigationController()
                 .getPendingEntry();
-        return entry != null ? entry.getUrl().getSpec() : null;
+        return entry != null ? entry.getUrl() : null;
     }
 
     @Override
@@ -163,7 +157,7 @@ public class CustomTabSessionHandler implements SessionHandler, StartStopWithNat
         if (TextUtils.isEmpty(packageName)) return false;
         Origin origin = Origin.create(referrer);
         if (origin == null) return false;
-        return ChromeOriginVerifier.wasPreviouslyVerified(
+        return OriginVerifier.wasPreviouslyVerified(
                 packageName, origin, CustomTabsService.RELATION_USE_AS_ORIGIN);
     }
 }

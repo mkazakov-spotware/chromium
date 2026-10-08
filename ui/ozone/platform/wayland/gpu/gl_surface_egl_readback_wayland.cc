@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,9 @@ GLSurfaceEglReadbackWayland::PixelBuffer::PixelBuffer(
 GLSurfaceEglReadbackWayland::PixelBuffer::~PixelBuffer() = default;
 
 GLSurfaceEglReadbackWayland::GLSurfaceEglReadbackWayland(
-    gl::GLDisplayEGL* display,
     gfx::AcceleratedWidget widget,
     WaylandBufferManagerGpu* buffer_manager)
-    : GLSurfaceEglReadback(display),
-      widget_(widget),
-      buffer_manager_(buffer_manager) {
+    : widget_(widget), buffer_manager_(buffer_manager) {
   buffer_manager_->RegisterSurface(widget_, this);
 }
 
@@ -48,7 +45,7 @@ bool GLSurfaceEglReadbackWayland::Resize(const gfx::Size& size,
                                          const gfx::ColorSpace& color_space,
                                          bool has_alpha) {
   DestroyBuffers();
-  surface_scale_factor_ = scale_factor;
+
   pending_frames_ = 0;
 
   if (!PbufferGLSurfaceEGL::Resize(size, scale_factor, color_space, has_alpha))
@@ -95,16 +92,14 @@ bool GLSurfaceEglReadbackWayland::SupportsAsyncSwap() {
 }
 
 gfx::SwapResult GLSurfaceEglReadbackWayland::SwapBuffers(
-    PresentationCallback callback,
-    gl::FrameData data) {
+    PresentationCallback callback) {
   NOTREACHED();
   return gfx::SwapResult::SWAP_FAILED;
 }
 
 void GLSurfaceEglReadbackWayland::SwapBuffersAsync(
     SwapCompletionCallback completion_callback,
-    PresentationCallback presentation_callback,
-    gl::FrameData data) {
+    PresentationCallback presentation_callback) {
   DCHECK(pending_frames_ < kMaxBuffers);
 
   // Increase pending frames number.
@@ -121,11 +116,8 @@ void GLSurfaceEglReadbackWayland::SwapBuffersAsync(
   CHECK(next_buffer->shm_mapping_.memory());
   ReadPixels(next_buffer->shm_mapping_.memory());
 
-  const auto bounds = gfx::Rect(GetSize());
   buffer_manager_->CommitBuffer(widget_, next_buffer->buffer_id_,
-                                /*frame_id*/ next_buffer->buffer_id_, bounds,
-                                gfx::RoundedCornersF(), surface_scale_factor_,
-                                bounds);
+                                {{0, 0}, GetSize()});
 }
 
 gfx::SurfaceOrigin GLSurfaceEglReadbackWayland::GetOrigin() const {
@@ -139,17 +131,15 @@ GLSurfaceEglReadbackWayland::~GLSurfaceEglReadbackWayland() {
 }
 
 void GLSurfaceEglReadbackWayland::OnSubmission(
-    uint32_t frame_id,
-    const gfx::SwapResult& swap_result,
-    gfx::GpuFenceHandle release_fence) {
-  DCHECK(release_fence.is_null());
+    uint32_t buffer_id,
+    const gfx::SwapResult& swap_result) {
   --pending_frames_;
 
   if (in_flight_pixel_buffers_.front()) {
     if (displayed_buffer_)
       available_buffers_.push_back(std::move(displayed_buffer_));
     displayed_buffer_ = std::move(in_flight_pixel_buffers_.front());
-    DCHECK_EQ(displayed_buffer_->buffer_id_, frame_id);
+    DCHECK_EQ(displayed_buffer_->buffer_id_, buffer_id);
   }
 
   in_flight_pixel_buffers_.pop_front();
@@ -161,7 +151,7 @@ void GLSurfaceEglReadbackWayland::OnSubmission(
 }
 
 void GLSurfaceEglReadbackWayland::OnPresentation(
-    uint32_t frame_id,
+    uint32_t buffer_id,
     const gfx::PresentationFeedback& feedback) {
   DCHECK(!presentation_callbacks_.empty());
   std::move(presentation_callbacks_.front()).Run(feedback);
@@ -170,12 +160,12 @@ void GLSurfaceEglReadbackWayland::OnPresentation(
 
 void GLSurfaceEglReadbackWayland::DestroyBuffers() {
   for (const auto& pixel_buffer : available_buffers_)
-    buffer_manager_->DestroyBuffer(pixel_buffer->buffer_id_);
+    buffer_manager_->DestroyBuffer(widget_, pixel_buffer->buffer_id_);
   for (const auto& pixel_buffer : in_flight_pixel_buffers_)
-    buffer_manager_->DestroyBuffer(pixel_buffer->buffer_id_);
+    buffer_manager_->DestroyBuffer(widget_, pixel_buffer->buffer_id_);
 
   if (displayed_buffer_)
-    buffer_manager_->DestroyBuffer(displayed_buffer_->buffer_id_);
+    buffer_manager_->DestroyBuffer(widget_, displayed_buffer_->buffer_id_);
 
   available_buffers_.clear();
   in_flight_pixel_buffers_.clear();

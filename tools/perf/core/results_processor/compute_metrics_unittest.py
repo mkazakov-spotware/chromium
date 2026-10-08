@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -18,7 +18,7 @@ import mock
 
 RUN_METRICS_METHOD = 'tracing.metrics.metric_runner.RunMetricOnSingleTrace'
 GETSIZE_METHOD = 'os.path.getsize'
-TRACE_PROCESSOR_METRIC_METHOD = 'core.tbmv3.trace_processor.RunMetrics'
+TRACE_PROCESSOR_METRIC_METHOD = 'core.tbmv3.trace_processor.RunMetric'
 
 
 class ComputeMetricsTest(unittest.TestCase):

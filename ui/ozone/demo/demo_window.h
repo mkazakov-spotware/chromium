@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
@@ -26,10 +25,6 @@ class DemoWindow : public PlatformWindowDelegate {
   DemoWindow(WindowManager* window_manager,
              RendererFactory* renderer_factory,
              const gfx::Rect& bounds);
-
-  DemoWindow(const DemoWindow&) = delete;
-  DemoWindow& operator=(const DemoWindow&) = delete;
-
   ~DemoWindow() override;
 
   gfx::AcceleratedWidget GetAcceleratedWidget();
@@ -40,13 +35,12 @@ class DemoWindow : public PlatformWindowDelegate {
   void Quit();
 
   // PlatformWindowDelegate:
-  void OnBoundsChanged(const BoundsChange& change) override;
+  void OnBoundsChanged(const gfx::Rect& new_bounds) override;
   void OnDamageRect(const gfx::Rect& damaged_region) override;
   void DispatchEvent(Event* event) override;
   void OnCloseRequest() override;
   void OnClosed() override;
-  void OnWindowStateChanged(PlatformWindowState old_state,
-                            PlatformWindowState new_state) override;
+  void OnWindowStateChanged(PlatformWindowState new_state) override;
   void OnLostCapture() override;
   void OnAcceleratedWidgetAvailable(gfx::AcceleratedWidget widget) override;
   void OnWillDestroyAcceleratedWidget() override {}
@@ -59,8 +53,8 @@ class DemoWindow : public PlatformWindowDelegate {
   // initialize the GPU resources via a posted task.
   void StartRendererIfNecessary();
 
-  raw_ptr<WindowManager> window_manager_;      // Not owned.
-  raw_ptr<RendererFactory> renderer_factory_;  // Not owned.
+  WindowManager* window_manager_;      // Not owned.
+  RendererFactory* renderer_factory_;  // Not owned.
 
   std::unique_ptr<Renderer> renderer_;
 
@@ -69,6 +63,8 @@ class DemoWindow : public PlatformWindowDelegate {
   gfx::AcceleratedWidget widget_ = gfx::kNullAcceleratedWidget;
 
   base::WeakPtrFactory<DemoWindow> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DemoWindow);
 };
 
 }  // namespace ui

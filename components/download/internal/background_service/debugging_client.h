@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_DOWNLOAD_INTERNAL_BACKGROUND_SERVICE_DEBUGGING_CLIENT_H_
 #define COMPONENTS_DOWNLOAD_INTERNAL_BACKGROUND_SERVICE_DEBUGGING_CLIENT_H_
 
+#include "base/macros.h"
 #include "components/download/public/background_service/client.h"
 
 namespace download {
@@ -14,10 +15,6 @@ namespace download {
 class DebuggingClient : public Client {
  public:
   DebuggingClient() = default;
-
-  DebuggingClient(const DebuggingClient&) = delete;
-  DebuggingClient& operator=(const DebuggingClient&) = delete;
-
   ~DebuggingClient() override = default;
 
  private:
@@ -42,6 +39,8 @@ class DebuggingClient : public Client {
                                       bool force_delete) override;
   void GetUploadData(const std::string& guid,
                      GetUploadDataCallback callback) override;
+
+  DISALLOW_COPY_AND_ASSIGN(DebuggingClient);
 };
 
 }  // namespace download

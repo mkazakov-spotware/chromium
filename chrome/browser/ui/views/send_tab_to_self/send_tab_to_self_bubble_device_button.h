@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,35 +8,32 @@
 #include <string>
 
 #include "base/bind.h"
-#include "chrome/browser/ui/views/controls/hover_button.h"
-#include "components/sync_device_info/device_info.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "chrome/browser/ui/views/hover_button.h"
+#include "components/sync/protocol/sync.pb.h"
 
 namespace send_tab_to_self {
 
-class SendTabToSelfDevicePickerBubbleView;
+class SendTabToSelfBubbleViewImpl;
 struct TargetDeviceInfo;
 
 // A button representing a device in share bubble. It is highlighted when
 // hovered.
 class SendTabToSelfBubbleDeviceButton : public HoverButton {
  public:
-  METADATA_HEADER(SendTabToSelfBubbleDeviceButton);
-  SendTabToSelfBubbleDeviceButton(SendTabToSelfDevicePickerBubbleView* bubble,
+  SendTabToSelfBubbleDeviceButton(SendTabToSelfBubbleViewImpl* bubble,
                                   const TargetDeviceInfo& device_info);
-  SendTabToSelfBubbleDeviceButton(const SendTabToSelfBubbleDeviceButton&) =
-      delete;
-  SendTabToSelfBubbleDeviceButton& operator=(
-      const SendTabToSelfBubbleDeviceButton&) = delete;
   ~SendTabToSelfBubbleDeviceButton() override;
 
   const std::string& device_name() const { return device_name_; }
   const std::string& device_guid() const { return device_guid_; }
+  sync_pb::SyncEnums::DeviceType device_type() const { return device_type_; }
 
  private:
   std::string device_name_;
   std::string device_guid_;
-  syncer::DeviceInfo::FormFactor device_form_factor_;
+  sync_pb::SyncEnums::DeviceType device_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(SendTabToSelfBubbleDeviceButton);
 };
 
 }  // namespace send_tab_to_self

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/test/ui_controls.h"
 #include "ui/base/test/ui_controls_aura.h"
 #include "ui/views/view.h"
@@ -26,10 +25,6 @@ namespace {
 class DraggableView : public views::View {
  public:
   DraggableView() = default;
-
-  DraggableView(const DraggableView&) = delete;
-  DraggableView& operator=(const DraggableView&) = delete;
-
   ~DraggableView() override = default;
 
   // views::View overrides:
@@ -38,17 +33,16 @@ class DraggableView : public views::View {
   }
   void WriteDragData(const gfx::Point& press_pt,
                      OSExchangeData* data) override {
-    data->SetString(u"test");
+    data->SetString(base::UTF8ToUTF16("test"));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DraggableView);
 };
 
 class TargetView : public views::View {
  public:
   TargetView() : dropped_(false) {}
-
-  TargetView(const TargetView&) = delete;
-  TargetView& operator=(const TargetView&) = delete;
-
   ~TargetView() override = default;
 
   // views::View overrides:
@@ -63,20 +57,17 @@ class TargetView : public views::View {
   int OnDragUpdated(const ui::DropTargetEvent& event) override {
     return ui::DragDropTypes::DRAG_MOVE;
   }
-  DropCallback GetDropCallback(const ui::DropTargetEvent& event) override {
-    return base::BindOnce(&TargetView::PerformDrop, base::Unretained(this));
+  int OnPerformDrop(const ui::DropTargetEvent& event) override {
+    dropped_ = true;
+    return ui::DragDropTypes::DRAG_MOVE;
   }
 
   bool dropped() const { return dropped_; }
 
  private:
-  void PerformDrop(const ui::DropTargetEvent& event,
-                   ui::mojom::DragOperation& output_drag_op) {
-    dropped_ = true;
-    output_drag_op = ui::mojom::DragOperation::kMove;
-  }
-
   bool dropped_;
+
+  DISALLOW_COPY_AND_ASSIGN(TargetView);
 };
 
 views::Widget* CreateWidget(std::unique_ptr<views::View> contents_view,
@@ -128,11 +119,10 @@ using DragDropTest = AshTestBase;
 
 // Test if the mouse gets moved properly to another display
 // during drag & drop operation.
-// Test flaky on ChromeOS: crbug.com/1312727
-TEST_F(DragDropTest, DISABLED_DragDropAcrossMultiDisplay) {
+TEST_F(DragDropTest, DragDropAcrossMultiDisplay) {
   ui_controls::InstallUIControlsAura(test::CreateAshUIControls());
 
-  UpdateDisplay("400x300,400x300");
+  UpdateDisplay("400x400,400x400");
   aura::Window::Windows root_windows = Shell::Get()->GetAllRootWindows();
   auto draggable_view = std::make_unique<DraggableView>();
   draggable_view->set_drag_controller(NULL);

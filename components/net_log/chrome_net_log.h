@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,11 @@
 #include <string>
 
 #include "base/command_line.h"
-#include "base/values.h"
+#include "base/macros.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace net_log {
 
@@ -20,7 +24,7 @@ namespace net_log {
 //  * The operating system version
 //
 //  Safe to call on any thread.
-base::Value::Dict GetPlatformConstantsForNetLog(
+std::unique_ptr<base::DictionaryValue> GetPlatformConstantsForNetLog(
     const base::CommandLine::StringType& command_line_string,
     const std::string& channel_string);
 

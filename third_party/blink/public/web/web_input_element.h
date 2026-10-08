@@ -31,8 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_INPUT_ELEMENT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_INPUT_ELEMENT_H_
 
-#include "build/build_config.h"
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/web/web_form_control_element.h"
 
 namespace blink {
@@ -72,9 +70,7 @@ class BLINK_EXPORT WebInputElement final : public WebFormControlElement {
   int MaxLength() const;
   void SetActivatedSubmit(bool);
   int size() const;
-  void SetChecked(bool,
-                  bool send_events = false,
-                  WebAutofillState = WebAutofillState::kNotFilled);
+  void SetChecked(bool, bool send_events = false);
   // Sets the value inside the text field without being sanitized. Can't be
   // used if a renderer doesn't exist or on a non text field type. Caret will
   // be moved to the end.
@@ -100,14 +96,6 @@ class BLINK_EXPORT WebInputElement final : public WebFormControlElement {
   // Returns true if the text of the element should be visible.
   bool ShouldRevealPassword() const;
 
-#if BUILDFLAG(IS_ANDROID)
-  // Returns whether this is the last element within its form.
-  bool IsLastInputElementInForm();
-
-  // Triggers a form submission.
-  void DispatchSimulatedEnter();
-#endif
-
 #if INSIDE_BLINK
   explicit WebInputElement(HTMLInputElement*);
   WebInputElement& operator=(HTMLInputElement*);
@@ -116,6 +104,14 @@ class BLINK_EXPORT WebInputElement final : public WebFormControlElement {
 };
 
 DECLARE_WEB_NODE_TYPE_CASTS(WebInputElement);
+
+// This returns 0 if the specified WebElement is not a WebInputElement.
+BLINK_EXPORT WebInputElement* ToWebInputElement(WebElement*);
+// This returns 0 if the specified WebElement is not a WebInputElement.
+BLINK_EXPORT inline const WebInputElement* ToWebInputElement(
+    const WebElement* element) {
+  return ToWebInputElement(const_cast<WebElement*>(element));
+}
 
 }  // namespace blink
 

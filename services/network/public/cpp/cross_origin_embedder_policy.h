@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,12 @@
 
 #include "base/component_export.h"
 #include "services/network/public/mojom/cross_origin_embedder_policy.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace network {
 
 // This corresponds to network::mojom::CrossOriginEmbedderPolicy.
 // See the comments there.
-struct COMPONENT_EXPORT(NETWORK_CPP_CROSS_ORIGIN)
-    CrossOriginEmbedderPolicy final {
+struct COMPONENT_EXPORT(NETWORK_CPP_BASE) CrossOriginEmbedderPolicy final {
   CrossOriginEmbedderPolicy();
   ~CrossOriginEmbedderPolicy();
   CrossOriginEmbedderPolicy(const CrossOriginEmbedderPolicy&);
@@ -27,16 +25,11 @@ struct COMPONENT_EXPORT(NETWORK_CPP_CROSS_ORIGIN)
 
   mojom::CrossOriginEmbedderPolicyValue value =
       mojom::CrossOriginEmbedderPolicyValue::kNone;
-  absl::optional<std::string> reporting_endpoint;
+  base::Optional<std::string> reporting_endpoint;
   mojom::CrossOriginEmbedderPolicyValue report_only_value =
       mojom::CrossOriginEmbedderPolicyValue::kNone;
-  absl::optional<std::string> report_only_reporting_endpoint;
+  base::Optional<std::string> report_only_reporting_endpoint;
 };
-
-COMPONENT_EXPORT(NETWORK_CPP_CROSS_ORIGIN)
-bool CompatibleWithCrossOriginIsolated(const CrossOriginEmbedderPolicy&);
-COMPONENT_EXPORT(NETWORK_CPP_CROSS_ORIGIN)
-bool CompatibleWithCrossOriginIsolated(mojom::CrossOriginEmbedderPolicyValue);
 
 }  // namespace network
 

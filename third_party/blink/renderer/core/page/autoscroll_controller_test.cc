@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ class AutoscrollControllerTest : public SimTest {
 TEST_F(AutoscrollControllerTest,
        CrashWhenLayoutStopAnimationBeforeScheduleAnimation) {
   WebView().MainFrameViewWidget()->Resize(gfx::Size(800, 600));
-  WebView().SetPageBaseBackgroundColor(SK_ColorTRANSPARENT);
+  WebView().SetBaseBackgroundColorOverride(SK_ColorTRANSPARENT);
   SimRequest request("https://example.com/test.html", "text/html");
   LoadURL("https://example.com/test.html");
   request.Complete(R"HTML(
@@ -106,8 +106,8 @@ TEST_F(AutoscrollControllerTest, ContinueAutoscrollAfterMouseLeaveEvent) {
   LocalFrame* frame = GetDocument().GetFrame();
   Node* document_node = GetDocument().documentElement();
   controller.StartMiddleClickAutoscroll(
-      frame, document_node->parentNode()->GetLayoutBox(), gfx::PointF(),
-      gfx::PointF());
+      frame, document_node->parentNode()->GetLayoutBox(), FloatPoint(),
+      FloatPoint());
 
   EXPECT_TRUE(controller.IsAutoscrolling());
 
@@ -145,7 +145,7 @@ TEST_F(AutoscrollControllerTest, StopAutoscrollOnResize) {
 
   LocalFrame* frame = GetDocument().GetFrame();
   controller.StartMiddleClickAutoscroll(frame, GetDocument().GetLayoutView(),
-                                        gfx::PointF(), gfx::PointF());
+                                        FloatPoint(), FloatPoint());
 
   EXPECT_TRUE(controller.IsAutoscrolling());
 
@@ -177,107 +177,9 @@ TEST_F(AutoscrollControllerTest, StopAutoscrollOnResize) {
 
   // And finally confirm that autoscrolling can start again.
   controller.StartMiddleClickAutoscroll(frame, GetDocument().GetLayoutView(),
-                                        gfx::PointF(), gfx::PointF());
+                                        FloatPoint(), FloatPoint());
 
   EXPECT_TRUE(controller.IsAutoscrolling());
-}
-
-// Ensure that middle click autoscroll is not propagated in a direction when
-// propagation is not allowed.
-TEST_F(AutoscrollControllerTest, AutoscrollIsNotPropagated) {
-  SimRequest request("https://example.com/test.html", "text/html");
-  LoadURL("https://example.com/test.html");
-  request.Complete(R"HTML(
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          #scrollable {
-            width: 820px;
-            height: 620px;
-            overflow: auto;
-            overscroll-behavior: contain;
-          }
-          #inner {
-            width: 2500px;
-            background-color: aqua;
-            height: 100px;
-          }
-        </style>
-      </head>
-      <body style='width: 3000px; height: 3000px;'>
-        <div id="scrollable">
-          <div id="inner"></div>
-        </div>
-      </body>
-    </html>
-  )HTML");
-
-  Compositor().BeginFrame();
-
-  AutoscrollController& controller = GetAutoscrollController();
-
-  EXPECT_FALSE(controller.IsAutoscrolling());
-
-  LocalFrame* frame = GetDocument().GetFrame();
-  LayoutBox* scrollable =
-      GetDocument().getElementById("scrollable")->GetLayoutBox();
-
-  controller.StartMiddleClickAutoscroll(
-      frame, scrollable, gfx::PointF(15.0, 15.0), gfx::PointF(15.0, 15.0));
-
-  EXPECT_TRUE(controller.IsAutoscrolling());
-  EXPECT_TRUE(controller.horizontal_autoscroll_layout_box_);
-  EXPECT_FALSE(controller.vertical_autoscroll_layout_box_);
-}
-
-// Ensure that middle click autoscroll is propagated in a direction when
-// overscroll-behavior is set to auto for a that direction.
-TEST_F(AutoscrollControllerTest, AutoscrollIsPropagatedInYDirection) {
-  SimRequest request("https://example.com/test.html", "text/html");
-  LoadURL("https://example.com/test.html");
-  request.Complete(R"HTML(
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          #scrollable {
-            width: 820px;
-            height: 620px;
-            overflow: auto;
-            overscroll-behavior-x: contain;
-          }
-          #inner {
-            width: 1000px;
-            background-color: aqua;
-            height: 100px;
-          }
-        </style>
-      </head>
-      <body style='width: 3000px; height: 3000px;'>
-        <div id="scrollable">
-          <div id="inner"></div>
-        </div>
-      </body>
-    </html>
-  )HTML");
-
-  Compositor().BeginFrame();
-
-  AutoscrollController& controller = GetAutoscrollController();
-
-  EXPECT_FALSE(controller.IsAutoscrolling());
-
-  LocalFrame* frame = GetDocument().GetFrame();
-  LayoutBox* scrollable =
-      GetDocument().getElementById("scrollable")->GetLayoutBox();
-
-  controller.StartMiddleClickAutoscroll(
-      frame, scrollable, gfx::PointF(15.0, 15.0), gfx::PointF(15.0, 15.0));
-
-  EXPECT_TRUE(controller.IsAutoscrolling());
-  EXPECT_TRUE(controller.vertical_autoscroll_layout_box_);
-  EXPECT_TRUE(controller.horizontal_autoscroll_layout_box_);
 }
 
 }  // namespace blink

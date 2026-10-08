@@ -1,12 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CONTENT_CAPTURE_CONTENT_CAPTURE_TASK_HISTOGRAM_REPORTER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CONTENT_CAPTURE_CONTENT_CAPTURE_TASK_HISTOGRAM_REPORTER_H_
 
-#include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 #include "third_party/blink/renderer/platform/wtf/ref_counted.h"
@@ -23,8 +22,7 @@ class CORE_EXPORT ContentCaptureTaskHistogramReporter
   static constexpr char kCaptureContentTime[] =
       "ContentCapture.CaptureContentTime2";
   static constexpr char kSendContentTime[] = "ContentCapture.SendContentTime";
-  static constexpr char kSentContentCount[] =
-      "ContentCapture.SentContentCount2";
+  static constexpr char kSentContentCount[] = "ContentCapture.SentContentCount";
   static constexpr char kTaskDelayInMs[] = "ContentCapture.TaskDelayTimeInMs";
   static constexpr char kTaskRunsPerCapture[] =
       "ContentCapture.TaskRunsPerCapture";
@@ -46,17 +44,17 @@ class CORE_EXPORT ContentCaptureTaskHistogramReporter
   // Invoked on a capturing session ends, at that time, all captured changes
   // which include the new, changed and removed content has been sent.
   void OnAllCapturedContentSent();
-  void RecordsSentContentCountPerDocument(int sent_content_count);
+  void RecordsSentContentCountPerDocument(size_t sent_content_count);
 
  private:
   void MayRecordTaskRunsPerCapture();
 
   // The time of first content change since the last content captured.
-  absl::optional<base::TimeTicks> content_change_time_;
+  base::Optional<base::TimeTicks> content_change_time_;
   // The copy of |content_change_time| after the content has been captured; we
   // need to record the time the content has been sent, |content_change_time_|
   // shall be released for the next content change.
-  absl::optional<base::TimeTicks> captured_content_change_time_;
+  base::Optional<base::TimeTicks> captured_content_change_time_;
   // The time to start capturing content.
   base::TimeTicks capture_content_start_time_;
   // The time to start sending content.
@@ -66,14 +64,23 @@ class CORE_EXPORT ContentCaptureTaskHistogramReporter
   base::TimeTicks task_scheduled_time_;
   // Counts the task run times to complete a capture which includes capturing
   // and sending the content.
-  int task_runs_per_capture_ = 0;
+  size_t task_runs_per_capture_ = 0;
 
+  // Records time from first content change to content that has been sent, its
+  // range is 500ms from to 30s.
+  CustomCountHistogram capture_content_delay_time_histogram_;
   // Records time to capture the content, its range is from 0 to 50,000
   // microseconds.
   CustomCountHistogram capture_content_time_histogram_;
   // Records time to send the content, its range is from 0 to 50,000
   // microseconds.
   CustomCountHistogram send_content_time_histogram_;
+  // Records total count has been sent, its range is from 0 to 10,000.
+  LinearHistogram sent_content_count_histogram_;
+  // Records time taken for the task to start after it is schedule, its range is
+  // 1ms to 128s. The time of task that was scheduled for the retry wasn't
+  // measured because it is always 500ms.
+  CustomCountHistogram task_delay_time_in_ms_histogram_;
   // Records the number of times ContentCapture task run to complete a capture
   // which includes capturing and sending the content.
   CustomCountHistogram task_runs_per_capture_histogram_;

@@ -1,17 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.messages;
 
-import android.animation.Animator;
-
-import androidx.annotation.VisibleForTesting;
-
-import org.chromium.base.Callback;
 import org.chromium.base.supplier.Supplier;
-import org.chromium.content_public.browser.WebContents;
-import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /**
@@ -19,86 +12,37 @@ import org.chromium.ui.modelutil.PropertyModel;
  * MessageQueueManager.
  */
 public class MessageDispatcherImpl implements ManagedMessageDispatcher {
-    private final MessageQueueManager mMessageQueueManager;
+    private final MessageQueueManager mMessageQueueManager = new MessageQueueManager();
     private final MessageContainer mMessageContainer;
     private final Supplier<Integer> mMessageMaxTranslationSupplier;
-    private final MessageAutodismissDurationProvider mAutodismissDurationProvider;
-    private final SwipeAnimationHandler mSwipeAnimationHandler;
-    private final WindowAndroid mWindowAndroid;
 
     /**
      * Build a new message dispatcher
      * @param messageContainer A container view for displaying message banners.
-     * @param messageMaxTranslation A {@link Supplier} that supplies the maximum translation Y value
-     *         the message banner can have as a result of the animations or the gestures.
-     * @param autodismissDurationProvider A {@link MessageAutodismissDurationProvider} providing
-     *         autodismiss duration for message banner.
-     * @param animatorStartCallback The {@link Callback} that will be used by the message to
-     *         delegate starting the animations to the {@link WindowAndroid}.
-     * @param windowAndroid The current window Android.
+     * @param messageMaxTranslationSupplier A {@link Supplier} that supplies the maximum translation
+     *         Y value the message banner can have as a result of the animations or the gestures.
      */
-    public MessageDispatcherImpl(MessageContainer messageContainer,
-            Supplier<Integer> messageMaxTranslation,
-            MessageAutodismissDurationProvider autodismissDurationProvider,
-            Callback<Animator> animatorStartCallback, WindowAndroid windowAndroid) {
-        this(messageContainer, messageMaxTranslation, autodismissDurationProvider, windowAndroid,
-                new MessageQueueManager(
-                        new MessageAnimationCoordinator(messageContainer, animatorStartCallback)));
-    }
-
-    @VisibleForTesting
-    MessageDispatcherImpl(MessageContainer messageContainer,
-            Supplier<Integer> messageMaxTranslation,
-            MessageAutodismissDurationProvider autodismissDurationProvider,
-            WindowAndroid windowAndroid, MessageQueueManager messageQueueManager) {
+    public MessageDispatcherImpl(
+            MessageContainer messageContainer, Supplier<Integer> messageMaxTranslation) {
         mMessageContainer = messageContainer;
         mMessageMaxTranslationSupplier = messageMaxTranslation;
-        mAutodismissDurationProvider = autodismissDurationProvider;
-        mWindowAndroid = windowAndroid;
-        mMessageQueueManager = messageQueueManager;
-        mSwipeAnimationHandler = messageQueueManager.getAnimationCoordinator();
     }
 
-    /**
-     * Enqueue navigation or webContents scoped message.
-     * @param messageProperties The PropertyModel with message's visual properties.
-     * @param webContents The webContents the message is associated with.
-     * @param scopeType The {@link MessageScopeType} of the message.
-     * @param highPriority True if the message should be displayed ASAP.
-     */
     @Override
-    public void enqueueMessage(PropertyModel messageProperties, WebContents webContents,
-            @MessageScopeType int scopeType, boolean highPriority) {
+    public void enqueueMessage(PropertyModel messageProperties) {
         MessageStateHandler messageStateHandler = new SingleActionMessage(mMessageContainer,
-                messageProperties, this::dismissMessage, mMessageMaxTranslationSupplier,
-                mAutodismissDurationProvider, mSwipeAnimationHandler);
-        ScopeKey scopeKey;
-        assert scopeType
-                != MessageScopeType.WINDOW
-            : "Use #enqueueWindowScopedMessage to enqueue a window-scoped message.";
-        scopeKey = new ScopeKey(scopeType, webContents);
-        mMessageQueueManager.enqueueMessage(
-                messageStateHandler, messageProperties, scopeKey, highPriority);
+                messageProperties, this::dismissMessage, mMessageMaxTranslationSupplier);
+        mMessageQueueManager.enqueueMessage(messageStateHandler, messageProperties);
     }
 
     @Override
-    public void enqueueWindowScopedMessage(PropertyModel messageProperties, boolean highPriority) {
-        MessageStateHandler messageStateHandler = new SingleActionMessage(mMessageContainer,
-                messageProperties, this::dismissMessage, mMessageMaxTranslationSupplier,
-                mAutodismissDurationProvider, mSwipeAnimationHandler);
-        ScopeKey scopeKey = new ScopeKey(mWindowAndroid);
-        mMessageQueueManager.enqueueMessage(
-                messageStateHandler, messageProperties, scopeKey, highPriority);
+    public void dismissMessage(PropertyModel messageProperties) {
+        mMessageQueueManager.dismissMessage(messageProperties);
     }
 
     @Override
-    public void dismissMessage(PropertyModel messageProperties, @DismissReason int dismissReason) {
-        mMessageQueueManager.dismissMessage(messageProperties, dismissReason);
-    }
-
-    @Override
-    public void dismissAllMessages(@DismissReason int dismissReason) {
-        mMessageQueueManager.dismissAllMessages(dismissReason);
+    public void dismissAllMessages() {
+        mMessageQueueManager.dismissAllMessages();
     }
 
     @Override
@@ -114,10 +58,5 @@ public class MessageDispatcherImpl implements ManagedMessageDispatcher {
     @Override
     public void setDelegate(MessageQueueDelegate delegate) {
         mMessageQueueManager.setDelegate(delegate);
-    }
-
-    @VisibleForTesting
-    MessageQueueManager getMessageQueueManagerForTesting() {
-        return mMessageQueueManager;
     }
 }

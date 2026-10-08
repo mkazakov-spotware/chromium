@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,11 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/values.h"
@@ -28,11 +29,8 @@
 #include "chrome/chrome_cleaner/os/registry.h"
 #include "chrome/chrome_cleaner/os/registry_util.h"
 #include "chrome/chrome_cleaner/os/system_util.h"
+#include "chrome/chrome_cleaner/parsers/json_parser/json_splicer.h"
 #include "chrome/chrome_cleaner/parsers/parser_utils/parse_tasks_remaining_counter.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-
-// TODO(crbug.com/981388): See if there's anything that isn't used from
-// system_report_component.cc that can be removed from this file.
 
 using base::WaitableEvent;
 
@@ -71,10 +69,25 @@ constexpr std::array<const wchar_t*, 8> default_extension_whitelist = {
 
 const wchar_t kMasterPreferencesFileName[] = L"master_preferences";
 
+// Removes the extension from the JSON. If the extension is not associated
+// wih a valid file and JSON value then this function returns false and
+// |json_result| is not modified.
+bool RemoveExtensionFromJson(const ForceInstalledExtension& extension,
+                             base::Value* json_result) {
+  DCHECK(json_result);
+  DCHECK(extension.policy_file);
+  if (!extension.policy_file->json) {
+    return false;
+  }
+
+  bool result = RemoveKeyFromDictionary(json_result, extension.id.AsString());
+  return result;
+}
+
 void GetForcelistPoliciesForAccessMask(
     REGSAM access_mask,
     std::vector<ExtensionPolicyRegistryEntry>* policies) {
-  for (size_t i = 0; i < std::size(extension_forcelist_keys); ++i) {
+  for (size_t i = 0; i < base::size(extension_forcelist_keys); ++i) {
     base::win::RegistryValueIterator forcelist_it(
         extension_forcelist_keys[i].hkey, extension_forcelist_keys[i].path,
         access_mask);
@@ -97,19 +110,51 @@ void GetForcelistPoliciesForAccessMask(
   }
 }
 
+bool RemoveForcelistPolicyExtensionForAccessMask(
+    REGSAM access_mask,
+    const ForceInstalledExtension& extension) {
+  for (size_t i = 0; i < base::size(extension_forcelist_keys); ++i) {
+    std::vector<std::wstring> keys;
+    base::win::RegistryValueIterator forcelist_it(
+        extension_forcelist_keys[i].hkey, extension_forcelist_keys[i].path,
+        access_mask);
+    for (; forcelist_it.Valid(); ++forcelist_it) {
+      std::wstring entry;
+      GetRegistryValueAsString(forcelist_it.Value(), forcelist_it.ValueSize(),
+                               forcelist_it.Type(), &entry);
+      if (base::WideToUTF8(entry.substr(0, kExtensionIdLength)) ==
+          extension.id.AsString()) {
+        keys.push_back(forcelist_it.Name());
+      }
+    }
+    base::win::RegKey key;
+    key.Open(extension_forcelist_keys[i].hkey, extension_forcelist_keys[i].path,
+             access_mask | KEY_WRITE);
+    for (std::wstring& key_name : keys) {
+      LONG result = key.DeleteValue(key_name.c_str());
+      if (result != ERROR_SUCCESS) {
+        LOG(WARNING) << "Could not delete value at key " << key_name
+                     << ", error code: " << result;
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 void GetExtensionSettingsPoliciesFromParsedJson(
     const RegistryKey& registry_key,
     std::vector<ExtensionPolicyRegistryEntry>* policies,
     scoped_refptr<ParseTasksRemainingCounter> counter,
     ContentType type,
-    absl::optional<base::Value> json,
-    const absl::optional<std::string>& error) {
+    base::Optional<base::Value> json,
+    const base::Optional<std::string>& error) {
   base::ScopedClosureRunner closure(
       base::BindOnce(&ParseTasksRemainingCounter::Decrement, counter.get()));
 
-  base::Value::Dict* extension_settings =
-      json.has_value() ? json->GetIfDict() : nullptr;
-  if (!extension_settings) {
+  base::DictionaryValue* extension_settings = nullptr;
+  if (!json.has_value() || !json->is_dict() ||
+      !json->GetAsDictionary(&extension_settings)) {
     LOG(ERROR) << "Could not read JSON from " << registry_key.hkey << "\\"
                << registry_key.path;
     if (error.has_value()) {
@@ -120,13 +165,13 @@ void GetExtensionSettingsPoliciesFromParsedJson(
 
   scoped_refptr<RefValue> saved_json =
       base::WrapRefCounted(new RefValue(json->Clone()));
-  for (auto entry : *extension_settings) {
+  for (const auto& entry : *extension_settings) {
     const std::wstring& extension_id = base::UTF8ToWide(entry.first);
-    const base::Value& settings_value = entry.second;
+    const std::unique_ptr<base::Value>& settings_value = entry.second;
 
-    if (settings_value.is_dict()) {
-      const base::Value* installation_mode =
-          settings_value.FindKey(kExtensionSettingsInstallationModeName);
+    if (settings_value->is_dict()) {
+      base::Value* installation_mode =
+          settings_value->FindKey(kExtensionSettingsInstallationModeName);
       if (installation_mode && installation_mode->GetString() ==
                                    kExtensionSettingsForceInstalledValue) {
         policies->emplace_back(
@@ -142,7 +187,7 @@ void GetExtensionSettingsPoliciesForAccessMask(
     JsonParserAPI* json_parser,
     std::vector<ExtensionPolicyRegistryEntry>* policies,
     scoped_refptr<ParseTasksRemainingCounter> counter) {
-  for (size_t i = 0; i < std::size(extension_settings_keys); ++i) {
+  for (size_t i = 0; i < base::size(extension_settings_keys); ++i) {
     RegKeyPath key(extension_settings_keys[i].hkey,
                    extension_settings_keys[i].path, access_mask);
     std::wstring extension_settings;
@@ -172,14 +217,14 @@ void GetDefaultExtensionsFromParsedJson(
     const base::FilePath& extensions_file,
     std::vector<ExtensionPolicyFile>* policies,
     scoped_refptr<ParseTasksRemainingCounter> counter,
-    absl::optional<base::Value> json,
-    const absl::optional<std::string>& error) {
+    base::Optional<base::Value> json,
+    const base::Optional<std::string>& error) {
   base::ScopedClosureRunner closure(
       base::BindOnce(&ParseTasksRemainingCounter::Decrement, counter.get()));
 
-  base::Value::Dict* default_extensions =
-      json.has_value() ? json->GetIfDict() : nullptr;
-  if (!default_extensions) {
+  base::DictionaryValue* default_extensions = nullptr;
+  if (!json.has_value() || !json->is_dict() ||
+      !json->GetAsDictionary(&default_extensions)) {
     LOG(ERROR) << "Could not read JSON from " << SanitizePath(extensions_file);
     if (error.has_value()) {
       LOG(ERROR) << "JSON parser error " << error.value();
@@ -189,7 +234,7 @@ void GetDefaultExtensionsFromParsedJson(
 
   scoped_refptr<RefValue> saved_json =
       base::WrapRefCounted(new RefValue(json->Clone()));
-  for (auto entry : *default_extensions) {
+  for (const auto& entry : *default_extensions) {
     std::wstring extension_id = base::UTF8ToWide(entry.first);
     if (!base::Contains(default_extension_whitelist, extension_id)) {
       policies->emplace_back(extension_id, extensions_file, saved_json);
@@ -201,14 +246,14 @@ void GetMasterPreferencesExtensionsFromParsedJson(
     const base::FilePath& extensions_file,
     std::vector<ExtensionPolicyFile>* policies,
     scoped_refptr<ParseTasksRemainingCounter> counter,
-    absl::optional<base::Value> json,
-    const absl::optional<std::string>& error) {
+    base::Optional<base::Value> json,
+    const base::Optional<std::string>& error) {
   base::ScopedClosureRunner closure(
       base::BindOnce(&ParseTasksRemainingCounter::Decrement, counter.get()));
 
-  base::Value::Dict* master_preferences =
-      json.has_value() ? json->GetIfDict() : nullptr;
-  if (!master_preferences) {
+  base::DictionaryValue* master_preferences = nullptr;
+  if (!json.has_value() || !json->is_dict() ||
+      !json->GetAsDictionary(&master_preferences)) {
     LOG(ERROR) << "Could not read JSON from " << SanitizePath(extensions_file);
     if (error.has_value()) {
       LOG(ERROR) << "JSON parser error " << error.value();
@@ -216,14 +261,16 @@ void GetMasterPreferencesExtensionsFromParsedJson(
     return;
   }
 
-  base::Value::Dict* extension_settings_dictionary =
-      master_preferences->FindDictByDottedPath("extensions.settings");
-  if (!extension_settings_dictionary)
+  base::Value* extension_settings = master_preferences->FindPathOfType(
+      {"extensions", "settings"}, base::Value::Type::DICTIONARY);
+  if (extension_settings == nullptr)
     return;
 
+  base::DictionaryValue* extension_settings_dictionary;
+  extension_settings->GetAsDictionary(&extension_settings_dictionary);
   scoped_refptr<RefValue> saved_json =
       base::WrapRefCounted(new RefValue(json->Clone()));
-  for (auto entry : *extension_settings_dictionary) {
+  for (const auto& entry : *extension_settings_dictionary) {
     std::wstring extension_id = base::UTF8ToWide(entry.first);
     policies->emplace_back(extension_id, extensions_file, saved_json);
   }
@@ -272,6 +319,19 @@ void GetExtensionForcelistRegistryPolicies(
     GetForcelistPoliciesForAccessMask(KEY_WOW64_64KEY, policies);
 }
 
+bool RemoveForcelistPolicyExtension(const ForceInstalledExtension& extension) {
+  DCHECK(extension.install_method == POLICY_EXTENSION_FORCELIST);
+  // No need to check for policy_registry_entry, as it's not used in deletion.
+
+  bool result =
+      RemoveForcelistPolicyExtensionForAccessMask(KEY_WOW64_32KEY, extension);
+  if (IsX64Architecture() && result) {
+    result =
+        RemoveForcelistPolicyExtensionForAccessMask(KEY_WOW64_64KEY, extension);
+  }
+  return result;
+}
+
 void GetNonWhitelistedDefaultExtensions(
     JsonParserAPI* json_parser,
     std::vector<ExtensionPolicyFile>* policies,
@@ -311,6 +371,12 @@ void GetNonWhitelistedDefaultExtensions(
   }
 }
 
+bool RemoveDefaultExtension(const ForceInstalledExtension& extension,
+                            base::Value* json_result) {
+  DCHECK(extension.install_method == DEFAULT_APPS_EXTENSION);
+  return RemoveExtensionFromJson(extension, json_result);
+}
+
 void GetExtensionSettingsForceInstalledExtensions(
     JsonParserAPI* json_parser,
     std::vector<ExtensionPolicyRegistryEntry>* policies,
@@ -329,14 +395,27 @@ void GetExtensionSettingsForceInstalledExtensions(
   counter->Decrement();
 }
 
+bool RemoveExtensionSettingsPoliciesExtension(
+    const ForceInstalledExtension& extension,
+    base::Value* json_result) {
+  DCHECK(extension.install_method == POLICY_EXTENSION_SETTINGS);
+  DCHECK(extension.policy_registry_entry);
+  DCHECK(json_result);
+
+  if (!extension.policy_registry_entry->json.get()) {
+    return false;
+  }
+  return RemoveKeyFromDictionary(json_result, extension.id.AsString());
+}
+
 void GetMasterPreferencesExtensions(JsonParserAPI* json_parser,
                                     std::vector<ExtensionPolicyFile>* policies,
                                     base::WaitableEvent* done) {
-  std::set<base::FilePath> chrome_exe_directories;
-  ListChromeExeDirectories(&chrome_exe_directories);
+  std::set<base::FilePath> exe_paths;
+  ListChromeExePaths(&exe_paths);
 
   std::map<base::FilePath, std::string> files_read;
-  for (const base::FilePath& path : chrome_exe_directories) {
+  for (const base::FilePath& path : exe_paths) {
     const base::FilePath& master_preferences(
         path.Append(kMasterPreferencesFileName));
     if (!base::PathExists(master_preferences))
@@ -365,6 +444,17 @@ void GetMasterPreferencesExtensions(JsonParserAPI* json_parser,
         content, base::BindOnce(&GetMasterPreferencesExtensionsFromParsedJson,
                                 path, policies, counter));
   }
+}
+
+bool RemoveMasterPreferencesExtension(const ForceInstalledExtension& extension,
+                                      base::Value* json_result) {
+  DCHECK(extension.install_method == POLICY_MASTER_PREFERENCES);
+  DCHECK(json_result);
+  DCHECK(json_result->is_dict());
+  // The extensions are stored in ["extensions"]["settings"]
+  base::Value* sub_dictionary =
+      json_result->FindPath({"extensions", "settings"});
+  return RemoveExtensionFromJson(extension, sub_dictionary);
 }
 
 }  // namespace chrome_cleaner

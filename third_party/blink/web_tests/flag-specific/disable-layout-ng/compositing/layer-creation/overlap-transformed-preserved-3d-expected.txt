@@ -8,10 +8,22 @@ Before:
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
+    },
+    {
+      "name": "LayoutBlockFlow (positioned) DIV id='green-box' class='center box-container'",
+      "position": [108, 108],
+      "contentsOpaque": true,
+      "drawsContent": false
+    },
+    {
+      "name": "LayoutBlockFlow DIV id='camera' class='rotate-3d-start'",
+      "contentsOpaque": true,
+      "drawsContent": false,
+      "transform": 3
     },
     {
       "name": "LayoutBlockFlow (positioned) DIV class='side side-1'",
@@ -56,9 +68,10 @@ Before:
       "transform": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [108, 108, 0, 1]
-      ]
+        [0, 0, 1, -0.005],
+        [0, 0, 0, 1]
+      ],
+      "origin": [158, 158]
     },
     {
       "id": 2,
@@ -66,10 +79,10 @@ Before:
       "transform": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
-        [0, 0, 1, -0.005],
-        [0, 0, 0, 1]
+        [0, 0, 1, 0],
+        [108, 108, 0, 1]
       ],
-      "origin": [50, 50]
+      "flattenInheritedTransform": false
     },
     {
       "id": 3,
@@ -204,10 +217,22 @@ After:
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
+    },
+    {
+      "name": "LayoutBlockFlow (positioned) DIV id='green-box' class='center box-container'",
+      "position": [108, 108],
+      "contentsOpaque": true,
+      "drawsContent": false
+    },
+    {
+      "name": "LayoutBlockFlow DIV id='camera' class='rotate-3d-start rotate-3d-end'",
+      "contentsOpaque": true,
+      "drawsContent": false,
+      "transform": 3
     },
     {
       "name": "LayoutBlockFlow (positioned) DIV class='side side-1'",
@@ -248,16 +273,14 @@ After:
     {
       "name": "LayoutBlockFlow (positioned) DIV class='box top left'",
       "position": [8, 8],
-      "bounds": [100, 300],
+      "bounds": [100, 150],
       "contentsOpaque": true,
       "backgroundColor": "#808080"
     },
     {
-      "name": "LayoutBlockFlow (positioned) DIV class='box top right'",
-      "position": [208, 8],
-      "bounds": [100, 300],
-      "contentsOpaque": true,
-      "backgroundColor": "#808080"
+      "name": "Squashing Layer (first squashed layer: LayoutBlockFlow (positioned) DIV class='box top right')",
+      "position": [8, 8],
+      "bounds": [300, 300]
     }
   ],
   "transforms": [
@@ -266,9 +289,10 @@ After:
       "transform": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [108, 108, 0, 1]
-      ]
+        [0, 0, 1, -0.005],
+        [0, 0, 0, 1]
+      ],
+      "origin": [158, 158]
     },
     {
       "id": 2,
@@ -276,10 +300,10 @@ After:
       "transform": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
-        [0, 0, 1, -0.005],
-        [0, 0, 0, 1]
+        [0, 0, 1, 0],
+        [108, 108, 0, 1]
       ],
-      "origin": [50, 50]
+      "flattenInheritedTransform": false
     },
     {
       "id": 3,

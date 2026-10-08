@@ -1,11 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "ui/gfx/font_fallback_win.h"
+
 #include <tuple>
 
-#include "base/containers/contains.h"
-#include "base/strings/string_piece.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
@@ -15,11 +16,10 @@
 #include "third_party/icu/source/common/unicode/uscript.h"
 #include "third_party/icu/source/common/unicode/utf16.h"
 #include "third_party/skia/include/core/SkTypeface.h"
-#include "ui/gfx/font_fallback_win.h"
 #include "ui/gfx/platform_font.h"
 #include "ui/gfx/test/font_fallback_test_data.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
@@ -58,9 +58,6 @@ class GetFallbackFontTest
  public:
   GetFallbackFontTest() = default;
 
-  GetFallbackFontTest(const GetFallbackFontTest&) = delete;
-  GetFallbackFontTest& operator=(const GetFallbackFontTest&) = delete;
-
   static std::string ParamInfoToString(
       ::testing::TestParamInfo<FallbackFontTestParamInfo> param_info) {
     const FallbackFontTestCase& test_case = std::get<0>(param_info.param);
@@ -93,7 +90,7 @@ class GetFallbackFontTest
     return gfx::GetFallbackFont(font, language_tag, test_case_.text, result);
   }
 
-  bool EnsuresScriptSupportCodePoints(const std::u16string& text,
+  bool EnsuresScriptSupportCodePoints(const base::string16& text,
                                       UScriptCode script,
                                       const std::string& script_name) {
     size_t i = 0;
@@ -116,7 +113,7 @@ class GetFallbackFontTest
     return true;
   }
 
-  bool DoesFontSupportCodePoints(Font font, const std::u16string& text) {
+  bool DoesFontSupportCodePoints(Font font, const base::string16& text) {
     sk_sp<SkTypeface> skia_face = font.platform_font()->GetNativeSkTypeface();
     if (!skia_face) {
       ADD_FAILURE() << "Cannot create typeface for '" << font.GetFontName()
@@ -145,6 +142,8 @@ class GetFallbackFontTest
   // Needed to bypass DCHECK in GetFallbackFont.
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::MainThreadType::UI};
+
+  DISALLOW_COPY_AND_ASSIGN(GetFallbackFontTest);
 };
 
 }  // namespace
@@ -170,7 +169,7 @@ TEST_P(GetFallbackFontTest, GetFallbackFont) {
                          base_font_option_.weight);
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Skip testing this call to GetFallbackFont on older windows versions. Some
   // fonts only got introduced on windows 10 and the test will fail on previous
   // versions.
@@ -205,8 +204,11 @@ TEST_P(GetFallbackFontTest, GetFallbackFont) {
 
   // Ensure the fallback font is a part of the validation fallback fonts list.
   if (!test_option_.skip_fallback_fonts_validation) {
-    if (!base::Contains(test_case_.fallback_fonts,
-                        fallback_font.GetFontName())) {
+    bool valid = std::find(test_case_.fallback_fonts.begin(),
+                           test_case_.fallback_fonts.end(),
+                           fallback_font.GetFontName()) !=
+                 test_case_.fallback_fonts.end();
+    if (!valid) {
       ADD_FAILURE() << "GetFallbackFont failed for '" << script_name_
                     << "' invalid fallback font: "
                     << fallback_font.GetFontName()
@@ -233,10 +235,10 @@ std::vector<FallbackFontTestCase> GetSampleFontTestCases() {
     const UScriptCode script = static_cast<UScriptCode>(i);
 
     // Make a sample text to test the script.
-    char16_t text[8];
+    UChar text[8];
     UErrorCode errorCode = U_ZERO_ERROR;
     int text_length =
-        uscript_getSampleString(script, text, std::size(text), &errorCode);
+        uscript_getSampleString(script, text, base::size(text), &errorCode);
     if (text_length <= 0 || errorCode != U_ZERO_ERROR)
       continue;
 

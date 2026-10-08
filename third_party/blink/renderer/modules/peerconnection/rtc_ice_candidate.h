@@ -33,7 +33,6 @@
 
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_ice_candidate_platform.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 
@@ -58,17 +57,17 @@ class MODULES_EXPORT RTCIceCandidate final : public ScriptWrappable {
 
   String candidate() const;
   String sdpMid() const;
-  absl::optional<uint16_t> sdpMLineIndex() const;
+  base::Optional<uint16_t> sdpMLineIndex() const;
   String foundation() const;
   String component() const;
-  absl::optional<uint32_t> priority() const;
+  base::Optional<uint32_t> priority() const;
   String address() const;
   String protocol() const;
-  absl::optional<uint16_t> port() const;
+  base::Optional<uint16_t> port() const;
   String type() const;
-  absl::optional<String> tcpType() const;
+  base::Optional<String> tcpType() const;
   String relatedAddress() const;
-  absl::optional<uint16_t> relatedPort() const;
+  base::Optional<uint16_t> relatedPort() const;
   String usernameFragment() const;
 
   ScriptValue toJSONForBinding(ScriptState*);

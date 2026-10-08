@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -67,4 +68,5 @@ TEST(WebrtcEventLogDataTest, StoreThenClear_IsEmpty) {
   EXPECT_TRUE(data.empty());
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

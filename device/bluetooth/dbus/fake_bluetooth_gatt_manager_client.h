@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "dbus/bus.h"
 #include "dbus/object_path.h"
 #include "device/bluetooth/bluetooth_export.h"
@@ -33,12 +34,6 @@ class DEVICE_BLUETOOTH_EXPORT FakeBluetoothGattManagerClient
     : public BluetoothGattManagerClient {
  public:
   FakeBluetoothGattManagerClient();
-
-  FakeBluetoothGattManagerClient(const FakeBluetoothGattManagerClient&) =
-      delete;
-  FakeBluetoothGattManagerClient& operator=(
-      const FakeBluetoothGattManagerClient&) = delete;
-
   ~FakeBluetoothGattManagerClient() override;
 
   // DBusClient override.
@@ -128,6 +123,8 @@ class DEVICE_BLUETOOTH_EXPORT FakeBluetoothGattManagerClient
   ServiceMap service_map_;
   CharacteristicMap characteristic_map_;
   DescriptorMap descriptor_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothGattManagerClient);
 };
 
 }  // namespace bluez

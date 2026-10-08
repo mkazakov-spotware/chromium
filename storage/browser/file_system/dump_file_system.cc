@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,6 +9,8 @@
 // ./out/Release/dump_file_system [options] <filesystem dir> [origin]...
 //
 // If no origin is specified, this dumps all origins in the profile dir.
+// For Chrome App, which has a separate storage directory, specify "primary"
+// as the origin name.
 //
 // Available options:
 //
@@ -44,6 +46,7 @@
 #include "storage/browser/file_system/sandbox_directory_database.h"
 #include "storage/browser/file_system/sandbox_file_system_backend.h"
 #include "storage/browser/file_system/sandbox_origin_database.h"
+#include "storage/browser/file_system/sandbox_prioritized_origin_database.h"
 #include "storage/common/file_system/file_system_types.h"
 #include "storage/common/file_system/file_system_util.h"
 
@@ -133,6 +136,11 @@ static void DumpDirectoryTree(const std::string& origin_name,
 
 static base::FilePath GetOriginDir(const base::FilePath& file_system_dir,
                                    const std::string& origin_name) {
+  if (base::PathExists(file_system_dir.Append(
+          SandboxPrioritizedOriginDatabase::kPrimaryOriginFile))) {
+    return base::FilePath(SandboxPrioritizedOriginDatabase::kPrimaryDirectory);
+  }
+
   SandboxOriginDatabase origin_db(file_system_dir, nullptr);
   base::FilePath origin_dir;
   if (!origin_db.HasOriginPath(origin_name)) {

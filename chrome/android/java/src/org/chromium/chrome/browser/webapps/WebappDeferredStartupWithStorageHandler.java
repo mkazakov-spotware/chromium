@@ -1,16 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.webapps;
 
-import android.app.Activity;
-
 import androidx.annotation.Nullable;
 
 import org.chromium.chrome.browser.DeferredStartupHandler;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappExtras;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 
 import java.util.ArrayList;
@@ -38,15 +36,16 @@ public class WebappDeferredStartupWithStorageHandler {
         void run(@Nullable WebappDataStorage storage, boolean didCreateStorage);
     }
 
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private final @Nullable String mWebappId;
     private final boolean mIsWebApk;
     private final List<Task> mDeferredWithStorageTasks = new ArrayList<>();
 
     @Inject
     public WebappDeferredStartupWithStorageHandler(
-            Activity activity, BrowserServicesIntentDataProvider intentDataProvider) {
+            ChromeActivity<?> activity, BrowserServicesIntentDataProvider intentDataProvider) {
         mActivity = activity;
+
         WebappExtras webappExtras = intentDataProvider.getWebappExtras();
         mWebappId = (webappExtras != null) ? webappExtras.id : null;
         mIsWebApk = intentDataProvider.isWebApkActivity();
@@ -68,7 +67,7 @@ public class WebappDeferredStartupWithStorageHandler {
     }
 
     private void runDeferredTask() {
-        if (mActivity.isFinishing() || mActivity.isDestroyed()) return;
+        if (mActivity.isActivityFinishingOrDestroyed()) return;
 
         WebappDataStorage storage = WebappRegistry.getInstance().getWebappDataStorage(mWebappId);
         if (storage != null || !mIsWebApk) {

@@ -41,8 +41,8 @@
 
 namespace blink {
 
-BaseButtonInputType::BaseButtonInputType(Type type, HTMLInputElement& element)
-    : InputType(type, element), KeyboardClickableInputTypeView(element) {}
+BaseButtonInputType::BaseButtonInputType(HTMLInputElement& element)
+    : InputType(element), KeyboardClickableInputTypeView(element) {}
 
 void BaseButtonInputType::Trace(Visitor* visitor) const {
   KeyboardClickableInputTypeView::Trace(visitor);
@@ -55,18 +55,17 @@ InputTypeView* BaseButtonInputType::CreateView() {
 
 void BaseButtonInputType::CreateShadowSubtree() {
   DCHECK(GetElement().UserAgentShadowRoot());
-  GetElement().UserAgentShadowRoot()->AppendChild(Text::Create(
-      GetElement().GetDocument(), GetElement().ValueOrDefaultLabel()));
-}
-
-HTMLFormControlElement::PopoverTriggerSupport
-BaseButtonInputType::SupportsPopoverTriggering() const {
-  return HTMLFormControlElement::PopoverTriggerSupport::kSupported;
+  GetElement().UserAgentShadowRoot()->AppendChild(
+      Text::Create(GetElement().GetDocument(), DisplayValue()));
 }
 
 void BaseButtonInputType::ValueAttributeChanged() {
   To<Text>(GetElement().UserAgentShadowRoot()->firstChild())
-      ->setData(GetElement().ValueOrDefaultLabel());
+      ->setData(DisplayValue());
+}
+
+String BaseButtonInputType::DisplayValue() const {
+  return GetElement().ValueOrDefaultLabel().RemoveCharacters(IsHTMLLineBreak);
 }
 
 bool BaseButtonInputType::ShouldSaveAndRestoreFormControlState() const {
@@ -74,10 +73,6 @@ bool BaseButtonInputType::ShouldSaveAndRestoreFormControlState() const {
 }
 
 void BaseButtonInputType::AppendToFormData(FormData&) const {}
-
-ControlPart BaseButtonInputType::AutoAppearance() const {
-  return kPushButtonPart;
-}
 
 LayoutObject* BaseButtonInputType::CreateLayoutObject(
     const ComputedStyle& style,

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 namespace update_client {
 
 bool CommandLineConfigPolicy::BackgroundDownloadsEnabled() const {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return true;
 #else
   return false;
@@ -37,7 +37,7 @@ GURL CommandLineConfigPolicy::UrlSourceOverride() const {
   return GURL();
 }
 
-double CommandLineConfigPolicy::InitialDelay() const {
+int CommandLineConfigPolicy::InitialDelay() const {
   return 0;
 }
 

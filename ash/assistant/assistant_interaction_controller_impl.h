@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,10 @@
 #include "ash/public/cpp/assistant/controller/assistant_interaction_controller.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
+#include "base/scoped_observer.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 
 class PrefRegistrySimple;
@@ -34,7 +35,7 @@ enum class AssistantButtonId;
 
 class AssistantInteractionControllerImpl
     : public AssistantInteractionController,
-      public assistant::AssistantInteractionSubscriber,
+      public chromeos::assistant::AssistantInteractionSubscriber,
       public AssistantControllerObserver,
       public AssistantInteractionModelObserver,
       public AssistantUiModelObserver,
@@ -42,28 +43,24 @@ class AssistantInteractionControllerImpl
       public TabletModeObserver,
       public HighlighterController::Observer {
  public:
-  using AssistantInteractionMetadata = assistant::AssistantInteractionMetadata;
+  using AssistantInteractionMetadata =
+      chromeos::assistant::AssistantInteractionMetadata;
   using AssistantInteractionResolution =
-      assistant::AssistantInteractionResolution;
-  using AssistantInteractionType = assistant::AssistantInteractionType;
-  using AssistantQuerySource = assistant::AssistantQuerySource;
-  using AssistantSuggestion = assistant::AssistantSuggestion;
-  using AssistantSuggestionType = assistant::AssistantSuggestionType;
+      chromeos::assistant::AssistantInteractionResolution;
+  using AssistantInteractionType =
+      chromeos::assistant::AssistantInteractionType;
+  using AssistantQuerySource = chromeos::assistant::AssistantQuerySource;
+  using AssistantSuggestion = chromeos::assistant::AssistantSuggestion;
+  using AssistantSuggestionType = chromeos::assistant::AssistantSuggestionType;
 
   explicit AssistantInteractionControllerImpl(
       AssistantControllerImpl* assistant_controller);
-
-  AssistantInteractionControllerImpl(
-      const AssistantInteractionControllerImpl&) = delete;
-  AssistantInteractionControllerImpl& operator=(
-      const AssistantInteractionControllerImpl&) = delete;
-
   ~AssistantInteractionControllerImpl() override;
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
   // Provides a pointer to the |assistant| owned by AssistantService.
-  void SetAssistant(assistant::Assistant* assistant);
+  void SetAssistant(chromeos::assistant::Assistant* assistant);
 
   // AssistantInteractionController:
   const AssistantInteractionModel* GetModel() const override;
@@ -72,6 +69,8 @@ class AssistantInteractionControllerImpl
   void StartTextInteraction(const std::string& text,
                             bool allow_tts,
                             AssistantQuerySource query_source) override;
+  void StartBloomInteraction() override;
+  void ShowBloomResult(const std::string& html) override;
 
   // AssistantControllerObserver:
   void OnAssistantControllerConstructed() override;
@@ -90,13 +89,13 @@ class AssistantInteractionControllerImpl
   void OnUiVisibilityChanged(
       AssistantVisibility new_visibility,
       AssistantVisibility old_visibility,
-      absl::optional<AssistantEntryPoint> entry_point,
-      absl::optional<AssistantExitPoint> exit_point) override;
+      base::Optional<AssistantEntryPoint> entry_point,
+      base::Optional<AssistantExitPoint> exit_point) override;
 
   // HighlighterController::Observer:
   void OnHighlighterSelectionRecognized(const gfx::Rect& rect) override;
 
-  // assistant::AssistantInteractionSubscriber:
+  // chromeos::assistant::AssistantInteractionSubscriber:
   void OnInteractionStarted(
       const AssistantInteractionMetadata& metadata) override;
   void OnInteractionFinished(
@@ -107,7 +106,8 @@ class AssistantInteractionControllerImpl
       const std::vector<AssistantSuggestion>& response) override;
   void OnTextResponse(const std::string& response) override;
   void OnOpenUrlResponse(const GURL& url, bool in_background) override;
-  void OnOpenAppResponse(const assistant::AndroidAppInfo& app_info) override;
+  bool OnOpenAppResponse(
+      const chromeos::assistant::AndroidAppInfo& app_info) override;
   void OnSpeechRecognitionStarted() override;
   void OnSpeechRecognitionIntermediateResult(
       const std::string& high_confidence_text,
@@ -130,9 +130,17 @@ class AssistantInteractionControllerImpl
 
  private:
   void OnTabletModeChanged();
+
+  bool HasUnprocessedPendingResponse();
   bool HasActiveInteraction() const;
+
+  void OnProcessPendingResponse();
+  void OnPendingResponseProcessed(bool is_completed);
+
   void OnUiVisible(AssistantEntryPoint entry_point);
-  void StartScreenContextInteraction(const gfx::Rect& region,
+
+  void StartScreenContextInteraction(bool include_assistant_structure,
+                                     const gfx::Rect& region,
                                      AssistantQuerySource query_source);
   void StartVoiceInteraction();
   void StopActiveInteraction(bool cancel_conversation);
@@ -147,21 +155,22 @@ class AssistantInteractionControllerImpl
   bool has_had_interaction_ = false;
 
   // Owned by AssistantService.
-  assistant::Assistant* assistant_ = nullptr;
+  chromeos::assistant::Assistant* assistant_ = nullptr;
 
-  base::ScopedObservation<AssistantController, AssistantControllerObserver>
-      assistant_controller_observation_{this};
+  ScopedObserver<AssistantController, AssistantControllerObserver>
+      assistant_controller_observer_{this};
 
-  base::ScopedObservation<HighlighterController,
-                          HighlighterController::Observer>
-      highlighter_controller_observation_{this};
+  ScopedObserver<HighlighterController, HighlighterController::Observer>
+      highlighter_controller_observer_{this};
 
-  base::ScopedObservation<TabletModeController, TabletModeObserver>
-      tablet_mode_controller_observation_{this};
+  ScopedObserver<TabletModeController, TabletModeObserver>
+      tablet_mode_controller_observer_{this};
 
   base::WeakPtrFactory<AssistantInteractionControllerImpl>
       screen_context_request_factory_{this};
   base::WeakPtrFactory<AssistantInteractionControllerImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantInteractionControllerImpl);
 };
 
 }  // namespace ash

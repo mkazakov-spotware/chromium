@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,16 @@
 namespace blink {
 
 class LocalDOMWindow;
-class NativeIOFileManager;
+class NativeIOManager;
 class WorkerGlobalScope;
 
-// The "storageFoundation" attribute on the Window global and Worker global
-// scope.
+// The "nativeIO" attribute on the Window global and Worker global scope.
 class GlobalNativeIO {
   STATIC_ONLY(GlobalNativeIO);
 
  public:
-  static NativeIOFileManager* storageFoundation(LocalDOMWindow&);
-  static NativeIOFileManager* storageFoundation(WorkerGlobalScope&);
+  static NativeIOManager* nativeIO(LocalDOMWindow&);
+  static NativeIOManager* nativeIO(WorkerGlobalScope&);
 };
 
 }  // namespace blink

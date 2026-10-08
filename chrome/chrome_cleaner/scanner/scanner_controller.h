@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
@@ -23,9 +24,6 @@ namespace chrome_cleaner {
 // An abstract class which handles synchronization for the scan loop.
 class ScannerController {
  public:
-  ScannerController(const ScannerController&) = delete;
-  ScannerController& operator=(const ScannerController&) = delete;
-
   virtual ~ScannerController();
 
   int ScanOnly();
@@ -72,6 +70,8 @@ class ScannerController {
   ShortcutParserAPI* shortcut_parser_;
   std::vector<ShortcutInformation> shortcuts_found_;
   base::WaitableEvent shortcut_parsing_event_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScannerController);
 };
 
 }  // namespace chrome_cleaner

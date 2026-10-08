@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,9 @@ void AssociatedThreadId::BindToCurrentThread() {
   // TODO(altimin): Remove this after MessageLoopImpl is gone and
   // initialisation is simplified.
   auto current_thread_id = PlatformThread::CurrentId();
-  [[maybe_unused]] auto prev_thread_id =
+  auto prev_thread_id =
       thread_id_.exchange(current_thread_id, std::memory_order_release);
+  ANALYZER_ALLOW_UNUSED(prev_thread_id);
   DCHECK(prev_thread_id == current_thread_id ||
          prev_thread_id == kInvalidThreadId);
 

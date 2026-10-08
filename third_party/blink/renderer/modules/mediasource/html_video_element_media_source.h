@@ -31,6 +31,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_HTML_VIDEO_ELEMENT_MEDIA_SOURCE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_HTML_VIDEO_ELEMENT_MEDIA_SOURCE_H_
 
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -47,4 +48,4 @@ class HTMLVideoElementMediaSource {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_HTML_VIDEO_ELEMENT_MEDIA_SOURCE_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/i18n/rtl.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -36,10 +36,6 @@ namespace {
 class TestSliderListener : public views::SliderListener {
  public:
   TestSliderListener();
-
-  TestSliderListener(const TestSliderListener&) = delete;
-  TestSliderListener& operator=(const TestSliderListener&) = delete;
-
   ~TestSliderListener() override;
 
   int last_event_epoch() { return last_event_epoch_; }
@@ -73,9 +69,11 @@ class TestSliderListener : public views::SliderListener {
   // The epoch of the last time SliderDragEnded was called.
   int last_drag_ended_epoch_ = -1;
   // The sender from the last SliderDragStarted call.
-  raw_ptr<views::Slider> last_drag_started_sender_ = nullptr;
+  views::Slider* last_drag_started_sender_ = nullptr;
   // The sender from the last SliderDragEnded call.
-  raw_ptr<views::Slider> last_drag_ended_sender_ = nullptr;
+  views::Slider* last_drag_ended_sender_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(TestSliderListener);
 };
 
 TestSliderListener::TestSliderListener() = default;
@@ -127,10 +125,6 @@ class SliderTest : public views::ViewsTestBase,
                    public testing::WithParamInterface<TestSliderType> {
  public:
   SliderTest() = default;
-
-  SliderTest(const SliderTest&) = delete;
-  SliderTest& operator=(const SliderTest&) = delete;
-
   ~SliderTest() override = default;
 
  protected:
@@ -159,7 +153,7 @@ class SliderTest : public views::ViewsTestBase,
 
  private:
   // The Slider to be tested.
-  raw_ptr<Slider> slider_ = nullptr;
+  Slider* slider_ = nullptr;
 
   // Populated values for discrete slider.
   base::flat_set<float> values_;
@@ -177,11 +171,12 @@ class SliderTest : public views::ViewsTestBase,
   views::UniqueWidgetPtr widget_;
   // An event generator.
   std::unique_ptr<ui::test::EventGenerator> event_generator_;
+
+  DISALLOW_COPY_AND_ASSIGN(SliderTest);
 };
 
 void SliderTest::ClickAt(int x, int y) {
-  gfx::Point point =
-      slider_->GetBoundsInScreen().origin() + gfx::Vector2d(x, y);
+  gfx::Point point(x, y);
   event_generator_->MoveMouseTo(point);
   event_generator_->ClickLeftButton();
 }
@@ -290,7 +285,7 @@ TEST_P(SliderTest, NukeAllowedValues) {
 }
 
 // No touch on desktop Mac. Tracked in http://crbug.com/445520.
-#if !BUILDFLAG(IS_MAC) || defined(USE_AURA)
+#if !defined(OS_APPLE) || defined(USE_AURA)
 
 // Test the slider location after a tap gesture.
 TEST_P(SliderTest, SliderValueForTapGesture) {
@@ -322,14 +317,14 @@ TEST_P(SliderTest, SliderValueForScrollGesture) {
   slider()->SetValue(0.5);
   event_generator()->GestureScrollSequence(
       gfx::Point(0.5 * max_x(), 0.5 * max_y()), gfx::Point(0, 0),
-      base::Milliseconds(10), 5 /* steps */);
+      base::TimeDelta::FromMilliseconds(10), 5 /* steps */);
   EXPECT_EQ(GetMinValue(), slider()->GetValue());
 
   // Scroll above the maximum.
   slider()->SetValue(0.5);
   event_generator()->GestureScrollSequence(
       gfx::Point(0.5 * max_x(), 0.5 * max_y()), gfx::Point(max_x(), max_y()),
-      base::Milliseconds(10), 5 /* steps */);
+      base::TimeDelta::FromMilliseconds(10), 5 /* steps */);
   EXPECT_EQ(GetMaxValue(), slider()->GetValue());
 
   // Scroll somewhere in the middle.
@@ -337,8 +332,8 @@ TEST_P(SliderTest, SliderValueForScrollGesture) {
   slider()->SetValue(0.25);
   event_generator()->GestureScrollSequence(
       gfx::Point(0.25 * max_x(), 0.25 * max_y()),
-      gfx::Point(0.78 * max_x(), 0.78 * max_y()), base::Milliseconds(10),
-      5 /* steps */);
+      gfx::Point(0.78 * max_x(), 0.78 * max_y()),
+      base::TimeDelta::FromMilliseconds(10), 5 /* steps */);
   if (GetParam() == TestSliderType::kContinuousTest) {
     // Continuous slider.
     EXPECT_NEAR(0.78, slider()->GetValue(), 0.03);
@@ -407,8 +402,8 @@ TEST_P(SliderTest, SliderListenerEventsForScrollGesture) {
 
   event_generator()->GestureScrollSequence(
       gfx::Point(0.25 * max_x(), 0.25 * max_y()),
-      gfx::Point(0.75 * max_x(), 0.75 * max_y()), base::Milliseconds(0),
-      5 /* steps */);
+      gfx::Point(0.75 * max_x(), 0.75 * max_y()),
+      base::TimeDelta::FromMilliseconds(0), 5 /* steps */);
 
   EXPECT_EQ(1, slider_listener().last_drag_started_epoch());
   EXPECT_GT(slider_listener().last_drag_ended_epoch(),
@@ -463,7 +458,7 @@ TEST_P(SliderTest, SliderRaisesA11yEvents) {
   EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
 }
 
-#endif  // !BUILDFLAG(IS_MAC) || defined(USE_AURA)
+#endif  // !defined(OS_APPLE) || defined(USE_AURA)
 
 INSTANTIATE_TEST_SUITE_P(All,
                          SliderTest,

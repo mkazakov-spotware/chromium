@@ -57,7 +57,6 @@ ResourceSendRequest Properties:
     data : {
         frame : <string>
         priority : "Low"
-        renderBlocking : "non_blocking"
         requestId : <string>
         requestMethod : "GET"
         stackTrace : <object>

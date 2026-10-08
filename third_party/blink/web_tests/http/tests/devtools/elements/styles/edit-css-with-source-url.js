@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests file system project mappings.\n`);
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>#inspected {
@@ -38,7 +38,7 @@
 
     // Commit editing.
     treeElement.valueElement.textContent = 'green';
-    TestRunner.selectTextInTextNode(treeElement.valueElement.firstChild);
+    treeElement.valueElement.firstChild.select();
     treeElement.valueElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
     uiSourceCode.addEventListener(Workspace.UISourceCode.Events.WorkingCopyCommitted, stylesEdited, this);
   }

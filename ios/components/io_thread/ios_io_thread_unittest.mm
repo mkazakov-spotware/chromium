@@ -1,22 +1,22 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/components/io_thread/ios_io_thread.h"
+#include "ios/components/io_thread/ios_io_thread.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/test/task_environment.h"
-#import "components/prefs/testing_pref_service.h"
-#import "components/proxy_config/pref_proxy_config_tracker_impl.h"
-#import "ios/web/public/test/fakes/fake_web_client.h"
-#import "ios/web/public/test/scoped_testing_web_client.h"
-#import "ios/web/public/test/test_web_thread.h"
-#import "ios/web/web_thread_impl.h"
-#import "net/base/network_delegate.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "base/test/task_environment.h"
+#include "components/prefs/testing_pref_service.h"
+#include "components/proxy_config/pref_proxy_config_tracker_impl.h"
+#import "ios/web/public/test/fakes/test_web_client.h"
+#include "ios/web/public/test/scoped_testing_web_client.h"
+#include "ios/web/public/test/test_web_thread.h"
+#include "ios/web/web_thread_impl.h"
+#include "net/base/network_delegate.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest_mac.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -42,7 +42,7 @@ class TestIOThread : public io_thread::IOSIOThread {
 
 class IOSIOThreadTest : public PlatformTest {
  public:
-  IOSIOThreadTest() : web_client_(std::make_unique<web::FakeWebClient>()) {
+  IOSIOThreadTest() : web_client_(std::make_unique<web::TestWebClient>()) {
     web::WebThreadImpl::CreateTaskExecutor();
 
     ui_thread_ = std::make_unique<web::TestWebThread>(

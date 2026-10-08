@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/events/devices/x11/events_devices_x11_export.h"
 #include "ui/gfx/x/xinput.h"
 
@@ -28,9 +29,6 @@ namespace ui {
 class EVENTS_DEVICES_X11_EXPORT DeviceListCacheX11 {
  public:
   static DeviceListCacheX11* GetInstance();
-
-  DeviceListCacheX11(const DeviceListCacheX11&) = delete;
-  DeviceListCacheX11& operator=(const DeviceListCacheX11&) = delete;
 
   void UpdateDeviceList(x11::Connection* connection);
 
@@ -53,6 +51,8 @@ class EVENTS_DEVICES_X11_EXPORT DeviceListCacheX11 {
   bool updated_ = false;
   XDeviceList x_dev_list_;
   XIDeviceList xi_dev_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeviceListCacheX11);
 };
 
 }  // namespace ui

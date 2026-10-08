@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/values.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/values.h"
 #import "ios/chrome/browser/autofill/automation/automation_action.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -40,19 +40,17 @@ const char kTestPageUrl[] = "/components/test/data/autofill/"
 // then using JS to assert that the web page has been populated as a result
 // of the click.
 - (void)testAutomationActionClick {
-  base::Value::Dict dict;
-  dict.Set("type", "click");
-  dict.Set("selector", "//*[@id=\"fill_form\"]");
-  AutomationAction* action =
-      [AutomationAction actionWithValueDict:std::move(dict)];
+  base::DictionaryValue dict = base::DictionaryValue();
+  dict.SetKey("type", base::Value("click"));
+  dict.SetKey("selector", base::Value("//*[@id=\"fill_form\"]"));
+  AutomationAction* action = [AutomationAction actionWithValueDictionary:dict];
   [action execute];
 
-  base::Value result = [ChromeEarlGrey
-      evaluateJavaScript:
+  id result = [ChromeEarlGrey
+      executeJavaScript:
           @"document.getElementsByName(\"name_address\")[0].value == \"John "
           @"Smith\""];
-  GREYAssertTrue(result.is_bool(), @"The output is not a boolean.");
-  GREYAssert(result.GetBool(),
+  GREYAssert([result boolValue],
              @"Click automation action did not populate the name field.");
 }
 
@@ -60,39 +58,38 @@ const char kTestPageUrl[] = "/components/test/data/autofill/"
 // populates the name field after a few seconds, and using waitFor to verify
 // this eventually happens.
 - (void)testAutomationActionClickAndWaitFor {
-  base::Value::Dict clickDict;
-  clickDict.Set("type", "click");
-  clickDict.Set("selector", "//*[@id=\"fill_form_delay\"]");
+  base::DictionaryValue clickDict = base::DictionaryValue();
+  clickDict.SetKey("type", base::Value("click"));
+  clickDict.SetKey("selector", base::Value("//*[@id=\"fill_form_delay\"]"));
   AutomationAction* clickAction =
-      [AutomationAction actionWithValueDict:std::move(clickDict)];
+      [AutomationAction actionWithValueDictionary:clickDict];
   [clickAction execute];
 
-  base::Value::Dict waitForDict;
-  waitForDict.Set("type", "waitFor");
-  base::Value::List assertions = base::Value::List();
-  assertions.Append(
+  base::DictionaryValue waitForDict = base::DictionaryValue();
+  waitForDict.SetKey("type", base::Value("waitFor"));
+  base::Value assertions = base::Value(base::Value::Type::LIST);
+  assertions.Append(base::Value(
       "return document.getElementsByName(\"name_address\")[0].value == \"Jane "
-      "Smith\";");
-  waitForDict.Set("assertions", std::move(assertions));
+      "Smith\";"));
+  waitForDict.SetKey("assertions", std::move(assertions));
   AutomationAction* waitForAction =
-      [AutomationAction actionWithValueDict:std::move(waitForDict)];
+      [AutomationAction actionWithValueDictionary:waitForDict];
   [waitForAction execute];
 }
 
 - (void)testAutomationActionSelectDropdown {
-  base::Value::Dict selectDict;
-  selectDict.Set("type", "select");
-  selectDict.Set("selector", "//*[@name=\"cc_month_exp\"]");
-  selectDict.Set("index", 5);
+  base::DictionaryValue selectDict = base::DictionaryValue();
+  selectDict.SetKey("type", base::Value("select"));
+  selectDict.SetKey("selector", base::Value("//*[@name=\"cc_month_exp\"]"));
+  selectDict.SetKey("index", base::Value(5));
   AutomationAction* selectAction =
-      [AutomationAction actionWithValueDict:std::move(selectDict)];
+      [AutomationAction actionWithValueDictionary:selectDict];
   [selectAction execute];
 
-  base::Value result = [ChromeEarlGrey
-      evaluateJavaScript:
+  id result = [ChromeEarlGrey
+      executeJavaScript:
           @"document.getElementsByName(\"cc_month_exp\")[0].value == \"6\""];
-  GREYAssertTrue(result.is_bool(), @"The result is not a boolean");
-  GREYAssert(result.GetBool(),
+  GREYAssert([result boolValue],
              @"Select automation action did not change the dropdown.");
 }
 

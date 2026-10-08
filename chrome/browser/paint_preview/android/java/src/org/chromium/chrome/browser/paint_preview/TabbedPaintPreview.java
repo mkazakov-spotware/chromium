@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,13 @@ package org.chromium.chrome.browser.paint_preview;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.app.Activity;
 import android.graphics.Point;
-import android.os.Handler;
-import android.os.SystemClock;
 import android.view.View;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
-import org.chromium.base.TraceEvent;
 import org.chromium.base.UserData;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.paint_preview.services.PaintPreviewTabService;
@@ -29,12 +24,6 @@ import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabViewProvider;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.paintpreview.player.PlayerManager;
-import org.chromium.content_public.browser.RenderCoordinates;
-import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.WebContentsAccessibility;
-import org.chromium.ui.base.EventForwarder;
-import org.chromium.ui.base.GestureEventType;
-import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.util.TokenHolder;
 
 /**
@@ -44,11 +33,10 @@ import org.chromium.ui.util.TokenHolder;
 public class TabbedPaintPreview implements UserData {
     public static final Class<TabbedPaintPreview> USER_DATA_KEY = TabbedPaintPreview.class;
     private static final int CROSS_FADE_DURATION_MS = 500;
-    private static final int SCROLL_DELAY_MS = 10;
 
     private Tab mTab;
     private TabObserver mTabObserver;
-    private TabViewProvider mTabbedPaintPreviewViewProvider;
+    private TabViewProvider mTabbedPainPreviewViewProvider;
     private PaintPreviewTabService mPaintPreviewTabService;
     private PlayerManager mPlayerManager;
     private BrowserStateBrowserControlsVisibilityDelegate mBrowserVisibilityDelegate;
@@ -60,7 +48,6 @@ public class TabbedPaintPreview implements UserData {
     private int mPersistentToolbarToken = TokenHolder.INVALID_TOKEN;
 
     private static PaintPreviewTabService sPaintPreviewTabServiceForTesting;
-    private boolean mWasEverShown;
 
     public static TabbedPaintPreview get(Tab tab) {
         if (tab.getUserDataHost().getUserData(USER_DATA_KEY) == null) {
@@ -71,7 +58,7 @@ public class TabbedPaintPreview implements UserData {
 
     private TabbedPaintPreview(Tab tab) {
         mTab = tab;
-        mTabbedPaintPreviewViewProvider = new TabbedPaintPreviewViewProvider();
+        mTabbedPainPreviewViewProvider = new TabbedPaintPreviewViewProvider();
         mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
         mTabObserver = new EmptyTabObserver() {
             @Override
@@ -87,12 +74,8 @@ public class TabbedPaintPreview implements UserData {
                 showToolbarPersistent();
                 setProgressPreventionNeeded(true);
             }
-
-            @Override
-            public void onActivityAttachmentChanged(Tab tab, @Nullable WindowAndroid window) {
-                // Intentionally do nothing to prevent automatic observer removal on detachment.
-            }
         };
+        mTab.addObserver(mTabObserver);
     }
 
     public void setBrowserVisibilityDelegate(
@@ -119,59 +102,23 @@ public class TabbedPaintPreview implements UserData {
      */
     public boolean maybeShow(@NonNull PlayerManager.Listener listener) {
         if (mIsAttachedToTab) return true;
-        TraceEvent.begin("TabbedPaintPreview.maybeShow");
-
-        boolean allowedToShow = PaintPreviewTabService.tabAllowedForPaintPreview(mTab);
-        if (!allowedToShow) {
-            TraceEvent.end("TabbedPaintPreview.maybeShow");
-            return false;
-        }
 
         // Check if a capture exists. This is a quick check using a cache.
         boolean hasCapture = getService().hasCaptureForTab(mTab.getId());
-        if (!hasCapture) {
-            TraceEvent.end("TabbedPaintPreview.maybeShow");
-            return false;
-        }
+        if (!hasCapture) return false;
 
-        mTab.addObserver(mTabObserver);
         PaintPreviewCompositorUtils.warmupCompositor();
-
         mPlayerManager = new PlayerManager(mTab.getUrl(), mTab.getContext(), getService(),
                 String.valueOf(mTab.getId()), listener,
-                ChromeColors.getPrimaryBackgroundColor(mTab.getContext(), false),
+                ChromeColors.getPrimaryBackgroundColor(mTab.getContext().getResources(), false),
                 /*ignoreInitialScrollOffset=*/false);
-
-        // TODO(crbug/1230021): Consider deferring/post tasking. Locally this appears to be slow.
-        TraceEvent.begin("TabbedPaintPreview.maybeShow addTabViewProvider");
-        mTab.getTabViewManager().addTabViewProvider(mTabbedPaintPreviewViewProvider);
-        TraceEvent.end("TabbedPaintPreview.maybeShow addTabViewProvider");
+        mTab.getTabViewManager().addTabViewProvider(mTabbedPainPreviewViewProvider);
         mIsAttachedToTab = true;
-        mWasEverShown = true;
-
-        TraceEvent.end("TabbedPaintPreview.maybeShow");
         return true;
     }
 
     public void remove(boolean animate) {
         remove(true, animate);
-    }
-
-    private void matchScrollAndScale(
-            WebContents contents, Point scrollPosition, float scaleFactor) {
-        if (contents == null || scaleFactor == 0f || scrollPosition == null) return;
-        EventForwarder eventForwarder = contents.getEventForwarder();
-        RenderCoordinates coordinates = RenderCoordinates.fromWebContents(contents);
-
-        float scaleDelta = scaleFactor / coordinates.getPageScaleFactor();
-        long timeMs = SystemClock.uptimeMillis();
-        eventForwarder.onGestureEvent(GestureEventType.PINCH_BEGIN, timeMs, 0.f);
-        eventForwarder.onGestureEvent(GestureEventType.PINCH_BY, timeMs, scaleDelta);
-        eventForwarder.onGestureEvent(GestureEventType.PINCH_END, timeMs, 0.f);
-        // Post the scroll so it occurs after the scale. This ensures positioning is correct.
-        new Handler().postDelayed(() -> {
-            eventForwarder.scrollTo(scrollPosition.x, scrollPosition.y);
-        }, SCROLL_DELAY_MS);
     }
 
     /**
@@ -181,20 +128,19 @@ public class TabbedPaintPreview implements UserData {
     public void remove(boolean matchScroll, boolean animate) {
         PaintPreviewCompositorUtils.stopWarmCompositor();
         if (mTab == null || mPlayerManager == null || mFadingOut) return;
-        TraceEvent.begin("TabbedPaintPreview.remove");
 
         mFadingOut = true;
         mPlayerManager.setAcceptUserInput(false);
-        mTab.removeObserver(mTabObserver);
         Point scrollPosition = mPlayerManager.getScrollPosition();
-        float scale = mPlayerManager.getScale();
-        final boolean supportsAccessibility = mPlayerManager.supportsAccessibility();
         // Destroy early to free up resource, but don't null until faded out so view sticks around.
         mPlayerManager.destroy();
         if (matchScroll) {
-            matchScrollAndScale(mTab.getWebContents(), scrollPosition, scale);
+            if (mTab.getWebContents() != null && scrollPosition != null) {
+                mTab.getWebContents().getEventForwarder().scrollTo(
+                        scrollPosition.x, scrollPosition.y);
+            }
         }
-        mTabbedPaintPreviewViewProvider.getView()
+        mTabbedPainPreviewViewProvider.getView()
                 .animate()
                 .alpha(0f)
                 .setDuration(animate ? CROSS_FADE_DURATION_MS : 0)
@@ -203,51 +149,22 @@ public class TabbedPaintPreview implements UserData {
                     public void onAnimationEnd(Animator animation) {
                         if (mTab != null) {
                             mTab.getTabViewManager().removeTabViewProvider(
-                                    mTabbedPaintPreviewViewProvider);
+                                    mTabbedPainPreviewViewProvider);
                         }
                         if (mPlayerManager != null) {
                             mPlayerManager = null;
                         }
-                        // WebContentsAccessibilityImpl gets its focus stuck on the root ID. Clear
-                        // focus here to solve this problem.
-                        if (supportsAccessibility) clearFocus();
-
                         mIsAttachedToTab = false;
                         mFadingOut = false;
                     }
                 });
-        // Ensure the progress update occur during the animation.
-        setProgressPreventionNeeded(false);
-
         if (mProgressSimulatorNeededCallback != null) mProgressSimulatorNeededCallback.run();
-        TraceEvent.end("TabbedPaintPreview.remove");
-    }
-
-    /**
-     * Clears focus and accessibility focus.
-     */
-    private void clearFocus() {
-        WebContents webContents = mTab != null ? mTab.getWebContents() : null;
-        if (webContents == null || webContents.isDestroyed()) return;
-
-        // Clear input focus. This is required due to a bug where the root view is treated as
-        // focused for input on exit causing talkback to attempt to return focus to the root view.
-        // TODO(crbug/1197693): this approach could cause loss of focus in a menu, omnibox, etc.
-        // is there a less heavy-handed option here?
-        WindowAndroid window = webContents.getTopLevelNativeWindow();
-        Activity activity = window != null ? window.getActivity().get() : null;
-        View v = activity != null ? activity.getCurrentFocus() : null;
-        if (v != null) v.clearFocus();
-
-        // Clear accessibility focus.
-        WebContentsAccessibility wcax = WebContentsAccessibility.fromWebContents(webContents);
-        if (wcax != null) wcax.resetFocus();
     }
 
     public boolean isShowing() {
         if (mTab == null) return false;
 
-        return mTab.getTabViewManager().isShowing(mTabbedPaintPreviewViewProvider);
+        return mTab.getTabViewManager().isShowing(mTabbedPainPreviewViewProvider);
     }
 
     public boolean isAttached() {
@@ -301,18 +218,8 @@ public class TabbedPaintPreview implements UserData {
     }
 
     @VisibleForTesting
-    boolean wasEverShown() {
-        return mWasEverShown;
-    }
-
-    @VisibleForTesting
     View getViewForTesting() {
-        return mTabbedPaintPreviewViewProvider.getView();
-    }
-
-    @VisibleForTesting
-    PlayerManager getPlayerManagerForTesting() {
-        return mPlayerManager;
+        return mTabbedPainPreviewViewProvider.getView();
     }
 
     private class TabbedPaintPreviewViewProvider implements TabViewProvider {

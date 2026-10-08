@@ -1,26 +1,27 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PERFORMANCE_MANAGER_POLICIES_USERSPACE_SWAP_POLICY_CHROMEOS_H_
 #define CHROME_BROWSER_PERFORMANCE_MANAGER_POLICIES_USERSPACE_SWAP_POLICY_CHROMEOS_H_
 
+#include "base/macros.h"
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_observer.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/process_node.h"
-#include "components/performance_manager/public/graph/system_node.h"
 
-namespace ash {
+namespace chromeos {
 namespace memory {
 namespace userspace_swap {
 struct UserspaceSwapConfig;
 }  // namespace userspace_swap
 }  // namespace memory
-}  // namespace ash
+}  // namespace chromeos
 
 namespace performance_manager {
 namespace policies {
@@ -28,14 +29,9 @@ namespace policies {
 // UserspaceSwapPolicy is a policy which will trigger a renderer to swap itself
 // via userspace.
 class UserspaceSwapPolicy : public GraphOwned,
-                            public ProcessNode::ObserverDefaultImpl,
-                            public SystemNode::ObserverDefaultImpl {
+                            public ProcessNode::ObserverDefaultImpl {
  public:
   UserspaceSwapPolicy();
-
-  UserspaceSwapPolicy(const UserspaceSwapPolicy&) = delete;
-  UserspaceSwapPolicy& operator=(const UserspaceSwapPolicy&) = delete;
-
   ~UserspaceSwapPolicy() override;
 
   // GraphOwned implementation:
@@ -47,9 +43,9 @@ class UserspaceSwapPolicy : public GraphOwned,
   void OnProcessNodeAdded(const ProcessNode* process_node) override;
   void OnProcessLifetimeChange(const ProcessNode* process_node) override;
 
-  // SystemNodeObserver:
+  // MemoryPressureListener impl:
   void OnMemoryPressure(
-      base::MemoryPressureListener::MemoryPressureLevel new_level) override;
+      base::MemoryPressureListener::MemoryPressureLevel level);
 
   // Returns true if running on a platform that supports the kernel features
   // necessary for userspace swapping, most important would be userfaultfd(2).
@@ -57,7 +53,7 @@ class UserspaceSwapPolicy : public GraphOwned,
 
  protected:
   explicit UserspaceSwapPolicy(
-      const ash::memory::userspace_swap::UserspaceSwapConfig& config);
+      const chromeos::memory::userspace_swap::UserspaceSwapConfig& config);
 
   // The following methods are virtual for testing.
   virtual void SwapNodesOnGraph();
@@ -71,7 +67,7 @@ class UserspaceSwapPolicy : public GraphOwned,
       const ProcessNode* process_node);
   virtual bool IsPageNodeVisible(const PageNode* page_node);
   virtual bool IsPageNodeAudible(const PageNode* page_node);
-  virtual bool IsPageNodeLoadingOrBusy(const PageNode* page_node);
+  virtual bool IsPageNodeLoading(const PageNode* page_node);
   virtual base::TimeDelta GetTimeSinceLastVisibilityChange(
       const PageNode* page_node);
 
@@ -89,7 +85,7 @@ class UserspaceSwapPolicy : public GraphOwned,
 
   // We cache the config object since it cannot change, this makes the code
   // easier to read and testing also becomes easier.
-  const ash::memory::userspace_swap::UserspaceSwapConfig& config_;
+  const chromeos::memory::userspace_swap::UserspaceSwapConfig& config_;
 
   // Keeps track of the last time we walked the graph looking for processes to
   // swap, the frequency we walk the graph is configurable.
@@ -103,6 +99,8 @@ class UserspaceSwapPolicy : public GraphOwned,
 
   Graph* graph_ = nullptr;
 
+  base::Optional<base::MemoryPressureListener> memory_pressure_listener_;
+
  private:
   // A helper method which sets the last trim time to the specified time.
   void SetLastSwapTime(const ProcessNode* process_node, base::TimeTicks time);
@@ -113,6 +111,7 @@ class UserspaceSwapPolicy : public GraphOwned,
       std::make_unique<base::RepeatingTimer>();
 
   base::WeakPtrFactory<UserspaceSwapPolicy> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(UserspaceSwapPolicy);
 };
 
 }  // namespace policies

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ppapi/proxy/connection.h"
 #include "ppapi/proxy/plugin_resource.h"
 #include "ppapi/proxy/ppapi_proxy_export.h"
@@ -21,10 +22,6 @@ class PPAPI_PROXY_EXPORT PrintingResource : public PluginResource,
  public:
   PrintingResource(Connection connection,
                    PP_Instance instance);
-
-  PrintingResource(const PrintingResource&) = delete;
-  PrintingResource& operator=(const PrintingResource&) = delete;
-
   ~PrintingResource() override;
 
   // Resource overrides.
@@ -41,6 +38,8 @@ class PPAPI_PROXY_EXPORT PrintingResource : public PluginResource,
       scoped_refptr<TrackedCallback> callback,
       const ResourceMessageReplyParams& params,
       const PP_PrintSettings_Dev& settings);
+
+  DISALLOW_COPY_AND_ASSIGN(PrintingResource);
 };
 
 }  // namespace proxy

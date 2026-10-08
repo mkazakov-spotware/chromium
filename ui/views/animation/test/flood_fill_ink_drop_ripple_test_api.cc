@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 #include "ui/gfx/geometry/point_conversions.h"
 #include "ui/views/animation/ink_drop_ripple.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 FloodFillInkDropRippleTestApi::FloodFillInkDropRippleTestApi(
     FloodFillInkDropRipple* ink_drop_ripple)
@@ -21,10 +22,9 @@ FloodFillInkDropRippleTestApi::FloodFillInkDropRippleTestApi(
 
 FloodFillInkDropRippleTestApi::~FloodFillInkDropRippleTestApi() = default;
 
-gfx::Point3F FloodFillInkDropRippleTestApi::MapPoint(
-    float radius,
-    const gfx::Point3F& point) {
-  return ink_drop_ripple()->CalculateTransform(radius).MapPoint(point);
+void FloodFillInkDropRippleTestApi::TransformPoint(float radius,
+                                                   gfx::Point3F* point) {
+  ink_drop_ripple()->CalculateTransform(radius).TransformPoint(point);
 }
 
 gfx::Point FloodFillInkDropRippleTestApi::GetDrawnCenterPoint() const {
@@ -54,4 +54,5 @@ FloodFillInkDropRippleTestApi::GetLayerAnimators() {
   return animators;
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ namespace {
 std::wstring GetUnescapedHost(GURL url) {
   std::string url_host = url.host();
 
-  url::RawCanonOutputT<char16_t> unescaped_url_host;
+  url::RawCanonOutputT<base::char16> unescaped_url_host;
   url::DecodeURLEscapeSequences(url_host.c_str(), url_host.length(),
                                 url::DecodeURLMode::kUTF8OrIsomorphic,
                                 &unescaped_url_host);

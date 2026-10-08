@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 
 #include "ash/keyboard/ui/test/keyboard_test_util.h"
 #include "ash/shell.h"
+#include "ash/window_factory.h"
 #include "ash/wm/window_util.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/ime/mock_input_method.h"
@@ -20,7 +21,7 @@ TestKeyboardUI::~TestKeyboardUI() = default;
 
 aura::Window* TestKeyboardUI::LoadKeyboardWindow(LoadCallback callback) {
   DCHECK(!keyboard_window_);
-  keyboard_window_ = std::make_unique<aura::Window>(&delegate_);
+  keyboard_window_ = window_factory::NewWindow(&delegate_);
   keyboard_window_->Init(ui::LAYER_NOT_DRAWN);
 
   // Set a default size for the keyboard.
@@ -29,8 +30,8 @@ aura::Window* TestKeyboardUI::LoadKeyboardWindow(LoadCallback callback) {
       screen->GetPrimaryDisplay().bounds()));
 
   // Simulate an asynchronous load.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                           std::move(callback));
+  base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                   std::move(callback));
 
   return keyboard_window_.get();
 }

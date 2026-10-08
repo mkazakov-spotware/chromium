@@ -1,23 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {decorate} from '../../../common/js/ui.js';
-import {Menu} from './menu.js';
-
-import {util} from '../../../common/js/util.js';
-import {ProvidersModel} from '../providers_model.js';
-
-import {FilesMenuItem} from './files_menu.js';
 
 /**
  * Fills out the menu for mounting or installing new providers.
  */
-export class ProvidersMenu {
+class ProvidersMenu {
   /**
    * @param {!ProvidersModel} model
-   * @param {!Menu} menu
+   * @param {!cr.ui.Menu} menu
    */
   constructor(model, menu) {
     /**
@@ -27,10 +18,21 @@ export class ProvidersMenu {
     this.model_ = model;
 
     /**
-     * @private {!Menu}
+     * @private {!cr.ui.Menu}
      * @const
      */
     this.menu_ = menu;
+
+    this.menu_.addSeparator();
+
+    /**
+     * @private {!Element}
+     * @const
+     */
+    this.separator_ = assert(this.menu_.firstElementChild);
+
+    const installItem = this.addMenuItem_();
+    installItem.command = '#install-new-extension';
 
     this.menu_.addEventListener('update', this.onUpdate_.bind(this));
   }
@@ -39,19 +41,22 @@ export class ProvidersMenu {
    * @private
    */
   clearProviders_() {
-    while (this.menu_.firstChild) {
-      this.menu_.removeChild(this.menu_.lastChild);
+    let childNode = this.menu_.firstElementChild;
+    while (childNode !== this.separator_) {
+      const node = childNode;
+      childNode = childNode.nextElementSibling;
+      this.menu_.removeChild(node);
     }
   }
 
   /**
-   * @return {!FilesMenuItem}
+   * @return {!cr.ui.FilesMenuItem}
    * @private
    */
   addMenuItem_() {
     const menuItem = this.menu_.addMenuItem({});
-    decorate(/** @type {!Element} */ (menuItem), FilesMenuItem);
-    return /** @type {!FilesMenuItem} */ (menuItem);
+    cr.ui.decorate(/** @type {!Element} */ (menuItem), cr.ui.FilesMenuItem);
+    return /** @type {!cr.ui.FilesMenuItem} */ (menuItem);
   }
 
   /**
@@ -66,14 +71,13 @@ export class ProvidersMenu {
     item.label = name;
 
     const iconImage = util.iconSetToCSSBackgroundImageValue(iconSet);
-    if (iconImage === 'none' && providerId === '@smb') {
-      item.iconStartFileType = 'smb';
-    } else {
-      item.iconStartImage = iconImage;
-    }
+    item.iconStartImage = iconImage;
 
     item.addEventListener(
         'activate', this.onItemActivate_.bind(this, providerId));
+
+    // Move the element before the separator.
+    this.menu_.insertBefore(item, this.separator_);
   }
 
   /**

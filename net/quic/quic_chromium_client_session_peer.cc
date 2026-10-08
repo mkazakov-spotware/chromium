@@ -1,13 +1,14 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/quic/quic_chromium_client_session_peer.h"
 
-#include "net/dns/public/secure_dns_policy.h"
+#include "net/quic/quic_chromium_client_session.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 
-namespace net::test {
+namespace net {
+namespace test {
 // static
 void QuicChromiumClientSessionPeer::SetHostname(
     QuicChromiumClientSession* session,
@@ -16,8 +17,8 @@ void QuicChromiumClientSessionPeer::SetHostname(
                                session->session_key_.server_id().port(),
                                session->session_key_.privacy_mode());
   session->session_key_ =
-      QuicSessionKey(server_id, SocketTag(), NetworkAnonymizationKey(),
-                     SecureDnsPolicy::kAllow, /*require_dns_https_alpn=*/false);
+      QuicSessionKey(server_id, SocketTag(), NetworkIsolationKey(),
+                     false /* disable_secure_dns */);
 }
 
 // static
@@ -47,10 +48,10 @@ bool QuicChromiumClientSessionPeer::GetSessionGoingAway(
   return session->going_away_;
 }
 
-// static
-MigrationCause QuicChromiumClientSessionPeer::GetCurrentMigrationCause(
+bool QuicChromiumClientSessionPeer::DoesSessionAllowPortMigration(
     QuicChromiumClientSession* session) {
-  return session->current_migration_cause_;
+  return session->allow_port_migration_;
 }
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net

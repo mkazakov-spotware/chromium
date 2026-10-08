@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/test/bind.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/test_safe_browsing_database_helper.h"
@@ -22,15 +22,12 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "components/blocked_content/safe_browsing_triggered_popup_blocker.h"
-#include "components/content_settings/browser/page_specific_content_settings.h"
-#include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
-#include "components/safe_browsing/core/browser/db/v4_test_util.h"
-#include "components/safe_browsing/core/common/features.h"
-#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/safe_browsing/core/db/v4_protocol_manager_util.h"
+#include "components/safe_browsing/core/db/v4_test_util.h"
+#include "components/safe_browsing/core/features.h"
 #include "components/subresource_filter/content/browser/ruleset_service.h"
 #include "components/subresource_filter/content/browser/subresource_filter_profile_context.h"
 #include "components/subresource_filter/content/browser/test_ruleset_publisher.h"
-#include "components/subresource_filter/content/browser/verified_ruleset_dealer.h"
 #include "components/subresource_filter/core/common/common_features.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_paths.h"
@@ -42,44 +39,11 @@
 
 namespace subresource_filter {
 
-// static
-const char SubresourceFilterBrowserTest::kDocumentLoadActivationLevel[];
-const char SubresourceFilterBrowserTest::kSubresourceLoadsTotalForPage[];
-const char SubresourceFilterBrowserTest::kSubresourceLoadsEvaluatedForPage[];
-const char SubresourceFilterBrowserTest::kSubresourceLoadsMatchedRulesForPage[];
-const char SubresourceFilterBrowserTest::kSubresourceLoadsDisallowedForPage[];
-const char SubresourceFilterBrowserTest::kEvaluationTotalWallDurationForPage[];
-const char SubresourceFilterBrowserTest::kEvaluationTotalCPUDurationForPage[];
-const char SubresourceFilterBrowserTest::kEvaluationWallDuration[];
-const char SubresourceFilterBrowserTest::kEvaluationCPUDuration[];
-const char SubresourceFilterBrowserTest::kActivationDecision[];
-const char SubresourceFilterBrowserTest::kActivationListHistogram[];
-const char SubresourceFilterBrowserTest::kPageLoadActivationStateHistogram[];
-const char
-    SubresourceFilterBrowserTest::kPageLoadActivationStateDidInheritHistogram[];
-const char SubresourceFilterBrowserTest::kSubresourceFilterActionsHistogram[];
-
-MockSubresourceFilterObserver::MockSubresourceFilterObserver(
-    content::WebContents* web_contents) {
-  scoped_observation_.Observe(
-      SubresourceFilterObserverManager::FromWebContents(web_contents));
-}
-
-MockSubresourceFilterObserver::~MockSubresourceFilterObserver() = default;
-
 SubresourceFilterBrowserTest::SubresourceFilterBrowserTest() {
   scoped_feature_list_.InitAndEnableFeature(kAdTagging);
 }
 
 SubresourceFilterBrowserTest::~SubresourceFilterBrowserTest() = default;
-
-bool SubresourceFilterBrowserTest::AdsBlockedInContentSettings(
-    content::RenderFrameHost* frame_host) {
-  auto* content_settings =
-      content_settings::PageSpecificContentSettings::GetForFrame(frame_host);
-
-  return content_settings->IsContentBlocked(ContentSettingsType::ADS);
-}
 
 void SubresourceFilterBrowserTest::SetUp() {
   database_helper_ = CreateTestDatabase();
@@ -94,14 +58,15 @@ void SubresourceFilterBrowserTest::TearDown() {
 }
 
 void SubresourceFilterBrowserTest::SetUpOnMainThread() {
-  embedded_test_server()->ServeFilesFromSourceDirectory("components/test/data");
+  base::FilePath test_data_dir;
+  ASSERT_TRUE(base::PathService::Get(chrome::DIR_TEST_DATA, &test_data_dir));
+  embedded_test_server()->ServeFilesFromDirectory(test_data_dir);
   host_resolver()->AddSimulatedFailure("host-with-dns-lookup-failure");
 
   host_resolver()->AddRule("*", "127.0.0.1");
   content::SetupCrossSiteRedirector(embedded_test_server());
 
   // Add content/test/data for cross_site_iframe_factory.html
-  base::FilePath test_data_dir;
   ASSERT_TRUE(base::PathService::Get(content::DIR_TEST_DATA, &test_data_dir));
   embedded_test_server()->ServeFilesFromDirectory(test_data_dir);
 
@@ -155,14 +120,17 @@ content::WebContents* SubresourceFilterBrowserTest::web_contents() {
 content::RenderFrameHost* SubresourceFilterBrowserTest::FindFrameByName(
     const std::string& name) {
   return content::FrameMatchingPredicate(
-      web_contents()->GetPrimaryPage(),
-      base::BindRepeating(&content::FrameMatchesName, name));
+      web_contents(), base::BindRepeating(&content::FrameMatchesName, name));
 }
 
 bool SubresourceFilterBrowserTest::WasParsedScriptElementLoaded(
     content::RenderFrameHost* rfh) {
   DCHECK(rfh);
-  return content::EvalJs(rfh, "!!document.scriptExecuted").ExtractBool();
+  bool script_resource_was_loaded = false;
+  EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
+      rfh, "domAutomationController.send(!!document.scriptExecuted)",
+      &script_resource_was_loaded));
+  return script_resource_was_loaded;
 }
 
 void SubresourceFilterBrowserTest::
@@ -181,15 +149,18 @@ void SubresourceFilterBrowserTest::
 void SubresourceFilterBrowserTest::ExpectFramesIncludedInLayout(
     const std::vector<const char*>& frame_names,
     const std::vector<bool>& expect_displayed) {
-  const char kScript[] = "document.getElementsByName(\"%s\")[0].clientWidth;";
+  const char kScript[] =
+      "window.domAutomationController.send("
+      "  document.getElementsByName(\"%s\")[0].clientWidth"
+      ");";
 
   ASSERT_EQ(expect_displayed.size(), frame_names.size());
   for (size_t i = 0; i < frame_names.size(); ++i) {
     SCOPED_TRACE(frame_names[i]);
-    int client_width =
-        content::EvalJs(web_contents()->GetPrimaryMainFrame(),
-                        base::StringPrintf(kScript, frame_names[i]))
-            .ExtractInt();
+    int client_width = 0;
+    EXPECT_TRUE(content::ExecuteScriptAndExtractInt(
+        web_contents()->GetMainFrame(),
+        base::StringPrintf(kScript, frame_names[i]), &client_width));
     EXPECT_EQ(expect_displayed[i], !!client_width) << client_width;
   }
 }
@@ -197,21 +168,25 @@ void SubresourceFilterBrowserTest::ExpectFramesIncludedInLayout(
 bool SubresourceFilterBrowserTest::IsDynamicScriptElementLoaded(
     content::RenderFrameHost* rfh) {
   DCHECK(rfh);
-  return content::EvalJs(rfh, "insertScriptElementAndReportSuccess()",
-                         content::EXECUTE_SCRIPT_USE_MANUAL_REPLY)
-      .ExtractBool();
+  bool script_resource_was_loaded = false;
+  EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
+      rfh, "insertScriptElementAndReportSuccess()",
+      &script_resource_was_loaded));
+  return script_resource_was_loaded;
 }
 
 void SubresourceFilterBrowserTest::InsertDynamicFrameWithScript() {
-  EXPECT_EQ(true, content::EvalJs(web_contents()->GetPrimaryMainFrame(),
-                                  "insertFrameWithScriptAndNotify()",
-                                  content::EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+  bool frame_was_loaded = false;
+  ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
+      web_contents()->GetMainFrame(), "insertFrameWithScriptAndNotify()",
+      &frame_was_loaded));
+  ASSERT_TRUE(frame_was_loaded);
 }
 
 void SubresourceFilterBrowserTest::NavigateFromRendererSide(const GURL& url) {
   content::TestNavigationObserver navigation_observer(web_contents(), 1);
-  ASSERT_TRUE(content::ExecJs(
-      web_contents()->GetPrimaryMainFrame(),
+  ASSERT_TRUE(content::ExecuteScript(
+      web_contents()->GetMainFrame(),
       base::StringPrintf("window.location = \"%s\";", url.spec().c_str())));
   navigation_observer.Wait();
 }
@@ -219,8 +194,8 @@ void SubresourceFilterBrowserTest::NavigateFromRendererSide(const GURL& url) {
 void SubresourceFilterBrowserTest::NavigateFrame(const char* frame_name,
                                                  const GURL& url) {
   content::TestNavigationObserver navigation_observer(web_contents(), 1);
-  ASSERT_TRUE(content::ExecJs(
-      web_contents()->GetPrimaryMainFrame(),
+  ASSERT_TRUE(content::ExecuteScript(
+      web_contents()->GetMainFrame(),
       base::StringPrintf("document.getElementsByName(\"%s\")[0].src = \"%s\";",
                          frame_name, url.spec().c_str())));
   navigation_observer.Wait();
@@ -231,18 +206,6 @@ void SubresourceFilterBrowserTest::SetRulesetToDisallowURLsWithPathSuffix(
   TestRulesetPair test_ruleset_pair;
   ruleset_creator_.CreateRulesetToDisallowURLsWithPathSuffix(
       suffix, &test_ruleset_pair);
-
-  TestRulesetPublisher test_ruleset_publisher(
-      g_browser_process->subresource_filter_ruleset_service());
-  ASSERT_NO_FATAL_FAILURE(
-      test_ruleset_publisher.SetRuleset(test_ruleset_pair.unindexed));
-}
-
-void SubresourceFilterBrowserTest::SetRulesetToDisallowURLsWithSubstrings(
-    std::vector<base::StringPiece> substrings) {
-  TestRulesetPair test_ruleset_pair;
-  ruleset_creator_.CreateRulesetToDisallowURLWithSubstrings(
-      std::move(substrings), &test_ruleset_pair);
 
   TestRulesetPublisher test_ruleset_publisher(
       g_browser_process->subresource_filter_ruleset_service());
@@ -265,19 +228,20 @@ void SubresourceFilterBrowserTest::SetRulesetWithRules(
 void SubresourceFilterBrowserTest::OpenAndPublishRuleset(
     RulesetService* ruleset_service,
     const base::FilePath& indexed_ruleset_path) {
-  RulesetFilePtr index_file(nullptr, base::OnTaskRunnerDeleter(nullptr));
+  base::File index_file;
   base::RunLoop open_loop;
-  auto open_callback = base::BindLambdaForTesting(
-      [&index_file, &open_loop](RulesetFilePtr result) {
-        index_file = std::move(result);
-        open_loop.Quit();
-      });
+  auto open_callback = base::BindOnce(
+      [](base::OnceClosure quit_closure, base::File* out, base::File result) {
+        *out = std::move(result);
+        std::move(quit_closure).Run();
+      },
+      open_loop.QuitClosure(), &index_file);
   IndexedRulesetVersion version =
       ruleset_service->GetMostRecentlyIndexedVersion();
   ruleset_service->GetRulesetDealer()->TryOpenAndSetRulesetFile(
       indexed_ruleset_path, version.checksum, std::move(open_callback));
   open_loop.Run();
-  ASSERT_TRUE(index_file->IsValid());
+  ASSERT_TRUE(index_file.IsValid());
   ruleset_service->OnRulesetSet(std::move(index_file));
 }
 
@@ -300,20 +264,6 @@ SubresourceFilterListInsertingBrowserTest::CreateTestDatabase() {
   return std::make_unique<TestSafeBrowsingDatabaseHelper>(
       std::make_unique<safe_browsing::TestV4GetHashProtocolManagerFactory>(),
       std::move(list_ids));
-}
-
-SubresourceFilterPrerenderingBrowserTest::
-    SubresourceFilterPrerenderingBrowserTest()
-    : prerender_helper_(base::BindRepeating(
-          &SubresourceFilterPrerenderingBrowserTest::web_contents,
-          base::Unretained(this))) {}
-
-SubresourceFilterPrerenderingBrowserTest::
-    ~SubresourceFilterPrerenderingBrowserTest() = default;
-
-void SubresourceFilterPrerenderingBrowserTest::SetUp() {
-  prerender_helper_.SetUp(embedded_test_server());
-  SubresourceFilterListInsertingBrowserTest::SetUp();
 }
 
 }  // namespace subresource_filter

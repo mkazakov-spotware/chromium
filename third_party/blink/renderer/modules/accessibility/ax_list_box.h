@@ -29,6 +29,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_ACCESSIBILITY_AX_LIST_BOX_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_ACCESSIBILITY_AX_LIST_BOX_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_layout_object.h"
 
 namespace blink {
@@ -38,13 +39,9 @@ class AXObjectCacheImpl;
 class AXListBox final : public AXLayoutObject {
  public:
   AXListBox(LayoutObject*, AXObjectCacheImpl&);
-
-  AXListBox(const AXListBox&) = delete;
-  AXListBox& operator=(const AXListBox&) = delete;
-
   ~AXListBox() override;
 
-  ax::mojom::blink::Role NativeRoleIgnoringAria() const final;
+  ax::mojom::Role DetermineAccessibilityRole() final;
   bool IsAXListBox() const override { return true; }
   AXObject* ActiveDescendant() final;
 
@@ -52,6 +49,8 @@ class AXListBox final : public AXLayoutObject {
 
  private:
   int active_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(AXListBox);
 };
 
 template <>

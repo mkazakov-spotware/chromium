@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ TEST(UrlLanguageHistogramFactoryTest, NotCreatedInIncognito) {
   EXPECT_THAT(UrlLanguageHistogramFactory::GetForBrowserContext(&profile),
               Not(IsNull()));
 
-  Profile* incognito = profile.GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  Profile* incognito = profile.GetPrimaryOTRProfile();
   ASSERT_THAT(incognito, Not(IsNull()));
   EXPECT_THAT(UrlLanguageHistogramFactory::GetForBrowserContext(incognito),
               IsNull());

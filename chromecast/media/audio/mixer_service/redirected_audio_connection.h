@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "chromecast/media/audio/mixer_service/mixer_connection.h"
 #include "chromecast/media/audio/mixer_service/mixer_socket.h"
@@ -76,11 +77,6 @@ class RedirectedAudioConnection : public MixerConnection,
   };
 
   RedirectedAudioConnection(const Config& config, Delegate* delegate);
-
-  RedirectedAudioConnection(const RedirectedAudioConnection&) = delete;
-  RedirectedAudioConnection& operator=(const RedirectedAudioConnection&) =
-      delete;
-
   ~RedirectedAudioConnection() override;
 
   // Sets the patterns which determine which audio streams should be redirected.
@@ -110,6 +106,8 @@ class RedirectedAudioConnection : public MixerConnection,
   std::unique_ptr<MixerSocket> socket_;
 
   int sample_rate_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(RedirectedAudioConnection);
 };
 
 }  // namespace mixer_service

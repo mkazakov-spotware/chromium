@@ -1,4 +1,4 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,7 +85,7 @@ int PrintHelp() {
 
 }  // namespace
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 int wmain(int argc, wchar_t* argv[]) {
 #else
 int main(int argc, char* argv[]) {

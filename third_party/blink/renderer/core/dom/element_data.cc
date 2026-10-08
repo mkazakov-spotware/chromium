@@ -122,8 +122,7 @@ void ElementData::TraceAfterDispatch(blink::Visitor* visitor) const {
   visitor->Trace(inline_style_);
 }
 
-ShareableElementData::ShareableElementData(
-    const Vector<Attribute, kAttributePrealloc>& attributes)
+ShareableElementData::ShareableElementData(const Vector<Attribute>& attributes)
     : ElementData(attributes.size()) {
   for (unsigned i = 0; i < bit_field_.get<ArraySize>(); ++i)
     new (&attribute_array_[i]) Attribute(attributes[i]);
@@ -147,7 +146,7 @@ ShareableElementData::ShareableElementData(const UniqueElementData& other)
 }
 
 ShareableElementData* ShareableElementData::CreateWithAttributes(
-    const Vector<Attribute, kAttributePrealloc>& attributes) {
+    const Vector<Attribute>& attributes) {
   return MakeGarbageCollected<ShareableElementData>(
       AdditionalBytesForShareableElementDataWithAttributeCount(
           attributes.size()),
@@ -172,7 +171,7 @@ UniqueElementData::UniqueElementData(const ShareableElementData& other)
   inline_style_ = other.inline_style_;
 
   unsigned length = other.Attributes().size();
-  attribute_vector_.reserve(length);
+  attribute_vector_.ReserveCapacity(length);
   for (unsigned i = 0; i < length; ++i)
     attribute_vector_.UncheckedAppend(other.attribute_array_[i]);
 }

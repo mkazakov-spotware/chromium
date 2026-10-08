@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "chromecast/base/task_runner_impl.h"
 #include "chromecast/common/mojom/constants.mojom.h"
 #include "chromecast/media/base/audio_device_ids.h"
@@ -40,7 +40,7 @@ namespace {
 
 // Maximum difference between audio frame PTS and video frame PTS
 // for frames read from the DemuxerStream.
-const base::TimeDelta kMaxDeltaFetcher(base::Milliseconds(2000));
+const base::TimeDelta kMaxDeltaFetcher(base::TimeDelta::FromMilliseconds(2000));
 
 void VideoModeSwitchCompletionCb(::media::PipelineStatusCallback init_cb,
                                  bool success) {
@@ -60,22 +60,18 @@ CastRenderer::CastRenderer(
     VideoModeSwitcher* video_mode_switcher,
     VideoResolutionPolicy* video_resolution_policy,
     const base::UnguessableToken& overlay_plane_id,
-    ::media::mojom::FrameInterfaceFactory* frame_interfaces,
-    external_service_support::ExternalConnector* connector,
-    bool is_buffering_enabled)
+    ::media::mojom::FrameInterfaceFactory* frame_interfaces)
     : backend_factory_(backend_factory),
       task_runner_(task_runner),
       video_mode_switcher_(video_mode_switcher),
       video_resolution_policy_(video_resolution_policy),
       overlay_plane_id_(overlay_plane_id),
       frame_interfaces_(frame_interfaces),
-      connector_(connector),
       client_(nullptr),
       cast_cdm_context_(nullptr),
       media_task_runner_factory_(
           new BalancedMediaTaskRunnerFactory(kMaxDeltaFetcher)),
       video_geometry_setter_service_(nullptr),
-      is_buffering_enabled_(is_buffering_enabled),
       weak_factory_(this) {
   DCHECK(backend_factory_);
   LOG(INFO) << __FUNCTION__ << ": " << this;
@@ -164,8 +160,8 @@ void CastRenderer::OnApplicationMediaInfoReceived(
                        chromecast::mojom::MultiroomInfo::New());
     return;
   }
-  connector_->BindInterface(chromecast::mojom::kChromecastServiceName,
-                            multiroom_manager_.BindNewPipeAndPassReceiver());
+  service_connector_->Connect(chromecast::mojom::kChromecastServiceName,
+                              multiroom_manager_.BindNewPipeAndPassReceiver());
   multiroom_manager_.set_disconnect_handler(
       base::BindOnce(&CastRenderer::OnGetMultiroomInfo, base::Unretained(this),
                      media_resource, client, application_media_info.Clone(),
@@ -202,12 +198,9 @@ void CastRenderer::OnGetMultiroomInfo(
           ? MediaPipelineDeviceParams::kModeIgnorePts
           : MediaPipelineDeviceParams::kModeSyncPts;
 
-  const std::string& device_id =
-      (multiroom_info->output_device_id.empty()
-           ? ::media::AudioDeviceDescription::kDefaultDeviceId
-           : multiroom_info->output_device_id);
-  MediaPipelineDeviceParams params(sync_type, backend_task_runner_.get(),
-                                   AudioContentType::kMedia, device_id);
+  MediaPipelineDeviceParams params(
+      sync_type, backend_task_runner_.get(), AudioContentType::kMedia,
+      ::media::AudioDeviceDescription::kDefaultDeviceId);
   params.session_id = application_media_info->application_session_id;
   params.multiroom = multiroom_info->multiroom;
   params.audio_channel = multiroom_info->audio_channel;
@@ -225,7 +218,7 @@ void CastRenderer::OnGetMultiroomInfo(
       &CastRenderer::OnBufferingStateChange, weak_factory_.GetWeakPtr());
   pipeline_.reset(new MediaPipelineImpl());
   pipeline_->SetClient(std::move(pipeline_client));
-  pipeline_->Initialize(load_type, std::move(backend), is_buffering_enabled_);
+  pipeline_->Initialize(load_type, std::move(backend));
 
   // TODO(servolk): Implement support for multiple streams. For now use the
   // first enabled audio and video streams to preserve the existing behavior.
@@ -239,7 +232,7 @@ void CastRenderer::OnGetMultiroomInfo(
     AvPipelineClient audio_client;
     audio_client.waiting_cb = base::BindRepeating(&CastRenderer::OnWaiting,
                                                   weak_factory_.GetWeakPtr());
-    audio_client.eos_cb = base::BindRepeating(
+    audio_client.eos_cb = base::BindOnce(
         &CastRenderer::OnEnded, weak_factory_.GetWeakPtr(), STREAM_AUDIO);
     audio_client.playback_error_cb =
         base::BindRepeating(&CastRenderer::OnError, weak_factory_.GetWeakPtr());
@@ -263,7 +256,7 @@ void CastRenderer::OnGetMultiroomInfo(
     VideoPipelineClient video_client;
     video_client.av_pipeline_client.waiting_cb = base::BindRepeating(
         &CastRenderer::OnWaiting, weak_factory_.GetWeakPtr());
-    video_client.av_pipeline_client.eos_cb = base::BindRepeating(
+    video_client.av_pipeline_client.eos_cb = base::BindOnce(
         &CastRenderer::OnEnded, weak_factory_.GetWeakPtr(), STREAM_VIDEO);
     video_client.av_pipeline_client.playback_error_cb =
         base::BindRepeating(&CastRenderer::OnError, weak_factory_.GetWeakPtr());
@@ -349,7 +342,7 @@ void CastRenderer::SetCdm(::media::CdmContext* cdm_context,
 }
 
 void CastRenderer::SetLatencyHint(
-    absl::optional<base::TimeDelta> latency_hint) {}
+    base::Optional<base::TimeDelta> latency_hint) {}
 
 void CastRenderer::Flush(base::OnceClosure flush_cb) {
   DCHECK(task_runner_->BelongsToCurrentThread());
@@ -387,10 +380,6 @@ base::TimeDelta CastRenderer::GetMediaTime() {
   DCHECK(task_runner_->BelongsToCurrentThread());
   DCHECK(pipeline_);
   return pipeline_->GetMediaTime();
-}
-
-::media::RendererType CastRenderer::GetRendererType() {
-  return ::media::RendererType::kCast;
 }
 
 void CastRenderer::OnVideoResolutionPolicyChanged() {

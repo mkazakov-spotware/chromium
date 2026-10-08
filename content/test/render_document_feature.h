@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,6 @@ void InitAndEnableRenderDocumentFeature(
 
 // The list of values to test for the "level" parameter.
 std::vector<std::string> RenderDocumentFeatureLevelValues();
-
-// Returns the name for |render_document_level| that's valid for test params
-// (only contains alphanumeric characters or underscores).
-std::string GetRenderDocumentLevelNameForTestParams(
-    std::string render_document_level);
 
 }  // namespace content
 

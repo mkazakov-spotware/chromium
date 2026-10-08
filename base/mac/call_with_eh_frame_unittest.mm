@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 namespace {
 
 class CallWithEHFrameTest : public testing::Test {
@@ -50,4 +51,5 @@ TEST_F(CallWithEHFrameTest, CatchExceptionLower) {
 }
 
 }  // namespace
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

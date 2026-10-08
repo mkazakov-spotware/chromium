@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define ASH_SYSTEM_MESSAGE_CENTER_NOTIFICATION_SWIPE_CONTROL_VIEW_H_
 
 #include "ash/ash_export.h"
-#include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
+#include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/animation/animation_delegate.h"
@@ -52,17 +52,16 @@ class ASH_EXPORT NotificationSwipeControlView : public views::View {
                            DeleteOnSettingsButtonPressed);
   FRIEND_TEST_ALL_PREFIXES(NotificationSwipeControlViewTest,
                            DeleteOnSnoozeButtonPressed);
-  FRIEND_TEST_ALL_PREFIXES(NotificationSwipeControlViewTest,
-                           SettingsButtonVisibility);
+
   enum class ButtonId {
     kSettings,
     kSnooze,
   };
 
-  // Change the visibility of the settings and snooze button.
+  // Change the visibility of the settings button.
   void ShowButtons(ButtonPosition button_position,
-                   bool show_settings,
-                   bool show_snooze);
+                   bool has_settings,
+                   bool has_snooze);
   void HideButtons();
 
   // Change the visibility of the settings button. True to show, false to hide.

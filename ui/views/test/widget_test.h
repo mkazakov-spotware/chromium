@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,26 +9,22 @@
 #include <string>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/test/bind.h"
 #include "build/build_config.h"
-#include "build/chromecast_buildflags.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/test/views_test_base.h"
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/widget/widget_observer.h"
 
-#if (BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CASTOS)) || \
-    BUILDFLAG(IS_CHROMEOS_LACROS)
-
-#include "ui/display/screen.h"
-#endif
-
 namespace ui {
+namespace internal {
+class InputMethodDelegate;
+}
 class EventSink;
-class ImeKeyEventDispatcher;
 }  // namespace ui
 
 namespace views {
@@ -54,11 +50,6 @@ namespace test {
 // randomly choose a child to return, so make sure your predicate matches
 // *only* the view you want!
 using ViewPredicate = base::RepeatingCallback<bool(const View*)>;
-View* AnyViewMatchingPredicate(View* root, const ViewPredicate& predicate);
-template <typename Pred>
-View* AnyViewMatchingPredicate(View* root, Pred predicate) {
-  return AnyViewMatchingPredicate(root, base::BindLambdaForTesting(predicate));
-}
 View* AnyViewMatchingPredicate(Widget* widget, const ViewPredicate& predicate);
 template <typename Pred>
 View* AnyViewMatchingPredicate(Widget* widget, Pred predicate) {
@@ -73,37 +64,25 @@ class WidgetTest : public ViewsTestBase {
   WidgetTest();
   explicit WidgetTest(
       std::unique_ptr<base::test::TaskEnvironment> task_environment);
-
-  WidgetTest(const WidgetTest&) = delete;
-  WidgetTest& operator=(const WidgetTest&) = delete;
-
   ~WidgetTest() override;
 
   // Create Widgets with |native_widget| in InitParams set to an instance of
-  // platform specific widget type that has stubbled capture calls. This will
-  // create a non-desktop widget.
+  // platform specific widget type that has stubbled capture calls.
   Widget* CreateTopLevelPlatformWidget();
   Widget* CreateTopLevelFramelessPlatformWidget();
   Widget* CreateChildPlatformWidget(gfx::NativeView parent_native_view);
 
-#if BUILDFLAG(ENABLE_DESKTOP_AURA)
-  // Create Widgets with |native_widget| in InitParams set to an instance of
-  // platform specific widget type that has stubbled capture calls. This will
-  // create a desktop widget.
-  Widget* CreateTopLevelPlatformDesktopWidget();
-#endif
-
   // Create Widgets initialized without a |native_widget| set in InitParams.
   // Depending on the test environment, ViewsDelegate::OnBeforeWidgetInit() may
-  // provide a desktop or non-desktop NativeWidget.
+  // still provide one.
   Widget* CreateTopLevelNativeWidget();
   Widget* CreateChildNativeWidgetWithParent(Widget* parent);
 
-  View* GetMousePressedHandler(views::internal::RootView* root_view);
+  View* GetMousePressedHandler(internal::RootView* root_view);
 
-  View* GetMouseMoveHandler(views::internal::RootView* root_view);
+  View* GetMouseMoveHandler(internal::RootView* root_view);
 
-  View* GetGestureHandler(views::internal::RootView* root_view);
+  View* GetGestureHandler(internal::RootView* root_view);
 
   // Simulate an activation of the native window held by |widget|, as if it was
   // clicked by the user. This is a synchronous method for use in
@@ -116,8 +95,6 @@ class WidgetTest : public ViewsTestBase {
 
   // Return true if |above| is higher than |below| in the native window Z-order.
   // Both windows must be visible.
-  // WARNING: this does not work for Aura desktop widgets (crbug.com/1333445)
-  // and is not reliable on MacOS 10.13 and earlier.
   static bool IsWindowStackedAbove(Widget* above, Widget* below);
 
   // Query the native window system for the minimum size configured for user
@@ -129,8 +106,8 @@ class WidgetTest : public ViewsTestBase {
   // sink.
   static ui::EventSink* GetEventSink(Widget* widget);
 
-  // Get the ImeKeyEventDispatcher, for setting on a Mock InputMethod in tests.
-  static ui::ImeKeyEventDispatcher* GetImeKeyEventDispatcherForWidget(
+  // Get the InputMethodDelegate, for setting on a Mock InputMethod in tests.
+  static ui::internal::InputMethodDelegate* GetInputMethodDelegateForWidget(
       Widget* widget);
 
   // Return true if |window| is transparent according to the native platform.
@@ -149,39 +126,33 @@ class WidgetTest : public ViewsTestBase {
   // activate a window owned by the app shortly after app startup, if there is
   // one. See https://crbug.com/998868 for details.
   static void WaitForSystemAppActivation();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WidgetTest);
 };
 
 class DesktopWidgetTest : public WidgetTest {
  public:
   DesktopWidgetTest();
-
-  DesktopWidgetTest(const DesktopWidgetTest&) = delete;
-  DesktopWidgetTest& operator=(const DesktopWidgetTest&) = delete;
-
   ~DesktopWidgetTest() override;
 
   // WidgetTest:
   void SetUp() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DesktopWidgetTest);
 };
 
 class DesktopWidgetTestInteractive : public DesktopWidgetTest {
  public:
   DesktopWidgetTestInteractive();
-
-  DesktopWidgetTestInteractive(const DesktopWidgetTestInteractive&) = delete;
-  DesktopWidgetTestInteractive& operator=(const DesktopWidgetTestInteractive&) =
-      delete;
-
   ~DesktopWidgetTestInteractive() override;
 
   // DesktopWidgetTest
   void SetUp() override;
 
-#if (BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CASTOS)) || \
-    BUILDFLAG(IS_CHROMEOS_LACROS)
-  void TearDown() override;
-  std::unique_ptr<display::Screen> screen_;
-#endif
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DesktopWidgetTestInteractive);
 };
 
 // A helper WidgetDelegate for tests that require hooks into WidgetDelegate
@@ -191,11 +162,6 @@ class TestDesktopWidgetDelegate : public WidgetDelegate {
  public:
   TestDesktopWidgetDelegate();
   explicit TestDesktopWidgetDelegate(Widget* widget);
-
-  TestDesktopWidgetDelegate(const TestDesktopWidgetDelegate&) = delete;
-  TestDesktopWidgetDelegate& operator=(const TestDesktopWidgetDelegate&) =
-      delete;
-
   ~TestDesktopWidgetDelegate() override;
 
   // Initialize the Widget, adding some meaningful default InitParams.
@@ -227,12 +193,14 @@ class TestDesktopWidgetDelegate : public WidgetDelegate {
   bool OnCloseRequested(Widget::ClosedReason close_reason) override;
 
  private:
-  raw_ptr<Widget> widget_;
-  raw_ptr<View> contents_view_ = nullptr;
+  Widget* widget_;
+  View* contents_view_ = nullptr;
   int window_closing_count_ = 0;
   gfx::Rect initial_bounds_ = gfx::Rect(100, 100, 200, 200);
   bool can_close_ = true;
   Widget::ClosedReason last_closed_reason_ = Widget::ClosedReason::kUnspecified;
+
+  DISALLOW_COPY_AND_ASSIGN(TestDesktopWidgetDelegate);
 };
 
 // Testing widget delegate that creates a widget with a single view, which is
@@ -240,12 +208,6 @@ class TestDesktopWidgetDelegate : public WidgetDelegate {
 class TestInitialFocusWidgetDelegate : public TestDesktopWidgetDelegate {
  public:
   explicit TestInitialFocusWidgetDelegate(gfx::NativeWindow context);
-
-  TestInitialFocusWidgetDelegate(const TestInitialFocusWidgetDelegate&) =
-      delete;
-  TestInitialFocusWidgetDelegate& operator=(
-      const TestInitialFocusWidgetDelegate&) = delete;
-
   ~TestInitialFocusWidgetDelegate() override;
 
   View* view() { return view_; }
@@ -254,7 +216,9 @@ class TestInitialFocusWidgetDelegate : public TestDesktopWidgetDelegate {
   View* GetInitiallyFocusedView() override;
 
  private:
-  raw_ptr<View> view_;
+  View* view_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestInitialFocusWidgetDelegate);
 };
 
 // Use in tests to wait until a Widget's activation change to a particular
@@ -262,10 +226,6 @@ class TestInitialFocusWidgetDelegate : public TestDesktopWidgetDelegate {
 class WidgetActivationWaiter : public WidgetObserver {
  public:
   WidgetActivationWaiter(Widget* widget, bool active);
-
-  WidgetActivationWaiter(const WidgetActivationWaiter&) = delete;
-  WidgetActivationWaiter& operator=(const WidgetActivationWaiter&) = delete;
-
   ~WidgetActivationWaiter() override;
 
   // Returns when the active status matches that supplied to the constructor. If
@@ -277,22 +237,42 @@ class WidgetActivationWaiter : public WidgetObserver {
   // views::WidgetObserver override:
   void OnWidgetActivationChanged(Widget* widget, bool active) override;
 
-  bool observed_ = false;
+  base::RunLoop run_loop_;
+  bool observed_;
   bool active_;
 
+  DISALLOW_COPY_AND_ASSIGN(WidgetActivationWaiter);
+};
+
+// Use in tests to provide functionality to observe the widget passed in the
+// constructor for the widget closing event.
+class WidgetClosingObserver : public WidgetObserver {
+ public:
+  explicit WidgetClosingObserver(Widget* widget);
+  ~WidgetClosingObserver() override;
+
+  // Returns immediately when |widget_| becomes NULL, otherwise a RunLoop is
+  // used until widget closing event is received.
+  void Wait();
+
+  bool widget_closed() const { return !widget_; }
+
+ private:
+  // views::WidgetObserver override:
+  void OnWidgetClosing(Widget* widget) override;
+
+  Widget* widget_;
   base::RunLoop run_loop_;
-  base::ScopedObservation<Widget, WidgetObserver> widget_observation_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WidgetClosingObserver);
 };
 
 // Use in tests to wait for a widget to be destroyed.
+// TODO(https://crrev.com/c/1086509): This is pretty similar to
+// WidgetClosingObserver. Can the two be combined?
 class WidgetDestroyedWaiter : public WidgetObserver {
  public:
   explicit WidgetDestroyedWaiter(Widget* widget);
-
-  WidgetDestroyedWaiter(const WidgetDestroyedWaiter&) = delete;
-  WidgetDestroyedWaiter& operator=(const WidgetDestroyedWaiter&) = delete;
-
-  ~WidgetDestroyedWaiter() override;
 
   // Wait for the widget to be destroyed, or return immediately if it was
   // already destroyed since this object was created.
@@ -303,7 +283,8 @@ class WidgetDestroyedWaiter : public WidgetObserver {
   void OnWidgetDestroyed(Widget* widget) override;
 
   base::RunLoop run_loop_;
-  base::ScopedObservation<Widget, WidgetObserver> widget_observation_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WidgetDestroyedWaiter);
 };
 
 // Helper class to wait for a Widget to become visible. This will add a failure
@@ -324,9 +305,9 @@ class WidgetVisibleWaiter : public WidgetObserver {
   void OnWidgetVisibilityChanged(Widget* widget, bool visible) override;
   void OnWidgetDestroying(Widget* widget) override;
 
-  const raw_ptr<Widget, DanglingUntriaged> widget_;
+  Widget* const widget_;
   base::RunLoop run_loop_;
-  base::ScopedObservation<Widget, WidgetObserver> widget_observation_{this};
+  ScopedObserver<Widget, WidgetObserver> widget_observer_{this};
 };
 
 }  // namespace test

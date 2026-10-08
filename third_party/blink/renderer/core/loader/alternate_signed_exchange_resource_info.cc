@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,14 @@
 
 #include "media/media_buildflags.h"
 #include "net/http/http_request_headers.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/web_package/signed_exchange_consts.h"
 #include "third_party/blink/public/common/web_package/web_package_request_matcher.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource.h"
 #include "third_party/blink/renderer/platform/loader/link_header.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/hash_functions.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 
@@ -29,13 +31,19 @@ constexpr char kAllowedAltSxg[] = "allowed-alt-sxg";
 const char kDefaultAcceptHeader[] = "*/*";
 const char kStylesheetAcceptHeader[] = "text/css,*/*;q=0.1";
 
+const char* ImageAcceptHeader() {
+  static constexpr char kImageAcceptHeaderWithAvif[] =
+      "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
+  static constexpr size_t kOffset = sizeof("image/avif,") - 1;
 #if BUILDFLAG(ENABLE_AV1_DECODER)
-constexpr char kImageAcceptHeader[] =
-    "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
+  static const char* header = base::FeatureList::IsEnabled(features::kAVIF)
+                                  ? kImageAcceptHeaderWithAvif
+                                  : kImageAcceptHeaderWithAvif + kOffset;
 #else
-constexpr char kImageAcceptHeader[] =
-    "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
+  static const char* header = kImageAcceptHeaderWithAvif + kOffset;
 #endif
+  return header;
+}
 
 using AlternateSignedExchangeMachingKey =
     std::pair<String /* anchor */,
@@ -54,8 +62,8 @@ AlternateSignedExchangeMachingKey MakeKey(const String& anchor,
 void AddAlternateUrlIfValid(
     const LinkHeader& header,
     HashMap<AlternateSignedExchangeMachingKey, KURL>* alternate_urls) {
-  if (!header.Valid() || header.Url().empty() || !header.Anchor().has_value() ||
-      header.Anchor()->empty() ||
+  if (!header.Valid() || header.Url().IsEmpty() ||
+      !header.Anchor().has_value() || header.Anchor()->IsEmpty() ||
       !EqualIgnoringASCIICase(header.Rel(), kAlternate) ||
       header.MimeType() != kSignedExchangeMimeType) {
     return;
@@ -73,8 +81,8 @@ std::unique_ptr<AlternateSignedExchangeResourceInfo::Entry>
 CreateEntryForLinkHeaderIfValid(
     const LinkHeader& header,
     const HashMap<AlternateSignedExchangeMachingKey, KURL>& alternate_urls) {
-  if (!header.Valid() || header.Url().empty() ||
-      header.HeaderIntegrity().empty() ||
+  if (!header.Valid() || header.Url().IsEmpty() ||
+      header.HeaderIntegrity().IsEmpty() ||
       !EqualIgnoringASCIICase(header.Rel(), kAllowedAltSxg)) {
     return nullptr;
   }
@@ -121,7 +129,7 @@ AlternateSignedExchangeResourceInfo::CreateIfValid(
       alternative_resources_it->value.emplace_back(std::move(alt_resource));
     }
   }
-  if (alternative_resources.empty())
+  if (alternative_resources.IsEmpty())
     return nullptr;
   return std::make_unique<AlternateSignedExchangeResourceInfo>(
       std::move(alternative_resources));
@@ -134,13 +142,13 @@ AlternateSignedExchangeResourceInfo::AlternateSignedExchangeResourceInfo(
 AlternateSignedExchangeResourceInfo::Entry*
 AlternateSignedExchangeResourceInfo::FindMatchingEntry(
     const KURL& url,
-    absl::optional<ResourceType> resource_type,
+    base::Optional<ResourceType> resource_type,
     const Vector<String>& languages) const {
   const char* accept_header = kDefaultAcceptHeader;
   if (resource_type == ResourceType::kCSSStyleSheet) {
     accept_header = kStylesheetAcceptHeader;
   } else if (resource_type == ResourceType::kImage) {
-    accept_header = kImageAcceptHeader;
+    accept_header = ImageAcceptHeader();
   }
   return FindMatchingEntry(url, accept_header, languages);
 }
@@ -154,7 +162,7 @@ AlternateSignedExchangeResourceInfo::FindMatchingEntry(
   if (request_context == mojom::blink::RequestContextType::STYLE) {
     accept_header = kStylesheetAcceptHeader;
   } else if (request_context == mojom::blink::RequestContextType::IMAGE) {
-    accept_header = kImageAcceptHeader;
+    accept_header = ImageAcceptHeader();
   }
   return FindMatchingEntry(url, accept_header, languages);
 }
@@ -168,7 +176,7 @@ AlternateSignedExchangeResourceInfo::FindMatchingEntry(
   if (it == alternative_resources_.end())
     return nullptr;
   const Vector<std::unique_ptr<Entry>>& entries = it->value;
-  DCHECK(!entries.empty());
+  DCHECK(!entries.IsEmpty());
   if (entries[0]->variants().IsNull())
     return entries[0].get();
 

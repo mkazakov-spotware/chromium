@@ -1,13 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_FORMATS_WEBM_WEBM_COLOUR_PARSER_H_
 #define MEDIA_FORMATS_WEBM_WEBM_COLOUR_PARSER_H_
 
+#include "base/macros.h"
+#include "base/optional.h"
 #include "media/base/video_color_space.h"
 #include "media/formats/webm/webm_parser.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/hdr_metadata.h"
 
 namespace media {
@@ -25,7 +26,7 @@ struct MEDIA_EXPORT WebMColorMetadata {
 
   VideoColorSpace color_space;
 
-  absl::optional<gfx::HDRMetadata> hdr_metadata;
+  base::Optional<gfx::HDRMetadata> hdr_metadata;
 
   WebMColorMetadata();
   WebMColorMetadata(const WebMColorMetadata& rhs);
@@ -33,25 +34,21 @@ struct MEDIA_EXPORT WebMColorMetadata {
 
 // Parser for WebM MasteringMetadata within Colour element:
 // http://www.webmproject.org/docs/container/#MasteringMetadata
-class WebMColorVolumeMetadataParser : public WebMParserClient {
+class WebMMasteringMetadataParser : public WebMParserClient {
  public:
-  WebMColorVolumeMetadataParser();
+  WebMMasteringMetadataParser();
+  ~WebMMasteringMetadataParser() override;
 
-  WebMColorVolumeMetadataParser(const WebMColorVolumeMetadataParser&) = delete;
-  WebMColorVolumeMetadataParser& operator=(
-      const WebMColorVolumeMetadataParser&) = delete;
-
-  ~WebMColorVolumeMetadataParser() override;
-
-  gfx::ColorVolumeMetadata GetColorVolumeMetadata() const {
-    return color_volume_metadata_;
+  gfx::MasteringMetadata GetMasteringMetadata() const {
+    return mastering_metadata_;
   }
 
  private:
   // WebMParserClient implementation.
   bool OnFloat(int id, double val) override;
 
-  gfx::ColorVolumeMetadata color_volume_metadata_;
+  gfx::MasteringMetadata mastering_metadata_;
+  DISALLOW_COPY_AND_ASSIGN(WebMMasteringMetadataParser);
 };
 
 // Parser for WebM Colour element:
@@ -59,10 +56,6 @@ class WebMColorVolumeMetadataParser : public WebMParserClient {
 class WebMColourParser : public WebMParserClient {
  public:
   WebMColourParser();
-
-  WebMColourParser(const WebMColourParser&) = delete;
-  WebMColourParser& operator=(const WebMColourParser&) = delete;
-
   ~WebMColourParser() override;
 
   void Reset();
@@ -89,8 +82,10 @@ class WebMColourParser : public WebMParserClient {
   int64_t max_content_light_level_;
   int64_t max_frame_average_light_level_;
 
-  WebMColorVolumeMetadataParser color_volume_metadata_parser_;
-  bool color_volume_metadata_parsed_ = false;
+  WebMMasteringMetadataParser mastering_metadata_parser_;
+  bool mastering_metadata_parsed_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(WebMColourParser);
 };
 
 }  // namespace media

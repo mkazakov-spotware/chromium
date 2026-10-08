@@ -34,7 +34,7 @@
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -63,31 +63,19 @@ void ChooserOnlyTemporalInputTypeView::HandleDOMActivateEvent(Event& event) {
 
   if (date_time_chooser_)
     return;
-  // SetupDateTimeChooserParameters() in OpenPopupView() early-outs if we
-  // don't have a View, so do the same here just to avoid adding to the
-  // use counter.
-  if (!document.IsActive() || !document.View())
+  if (!document.IsActive())
+    return;
+  DateTimeChooserParameters parameters;
+  if (!GetElement().SetupDateTimeChooserParameters(parameters))
     return;
   UseCounter::Count(
       document,
       (event.UnderlyingEvent() && event.UnderlyingEvent()->isTrusted())
           ? WebFeature::kTemporalInputTypeChooserByTrustedClick
           : WebFeature::kTemporalInputTypeChooserByUntrustedClick);
-  OpenPopupView();
-}
-
-ControlPart ChooserOnlyTemporalInputTypeView::AutoAppearance() const {
-  return kMenulistPart;
-}
-
-void ChooserOnlyTemporalInputTypeView::OpenPopupView() {
-  DateTimeChooserParameters parameters;
-  if (GetElement().SetupDateTimeChooserParameters(parameters)) {
-    Document& document = GetElement().GetDocument();
-    date_time_chooser_ =
-        document.GetPage()->GetChromeClient().OpenDateTimeChooser(
-            document.GetFrame(), this, parameters);
-  }
+  date_time_chooser_ =
+      document.GetPage()->GetChromeClient().OpenDateTimeChooser(
+          document.GetFrame(), this, parameters);
 }
 
 void ChooserOnlyTemporalInputTypeView::CreateShadowSubtree() {
@@ -111,7 +99,7 @@ void ChooserOnlyTemporalInputTypeView::UpdateView() {
     display_value = GetElement().SuggestedValue();
   else
     display_value = input_type_->VisibleValue();
-  if (display_value.empty()) {
+  if (display_value.IsEmpty()) {
     // Need to put something to keep text baseline.
     display_value = " ";
   }
@@ -140,7 +128,7 @@ Element& ChooserOnlyTemporalInputTypeView::OwnerElement() const {
 void ChooserOnlyTemporalInputTypeView::DidChooseValue(const String& value) {
   if (will_be_destroyed_)
     return;
-  GetElement().SetValue(value,
+  GetElement().setValue(value,
                         TextFieldEventBehavior::kDispatchInputAndChangeEvent);
 }
 
@@ -149,7 +137,7 @@ void ChooserOnlyTemporalInputTypeView::DidChooseValue(double value) {
     return;
   DCHECK(std::isfinite(value) || std::isnan(value));
   if (std::isnan(value)) {
-    GetElement().SetValue(g_empty_string,
+    GetElement().setValue(g_empty_string,
                           TextFieldEventBehavior::kDispatchInputAndChangeEvent);
   } else {
     GetElement().setValueAsNumber(

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,6 @@ class COMPONENTS_DOWNLOAD_EXPORT StreamHandleInputStream
  public:
   explicit StreamHandleInputStream(
       mojom::DownloadStreamHandlePtr stream_handle);
-
-  StreamHandleInputStream(const StreamHandleInputStream&) = delete;
-  StreamHandleInputStream& operator=(const StreamHandleInputStream&) = delete;
-
   ~StreamHandleInputStream() override;
 
   // InputStream
@@ -56,6 +52,8 @@ class COMPONENTS_DOWNLOAD_EXPORT StreamHandleInputStream
   base::OnceClosure completion_callback_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(StreamHandleInputStream);
 };
 
 }  // namespace download

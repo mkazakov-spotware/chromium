@@ -1,15 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/page_load_metrics/observers/https_engagement_metrics/https_engagement_page_load_metrics_observer.h"
 
-#include <memory>
-
+#include "base/macros.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/metrics/https_engagement_metrics_provider.h"
 #include "chrome/browser/ui/browser.h"
@@ -29,17 +27,11 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
  public:
   HttpsEngagementPageLoadMetricsBrowserTest()
       : metrics_provider_(new HttpsEngagementMetricsProvider()) {}
-
-  HttpsEngagementPageLoadMetricsBrowserTest(
-      const HttpsEngagementPageLoadMetricsBrowserTest&) = delete;
-  HttpsEngagementPageLoadMetricsBrowserTest& operator=(
-      const HttpsEngagementPageLoadMetricsBrowserTest&) = delete;
-
   ~HttpsEngagementPageLoadMetricsBrowserTest() override {}
 
   void StartHttpsServer(bool cert_error) {
-    https_test_server_ = std::make_unique<net::EmbeddedTestServer>(
-        net::EmbeddedTestServer::TYPE_HTTPS);
+    https_test_server_.reset(
+        new net::EmbeddedTestServer(net::EmbeddedTestServer::TYPE_HTTPS));
     https_test_server_->SetSSLConfig(cert_error
                                          ? net::EmbeddedTestServer::CERT_EXPIRED
                                          : net::EmbeddedTestServer::CERT_OK);
@@ -48,8 +40,8 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
   }
 
   void StartHttpServer() {
-    http_test_server_ = std::make_unique<net::EmbeddedTestServer>(
-        net::EmbeddedTestServer::TYPE_HTTP);
+    http_test_server_.reset(
+        new net::EmbeddedTestServer(net::EmbeddedTestServer::TYPE_HTTP));
     http_test_server_->ServeFilesFromSourceDirectory(GetChromeTestDataDir());
     ASSERT_TRUE(http_test_server_->Start());
   }
@@ -58,7 +50,7 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
   // for how long the URL was open in the foreground.
   base::TimeDelta NavigateInForegroundAndCloseWithTiming(GURL target_url) {
     base::TimeTicks start = base::TimeTicks::Now();
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), target_url));
+    ui_test_utils::NavigateToURL(browser(), target_url);
 
     TabStripModel* tab_strip_model = browser()->tab_strip_model();
     content::WebContentsDestroyedWatcher destroyed_watcher(
@@ -70,8 +62,8 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
 
   // Navigate to two URLs in the same foreground tab, and close it.
   void NavigateTwiceInTabAndClose(GURL first_url, GURL second_url) {
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), first_url));
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), second_url));
+    ui_test_utils::NavigateToURL(browser(), first_url);
+    ui_test_utils::NavigateToURL(browser(), second_url);
 
     TabStripModel* tab_strip_model = browser()->tab_strip_model();
     EXPECT_EQ(1, tab_strip_model->count());
@@ -86,7 +78,7 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
   // foreground.
   base::TimeDelta NavigateInForegroundAndCloseInBackgroundWithTiming(GURL url) {
     base::TimeTicks start = base::TimeTicks::Now();
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
     ui_test_utils::NavigateToURLWithDisposition(
         browser(), GURL(chrome::kChromeUIVersionURL),
         WindowOpenDisposition::NEW_FOREGROUND_TAB,
@@ -96,9 +88,8 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
     // Make sure the correct tab is in the foreground.
     TabStripModel* tab_strip_model = browser()->tab_strip_model();
     EXPECT_EQ(2, tab_strip_model->count());
-    EXPECT_EQ(url, tab_strip_model->GetWebContentsAt(0)->GetLastCommittedURL());
-    EXPECT_NE(url,
-              tab_strip_model->GetActiveWebContents()->GetLastCommittedURL());
+    EXPECT_EQ(url, tab_strip_model->GetWebContentsAt(0)->GetURL());
+    EXPECT_NE(url, tab_strip_model->GetActiveWebContents()->GetURL());
 
     content::WebContentsDestroyedWatcher destroyed_watcher(
         tab_strip_model->GetWebContentsAt(0));
@@ -111,8 +102,7 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
 
   // Open and close a tab without ever bringing it to the foreground.
   void NavigateInBackgroundAndClose(GURL url) {
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), GURL(chrome::kChromeUIVersionURL)));
+    ui_test_utils::NavigateToURL(browser(), GURL(chrome::kChromeUIVersionURL));
     ui_test_utils::NavigateToURLWithDisposition(
         browser(), url, WindowOpenDisposition::NEW_BACKGROUND_TAB,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
@@ -120,9 +110,8 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
     // Make sure the correct tab is in the foreground.
     TabStripModel* tab_strip_model = browser()->tab_strip_model();
     EXPECT_EQ(2, tab_strip_model->count());
-    EXPECT_EQ(url, tab_strip_model->GetWebContentsAt(1)->GetLastCommittedURL());
-    EXPECT_NE(url,
-              tab_strip_model->GetActiveWebContents()->GetLastCommittedURL());
+    EXPECT_EQ(url, tab_strip_model->GetWebContentsAt(1)->GetURL());
+    EXPECT_NE(url, tab_strip_model->GetActiveWebContents()->GetURL());
 
     content::WebContentsDestroyedWatcher destroyed_watcher(
         tab_strip_model->GetWebContentsAt(1));
@@ -134,8 +123,7 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
   // Open a tab in the background, then bring it to the foreground. Return the
   // upper bound for how long the URL was open in the foreground.
   base::TimeDelta NavigateInBackgroundAndCloseInForegroundWithTiming(GURL url) {
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), GURL(chrome::kChromeUIVersionURL)));
+    ui_test_utils::NavigateToURL(browser(), GURL(chrome::kChromeUIVersionURL));
     ui_test_utils::NavigateToURLWithDisposition(
         browser(), url, WindowOpenDisposition::NEW_BACKGROUND_TAB,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
@@ -143,9 +131,8 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
     // Make sure the correct tab is in the foreground.
     TabStripModel* tab_strip_model = browser()->tab_strip_model();
     EXPECT_EQ(2, tab_strip_model->count());
-    EXPECT_EQ(url, tab_strip_model->GetWebContentsAt(1)->GetLastCommittedURL());
-    EXPECT_NE(url,
-              tab_strip_model->GetActiveWebContents()->GetLastCommittedURL());
+    EXPECT_EQ(url, tab_strip_model->GetWebContentsAt(1)->GetURL());
+    EXPECT_NE(url, tab_strip_model->GetActiveWebContents()->GetURL());
 
     // Close the foreground tab.
     base::TimeTicks start = base::TimeTicks::Now();
@@ -156,8 +143,7 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
 
     // Now the background tab should have moved to the foreground.
     EXPECT_EQ(1, tab_strip_model->count());
-    EXPECT_EQ(url,
-              tab_strip_model->GetActiveWebContents()->GetLastCommittedURL());
+    EXPECT_EQ(url, tab_strip_model->GetActiveWebContents()->GetURL());
 
     content::WebContentsDestroyedWatcher second_watcher(
         tab_strip_model->GetActiveWebContents());
@@ -168,7 +154,7 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
   }
 
   void FakeUserMetricsUpload() {
-    metrics_provider_->ProvideCurrentSessionData(nullptr);
+    metrics_provider_->ProvideCurrentSessionData(NULL);
   }
 
  protected:
@@ -176,6 +162,8 @@ class HttpsEngagementPageLoadMetricsBrowserTest : public InProcessBrowserTest {
   std::unique_ptr<net::EmbeddedTestServer> https_test_server_;
   std::unique_ptr<net::EmbeddedTestServer> http_test_server_;
   std::unique_ptr<HttpsEngagementMetricsProvider> metrics_provider_;
+
+  DISALLOW_COPY_AND_ASSIGN(HttpsEngagementPageLoadMetricsBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(HttpsEngagementPageLoadMetricsBrowserTest,
@@ -284,8 +272,8 @@ IN_PROC_BROWSER_TEST_F(HttpsEngagementPageLoadMetricsBrowserTest,
                        UncommittedLoadWithError) {
   StartHttpsServer(true);
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_test_server_->GetURL("/simple.html")));
+  ui_test_utils::NavigateToURL(browser(),
+                               https_test_server_->GetURL("/simple.html"));
   content::WebContentsDestroyedWatcher destroyed_watcher(
       tab_strip_model->GetActiveWebContents());
   EXPECT_TRUE(
@@ -476,15 +464,8 @@ IN_PROC_BROWSER_TEST_F(HttpsEngagementPageLoadMetricsBrowserTest,
   EXPECT_EQ(0, ratio_bucket);
 }
 
-
-// Flaky on linux-chromeos-rel. crbug/1215539
-#if defined(NDEBUG) && BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_AlwaysInBackground DISABLED_AlwaysInBackground
-#else
-#define MAYBE_AlwaysInBackground AlwaysInBackground
-#endif
 IN_PROC_BROWSER_TEST_F(HttpsEngagementPageLoadMetricsBrowserTest,
-                       MAYBE_AlwaysInBackground) {
+                       AlwaysInBackground) {
   StartHttpsServer(false);
   StartHttpServer();
   NavigateInBackgroundAndClose(https_test_server_->GetURL("/simple.html"));

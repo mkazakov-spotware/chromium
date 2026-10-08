@@ -105,9 +105,7 @@ class MODULES_EXPORT ServiceWorker final
   void ContextLifecycleStateChanged(mojom::FrameLifecycleState state) override;
   void ContextDestroyed() override;
 
-  void PostMessageInternal(BlinkTransferableMessage message);
-
-  bool was_stopped_ = false;
+  bool was_stopped_;
   const KURL url_;
   mojom::blink::ServiceWorkerState state_;
   // Both |host_| and |receiver_| are associated with
@@ -117,10 +115,14 @@ class MODULES_EXPORT ServiceWorker final
   // |host_| keeps the Mojo connection to the
   // browser-side ServiceWorkerObjectHost, whose lifetime is bound
   // to |host_| via the Mojo connection.
-  HeapMojoAssociatedRemote<mojom::blink::ServiceWorkerObjectHost> host_;
+  HeapMojoAssociatedRemote<mojom::blink::ServiceWorkerObjectHost,
+                           HeapMojoWrapperMode::kWithoutContextObserver>
+      host_;
   // Receives messages from the content::ServiceWorkerObjectHost in the browser
   // process.
-  HeapMojoAssociatedReceiver<mojom::blink::ServiceWorkerObject, ServiceWorker>
+  HeapMojoAssociatedReceiver<mojom::blink::ServiceWorkerObject,
+                             ServiceWorker,
+                             HeapMojoWrapperMode::kWithoutContextObserver>
       receiver_;
 };
 

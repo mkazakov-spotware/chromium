@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,18 +17,14 @@ namespace media {
 
 namespace {
 
-class SimpleCdmVideoFrame final : public VideoFrameImpl {
+class SimpleCdmVideoFrame : public VideoFrameImpl {
  public:
   SimpleCdmVideoFrame() = default;
-
-  SimpleCdmVideoFrame(const SimpleCdmVideoFrame&) = delete;
-  SimpleCdmVideoFrame& operator=(const SimpleCdmVideoFrame&) = delete;
-
-  ~SimpleCdmVideoFrame() override = default;
+  ~SimpleCdmVideoFrame() final = default;
 
   // VideoFrameImpl implementation.
   scoped_refptr<media::VideoFrame> TransformToVideoFrame(
-      gfx::Size natural_size) override {
+      gfx::Size natural_size) final {
     DCHECK(FrameBuffer());
 
     cdm::Buffer* buffer = FrameBuffer();
@@ -40,7 +36,7 @@ class SimpleCdmVideoFrame final : public VideoFrameImpl {
             buffer->Data() + PlaneOffset(cdm::kYPlane),
             buffer->Data() + PlaneOffset(cdm::kUPlane),
             buffer->Data() + PlaneOffset(cdm::kVPlane),
-            base::Microseconds(Timestamp()));
+            base::TimeDelta::FromMicroseconds(Timestamp()));
 
     frame->set_color_space(MediaColorSpace().ToGfxColorSpace());
 
@@ -53,6 +49,9 @@ class SimpleCdmVideoFrame final : public VideoFrameImpl {
     SetFrameBuffer(nullptr);
     return frame;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SimpleCdmVideoFrame);
 };
 
 }  // namespace

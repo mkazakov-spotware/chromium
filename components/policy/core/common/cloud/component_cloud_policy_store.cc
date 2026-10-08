@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,15 @@
 #include "base/callback.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_number_conversions.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/cloud_policy_validator.h"
 #include "components/policy/core/common/cloud/resource_cache.h"
 #include "components/policy/core/common/external_data_fetcher.h"
 #include "components/policy/core/common/policy_map.h"
-#include "components/policy/core/common/policy_proto_decoders.h"
 #include "components/policy/proto/chrome_extension_policy.pb.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "crypto/sha2.h"
@@ -81,40 +79,25 @@ const ComponentCloudPolicyStore::DomainConstants* GetDomainConstantsForType(
   return nullptr;
 }
 
-base::Value::Dict TranslatePolicyMapEntryToJson(const PolicyMap::Entry& entry) {
-  base::Value::Dict result;
-  // This is actually safe because this code just copies the value,
-  // not caring about its type.
-  result.Set(kValue, entry.value_unsafe()->Clone());
-  if (entry.level == POLICY_LEVEL_RECOMMENDED) {
-    result.Set(kLevel, base::StringPiece(kRecommended));
-  }
-  return result;
-}
-
-base::Value::Dict TranslatePolicyMapToJson(const PolicyMap& policy_map) {
-  base::Value::Dict result;
-  for (const auto& [key, entry] : policy_map) {
-    result.Set(key, TranslatePolicyMapEntryToJson(entry));
-  }
-  return result;
-}
-
 }  // namespace
 
-ComponentCloudPolicyStore::Delegate::~Delegate() = default;
+ComponentCloudPolicyStore::Delegate::~Delegate() {}
 
 ComponentCloudPolicyStore::ComponentCloudPolicyStore(
     Delegate* delegate,
     ResourceCache* cache,
-    const std::string& policy_type)
+    const std::string& policy_type,
+    PolicySource policy_source)
     : delegate_(delegate),
       cache_(cache),
-      domain_constants_(GetDomainConstantsForType(policy_type)) {
+      domain_constants_(GetDomainConstantsForType(policy_type)),
+      policy_source_(policy_source) {
   // Allow the store to be created on a different thread than the thread that
   // will end up using it.
   DETACH_FROM_SEQUENCE(sequence_checker_);
   DCHECK(domain_constants_);
+  DCHECK(policy_source == POLICY_SOURCE_CLOUD ||
+         policy_source == POLICY_SOURCE_PRIORITY_CLOUD);
 }
 
 ComponentCloudPolicyStore::~ComponentCloudPolicyStore() {
@@ -185,12 +168,9 @@ void ComponentCloudPolicyStore::Load() {
     }
     em::ExternalPolicyData payload;
     em::PolicyData policy_data;
-    std::string policy_error;
-    if (!ValidatePolicy(ns, std::move(proto), &policy_data, &payload,
-                        &policy_error)) {
-      // The policy fetch response is corrupted.
-      LOG(ERROR) << "Discarding policy for component " << ns.component_id
-                 << " due to policy validation failure: " << policy_error;
+    if (!ValidatePolicy(ns, std::move(proto), &policy_data, &payload)) {
+      // The policy fetch response is corrupted.  Note that the error details
+      // are logged by ValidatePolicy().
       Delete(ns);
       continue;
     }
@@ -203,11 +183,9 @@ void ComponentCloudPolicyStore::Load() {
       continue;
     }
     PolicyMap policy;
-    std::string data_error;
-    if (!ValidateData(data, payload.secure_hash(), &policy, &data_error)) {
-      // The data for this proto is corrupted.
-      LOG(ERROR) << "Discarding policy for component " << ns.component_id
-                 << " due to data validation failure: " << data_error;
+    if (!ValidateData(data, payload.secure_hash(), &policy)) {
+      // The data for this proto is corrupted.  Note that the error details
+      // are logged by ValidateData().
       Delete(ns);
       continue;
     }
@@ -218,7 +196,6 @@ void ComponentCloudPolicyStore::Load() {
     stored_policy_times_[ns] =
         base::Time::FromJavaTime(policy_data.timestamp());
   }
-  delegate_->OnComponentCloudPolicyStoreUpdated();
 }
 
 bool ComponentCloudPolicyStore::Store(const PolicyNamespace& ns,
@@ -234,10 +211,11 @@ bool ComponentCloudPolicyStore::Store(const PolicyNamespace& ns,
 
   // |serialized_policy| has already been validated; validate the data now.
   PolicyMap policy;
-  std::string error;
-  if (!ValidateData(data, secure_hash, &policy, &error)) {
-    LOG(ERROR) << "Discarding policy for component " << ns.component_id
-               << " due to data validation failure: " << error;
+  if (!ValidateData(data, secure_hash, &policy)) {
+    // TODO(emaxx): Incorporate the validation error message here and in other
+    // contextual log messages.
+    DLOG(ERROR) << "Discarding policy for component " << ns.component_id
+                << " due to validation failure.";
     return false;
   }
 
@@ -305,9 +283,8 @@ void ComponentCloudPolicyStore::Purge(const PurgeFilter& filter) {
     }
   }
 
-  if (purged_current_policies) {
+  if (purged_current_policies)
     delegate_->OnComponentCloudPolicyStoreUpdated();
-  }
 }
 
 void ComponentCloudPolicyStore::Clear() {
@@ -329,23 +306,20 @@ bool ComponentCloudPolicyStore::ValidatePolicy(
     const PolicyNamespace& ns,
     std::unique_ptr<em::PolicyFetchResponse> proto,
     em::PolicyData* policy_data,
-    em::ExternalPolicyData* payload,
-    std::string* error) {
+    em::ExternalPolicyData* payload) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (domain_constants_->domain != ns.domain) {
-    *error = "Domains do not match.";
+  if (domain_constants_->domain != ns.domain)
     return false;
-  }
 
   if (ns.component_id.empty()) {
-    *error = "Empty component id.";
+    LOG(ERROR) << "Empty component id.";
     return false;
   }
 
   if (username_.empty() || dm_token_.empty() || device_id_.empty() ||
       public_key_.empty() || public_key_version_ == -1) {
-    *error = "Credentials are not loaded yet.";
+    LOG(WARNING) << "Credentials are not loaded yet.";
     return false;
   }
 
@@ -370,22 +344,17 @@ bool ComponentCloudPolicyStore::ValidatePolicy(
   validator->ValidatePayload();
   validator->ValidateSignature(public_key_);
   validator->RunValidation();
-  if (!validator->success()) {
-    *error = base::StrCat(
-        {"Unsuccessful validation with Status ",
-         CloudPolicyValidatorBase::StatusToString(validator->status()), "."});
+  if (!validator->success())
     return false;
-  }
 
   if (!validator->policy_data()->has_public_key_version()) {
-    *error = "Public key version missing.";
+    LOG(ERROR) << "Public key version missing.";
     return false;
   }
   if (validator->policy_data()->public_key_version() != public_key_version_) {
-    *error = base::StrCat(
-        {"Wrong public key version ",
-         base::NumberToString(validator->policy_data()->public_key_version()),
-         " - expected ", base::NumberToString(public_key_version_), "."});
+    LOG(ERROR) << "Wrong public key version "
+               << validator->policy_data()->public_key_version()
+               << " - expected " << public_key_version_ << ".";
     return false;
   }
 
@@ -395,15 +364,15 @@ bool ComponentCloudPolicyStore::ValidatePolicy(
   // policy, or that the policy has been removed.
   if (data->has_download_url() && !data->download_url().empty()) {
     if (!GURL(data->download_url()).is_valid()) {
-      *error = base::StrCat({"Invalid URL: ", data->download_url(), " ."});
+      LOG(ERROR) << "Invalid URL: " << data->download_url() << " .";
       return false;
     }
     if (!data->has_secure_hash() || data->secure_hash().empty()) {
-      *error = "Secure hash missing.";
+      LOG(ERROR) << "Secure hash missing.";
       return false;
     }
   } else if (data->has_secure_hash()) {
-    *error = "URL missing.";
+    LOG(ERROR) << "URL missing.";
     return false;
   }
 
@@ -416,42 +385,60 @@ bool ComponentCloudPolicyStore::ValidatePolicy(
 
 bool ComponentCloudPolicyStore::ValidateData(const std::string& data,
                                              const std::string& secure_hash,
-                                             PolicyMap* policy,
-                                             std::string* error) {
+                                             PolicyMap* policy) {
   if (crypto::SHA256HashString(data) != secure_hash) {
-    *error = "The received data doesn't match the expected hash.";
+    LOG(ERROR) << "The received data doesn't match the expected hash.";
     return false;
   }
-  return ParsePolicy(data, policy, error);
+  return ParsePolicy(data, policy);
 }
 
 bool ComponentCloudPolicyStore::ParsePolicy(const std::string& data,
-                                            PolicyMap* policy,
-                                            std::string* error) {
-  auto value_with_error = base::JSONReader::ReadAndReturnValueWithError(
-      data, base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS);
-  if (!value_with_error.has_value()) {
-    *error =
-        base::StrCat({"Invalid JSON blob: ", value_with_error.error().message});
+                                            PolicyMap* policy) {
+  base::JSONReader::ValueWithError value_with_error =
+      base::JSONReader::ReadAndReturnValueWithError(
+          data, base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS);
+  if (!value_with_error.value) {
+    LOG(ERROR) << "Invalid JSON blob: " << value_with_error.error_message;
     return false;
   }
-  base::Value json = std::move(*value_with_error);
+  base::Value json = std::move(value_with_error.value.value());
   if (!json.is_dict()) {
-    *error = "The JSON blob is not a dictionary.";
+    LOG(ERROR) << "The JSON blob is not a dictionary.";
     return false;
   }
 
-  return ParseComponentPolicy(std::move(json), domain_constants_->scope,
-                              POLICY_SOURCE_CLOUD, policy, error);
-}
+  // Each top-level key maps a policy name to its description.
+  //
+  // Each description is an object that contains the policy value under the
+  // "Value" key. The optional "Level" key is either "Mandatory" (default) or
+  // "Recommended".
+  for (const auto& it : json.DictItems()) {
+    const std::string& policy_name = it.first;
+    base::Value description = std::move(it.second);
+    if (!description.is_dict()) {
+      LOG(ERROR) << "The JSON blob dictionary value is not a dictionary.";
+      return false;
+    }
 
-ComponentPolicyMap ComponentCloudPolicyStore::GetJsonPolicyMap() {
-  ComponentPolicyMap result;
-  for (const auto& [policy_namespace, policy_map] : policy_bundle_) {
-    result[policy_namespace] =
-        base::Value(TranslatePolicyMapToJson(policy_map));
+    base::Optional<base::Value> value = description.ExtractKey(kValue);
+    if (!value.has_value()) {
+      LOG(ERROR)
+          << "The JSON blob dictionary value doesn't contain the required "
+          << kValue << " field.";
+      return false;
+    }
+
+    PolicyLevel level = POLICY_LEVEL_MANDATORY;
+    const std::string* level_string = description.FindStringKey(kLevel);
+    if (level_string && *level_string == kRecommended)
+      level = POLICY_LEVEL_RECOMMENDED;
+
+    policy->Set(policy_name, level, domain_constants_->scope, policy_source_,
+                std::move(value.value()), nullptr);
   }
-  return result;
+
+  return true;
 }
 
 }  // namespace policy

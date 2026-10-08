@@ -1,17 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SAFE_BROWSING_CORE_BROWSER_REFERRER_CHAIN_PROVIDER_H_
 #define COMPONENTS_SAFE_BROWSING_CORE_BROWSER_REFERRER_CHAIN_PROVIDER_H_
 
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "components/sessions/core/session_id.h"
 #include "url/gurl.h"
 
 namespace content {
-class RenderFrameHost;
-struct GlobalRenderFrameHostId;
+class WebContents;
 }
 
 namespace safe_browsing {
@@ -34,20 +33,14 @@ class ReferrerChainProvider {
     ATTRIBUTION_FAILURE_TYPE_MAX
   };
 
-  virtual AttributionResult IdentifyReferrerChainByRenderFrameHost(
-      content::RenderFrameHost* render_frame_host,
+  virtual AttributionResult IdentifyReferrerChainByWebContents(
+      content::WebContents* web_contents,
       int user_gesture_count_limit,
       ReferrerChain* out_referrer_chain) = 0;
 
   virtual AttributionResult IdentifyReferrerChainByEventURL(
       const GURL& event_url,
       SessionID event_tab_id,
-      const content::GlobalRenderFrameHostId& event_outermost_main_frame_id,
-      int user_gesture_count_limit,
-      ReferrerChain* out_referrer_chain) = 0;
-
-  virtual AttributionResult IdentifyReferrerChainByPendingEventURL(
-      const GURL& event_url,
       int user_gesture_count_limit,
       ReferrerChain* out_referrer_chain) = 0;
 };

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "chromeos/components/quick_answers/quick_answers_model.h"
-#include "chromeos/components/quick_answers/test/test_helpers.h"
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+namespace chromeos {
 namespace quick_answers {
 
 class SearchResponseParserTest : public testing::Test {
@@ -71,8 +71,7 @@ TEST_F(SearchResponseParserTest, ProcessResponseSuccessFirstResult) {
       std::make_unique<std::string>(kSearchResponse));
   WaitForResponse();
   EXPECT_TRUE(quick_answer_);
-  EXPECT_EQ("9.055 inches",
-            GetQuickAnswerTextForTesting(quick_answer_->first_answer_row));
+  EXPECT_EQ("9.055 inches", quick_answer_->primary_answer);
 }
 
 TEST_F(SearchResponseParserTest, ProcessResponseSuccessMultipleResults) {
@@ -103,8 +102,7 @@ TEST_F(SearchResponseParserTest, ProcessResponseSuccessMultipleResults) {
       std::make_unique<std::string>(kSearchResponse));
   WaitForResponse();
   EXPECT_TRUE(quick_answer_);
-  EXPECT_EQ("9.055 inches",
-            GetQuickAnswerTextForTesting(quick_answer_->first_answer_row));
+  EXPECT_EQ("9.055 inches", quick_answer_->primary_answer);
 }
 
 TEST_F(SearchResponseParserTest, ProcessResponseNoResults) {
@@ -150,3 +148,4 @@ TEST_F(SearchResponseParserTest, ProcessResponseInvalidXssiPrefix) {
 }
 
 }  // namespace quick_answers
+}  // namespace chromeos

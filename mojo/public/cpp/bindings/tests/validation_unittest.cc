@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,14 @@
 #include <stdio.h>
 #include <algorithm>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/numerics/safe_math.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "mojo/public/c/system/macros.h"
 #include "mojo/public/cpp/bindings/connector.h"
 #include "mojo/public/cpp/bindings/lib/validation_errors.h"
@@ -25,6 +24,7 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/tests/validation_test_input_parser.h"
+#include "mojo/public/cpp/system/core.h"
 #include "mojo/public/cpp/system/message.h"
 #include "mojo/public/cpp/test_support/test_support.h"
 #include "mojo/public/interfaces/bindings/tests/validation_test_associated_interfaces.mojom.h"
@@ -196,7 +196,7 @@ void RunValidationTests(const std::string& prefix,
     base::RunLoop run_loop;
     mojo::internal::ValidationErrorObserverForTesting observer(
         run_loop.QuitClosure());
-    std::ignore = test_message_receiver->Accept(&message);
+    ignore_result(test_message_receiver->Accept(&message));
     if (expected != "PASS")  // Observer only gets called on errors.
       run_loop.Run();
     if (observer.last_error() == mojo::internal::VALIDATION_ERROR_NONE)
@@ -277,7 +277,7 @@ class ValidationIntegrationTest : public ValidationTest {
         : owner_(owner),
           connector_(std::move(handle),
                      mojo::Connector::SINGLE_THREADED_SEND,
-                     base::SingleThreadTaskRunner::GetCurrentDefault()) {
+                     base::ThreadTaskRunnerHandle::Get()) {
       connector_.set_enforce_errors_from_incoming_receiver(false);
     }
     ~TestMessageReceiver() override {}
@@ -287,13 +287,13 @@ class ValidationIntegrationTest : public ValidationTest {
     }
 
    public:
-    raw_ptr<ValidationIntegrationTest> owner_;
+    ValidationIntegrationTest* owner_;
     mojo::Connector connector_;
   };
 
   void PumpMessages() { base::RunLoop().RunUntilIdle(); }
 
-  raw_ptr<TestMessageReceiver> test_message_receiver_;
+  TestMessageReceiver* test_message_receiver_;
   ScopedMessagePipeHandle testee_endpoint_;
 };
 

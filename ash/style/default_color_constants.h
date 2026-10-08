@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,20 @@
 // Colors for power button menu.
 constexpr SkColor kPowerButtonMenuFullscreenShieldColor = SK_ColorBLACK;
 
+// Login shelf button color constants
+constexpr SkColor kLoginShelfButtonLabelColor = gfx::kGoogleGrey100;
+constexpr SkColor kLoginShelfButtonIconColor = SkColorSetRGB(0xEB, 0xEA, 0xED);
+constexpr SkColor kLoginBackgroundBaseColor = SK_ColorBLACK;
+constexpr SkColor kLoginButtonBackgroundBaseColor =
+    SkColorSetA(SK_ColorWHITE, 26);
+
+// Colors for shelf.
+constexpr SkColor kDefaultShelfInkDropColor = SK_ColorWHITE;
+constexpr float kDefaultShelfInkDropOpacity = 0.2f;
+constexpr SkColor kShelfButtonColor = SK_ColorWHITE;
+constexpr SkColor kIndicatorColorActive = SK_ColorWHITE;
+constexpr SkColor kInicatorColorRunning = SkColorSetA(SK_ColorWHITE, 0x7F);
+
 // Colors for back gesture.
 constexpr SkColor kArrowColorBeforeActivated = gfx::kGoogleBlue600;
 constexpr SkColor kArrowColorAfterActivated = gfx::kGoogleGrey100;
@@ -24,5 +38,14 @@ const SkColor kBackgroundColorAfterActivated = gfx::kGoogleBlue600;
 // Colors for back gesture nudge.
 constexpr SkColor kCircleColor = SK_ColorWHITE;
 constexpr SkColor kLabelBackgroundColor = SkColorSetA(SK_ColorBLACK, 0xDE);
+
+// Colors for split view.
+constexpr SkColor kSplitviewLabelBackgroundColor =
+    SkColorSetA(SK_ColorBLACK, 0xDE);
+constexpr SkColor kSplitviewLabelEnabledColor = SK_ColorWHITE;
+constexpr SkColor kSplitviewBlackScrimLayerColor = SK_ColorBLACK;
+constexpr SkColor kSplitviewHighlightViewBackgroundColor = SK_ColorWHITE;
+constexpr SkColor kSplitviewHighlightViewBackgroundCannotSnapColor =
+    SK_ColorBLACK;
 
 #endif  // ASH_STYLE_DEFAULT_COLOR_CONSTANTS_H_

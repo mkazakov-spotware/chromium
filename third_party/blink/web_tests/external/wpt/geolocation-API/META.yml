@@ -1,4 +1,5 @@
 spec: https://w3c.github.io/geolocation-api/
 suggested_reviewers:
-  - marcoscaceres
-  - reillyeon
+  - jdm
+  - yellowdoge
+  - zqzhang

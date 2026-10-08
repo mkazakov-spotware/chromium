@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 class ServiceWorkerClient {
  public:
   explicit ServiceWorkerClient(
-      content::GlobalRenderFrameHostId render_frame_host_id);
+      content::GlobalFrameRoutingId render_frame_host_id);
   explicit ServiceWorkerClient(
       blink::DedicatedWorkerToken dedicated_worker_token);
   explicit ServiceWorkerClient(blink::SharedWorkerToken shared_worker_token);
@@ -29,11 +29,9 @@ class ServiceWorkerClient {
 
   blink::mojom::ServiceWorkerClientType type() const { return type_; }
 
-  content::GlobalRenderFrameHostId GetRenderFrameHostId() const;
+  content::GlobalFrameRoutingId GetRenderFrameHostId() const;
   blink::DedicatedWorkerToken GetDedicatedWorkerToken() const;
   blink::SharedWorkerToken GetSharedWorkerToken() const;
-
-  bool operator<(const ServiceWorkerClient& other) const;
 
  private:
   // The client type.
@@ -41,7 +39,7 @@ class ServiceWorkerClient {
 
   union {
     // The frame tree node ID, if this is a window client.
-    content::GlobalRenderFrameHostId render_frame_host_id_;
+    content::GlobalFrameRoutingId render_frame_host_id_;
 
     // The token of the client, if this is a worker client.
     content::DedicatedOrSharedWorkerToken worker_token_;

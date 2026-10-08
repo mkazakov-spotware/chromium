@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,22 +11,22 @@
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/link.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/layout/grid_layout.h"
 
 // ExpandableContainerView::DetailsView ----------------------------------------
 ExpandableContainerView::DetailsView::~DetailsView() = default;
 
 ExpandableContainerView::DetailsView::DetailsView(
-    const std::vector<std::u16string>& details) {
+    const std::vector<base::string16>& details) {
   // Spacing between this and the "Hide Details" link.
   const int bottom_padding = ChromeLayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_RELATED_CONTROL_VERTICAL);
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
-      gfx::Insets::TLBR(0, 0, bottom_padding, 0),
+      gfx::Insets(0, 0, bottom_padding, 0),
       ChromeLayoutProvider::Get()->GetDistanceMetric(
           DISTANCE_RELATED_CONTROL_VERTICAL_SMALL)));
 
@@ -40,26 +40,16 @@ ExpandableContainerView::DetailsView::DetailsView(
   }
 }
 
-void ExpandableContainerView::DetailsView::SetExpanded(bool expanded) {
-  if (expanded == expanded_)
-    return;
-  expanded_ = expanded;
+void ExpandableContainerView::DetailsView::ToggleExpanded() {
+  expanded_ = !expanded_;
   SetVisible(expanded_);
-  OnPropertyChanged(&expanded_, views::kPropertyEffectsPaint);
 }
-
-bool ExpandableContainerView::DetailsView::GetExpanded() const {
-  return expanded_;
-}
-
-BEGIN_METADATA(ExpandableContainerView, DetailsView, views::View)
-ADD_PROPERTY_METADATA(bool, Expanded)
-END_METADATA
 
 // ExpandableContainerView -----------------------------------------------------
 
 ExpandableContainerView::ExpandableContainerView(
-    const std::vector<std::u16string>& details) {
+    const std::vector<base::string16>& details,
+    int available_width) {
   DCHECK(!details.empty());
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
@@ -81,11 +71,8 @@ void ExpandableContainerView::ChildPreferredSizeChanged(views::View* child) {
 }
 
 void ExpandableContainerView::ToggleDetailLevel() {
-  const bool expanded = details_view_->GetExpanded();
-  details_view_->SetExpanded(!expanded);
+  details_view_->ToggleExpanded();
   details_link_->SetText(l10n_util::GetStringUTF16(
-      expanded ? IDS_EXTENSIONS_SHOW_DETAILS : IDS_EXTENSIONS_HIDE_DETAILS));
+      details_view_->expanded() ? IDS_EXTENSIONS_HIDE_DETAILS
+                                : IDS_EXTENSIONS_SHOW_DETAILS));
 }
-
-BEGIN_METADATA(ExpandableContainerView, views::View)
-END_METADATA

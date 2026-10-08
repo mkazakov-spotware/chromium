@@ -180,7 +180,6 @@ Running test: requestNodeInIframeByObjectId
             parentId : <number>
         }
     ]
-    compatibilityMode : NoQuirksMode
     documentURL : <string>
     localName : 
     nodeId : <number>

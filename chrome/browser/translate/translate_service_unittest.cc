@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/translate/translate_service.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/url_constants.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
@@ -16,13 +15,10 @@
 #include "url/gurl.h"
 #include "url/url_constants.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/file_manager/app_id.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/file_manager/app_id.h"
 #include "extensions/common/constants.h"
 #endif
-
-namespace translate {
-namespace {
 
 // Test the check that determines if a URL should be translated.
 TEST(TranslateServiceTest, CheckTranslatableURL) {
@@ -44,24 +40,26 @@ TEST(TranslateServiceTest, CheckTranslatableURL) {
   GURL chrome_native_url = GURL(chrome_native);
   EXPECT_FALSE(TranslateService::IsTranslatableURL(chrome_native_url));
 
-  std::string file = std::string(url::kFileScheme) + "://";
-  GURL file_url = GURL(file);
-  EXPECT_TRUE(TranslateService::IsTranslatableURL(file_url));
-
-  // kContentScheme is only used on Android.
-#if BUILDFLAG(IS_ANDROID)
+  // kContentScheme and kFileScheme are Android-specific.
   std::string content = std::string(url::kContentScheme) + "://";
   GURL content_url = GURL(content);
-  EXPECT_TRUE(TranslateService::IsTranslatableURL(content_url));
-#endif
+  EXPECT_FALSE(TranslateService::IsTranslatableURL(content_url));
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+  std::string file = std::string(url::kFileScheme) + "://";
+  GURL file_url = GURL(file);
+  EXPECT_FALSE(TranslateService::IsTranslatableURL(file_url));
+
+#if defined(OS_CHROMEOS)
   std::string filemanager = std::string(extensions::kExtensionScheme) +
                             std::string("://") +
                             std::string(file_manager::kFileManagerAppId);
   GURL filemanager_url = GURL(filemanager);
   EXPECT_FALSE(TranslateService::IsTranslatableURL(filemanager_url));
 #endif
+
+  std::string ftp = std::string(url::kFtpScheme) + "://google.com/pub";
+  GURL ftp_url = GURL(ftp);
+  EXPECT_FALSE(TranslateService::IsTranslatableURL(ftp_url));
 
   GURL right_url = GURL("http://www.tamurayukari.com/");
   EXPECT_TRUE(TranslateService::IsTranslatableURL(right_url));
@@ -78,6 +76,3 @@ TEST(TranslateServiceTest, DownloadsAndHistoryNotTranslated) {
       TranslateService::IsTranslatableURL(GURL(chrome::kChromeUIHistoryURL)));
   TranslateService::ShutdownForTesting();
 }
-
-}  // namespace
-}  // namespace translate

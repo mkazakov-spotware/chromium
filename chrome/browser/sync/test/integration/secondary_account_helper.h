@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/signin/public/identity_manager/account_info.h"
 
@@ -21,43 +20,45 @@ class TestURLLoaderFactory;
 
 namespace secondary_account_helper {
 
+using ScopedSigninClientFactory = std::unique_ptr<
+    BrowserContextDependencyManager::CreateServicesCallbackList::Subscription>;
+
 // Sets up a factory to create a SigninClient which uses the
 // provided |test_url_loader_factory| for cookie-related requests. Meant to be
 // called from SetUpInProcessBrowserTestFixture. The caller should hold on to
 // the returned object for the duration of the test, e.g. store it in a member
 // of the test fixture class.
-base::CallbackListSubscription SetUpSigninClient(
+ScopedSigninClientFactory SetUpSigninClient(
     network::TestURLLoaderFactory* test_url_loader_factory);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Sets up necessary fakes for fake network responses to work. Meant to be
 // called from SetUpOnMainThread.
 // TODO(crbug.com/882770): On ChromeOS, we need to set up a fake
-// `NetworkPortalDetector`, otherwise `ash::DelayNetworkCall` will think it's
+// NetworkPortalDetector, otherwise chromeos::DelayNetworkCall will think it's
 // behind a captive portal and delay all network requests forever, which means
 // the ListAccounts requests (i.e. getting cookie accounts) will never make it
 // far enough to even request our fake response.
 void InitNetwork();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
-// Sets an account as primary with `signin::ConsentLevel::kSignin`. There is no
-// consent for Sync. The account is available with both a refresh token and
-// cookie.
-AccountInfo SignInUnconsentedAccount(
+// Makes a non-primary account available with both a refresh token and cookie.
+AccountInfo SignInSecondaryAccount(
     Profile* profile,
     network::TestURLLoaderFactory* test_url_loader_factory,
     const std::string& email);
 
 // Clears signin cookies and removes the refresh token for the given account.
-void SignOutAccount(Profile* profile,
-                    network::TestURLLoaderFactory* test_url_loader_factory,
-                    const CoreAccountId& account_id);
+void SignOutSecondaryAccount(
+    Profile* profile,
+    network::TestURLLoaderFactory* test_url_loader_factory,
+    const CoreAccountId& account_id);
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-// Grants sync consent to an account (`signin::ConsentLevel::kSync`). The
-// account must already be signed in (per SignInUnconsentedAccount).
-void GrantSyncConsent(Profile* profile, const std::string& email);
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
+// Makes the given account Chrome's primary one. The account must already be
+// signed in (per SignInSecondaryAccount).
+void MakeAccountPrimary(Profile* profile, const std::string& email);
+#endif  // !defined(OS_CHROMEOS)
 
 }  // namespace secondary_account_helper
 

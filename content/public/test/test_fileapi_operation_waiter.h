@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <stdint.h>
 
+#include "base/compiler_specific.h"
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "storage/browser/file_system/file_observers.h"
 #include "third_party/blink/public/mojom/filesystem/file_system.mojom.h"
@@ -20,11 +22,6 @@ class TestFileapiOperationWaiter
     : public blink::mojom::FileSystemOperationListener {
  public:
   TestFileapiOperationWaiter();
-
-  TestFileapiOperationWaiter(const TestFileapiOperationWaiter&) = delete;
-  TestFileapiOperationWaiter& operator=(const TestFileapiOperationWaiter&) =
-      delete;
-
   ~TestFileapiOperationWaiter() override;
 
   void WaitForOperationToFinish();
@@ -41,6 +38,8 @@ class TestFileapiOperationWaiter
 
  private:
   base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestFileapiOperationWaiter);
 };
 
 }  // namespace content

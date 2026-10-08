@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,13 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.PowerManager;
 import android.support.test.InstrumentationRegistry;
+import android.support.test.rule.ActivityTestRule;
 import android.view.View;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import org.chromium.base.Log;
-import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -52,7 +50,7 @@ import java.util.concurrent.TimeUnit;
  *
  * Test can use this ActivityTestRule to launch or get ContentShellActivity.
  */
-public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentShellActivity> {
+public class ContentShellActivityTestRule extends ActivityTestRule<ContentShellActivity> {
     /** The maximum time the waitForActiveShellToBeDoneLoading method will wait. */
     private static final long WAIT_FOR_ACTIVE_SHELL_LOADING_TIMEOUT = 10000L;
 
@@ -60,28 +58,24 @@ public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentSh
 
     protected static final long WAIT_PAGE_LOADING_TIMEOUT_SECONDS = 15L;
 
+    private final boolean mLaunchActivity;
+
     public ContentShellActivityTestRule() {
-        super(ContentShellActivity.class);
+        this(false, false);
+    }
+
+    public ContentShellActivityTestRule(boolean initialTouchMode, boolean launchActivity) {
+        super(ContentShellActivity.class, initialTouchMode, launchActivity);
+        mLaunchActivity = launchActivity;
     }
 
     @Override
     @SuppressWarnings("deprecation")
-    public Statement apply(final Statement base, final Description desc) {
-        return super.apply(new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                PowerManager pm = (PowerManager) InstrumentationRegistry.getInstrumentation()
-                                          .getContext()
-                                          .getSystemService(Context.POWER_SERVICE);
-                Assert.assertTrue(
-                        "Many tests will fail if the screen is not on.", pm.isInteractive());
-                base.evaluate();
-            }
-        }, desc);
-    }
-
-    public void runOnUiThread(Runnable r) {
-        TestThreadUtils.runOnUiThreadBlocking(r);
+    protected void beforeActivityLaunched() {
+        PowerManager pm = (PowerManager) InstrumentationRegistry.getInstrumentation()
+                                  .getContext()
+                                  .getSystemService(Context.POWER_SERVICE);
+        Assert.assertTrue("Many tests will fail if the screen is not on.", pm.isInteractive());
     }
 
     /**
@@ -89,6 +83,9 @@ public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentSh
      * The URL can be null, in which case will default to ContentShellActivity.DEFAULT_SHELL_URL.
      */
     public ContentShellActivity launchContentShellWithUrl(String url) {
+        Assert.assertFalse(
+                "Activity is already launched, setup the test rule to NOT auto-launch activity",
+                mLaunchActivity);
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -96,8 +93,7 @@ public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentSh
         intent.setComponent(
                 new ComponentName(InstrumentationRegistry.getInstrumentation().getTargetContext(),
                         ContentShellActivity.class));
-        launchActivity(intent);
-        return getActivity();
+        return launchActivity(intent);
     }
 
     /**
@@ -110,7 +106,7 @@ public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentSh
         ContentShellActivity activity = launchContentShellWithUrl(isolatedTestFileUrl);
         Assert.assertNotNull(getActivity());
         waitForActiveShellToBeDoneLoading();
-        Assert.assertEquals(isolatedTestFileUrl, getWebContents().getLastCommittedUrl().getSpec());
+        Assert.assertEquals(isolatedTestFileUrl, getWebContents().getLastCommittedUrl());
         return activity;
     }
 
@@ -250,7 +246,8 @@ public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentSh
             Criteria.checkThat("Shell is null.", shell, Matchers.notNullValue());
             Criteria.checkThat("Shell is still loading.", shell.isLoading(), Matchers.is(false));
             Criteria.checkThat("Shell's URL is empty or null.",
-                    shell.getWebContents().getLastCommittedUrl().isEmpty(), Matchers.is(false));
+                    shell.getWebContents().getLastCommittedUrl(),
+                    Matchers.not(Matchers.isEmptyOrNullString()));
         }, WAIT_FOR_ACTIVE_SHELL_LOADING_TIMEOUT, CriteriaHelper.DEFAULT_POLLING_INTERVAL);
     }
 
@@ -304,7 +301,7 @@ public class ContentShellActivityTestRule extends BaseActivityTestRule<ContentSh
     public void handleBlockingCallbackAction(CallbackHelper callbackHelper, Runnable uiThreadAction)
             throws Throwable {
         int currentCallCount = callbackHelper.getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(uiThreadAction);
+        runOnUiThread(uiThreadAction);
         callbackHelper.waitForCallback(
                 currentCallCount, 1, WAIT_PAGE_LOADING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }

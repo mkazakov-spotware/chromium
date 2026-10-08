@@ -1,18 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_UPDATER_WIN_UI_UI_H_
 #define CHROME_UPDATER_WIN_UI_UI_H_
 
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "base/threading/thread_checker.h"
 #include "base/win/atl.h"
 #include "base/win/scoped_gdi_object.h"
-#include "chrome/updater/updater_scope.h"
 #include "chrome/updater/win/ui/owner_draw_controls.h"
 #include "chrome/updater/win/ui/resources/resources.grh"
 
@@ -51,8 +49,8 @@ class OmahaWnd : public CAxDialogImpl<OmahaWnd>,
 
   void SetEventSink(OmahaWndEvents* ev) { events_sink_ = ev; }
 
-  void set_scope(UpdaterScope scope) { scope_ = scope; }
-  void set_bundle_name(const std::u16string& bundle_name) {
+  void set_is_machine(bool is_machine) { is_machine_ = is_machine; }
+  void set_bundle_name(const base::string16& bundle_name) {
     bundle_name_ = bundle_name;
   }
 
@@ -114,8 +112,8 @@ class OmahaWnd : public CAxDialogImpl<OmahaWnd>,
   WTL::CMessageLoop* message_loop() { return message_loop_; }
   bool is_complete() { return is_complete_; }
   bool is_close_enabled() { return is_close_enabled_; }
-  UpdaterScope scope() { return scope_; }
-  const std::u16string& bundle_name() { return bundle_name_; }
+  bool is_machine() { return is_machine_; }
+  const base::string16& bundle_name() { return bundle_name_; }
 
   static const ControlAttributes kVisibleTextAttributes;
   static const ControlAttributes kDefaultActiveButtonAttributes;
@@ -132,16 +130,16 @@ class OmahaWnd : public CAxDialogImpl<OmahaWnd>,
 
   THREAD_CHECKER(thread_checker_);
 
-  raw_ptr<WTL::CMessageLoop> message_loop_;
+  WTL::CMessageLoop* message_loop_;
   HWND parent_;
 
   bool is_complete_;
   bool is_close_enabled_;
 
-  raw_ptr<OmahaWndEvents> events_sink_;
+  OmahaWndEvents* events_sink_;
 
-  UpdaterScope scope_;
-  std::u16string bundle_name_;
+  bool is_machine_;
+  base::string16 bundle_name_;
 
   // Handle to large icon to show when ALT-TAB
   base::win::ScopedGDIObject<HICON> hicon_;

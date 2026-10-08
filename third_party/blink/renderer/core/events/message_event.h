@@ -31,8 +31,6 @@
 
 #include <memory>
 
-#include "base/check_op.h"
-#include "third_party/blink/public/mojom/messaging/delegated_capability.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/unpacked_serialized_script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/world_safe_v8_reference.h"
@@ -76,18 +74,15 @@ class CORE_EXPORT MessageEvent final : public Event {
     return MakeGarbageCollected<MessageEvent>(
         std::move(data), String(), String(), nullptr, ports, user_activation);
   }
-  static MessageEvent* Create(
-      Vector<MessagePortChannel> channels,
-      scoped_refptr<SerializedScriptValue> data,
-      const String& origin = String(),
-      const String& last_event_id = String(),
-      EventTarget* source = nullptr,
-      UserActivation* user_activation = nullptr,
-      mojom::blink::DelegatedCapability delegated_capability =
-          mojom::blink::DelegatedCapability::kNone) {
+  static MessageEvent* Create(Vector<MessagePortChannel> channels,
+                              scoped_refptr<SerializedScriptValue> data,
+                              const String& origin = String(),
+                              const String& last_event_id = String(),
+                              EventTarget* source = nullptr,
+                              UserActivation* user_activation = nullptr) {
     return MakeGarbageCollected<MessageEvent>(
         std::move(data), origin, last_event_id, source, std::move(channels),
-        user_activation, delegated_capability);
+        user_activation);
   }
   static MessageEvent* CreateError(const String& origin = String(),
                                    EventTarget* source = nullptr) {
@@ -125,8 +120,7 @@ class CORE_EXPORT MessageEvent final : public Event {
                const String& last_event_id,
                EventTarget* source,
                Vector<MessagePortChannel>,
-               UserActivation* user_activation,
-               mojom::blink::DelegatedCapability delegated_capability);
+               UserActivation* user_activation);
   // Creates a "messageerror" event.
   MessageEvent(const String& origin, EventTarget* source);
   MessageEvent(const String& data, const String& origin);
@@ -150,8 +144,7 @@ class CORE_EXPORT MessageEvent final : public Event {
                         const String& last_event_id,
                         EventTarget* source,
                         MessagePortArray*,
-                        UserActivation* user_activation,
-                        mojom::blink::DelegatedCapability delegated_capability);
+                        UserActivation* user_activation);
   void initMessageEvent(const AtomicString& type,
                         bool bubbles,
                         bool cancelable,
@@ -169,9 +162,6 @@ class CORE_EXPORT MessageEvent final : public Event {
   MessagePortArray ports();
   bool isPortsDirty() const { return is_ports_dirty_; }
   UserActivation* userActivation() const { return user_activation_; }
-  mojom::blink::DelegatedCapability delegatedCapability() const {
-    return delegated_capability_;
-  }
 
   Vector<MessagePortChannel> ReleaseChannels() { return std::move(channels_); }
 
@@ -193,17 +183,13 @@ class CORE_EXPORT MessageEvent final : public Event {
   // agent cluster.
   bool IsLockedToAgentCluster() const;
 
-  // Returns true when |data_as_serialized_script_value_| is not prevented from
-  // being deserialized in the provided execution context.
-  bool CanDeserializeIn(ExecutionContext*) const;
-
   void EntangleMessagePorts(ExecutionContext*);
 
   void Trace(Visitor*) const override;
 
   void LockToAgentCluster();
 
-  [[nodiscard]] v8::Local<v8::Object> AssociateWithWrapper(
+  WARN_UNUSED_RESULT v8::Local<v8::Object> AssociateWithWrapper(
       v8::Isolate*,
       const WrapperTypeInfo*,
       v8::Local<v8::Object> wrapper) override;
@@ -241,7 +227,6 @@ class CORE_EXPORT MessageEvent final : public Event {
   bool is_ports_dirty_ = true;
   Vector<MessagePortChannel> channels_;
   Member<UserActivation> user_activation_;
-  mojom::blink::DelegatedCapability delegated_capability_;
   size_t amount_of_external_memory_ = 0;
   // For serialized messages across process this attribute contains the
   // information of whether the actual original SerializedScriptValue was locked

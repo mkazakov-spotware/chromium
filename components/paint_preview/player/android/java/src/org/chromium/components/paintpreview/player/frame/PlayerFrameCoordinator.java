@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import android.content.Context;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.util.Size;
+import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.OverScroller;
 
@@ -15,7 +16,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.UnguessableToken;
-import org.chromium.base.supplier.Supplier;
 import org.chromium.components.paintpreview.player.OverscrollHandler;
 import org.chromium.components.paintpreview.player.PlayerCompositorDelegate;
 import org.chromium.components.paintpreview.player.PlayerGestureListener;
@@ -41,31 +41,28 @@ public class PlayerFrameCoordinator {
      */
     public PlayerFrameCoordinator(Context context, PlayerCompositorDelegate compositorDelegate,
             UnguessableToken frameGuid, int contentWidth, int contentHeight, int initialScrollX,
-            int initialScrollY, float initialScaleFactor, boolean canDetectZoom,
+            int initialScrollY, boolean canDetectZoom,
             @Nullable OverscrollHandler overscrollHandler, PlayerGestureListener gestureHandler,
-            @Nullable Runnable firstPaintListener,
-            @Nullable Supplier<Boolean> isAccessibilityEnabled,
-            @Nullable Runnable initialViewportSizeAvailable) {
+            @Nullable Runnable firstPaintListener) {
         PropertyModel model = new PropertyModel.Builder(PlayerFrameProperties.ALL_KEYS).build();
         OverScroller scroller = new OverScroller(context);
         scroller.setFriction(ViewConfiguration.getScrollFriction() / 2);
 
         mMediator = new PlayerFrameMediator(model, compositorDelegate, gestureHandler, frameGuid,
-                new Size(contentWidth, contentHeight), initialScrollX, initialScrollY,
-                initialScaleFactor, initialViewportSizeAvailable);
+                new Size(contentWidth, contentHeight), initialScrollX, initialScrollY);
 
         if (canDetectZoom) {
             mScaleController =
                     new PlayerFrameScaleController(model.get(PlayerFrameProperties.SCALE_MATRIX),
-                            mMediator, isAccessibilityEnabled, gestureHandler::onScale);
+                            mMediator, gestureHandler::onScale);
         }
         mScrollController = new PlayerFrameScrollController(
                 scroller, mMediator, gestureHandler::onScroll, gestureHandler::onFling);
         PlayerFrameGestureDetectorDelegate gestureDelegate = new PlayerFrameGestureDetectorDelegate(
                 mScaleController, mScrollController, mMediator);
 
-        mView = PlayerFrameView.create(
-                context, canDetectZoom, mMediator, gestureDelegate, firstPaintListener);
+        mView = new PlayerFrameView(context, canDetectZoom, mMediator, gestureDelegate,
+                firstPaintListener);
         if (overscrollHandler != null) {
             mScrollController.setOverscrollHandler(overscrollHandler);
         }
@@ -73,8 +70,6 @@ public class PlayerFrameCoordinator {
     }
 
     public void destroy() {
-        // Destroy the view first to unlock all bitmaps so they can be destroyed successfully.
-        mView.destroy();
         mMediator.destroy();
         for (PlayerFrameCoordinator subframe : mSubFrames) {
             subframe.destroy();
@@ -91,11 +86,10 @@ public class PlayerFrameCoordinator {
 
     public Point getScrollPosition() {
         Rect viewPortRect = mMediator.getViewport().asRect();
-        return new Point(viewPortRect.left, viewPortRect.top);
-    }
-
-    public float getScale() {
-        return mMediator.getViewport().getScale();
+        float scaleFactor = mMediator.getViewport().getScale();
+        if (scaleFactor == 0) scaleFactor = 1;
+        return new Point(
+                (int) (viewPortRect.left / scaleFactor), (int) (viewPortRect.top / scaleFactor));
     }
 
     /**
@@ -109,34 +103,6 @@ public class PlayerFrameCoordinator {
         subFrame.mView.getGestureDetector().setParentGestureDetector(mView.getGestureDetector());
     }
 
-    public PlayerFrameViewport getViewportForAccessibility() {
-        if (mMediator == null) return null;
-
-        return mMediator.getViewport();
-    }
-
-    public PlayerFrameCoordinator getSubFrameForAccessibility(int index) {
-        if (index > mSubFrames.size()) return null;
-
-        return mSubFrames.get(index);
-    }
-
-    public Size getContentSizeForAccessibility() {
-        return mMediator.getContentSize();
-    }
-
-    public void handleClickForAccessibility(int x, int y, boolean isAbsolute) {
-        mMediator.onTap(x, y, isAbsolute);
-    }
-
-    public void scrollToMakeRectVisibleForAccessibility(Rect rect) {
-        mScrollController.scrollToMakeRectVisibleForAccessibility(rect);
-    }
-
-    public void setOnScrollCallbackForAccessibility(Runnable onScrollCallback) {
-        mScrollController.setOnScrollCallbackForAccessibility(onScrollCallback);
-    }
-
     /**
      * @return The mediator associated with this component.
      */
@@ -148,7 +114,7 @@ public class PlayerFrameCoordinator {
     /**
      * @return The view associated with this component.
      */
-    public PlayerFrameView getView() {
+    public View getView() {
         return mView;
     }
 

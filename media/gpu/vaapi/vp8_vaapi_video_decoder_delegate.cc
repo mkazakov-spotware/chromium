@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/vaapi/vp8_vaapi_video_decoder_delegate.h"
 
-#include "base/callback_helpers.h"
 #include "base/trace_event/trace_event.h"
 #include "media/gpu/decode_surface_handler.h"
 #include "media/gpu/vaapi/va_surface.h"
@@ -17,10 +16,7 @@ namespace media {
 VP8VaapiVideoDecoderDelegate::VP8VaapiVideoDecoderDelegate(
     DecodeSurfaceHandler<VASurface>* const vaapi_dec,
     scoped_refptr<VaapiWrapper> vaapi_wrapper)
-    : VaapiVideoDecoderDelegate(vaapi_dec,
-                                std::move(vaapi_wrapper),
-                                base::DoNothing(),
-                                nullptr) {}
+    : VaapiVideoDecoderDelegate(vaapi_dec, std::move(vaapi_wrapper)) {}
 
 VP8VaapiVideoDecoderDelegate::~VP8VaapiVideoDecoderDelegate() {
   DCHECK(!iq_matrix_);
@@ -82,9 +78,8 @@ bool VP8VaapiVideoDecoderDelegate::SubmitDecode(
     if (!slice_params_)
       return false;
   }
-
-  // Create VASliceData buffer |encoded_data| every frame so that decoding can
-  // be more asynchronous than reusing the buffer.
+  // |encoded_data| cannot be reused even when it's of the appropriate size, due
+  // to strange stutterings in e.g. Gen 9.5.
   std::unique_ptr<ScopedVABuffer> encoded_data =
       vaapi_wrapper_->CreateVABuffer(VASliceDataBufferType, header->frame_size);
   if (!encoded_data)
@@ -117,8 +112,7 @@ bool VP8VaapiVideoDecoderDelegate::OutputPicture(
 
 void VP8VaapiVideoDecoderDelegate::OnVAContextDestructionSoon() {
   // Destroy the member ScopedVABuffers below since they refer to a VAContextID
-  // that will be destroyed soon.
-  iq_matrix_.reset();
+  // that will be destroyed soon. iq_matrix_.reset();
   prob_buffer_.reset();
   picture_params_.reset();
   slice_params_.reset();

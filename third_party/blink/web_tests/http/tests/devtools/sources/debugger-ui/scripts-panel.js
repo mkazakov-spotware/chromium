@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that scripts panel UI elements work as intended.\n`);
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadTestModule('sdk_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('sdk_test_runner');
   await TestRunner.showPanel('sources');
 
   function dumpNavigator(sourcesNavigatorView) {
@@ -35,7 +35,7 @@
 
   function reload() {
     page.reload();
-    return new Promise(fulfill => TestRunner.addSniffer(SDK.ResourceTreeModel.prototype, 'frameNavigated', fulfill));
+    return new Promise(fulfill => TestRunner.addSniffer(SDK.ResourceTreeModel.prototype, '_frameNavigated', fulfill));
   }
 
   TestRunner.runTestSuite([

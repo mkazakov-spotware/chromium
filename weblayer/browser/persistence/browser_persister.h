@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "components/sessions/content/session_tab_helper_delegate.h"
 #include "components/sessions/core/command_storage_manager_delegate.h"
 #include "components/sessions/core/session_service_commands.h"
@@ -70,7 +70,6 @@ class BrowserPersister : public sessions::CommandStorageManagerDelegate,
   bool ShouldUseDelayedSave() override;
   void OnWillSaveCommands() override;
   void OnGeneratedNewCryptoKey(const std::vector<uint8_t>& key) override;
-  void OnErrorWritingSessionCommands() override;
 
   // BrowserObserver;
   void OnTabAdded(Tab* tab) override;
@@ -104,9 +103,8 @@ class BrowserPersister : public sessions::CommandStorageManagerDelegate,
   void ScheduleRebuildOnNextSave();
 
   // Called with the contents of the previous session.
-  void OnGotLastSessionCommands(
-      std::vector<std::unique_ptr<sessions::SessionCommand>> commands,
-      bool read_error);
+  void OnGotCurrentSessionCommands(
+      std::vector<std::unique_ptr<sessions::SessionCommand>> commands);
 
   // Schedules commands to recreate the state of the specified tab.
   void BuildCommandsForTab(TabImpl* tab, int index_in_window);
@@ -120,7 +118,7 @@ class BrowserPersister : public sessions::CommandStorageManagerDelegate,
   void ProcessRestoreCommands(
       const std::vector<std::unique_ptr<sessions::SessionWindow>>& windows);
 
-  raw_ptr<BrowserImpl> browser_;
+  BrowserImpl* browser_;
 
   // ID used for the browser. The sessions code requires each tab to be
   // associated with a browser.
@@ -137,8 +135,11 @@ class BrowserPersister : public sessions::CommandStorageManagerDelegate,
 
   std::vector<uint8_t> crypto_key_;
 
-  base::ScopedMultiSourceObservation<TabImpl, TabImpl::DataObserver>
-      data_observations_{this};
+  ScopedObserver<TabImpl,
+                 TabImpl::DataObserver,
+                 &TabImpl::AddDataObserver,
+                 &TabImpl::RemoveDataObserver>
+      data_observer_{this};
 
   // True while asynchronously reading the state to restore.
   bool is_restore_in_progress_ = true;

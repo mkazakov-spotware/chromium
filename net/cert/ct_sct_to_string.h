@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,12 @@
 #include "net/cert/sct_status_flags.h"
 #include "net/cert/signed_certificate_timestamp.h"
 
+namespace net {
+
 // Functions for converting non-string attributes of
 // net::ct::SignedCertificateTimestamp and net::ct::SCTVerifyStatus values to
 // strings.
-namespace net::ct {
+namespace ct {
 
 // Returns a textual representation of |hash_algorithm|.
 NET_EXPORT const std::string HashAlgorithmToString(
@@ -31,6 +33,8 @@ NET_EXPORT const std::string SignatureAlgorithmToString(
 // Returns a textual representation of |status|.
 NET_EXPORT const std::string StatusToString(SCTVerifyStatus status);
 
-}  // namespace net::ct
+}  // namespace ct
+
+}  // namespace net
 
 #endif  // NET_CERT_CT_SCT_TO_STRING_H_

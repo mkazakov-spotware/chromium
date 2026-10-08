@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,9 @@ void ScenicWindowManager::Shutdown() {
 
 std::unique_ptr<PlatformScreen> ScenicWindowManager::CreateScreen() {
   DCHECK(windows_.IsEmpty());
-  return std::make_unique<ScenicScreen>();
+  auto screen = std::make_unique<ScenicScreen>();
+  screen_ = screen->GetWeakPtr();
+  return screen;
 }
 
 fuchsia::ui::scenic::Scenic* ScenicWindowManager::GetScenic() {
@@ -34,20 +36,25 @@ fuchsia::ui::scenic::Scenic* ScenicWindowManager::GetScenic() {
     scenic_ = base::ComponentContextForProcess()
                   ->svc()
                   ->Connect<fuchsia::ui::scenic::Scenic>();
-    scenic_.set_error_handler(base::LogFidlErrorAndExitProcess(
-        FROM_HERE, "fuchsia.ui.scenic.Scenic"));
+    scenic_.set_error_handler(
+        [](zx_status_t status) { ZX_LOG(FATAL, status) << " Scenic lost."; });
   }
   return scenic_.get();
 }
 
 int32_t ScenicWindowManager::AddWindow(ScenicWindow* window) {
-  return windows_.Add(window);
+  int32_t id = windows_.Add(window);
+  if (screen_)
+    screen_->OnWindowAdded(id);
+  return id;
 }
 
 void ScenicWindowManager::RemoveWindow(int32_t window_id,
                                        ScenicWindow* window) {
   DCHECK_EQ(window, windows_.Lookup(window_id));
   windows_.Remove(window_id);
+  if (screen_)
+    screen_->OnWindowRemoved(window_id);
 }
 
 ScenicWindow* ScenicWindowManager::GetWindow(int32_t window_id) {

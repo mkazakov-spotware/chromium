@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 #include <utility>
 
 #include "android_webview/browser/aw_browser_process.h"
-#include "android_webview/browser/aw_client_hints_controller_delegate.h"
 #include "android_webview/browser/aw_content_browser_client.h"
-#include "android_webview/browser/aw_contents_origin_matcher.h"
 #include "android_webview/browser/aw_download_manager_delegate.h"
 #include "android_webview/browser/aw_form_database_service.h"
 #include "android_webview/browser/aw_permission_manager.h"
@@ -24,39 +22,29 @@
 #include "android_webview/browser/safe_browsing/aw_safe_browsing_allowlist_manager.h"
 #include "android_webview/browser_jni_headers/AwBrowserContext_jni.h"
 #include "android_webview/common/aw_features.h"
-#include "android_webview/common/aw_switches.h"
 #include "android_webview/common/crash_reporter/crash_keys.h"
-#include "base/android/jni_android.h"
-#include "base/android/jni_array.h"
-#include "base/android/jni_string.h"
 #include "base/base_paths_posix.h"
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "components/autofill/core/browser/autocomplete_history_manager.h"
 #include "components/autofill/core/common/autofill_prefs.h"
 #include "components/cdm/browser/media_drm_storage_impl.h"
 #include "components/crash/core/common/crash_key.h"
 #include "components/download/public/common/in_progress_download_manager.h"
 #include "components/keyed_service/core/simple_key_map.h"
-#include "components/origin_trials/browser/leveldb_persistence_provider.h"
-#include "components/origin_trials/browser/origin_trials.h"
-#include "components/origin_trials/common/features.h"
 #include "components/policy/core/browser/browser_policy_connector_base.h"
 #include "components/policy/core/browser/configuration_policy_pref_store.h"
 #include "components/policy/core/browser/url_blocklist_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/in_memory_pref_store.h"
 #include "components/prefs/json_pref_store.h"
-#include "components/prefs/pref_name_set.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/pref_service_factory.h"
-#include "components/prefs/segregated_pref_store.h"
-#include "components/profile_metrics/browser_profile_type.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "components/url_formatter/url_fixer.h"
 #include "components/user_prefs/user_prefs.h"
@@ -67,14 +55,10 @@
 #include "content/public/browser/ssl_host_state_delegate.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/zoom_level_delegate.h"
 #include "media/mojo/buildflags.h"
-#include "net/http/http_util.h"
 #include "net/proxy_resolution/proxy_config_service_android.h"
 #include "net/proxy_resolution/proxy_resolution_service.h"
-#include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
-#include "services/network/public/mojom/network_context.mojom.h"
-#include "third_party/blink/public/common/origin_trials/trial_token_validator.h"
+#include "services/preferences/tracked/segregated_pref_store.h"
 
 using base::FilePath;
 using content::BrowserThread;
@@ -142,6 +126,7 @@ void MigrateProfileData(base::FilePath cache_path,
   migrate_context_storage_data("Session Storage");
 
   // These were missed in the initial migration
+  migrate_context_storage_data("Application Cache");
   migrate_context_storage_data("File System");
   migrate_context_storage_data("IndexedDB");
   migrate_context_storage_data("Local Storage");
@@ -158,15 +143,10 @@ void MigrateProfileData(base::FilePath cache_path,
 
 AwBrowserContext::AwBrowserContext()
     : context_storage_path_(GetContextStoragePath()),
-      simple_factory_key_(GetPath(), IsOffTheRecord()),
-      service_worker_xrw_allowlist_matcher_(
-          base::MakeRefCounted<AwContentsOriginMatcher>()) {
+      simple_factory_key_(GetPath(), IsOffTheRecord()) {
   DCHECK(!g_browser_context);
 
   TRACE_EVENT0("startup", "AwBrowserContext::AwBrowserContext");
-
-  profile_metrics::SetBrowserProfileType(
-      this, profile_metrics::BrowserProfileType::kRegular);
 
   g_web_view_compat_crash_key.Set("0");
 
@@ -179,14 +159,14 @@ AwBrowserContext::AwBrowserContext()
 
   CreateUserPrefService();
 
-  visitedlink_writer_ =
-      std::make_unique<visitedlink::VisitedLinkWriter>(this, this, false);
+  visitedlink_writer_.reset(
+      new visitedlink::VisitedLinkWriter(this, this, false));
   visitedlink_writer_->Init();
 
-  form_database_service_ =
-      std::make_unique<AwFormDatabaseService>(context_storage_path_);
+  form_database_service_.reset(
+      new AwFormDatabaseService(context_storage_path_));
 
-  EnsureResourceContextInitialized();
+  EnsureResourceContextInitialized(this);
 
   // This constructor is entered during the creation of ContentBrowserClient,
   // before browser threads are created. Therefore any checks to enforce
@@ -195,7 +175,7 @@ AwBrowserContext::AwBrowserContext()
 
 AwBrowserContext::~AwBrowserContext() {
   DCHECK_EQ(this, g_browser_context);
-  NotifyWillBeDestroyed();
+  BrowserContext::NotifyWillBeDestroyed(this);
   SimpleKeyMap::GetInstance()->Dissociate(this);
   ShutdownStoragePartitions();
 
@@ -241,17 +221,6 @@ base::FilePath AwBrowserContext::GetCookieStorePath() {
   return GetCookieManager()->GetCookieStorePath();
 }
 
-base::android::ScopedJavaLocalRef<jobjectArray>
-AwBrowserContext::UpdateServiceWorkerXRequestedWithAllowListOriginMatcher(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobjectArray>& jrules) {
-  std::vector<std::string> rules;
-  base::android::AppendJavaStringArrayToStringVector(env, jrules, &rules);
-  std::vector<std::string> bad_rules =
-      service_worker_xrw_allowlist_matcher_->UpdateRuleList(rules);
-  return base::android::ToJavaArrayOfStrings(env, bad_rules);
-}
-
 // static
 base::FilePath AwBrowserContext::GetContextStoragePath() {
   base::FilePath user_data_dir;
@@ -284,10 +253,6 @@ void AwBrowserContext::RegisterPrefs(PrefRegistrySimple* registry) {
   registry->RegisterBooleanPref(autofill::prefs::kAutofillCreditCardEnabled,
                                 false);
 
-  // This contains a map from a given origin to the client hint headers
-  // requested to be sent next time that origin is loaded.
-  registry->RegisterDictionaryPref(prefs::kClientHintsCachedPerOriginMap);
-
 #if BUILDFLAG(ENABLE_MOJO_CDM)
   cdm::MediaDrmStorageImpl::RegisterProfilePrefs(registry);
 #endif
@@ -301,17 +266,15 @@ void AwBrowserContext::CreateUserPrefService() {
 
   PrefServiceFactory pref_service_factory;
 
-  PrefNameSet persistent_prefs;
+  std::set<std::string> persistent_prefs;
   // Persisted to avoid having to provision MediaDrm every time the
   // application tries to play protected content after restart.
   persistent_prefs.insert(cdm::prefs::kMediaDrmStorage);
-  // Persisted to ensure client hints can be sent on next page load.
-  persistent_prefs.insert(prefs::kClientHintsCachedPerOriginMap);
 
   pref_service_factory.set_user_prefs(base::MakeRefCounted<SegregatedPrefStore>(
       base::MakeRefCounted<InMemoryPrefStore>(),
-      base::MakeRefCounted<JsonPrefStore>(GetPrefStorePath()),
-      std::move(persistent_prefs)));
+      base::MakeRefCounted<JsonPrefStore>(GetPrefStorePath()), persistent_prefs,
+      mojo::Remote<::prefs::mojom::TrackedPreferenceValidationDelegate>()));
 
   policy::URLBlocklistManager::RegisterProfilePrefs(pref_registry.get());
   AwBrowserPolicyConnector* browser_policy_connector =
@@ -339,7 +302,7 @@ void AwBrowserContext::MigrateLocalStatePrefs() {
   }
 
   user_pref_service_->Set(cdm::prefs::kMediaDrmStorage,
-                          local_state->GetValue(cdm::prefs::kMediaDrmStorage));
+                          *(local_state->Get(cdm::prefs::kMediaDrmStorage)));
   local_state->ClearPref(cdm::prefs::kMediaDrmStorage);
 }
 
@@ -401,7 +364,7 @@ bool AwBrowserContext::IsOffTheRecord() {
 
 content::ResourceContext* AwBrowserContext::GetResourceContext() {
   if (!resource_context_) {
-    resource_context_ = std::make_unique<AwResourceContext>();
+    resource_context_.reset(new AwResourceContext);
   }
   return resource_context_.get();
 }
@@ -425,11 +388,6 @@ storage::SpecialStoragePolicy* AwBrowserContext::GetSpecialStoragePolicy() {
   return NULL;
 }
 
-content::PlatformNotificationService*
-AwBrowserContext::GetPlatformNotificationService() {
-  return nullptr;
-}
-
 content::PushMessagingService* AwBrowserContext::GetPushMessagingService() {
   // TODO(johnme): Support push messaging in WebView.
   return NULL;
@@ -442,28 +400,21 @@ AwBrowserContext::GetStorageNotificationService() {
 
 content::SSLHostStateDelegate* AwBrowserContext::GetSSLHostStateDelegate() {
   if (!ssl_host_state_delegate_.get()) {
-    ssl_host_state_delegate_ = std::make_unique<AwSSLHostStateDelegate>();
+    ssl_host_state_delegate_.reset(new AwSSLHostStateDelegate());
   }
   return ssl_host_state_delegate_.get();
 }
 
-AwPermissionManager* AwBrowserContext::GetPermissionControllerDelegate() {
+content::PermissionControllerDelegate*
+AwBrowserContext::GetPermissionControllerDelegate() {
   if (!permission_manager_.get())
-    permission_manager_ = std::make_unique<AwPermissionManager>();
+    permission_manager_.reset(new AwPermissionManager());
   return permission_manager_.get();
 }
 
 content::ClientHintsControllerDelegate*
 AwBrowserContext::GetClientHintsControllerDelegate() {
-  if (!base::FeatureList::IsEnabled(
-          android_webview::features::kWebViewClientHintsControllerDelegate)) {
-    return nullptr;
-  }
-  if (!client_hints_controller_delegate_.get()) {
-    client_hints_controller_delegate_ =
-        std::make_unique<AwClientHintsControllerDelegate>(GetPrefService());
-  }
-  return client_hints_controller_delegate_.get();
+  return nullptr;
 }
 
 content::BackgroundFetchDelegate*
@@ -481,11 +432,6 @@ AwBrowserContext::GetBrowsingDataRemoverDelegate() {
   return nullptr;
 }
 
-content::ReduceAcceptLanguageControllerDelegate*
-AwBrowserContext::GetReduceAcceptLanguageControllerDelegate() {
-  return nullptr;
-}
-
 download::InProgressDownloadManager*
 AwBrowserContext::RetriveInProgressDownloadManager() {
   return new download::InProgressDownloadManager(
@@ -493,28 +439,6 @@ AwBrowserContext::RetriveInProgressDownloadManager() {
       base::BindRepeating(&IgnoreOriginSecurityCheck),
       base::BindRepeating(&content::DownloadRequestUtils::IsURLSafe),
       /*wake_lock_provider_binder*/ base::NullCallback());
-}
-
-content::OriginTrialsControllerDelegate*
-AwBrowserContext::GetOriginTrialsControllerDelegate() {
-  if (!origin_trials::features::IsPersistentOriginTrialsEnabled())
-    return nullptr;
-
-  if (!origin_trials_controller_delegate_) {
-    origin_trials_controller_delegate_ =
-        std::make_unique<origin_trials::OriginTrials>(
-            std::make_unique<origin_trials::LevelDbPersistenceProvider>(
-                GetPath(),
-                GetDefaultStoragePartition()->GetProtoDatabaseProvider()),
-            std::make_unique<blink::TrialTokenValidator>());
-  }
-  return origin_trials_controller_delegate_.get();
-}
-
-std::unique_ptr<content::ZoomLevelDelegate>
-AwBrowserContext::CreateZoomLevelDelegate(
-    const base::FilePath& partition_path) {
-  return nullptr;
 }
 
 void AwBrowserContext::RebuildTable(
@@ -536,8 +460,7 @@ void AwBrowserContext::ConfigureNetworkContextParams(
     bool in_memory,
     const base::FilePath& relative_partition_path,
     network::mojom::NetworkContextParams* context_params,
-    cert_verifier::mojom::CertVerifierCreationParams*
-        cert_verifier_creation_params) {
+    network::mojom::CertVerifierCreationParams* cert_verifier_creation_params) {
   context_params->user_agent = android_webview::GetUserAgent();
 
   // TODO(ntfschr): set this value to a proper value based on the user's
@@ -550,25 +473,20 @@ void AwBrowserContext::ConfigureNetworkContextParams(
   // HTTP cache
   context_params->http_cache_enabled = true;
   context_params->http_cache_max_size = GetHttpCacheSize();
-  context_params->http_cache_directory = GetCacheDir();
+  context_params->http_cache_path = GetCacheDir();
 
   // WebView should persist and restore cookies between app sessions (including
   // session cookies).
-  context_params->file_paths = network::mojom::NetworkContextFilePaths::New();
-  base::FilePath cookie_path = AwBrowserContext::GetCookieStorePath();
-  context_params->file_paths->data_directory = cookie_path.DirName();
-  context_params->file_paths->cookie_database_name = cookie_path.BaseName();
+  context_params->cookie_path = AwBrowserContext::GetCookieStorePath();
   context_params->restore_old_session_cookies = true;
   context_params->persist_session_cookies = true;
   context_params->cookie_manager_params =
       network::mojom::CookieManagerParams::New();
   context_params->cookie_manager_params->allow_file_scheme_cookies =
       GetCookieManager()->GetAllowFileSchemeCookies();
+  // Set all cookies to Legacy on Android WebView, for compatibility reasons.
   context_params->cookie_manager_params->cookie_access_delegate_type =
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kWebViewEnableModernCookieSameSite)
-          ? network::mojom::CookieAccessDelegateType::ALWAYS_NONLEGACY
-          : network::mojom::CookieAccessDelegateType::ALWAYS_LEGACY;
+      network::mojom::CookieAccessDelegateType::ALWAYS_LEGACY;
 
   context_params->initial_ssl_config = network::mojom::SSLConfig::New();
   // Allow SHA-1 to be used for locally-installed trust anchors, as WebView
@@ -582,6 +500,9 @@ void AwBrowserContext::ConfigureNetworkContextParams(
   // WebView does not currently support Certificate Transparency
   // (http://crbug.com/921750).
   context_params->enforce_chrome_ct_policy = false;
+
+  // WebView does not support ftp yet.
+  context_params->enable_ftp_url_support = false;
 
   context_params->enable_brotli = base::FeatureList::IsEnabled(
       android_webview::features::kWebViewBrotliSupport);
@@ -599,14 +520,6 @@ base::android::ScopedJavaLocalRef<jobject> JNI_AwBrowserContext_GetDefaultJava(
   return g_browser_context->GetJavaBrowserContext();
 }
 
-void AwBrowserContext::ClearPersistentOriginTrialStorageForTesting(
-    JNIEnv* env) {
-  content::OriginTrialsControllerDelegate* delegate =
-      GetOriginTrialsControllerDelegate();
-  if (delegate)
-    delegate->ClearPersistedTokens();
-}
-
 base::android::ScopedJavaLocalRef<jobject>
 AwBrowserContext::GetJavaBrowserContext() {
   if (!obj_) {
@@ -619,11 +532,6 @@ AwBrowserContext::GetJavaBrowserContext() {
 
 jlong AwBrowserContext::GetQuotaManagerBridge(JNIEnv* env) {
   return reinterpret_cast<intptr_t>(GetQuotaManagerBridge());
-}
-
-scoped_refptr<AwContentsOriginMatcher>
-AwBrowserContext::service_worker_xrw_allowlist_matcher() {
-  return service_worker_xrw_allowlist_matcher_;
 }
 
 }  // namespace android_webview

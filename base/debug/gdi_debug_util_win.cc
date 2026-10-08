@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "base/debug/gdi_debug_util_win.h"
@@ -14,11 +14,11 @@
 
 #include "base/debug/alias.h"
 #include "base/logging.h"
+#include "base/optional.h"
 #include "base/process/process.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -287,11 +287,11 @@ base::debug::GdiHandleCounts CountHandleTypesFromTable(
 }
 
 template <typename ProcessType>
-absl::optional<base::debug::GdiHandleCounts> CollectGdiHandleCountsImpl(
+base::Optional<base::debug::GdiHandleCounts> CollectGdiHandleCountsImpl(
     DWORD pid) {
   base::Process process = base::Process::OpenWithExtraPrivileges(pid);
   if (!process.IsValid())
-    return absl::nullopt;
+    return base::nullopt;
 
   std::vector<GdiTableEntry<typename ProcessType::NativePointerType>>
       gdi_entries = GetGdiTableEntries<ProcessType>(process);
@@ -300,8 +300,9 @@ absl::optional<base::debug::GdiHandleCounts> CollectGdiHandleCountsImpl(
 
 // Returns the GDI Handle counts from the GDI Shared handle table. Empty on
 // failure.
-absl::optional<base::debug::GdiHandleCounts> CollectGdiHandleCounts(DWORD pid) {
-  if (base::win::OSInfo::GetInstance()->IsWowX86OnAMD64()) {
+base::Optional<base::debug::GdiHandleCounts> CollectGdiHandleCounts(DWORD pid) {
+  if (base::win::OSInfo::GetInstance()->wow64_status() ==
+      base::win::OSInfo::WOW64_ENABLED) {
     return CollectGdiHandleCountsImpl<WowProcessTypes>(pid);
   }
 
@@ -378,20 +379,20 @@ void CollectChildGDIUsageAndDie(DWORD parent_pid) {
 
   int total_process_count = 0;
   base::debug::Alias(&total_process_count);
-  DWORD total_peak_gdi_count = 0;
+  int total_peak_gdi_count = 0;
   base::debug::Alias(&total_peak_gdi_count);
-  DWORD total_gdi_count = 0;
+  int total_gdi_count = 0;
   base::debug::Alias(&total_gdi_count);
-  DWORD total_user_count = 0;
+  int total_user_count = 0;
   base::debug::Alias(&total_user_count);
 
   int child_count = 0;
   base::debug::Alias(&child_count);
-  DWORD peak_gdi_count = 0;
+  int peak_gdi_count = 0;
   base::debug::Alias(&peak_gdi_count);
-  DWORD sum_gdi_count = 0;
+  int sum_gdi_count = 0;
   base::debug::Alias(&sum_gdi_count);
-  DWORD sum_user_count = 0;
+  int sum_user_count = 0;
   base::debug::Alias(&sum_user_count);
 
   PROCESSENTRY32 proc_entry = {};
@@ -402,11 +403,11 @@ void CollectChildGDIUsageAndDie(DWORD parent_pid) {
         OpenProcess(PROCESS_QUERY_INFORMATION,
                     FALSE,
                     proc_entry.th32ProcessID));
-    if (!process.is_valid())
+    if (!process.IsValid())
       continue;
 
-    DWORD num_gdi_handles = GetGuiResources(process.get(), GR_GDIOBJECTS);
-    DWORD num_user_handles = GetGuiResources(process.get(), GR_USEROBJECTS);
+    int num_gdi_handles = GetGuiResources(process.Get(), GR_GDIOBJECTS);
+    int num_user_handles = GetGuiResources(process.Get(), GR_USEROBJECTS);
 
     // Compute sum and peak counts for all processes.
     ++total_process_count;
@@ -450,18 +451,11 @@ void CollectGDIUsageAndDie(BITMAPINFOHEADER* header, HANDLE shared_section) {
 
   DWORD num_user_handles = GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS);
   DWORD num_gdi_handles = GetNumGdiHandles();
-  DWORD peak_gdi_handles =
-      GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS_PEAK);
-  DWORD num_global_gdi_handles = GetGuiResources(GR_GLOBAL, GR_GDIOBJECTS);
-  DWORD num_global_user_handles = GetGuiResources(GR_GLOBAL, GR_USEROBJECTS);
 
   base::debug::Alias(&num_gdi_handles);
   base::debug::Alias(&num_user_handles);
-  base::debug::Alias(&peak_gdi_handles);
-  base::debug::Alias(&num_global_gdi_handles);
-  base::debug::Alias(&num_global_user_handles);
 
-  absl::optional<GdiHandleCounts> optional_handle_counts =
+  base::Optional<GdiHandleCounts> optional_handle_counts =
       CollectGdiHandleCounts(GetCurrentProcessId());
   bool handle_counts_set = optional_handle_counts.has_value();
   GdiHandleCounts handle_counts =
@@ -505,7 +499,7 @@ void CollectGDIUsageAndDie(BITMAPINFOHEADER* header, HANDLE shared_section) {
 }
 
 GdiHandleCounts GetGDIHandleCountsInCurrentProcessForTesting() {
-  absl::optional<GdiHandleCounts> handle_counts =
+  base::Optional<GdiHandleCounts> handle_counts =
       CollectGdiHandleCounts(GetCurrentProcessId());
   DCHECK(handle_counts.has_value());
   return handle_counts.value_or(GdiHandleCounts());

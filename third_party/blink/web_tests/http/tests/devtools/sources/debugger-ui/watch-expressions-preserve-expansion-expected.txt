@@ -3,15 +3,17 @@ Test that watch expressions expansion state is restored after update.
 Watch expressions added.
 expanded foo [object Object]
 expanded bar [object Object]
-expanded [[FunctionLocation]] [object Object]
+expanded [[Scopes]] [object Object]
+expanded 0 [object Object]
+expanded a [object Object]
 expanded [200 .. 299] 
 expanded 299 [object Object]
 Watch expressions expanded.
 globalObject: Object
     foo: Object
       bar: Object
-      [[Prototype]]: Object
-    [[Prototype]]: Object
+      __proto__: Object
+    __proto__: Object
 windowAlias: Window
 array: Array(300)
     [0 .. 99]
@@ -118,22 +120,27 @@ array: Array(300)
       298: 298
       299: 299
     length: 300
-    [[Prototype]]: Array(0)
+    __proto__: Array(0)
 func: function() {return a + b;}
     arguments: null
     caller: null
     length: 0
     name: 
     prototype: Object
+    __proto__: function () { [native code] }
     [[FunctionLocation]]: Object
-    [[Prototype]]: function () { [native code] }
+    [[Scopes]]: Scopes[2]
+      0: Closure
+        a: 10
+        b: 100
+      1: Global
 Page reloaded.
 Watch expressions after page reload:
 globalObject: Object
     foo: Object
       bar: Object
-      [[Prototype]]: Object
-    [[Prototype]]: Object
+      __proto__: Object
+    __proto__: Object
 windowAlias: Window
 array: Array(300)
     [0 .. 99]
@@ -240,13 +247,18 @@ array: Array(300)
       298: 298
       299: 299
     length: 300
-    [[Prototype]]: Array(0)
+    __proto__: Array(0)
 func: function() {return a + b;}
     arguments: null
     caller: null
     length: 0
     name: 
     prototype: Object
+    __proto__: function () { [native code] }
     [[FunctionLocation]]: Object
-    [[Prototype]]: function () { [native code] }
+    [[Scopes]]: Scopes[2]
+      0: Closure
+        a: 10
+        b: 100
+      1: Global
 

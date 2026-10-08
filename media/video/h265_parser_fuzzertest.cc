@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,18 +19,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // found.
   while (true) {
     media::H265NALU nalu;
-    media::H265SEI sei;
     media::H265Parser::Result res = parser.AdvanceToNextNALU(&nalu);
     if (res != media::H265Parser::kOk)
       break;
 
     media::H265SliceHeader shdr;
-    media::H265SliceHeader prior_shdr;
     switch (nalu.nal_unit_type) {
-      case media::H265NALU::VPS_NUT:
-        int vps_id;
-        res = parser.ParseVPS(&vps_id);
-        break;
       case media::H265NALU::SPS_NUT:
         int sps_id;
         res = parser.ParseSPS(&sps_id);
@@ -38,9 +32,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
       case media::H265NALU::PPS_NUT:
         int pps_id;
         res = parser.ParsePPS(nalu, &pps_id);
-        break;
-      case media::H265NALU::PREFIX_SEI_NUT:
-        res = parser.ParseSEI(&sei);
         break;
       case media::H265NALU::TRAIL_N:
       case media::H265NALU::TRAIL_R:
@@ -58,8 +49,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
       case media::H265NALU::IDR_W_RADL:
       case media::H265NALU::IDR_N_LP:
       case media::H265NALU::CRA_NUT:  // fallthrough
-        res = parser.ParseSliceHeader(nalu, &shdr, &prior_shdr);
-        prior_shdr = shdr;
+        res = parser.ParseSliceHeader(nalu, &shdr);
         break;
       default:
         // Skip any other NALU.

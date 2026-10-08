@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,10 @@ TEST(ProcessorMetricsTest, TestRecordProcessorMetrics) {
   base::win::ScopedCOMInitializer scoped_com_initializer;
   base::HistogramTester histogram_tester;
 
-  RecordProcessorMetricsForTesting();
+  RecordProcessorMetrics();
 
   histogram_tester.ExpectTotalCount("Windows.ProcessorFamily", 1);
   histogram_tester.ExpectTotalCount(
       "Windows.ProcessorVirtualizationFirmwareEnabled", 1);
   histogram_tester.ExpectTotalCount("Windows.HypervPresent", 1);
-  histogram_tester.ExpectTotalCount("Windows.CetAvailable", 1);
 }

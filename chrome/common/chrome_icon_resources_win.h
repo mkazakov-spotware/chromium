@@ -1,11 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_COMMON_CHROME_ICON_RESOURCES_WIN_H_
 #define CHROME_COMMON_CHROME_ICON_RESOURCES_WIN_H_
-
-#include "build/branding_buildflags.h"
 
 namespace icon_resources {
 
@@ -15,7 +13,7 @@ enum {
   // The main application icon is always index 0.
   kApplicationIndex = 0,
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
   // Legacy indices that are no longer used.
   kApplication2Index = 1,
   kApplication3Index = 2,
@@ -38,13 +36,13 @@ enum {
 
   // The Chrome Beta application icon.
   kBetaApplicationIndex = 9,
-#else   // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#else   // defined(GOOGLE_CHROME_BUILD)
   // The Chromium App Launcher icon.
   kAppLauncherIndex = 1,
 
   // The Chromium incognito icon.
   kIncognitoIndex = 2,
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#endif  // defined(GOOGLE_CHROME_BUILD)
 };
 
 }  // namespace icon_resources

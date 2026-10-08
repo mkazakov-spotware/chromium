@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -160,7 +160,7 @@ class ControllerPresentationServiceDelegateForFuzzing
 
   // We store all callbacks as single callables; not queued nor out of order,
   // as this mimics the real delegate as closely as possible
-  std::map<content::GlobalRenderFrameHostId,
+  std::map<content::GlobalFrameRoutingId,
            content::PresentationServiceDelegate::Observer*>
       observers_;
 

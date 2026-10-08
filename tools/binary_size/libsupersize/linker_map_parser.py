@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,12 +13,14 @@ file uses "coded linker name" to identify formats and variants:
   'lld-lto_v0': LLD linker with ThinLTO, old format.
   'lld_v1': LLD linker (no LTO), new format.
   'lld-lto_v1': LLD linker with ThinLTO, new format.
+
+The |linker_name| parameter in various functions must take one of the above
+coded linker name values.
 """
 
 import argparse
 import code
 import collections
-import gzip
 import itertools
 import logging
 import os
@@ -43,13 +45,6 @@ _STRIP_NAME_PREFIX = {
     models.FLAG_REL: 4,
     models.FLAG_HOT: 4,
 }
-
-
-def _OpenMaybeGzAsText(path):
-  """Calls `gzip.open()` if |path| ends in ".gz", otherwise calls `open()`."""
-  if path.endswith('.gz'):
-    return gzip.open(path, 'rt')
-  return open(path, 'rt')
 
 
 def _FlagsFromMangledName(name):
@@ -82,7 +77,7 @@ def _NormalizeName(name):
   return name
 
 
-class MapFileParserGold:
+class MapFileParserGold(object):
   """Parses a linker map file from gold linker."""
   # Map file writer for gold linker:
   # https://github.com/gittup/binutils/blob/HEAD/gold/mapfile.cc
@@ -112,7 +107,7 @@ class MapFileParserGold:
         self._common_symbols = self._ParseCommonSymbols()
         logging.debug('.bss common entries: %d', len(self._common_symbols))
         continue
-      if line.startswith('Memory map'):
+      elif line.startswith('Memory map'):
         self._ParseSections()
       break
     return self._section_ranges, self._symbols, {}
@@ -121,7 +116,6 @@ class MapFileParserGold:
     for l in self._lines:
       if l.startswith(prefix) or (prefix2 and l.startswith(prefix2)):
         return l
-    return None
 
   def _ParsePossiblyWrappedParts(self, line, count):
     parts = line.split(None, count - 1)
@@ -260,9 +254,9 @@ class MapFileParserGold:
                   # using addresses. We do this because fill lines are not
                   # present when compiling with gcc (only for clang).
                   continue
-                if line.startswith(' **'):
+                elif line.startswith(' **'):
                   break
-                if name is None:
+                elif name is None:
                   address_str2, name = self._ParsePossiblyWrappedParts(line, 2)
 
               if address_str == '0xffffffffffffffff':
@@ -333,7 +327,7 @@ class MapFileParserGold:
         raise
 
 
-class MapFileParserLld:
+class MapFileParserLld(object):
   """Parses a linker map file from LLD."""
   # Map file writer for LLD linker (for ELF):
   # https://github.com/llvm-mirror/lld/blob/HEAD/ELF/MapFile.cpp
@@ -700,7 +694,7 @@ def _DetectLto(lines):
   return False
 
 
-def _DetectLinkerName(lines):
+def DetectLinkerNameFromMapFile(lines):
   """Heuristic linker detection from partial scan of the linker map.
 
   Args:
@@ -708,6 +702,7 @@ def _DetectLinkerName(lines):
 
   Returns:
     A coded linker name.
+
   """
   first_line = next(lines)
 
@@ -723,42 +718,33 @@ def _DetectLinkerName(lines):
   raise Exception('Invalid map file: ' + first_line)
 
 
-def ParseLines(lines):
-  """Parses a linker map file given an iterable of its lines.
+class MapFileParser(object):
+  """Parses a linker map file generated from a specified linker."""
+  def Parse(self, linker_name, lines):
+    """Parses a linker map file.
 
-  Returns:
-    A tuple of (section_ranges, symbols, extras).
-  """
-  # Buffer 1000 lines for format detection.
-  header = list(itertools.islice(lines, 1000))
-  lines = itertools.chain(header, lines)
-  linker_name = _DetectLinkerName(iter(header))
-  logging.info('Detected map file of type %s', linker_name)
-  if linker_name.startswith('lld'):
-    inner_parser = MapFileParserLld(linker_name)
-  elif linker_name == 'gold':
-    inner_parser = MapFileParserGold()
-  else:
-    raise Exception('.map file is from a unsupported linker.')
+    Args:
+      linker_name: Coded linker name to specify a linker.
+      lines: Iterable of lines from the linker map.
 
-  next(lines)  # Consume the first line of headers.
-  section_ranges, syms, extras = inner_parser.Parse(lines)
-  for sym in syms:
-    if sym.object_path and not sym.object_path.endswith(')'):
-      # Don't want '' to become '.'.
-      # Thin archives' paths will get fixed in |ar.CreateThinObjectPath|.
-      sym.object_path = os.path.normpath(sym.object_path)
-  return section_ranges, syms, extras
+    Returns:
+      A tuple of (section_ranges, symbols, extras).
+    """
+    next(lines)  # Consume the first line of headers.
+    if linker_name.startswith('lld'):
+      inner_parser = MapFileParserLld(linker_name)
+    elif linker_name == 'gold':
+      inner_parser = MapFileParserGold()
+    else:
+      raise Exception('.map file is from a unsupported linker.')
 
-
-def ParseFile(path):
-  """Parses a linker map file pointed to by |path|.
-
-  Returns:
-    A tuple of (section_ranges, symbols, extras).
-  """
-  with _OpenMaybeGzAsText(path) as f:
-    return ParseLines(f)
+    section_ranges, syms, extras = inner_parser.Parse(lines)
+    for sym in syms:
+      if sym.object_path and not sym.object_path.endswith(')'):
+        # Don't want '' to become '.'.
+        # Thin archives' paths will get fixed in |ar.CreateThinObjectPath|.
+        sym.object_path = os.path.normpath(sym.object_path)
+    return (section_ranges, syms, extras)
 
 
 def DeduceObjectPathsFromThinMap(raw_symbols, extras):
@@ -830,7 +816,12 @@ def main():
       level=logging.WARNING - args.verbose * 10,
       format='%(levelname).1s %(relativeCreated)6d %(message)s')
 
-  section_ranges, syms, extras = ParseFile(args.linker_file)
+  with open(args.linker_file, 'r') as map_file:
+    linker_name = DetectLinkerNameFromMapFile(map_file)
+  print('Linker type: %s' % linker_name)
+
+  with open(args.linker_file, 'r') as map_file:
+    section_ranges, syms, extras = MapFileParser().Parse(linker_name, map_file)
 
   if args.dump:
     print(section_ranges)

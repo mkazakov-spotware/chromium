@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/orchestrator/omnibox_focus_orchestrator.h"
 
-#import "base/check.h"
+#include "base/check.h"
 #import "ios/chrome/browser/ui/orchestrator/edit_view_animatee.h"
 #import "ios/chrome/browser/ui/orchestrator/location_bar_animatee.h"
 #import "ios/chrome/browser/ui/orchestrator/toolbar_animatee.h"
@@ -21,10 +21,6 @@
 @property(nonatomic, assign) BOOL finalOmniboxFocusedState;
 @property(nonatomic, assign) BOOL finalToolbarExpandedState;
 @property(nonatomic, assign) int inProgressAnimationCount;
-
-// Sometimes, the toolbar animations finish before the omnibox animations are
-// even queued, causing the final completions to be run too early.
-@property(nonatomic, assign) BOOL areOmniboxChangesQueued;
 
 @end
 
@@ -47,7 +43,6 @@
   }
 
   self.isAnimating = animated;
-  self.areOmniboxChangesQueued = NO;
   self.inProgressAnimationCount = 0;
 
   if (toolbarExpanded) {
@@ -67,18 +62,10 @@
   // with a constraint animation seems to be to let the constraint animation
   // start and compute the final frames, then perform the transform animation.
   dispatch_async(dispatch_get_main_queue(), ^{
-    self.areOmniboxChangesQueued = YES;
     if (omniboxFocused) {
       [self focusOmniboxAnimated:animated];
     } else {
       [self defocusOmniboxAnimated:animated];
-    }
-
-    // Make sure that some omnibox animations were queued. Otherwise, the final
-    // call to `animationFinished` after the toolbar animations finished was
-    // interrupted and cleanup still needs to occur.
-    if (self.inProgressAnimationCount == 0 && self.isAnimating) {
-      [self animationFinished];
     }
   });
 }
@@ -110,7 +97,7 @@
     [self.editViewAnimatee setLeadingIconFaded:YES];
     [self.editViewAnimatee setClearButtonFaded:YES];
 
-    CGFloat duration = kMaterialDuration1;
+    CGFloat duration = ios::material::kDuration1;
 
     self.inProgressAnimationCount += 1;
     [UIView animateWithDuration:duration
@@ -152,7 +139,6 @@
         completion:^(BOOL _) {
           [self animationFinished];
         }];
-
     self.inProgressAnimationCount += 1;
     [UIView animateWithDuration:duration * 0.2
         delay:duration * 0.8
@@ -189,7 +175,8 @@
     [self.locationBarAnimatee setSteadyViewFaded:YES];
     [self.editViewAnimatee setLeadingIconFaded:NO];
     [self.editViewAnimatee setClearButtonFaded:NO];
-    CGFloat duration = kMaterialDuration1;
+
+    CGFloat duration = ios::material::kDuration1;
 
     self.inProgressAnimationCount += 1;
     [UIView animateWithDuration:duration
@@ -243,7 +230,7 @@
   }
 }
 
-// Updates the UI elements reflect the toolbar expanded state, `animated` or
+// Updates the UI elements reflect the toolbar expanded state, |animated| or
 // not.
 - (void)updateUIToExpandedState:(BOOL)animated {
   void (^expansion)() = ^{
@@ -259,7 +246,7 @@
     // Use UIView animateWithDuration instead of UIViewPropertyAnimator to
     // avoid UIKit bug. See https://crbug.com/856155.
     self.inProgressAnimationCount += 1;
-    [UIView animateWithDuration:kMaterialDuration1
+    [UIView animateWithDuration:ios::material::kDuration1
                           delay:0
                         options:UIViewAnimationCurveEaseInOut
                      animations:expansion
@@ -268,7 +255,7 @@
                      }];
 
     self.inProgressAnimationCount += 1;
-    [UIView animateWithDuration:kMaterialDuration2
+    [UIView animateWithDuration:ios::material::kDuration2
                           delay:0
                         options:UIViewAnimationCurveEaseInOut
                      animations:hideControls
@@ -281,7 +268,7 @@
   }
 }
 
-// Updates the UI elements reflect the toolbar contracted state, `animated` or
+// Updates the UI elements reflect the toolbar contracted state, |animated| or
 // not.
 - (void)updateUIToContractedState:(BOOL)animated {
   void (^contraction)() = ^{
@@ -299,8 +286,10 @@
   if (animated) {
     // Use UIView animateWithDuration instead of UIViewPropertyAnimator to
     // avoid UIKit bug. See https://crbug.com/856155.
-    CGFloat totalDuration = kMaterialDuration1 + kMaterialDuration2;
-    CGFloat relativeDurationAnimation1 = kMaterialDuration1 / totalDuration;
+    CGFloat totalDuration =
+        ios::material::kDuration1 + ios::material::kDuration2;
+    CGFloat relativeDurationAnimation1 =
+        ios::material::kDuration1 / totalDuration;
     self.inProgressAnimationCount += 1;
     [UIView animateKeyframesWithDuration:totalDuration
         delay:0
@@ -319,8 +308,8 @@
                                     }];
         }
         completion:^(BOOL _) {
-          hideCancel();
           [self animationFinished];
+          hideCancel();
         }];
   } else {
     contraction();
@@ -331,8 +320,7 @@
 
 - (void)animationFinished {
   self.inProgressAnimationCount -= 1;
-  // Make sure all the animations have been queued and finished.
-  if (!self.areOmniboxChangesQueued || self.inProgressAnimationCount > 0) {
+  if (self.inProgressAnimationCount > 0) {
     return;
   }
 

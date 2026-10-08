@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SANDBOX_LINUX_SECCOMP_BPF_DIE_H__
 #define SANDBOX_LINUX_SECCOMP_BPF_DIE_H__
 
+#include "base/macros.h"
 #include "sandbox/sandbox_export.h"
 
 namespace sandbox {
@@ -22,10 +23,6 @@ namespace sandbox {
 
 class SANDBOX_EXPORT Die {
  public:
-  Die() = delete;
-  Die(const Die&) = delete;
-  Die& operator=(const Die&) = delete;
-
   // Terminate the program, even if the current sandbox policy prevents some
   // of the more commonly used functions used for exiting.
   // Most users would want to call SANDBOX_DIE() instead, as it logs extra
@@ -62,6 +59,8 @@ class SANDBOX_EXPORT Die {
  private:
   static bool simple_exit_;
   static bool suppress_info_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Die);
 };
 
 }  // namespace sandbox

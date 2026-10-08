@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/display/window_tree_host_manager.h"
+#include "base/macros.h"
 #include "ui/display/manager/touch_transform_controller.h"
 
 namespace display {
@@ -24,16 +25,14 @@ class ASH_EXPORT AshTouchTransformController
   AshTouchTransformController(
       display::DisplayManager* display_manager,
       std::unique_ptr<display::TouchTransformSetter> setter);
-
-  AshTouchTransformController(const AshTouchTransformController&) = delete;
-  AshTouchTransformController& operator=(const AshTouchTransformController&) =
-      delete;
-
   ~AshTouchTransformController() override;
 
   // WindowTreeHostManager::Observer:
   void OnDisplaysInitialized() override;
   void OnDisplayConfigurationChanged() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AshTouchTransformController);
 };
 
 }  // namespace ash

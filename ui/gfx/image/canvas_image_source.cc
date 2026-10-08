@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size_conversions.h"
 #include "ui/gfx/image/image_skia.h"
-#include "ui/gfx/image/image_skia_rep.h"
 #include "ui/gfx/switches.h"
 
 namespace gfx {
@@ -26,9 +25,6 @@ class PaddedImageSource : public CanvasImageSource {
         image_(image),
         insets_(insets) {}
 
-  PaddedImageSource(const PaddedImageSource&) = delete;
-  PaddedImageSource& operator=(const PaddedImageSource&) = delete;
-
   // CanvasImageSource:
   void Draw(Canvas* canvas) override {
     canvas->DrawImageInt(image_, insets_.left(), insets_.top());
@@ -37,6 +33,8 @@ class PaddedImageSource : public CanvasImageSource {
  private:
   const ImageSkia image_;
   const Insets insets_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaddedImageSource);
 };
 
 }  // namespace
@@ -58,14 +56,16 @@ ImageSkiaRep CanvasImageSource::GetImageForScale(float scale) {
           cc::DisplayItemList::kToBeReleasedAsPaintOpBuffer);
   display_item_list->StartPaint();
 
-  Size size_in_pixel = ScaleToCeiledSize(size_, scale);
-  cc::InspectableRecordPaintCanvas record_canvas(display_item_list.get(),
-                                                 size_in_pixel);
+  SizeF size_in_pixel = ScaleSize(SizeF(size_), scale);
+  cc::RecordPaintCanvas record_canvas(
+      display_item_list.get(),
+      SkRect::MakeWH(SkFloatToScalar(size_in_pixel.width()),
+                     SkFloatToScalar(size_in_pixel.height())));
   gfx::Canvas canvas(&record_canvas, scale);
 #if DCHECK_IS_ON()
   Rect clip_rect;
   DCHECK(canvas.GetClipBounds(&clip_rect));
-  DCHECK(clip_rect.Contains(gfx::Rect(size_in_pixel)));
+  DCHECK(clip_rect.Contains(gfx::Rect(ToCeiledSize(size_in_pixel))));
 #endif
   canvas.Scale(scale, scale);
   Draw(&canvas);

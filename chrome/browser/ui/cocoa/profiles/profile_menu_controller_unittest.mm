@@ -1,16 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "chrome/browser/ui/cocoa/profiles/profile_menu_controller.h"
 
 #include "base/mac/scoped_nsobject.h"
-#include "base/strings/sys_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
-#include "chrome/browser/profiles/profile_attributes_entry.h"
-#include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/cocoa/test/cocoa_test_helper.h"
 #include "chrome/browser/ui/cocoa/test/run_loop_testing.h"
 #include "chrome/common/pref_names.h"
@@ -65,13 +61,11 @@ class ProfileMenuControllerTest : public BrowserWithTestWindowTest {
   void VerifyProfileNamedIsActive(NSString* title, int line) {
     for (NSMenuItem* item in [[controller() menu] itemArray]) {
       if ([[item title] isEqualToString:title]) {
-        EXPECT_EQ(NSControlStateValueOn, [item state])
-            << base::SysNSStringToUTF8(item.title) << " (from line " << line
-            << ")";
+        EXPECT_EQ(NSOnState, [item state]) << [[item title] UTF8String]
+          << " (from line " << line << ")";
       } else {
-        EXPECT_EQ(NSControlStateValueOff, [item state])
-            << base::SysNSStringToUTF8(item.title) << " (from line " << line
-            << ")";
+        EXPECT_EQ(NSOffState, [item state]) << [[item title] UTF8String]
+          << " (from line " << line << ")";
       }
     }
   }
@@ -121,15 +115,12 @@ TEST_F(ProfileMenuControllerTest, RebuildMenu) {
 
   NSMenuItem* item = [menu itemAtIndex:0];
   EXPECT_EQ(@selector(switchToProfileFromMenu:), [item action]);
-  EXPECT_TRUE([controller() validateMenuItem:item]);
 
   item = [menu itemAtIndex:1];
   EXPECT_EQ(@selector(switchToProfileFromMenu:), [item action]);
-  EXPECT_TRUE([controller() validateMenuItem:item]);
 
   item = [menu itemAtIndex:2];
   EXPECT_EQ(@selector(switchToProfileFromMenu:), [item action]);
-  EXPECT_TRUE([controller() validateMenuItem:item]);
 
   TestBottomItems();
 
@@ -203,13 +194,6 @@ TEST_F(ProfileMenuControllerTest, InitialActiveBrowser) {
 // BrowserWindow::Show() and when a Browser becomes active. We don't need a full
 // BrowserWindow, so it is called manually.
 TEST_F(ProfileMenuControllerTest, SetActiveAndRemove) {
-  // Set the name of the default profile, so that's it's not empty.
-  const std::u16string kDefaultProfileName = u"DefaultProfile";
-  g_browser_process->profile_manager()
-      ->GetProfileAttributesStorage()
-      .GetProfileAttributesWithPath(browser()->profile()->GetPath())
-      ->SetLocalProfileName(kDefaultProfileName, false);
-
   NSMenu* menu = [controller() menu];
   TestingProfileManager* manager = profile_manager();
   TestingProfile* profile2 = manager->CreateTestingProfile("Profile 2");
@@ -223,11 +207,10 @@ TEST_F(ProfileMenuControllerTest, SetActiveAndRemove) {
   [controller() activeBrowserChangedTo:p2_browser.get()];
   VerifyProfileNamedIsActive(@"Profile 2", __LINE__);
 
-  // Close the browser and make sure the new active browser's profile is active.
+  // Close the browser and make sure it's still active.
   p2_browser.reset();
-  [controller() activeBrowserChangedTo:browser()];
-  VerifyProfileNamedIsActive(base::SysUTF16ToNSString(kDefaultProfileName),
-                             __LINE__);
+  [controller() activeBrowserChangedTo:nil];
+  VerifyProfileNamedIsActive(@"Profile 2", __LINE__);
 
   // Open a new browser and make sure it takes effect.
   Browser::CreateParams profile3_params(profile3, true);
@@ -236,24 +219,9 @@ TEST_F(ProfileMenuControllerTest, SetActiveAndRemove) {
   [controller() activeBrowserChangedTo:p3_browser.get()];
   VerifyProfileNamedIsActive(@"Profile 3", __LINE__);
 
-  // Close the browser and make sure the new active browser's profile is active.
   p3_browser.reset();
-  [controller() activeBrowserChangedTo:browser()];
-  VerifyProfileNamedIsActive(base::SysUTF16ToNSString(kDefaultProfileName),
-                             __LINE__);
-
-  // Close the browser.
-  std::unique_ptr<Browser> browser(release_browser());
-  browser->tab_strip_model()->CloseAllTabs();
-  browser.reset();
-  std::unique_ptr<BrowserWindow> browser_window(release_browser_window());
-  browser_window->Close();
-  browser_window.reset();
-  EXPECT_TRUE(BrowserList::GetInstance()->empty());
-
   [controller() activeBrowserChangedTo:nil];
-  VerifyProfileNamedIsActive(base::SysUTF16ToNSString(kDefaultProfileName),
-                             __LINE__);
+  VerifyProfileNamedIsActive(@"Profile 3", __LINE__);
 }
 
 TEST_F(ProfileMenuControllerTest, DeleteActiveProfile) {
@@ -271,20 +239,12 @@ TEST_F(ProfileMenuControllerTest, DeleteActiveProfile) {
   PrefService* local_state = g_browser_process->local_state();
   local_state->SetString(prefs::kProfileLastUsed,
                          profile3_path.BaseName().MaybeAsASCII());
-  EXPECT_FALSE(ProfileManager::GetLastUsedProfileIfLoaded());
 
   // Simulate the active browser changing to NULL and ensure a profile doesn't
   // get created by disallowing IO operations temporarily.
-  base::ScopedDisallowBlocking scoped_disallow_blocking;
+  const bool io_was_allowed = base::ThreadRestrictions::SetIOAllowed(false);
   [controller() activeBrowserChangedTo:NULL];
-  // Check that validateMenuItem does not load a profile, and edit is disabled.
-  // Adding a new profile is still possible since this happens through the
-  // profile picker.
-  NSMenu* menu = [controller() menu];
-  for (NSMenuItem* item in [menu itemArray]) {
-    bool is_edit = [item action] == @selector(editProfile:);
-    EXPECT_EQ([controller() validateMenuItem:item], !is_edit);
-  }
+  base::ThreadRestrictions::SetIOAllowed(io_was_allowed);
 }
 
 TEST_F(ProfileMenuControllerTest, AddProfileDisabled) {

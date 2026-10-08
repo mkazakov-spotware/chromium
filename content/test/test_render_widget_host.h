@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,8 @@ namespace content {
 class TestRenderWidgetHost : public RenderWidgetHostImpl {
  public:
   static std::unique_ptr<RenderWidgetHostImpl> Create(
-      FrameTree* frame_tree,
       RenderWidgetHostDelegate* delegate,
-      base::SafeRef<SiteInstanceGroup> site_instance_group,
+      AgentSchedulingGroupHost& agent_scheduling_group,
       int32_t routing_id,
       bool hidden);
   ~TestRenderWidgetHost() override;
@@ -29,15 +28,9 @@ class TestRenderWidgetHost : public RenderWidgetHostImpl {
 
   MockWidgetInputHandler* GetMockWidgetInputHandler();
 
-  static mojo::PendingAssociatedRemote<blink::mojom::Widget>
-  CreateStubWidgetRemote();
-  static mojo::PendingAssociatedRemote<blink::mojom::FrameWidget>
-  CreateStubFrameWidgetRemote();
-
  private:
-  TestRenderWidgetHost(FrameTree* frame_tree,
-                       RenderWidgetHostDelegate* delegate,
-                       base::SafeRef<SiteInstanceGroup> site_instance_group,
+  TestRenderWidgetHost(RenderWidgetHostDelegate* delegate,
+                       AgentSchedulingGroupHost& agent_scheduling_group,
                        int32_t routing_id,
                        bool hidden);
   MockWidgetInputHandler input_handler_;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ public class JSUtils {
 
     public static void clickNodeWithUserGesture(WebContents webContents, String nodeId) {
         WebContentsUtils.evaluateJavaScriptWithUserGesture(
-                webContents, createScriptToClickNode(nodeId), null);
+                webContents, createScriptToClickNode(nodeId));
     }
 
     public static String executeJavaScriptAndWaitForResult(Instrumentation instrumentation,

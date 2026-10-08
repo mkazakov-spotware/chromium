@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,18 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "ash/shelf/home_button.h"
+#include "base/macros.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/views/animation/ink_drop_painted_layer_delegates.h"
 #include "ui/views/view.h"
 
 namespace ash {
 
-class ASH_EXPORT AssistantOverlay : public views::View,
-                                    public ui::ImplicitAnimationObserver {
+class HomeButton;
+
+class ASH_EXPORT AssistantOverlay : public views::View {
  public:
   explicit AssistantOverlay(HomeButton* host_view);
-
-  AssistantOverlay(const AssistantOverlay&) = delete;
-  AssistantOverlay& operator=(const AssistantOverlay&) = delete;
-
   ~AssistantOverlay() override;
 
   void StartAnimation(bool show_icon);
@@ -36,10 +33,6 @@ class ASH_EXPORT AssistantOverlay : public views::View,
 
   // views::View:
   const char* GetClassName() const override;
-  void OnThemeChanged() override;
-
-  // ui::ImplicitAnimationObserver
-  void OnImplicitAnimationsCompleted() override;
 
  private:
   enum class AnimationState {
@@ -62,7 +55,8 @@ class ASH_EXPORT AssistantOverlay : public views::View,
   bool show_icon_ = false;
 
   views::CircleLayerDelegate circle_layer_delegate_;
-  std::unique_ptr<HomeButton::ScopedNoClipRect> scoped_no_clip_rect_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantOverlay);
 };
 
 }  // namespace ash

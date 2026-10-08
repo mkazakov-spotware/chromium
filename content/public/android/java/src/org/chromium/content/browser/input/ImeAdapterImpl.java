@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.content.browser.input;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -22,7 +21,6 @@ import android.text.style.SuggestionSpan;
 import android.text.style.UnderlineSpan;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
@@ -42,10 +40,8 @@ import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.blink.mojom.EventType;
 import org.chromium.blink.mojom.FocusType;
-import org.chromium.blink.mojom.StylusWritingGestureData;
 import org.chromium.blink_public.web.WebInputEventModifier;
 import org.chromium.blink_public.web.WebTextInputMode;
-import org.chromium.content.browser.GestureListenerManagerImpl;
 import org.chromium.content.browser.WindowEventObserver;
 import org.chromium.content.browser.WindowEventObserverManager;
 import org.chromium.content.browser.picker.InputDialogContainer;
@@ -54,7 +50,6 @@ import org.chromium.content.browser.webcontents.WebContentsImpl.UserDataFactory;
 import org.chromium.content_public.browser.ImeAdapter;
 import org.chromium.content_public.browser.ImeEventObserver;
 import org.chromium.content_public.browser.InputMethodManagerWrapper;
-import org.chromium.content_public.browser.StylusWritingImeCallback;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.ViewUtils;
@@ -67,7 +62,6 @@ import org.chromium.ui.mojom.VirtualKeyboardVisibilityRequest;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -123,7 +117,7 @@ public class ImeAdapterImpl
     // InputMethodManager on appropriate timing, depending on how IME requested the information
     // via InputConnection. The update request is per InputConnection, hence for each time it is
     // re-created, the monitoring status will be reset.
-    private final CursorAnchorInfoController mCursorAnchorInfoController;
+    private CursorAnchorInfoController mCursorAnchorInfoController;
 
     private final List<ImeEventObserver> mEventObservers = new ArrayList<>();
 
@@ -151,10 +145,8 @@ public class ImeAdapterImpl
     // True if ImeAdapter is connected to render process.
     private boolean mIsConnected;
 
-    // Whether to force show keyboard during stylus handwriting. We do not show it when writing
-    // system is active and stylus is used to edit input text. This is used to show the soft
-    // keyboard from Direct writing toolbar.
-    private boolean mForceShowKeyboardDuringStylusWriting;
+    // Returns true if the overlaycontent flag is set in the JS, else false.
+    private boolean mKeyboardOverlayContent;
 
     /**
      * {@ResultReceiver} passed in InputMethodManager#showSoftInput}. We need this to scroll to the
@@ -219,6 +211,7 @@ public class ImeAdapterImpl
         // Deep copy newConfig so that we can notice the difference.
         mCurrentConfig = new Configuration(getContainerView().getResources().getConfiguration());
 
+        // CursorAnchroInfo is supported only after L.
         mCursorAnchorInfoController = CursorAnchorInfoController.create(
                 wrapper, new CursorAnchorInfoController.ComposingTextDelegate() {
                     @Override
@@ -255,12 +248,7 @@ public class ImeAdapterImpl
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         boolean allowKeyboardLearning = mWebContents != null && !mWebContents.isIncognito();
-        InputConnection inputConnection = onCreateInputConnection(outAttrs, allowKeyboardLearning);
-
-        if (mWebContents.getStylusWritingHandler() != null) {
-            mWebContents.getStylusWritingHandler().updateEditorInfo(outAttrs);
-        }
-        return inputConnection;
+        return onCreateInputConnection(outAttrs, allowKeyboardLearning);
     }
 
     @Override
@@ -275,6 +263,19 @@ public class ImeAdapterImpl
     @Override
     public void addEventObserver(ImeEventObserver eventObserver) {
         mEventObservers.add(eventObserver);
+    }
+
+    /**
+     * Returns true if the overlaycontent flag is set in the JS, else false.
+     * This determines whether to fire geometrychange event to JS and also not
+     * resize the visual/layout viewports in response to keyboard visibility
+     * changes.
+     *
+     * @return Whether overlaycontent flag is set or not.
+     */
+    @Override
+    public boolean shouldVirtualKeyboardOverlayContent() {
+        return mKeyboardOverlayContent;
     }
 
     private void createInputConnectionFactory() {
@@ -420,12 +421,6 @@ public class ImeAdapterImpl
         return modifiers;
     }
 
-    private void updateInputStateForStylusWriting() {
-        if (mWebContents.getStylusWritingHandler() == null) return;
-        mWebContents.getStylusWritingHandler().updateInputState(
-                mLastText, mLastSelectionStart, mLastSelectionEnd);
-    }
-
     /**
      * Updates internal representation of the text being edited and its selection and composition
      * properties.
@@ -454,7 +449,8 @@ public class ImeAdapterImpl
     private void updateState(int textInputType, int textInputFlags, int textInputMode,
             int textInputAction, boolean showIfNeeded, boolean alwaysHide, String text,
             int selectionStart, int selectionEnd, int compositionStart, int compositionEnd,
-            boolean replyToRequest, int lastVkVisibilityRequest, int vkPolicy) {
+            boolean replyToRequest, int lastVkVisibilityRequest, int vkPolicy,
+            boolean keyboardOverlayContent) {
         TraceEvent.begin("ImeAdapter.updateState");
         try {
             if (DEBUG_LOGS) {
@@ -470,6 +466,7 @@ public class ImeAdapterImpl
                 mRestartInputOnNextStateUpdate = false;
             }
 
+            mKeyboardOverlayContent = keyboardOverlayContent;
             mTextInputFlags = textInputFlags;
             if (mTextInputMode != textInputMode) {
                 mTextInputMode = textInputMode;
@@ -544,9 +541,6 @@ public class ImeAdapterImpl
         } finally {
             TraceEvent.end("ImeAdapter.updateState");
         }
-
-        // Update input state to stylus writing service.
-        updateInputStateForStylusWriting();
     }
 
     /**
@@ -556,19 +550,6 @@ public class ImeAdapterImpl
         if (!isValid()) return;
         if (DEBUG_LOGS) Log.i(TAG, "showSoftKeyboard");
         View containerView = getContainerView();
-
-        // Block showing soft keyboard during stylus handwriting.
-        int lastToolType = mWebContents.getEventForwarder().getLastToolType();
-        if (mWebContents.getStylusWritingHandler() != null
-                && !mWebContents.getStylusWritingHandler().canShowSoftKeyboard()
-                && (lastToolType == MotionEvent.TOOL_TYPE_STYLUS
-                        || lastToolType == MotionEvent.TOOL_TYPE_ERASER)
-                && mTextInputType != TextInputType.PASSWORD
-                && !mForceShowKeyboardDuringStylusWriting) {
-            if (DEBUG_LOGS) Log.i(TAG, "showSoftKeyboard: blocked during stylus writing");
-            return;
-        }
-
         mInputMethodManagerWrapper.showSoftInput(containerView, 0, getNewShowKeyboardReceiver());
         if (containerView.getResources().getConfiguration().keyboard
                 != Configuration.KEYBOARD_NOKEYS) {
@@ -578,7 +559,6 @@ public class ImeAdapterImpl
 
     @Override
     public void onShowKeyboardReceiveResult(int resultCode) {
-        if (!isValid()) return;
         View containerView = getContainerView();
         if (resultCode == InputMethodManager.RESULT_SHOWN) {
             // If OSK is newly shown, delay the form focus until
@@ -740,6 +720,10 @@ public class ImeAdapterImpl
         hideKeyboard();
     }
 
+    public void reset() {
+        resetAndHideKeyboard();
+    }
+
     @CalledByNative
     private void onNativeDestroyed() {
         resetAndHideKeyboard();
@@ -814,10 +798,10 @@ public class ImeAdapterImpl
         if (mTextInputAction == TextInputAction.DEFAULT) {
             switch (actionCode) {
                 case EditorInfo.IME_ACTION_NEXT:
-                    advanceFocusForIME(FocusType.FORWARD);
+                    advanceFocusInForm(FocusType.FORWARD);
                     return true;
                 case EditorInfo.IME_ACTION_PREVIOUS:
-                    advanceFocusForIME(FocusType.BACKWARD);
+                    advanceFocusInForm(FocusType.BACKWARD);
                     return true;
             }
         }
@@ -835,9 +819,9 @@ public class ImeAdapterImpl
     }
 
     @Override
-    public void advanceFocusForIME(int focusType) {
+    public void advanceFocusInForm(int focusType) {
         if (mNativeImeAdapterAndroid == 0) return;
-        ImeAdapterImplJni.get().advanceFocusForIME(
+        ImeAdapterImplJni.get().advanceFocusInForm(
                 mNativeImeAdapterAndroid, ImeAdapterImpl.this, focusType);
     }
 
@@ -990,8 +974,7 @@ public class ImeAdapterImpl
     }
 
     @CalledByNative
-    private void focusedNodeChanged(boolean isEditable, int nodeLeftDip, int nodeTopDip,
-            int nodeRightDip, int nodeBottomDip) {
+    private void focusedNodeChanged(boolean isEditable) {
         if (DEBUG_LOGS) Log.i(TAG, "focusedNodeChanged: isEditable [%b]", isEditable);
 
         // Update controller before the connection is restarted.
@@ -1002,117 +985,6 @@ public class ImeAdapterImpl
         if (mTextInputType != TextInputType.NONE && mInputConnection != null && isEditable) {
             mRestartInputOnNextStateUpdate = true;
         }
-
-        if (mWebContents.getStylusWritingHandler() != null) {
-            // Update edit bounds to stylus writing service.
-            Rect editableNodeBoundsPixOnScreen;
-            if (isEditable) {
-                float deviceScale = mWebContents.getRenderCoordinates().getDeviceScaleFactor();
-                editableNodeBoundsPixOnScreen = new Rect((int) (nodeLeftDip * deviceScale),
-                        (int) (nodeTopDip * deviceScale), (int) (nodeRightDip * deviceScale),
-                        (int) (nodeBottomDip * deviceScale));
-                editableNodeBoundsPixOnScreen.offset(
-                        0, mWebContents.getRenderCoordinates().getContentOffsetYPixInt());
-            } else {
-                editableNodeBoundsPixOnScreen = new Rect();
-            }
-            mWebContents.getStylusWritingHandler().onFocusedNodeChanged(
-                    editableNodeBoundsPixOnScreen, isEditable);
-        }
-    }
-
-    @CalledByNative
-    private boolean requestStartStylusWriting() {
-        if (mWebContents.getStylusWritingHandler() == null) return false;
-
-        // It is possible that current view is not focused when stylus writing is started just after
-        // interaction with some other view like Url bar, or share view. We need to focus it so that
-        // current web page also gets focused, allowing us to commit text into web input elements.
-        View containerView = getContainerView();
-        if (!ViewUtils.hasFocus(containerView)) ViewUtils.requestFocus(containerView);
-
-        updateInputStateForStylusWriting();
-        return mWebContents.getStylusWritingHandler().requestStartStylusWriting(
-                new StylusWritingImeCallback() {
-                    @Override
-                    public void setEditableSelectionOffsets(int start, int end) {
-                        ImeAdapterImpl.this.setEditableSelectionOffsets(start, end);
-                    }
-
-                    @Override
-                    public void sendCompositionToNative(
-                            CharSequence text, int newCursorPosition, boolean isCommit) {
-                        ImeAdapterImpl.this.sendCompositionToNative(
-                                text, newCursorPosition, isCommit, 0);
-                    }
-
-                    @Override
-                    public void performEditorAction(int actionCode) {
-                        ImeAdapterImpl.this.performEditorAction(actionCode);
-                    }
-
-                    @Override
-                    public void showSoftKeyboard() {
-                        mForceShowKeyboardDuringStylusWriting = true;
-                        ImeAdapterImpl.this.showSoftKeyboard();
-                        mForceShowKeyboardDuringStylusWriting = false;
-                    }
-
-                    @Override
-                    public void hideKeyboard() {
-                        ImeAdapterImpl.this.hideKeyboard();
-                    }
-
-                    @Override
-                    public View getContainerView() {
-                        return mWebContents.getViewAndroidDelegate().getContainerView();
-                    }
-
-                    @Override
-                    public void resetGestureDetection() {
-                        GestureListenerManagerImpl gestureListenerManager =
-                                GestureListenerManagerImpl.fromWebContents(mWebContents);
-                        if (gestureListenerManager != null) {
-                            gestureListenerManager.resetGestureDetection();
-                        }
-                    }
-
-                    @Override
-                    public void handleStylusWritingGestureAction(
-                            StylusWritingGestureData gestureData) {
-                        if (mNativeImeAdapterAndroid == 0) return;
-                        int contentOffsetY =
-                                (int) mWebContents.getRenderCoordinates().getContentOffsetYPix();
-                        gestureData.startPoint.y -= contentOffsetY;
-                        if (gestureData.endPoint != null) {
-                            gestureData.endPoint.y -= contentOffsetY;
-                        }
-                        ImeAdapterImplJni.get().handleStylusWritingGestureAction(
-                                mNativeImeAdapterAndroid, ImeAdapterImpl.this,
-                                gestureData.serialize());
-                    }
-                });
-    }
-
-    @CalledByNative
-    void onEditElementFocusedForStylusWriting(int focusedEditLeft, int focusedEditTop,
-            int focusedEditRight, int focusedEditBottom, int caretX, int caretY) {
-        if (mWebContents.getStylusWritingHandler() == null) return;
-        Rect focusedEditBounds =
-                new Rect(focusedEditLeft, focusedEditTop, focusedEditRight, focusedEditBottom);
-        Point cursorPosition = new Point(caretX, caretY);
-        if (!focusedEditBounds.isEmpty()) {
-            int[] screenLocation = new int[2];
-            mWebContents.getViewAndroidDelegate().getContainerView().getLocationOnScreen(
-                    screenLocation);
-            int contentOffsetY = mWebContents.getRenderCoordinates().getContentOffsetYPixInt();
-            focusedEditBounds.offset(0, contentOffsetY);
-            cursorPosition.offset(screenLocation[0], screenLocation[1] + contentOffsetY);
-        }
-
-        // Send focused edit bounds and caret center position to Stylus writing service.
-        mWebContents.getStylusWritingHandler().onEditElementFocusedForStylusWriting(
-                focusedEditBounds, cursorPosition);
     }
 
     /**
@@ -1139,6 +1011,7 @@ public class ImeAdapterImpl
             ImeAdapterImplJni.get().requestCursorUpdate(mNativeImeAdapterAndroid,
                     ImeAdapterImpl.this, immediateRequest, monitorRequest);
         }
+        if (mCursorAnchorInfoController == null) return false;
         return mCursorAnchorInfoController.onRequestCursorUpdates(
                 immediateRequest, monitorRequest, getContainerView());
     }
@@ -1160,6 +1033,7 @@ public class ImeAdapterImpl
             boolean hasInsertionMarker, boolean isInsertionMarkerVisible,
             float insertionMarkerHorizontal, float insertionMarkerTop,
             float insertionMarkerBottom) {
+        if (mCursorAnchorInfoController == null) return;
         mCursorAnchorInfoController.onUpdateFrameInfo(scaleFactor, contentOffsetYPix,
                 hasInsertionMarker, isInsertionMarkerVisible, insertionMarkerHorizontal,
                 insertionMarkerTop, insertionMarkerBottom, getContainerView());
@@ -1275,6 +1149,7 @@ public class ImeAdapterImpl
 
     @CalledByNative
     private void setCharacterBounds(float[] characterBounds) {
+        if (mCursorAnchorInfoController == null) return;
         mCursorAnchorInfoController.setCompositionCharacterBounds(
                 characterBounds, getContainerView());
     }
@@ -1314,9 +1189,6 @@ public class ImeAdapterImpl
         boolean requestTextInputStateUpdate(long nativeImeAdapterAndroid, ImeAdapterImpl caller);
         void requestCursorUpdate(long nativeImeAdapterAndroid, ImeAdapterImpl caller,
                 boolean immediateRequest, boolean monitorRequest);
-        void advanceFocusForIME(long nativeImeAdapterAndroid, ImeAdapterImpl caller, int focusType);
-        // Stylus Writing
-        void handleStylusWritingGestureAction(
-                long nativeImeAdapterAndroid, ImeAdapterImpl caller, ByteBuffer gestureData);
+        void advanceFocusInForm(long nativeImeAdapterAndroid, ImeAdapterImpl caller, int focusType);
     }
 }

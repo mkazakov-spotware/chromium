@@ -1,12 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.compositor.bottombar;
 
 import org.chromium.components.external_intents.ExternalNavigationHandler;
-import org.chromium.ui.base.PageTransition;
-import org.chromium.url.GURL;
+import org.chromium.components.navigation_interception.NavigationParams;
 
 /**
  * An base class for tracking events on the overlay panel.
@@ -36,10 +35,17 @@ public class OverlayContentDelegate {
      */
     public void onTitleUpdated(String title) {}
 
+    /*
+     * Called when the URL is requested to be opened in a new, separate tab.
+     * @param url The URL associated with this request.
+     */
+    public void onOpenNewTabRequested(String url) {}
+
     /**
      * Called when content started loading in the panel.
+     * @param url The URL that is loading.
      */
-    public void onContentLoadStarted() {}
+    public void onContentLoadStarted(String url) {}
 
     /**
      * Called when the navigation entry has been committed.
@@ -49,13 +55,11 @@ public class OverlayContentDelegate {
     /**
      * Determine if a particular navigation should be intercepted.
      * @param externalNavHandler External navigation handler for the activity the panel is in.
-     * @param navigationHandle The NavigationHandle for the current navigation.
+     * @param navigationParams The navigation params for the current navigation.
      * @return True if the navigation should be intercepted.
      */
     public boolean shouldInterceptNavigation(ExternalNavigationHandler externalNavHandler,
-            GURL escapedUrl, @PageTransition int pageTransition, boolean isRedirect,
-            boolean hasUserGesture, boolean isRendererInitiated, GURL referrerUrl,
-            boolean isInPrimaryMainFrame, boolean isExternalProtocol) {
+            NavigationParams navigationParams) {
         return true;
     }
 
@@ -84,9 +88,4 @@ public class OverlayContentDelegate {
      * Called once the WebContents has been created and set up completely.
      */
     public void onContentViewCreated() {}
-
-    /**
-     * Notifies that the document has been loaded and painting started in the content view.
-     */
-    public void onFirstNonEmptyPaint() {}
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,11 @@
 
 #include "base/logging.h"
 #include "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "services/device/geolocation/wifi_data_provider_common.h"
-#include "services/device/geolocation/wifi_data_provider_handle.h"
+#include "services/device/geolocation/wifi_data_provider_manager.h"
 
 namespace device {
 
@@ -90,7 +91,7 @@ const int kNoWifiPollingIntervalMilliseconds = 20 * 1000;  // 20s
 }  // namespace
 
 // static
-WifiDataProvider* WifiDataProviderHandle::DefaultFactoryFunction() {
+WifiDataProvider* WifiDataProviderManager::DefaultFactoryFunction() {
   return new WifiDataProviderMac();
 }
 

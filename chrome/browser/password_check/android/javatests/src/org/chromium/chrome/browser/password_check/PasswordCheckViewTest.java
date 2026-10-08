@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import static org.chromium.base.test.util.CriteriaHelper.pollUiThread;
 import static org.chromium.chrome.browser.password_check.PasswordCheckProperties.CompromisedCredentialProperties.COMPROMISED_CREDENTIAL;
@@ -86,7 +84,6 @@ import org.chromium.base.test.util.ScalableTimeout;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.password_check.PasswordCheckProperties.HeaderProperties;
 import org.chromium.chrome.browser.password_check.internal.R;
-import org.chromium.chrome.browser.password_manager.PasswordCheckReferrer;
 import org.chromium.chrome.browser.password_manager.settings.ReauthenticationManager;
 import org.chromium.chrome.browser.password_manager.settings.ReauthenticationManager.ReauthScope;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
@@ -106,22 +103,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class PasswordCheckViewTest {
-    private static final CompromisedCredential ANA =
-            new CompromisedCredential("https://some-url.com/signin",
-                    new GURL("https://some-url.com/"), "Ana", "some-url.com", "Ana", "password",
-                    "https://some-url.com/.well-known/change-password", "", 1, 1, true, false);
-    private static final CompromisedCredential PHISHED =
-            new CompromisedCredential("http://example.com/signin", new GURL("http://example.com/"),
-                    "", "http://example.com", "(No username)", "DoSomething",
-                    "http://example.com/.well-known/change-password", "", 1, 1, false, true);
+    private static final CompromisedCredential ANA = new CompromisedCredential(
+            "https://some-url.com/signin", new GURL("https://some-url.com/"), "Ana", "some-url.com",
+            "Ana", "password", "https://some-url.com/.well-known/change-password", "", 1, true,
+            false, false, false);
+    private static final CompromisedCredential PHISHED = new CompromisedCredential(
+            "http://example.com/signin", new GURL("http://example.com/"), "", "http://example.com",
+            "(No username)", "DoSomething", "http://example.com/.well-known/change-password", "", 1,
+            false, true, false, false);
     private static final CompromisedCredential LEAKED =
             new CompromisedCredential("https://some-other-url.com/signin",
                     new GURL("https://some-other-url.com/"), "AZiegler", "some-other-url.com",
-                    "AZiegler", "N0M3rcy", "", "com.other.package", 1, 1, true, false);
+                    "AZiegler", "N0M3rcy", "", "com.other.package", 1, true, false, false, false);
     private static final CompromisedCredential LEAKED_AND_PHISHED =
             new CompromisedCredential("https://super-important.com/signin",
                     new GURL("https://super-important.com/"), "HSong", "super-important.com",
-                    "HSong", "N3rfTh1s", "", "com.important.super", 1, 1, true, true);
+                    "HSong", "N3rfTh1s", "", "com.important.super", 1, true, true, false, false);
+    private static final CompromisedCredential SCRIPTED = new CompromisedCredential(
+            "https://script.com/signin", new GURL("https://script.com/"), "Charlie", "script.com",
+            "Charlie", "secret", "https://script.com/.well-known/change-password", "", 1, true,
+            false, true, true);
 
     private static final int LEAKS_COUNT = 2;
 
@@ -130,7 +131,7 @@ public class PasswordCheckViewTest {
     private static final long H_TO_MS = 60 * MIN_TO_MS;
     private static final long DAY_TO_MS = 24 * H_TO_MS;
 
-    private PropertyModel mModel;
+    private PropertyModel mModel = PasswordCheckProperties.createDefaultModel();
     private PasswordCheckFragmentView mPasswordCheckView;
 
     @Mock
@@ -158,7 +159,6 @@ public class PasswordCheckViewTest {
                 });
         setUpUiLaunchedFromSettings();
         runOnUiThreadBlocking(() -> {
-            mModel = PasswordCheckProperties.createDefaultModel();
             PasswordCheckCoordinator.setUpModelChangeProcessors(mModel, mPasswordCheckView);
         });
     }
@@ -521,22 +521,33 @@ public class PasswordCheckViewTest {
 
     @Test
     @MediumTest
-    public void testCredentialDisplays() {
-        runOnUiThreadBlocking(() -> { mModel.get(ITEMS).add(buildCredentialItem(LEAKED)); });
+    public void testCredentialDisplaysChangeButtonWithScript() {
+        runOnUiThreadBlocking(() -> { mModel.get(ITEMS).add(buildCredentialItem(SCRIPTED)); });
         pollUiThread(() -> Criteria.checkThat(getPasswordCheckViewList().getChildCount(), is(1)));
 
         // Origin and username.
-        assertThat(getCredentialOriginAt(0).getText(), is(LEAKED.getDisplayOrigin()));
-        assertThat(getCredentialUserAt(0).getText(), is(LEAKED.getDisplayUsername()));
+        assertThat(getCredentialOriginAt(0).getText(), is(SCRIPTED.getDisplayOrigin()));
+        assertThat(getCredentialUserAt(0).getText(), is(SCRIPTED.getDisplayUsername()));
 
         // Reason to show credential.
         assertThat(getCredentialReasonAt(0).getText(),
                 is(getString(R.string.password_check_credential_row_reason_leaked)));
 
+        // Change button with script.
+        assertNotNull(getCredentialChangeButtonWithScriptAt(0));
+        assertThat(getCredentialChangeButtonWithScriptAt(0).getText(),
+                is(getString(R.string.password_check_credential_row_change_button_caption)));
+
+        // Explanation for change button with script.
+        assertNotNull(getCredentialChangeButtonWithScriptExplanationAt(0));
+        assertThat(getCredentialChangeButtonWithScriptExplanationAt(0).getText(),
+                is(getString(R.string.password_check_credential_row_script_button_explanation)));
+
         // Change button without script.
         assertNotNull(getCredentialChangeButtonAt(0));
         assertThat(getCredentialChangeButtonAt(0).getText(),
-                is(getString(R.string.password_check_credential_row_change_button_caption)));
+                is(getString(
+                        R.string.password_check_credential_row_change_manually_button_caption)));
         assertThat(getCredentialChangeHintAt(0).getVisibility(), is(View.GONE));
     }
 
@@ -553,6 +564,17 @@ public class PasswordCheckViewTest {
 
     @Test
     @MediumTest
+    public void testClickingChangePasswordWithScriptTriggersHandler() {
+        runOnUiThreadBlocking(() -> mModel.get(ITEMS).add(buildCredentialItem(SCRIPTED)));
+        waitForListViewToHaveLength(1);
+
+        TouchCommon.singleClickView(getCredentialChangeButtonWithScriptAt(0));
+
+        waitForEvent(mMockHandler).onChangePasswordWithScriptButtonClick(eq(SCRIPTED));
+    }
+
+    @Test
+    @MediumTest
     public void testClickingEditInMoreMenuTriggersHandler() {
         runOnUiThreadBlocking(() -> mModel.get(ITEMS).add(buildCredentialItem(ANA)));
         waitForListViewToHaveLength(1);
@@ -564,7 +586,7 @@ public class PasswordCheckViewTest {
                         not(is(mPasswordCheckView.getActivity().getWindow().getDecorView()))))
                 .perform(click());
 
-        verify(mMockHandler).onEdit(eq(ANA), eq(mPasswordCheckView.getContext()));
+        verify(mMockHandler).onEdit(eq(ANA));
     }
 
     @Test
@@ -612,13 +634,10 @@ public class PasswordCheckViewTest {
                         recordedConfirmation.incrementAndGet();
                     }
                 };
+        mModel.set(DELETION_ORIGIN, ANA.getDisplayOrigin());
+        runOnUiThreadBlocking(() -> mModel.set(DELETION_CONFIRMATION_HANDLER, fakeHandler));
 
-        runOnUiThreadBlocking(() -> {
-            mModel.set(DELETION_ORIGIN, ANA.getDisplayOrigin());
-            mModel.set(DELETION_CONFIRMATION_HANDLER, fakeHandler);
-        });
-
-        onView(withText(R.string.password_entry_edit_delete_credential_dialog_confirm))
+        onView(withText(R.string.password_check_delete_credential_dialog_confirm))
                 .inRoot(withDecorView(
                         not(is(mPasswordCheckView.getActivity().getWindow().getDecorView()))))
                 .perform(click());
@@ -639,10 +658,8 @@ public class PasswordCheckViewTest {
         ReauthenticationManager.recordLastReauth(
                 System.currentTimeMillis(), ReauthScope.ONE_AT_A_TIME);
 
-        runOnUiThreadBlocking(() -> {
-            mModel.set(VIEW_CREDENTIAL, ANA);
-            mModel.set(VIEW_DIALOG_HANDLER, fakeHandler);
-        });
+        mModel.set(VIEW_CREDENTIAL, ANA);
+        runOnUiThreadBlocking(() -> mModel.set(VIEW_DIALOG_HANDLER, fakeHandler));
         onView(withId(R.id.view_dialog_copy_button)).perform(click());
 
         ClipboardManager clipboard = (ClipboardManager) mPasswordCheckView.getActivity()
@@ -668,10 +685,8 @@ public class PasswordCheckViewTest {
         ReauthenticationManager.recordLastReauth(
                 System.currentTimeMillis(), ReauthScope.ONE_AT_A_TIME);
 
-        runOnUiThreadBlocking(() -> {
-            mModel.set(VIEW_CREDENTIAL, ANA);
-            mModel.set(VIEW_DIALOG_HANDLER, fakeHandler);
-        });
+        mModel.set(VIEW_CREDENTIAL, ANA);
+        runOnUiThreadBlocking(() -> mModel.set(VIEW_DIALOG_HANDLER, fakeHandler));
 
         onView(withText(R.string.close))
                 .inRoot(withDecorView(
@@ -697,10 +712,8 @@ public class PasswordCheckViewTest {
         ReauthenticationManager.recordLastReauth(
                 System.currentTimeMillis(), ReauthScope.ONE_AT_A_TIME);
 
-        runOnUiThreadBlocking(() -> {
-            mModel.set(VIEW_CREDENTIAL, ANA);
-            mModel.set(VIEW_DIALOG_HANDLER, fakeHandler);
-        });
+        mModel.set(VIEW_CREDENTIAL, ANA);
+        runOnUiThreadBlocking(() -> mModel.set(VIEW_DIALOG_HANDLER, fakeHandler));
 
         ReauthenticationManager.recordLastReauth(
                 System.currentTimeMillis() - VALID_REAUTHENTICATION_TIME_INTERVAL_MILLIS,
@@ -710,14 +723,6 @@ public class PasswordCheckViewTest {
         mTestRule.getFragment().onResume();
 
         CriteriaHelper.pollInstrumentationThread(() -> recordedDismiss.get() == 1);
-    }
-
-    @Test
-    @SmallTest
-    public void testHelpHandlerCalled() {
-        when(mComponentUi.handleHelp(any())).thenReturn(true);
-        onView(withId(R.id.menu_id_targeted_help)).perform(click());
-        verify(mComponentUi).handleHelp(any());
     }
 
     private MVCListAdapter.ListItem buildHeader(@PasswordCheckUIStatus int status,
@@ -755,7 +760,9 @@ public class PasswordCheckViewTest {
     }
 
     private MVCListAdapter.ListItem buildCredentialItem(CompromisedCredential credential) {
-        return new MVCListAdapter.ListItem(PasswordCheckProperties.ItemType.COMPROMISED_CREDENTIAL,
+        return new MVCListAdapter.ListItem(credential.hasAutoChangeButton()
+                        ? PasswordCheckProperties.ItemType.COMPROMISED_CREDENTIAL_WITH_SCRIPT
+                        : PasswordCheckProperties.ItemType.COMPROMISED_CREDENTIAL,
                 new PropertyModel
                         .Builder(PasswordCheckProperties.CompromisedCredentialProperties.ALL_KEYS)
                         .with(COMPROMISED_CREDENTIAL, credential)
@@ -856,6 +863,16 @@ public class PasswordCheckViewTest {
     private TextView getCredentialChangeHintAt(int index) {
         return getPasswordCheckViewList().getChildAt(index).findViewById(
                 R.id.credential_change_hint);
+    }
+
+    private ButtonCompat getCredentialChangeButtonWithScriptAt(int index) {
+        return getPasswordCheckViewList().getChildAt(index).findViewById(
+                R.id.credential_change_button_with_script);
+    }
+
+    private TextView getCredentialChangeButtonWithScriptExplanationAt(int index) {
+        return getPasswordCheckViewList().getChildAt(index).findViewById(
+                R.id.script_button_explanation);
     }
 
     private ListMenuButton getCredentialMoreButtonAt(int index) {

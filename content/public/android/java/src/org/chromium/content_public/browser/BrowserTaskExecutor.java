@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,9 +52,9 @@ public class BrowserTaskExecutor implements TaskExecutor {
 
             // TODO(alexclarke): ThreadUtils.getUiThreadHandler shouldn't be in base.
             SingleThreadTaskRunner taskRunner =
-                    new SingleThreadTaskRunnerImpl(ThreadUtils.getUiThreadHandler(), taskTraits);
+                    new SingleThreadTaskRunnerImpl(ThreadUtils.getUiThreadHandler(), taskTraits,
+                            shouldPrioritizeTraits(taskTraits));
             mTaskRunners.put(taskTraits, new WeakReference<>(taskRunner));
-
             return taskRunner;
         }
     }
@@ -78,9 +78,33 @@ public class BrowserTaskExecutor implements TaskExecutor {
                 UiThreadTaskTraitsImpl.DESCRIPTOR.getId(), new BrowserTaskExecutor());
     }
 
+    public static boolean getShouldPrioritizeBootstrapTasks() {
+        return sShouldPrioritizeBootstrapTasks;
+    }
+
+    public static void setShouldPrioritizeBootstrapTasks(boolean shouldPrioritizeBootstrapTasks) {
+        sShouldPrioritizeBootstrapTasks = shouldPrioritizeBootstrapTasks;
+    }
+
+    private static boolean shouldPrioritizeTraits(TaskTraits taskTraits) {
+        if (!sShouldPrioritizeBootstrapTasks) return false;
+
+        UiThreadTaskTraitsImpl impl = taskTraits.getExtension(UiThreadTaskTraitsImpl.DESCRIPTOR);
+        if (impl == null) return false;
+
+        switch (impl.getTaskType()) {
+            case BrowserTaskType.BOOTSTRAP:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
     @GuardedBy("mTaskRunners")
     private final WeakHashMap<TaskTraits, WeakReference<SingleThreadTaskRunner>> mTaskRunners =
             new WeakHashMap<>();
 
     private static boolean sRegistered;
+    private static boolean sShouldPrioritizeBootstrapTasks;
 }

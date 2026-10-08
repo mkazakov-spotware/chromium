@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/check.h"
 #include "base/compiler_specific.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/synchronization/lock.h"
 #include "base/template_util.h"
 #include "base/time/time.h"
@@ -20,7 +21,6 @@
 #include "third_party/blink/public/common/privacy_budget/identifiability_sample_collector.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_study_settings.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_sample.h"
-#include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
 
 namespace blink {
 namespace internal {
@@ -37,10 +37,8 @@ bool IsStudyActive() {
 }
 }  // namespace
 
-const unsigned AggregatingSampleCollector::kMaxTrackedSources;
 const unsigned AggregatingSampleCollector::kMaxTrackedSurfaces;
-const unsigned
-    AggregatingSampleCollector::kMaxTrackedSamplesPerSurfacePerSourceId;
+const unsigned AggregatingSampleCollector::kMaxTrackedSamplesPerSurface;
 const unsigned AggregatingSampleCollector::kMaxUnsentSamples;
 const unsigned AggregatingSampleCollector::kMaxUnsentSources;
 const base::TimeDelta AggregatingSampleCollector::kMaxUnsentSampleAge;
@@ -95,8 +93,6 @@ void AggregatingSampleCollector::FlushSource(ukm::UkmRecorder* recorder,
 
   {
     base::AutoLock l(lock_);
-    per_source_per_surface_samples_.erase(source);
-
     if (unsent_sample_count_ == 0)
       return;
 
@@ -128,7 +124,7 @@ void AggregatingSampleCollector::FlushSource(ukm::UkmRecorder* recorder,
 void AggregatingSampleCollector::ResetForTesting() {
   base::AutoLock l(lock_);
 
-  per_source_per_surface_samples_.clear();
+  per_surface_samples_.clear();
   unsent_metrics_.clear();
   unsent_sample_count_ = 0;
 }
@@ -152,54 +148,32 @@ bool AggregatingSampleCollector::TryAcceptSamples(
 void AggregatingSampleCollector::TryAcceptSingleSample(
     ukm::SourceId new_source,
     const IdentifiableSample& new_sample) {
-  if (!seen_surfaces_.count(new_sample.surface)) {
-    if (seen_surfaces_.size() >= kMaxTrackedSurfaces)
-      // New surface, but can't add any more.
-      return;
-  }
+  auto samples_for_surface_it = per_surface_samples_.find(new_sample.surface);
 
-  auto surfaces_for_source_it =
-      per_source_per_surface_samples_.find(new_source);
-  if (surfaces_for_source_it == per_source_per_surface_samples_.end()) {
-    // First time we see this source id.
-
-    if (per_source_per_surface_samples_.size() >= kMaxTrackedSources)
+  if (samples_for_surface_it == per_surface_samples_.end()) {
+    // New surface, but can't add any more.
+    if (per_surface_samples_.size() >= kMaxTrackedSurfaces)
       return;
 
-    per_source_per_surface_samples_.emplace(
-        new_source,
-        std::unordered_map<IdentifiableSurface, Samples,
-                           IdentifiableSurfaceHash>(
-            {{new_sample.surface, Samples{.samples = {{new_sample.value}},
-                                          .total_value_count = 1}}}));
+    per_surface_samples_.emplace(
+        new_sample.surface,
+        Samples{.samples = {{new_sample.value}}, .total_value_count = 1});
   } else {
-    auto samples_for_surface_it =
-        surfaces_for_source_it->second.find(new_sample.surface);
+    Samples& sample_set = samples_for_surface_it->second;
+    ++sample_set.total_value_count;
 
-    if (samples_for_surface_it == surfaces_for_source_it->second.end()) {
-      surfaces_for_source_it->second.emplace(
-          new_sample.surface,
-          Samples{.samples = {{new_sample.value}}, .total_value_count = 1});
-    } else {
-      Samples& sample_set = samples_for_surface_it->second;
-      ++sample_set.total_value_count;
+    // Already exists.
+    if (sample_set.samples.contains(new_sample.value))
+      return;
 
-      // Already exists.
-      if (sample_set.samples.contains(new_sample.value))
-        return;
-
-      // Want to add one, but can't.
-      if (sample_set.samples.size() >=
-          kMaxTrackedSamplesPerSurfacePerSourceId) {
-        sample_set.overflowed = true;
-        return;
-      }
-
-      sample_set.samples.insert(new_sample.value);
+    // Want to add one, but can't.
+    if (sample_set.samples.size() >= kMaxTrackedSamplesPerSurface) {
+      sample_set.overflowed = true;
+      return;
     }
-  }
 
-  seen_surfaces_.insert(new_sample.surface);
+    sample_set.samples.insert(new_sample.value);
+  }
 
   AddNewUnsentSample(new_source, new_sample);
 }
@@ -214,8 +188,7 @@ void AggregatingSampleCollector::AddNewUnsentSample(
     unsent_metrics_.emplace(source,
                             UkmMetricsContainerType({{kNewKey, kNewValue}}));
   }
-  DCHECK_LE(unsent_metrics_.count(source),
-            kMaxTrackedSamplesPerSurfacePerSourceId);
+  DCHECK_LE(unsent_metrics_.count(source), kMaxTrackedSamplesPerSurface);
 
   ++unsent_sample_count_;
 

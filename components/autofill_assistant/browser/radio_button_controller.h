@@ -1,15 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_RADIO_BUTTON_CONTROLLER_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_RADIO_BUTTON_CONTROLLER_H_
 
+#include <map>
+#include <set>
 #include <string>
 
-#include "base/containers/flat_map.h"
-#include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/autofill_assistant/browser/user_model.h"
 
@@ -43,12 +42,12 @@ class RadioButtonController {
 
  private:
   // Maps radiogroup identifiers to the list of corresponding model identifiers.
-  base::flat_map<std::string, base::flat_set<std::string>> radio_groups_;
+  std::map<std::string, std::set<std::string>> radio_groups_;
 
  private:
   friend class RadioButtonControllerTest;
 
-  raw_ptr<UserModel> user_model_;
+  UserModel* user_model_;
   base::WeakPtrFactory<RadioButtonController> weak_ptr_factory_{this};
 };
 

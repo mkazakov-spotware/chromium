@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,7 @@ import android.content.res.Configuration;
 import android.graphics.Point;
 import android.os.Build;
 import android.support.test.InstrumentationRegistry;
-
-import androidx.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiDevice;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -26,7 +25,7 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 
 import org.chromium.base.test.util.Feature;
-import org.chromium.components.version_info.VersionInfo;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -177,20 +176,20 @@ public class ScreenShooter extends TestWatcher {
                 orientation == Configuration.ORIENTATION_LANDSCAPE ? "landscape" : "portrait");
         setFilterValue(filters, ANDROID_VERSION_FILTER, Build.VERSION.RELEASE);
         setFilterValue(filters, CHROME_VERSION_FILTER,
-                Integer.toString(VersionInfo.getProductMajorVersion()));
+                Integer.toString(ChromeVersionInfo.getProductMajorVersion()));
         String channelName = "Unknown";
-        if (VersionInfo.isLocalBuild()) {
+        if (ChromeVersionInfo.isLocalBuild()) {
             channelName = "Local Build";
-        } else if (VersionInfo.isCanaryBuild()) {
+        } else if (ChromeVersionInfo.isCanaryBuild()) {
             channelName = "Canary";
-        } else if (VersionInfo.isBetaBuild()) {
+        } else if (ChromeVersionInfo.isBetaBuild()) {
             channelName = "Beta";
-        } else if (VersionInfo.isDevBuild()) {
+        } else if (ChromeVersionInfo.isDevBuild()) {
             channelName = "Dev";
-        } else if (VersionInfo.isStableBuild()) {
+        } else if (ChromeVersionInfo.isStableBuild()) {
             channelName = "Stable";
         }
-        if (VersionInfo.isOfficialBuild()) {
+        if (ChromeVersionInfo.isOfficialBuild()) {
             channelName = channelName + " Official";
         }
         setFilterValue(filters, CHROME_CHANNEL_FILTER, channelName);
@@ -200,7 +199,7 @@ public class ScreenShooter extends TestWatcher {
         DateFormat formatter =
                 DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.US);
         metadata.put("Capture time (UTC)", formatter.format(new Date()));
-        metadata.put("Chrome full product version", VersionInfo.getProductVersion());
+        metadata.put("Chrome full product version", ChromeVersionInfo.getProductVersion());
         metadata.put("Android build fingerprint", Build.FINGERPRINT);
 
         try {

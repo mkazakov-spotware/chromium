@@ -1,7 +1,6 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 
 import contextlib
 import logging
@@ -11,14 +10,14 @@ import tempfile
 from devil.utils import reraiser_thread
 
 
-class Datatype:
+class Datatype(object):
   HTML = 'text/html'
   JSON = 'application/json'
   PNG = 'image/png'
   TEXT = 'text/plain'
 
 
-class OutputManager:
+class OutputManager(object):
 
   def __init__(self):
     """OutputManager Constructor.
@@ -88,17 +87,14 @@ class OutputManager:
     self.TearDown()
 
 
-class ArchivedFile:
+class ArchivedFile(object):
 
   def __init__(self, out_filename, out_subdir, datatype):
     self._out_filename = out_filename
     self._out_subdir = out_subdir
     self._datatype = datatype
 
-    mode = 'w+'
-    if datatype == Datatype.PNG:
-      mode = 'w+b'
-    self._f = tempfile.NamedTemporaryFile(mode=mode, delete=False)
+    self._f = tempfile.NamedTemporaryFile(delete=False)
     self._ready_to_archive = False
 
   @property
@@ -144,6 +140,7 @@ class ArchivedFile:
     content addressed files. This is called after the file is written but
     before archiving has begun.
     """
+    pass
 
   def Archive(self):
     """Archives file."""

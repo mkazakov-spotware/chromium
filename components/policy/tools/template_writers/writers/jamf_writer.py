@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2020 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -49,7 +49,6 @@ class JamfWriter(template_writer.TemplateWriter):
     Returns:
       Generated output for the passed template definition.
     '''
-    self.messages = template['messages']
     # Keep track of all items that can be referred to by an id.
     # This is used for '$ref' fields in the policy templates.
     ref_ids_schemas = {}
@@ -81,7 +80,6 @@ class JamfWriter(template_writer.TemplateWriter):
     policies = [policy for policy in policies if self.IsPolicySupported(policy)]
     output = {
         'title': self.config['bundle_id'],
-        'version': self.config['version'].split(".", 1)[0],
         'description': self.config['app_name'],
         'options': {
             'remove_empty_properties': True
@@ -91,16 +89,9 @@ class JamfWriter(template_writer.TemplateWriter):
 
     for policy in policies:
       output['properties'][policy['name']] = {
-          'title':
-          policy['name'],
-          'description':
-          policy['caption'],
-          'type':
-          self.TYPE_TO_INPUT[policy['type']],
-          'links': [{
-              'rel': self.messages['doc_policy_documentation']['text'],
-              'href': self.config['doc_url'] + '#' + policy['name']
-          }]
+          'title': policy['name'],
+          'description': policy['caption'],
+          'type': self.TYPE_TO_INPUT[policy['type']]
       }
 
       policy_output = output['properties'][policy['name']]
@@ -194,8 +185,7 @@ class JamfWriter(template_writer.TemplateWriter):
       return
     if 'id' in obj:
       ids_in_ancestry.add(obj['id'])
-    # Make a copy of items since we are going to change |obj|.
-    for key, value in list(obj.items()):
+    for key, value in obj.items():
       if type(value) is not dict:
         continue
       if '$ref' in value:

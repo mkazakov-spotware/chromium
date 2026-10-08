@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/bluetooth/bluetooth_socket_mac.h"
-
-#include "base/memory/raw_ptr.h"
 
 #import <IOBluetooth/IOBluetooth.h>
 #include <stdint.h>
@@ -22,7 +20,9 @@
 #include "base/mac/scoped_cftyperef.h"
 #include "base/memory/ref_counted.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/optional.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
 #include "device/bluetooth/bluetooth_adapter_mac.h"
@@ -33,7 +33,6 @@
 #include "device/bluetooth/bluetooth_rfcomm_channel_mac.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 using device::BluetoothSocket;
 
@@ -52,22 +51,20 @@ using device::BluetoothSocket;
   IOBluetoothDevice* _device;  // weak
 }
 
-- (instancetype)initWithSocket:(scoped_refptr<device::BluetoothSocketMac>)socket
-                        device:(IOBluetoothDevice*)device
-              success_callback:(base::OnceClosure)success_callback
-                error_callback:
-                    (BluetoothSocket::ErrorCompletionCallback)error_callback;
+- (id)initWithSocket:(scoped_refptr<device::BluetoothSocketMac>)socket
+              device:(IOBluetoothDevice*)device
+    success_callback:(base::OnceClosure)success_callback
+      error_callback:(BluetoothSocket::ErrorCompletionCallback)error_callback;
 - (void)sdpQueryComplete:(IOBluetoothDevice*)device status:(IOReturn)status;
 
 @end
 
 @implementation SDPQueryListener
 
-- (instancetype)initWithSocket:(scoped_refptr<device::BluetoothSocketMac>)socket
-                        device:(IOBluetoothDevice*)device
-              success_callback:(base::OnceClosure)success_callback
-                error_callback:
-                    (BluetoothSocket::ErrorCompletionCallback)error_callback {
+- (id)initWithSocket:(scoped_refptr<device::BluetoothSocketMac>)socket
+              device:(IOBluetoothDevice*)device
+    success_callback:(base::OnceClosure)success_callback
+      error_callback:(BluetoothSocket::ErrorCompletionCallback)error_callback {
   if ((self = [super init])) {
     _socket = socket;
     _device = device;
@@ -76,15 +73,6 @@ using device::BluetoothSocket;
   }
 
   return self;
-}
-
-- (void)dealloc {
-  if (_error_callback) {
-    // The delegate's sdpQueryComplete was not called. This may happen if no
-    // target is specified.
-    std::move(_error_callback).Run("No target");
-  }
-  [super dealloc];
 }
 
 - (void)sdpQueryComplete:(IOBluetoothDevice*)device status:(IOReturn)status {
@@ -100,15 +88,15 @@ using device::BluetoothSocket;
 @interface BluetoothRfcommConnectionListener : NSObject {
  @private
   // The socket that owns |self|.
-  raw_ptr<device::BluetoothSocketMac> _socket;  // weak
+  device::BluetoothSocketMac* _socket;  // weak
 
   // The OS mechanism used to subscribe to and unsubscribe from RFCOMM channel
   // creation notifications.
   IOBluetoothUserNotification* _rfcommNewChannelNotification;  // weak
 }
 
-- (instancetype)initWithSocket:(device::BluetoothSocketMac*)socket
-                     channelID:(BluetoothRFCOMMChannelID)channelID;
+- (id)initWithSocket:(device::BluetoothSocketMac*)socket
+           channelID:(BluetoothRFCOMMChannelID)channelID;
 - (void)rfcommChannelOpened:(IOBluetoothUserNotification*)notification
                     channel:(IOBluetoothRFCOMMChannel*)rfcommChannel;
 
@@ -116,8 +104,8 @@ using device::BluetoothSocket;
 
 @implementation BluetoothRfcommConnectionListener
 
-- (instancetype)initWithSocket:(device::BluetoothSocketMac*)socket
-                     channelID:(BluetoothRFCOMMChannelID)channelID {
+- (id)initWithSocket:(device::BluetoothSocketMac*)socket
+           channelID:(BluetoothRFCOMMChannelID)channelID {
   if ((self = [super init])) {
     _socket = socket;
 
@@ -162,15 +150,15 @@ using device::BluetoothSocket;
 @interface BluetoothL2capConnectionListener : NSObject {
  @private
   // The socket that owns |self|.
-  raw_ptr<device::BluetoothSocketMac> _socket;  // weak
+  device::BluetoothSocketMac* _socket;  // weak
 
   // The OS mechanism used to subscribe to and unsubscribe from L2CAP channel
   // creation notifications.
   IOBluetoothUserNotification* _l2capNewChannelNotification;  // weak
 }
 
-- (instancetype)initWithSocket:(device::BluetoothSocketMac*)socket
-                           psm:(BluetoothL2CAPPSM)psm;
+- (id)initWithSocket:(device::BluetoothSocketMac*)socket
+                 psm:(BluetoothL2CAPPSM)psm;
 - (void)l2capChannelOpened:(IOBluetoothUserNotification*)notification
                    channel:(IOBluetoothL2CAPChannel*)l2capChannel;
 
@@ -178,8 +166,8 @@ using device::BluetoothSocket;
 
 @implementation BluetoothL2capConnectionListener
 
-- (instancetype)initWithSocket:(device::BluetoothSocketMac*)socket
-                           psm:(BluetoothL2CAPPSM)psm {
+- (id)initWithSocket:(device::BluetoothSocketMac*)socket
+                 psm:(BluetoothL2CAPPSM)psm {
   if ((self = [super init])) {
     _socket = socket;
 
@@ -258,7 +246,7 @@ NSString* IntToNSString(int integer) {
 // corresponding to the provided |uuid|, |name|, and |protocol_definition|. Does
 // not include a service name in the definition if |name| is null.
 NSDictionary* BuildServiceDefinition(const BluetoothUUID& uuid,
-                                     const absl::optional<std::string>& name,
+                                     const base::Optional<std::string>& name,
                                      NSArray* protocol_definition) {
   NSMutableDictionary* service_definition = [NSMutableDictionary dictionary];
 
@@ -270,17 +258,18 @@ NSDictionary* BuildServiceDefinition(const BluetoothUUID& uuid,
     const int kServiceNameKey =
         kEnglishLanguageBase + kBluetoothSDPAttributeIdentifierServiceName;
     NSString* service_name = base::SysUTF8ToNSString(*name);
-    service_definition[IntToNSString(kServiceNameKey)] = service_name;
+    [service_definition setObject:service_name
+                           forKey:IntToNSString(kServiceNameKey)];
   }
 
   const int kUUIDsKey = kBluetoothSDPAttributeIdentifierServiceClassIDList;
   NSArray* uuids = @[GetIOBluetoothSDPUUID(uuid)];
-  service_definition[IntToNSString(kUUIDsKey)] = uuids;
+  [service_definition setObject:uuids forKey:IntToNSString(kUUIDsKey)];
 
   const int kProtocolDefinitionsKey =
       kBluetoothSDPAttributeIdentifierProtocolDescriptorList;
-  service_definition[IntToNSString(kProtocolDefinitionsKey)] =
-      protocol_definition;
+  [service_definition setObject:protocol_definition
+                         forKey:IntToNSString(kProtocolDefinitionsKey)];
 
   return service_definition;
 }
@@ -350,7 +339,7 @@ IOBluetoothSDPServiceRecord* RegisterService(
 // Returns true iff the |requested_channel_id| was registered in the RFCOMM
 // |service_record|. If it was, also updates |registered_channel_id| with the
 // registered value, as the requested id may have been left unspecified.
-bool VerifyRfcommService(const absl::optional<int>& requested_channel_id,
+bool VerifyRfcommService(const base::Optional<int>& requested_channel_id,
                          BluetoothRFCOMMChannelID* registered_channel_id,
                          IOBluetoothSDPServiceRecord* service_record) {
   // Test whether the requested channel id was available.
@@ -386,7 +375,7 @@ IOBluetoothSDPServiceRecord* RegisterRfcommService(
 // Returns true iff the |requested_psm| was registered in the L2CAP
 // |service_record|. If it was, also updates |registered_psm| with the
 // registered value, as the requested PSM may have been left unspecified.
-bool VerifyL2capService(const absl::optional<int>& requested_psm,
+bool VerifyL2capService(const base::Optional<int>& requested_psm,
                         BluetoothL2CAPPSM* registered_psm,
                         IOBluetoothSDPServiceRecord* service_record) {
   // Test whether the requested PSM was available.
@@ -558,7 +547,7 @@ void BluetoothSocketMac::OnSDPQueryComplete(
   // Note: It's important to set the connect callbacks *prior* to opening the
   // channel, as opening the channel can synchronously call into
   // OnChannelOpenComplete().
-  connect_callbacks_ = std::make_unique<ConnectCallbacks>();
+  connect_callbacks_.reset(new ConnectCallbacks());
   connect_callbacks_->success_callback = std::move(success_callback);
   connect_callbacks_->error_callback = std::move(error_callback);
 
@@ -628,14 +617,19 @@ void BluetoothSocketMac::OnChannelOpenComplete(
   std::move(temp->success_callback).Run();
 }
 
-void BluetoothSocketMac::Disconnect(base::OnceClosure callback) {
+void BluetoothSocketMac::Close() {
   DCHECK(thread_checker_.CalledOnValidThread());
 
   if (channel_)
     ReleaseChannel();
   else if (service_record_.get())
     ReleaseListener();
+}
 
+void BluetoothSocketMac::Disconnect(base::OnceClosure callback) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  Close();
   std::move(callback).Run();
 }
 
@@ -672,7 +666,7 @@ void BluetoothSocketMac::Receive(
   }
 
   // Set the receive callback to use when data is received.
-  receive_callbacks_ = std::make_unique<ReceiveCallbacks>();
+  receive_callbacks_.reset(new ReceiveCallbacks());
   receive_callbacks_->success_callback = std::move(success_callback);
   receive_callbacks_->error_callback = std::move(error_callback);
 }
@@ -814,7 +808,7 @@ void BluetoothSocketMac::Accept(AcceptCompletionCallback success_callback,
     return;
   }
 
-  accept_request_ = std::make_unique<AcceptRequest>();
+  accept_request_.reset(new AcceptRequest);
   accept_request_->success_callback = std::move(success_callback);
   accept_request_->error_callback = std::move(error_callback);
 
@@ -843,7 +837,7 @@ void BluetoothSocketMac::AcceptConnectionRequest() {
   // Associating the socket can synchronously call into OnChannelOpenComplete().
   // Make sure to first set the new socket to be connecting and hook it up to
   // run the accept callback with the device object.
-  client_socket->connect_callbacks_ = std::make_unique<ConnectCallbacks>();
+  client_socket->connect_callbacks_.reset(new ConnectCallbacks());
   client_socket->connect_callbacks_->success_callback = base::BindOnce(
       std::move(accept_request_->success_callback), device, client_socket);
   client_socket->connect_callbacks_->error_callback =

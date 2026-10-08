@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
 #include "components/autofill/core/browser/payments/full_card_request.h"
 
@@ -32,12 +33,6 @@ class FullCardRequestResultDelegateBridge
  public:
   FullCardRequestResultDelegateBridge(
       id<FullCardRequestResultDelegateObserving> delegate);
-
-  FullCardRequestResultDelegateBridge(
-      const FullCardRequestResultDelegateBridge&) = delete;
-  FullCardRequestResultDelegateBridge& operator=(
-      const FullCardRequestResultDelegateBridge&) = delete;
-
   ~FullCardRequestResultDelegateBridge() override;
 
   base::WeakPtr<FullCardRequestResultDelegateBridge> GetWeakPtr();
@@ -47,13 +42,13 @@ class FullCardRequestResultDelegateBridge
   void OnFullCardRequestSucceeded(
       const autofill::payments::FullCardRequest& full_card_request,
       const autofill::CreditCard& card,
-      const std::u16string& cvc) override;
-  void OnFullCardRequestFailed(
-      autofill::CreditCard::RecordType card_type,
-      autofill::payments::FullCardRequest::FailureType failure_type) override;
+      const base::string16& cvc) override;
+  void OnFullCardRequestFailed() override;
 
   __weak id<FullCardRequestResultDelegateObserving> delegate_ = nil;
   base::WeakPtrFactory<FullCardRequestResultDelegateBridge> weak_ptr_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(FullCardRequestResultDelegateBridge);
 };
 
 #endif  // IOS_CHROME_BROWSER_UI_AUTOFILL_MANUAL_FILL_FULL_CARD_REQUEST_RESULT_DELEGATE_BRIDGE_H_

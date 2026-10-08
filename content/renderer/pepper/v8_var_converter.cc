@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,12 +30,6 @@
 #include "ppapi/shared_impl/var_tracker.h"
 #include "third_party/blink/public/web/web_array_buffer.h"
 #include "third_party/blink/public/web/web_array_buffer_converter.h"
-#include "v8/include/v8-container.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-local-handle.h"
-#include "v8/include/v8-microtask-queue.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-primitive.h"
 
 using ppapi::ArrayBufferVar;
 using ppapi::ArrayVar;
@@ -301,7 +295,7 @@ V8VarConverter::V8VarConverter(PP_Instance instance,
                                AllowObjectVars object_vars_allowed)
     : instance_(instance),
       object_vars_allowed_(object_vars_allowed) {
-  resource_converter_ = std::make_unique<ResourceConverterImpl>(instance);
+  resource_converter_.reset(new ResourceConverterImpl(instance));
 }
 
 V8VarConverter::V8VarConverter(
@@ -329,9 +323,6 @@ bool V8VarConverter::ToV8Value(const PP_Var& var,
   v8::Context::Scope context_scope(context);
   v8::Isolate* isolate = context->GetIsolate();
   v8::EscapableHandleScope handle_scope(isolate);
-  v8::MicrotasksScope microtasks_scope(
-      isolate, context->GetMicrotaskQueue(),
-      v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   VarHandleMap visited_ids;
   ParentVarSet parent_ids;
@@ -484,11 +475,7 @@ bool V8VarConverter::FromV8ValueInternal(
     v8::Local<v8::Context> context,
     ppapi::ScopedPPVar* result_var) {
   v8::Context::Scope context_scope(context);
-  v8::Isolate* isolate = context->GetIsolate();
-  v8::HandleScope handle_scope(isolate);
-  v8::MicrotasksScope microtasks_scope(
-      isolate, context->GetMicrotaskQueue(),
-      v8::MicrotasksScope::kDoNotRunMicrotasks);
+  v8::HandleScope handle_scope(context->GetIsolate());
 
   HandleVarMap visited_handles;
   ParentHandleSet parent_handles;
@@ -586,7 +573,8 @@ bool V8VarConverter::FromV8ValueInternal(
 
         // Extend this test to cover more types as necessary and if sensible.
         if (!key->IsString() && !key->IsNumber()) {
-          NOTREACHED() << "Key \"" << *v8::String::Utf8Value(isolate, key)
+          NOTREACHED() << "Key \""
+                       << *v8::String::Utf8Value(context->GetIsolate(), key)
                        << "\" "
                           "is neither a string nor a number";
           return false;
@@ -600,7 +588,7 @@ bool V8VarConverter::FromV8ValueInternal(
           continue;
         }
 
-        v8::String::Utf8Value name_utf8(isolate, key_string);
+        v8::String::Utf8Value name_utf8(context->GetIsolate(), key_string);
 
         v8::Local<v8::Value> child_v8;
         if (!v8_object->Get(context, key).ToLocal(&child_v8))

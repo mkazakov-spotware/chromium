@@ -1,13 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_MATH_VARIADIC_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_MATH_VARIADIC_H_
 
-#include "base/ranges/algorithm.h"
-#include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/css/css_math_expression_node.h"
 #include "third_party/blink/renderer/core/css/cssom/css_math_value.h"
 #include "third_party/blink/renderer/core/css/cssom/css_numeric_array.h"
 
@@ -37,8 +34,10 @@ class CORE_EXPORT CSSMathVariadic : public CSSMathValue {
 
     // We can safely cast here as we know 'other' has the same type as us.
     const auto& other_variadic = static_cast<const CSSMathVariadic&>(other);
-    return base::ranges::equal(
-        NumericValues(), other_variadic.NumericValues(),
+    return std::equal(
+        NumericValues().begin(), NumericValues().end(),
+        other_variadic.NumericValues().begin(),
+        other_variadic.NumericValues().end(),
         [](const auto& a, const auto& b) { return a->Equals(*b); });
   }
 
@@ -60,22 +59,6 @@ class CORE_EXPORT CSSMathVariadic : public CSSMathValue {
     }
 
     return final_type;
-  }
-
-  CSSMathExpressionNode* ToCalcExporessionNodeForVariadic(
-      CSSMathOperator op) const {
-    CSSMathExpressionNode* node = NumericValues()[0]->ToCalcExpressionNode();
-    if (!node)
-      return nullptr;
-    for (wtf_size_t i = 1; i < NumericValues().size(); i++) {
-      CSSMathExpressionNode* next_arg =
-          NumericValues()[i]->ToCalcExpressionNode();
-      if (!next_arg)
-        return nullptr;
-      node = CSSMathExpressionOperation::CreateArithmeticOperation(
-          node, next_arg, op);
-    }
-    return node;
   }
 
  private:

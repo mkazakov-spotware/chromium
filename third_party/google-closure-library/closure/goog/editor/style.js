@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utilties for working with the styles of DOM nodes, and
@@ -21,6 +29,7 @@
 
 goog.provide('goog.editor.style');
 
+goog.require('goog.array');
 goog.require('goog.asserts');
 goog.require('goog.dom');
 goog.require('goog.dom.NodeType');
@@ -31,7 +40,6 @@ goog.require('goog.events.EventType');
 goog.require('goog.object');
 goog.require('goog.style');
 goog.require('goog.userAgent');
-goog.requireType('goog.events.Event');
 
 
 /**
@@ -49,7 +57,6 @@ goog.requireType('goog.events.Event');
  */
 goog.editor.style.getComputedOrCascadedStyle_ = function(
     node, stylePropertyName) {
-  'use strict';
   if (node.nodeType != goog.dom.NodeType.ELEMENT) {
     // Only element nodes have style.
     return null;
@@ -68,7 +75,6 @@ goog.editor.style.getComputedOrCascadedStyle_ = function(
  * @return {boolean} Whether the element inherits CSS display: block.
  */
 goog.editor.style.isDisplayBlock = function(node) {
-  'use strict';
   return goog.editor.style.getComputedOrCascadedStyle_(node, 'display') ==
       'block';
 };
@@ -84,7 +90,6 @@ goog.editor.style.isDisplayBlock = function(node) {
  * @return {boolean} Whether the element is a container.
  */
 goog.editor.style.isContainer = function(element) {
-  'use strict';
   var nodeName = element && element.nodeName;
   return !!(
       element &&
@@ -101,7 +106,6 @@ goog.editor.style.isContainer = function(element) {
  * @return {Element} The element which contains node.
  */
 goog.editor.style.getContainer = function(node) {
-  'use strict';
   // We assume that every node must have a container.
   return /** @type {Element} */ (
       goog.dom.getAncestor(node, goog.editor.style.isContainer, true));
@@ -125,7 +129,6 @@ goog.editor.style.SELECTABLE_INPUT_TYPES_ =
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 goog.editor.style.cancelMouseDownHelper_ = function(e) {
-  'use strict';
   var targetTagName = e.target.tagName;
   if (targetTagName != goog.dom.TagName.TEXTAREA &&
       targetTagName != goog.dom.TagName.INPUT) {
@@ -143,7 +146,6 @@ goog.editor.style.cancelMouseDownHelper_ = function(e) {
  *     listeners are destroyed as well.
  */
 goog.editor.style.makeUnselectable = function(element, eventHandler) {
-  'use strict';
   if (goog.editor.BrowserFeature.HAS_UNSELECTABLE_STYLE) {
     // The mousing down on a node should not blur the focused node.
     // This is consistent with how IE works.
@@ -164,7 +166,7 @@ goog.editor.style.makeUnselectable = function(element, eventHandler) {
       goog.editor.style.makeSelectable(input);
     }
   }
-  Array.prototype.forEach.call(
+  goog.array.forEach(
       goog.dom.getElementsByTagName(
           goog.dom.TagName.TEXTAREA, goog.asserts.assert(element)),
       goog.editor.style.makeSelectable);
@@ -202,7 +204,6 @@ goog.editor.style.makeUnselectable = function(element, eventHandler) {
  * @param {!Element} element The element to make selectable.
  */
 goog.editor.style.makeSelectable = function(element) {
-  'use strict';
   goog.style.setUnselectable(element, false);
   if (goog.editor.BrowserFeature.HAS_UNSELECTABLE_STYLE) {
     // Go up ancestor chain, searching for nodes that are unselectable.

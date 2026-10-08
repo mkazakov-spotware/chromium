@@ -1,1 +1,4 @@
-file://ppapi/OWNERS
+bbudge@chromium.org
+raymes@chromium.org
+
+# COMPONENT: Internals>Plugins>Pepper

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ void TileDrawQuad::SetNew(const SharedQuadState* shared_quad_state,
                           const gfx::Rect& rect,
                           const gfx::Rect& visible_rect,
                           bool needs_blending,
-                          ResourceId resource_id,
+                          unsigned resource_id,
                           const gfx::RectF& tex_coord_rect,
                           const gfx::Size& texture_size,
                           bool is_premultiplied,
@@ -36,7 +36,7 @@ void TileDrawQuad::SetAll(const SharedQuadState* shared_quad_state,
                           const gfx::Rect& rect,
                           const gfx::Rect& visible_rect,
                           bool needs_blending,
-                          ResourceId resource_id,
+                          unsigned resource_id,
                           const gfx::RectF& tex_coord_rect,
                           const gfx::Size& texture_size,
                           bool is_premultiplied,
@@ -57,8 +57,7 @@ const TileDrawQuad* TileDrawQuad::MaterialCast(const DrawQuad* quad) {
 
 void TileDrawQuad::ExtendValue(base::trace_event::TracedValue* value) const {
   ContentDrawQuadBase::ExtendValue(value);
-  value->SetInteger("resource_id",
-                    resources.ids[kResourceIdIndex].GetUnsafeValue());
+  value->SetInteger("resource_id", resources.ids[kResourceIdIndex]);
 }
 
 }  // namespace viz

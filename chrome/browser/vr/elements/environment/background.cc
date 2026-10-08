@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -120,7 +120,7 @@ GLuint UploadImage(std::unique_ptr<SkBitmap> bitmap,
   DCHECK(surface->get());
   SkCanvas* canvas = (*surface)->getCanvas();
   if (bitmap) {
-    canvas->drawImage(bitmap->asImage(), 0, 0);
+    canvas->drawBitmap(*bitmap, 0, 0);
   } else {
     // If we are missing a gradient image, blending with channels at .5 will
     // have no effect -- it will be as if there is no gradient image.
@@ -142,7 +142,7 @@ float RemapLatitude(float t) {
 Background::Background() {
   SetTransitionedProperties(
       {NORMAL_COLOR_FACTOR, INCOGNITO_COLOR_FACTOR, FULLSCREEN_COLOR_FACTOR});
-  SetTransitionDuration(base::Milliseconds(2500));
+  SetTransitionDuration(base::TimeDelta::FromMilliseconds(2500));
 }
 
 Background::~Background() = default;
@@ -187,18 +187,18 @@ void Background::SetGradientImages(
 }
 
 void Background::SetNormalFactor(float factor) {
-  animator().TransitionFloatTo(this, last_frame_time(), NORMAL_COLOR_FACTOR,
-                               normal_factor_, factor);
+  animation().TransitionFloatTo(last_frame_time(), NORMAL_COLOR_FACTOR,
+                                normal_factor_, factor);
 }
 
 void Background::SetIncognitoFactor(float factor) {
-  animator().TransitionFloatTo(this, last_frame_time(), INCOGNITO_COLOR_FACTOR,
-                               incognito_factor_, factor);
+  animation().TransitionFloatTo(last_frame_time(), INCOGNITO_COLOR_FACTOR,
+                                incognito_factor_, factor);
 }
 
 void Background::SetFullscreenFactor(float factor) {
-  animator().TransitionFloatTo(this, last_frame_time(), FULLSCREEN_COLOR_FACTOR,
-                               fullscreen_factor_, factor);
+  animation().TransitionFloatTo(last_frame_time(), FULLSCREEN_COLOR_FACTOR,
+                                fullscreen_factor_, factor);
 }
 
 void Background::CreateBackgroundTexture() {
@@ -221,9 +221,9 @@ void Background::CreateGradientTextures() {
                   provider_, &fullscreen_gradient_surface_);
 }
 
-void Background::OnFloatAnimated(const float& value,
-                                 int target_property_id,
-                                 gfx::KeyframeModel* keyframe_model) {
+void Background::NotifyClientFloatAnimated(float value,
+                                           int target_property_id,
+                                           cc::KeyframeModel* keyframe_model) {
   switch (target_property_id) {
     case NORMAL_COLOR_FACTOR:
       normal_factor_ = value;
@@ -235,7 +235,8 @@ void Background::OnFloatAnimated(const float& value,
       fullscreen_factor_ = value;
       break;
     default:
-      UiElement::OnFloatAnimated(value, target_property_id, keyframe_model);
+      UiElement::NotifyClientFloatAnimated(value, target_property_id,
+                                           keyframe_model);
   }
 }
 

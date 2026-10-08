@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -26,7 +26,8 @@ source_set("test_common") {
   deps = [
     "//base",
     "//chrome/updater:base",
-    "//chrome/updater:constants_test",
+    "//chrome/updater/win:app_install_controller",
+    "//chrome/updater/win:lib",
   ]
 }
 
@@ -37,6 +38,8 @@ source_set("test_executables") {
     "test_executables.cc",
     "test_executables.h",
   ]
+
+  data_deps = [ ":updater_test_process" ]
 
   deps = [
     ":test_common",
@@ -57,7 +60,6 @@ executable("updater_test_process") {
     "//base",
     "//base/test:test_support",
     "//build/win:default_exe_manifest",
-    "//chrome/updater:base",
-    "//chrome/updater:constants_header",
+    "//chrome/updater:lib",
   ]
 }

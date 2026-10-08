@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,8 @@ SpellCheckHostMetrics::SpellCheckHostMetrics()
       start_time_(base::TimeTicks::Now()) {
   const uint64_t kHistogramTimerDurationInMinutes = 30;
   recording_timer_.Start(FROM_HERE,
-                         base::Minutes(kHistogramTimerDurationInMinutes), this,
-                         &SpellCheckHostMetrics::OnHistogramTimerExpired);
+      base::TimeDelta::FromMinutes(kHistogramTimerDurationInMinutes),
+      this, &SpellCheckHostMetrics::OnHistogramTimerExpired);
   RecordWordCounts();
 }
 
@@ -48,7 +48,7 @@ void SpellCheckHostMetrics::RecordEnabledStats(bool enabled) {
     RecordCustomWordCountStats(static_cast<size_t>(-1));
 }
 
-void SpellCheckHostMetrics::RecordCheckedWordStats(const std::u16string& word,
+void SpellCheckHostMetrics::RecordCheckedWordStats(const base::string16& word,
                                                    bool misspell) {
   spellchecked_word_count_++;
   if (misspell) {
@@ -60,10 +60,13 @@ void SpellCheckHostMetrics::RecordCheckedWordStats(const std::u16string& word,
       RecordReplacedWordStats(0);
   }
 
+  int percentage = (100 * misspelled_word_count_) / spellchecked_word_count_;
+  UMA_HISTOGRAM_PERCENTAGE("SpellCheck.MisspellRatio", percentage);
+
   // Collects actual number of checked words, excluding duplication.
   base::MD5Digest digest;
   base::MD5Sum(reinterpret_cast<const unsigned char*>(word.c_str()),
-               word.size() * sizeof(char16_t), &digest);
+         word.size() * sizeof(base::char16), &digest);
   checked_word_hashes_.insert(base::MD5DigestToBase16(digest));
 
   RecordWordCounts();
@@ -78,8 +81,7 @@ void SpellCheckHostMetrics::OnHistogramTimerExpired() {
     // a 30 minute interval. If the time was 0 we will end up dividing by zero.
     CHECK_NE(0, since_start.InSeconds());
     size_t checked_words_per_hour = spellchecked_word_count_ *
-                                    base::Hours(1).InSeconds() /
-                                    since_start.InSeconds();
+        base::TimeDelta::FromHours(1).InSeconds() / since_start.InSeconds();
     base::UmaHistogramCounts1M(
         "SpellCheck.CheckedWordsPerHour",
         base::saturated_cast<int>(checked_words_per_hour));
@@ -98,6 +100,14 @@ void SpellCheckHostMetrics::RecordSuggestionStats(int delta) {
 
 void SpellCheckHostMetrics::RecordReplacedWordStats(int delta) {
   replaced_word_count_ += delta;
+
+  if (misspelled_word_count_) {
+    // zero |misspelled_word_count_| is possible when an extension
+    // gives the misspelling, which is not recorded as a part of this
+    // metrics.
+    int percentage = (100 * replaced_word_count_) / misspelled_word_count_;
+    UMA_HISTOGRAM_PERCENTAGE("SpellCheck.ReplaceRatio", percentage);
+  }
 
   if (suggestion_show_count_) {
     int percentage = (100 * replaced_word_count_) / suggestion_show_count_;
@@ -148,7 +158,7 @@ void SpellCheckHostMetrics::RecordSpellingServiceStats(bool enabled) {
   base::UmaHistogramBoolean("SpellCheck.SpellingService.Enabled", enabled);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void SpellCheckHostMetrics::RecordAcceptLanguageStats(
     const LocalesSupportInfo& locales_info) {
   base::UmaHistogramExactLinear(
@@ -187,4 +197,4 @@ void SpellCheckHostMetrics::RecordSpellcheckLanguageStats(
       base::saturated_cast<int>(locales_info.locales_supported_by_native_only),
       20);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)

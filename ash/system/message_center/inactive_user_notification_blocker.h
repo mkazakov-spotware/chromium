@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/session/session_observer.h"
+#include "base/macros.h"
 #include "components/account_id/account_id.h"
 #include "ui/message_center/notification_blocker.h"
 
@@ -21,12 +22,6 @@ class ASH_EXPORT InactiveUserNotificationBlocker
  public:
   explicit InactiveUserNotificationBlocker(
       message_center::MessageCenter* message_center);
-
-  InactiveUserNotificationBlocker(const InactiveUserNotificationBlocker&) =
-      delete;
-  InactiveUserNotificationBlocker& operator=(
-      const InactiveUserNotificationBlocker&) = delete;
-
   ~InactiveUserNotificationBlocker() override;
 
   // message_center::NotificationBlocker:
@@ -42,6 +37,8 @@ class ASH_EXPORT InactiveUserNotificationBlocker
   AccountId active_account_id_;
   std::map<AccountId, bool> quiet_modes_;
   ScopedSessionObserver scoped_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(InactiveUserNotificationBlocker);
 };
 
 }  // namespace ash

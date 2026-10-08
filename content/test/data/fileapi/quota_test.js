@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,11 +41,11 @@ function requestFileSystemSuccess(fs) {
   }, function(e) { fail('Open for 1st truncate:' + fileErrorToString(e)); } );
 }
 
-function quotaSuccess(result) {
-  if (result.usage != 0)
-    fail('Usage is not zero: ' + result.usage);
-  if (result.quota != 5000 * 1024)
-    fail('Quota is not 5000KiB: ' + result.quota);
+function quotaSuccess(usage, quota) {
+  if (usage != 0)
+    fail('Usage is not zero: ' + usage);
+  if (quota != 5000 * 1024)
+    fail('Quota is not 5000KiB: ' + quota);
 
   window.webkitRequestFileSystem(
       window.TEMPORARY,
@@ -55,12 +55,12 @@ function quotaSuccess(result) {
 }
 
 function test() {
-  if (navigator.storage) {
+  if (window.webkitStorageInfo) {
     debug('Querying usage and quota.');
-    navigator.storage.estimate()
-        .then(quotaSuccess)
-        .catch(unexpectedErrorCallback);
+    webkitStorageInfo.queryUsageAndQuota(webkitStorageInfo.TEMPORARY,
+                                         quotaSuccess,
+                                         unexpectedErrorCallback);
   } else {
-    debug('This test requires navigator.storage.');
+    debug('This test requires window.webkitStorageInfo.');
   }
 }

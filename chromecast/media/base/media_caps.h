@@ -1,9 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROMECAST_MEDIA_BASE_MEDIA_CAPS_H_
-#define CHROMECAST_MEDIA_BASE_MEDIA_CAPS_H_
+#ifndef CHROMECAST_MEDIA_BASE_MEDIA_CAPS_
+#define CHROMECAST_MEDIA_BASE_MEDIA_CAPS_
 
 #include "ui/gfx/geometry/size.h"
 
@@ -54,4 +54,4 @@ class MediaCapabilities {
 }  // namespace media
 }  // namespace chromecast
 
-#endif  // CHROMECAST_MEDIA_BASE_MEDIA_CAPS_H_
+#endif  // CHROMECAST_MEDIA_BASE_MEDIA_CAPS_

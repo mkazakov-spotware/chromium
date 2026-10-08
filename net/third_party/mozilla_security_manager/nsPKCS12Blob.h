@@ -43,6 +43,8 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "net/cert/scoped_nss_types.h"
 
 typedef struct CERTCertificateStr CERTCertificate;
@@ -60,7 +62,7 @@ void EnsurePKCS12Init();
 int nsPKCS12Blob_Import(PK11SlotInfo* slot,
                         const char* pkcs12_data,
                         size_t pkcs12_len,
-                        const std::u16string& password,
+                        const base::string16& password,
                         bool is_extractable,
                         net::ScopedCERTCertificateList* imported_certs);
 
@@ -69,7 +71,7 @@ int nsPKCS12Blob_Import(PK11SlotInfo* slot,
 // TODO(mattm): provide better error return status?
 int nsPKCS12Blob_Export(std::string* output,
                         const net::ScopedCERTCertificateList& certs,
-                        const std::u16string& password);
+                        const base::string16& password);
 
 }  // namespace mozilla_security_manager
 

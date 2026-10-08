@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define DEVICE_BLUETOOTH_BLUETOOTH_CLASSIC_WIN_FAKE_H_
 
 #include <memory>
-#include <string>
 
+#include "base/strings/string16.h"
 #include "device/bluetooth/bluetooth_classic_win.h"
 
 namespace device {
@@ -40,7 +40,7 @@ class BluetoothClassicWrapperFake : public BluetoothClassicWrapper {
   DWORD LastError() override;
   bool HasHandle() override;
 
-  BluetoothRadio* SimulateARadio(std::u16string name,
+  BluetoothRadio* SimulateARadio(base::string16 name,
                                  BLUETOOTH_ADDRESS address);
 
  private:

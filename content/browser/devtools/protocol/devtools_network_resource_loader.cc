@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 
 #include "base/bind.h"
 #include "base/json/json_writer.h"
-#include "base/memory/ptr_util.h"
+#include "content/browser/devtools/protocol/devtools_network_resource_loader.h"
 #include "net/base/load_flags.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 
 namespace content {
 namespace protocol {
@@ -31,7 +30,7 @@ DevToolsNetworkResourceLoader::DevToolsNetworkResourceLoader(
 DevToolsNetworkResourceLoader::~DevToolsNetworkResourceLoader() = default;
 
 // We can trust the |origin| parameter here, as it is the last committed origin
-// of a RenderFrameHost identified by a DevTools frame token. Note that there
+// of a render frame host identified by a DevTools frame token. Note that there
 // is a potential race condition when DevTools sends a request while the frame
 // already navigates away. This is difficult to fix before the
 // RenderDocumentHost refactoring is done.
@@ -44,10 +43,13 @@ DevToolsNetworkResourceLoader::Create(
     net::SiteForCookies site_for_cookies,
     Caching caching,
     Credentials include_credentials,
+    int32_t render_frame_id,
     CompletionCallback completion_callback) {
+  DCHECK(gurl.SchemeIsHTTPOrHTTPS());
   network::ResourceRequest resource_request;
   resource_request.url = std::move(gurl);
   resource_request.request_initiator = origin;
+  resource_request.render_frame_id = render_frame_id;
   resource_request.site_for_cookies = site_for_cookies;
   if (caching == Caching::kBypass) {
     resource_request.load_flags |= net::LOAD_BYPASS_CACHE;

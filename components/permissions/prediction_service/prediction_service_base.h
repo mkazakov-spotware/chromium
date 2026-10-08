@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,13 +25,13 @@ class PredictionServiceBase : public KeyedService {
   // TODO(crbug.com/1138595, andypaicu): once the above TODO is done, refactor
   // to use a struct to make the call sites more readable (for both callbacks).
   using LookupRequestCallback =
-      base::OnceCallback<void(std::unique_ptr<GeneratePredictionsRequest>,
+      base::OnceCallback<void(std::unique_ptr<GetSuggestionsRequest>,
                               std::string)>;  // Access token.
 
-  using LookupResponseCallback = base::OnceCallback<void(
-      bool,  // Lookup successful.
-      bool,  // Response from cache.
-      const absl::optional<GeneratePredictionsResponse>&)>;
+  using LookupResponseCallback =
+      base::OnceCallback<void(bool,  // Lookup successful.
+                              bool,  // Response from cache.
+                              std::unique_ptr<GetSuggestionsResponse>)>;
 
   virtual void StartLookup(const PredictionRequestFeatures& entity,
                            LookupRequestCallback request_callback,

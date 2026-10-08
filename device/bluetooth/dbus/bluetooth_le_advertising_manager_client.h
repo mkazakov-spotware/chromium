@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/values.h"
 #include "dbus/object_path.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/dbus/bluez_dbus_client.h"
@@ -36,11 +38,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothLEAdvertisingManagerClient
     virtual void AdvertisingManagerRemoved(
         const dbus::ObjectPath& object_path) {}
   };
-
-  BluetoothLEAdvertisingManagerClient(
-      const BluetoothLEAdvertisingManagerClient&) = delete;
-  BluetoothLEAdvertisingManagerClient& operator=(
-      const BluetoothLEAdvertisingManagerClient&) = delete;
 
   ~BluetoothLEAdvertisingManagerClient() override;
 
@@ -93,6 +90,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothLEAdvertisingManagerClient
 
  protected:
   BluetoothLEAdvertisingManagerClient();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BluetoothLEAdvertisingManagerClient);
 };
 
 }  // namespace bluez

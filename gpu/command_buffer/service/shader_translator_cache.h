@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <map>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "gpu/command_buffer/service/shader_translator.h"
 #include "gpu/config/gpu_preferences.h"
@@ -30,10 +31,6 @@ class GPU_GLES2_EXPORT ShaderTranslatorCache
     : public ShaderTranslator::DestructionObserver {
  public:
   explicit ShaderTranslatorCache(const GpuPreferences& gpu_preferences);
-
-  ShaderTranslatorCache(const ShaderTranslatorCache&) = delete;
-  ShaderTranslatorCache& operator=(const ShaderTranslatorCache&) = delete;
-
   ~ShaderTranslatorCache() override;
 
   // ShaderTranslator::DestructionObserver implementation
@@ -44,7 +41,7 @@ class GPU_GLES2_EXPORT ShaderTranslatorCache
       ShShaderSpec shader_spec,
       const ShBuiltInResources* resources,
       ShShaderOutput shader_output_language,
-      const ShCompileOptions& driver_bug_workarounds);
+      ShCompileOptions driver_bug_workarounds);
 
  private:
   friend class ShaderTranslatorCacheTest_InitParamComparable_Test;
@@ -61,7 +58,7 @@ class GPU_GLES2_EXPORT ShaderTranslatorCache
                                ShShaderSpec shader_spec,
                                const ShBuiltInResources& resources,
                                ShShaderOutput shader_output_language,
-                               const ShCompileOptions& driver_bug_workarounds) {
+                               ShCompileOptions driver_bug_workarounds) {
       memset(this, 0, sizeof(*this));
       this->shader_type = shader_type;
       this->shader_spec = shader_spec;
@@ -92,6 +89,8 @@ class GPU_GLES2_EXPORT ShaderTranslatorCache
 
   typedef std::map<ShaderTranslatorInitParams, ShaderTranslator* > Cache;
   Cache cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShaderTranslatorCache);
 };
 
 }  // namespace gles2

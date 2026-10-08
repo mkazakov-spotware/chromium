@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,10 +82,6 @@ class TelemetryClient {
   TelemetryClient(
       OAuthTokenGetter* token_getter,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
-
-  TelemetryClient(const TelemetryClient&) = delete;
-  TelemetryClient& operator=(const TelemetryClient&) = delete;
-
   ~TelemetryClient();
 
   void CreateLogEntry(const apis::v1::CreateLogEntryRequest& request,
@@ -93,6 +89,7 @@ class TelemetryClient {
 
  private:
   ProtobufHttpClient http_client_;
+  DISALLOW_COPY_AND_ASSIGN(TelemetryClient);
 };
 
 TelemetryClient::TelemetryClient(

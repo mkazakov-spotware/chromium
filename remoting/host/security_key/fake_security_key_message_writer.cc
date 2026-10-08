@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include "base/callback.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "remoting/host/security_key/security_key_message.h"
 
 namespace remoting {
@@ -33,8 +34,7 @@ bool FakeSecurityKeyMessageWriter::WriteMessage(
   last_message_type_ = message_type;
   last_message_payload_.clear();
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                              write_callback_);
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, write_callback_);
 
   return write_request_succeeded_;
 }
@@ -45,8 +45,7 @@ bool FakeSecurityKeyMessageWriter::WriteMessageWithPayload(
   last_message_type_ = message_type;
   last_message_payload_ = message_payload;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                              write_callback_);
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, write_callback_);
 
   return write_request_succeeded_;
 }

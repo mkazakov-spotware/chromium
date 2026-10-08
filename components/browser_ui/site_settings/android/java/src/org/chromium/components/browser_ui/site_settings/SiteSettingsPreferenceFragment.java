@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,38 +10,23 @@ import androidx.preference.PreferenceFragmentCompat;
  * Preference fragment for showing the Site Settings UI.
  */
 public abstract class SiteSettingsPreferenceFragment extends PreferenceFragmentCompat {
-    private SiteSettingsDelegate mSiteSettingsDelegate;
+    private SiteSettingsClient mSiteSettingsClient;
 
     /**
-     * Sets the SiteSettingsDelegate instance this Fragment should use.
+     * Sets the SiteSettingsClient instance this Fragment should use.
      *
      * This should be called by the embedding Activity.
      */
-    public void setSiteSettingsDelegate(SiteSettingsDelegate client) {
-        assert mSiteSettingsDelegate == null;
-        mSiteSettingsDelegate = client;
+    public void setSiteSettingsClient(SiteSettingsClient client) {
+        assert mSiteSettingsClient == null;
+        mSiteSettingsClient = client;
     }
 
     /**
-     * @return the SiteSettingsDelegate instance to use when rendering the Site Settings UI.
+     * @return the SiteSettingsClient instance to use when rendering the Site Settings UI.
      */
-    public SiteSettingsDelegate getSiteSettingsDelegate() {
-        assert mSiteSettingsDelegate != null : "SiteSettingsDelegate not set";
-        return mSiteSettingsDelegate;
-    }
-
-    /**
-     * @return Whether a SiteSettingsDelegate instance has been assigned to this Fragment.
-     */
-    public boolean hasSiteSettingsDelegate() {
-        return mSiteSettingsDelegate != null;
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        if (mSiteSettingsDelegate != null) {
-            mSiteSettingsDelegate.onDestroyView();
-        }
+    protected SiteSettingsClient getSiteSettingsClient() {
+        assert mSiteSettingsClient != null : "SiteSettingsClient not set";
+        return mSiteSettingsClient;
     }
 }

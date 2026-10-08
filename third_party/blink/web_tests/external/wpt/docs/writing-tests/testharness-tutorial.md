@@ -25,10 +25,8 @@ purposes of this guide, we'll only consider the features we need to test the
 behavior of `fetch`.
 
 ```eval_rst
-.. contents:: Table of Contents
-   :depth: 3
+.. contents::
    :local:
-   :backlinks: none
 ```
 
 ## Setting up your workspace

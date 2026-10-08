@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,8 +6,18 @@ import("//build/config/android/rules.gni")
 import("//build/config/python.gni")
 
 template("mustache_pass") {
-  action(target_name) {
-    forward_variables_from(invoker, TESTONLY_AND_VISIBILITY + [ "deps" ])
+  forward_variables_from(invoker, [ "testonly" ])
+
+  assert(defined(invoker.input))
+  assert(defined(invoker.output))
+
+  # TODO(crbug.com/1112471): Get this to run cleanly under Python 3.
+  python2_action(target_name) {
+    forward_variables_from(invoker,
+                           [
+                             "visibility",
+                             "deps",
+                           ])
     sources = [ invoker.input ]
     if (defined(invoker.config_file)) {
       sources += [ invoker.config_file ]

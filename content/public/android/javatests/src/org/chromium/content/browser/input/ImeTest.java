@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
-import android.os.SystemClock;
 import android.text.InputType;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -36,7 +35,6 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.content_public.browser.WebContents;
@@ -212,7 +210,6 @@ public class ImeTest {
     @Test
     @SmallTest
     @Feature({"TextInput", "Main"})
-    @DisabledTest(message = "https://crbug.com/1223357")
     public void testDeleteSurroundingTextInCodePointsWithRangeSelection() throws Throwable {
         final String trophy = "\uD83C\uDFC6";
         mRule.commitText("ab" + trophy + "cdef" + trophy + "gh", 1);
@@ -230,7 +227,6 @@ public class ImeTest {
     @Test
     @SmallTest
     @Feature({"TextInput", "Main"})
-    @DisabledTest(message = "https://crbug.com/1222977")
     public void testDeleteSurroundingTextInCodePointsWithCursorSelection() throws Throwable {
         final String trophy = "\uD83C\uDFC6";
         mRule.commitText("ab" + trophy + "cd" + trophy, 1);
@@ -418,9 +414,9 @@ public class ImeTest {
         // Cancel the current composition and replace it with enter.
         mRule.commitText("\n", 1);
         mRule.waitAndVerifyUpdateSelection(1, 1, 1, -1, -1);
-        // Blink internal editor has <div>\n<br></div> where <br> is a placeholder
-        // to place caret after the newline.
-        mRule.assertTextsAroundCursor("\n", null, "");
+        // The second new line is not a user visible/editable one, it is a side-effect of Blink
+        // using <br> internally. This only happens when \n is at the end.
+        mRule.assertTextsAroundCursor("\n", null, "\n");
 
         mRule.commitText("world", 1);
         mRule.waitAndVerifyUpdateSelection(2, 6, 6, -1, -1);
@@ -693,7 +689,7 @@ public class ImeTest {
 
     private void reloadPage() throws Exception {
         // Reload the page, then focus will be lost and keyboard should be hidden.
-        mRule.fullyLoadUrl(mRule.getWebContents().getLastCommittedUrl().getSpec());
+        mRule.fullyLoadUrl(mRule.getWebContents().getLastCommittedUrl());
     }
 
     @Test
@@ -972,7 +968,6 @@ public class ImeTest {
     @Test
     @SmallTest
     @Feature({"TextInput", "Main"})
-    @DisabledTest(message = "https://crbug.com/1222342")
     public void testDeleteMultiCharacterCodepoint() throws Throwable {
         // This smiley is a multi character codepoint.
         final String smiley = "\uD83D\uDE0A";
@@ -983,11 +978,8 @@ public class ImeTest {
 
         // DEL, sent via mRule.dispatchKeyEvent like it is in Android WebView or a physical
         // keyboard.
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL));
 
         mRule.waitAndVerifyUpdateSelection(1, 0, 0, -1, -1);
 
@@ -1014,11 +1006,8 @@ public class ImeTest {
 
         // DEL, sent via mRule.dispatchKeyEvent like it is in Android WebView or a physical
         // keyboard.
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL));
 
         // DEL
         Assert.assertEquals("h", mRule.getTextBeforeCursor(9, 0));
@@ -1040,13 +1029,9 @@ public class ImeTest {
 
         // Multiple keydowns should each delete one character (this is for physical keyboard
         // key-repeat).
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL));
 
         // DEL
         Assert.assertEquals("", mRule.getTextBeforeCursor(9, 0));
@@ -1059,28 +1044,19 @@ public class ImeTest {
         mRule.focusElementAndWaitForStateUpdate("textarea");
 
         // Type 'a' using a physical keyboard.
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_A, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_A));
         mRule.waitAndVerifyUpdateSelection(0, 1, 1, -1, -1);
 
         // Type 'enter' key.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
         mRule.waitAndVerifyUpdateSelection(1, 2, 2, -1, -1);
-        mRule.assertTextsAroundCursor("a\n", null, "");
+        mRule.assertTextsAroundCursor("a\n", null, "\n");
 
         // Type 'b'.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_B, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_B));
         mRule.waitAndVerifyUpdateSelection(2, 3, 3, -1, -1);
         mRule.assertTextsAroundCursor("a\nb", null, "");
     }
@@ -1093,134 +1069,106 @@ public class ImeTest {
         int index = 0;
 
         // h
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_H, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_H, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_H));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_H));
         Assert.assertEquals("h", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 1, 1, -1, -1);
 
         // ALT-i  (circumflex accent key on virtual keyboard). Accent should not appear until the
         // next letter is entered.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("h", mRule.getTextBeforeCursor(9, 0));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("h", mRule.getTextBeforeCursor(9, 0));
 
         // finishComposingText() should not prevent the accent from being joined.
         mRule.finishComposingText();
 
         // o
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_O, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_O));
         Assert.assertEquals("hô", mRule.getTextBeforeCursor(9, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_O, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_O));
         Assert.assertEquals("hô", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 2, 2, -1, -1);
 
         // o again. Should not have accent mark this time.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_O, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_O));
         Assert.assertEquals("hôo", mRule.getTextBeforeCursor(9, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_O, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_O));
         Assert.assertEquals("hôo", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 3, 3, -1, -1);
 
         // ALT-i. Should not display anything until the next key is pressed.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("hôo", mRule.getTextBeforeCursor(9, 0));
 
         // ALT-i again should commit the caret this time.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("hôoˆ", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 4, 4, -1, -1);
 
         // b (cannot be accented, should just appear after)
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_B));
         Assert.assertEquals("hôoˆb", mRule.getTextBeforeCursor(9, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_B, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_B));
         Assert.assertEquals("hôoˆb", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 5, 5, -1, -1);
 
         // ALT-i. Should not display anything.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("hôoˆb", mRule.getTextBeforeCursor(9, 0));
 
         // Backspace. Should delete the b even though we have a pending accent.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
         Assert.assertEquals("hôoˆ", mRule.getTextBeforeCursor(9, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL));
         Assert.assertEquals("hôoˆ", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 4, 4, -1, -1);
 
         // Alt-i. Should not display anything (the pending accent should have been cleared by the
         // backspace).
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("hôoˆ", mRule.getTextBeforeCursor(9, 0));
 
         // Space. Should display the pending accent.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE));
         Assert.assertEquals("hôoˆˆ", mRule.getTextBeforeCursor(9, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SPACE, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SPACE));
         Assert.assertEquals("hôoˆˆ", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 5, 5, -1, -1);
 
         // Alt-i. Should not display anything but should set a circumflex as the pending accent.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_I, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("hôoˆˆ", mRule.getTextBeforeCursor(9, 0));
 
         // Alt-e. Should output the circumflex and set an acute accent as the pending accent.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                KeyEvent.KEYCODE_E, 0, KeyEvent.META_ALT_ON));
-        mRule.dispatchKeyEvent(new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP,
-                KeyEvent.KEYCODE_E, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_E, 0, KeyEvent.META_ALT_ON));
+        mRule.dispatchKeyEvent(new KeyEvent(
+                0, 0, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_E, 0, KeyEvent.META_ALT_ON));
         Assert.assertEquals("hôoˆˆˆ", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 6, 6, -1, -1);
 
         // e. Should output an e with an acute accent.
-        eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_E, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_E, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_E));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_E));
         Assert.assertEquals("hôoˆˆˆé", mRule.getTextBeforeCursor(9, 0));
         mRule.waitAndVerifyUpdateSelection(index++, 7, 7, -1, -1);
     }
@@ -1250,13 +1198,10 @@ public class ImeTest {
         mRule.commitText("hello", 1);
         mRule.waitAndVerifyUpdateSelection(0, 5, 5, -1, -1);
 
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
         mRule.waitAndVerifyUpdateSelection(1, 6, 6, -1, -1);
-        mRule.assertTextsAroundCursor("hello\n", null, "");
+        mRule.assertTextsAroundCursor("hello\n", null, "\n");
 
         mRule.commitText("world", 1);
         mRule.waitAndVerifyUpdateSelection(2, 11, 11, -1, -1);
@@ -1276,11 +1221,8 @@ public class ImeTest {
         mRule.finishComposingText();
         mRule.waitAndVerifyUpdateSelection(1, 5, 5, -1, -1);
 
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 0));
-        mRule.dispatchKeyEvent(
-                new KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
 
         // The second new line is not a user visible/editable one, it is a side-effect of Blink
         // using <br> internally. This only happens when \n is at the end.
@@ -1305,9 +1247,7 @@ public class ImeTest {
         });
 
         // DPAD_CENTER should cause keyboard to appear on keyup.
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER));
 
         // Should not have called showSoftInput() on keydown.
         CriteriaHelper.pollUiThread(() -> {
@@ -1315,8 +1255,7 @@ public class ImeTest {
                     Matchers.is(showCount + 1));
         });
 
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER));
 
         // Should have called showSoftInput() on keyup.
         CriteriaHelper.pollUiThread(() -> {
@@ -1334,11 +1273,8 @@ public class ImeTest {
         mRule.commitText("hello", 1);
         mRule.waitAndVerifyUpdateSelection(0, 5, 5, -1, -1);
 
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, 0));
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT));
 
         mRule.assertTextsAroundCursor("hell", null, "o");
     }
@@ -1397,9 +1333,7 @@ public class ImeTest {
         mRule.assertWaitForSelectActionBarStatus(true);
         Assert.assertTrue(mRule.getSelectionPopupController().hasSelection());
 
-        long eventTime = SystemClock.uptimeMillis();
-        mRule.dispatchKeyEvent(new KeyEvent(
-                eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_DOWN, 0));
+        mRule.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_DOWN));
         mRule.assertWaitForSelectActionBarStatus(true);
         Assert.assertTrue(mRule.getSelectionPopupController().hasSelection());
     }
@@ -1678,7 +1612,6 @@ public class ImeTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1303034")
     @Feature({"TextInput"})
     public void testBackgroundAndUnderlineSpans() throws Throwable {
         mRule.fullyLoadUrl("data:text/html, <div contenteditable id=\"div\" />");

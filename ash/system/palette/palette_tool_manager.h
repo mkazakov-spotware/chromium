@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "ash/system/palette/palette_ids.h"
 #include "ash/system/palette/palette_tool.h"
 #include "base/callback.h"
+#include "base/macros.h"
 
 namespace aura {
 class Window;
@@ -62,11 +63,7 @@ class ASH_EXPORT PaletteToolManager : public PaletteTool::Delegate {
   };
 
   // Creates the tool manager.
-  explicit PaletteToolManager(Delegate* delegate);
-
-  PaletteToolManager(const PaletteToolManager&) = delete;
-  PaletteToolManager& operator=(const PaletteToolManager&) = delete;
-
+  PaletteToolManager(Delegate* delegate);
   ~PaletteToolManager() override;
 
   // Returns true if the given tool has been added to the tool manager.
@@ -124,6 +121,8 @@ class ASH_EXPORT PaletteToolManager : public PaletteTool::Delegate {
 
   // Owned list of all tools.
   std::vector<std::unique_ptr<PaletteTool>> tools_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaletteToolManager);
 };
 
 }  // namespace ash

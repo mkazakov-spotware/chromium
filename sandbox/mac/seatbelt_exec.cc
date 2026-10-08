@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <fcntl.h>
 #include <inttypes.h>
-#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -15,7 +14,8 @@
 
 #include <vector>
 
-#include "base/posix/eintr_wrapper.h"  //nogncheck
+#include "base/macros.h"
+#include "base/posix/eintr_wrapper.h"
 #include "sandbox/mac/sandbox_logging.h"
 #include "sandbox/mac/seatbelt.h"
 
@@ -170,7 +170,7 @@ sandbox::SeatbeltExecServer::CreateFromArgumentsResult::
 sandbox::SeatbeltExecServer::CreateFromArgumentsResult
 SeatbeltExecServer::CreateFromArguments(const char* executable_path,
                                         int argc,
-                                        const char* const* argv) {
+                                        char** argv) {
   CreateFromArgumentsResult result;
   int seatbelt_client_fd = -1;
   for (int i = 1; i < argc; ++i) {
@@ -192,7 +192,7 @@ SeatbeltExecServer::CreateFromArguments(const char* executable_path,
     return result;
   }
 
-  char full_exec_path[PATH_MAX];
+  char full_exec_path[MAXPATHLEN];
   if (realpath(executable_path, full_exec_path) == NULL) {
     logging::PError("realpath");
     return result;
@@ -236,14 +236,17 @@ bool SeatbeltExecServer::ApplySandboxProfile(const mac::SandboxPolicy& policy) {
   }
   weak_params.push_back(nullptr);
 
-  std::string error;
-  bool ok = Seatbelt::InitWithParams(policy.profile().c_str(), 0,
-                                     weak_params.data(), &error);
-  if (!ok) {
-    logging::Error("SeatbeltExecServer: Failed to initialize sandbox: %s",
-                   error.c_str());
+  char* error = nullptr;
+  int rv = Seatbelt::InitWithParams(policy.profile().c_str(), 0,
+                                    weak_params.data(), &error);
+  if (error) {
+    logging::Error("SeatbeltExecServer: Failed to initialize sandbox: %d %s",
+                   rv, error);
+    Seatbelt::FreeError(error);
+    return false;
   }
-  return ok;
+
+  return rv == 0;
 }
 
 bool SeatbeltExecServer::ReadString(std::string* str) {

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,11 @@
 
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
+
+namespace base {
+class ListValue;
+}  // namespace base
 
 namespace remoting {
 
@@ -16,15 +21,10 @@ class PairingRegistryDelegateLinux
     : public protocol::PairingRegistry::Delegate {
  public:
   PairingRegistryDelegateLinux();
-
-  PairingRegistryDelegateLinux(const PairingRegistryDelegateLinux&) = delete;
-  PairingRegistryDelegateLinux& operator=(const PairingRegistryDelegateLinux&) =
-      delete;
-
   ~PairingRegistryDelegateLinux() override;
 
   // PairingRegistry::Delegate interface
-  base::Value::List LoadAll() override;
+  std::unique_ptr<base::ListValue> LoadAll() override;
   bool DeleteAll() override;
   protocol::PairingRegistry::Pairing Load(
       const std::string& client_id) override;
@@ -43,6 +43,8 @@ class PairingRegistryDelegateLinux
   void SetRegistryPathForTesting(const base::FilePath& registry_path);
 
   base::FilePath registry_path_for_testing_;
+
+  DISALLOW_COPY_AND_ASSIGN(PairingRegistryDelegateLinux);
 };
 
 }  // namespace remoting

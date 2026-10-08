@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,11 +63,12 @@ enum class MediaLogEvent {
 
   // The player has been suspended to save resources.
   kSuspended,
-
-  // An internal-only event that the media log sends when it is created, and
-  // includes a wall-clock timestamp.
-  kMediaLogCreated,
 };
+
+// This has to be declared before the macros use it - Some infra code relies on
+// the enum names to be UPPER_CASE, so this will convert them manually
+// instead of using macro stringification.
+MEDIA_EXPORT std::string MediaLogEventToString(MediaLogEvent level);
 
 // Sometimes URLs can have encoded data that can be exteremly large.
 MEDIA_EXPORT std::string TruncateUrlString(const std::string& url);
@@ -91,7 +92,6 @@ MEDIA_LOG_EVENT_NAMED_DATA_OP(kWebMediaPlayerCreated,
                               std::string,
                               "origin_url",
                               TruncateUrlString);
-MEDIA_LOG_EVENT_NAMED_DATA(kMediaLogCreated, base::Time, "created");
 
 // Each type of buffering state gets a different name.
 MEDIA_LOG_EVENT_NAMED_DATA(

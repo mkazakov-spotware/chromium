@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,6 @@ import androidx.core.content.ContextCompat;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.compat.ApiHelperForQ;
-import org.chromium.base.compat.ApiHelperForS;
 
 /**
  * Utility functions that call into Android foreground service related API, and provides
@@ -70,10 +68,8 @@ public class ForegroundServiceUtils {
         // If android fail to build the notification, do nothing.
         if (notification == null) return;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ApiHelperForS.startForeground(service, id, notification, foregroundServiceType);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ApiHelperForQ.startForeground(service, id, notification, foregroundServiceType);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            service.startForeground(id, notification, foregroundServiceType);
         } else {
             service.startForeground(id, notification);
         }

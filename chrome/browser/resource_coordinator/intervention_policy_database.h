@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 
 #include "base/containers/flat_map.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/version.h"
 #include "chrome/browser/resource_coordinator/intervention_policy_database.pb.h"
 #include "url/origin.h"
 
 namespace base {
-class Value;
+class DictionaryValue;
 }
 
 namespace resource_coordinator {
@@ -37,11 +38,6 @@ class InterventionPolicyDatabase {
   };
 
   InterventionPolicyDatabase();
-
-  InterventionPolicyDatabase(const InterventionPolicyDatabase&) = delete;
-  InterventionPolicyDatabase& operator=(const InterventionPolicyDatabase&) =
-      delete;
-
   ~InterventionPolicyDatabase();
 
   InterventionPolicy GetDiscardingPolicy(const url::Origin& origin) const;
@@ -49,9 +45,10 @@ class InterventionPolicyDatabase {
 
   // Initialize the database with the OriginInterventionsDatabase protobuf
   // stored in |proto_location|.
-  void InitializeDatabaseWithProtoFile(const base::FilePath& proto_location,
-                                       const base::Version& version,
-                                       base::Value manifest);
+  void InitializeDatabaseWithProtoFile(
+      const base::FilePath& proto_location,
+      const base::Version& version,
+      std::unique_ptr<base::DictionaryValue> manifest);
 
   void AddOriginPoliciesForTesting(const url::Origin& origin,
                                    OriginInterventionPolicies policies);
@@ -79,6 +76,8 @@ class InterventionPolicyDatabase {
   InterventionsMap database_;
 
   base::WeakPtrFactory<InterventionPolicyDatabase> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InterventionPolicyDatabase);
 };
 
 }  // namespace resource_coordinator

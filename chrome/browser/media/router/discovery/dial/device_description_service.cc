@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/discovery/dial/device_description_service.h"
+#include "base/bind.h"
 
 #include <map>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -13,10 +13,8 @@
 #include <sstream>
 #endif
 
-#include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "chrome/browser/media/router/discovery/dial/device_description_fetcher.h"
 #include "chrome/browser/media/router/discovery/dial/safe_dial_device_description_parser.h"
 #include "net/base/ip_address.h"
@@ -40,7 +38,7 @@ constexpr int kCacheMaxEntries = 256;
 // Checks mandatory fields. Returns ParsingError::kNone if device description is
 // valid; Otherwise returns specific error type.
 ParsingError ValidateParsedDeviceDescription(
-    const DialDeviceData& device_data,
+    const GURL& device_description_url,
     const ParsedDialDeviceDescription& description_data) {
   if (description_data.unique_id.empty()) {
     return ParsingError::kMissingUniqueId;
@@ -51,16 +49,24 @@ ParsingError ValidateParsedDeviceDescription(
   if (!description_data.app_url.is_valid()) {
     return ParsingError::kMissingAppUrl;
   }
-  if (!device_data.IsValidUrl(description_data.app_url)) {
+
+  // TODO(crbug.com/679432): Get the device IP from the SSDP response.
+  net::IPAddress device_ip;
+  if (!device_ip.AssignFromIPLiteral(
+          device_description_url.HostNoBracketsPiece()) ||
+      !DialDeviceData::IsValidDialAppUrl(description_data.app_url, device_ip)) {
     return ParsingError::kInvalidAppUrl;
   }
-
   return ParsingError::kNone;
 }
 
 void RecordDialParsingError(
     SafeDialDeviceDescriptionParser::ParsingError parsing_error) {
-  UMA_HISTOGRAM_ENUMERATION("MediaRouter.Dial.ParsingError", parsing_error);
+  DCHECK_LT(parsing_error,
+            SafeDialDeviceDescriptionParser::ParsingError::kTotalCount);
+  UMA_HISTOGRAM_ENUMERATION(
+      "MediaRouter.Dial.ParsingError", parsing_error,
+      SafeDialDeviceDescriptionParser::ParsingError::kTotalCount);
 }
 
 }  // namespace
@@ -82,7 +88,10 @@ void DeviceDescriptionService::GetDeviceDescriptions(
   for (auto& fetcher_it : device_description_fetcher_map_) {
     std::string device_label = fetcher_it.first;
     const auto& device_it =
-        base::ranges::find(devices, device_label, &DialDeviceData::label);
+        std::find_if(devices.begin(), devices.end(),
+                     [&device_label](const DialDeviceData& device_data) {
+                       return device_data.label() == device_label;
+                     });
     if (device_it == devices.end() ||
         device_it->device_description_url() ==
             fetcher_it.second->device_description_url()) {
@@ -106,10 +115,10 @@ void DeviceDescriptionService::GetDeviceDescriptions(
 
   // Start a clean up timer.
   if (!clean_up_timer_) {
-    clean_up_timer_ = std::make_unique<base::RepeatingTimer>();
-    clean_up_timer_->Start(FROM_HERE, base::Minutes(kCacheCleanUpTimeoutMins),
-                           this,
-                           &DeviceDescriptionService::CleanUpCacheEntries);
+    clean_up_timer_.reset(new base::RepeatingTimer());
+    clean_up_timer_->Start(
+        FROM_HERE, base::TimeDelta::FromMinutes(kCacheCleanUpTimeoutMins), this,
+        &DeviceDescriptionService::CleanUpCacheEntries);
   }
 }
 
@@ -135,7 +144,7 @@ void DeviceDescriptionService::FetchDeviceDescription(
     return;
 
   auto device_description_fetcher = std::make_unique<DeviceDescriptionFetcher>(
-      device_data,
+      device_data.device_description_url(),
       base::BindOnce(
           &DeviceDescriptionService::OnDeviceDescriptionFetchComplete,
           base::Unretained(this), device_data),
@@ -188,8 +197,8 @@ void DeviceDescriptionService::OnParsedDeviceDescription(
     return;
   }
 
-  ParsingError error =
-      ValidateParsedDeviceDescription(device_data, device_description);
+  ParsingError error = ValidateParsedDeviceDescription(
+      device_data.device_description_url(), device_description);
   if (error != ParsingError::kNone) {
     RecordDialParsingError(error);
     error_cb_.Run(device_data, "Failed to process fetch result");
@@ -203,7 +212,7 @@ void DeviceDescriptionService::OnParsedDeviceDescription(
 
   CacheEntry cached_description_data;
   cached_description_data.expire_time =
-      GetNow() + base::Hours(kDeviceDescriptionCacheTimeHours);
+      GetNow() + base::TimeDelta::FromHours(kDeviceDescriptionCacheTimeHours);
   cached_description_data.config_id = device_data.config_id();
   cached_description_data.description_data = device_description;
   description_cache_.insert(

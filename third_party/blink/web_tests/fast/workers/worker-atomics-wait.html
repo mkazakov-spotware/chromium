@@ -14,7 +14,7 @@ if (window.testRunner) {
     testRunner.waitUntilDone();
 }
 
-if (window.SharedArrayBuffer) {
+if (window.internals && internals.runtimeFlags.sharedArrayBufferEnabled && window.SharedArrayBuffer) {
     var view = new Int32Array(new SharedArrayBuffer(4));
     try {
       Atomics.wait(view, 0, 0, 0);
@@ -42,3 +42,4 @@ if (window.SharedArrayBuffer) {
 </script>
 </body>
 </html>
+

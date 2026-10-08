@@ -1,24 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/gamepad/abstract_haptic_gamepad.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
 #include "device/gamepad/gamepad_data_fetcher.h"
 
 namespace device {
 namespace {
 constexpr double kMaxDurationMillis = 5000.0;  // 5 seconds
-
-bool IsValidEffectType(mojom::GamepadHapticEffectType type) {
-  return type == mojom::GamepadHapticEffectType::
-                     GamepadHapticEffectTypeDualRumble ||
-         type == mojom::GamepadHapticEffectType::
-                     GamepadHapticEffectTypeTriggerRumble;
-}
-
 }  // namespace
 
 AbstractHapticGamepad::AbstractHapticGamepad() = default;
@@ -52,7 +43,7 @@ void AbstractHapticGamepad::Shutdown() {
 
 void AbstractHapticGamepad::SetZeroVibration() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  SetVibration(mojom::GamepadEffectParameters::New());
+  SetVibration(0.0, 0.0);
 }
 
 double AbstractHapticGamepad::GetMaxEffectDurationMillis() {
@@ -66,8 +57,9 @@ void AbstractHapticGamepad::PlayEffect(
     scoped_refptr<base::SequencedTaskRunner> callback_runner) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DCHECK(!is_shut_down_);
-  if (!IsValidEffectType(type)) {
-    // Only dual-rumble and trigger-rumble effects are supported.
+  if (type !=
+      mojom::GamepadHapticEffectType::GamepadHapticEffectTypeDualRumble) {
+    // Only dual-rumble effects are supported.
     GamepadDataFetcher::RunVibrationCallback(
         std::move(callback), std::move(callback_runner),
         mojom::GamepadHapticsResult::GamepadHapticsResultNotSupported);
@@ -92,7 +84,8 @@ void AbstractHapticGamepad::PlayEffect(
   playing_effect_callback_ = std::move(callback);
   callback_runner_ = std::move(callback_runner);
 
-  PlayVibrationEffect(sequence_id, std::move(params));
+  PlayDualRumbleEffect(sequence_id, params->duration, params->start_delay,
+                       params->strong_magnitude, params->weak_magnitude);
 }
 
 void AbstractHapticGamepad::ResetVibration(
@@ -119,44 +112,45 @@ void AbstractHapticGamepad::ResetVibration(
       mojom::GamepadHapticsResult::GamepadHapticsResultComplete);
 }
 
-void AbstractHapticGamepad::PlayVibrationEffect(
-    int sequence_id,
-    mojom::GamepadEffectParametersPtr params) {
+void AbstractHapticGamepad::PlayDualRumbleEffect(int sequence_id,
+                                                 double duration,
+                                                 double start_delay,
+                                                 double strong_magnitude,
+                                                 double weak_magnitude) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  double duration = params->duration;
-  double start_delay = params->start_delay;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&AbstractHapticGamepad::StartVibration, GetWeakPtr(),
-                     sequence_id, duration, std::move(params)),
-      base::Milliseconds(start_delay));
+                     sequence_id, duration, strong_magnitude, weak_magnitude),
+      base::TimeDelta::FromMillisecondsD(start_delay));
 }
 
-void AbstractHapticGamepad::StartVibration(
-    int sequence_id,
-    double duration,
-    mojom::GamepadEffectParametersPtr params) {
+void AbstractHapticGamepad::StartVibration(int sequence_id,
+                                           double duration,
+                                           double strong_magnitude,
+                                           double weak_magnitude) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (is_shut_down_ || sequence_id != sequence_id_)
     return;
-  SetVibration(params.Clone());
+  SetVibration(strong_magnitude, weak_magnitude);
 
   const double max_duration = GetMaxEffectDurationMillis();
   if (duration > max_duration) {
     // The device does not support effects this long. Issue periodic vibration
     // commands until the effect is complete.
     double remaining_duration = duration - max_duration;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&AbstractHapticGamepad::StartVibration, GetWeakPtr(),
-                       sequence_id, remaining_duration, params.Clone()),
-        base::Milliseconds(max_duration));
+                       sequence_id, remaining_duration, strong_magnitude,
+                       weak_magnitude),
+        base::TimeDelta::FromMillisecondsD(max_duration));
   } else {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&AbstractHapticGamepad::FinishEffect, GetWeakPtr(),
                        sequence_id),
-        base::Milliseconds(duration));
+        base::TimeDelta::FromMillisecondsD(duration));
   }
 }
 

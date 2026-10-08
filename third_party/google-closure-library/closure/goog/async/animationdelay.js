@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A delayed callback that pegs to the next animation frame
@@ -49,7 +57,6 @@ goog.require('goog.functions');
  * @final
  */
 goog.async.AnimationDelay = function(listener, opt_window, opt_handler) {
-  'use strict';
   goog.async.AnimationDelay.base(this, 'constructor');
 
   /**
@@ -118,7 +125,6 @@ goog.async.AnimationDelay.MOZ_BEFORE_PAINT_EVENT_ = 'MozBeforePaint';
  * before the next animation frame.
  */
 goog.async.AnimationDelay.prototype.start = function() {
-  'use strict';
   this.stop();
   this.usingListeners_ = false;
 
@@ -156,7 +162,6 @@ goog.async.AnimationDelay.prototype.start = function() {
  * Starts the delay timer if it's not already active.
  */
 goog.async.AnimationDelay.prototype.startIfNotActive = function() {
-  'use strict';
   if (!this.isActive()) {
     this.start();
   }
@@ -168,7 +173,6 @@ goog.async.AnimationDelay.prototype.startIfNotActive = function() {
  * in use.
  */
 goog.async.AnimationDelay.prototype.stop = function() {
-  'use strict';
   if (this.isActive()) {
     var raf = this.getRaf_();
     var cancelRaf = this.getCancelRaf_();
@@ -189,7 +193,6 @@ goog.async.AnimationDelay.prototype.stop = function() {
  * started yet; guarantees action firing. Stops the delay timer.
  */
 goog.async.AnimationDelay.prototype.fire = function() {
-  'use strict';
   this.stop();
   this.doAction_();
 };
@@ -200,7 +203,6 @@ goog.async.AnimationDelay.prototype.fire = function() {
  * timer.
  */
 goog.async.AnimationDelay.prototype.fireIfActive = function() {
-  'use strict';
   if (this.isActive()) {
     this.fire();
   }
@@ -211,7 +213,6 @@ goog.async.AnimationDelay.prototype.fireIfActive = function() {
  * @return {boolean} True if the delay is currently active, false otherwise.
  */
 goog.async.AnimationDelay.prototype.isActive = function() {
-  'use strict';
   return this.id_ != null;
 };
 
@@ -221,7 +222,6 @@ goog.async.AnimationDelay.prototype.isActive = function() {
  * @private
  */
 goog.async.AnimationDelay.prototype.doAction_ = function() {
-  'use strict';
   if (this.usingListeners_ && this.id_) {
     goog.events.unlistenByKey(this.id_);
   }
@@ -238,7 +238,6 @@ goog.async.AnimationDelay.prototype.doAction_ = function() {
 
 /** @override */
 goog.async.AnimationDelay.prototype.disposeInternal = function() {
-  'use strict';
   this.stop();
   goog.async.AnimationDelay.base(this, 'disposeInternal');
 };
@@ -250,7 +249,6 @@ goog.async.AnimationDelay.prototype.disposeInternal = function() {
  * @private
  */
 goog.async.AnimationDelay.prototype.getRaf_ = function() {
-  'use strict';
   var win = this.win_;
   return win.requestAnimationFrame || win.webkitRequestAnimationFrame ||
       win.mozRequestAnimationFrame || win.oRequestAnimationFrame ||
@@ -264,7 +262,6 @@ goog.async.AnimationDelay.prototype.getRaf_ = function() {
  * @private
  */
 goog.async.AnimationDelay.prototype.getCancelRaf_ = function() {
-  'use strict';
   var win = this.win_;
   return win.cancelAnimationFrame || win.cancelRequestAnimationFrame ||
       win.webkitCancelRequestAnimationFrame ||

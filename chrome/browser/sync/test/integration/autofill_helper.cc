@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/bind.h"
 #include "base/guid.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
@@ -27,8 +28,8 @@
 #include "components/autofill/core/browser/webdata/autofill_table.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/autofill/core/common/form_field_data.h"
+#include "components/sync/driver/profile_sync_service.h"
 #include "components/webdata/common/web_database.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 using autofill::AutofillChangeList;
 using autofill::AutofillEntry;
@@ -41,8 +42,10 @@ using autofill::AutofillWebDataServiceObserverOnDBSequence;
 using autofill::CreditCard;
 using autofill::FormFieldData;
 using autofill::PersonalDataManager;
+using autofill::PersonalDataManagerObserver;
 using base::WaitableEvent;
 using sync_datatype_helper::test;
+using testing::_;
 
 namespace {
 
@@ -77,7 +80,7 @@ void RemoveKeyDontBlockForSync(int profile, const AutofillKey& key) {
                            base::WaitableEvent::InitialState::NOT_SIGNALED);
 
   MockWebDataServiceObserver mock_observer;
-  EXPECT_CALL(mock_observer, AutofillEntriesChanged)
+  EXPECT_CALL(mock_observer, AutofillEntriesChanged(_))
       .WillOnce(SignalEvent(&done_event));
 
   scoped_refptr<AutofillWebDataService> wds = GetWebDataService(profile);
@@ -115,7 +118,7 @@ std::vector<AutofillEntry> GetAllAutofillEntries(AutofillWebDataService* wds) {
 }
 
 bool ProfilesMatchImpl(
-    const absl::optional<unsigned int>& expected_count,
+    const base::Optional<unsigned int>& expected_count,
     int profile_a,
     const std::vector<AutofillProfile*>& autofill_profiles_a,
     int profile_b,
@@ -230,7 +233,7 @@ void AddKeys(int profile, const std::set<AutofillKey>& keys) {
   WaitableEvent done_event(base::WaitableEvent::ResetPolicy::AUTOMATIC,
                            base::WaitableEvent::InitialState::NOT_SIGNALED);
   MockWebDataServiceObserver mock_observer;
-  EXPECT_CALL(mock_observer, AutofillEntriesChanged)
+  EXPECT_CALL(mock_observer, AutofillEntriesChanged(_))
       .WillOnce(SignalEvent(&done_event));
 
   scoped_refptr<AutofillWebDataService> wds = GetWebDataService(profile);
@@ -301,8 +304,8 @@ void SetCreditCards(int profile, std::vector<CreditCard>* credit_cards) {
 
 void AddProfile(int profile, const AutofillProfile& autofill_profile) {
   std::vector<AutofillProfile> autofill_profiles;
-  for (AutofillProfile* p : GetAllAutoFillProfiles(profile)) {
-    autofill_profiles.push_back(*p);
+  for (AutofillProfile* profile : GetAllAutoFillProfiles(profile)) {
+    autofill_profiles.push_back(*profile);
   }
   autofill_profiles.push_back(autofill_profile);
   autofill_helper::SetProfiles(profile, &autofill_profiles);
@@ -310,9 +313,9 @@ void AddProfile(int profile, const AutofillProfile& autofill_profile) {
 
 void RemoveProfile(int profile, const std::string& guid) {
   std::vector<AutofillProfile> autofill_profiles;
-  for (AutofillProfile* p : GetAllAutoFillProfiles(profile)) {
-    if (p->guid() != guid) {
-      autofill_profiles.push_back(*p);
+  for (AutofillProfile* profile : GetAllAutoFillProfiles(profile)) {
+    if (profile->guid() != guid) {
+      autofill_profiles.push_back(*profile);
     }
   }
   autofill_helper::SetProfiles(profile, &autofill_profiles);
@@ -321,12 +324,12 @@ void RemoveProfile(int profile, const std::string& guid) {
 void UpdateProfile(int profile,
                    const std::string& guid,
                    const AutofillType& type,
-                   const std::u16string& value,
+                   const base::string16& value,
                    autofill::structured_address::VerificationStatus status) {
   std::vector<AutofillProfile> profiles;
-  for (AutofillProfile* p : GetAllAutoFillProfiles(profile)) {
-    profiles.push_back(*p);
-    if (p->guid() == guid) {
+  for (AutofillProfile* profile : GetAllAutoFillProfiles(profile)) {
+    profiles.push_back(*profile);
+    if (profile->guid() == guid) {
       profiles.back().SetRawInfoWithVerificationStatus(type.GetStorableType(),
                                                        value, status);
     }
@@ -380,7 +383,7 @@ bool ProfilesMatch(int profile_a, int profile_b) {
       GetAllAutoFillProfiles(profile_a);
   const std::vector<AutofillProfile*>& autofill_profiles_b =
       GetAllAutoFillProfiles(profile_b);
-  return ProfilesMatchImpl(absl::nullopt, profile_a, autofill_profiles_a,
+  return ProfilesMatchImpl(base::nullopt, profile_a, autofill_profiles_a,
                            profile_b, autofill_profiles_b);
 }
 
@@ -400,7 +403,7 @@ bool AutofillKeysChecker::IsExitConditionSatisfied(std::ostream* os) {
 AutofillProfileChecker::AutofillProfileChecker(
     int profile_a,
     int profile_b,
-    absl::optional<unsigned int> expected_count)
+    base::Optional<unsigned int> expected_count)
     : profile_a_(profile_a),
       profile_b_(profile_b),
       expected_count_(expected_count) {
@@ -418,10 +421,8 @@ bool AutofillProfileChecker::Wait() {
   PersonalDataLoadedObserverMock personal_data_observer;
   base::RunLoop run_loop_a;
   base::RunLoop run_loop_b;
-  PersonalDataManager* pdm_a =
-      autofill_helper::GetPersonalDataManager(profile_a_);
-  PersonalDataManager* pdm_b =
-      autofill_helper::GetPersonalDataManager(profile_b_);
+  auto* pdm_a = autofill_helper::GetPersonalDataManager(profile_a_);
+  auto* pdm_b = autofill_helper::GetPersonalDataManager(profile_b_);
   pdm_a->AddObserver(&personal_data_observer);
   pdm_b->AddObserver(&personal_data_observer);
 
@@ -465,5 +466,5 @@ void AutofillProfileChecker::OnPersonalDataChanged() {
   CheckExitCondition();
 }
 
-PersonalDataLoadedObserverMock::PersonalDataLoadedObserverMock() = default;
-PersonalDataLoadedObserverMock::~PersonalDataLoadedObserverMock() = default;
+PersonalDataLoadedObserverMock::PersonalDataLoadedObserverMock() {}
+PersonalDataLoadedObserverMock::~PersonalDataLoadedObserverMock() {}

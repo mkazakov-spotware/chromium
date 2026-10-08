@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,40 +7,42 @@
 #include <utility>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/events/event.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/gfx/native_widget_types.h"
-#include "ui/ozone/public/ozone_platform.h"
-#include "ui/ozone/public/platform_keyboard_hook.h"
 
 namespace ui {
 
 KeyboardHookOzone::KeyboardHookOzone(
-    PlatformKeyboardHookTypes type,
-    KeyEventCallback callback,
-    absl::optional<base::flat_set<DomCode>> dom_codes,
-    gfx::AcceleratedWidget widget) {
-  platform_keyboard_hook_ =
-      ui::OzonePlatform::GetInstance()->CreateKeyboardHook(
-          type, std::move(callback), std::move(dom_codes), widget);
-}
+    base::Optional<base::flat_set<DomCode>> dom_codes,
+    KeyEventCallback callback)
+    : KeyboardHookBase(std::move(dom_codes), std::move(callback)) {}
 
 KeyboardHookOzone::~KeyboardHookOzone() = default;
 
-bool KeyboardHookOzone::IsKeyLocked(DomCode dom_code) const {
-  return platform_keyboard_hook_->IsKeyLocked(dom_code);
+bool KeyboardHookOzone::RegisterHook() {
+  // TODO(680809): Implement system-level keyboard lock feature for ozone.
+  // Return true to enable browser-level keyboard lock for ozone platform.
+  return true;
 }
 
+#if !defined(OS_LINUX) && !defined(OS_CHROMEOS)
 // static
 std::unique_ptr<KeyboardHook> KeyboardHook::CreateModifierKeyboardHook(
-    absl::optional<base::flat_set<DomCode>> dom_codes,
+    base::Optional<base::flat_set<DomCode>> dom_codes,
     gfx::AcceleratedWidget accelerated_widget,
     KeyEventCallback callback) {
-  return std::make_unique<KeyboardHookOzone>(
-      PlatformKeyboardHookTypes::kModifier, std::move(callback),
-      std::move(dom_codes), accelerated_widget);
+  std::unique_ptr<KeyboardHookOzone> keyboard_hook =
+      std::make_unique<KeyboardHookOzone>(std::move(dom_codes),
+                                          std::move(callback));
+
+  if (!keyboard_hook->RegisterHook())
+    return nullptr;
+
+  return keyboard_hook;
 }
 
 // static
@@ -48,5 +50,6 @@ std::unique_ptr<KeyboardHook> KeyboardHook::CreateMediaKeyboardHook(
     KeyEventCallback callback) {
   return nullptr;
 }
+#endif
 
 }  // namespace ui

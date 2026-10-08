@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,11 @@ import androidx.annotation.NonNull;
  * The lifecycle of a navigation:
  * 1) navigationStarted()
  * 2) 0 or more navigationRedirected()
- * 3) navigationCompleted() or navigationFailed()
- * 4) onFirstContentfulPaint().
+ * 3) 0 or 1 readyToCommitNavigation()
+ * 4) navigationCompleted() or navigationFailed()
+ * 5) onFirstContentfulPaint().
  */
-abstract class NavigationCallback {
+public abstract class NavigationCallback {
     /**
      * Called when a navigation started in the Tab. |navigation| is unique to a
      * specific navigation. The same |navigation| will be  provided on subsequent calls to
@@ -48,6 +49,21 @@ abstract class NavigationCallback {
      * @param navigation the unique object for this navigation.
      */
     public void onNavigationRedirected(@NonNull Navigation navigation) {}
+
+    /**
+     * Called when the navigation is ready to be committed in a renderer. This occurs when the
+     * response code isn't 204/205 (which tell the browser that the request is successful but
+     * there's no content that follows) or a download (either from a response header or based on
+     * mime sniffing the response). The browser then is ready to switch rendering the new document.
+     * Most observers should use NavigationCompleted or NavigationFailed instead, which happens
+     * right after the navigation commits. This method is for observers that want to initialize
+     * renderer-side state just before the Tab commits the navigation.
+     *
+     * This is the first point in time where a Tab is associated with the navigation.
+     *
+     * @param navigation the unique object for this navigation.
+     */
+    public void onReadyToCommitNavigation(@NonNull Navigation navigation) {}
 
     /**
      * Called when a navigation completes successfully in the Tab.
@@ -81,10 +97,10 @@ abstract class NavigationCallback {
      * The load state of the document has changed.
      *
      * @param isLoading Whether any resource is loading.
-     * @param shouldShowLoadingUi True if the navigation is expected to show navigation-in-progress
-     *        UI (if any exists). Only valid when |isLoading| is true.
+     * @param toDifferentDocument True if the main frame is loading a different document. Only valid
+     *        when |isLoading| is true.
      */
-    public void onLoadStateChanged(boolean isLoading, boolean shouldShowLoadingUi) {}
+    public void onLoadStateChanged(boolean isLoading, boolean toDifferentDocument) {}
 
     /**
      * The progress of loading the main frame in the document has changed.
@@ -95,9 +111,7 @@ abstract class NavigationCallback {
 
     /**
      * This is fired after each navigation has completed to indicate that the first paint after a
-     * non-empty layout has finished. This is *not* called for same-document navigations or when the
-     * page is loaded from the back-forward cache; see {@link
-     * Navigation#isServedFromBackForwardCache}.
+     * non-empty layout has finished. This is *not* called for same-document navigations.
      */
     public void onFirstContentfulPaint() {}
 
@@ -131,23 +145,7 @@ abstract class NavigationCallback {
      * Called after each navigation to indicate that the old page is no longer
      * being rendered. Note this is not ordered with respect to onFirstContentfulPaint.
      * @param newNavigationUri Uri of the new navigation.
+     * @since 85
      */
     public void onOldPageNoLongerRendered(@NonNull Uri newNavigationUri) {}
-
-    /* Called when a Page is destroyed. For the common case, this is called when the user navigates
-     * away from a page to a new one or when the Tab is destroyed. However there are situations when
-     * a page is alive when it's not visible, e.g. when it goes into the back-forward cache. In that
-     * case this method will either be called when the back-forward cache entry is evicted or if it
-     * is used then this cycle repeats.
-     * @since 90
-     */
-    public void onPageDestroyed(@NonNull Page page) {}
-
-    /*
-     * Called when the source language for |page| has been determined to be |language|.
-     * Note: |language| is an ISO 639 language code (two letters, except for Chinese where a
-     * localization is necessary).
-     * @since 93
-     */
-    public void onPageLanguageDetermined(@NonNull Page page, @NonNull String language) {}
 }

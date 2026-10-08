@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <string>
 
-#include "ash/public/cpp/arc_resize_lock_type.h"
 #include "ash/public/cpp/ash_public_export.h"
 #include "ui/base/class_property.h"
 
@@ -26,13 +25,11 @@ enum class WindowStateType;
 
 namespace gfx {
 class Rect;
-class Size;
 }
 
 namespace ash {
 
 class WindowBackdrop;
-enum class ResizeShadowType;
 
 // Shell-specific window property keys for use by ash and its clients.
 
@@ -47,30 +44,23 @@ ASH_PUBLIC_EXPORT extern const aura::WindowProperty<std::string*>* const
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<std::string*>* const
     kArcPackageNameKey;
 
-// If true, the ARC window can not be resized freely.
-ASH_PUBLIC_EXPORT extern const aura::WindowProperty<ArcResizeLockType>* const
-    kArcResizeLockTypeKey;
-
 // A property key to specify whether the window should have backdrop and if
 // it has backdrop, the backdrop's mode and type. The backdrop is typically a
 // black window that covers the entire workspace placed behind the window.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<WindowBackdrop*>* const
     kWindowBackdropKey;
 
+// If true, the window can attach into another window.
+ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
+    kCanAttachToAnotherWindowKey;
+
 // If true, will send system keys to the window for dispatch.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
     kCanConsumeSystemKeysKey;
 
-// Accessibility Id set by the ARC++ client.
-ASH_PUBLIC_EXPORT extern const aura::WindowProperty<int32_t>* const
-    kClientAccessibilityIdKey;
-
 // A property key to exclude the window in MruTracker.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
     kExcludeInMruKey;
-
-ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
-    kFrameRateThrottleKey;
 
 // A property key to indicate whether we should hide this window in overview
 // mode and Alt + Tab.
@@ -80,6 +70,12 @@ ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
 // A property key to indicate whether we should hide this window in the shelf.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
     kHideInShelfKey;
+
+// If true, the window is the target window for the tab-dragged window. The key
+// is used by overview to show a highlight indication to indicate which overview
+// window the dragged tabs will merge into when the user releases the pointer.
+ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
+    kIsDeferredTabDraggingTargetWindowKey;
 
 // If true, the window is a browser window and its tab(s) are currently being
 // dragged.
@@ -102,6 +98,10 @@ ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
 // window and when this window is at the bottom of its navigation stack.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool*>* const
     kMinimizeOnBackKey;
+
+// A property key to store the window state the window had before entering PIP.
+ASH_PUBLIC_EXPORT extern const aura::WindowProperty<
+    chromeos::WindowStateType>* const kPrePipWindowStateTypeKey;
 
 // If true, the current PIP window is spawned from this window.
 // Android PIP has two types of behavior depending on how many activities the
@@ -128,15 +128,6 @@ ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
 //
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<float*>* const
     kPipSnapFractionKey;
-
-// A property key which stores the preferred size used when the unresizable
-// window is snapped in clamshell mode. Setting this property can make the
-// window snappable even if it's unresizable. Please note that the window
-// doesn't become snappable if the width (height if in the portrait snap mode)
-// of the property value is bigger than one of the workspace or is equal to 0.
-// Also, setting the zero size (width=0 and height=0) causes DCHECK failure.
-ASH_PUBLIC_EXPORT extern const aura::WindowProperty<gfx::Size*>* const
-    kUnresizableSnappedSizeKey;
 
 // Maps to ws::mojom::WindowManager::kRenderParentTitleArea_Property.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
@@ -170,10 +161,6 @@ ASH_PUBLIC_EXPORT extern const aura::WindowProperty<std::string*>* const
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<int32_t>* const
     kShelfItemTypeKey;
 
-// A property key to store the type of a window's resize shadow.
-ASH_PUBLIC_EXPORT extern const aura::WindowProperty<ResizeShadowType>* const
-    kResizeShadowTypeKey;
-
 // A property key to store the system gesture exclusion region. From a point
 // inside the region, system gesture e.g. back gesture shouldn't be triggered.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<SkRegion*>* const
@@ -193,12 +180,6 @@ ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
 // A property key to indicate pip window state.
 ASH_PUBLIC_EXPORT extern const aura::WindowProperty<bool>* const
     kWindowPipTypeKey;
-
-// A property key which store the bounds of a pip window's resize handle in the
-// pip window's coordinates. This is used to track the usage of the resize
-// handle.
-ASH_PUBLIC_EXPORT extern const aura::WindowProperty<gfx::Rect*>* const
-    kWindowPipResizeHandleBoundsKey;
 
 // Alphabetical sort.
 

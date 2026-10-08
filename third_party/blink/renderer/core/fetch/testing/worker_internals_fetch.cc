@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/fetch/testing/worker_internals_fetch.h"
-
-#include <utility>
 
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
@@ -22,13 +20,13 @@ Vector<String> WorkerInternalsFetch::getInternalResponseURLList(
   if (!response)
     return Vector<String>();
   Vector<String> url_list;
-  url_list.reserve(response->InternalURLList().size());
+  url_list.ReserveCapacity(response->InternalURLList().size());
   for (const auto& url : response->InternalURLList())
     url_list.push_back(url);
   return url_list;
 }
 
-ScriptPromise WorkerInternalsFetch::getInitialResourcePriority(
+ScriptPromise WorkerInternalsFetch::getResourcePriority(
     ScriptState* script_state,
     WorkerInternals& internals,
     const String& url,
@@ -39,8 +37,8 @@ ScriptPromise WorkerInternalsFetch::getInitialResourcePriority(
   KURL resource_url = url_test_helpers::ToKURL(url.Utf8());
   DCHECK(worker_global);
 
-  auto callback = WTF::BindOnce(&WorkerInternalsFetch::ResolveResourcePriority,
-                                WrapPersistent(resolver));
+  auto callback = WTF::Bind(&WorkerInternalsFetch::ResolveResourcePriority,
+                            WTF::Passed(WrapPersistent(resolver)));
   ResourceFetcher::AddPriorityObserverForTesting(resource_url,
                                                  std::move(callback));
 

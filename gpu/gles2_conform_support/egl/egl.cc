@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,40 +12,37 @@
 #include "gpu/gles2_conform_support/egl/surface.h"
 #include "gpu/gles2_conform_support/egl/thread_state.h"
 
-using gles2_conform_support::egl::Display;
-using gles2_conform_support::egl::ThreadState;
-
 extern "C" {
 EGLAPI EGLint EGLAPIENTRY eglGetError() {
-  return ThreadState::Get()->ConsumeErrorCode();
+  return egl::ThreadState::Get()->ConsumeErrorCode();
 }
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetDisplay(EGLNativeDisplayType display_id) {
   if (display_id != EGL_DEFAULT_DISPLAY)
     return EGL_NO_DISPLAY;
-  return ThreadState::Get()->GetDefaultDisplay();
+  return egl::ThreadState::Get()->GetDefaultDisplay();
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglInitialize(EGLDisplay dpy,
                                             EGLint* major,
                                             EGLint* minor) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->Initialize(ts, major, minor);
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglTerminate(EGLDisplay dpy) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->Terminate(ts);
 }
 
 EGLAPI const char* EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name) {
-  ThreadState* ts = ThreadState::Get();
+  egl::ThreadState* ts = egl::ThreadState::Get();
   if (dpy == EGL_NO_DISPLAY) {
     switch (name) {
       case EGL_EXTENSIONS:
@@ -56,7 +53,7 @@ EGLAPI const char* EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name) {
         break;
     }
   }
-  Display* display = ts->GetDisplay(dpy);
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError<const char*>(EGL_BAD_DISPLAY, nullptr);
   return display->QueryString(ts, name);
@@ -67,8 +64,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy,
                                               EGLConfig* configs,
                                               EGLint config_size,
                                               EGLint* num_config) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->ChooseConfig(ts, attrib_list, configs, config_size,
@@ -79,8 +76,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglGetConfigs(EGLDisplay dpy,
                                             EGLConfig* configs,
                                             EGLint config_size,
                                             EGLint* num_config) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->GetConfigs(ts, configs, config_size, num_config);
@@ -90,8 +87,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglGetConfigAttrib(EGLDisplay dpy,
                                                  EGLConfig cfg,
                                                  EGLint attribute,
                                                  EGLint* value) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->GetConfigAttrib(ts, cfg, attribute, value);
@@ -102,8 +99,8 @@ eglCreateWindowSurface(EGLDisplay dpy,
                        EGLConfig cfg,
                        EGLNativeWindowType win,
                        const EGLint* attrib_list) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_NO_SURFACE);
   return display->CreateWindowSurface(ts, cfg, win, attrib_list);
@@ -113,8 +110,8 @@ EGLAPI EGLSurface EGLAPIENTRY
 eglCreatePbufferSurface(EGLDisplay dpy,
                         EGLConfig cfg,
                         const EGLint* attrib_list) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_NO_SURFACE);
   return display->CreatePbufferSurface(ts, cfg, attrib_list);
@@ -130,8 +127,8 @@ eglCreatePixmapSurface(EGLDisplay dpy,
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroySurface(EGLDisplay dpy,
                                                 EGLSurface sfe) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->DestroySurface(ts, sfe);
@@ -157,7 +154,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglWaitClient(void) {
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglReleaseThread(void) {
-  ThreadState::ReleaseThread();
+  egl::ThreadState::ReleaseThread();
   return EGL_TRUE;
 }
 
@@ -197,8 +194,8 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy,
                                                EGLConfig cfg,
                                                EGLContext share_ctx,
                                                const EGLint* attrib_list) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_NO_CONTEXT);
   return display->CreateContext(ts, cfg, share_ctx, attrib_list);
@@ -206,8 +203,8 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy,
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy,
                                                 EGLContext ctx) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->DestroyContext(ts, ctx);
@@ -217,16 +214,16 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy,
                                              EGLSurface draw,
                                              EGLSurface read,
                                              EGLContext ctx) {
-  ThreadState* ts = ThreadState::Get();
+  egl::ThreadState* ts = egl::ThreadState::Get();
   if (draw == EGL_NO_SURFACE && read == EGL_NO_SURFACE &&
       ctx == EGL_NO_CONTEXT) {
-    Display* display =
+    egl::Display* display =
         dpy == EGL_NO_DISPLAY ? ts->GetDefaultDisplay() : ts->GetDisplay(dpy);
     if (!display)
       return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
     return display->ReleaseCurrent(ts);
   }
-  Display* display = ts->GetDisplay(dpy);
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->MakeCurrent(ts, draw, read, ctx);
@@ -260,8 +257,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglWaitNative(EGLint engine) {
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapBuffers(EGLDisplay dpy, EGLSurface sfe) {
-  ThreadState* ts = ThreadState::Get();
-  Display* display = ts->GetDisplay(dpy);
+  egl::ThreadState* ts = egl::ThreadState::Get();
+  egl::Display* display = ts->GetDisplay(dpy);
   if (!display)
     return ts->ReturnError(EGL_BAD_DISPLAY, EGL_FALSE);
   return display->SwapBuffers(ts, sfe);

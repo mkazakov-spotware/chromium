@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,8 @@
 
 namespace page_load_metrics {
 
-BASE_FEATURE(kClickInputTracker,
-             "ClickInputTracker",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kClickInputTracker{"ClickInputTracker",
+                                       base::FEATURE_ENABLED_BY_DEFAULT};
 
 // This class considers user input clicks for a page load to determine if a
 // burst of clicks occurs at the screen position. This is a possible signal
@@ -23,10 +22,6 @@ BASE_FEATURE(kClickInputTracker,
 class ClickInputTracker {
  public:
   ClickInputTracker();
-
-  ClickInputTracker(const ClickInputTracker&) = delete;
-  ClickInputTracker& operator=(const ClickInputTracker&) = delete;
-
   ~ClickInputTracker();
 
   // Considers whether |event| is part of a user click burst. Must be called
@@ -71,6 +66,8 @@ class ClickInputTracker {
 
   // Position of the last click input.
   gfx::PointF last_click_position_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClickInputTracker);
 };
 
 }  // namespace page_load_metrics

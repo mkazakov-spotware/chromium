@@ -1,14 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_INVALIDATION_PUBLIC_ACK_HANDLER_H_
 #define COMPONENTS_INVALIDATION_PUBLIC_ACK_HANDLER_H_
 
+#include <vector>
+
 #include "components/invalidation/public/invalidation_export.h"
 #include "components/invalidation/public/invalidation_util.h"
 
-namespace invalidation {
+namespace syncer {
 
 class AckHandle;
 
@@ -28,6 +30,6 @@ class INVALIDATION_EXPORT AckHandler {
   virtual void Drop(const Topic& topic, const AckHandle& handle) = 0;
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_PUBLIC_ACK_HANDLER_H_

@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.test.util;
 
-import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
 
@@ -24,7 +23,7 @@ import java.util.Arrays;
 
 /**
  * {@link TestRule} to disable animations for UI testing, or enable animation with new
- * DisableAnimationsTestRule(true). Does not work on Android S, see https://crbug.com/1225707.
+ * DisableAnimationsTestRule(true).
  */
 public class DisableAnimationsTestRule implements TestRule {
     /**
@@ -68,14 +67,7 @@ public class DisableAnimationsTestRule implements TestRule {
             IBinder windowManagerBinder = (IBinder) getService.invoke(null, "window");
             mWindowManagerObject = asInterface.invoke(null, windowManagerBinder);
         } catch (Exception e) {
-            // TODO(https://crbug.com/1225707): Always throw once this works on Android S. The above
-            // API is no longer accessible and will crash regardless of filter rules so just warn
-            // instead.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Log.w(TAG, "Failed to access animation methods", e);
-            } else {
-                throw new RuntimeException("Failed to access animation methods", e);
-            }
+            throw new RuntimeException("Failed to access animation methods", e);
         }
     }
 
@@ -109,12 +101,6 @@ public class DisableAnimationsTestRule implements TestRule {
     }
 
     private void setAnimationScaleFactors(float scaleFactor) throws Exception {
-        // TODO(https://crbug.com/1225707): Remove once this works on Android S.
-        if (mGetAnimationScalesMethod == null || mSetAnimationScalesMethod == null
-                || mWindowManagerObject == null) {
-            return;
-        }
-
         float[] scaleFactors = (float[]) mGetAnimationScalesMethod.invoke(mWindowManagerObject);
         Arrays.fill(scaleFactors, scaleFactor);
         mSetAnimationScalesMethod.invoke(mWindowManagerObject, scaleFactors);

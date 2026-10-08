@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,28 +7,14 @@
 
 #import <Foundation/Foundation.h>
 
-namespace password_manager {
-struct CredentialUIEntry;
-}
+// Protocol used by |PasswordIssueTableViewController| to display items.
+@protocol PasswordIssue
 
-@class CrURL;
-
-// Interface used by `PasswordIssueTableViewController` to display items.
-@interface PasswordIssue : NSObject
-
-// Associated URL to retrieve a favicon.
-@property(nonatomic, readwrite, strong) CrURL* URL;
 // Associated website.
-@property(nonatomic, copy, readonly) NSString* website;
+@property(nonatomic, readonly) NSString* website;
+
 // Associated username.
-@property(nonatomic, copy, readonly) NSString* username;
-// Credential being displayed in Password Details screen.
-@property(nonatomic, readonly) password_manager::CredentialUIEntry credential;
-
-- (instancetype)initWithCredential:
-    (password_manager::CredentialUIEntry)credential NS_DESIGNATED_INITIALIZER;
-
-- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly) NSString* username;
 
 @end
 

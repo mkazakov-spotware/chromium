@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,8 @@
 #include "remoting/protocol/channel_authenticator.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 ThirdPartyClientAuthenticator::ThirdPartyClientAuthenticator(
     const CreateBaseAuthenticatorCallback& create_base_authenticator_callback,
@@ -36,7 +37,7 @@ void ThirdPartyClientAuthenticator::ProcessTokenMessage(
     LOG(ERROR) << "Third-party authentication protocol error: "
         "missing token verification URL or scope.";
     token_state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     std::move(resume_callback).Run();
     return;
   }
@@ -65,20 +66,18 @@ void ThirdPartyClientAuthenticator::AddTokenElements(
 void ThirdPartyClientAuthenticator::OnThirdPartyTokenFetched(
     base::OnceClosure resume_callback,
     const std::string& third_party_token,
-    const TokenValidator::ValidationResult& validation_result) {
+    const std::string& shared_secret) {
   token_ = third_party_token;
-  if (token_.empty() || validation_result.is_error()) {
+  if (token_.empty() || shared_secret.empty()) {
     token_state_ = REJECTED;
-    rejection_reason_ = validation_result.is_error()
-                            ? validation_result.error()
-                            : RejectionReason::INVALID_CREDENTIALS;
+    rejection_reason_ = INVALID_CREDENTIALS;
   } else {
-    DCHECK(!validation_result.success().empty());
     token_state_ = MESSAGE_READY;
-    underlying_ = create_base_authenticator_callback_.Run(
-        validation_result.success(), MESSAGE_READY);
+    underlying_ =
+        create_base_authenticator_callback_.Run(shared_secret, MESSAGE_READY);
   }
   std::move(resume_callback).Run();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

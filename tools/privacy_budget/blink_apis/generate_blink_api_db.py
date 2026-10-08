@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 """
 Generate a database of Blink APIs.
 
@@ -32,15 +31,8 @@ This should create a file named `blink_apis.textpb` in the root build
 directory. E.g. 'out/Debug'`
 """
 
-import argparse
-import os
 import sys
-
-_HERE_PATH = os.path.dirname(__file__)
-_SRC_PATH = os.path.normpath(os.path.join(_HERE_PATH, '..', '..', '..'))
-sys.path.insert(0, os.path.join(_SRC_PATH, 'third_party', 'protobuf',
-                                'python'))
-sys.path.insert(0, os.path.join(_SRC_PATH, 'third_party', 'six', 'src'))
+import argparse
 
 
 def parse_options():
@@ -48,9 +40,6 @@ def parse_options():
     parser.add_argument("--web_idl_database",
                         type=str,
                         help="filepath of the input database")
-    parser.add_argument("--web_feature_mojom",
-                        type=str,
-                        help="path of web_feature.mojom")
     parser.add_argument("--output", type=str, help="filepath of output file")
     parser.add_argument("--path", type=str, help="Additions to sys.path")
     parser.add_argument(
@@ -59,7 +48,7 @@ def parse_options():
         help="Chromium revision (git hash) for the source of Blink WebIDL DB")
     args = parser.parse_args()
 
-    required_option_names = ("web_idl_database", "output", "web_feature_mojom")
+    required_option_names = ("web_idl_database", "output")
     for opt_name in required_option_names:
         if getattr(args, opt_name) is None:
             parser.error("--{} is a required option.".format(opt_name))
@@ -75,10 +64,8 @@ def main():
     args = parse_options()
 
     from blink_api_proto import BlinkApiProto
-    from web_feature import WebFeature
-    w = WebFeature(args.web_feature_mojom)
     p = BlinkApiProto(args.web_idl_database, args.output,
-                      args.chromium_revision, w)
+                      args.chromium_revision)
     p.Parse()
     p.WriteTo(args.output)
 

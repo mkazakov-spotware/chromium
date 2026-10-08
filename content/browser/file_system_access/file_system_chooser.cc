@@ -1,18 +1,22 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/file_system_access/file_system_chooser.h"
 
+#include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/files/file_util.h"
 #include "base/i18n/file_util_icu.h"
 #include "base/i18n/rtl.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "build/build_config.h"
-#include "content/browser/file_system_access/file_system_access_error.h"
+#include "content/browser/file_system_access/native_file_system_error.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
@@ -31,28 +35,24 @@ namespace {
 // size and underlying platform all influence how many characters will actually
 // be visible. As such this can be adjusted as needed.
 constexpr int kMaxDescriptionLength = 64;
-// The maximum number of unicode code points the extension of a file is
-// allowed to be. Any longer extensions will be stripped. This value should be
-// kept in sync with the extension length checks in the renderer.
-constexpr int kMaxExtensionLength = 16;
 
-std::string TypeToString(ui::SelectFileDialog::Type type) {
+std::string TypeToString(blink::mojom::ChooseFileSystemEntryType type) {
   switch (type) {
-    case ui::SelectFileDialog::SELECT_OPEN_FILE:
+    case blink::mojom::ChooseFileSystemEntryType::kOpenFile:
       return "OpenFile";
-    case ui::SelectFileDialog::SELECT_OPEN_MULTI_FILE:
+    case blink::mojom::ChooseFileSystemEntryType::kOpenMultipleFiles:
       return "OpenMultipleFiles";
-    case ui::SelectFileDialog::SELECT_SAVEAS_FILE:
+    case blink::mojom::ChooseFileSystemEntryType::kSaveFile:
       return "SaveFile";
-    case ui::SelectFileDialog::SELECT_FOLDER:
+    case blink::mojom::ChooseFileSystemEntryType::kOpenDirectory:
       return "OpenDirectory";
-    default:
-      NOTREACHED();
-      return std::string();
   }
+  NOTREACHED();
+  return nullptr;
 }
 
-void RecordFileSelectionResult(ui::SelectFileDialog::Type type, int count) {
+void RecordFileSelectionResult(blink::mojom::ChooseFileSystemEntryType type,
+                               int count) {
   base::UmaHistogramCounts1000("NativeFileSystemAPI.FileChooserResult", count);
   base::UmaHistogramCounts1000(
       "NativeFileSystemAPI.FileChooserResult." + TypeToString(type), count);
@@ -69,17 +69,41 @@ base::FilePath::StringType GetLastExtension(
              : extension;
 }
 
+// Returns whether the specified extension receives special handling by the
+// Windows shell.
+bool IsShellIntegratedExtension(const base::FilePath::StringType& extension) {
+  // TODO(https://crbug.com/1154757): Figure out some way to unify this with
+  // net::IsSafePortablePathComponent, with the result probably ending up in
+  // base/i18n/file_util_icu.h.
+  base::FilePath::StringType extension_lower = base::ToLowerASCII(extension);
+
+  // .lnk files may be used to execute arbitrary code (see
+  // https://nvd.nist.gov/vuln/detail/CVE-2010-2568). .local files are used by
+  // Windows to determine which DLLs to load for an application.
+  if ((extension_lower == FILE_PATH_LITERAL("local")) ||
+      (extension_lower == FILE_PATH_LITERAL("lnk")))
+    return true;
+
+  // Setting a file's extension to a CLSID may conceal its actual file type on
+  // some Windows versions (see https://nvd.nist.gov/vuln/detail/CVE-2004-0420).
+  if (!extension_lower.empty() &&
+      (extension_lower.front() == FILE_PATH_LITERAL('{')) &&
+      (extension_lower.back() == FILE_PATH_LITERAL('}')))
+    return true;
+  return false;
+}
+
 // Extension validation primarily takes place in the renderer. This checks for a
 // subset of invalid extensions in the event the renderer is compromised.
 bool IsInvalidExtension(base::FilePath::StringType& extension) {
   std::string component8 = base::FilePath(extension).AsUTF8Unsafe();
-  auto extension16 = base::UTF8ToUTF16(component8);
+  auto extension16 = base::UTF8ToUTF16(component8.c_str());
 
   return !base::i18n::IsFilenameLegal(extension16) ||
-         FileSystemChooser::IsShellIntegratedExtension(extension);
+         IsShellIntegratedExtension(GetLastExtension(extension));
 }
 
-// Converts the accepted mime types and extensions from `option` into a list
+// Converts the accepted mime types and extensions from |option| into a list
 // of just extensions to be passed to the file dialog implementation.
 // The returned list will start with all the explicit website provided
 // extensions in order, followed by (for each mime type) the preferred
@@ -89,12 +113,12 @@ bool IsInvalidExtension(base::FilePath::StringType& extension) {
 bool GetFileTypesFromAcceptsOption(
     const blink::mojom::ChooseFileSystemEntryAcceptsOption& option,
     std::vector<base::FilePath::StringType>* extensions,
-    std::u16string* description) {
+    base::string16* description) {
   std::set<base::FilePath::StringType> extension_set;
 
   for (const std::string& extension_string : option.extensions) {
     base::FilePath::StringType extension;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     extension = base::UTF8ToWide(extension_string);
 #else
     extension = extension_string;
@@ -130,7 +154,7 @@ bool GetFileTypesFromAcceptsOption(
   if (extensions->empty())
     return false;
 
-  std::u16string sanitized_description = option.description;
+  base::string16 sanitized_description = option.description;
   if (!sanitized_description.empty()) {
     sanitized_description = base::CollapseWhitespace(
         sanitized_description, /*trim_sequences_with_line_breaks=*/false);
@@ -144,13 +168,15 @@ bool GetFileTypesFromAcceptsOption(
 }
 
 ui::SelectFileDialog::FileTypeInfo ConvertAcceptsToFileTypeInfo(
-    const blink::mojom::AcceptsTypesInfoPtr& accepts_types_info) {
+    const std::vector<blink::mojom::ChooseFileSystemEntryAcceptsOptionPtr>&
+        accepts,
+    bool include_accepts_all) {
   ui::SelectFileDialog::FileTypeInfo file_types;
-  file_types.include_all_files = accepts_types_info->include_accepts_all;
+  file_types.include_all_files = include_accepts_all;
 
-  for (const auto& option : accepts_types_info->accepts) {
+  for (const auto& option : accepts) {
     std::vector<base::FilePath::StringType> extensions;
-    std::u16string description;
+    base::string16 description;
 
     if (!GetFileTypesFromAcceptsOption(*option, &extensions, &description))
       continue;  // No extensions were found for this option, skip it.
@@ -171,76 +197,17 @@ ui::SelectFileDialog::FileTypeInfo ConvertAcceptsToFileTypeInfo(
   return file_types;
 }
 
-ui::SelectFileDialog::Type ValidateType(ui::SelectFileDialog::Type type) {
-  switch (type) {
-    case ui::SelectFileDialog::SELECT_OPEN_FILE:
-    case ui::SelectFileDialog::SELECT_OPEN_MULTI_FILE:
-    case ui::SelectFileDialog::SELECT_SAVEAS_FILE:
-    case ui::SelectFileDialog::SELECT_FOLDER:
-      return type;
-    default:
-      NOTREACHED();
-      return ui::SelectFileDialog::SELECT_NONE;
-  }
-}
-
 }  // namespace
 
 FileSystemChooser::Options::Options(
-    ui::SelectFileDialog::Type type,
-    blink::mojom::AcceptsTypesInfoPtr accepts_types_info,
-    std::u16string title,
-    base::FilePath default_directory,
-    base::FilePath suggested_name)
-    : type_(ValidateType(type)),
-      file_types_(ConvertAcceptsToFileTypeInfo(accepts_types_info)),
-      // Set `default_file_type_index_` to a reasonable default value.
-      // This value will be updated if the extension of `suggested_name`
-      // matches an extension in `accepts_types_info->accepts`.
+    blink::mojom::ChooseFileSystemEntryType type,
+    std::vector<blink::mojom::ChooseFileSystemEntryAcceptsOptionPtr> accepts,
+    bool include_accepts_all,
+    base::FilePath default_path)
+    : type_(type),
+      file_types_(ConvertAcceptsToFileTypeInfo(accepts, include_accepts_all)),
       default_file_type_index_(file_types_.extensions.empty() ? 0 : 1),
-      title_(std::move(title)),
-      default_path_(default_directory.Append(
-          ResolveSuggestedNameExtension(std::move(suggested_name),
-                                        file_types_))) {}
-
-FileSystemChooser::Options::Options(const Options& other) = default;
-
-base::FilePath FileSystemChooser::Options::ResolveSuggestedNameExtension(
-    base::FilePath suggested_name,
-    ui::SelectFileDialog::FileTypeInfo& file_types) {
-  if (suggested_name.empty())
-    return base::FilePath();
-
-  auto suggested_extension = suggested_name.Extension();
-
-  if (suggested_extension.size() > kMaxExtensionLength) {
-    // Sanitize extensions longer than 16 characters.
-    file_types.include_all_files = true;
-    return suggested_name.RemoveExtension();
-  }
-
-  if (file_types.extensions.empty() || suggested_extension.empty()) {
-    file_types.include_all_files = true;
-    return suggested_name;
-  }
-
-  // Strip leading ".".
-  suggested_extension = suggested_extension.substr(1);
-
-  // Check if the suggested extension is an accepted extension.
-  for (auto i = 0u; i < file_types.extensions.size(); ++i) {
-    auto it = base::ranges::find(file_types.extensions[i], suggested_extension);
-    if (it != file_types.extensions[i].end()) {
-      // The suggested extension is an accepted extension. All is harmonious.
-      default_file_type_index_ = i + 1;  // NOTE: 1-based index.
-      return suggested_name;
-    }
-  }
-
-  // Suggested extension not found in non-empty `accepts`.
-  file_types.include_all_files = true;
-  return suggested_name;
-}
+      default_path_(std::move(default_path)) {}
 
 // static
 void FileSystemChooser::CreateAndShow(
@@ -249,7 +216,6 @@ void FileSystemChooser::CreateAndShow(
     ResultCallback callback,
     base::ScopedClosureRunner fullscreen_block) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  // `listener` deletes itself.
   auto* listener = new FileSystemChooser(options.type(), std::move(callback),
                                          std::move(fullscreen_block));
   listener->dialog_ = ui::SelectFileDialog::Create(
@@ -263,59 +229,43 @@ void FileSystemChooser::CreateAndShow(
     return;
   }
 
+  // TODO(https://crbug.com/878581): Better/more specific options to pass to
+  //     SelectFile.
+
+  ui::SelectFileDialog::Type dialog_type = ui::SelectFileDialog::SELECT_NONE;
+  switch (options.type()) {
+    case blink::mojom::ChooseFileSystemEntryType::kOpenFile:
+      dialog_type = ui::SelectFileDialog::SELECT_OPEN_FILE;
+      break;
+    case blink::mojom::ChooseFileSystemEntryType::kOpenMultipleFiles:
+      dialog_type = ui::SelectFileDialog::SELECT_OPEN_MULTI_FILE;
+      break;
+    case blink::mojom::ChooseFileSystemEntryType::kSaveFile:
+      dialog_type = ui::SelectFileDialog::SELECT_SAVEAS_FILE;
+      break;
+    case blink::mojom::ChooseFileSystemEntryType::kOpenDirectory:
+      dialog_type = ui::SelectFileDialog::SELECT_FOLDER;
+      break;
+  }
+  DCHECK_NE(dialog_type, ui::SelectFileDialog::SELECT_NONE);
+
   listener->dialog_->SelectFile(
-      options.type(), options.title(), options.default_path(),
+      dialog_type, /*title=*/base::string16(), options.default_path(),
       &options.file_type_info(), options.default_file_type_index(),
       /*default_extension=*/base::FilePath::StringType(),
       web_contents ? web_contents->GetTopLevelNativeWindow() : nullptr,
       /*params=*/nullptr);
 }
 
-// static
-bool FileSystemChooser::IsShellIntegratedExtension(
-    const base::FilePath::StringType& extension) {
-  // TODO(https://crbug.com/1154757): Figure out some way to unify this with
-  // net::IsSafePortablePathComponent, with the result probably ending up in
-  // base/i18n/file_util_icu.h.
-  // - For the sake of consistency across platforms, we sanitize '.lnk' and
-  //   '.local' files on all platforms (not just Windows)
-  // - There are some extensions (i.e. '.scf') we would like to sanitize which
-  //   `net::GenerateFileName()` does not
-  base::FilePath::StringType extension_lower =
-      base::ToLowerASCII(GetLastExtension(extension));
-
-  // '.lnk' and '.scf' files may be used to execute arbitrary code (see
-  // https://nvd.nist.gov/vuln/detail/CVE-2010-2568 and
-  // https://crbug.com/1227995, respectively). '.local' files are used by
-  // Windows to determine which DLLs to load for an application. '.url' files
-  // can be used to read arbirtary files (see https://crbug.com/1307930).
-  if ((extension_lower == FILE_PATH_LITERAL("lnk")) ||
-      (extension_lower == FILE_PATH_LITERAL("local")) ||
-      (extension_lower == FILE_PATH_LITERAL("scf")) ||
-      (extension_lower == FILE_PATH_LITERAL("url"))) {
-    return true;
-  }
-
-  // Setting a file's extension to a CLSID may conceal its actual file type on
-  // some Windows versions (see https://nvd.nist.gov/vuln/detail/CVE-2004-0420).
-  if (!extension_lower.empty() &&
-      (extension_lower.front() == FILE_PATH_LITERAL('{')) &&
-      (extension_lower.back() == FILE_PATH_LITERAL('}'))) {
-    return true;
-  }
-
-  return false;
-}
-
-FileSystemChooser::FileSystemChooser(ui::SelectFileDialog::Type type,
-                                     ResultCallback callback,
-                                     base::ScopedClosureRunner fullscreen_block)
+FileSystemChooser::FileSystemChooser(
+    blink::mojom::ChooseFileSystemEntryType type,
+    ResultCallback callback,
+    base::ScopedClosureRunner fullscreen_block)
     : callback_(std::move(callback)),
-      type_(ValidateType(type)),
+      type_(type),
       fullscreen_block_(std::move(fullscreen_block)) {}
 
 FileSystemChooser::~FileSystemChooser() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (dialog_)
     dialog_->ListenerDestroyed();
 }
@@ -323,14 +273,12 @@ FileSystemChooser::~FileSystemChooser() {
 void FileSystemChooser::FileSelected(const base::FilePath& path,
                                      int index,
                                      void* params) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   MultiFilesSelected({path}, params);
 }
 
 void FileSystemChooser::MultiFilesSelected(
     const std::vector<base::FilePath>& files,
     void* params) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   MultiFilesSelectedWithExtraInfo(ui::FilePathListToSelectedFileInfoList(files),
                                   params);
 }
@@ -339,14 +287,12 @@ void FileSystemChooser::FileSelectedWithExtraInfo(
     const ui::SelectedFileInfo& file,
     int index,
     void* params) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   MultiFilesSelectedWithExtraInfo({file}, params);
 }
 
 void FileSystemChooser::MultiFilesSelectedWithExtraInfo(
     const std::vector<ui::SelectedFileInfo>& files,
     void* params) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   std::vector<ResultEntry> result;
 
   for (const ui::SelectedFileInfo& file : files) {
@@ -360,16 +306,15 @@ void FileSystemChooser::MultiFilesSelectedWithExtraInfo(
   }
 
   RecordFileSelectionResult(type_, result.size());
-  std::move(callback_).Run(file_system_access_error::Ok(), std::move(result));
+  std::move(callback_).Run(native_file_system_error::Ok(), std::move(result));
   delete this;
 }
 
 void FileSystemChooser::FileSelectionCanceled(void* params) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   RecordFileSelectionResult(type_, 0);
   std::move(callback_).Run(
-      file_system_access_error::FromStatus(
-          blink::mojom::FileSystemAccessStatus::kOperationAborted),
+      native_file_system_error::FromStatus(
+          blink::mojom::NativeFileSystemStatus::kOperationAborted),
       {});
   delete this;
 }

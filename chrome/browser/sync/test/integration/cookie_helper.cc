@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,25 +26,22 @@ const char kSigninCookieName[] = "SAPISID";
 
 void AddSigninCookie(Profile* profile) {
   DCHECK(profile);
-  std::unique_ptr<net::CanonicalCookie> cookie =
-      net::CanonicalCookie::CreateUnsafeCookieForTesting(
-          kSigninCookieName, std::string(), ".google.com", "/",
-          /*creation=*/base::Time(),
-          /*expiration=*/base::Time(), /*last_access=*/base::Time(),
-          /*last_update=*/base::Time(),
-          /*secure=*/true,
-          /*httponly=*/false, net::CookieSameSite::NO_RESTRICTION,
-          net::COOKIE_PRIORITY_DEFAULT,
-          /*same_party=*/false);
+  net::CanonicalCookie cookie(
+      kSigninCookieName, std::string(), ".google.com", "/",
+      /*creation=*/base::Time(),
+      /*expires=*/base::Time(), /*last_access=*/base::Time(), /*secure=*/true,
+      /*httponly=*/false, net::CookieSameSite::NO_RESTRICTION,
+      net::COOKIE_PRIORITY_DEFAULT,
+      /*same_party=*/false);
 
   network::mojom::CookieManager* cookie_manager =
-      profile->GetDefaultStoragePartition()
+      content::BrowserContext::GetDefaultStoragePartition(profile)
           ->GetCookieManagerForBrowserProcess();
   DCHECK(cookie_manager);
 
   base::RunLoop run_loop;
   cookie_manager->SetCanonicalCookie(
-      *cookie, net::cookie_util::SimulatedCookieSource(*cookie, "https"),
+      cookie, net::cookie_util::SimulatedCookieSource(cookie, "https"),
       net::CookieOptions(),
       base::BindLambdaForTesting(
           [&run_loop](net::CookieAccessResult) { run_loop.Quit(); }));
@@ -54,7 +51,7 @@ void AddSigninCookie(Profile* profile) {
 void DeleteSigninCookies(Profile* profile) {
   DCHECK(profile);
   network::mojom::CookieManager* cookie_manager =
-      profile->GetDefaultStoragePartition()
+      content::BrowserContext::GetDefaultStoragePartition(profile)
           ->GetCookieManagerForBrowserProcess();
   DCHECK(cookie_manager);
 

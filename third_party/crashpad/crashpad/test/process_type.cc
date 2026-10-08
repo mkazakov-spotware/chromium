@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,9 @@
 
 #include "test/process_type.h"
 
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include <lib/zx/process.h>
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include <unistd.h>
 #endif
 
@@ -26,13 +24,13 @@ namespace crashpad {
 namespace test {
 
 ProcessType GetSelfProcess() {
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   return zx::process::self();
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
   return getpid();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return GetCurrentProcess();
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   return mach_task_self();
 #endif
 }

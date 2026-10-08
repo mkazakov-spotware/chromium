@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include "base/i18n/message_formatter.h"
 #include "base/location.h"
 #include "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -26,13 +27,13 @@
 @interface It2MeConfirmationDialogMacController : NSObject {
  @private
   base::scoped_nsobject<NSAlert> _confirmation_alert;
-  std::u16string _username;
+  base::string16 _username;
   remoting::It2MeConfirmationDialog::ResultCallback _dialog_action_callback;
 }
 
-- (instancetype)initWithCallback:
-                    (remoting::It2MeConfirmationDialog::ResultCallback)callback
-                        username:(const std::string&)username;
+- (id)initWithCallback:
+          (remoting::It2MeConfirmationDialog::ResultCallback)callback
+              username:(const std::string&)username;
 - (void)show;
 - (void)hide;
 - (void)onCancel:(id)sender;
@@ -43,18 +44,13 @@ namespace remoting {
 
 namespace {
 // Time to wait before closing the dialog and cancelling the connection.
-constexpr base::TimeDelta kDialogTimeout = base::Minutes(1);
+constexpr base::TimeDelta kDialogTimeout = base::TimeDelta::FromMinutes(1);
 }
 
 // Bridge between C++ and ObjC implementations of It2MeConfirmationDialog.
 class It2MeConfirmationDialogMac : public It2MeConfirmationDialog {
  public:
   It2MeConfirmationDialogMac();
-
-  It2MeConfirmationDialogMac(const It2MeConfirmationDialogMac&) = delete;
-  It2MeConfirmationDialogMac& operator=(const It2MeConfirmationDialogMac&) =
-      delete;
-
   ~It2MeConfirmationDialogMac() override;
 
   // It2MeConfirmationDialog implementation.
@@ -69,6 +65,8 @@ class It2MeConfirmationDialogMac : public It2MeConfirmationDialog {
   ResultCallback result_callback_;
 
   base::OneShotTimer dialog_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(It2MeConfirmationDialogMac);
 };
 
 It2MeConfirmationDialogMac::It2MeConfirmationDialogMac() {}
@@ -127,9 +125,9 @@ It2MeConfirmationDialogFactory::Create() {
 
 @implementation It2MeConfirmationDialogMacController
 
-- (instancetype)initWithCallback:
-                    (remoting::It2MeConfirmationDialog::ResultCallback)callback
-                        username:(const std::string&)username {
+- (id)initWithCallback:
+          (remoting::It2MeConfirmationDialog::ResultCallback)callback
+              username:(const std::string&)username {
   if ((self = [super init])) {
     _username = base::UTF8ToUTF16(username);
     _dialog_action_callback = std::move(callback);
@@ -140,7 +138,7 @@ It2MeConfirmationDialogFactory::Create() {
 - (void)show {
   _confirmation_alert.reset([[NSAlert alloc] init]);
 
-  std::u16string dialog_text =
+  base::string16 dialog_text =
       base::i18n::MessageFormatter::FormatWithNumberedArgs(
           l10n_util::GetStringUTF16(
               IDS_SHARE_CONFIRM_DIALOG_MESSAGE_WITH_USERNAME),

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 
 @protocol ContentSuggestionsCollectionControlling;
 @protocol ContentSuggestionsHeaderControlling;
+@class ContentSuggestionsViewController;
 
 // Synchronizer for all the interactions between the HeaderController and the
 // CollectionView. It handles the interactions both ways.
@@ -21,8 +22,8 @@
     : NSObject<ContentSuggestionsCollectionSynchronizing,
                ContentSuggestionsHeaderSynchronizing>
 
-// Initializes the CommandHandler with the `suggestionsViewController` and the
-// `headerController`.
+// Initializes the CommandHandler with the |suggestionsViewController| and the
+// |headerController|.
 - (nullable instancetype)
 initWithCollectionController:
     (nullable id<ContentSuggestionsCollectionControlling>)collectionController

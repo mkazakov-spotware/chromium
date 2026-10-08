@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.content_public.browser.BrowserContextHandle;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 
 /**
  * Tests relating to {@link LevelDBPersistedTabDataStorageFactory}
@@ -48,27 +48,25 @@ public class LevelDBPersistedTabDataStorageFactoryTest {
     private Profile mProfile2;
 
     @Mock
-    private LevelDBPersistedDataStorage.Natives mLevelDBPersistedTabDataStorage;
+    private LevelDBPersistedTabDataStorage.Natives mLevelDBPersistedTabDataStorage;
 
     @Before
     public void setUp() throws Exception {
         mActivityTestRule.startMainActivityOnBlankPage();
         MockitoAnnotations.initMocks(this);
-        mMocker.mock(LevelDBPersistedDataStorageJni.TEST_HOOKS, mLevelDBPersistedTabDataStorage);
+        mMocker.mock(LevelDBPersistedTabDataStorageJni.TEST_HOOKS, mLevelDBPersistedTabDataStorage);
         doNothing()
                 .when(mLevelDBPersistedTabDataStorage)
-                .init(any(LevelDBPersistedDataStorage.class), any(BrowserContextHandle.class));
+                .init(any(LevelDBPersistedTabDataStorage.class), any(BrowserContextHandle.class));
         doNothing().when(mLevelDBPersistedTabDataStorage).destroy(anyLong());
         doReturn(false).when(mProfile1).isOffTheRecord();
         doReturn(false).when(mProfile2).isOffTheRecord();
-        LevelDBPersistedDataStorage.setSkipNativeAssertionsForTesting(true);
+        LevelDBPersistedTabDataStorage.setSkipNativeAssertionsForTesting(true);
     }
 
-    @UiThreadTest
     @SmallTest
     @Test
     public void testFactoryMethod() {
-        Profile realProfile = Profile.getLastUsedRegularProfile();
         LevelDBPersistedTabDataStorageFactory factory = new LevelDBPersistedTabDataStorageFactory();
         Profile.setLastUsedProfileForTesting(mProfile1);
         LevelDBPersistedTabDataStorage profile1Storage = factory.create();
@@ -78,8 +76,6 @@ public class LevelDBPersistedTabDataStorageFactoryTest {
         LevelDBPersistedTabDataStorage profile1StorageAgain = factory.create();
         Assert.assertEquals(profile1Storage, profile1StorageAgain);
         Assert.assertNotEquals(profile1Storage, profile2Storage);
-        // Restore the original profile so the Activity can shut down correctly.
-        Profile.setLastUsedProfileForTesting(realProfile);
     }
 
     @UiThreadTest

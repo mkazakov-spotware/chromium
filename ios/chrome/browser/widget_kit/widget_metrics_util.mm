@@ -1,12 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/widget_kit/widget_metrics_util.h"
 
-#import "base/metrics/histogram_functions.h"
-#import "base/notreached.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/notreached.h"
 #import "ios/chrome/browser/widget_kit/widget_kit_swift.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -18,19 +17,13 @@ using base::UmaHistogramEnumeration;
 namespace {
 
 // Values of the UMA IOS.WidgetKit.Install, IOS.WidgetKit.Uninstall and
-// IOS.WidgetKit.Current histograms. Must be kept up to date with
-// IOSWidgetKitExtensionKind in enums.xml. These values are persisted to logs.
-// Entries should not be renumbered and numeric values should never be reused.
+// IOS.WidgetKit.Current histograms. These values are persisted to logs. Entries
+// should not be renumbered and numeric values should never be reused.
 enum class WidgetKitExtensionKind {
   kDino = 0,
   kSearch = 1,
   kQuickActions = 2,
-  kObsolete = 3,
-  kLockscreenLauncherSearch = 4,
-  kLockscreenLauncherIncognito = 5,
-  kLockscreenLauncherVoiceSearch = 6,
-  kLockscreenLauncherGame = 7,
-  kMaxValue = kLockscreenLauncherGame,
+  kMaxValue = kQuickActions,
 };
 
 WidgetKitExtensionKind UMAKindForWidgetKind(NSString* kind) {
@@ -46,21 +39,8 @@ WidgetKitExtensionKind UMAKindForWidgetKind(NSString* kind) {
   if ([kind isEqualToString:@"QuickActionsWidget"]) {
     return WidgetKitExtensionKind::kQuickActions;
   }
-  if ([kind isEqualToString:@"LockscreenLauncherSearchWidget"]) {
-    return WidgetKitExtensionKind::kLockscreenLauncherSearch;
-  }
-  if ([kind isEqualToString:@"LockscreenLauncherIncognitoWidget"]) {
-    return WidgetKitExtensionKind::kLockscreenLauncherIncognito;
-  }
-  if ([kind isEqualToString:@"LockscreenLauncherVoiceSearchWidget"]) {
-    return WidgetKitExtensionKind::kLockscreenLauncherVoiceSearch;
-  }
-  if ([kind isEqualToString:@"LockscreenLauncherGameWidget"]) {
-    return WidgetKitExtensionKind::kLockscreenLauncherGame;
-  }
-
-  NOTREACHED() << base::SysNSStringToUTF8(kind);
-  return WidgetKitExtensionKind::kObsolete;
+  NOTREACHED();
+  return WidgetKitExtensionKind::kDino;
 }
 
 }  // namespace

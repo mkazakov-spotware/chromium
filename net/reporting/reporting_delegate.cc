@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/reporting/reporting_delegate.h"
 
-#include "base/memory/raw_ptr.h"
 #include "net/base/network_delegate.h"
 #include "net/url_request/url_request_context.h"
 
@@ -14,7 +13,7 @@ namespace {
 
 class ReportingDelegateImpl : public ReportingDelegate {
  public:
-  explicit ReportingDelegateImpl(URLRequestContext* request_context)
+  ReportingDelegateImpl(URLRequestContext* request_context)
       : request_context_(request_context) {
     DCHECK(request_context);
   }
@@ -55,7 +54,7 @@ class ReportingDelegateImpl : public ReportingDelegate {
     return request_context_->network_delegate();
   }
 
-  raw_ptr<URLRequestContext> request_context_;
+  URLRequestContext* request_context_;
 };
 
 }  // namespace

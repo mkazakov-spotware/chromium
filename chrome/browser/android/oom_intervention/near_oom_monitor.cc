@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,19 @@
 
 #include "base/bind.h"
 #include "base/system/sys_info.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/android/chrome_jni_headers/NearOomMonitor_jni.h"
 #include "chrome/browser/android/oom_intervention/oom_intervention_config.h"
 
 namespace {
 
 // Default interval to check memory stats.
-constexpr base::TimeDelta kDefaultMonitoringDelta = base::Seconds(1);
+constexpr base::TimeDelta kDefaultMonitoringDelta =
+    base::TimeDelta::FromSeconds(1);
 
 // Default cooldown interval to resume monitoring after a detection.
-constexpr base::TimeDelta kDefaultCooldownDelta = base::Seconds(30);
+constexpr base::TimeDelta kDefaultCooldownDelta =
+    base::TimeDelta::FromSeconds(30);
 
 }  // namespace
 
@@ -25,7 +27,7 @@ NearOomMonitor* NearOomMonitor::Create() {
   auto* config = OomInterventionConfig::GetInstance();
   if (!config->is_swap_monitor_enabled())
     return nullptr;
-  return new NearOomMonitor(base::SingleThreadTaskRunner::GetCurrentDefault(),
+  return new NearOomMonitor(base::ThreadTaskRunnerHandle::Get(),
                             config->swapfree_threshold());
 }
 
@@ -54,7 +56,7 @@ NearOomMonitor::NearOomMonitor(
 
 NearOomMonitor::~NearOomMonitor() = default;
 
-base::CallbackListSubscription NearOomMonitor::RegisterCallback(
+std::unique_ptr<NearOomMonitor::Subscription> NearOomMonitor::RegisterCallback(
     base::RepeatingClosure callback) {
   if (callbacks_.empty() && !ComponentCallbackIsEnabled())
     ScheduleCheck();

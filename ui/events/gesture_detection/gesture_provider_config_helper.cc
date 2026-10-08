@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,16 +21,14 @@ class GenericDesktopGestureConfiguration : public GestureConfiguration {
 };
 
 GestureDetector::Config BuildGestureDetectorConfig(
-    const GestureConfiguration& gesture_config,
-    scoped_refptr<base::SequencedTaskRunner> task_runner) {
+    const GestureConfiguration& gesture_config) {
   GestureDetector::Config config;
   config.longpress_timeout =
-      base::Milliseconds(gesture_config.long_press_time_in_ms());
-  config.shortpress_timeout = gesture_config.short_press_time();
-  config.showpress_timeout =
-      base::Milliseconds(gesture_config.show_press_delay_in_ms());
-  config.double_tap_timeout =
-      base::Milliseconds(gesture_config.double_tap_timeout_in_ms());
+      base::TimeDelta::FromMilliseconds(gesture_config.long_press_time_in_ms());
+  config.showpress_timeout = base::TimeDelta::FromMilliseconds(
+      gesture_config.show_press_delay_in_ms());
+  config.double_tap_timeout = base::TimeDelta::FromMilliseconds(
+      gesture_config.double_tap_timeout_in_ms());
   config.touch_slop = gesture_config.max_touch_move_in_pixels_for_click();
   config.double_tap_slop =
       gesture_config.max_distance_between_taps_for_double_tap();
@@ -43,11 +41,10 @@ GestureDetector::Config BuildGestureDetectorConfig(
   config.two_finger_tap_enabled = gesture_config.two_finger_tap_enabled();
   config.two_finger_tap_max_separation =
       gesture_config.max_distance_for_two_finger_tap_in_pixels();
-  config.two_finger_tap_timeout = base::Milliseconds(
+  config.two_finger_tap_timeout = base::TimeDelta::FromMilliseconds(
       gesture_config.max_touch_down_duration_for_click_in_ms());
   config.single_tap_repeat_interval = gesture_config.max_tap_count();
   config.velocity_tracker_strategy = gesture_config.velocity_tracker_strategy();
-  config.task_runner = task_runner;
   return config;
 }
 
@@ -63,11 +60,9 @@ ScaleGestureDetector::Config BuildScaleGestureDetectorConfig(
 }
 
 GestureProvider::Config BuildGestureProviderConfig(
-    const GestureConfiguration& gesture_config,
-    scoped_refptr<base::SequencedTaskRunner> task_runner) {
+    const GestureConfiguration& gesture_config) {
   GestureProvider::Config config;
-  config.gesture_detector_config =
-      BuildGestureDetectorConfig(gesture_config, task_runner);
+  config.gesture_detector_config = BuildGestureDetectorConfig(gesture_config);
   config.scale_gesture_detector_config =
       BuildScaleGestureDetectorConfig(gesture_config);
   config.double_tap_support_for_platform_enabled =
@@ -86,22 +81,18 @@ void TuneGestureProviderConfigForVr(GestureProvider::Config* config) {
 }  // namespace
 
 GestureProvider::Config GetGestureProviderConfig(
-    GestureProviderConfigType type,
-    scoped_refptr<base::SequencedTaskRunner> task_runner) {
+    GestureProviderConfigType type) {
   GestureProvider::Config config;
   switch (type) {
     case GestureProviderConfigType::CURRENT_PLATFORM:
-      config = BuildGestureProviderConfig(*GestureConfiguration::GetInstance(),
-                                          task_runner);
+      config = BuildGestureProviderConfig(*GestureConfiguration::GetInstance());
       break;
     case GestureProviderConfigType::CURRENT_PLATFORM_VR:
-      config = BuildGestureProviderConfig(*GestureConfiguration::GetInstance(),
-                                          task_runner);
+      config = BuildGestureProviderConfig(*GestureConfiguration::GetInstance());
       TuneGestureProviderConfigForVr(&config);
       break;
     case GestureProviderConfigType::GENERIC_DESKTOP:
-      config = BuildGestureProviderConfig(GenericDesktopGestureConfiguration(),
-                                          task_runner);
+      config = BuildGestureProviderConfig(GenericDesktopGestureConfiguration());
       break;
     case GestureProviderConfigType::GENERIC_MOBILE:
       // The default GestureProvider::Config embeds a mobile configuration.

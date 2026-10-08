@@ -1,15 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SANDBOX_WIN_SRC_CROSSCALL_CLIENT_H_
-#define SANDBOX_WIN_SRC_CROSSCALL_CLIENT_H_
+#ifndef SANDBOX_SRC_CROSSCALL_CLIENT_H_
+#define SANDBOX_SRC_CROSSCALL_CLIENT_H_
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ref.h"
 #include "sandbox/win/src/crosscall_params.h"
 #include "sandbox/win/src/sandbox.h"
 
@@ -59,10 +58,10 @@ const uint32_t kIPCChannelSize = 1024;
 template <typename T>
 class CopyHelper {
  public:
-  explicit CopyHelper(const T& t) : t_(t) {}
+  CopyHelper(const T& t) : t_(t) {}
 
   // Returns the pointer to the start of the input.
-  const void* GetStart() const { return &*t_; }
+  const void* GetStart() const { return &t_; }
 
   // Update the stored value with the value in the buffer. This is not
   // supported for this type.
@@ -84,7 +83,7 @@ class CopyHelper {
   }
 
  private:
-  const raw_ref<const T> t_;
+  const T& t_;
 };
 
 // This copy helper template specialization if for the void pointer
@@ -92,7 +91,7 @@ class CopyHelper {
 template <>
 class CopyHelper<void*> {
  public:
-  explicit CopyHelper(void* t) : t_(t) {}
+  CopyHelper(void* t) : t_(t) {}
 
   // Returns the pointer to the start of the input.
   const void* GetStart() const { return &t_; }
@@ -122,7 +121,7 @@ class CopyHelper<void*> {
 template <>
 class CopyHelper<const wchar_t*> {
  public:
-  explicit CopyHelper(const wchar_t* t) : t_(t) {}
+  CopyHelper(const wchar_t* t) : t_(t) {}
 
   // Returns the pointer to the start of the string.
   const void* GetStart() const { return t_; }
@@ -170,7 +169,7 @@ template <>
 class CopyHelper<wchar_t*> : public CopyHelper<const wchar_t*> {
  public:
   typedef CopyHelper<const wchar_t*> Base;
-  explicit CopyHelper(wchar_t* t) : Base(t) {}
+  CopyHelper(wchar_t* t) : Base(t) {}
 
   const void* GetStart() const { return Base::GetStart(); }
 
@@ -190,7 +189,7 @@ class CopyHelper<const wchar_t[n]> : public CopyHelper<const wchar_t*> {
  public:
   typedef const wchar_t array[n];
   typedef CopyHelper<const wchar_t*> Base;
-  explicit CopyHelper(array t) : Base(t) {}
+  CopyHelper(array t) : Base(t) {}
 
   const void* GetStart() const { return Base::GetStart(); }
 
@@ -217,7 +216,7 @@ class InOutCountedBuffer : public CountedBuffer {
 template <>
 class CopyHelper<InOutCountedBuffer> {
  public:
-  explicit CopyHelper(const InOutCountedBuffer t) : t_(t) {}
+  CopyHelper(const InOutCountedBuffer t) : t_(t) {}
 
   // Returns the pointer to the start of the string.
   const void* GetStart() const { return t_.Buffer(); }
@@ -485,4 +484,4 @@ ResultCode CrossCall(IPCProvider& ipc_provider,
 }
 }  // namespace sandbox
 
-#endif  // SANDBOX_WIN_SRC_CROSSCALL_CLIENT_H_
+#endif  // SANDBOX_SRC_CROSSCALL_CLIENT_H__

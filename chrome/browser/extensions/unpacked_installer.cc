@@ -1,16 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/unpacked_installer.h"
 
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/branding_buildflags.h"
@@ -23,9 +23,7 @@
 #include "components/sync/model/string_ordinal.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "extensions/browser/api/declarative_net_request/file_backed_ruleset_source.h"
-#include "extensions/browser/api/declarative_net_request/install_index_helper.h"
-#include "extensions/browser/api/declarative_net_request/ruleset_source.h"
+#include "extensions/browser/api/declarative_net_request/index_helper.h"
 #include "extensions/browser/extension_file_task_runner.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
@@ -83,7 +81,7 @@ scoped_refptr<UnpackedInstaller> UnpackedInstaller::Create(
 }
 
 UnpackedInstaller::UnpackedInstaller(ExtensionService* extension_service)
-    : service_weak_(extension_service->AsExtensionServiceWeakPtr()),
+    : service_weak_(extension_service->AsWeakPtr()),
       profile_(extension_service->profile()),
       require_modern_manifest_version_(true),
       be_noisy_on_failure_(true) {
@@ -110,7 +108,7 @@ bool UnpackedInstaller::LoadFromCommandLine(const base::FilePath& path_in,
     return false;
   // Load extensions from the command line synchronously to avoid a race
   // between extension loading and loading an URL from the command line.
-  base::ScopedAllowBlocking allow_blocking;
+  base::ThreadRestrictions::ScopedAllowIO allow_io;
 
   extension_path_ =
       base::MakeAbsoluteFilePath(path_util::ResolveHomeDirectory(path_in));
@@ -121,8 +119,7 @@ bool UnpackedInstaller::LoadFromCommandLine(const base::FilePath& path_in,
   }
 
   std::string error;
-  if (!LoadExtension(mojom::ManifestLocation::kCommandLine, GetFlags(),
-                     &error)) {
+  if (!LoadExtension(Manifest::COMMAND_LINE, GetFlags(), &error)) {
     ReportExtensionLoadError(error);
     return false;
   }
@@ -161,8 +158,7 @@ void UnpackedInstaller::StartInstallChecks() {
   // they are disabled for extensions loaded from the command-line is that
   // installing unpacked extensions is asynchronous, but there can be
   // dependencies between the extensions loaded by the command line.
-  if (extension()->manifest()->location() !=
-      mojom::ManifestLocation::kCommandLine) {
+  if (extension()->manifest()->location() != Manifest::COMMAND_LINE) {
     if (service->browser_terminating())
       return;
 
@@ -215,8 +211,8 @@ void UnpackedInstaller::OnInstallChecksComplete(
     return;
   }
 
-  std::u16string error_message;
-  if (errors.count(PreloadCheck::Error::kDisallowedByPolicy))
+  base::string16 error_message;
+  if (errors.count(PreloadCheck::DISALLOWED_BY_POLICY))
     error_message = policy_check_->GetErrorMessage();
   else
     error_message = requirements_check_->GetErrorMessage();
@@ -228,13 +224,10 @@ void UnpackedInstaller::OnInstallChecksComplete(
 int UnpackedInstaller::GetFlags() {
   std::string id = crx_file::id_util::GenerateIdForPath(extension_path_);
   bool allow_file_access =
-      Manifest::ShouldAlwaysAllowFileAccess(mojom::ManifestLocation::kUnpacked);
+      Manifest::ShouldAlwaysAllowFileAccess(Manifest::UNPACKED);
   ExtensionPrefs* prefs = ExtensionPrefs::Get(service_weak_->profile());
-  if (allow_file_access_.has_value()) {
-    allow_file_access = *allow_file_access_;
-  } else if (prefs->HasAllowFileAccessSetting(id)) {
+  if (prefs->HasAllowFileAccessSetting(id))
     allow_file_access = prefs->AllowFileAccess(id);
-  }
 
   int result = Extension::FOLLOW_SYMLINKS_ANYWHERE;
   if (allow_file_access)
@@ -245,7 +238,7 @@ int UnpackedInstaller::GetFlags() {
   return result;
 }
 
-bool UnpackedInstaller::LoadExtension(mojom::ManifestLocation location,
+bool UnpackedInstaller::LoadExtension(Manifest::Location location,
                                       int flags,
                                       std::string* error) {
   // Clean up the kMetadataFolder if necessary. This prevents spurious
@@ -256,7 +249,7 @@ bool UnpackedInstaller::LoadExtension(mojom::ManifestLocation location,
   // Treat presence of illegal filenames as a hard error for unpacked
   // extensions. Don't do so for command line extensions since this breaks
   // Chrome OS autotests (crbug.com/764787).
-  if (location == mojom::ManifestLocation::kUnpacked &&
+  if (location == Manifest::UNPACKED &&
       !file_util::CheckForIllegalFilenames(extension_path_, error)) {
     return false;
   }
@@ -266,29 +259,19 @@ bool UnpackedInstaller::LoadExtension(mojom::ManifestLocation location,
 
   return extension() &&
          extension_l10n_util::ValidateExtensionLocales(
-             extension_path_, extension()->manifest()->value()->GetDict(),
-             error) &&
+             extension_path_, extension()->manifest()->value(), error) &&
          IndexAndPersistRulesIfNeeded(error);
 }
 
 bool UnpackedInstaller::IndexAndPersistRulesIfNeeded(std::string* error) {
   DCHECK(extension());
 
-  // Index all static rulesets and therefore parse all static rules at
-  // installation time for unpacked extensions. Throw an error for invalid rules
-  // where possible so that the extension developer is immediately notified.
-  auto ruleset_filter = declarative_net_request::FileBackedRulesetSource::
-      RulesetFilter::kIncludeAll;
-  auto parse_flags =
-      declarative_net_request::RulesetSource::kRaiseErrorOnInvalidRules |
-      declarative_net_request::RulesetSource::kRaiseWarningOnLargeRegexRules;
-
   // TODO(crbug.com/761107): IndexStaticRulesetsUnsafe will read and parse JSON
   // synchronously. Change this so that we don't need to parse JSON in the
   // browser process.
-  declarative_net_request::InstallIndexHelper::Result result =
-      declarative_net_request::InstallIndexHelper::IndexStaticRulesetsUnsafe(
-          *extension(), ruleset_filter, parse_flags);
+  declarative_net_request::IndexHelper::Result result =
+      declarative_net_request::IndexHelper::IndexStaticRulesetsUnsafe(
+          *extension());
   if (result.error) {
     *error = std::move(*result.error);
     return false;
@@ -338,7 +321,7 @@ void UnpackedInstaller::CheckExtensionFileAccess() {
 
 void UnpackedInstaller::LoadWithFileAccess(int flags) {
   std::string error;
-  if (!LoadExtension(mojom::ManifestLocation::kUnpacked, flags, &error)) {
+  if (!LoadExtension(Manifest::UNPACKED, flags, &error)) {
     // Set priority explicitly to avoid unwanted task priority inheritance.
     content::GetUIThreadTaskRunner({base::TaskPriority::USER_BLOCKING})
         ->PostTask(FROM_HERE,
@@ -371,19 +354,6 @@ void UnpackedInstaller::InstallExtension() {
   if (!service_weak_.get()) {
     callback_.Reset();
     return;
-  }
-
-  // Force file access and/or incognito state and set install param if
-  // requested.
-  ExtensionPrefs* prefs = ExtensionPrefs::Get(service_weak_->profile());
-  if (allow_file_access_.has_value()) {
-    prefs->SetAllowFileAccess(extension()->id(), *allow_file_access_);
-  }
-  if (allow_incognito_access_.has_value()) {
-    prefs->SetIsIncognitoEnabled(extension()->id(), *allow_incognito_access_);
-  }
-  if (install_param_.has_value()) {
-    prefs->SetInstallParam(extension()->id(), *install_param_);
   }
 
   PermissionsUpdater perms_updater(service_weak_->profile());

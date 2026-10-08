@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,8 @@
 
 #include <unistd.h>
 
-#include <tuple>
-
 #include "base/mac/scoped_mach_port.h"
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "gtest/gtest.h"
 #include "test/mac/mach_errors.h"
 #include "util/mach/mach_extensions.h"
@@ -156,11 +154,11 @@ TEST(MachMessage, MachMessageDestroyReceivedPort) {
   ASSERT_EQ(right_type,
             implicit_cast<mach_msg_type_name_t>(MACH_MSG_TYPE_PORT_SEND));
   EXPECT_TRUE(MachMessageDestroyReceivedPort(port, MACH_MSG_TYPE_PORT_RECEIVE));
-  std::ignore = receive.release();
+  ignore_result(receive.release());
   EXPECT_TRUE(MachMessageDestroyReceivedPort(port, MACH_MSG_TYPE_PORT_SEND));
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 
 TEST(MachMessage, AuditPIDFromMachMessageTrailer) {
   base::mac::ScopedMachReceiveRight port(NewMachPort(MACH_PORT_RIGHT_RECEIVE));
@@ -202,7 +200,7 @@ TEST(MachMessage, AuditPIDFromMachMessageTrailer) {
   EXPECT_EQ(AuditPIDFromMachMessageTrailer(&receive.trailer), getpid());
 }
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 }  // namespace
 }  // namespace test

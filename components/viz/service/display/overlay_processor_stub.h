@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,6 @@ class VIZ_SERVICE_EXPORT OverlayProcessorStub
     : public OverlayProcessorInterface {
  public:
   OverlayProcessorStub() : OverlayProcessorInterface() {}
-
-  OverlayProcessorStub(const OverlayProcessorStub&) = delete;
-  OverlayProcessorStub& operator=(const OverlayProcessorStub&) = delete;
-
   ~OverlayProcessorStub() override {}
 
   // Overrides OverlayProcessorInterface's pure virtual functions.
@@ -30,19 +26,21 @@ class VIZ_SERVICE_EXPORT OverlayProcessorStub
   void ProcessForOverlays(
       DisplayResourceProvider* resource_provider,
       AggregatedRenderPassList* render_passes,
-      const SkM44& output_color_matrix,
+      const SkMatrix44& output_color_matrix,
       const FilterOperationsMap& render_pass_filters,
       const FilterOperationsMap& render_pass_backdrop_filters,
-      SurfaceDamageRectList surface_damage_rect_list,
+      SurfaceDamageRectList* surface_damage_rect_list,
       OutputSurfaceOverlayPlane* output_surface_plane,
       CandidateList* overlay_candidates,
       gfx::Rect* damage_rect,
       std::vector<gfx::Rect>* content_bounds) final {}
   void AdjustOutputSurfaceOverlay(
-      absl::optional<OutputSurfaceOverlayPlane>* output_surface_plane) final {}
+      base::Optional<OutputSurfaceOverlayPlane>* output_surface_plane) final {}
   void SetDisplayTransformHint(gfx::OverlayTransform transform) final {}
   void SetViewportSize(const gfx::Size& size) final {}
-  gfx::CALayerResult GetCALayerErrorCode() const final;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(OverlayProcessorStub);
 };
 
 }  // namespace viz

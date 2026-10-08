@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,7 +6,7 @@ import argparse
 import sys
 import os
 
-COPYRIGHT="""// Copyright 2017 The Chromium Authors
+COPYRIGHT="""// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 """
@@ -55,7 +55,7 @@ def GenerateArray(filepath):
   with open(filepath, 'rb') as f:
     contents = f.read()
 
-  contents = [ str(byte) for byte in bytearray(contents) ]
+  contents = [ str(ord(char)) for char in contents ]
 
   return len(contents), '{' + ','.join(contents) + '}'
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,10 +30,6 @@
 #include "util/misc/from_pointer_cast.h"
 #include "util/process/process_memory_native.h"
 
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#include "test/linux/fake_ptrace_connection.h"
-#endif
-
 namespace crashpad {
 namespace test {
 namespace {
@@ -49,9 +45,6 @@ class ScopedUnsetCrashpadInfo {
   explicit ScopedUnsetCrashpadInfo(CrashpadInfo* crashpad_info)
       : crashpad_info_(crashpad_info) {}
 
-  ScopedUnsetCrashpadInfo(const ScopedUnsetCrashpadInfo&) = delete;
-  ScopedUnsetCrashpadInfo& operator=(const ScopedUnsetCrashpadInfo&) = delete;
-
   ~ScopedUnsetCrashpadInfo() {
     crashpad_info_->set_crashpad_handler_behavior(TriState::kUnset);
     crashpad_info_->set_system_crash_reporter_forwarding(TriState::kUnset);
@@ -64,6 +57,8 @@ class ScopedUnsetCrashpadInfo {
 
  private:
   CrashpadInfo* crashpad_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedUnsetCrashpadInfo);
 };
 
 class CrashpadInfoTestDataSetup {
@@ -81,10 +76,6 @@ class CrashpadInfoTestDataSetup {
         kGatherIndirectlyReferencedMemory, kIndirectlyReferencedMemoryCap);
   }
 
-  CrashpadInfoTestDataSetup(const CrashpadInfoTestDataSetup&) = delete;
-  CrashpadInfoTestDataSetup& operator=(const CrashpadInfoTestDataSetup&) =
-      delete;
-
   void GetAddresses(VMAddress* info_address,
                     VMAddress* extra_memory_address,
                     VMAddress* simple_annotations_address,
@@ -101,6 +92,8 @@ class CrashpadInfoTestDataSetup {
   SimpleAddressRangeBag extra_memory_;
   SimpleStringDictionary simple_annotations_;
   AnnotationList annotation_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(CrashpadInfoTestDataSetup);
 };
 
 void ExpectCrashpadInfo(ProcessType process,
@@ -109,14 +102,8 @@ void ExpectCrashpadInfo(ProcessType process,
                         VMAddress extra_memory_address,
                         VMAddress simple_annotations_address,
                         VMAddress annotations_list_address) {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  FakePtraceConnection connection;
-  ASSERT_TRUE(connection.Initialize(process));
-  ProcessMemoryLinux memory(&connection);
-#else
   ProcessMemoryNative memory;
   ASSERT_TRUE(memory.Initialize(process));
-#endif
 
   ProcessMemoryRange range;
   ASSERT_TRUE(range.Initialize(&memory, is_64_bit));
@@ -187,9 +174,6 @@ class ReadFromChildTest : public MultiprocessExec {
     SetChildTestMainFunction("ReadFromChildTestMain");
   }
 
-  ReadFromChildTest(const ReadFromChildTest&) = delete;
-  ReadFromChildTest& operator=(const ReadFromChildTest&) = delete;
-
   ~ReadFromChildTest() = default;
 
  private:
@@ -221,6 +205,8 @@ class ReadFromChildTest : public MultiprocessExec {
                        simple_annotations_address,
                        annotations_list_address);
   }
+
+  DISALLOW_COPY_AND_ASSIGN(ReadFromChildTest);
 };
 
 TEST(CrashpadInfoReader, ReadFromChild) {

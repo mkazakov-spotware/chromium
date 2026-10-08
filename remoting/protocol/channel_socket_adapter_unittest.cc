@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,8 @@ using net::IOBuffer;
 using testing::_;
 using testing::Return;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 const int kBufferSize = 4096;
@@ -43,7 +44,7 @@ class TransportChannelSocketAdapterTest : public testing::Test {
 
  protected:
   void SetUp() override {
-    target_ = std::make_unique<TransportChannelSocketAdapter>(&channel_);
+    target_.reset(new TransportChannelSocketAdapter(&channel_));
   }
 
   void Callback(int result) {
@@ -113,4 +114,5 @@ TEST_F(TransportChannelSocketAdapterTest, SendPending) {
   ASSERT_EQ(net::OK, result);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

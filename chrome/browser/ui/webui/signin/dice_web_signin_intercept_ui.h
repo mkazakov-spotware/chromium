@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,9 @@ class DiceWebSigninInterceptUI : public content::WebUIController {
   DiceWebSigninInterceptUI& operator=(const DiceWebSigninInterceptUI&) = delete;
 
   // Initializes the DiceWebSigninInterceptUI.
-  void Initialize(
-      const DiceWebSigninInterceptor::Delegate::BubbleParameters&
-          bubble_parameters,
-      base::OnceCallback<void(SigninInterceptionUserChoice)> callback);
+  void Initialize(const DiceWebSigninInterceptor::Delegate::BubbleParameters&
+                      bubble_parameters,
+                  base::OnceCallback<void(bool)> callback);
 
  private:
   WEB_UI_CONTROLLER_TYPE_DECL();

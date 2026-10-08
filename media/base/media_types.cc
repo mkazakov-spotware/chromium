@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,26 +28,26 @@ VideoType VideoType::FromDecoderConfig(const VideoDecoderConfig& config) {
 
   switch (config.codec()) {
     // These have no notion of level.
-    case VideoCodec::kUnknown:
-    case VideoCodec::kTheora:
-    case VideoCodec::kVP8:
+    case kUnknownVideoCodec:
+    case kCodecTheora:
+    case kCodecVP8:
     // These use non-numeric levels, aren't part of our mime code, and
     // are ancient with very limited support.
-    case VideoCodec::kVC1:
-    case VideoCodec::kMPEG2:
-    case VideoCodec::kMPEG4:
+    case kCodecVC1:
+    case kCodecMPEG2:
+    case kCodecMPEG4:
       break;
-    case VideoCodec::kH264:
-    case VideoCodec::kVP9:
-    case VideoCodec::kHEVC:
+    case kCodecH264:
+    case kCodecVP9:
+    case kCodecHEVC:
       // 10 is the level_idc for level 1.0.
       level = 10;
       break;
-    case VideoCodec::kDolbyVision:
+    case kCodecDolbyVision:
       // Dolby doesn't do decimals, so 1 is just 1.
       level = 1;
       break;
-    case VideoCodec::kAV1:
+    case kCodecAV1:
       // Strangely, AV1 starts at 2.0.
       level = 20;
       break;

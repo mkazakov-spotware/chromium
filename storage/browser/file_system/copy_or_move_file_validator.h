@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,9 +23,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) CopyOrMoveFileValidator {
   // base::File::FILE_OK means the file validated.
   using ResultCallback = base::OnceCallback<void(base::File::Error result)>;
 
-  CopyOrMoveFileValidator(const CopyOrMoveFileValidator&) = delete;
-  CopyOrMoveFileValidator& operator=(const CopyOrMoveFileValidator&) = delete;
-  virtual ~CopyOrMoveFileValidator() = default;
+  virtual ~CopyOrMoveFileValidator() {}
 
   // Called on a source file before copying or moving to the final
   // destination.
@@ -36,18 +34,11 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) CopyOrMoveFileValidator {
   virtual void StartPostWriteValidation(
       const base::FilePath& dest_platform_path,
       ResultCallback result_callback) = 0;
-
- protected:
-  CopyOrMoveFileValidator() = default;
 };
 
 class CopyOrMoveFileValidatorFactory {
  public:
-  CopyOrMoveFileValidatorFactory(const CopyOrMoveFileValidatorFactory&) =
-      delete;
-  CopyOrMoveFileValidatorFactory& operator=(
-      const CopyOrMoveFileValidatorFactory&) = delete;
-  virtual ~CopyOrMoveFileValidatorFactory() = default;
+  virtual ~CopyOrMoveFileValidatorFactory() {}
 
   // This method must always return a non-null validator. |src_url| is needed
   // in addition to |platform_path| because in the obfuscated file system
@@ -55,9 +46,6 @@ class CopyOrMoveFileValidatorFactory {
   virtual CopyOrMoveFileValidator* CreateCopyOrMoveFileValidator(
       const FileSystemURL& src_url,
       const base::FilePath& platform_path) = 0;
-
- protected:
-  CopyOrMoveFileValidatorFactory() = default;
 };
 
 }  // namespace storage

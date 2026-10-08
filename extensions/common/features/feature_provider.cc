@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,7 @@
 #include "base/debug/alias.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
-#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/trace_event/trace_event.h"
@@ -34,14 +32,14 @@ namespace {
 // This is provided in feature_util because for some reason features are prone
 // to mysterious crashes in named map lookups. For example see crbug.com/365192
 // and crbug.com/461915.
-#define CRASH_WITH_MINIDUMP(message)                                           \
-  {                                                                            \
-    std::string message_copy(message);                                         \
-    char minidump[BUFSIZ];                                                     \
-    base::debug::Alias(&minidump);                                             \
-    base::snprintf(minidump, std::size(minidump), "e::%s:%d:\"%s\"", __FILE__, \
-                   __LINE__, message_copy.c_str());                            \
-    LOG(FATAL) << message_copy;                                                \
+#define CRASH_WITH_MINIDUMP(message)                                  \
+  {                                                                   \
+    std::string message_copy(message);                                \
+    char minidump[BUFSIZ];                                            \
+    base::debug::Alias(&minidump);                                    \
+    base::snprintf(minidump, base::size(minidump), "e::%s:%d:\"%s\"", \
+                   __FILE__, __LINE__, message_copy.c_str());         \
+    LOG(FATAL) << message_copy;                                       \
   }
 
 class FeatureProviderStatic {
@@ -73,9 +71,6 @@ class FeatureProviderStatic {
     }
   }
 
-  FeatureProviderStatic(const FeatureProviderStatic&) = delete;
-  FeatureProviderStatic& operator=(const FeatureProviderStatic&) = delete;
-
   FeatureProvider* GetFeatures(const std::string& name) const {
     auto it = feature_providers_.find(name);
     if (it == feature_providers_.end())
@@ -85,6 +80,8 @@ class FeatureProviderStatic {
 
  private:
   std::map<std::string, std::unique_ptr<FeatureProvider>> feature_providers_;
+
+  DISALLOW_COPY_AND_ASSIGN(FeatureProviderStatic);
 };
 
 base::LazyInstance<FeatureProviderStatic>::Leaky g_feature_provider_static =
@@ -153,7 +150,10 @@ const Feature* FeatureProvider::GetBehaviorFeature(const std::string& name) {
 
 const Feature* FeatureProvider::GetFeature(const std::string& name) const {
   auto iter = features_.find(name);
-  return iter != features_.end() ? iter->second.get() : nullptr;
+  if (iter != features_.end())
+    return iter->second.get();
+  else
+    return nullptr;
 }
 
 const Feature* FeatureProvider::GetParent(const Feature& feature) const {
@@ -196,11 +196,11 @@ const FeatureMap& FeatureProvider::GetAllFeatures() const {
 
 void FeatureProvider::AddFeature(base::StringPiece name,
                                  std::unique_ptr<Feature> feature) {
-  features_[std::string(name)] = std::move(feature);
+  features_[name.as_string()] = std::move(feature);
 }
 
 void FeatureProvider::AddFeature(base::StringPiece name, Feature* feature) {
-  features_[std::string(name)] = base::WrapUnique(feature);
+  features_[name.as_string()] = std::unique_ptr<Feature>(feature);
 }
 
 }  // namespace extensions

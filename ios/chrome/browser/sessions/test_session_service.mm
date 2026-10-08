@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/sessions/test_session_service.h"
 
-#import "base/memory/ref_counted.h"
-#import "base/threading/thread_task_runner_handle.h"
+#include "base/memory/ref_counted.h"
+#include "base/threading/thread_task_runner_handle.h"
 #import "ios/chrome/browser/sessions/session_ios_factory.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -19,17 +19,15 @@
 }
 
 - (void)saveSession:(__weak SessionIOSFactory*)factory
-          sessionID:(NSString*)sessionID
-          directory:(const base::FilePath&)directory
+          directory:(NSString*)directory
         immediately:(BOOL)immediately {
-  NSString* sessionPath = [[self class] sessionPathForSessionID:sessionID
-                                                      directory:directory];
+  NSString* sessionPath = [[self class] sessionPathForDirectory:directory];
   NSData* data =
       [NSKeyedArchiver archivedDataWithRootObject:[factory sessionForSaving]
                             requiringSecureCoding:NO
                                             error:nil];
   if (self.performIO)
-    [self performSaveSessionData:data tabContents:@{} sessionPath:sessionPath];
+    [self performSaveSessionData:data sessionPath:sessionPath];
   _saveSessionCallsCount++;
 }
 

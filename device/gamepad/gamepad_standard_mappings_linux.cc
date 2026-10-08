@@ -1,28 +1,28 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <iterator>
 
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "device/gamepad/gamepad_id_list.h"
 #include "device/gamepad/gamepad_standard_mappings.h"
 
 namespace device {
 
 namespace {
-// The Linux kernel has been updated to improve the mapping exposed by Sony
-// Playstation controllers. If the high bit of the bcdHID value is set it
-// indicates that an improved mapping is used, otherwise the default mapping
-// is used.
+// The hid-sony driver in newer kernels uses an alternate mapping for Sony
+// Playstation 3 and Playstation 4 gamepads than in older kernels. To allow
+// applications to distinguish between the old mapping and the new mapping,
+// hid-sony sets the high bit of the bcdHID value.
 // Dualshock 4 devices are patched in 4.10:
 // https://github.com/torvalds/linux/commit/9131f8cc2b4eaf7c08d402243429e0bfba9aa0d6
 // Dualshock 3 and SIXAXIS devices are patched in 4.12:
 // https://github.com/torvalds/linux/commit/e19a267b9987135c00155a51e683e434b9abb56b
-// Dualsense devices are patched in 5.12:
-// https://github.com/torvalds/linux/commit/bc2e15a9a0228b10fece576d4f6a974c002ff07b
 const uint16_t kDualshockPatchedBcdHidMask = 0x8000;
 
 // Older versions of the Stadia Controller firmware use an alternate mapping
@@ -35,9 +35,11 @@ enum StadiaGamepadButtons {
   STADIA_GAMEPAD_BUTTON_COUNT
 };
 
-enum XboxSeriesXGamepadButtons {
-  kSeriesXGamepadButtonShare = BUTTON_INDEX_COUNT,
-  kSeriesXGamepadButtonCount
+// The Switch Pro controller has a Capture button that has no equivalent in the
+// Standard Gamepad.
+enum SwitchProButtons {
+  SWITCH_PRO_BUTTON_CAPTURE = BUTTON_INDEX_COUNT,
+  SWITCH_PRO_BUTTON_COUNT
 };
 
 void MapperXInputStyleGamepad(const Gamepad& input, Gamepad* mapped) {
@@ -58,36 +60,6 @@ void MapperXInputStyleGamepad(const Gamepad& input, Gamepad* mapped) {
   mapped->axes[AXIS_INDEX_RIGHT_STICK_Y] = input.axes[4];
   mapped->buttons_length = BUTTON_INDEX_COUNT;
   mapped->axes_length = AXIS_INDEX_COUNT;
-}
-
-void MapperXboxBluetooth(const Gamepad& input, Gamepad* mapped) {
-  *mapped = input;
-  mapped->buttons[BUTTON_INDEX_TERTIARY] = input.buttons[3];
-  mapped->buttons[BUTTON_INDEX_QUATERNARY] = input.buttons[4];
-  mapped->buttons[BUTTON_INDEX_LEFT_TRIGGER] = AxisToButton(input.axes[5]);
-  mapped->buttons[BUTTON_INDEX_RIGHT_TRIGGER] = AxisToButton(input.axes[4]);
-  mapped->buttons[BUTTON_INDEX_LEFT_SHOULDER] = input.buttons[6];
-  mapped->buttons[BUTTON_INDEX_RIGHT_SHOULDER] = input.buttons[7];
-  mapped->buttons[BUTTON_INDEX_BACK_SELECT] = input.buttons[10];
-  mapped->buttons[BUTTON_INDEX_START] = input.buttons[11];
-  mapped->buttons[BUTTON_INDEX_LEFT_THUMBSTICK] = input.buttons[13];
-  mapped->buttons[BUTTON_INDEX_RIGHT_THUMBSTICK] = input.buttons[14];
-  mapped->buttons[BUTTON_INDEX_DPAD_UP] = AxisNegativeAsButton(input.axes[7]);
-  mapped->buttons[BUTTON_INDEX_DPAD_DOWN] = AxisPositiveAsButton(input.axes[7]);
-  mapped->buttons[BUTTON_INDEX_DPAD_LEFT] = AxisNegativeAsButton(input.axes[6]);
-  mapped->buttons[BUTTON_INDEX_DPAD_RIGHT] =
-      AxisPositiveAsButton(input.axes[6]);
-  mapped->buttons[BUTTON_INDEX_META] = input.buttons[12];
-  mapped->buttons_length = BUTTON_INDEX_COUNT;
-  mapped->axes_length = AXIS_INDEX_COUNT;
-}
-
-void MapperXboxSeriesXBluetooth(const Gamepad& input, Gamepad* mapped) {
-  MapperXboxBluetooth(input, mapped);
-  // Xbox Wireless Controller Model 1914 has an extra Share button not present
-  // on other Xbox controllers. Map Share to the next button index after Meta.
-  mapped->buttons[kSeriesXGamepadButtonShare] = input.buttons[15];
-  mapped->buttons_length = kSeriesXGamepadButtonCount;
 }
 
 void MapperXboxOneS(const Gamepad& input, Gamepad* mapped) {
@@ -299,9 +271,7 @@ void MapperDualshock4(const Gamepad& input, Gamepad* mapped) {
   mapped->axes_length = AXIS_INDEX_COUNT;
 }
 
-// This mapping function is intended for Playstation 4 and 5 gamepads handled
-// by hid-sony (kernel 4.10+) and hid-playstation (kernel 5.12+).
-void MapperPs4Ps5(const Gamepad& input, Gamepad* mapped) {
+void MapperDualshock4New(const Gamepad& input, Gamepad* mapped) {
   *mapped = input;
   mapped->buttons[BUTTON_INDEX_PRIMARY] = input.buttons[0];
   mapped->buttons[BUTTON_INDEX_SECONDARY] = input.buttons[1];
@@ -643,7 +613,7 @@ void MapperSteelSeriesStratusXLUsb(const Gamepad& input, Gamepad* mapped) {
   mapped->axes_length = AXIS_INDEX_COUNT;
 }
 
-void MapperSteelSeriesStratusBt(const Gamepad& input, Gamepad* mapped) {
+void MapperSteelSeriesStratusXLBt(const Gamepad& input, Gamepad* mapped) {
   *mapped = input;
   mapped->buttons[BUTTON_INDEX_PRIMARY] = input.buttons[0];
   mapped->buttons[BUTTON_INDEX_SECONDARY] = input.buttons[1];
@@ -653,7 +623,7 @@ void MapperSteelSeriesStratusBt(const Gamepad& input, Gamepad* mapped) {
   mapped->buttons[BUTTON_INDEX_RIGHT_SHOULDER] = input.buttons[7];
   mapped->buttons[BUTTON_INDEX_LEFT_TRIGGER] = AxisToButton(input.axes[5]);
   mapped->buttons[BUTTON_INDEX_RIGHT_TRIGGER] = AxisToButton(input.axes[4]);
-  mapped->buttons[BUTTON_INDEX_BACK_SELECT] = input.buttons[10];
+  mapped->buttons[BUTTON_INDEX_BACK_SELECT] = NullButton();
   mapped->buttons[BUTTON_INDEX_START] = input.buttons[11];
   mapped->buttons[BUTTON_INDEX_LEFT_THUMBSTICK] = input.buttons[13];
   mapped->buttons[BUTTON_INDEX_RIGHT_THUMBSTICK] = input.buttons[14];
@@ -663,9 +633,9 @@ void MapperSteelSeriesStratusBt(const Gamepad& input, Gamepad* mapped) {
   mapped->buttons[BUTTON_INDEX_DPAD_RIGHT] =
       AxisPositiveAsButton(input.axes[6]);
   mapped->buttons[BUTTON_INDEX_META] = NullButton();
-  // The META button currently isn't mappable since it's handled separately as
-  // key events, causing a browser HOME action. If this is fixed, it should be
-  // added here.
+  // The BACK_SELECT and META button currently aren't mappable since they are
+  // handled separately as key events, causing browser HOME and BACK actions. If
+  // this is fixed, they should be added here.
 
   mapped->axes[AXIS_INDEX_LEFT_STICK_X] = input.axes[0];
   mapped->axes[AXIS_INDEX_LEFT_STICK_Y] = input.axes[1];
@@ -676,10 +646,32 @@ void MapperSteelSeriesStratusBt(const Gamepad& input, Gamepad* mapped) {
   mapped->axes_length = AXIS_INDEX_COUNT;
 }
 
-void MapperSteelSeriesStratusPlusBt(const Gamepad& input, Gamepad* mapped) {
-  MapperSteelSeriesStratusBt(input, mapped);
-  mapped->buttons[BUTTON_INDEX_META] = input.buttons[12];
+void MapperSwitchJoyCon(const Gamepad& input, Gamepad* mapped) {
+  *mapped = input;
   mapped->buttons_length = BUTTON_INDEX_COUNT;
+  mapped->axes_length = 2;
+}
+
+void MapperSwitchPro(const Gamepad& input, Gamepad* mapped) {
+  *mapped = input;
+  mapped->buttons_length = SWITCH_PRO_BUTTON_COUNT;
+  mapped->axes_length = AXIS_INDEX_COUNT;
+}
+
+void MapperSwitchComposite(const Gamepad& input, Gamepad* mapped) {
+  // In composite mode, the inputs from two Joy-Cons are combined to form one
+  // virtual gamepad. Some buttons do not have equivalents in the Standard
+  // Gamepad and are exposed as extra buttons:
+  // * Capture button (Joy-Con L):  BUTTON_INDEX_COUNT
+  // * SL (Joy-Con L):              BUTTON_INDEX_COUNT + 1
+  // * SR (Joy-Con L):              BUTTON_INDEX_COUNT + 2
+  // * SL (Joy-Con R):              BUTTON_INDEX_COUNT + 3
+  // * SR (Joy-Con R):              BUTTON_INDEX_COUNT + 4
+  const size_t kSwitchCompositeExtraButtonCount = 5;
+  *mapped = input;
+  mapped->buttons_length =
+      BUTTON_INDEX_COUNT + kSwitchCompositeExtraButtonCount;
+  mapped->axes_length = AXIS_INDEX_COUNT;
 }
 
 void MapperLogitechDInput(const Gamepad& input, Gamepad* mapped) {
@@ -888,58 +880,10 @@ void MapperElecomWirelessDirectInput(const Gamepad& input, Gamepad* mapped) {
   mapped->axes[AXIS_INDEX_RIGHT_STICK_Y] = input.axes[2];
 }
 
-void MapperDjiFpv(const Gamepad& input, Gamepad* mapped) {
-  enum DjiFpvAxis {
-    kDjiFpvAxisGimbalDial = AXIS_INDEX_COUNT,
-    kDjiFpvAxisFlightModeSwitch,
-    kDjiFpvAxisC2Switch,
-    kDjiFpvAxisCount,
-  };
-
-  double flight_mode_axis;
-  if (input.buttons[6].pressed)
-    flight_mode_axis = -1.0;
-  else if (input.buttons[7].pressed)
-    flight_mode_axis = 1.0;
-  else
-    flight_mode_axis = 0.0;
-
-  double c2_axis;
-  if (input.buttons[4].pressed)
-    c2_axis = 0.0;
-  else if (input.buttons[5].pressed)
-    c2_axis = -1.0;
-  else
-    c2_axis = 1.0;
-
-  *mapped = input;
-  mapped->buttons[BUTTON_INDEX_PRIMARY] = NullButton();
-  mapped->buttons[BUTTON_INDEX_SECONDARY] = NullButton();
-  mapped->buttons[BUTTON_INDEX_TERTIARY] = NullButton();
-  mapped->buttons[BUTTON_INDEX_QUATERNARY] = NullButton();
-  mapped->buttons[BUTTON_INDEX_LEFT_SHOULDER] =
-      input.buttons[2];  // Flight Pause/RTH
-  mapped->buttons[BUTTON_INDEX_RIGHT_SHOULDER] =
-      input.buttons[3];  // Shutter/Record
-  mapped->buttons[BUTTON_INDEX_LEFT_TRIGGER] = NullButton();
-  mapped->buttons[BUTTON_INDEX_RIGHT_TRIGGER] = input.buttons[1];  // Start/Stop
-  mapped->buttons[BUTTON_INDEX_BACK_SELECT] = input.buttons[0];    // C1
-  mapped->axes[AXIS_INDEX_LEFT_STICK_X] = input.axes[3];
-  mapped->axes[AXIS_INDEX_LEFT_STICK_Y] = -input.axes[2];
-  mapped->axes[AXIS_INDEX_RIGHT_STICK_X] = input.axes[0];
-  mapped->axes[AXIS_INDEX_RIGHT_STICK_Y] = -input.axes[1];
-  mapped->axes[kDjiFpvAxisGimbalDial] = input.axes[4];
-  mapped->axes[kDjiFpvAxisFlightModeSwitch] = flight_mode_axis;
-  mapped->axes[kDjiFpvAxisC2Switch] = c2_axis;
-
-  mapped->buttons_length = 9;
-  mapped->axes_length = kDjiFpvAxisCount;
-}
-
 constexpr struct MappingData {
   GamepadId gamepad_id;
   GamepadStandardMappingFunction function;
-} kAvailableMappings[] = {
+} AvailableMappings[] = {
     // PowerA Wireless Controller - Nintendo GameCube style
     {GamepadId::kPowerALicPro, MapperSwitchPro},
     // DragonRise Generic USB
@@ -952,14 +896,6 @@ constexpr struct MappingData {
     {GamepadId::kMicrosoftProduct02fd, MapperXboxOneS2016Firmware},
     // Xbox One Elite 2 (Bluetooth)
     {GamepadId::kMicrosoftProduct0b05, MapperXboxElite2Bluetooth},
-    // Xbox Series X (Bluetooth)
-    {GamepadId::kMicrosoftProduct0b13, MapperXboxSeriesXBluetooth},
-    // Xbox One S (Bluetooth)
-    {GamepadId::kMicrosoftProduct0b20, MapperXboxBluetooth},
-    // Xbox Adaptive (Bluetooth)
-    {GamepadId::kMicrosoftProduct0b21, MapperXboxBluetooth},
-    // Xbox Elite Series 2 (Bluetooth)
-    {GamepadId::kMicrosoftProduct0b22, MapperXboxBluetooth},
     // Logitech F310 D-mode
     {GamepadId::kLogitechProductc216, MapperLogitechDInput},
     // Logitech F510 D-mode
@@ -1007,11 +943,7 @@ constexpr struct MappingData {
     // SteelSeries Stratus XL USB
     {GamepadId::kSteelSeriesProduct1418, MapperSteelSeriesStratusXLUsb},
     // SteelSeries Stratus XL Bluetooth
-    {GamepadId::kSteelSeriesBtProduct1419, MapperSteelSeriesStratusBt},
-    // SteelSeries Stratus Duo Bluetooth
-    {GamepadId::kSteelSeriesBtProduct1431, MapperSteelSeriesStratusBt},
-    // SteelSeries Stratus+ Bluetooth
-    {GamepadId::kSteelSeriesBtProduct1434, MapperSteelSeriesStratusPlusBt},
+    {GamepadId::kSteelSeriesBtProduct1419, MapperSteelSeriesStratusXLBt},
     // Razer Serval Controller
     {GamepadId::kRazer1532Product0900, MapperRazerServal},
     // ADT-1 Controller
@@ -1019,19 +951,17 @@ constexpr struct MappingData {
     // Stadia Controller
     {GamepadId::kGoogleProduct9400, MapperStadiaController},
     // Moga Pro Controller (HID mode)
-    {GamepadId::kBdaProduct6271, MapperMoga},
+    {GamepadId::kVendor20d6Product6271, MapperMoga},
     // Moga 2 HID
-    {GamepadId::kBdaProduct89e5, MapperMoga},
+    {GamepadId::kVendor20d6Product89e5, MapperMoga},
     // OnLive Controller (Bluetooth)
-    {GamepadId::kOnLiveProduct1008, MapperOnLiveWireless},
+    {GamepadId::kVendor2378Product1008, MapperOnLiveWireless},
     // OnLive Controller (Wired)
-    {GamepadId::kOnLiveProduct100a, MapperOnLiveWireless},
+    {GamepadId::kVendor2378Product100a, MapperOnLiveWireless},
     // OUYA Controller
-    {GamepadId::kOuyaProduct0001, MapperOUYA},
-    // DJI FPV Remote Controller 2
-    {GamepadId::kDjiProduct1020, MapperDjiFpv},
+    {GamepadId::kVendor2836Product0001, MapperOUYA},
     // SCUF Vantage, SCUF Vantage 2
-    {GamepadId::kScufProduct7725, MapperDualshock4},
+    {GamepadId::kVendor2e95Product7725, MapperDualshock4},
     // boom PSX+N64 USB Converter
     {GamepadId::kPrototypeVendorProduct0667, MapperBoomN64Psx},
     // Stadia Controller prototype
@@ -1055,23 +985,23 @@ GamepadStandardMappingFunction GetGamepadStandardMappingFunction(
     GamepadBusType bus_type) {
   GamepadId gamepad_id =
       GamepadIdList::Get().GetGamepadId(product_name, vendor_id, product_id);
-  const auto* find_it = base::ranges::find(kAvailableMappings, gamepad_id,
-                                           &MappingData::gamepad_id);
+  const MappingData* begin = std::begin(AvailableMappings);
+  const MappingData* end = std::end(AvailableMappings);
+  const auto* find_it = std::find_if(begin, end, [=](const MappingData& item) {
+    return gamepad_id == item.gamepad_id;
+  });
   GamepadStandardMappingFunction mapper =
-      (find_it == std::end(kAvailableMappings)) ? nullptr : find_it->function;
+      (find_it == end) ? nullptr : find_it->function;
 
   // The Linux kernel was updated in version 4.10 to better support Dualshock 4
   // and Dualshock 3/SIXAXIS gamepads. The driver patches the bcdHID value when
   // using the new mapping to allow downstream users to distinguish them.
   if (mapper == MapperDualshock4 &&
       (hid_specification_version & kDualshockPatchedBcdHidMask)) {
-    mapper = MapperPs4Ps5;
+    mapper = MapperDualshock4New;
   } else if (mapper == MapperDualshock3SixAxis &&
              (hid_specification_version & kDualshockPatchedBcdHidMask)) {
     mapper = MapperDualshock3SixAxisNew;
-  } else if (mapper == MapperDualSense &&
-             (hid_specification_version & kDualshockPatchedBcdHidMask)) {
-    mapper = MapperPs4Ps5;
   }
 
   // The Switch Joy-Con Charging Grip allows a pair of Joy-Cons to be docked

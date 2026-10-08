@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 
 #include "base/check.h"
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "device/fido/fido_transport_protocol.h"
 
 namespace device {
@@ -20,9 +20,6 @@ class FidoAuthenticator;
 
 class COMPONENT_EXPORT(DEVICE_FIDO) FidoDiscoveryBase {
  public:
-  FidoDiscoveryBase(const FidoDiscoveryBase&) = delete;
-  FidoDiscoveryBase& operator=(const FidoDiscoveryBase&) = delete;
-
   virtual ~FidoDiscoveryBase();
 
   class COMPONENT_EXPORT(DEVICE_FIDO) Observer {
@@ -42,12 +39,6 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoDiscoveryBase {
                                     FidoAuthenticator* authenticator) = 0;
     virtual void AuthenticatorRemoved(FidoDiscoveryBase* discovery,
                                       FidoAuthenticator* authenticator) = 0;
-
-    // BleDenied is called if the user has denied access to the BLE hardware.
-    // This is macOS-specific and, unlike information like the power state, this
-    // information is only available once the caBLE discovery has opened the BLE
-    // adaptor. Thus the signal is plumbed via this observer interface.
-    virtual void BleDenied() {}
   };
 
   // Start authenticator discovery. The Observer must have been set before this
@@ -70,7 +61,9 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoDiscoveryBase {
 
  private:
   const FidoTransportProtocol transport_;
-  raw_ptr<Observer> observer_ = nullptr;
+  Observer* observer_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(FidoDiscoveryBase);
 };
 
 }  // namespace device

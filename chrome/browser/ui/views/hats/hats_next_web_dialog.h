@@ -1,18 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_HATS_HATS_NEXT_WEB_DIALOG_H_
 #define CHROME_BROWSER_UI_VIEWS_HATS_HATS_NEXT_WEB_DIALOG_H_
 
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
-#include "base/timer/timer.h"
 #include "chrome/browser/profiles/profile_observer.h"
-#include "chrome/browser/ui/hats/hats_service.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/webview/web_dialog_view.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -35,13 +29,10 @@ class HatsNextWebDialog : public views::BubbleDialogDelegateView,
                           public content::WebContentsDelegate,
                           public ProfileObserver {
  public:
-  METADATA_HEADER(HatsNextWebDialog);
   HatsNextWebDialog(Browser* browser,
                     const std::string& trigger_id,
                     base::OnceClosure success_callback,
-                    base::OnceClosure failure_callback,
-                    const SurveyBitsData& product_specific_bits_data,
-                    const SurveyStringData& product_specific_string_data);
+                    base::OnceClosure failure_callback);
   ~HatsNextWebDialog() override;
   HatsNextWebDialog(const HatsNextWebDialog&) = delete;
   HatsNextWebDialog& operator=(const HatsNextWebDialog&) = delete;
@@ -57,16 +48,13 @@ class HatsNextWebDialog : public views::BubbleDialogDelegateView,
   FRIEND_TEST_ALL_PREFIXES(HatsNextWebDialogBrowserTest, SurveyLoaded);
   FRIEND_TEST_ALL_PREFIXES(HatsNextWebDialogBrowserTest, DialogResize);
   FRIEND_TEST_ALL_PREFIXES(HatsNextWebDialogBrowserTest, MaximumSize);
-  FRIEND_TEST_ALL_PREFIXES(HatsNextWebDialogBrowserTest, ZoomLevel);
 
   HatsNextWebDialog(Browser* browser,
                     const std::string& trigger_id,
                     const GURL& hats_survey_url_,
                     const base::TimeDelta& timeout,
                     base::OnceClosure success_callback,
-                    base::OnceClosure failure_callback,
-                    const SurveyBitsData& product_specific_bits_data,
-                    const SurveyStringData& product_specific_string_data);
+                    base::OnceClosure failure_callback);
 
   class HatsWebView;
 
@@ -106,9 +94,9 @@ class HatsNextWebDialog : public views::BubbleDialogDelegateView,
   base::OneShotTimer loading_timer_;
 
   // The off-the-record profile used for browsing to the Chrome HaTS webpage.
-  raw_ptr<Profile> otr_profile_;
+  Profile* otr_profile_;
 
-  raw_ptr<Browser> browser_;
+  Browser* browser_;
 
   // The HaTS Next survey trigger ID that is provided to the HaTS webpage.
   const std::string trigger_id_;
@@ -124,8 +112,8 @@ class HatsNextWebDialog : public views::BubbleDialogDelegateView,
   static constexpr gfx::Size kMinSize = gfx::Size(10, 10);
   static constexpr gfx::Size kMaxSize = gfx::Size(800, 600);
 
-  raw_ptr<views::WebView> web_view_ = nullptr;
-  raw_ptr<views::Widget> widget_ = nullptr;
+  views::WebView* web_view_ = nullptr;
+  views::Widget* widget_ = nullptr;
 
   GURL hats_survey_url_;
 
@@ -133,9 +121,6 @@ class HatsNextWebDialog : public views::BubbleDialogDelegateView,
 
   base::OnceClosure success_callback_;
   base::OnceClosure failure_callback_;
-
-  SurveyBitsData product_specific_bits_data_;
-  SurveyStringData product_specific_string_data_;
 
   base::WeakPtrFactory<HatsNextWebDialog> weak_factory_{this};
 };

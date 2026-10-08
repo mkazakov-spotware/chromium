@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "base/stl_util.h"
 #include "net/websockets/websocket_extension.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -142,9 +143,9 @@ TEST(WebSocketExtensionParserTest, InvalidPatterns) {
       "foo; bar=\"baz\\"    // ends with backslash
   };
 
-  for (const auto* pattern : patterns) {
+  for (size_t i = 0; i < base::size(patterns); ++i) {
     WebSocketExtensionParser parser;
-    EXPECT_FALSE(parser.Parse(pattern));
+    EXPECT_FALSE(parser.Parse(patterns[i]));
     EXPECT_EQ(0U, parser.extensions().size());
   }
 }

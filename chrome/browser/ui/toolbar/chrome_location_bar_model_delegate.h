@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_TOOLBAR_CHROME_LOCATION_BAR_MODEL_DELEGATE_H_
 #define CHROME_BROWSER_UI_TOOLBAR_CHROME_LOCATION_BAR_MODEL_DELEGATE_H_
 
+#include "base/macros.h"
 #include "components/omnibox/browser/location_bar_model_delegate.h"
 
 class Profile;
@@ -23,11 +24,6 @@ class PrefRegistrySyncable;
 // out how to fetch the active WebContents to its subclasses.
 class ChromeLocationBarModelDelegate : public LocationBarModelDelegate {
  public:
-  ChromeLocationBarModelDelegate(const ChromeLocationBarModelDelegate&) =
-      delete;
-  ChromeLocationBarModelDelegate& operator=(
-      const ChromeLocationBarModelDelegate&) = delete;
-
   // Returns active WebContents.
   virtual content::WebContents* GetActiveWebContents() const = 0;
 
@@ -35,14 +31,12 @@ class ChromeLocationBarModelDelegate : public LocationBarModelDelegate {
   bool ShouldPreventElision() override;
 
   // LocationBarModelDelegate:
-  std::u16string FormattedStringWithEquivalentMeaning(
+  base::string16 FormattedStringWithEquivalentMeaning(
       const GURL& url,
-      const std::u16string& formatted_url) const override;
+      const base::string16& formatted_url) const override;
   bool GetURL(GURL* url) const override;
   bool ShouldDisplayURL() const override;
-  bool ShouldUseUpdatedConnectionSecurityIndicators() const override;
   security_state::SecurityLevel GetSecurityLevel() const override;
-  net::CertStatus GetCertStatus() const override;
   std::unique_ptr<security_state::VisibleSecurityState>
   GetVisibleSecurityState() const override;
   scoped_refptr<net::X509Certificate> GetCertificate() const override;
@@ -51,7 +45,6 @@ class ChromeLocationBarModelDelegate : public LocationBarModelDelegate {
   bool IsNewTabPage() const override;
   bool IsNewTabPageURL(const GURL& url) const override;
   bool IsHomePage(const GURL& url) const override;
-  bool IsShowingAccuracyTip() const override;
   AutocompleteClassifier* GetAutocompleteClassifier() override;
   TemplateURLService* GetTemplateURLService() override;
 
@@ -91,6 +84,8 @@ class ChromeLocationBarModelDelegate : public LocationBarModelDelegate {
 
   // Helper method that returns the state of URL elision in the omnibox.
   ElisionConfig GetElisionConfig() const;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeLocationBarModelDelegate);
 };
 
 #endif  // CHROME_BROWSER_UI_TOOLBAR_CHROME_LOCATION_BAR_MODEL_DELEGATE_H_

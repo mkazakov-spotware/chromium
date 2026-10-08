@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,9 @@ struct ScopedPtrAVFree {
   void operator()(void* x) const;
 };
 
-// Calls av_packet_free(). Do not use this with an AVPacket instance that was
-// allocated with new or manually av_malloc'd. ScopedAVPacket is the
-// recommended way to manage an AVPacket's lifetime.
+// This assumes that the AVPacket being captured was allocated outside of
+// FFmpeg via the new operator.  Do not use this with AVPacket instances that
+// are allocated via malloc() or av_malloc().
 struct ScopedPtrAVFreePacket {
   void operator()(void* x) const;
 };

@@ -1,13 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_RESOURCE_COORDINATOR_TAB_LIFECYCLE_UNIT_H_
 #define CHROME_BROWSER_RESOURCE_COORDINATOR_TAB_LIFECYCLE_UNIT_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_base.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
@@ -31,10 +32,11 @@ class TabLifecycleObserver;
 // Time during which backgrounded tabs are protected from urgent discarding
 // (not on ChromeOS).
 static constexpr base::TimeDelta kBackgroundUrgentProtectionTime =
-    base::Minutes(10);
+    base::TimeDelta::FromMinutes(10);
 
 // Time during which a tab cannot be discarded after having played audio.
-static constexpr base::TimeDelta kTabAudioProtectionTime = base::Minutes(1);
+static constexpr base::TimeDelta kTabAudioProtectionTime =
+    base::TimeDelta::FromMinutes(1);
 
 class TabLifecycleUnitExternalImpl;
 
@@ -56,10 +58,6 @@ class TabLifecycleUnitSource::TabLifecycleUnit
       UsageClock* usage_clock,
       content::WebContents* web_contents,
       TabStripModel* tab_strip_model);
-
-  TabLifecycleUnit(const TabLifecycleUnit&) = delete;
-  TabLifecycleUnit& operator=(const TabLifecycleUnit&) = delete;
-
   ~TabLifecycleUnit() override;
 
   // Sets the TabStripModel associated with this tab. The source that created
@@ -88,7 +86,7 @@ class TabLifecycleUnitSource::TabLifecycleUnit
 
   // LifecycleUnit:
   TabLifecycleUnitExternal* AsTabLifecycleUnitExternal() override;
-  std::u16string GetTitle() const override;
+  base::string16 GetTitle() const override;
   base::TimeTicks GetLastFocusedTime() const override;
   base::ProcessHandle GetProcessHandle() const override;
   SortKey GetSortKey() const override;
@@ -99,8 +97,7 @@ class TabLifecycleUnitSource::TabLifecycleUnit
   bool CanDiscard(LifecycleUnitDiscardReason reason,
                   DecisionDetails* decision_details) const override;
   LifecycleUnitDiscardReason GetDiscardReason() const override;
-  bool Discard(LifecycleUnitDiscardReason discard_reason,
-               uint64_t resident_set_size_estimate) override;
+  bool Discard(LifecycleUnitDiscardReason discard_reason) override;
   ukm::SourceId GetUkmSourceId() const override;
 
   // Implementations of some functions from TabLifecycleUnitExternal. These are
@@ -123,8 +120,7 @@ class TabLifecycleUnitSource::TabLifecycleUnit
   void CheckMediaUsage(DecisionDetails* decision_details) const;
 
   // Finishes a tab discard, invoked by Discard().
-  void FinishDiscard(LifecycleUnitDiscardReason discard_reason,
-                     uint64_t tab_resident_set_size_estimate);
+  void FinishDiscard(LifecycleUnitDiscardReason discard_reason);
 
   // Returns the RenderProcessHost associated with this tab.
   content::RenderProcessHost* GetRenderProcessHost() const;
@@ -144,10 +140,10 @@ class TabLifecycleUnitSource::TabLifecycleUnit
 
   // List of observers to notify when the discarded state or the auto-
   // discardable state of this tab changes.
-  raw_ptr<base::ObserverList<TabLifecycleObserver>::Unchecked> observers_;
+  base::ObserverList<TabLifecycleObserver>::Unchecked* observers_;
 
   // TabStripModel to which this tab belongs.
-  raw_ptr<TabStripModel> tab_strip_model_;
+  TabStripModel* tab_strip_model_;
 
   // Last time at which this tab was focused, or TimeTicks::Max() if it is
   // currently focused. For tabs that aren't currently focused this is
@@ -173,6 +169,8 @@ class TabLifecycleUnitSource::TabLifecycleUnit
   base::TimeTicks recently_audible_time_;
 
   std::unique_ptr<TabLifecycleUnitExternalImpl> external_impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(TabLifecycleUnit);
 };
 
 }  // namespace resource_coordinator

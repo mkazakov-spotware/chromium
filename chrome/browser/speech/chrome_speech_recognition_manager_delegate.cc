@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <string>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -25,7 +26,6 @@
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/extension_service.h"
 #include "extensions/browser/view_type_utils.h"
-#include "extensions/common/mojom/view_type.mojom.h"
 #endif
 
 using content::BrowserThread;
@@ -143,30 +143,16 @@ void ChromeSpeechRecognitionManagerDelegate::CheckRenderFrameType(
     return;
   }
 
-  if (render_frame_host->GetLifecycleState() ==
-      content::RenderFrameHost::LifecycleState::kPrerendering) {
-    // It's unclear whether we can reach this function during prerendering.
-    // The Mojo binding for blink.mojom.SpeechRecognizer is deferred until
-    // activation, but it's conceivable that callsites that do not originate
-    // from SpeechRecognizer can call this method.
-    allowed = false;
-    check_permission = false;
-    content::GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(callback), check_permission, allowed));
-    return;
-  }
-
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   WebContents* web_contents =
       WebContents::FromRenderFrameHost(render_frame_host);
-  extensions::mojom::ViewType view_type = extensions::GetViewType(web_contents);
+  extensions::ViewType view_type = extensions::GetViewType(web_contents);
 
-  if (view_type == extensions::mojom::ViewType::kTabContents ||
-      view_type == extensions::mojom::ViewType::kAppWindow ||
-      view_type == extensions::mojom::ViewType::kComponent ||
-      view_type == extensions::mojom::ViewType::kExtensionPopup ||
-      view_type == extensions::mojom::ViewType::kExtensionBackgroundPage) {
+  if (view_type == extensions::VIEW_TYPE_TAB_CONTENTS ||
+      view_type == extensions::VIEW_TYPE_APP_WINDOW ||
+      view_type == extensions::VIEW_TYPE_COMPONENT ||
+      view_type == extensions::VIEW_TYPE_EXTENSION_POPUP ||
+      view_type == extensions::VIEW_TYPE_EXTENSION_BACKGROUND_PAGE) {
     // If it is a tab, we can check for permission. For apps, this means
     // manifest would be checked for permission.
     allowed = true;

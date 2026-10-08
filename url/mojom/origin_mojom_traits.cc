@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,12 @@ bool StructTraits<url::mojom::OriginDataView, url::Origin>::Read(
     url::mojom::OriginDataView data,
     url::Origin* out) {
   base::StringPiece scheme, host;
-  absl::optional<base::UnguessableToken> nonce_if_opaque;
+  base::Optional<base::UnguessableToken> nonce_if_opaque;
   if (!data.ReadScheme(&scheme) || !data.ReadHost(&host) ||
       !data.ReadNonceIfOpaque(&nonce_if_opaque))
     return false;
 
-  absl::optional<url::Origin> creation_result =
+  base::Optional<url::Origin> creation_result =
       nonce_if_opaque
           ? url::Origin::UnsafelyCreateOpaqueOriginWithoutNormalization(
                 scheme, host, data.port(), url::Origin::Nonce(*nonce_if_opaque))

@@ -26,7 +26,6 @@
 #include "third_party/blink/renderer/modules/indexeddb/idb_any.h"
 
 #include <memory>
-#include <utility>
 
 #include "third_party/blink/renderer/core/dom/dom_string_list.h"
 #include "third_party/blink/renderer/modules/indexeddb/idb_cursor_with_value.h"
@@ -45,6 +44,11 @@ IDBAny::~IDBAny() = default;
 void IDBAny::ContextWillBeDestroyed() {
   if (idb_cursor_)
     idb_cursor_->ContextWillBeDestroyed();
+}
+
+DOMStringList* IDBAny::DomStringList() const {
+  DCHECK_EQ(type_, kDOMStringListType);
+  return dom_string_list_.Get();
 }
 
 IDBCursor* IDBAny::IdbCursor() const {
@@ -80,15 +84,13 @@ const Vector<std::unique_ptr<IDBValue>>& IDBAny::Values() const {
   return idb_values_;
 }
 
-const Vector<Vector<std::unique_ptr<IDBValue>>>& IDBAny::ValuesArray() const {
-  DCHECK_EQ(type_, kIDBValueArrayArrayType);
-  return idb_values_array_;
-}
-
 int64_t IDBAny::Integer() const {
   DCHECK_EQ(type_, kIntegerType);
   return integer_;
 }
+
+IDBAny::IDBAny(DOMStringList* value)
+    : type_(kDOMStringListType), dom_string_list_(value) {}
 
 IDBAny::IDBAny(IDBCursor* value)
     : type_(IsA<IDBCursorWithValue>(value) ? kIDBCursorWithValueType
@@ -101,10 +103,6 @@ IDBAny::IDBAny(IDBDatabase* value)
 IDBAny::IDBAny(Vector<std::unique_ptr<IDBValue>> values)
     : type_(kIDBValueArrayType), idb_values_(std::move(values)) {}
 
-IDBAny::IDBAny(Vector<Vector<std::unique_ptr<IDBValue>>> all_values)
-    : type_(kIDBValueArrayArrayType),
-      idb_values_array_(std::move(all_values)) {}
-
 IDBAny::IDBAny(std::unique_ptr<IDBValue> value)
     : type_(kIDBValueType), idb_value_(std::move(value)) {}
 
@@ -114,6 +112,7 @@ IDBAny::IDBAny(std::unique_ptr<IDBKey> key)
 IDBAny::IDBAny(int64_t value) : type_(kIntegerType), integer_(value) {}
 
 void IDBAny::Trace(Visitor* visitor) const {
+  visitor->Trace(dom_string_list_);
   visitor->Trace(idb_cursor_);
   visitor->Trace(idb_database_);
 }

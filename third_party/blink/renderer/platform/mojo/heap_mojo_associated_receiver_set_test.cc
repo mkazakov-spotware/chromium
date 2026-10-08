@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,12 +17,40 @@
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/heap_observer_set.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
-#include "third_party/blink/renderer/platform/mojo/mojo_binding_context.h"
-#include "third_party/blink/renderer/platform/testing/mock_context_lifecycle_notifier.h"
 
 namespace blink {
 
 namespace {
+
+class FakeContextNotifier final : public GarbageCollected<FakeContextNotifier>,
+                                  public ContextLifecycleNotifier {
+ public:
+  FakeContextNotifier() = default;
+
+  void AddContextLifecycleObserver(
+      ContextLifecycleObserver* observer) override {
+    observers_.AddObserver(observer);
+  }
+
+  void RemoveContextLifecycleObserver(
+      ContextLifecycleObserver* observer) override {
+    observers_.RemoveObserver(observer);
+  }
+
+  void NotifyContextDestroyed() {
+    observers_.ForEachObserver([](ContextLifecycleObserver* observer) {
+      observer->ContextDestroyed();
+    });
+  }
+
+  void Trace(Visitor* visitor) const override {
+    visitor->Trace(observers_);
+    ContextLifecycleNotifier::Trace(visitor);
+  }
+
+ private:
+  HeapObserverSet<ContextLifecycleObserver> observers_;
+};
 
 template <HeapMojoWrapperMode Mode>
 class GCOwner;
@@ -30,7 +58,7 @@ class GCOwner;
 template <HeapMojoWrapperMode Mode>
 class HeapMojoAssociatedReceiverSetGCBaseTest : public TestSupportingGC {
  public:
-  MockContextLifecycleNotifier* context() { return context_; }
+  FakeContextNotifier* context() { return context_; }
   scoped_refptr<base::NullTaskRunner> task_runner() {
     return null_task_runner_;
   }
@@ -41,7 +69,7 @@ class HeapMojoAssociatedReceiverSetGCBaseTest : public TestSupportingGC {
 
  protected:
   void SetUp() override {
-    context_ = MakeGarbageCollected<MockContextLifecycleNotifier>();
+    context_ = MakeGarbageCollected<FakeContextNotifier>();
     owner_ = MakeGarbageCollected<GCOwner<Mode>>(context(), this);
   }
   void TearDown() override {
@@ -49,7 +77,7 @@ class HeapMojoAssociatedReceiverSetGCBaseTest : public TestSupportingGC {
     PreciselyCollectGarbage();
   }
 
-  Persistent<MockContextLifecycleNotifier> context_;
+  Persistent<FakeContextNotifier> context_;
   Persistent<GCOwner<Mode>> owner_;
   bool is_owner_alive_ = false;
   scoped_refptr<base::NullTaskRunner> null_task_runner_ =
@@ -60,7 +88,7 @@ template <HeapMojoWrapperMode Mode>
 class GCOwner : public GarbageCollected<GCOwner<Mode>>,
                 public sample::blink::Service {
  public:
-  explicit GCOwner(MockContextLifecycleNotifier* context,
+  explicit GCOwner(FakeContextNotifier* context,
                    HeapMojoAssociatedReceiverSetGCBaseTest<Mode>* test)
       : associated_receiver_set_(this, context), test_(test) {
     test_->set_is_owner_alive(true);

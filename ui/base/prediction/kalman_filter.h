@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define UI_BASE_PREDICTION_KALMAN_FILTER_H_
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/matrix3_f.h"
 
 namespace ui {
@@ -14,10 +15,6 @@ namespace ui {
 class COMPONENT_EXPORT(UI_BASE_PREDICTION) KalmanFilter {
  public:
   KalmanFilter();
-
-  KalmanFilter(const KalmanFilter&) = delete;
-  KalmanFilter& operator=(const KalmanFilter&) = delete;
-
   ~KalmanFilter();
 
   // Get the estimation of current state.
@@ -80,6 +77,8 @@ class COMPONENT_EXPORT(UI_BASE_PREDICTION) KalmanFilter {
   // 1st iteration, the state estimate will be updated to the measured value.
   // After a few iterations, the KalmanFilter is considered stable.
   uint32_t iteration_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(KalmanFilter);
 };
 
 }  // namespace ui

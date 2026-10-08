@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/os_crypt/os_crypt_mocker.h"
 
-#include "build/build_config.h"
 #include "components/os_crypt/os_crypt.h"
 
 #if defined(USE_LIBSECRET) || defined(USE_KEYRING) || defined(USE_KWALLET)
@@ -13,23 +12,23 @@
 
 // static
 void OSCryptMocker::SetUp() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   OSCrypt::UseMockKeychainForTesting(true);
 #elif defined(USE_LIBSECRET) || defined(USE_KEYRING) || defined(USE_KWALLET)
   OSCryptMockerLinux::SetUp();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   OSCrypt::UseMockKeyForTesting(true);
 #endif
 }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 // static
 void OSCryptMocker::SetBackendLocked(bool locked) {
   OSCrypt::UseLockedMockKeychainForTesting(locked);
 }
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // static
 void OSCryptMocker::SetLegacyEncryption(bool legacy) {
   OSCrypt::SetLegacyEncryptionForTesting(legacy);
@@ -43,11 +42,11 @@ void OSCryptMocker::ResetState() {
 
 // static
 void OSCryptMocker::TearDown() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   OSCrypt::UseMockKeychainForTesting(false);
 #elif defined(USE_LIBSECRET) || defined(USE_KEYRING) || defined(USE_KWALLET)
   OSCryptMockerLinux::TearDown();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   OSCrypt::UseMockKeyForTesting(false);
 #endif
 }

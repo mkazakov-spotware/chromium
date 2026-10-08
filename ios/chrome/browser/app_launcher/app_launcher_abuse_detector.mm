@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/app_launcher/app_launcher_abuse_detector.h"
 
-#import "base/metrics/histogram_macros.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/app_launcher/app_launching_state.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -15,27 +14,14 @@
 
 const int kMaxAllowedConsecutiveExternalAppLaunches = 2;
 
-namespace {
-
-// Returns true iff `url`'s scheme is one that is used by other apps to launch
-// Chrome.
-bool HasChromeAppLaunchScheme(const GURL& url) {
-  return url.SchemeIs("googlechrome-x-callback") ||
-         url.SchemeIs("chromium-x-callback") || url.SchemeIs("googlechrome") ||
-         url.SchemeIs("chromium") || url.SchemeIs("googlechromes") ||
-         url.SchemeIs("chromiums");
-}
-
-}  // namespace
-
 @interface AppLauncherAbuseDetector ()
 // Maps between external application redirection key and state.
 // the key is a space separated combination of the absolute string for the
 // original source URL, and the scheme of the external Application URL.
 @property(nonatomic, strong)
     NSMutableDictionary<NSString*, AppLaunchingState*>* appLaunchingStates;
-// Generates key for `appURL` and `sourceURL` to be used to retrieve state from
-// `appLaunchingStates`.
+// Generates key for |appURL| and |sourceURL| to be used to retrieve state from
+// |appLaunchingStates|.
 + (NSString*)stateKeyForAppURL:(const GURL&)appURL
                      sourceURL:(const GURL&)sourceURL;
 @end
@@ -59,24 +45,17 @@ bool HasChromeAppLaunchScheme(const GURL& url) {
   return self;
 }
 
-- (void)didRequestLaunchExternalAppURL:(const GURL&)URL
+- (void)didRequestLaunchExternalAppURL:(const GURL&)gURL
                      fromSourcePageURL:(const GURL&)sourcePageURL {
-  NSString* key = [[self class] stateKeyForAppURL:URL sourceURL:sourcePageURL];
+  NSString* key = [[self class] stateKeyForAppURL:gURL sourceURL:sourcePageURL];
   if (!_appLaunchingStates[key])
     _appLaunchingStates[key] = [[AppLaunchingState alloc] init];
   [_appLaunchingStates[key] updateWithLaunchRequest];
 }
 
-- (ExternalAppLaunchPolicy)launchPolicyForURL:(const GURL&)URL
+- (ExternalAppLaunchPolicy)launchPolicyForURL:(const GURL&)gURL
                             fromSourcePageURL:(const GURL&)sourcePageURL {
-  // Treat an attempt to launch Chrome from within Chrome as abuse.
-  bool isChromeLaunchAttempt = HasChromeAppLaunchScheme(URL);
-  UMA_HISTOGRAM_BOOLEAN("IOS.AppLauncher.AppURLHasChromeLaunchScheme",
-                        isChromeLaunchAttempt);
-  if (isChromeLaunchAttempt)
-    return ExternalAppLaunchPolicyBlock;
-
-  NSString* key = [[self class] stateKeyForAppURL:URL sourceURL:sourcePageURL];
+  NSString* key = [[self class] stateKeyForAppURL:gURL sourceURL:sourcePageURL];
   // Don't block apps that are not registered with the abuse detector.
   if (!_appLaunchingStates[key])
     return ExternalAppLaunchPolicyAllow;
@@ -92,9 +71,9 @@ bool HasChromeAppLaunchScheme(const GURL& url) {
   return ExternalAppLaunchPolicyAllow;
 }
 
-- (void)blockLaunchingAppURL:(const GURL&)URL
+- (void)blockLaunchingAppURL:(const GURL&)gURL
            fromSourcePageURL:(const GURL&)sourcePageURL {
-  NSString* key = [[self class] stateKeyForAppURL:URL sourceURL:sourcePageURL];
+  NSString* key = [[self class] stateKeyForAppURL:gURL sourceURL:sourcePageURL];
   [_appLaunchingStates[key] setAppLaunchingBlocked:YES];
 }
 @end

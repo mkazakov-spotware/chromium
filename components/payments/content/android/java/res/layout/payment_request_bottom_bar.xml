@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-Copyright 2017 The Chromium Authors
-Use of this source code is governed by a BSD-style license that can be
-found in the LICENSE file.
--->
+<!-- Copyright 2017 The Chromium Authors. All rights reserved.
+     Use of this source code is governed by a BSD-style license that can be
+     found in the LICENSE file. -->
 
 <!-- Sits at the bottom of the payment request UI. -->
 <org.chromium.chrome.browser.payments.ui.PaymentRequestBottomBar
@@ -16,7 +14,7 @@ found in the LICENSE file.
     android:paddingBottom="@dimen/payments_request_bottom_bar_vertical_padding"
     android:paddingStart="@dimen/payments_request_bottom_bar_horizontal_padding"
     android:paddingEnd="@dimen/payments_request_bottom_bar_horizontal_padding"
-    android:background="@drawable/sheet_background"
+    android:background="@color/payment_request_bg"
     android:visibility="gone" >
 
     <ImageView

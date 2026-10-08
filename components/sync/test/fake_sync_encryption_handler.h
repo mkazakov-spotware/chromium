@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,8 @@
 #include "base/compiler_specific.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
-#include "components/sync/engine/nigori/keystore_keys_handler.h"
 #include "components/sync/engine/sync_encryption_handler.h"
-#include "components/sync/test/fake_cryptographer.h"
+#include "components/sync/nigori/keystore_keys_handler.h"
 
 namespace syncer {
 
@@ -33,20 +32,13 @@ class FakeSyncEncryptionHandler : public KeystoreKeysHandler,
   // SyncEncryptionHandler implementation.
   void AddObserver(Observer* observer) override;
   void RemoveObserver(Observer* observer) override;
-  void NotifyInitialStateToObservers() override;
-  ModelTypeSet GetEncryptedTypes() override;
-  Cryptographer* GetCryptographer() override;
-  PassphraseType GetPassphraseType() override;
-  void SetEncryptionPassphrase(
-      const std::string& passphrase,
-      const KeyDerivationParams& key_derivation_params) override;
-  void SetExplicitPassphraseDecryptionKey(std::unique_ptr<Nigori> key) override;
+  bool Init() override;
+  void SetEncryptionPassphrase(const std::string& passphrase) override;
+  void SetDecryptionPassphrase(const std::string& passphrase) override;
   void AddTrustedVaultDecryptionKeys(
       const std::vector<std::vector<uint8_t>>& keys) override;
-  base::Time GetKeystoreMigrationTime() override;
+  base::Time GetKeystoreMigrationTime() const override;
   KeystoreKeysHandler* GetKeystoreKeysHandler() override;
-  const sync_pb::NigoriSpecifics::TrustedVaultDebugInfo&
-  GetTrustedVaultDebugInfo() override;
 
   // KeystoreKeysHandler implementation.
   bool NeedKeystoreKey() const override;
@@ -55,7 +47,6 @@ class FakeSyncEncryptionHandler : public KeystoreKeysHandler,
  private:
   base::ObserverList<SyncEncryptionHandler::Observer>::Unchecked observers_;
   std::vector<uint8_t> keystore_key_;
-  FakeCryptographer fake_cryptographer_;
 };
 
 }  // namespace syncer

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <map>
 #include <string>
 
+#include "base/strings/string16.h"
 #include "third_party/blink/public/common/common_export.h"
 #include "third_party/blink/public/common/indexeddb/indexeddb_key_path.h"
 
@@ -19,7 +20,7 @@ struct BLINK_COMMON_EXPORT IndexedDBIndexMetadata {
   static const int64_t kInvalidId = -1;
 
   IndexedDBIndexMetadata();
-  IndexedDBIndexMetadata(const std::u16string& name,
+  IndexedDBIndexMetadata(const base::string16& name,
                          int64_t id,
                          const blink::IndexedDBKeyPath& key_path,
                          bool unique,
@@ -31,7 +32,7 @@ struct BLINK_COMMON_EXPORT IndexedDBIndexMetadata {
   IndexedDBIndexMetadata& operator=(IndexedDBIndexMetadata&& other);
   bool operator==(const IndexedDBIndexMetadata& other) const;
 
-  std::u16string name;
+  base::string16 name;
   int64_t id;
   blink::IndexedDBKeyPath key_path;
   bool unique;
@@ -43,7 +44,7 @@ struct BLINK_COMMON_EXPORT IndexedDBObjectStoreMetadata {
   static const int64_t kMinimumIndexId = 30;
 
   IndexedDBObjectStoreMetadata();
-  IndexedDBObjectStoreMetadata(const std::u16string& name,
+  IndexedDBObjectStoreMetadata(const base::string16& name,
                                int64_t id,
                                const blink::IndexedDBKeyPath& key_path,
                                bool auto_increment,
@@ -56,7 +57,7 @@ struct BLINK_COMMON_EXPORT IndexedDBObjectStoreMetadata {
   IndexedDBObjectStoreMetadata& operator=(IndexedDBObjectStoreMetadata&& other);
   bool operator==(const IndexedDBObjectStoreMetadata& other) const;
 
-  std::u16string name;
+  base::string16 name;
   int64_t id;
   blink::IndexedDBKeyPath key_path;
   bool auto_increment;
@@ -70,7 +71,7 @@ struct BLINK_COMMON_EXPORT IndexedDBDatabaseMetadata {
   enum { NO_VERSION = -1, DEFAULT_VERSION = 0 };
 
   IndexedDBDatabaseMetadata();
-  IndexedDBDatabaseMetadata(const std::u16string& name,
+  IndexedDBDatabaseMetadata(const base::string16& name,
                             int64_t id,
                             int64_t version,
                             int64_t max_object_store_id);
@@ -81,7 +82,7 @@ struct BLINK_COMMON_EXPORT IndexedDBDatabaseMetadata {
   IndexedDBDatabaseMetadata& operator=(IndexedDBDatabaseMetadata&& other);
   bool operator==(const IndexedDBDatabaseMetadata& other) const;
 
-  std::u16string name;
+  base::string16 name;
   int64_t id;
   int64_t version;
   int64_t max_object_store_id;

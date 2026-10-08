@@ -20,13 +20,13 @@ test(t => {
 
   assert_equals(frame.timestamp, clone.timestamp);
   assert_equals(frame.duration, clone.duration);
-  assert_equals(frame.visibleRect.left, clone.visibleRect.left);
-  assert_equals(frame.visibleRect.top, clone.visibleRect.top);
-  assert_equals(frame.visibleRect.width, clone.visibleRect.width);
-  assert_equals(frame.visibleRect.height, clone.visibleRect.height);
+  assert_equals(frame.cropWidth, clone.cropWidth);
+  assert_equals(frame.cropHeight, clone.cropHeight);
+  assert_equals(frame.cropWidth, clone.cropWidth);
+  assert_equals(frame.cropHeight, clone.cropHeight);
 
-  frame.close();
-  clone.close();
+  frame.destroy();
+  clone.destroy();
 }, 'Test we can clone a VideoFrame.');
 
 test(t => {
@@ -35,26 +35,23 @@ test(t => {
   let copy = frame;
   let clone = frame.clone();
 
-  frame.close();
+  frame.destroy();
 
-  assert_equals(copy.timestamp, defaultInit.timestamp);
-  assert_equals(copy.duration, defaultInit.duration);
-  assert_true(isFrameClosed(copy));
+  assert_not_equals(copy.timestamp, defaultInit.timestamp);
   assert_equals(clone.timestamp, defaultInit.timestamp);
-  assert_false(isFrameClosed(clone));
 
-  clone.close();
-}, 'Verify closing a frame doesn\'t affect its clones.');
+  clone.destroy();
+}, 'Verify destroying a frame doesn\'t affect its clones.');
 
 test(t => {
   let frame = createDefaultVideoFrame();
 
-  frame.close();
+  frame.destroy();
 
   assert_throws_dom("InvalidStateError", () => {
     let clone = frame.clone();
   });
-}, 'Verify cloning a closed frame throws.');
+}, 'Verify cloning a destroyed frame throws.');
 
 async_test(t => {
   let localFrame = createDefaultVideoFrame();
@@ -65,17 +62,17 @@ async_test(t => {
 
   externalPort.onmessage = t.step_func((e) => {
     let externalFrame = e.data;
-    externalFrame.close();
+    externalFrame.destroy();
     externalPort.postMessage("Done");
   })
 
   localPort.onmessage = t.step_func_done((e) => {
-    assert_equals(localFrame.timestamp, defaultInit.timestamp);
-    localFrame.close();
+    assert_not_equals(localFrame.timestamp, defaultInit.timestamp);
   })
 
   localPort.postMessage(localFrame);
-}, 'Verify closing frames does not propagate accross contexts.');
+
+}, 'Verify destroying frames propagates accross contexts.');
 
 async_test(t => {
   let localFrame = createDefaultVideoFrame();
@@ -84,15 +81,20 @@ async_test(t => {
   let localPort = channel.port1;
   let externalPort = channel.port2;
 
-  externalPort.onmessage = t.step_func_done((e) => {
+  externalPort.onmessage = t.step_func((e) => {
     let externalFrame = e.data;
-    assert_equals(externalFrame.timestamp, defaultInit.timestamp);
-    externalFrame.close();
+    externalFrame.destroy();
+    externalPort.postMessage("Done");
   })
 
-  localPort.postMessage(localFrame, [localFrame]);
-  assert_true(isFrameClosed(localFrame));
-}, 'Verify transferring frames closes them.');
+  localPort.onmessage = t.step_func_done((e) => {
+    assert_equals(localFrame.timestamp, defaultInit.timestamp);
+    localFrame.destroy();
+  })
+
+  localPort.postMessage(localFrame.clone());
+
+}, 'Verify destroying cloned frames doesn\'t propagate accross contexts.');
 
 async_test(t => {
   let localFrame = createDefaultVideoFrame();
@@ -102,36 +104,11 @@ async_test(t => {
 
   localPort.onmessage = t.unreached_func();
 
-  localFrame.close();
+  localFrame.destroy();
 
   assert_throws_dom("DataCloneError", () => {
     localPort.postMessage(localFrame);
   });
 
   t.done();
-}, 'Verify posting closed frames throws.');
-
-promise_test(async t => {
-  const open = indexedDB.open('VideoFrameTestDB', 1);
-  open.onerror = t.unreached_func('open should succeed');
-  open.onupgradeneeded = (event) => {
-    let db = event.target.result;
-    db.createObjectStore('MyVideoFrames', { keyPath: 'id' });
-  };
-  let db = await new Promise((resolve) => {
-    open.onsuccess = (e) => {
-      resolve(e.target.result);
-    };
-  });
-  t.add_cleanup(() => {
-    db.close();
-    indexedDB.deleteDatabase(db.name);
-  });
-
-  let transaction = db.transaction(['MyVideoFrames'], 'readwrite');
-  const store = transaction.objectStore('MyVideoFrames');
-  let frame = createDefaultVideoFrame();
-  assert_throws_dom("DataCloneError", () => {
-    store.add(frame);
-  });
-}, 'Verify storing a frame throws.');
+}, 'Verify posting destroyed frames throws.');

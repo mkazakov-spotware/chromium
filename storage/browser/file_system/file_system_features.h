@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,7 @@ namespace storage {
 namespace features {
 
 COMPONENT_EXPORT(STORAGE_BROWSER)
-BASE_DECLARE_FEATURE(kEnablePersistentFilesystemInIncognito);
-
-COMPONENT_EXPORT(STORAGE_BROWSER)
-BASE_DECLARE_FEATURE(kIncognitoFileSystemContextForTesting);
+extern const base::Feature kEnablePersistentFilesystemInIncognito;
 
 }  // namespace features
 

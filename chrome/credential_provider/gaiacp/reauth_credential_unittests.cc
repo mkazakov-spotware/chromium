@@ -1,15 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/win/atl.h"
-
+#include <atlbase.h>
+#include <atlcom.h>
 #include <atlcomcli.h>
 #include <wrl/client.h>
 
 #include "base/command_line.h"
 #include "base/json/json_writer.h"
-#include "base/strings/escape.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/test_reg_util_win.h"
@@ -30,6 +29,7 @@
 #include "content/public/common/content_switches.h"
 #include "google_apis/gaia/gaia_switches.h"
 #include "google_apis/gaia/gaia_urls.h"
+#include "net/base/escape.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace credential_provider {
@@ -122,13 +122,13 @@ TEST_P(GcpReauthCredentialGetStringValueTest, FidDescription) {
     ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                         OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
                         L"comment",
-                        base::UTF8ToWide(test_data_storage.GetSuccessId()),
+                        base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
                         OLE2CW(email), L"domain", &sid));
   } else if (!is_sid_empty) {
     ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                         OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
                         L"comment",
-                        base::UTF8ToWide(test_data_storage.GetSuccessId()),
+                        base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
                         OLE2CW(email), &sid));
   }
 
@@ -219,11 +219,11 @@ TEST_P(GcpReauthCredentialEnforceAuthReasonGetStringValueTest,
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
                 OLE2CW(email), &sid));
 
   if (store_encrypted_data) {
-    std::wstring store_key = GetUserPasswordLsaStoreKey(OLE2W(sid));
+    base::string16 store_key = GetUserPasswordLsaStoreKey(OLE2W(sid));
 
     auto policy = ScopedLsaPolicy::Create(POLICY_ALL_ACCESS);
     EXPECT_TRUE(SUCCEEDED(
@@ -233,18 +233,20 @@ TEST_P(GcpReauthCredentialEnforceAuthReasonGetStringValueTest,
 
   if (is_stale_login) {
     ASSERT_EQ(S_OK,
-              SetUserProperty((BSTR)sid,
-                              base::UTF8ToWide(std::string(kKeyLastTokenValid)),
-                              L"0"));
-    ASSERT_EQ(S_OK, SetGlobalFlagForTesting(
-                        base::UTF8ToWide(std::string(kKeyValidityPeriodInDays)),
-                        (DWORD)0));
+              SetUserProperty(
+                  (BSTR)sid, base::UTF8ToUTF16(std::string(kKeyLastTokenValid)),
+                  L"0"));
+    ASSERT_EQ(S_OK,
+              SetGlobalFlagForTesting(
+                  base::UTF8ToUTF16(std::string(kKeyValidityPeriodInDays)),
+                  (DWORD)0));
   }
 
   if (is_online_login_enforced)
-    ASSERT_EQ(S_OK, SetGlobalFlagForTesting(
-                        base::UTF8ToWide(std::string("enforce_online_login")),
-                        (DWORD)1));
+    ASSERT_EQ(S_OK,
+              SetGlobalFlagForTesting(
+                  base::UTF8ToUTF16(std::string("enforce_online_login")),
+                  (DWORD)1));
 
   // Populate the associated users list. The created user's token handle
   // should be valid so that no reauth credential is created.
@@ -329,8 +331,8 @@ TEST_P(GcpReauthCredentialGlsTest, GetUserGlsCommandLine) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
-                std::wstring(), &sid));
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
+                base::string16(), &sid));
 
   // Create provider and start logon.
   Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
@@ -422,8 +424,8 @@ TEST_F(GcpReauthCredentialGlsRunnerTest, NoGaiaIdOrEmailAvailable) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
-                std::wstring(), &sid));
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
+                base::string16(), &sid));
 
   // Create provider and start logon.
   Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
@@ -471,7 +473,7 @@ TEST_F(GcpReauthCredentialGlsRunnerTest, NoGaiaIdAvailableForADUser) {
   std::string empty_gaia_id;
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                      L"comment", base::UTF8ToWide(empty_gaia_id),
+                      L"comment", base::UTF8ToUTF16(empty_gaia_id),
                       OLE2CW(email), L"domain", &sid));
 
   // Create provider and start logon.
@@ -521,13 +523,13 @@ TEST_F(GcpReauthCredentialGlsRunnerTest, UserGaiaIdMismatch) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
-                std::wstring(), &first_sid));
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
+                base::string16(), &first_sid));
 
   CComBSTR second_sid;
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       L"foo_bar2", L"pwd2", L"name2", L"comment2",
-                      base::UTF8ToWide(unexpected_gaia_id), std::wstring(),
+                      base::UTF8ToUTF16(unexpected_gaia_id), base::string16(),
                       &second_sid));
 
   // Create provider and start logon.
@@ -582,7 +584,7 @@ TEST_P(GcpNormalReauthCredentialUserSidMismatch, ShouldFail) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
                 OLE2CW(email), OLE2CW(domain), &sid));
 
   // Create provider and start logon.
@@ -605,7 +607,7 @@ TEST_P(GcpNormalReauthCredentialUserSidMismatch, ShouldFail) {
   std::string get_cd_user_url_ = base::StringPrintf(
       "https://www.googleapis.com/admin/directory/v1/users/"
       "%s?projection=full&viewType=domain_public",
-      base::EscapeUrlEncodedData(base::WideToUTF8(OLE2CW(email)), true)
+      net::EscapeUrlEncodedData(base::UTF16ToUTF8(OLE2CW(email)), true)
           .c_str());
   GaiaUrls* gaia_urls_ = GaiaUrls::GetInstance();
   // Set token result as a valid access token.
@@ -666,7 +668,7 @@ TEST_P(GcpNormalReauthCredentialGlsRunnerTest, WithGemFeatures) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
                 OLE2CW(email), &sid));
 
   if (is_gem_features_enabled) {
@@ -720,8 +722,8 @@ TEST_F(GcpReauthCredentialGlsRunnerTest, NormalReauthWithoutEmail) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
-                std::wstring(), &sid));
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
+                base::string16(), &sid));
 
   // Create provider and start logon.
   Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
@@ -753,8 +755,8 @@ TEST_F(GcpReauthCredentialGlsRunnerTest, NormalReauthWithoutGaiaId) {
   CComBSTR sid;
   ASSERT_EQ(S_OK, fake_os_user_manager()->CreateTestOSUser(
                       OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                      L"comment", std::wstring(),
-                      base::UTF8ToWide(kDefaultEmail), &sid));
+                      L"comment", base::string16(),
+                      base::UTF8ToUTF16(kDefaultEmail), &sid));
 
   // Create provider and start logon.
   Microsoft::WRL::ComPtr<ICredentialProviderCredential> cred;
@@ -792,7 +794,7 @@ TEST_F(GcpReauthCredentialGlsRunnerTest, GaiaIdMismatch) {
   ASSERT_EQ(S_OK,
             fake_os_user_manager()->CreateTestOSUser(
                 OLE2CW(username), OLE2CW(password), OLE2CW(full_name),
-                L"comment", base::UTF8ToWide(test_data_storage.GetSuccessId()),
+                L"comment", base::UTF8ToUTF16(test_data_storage.GetSuccessId()),
                 OLE2CW(email), &sid));
 
   std::string unexpected_gaia_id = "unexpected-gaia-id";

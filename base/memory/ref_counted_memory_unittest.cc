@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/containers/span.h"
 #include "base/memory/read_only_shared_memory_region.h"
+#include "base/stl_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -51,7 +52,7 @@ TEST(RefCountedMemoryUnitTest, RefCountedBytes) {
   scoped_refptr<RefCountedMemory> mem2;
   {
     const unsigned char kData[] = {12, 11, 99};
-    mem2 = MakeRefCounted<RefCountedBytes>(kData, std::size(kData));
+    mem2 = MakeRefCounted<RefCountedBytes>(kData, size(kData));
   }
   ASSERT_EQ(3U, mem2->size());
   EXPECT_EQ(12U, mem2->front()[0]);
@@ -76,8 +77,10 @@ TEST(RefCountedMemoryUnitTest, RefCountedBytesMutable) {
 }
 
 TEST(RefCountedMemoryUnitTest, RefCountedString) {
-  scoped_refptr<RefCountedMemory> mem =
-      base::MakeRefCounted<base::RefCountedString>(std::string("destroy me"));
+  std::string s("destroy me");
+  scoped_refptr<RefCountedMemory> mem = RefCountedString::TakeString(&s);
+
+  EXPECT_EQ(0U, s.size());
 
   ASSERT_EQ(10U, mem->size());
   EXPECT_EQ('d', mem->front()[0]);
@@ -88,8 +91,8 @@ TEST(RefCountedMemoryUnitTest, RefCountedString) {
 }
 
 TEST(RefCountedMemoryUnitTest, Equals) {
-  scoped_refptr<RefCountedMemory> mem1 =
-      base::MakeRefCounted<base::RefCountedString>(std::string("same"));
+  std::string s1("same");
+  scoped_refptr<RefCountedMemory> mem1 = RefCountedString::TakeString(&s1);
 
   std::vector<unsigned char> d2 = {'s', 'a', 'm', 'e'};
   scoped_refptr<RefCountedMemory> mem2 = RefCountedBytes::TakeVector(&d2);
@@ -97,8 +100,7 @@ TEST(RefCountedMemoryUnitTest, Equals) {
   EXPECT_TRUE(mem1->Equals(mem2));
 
   std::string s3("diff");
-  scoped_refptr<RefCountedMemory> mem3 =
-      base::MakeRefCounted<base::RefCountedString>(std::move(s3));
+  scoped_refptr<RefCountedMemory> mem3 = RefCountedString::TakeString(&s3);
 
   EXPECT_FALSE(mem1->Equals(mem3));
   EXPECT_FALSE(mem2->Equals(mem3));
@@ -106,8 +108,7 @@ TEST(RefCountedMemoryUnitTest, Equals) {
 
 TEST(RefCountedMemoryUnitTest, EqualsNull) {
   std::string s("str");
-  scoped_refptr<RefCountedMemory> mem =
-      base::MakeRefCounted<base::RefCountedString>(std::move(s));
+  scoped_refptr<RefCountedMemory> mem = RefCountedString::TakeString(&s);
   EXPECT_FALSE(mem->Equals(nullptr));
 }
 

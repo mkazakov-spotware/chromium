@@ -1,21 +1,22 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync_bookmarks/switches.h"
 
-#include "base/feature_list.h"
-
 namespace switches {
 
-BASE_FEATURE(kSyncOmitLargeBookmarkFaviconUrl,
-             "SyncOmitLargeBookmarkFaviconUrl",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kSyncDoNotCommitBookmarksWithoutFavicon = {
+    "SyncDoNotCommitBookmarksWithoutFavicon", base::FEATURE_ENABLED_BY_DEFAULT};
 
-// TODO(crbug.com/1232951): remove the feature toggle once most of bookmarks
-// have been reuploaded.
-BASE_FEATURE(kSyncReuploadBookmarks,
-             "SyncReuploadBookmarks",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kSyncReuploadBookmarkFullTitles{
+    "SyncReuploadBookmarkFullTitles", base::FEATURE_ENABLED_BY_DEFAULT};
+
+const base::Feature kSyncDeduplicateAllBookmarksWithSameGUID{
+    "SyncDeduplicateAllBookmarksWithSameGUID",
+    base::FEATURE_ENABLED_BY_DEFAULT};
+
+const base::Feature kSyncIgnoreChangesInTouchIcons{
+    "SyncIgnoreChangesInTouchIcons", base::FEATURE_ENABLED_BY_DEFAULT};
 
 }  // namespace switches

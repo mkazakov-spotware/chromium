@@ -2,8 +2,6 @@
 <body>
 <script src="../../../resources/testharness.js"></script>
 <script src="../../../resources/testharnessreport.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src="../resources/picker-common.js"></script>
 <style>
 .font1 { font-family: TestFont; }
@@ -25,7 +23,7 @@ async_test(function(test) {
     assert_equals(face1.status, "unloaded", "face1 should be unloaded");
     assert_equals(face2.status, "unloaded", "face2 should be unloaded");
 
-    openPickerDeprecatedJsTest(document.querySelector('select'), function() {
+    openPicker(document.querySelector('select'), function() {
         document.fonts.ready.then(test.step_func(function() {
             assert_equals(face1.status, "loaded", "face1 should be loaded");
             assert_equals(face2.status, "loaded", "face2 should be loaded");

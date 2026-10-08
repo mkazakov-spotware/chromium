@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,25 +10,19 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/types/pass_key.h"
+#include "base/util/type_safety/pass_key.h"
 #include "chrome/browser/touch_to_fill/touch_to_fill_view.h"
 #include "chrome/browser/touch_to_fill/touch_to_fill_view_factory.h"
-#include "components/autofill/core/common/mojom/autofill_types.mojom.h"
-#include "components/device_reauth/biometric_authenticator.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "ui/gfx/native_widget_types.h"
 
 namespace password_manager {
-class PasswordManagerClient;
 class PasswordManagerDriver;
 class UiCredential;
 }  // namespace password_manager
 
 class ChromePasswordManagerClient;
-class TouchToFillWebAuthnCredential;
 
 class TouchToFillController {
  public:
@@ -44,52 +38,24 @@ class TouchToFillController {
     kSelectedCredential = 0,
     kDismissed = 1,
     kSelectedManagePasswords = 2,
-    kSelectedWebAuthnCredential = 3,
-  };
-
-  // The final outcome that closes the Touch To Fill sheet.
-  //
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused. Needs to stay in sync with
-  // TouchToFill.Outcome in enums.xml.
-  enum class TouchToFillOutcome {
-    kCredentialFilled = 0,
-    kSheetDismissed = 1,
-    kReauthenticationFailed = 2,
-    kManagePasswordsSelected = 3,
-    kWebAuthnCredentialSelected = 4,
-    kMaxValue = kWebAuthnCredentialSelected,
   };
 
   // No-op constructor for tests.
-  TouchToFillController(
-      base::PassKey<class TouchToFillControllerTest>,
-      password_manager::PasswordManagerClient* password_client,
-      scoped_refptr<device_reauth::BiometricAuthenticator> authenticator);
-
-  TouchToFillController(
-      ChromePasswordManagerClient* password_client,
-      scoped_refptr<device_reauth::BiometricAuthenticator> authenticator);
+  explicit TouchToFillController(
+      util::PassKey<class TouchToFillControllerTest>);
+  explicit TouchToFillController(ChromePasswordManagerClient* web_contents);
   TouchToFillController(const TouchToFillController&) = delete;
   TouchToFillController& operator=(const TouchToFillController&) = delete;
   ~TouchToFillController();
 
-  // Instructs the controller to show the provided |credentials| and
-  // |webauthn_credentials| to the user.
+  // Instructs the controller to show the provided |credentials| to the user.
   void Show(base::span<const password_manager::UiCredential> credentials,
-            base::span<TouchToFillWebAuthnCredential> webauthn_credentials,
-            base::WeakPtr<password_manager::PasswordManagerDriver> driver,
-            autofill::mojom::SubmissionReadinessState submission_readiness);
+            base::WeakPtr<password_manager::PasswordManagerDriver> driver);
 
   // Informs the controller that the user has made a selection. Invokes both
   // FillSuggestion() and TouchToFillDismissed() on |driver_|. No-op if invoked
   // repeatedly.
   void OnCredentialSelected(const password_manager::UiCredential& credential);
-
-  // Informs the controller that the user has made a selection. Invokes
-  // TouchToFillDismissed() and initiates a WebAuthn sign-in.
-  void OnWebAuthnCredentialSelected(
-      const TouchToFillWebAuthnCredential& credential);
 
   // Informs the controller that the user has tapped the "Manage Passwords"
   // button. This will open the password preferences.
@@ -109,38 +75,12 @@ class TouchToFillController {
 #endif
 
  private:
-  // Called after the biometric reauth completes. If `authSuccessful` is
-  // true, `credential` will be filled into the form.
-  void OnReauthCompleted(password_manager::UiCredential credential,
-                         bool authSuccessful);
-
-  // Fills the credential into the form.
-  void FillCredential(const password_manager::UiCredential& credential);
-
-  // Called upon completion or dismissal to perform cleanup.
-  void CleanUpDriverAndReportOutcome(TouchToFillOutcome outcome,
-                                     bool show_virtual_keyboard);
-
-  // Weak pointer to the PasswordManagerClient this class is tied to.
-  raw_ptr<password_manager::PasswordManagerClient> password_client_ = nullptr;
+  // Weak pointer to the ChromePasswordManagerClient this class is tied to.
+  ChromePasswordManagerClient* password_client_ = nullptr;
 
   // Driver passed to the latest invocation of Show(). Gets cleared when
   // OnCredentialSelected() or OnDismissed() gets called.
   base::WeakPtr<password_manager::PasswordManagerDriver> driver_;
-
-  // Whether the controller should trigger submission when a credential is
-  // filled in.
-  bool trigger_submission_ = false;
-
-  // Whether a form is ready for submission. Similar to |trigger_submission_|,
-  // but doesn't depend on flags. Used for dark launch metrics (e.g. time
-  // between filling and successful login with and without flags enabled).
-  // TODO(crbug.com/1299394): remove the field and the metrics if we are not
-  // going to use them for new launches, e.g. crbug.com/1393043.
-  bool ready_for_submission_ = false;
-
-  // Authenticator used to trigger a biometric auth before filling.
-  scoped_refptr<device_reauth::BiometricAuthenticator> authenticator_;
 
   ukm::SourceId source_id_ = ukm::kInvalidSourceId;
 

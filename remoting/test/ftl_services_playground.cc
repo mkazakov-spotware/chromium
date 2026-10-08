@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "remoting/base/oauth_token_getter_impl.h"
 #include "remoting/base/protobuf_http_status.h"
 #include "remoting/base/url_request_context_getter.h"
@@ -86,6 +87,8 @@ void FtlServicesPlayground::StartAndAuthenticate() {
 
 void FtlServicesPlayground::StartLoop() {
   std::vector<test::CommandOption> options{
+      {"PullMessages", base::BindRepeating(&FtlServicesPlayground::PullMessages,
+                                           weak_factory_.GetWeakPtr())},
       {"ReceiveMessages",
        base::BindRepeating(&FtlServicesPlayground::StartReceivingMessages,
                            weak_factory_.GetWeakPtr())},
@@ -101,7 +104,7 @@ void FtlServicesPlayground::StartLoop() {
 
   auto url_request_context_getter =
       base::MakeRefCounted<URLRequestContextGetter>(
-          base::SingleThreadTaskRunner::GetCurrentDefault());
+          base::ThreadTaskRunnerHandle::Get());
   url_loader_factory_owner_ =
       std::make_unique<network::TransitionalURLLoaderFactoryOwner>(
           url_request_context_getter);
@@ -114,7 +117,7 @@ void FtlServicesPlayground::ResetServices(base::OnceClosure on_done) {
       token_getter_.get(), url_loader_factory_owner_->GetURLLoaderFactory(),
       std::make_unique<test::TestDeviceIdProvider>(storage_.get()));
 
-  message_subscription_ = {};
+  message_subscription_.reset();
   messaging_client_ = std::make_unique<FtlMessagingClient>(
       token_getter_.get(), url_loader_factory_owner_->GetURLLoaderFactory(),
       registration_manager_.get());
@@ -150,6 +153,25 @@ void FtlServicesPlayground::OnSignInGaiaResponse(
                      &registration_id_base64);
   printf("Service signed in. registration_id(base64)=%s\n",
          registration_id_base64.c_str());
+  std::move(on_done).Run();
+}
+
+void FtlServicesPlayground::PullMessages(base::OnceClosure on_done) {
+  DCHECK(messaging_client_);
+  VLOG(0) << "Running PullMessages...";
+
+  messaging_client_->PullMessages(
+      base::BindOnce(&FtlServicesPlayground::OnPullMessagesResponse,
+                     weak_factory_.GetWeakPtr(), std::move(on_done)));
+}
+
+void FtlServicesPlayground::OnPullMessagesResponse(
+    base::OnceClosure on_done,
+    const ProtobufHttpStatus& status) {
+  if (!status.ok()) {
+    HandleStatusError(std::move(on_done), status);
+    return;
+  }
   std::move(on_done).Run();
 }
 
@@ -255,7 +277,7 @@ void FtlServicesPlayground::OnReceiveMessagesStreamClosed(
   base::OnceClosure callback = std::move(receive_messages_done_callback_);
   bool is_callback_null = callback.is_null();
   if (is_callback_null) {
-    callback = base::DoNothing();
+    callback = base::DoNothing::Once();
   }
   if (status.error_code() == ProtobufHttpStatus::Code::CANCELLED) {
     printf("ReceiveMessages stream canceled by client.\n");

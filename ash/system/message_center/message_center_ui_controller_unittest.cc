@@ -1,16 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/message_center/message_center_ui_controller.h"
 
-#include <memory>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
-#include "ash/test/ash_test_base.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/models/menu_model.h"
 #include "ui/message_center/message_center.h"
@@ -26,20 +23,15 @@ class TestNotificationDelegate : public message_center::NotificationDelegate {
  public:
   TestNotificationDelegate() = default;
 
-  TestNotificationDelegate(const TestNotificationDelegate&) = delete;
-  TestNotificationDelegate& operator=(const TestNotificationDelegate&) = delete;
-
  private:
   ~TestNotificationDelegate() override = default;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNotificationDelegate);
 };
 
 class MockDelegate : public MessageCenterUiDelegate {
  public:
   MockDelegate() {}
-
-  MockDelegate(const MockDelegate&) = delete;
-  MockDelegate& operator=(const MockDelegate&) = delete;
-
   ~MockDelegate() override {}
   void OnMessageCenterContentsChanged() override {}
   bool ShowPopups() override {
@@ -54,7 +46,7 @@ class MockDelegate : public MessageCenterUiDelegate {
     EXPECT_TRUE(popups_visible_);
     popups_visible_ = false;
   }
-  bool ShowMessageCenter() override {
+  bool ShowMessageCenter(bool show_by_click) override {
     EXPECT_FALSE(popups_visible_);
     return show_popups_success_;
   }
@@ -63,40 +55,30 @@ class MockDelegate : public MessageCenterUiDelegate {
   bool popups_visible_ = false;
   bool show_popups_success_ = true;
   bool show_message_center_success_ = true;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockDelegate);
 };
 
 }  // namespace
 
-class MessageCenterUiControllerTest : public AshTestBase,
-                                      public testing::WithParamInterface<bool> {
+class MessageCenterUiControllerTest : public testing::Test {
  public:
   MessageCenterUiControllerTest() {}
-
-  MessageCenterUiControllerTest(const MessageCenterUiControllerTest&) = delete;
-  MessageCenterUiControllerTest& operator=(
-      const MessageCenterUiControllerTest&) = delete;
-
   ~MessageCenterUiControllerTest() override {}
 
   void SetUp() override {
-    scoped_feature_list_ = std::make_unique<base::test::ScopedFeatureList>();
-    scoped_feature_list_->InitWithFeatureState(features::kNotificationsRefresh,
-                                               IsNotificationsRefreshEnabled());
-
-    AshTestBase::SetUp();
-    delegate_ = std::make_unique<MockDelegate>();
+    message_center::MessageCenter::Initialize();
+    delegate_.reset(new MockDelegate);
     message_center_ = message_center::MessageCenter::Get();
-    ui_controller_ =
-        std::make_unique<MessageCenterUiController>(delegate_.get());
+    ui_controller_.reset(new MessageCenterUiController(delegate_.get()));
   }
-
-  bool IsNotificationsRefreshEnabled() const { return GetParam(); }
 
   void TearDown() override {
     ui_controller_.reset();
     delegate_.reset();
     message_center_ = nullptr;
-    AshTestBase::TearDown();
+    message_center::MessageCenter::Shutdown();
   }
 
  protected:
@@ -114,8 +96,9 @@ class MessageCenterUiControllerTest : public AshTestBase,
     std::unique_ptr<message_center::Notification> notification(
         new message_center::Notification(
             message_center::NOTIFICATION_TYPE_SIMPLE, id,
-            u"Test Web Notification", u"Notification message body.",
-            ui::ImageModel(), u"www.test.org", GURL(), notifier_id,
+            ASCIIToUTF16("Test Web Notification"),
+            ASCIIToUTF16("Notification message body."), gfx::Image(),
+            ASCIIToUTF16("www.test.org"), GURL(), notifier_id,
             message_center::RichNotificationData(),
             new TestNotificationDelegate()));
     message_center::Notification* notification_ptr = notification.get();
@@ -125,18 +108,17 @@ class MessageCenterUiControllerTest : public AshTestBase,
   std::unique_ptr<MockDelegate> delegate_;
   std::unique_ptr<MessageCenterUiController> ui_controller_;
   message_center::MessageCenter* message_center_;
-  std::unique_ptr<base::test::ScopedFeatureList> scoped_feature_list_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MessageCenterUiControllerTest);
 };
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         MessageCenterUiControllerTest,
-                         testing::Bool() /* IsNotificationsRefreshEnabled() */);
-
-TEST_P(MessageCenterUiControllerTest, BasicMessageCenter) {
+TEST_F(MessageCenterUiControllerTest, BasicMessageCenter) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
-  bool shown = ui_controller_->ShowMessageCenterBubble();
+  bool shown =
+      ui_controller_->ShowMessageCenterBubble(false /* show_by_click */);
   EXPECT_TRUE(shown);
 
   ASSERT_FALSE(ui_controller_->popups_visible());
@@ -147,7 +129,7 @@ TEST_P(MessageCenterUiControllerTest, BasicMessageCenter) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
-  ui_controller_->ShowMessageCenterBubble();
+  ui_controller_->ShowMessageCenterBubble(false /* show_by_click */);
 
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_TRUE(ui_controller_->message_center_visible());
@@ -158,7 +140,7 @@ TEST_P(MessageCenterUiControllerTest, BasicMessageCenter) {
   ASSERT_FALSE(ui_controller_->message_center_visible());
 }
 
-TEST_P(MessageCenterUiControllerTest, BasicPopup) {
+TEST_F(MessageCenterUiControllerTest, BasicPopup) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
@@ -178,7 +160,7 @@ TEST_P(MessageCenterUiControllerTest, BasicPopup) {
   ASSERT_FALSE(ui_controller_->message_center_visible());
 }
 
-TEST_P(MessageCenterUiControllerTest, MessageCenterClosesPopups) {
+TEST_F(MessageCenterUiControllerTest, MessageCenterClosesPopups) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
@@ -187,7 +169,8 @@ TEST_P(MessageCenterUiControllerTest, MessageCenterClosesPopups) {
   ASSERT_TRUE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
-  bool shown = ui_controller_->ShowMessageCenterBubble();
+  bool shown =
+      ui_controller_->ShowMessageCenterBubble(false /* show_by_click */);
   EXPECT_TRUE(shown);
 
   ASSERT_FALSE(ui_controller_->popups_visible());
@@ -207,13 +190,13 @@ TEST_P(MessageCenterUiControllerTest, MessageCenterClosesPopups) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
-  ui_controller_->ShowMessageCenterBubble();
+  ui_controller_->ShowMessageCenterBubble(false /* show_by_click */);
   ui_controller_->HideMessageCenterBubble();
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 }
 
-TEST_P(MessageCenterUiControllerTest, ShowBubbleFails) {
+TEST_F(MessageCenterUiControllerTest, ShowBubbleFails) {
   // Now the delegate will signal that it was unable to show a bubble.
   delegate_->show_popups_success_ = false;
   delegate_->show_message_center_success_ = false;
@@ -228,7 +211,8 @@ TEST_P(MessageCenterUiControllerTest, ShowBubbleFails) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
-  bool shown = ui_controller_->ShowMessageCenterBubble();
+  bool shown =
+      ui_controller_->ShowMessageCenterBubble(false /* show_by_click */);
   EXPECT_FALSE(shown);
 
   ASSERT_FALSE(ui_controller_->popups_visible());
@@ -239,7 +223,7 @@ TEST_P(MessageCenterUiControllerTest, ShowBubbleFails) {
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());
 
-  ui_controller_->ShowMessageCenterBubble();
+  ui_controller_->ShowMessageCenterBubble(false /* show_by_click */);
 
   ASSERT_FALSE(ui_controller_->popups_visible());
   ASSERT_FALSE(ui_controller_->message_center_visible());

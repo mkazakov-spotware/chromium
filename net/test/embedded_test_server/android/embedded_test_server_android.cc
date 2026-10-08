@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,8 @@ using base::android::JavaParamRef;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
-namespace net::test_server {
+namespace net {
+namespace test_server {
 
 EmbeddedTestServerAndroid::ConnectionListener::ConnectionListener(
     EmbeddedTestServerAndroid* test_server_android)
@@ -167,4 +168,5 @@ static void JNI_EmbeddedTestServerImpl_Init(
   new EmbeddedTestServerAndroid(env, jobj, jhttps);
 }
 
-}  // namespace net::test_server
+}  // namespace test_server
+}  // namespace net

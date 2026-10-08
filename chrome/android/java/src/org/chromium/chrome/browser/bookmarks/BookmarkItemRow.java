@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,46 +10,31 @@ import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
 import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
 import org.chromium.components.bookmarks.BookmarkId;
-import org.chromium.components.bookmarks.BookmarkItem;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
 import org.chromium.components.favicon.IconType;
 import org.chromium.components.favicon.LargeIconBridge.LargeIconCallback;
-import org.chromium.url.GURL;
 
 /**
  * A row view that shows bookmark info in the bookmarks UI.
  */
 public class BookmarkItemRow extends BookmarkRow implements LargeIconCallback {
-    private GURL mUrl;
+
+    private String mUrl;
     private RoundedIconGenerator mIconGenerator;
     private final int mMinIconSize;
     private final int mDisplayedIconSize;
-    private boolean mFaviconCancelled;
 
     /**
      * Constructor for inflating from XML.
      */
     public BookmarkItemRow(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mMinIconSize = isVisualRefreshEnabled()
-                ? getResources().getDimensionPixelSize(R.dimen.bookmark_refresh_min_start_icon_size)
-                : getResources().getDimensionPixelSize(R.dimen.default_favicon_min_size);
-
-        mDisplayedIconSize = isVisualRefreshEnabled()
-                ? getResources().getDimensionPixelSize(
-                        R.dimen.bookmark_refresh_preferred_start_icon_size)
-                : getResources().getDimensionPixelSize(R.dimen.default_favicon_size);
-        if (isVisualRefreshEnabled()) {
-            mIconGenerator = new RoundedIconGenerator(mDisplayedIconSize, mDisplayedIconSize,
-                    mDisplayedIconSize / 2,
-                    getContext().getColor(R.color.default_favicon_background_color),
-                    getResources().getDimensionPixelSize(
-                            R.dimen.bookmark_refresh_circular_monogram_text_size));
-        } else {
-            mIconGenerator = FaviconUtils.createCircularIconGenerator(context);
-        }
+        mMinIconSize = (int) getResources().getDimension(R.dimen.default_favicon_min_size);
+        mDisplayedIconSize = getResources().getDimensionPixelSize(R.dimen.default_favicon_size);
+        mIconGenerator = FaviconUtils.createCircularIconGenerator(context.getResources());
     }
 
     // BookmarkRow implementation.
@@ -72,21 +57,14 @@ public class BookmarkItemRow extends BookmarkRow implements LargeIconCallback {
     }
 
     @Override
-    BookmarkItem setBookmarkId(
-            BookmarkId bookmarkId, @Location int location, boolean fromFilterView) {
-        BookmarkItem item = super.setBookmarkId(bookmarkId, location, fromFilterView);
+    BookmarkItem setBookmarkId(BookmarkId bookmarkId, @Location int location) {
+        BookmarkItem item = super.setBookmarkId(bookmarkId, location);
         mUrl = item.getUrl();
         mStartIconView.setImageDrawable(null);
         mTitleView.setText(item.getTitle());
         mDescriptionView.setText(item.getUrlForDisplay());
-        mFaviconCancelled = false;
-        mDelegate.getLargeIconBridge().getLargeIconForUrl(mUrl, mMinIconSize, this);
+        mDelegate.getLargeIconBridge().getLargeIconForStringUrl(mUrl, mMinIconSize, this);
         return item;
-    }
-
-    /** Allows cancellation of the favicon. */
-    protected void cancelFavicon() {
-        mFaviconCancelled = true;
     }
 
     // LargeIconCallback implementation.
@@ -94,17 +72,8 @@ public class BookmarkItemRow extends BookmarkRow implements LargeIconCallback {
     @Override
     public void onLargeIconAvailable(Bitmap icon, int fallbackColor, boolean isFallbackColorDefault,
             @IconType int iconType) {
-        if (mFaviconCancelled) return;
         Drawable iconDrawable = FaviconUtils.getIconDrawableWithoutFilter(
                 icon, mUrl, fallbackColor, mIconGenerator, getResources(), mDisplayedIconSize);
         setStartIconDrawable(iconDrawable);
-    }
-
-    protected boolean getFaviconCancelledForTesting() {
-        return mFaviconCancelled;
-    }
-
-    void setRoundedIconGeneratorForTesting(RoundedIconGenerator roundedIconGenerator) {
-        mIconGenerator = roundedIconGenerator;
     }
 }

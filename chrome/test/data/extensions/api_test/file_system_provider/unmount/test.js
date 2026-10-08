@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ var SECOND_FILE_SYSTEM_ID = 'ice-cream';
  * @param {function()} callback Success callback.
  */
 function setUp(callback) {
-  Promise.all([
+  Promise.race([
     new Promise(function(fulfill, reject) {
       chrome.fileSystemProvider.mount(
           {fileSystemId: FIRST_FILE_SYSTEM_ID, displayName: 'vanilla.zip'},
@@ -78,24 +78,22 @@ function runTests() {
     // Tests if fileManagerPrivate.removeMount() for provided file systems emits
     // the onMountRequested() event with correct arguments.
     function requestUnmountSuccess() {
-      var onUnmountRequested = function(options, onSuccess, onError) {
+      var onUnmountRequested = chrome.test.callbackPass(
+          function(options, onSuccess, onError) {
         chrome.test.assertEq(SECOND_FILE_SYSTEM_ID, options.fileSystemId);
         // Not calling fileSystemProvider.unmount(), so the onMountCompleted
         // event will not be raised.
         chrome.fileSystemProvider.onUnmountRequested.removeListener(
             onUnmountRequested);
         onSuccess();
-        chrome.test.succeed();
-      };
+      });
 
       chrome.fileSystemProvider.onUnmountRequested.addListener(
           onUnmountRequested);
 
       test_util.getVolumeInfo(SECOND_FILE_SYSTEM_ID, function(volumeInfo) {
         chrome.test.assertTrue(!!volumeInfo);
-        chrome.fileManagerPrivate.removeMount(volumeInfo.volumeId, () => {
-          chrome.test.assertNoLastError();
-        });
+        chrome.fileManagerPrivate.removeMount(volumeInfo.volumeId);
       });
     },
 
@@ -117,7 +115,7 @@ function runTests() {
 
       var onMountCompleted = chrome.test.callbackPass(function(event) {
         chrome.test.assertEq('unmount', event.eventType);
-        chrome.test.assertEq('unknown_error', event.status);
+        chrome.test.assertEq('error_unknown', event.status);
         // For extension based providers, provider id is the same as
         // extension id.
         chrome.test.assertEq(
@@ -127,7 +125,7 @@ function runTests() {
         chrome.test.assertTrue(unmountRequested);
 
         // Remove the handlers and mark the test as succeeded.
-        chrome.fileManagerPrivate.removeMount(SECOND_FILE_SYSTEM_ID, () => {});
+        chrome.fileManagerPrivate.removeMount(SECOND_FILE_SYSTEM_ID);
         chrome.fileManagerPrivate.onMountCompleted.removeListener(
             onMountCompleted);
       });
@@ -138,9 +136,7 @@ function runTests() {
 
       test_util.getVolumeInfo(SECOND_FILE_SYSTEM_ID, function(volumeInfo) {
         chrome.test.assertTrue(!!volumeInfo);
-        chrome.fileManagerPrivate.removeMount(volumeInfo.volumeId, () => {
-          chrome.test.assertNoLastError();
-        });
+        chrome.fileManagerPrivate.removeMount(volumeInfo.volumeId);
       });
     }
   ]);

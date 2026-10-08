@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -133,12 +133,12 @@ int HttpAuthNtlmMechanism::GenerateAuthToken(
 
   // The username may be in the form "DOMAIN\user".  Parse it into the two
   // components.
-  std::u16string domain;
-  std::u16string user;
-  const std::u16string& username = credentials->username();
-  const char16_t backslash_character = '\\';
+  base::string16 domain;
+  base::string16 user;
+  const base::string16& username = credentials->username();
+  const base::char16 backslash_character = '\\';
   size_t backslash_idx = username.find(backslash_character);
-  if (backslash_idx == std::u16string::npos) {
+  if (backslash_idx == base::string16::npos) {
     user = username;
   } else {
     domain = username.substr(0, backslash_idx);

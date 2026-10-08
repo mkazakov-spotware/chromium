@@ -34,6 +34,7 @@
 #include "build/build_config.h"
 #include "media/media_buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_frame.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -61,13 +62,13 @@ class TestImageDecoder : public ImageDecoder {
           FindRequiredPreviousFrame(i, known_opaque));
   }
 
-  void InitFrames(wtf_size_t num_frames,
+  void InitFrames(size_t num_frames,
                   unsigned width = 100,
                   unsigned height = 100) {
     SetSize(width, height);
     frame_buffer_cache_.resize(num_frames);
-    for (wtf_size_t i = 0; i < num_frames; ++i)
-      frame_buffer_cache_[i].SetOriginalFrameRect(gfx::Rect(width, height));
+    for (size_t i = 0; i < num_frames; ++i)
+      frame_buffer_cache_[i].SetOriginalFrameRect(IntRect(0, 0, width, height));
   }
 
   bool ImageIsHighBitDepth() override { return image_is_high_bit_depth_; }
@@ -76,7 +77,7 @@ class TestImageDecoder : public ImageDecoder {
  private:
   bool image_is_high_bit_depth_ = false;
   void DecodeSize() override {}
-  void Decode(wtf_size_t index) override {}
+  void Decode(size_t index) override {}
 };
 
 TEST(ImageDecoderTest, sizeCalculationMayOverflow) {
@@ -157,7 +158,7 @@ TEST(ImageDecoderTest, requiredPreviousFrameIndexDisposeOverwriteBgcolor) {
 
   // Partially covering DisposeOverwriteBgcolor previous frame is required by
   // this frame.
-  frame_buffers[1].SetOriginalFrameRect(gfx::Rect(50, 50, 50, 50));
+  frame_buffers[1].SetOriginalFrameRect(IntRect(50, 50, 50, 50));
   decoder->ResetRequiredPreviousFrames();
   EXPECT_EQ(1u, frame_buffers[2].RequiredPreviousFrameIndex());
 }
@@ -181,7 +182,7 @@ TEST(ImageDecoderTest, requiredPreviousFrameIndexForFrame1) {
   EXPECT_EQ(kNotFound, frame_buffers[1].RequiredPreviousFrameIndex());
 
   // ... even if it partially covers.
-  frame_buffers[0].SetOriginalFrameRect(gfx::Rect(50, 50, 50, 50));
+  frame_buffers[0].SetOriginalFrameRect(IntRect(50, 50, 50, 50));
 
   frame_buffers[0].SetDisposalMethod(ImageFrame::kDisposeOverwritePrevious);
   decoder->ResetRequiredPreviousFrames();
@@ -197,7 +198,7 @@ TEST(ImageDecoderTest, requiredPreviousFrameIndexBlendAtopBgcolor) {
   decoder->InitFrames(3);
   Vector<ImageFrame, 1>& frame_buffers = decoder->FrameBufferCache();
 
-  frame_buffers[1].SetOriginalFrameRect(gfx::Rect(25, 25, 50, 50));
+  frame_buffers[1].SetOriginalFrameRect(IntRect(25, 25, 50, 50));
   frame_buffers[2].SetAlphaBlendSource(ImageFrame::kBlendAtopBgcolor);
 
   // A full frame with 'blending method == BlendAtopBgcolor' doesn't depend on
@@ -213,7 +214,7 @@ TEST(ImageDecoderTest, requiredPreviousFrameIndexBlendAtopBgcolor) {
 
   // A non-full frame with 'blending method == BlendAtopBgcolor' does depend on
   // a prior frame.
-  frame_buffers[2].SetOriginalFrameRect(gfx::Rect(50, 50, 50, 50));
+  frame_buffers[2].SetOriginalFrameRect(IntRect(50, 50, 50, 50));
   for (int dispose_method = ImageFrame::kDisposeNotSpecified;
        dispose_method <= ImageFrame::kDisposeOverwritePrevious;
        ++dispose_method) {
@@ -230,7 +231,7 @@ TEST(ImageDecoderTest, requiredPreviousFrameIndexKnownOpaque) {
   decoder->InitFrames(3);
   Vector<ImageFrame, 1>& frame_buffers = decoder->FrameBufferCache();
 
-  frame_buffers[1].SetOriginalFrameRect(gfx::Rect(25, 25, 50, 50));
+  frame_buffers[1].SetOriginalFrameRect(IntRect(25, 25, 50, 50));
 
   // A full frame that is known to be opaque doesn't depend on any prior frames.
   for (int dispose_method = ImageFrame::kDisposeNotSpecified;
@@ -243,7 +244,7 @@ TEST(ImageDecoderTest, requiredPreviousFrameIndexKnownOpaque) {
   }
 
   // A non-full frame that is known to be opaque does depend on a prior frame.
-  frame_buffers[2].SetOriginalFrameRect(gfx::Rect(50, 50, 50, 50));
+  frame_buffers[2].SetOriginalFrameRect(IntRect(50, 50, 50, 50));
   for (int dispose_method = ImageFrame::kDisposeNotSpecified;
        dispose_method <= ImageFrame::kDisposeOverwritePrevious;
        ++dispose_method) {
@@ -283,7 +284,7 @@ TEST(ImageDecoderTest, clearCacheExceptFrameAll) {
 }
 
 TEST(ImageDecoderTest, clearCacheExceptFramePreverveClearExceptFrame) {
-  const wtf_size_t kNumFrames = 10;
+  const size_t kNumFrames = 10;
   std::unique_ptr<TestImageDecoder> decoder(
       std::make_unique<TestImageDecoder>());
   decoder->InitFrames(kNumFrames);
@@ -293,7 +294,7 @@ TEST(ImageDecoderTest, clearCacheExceptFramePreverveClearExceptFrame) {
 
   decoder->ResetRequiredPreviousFrames();
   decoder->ClearCacheExceptFrame(5);
-  for (wtf_size_t i = 0; i < kNumFrames; ++i) {
+  for (size_t i = 0; i < kNumFrames; ++i) {
     SCOPED_TRACE(testing::Message() << i);
     if (i == 5)
       EXPECT_EQ(ImageFrame::kFrameComplete, frame_buffers[i].GetStatus());
@@ -302,7 +303,7 @@ TEST(ImageDecoderTest, clearCacheExceptFramePreverveClearExceptFrame) {
   }
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 
 TEST(ImageDecoderTest, decodedSizeLimitBoundary) {
   constexpr unsigned kWidth = 100;
@@ -356,37 +357,39 @@ TEST(ImageDecoderTest, decodedSizeLimitIsIgnored) {
   EXPECT_FALSE(decoder->Failed());
 }
 
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
 #if BUILDFLAG(ENABLE_AV1_DECODER)
 TEST(ImageDecoderTest, hasSufficientDataToSniffMimeTypeAvif) {
-  // The first 36 bytes of the Netflix AVIF test image
-  // Chimera-AV1-10bit-1280x720-2380kbps-100.avif. Since the major_brand is
-  // not "avif" or "avis", we must parse the compatible_brands to determine if
-  // this is an AVIF image.
-  constexpr uint8_t kData[] = {
-      // A File Type Box.
-      0x00, 0x00, 0x00, 0x1c,  // unsigned int(32) size; 0x1c = 28
-      'f', 't', 'y', 'p',      // unsigned int(32) type = boxtype;
-      'm', 'i', 'f', '1',      // unsigned int(32) major_brand;
-      0x00, 0x00, 0x00, 0x00,  // unsigned int(32) minor_version;
-      'm', 'i', 'f', '1',      // unsigned int(32) compatible_brands[];
-      'a', 'v', 'i', 'f',      //
-      'm', 'i', 'a', 'f',      //
-      // The beginning of a Media Data Box.
-      0x00, 0x00, 0xa4, 0x3a,  // unsigned int(32) size;
-      'm', 'd', 'a', 't'       // unsigned int(32) type = boxtype;
-  };
+  if (base::FeatureList::IsEnabled(features::kAVIF)) {
+    // The first 36 bytes of the Netflix AVIF test image
+    // Chimera-AV1-10bit-1280x720-2380kbps-100.avif. Since the major_brand is
+    // not "avif" or "avis", we must parse the compatible_brands to determine if
+    // this is an AVIF image.
+    constexpr char kData[] = {
+        // A File Type Box.
+        0x00, 0x00, 0x00, 0x1c,  // unsigned int(32) size; 0x1c = 28
+        'f', 't', 'y', 'p',      // unsigned int(32) type = boxtype;
+        'm', 'i', 'f', '1',      // unsigned int(32) major_brand;
+        0x00, 0x00, 0x00, 0x00,  // unsigned int(32) minor_version;
+        'm', 'i', 'f', '1',      // unsigned int(32) compatible_brands[];
+        'a', 'v', 'i', 'f',      //
+        'm', 'i', 'a', 'f',      //
+        // The beginning of a Media Data Box.
+        0x00, 0x00, 0xa4, 0x3a,  // unsigned int(32) size;
+        'm', 'd', 'a', 't'       // unsigned int(32) type = boxtype;
+    };
 
-  scoped_refptr<SharedBuffer> buffer = SharedBuffer::Create<size_t>(kData, 8);
-  EXPECT_FALSE(ImageDecoder::HasSufficientDataToSniffMimeType(*buffer));
-  EXPECT_EQ(ImageDecoder::SniffMimeType(buffer), String());
-  buffer->Append<size_t>(kData + 8, 8);
-  EXPECT_FALSE(ImageDecoder::HasSufficientDataToSniffMimeType(*buffer));
-  EXPECT_EQ(ImageDecoder::SniffMimeType(buffer), String());
-  buffer->Append<size_t>(kData + 16, sizeof(kData) - 16);
-  EXPECT_TRUE(ImageDecoder::HasSufficientDataToSniffMimeType(*buffer));
-  EXPECT_EQ(ImageDecoder::SniffMimeType(buffer), "image/avif");
+    scoped_refptr<SharedBuffer> buffer = SharedBuffer::Create<size_t>(kData, 8);
+    EXPECT_FALSE(ImageDecoder::HasSufficientDataToSniffMimeType(*buffer));
+    EXPECT_EQ(ImageDecoder::SniffMimeType(buffer), String());
+    buffer->Append<size_t>(kData + 8, 8);
+    EXPECT_FALSE(ImageDecoder::HasSufficientDataToSniffMimeType(*buffer));
+    EXPECT_EQ(ImageDecoder::SniffMimeType(buffer), String());
+    buffer->Append<size_t>(kData + 16, sizeof(kData) - 16);
+    EXPECT_TRUE(ImageDecoder::HasSufficientDataToSniffMimeType(*buffer));
+    EXPECT_EQ(ImageDecoder::SniffMimeType(buffer), "image/avif");
+  }
 }
 #endif  // BUILDFLAG(ENABLE_AV1_DECODER)
 

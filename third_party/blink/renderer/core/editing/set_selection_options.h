@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,9 +22,8 @@ class CORE_EXPORT SetSelectionOptions final {
  public:
   class CORE_EXPORT Builder;
 
-  SetSelectionOptions();
   SetSelectionOptions(const SetSelectionOptions&);
-  SetSelectionOptions& operator=(const SetSelectionOptions&);
+  SetSelectionOptions();
 
   CursorAlignOnScroll GetCursorAlignOnScroll() const {
     return cursor_align_on_scroll_;
@@ -59,8 +58,6 @@ class CORE_EXPORT SetSelectionOptions::Builder final {
  public:
   explicit Builder(const SetSelectionOptions&);
   Builder();
-  Builder(const Builder&) = delete;
-  Builder& operator=(const Builder&) = delete;
 
   SetSelectionOptions Build() const;
 
@@ -77,6 +74,8 @@ class CORE_EXPORT SetSelectionOptions::Builder final {
 
  private:
   SetSelectionOptions data_;
+
+  DISALLOW_COPY_AND_ASSIGN(Builder);
 };
 
 }  // namespace blink

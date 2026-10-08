@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define MEDIA_BASE_ANDROID_OVERLAY_CONFIG_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "media/base/media_export.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -47,9 +48,6 @@ struct MEDIA_EXPORT AndroidOverlayConfig {
   // Configuration used to create an overlay.
   AndroidOverlayConfig();
   AndroidOverlayConfig(AndroidOverlayConfig&&);
-
-  AndroidOverlayConfig(const AndroidOverlayConfig&) = delete;
-
   ~AndroidOverlayConfig();
 
   // Initial rectangle for the overlay.  May be changed via ScheduleLayout().
@@ -81,6 +79,8 @@ struct MEDIA_EXPORT AndroidOverlayConfig {
 
   // Optional, may be empty.
   PowerEfficientCB power_cb;
+
+  DISALLOW_COPY(AndroidOverlayConfig);
 };
 
 // Common factory type.

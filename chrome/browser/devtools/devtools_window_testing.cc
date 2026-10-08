@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/lazy_instance.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
 #include "chrome/browser/devtools/devtools_window.h"
@@ -39,7 +38,7 @@ DevToolsWindowTesting::DevToolsWindowTesting(DevToolsWindow* window)
 DevToolsWindowTesting::~DevToolsWindowTesting() {
   DevToolsWindowTestings* instances =
       g_devtools_window_testing_instances.Pointer();
-  auto it = base::ranges::find(*instances, this);
+  auto it(std::find(instances->begin(), instances->end(), this));
   DCHECK(it != instances->end());
   instances->erase(it);
   if (!close_callback_.is_null())
@@ -61,14 +60,14 @@ DevToolsWindowTesting* DevToolsWindowTesting::Get(DevToolsWindow* window) {
 // static
 DevToolsWindowTesting* DevToolsWindowTesting::Find(DevToolsWindow* window) {
   if (!g_devtools_window_testing_instances.IsCreated())
-    return nullptr;
+    return NULL;
   DevToolsWindowTestings* instances =
       g_devtools_window_testing_instances.Pointer();
   for (auto it(instances->begin()); it != instances->end(); ++it) {
     if ((*it)->devtools_window_ == window)
       return *it;
   }
-  return nullptr;
+  return NULL;
 }
 
 Browser* DevToolsWindowTesting::browser() {
@@ -110,37 +109,26 @@ void DevToolsWindowTesting::WaitForDevToolsWindowLoad(DevToolsWindow* window) {
     window->ready_for_test_callback_ = runner->QuitClosure();
     runner->Run();
   }
-  std::u16string harness = base::UTF8ToUTF16(
+  base::string16 harness = base::UTF8ToUTF16(
       content::DevToolsFrontendHost::GetFrontendResource(kHarnessScript));
-  window->main_web_contents_->GetPrimaryMainFrame()->ExecuteJavaScript(
+  window->main_web_contents_->GetMainFrame()->ExecuteJavaScript(
       harness, base::NullCallback());
 }
 
 // static
 DevToolsWindow* DevToolsWindowTesting::OpenDevToolsWindowSync(
     content::WebContents* inspected_web_contents,
-    Profile* profile,
     bool is_docked) {
   std::string settings = is_docked ?
       "{\"isUnderTest\": true, \"currentDockState\":\"\\\"bottom\\\"\"}" :
       "{\"isUnderTest\": true, \"currentDockState\":\"\\\"undocked\\\"\"}";
   scoped_refptr<content::DevToolsAgentHost> agent(
       content::DevToolsAgentHost::GetOrCreateFor(inspected_web_contents));
-  DevToolsWindow::ToggleDevToolsWindow(inspected_web_contents, profile, true,
-                                       DevToolsToggleAction::Show(), settings);
+  DevToolsWindow::ToggleDevToolsWindow(
+        inspected_web_contents, true, DevToolsToggleAction::Show(), settings);
   DevToolsWindow* window = DevToolsWindow::FindDevToolsWindow(agent.get());
   WaitForDevToolsWindowLoad(window);
   return window;
-}
-
-// static
-DevToolsWindow* DevToolsWindowTesting::OpenDevToolsWindowSync(
-    content::WebContents* inspected_web_contents,
-    bool is_docked) {
-  return OpenDevToolsWindowSync(
-      inspected_web_contents,
-      DevToolsWindow::GetProfileForDevToolsWindow(inspected_web_contents),
-      is_docked);
 }
 
 // static
@@ -192,7 +180,7 @@ void DevToolsWindowTesting::CloseDevToolsWindowSync(
 // DevToolsWindowCreationObserver ---------------------------------------------
 
 DevToolsWindowCreationObserver::DevToolsWindowCreationObserver()
-    : creation_callback_(base::BindRepeating(
+    : creation_callback_(base::Bind(
           &DevToolsWindowCreationObserver::DevToolsWindowCreated,
           base::Unretained(this))) {
   DevToolsWindow::AddCreationCallbackForTest(creation_callback_);

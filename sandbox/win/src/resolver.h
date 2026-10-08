@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 
 #include <stddef.h>
 
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/macros.h"
 #include "sandbox/win/src/nt_internals.h"
 
 namespace sandbox {
@@ -19,13 +19,9 @@ namespace sandbox {
 // A resolver is the object in charge of performing the actual interception of
 // a function. There should be a concrete implementation of a resolver roughly
 // per type of interception.
-class [[clang::lto_visibility_public]] ResolverThunk {
+class ResolverThunk {
  public:
   ResolverThunk() {}
-
-  ResolverThunk(const ResolverThunk&) = delete;
-  ResolverThunk& operator=(const ResolverThunk&) = delete;
-
   virtual ~ResolverThunk() {}
 
   // Performs the actual interception of a function.
@@ -99,13 +95,11 @@ class [[clang::lto_visibility_public]] ResolverThunk {
                         const void* original_function, const void* interceptor);
 
   // Holds the resolved interception target.
-  // The field is accessed too early during the process startup to support
-  // raw_ptr<T>.
-  RAW_PTR_EXCLUSION void* target_;
+  void* target_;
   // Holds the resolved interception interceptor.
-  // The field is accessed too early during the process startup to support
-  // raw_ptr<T>.
-  RAW_PTR_EXCLUSION const void* interceptor_;
+  const void* interceptor_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResolverThunk);
 };
 
 }  // namespace sandbox

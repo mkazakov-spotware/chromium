@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "components/viz/service/viz_service_export.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/quad_f.h"
 #include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/vector3d_f.h"
+#include "ui/gfx/transform.h"
 
 namespace viz {
 class DrawQuad;
@@ -33,6 +32,13 @@ class VIZ_SERVICE_EXPORT DrawPolygon {
               const gfx::Transform& transform,
               int draw_order_index = 0);
 
+  // Split takes this DrawPolygon and splits it into two pieces that are on
+  // either side of |splitter|. Any edges of this polygon that cross the plane
+  // of |splitter| will have an intersection point that is shared by both
+  // polygons on either side.
+  // Split will only return true if it determines that we got back 2
+  // intersection points. Only when it returns true will front and back both be
+  // valid new polygons that are on opposite sides of the splitting plane.
   void SplitPolygon(std::unique_ptr<DrawPolygon> polygon,
                     std::unique_ptr<DrawPolygon>* front,
                     std::unique_ptr<DrawPolygon>* back,
@@ -71,7 +77,7 @@ class VIZ_SERVICE_EXPORT DrawPolygon {
   // we need.
   // This DrawQuad is owned by the caller and its lifetime must be preserved
   // as long as this DrawPolygon is alive.
-  raw_ptr<const DrawQuad> original_ref_;
+  const DrawQuad* original_ref_;
   bool is_split_;
 };
 

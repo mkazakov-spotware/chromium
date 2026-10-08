@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define CHROMECAST_MEDIA_CMA_BACKEND_SYSTEM_VOLUME_CONTROL_H_
 
 #include <memory>
+
+#include "base/macros.h"
 
 namespace chromecast {
 namespace media {
@@ -32,21 +34,11 @@ class SystemVolumeControl {
   static std::unique_ptr<SystemVolumeControl> Create(Delegate* delegate);
 
   SystemVolumeControl() = default;
-
-  SystemVolumeControl(const SystemVolumeControl&) = delete;
-  SystemVolumeControl& operator=(const SystemVolumeControl&) = delete;
-
   virtual ~SystemVolumeControl() = default;
 
   // Returns the value that you would get if you called GetVolume() after
   // SetVolume(volume).
   virtual float GetRoundtripVolume(float volume) = 0;
-
-  // Returns the volume level for given |db_volume|.
-  virtual float DbToVolumeLevel(float db_volume) = 0;
-
-  // Returns the volume in dB for given |level|.
-  virtual float VolumeLevelToDb(float level) = 0;
 
   // Returns the current system volume (0 <= volume <= 1).
   virtual float GetVolume() = 0;
@@ -65,6 +57,9 @@ class SystemVolumeControl {
 
   // Sets the volume limit to be applied to the system volume.
   virtual void SetLimit(float limit) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SystemVolumeControl);
 };
 
 }  // namespace media

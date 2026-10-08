@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,10 @@
 #include "base/command_line.h"
 #include "base/debug/alias.h"
 #include "base/numerics/safe_math.h"
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread.h"
 #include "build/build_config.h"
@@ -32,12 +34,14 @@
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_helper.h"
+#include "content/browser/resource_context_impl.h"
 #include "content/common/content_constants_internal.h"
 #include "content/common/render_message_filter.mojom.h"
 #include "content/public/browser/browser_child_process_host.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/resource_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
@@ -51,40 +55,29 @@
 #include "net/base/mime_util.h"
 #include "net/base/request_priority.h"
 #include "services/network/public/mojom/network_context.mojom.h"
-#include "third_party/blink/public/common/tokens/tokens.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "content/public/common/font_cache_dispatcher_win.h"
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/file_descriptor_posix.h"
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "ui/accelerated_widget_mac/window_resize_helper_mac.h"
 #endif
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "base/linux_util.h"
 #include "base/threading/platform_thread.h"
-#include "content/public/browser/child_process_launcher_utils.h"
 #endif
 
 namespace content {
 namespace {
 
-void GotHasGpuProcess(RenderMessageFilter::HasGpuProcessCallback callback,
-                      bool has_gpu) {
-  content::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), has_gpu));
-}
-
-void GetHasGpuProcess(RenderMessageFilter::HasGpuProcessCallback callback) {
-  GpuProcessHost::GetHasGpuProcess(
-      base::BindOnce(GotHasGpuProcess, std::move(callback)));
-}
+const uint32_t kRenderFilteredMessageClasses[] = {FrameMsgStart};
 
 }  // namespace
 
@@ -93,7 +86,10 @@ RenderMessageFilter::RenderMessageFilter(
     BrowserContext* browser_context,
     RenderWidgetHelper* render_widget_helper,
     MediaInternals* media_internals)
-    : BrowserAssociatedInterface<mojom::RenderMessageFilter>(this),
+    : BrowserMessageFilter(kRenderFilteredMessageClasses,
+                           base::size(kRenderFilteredMessageClasses)),
+      BrowserAssociatedInterface<mojom::RenderMessageFilter>(this, this),
+      resource_context_(browser_context->GetResourceContext()),
       render_widget_helper_(render_widget_helper),
       render_process_id_(render_process_id),
       media_internals_(media_internals) {
@@ -111,6 +107,7 @@ bool RenderMessageFilter::OnMessageReceived(const IPC::Message& message) {
 }
 
 void RenderMessageFilter::OnDestruct() const {
+  const_cast<RenderMessageFilter*>(this)->resource_context_ = nullptr;
   BrowserThread::DeleteOnIOThread::Destruct(this);
 }
 
@@ -122,21 +119,17 @@ void RenderMessageFilter::GenerateRoutingID(
 void RenderMessageFilter::GenerateFrameRoutingID(
     GenerateFrameRoutingIDCallback callback) {
   int32_t routing_id = render_widget_helper_->GetNextRoutingID();
-  auto frame_token = blink::LocalFrameToken();
+  auto frame_token = base::UnguessableToken::Create();
   auto devtools_frame_token = base::UnguessableToken::Create();
-  auto document_token = blink::DocumentToken();
-  render_widget_helper_->StoreNextFrameRoutingID(
-      routing_id, frame_token, devtools_frame_token, document_token);
-  std::move(callback).Run(routing_id, frame_token, devtools_frame_token,
-                          document_token);
+  render_widget_helper_->StoreNextFrameRoutingID(routing_id, frame_token,
+                                                 devtools_frame_token);
+  std::move(callback).Run(routing_id, frame_token, devtools_frame_token);
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-void RenderMessageFilter::SetThreadTypeOnLauncherThread(
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+void RenderMessageFilter::SetThreadPriorityOnFileThread(
     base::PlatformThreadId ns_tid,
-    base::ThreadType thread_type) {
-  DCHECK(CurrentlyOnProcessLauncherTaskRunner());
-
+    base::ThreadPriority priority) {
   bool ns_pid_supported = false;
   pid_t peer_tid = base::FindThreadID(peer_pid(), ns_tid, &ns_pid_supported);
   if (peer_tid == -1) {
@@ -150,21 +143,20 @@ void RenderMessageFilter::SetThreadTypeOnLauncherThread(
     return;
   }
 
-  base::PlatformThread::SetThreadType(peer_pid(), peer_tid, thread_type);
+  base::PlatformThread::SetThreadPriority(peer_pid(), peer_tid, priority);
 }
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-void RenderMessageFilter::SetThreadType(int32_t ns_tid,
-                                        base::ThreadType thread_type) {
-  // Post this task to process launcher task runner. All thread type changes
-  // (nice value, c-group setting) of renderer process would be performed on the
-  // same sequence as renderer process priority changes, to guarantee that
-  // there's no race of c-group manipulations.
-  GetProcessLauncherTaskRunner()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&RenderMessageFilter::SetThreadTypeOnLauncherThread, this,
-                     static_cast<base::PlatformThreadId>(ns_tid), thread_type));
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+void RenderMessageFilter::SetThreadPriority(int32_t ns_tid,
+                                            base::ThreadPriority priority) {
+  constexpr base::TaskTraits kTraits = {
+      base::MayBlock(), base::TaskPriority::USER_BLOCKING,
+      base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN};
+  base::ThreadPool::PostTask(
+      FROM_HERE, kTraits,
+      base::BindOnce(&RenderMessageFilter::SetThreadPriorityOnFileThread, this,
+                     static_cast<base::PlatformThreadId>(ns_tid), priority));
 }
 #endif
 
@@ -178,8 +170,7 @@ void RenderMessageFilter::OnMediaLogRecords(
 }
 
 void RenderMessageFilter::HasGpuProcess(HasGpuProcessCallback callback) {
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(GetHasGpuProcess, std::move(callback)));
+  GpuProcessHost::GetHasGpuProcess(std::move(callback));
 }
 
 }  // namespace content

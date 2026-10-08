@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -287,7 +287,28 @@ IN_PROC_BROWSER_TEST_F(ExtensionFetchTest, FetchResponseType) {
   EXPECT_EQ("basic", ExecuteScriptInBackgroundPage(extension->id(), script));
 }
 
-IN_PROC_BROWSER_TEST_F(ExtensionFetchTest, OriginOnPostWithPermissions) {
+class ExtensionFetchPostOriginTest : public ExtensionFetchTest,
+                                     public testing::WithParamInterface<bool> {
+ protected:
+  void SetUp() override {
+    if (GetParam()) {
+      scoped_feature_list_.InitAndEnableFeature(
+          network::features::
+              kDeriveOriginFromUrlForNeitherGetNorHeadRequestWhenHavingSpecialAccess);
+    } else {
+      scoped_feature_list_.InitAndDisableFeature(
+          network::features::
+              kDeriveOriginFromUrlForNeitherGetNorHeadRequestWhenHavingSpecialAccess);
+    }
+    ExtensionFetchTest::SetUp();
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_P(ExtensionFetchPostOriginTest,
+                       OriginOnPostWithPermissions) {
   TestExtensionDir dir;
   dir.WriteManifest(R"JSON(
      {
@@ -303,12 +324,15 @@ IN_PROC_BROWSER_TEST_F(ExtensionFetchTest, OriginOnPostWithPermissions) {
   GURL destination_url =
       embedded_test_server()->GetURL("example.com", "/echo-origin");
   std::string script = content::JsReplace(kFetchPostScript, destination_url);
-  std::string origin_string = url::Origin::Create(extension->url()).Serialize();
+  std::string origin_string =
+      GetParam() ? url::Origin::Create(destination_url).Serialize()
+                 : url::Origin::Create(extension->url()).Serialize();
   EXPECT_EQ(origin_string,
             ExecuteScriptInBackgroundPage(extension->id(), script));
 }
 
-IN_PROC_BROWSER_TEST_F(ExtensionFetchTest, OriginOnPostWithoutPermissions) {
+IN_PROC_BROWSER_TEST_P(ExtensionFetchPostOriginTest,
+                       OriginOnPostWithoutPermissions) {
   TestExtensionDir dir;
   dir.WriteManifest(R"JSON(
      {
@@ -327,6 +351,14 @@ IN_PROC_BROWSER_TEST_F(ExtensionFetchTest, OriginOnPostWithoutPermissions) {
   EXPECT_EQ(url::Origin::Create(extension->url()).Serialize(),
             ExecuteScriptInBackgroundPage(extension->id(), script));
 }
+
+INSTANTIATE_TEST_SUITE_P(UseExtensionOrigin,
+                         ExtensionFetchPostOriginTest,
+                         testing::Values(false));
+
+INSTANTIATE_TEST_SUITE_P(UseDestinationUrlOrigin,
+                         ExtensionFetchPostOriginTest,
+                         testing::Values(true));
 
 // An extension background script should be able to fetch resources contained in
 // the extension, and those resources should not be opaque.

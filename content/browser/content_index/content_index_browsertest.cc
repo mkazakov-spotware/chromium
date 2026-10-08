@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
@@ -44,9 +43,9 @@ class ContentIndexTest : public ContentBrowserTest {
         shell_->web_contents()->GetBrowserContext()->GetContentIndexProvider());
     ASSERT_TRUE(provider_);
 
-    auto* storage_partition =
-        shell_->web_contents()->GetBrowserContext()->GetStoragePartition(
-            shell_->web_contents()->GetSiteInstance());
+    auto* storage_partition = BrowserContext::GetStoragePartition(
+        shell_->web_contents()->GetBrowserContext(),
+        shell_->web_contents()->GetSiteInstance());
     context_ = storage_partition->GetContentIndexContext();
     ASSERT_TRUE(context_);
   }
@@ -57,9 +56,10 @@ class ContentIndexTest : public ContentBrowserTest {
   }
 
   std::string RunScriptWithResult(const std::string& script) {
-    return EvalJs(shell_->web_contents(), script,
-                  EXECUTE_SCRIPT_USE_MANUAL_REPLY)
-        .ExtractString();
+    std::string result;
+    EXPECT_TRUE(
+        ExecuteScriptAndExtractString(shell_->web_contents(), script, &result));
+    return result;
   }
 
   // Runs |script| and expects it to complete successfully.
@@ -85,9 +85,9 @@ class ContentIndexTest : public ContentBrowserTest {
 
  private:
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
-  raw_ptr<ShellContentIndexProvider, DanglingUntriaged> provider_;
-  raw_ptr<ContentIndexContext, DanglingUntriaged> context_;
-  raw_ptr<Shell, DanglingUntriaged> shell_;
+  ShellContentIndexProvider* provider_;
+  ContentIndexContext* context_;
+  Shell* shell_;
 };
 
 IN_PROC_BROWSER_TEST_F(ContentIndexTest, GetIcons) {

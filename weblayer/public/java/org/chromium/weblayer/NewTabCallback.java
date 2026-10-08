@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import androidx.annotation.NonNull;
  * Used for handling new tabs (such as occurs when window.open() is called). If this is not
  * set, popups are disabled.
  */
-abstract class NewTabCallback {
+public abstract class NewTabCallback {
     /**
      * Called when a new tab has been created.
      *

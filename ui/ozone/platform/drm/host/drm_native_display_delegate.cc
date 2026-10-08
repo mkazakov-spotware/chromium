@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,10 +52,8 @@ void DrmNativeDisplayDelegate::GetDisplays(
 
 void DrmNativeDisplayDelegate::Configure(
     const std::vector<display::DisplayConfigurationParams>& config_requests,
-    display::ConfigureCallback callback,
-    uint32_t modeset_flag) {
-  display_manager_->ConfigureDisplays(config_requests, std::move(callback),
-                                      modeset_flag);
+    display::ConfigureCallback callback) {
+  display_manager_->ConfigureDisplays(config_requests, std::move(callback));
 }
 
 void DrmNativeDisplayDelegate::GetHDCPState(
@@ -91,12 +89,10 @@ bool DrmNativeDisplayDelegate::SetGammaCorrection(
   return true;
 }
 
-void DrmNativeDisplayDelegate::SetPrivacyScreen(
-    int64_t display_id,
-    bool enabled,
-    display::SetPrivacyScreenCallback callback) {
+void DrmNativeDisplayDelegate::SetPrivacyScreen(int64_t display_id,
+                                                bool enabled) {
   DrmDisplayHost* display = display_manager_->GetDisplay(display_id);
-  display->SetPrivacyScreen(enabled, std::move(callback));
+  display->SetPrivacyScreen(enabled);
 }
 
 void DrmNativeDisplayDelegate::AddObserver(

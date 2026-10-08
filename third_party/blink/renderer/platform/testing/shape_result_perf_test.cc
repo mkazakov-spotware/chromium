@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,15 +35,15 @@ class ShapeResultPerfTest {
 
  public:
   enum FontName {
-    kAhem,
-    kAmiri,
-    kMegalopolis,
-    kRoboto,
+    ahem,
+    amiri,
+    megalopolis,
+    roboto,
   };
 
   ShapeResultPerfTest()
       : timer(kWarmupRuns,
-              base::Milliseconds(kTimeLimitMillis),
+              base::TimeDelta::FromMilliseconds(kTimeLimitMillis),
               kTimeCheckInterval) {}
 
  protected:
@@ -72,10 +72,10 @@ class ShapeResultPerfTest {
   Font font;
 
   HashMap<FontName, String, WTF::IntHash<FontName>> font_path = {
-      {kAhem, "Ahem.woff"},
-      {kAmiri, "third_party/Amiri/amiri_arabic.woff2"},
-      {kMegalopolis, "third_party/MEgalopolis/MEgalopolisExtra.woff"},
-      {kRoboto, "third_party/Roboto/roboto-regular.woff2"},
+      {ahem, "Ahem.woff"},
+      {amiri, "third_party/Amiri/amiri_arabic.woff2"},
+      {megalopolis, "third_party/MEgalopolis/MEgalopolisExtra.woff"},
+      {roboto, "third_party/Roboto/roboto-regular.woff2"},
   };
 
   base::LapTimer timer;
@@ -112,7 +112,7 @@ class CharacterRangePerfTest : public ShapeResultPerfTest,
     int endpos = GetParam();
     param_string = base::NumberToString(endpos);
     do {
-      font.SelectionRectForText(run, gfx::PointF(), 100, 0, endpos);
+      font.SelectionRectForText(run, FloatPoint(), 100, 0, endpos);
       timer.NextLap();
     } while (!timer.HasTimeLimitExpired());
   }
@@ -125,50 +125,50 @@ class CharacterRangePerfTest : public ShapeResultPerfTest,
 };
 
 TEST_P(OffsetForPositionPerfTest, LTROffsetForPositionFullBreak) {
-  TextRun run = SetupFont(kAhem, "FURACOLO", true);
-  OffsetForPosition(run, kOnlyFullGlyphs, BreakGlyphsOption(true));
+  TextRun run = SetupFont(ahem, "FURACOLO", true);
+  OffsetForPosition(run, OnlyFullGlyphs, BreakGlyphs);
   ReportResult("LTR_full_break");
 }
 
 TEST_P(OffsetForPositionPerfTest, LTROffsetForPositionFullDontBreak) {
-  TextRun run = SetupFont(kAhem, "FURACOLO", true);
-  OffsetForPosition(run, kOnlyFullGlyphs, BreakGlyphsOption(false));
+  TextRun run = SetupFont(ahem, "FURACOLO", true);
+  OffsetForPosition(run, OnlyFullGlyphs, DontBreakGlyphs);
   ReportResult("LTR_full");
 }
 
 TEST_P(OffsetForPositionPerfTest, LTROffsetForPositionIncludePartialBreak) {
-  TextRun run = SetupFont(kAhem, "FURACOLO", true);
-  OffsetForPosition(run, kIncludePartialGlyphs, BreakGlyphsOption(true));
+  TextRun run = SetupFont(ahem, "FURACOLO", true);
+  OffsetForPosition(run, IncludePartialGlyphs, BreakGlyphs);
   ReportResult("LTR_partial_break");
 }
 
 TEST_P(OffsetForPositionPerfTest, LTROffsetForPositionIncludePartialDontBreak) {
-  TextRun run = SetupFont(kAhem, "FURACOLO", true);
-  OffsetForPosition(run, kIncludePartialGlyphs, BreakGlyphsOption(false));
+  TextRun run = SetupFont(ahem, "FURACOLO", true);
+  OffsetForPosition(run, IncludePartialGlyphs, DontBreakGlyphs);
   ReportResult("LTR_partial");
 }
 
 TEST_P(OffsetForPositionPerfTest, RTLOffsetForPositionFullBreak) {
-  TextRun run = SetupFont(kAhem, "OLOCARUF", false);
-  OffsetForPosition(run, kOnlyFullGlyphs, BreakGlyphsOption(true));
+  TextRun run = SetupFont(ahem, "OLOCARUF", false);
+  OffsetForPosition(run, OnlyFullGlyphs, BreakGlyphs);
   ReportResult("RTL_full_break");
 }
 
 TEST_P(OffsetForPositionPerfTest, RTLOffsetForPositionFullDontBreak) {
-  TextRun run = SetupFont(kAhem, "OLOCARUF", false);
-  OffsetForPosition(run, kOnlyFullGlyphs, BreakGlyphsOption(false));
+  TextRun run = SetupFont(ahem, "OLOCARUF", false);
+  OffsetForPosition(run, OnlyFullGlyphs, DontBreakGlyphs);
   ReportResult("RTL_full");
 }
 
 TEST_P(OffsetForPositionPerfTest, RTLOffsetForPositionIncludePartialBreak) {
-  TextRun run = SetupFont(kAhem, "OLOCARUF", false);
-  OffsetForPosition(run, kIncludePartialGlyphs, BreakGlyphsOption(true));
+  TextRun run = SetupFont(ahem, "OLOCARUF", false);
+  OffsetForPosition(run, IncludePartialGlyphs, BreakGlyphs);
   ReportResult("RTL_partial_break");
 }
 
 TEST_P(OffsetForPositionPerfTest, RTLOffsetForPositionIncludePartialDontBreak) {
-  TextRun run = SetupFont(kAhem, "OLOCARUF", false);
-  OffsetForPosition(run, kIncludePartialGlyphs, BreakGlyphsOption(false));
+  TextRun run = SetupFont(ahem, "OLOCARUF", false);
+  OffsetForPosition(run, IncludePartialGlyphs, DontBreakGlyphs);
   ReportResult("RTL_partial");
 }
 
@@ -177,13 +177,13 @@ INSTANTIATE_TEST_SUITE_P(OffsetForPosition,
                          testing::Values(0, 10, 60, 100, 200, 350));
 
 TEST_P(CharacterRangePerfTest, LTRCharacterForPosition) {
-  TextRun run = SetupFont(kAhem, "FURACOLO", true);
+  TextRun run = SetupFont(ahem, "FURACOLO", true);
   GetCharacter(run);
   ReportResult("LTR");
 }
 
 TEST_P(CharacterRangePerfTest, RTLCharacterForPosition) {
-  TextRun run = SetupFont(kAhem, "OLOCARUF", false);
+  TextRun run = SetupFont(ahem, "OLOCARUF", false);
   GetCharacter(run);
   ReportResult("RTL");
 }

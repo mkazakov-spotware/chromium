@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,9 +37,9 @@ void HostPowerSaveBlockerTest::SetUp() {
   ASSERT_TRUE(blocking_thread_.StartWithOptions(
                   base::Thread::Options(base::MessagePumpType::IO, 0)) &&
               blocking_thread_.WaitUntilThreadStarted());
-  blocker_ = std::make_unique<HostPowerSaveBlocker>(
+  blocker_.reset(new HostPowerSaveBlocker(
       monitor_, task_environment_.GetMainThreadTaskRunner(),
-      blocking_thread_.task_runner());
+      blocking_thread_.task_runner()));
 }
 
 bool HostPowerSaveBlockerTest::is_activated() const {

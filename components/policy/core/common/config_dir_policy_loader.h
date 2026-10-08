@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include "base/files/file_path.h"
 #include "base/files/file_path_watcher.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
 #include "components/policy/core/common/async_policy_loader.h"
 #include "components/policy/core/common/policy_types.h"
 #include "components/policy/policy_export.h"
@@ -28,13 +29,11 @@ class POLICY_EXPORT ConfigDirPolicyLoader : public AsyncPolicyLoader {
   ConfigDirPolicyLoader(scoped_refptr<base::SequencedTaskRunner> task_runner,
                         const base::FilePath& config_dir,
                         PolicyScope scope);
-  ConfigDirPolicyLoader(const ConfigDirPolicyLoader&) = delete;
-  ConfigDirPolicyLoader& operator=(const ConfigDirPolicyLoader&) = delete;
   ~ConfigDirPolicyLoader() override;
 
   // AsyncPolicyLoader implementation.
   void InitOnBackgroundThread() override;
-  PolicyBundle Load() override;
+  std::unique_ptr<PolicyBundle> Load() override;
   base::Time LastModificationTime() override;
 
  private:
@@ -66,6 +65,8 @@ class POLICY_EXPORT ConfigDirPolicyLoader : public AsyncPolicyLoader {
   // |config_dir_|.
   base::FilePathWatcher mandatory_watcher_;
   base::FilePathWatcher recommended_watcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConfigDirPolicyLoader);
 };
 
 }  // namespace policy

@@ -1,3 +1,5 @@
 file://chrome/browser/resources/settings/OWNERS
-mamir@chromium.org
-vsemeniuk@google.com
+
+jdoerrie@chromium.org
+
+# COMPONENT: UI>Settings

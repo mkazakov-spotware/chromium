@@ -1,14 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_AMBIENT_AMBIENT_VIEW_DELEGATE_IMPL_H_
 #define ASH_AMBIENT_AMBIENT_VIEW_DELEGATE_IMPL_H_
 
+#include "ash/ambient/model/ambient_backend_model.h"
 #include "ash/ambient/ui/ambient_view_delegate.h"
 
-#include "ash/ambient/model/ambient_backend_model.h"
-#include "base/observer_list.h"
+#include "base/memory/weak_ptr.h"
 
 namespace ash {
 
@@ -23,16 +23,17 @@ class AmbientViewDelegateImpl : public AmbientViewDelegate {
 
   // AmbientViewDelegate:
   AmbientBackendModel* GetAmbientBackendModel() override;
-  AmbientWeatherModel* GetAmbientWeatherModel() override;
-  void AddObserver(AmbientViewDelegateObserver* observer) override;
-  void RemoveObserver(AmbientViewDelegateObserver* observer) override;
+  void OnPhotoTransitionAnimationCompleted() override;
 
-  void NotifyObserversMarkerHit(AmbientPhotoConfig::Marker marker);
+  void AddObserver(AmbientViewDelegateObserver* observer);
+  void RemoveObserver(AmbientViewDelegateObserver* observer);
 
  private:
   AmbientController* const ambient_controller_;  // Owned by Shell.
 
   base::ObserverList<AmbientViewDelegateObserver> view_delegate_observers_;
+
+  base::WeakPtrFactory<AmbientViewDelegateImpl> weak_factory_{this};
 };
 
 }  // namespace ash

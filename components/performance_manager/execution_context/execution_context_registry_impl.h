@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,13 +46,12 @@ class ExecutionContextRegistryImpl
       const blink::LocalFrameToken& token) override;
   const WorkerNode* GetWorkerNodeByWorkerToken(
       const blink::WorkerToken& token) override;
-  const ExecutionContext* GetExecutionContextForFrameNodeImpl(
+  const ExecutionContext* GetExecutionContextForFrameNode(
       const FrameNode* frame_node) override;
-  const ExecutionContext* GetExecutionContextForWorkerNodeImpl(
+  const ExecutionContext* GetExecutionContextForWorkerNode(
       const WorkerNode* worker_node) override;
 
   size_t GetExecutionContextCountForTesting() const {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     return execution_contexts_.size();
   }
 
@@ -90,12 +89,12 @@ class ExecutionContextRegistryImpl
   std::unordered_set<const ExecutionContext*,
                      ExecutionContextHash,
                      ExecutionContextKeyEqual>
-      execution_contexts_ GUARDED_BY_CONTEXT(sequence_checker_);
+      execution_contexts_;
 
   base::ObserverList<ExecutionContextObserver,
                      /* check_empty = */ true,
                      /* allow_reentrancy */ false>
-      observers_ GUARDED_BY_CONTEXT(sequence_checker_);
+      observers_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 };
@@ -103,4 +102,4 @@ class ExecutionContextRegistryImpl
 }  // namespace execution_context
 }  // namespace performance_manager
 
-#endif  // COMPONENTS_PERFORMANCE_MANAGER_EXECUTION_CONTEXT_EXECUTION_CONTEXT_REGISTRY_IMPL_H_
+#endif  // COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_EXECUTION_CONTEXT_EXECUTION_CONTEXT_REGISTRY_H_

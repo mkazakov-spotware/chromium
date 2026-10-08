@@ -1,12 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {addEntries, ENTRIES, RootPath} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {openNewWindow, remoteCall} from './background.js';
-import {NESTED_ENTRY_SET} from './test_data.js';
+'use strict';
 
 /**
  * Test utility for traverse tests.

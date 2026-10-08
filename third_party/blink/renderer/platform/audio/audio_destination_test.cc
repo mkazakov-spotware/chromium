@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/platform/web_audio_device.h"
 #include "third_party/blink/public/platform/web_audio_latency_hint.h"
-#include "third_party/blink/public/platform/web_audio_sink_descriptor.h"
 #include "third_party/blink/renderer/platform/audio/audio_callback_metric_reporter.h"
 #include "third_party/blink/renderer/platform/audio/audio_io_callback.h"
 #include "third_party/blink/renderer/platform/audio/audio_utilities.h"
@@ -17,8 +16,6 @@
 namespace blink {
 
 namespace {
-
-const blink::LocalFrameToken kFrameToken;
 
 class MockWebAudioDevice : public WebAudioDevice {
  public:
@@ -40,10 +37,11 @@ class MockWebAudioDevice : public WebAudioDevice {
 class TestPlatform : public TestingPlatformSupport {
  public:
   std::unique_ptr<WebAudioDevice> CreateAudioDevice(
-      const WebAudioSinkDescriptor& sink_descriptor,
-      unsigned number_of_output_channels,
+      unsigned number_of_input_channels,
+      unsigned number_of_channels,
       const WebAudioLatencyHint& latency_hint,
-      WebAudioDevice::RenderCallback*) override {
+      WebAudioDevice::RenderCallback*,
+      const WebString& device_id) override {
     return std::make_unique<MockWebAudioDevice>(AudioHardwareSampleRate(),
                                                 AudioHardwareBufferSize());
   }
@@ -62,24 +60,19 @@ class AudioCallback : public blink::AudioIOCallback {
     frames_processed_ += frames_to_process;
   }
 
-  AudioCallback() = default;
-  int frames_processed_ = 0;
+  AudioCallback() : frames_processed_(0) {}
+  int frames_processed_;
 };
 
-void CountWASamplesProcessedForRate(absl::optional<float> sample_rate) {
+void CountWASamplesProcessedForRate(base::Optional<float> sample_rate) {
   WebAudioLatencyHint latency_hint(WebAudioLatencyHint::kCategoryInteractive);
   AudioCallback callback;
 
   const int channel_count = Platform::Current()->AudioHardwareOutputChannels();
   const size_t request_frames = Platform::Current()->AudioHardwareBufferSize();
 
-  // Assume the default audio device. (i.e. the empty string)
-  WebAudioSinkDescriptor sink_descriptor(WebString::FromUTF8(""), kFrameToken);
-
-  // TODO(https://crbug.com/988121) Replace 128 with the appropriate
-  // AudioContextRenderSizeHintCategory.
   scoped_refptr<AudioDestination> destination = AudioDestination::Create(
-      callback, sink_descriptor, channel_count, latency_hint, sample_rate, 128);
+      callback, channel_count, latency_hint, sample_rate);
   destination->Start();
 
   Vector<float> channels[channel_count];
@@ -95,8 +88,8 @@ void CountWASamplesProcessedForRate(absl::optional<float> sample_rate) {
                 Platform::Current()->AudioHardwareSampleRate());
   int expected_frames_processed =
       std::ceil(exact_frames_required /
-                static_cast<double>(destination->RenderQuantumFrames())) *
-      destination->RenderQuantumFrames();
+                static_cast<double>(audio_utilities::kRenderQuantumFrames)) *
+      audio_utilities::kRenderQuantumFrames;
 
   EXPECT_EQ(expected_frames_processed, callback.frames_processed_);
 }
@@ -104,7 +97,7 @@ void CountWASamplesProcessedForRate(absl::optional<float> sample_rate) {
 TEST(AudioDestinationTest, ResamplingTest) {
   ScopedTestingPlatformSupport<TestPlatform> platform;
 
-  CountWASamplesProcessedForRate(absl::optional<float>());
+  CountWASamplesProcessedForRate(base::Optional<float>());
   CountWASamplesProcessedForRate(8000);
   CountWASamplesProcessedForRate(24000);
   CountWASamplesProcessedForRate(44100);

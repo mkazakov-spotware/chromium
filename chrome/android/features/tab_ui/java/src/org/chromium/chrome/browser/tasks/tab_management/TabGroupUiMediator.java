@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tasks.tab_management;
 
+import static org.chromium.chrome.browser.tasks.ConditionalTabStripUtils.CONDITIONAL_TAB_STRIP_DISMISS_COUNTER_ABANDONED;
 import static org.chromium.chrome.browser.tasks.ConditionalTabStripUtils.UNDO_DISMISS_SNACKBAR_DURATION;
 
 import android.content.Context;
@@ -19,18 +20,16 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
-import org.chromium.chrome.browser.layouts.FilterLayoutStateObserver;
-import org.chromium.chrome.browser.layouts.LayoutStateProvider;
-import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
-import org.chromium.chrome.browser.layouts.LayoutType;
+import org.chromium.chrome.browser.compositor.layouts.EmptyOverviewModeObserver;
+import org.chromium.chrome.browser.compositor.layouts.OverviewModeBehavior;
+import org.chromium.chrome.browser.infobar.InfoBarIdentifier;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.PauseResumeWithNativeObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
-import org.chromium.chrome.browser.tabmodel.IncognitoStateProvider;
-import org.chromium.chrome.browser.tabmodel.IncognitoStateProvider.IncognitoStateObserver;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
@@ -40,19 +39,18 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
 import org.chromium.chrome.browser.tasks.ConditionalTabStripUtils;
 import org.chromium.chrome.browser.tasks.ConditionalTabStripUtils.FeatureStatus;
 import org.chromium.chrome.browser.tasks.ConditionalTabStripUtils.ReasonToShow;
-import org.chromium.chrome.browser.tasks.ReturnToChromeUtil;
 import org.chromium.chrome.browser.tasks.tab_groups.EmptyTabGroupModelFilterObserver;
 import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
+import org.chromium.chrome.browser.toolbar.ThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.bottom.BottomControlsCoordinator;
+import org.chromium.chrome.browser.ui.messages.infobar.SimpleConfirmInfoBarBuilder;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.tab_ui.R;
-import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +58,7 @@ import java.util.List;
 /**
  * A mediator for the TabGroupUi. Responsible for managing the internal state of the component.
  */
-public class TabGroupUiMediator implements SnackbarManager.SnackbarController, BackPressHandler {
+public class TabGroupUiMediator implements SnackbarManager.SnackbarController {
     /**
      * An interface to control the TabGroupUi component.
      */
@@ -108,18 +106,19 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
     private final TabCreatorManager mTabCreatorManager;
     private final BottomControlsCoordinator
             .BottomControlsVisibilityController mVisibilityController;
-    private final IncognitoStateProvider mIncognitoStateProvider;
+    private final ThemeColorProvider mThemeColorProvider;
     private final TabGridDialogMediator.DialogController mTabGridDialogController;
-    private final IncognitoStateObserver mIncognitoStateObserver;
+    private final ThemeColorProvider.ThemeColorObserver mThemeColorObserver;
+    private final ThemeColorProvider.TintObserver mTintObserver;
     private final TabModelSelectorObserver mTabModelSelectorObserver;
     private final ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
-    private final SnackbarManager mSnackbarManager;
+    private final SnackbarManager.SnackbarManageable mSnackbarManageable;
     private final Snackbar mUndoClosureSnackBar;
     private final ObservableSupplier<Boolean> mOmniboxFocusStateSupplier;
 
     private CallbackController mCallbackController = new CallbackController();
-    private final LayoutStateObserver mLayoutStateObserver;
-    private LayoutStateProvider mLayoutStateProvider;
+    private final OverviewModeBehavior.OverviewModeObserver mOverviewModeObserver;
+    private OverviewModeBehavior mOverviewModeBehavior;
 
     private TabGroupModelFilter.Observer mTabGroupModelFilterObserver;
     private PauseResumeWithNativeObserver mPauseResumeWithNativeObserver;
@@ -133,11 +132,11 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             BottomControlsCoordinator.BottomControlsVisibilityController visibilityController,
             ResetHandler resetHandler, PropertyModel model, TabModelSelector tabModelSelector,
             TabCreatorManager tabCreatorManager,
-            OneshotSupplier<LayoutStateProvider> layoutStateProviderSupplier,
-            IncognitoStateProvider incognitoStateProvider,
+            OneshotSupplier<OverviewModeBehavior> overviewModeBehaviorSupplier,
+            ThemeColorProvider themeColorProvider,
             @Nullable TabGridDialogMediator.DialogController dialogController,
             ActivityLifecycleDispatcher activityLifecycleDispatcher,
-            SnackbarManager snackbarManager,
+            SnackbarManager.SnackbarManageable snackbarManageable,
             ObservableSupplier<Boolean> omniboxFocusStateSupplier) {
         mContext = context;
         mResetHandler = resetHandler;
@@ -145,10 +144,10 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
         mTabModelSelector = tabModelSelector;
         mTabCreatorManager = tabCreatorManager;
         mVisibilityController = visibilityController;
-        mIncognitoStateProvider = incognitoStateProvider;
+        mThemeColorProvider = themeColorProvider;
         mTabGridDialogController = dialogController;
         mActivityLifecycleDispatcher = activityLifecycleDispatcher;
-        mSnackbarManager = snackbarManager;
+        mSnackbarManageable = snackbarManageable;
         mOmniboxFocusStateSupplier = omniboxFocusStateSupplier;
         mUndoClosureSnackBar =
                 Snackbar.make(context.getString(R.string.undo_tab_strip_closure_message), this,
@@ -156,14 +155,6 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                                 Snackbar.UMA_CONDITIONAL_TAB_STRIP_DISMISS_UNDO)
                         .setAction(context.getString(R.string.undo), null)
                         .setDuration(UNDO_DISMISS_SNACKBAR_DURATION);
-
-        if (layoutStateProviderSupplier.get() != null
-                && layoutStateProviderSupplier.get().isLayoutVisible(LayoutType.TAB_SWITCHER)) {
-            // It is possible that the overview mode is showing when the TabGroupUiMediator is
-            // created, sets the mIsShowingOverViewMode early to prevent the Tab strip is wrongly
-            // showing on the Start surface homepage. See https://crbug.com/1239272.
-            mIsShowingOverViewMode = true;
-        }
 
         // register for tab model
         mTabModelObserver = new TabModelObserver() {
@@ -173,9 +164,10 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                 if (type == TabSelectionType.FROM_NEW) {
                     mAddedTabId = tab.getId();
                 }
-                if (lastId != tab.getId() && mSnackbarManager.isShowing()) {
+                if (lastId != tab.getId() && mSnackbarManageable.getSnackbarManager().isShowing()) {
                     // Dismiss undo snackbar when there is a selection of different tab.
-                    mSnackbarManager.dismissSnackbars(TabGroupUiMediator.this);
+                    mSnackbarManageable.getSnackbarManager().dismissSnackbars(
+                            TabGroupUiMediator.this);
                 }
                 // Maybe activate conditional tab strip for selection from toolbar swipe, but skip
                 // the same tab selection that is probably due to partial toolbar swipe. Also, when
@@ -189,7 +181,8 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                         maybeActivateConditionalTabStrip(ReasonToShow.TAB_SWITCHED);
                     }
                 }
-                if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled(mContext)
+                if (type == TabSelectionType.FROM_CLOSE) return;
+                if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled()
                         && getTabsToShowForId(lastId).contains(tab)) {
                     return;
                 }
@@ -203,13 +196,12 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             }
 
             @Override
-            public void willCloseTab(Tab tab, boolean animate, boolean didCloseAlone) {
+            public void willCloseTab(Tab tab, boolean animate) {
                 if (!mIsTabGroupUiVisible) return;
                 // The strip should hide when users close the second-to-last tab in strip. The
                 // tabCountToHide for group is 1 because tab group status is updated with this
                 // closure before this method is called.
-                int tabCountToHide =
-                        TabUiFeatureUtilities.isTabGroupsAndroidEnabled(mContext) ? 1 : 2;
+                int tabCountToHide = TabUiFeatureUtilities.isTabGroupsAndroidEnabled() ? 1 : 2;
                 List<Tab> tabList = getTabsToShowForId(tab.getId());
                 if (tabList.size() == tabCountToHide) {
                     resetTabStripWithRelatedTabsForId(Tab.INVALID_TAB_ID);
@@ -224,24 +216,14 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                                     ? ReasonToShow.LONG_PRESS
                                     : ReasonToShow.NEW_TAB);
                 }
-
+                if (type == TabLaunchType.FROM_CHROME_UI && mIsTabGroupUiVisible) {
+                    mModel.set(TabGroupUiProperties.INITIAL_SCROLL_INDEX,
+                            getTabsToShowForId(tab.getId()).size() - 1);
+                }
                 if (type == TabLaunchType.FROM_CHROME_UI || type == TabLaunchType.FROM_RESTORE
                         || type == TabLaunchType.FROM_STARTUP) {
                     return;
                 }
-
-                if (type == TabLaunchType.FROM_LONGPRESS_BACKGROUND
-                        && !TabUiFeatureUtilities.ENABLE_TAB_GROUP_AUTO_CREATION.getValue()) {
-                    return;
-                }
-
-                if (type == TabLaunchType.FROM_TAB_GROUP_UI && mIsTabGroupUiVisible) {
-                    mModel.set(TabGroupUiProperties.INITIAL_SCROLL_INDEX,
-                            getTabsToShowForId(tab.getId()).size() - 1);
-                }
-
-                if (mIsTabGroupUiVisible) return;
-
                 resetTabStripWithRelatedTabsForId(tab.getId());
             }
 
@@ -251,8 +233,8 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                 // Do not try to show tab strip when there is no current tab or we are not in tab
                 // page when restore completed.
                 if (currentTab == null
-                        || (mLayoutStateProvider != null
-                                && mLayoutStateProvider.isLayoutVisible(LayoutType.TAB_SWITCHER))) {
+                        || (mOverviewModeBehavior != null
+                                && mOverviewModeBehavior.overviewVisible())) {
                     return;
                 }
                 resetTabStripWithRelatedTabsForId(currentTab.getId());
@@ -263,36 +245,30 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             @Override
             public void tabClosureUndone(Tab tab) {
                 if (!mIsTabGroupUiVisible) {
-                    // Reset with the current tab as the undone tab may be in the background.
-                    resetTabStripWithRelatedTabsForId(mTabModelSelector.getCurrentTab().getId());
+                    resetTabStripWithRelatedTabsForId(tab.getId());
                 }
             }
         };
-        mLayoutStateObserver =
-                new FilterLayoutStateObserver(LayoutType.TAB_SWITCHER, new LayoutStateObserver() {
-                    @Override
-                    public void onStartedShowing(int layoutType, boolean showToolbar) {
-                        assert layoutType == LayoutType.TAB_SWITCHER;
+        mOverviewModeObserver = new EmptyOverviewModeObserver() {
+            @Override
+            public void onOverviewModeStartedShowing(boolean showToolbar) {
+                maybeActivateConditionalTabStrip(ReasonToShow.TAB_SWITCHED);
+                mIsShowingOverViewMode = true;
+                resetTabStripWithRelatedTabsForId(Tab.INVALID_TAB_ID);
+            }
 
-                        maybeActivateConditionalTabStrip(ReasonToShow.TAB_SWITCHED);
-                        mIsShowingOverViewMode = true;
-                        resetTabStripWithRelatedTabsForId(Tab.INVALID_TAB_ID);
-                    }
-
-                    @Override
-                    public void onFinishedHiding(int layoutType) {
-                        assert layoutType == LayoutType.TAB_SWITCHER;
-
-                        mIsShowingOverViewMode = false;
-                        Tab tab = mTabModelSelector.getCurrentTab();
-                        if (tab == null) return;
-                        resetTabStripWithRelatedTabsForId(tab.getId());
-                    }
-                });
+            @Override
+            public void onOverviewModeFinishedHiding() {
+                mIsShowingOverViewMode = false;
+                Tab tab = mTabModelSelector.getCurrentTab();
+                if (tab == null) return;
+                resetTabStripWithRelatedTabsForId(tab.getId());
+            }
+        };
 
         mTabModelSelectorTabObserver = new TabModelSelectorTabObserver(mTabModelSelector) {
             @Override
-            public void onPageLoadStarted(Tab tab, GURL url) {
+            public void onPageLoadStarted(Tab tab, String url) {
                 // TODO(crbug.com/1087826) This is a band-aid fix for M84. The root cause is
                 // probably a leaked observer. Remove this when the TabObservers are removed during
                 // tab reparenting.
@@ -301,7 +277,7 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                 int numTabs = listOfTabs.size();
                 // This is set to zero because the UI is hidden.
                 if (!mIsTabGroupUiVisible || numTabs == 1) numTabs = 0;
-                RecordHistogram.recordCount1MHistogram("TabStrip.TabCountOnPageLoad", numTabs);
+                RecordHistogram.recordCountHistogram("TabStrip.TabCountOnPageLoad", numTabs);
             }
 
             @Override
@@ -315,15 +291,15 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             }
         };
 
-        mTabModelSelectorObserver = new TabModelSelectorObserver() {
+        mTabModelSelectorObserver = new EmptyTabModelSelectorObserver() {
             @Override
             public void onTabModelSelected(TabModel newModel, TabModel oldModel) {
-                mSnackbarManager.dismissSnackbars(TabGroupUiMediator.this);
+                mSnackbarManageable.getSnackbarManager().dismissSnackbars(TabGroupUiMediator.this);
                 resetTabStripWithRelatedTabsForId(mTabModelSelector.getCurrentTabId());
             }
         };
 
-        if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled(mContext)) {
+        if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) {
             mTabGroupModelFilterObserver = new EmptyTabGroupModelFilterObserver() {
                 @Override
                 public void didMoveTabOutOfGroup(Tab movedTab, int prevFilterIndex) {
@@ -374,20 +350,21 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             mOmniboxFocusStateSupplier.addObserver(mOmniboxFocusObserver);
         }
 
-        mIncognitoStateObserver = (isIncognito) -> {
-            mModel.set(TabGroupUiProperties.IS_INCOGNITO, isIncognito);
-        };
+        mThemeColorObserver =
+                (color, shouldAnimate) -> mModel.set(TabGroupUiProperties.PRIMARY_COLOR, color);
+        mTintObserver = (tint, useLight) -> mModel.set(TabGroupUiProperties.TINT, tint);
 
         mTabModelSelector.getTabModelFilterProvider().addTabModelFilterObserver(mTabModelObserver);
         mTabModelSelector.addObserver(mTabModelSelectorObserver);
 
-        layoutStateProviderSupplier.onAvailable(
-                mCallbackController.makeCancelable((layoutStateProvider) -> {
-                    mLayoutStateProvider = layoutStateProvider;
-                    mLayoutStateProvider.addObserver(mLayoutStateObserver);
+        overviewModeBehaviorSupplier.onAvailable(
+                mCallbackController.makeCancelable((overviewModeBehavior) -> {
+                    mOverviewModeBehavior = overviewModeBehavior;
+                    mOverviewModeBehavior.addOverviewModeObserver(mOverviewModeObserver);
                 }));
 
-        mIncognitoStateProvider.addIncognitoStateObserverAndTrigger(mIncognitoStateObserver);
+        mThemeColorProvider.addThemeColorObserver(mThemeColorObserver);
+        mThemeColorProvider.addTintObserver(mTintObserver);
 
         setupToolbarButtons();
         mModel.set(TabGroupUiProperties.IS_MAIN_CONTENT_VISIBLE, true);
@@ -407,7 +384,7 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
 
     private void setupToolbarButtons() {
         View.OnClickListener leftButtonOnClickListener;
-        if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled(mContext)) {
+        if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) {
             // For tab group, the left button is to show the tab grid dialog.
             leftButtonOnClickListener = view -> {
                 Tab currentTab = mTabModelSelector.getCurrentTab();
@@ -422,7 +399,9 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
                 ConditionalTabStripUtils.setFeatureStatus(FeatureStatus.FORBIDDEN);
                 RecordUserAction.record("TabStrip.UserDismissed");
                 if (ConditionalTabStripUtils.shouldShowSnackbarForDismissal()) {
-                    mSnackbarManager.showSnackbar(mUndoClosureSnackBar);
+                    mSnackbarManageable.getSnackbarManager().showSnackbar(mUndoClosureSnackBar);
+                } else {
+                    showOptOutInfoBarForTab(mTabModelSelector.getCurrentTab());
                 }
             };
             mModel.set(TabGroupUiProperties.LEFT_BUTTON_DRAWABLE_ID, R.drawable.btn_close);
@@ -432,7 +411,7 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
         View.OnClickListener rightButtonOnClickListener = view -> {
             Tab parentTabToAttach = null;
             Tab currentTab = mTabModelSelector.getCurrentTab();
-            if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled(mContext)) {
+            if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) {
                 List<Tab> relatedTabs = getTabsToShowForId(currentTab.getId());
 
                 assert relatedTabs.size() > 0;
@@ -441,11 +420,8 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             }
             mTabCreatorManager.getTabCreator(currentTab.isIncognito())
                     .createNewTab(new LoadUrlParams(UrlConstants.NTP_URL),
-                            TabLaunchType.FROM_TAB_GROUP_UI, parentTabToAttach);
+                            TabLaunchType.FROM_CHROME_UI, parentTabToAttach);
             RecordUserAction.record("MobileNewTabOpened." + TabGroupUiCoordinator.COMPONENT_NAME);
-            if (!currentTab.isIncognito()) {
-                ReturnToChromeUtil.onNewTabOpened();
-            }
         };
         mModel.set(TabGroupUiProperties.RIGHT_BUTTON_ON_CLICK_LISTENER, rightButtonOnClickListener);
 
@@ -538,19 +514,6 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
         return mTabGridDialogController != null && mTabGridDialogController.handleBackPressed();
     }
 
-    @Override
-    public void handleBackPress() {
-        if (mTabGridDialogController != null) mTabGridDialogController.handleBackPress();
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
-        if (mTabGridDialogController == null) {
-            return BackPressHandler.super.getHandleBackPressChangedSupplier();
-        }
-        return mTabGridDialogController.getHandleBackPressChangedSupplier();
-    }
-
     public void destroy() {
         if (mTabModelSelector != null) {
             mTabModelSelector.getTabModelFilterProvider().removeTabModelFilterObserver(
@@ -571,8 +534,8 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
         if (mTabModelSelectorTabObserver != null) {
             mTabModelSelectorTabObserver.destroy();
         }
-        if (mLayoutStateProvider != null) {
-            mLayoutStateProvider.removeObserver(mLayoutStateObserver);
+        if (mOverviewModeBehavior != null) {
+            mOverviewModeBehavior.removeOverviewModeObserver(mOverviewModeObserver);
         }
         if (mCallbackController != null) {
             mCallbackController.destroy();
@@ -581,7 +544,8 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
         if (mOmniboxFocusObserver != null) {
             mOmniboxFocusStateSupplier.removeObserver(mOmniboxFocusObserver);
         }
-        mIncognitoStateProvider.removeObserver(mIncognitoStateObserver);
+        mThemeColorProvider.removeThemeColorObserver(mThemeColorObserver);
+        mThemeColorProvider.removeTintObserver(mTintObserver);
     }
 
     private void maybeActivateConditionalTabStrip(@ReasonToShow int reason) {
@@ -592,6 +556,38 @@ public class TabGroupUiMediator implements SnackbarManager.SnackbarController, B
             RecordHistogram.recordEnumeratedHistogram("TabStrip.ReasonToShow", reason,
                     ConditionalTabStripUtils.ReasonToShow.NUM_ENTRIES);
         }
+    }
+
+    private void showOptOutInfoBarForTab(Tab tab) {
+        // TODO(yuezhanggg): The simple confirmation info bar cannot live across different tabs. Use
+        // a customized info bar since the opt-out info bar should always show until users'
+        // reactions.
+        SimpleConfirmInfoBarBuilder.Listener listener = new SimpleConfirmInfoBarBuilder.Listener() {
+            @Override
+            public void onInfoBarDismissed() {}
+
+            @Override
+            public boolean onInfoBarButtonClicked(boolean isPrimary) {
+                if (!isPrimary) {
+                    ConditionalTabStripUtils.setOptOutIndicator(true);
+                }
+                // When user has reacted to the info bar, the dismiss counter is no longer needed.
+                ConditionalTabStripUtils.setContinuousDismissCount(
+                        CONDITIONAL_TAB_STRIP_DISMISS_COUNTER_ABANDONED);
+                return false;
+            }
+
+            @Override
+            public boolean onInfoBarLinkClicked() {
+                return false;
+            }
+        };
+        String message = mContext.getString(R.string.tab_strip_info_bar_question);
+        String primaryText = mContext.getString(R.string.tab_strip_info_bar_reshow);
+        String secondaryText = mContext.getString(R.string.tab_strip_info_bar_no_reshow);
+        SimpleConfirmInfoBarBuilder.create(tab.getWebContents(), listener,
+                InfoBarIdentifier.CONDITIONAL_TAB_STRIP_INFOBAR_ANDROID, mContext, 0, message,
+                primaryText, secondaryText, null, true);
     }
 
     // SnackbarManager.SnackbarController implementation.

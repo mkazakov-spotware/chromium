@@ -1,21 +1,20 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/log/net_log.h"
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
 #include "net/log/net_log_values.h"
 
 namespace net {
 
-NetLog::ThreadSafeObserver::ThreadSafeObserver() = default;
+NetLog::ThreadSafeObserver::ThreadSafeObserver()
+    : capture_mode_(NetLogCaptureMode::kDefault), net_log_(nullptr) {}
 
 NetLog::ThreadSafeObserver::~ThreadSafeObserver() {
   // Make sure we aren't watching a NetLog on destruction.  Because the NetLog
@@ -57,12 +56,15 @@ void NetLog::ThreadSafeCaptureModeObserver::
 
 // static
 NetLog* NetLog::Get() {
-  static base::NoDestructor<NetLog> instance{base::PassKey<NetLog>()};
+  static base::NoDestructor<NetLog> instance{util::PassKey<NetLog>()};
   return instance.get();
 }
 
-NetLog::NetLog(base::PassKey<NetLog>) {}
-NetLog::NetLog(base::PassKey<NetLogWithSource>) {}
+NetLog::NetLog(util::PassKey<NetLog>) {}
+NetLog::NetLog(util::PassKey<NetLogWithSource>) {}
+NetLog::NetLog(util::PassKey<TestNetLog>) {}
+
+NetLog::~NetLog() = default;
 
 void NetLog::AddEntry(NetLogEventType type,
                       const NetLogSource& source,
@@ -105,7 +107,7 @@ void NetLog::RemoveObserver(NetLog::ThreadSafeObserver* observer) {
 
   DCHECK_EQ(this, observer->net_log_);
 
-  auto it = base::ranges::find(observers_, observer);
+  auto it = std::find(observers_.begin(), observers_.end(), observer);
   DCHECK(it != observers_.end());
   observers_.erase(it);
 
@@ -133,7 +135,8 @@ void NetLog::RemoveCaptureModeObserver(
   DCHECK_EQ(this, observer->net_log_);
   DCHECK(HasCaptureModeObserver(observer));
 
-  auto it = base::ranges::find(capture_mode_observers_, observer);
+  auto it = std::find(capture_mode_observers_.begin(),
+                      capture_mode_observers_.end(), observer);
   DCHECK(it != capture_mode_observers_.end());
   capture_mode_observers_.erase(it);
 
@@ -180,12 +183,26 @@ std::string NetLog::TimeToString(const base::Time& time) {
 }
 
 // static
-base::Value NetLog::GetEventTypesAsValue() {
-  base::Value::Dict dict;
-  for (int i = 0; i < static_cast<int>(NetLogEventType::COUNT); ++i) {
-    dict.Set(NetLogEventTypeToString(static_cast<NetLogEventType>(i)), i);
+const char* NetLog::EventTypeToString(NetLogEventType event) {
+  switch (event) {
+#define EVENT_TYPE(label)      \
+  case NetLogEventType::label: \
+    return #label;
+#include "net/log/net_log_event_type_list.h"
+#undef EVENT_TYPE
+    default:
+      NOTREACHED();
+      return nullptr;
   }
-  return base::Value(std::move(dict));
+}
+
+// static
+base::Value NetLog::GetEventTypesAsValue() {
+  base::Value dict(base::Value::Type::DICTIONARY);
+  for (int i = 0; i < static_cast<int>(NetLogEventType::COUNT); ++i) {
+    dict.SetIntKey(EventTypeToString(static_cast<NetLogEventType>(i)), i);
+  }
+  return dict;
 }
 
 // static
@@ -204,11 +221,11 @@ const char* NetLog::SourceTypeToString(NetLogSourceType source) {
 
 // static
 base::Value NetLog::GetSourceTypesAsValue() {
-  base::Value::Dict dict;
+  base::Value dict(base::Value::Type::DICTIONARY);
   for (int i = 0; i < static_cast<int>(NetLogSourceType::COUNT); ++i) {
-    dict.Set(SourceTypeToString(static_cast<NetLogSourceType>(i)), i);
+    dict.SetIntKey(SourceTypeToString(static_cast<NetLogSourceType>(i)), i);
   }
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 // static

@@ -1,15 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/extension_gcm_app_handler.h"
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/extensions/api/gcm/gcm_api.h"
 #include "chrome/browser/gcm/gcm_profile_service_factory.h"
@@ -35,8 +34,7 @@ base::LazyInstance<BrowserContextKeyedAPIFactory<ExtensionGCMAppHandler>>::
         LAZY_INSTANCE_INITIALIZER;
 
 bool IsGCMPermissionEnabled(const Extension* extension) {
-  return extension->permissions_data()->HasAPIPermission(
-      mojom::APIPermissionID::kGcm);
+  return extension->permissions_data()->HasAPIPermission(APIPermission::kGcm);
 }
 
 }  // namespace
@@ -50,8 +48,8 @@ ExtensionGCMAppHandler::GetFactoryInstance() {
 
 ExtensionGCMAppHandler::ExtensionGCMAppHandler(content::BrowserContext* context)
     : profile_(Profile::FromBrowserContext(context)) {
-  extension_registry_observation_.Observe(ExtensionRegistry::Get(profile_));
-  js_event_router_ = std::make_unique<extensions::GcmJsEventRouter>(profile_);
+  extension_registry_observer_.Add(ExtensionRegistry::Get(profile_));
+  js_event_router_.reset(new extensions::GcmJsEventRouter(profile_));
 }
 
 ExtensionGCMAppHandler::~ExtensionGCMAppHandler() = default;
@@ -130,7 +128,7 @@ void ExtensionGCMAppHandler::OnExtensionUnloaded(
     // the single function ExtensionService::AddExtension.
     AddDummyAppHandler();
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&ExtensionGCMAppHandler::RemoveDummyAppHandler,
                        weak_factory_.GetWeakPtr()));
@@ -189,7 +187,7 @@ void ExtensionGCMAppHandler::OnDeleteIDCompleted(
   // InstanceIDDriver::RemoveInstanceID will delete the InstanceID itself.
   // Postpone to do it outside this calling context to avoid any risk to
   // the caller.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&ExtensionGCMAppHandler::RemoveInstanceID,
                                 weak_factory_.GetWeakPtr(), app_id));
 }

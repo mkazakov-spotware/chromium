@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
@@ -35,14 +34,13 @@ final class ChromeUsbService {
 
     long mUsbServiceAndroid;
     UsbManager mUsbManager;
-    BroadcastReceiver mUsbPermissionReceiver;
-    BroadcastReceiver mUsbDeviceChangeReceiver;
+    BroadcastReceiver mUsbDeviceReceiver;
 
     private ChromeUsbService(long usbServiceAndroid) {
         mUsbServiceAndroid = usbServiceAndroid;
         mUsbManager = (UsbManager) ContextUtils.getApplicationContext().getSystemService(
                 Context.USB_SERVICE);
-        registerForUsbDeviceIntentBroadcasts();
+        registerForUsbDeviceIntentBroadcast();
         Log.v(TAG, "ChromeUsbService created.");
     }
 
@@ -76,34 +74,19 @@ final class ChromeUsbService {
             ChromeUsbServiceJni.get().devicePermissionRequestComplete(
                     mUsbServiceAndroid, ChromeUsbService.this, device.getDeviceId(), true);
         } else {
-            Context context = ContextUtils.getApplicationContext();
-            Intent intent = new Intent(ACTION_USB_PERMISSION);
-            intent.setPackage(context.getPackageName());
-            IntentUtils.addTrustedIntentExtras(intent);
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                    context, 0, intent, IntentUtils.getPendingIntentMutabilityFlag(true));
-            mUsbManager.requestPermission(wrapper.getDevice(), pendingIntent);
+            PendingIntent intent = PendingIntent.getBroadcast(
+                    ContextUtils.getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
+            mUsbManager.requestPermission(wrapper.getDevice(), intent);
         }
     }
 
     @CalledByNative
     private void close() {
-        unregisterForUsbDeviceIntentBroadcasts();
+        unregisterForUsbDeviceIntentBroadcast();
     }
 
-    private void registerForUsbDeviceIntentBroadcasts() {
-        mUsbPermissionReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (!IntentUtils.isTrustedIntentFromSelf(intent)) return;
-                assert ACTION_USB_PERMISSION.equals(intent.getAction());
-                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                ChromeUsbServiceJni.get().devicePermissionRequestComplete(mUsbServiceAndroid,
-                        ChromeUsbService.this, device.getDeviceId(),
-                        intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false));
-            }
-        };
-        mUsbDeviceChangeReceiver = new BroadcastReceiver() {
+    private void registerForUsbDeviceIntentBroadcast() {
+        mUsbDeviceReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
@@ -113,27 +96,24 @@ final class ChromeUsbService {
                 } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(intent.getAction())) {
                     ChromeUsbServiceJni.get().deviceDetached(
                             mUsbServiceAndroid, ChromeUsbService.this, device.getDeviceId());
+                } else if (ACTION_USB_PERMISSION.equals(intent.getAction())) {
+                    ChromeUsbServiceJni.get().devicePermissionRequestComplete(mUsbServiceAndroid,
+                            ChromeUsbService.this, device.getDeviceId(),
+                            intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false));
                 }
             }
         };
 
-        Context context = ContextUtils.getApplicationContext();
-        IntentFilter permissionFilter = new IntentFilter();
-        permissionFilter.addAction(ACTION_USB_PERMISSION);
-        ContextUtils.registerNonExportedBroadcastReceiver(
-                context, mUsbPermissionReceiver, permissionFilter);
-        IntentFilter deviceChangeFilter = new IntentFilter();
-        deviceChangeFilter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
-        deviceChangeFilter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-        ContextUtils.registerProtectedBroadcastReceiver(
-                context, mUsbDeviceChangeReceiver, deviceChangeFilter);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+        filter.addAction(ACTION_USB_PERMISSION);
+        ContextUtils.getApplicationContext().registerReceiver(mUsbDeviceReceiver, filter);
     }
 
-    private void unregisterForUsbDeviceIntentBroadcasts() {
-        ContextUtils.getApplicationContext().unregisterReceiver(mUsbDeviceChangeReceiver);
-        mUsbDeviceChangeReceiver = null;
-        ContextUtils.getApplicationContext().unregisterReceiver(mUsbPermissionReceiver);
-        mUsbPermissionReceiver = null;
+    private void unregisterForUsbDeviceIntentBroadcast() {
+        ContextUtils.getApplicationContext().unregisterReceiver(mUsbDeviceReceiver);
+        mUsbDeviceReceiver = null;
     }
 
     @NativeMethods

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "ui/accessibility/ax_tree_data.h"
 #include "ui/accessibility/platform/ax_unique_id.h"
 #include "ui/gfx/geometry/point_f.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 #include "ui/views/accessibility/ax_aura_obj_cache.h"
 #include "ui/views/accessibility/ax_aura_obj_wrapper.h"
 #include "ui/views/accessibility/ax_virtual_view.h"
@@ -101,11 +101,7 @@ AXAuraObjWrapper* AXTreeSourceViews::GetParent(AXAuraObjWrapper* node) const {
 }
 
 bool AXTreeSourceViews::IsIgnored(AXAuraObjWrapper* node) const {
-  if (!node)
-    return false;
-  ui::AXNodeData out_data;
-  node->Serialize(&out_data);
-  return out_data.IsIgnored();
+  return node && node->IsIgnored();
 }
 
 bool AXTreeSourceViews::IsValid(AXAuraObjWrapper* node) const {
@@ -122,7 +118,7 @@ AXAuraObjWrapper* AXTreeSourceViews::GetNull() const {
 }
 
 std::string AXTreeSourceViews::GetDebugString(AXAuraObjWrapper* node) const {
-  return node ? node->ToString() : "(null)";
+  return node->ToString();
 }
 
 void AXTreeSourceViews::SerializeNode(AXAuraObjWrapper* node,

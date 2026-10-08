@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_source.h"
 
@@ -16,17 +15,8 @@ namespace ui {
 class WaylandConnection;
 class WaylandDataDevice;
 
-class WaylandDataDeviceManager
-    : public wl::GlobalObjectRegistrar<WaylandDataDeviceManager> {
+class WaylandDataDeviceManager {
  public:
-  static constexpr char kInterfaceName[] = "wl_data_device_manager";
-
-  static void Instantiate(WaylandConnection* connection,
-                          wl_registry* registry,
-                          uint32_t name,
-                          const std::string& interface,
-                          uint32_t version);
-
   using DataSource = WaylandDataSource;
   using DataDevice = WaylandDataDevice;
 
@@ -43,7 +33,7 @@ class WaylandDataDeviceManager
  private:
   wl::Object<wl_data_device_manager> device_manager_;
 
-  const raw_ptr<WaylandConnection> connection_;
+  WaylandConnection* const connection_;
 
   std::unique_ptr<WaylandDataDevice> device_;
 };

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/testing/null_execution_context.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -69,10 +68,8 @@ TEST_F(ScrollStateTest, ConsumeDeltaNative) {
 
 TEST_F(ScrollStateTest, CurrentNativeScrollingElement) {
   ScrollState* scroll_state = CreateScrollState(0, 0, false, false);
-  ScopedNullExecutionContext execution_context;
-  auto* element = MakeGarbageCollected<Element>(
-      QualifiedName::Null(),
-      Document::CreateForTest(execution_context.GetExecutionContext()));
+  auto* element = MakeGarbageCollected<Element>(QualifiedName::Null(),
+                                                Document::CreateForTest());
   scroll_state->SetCurrentNativeScrollingNode(element);
 
   EXPECT_EQ(element, scroll_state->CurrentNativeScrollingNode());

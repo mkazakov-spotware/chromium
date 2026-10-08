@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,7 +55,7 @@ size_t CalculateInitialAllocatedGlobalRuleCount(
   for (const auto& info : *extensions_info) {
     // Skip extensions that were loaded from the command-line because we don't
     // want those to persist across browser restart.
-    if (info->extension_location == mojom::ManifestLocation::kCommandLine)
+    if (info->extension_location == Manifest::COMMAND_LINE)
       continue;
 
     if (extension_prefs->GetDNRAllocatedGlobalRuleCount(

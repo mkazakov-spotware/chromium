@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import org.junit.runner.RunWith;
 import org.chromium.base.process_launcher.ChildProcessConnection;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.content.browser.ChildProcessLauncherHelperImpl;
@@ -34,7 +33,6 @@ import org.chromium.content_shell_apk.ChildProcessLauncherTestUtils;
 import org.chromium.content_shell_apk.ContentShellActivity;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
@@ -353,31 +351,13 @@ public class WebContentsTest {
                 Assert.assertNotNull(frameHost);
 
                 Assert.assertEquals("RenderFrameHost has incorrect last committed URL", TEST_URL_2,
-                        frameHost.getLastCommittedURL().getSpec());
+                        frameHost.getLastCommittedURL());
 
                 WebContents associatedWebContents =
                         WebContentsStatics.fromRenderFrameHost(frameHost);
                 Assert.assertEquals("RenderFrameHost associated with different WebContents",
                         webContents, associatedWebContents);
             }
-        });
-    }
-
-    @Test
-    @SmallTest
-    public void testWebContentsGetAllRenderFrameHosts() {
-        String testUrl = UrlUtils.encodeHtmlDataUri("<html><body>"
-                + "   <iframe srcdoc='<body>frame1</body>'></iframe>"
-                + "   <iframe srcdoc='<body>frame2</body>'></iframe>"
-                + "</body></html>");
-
-        final ContentShellActivity activity = mActivityTestRule.launchContentShellWithUrl(testUrl);
-        mActivityTestRule.waitForActiveShellToBeDoneLoading();
-        final WebContentsImpl webContents = ((WebContentsImpl) activity.getActiveWebContents());
-
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            List<RenderFrameHost> frames = webContents.getAllRenderFrameHosts();
-            Assert.assertEquals(3, frames.size());
         });
     }
 
@@ -398,10 +378,6 @@ public class WebContentsTest {
 
     @Test
     @SmallTest
-    // This test may run with --site-per-process, which also enables a feature to maintain a
-    // spare renderer process. The test expects only one renderer process and may
-    // incorrectly check its assertions on the spare process instead, so disable it.
-    @CommandLineFlags.Add({"disable-features=SpareRendererForSitePerProcess"})
     public void testChildProcessImportance() {
         final ContentShellActivity activity =
                 mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);
@@ -412,23 +388,20 @@ public class WebContentsTest {
 
         final ChildProcessConnection connection = getSandboxedChildProcessConnection();
         // Need to poll here because there is an intentional delay for removing binding.
-        CriteriaHelper.pollInstrumentationThread(() -> {
-            return ChildProcessLauncherTestUtils.runOnLauncherAndGetResult(
-                    () -> !connection.isVisibleBindingBound());
-        }, "Failed to remove moderate binding");
+        CriteriaHelper.pollInstrumentationThread(
+                ()
+                        -> ChildProcessLauncherTestUtils.runOnLauncherAndGetResult(
+                                () -> !connection.isModerateBindingBound()),
+                "Failed to remove moderate binding");
 
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> webContents.setImportance(ChildProcessImportance.MODERATE));
         ChildProcessLauncherTestUtils.runOnLauncherThreadBlocking(
-                () -> Assert.assertTrue(connection.isVisibleBindingBound()));
+                () -> Assert.assertTrue(connection.isModerateBindingBound()));
     }
 
     @Test
     @SmallTest
-    // This test may run with --site-per-process, which also enables a feature to maintain a
-    // spare renderer process. The test expects only one renderer process and may
-    // incorrectly check its assertions on the spare process instead, so disable it.
-    @CommandLineFlags.Add({"disable-features=SpareRendererForSitePerProcess"})
     public void testVisibilityControlsBinding() {
         final ContentShellActivity activity =
                 mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);

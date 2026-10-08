@@ -1,10 +1,21 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
+<html>
+<head>
+<script>
+  window.enablePixelTesting = true;
+  function startTest() {
+    openPicker(document.getElementById('menu'), finishJSTest, function () {
+        testFailed('picker didn\'t open')
+        finishJSTest();
+    });
+  }
+</script>
+<script src="../../../resources/js-test.js"></script>
 <script src="../../forms/resources/picker-common.js"></script>
-
+</head>
+<body onLoad="startTest()">
 <p>The font size in the popup should be same as the font size of the SELECT element except the third OPTION.</p>
-<select>
+<select id="menu">
   <option>foo</option>
   <option selected>bar</option>
   <option hidden>qux</option>
@@ -14,7 +25,7 @@
     <option>bar</option>
   </optgroup>
 </select>
-
-<script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('select'));
-</script>
+<p id="description" style="opacity: 0"></p>
+<div id="console" style="opacity: 0"></div>
+</body>
+</html>

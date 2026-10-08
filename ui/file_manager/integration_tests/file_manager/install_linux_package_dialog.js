@@ -1,11 +1,7 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {addEntries, ENTRIES, getCaller, pending, repeatUntil, RootPath, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {remoteCall, setupAndWaitUntilReady} from './background.js';
+'use strict';
 
 testcase.installLinuxPackageDialog = async () => {
   const fake = '#directory-tree .tree-item [root-type-icon="crostini"]';
@@ -15,6 +11,7 @@ testcase.installLinuxPackageDialog = async () => {
   // one is visible at a time.
   const dialog = '#install-linux-package-dialog';
   const okButton = dialog + ' .cr-dialog-ok:not([hidden])';
+
 
   const appId = await setupAndWaitUntilReady(RootPath.DOWNLOADS);
 

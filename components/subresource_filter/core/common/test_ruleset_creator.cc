@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/check.h"
 #include "base/files/file_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/threading/thread_restrictions.h"
 #include "components/subresource_filter/core/common/indexed_ruleset.h"
 #include "components/subresource_filter/core/common/test_ruleset_utils.h"
@@ -74,7 +73,7 @@ base::File TestRuleset::Open(const TestRuleset& ruleset) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::File file;
   file.Initialize(ruleset.path, base::File::FLAG_OPEN | base::File::FLAG_READ |
-                                    base::File::FLAG_WIN_SHARE_DELETE);
+                                    base::File::FLAG_SHARE_DELETE);
   return file;
 }
 
@@ -137,16 +136,6 @@ void TestRulesetCreator::CreateUnindexedRulesetToDisallowURLsWithPathSuffix(
       CreateUnindexedRulesetWithRules({suffix_rule}, test_unindexed_ruleset));
 }
 
-void TestRulesetCreator::CreateRulesetToDisallowURLWithSubstrings(
-    std::vector<base::StringPiece> substrings,
-    TestRulesetPair* test_ruleset_pair) {
-  DCHECK(test_ruleset_pair);
-  std::vector<proto::UrlRule> url_rules;
-  for (const auto& substring : substrings)
-    url_rules.push_back(CreateSubstringRule(substring));
-  CreateRulesetWithRules(url_rules, test_ruleset_pair);
-}
-
 void TestRulesetCreator::CreateRulesetToDisallowURLsWithManySuffixes(
     base::StringPiece suffix,
     int num_of_suffixes,
@@ -156,7 +145,7 @@ void TestRulesetCreator::CreateRulesetToDisallowURLsWithManySuffixes(
   std::vector<proto::UrlRule> rules;
   for (int i = 0; i < num_of_suffixes; ++i) {
     std::string current_suffix =
-        std::string(suffix) + '_' + base::NumberToString(i);
+        suffix.as_string() + '_' + base::NumberToString(i);
     rules.push_back(CreateSuffixRule(current_suffix));
   }
   CreateRulesetWithRules(rules, test_ruleset_pair);

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_NACL_RENDERER_NACL_HELPER_H_
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "content/public/renderer/render_frame_observer.h"
 
 namespace nacl {
@@ -17,10 +18,6 @@ namespace nacl {
 class NaClHelper : public content::RenderFrameObserver {
  public:
   explicit NaClHelper(content::RenderFrame* render_frame);
-
-  NaClHelper(const NaClHelper&) = delete;
-  NaClHelper& operator=(const NaClHelper&) = delete;
-
   ~NaClHelper() override;
 
   // RenderFrameObserver.
@@ -29,6 +26,8 @@ class NaClHelper : public content::RenderFrameObserver {
  private:
   // RenderFrameObserver implementation.
   void OnDestruct() override;
+
+  DISALLOW_COPY_AND_ASSIGN(NaClHelper);
 };
 
 }  // namespace nacl

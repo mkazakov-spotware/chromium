@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/buildflags.h"
-#include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/features.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
-#include "extensions/buildflags/buildflags.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 
@@ -33,15 +31,18 @@ const char kPreventElisionExtensionId[] = "jknemblkbdhdcpllfgbfekkdciegfboi";
 
 namespace safe_browsing {
 
+const char kDelayedWarningsHistogram[] = "SafeBrowsing.DelayedWarnings.Event";
 const char kDelayedWarningsTimeOnPageHistogram[] =
     "SafeBrowsing.DelayedWarnings.TimeOnPage";
 
+const char kDelayedWarningsWithElisionDisabledHistogram[] =
+    "SafeBrowsing.DelayedWarnings.Event_UrlElisionDisabled";
 const char kDelayedWarningsTimeOnPageWithElisionDisabledHistogram[] =
     "SafeBrowsing.DelayedWarnings.TimeOnPage_UrlElisionDisabled";
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(SafeBrowsingUserInteractionObserver);
-
 namespace {
+const char kWebContentsUserDataKey[] =
+    "web_contents_safe_browsing_user_interaction_observer";
 
 bool IsUrlElisionDisabled(Profile* profile,
                           const char* suspicious_site_reporter_extension_id) {
@@ -71,9 +72,8 @@ SafeBrowsingUserInteractionObserver::SafeBrowsingUserInteractionObserver(
     const security_interstitials::UnsafeResource& resource,
     bool is_main_frame,
     scoped_refptr<SafeBrowsingUIManager> ui_manager)
-    : content::WebContentsUserData<SafeBrowsingUserInteractionObserver>(
-          *web_contents),
-      content::WebContentsObserver(web_contents),
+    : content::WebContentsObserver(web_contents),
+      web_contents_(web_contents),
       resource_(resource),
       ui_manager_(ui_manager),
       creation_time_(base::Time::Now()),
@@ -85,15 +85,19 @@ SafeBrowsingUserInteractionObserver::SafeBrowsingUserInteractionObserver(
   mouse_event_callback_ = base::BindRepeating(
       &SafeBrowsingUserInteractionObserver::HandleMouseEvent,
       base::Unretained(this));
-  // Pass a callback to the RenderWidgetHost instead of implementing
+  // Pass a callback to the render widget host instead of implementing
   // WebContentsObserver::DidGetUserInteraction(). The reason for this is that
-  // RenderWidgetHost handles keyboard events earlier and the callback can
+  // render widget host handles keyboard events earlier and the callback can
   // indicate that it wants the key press to be ignored.
   // (DidGetUserInteraction() can only observe and not cancel the event.)
-  content::RenderWidgetHost* widget =
-      web_contents->GetPrimaryMainFrame()->GetRenderWidgetHost();
-  widget->AddKeyPressEventCallback(key_press_callback_);
-  widget->AddMouseEventCallback(mouse_event_callback_);
+  web_contents->GetMainFrame()
+      ->GetRenderViewHost()
+      ->GetWidget()
+      ->AddKeyPressEventCallback(key_press_callback_);
+  web_contents->GetMainFrame()
+      ->GetRenderViewHost()
+      ->GetWidget()
+      ->AddMouseEventCallback(mouse_event_callback_);
 
   // Observe permission bubble events.
   permissions::PermissionRequestManager* permission_request_manager =
@@ -101,6 +105,7 @@ SafeBrowsingUserInteractionObserver::SafeBrowsingUserInteractionObserver(
   if (permission_request_manager) {
     permission_request_manager->AddObserver(this);
   }
+  RecordUMA(DelayedWarningEvent::kPageLoaded);
 }
 
 SafeBrowsingUserInteractionObserver::~SafeBrowsingUserInteractionObserver() {
@@ -109,13 +114,13 @@ SafeBrowsingUserInteractionObserver::~SafeBrowsingUserInteractionObserver() {
   if (permission_request_manager) {
     permission_request_manager->RemoveObserver(this);
   }
-  web_contents()
-      ->GetPrimaryMainFrame()
-      ->GetRenderWidgetHost()
+  web_contents_->GetMainFrame()
+      ->GetRenderViewHost()
+      ->GetWidget()
       ->RemoveKeyPressEventCallback(key_press_callback_);
-  web_contents()
-      ->GetPrimaryMainFrame()
-      ->GetRenderWidgetHost()
+  web_contents_->GetMainFrame()
+      ->GetRenderViewHost()
+      ->GetWidget()
       ->RemoveMouseEventCallback(mouse_event_callback_);
 }
 
@@ -129,31 +134,34 @@ void SafeBrowsingUserInteractionObserver::CreateForWebContents(
   // create an observer if there isn't one.
   // TODO(crbug.com/1057157): The observer should observe all unsafe resources
   // instead of the first one only.
+  if (FromWebContents(web_contents)) {
+    return;
+  }
   DCHECK(!web_contents->IsPortal());
-  content::WebContentsUserData<
-      SafeBrowsingUserInteractionObserver>::CreateForWebContents(web_contents,
-                                                                 resource,
-                                                                 is_main_frame,
-                                                                 ui_manager);
+  auto observer = std::make_unique<SafeBrowsingUserInteractionObserver>(
+      web_contents, resource, is_main_frame, ui_manager);
+  web_contents->SetUserData(kWebContentsUserDataKey, std::move(observer));
 }
 
-void SafeBrowsingUserInteractionObserver::RenderFrameHostChanged(
-    content::RenderFrameHost* old_frame,
-    content::RenderFrameHost* new_frame) {
-  // We currently only insert callbacks on the widget for the top-level main
-  // frame.
-  if (new_frame != web_contents()->GetPrimaryMainFrame())
-    return;
-  // The `old_frame` is null when the `new_frame` is the initial
-  // RenderFrameHost, which we already attached to in the constructor.
-  if (!old_frame)
-    return;
-  content::RenderWidgetHost* old_widget = old_frame->GetRenderWidgetHost();
-  old_widget->RemoveKeyPressEventCallback(key_press_callback_);
-  old_widget->RemoveMouseEventCallback(mouse_event_callback_);
-  content::RenderWidgetHost* new_widget = new_frame->GetRenderWidgetHost();
-  new_widget->AddKeyPressEventCallback(key_press_callback_);
-  new_widget->AddMouseEventCallback(mouse_event_callback_);
+// static
+SafeBrowsingUserInteractionObserver*
+SafeBrowsingUserInteractionObserver::FromWebContents(
+    content::WebContents* web_contents) {
+  return static_cast<SafeBrowsingUserInteractionObserver*>(
+      web_contents->GetUserData(kWebContentsUserDataKey));
+}
+
+void SafeBrowsingUserInteractionObserver::RenderViewHostChanged(
+    content::RenderViewHost* old_host,
+    content::RenderViewHost* new_host) {
+  // |old_host| can be nullptr if the old RVH was shut down.
+  if (old_host)
+    old_host->GetWidget()->RemoveKeyPressEventCallback(key_press_callback_);
+  new_host->GetWidget()->AddKeyPressEventCallback(key_press_callback_);
+
+  if (old_host)
+    old_host->GetWidget()->RemoveMouseEventCallback(mouse_event_callback_);
+  new_host->GetWidget()->AddMouseEventCallback(mouse_event_callback_);
 }
 
 void SafeBrowsingUserInteractionObserver::WebContentsDestroyed() {
@@ -165,9 +173,7 @@ void SafeBrowsingUserInteractionObserver::DidFinishNavigation(
     content::NavigationHandle* handle) {
   // Remove the observer on a top frame navigation to another page. The user is
   // now on another page so we don't need to wait for an interaction.
-  // Note that the check for HasCommitted() occurs later in this method as we
-  // want to handle downloads first.
-  if (!handle->IsInPrimaryMainFrame() || handle->IsSameDocument()) {
+  if (!handle->IsInMainFrame() || handle->IsSameDocument()) {
     return;
   }
   // If this is the first navigation we are seeing, it must be the
@@ -191,11 +197,7 @@ void SafeBrowsingUserInteractionObserver::DidFinishNavigation(
   // result, the page should remain unchanged on downloads. Record a metric and
   // ignore this cancelled navigation.
   if (handle->IsDownload()) {
-    return;
-  }
-  // Now ignore other kinds of navigations that don't commit (e.g. 204 response
-  // codes), since the page doesn't change.
-  if (!handle->HasCommitted()) {
+    RecordUMA(DelayedWarningEvent::kDownloadCancelled);
     return;
   }
   Detach();
@@ -203,6 +205,9 @@ void SafeBrowsingUserInteractionObserver::DidFinishNavigation(
 }
 
 void SafeBrowsingUserInteractionObserver::Detach() {
+  if (!interstitial_shown_) {
+    RecordUMA(DelayedWarningEvent::kWarningNotShown);
+  }
   base::TimeDelta time_on_page = clock_->Now() - creation_time_;
   if (IsUrlElisionDisabled(
           Profile::FromBrowserContext(web_contents()->GetBrowserContext()),
@@ -213,7 +218,7 @@ void SafeBrowsingUserInteractionObserver::Detach() {
     base::UmaHistogramLongTimes(kDelayedWarningsTimeOnPageHistogram,
                                 time_on_page);
   }
-  web_contents()->RemoveUserData(UserDataKey());
+  web_contents()->RemoveUserData(kWebContentsUserDataKey);
   // DO NOT add code past this point. |this| is destroyed.
 }
 
@@ -245,7 +250,7 @@ void SafeBrowsingUserInteractionObserver::OnPaste() {
   // DO NOT add code past this point. |this| is destroyed.
 }
 
-void SafeBrowsingUserInteractionObserver::OnPromptAdded() {
+void SafeBrowsingUserInteractionObserver::OnBubbleAdded() {
   // The page requested a permission that triggered a permission prompt. Deny
   // and show the interstitial.
   permissions::PermissionRequestManager* permission_request_manager =
@@ -268,6 +273,7 @@ void SafeBrowsingUserInteractionObserver::OnPasswordSaveOrAutofillDenied() {
     return;
   }
   password_save_or_autofill_denied_metric_recorded_ = true;
+  RecordUMA(DelayedWarningEvent::kPasswordSaveOrAutofillDenied);
 }
 
 void SafeBrowsingUserInteractionObserver::OnDesktopCaptureRequest() {
@@ -295,6 +301,17 @@ void SafeBrowsingUserInteractionObserver::SetClockForTesting(
 base::Time SafeBrowsingUserInteractionObserver::GetCreationTimeForTesting()
     const {
   return creation_time_;
+}
+
+void SafeBrowsingUserInteractionObserver::RecordUMA(DelayedWarningEvent event) {
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+  if (IsUrlElisionDisabled(profile, suspicious_site_reporter_extension_id_)) {
+    base::UmaHistogramEnumeration(kDelayedWarningsWithElisionDisabledHistogram,
+                                  event);
+  } else {
+    base::UmaHistogramEnumeration(kDelayedWarningsHistogram, event);
+  }
 }
 
 bool IsAllowedModifier(const content::NativeWebKeyboardEvent& event) {
@@ -336,6 +353,7 @@ bool SafeBrowsingUserInteractionObserver::HandleMouseEvent(
   // the user clicks.
   if (!kDelayedWarningsEnableMouseClicks.Get()) {
     if (!mouse_click_with_no_warning_recorded_) {
+      RecordUMA(DelayedWarningEvent::kWarningNotTriggeredOnMouseClick);
       mouse_click_with_no_warning_recorded_ = true;
     }
     return false;
@@ -351,16 +369,21 @@ void SafeBrowsingUserInteractionObserver::ShowInterstitial(
   DCHECK(!interstitial_shown_);
   interstitial_shown_ = true;
   CleanUp();
-  ui_manager_->StartDisplayingBlockingPage(resource_);
+  RecordUMA(event);
+  SafeBrowsingUIManager::StartDisplayingBlockingPage(ui_manager_, resource_);
   Detach();
   // DO NOT add code past this point. |this| is destroyed.
 }
 
 void SafeBrowsingUserInteractionObserver::CleanUp() {
-  content::RenderWidgetHost* widget =
-      web_contents()->GetPrimaryMainFrame()->GetRenderWidgetHost();
-  widget->RemoveKeyPressEventCallback(key_press_callback_);
-  widget->RemoveMouseEventCallback(mouse_event_callback_);
+  web_contents_->GetMainFrame()
+      ->GetRenderViewHost()
+      ->GetWidget()
+      ->RemoveKeyPressEventCallback(key_press_callback_);
+  web_contents_->GetMainFrame()
+      ->GetRenderViewHost()
+      ->GetWidget()
+      ->RemoveMouseEventCallback(mouse_event_callback_);
 }
 
 }  // namespace safe_browsing

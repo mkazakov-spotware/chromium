@@ -123,7 +123,7 @@ void DateTimeNumericFieldElement::HandleKeyboardEvent(
 
   UChar char_code = static_cast<UChar>(keyboard_event.charCode());
   String number =
-      LocaleForOwner().ConvertFromLocalizedNumber(String(&char_code, 1u));
+      LocaleForOwner().ConvertFromLocalizedNumber(String(&char_code, 1));
   const int digit = number[0] - '0';
   if (digit < 0 || digit > 9)
     return;

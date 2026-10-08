@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,13 @@
 #include "base/android/jni_string.h"
 #include "base/android/path_utils.h"
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/location.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/ranges/algorithm.h"
+#include "base/optional.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_clock.h"
 #include "base/time/time.h"
 #include "chrome/android/chrome_jni_headers/DownloadItem_jni.h"
@@ -49,9 +50,7 @@
 #include "content/public/browser/download_item_utils.h"
 #include "content/public/browser/download_request_utils.h"
 #include "net/url_request/referrer_policy.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/mime_util/mime_util.h"
-#include "url/android/gurl_android.h"
 #include "url/origin.h"
 
 using base::android::ConvertJavaStringToUTF8;
@@ -60,6 +59,8 @@ using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
 using offline_items_collection::android::OfflineItemBridge;
+using DownloadSchedule = download::DownloadSchedule;
+using OfflineItemSchedule = offline_items_collection::OfflineItemSchedule;
 
 namespace {
 
@@ -89,7 +90,7 @@ void RenameItemCallback(
     download::DownloadItem::DownloadRenameResult result) {
   base::android::RunIntCallbackAndroid(
       j_callback,
-      static_cast<int32_t>(
+      static_cast<int>(
           OfflineItemUtils::ConvertDownloadRenameResultToRenameResult(result)));
 }
 
@@ -147,36 +148,39 @@ ScopedJavaLocalRef<jobject> DownloadManagerService::CreateJavaDownloadInfo(
     download::DownloadItem* item) {
   base::TimeDelta time_delta;
   bool time_remaining_known = item->TimeRemaining(&time_delta);
-  GURL original_url = item->GetOriginalUrl().SchemeIs(url::kDataScheme)
-                          ? GURL::EmptyGURL()
-                          : item->GetOriginalUrl();
+  std::string original_url = item->GetOriginalUrl().SchemeIs(url::kDataScheme)
+                                 ? std::string()
+                                 : item->GetOriginalUrl().spec();
   content::BrowserContext* browser_context =
       content::DownloadItemUtils::GetBrowserContext(item);
 
-  base::android::ScopedJavaLocalRef<jobject> otr_profile_id;
-  if (browser_context && browser_context->IsOffTheRecord()) {
-    Profile* profile = Profile::FromBrowserContext(browser_context);
-    otr_profile_id = profile->GetOTRProfileID().ConvertToJavaOTRProfileID(env);
+  base::Optional<OfflineItemSchedule> offline_item_schedule;
+  auto download_schedule = item->GetDownloadSchedule();
+  if (download_schedule.has_value()) {
+    offline_item_schedule = base::make_optional<OfflineItemSchedule>(
+        download_schedule->only_on_wifi(), download_schedule->start_time());
   }
-
+  auto j_offline_item_schedule =
+      OfflineItemBridge::CreateOfflineItemSchedule(env, offline_item_schedule);
   return Java_DownloadInfo_createDownloadInfo(
       env, ConvertUTF8ToJavaString(env, item->GetGuid()),
       ConvertUTF8ToJavaString(env, item->GetFileNameToReportUser().value()),
       ConvertUTF8ToJavaString(env, item->GetTargetFilePath().value()),
-      url::GURLAndroid::FromNativeGURL(env, item->GetURL()),
+      ConvertUTF8ToJavaString(env, item->GetTabUrl().spec()),
       ConvertUTF8ToJavaString(env, item->GetMimeType()),
-      item->GetReceivedBytes(), item->GetTotalBytes(), otr_profile_id,
+      item->GetReceivedBytes(), item->GetTotalBytes(),
+      browser_context ? browser_context->IsOffTheRecord() : false,
       item->GetState(), item->PercentComplete(), item->IsPaused(),
       DownloadUtils::IsDownloadUserInitiated(item), item->CanResume(),
-      item->IsParallelDownload(),
-      url::GURLAndroid::FromNativeGURL(env, original_url),
-      url::GURLAndroid::FromNativeGURL(env, item->GetReferrerUrl()),
+      item->IsParallelDownload(), ConvertUTF8ToJavaString(env, original_url),
+      ConvertUTF8ToJavaString(env, item->GetReferrerUrl().spec()),
       time_remaining_known ? time_delta.InMilliseconds()
                            : kUnknownRemainingTime,
       item->GetLastAccessTime().ToJavaTime(), item->IsDangerous(),
       static_cast<int>(
           OfflineItemUtils::ConvertDownloadInterruptReasonToFailState(
-              item->GetLastReason())));
+              item->GetLastReason())),
+      j_offline_item_schedule);
 }
 
 static jlong JNI_DownloadManagerService_Init(JNIEnv* env,
@@ -228,7 +232,7 @@ void DownloadManagerService::OnProfileAdded(
 
 void DownloadManagerService::OnProfileAdded(Profile* profile) {
   InitializeForProfile(profile->GetProfileKey());
-  observed_profiles_.AddObservation(profile);
+  observed_profiles_.Add(profile);
   for (Profile* otr : profile->GetAllOffTheRecordProfiles())
     InitializeForProfile(otr->GetProfileKey());
 }
@@ -279,24 +283,6 @@ void DownloadManagerService::OpenDownload(
     return;
 
   OpenDownload(item, source);
-}
-
-void DownloadManagerService::OpenDownloadsPage(
-    Profile* profile,
-    DownloadOpenSource download_open_source) {
-  if (java_ref_.is_null() || !profile)
-    return;
-
-  JNIEnv* env = base::android::AttachCurrentThread();
-  if (profile->IsIncognitoProfile()) {
-    profile->GetOTRProfileID().ConvertToJavaOTRProfileID(env);
-  }
-  Java_DownloadManagerService_openDownloadsPage(
-      env,
-      profile->IsIncognitoProfile()
-          ? profile->GetOTRProfileID().ConvertToJavaOTRProfileID(env)
-          : nullptr,
-      static_cast<int>(download_open_source));
 }
 
 void DownloadManagerService::ResumeDownload(
@@ -401,7 +387,7 @@ void DownloadManagerService::GetAllDownloadsInternal(ProfileKey* profile_key) {
 
   Java_DownloadManagerService_onAllDownloadsRetrieved(
       env, java_ref_, j_download_item_list,
-      profile_key->GetProfileKeyAndroid()->GetJavaObject());
+      ProfileKeyAndroid(profile_key).GetJavaObject());
 }
 
 void DownloadManagerService::CheckForExternallyRemovedDownloads(
@@ -508,15 +494,10 @@ void DownloadManagerService::OnDownloadRemoved(
   if (java_ref_.is_null() || item->IsTransient())
     return;
 
-  const Profile* profile = Profile::FromBrowserContext(
-      content::DownloadItemUtils::GetBrowserContext(item));
-
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_DownloadManagerService_onDownloadItemRemoved(
       env, java_ref_, ConvertUTF8ToJavaString(env, item->GetGuid()),
-      profile->IsOffTheRecord()
-          ? profile->GetOTRProfileID().ConvertToJavaOTRProfileID(env)
-          : nullptr);
+      content::DownloadItemUtils::GetBrowserContext(item)->IsOffTheRecord());
 }
 
 void DownloadManagerService::ResumeDownloadInternal(
@@ -534,8 +515,8 @@ void DownloadManagerService::ResumeDownloadInternal(
   }
   DownloadControllerBase::Get()->AboutToResumeDownload(item);
   item->Resume(has_user_gesture);
-  if (resume_callback_for_testing_)
-    std::move(resume_callback_for_testing_).Run(true);
+  if (!resume_callback_for_testing_.is_null())
+    resume_callback_for_testing_.Run(true);
 }
 
 void DownloadManagerService::RetryDownloadInternal(
@@ -664,7 +645,7 @@ void DownloadManagerService::EnqueueDownloadAction(
 
 void DownloadManagerService::OnResumptionFailed(
     const std::string& download_guid) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&DownloadManagerService::OnResumptionFailedInternal,
                      base::Unretained(this), download_guid));
@@ -677,8 +658,8 @@ void DownloadManagerService::OnResumptionFailedInternal(
     Java_DownloadManagerService_onResumptionFailed(
         env, java_ref_, ConvertUTF8ToJavaString(env, download_guid));
   }
-  if (resume_callback_for_testing_)
-    std::move(resume_callback_for_testing_).Run(false);
+  if (!resume_callback_for_testing_.is_null())
+    resume_callback_for_testing_.Run(false);
 }
 
 download::DownloadItem* DownloadManagerService::GetDownload(
@@ -693,8 +674,8 @@ void DownloadManagerService::OnPendingDownloadsLoaded() {
   is_pending_downloads_loaded_ = true;
 
   auto result =
-      base::ranges::find_if_not(coordinators_, &ProfileKey::IsOffTheRecord,
-                                &Coordinators::value_type::first);
+      std::find_if(coordinators_.begin(), coordinators_.end(),
+                   [](const auto& it) { return !it.first->IsOffTheRecord(); });
   CHECK(result != coordinators_.end())
       << "A non-OffTheRecord coordinator should exist when "
          "OnPendingDownloadsLoaded is triggered.";
@@ -738,7 +719,8 @@ content::DownloadManager* DownloadManagerService::GetDownloadManager(
       IsReducedModeProfileKey(profile_key)
           ? ProfileManager::GetActiveUserProfile()
           : ProfileManager::GetProfileFromProfileKey(profile_key);
-  content::DownloadManager* manager = profile->GetDownloadManager();
+  content::DownloadManager* manager =
+      content::BrowserContext::GetDownloadManager(profile);
   ResetCoordinatorIfNeeded(profile_key);
   return manager;
 }
@@ -779,7 +761,7 @@ void DownloadManagerService::RenameDownload(
       ProfileKeyAndroid::FromProfileKeyAndroid(j_profile_key);
   download::DownloadItem* item = GetDownload(download_guid, profile_key);
   if (!item) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(
             &RenameItemCallback,
@@ -794,6 +776,31 @@ void DownloadManagerService::RenameDownload(
           &RenameItemCallback,
           base::android::ScopedJavaGlobalRef<jobject>(env, j_callback));
   item->Rename(base::FilePath(target_name), std::move(callback));
+}
+
+void DownloadManagerService::ChangeSchedule(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& obj,
+    const JavaParamRef<jstring>& id,
+    jboolean only_on_wifi,
+    jlong start_time,
+    const JavaParamRef<jobject>& j_profile_key) {
+  std::string download_guid = ConvertJavaStringToUTF8(id);
+  download::DownloadItem* item = GetDownload(
+      download_guid, ProfileKeyAndroid::FromProfileKeyAndroid(j_profile_key));
+  if (!item)
+    return;
+
+  base::Optional<DownloadSchedule> download_schedule;
+  if (only_on_wifi) {
+    download_schedule = base::make_optional<DownloadSchedule>(
+        true /*only_on_wifi*/, base::nullopt);
+  } else if (start_time > 0) {
+    download_schedule = base::make_optional<DownloadSchedule>(
+        false /*only_on_wifi*/, base::Time::FromJavaTime(start_time));
+  }
+
+  item->OnDownloadScheduleChanged(std::move(download_schedule));
 }
 
 void DownloadManagerService::CreateInterruptedDownloadForTest(
@@ -812,15 +819,14 @@ void DownloadManagerService::CreateInterruptedDownloadForTest(
       std::make_unique<download::DownloadItemImpl>(
           in_progress_manager, ConvertJavaStringToUTF8(env, jdownload_guid), 1,
           target_path.AddExtension("crdownload"), target_path, url_chain,
-          GURL(), "", GURL(), GURL(), url::Origin(), "", "", base::Time(),
+          GURL(), GURL(), GURL(), GURL(), url::Origin(), "", "", base::Time(),
           base::Time(), "", "", 0, -1, 0, "",
           download::DownloadItem::INTERRUPTED,
           download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
           download::DOWNLOAD_INTERRUPT_REASON_CRASH, false, false, false,
           base::Time(), false,
           std::vector<download::DownloadItem::ReceivedSlice>(),
-          download::DownloadItemRerouteInfo(), download::kInvalidRange,
-          download::kInvalidRange, nullptr));
+          base::nullopt /*download_schedule*/, nullptr));
 }
 
 void DownloadManagerService::InitializeForProfile(ProfileKey* profile_key) {

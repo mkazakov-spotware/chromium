@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,6 @@
 
 #include <windows.h>
 #include <winevt.h>
-
-#include <memory>
-#include <unordered_map>
 
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
@@ -29,7 +26,7 @@ const char kGcpwServiceUploadEventLogsPath[] = "/v1/uploadEventViewerLogs";
 
 // Default timeout when trying to make requests to the GCPW service.
 const base::TimeDelta kDefaultUploadLogsRequestTimeout =
-    base::Milliseconds(12000);
+    base::TimeDelta::FromMilliseconds(12000);
 
 // Parameter names that are used in the JSON payload of the requests.
 const char kRequestSerialNumberParameterName[] = "device_serial_number";
@@ -86,7 +83,7 @@ constexpr const wchar_t* kEventLogValuePaths[] = {
     L"Event/System/EventRecordID", L"Event/System/TimeCreated/@SystemTime"};
 
 // Mapping from the string values of log levels to their integral values.
-const std::unordered_map<std::wstring, uint32_t>
+const std::unordered_map<base::string16, uint32_t>
     kEventLogLevelStrToIntValueMap = {{L"Critical", 1},
                                       {L"Error", 2},
                                       {L"Warning", 3},
@@ -128,7 +125,7 @@ class EventLogReader {
       EventLogsUploadManager::EventLogEntry* log_entry);
   bool GetFormattedMessage(EVT_HANDLE event_handle,
                            EVT_FORMAT_MESSAGE_FLAGS message_flag,
-                           std::wstring* message);
+                           base::string16* message);
 
   EVT_HANDLE results_handle_;
   EVT_HANDLE publisher_metadata_;
@@ -139,10 +136,10 @@ class EventLogReader {
 };
 
 bool EventLogReader::Initialize(uint64_t first_event_id) {
-  std::wstring query(kEventLogQueryTemplateStr);
-  std::wstring pattern(L"{event_id}");
+  base::string16 query(kEventLogQueryTemplateStr);
+  base::string16 pattern(L"{event_id}");
   query.replace(query.find(pattern), pattern.size(),
-                base::NumberToWString(first_event_id));
+                base::NumberToString16(first_event_id));
 
   // If in an initialized state, close and re-initialize.
   if (results_handle_) {
@@ -308,7 +305,7 @@ bool EventLogReader::ReadEventLogEntryFromEvent(
     return false;
   }
 
-  std::wstring level_str;
+  base::string16 level_str;
   if (!GetFormattedMessage(event_handle, EvtFormatMessageLevel, &level_str))
     return false;
 
@@ -325,7 +322,7 @@ bool EventLogReader::ReadEventLogEntryFromEvent(
 // Read the requested formatted message from the event handle.
 bool EventLogReader::GetFormattedMessage(EVT_HANDLE event_handle,
                                          EVT_FORMAT_MESSAGE_FLAGS message_flag,
-                                         std::wstring* message) {
+                                         base::string16* message) {
   DCHECK(message);
 
   DWORD buffer_used = 0;
@@ -440,8 +437,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
     }
 
     if (!log_entry_value_list) {
-      log_entry_value_list =
-          std::make_unique<base::Value>(base::Value::Type::LIST);
+      log_entry_value_list.reset(new base::Value(base::Value::Type::LIST));
     }
     log_entry_value_list->Append(std::move(log_entry_value));
 
@@ -458,7 +454,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
     }
   }
 
-  if (log_entry_value_list && !log_entry_value_list->GetList().empty()) {
+  if (log_entry_value_list && log_entry_value_list->GetList().size() > 0) {
     upload_status_ = MakeUploadLogChunkRequest(access_token, chunk_id,
                                                std::move(log_entry_value_list));
     if (FAILED(upload_status_)) {
@@ -479,8 +475,8 @@ HRESULT EventLogsUploadManager::MakeUploadLogChunkRequest(
     std::unique_ptr<base::Value> log_entries_value_list) {
   // The GCPW service uses serial number and machine GUID for identifying
   // the device entry.
-  std::wstring serial_number = GetSerialNumber();
-  std::wstring machine_guid;
+  base::string16 serial_number = GetSerialNumber();
+  base::string16 machine_guid;
   HRESULT hr = GetMachineGuid(&machine_guid);
   if (FAILED(hr)) {
     LOGFN(ERROR) << "Could not get Machine GUID. Error:" << putHR(hr);
@@ -491,14 +487,14 @@ HRESULT EventLogsUploadManager::MakeUploadLogChunkRequest(
 
   base::Value request_dict(base::Value::Type::DICTIONARY);
   request_dict.SetStringKey(kRequestSerialNumberParameterName,
-                            base::WideToUTF8(serial_number));
+                            base::UTF16ToUTF8(serial_number));
   request_dict.SetStringKey(kRequestMachineGuidParameterName,
-                            base::WideToUTF8(machine_guid));
+                            base::UTF16ToUTF8(machine_guid));
   request_dict.SetIntKey(kRequestChunkIdParameterName, chunk_id);
   base::Value log_entries =
       base::Value::FromUniquePtrValue(std::move(log_entries_value_list));
   request_dict.SetKey(kRequestLogEntriesParameterName, std::move(log_entries));
-  absl::optional<base::Value> request_result;
+  base::Optional<base::Value> request_result;
 
   // Make the upload HTTP request.
   hr = WinHttpUrlFetcher::BuildRequestAndFetchResultFromHttpService(
@@ -525,7 +521,7 @@ void EventLogsUploadManager::EventLogEntry::ToValue(base::Value& dict) const {
                       created_ts.seconds);
   timestamp.SetIntKey(kEventLogTimeStampNanosParameterName, created_ts.nanos);
 
-  dict.SetStringKey(kEventLogDataParameterName, base::WideToUTF8(data));
+  dict.SetStringKey(kEventLogDataParameterName, base::UTF16ToUTF8(data));
   dict.SetIntKey(kEventLogEventIdParameterName, event_id);
   dict.SetIntKey(kEventLogSeverityLevelParameterName, severity_level);
   dict.SetKey(kEventLogTimeStampParameterName, std::move(timestamp));

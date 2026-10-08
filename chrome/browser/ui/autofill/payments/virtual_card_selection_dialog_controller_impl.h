@@ -1,15 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_VIRTUAL_CARD_SELECTION_DIALOG_CONTROLLER_IMPL_H_
 #define CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_VIRTUAL_CARD_SELECTION_DIALOG_CONTROLLER_IMPL_H_
 
-#include <string>
-#include <vector>
-
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/autofill/payments/virtual_card_selection_dialog_controller.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
 namespace autofill {
@@ -20,13 +18,10 @@ class VirtualCardSelectionDialogView;
 // VirtualCardSelectionDialogView. Lazily initialized when used.
 class VirtualCardSelectionDialogControllerImpl
     : public VirtualCardSelectionDialogController,
+      public content::WebContentsObserver,
       public content::WebContentsUserData<
           VirtualCardSelectionDialogControllerImpl> {
  public:
-  VirtualCardSelectionDialogControllerImpl(
-      const VirtualCardSelectionDialogControllerImpl&) = delete;
-  VirtualCardSelectionDialogControllerImpl& operator=(
-      const VirtualCardSelectionDialogControllerImpl&) = delete;
   ~VirtualCardSelectionDialogControllerImpl() override;
 
   void ShowDialog(const std::vector<CreditCard*>& candidates,
@@ -34,10 +29,10 @@ class VirtualCardSelectionDialogControllerImpl
 
   // VirtualCardSelectionDialogController:
   bool IsOkButtonEnabled() override;
-  std::u16string GetContentTitle() const override;
-  std::u16string GetContentExplanation() const override;
-  std::u16string GetOkButtonLabel() const override;
-  std::u16string GetCancelButtonLabel() const override;
+  base::string16 GetContentTitle() const override;
+  base::string16 GetContentExplanation() const override;
+  base::string16 GetOkButtonLabel() const override;
+  base::string16 GetCancelButtonLabel() const override;
   const std::vector<CreditCard*>& GetCardList() const override;
   void OnCardSelected(const std::string& selected_card_id) override;
   void OnOkButtonClicked() override;
@@ -65,9 +60,11 @@ class VirtualCardSelectionDialogControllerImpl
   // is accepted. Will pass the |selected_card_id_| as the param.
   base::OnceCallback<void(const std::string&)> callback_;
 
-  raw_ptr<VirtualCardSelectionDialogView> dialog_view_ = nullptr;
+  VirtualCardSelectionDialogView* dialog_view_ = nullptr;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(VirtualCardSelectionDialogControllerImpl);
 };
 
 }  // namespace autofill

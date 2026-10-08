@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,28 +8,20 @@
 
 #include "cc/paint/paint_flags.h"
 #include "cc/paint/paint_shader.h"
-#include "chrome/browser/themes/theme_properties.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/infobars/infobar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/skia_paint_util.h"
 #include "ui/views/bubble/bubble_border.h"
-#include "ui/views/cascading_property.h"
-#include "ui/views/controls/focus_ring.h"
 
 namespace {
 
 class ContentShadow : public views::View {
  public:
-  METADATA_HEADER(ContentShadow);
   ContentShadow();
 
  protected:
@@ -51,25 +43,22 @@ void ContentShadow::OnPaint(gfx::Canvas* canvas) {
   // Outdent the sides to make the shadow appear uniform in the corners.
   gfx::RectF container_bounds(parent()->GetLocalBounds());
   View::ConvertRectToTarget(parent(), this, &container_bounds);
-  container_bounds.Inset(
-      gfx::InsetsF::VH(0, -views::BubbleBorder::kShadowBlur));
+  container_bounds.Inset(-views::BubbleBorder::kShadowBlur, 0);
 
   views::BubbleBorder::DrawBorderAndShadow(gfx::RectFToSkRect(container_bounds),
-                                           canvas, GetColorProvider());
+                                           &cc::PaintCanvas::drawRect, canvas);
 }
 
-BEGIN_METADATA(ContentShadow, views::View)
-END_METADATA
-
 }  // namespace
+
+// static
+const char InfoBarContainerView::kViewClassName[] = "InfoBarContainerView";
 
 InfoBarContainerView::InfoBarContainerView(Delegate* delegate)
     : infobars::InfoBarContainer(delegate),
       content_shadow_(new ContentShadow()) {
   SetID(VIEW_ID_INFO_BAR_CONTAINER);
-  AddChildView(content_shadow_.get());
-  views::SetCascadingColorProviderColor(this, views::kCascadingBackgroundColor,
-                                        kColorToolbar);
+  AddChildView(content_shadow_);
 }
 
 InfoBarContainerView::~InfoBarContainerView() {
@@ -94,10 +83,13 @@ void InfoBarContainerView::Layout() {
                              content_shadow_->GetPreferredSize().height());
 }
 
+const char* InfoBarContainerView::GetClassName() const {
+  return kViewClassName;
+}
+
 void InfoBarContainerView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
   node_data->role = ax::mojom::Role::kGroup;
-  node_data->SetNameChecked(
-      l10n_util::GetStringUTF8(IDS_ACCNAME_INFOBAR_CONTAINER));
+  node_data->SetName(l10n_util::GetStringUTF8(IDS_ACCNAME_INFOBAR_CONTAINER));
 }
 
 gfx::Size InfoBarContainerView::CalculatePreferredSize() const {
@@ -150,6 +142,3 @@ void InfoBarContainerView::PlatformSpecificInfoBarStateChanged(
     infobar->SchedulePaint();
   }
 }
-
-BEGIN_METADATA(InfoBarContainerView, views::AccessiblePaneView)
-END_METADATA

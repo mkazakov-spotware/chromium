@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define UI_BASE_PREDICTION_EMPTY_PREDICTOR_H_
 
 #include "base/component_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "ui/base/prediction/input_predictor.h"
 
 namespace ui {
@@ -16,10 +16,6 @@ class COMPONENT_EXPORT(UI_BASE_PREDICTION) EmptyPredictor
     : public InputPredictor {
  public:
   EmptyPredictor();
-
-  EmptyPredictor(const EmptyPredictor&) = delete;
-  EmptyPredictor& operator=(const EmptyPredictor&) = delete;
-
   ~EmptyPredictor() override;
 
   const char* GetName() const override;
@@ -34,15 +30,16 @@ class COMPONENT_EXPORT(UI_BASE_PREDICTION) EmptyPredictor
 
   // Returns the last_input_ for testing.
   std::unique_ptr<InputData> GeneratePrediction(
-      base::TimeTicks predict_time,
-      base::TimeDelta frame_interval) override;
+      base::TimeTicks predict_time) const override;
 
   // Returns kTimeInterval for testing.
   base::TimeDelta TimeInterval() const override;
 
  private:
   // store the last_input_ point for testing
-  absl::optional<InputData> last_input_;
+  base::Optional<InputData> last_input_;
+
+  DISALLOW_COPY_AND_ASSIGN(EmptyPredictor);
 };
 
 }  // namespace ui

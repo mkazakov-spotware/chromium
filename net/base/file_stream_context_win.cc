@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,10 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/message_loop/message_pump_for_io.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 
@@ -51,7 +52,8 @@ FileStream::Context::Context(base::File file,
   }
 }
 
-FileStream::Context::~Context() = default;
+FileStream::Context::~Context() {
+}
 
 int FileStream::Context::Read(IOBuffer* buf,
                               int buf_len,
@@ -72,7 +74,7 @@ int FileStream::Context::Read(IOBuffer* buf,
       base::BindOnce(&FileStream::Context::ReadAsync, base::Unretained(this),
                      file_.GetPlatformFile(), base::WrapRefCounted(buf),
                      buf_len, &io_context_.overlapped,
-                     base::SingleThreadTaskRunner::GetCurrentDefault()));
+                     base::ThreadTaskRunnerHandle::Get()));
   return ERR_IO_PENDING;
 }
 

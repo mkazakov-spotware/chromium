@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import mimetypes
-import urllib
+import urllib2
 
 from blinkpy.common.net.network_transaction import NetworkTransaction
 
@@ -58,6 +58,8 @@ def _encode_multipart_form_data(fields, files):
         lines.append('--' + BOUNDARY)
         lines.append('Content-Disposition: form-data; name="%s"' % key)
         lines.append('')
+        if isinstance(value, unicode):
+            value = value.encode('utf-8')
         lines.append(value)
 
     for key, filename, value in files:
@@ -66,6 +68,8 @@ def _encode_multipart_form_data(fields, files):
                      % (key, filename))
         lines.append('Content-Type: %s' % get_mime_type(filename))
         lines.append('')
+        if isinstance(value, unicode):
+            value = value.encode('utf-8')
         lines.append(value)
 
     lines.append('--' + BOUNDARY + '--')
@@ -99,9 +103,9 @@ class FileUploader(object):
             # FIXME: Setting a timeout, either globally using socket.setdefaulttimeout()
             # or in urlopen(), doesn't appear to work on Mac 10.5 with Python 2.7.
             # For now we will ignore the timeout value and hope for the best.
-            request = urllib.Request(self._url, data,
-                                     {'Content-Type': content_type})
-            return urllib.urlopen(request)
+            request = urllib2.Request(self._url, data,
+                                      {'Content-Type': content_type})
+            return urllib2.urlopen(request)
 
         return NetworkTransaction(
             timeout_seconds=self._timeout_seconds).run(callback)

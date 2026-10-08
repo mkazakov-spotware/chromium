@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ipc/ipc_platform_file_attachment_posix.h"
 
-#include <tuple>
 #include <utility>
 
 namespace IPC {
@@ -24,7 +23,7 @@ MessageAttachment::Type PlatformFileAttachment::GetType() const {
 }
 
 base::PlatformFile PlatformFileAttachment::TakePlatformFile() {
-  std::ignore = owning_.release();
+  ignore_result(owning_.release());
   return file_;
 }
 

@@ -1,41 +1,17 @@
 /*
- * Copyright 2016 The Chromium Authors
+ * Copyright 2016 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
+/* global PaymentRequest:false */
+
 var request;
-
-const bobPayMethod = Object.freeze({
-  supportedMethods: 'https://bobpay.com',
-});
-
-const kylePayMethod = Object.freeze({
-  supportedMethods: 'https://kylepay.com/webpay',
-});
-
-/**
- * Launches the PaymentRequest UI that accepts url payment methods.
- */
-function buyWithUrlMethods() {
-  buyWithMethods([bobPayMethod, kylePayMethod]);
-}
 
 /**
  * Launches the PaymentRequest UI that accepts credit cards.
  */
-function ccBuy() {
-  buyWithMethods([{
-    supportedMethods: 'basic-card',
-    data: {supportedNetworks: ['visa']},
-  }]);
-}
-
-/**
- * Launches the PaymentRequest UI that accepts the given methods.
- * @param {Array<Object>} methods An array of payment method objects.
- */
- function buyWithMethods(methods) {
+function ccBuy() { // eslint-disable-line no-unused-vars
   try {
     var details = {
       total: {
@@ -56,7 +32,10 @@ function ccBuy() {
       }],
     };
     request = new PaymentRequest(
-        methods,
+        [{
+          supportedMethods: 'basic-card',
+          data: {supportedNetworks: ['visa']},
+        }],
         {
           total: {
             label: 'Total',
@@ -80,8 +59,10 @@ function ccBuy() {
         });
     request.show()
         .then(function(resp) {
-          print(JSON.stringify(resp, undefined, 2));
           return resp.complete('success');
+        })
+        .then(function() {
+          print(JSON.stringify(resp, undefined, 2));
         })
         .catch(function(error) {
           print(error);
@@ -100,7 +81,7 @@ function ccBuy() {
 /**
  * Launches the PaymentRequest UI which accepts only Android Pay.
  */
-function androidPayBuy() {
+function androidPayBuy() { // eslint-disable-line no-unused-vars
   try {
     request = new PaymentRequest(
         [{
@@ -146,7 +127,7 @@ function androidPayBuy() {
  * Launches the PaymentRequest UI which accepts only Android Pay and does not
  * require any other information.
  */
-function androidPaySkipUiBuy() {
+function androidPaySkipUiBuy() { // eslint-disable-line no-unused-vars
   try {
     request = new PaymentRequest(
         [{
@@ -179,14 +160,12 @@ function androidPaySkipUiBuy() {
 /**
  * Launches the PaymentRequest UI which accepts only an unsupported payment
  * method.
- * @return {Promise<string>} - Either payment response as a JSON string or the
- * error message.
  */
-async function noSupportedPromise() {
+function noSupported() { // eslint-disable-line no-unused-vars
   try {
-    const request = new PaymentRequest(
+    request = new PaymentRequest(
         [{
-          supportedMethods: window.location.href + '/randompay',
+          supportedMethods: 'https://randompay.com',
         }],
         {
           total: {
@@ -209,18 +188,25 @@ async function noSupportedPromise() {
         {
           requestShipping: true,
         });
-    const response = await request.show();
-    await response.complete('success');
-    return JSON.stringify(response);
+    request.show()
+        .then(function(resp) {
+          return resp.complete('success');
+        })
+        .then(function() {
+          print(JSON.stringify(resp, undefined, 2));
+        })
+        .catch(function(error) {
+          print(error);
+        });
   } catch (error) {
-    return error.toString();
+    print(error.message);
   }
 }
 
 /**
  * Launches the PaymentRequest UI which accepts credit cards and Bob Pay.
  */
-function cardsAndBobPayBuy() {
+function cardsAndBobPayBuy() { // eslint-disable-line no-unused-vars
   try {
     request = new PaymentRequest(
         [
@@ -273,7 +259,7 @@ function cardsAndBobPayBuy() {
 /**
  * Launches the PaymentRequest UI that requests contact information.
  */
-function contactInfoBuy() {
+function contactInfoBuy() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [
@@ -312,7 +298,7 @@ function contactInfoBuy() {
 /**
  * Aborts the current PaymentRequest.
  */
-function abort() {
+function abort() { // eslint-disable-line no-unused-vars
   try {
     request.abort()
         .then(function() {

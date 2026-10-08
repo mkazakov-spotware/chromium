@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.keyboard_accessory.sheet_tabs;
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 
-import org.chromium.base.TraceEvent;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.keyboard_accessory.AccessoryAction;
 import org.chromium.chrome.browser.keyboard_accessory.AccessoryTabType;
@@ -16,7 +15,6 @@ import org.chromium.chrome.browser.keyboard_accessory.ManualFillingMetricsRecord
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.AccessorySheetData;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.FooterCommand;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.OptionToggle;
-import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PromoCodeInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.Provider;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabModel.AccessorySheetDataPiece;
@@ -57,9 +55,7 @@ class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData>
 
     @Override
     public void onItemAvailable(int typeId, AccessorySheetData accessorySheetData) {
-        TraceEvent.begin("AccessorySheetTabMediator#onItemAvailable");
         mModel.set(splitIntoDataPieces(accessorySheetData));
-        TraceEvent.end("AccessorySheetTabMediator#onItemAvailable");
     }
 
     AccessorySheetTabMediator(AccessorySheetTabModel model, @AccessoryTabType int tabType,
@@ -90,9 +86,6 @@ class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData>
         List<AccessorySheetDataPiece> items = new ArrayList<>();
         if (accessorySheetData.getOptionToggle() != null) {
             items.add(createDataPieceForToggle(accessorySheetData.getOptionToggle()));
-        }
-        for (PromoCodeInfo promoCodeInfo : accessorySheetData.getPromoCodeInfoList()) {
-            items.add(new AccessorySheetDataPiece(promoCodeInfo, Type.PROMO_CODE_INFO));
         }
         if (shouldShowTitle(accessorySheetData.getUserInfoList())) {
             items.add(new AccessorySheetDataPiece(accessorySheetData.getTitle(), Type.TITLE));

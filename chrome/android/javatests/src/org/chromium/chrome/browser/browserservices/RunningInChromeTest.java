@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,14 +35,16 @@ import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
 import org.chromium.chrome.browser.dependency_injection.ChromeActivityCommonsModule;
 import org.chromium.chrome.browser.dependency_injection.ModuleOverridesRule;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.components.browser_ui.notifications.MockNotificationManagerProxy;
 import org.chromium.components.browser_ui.notifications.MockNotificationManagerProxy.NotificationEntry;
 import org.chromium.components.embedder_support.util.Origin;
@@ -58,7 +60,10 @@ import java.util.concurrent.TimeoutException;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@Features.EnableFeatures(ChromeFeatureList.TRUSTED_WEB_ACTIVITY_NEW_DISCLOSURE)
 public class RunningInChromeTest {
+    private static final String TAG = "RunningInChrome";
+
     private static final String TEST_PAGE = "/chrome/test/data/android/google.html";
     private static final String PACKAGE_NAME =
             ContextUtils.getApplicationContext().getPackageName();
@@ -81,11 +86,7 @@ public class RunningInChromeTest {
                     compositorViewHolderSupplier, tabCreatorManager, tabCreatorSupplier,
                     isPromotableToTabSupplier, statusBarColorController, screenOrientationProvider,
                     notificationManagerProxySupplier, tabContentManagerSupplier,
-                    activityTabStartupMetricsTrackerSupplier, compositorViewHolderInitializer,
-                    chromeActivityNativeDelegate, modalDialogManagerSupplier,
-                    browserControlsStateProvider, savedInstanceStateSupplier,
-                    autofillUiBottomInsetSupplier, shareDelegateSupplier, tabModelInitializer,
-                    activityType) -> {
+                    compositorViewHolderInitializer) -> {
                 return new ChromeActivityCommonsModule(activity, bottomSheetController,
                         tabModelSelectorSupplier, browserControlsManager,
                         browserControlsVisibilityManager, browserControlsSizer, fullscreenManager,
@@ -96,11 +97,7 @@ public class RunningInChromeTest {
                         screenOrientationProvider,
                         ()
                                 -> mMockNotificationManager,
-                        tabContentManagerSupplier, activityTabStartupMetricsTrackerSupplier,
-                        compositorViewHolderInitializer, chromeActivityNativeDelegate,
-                        modalDialogManagerSupplier, browserControlsStateProvider,
-                        savedInstanceStateSupplier, autofillUiBottomInsetSupplier,
-                        shareDelegateSupplier, tabModelInitializer, activityType);
+                        tabContentManagerSupplier, compositorViewHolderInitializer);
             });
 
     @Rule
@@ -124,7 +121,7 @@ public class RunningInChromeTest {
         mMockNotificationManager.setNotificationsEnabled(false);
 
         mStore = new BrowserServicesStore(
-                ChromeApplicationImpl.getComponent().resolveSharedPreferencesManager());
+                ChromeApplication.getComponent().resolveSharedPreferencesManager());
         mStore.removeTwaDisclosureAcceptanceForPackage(PACKAGE_NAME);
     }
 

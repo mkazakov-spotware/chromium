@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "cc/base/region.h"
 #include "cc/layers/recording_source.h"
 #include "cc/paint/paint_filter.h"
@@ -106,25 +105,22 @@ class FakeRecordingSource : public RecordingSource {
   }
 
   void add_draw_image(sk_sp<SkImage> image, const gfx::Point& point) {
-    client_.add_draw_image(std::move(image), point, SkSamplingOptions(),
-                           default_flags_);
+    client_.add_draw_image(std::move(image), point, default_flags_);
   }
   void add_draw_image(PaintImage image, const gfx::Point& point) {
-    client_.add_draw_image(std::move(image), point, SkSamplingOptions(),
-                           default_flags_);
+    client_.add_draw_image(std::move(image), point, default_flags_);
   }
 
   void add_draw_image_with_transform(PaintImage image,
                                      const gfx::Transform& transform) {
     client_.add_draw_image_with_transform(std::move(image), transform,
-                                          SkSamplingOptions(), default_flags_);
+                                          default_flags_);
   }
 
   void add_draw_image_with_flags(sk_sp<SkImage> image,
                                  const gfx::Point& point,
-                                 const SkSamplingOptions& sampling,
                                  const PaintFlags& flags) {
-    client_.add_draw_image(std::move(image), point, sampling, flags);
+    client_.add_draw_image(std::move(image), point, flags);
   }
 
   void set_default_flags(const PaintFlags& flags) { default_flags_ = flags; }
@@ -149,7 +145,7 @@ class FakeRecordingSource : public RecordingSource {
  private:
   FakeContentLayerClient client_;
   PaintFlags default_flags_;
-  raw_ptr<base::WaitableEvent> playback_allowed_event_ = nullptr;
+  base::WaitableEvent* playback_allowed_event_ = nullptr;
 };
 
 }  // namespace cc

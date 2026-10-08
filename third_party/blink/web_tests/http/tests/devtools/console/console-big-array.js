@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult('Tests that console logging dumps large arrays properly.\n');
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
   await TestRunner.evaluateInPagePromise(`
@@ -62,8 +62,8 @@
     })();
   `);
 
-  ObjectUI.ArrayGroupingTreeElement.bucketThreshold = 20;
-  var messages = Console.ConsoleView.instance().visibleViewMessages;
+  ObjectUI.ArrayGroupingTreeElement._bucketThreshold = 20;
+  var messages = Console.ConsoleView.instance()._visibleViewMessages;
   var sections = [];
 
   for (var i = 0; i < messages.length; ++i) {
@@ -72,11 +72,9 @@
     var node = element.traverseNextNode(element);
 
     while (node) {
-      const section =
-          ObjectUI.ObjectPropertiesSection.getObjectPropertiesSectionFrom(node);
-      if (section) {
-        sections.push(section);
-        section.expand();
+      if (node._section) {
+        sections.push(node._section);
+        node._section.expand();
       }
 
       node = node.traverseNextNode(element);
@@ -98,7 +96,7 @@
 
       for (var j = 0; j < children.length; ++j) {
         for (var treeElement = children[j]; treeElement; treeElement = treeElement.traverseNextTreeElement(true, null, true)) {
-          if (treeElement.listItemElement.textContent.indexOf('[[Prototype]]') === -1)
+          if (treeElement.listItemElement.textContent.indexOf('__proto__') === -1)
             treeElement.expand();
         }
       }

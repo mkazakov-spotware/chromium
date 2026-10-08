@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,11 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
-#include "components/nacl/common/buildflags.h"
 #include "ppapi/c/pp_completion_callback.h"
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/c/pp_resource.h"
@@ -33,9 +32,9 @@
 #include "ppapi/thunk/enter.h"
 #include "ppapi/thunk/thunk.h"
 
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
-#include "skia/ext/platform_canvas.h"  //nogncheck
-#include "ui/surface/transport_dib.h"  //nogncheck
+#if !defined(OS_NACL)
+#include "skia/ext/platform_canvas.h"
+#include "ui/surface/transport_dib.h"
 #endif
 
 using ppapi::thunk::PPB_ImageData_API;
@@ -193,7 +192,7 @@ void ImageDataInstanceCache::ImageDataUsable(ImageData* image_data) {
 
 bool ImageDataInstanceCache::ExpireEntries() {
   base::TimeTicks threshold_time =
-      base::TimeTicks::Now() - base::Seconds(kMaxAgeSeconds);
+      base::TimeTicks::Now() - base::TimeDelta::FromSeconds(kMaxAgeSeconds);
 
   bool has_entry = false;
   for (size_t i = 0; i < kCacheSize; i++) {
@@ -224,10 +223,6 @@ void ImageDataInstanceCache::IncrementInsertionPoint() {
 class ImageDataCache {
  public:
   ImageDataCache() {}
-
-  ImageDataCache(const ImageDataCache&) = delete;
-  ImageDataCache& operator=(const ImageDataCache&) = delete;
-
   ~ImageDataCache() {}
 
   static ImageDataCache* GetInstance();
@@ -262,6 +257,8 @@ class ImageDataCache {
   // this will never happen and this factory is unnecessary. However, it's
   // probably better not to make assumptions about the lifetime of this class.
   base::WeakPtrFactory<ImageDataCache> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImageDataCache);
 };
 
 // static
@@ -290,7 +287,7 @@ void ImageDataCache::Add(ImageData* image_data) {
       RunWhileLocked(base::BindOnce(&ImageDataCache::OnTimer,
                                     weak_factory_.GetWeakPtr(),
                                     image_data->pp_instance())),
-      base::Seconds(kMaxAgeSeconds));
+      base::TimeDelta::FromSeconds(kMaxAgeSeconds));
 }
 
 void ImageDataCache::ImageDataUsable(ImageData* image_data) {
@@ -372,17 +369,17 @@ void ImageData::RecycleToPlugin(bool zero_contents) {
 
 // PlatformImageData -----------------------------------------------------------
 
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if !defined(OS_NACL)
 PlatformImageData::PlatformImageData(
     const HostResource& resource,
     const PP_ImageDataDesc& desc,
     base::UnsafeSharedMemoryRegion image_region)
     : ImageData(resource, PPB_ImageData_Shared::PLATFORM, desc) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   transport_dib_ = TransportDIB::CreateWithHandle(std::move(image_region));
 #else
   transport_dib_ = TransportDIB::Map(std::move(image_region));
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }
 
 PlatformImageData::~PlatformImageData() = default;
@@ -412,7 +409,7 @@ void PlatformImageData::Unmap() {
 SkCanvas* PlatformImageData::GetCanvas() {
   return mapped_canvas_.get();
 }
-#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#endif  // !defined(OS_NACL)
 
 // SimpleImageData -------------------------------------------------------------
 
@@ -491,7 +488,7 @@ PP_Resource PPB_ImageData_Proxy::CreateProxyResource(
       break;
     }
     case PPB_ImageData_Shared::PLATFORM: {
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if !defined(OS_NACL)
       ppapi::proxy::SerializedHandle image_handle;
       dispatcher->Send(new PpapiHostMsg_PPBImageData_CreatePlatform(
           kApiID, instance, format, size, init_to_zero, &result, &desc,
@@ -519,7 +516,7 @@ PP_Resource PPB_ImageData_Proxy::CreateProxyResource(
 bool PPB_ImageData_Proxy::OnMessageReceived(const IPC::Message& msg) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(PPB_ImageData_Proxy, msg)
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if !defined(OS_NACL)
     IPC_MESSAGE_HANDLER(PpapiHostMsg_PPBImageData_CreatePlatform,
                         OnHostMsgCreatePlatform)
     IPC_MESSAGE_HANDLER(PpapiHostMsg_PPBImageData_CreateSimple,
@@ -533,7 +530,7 @@ bool PPB_ImageData_Proxy::OnMessageReceived(const IPC::Message& msg) {
   return handled;
 }
 
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if !defined(OS_NACL)
 // static
 PP_Resource PPB_ImageData_Proxy::CreateImageData(
     PP_Instance instance,
@@ -641,7 +638,7 @@ void PPB_ImageData_Proxy::OnHostMsgCreateSimple(
     result_image_handle->set_null_shmem_region();
   }
 }
-#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#endif  // !defined(OS_NACL)
 
 void PPB_ImageData_Proxy::OnPluginMsgNotifyUnusedImageData(
     const HostResource& old_image_data) {

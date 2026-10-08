@@ -45,10 +45,8 @@ function restartTransition(event) {
 }
 
 requestAnimationFrame(function() {
-  requestAnimationFrame(function(){
-    targets.forEach(function(target) {
-      container.insertBefore(keyframeStash[0].pop(), target);
-    });
+  targets.forEach(function(target) {
+    container.insertBefore(keyframeStash[0].pop(), target);
   });
 });
 

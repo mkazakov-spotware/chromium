@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/android/vr/gvr_input_delegate.h"
 
-#include <string>
 #include <utility>
 
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/android/vr/vr_controller.h"
 #include "chrome/browser/vr/input_event.h"
@@ -58,8 +58,7 @@ ControllerModel GvrInputDelegate::GetControllerModel(
                             -cos(kErgoAngleOffset)};
     controller_quat = controller_->Orientation();
   }
-  controller_direction =
-      gfx::Transform(controller_quat).MapVector(controller_direction);
+  gfx::Transform(controller_quat).TransformVector(&controller_direction);
 
   ControllerModel controller_model;
   controller_->GetTransform(&controller_model.transform);

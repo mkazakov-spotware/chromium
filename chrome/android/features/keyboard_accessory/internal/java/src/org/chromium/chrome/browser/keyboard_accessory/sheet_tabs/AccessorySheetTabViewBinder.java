@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import androidx.annotation.LayoutRes;
 import androidx.annotation.Nullable;
-import androidx.appcompat.widget.SwitchCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -119,7 +119,7 @@ class AccessorySheetTabViewBinder {
             TextView subtitleText = view.findViewById(R.id.option_toggle_subtitle);
             subtitleText.setText(optionToggle.isEnabled() ? R.string.text_on : R.string.text_off);
 
-            SwitchCompat switchView = view.findViewById(R.id.option_toggle_switch);
+            Switch switchView = view.findViewById(R.id.option_toggle_switch);
             switchView.setChecked(optionToggle.isEnabled());
             switchView.setBackground(null);
         }

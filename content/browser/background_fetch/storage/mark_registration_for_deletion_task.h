@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,6 @@ class MarkRegistrationForDeletionTask : public background_fetch::DatabaseTask {
       bool check_for_failure,
       MarkRegistrationForDeletionCallback callback);
 
-  MarkRegistrationForDeletionTask(const MarkRegistrationForDeletionTask&) =
-      delete;
-  MarkRegistrationForDeletionTask& operator=(
-      const MarkRegistrationForDeletionTask&) = delete;
-
   ~MarkRegistrationForDeletionTask() override;
 
   void Start() override;
@@ -60,6 +55,8 @@ class MarkRegistrationForDeletionTask : public background_fetch::DatabaseTask {
 
   base::WeakPtrFactory<MarkRegistrationForDeletionTask> weak_factory_{
       this};  // Keep as last.
+
+  DISALLOW_COPY_AND_ASSIGN(MarkRegistrationForDeletionTask);
 };
 
 }  // namespace background_fetch

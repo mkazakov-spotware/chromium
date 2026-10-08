@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,19 +16,13 @@
 #include "components/viz/test/fake_compositor_frame_sink_client.h"
 #include "components/viz/test/fake_display_client.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
-#include "services/viz/privileged/mojom/compositing/external_begin_frame_controller.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace viz {
 
 // A fake browser process to use as a fuzzer target. Uses software compositing.
 class FuzzerBrowserProcess {
  public:
-  explicit FuzzerBrowserProcess(absl::optional<base::FilePath> png_dir_path);
-
-  FuzzerBrowserProcess(const FuzzerBrowserProcess&) = delete;
-  FuzzerBrowserProcess& operator=(const FuzzerBrowserProcess&) = delete;
-
+  explicit FuzzerBrowserProcess(base::Optional<base::FilePath> png_dir_path);
   ~FuzzerBrowserProcess();
 
   // Fuzz target mimicking the process of submitting a rendered CompositorFrame
@@ -67,6 +61,8 @@ class FuzzerBrowserProcess {
   ParentLocalSurfaceIdAllocator lsi_allocator_;
 
   FrameTokenGenerator next_frame_token_;
+
+  DISALLOW_COPY_AND_ASSIGN(FuzzerBrowserProcess);
 };
 
 }  // namespace viz

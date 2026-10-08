@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,10 @@ RequestBuilder::~RequestBuilder() = default;
 cros::mojom::Camera3CaptureRequestPtr RequestBuilder::BuildRequest(
     std::set<StreamType> stream_types,
     cros::mojom::CameraMetadataPtr settings,
-    absl::optional<uint64_t> input_buffer_id) {
+    base::Optional<uint64_t> input_buffer_id) {
   auto capture_request = cros::mojom::Camera3CaptureRequest::New();
   for (StreamType stream_type : stream_types) {
-    absl::optional<BufferInfo> buffer_info;
+    base::Optional<BufferInfo> buffer_info;
     if (IsInputStream(stream_type)) {
       DCHECK(input_buffer_id.has_value());
       buffer_info = request_buffer_callback_.Run(stream_type, input_buffer_id);

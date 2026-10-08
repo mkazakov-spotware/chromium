@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,17 @@
 #include <string>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
 #include "base/strings/string_piece.h"
-#include "base/synchronization/lock.h"
-#include "base/thread_annotations.h"
 #include "base/values.h"
 #include "extensions/common/features/feature.h"
 #include "extensions/common/features/feature_provider.h"
 #include "extensions/common/url_pattern_set.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 class GURL;
 
@@ -70,16 +72,12 @@ class ExtensionAPI {
     ~OverrideSharedInstanceForTest();
 
    private:
-    raw_ptr<ExtensionAPI> original_api_;
+    ExtensionAPI* original_api_;
   };
 
   // Creates a completely clean instance. Configure using
   // RegisterDependencyProvider before use.
   ExtensionAPI();
-
-  ExtensionAPI(const ExtensionAPI&) = delete;
-  ExtensionAPI& operator=(const ExtensionAPI&) = delete;
-
   virtual ~ExtensionAPI();
 
   // Add a FeatureProvider for APIs. The features are used to specify
@@ -107,8 +105,7 @@ class ExtensionAPI {
                                     const Extension* extension,
                                     Feature::Context context,
                                     const GURL& url,
-                                    CheckAliasStatus check_alias,
-                                    int context_id);
+                                    CheckAliasStatus check_alias);
 
   // Determines whether an API, or any parts of that API, can be exposed to
   // |context|.
@@ -120,8 +117,7 @@ class ExtensionAPI {
                                       const Extension* extension,
                                       Feature::Context context,
                                       const GURL& url,
-                                      CheckAliasStatus check_alias,
-                                      int context_id);
+                                      CheckAliasStatus check_alias);
 
   // Gets the StringPiece for the schema specified by |api_name|.
   base::StringPiece GetSchemaStringPiece(const std::string& api_name);
@@ -130,7 +126,7 @@ class ExtensionAPI {
   // Ownership remains with this object.
   // TODO(devlin): Now that we use GetSchemaStringPiece() in the renderer, we
   // may not really need this anymore.
-  const base::Value::Dict* GetSchema(const std::string& full_name);
+  const base::DictionaryValue* GetSchema(const std::string& full_name);
 
   // Splits a full name from the extension API into its API and child name
   // parts. Some examples:
@@ -164,30 +160,23 @@ class ExtensionAPI {
                                          const Feature& feature,
                                          const Extension* extension,
                                          Feature::Context context,
-                                         const GURL& url,
-                                         int context_id);
+                                         const GURL& url);
+
+  bool default_configuration_initialized_;
 
   // Loads a schema.
   void LoadSchema(const std::string& name, const base::StringPiece& schema);
 
-  // Same as GetSchemaStringPiece() but doesn't acquire |lock_|.
-  base::StringPiece GetSchemaStringPieceUnsafe(const std::string& api_name);
-
-  // Same as GetAPINameFromFullName() but doesn't acquire |lock_|.
-  std::string GetAPINameFromFullNameUnsafe(const std::string& full_name,
-                                           std::string* child_name);
-
-  bool default_configuration_initialized_ = false;
-
-  base::Lock lock_;
-
   // Schemas for each namespace.
-  using SchemaMap = std::map<std::string, base::Value::Dict>;
-  SchemaMap schemas_ GUARDED_BY(lock_);
+  using SchemaMap =
+      std::map<std::string, std::unique_ptr<const base::DictionaryValue>>;
+  SchemaMap schemas_;
 
   // FeatureProviders used for resolving dependencies.
   typedef std::map<std::string, const FeatureProvider*> FeatureProviderMap;
   FeatureProviderMap dependency_providers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionAPI);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,11 @@ plugins::PluginPlaceholder* CreateNonLoadablePlaceholderHelper(
       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_BLOCKED_PLUGIN_HTML);
 
-  base::Value::Dict values;
-  values.Set("name", "");
-  values.Set("message", message);
+  base::DictionaryValue values;
+  values.SetString("name", "");
+  values.SetString("message", message);
 
-  std::string html_data = webui::GetI18nTemplateHtml(template_html, values);
+  std::string html_data = webui::GetI18nTemplateHtml(template_html, &values);
 
   // PluginPlaceholder will destroy itself when its WebViewPlugin is going away.
   return new plugins::PluginPlaceholder(render_frame, params, html_data);
@@ -57,23 +57,23 @@ NonLoadablePluginPlaceholder::CreateFlashDeprecatedPlaceholder(
     const blink::WebPluginParams& params) {
   return CreateNonLoadablePlaceholderHelper(
       render_frame, params,
-      l10n_util::GetStringFUTF8(IDS_PLUGIN_DEPRECATED, u"Adobe Flash Player"));
+      l10n_util::GetStringFUTF8(IDS_PLUGIN_DEPRECATED,
+                                base::ASCIIToUTF16("Adobe Flash Player")));
 }
 
-#if BUILDFLAG(ENABLE_PLUGINS)
 // static
 plugins::PluginPlaceholder* NonLoadablePluginPlaceholder::CreateErrorPlugin(
     content::RenderFrame* render_frame,
     const base::FilePath& file_path) {
-  base::Value::Dict values;
-  values.Set("name", "");
-  values.Set("message",
-             l10n_util::GetStringUTF8(IDS_PLUGIN_INITIALIZATION_ERROR));
+  base::DictionaryValue values;
+  values.SetString("name", "");
+  values.SetString("message",
+                   l10n_util::GetStringUTF8(IDS_PLUGIN_INITIALIZATION_ERROR));
 
   std::string template_html =
       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_BLOCKED_PLUGIN_HTML);
-  std::string html_data = webui::GetI18nTemplateHtml(template_html, values);
+  std::string html_data = webui::GetI18nTemplateHtml(template_html, &values);
 
   blink::WebPluginParams params;
   // PluginPlaceholder will destroy itself when its WebViewPlugin is going away.
@@ -86,4 +86,3 @@ plugins::PluginPlaceholder* NonLoadablePluginPlaceholder::CreateErrorPlugin(
 
   return plugin;
 }
-#endif  // BUILDFLAG(ENABLE_PLUGINS)

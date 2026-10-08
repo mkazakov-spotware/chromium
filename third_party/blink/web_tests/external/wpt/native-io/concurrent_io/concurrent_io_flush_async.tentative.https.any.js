@@ -10,26 +10,23 @@
 
 for (let op of kOperations) {
   promise_test(async testCase => {
-    await reserveAndCleanupCapacity(testCase);
-
     const file = await createFile(testCase, 'flush_file');
 
     const res = op.prepare();
 
     const flushPromise = file.flush();
-    await op.assertRejection(testCase, file, res);
+    op.assertRejection(testCase, file, res);
 
     await flushPromise;
 
-    const {buffer: readBuffer, readBytes} =
-      await file.read(new Uint8Array(4), 0);
-
-    assert_equals(readBytes, 4,
+    const readSharedArrayBuffer = new SharedArrayBuffer(4);
+    const readBytes = new Uint8Array(readSharedArrayBuffer);
+    assert_equals(await file.read(readBytes, 0), 4,
                   `NativeIOFile.read() should not fail after a rejected ` +
                     `${op.name}() during flush()`);
-    assert_array_equals(readBuffer, [64, 65, 66, 67],
+    assert_array_equals(readBytes, [64, 65, 66, 67],
                         `Rejecting ${op.name}() during flush() should not ` +
                           `change the file.`);
     op.assertUnchanged(res);
   }, `${op.name}() rejects while flush() is resolving.`);
-}
+};

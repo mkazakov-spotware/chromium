@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -266,8 +266,5 @@ std::vector<TaskEvent::Type> GetEventsForTask(
 }
 
 }  // namespace internal
-
-// This suite is instantiated in binaries that use //base:test_support.
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SequencedTaskRunnerTest);
 
 }  // namespace base

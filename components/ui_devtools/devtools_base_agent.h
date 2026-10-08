@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_UI_DEVTOOLS_DEVTOOLS_BASE_AGENT_H_
 #define COMPONENTS_UI_DEVTOOLS_DEVTOOLS_BASE_AGENT_H_
 
-#include "components/ui_devtools/protocol.h"
+#include "components/ui_devtools/Protocol.h"
 
 namespace ui_devtools {
 
@@ -27,9 +27,6 @@ template <typename DomainMetainfo>
 class UiDevToolsBaseAgent : public UiDevToolsAgent,
                             public DomainMetainfo::BackendClass {
  public:
-  UiDevToolsBaseAgent(const UiDevToolsBaseAgent&) = delete;
-  UiDevToolsBaseAgent& operator=(const UiDevToolsBaseAgent&) = delete;
-
   // UiDevToolsAgent:
   void Init(protocol::UberDispatcher* dispatcher) override {
     frontend_.reset(
@@ -55,6 +52,8 @@ class UiDevToolsBaseAgent : public UiDevToolsAgent,
 
  private:
   std::unique_ptr<typename DomainMetainfo::FrontendClass> frontend_;
+
+  DISALLOW_COPY_AND_ASSIGN(UiDevToolsBaseAgent);
 };
 
 }  // namespace ui_devtools

@@ -11,13 +11,10 @@ requestWillBeSentExtraInfo request cookies on same domain:[
             name : name1
             path : /inspector-protocol/network/resources
             priority : Medium
-            sameParty : false
             sameSite : None
             secure : true
             session : true
             size : 11
-            sourcePort : 8443
-            sourceScheme : Secure
             value : value1
         }
     }
@@ -31,12 +28,9 @@ requestWillBeSentExtraInfo request cookies on same domain:[
             name : name2
             path : /inspector-protocol/network/resources
             priority : Medium
-            sameParty : false
             secure : false
             session : true
             size : 11
-            sourcePort : 8443
-            sourceScheme : Secure
             value : value2
         }
     }
@@ -53,12 +47,9 @@ requestWillBeSentExtraInfo request cookies on subdomain[
             name : name2
             path : /inspector-protocol/network/resources
             priority : Medium
-            sameParty : false
             secure : false
             session : true
             size : 11
-            sourcePort : 8443
-            sourceScheme : Secure
             value : value2
         }
     }
@@ -72,13 +63,10 @@ requestWillBeSentExtraInfo request cookies on subdomain[
             name : name1
             path : /inspector-protocol/network/resources
             priority : Medium
-            sameParty : false
             sameSite : None
             secure : true
             session : true
             size : 11
-            sourcePort : 8443
-            sourceScheme : Secure
             value : value1
         }
     }

@@ -1,20 +1,26 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/session_config.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
+
+bool IsChannelConfigSupported(const std::list<ChannelConfig>& list,
+                              const ChannelConfig& value) {
+  return std::find(list.begin(), list.end(), value) != list.end();
+}
 
 bool SelectCommonChannelConfig(const std::list<ChannelConfig>& host_configs,
                                const std::list<ChannelConfig>& client_configs,
@@ -23,7 +29,7 @@ bool SelectCommonChannelConfig(const std::list<ChannelConfig>& host_configs,
   // over all of them is not a problem.
   std::list<ChannelConfig>::const_iterator it;
   for (it = client_configs.begin(); it != client_configs.end(); ++it) {
-    if (base::Contains(host_configs, *it)) {
+    if (IsChannelConfigSupported(host_configs, *it)) {
       *config = *it;
       return true;
     }
@@ -80,13 +86,24 @@ std::unique_ptr<SessionConfig> SessionConfig::SelectCommon(
 
   std::unique_ptr<SessionConfig> result(new SessionConfig(Protocol::ICE));
 
+  // If neither host nor the client have VP9 experiment enabled then remove it
+  // from the list of host video configs.
   std::list<ChannelConfig> host_video_configs = host_config->video_configs();
-  host_video_configs.remove_if([](const ChannelConfig& config) {
-    // Older ICE-based clients do not support VP9, H.264, or AV1 so remove them.
-    return config.codec == ChannelConfig::CODEC_H264 ||
-           config.codec == ChannelConfig::CODEC_VP9 ||
-           config.codec == ChannelConfig::CODEC_AV1;
-  });
+  if (!client_config->vp9_experiment_enabled() &&
+      !host_config->vp9_experiment_enabled()) {
+    host_video_configs.remove_if([](const ChannelConfig& config) {
+      return config.codec == ChannelConfig::CODEC_VP9;
+    });
+  }
+
+  // If neither host nor the client have H264 experiment enabled then remove it
+  // from the list of host video configs.
+  if (!client_config->h264_experiment_enabled() &&
+      !host_config->h264_experiment_enabled()) {
+    host_video_configs.remove_if([](const ChannelConfig& config) {
+      return config.codec == ChannelConfig::CODEC_H264;
+    });
+  }
 
   if (!SelectCommonChannelConfig(host_config->control_configs(),
                                  client_config->control_configs(),
@@ -202,10 +219,11 @@ bool CandidateSessionConfig::IsSupported(const SessionConfig& config) const {
   switch (config.protocol()) {
     case SessionConfig::Protocol::ICE:
       return ice_supported() &&
-             base::Contains(control_configs_, config.control_config()) &&
-             base::Contains(event_configs_, config.event_config()) &&
-             base::Contains(video_configs_, config.video_config()) &&
-             base::Contains(audio_configs_, config.audio_config());
+             IsChannelConfigSupported(control_configs_,
+                                      config.control_config()) &&
+             IsChannelConfigSupported(event_configs_, config.event_config()) &&
+             IsChannelConfigSupported(video_configs_, config.video_config()) &&
+             IsChannelConfigSupported(audio_configs_, config.audio_config());
 
     case SessionConfig::Protocol::WEBRTC:
       return webrtc_supported();
@@ -300,4 +318,5 @@ void CandidateSessionConfig::PreferTransport(
   UpdateConfigListToPreferTransport(&audio_configs_, transport);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@ namespace viz {
 FakeSurfaceObserver::FakeSurfaceObserver(bool damage_display)
     : damage_display_(damage_display) {}
 
-FakeSurfaceObserver::~FakeSurfaceObserver() = default;
+FakeSurfaceObserver::~FakeSurfaceObserver() {}
 
 void FakeSurfaceObserver::Reset() {
   last_ack_ = BeginFrameAck();

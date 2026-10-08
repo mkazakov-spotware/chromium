@@ -1,18 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/autofill/payments/manage_migration_ui_controller.h"
 
-#include "chrome/browser/ui/autofill/autofill_bubble_base.h"
+#include "chrome/browser/ui/autofill/payments/local_card_migration_bubble.h"
 #include "chrome/browser/ui/autofill/payments/local_card_migration_dialog.h"
 #include "components/autofill/core/browser/payments/local_card_migration_manager.h"
 
 namespace autofill {
 
 ManageMigrationUiController::ManageMigrationUiController(
-    content::WebContents* web_contents)
-    : content::WebContentsUserData<ManageMigrationUiController>(*web_contents) {
+    content::WebContents* web_contents) {
   autofill::LocalCardMigrationBubbleControllerImpl::CreateForWebContents(
       web_contents);
   bubble_controller_ =
@@ -49,7 +48,7 @@ void ManageMigrationUiController::ShowOfferDialog(
 
 void ManageMigrationUiController::UpdateCreditCardIcon(
     const bool has_server_error,
-    const std::u16string& tip_message,
+    const base::string16& tip_message,
     const std::vector<MigratableCreditCard>& migratable_credit_cards,
     AutofillClient::MigrationDeleteCardCallback delete_local_card_callback) {
   if (!dialog_controller_)
@@ -104,7 +103,7 @@ bool ManageMigrationUiController::IsIconVisible() const {
   return flow_step_ != LocalCardMigrationFlowStep::NOT_SHOWN;
 }
 
-AutofillBubbleBase* ManageMigrationUiController::GetBubbleView() const {
+LocalCardMigrationBubble* ManageMigrationUiController::GetBubbleView() const {
   if (!bubble_controller_)
     return nullptr;
 
@@ -153,6 +152,6 @@ void ManageMigrationUiController::ShowFeedbackDialog() {
   dialog_controller_->ShowFeedbackDialog();
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(ManageMigrationUiController);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(ManageMigrationUiController)
 
 }  // namespace autofill

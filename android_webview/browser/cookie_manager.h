@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "base/android/jni_array.h"
 #include "base/android/scoped_java_ref.h"
 #include "base/containers/circular_deque.h"
-#include "base/files/file_path.h"
 #include "base/no_destructor.h"
 #include "base/thread_annotations.h"
 #include "base/threading/thread.h"
@@ -33,7 +31,7 @@ class CanonicalCookie;
 
 namespace android_webview {
 
-// CookieManager creates and owns WebView's CookieStore, in addition to handling
+// CookieManager creates and owns Webview's CookieStore, in addition to handling
 // calls into the CookieStore from Java.
 //
 // Since Java calls can be made on the IO Thread, and must synchronously return
@@ -46,11 +44,10 @@ namespace android_webview {
 // Network Service is initialized. 2) The CookieManager is not used until after
 // the Network Service is initialized (during content initialization).
 //
-// Case 2) is straightforward: When the
-// ContentBrowserClient::ConfigureNetworkContextParams was called
-// AwContentBrowserClient will finally call
-// CookieManager::SwapMojoCookieManagerAsync by calling
-// CookieManager::SetMojoCookieManager, setting the |mojo_cookie_manager_|
+// Case 2) is straightforward: Once the NetworkContext and the
+// network::mojom::CookieManager are created, the AwContentBrowserClient calls
+// PassMojoCookieManagerToAwCookieManager, which ends up calling
+// CookieManager::SwapMojoCookieManagerAsync, setting the |mojo_cookie_manager_|
 // member of CookieManager (the AW one; it's an unfortunately overloaded term).
 //
 // In case 1), the CookieManager creates a provisional CookieStore
@@ -87,9 +84,6 @@ class CookieManager {
  public:
   static CookieManager* GetInstance();
 
-  CookieManager(const CookieManager&) = delete;
-  CookieManager& operator=(const CookieManager&) = delete;
-
   // Passes a |cookie_manager_remote|, which this will use for CookieManager
   // APIs going forward. Only called in the Network Service path, with the
   // intention this is called once during content initialization (when we create
@@ -123,11 +117,6 @@ class CookieManager {
                      const base::android::JavaParamRef<jstring>& value);
 
   base::android::ScopedJavaLocalRef<jstring> GetCookie(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jstring>& url);
-
-  base::android::ScopedJavaLocalRef<jobjectArray> GetCookieInfo(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jstring>& url);
@@ -243,12 +232,6 @@ class CookieManager {
                                           bool can_change_schemes);
   void MigrateCookieStorePath();
 
-  // The client hint cache should be cleared if cookies are cleared, but if
-  // cookies are cleared before the browser starts we need a way flag the
-  // need to clear them later.
-  void ClearClientHintsCachedPerOriginMapIfNeeded();
-  bool should_clear_client_hints_cached_per_origin_map_{false};
-
   base::FilePath cookie_store_path_;
 
   // This protects the following bool, as it's used on multiple threads.
@@ -286,6 +269,8 @@ class CookieManager {
 
   // The CookieManager shared with the NetworkContext.
   mojo::Remote<network::mojom::CookieManager> mojo_cookie_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(CookieManager);
 };
 
 }  // namespace android_webview

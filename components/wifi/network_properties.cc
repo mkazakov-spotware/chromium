@@ -1,16 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/wifi/network_properties.h"
 
-#include <string>
 #include <utility>
 
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "components/onc/onc_constants.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace wifi {
 
@@ -27,83 +25,63 @@ NetworkProperties::NetworkProperties(const NetworkProperties& other) = default;
 NetworkProperties::~NetworkProperties() {
 }
 
-base::Value::Dict NetworkProperties::ToValue(bool network_list) const {
-  base::Value::Dict value;
+std::unique_ptr<base::DictionaryValue> NetworkProperties::ToValue(
+    bool network_list) const {
+  std::unique_ptr<base::DictionaryValue> value(new base::DictionaryValue());
 
-  value.Set(onc::network_config::kGUID, guid);
-  value.Set(onc::network_config::kName, name);
-  value.Set(onc::network_config::kConnectionState, connection_state);
+  value->SetString(onc::network_config::kGUID, guid);
+  value->SetString(onc::network_config::kName, name);
+  value->SetString(onc::network_config::kConnectionState, connection_state);
   DCHECK(type == onc::network_type::kWiFi);
-  value.Set(onc::network_config::kType, type);
+  value->SetString(onc::network_config::kType, type);
 
   // For now, assume all WiFi services are connectable.
-  value.Set(onc::network_config::kConnectable, true);
+  value->SetBoolean(onc::network_config::kConnectable, true);
 
-  base::Value::Dict wifi;
-  wifi.Set(onc::wifi::kSecurity, security);
-  wifi.Set(onc::wifi::kSignalStrength, static_cast<int>(signal_strength));
+  std::unique_ptr<base::DictionaryValue> wifi(new base::DictionaryValue());
+  wifi->SetString(onc::wifi::kSecurity, security);
+  wifi->SetInteger(onc::wifi::kSignalStrength, signal_strength);
 
   // Network list expects subset of data.
   if (!network_list) {
     if (frequency != kFrequencyUnknown)
-      wifi.Set(onc::wifi::kFrequency, frequency);
-    base::Value::List frequency_list;
+      wifi->SetInteger(onc::wifi::kFrequency, frequency);
+    std::unique_ptr<base::ListValue> frequency_list(new base::ListValue());
     for (FrequencySet::const_iterator it = this->frequency_set.begin();
          it != this->frequency_set.end();
          ++it) {
-      frequency_list.Append(*it);
+      frequency_list->AppendInteger(*it);
     }
-    if (!frequency_list.empty()) {
-      wifi.Set(onc::wifi::kFrequencyList, std::move(frequency_list));
-    }
+    if (!frequency_list->empty())
+      wifi->Set(onc::wifi::kFrequencyList, std::move(frequency_list));
     if (!bssid.empty())
-      wifi.Set(onc::wifi::kBSSID, bssid);
-    wifi.Set(onc::wifi::kSSID, ssid);
-    wifi.Set(onc::wifi::kHexSSID, base::HexEncode(ssid.c_str(), ssid.size()));
+      wifi->SetString(onc::wifi::kBSSID, bssid);
+    wifi->SetString(onc::wifi::kSSID, ssid);
+    wifi->SetString(onc::wifi::kHexSSID,
+                    base::HexEncode(ssid.c_str(), ssid.size()));
   }
-  value.Set(onc::network_type::kWiFi, std::move(wifi));
+  value->Set(onc::network_type::kWiFi, std::move(wifi));
 
   return value;
 }
 
-bool NetworkProperties::UpdateFromValue(const base::Value::Dict& value) {
-  const std::string* network_type =
-      value.FindString(onc::network_config::kType);
+bool NetworkProperties::UpdateFromValue(const base::DictionaryValue& value) {
+  const base::DictionaryValue* wifi = nullptr;
+  std::string network_type;
   // Get network type and make sure that it is WiFi (if specified).
-  if (network_type) {
-    if (*network_type != onc::network_type::kWiFi)
+  if (value.GetString(onc::network_config::kType, &network_type)) {
+    if (network_type != onc::network_type::kWiFi)
       return false;
-    type = *network_type;
+    type = network_type;
   }
-
-  const base::Value::Dict* wifi = value.FindDict(onc::network_type::kWiFi);
-  if (wifi) {
-    const std::string* name_ptr = value.FindString(onc::network_config::kName);
-    if (name_ptr)
-      name = *name_ptr;
-    const std::string* guid_ptr = value.FindString(onc::network_config::kGUID);
-    if (guid_ptr)
-      guid = *guid_ptr;
-    const std::string* connection_state_ptr =
-        value.FindString(onc::network_config::kConnectionState);
-    if (connection_state_ptr)
-      connection_state = *connection_state_ptr;
-
-    const std::string* security_ptr = wifi->FindString(onc::wifi::kSecurity);
-    if (security_ptr)
-      security = *security_ptr;
-    const std::string* ssid_ptr = wifi->FindString(onc::wifi::kSSID);
-    if (ssid_ptr)
-      ssid = *ssid_ptr;
-    const std::string* password_ptr = wifi->FindString(onc::wifi::kPassphrase);
-    if (password_ptr)
-      password = *password_ptr;
-
-    absl::optional<bool> auto_connect_opt =
-        wifi->FindBool(onc::wifi::kAutoConnect);
-    if (auto_connect_opt)
-      auto_connect = *auto_connect_opt;
-
+  if (value.GetDictionary(onc::network_type::kWiFi, &wifi)) {
+    value.GetString(onc::network_config::kName, &name);
+    value.GetString(onc::network_config::kGUID, &guid);
+    value.GetString(onc::network_config::kConnectionState, &connection_state);
+    wifi->GetString(onc::wifi::kSecurity, &security);
+    wifi->GetString(onc::wifi::kSSID, &ssid);
+    wifi->GetString(onc::wifi::kPassphrase, &password);
+    wifi->GetBoolean(onc::wifi::kAutoConnect, &auto_connect);
     return true;
   }
   return false;

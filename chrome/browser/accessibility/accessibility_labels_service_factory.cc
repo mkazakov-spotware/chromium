@@ -1,12 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/accessibility/accessibility_labels_service_factory.h"
 
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/accessibility/accessibility_labels_service.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 // static
 AccessibilityLabelsService* AccessibilityLabelsServiceFactory::GetForProfile(
@@ -28,24 +29,26 @@ AccessibilityLabelsServiceFactory::GetInstance() {
   return base::Singleton<AccessibilityLabelsServiceFactory>::get();
 }
 
+// static
+KeyedService* AccessibilityLabelsServiceFactory::BuildInstanceFor(
+    Profile* profile) {
+  return new AccessibilityLabelsService(profile);
+}
+
 AccessibilityLabelsServiceFactory::AccessibilityLabelsServiceFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "AccessibilityLabelsService",
-          ProfileSelections::Builder()
-              .WithRegular(ProfileSelection::kRedirectedToOriginal)
-              // Use OTR profile for Guest Session.
-              .WithGuest(ProfileSelection::kOffTheRecordOnly)
-              // No service for system profile.
-              .WithSystem(ProfileSelection::kNone)
-              // ChromeOS creates various profiles (login, lock screen...) that
-              // do not display web content and thus do not need the
-              // accessibility labels service.
-              .WithAshInternals(ProfileSelection::kNone)
-              .Build()) {}
+          BrowserContextDependencyManager::GetInstance()) {}
 
 AccessibilityLabelsServiceFactory::~AccessibilityLabelsServiceFactory() {}
 
-KeyedService* AccessibilityLabelsServiceFactory::BuildServiceInstanceFor(
+content::BrowserContext*
+AccessibilityLabelsServiceFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
-  return new AccessibilityLabelsService(Profile::FromBrowserContext(context));
+  return chrome::GetBrowserContextRedirectedInIncognito(context);
+}
+
+KeyedService* AccessibilityLabelsServiceFactory::BuildServiceInstanceFor(
+    content::BrowserContext* profile) const {
+  return BuildInstanceFor(static_cast<Profile*>(profile));
 }

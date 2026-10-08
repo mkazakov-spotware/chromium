@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@
 #define GPU_COMMAND_BUFFER_COMMON_ACTIVITY_FLAGS_H_
 
 #include "base/atomicops.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/shared_memory_mapping.h"
-#include "base/memory/unsafe_shared_memory_region.h"
 #include "gpu/gpu_export.h"
+#include "mojo/public/cpp/system/buffer.h"
 
 namespace gpu {
 
@@ -24,16 +22,16 @@ class GPU_EXPORT ActivityFlagsBase {
   ActivityFlagsBase(ActivityFlagsBase&& other);
   ~ActivityFlagsBase();
 
-  void Initialize(base::UnsafeSharedMemoryRegion region);
-  const base::UnsafeSharedMemoryRegion& region() const { return region_; }
-  bool is_initialized() const { return region().IsValid(); }
+  void Initialize(mojo::ScopedSharedBufferHandle handle);
+  const mojo::SharedBufferHandle& handle() const { return handle_.get(); }
+  bool is_initialized() const { return handle().is_valid(); }
 
  protected:
   volatile base::subtle::Atomic32* AsAtomic();
 
  private:
-  base::UnsafeSharedMemoryRegion region_;
-  base::WritableSharedMemoryMapping mapping_;
+  mojo::ScopedSharedBufferHandle handle_;
+  mojo::ScopedSharedBufferMapping mapping_;
 };
 
 // Provides write-only access to activity flags for the gpu process. Each gpu
@@ -53,13 +51,13 @@ class GPU_EXPORT GpuProcessActivityFlags : public ActivityFlagsBase {
     ~ScopedSetFlag() { activity_flags_->UnsetFlag(flag_); }
 
    private:
-    raw_ptr<GpuProcessActivityFlags> activity_flags_;
+    GpuProcessActivityFlags* activity_flags_;
     Flag flag_;
   };
 
   GpuProcessActivityFlags();
   GpuProcessActivityFlags(GpuProcessActivityFlags&& other);
-  explicit GpuProcessActivityFlags(base::UnsafeSharedMemoryRegion region);
+  GpuProcessActivityFlags(mojo::ScopedSharedBufferHandle handle);
 
  private:
   void SetFlag(Flag flag);
@@ -75,7 +73,9 @@ class GPU_EXPORT GpuProcessHostActivityFlags : public ActivityFlagsBase {
   GpuProcessHostActivityFlags();
 
   bool IsFlagSet(Flag flag);
-  base::UnsafeSharedMemoryRegion CloneRegion() { return region().Duplicate(); }
+  mojo::ScopedSharedBufferHandle CloneHandle() {
+    return handle().Clone(mojo::SharedBufferHandle::AccessMode::READ_WRITE);
+  }
 };
 
 }  // namespace gpu

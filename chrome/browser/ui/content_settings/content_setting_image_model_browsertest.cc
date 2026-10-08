@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ IN_PROC_BROWSER_TEST_F(ContentSettingImageModelBrowserTest, CreateBubbleModel) {
       browser()->tab_strip_model()->GetActiveWebContents();
   content_settings::PageSpecificContentSettings* content_settings =
       content_settings::PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+          web_contents->GetMainFrame());
   content_settings->BlockAllContentForTesting();
 
   // Automatic downloads are handled by DownloadRequestLimiter.
@@ -48,8 +48,10 @@ IN_PROC_BROWSER_TEST_F(ContentSettingImageModelBrowserTest, CreateBubbleModel) {
           ImageType::COOKIES,
           ImageType::IMAGES,
           ImageType::JAVASCRIPT,
+          ImageType::PLUGINS,
           ImageType::POPUPS,
           ImageType::MIXEDSCRIPT,
+          ImageType::PPAPI_BROKER,
           ImageType::PROTOCOL_HANDLERS,
           ImageType::MIDI_SYSEX,
       };

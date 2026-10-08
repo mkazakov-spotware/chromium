@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "base/timer/timer.h"
@@ -37,10 +38,6 @@ class RemotingLogToServer : public LogToServer {
       ServerLogEntry::Mode mode,
       std::unique_ptr<OAuthTokenGetter> token_getter,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
-
-  RemotingLogToServer(const RemotingLogToServer&) = delete;
-  RemotingLogToServer& operator=(const RemotingLogToServer&) = delete;
-
   ~RemotingLogToServer() override;
 
   // LogToServer interface.
@@ -79,6 +76,8 @@ class RemotingLogToServer : public LogToServer {
   CreateLogEntryCallback create_log_entry_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(RemotingLogToServer);
 };
 
 }  // namespace remoting

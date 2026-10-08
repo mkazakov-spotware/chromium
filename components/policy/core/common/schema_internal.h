@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_POLICY_CORE_COMMON_SCHEMA_INTERNAL_H_
 #define COMPONENTS_POLICY_CORE_COMMON_SCHEMA_INTERNAL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "components/policy/policy_export.h"
 
@@ -133,14 +132,14 @@ union POLICY_EXPORT RestrictionNode {
 // Contains arrays of related nodes. All of the offsets in these nodes reference
 // other nodes in these arrays.
 struct POLICY_EXPORT SchemaData {
-  raw_ptr<const SchemaNode, DanglingUntriaged> schema_nodes;
-  raw_ptr<const PropertyNode, DanglingUntriaged> property_nodes;
-  raw_ptr<const PropertiesNode, DanglingUntriaged> properties_nodes;
-  raw_ptr<const RestrictionNode, DanglingUntriaged> restriction_nodes;
-  raw_ptr<const char* const, DanglingUntriaged> required_properties;
+  const SchemaNode* schema_nodes;
+  const PropertyNode* property_nodes;
+  const PropertiesNode* properties_nodes;
+  const RestrictionNode* restriction_nodes;
+  const char* const* required_properties;
 
-  raw_ptr<const int, DanglingUntriaged> int_enums;
-  raw_ptr<const char* const, DanglingUntriaged> string_enums;
+  const int* int_enums;
+  const char* const* string_enums;
   int validation_schema_root_index;
 };
 

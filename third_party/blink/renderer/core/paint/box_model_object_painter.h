@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,10 +34,11 @@ class BoxModelObjectPainter : public BoxPainterBase {
       const Color&,
       const FillLayer&,
       BackgroundBleedAvoidance,
-      bool is_painting_background_in_contents_space) const override;
+      bool is_painting_scrolling_background) const override;
+  bool IsPaintingScrollingBackground(const PaintInfo&) const override;
 
-  void PaintTextClipMask(const PaintInfo&,
-                         const gfx::Rect& mask_rect,
+  void PaintTextClipMask(GraphicsContext&,
+                         const IntRect& mask_rect,
                          const PhysicalOffset& paint_offset,
                          bool object_has_multiple_boxes) override;
   PhysicalRect AdjustRectForScrolledContent(

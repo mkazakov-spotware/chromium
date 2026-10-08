@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 
 #include "base/callback.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/background_fetch/background_fetch_data_manager_observer.h"
 #include "content/browser/background_fetch/background_fetch_event_dispatcher.h"
@@ -20,10 +20,6 @@
 #include "content/browser/service_worker/service_worker_context_core_observer.h"
 #include "content/common/content_export.h"
 #include "third_party/blink/public/mojom/background_fetch/background_fetch.mojom.h"
-
-namespace blink {
-class StorageKey;
-}  // namespace blink
 
 namespace content {
 
@@ -48,10 +44,6 @@ class CONTENT_EXPORT BackgroundFetchScheduler
       BackgroundFetchDelegateProxy* delegate_proxy,
       DevToolsBackgroundServicesContextImpl* devtools_context,
       scoped_refptr<ServiceWorkerContextWrapper> service_worker_context);
-
-  BackgroundFetchScheduler(const BackgroundFetchScheduler&) = delete;
-  BackgroundFetchScheduler& operator=(const BackgroundFetchScheduler&) = delete;
-
   ~BackgroundFetchScheduler() override;
 
   // Aborts the background fetch identified by |registration_id|.
@@ -69,8 +61,7 @@ class CONTENT_EXPORT BackgroundFetchScheduler
       blink::mojom::BackgroundFetchOptionsPtr options,
       const SkBitmap& icon,
       int num_requests,
-      bool start_paused,
-      net::IsolationInfo isolation_info) override;
+      bool start_paused) override;
   void OnRegistrationLoadedAtStartup(
       const BackgroundFetchRegistrationId& registration_id,
       const blink::mojom::BackgroundFetchRegistrationData& registration_data,
@@ -79,8 +70,7 @@ class CONTENT_EXPORT BackgroundFetchScheduler
       int num_completed_requests,
       int num_requests,
       std::vector<scoped_refptr<BackgroundFetchRequestInfo>>
-          active_fetch_requests,
-      absl::optional<net::IsolationInfo> isolation_info) override;
+          active_fetch_requests) override;
   void OnServiceWorkerDatabaseCorrupted(
       int64_t service_worker_registration_id) override;
   void OnRegistrationQueried(
@@ -93,8 +83,7 @@ class CONTENT_EXPORT BackgroundFetchScheduler
 
   // ServiceWorkerContextCoreObserver implementation.
   void OnRegistrationDeleted(int64_t registration_id,
-                             const GURL& pattern,
-                             const blink::StorageKey& key) override;
+                             const GURL& pattern) override;
   void OnStorageWiped() override;
 
  private:
@@ -126,8 +115,7 @@ class CONTENT_EXPORT BackgroundFetchScheduler
       int num_requests,
       std::vector<scoped_refptr<BackgroundFetchRequestInfo>>
           active_fetch_requests,
-      bool start_paused,
-      absl::optional<net::IsolationInfo> isolation_info);
+      bool start_paused);
 
   void DidStartRequest(const BackgroundFetchRegistrationId& registration_id,
                        const BackgroundFetchRequestInfo* request_info);
@@ -164,10 +152,10 @@ class CONTENT_EXPORT BackgroundFetchScheduler
       std::map<std::string, std::string> metadata = {});
 
   // Owned by BackgroundFetchContext.
-  raw_ptr<BackgroundFetchDataManager> data_manager_;
-  raw_ptr<BackgroundFetchRegistrationNotifier> registration_notifier_;
-  raw_ptr<BackgroundFetchDelegateProxy> delegate_proxy_;
-  raw_ptr<DevToolsBackgroundServicesContextImpl> devtools_context_;
+  BackgroundFetchDataManager* data_manager_;
+  BackgroundFetchRegistrationNotifier* registration_notifier_;
+  BackgroundFetchDelegateProxy* delegate_proxy_;
+  DevToolsBackgroundServicesContextImpl* devtools_context_;
 
   BackgroundFetchEventDispatcher event_dispatcher_;
 
@@ -208,6 +196,8 @@ class CONTENT_EXPORT BackgroundFetchScheduler
   int num_running_downloads_ = 0;
 
   base::WeakPtrFactory<BackgroundFetchScheduler> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchScheduler);
 };
 
 }  // namespace content

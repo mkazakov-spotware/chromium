@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "base/logging.h"
 #include "base/memory/free_deleter.h"
+#include "base/stl_util.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace extensions {
 namespace api {
@@ -26,7 +26,7 @@ namespace {
 // TODO(plundblad): Find a way to detect the controlling terminal of the
 // X server.
 static const int kDefaultTtyLinux = 7;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // The GUI is always running on vt1 in Chrome OS.
 static const int kDefaultTtyChromeOS = 1;
 #endif
@@ -40,7 +40,7 @@ class BrlapiConnectionImpl : public BrlapiConnection {
   BrlapiConnectionImpl& operator=(const BrlapiConnectionImpl&) = delete;
   ~BrlapiConnectionImpl() override { Disconnect(); }
 
-  ConnectResult Connect(OnDataReadyCallback on_data_ready) override;
+  ConnectResult Connect(const OnDataReadyCallback& on_data_ready) override;
   void Disconnect() override;
   bool Connected() override { return handle_ != nullptr; }
   brlapi_error_t* BrlapiError() override;
@@ -66,7 +66,7 @@ std::unique_ptr<BrlapiConnection> BrlapiConnection::Create(
 }
 
 BrlapiConnection::ConnectResult BrlapiConnectionImpl::Connect(
-    OnDataReadyCallback on_data_ready) {
+    const OnDataReadyCallback& on_data_ready) {
   DCHECK(!handle_);
   handle_.reset(reinterpret_cast<brlapi_handle_t*>(
       malloc(libbrlapi_loader_->brlapi_getHandleSize())));
@@ -79,7 +79,7 @@ BrlapiConnection::ConnectResult BrlapiConnectionImpl::Connect(
   }
   int path[2] = {0, 0};
   int pathElements = 0;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (base::SysInfo::IsRunningOnChromeOS())
     path[pathElements++] = kDefaultTtyChromeOS;
 #endif
@@ -117,14 +117,14 @@ BrlapiConnection::ConnectResult BrlapiConnectionImpl::Connect(
   };
   if (libbrlapi_loader_->brlapi__acceptKeys(handle_.get(),
                                             brlapi_rangeType_command, extraKeys,
-                                            std::size(extraKeys)) < 0) {
+                                            base::size(extraKeys)) < 0) {
     LOG(ERROR) << "Couldn't acceptKeys: " << BrlapiStrError();
     Disconnect();
     return CONNECT_ERROR_RETRY;
   }
 
   fd_controller_ =
-      base::FileDescriptorWatcher::WatchReadable(fd, std::move(on_data_ready));
+      base::FileDescriptorWatcher::WatchReadable(fd, on_data_ready);
 
   return CONNECT_SUCCESS;
 }

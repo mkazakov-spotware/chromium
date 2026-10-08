@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,9 @@
 
 namespace ash {
 
+namespace tray {
 class AccessibilityDetailedView;
+}
 
 // Controller for the detailed view of accessibility floating menu.
 class ASH_EXPORT FloatingAccessibilityDetailedController
@@ -37,14 +39,13 @@ class ASH_EXPORT FloatingAccessibilityDetailedController
   // DetailedViewDelegate:
   void CloseBubble() override;
   void TransitionToMainView(bool restore_focus) override;
-  std::u16string GetAccessibleNameForBubble() override;
+  base::string16 GetAccessibleNameForBubble() override;
 
   void OnAccessibilityStatusChanged();
 
  private:
   friend class FloatingAccessibilityControllerTest;
   class DetailedBubbleView;
-
   // DetailedViewDelegate:
   views::Button* CreateBackButton(
       views::Button::PressedCallback callback) override;
@@ -60,11 +61,11 @@ class ASH_EXPORT FloatingAccessibilityDetailedController
 
   DetailedBubbleView* bubble_view_ = nullptr;
   views::Widget* bubble_widget_ = nullptr;
-  AccessibilityDetailedView* detailed_view_ = nullptr;
+  tray::AccessibilityDetailedView* detailed_view_ = nullptr;
 
   Delegate* const delegate_;  // Owns us.
 };
 
 }  // namespace ash
 
-#endif  // ASH_SYSTEM_ACCESSIBILITY_FLOATING_ACCESSIBILITY_DETAILED_CONTROLLER_H_
+#endif  // ASH_SYSTEM_ACCESSIBILITY_FLOATING_ACCESSIBILITY_DETAILED_CONTROLLER_H

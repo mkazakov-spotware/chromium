@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/debug/dump_without_crashing.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
 #include "build/build_config.h"
 #include "chrome/common/importer/imported_bookmark_entry.h"
 #include "chrome/common/importer/importer_autofill_form_data_entry.h"
@@ -38,7 +38,7 @@ ExternalProcessImporterBridge::ExternalProcessImporterBridge(
 
 void ExternalProcessImporterBridge::AddBookmarks(
     const std::vector<ImportedBookmarkEntry>& bookmarks,
-    const std::u16string& first_folder_name) {
+    const base::string16& first_folder_name) {
   observer_->OnBookmarksImportStart(first_folder_name, bookmarks.size());
 
   // |bookmarks_left| is required for the checks below as Windows has a
@@ -152,7 +152,7 @@ void ExternalProcessImporterBridge::NotifyEnded() {
   observer_->OnImportFinished(true, std::string());
 }
 
-std::u16string ExternalProcessImporterBridge::GetLocalizedString(
+base::string16 ExternalProcessImporterBridge::GetLocalizedString(
     int message_id) {
   DCHECK(localized_strings_.count(message_id));
   return base::UTF8ToUTF16(localized_strings_[message_id]);

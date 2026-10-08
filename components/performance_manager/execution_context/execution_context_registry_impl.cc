@@ -1,12 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/performance_manager/execution_context/execution_context_registry_impl.h"
 
 #include "base/check.h"
-#include "base/memory/raw_ref.h"
-#include "base/observer_list.h"
 #include "components/performance_manager/execution_context/execution_context_impl.h"
 #include "components/performance_manager/public/execution_context/execution_context.h"
 #include "url/gurl.h"
@@ -36,7 +34,7 @@ class DummyExecutionContextForLookup : public ExecutionContext {
     return ExecutionContextType::kFrameNode;
   }
 
-  blink::ExecutionContextToken GetToken() const override { return *token_; }
+  blink::ExecutionContextToken GetToken() const override { return token_; }
 
   Graph* GetGraph() const override {
     NOTREACHED();
@@ -71,7 +69,7 @@ class DummyExecutionContextForLookup : public ExecutionContext {
   }
 
  private:
-  const raw_ref<const blink::ExecutionContextToken> token_;
+  const blink::ExecutionContextToken& token_;
 };
 
 }  // namespace
@@ -82,28 +80,9 @@ class DummyExecutionContextForLookup : public ExecutionContext {
 ExecutionContextRegistry::ExecutionContextRegistry() = default;
 
 ExecutionContextRegistry::~ExecutionContextRegistry() = default;
-
 // static
 ExecutionContextRegistry* ExecutionContextRegistry::GetFromGraph(Graph* graph) {
   return GraphRegisteredImpl<ExecutionContextRegistryImpl>::GetFromGraph(graph);
-}
-
-// static
-const ExecutionContext*
-ExecutionContextRegistry::GetExecutionContextForFrameNode(
-    const FrameNode* frame_node) {
-  auto* ec_registry = GetFromGraph(frame_node->GetGraph());
-  DCHECK(ec_registry);
-  return ec_registry->GetExecutionContextForFrameNodeImpl(frame_node);
-}
-
-// static
-const ExecutionContext*
-ExecutionContextRegistry::GetExecutionContextForWorkerNode(
-    const WorkerNode* worker_node) {
-  auto* ec_registry = GetFromGraph(worker_node->GetGraph());
-  DCHECK(ec_registry);
-  return ec_registry->GetExecutionContextForWorkerNodeImpl(worker_node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,20 +143,20 @@ const WorkerNode* ExecutionContextRegistryImpl::GetWorkerNodeByWorkerToken(
 }
 
 const ExecutionContext*
-ExecutionContextRegistryImpl::GetExecutionContextForFrameNodeImpl(
+ExecutionContextRegistryImpl::GetExecutionContextForFrameNode(
     const FrameNode* frame_node) {
   return GetOrCreateExecutionContextForFrameNode(frame_node);
 }
 
 const ExecutionContext*
-ExecutionContextRegistryImpl::GetExecutionContextForWorkerNodeImpl(
+ExecutionContextRegistryImpl::GetExecutionContextForWorkerNode(
     const WorkerNode* worker_node) {
   return GetOrCreateExecutionContextForWorkerNode(worker_node);
 }
 
 void ExecutionContextRegistryImpl::OnPassedToGraph(Graph* graph) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(graph->HasOnlySystemNode());
+  DCHECK(graph->IsEmpty());
   graph->RegisterObject(this);
   graph->AddFrameNodeObserver(this);
   graph->AddWorkerNodeObserver(this);

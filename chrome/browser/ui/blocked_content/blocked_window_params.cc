@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
 #include "url/gurl.h"
 
 BlockedWindowParams::BlockedWindowParams(
@@ -38,10 +37,9 @@ BlockedWindowParams::BlockedWindowParams(const BlockedWindowParams& other) =
 BlockedWindowParams::~BlockedWindowParams() = default;
 
 NavigateParams BlockedWindowParams::CreateNavigateParams(
-    content::RenderProcessHost* opener_process,
     content::WebContents* web_contents) const {
   GURL popup_url(target_url_);
-  opener_process->FilterURL(false, &popup_url);
+  web_contents->GetMainFrame()->GetProcess()->FilterURL(false, &popup_url);
   NavigateParams nav_params(
       Profile::FromBrowserContext(web_contents->GetBrowserContext()), popup_url,
       ui::PAGE_TRANSITION_LINK);
@@ -53,16 +51,16 @@ NavigateParams BlockedWindowParams::CreateNavigateParams(
   nav_params.is_renderer_initiated = true;
   nav_params.window_action = NavigateParams::SHOW_WINDOW;
   nav_params.user_gesture = user_gesture_;
-  nav_params.opened_by_another_window = !opener_suppressed_;
+  nav_params.created_with_opener = !opener_suppressed_;
   nav_params.window_bounds = web_contents->GetContainerBounds();
   if (features_.has_x)
-    nav_params.window_bounds.set_x(features_.bounds.x());
+    nav_params.window_bounds.set_x(features_.x);
   if (features_.has_y)
-    nav_params.window_bounds.set_y(features_.bounds.y());
+    nav_params.window_bounds.set_y(features_.y);
   if (features_.has_width)
-    nav_params.window_bounds.set_width(features_.bounds.width());
+    nav_params.window_bounds.set_width(features_.width);
   if (features_.has_height)
-    nav_params.window_bounds.set_height(features_.bounds.height());
+    nav_params.window_bounds.set_height(features_.height);
 
   nav_params.disposition = disposition_;
 

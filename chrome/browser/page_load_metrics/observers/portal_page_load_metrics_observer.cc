@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/navigation_entry.h"
-#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "services/metrics/public/cpp/metrics_utils.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
@@ -59,27 +58,6 @@ PortalPageLoadMetricsObserver::OnStart(
   navigation_start_ = navigation_handle->NavigationStart();
 
   return CONTINUE_OBSERVING;
-}
-
-page_load_metrics::PageLoadMetricsObserver::ObservePolicy
-PortalPageLoadMetricsObserver::OnPrerenderStart(
-    content::NavigationHandle* navigation_handle,
-    const GURL& currently_committed_url) {
-  // TODO(https://crbug.com/1271055): Prerender doesn't support combined use
-  // with Portals. So, there is no case to start with prerendering to monitor
-  // Portals related metrics.
-  DCHECK(!navigation_handle->GetWebContents()->IsPortal());
-  return STOP_OBSERVING;
-}
-
-page_load_metrics::PageLoadMetricsObserver::ObservePolicy
-PortalPageLoadMetricsObserver::OnFencedFramesStart(
-    content::NavigationHandle* navigation_handle,
-    const GURL& currently_committed_url) {
-  // FencedFrames can be created inside a Portal, but as this class is
-  // interested only in Portal pages, stop observing for such FencedFrame inner
-  // pages.
-  return STOP_OBSERVING;
 }
 
 PortalPageLoadMetricsObserver::ObservePolicy
@@ -161,7 +139,7 @@ void PortalPageLoadMetricsObserver::RecordTimingMetrics(
 }
 
 void PortalPageLoadMetricsObserver::ReportPortalActivatedPaint(
-    const absl::optional<base::TimeTicks>& portal_activated_paint) {
+    const base::Optional<base::TimeTicks>& portal_activated_paint) {
   portal_paint_time_ = portal_activated_paint;
 }
 

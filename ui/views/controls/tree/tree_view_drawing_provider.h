@@ -1,12 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_CONTROLS_TREE_TREE_VIEW_DRAWING_PROVIDER_H_
 #define UI_VIEWS_CONTROLS_TREE_TREE_VIEW_DRAWING_PROVIDER_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/views/views_export.h"
 
@@ -32,12 +31,10 @@ class VIEWS_EXPORT TreeViewDrawingProvider {
                                             ui::TreeModelNode* node);
   virtual SkColor GetTextColorForNode(TreeView* tree_view,
                                       ui::TreeModelNode* node);
-  virtual SkColor GetAuxiliaryTextColorForNode(TreeView* tree_view,
-                                               ui::TreeModelNode* node);
 
   // The auxiliary text for a node is descriptive text drawn on the trailing end
   // of the node's row in the treeview.
-  virtual std::u16string GetAuxiliaryTextForNode(TreeView* tree_view,
+  virtual base::string16 GetAuxiliaryTextForNode(TreeView* tree_view,
                                                  ui::TreeModelNode* node);
 
   // This method returns whether the icon for |node| should be drawn.

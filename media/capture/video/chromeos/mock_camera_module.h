@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 #include "base/threading/thread.h"
 #include "media/capture/video/chromeos/mojom/camera3.mojom.h"
 #include "media/capture/video/chromeos/mojom/camera_common.mojom.h"
-#include "mojo/public/cpp/bindings/associated_remote.h"
-#include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -26,10 +24,7 @@ class MockCameraModule : public cros::mojom::CameraModule {
  public:
   MockCameraModule();
 
-  MockCameraModule(const MockCameraModule&) = delete;
-  MockCameraModule& operator=(const MockCameraModule&) = delete;
-
-  ~MockCameraModule() override;
+  ~MockCameraModule();
 
   void OpenDevice(
       int32_t camera_id,
@@ -77,14 +72,6 @@ class MockCameraModule : public cros::mojom::CameraModule {
                         vendor_tag_ops_receiver,
                     GetVendorTagOpsCallback& callback));
 
-  void SetCallbacksAssociated(mojo::PendingAssociatedRemote<
-                                  cros::mojom::CameraModuleCallbacks> callbacks,
-                              SetCallbacksAssociatedCallback callback) override;
-  MOCK_METHOD2(DoSetCallbacksAssociated,
-               void(mojo::PendingAssociatedRemote<
-                        cros::mojom::CameraModuleCallbacks>& callbacks,
-                    SetCallbacksAssociatedCallback& callback));
-
   void NotifyCameraDeviceChange(int camera_id,
                                 cros::mojom::CameraDeviceStatus status);
 
@@ -102,7 +89,9 @@ class MockCameraModule : public cros::mojom::CameraModule {
 
   base::Thread mock_module_thread_;
   mojo::Receiver<cros::mojom::CameraModule> receiver_{this};
-  mojo::AssociatedRemote<cros::mojom::CameraModuleCallbacks> callbacks_;
+  mojo::Remote<cros::mojom::CameraModuleCallbacks> callbacks_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockCameraModule);
 };
 
 }  // namespace unittest_internal

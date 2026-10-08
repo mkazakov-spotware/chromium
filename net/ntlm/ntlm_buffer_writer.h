@@ -1,9 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef NET_NTLM_NTLM_BUFFER_WRITER_H_
-#define NET_NTLM_NTLM_BUFFER_WRITER_H_
+#ifndef NET_BASE_NTLM_BUFFER_WRITER_H_
+#define NET_BASE_NTLM_BUFFER_WRITER_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -12,11 +12,13 @@
 #include <string>
 
 #include "base/containers/span.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "net/base/net_export.h"
 #include "net/ntlm/ntlm_constants.h"
 
-namespace net::ntlm {
+namespace net {
+namespace ntlm {
 
 // Supports various bounds checked low level buffer operations required by an
 // NTLM implementation.
@@ -43,10 +45,6 @@ namespace net::ntlm {
 class NET_EXPORT_PRIVATE NtlmBufferWriter {
  public:
   explicit NtlmBufferWriter(size_t buffer_len);
-
-  NtlmBufferWriter(const NtlmBufferWriter&) = delete;
-  NtlmBufferWriter& operator=(const NtlmBufferWriter&) = delete;
-
   ~NtlmBufferWriter();
 
   size_t GetLength() const { return buffer_.size(); }
@@ -61,26 +59,26 @@ class NET_EXPORT_PRIVATE NtlmBufferWriter {
 
   // Writes a 16 bit unsigned value (little endian). If there are not 16
   // more bits available in the buffer, it returns false.
-  [[nodiscard]] bool WriteUInt16(uint16_t value);
+  bool WriteUInt16(uint16_t value) WARN_UNUSED_RESULT;
 
   // Writes a 32 bit unsigned value (little endian). If there are not 32
   // more bits available in the buffer, it returns false.
-  [[nodiscard]] bool WriteUInt32(uint32_t value);
+  bool WriteUInt32(uint32_t value) WARN_UNUSED_RESULT;
 
   // Writes a 64 bit unsigned value (little endian). If there are not 64
   // more bits available in the buffer, it returns false.
-  [[nodiscard]] bool WriteUInt64(uint64_t value);
+  bool WriteUInt64(uint64_t value) WARN_UNUSED_RESULT;
 
   // Writes flags as a 32 bit unsigned value (little endian).
-  [[nodiscard]] bool WriteFlags(NegotiateFlags flags);
+  bool WriteFlags(NegotiateFlags flags) WARN_UNUSED_RESULT;
 
   // Writes the bytes from the |buffer|. If there are not enough
   // bytes in the buffer, it returns false.
-  [[nodiscard]] bool WriteBytes(base::span<const uint8_t> buffer);
+  bool WriteBytes(base::span<const uint8_t> buffer) WARN_UNUSED_RESULT;
 
   // Writes |count| bytes of zeros to the buffer. If there are not |count|
   // more bytes in available in the buffer, it returns false.
-  [[nodiscard]] bool WriteZeros(size_t count);
+  bool WriteZeros(size_t count) WARN_UNUSED_RESULT;
 
   // A security buffer is an 8 byte structure that defines the offset and
   // length of a payload (string, struct, or byte array) that appears after
@@ -90,37 +88,38 @@ class NET_EXPORT_PRIVATE NtlmBufferWriter {
   //     uint16 - |length| Length of payload
   //     uint16 - Allocation (ignored and always set to |length|)
   //     uint32 - |offset| Offset from start of message
-  [[nodiscard]] bool WriteSecurityBuffer(SecurityBuffer sec_buf);
+  bool WriteSecurityBuffer(SecurityBuffer sec_buf) WARN_UNUSED_RESULT;
 
   // Writes an AvPair header. See [MS-NLMP] Section 2.2.2.1.
   //
   // The header has the following structure:
   //    uint16 - |avid| The identifier of the following payload.
   //    uint16 - |avlen| The length of the following payload.
-  [[nodiscard]] bool WriteAvPairHeader(TargetInfoAvId avid, uint16_t avlen);
+  bool WriteAvPairHeader(TargetInfoAvId avid,
+                         uint16_t avlen) WARN_UNUSED_RESULT;
 
   // Writes an AvPair header for an |AvPair|. See [MS-NLMP] Section 2.2.2.1.
-  [[nodiscard]] bool WriteAvPairHeader(const AvPair& pair) {
+  bool WriteAvPairHeader(const AvPair& pair) WARN_UNUSED_RESULT {
     return WriteAvPairHeader(pair.avid, pair.avlen);
   }
 
   // Writes a special AvPair header with both fields equal to 0. This zero
   // length AvPair signals the end of the AvPair list.
-  [[nodiscard]] bool WriteAvPairTerminator();
+  bool WriteAvPairTerminator() WARN_UNUSED_RESULT;
 
   // Writes an |AvPair| header and its payload to the buffer. If the |avid|
   // is of type |TargetInfoAvId::kFlags| the |flags| field of |pair| will be
   // used as the payload and the |buffer| field is ignored. In all other cases
   // |buffer| is used as the payload. See also
   // |NtlmBufferReader::ReadTargetInfo|.
-  [[nodiscard]] bool WriteAvPair(const AvPair& pair);
+  bool WriteAvPair(const AvPair& pair) WARN_UNUSED_RESULT;
 
   // Writes a string of 8 bit characters to the buffer.
   //
   // When Unicode was not negotiated only the hostname string will go through
   // this code path. The 8 bit bytes of the hostname are written to the buffer.
   // The encoding is not relevant.
-  [[nodiscard]] bool WriteUtf8String(const std::string& str);
+  bool WriteUtf8String(const std::string& str) WARN_UNUSED_RESULT;
 
   // Converts the 16 bit characters to UTF8 and writes the resulting 8 bit
   // characters.
@@ -130,7 +129,7 @@ class NET_EXPORT_PRIVATE NtlmBufferWriter {
   // input to hash the encoding doesn't matter. In practice, only a very old or
   // non-Windows server might trigger this code path since we always attempt
   // to negotiate Unicode and servers are supposed to honor that request.
-  [[nodiscard]] bool WriteUtf16AsUtf8String(const std::u16string& str);
+  bool WriteUtf16AsUtf8String(const base::string16& str) WARN_UNUSED_RESULT;
 
   // Treats |str| as UTF8, converts to UTF-16 and writes it with little-endian
   // byte order to the buffer.
@@ -144,24 +143,24 @@ class NET_EXPORT_PRIVATE NtlmBufferWriter {
   // The other case is the Service Principal Name (SPN). With Extended
   // Protection for Authentication (EPA) enabled, it appears in the target info
   // inside an AV Pair, where strings always have 16-bit characters.
-  [[nodiscard]] bool WriteUtf8AsUtf16String(const std::string& str);
+  bool WriteUtf8AsUtf16String(const std::string& str) WARN_UNUSED_RESULT;
 
   // Writes UTF-16 LE characters to the buffer. For these strings, such as
   // username and the domain the actual encoding isn't important; they are just
   // treated as additional bytes of input to the hash.
-  [[nodiscard]] bool WriteUtf16String(const std::u16string& str);
+  bool WriteUtf16String(const base::string16& str) WARN_UNUSED_RESULT;
 
   // Writes the 8 byte NTLM signature "NTLMSSP\0" into the buffer.
-  [[nodiscard]] bool WriteSignature();
+  bool WriteSignature() WARN_UNUSED_RESULT;
 
   // There are 3 message types Negotiate (sent by client), Challenge (sent by
   // server), and Authenticate (sent by client).
   //
   // This writes |message_type| as a uint32_t into the buffer.
-  [[nodiscard]] bool WriteMessageType(MessageType message_type);
+  bool WriteMessageType(MessageType message_type) WARN_UNUSED_RESULT;
 
   // Performs |WriteSignature| then |WriteMessageType|.
-  [[nodiscard]] bool WriteMessageHeader(MessageType message_type);
+  bool WriteMessageHeader(MessageType message_type) WARN_UNUSED_RESULT;
 
  private:
   // Writes |sizeof(T)| bytes little-endian of an integer type to the buffer.
@@ -187,9 +186,12 @@ class NET_EXPORT_PRIVATE NtlmBufferWriter {
   uint8_t* GetBufferPtrAtCursor() { return GetBufferPtr() + GetCursor(); }
 
   std::vector<uint8_t> buffer_;
-  size_t cursor_ = 0;
+  size_t cursor_;
+
+  DISALLOW_COPY_AND_ASSIGN(NtlmBufferWriter);
 };
 
-}  // namespace net::ntlm
+}  // namespace ntlm
+}  // namespace net
 
-#endif  // NET_NTLM_NTLM_BUFFER_WRITER_H_
+#endif  // NET_BASE_NTLM_BUFFER_WRITER_H_

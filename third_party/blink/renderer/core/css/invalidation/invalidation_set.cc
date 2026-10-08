@@ -33,10 +33,10 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
+#include "third_party/blink/renderer/core/style/data_equivalency.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/traced_value.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
@@ -82,10 +82,10 @@ bool InvalidationSet::operator==(const InvalidationSet& other) const {
     const auto& other_sibling = To<SiblingInvalidationSet>(other);
     if ((this_sibling.MaxDirectAdjacentSelectors() !=
          other_sibling.MaxDirectAdjacentSelectors()) ||
-        !base::ValuesEquivalent(this_sibling.Descendants(),
-                                other_sibling.Descendants()) ||
-        !base::ValuesEquivalent(this_sibling.SiblingDescendants(),
-                                other_sibling.SiblingDescendants())) {
+        !DataEquivalent(this_sibling.Descendants(),
+                        other_sibling.Descendants()) ||
+        !DataEquivalent(this_sibling.SiblingDescendants(),
+                        other_sibling.SiblingDescendants())) {
       return false;
     }
   }
@@ -300,28 +300,28 @@ StringImpl* InvalidationSet::FindAnyAttribute(Element& element) const {
 void InvalidationSet::AddClass(const AtomicString& class_name) {
   if (WholeSubtreeInvalid())
     return;
-  CHECK(!class_name.empty());
+  CHECK(!class_name.IsEmpty());
   classes_.Add(backing_flags_, class_name);
 }
 
 void InvalidationSet::AddId(const AtomicString& id) {
   if (WholeSubtreeInvalid())
     return;
-  CHECK(!id.empty());
+  CHECK(!id.IsEmpty());
   ids_.Add(backing_flags_, id);
 }
 
 void InvalidationSet::AddTagName(const AtomicString& tag_name) {
   if (WholeSubtreeInvalid())
     return;
-  CHECK(!tag_name.empty());
+  CHECK(!tag_name.IsEmpty());
   tag_names_.Add(backing_flags_, tag_name);
 }
 
 void InvalidationSet::AddAttribute(const AtomicString& attribute) {
   if (WholeSubtreeInvalid())
     return;
-  CHECK(!attribute.empty());
+  CHECK(!attribute.IsEmpty());
   attributes_.Add(backing_flags_, attribute);
 }
 
@@ -365,40 +365,64 @@ InvalidationSet* InvalidationSet::PartInvalidationSet() {
   return singleton_;
 }
 
-void InvalidationSet::WriteIntoTrace(perfetto::TracedValue context) const {
-  auto dict = std::move(context).WriteDictionary();
+void InvalidationSet::ToTracedValue(TracedValue* value) const {
+  value->BeginDictionary();
 
-  dict.Add("id", DescendantInvalidationSetToIdString(*this));
+  value->SetString("id", DescendantInvalidationSetToIdString(*this));
 
   if (invalidation_flags_.WholeSubtreeInvalid())
-    dict.Add("allDescendantsMightBeInvalid", true);
+    value->SetBoolean("allDescendantsMightBeInvalid", true);
   if (invalidation_flags_.InvalidateCustomPseudo())
-    dict.Add("customPseudoInvalid", true);
+    value->SetBoolean("customPseudoInvalid", true);
   if (invalidation_flags_.TreeBoundaryCrossing())
-    dict.Add("treeBoundaryCrossing", true);
+    value->SetBoolean("treeBoundaryCrossing", true);
   if (invalidation_flags_.InsertionPointCrossing())
-    dict.Add("insertionPointCrossing", true);
+    value->SetBoolean("insertionPointCrossing", true);
   if (invalidation_flags_.InvalidatesSlotted())
-    dict.Add("invalidatesSlotted", true);
+    value->SetBoolean("invalidatesSlotted", true);
   if (invalidation_flags_.InvalidatesParts())
-    dict.Add("invalidatesParts", true);
+    value->SetBoolean("invalidatesParts", true);
 
   if (HasIds()) {
-    dict.Add("ids", Ids());
+    value->BeginArray("ids");
+    for (const auto& id : Ids())
+      value->PushString(id);
+    value->EndArray();
   }
 
   if (HasClasses()) {
-    dict.Add("classes", Classes());
+    value->BeginArray("classes");
+    for (const auto& class_name : Classes())
+      value->PushString(class_name);
+    value->EndArray();
   }
 
   if (HasTagNames()) {
-    dict.Add("tagNames", TagNames());
+    value->BeginArray("tagNames");
+    for (const auto& tag_name : TagNames())
+      value->PushString(tag_name);
+    value->EndArray();
   }
 
   if (HasAttributes()) {
-    dict.Add("attributes", Attributes());
+    value->BeginArray("attributes");
+    for (const auto& attribute : Attributes())
+      value->PushString(attribute);
+    value->EndArray();
   }
+
+  value->EndDictionary();
 }
+
+#ifndef NDEBUG
+void InvalidationSet::Show() const {
+  TracedValueJSON value;
+  value.BeginArray("InvalidationSet");
+  ToTracedValue(&value);
+  value.EndArray();
+  LOG(ERROR) << value.ToJSON().Ascii();
+}
+#endif  // NDEBUG
 
 String InvalidationSet::ToString() const {
   auto format_backing = [](auto range, const char* prefix, const char* suffix) {
@@ -410,14 +434,14 @@ String InvalidationSet::ToString() const {
     std::sort(names.begin(), names.end(), WTF::CodeUnitCompareLessThan);
 
     for (const auto& name : names) {
-      if (!builder.empty())
+      if (!builder.IsEmpty())
         builder.Append(" ");
       builder.Append(prefix);
       builder.Append(name);
       builder.Append(suffix);
     }
 
-    return builder.ReleaseString();
+    return builder.ToString();
   };
 
   StringBuilder features;
@@ -425,15 +449,15 @@ String InvalidationSet::ToString() const {
   if (HasIds())
     features.Append(format_backing(Ids(), "#", ""));
   if (HasClasses()) {
-    features.Append(!features.empty() ? " " : "");
+    features.Append(!features.IsEmpty() ? " " : "");
     features.Append(format_backing(Classes(), ".", ""));
   }
   if (HasTagNames()) {
-    features.Append(!features.empty() ? " " : "");
+    features.Append(!features.IsEmpty() ? " " : "");
     features.Append(format_backing(TagNames(), "", ""));
   }
   if (HasAttributes()) {
-    features.Append(!features.empty() ? " " : "");
+    features.Append(!features.IsEmpty() ? " " : "");
     features.Append(format_backing(Attributes(), "[", "]"));
   }
 
@@ -461,17 +485,17 @@ String InvalidationSet::ToString() const {
 
   StringBuilder main;
   main.Append("{");
-  if (!features.empty()) {
+  if (!features.IsEmpty()) {
     main.Append(" ");
     main.Append(features);
   }
-  if (!metadata.empty()) {
+  if (!metadata.IsEmpty()) {
     main.Append(" ");
     main.Append(metadata);
   }
   main.Append(" }");
 
-  return main.ReleaseString();
+  return main.ToString();
 }
 
 SiblingInvalidationSet::SiblingInvalidationSet(

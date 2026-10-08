@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "mojo/public/c/system/types.h"
 #include "mojo/public/cpp/system/handle_signals_state.h"
 #include "mojo/public/cpp/system/system_export.h"
@@ -88,12 +89,8 @@ class MOJO_CPP_SYSTEM_EXPORT SimpleWatcher {
   SimpleWatcher(const base::Location& from_here,
                 ArmingPolicy arming_policy,
                 scoped_refptr<base::SequencedTaskRunner> runner =
-                    base::SequencedTaskRunner::GetCurrentDefault(),
+                    base::SequencedTaskRunnerHandle::Get(),
                 const char* handler_tag = nullptr);
-
-  SimpleWatcher(const SimpleWatcher&) = delete;
-  SimpleWatcher& operator=(const SimpleWatcher&) = delete;
-
   ~SimpleWatcher();
 
   // Indicates if the SimpleWatcher is currently watching a handle.
@@ -206,7 +203,7 @@ class MOJO_CPP_SYSTEM_EXPORT SimpleWatcher {
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   // Whether |task_runner_| is the same as
-  // base::SequencedTaskRunner::GetCurrentDefault() for the thread.
+  // base::SequencedTaskRunnerHandle::Get() for the thread.
   const bool is_default_task_runner_;
 
   ScopedTrapHandle trap_handle_;
@@ -232,6 +229,8 @@ class MOJO_CPP_SYSTEM_EXPORT SimpleWatcher {
   const char* handler_tag_ = nullptr;
 
   base::WeakPtrFactory<SimpleWatcher> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleWatcher);
 };
 
 }  // namespace mojo

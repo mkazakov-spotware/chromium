@@ -1,15 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_UI_INFOBARS_TEST_INFOBAR_DELEGATE_H_
 #define IOS_CHROME_BROWSER_UI_INFOBARS_TEST_INFOBAR_DELEGATE_H_
 
-#include <CoreFoundation/CoreFoundation.h>
-
 #include "components/infobars/core/confirm_infobar_delegate.h"
 
-// An infobar that displays `infobar_message` and one button.
+// An infobar that displays |infobar_message| and one button.
 class TestInfoBarDelegate : public ConfirmInfoBarDelegate {
  public:
   explicit TestInfoBarDelegate(NSString* infobar_message);
@@ -19,7 +17,7 @@ class TestInfoBarDelegate : public ConfirmInfoBarDelegate {
   // InfoBarDelegate implementation.
   InfoBarIdentifier GetIdentifier() const override;
   // ConfirmInfoBarDelegate implementation.
-  std::u16string GetMessageText() const override;
+  base::string16 GetMessageText() const override;
   int GetButtons() const override;
 
  private:

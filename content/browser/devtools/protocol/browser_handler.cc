@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <string.h>
 #include <algorithm>
-#include <memory>
 
 #include "base/command_line.h"
 #include "base/metrics/histogram_base.h"
@@ -15,33 +14,25 @@
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "components/download/public/common/download_item.h"
-#include "content/browser/devtools/browser_devtools_agent_host.h"
 #include "content/browser/devtools/devtools_manager.h"
 #include "content/browser/devtools/protocol/devtools_download_manager_delegate.h"
 #include "content/browser/gpu/gpu_process_host.h"
 #include "content/browser/permissions/permission_controller_impl.h"
-#include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/devtools_agent_host.h"
-#include "content/public/browser/download_item_utils.h"
+#include "content/public/browser/permission_type.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/user_agent.h"
-#include "net/base/filename_util.h"
-#include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "url/gurl.h"
 #include "v8/include/v8-version-string.h"
-
-using blink::PermissionType;
 
 namespace content {
 namespace protocol {
 
 BrowserHandler::BrowserHandler(bool allow_set_download_behavior)
     : DevToolsDomainHandler(Browser::Metainfo::domainName),
-      download_events_enabled_(false),
       allow_set_download_behavior_(allow_set_download_behavior) {}
 
 BrowserHandler::~BrowserHandler() = default;
@@ -81,13 +72,11 @@ Response BrowserHandler::Disable() {
     }
   }
   contexts_with_overridden_downloads_.clear();
-  SetDownloadEventsEnabled(false);
 
   return Response::Success();
 }
 
 void BrowserHandler::Wire(UberDispatcher* dispatcher) {
-  frontend_ = std::make_unique<Browser::Frontend>(dispatcher->channel());
   Browser::Dispatcher::wire(dispatcher, this);
 }
 
@@ -97,7 +86,7 @@ Response BrowserHandler::GetVersion(std::string* protocol_version,
                                     std::string* user_agent,
                                     std::string* js_version) {
   *protocol_version = DevToolsAgentHost::GetProtocolVersion();
-  *revision = GetChromiumGitRevision();
+  *revision = GetWebKitRevision();
   *product = GetContentClient()->browser()->GetProduct();
   *user_agent = GetContentClient()->browser()->GetUserAgent();
   *js_version = V8_VERSION_STRING;
@@ -113,8 +102,6 @@ std::unique_ptr<Browser::Histogram> Convert(base::HistogramBase& in_histogram,
   if (!in_delta) {
     in_buckets = in_histogram.SnapshotSamples();
   } else {
-    // TODO(crbug/1377433): Remove this call, as SnapshotDelta() should not be
-    // called outside the metrics collection system.
     in_buckets = in_histogram.SnapshotDelta();
   }
   DCHECK(in_buckets);
@@ -209,13 +196,9 @@ Response PermissionDescriptorToPermissionType(
   } else if (name == "nfc") {
     *permission_type = PermissionType::NFC;
   } else if (name == "window-placement") {
-    *permission_type = PermissionType::WINDOW_MANAGEMENT;
-  } else if (name == "local-fonts") {
-    *permission_type = PermissionType::LOCAL_FONTS;
-  } else if (name == "display-capture") {
-    *permission_type = PermissionType::DISPLAY_CAPTURE;
-  } else if (name == "storage-access") {
-    *permission_type = PermissionType::STORAGE_ACCESS_GRANT;
+    *permission_type = PermissionType::WINDOW_PLACEMENT;
+  } else if (name == "font-access") {
+    *permission_type = PermissionType::FONT_ACCESS;
   } else {
     return Response::InvalidParams("Invalid PermissionDescriptor name: " +
                                    name);
@@ -249,6 +232,8 @@ Response FromProtocolPermissionType(
     *out_type = PermissionType::CAMERA_PAN_TILT_ZOOM;
   } else if (type == protocol::Browser::PermissionTypeEnum::BackgroundSync) {
     *out_type = PermissionType::BACKGROUND_SYNC;
+  } else if (type == protocol::Browser::PermissionTypeEnum::Flash) {
+    *out_type = PermissionType::FLASH;
   } else if (type == protocol::Browser::PermissionTypeEnum::Sensors) {
     *out_type = PermissionType::SENSORS;
   } else if (type ==
@@ -275,14 +260,6 @@ Response FromProtocolPermissionType(
     *out_type = PermissionType::WAKE_LOCK_SYSTEM;
   } else if (type == protocol::Browser::PermissionTypeEnum::Nfc) {
     *out_type = PermissionType::NFC;
-  } else if (type == protocol::Browser::PermissionTypeEnum::WindowManagement) {
-    *out_type = PermissionType::WINDOW_MANAGEMENT;
-  } else if (type == protocol::Browser::PermissionTypeEnum::LocalFonts) {
-    *out_type = PermissionType::LOCAL_FONTS;
-  } else if (type == protocol::Browser::PermissionTypeEnum::DisplayCapture) {
-    *out_type = PermissionType::DISPLAY_CAPTURE;
-  } else if (type == protocol::Browser::PermissionTypeEnum::StorageAccess) {
-    *out_type = PermissionType::STORAGE_ACCESS_GRANT;
   } else {
     return Response::InvalidParams("Unknown permission type: " + type);
   }
@@ -296,6 +273,8 @@ Response PermissionSettingToPermissionStatus(
     *out_status = blink::mojom::PermissionStatus::GRANTED;
   } else if (setting == protocol::Browser::PermissionSettingEnum::Denied) {
     *out_status = blink::mojom::PermissionStatus::DENIED;
+  } else if (setting == protocol::Browser::PermissionSettingEnum::Prompt) {
+    *out_status = blink::mojom::PermissionStatus::ASK;
   } else {
     return Response::InvalidParams("Unknown permission setting: " + setting);
   }
@@ -350,12 +329,6 @@ Response BrowserHandler::FindBrowserContext(
                                  context_id);
 }
 
-// static
-std::vector<BrowserHandler*> BrowserHandler::ForAgentHost(
-    DevToolsAgentHostImpl* host) {
-  return host->HandlersByName<BrowserHandler>(Browser::Metainfo::domainName);
-}
-
 Response BrowserHandler::SetPermission(
     std::unique_ptr<protocol::Browser::PermissionDescriptor> permission,
     const protocol::Browser::PermissionSetting& setting,
@@ -381,7 +354,7 @@ Response BrowserHandler::SetPermission(
   PermissionControllerImpl* permission_controller =
       PermissionControllerImpl::FromBrowserContext(browser_context);
 
-  absl::optional<url::Origin> overridden_origin;
+  base::Optional<url::Origin> overridden_origin;
   if (origin.isJust()) {
     overridden_origin = url::Origin::Create(GURL(origin.fromJust()));
     if (overridden_origin->opaque())
@@ -422,7 +395,7 @@ Response BrowserHandler::GrantPermissions(
 
   PermissionControllerImpl* permission_controller =
       PermissionControllerImpl::FromBrowserContext(browser_context);
-  absl::optional<url::Origin> overridden_origin;
+  base::Optional<url::Origin> overridden_origin;
   if (origin.isJust()) {
     overridden_origin = url::Origin::Create(GURL(origin.fromJust()));
     if (overridden_origin->opaque())
@@ -458,18 +431,13 @@ Response BrowserHandler::ResetPermissions(
 Response BrowserHandler::SetDownloadBehavior(
     const std::string& behavior,
     Maybe<std::string> browser_context_id,
-    Maybe<std::string> download_path,
-    Maybe<bool> events_enabled) {
+    Maybe<std::string> download_path) {
   BrowserContext* browser_context = nullptr;
   Response response = FindBrowserContext(browser_context_id, &browser_context);
   if (!response.IsSuccess())
     return response;
-  response = DoSetDownloadBehavior(behavior, browser_context,
-                                   std::move(download_path));
-  if (!response.IsSuccess())
-    return response;
-  SetDownloadEventsEnabled(events_enabled.fromMaybe(false));
-  return response;
+  return DoSetDownloadBehavior(behavior, browser_context,
+                               std::move(download_path));
 }
 
 Response BrowserHandler::DoSetDownloadBehavior(
@@ -515,24 +483,6 @@ Response BrowserHandler::DoSetDownloadBehavior(
   return Response::Success();
 }
 
-Response BrowserHandler::CancelDownload(const std::string& guid,
-                                        Maybe<std::string> browser_context_id) {
-  BrowserContext* browser_context = nullptr;
-  Response response = FindBrowserContext(browser_context_id, &browser_context);
-  if (!response.IsSuccess())
-    return response;
-  auto* delegate =
-      DevToolsDownloadManagerDelegate::GetOrCreateInstance(browser_context);
-  auto* download_item = delegate->GetDownloadByGuid(guid);
-  if (!download_item)
-    return Response::InvalidParams("No download item found for the given GUID");
-  // DownloadItem::Cancel is implemented in a soft way, where there would be no
-  // error triggered if the state is not suitable for cancallation (e.g.
-  // already cancelled or finished).
-  download_item->Cancel(true);
-  return Response::Success();
-}
-
 Response BrowserHandler::GetHistogram(
     const std::string& in_name,
     const Maybe<bool> in_delta,
@@ -558,8 +508,8 @@ Response BrowserHandler::GetBrowserCommandLine(
   // contains kEnableAutomation.
   if (command_line->HasSwitch(switches::kEnableAutomation)) {
     for (const auto& arg : command_line->argv()) {
-#if BUILDFLAG(IS_WIN)
-      (*arguments)->emplace_back(base::WideToUTF8(arg));
+#if defined(OS_WIN)
+      (*arguments)->emplace_back(base::UTF16ToUTF8(arg));
 #else
       (*arguments)->emplace_back(arg);
 #endif
@@ -577,66 +527,12 @@ Response BrowserHandler::Crash() {
 }
 
 Response BrowserHandler::CrashGpuProcess() {
-  GpuProcessHost::CallOnIO(FROM_HERE, GPU_PROCESS_KIND_SANDBOXED,
-                           false /* force_create */,
+  GpuProcessHost::CallOnIO(GPU_PROCESS_KIND_SANDBOXED, false /* force_create */,
                            base::BindOnce([](GpuProcessHost* host) {
                              if (host)
                                host->gpu_service()->Crash();
                            }));
   return Response::Success();
-}
-
-void BrowserHandler::OnDownloadUpdated(download::DownloadItem* item) {
-  std::string state;
-  switch (item->GetState()) {
-    case download::DownloadItem::IN_PROGRESS:
-      state = Browser::DownloadProgress::StateEnum::InProgress;
-      break;
-    case download::DownloadItem::COMPLETE:
-      state = Browser::DownloadProgress::StateEnum::Completed;
-      break;
-    case download::DownloadItem::CANCELLED:
-    case download::DownloadItem::INTERRUPTED:
-      state = Browser::DownloadProgress::StateEnum::Canceled;
-      break;
-    case download::DownloadItem::MAX_DOWNLOAD_STATE:
-      NOTREACHED();
-  }
-  frontend_->DownloadProgress(item->GetGuid(), item->GetTotalBytes(),
-                              item->GetReceivedBytes(), state);
-  if (state != Browser::DownloadProgress::StateEnum::InProgress) {
-    item->RemoveObserver(this);
-    pending_downloads_.erase(item);
-  }
-}
-
-void BrowserHandler::OnDownloadDestroyed(download::DownloadItem* item) {
-  pending_downloads_.erase(item);
-}
-
-void BrowserHandler::DownloadWillBegin(FrameTreeNode* ftn,
-                                       download::DownloadItem* item) {
-  if (!download_events_enabled_)
-    return;
-  const std::u16string likely_filename = net::GetSuggestedFilename(
-      item->GetURL(), item->GetContentDisposition(), std::string(),
-      item->GetSuggestedFilename(), item->GetMimeType(), "download");
-
-  frontend_->DownloadWillBegin(
-      ftn->current_frame_host()->devtools_frame_token().ToString(),
-      item->GetGuid(), item->GetURL().spec(),
-      base::UTF16ToUTF8(likely_filename));
-  item->AddObserver(this);
-  pending_downloads_.insert(item);
-}
-
-void BrowserHandler::SetDownloadEventsEnabled(bool enabled) {
-  if (!enabled) {
-    for (auto* item : pending_downloads_)
-      item->RemoveObserver(this);
-    pending_downloads_.clear();
-  }
-  download_events_enabled_ = enabled;
 }
 
 }  // namespace protocol

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <memory>
 #include <string>
+
+#include "base/macros.h"
 
 namespace metrics {
 
@@ -34,9 +36,6 @@ class MetricSample {
                const int min,
                const int max,
                const int bucket_count);
-
-  MetricSample(const MetricSample&) = delete;
-  MetricSample& operator=(const MetricSample&) = delete;
 
   ~MetricSample();
 
@@ -114,6 +113,8 @@ class MetricSample {
   const int min_;
   const int max_;
   const int bucket_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricSample);
 };
 
 }  // namespace metrics

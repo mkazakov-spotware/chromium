@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,14 +16,12 @@
 
 #include <sys/types.h>
 
-#include <iterator>
-
-#include "build/build_config.h"
+#include "base/stl_util.h"
 #include "gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <pthread.h>
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
 namespace crashpad {
 namespace test {
@@ -62,50 +60,50 @@ TEST(Semaphore, TimedWaitInfinite_1) {
 }
 
 struct ThreadMainInfo {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   pthread_t pthread;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   HANDLE thread;
 #endif
   Semaphore* semaphore;
   size_t iterations;
 };
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 void*
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 DWORD WINAPI
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 ThreadMain(void* argument) {
   ThreadMainInfo* info = reinterpret_cast<ThreadMainInfo*>(argument);
   for (size_t iteration = 0; iteration < info->iterations; ++iteration) {
     info->semaphore->Wait();
   }
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   return nullptr;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return 0;
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 }
 
 void StartThread(ThreadMainInfo* info) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   int rv = pthread_create(&info->pthread, nullptr, ThreadMain, info);
   ASSERT_EQ(rv, 0) << "pthread_create";
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   info->thread = CreateThread(nullptr, 0, ThreadMain, info, 0, nullptr);
   ASSERT_NE(info->thread, nullptr) << "CreateThread";
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 }
 
 void JoinThread(ThreadMainInfo* info) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   int rv = pthread_join(info->pthread, nullptr);
   EXPECT_EQ(rv, 0) << "pthread_join";
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   DWORD result = WaitForSingleObject(info->thread, INFINITE);
   EXPECT_EQ(result, WAIT_OBJECT_0) << "WaitForSingleObject";
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 }
 
 TEST(Semaphore, Threaded) {
@@ -128,7 +126,7 @@ TEST(Semaphore, TenThreaded) {
   Semaphore semaphore(5);
   ThreadMainInfo info[10];
   size_t iterations = 0;
-  for (size_t index = 0; index < std::size(info); ++index) {
+  for (size_t index = 0; index < base::size(info); ++index) {
     info[index].semaphore = &semaphore;
     info[index].iterations = index;
     iterations += info[index].iterations;
@@ -140,7 +138,7 @@ TEST(Semaphore, TenThreaded) {
     semaphore.Signal();
   }
 
-  for (size_t index = 0; index < std::size(info); ++index) {
+  for (size_t index = 0; index < base::size(info); ++index) {
     JoinThread(&info[index]);
   }
 }

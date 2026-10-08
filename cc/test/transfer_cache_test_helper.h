@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
 #include "cc/paint/transfer_cache_deserialize_helper.h"
 #include "cc/paint/transfer_cache_serialize_helper.h"
 #include "third_party/skia/include/gpu/GrDirectContext.h"
@@ -45,8 +44,6 @@ class TransferCacheTestHelper : public TransferCacheDeserializeHelper,
       uint32_t id,
       std::unique_ptr<ServiceTransferCacheEntry> entry) override;
 
-  size_t num_of_entries() const { return entries_.size(); }
-
  protected:
   // Serialization helpers.
   bool LockEntryInternal(const EntryKey& key) override;
@@ -63,7 +60,7 @@ class TransferCacheTestHelper : public TransferCacheDeserializeHelper,
   std::set<EntryKey> locked_entries_;
   EntryKey last_added_entry_ = {TransferCacheEntryType::kRawMemory, ~0};
 
-  raw_ptr<GrDirectContext> context_ = nullptr;
+  GrDirectContext* context_ = nullptr;
   sk_sp<GrDirectContext> owned_context_;
   size_t cached_items_limit_ = std::numeric_limits<size_t>::max();
 };

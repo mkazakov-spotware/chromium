@@ -9,9 +9,9 @@ enum DirectionSetting { "" /* horizontal */, "rl", "lr" };
 enum LineAlignSetting { "start", "center", "end" };
 enum PositionAlignSetting { "line-left", "center", "line-right", "auto" };
 enum AlignSetting { "start", "center", "end", "left", "right" };
-[Exposed=Window]
+[Exposed=Window,
+ Constructor(double startTime, double endTime, DOMString text)]
 interface VTTCue : TextTrackCue {
-  constructor(double startTime, unrestricted double endTime, DOMString text);
   attribute VTTRegion? region;
   attribute DirectionSetting vertical;
   attribute boolean snapToLines;
@@ -26,9 +26,9 @@ interface VTTCue : TextTrackCue {
 };
 
 enum ScrollSetting { "" /* none */, "up" };
-[Exposed=Window]
+[Exposed=Window,
+ Constructor]
 interface VTTRegion {
-  constructor();
   attribute DOMString id;
   attribute double width;
   attribute unsigned long lines;

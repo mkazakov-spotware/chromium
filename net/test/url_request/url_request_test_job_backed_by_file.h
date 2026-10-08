@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_byte_range.h"
@@ -39,10 +40,6 @@ class URLRequestTestJobBackedByFile : public URLRequestJob {
       URLRequest* request,
       const base::FilePath& file_path,
       const scoped_refptr<base::TaskRunner>& file_task_runner);
-
-  URLRequestTestJobBackedByFile(const URLRequestTestJobBackedByFile&) = delete;
-  URLRequestTestJobBackedByFile& operator=(
-      const URLRequestTestJobBackedByFile&) = delete;
 
   // URLRequestJob:
   void Start() override;
@@ -89,26 +86,26 @@ class URLRequestTestJobBackedByFile : public URLRequestJob {
     FileMetaInfo();
 
     // Size of the file.
-    int64_t file_size = 0;
+    int64_t file_size;
     // Mime type associated with the file.
     std::string mime_type;
     // Result returned from GetMimeTypeFromFile(), i.e. flag showing whether
     // obtaining of the mime type was successful.
-    bool mime_type_result = false;
+    bool mime_type_result;
     // Flag showing whether the file exists.
-    bool file_exists = false;
+    bool file_exists;
     // Flag showing whether the file name actually refers to a directory.
-    bool is_directory = false;
+    bool is_directory;
     // Absolute path of the file (i.e. symbolic link is resolved).
     base::FilePath absolute_path;
   };
 
   // Fetches file info on a background thread.
-  static std::unique_ptr<FileMetaInfo> FetchMetaInfo(
-      const base::FilePath& file_path);
+  static void FetchMetaInfo(const base::FilePath& file_path,
+                            FileMetaInfo* meta_info);
 
   // Callback after fetching file info on a background thread.
-  void DidFetchMetaInfo(std::unique_ptr<FileMetaInfo> meta_info);
+  void DidFetchMetaInfo(const FileMetaInfo* meta_info);
 
   // Callback after opening file on a background thread.
   void DidOpen(int result);
@@ -126,12 +123,14 @@ class URLRequestTestJobBackedByFile : public URLRequestJob {
 
   std::vector<HttpByteRange> byte_ranges_;
   HttpByteRange byte_range_;
-  int64_t remaining_bytes_ = 0;
+  int64_t remaining_bytes_;
   bool serve_mime_type_as_content_type_ = false;
 
-  Error range_parse_result_ = OK;
+  Error range_parse_result_;
 
   base::WeakPtrFactory<URLRequestTestJobBackedByFile> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(URLRequestTestJobBackedByFile);
 };
 
 }  // namespace net

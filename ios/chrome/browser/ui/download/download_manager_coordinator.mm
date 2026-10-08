@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,31 +7,30 @@
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <StoreKit/StoreKit.h>
 
-#import <memory>
-#import <set>
-#import <utility>
+#include <memory>
 
-#import "base/bind.h"
-#import "base/check_op.h"
-#import "base/mac/scoped_cftyperef.h"
-#import "base/metrics/histogram_functions.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/download/confirm_download_closing_overlay.h"
-#import "ios/chrome/browser/download/confirm_download_replacing_overlay.h"
-#import "ios/chrome/browser/download/download_directory_util.h"
-#import "ios/chrome/browser/download/download_manager_metric_names.h"
+#include "base/bind.h"
+#include "base/check_op.h"
+#include "base/mac/scoped_cftyperef.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/download/confirm_download_closing_overlay.h"
+#include "ios/chrome/browser/download/confirm_download_replacing_overlay.h"
+#include "ios/chrome/browser/download/download_directory_util.h"
+#include "ios/chrome/browser/download/download_manager_metric_names.h"
 #import "ios/chrome/browser/download/download_manager_tab_helper.h"
 #import "ios/chrome/browser/download/external_app_util.h"
-#import "ios/chrome/browser/download/installation_notifier.h"
+#import "ios/chrome/browser/installation_notifier.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/overlays/public/common/confirmation/confirmation_overlay_response.h"
-#import "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
+#include "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
 #import "ios/chrome/browser/overlays/public/overlay_request_queue.h"
 #import "ios/chrome/browser/store_kit/store_kit_coordinator.h"
+#import "ios/chrome/browser/ui/alert_coordinator/alert_coordinator.h"
 #import "ios/chrome/browser/ui/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/ui/commands/command_dispatcher.h"
 #import "ios/chrome/browser/ui/download/activities/open_downloads_folder_activity.h"
@@ -39,13 +38,14 @@
 #import "ios/chrome/browser/ui/download/download_manager_view_controller.h"
 #import "ios/chrome/browser/ui/presenters/contained_presenter.h"
 #import "ios/chrome/browser/ui/presenters/contained_presenter_delegate.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_list_observer.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ios/web/common/features.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/download/download_task.h"
-#import "net/base/net_errors.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "net/base/net_errors.h"
+#include "net/url_request/url_fetcher_response_writer.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -173,9 +173,11 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
   UIActivityViewController* _openInController;
   DownloadManagerMediator _mediator;
   StoreKitCoordinator* _storeKitCoordinator;
+  // Coordinator for displaying the alert informing the user that no application
+  // on the device can open the file. The alert offers the user to install
+  // Google Drive app.
+  AlertCoordinator* _installDriveAlertCoordinator;
   UnopenedDownloadsTracker _unopenedDownloads;
-  // YES after _stop has been called.
-  BOOL _stopped;
 }
 @end
 
@@ -187,7 +189,8 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
 @synthesize bottomMarginHeightAnchor = _bottomMarginHeightAnchor;
 
 - (void)dealloc {
-  DCHECK(_stopped);
+  [self stop];
+  [[InstallationNotifier sharedInstance] unregisterForNotifications:self];
 }
 
 - (void)start {
@@ -226,9 +229,8 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
 
   [_storeKitCoordinator stop];
   _storeKitCoordinator = nil;
-
-  [[InstallationNotifier sharedInstance] unregisterForNotifications:self];
-  _stopped = YES;
+  [_installDriveAlertCoordinator stop];
+  _installDriveAlertCoordinator = nil;
 }
 
 - (UIViewController*)viewController {
@@ -252,12 +254,6 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
   BOOL replacingExistingDownload = _downloadTask ? YES : NO;
   _downloadTask = download;
 
-  if (web::features::IsFullscreenAPIEnabled()) {
-    // Exit fullscreen since download UI will be behind fullscreen mode.
-    web::WebState* webState = download->GetWebState();
-    webState->CloseMediaPresentations();
-  }
-
   if (replacingExistingDownload) {
     _mediator.SetDownloadTask(_downloadTask);
   } else {
@@ -274,7 +270,7 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
 
   request->GetCallbackManager()->AddCompletionCallback(
       base::BindOnce(^(OverlayResponse* response) {
-        // `response` is null if WebState was destroyed. Don't call completion
+        // |response| is null if WebState was destroyed. Don't call completion
         // handler if no buttons were tapped.
         if (response) {
           bool confirmed =
@@ -286,12 +282,6 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
       }));
 
   web::WebState* webState = download->GetWebState();
-  if (web::features::IsFullscreenAPIEnabled()) {
-    // Close fullscreen mode in the event that a download is attempting to
-    // replace a pending download request.
-    webState->CloseMediaPresentations();
-  }
-
   OverlayRequestQueue::FromWebState(webState, OverlayModality::kWebContentArea)
       ->AddRequest(std::move(request));
 }
@@ -411,23 +401,12 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
 
 // Cancels the download task and stops the coordinator.
 - (void)cancelDownload {
-  // `stop` nulls-our _downloadTask and `Cancel` destroys the task. Call `stop`
-  // first to perform all coordinator cleanups, but copy `_downloadTask`
+  // |stop| nulls-our _downloadTask and |Cancel| destroys the task. Call |stop|
+  // first to perform all coordinator cleanups, but retain |_downloadTask|
   // pointer to destroy the task.
   web::DownloadTask* downloadTask = _downloadTask;
   [self stop];
-
-  // The pointer may be null if -stop was called before -cancelDownload.
-  // This can happen during shutdown because -stop is called when the UI
-  // is destroyed, but whether or not -cancelDownload is called depends
-  // on whether the object is deallocated or not when the block created
-  // in -downloadManagerViewControllerDidClose: is executed. Due to the
-  // autorelease pool, it is not possible to control how the order of
-  // those two events. Thus, this code needs to support a null value at
-  // this point.
-  if (downloadTask) {
-    downloadTask->Cancel();
-  }
+  downloadTask->Cancel();
 }
 
 // Called when Google Drive app is installed after starting StoreKitCoordinator.
@@ -436,6 +415,38 @@ class UnopenedDownloadsTracker : public web::DownloadTaskObserver,
       "Download.IOSDownloadFileUIGoogleDrive",
       DownloadFileUIGoogleDrive::GoogleDriveInstalledAfterDisplay,
       DownloadFileUIGoogleDrive::Count);
+}
+
+// Called when Open In... menu was not presented. This method shows the alert
+// which offers the user to install Google Drive app.
+- (void)didFailOpenInMenuPresentation {
+  NSString* title =
+      l10n_util::GetNSString(IDS_IOS_DOWNLOAD_MANAGER_UNABLE_TO_OPEN_FILE);
+  NSString* message =
+      l10n_util::GetNSString(IDS_IOS_DOWNLOAD_MANAGER_NO_APP_MESSAGE);
+
+  _installDriveAlertCoordinator = [[AlertCoordinator alloc]
+      initWithBaseViewController:self.baseViewController
+                         browser:self.browser
+                           title:title
+                         message:message];
+
+  NSString* googleDriveButtonTitle =
+      l10n_util::GetNSString(IDS_IOS_DOWNLOAD_MANAGER_UPLOAD_TO_GOOGLE_DRIVE);
+  __weak DownloadManagerCoordinator* weakSelf = self;
+  [_installDriveAlertCoordinator
+      addItemWithTitle:googleDriveButtonTitle
+                action:^{
+                  [weakSelf presentStoreKitForGoogleDriveApp];
+                }
+                 style:UIAlertActionStyleDefault];
+
+  [_installDriveAlertCoordinator
+      addItemWithTitle:l10n_util::GetNSString(IDS_CANCEL)
+                action:nil
+                 style:UIAlertActionStyleCancel];
+
+  [_installDriveAlertCoordinator start];
 }
 
 // Presents StoreKit dialog for Google Drive application.

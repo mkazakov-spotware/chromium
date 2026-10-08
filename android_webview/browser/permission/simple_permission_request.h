@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <stdint.h>
 
 #include "android_webview/browser/permission/aw_permission_request_delegate.h"
-#include "android_webview/browser/permission/permission_callback.h"
 #include "base/callback.h"
+#include "base/macros.h"
 
 namespace android_webview {
 
@@ -19,11 +19,7 @@ class SimplePermissionRequest : public AwPermissionRequestDelegate {
  public:
   SimplePermissionRequest(const GURL& origin,
                           int64_t resources,
-                          PermissionCallback callback);
-
-  SimplePermissionRequest(const SimplePermissionRequest&) = delete;
-  SimplePermissionRequest& operator=(const SimplePermissionRequest&) = delete;
-
+                          base::OnceCallback<void(bool)> callback);
   ~SimplePermissionRequest() override;
 
   // AwPermissionRequestDelegate implementation.
@@ -34,7 +30,9 @@ class SimplePermissionRequest : public AwPermissionRequestDelegate {
  private:
   const GURL origin_;
   int64_t resources_;
-  PermissionCallback callback_;
+  base::OnceCallback<void(bool)> callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimplePermissionRequest);
 };
 
 }  // namespace android_webview

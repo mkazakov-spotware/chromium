@@ -1,17 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/keyboard/ui/container_floating_behavior.h"
 
-#include <memory>
-
 #include "ash/keyboard/ui/display_util.h"
 #include "ash/keyboard/ui/drag_descriptor.h"
-#include "base/numerics/safe_conversions.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/display/display.h"
 #include "ui/events/event.h"
@@ -22,8 +18,8 @@
 namespace keyboard {
 
 // The virtual keyboard show/hide animation durations.
-constexpr auto kShowAnimationDuration = base::Milliseconds(200);
-constexpr auto kHideAnimationDuration = base::Milliseconds(100);
+constexpr auto kShowAnimationDuration = base::TimeDelta::FromMilliseconds(200);
+constexpr auto kHideAnimationDuration = base::TimeDelta::FromMilliseconds(100);
 
 // Distance the keyboard moves during the animation
 constexpr int kAnimationDistance = 30;
@@ -186,8 +182,8 @@ gfx::Point ContainerFloatingBehavior::GetPositionForShowingKeyboard(
                   position->left_padding_allotment_ratio;
     double top = (display_bounds.height() - keyboard_size.height()) *
                  position->top_padding_allotment_ratio;
-    top_left_offset.set_x(base::ClampFloor(left));
-    top_left_offset.set_y(base::ClampFloor(top));
+    top_left_offset.set_x(int{left});
+    top_left_offset.set_y(int{top});
   }
 
   // Make sure that this location is valid according to the current size of the
@@ -206,8 +202,7 @@ gfx::Point ContainerFloatingBehavior::GetPositionForShowingKeyboard(
 bool ContainerFloatingBehavior::HandlePointerEvent(
     const ui::LocatedEvent& event,
     const display::Display& current_display) {
-  const gfx::Vector2d kb_offset(base::ClampFloor(event.x()),
-                                base::ClampFloor(event.y()));
+  const gfx::Vector2d kb_offset(int{event.x()}, int{event.y()});
 
   const gfx::Rect& keyboard_bounds_in_screen = delegate_->GetBoundsInScreen();
 
@@ -233,7 +228,7 @@ bool ContainerFloatingBehavior::HandlePointerEvent(
         // Mouse events are limited to just the left mouse button.
         drag_descriptor_.reset();
       } else if (!drag_descriptor_) {
-        drag_descriptor_ = std::make_unique<DragDescriptor>(DragDescriptor{
+        drag_descriptor_.reset(new DragDescriptor{
             keyboard_bounds_in_screen.origin(), kb_offset, pointer_id});
       }
       break;

@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/public/session/crw_navigation_item_storage.h"
 
-#import "base/metrics/histogram_functions.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/strings/sys_string_conversions.h"
 #import "ios/web/navigation/nscoder_util.h"
 #import "ios/web/public/web_client.h"
 #import "net/base/mac/url_conversions.h"
@@ -26,6 +26,8 @@ NSString* const kNavigationItemStorageTimestampKey = @"timestamp";
 NSString* const kNavigationItemStorageTitleKey = @"title";
 NSString* const kNavigationItemStoragePageDisplayStateKey = @"state";
 NSString* const kNavigationItemStorageHTTPRequestHeadersKey = @"httpHeaders";
+NSString* const kNavigationItemStorageSkipRepostFormConfirmationKey =
+    @"skipResubmitDataConfirmation";
 NSString* const kNavigationItemStorageUserAgentTypeKey = @"userAgentType";
 
 const char kNavigationItemSerializedSizeHistogram[] =
@@ -45,11 +47,7 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
 
 }  // namespace web
 
-@implementation CRWNavigationItemStorage {
-  GURL _URL;
-  GURL _virtualURL;
-  std::u16string _title;
-}
+@implementation CRWNavigationItemStorage
 
 #pragma mark - NSObject
 
@@ -63,6 +61,8 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
   [description appendFormat:@"title : %@, ", base::SysUTF16ToNSString(_title)];
   [description
       appendFormat:@"displayState : %@", _displayState.GetDescription()];
+  [description appendFormat:@"skipRepostConfirmation : %@, ",
+                            @(_shouldSkipRepostFormConfirmation)];
   [description
       appendFormat:@"userAgentType : %s, ",
                    web::GetUserAgentTypeDescription(_userAgentType).c_str()];
@@ -86,6 +86,11 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
     if ([aDecoder containsValueForKey:web::kNavigationItemStorageURLKey]) {
       _URL = GURL(web::nscoder_util::DecodeString(
           aDecoder, web::kNavigationItemStorageURLKey));
+    } else {
+      // TODO(crbug.com/1073378): this is a temporary workaround added in M84 to
+      // support old client that don't have the kNavigationItemStorageURLKey. It
+      // should be removed once enough time has passed.
+      _URL = _virtualURL;
     }
 
     if ([aDecoder
@@ -133,6 +138,9 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
     NSDictionary* serializedDisplayState = [aDecoder
         decodeObjectForKey:web::kNavigationItemStoragePageDisplayStateKey];
     _displayState = web::PageDisplayState(serializedDisplayState);
+    _shouldSkipRepostFormConfirmation =
+        [aDecoder decodeBoolForKey:
+                      web::kNavigationItemStorageSkipRepostFormConfirmationKey];
     _HTTPRequestHeaders = [aDecoder
         decodeObjectForKey:web::kNavigationItemStorageHTTPRequestHeadersKey];
   }
@@ -140,8 +148,8 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
 }
 
 - (void)encodeWithCoder:(NSCoder*)aCoder {
-  // Desktop Chrome doesn't persist `url_` or `originalUrl_`, only
-  // `virtualUrl_`. Chrome on iOS is persisting `url_`.
+  // Desktop Chrome doesn't persist |url_| or |originalUrl_|, only
+  // |virtualUrl_|. Chrome on iOS is persisting |url_|.
   int serializedSizeInBytes = 0;
   int serializedVirtualURLSizeInBytes = 0;
   if (_virtualURL != _URL) {
@@ -199,6 +207,10 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
       web::kNavigationItemSerializedDisplayStateSizeHistogram,
       serializedDisplayStateSizeInBytes / 1024);
 
+  [aCoder encodeBool:_shouldSkipRepostFormConfirmation
+              forKey:web::kNavigationItemStorageSkipRepostFormConfirmationKey];
+  // Size of BOOL is negligible, do not log or count towards session size.
+
   std::string userAgent = web::GetUserAgentTypeDescription(_userAgentType);
   web::nscoder_util::EncodeString(
       aCoder, web::kNavigationItemStorageUserAgentTypeKey, userAgent);
@@ -220,33 +232,11 @@ const char kNavigationItemSerializedRequestHeadersSizeHistogram[] =
                              serializedSizeInBytes / 1024);
 }
 
-#pragma mark - Properties
-
-- (const GURL&)URL {
-  return _URL;
-}
-
-- (void)setURL:(const GURL&)URL {
-  _URL = URL;
-}
-
-- (const GURL&)virtualURL {
+- (GURL)virtualURL {
   // virtualURL is not stored (see -encodeWithCoder:) if it's the same as URL.
   // This logic repeats NavigationItemImpl::GetURL to store virtualURL only when
   // different from URL.
   return _virtualURL.is_empty() ? _URL : _virtualURL;
-}
-
-- (void)setVirtualURL:(const GURL&)virtualURL {
-  _virtualURL = virtualURL;
-}
-
-- (const std::u16string&)title {
-  return _title;
-}
-
-- (void)setTitle:(const std::u16string&)title {
-  _title = title;
 }
 
 @end

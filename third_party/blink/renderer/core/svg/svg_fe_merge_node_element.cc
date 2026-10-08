@@ -22,7 +22,7 @@
 
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg/svg_filter_primitive_standard_attributes.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -38,14 +38,14 @@ void SVGFEMergeNodeElement::Trace(Visitor* visitor) const {
 }
 
 void SVGFEMergeNodeElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  if (params.name == svg_names::kInAttr) {
+    const QualifiedName& attr_name) {
+  if (attr_name == svg_names::kInAttr) {
     SVGElement::InvalidationGuard invalidation_guard(this);
     InvalidateFilterPrimitiveParent(*this);
     return;
   }
 
-  SVGElement::SvgAttributeChanged(params);
+  SVGElement::SvgAttributeChanged(attr_name);
 }
 
 }  // namespace blink

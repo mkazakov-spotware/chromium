@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/workers/worklet_module_responses_map.h"
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 
@@ -30,7 +30,7 @@ void WorkletModuleResponsesMap::Entry::AddClient(
 // "fetch a worklet script" algorithm:
 // https://drafts.css-houdini.org/worklets/#fetch-a-worklet-script
 void WorkletModuleResponsesMap::Entry::SetParams(
-    const absl::optional<ModuleScriptCreationParams>& params) {
+    const base::Optional<ModuleScriptCreationParams>& params) {
   DCHECK_EQ(state_, State::kFetching);
 
   if (params) {
@@ -70,19 +70,17 @@ void WorkletModuleResponsesMap::Entry::SetParams(
 // Step 2: "Let url be request's url."
 bool WorkletModuleResponsesMap::GetEntry(
     const KURL& url,
-    ModuleType module_type,
     ModuleScriptFetcher::Client* client,
     scoped_refptr<base::SingleThreadTaskRunner> client_task_runner) {
-  base::AutoLock locker(lock_);
-  DCHECK_NE(module_type, ModuleType::kInvalid);
+  MutexLocker lock(mutex_);
   if (!is_available_ || !IsValidURL(url)) {
     client_task_runner->PostTask(
-        FROM_HERE, WTF::BindOnce(&ModuleScriptFetcher::Client::OnFailed,
-                                 WrapPersistent(client)));
+        FROM_HERE, WTF::Bind(&ModuleScriptFetcher::Client::OnFailed,
+                             WrapPersistent(client)));
     return true;
   }
 
-  auto it = entries_.find(std::make_pair(url, module_type));
+  auto it = entries_.find(url);
   if (it != entries_.end()) {
     Entry* entry = it->value.get();
     switch (entry->GetState()) {
@@ -97,15 +95,14 @@ bool WorkletModuleResponsesMap::GetEntry(
         // complete this algorithm with that entry's value, and abort these
         // steps."
         client_task_runner->PostTask(
-            FROM_HERE,
-            WTF::BindOnce(&ModuleScriptFetcher::Client::OnFetched,
-                          WrapPersistent(client), entry->GetParams()));
+            FROM_HERE, WTF::Bind(&ModuleScriptFetcher::Client::OnFetched,
+                                 WrapPersistent(client), entry->GetParams()));
         return true;
       case Entry::State::kFailed:
         // Module fetching failed before. Abort following steps.
         client_task_runner->PostTask(
-            FROM_HERE, WTF::BindOnce(&ModuleScriptFetcher::Client::OnFailed,
-                                     WrapPersistent(client)));
+            FROM_HERE, WTF::Bind(&ModuleScriptFetcher::Client::OnFailed,
+                                 WrapPersistent(client)));
         return true;
     }
     NOTREACHED();
@@ -114,7 +111,7 @@ bool WorkletModuleResponsesMap::GetEntry(
   // Step 5: "Create an entry in cache with key url and value "fetching"."
   std::unique_ptr<Entry> entry = std::make_unique<Entry>();
   entry->AddClient(client, client_task_runner);
-  entries_.insert(std::make_pair(url, module_type), std::move(entry));
+  entries_.insert(url.Copy(), std::move(entry));
 
   // Step 6: "Fetch request."
   // Running the callback with an empty params will make the fetcher to fallback
@@ -125,25 +122,24 @@ bool WorkletModuleResponsesMap::GetEntry(
 
 void WorkletModuleResponsesMap::SetEntryParams(
     const KURL& url,
-    ModuleType module_type,
-    const absl::optional<ModuleScriptCreationParams>& params) {
-  base::AutoLock locker(lock_);
+    const base::Optional<ModuleScriptCreationParams>& params) {
+  MutexLocker lock(mutex_);
   if (!is_available_)
     return;
 
-  DCHECK(entries_.Contains(std::make_pair(url, module_type)));
-  Entry* entry = entries_.find(std::make_pair(url, module_type))->value.get();
+  DCHECK(entries_.Contains(url));
+  Entry* entry = entries_.find(url)->value.get();
   entry->SetParams(params);
 }
 
 void WorkletModuleResponsesMap::Dispose() {
   DCHECK(IsMainThread());
-  base::AutoLock locker(lock_);
+  MutexLocker lock(mutex_);
   is_available_ = false;
   for (auto& it : entries_) {
     switch (it.value->GetState()) {
       case Entry::State::kFetching:
-        it.value->SetParams(absl::nullopt);
+        it.value->SetParams(base::nullopt);
         break;
       case Entry::State::kFetched:
       case Entry::State::kFailed:

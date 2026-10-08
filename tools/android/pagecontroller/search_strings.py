@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,7 +15,7 @@ _SRC_DIR = os.path.abspath(os.path.join(
       os.path.dirname(__file__), '..', '..', '..'))
 
 _DEFAULT_GRD = os.path.join(_SRC_DIR,
-    'chrome/browser/ui/android/strings/android_chrome_strings.grd')
+    'chrome/android/java/strings/android_chrome_strings.grd')
 _MATCH_MSG = u'  R.string.{}:\n    Text = "{}"\n    Desc = "{}"'
 
 class GrdSearch(object):

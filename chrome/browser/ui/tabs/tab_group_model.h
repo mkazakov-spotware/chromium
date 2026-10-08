@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 class TabGroup;
 class TabGroupController;
@@ -40,7 +39,7 @@ class TabGroupModel {
   // added to it immediately.
   TabGroup* AddTabGroup(
       const tab_groups::TabGroupId& id,
-      absl::optional<tab_groups::TabGroupVisualData> visual_data);
+      base::Optional<tab_groups::TabGroupVisualData> visual_data);
 
   // Returns whether a tab group with the given |id| exists.
   bool ContainsTabGroup(const tab_groups::TabGroupId& id) const;
@@ -57,7 +56,7 @@ class TabGroupModel {
  private:
   std::map<tab_groups::TabGroupId, std::unique_ptr<TabGroup>> groups_;
 
-  raw_ptr<TabGroupController> controller_;
+  TabGroupController* controller_;
 
   // Returns the least-used color in the color set, breaking ties toward the
   // first color in the set. Used to initialize a new group's color, which

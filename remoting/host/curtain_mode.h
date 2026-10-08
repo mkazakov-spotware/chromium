@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 
 namespace base {
@@ -20,10 +22,7 @@ class ClientSessionControl;
 
 class CurtainMode {
  public:
-  CurtainMode(const CurtainMode&) = delete;
-  CurtainMode& operator=(const CurtainMode&) = delete;
-
-  virtual ~CurtainMode() = default;
+  virtual ~CurtainMode() {}
 
   // Creates a platform-specific curtain mode implementation object that
   // "curtains" the current session making sure it is not accessible from
@@ -39,9 +38,12 @@ class CurtainMode {
   virtual bool Activate() = 0;
 
  protected:
-  CurtainMode() = default;
+  CurtainMode() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CurtainMode);
 };
 
 }  // namespace remoting
 
-#endif  // REMOTING_HOST_CURTAIN_MODE_H_
+#endif

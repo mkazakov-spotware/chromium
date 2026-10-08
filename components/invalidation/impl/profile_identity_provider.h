@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_INVALIDATION_IMPL_PROFILE_IDENTITY_PROVIDER_H_
 #define COMPONENTS_INVALIDATION_IMPL_PROFILE_IDENTITY_PROVIDER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/invalidation/public/identity_provider.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -16,10 +16,7 @@ namespace invalidation {
 class ProfileIdentityProvider : public IdentityProvider,
                                 public signin::IdentityManager::Observer {
  public:
-  explicit ProfileIdentityProvider(signin::IdentityManager* identity_manager);
-  ProfileIdentityProvider(const ProfileIdentityProvider& other) = delete;
-  ProfileIdentityProvider& operator=(const ProfileIdentityProvider& other) =
-      delete;
+  ProfileIdentityProvider(signin::IdentityManager* identity_manager);
   ~ProfileIdentityProvider() override;
 
   // IdentityProvider:
@@ -31,19 +28,20 @@ class ProfileIdentityProvider : public IdentityProvider,
       ActiveAccountAccessTokenCallback callback) override;
   void InvalidateAccessToken(const signin::ScopeSet& scopes,
                              const std::string& access_token) override;
+  void SetActiveAccountId(const CoreAccountId& account_id) override;
 
   // signin::IdentityManager::Observer:
-  void OnPrimaryAccountChanged(
-      const signin::PrimaryAccountChangeEvent& event_details) override;
   void OnRefreshTokenUpdatedForAccount(
       const CoreAccountInfo& account_info) override;
   void OnRefreshTokenRemovedForAccount(
       const CoreAccountId& account_id) override;
 
  private:
-  const raw_ptr<signin::IdentityManager> identity_manager_;
+  signin::IdentityManager* const identity_manager_;
 
   CoreAccountId active_account_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProfileIdentityProvider);
 };
 
 }  // namespace invalidation

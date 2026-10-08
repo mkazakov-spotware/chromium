@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 #include <type_traits>
 #include <utility>
 
+#include "base/optional.h"
 #include "base/parameter_pack.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/template_util.h"
 
 // A bag of Traits (structs / enums / etc...) can be an elegant alternative to
 // the builder pattern and multiple default arguments for configuring things.
@@ -181,11 +182,11 @@ struct EnumTraitFilter : public BasicTraitFilter<ArgType> {
 
 template <typename ArgType>
 struct OptionalEnumTraitFilter
-    : public BasicTraitFilter<ArgType, absl::optional<ArgType>> {
+    : public BasicTraitFilter<ArgType, Optional<ArgType>> {
   constexpr OptionalEnumTraitFilter()
-      : BasicTraitFilter<ArgType, absl::optional<ArgType>>(absl::nullopt) {}
+      : BasicTraitFilter<ArgType, Optional<ArgType>>(nullopt) {}
   constexpr OptionalEnumTraitFilter(ArgType arg)
-      : BasicTraitFilter<ArgType, absl::optional<ArgType>>(arg) {}
+      : BasicTraitFilter<ArgType, Optional<ArgType>>(arg) {}
 };
 
 // Tests whether multiple given argtument types are all valid traits according
@@ -198,8 +199,8 @@ struct RequiredEnumTraitFilter : public BasicTraitFilter<ArgType> {
 
 // Note EmptyTrait is always regarded as valid to support filtering.
 template <class ValidTraits, class T>
-using IsValidTrait = std::disjunction<std::is_constructible<ValidTraits, T>,
-                                      std::is_same<T, EmptyTrait>>;
+using IsValidTrait = disjunction<std::is_constructible<ValidTraits, T>,
+                                 std::is_same<T, EmptyTrait>>;
 
 // Tests whether a given trait type is valid or invalid by testing whether it is
 // convertible to the provided ValidTraits type. To use, define a ValidTraits
@@ -219,7 +220,7 @@ using IsValidTrait = std::disjunction<std::is_constructible<ValidTraits, T>,
 // };
 template <class ValidTraits, class... ArgTypes>
 using AreValidTraits =
-    std::bool_constant<all_of({IsValidTrait<ValidTraits, ArgTypes>::value...})>;
+    bool_constant<all_of({IsValidTrait<ValidTraits, ArgTypes>::value...})>;
 
 // Helper to make getting an enum from a trait more readable.
 template <typename Enum, typename... Args>
@@ -236,7 +237,7 @@ static constexpr Enum GetEnum(Args... args) {
 // Helper to make getting an optional enum from a trait with a default more
 // readable.
 template <typename Enum, typename... Args>
-static constexpr absl::optional<Enum> GetOptionalEnum(Args... args) {
+static constexpr Optional<Enum> GetOptionalEnum(Args... args) {
   return GetTraitFromArgList<OptionalEnumTraitFilter<Enum>>(args...);
 }
 

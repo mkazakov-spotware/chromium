@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Chromium Authors
+ * Copyright 2020 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -14,7 +14,7 @@
  * own scope as a payment method.
  * @return {Promise<string>} - 'success' or error message on failure.
  */
-async function install(swUrl, methods, ownScopeMethod) {
+async function install(swUrl, methods, ownScopeMethod) { // eslint-disable-line no-unused-vars, max-len
   try {
     const registration = await navigator.serviceWorker.register(swUrl);
     await activation(registration);
@@ -27,6 +27,30 @@ async function install(swUrl, methods, ownScopeMethod) {
           'instrument-for-own-scope',
           {name: 'Instrument Name', method: registration.scope});
     }
+    return 'success';
+  } catch (e) {
+    return e.message;
+  }
+}
+
+/**
+ * Installs the given payment handler with the given payment method and
+ * capabilities.
+ * @param {string} swUrl - The relative URL of the service worker JavaScript
+ * file to install.
+ * @param {string} method - The payment method that this service worker
+ * supports.
+ * @param {object} capabilities - The capabilities of this payment handler, such
+ * as 'supportedNetworks': ['visa', 'mastercard', 'amex'].
+ * @return {Promise<string>} - 'success' or error message on failure.
+ */
+async function installWithCapabilities(swUrl, method, capabilities) { // eslint-disable-line no-unused-vars, max-len
+  try {
+    const registration = await navigator.serviceWorker.register(swUrl);
+    await activation(registration);
+    await registration.paymentManager.instruments.set(
+        'instrument-for-' + method,
+        {name: 'Instrument Name', method, capabilities});
     return 'success';
   } catch (e) {
     return e.message;

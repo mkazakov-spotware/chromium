@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,11 @@
 #include "base/memory/ptr_util.h"
 #include "skia/ext/image_operations.h"
 #include "ui/aura/window.h"
-#include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-shared.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/canvas.h"
-#include "ui/gfx/image/image_skia_rep.h"
 #include "ui/resources/grit/ui_resources.h"
 #include "ui/views/widget/widget.h"
 
@@ -129,8 +127,7 @@ void DragImageView::OnPaint(gfx::Canvas* canvas) {
     SkBitmap scaled = skia::ImageOperations::Resize(
         image_rep.GetBitmap(), skia::ImageOperations::RESIZE_LANCZOS3,
         drag_image_size_pixels.width(), drag_image_size_pixels.height());
-    gfx::ImageSkia image_skia =
-        gfx::ImageSkia::CreateFromBitmap(scaled, device_scale);
+    gfx::ImageSkia image_skia(gfx::ImageSkiaRep(scaled, device_scale));
     canvas->DrawImageInt(image_skia, 0, 0);
   }
 

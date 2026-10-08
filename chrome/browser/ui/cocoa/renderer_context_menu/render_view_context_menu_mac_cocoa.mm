@@ -1,9 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.h"
-#include "base/memory/raw_ptr.h"
 
 #include <utility>
 
@@ -11,15 +10,13 @@
 #include "base/mac/mac_util.h"
 #import "base/mac/scoped_objc_class_swizzler.h"
 #import "base/mac/scoped_sending_event.h"
+#include "base/macros.h"
 #import "base/message_loop/message_pump_mac.h"
 #include "base/no_destructor.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/current_thread.h"
 #import "chrome/browser/mac/nsprocessinfo_additions.h"
-#include "content/public/browser/web_contents.h"
 #import "ui/base/cocoa/menu_controller.h"
-#include "ui/color/color_provider.h"
-#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -38,7 +35,7 @@ NSMutableArray* g_filtered_entries_array = nil;
 NSMenuItem* GetMenuItemByID(ui::MenuModel* model,
                             NSMenu* menu,
                             int command_id) {
-  for (size_t i = 0; i < model->GetItemCount(); ++i) {
+  for (int i = 0; i < model->GetItemCount(); ++i) {
     NSMenuItem* item = [menu itemAtIndex:i];
     if (model->GetCommandIdAt(i) == command_id)
       return item;
@@ -162,9 +159,6 @@ class ToolkitDelegateMacCocoa : public RenderViewContextMenu::ToolkitDelegate {
   explicit ToolkitDelegateMacCocoa(RenderViewContextMenuMacCocoa* context_menu)
       : context_menu_(context_menu) {}
 
-  ToolkitDelegateMacCocoa(const ToolkitDelegateMacCocoa&) = delete;
-  ToolkitDelegateMacCocoa& operator=(const ToolkitDelegateMacCocoa&) = delete;
-
   ~ToolkitDelegateMacCocoa() override {}
 
  private:
@@ -178,17 +172,18 @@ class ToolkitDelegateMacCocoa : public RenderViewContextMenu::ToolkitDelegate {
   void UpdateMenuItem(int command_id,
                       bool enabled,
                       bool hidden,
-                      const std::u16string& title) override {
+                      const base::string16& title) override {
     context_menu_->UpdateToolkitMenuItem(command_id, enabled, hidden, title);
   }
 
-  raw_ptr<RenderViewContextMenuMacCocoa> context_menu_;
+  RenderViewContextMenuMacCocoa* context_menu_;
+  DISALLOW_COPY_AND_ASSIGN(ToolkitDelegateMacCocoa);
 };
 
 // Obj-C bridge class that is the target of all items in the context menu.
 // Relies on the tag being set to the command id.
 RenderViewContextMenuMacCocoa::RenderViewContextMenuMacCocoa(
-    content::RenderFrameHost& render_frame_host,
+    content::RenderFrameHost* render_frame_host,
     const content::ContextMenuParams& params,
     NSView* parent_view)
     : RenderViewContextMenuMac(render_frame_host, params),
@@ -203,16 +198,9 @@ RenderViewContextMenuMacCocoa::~RenderViewContextMenuMacCocoa() {
 }
 
 void RenderViewContextMenuMacCocoa::Show() {
-  views::Widget* widget = views::Widget::GetTopLevelWidgetForNativeView(
-      source_web_contents_->GetNativeView());
-  const ui::ColorProvider* color_provider =
-      widget ? widget->GetColorProvider() : nullptr;
-
-  menu_controller_.reset([[MenuControllerCocoa alloc]
-               initWithModel:&menu_model_
-                    delegate:nil
-               colorProvider:color_provider
-      useWithPopUpButtonCell:NO]);
+  menu_controller_.reset([[MenuControllerCocoa alloc] initWithModel:&menu_model_
+                                                           delegate:nil
+                                             useWithPopUpButtonCell:NO]);
 
   gfx::Point params_position(params_.x, params_.y);
 
@@ -225,9 +213,9 @@ void RenderViewContextMenuMacCocoa::Show() {
                   NSHeight([parent_view_ bounds]) - params_position.y());
   position = [parent_view_ convertPoint:position toView:nil];
   NSTimeInterval eventTime = [currentEvent timestamp];
-  NSEvent* clickEvent = [NSEvent mouseEventWithType:NSEventTypeRightMouseDown
+  NSEvent* clickEvent = [NSEvent mouseEventWithType:NSRightMouseDown
                                            location:position
-                                      modifierFlags:0
+                                      modifierFlags:NSRightMouseDownMask
                                           timestamp:eventTime
                                        windowNumber:[window windowNumber]
                                             context:nil
@@ -237,7 +225,7 @@ void RenderViewContextMenuMacCocoa::Show() {
 
   {
     // Make sure events can be pumped while the menu is up.
-    base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
+    base::CurrentThread::ScopedNestableTaskAllower allow;
 
     // Ensure the UI can update while the menu is fading out.
     base::ScopedPumpMessagesInPrivateModes pump_private;
@@ -264,7 +252,7 @@ void RenderViewContextMenuMacCocoa::UpdateToolkitMenuItem(
     int command_id,
     bool enabled,
     bool hidden,
-    const std::u16string& title) {
+    const base::string16& title) {
   NSMenuItem* item =
       GetMenuItemByID(&menu_model_, [menu_controller_ menu], command_id);
   if (!item)

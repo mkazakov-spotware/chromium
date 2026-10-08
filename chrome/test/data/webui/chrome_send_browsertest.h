@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_TEST_DATA_WEBUI_CHROME_SEND_BROWSERTEST_H_
 #define CHROME_TEST_DATA_WEBUI_CHROME_SEND_BROWSERTEST_H_
 
+#include "base/macros.h"
 #include "chrome/test/base/web_ui_browser_test.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -14,10 +15,6 @@
 class ChromeSendWebUITest : public WebUIBrowserTest {
  public:
   ChromeSendWebUITest();
-
-  ChromeSendWebUITest(const ChromeSendWebUITest&) = delete;
-  ChromeSendWebUITest& operator=(const ChromeSendWebUITest&) = delete;
-
   ~ChromeSendWebUITest() override;
 
   // Mocked message handler class to register expects using gmock framework.
@@ -26,7 +23,7 @@ class ChromeSendWebUITest : public WebUIBrowserTest {
     ChromeSendWebUIMessageHandler();
     ~ChromeSendWebUIMessageHandler() override;
 
-    MOCK_METHOD1(HandleCheckSend, void(const base::Value::List&));
+    MOCK_METHOD1(HandleCheckSend, void(const base::ListValue*));
 
    private:
     void RegisterMessages() override;
@@ -39,6 +36,8 @@ class ChromeSendWebUITest : public WebUIBrowserTest {
 
  private:
   content::WebUIMessageHandler* GetMockMessageHandler() override;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeSendWebUITest);
 };
 
 // Test fixture for verifying chrome.send messages are passed through. This
@@ -46,16 +45,12 @@ class ChromeSendWebUITest : public WebUIBrowserTest {
 class ChromeSendPassthroughWebUITest : public ChromeSendWebUITest {
  public:
   ChromeSendPassthroughWebUITest();
-
-  ChromeSendPassthroughWebUITest(const ChromeSendPassthroughWebUITest&) =
-      delete;
-  ChromeSendPassthroughWebUITest& operator=(
-      const ChromeSendPassthroughWebUITest&) = delete;
-
   ~ChromeSendPassthroughWebUITest() override;
 
  private:
   void SetUpOnMainThread() override;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeSendPassthroughWebUITest);
 };
 
 #endif  // CHROME_TEST_DATA_WEBUI_CHROME_SEND_BROWSERTEST_H_

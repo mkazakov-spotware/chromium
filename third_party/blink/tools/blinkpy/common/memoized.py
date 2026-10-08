@@ -45,20 +45,12 @@ class memoized(object):
             self._results_cache[args] = result
             return result
         except TypeError as error:
-            raise TypeError('Cannot call memoized function %s with unhashable '
-                            'arguments: %s' %
-                            (self._function.__name__, str(error)))
+            raise TypeError(
+                'Cannot call memoized function %s with unhashable '
+                'arguments: %s' % (self._function.__name__, error.message))
 
     # Use python "descriptor" protocol __get__ to appear
     # invisible during property access.
     def __get__(self, instance, owner):
-        # Imagine we have a class, Foo, that has a @memoized method, bar(). So
-        # that foo.bar() works we need to bind the underlying instance via
-        # functools.partial, but we also want cache_clear() to work so we
-        # monkey-patch it on top.
-        wrapper = functools.partial(self.__call__, instance)
-        wrapper.cache_clear = self.cache_clear
-        return wrapper
-
-    def cache_clear(self):
-        self._results_cache = {}
+        # Return a function partial with object already bound as self.
+        return functools.partial(self.__call__, instance)

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/tray/tray_detailed_view.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/button/button.h"
 
 namespace ash {
@@ -24,8 +23,6 @@ class KeyboardStatusRow;
 // of the virtual keyboard.
 class ImeListView : public TrayDetailedView {
  public:
-  METADATA_HEADER(ImeListView);
-
   enum SingleImeBehavior {
     // Shows the IME menu if there's only one IME in system.
     SHOW_SINGLE_IME,
@@ -34,8 +31,6 @@ class ImeListView : public TrayDetailedView {
   };
 
   explicit ImeListView(DetailedViewDelegate* delegate);
-  ImeListView(const ImeListView&) = delete;
-  ImeListView& operator=(const ImeListView&) = delete;
   ~ImeListView() override;
 
   // Initializes the contents of a newly-instantiated ImeListView.
@@ -76,6 +71,7 @@ class ImeListView : public TrayDetailedView {
 
   // views::View:
   void VisibilityChanged(View* starting_from, bool is_visible) override;
+  const char* GetClassName() const override;
 
  private:
   friend class ImeListViewTestApi;
@@ -113,18 +109,12 @@ class ImeListView : public TrayDetailedView {
   // The item view of the current selected IME.
   views::View* current_ime_view_ = nullptr;
 
-  // The container for the IME list. Either a ScrollView (pre-QsRevamp) or a
-  // RoundedContainer (post-QsRevamp).
-  views::View* container_ = nullptr;
+  DISALLOW_COPY_AND_ASSIGN(ImeListView);
 };
 
 class ASH_EXPORT ImeListViewTestApi {
  public:
   explicit ImeListViewTestApi(ImeListView* ime_list_view);
-
-  ImeListViewTestApi(const ImeListViewTestApi&) = delete;
-  ImeListViewTestApi& operator=(const ImeListViewTestApi&) = delete;
-
   virtual ~ImeListViewTestApi();
 
   views::View* GetToggleView() const;
@@ -135,6 +125,8 @@ class ASH_EXPORT ImeListViewTestApi {
 
  private:
   ImeListView* ime_list_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImeListViewTestApi);
 };
 
 }  // namespace ash

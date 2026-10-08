@@ -1,20 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/spellcheck/browser/spellcheck_platform.h"
 
 #include <stddef.h>
-#include <ostream>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
@@ -29,21 +28,11 @@
 
 namespace {
 
-struct RequestTextCheckTestCase {
-  const char* text_to_check;
-  const char* expected_suggestion;
-};
-
-std::ostream& operator<<(std::ostream& out,
-                         const RequestTextCheckTestCase& test_case) {
-  out << "text_to_check=" << test_case.text_to_check
-      << ", expected_suggestion=" << test_case.expected_suggestion;
-  return out;
-}
-
 class WindowsSpellCheckerTest : public testing::Test {
  public:
   WindowsSpellCheckerTest() {
+    feature_list_.InitAndEnableFeature(spellcheck::kWinUseBrowserSpellChecker);
+
     // The WindowsSpellchecker object can be created even on Windows versions
     // that don't support platform spellchecking. However, the spellcheck
     // factory won't be instantiated and the result returned in the
@@ -105,15 +94,6 @@ class WindowsSpellCheckerTest : public testing::Test {
   }
 
  protected:
-  void SetUp() override {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{spellcheck::kWinUseBrowserSpellChecker,
-                              spellcheck::kWinRetrieveSuggestionsOnlyOnDemand},
-        /*disabled_features=*/{});
-  }
-
-  void RunRequestTextCheckTest(const RequestTextCheckTestCase& test_case);
-
   std::unique_ptr<WindowsSpellChecker> win_spell_checker_;
 
   bool callback_finished_ = false;
@@ -129,90 +109,58 @@ class WindowsSpellCheckerTest : public testing::Test {
       base::test::TaskEnvironment::MainThreadType::UI};
 };
 
-void WindowsSpellCheckerTest::RunRequestTextCheckTest(
-    const RequestTextCheckTestCase& test_case) {
+TEST_F(WindowsSpellCheckerTest, RequestTextCheck) {
   ASSERT_EQ(set_language_result_,
             spellcheck::WindowsVersionSupportsSpellchecker());
 
-  const std::u16string word(base::ASCIIToUTF16(test_case.text_to_check));
+  static const struct {
+    const char* text_to_check;
+    const char* expected_suggestion;
+  } kTestCases[] = {
+      {"absense", "absence"},    {"becomeing", "becoming"},
+      {"cieling", "ceiling"},    {"definate", "definite"},
+      {"eigth", "eight"},        {"exellent", "excellent"},
+      {"finaly", "finally"},     {"garantee", "guarantee"},
+      {"humerous", "humorous"},  {"imediately", "immediately"},
+      {"jellous", "jealous"},    {"knowlege", "knowledge"},
+      {"lenght", "length"},      {"manuever", "maneuver"},
+      {"naturaly", "naturally"}, {"ommision", "omission"},
+  };
 
-  // Check if the suggested words occur.
-  win_spell_checker_->RequestTextCheck(
-      1, word,
-      base::BindOnce(&WindowsSpellCheckerTest::TextCheckCompletionCallback,
-                     base::Unretained(this)));
-  RunUntilResultReceived();
+  for (size_t i = 0; i < base::size(kTestCases); ++i) {
+    const auto& test_case = kTestCases[i];
+    const base::string16 word(base::ASCIIToUTF16(test_case.text_to_check));
 
-  if (!spellcheck::WindowsVersionSupportsSpellchecker()) {
-    // On Windows versions that don't support platform spellchecking, the
-    // returned vector of results should be empty.
-    ASSERT_TRUE(spell_check_results_.empty());
-    return;
-  }
+    // Check if the suggested words occur.
+    win_spell_checker_->RequestTextCheck(
+        1, word,
+        base::BindOnce(&WindowsSpellCheckerTest::TextCheckCompletionCallback,
+                       base::Unretained(this)));
+    RunUntilResultReceived();
 
-  ASSERT_EQ(1u, spell_check_results_.size())
-      << "RequestTextCheck: Wrong number of results";
+    if (!spellcheck::WindowsVersionSupportsSpellchecker()) {
+      // On Windows versions that don't support platform spellchecking, the
+      // returned vector of results should be empty.
+      ASSERT_TRUE(spell_check_results_.empty());
+      continue;
+    }
 
-  const std::vector<std::u16string>& suggestions =
-      spell_check_results_.front().replacements;
-  if (base::FeatureList::IsEnabled(
-          spellcheck::kWinRetrieveSuggestionsOnlyOnDemand)) {
-    // RequestTextCheck should return no suggestions.
-    ASSERT_TRUE(suggestions.empty())
-        << "RequestTextCheck: No suggestions are expected";
-  } else {
-    const std::u16string suggested_word(
+    ASSERT_EQ(1u, spell_check_results_.size())
+        << "RequestTextCheckTests case " << i << ": Wrong number of results";
+
+    const std::vector<base::string16>& suggestions =
+        spell_check_results_.front().replacements;
+    const base::string16 suggested_word(
         base::ASCIIToUTF16(test_case.expected_suggestion));
-    ASSERT_TRUE(base::ranges::any_of(suggestions, [&](const std::u16string&
-                                                          suggestion) {
-      return suggestion.compare(suggested_word) == 0;
-    })) << "RequestTextCheck: Expected suggestion not found";
+    auto position =
+        std::find_if(suggestions.begin(), suggestions.end(),
+                     [&](const base::string16& suggestion) {
+                       return suggestion.compare(suggested_word) == 0;
+                     });
+
+    ASSERT_NE(suggestions.end(), position) << "RequestTextCheckTests case " << i
+                                           << ": Expected suggestion not found";
   }
-}
-
-static const RequestTextCheckTestCase kRequestTextCheckTestCases[] = {
-    {"absense", "absence"},    {"becomeing", "becoming"},
-    {"cieling", "ceiling"},    {"definate", "definite"},
-    {"eigth", "eight"},        {"exellent", "excellent"},
-    {"finaly", "finally"},     {"garantee", "guarantee"},
-    {"humerous", "humorous"},  {"imediately", "immediately"},
-    {"jellous", "jealous"},    {"knowlege", "knowledge"},
-    {"lenght", "length"},      {"manuever", "maneuver"},
-    {"naturaly", "naturally"}, {"ommision", "omission"},
-};
-
-class WindowsSpellCheckerRequestTextCheckTest
-    : public WindowsSpellCheckerTest,
-      public testing::WithParamInterface<RequestTextCheckTestCase> {};
-
-INSTANTIATE_TEST_SUITE_P(TestCases,
-                         WindowsSpellCheckerRequestTextCheckTest,
-                         testing::ValuesIn(kRequestTextCheckTestCases));
-
-TEST_P(WindowsSpellCheckerRequestTextCheckTest, RequestTextCheck) {
-  RunRequestTextCheckTest(GetParam());
-}
-
-class WindowsSpellCheckerRequestTextCheckWithSuggestionsTest
-    : public WindowsSpellCheckerRequestTextCheckTest {
- protected:
-  void SetUp() override {
-    // Want to maintain test coverage for requesting suggestions on call to
-    // RequestTextCheck.
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{spellcheck::kWinUseBrowserSpellChecker},
-        /*disabled_features=*/{
-            spellcheck::kWinRetrieveSuggestionsOnlyOnDemand});
-  }
-};
-
-INSTANTIATE_TEST_SUITE_P(TestCases,
-                         WindowsSpellCheckerRequestTextCheckWithSuggestionsTest,
-                         testing::ValuesIn(kRequestTextCheckTestCases));
-
-TEST_P(WindowsSpellCheckerRequestTextCheckWithSuggestionsTest,
-       RequestTextCheck) {
-  RunRequestTextCheckTest(GetParam());
 }
 
 TEST_F(WindowsSpellCheckerTest, RetrieveSpellcheckLanguages) {
@@ -262,7 +210,7 @@ TEST_F(WindowsSpellCheckerTest, GetPerLanguageSuggestions) {
             spellcheck::WindowsVersionSupportsSpellchecker());
 
   win_spell_checker_->GetPerLanguageSuggestions(
-      u"tihs",
+      base::ASCIIToUTF16("tihs"),
       base::BindOnce(
           &WindowsSpellCheckerTest::PerLanguageSuggestionsCompletionCallback,
           base::Unretained(this)));

@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_VIDEO_CAPTURE_PUBLIC_CPP_MOCK_VIDEO_CAPTURE_SERVICE_H_
 #define SERVICES_VIDEO_CAPTURE_PUBLIC_CPP_MOCK_VIDEO_CAPTURE_SERVICE_H_
-
-#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "services/video_capture/public/mojom/video_capture_service.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -27,7 +26,7 @@ class MockVideoCaptureService
       mojo::PendingReceiver<video_capture::mojom::VideoSourceProvider> receiver)
       override;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
   void InjectGpuDependencies(
       mojo::PendingRemote<video_capture::mojom::AcceleratorFactory>
           accelerator_factory) override;
@@ -39,7 +38,7 @@ class MockVideoCaptureService
 
   void ConnectToCameraAppDeviceBridge(
       mojo::PendingReceiver<cros::mojom::CameraAppDeviceBridge>) override {}
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS
 
   void BindControlsForTesting(
       mojo::PendingReceiver<mojom::TestingControls>) override {}
@@ -52,10 +51,6 @@ class MockVideoCaptureService
                void(mojo::PendingReceiver<
                     video_capture::mojom::VideoSourceProvider> receiver));
   MOCK_METHOD1(SetRetryCount, void(int32_t));
-
-#if BUILDFLAG(IS_WIN)
-  MOCK_METHOD1(OnGpuInfoUpdate, void(const CHROME_LUID&));
-#endif
 };
 
 }  // namespace video_capture

@@ -1,25 +1,22 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/cert/trial_comparison_cert_verifier.h"
 
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "build/build_config.h"
 #include "crypto/sha2.h"
 #include "net/base/test_completion_callback.h"
 #include "net/cert/cert_verify_proc.h"
 #include "net/cert/cert_verify_result.h"
 #include "net/cert/ev_root_ca_metadata.h"
-#include "net/cert/trial_comparison_cert_verifier_util.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
 #include "net/log/net_log_with_source.h"
@@ -44,8 +41,7 @@ namespace {
 MATCHER_P(CertChainMatches, expected_cert, "") {
   CertificateList actual_certs =
       X509Certificate::CreateCertificateListFromBytes(
-          base::as_bytes(base::make_span(arg)),
-          X509Certificate::FORMAT_PEM_CERT_SEQUENCE);
+          arg.data(), arg.size(), X509Certificate::FORMAT_PEM_CERT_SEQUENCE);
   if (actual_certs.empty()) {
     *result_listener << "failed to parse arg";
     return false;
@@ -80,7 +76,7 @@ class RepeatedTestClosure {
   void WaitForResult() {
     DCHECK(!run_loop_);
     if (!have_result_) {
-      run_loop_ = std::make_unique<base::RunLoop>();
+      run_loop_.reset(new base::RunLoop());
       run_loop_->Run();
       run_loop_.reset();
       DCHECK(have_result_);
@@ -111,10 +107,7 @@ class FakeCertVerifyProc : public CertVerifyProc {
   FakeCertVerifyProc(const int result_error, const CertVerifyResult& result)
       : result_error_(result_error),
         result_(result),
-        main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
-
-  FakeCertVerifyProc(const FakeCertVerifyProc&) = delete;
-  FakeCertVerifyProc& operator=(const FakeCertVerifyProc&) = delete;
+        main_task_runner_(base::SequencedTaskRunnerHandle::Get()) {}
 
   void WaitForVerifyCall() { verify_called_.WaitForResult(); }
   int num_verifications() const { return num_verifications_; }
@@ -144,6 +137,8 @@ class FakeCertVerifyProc : public CertVerifyProc {
   int num_verifications_ = 0;
   RepeatedTestClosure verify_called_;
   scoped_refptr<base::TaskRunner> main_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeCertVerifyProc);
 };
 
 int FakeCertVerifyProc::VerifyInternal(
@@ -172,9 +167,6 @@ class NotCalledCertVerifyProc : public CertVerifyProc {
  public:
   NotCalledCertVerifyProc() = default;
 
-  NotCalledCertVerifyProc(const NotCalledCertVerifyProc&) = delete;
-  NotCalledCertVerifyProc& operator=(const NotCalledCertVerifyProc&) = delete;
-
   // CertVerifyProc implementation:
   bool SupportsAdditionalTrustAnchors() const override { return false; }
 
@@ -191,6 +183,8 @@ class NotCalledCertVerifyProc : public CertVerifyProc {
                      const CertificateList& additional_trust_anchors,
                      CertVerifyResult* verify_result,
                      const NetLogWithSource& net_log) override;
+
+  DISALLOW_COPY_AND_ASSIGN(NotCalledCertVerifyProc);
 };
 
 int NotCalledCertVerifyProc::VerifyInternal(
@@ -214,10 +208,6 @@ void NotCalledCallback(int error) {
 class MockCertVerifyProc : public CertVerifyProc {
  public:
   MockCertVerifyProc() = default;
-
-  MockCertVerifyProc(const MockCertVerifyProc&) = delete;
-  MockCertVerifyProc& operator=(const MockCertVerifyProc&) = delete;
-
   // CertVerifyProc implementation:
   bool SupportsAdditionalTrustAnchors() const override { return false; }
   MOCK_METHOD9(VerifyInternal,
@@ -233,23 +223,8 @@ class MockCertVerifyProc : public CertVerifyProc {
 
  protected:
   ~MockCertVerifyProc() override = default;
-};
 
-class SwapWithNewProcFactory : public CertVerifyProcFactory {
- public:
-  explicit SwapWithNewProcFactory(scoped_refptr<CertVerifyProc> new_proc)
-      : verify_proc_(std::move(new_proc)) {}
-
-  scoped_refptr<net::CertVerifyProc> CreateCertVerifyProc(
-      scoped_refptr<CertNetFetcher> cert_net_fetcher,
-      const ChromeRootStoreData* root_store_data) override {
-    return verify_proc_;
-  }
-
- protected:
-  ~SwapWithNewProcFactory() override = default;
-
-  scoped_refptr<CertVerifyProc> verify_proc_;
+  DISALLOW_COPY_AND_ASSIGN(MockCertVerifyProc);
 };
 
 struct TrialReportInfo {
@@ -320,23 +295,12 @@ class TrialComparisonCertVerifierTest : public TestWithTaskEnvironment {
         GetTestCertsDirectory(), "multi-root-chain2.pem",
         X509Certificate::FORMAT_AUTO);
     ASSERT_TRUE(cert_chain_2_);
-
-    lets_encrypt_dst_x3_ = CreateCertificateChainFromFile(
-        GetTestCertsDirectory(), "lets-encrypt-dst-x3-root.pem",
-        X509Certificate::FORMAT_AUTO);
-    ASSERT_TRUE(lets_encrypt_dst_x3_);
-    lets_encrypt_isrg_x1_ = CreateCertificateChainFromFile(
-        GetTestCertsDirectory(), "lets-encrypt-isrg-x1-root.pem",
-        X509Certificate::FORMAT_AUTO);
-    ASSERT_TRUE(lets_encrypt_isrg_x1_);
   }
 
  protected:
   scoped_refptr<X509Certificate> cert_chain_1_;
   scoped_refptr<X509Certificate> cert_chain_2_;
   scoped_refptr<X509Certificate> leaf_cert_1_;
-  scoped_refptr<X509Certificate> lets_encrypt_dst_x3_;
-  scoped_refptr<X509Certificate> lets_encrypt_isrg_x1_;
   base::HistogramTester histograms_;
 };
 
@@ -347,8 +311,8 @@ TEST_F(TrialComparisonCertVerifierTest, InitiallyDisallowed) {
   auto verify_proc = base::MakeRefCounted<FakeCertVerifyProc>(OK, dummy_result);
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc, nullptr, base::MakeRefCounted<NotCalledCertVerifyProc>(),
-      nullptr, base::BindRepeating(&RecordTrialReport, &reports));
+      verify_proc, base::MakeRefCounted<NotCalledCertVerifyProc>(),
+      base::BindRepeating(&RecordTrialReport, &reports));
   CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
                                      /*ocsp_response=*/std::string(),
                                      /*sct_list=*/std::string());
@@ -408,7 +372,7 @@ TEST_F(TrialComparisonCertVerifierTest, InitiallyDisallowedThenAllowed) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
 
   CertVerifier::RequestParams params(leaf, "t0.test", /*flags=*/0,
@@ -451,7 +415,7 @@ TEST_F(TrialComparisonCertVerifierTest, InitiallyDisallowedThenAllowed) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryValidSecondaryError, 1);
+      TrialComparisonCertVerifier::kPrimaryValidSecondaryError, 1);
 
   // Expect a report from the second verification.
   ASSERT_EQ(1U, reports.size());
@@ -491,7 +455,7 @@ TEST_F(TrialComparisonCertVerifierTest, InitiallyAllowedThenDisallowed) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -535,7 +499,7 @@ TEST_F(TrialComparisonCertVerifierTest, InitiallyAllowedThenDisallowed) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryValidSecondaryError, 1);
+      TrialComparisonCertVerifier::kPrimaryValidSecondaryError, 1);
 
   // Expect a report from the first verification.
   ASSERT_EQ(1U, reports.size());
@@ -552,8 +516,8 @@ TEST_F(TrialComparisonCertVerifierTest,
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, base::MakeRefCounted<NotCalledCertVerifyProc>(),
-      nullptr, base::BindRepeating(&RecordTrialReport, &reports));
+      verify_proc1, base::MakeRefCounted<NotCalledCertVerifyProc>(),
+      base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
   CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
@@ -588,53 +552,6 @@ TEST_F(TrialComparisonCertVerifierTest,
   EXPECT_TRUE(reports.empty());
 }
 
-TEST_F(TrialComparisonCertVerifierTest,
-       CertVerifyProcChangedDuringPrimaryVerification) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(OK, primary_result);
-
-  scoped_refptr<SwapWithNewProcFactory> swap_proc =
-      base::MakeRefCounted<SwapWithNewProcFactory>(
-          base::MakeRefCounted<NotCalledCertVerifyProc>());
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, swap_proc, base::MakeRefCounted<NotCalledCertVerifyProc>(),
-      nullptr, base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  // Change the verifier Chrome Root Store data before the primary verification
-  // finishes.
-  verifier.UpdateChromeRootStoreData(nullptr, nullptr);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsOk());
-
-  RunUntilIdle();
-
-  // Since the config changed, trial verifier should not run.
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 0);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               0);
-  histograms_.ExpectTotalCount("Net.CertVerifier_TrialComparisonResult", 0);
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-}
-
 TEST_F(TrialComparisonCertVerifierTest, ConfigChangedDuringTrialVerification) {
   CertVerifyResult primary_result;
   primary_result.verified_cert = cert_chain_1_;
@@ -651,7 +568,7 @@ TEST_F(TrialComparisonCertVerifierTest, ConfigChangedDuringTrialVerification) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -685,69 +602,7 @@ TEST_F(TrialComparisonCertVerifierTest, ConfigChangedDuringTrialVerification) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryValidSecondaryError, 1);
-
-  // Expect a report.
-  ASSERT_EQ(1U, reports.size());
-  const TrialReportInfo& report = reports[0];
-
-  EXPECT_EQ(0U, report.primary_result.cert_status);
-  EXPECT_EQ(CERT_STATUS_DATE_INVALID, report.trial_result.cert_status);
-}
-
-TEST_F(TrialComparisonCertVerifierTest,
-       CertVerifyProcChangedDuringTrialVerification) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(OK, primary_result);
-
-  // Trial verifier returns an error status.
-  CertVerifyResult secondary_result;
-  secondary_result.cert_status = CERT_STATUS_DATE_INVALID;
-  secondary_result.verified_cert = cert_chain_1_;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(ERR_CERT_DATE_INVALID,
-                                               secondary_result);
-
-  scoped_refptr<SwapWithNewProcFactory> swap_proc =
-      base::MakeRefCounted<SwapWithNewProcFactory>(
-          base::MakeRefCounted<NotCalledCertVerifyProc>());
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, swap_proc,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsOk());
-
-  // Change the verifier Chrome Root Store data during the trial verification.
-  verifier.UpdateChromeRootStoreData(nullptr, nullptr);
-
-  RunUntilIdle();
-
-  // Since the config was the same when both primary and trial verification
-  // started, the result should still be reported.
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample(
-      "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryValidSecondaryError, 1);
+      TrialComparisonCertVerifier::kPrimaryValidSecondaryError, 1);
 
   // Expect a report.
   ASSERT_EQ(1U, reports.size());
@@ -767,7 +622,7 @@ TEST_F(TrialComparisonCertVerifierTest, SameResult) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -797,7 +652,7 @@ TEST_F(TrialComparisonCertVerifierTest, SameResult) {
   histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
                                1);
   histograms_.ExpectUniqueSample("Net.CertVerifier_TrialComparisonResult",
-                                 TrialComparisonResult::kEqual, 1);
+                                 TrialComparisonCertVerifier::kEqual, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, PrimaryVerifierErrorSecondaryOk) {
@@ -816,7 +671,7 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryVerifierErrorSecondaryOk) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -862,7 +717,7 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryVerifierErrorSecondaryOk) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryErrorSecondaryValid, 1);
+      TrialComparisonCertVerifier::kPrimaryErrorSecondaryValid, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, PrimaryVerifierOkSecondaryError) {
@@ -881,7 +736,7 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryVerifierOkSecondaryError) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -923,7 +778,7 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryVerifierOkSecondaryError) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryValidSecondaryError, 1);
+      TrialComparisonCertVerifier::kPrimaryValidSecondaryError, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, BothVerifiersDifferentErrors) {
@@ -945,7 +800,7 @@ TEST_F(TrialComparisonCertVerifierTest, BothVerifiersDifferentErrors) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -986,7 +841,7 @@ TEST_F(TrialComparisonCertVerifierTest, BothVerifiersDifferentErrors) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kBothErrorDifferentDetails, 1);
+      TrialComparisonCertVerifier::kBothErrorDifferentDetails, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest,
@@ -1005,7 +860,7 @@ TEST_F(TrialComparisonCertVerifierTest,
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1048,7 +903,7 @@ TEST_F(TrialComparisonCertVerifierTest,
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kBothValidDifferentDetails, 1);
+      TrialComparisonCertVerifier::kBothValidDifferentDetails, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest,
@@ -1068,7 +923,7 @@ TEST_F(TrialComparisonCertVerifierTest,
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1108,7 +963,7 @@ TEST_F(TrialComparisonCertVerifierTest,
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredConfigurationChanged, 1);
+      TrialComparisonCertVerifier::kIgnoredConfigurationChanged, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest,
@@ -1135,7 +990,7 @@ TEST_F(TrialComparisonCertVerifierTest,
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1166,7 +1021,8 @@ TEST_F(TrialComparisonCertVerifierTest,
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredDifferentPathReVerifiesEquivalent, 1);
+      TrialComparisonCertVerifier::kIgnoredDifferentPathReVerifiesEquivalent,
+      1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest,
@@ -1194,44 +1050,48 @@ TEST_F(TrialComparisonCertVerifierTest,
                                         std::move(intermediates));
   ASSERT_TRUE(different_chain);
 
-  CertVerifyResult different_chain_result_no_known_root;
-  different_chain_result_no_known_root.verified_cert = different_chain;
+  CertVerifyResult different_chain_result;
+  different_chain_result.verified_cert = different_chain;
 
-  CertVerifyResult different_chain_result_known_root;
-  different_chain_result_known_root.verified_cert = different_chain;
-  different_chain_result_known_root.is_issued_by_known_root = true;
+  CertVerifyResult nonev_chain_result;
+  nonev_chain_result.verified_cert = cert_chain;
 
-  CertVerifyResult chain_result;
-  chain_result.verified_cert = cert_chain;
-  chain_result.is_issued_by_known_root = true;
+  CertVerifyResult ev_chain_result;
+  ev_chain_result.verified_cert = cert_chain;
+  ev_chain_result.cert_status =
+      CERT_STATUS_IS_EV | CERT_STATUS_REV_CHECKING_ENABLED;
 
   SHA256HashValue root_fingerprint;
   crypto::SHA256HashString(x509_util::CryptoBufferAsStringPiece(
                                cert_chain->intermediate_buffers().back().get()),
                            root_fingerprint.data,
                            sizeof(root_fingerprint.data));
+  // Both policies in the target are EV policies, but only 1.2.6.7 is valid for
+  // the root in cert_chain.
+  ScopedTestEVPolicy scoped_ev_policy_1(EVRootCAMetadata::GetInstance(),
+                                        root_fingerprint, "1.2.6.7");
+  ScopedTestEVPolicy scoped_ev_policy_2(EVRootCAMetadata::GetInstance(),
+                                        SHA256HashValue(), "1.2.3.4");
 
   scoped_refptr<MockCertVerifyProc> verify_proc1 =
       base::MakeRefCounted<MockCertVerifyProc>();
   // Primary verifier returns ok status and different_chain if verifying leaf
-  // alone, but not is_known_root.
+  // alone.
   EXPECT_CALL(*verify_proc1, VerifyInternal(leaf.get(), _, _, _, _, _, _, _, _))
-      .WillOnce(DoAll(SetArgPointee<7>(different_chain_result_no_known_root),
-                      Return(OK)));
-  // Primary verifier returns ok status and different_chain if verifying
-  // cert_chain and with is_known_root..
+      .WillOnce(DoAll(SetArgPointee<7>(different_chain_result), Return(OK)));
+  // Primary verifier returns ok status and nonev_chain_result if verifying
+  // cert_chain.
   EXPECT_CALL(*verify_proc1,
               VerifyInternal(cert_chain.get(), _, _, _, _, _, _, _, _))
-      .WillOnce(DoAll(SetArgPointee<7>(different_chain_result_known_root),
-                      Return(OK)));
+      .WillOnce(DoAll(SetArgPointee<7>(nonev_chain_result), Return(OK)));
 
-  // Trial verifier returns ok status and chain_result.
+  // Trial verifier returns ok status and ev_chain_result.
   scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(OK, chain_result);
+      base::MakeRefCounted<FakeCertVerifyProc>(OK, ev_chain_result);
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1256,8 +1116,7 @@ TEST_F(TrialComparisonCertVerifierTest,
   EXPECT_TRUE(reports.empty());
 
   // Primary verifier should be used twice, the second time with the chain
-  // from the trial verifier. Even so, it only should be counted once in
-  // metrics.
+  // from the trial verifier.
   testing::Mock::VerifyAndClear(verify_proc1.get());
   EXPECT_EQ(1, verify_proc2->num_verifications());
   histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
@@ -1265,7 +1124,8 @@ TEST_F(TrialComparisonCertVerifierTest,
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredDifferentPathReVerifiesEquivalent, 1);
+      TrialComparisonCertVerifier::kIgnoredDifferentPathReVerifiesEquivalent,
+      1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, BothVerifiersOkDifferentCertStatus) {
@@ -1284,7 +1144,7 @@ TEST_F(TrialComparisonCertVerifierTest, BothVerifiersOkDifferentCertStatus) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1336,7 +1196,7 @@ TEST_F(TrialComparisonCertVerifierTest, BothVerifiersOkDifferentCertStatus) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kBothValidDifferentDetails, 1);
+      TrialComparisonCertVerifier::kBothValidDifferentDetails, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, CancelledDuringPrimaryVerification) {
@@ -1356,7 +1216,7 @@ TEST_F(TrialComparisonCertVerifierTest, CancelledDuringPrimaryVerification) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1401,7 +1261,7 @@ TEST_F(TrialComparisonCertVerifierTest, CancelledDuringPrimaryVerification) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryErrorSecondaryValid, 1);
+      TrialComparisonCertVerifier::kPrimaryErrorSecondaryValid, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, DeletedDuringPrimaryVerification) {
@@ -1415,8 +1275,8 @@ TEST_F(TrialComparisonCertVerifierTest, DeletedDuringPrimaryVerification) {
 
   std::vector<TrialReportInfo> reports;
   auto verifier = std::make_unique<TrialComparisonCertVerifier>(
-      verify_proc1, nullptr, base::MakeRefCounted<NotCalledCertVerifyProc>(),
-      nullptr, base::BindRepeating(&RecordTrialReport, &reports));
+      verify_proc1, base::MakeRefCounted<NotCalledCertVerifyProc>(),
+      base::BindRepeating(&RecordTrialReport, &reports));
   verifier->set_trial_allowed(true);
 
   CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
@@ -1462,8 +1322,8 @@ TEST_F(TrialComparisonCertVerifierTest, DeletedDuringVerificationResult) {
 
   std::vector<TrialReportInfo> reports;
   auto verifier = std::make_unique<TrialComparisonCertVerifier>(
-      verify_proc1, nullptr, base::MakeRefCounted<NotCalledCertVerifyProc>(),
-      nullptr, base::BindRepeating(&RecordTrialReport, &reports));
+      verify_proc1, base::MakeRefCounted<NotCalledCertVerifyProc>(),
+      base::BindRepeating(&RecordTrialReport, &reports));
   verifier->set_trial_allowed(true);
 
   CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
@@ -1525,7 +1385,7 @@ TEST_F(TrialComparisonCertVerifierTest, DeletedDuringTrialReport) {
   bool was_report_callback_called = false;
   std::unique_ptr<TrialComparisonCertVerifier> verifier;
   verifier = std::make_unique<TrialComparisonCertVerifier>(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindLambdaForTesting(
           [&verifier, &was_report_callback_called](
               const std::string& hostname,
@@ -1570,7 +1430,7 @@ TEST_F(TrialComparisonCertVerifierTest, DeletedDuringTrialReport) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryErrorSecondaryValid, 1);
+      TrialComparisonCertVerifier::kPrimaryErrorSecondaryValid, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, DeletedAfterTrialVerificationStarted) {
@@ -1590,7 +1450,7 @@ TEST_F(TrialComparisonCertVerifierTest, DeletedAfterTrialVerificationStarted) {
 
   std::vector<TrialReportInfo> reports;
   auto verifier = std::make_unique<TrialComparisonCertVerifier>(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier->set_trial_allowed(true);
 
@@ -1652,7 +1512,7 @@ TEST_F(TrialComparisonCertVerifierTest, MacUndesiredRevocationChecking) {
   EXPECT_CALL(*verify_proc2, VerifyInternal(_, _, _, _, _, _, _, _, _))
       .WillOnce(DoAll(SetArgPointee<7>(ok_result), Return(OK)));
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // The secondary should have been called twice on Mac due to attempting
   // the kIgnoredMacUndesiredRevocationCheckingWorkaround.
   EXPECT_CALL(
@@ -1665,7 +1525,7 @@ TEST_F(TrialComparisonCertVerifierTest, MacUndesiredRevocationChecking) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1690,20 +1550,20 @@ TEST_F(TrialComparisonCertVerifierTest, MacUndesiredRevocationChecking) {
   histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
   histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
                                1);
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // Expect no report.
   EXPECT_EQ(0U, reports.size());
 
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredMacUndesiredRevocationChecking, 1);
+      TrialComparisonCertVerifier::kIgnoredMacUndesiredRevocationChecking, 1);
 #else
   // Expect a report.
   EXPECT_EQ(1U, reports.size());
 
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryErrorSecondaryValid, 1);
+      TrialComparisonCertVerifier::kPrimaryErrorSecondaryValid, 1);
 #endif
 }
 
@@ -1725,7 +1585,7 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryRevokedSecondaryOk) {
   scoped_refptr<MockCertVerifyProc> verify_proc2 =
       base::MakeRefCounted<MockCertVerifyProc>();
   EXPECT_CALL(*verify_proc2, VerifyInternal(_, _, _, _, _, _, _, _, _))
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
       // The secondary should have been called twice on Mac due to attempting
       // the kIgnoredMacUndesiredRevocationCheckingWorkaround.
       .Times(2)
@@ -1736,7 +1596,7 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryRevokedSecondaryOk) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1763,13 +1623,12 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryRevokedSecondaryOk) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kPrimaryErrorSecondaryValid, 1);
+      TrialComparisonCertVerifier::kPrimaryErrorSecondaryValid, 1);
 
   // Expect a report.
   EXPECT_EQ(1U, reports.size());
 }
 
-#if defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
 TEST_F(TrialComparisonCertVerifierTest, MultipleEVPolicies) {
   base::FilePath certs_dir =
       GetTestNetDataDirectory()
@@ -1808,7 +1667,7 @@ TEST_F(TrialComparisonCertVerifierTest, MultipleEVPolicies) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1839,7 +1698,8 @@ TEST_F(TrialComparisonCertVerifierTest, MultipleEVPolicies) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredMultipleEVPoliciesAndOneMatchesRoot, 1);
+      TrialComparisonCertVerifier::kIgnoredMultipleEVPoliciesAndOneMatchesRoot,
+      1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, MultipleEVPoliciesNoneValidForRoot) {
@@ -1873,7 +1733,7 @@ TEST_F(TrialComparisonCertVerifierTest, MultipleEVPoliciesNoneValidForRoot) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1904,7 +1764,7 @@ TEST_F(TrialComparisonCertVerifierTest, MultipleEVPoliciesNoneValidForRoot) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kBothValidDifferentDetails, 1);
+      TrialComparisonCertVerifier::kBothValidDifferentDetails, 1);
 }
 
 TEST_F(TrialComparisonCertVerifierTest, MultiplePoliciesOnlyOneIsEV) {
@@ -1942,7 +1802,7 @@ TEST_F(TrialComparisonCertVerifierTest, MultiplePoliciesOnlyOneIsEV) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -1973,9 +1833,8 @@ TEST_F(TrialComparisonCertVerifierTest, MultiplePoliciesOnlyOneIsEV) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kBothValidDifferentDetails, 1);
+      TrialComparisonCertVerifier::kBothValidDifferentDetails, 1);
 }
-#endif
 
 TEST_F(TrialComparisonCertVerifierTest, LocallyTrustedLeaf) {
   // Platform verifier verifies the leaf directly.
@@ -1994,7 +1853,7 @@ TEST_F(TrialComparisonCertVerifierTest, LocallyTrustedLeaf) {
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
+      verify_proc1, verify_proc2,
       base::BindRepeating(&RecordTrialReport, &reports));
   verifier.set_trial_allowed(true);
 
@@ -2025,332 +1884,7 @@ TEST_F(TrialComparisonCertVerifierTest, LocallyTrustedLeaf) {
                                1);
   histograms_.ExpectUniqueSample(
       "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredLocallyTrustedLeaf, 1);
-}
-
-// Ignore results where both primary and trial verifier report SHA-1 signatures.
-TEST_F(TrialComparisonCertVerifierTest, SHA1Ignored) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  primary_result.cert_status =
-      CERT_STATUS_SHA1_SIGNATURE_PRESENT | CERT_STATUS_REV_CHECKING_ENABLED;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(
-          ERR_CERT_WEAK_SIGNATURE_ALGORITHM, primary_result);
-
-  CertVerifyResult secondary_result;
-  secondary_result.verified_cert = cert_chain_1_;
-  secondary_result.cert_status = CERT_STATUS_SHA1_SIGNATURE_PRESENT;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(
-          ERR_CERT_WEAK_SIGNATURE_ALGORITHM, secondary_result);
-
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsError(ERR_CERT_WEAK_SIGNATURE_ALGORITHM));
-
-  verify_proc2->WaitForVerifyCall();
-  RunUntilIdle();
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample(
-      "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredSHA1SignaturePresent, 1);
-}
-
-// Ignore results where both primary and trial verifier report AUHORITY_INVALID
-// errors.
-TEST_F(TrialComparisonCertVerifierTest, BothAuthorityInvalidIgnored) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  primary_result.cert_status =
-      CERT_STATUS_SHA1_SIGNATURE_PRESENT | CERT_STATUS_AUTHORITY_INVALID;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(ERR_CERT_AUTHORITY_INVALID,
-                                               primary_result);
-
-  CertVerifyResult secondary_result;
-  secondary_result.verified_cert = cert_chain_1_;
-  secondary_result.cert_status = CERT_STATUS_AUTHORITY_INVALID;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(ERR_CERT_AUTHORITY_INVALID,
-                                               secondary_result);
-
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsError(ERR_CERT_AUTHORITY_INVALID));
-
-  verify_proc2->WaitForVerifyCall();
-  RunUntilIdle();
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample(
-      "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredBothAuthorityInvalid, 1);
-}
-
-// Ignore results where both primary and trial verifier terminate in
-// known roots (with the same error and status codes).
-TEST_F(TrialComparisonCertVerifierTest, BothKnownRootsIgnored) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  primary_result.cert_status = CERT_STATUS_DATE_INVALID;
-  primary_result.is_issued_by_known_root = true;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(
-          ERR_CERT_WEAK_SIGNATURE_ALGORITHM, primary_result);
-
-  CertVerifyResult secondary_result;
-  secondary_result.verified_cert = cert_chain_2_;
-  secondary_result.cert_status = CERT_STATUS_DATE_INVALID;
-  secondary_result.is_issued_by_known_root = true;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(
-          ERR_CERT_WEAK_SIGNATURE_ALGORITHM, secondary_result);
-
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsError(ERR_CERT_WEAK_SIGNATURE_ALGORITHM));
-
-  verify_proc2->WaitForVerifyCall();
-  RunUntilIdle();
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample("Net.CertVerifier_TrialComparisonResult",
-                                 TrialComparisonResult::kIgnoredBothKnownRoot,
-                                 1);
-}
-
-#if BUILDFLAG(IS_WIN)
-// Ignore results for windows when REV_CHECKING_ENABLED errors are reported
-// in both primary and trial verifiers.
-TEST_F(TrialComparisonCertVerifierTest, RevCheckingIgnoredWin) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  primary_result.cert_status =
-      CERT_STATUS_DATE_INVALID | CERT_STATUS_REV_CHECKING_ENABLED;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(
-          ERR_CERT_WEAK_SIGNATURE_ALGORITHM, primary_result);
-
-  CertVerifyResult secondary_result;
-  secondary_result.verified_cert = cert_chain_1_;
-  secondary_result.cert_status = CERT_STATUS_DATE_INVALID;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(
-          ERR_CERTIFICATE_TRANSPARENCY_REQUIRED, secondary_result);
-
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsError(ERR_CERT_WEAK_SIGNATURE_ALGORITHM));
-
-  verify_proc2->WaitForVerifyCall();
-  RunUntilIdle();
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample(
-      "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredWindowsRevCheckingEnabled, 1);
-}
-#endif
-
-// Ignore results where trial reports ERR_CERT_AUTHORITY_INVALID and the primary
-// reports any error with a cert status of CERT_STATUS_SYMANTEC_LEGACY
-TEST_F(TrialComparisonCertVerifierTest,
-       IgnoreAuthInvalidBuiltinWhenPrimaryReportSymantec) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = cert_chain_1_;
-  primary_result.cert_status =
-      CERT_STATUS_DATE_INVALID | CERT_STATUS_SYMANTEC_LEGACY;
-  primary_result.is_issued_by_known_root = true;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(ERR_CERT_COMMON_NAME_INVALID,
-                                               primary_result);
-
-  CertVerifyResult secondary_result;
-  secondary_result.verified_cert = cert_chain_2_;
-  secondary_result.cert_status = CERT_STATUS_AUTHORITY_INVALID;
-  secondary_result.is_issued_by_known_root = true;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(ERR_CERT_AUTHORITY_INVALID,
-                                               secondary_result);
-
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsError(ERR_CERT_COMMON_NAME_INVALID));
-
-  verify_proc2->WaitForVerifyCall();
-  RunUntilIdle();
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample(
-      "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredBuiltinAuthorityInvalidPlatformSymantec,
-      1);
-}
-
-TEST_F(TrialComparisonCertVerifierTest, LetsEncryptSpecialCase) {
-  CertVerifyResult primary_result;
-  primary_result.verified_cert = lets_encrypt_dst_x3_;
-  primary_result.cert_status = CERT_STATUS_DATE_INVALID;
-  scoped_refptr<FakeCertVerifyProc> verify_proc1 =
-      base::MakeRefCounted<FakeCertVerifyProc>(ERR_CERT_DATE_INVALID,
-                                               primary_result);
-
-  CertVerifyResult secondary_result;
-  secondary_result.verified_cert = lets_encrypt_isrg_x1_;
-  scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(OK, secondary_result);
-
-  std::vector<TrialReportInfo> reports;
-  TrialComparisonCertVerifier verifier(
-      verify_proc1, nullptr, verify_proc2, nullptr,
-      base::BindRepeating(&RecordTrialReport, &reports));
-  verifier.set_trial_allowed(true);
-
-  CertVerifier::RequestParams params(leaf_cert_1_, "127.0.0.1", /*flags=*/0,
-                                     /*ocsp_response=*/std::string(),
-                                     /*sct_list=*/std::string());
-  CertVerifyResult result;
-  TestCompletionCallback callback;
-  std::unique_ptr<CertVerifier::Request> request;
-  int error = verifier.Verify(params, &result, callback.callback(), &request,
-                              NetLogWithSource());
-  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
-  EXPECT_TRUE(request);
-
-  error = callback.WaitForResult();
-  EXPECT_THAT(error, IsError(ERR_CERT_DATE_INVALID));
-
-  verify_proc2->WaitForVerifyCall();
-  RunUntilIdle();
-
-  // Expect no report.
-  EXPECT_TRUE(reports.empty());
-
-  EXPECT_EQ(1, verify_proc1->num_verifications());
-  EXPECT_EQ(1, verify_proc2->num_verifications());
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
-  histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialSecondary",
-                               1);
-  histograms_.ExpectUniqueSample(
-      "Net.CertVerifier_TrialComparisonResult",
-      TrialComparisonResult::kIgnoredLetsEncryptExpiredRoot, 1);
+      TrialComparisonCertVerifier::kIgnoredLocallyTrustedLeaf, 1);
 }
 
 }  // namespace net

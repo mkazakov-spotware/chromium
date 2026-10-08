@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/elements/chrome_activity_overlay_view_controller.h"
 
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
@@ -31,7 +30,8 @@ const CGFloat kActivityIndicatorViewSize = 55;
   containerView.backgroundColor = [UIColor colorNamed:kBackgroundColor];
   containerView.layer.cornerRadius = kContainerCornerRadius;
   containerView.layer.masksToBounds = YES;
-  UIActivityIndicatorView* activityView = GetLargeUIActivityIndicatorView();
+  UIActivityIndicatorView* activityView = [[UIActivityIndicatorView alloc]
+      initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
   activityView.color = [UIColor colorNamed:kTextPrimaryColor];
   activityView.translatesAutoresizingMaskIntoConstraints = NO;
   [activityView startAnimating];
@@ -55,7 +55,8 @@ const CGFloat kActivityIndicatorViewSize = 55;
     [activityView.bottomAnchor
         constraintEqualToAnchor:containerView.bottomAnchor
                        constant:-kContainerViewSpacing],
-    [activityView.centerXAnchor constraintEqualToAnchor:label.centerXAnchor],
+    [activityView.centerXAnchor constraintEqualToAnchor:label.centerXAnchor
+                                               constant:0],
     [activityView.heightAnchor
         constraintEqualToConstant:kActivityIndicatorViewSize],
     [activityView.widthAnchor

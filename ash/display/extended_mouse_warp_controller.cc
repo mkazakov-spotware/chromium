@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,8 +52,7 @@ void AdjustSourceEdgeBounds(const gfx::Rect& display_bounds,
   int available_height = edge->height() - kMinimumIndicatorHeight;
   if (available_height <= 0)
     return;
-  edge->Inset(
-      gfx::Insets().set_top(std::min(available_height, target_y - edge->y())));
+  edge->Inset(0, std::min(available_height, target_y - edge->y()), 0, 0);
 }
 
 }  // namespace
@@ -170,8 +169,8 @@ void ExtendedMouseWarpController::AddWarpRegion(
     std::unique_ptr<WarpRegion> warp_region,
     bool has_drag_source) {
   if (has_drag_source) {
-    warp_region->shared_display_edge_indicator_ =
-        std::make_unique<SharedDisplayEdgeIndicator>();
+    warp_region->shared_display_edge_indicator_.reset(
+        new SharedDisplayEdgeIndicator);
     warp_region->shared_display_edge_indicator_->Show(
         warp_region->a_indicator_bounds_, warp_region->b_indicator_bounds_);
   }

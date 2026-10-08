@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ export const Severity = {
 
 /**
  * The type of log message object. The definition is based on
- * chrome/browser/ui/webui/ash/multidevice_internals/multidevice_internals_logs_handler.cc:
+ * chrome/browser/ui/webui/chromeos/multidevice_internals/multidevice_internals_logs_handler.cc:
  * LogMessageToDictionary()
  * @typedef {{text: string,
  *            time: string,
@@ -28,7 +28,7 @@ export let LogMessage;
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * chromeos/ash/components/phonehub/feature_status.h.
+ * chromeos/components/phonehub/feature_status.h.
  * @enum{number}
  */
 export const FeatureStatus = {
@@ -44,7 +44,7 @@ export const FeatureStatus = {
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * MobileStatus in chromeos/ash/components/phonehub/phone_status_model.h.
+ * MobileStatus in chromeos/components/phonehub/phone_status_model.h.
  * @enum{number}
  */
 export const MobileStatus = {
@@ -55,7 +55,7 @@ export const MobileStatus = {
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * SignalStrength in chromeos/ash/components/phonehub/phone_status_model.h.
+ * SignalStrength in chromeos/components/phonehub/phone_status_model.h.
  * @enum{number}
  */
 export const SignalStrength = {
@@ -68,7 +68,7 @@ export const SignalStrength = {
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * ChargingState in chromeos/ash/components/phonehub/phone_status_model.h.
+ * ChargingState in chromeos/components/phonehub/phone_status_model.h.
  * @enum{number}
  */
 export const ChargingState = {
@@ -79,7 +79,7 @@ export const ChargingState = {
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * BatterySaverState in chromeos/ash/components/phonehub/phone_status_model.h.
+ * BatterySaverState in chromeos/components/phonehub/phone_status_model.h.
  * @enum{number}
  */
 export const BatterySaverState = {
@@ -149,7 +149,7 @@ export let BrowserTabsModel;
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * Importance in chromeos/ash/components/phonehub/notification.h.
+ * Importance in chromeos/components/phonehub/notification.h.
  * @enum{number}
  */
 export const Importance = {
@@ -185,7 +185,7 @@ export let AppMetadata;
 
 /**
  * With the exception of the sent property, values match with Notifications in
- * chromeos/ash/components/phonehub/notification.h.
+ * chromeos/components/phonehub/notification.h
  * @typedef {{
  *   sent: boolean,
  *   id: number,
@@ -203,8 +203,7 @@ export let Notification;
 
 /**
  * Numerical values should not be changed because they must stay in sync with
- * TetherController::Status in
- * chromeos/ash/components/phonehub/tether_controller.h.
+ * TetherController::Status in chromeos/components/phonehub/tether_controller.h.
  * @enum{number}
  */
 export const TetherStatus = {
@@ -213,7 +212,6 @@ export const TetherStatus = {
   CONNECTION_AVAILABLE: 2,
   CONNECTING: 3,
   CONNECTED: 4,
-  NO_RECEPTION: 5,
 };
 
 /**
@@ -226,13 +224,12 @@ export const tetherStatusToString = new Map([
   [TetherStatus.CONNECTION_AVAILABLE, 'Connection available'],
   [TetherStatus.CONNECTING, 'Connecting'],
   [TetherStatus.CONNECTED, 'Connected'],
-  [TetherStatus.NO_RECEPTION, 'No reception'],
 ]);
 
 /**
  * Numerical values should not be changed because they must stay in sync with
  * FindMyDeviceController::Status (TBA) in
- * chromeos/ash/components/phonehub/find_my_device_controller.h.
+ * chromeos/components/phonehub/find_my_device_controller.h.
  * @enum{number}
  */
 export const FindMyDeviceStatus = {
@@ -250,34 +247,3 @@ export const findMyDeviceStatusToString = new Map([
   [FindMyDeviceStatus.OFF, 'Off'],
   [FindMyDeviceStatus.ON, 'On'],
 ]);
-
-/**
- * @enum{number}
- */
-export const FileType = {
-  IMAGE: 0,
-  VIDEO: 1,
-};
-
-/**
- * @enum{number}
- */
-export const DownloadResult = {
-  SUCCESS: 0,
-  ERROR_GENERIC: 1,
-  ERROR_STORAGE: 2,
-  ERROR_NETWORK: 3,
-};
-
-/**
- * @typedef {{
- *   isCameraRollEnabled: boolean,
- *   isOnboardingDismissed: boolean,
- *   isFileAccessGranted: boolean,
- *   isLoadingViewShown: boolean,
- *   numberOfThumbnails: number,
- *   fileType: !FileType,
- *   downloadResult: !DownloadResult,
- * }}
- */
-export let CameraRollManager;

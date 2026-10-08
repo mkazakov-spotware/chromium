@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include "base/files/file_path.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/build_config.h"
 #include "gtest/gtest.h"
 #include "test/filesystem.h"
 #include "test/scoped_temp_dir.h"
@@ -43,7 +42,7 @@ TEST(DirectoryReader, BadPaths) {
       reader.Open(temp_dir.path().Append(FILE_PATH_LITERAL("doesntexist"))));
 }
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 
 TEST(DirectoryReader, BadPaths_SymbolicLinks) {
   if (!CanCreateSymbolicLinks()) {
@@ -64,7 +63,7 @@ TEST(DirectoryReader, BadPaths_SymbolicLinks) {
   EXPECT_FALSE(reader.Open(link));
 }
 
-#endif  // !BUILDFLAG(IS_FUCHSIA)
+#endif  // !OS_FUCHSIA
 
 TEST(DirectoryReader, EmptyDirectory) {
   ScopedTempDir temp_dir;
@@ -104,7 +103,7 @@ void TestFilesAndDirectories(bool symbolic_links) {
   ASSERT_TRUE(
       CreateFile(temp_dir.path().Append(directory).Append(nested_file)));
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 
   if (symbolic_links) {
     base::FilePath link(FILE_PATH_LITERAL("link"));
@@ -119,7 +118,7 @@ void TestFilesAndDirectories(bool symbolic_links) {
     EXPECT_TRUE(expected_files.insert(dangling).second);
   }
 
-#endif  // !BUILDFLAG(IS_FUCHSIA)
+#endif  // !OS_FUCHSIA
 
   std::set<base::FilePath> files;
   DirectoryReader reader;
@@ -139,7 +138,7 @@ TEST(DirectoryReader, FilesAndDirectories) {
   TestFilesAndDirectories(false);
 }
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 
 TEST(DirectoryReader, FilesAndDirectories_SymbolicLinks) {
   if (!CanCreateSymbolicLinks()) {
@@ -149,7 +148,7 @@ TEST(DirectoryReader, FilesAndDirectories_SymbolicLinks) {
   TestFilesAndDirectories(true);
 }
 
-#endif  // !BUILDFLAG(IS_FUCHSIA)
+#endif  // !OS_FUCHSIA
 
 }  // namespace
 }  // namespace test

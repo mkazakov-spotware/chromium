@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ TextButton::TextButton(float text_size, AudioDelegate* audio_delegate)
 
 TextButton::~TextButton() = default;
 
-void TextButton::SetText(const std::u16string& text) {
+void TextButton::SetText(const base::string16& text) {
   text_->SetText(text);
 }
 

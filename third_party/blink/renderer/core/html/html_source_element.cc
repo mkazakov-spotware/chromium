@@ -68,13 +68,14 @@ HTMLSourceElement::~HTMLSourceElement() = default;
 
 void HTMLSourceElement::CreateMediaQueryList(const AtomicString& media) {
   RemoveMediaQueryListListener();
-  if (media.empty()) {
+  if (media.IsEmpty()) {
     media_query_list_ = nullptr;
     return;
   }
 
   ExecutionContext* execution_context = GetExecutionContext();
-  MediaQuerySet* set = MediaQuerySet::Create(media, execution_context);
+  scoped_refptr<MediaQuerySet> set =
+      MediaQuerySet::Create(media, execution_context);
   media_query_list_ = MakeGarbageCollected<MediaQueryList>(
       execution_context, &GetDocument().GetMediaQueryMatcher(), set);
   AddMediaQueryListListener();
@@ -139,8 +140,8 @@ void HTMLSourceElement::ScheduleErrorEvent() {
 
   pending_error_event_ = PostCancellableTask(
       *GetDocument().GetTaskRunner(TaskType::kDOMManipulation), FROM_HERE,
-      WTF::BindOnce(&HTMLSourceElement::DispatchPendingEvent,
-                    WrapPersistent(this)));
+      WTF::Bind(&HTMLSourceElement::DispatchPendingEvent,
+                WrapPersistent(this)));
 }
 
 void HTMLSourceElement::CancelPendingErrorEvent() {
@@ -158,17 +159,6 @@ bool HTMLSourceElement::MediaQueryMatches() const {
     return true;
 
   return media_query_list_->matches();
-}
-
-void HTMLSourceElement::AttributeChanged(
-    const AttributeModificationParams& params) {
-  const QualifiedName& name = params.name;
-  if (name == html_names::kWidthAttr || name == html_names::kHeightAttr) {
-    if (auto* picture = DynamicTo<HTMLPictureElement>(parentElement()))
-      picture->SourceAttributeChanged();
-  }
-
-  HTMLElement::AttributeChanged(params);
 }
 
 bool HTMLSourceElement::IsURLAttribute(const Attribute& attribute) const {

@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <cmath>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/numerics/math_constants.h"
 #include "base/test/task_environment.h"
@@ -58,7 +57,7 @@ class RelativeOrientationEulerAnglesFusionAlgorithmUsingAccelerometerTest
  protected:
   base::test::TaskEnvironment task_environment_;
   scoped_refptr<FakePlatformSensorFusion> fake_fusion_sensor_;
-  raw_ptr<RelativeOrientationEulerAnglesFusionAlgorithmUsingAccelerometer>
+  RelativeOrientationEulerAnglesFusionAlgorithmUsingAccelerometer*
       fusion_algorithm_;
 };
 

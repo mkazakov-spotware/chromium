@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/dom_distiller/core/viewer.h"
-
-#include <memory>
 
 #include "components/dom_distiller/core/distilled_page_prefs.h"
 #include "components/dom_distiller/core/distiller_ui_handle.h"
@@ -54,11 +52,11 @@ class TestDomDistillerService : public DomDistillerServiceInterface {
   }
   std::unique_ptr<DistillerPage> CreateDefaultDistillerPage(
       const gfx::Size& render_view_size) override {
-    return nullptr;
+    return std::unique_ptr<DistillerPage>();
   }
   std::unique_ptr<DistillerPage> CreateDefaultDistillerPageWithHandle(
       std::unique_ptr<SourcePageHandle> handle) override {
-    return nullptr;
+    return std::unique_ptr<DistillerPage>();
   }
   DistilledPagePrefs* GetDistilledPagePrefs() override;
   DistillerUIHandle* GetDistillerUIHandle() override;
@@ -66,9 +64,7 @@ class TestDomDistillerService : public DomDistillerServiceInterface {
 
 class DomDistillerViewerTest : public testing::Test {
  public:
-  void SetUp() override {
-    service_ = std::make_unique<TestDomDistillerService>();
-  }
+  void SetUp() override { service_.reset(new TestDomDistillerService()); }
 
  protected:
   std::unique_ptr<ViewerHandle> CreateViewRequest(

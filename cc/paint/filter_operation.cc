@@ -1,23 +1,22 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
 #include <algorithm>
-#include <utility>
 
 #include "cc/paint/filter_operation.h"
 
-#include "base/cxx17_backports.h"
-#include "base/notreached.h"
+#include "base/numerics/ranges.h"
+#include "base/stl_util.h"
 #include "base/trace_event/traced_value.h"
 #include "base/values.h"
 #include "cc/base/math_util.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 
@@ -25,7 +24,7 @@ bool FilterOperation::operator==(const FilterOperation& other) const {
   if (type_ != other.type_)
     return false;
   if (type_ == COLOR_MATRIX)
-    return matrix_ == other.matrix_;
+    return !memcmp(matrix_, other.matrix_, sizeof(matrix_));
   if (type_ == BLUR)
     return amount_ == other.amount_ && blur_tile_mode_ == other.blur_tile_mode_;
   if (type_ == DROP_SHADOW) {
@@ -50,32 +49,32 @@ FilterOperation::FilterOperation(FilterType type, float amount)
       amount_(amount),
       outer_threshold_(0),
       drop_shadow_offset_(0, 0),
-      drop_shadow_color_(SkColors::kTransparent),
+      drop_shadow_color_(0),
       zoom_inset_(0) {
   DCHECK_NE(type_, DROP_SHADOW);
   DCHECK_NE(type_, COLOR_MATRIX);
   DCHECK_NE(type_, REFERENCE);
-  matrix_.fill(0.0f);
+  memset(matrix_, 0, sizeof(matrix_));
 }
 
 FilterOperation::FilterOperation(FilterType type,
                                  float amount,
-                                 SkTileMode tile_mode)
+                                 SkBlurImageFilter::TileMode tile_mode)
     : type_(type),
       amount_(amount),
       outer_threshold_(0),
       drop_shadow_offset_(0, 0),
-      drop_shadow_color_(SkColors::kTransparent),
+      drop_shadow_color_(0),
       zoom_inset_(0),
       blur_tile_mode_(tile_mode) {
   DCHECK_EQ(type_, BLUR);
-  matrix_.fill(0.0f);
+  memset(matrix_, 0, sizeof(matrix_));
 }
 
 FilterOperation::FilterOperation(FilterType type,
                                  const gfx::Point& offset,
                                  float stdDeviation,
-                                 SkColor4f color)
+                                 SkColor color)
     : type_(type),
       amount_(stdDeviation),
       outer_threshold_(0),
@@ -83,7 +82,7 @@ FilterOperation::FilterOperation(FilterType type,
       drop_shadow_color_(color),
       zoom_inset_(0) {
   DCHECK_EQ(type_, DROP_SHADOW);
-  matrix_.fill(0.0f);
+  memset(matrix_, 0, sizeof(matrix_));
 }
 
 FilterOperation::FilterOperation(FilterType type, const Matrix& matrix)
@@ -91,10 +90,10 @@ FilterOperation::FilterOperation(FilterType type, const Matrix& matrix)
       amount_(0),
       outer_threshold_(0),
       drop_shadow_offset_(0, 0),
-      drop_shadow_color_(SkColors::kTransparent),
-      matrix_(matrix),
+      drop_shadow_color_(0),
       zoom_inset_(0) {
   DCHECK_EQ(type_, COLOR_MATRIX);
+  memcpy(matrix_, matrix, sizeof(matrix_));
 }
 
 FilterOperation::FilterOperation(FilterType type, float amount, int inset)
@@ -102,10 +101,10 @@ FilterOperation::FilterOperation(FilterType type, float amount, int inset)
       amount_(amount),
       outer_threshold_(0),
       drop_shadow_offset_(0, 0),
-      drop_shadow_color_(SkColors::kTransparent),
+      drop_shadow_color_(0),
       zoom_inset_(inset) {
   DCHECK_EQ(type_, ZOOM);
-  matrix_.fill(0.0f);
+  memset(matrix_, 0, sizeof(matrix_));
 }
 
 FilterOperation::FilterOperation(FilterType type,
@@ -114,11 +113,11 @@ FilterOperation::FilterOperation(FilterType type,
       amount_(0),
       outer_threshold_(0),
       drop_shadow_offset_(0, 0),
-      drop_shadow_color_(SkColors::kTransparent),
+      drop_shadow_color_(0),
       image_filter_(std::move(image_filter)),
       zoom_inset_(0) {
   DCHECK_EQ(type_, REFERENCE);
-  matrix_.fill(0.0f);
+  memset(matrix_, 0, sizeof(matrix_));
 }
 
 FilterOperation::FilterOperation(FilterType type,
@@ -129,14 +128,26 @@ FilterOperation::FilterOperation(FilterType type,
       amount_(inner_threshold),
       outer_threshold_(outer_threshold),
       drop_shadow_offset_(0, 0),
-      drop_shadow_color_(SkColors::kTransparent),
+      drop_shadow_color_(0),
       zoom_inset_(0),
       shape_(shape) {
   DCHECK_EQ(type_, ALPHA_THRESHOLD);
-  matrix_.fill(0.0f);
+  memset(matrix_, 0, sizeof(matrix_));
 }
 
-FilterOperation::FilterOperation(const FilterOperation& other) = default;
+FilterOperation::FilterOperation(const FilterOperation& other)
+    : type_(other.type_),
+      amount_(other.amount_),
+      outer_threshold_(other.outer_threshold_),
+      drop_shadow_offset_(other.drop_shadow_offset_),
+      drop_shadow_color_(other.drop_shadow_color_),
+      image_filter_(other.image_filter_),
+      zoom_inset_(other.zoom_inset_),
+      shape_(other.shape_),
+      blur_tile_mode_(other.blur_tile_mode_) {
+  memcpy(matrix_, other.matrix_, sizeof(matrix_));
+}
+
 FilterOperation::~FilterOperation() = default;
 
 static FilterOperation CreateNoOpFilter(FilterOperation::FilterType type) {
@@ -161,7 +172,7 @@ static FilterOperation CreateNoOpFilter(FilterOperation::FilterType type) {
       return FilterOperation::CreateBlurFilter(0.f);
     case FilterOperation::DROP_SHADOW:
       return FilterOperation::CreateDropShadowFilter(gfx::Point(0, 0), 0.f,
-                                                     SkColors::kTransparent);
+                                                     SK_ColorTRANSPARENT);
     case FilterOperation::COLOR_MATRIX: {
       FilterOperation::Matrix matrix = {};
       matrix[0] = matrix[6] = matrix[12] = matrix[18] = 1.f;
@@ -189,7 +200,7 @@ static float ClampAmountForFilterType(float amount,
     case FilterOperation::INVERT:
     case FilterOperation::OPACITY:
     case FilterOperation::ALPHA_THRESHOLD:
-      return base::clamp(amount, 0.f, 1.f);
+      return base::ClampToRange(amount, 0.f, 1.f);
     case FilterOperation::SATURATE:
     case FilterOperation::BRIGHTNESS:
     case FilterOperation::CONTRAST:
@@ -286,12 +297,11 @@ void FilterOperation::AsValueInto(base::trace_event::TracedValue* value) const {
     case FilterOperation::DROP_SHADOW:
       value->SetDouble("std_deviation", amount_);
       MathUtil::AddToTracedValue("offset", drop_shadow_offset_, value);
-      // TODO(crbug/1308932): Remove toSkColor and make all SkColor4f.
-      value->SetInteger("color", drop_shadow_color_.toSkColor());
+      value->SetInteger("color", drop_shadow_color_);
       break;
     case FilterOperation::COLOR_MATRIX: {
       value->BeginArray("matrix");
-      for (size_t i = 0; i < std::size(matrix_); ++i)
+      for (size_t i = 0; i < base::size(matrix_); ++i)
         value->AppendDouble(matrix_[i]);
       value->EndArray();
       break;
@@ -311,6 +321,7 @@ void FilterOperation::AsValueInto(base::trace_event::TracedValue* value) const {
     case FilterOperation::ALPHA_THRESHOLD: {
       value->SetDouble("inner_threshold", amount_);
       value->SetDouble("outer_threshold", outer_threshold_);
+      std::unique_ptr<base::ListValue> shape_value(new base::ListValue());
       value->BeginArray("shape");
       for (const gfx::Rect& rect : shape_) {
         value->AppendInteger(rect.x());
@@ -347,7 +358,7 @@ gfx::Rect MapRectInternal(const FilterOperation& op,
       float spread_x = std::abs(spread.x()) * sign;
       float spread_y = std::abs(spread.y()) * sign;
       gfx::RectF result(rect);
-      result.Inset(gfx::InsetsF::VH(spread_y, spread_x));
+      result.Inset(spread_x, spread_y, spread_x, spread_y);
       return gfx::ToEnclosingRect(result);
     }
     case FilterOperation::DROP_SHADOW: {
@@ -355,7 +366,7 @@ gfx::Rect MapRectInternal(const FilterOperation& op,
       float spread_x = std::abs(spread.x());
       float spread_y = std::abs(spread.y());
       gfx::RectF result(rect);
-      result.Inset(gfx::InsetsF::VH(-spread_y, -spread_x));
+      result.Inset(-spread_x, -spread_y, -spread_x, -spread_y);
 
       gfx::Point drop_shadow_offset = op.drop_shadow_offset();
       SkVector mapped_drop_shadow_offset;

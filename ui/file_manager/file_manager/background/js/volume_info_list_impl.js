@@ -1,23 +1,25 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ArrayDataModel} from '../../common/js/array_data_model.js';
-import {VolumeInfo} from '../../externs/volume_info.js';
-import {VolumeInfoList} from '../../externs/volume_info_list.js';
+// clang-format off
+// #import {VolumeInfo} from '../../../externs/volume_info.m.js';
+// #import {VolumeInfoList} from '../../../externs/volume_info_list.m.js';
+// #import {ArrayDataModel} from 'chrome://resources/js/cr/ui/array_data_model.m.js';
+// clang-format on
 
 /**
  * The container of the VolumeInfo for each mounted volume.
  * @final
  * @implements {VolumeInfoList}
  */
-export class VolumeInfoListImpl {
+/* #export */ class VolumeInfoListImpl {
   constructor() {
     /**
      * Holds VolumeInfo instances.
-     * @private @const {ArrayDataModel}
+     * @private @const {cr.ui.ArrayDataModel}
      */
-    this.model_ = new ArrayDataModel([]);
+    this.model_ = new cr.ui.ArrayDataModel([]);
     Object.freeze(this);
   }
 
@@ -25,14 +27,17 @@ export class VolumeInfoListImpl {
     return this.model_.length;
   }
 
+  /** @override */
   addEventListener(type, handler) {
     this.model_.addEventListener(type, handler);
   }
 
+  /** @override */
   removeEventListener(type, handler) {
     this.model_.removeEventListener(type, handler);
   }
 
+  /** @override */
   add(volumeInfo) {
     const index = this.findIndex(volumeInfo.volumeId);
     if (index !== -1) {
@@ -42,6 +47,7 @@ export class VolumeInfoListImpl {
     }
   }
 
+  /** @override */
   remove(volumeId) {
     const index = this.findIndex(volumeId);
     if (index !== -1) {
@@ -49,6 +55,7 @@ export class VolumeInfoListImpl {
     }
   }
 
+  /** @override */
   item(index) {
     return /** @type {!VolumeInfo} */ (this.model_.item(index));
   }

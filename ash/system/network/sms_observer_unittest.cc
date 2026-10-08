@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -28,11 +29,11 @@ std::unique_ptr<base::DictionaryValue> CreateMessage(
   std::unique_ptr<base::DictionaryValue> sms =
       std::make_unique<base::DictionaryValue>();
   if (kDefaultNumber)
-    sms->SetStringKey("number", kDefaultNumber);
+    sms->SetString("number", kDefaultNumber);
   if (kDefaultMessage)
-    sms->SetStringKey("text", kDefaultMessage);
+    sms->SetString("text", kDefaultMessage);
   if (kDefaultTimestamp)
-    sms->SetStringKey("timestamp", kDefaultMessage);
+    sms->SetString("timestamp", kDefaultMessage);
   return sms;
 }
 
@@ -41,13 +42,12 @@ std::unique_ptr<base::DictionaryValue> CreateMessage(
 class SmsObserverTest : public AshTestBase {
  public:
   SmsObserverTest() = default;
-
-  SmsObserverTest(const SmsObserverTest&) = delete;
-  SmsObserverTest& operator=(const SmsObserverTest&) = delete;
-
   ~SmsObserverTest() override = default;
 
   SmsObserver* GetSmsObserver() { return Shell::Get()->sms_observer_.get(); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SmsObserverTest);
 };
 
 // Verify if notification is received after receiving a sms message with
@@ -63,8 +63,10 @@ TEST_F(SmsObserverTest, SendTextMessage) {
       MessageCenter::Get()->GetVisibleNotifications();
   EXPECT_EQ(1u, notifications.size());
 
-  EXPECT_EQ(u"000-000-0000", (*notifications.begin())->title());
-  EXPECT_EQ(u"FakeSMSClient: 😊", (*notifications.begin())->message());
+  EXPECT_EQ(base::ASCIIToUTF16("000-000-0000"),
+            (*notifications.begin())->title());
+  EXPECT_EQ(base::UTF8ToUTF16("FakeSMSClient: \xF0\x9F\x98\x8A"),
+            (*notifications.begin())->message());
   MessageCenter::Get()->RemoveAllNotifications(false /* by_user */,
                                                MessageCenter::RemoveType::ALL);
   EXPECT_EQ(0u, MessageCenter::Get()->GetVisibleNotifications().size());
@@ -117,11 +119,11 @@ TEST_F(SmsObserverTest, MultipleTextMessages) {
 
   for (message_center::Notification* iter : notifications) {
     if (iter->id().find("chrome://network/sms1") != std::string::npos) {
-      EXPECT_EQ(u"000-000-0000", iter->title());
-      EXPECT_EQ(u"first message", iter->message());
+      EXPECT_EQ(base::ASCIIToUTF16("000-000-0000"), iter->title());
+      EXPECT_EQ(base::ASCIIToUTF16("first message"), iter->message());
     } else if (iter->id().find("chrome://network/sms2") != std::string::npos) {
-      EXPECT_EQ(u"000-000-0000", iter->title());
-      EXPECT_EQ(u"second message", iter->message());
+      EXPECT_EQ(base::ASCIIToUTF16("000-000-0000"), iter->title());
+      EXPECT_EQ(base::ASCIIToUTF16("second message"), iter->message());
     } else {
       ASSERT_TRUE(false);
     }

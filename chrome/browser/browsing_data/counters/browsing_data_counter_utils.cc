@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,6 +30,7 @@
 #endif
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+#include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/sync/sync_ui_util.h"
 #endif
 
@@ -43,7 +44,7 @@ namespace {
 // A helper function to display the size of cache in units of MB or higher.
 // We need this, as 1 MB is the lowest nonzero cache size displayed by the
 // counter.
-std::u16string FormatBytesMBOrHigher(ResultInt bytes) {
+base::string16 FormatBytesMBOrHigher(ResultInt bytes) {
   if (ui::GetByteDisplayUnits(bytes) >= ui::DataUnits::DATA_UNITS_MEBIBYTE)
     return ui::FormatBytes(bytes);
 
@@ -55,17 +56,17 @@ std::u16string FormatBytesMBOrHigher(ResultInt bytes) {
 bool ShouldShowCookieException(Profile* profile) {
   if (AccountConsistencyModeManager::IsMirrorEnabledForProfile(profile)) {
     auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
-    return identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync);
+    return identity_manager->HasPrimaryAccount();
   }
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   if (AccountConsistencyModeManager::IsDiceEnabledForProfile(profile)) {
-    return GetSyncStatusMessageType(profile) == SyncStatusMessageType::kSynced;
+    return sync_ui_util::GetStatus(profile) == sync_ui_util::SYNCED;
   }
 #endif
   return false;
 }
 
-std::u16string GetChromeCounterTextFromResult(
+base::string16 GetChromeCounterTextFromResult(
     const BrowsingDataCounter::Result* result,
     Profile* profile) {
   std::string pref_name = result->source()->GetPrefName();
@@ -88,7 +89,7 @@ std::u16string GetChromeCounterTextFromResult(
     // a subset of cache (i.e. a finite time interval), and almost zero (< 1MB).
     static const int kBytesInAMegabyte = 1024 * 1024;
     if (cache_size_bytes >= kBytesInAMegabyte) {
-      std::u16string formatted_size = FormatBytesMBOrHigher(cache_size_bytes);
+      base::string16 formatted_size = FormatBytesMBOrHigher(cache_size_bytes);
       if (!is_upper_limit) {
         return is_basic_tab ? l10n_util::GetStringFUTF16(
                                   IDS_DEL_CACHE_COUNTER_BASIC, formatted_size)
@@ -133,7 +134,7 @@ std::u16string GetChromeCounterTextFromResult(
         hosted_apps_result->Value(),
         base::checked_cast<ResultInt>(hosted_apps_result->examples().size()));
 
-    std::vector<std::u16string> replacements;
+    std::vector<base::string16> replacements;
     if (hosted_apps_count > 0) {
       replacements.push_back(                                     // App1,
           base::UTF8ToUTF16(hosted_apps_result->examples()[0]));
@@ -167,7 +168,7 @@ std::u16string GetChromeCounterTextFromResult(
     ResultInt account_passwords = signin_result->account_passwords();
     ResultInt signin_data_count = signin_result->WebAuthnCredentialsValue();
 
-    std::vector<std::u16string> counts;
+    std::vector<base::string16> counts;
     // TODO(crbug.com/1086433): If there are profile passwords, account
     // passwords and other sign-in data, these are combined as
     // "<1>; <2>; <3>" by recursively applying a "<1>; <2>" message.

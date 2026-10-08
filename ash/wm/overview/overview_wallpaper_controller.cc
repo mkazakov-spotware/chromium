@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include "ash/shell.h"
 #include "ash/wallpaper/wallpaper_constants.h"
 #include "ash/wallpaper/wallpaper_widget_controller.h"
+#include "ash/wm/overview/overview_constants.h"
+#include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/overview/overview_utils.h"
-#include "ash/wm/tablet_mode/tablet_mode_controller.h"
 
 namespace ash {
 
@@ -20,7 +21,8 @@ namespace {
 // is true.
 bool g_disable_wallpaper_change_for_tests = false;
 
-constexpr base::TimeDelta kBlurSlideDuration = base::Milliseconds(250);
+constexpr base::TimeDelta kBlurSlideDuration =
+    base::TimeDelta::FromMilliseconds(250);
 
 bool IsWallpaperChangeAllowed() {
   return !g_disable_wallpaper_change_for_tests;
@@ -42,12 +44,13 @@ OverviewWallpaperController::OverviewWallpaperController() {
   Shell::Get()->tablet_mode_controller()->AddObserver(this);
 }
 
-OverviewWallpaperController::~OverviewWallpaperController() = default;
+OverviewWallpaperController::~OverviewWallpaperController() {
+  Shell::Get()->tablet_mode_controller()->RemoveObserver(this);
+}
 
 // static
-void OverviewWallpaperController::SetDisableChangeWallpaperForTest(
-    bool disable) {
-  g_disable_wallpaper_change_for_tests = disable;
+void OverviewWallpaperController::SetDoNotChangeWallpaperForTests() {
+  g_disable_wallpaper_change_for_tests = true;
 }
 
 void OverviewWallpaperController::Blur(bool animate) {
@@ -59,20 +62,16 @@ void OverviewWallpaperController::Unblur() {
 }
 
 void OverviewWallpaperController::OnTabletModeStarted() {
-  UpdateWallpaper(wallpaper_blurred_, /*animate=*/absl::nullopt);
+  UpdateWallpaper(wallpaper_blurred_, /*animate=*/base::nullopt);
 }
 
 void OverviewWallpaperController::OnTabletModeEnded() {
-  UpdateWallpaper(wallpaper_blurred_, /*animate=*/absl::nullopt);
-}
-
-void OverviewWallpaperController::OnTabletControllerDestroyed() {
-  Shell::Get()->tablet_mode_controller()->RemoveObserver(this);
+  UpdateWallpaper(wallpaper_blurred_, /*animate=*/base::nullopt);
 }
 
 void OverviewWallpaperController::UpdateWallpaper(
     bool should_blur,
-    absl::optional<bool> animate) {
+    base::Optional<bool> animate) {
   if (!IsWallpaperChangeAllowed())
     return;
 
@@ -96,9 +95,9 @@ void OverviewWallpaperController::UpdateWallpaper(
     const bool should_animate = ShouldAnimateWallpaper(root);
     // On adding blur, we want to blur immediately if there are no animations
     // and blur after the rest of the overview animations have completed if
-    // there is to be wallpaper animations. `UpdateWallpaper` will get called
-    // twice when blurring, but only change the wallpaper when `should_animate`
-    // matches `animate`.
+    // there is to be wallpaper animations. |UpdateWallpaper| will get called
+    // twice when blurring, but only change the wallpaper when |should_animate|
+    // matches |animate|.
     if (should_blur && should_animate != animate.value())
       continue;
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,17 +22,18 @@ class PostSaveCompromisedBubbleController
     kPasswordUpdatedSafeState = 0,
     // A compromised password was updated and there are more issues to fix.
     kPasswordUpdatedWithMoreToFix = 1,
-    // kUnsafeState = 2, // was dropped
-    kMaxValue = kPasswordUpdatedWithMoreToFix,
+    // There are stored compromised credentials.
+    kUnsafeState = 2,
+    kMaxValue = kUnsafeState,
   };
   explicit PostSaveCompromisedBubbleController(
       base::WeakPtr<PasswordsModelDelegate> delegate);
   ~PostSaveCompromisedBubbleController() override;
 
   BubbleType type() const { return type_; }
-  std::u16string GetBody();
+  base::string16 GetBody();
   gfx::Range GetSettingLinkRange() const;
-  std::u16string GetButtonText() const;
+  base::string16 GetButtonText() const;
   int GetImageID(bool dark) const;
 
   // The user chose to check passwords.
@@ -43,7 +44,7 @@ class PostSaveCompromisedBubbleController
 
  private:
   // PasswordBubbleControllerBase:
-  std::u16string GetTitle() const override;
+  base::string16 GetTitle() const override;
   void ReportInteractions() override;
 
   BubbleType type_;

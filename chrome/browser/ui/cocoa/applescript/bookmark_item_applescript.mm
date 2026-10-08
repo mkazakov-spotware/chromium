@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #import "chrome/browser/ui/cocoa/applescript/apple_event_util.h"
 #import "chrome/browser/ui/cocoa/applescript/error_applescript.h"
 #include "components/bookmarks/browser/bookmark_model.h"
-#import "components/bookmarks/common/bookmark_metrics.h"
 
 using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
@@ -24,7 +23,7 @@ using bookmarks::BookmarkNode;
 
 @synthesize tempURL = _tempURL;
 
-- (instancetype)init {
+- (id)init {
   if ((self = [super init])) {
     [self setTempURL:@""];
   }
@@ -75,8 +74,7 @@ using bookmarks::BookmarkNode;
     return;
   }
 
-  model->SetURL(_bookmarkNode, url,
-                bookmarks::metrics::BookmarkEditSource::kOther);
+  model->SetURL(_bookmarkNode, url);
 }
 
 @end

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,15 @@ import android.animation.AnimatorSet;
 import android.content.Context;
 import android.graphics.RectF;
 
-import org.chromium.base.MathUtils;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.layouts.Layout;
 import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
 import org.chromium.chrome.browser.compositor.layouts.components.LayoutTab;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.compositor.layouts.eventfilter.BlackHoleEventFilter;
+import org.chromium.chrome.browser.compositor.layouts.phone.stack.Stack;
 import org.chromium.chrome.browser.compositor.scene_layer.TabListSceneLayer;
 import org.chromium.chrome.browser.layouts.EventFilter;
 import org.chromium.chrome.browser.layouts.LayoutType;
@@ -64,15 +65,6 @@ public class SimpleAnimationLayout extends Layout {
 
     /** The time duration of the animation */
     protected static final int TAB_CLOSED_ANIMATION_DURATION = 250;
-
-    /** The percentage of the screen to cover for the discarded tab to be fully transparent. */
-    public static final float DISCARD_RANGE_SCREEN = 0.7f;
-
-    /** The minimum scale the tab can reach when being discarded by a click. */
-    private static final float DISCARD_END_SCALE_CLICK = 0.7f;
-
-    /** The minimum scale the tab can reach when being discarded by a swipe. */
-    private static final float DISCARD_END_SCALE_SWIPE = 0.5f;
 
     /**
      * A cached {@link LayoutTab} representation of the currently closing tab. If it's not
@@ -155,7 +147,8 @@ public class SimpleAnimationLayout extends Layout {
         // Just draw the source tab on the screen.
         TabModel sourceModel = mTabModelSelector.getModelForTabId(sourceTabId);
         if (sourceModel == null) return;
-        LayoutTab sourceLayoutTab = createLayoutTab(sourceTabId, sourceModel.isIncognito());
+        LayoutTab sourceLayoutTab =
+                createLayoutTab(sourceTabId, sourceModel.isIncognito(), NO_CLOSE_BUTTON, NO_TITLE);
         sourceLayoutTab.setBorderAlpha(0.0f);
 
         mLayoutTabs = new LayoutTab[] {sourceLayoutTab};
@@ -185,7 +178,7 @@ public class SimpleAnimationLayout extends Layout {
      */
     private void tabCreatedInForeground(
             int id, int sourceId, boolean newIsIncognito, float originX, float originY) {
-        LayoutTab newLayoutTab = createLayoutTab(id, newIsIncognito);
+        LayoutTab newLayoutTab = createLayoutTab(id, newIsIncognito, NO_CLOSE_BUTTON, NO_TITLE);
         if (mLayoutTabs == null || mLayoutTabs.length == 0) {
             mLayoutTabs = new LayoutTab[] {newLayoutTab};
         } else {
@@ -233,7 +226,7 @@ public class SimpleAnimationLayout extends Layout {
      */
     private void tabCreatedInBackground(
             int id, int sourceId, boolean newIsIncognito, float originX, float originY) {
-        LayoutTab newLayoutTab = createLayoutTab(id, newIsIncognito);
+        LayoutTab newLayoutTab = createLayoutTab(id, newIsIncognito, NO_CLOSE_BUTTON, NEED_TITLE);
         // mLayoutTabs should already have the source tab from tabCreating().
         assert mLayoutTabs.length == 1;
         LayoutTab sourceLayoutTab = mLayoutTabs[0];
@@ -356,7 +349,7 @@ public class SimpleAnimationLayout extends Layout {
         // Create the {@link LayoutTab} for the tab before it is destroyed.
         TabModel model = mTabModelSelector.getModelForTabId(id);
         if (model != null) {
-            mClosedTab = createLayoutTab(id, model.isIncognito());
+            mClosedTab = createLayoutTab(id, model.isIncognito(), NO_CLOSE_BUTTON, NO_TITLE);
             mClosedTab.setBorderAlpha(0.0f);
             mLayoutTabs = new LayoutTab[] {mClosedTab};
             updateCacheVisibleIds(new LinkedList<Integer>(Arrays.asList(id)));
@@ -378,7 +371,8 @@ public class SimpleAnimationLayout extends Layout {
         if (mClosedTab != null) {
             TabModel nextModel = mTabModelSelector.getModelForTabId(nextId);
             if (nextModel != null) {
-                LayoutTab nextLayoutTab = createLayoutTab(nextId, nextModel.isIncognito());
+                LayoutTab nextLayoutTab =
+                        createLayoutTab(nextId, nextModel.isIncognito(), NO_CLOSE_BUTTON, NO_TITLE);
                 nextLayoutTab.setDrawDecoration(false);
 
                 mLayoutTabs = new LayoutTab[] {nextLayoutTab, mClosedTab};
@@ -414,7 +408,7 @@ public class SimpleAnimationLayout extends Layout {
     private void setDiscardAmount(float discard) {
         if (mAnimatedTab != null) {
             final float range = getDiscardRange();
-            final float scale = computeDiscardScale(discard, range, true);
+            final float scale = Stack.computeDiscardScale(discard, range, true);
 
             final float deltaX = mAnimatedTab.getOriginalContentWidth();
             final float deltaY = mAnimatedTab.getOriginalContentHeight() / 2.f;
@@ -422,44 +416,15 @@ public class SimpleAnimationLayout extends Layout {
             mAnimatedTab.setY(deltaY * (1.f - scale));
             mAnimatedTab.setScale(scale);
             mAnimatedTab.setBorderScale(scale);
-            mAnimatedTab.setAlpha(computeDiscardAlpha(discard, range));
+            mAnimatedTab.setAlpha(Stack.computeDiscardAlpha(discard, range));
         }
-    }
-
-    /**
-     * Computes the scale of the tab based on its discard status.
-     *
-     * @param amount    The discard amount.
-     * @param range     The range of the absolute value of discard amount.
-     * @param fromClick Whether or not the discard was from a click or a swipe.
-     * @return          The scale of the tab to use to draw the tab.
-     */
-    public static float computeDiscardScale(float amount, float range, boolean fromClick) {
-        if (Math.abs(amount) < 1.0f) return 1.0f;
-        float t = amount / range;
-        float endScale = fromClick ? DISCARD_END_SCALE_CLICK : DISCARD_END_SCALE_SWIPE;
-        return MathUtils.interpolate(1.0f, endScale, Math.abs(t));
-    }
-
-    /**
-     * Computes the alpha value of the tab based on its discard status.
-     *
-     * @param amount The discard amount.
-     * @param range  The range of the absolute value of discard amount.
-     * @return       The alpha value that need to be applied on the tab.
-     */
-    public static float computeDiscardAlpha(float amount, float range) {
-        if (Math.abs(amount) < 1.0f) return 1.0f;
-        float t = amount / range;
-        t = MathUtils.clamp(t, -1.0f, 1.0f);
-        return 1.f - Math.abs(t);
     }
 
     /**
      * @return The range of the discard amount.
      */
     private float getDiscardRange() {
-        return Math.min(getWidth(), getHeight()) * DISCARD_RANGE_SCREEN;
+        return Math.min(getWidth(), getHeight()) * Stack.DISCARD_RANGE_SCREEN;
     }
 
     @Override
@@ -491,15 +456,15 @@ public class SimpleAnimationLayout extends Layout {
 
     @Override
     protected void updateSceneLayer(RectF viewport, RectF contentViewport,
-            TabContentManager tabContentManager, ResourceManager resourceManager,
-            BrowserControlsStateProvider browserControls) {
-        super.updateSceneLayer(
-                viewport, contentViewport, tabContentManager, resourceManager, browserControls);
+            LayerTitleCache layerTitleCache, TabContentManager tabContentManager,
+            ResourceManager resourceManager, BrowserControlsStateProvider browserControls) {
+        super.updateSceneLayer(viewport, contentViewport, layerTitleCache, tabContentManager,
+                resourceManager, browserControls);
         assert mSceneLayer != null;
         // The content viewport is intentionally sent as both params below.
         mSceneLayer.pushLayers(getContext(), contentViewport, contentViewport, this,
-                tabContentManager, resourceManager, browserControls, SceneLayer.INVALID_RESOURCE_ID,
-                0, 0);
+                layerTitleCache, tabContentManager, resourceManager, browserControls,
+                SceneLayer.INVALID_RESOURCE_ID, 0, 0);
     }
 
     @Override

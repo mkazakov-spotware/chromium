@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_CUSTOM_CUSTOM_LAYOUT_CONSTRAINTS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_CUSTOM_CUSTOM_LAYOUT_CONSTRAINTS_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -32,7 +31,7 @@ class CustomLayoutConstraints : public ScriptWrappable {
 
   // LayoutConstraints.idl
   double fixedInlineSize() const { return fixed_inline_size_; }
-  absl::optional<double> fixedBlockSize() const;
+  base::Optional<double> fixedBlockSize() const;
   ScriptValue data(ScriptState*) const;
 
   void Trace(Visitor*) const override;

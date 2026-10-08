@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,11 +27,6 @@ class FullscreenToolbarAnimationController
  public:
   explicit FullscreenToolbarAnimationController(
       FullscreenToolbarController* owner);
-
-  FullscreenToolbarAnimationController(
-      const FullscreenToolbarAnimationController&) = delete;
-  FullscreenToolbarAnimationController& operator=(
-      const FullscreenToolbarAnimationController&) = delete;
 
   ~FullscreenToolbarAnimationController() override;
 
@@ -86,6 +81,8 @@ class FullscreenToolbarAnimationController
 
   // True when the toolbar is dropped to show tabstrip changes.
   BOOL should_hide_toolbar_after_delay_;
+
+  DISALLOW_COPY_AND_ASSIGN(FullscreenToolbarAnimationController);
 };
 
 #endif  // CHROME_BROWSER_UI_COCOA_FULLSCREEN_FULLSCREEN_TOOLBAR_ANIMATION_CONTROLLER_H_

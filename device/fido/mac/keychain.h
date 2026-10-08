@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/component_export.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
 
 namespace device {
@@ -25,12 +26,9 @@ namespace mac {
 // keychain-access-group entitlements, and therefore requires code signing with
 // a real Apple developer ID. We therefore group these function here, so they
 // can be mocked out in testing.
-class COMPONENT_EXPORT(DEVICE_FIDO) Keychain {
+class COMPONENT_EXPORT(DEVICE_FIDO) API_AVAILABLE(macos(10.12.2)) Keychain {
  public:
   static Keychain& GetInstance();
-
-  Keychain(const Keychain&) = delete;
-  Keychain& operator=(const Keychain&) = delete;
 
   // KeyCreateRandomKey wraps the |SecKeyCreateRandomKey| function.
   virtual base::ScopedCFTypeRef<SecKeyRef> KeyCreateRandomKey(
@@ -49,16 +47,12 @@ class COMPONENT_EXPORT(DEVICE_FIDO) Keychain {
   virtual OSStatus ItemCopyMatching(CFDictionaryRef query, CFTypeRef* result);
   // ItemDelete wraps the |SecItemDelete| function.
   virtual OSStatus ItemDelete(CFDictionaryRef query);
-  // ItemDelete wraps the |SecItemUpdate| function.
-  virtual OSStatus ItemUpdate(
-      CFDictionaryRef query,
-      base::ScopedCFTypeRef<CFMutableDictionaryRef> keychain_data);
 
  protected:
   Keychain();
   virtual ~Keychain();
 
- protected:
+ private:
   friend class base::NoDestructor<Keychain>;
   friend class ScopedTouchIdTestEnvironment;
 
@@ -67,6 +61,8 @@ class COMPONENT_EXPORT(DEVICE_FIDO) Keychain {
   // override by calling |ClearInstanceOverride| before deleting it.
   static void SetInstanceOverride(Keychain* keychain);
   static void ClearInstanceOverride();
+
+  DISALLOW_COPY_AND_ASSIGN(Keychain);
 };
 }  // namespace mac
 }  // namespace fido

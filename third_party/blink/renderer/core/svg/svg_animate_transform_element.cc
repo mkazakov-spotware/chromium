@@ -25,7 +25,7 @@
 #include "third_party/blink/renderer/core/svg/properties/svg_animated_property.h"
 #include "third_party/blink/renderer/core/svg/svg_transform_list.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -55,7 +55,7 @@ void SVGAnimateTransformElement::ResolveTargetProperty() {
   css_property_id_ = CSSPropertyID::kInvalid;
 }
 
-SVGPropertyBase* SVGAnimateTransformElement::ParseValue(
+SVGPropertyBase* SVGAnimateTransformElement::CreatePropertyForAnimation(
     const String& value) const {
   DCHECK(IsAnimatingSVGDom());
   return MakeGarbageCollected<SVGTransformList>(transform_type_, value);

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,15 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "remoting/protocol/authenticator.h"
 #include "remoting/protocol/channel_authenticator.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 ValidatingAuthenticator::ValidatingAuthenticator(
     const std::string& remote_jid,
@@ -62,9 +64,9 @@ void ValidatingAuthenticator::ProcessMessage(
   state_ = PROCESSING_MESSAGE;
 
   current_authenticator_->ProcessMessage(
-      message,
-      base::BindOnce(&ValidatingAuthenticator::UpdateState,
-                     weak_factory_.GetWeakPtr(), std::move(resume_callback)));
+      message, base::BindOnce(&ValidatingAuthenticator::UpdateState,
+                              weak_factory_.GetWeakPtr(),
+                              base::Passed(std::move(resume_callback))));
 }
 
 std::unique_ptr<jingle_xmpp::XmlElement> ValidatingAuthenticator::GetNextMessage() {
@@ -92,28 +94,23 @@ void ValidatingAuthenticator::OnValidateComplete(base::OnceClosure callback,
       return;
 
     case Result::ERROR_INVALID_CREDENTIALS:
-      rejection_reason_ = RejectionReason::INVALID_CREDENTIALS;
+      rejection_reason_ = Authenticator::INVALID_CREDENTIALS;
       break;
 
     case Result::ERROR_INVALID_ACCOUNT:
-      rejection_reason_ = RejectionReason::INVALID_ACCOUNT_ID;
+      rejection_reason_ = Authenticator::INVALID_ACCOUNT;
       break;
 
     case Result::ERROR_TOO_MANY_CONNECTIONS:
-      rejection_reason_ = RejectionReason::TOO_MANY_CONNECTIONS;
+      rejection_reason_ = Authenticator::TOO_MANY_CONNECTIONS;
       break;
 
     case Result::ERROR_REJECTED_BY_USER:
-      rejection_reason_ = RejectionReason::REJECTED_BY_USER;
+      rejection_reason_ = Authenticator::REJECTED_BY_USER;
       break;
   }
 
   state_ = Authenticator::REJECTED;
-
-  // Clear the pending message so the signal strategy will generate a new
-  // SESSION_REJECT message in response to this state change.
-  pending_auth_message_.reset();
-
   std::move(callback).Run();
 }
 
@@ -135,10 +132,12 @@ void ValidatingAuthenticator::UpdateState(base::OnceClosure resume_callback) {
     validation_callback_.Run(
         remote_jid_,
         base::BindOnce(&ValidatingAuthenticator::OnValidateComplete,
-                       weak_factory_.GetWeakPtr(), std::move(resume_callback)));
+                       weak_factory_.GetWeakPtr(),
+                       base::Passed(std::move(resume_callback))));
   } else {
     std::move(resume_callback).Run();
   }
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

@@ -4,25 +4,30 @@
 <body>
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
-<script src="resources/utils.js"></script>
 <h1>Longtasks in iframe</h1>
 <div id="log"></div>
 <script>
 const longContainerName = 'iframeWithLongNameMoreThan100CharactersSpaceHolderSpaceHolderSpaceHolderSpaceHolderSpaceHolderSpaceHolder';
 
 promise_test(async t => {
-  assert_implements(window.PerformanceLongTaskTiming, 'Longtasks are not supported.');
-  const initialTime = performance.now();
-  const performanceObserverTimeout = 5 * 1000;
-  const longTasksPromise = new Promise(resolve => {
+assert_implements(window.PerformanceLongTaskTiming, 'Longtasks are not supported.');
+const initialTime = performance.now();
+return new Promise(resolve => {
     const observer = new PerformanceObserver(t.step_func(entryList => {
-      const entries = entryList.getEntries();
-      entries.forEach(longtask => {
+        const entries = entryList.getEntries();
+        assert_equals(entries.length, 1,
+            'Exactly one entry is expected.');
+        const longtask = entries[0];
         assert_equals(longtask.entryType, 'longtask');
-        if (hasUnrelatedTaskName(longtask.name, 'same-origin-descendant')) {
+        if (longtask.name == 'self' ||
+            longtask.name == 'multiple-contexts' ||
+            longtask.name == 'unknown')
             return;
-        }
-        checkLongTaskEntry(longtask, 'same-origin-descendant');
+        assert_equals(longtask.name, 'same-origin-descendant');
+        assert_greater_than(longtask.duration, 50);
+        assert_greater_than_equal(longtask.startTime, initialTime);
+        const currentTime = performance.now();
+        assert_less_than_equal(longtask.startTime, currentTime);
         // Assert the TaskAttributionTiming entry in attribution.
         assert_equals(longtask.attribution.length, 1,
             'Exactly one attribution entry is expected');
@@ -36,7 +41,6 @@ promise_test(async t => {
         assert_equals(attribution.containerSrc, 'resources/subframe-with-longtask.html');
         observer.disconnect();
         resolve();
-      })
     }));
     observer.observe({entryTypes: ['longtask']});
     const iframe = document.createElement('iframe');
@@ -44,13 +48,7 @@ promise_test(async t => {
     iframe.name = longContainerName + '-name';
     iframe.src = 'resources/subframe-with-longtask.html';
     document.body.appendChild(iframe);
-  });
-  const timeout = new Promise(
-    (resolve, reject) => t.step_timeout(
-      () => { reject(new Error('observer failed to find any entries')) },
-      performanceObserverTimeout)
-  )
-  return Promise.race([longTasksPromise, timeout]);
+});
 }, `Performance longtask entries in ${longContainerName} are observable in parent.`);
 </script>
 </body>

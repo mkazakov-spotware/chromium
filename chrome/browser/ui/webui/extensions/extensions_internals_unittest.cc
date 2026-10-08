@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,7 +117,7 @@ TEST_F(ExtensionsInternalsUnitTest, WriteToStringTabSpecificPermissions) {
 
   // Grant a tab specific permission to the extension.
   extensions::APIPermissionSet tab_api_permissions;
-  tab_api_permissions.insert(extensions::mojom::APIPermissionID::kTab);
+  tab_api_permissions.insert(extensions::APIPermission::kTab);
   extensions::URLPatternSet tab_hosts;
   tab_hosts.AddOrigin(extensions::UserScript::ValidUserScriptSchemes(),
                       GURL("https://google.com/*"));

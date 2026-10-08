@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,56 +10,64 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/password_manager/credentials_cleaner_runner_factory.h"
-#include "chrome/browser/password_manager/password_reuse_manager_factory.h"
 #include "chrome/browser/password_manager/password_store_utils.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/web_data_service_factory.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/password_manager/core/browser/login_database.h"
 #include "components/password_manager/core/browser/password_manager_constants.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
-#include "components/password_manager/core/browser/password_reuse_manager.h"
-#include "components/password_manager/core/browser/password_store_built_in_backend.h"
+#include "components/password_manager/core/browser/password_store.h"
+#include "components/password_manager/core/browser/password_store_default.h"
 #include "components/password_manager/core/browser/password_store_factory_util.h"
-#include "components/password_manager/core/browser/password_store_interface.h"
 #include "components/password_manager/core/common/password_manager_features.h"
+#include "components/password_manager/core/common/password_manager_pref_names.h"
+#include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/android/tab_model/tab_model.h"
-#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
-#else
+#if !defined(OS_ANDROID)
+#include "base/task/task_traits.h"
+#include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#endif  // BUILDFLAG(IS_ANDROID)
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/profiles/profile_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#include "content/public/browser/browser_task_traits.h"
+#endif  // !defined(OS_ANDROID)
 
 using password_manager::PasswordStore;
-using password_manager::PasswordStoreInterface;
-using password_manager::UnsyncedCredentialsDeletionNotifier;
+
+#if !defined(OS_ANDROID)
 
 namespace {
 
-#if !BUILDFLAG(IS_ANDROID)
+void UpdateAllFormManagers(Profile* profile) {
+  for (Browser* browser : *BrowserList::GetInstance()) {
+    if (browser->profile() != profile)
+      continue;
+    TabStripModel* tabs = browser->tab_strip_model();
+    for (int index = 0; index < tabs->count(); index++) {
+      content::WebContents* web_contents = tabs->GetWebContentsAt(index);
+      ChromePasswordManagerClient::FromWebContents(web_contents)
+          ->UpdateFormManagers();
+    }
+  }
+}
+
 class UnsyncedCredentialsDeletionNotifierImpl
-    : public UnsyncedCredentialsDeletionNotifier {
+    : public PasswordStore::UnsyncedCredentialsDeletionNotifier {
  public:
   explicit UnsyncedCredentialsDeletionNotifierImpl(Profile* profile);
   ~UnsyncedCredentialsDeletionNotifierImpl() override = default;
@@ -69,7 +77,7 @@ class UnsyncedCredentialsDeletionNotifierImpl
   base::WeakPtr<UnsyncedCredentialsDeletionNotifier> GetWeakPtr() override;
 
  private:
-  const raw_ptr<Profile, DanglingUntriaged> profile_;
+  Profile* const profile_;
   base::WeakPtrFactory<UnsyncedCredentialsDeletionNotifier> weak_ptr_factory_{
       this};
 };
@@ -94,22 +102,42 @@ void UnsyncedCredentialsDeletionNotifierImpl::Notify(
   ui_controller->NotifyUnsyncedCredentialsWillBeDeleted(std::move(credentials));
 }
 
-base::WeakPtr<UnsyncedCredentialsDeletionNotifier>
+base::WeakPtr<PasswordStore::UnsyncedCredentialsDeletionNotifier>
 UnsyncedCredentialsDeletionNotifierImpl::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace
 
+#endif  // !defined(OS_ANDROID)
+
+void SyncEnabledOrDisabled(Profile* profile) {
+#if defined(OS_ANDROID)
+  NOTREACHED();
+#else
+  content::GetUIThreadTaskRunner({})->PostTask(
+      FROM_HERE, base::BindOnce(&UpdateAllFormManagers, profile));
+#endif  // defined(OS_ANDROID)
+}
+
 // static
-scoped_refptr<PasswordStoreInterface>
-AccountPasswordStoreFactory::GetForProfile(Profile* profile,
-                                           ServiceAccessType access_type) {
+scoped_refptr<PasswordStore> AccountPasswordStoreFactory::GetForProfile(
+    Profile* profile,
+    ServiceAccessType access_type) {
   if (!base::FeatureList::IsEnabled(
           password_manager::features::kEnablePasswordsAccountStorage)) {
+    if (profile->GetPrefs()->GetBoolean(
+            password_manager::prefs::kAccountStorageExists)) {
+      // TODO(crbug.com/1108738): Remove this logic once
+      // kEnablePasswordsAccountStorage is launched.
+      profile->GetPrefs()->ClearPref(
+          password_manager::prefs::kAccountStorageExists);
+      password_manager::DeleteLoginDatabaseForAccountStorageFiles(
+          profile->GetPath());
+    }
     return nullptr;
   }
+
   // |profile| gets always redirected to a non-Incognito profile below, so
   // Incognito & IMPLICIT_ACCESS means that incognito browsing session would
   // result in traces in the normal profile without the user knowing it.
@@ -117,9 +145,13 @@ AccountPasswordStoreFactory::GetForProfile(Profile* profile,
       profile->IsOffTheRecord()) {
     return nullptr;
   }
-  return base::WrapRefCounted(
-      static_cast<password_manager::PasswordStoreInterface*>(
-          GetInstance()->GetServiceForBrowserContext(profile, true).get()));
+
+  // Either the store exists already, or it'll be created now.
+  profile->GetPrefs()->SetBoolean(
+      password_manager::prefs::kAccountStorageExists, true);
+
+  return base::WrapRefCounted(static_cast<password_manager::PasswordStore*>(
+      GetInstance()->GetServiceForBrowserContext(profile, true).get()));
 }
 
 // static
@@ -131,10 +163,16 @@ AccountPasswordStoreFactory::AccountPasswordStoreFactory()
     : RefcountedBrowserContextKeyedServiceFactory(
           "AccountPasswordStore",
           BrowserContextDependencyManager::GetInstance()) {
-  DependsOn(CredentialsCleanerRunnerFactory::GetInstance());
+  DependsOn(WebDataServiceFactory::GetInstance());
 }
 
 AccountPasswordStoreFactory::~AccountPasswordStoreFactory() = default;
+
+void AccountPasswordStoreFactory::RegisterProfilePrefs(
+    user_prefs::PrefRegistrySyncable* registry) {
+  registry->RegisterBooleanPref(password_manager::prefs::kAccountStorageExists,
+                                false);
+}
 
 scoped_refptr<RefcountedKeyedService>
 AccountPasswordStoreFactory::BuildServiceInstanceFor(
@@ -144,49 +182,37 @@ AccountPasswordStoreFactory::BuildServiceInstanceFor(
 
   Profile* profile = Profile::FromBrowserContext(context);
 
-  DCHECK(!profile->IsOffTheRecord());
-
-  // Incognito profiles don't have their own password stores. Guest, or system
-  // profiles aren't relevant for Password Manager, and no PasswordStore should
-  // even be created for those types of profiles.
-  if (!profile->IsRegularProfile())
-    return nullptr;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // On Ash, there are additional non-interesting profile types (sign-in
-  // profile and lockscreen profile).
-  if (!ash::ProfileHelper::IsUserProfile(profile))
-    return nullptr;
-#endif
-
   std::unique_ptr<password_manager::LoginDatabase> login_db(
       password_manager::CreateLoginDatabaseForAccountStorage(
           profile->GetPath()));
 
-  scoped_refptr<password_manager::PasswordStore> ps =
-#if BUILDFLAG(IS_ANDROID)
-      new password_manager::PasswordStore(
-          std::make_unique<password_manager::PasswordStoreBuiltInBackend>(
-              std::move(login_db)));
-#else
-      new password_manager::PasswordStore(
-          std::make_unique<password_manager::PasswordStoreBuiltInBackend>(
-              std::move(login_db),
-              std::make_unique<UnsyncedCredentialsDeletionNotifierImpl>(
-                  profile)));
-#endif
-
-  ps->Init(profile->GetPrefs(), /*affiliated_match_helper=*/nullptr);
+  scoped_refptr<PasswordStore> ps =
+      new password_manager::PasswordStoreDefault(std::move(login_db));
+  if (!ps->Init(profile->GetPrefs(),
+                base::BindRepeating(&SyncEnabledOrDisabled, profile))) {
+    // TODO(crbug.com/479725): Remove the LOG once this error is visible in the
+    // UI.
+    LOG(WARNING) << "Could not initialize password store.";
+    return nullptr;
+  }
 
   auto network_context_getter = base::BindRepeating(
       [](Profile* profile) -> network::mojom::NetworkContext* {
         if (!g_browser_process->profile_manager()->IsValidProfile(profile))
           return nullptr;
-        return profile->GetDefaultStoragePartition()->GetNetworkContext();
+        return content::BrowserContext::GetDefaultStoragePartition(profile)
+            ->GetNetworkContext();
       },
       profile);
   password_manager_util::RemoveUselessCredentials(
       CredentialsCleanerRunnerFactory::GetForProfile(profile), ps,
-      profile->GetPrefs(), base::Seconds(60), network_context_getter);
+      profile->GetPrefs(), base::TimeDelta::FromSeconds(60),
+      network_context_getter);
+
+#if !defined(OS_ANDROID)
+  ps->SetUnsyncedCredentialsDeletionNotifier(
+      std::make_unique<UnsyncedCredentialsDeletionNotifierImpl>(profile));
+#endif  // !defined(OS_ANDROID)
 
   return ps;
 }

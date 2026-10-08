@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
  * will forward to the base implementation, which will typically be the embedder-provided
  * ManagedPreferenceDelegate instance.
  */
-public class ForwardingManagedPreferenceDelegate implements ManagedPreferenceDelegate {
+class ForwardingManagedPreferenceDelegate implements ManagedPreferenceDelegate {
     private final ManagedPreferenceDelegate mBase;
 
     public ForwardingManagedPreferenceDelegate(ManagedPreferenceDelegate base) {
@@ -38,7 +38,8 @@ public class ForwardingManagedPreferenceDelegate implements ManagedPreferenceDel
         return mBase.doesProfileHaveMultipleCustodians();
     }
 
-    /* Do not override the 'isPreferenceClickDisabledByPolicy' method in this class as this causes
-     * the wrong version to be called for instances of `SingleCategoryManagedPreferenceDelegate`.
-     * Refer to crbug/1380613 for more details. */
+    @Override
+    public boolean isPreferenceClickDisabledByPolicy(Preference preference) {
+        return mBase.isPreferenceClickDisabledByPolicy(preference);
+    }
 }

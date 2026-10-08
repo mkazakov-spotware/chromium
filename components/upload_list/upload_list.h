@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,10 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
-
-class CombiningUploadList;
 
 // An UploadList is an abstraction over a list of client-side data files that
 // are uploaded to a server. The UploadList allows accessing the UploadInfo
@@ -42,7 +41,7 @@ class UploadList : public base::RefCountedThreadSafe<UploadList> {
     UploadInfo(const std::string& local_id,
                const base::Time& capture_time,
                State state,
-               const std::u16string& file_size);
+               const base::string16& file_size);
     UploadInfo(const std::string& upload_id, const base::Time& upload_time);
     UploadInfo(const UploadInfo& upload_info);
     ~UploadInfo();
@@ -64,13 +63,10 @@ class UploadList : public base::RefCountedThreadSafe<UploadList> {
     std::string source;
 
     // Formatted file size for locally stored data.
-    std::u16string file_size;
+    base::string16 file_size;
   };
 
   UploadList();
-
-  UploadList(const UploadList&) = delete;
-  UploadList& operator=(const UploadList&) = delete;
 
   // Starts loading the upload list. OnUploadListAvailable will be called when
   // loading is complete. If this is called twice, the second |callback| will
@@ -109,9 +105,6 @@ class UploadList : public base::RefCountedThreadSafe<UploadList> {
 
  private:
   friend class base::RefCountedThreadSafe<UploadList>;
-  // CombiningUploadList needs to be able to call the callback functions
-  // (LoadUploadList, ClearUploadList) in its callback functions.
-  friend class CombiningUploadList;
 
   // When LoadUploadList() finishes, the results are reported in |uploads|
   // and the |load_callback_| is run.
@@ -122,12 +115,14 @@ class UploadList : public base::RefCountedThreadSafe<UploadList> {
 
   // Ensures that this class' thread unsafe state is only accessed from the
   // sequence that owns this UploadList.
-  SEQUENCE_CHECKER(sequence_checker_);
+  base::SequenceChecker sequence_checker_;
 
   base::OnceClosure load_callback_;
   base::OnceClosure clear_callback_;
 
   std::vector<UploadInfo> uploads_;
+
+  DISALLOW_COPY_AND_ASSIGN(UploadList);
 };
 
 #endif  // COMPONENTS_UPLOAD_LIST_UPLOAD_LIST_H_

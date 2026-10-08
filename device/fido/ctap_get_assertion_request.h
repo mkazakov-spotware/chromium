@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,14 +13,15 @@
 
 #include "base/component_export.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "crypto/sha2.h"
 #include "device/fido/cable/cable_discovery_data.h"
-#include "device/fido/device_public_key_extension.h"
+#include "device/fido/client_data.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/large_blob.h"
 #include "device/fido/pin.h"
 #include "device/fido/public_key_credential_descriptor.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace cbor {
 class Value;
@@ -46,12 +47,12 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) CtapGetAssertionOptions {
     PRFInput(PRFInput&&);
     ~PRFInput();
 
-    absl::optional<std::vector<uint8_t>> credential_id;
+    base::Optional<std::vector<uint8_t>> credential_id;
     std::array<uint8_t, 32> salt1;
-    absl::optional<std::array<uint8_t, 32>> salt2;
+    base::Optional<std::array<uint8_t, 32>> salt2;
   };
 
-  absl::optional<pin::KeyAgreementResponse> pin_key_agreement;
+  base::Optional<pin::KeyAgreementResponse> pin_key_agreement;
 
   // prf_inputs may contain a default PRFInput without a |credential_id|. If so,
   // it will be the first element and all others will have |credential_id|s.
@@ -91,11 +92,11 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) CtapGetAssertionRequest {
   // |client_data_json| will be empty and |client_data_hash| will be set.
   //
   // A |uv| bit of 0 is mapped to UserVerificationRequirement::kDiscouraged.
-  static absl::optional<CtapGetAssertionRequest> Parse(
+  static base::Optional<CtapGetAssertionRequest> Parse(
       const cbor::Value::MapValue& request_map) {
     return Parse(request_map, ParseOpts());
   }
-  static absl::optional<CtapGetAssertionRequest> Parse(
+  static base::Optional<CtapGetAssertionRequest> Parse(
       const cbor::Value::MapValue& request_map,
       const ParseOpts& opts);
 
@@ -114,25 +115,21 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) CtapGetAssertionRequest {
   bool user_presence_required = true;
 
   std::vector<PublicKeyCredentialDescriptor> allow_list;
-  absl::optional<std::vector<uint8_t>> pin_auth;
-  absl::optional<PINUVAuthProtocol> pin_protocol;
-  absl::optional<std::vector<CableDiscoveryData>> cable_extension;
-  absl::optional<std::string> app_id;
-  absl::optional<std::array<uint8_t, crypto::kSHA256Length>>
+  base::Optional<std::vector<uint8_t>> pin_auth;
+  base::Optional<PINUVAuthProtocol> pin_protocol;
+  base::Optional<std::vector<CableDiscoveryData>> cable_extension;
+  base::Optional<std::string> app_id;
+  base::Optional<std::array<uint8_t, crypto::kSHA256Length>>
       alternative_application_parameter;
-  absl::optional<HMACSecret> hmac_secret;
+  base::Optional<HMACSecret> hmac_secret;
   bool large_blob_key = false;
   bool large_blob_read = false;
-  absl::optional<LargeBlob> large_blob_write;
-  bool get_cred_blob = false;
+  base::Optional<std::vector<uint8_t>> large_blob_write;
 
-  // Indicates whether the request was created in an off-the-record
-  // BrowserContext (e.g. Incognito or Guest mode in Chrome).
-  bool is_off_the_record_context = false;
+  bool is_incognito_mode = false;
+  bool is_u2f_only = false;
 
-  // device_public_key contains parameters for the devicePubKey extension
-  // https://github.com/w3c/webauthn/pull/1663
-  absl::optional<DevicePublicKeyRequest> device_public_key;
+  base::Optional<AndroidClientDataExtensionInput> android_client_data_ext;
 };
 
 struct CtapGetNextAssertionRequest {};
@@ -141,11 +138,11 @@ struct CtapGetNextAssertionRequest {};
 // integer keys and CBOR encoded values as defined by the CTAP spec.
 // https://drafts.fidoalliance.org/fido-2/latest/fido-client-to-authenticator-protocol-v2.0-wd-20180305.html#authenticatorGetAssertion
 COMPONENT_EXPORT(DEVICE_FIDO)
-std::pair<CtapRequestCommand, absl::optional<cbor::Value>>
+std::pair<CtapRequestCommand, base::Optional<cbor::Value>>
 AsCTAPRequestValuePair(const CtapGetAssertionRequest&);
 
 COMPONENT_EXPORT(DEVICE_FIDO)
-std::pair<CtapRequestCommand, absl::optional<cbor::Value>>
+std::pair<CtapRequestCommand, base::Optional<cbor::Value>>
 AsCTAPRequestValuePair(const CtapGetNextAssertionRequest&);
 
 }  // namespace device

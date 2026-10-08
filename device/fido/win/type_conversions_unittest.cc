@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/fido/win/type_conversions.h"
 
-#include "base/numerics/safe_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/cbor/values.h"
 #include "components/cbor/writer.h"
@@ -25,7 +24,7 @@ TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponse) {
     std::vector<uint8_t> cbor_attestation_statement;
     uint8_t used_transport;  // WEBAUTHN_CTAP_TRANSPORT_* from <webauthn.h>
     bool success;
-    absl::optional<FidoTransportProtocol> expected_transport;
+    base::Optional<FidoTransportProtocol> expected_transport;
   } test_cases[] = {
       {L"packed",
        fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
@@ -49,7 +48,7 @@ TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponse) {
        fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
        fido_parsing_utils::Materialize(
            test_data::kPackedAttestationStatementCBOR),
-       WEBAUTHN_CTAP_TRANSPORT_TEST, true, absl::nullopt},
+       WEBAUTHN_CTAP_TRANSPORT_TEST, true, base::nullopt},
       // Unknown attestation formats
       {L"weird-unknown-format",
        fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
@@ -94,9 +93,9 @@ TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponse) {
         ToAuthenticatorMakeCredentialResponse(WEBAUTHN_CREDENTIAL_ATTESTATION{
             WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_3,
             test.format,
-            base::checked_cast<DWORD>(test.authenticator_data.size()),
+            test.authenticator_data.size(),
             const_cast<unsigned char*>(test.authenticator_data.data()),
-            base::checked_cast<DWORD>(test.cbor_attestation_statement.size()),
+            test.cbor_attestation_statement.size(),
             const_cast<unsigned char*>(test.cbor_attestation_statement.data()),
             // dwAttestationDecodeType and pvAttestationDecode are ignored.
             WEBAUTHN_ATTESTATION_DECODE_NONE,
@@ -114,16 +113,17 @@ TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponse) {
     if (!response)
       return;
 
-    EXPECT_EQ(response->attestation_object.authenticator_data()
+    EXPECT_EQ(response->attestation_object()
+                  .authenticator_data()
                   .SerializeToByteArray(),
               test.authenticator_data);
     EXPECT_EQ(
-        response->attestation_object.attestation_statement().format_name(),
+        response->attestation_object().attestation_statement().format_name(),
         base::WideToUTF8(test.format));
-    EXPECT_EQ(cbor::Writer::Write(
-                  AsCBOR(response->attestation_object.attestation_statement())),
+    EXPECT_EQ(cbor::Writer::Write(AsCBOR(
+                  response->attestation_object().attestation_statement())),
               test.cbor_attestation_statement);
-    EXPECT_EQ(response->transport_used, test.expected_transport);
+    EXPECT_EQ(response->transport_used(), test.expected_transport);
   }
 }
 

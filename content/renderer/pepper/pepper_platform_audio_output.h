@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "media/audio/audio_output_ipc.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
@@ -34,10 +35,6 @@ class PepperPlatformAudioOutput
       int frames_per_buffer,
       const blink::LocalFrameToken& source_frame_token,
       AudioHelper* client);
-
-  PepperPlatformAudioOutput(const PepperPlatformAudioOutput&) = delete;
-  PepperPlatformAudioOutput& operator=(const PepperPlatformAudioOutput&) =
-      delete;
 
   // The following three methods are all called on main thread.
 
@@ -97,6 +94,8 @@ class PepperPlatformAudioOutput
 
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
   scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(PepperPlatformAudioOutput);
 };
 
 }  // namespace content

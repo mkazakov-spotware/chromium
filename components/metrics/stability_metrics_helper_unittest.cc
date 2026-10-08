@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
 #include "components/prefs/pref_service.h"
@@ -29,11 +30,6 @@ enum RendererType {
 };
 
 class StabilityMetricsHelperTest : public testing::Test {
- public:
-  StabilityMetricsHelperTest(const StabilityMetricsHelperTest&) = delete;
-  StabilityMetricsHelperTest& operator=(const StabilityMetricsHelperTest&) =
-      delete;
-
  protected:
   StabilityMetricsHelperTest() : prefs_(new TestingPrefServiceSimple) {
     StabilityMetricsHelper::RegisterPrefs(prefs()->registry());
@@ -43,11 +39,31 @@ class StabilityMetricsHelperTest : public testing::Test {
 
  private:
   std::unique_ptr<TestingPrefServiceSimple> prefs_;
+
+  DISALLOW_COPY_AND_ASSIGN(StabilityMetricsHelperTest);
 };
 
 }  // namespace
 
-#if !BUILDFLAG(IS_ANDROID)
+TEST_F(StabilityMetricsHelperTest, BrowserChildProcessCrashed) {
+  StabilityMetricsHelper helper(prefs());
+
+  helper.BrowserChildProcessCrashed();
+  helper.BrowserChildProcessCrashed();
+
+  // Call ProvideStabilityMetrics to check that it will force pending tasks to
+  // be executed immediately.
+  metrics::SystemProfileProto system_profile;
+
+  helper.ProvideStabilityMetrics(&system_profile);
+
+  // Check current number of instances created.
+  const metrics::SystemProfileProto_Stability& stability =
+      system_profile.stability();
+
+  EXPECT_EQ(2, stability.child_process_crash_count());
+}
+
 TEST_F(StabilityMetricsHelperTest, LogRendererCrash) {
   StabilityMetricsHelper helper(prefs());
   base::HistogramTester histogram_tester;
@@ -68,15 +84,19 @@ TEST_F(StabilityMetricsHelperTest, LogRendererCrash) {
   // Failed launch increments failed launch count.
   helper.LogRendererCrash(false, base::TERMINATION_STATUS_LAUNCH_FAILED, 1);
 
+  metrics::SystemProfileProto system_profile;
+
+  // Call ProvideStabilityMetrics to check that it will force pending tasks to
+  // be executed immediately.
+  helper.ProvideStabilityMetrics(&system_profile);
+
+  EXPECT_EQ(3, system_profile.stability().renderer_crash_count());
+  EXPECT_EQ(1, system_profile.stability().renderer_failed_launch_count());
+  EXPECT_EQ(0, system_profile.stability().extension_renderer_crash_count());
+
   histogram_tester.ExpectUniqueSample("CrashExitCodes.Renderer", 1, 3);
   histogram_tester.ExpectBucketCount("BrowserRenderProcessHost.ChildCrashes",
                                      RENDERER_TYPE_RENDERER, 3);
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     StabilityEventType::kRendererCrash, 3);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", StabilityEventType::kRendererFailedLaunch, 1);
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     StabilityEventType::kExtensionCrash, 0);
 
   // One launch failure each.
   histogram_tester.ExpectBucketCount(
@@ -91,7 +111,6 @@ TEST_F(StabilityMetricsHelperTest, LogRendererCrash) {
   histogram_tester.ExpectBucketCount(
       "BrowserRenderProcessHost.ChildLaunchFailureCodes", 1, 1);
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 // Note: ENABLE_EXTENSIONS is set to false in Android
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -108,13 +127,13 @@ TEST_F(StabilityMetricsHelperTest, LogRendererCrashEnableExtensions) {
   // Failed launch increments extension failed launch count.
   helper.LogRendererCrash(true, base::TERMINATION_STATUS_LAUNCH_FAILED, 1);
 
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     StabilityEventType::kRendererCrash, 0);
-  histogram_tester.ExpectBucketCount(
-      "Stability.Counts2", StabilityEventType::kExtensionRendererFailedLaunch,
-      1);
-  histogram_tester.ExpectBucketCount("Stability.Counts2",
-                                     StabilityEventType::kExtensionCrash, 2);
+  metrics::SystemProfileProto system_profile;
+  helper.ProvideStabilityMetrics(&system_profile);
+
+  EXPECT_EQ(0, system_profile.stability().renderer_crash_count());
+  EXPECT_EQ(2, system_profile.stability().extension_renderer_crash_count());
+  EXPECT_EQ(
+      1, system_profile.stability().extension_renderer_failed_launch_count());
 
   histogram_tester.ExpectBucketCount(
       "BrowserRenderProcessHost.ChildLaunchFailureCodes", 1, 1);

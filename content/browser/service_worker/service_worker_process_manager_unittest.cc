@@ -1,15 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/service_worker/service_worker_process_manager.h"
 
-#include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
-#include "content/browser/site_info.h"
 #include "content/browser/site_instance_impl.h"
 #include "content/browser/storage_partition_impl.h"
 #include "content/public/common/child_process_host.h"
@@ -18,14 +16,11 @@
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/test_browser_context.h"
-#include "services/network/public/mojom/cross_origin_embedder_policy.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
 namespace content {
-
-using AncestorFrameType = blink::mojom::AncestorFrameType;
 
 namespace {
 
@@ -34,20 +29,13 @@ namespace {
 class SiteInstanceRenderProcessHostFactory : public RenderProcessHostFactory {
  public:
   SiteInstanceRenderProcessHostFactory() = default;
-
-  SiteInstanceRenderProcessHostFactory(
-      const SiteInstanceRenderProcessHostFactory&) = delete;
-  SiteInstanceRenderProcessHostFactory& operator=(
-      const SiteInstanceRenderProcessHostFactory&) = delete;
-
   ~SiteInstanceRenderProcessHostFactory() override = default;
 
   RenderProcessHost* CreateRenderProcessHost(
       BrowserContext* browser_context,
       SiteInstance* site_instance) override {
-    processes_.push_back(std::make_unique<MockRenderProcessHost>(
-        browser_context, site_instance->GetStoragePartitionConfig(),
-        site_instance->IsGuest()));
+    processes_.push_back(
+        std::make_unique<MockRenderProcessHost>(browser_context));
 
     // A spare RenderProcessHost is created with a null SiteInstance.
     if (site_instance)
@@ -62,29 +50,24 @@ class SiteInstanceRenderProcessHostFactory : public RenderProcessHostFactory {
 
  private:
   mutable std::vector<std::unique_ptr<MockRenderProcessHost>> processes_;
-  mutable raw_ptr<SiteInstance> last_site_instance_used_;
+  mutable SiteInstance* last_site_instance_used_;
+
+  DISALLOW_COPY_AND_ASSIGN(SiteInstanceRenderProcessHostFactory);
 };
 
 }  // namespace
 
 class ServiceWorkerProcessManagerTest : public testing::Test {
  public:
-  ServiceWorkerProcessManagerTest() = default;
-
-  ServiceWorkerProcessManagerTest(const ServiceWorkerProcessManagerTest&) =
-      delete;
-  ServiceWorkerProcessManagerTest& operator=(
-      const ServiceWorkerProcessManagerTest&) = delete;
+  ServiceWorkerProcessManagerTest() {}
 
   void SetUp() override {
-    browser_context_ = std::make_unique<TestBrowserContext>();
-    process_manager_ =
-        std::make_unique<ServiceWorkerProcessManager>(browser_context_.get());
-    process_manager_->set_storage_partition(static_cast<StoragePartitionImpl*>(
-        browser_context_->GetDefaultStoragePartition()));
+    browser_context_.reset(new TestBrowserContext);
+    process_manager_.reset(
+        new ServiceWorkerProcessManager(browser_context_.get()));
     script_url_ = GURL("http://www.example.com/sw.js");
-    render_process_host_factory_ =
-        std::make_unique<SiteInstanceRenderProcessHostFactory>();
+    render_process_host_factory_.reset(
+        new SiteInstanceRenderProcessHostFactory());
     RenderProcessHostImpl::set_render_process_host_factory_for_testing(
         render_process_host_factory_.get());
   }
@@ -111,13 +94,16 @@ class ServiceWorkerProcessManagerTest : public testing::Test {
   GURL script_url_;
   std::unique_ptr<SiteInstanceRenderProcessHostFactory>
       render_process_host_factory_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerProcessManagerTest);
 };
 
 TEST_F(ServiceWorkerProcessManagerTest,
        AllocateWorkerProcess_WithProcessReuse) {
   const int kEmbeddedWorkerId = 100;
   const GURL kSiteUrl = GURL("http://example.com");
-  SiteInfo site_info = SiteInfo::CreateForTesting(
+  SiteInfo site_info = SiteInstanceImpl::ComputeSiteInfoForTesting(
       IsolationContext(browser_context_.get()), kSiteUrl);
 
   // Create a process that is hosting a frame with kSiteUrl.
@@ -135,16 +121,15 @@ TEST_F(ServiceWorkerProcessManagerTest,
   blink::ServiceWorkerStatusCode status =
       process_manager_->AllocateWorkerProcess(
           kEmbeddedWorkerId, script_url_,
-          network::mojom::CrossOriginEmbedderPolicyValue::kNone,
-          true /* can_use_existing_process */, AncestorFrameType::kNormalFrame,
-          &process_info);
+          base::nullopt /* cross_origin_embedder_policy */,
+          true /* can_use_existing_process */, &process_info);
 
   // An existing process should be allocated to the worker.
   EXPECT_EQ(blink::ServiceWorkerStatusCode::kOk, status);
   EXPECT_EQ(host->GetID(), process_info.process_id);
   EXPECT_EQ(ServiceWorkerMetrics::StartSituation::EXISTING_UNREADY_PROCESS,
             process_info.start_situation);
-  EXPECT_EQ(1u, host->GetWorkerRefCount());
+  EXPECT_EQ(1u, host->GetKeepAliveRefCount());
   EXPECT_EQ(1u, processes.size());
   auto found = processes.find(kEmbeddedWorkerId);
   ASSERT_TRUE(found != processes.end());
@@ -152,7 +137,7 @@ TEST_F(ServiceWorkerProcessManagerTest,
 
   // Release the process.
   process_manager_->ReleaseWorkerProcess(kEmbeddedWorkerId);
-  EXPECT_EQ(0u, host->GetWorkerRefCount());
+  EXPECT_EQ(0u, host->GetKeepAliveRefCount());
   EXPECT_TRUE(processes.empty());
 
   RenderProcessHostImpl::RemoveFrameWithSite(browser_context_.get(), host.get(),
@@ -163,7 +148,7 @@ TEST_F(ServiceWorkerProcessManagerTest,
        AllocateWorkerProcess_WithoutProcessReuse) {
   const int kEmbeddedWorkerId = 100;
   const GURL kSiteUrl = GURL("http://example.com");
-  SiteInfo site_info = SiteInfo::CreateForTesting(
+  SiteInfo site_info = SiteInstanceImpl::ComputeSiteInfoForTesting(
       IsolationContext(browser_context_.get()), kSiteUrl);
 
   // Create a process that is hosting a frame with kSiteUrl.
@@ -180,16 +165,15 @@ TEST_F(ServiceWorkerProcessManagerTest,
   blink::ServiceWorkerStatusCode status =
       process_manager_->AllocateWorkerProcess(
           kEmbeddedWorkerId, script_url_,
-          network::mojom::CrossOriginEmbedderPolicyValue::kNone,
-          false /* can_use_existing_process */, AncestorFrameType::kNormalFrame,
-          &process_info);
+          base::nullopt /* cross_origin_embedder_policy */,
+          false /* can_use_existing_process */, &process_info);
 
   // A new process should be allocated to the worker.
   EXPECT_EQ(blink::ServiceWorkerStatusCode::kOk, status);
   EXPECT_NE(host->GetID(), process_info.process_id);
   EXPECT_EQ(ServiceWorkerMetrics::StartSituation::NEW_PROCESS,
             process_info.start_situation);
-  EXPECT_EQ(0u, host->GetWorkerRefCount());
+  EXPECT_EQ(0u, host->GetKeepAliveRefCount());
   EXPECT_EQ(1u, processes.size());
   auto found = processes.find(kEmbeddedWorkerId);
   ASSERT_TRUE(found != processes.end());
@@ -210,9 +194,8 @@ TEST_F(ServiceWorkerProcessManagerTest, AllocateWorkerProcess_InShutdown) {
   ServiceWorkerProcessManager::AllocatedProcessInfo process_info;
   blink::ServiceWorkerStatusCode status =
       process_manager_->AllocateWorkerProcess(
-          1, script_url_, network::mojom::CrossOriginEmbedderPolicyValue::kNone,
-          true /* can_use_existing_process */, AncestorFrameType::kNormalFrame,
-          &process_info);
+          1, script_url_, base::nullopt /* cross_origin_embedder_policy */,
+          true /* can_use_existing_process */, &process_info);
 
   // Allocating a process in shutdown should abort.
   EXPECT_EQ(blink::ServiceWorkerStatusCode::kErrorAbort, status);
@@ -222,74 +205,72 @@ TEST_F(ServiceWorkerProcessManagerTest, AllocateWorkerProcess_InShutdown) {
   EXPECT_TRUE(worker_process_map().empty());
 }
 
-// Tests that ServiceWorkerProcessManager finds the appropriate process when
-// inside a StoragePartition for guests (e.g., the <webview> tag).
+// Tests that ServiceWorkerProcessManager uses
+// StoragePartitionImpl::site_for_guest_service_worker_or_shared_worker() when
+// it's set. This enables finding the appropriate process when inside a
+// StoragePartition for guests (e.g., the <webview> tag).
 // https://crbug.com/781313
 TEST_F(ServiceWorkerProcessManagerTest,
        AllocateWorkerProcess_StoragePartitionForGuests) {
   // Allocate a process to a worker. It should use |script_url_| as the
-  // site URL of the SiteInstance and a default StoragePartition.
+  // site URL of the SiteInstance.
   {
     const int kEmbeddedWorkerId = 55;  // dummy value
     ServiceWorkerProcessManager::AllocatedProcessInfo process_info;
     blink::ServiceWorkerStatusCode status =
         process_manager_->AllocateWorkerProcess(
             kEmbeddedWorkerId, script_url_,
-            network::mojom::CrossOriginEmbedderPolicyValue::kNone,
-            true /* can_use_existing_process */,
-            AncestorFrameType::kNormalFrame, &process_info);
+            base::nullopt /* cross_origin_embedder_policy */,
+            true /* can_use_existing_process */, &process_info);
     EXPECT_EQ(blink::ServiceWorkerStatusCode::kOk, status);
+    // Instead of testing the input to the CreateRenderProcessHost(), it'd be
+    // more interesting to check the StoragePartition of the returned process
+    // here and below. Alas, MockRenderProcessHosts always use the default
+    // StoragePartition.
     EXPECT_EQ(
         GURL("http://example.com"),
         render_process_host_factory_->last_site_instance_used()->GetSiteURL());
     EXPECT_FALSE(
         render_process_host_factory_->last_site_instance_used()->IsGuest());
-    auto* rph = RenderProcessHost::FromID(process_info.process_id);
-    ASSERT_TRUE(rph);
-    auto* storage_partition =
-        static_cast<StoragePartitionImpl*>(rph->GetStoragePartition());
-    EXPECT_TRUE(storage_partition->GetConfig().is_default());
 
     // Release the process.
     process_manager_->ReleaseWorkerProcess(kEmbeddedWorkerId);
   }
 
-  // Now change ServiceWorkerProcessManager to use a guest StoragePartition.
-  // We must call |set_is_guest()| manually since the production codepath in
-  // CreateRenderProcessHost() isn't hit here since we are using
-  // RenderProcessHostFactory.
-  const StoragePartitionConfig kGuestPartitionConfig =
-      StoragePartitionConfig::Create(browser_context_.get(), "someapp",
-                                     "somepartition", /*in_memory=*/false);
-  scoped_refptr<SiteInstanceImpl> guest_site_instance =
-      SiteInstanceImpl::CreateForGuest(browser_context_.get(),
-                                       kGuestPartitionConfig);
-  EXPECT_TRUE(guest_site_instance->IsGuest());
+  // Now change ServiceWorkerProcessManager to use a StoragePartition with
+  // |site_for_guest_service_worker_or_shared_worker| set. We must set
+  // |site_for_guest_service_worker_or_shared_worker| manually since the
+  // production codepath in CreateRenderProcessHost() isn't hit here since we
+  // are using RenderProcessHostFactory.
+  const GURL kGuestSiteUrl("my-guest-scheme://someapp/somepath");
+  scoped_refptr<SiteInstanceImpl> site_instance =
+      SiteInstanceImpl::CreateForGuest(browser_context_.get(), kGuestSiteUrl);
+  EXPECT_TRUE(site_instance->IsGuest());
+  // It'd be more realistic to create a non-default StoragePartition, but there
+  // would be no added value to this test since MockRenderProcessHost is not
+  // StoragePartition-aware.
   StoragePartitionImpl* storage_partition = static_cast<StoragePartitionImpl*>(
-      browser_context_->GetStoragePartition(kGuestPartitionConfig));
-  storage_partition->set_is_guest();
+      BrowserContext::GetDefaultStoragePartition(browser_context_.get()));
+  storage_partition->set_site_for_guest_service_worker_or_shared_worker(
+      site_instance->GetSiteURL());
   process_manager_->set_storage_partition(storage_partition);
 
-  // Allocate a process to a worker. It should be in the guest's
-  // StoragePartition.
+  // Allocate a process to a worker. It should use kGuestSiteUrl instead of
+  // |script_url_| as the site URL of the SiteInstance.
   {
     const int kEmbeddedWorkerId = 77;  // dummy value
     ServiceWorkerProcessManager::AllocatedProcessInfo process_info;
     blink::ServiceWorkerStatusCode status =
         process_manager_->AllocateWorkerProcess(
             kEmbeddedWorkerId, script_url_,
-            network::mojom::CrossOriginEmbedderPolicyValue::kNone,
-            true /* can_use_existing_process */,
-            AncestorFrameType::kNormalFrame, &process_info);
+            base::nullopt /* cross_origin_embedder_policy */,
+            true /* can_use_existing_process */, &process_info);
     EXPECT_EQ(blink::ServiceWorkerStatusCode::kOk, status);
-    EXPECT_EQ(guest_site_instance->GetStoragePartitionConfig(),
-              render_process_host_factory_->last_site_instance_used()
-                  ->GetStoragePartitionConfig());
+    EXPECT_EQ(
+        kGuestSiteUrl,
+        render_process_host_factory_->last_site_instance_used()->GetSiteURL());
     EXPECT_TRUE(
         render_process_host_factory_->last_site_instance_used()->IsGuest());
-    auto* rph = RenderProcessHost::FromID(process_info.process_id);
-    ASSERT_TRUE(rph);
-    EXPECT_EQ(rph->GetStoragePartition(), storage_partition);
 
     // Release the process.
     process_manager_->ReleaseWorkerProcess(kEmbeddedWorkerId);

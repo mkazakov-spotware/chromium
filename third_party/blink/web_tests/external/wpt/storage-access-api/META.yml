@@ -1,6 +1,5 @@
-spec: https://privacycg.github.io/storage-access/
+spec: https://github.com/whatwg/html/issues/3338
 suggested_reviewers:
   - Brandr0id
-  - cfredric
   - ehsan
   - johnwilander

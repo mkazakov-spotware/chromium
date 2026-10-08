@@ -26,10 +26,10 @@
       </template>
       <template is="dom-if" if="[[shouldShowParentIconButton_(parentStatus_)]]"
           restamp>
-        <cr-icon-button
+        <cr-icon-button id="safetyCheckParentIconButton"
             iron-icon="settings:refresh"
             on-click="onRunSafetyCheckClick_"
-            aria-label="$i18n{safetyCheckParentRunAgainButtonAriaLabel}">
+            aria-label="$i18n{safetyCheckParentButtonAriaLabelReload}">
         </cr-icon-button>
       </template>
     </div>
@@ -48,17 +48,3 @@
       </settings-safety-check-chrome-cleaner-child>
 </if>
     </iron-collapse>
-    <template is="dom-if"
-        if="[[shouldShowUnusedSitePermissions_(
-          unusedSitePermissions_, safetyCheckUnusedSitePermissionsEnabled_)]]"
-        restamp>
-      <settings-safety-check-unused-site-permissions>
-      </settings-safety-check-unused-site-permissions>
-    </template>
-    <template is="dom-if"
-        if="[[shouldShowNotificationPermissions_(
-          notificationPermissionSites_, safetyCheckNotificationPermissionsEnabled_)]]"
-        restamp>
-      <settings-safety-check-notification-permissions>
-      </settings-safety-check-notification-permissions>
-    </template>

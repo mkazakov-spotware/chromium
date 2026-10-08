@@ -33,7 +33,6 @@
 
 #include <memory>
 
-#include "base/dcheck_is_on.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "third_party/blink/public/mojom/blob/blob.mojom-blink.h"
@@ -97,7 +96,7 @@ class CORE_EXPORT FileReaderLoader : public mojom::blink::BlobReaderClient {
 
   // Before OnCalculatedSize() is called: Returns nullopt.
   // After OnCalculatedSize() is called: Returns the size of the resource.
-  absl::optional<uint64_t> TotalBytes() const { return total_bytes_; }
+  base::Optional<uint64_t> TotalBytes() const { return total_bytes_; }
 
   FileErrorCode GetErrorCode() const { return error_code_; }
 
@@ -109,8 +108,28 @@ class CORE_EXPORT FileReaderLoader : public mojom::blink::BlobReaderClient {
   bool HasFinishedLoading() const { return finished_loading_; }
 
  private:
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  enum class FailureType {
+    kMojoPipeCreation = 0,
+    kSyncDataNotAllLoaded = 1,
+    kSyncOnCompleteNotReceived = 2,
+    kTotalBytesTooLarge = 3,
+    kArrayBufferBuilderCreation = 4,
+    kArrayBufferBuilderAppend = 5,
+    kBackendReadError = 6,
+    kReadSizesIncorrect = 7,
+    kDataPipeNotReadableWithBytesLeft = 8,
+    kMojoPipeClosedEarly = 9,
+    // Any MojoResult error we aren't expecting during data pipe reading falls
+    // into this bucket. If there are a large number of errors reported here,
+    // then there can be a new enumeration reported for mojo pipe errors.
+    kMojoPipeUnexpectedReadError = 10,
+    kMaxValue = kMojoPipeUnexpectedReadError,
+  };
+
   void Cleanup();
-  void Failed(FileErrorCode);
+  void Failed(FileErrorCode, FailureType type);
 
   void OnStartLoading(uint64_t total_bytes);
   void OnReceivedData(const char* data, unsigned data_length);
@@ -147,7 +166,7 @@ class CORE_EXPORT FileReaderLoader : public mojom::blink::BlobReaderClient {
   // total_bytes_ is set to the total size of the blob being loaded as soon as
   // it is known, and  the buffer for receiving data of total_bytes_ is
   // allocated and never grow even when extra data is appended.
-  absl::optional<uint64_t> total_bytes_;
+  base::Optional<uint64_t> total_bytes_;
 
   int32_t net_error_ = 0;  // net::OK
   FileErrorCode error_code_ = FileErrorCode::kOK;

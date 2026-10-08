@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/notifications/notification_data.h"
 
-#include "base/numerics/safe_conversions.h"
 #include "third_party/blink/public/common/notifications/notification_constants.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value_factory.h"
@@ -19,6 +18,7 @@
 #include "third_party/blink/renderer/platform/bindings/enumeration_base.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+#include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 
 namespace blink {
@@ -34,15 +34,6 @@ mojom::blink::NotificationDirection ToDirectionEnumValue(
     return mojom::blink::NotificationDirection::AUTO;
   NOTREACHED() << "Unknown direction: " << direction;
   return mojom::blink::NotificationDirection::AUTO;
-}
-
-mojom::blink::NotificationScenario ToScenarioEnumValue(const String& scenario) {
-  if (scenario == "default")
-    return mojom::blink::NotificationScenario::DEFAULT;
-  if (scenario == "incoming-call")
-    return mojom::blink::NotificationScenario::INCOMING_CALL;
-  NOTREACHED() << "Unknown scenario: " << scenario;
-  return mojom::blink::NotificationScenario::DEFAULT;
 }
 
 KURL CompleteURL(ExecutionContext* context, const String& string_url) {
@@ -69,7 +60,7 @@ mojom::blink::NotificationDataPtr CreateNotificationData(
   }
 
   // If renotify is true, the notification must have a tag.
-  if (options->renotify() && options->tag().empty()) {
+  if (options->renotify() && options->tag().IsEmpty()) {
     RecordPersistentNotificationDisplayResult(
         PersistentNotificationDisplayResult::kRenotifyWithoutTag);
     exception_state.ThrowTypeError(
@@ -86,13 +77,13 @@ mojom::blink::NotificationDataPtr CreateNotificationData(
   notification_data->body = options->body();
   notification_data->tag = options->tag();
 
-  if (options->hasImage() && !options->image().empty())
+  if (options->hasImage() && !options->image().IsEmpty())
     notification_data->image = CompleteURL(context, options->image());
 
-  if (options->hasIcon() && !options->icon().empty())
+  if (options->hasIcon() && !options->icon().IsEmpty())
     notification_data->icon = CompleteURL(context, options->icon());
 
-  if (options->hasBadge() && !options->badge().empty())
+  if (options->hasBadge() && !options->badge().IsEmpty())
     notification_data->badge = CompleteURL(context, options->badge());
 
   VibrationController::VibrationPattern vibration_pattern;
@@ -131,8 +122,7 @@ mojom::blink::NotificationDataPtr CreateNotificationData(
     notification_data->data = Vector<uint8_t>();
     notification_data->data->Append(
         serialized_script_value->Data(),
-        base::checked_cast<wtf_size_t>(
-            serialized_script_value->DataLengthInBytes()));
+        SafeCast<wtf_size_t>(serialized_script_value->DataLengthInBytes()));
   }
 
   Vector<mojom::blink::NotificationActionPtr> actions;
@@ -167,7 +157,7 @@ mojom::blink::NotificationDataPtr CreateNotificationData(
 
     notification_action->placeholder = action->placeholder();
 
-    if (action->hasIcon() && !action->icon().empty())
+    if (action->hasIcon() && !action->icon().IsEmpty())
       notification_action->icon = CompleteURL(context, action->icon());
 
     actions.push_back(std::move(notification_action));
@@ -191,8 +181,6 @@ mojom::blink::NotificationDataPtr CreateNotificationData(
 
     notification_data->show_trigger_timestamp = timestamp;
   }
-
-  notification_data->scenario = ToScenarioEnumValue(options->scenario());
 
   return notification_data;
 }

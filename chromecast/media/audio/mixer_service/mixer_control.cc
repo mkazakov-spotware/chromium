@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,29 +28,25 @@ MixerControl* MixerControl::Get() {
 
 MixerControl::MixerControl() : control_(AudioIoThread::Get()->task_runner()) {
   DCHECK(HaveFullMixer());
-  control_.AsyncCall(&ControlConnection::Connect)
-      .WithArgs(ControlConnection::ConnectedCallback());
+  control_.Post(FROM_HERE, &ControlConnection::Connect,
+                ControlConnection::ConnectedCallback());
 }
 
 MixerControl::~MixerControl() = default;
 
 void MixerControl::ConfigurePostprocessor(std::string postprocessor_name,
                                           std::string config) {
-  control_.AsyncCall(&ControlConnection::ConfigurePostprocessor)
-      .WithArgs(std::move(postprocessor_name), std::move(config));
+  control_.Post(FROM_HERE, &ControlConnection::ConfigurePostprocessor,
+                std::move(postprocessor_name), std::move(config));
 }
 
-void MixerControl::ListPostprocessors(ListPostprocessorsCallback callback) {
-  control_.AsyncCall(&ControlConnection::ListPostprocessors)
-      .WithArgs(std::move(callback));
-}
 void MixerControl::ReloadPostprocessors() {
-  control_.AsyncCall(&ControlConnection::ReloadPostprocessors);
+  control_.Post(FROM_HERE, &ControlConnection::ReloadPostprocessors);
 }
 
 void MixerControl::SetNumOutputChannels(int num_channels) {
-  control_.AsyncCall(&ControlConnection::SetNumOutputChannels)
-      .WithArgs(num_channels);
+  control_.Post(FROM_HERE, &ControlConnection::SetNumOutputChannels,
+                num_channels);
 }
 
 }  // namespace mixer_service

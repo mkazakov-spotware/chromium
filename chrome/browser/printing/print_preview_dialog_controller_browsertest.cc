@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,17 +11,15 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/test/bind.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/plugins/chrome_plugin_service_filter.h"
 #include "chrome/browser/plugins/plugin_prefs.h"
 #include "chrome/browser/printing/print_view_manager.h"
-#include "chrome/browser/printing/test_print_preview_dialog_cloned_observer.h"
-#include "chrome/browser/printing/test_print_view_manager_for_request_preview.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/task_manager/mock_web_contents_task_manager.h"
 #include "chrome/browser/ui/browser.h"
@@ -32,12 +30,12 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/printing/common/print_messages.h"
 #include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/plugin_service.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "content/public/common/webplugininfo.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
@@ -45,11 +43,68 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_switches.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 using content::WebContents;
 using content::WebContentsObserver;
 
 namespace {
+
+class RequestPrintPreviewObserver : public WebContentsObserver {
+ public:
+  explicit RequestPrintPreviewObserver(WebContents* dialog)
+      : WebContentsObserver(dialog) {}
+  ~RequestPrintPreviewObserver() override = default;
+
+  void set_quit_closure(base::OnceClosure quit_closure) {
+    quit_closure_ = std::move(quit_closure);
+  }
+
+ private:
+  // content::WebContentsObserver implementation.
+  bool OnMessageReceived(const IPC::Message& message,
+                         content::RenderFrameHost* render_frame_host) override {
+    IPC_BEGIN_MESSAGE_MAP(RequestPrintPreviewObserver, message)
+      IPC_MESSAGE_HANDLER(PrintHostMsg_RequestPrintPreview,
+                          OnRequestPrintPreview)
+      IPC_MESSAGE_UNHANDLED(break)
+    IPC_END_MESSAGE_MAP()
+    return false;  // Report not handled so the real handler receives it.
+  }
+
+  void OnRequestPrintPreview(
+      const PrintHostMsg_RequestPrintPreview_Params& /* params */) {
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  std::move(quit_closure_));
+  }
+
+  base::OnceClosure quit_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(RequestPrintPreviewObserver);
+};
+
+class PrintPreviewDialogClonedObserver : public WebContentsObserver {
+ public:
+  explicit PrintPreviewDialogClonedObserver(WebContents* dialog)
+      : WebContentsObserver(dialog) {}
+  ~PrintPreviewDialogClonedObserver() override = default;
+
+  RequestPrintPreviewObserver* request_preview_dialog_observer() {
+    return request_preview_dialog_observer_.get();
+  }
+
+ private:
+  // content::WebContentsObserver implementation.
+  void DidCloneToNewWebContents(WebContents* old_web_contents,
+                                WebContents* new_web_contents) override {
+    request_preview_dialog_observer_ =
+        std::make_unique<RequestPrintPreviewObserver>(new_web_contents);
+  }
+
+  std::unique_ptr<RequestPrintPreviewObserver> request_preview_dialog_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrintPreviewDialogClonedObserver);
+};
 
 void PluginsLoadedCallback(
     base::OnceClosure quit_closure,
@@ -57,30 +112,44 @@ void PluginsLoadedCallback(
   std::move(quit_closure).Run();
 }
 
-void CheckPdfPluginForRenderFrame(content::RenderFrameHost* frame) {
-  static const base::FilePath kPdfInternalPluginPath(
+bool GetPdfPluginInfo(content::WebPluginInfo* info) {
+  static const base::FilePath pdf_plugin_path(
       ChromeContentClient::kPDFPluginPath);
+  return content::PluginService::GetInstance()->GetPluginInfoByPath(
+      pdf_plugin_path, info);
+}
 
-  content::WebPluginInfo pdf_internal_plugin_info;
-  ASSERT_TRUE(content::PluginService::GetInstance()->GetPluginInfoByPath(
-      kPdfInternalPluginPath, &pdf_internal_plugin_info));
+const char kDummyPrintUrl[] = "chrome://print/dummy.pdf";
+
+void CountFrames(int* frame_count,
+                 content::RenderFrameHost* frame) {
+  ++(*frame_count);
+}
+
+void CheckPdfPluginForRenderFrame(content::RenderFrameHost* frame) {
+  content::WebPluginInfo pdf_plugin_info;
+  ASSERT_TRUE(GetPdfPluginInfo(&pdf_plugin_info));
 
   ChromePluginServiceFilter* filter = ChromePluginServiceFilter::GetInstance();
-  EXPECT_TRUE(filter->IsPluginAvailable(frame->GetBrowserContext(),
-                                        pdf_internal_plugin_info));
+  EXPECT_TRUE(filter->IsPluginAvailable(
+      frame->GetProcess()->GetID(), frame->GetRoutingID(), GURL(kDummyPrintUrl),
+      url::Origin(), &pdf_plugin_info));
 }
 
 }  // namespace
 
 class PrintPreviewDialogControllerBrowserTest : public InProcessBrowserTest {
  public:
+  PrintPreviewDialogControllerBrowserTest() = default;
+  ~PrintPreviewDialogControllerBrowserTest() override = default;
+
   WebContents* initiator() {
     return initiator_;
   }
 
   void PrintPreview() {
     base::RunLoop run_loop;
-    test_print_view_manager_->set_quit_closure(run_loop.QuitClosure());
+    request_preview_dialog_observer()->set_quit_closure(run_loop.QuitClosure());
     chrome::Print(browser());
     run_loop.Run();
   }
@@ -91,7 +160,11 @@ class PrintPreviewDialogControllerBrowserTest : public InProcessBrowserTest {
     return dialog_controller->GetPrintPreviewForContents(initiator_);
   }
 
-  void PrintPreviewDone() { test_print_view_manager_->PrintPreviewDone(); }
+  void PrintPreviewDone() {
+    auto* print_view_manager =
+        printing::PrintViewManager::FromWebContents(initiator());
+    print_view_manager->PrintPreviewDone();
+  }
 
   void SetAlwaysOpenPdfExternallyForTests() {
     PluginPrefs::GetForProfile(browser()->profile())
@@ -100,7 +173,7 @@ class PrintPreviewDialogControllerBrowserTest : public InProcessBrowserTest {
 
  private:
   void SetUpOnMainThread() override {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         switches::kDisableModalAnimations);
 #endif
@@ -109,25 +182,19 @@ class PrintPreviewDialogControllerBrowserTest : public InProcessBrowserTest {
         browser()->tab_strip_model()->GetActiveWebContents();
     ASSERT_TRUE(first_tab);
 
-    // Open a new tab so `cloned_tab_observer_` can see it and create a
-    // TestPrintViewManagerForRequestPreview for it before the real
-    // PrintViewManager gets created.
-    // Since TestPrintViewManagerForRequestPreview is created with
-    // PrintViewManager::UserDataKey(), the real PrintViewManager is not created
-    // and TestPrintViewManagerForRequestPreview gets mojo messages for the
-    // purposes of this test.
+    // Open a new tab so |cloned_tab_observer_| can see it first and attach a
+    // RequestPrintPreviewObserver to it before the real
+    // PrintPreviewMessageHandler gets created. Thus enabling
+    // RequestPrintPreviewObserver to get messages first for the purposes of
+    // this test.
     cloned_tab_observer_ =
-        std::make_unique<printing::TestPrintPreviewDialogClonedObserver>(
-            first_tab);
+        std::make_unique<PrintPreviewDialogClonedObserver>(first_tab);
     chrome::DuplicateTab(browser());
 
     initiator_ = browser()->tab_strip_model()->GetActiveWebContents();
     ASSERT_TRUE(initiator_);
     ASSERT_NE(first_tab, initiator_);
 
-    test_print_view_manager_ =
-        printing::TestPrintViewManagerForRequestPreview::FromWebContents(
-            initiator_);
     content::PluginService::GetInstance()->Init();
   }
 
@@ -136,11 +203,14 @@ class PrintPreviewDialogControllerBrowserTest : public InProcessBrowserTest {
     initiator_ = nullptr;
   }
 
-  std::unique_ptr<printing::TestPrintPreviewDialogClonedObserver>
-      cloned_tab_observer_;
-  raw_ptr<printing::TestPrintViewManagerForRequestPreview, DanglingUntriaged>
-      test_print_view_manager_;
-  raw_ptr<WebContents, DanglingUntriaged> initiator_ = nullptr;
+  RequestPrintPreviewObserver* request_preview_dialog_observer() {
+    return cloned_tab_observer_->request_preview_dialog_observer();
+  }
+
+  std::unique_ptr<PrintPreviewDialogClonedObserver> cloned_tab_observer_;
+  WebContents* initiator_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(PrintPreviewDialogControllerBrowserTest);
 };
 
 // Test to verify that when a initiator navigates, we can create a new preview
@@ -162,8 +232,7 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
   // Navigate in the initiator tab. Make sure navigating destroys the print
   // preview dialog.
   content::WebContentsDestroyedWatcher watcher(preview_dialog);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL(chrome::kChromeUINewTabURL)));
+  ui_test_utils::NavigateToURL(browser(), GURL(chrome::kChromeUINewTabURL));
   ASSERT_TRUE(watcher.IsDestroyed());
 
   // Try printing again.
@@ -228,19 +297,19 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
     run_loop.Run();
   }
   // Get the PDF plugin info.
-  content::WebPluginInfo pdf_external_plugin_info;
-  ASSERT_TRUE(content::PluginService::GetInstance()->GetPluginInfoByPath(
-      base::FilePath(FILE_PATH_LITERAL(
-          "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")),
-      &pdf_external_plugin_info));
+  content::WebPluginInfo pdf_plugin_info;
+  ASSERT_TRUE(GetPdfPluginInfo(&pdf_plugin_info));
 
   // Disable the PDF plugin.
   SetAlwaysOpenPdfExternallyForTests();
 
   // Make sure it is actually disabled for webpages.
   ChromePluginServiceFilter* filter = ChromePluginServiceFilter::GetInstance();
-  EXPECT_FALSE(filter->IsPluginAvailable(initiator()->GetBrowserContext(),
-                                         pdf_external_plugin_info));
+  content::WebPluginInfo dummy_pdf_plugin_info = pdf_plugin_info;
+  EXPECT_FALSE(filter->IsPluginAvailable(
+      initiator()->GetMainFrame()->GetProcess()->GetID(),
+      initiator()->GetMainFrame()->GetRoutingID(), GURL(),
+      url::Origin::Create(GURL("http://google.com")), &dummy_pdf_plugin_info));
 
   PrintPreview();
 
@@ -249,35 +318,34 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
   ASSERT_TRUE(preview_dialog);
   ASSERT_NE(initiator(), preview_dialog);
 
-  // Wait until all the frames in the Print Preview renderer have loaded.
-  // `frame_count` should be 3: the main frame, the viewer's <iframe>, and the
-  // plugin frame.
-  const int kExpectedFrameCount = 3;
+  // Wait until the <iframe> in the print preview renderer has loaded.
+  // |frame_count| should be 2. The other frame is the main frame.
+  const int kExpectedFrameCount = 2;
   int frame_count;
   do {
     base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, run_loop.QuitClosure(), base::Seconds(1));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE, run_loop.QuitClosure(), base::TimeDelta::FromSeconds(1));
     run_loop.Run();
 
     frame_count = 0;
-    preview_dialog->GetPrimaryMainFrame()->ForEachRenderFrameHost(
-        [&frame_count](content::RenderFrameHost* /*frame*/) { ++frame_count; });
+    preview_dialog->ForEachFrame(
+        base::BindRepeating(&CountFrames, base::Unretained(&frame_count)));
   } while (frame_count < kExpectedFrameCount);
   ASSERT_EQ(kExpectedFrameCount, frame_count);
 
   // Make sure all the frames in the dialog has access to the PDF plugin.
-  preview_dialog->GetPrimaryMainFrame()->ForEachRenderFrameHost(
-      &CheckPdfPluginForRenderFrame);
+  preview_dialog->ForEachFrame(
+      base::BindRepeating(&CheckPdfPluginForRenderFrame));
 
   PrintPreviewDone();
 }
 
 namespace {
 
-std::u16string GetExpectedPrefix() {
+base::string16 GetExpectedPrefix() {
   return l10n_util::GetStringFUTF16(IDS_TASK_MANAGER_PRINT_PREFIX,
-                                    std::u16string());
+                                    base::string16());
 }
 
 const std::vector<task_manager::WebContentsTag*>& GetTrackedTags() {
@@ -286,14 +354,8 @@ const std::vector<task_manager::WebContentsTag*>& GetTrackedTags() {
 
 }  // namespace
 
-// TODO(crbug.com/1385142): Flaky on macos12 builds.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_TaskManagementTest DISABLED_TaskManagementTest
-#else
-#define MAYBE_TaskManagementTest TaskManagementTest
-#endif
 IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
-                       MAYBE_TaskManagementTest) {
+                       TaskManagementTest) {
   // This test starts with two tabs open.
   EXPECT_EQ(2U, GetTrackedTags().size());
 
@@ -308,8 +370,8 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
   ASSERT_EQ(3U, task_manager.tasks().size());
   const task_manager::Task* pre_existing_task = task_manager.tasks().back();
   EXPECT_EQ(task_manager::Task::RENDERER, pre_existing_task->GetType());
-  const std::u16string pre_existing_title = pre_existing_task->title();
-  const std::u16string expected_prefix = GetExpectedPrefix();
+  const base::string16 pre_existing_title = pre_existing_task->title();
+  const base::string16 expected_prefix = GetExpectedPrefix();
   EXPECT_TRUE(base::StartsWith(pre_existing_title,
                                expected_prefix,
                                base::CompareCase::INSENSITIVE_ASCII));
@@ -319,7 +381,7 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
   // Navigating away from the current page in the current tab for which a print
   // preview is displayed will cancel the print preview and hence the task
   // manger shouldn't show a printing task.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+  ui_test_utils::NavigateToURL(browser(), GURL("about:blank"));
   EXPECT_EQ(2U, GetTrackedTags().size());
   EXPECT_EQ(2U, task_manager.tasks().size());
 
@@ -330,7 +392,7 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
   ASSERT_EQ(3U, task_manager.tasks().size());
   const task_manager::Task* task = task_manager.tasks().back();
   EXPECT_EQ(task_manager::Task::RENDERER, task->GetType());
-  const std::u16string title = task->title();
+  const base::string16 title = task->title();
   EXPECT_TRUE(base::StartsWith(title,
                                expected_prefix,
                                base::CompareCase::INSENSITIVE_ASCII));
@@ -340,8 +402,7 @@ IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(PrintPreviewDialogControllerBrowserTest,
                        PrintPreviewPdfAccessibility) {
   content::BrowserAccessibilityState::GetInstance()->EnableAccessibility();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL("data:text/html,HelloWorld")));
+  ui_test_utils::NavigateToURL(browser(), GURL("data:text/html,HelloWorld"));
   PrintPreview();
   WebContents* preview_dialog = GetPrintPreviewDialog();
   WaitForAccessibilityTreeToContainNodeWithName(preview_dialog, "HelloWorld");

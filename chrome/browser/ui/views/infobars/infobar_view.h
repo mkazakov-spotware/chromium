@@ -1,16 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_INFOBARS_INFOBAR_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_INFOBARS_INFOBAR_VIEW_H_
 
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "components/infobars/core/infobar.h"
 #include "components/infobars/core/infobar_container.h"
 #include "third_party/skia/include/core/SkPath.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/menu/menu_types.h"
 #include "ui/views/focus/external_focus_tracker.h"
 #include "ui/views/view.h"
@@ -27,10 +26,7 @@ class InfoBarView : public infobars::InfoBar,
                     public views::View,
                     public views::ExternalFocusTracker {
  public:
-  METADATA_HEADER(InfoBarView);
   explicit InfoBarView(std::unique_ptr<infobars::InfoBarDelegate> delegate);
-  InfoBarView(const InfoBarView&) = delete;
-  InfoBarView& operator=(const InfoBarView&) = delete;
   ~InfoBarView() override;
 
   // Requests that the infobar recompute its target height.
@@ -52,11 +48,11 @@ class InfoBarView : public infobars::InfoBar,
   using Labels = std::vector<views::Label*>;
 
   // Creates a label with the appropriate font and color for an infobar.
-  std::unique_ptr<views::Label> CreateLabel(const std::u16string& text) const;
+  views::Label* CreateLabel(const base::string16& text) const;
 
   // Creates a link with the appropriate font and color for an infobar.
   // NOTE: Subclasses must ignore link clicks if we're unowned.
-  std::unique_ptr<views::Link> CreateLink(const std::u16string& text);
+  views::Link* CreateLink(const base::string16& text);
 
   // Given |views| and the total |available_width| to display them in, sets
   // each view's size so that the longest view shrinks until it reaches the
@@ -67,12 +63,12 @@ class InfoBarView : public infobars::InfoBar,
   // Returns the minimum width the content (that is, everything between the icon
   // and the close button) can be shrunk to.  This is used to prevent the close
   // button from overlapping views that cannot be shrunk any further.
-  virtual int GetContentMinimumWidth() const;
+  virtual int ContentMinimumWidth() const;
 
   // These return x coordinates delimiting the usable area for subclasses to lay
   // out their controls.
-  int GetStartX() const;
-  int GetEndX() const;
+  int StartX() const;
+  int EndX() const;
 
   // Given a |view|, returns the centered y position, taking into account
   // animation so the control "slides in" (or out) as we animate open and
@@ -85,11 +81,22 @@ class InfoBarView : public infobars::InfoBar,
   void PlatformSpecificOnHeightRecalculated() override;
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(InfoBarViewTest, GetDrawSeparator);
+  FRIEND_TEST_ALL_PREFIXES(InfoBarViewTest, ShouldDrawSeparator);
 
   // Does the actual work for AssignWidths().  Assumes |views| is sorted by
   // decreasing preferred width.
   static void AssignWidthsSorted(Views* views, int available_width);
+
+  // Returns whether this infobar should draw a 1 px separator at its top.
+  bool ShouldDrawSeparator() const;
+
+  // Returns how much space the container should reserve for a separator between
+  // infobars, in addition to the height of the infobars themselves.
+  int GetSeparatorHeight() const;
+
+  // Returns the current color for the theme property |id|.  Will return the
+  // wrong value if no theme provider is available.
+  SkColor GetColor(int id) const;
 
   // Sets various attributes on |label| that are common to all child links and
   // labels.
@@ -101,13 +108,15 @@ class InfoBarView : public infobars::InfoBar,
   void CloseButtonPressed();
 
   // The optional icon at the left edge of the InfoBar.
-  raw_ptr<views::ImageView> icon_ = nullptr;
+  views::ImageView* icon_ = nullptr;
 
   // The close button at the right edge of the InfoBar.
-  raw_ptr<views::ImageButton> close_button_ = nullptr;
+  views::ImageButton* close_button_ = nullptr;
 
   // Used to run the menu.
   std::unique_ptr<views::MenuRunner> menu_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(InfoBarView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_INFOBARS_INFOBAR_VIEW_H_

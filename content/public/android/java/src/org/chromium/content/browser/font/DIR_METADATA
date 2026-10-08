@@ -1,2 +1,7 @@
-mixins: "//content/public/android/java/src/org/chromium/content/browser/font/COMMON_METADATA"
+monorail {
+  component: "UI>Browser>Mobile"
+}
 
+team_email: "clank-dev@google.com"
+
+os: ANDROID

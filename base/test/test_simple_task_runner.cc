@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/check.h"
 #include "base/memory/ptr_util.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 
@@ -86,10 +85,10 @@ void TestSimpleTaskRunner::RunPendingTasks() {
 
   // Multiple test task runners can share the same thread for determinism in
   // unit tests. Make sure this TestSimpleTaskRunner's tasks run in its scope.
-  absl::optional<ThreadTaskRunnerHandleOverrideForTesting> ttrh_override;
+  ScopedClosureRunner undo_override;
   if (!ThreadTaskRunnerHandle::IsSet() ||
       ThreadTaskRunnerHandle::Get() != this) {
-    ttrh_override.emplace(this);
+    undo_override = ThreadTaskRunnerHandle::OverrideForTesting(this);
   }
 
   for (auto& task : tasks_to_run)

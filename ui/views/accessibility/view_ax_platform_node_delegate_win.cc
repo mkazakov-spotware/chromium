@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,13 +15,14 @@
 #include "base/win/windows_version.h"
 #include "third_party/iaccessible2/ia2_api_all.h"
 #include "ui/accessibility/accessibility_switches.h"
+#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/accessibility/ax_text_utils.h"
 #include "ui/accessibility/platform/ax_fragment_root_win.h"
-#include "ui/accessibility/platform/ax_platform_node_win.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/layout.h"
+#include "ui/base/win/accessibility_misc_utils.h"
 #include "ui/base/win/atl_module.h"
 #include "ui/display/win/screen_win.h"
 #include "ui/views/accessibility/views_utilities_aura.h"
@@ -34,9 +35,7 @@ namespace views {
 
 // static
 std::unique_ptr<ViewAccessibility> ViewAccessibility::Create(View* view) {
-  auto result = std::make_unique<ViewAXPlatformNodeDelegateWin>(view);
-  result->Init();
-  return result;
+  return std::make_unique<ViewAXPlatformNodeDelegateWin>(view);
 }
 
 ViewAXPlatformNodeDelegateWin::ViewAXPlatformNodeDelegateWin(View* view)
@@ -44,10 +43,10 @@ ViewAXPlatformNodeDelegateWin::ViewAXPlatformNodeDelegateWin(View* view)
 
 ViewAXPlatformNodeDelegateWin::~ViewAXPlatformNodeDelegateWin() = default;
 
-gfx::NativeViewAccessible ViewAXPlatformNodeDelegateWin::GetParent() const {
+gfx::NativeViewAccessible ViewAXPlatformNodeDelegateWin::GetParent() {
   // If the View has a parent View, return that View's IAccessible.
   if (view()->parent())
-    return ViewAXPlatformNodeDelegate::GetParent();
+    return view()->parent()->GetNativeViewAccessible();
 
   // Otherwise we must be the RootView, get the corresponding Widget
   // and Window.
@@ -106,5 +105,4 @@ gfx::Rect ViewAXPlatformNodeDelegateWin::GetBoundsRect(
       return gfx::Rect();
   }
 }
-
 }  // namespace views

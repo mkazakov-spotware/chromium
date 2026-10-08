@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/callback_forward.h"
-#include "base/containers/flat_map.h"
 #include "services/network/trust_tokens/suitable_trust_token_origin.h"
 
 namespace network {
@@ -53,9 +52,6 @@ class TrustTokenPersister {
   virtual bool DeleteForOrigins(
       base::RepeatingCallback<bool(const SuitableTrustTokenOrigin&)>
           matcher) = 0;
-
-  virtual base::flat_map<SuitableTrustTokenOrigin, int>
-  GetStoredTrustTokenCounts() = 0;
 };
 
 }  // namespace network

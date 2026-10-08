@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,22 +8,20 @@
 
 #include "base/bind.h"
 #include "base/values.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/webui/theme_source.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/grit/theme_resources.h"
+#include "content/public/browser/notification_service.h"
 #include "content/public/browser/web_ui.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // ThemeHandler
 
 ThemeHandler::ThemeHandler() = default;
-
-ThemeHandler::~ThemeHandler() {
-  ThemeServiceFactory::GetForProfile(GetProfile())->RemoveObserver(this);
-}
+ThemeHandler::~ThemeHandler() = default;
 
 void ThemeHandler::RegisterMessages() {
   // These are not actual message registrations, but can't be done in the
@@ -38,39 +36,31 @@ void ThemeHandler::RegisterMessages() {
 
 void ThemeHandler::OnJavascriptAllowed() {
   // Listen for theme installation.
-  ThemeServiceFactory::GetForProfile(GetProfile())->AddObserver(this);
-
+  registrar_.Add(this, chrome::NOTIFICATION_BROWSER_THEME_CHANGED,
+                 content::Source<ThemeService>(
+                     ThemeServiceFactory::GetForProfile(GetProfile())));
   // Or native theme change.
-  if (web_ui()) {
-    theme_observation_.Observe(
-        webui::GetNativeTheme(web_ui()->GetWebContents()));
-  }
+  theme_observer_.Add(ui::NativeTheme::GetInstanceForNativeUi());
 }
 
 void ThemeHandler::OnJavascriptDisallowed() {
-  ThemeServiceFactory::GetForProfile(GetProfile())->RemoveObserver(this);
-  theme_observation_.Reset();
+  registrar_.RemoveAll();
+  theme_observer_.RemoveAll();
 }
 
-void ThemeHandler::OnThemeChanged() {
+void ThemeHandler::Observe(int type,
+                           const content::NotificationSource& source,
+                           const content::NotificationDetails& details) {
+  DCHECK_EQ(chrome::NOTIFICATION_BROWSER_THEME_CHANGED, type);
   SendThemeChanged();
 }
 
 void ThemeHandler::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
-  // There are two types of theme update. a) The observed theme change. e.g.
-  // switch between light/dark mode. b) A different theme is enabled. e.g.
-  // switch between GTK and classic theme on Linux. Reset observer in case b).
-  ui::NativeTheme* current_theme =
-      webui::GetNativeTheme(web_ui()->GetWebContents());
-  if (observed_theme != current_theme) {
-    theme_observation_.Reset();
-    theme_observation_.Observe(current_theme);
-  }
+  DCHECK_EQ(observed_theme, ui::NativeTheme::GetInstanceForNativeUi());
   SendThemeChanged();
 }
 
-void ThemeHandler::HandleObserveThemeChanges(
-    const base::Value::List& /*args*/) {
+void ThemeHandler::HandleObserveThemeChanges(const base::ListValue* /*args*/) {
   AllowJavascript();
 }
 
@@ -79,8 +69,8 @@ void ThemeHandler::SendThemeChanged() {
   bool has_custom_bg = ThemeService::GetThemeProviderForProfile(GetProfile())
                            .HasCustomImage(IDR_THEME_NTP_BACKGROUND);
   // TODO(dbeam): why does this need to be a dictionary?
-  base::Value::Dict dictionary;
-  dictionary.Set("hasCustomBackground", has_custom_bg);
+  base::DictionaryValue dictionary;
+  dictionary.SetBoolean("hasCustomBackground", has_custom_bg);
   FireWebUIListener("theme-changed", dictionary);
 }
 
@@ -89,6 +79,6 @@ void ThemeHandler::InitializeCSSCaches() {
   content::URLDataSource::Add(profile, std::make_unique<ThemeSource>(profile));
 }
 
-Profile* ThemeHandler::GetProfile() {
+Profile* ThemeHandler::GetProfile() const {
   return Profile::FromWebUI(web_ui());
 }

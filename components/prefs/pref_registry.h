@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <set>
 #include <unordered_map>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/prefs/pref_value_map.h"
 #include "components/prefs/prefs_export.h"
@@ -37,27 +38,24 @@ class COMPONENTS_PREFS_EXPORT PrefRegistry
   // behave or be stored. This will be passed in a bitmask when the pref is
   // registered. Subclasses of PrefRegistry can specify their own flags. Care
   // must be taken to ensure none of these overlap with the flags below.
-  using PrefRegistrationFlags = uint32_t;
+  enum PrefRegistrationFlags : uint32_t {
+    // No flags are specified.
+    NO_REGISTRATION_FLAGS = 0,
 
-  // No flags are specified.
-  static constexpr PrefRegistrationFlags NO_REGISTRATION_FLAGS = 0;
+    // The first 8 bits are reserved for subclasses of PrefRegistry to use.
 
-  // The first 8 bits are reserved for subclasses of PrefRegistry to use.
+    // This marks the pref as "lossy". There is no strict time guarantee on when
+    // a lossy pref will be persisted to permanent storage when it is modified.
+    LOSSY_PREF = 1 << 8,
 
-  // This marks the pref as "lossy". There is no strict time guarantee on when
-  // a lossy pref will be persisted to permanent storage when it is modified.
-  static constexpr PrefRegistrationFlags LOSSY_PREF = 1 << 8;
-
-  // Registering a pref as public allows other services to access it.
-  static constexpr PrefRegistrationFlags PUBLIC = 1 << 9;
+    // Registering a pref as public allows other services to access it.
+    PUBLIC = 1 << 9,
+  };
 
   typedef PrefValueMap::const_iterator const_iterator;
   typedef std::unordered_map<std::string, uint32_t> PrefRegistrationFlagsMap;
 
   PrefRegistry();
-
-  PrefRegistry(const PrefRegistry&) = delete;
-  PrefRegistry& operator=(const PrefRegistry&) = delete;
 
   // Retrieve the set of registration flags for the given preference. The return
   // value is a bitmask of PrefRegistrationFlags.
@@ -109,6 +107,9 @@ class COMPONENTS_PREFS_EXPORT PrefRegistry
   PrefRegistrationFlagsMap registration_flags_;
 
   std::set<std::string> foreign_pref_keys_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PrefRegistry);
 };
 
 #endif  // COMPONENTS_PREFS_PREF_REGISTRY_H_

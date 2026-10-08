@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,12 @@
 #include <string>
 
 #include "base/files/file_path.h"
-#include "base/values.h"
+#include "base/macros.h"
 #include "extensions/common/url_pattern_set.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace extensions {
 
@@ -19,10 +23,6 @@ class NativeMessagingHostManifest {
   enum HostInterface {
     HOST_INTERFACE_STDIO,
   };
-
-  NativeMessagingHostManifest(const NativeMessagingHostManifest&) = delete;
-  NativeMessagingHostManifest& operator=(const NativeMessagingHostManifest&) =
-      delete;
 
   ~NativeMessagingHostManifest();
 
@@ -49,7 +49,7 @@ class NativeMessagingHostManifest {
 
   // Parses manifest |dictionary|. In case of an error sets |error_message| and
   // returns false.
-  bool Parse(const base::Value::Dict& dict, std::string* error_message);
+  bool Parse(base::DictionaryValue* dictionary, std::string* error_message);
 
   std::string name_;
   std::string description_;
@@ -57,6 +57,8 @@ class NativeMessagingHostManifest {
   base::FilePath path_;
   URLPatternSet allowed_origins_;
   bool supports_native_initiated_connections_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeMessagingHostManifest);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,11 +22,11 @@ function handle(message, e, priorStackTrace) {
 }
 
 // Runs a user-supplied callback safely.
-function safeCallbackApply(name, callback, args, priorStackTrace) {
+function safeCallbackApply(name, request, callback, args) {
   try {
-    $Function.apply(callback, null, args);
+    $Function.apply(callback, request, args);
   } catch (e) {
-    handle('Error in response to ' + name, e, priorStackTrace);
+    handle('Error in response to ' + name, e, request.stack);
   }
 }
 

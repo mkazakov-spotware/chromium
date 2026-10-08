@@ -12,8 +12,7 @@
 <div id='target'>Target</div>
 <script>
   promise_test(async t => {
-    // PointerMove also creates mouseenter events on the body
-    return testEventType(t, 'mouseenter', true);
+    return testEventType(t, 'mouseenter');
   })
 </script>
 </html>

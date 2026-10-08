@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,10 +42,10 @@ const char* UsbIds::GetVendorName(uint16_t vendor_id) {
 
 const char* UsbIds::GetProductName(uint16_t vendor_id, uint16_t product_id) {
   const UsbVendor* vendor = FindVendor(vendor_id);
-  if (!vendor || !vendor->products)
+  if (!vendor)
     return NULL;
 
-  const UsbProduct key = {product_id, nullptr};
+  const UsbProduct key = {product_id, NULL};
   void* result = bsearch(&key, vendor->products, vendor->product_size,
                          sizeof(vendor->products[0]), &CompareProducts);
   if (!result)

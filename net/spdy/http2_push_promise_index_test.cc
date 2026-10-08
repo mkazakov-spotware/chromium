@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "net/base/host_port_pair.h"
 #include "net/base/privacy_mode.h"
-#include "net/dns/public/secure_dns_policy.h"
 #include "net/socket/socket_tag.h"
 #include "net/test/gtest_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -19,7 +18,8 @@
 using ::testing::Return;
 using ::testing::_;
 
-namespace net::test {
+namespace net {
+namespace test {
 namespace {
 
 // Delegate implementation for tests that requires exact match of SpdySessionKey
@@ -29,7 +29,7 @@ class TestDelegate : public Http2PushPromiseIndex::Delegate {
  public:
   TestDelegate() = delete;
   explicit TestDelegate(const SpdySessionKey& key) : key_(key) {}
-  ~TestDelegate() override = default;
+  ~TestDelegate() override {}
 
   bool ValidatePushedStream(spdy::SpdyStreamId stream_id,
                             const GURL& url,
@@ -62,15 +62,15 @@ class Http2PushPromiseIndexTest : public testing::Test {
               PRIVACY_MODE_ENABLED,
               SpdySessionKey::IsProxySession::kFalse,
               SocketTag(),
-              NetworkAnonymizationKey(),
-              SecureDnsPolicy::kAllow),
+              NetworkIsolationKey(),
+              false /* disable_secure_dns */),
         key2_(HostPortPair::FromURL(url2_),
               ProxyServer::Direct(),
               PRIVACY_MODE_ENABLED,
               SpdySessionKey::IsProxySession::kFalse,
               SocketTag(),
-              NetworkAnonymizationKey(),
-              SecureDnsPolicy::kAllow) {}
+              NetworkIsolationKey(),
+              false /* disable_secure_dns */) {}
 
   const GURL url1_;
   const GURL url2_;
@@ -469,4 +469,5 @@ TEST(Http2PushPromiseIndexCompareByUrlTest, LookupByURL) {
           url2, nullptr, kNoPushedStreamFound}) == entries.find(entry2));
 }
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net

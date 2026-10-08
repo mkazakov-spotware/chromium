@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A utility class for representing three-dimensional points.
@@ -24,7 +32,6 @@ goog.provide('goog.math.Coordinate3');
  * @constructor
  */
 goog.math.Coordinate3 = function(opt_x, opt_y, opt_z) {
-  'use strict';
   /**
    * X-value
    * @type {number}
@@ -51,7 +58,6 @@ goog.math.Coordinate3 = function(opt_x, opt_y, opt_z) {
  * @return {!goog.math.Coordinate3} A clone of this coordinate.
  */
 goog.math.Coordinate3.prototype.clone = function() {
-  'use strict';
   return new goog.math.Coordinate3(this.x, this.y, this.z);
 };
 
@@ -64,7 +70,6 @@ if (goog.DEBUG) {
    * @override
    */
   goog.math.Coordinate3.prototype.toString = function() {
-    'use strict';
     return '(' + this.x + ', ' + this.y + ', ' + this.z + ')';
   };
 }
@@ -78,7 +83,6 @@ if (goog.DEBUG) {
  * @return {boolean} True iff the coordinates are equal, or if both are null.
  */
 goog.math.Coordinate3.equals = function(a, b) {
-  'use strict';
   if (a == b) {
     return true;
   }
@@ -97,7 +101,6 @@ goog.math.Coordinate3.equals = function(a, b) {
  * @return {number} The distance between `a` and `b`.
  */
 goog.math.Coordinate3.distance = function(a, b) {
-  'use strict';
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   const dz = a.z - b.z;
@@ -118,7 +121,6 @@ goog.math.Coordinate3.distance = function(a, b) {
  * @return {number} The squared distance between `a` and `b`.
  */
 goog.math.Coordinate3.squaredDistance = function(a, b) {
-  'use strict';
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   const dz = a.z - b.z;
@@ -136,7 +138,6 @@ goog.math.Coordinate3.squaredDistance = function(a, b) {
  *     between `a` and `b`.
  */
 goog.math.Coordinate3.difference = function(a, b) {
-  'use strict';
   return new goog.math.Coordinate3(a.x - b.x, a.y - b.y, a.z - b.z);
 };
 
@@ -147,7 +148,6 @@ goog.math.Coordinate3.difference = function(a, b) {
  * @return {!Array<number>} A new array.
  */
 goog.math.Coordinate3.prototype.toArray = function() {
-  'use strict';
   return [this.x, this.y, this.z];
 };
 
@@ -162,7 +162,6 @@ goog.math.Coordinate3.prototype.toArray = function() {
  * @throws {Error} When the oject passed in is not valid.
  */
 goog.math.Coordinate3.fromArray = function(a) {
-  'use strict';
   if (a.length <= 3) {
     return new goog.math.Coordinate3(a[0], a[1], a[2]);
   }

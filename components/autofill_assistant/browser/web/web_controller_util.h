@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_WEB_WEB_CONTROLLER_UTIL_H_
 
 #include <string>
-#include <utility>
-
 #include "base/values.h"
 #include "components/autofill_assistant/browser/client_status.h"
 #include "components/autofill_assistant/browser/devtools/devtools/domains/types_runtime.h"
@@ -32,24 +30,12 @@ ClientStatus UnexpectedDevtoolsErrorStatus(
     const std::string& file,
     int line);
 
-// Wrapper for the js line offset range. The begin/end of the range represents
-// the first/last line for which we want to generate a stack entry.
-struct JsLineOffsetRange {
-  int begin;
-  int end;
-};
-
-// Map from devtools source url to js line offset range.
-// See js_flow_util for details on devtools source urls.
-using JsLineOffsets = base::flat_map<std::string, JsLineOffsetRange>;
-
 // Builds a ClientStatus appropriate for a JavaScript error.
 ClientStatus JavaScriptErrorStatus(
     const DevtoolsClient::ReplyStatus& reply_status,
     const std::string& file,
     int line,
-    const runtime::ExceptionDetails* exception,
-    const JsLineOffsets& js_line_offsets = {});
+    const runtime::ExceptionDetails* exception);
 
 // Makes sure that the given EvaluateResult exists, is successful and contains a
 // result.
@@ -58,22 +44,21 @@ ClientStatus CheckJavaScriptResult(
     const DevtoolsClient::ReplyStatus& reply_status,
     T* result,
     const char* file,
-    int line,
-    const JsLineOffsets& js_line_offsets = {}) {
+    int line) {
   if (!result)
-    return JavaScriptErrorStatus(reply_status, file, line, nullptr,
-                                 js_line_offsets);
+    return JavaScriptErrorStatus(reply_status, file, line, nullptr);
   if (result->HasExceptionDetails())
     return JavaScriptErrorStatus(reply_status, file, line,
-                                 result->GetExceptionDetails(),
-                                 js_line_offsets);
+                                 result->GetExceptionDetails());
   if (!result->GetResult())
-    return JavaScriptErrorStatus(reply_status, file, line, nullptr,
-                                 js_line_offsets);
+    return JavaScriptErrorStatus(reply_status, file, line, nullptr);
   return OkClientStatus();
 }
 
-// Fills a ClientStatus with appropriate details from the failed web action
+// Fills a ClientStatus with appropriate details for a Chrome Autofill error.
+ClientStatus FillAutofillErrorStatus(ClientStatus status);
+
+// Fills a ClientStatus with appropriate details from the
 void FillWebControllerErrorInfo(
     WebControllerErrorInfoProto::WebAction failed_web_action,
     ClientStatus* status);
@@ -93,12 +78,12 @@ bool SafeGetBool(const runtime::RemoteObject* result, bool* out);
 // Add a new runtime::CallArgument to the list.
 template <typename T>
 void AddRuntimeCallArgument(
-    T&& value,
+    const T& value,
     std::vector<std::unique_ptr<runtime::CallArgument>>* arguments) {
-  arguments->emplace_back(runtime::CallArgument::Builder()
-                              .SetValue(base::Value::ToUniquePtrValue(
-                                  base::Value(std::forward<T>(value))))
-                              .Build());
+  arguments->emplace_back(
+      runtime::CallArgument::Builder()
+          .SetValue(base::Value::ToUniquePtrValue(base::Value(value)))
+          .Build());
 }
 
 // Add a new runtime::CallArgument from the object_id.

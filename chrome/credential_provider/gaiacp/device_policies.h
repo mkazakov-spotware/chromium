@@ -1,14 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_GAIACP_DEVICE_POLICIES_H_
 #define CHROME_CREDENTIAL_PROVIDER_GAIACP_DEVICE_POLICIES_H_
 
-#include <string>
 #include <vector>
 
 #include "base/component_export.h"
+#include "base/strings/string16.h"
 #include "chrome/credential_provider/gaiacp/user_policies.h"
 
 namespace credential_provider {
@@ -30,7 +30,7 @@ struct COMPONENT_EXPORT(GCPW_POLICIES) DevicePolicies {
 
   // The list of domains from which the users are allowed to sign in to the
   // device.
-  std::vector<std::wstring> domains_allowed_to_login;
+  std::vector<base::string16> domains_allowed_to_login;
 
   // Creates a default policy for the device honoring any existing registry
   // settings.
@@ -50,7 +50,7 @@ struct COMPONENT_EXPORT(GCPW_POLICIES) DevicePolicies {
   bool operator==(const DevicePolicies& other) const;
 
   // Get a string with comma separated values from domains_allowed_to_login.
-  std::wstring GetAllowedDomainsStr() const;
+  base::string16 GetAllowedDomainsStr() const;
 };
 
 }  // namespace credential_provider

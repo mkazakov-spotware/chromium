@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "components/autofill/core/common/unique_ids.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
+#include "components/autofill/core/common/renderer_id.h"
 #include "url/gurl.h"
 
 namespace autofill {
@@ -20,7 +22,7 @@ struct PasswordFormFillData;
 namespace password_manager {
 
 struct UsernameAndRealm {
-  std::u16string username;
+  base::string16 username;
   std::string realm;
 };
 
@@ -36,12 +38,12 @@ struct FormInfo {
 };
 
 struct Credential {
-  Credential(const std::u16string& username,
-             const std::u16string& password,
+  Credential(const base::string16& username,
+             const base::string16& password,
              const std::string& realm);
   ~Credential();
-  std::u16string username;
-  std::u16string password;
+  base::string16 username;
+  base::string16 password;
   std::string realm;
 };
 
@@ -55,9 +57,9 @@ struct FillData {
   GURL origin;
   autofill::FormRendererId form_id;
   autofill::FieldRendererId username_element_id;
-  std::u16string username_value;
+  base::string16 username_value;
   autofill::FieldRendererId password_element_id;
-  std::u16string password_value;
+  base::string16 password_value;
 };
 
 // Handles data and logic for filling on account select. This class stores 2
@@ -68,17 +70,12 @@ struct FillData {
 class AccountSelectFillData {
  public:
   AccountSelectFillData();
-
-  AccountSelectFillData(const AccountSelectFillData&) = delete;
-  AccountSelectFillData& operator=(const AccountSelectFillData&) = delete;
-
   ~AccountSelectFillData();
 
   // Adds form structure from |form_data| to internal lists of known forms and
   // overrides known credentials with credentials from |form_data|. So only the
   // credentials from the latest |form_data| will be shown to the user.
-  void Add(const autofill::PasswordFormFillData& form_data,
-           bool is_cross_origin_iframe);
+  void Add(const autofill::PasswordFormFillData& form_data);
   void Reset();
   bool Empty() const;
 
@@ -99,7 +96,7 @@ class AccountSelectFillData {
   // user.
   // RetrieveSuggestions should be called before in order to specify on which
   // field the user clicked.
-  std::unique_ptr<FillData> GetFillData(const std::u16string& username) const;
+  std::unique_ptr<FillData> GetFillData(const base::string16& username) const;
 
  private:
   // Keeps data about all known forms. The key is the pair (form_id, username
@@ -126,6 +123,8 @@ class AccountSelectFillData {
   const FormInfo* GetFormInfo(autofill::FormRendererId form_identifier,
                               autofill::FieldRendererId field_identifier,
                               bool is_password_field) const;
+
+  DISALLOW_COPY_AND_ASSIGN(AccountSelectFillData);
 };
 
 }  // namespace  password_manager

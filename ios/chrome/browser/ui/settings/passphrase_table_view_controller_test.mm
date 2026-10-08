@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,35 +6,30 @@
 
 #import <UIKit/UIKit.h>
 
-#import <memory>
+#include <memory>
 
-#import "base/bind.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/pref_registry/pref_registry_syncable.h"
-#import "components/sync/test/mock_sync_service.h"
-#import "components/sync_preferences/pref_service_mock_factory.h"
-#import "components/sync_preferences/pref_service_syncable.h"
+#include "base/bind.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "components/sync/driver/mock_sync_service.h"
+#include "components/sync_preferences/pref_service_mock_factory.h"
+#include "components/sync_preferences/pref_service_syncable.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/main/test_browser.h"
-#import "ios/chrome/browser/prefs/browser_prefs.h"
-#import "ios/chrome/browser/signin/authentication_service.h"
-#import "ios/chrome/browser/signin/authentication_service_factory.h"
-#import "ios/chrome/browser/signin/chrome_account_manager_service.h"
-#import "ios/chrome/browser/signin/chrome_account_manager_service_factory.h"
-#import "ios/chrome/browser/signin/fake_authentication_service_delegate.h"
-#import "ios/chrome/browser/sync/mock_sync_service_utils.h"
-#import "ios/chrome/browser/sync/sync_service_factory.h"
-#import "ios/chrome/browser/sync/sync_setup_service.h"
-#import "ios/chrome/browser/sync/sync_setup_service_factory.h"
-#import "ios/chrome/browser/sync/sync_setup_service_mock.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/main/test_browser.h"
+#include "ios/chrome/browser/prefs/browser_prefs.h"
+#include "ios/chrome/browser/signin/authentication_service_factory.h"
+#import "ios/chrome/browser/signin/authentication_service_fake.h"
+#include "ios/chrome/browser/sync/profile_sync_service_factory.h"
+#include "ios/chrome/browser/sync/sync_setup_service.h"
+#include "ios/chrome/browser/sync/sync_setup_service_factory.h"
 #import "ios/chrome/browser/ui/main/scene_state.h"
 #import "ios/chrome/browser/ui/main/scene_state_browser_agent.h"
 #import "ios/chrome/browser/ui/settings/settings_navigation_controller.h"
 #import "ios/public/provider/chrome/browser/signin/fake_chrome_identity_service.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -77,19 +72,13 @@ void PassphraseTableViewControllerTest::SetUp() {
   TestChromeBrowserState::Builder test_cbs_builder;
   test_cbs_builder.AddTestingFactory(
       AuthenticationServiceFactory::GetInstance(),
-      AuthenticationServiceFactory::GetDefaultFactory());
-  test_cbs_builder.AddTestingFactory(
-      SyncServiceFactory::GetInstance(),
-      base::BindRepeating(&CreateMockSyncService));
-  test_cbs_builder.AddTestingFactory(
-      SyncSetupServiceFactory::GetInstance(),
-      base::BindRepeating(&SyncSetupServiceMock::CreateKeyedService));
+      base::BindRepeating(
+          &AuthenticationServiceFake::CreateAuthenticationService));
   test_cbs_builder.SetPrefService(CreatePrefService());
   chrome_browser_state_ = test_cbs_builder.Build();
-  AuthenticationServiceFactory::CreateAndInitializeForBrowserState(
-      chrome_browser_state_.get(),
-      std::make_unique<FakeAuthenticationServiceDelegate>());
-  browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
+  WebStateList* web_state_list = nullptr;
+  browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get(),
+                                           web_state_list);
   app_state_ = [[AppState alloc] initWithBrowserLauncher:nil
                                       startupInformation:nil
                                      applicationDelegate:nil];
@@ -97,7 +86,7 @@ void PassphraseTableViewControllerTest::SetUp() {
   SceneStateBrowserAgent::CreateForBrowser(browser_.get(), scene_state_);
 
   fake_sync_service_ = static_cast<syncer::MockSyncService*>(
-      SyncServiceFactory::GetInstance()->SetTestingFactoryAndUse(
+      ProfileSyncServiceFactory::GetInstance()->SetTestingFactoryAndUse(
           chrome_browser_state_.get(),
           base::BindRepeating(&CreateNiceMockSyncService)));
 
@@ -110,22 +99,10 @@ void PassphraseTableViewControllerTest::SetUp() {
   ios::FakeChromeIdentityService* identityService =
       ios::FakeChromeIdentityService::GetInstanceFromChromeProvider();
   identityService->AddIdentities(@[ @"identity1" ]);
-
-  ChromeAccountManagerService* account_manager_service =
-      ChromeAccountManagerServiceFactory::GetForBrowserState(
-          chrome_browser_state_.get());
-  AuthenticationService* auth_service =
-      AuthenticationServiceFactory::GetForBrowserState(
-          chrome_browser_state_.get());
-  auth_service->SignIn(account_manager_service->GetDefaultIdentity());
-}
-
-void PassphraseTableViewControllerTest::TearDown() {
-  // If the navigation controller exists, clear any of its child view
-  // controllers.
-  [nav_controller_ setViewControllers:@[] animated:NO];
-  nav_controller_ = nil;
-  ChromeTableViewControllerTest::TearDown();
+  ChromeIdentity* identity =
+      [identityService->GetAllIdentitiesSortedForDisplay() objectAtIndex:0];
+  AuthenticationServiceFactory::GetForBrowserState(chrome_browser_state_.get())
+      ->SignIn(identity);
 }
 
 void PassphraseTableViewControllerTest::SetUpNavigationController(

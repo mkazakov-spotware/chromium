@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,6 @@
 #include "ui/aura/window_tree_host.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/skia_conversions.h"
-#include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/image/image.h"
 #include "ui/snapshot/snapshot.h"
 #include "ui/snapshot/snapshot_aura.h"
@@ -106,10 +104,13 @@ bool GrabWindowSnapshot(gfx::NativeWindow window_handle,
   DCHECK(host);
   HWND hwnd = host->GetAcceleratedWidget();
 
-  gfx::Rect snapshot_bounds_in_pixels =
-      host->GetRootTransform().MapRect(snapshot_bounds);
+  gfx::RectF window_bounds_in_pixels(window_bounds);
+  host->GetRootTransform().TransformRect(&window_bounds_in_pixels);
+  gfx::RectF snapshot_bounds_in_pixels(snapshot_bounds);
+  host->GetRootTransform().TransformRect(&snapshot_bounds_in_pixels);
+
   gfx::Rect expanded_window_bounds_in_pixels =
-      host->GetRootTransform().MapRect(window_bounds);
+      gfx::ToEnclosingRect(window_bounds_in_pixels);
   RECT client_area;
   ::GetClientRect(hwnd, &client_area);
   gfx::Rect client_area_rect(client_area);
@@ -117,8 +118,9 @@ bool GrabWindowSnapshot(gfx::NativeWindow window_handle,
 
   expanded_window_bounds_in_pixels.Intersect(client_area_rect);
 
-  return internal::GrabHwndSnapshot(hwnd, snapshot_bounds_in_pixels,
-                                    expanded_window_bounds_in_pixels, image);
+  return internal::GrabHwndSnapshot(
+      hwnd, gfx::ToEnclosingRect(snapshot_bounds_in_pixels),
+      expanded_window_bounds_in_pixels, image);
 }
 
 void GrabWindowSnapshotAsync(gfx::NativeWindow window,

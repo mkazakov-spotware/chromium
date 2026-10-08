@@ -28,28 +28,13 @@
 
 #include "third_party/blink/renderer/modules/webaudio/audio_listener.h"
 
-#include "base/synchronization/lock.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_graph_tracer.h"
-#include "third_party/blink/renderer/modules/webaudio/panner_handler.h"
+#include "third_party/blink/renderer/modules/webaudio/panner_node.h"
 #include "third_party/blink/renderer/platform/audio/audio_bus.h"
 #include "third_party/blink/renderer/platform/audio/audio_utilities.h"
 #include "third_party/blink/renderer/platform/audio/hrtf_database_loader.h"
 
 namespace blink {
-
-namespace {
-
-constexpr double kDefaultPositionXValue = 0.0;
-constexpr double kDefaultPositionYValue = 0.0;
-constexpr double kDefaultPositionZValue = 0.0;
-constexpr double kDefaultForwardXValue = 0.0;
-constexpr double kDefaultForwardYValue = 0.0;
-constexpr double kDefaultForwardZValue = -1.0;
-constexpr double kDefaultUpXValue = 0.0;
-constexpr double kDefaultUpYValue = 1.0;
-constexpr double kDefaultUpZValue = 0.0;
-
-}  // namespace
 
 AudioListener::AudioListener(BaseAudioContext& context)
     : InspectorHelperMixin(context.GraphTracer(), context.Uuid()),
@@ -57,77 +42,76 @@ AudioListener::AudioListener(BaseAudioContext& context)
           context,
           Uuid(),
           AudioParamHandler::kParamTypeAudioListenerPositionX,
-          kDefaultPositionXValue,
+          0.0,
           AudioParamHandler::AutomationRate::kAudio,
           AudioParamHandler::AutomationRateMode::kVariable)),
       position_y_(AudioParam::Create(
           context,
           Uuid(),
           AudioParamHandler::kParamTypeAudioListenerPositionY,
-          kDefaultPositionYValue,
+          0.0,
           AudioParamHandler::AutomationRate::kAudio,
           AudioParamHandler::AutomationRateMode::kVariable)),
       position_z_(AudioParam::Create(
           context,
           Uuid(),
           AudioParamHandler::kParamTypeAudioListenerPositionZ,
-          kDefaultPositionZValue,
+          0.0,
           AudioParamHandler::AutomationRate::kAudio,
           AudioParamHandler::AutomationRateMode::kVariable)),
       forward_x_(
           AudioParam::Create(context,
                              Uuid(),
                              AudioParamHandler::kParamTypeAudioListenerForwardX,
-                             kDefaultForwardXValue,
+                             0.0,
                              AudioParamHandler::AutomationRate::kAudio,
                              AudioParamHandler::AutomationRateMode::kVariable)),
       forward_y_(
           AudioParam::Create(context,
                              Uuid(),
                              AudioParamHandler::kParamTypeAudioListenerForwardY,
-                             kDefaultForwardYValue,
+                             0.0,
                              AudioParamHandler::AutomationRate::kAudio,
                              AudioParamHandler::AutomationRateMode::kVariable)),
       forward_z_(
           AudioParam::Create(context,
                              Uuid(),
                              AudioParamHandler::kParamTypeAudioListenerForwardZ,
-                             kDefaultForwardZValue,
+                             -1.0,
                              AudioParamHandler::AutomationRate::kAudio,
                              AudioParamHandler::AutomationRateMode::kVariable)),
       up_x_(
           AudioParam::Create(context,
                              Uuid(),
                              AudioParamHandler::kParamTypeAudioListenerUpX,
-                             kDefaultUpXValue,
+                             0.0,
                              AudioParamHandler::AutomationRate::kAudio,
                              AudioParamHandler::AutomationRateMode::kVariable)),
       up_y_(
           AudioParam::Create(context,
                              Uuid(),
                              AudioParamHandler::kParamTypeAudioListenerUpY,
-                             kDefaultUpYValue,
+                             1.0,
                              AudioParamHandler::AutomationRate::kAudio,
                              AudioParamHandler::AutomationRateMode::kVariable)),
       up_z_(
           AudioParam::Create(context,
                              Uuid(),
                              AudioParamHandler::kParamTypeAudioListenerUpZ,
-                             kDefaultUpZValue,
+                             0.0,
                              AudioParamHandler::AutomationRate::kAudio,
                              AudioParamHandler::AutomationRateMode::kVariable)),
-      position_x_values_(
-          context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      position_y_values_(
-          context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      position_z_values_(
-          context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      forward_x_values_(context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      forward_y_values_(context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      forward_z_values_(context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      up_x_values_(context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      up_y_values_(context.GetDeferredTaskHandler().RenderQuantumFrames()),
-      up_z_values_(context.GetDeferredTaskHandler().RenderQuantumFrames()) {
+      last_update_time_(-1),
+      is_listener_dirty_(false),
+      position_x_values_(audio_utilities::kRenderQuantumFrames),
+      position_y_values_(audio_utilities::kRenderQuantumFrames),
+      position_z_values_(audio_utilities::kRenderQuantumFrames),
+      forward_x_values_(audio_utilities::kRenderQuantumFrames),
+      forward_y_values_(audio_utilities::kRenderQuantumFrames),
+      forward_z_values_(audio_utilities::kRenderQuantumFrames),
+      up_x_values_(audio_utilities::kRenderQuantumFrames),
+      up_y_values_(audio_utilities::kRenderQuantumFrames),
+      up_z_values_(audio_utilities::kRenderQuantumFrames) {
   // Initialize the cached values with the current values.  Thus, we don't need
   // to notify any panners because we haved moved.
   last_position_ = GetPosition();
@@ -279,11 +263,11 @@ void AudioListener::UpdateState() {
   // to check for the audio thread.)
   DCHECK(!IsMainThread());
 
-  const base::AutoTryLock try_locker(listener_lock_);
-  if (try_locker.is_acquired()) {
-    const gfx::Point3F current_position = GetPosition();
-    const gfx::Vector3dF current_forward = Orientation();
-    const gfx::Vector3dF current_up = UpVector();
+  MutexTryLocker try_locker(listener_lock_);
+  if (try_locker.Locked()) {
+    FloatPoint3D current_position = GetPosition();
+    FloatPoint3D current_forward = Orientation();
+    FloatPoint3D current_up = UpVector();
 
     is_listener_dirty_ = current_position != last_position_ ||
                          current_forward != last_forward_ ||
@@ -305,10 +289,9 @@ void AudioListener::UpdateState() {
 void AudioListener::CreateAndLoadHRTFDatabaseLoader(float sample_rate) {
   DCHECK(IsMainThread());
 
-  if (!hrtf_database_loader_) {
+  if (!hrtf_database_loader_)
     hrtf_database_loader_ =
         HRTFDatabaseLoader::CreateAndLoadAsynchronouslyIfNecessary(sample_rate);
-  }
 }
 
 bool AudioListener::IsHRTFDatabaseLoaded() {
@@ -316,63 +299,61 @@ bool AudioListener::IsHRTFDatabaseLoaded() {
 }
 
 void AudioListener::WaitForHRTFDatabaseLoaderThreadCompletion() {
-  if (hrtf_database_loader_) {
+  if (hrtf_database_loader_)
     hrtf_database_loader_->WaitForLoaderThreadCompletion();
-  }
 }
 
 void AudioListener::MarkPannersAsDirty(unsigned type) {
   DCHECK(IsMainThread());
-  for (PannerHandler* panner : panners_) {
+  for (PannerHandler* panner : panners_)
     panner->MarkPannerAsDirty(type);
-  }
 }
 
-void AudioListener::setPosition(const gfx::Point3F& position,
+void AudioListener::setPosition(const FloatPoint3D& position,
                                 ExceptionState& exceptionState) {
   DCHECK(IsMainThread());
 
   // This synchronizes with panner's process().
-  const base::AutoLock listener_locker(listener_lock_);
+  MutexLocker listener_locker(listener_lock_);
 
-  const double now = position_x_->Context()->currentTime();
+  double now = position_x_->Context()->currentTime();
 
-  position_x_->setValueAtTime(position.x(), now, exceptionState);
-  position_y_->setValueAtTime(position.y(), now, exceptionState);
-  position_z_->setValueAtTime(position.z(), now, exceptionState);
+  position_x_->setValueAtTime(position.X(), now, exceptionState);
+  position_y_->setValueAtTime(position.Y(), now, exceptionState);
+  position_z_->setValueAtTime(position.Z(), now, exceptionState);
 
   MarkPannersAsDirty(PannerHandler::kAzimuthElevationDirty |
                      PannerHandler::kDistanceConeGainDirty);
 }
 
-void AudioListener::setOrientation(const gfx::Vector3dF& orientation,
+void AudioListener::setOrientation(const FloatPoint3D& orientation,
                                    ExceptionState& exceptionState) {
   DCHECK(IsMainThread());
 
   // This synchronizes with panner's process().
-  const base::AutoLock listener_locker(listener_lock_);
+  MutexLocker listener_locker(listener_lock_);
 
-  const double now = forward_x_->Context()->currentTime();
+  double now = forward_x_->Context()->currentTime();
 
-  forward_x_->setValueAtTime(orientation.x(), now, exceptionState);
-  forward_y_->setValueAtTime(orientation.y(), now, exceptionState);
-  forward_z_->setValueAtTime(orientation.z(), now, exceptionState);
+  forward_x_->setValueAtTime(orientation.X(), now, exceptionState);
+  forward_y_->setValueAtTime(orientation.Y(), now, exceptionState);
+  forward_z_->setValueAtTime(orientation.Z(), now, exceptionState);
 
   MarkPannersAsDirty(PannerHandler::kAzimuthElevationDirty);
 }
 
-void AudioListener::SetUpVector(const gfx::Vector3dF& up_vector,
+void AudioListener::SetUpVector(const FloatPoint3D& up_vector,
                                 ExceptionState& exceptionState) {
   DCHECK(IsMainThread());
 
   // This synchronizes with panner's process().
-  const base::AutoLock listener_locker(listener_lock_);
+  MutexLocker listener_locker(listener_lock_);
 
-  const double now = up_x_->Context()->currentTime();
+  double now = up_x_->Context()->currentTime();
 
-  up_x_->setValueAtTime(up_vector.x(), now, exceptionState);
-  up_y_->setValueAtTime(up_vector.y(), now, exceptionState);
-  up_z_->setValueAtTime(up_vector.z(), now, exceptionState);
+  up_x_->setValueAtTime(up_vector.X(), now, exceptionState);
+  up_y_->setValueAtTime(up_vector.Y(), now, exceptionState);
+  up_z_->setValueAtTime(up_vector.Z(), now, exceptionState);
 
   MarkPannersAsDirty(PannerHandler::kAzimuthElevationDirty);
 }

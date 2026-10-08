@@ -1,7 +1,8 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+from .code_generator_info import CodeGeneratorInfo
 from .composition_parts import WithCodeGeneratorInfo
 from .composition_parts import WithComponent
 from .composition_parts import WithDebugInfo
@@ -10,14 +11,15 @@ from .composition_parts import WithExtendedAttributes
 from .composition_parts import WithIdentifier
 from .composition_parts import WithOwner
 from .composition_parts import WithOwnerMixin
-from .idl_type import IdlType  # pylint: disable=cyclic-import
+from .exposure import Exposure
+from .idl_type import IdlType
 from .make_copy import make_copy
 
 
 class Attribute(WithIdentifier, WithExtendedAttributes, WithCodeGeneratorInfo,
                 WithExposure, WithOwner, WithOwnerMixin, WithComponent,
                 WithDebugInfo):
-    """https://webidl.spec.whatwg.org/#idl-attributes"""
+    """https://heycam.github.io/webidl/#idl-attributes"""
 
     class IR(WithIdentifier, WithExtendedAttributes, WithCodeGeneratorInfo,
              WithExposure, WithOwnerMixin, WithComponent, WithDebugInfo):
@@ -85,6 +87,6 @@ class Attribute(WithIdentifier, WithExtendedAttributes, WithCodeGeneratorInfo,
     def does_inherit_getter(self):
         """
         Returns True if this attribute inherits its getter.
-        https://webidl.spec.whatwg.org/#dfn-inherit-getter
+        https://heycam.github.io/webidl/#dfn-inherit-getter
         """
         return self._does_inherit_getter

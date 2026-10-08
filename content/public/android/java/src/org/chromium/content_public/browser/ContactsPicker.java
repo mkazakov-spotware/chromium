@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content_public.browser;
 
-import androidx.annotation.VisibleForTesting;
+import org.chromium.ui.base.WindowAndroid;
 
 /**
  * A utility class that allows the embedder to provide a Contacts Picker implementation to content.
@@ -33,21 +33,8 @@ public final class ContactsPicker {
     }
 
     /**
-     * @param webContents The web contents using the contacts API.
-     * @return Whether the contacts picker should be shown.
-     */
-    @VisibleForTesting
-    public static boolean canShowContactsPicker(WebContents webContents) {
-        if (webContents == null || webContents.isDestroyed()) {
-            return false;
-        }
-
-        return webContents.getVisibility() == Visibility.VISIBLE;
-    }
-
-    /**
      * Called to display the contacts picker.
-     * @param webContents The Web Contents that triggered this call.
+     * @param windowAndroid The window of the Web Contents that triggered this call.
      * @param listener The listener that will be notified of the action the user took in the
      *                 picker.
      * @param allowMultiple Whether to allow multiple contacts to be selected.
@@ -60,19 +47,15 @@ public final class ContactsPicker {
      *         the scheme omitted.
      * @return whether a contacts picker is successfully shown.
      */
-    public static boolean showContactsPicker(WebContents webContents,
+    public static boolean showContactsPicker(WindowAndroid windowAndroid,
             ContactsPickerListener listener, boolean allowMultiple, boolean includeNames,
             boolean includeEmails, boolean includeTel, boolean includeAddresses,
             boolean includeIcons, String formattedOrigin) {
         if (sContactsPickerDelegate == null) return false;
         assert sPicker == null;
-
-        if (!canShowContactsPicker(webContents)) {
-            return false;
-        }
-        sPicker = sContactsPickerDelegate.showContactsPicker(webContents.getTopLevelNativeWindow(),
-                listener, allowMultiple, includeNames, includeEmails, includeTel, includeAddresses,
-                includeIcons, formattedOrigin);
+        sPicker = sContactsPickerDelegate.showContactsPicker(windowAndroid, listener, allowMultiple,
+                includeNames, includeEmails, includeTel, includeAddresses, includeIcons,
+                formattedOrigin);
         return true;
     }
 

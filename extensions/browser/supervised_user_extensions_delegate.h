@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,9 +37,10 @@ class SupervisedUserExtensionsDelegate {
       const extensions::Extension& extension,
       content::BrowserContext* context) const = 0;
 
-  // If the current user is a child, the child user has a custodian/parent, and
-  // the parent has enabled the "Permissions for sites, apps and extensions"
-  // toggle, then display the Parent Permission Dialog and call
+  // If the current user is a child, the child user has a custodian/parent, the
+  // kSupervisedUserInitiatedExtensionInstall feature flag is enabled, and the
+  // parent has enabled the "Permissions for sites, apps and extensions" toggle,
+  // then display the Parent Permission Dialog and call
   // |parent_permission_callback|. Otherwise, display the Extension Install
   // Blocked by Parent Dialog and call |error_callback|. The two paths are
   // mutually exclusive.

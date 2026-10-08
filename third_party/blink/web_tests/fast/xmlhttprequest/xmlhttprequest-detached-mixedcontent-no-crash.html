@@ -23,7 +23,7 @@ function processMessage(event) {
 
 if (window.testRunner) {
     testRunner.dumpAsText();
-    testRunner.setPopupBlockingEnabled(false);
+    testRunner.setCanOpenWindows();
 }
 w = window.open('../../resources/window-postmessage-open-close.html');
 window.addEventListener("message", processMessage, false);

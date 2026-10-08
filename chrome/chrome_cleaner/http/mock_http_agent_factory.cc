@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,9 +28,6 @@ class MockHttpResponse : public chrome_cleaner::HttpResponse {
   explicit MockHttpResponse(MockHttpAgentConfig* config) : config_(config) {
     DCHECK(config);
   }
-
-  MockHttpResponse(const MockHttpResponse&) = delete;
-  MockHttpResponse& operator=(const MockHttpResponse&) = delete;
 
   ~MockHttpResponse() override = default;
 
@@ -78,6 +75,8 @@ class MockHttpResponse : public chrome_cleaner::HttpResponse {
 
  private:
   MockHttpAgentConfig* config_{nullptr};
+
+  DISALLOW_COPY_AND_ASSIGN(MockHttpResponse);
 };
 
 // Class that acts as an HttpAgent based on how the MockHttpAgentConfig is
@@ -87,9 +86,6 @@ class MockHttpAgent : public chrome_cleaner::HttpAgent {
   explicit MockHttpAgent(MockHttpAgentConfig* config) : config_(config) {
     DCHECK(config);
   }
-
-  MockHttpAgent(const MockHttpAgent&) = delete;
-  MockHttpAgent& operator=(const MockHttpAgent&) = delete;
 
   ~MockHttpAgent() override = default;
 
@@ -114,7 +110,7 @@ class MockHttpAgent : public chrome_cleaner::HttpAgent {
 
     if (post_succeeds)
       return std::make_unique<MockHttpResponse>(config_);
-    return nullptr;
+    return std::unique_ptr<MockHttpResponse>();
   }
 
   // chrome_cleaner::HttpAgent:
@@ -136,11 +132,13 @@ class MockHttpAgent : public chrome_cleaner::HttpAgent {
 
     if (get_succeeds)
       return std::make_unique<MockHttpResponse>(config_);
-    return nullptr;
+    return std::unique_ptr<MockHttpResponse>();
   }
 
  private:
   MockHttpAgentConfig* config_{nullptr};
+
+  DISALLOW_COPY_AND_ASSIGN(MockHttpAgent);
 };
 
 }  // namespace

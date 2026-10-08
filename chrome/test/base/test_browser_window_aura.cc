@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/base/test_browser_window_aura.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/memory/ptr_util.h"
@@ -19,8 +18,8 @@ std::unique_ptr<Browser> CreateBrowserWithAuraTestWindowForParams(
     std::unique_ptr<aura::Window> window,
     Browser::CreateParams* params) {
   if (window.get() == nullptr) {
-    window = std::make_unique<aura::Window>(nullptr);
-    window->SetId(0);
+    window.reset(new aura::Window(nullptr));
+    window->set_id(0);
     window->SetType(aura::client::WINDOW_TYPE_NORMAL);
     window->Init(ui::LAYER_TEXTURED);
     window->Show();
@@ -86,7 +85,7 @@ std::unique_ptr<Browser> TestBrowserWindowAura::CreateBrowser(
     Browser::CreateParams* params) {
   params->window = this;
   browser_ = Browser::Create(*params);
-  return base::WrapUnique(browser_.get());
+  return base::WrapUnique(browser_);
 }
 
 TestBrowserWindowViews::TestBrowserWindowViews(aura::Window* parent)

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,24 +19,19 @@ TEST(VerdictCacheManagerFactoryTest, OffTheRecordUseDifferentService) {
   std::unique_ptr<TestingProfile> testing_profile = builder.Build();
 
   // There should be a not null object for off-the-record profile.
-  EXPECT_NE(
-      nullptr,
-      VerdictCacheManagerFactory::GetForProfile(
-          testing_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)));
+  EXPECT_NE(nullptr, VerdictCacheManagerFactory::GetForProfile(
+                         testing_profile->GetPrimaryOTRProfile()));
 
-  EXPECT_NE(
-      VerdictCacheManagerFactory::GetForProfile(testing_profile.get()),
-      VerdictCacheManagerFactory::GetForProfile(
-          testing_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)));
+  EXPECT_NE(VerdictCacheManagerFactory::GetForProfile(testing_profile.get()),
+            VerdictCacheManagerFactory::GetForProfile(
+                testing_profile->GetPrimaryOTRProfile()));
 
   // Different objects for different off-the-record-profiles.
-  EXPECT_NE(
-      VerdictCacheManagerFactory::GetForProfile(
-          testing_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)),
-      VerdictCacheManagerFactory::GetForProfile(
-          testing_profile->GetOffTheRecordProfile(
-              Profile::OTRProfileID::CreateUniqueForTesting(),
-              /*create_if_needed=*/true)));
+  EXPECT_NE(VerdictCacheManagerFactory::GetForProfile(
+                testing_profile->GetPrimaryOTRProfile()),
+            VerdictCacheManagerFactory::GetForProfile(
+                testing_profile->GetOffTheRecordProfile(
+                    Profile::OTRProfileID("Test::VerdictCachecManager"))));
 }
 
 }  // namespace safe_browsing

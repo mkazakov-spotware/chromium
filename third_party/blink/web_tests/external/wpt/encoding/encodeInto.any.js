@@ -120,22 +120,19 @@
   });
 });
 
-["DataView",
- "Int8Array",
- "Int16Array",
- "Int32Array",
- "Uint16Array",
- "Uint32Array",
- "Uint8ClampedArray",
- "BigInt64Array",
- "BigUint64Array",
- "Float32Array",
- "Float64Array"].forEach(type => {
+[DataView,
+ Int8Array,
+ Int16Array,
+ Int32Array,
+ Uint16Array,
+ Uint32Array,
+ Uint8ClampedArray,
+ Float32Array,
+ Float64Array].forEach(view => {
   ["ArrayBuffer", "SharedArrayBuffer"].forEach((arrayBufferOrSharedArrayBuffer) => {
     test(() => {
-      const viewInstance = new self[type](createBuffer(arrayBufferOrSharedArrayBuffer, 0));
-      assert_throws_js(TypeError, () => new TextEncoder().encodeInto("", viewInstance));
-    }, "Invalid encodeInto() destination: " + type + ", backed by: " + arrayBufferOrSharedArrayBuffer);
+      assert_throws_js(TypeError, () => new TextEncoder().encodeInto("", new view(createBuffer(arrayBufferOrSharedArrayBuffer, 0))));
+    }, "Invalid encodeInto() destination: " + view.name + ", backed by: " + arrayBufferOrSharedArrayBuffer);
   });
 });
 

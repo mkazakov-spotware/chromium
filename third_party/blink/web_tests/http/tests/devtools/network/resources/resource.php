@@ -1,7 +1,6 @@
 <?php
     $type = $_GET["type"];
     $wait = $_GET["wait"];
-    $tail_wait = $_GET["tail_wait"];
     $send = $_GET["send"];
     $size = $_GET["size"];
     $gzip = $_GET["gzip"];
@@ -139,11 +138,5 @@ __foo(<?php echo($jsdelay)?>);
             if ($random)
                 echo(": " . rand());
         }
-    }
-    # Useful in some download-related tests
-    if ($tail_wait) {
-        flush();
-        ob_flush();
-        usleep($tail_wait * 1000);
     }
 ?>

@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock_test_utils.h"
 
-#include <tuple>
 #include <utility>
 
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -16,12 +16,9 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_dom_exception.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_wake_lock_sentinel.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/dom/dom_exception.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
-#include "third_party/blink/renderer/modules/wake_lock/wake_lock_sentinel.h"
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock_type.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
-#include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
+#include "third_party/blink/renderer/platform/heap/thread_state_scopes.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
@@ -33,34 +30,45 @@ using mojom::blink::PermissionStatus;
 namespace {
 
 void RunWithStack(base::RunLoop* run_loop) {
+  ThreadState::HeapPointersOnStackScope scan_stack(ThreadState::Current());
   run_loop->Run();
 }
 
 // Helper class for WaitForPromise{Fulfillment,Rejection}(). It provides a
 // function that invokes |callback| when a ScriptPromise is resolved.
-class ClosureRunnerCallable final : public ScriptFunction::Callable {
+class ClosureRunnerFunction final : public ScriptFunction {
  public:
-  explicit ClosureRunnerCallable(base::OnceClosure callback)
-      : callback_(std::move(callback)) {}
+  static v8::Local<v8::Function> CreateFunction(
+      ScriptState* script_state,
+      base::RepeatingClosure callback) {
+    auto* function = MakeGarbageCollected<ClosureRunnerFunction>(
+        script_state, std::move(callback));
+    return function->BindToV8Function();
+  }
 
-  ScriptValue Call(ScriptState*, ScriptValue) override {
+  ClosureRunnerFunction(ScriptState* script_state,
+                        base::RepeatingClosure callback)
+      : ScriptFunction(script_state), callback_(std::move(callback)) {}
+
+ private:
+  ScriptValue Call(ScriptValue) override {
     if (callback_)
       std::move(callback_).Run();
     return ScriptValue();
   }
 
- private:
-  base::OnceClosure callback_;
+  base::RepeatingClosure callback_;
 };
 
-V8WakeLockType::Enum ToBlinkWakeLockType(
-    device::mojom::blink::WakeLockType type) {
+WakeLockType ToBlinkWakeLockType(device::mojom::blink::WakeLockType type) {
   switch (type) {
     case device::mojom::blink::WakeLockType::kPreventDisplaySleep:
-    case device::mojom::blink::WakeLockType::kPreventDisplaySleepAllowDimming:
-      return V8WakeLockType::Enum::kScreen;
+      return WakeLockType::kScreen;
     case device::mojom::blink::WakeLockType::kPreventAppSuspension:
-      return V8WakeLockType::Enum::kSystem;
+      return WakeLockType::kSystem;
+    default:
+      NOTREACHED();
+      return WakeLockType::kMaxValue;
   }
 }
 
@@ -76,7 +84,7 @@ void MockWakeLock::Bind(
   DCHECK(!receiver_.is_bound());
   receiver_.Bind(std::move(receiver));
   receiver_.set_disconnect_handler(
-      WTF::BindOnce(&MockWakeLock::OnConnectionError, WTF::Unretained(this)));
+      WTF::Bind(&MockWakeLock::OnConnectionError, WTF::Unretained(this)));
 }
 
 void MockWakeLock::Unbind() {
@@ -136,7 +144,7 @@ void MockWakeLockService::BindRequest(mojo::ScopedMessagePipeHandle handle) {
                            std::move(handle)));
 }
 
-MockWakeLock& MockWakeLockService::get_wake_lock(V8WakeLockType::Enum type) {
+MockWakeLock& MockWakeLockService::get_wake_lock(WakeLockType type) {
   size_t pos = static_cast<size_t>(type);
   return mock_wake_lock_[pos];
 }
@@ -159,11 +167,11 @@ void MockPermissionService::BindRequest(mojo::ScopedMessagePipeHandle handle) {
   DCHECK(!receiver_.is_bound());
   receiver_.Bind(mojo::PendingReceiver<mojom::blink::PermissionService>(
       std::move(handle)));
-  receiver_.set_disconnect_handler(WTF::BindOnce(
+  receiver_.set_disconnect_handler(WTF::Bind(
       &MockPermissionService::OnConnectionError, WTF::Unretained(this)));
 }
 
-void MockPermissionService::SetPermissionResponse(V8WakeLockType::Enum type,
+void MockPermissionService::SetPermissionResponse(WakeLockType type,
                                                   PermissionStatus status) {
   DCHECK(status == PermissionStatus::GRANTED ||
          status == PermissionStatus::DENIED);
@@ -171,25 +179,24 @@ void MockPermissionService::SetPermissionResponse(V8WakeLockType::Enum type,
 }
 
 void MockPermissionService::OnConnectionError() {
-  std::ignore = receiver_.Unbind();
+  ignore_result(receiver_.Unbind());
 }
 
 bool MockPermissionService::GetWakeLockTypeFromDescriptor(
     const PermissionDescriptorPtr& descriptor,
-    V8WakeLockType::Enum* output) {
+    WakeLockType* output) {
   if (descriptor->name == mojom::blink::PermissionName::SCREEN_WAKE_LOCK) {
-    *output = V8WakeLockType::Enum::kScreen;
+    *output = WakeLockType::kScreen;
     return true;
   }
   if (descriptor->name == mojom::blink::PermissionName::SYSTEM_WAKE_LOCK) {
-    *output = V8WakeLockType::Enum::kSystem;
+    *output = WakeLockType::kSystem;
     return true;
   }
   return false;
 }
 
-void MockPermissionService::WaitForPermissionRequest(
-    V8WakeLockType::Enum type) {
+void MockPermissionService::WaitForPermissionRequest(WakeLockType type) {
   size_t pos = static_cast<size_t>(type);
   DCHECK(!request_permission_callbacks_[pos]);
   base::RunLoop run_loop;
@@ -199,7 +206,7 @@ void MockPermissionService::WaitForPermissionRequest(
 
 void MockPermissionService::HasPermission(PermissionDescriptorPtr permission,
                                           HasPermissionCallback callback) {
-  V8WakeLockType::Enum type;
+  WakeLockType type;
   if (!GetWakeLockTypeFromDescriptor(permission, &type)) {
     std::move(callback).Run(PermissionStatus::DENIED);
     return;
@@ -214,7 +221,7 @@ void MockPermissionService::RequestPermission(
     PermissionDescriptorPtr permission,
     bool user_gesture,
     RequestPermissionCallback callback) {
-  V8WakeLockType::Enum type;
+  WakeLockType type;
   if (!GetWakeLockTypeFromDescriptor(permission, &type)) {
     std::move(callback).Run(PermissionStatus::DENIED);
     return;
@@ -247,12 +254,6 @@ void MockPermissionService::AddPermissionObserver(
   NOTREACHED();
 }
 
-void MockPermissionService::NotifyEventListener(
-    PermissionDescriptorPtr permission,
-    const String& event_type,
-    bool is_added) {
-  NOTREACHED();
-}
 // WakeLockTestingContext
 
 WakeLockTestingContext::WakeLockTestingContext(
@@ -293,30 +294,28 @@ MockPermissionService& WakeLockTestingContext::GetPermissionService() {
   return permission_service_;
 }
 
-void WakeLockTestingContext::WaitForPromiseFulfillment(ScriptPromise promise) {
+ScriptPromise WakeLockTestingContext::WaitForPromiseFulfillment(
+    ScriptPromise promise) {
   base::RunLoop run_loop;
-  promise.Then(MakeGarbageCollected<ScriptFunction>(
-      GetScriptState(),
-      MakeGarbageCollected<ClosureRunnerCallable>(run_loop.QuitClosure())));
+  ScriptPromise return_promise =
+      promise.Then(ClosureRunnerFunction::CreateFunction(
+          GetScriptState(), run_loop.QuitClosure()));
   // Execute pending microtasks, otherwise it can take a few seconds for the
   // promise to resolve.
-  GetScriptState()->GetContext()->GetMicrotaskQueue()->PerformCheckpoint(
-      GetScriptState()->GetIsolate());
+  v8::MicrotasksScope::PerformCheckpoint(GetScriptState()->GetIsolate());
   RunWithStack(&run_loop);
+  return return_promise;
 }
 
 // Synchronously waits for |promise| to be rejected.
 void WakeLockTestingContext::WaitForPromiseRejection(ScriptPromise promise) {
   base::RunLoop run_loop;
-  promise.Then(
-      nullptr,
-      MakeGarbageCollected<ScriptFunction>(
-          GetScriptState(),
-          MakeGarbageCollected<ClosureRunnerCallable>(run_loop.QuitClosure())));
+  promise.Then(v8::Local<v8::Function>(),
+               ClosureRunnerFunction::CreateFunction(GetScriptState(),
+                                                     run_loop.QuitClosure()));
   // Execute pending microtasks, otherwise it can take a few seconds for the
   // promise to resolve.
-  GetScriptState()->GetContext()->GetMicrotaskQueue()->PerformCheckpoint(
-      GetScriptState()->GetIsolate());
+  v8::MicrotasksScope::PerformCheckpoint(GetScriptState()->GetIsolate());
   RunWithStack(&run_loop);
 }
 
@@ -325,21 +324,21 @@ void WakeLockTestingContext::WaitForPromiseRejection(ScriptPromise promise) {
 // static
 v8::Promise::PromiseState ScriptPromiseUtils::GetPromiseState(
     const ScriptPromise& promise) {
-  return promise.V8Promise()->State();
+  return promise.V8Value().As<v8::Promise>()->State();
 }
 
 // static
 DOMException* ScriptPromiseUtils::GetPromiseResolutionAsDOMException(
     const ScriptPromise& promise) {
-  return V8DOMException::ToImplWithTypeCheck(promise.GetIsolate(),
-                                             promise.V8Promise()->Result());
+  return V8DOMException::ToImplWithTypeCheck(
+      promise.GetIsolate(), promise.V8Value().As<v8::Promise>()->Result());
 }
 
 // static
 WakeLockSentinel* ScriptPromiseUtils::GetPromiseResolutionAsWakeLockSentinel(
     const ScriptPromise& promise) {
-  return V8WakeLockSentinel::ToImplWithTypeCheck(promise.GetIsolate(),
-                                                 promise.V8Promise()->Result());
+  return V8WakeLockSentinel::ToImplWithTypeCheck(
+      promise.GetIsolate(), promise.V8Value().As<v8::Promise>()->Result());
 }
 
 }  // namespace blink

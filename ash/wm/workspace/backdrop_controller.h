@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,16 @@
 #include "ash/accessibility/accessibility_observer.h"
 #include "ash/ash_export.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
-#include "ash/public/cpp/wallpaper/wallpaper_controller_observer.h"
+#include "ash/public/cpp/wallpaper_controller_observer.h"
 #include "ash/public/cpp/window_backdrop.h"
 #include "ash/public/cpp/window_properties.h"
 #include "ash/wm/overview/overview_observer.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/splitview/split_view_observer.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace aura {
@@ -52,10 +53,6 @@ class ASH_EXPORT BackdropController : public AccessibilityObserver,
                                       public WindowBackdrop::Observer {
  public:
   explicit BackdropController(aura::Window* container);
-
-  BackdropController(const BackdropController&) = delete;
-  BackdropController& operator=(const BackdropController&) = delete;
-
   ~BackdropController() override;
 
   void OnWindowAddedToLayout(aura::Window* window);
@@ -183,15 +180,12 @@ class ASH_EXPORT BackdropController : public AccessibilityObserver,
   // in overview mode.
   bool pause_update_ = false;
 
-  // If true, we're inside the stack of `Hide()`. This is used to avoid
-  // recursively calling `Hide()` which may lead to destroying the backdrop
-  // widget while it's still being hidden. https://crbug.com/1368587.
-  bool is_hiding_backdrop_ = false;
-
-  base::ScopedMultiSourceObservation<WindowBackdrop, WindowBackdrop::Observer>
-      window_backdrop_observations_{this};
+  ScopedObserver<WindowBackdrop, WindowBackdrop::Observer>
+      window_backdrop_observer_{this};
 
   base::WeakPtrFactory<BackdropController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BackdropController);
 };
 
 }  // namespace ash

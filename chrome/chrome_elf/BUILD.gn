@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -97,8 +97,6 @@ shared_library("chrome_elf") {
 
 source_set("constants") {
   sources = [
-    "blocklist_constants.cc",
-    "blocklist_constants.h",
     "chrome_elf_constants.cc",
     "chrome_elf_constants.h",
   ]
@@ -113,7 +111,6 @@ static_library("crash") {
     "crash/crash_helper.h",
   ]
   deps = [
-    ":constants",
     ":hook_util",
     "//base",  # This needs to go.  DEP of app, crash_keys, client.
     "//base:base_static",  # pe_image
@@ -144,6 +141,7 @@ executable("dll_hash_main") {
 
 static_library("hook_util") {
   sources = [
+    "../../base/macros.h",
     "hook_util/hook_util.cc",
     "hook_util/hook_util.h",
   ]
@@ -181,7 +179,6 @@ source_set("security") {
   deps = [
     ":constants",
     ":nt_registry",
-    "//base:base",
     "//chrome/install_static:install_static_util",
   ]
 }
@@ -258,7 +255,6 @@ test("chrome_elf_unittests") {
   ]
   include_dirs = [ "$target_gen_dir" ]
   deps = [
-    ":chrome_elf",
     ":constants",
     ":crash",
     ":hook_util",

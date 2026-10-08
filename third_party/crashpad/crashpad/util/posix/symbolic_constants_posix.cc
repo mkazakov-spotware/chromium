@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include <iterator>
-
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "util/misc/implicit_cast.h"
@@ -30,10 +29,8 @@ namespace {
 constexpr const char* kSignalNames[] = {
     nullptr,
 
-#if BUILDFLAG(IS_APPLE)
-    // sed -Ene
-    // 's/^#define[[:space:]]SIG([[:alnum:]]+)[[:space:]]+[[:digit:]]{1,2}([[:space:]]|$).*/
-    // "\1",/p'
+#if defined(OS_APPLE)
+    // sed -Ene 's/^#define[[:space:]]SIG([[:alnum:]]+)[[:space:]]+[[:digit:]]{1,2}([[:space:]]|$).*/    "\1",/p'
     //     /usr/include/sys/signal.h
     // and fix up by removing the entry for SIGPOLL.
     "HUP",
@@ -67,7 +64,7 @@ constexpr const char* kSignalNames[] = {
     "INFO",
     "USR1",
     "USR2",
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #if defined(ARCH_CPU_MIPS_FAMILY)
     "HUP",
     "INT",
@@ -138,11 +135,11 @@ constexpr const char* kSignalNames[] = {
 #endif  // defined(ARCH_CPU_MIPS_FAMILY)
 #endif
 };
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 // NSIG is 64 to account for real-time signals.
-static_assert(std::size(kSignalNames) == 32, "kSignalNames length");
+static_assert(base::size(kSignalNames) == 32, "kSignalNames length");
 #else
-static_assert(std::size(kSignalNames) == NSIG, "kSignalNames length");
+static_assert(base::size(kSignalNames) == NSIG, "kSignalNames length");
 #endif
 
 constexpr char kSigPrefix[] = "SIG";
@@ -154,7 +151,7 @@ namespace crashpad {
 std::string SignalToString(int signal,
                            SymbolicConstantToStringOptions options) {
   const char* signal_name =
-      implicit_cast<size_t>(signal) < std::size(kSignalNames)
+      implicit_cast<size_t>(signal) < base::size(kSignalNames)
           ? kSignalNames[signal]
           : nullptr;
   if (!signal_name) {
@@ -179,7 +176,7 @@ bool StringToSignal(const base::StringPiece& string,
         string.substr(0, strlen(kSigPrefix)).compare(kSigPrefix) == 0;
     base::StringPiece short_string =
         can_match_full ? string.substr(strlen(kSigPrefix)) : string;
-    for (int index = 0; index < implicit_cast<int>(std::size(kSignalNames));
+    for (int index = 0; index < implicit_cast<int>(base::size(kSignalNames));
          ++index) {
       const char* signal_name = kSignalNames[index];
       if (!signal_name) {

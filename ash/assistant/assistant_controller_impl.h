@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,14 +27,12 @@
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
 #include "ash/public/cpp/image_downloader.h"
-#include "ash/public/cpp/style/color_mode_observer.h"
 #include "ash/public/mojom/assistant_volume_control.mojom.h"
-#include "ash/style/dark_light_mode_controller_impl.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
+#include "chromeos/audio/cras_audio_handler.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "components/prefs/pref_service.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -52,16 +50,11 @@ class ASH_EXPORT AssistantControllerImpl
       public AssistantControllerObserver,
       public AssistantStateObserver,
       public mojom::AssistantVolumeControl,
-      public CrasAudioHandler::AudioObserver,
+      public chromeos::CrasAudioHandler::AudioObserver,
       public AccessibilityObserver,
-      public AssistantInterfaceBinder,
-      public ColorModeObserver {
+      public AssistantInterfaceBinder {
  public:
   AssistantControllerImpl();
-
-  AssistantControllerImpl(const AssistantControllerImpl&) = delete;
-  AssistantControllerImpl& operator=(const AssistantControllerImpl&) = delete;
-
   ~AssistantControllerImpl() override;
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
@@ -81,7 +74,7 @@ class ASH_EXPORT AssistantControllerImpl
   void OpenAssistantSettings() override;
   void OpenUrl(const GURL& url, bool in_background, bool from_server) override;
   base::WeakPtr<ash::AssistantController> GetWeakPtr() override;
-  void SetAssistant(assistant::Assistant* assistant) override;
+  void SetAssistant(chromeos::assistant::Assistant* assistant) override;
   void StartSpeakerIdEnrollmentFlow() override;
   void SendAssistantFeedback(bool assistant_debug_info_allowed,
                              const std::string& feedback_description,
@@ -98,15 +91,12 @@ class ASH_EXPORT AssistantControllerImpl
   void AddVolumeObserver(
       mojo::PendingRemote<mojom::VolumeObserver> observer) override;
 
-  // CrasAudioHandler::AudioObserver:
+  // chromeos::CrasAudioHandler::AudioObserver:
   void OnOutputMuteChanged(bool mute_on) override;
   void OnOutputNodeVolumeChanged(uint64_t node, int volume) override;
 
   // AccessibilityObserver:
   void OnAccessibilityStatusChanged() override;
-
-  // ColorModeObserver:
-  void OnColorModeChanged(bool dark_mode_enabled) override;
 
   AssistantAlarmTimerControllerImpl* alarm_timer_controller() {
     return &assistant_alarm_timer_controller_;
@@ -140,7 +130,8 @@ class ASH_EXPORT AssistantControllerImpl
   void NotifyUrlOpened(const GURL& url, bool from_server);
 
   // AssistantStateObserver:
-  void OnAssistantStatusChanged(assistant::AssistantStatus status) override;
+  void OnAssistantStatusChanged(
+      chromeos::assistant::AssistantStatus status) override;
   void OnLockedFullScreenStateChanged(bool enabled) override;
 
   // AssistantInterfaceBinder implementation:
@@ -155,16 +146,15 @@ class ASH_EXPORT AssistantControllerImpl
       assistant_volume_control_receiver_{this};
   mojo::RemoteSet<mojom::VolumeObserver> volume_observers_;
 
-  // |assistant_| can be nullptr if libassistant creation is not yet completed,
-  // i.e. it cannot take a request.
-  assistant::Assistant* assistant_ = nullptr;
+  chromeos::assistant::Assistant* assistant_ = nullptr;
 
   // Assistant sub-controllers.
   AssistantAlarmTimerControllerImpl assistant_alarm_timer_controller_{this};
   AssistantInteractionControllerImpl assistant_interaction_controller_{this};
   AssistantNotificationControllerImpl assistant_notification_controller_;
   AssistantStateController assistant_state_controller_;
-  AssistantScreenContextControllerImpl assistant_screen_context_controller_;
+  AssistantScreenContextControllerImpl assistant_screen_context_controller_{
+      this};
   AssistantSetupController assistant_setup_controller_{this};
   AssistantSuggestionsControllerImpl assistant_suggestions_controller_;
   AssistantUiControllerImpl assistant_ui_controller_{this};
@@ -172,10 +162,9 @@ class ASH_EXPORT AssistantControllerImpl
 
   AssistantViewDelegateImpl view_delegate_{this};
 
-  base::ScopedObservation<DarkLightModeControllerImpl, ColorModeObserver>
-      color_mode_observer_{this};
-
   base::WeakPtrFactory<AssistantControllerImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantControllerImpl);
 };
 
 }  // namespace ash

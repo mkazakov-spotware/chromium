@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,10 @@ class NSBundle;
 #endif  // __OBJC__
 
 namespace base {
-class FilePath;
-}
 
-namespace base::mac {
+class FilePath;
+
+namespace mac {
 
 // This file provides several functions to explicitly request the various
 // component bundles of Chrome.  Please use these methods rather than calling
@@ -60,6 +60,7 @@ BASE_EXPORT void SetOverrideFrameworkBundle(NSBundle* bundle);
 BASE_EXPORT void SetOverrideOuterBundlePath(const FilePath& file_path);
 BASE_EXPORT void SetOverrideFrameworkBundlePath(const FilePath& file_path);
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #endif  // BASE_MAC_BUNDLE_LOCATIONS_H_

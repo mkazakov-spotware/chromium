@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,11 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/log/net_log_with_source.h"
@@ -75,10 +77,6 @@ class MockPersistentCookieStore : public CookieMonster::PersistentCookieStore {
 
   MockPersistentCookieStore();
 
-  MockPersistentCookieStore(const MockPersistentCookieStore&) = delete;
-  MockPersistentCookieStore& operator=(const MockPersistentCookieStore&) =
-      delete;
-
   // When set, Load() and LoadCookiesForKey() calls are store in the command
   // list, rather than being automatically executed. Defaults to false.
   void set_store_load_commands(bool store_load_commands) {
@@ -119,14 +117,16 @@ class MockPersistentCookieStore : public CookieMonster::PersistentCookieStore {
  private:
   CommandList commands_;
 
-  bool store_load_commands_ = false;
+  bool store_load_commands_;
 
   // Deferred result to use when Load() is called.
-  bool load_return_value_ = true;
+  bool load_return_value_;
   std::vector<std::unique_ptr<CanonicalCookie>> load_result_;
   // Indicates if the store has been fully loaded to avoid returning duplicate
   // cookies.
-  bool loaded_ = false;
+  bool loaded_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPersistentCookieStore);
 };
 
 // Helper to build a single CanonicalCookie.
@@ -170,14 +170,15 @@ class MockSimplePersistentCookieStore
   ~MockSimplePersistentCookieStore() override;
 
  private:
-  typedef std::map<CanonicalCookie::UniqueCookieKey, CanonicalCookie>
+  typedef std::map<std::tuple<std::string, std::string, std::string>,
+                   CanonicalCookie>
       CanonicalCookieMap;
 
   CanonicalCookieMap cookies_;
 
   // Indicates if the store has been fully loaded to avoid return duplicate
   // cookies in subsequent load requests
-  bool loaded_ = false;
+  bool loaded_;
 };
 
 // Helper function for creating a CookieMonster backed by a

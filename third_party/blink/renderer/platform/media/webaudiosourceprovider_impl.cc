@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/callback_forward.h"
 #include "base/check_op.h"
-#include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
@@ -22,6 +23,35 @@
 
 namespace blink {
 
+namespace {
+
+// Simple helper class for Try() locks.  Lock is Try()'d on construction and
+// must be checked via the locked() attribute.  If acquisition was successful
+// the lock will be released upon destruction.
+// TODO(dalecurtis): This should probably move to base/ if others start using
+// this pattern.
+class AutoTryLock {
+ public:
+  explicit AutoTryLock(base::Lock& lock)
+      : lock_(lock), acquired_(lock_.Try()) {}
+
+  bool locked() const { return acquired_; }
+
+  ~AutoTryLock() {
+    if (acquired_) {
+      lock_.AssertAcquired();
+      lock_.Release();
+    }
+  }
+
+ private:
+  base::Lock& lock_;
+  const bool acquired_;
+  DISALLOW_COPY_AND_ASSIGN(AutoTryLock);
+};
+
+}  // namespace
+
 // TeeFilter is a RenderCallback implementation that allows for a client to get
 // a copy of the data being rendered by the |renderer_| on Render(). This class
 // also holds on to the necessary audio parameters.
@@ -29,8 +59,6 @@ class WebAudioSourceProviderImpl::TeeFilter
     : public AudioRendererSink::RenderCallback {
  public:
   TeeFilter() : copy_required_(false) {}
-  TeeFilter(const TeeFilter&) = delete;
-  TeeFilter& operator=(const TeeFilter&) = delete;
   ~TeeFilter() override = default;
 
   void Initialize(AudioRendererSink::RenderCallback* renderer,
@@ -110,13 +138,18 @@ class WebAudioSourceProviderImpl::TeeFilter
   std::atomic<bool> copy_required_;
   base::Lock copy_lock_;
   CopyAudioCB copy_audio_bus_callback_ GUARDED_BY(copy_lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(TeeFilter);
 };
 
 WebAudioSourceProviderImpl::WebAudioSourceProviderImpl(
     scoped_refptr<media::SwitchableAudioRendererSink> sink,
     media::MediaLog* media_log,
     base::OnceClosure on_set_client_callback /* = base::OnceClosure()*/)
-    : sink_(std::move(sink)),
+    : volume_(1.0),
+      state_(kStopped),
+      client_(nullptr),
+      sink_(std::move(sink)),
       tee_filter_(new TeeFilter()),
       media_log_(media_log),
       on_set_client_callback_(std::move(on_set_client_callback)) {}
@@ -171,20 +204,21 @@ void WebAudioSourceProviderImpl::SetClient(
 
 void WebAudioSourceProviderImpl::ProvideInput(
     const WebVector<float*>& audio_data,
-    int number_of_frames) {
+    size_t number_of_frames) {
   if (!bus_wrapper_ ||
       static_cast<size_t>(bus_wrapper_->channels()) != audio_data.size()) {
     bus_wrapper_ =
         media::AudioBus::CreateWrapper(static_cast<int>(audio_data.size()));
   }
 
-  bus_wrapper_->set_frames(number_of_frames);
+  const int incoming_number_of_frames = static_cast<int>(number_of_frames);
+  bus_wrapper_->set_frames(incoming_number_of_frames);
   for (size_t i = 0; i < audio_data.size(); ++i)
     bus_wrapper_->SetChannelData(static_cast<int>(i), audio_data[i]);
 
   // Use a try lock to avoid contention in the real-time audio thread.
-  base::AutoTryLock auto_try_lock(sink_lock_);
-  if (!auto_try_lock.is_acquired() || state_ != kPlaying) {
+  AutoTryLock auto_try_lock(sink_lock_);
+  if (!auto_try_lock.locked() || state_ != kPlaying) {
     // Provide silence if we failed to acquire the lock or the source is not
     // running.
     bus_wrapper_->Zero();
@@ -211,8 +245,8 @@ void WebAudioSourceProviderImpl::ProvideInput(
     return;
   }
 
-  if (frames < number_of_frames)
-    bus_wrapper_->ZeroFramesPartial(frames, number_of_frames - frames);
+  if (frames < incoming_number_of_frames)
+    bus_wrapper_->ZeroFramesPartial(frames, incoming_number_of_frames - frames);
 
   bus_wrapper_->Scale(volume_);
 }
@@ -295,8 +329,8 @@ void WebAudioSourceProviderImpl::GetOutputDeviceInfoAsync(
   // underlying audio renderer will prefer the media parameters. See
   // IsOptimizedForHardwareParameters() for more details.
   media::BindToCurrentLoop(
-      WTF::BindOnce(std::move(info_cb),
-                    media::OutputDeviceInfo(media::OUTPUT_DEVICE_STATUS_OK)))
+      WTF::Bind(std::move(info_cb),
+                media::OutputDeviceInfo(media::OUTPUT_DEVICE_STATUS_OK)))
       .Run();
 }
 
@@ -327,21 +361,15 @@ void WebAudioSourceProviderImpl::TaintOrigin() {
 void WebAudioSourceProviderImpl::SetCopyAudioCallback(CopyAudioCB callback) {
   DCHECK(!callback.is_null());
   tee_filter_->SetCopyAudioCallback(std::move(callback));
-  has_copy_audio_callback_ = true;
 }
 
 void WebAudioSourceProviderImpl::ClearCopyAudioCallback() {
   tee_filter_->SetCopyAudioCallback(CopyAudioCB());
-  has_copy_audio_callback_ = false;
 }
 
 int WebAudioSourceProviderImpl::RenderForTesting(media::AudioBus* audio_bus) {
   return tee_filter_->Render(base::TimeDelta(), base::TimeTicks::Now(), 0,
                              audio_bus);
-}
-
-bool WebAudioSourceProviderImpl::IsAudioBeingCaptured() const {
-  return has_copy_audio_callback_ || client_;
 }
 
 void WebAudioSourceProviderImpl::OnSetFormat() {

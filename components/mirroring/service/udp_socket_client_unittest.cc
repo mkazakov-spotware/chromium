@@ -1,14 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/mirroring/service/udp_socket_client.h"
 
+#include <algorithm>
 #include <string>
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
@@ -36,9 +37,6 @@ class UdpSocketClientTest : public ::testing::Test {
         base::OnceClosure());
   }
 
-  UdpSocketClientTest(const UdpSocketClientTest&) = delete;
-  UdpSocketClientTest& operator=(const UdpSocketClientTest&) = delete;
-
   ~UdpSocketClientTest() override = default;
 
   MOCK_METHOD0(OnReceivedPacketCall, void());
@@ -54,6 +52,9 @@ class UdpSocketClientTest : public ::testing::Test {
   std::unique_ptr<MockNetworkContext> network_context_;
   std::unique_ptr<UdpSocketClient> udp_transport_client_;
   std::unique_ptr<Packet> received_packet_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UdpSocketClientTest);
 };
 
 TEST_F(UdpSocketClientTest, SendAndReceive) {
@@ -100,7 +101,8 @@ TEST_F(UdpSocketClientTest, SendAndReceive) {
   }
 
   // The packet is expected to be received.
-  EXPECT_TRUE(base::ranges::equal(packet2, *received_packet_));
+  EXPECT_TRUE(
+      std::equal(packet2.begin(), packet2.end(), received_packet_->begin()));
 
   udp_transport_client_->StopReceiving();
 }

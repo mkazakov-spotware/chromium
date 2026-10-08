@@ -1,30 +1,32 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/common/extension_resource.h"
 
+#include <stddef.h>
+
 #include "base/check.h"
 #include "base/files/file_util.h"
+#include "base/threading/thread_restrictions.h"
 
 namespace extensions {
 
-ExtensionResource::ExtensionResource() : follow_symlinks_anywhere_(false) {}
+ExtensionResource::ExtensionResource() : follow_symlinks_anywhere_(false) {
+}
 
-ExtensionResource::ExtensionResource(const ExtensionId& extension_id,
+ExtensionResource::ExtensionResource(const std::string& extension_id,
                                      const base::FilePath& extension_root,
                                      const base::FilePath& relative_path)
     : extension_id_(extension_id),
       extension_root_(extension_root),
       relative_path_(relative_path),
-      follow_symlinks_anywhere_(false) {}
+      follow_symlinks_anywhere_(false) {
+}
 
 ExtensionResource::ExtensionResource(const ExtensionResource& other) = default;
-ExtensionResource::ExtensionResource(ExtensionResource&& other) = default;
-ExtensionResource& ExtensionResource::operator=(ExtensionResource&& other) =
-    default;
 
-ExtensionResource::~ExtensionResource() = default;
+ExtensionResource::~ExtensionResource() {}
 
 void ExtensionResource::set_follow_symlinks_anywhere() {
   follow_symlinks_anywhere_ = true;
@@ -64,8 +66,8 @@ base::FilePath ExtensionResource::GetFilePath(
   // If we are allowing the file to be a symlink outside of the root, then the
   // path before resolving the symlink must still be within it.
   if (symlink_policy == FOLLOW_SYMLINKS_ANYWHERE) {
-    std::vector<base::FilePath::StringType> components =
-        relative_path.GetComponents();
+    std::vector<base::FilePath::StringType> components;
+    relative_path.GetComponents(&components);
     int depth = 0;
 
     for (std::vector<base::FilePath::StringType>::const_iterator
@@ -97,6 +99,34 @@ base::FilePath ExtensionResource::GetFilePath(
   }
 
   return base::FilePath();
+}
+
+// Unit-testing helpers.
+base::FilePath::StringType ExtensionResource::NormalizeSeperators(
+    const base::FilePath::StringType& path) const {
+#if defined(FILE_PATH_USES_WIN_SEPARATORS)
+  base::FilePath::StringType win_path = path;
+  for (size_t i = 0; i < win_path.length(); i++) {
+    if (base::FilePath::IsSeparator(win_path[i]))
+      win_path[i] = base::FilePath::kSeparators[0];
+  }
+  return win_path;
+#else
+  return path;
+#endif  // FILE_PATH_USES_WIN_SEPARATORS
+}
+
+bool ExtensionResource::ComparePathWithDefault(
+    const base::FilePath& path) const {
+  // Make sure we have a cached value to test against...
+  if (full_resource_path_.empty())
+    GetFilePath();
+  if (NormalizeSeperators(path.value()) ==
+    NormalizeSeperators(full_resource_path_.value())) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 }  // namespace extensions

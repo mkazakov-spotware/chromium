@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #import <Foundation/Foundation.h>
 
-#import "ios/web/common/features.h"
-#import "ios/web/public/init/web_main_parts.h"
-#import "url/gurl.h"
+#include "ios/web/common/features.h"
+#include "ios/web/public/init/web_main_parts.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -45,31 +44,35 @@ bool WebClient::IsAppSpecificURL(const GURL& url) const {
   return false;
 }
 
-std::u16string WebClient::GetPluginNotSupportedText() const {
-  return std::u16string();
+bool WebClient::ShouldBlockUrlDuringRestore(const GURL& url,
+                                            WebState* web_state) const {
+  return false;
+}
+
+void WebClient::AddSerializableData(
+    web::SerializableUserDataManager* user_data_manager,
+    web::WebState* web_state) {}
+
+base::string16 WebClient::GetPluginNotSupportedText() const {
+  return base::string16();
 }
 
 std::string WebClient::GetUserAgent(UserAgentType type) const {
   return std::string();
 }
 
-std::u16string WebClient::GetLocalizedString(int message_id) const {
-  return std::u16string();
+base::string16 WebClient::GetLocalizedString(int message_id) const {
+  return base::string16();
 }
 
 base::StringPiece WebClient::GetDataResource(
     int resource_id,
-    ui::ResourceScaleFactor scale_factor) const {
+    ui::ScaleFactor scale_factor) const {
   return base::StringPiece();
 }
 
 base::RefCountedMemory* WebClient::GetDataResourceBytes(int resource_id) const {
   return nullptr;
-}
-
-std::vector<JavaScriptFeature*> WebClient::GetJavaScriptFeatures(
-    BrowserState* browser_state) const {
-  return std::vector<JavaScriptFeature*>();
 }
 
 NSString* WebClient::GetDocumentStartScriptForAllFrames(
@@ -82,12 +85,27 @@ NSString* WebClient::GetDocumentStartScriptForMainFrame(
   return @"";
 }
 
+void WebClient::AllowCertificateError(WebState* web_state,
+                                      int cert_error,
+                                      const net::SSLInfo& ssl_info,
+                                      const GURL& request_url,
+                                      bool overridable,
+                                      int64_t navigation_id,
+                                      base::OnceCallback<void(bool)> callback) {
+  std::move(callback).Run(false);
+}
+
+bool WebClient::IsLegacyTLSAllowedForHost(WebState* web_state,
+                                          const std::string& hostname) {
+  return false;
+}
+
 void WebClient::PrepareErrorPage(WebState* web_state,
                                  const GURL& url,
                                  NSError* error,
                                  bool is_post,
                                  bool is_off_the_record,
-                                 const absl::optional<net::SSLInfo>& info,
+                                 const base::Optional<net::SSLInfo>& info,
                                  int64_t navigation_id,
                                  base::OnceCallback<void(NSString*)> callback) {
   DCHECK(error);
@@ -98,30 +116,21 @@ UIView* WebClient::GetWindowedContainer() {
   return nullptr;
 }
 
-bool WebClient::EnableLongPressUIContextMenu() const {
+bool WebClient::EnableLongPressAndForceTouchHandling() const {
+  return true;
+}
+
+bool WebClient::ForceMobileVersionByDefault(const GURL&) {
   return false;
 }
 
-bool WebClient::RestoreSessionFromCache(web::WebState* web_state) const {
-  return false;
-}
-
-void WebClient::CleanupNativeRestoreURLs(web::WebState* web_state) const {}
-
-void WebClient::WillDisplayMediaCapturePermissionPrompt(
-    web::WebState* web_state) const {}
-
-UserAgentType WebClient::GetDefaultUserAgent(web::WebState* web_state,
-                                             const GURL& url) const {
+UserAgentType WebClient::GetDefaultUserAgent(id<UITraitEnvironment> web_view,
+                                             const GURL& url) {
   return UserAgentType::MOBILE;
 }
 
-void WebClient::LogDefaultUserAgent(web::WebState* web_state,
-                                    const GURL& url) const {}
-
-bool WebClient::IsPointingToSameDocument(const GURL& url1,
-                                         const GURL& url2) const {
-  return url1 == url2;
+bool WebClient::IsEmbedderBlockRestoreUrlEnabled() {
+  return false;
 }
 
 }  // namespace web

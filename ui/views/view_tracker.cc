@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,10 @@ void ViewTracker::SetView(View* view) {
   if (view == view_)
     return;
 
-  observation_.Reset();
+  observer_.RemoveAll();
   view_ = view;
   if (view_)
-    observation_.Observe(view_.get());
+    observer_.Add(view_);
 }
 
 void ViewTracker::OnViewIsDeleting(View* observed_view) {

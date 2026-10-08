@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SENSOR_AMBIENT_LIGHT_SENSOR_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_SENSOR_AMBIENT_LIGHT_SENSOR_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/gtest_prod_util.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/sensor/sensor.h"
 
@@ -22,7 +23,17 @@ class MODULES_EXPORT AmbientLightSensor final : public Sensor {
 
   AmbientLightSensor(ExecutionContext*, const SensorOptions*, ExceptionState&);
 
-  absl::optional<double> illuminance() const;
+  bool hasReading() const override;
+  base::Optional<double> illuminance() const;
+
+  void OnSensorReadingChanged() override;
+
+ private:
+  base::Optional<double> latest_reading_;
+
+  FRIEND_TEST_ALL_PREFIXES(AmbientLightSensorTest, IlluminanceRounding);
+  FRIEND_TEST_ALL_PREFIXES(AmbientLightSensorTest,
+                           PlatformSensorReadingsBeforeActivation);
 };
 
 }  // namespace blink

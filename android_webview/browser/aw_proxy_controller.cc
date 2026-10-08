@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,8 +53,7 @@ ScopedJavaLocalRef<jstring> JNI_AwProxyController_SetProxyOverride(
     const base::android::JavaParamRef<jobjectArray>& jproxy_urls,
     const base::android::JavaParamRef<jobjectArray>& jbypass_rules,
     const JavaParamRef<jobject>& listener,
-    const JavaParamRef<jobject>& executor,
-    const jboolean reverse_bypass) {
+    const JavaParamRef<jobject>& executor) {
   std::vector<std::string> url_schemes;
   base::android::AppendJavaStringArrayToStringVector(env, jurl_schemes,
                                                      &url_schemes);
@@ -73,7 +72,7 @@ ScopedJavaLocalRef<jstring> JNI_AwProxyController_SetProxyOverride(
                                                      &bypass_rules);
   std::string result;
   result = AwProxyConfigMonitor::GetInstance()->SetProxyOverride(
-      proxy_rules, bypass_rules, reverse_bypass,
+      proxy_rules, bypass_rules,
       base::BindOnce(&ProxyOverrideChanged,
                      ScopedJavaGlobalRef<jobject>(env, obj),
                      ScopedJavaGlobalRef<jobject>(env, listener),

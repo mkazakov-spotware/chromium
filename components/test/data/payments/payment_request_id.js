@@ -1,27 +1,35 @@
 /*
- * Copyright 2017 The Chromium Authors
+ * Copyright 2017 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 /**
- * Launches the PaymentRequest UI including a details.id and returns the
- * request identifier from the response.
- * @param {string} method - The payment method identifier to use.
- * @return {string} - The request identifier from the response.
+ * Launches the PaymentRequest UI including a details.id and prints the
+ * resulting requestId.
  */
-async function getResponseId(method) {
+function buy() { // eslint-disable-line no-unused-vars
   try {
-    const request = new PaymentRequest(
-        [{supportedMethods: method}],
+    new PaymentRequest(
+        [{supportedMethods: 'basic-card', data: {supportedNetworks: ['visa']}}],
         {
           id: 'my_payment_id',
           total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
+        })
+        .show()
+        .then(function(resp) {
+          resp.complete('success')
+              .then(function() {
+                print(resp.requestId);
+              })
+              .catch(function(error) {
+                print(error.message);
+              });
+        })
+        .catch(function(error) {
+          print(error.message);
         });
-    const response = await request.show();
-    await response.complete('success');
-    return response.requestId;
   } catch (error) {
-    return error.toString();
+    print(error.message);
   }
 }

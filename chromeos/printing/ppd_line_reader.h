@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <memory>
 #include <string>
 
-#include "base/component_export.h"
+#include "chromeos/chromeos_export.h"
 
 namespace chromeos {
 
 // Class supporting line-oriented input from unencoded and gzip-encoded PPDs.
 // Decompression, when required, is streamed to avoid excessive memory usage due
 // to malicious gzip contents.
-class COMPONENT_EXPORT(CHROMEOS_PRINTING) PpdLineReader {
+class CHROMEOS_EXPORT PpdLineReader {
  public:
   // Create a new PpdLineReader using ppd contents in |contents|.  The max
   // allowed line length in the ppd is also parameterized.

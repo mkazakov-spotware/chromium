@@ -1,8 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base.library_loader;
+
+import android.content.pm.ApplicationInfo;
 
 /**
  * This is interface to preload the native library before calling System.loadLibrary.
@@ -11,8 +13,8 @@ package org.chromium.base.library_loader;
  * code to be run, because it can be called before Chromium command line is known.
  * It can however open the library via dlopen() or android_dlopen_ext() so that
  * dlopen() later called by System.loadLibrary() becomes a noop. This is what the
- * only subclass (WebViewLibraryPreloader) is doing.
+ * only subclass (MonochromeLibraryPreloader) is doing.
  */
 public abstract class NativeLibraryPreloader {
-    public abstract int loadLibrary(String packageName);
+    public abstract int loadLibrary(ApplicationInfo appInfo);
 }

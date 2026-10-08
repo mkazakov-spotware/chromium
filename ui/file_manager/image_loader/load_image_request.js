@@ -1,19 +1,22 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {ImageOrientation, ImageTransformParam} from './image_orientation.js';
+// clang-format off
+// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {ImageOrientation, ImageTransformParam} from '../file_manager/foreground/js/metadata/image_orientation.m.js';
+// clang-format on
 
+/* #ignore */ 'use strict';
 
 /**
  * Response status.
  *
  * @enum {string}
  */
-export const LoadImageResponseStatus = {
+/* #export */ const LoadImageResponseStatus = {
   SUCCESS: 'success',
-  ERROR: 'error',
+  ERROR: 'error'
 };
 
 /**
@@ -22,7 +25,7 @@ export const LoadImageResponseStatus = {
  *
  * @struct
  */
-export class LoadImageResponse {
+/* #export */ class LoadImageResponse {
   /**
    * @param {!LoadImageResponseStatus} status
    * @param {?number} taskId or null if fulfilled by the client-side cache.
@@ -98,7 +101,7 @@ export class LoadImageResponse {
  *
  * @struct
  */
-export class LoadImageRequest {
+/* #export */ class LoadImageRequest {
   constructor() {
     // Parts that uniquely identify the request.
 
@@ -154,7 +157,7 @@ export class LoadImageRequest {
       width: request.width,
       height: request.height,
       maxWidth: request.maxWidth,
-      maxHeight: request.maxHeight,
+      maxHeight: request.maxHeight
     });
   }
 

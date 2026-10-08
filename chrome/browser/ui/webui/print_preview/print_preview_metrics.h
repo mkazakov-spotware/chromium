@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <cstddef>
 
-#include "base/values.h"
+namespace base {
+class Value;
+}
 
 namespace printing {
 
@@ -63,7 +65,7 @@ enum class UserActionBuckets {
   // kInitiatorCrashed = 6,  // no longer used
   kInitiatorClosed = 7,
   kPrintWithCloudPrint = 8,
-  // kPrintWithPrivet = 9,  // no longer used
+  kPrintWithPrivet = 9,
   kPrintWithExtension = 10,
   kOpenInMacPreview = 11,
   kPrintToGoogleDrive = 12,
@@ -74,12 +76,21 @@ enum class UserActionBuckets {
 // Record the number of local printers.
 void ReportNumberOfPrinters(size_t number);
 
-void ReportPrintDocumentTypeHistograms(PrintDocumentTypeBuckets doctype);
+void ReportPrintDocumentTypeAndSizeHistograms(PrintDocumentTypeBuckets doctype,
+                                              size_t average_page_size_in_kb);
 
 // Track the popularity of print settings and report the stats.
-void ReportPrintSettingsStats(const base::Value::Dict& print_settings,
-                              const base::Value::Dict& preview_settings,
+void ReportPrintSettingsStats(const base::Value& print_settings,
+                              const base::Value& preview_settings,
                               bool is_pdf);
+
+// Record the number of times the user requests to regenerate preview data
+// before cancelling.
+void ReportRegeneratePreviewRequestCountBeforeCancel(size_t count);
+
+// Record the number of times the user requests to regenerate preview data
+// before printing.
+void ReportRegeneratePreviewRequestCountBeforePrint(size_t count);
 
 void ReportUserActionHistogram(UserActionBuckets event);
 

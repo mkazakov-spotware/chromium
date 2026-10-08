@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,14 +55,7 @@ std::string ExtractDomainName(const std::string& email);
 // to be used sparingly since it ship Googler-only code to all users.
 bool IsGoogleInternalAccountEmail(const std::string& email);
 
-// Returns true if |email| correspnds to the email of a robot account.
-bool IsGoogleRobotAccountEmail(const std::string& email);
-
-// Mechanically compares the scheme, host, and port of the |url| against the
-// GAIA url in GaiaUrls. This means that this function will *not* work for
-// determining whether a frame with an "about:blank" URL or "blob:..." URL has
-// a GAIA origin and will in that case return false.
-bool HasGaiaSchemeHostPort(const GURL& url);
+bool IsGaiaSignonRealm(const GURL& url);
 
 // Parses JSON data returned by /ListAccounts call, returning a vector of
 // email/valid pairs.  An email addresses is considered valid if a passive

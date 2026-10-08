@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,14 +11,12 @@ source_set("browser") {
   ]
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
     "//components/browsing_data/content",
     "//components/content_settings/common:mojom",
     "//components/content_settings/core/browser",
     "//components/content_settings/core/common",
     "//components/page_load_metrics/browser",
     "//components/prefs",
-    "//components/privacy_sandbox",
     "//components/security_state/core",
     "//components/url_formatter",
     "//content/public/browser",
@@ -47,7 +45,6 @@ source_set("unit_tests") {
     "//base",
     "//components/content_settings/core/browser",
     "//components/security_state/core",
-    "//components/services/storage/public/cpp",
     "//components/sync_preferences:test_support",
     "//content/test:test_support",
     "//net",

@@ -1,13 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_STARTUP_DEFAULT_BROWSER_INFOBAR_DELEGATE_H_
 #define CHROME_BROWSER_UI_STARTUP_DEFAULT_BROWSER_INFOBAR_DELEGATE_H_
 
-#include "base/memory/raw_ptr.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/shell_integration.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 
 class Profile;
@@ -20,9 +19,8 @@ namespace chrome {
 class DefaultBrowserInfoBarDelegate : public ConfirmInfoBarDelegate {
  public:
   // Creates a default browser infobar and delegate and adds the infobar to
-  // |infobar_manager|.
-  static void Create(infobars::ContentInfoBarManager* infobar_manager,
-                     Profile* profile);
+  // |infobar_service|.
+  static void Create(InfoBarService* infobar_service, Profile* profile);
 
   DefaultBrowserInfoBarDelegate(const DefaultBrowserInfoBarDelegate&) = delete;
   DefaultBrowserInfoBarDelegate& operator=(
@@ -54,14 +52,14 @@ class DefaultBrowserInfoBarDelegate : public ConfirmInfoBarDelegate {
   const gfx::VectorIcon& GetVectorIcon() const override;
   bool ShouldExpire(const NavigationDetails& details) const override;
   void InfoBarDismissed() override;
-  std::u16string GetMessageText() const override;
+  base::string16 GetMessageText() const override;
   int GetButtons() const override;
-  std::u16string GetButtonLabel(InfoBarButton button) const override;
+  base::string16 GetButtonLabel(InfoBarButton button) const override;
   bool OKButtonTriggersUACPrompt() const override;
   bool Accept() override;
 
   // The WebContents's corresponding profile.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Whether the info bar should be dismissed on the next navigation.
   bool should_expire_ = false;

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -18,6 +18,7 @@
 #include <limits>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 
 namespace base {
 namespace win {
@@ -72,9 +73,6 @@ class EtwMofEvent : public EtwMofEventBase<N> {
     header.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_USE_MOF_PTR;
   }
 
-  EtwMofEvent(const EtwMofEvent&) = delete;
-  EtwMofEvent& operator=(const EtwMofEvent&) = delete;
-
   void SetField(size_t field, size_t size, const void* data) {
     // DCHECK(field < N);
     if ((field < N) && (size <= std::numeric_limits<uint32_t>::max())) {
@@ -84,6 +82,9 @@ class EtwMofEvent : public EtwMofEventBase<N> {
   }
 
   EVENT_TRACE_HEADER* get() { return &header; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EtwMofEvent);
 };
 
 // Trace provider with Event Tracing for Windows. The trace provider
@@ -103,10 +104,6 @@ class BASE_EXPORT EtwTraceProvider {
   // Creates an unnamed event trace provider, the provider must be given
   // a name before registration.
   EtwTraceProvider();
-
-  EtwTraceProvider(const EtwTraceProvider&) = delete;
-  EtwTraceProvider& operator=(const EtwTraceProvider&) = delete;
-
   virtual ~EtwTraceProvider();
 
   // Registers the trace provider with Event Tracing for Windows.
@@ -188,6 +185,8 @@ class BASE_EXPORT EtwTraceProvider {
   // We don't use this, but on XP we're obliged to pass one in to
   // RegisterTraceGuids. Non-const, because that's how the API needs it.
   static TRACE_GUID_REGISTRATION obligatory_guid_registration_;
+
+  DISALLOW_COPY_AND_ASSIGN(EtwTraceProvider);
 };
 
 }  // namespace win

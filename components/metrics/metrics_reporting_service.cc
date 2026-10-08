@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/callback.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "components/metrics/metrics_logs_event_manager.h"
 #include "components/metrics/metrics_pref_names.h"
 #include "components/metrics/metrics_service_client.h"
 #include "components/metrics/unsent_log_store_metrics_impl.h"
@@ -25,18 +24,14 @@ void MetricsReportingService::RegisterPrefs(PrefRegistrySimple* registry) {
   MetricsLogStore::RegisterPrefs(registry);
 }
 
-MetricsReportingService::MetricsReportingService(
-    MetricsServiceClient* client,
-    PrefService* local_state,
-    MetricsLogsEventManager* logs_event_manager_)
+MetricsReportingService::MetricsReportingService(MetricsServiceClient* client,
+                                                 PrefService* local_state)
     : ReportingService(client,
                        local_state,
-                       client->GetStorageLimits().max_ongoing_log_size,
-                       logs_event_manager_),
+                       client->GetStorageLimits().max_ongoing_log_size),
       metrics_log_store_(local_state,
                          client->GetStorageLimits(),
-                         client->GetUploadSigningKey(),
-                         logs_event_manager_) {}
+                         client->GetUploadSigningKey()) {}
 
 MetricsReportingService::~MetricsReportingService() {}
 
@@ -65,7 +60,7 @@ void MetricsReportingService::LogActualUploadInterval(
     base::TimeDelta interval) {
   UMA_HISTOGRAM_CUSTOM_COUNTS("UMA.ActualLogUploadInterval",
                               interval.InMinutes(), 1,
-                              base::Hours(12).InMinutes(), 50);
+                              base::TimeDelta::FromHours(12).InMinutes(), 50);
 }
 
 void MetricsReportingService::LogCellularConstraint(bool upload_canceled) {

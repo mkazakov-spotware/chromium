@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,28 @@
 
 #include <memory>
 
+namespace gfx {
+class Rect;
+}
+
 namespace ui {
 
-class ShellToplevelWrapper;
-struct ShellPopupParams;
+class ShellSurfaceWrapper;
 class ShellPopupWrapper;
 class WaylandConnection;
 class WaylandWindow;
 
-// Creates Wayland shell objects.
+// Shell factory that creates shell objects for different protocols. Preferred
+// protocols are defined in the following order:
+// 1) xdg-shell-stable-protocol.
+// 2) xdg-shell-v6-unstable-protocol.
 class ShellObjectFactory {
  public:
   ShellObjectFactory();
   ~ShellObjectFactory();
 
-  // Creates and initializes a ShellToplevelWrapper.
-  std::unique_ptr<ShellToplevelWrapper> CreateShellToplevelWrapper(
+  // Creates and initializes a ShellSurfaceWrapper.
+  std::unique_ptr<ShellSurfaceWrapper> CreateShellSurfaceWrapper(
       WaylandConnection* connection,
       WaylandWindow* wayland_window);
 
@@ -30,7 +36,7 @@ class ShellObjectFactory {
   std::unique_ptr<ShellPopupWrapper> CreateShellPopupWrapper(
       WaylandConnection* connection,
       WaylandWindow* wayland_window,
-      const ShellPopupParams& params);
+      const gfx::Rect& bounds);
 };
 
 }  // namespace ui

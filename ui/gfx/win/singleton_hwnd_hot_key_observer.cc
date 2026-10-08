@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "base/containers/flat_set.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "ui/gfx/win/singleton_hwnd.h"
 
 namespace gfx {
@@ -20,14 +20,14 @@ base::flat_set<int>& GetUsedHotKeyIDs() {
   return *used_hot_key_ids;
 }
 
-absl::optional<int> GetAvailableHotKeyID() {
+base::Optional<int> GetAvailableHotKeyID() {
   // Valid hot key IDs are in the range 0x0000 to 0xBFFF. See
   // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-registerhotkey
   for (int i = 0x0000; i < 0xBFFF; i++) {
     if (!GetUsedHotKeyIDs().contains(i))
       return i;
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void SetHotKeyIDUsed(int id) {
@@ -47,7 +47,7 @@ SingletonHwndHotKeyObserver::Create(
     const SingletonHwndObserver::WndProc& wnd_proc,
     UINT key_code,
     int modifiers) {
-  absl::optional<int> hot_key_id = GetAvailableHotKeyID();
+  base::Optional<int> hot_key_id = GetAvailableHotKeyID();
 
   // If there are no available hot key IDs, return null.
   if (!hot_key_id.has_value())

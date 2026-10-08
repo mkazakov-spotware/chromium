@@ -25,7 +25,6 @@
 
 #include "third_party/blink/renderer/core/editing/visible_selection.h"
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/range.h"
@@ -37,6 +36,7 @@
 #include "third_party/blink/renderer/core/editing/visible_position.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/geometry/layout_point.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
@@ -66,6 +66,7 @@ class VisibleSelectionTemplate<Strategy>::Creator {
         ComputeVisibleSelection(selection, granularity));
   }
 
+ private:
   static SelectionTemplate<Strategy> ComputeVisibleSelection(
       const SelectionTemplate<Strategy>& passed_selection,
       TextGranularity granularity) {
@@ -108,15 +109,17 @@ VisibleSelectionInFlatTree CreateVisibleSelection(
       selection, TextGranularity::kCharacter);
 }
 
-SelectionInDOMTree ExpandWithGranularity(const SelectionInDOMTree& selection,
-                                         TextGranularity granularity) {
-  return VisibleSelection::Creator::ComputeVisibleSelection(selection,
-                                                            granularity);
+VisibleSelection CreateVisibleSelectionWithGranularity(
+    const SelectionInDOMTree& selection,
+    TextGranularity granularity) {
+  return VisibleSelection::Creator::CreateWithGranularity(selection,
+                                                          granularity);
 }
 
-SelectionInFlatTree ExpandWithGranularity(const SelectionInFlatTree& selection,
-                                          TextGranularity granularity) {
-  return VisibleSelectionInFlatTree::Creator::ComputeVisibleSelection(
+VisibleSelectionInFlatTree CreateVisibleSelectionWithGranularity(
+    const SelectionInFlatTree& selection,
+    TextGranularity granularity) {
+  return VisibleSelectionInFlatTree::Creator::CreateWithGranularity(
       selection, granularity);
 }
 
@@ -187,28 +190,21 @@ EphemeralRange FirstEphemeralRangeOf(const VisibleSelection& selection) {
 template <typename Strategy>
 EphemeralRangeTemplate<Strategy>
 VisibleSelectionTemplate<Strategy>::ToNormalizedEphemeralRange() const {
-  return NormalizeRange(AsSelection());
-}
-
-template <typename Strategy>
-static EphemeralRangeTemplate<Strategy> NormalizeRangeAlgorithm(
-    const SelectionTemplate<Strategy>& selection) {
-  if (selection.IsNone())
+  if (IsNone())
     return EphemeralRangeTemplate<Strategy>();
 
   // Make sure we have an updated layout since this function is called
   // in the course of running edit commands which modify the DOM.
   // Failing to ensure this can result in equivalentXXXPosition calls returning
   // incorrect results.
-  DCHECK(!NeedsLayoutTreeUpdate(selection.Base())) << selection;
+  DCHECK(!NeedsLayoutTreeUpdate(Start())) << *this;
 
-  if (selection.IsCaret()) {
+  if (IsCaret()) {
     // If the selection is a caret, move the range start upstream. This
     // helps us match the conventions of text editors tested, which make
     // style determinations based on the character before the caret, if any.
     const PositionTemplate<Strategy> start =
-        MostBackwardCaretPosition(selection.ComputeStartPosition())
-            .ParentAnchoredEquivalent();
+        MostBackwardCaretPosition(Start()).ParentAnchoredEquivalent();
     return EphemeralRangeTemplate<Strategy>(start, start);
   }
   // If the selection is a range, select the minimum range that encompasses
@@ -222,16 +218,8 @@ static EphemeralRangeTemplate<Strategy> NormalizeRangeAlgorithm(
   // On a treasure map, <b>X</b> marks the spot.
   //                       ^ selected
   //
-  DCHECK(selection.IsRange());
-  return NormalizeRange(selection.ComputeRange());
-}
-
-EphemeralRange NormalizeRange(const SelectionInDOMTree& selection) {
-  return NormalizeRangeAlgorithm(selection);
-}
-
-EphemeralRangeInFlatTree NormalizeRange(const SelectionInFlatTree& selection) {
-  return NormalizeRangeAlgorithm(selection);
+  DCHECK(IsRange());
+  return NormalizeRange(EphemeralRangeTemplate<Strategy>(Start(), End()));
 }
 
 template <typename Strategy>
@@ -274,6 +262,37 @@ bool VisibleSelectionTemplate<Strategy>::IsValidFor(
   if (IsNone())
     return true;
   return base_.IsValidFor(document) && extent_.IsValidFor(document);
+}
+
+// TODO(yosin) This function breaks the invariant of this class.
+// But because we use VisibleSelection to store values in editing commands for
+// use when undoing the command, we need to be able to create a selection that
+// while currently invalid, will be valid once the changes are undone. This is a
+// design problem. To fix it we either need to change the invariants of
+// |VisibleSelection| or create a new class for editing to use that can
+// manipulate selections that are not currently valid.
+template <typename Strategy>
+VisibleSelectionTemplate<Strategy>
+VisibleSelectionTemplate<Strategy>::CreateWithoutValidationDeprecated(
+    const PositionTemplate<Strategy>& base,
+    const PositionTemplate<Strategy>& extent,
+    TextAffinity affinity) {
+  DCHECK(base.IsNotNull());
+  DCHECK(extent.IsNotNull());
+
+  VisibleSelectionTemplate<Strategy> visible_selection;
+  visible_selection.base_ = base;
+  visible_selection.extent_ = extent;
+  visible_selection.base_is_first_ = base.CompareTo(extent) <= 0;
+  if (base == extent) {
+    visible_selection.affinity_ = affinity;
+    return visible_selection;
+  }
+  // Since |affinity_| for non-|CaretSelection| is always |kDownstream|,
+  // we should keep this invariant. Note: This function can be called with
+  // |affinity_| is |kUpstream|.
+  visible_selection.affinity_ = TextAffinity::kDownstream;
+  return visible_selection;
 }
 
 template <typename Strategy>
@@ -402,20 +421,20 @@ std::ostream& operator<<(std::ostream& ostream,
 
 #if DCHECK_IS_ON()
 
-void ShowTree(const blink::VisibleSelection& sel) {
+void showTree(const blink::VisibleSelection& sel) {
   sel.ShowTreeForThis();
 }
 
-void ShowTree(const blink::VisibleSelection* sel) {
+void showTree(const blink::VisibleSelection* sel) {
   if (sel)
     sel->ShowTreeForThis();
 }
 
-void ShowTree(const blink::VisibleSelectionInFlatTree& sel) {
+void showTree(const blink::VisibleSelectionInFlatTree& sel) {
   sel.ShowTreeForThis();
 }
 
-void ShowTree(const blink::VisibleSelectionInFlatTree* sel) {
+void showTree(const blink::VisibleSelectionInFlatTree* sel) {
   if (sel)
     sel->ShowTreeForThis();
 }

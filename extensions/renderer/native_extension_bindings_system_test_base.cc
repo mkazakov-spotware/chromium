@@ -1,15 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/native_extension_bindings_system_test_base.h"
 
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "content/public/test/mock_render_thread.h"
 #include "extensions/common/extension_messages.h"
 #include "extensions/common/manifest.h"
-#include "extensions/common/mojom/frame.mojom.h"
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/renderer/module_system.h"
 #include "extensions/renderer/native_extension_bindings_system.h"
@@ -22,8 +20,9 @@ namespace extensions {
 
 TestIPCMessageSender::TestIPCMessageSender() {}
 TestIPCMessageSender::~TestIPCMessageSender() {}
-void TestIPCMessageSender::SendRequestIPC(ScriptContext* context,
-                                          mojom::RequestParamsPtr params) {
+void TestIPCMessageSender::SendRequestIPC(
+    ScriptContext* context,
+    std::unique_ptr<ExtensionHostMsg_Request_Params> params) {
   last_params_ = std::move(params);
 }
 
@@ -88,8 +87,11 @@ ScriptContext* NativeExtensionBindingsSystemUnittest::CreateScriptContext(
 
 void NativeExtensionBindingsSystemUnittest::OnWillDisposeContext(
     v8::Local<v8::Context> context) {
-  auto iter = base::ranges::find(raw_script_contexts_, context,
-                                 &ScriptContext::v8_context);
+  auto iter =
+      std::find_if(raw_script_contexts_.begin(), raw_script_contexts_.end(),
+                   [context](ScriptContext* script_context) {
+                     return script_context->v8_context() == context;
+                   });
   if (iter == raw_script_contexts_.end()) {
     ASSERT_TRUE(allow_unregistered_contexts_);
     return;

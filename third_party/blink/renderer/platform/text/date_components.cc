@@ -325,7 +325,7 @@ bool DateComponents::ParseDateTimeLocal(const String& src,
     return false;
   if (index >= src.length())
     return false;
-  if (src[index] != 'T' && src[index] != ' ')
+  if (src[index] != 'T')
     return false;
   ++index;
   if (!ParseTime(src, index, end))
@@ -518,19 +518,19 @@ String DateComponents::ToStringForTime(SecondFormat format) const {
   DCHECK(type_ == kDateTimeLocal || type_ == kTime);
   SecondFormat effective_format = format;
   if (millisecond_)
-    effective_format = SecondFormat::kMillisecond;
-  else if (format == SecondFormat::kNone && second_)
-    effective_format = SecondFormat::kSecond;
+    effective_format = kMillisecond;
+  else if (format == kNone && second_)
+    effective_format = kSecond;
 
   switch (effective_format) {
     default:
       NOTREACHED();
-      [[fallthrough]];
-    case SecondFormat::kNone:
+      FALLTHROUGH;
+    case kNone:
       return String::Format("%02d:%02d", hour_, minute_);
-    case SecondFormat::kSecond:
+    case kSecond:
       return String::Format("%02d:%02d:%02d", hour_, minute_, second_);
-    case SecondFormat::kMillisecond:
+    case kMillisecond:
       return String::Format("%02d:%02d:%02d.%03d", hour_, minute_, second_,
                             millisecond_);
   }

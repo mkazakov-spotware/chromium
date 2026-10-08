@@ -1,15 +1,16 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/snapshots/snapshot_lru_cache.h"
 
-#import <stddef.h>
+#include <stddef.h>
 
-#import <memory>
-#import <unordered_map>
+#include <memory>
+#include <unordered_map>
 
-#import "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
+#include "base/macros.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -27,18 +28,26 @@ struct NSObjectHash {
   std::size_t operator()(id<NSObject> obj) const { return [obj hash]; }
 };
 
-using NSObjectLRUCache = base::
-    HashingLRUCache<id<NSObject>, id<NSObject>, NSObjectHash, NSObjectEqualTo>;
+template <class KeyType, class ValueType, class HashType>
+struct MRUCacheNSObjectHashMap {
+  using Type =
+      std::unordered_map<KeyType, ValueType, HashType, NSObjectEqualTo>;
+};
+
+using NSObjectMRUCache = base::MRUCacheBase<id<NSObject>,
+                                            id<NSObject>,
+                                            NSObjectHash,
+                                            MRUCacheNSObjectHashMap>;
 
 }  // namespace
 
 @implementation SnapshotLRUCache {
-  std::unique_ptr<NSObjectLRUCache> _cache;
+  std::unique_ptr<NSObjectMRUCache> _cache;
 }
 
 - (instancetype)initWithCacheSize:(NSUInteger)maxCacheSize {
   if ((self = [super init])) {
-    _cache = std::make_unique<NSObjectLRUCache>(maxCacheSize);
+    _cache = std::make_unique<NSObjectMRUCache>(maxCacheSize);
   }
   return self;
 }

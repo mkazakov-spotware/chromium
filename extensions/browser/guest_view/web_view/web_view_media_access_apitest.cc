@@ -1,8 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/test/browser_test_utils.h"
@@ -21,10 +22,6 @@ namespace {
 class MockWebContentsDelegate : public content::WebContentsDelegate {
  public:
   MockWebContentsDelegate() : requested_(false), checked_(false) {}
-
-  MockWebContentsDelegate(const MockWebContentsDelegate&) = delete;
-  MockWebContentsDelegate& operator=(const MockWebContentsDelegate&) = delete;
-
   ~MockWebContentsDelegate() override {}
 
   void RequestMediaAccessPermission(
@@ -64,6 +61,8 @@ class MockWebContentsDelegate : public content::WebContentsDelegate {
   bool checked_;
   scoped_refptr<content::MessageLoopRunner> request_message_loop_runner_;
   scoped_refptr<content::MessageLoopRunner> check_message_loop_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockWebContentsDelegate);
 };
 
 }  // namespace
@@ -76,10 +75,10 @@ class WebViewMediaAccessAPITest : public WebViewAPITest {
 
   // Runs media_access tests.
   void RunTest(const std::string& test_name) {
-    ExtensionTestMessageListener test_run_listener("TEST_PASSED");
+    ExtensionTestMessageListener test_run_listener("TEST_PASSED", false);
     test_run_listener.set_failure_message("TEST_FAILED");
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents_.get(),
+        embedder_web_contents_,
         base::StringPrintf("runTest('%s');", test_name.c_str())));
     ASSERT_TRUE(test_run_listener.WaitUntilSatisfied());
   }

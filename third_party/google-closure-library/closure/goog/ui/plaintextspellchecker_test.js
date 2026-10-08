@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.PlainTextSpellCheckerTest');
 goog.setTestOnly();
@@ -100,7 +108,6 @@ testSuite({
   testPlainTextSpellCheckerNoQuotes() {
     const handler = new SpellCheck(localSpellCheckingFunction);
     const s = new PlainTextSpellChecker(handler);
-    /** @suppress {visibility} suppression added to enable type checking */
     s.asyncWordsPerBatch_ = 100;
     const el = document.getElementById('test1');
     s.decorate(el);
@@ -108,17 +115,12 @@ testSuite({
     for (let i = 0; i < 10; ++i) {
       text += generateRandomString(10, false) + '\n';
     }
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     // Yes this looks bizarre. This is for '\n' processing.
     // They get converted to CRLF as part of the above statement.
     text = el.value;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
@@ -141,7 +143,6 @@ testSuite({
   testPlainTextSpellCheckerWithQuotes() {
     const handler = new SpellCheck(localSpellCheckingFunction);
     const s = new PlainTextSpellChecker(handler);
-    /** @suppress {visibility} suppression added to enable type checking */
     s.asyncWordsPerBatch_ = 100;
     const el = document.getElementById('test2');
     s.decorate(el);
@@ -149,17 +150,12 @@ testSuite({
     for (let i = 0; i < 10; ++i) {
       text += generateRandomString(10, true) + '\n';
     }
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     // Yes this looks bizarre. This is for '\n' processing.
     // They get converted to CRLF as part of the above statement.
     text = el.value;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.setExcludeMarker(new RegExp('\nOn .* wrote:\n(> .*\n)+|\n(> .*\n)', 'g'));
@@ -180,14 +176,9 @@ testSuite({
     s.dispose();
   },
 
-  /**
-     @suppress {checkTypes,strictMissingProperties,visibility} suppression
-     added to enable type checking
-   */
   testPlainTextSpellCheckerWordReplacement() {
     const handler = new SpellCheck(localSpellCheckingFunction);
     const s = new PlainTextSpellChecker(handler);
-    /** @suppress {visibility} suppression added to enable type checking */
     s.asyncWordsPerBatch_ = 100;
     const el = document.getElementById('test3');
     s.decorate(el);
@@ -195,20 +186,14 @@ testSuite({
     for (let i = 0; i < 10; ++i) {
       text += generateRandomString(10, false) + '\n';
     }
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
     processTimerQueue();
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const container = s.overlay_;
     let wordEl = container.firstChild;
     while (wordEl) {
@@ -226,28 +211,16 @@ testSuite({
       return;
     }
 
-    /** @suppress {visibility} suppression added to enable type checking */
     s.activeWord_ = missspelling;
-    /**
-     * @suppress {visibility,checkTypes} suppression added to enable type
-     * checking
-     */
     s.activeElement_ = wordEl;
-    /** @suppress {visibility} suppression added to enable type checking */
     const suggestions = s.getSuggestions_();
     s.replaceWord(wordEl, missspelling, 'foo');
     assertEquals(
         'Should have set the original word attribute!',
         wordEl.getAttribute(AbstractSpellChecker.ORIGINAL_), missspelling);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     s.activeWord_ = dom.getTextContent(wordEl);
-    /**
-     * @suppress {visibility,checkTypes} suppression added to enable type
-     * checking
-     */
     s.activeElement_ = wordEl;
-    /** @suppress {visibility} suppression added to enable type checking */
     const newSuggestions = s.getSuggestions_();
     assertEquals(
         'Suggestion list should still be present even if the word ' +
@@ -267,23 +240,17 @@ testSuite({
     const el = document.getElementById('test4');
     s.decorate(el);
     const text = 'a unit test for keyboard test';
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     const keyEventProperties = {};
     keyEventProperties.ctrlKey = true;
     keyEventProperties.shiftKey = false;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
     processTimerQueue();
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const container = s.overlay_;
 
     // First call just moves focus to first misspelled word.
@@ -313,23 +280,17 @@ testSuite({
     const el = document.getElementById('test5');
     s.decorate(el);
     const text = 'a unit test for keyboard test';
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     const keyEventProperties = {};
     keyEventProperties.ctrlKey = true;
     keyEventProperties.shiftKey = false;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
     processTimerQueue();
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const container = s.overlay_;
 
     // First call just moves focus to first misspelled word.
@@ -361,25 +322,18 @@ testSuite({
     const el = document.getElementById('test6');
     s.decorate(el);
     const text = 'unit';
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     const keyEventProperties = {};
     keyEventProperties.ctrlKey = true;
     keyEventProperties.shiftKey = false;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
     processTimerQueue();
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const container = s.overlay_;
-    /** @suppress {visibility} suppression added to enable type checking */
     const suggestionMenu = s.getMenu();
 
     events.fireKeySequence(container, KeyCodes.RIGHT, keyEventProperties);
@@ -412,23 +366,17 @@ testSuite({
     const el = document.getElementById('test7');
     s.decorate(el);
     const text = 'a unit test for keyboard test';
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     const keyEventProperties = {};
     keyEventProperties.ctrlKey = true;
     keyEventProperties.shiftKey = false;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
     processTimerQueue();
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const container = s.overlay_;
 
     // Move to the third element, so we can test the move back to the second.
@@ -460,23 +408,17 @@ testSuite({
     const el = document.getElementById('test8');
     s.decorate(el);
     const text = 'a unit test for keyboard test';
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     el.value = text;
     const keyEventProperties = {};
     keyEventProperties.ctrlKey = true;
     keyEventProperties.shiftKey = false;
 
     const timerSav = Timer.callOnce;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     Timer.callOnce = localTimer;
 
     s.check();
     processTimerQueue();
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const container = s.overlay_;
 
     // Move to the first invalid word.

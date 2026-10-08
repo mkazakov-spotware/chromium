@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,17 +12,18 @@
 // Protocol for instances that will provide menus to RecentTabs components.
 @protocol RecentTabsMenuProvider
 
-// Creates a context menu configuration instance for the given `item` and its
-// associated `view`.
+// Creates a context menu configuration instance for the given |item| and its
+// associated |view|.
 - (UIContextMenuConfiguration*)contextMenuConfigurationForItem:
                                    (TableViewURLItem*)item
-                                                      fromView:(UIView*)view;
+                                                      fromView:(UIView*)view
+    API_AVAILABLE(ios(13.0));
 
 // Creates a context menu configuration instance for the header of the given
-// `sectionIdentifier`.
+// |sectionIdentifier|.
 - (UIContextMenuConfiguration*)
     contextMenuConfigurationForHeaderWithSectionIdentifier:
-        (NSInteger)sectionIdentifier;
+        (NSInteger)sectionIdentifier API_AVAILABLE(ios(13.0));
 
 @end
 

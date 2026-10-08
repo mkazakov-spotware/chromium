@@ -9,13 +9,19 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1"/>
   <!-- TODO(crbug.com/487000): Remove this once injected by web. -->
+  <script src="chrome://resources/js/ios/web_ui.js"></script>
 </if>
 
   <title>$i18n{crashesTitle}</title>
   <link rel="stylesheet" href="chrome://resources/css/text_defaults.css">
   <link rel="stylesheet" href="chrome://resources/css/widgets.css">
   <link rel="stylesheet" href="crashes.css">
-  <script type="module" src="crashes.js"></script>
+  <script src="chrome://resources/js/action_link.js"></script>
+  <script src="chrome://resources/js/load_time_data.js"></script>
+  <script src="chrome://resources/js/assert.js"></script>
+  <script src="chrome://resources/js/util.js"></script>
+  <script src="strings.js"></script>
+  <script src="crashes.js"></script>
 </head>
 <body>
   <header><h1>$i18n{crashesTitle}</h1></header>
@@ -43,32 +49,32 @@
 
     <div id="crashList">
       <template>
-        <div class="crash-row">
-          <h3 class="capture-time"></h3>
-          <table class="crash-detail">
+        <div class="crashRow">
+          <h3 class="captureTime"></h3>
+          <table class="crashDetail">
             <tr class="status">
               <td>$i18n{crashStatus}</td>
               <td class="value"></td>
             </tr>
-            <tr class="upload-id">
+            <tr class="uploadId">
               <td>$i18n{uploadId}</td>
               <td class="value"></td>
             </tr>
-            <tr class="upload-time">
+            <tr class="uploadTime">
               <td>$i18n{uploadTime}</td>
               <td class="value"></td>
             </tr>
-            <tr class="local-id dev-detail">
+            <tr class="localId devDetail">
               <td>$i18n{localId}</td>
               <td class="value"></td>
             </tr>
-            <tr class="file-size">
+            <tr class="fileSize">
               <td>$i18n{fileSize}</td>
               <td class="value"></td>
             </tr>
           </table>
-          <button class="send-now">$i18n{uploadNowLinkText}</button>
-          <button class="file-bug">$i18n{bugLinkText}</button>
+          <button class="sendNow">$i18n{uploadNowLinkText}</button>
+          <button class="fileBug">$i18n{bugLinkText}</button>
         </div>
       </template>
     </div>

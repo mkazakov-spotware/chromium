@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.webapps;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -20,7 +19,6 @@ import org.junit.runner.RunWith;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.ContextUtils;
@@ -28,7 +26,7 @@ import org.chromium.base.task.test.BackgroundShadowAsyncTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.ShortcutHelper;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.browsing_data.UrlFilters;
 import org.chromium.chrome.test.util.browser.webapps.WebApkIntentDataProviderBuilder;
 
@@ -45,7 +43,6 @@ import java.util.Set;
  */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, shadows = {BackgroundShadowAsyncTask.class})
-@LooperMode(LooperMode.Mode.LEGACY)
 public class WebappRegistryTest {
     // These were copied from WebappRegistry for backward compatibility checking.
     private static final String REGISTRY_FILE_NAME = "webapp_registry";
@@ -700,51 +697,6 @@ public class WebappRegistryTest {
                 new WebApkIntentDataProviderBuilder("org.chromium.webapk", startUrl).build();
         registerWebapp(webApkIntentDataProvider);
         assertTrue(WebappRegistry.getInstance().hasAtLeastOneWebApkForOrigin(testOrigin));
-    }
-
-    @Test
-    @Feature({"WebApk"})
-    public void testFindWebApkWithManifestId() throws Exception {
-        final String testManifestId = START_URL + "/id";
-        final String testPackageName = "org.chromium.webapk";
-
-        assertNull(WebappRegistry.getInstance().getWebappDataStorageForManifestId(testManifestId));
-
-        WebApkIntentDataProviderBuilder webApkIntentDataProviderBuilder =
-                new WebApkIntentDataProviderBuilder(testPackageName, START_URL);
-        webApkIntentDataProviderBuilder.setWebApkManifestId(testManifestId);
-        registerWebapp(webApkIntentDataProviderBuilder.build());
-
-        WebappDataStorage storage =
-                WebappRegistry.getInstance().getWebappDataStorageForManifestId(testManifestId);
-        assertNotNull(storage);
-        assertEquals(storage.getWebApkManifestId(), testManifestId);
-        assertEquals(storage.getWebApkPackageName(), testPackageName);
-
-        final String anotherManifestId = START_URL + "/test_page.html";
-        assertNull(
-                WebappRegistry.getInstance().getWebappDataStorageForManifestId(anotherManifestId));
-    }
-
-    @Test
-    @Feature({"WebApk"})
-    public void testFindWebApkPackageWithManifestId() throws Exception {
-        final String testManifestId = START_URL + "/id";
-        final String testPackageName = "org.chromium.webapk";
-
-        assertNull(WebappRegistry.getInstance().findWebApkWithManifestId(testManifestId));
-
-        WebApkIntentDataProviderBuilder webApkIntentDataProviderBuilder =
-                new WebApkIntentDataProviderBuilder(testPackageName, START_URL);
-        webApkIntentDataProviderBuilder.setWebApkManifestId(testManifestId);
-        registerWebapp(webApkIntentDataProviderBuilder.build());
-
-        assertEquals(WebappRegistry.getInstance().findWebApkWithManifestId(testManifestId),
-                testPackageName);
-
-        final String anotherManifestId = START_URL + "/test_page.html";
-        assertNull(
-                WebappRegistry.getInstance().getWebappDataStorageForManifestId(anotherManifestId));
     }
 
     private Set<String> addWebappsToRegistry(String... webapps) {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/optional.h"
 #include "chrome/browser/nearby_sharing/contacts/nearby_share_contact_manager.h"
 #include "chrome/browser/nearby_sharing/proto/rpc_resources.pb.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -19,7 +20,6 @@
 class NearbyShareClientFactory;
 class NearbyShareContactDownloader;
 class NearbyShareLocalDeviceDataManager;
-class NearbyShareProfileInfoProvider;
 class NearbyShareScheduler;
 class PrefService;
 
@@ -49,7 +49,7 @@ class NearbyShareContactManagerImpl : public NearbyShareContactManager {
         PrefService* pref_service,
         NearbyShareClientFactory* http_client_factory,
         NearbyShareLocalDeviceDataManager* local_device_data_manager,
-        NearbyShareProfileInfoProvider* profile_info_provider);
+        const std::string& profile_user_name);
     static void SetFactoryForTesting(Factory* test_factory);
 
    protected:
@@ -58,7 +58,7 @@ class NearbyShareContactManagerImpl : public NearbyShareContactManager {
         PrefService* pref_service,
         NearbyShareClientFactory* http_client_factory,
         NearbyShareLocalDeviceDataManager* local_device_data_manager,
-        NearbyShareProfileInfoProvider* profile_info_provider) = 0;
+        const std::string& profile_user_name) = 0;
 
    private:
     static Factory* test_factory_;
@@ -71,7 +71,7 @@ class NearbyShareContactManagerImpl : public NearbyShareContactManager {
       PrefService* pref_service,
       NearbyShareClientFactory* http_client_factory,
       NearbyShareLocalDeviceDataManager* local_device_data_manager,
-      NearbyShareProfileInfoProvider* profile_info_provider);
+      const std::string& profile_user_name);
 
   // NearbyShareContactsManager:
   void DownloadContacts() override;
@@ -98,9 +98,7 @@ class NearbyShareContactManagerImpl : public NearbyShareContactManager {
                                 const std::string& contact_upload_hash,
                                 bool success);
   bool SetAllowlist(const std::set<std::string>& new_allowlist);
-
-  // Notify the base-class and mojo observers that contacts were downloaded.
-  void NotifyAllObserversContactsDownloaded(
+  void NotifyMojoObserverContactsDownloaded(
       const std::set<std::string>& allowed_contact_ids,
       const std::vector<nearbyshare::proto::ContactRecord>& contacts,
       uint32_t num_unreachable_contacts_filtered_out);
@@ -108,7 +106,7 @@ class NearbyShareContactManagerImpl : public NearbyShareContactManager {
   PrefService* pref_service_ = nullptr;
   NearbyShareClientFactory* http_client_factory_ = nullptr;
   NearbyShareLocalDeviceDataManager* local_device_data_manager_ = nullptr;
-  NearbyShareProfileInfoProvider* profile_info_provider_ = nullptr;
+  std::string profile_user_name_;
   std::unique_ptr<NearbyShareScheduler> periodic_contact_upload_scheduler_;
   std::unique_ptr<NearbyShareScheduler> contact_download_and_upload_scheduler_;
   std::unique_ptr<NearbyShareContactDownloader> contact_downloader_;

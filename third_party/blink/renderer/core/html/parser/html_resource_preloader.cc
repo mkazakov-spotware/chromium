@@ -33,6 +33,7 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_prescient_networking.h"
 #include "third_party/blink/renderer/core/dom/document.h"
+#include "third_party/blink/renderer/core/frame/deprecation.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
@@ -71,6 +72,7 @@ void HTMLResourcePreloader::Preload(std::unique_ptr<PreloadRequest> preload) {
   if (!AllowPreloadRequest(preload.get())) {
     return;
   }
+  // TODO(yoichio): Should preload if document is imported.
   if (!document_->Loader())
     return;
 
@@ -91,11 +93,11 @@ bool HTMLResourcePreloader::AllowPreloadRequest(PreloadRequest* preload) const {
     return false;
   }
 
-  switch (preload->FetchPriorityHint()) {
-    case mojom::blink::FetchPriorityHint::kHigh:
+  switch (preload->Importance()) {
+    case mojom::FetchImportanceMode::kImportanceHigh:
       return true;
-    case mojom::blink::FetchPriorityHint::kLow:
-    case mojom::blink::FetchPriorityHint::kAuto:
+    case mojom::FetchImportanceMode::kImportanceLow:
+    case mojom::FetchImportanceMode::kImportanceAuto:
       break;
   }
 
@@ -108,14 +110,13 @@ bool HTMLResourcePreloader::AllowPreloadRequest(PreloadRequest* preload) const {
     case ResourceType::kXSLStyleSheet:
     case ResourceType::kLinkPrefetch:
     case ResourceType::kTextTrack:
+    case ResourceType::kImportResource:
     case ResourceType::kAudio:
     case ResourceType::kVideo:
     case ResourceType::kManifest:
     case ResourceType::kMock:
       return !GetFieldTrialParamByFeatureAsBool(
           features::kLightweightNoStatePrefetch, "skip_other", true);
-    case ResourceType::kSpeculationRules:
-      return false;
     case ResourceType::kImage:
       return false;
     case ResourceType::kCSSStyleSheet:

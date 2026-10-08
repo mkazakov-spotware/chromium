@@ -1,28 +1,24 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/permissions/pref_notification_permission_ui_selector.h"
 
+#include "base/optional.h"
 #include "base/run_loop.h"
-#include "base/strings/stringprintf.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/content_settings/core/common/pref_names.h"
-#include "components/permissions/request_type.h"
 #include "components/permissions/test/mock_permission_request.h"
 #include "components/prefs/testing_pref_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace {
-
-using testing::DoAll;
 
 using QuietUiReason = PrefNotificationPermissionUiSelector::QuietUiReason;
 using WarningReason = PrefNotificationPermissionUiSelector::WarningReason;
@@ -40,11 +36,6 @@ class PrefNotificationPermissionUiSelectorTest : public testing::Test {
       : testing_profile_(std::make_unique<TestingProfile>()),
         pref_selector_(testing_profile_.get()) {}
 
-  PrefNotificationPermissionUiSelectorTest(
-      const PrefNotificationPermissionUiSelectorTest&) = delete;
-  PrefNotificationPermissionUiSelectorTest& operator=(
-      const PrefNotificationPermissionUiSelectorTest&) = delete;
-
   PrefNotificationPermissionUiSelector* pref_selector() {
     return &pref_selector_;
   }
@@ -57,13 +48,15 @@ class PrefNotificationPermissionUiSelectorTest : public testing::Test {
   std::unique_ptr<TestingProfile> testing_profile_;
 
   PrefNotificationPermissionUiSelector pref_selector_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefNotificationPermissionUiSelectorTest);
 };
 
 TEST_F(PrefNotificationPermissionUiSelectorTest, FeatureAndPrefCombinations) {
   const struct {
     bool feature_enabled;
     bool quiet_ui_enabled_in_prefs;
-    absl::optional<QuietUiReason> expected_reason;
+    base::Optional<QuietUiReason> expected_reason;
   } kTests[] = {
       {true, false, Decision::UseNormalUi()},
       {true, true, QuietUiReason::kEnabledInPrefs},
@@ -91,7 +84,7 @@ TEST_F(PrefNotificationPermissionUiSelectorTest, FeatureAndPrefCombinations) {
     base::MockCallback<
         PrefNotificationPermissionUiSelector::DecisionMadeCallback>
         mock_callback;
-    Decision actual_decison(absl::nullopt, absl::nullopt);
+    Decision actual_decison(base::nullopt, base::nullopt);
 
     // Make a request and wait for the callback.
     EXPECT_CALL(mock_callback, Run)
@@ -99,7 +92,9 @@ TEST_F(PrefNotificationPermissionUiSelectorTest, FeatureAndPrefCombinations) {
                               QuitMessageLoop(&callback_loop)));
 
     permissions::MockPermissionRequest mock_request(
-        GURL("http://example.com"), permissions::RequestType::kNotifications);
+        std::string(),
+        permissions::PermissionRequestType::PERMISSION_NOTIFICATIONS,
+        GURL("http://example.com"));
     pref_selector()->SelectUiToUse(&mock_request, mock_callback.Get());
     callback_loop.Run();
     testing::Mock::VerifyAndClearExpectations(&mock_callback);

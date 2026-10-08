@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_VR_CARDBOARD_INPUT_DELEGATE_H_
 #define CHROME_BROWSER_ANDROID_VR_CARDBOARD_INPUT_DELEGATE_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/input_delegate.h"
 
 namespace gvr {
@@ -17,10 +17,6 @@ namespace vr {
 class CardboardInputDelegate : public InputDelegate {
  public:
   explicit CardboardInputDelegate(gvr::GvrApi* gvr_api);
-
-  CardboardInputDelegate(const CardboardInputDelegate&) = delete;
-  CardboardInputDelegate& operator=(const CardboardInputDelegate&) = delete;
-
   ~CardboardInputDelegate() override;
 
   // InputDelegate implementation.
@@ -36,9 +32,11 @@ class CardboardInputDelegate : public InputDelegate {
   void OnPause() override;
 
  private:
-  raw_ptr<gvr::GvrApi> gvr_api_;
+  gvr::GvrApi* gvr_api_;
   bool cardboard_trigger_pressed_ = false;
   bool cardboard_trigger_clicked_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(CardboardInputDelegate);
 };
 
 }  // namespace vr

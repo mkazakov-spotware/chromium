@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/download/internal/background_service/model.h"
 #include "components/download/internal/background_service/store.h"
@@ -24,10 +24,6 @@ struct Entry;
 class ModelImpl : public Model {
  public:
   ModelImpl(std::unique_ptr<Store> store);
-
-  ModelImpl(const ModelImpl&) = delete;
-  ModelImpl& operator=(const ModelImpl&) = delete;
-
   ~ModelImpl() override;
 
   // Model implementation.
@@ -58,7 +54,7 @@ class ModelImpl : public Model {
 
   // The external Model::Client reference that will receive all interesting
   // Model notifications.
-  raw_ptr<Client> client_;
+  Client* client_;
 
   // The backing Store that is responsible for saving and loading the
   // persisted entries.
@@ -69,6 +65,8 @@ class ModelImpl : public Model {
   OwnedEntryMap entries_;
 
   base::WeakPtrFactory<ModelImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ModelImpl);
 };
 
 }  // namespace download

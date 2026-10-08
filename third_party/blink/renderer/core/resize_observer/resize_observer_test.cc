@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "third_party/blink/public/web/web_heap.h"
 #include "third_party/blink/renderer/bindings/core/v8/sanitize_script_errors.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_source_code.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_gc_controller.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_resize_observer_options.h"
 #include "third_party/blink/renderer/core/exported/web_view_impl.h"
@@ -19,7 +20,6 @@
 #include "third_party/blink/renderer/core/testing/sim/sim_compositor.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
-#include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/loader/fetch/script_fetch_options.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 
@@ -77,9 +77,9 @@ TEST_F(ResizeObserverUnitTest, ResizeObserverDOMContentBoxAndSVG) {
   Element* dom_target = GetDocument().getElementById("domTarget");
   Element* svg_target = GetDocument().getElementById("svgTarget");
   ResizeObservation* dom_observation = MakeGarbageCollected<ResizeObservation>(
-      dom_target, observer, ResizeObserverBoxOptions::kContentBox);
+      dom_target, observer, ResizeObserverBoxOptions::ContentBox);
   ResizeObservation* svg_observation = MakeGarbageCollected<ResizeObservation>(
-      svg_target, observer, ResizeObserverBoxOptions::kContentBox);
+      svg_target, observer, ResizeObserverBoxOptions::ContentBox);
 
   // Initial observation is out of sync
   ASSERT_TRUE(dom_observation->ObservationSizeOutOfSync());
@@ -120,8 +120,9 @@ TEST_F(ResizeObserverUnitTest, ResizeObserverDOMBorderBox) {
       MakeGarbageCollected<TestResizeObserverDelegate>(Window());
   ResizeObserver* observer = ResizeObserver::Create(&Window(), delegate);
   Element* dom_border_target = GetDocument().getElementById("domBorderTarget");
-  auto* dom_border_observation = MakeGarbageCollected<ResizeObservation>(
-      dom_border_target, observer, ResizeObserverBoxOptions::kBorderBox);
+  ResizeObservation* dom_border_observation =
+      MakeGarbageCollected<ResizeObservation>(
+          dom_border_target, observer, ResizeObserverBoxOptions::BorderBox);
 
   // Initial observation is out of sync
   ASSERT_TRUE(dom_border_observation->ObservationSizeOutOfSync());
@@ -156,11 +157,14 @@ TEST_F(ResizeObserverUnitTest, ResizeObserverDOMDevicePixelContentBox) {
   Element* dom_target = GetDocument().getElementById("domTarget");
   Element* dom_dp_target = GetDocument().getElementById("domDPTarget");
 
-  auto* dom_dp_nested_observation = MakeGarbageCollected<ResizeObservation>(
-      dom_dp_target, observer,
-      ResizeObserverBoxOptions::kDevicePixelContentBox);
-  auto* dom_dp_observation = MakeGarbageCollected<ResizeObservation>(
-      dom_target, observer, ResizeObserverBoxOptions::kDevicePixelContentBox);
+  ResizeObservation* dom_dp_nested_observation =
+      MakeGarbageCollected<ResizeObservation>(
+          dom_dp_target, observer,
+          ResizeObserverBoxOptions::DevicePixelContentBox);
+  ResizeObservation* dom_dp_observation =
+      MakeGarbageCollected<ResizeObservation>(
+          dom_target, observer,
+          ResizeObserverBoxOptions::DevicePixelContentBox);
 
   // Initial observation is out of sync
   ASSERT_TRUE(dom_dp_observation->ObservationSizeOutOfSync());
@@ -255,33 +259,37 @@ TEST_F(ResizeObserverUnitTest, TestMemoryLeaks) {
   // Test whether ResizeObserver is kept alive by direct JS reference
   //
   ClassicScript::CreateUnspecifiedScript(
-      "var ro = new ResizeObserver( entries => {});")
-      ->RunScript(&Window());
+      ScriptSourceCode("var ro = new ResizeObserver( entries => {});"))
+      ->RunScript(&Window(),
+                  ScriptController::kExecuteScriptWhenScriptsDisabled);
   ASSERT_EQ(observers.size(), 1U);
-  ClassicScript::CreateUnspecifiedScript("ro = undefined;")
-      ->RunScript(&Window());
+  ClassicScript::CreateUnspecifiedScript(ScriptSourceCode("ro = undefined;"))
+      ->RunScript(&Window(),
+                  ScriptController::kExecuteScriptWhenScriptsDisabled);
   ThreadState::Current()->CollectAllGarbageForTesting();
   WebHeap::CollectAllGarbageForTesting();
-  ASSERT_EQ(observers.empty(), true);
+  ASSERT_EQ(observers.IsEmpty(), true);
 
   //
   // Test whether ResizeObserver is kept alive by an Element
   //
   ClassicScript::CreateUnspecifiedScript(
-      "var ro = new ResizeObserver( () => {});"
-      "var el = document.createElement('div');"
-      "ro.observe(el);"
-      "ro = undefined;")
-      ->RunScript(&Window());
+      ScriptSourceCode("var ro = new ResizeObserver( () => {});"
+                       "var el = document.createElement('div');"
+                       "ro.observe(el);"
+                       "ro = undefined;"))
+      ->RunScript(&Window(),
+                  ScriptController::kExecuteScriptWhenScriptsDisabled);
   ASSERT_EQ(observers.size(), 1U);
   ThreadState::Current()->CollectAllGarbageForTesting();
   WebHeap::CollectAllGarbageForTesting();
   ASSERT_EQ(observers.size(), 1U);
-  ClassicScript::CreateUnspecifiedScript("el = undefined;")
-      ->RunScript(&Window());
+  ClassicScript::CreateUnspecifiedScript(ScriptSourceCode("el = undefined;"))
+      ->RunScript(&Window(),
+                  ScriptController::kExecuteScriptWhenScriptsDisabled);
   ThreadState::Current()->CollectAllGarbageForTesting();
   WebHeap::CollectAllGarbageForTesting();
-  ASSERT_EQ(observers.empty(), true);
+  ASSERT_EQ(observers.IsEmpty(), true);
 }
 
 }  // namespace blink

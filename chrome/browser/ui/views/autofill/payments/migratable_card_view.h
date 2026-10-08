@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_AUTOFILL_PAYMENTS_MIGRATABLE_CARD_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_AUTOFILL_PAYMENTS_MIGRATABLE_CARD_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/autofill/core/browser/payments/local_card_migration_manager.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
 
 namespace views {
@@ -26,20 +25,19 @@ class MigratableCreditCard;
 // expiration date. Used by LocalCardMigrationDialogView.
 class MigratableCardView : public views::View {
  public:
-  METADATA_HEADER(MigratableCardView);
+  static const char kViewClassName[];
+
   MigratableCardView(const MigratableCreditCard& migratable_credit_card,
                      LocalCardMigrationDialogView* parent_dialog,
                      bool should_show_checkbox);
-  MigratableCardView(const MigratableCardView&) = delete;
-  MigratableCardView& operator=(const MigratableCardView&) = delete;
   ~MigratableCardView() override;
 
-  bool GetSelected() const;
+  bool IsSelected() const;
   std::string GetGuid() const;
-  std::u16string GetCardIdentifierString() const;
+  base::string16 GetCardIdentifierString() const;
 
-  // views::View:
-  void OnThemeChanged() override;
+  // views::View
+  const char* GetClassName() const override;
 
  private:
   std::unique_ptr<views::View> GetMigratableCardDescriptionView(
@@ -52,13 +50,15 @@ class MigratableCardView : public views::View {
 
   // The checkbox_ can remain null if the card list in the local
   // card migration dialog contains only one card.
-  raw_ptr<views::Checkbox> checkbox_ = nullptr;
+  views::Checkbox* checkbox_ = nullptr;
 
-  raw_ptr<views::View> checkbox_uncheck_text_container_ = nullptr;
+  views::View* checkbox_uncheck_text_container_ = nullptr;
 
-  raw_ptr<views::ImageButton> delete_card_from_local_button_ = nullptr;
+  views::ImageButton* delete_card_from_local_button_ = nullptr;
 
-  raw_ptr<LocalCardMigrationDialogView> parent_dialog_ = nullptr;
+  LocalCardMigrationDialogView* parent_dialog_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(MigratableCardView);
 };
 
 }  // namespace autofill

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@ TestReferenceReader::TestReferenceReader(const std::vector<Reference>& refs)
 
 TestReferenceReader::~TestReferenceReader() = default;
 
-absl::optional<Reference> TestReferenceReader::GetNext() {
+base::Optional<Reference> TestReferenceReader::GetNext() {
   if (index_ == references_.size())
-    return absl::nullopt;
+    return base::nullopt;
   return references_[index_++];
 }
 

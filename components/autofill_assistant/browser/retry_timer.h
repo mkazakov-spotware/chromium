@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -24,10 +25,6 @@ class RetryTimer {
  public:
   // A RetryTimer with the given retry period
   explicit RetryTimer(base::TimeDelta period);
-
-  RetryTimer(const RetryTimer&) = delete;
-  RetryTimer& operator=(const RetryTimer&) = delete;
-
   ~RetryTimer();
 
   // Tries to run |task| once immediately and then periodically until it
@@ -71,6 +68,7 @@ class RetryTimer {
   std::unique_ptr<base::OneShotTimer> timer_;
 
   base::WeakPtrFactory<RetryTimer> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(RetryTimer);
 };
 
 }  // namespace autofill_assistant

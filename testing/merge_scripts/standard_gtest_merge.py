@@ -1,13 +1,15 @@
 #!/usr/bin/env python
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
-
+import argparse
 import json
 import os
+import shutil
 import sys
+import tempfile
+import traceback
 
 import merge_api
 
@@ -25,13 +27,13 @@ Please examine logs to figure out what happened.
 
 
 def emit_warning(title, log=None):
-  print('@@@STEP_WARNINGS@@@')
-  print(title)
+  print '@@@STEP_WARNINGS@@@'
+  print title
   if log:
     title = title.rstrip()
     for line in log.splitlines():
-      print('@@@STEP_LOG_LINE@%s@%s@@@' % (title, line.rstrip()))
-    print('@@@STEP_LOG_END@%s@@@' % title)
+      print '@@@STEP_LOG_LINE@%s@%s@@@' % (title, line.rstrip())
+    print '@@@STEP_LOG_END@%s@@@' % title
 
 
 def merge_shard_results(summary_json, jsons_to_merge):
@@ -143,10 +145,10 @@ def load_shard_json(index, task_id, jsons_to_merge):
            os.path.basename(os.path.dirname(j)) == task_id))]
 
   if not matching_json_files:
-    print('shard %s test output missing' % index, file=sys.stderr)
+    print >> sys.stderr, 'shard %s test output missing' % index
     return (None, 'shard %s test output was missing' % index)
-  if len(matching_json_files) > 1:
-    print('duplicate test output for shard %s' % index, file=sys.stderr)
+  elif len(matching_json_files) > 1:
+    print >> sys.stderr, 'duplicate test output for shard %s' % index
     return (None, 'shard %s test output was duplicated' % index)
 
   path = matching_json_files[0]
@@ -154,15 +156,15 @@ def load_shard_json(index, task_id, jsons_to_merge):
   try:
     filesize = os.stat(path).st_size
     if filesize > OUTPUT_JSON_SIZE_LIMIT:
-      print('output.json is %d bytes. Max size is %d' % (
-           filesize, OUTPUT_JSON_SIZE_LIMIT), file=sys.stderr)
+      print >> sys.stderr, 'output.json is %d bytes. Max size is %d' % (
+           filesize, OUTPUT_JSON_SIZE_LIMIT)
       return (None, 'shard %s test output exceeded the size limit' % index)
 
     with open(path) as f:
       return (json.load(f), None)
   except (IOError, ValueError, OSError) as e:
-    print('Missing or invalid gtest JSON file: %s' % path, file=sys.stderr)
-    print('%s: %s' % (type(e).__name__, e), file=sys.stderr)
+    print >> sys.stderr, 'Missing or invalid gtest JSON file: %s' % path
+    print >> sys.stderr, '%s: %s' % (type(e).__name__, e)
 
     return (None, 'shard %s test output was missing or invalid' % index)
 
@@ -170,7 +172,7 @@ def load_shard_json(index, task_id, jsons_to_merge):
 def merge_list_of_dicts(left, right):
   """Merges dicts left[0] with right[0], left[1] with right[1], etc."""
   output = []
-  for i in range(max(len(left), len(right))):
+  for i in xrange(max(len(left), len(right))):
     left_dict = left[i] if i < len(left) else {}
     right_dict = right[i] if i < len(right) else {}
     merged_dict = left_dict.copy()
@@ -183,7 +185,7 @@ def standard_gtest_merge(
     output_json, summary_json, jsons_to_merge):
 
   output = merge_shard_results(summary_json, jsons_to_merge)
-  with open(output_json, 'w') as f:
+  with open(output_json, 'wb') as f:
     json.dump(output, f)
 
   return 0

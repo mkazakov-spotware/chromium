@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/compiler_specific.h"
 #include "base/component_export.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "storage/browser/file_system/file_system_file_util.h"
 
 namespace base {
@@ -28,10 +29,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileUtil
     : public FileSystemFileUtil {
  public:
   LocalFileUtil();
-
-  LocalFileUtil(const LocalFileUtil&) = delete;
-  LocalFileUtil& operator=(const LocalFileUtil&) = delete;
-
   ~LocalFileUtil() override;
 
   base::File CreateOrOpen(FileSystemOperationContext* context,
@@ -68,7 +65,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileUtil
   base::File::Error CopyOrMoveFile(FileSystemOperationContext* context,
                                    const FileSystemURL& src_url,
                                    const FileSystemURL& dest_url,
-                                   CopyOrMoveOptionSet options,
+                                   CopyOrMoveOption option,
                                    bool copy) override;
   base::File::Error CopyInForeignFile(FileSystemOperationContext* context,
                                       const base::FilePath& src_file_path,
@@ -92,6 +89,8 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) LocalFileUtil
 
  private:
   class LocalFileEnumerator;
+
+  DISALLOW_COPY_AND_ASSIGN(LocalFileUtil);
 };
 
 }  // namespace storage

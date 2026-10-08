@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ EditSearchEngineController::EditSearchEngineController(
 }
 
 bool EditSearchEngineController::IsTitleValid(
-    const std::u16string& title_input) const {
+    const base::string16& title_input) const {
   return !base::CollapseWhitespace(title_input, true).empty();
 }
 
@@ -62,14 +62,13 @@ bool EditSearchEngineController::IsURLValid(
   // Replace any search term with a placeholder string and make sure the
   // resulting URL is valid.
   return GURL(template_ref.ReplaceSearchTerms(
-                  TemplateURLRef::SearchTermsArgs(u"x"),
-                  service->search_terms_data()))
-      .is_valid();
+      TemplateURLRef::SearchTermsArgs(base::ASCIIToUTF16("x")),
+      service->search_terms_data())).is_valid();
 }
 
 bool EditSearchEngineController::IsKeywordValid(
-    const std::u16string& keyword_input) const {
-  std::u16string keyword_input_trimmed(
+    const base::string16& keyword_input) const {
+  base::string16 keyword_input_trimmed(
       base::CollapseWhitespace(keyword_input, true));
   if (keyword_input_trimmed.empty())
     return false;  // Do not allow empty keyword.
@@ -77,7 +76,7 @@ bool EditSearchEngineController::IsKeywordValid(
   // The omnibox doesn't properly handle search keywords with whitespace,
   // so do not allow such keywords.
   if (keyword_input_trimmed.find_first_of(base::kWhitespaceUTF16) !=
-      std::u16string::npos)
+      base::string16::npos)
     return false;
 
   const TemplateURL* turl_with_keyword =
@@ -87,8 +86,8 @@ bool EditSearchEngineController::IsKeywordValid(
 }
 
 void EditSearchEngineController::AcceptAddOrEdit(
-    const std::u16string& title_input,
-    const std::u16string& keyword_input,
+    const base::string16& title_input,
+    const base::string16& keyword_input,
     const std::string& url_input) {
   DCHECK(!keyword_input.empty());
   std::string url_string = GetFixedUpURL(url_input);
@@ -113,9 +112,9 @@ void EditSearchEngineController::AcceptAddOrEdit(
     // Confiming an entry we got from JS. We have a template_url_, but it
     // hasn't yet been added to the model.
     DCHECK(template_url_);
-    template_url_service->AddWithOverrides(
-        base::WrapUnique(template_url_.get()), title_input, keyword_input,
-        url_string);
+    template_url_service->AddWithOverrides(base::WrapUnique(template_url_),
+                                           title_input, keyword_input,
+                                           url_string);
     base::RecordAction(UserMetricsAction("KeywordEditor_AddKeywordJS"));
   } else {
     // Adding or modifying an entry via the Delegate.
@@ -135,11 +134,12 @@ void EditSearchEngineController::CleanUpCancelledAdd() {
 
 std::string EditSearchEngineController::GetFixedUpURL(
     const std::string& url_input) const {
-  std::u16string url16;
-  base::TrimWhitespace(base::UTF8ToUTF16(url_input), base::TRIM_ALL, &url16);
-  if (url16.empty())
-    return std::string();
-  std::string url = TemplateURLRef::DisplayURLToURLRef(url16);
+  std::string url;
+  base::TrimWhitespaceASCII(
+      TemplateURLRef::DisplayURLToURLRef(base::UTF8ToUTF16(url_input)),
+      base::TRIM_ALL, &url);
+  if (url.empty())
+    return url;
 
   // Parse the string as a URL to determine the scheme. If we need to, add the
   // scheme. As the scheme may be expanded (as happens with {google:baseURL})
@@ -148,7 +148,7 @@ std::string EditSearchEngineController::GetFixedUpURL(
   data.SetURL(url);
   TemplateURL t_url(data);
   std::string expanded_url(t_url.url_ref().ReplaceSearchTerms(
-      TemplateURLRef::SearchTermsArgs(u"x"),
+      TemplateURLRef::SearchTermsArgs(base::ASCIIToUTF16("x")),
       TemplateURLServiceFactory::GetForProfile(profile_)->search_terms_data()));
   url::Parsed parts;
   std::string scheme(url_formatter::SegmentURL(expanded_url, &parts));

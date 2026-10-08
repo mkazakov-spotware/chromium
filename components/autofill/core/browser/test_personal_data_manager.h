@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,30 +10,21 @@
 #include <utility>
 #include <vector>
 
+#include "base/optional.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/data_model/iban.h"
 #include "components/autofill/core/browser/payments/payments_customer_data.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
-#include "components/autofill/core/browser/test_inmemory_strike_database.h"
 #include "components/signin/public/identity_manager/account_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace autofill {
 
-// A simplistic PersonalDataManager used for testing. It doesn't load profiles
-// from AutofillTable or update them there.
+// A simplistic PersonalDataManager used for testing.
 class TestPersonalDataManager : public PersonalDataManager {
  public:
   TestPersonalDataManager();
-
-  TestPersonalDataManager(const TestPersonalDataManager&) = delete;
-  TestPersonalDataManager& operator=(const TestPersonalDataManager&) = delete;
-
   ~TestPersonalDataManager() override;
 
-  using PersonalDataManager::GetProfileSaveStrikeDatabase;
-  using PersonalDataManager::GetProfileUpdateStrikeDatabase;
   using PersonalDataManager::SetPrefService;
 
   // PersonalDataManager overrides.  These functions are overridden as needed
@@ -41,8 +32,7 @@ class TestPersonalDataManager : public PersonalDataManager {
   // or to make things easier in general to toggle.
   void OnSyncServiceInitialized(syncer::SyncService* sync_service) override;
   AutofillSyncSigninState GetSyncSigninState() const override;
-  void RecordUseOf(absl::variant<const AutofillProfile*, const CreditCard*>
-                       profile_or_credit_card) override;
+  void RecordUseOf(const AutofillDataModel& data_model) override;
   std::string SaveImportedProfile(
       const AutofillProfile& imported_profile) override;
   std::string SaveImportedCreditCard(
@@ -52,19 +42,17 @@ class TestPersonalDataManager : public PersonalDataManager {
   void UpdateProfile(const AutofillProfile& profile) override;
   void RemoveByGUID(const std::string& guid) override;
   void AddCreditCard(const CreditCard& credit_card) override;
-  std::string AddIBAN(const IBAN& iban) override;
   void DeleteLocalCreditCards(const std::vector<CreditCard>& cards) override;
   void UpdateCreditCard(const CreditCard& credit_card) override;
   void AddFullServerCreditCard(const CreditCard& credit_card) override;
+  std::vector<AutofillProfile*> GetProfiles() const override;
   const std::string& GetDefaultCountryCodeForNewAddress() const override;
   void SetProfiles(std::vector<AutofillProfile>* profiles) override;
-  bool SetProfilesFromSource(base::span<const AutofillProfile> new_profiles,
-                             AutofillProfile::Source source) override;
   void LoadProfiles() override;
   void LoadCreditCards() override;
   void LoadCreditCardCloudTokenData() override;
-  void LoadIBANs() override;
   void LoadUpiIds() override;
+  bool IsAutofillEnabled() const override;
   bool IsAutofillProfileEnabled() const override;
   bool IsAutofillCreditCardEnabled() const override;
   bool IsAutofillWalletImportEnabled() const override;
@@ -75,14 +63,10 @@ class TestPersonalDataManager : public PersonalDataManager {
   bool IsDataLoaded() const override;
   bool IsSyncFeatureEnabled() const override;
   CoreAccountInfo GetAccountInfoForPaymentsServer() const override;
-  const AutofillProfileSaveStrikeDatabase* GetProfileSaveStrikeDatabase()
-      const override;
-  const AutofillProfileUpdateStrikeDatabase* GetProfileUpdateStrikeDatabase()
-      const override;
 
   // Unique to TestPersonalDataManager:
 
-  // Clears `web_profiles_` and `account_profiles_`.
+  // Clears |web_profiles_|.
   void ClearProfiles();
 
   // Clears |local_credit_cards_| and |server_credit_cards_|.
@@ -94,6 +78,12 @@ class TestPersonalDataManager : public PersonalDataManager {
   // Clears |autofill_offer_data_|.
   void ClearCreditCardOfferData();
 
+  // Gets a profile based on the provided |guid|.
+  AutofillProfile* GetProfileWithGUID(const char* guid);
+
+  // Gets a credit card based on the provided |guid| (local or server).
+  CreditCard* GetCreditCardWithGUID(const char* guid);
+
   // Adds a card to |server_credit_cards_|.  Functionally identical to
   // AddFullServerCreditCard().
   void AddServerCreditCard(const CreditCard& credit_card);
@@ -102,11 +92,7 @@ class TestPersonalDataManager : public PersonalDataManager {
   void AddCloudTokenData(const CreditCardCloudTokenData& cloud_token_data);
 
   // Adds offer data to |autofill_offer_data_|.
-  void AddAutofillOfferData(const AutofillOfferData& offer_data);
-
-  // Adds a `url` to `image` mapping to the local `credit_card_art_images_`
-  // cache.
-  void AddCardArtImage(const GURL& url, const gfx::Image& image);
+  void AddCreditCardOfferData(const AutofillOfferData& offer_data);
 
   // Sets a local/server card's nickname based on the provided |guid|.
   void SetNicknameForCardWithGUID(const char* guid,
@@ -160,28 +146,22 @@ class TestPersonalDataManager : public PersonalDataManager {
     account_info_ = account_info;
   }
 
-  void ClearCreditCardArtImages() { credit_card_art_images_.clear(); }
-
  private:
   std::string timezone_country_code_;
   std::string default_country_code_;
   int num_times_save_imported_profile_called_ = 0;
   int num_times_save_imported_credit_card_called_ = 0;
   int num_times_save_upi_id_called_ = 0;
-  absl::optional<bool> autofill_profile_enabled_;
-  absl::optional<bool> autofill_credit_card_enabled_;
-  absl::optional<bool> autofill_wallet_import_enabled_;
+  base::Optional<bool> autofill_profile_enabled_;
+  base::Optional<bool> autofill_credit_card_enabled_;
+  base::Optional<bool> autofill_wallet_import_enabled_;
   bool sync_feature_enabled_ = false;
   AutofillSyncSigninState sync_and_signin_state_ =
       AutofillSyncSigninState::kSignedInAndSyncFeatureEnabled;
   bool sync_service_initialized_ = false;
   CoreAccountInfo account_info_;
 
-  TestInMemoryStrikeDatabase inmemory_strike_database_;
-  AutofillProfileSaveStrikeDatabase inmemory_profile_save_strike_database_{
-      &inmemory_strike_database_};
-  AutofillProfileUpdateStrikeDatabase inmemory_profile_update_strike_database_{
-      &inmemory_strike_database_};
+  DISALLOW_COPY_AND_ASSIGN(TestPersonalDataManager);
 };
 
 }  // namespace autofill

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,8 @@
   });
 
   await dp.Emulation.setVirtualTimePolicy({policy: 'pause'});
-  await dp.Page.navigate({
-      url: testRunner.url('resources/virtual-time-starvation.html')});
-  dp.Emulation.setVirtualTimePolicy({
-      policy: 'pauseIfNetworkFetchesPending', budget: 4011,
+  await dp.Emulation.setVirtualTimePolicy({
+      policy: 'pauseIfNetworkFetchesPending', budget: 4011, waitForNavigation: true,
       maxVirtualTimeTaskStarvationCount: 100});
+  dp.Page.navigate({url: testRunner.url('resources/virtual-time-starvation.html')});
 })

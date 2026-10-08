@@ -1,21 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/nigori/nigori_state.h"
 
-#include <vector>
-
 #include "base/base64.h"
 #include "base/notreached.h"
 #include "components/sync/base/model_type.h"
 #include "components/sync/base/time.h"
-#include "components/sync/engine/nigori/key_derivation_params.h"
 #include "components/sync/engine/sync_encryption_handler.h"
+#include "components/sync/engine/sync_engine_switches.h"
 #include "components/sync/nigori/cryptographer_impl.h"
 #include "components/sync/nigori/keystore_keys_cryptographer.h"
 #include "components/sync/protocol/nigori_local_data.pb.h"
-#include "components/sync/protocol/nigori_specifics.pb.h"
 
 namespace syncer {
 
@@ -34,18 +31,18 @@ CustomPassphraseKeyDerivationParamsToProto(const KeyDerivationParams& params) {
 
 KeyDerivationParams CustomPassphraseKeyDerivationParamsFromProto(
     const sync_pb::CustomPassphraseKeyDerivationParams& proto) {
-  switch (proto.custom_passphrase_key_derivation_method()) {
-    case sync_pb::NigoriSpecifics::UNSPECIFIED:
-      [[fallthrough]];
-    case sync_pb::NigoriSpecifics::PBKDF2_HMAC_SHA1_1003:
+  switch (ProtoKeyDerivationMethodToEnum(
+      proto.custom_passphrase_key_derivation_method())) {
+    case KeyDerivationMethod::PBKDF2_HMAC_SHA1_1003:
       return KeyDerivationParams::CreateForPbkdf2();
-    case sync_pb::NigoriSpecifics::SCRYPT_8192_8_11:
+    case KeyDerivationMethod::SCRYPT_8192_8_11:
       return KeyDerivationParams::CreateForScrypt(
           proto.custom_passphrase_key_derivation_salt());
+    case KeyDerivationMethod::UNSUPPORTED:
+      break;
   }
-
   NOTREACHED();
-  return KeyDerivationParams::CreateForPbkdf2();
+  return KeyDerivationParams::CreateWithUnsupportedMethod();
 }
 
 // |encrypted| must not be null.
@@ -61,31 +58,42 @@ bool EncryptKeyBag(const CryptographerImpl& cryptographer,
   return cryptographer.Encrypt(proto.key_bag(), encrypted);
 }
 
-// Writes deprecated per-type encryption fields. Can be removed once <M82
-// clients aren't supported.
-void WriteDeprecatedPerTypeEncryptionFields(
+// Updates |specifics|'s individual datatypes encryption state based on
+// |encrypted_types|.
+void UpdateNigoriSpecificsFromEncryptedTypes(
+    ModelTypeSet encrypted_types,
     sync_pb::NigoriSpecifics* specifics) {
-  specifics->set_encrypt_bookmarks(true);
-  specifics->set_encrypt_preferences(true);
-  specifics->set_encrypt_autofill_profile(true);
-  specifics->set_encrypt_autofill(true);
-  specifics->set_encrypt_autofill_wallet_metadata(true);
-  specifics->set_encrypt_themes(true);
-  specifics->set_encrypt_typed_urls(true);
-  specifics->set_encrypt_extensions(true);
-  specifics->set_encrypt_search_engines(true);
-  specifics->set_encrypt_sessions(true);
-  specifics->set_encrypt_apps(true);
-  specifics->set_encrypt_app_settings(true);
-  specifics->set_encrypt_extension_settings(true);
-  specifics->set_encrypt_dictionary(true);
-  specifics->set_encrypt_app_list(true);
-  specifics->set_encrypt_arc_package(true);
-  specifics->set_encrypt_printers(true);
-  specifics->set_encrypt_reading_list(true);
-  specifics->set_encrypt_send_tab_to_self(true);
-  specifics->set_encrypt_web_apps(true);
-  specifics->set_encrypt_os_preferences(true);
+  static_assert(41 == ModelType::NUM_ENTRIES,
+                "If adding an encryptable type, update handling below.");
+  specifics->set_encrypt_bookmarks(encrypted_types.Has(BOOKMARKS));
+  specifics->set_encrypt_preferences(encrypted_types.Has(PREFERENCES));
+  specifics->set_encrypt_autofill_profile(
+      encrypted_types.Has(AUTOFILL_PROFILE));
+  specifics->set_encrypt_autofill(encrypted_types.Has(AUTOFILL));
+  specifics->set_encrypt_autofill_wallet_metadata(
+      encrypted_types.Has(AUTOFILL_WALLET_METADATA));
+  specifics->set_encrypt_themes(encrypted_types.Has(THEMES));
+  specifics->set_encrypt_typed_urls(encrypted_types.Has(TYPED_URLS));
+  specifics->set_encrypt_extensions(encrypted_types.Has(EXTENSIONS));
+  specifics->set_encrypt_search_engines(encrypted_types.Has(SEARCH_ENGINES));
+  specifics->set_encrypt_sessions(encrypted_types.Has(SESSIONS));
+  specifics->set_encrypt_apps(encrypted_types.Has(APPS));
+  specifics->set_encrypt_app_settings(encrypted_types.Has(APP_SETTINGS));
+  specifics->set_encrypt_extension_settings(
+      encrypted_types.Has(EXTENSION_SETTINGS));
+  specifics->set_encrypt_dictionary(encrypted_types.Has(DICTIONARY));
+  specifics->set_encrypt_favicon_images(
+      encrypted_types.Has(DEPRECATED_FAVICON_IMAGES));
+  specifics->set_encrypt_favicon_tracking(
+      encrypted_types.Has(DEPRECATED_FAVICON_TRACKING));
+  specifics->set_encrypt_app_list(encrypted_types.Has(APP_LIST));
+  specifics->set_encrypt_arc_package(encrypted_types.Has(ARC_PACKAGE));
+  specifics->set_encrypt_printers(encrypted_types.Has(PRINTERS));
+  specifics->set_encrypt_reading_list(encrypted_types.Has(READING_LIST));
+  specifics->set_encrypt_send_tab_to_self(
+      encrypted_types.Has(SEND_TAB_TO_SELF));
+  specifics->set_encrypt_web_apps(encrypted_types.Has(WEB_APPS));
+  specifics->set_encrypt_os_preferences(encrypted_types.Has(OS_PREFERENCES));
 }
 
 void UpdateSpecificsFromKeyDerivationParams(
@@ -93,6 +101,7 @@ void UpdateSpecificsFromKeyDerivationParams(
     sync_pb::NigoriSpecifics* specifics) {
   DCHECK_EQ(specifics->passphrase_type(),
             sync_pb::NigoriSpecifics::CUSTOM_PASSPHRASE);
+  DCHECK_NE(params.method(), KeyDerivationMethod::UNSUPPORTED);
   specifics->set_custom_passphrase_key_derivation_method(
       EnumKeyDerivationMethodToProto(params.method()));
   if (params.method() == KeyDerivationMethod::SCRYPT_8192_8_11) {
@@ -151,8 +160,6 @@ NigoriState NigoriState::CreateFromLocalProto(
     state.last_default_trusted_vault_key_name =
         proto.last_default_trusted_vault_key_name();
   }
-
-  state.trusted_vault_debug_info = proto.trusted_vault_debug_info();
 
   return state;
 }
@@ -216,7 +223,6 @@ sync_pb::NigoriModel NigoriState::ToLocalProto() const {
     proto.set_last_default_trusted_vault_key_name(
         *last_default_trusted_vault_key_name);
   }
-  *proto.mutable_trusted_vault_debug_info() = trusted_vault_debug_info;
   return proto;
 }
 
@@ -235,7 +241,7 @@ sync_pb::NigoriSpecifics NigoriState::ToSpecificsProto() const {
   specifics.set_keybag_is_frozen(true);
   specifics.set_encrypt_everything(encrypt_everything);
   if (encrypt_everything) {
-    WriteDeprecatedPerTypeEncryptionFields(&specifics);
+    UpdateNigoriSpecificsFromEncryptedTypes(EncryptableUserTypes(), &specifics);
   }
   specifics.set_passphrase_type(passphrase_type);
   if (passphrase_type == sync_pb::NigoriSpecifics::CUSTOM_PASSPHRASE) {
@@ -269,13 +275,12 @@ sync_pb::NigoriSpecifics NigoriState::ToSpecificsProto() const {
     specifics.set_custom_passphrase_time(
         TimeToProtoTime(custom_passphrase_time));
   }
-  *specifics.mutable_trusted_vault_debug_info() = trusted_vault_debug_info;
   return specifics;
 }
 
 NigoriState NigoriState::Clone() const {
   NigoriState result;
-  result.cryptographer = cryptographer->Clone();
+  result.cryptographer = cryptographer->CloneImpl();
   result.pending_keys = pending_keys;
   result.passphrase_type = passphrase_type;
   result.keystore_migration_time = keystore_migration_time;
@@ -287,7 +292,6 @@ NigoriState NigoriState::Clone() const {
   result.pending_keystore_decryptor_token = pending_keystore_decryptor_token;
   result.last_default_trusted_vault_key_name =
       last_default_trusted_vault_key_name;
-  result.trusted_vault_debug_info = trusted_vault_debug_info;
   return result;
 }
 
@@ -299,18 +303,14 @@ bool NigoriState::NeedsKeystoreReencryption() const {
           keystore_keys_cryptographer->GetLastKeystoreKeyName()) {
     return false;
   }
-  // Either keystore key rotation or full keystore migration should be
-  // triggered, since default encryption key is not the last keystore key, while
-  // it should be.
-  return true;
-}
-
-ModelTypeSet NigoriState::GetEncryptedTypes() const {
-  if (!encrypt_everything) {
-    return AlwaysEncryptedUserTypes();
+  if (!cryptographer->HasKey(
+          keystore_keys_cryptographer->GetLastKeystoreKeyName())) {
+    // Keystore key rotation.
+    return true;
   }
-
-  return EncryptableUserTypes();
+  // Migration from backward compatible to full keystore mode.
+  return base::FeatureList::IsEnabled(
+      switches::kSyncTriggerFullKeystoreMigration);
 }
 
 }  // namespace syncer

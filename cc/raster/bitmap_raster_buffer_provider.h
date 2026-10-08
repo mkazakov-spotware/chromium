@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/values.h"
 #include "cc/raster/raster_buffer_provider.h"
 
 namespace base {
@@ -51,12 +51,13 @@ class CC_EXPORT BitmapRasterBufferProvider : public RasterBufferProvider {
       base::OnceClosure callback,
       uint64_t pending_callback_id) const override;
   void Shutdown() override;
+  bool CheckRasterFinishedQueries() override;
 
  private:
   std::unique_ptr<base::trace_event::ConvertableToTraceFormat> StateAsValue()
       const;
 
-  const raw_ptr<LayerTreeFrameSink> frame_sink_;
+  LayerTreeFrameSink* const frame_sink_;
 };
 
 }  // namespace cc

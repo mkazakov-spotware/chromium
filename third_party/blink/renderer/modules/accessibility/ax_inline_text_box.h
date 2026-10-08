@@ -29,7 +29,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_ACCESSIBILITY_AX_INLINE_TEXT_BOX_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_ACCESSIBILITY_AX_INLINE_TEXT_BOX_H_
 
-#include "base/notreached.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/editing/markers/document_marker.h"
 #include "third_party/blink/renderer/core/layout/line/abstract_inline_text_box.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_object.h"
@@ -45,11 +45,8 @@ class AXInlineTextBox final : public AXObject {
  public:
   AXInlineTextBox(scoped_refptr<AbstractInlineTextBox>, AXObjectCacheImpl&);
 
-  AXInlineTextBox(const AXInlineTextBox&) = delete;
-  AXInlineTextBox& operator=(const AXInlineTextBox&) = delete;
-
   // AXObject overrides.
-  RGBA32 GetColor() const override { return Color::kTransparent.Rgb(); }
+  ax::mojom::blink::Role RoleValue() const override;
   String GetName(ax::mojom::blink::NameFrom&,
                  AXObject::AXObjectVector* name_objects) const override;
   void TextCharacterOffsets(Vector<int>&) const override;
@@ -58,36 +55,31 @@ class AXInlineTextBox final : public AXObject {
   int TextOffsetInFormattingContext(int offset) const override;
   int TextOffsetInContainer(int offset) const override;
   void GetRelativeBounds(AXObject** out_container,
-                         gfx::RectF& out_bounds_in_container,
-                         gfx::Transform& out_container_transform,
+                         FloatRect& out_bounds_in_container,
+                         SkMatrix44& out_container_transform,
                          bool* clips_children = nullptr) const override;
+  AXObject* ComputeParent() const override;
   ax::mojom::blink::WritingDirection GetTextDirection() const override;
   Node* GetNode() const override;
-  Document* GetDocument() const override;
   AXObject* NextOnLine() const override;
   AXObject* PreviousOnLine() const override;
-  void SerializeMarkerAttributes(ui::AXNodeData* node_data) const override;
-  ax::mojom::blink::Role NativeRoleIgnoringAria() const override {
-    NOTREACHED();
-    return ax::mojom::blink::Role::kInlineTextBox;
-  }
-  void ClearChildren() const override;
+  void GetDocumentMarkers(Vector<DocumentMarker::MarkerType>* marker_types,
+                          Vector<AXRange>* marker_ranges) const override;
 
  protected:
-  void Init(AXObject* parent) override;
+  void Init() override;
   void Detach() override;
+  bool IsDetached() const override;
   bool IsAXInlineTextBox() const override;
   bool IsLineBreakingObject() const override;
   int TextLength() const override;
-
-  // Always a leaf.
-  bool CanHaveChildren() const override { return false; }
-  void AddChildren() override {}
 
  private:
   bool ComputeAccessibilityIsIgnored(IgnoredReasons* = nullptr) const override;
 
   scoped_refptr<AbstractInlineTextBox> inline_text_box_;
+
+  DISALLOW_COPY_AND_ASSIGN(AXInlineTextBox);
 };
 
 }  // namespace blink

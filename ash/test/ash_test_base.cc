@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 #include <string>
 #include <vector>
 
-#include "ash/accessibility/ui/accessibility_panel_layout_manager.h"
+#include "ash/accessibility/accessibility_panel_layout_manager.h"
 #include "ash/ambient/test/ambient_ash_test_helper.h"
 #include "ash/app_list/test/app_list_test_helper.h"
-#include "ash/constants/ash_switches.h"
 #include "ash/display/extended_mouse_warp_controller.h"
 #include "ash/display/mouse_cursor_event_filter.h"
 #include "ash/display/screen_orientation_controller_test_api.h"
@@ -28,20 +27,17 @@
 #include "ash/shell.h"
 #include "ash/system/status_area_widget.h"
 #include "ash/test/ash_test_helper.h"
-#include "ash/test/pixel/ash_pixel_differ.h"
-#include "ash/test/pixel/ash_pixel_test_init_params.h"
-#include "ash/test/test_widget_builder.h"
-#include "ash/test/test_window_builder.h"
+#include "ash/test_screenshot_delegate.h"
 #include "ash/test_shell_delegate.h"
-#include "ash/wm/overview/overview_controller.h"
+#include "ash/utility/screenshot_controller.h"
+#include "ash/window_factory.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "ash/wm/window_positioner.h"
 #include "ash/wm/work_area_insets.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
-#include "base/strings/strcat.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/user_names.h"
@@ -55,13 +51,11 @@
 #include "ui/aura/window_delegate.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/ime/init/input_method_initializer.h"
-#include "ui/compositor/compositor_switches.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/display/test/display_manager_test_api.h"
 #include "ui/display/types/display_constants.h"
-#include "ui/display/util/display_util.h"
-#include "ui/events/devices/device_data_manager.h"
+#include "ui/events/devices/device_data_manager_test_api.h"
 #include "ui/events/devices/touchscreen_device.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
@@ -75,37 +69,54 @@ using session_manager::SessionState;
 namespace ash {
 namespace {
 
-// AshEventGeneratorDelegate ---------------------------------------------------
-
 class AshEventGeneratorDelegate
     : public aura::test::EventGeneratorDelegateAura {
  public:
   AshEventGeneratorDelegate() = default;
-
-  AshEventGeneratorDelegate(const AshEventGeneratorDelegate&) = delete;
-  AshEventGeneratorDelegate& operator=(const AshEventGeneratorDelegate&) =
-      delete;
-
   ~AshEventGeneratorDelegate() override = default;
 
   // aura::test::EventGeneratorDelegateAura overrides:
   ui::EventTarget* GetTargetAt(const gfx::Point& point_in_screen) override {
     display::Screen* screen = display::Screen::GetScreen();
     display::Display display = screen->GetDisplayNearestPoint(point_in_screen);
-    if (current_display_id_ != display.id()) {
-      Shell::Get()->cursor_manager()->SetDisplay(display);
-      current_display_id_ = display.id();
-    }
     return Shell::GetRootWindowForDisplayId(display.id())->GetHost()->window();
   }
 
+  ui::EventDispatchDetails DispatchKeyEventToIME(ui::EventTarget* target,
+                                                 ui::KeyEvent* event) override {
+    // In Ash environment, the key event will be processed by event rewriters
+    // first.
+    return ui::EventDispatchDetails();
+  }
+
  private:
-  int64_t current_display_id_ = display::kInvalidDisplayId;
+  DISALLOW_COPY_AND_ASSIGN(AshEventGeneratorDelegate);
+};
+
+// WidgetDelegate that is resizable and creates ash's NonClientFrameView
+// implementation.
+class TestWidgetDelegate : public views::WidgetDelegateView {
+ public:
+  TestWidgetDelegate() {
+    SetCanMaximize(true);
+    SetCanMinimize(true);
+    SetCanResize(true);
+  }
+  ~TestWidgetDelegate() override = default;
+
+  // views::WidgetDelegateView:
+  std::unique_ptr<views::NonClientFrameView> CreateNonClientFrameView(
+      views::Widget* widget) override {
+    return Shell::Get()->CreateDefaultNonClientFrameView(widget);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestWidgetDelegate);
 };
 
 }  // namespace
 
-// AshTestBase -----------------------------------------------------------------
+/////////////////////////////////////////////////////////////////////////////
 
 AshTestBase::AshTestBase(
     std::unique_ptr<base::test::TaskEnvironment> task_environment)
@@ -127,7 +138,7 @@ void AshTestBase::SetUp() {
 void AshTestBase::SetUp(std::unique_ptr<TestShellDelegate> delegate) {
   // At this point, the task APIs should already be provided by
   // |task_environment_|.
-  CHECK(base::SingleThreadTaskRunner::HasCurrentDefault());
+  CHECK(base::ThreadTaskRunnerHandle::IsSet());
   CHECK(base::ThreadPoolInstance::Get());
 
   setup_called_ = true;
@@ -136,15 +147,6 @@ void AshTestBase::SetUp(std::unique_ptr<TestShellDelegate> delegate) {
   params.start_session = start_session_;
   params.delegate = std::move(delegate);
   params.local_state = local_state();
-
-  // Prepare for a pixel test if having pixel init params.
-  absl::optional<pixel_test::InitParams> pixel_test_init_params =
-      CreatePixelTestInitParams();
-  if (pixel_test_init_params) {
-    PrepareForPixelDiffTest();
-    params.pixel_test_init_params = std::move(pixel_test_init_params);
-  }
-
   ash_test_helper_ = std::make_unique<AshTestHelper>();
   ash_test_helper_->SetUp(std::move(params));
 }
@@ -163,10 +165,11 @@ void AshTestBase::TearDown() {
   event_generator_.reset();
   // Some tests set an internal display id,
   // reset it here, so other tests will continue in a clean environment.
-  display::SetInternalDisplayIds({display::kInvalidDisplayId});
+  display::Display::SetInternalDisplayId(display::kInvalidDisplayId);
 
   // Tests can add devices, so reset the lists for future tests.
-  ui::DeviceDataManager::GetInstance()->ResetDeviceListsForTest();
+  ui::DeviceDataManagerTestApi().SetTouchscreenDevices({});
+  ui::DeviceDataManagerTestApi().SetKeyboardDevices({});
 }
 
 // static
@@ -205,11 +208,6 @@ display::Display::Rotation AshTestBase::GetCurrentInternalDisplayRotation() {
   return GetActiveDisplayRotation(display::Display::InternalDisplayId());
 }
 
-absl::optional<pixel_test::InitParams> AshTestBase::CreatePixelTestInitParams()
-    const {
-  return absl::nullopt;
-}
-
 void AshTestBase::UpdateDisplay(const std::string& display_specs) {
   display::test::DisplayManagerTestApi(Shell::Get()->display_manager())
       .UpdateDisplay(display_specs);
@@ -228,46 +226,38 @@ std::unique_ptr<views::Widget> AshTestBase::CreateTestWidget(
     int container_id,
     const gfx::Rect& bounds,
     bool show) {
-  return TestWidgetBuilder()
-      .SetDelegate(delegate)
-      .SetBounds(bounds)
-      .SetParent(Shell::GetPrimaryRootWindow()->GetChildById(container_id))
-      .SetShow(show)
-      .BuildOwnsNativeWidget();
-}
-
-// static
-std::unique_ptr<views::Widget> AshTestBase::CreateFramelessTestWidget() {
-  return TestWidgetBuilder()
-      .SetWidgetType(views::Widget::InitParams::TYPE_WINDOW_FRAMELESS)
-      .BuildOwnsNativeWidget();
+  std::unique_ptr<views::Widget> widget(new views::Widget);
+  views::Widget::InitParams params;
+  params.delegate = delegate;
+  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+  params.bounds = bounds;
+  params.parent = Shell::GetPrimaryRootWindow()->GetChildById(container_id);
+  widget->Init(std::move(params));
+  if (show)
+    widget->Show();
+  return widget;
 }
 
 std::unique_ptr<aura::Window> AshTestBase::CreateAppWindow(
     const gfx::Rect& bounds_in_screen,
     AppType app_type,
-    int shell_window_id,
-    views::WidgetDelegate* delegate) {
-  TestWidgetBuilder builder;
-  if (app_type != AppType::NON_APP) {
-    builder.SetWindowProperty(aura::client::kAppType,
-                              static_cast<int>(app_type));
-  }
-
-  if (delegate) {
-    builder.SetDelegate(delegate);
-  } else {
-    builder.SetTestWidgetDelegate();
-  }
-
+    int shell_window_id) {
   // |widget| is configured to be owned by the underlying window.
-  views::Widget* widget =
-      builder
-          .SetBounds(bounds_in_screen.IsEmpty() ? gfx::Rect(0, 0, 300, 300)
-                                                : bounds_in_screen)
-          .SetContext(Shell::GetPrimaryRootWindow())
-          .SetWindowId(shell_window_id)
-          .BuildOwnedByNativeWidget();
+  views::Widget* widget = new views::Widget;
+  views::Widget::InitParams params;
+  // TestWidgetDelegate is owned by |widget|.
+  params.delegate = new TestWidgetDelegate();
+  params.ownership = views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET;
+  params.bounds =
+      bounds_in_screen.IsEmpty() ? gfx::Rect(0, 0, 300, 300) : bounds_in_screen;
+  params.context = Shell::GetPrimaryRootWindow();
+  if (app_type != AppType::NON_APP) {
+    params.init_properties_container.SetProperty(aura::client::kAppType,
+                                                 static_cast<int>(app_type));
+  }
+  widget->Init(std::move(params));
+  widget->GetNativeWindow()->set_id(shell_window_id);
+  widget->Show();
   return base::WrapUnique(widget->GetNativeWindow());
 }
 
@@ -303,6 +293,27 @@ aura::Window* AshTestBase::CreateTestWindowInShellWithBounds(
   return CreateTestWindowInShellWithDelegate(NULL, 0, bounds);
 }
 
+aura::Window* AshTestBase::CreateTestWindowInShell(SkColor color,
+                                                   int id,
+                                                   const gfx::Rect& bounds) {
+  return CreateTestWindowInShellWithDelegate(
+      new aura::test::ColorTestWindowDelegate(color), id, bounds);
+}
+
+std::unique_ptr<aura::Window> AshTestBase::CreateChildWindow(
+    aura::Window* parent,
+    const gfx::Rect& bounds,
+    int shell_window_id) {
+  std::unique_ptr<aura::Window> window =
+      window_factory::NewWindow(nullptr, aura::client::WINDOW_TYPE_NORMAL);
+  window->Init(ui::LAYER_NOT_DRAWN);
+  window->SetBounds(bounds);
+  window->set_id(shell_window_id);
+  parent->AddChild(window.get());
+  window->Show();
+  return window;
+}
+
 aura::Window* AshTestBase::CreateTestWindowInShellWithDelegate(
     aura::WindowDelegate* delegate,
     int id,
@@ -316,28 +327,34 @@ aura::Window* AshTestBase::CreateTestWindowInShellWithDelegateAndType(
     aura::client::WindowType type,
     int id,
     const gfx::Rect& bounds) {
-  return TestWindowBuilder()
-      .SetBounds(bounds)
-      .SetDelegate(delegate)
-      .SetWindowType(type)
-      .SetWindowId(id)
-      .AllowAllWindowStates()
-      .Build()
-      .release();
+  aura::Window* window = window_factory::NewWindow(delegate).release();
+  window->set_id(id);
+  window->SetType(type);
+  window->Init(ui::LAYER_TEXTURED);
+
+  if (bounds.IsEmpty()) {
+    ParentWindowInPrimaryRootWindow(window);
+  } else {
+    display::Display display =
+        display::Screen::GetScreen()->GetDisplayMatching(bounds);
+    aura::Window* root = Shell::GetRootWindowForDisplayId(display.id());
+    gfx::Point origin = bounds.origin();
+    ::wm::ConvertPointFromScreen(root, &origin);
+    window->SetBounds(gfx::Rect(origin, bounds.size()));
+    aura::client::ParentWindowWithContext(window, root, bounds);
+  }
+  window->Show();
+
+  window->SetProperty(aura::client::kResizeBehaviorKey,
+                      aura::client::kResizeBehaviorCanMaximize |
+                          aura::client::kResizeBehaviorCanMinimize |
+                          aura::client::kResizeBehaviorCanResize);
+  return window;
 }
 
 void AshTestBase::ParentWindowInPrimaryRootWindow(aura::Window* window) {
   aura::client::ParentWindowWithContext(window, Shell::GetPrimaryRootWindow(),
                                         gfx::Rect());
-}
-
-AshPixelDiffer* AshTestBase::GetPixelDiffer() {
-  DCHECK(pixel_differ_);
-  return pixel_differ_.get();
-}
-
-void AshTestBase::StabilizeUIForPixelTest() {
-  ash_test_helper_->StabilizeUIForPixelTest();
 }
 
 void AshTestBase::SetUserPref(const std::string& user_email,
@@ -347,6 +364,11 @@ void AshTestBase::SetUserPref(const std::string& user_email,
   PrefService* prefs =
       GetSessionControllerClient()->GetUserPrefService(accountId);
   prefs->Set(path, value);
+}
+
+TestScreenshotDelegate* AshTestBase::GetScreenshotDelegate() {
+  return static_cast<TestScreenshotDelegate*>(
+      Shell::Get()->screenshot_controller()->screenshot_delegate_.get());
 }
 
 TestSessionControllerClient* AshTestBase::GetSessionControllerClient() {
@@ -359,10 +381,6 @@ TestSystemTrayClient* AshTestBase::GetSystemTrayClient() {
 
 AppListTestHelper* AshTestBase::GetAppListTestHelper() {
   return ash_test_helper_->app_list_test_helper();
-}
-
-TestAppListClient* AshTestBase::GetTestAppListClient() {
-  return GetAppListTestHelper()->app_list_client();
 }
 
 AmbientAshTestHelper* AshTestBase::GetAmbientAshTestHelper() {
@@ -379,11 +397,6 @@ void AshTestBase::SimulateUserLogin(const std::string& user_email,
   session->AddUserSession(user_email, user_type);
   session->SwitchActiveUser(AccountId::FromUserEmail(user_email));
   session->SetSessionState(SessionState::ACTIVE);
-}
-
-void AshTestBase::SimulateUserLogin(const AccountId& account_id,
-                                    user_manager::UserType user_type) {
-  ash_test_helper_->SimulateUserLogin(account_id, user_type);
 }
 
 void AshTestBase::SimulateNewUserFirstLogin(const std::string& user_email) {
@@ -516,38 +529,12 @@ bool AshTestBase::TestIfMouseWarpsAt(ui::test::EventGenerator* event_generator,
              .id();
 }
 
-void AshTestBase::PressAndReleaseKey(ui::KeyboardCode key_code, int flags) {
-  GetEventGenerator()->PressAndReleaseKey(key_code, flags);
-}
-
-void AshTestBase::LeftClickOn(const views::View* view) {
-  DCHECK(view);
-  auto* event_generator = GetEventGenerator();
-  event_generator->MoveMouseTo(view->GetBoundsInScreen().CenterPoint());
+void AshTestBase::SimulateMouseClickAt(
+    ui::test::EventGenerator* event_generator,
+    const views::View* target_view) {
+  DCHECK(target_view);
+  event_generator->MoveMouseTo(target_view->GetBoundsInScreen().CenterPoint());
   event_generator->ClickLeftButton();
-}
-
-void AshTestBase::RightClickOn(const views::View* view) {
-  DCHECK(view);
-  auto* event_generator = GetEventGenerator();
-  event_generator->MoveMouseTo(view->GetBoundsInScreen().CenterPoint());
-  event_generator->ClickRightButton();
-}
-
-void AshTestBase::GestureTapOn(const views::View* view) {
-  DCHECK(view);
-  auto* event_generator = GetEventGenerator();
-  event_generator->GestureTapAt(view->GetBoundsInScreen().CenterPoint());
-}
-
-bool AshTestBase::EnterOverview(OverviewEnterExitType type) {
-  return Shell::Get()->overview_controller()->StartOverview(
-      OverviewStartAction::kTests, type);
-}
-
-bool AshTestBase::ExitOverview(OverviewEnterExitType type) {
-  return Shell::Get()->overview_controller()->EndOverview(
-      OverviewEndAction::kTests, type);
 }
 
 void AshTestBase::SwapPrimaryDisplay() {
@@ -567,39 +554,5 @@ display::Display AshTestBase::GetPrimaryDisplay() const {
 display::Display AshTestBase::GetSecondaryDisplay() const {
   return ash_test_helper_->GetSecondaryDisplay();
 }
-
-void AshTestBase::PrepareForPixelDiffTest() {
-  // In pixel tests, we want to take screenshots then compare them with the
-  // benchmark images. Therefore, enable pixel output in tests.
-  base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      ::switches::kEnablePixelOutputInTests);
-
-  // Enable the switch so that the time dependent views (such as the time view)
-  // are stable.
-  base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      switches::kStabilizeTimeDependentViewForTests);
-
-  DCHECK(!pixel_differ_);
-  const testing::TestInfo* info =
-      ::testing::UnitTest::GetInstance()->current_test_info();
-  pixel_differ_ = std::make_unique<AshPixelDiffer>(
-      base::StrCat({info->test_suite_name(), std::string("."), info->name()}),
-      /*corpus=*/std::string());
-}
-
-// ============================================================================
-// NoSessionAshTestBase:
-
-NoSessionAshTestBase::NoSessionAshTestBase() {
-  set_start_session(false);
-}
-
-NoSessionAshTestBase::NoSessionAshTestBase(
-    base::test::TaskEnvironment::TimeSource time_source)
-    : AshTestBase(time_source) {
-  set_start_session(false);
-}
-
-NoSessionAshTestBase::~NoSessionAshTestBase() = default;
 
 }  // namespace ash

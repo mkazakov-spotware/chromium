@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 
 #include <vector>
 
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/common/form_data.h"
-#include "components/autofill/core/common/unique_ids.h"
+#include "components/autofill/core/common/renderer_id.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -36,13 +36,28 @@ using base::ASCIIToUTF16;
 
 using FieldPrediction = autofill::AutofillQueryResponse::FormSuggestion::
     FieldSuggestion::FieldPrediction;
-using ::autofill::test::CreateFieldPrediction;
 
 namespace password_manager {
 
 namespace {
 
-TEST(FormPredictionsTest, ConvertToFormPredictions) {
+// The boolean parameter determines the feature state of
+// `kSecondaryServerFieldPredictions`.
+class FormPredictionsTest : public ::testing::TestWithParam<bool> {
+ public:
+  FormPredictionsTest() {
+    feature_list_.InitWithFeatureState(
+        features::kSecondaryServerFieldPredictions,
+        AreSecondaryPredictionsEnabled());
+  }
+
+  bool AreSecondaryPredictionsEnabled() const { return GetParam(); }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_P(FormPredictionsTest, ConvertToFormPredictions) {
   struct TestField {
     std::string name;
     std::string form_control_type;
@@ -60,12 +75,18 @@ TEST(FormPredictionsTest, ConvertToFormPredictions) {
        CONFIRMATION_PASSWORD, true},
       // username in |additional_types| takes precedence if the feature is
       // enabled.
-      {"email", "text", EMAIL_ADDRESS, USERNAME, false, {USERNAME}},
+      {"email",
+       "text",
+       EMAIL_ADDRESS,
+       AreSecondaryPredictionsEnabled() ? USERNAME : EMAIL_ADDRESS,
+       false,
+       {USERNAME}},
       // cvc in |additional_types| takes precedence if the feature is enabled.
       {"cvc",
        "password",
        PASSWORD,
-       CREDIT_CARD_VERIFICATION_CODE,
+       AreSecondaryPredictionsEnabled() ? CREDIT_CARD_VERIFICATION_CODE
+                                        : PASSWORD,
        false,
        {CREDIT_CARD_VERIFICATION_CODE}},
       // non-password, non-cvc types in |additional_types| are ignored.
@@ -73,7 +94,7 @@ TEST(FormPredictionsTest, ConvertToFormPredictions) {
   };
 
   FormData form_data;
-  for (size_t i = 0; i < std::size(test_fields); ++i) {
+  for (size_t i = 0; i < base::size(test_fields); ++i) {
     FormFieldData field;
     field.unique_renderer_id = autofill::FieldRendererId(i + 1000);
     field.name = ASCIIToUTF16(test_fields[i].name);
@@ -83,14 +104,16 @@ TEST(FormPredictionsTest, ConvertToFormPredictions) {
 
   FormStructure form_structure(form_data);
   // Set server predictions and create expected votes.
-  for (size_t i = 0; i < std::size(test_fields); ++i) {
+  for (size_t i = 0; i < base::size(test_fields); ++i) {
     AutofillField* field = form_structure.field(i);
+    field->set_server_type(test_fields[i].input_type);
 
-    std::vector<FieldPrediction> predictions;
-    predictions.push_back(CreateFieldPrediction(test_fields[i].input_type));
+    std::vector<FieldPrediction> predictions(1);
 
     for (ServerFieldType type : test_fields[i].additional_types) {
-      predictions.push_back(CreateFieldPrediction(type));
+      FieldPrediction additional_prediction;
+      additional_prediction.set_type(type);
+      predictions.push_back(additional_prediction);
     }
     field->set_server_predictions(predictions);
     field->set_may_use_prefilled_placeholder(
@@ -104,9 +127,9 @@ TEST(FormPredictionsTest, ConvertToFormPredictions) {
   // Check whether actual predictions are equal to expected ones.
   EXPECT_EQ(driver_id, actual_predictions.driver_id);
   EXPECT_EQ(form_structure.form_signature(), actual_predictions.form_signature);
-  EXPECT_EQ(std::size(test_fields), actual_predictions.fields.size());
+  EXPECT_EQ(base::size(test_fields), actual_predictions.fields.size());
 
-  for (size_t i = 0; i < std::size(test_fields); ++i) {
+  for (size_t i = 0; i < base::size(test_fields); ++i) {
     const PasswordFieldPrediction& actual_prediction =
         actual_predictions.fields[i];
     EXPECT_EQ(test_fields[i].expected_type, actual_prediction.type);
@@ -162,8 +185,7 @@ TEST(FormPredictionsTest, ConvertToFormPredictions_SynthesiseConfirmation) {
     // Set server predictions and create expected votes.
     for (size_t i = 0; i < test_form.size(); ++i) {
       AutofillField* field = form_structure.field(i);
-      field->set_server_predictions(
-          {CreateFieldPrediction(test_form[i].input_type)});
+      field->set_server_type(test_form[i].input_type);
     }
 
     FormPredictions actual_predictions =
@@ -209,6 +231,7 @@ TEST(FormPredictionsTest, DeriveFromServerFieldType) {
               DeriveFromServerFieldType(test_case.server_type));
   }
 }
+INSTANTIATE_TEST_SUITE_P(All, FormPredictionsTest, testing::Bool());
 }  // namespace
 
 }  // namespace password_manager

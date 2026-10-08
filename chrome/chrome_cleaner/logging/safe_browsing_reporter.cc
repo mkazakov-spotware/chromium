@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,12 +17,14 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/task/task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/win/scoped_handle.h"
 #include "chrome/chrome_cleaner/constants/chrome_cleaner_switches.h"
@@ -55,7 +57,7 @@ std::string GetHttpResponseData(chrome_cleaner::HttpResponse* http_response) {
   std::string response_data;
   while (true) {
     char buffer[8192] = {};
-    uint32_t count = static_cast<uint32_t>(std::size(buffer));
+    uint32_t count = static_cast<uint32_t>(base::size(buffer));
     if (!http_response->ReadData(buffer, &count)) {
       LOG(ERROR) << "ReadData failed";
       break;
@@ -86,10 +88,6 @@ GURL GetSafeBrowsingReportUrl(const std::string& default_url) {
 class NetworkCheckerImpl : public NetworkChecker {
  public:
   NetworkCheckerImpl() = default;
-
-  NetworkCheckerImpl(const NetworkCheckerImpl&) = delete;
-  NetworkCheckerImpl& operator=(const NetworkCheckerImpl&) = delete;
-
   ~NetworkCheckerImpl() override = default;
 
   // TODO(olivierli) Make upload_url a member variable
@@ -188,6 +186,8 @@ class NetworkCheckerImpl : public NetworkChecker {
   // Manual-reset event, which will remain set once set.
   base::win::ScopedHandle cancel_wait_event_;
   base::Lock cancel_wait_event_lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkCheckerImpl);
 };
 
 NetworkChecker* current_network_checker{nullptr};
@@ -253,7 +253,7 @@ void SafeBrowsingReporter::UploadReport(
   // ownership of the object, which will get destructed on task completion.
   new SafeBrowsingReporter(done_callback, GetSafeBrowsingReportUrl(default_url),
                            report, traffic_annotation,
-                           base::SingleThreadTaskRunner::GetCurrentDefault());
+                           base::ThreadTaskRunnerHandle::Get());
 }
 
 // static
@@ -284,7 +284,8 @@ void SafeBrowsingReporter::UploadWithRetry(
   std::unique_ptr<ChromeFoilResponse> response(new ChromeFoilResponse);
   Result result = Result::UPLOAD_NO_NETWORK;
   if (GetNetworkChecker()->WaitForSafeBrowsing(
-          upload_url_, base::Seconds(kNetworkPresenceTimeoutSeconds))) {
+          upload_url_,
+          base::TimeDelta::FromSeconds(kNetworkPresenceTimeoutSeconds))) {
     result = PerformUploadWithRetries(serialized_report, response.get(),
                                       traffic_annotation);
     if (result != Result::UPLOAD_SUCCESS) {
@@ -297,7 +298,7 @@ void SafeBrowsingReporter::UploadWithRetry(
             << static_cast<int>(result);
   done_callback_runner_->PostTask(
       FROM_HERE, base::BindOnce(done_callback_, result, serialized_report,
-                                std::move(response)));
+                                base::Passed(&response)));
 }
 
 SafeBrowsingReporter::Result SafeBrowsingReporter::PerformUploadWithRetries(
@@ -308,7 +309,8 @@ SafeBrowsingReporter::Result SafeBrowsingReporter::PerformUploadWithRetries(
 
   SafeBrowsingReporter::Result result = Result::UPLOAD_INTERNAL_ERROR;
   for (unsigned int attempt = 0; attempt < kMaxUploadAttempts; ++attempt) {
-    sleep_callback_.Run(base::Seconds(kUploadAttemptDelaySeconds[attempt]));
+    sleep_callback_.Run(
+        base::TimeDelta::FromSeconds(kUploadAttemptDelaySeconds[attempt]));
     result = PerformUpload(serialized_report, response, traffic_annotation);
     if (result == Result::UPLOAD_SUCCESS)
       break;

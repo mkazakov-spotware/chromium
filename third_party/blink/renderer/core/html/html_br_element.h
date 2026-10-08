@@ -37,8 +37,6 @@ class CORE_EXPORT HTMLBRElement final : public HTMLElement {
 
   bool CanContainRangeEndPoint() const override { return false; }
 
-  bool IsRichlyEditableForAccessibility() const override { return false; }
-
  private:
   bool IsPresentationAttribute(const QualifiedName&) const override;
   void CollectStyleForPresentationAttribute(

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,11 +25,9 @@ void CallStackProfileCollector::Create(
 }
 
 void CallStackProfileCollector::Collect(base::TimeTicks start_timestamp,
-                                        mojom::ProfileType profile_type,
                                         mojom::SampledProfilePtr profile) {
   CallStackProfileMetricsProvider::ReceiveSerializedProfile(
-      start_timestamp, profile_type == mojom::ProfileType::kHeap,
-      std::move(profile->contents));
+      start_timestamp, std::move(profile->contents));
 }
 
 }  // namespace metrics

@@ -26,22 +26,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL_TEXTURE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL_TEXTURE_H_
 
-#include "base/time/time.h"
-#include "media/base/video_frame.h"
 #include "third_party/blink/public/platform/web_media_player.h"
 #include "third_party/blink/renderer/modules/webgl/webgl_shared_platform_3d_object.h"
-#include "ui/gfx/geometry/rect.h"
 
 namespace blink {
-
-// For last-uploaded-frame-metadata API. https://crbug.com/639174
-struct WebGLVideoFrameUploadMetadata {
-  media::VideoFrame::ID frame_id;
-  gfx::Rect visible_rect = {};
-  base::TimeDelta timestamp = {};
-  base::TimeDelta expected_timestamp = {};
-  bool skipped = false;
-};
 
 class WebGLTexture : public WebGLSharedPlatform3DObject {
   DEFINE_WRAPPERTYPEINFO();
@@ -59,11 +47,12 @@ class WebGLTexture : public WebGLSharedPlatform3DObject {
 
   static GLint ComputeLevelCount(GLsizei width, GLsizei height, GLsizei depth);
 
-  media::VideoFrame::ID GetLastUploadedVideoFrameId() const {
+  int GetLastUploadedVideoFrameId() const {
     return last_uploaded_video_frame_metadata_.frame_id;
   }
 
-  void UpdateLastUploadedFrame(WebGLVideoFrameUploadMetadata frame_metadata) {
+  void UpdateLastUploadedFrame(
+      blink::WebMediaPlayer::VideoFrameUploadMetadata frame_metadata) {
     last_uploaded_video_frame_metadata_ = frame_metadata;
   }
 
@@ -82,9 +71,6 @@ class WebGLTexture : public WebGLSharedPlatform3DObject {
     return last_uploaded_video_frame_metadata_.skipped;
   }
 
-  // See https://www.w3.org/TR/webxrlayers-1/#opaque-texture.
-  virtual bool IsOpaqueTexture() const { return false; }
-
  protected:
   // Constructor for WebGLUnownedTexture.
   explicit WebGLTexture(WebGLRenderingContextBase* ctx,
@@ -100,7 +86,8 @@ class WebGLTexture : public WebGLSharedPlatform3DObject {
 
   GLenum target_;
 
-  WebGLVideoFrameUploadMetadata last_uploaded_video_frame_metadata_ = {};
+  blink::WebMediaPlayer::VideoFrameUploadMetadata
+      last_uploaded_video_frame_metadata_ = {};
 };
 
 }  // namespace blink

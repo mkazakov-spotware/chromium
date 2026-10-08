@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,45 +11,41 @@
 #include <unordered_set>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "chrome/browser/banners/app_banner_settings_helper.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/engagement/site_engagement_score.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/installable/installable_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/pref_names.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/url_and_title.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
-#include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
-#include "components/site_engagement/content/site_engagement_score.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "components/site_engagement/core/mojom/site_engagement_details.mojom.h"
-#include "components/webapps/browser/banners/app_banner_settings_helper.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "third_party/blink/public/mojom/site_engagement/site_engagement.mojom.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 #include "url/url_util.h"
 
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/web_applications/web_app_id.h"
+#if defined(OS_ANDROID)
+#include "chrome/browser/android/search_permissions/search_permissions_service.h"
+#else
+#include "chrome/browser/web_applications/components/web_app_id.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #endif
 
-namespace site_engagement {
-
 namespace {
-
 using bookmarks::BookmarkModel;
 using bookmarks::UrlAndTitle;
 using ImportantDomainInfo = ImportantSitesUtil::ImportantDomainInfo;
@@ -59,10 +55,10 @@ using ImportantReason = ImportantSitesUtil::ImportantReason;
 // dictionary and the dialog preference dictionary.
 
 static const char kTimeLastIgnored[] = "TimeLastIgnored";
-static const int kSuppressionExpirationTimeDays = 30 * 5;
+static const int kBlacklistExpirationTimeDays = 30 * 5;
 
 static const char kNumTimesIgnoredName[] = "NumTimesIgnored";
-static const int kTimesIgnoredForSuppression = 3;
+static const int kTimesIgnoredForBlacklist = 3;
 
 // These are the maximum # of bookmarks we can use as signals. If the user has
 // <= kMaxBookmarks, then we just use those bookmarks. Otherwise we filter all
@@ -103,29 +99,29 @@ enum CrossedReason {
   CROSSED_REASON_BOUNDARY
 };
 
-void RecordIgnore(base::Value& dict) {
-  DCHECK(dict.is_dict());
-  int times_ignored = dict.FindIntKey(kNumTimesIgnoredName).value_or(0);
-  dict.SetIntKey(kNumTimesIgnoredName, ++times_ignored);
-  dict.SetDoubleKey(kTimeLastIgnored, base::Time::Now().ToDoubleT());
+void RecordIgnore(base::DictionaryValue* dict) {
+  int times_ignored = 0;
+  dict->GetInteger(kNumTimesIgnoredName, &times_ignored);
+  dict->SetInteger(kNumTimesIgnoredName, ++times_ignored);
+  dict->SetDouble(kTimeLastIgnored, base::Time::Now().ToDoubleT());
 }
 
-// If we should suppress the item with the given dictionary ignored record.
+// If we should blacklist the item with the given dictionary ignored record.
 bool ShouldSuppressItem(base::Value* dict) {
-  absl::optional<double> last_ignored_time =
+  base::Optional<double> last_ignored_time =
       dict->FindDoubleKey(kTimeLastIgnored);
   if (last_ignored_time) {
     base::TimeDelta diff =
         base::Time::Now() - base::Time::FromDoubleT(*last_ignored_time);
-    if (diff >= base::Days(kSuppressionExpirationTimeDays)) {
+    if (diff >= base::TimeDelta::FromDays(kBlacklistExpirationTimeDays)) {
       dict->SetIntKey(kNumTimesIgnoredName, 0);
       dict->RemoveKey(kTimeLastIgnored);
       return false;
     }
   }
 
-  absl::optional<int> times_ignored = dict->FindIntKey(kNumTimesIgnoredName);
-  return times_ignored && *times_ignored >= kTimesIgnoredForSuppression;
+  base::Optional<int> times_ignored = dict->FindIntKey(kNumTimesIgnoredName);
+  return times_ignored && *times_ignored >= kTimesIgnoredForBlacklist;
 }
 
 CrossedReason GetCrossedReasonFromBitfield(int32_t reason_bitfield) {
@@ -154,7 +150,7 @@ void MaybePopulateImportantInfoForReason(
     const GURL& origin,
     std::set<GURL>* visited_origins,
     ImportantReason reason,
-    absl::optional<std::string> app_name,
+    base::Optional<std::string> app_name,
     std::map<std::string, ImportantDomainInfo>* output) {
   if (!origin.is_valid() || !visited_origins->insert(origin).second)
     return;
@@ -213,7 +209,7 @@ bool CompareDescendingImportantInfo(
   return a.second.engagement_score > b.second.engagement_score;
 }
 
-std::unordered_set<std::string> GetSuppressedImportantDomains(
+std::unordered_set<std::string> GetBlacklistedImportantDomains(
     Profile* profile) {
   ContentSettingsForOneType content_settings_list;
   HostContentSettingsMap* map =
@@ -255,15 +251,13 @@ void PopulateInfoMapWithEngagement(
     if (detail.installed_bonus > 0) {
       MaybePopulateImportantInfoForReason(detail.origin, &content_origins,
                                           ImportantReason::HOME_SCREEN,
-                                          absl::nullopt, output);
+                                          base::nullopt, output);
     }
 
     (*engagement_map)[detail.origin] = detail.total_score;
 
-    if (!SiteEngagementService::IsEngagementAtLeast(detail.total_score,
-                                                    minimum_engagement)) {
+    if (!service->IsEngagementAtLeast(detail.origin, minimum_engagement))
       continue;
-    }
 
     std::string registerable_domain =
         ImportantSitesUtil::GetRegisterableDomainOrIP(detail.origin);
@@ -295,8 +289,21 @@ void PopulateInfoMapWithContentTypeAllowed(
       continue;
     GURL url(site.primary_pattern.ToString());
 
+#if defined(OS_ANDROID)
+    SearchPermissionsService* search_permissions_service =
+        SearchPermissionsService::Factory::GetInstance()->GetForBrowserContext(
+            profile);
+    // If the permission is controlled by the Default Search Engine then don't
+    // consider it important. The DSE gets these permissions by default.
+    if (search_permissions_service &&
+        search_permissions_service->IsPermissionControlledByDSE(
+            content_type, url::Origin::Create(url))) {
+      continue;
+    }
+#endif
+
     MaybePopulateImportantInfoForReason(url, &content_origins, reason,
-                                        absl::nullopt, output);
+                                        base::nullopt, output);
   }
 }
 
@@ -304,6 +311,7 @@ void PopulateInfoMapWithBookmarks(
     Profile* profile,
     const std::map<GURL, double>& engagement_map,
     std::map<std::string, ImportantDomainInfo>* output) {
+  SiteEngagementService* service = SiteEngagementService::Get(profile);
   BookmarkModel* model =
       BookmarkModelFactory::GetForBrowserContextIfExists(profile);
   if (!model)
@@ -314,22 +322,21 @@ void PopulateInfoMapWithBookmarks(
   // Process the bookmarks and optionally trim them if we have too many.
   std::vector<UrlAndTitle> result_bookmarks;
   if (untrimmed_bookmarks.size() > kMaxBookmarks) {
-    base::ranges::copy_if(
-        untrimmed_bookmarks, std::back_inserter(result_bookmarks),
-        [&engagement_map](const UrlAndTitle& entry) {
-          auto it = engagement_map.find(entry.url.DeprecatedGetOriginAsURL());
-          double score = it == engagement_map.end() ? 0 : it->second;
-          return SiteEngagementService::IsEngagementAtLeast(
-              score, blink::mojom::EngagementLevel::LOW);
-        });
+    std::copy_if(untrimmed_bookmarks.begin(), untrimmed_bookmarks.end(),
+                 std::back_inserter(result_bookmarks),
+                 [service](const UrlAndTitle& entry) {
+                   return service->IsEngagementAtLeast(
+                       entry.url.GetOrigin(),
+                       blink::mojom::EngagementLevel::LOW);
+                 });
     // TODO(dmurph): Simplify this (and probably much more) once
     // SiteEngagementService::GetAllDetails lands (crbug/703848), as that will
     // allow us to remove most of these lookups and merging of signals.
     std::sort(
         result_bookmarks.begin(), result_bookmarks.end(),
         [&engagement_map](const UrlAndTitle& a, const UrlAndTitle& b) {
-          auto a_it = engagement_map.find(a.url.DeprecatedGetOriginAsURL());
-          auto b_it = engagement_map.find(b.url.DeprecatedGetOriginAsURL());
+          auto a_it = engagement_map.find(a.url.GetOrigin());
+          auto b_it = engagement_map.find(b.url.GetOrigin());
           double a_score = a_it == engagement_map.end() ? 0 : a_it->second;
           double b_score = b_it == engagement_map.end() ? 0 : b_it->second;
           return a_score > b_score;
@@ -344,7 +351,7 @@ void PopulateInfoMapWithBookmarks(
   for (const UrlAndTitle& bookmark : result_bookmarks) {
     MaybePopulateImportantInfoForReason(bookmark.url, &content_origins,
                                         ImportantReason::BOOKMARKS,
-                                        absl::nullopt, output);
+                                        base::nullopt, output);
   }
 }
 
@@ -352,7 +359,7 @@ void PopulateInfoMapWithBookmarks(
 // about clearing data for installed apps, so this and any functions explicitly
 // used to warn about clearing data for installed apps can be excluded from the
 // Android build.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 void PopulateInfoMapWithInstalledEngagedInTimePeriod(
     browsing_data::TimePeriod time_period,
     Profile* profile,
@@ -362,20 +369,18 @@ void PopulateInfoMapWithInstalledEngagedInTimePeriod(
       service->GetAllDetailsEngagedInTimePeriod(time_period);
   std::set<GURL> content_origins;
 
-  // Check with WebAppRegistrar to make sure the apps have not yet been
+  // Check with AppRegistrar to make sure the apps have not yet been
   // uninstalled.
+  const web_app::AppRegistrar& registrar =
+      web_app::WebAppProvider::Get(profile)->registrar();
+  auto app_ids = registrar.GetAppIds();
   std::map<std::string, std::string> installed_origins_map;
-  if (web_app::AreWebAppsUserInstallable(profile)) {
-    const web_app::WebAppRegistrar& registrar =
-        web_app::WebAppProvider::GetForWebApps(profile)->registrar();
-    auto app_ids = registrar.GetAppIds();
-    for (auto& app_id : app_ids) {
-      GURL scope = registrar.GetAppScope(app_id);
-      DCHECK(scope.is_valid());
-      auto app_name = registrar.GetAppShortName(app_id);
-      installed_origins_map.emplace(
-          std::make_pair(scope.DeprecatedGetOriginAsURL().spec(), app_name));
-    }
+  for (auto& app_id : app_ids) {
+    GURL scope = registrar.GetAppScope(app_id);
+    DCHECK(scope.is_valid());
+    auto app_name = registrar.GetAppShortName(app_id);
+    installed_origins_map.emplace(
+        std::make_pair(scope.GetOrigin().spec(), app_name));
   }
 
   for (const auto& detail : engagement_details) {
@@ -458,8 +463,8 @@ ImportantSitesUtil::GetImportantRegisterableDomains(Profile* profile,
 
   PopulateInfoMapWithBookmarks(profile, engagement_map, &important_info);
 
-  std::unordered_set<std::string> suppressed_domains =
-      GetSuppressedImportantDomains(profile);
+  std::unordered_set<std::string> blacklisted_domains =
+      GetBlacklistedImportantDomains(profile);
 
   std::vector<std::pair<std::string, ImportantDomainInfo>> items;
   for (auto& item : important_info)
@@ -470,9 +475,10 @@ ImportantSitesUtil::GetImportantRegisterableDomains(Profile* profile,
   for (std::pair<std::string, ImportantDomainInfo>& domain_info : items) {
     if (final_list.size() >= max_results)
       return final_list;
-    if (suppressed_domains.find(domain_info.first) != suppressed_domains.end())
+    if (blacklisted_domains.find(domain_info.first) !=
+        blacklisted_domains.end()) {
       continue;
-
+    }
     final_list.push_back(std::move(domain_info.second));
     RECORD_UMA_FOR_IMPORTANT_REASON(
         "Storage.ImportantSites.GeneratedReason",
@@ -483,7 +489,7 @@ ImportantSitesUtil::GetImportantRegisterableDomains(Profile* profile,
   return final_list;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 std::vector<ImportantDomainInfo>
 ImportantSitesUtil::GetInstalledRegisterableDomains(
     browsing_data::TimePeriod time_period,
@@ -495,7 +501,7 @@ ImportantSitesUtil::GetInstalledRegisterableDomains(
                                                   &installed_app_info);
 
   std::unordered_set<std::string> excluded_domains =
-      GetSuppressedImportantDomains(profile);
+      GetBlacklistedImportantDomains(profile);
 
   std::vector<std::pair<std::string, ImportantDomainInfo>> items;
   for (auto& item : installed_app_info)
@@ -513,14 +519,14 @@ ImportantSitesUtil::GetInstalledRegisterableDomains(
 }
 #endif
 
-void ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
+void ImportantSitesUtil::RecordBlacklistedAndIgnoredImportantSites(
     Profile* profile,
-    const std::vector<std::string>& excluded_sites,
-    const std::vector<int32_t>& excluded_sites_reason_bitfield,
+    const std::vector<std::string>& blacklisted_sites,
+    const std::vector<int32_t>& blacklisted_sites_reason_bitfield,
     const std::vector<std::string>& ignored_sites,
     const std::vector<int32_t>& ignored_sites_reason_bitfield) {
-  // First, record the metrics for excluded and ignored sites.
-  for (int32_t reason_bitfield : excluded_sites_reason_bitfield) {
+  // First, record the metrics for blacklisted and ignored sites.
+  for (int32_t reason_bitfield : blacklisted_sites_reason_bitfield) {
     RECORD_UMA_FOR_IMPORTANT_REASON(
         "Storage.ImportantSites.CBDChosenReason",
         "Storage.ImportantSites.CBDChosenReasonCount", reason_bitfield);
@@ -534,18 +540,20 @@ void ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
   HostContentSettingsMap* map =
       HostContentSettingsMapFactory::GetForProfile(profile);
 
-  // We use the ignored sites to update our ignore counter only if the user
-  // chose to exclude a site.
-  if (!excluded_sites.empty()) {
+  // We use the ignored sites to update our important sites blacklist only if
+  // the user chose to blacklist a site.
+  if (!blacklisted_sites.empty()) {
     for (const std::string& ignored_site : ignored_sites) {
       GURL origin("http://" + ignored_site);
-      base::Value dict = map->GetWebsiteSetting(
-          origin, origin, ContentSettingsType::IMPORTANT_SITE_INFO, nullptr);
+      std::unique_ptr<base::DictionaryValue> dict =
+          base::DictionaryValue::From(map->GetWebsiteSetting(
+              origin, origin, ContentSettingsType::IMPORTANT_SITE_INFO,
+              nullptr));
 
-      if (!dict.is_dict())
-        dict = base::Value(base::Value::Type::DICTIONARY);
+      if (!dict)
+        dict = std::make_unique<base::DictionaryValue>();
 
-      RecordIgnore(dict);
+      RecordIgnore(dict.get());
 
       map->SetWebsiteSettingDefaultScope(
           origin, origin, ContentSettingsType::IMPORTANT_SITE_INFO,
@@ -555,15 +563,15 @@ void ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
     // Record that the user did not interact with the dialog.
     PrefService* service = profile->GetPrefs();
     DictionaryPrefUpdate update(service, prefs::kImportantSitesDialogHistory);
-    RecordIgnore(*update.Get());
+    RecordIgnore(update.Get());
   }
 
-  // We clear our ignore counter for sites that the user chose.
-  for (const std::string& excluded_site : excluded_sites) {
-    GURL origin("http://" + excluded_site);
-    base::Value dict(base::Value::Type::DICTIONARY);
-    dict.SetIntKey(kNumTimesIgnoredName, 0);
-    dict.RemoveKey(kTimeLastIgnored);
+  // We clear our blacklist for sites that the user chose.
+  for (const std::string& blacklisted_site : blacklisted_sites) {
+    GURL origin("http://" + blacklisted_site);
+    std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue());
+    dict->SetInteger(kNumTimesIgnoredName, 0);
+    dict->Remove(kTimeLastIgnored, nullptr);
     map->SetWebsiteSettingDefaultScope(origin, origin,
                                        ContentSettingsType::IMPORTANT_SITE_INFO,
                                        std::move(dict));
@@ -572,7 +580,7 @@ void ImportantSitesUtil::RecordExcludedAndIgnoredImportantSites(
   // Finally, record our old crossed-stats.
   // Note: we don't plan on adding new metrics here, this is just for the finch
   // experiment to give us initial data on what signals actually mattered.
-  for (int32_t reason_bitfield : excluded_sites_reason_bitfield) {
+  for (int32_t reason_bitfield : blacklisted_sites_reason_bitfield) {
     UMA_HISTOGRAM_ENUMERATION("Storage.BlacklistedImportantSites.Reason",
                               GetCrossedReasonFromBitfield(reason_bitfield),
                               CROSSED_REASON_BOUNDARY);
@@ -587,9 +595,6 @@ void ImportantSitesUtil::MarkOriginAsImportantForTesting(Profile* profile,
       SiteEngagementService::Get(profile);
   site_engagement_service->ResetBaseScoreForURL(
       origin, SiteEngagementScore::GetMediumEngagementBoundary());
-  double score = site_engagement_service->GetScore(origin);
-  DCHECK(SiteEngagementService::IsEngagementAtLeast(
-      score, blink::mojom::EngagementLevel::MEDIUM));
+  DCHECK(site_engagement_service->IsEngagementAtLeast(
+      origin, blink::mojom::EngagementLevel::MEDIUM));
 }
-
-}  // namespace site_engagement

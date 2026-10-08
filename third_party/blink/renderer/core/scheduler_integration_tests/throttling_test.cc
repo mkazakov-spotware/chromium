@@ -1,5 +1,5 @@
-// Copyright 2017 The Chromium Authors
-// Use of this source code is governed by a BSD-style license that can be
+// Copyright 2017 The Chromium Authors. All rights reserved.
+// Use of this source code if governed by a BSD-style license that can be
 // found in LICENSE file.
 
 #include "base/numerics/safe_conversions.h"
@@ -16,7 +16,6 @@
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support_with_mock_scheduler.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
-#include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
 
 using testing::AnyOf;
 using testing::ElementsAre;
@@ -25,7 +24,8 @@ namespace blink {
 
 // When a page is backgrounded this is the absolute smallest amount of time
 // that can elapse between timer wake-ups.
-constexpr auto kDefaultThrottledWakeUpInterval = base::Seconds(1);
+constexpr auto kDefaultThrottledWakeUpInterval =
+    base::TimeDelta::FromSeconds(1);
 
 // This test suite relies on messages being posted to the console. In order to
 // be resilient against messages not posted by this specific test suite, a small
@@ -39,9 +39,10 @@ class ThrottlingTestBase : public SimTest {
     platform_->SetAutoAdvanceNowToPendingTasks(false);
 
     // Align the time on a 1-minute interval, to simplify expectations.
-    platform_->AdvanceClock(platform_->NowTicks().SnappedToNextTick(
-                                base::TimeTicks(), base::Minutes(1)) -
-                            platform_->NowTicks());
+    platform_->AdvanceClock(
+        platform_->NowTicks().SnappedToNextTick(
+            base::TimeTicks(), base::TimeDelta::FromMinutes(1)) -
+        platform_->NowTicks());
   }
 
   String BuildTimerConsoleMessage(String suffix = String()) {
@@ -104,7 +105,7 @@ TEST_F(DisableBackgroundThrottlingIsRespectedTest,
 
   // Run delayed tasks for 1 second. All tasks should be completed
   // with throttling disabled.
-  platform_->RunForPeriod(base::Seconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(1));
 
   EXPECT_THAT(FilteredConsoleMessages(),
               ElementsAre(console_message, console_message, console_message,
@@ -133,16 +134,68 @@ TEST_F(BackgroundPageThrottlingTest, TimersThrottledInBackgroundPage) {
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
   // Make sure that we run no more than one task a second.
-  platform_->RunForPeriod(base::Seconds(3));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(3));
   EXPECT_THAT(FilteredConsoleMessages(),
               ElementsAre(console_message, console_message, console_message));
 }
 
-// Verify the execution time of non-nested timers on a hidden page.
+// Verify that a timer with timeout=0 is not throttled until its timeout is
+// rounded up to 4ms.
+TEST_F(BackgroundPageThrottlingTest,
+       ZeroTimeoutTimersThrottledInBackgroundPage) {
+  SimRequest main_resource("https://example.com/", "text/html");
+
+  LoadURL("https://example.com/");
+
+  const String console_message = BuildTimerConsoleMessage();
+  main_resource.Complete(
+      String::Format("(<script>"
+                     "  function f(repetitions) {"
+                     "     if (repetitions == 0) return;"
+                     "     console.log('%s');"
+                     "     setTimeout(f, 0, repetitions - 1);"
+                     "  }"
+                     "  setTimeout(f, 0, 50);"
+                     "</script>)",
+                     console_message.Utf8().c_str()));
+
+  GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
+
+  // Initially, timeout is rounded up to 1ms and no throttling is applied
+  // (https://crbug.com/402694). After 4 executions, timeout is rounded up to
+  // 4ms and throttling is applied.
+  constexpr base::TimeDelta k10Ms = base::TimeDelta::FromMilliseconds(10);
+  platform_->RunForPeriod(k10Ms);
+  EXPECT_THAT(FilteredConsoleMessages(),
+              ElementsAre(console_message, console_message, console_message,
+                          console_message));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(1) - k10Ms);
+  EXPECT_THAT(FilteredConsoleMessages(),
+              ElementsAre(console_message, console_message, console_message,
+                          console_message, console_message));
+}
+
+namespace {
+
+class OptOutZeroTimeoutFromThrottlingTest : public ThrottlingTestBase {
+ public:
+  OptOutZeroTimeoutFromThrottlingTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kOptOutZeroTimeoutTimersFromThrottling);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+}  // namespace
+
+// Verify that in a hidden page, when the kOptOutZeroTimeoutTimersFromThrottling
+// feature is enabled:
 // - setTimeout(..., 0) and setTimeout(..., -1) schedule their callback after
 //   1ms. The 1 ms delay exists for historical reasons crbug.com/402694.
 // - setTimeout(..., 5) schedules its callback at the next aligned time
-TEST_F(BackgroundPageThrottlingTest, WithoutNesting) {
+TEST_F(OptOutZeroTimeoutFromThrottlingTest, WithoutNesting) {
   SimRequest main_resource("https://example.com/", "text/html");
   LoadURL("https://example.com/");
 
@@ -161,28 +214,24 @@ TEST_F(BackgroundPageThrottlingTest, WithoutNesting) {
       timeout_5_message.Utf8().c_str()));
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(base::Milliseconds(1001));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1001));
   EXPECT_THAT(FilteredConsoleMessages(),
               ElementsAre(timeout_0_message, timeout_minus_1_message));
 
-  platform_->RunForPeriod(base::Milliseconds(998));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(998));
   EXPECT_THAT(FilteredConsoleMessages(),
               ElementsAre(timeout_0_message, timeout_minus_1_message));
 
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(),
               ElementsAre(timeout_0_message, timeout_minus_1_message,
                           timeout_5_message));
 }
 
-// Verify that on a hidden page, a timer created with setTimeout(..., 0) is
-// throttled after 5 nesting levels.
-TEST_F(BackgroundPageThrottlingTest, NestedSetTimeoutZero) {
-  // Disable this test when setTimeoutWithoutClamp feature is enabled.
-  // TODO(crbug.com/1303275): Investigate the failure reason.
-  if (blink::features::IsSetTimeoutWithoutClampEnabled())
-    GTEST_SKIP() << "Skipping test for setTimeoutWithoutClamp feature enabled";
-
+// Verify that in a hidden page, when the kOptOutZeroTimeoutTimersFromThrottling
+// feature is enabled, a timer created with setTimeout(..., 0) is throttled
+// after 5 nesting levels.
+TEST_F(OptOutZeroTimeoutFromThrottlingTest, SetTimeoutNesting) {
   SimRequest main_resource("https://example.com/", "text/html");
   LoadURL("https://example.com/");
 
@@ -199,65 +248,24 @@ TEST_F(BackgroundPageThrottlingTest, NestedSetTimeoutZero) {
                      console_message.Utf8().c_str()));
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(1, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(2, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(3, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(4, console_message));
-  platform_->RunForPeriod(base::Milliseconds(995));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(995));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(4, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(5, console_message));
 }
 
-TEST_F(BackgroundPageThrottlingTest,
-       NestedSetTimeoutZero_MaxUnthrottledTimeoutNestingLevel) {
-  // Disable this test when setTimeoutWithoutClamp feature is enabled.
-  // TODO(crbug.com/1303275): Investigate the failure reason.
-  if (blink::features::IsSetTimeoutWithoutClampEnabled())
-    GTEST_SKIP() << "Skipping test for setTimeoutWithoutClamp feature enabled";
-
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeaturesAndParameters(
-      {{features::kMaxUnthrottledTimeoutNestingLevel, {{"nesting", "100"}}}},
-      {});
-
-  SimRequest main_resource("https://example.com/", "text/html");
-  LoadURL("https://example.com/");
-
-  const String console_message = BuildTimerConsoleMessage();
-  main_resource.Complete(
-      String::Format("<script>"
-                     "  function f(repetitions) {"
-                     "    if (repetitions == 0) return;"
-                     "    console.log('%s');"
-                     "    setTimeout(f, 0, repetitions - 1);"
-                     "  }"
-                     "  setTimeout(f, 0, 50);"
-                     "</script>",
-                     console_message.Utf8().c_str()));
-  GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
-
-  platform_->RunForPeriod(base::Milliseconds(1));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(1, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(2, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(3, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(4, console_message));
-  platform_->RunForPeriod(base::Milliseconds(995));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(4, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(5, console_message));
-}
-
-// Verify that in a hidden page, a timer created with setInterval(..., 0) is
-// throttled after 5 nesting levels.
-TEST_F(BackgroundPageThrottlingTest, NestedSetIntervalZero) {
+// Verify that in a hidden page, when the kOptOutZeroTimeoutTimersFromThrottling
+// feature is enabled, a timer created with setInterval(..., 0) is throttled
+// after 5 nesting levels.
+TEST_F(OptOutZeroTimeoutFromThrottlingTest, SetIntervalNesting) {
   SimRequest main_resource("https://example.com/", "text/html");
   LoadURL("https://example.com/");
 
@@ -275,75 +283,18 @@ TEST_F(BackgroundPageThrottlingTest, NestedSetIntervalZero) {
                      console_message.Utf8().c_str()));
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(1, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(2, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(3, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(4, console_message));
-  platform_->RunForPeriod(base::Milliseconds(995));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(995));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(4, console_message));
-  platform_->RunForPeriod(base::Milliseconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromMilliseconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(5, console_message));
-}
-
-class AbortSignalTimeoutThrottlingTest : public BackgroundPageThrottlingTest {
- public:
-  AbortSignalTimeoutThrottlingTest()
-      : console_message_(BuildTimerConsoleMessage()) {}
-
-  String GetTestSource(wtf_size_t iterations, wtf_size_t timeout) {
-    return String::Format(
-        "(<script>"
-        "  let count = 0;"
-        "  function scheduleTimeout() {"
-        "    const signal = AbortSignal.timeout('%d');"
-        "    signal.onabort = () => {"
-        "      console.log('%s');"
-        "      if (++count < '%d') {"
-        "        scheduleTimeout();"
-        "      }"
-        "    }"
-        "  }"
-        "  scheduleTimeout();"
-        "</script>)",
-        timeout, console_message_.Utf8().c_str(), iterations);
-  }
-
-  const String& console_message() { return console_message_; }
-
- protected:
-  const String console_message_;
-};
-
-TEST_F(AbortSignalTimeoutThrottlingTest, TimeoutsThrottledInBackgroundPage) {
-  SimRequest main_resource("https://example.com/", "text/html");
-  LoadURL("https://example.com/");
-  main_resource.Complete(GetTestSource(/*iterations=*/20, /*timeout=*/10));
-
-  GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
-
-  // Make sure that we run no more than one task a second.
-  platform_->RunForPeriod(base::Seconds(3));
-  EXPECT_THAT(FilteredConsoleMessages(), Vector<String>(3, console_message()));
-}
-
-TEST_F(AbortSignalTimeoutThrottlingTest, ZeroMsTimersNotThrottled) {
-  SimRequest main_resource("https://example.com/", "text/html");
-  LoadURL("https://example.com/");
-
-  constexpr wtf_size_t kIterations = 20;
-  main_resource.Complete(GetTestSource(kIterations, /*timeout=*/0));
-
-  GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
-
-  // All tasks should run after 1 ms since time does not advance during the
-  // test, the timeout was 0 ms, and the timeouts are not throttled.
-  platform_->RunForPeriod(base::Milliseconds(1));
-  EXPECT_THAT(FilteredConsoleMessages(),
-              Vector<String>(kIterations, console_message()));
 }
 
 namespace {
@@ -351,10 +302,8 @@ namespace {
 class IntensiveWakeUpThrottlingTest : public ThrottlingTestBase {
  public:
   IntensiveWakeUpThrottlingTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kIntensiveWakeUpThrottling, {}},
-         {features::kMaxUnthrottledTimeoutNestingLevel, {{"nesting", "100"}}},
-         {features::kSetTimeoutWithoutClamp, {}}},
+    scoped_feature_list_.InitWithFeatures(
+        {features::kIntensiveWakeUpThrottling},
         // Disable freezing because it hides the effect of intensive throttling.
         {features::kStopInBackground});
   }
@@ -364,17 +313,17 @@ class IntensiveWakeUpThrottlingTest : public ThrottlingTestBase {
   void ExpectRepeatingTimerConsoleMessages(int num_1hz_messages) {
     for (int i = 0; i < num_1hz_messages; ++i) {
       ConsoleMessages().clear();
-      platform_->RunForPeriod(base::Seconds(1));
+      platform_->RunForPeriod(base::TimeDelta::FromSeconds(1));
       EXPECT_EQ(FilteredConsoleMessages().size(), 1U);
     }
 
     constexpr int kNumIterations = 3;
     for (int i = 0; i < kNumIterations; ++i) {
       ConsoleMessages().clear();
-      platform_->RunForPeriod(base::Seconds(30));
+      platform_->RunForPeriod(base::TimeDelta::FromSeconds(30));
       // Task shouldn't execute earlier than expected.
       EXPECT_EQ(FilteredConsoleMessages().size(), 0U);
-      platform_->RunForPeriod(base::Seconds(30));
+      platform_->RunForPeriod(base::TimeDelta::FromSeconds(30));
       EXPECT_EQ(FilteredConsoleMessages().size(), 1U);
     }
   }
@@ -382,7 +331,7 @@ class IntensiveWakeUpThrottlingTest : public ThrottlingTestBase {
   void TestNoIntensiveThrottlingOnTitleOrFaviconUpdate(
       const String& console_message) {
     // The page does not attempt to run onTimer in the first 5 minutes.
-    platform_->RunForPeriod(base::Minutes(5));
+    platform_->RunForPeriod(base::TimeDelta::FromMinutes(5));
     EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
     // onTimer() communicates in background and re-posts itself. The background
@@ -445,7 +394,8 @@ constexpr char kLongUnalignedTimerScriptTemplate[] =
     "</script>";
 
 // A time delta that matches the delay in the above script.
-constexpr base::TimeDelta kLongUnalignedTimerDelay = base::Seconds(342);
+constexpr base::TimeDelta kLongUnalignedTimerDelay =
+    base::TimeDelta::FromSeconds(342);
 
 // Builds a page that waits 5 minutes and then creates a timer that reschedules
 // itself 50 times with 10 ms delay. The timer task logs |console_message| to
@@ -496,7 +446,7 @@ TEST_F(IntensiveWakeUpThrottlingTest, MainFrameTimer_ShortTimeout) {
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
   // No timer is scheduled in the 5 first minutes.
-  platform_->RunForPeriod(base::Minutes(5));
+  platform_->RunForPeriod(base::TimeDelta::FromMinutes(5));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
   // Expected execution:
@@ -565,7 +515,7 @@ TEST_F(IntensiveWakeUpThrottlingTest, SameOriginSubFrameTimer_ShortTimeout) {
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
   // No timer is scheduled in the 5 first minutes.
-  platform_->RunForPeriod(base::Minutes(5));
+  platform_->RunForPeriod(base::TimeDelta::FromMinutes(5));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
   // Expected execution:
@@ -603,7 +553,7 @@ TEST_F(IntensiveWakeUpThrottlingTest, CrossOriginSubFrameTimer_ShortTimeout) {
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
   // No timer is scheduled in the 5 first minutes.
-  platform_->RunForPeriod(base::Minutes(5));
+  platform_->RunForPeriod(base::TimeDelta::FromMinutes(5));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
   // Expected execution:
@@ -631,10 +581,11 @@ TEST_F(IntensiveWakeUpThrottlingTest, MainFrameTimer_LongUnalignedTimeout) {
 
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(kLongUnalignedTimerDelay - base::Seconds(1));
+  platform_->RunForPeriod(kLongUnalignedTimerDelay -
+                          base::TimeDelta::FromSeconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
-  platform_->RunForPeriod(base::Seconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre(console_message));
 }
 
@@ -656,10 +607,11 @@ TEST_F(IntensiveWakeUpThrottlingTest,
 
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(kLongUnalignedTimerDelay - base::Seconds(1));
+  platform_->RunForPeriod(kLongUnalignedTimerDelay -
+                          base::TimeDelta::FromSeconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
-  platform_->RunForPeriod(base::Seconds(1));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(1));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre(console_message));
 }
 
@@ -684,11 +636,11 @@ TEST_F(IntensiveWakeUpThrottlingTest,
 
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(base::Seconds(342));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(342));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre());
 
   // Fast-forward to the next aligned time.
-  platform_->RunForPeriod(base::Seconds(18));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(18));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre(console_message));
 }
 
@@ -717,11 +669,11 @@ TEST_F(IntensiveWakeUpThrottlingTest,
 
   GetDocument().GetPage()->GetPageScheduler()->SetPageVisible(false);
 
-  platform_->RunForPeriod(base::Seconds(342));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(342));
   EXPECT_THAT(FilteredConsoleMessages(), ElementsAre(console_message));
 
   // Fast-forward to the next aligned time.
-  platform_->RunForPeriod(base::Seconds(18));
+  platform_->RunForPeriod(base::TimeDelta::FromSeconds(18));
   EXPECT_THAT(FilteredConsoleMessages(),
               ElementsAre(console_message, console_message));
 }

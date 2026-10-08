@@ -1,15 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/sharing/nearby/platform/recursive_mutex.h"
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/containers/flat_set.h"
 #include "base/run_loop.h"
-#include "base/task/task_runner.h"
+#include "base/stl_util.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
 #include "base/test/task_environment.h"

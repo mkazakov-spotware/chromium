@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/web_package/web_bundle_interceptor_for_history_navigation_from_network.h"
 
-#include "components/web_package/web_bundle_utils.h"
 #include "content/browser/loader/single_request_url_loader_factory.h"
+#include "content/browser/web_package/signed_exchange_utils.h"
 #include "content/browser/web_package/web_bundle_interceptor_for_history_navigation.h"
 #include "content/browser/web_package/web_bundle_reader.h"
 #include "content/browser/web_package/web_bundle_redirect_url_loader.h"
@@ -96,7 +96,7 @@ bool WebBundleInterceptorForHistoryNavigationFromNetwork::
         "Unexpected content type.");
     return true;
   }
-  if (!web_package::HasNoSniffHeader(**response_head)) {
+  if (!signed_exchange_utils::HasNoSniffHeader(**response_head)) {
     web_bundle_utils::CompleteWithInvalidWebBundleError(
         std::move(forwarding_client_), frame_tree_node_id_,
         web_bundle_utils::kNoSniffErrorMessage);
@@ -117,7 +117,8 @@ bool WebBundleInterceptorForHistoryNavigationFromNetwork::
   DCHECK(browser_context);
   reader_ = base::MakeRefCounted<WebBundleReader>(
       std::move(source_), length_hint, std::move(*response_body),
-      url_loader->Unbind(), browser_context->GetBlobStorageContext());
+      url_loader->Unbind(),
+      BrowserContext::GetBlobStorageContext(browser_context));
   reader_->ReadMetadata(base::BindOnce(
       &WebBundleInterceptorForHistoryNavigationFromNetwork::OnMetadataReady,
       weak_factory_.GetWeakPtr(), request));
@@ -134,26 +135,6 @@ void WebBundleInterceptorForHistoryNavigationFromNetwork::OnMetadataReady(
     web_bundle_utils::CompleteWithInvalidWebBundleError(
         std::move(forwarding_client_), frame_tree_node_id_,
         web_bundle_utils::GetMetadataParseErrorMessage(error));
-    return;
-  }
-  const absl::optional<GURL>& primary_url = reader_->GetPrimaryURL();
-  if (!primary_url.has_value()) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kNoPrimaryUrlErrorMessage);
-    return;
-  }
-  if (!web_bundle_utils::IsAllowedExchangeUrl(*primary_url)) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kInvalidPrimaryUrlErrorMessage);
-    return;
-  }
-  if (!base::ranges::all_of(reader_->GetEntries(),
-                            &web_bundle_utils::IsAllowedExchangeUrl)) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kInvalidExchangeUrlErrorMessage);
     return;
   }
   if (!reader_->HasEntry(target_inner_url_)) {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "components/autofill_assistant/browser/actions/action_delegate.h"
 #include "components/autofill_assistant/browser/actions/action_delegate_util.h"
 #include "components/autofill_assistant/browser/client_status.h"
-#include "components/autofill_assistant/browser/web/web_controller.h"
+#include "components/autofill_assistant/browser/web/element_finder.h"
 
 namespace autofill_assistant {
 
@@ -31,7 +31,7 @@ void SetAttributeAction::InternalProcessAction(ProcessActionCallback callback) {
     std::move(callback).Run(std::move(processed_action_proto_));
     return;
   }
-  delegate_->ShortWaitForElementWithSlowWarning(
+  delegate_->ShortWaitForElement(
       selector,
       base::BindOnce(&SetAttributeAction::OnWaitForElementTimed,
                      weak_ptr_factory_.GetWeakPtr(),
@@ -51,8 +51,7 @@ void SetAttributeAction::OnWaitForElement(ProcessActionCallback callback,
 
   action_delegate_util::FindElementAndPerform(
       delegate_, selector,
-      base::BindOnce(&WebController::SetAttribute,
-                     delegate_->GetWebController()->GetWeakPtr(),
+      base::BindOnce(&ActionDelegate::SetAttribute, delegate_->GetWeakPtr(),
                      ExtractVector(proto_.set_attribute().attribute()),
                      proto_.set_attribute().value()),
       base::BindOnce(&SetAttributeAction::OnSetAttribute,

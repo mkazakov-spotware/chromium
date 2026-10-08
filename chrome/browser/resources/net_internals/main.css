@@ -1,20 +1,8 @@
-/* Copyright 2012 The Chromium Authors
+/* Copyright (c) 2012 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
-:root {
-  --color-selected-tab: black;
-  --color-background: #fff;
-  --color-highlight: #fffccf;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-selected-tab: white;
-    --color-background: #121212;
-    --color-highlight:  #03DCB0;
-  }
-}
+/* Only common styles should be declared here. */
 
 * {
   box-sizing: border-box;
@@ -70,23 +58,10 @@ ul {
 
 #tab-list .selected,
 #tab-list a:hover {
-  color: var(--color-selected-tab);
+  color: black;
 }
 
 /* Styling for text indicating a potential problem or error state. */
 .warning-text {
   color: rgb(238, 0, 0);
-}
-
-#sockets-view-close-idle-button,
-#sockets-view-flush-button {
-  margin-bottom: 2px;
-}
-
-#domain-security-policy-view-tab-content tt {
-  word-wrap: break-word;
-}
-
-input + label {
-  margin-inline-start: 10px;
 }

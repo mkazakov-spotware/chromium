@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,20 +12,17 @@
 #include "chrome/browser/vr/test/animation_utils.h"
 #include "chrome/browser/vr/test/constants.h"
 #include "chrome/browser/vr/text_input_delegate.h"
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/skia/include/core/SkEncodedImageFormat.h"
 #include "third_party/skia/include/core/SkImageEncoder.h"
-#include "third_party/skia/include/core/SkPixmap.h"
 #include "third_party/skia/include/core/SkStream.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
 namespace vr {
 
 UiPixelTest::UiPixelTest() : frame_buffer_size_(kPixelHalfScreen) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // VR is not supported on Windows 7.
   os_supported_ = base::win::GetVersion() > base::win::Version::WIN7;
 #endif
@@ -97,8 +94,8 @@ void UiPixelTest::DrawUi(const gfx::Vector3dF& laser_direction,
   InputEventList input_event_list;
   ReticleModel reticle_model;
   EXPECT_TRUE(ui_->OnBeginFrame(base::TimeTicks(), render_info.head_pose));
-  ui_->HandleInput(gfx::MsToTicks(1), render_info, controller_model,
-                   &reticle_model, &input_event_list);
+  ui_->HandleInput(MsToTicks(1), render_info, controller_model, &reticle_model,
+                   &input_event_list);
   std::vector<ControllerModel> controllers;
   controllers.push_back(controller_model);
   ui_->OnControllersUpdated(controllers, reticle_model);

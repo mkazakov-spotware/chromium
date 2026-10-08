@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "components/javascript_dialogs/android/jni_headers/JavascriptTabModalDialog_jni.h"
 #include "content/public/browser/browser_thread.h"
@@ -26,10 +27,10 @@ namespace javascript_dialogs {
 base::WeakPtr<TabModalDialogViewAndroid> TabModalDialogViewAndroid::Create(
     content::WebContents* parent_web_contents,
     content::WebContents* alerting_web_contents,
-    const std::u16string& title,
+    const base::string16& title,
     content::JavaScriptDialogType dialog_type,
-    const std::u16string& message_text,
-    const std::u16string& default_prompt_text,
+    const base::string16& message_text,
+    const base::string16& default_prompt_text,
     content::JavaScriptDialogManager::DialogClosedCallback
         callback_on_button_clicked,
     base::OnceClosure callback_on_cancelled) {
@@ -56,7 +57,7 @@ void TabModalDialogViewAndroid::CloseDialogWithoutCallback() {
   delete this;
 }
 
-std::u16string TabModalDialogViewAndroid::GetUserInput() {
+base::string16 TabModalDialogViewAndroid::GetUserInput() {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jstring> prompt =
       Java_JavascriptTabModalDialog_getUserInput(env, dialog_jobject_);
@@ -67,7 +68,7 @@ void TabModalDialogViewAndroid::Accept(JNIEnv* env,
                                        const JavaParamRef<jobject>&,
                                        const JavaParamRef<jstring>& prompt) {
   if (callback_on_button_clicked_) {
-    std::u16string prompt_text =
+    base::string16 prompt_text =
         base::android::ConvertJavaStringToUTF16(env, prompt);
     std::move(callback_on_button_clicked_).Run(true, prompt_text);
   }
@@ -79,7 +80,7 @@ void TabModalDialogViewAndroid::Cancel(JNIEnv* env,
                                        jboolean button_clicked) {
   if (button_clicked) {
     if (callback_on_button_clicked_) {
-      std::move(callback_on_button_clicked_).Run(false, std::u16string());
+      std::move(callback_on_button_clicked_).Run(false, base::string16());
     }
   } else if (callback_on_cancelled_) {
     std::move(callback_on_cancelled_).Run();
@@ -90,10 +91,10 @@ void TabModalDialogViewAndroid::Cancel(JNIEnv* env,
 TabModalDialogViewAndroid::TabModalDialogViewAndroid(
     content::WebContents* parent_web_contents,
     content::WebContents* alerting_web_contents,
-    const std::u16string& title,
+    const base::string16& title,
     content::JavaScriptDialogType dialog_type,
-    const std::u16string& message_text,
-    const std::u16string& default_prompt_text,
+    const base::string16& message_text,
+    const base::string16& default_prompt_text,
     content::JavaScriptDialogManager::DialogClosedCallback
         callback_on_button_clicked,
     base::OnceClosure callback_on_cancelled)

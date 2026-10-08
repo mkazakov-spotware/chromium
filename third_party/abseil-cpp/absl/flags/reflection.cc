@@ -18,11 +18,11 @@
 #include <assert.h>
 
 #include <atomic>
+#include <map>
 #include <string>
 
 #include "absl/base/config.h"
 #include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/flags/commandlineflag.h"
 #include "absl/flags/internal/private_handle_accessor.h"
 #include "absl/flags/internal/registry.h"
@@ -50,7 +50,7 @@ class FlagRegistry {
   ~FlagRegistry() = default;
 
   // Store a flag in this registry. Takes ownership of *flag.
-  void RegisterFlag(CommandLineFlag& flag, const char* filename);
+  void RegisterFlag(CommandLineFlag& flag);
 
   void Lock() ABSL_EXCLUSIVE_LOCK_FUNCTION(lock_) { lock_.Lock(); }
   void Unlock() ABSL_UNLOCK_FUNCTION(lock_) { lock_.Unlock(); }
@@ -68,7 +68,7 @@ class FlagRegistry {
   friend void FinalizeRegistry();
 
   // The map from name to flag, for FindFlag().
-  using FlagMap = absl::flat_hash_map<absl::string_view, CommandLineFlag*>;
+  using FlagMap = std::map<absl::string_view, CommandLineFlag*>;
   using FlagIterator = FlagMap::iterator;
   using FlagConstIterator = FlagMap::const_iterator;
   FlagMap flags_;
@@ -110,20 +110,7 @@ CommandLineFlag* FlagRegistry::FindFlag(absl::string_view name) {
   return it != flags_.end() ? it->second : nullptr;
 }
 
-void FlagRegistry::RegisterFlag(CommandLineFlag& flag, const char* filename) {
-  if (filename != nullptr &&
-      flag.Filename() != GetUsageConfig().normalize_filename(filename)) {
-    flags_internal::ReportUsageError(
-        absl::StrCat(
-            "Inconsistency between flag object and registration for flag '",
-            flag.Name(),
-            "', likely due to duplicate flags or an ODR violation. Relevant "
-            "files: ",
-            flag.Filename(), " and ", filename),
-        true);
-    std::exit(1);
-  }
-
+void FlagRegistry::RegisterFlag(CommandLineFlag& flag) {
   FlagRegistryLock registry_lock(*this);
 
   std::pair<FlagIterator, bool> ins =
@@ -188,8 +175,8 @@ void ForEachFlag(std::function<void(CommandLineFlag&)> visitor) {
 
 // --------------------------------------------------------------------
 
-bool RegisterCommandLineFlag(CommandLineFlag& flag, const char* filename) {
-  FlagRegistry::GlobalRegistry().RegisterFlag(flag, filename);
+bool RegisterCommandLineFlag(CommandLineFlag& flag) {
+  FlagRegistry::GlobalRegistry().RegisterFlag(flag);
   return true;
 }
 
@@ -204,10 +191,6 @@ void FinalizeRegistry() {
   for (const auto& f : registry.flags_) {
     registry.flat_flags_.push_back(f.second);
   }
-  std::sort(std::begin(registry.flat_flags_), std::end(registry.flat_flags_),
-            [](const CommandLineFlag* lhs, const CommandLineFlag* rhs) {
-              return lhs->Name() < rhs->Name();
-            });
   registry.flags_.clear();
   registry.finalized_flags_.store(true, std::memory_order_release);
 }
@@ -283,7 +266,7 @@ void Retire(const char* name, FlagFastTypeId type_id, char* buf) {
   static_assert(alignof(RetiredFlagObj) == kRetiredFlagObjAlignment, "");
   auto* flag = ::new (static_cast<void*>(buf))
       flags_internal::RetiredFlagObj(name, type_id);
-  FlagRegistry::GlobalRegistry().RegisterFlag(*flag, nullptr);
+  FlagRegistry::GlobalRegistry().RegisterFlag(*flag);
 }
 
 // --------------------------------------------------------------------
@@ -345,7 +328,7 @@ CommandLineFlag* FindCommandLineFlag(absl::string_view name) {
 absl::flat_hash_map<absl::string_view, absl::CommandLineFlag*> GetAllFlags() {
   absl::flat_hash_map<absl::string_view, absl::CommandLineFlag*> res;
   flags_internal::ForEachFlag([&](CommandLineFlag& flag) {
-    if (!flag.IsRetired()) res.insert({flag.Name(), &flag});
+    res.insert({flag.Name(), &flag});
   });
   return res;
 }

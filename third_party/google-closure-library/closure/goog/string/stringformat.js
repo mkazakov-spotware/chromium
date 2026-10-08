@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Implementation of sprintf-like, python-%-operator-like,
@@ -31,18 +39,18 @@ goog.require('goog.string');
  * @return {string} Formatted string.
  */
 goog.string.format = function(formatString, var_args) {
-  'use strict';
+
   // Convert the arguments to an array (MDC recommended way).
-  const args = Array.prototype.slice.call(arguments);
+  var args = Array.prototype.slice.call(arguments);
 
   // Try to get the template.
-  const template = args.shift();
+  var template = args.shift();
   if (typeof template == 'undefined') {
     throw new Error('[goog.string.format] Template required');
   }
 
   // This re is used for matching, it also defines what is supported.
-  const formatRe = /%([0\-\ \+]*)(\d+)?(\.(\d+))?([%sfdiu])/g;
+  var formatRe = /%([0\-\ \+]*)(\d+)?(\.(\d+))?([%sfdiu])/g;
 
   /**
    * Chooses which conversion function to call based on type conversion
@@ -65,7 +73,7 @@ goog.string.format = function(formatString, var_args) {
     }
 
     // Try to get the actual value from parent function.
-    const value = args.shift();
+    var value = args.shift();
 
     // If we didn't get any arguments, fail.
     if (typeof value == 'undefined') {
@@ -103,8 +111,7 @@ goog.string.format.demuxes_ = {};
  */
 goog.string.format.demuxes_['s'] = function(
     value, flags, width, dotp, precision, type, offset, wholeString) {
-  'use strict';
-  let replacement = value;
+  var replacement = value;
   // If no padding is necessary we're done.
   // The check for '' is necessary because Firefox incorrectly provides the
   // empty string instead of undefined for non-participating capture groups,
@@ -139,8 +146,8 @@ goog.string.format.demuxes_['s'] = function(
  */
 goog.string.format.demuxes_['f'] = function(
     value, flags, width, dotp, precision, type, offset, wholeString) {
-  'use strict';
-  let replacement = value.toString();
+
+  var replacement = value.toString();
 
   // The check for '' is necessary because Firefox incorrectly provides the
   // empty string instead of undefined for non-participating capture groups,
@@ -150,7 +157,7 @@ goog.string.format.demuxes_['f'] = function(
   }
 
   // Generates sign string that will be attached to the replacement.
-  let sign;
+  var sign;
   if (Number(value) < 0) {
     sign = '-';
   } else if (flags.indexOf('+') >= 0) {
@@ -174,7 +181,7 @@ goog.string.format.demuxes_['f'] = function(
   replacement = isNaN(precision) ? Math.abs(Number(value)).toString() :
                                    Math.abs(Number(value)).toFixed(precision);
 
-  const padCount = Number(width) - replacement.length - sign.length;
+  var padCount = Number(width) - replacement.length - sign.length;
 
   // Find out which side to pad, and if it's left side, then which character to
   // pad, and set the sign on the left and padding in the middle.
@@ -182,7 +189,7 @@ goog.string.format.demuxes_['f'] = function(
     replacement = sign + replacement + goog.string.repeat(' ', padCount);
   } else {
     // Decides which character to pad.
-    const paddingChar = (flags.indexOf('0', 0) >= 0) ? '0' : ' ';
+    var paddingChar = (flags.indexOf('0', 0) >= 0) ? '0' : ' ';
     replacement =
         sign + goog.string.repeat(paddingChar, padCount) + replacement;
   }
@@ -205,7 +212,6 @@ goog.string.format.demuxes_['f'] = function(
  */
 goog.string.format.demuxes_['d'] = function(
     value, flags, width, dotp, precision, type, offset, wholeString) {
-  'use strict';
   return goog.string.format.demuxes_['f'](
       parseInt(value, 10) /* value */, flags, width, dotp, 0 /* precision */,
       type, offset, wholeString);

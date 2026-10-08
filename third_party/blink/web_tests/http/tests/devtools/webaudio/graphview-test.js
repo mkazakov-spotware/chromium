@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
   TestRunner.addResult(`Tests the graph model.\n`);
 
   await TestRunner.showPanel('web-audio');
-  await TestRunner.loadLegacyModule('web_audio');
 
   const contextId = 'contextId';
   const graph = new WebAudio.GraphVisualizer.GraphView(contextId);
@@ -101,14 +100,8 @@
   }
 
   function dumpInOutBoundingMapSize() {
-    // TODO(crbug.com/1238850): Remove the _outboundEdgeMap branch.
-    if (graph.hasOwnProperty('outboundEdgeMap')) {
-      TestRunner.addResult(`Number of nodes with out-bound edges: ${graph.outboundEdgeMap.size}`);
-      TestRunner.addResult(`Number of nodes with in-bound edges: ${graph.inboundEdgeMap.size}`);
-    } else {
-      TestRunner.addResult(`Number of nodes with out-bound edges: ${graph.outboundEdgeMap.size}`);
-      TestRunner.addResult(`Number of nodes with in-bound edges: ${graph.inboundEdgeMap.size}`);
-    }
+    TestRunner.addResult(`Number of nodes with out-bound edges: ${graph._outboundEdgeMap.size}`);
+    TestRunner.addResult(`Number of nodes with in-bound edges: ${graph._inboundEdgeMap.size}`);
   }
 
 })();

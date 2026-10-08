@@ -1,14 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // TODO(crbug.com/1085633): Inline enums need to be cleaned up in the source
 // specification before we can autogenerate this.
-
-/**
- * @fileoverview Externs generated from namespace: webview
- * @externs
- */
 
 /**
  * @typedef {{
@@ -208,9 +203,6 @@ WebRequestEventInterface.prototype.onBeforeSendHeaders;
 
 /** @type {!WebRequestEvent} */
 WebRequestEventInterface.prototype.onCompleted;
-
-/** @type {!WebRequestEvent} */
-WebRequestEventInterface.prototype.onBeforeRedirect;
 
 /** @type {!WebRequestOnErrorOccurredEvent} */
 WebRequestEventInterface.prototype.onErrorOccurred;

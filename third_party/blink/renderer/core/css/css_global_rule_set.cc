@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,8 @@ void CSSGlobalRuleSet::InitWatchedSelectorsRuleSet(Document& document) {
   if (!watched_selectors.size())
     return;
   watched_selectors_rule_set_ = MakeGarbageCollected<RuleSet>();
-  MediaQueryEvaluator* medium =
-      MakeGarbageCollected<MediaQueryEvaluator>(document.GetFrame());
   for (unsigned i = 0; i < watched_selectors.size(); ++i) {
-    watched_selectors_rule_set_->AddStyleRule(watched_selectors[i], *medium,
+    watched_selectors_rule_set_->AddStyleRule(watched_selectors[i],
                                               kRuleHasNoSpecialState);
   }
 }
@@ -37,16 +35,20 @@ void CSSGlobalRuleSet::Update(Document& document) {
 
   is_dirty_ = false;
   features_.Clear();
+  has_fullscreen_ua_style_ = false;
 
   CSSDefaultStyleSheets& default_style_sheets =
       CSSDefaultStyleSheets::Instance();
+  if (default_style_sheets.DefaultStyle()) {
+    features_.Add(default_style_sheets.DefaultStyle()->Features());
+    has_fullscreen_ua_style_ = default_style_sheets.FullscreenStyleSheet();
+  }
 
-  has_fullscreen_ua_style_ = default_style_sheets.FullscreenStyleSheet();
-
-  default_style_sheets.CollectFeaturesTo(document, features_);
+  if (document.IsViewSource())
+    features_.Add(default_style_sheets.DefaultViewSourceStyle()->Features());
 
   if (watched_selectors_rule_set_)
-    features_.Merge(watched_selectors_rule_set_->Features());
+    features_.Add(watched_selectors_rule_set_->Features());
 
   document.GetStyleEngine().CollectFeaturesTo(features_);
 }

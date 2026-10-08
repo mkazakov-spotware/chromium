@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,7 @@ GEN_INCLUDE([
   '//chrome/browser/resources/chromeos/accessibility/chromevox/testing/' +
       'common.js',
   '//chrome/browser/resources/chromeos/accessibility/common/testing/' +
-      'callback_helper.js',
-  '//chrome/browser/resources/chromeos/accessibility/common/testing/' +
-      'common.js'
+      'callback_helper.js'
 ]);
 
 /**
@@ -50,6 +48,13 @@ ChromeVoxUnitTestBase.prototype = {
 
   /** @override */
   browsePreload: DUMMY_URL,
+
+  /**
+   * @override
+   * It doesn't make sense to run the accessibility audit on these tests,
+   * since many of them are deliberately testing inaccessible html.
+   */
+  runAccessibilityChecks: false,
 
   /**
    * Loads some inlined html into the body of the current document, replacing

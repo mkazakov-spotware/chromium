@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 #define CHROME_BROWSER_UI_VIEWS_CERTIFICATE_SELECTOR_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "net/ssl/client_cert_identity.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/table/table_view_observer.h"
 #include "ui/views/window/dialog_delegate.h"
 
@@ -38,8 +37,6 @@ namespace chrome {
 class CertificateSelector : public views::DialogDelegateView,
                             public views::TableViewObserver {
  public:
-  METADATA_HEADER(CertificateSelector);
-
   // Indicates if the dialog can be successfully shown.
   // TODO(davidben): Remove this when the certificate selector prompt is moved
   // to the WebContentsDelegate. https://crbug.com/456255.
@@ -48,8 +45,6 @@ class CertificateSelector : public views::DialogDelegateView,
   // |web_contents| must not be null.
   CertificateSelector(net::ClientCertIdentityList identities,
                       content::WebContents* web_contents);
-  CertificateSelector(const CertificateSelector&) = delete;
-  CertificateSelector& operator=(const CertificateSelector&) = delete;
   ~CertificateSelector() override;
 
   // Handles when the user chooses a certificate in the list.
@@ -68,9 +63,10 @@ class CertificateSelector : public views::DialogDelegateView,
 
   // DialogDelegateView:
   bool Accept() override;
-  std::u16string GetWindowTitle() const override;
+  base::string16 GetWindowTitle() const override;
   bool IsDialogButtonEnabled(ui::DialogButton button) const override;
   views::View* GetInitiallyFocusedView() override;
+  ui::ModalType GetModalType() const override;
 
   // views::TableViewObserver:
   void OnSelectionChanged() override;
@@ -102,10 +98,12 @@ class CertificateSelector : public views::DialogDelegateView,
   bool show_provider_column_ = false;
   std::unique_ptr<CertificateTableModel> model_;
 
-  const raw_ptr<content::WebContents, DanglingUntriaged> web_contents_;
+  content::WebContents* const web_contents_;
 
-  raw_ptr<views::TableView, DanglingUntriaged> table_ = nullptr;
-  raw_ptr<views::LabelButton, DanglingUntriaged> view_cert_button_ = nullptr;
+  views::TableView* table_ = nullptr;
+  views::LabelButton* view_cert_button_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(CertificateSelector);
 };
 
 }  // namespace chrome

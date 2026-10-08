@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,8 +45,7 @@ bool RadioButtonController::UpdateRadioButtonGroup(
   for (const auto& model_identifier : radio_group_it->second) {
     user_model_->SetValue(
         model_identifier,
-        SimpleValue(model_identifier == selected_model_identifier,
-                    /* is_client_side_only = */ false));
+        SimpleValue(model_identifier == selected_model_identifier));
   }
   return true;
 }

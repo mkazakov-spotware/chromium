@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,14 @@
 #include "base/check.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include <android/native_window_jni.h>
 #include "ui/gl/android/scoped_java_surface.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 namespace gpu {
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 GpuSurfaceTracker::SurfaceRecord::SurfaceRecord(
     gfx::AcceleratedWidget widget,
     const base::android::JavaRef<jobject>& j_surface,
@@ -27,10 +27,10 @@ GpuSurfaceTracker::SurfaceRecord::SurfaceRecord(
   if (j_surface)
     surface = gl::ScopedJavaSurface::AcquireExternalSurface(j_surface);
 }
-#else   // BUILDFLAG(IS_ANDROID)
+#else   // defined(OS_ANDROID)
 GpuSurfaceTracker::SurfaceRecord::SurfaceRecord(gfx::AcceleratedWidget widget)
     : widget(widget) {}
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 GpuSurfaceTracker::SurfaceRecord::SurfaceRecord(SurfaceRecord&&) = default;
 
@@ -74,17 +74,17 @@ gfx::AcceleratedWidget GpuSurfaceTracker::AcquireNativeWidget(
   if (it == surface_map_.end())
     return gfx::kNullAcceleratedWidget;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   if (it->second.widget != gfx::kNullAcceleratedWidget)
     ANativeWindow_acquire(it->second.widget);
   *can_be_used_with_surface_control =
       it->second.can_be_used_with_surface_control;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   return it->second.widget;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 gl::ScopedJavaSurface GpuSurfaceTracker::AcquireJavaSurface(
     gpu::SurfaceHandle surface_handle,
     bool* can_be_used_with_surface_control) {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/grit/chromium_strings.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -43,7 +42,7 @@ typedef std::map<pid_t, Process> ProcessMap;
 ProcessMap GetProcesses() {
   ProcessMap map;
 
-  base::ProcessIterator process_iter(nullptr);
+  base::ProcessIterator process_iter(NULL);
   while (const ProcessEntry* process_entry = process_iter.NextProcessEntry()) {
     Process process;
     process.pid = process_entry->pid();
@@ -121,7 +120,7 @@ void MemoryDetails::CollectProcessData(
   ProcessData current_browser =
       GetProcessDataMemoryInformation(GetAllChildren(process_map, getpid()));
   current_browser.name = l10n_util::GetStringUTF16(IDS_SHORT_PRODUCT_NAME);
-  current_browser.process_name = u"chrome";
+  current_browser.process_name = base::ASCIIToUTF16("chrome");
 
   for (auto i = current_browser.processes.begin();
        i != current_browser.processes.end(); ++i) {
@@ -138,7 +137,7 @@ void MemoryDetails::CollectProcessData(
 
   process_data_.push_back(current_browser);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   base::GetSwapInfo(&swap_info_);
 #endif
 

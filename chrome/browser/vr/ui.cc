@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,11 @@
 #include "chrome/browser/vr/ui.h"
 
 #include "base/bind.h"
-#include "base/cxx17_backports.h"
 #include "base/logging.h"
 #include "base/numerics/math_constants.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/numerics/ranges.h"
+#include "base/strings/string16.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/vr/content_input_delegate.h"
 #include "chrome/browser/vr/elements/content_element.h"
@@ -276,9 +277,10 @@ void Ui::SetSpeechRecognitionEnabled(bool enabled) {
       OnSpeechRecognitionEnded();
     } else {
       auto sequence = std::make_unique<Sequence>();
-      sequence->Add(base::BindOnce(&Ui::OnSpeechRecognitionEnded,
-                                   weak_ptr_factory_.GetWeakPtr()),
-                    base::Milliseconds(kSpeechRecognitionResultTimeoutMs));
+      sequence->Add(
+          base::BindOnce(&Ui::OnSpeechRecognitionEnded,
+                         weak_ptr_factory_.GetWeakPtr()),
+          base::TimeDelta::FromMilliseconds(kSpeechRecognitionResultTimeoutMs));
       scene_->AddSequence(std::move(sequence));
     }
   }
@@ -292,7 +294,7 @@ void Ui::OnSpeechRecognitionEnded() {
   }
 }
 
-void Ui::SetRecognitionResult(const std::u16string& result) {
+void Ui::SetRecognitionResult(const base::string16& result) {
   model_->speech.recognition_result = result;
 }
 
@@ -377,7 +379,7 @@ void Ui::SetDialogFloating(bool floating) {
   model_->hosted_platform_ui.floating = floating;
 }
 
-void Ui::ShowPlatformToast(const std::u16string& text) {
+void Ui::ShowPlatformToast(const base::string16& text) {
   model_->platform_toast = std::make_unique<PlatformToast>(text);
 }
 
@@ -637,9 +639,8 @@ gfx::Point3F Ui::GetTargetPointForTesting(UserFriendlyElementName element_name,
   // the actual element.
   auto scaled_position = ScalePoint(position, target_element->size().width(),
                                     target_element->size().height());
-  gfx::Point3F target =
-      target_element->ComputeTargetWorldSpaceTransform().MapPoint(
-          gfx::Point3F(scaled_position));
+  gfx::Point3F target(scaled_position.x(), scaled_position.y(), 0.0f);
+  target_element->ComputeTargetWorldSpaceTransform().TransformPoint(&target);
   // We do hit testing with respect to the eye position (world origin), so we
   // need to project the target point into the background.
   gfx::Vector3dF direction = target - kOrigin;
@@ -777,7 +778,7 @@ void Ui::HandleMenuButtonEvents(InputEventList* input_event_list) {
         case InputEvent::kMenuButtonClicked:
           // Post a task, rather than calling directly, to avoid modifying UI
           // state in the midst of frame rendering.
-          base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          base::ThreadTaskRunnerHandle::Get()->PostTask(
               FROM_HERE,
               base::BindOnce(&Ui::OnMenuButtonClicked, base::Unretained(this)));
           break;
@@ -830,14 +831,19 @@ FovRectangle Ui::GetMinimalFov(const gfx::Transform& view_matrix,
   bool has_visible_element = false;
 
   for (const auto* element : elements) {
+    gfx::Point3F left_bottom{-0.5, -0.5, 0};
+    gfx::Point3F left_top{-0.5, 0.5, 0};
+    gfx::Point3F right_bottom{0.5, -0.5, 0};
+    gfx::Point3F right_top{0.5, 0.5, 0};
+
     gfx::Transform transform = element->world_space_transform();
-    transform.PostConcat(view_matrix);
+    transform.ConcatTransform(view_matrix);
 
     // Transform to view space.
-    gfx::Point3F left_bottom = transform.MapPoint(gfx::Point3F(-0.5, -0.5, 0));
-    gfx::Point3F left_top = transform.MapPoint(gfx::Point3F(-0.5, 0.5, 0));
-    gfx::Point3F right_bottom = transform.MapPoint(gfx::Point3F(0.5, -0.5, 0));
-    gfx::Point3F right_top = transform.MapPoint(gfx::Point3F(0.5, 0.5, 0));
+    transform.TransformPoint(&left_bottom);
+    transform.TransformPoint(&left_top);
+    transform.TransformPoint(&right_bottom);
+    transform.TransformPoint(&right_top);
 
     // Project point to Z near plane in view space.
     left_bottom.Scale(-z_near / left_bottom.z());
@@ -863,10 +869,11 @@ FovRectangle Ui::GetMinimalFov(const gfx::Transform& view_matrix,
     }
 
     // Clamp to Z near plane's boundary.
-    bounds_left = base::clamp(bounds_left, z_near_left, z_near_right);
-    bounds_right = base::clamp(bounds_right, z_near_left, z_near_right);
-    bounds_bottom = base::clamp(bounds_bottom, z_near_bottom, z_near_top);
-    bounds_top = base::clamp(bounds_top, z_near_bottom, z_near_top);
+    bounds_left = base::ClampToRange(bounds_left, z_near_left, z_near_right);
+    bounds_right = base::ClampToRange(bounds_right, z_near_left, z_near_right);
+    bounds_bottom =
+        base::ClampToRange(bounds_bottom, z_near_bottom, z_near_top);
+    bounds_top = base::ClampToRange(bounds_top, z_near_bottom, z_near_top);
 
     left = std::min(bounds_left, left);
     right = std::max(bounds_right, right);
@@ -893,7 +900,7 @@ FovRectangle Ui::GetMinimalFov(const gfx::Transform& view_matrix,
   return FovRectangle{left_degrees, right_degrees, bottom_degrees, top_degrees};
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 extern "C" {
 // This symbol is retrieved from the VR feature module library via dlsym(),
 // where it's bare address is type-cast to a CreateUiFunction pointer and
@@ -911,6 +918,6 @@ __attribute__((visibility("default"))) UiInterface* CreateUi(
                 ui_initial_state);
 }
 }  // extern "C"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID
 
 }  // namespace vr

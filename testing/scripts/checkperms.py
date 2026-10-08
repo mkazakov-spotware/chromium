@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,10 +8,7 @@ import os
 import sys
 
 
-# Add src/testing/ into sys.path for importing common without pylint errors.
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-from scripts import common
+import common
 
 
 def main_run(args):
@@ -29,9 +26,10 @@ def main_run(args):
   for result in checkperms_results:
     result_set.add((result['rel_path'], result['error']))
 
-  failures = ['%s: %s' % (r[0], r[1]) for r in result_set]
-  common.record_local_script_results(
-      'checkperms', args.output, failures, True)
+  json.dump({
+      'valid': True,
+      'failures': ['%s: %s' % (r[0], r[1]) for r in result_set],
+  }, args.output)
 
   return rc
 

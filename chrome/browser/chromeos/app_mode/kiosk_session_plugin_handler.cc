@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 #include <algorithm>
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/chromeos/app_mode/kiosk_session_plugin_handler_delegate.h"
@@ -23,7 +24,9 @@ const int kHungWaitSeconds = 20;
 
 KioskSessionPluginHandler::Observer::Observer(content::WebContents* contents,
                                               KioskSessionPluginHandler* owner)
-    : content::WebContentsObserver(contents), owner_(owner) {}
+    : content::WebContentsObserver(contents),
+      owner_(owner) {
+}
 
 KioskSessionPluginHandler::Observer::~Observer() {}
 
@@ -60,7 +63,7 @@ void KioskSessionPluginHandler::Observer::PluginHungStatusChanged(
   if (!hung_plugins_.empty()) {
     if (!hung_wait_timer_.IsRunning()) {
       hung_wait_timer_.Start(
-          FROM_HERE, base::Seconds(kHungWaitSeconds), this,
+          FROM_HERE, base::TimeDelta::FromSeconds(kHungWaitSeconds), this,
           &KioskSessionPluginHandler::Observer::OnHungWaitTimer);
     }
   } else {
@@ -108,8 +111,7 @@ void KioskSessionPluginHandler::OnWebContentsDestroyed(Observer* observer) {
 
       // Schedule the delete later after |observer|'s WebContentsDestroyed
       // finishes.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                    observer);
+      base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, observer);
 
       return;
     }

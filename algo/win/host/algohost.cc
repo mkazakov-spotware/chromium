@@ -1,0 +1,353 @@
+#include "algo/win/host/algohost.h"
+
+#include <iostream>
+#include <vector>
+#include "algo/win/broker/algobroker.h"
+
+#include <tchar.h>
+#include <windows.h>
+
+#include "algo/win/host/coreclr_delegates.h"
+#include "algo/win/host/hostfxr.h"
+#include "algo/win/host/vars.h"
+#include "base/logging.h"
+#include "sandbox/win/src/sandbox.h"
+#include "sandbox/win/src/sandbox_factory.h"
+
+#define STR_EMPTY L""
+#define STR_DOT L'.'
+#define PATH_DELIMITER L"\\"
+
+#define HOSTFXR_LIB L"hostfxr.dll"
+
+using string_t = std::basic_string<char_t>;
+
+namespace
+{
+    hostfxr_initialize_for_runtime_config_fn init_fptr;
+    hostfxr_get_runtime_delegate_fn get_delegate_fptr;
+    hostfxr_close_fn close_fptr;
+
+    bool load_hostfxr(const char_t* hostfxr_path);
+
+    load_assembly_and_get_function_pointer_fn get_dotnet_load_assembly(const char_t* dotnet_root,
+                                                                       const char_t* host_path,
+                                                                       const char_t* config_path);
+
+    const string_t read_environment_variable(const char_t* name);
+
+    void warmup();
+
+    bool preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
+                 const char_t* asm_path,
+                 bool sandboxed);
+
+    int configure_python(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
+                        const char_t* endpoint_asm_path);
+
+    int start_with_preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
+                           const char_t* endpoint_asm_path,
+                           sandbox::TargetServices* target_services);
+
+}
+
+const string_t ENDPOINT_DIR = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_DIR");
+const string_t ENDPOINT_ASM = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_ASM");
+const string_t ENDPOINT_CONFIG = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_CONFIG");
+const string_t ENDPOINT_TYPE = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_TYPE");
+const string_t ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_METHOD");
+const string_t PRELOAD_ENDPOINT_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_PRELOAD_METHOD");
+string_t PYTHON_VIRTUALENV_PATH;
+string_t PYTHON_DLL_PATH;
+const string_t CONFIGURE_PYTHON_METHOD = read_environment_variable(L"__CT_ALGOHOST_ENDPOINT_CONFIGURE_PYTHON_METHOD");
+
+extern "C" {
+  extern __declspec(dllimport) char g_target_id[1 << 8];
+}
+
+void parse_command_line_arguments(int argc, wchar_t** argv) {
+  for (int i = 0; i < argc; i++) {
+    std::wstring arg = argv[i];
+    if (arg.find(L"--target-id=") == 0) {
+      const auto target_id = arg.substr(12);
+      const auto narrow_id = std::string(target_id.begin(), target_id.end());
+      strcpy(g_target_id, narrow_id.c_str());
+      LOG(INFO) << "Found target ID from command line: " << target_id.c_str();
+    }
+    else if (arg.find(L"--python-venv=") == 0) {
+      PYTHON_VIRTUALENV_PATH = arg.substr(14);
+      LOG(INFO) << "Found Python Virtual Environment path from command line: " << PYTHON_VIRTUALENV_PATH.c_str();
+    }
+    else if (arg.find(L"--python-dll=") == 0) {
+      PYTHON_DLL_PATH = arg.substr(13);
+      LOG(INFO) << "Found Python DLL path from command line: " << PYTHON_DLL_PATH.c_str();
+    }
+    else if (arg.find(L"--title=") == 0) {
+      std::wstring title = arg.substr(8);
+      LOG(INFO) << "Found title from command line: " << title.c_str();
+    }
+  }
+  
+  if (PYTHON_VIRTUALENV_PATH.empty()) {
+    LOG(INFO) << "No Python Virtual Environment path found in command line arguments";
+  }
+  if (PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << "No Python DLL path found in command line arguments";
+  }
+}
+
+int host_main(int argc, wchar_t* argv[])
+{
+  InitializeChildProcessLogging();
+
+  parse_command_line_arguments(argc, argv);
+  LOG(INFO) << "HOST" << std::endl;
+  warmup();
+
+  SetEnvironmentVariable(L"DOTNET_gcServer", L"1");
+  SetEnvironmentVariable(L"DOTNET_gcConcurrent", L"1");
+  SetEnvironmentVariable(L"DOTNET_GCCpuGroup", L"1");
+  SetEnvironmentVariable(L"DOTNET_Thread_UseAllCpuGroups", L"1");
+
+  if (PYTHON_DLL_PATH.empty()) {
+    LOG(INFO) << L"No Python DLL path provided via command line" << std::endl;
+  } else {
+	LOG(INFO) << L"Python DLL path received from command line: " << PYTHON_DLL_PATH.c_str() << std::endl;
+  }
+
+  // Python Virtual Environment path is now handled entirely via command line arguments
+  if (PYTHON_VIRTUALENV_PATH.empty()) {
+	LOG(INFO) << L"No Python Virtual Environment path provided via command line" << std::endl;
+  } else {
+	LOG(INFO) << L"Python Virtual Environment path received from command line: " << PYTHON_VIRTUALENV_PATH.c_str() << std::endl;
+  }
+
+  sandbox::TargetServices* target_services = sandbox::SandboxFactory::GetTargetServices();
+
+  const string_t product_path = read_environment_variable(CT_ENV_VAR_PRODUCT_PATH);
+  const string_t dotnet_path = read_environment_variable(CT_ENV_VAR_DOTNET_PATH);
+  const string_t hostfxr_path = read_environment_variable(CT_ENV_VAR_HOSTFXR_PATH);
+
+  const string_t endpoint_dir_path = product_path + PATH_DELIMITER + ENDPOINT_DIR;
+  const string_t endpoint_asm_path = endpoint_dir_path + PATH_DELIMITER + ENDPOINT_ASM;
+  const string_t endpoint_config_path = endpoint_dir_path + PATH_DELIMITER + ENDPOINT_CONFIG;
+
+  if (target_services != nullptr && target_services->Init() != sandbox::ResultCode::SBOX_ALL_OK)
+    return -12;
+
+  if (!load_hostfxr(hostfxr_path.c_str()))
+    return -21;
+
+  load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn =
+        get_dotnet_load_assembly(dotnet_path.c_str(), product_path.c_str(), endpoint_config_path.c_str());
+
+  if (load_assembly_and_get_function_pointer_fn == nullptr)
+        return ERROR_BAD_ENVIRONMENT;
+
+  // Load the endpoint and run its preload before LowerToken() on every Windows version. With
+  // Windows Smart App Control on, the .NET runtime maps managed assemblies as images that Code
+  // Integrity must verify, and a third-party signature cannot be verified once the token is
+  // lowered to USER_LOCKDOWN: every assembly load after that fails (XT-19123).
+  return start_with_preload(load_assembly_and_get_function_pointer_fn,
+                            endpoint_asm_path.c_str(),
+                            target_services);
+}
+
+namespace
+{
+    const string_t read_environment_variable(const char_t* name)
+    {
+      DWORD buffer_size = 65535;
+      string_t buffer;
+
+      buffer.resize(buffer_size);
+      buffer_size = GetEnvironmentVariable(name, &buffer[0], buffer_size);
+
+      if (!buffer_size)
+        return L"";
+
+      buffer.resize(buffer_size);
+      return buffer;
+    }
+
+    int start_with_preload(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
+                           const char_t* endpoint_asm_path,
+                           sandbox::TargetServices* target_services)
+    {
+      if (!preload(load_assembly_and_get_function_pointer_fn, endpoint_asm_path, target_services != nullptr))
+        return ERROR_BAD_DLL_ENTRYPOINT;
+
+      // Configure Python before lowering token privileges
+      int python_config_result = configure_python(load_assembly_and_get_function_pointer_fn, endpoint_asm_path);
+      if (python_config_result != 0) {
+        return python_config_result;
+      }
+
+      component_entry_point_fn entry_point_fn = nullptr;
+      if (load_assembly_and_get_function_pointer_fn(
+              endpoint_asm_path,
+              ENDPOINT_TYPE.c_str(),
+              ENDPOINT_METHOD.c_str(),
+              nullptr,
+              nullptr,
+              reinterpret_cast<void**>(&entry_point_fn)) != 0 || entry_point_fn == nullptr)
+        return ERROR_BAD_DLL_ENTRYPOINT;
+
+      // Now it's safe to lower token
+      if (target_services != nullptr)
+          target_services->LowerToken();
+      else
+          LOG(INFO) << "There are no target services!!!" << std::endl;
+
+      int result = entry_point_fn(nullptr, 0);
+      LOG(INFO) << "entry_point_fn(nullptr, 0) call result: " << result << std::endl;
+      return result;
+    }
+
+    bool preload(load_assembly_and_get_function_pointer_fn
+                        load_assembly_and_get_function_pointer_fn,
+                 const char_t* asm_path,
+                 bool sandboxed)
+    {
+      component_entry_point_fn preload_entry_point_fn = nullptr;
+      if (load_assembly_and_get_function_pointer_fn(
+              asm_path,
+              ENDPOINT_TYPE.c_str(),
+              PRELOAD_ENDPOINT_METHOD.c_str(),
+              nullptr,
+              nullptr,
+              reinterpret_cast<void**>(&preload_entry_point_fn)) != 0 || preload_entry_point_fn == nullptr)
+              return false;
+
+      // Endpoint.Preload loads the whole managed host only when the token is lowered after it.
+      preload_entry_point_fn(nullptr, sandboxed ? 1 : 0);
+      return true;
+    }
+
+    void warmup()
+    {
+      CompareStringEx(LOCALE_NAME_USER_DEFAULT, NORM_IGNORECASE, L"w", 1, L"a", 1, nullptr, nullptr, 0);
+      CompareStringEx(LOCALE_NAME_INVARIANT, NORM_IGNORECASE, L"w", 1, L"a", 1, nullptr, nullptr, 0);
+      CompareStringEx(LOCALE_NAME_SYSTEM_DEFAULT, NORM_IGNORECASE, L"w", 1, L"a", 1, nullptr, nullptr, 0);
+      LoadLibraryEx(L"bcrypt.dll", nullptr, 0);
+    }
+
+    // Configure Python in target process if Python DLL path is provided
+    int configure_python(load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer_fn,
+                        const char_t* endpoint_asm_path)
+    {
+      if (!PYTHON_DLL_PATH.empty()) {
+        LOG(INFO) << "Configuring Python in target process" << std::endl;
+        component_entry_point_fn configure_python_fn = nullptr;
+        if (load_assembly_and_get_function_pointer_fn(
+                endpoint_asm_path,
+                ENDPOINT_TYPE.c_str(),
+                CONFIGURE_PYTHON_METHOD.c_str(),
+                nullptr,
+                nullptr,
+                reinterpret_cast<void**>(&configure_python_fn)) != 0 || configure_python_fn == nullptr) {
+          LOG(ERROR) << "Failed to get ConfigurePython function pointer" << std::endl;
+          return ERROR_BAD_DLL_ENTRYPOINT;
+        }
+
+        // Prepare arguments array for C# in format --python-venv="path" and --python-dll="path"
+        std::vector<std::wstring> args_vector;
+        
+        if (!PYTHON_VIRTUALENV_PATH.empty()) {
+          std::wstring formatted_arg = L"--python-venv=\"" + PYTHON_VIRTUALENV_PATH + L"\"";
+          args_vector.push_back(formatted_arg);
+          LOG(INFO) << "Passing Python Virtual Environment argument to C#: " << formatted_arg.c_str();
+        } else {
+          LOG(INFO) << "No Python Virtual Environment path to pass to C#";
+        }
+        
+        if (!PYTHON_DLL_PATH.empty()) {
+          std::wstring formatted_arg = L"--python-dll=\"" + PYTHON_DLL_PATH + L"\"";
+          args_vector.push_back(formatted_arg);
+          LOG(INFO) << "Passing Python DLL path argument to C#: " << formatted_arg.c_str();
+        } else {
+          LOG(INFO) << "No Python DLL path to pass to C#";
+        }
+
+        // Convert to array of const wchar_t* pointers
+        std::vector<const wchar_t*> args_array;
+        for (const auto& arg : args_vector) {
+          args_array.push_back(arg.c_str());
+        }
+        
+        // Pass array pointer and count to C#
+        const wchar_t** args_ptr = args_array.empty() ? nullptr : args_array.data();
+        int arg_count = static_cast<int>(args_array.size());
+
+        // Call ConfigurePython with arguments array and count
+        int python_result = configure_python_fn(reinterpret_cast<void*>(const_cast<wchar_t**>(args_ptr)), arg_count);
+        if (python_result != 0) {
+          LOG(ERROR) << "Failed to configure Python: " << python_result << std::endl;
+          return ERROR_BAD_ENVIRONMENT;
+        }
+        LOG(INFO) << "Python configured successfully" << std::endl;
+      }
+      return 0;
+    }
+
+    void* load_library(const char_t* path)
+    {
+        HMODULE h = LoadLibrary(path);
+        assert(h != nullptr);
+        return h;
+    }
+
+    void* get_export(void* h, const char* name)
+    {
+        void* f = reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(h), name));
+        assert(f != nullptr);
+        return f;
+    }
+
+    bool load_hostfxr(const char_t* hostfxr_path)
+    {
+        void* hostfxr_lib = load_library(hostfxr_path);
+
+        init_fptr = reinterpret_cast<hostfxr_initialize_for_runtime_config_fn>(get_export(hostfxr_lib, "hostfxr_initialize_for_runtime_config"));
+        get_delegate_fptr = reinterpret_cast<hostfxr_get_runtime_delegate_fn>(get_export(hostfxr_lib, "hostfxr_get_runtime_delegate"));
+        close_fptr = reinterpret_cast<hostfxr_close_fn>(get_export(hostfxr_lib, "hostfxr_close"));
+
+        return init_fptr && get_delegate_fptr && close_fptr;
+    }
+
+    load_assembly_and_get_function_pointer_fn get_dotnet_load_assembly(const char_t* dotnet_root,
+                                                                       const char_t* host_path,
+                                                                       const char_t* config_path)
+    {
+        hostfxr_initialize_parameters parameters{
+            sizeof(hostfxr_initialize_parameters),
+            host_path,
+            dotnet_root,
+        };
+
+        // Load .NET Core
+        void* load_assembly_and_get_function_pointer = nullptr;
+        hostfxr_handle cxt = nullptr;
+
+        int rc = init_fptr(config_path, &parameters, &cxt);
+        if (rc != 0 || cxt == nullptr)
+        {
+            close_fptr(cxt);
+            return nullptr;
+        }
+
+        // Get the load assembly function pointer
+        rc = get_delegate_fptr(
+            cxt,
+            hdt_load_assembly_and_get_function_pointer,
+            &load_assembly_and_get_function_pointer);
+        if (rc != 0 || load_assembly_and_get_function_pointer == nullptr)
+        {
+            close_fptr(cxt);
+            return nullptr;
+        }
+
+        close_fptr(cxt);
+        return (load_assembly_and_get_function_pointer_fn) (load_assembly_and_get_function_pointer);
+    }
+}

@@ -24,6 +24,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_HTML_ANCHOR_ELEMENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_HTML_ANCHOR_ELEMENT_H_
 
+#include "base/optional.h"
+#include "third_party/blink/public/platform/web_impression.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
@@ -69,7 +71,6 @@ class CORE_EXPORT HTMLAnchorElement : public HTMLElement, public DOMURLUtils {
 
   KURL Href() const;
   void SetHref(const AtomicString&);
-  void setHref(const String&);
 
   const AtomicString& GetName() const;
 
@@ -81,6 +82,7 @@ class CORE_EXPORT HTMLAnchorElement : public HTMLElement, public DOMURLUtils {
   void SetURL(const KURL&) final;
 
   String Input() const final;
+  void SetInput(const String&) final;
 
   bool IsLiveLink() const final;
 
@@ -94,6 +96,15 @@ class CORE_EXPORT HTMLAnchorElement : public HTMLElement, public DOMURLUtils {
 
   LinkHash VisitedLinkHash() const;
   void InvalidateCachedVisitedLinkHash() { cached_visited_link_hash_ = 0; }
+
+  // Returns whether this element is a valid impression declaration tag. This is
+  // determined by looking at the presence of required attributes.
+  bool HasImpression() const;
+
+  // Returns the WebImpression struct with all data declared by impression
+  // related attributes on |this|. If the impression attributes do not contain
+  // allowed values, base::nullopt is returned.
+  base::Optional<WebImpression> GetImpressionForNavigation() const;
 
   void SendPings(const KURL& destination_url) const;
 
@@ -111,6 +122,7 @@ class CORE_EXPORT HTMLAnchorElement : public HTMLElement, public DOMURLUtils {
   void DefaultEventHandler(Event&) final;
   bool HasActivationBehavior() const override;
   void SetActive(bool active) final;
+  void AccessKeyAction(bool send_mouse_events) final;
   bool IsURLAttribute(const Attribute&) const final;
   bool HasLegalLinkAttribute(const QualifiedName&) const final;
   bool CanStartSelection() const final;
@@ -118,7 +130,6 @@ class CORE_EXPORT HTMLAnchorElement : public HTMLElement, public DOMURLUtils {
   bool draggable() const final;
   bool IsInteractiveContent() const final;
   InsertionNotificationRequest InsertedInto(ContainerNode&) override;
-  void RemovedFrom(ContainerNode&) override;
   void HandleClick(Event&);
 
   unsigned link_relations_ : 31;

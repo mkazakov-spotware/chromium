@@ -1,20 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/permissions/weblayer_permissions_client.h"
 
-#include "base/no_destructor.h"
-#include "build/build_config.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
-#include "components/subresource_filter/content/browser/subresource_filter_content_settings_manager.h"
-#include "components/subresource_filter/content/browser/subresource_filter_profile_context.h"
 #include "weblayer/browser/cookie_settings_factory.h"
+#include "weblayer/browser/default_search_engine.h"
 #include "weblayer/browser/host_content_settings_map_factory.h"
 #include "weblayer/browser/permissions/permission_decision_auto_blocker_factory.h"
-#include "weblayer/browser/subresource_filter_profile_context_factory.h"
+#include "weblayer/browser/permissions/permission_manager_factory.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "weblayer/browser/android/permission_request_utils.h"
 #include "weblayer/browser/android/resource_mapper.h"
 #endif
@@ -41,16 +38,9 @@ WebLayerPermissionsClient::GetCookieSettings(
 bool WebLayerPermissionsClient::IsSubresourceFilterActivated(
     content::BrowserContext* browser_context,
     const GURL& url) {
-  return SubresourceFilterProfileContextFactory::GetForBrowserContext(
-             browser_context)
-      ->settings_manager()
-      ->GetSiteActivationFromMetadata(url);
-}
-
-permissions::OriginKeyedPermissionActionService*
-WebLayerPermissionsClient::GetOriginKeyedPermissionActionService(
-    content::BrowserContext* browser_context) {
-  return nullptr;
+  // As the web layer does not currently support subresource filtering, the
+  // activation setting does not change any browser behavior.
+  return false;
 }
 
 permissions::PermissionDecisionAutoBlocker*
@@ -60,28 +50,39 @@ WebLayerPermissionsClient::GetPermissionDecisionAutoBlocker(
       browser_context);
 }
 
-// PermissionActionsHistory would never be read in WebLayer, so it seems logical
-// not to have the service at all.
-permissions::PermissionActionsHistory*
-WebLayerPermissionsClient::GetPermissionActionsHistory(
+permissions::PermissionManager* WebLayerPermissionsClient::GetPermissionManager(
     content::BrowserContext* browser_context) {
-  return nullptr;
+  return PermissionManagerFactory::GetForBrowserContext(browser_context);
 }
 
-permissions::ObjectPermissionContextBase*
-WebLayerPermissionsClient::GetChooserContext(
+permissions::ChooserContextBase* WebLayerPermissionsClient::GetChooserContext(
     content::BrowserContext* browser_context,
     ContentSettingsType type) {
   return nullptr;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
+bool WebLayerPermissionsClient::IsPermissionControlledByDse(
+    content::BrowserContext* browser_context,
+    ContentSettingsType type,
+    const url::Origin& origin) {
+  return weblayer::IsPermissionControlledByDse(type, origin);
+}
+
+bool WebLayerPermissionsClient::ResetPermissionIfControlledByDse(
+    content::BrowserContext* browser_context,
+    ContentSettingsType type,
+    const url::Origin& origin) {
+  if (IsPermissionControlledByDse(browser_context, type, origin)) {
+    ResetDsePermissions(browser_context);
+    return true;
+  }
+  return false;
+}
+
 void WebLayerPermissionsClient::RepromptForAndroidPermissions(
     content::WebContents* web_contents,
     const std::vector<ContentSettingsType>& content_settings_types,
-    const std::vector<ContentSettingsType>& filtered_content_settings_types,
-    const std::vector<std::string>& required_permissions,
-    const std::vector<std::string>& optional_permissions,
     PermissionsUpdatedCallback callback) {
   RequestAndroidPermissions(web_contents, content_settings_types,
                             std::move(callback));

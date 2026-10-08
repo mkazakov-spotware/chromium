@@ -1,14 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_UI_BADGES_BADGE_TYPE_H_
 #define IOS_CHROME_BROWSER_UI_BADGES_BADGE_TYPE_H_
 
-#import <Foundation/Foundation.h>
-
 // Badge types.
-typedef NS_ENUM(NSUInteger, BadgeType) {
+enum class BadgeType {
   // Badge type for no badge. This is to allow other features to distinguish
   // when a badge is necessary or not. Setting a BadgeModel type to
   // kBadgeTypeNone might result in a crash.
@@ -25,14 +23,6 @@ typedef NS_ENUM(NSUInteger, BadgeType) {
   kBadgeTypeSaveCard = 5,
   // Badge type for the Translate Infobar.
   kBadgeTypeTranslate = 6,
-  // Badge type for the Save Address Profile Infobar.
-  kBadgeTypeSaveAddressProfile = 7,
-  // Badge type for the Add to Reading List Infobar.
-  kBadgeTypeAddToReadingList = 8,
-  // Badge type for the Permissions Infobar with camera icon.
-  kBadgeTypePermissionsCamera = 9,
-  // Badge type for the Permissions Infobar with microphone icon.
-  kBadgeTypePermissionsMicrophone = 10,
 };
 
 #endif  // IOS_CHROME_BROWSER_UI_BADGES_BADGE_TYPE_H_

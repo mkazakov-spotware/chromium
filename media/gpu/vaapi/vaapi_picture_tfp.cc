@@ -1,14 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/vaapi/vaapi_picture_tfp.h"
 
 #include "media/gpu/vaapi/va_surface.h"
-#include "media/gpu/vaapi/vaapi_status.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/x/connection.h"
-#include "ui/gfx/x/future.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_image_glx.h"
 #include "ui/gl/scoped_binders.h"
@@ -37,6 +36,7 @@ VaapiTFPPicture::VaapiTFPPicture(
       connection_(x11::Connection::Get()),
       x_pixmap_(x11::Pixmap::None) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(!features::IsUsingOzonePlatform());
   DCHECK(texture_id);
   DCHECK(client_texture_id);
 }
@@ -52,48 +52,48 @@ VaapiTFPPicture::~VaapiTFPPicture() {
     connection_->FreePixmap({x_pixmap_});
 }
 
-VaapiStatus VaapiTFPPicture::Initialize() {
+Status VaapiTFPPicture::Initialize() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_NE(x_pixmap_, x11::Pixmap::None);
 
   if (make_context_current_cb_ && !make_context_current_cb_.Run())
-    return VaapiStatus::Codes::kBadContext;
+    return StatusCode::kVaapiBadContext;
 
   glx_image_ = new gl::GLImageGLX(size_, gfx::BufferFormat::BGRX_8888);
   if (!glx_image_->Initialize(x_pixmap_)) {
     // x_pixmap_ will be freed in the destructor.
     DLOG(ERROR) << "Failed creating a GLX Pixmap for TFP";
-    return VaapiStatus::Codes::kFailedToInitializeImage;
+    return StatusCode::kVaapiFailedToInitializeImage;
   }
 
   gl::ScopedTextureBinder texture_binder(texture_target_, texture_id_);
   if (!glx_image_->BindTexImage(texture_target_)) {
     DLOG(ERROR) << "Failed to bind texture to glx image";
-    return VaapiStatus::Codes::kFailedToBindTexture;
+    return StatusCode::kVaapiFailedToBindTexture;
   }
 
-  return VaapiStatus::Codes::kOk;
+  return OkStatus();
 }
 
-VaapiStatus VaapiTFPPicture::Allocate(gfx::BufferFormat format) {
+Status VaapiTFPPicture::Allocate(gfx::BufferFormat format) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (format != gfx::BufferFormat::BGRX_8888 &&
       format != gfx::BufferFormat::BGRA_8888 &&
       format != gfx::BufferFormat::RGBX_8888) {
     DLOG(ERROR) << "Unsupported format";
-    return VaapiStatus::Codes::kUnsupportedFormat;
+    return StatusCode::kVaapiUnsupportedFormat;
   }
 
   if (!connection_->Ready())
-    return VaapiStatus::Codes::kNoPixmap;
+    return StatusCode::kVaapiNoPixmap;
 
   auto root = connection_->default_root();
 
   uint8_t depth = 0;
-  if (auto reply = connection_->GetGeometry(root).Sync())
+  if (auto reply = connection_->GetGeometry({root}).Sync())
     depth = reply->depth;
   else
-    return VaapiStatus::Codes::kNoPixmap;
+    return StatusCode::kVaapiNoPixmap;
 
   // TODO(posciak): pass the depth required by libva, not the RootWindow's
   // depth
@@ -102,13 +102,13 @@ VaapiStatus VaapiTFPPicture::Allocate(gfx::BufferFormat format) {
   if (!base::CheckedNumeric<int>(size_.width()).AssignIfValid(&pixmap_width) ||
       !base::CheckedNumeric<int>(size_.height())
            .AssignIfValid(&pixmap_height)) {
-    return VaapiStatus::Codes::kNoPixmap;
+    return StatusCode::kVaapiNoPixmap;
   }
   auto req = connection_->CreatePixmap(
       {depth, pixmap, root, pixmap_width, pixmap_height});
   if (req.Sync().error) {
     DLOG(ERROR) << "Failed creating an X Pixmap for TFP";
-    return VaapiStatus::Codes::kNoPixmap;
+    return StatusCode::kVaapiNoPixmap;
   } else {
     x_pixmap_ = pixmap;
   }

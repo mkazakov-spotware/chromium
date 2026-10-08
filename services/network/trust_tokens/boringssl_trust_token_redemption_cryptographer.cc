@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,10 +31,10 @@ bool BoringsslTrustTokenRedemptionCryptographer::Initialize(
 
   const TRUST_TOKEN_METHOD* method = nullptr;
   switch (issuer_configured_version) {
-    case mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb:
+    case mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb:
       method = TRUST_TOKEN_experiment_v2_pmb();
       break;
-    case mojom::TrustTokenProtocolVersion::kTrustTokenV3Voprf:
+    case mojom::TrustTokenProtocolVersion::kTrustTokenV2Voprf:
       method = TRUST_TOKEN_experiment_v2_voprf();
       break;
   }
@@ -47,23 +47,24 @@ bool BoringsslTrustTokenRedemptionCryptographer::Initialize(
   return true;
 }
 
-absl::optional<std::string>
+base::Optional<std::string>
 BoringsslTrustTokenRedemptionCryptographer::BeginRedemption(
     TrustToken token,
+    base::StringPiece verification_key_to_bind,
     const url::Origin& top_level_origin) {
   if (!ctx_)
-    return absl::nullopt;
+    return base::nullopt;
 
   // It's unclear if BoringSSL expects the exact same value in the client data
   // and as the |time| argument to TRUST_TOKEN_CLIENT_begin_redemption; play
   // it safe by using a single timestamp.
   base::Time redemption_timestamp = base::Time::Now();
 
-  absl::optional<std::vector<uint8_t>> maybe_client_data =
-      CanonicalizeTrustTokenClientDataForRedemption(redemption_timestamp,
-                                                    top_level_origin);
+  base::Optional<std::vector<uint8_t>> maybe_client_data =
+      CanonicalizeTrustTokenClientDataForRedemption(
+          redemption_timestamp, top_level_origin, verification_key_to_bind);
   if (!maybe_client_data)
-    return absl::nullopt;
+    return base::nullopt;
 
   ScopedBoringsslBytes raw_redemption_request;
 
@@ -71,30 +72,30 @@ BoringsslTrustTokenRedemptionCryptographer::BeginRedemption(
       TRUST_TOKEN_new(base::as_bytes(base::make_span(token.body())).data(),
                       token.body().size()));
   if (!boringssl_token)
-    return absl::nullopt;
+    return base::nullopt;
 
   if (!TRUST_TOKEN_CLIENT_begin_redemption(
           ctx_.get(), raw_redemption_request.mutable_ptr(),
           raw_redemption_request.mutable_len(), boringssl_token.get(),
           maybe_client_data->data(), maybe_client_data->size(),
           (redemption_timestamp - base::Time::UnixEpoch()).InSeconds())) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return base::Base64Encode(raw_redemption_request.as_span());
 }
 
-absl::optional<std::string>
+base::Optional<std::string>
 BoringsslTrustTokenRedemptionCryptographer::ConfirmRedemption(
     base::StringPiece response_header) {
   if (!ctx_)
-    return absl::nullopt;
+    return base::nullopt;
 
   std::string decoded_response;
   if (!base::Base64Decode(response_header, &decoded_response))
-    return absl::nullopt;
+    return base::nullopt;
 
-  // In TrustTokenV3, the entire RR is stored in the body field, and the
+  // In TrustTokenV2, the entire RR is stored in the body field, and the
   // signature field is unused in finish_redemption.
   ScopedBoringsslBytes rr;
   ScopedBoringsslBytes unused;
@@ -103,11 +104,9 @@ BoringsslTrustTokenRedemptionCryptographer::ConfirmRedemption(
           unused.mutable_len(),
           base::as_bytes(base::make_span(decoded_response)).data(),
           decoded_response.size())) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  if (!rr.is_valid())
-    return "";
   return std::string(reinterpret_cast<const char*>(rr.as_span().data()),
                      rr.as_span().size());
 }

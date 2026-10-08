@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <array>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/client/display/gl_canvas.h"
 #include "remoting/client/display/sys_opengl.h"
@@ -16,10 +17,6 @@ namespace remoting {
 class FakeCanvas : public Canvas {
  public:
   FakeCanvas();
-
-  FakeCanvas(const FakeCanvas&) = delete;
-  FakeCanvas& operator=(const FakeCanvas&) = delete;
-
   ~FakeCanvas() override;
 
   // Drawable implementation.
@@ -37,6 +34,8 @@ class FakeCanvas : public Canvas {
  private:
   base::ThreadChecker thread_checker_;
   base::WeakPtrFactory<Canvas> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeCanvas);
 };
 
 }  // namespace remoting

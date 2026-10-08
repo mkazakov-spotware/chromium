@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_TEST_TEST_API_H_
 #define EXTENSIONS_BROWSER_API_TEST_TEST_API_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/values.h"
 #include "extensions/browser/extension_function.h"
 
@@ -80,21 +80,9 @@ class TestSendMessageFunction : public ExtensionFunction {
   ResponseAction Run() override;
 
   // Whether or not the function is currently waiting for a reply.
-  bool waiting_ = false;
+  bool waiting_;
 
   ResponseValue response_;
-};
-
-class TestSendScriptResultFunction : public TestExtensionFunction {
- public:
-  TestSendScriptResultFunction();
-  DECLARE_EXTENSION_FUNCTION("test.sendScriptResult", UNKNOWN)
-
- private:
-  ~TestSendScriptResultFunction() override;
-
-  // ExtensionFunction:
-  ResponseAction Run() override;
 };
 
 class TestGetConfigFunction : public TestExtensionFunction {
@@ -103,7 +91,7 @@ class TestGetConfigFunction : public TestExtensionFunction {
 
   // Set the dictionary returned by chrome.test.getConfig().
   // Does not take ownership of |value|.
-  static void set_test_config_state(base::Value::Dict* value);
+  static void set_test_config_state(base::DictionaryValue* value);
 
  protected:
   // Tests that set configuration state do so by calling
@@ -112,22 +100,21 @@ class TestGetConfigFunction : public TestExtensionFunction {
   // state, owned by the test code.
   class TestConfigState {
    public:
-    TestConfigState(const TestConfigState&) = delete;
-    TestConfigState& operator=(const TestConfigState&) = delete;
-
     static TestConfigState* GetInstance();
 
-    void set_config_state(base::Value::Dict* config_state) {
+    void set_config_state(base::DictionaryValue* config_state) {
       config_state_ = config_state;
     }
 
-    const base::Value::Dict* config_state() { return config_state_; }
+    const base::DictionaryValue* config_state() { return config_state_; }
 
    private:
     friend struct base::DefaultSingletonTraits<TestConfigState>;
     TestConfigState();
 
-    raw_ptr<base::Value::Dict, DanglingUntriaged> config_state_;
+    base::DictionaryValue* config_state_;
+
+    DISALLOW_COPY_AND_ASSIGN(TestConfigState);
   };
 
   ~TestGetConfigFunction() override;

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,7 @@ runTests([
           parentFrameId: 0,
           frameUrl: url,
           tabId: 1,
-          initiator: getInitiatorURLForExtension(),
-          parentDocumentId: 1,
-          frameType: 'sub_frame',
+          initiator: getServerDomain(initiators.BROWSER_INITIATED)
         }
       },
       { label: 'onBeforeSendHeaders',
@@ -32,9 +30,7 @@ runTests([
           frameId: 1,
           parentFrameId: 0,
           tabId: 1,
-          initiator: getInitiatorURLForExtension(),
-          parentDocumentId: 1,
-          frameType: 'sub_frame',
+          initiator: getServerDomain(initiators.BROWSER_INITIATED)
         },
       },
       { label: 'onSendHeaders',
@@ -45,9 +41,7 @@ runTests([
           frameId: 1,
           parentFrameId: 0,
           tabId: 1,
-          initiator: getInitiatorURLForExtension(),
-          parentDocumentId: 1,
-          frameType: 'sub_frame',
+          initiator: getServerDomain(initiators.BROWSER_INITIATED)
         },
       },
       { label: 'onErrorOccurred',
@@ -60,9 +54,7 @@ runTests([
           tabId: 1,
           fromCache: false,
           error: 'net::ERR_ABORTED',
-          initiator: getInitiatorURLForExtension(),
-          parentDocumentId: 1,
-          frameType: 'sub_frame',
+          initiator: getServerDomain(initiators.BROWSER_INITIATED)
         },
       }],
       [['onBeforeRequest', 'onBeforeSendHeaders', 'onSendHeaders',

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -166,16 +166,9 @@ public class BrowserMediaRouter implements MediaRouteManager {
     }
 
     @Override
-    public void onCreateRouteRequestError(String errorText, int requestId) {
+    public void onRouteRequestError(String errorText, int requestId) {
         if (mNativeMediaRouterAndroidBridge != 0) {
-            BrowserMediaRouterJni.get().onCreateRouteRequestError(
-                    mNativeMediaRouterAndroidBridge, BrowserMediaRouter.this, errorText, requestId);
-        }
-    }
-    @Override
-    public void onJoinRouteRequestError(String errorText, int requestId) {
-        if (mNativeMediaRouterAndroidBridge != 0) {
-            BrowserMediaRouterJni.get().onJoinRouteRequestError(
+            BrowserMediaRouterJni.get().onRouteRequestError(
                     mNativeMediaRouterAndroidBridge, BrowserMediaRouter.this, errorText, requestId);
         }
     }
@@ -292,7 +285,7 @@ public class BrowserMediaRouter implements MediaRouteManager {
             WebContents webContents, int requestId) {
         MediaRouteProvider provider = getProviderForSource(sourceId);
         if (provider == null) {
-            onCreateRouteRequestError("No provider supports createRoute with source: " + sourceId
+            onRouteRequestError("No provider supports createRoute with source: " + sourceId
                             + " and sink: " + sinkId,
                     requestId);
             return;
@@ -318,7 +311,7 @@ public class BrowserMediaRouter implements MediaRouteManager {
             WebContents webContents, int requestId) {
         MediaRouteProvider provider = getProviderForSource(sourceId);
         if (provider == null) {
-            onJoinRouteRequestError("Route not found.", requestId);
+            onRouteRequestError("Route not found.", requestId);
             return;
         }
 
@@ -416,10 +409,8 @@ public class BrowserMediaRouter implements MediaRouteManager {
         void onRouteCreated(long nativeMediaRouterAndroidBridge, BrowserMediaRouter caller,
                 String mediaRouteId, String mediaSinkId, int createRouteRequestId,
                 boolean wasLaunched);
-        void onCreateRouteRequestError(long nativeMediaRouterAndroidBridge,
-                BrowserMediaRouter caller, String errorText, int requestId);
-        void onJoinRouteRequestError(long nativeMediaRouterAndroidBridge, BrowserMediaRouter caller,
-                String errorText, int requestId);
+        void onRouteRequestError(long nativeMediaRouterAndroidBridge, BrowserMediaRouter caller,
+                String errorText, int createRouteRequestId);
         void onRouteTerminated(long nativeMediaRouterAndroidBridge, BrowserMediaRouter caller,
                 String mediaRouteId);
         void onRouteClosed(long nativeMediaRouterAndroidBridge, BrowserMediaRouter caller,

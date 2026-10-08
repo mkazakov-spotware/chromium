@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ PasswordManagerInternalsUI::PasswordManagerInternalsUI(content::WebUI* web_ui)
       profile, autofill::CreateInternalsHTMLSource(
                    chrome::kChromeUIPasswordManagerInternalsHost));
   web_ui->AddMessageHandler(std::make_unique<autofill::InternalsUIHandler>(
-      "setup-password-manager-internals",
+      "setUpPasswordManagerInternals",
       base::BindRepeating(&password_manager::PasswordManagerLogRouterFactory::
                               GetForBrowserContext)));
 }

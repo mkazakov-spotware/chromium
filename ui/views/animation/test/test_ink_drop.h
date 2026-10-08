@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include "ui/views/animation/ink_drop.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 // A InkDrop test double that tracks the last requested state changes.
 //
@@ -16,10 +17,6 @@ namespace views::test {
 class TestInkDrop : public InkDrop {
  public:
   TestInkDrop();
-
-  TestInkDrop(const TestInkDrop&) = delete;
-  TestInkDrop& operator=(const TestInkDrop&) = delete;
-
   ~TestInkDrop() override;
 
   bool is_hovered() const { return is_hovered_; }
@@ -42,8 +39,11 @@ class TestInkDrop : public InkDrop {
  private:
   InkDropState state_ = InkDropState::HIDDEN;
   bool is_hovered_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(TestInkDrop);
 };
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views
 
 #endif  // UI_VIEWS_ANIMATION_TEST_TEST_INK_DROP_H_

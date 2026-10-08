@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ class PLATFORM_EXPORT EnumerationBase {
   ~EnumerationBase() = default;
 
   // Returns the IDL enumeration value as a string.
-  // https://webidl.spec.whatwg.org/#dfn-enumeration-value
+  // https://heycam.github.io/webidl/#dfn-enumeration-value
   const char* AsCStr() const { return string_literal_; }
   String AsString() const { return string_literal_; }
 
@@ -75,7 +75,7 @@ typename std::enable_if_t<
     bool>
 operator==(const EnumTypeClass& lhs, const EnumTypeClass& rhs) {
   DCHECK(!lhs.IsEmpty() && !rhs.IsEmpty());
-  return lhs.AsEnum() == rhs.AsEnum();
+  return lhs.AsCStr() == rhs.AsCStr();
 }
 
 template <typename EnumTypeClass>
@@ -83,41 +83,8 @@ typename std::enable_if_t<
     std::is_base_of<bindings::EnumerationBase, EnumTypeClass>::value,
     bool>
 operator!=(const EnumTypeClass& lhs, const EnumTypeClass& rhs) {
-  return !(lhs == rhs);
-}
-
-template <typename EnumTypeClass>
-typename std::enable_if_t<
-    std::is_base_of<bindings::EnumerationBase, EnumTypeClass>::value,
-    bool>
-operator==(const EnumTypeClass& lhs, typename EnumTypeClass::Enum rhs) {
-  DCHECK(!lhs.IsEmpty());
-  return lhs.AsEnum() == rhs;
-}
-
-template <typename EnumTypeClass>
-typename std::enable_if_t<
-    std::is_base_of<bindings::EnumerationBase, EnumTypeClass>::value,
-    bool>
-operator==(typename EnumTypeClass::Enum lhs, const EnumTypeClass& rhs) {
-  DCHECK(!rhs.IsEmpty());
-  return lhs == rhs.AsEnum();
-}
-
-template <typename EnumTypeClass>
-typename std::enable_if_t<
-    std::is_base_of<bindings::EnumerationBase, EnumTypeClass>::value,
-    bool>
-operator!=(const EnumTypeClass& lhs, typename EnumTypeClass::Enum rhs) {
-  return !(lhs == rhs);
-}
-
-template <typename EnumTypeClass>
-typename std::enable_if_t<
-    std::is_base_of<bindings::EnumerationBase, EnumTypeClass>::value,
-    bool>
-operator!=(typename EnumTypeClass::Enum lhs, const EnumTypeClass& rhs) {
-  return !(lhs == rhs);
+  DCHECK(!lhs.IsEmpty() && !rhs.IsEmpty());
+  return lhs.AsCStr() != rhs.AsCStr();
 }
 
 // Migration adapters

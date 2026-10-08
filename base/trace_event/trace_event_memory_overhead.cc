@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/bits.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/notreached.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/memory_allocator_dump.h"
 #include "base/trace_event/memory_usage_estimator.h"
@@ -104,28 +103,38 @@ void TraceEventMemoryOverhead::AddValue(const Value& value) {
       Add(kBaseValue, sizeof(Value));
       break;
 
-    case Value::Type::STRING:
+    case Value::Type::STRING: {
+      const Value* string_value = nullptr;
+      value.GetAsString(&string_value);
       Add(kBaseValue, sizeof(Value));
-      AddString(value.GetString());
-      break;
+      AddString(string_value->GetString());
+    } break;
 
-    case Value::Type::BINARY:
+    case Value::Type::BINARY: {
       Add(kBaseValue, sizeof(Value) + value.GetBlob().size());
-      break;
+    } break;
 
-    case Value::Type::DICTIONARY:
-      Add(kBaseValue, sizeof(Value));
-      for (const auto pair : value.DictItems()) {
-        AddString(pair.first);
-        AddValue(pair.second);
+    case Value::Type::DICTIONARY: {
+      const DictionaryValue* dictionary_value = nullptr;
+      value.GetAsDictionary(&dictionary_value);
+      Add(kBaseValue, sizeof(DictionaryValue));
+      for (DictionaryValue::Iterator it(*dictionary_value); !it.IsAtEnd();
+           it.Advance()) {
+        AddString(it.key());
+        AddValue(it.value());
       }
-      break;
+    } break;
 
-    case Value::Type::LIST:
-      Add(kBaseValue, sizeof(Value));
-      for (const auto& v : value.GetList())
+    case Value::Type::LIST: {
+      const ListValue* list_value = nullptr;
+      value.GetAsList(&list_value);
+      Add(kBaseValue, sizeof(ListValue));
+      for (const auto& v : *list_value)
         AddValue(v);
-      break;
+    } break;
+
+    default:
+      NOTREACHED();
   }
 }
 

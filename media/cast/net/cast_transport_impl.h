@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,8 @@
 
 #include "base/callback.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
@@ -59,9 +59,6 @@ class CastTransportImpl final : public CastTransport {
       std::unique_ptr<Client> client,
       std::unique_ptr<PacketTransport> transport,
       const scoped_refptr<base::SingleThreadTaskRunner>& transport_task_runner);
-
-  CastTransportImpl(const CastTransportImpl&) = delete;
-  CastTransportImpl& operator=(const CastTransportImpl&) = delete;
 
   ~CastTransportImpl() final;
 
@@ -93,7 +90,7 @@ class CastTransportImpl final : public CastTransport {
   //   "media_streaming_mode" (value ignored)
   //        - Turn media streaming mode on.
   // Note, these options may be ignored on some platforms.
-  void SetOptions(const base::Value::Dict& options) final;
+  void SetOptions(const base::DictionaryValue& options) final;
 
   // CastTransport implementation for receiving.
   void AddValidRtpReceiver(uint32_t rtp_sender_ssrc,
@@ -146,7 +143,7 @@ class CastTransportImpl final : public CastTransport {
   void OnReceivedCastMessage(uint32_t ssrc,
                              const RtcpCastMessage& cast_message);
 
-  const raw_ptr<const base::TickClock> clock_;  // Not owned by this class.
+  const base::TickClock* const clock_;  // Not owned by this class.
   const base::TimeDelta logging_flush_interval_;
   const std::unique_ptr<Client> transport_client_;
   const std::unique_ptr<PacketTransport> transport_;
@@ -187,6 +184,8 @@ class CastTransportImpl final : public CastTransport {
   SessionMap sessions_;
 
   base::WeakPtrFactory<CastTransportImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CastTransportImpl);
 };
 
 }  // namespace cast

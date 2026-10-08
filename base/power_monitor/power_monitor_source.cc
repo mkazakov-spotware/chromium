@@ -1,12 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/power_monitor/power_monitor_source.h"
 
-#include "base/notreached.h"
 #include "base/power_monitor/power_monitor.h"
-#include "base/power_monitor/power_observer.h"
 #include "build/build_config.h"
 
 namespace base {
@@ -14,71 +12,93 @@ namespace base {
 PowerMonitorSource::PowerMonitorSource() = default;
 PowerMonitorSource::~PowerMonitorSource() = default;
 
-PowerThermalObserver::DeviceThermalState
-PowerMonitorSource::GetCurrentThermalState() {
-  return PowerThermalObserver::DeviceThermalState::kUnknown;
+bool PowerMonitorSource::IsOnBatteryPower() {
+  AutoLock auto_lock(battery_lock_);
+  return on_battery_power_;
 }
 
-int PowerMonitorSource::GetInitialSpeedLimit() {
-  return PowerThermalObserver::kSpeedLimitMax;
+PowerObserver::DeviceThermalState PowerMonitorSource::GetCurrentThermalState() {
+  return PowerObserver::DeviceThermalState::kUnknown;
 }
 
-void PowerMonitorSource::SetCurrentThermalState(
-    PowerThermalObserver::DeviceThermalState state) {}
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 int PowerMonitorSource::GetRemainingBatteryCapacity() {
   return 0;
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 // static
 void PowerMonitorSource::ProcessPowerEvent(PowerEvent event_id) {
   if (!PowerMonitor::IsInitialized())
     return;
 
+  PowerMonitorSource* source = PowerMonitor::Source();
+
+  // Suppress duplicate notifications.  Some platforms may
+  // send multiple notifications of the same event.
   switch (event_id) {
     case POWER_STATE_EVENT:
-      PowerMonitor::NotifyPowerStateChange(
-          PowerMonitor::Source()->IsOnBatteryPower());
+      {
+        bool new_on_battery_power = source->IsOnBatteryPowerImpl();
+        bool changed = false;
+
+        {
+          AutoLock auto_lock(source->battery_lock_);
+          if (source->on_battery_power_ != new_on_battery_power) {
+              changed = true;
+              source->on_battery_power_ = new_on_battery_power;
+          }
+        }
+
+        if (changed)
+          PowerMonitor::NotifyPowerStateChange(new_on_battery_power);
+      }
       break;
-      case RESUME_EVENT:
+    case RESUME_EVENT:
+      if (source->suspended_) {
+        source->suspended_ = false;
         PowerMonitor::NotifyResume();
+      }
       break;
-      case SUSPEND_EVENT:
+    case SUSPEND_EVENT:
+      if (!source->suspended_) {
+        source->suspended_ = true;
         PowerMonitor::NotifySuspend();
+      }
       break;
   }
 }
 
 // static
 void PowerMonitorSource::ProcessThermalEvent(
-    PowerThermalObserver::DeviceThermalState new_thermal_state) {
+    PowerObserver::DeviceThermalState new_thermal_state) {
   if (!PowerMonitor::IsInitialized())
     return;
   PowerMonitor::NotifyThermalStateChange(new_thermal_state);
 }
 
-// static
-void PowerMonitorSource::ProcessSpeedLimitEvent(int speed_limit) {
-  if (!PowerMonitor::IsInitialized())
-    return;
-  PowerMonitor::NotifySpeedLimitChange(speed_limit);
+void PowerMonitorSource::SetInitialOnBatteryPowerState(bool on_battery_power) {
+  // Must only be called before an initialized PowerMonitor exists, otherwise
+  // the caller should have just used a normal
+  // ProcessPowerEvent(POWER_STATE_EVENT) call.
+  DCHECK(!PowerMonitor::Source());
+  AutoLock auto_lock(battery_lock_);
+  on_battery_power_ = on_battery_power;
 }
 
 // static
 const char* PowerMonitorSource::DeviceThermalStateToString(
-    PowerThermalObserver::DeviceThermalState state) {
+    PowerObserver::DeviceThermalState state) {
   switch (state) {
-    case PowerThermalObserver::DeviceThermalState::kUnknown:
+    case PowerObserver::DeviceThermalState::kUnknown:
       return "Unknown";
-    case PowerThermalObserver::DeviceThermalState::kNominal:
+    case PowerObserver::DeviceThermalState::kNominal:
       return "Nominal";
-    case PowerThermalObserver::DeviceThermalState::kFair:
+    case PowerObserver::DeviceThermalState::kFair:
       return "Fair";
-    case PowerThermalObserver::DeviceThermalState::kSerious:
+    case PowerObserver::DeviceThermalState::kSerious:
       return "Serious";
-    case PowerThermalObserver::DeviceThermalState::kCritical:
+    case PowerObserver::DeviceThermalState::kCritical:
       return "Critical";
   }
   NOTREACHED();

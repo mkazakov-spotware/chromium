@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 
 #include "base/bind.h"
 #include "base/memory/memory_pressure_monitor.h"
+#include "base/util/memory_pressure/multi_source_memory_pressure_monitor.h"
 #include "build/build_config.h"
 #include "chrome/browser/resource_coordinator/utils.h"
 #include "chrome/common/pref_names.h"
-#include "components/memory_pressure/multi_source_memory_pressure_monitor.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
 #endif
 
@@ -27,7 +27,7 @@ EnterpriseMemoryLimitPrefObserver::EnterpriseMemoryLimitPrefObserver(
   DCHECK(pref_service_);
   DCHECK(base::MemoryPressureMonitor::Get());
   evaluator_ = std::make_unique<EnterpriseMemoryLimitEvaluator>(
-      static_cast<memory_pressure::MultiSourceMemoryPressureMonitor*>(
+      static_cast<util::MultiSourceMemoryPressureMonitor*>(
           base::MemoryPressureMonitor::Get())
           ->CreateVoter());
 
@@ -42,7 +42,7 @@ EnterpriseMemoryLimitPrefObserver::EnterpriseMemoryLimitPrefObserver(
 EnterpriseMemoryLimitPrefObserver::~EnterpriseMemoryLimitPrefObserver() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (evaluator_->IsRunning()) {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     resource_coordinator::GetTabLifecycleUnitSource()
         ->SetMemoryLimitEnterprisePolicyFlag(false);
 #endif
@@ -51,11 +51,10 @@ EnterpriseMemoryLimitPrefObserver::~EnterpriseMemoryLimitPrefObserver() {
 }
 
 bool EnterpriseMemoryLimitPrefObserver::PlatformIsSupported() {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if defined(OS_WIN) || defined(OS_MAC)
   return true;
-#else
-  return false;
 #endif
+  return false;
 }
 
 // static
@@ -79,7 +78,7 @@ void EnterpriseMemoryLimitPrefObserver::GetPref() {
     evaluator_->Stop();
   }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   resource_coordinator::GetTabLifecycleUnitSource()
       ->SetMemoryLimitEnterprisePolicyFlag(pref->IsManaged());
 #endif

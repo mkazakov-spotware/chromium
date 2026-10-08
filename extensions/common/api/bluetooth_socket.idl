@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -195,16 +195,16 @@ namespace bluetoothSocket {
     // Creates a Bluetooth socket.
     // |properties| : The socket properties (optional).
     // |callback| : Called when the socket has been created.
-    [supportsPromises] static void create(optional SocketProperties properties,
-                                          CreateCallback callback);
+    static void create(optional SocketProperties properties,
+                       CreateCallback callback);
 
     // Updates the socket properties.
     // |socketId| : The socket identifier.
     // |properties| : The properties to update.
     // |callback| : Called when the properties are updated.
-    [supportsPromises] static void update(long socketId,
-                                          SocketProperties properties,
-                                          optional UpdateCallback callback);
+    static void update(long socketId,
+                       SocketProperties properties,
+                       optional UpdateCallback callback);
 
     // Enables or disables a connected socket from receiving messages from its
     // peer, or a listening socket from accepting new connections. The default
@@ -216,32 +216,29 @@ namespace bluetoothSocket {
     // connections are accepted until its backlog is full then additional
     // connection requests are refused. <code>onAccept</code> events are raised
     // only when the socket is un-paused.
-    [supportsPromises] static void setPaused(
-        long socketId,
-        boolean paused,
-        optional SetPausedCallback callback);
+    static void setPaused(long socketId,
+                          boolean paused,
+                          optional SetPausedCallback callback);
 
     // Listen for connections using the RFCOMM protocol.
     // |socketId| : The socket identifier.
     // |uuid| : Service UUID to listen on.
     // |options| : Optional additional options for the service.
     // |callback| : Called when listen operation completes.
-    [supportsPromises] static void listenUsingRfcomm(
-        long socketId,
-        DOMString uuid,
-        optional ListenOptions options,
-        ListenCallback callback);
+    static void listenUsingRfcomm(long socketId,
+                                  DOMString uuid,
+                                  optional ListenOptions options,
+                                  ListenCallback callback);
 
     // Listen for connections using the L2CAP protocol.
     // |socketId| : The socket identifier.
     // |uuid| : Service UUID to listen on.
     // |options| : Optional additional options for the service.
     // |callback| : Called when listen operation completes.
-    [supportsPromises] static void listenUsingL2cap(
-        long socketId,
-        DOMString uuid,
-        optional ListenOptions options,
-        ListenCallback callback);
+    static void listenUsingL2cap(long socketId,
+                                 DOMString uuid,
+                                 optional ListenOptions options,
+                                 ListenCallback callback);
 
     // Connects the socket to a remote Bluetooth device. When the
     // <code>connect</code> operation completes successfully,
@@ -254,17 +251,16 @@ namespace bluetoothSocket {
     // |address| : The address of the Bluetooth device.
     // |uuid| : The UUID of the service to connect to.
     // |callback| : Called when the connect attempt is complete.
-    [supportsPromises] static void connect(long socketId,
-                                           DOMString address,
-                                           DOMString uuid,
-                                           ConnectCallback callback);
+    static void connect(long socketId,
+                        DOMString address,
+                        DOMString uuid,
+                        ConnectCallback callback);
 
     // Disconnects the socket. The socket identifier remains valid.
     // |socketId| : The socket identifier.
     // |callback| : Called when the disconnect attempt is complete.
-    [supportsPromises] static void disconnect(
-        long socketId,
-        optional DisconnectCallback callback);
+    static void disconnect(long socketId,
+                           optional DisconnectCallback callback);
 
     // Disconnects and destroys the socket. Each socket created should be
     // closed after use. The socket id is no longer valid as soon at the
@@ -272,26 +268,26 @@ namespace bluetoothSocket {
     // when the callback is invoked.
     // |socketId| : The socket identifier.
     // |callback| : Called when the <code>close</code> operation completes.
-    [supportsPromises] static void close(long socketId,
-                                         optional CloseCallback callback);
+    static void close(long socketId,
+                      optional CloseCallback callback);
 
     // Sends data on the given Bluetooth socket.
     // |socketId| : The socket identifier.
     // |data| : The data to send.
     // |callback| : Called with the number of bytes sent.
-    [supportsPromises] static void send(long socketId,
-                                        ArrayBuffer data,
-                                        optional SendCallback callback);
+    static void send(long socketId,
+                     ArrayBuffer data,
+                     optional SendCallback callback);
 
     // Retrieves the state of the given socket.
     // |socketId| : The socket identifier.
     // |callback| : Called when the socket state is available.
-    [supportsPromises] static void getInfo(long socketId,
-                                           GetInfoCallback callback);
+    static void getInfo(long socketId,
+                        GetInfoCallback callback);
 
     // Retrieves the list of currently opened sockets owned by the application.
     // |callback| : Called when the list of sockets is available.
-    [supportsPromises] static void getSockets(GetSocketsCallback callback);
+    static void getSockets(GetSocketsCallback callback);
   };
 
   interface Events {

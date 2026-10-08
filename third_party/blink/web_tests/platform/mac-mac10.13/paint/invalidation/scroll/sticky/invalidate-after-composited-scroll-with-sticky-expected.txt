@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 656],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
@@ -15,7 +15,7 @@
       "transform": 4
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true
@@ -51,7 +51,8 @@
         [0, 1, 0, 0],
         [0, 0, 1, 0],
         [0, -35, 0, 1]
-      ]
+      ],
+      "flattenInheritedTransform": false
     },
     {
       "id": 4,
@@ -61,7 +62,8 @@
         [0, 1, 0, 0],
         [0, 0, 1, 0],
         [0, 35, 0, 1]
-      ]
+      ],
+      "flattenInheritedTransform": false
     }
   ]
 }

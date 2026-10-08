@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "content/app/resources/grit/content_resources.h"
 #include "content/public/common/content_switches.h"
 #include "content/shell/common/shell_switches.h"
 #include "content/shell/grit/shell_resources.h"
@@ -22,23 +23,23 @@ ShellContentClient::ShellContentClient() {}
 
 ShellContentClient::~ShellContentClient() {}
 
-std::u16string ShellContentClient::GetLocalizedString(int message_id) {
+base::string16 ShellContentClient::GetLocalizedString(int message_id) {
   if (switches::IsRunWebTestsSwitchPresent()) {
     switch (message_id) {
       case IDS_FORM_OTHER_DATE_LABEL:
-        return u"<<OtherDate>>";
+        return base::ASCIIToUTF16("<<OtherDateLabel>>");
       case IDS_FORM_OTHER_MONTH_LABEL:
-        return u"<<OtherMonth>>";
+        return base::ASCIIToUTF16("<<OtherMonthLabel>>");
       case IDS_FORM_OTHER_WEEK_LABEL:
-        return u"<<OtherWeek>>";
+        return base::ASCIIToUTF16("<<OtherWeekLabel>>");
       case IDS_FORM_CALENDAR_CLEAR:
-        return u"<<Clear>>";
+        return base::ASCIIToUTF16("<<CalendarClear>>");
       case IDS_FORM_CALENDAR_TODAY:
-        return u"<<Today>>";
+        return base::ASCIIToUTF16("<<CalendarToday>>");
       case IDS_FORM_THIS_MONTH_LABEL:
-        return u"<<ThisMonth>>";
+        return base::ASCIIToUTF16("<<ThisMonthLabel>>");
       case IDS_FORM_THIS_WEEK_LABEL:
-        return u"<<ThisWeek>>";
+        return base::ASCIIToUTF16("<<ThisWeekLabel>>");
     }
   }
   return l10n_util::GetStringUTF16(message_id);
@@ -46,7 +47,7 @@ std::u16string ShellContentClient::GetLocalizedString(int message_id) {
 
 base::StringPiece ShellContentClient::GetDataResource(
     int resource_id,
-    ui::ResourceScaleFactor scale_factor) {
+    ui::ScaleFactor scale_factor) {
   return ui::ResourceBundle::GetSharedInstance().GetRawDataResourceForScale(
       resource_id, scale_factor);
 }
@@ -54,11 +55,6 @@ base::StringPiece ShellContentClient::GetDataResource(
 base::RefCountedMemory* ShellContentClient::GetDataResourceBytes(
     int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
-      resource_id);
-}
-
-std::string ShellContentClient::GetDataResourceString(int resource_id) {
-  return ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
       resource_id);
 }
 
@@ -72,7 +68,7 @@ blink::OriginTrialPolicy* ShellContentClient::GetOriginTrialPolicy() {
 }
 
 void ShellContentClient::AddAdditionalSchemes(Schemes* schemes) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   schemes->local_schemes.push_back(url::kContentScheme);
 #endif
 }

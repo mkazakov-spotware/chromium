@@ -1,14 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/printing/pdf_to_emf_converter.h"
 
+#include <algorithm>
 #include <limits>
 #include <utility>
 
+#include "base/bind.h"
 #include "base/containers/span.h"
-#include "base/strings/utf_string_conversions.h"
+#include "base/lazy_instance.h"
+#include "base/stl_util.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "pdf/pdf.h"
 #include "printing/emf_win.h"
@@ -17,10 +20,60 @@
 
 namespace printing {
 
+namespace {
+
+base::LazyInstance<std::vector<mojo::Remote<mojom::PdfToEmfConverterClient>>>::
+    Leaky g_converter_clients = LAZY_INSTANCE_INITIALIZER;
+
+void PreCacheFontCharacters(const LOGFONT* logfont,
+                            const wchar_t* text,
+                            size_t text_length) {
+  if (g_converter_clients.Get().empty()) {
+    NOTREACHED()
+        << "PreCacheFontCharacters when no converter client is registered.";
+    return;
+  }
+
+  // We pass the LOGFONT as an array of bytes for simplicity (no typemaps
+  // required).
+  std::vector<uint8_t> logfont_mojo(sizeof(LOGFONT));
+  memcpy(logfont_mojo.data(), logfont, sizeof(LOGFONT));
+
+  g_converter_clients.Get().front()->PreCacheFontCharacters(
+      logfont_mojo, base::string16(text, text_length));
+}
+
+void OnConvertedClientDisconnected() {
+  // We have no direct way of tracking which
+  // mojo::Remote<PdfToEmfConverterClient> got disconnected as it is a movable
+  // type, short of using a wrapper. Just traverse the list of clients and
+  // remove the ones that are not bound.
+  base::EraseIf(g_converter_clients.Get(),
+                [](const mojo::Remote<mojom::PdfToEmfConverterClient>& client) {
+                  return !client.is_bound();
+                });
+}
+
+void RegisterConverterClient(
+    mojo::PendingRemote<mojom::PdfToEmfConverterClient> client_remote) {
+  if (!g_converter_clients.IsCreated()) {
+    // First time this method is called.
+    chrome_pdf::SetPDFEnsureTypefaceCharactersAccessible(
+        PreCacheFontCharacters);
+  }
+  mojo::Remote<mojom::PdfToEmfConverterClient> client(std::move(client_remote));
+  client.set_disconnect_handler(base::BindOnce(&OnConvertedClientDisconnected));
+  g_converter_clients.Get().push_back(std::move(client));
+}
+
+}  // namespace
+
 PdfToEmfConverter::PdfToEmfConverter(
     base::ReadOnlySharedMemoryRegion pdf_region,
-    const PdfRenderSettings& pdf_render_settings)
+    const PdfRenderSettings& pdf_render_settings,
+    mojo::PendingRemote<mojom::PdfToEmfConverterClient> client)
     : pdf_render_settings_(pdf_render_settings) {
+  RegisterConverterClient(std::move(client));
   SetPrintMode();
   LoadPdf(std::move(pdf_region));
 }
@@ -28,6 +81,12 @@ PdfToEmfConverter::PdfToEmfConverter(
 PdfToEmfConverter::~PdfToEmfConverter() = default;
 
 void PdfToEmfConverter::SetPrintMode() {
+  bool use_gdi_printing =
+      pdf_render_settings_.mode == PdfRenderSettings::Mode::GDI_TEXT ||
+      pdf_render_settings_.mode ==
+          PdfRenderSettings::Mode::EMF_WITH_REDUCED_RASTERIZATION_AND_GDI_TEXT;
+  chrome_pdf::SetPDFUseGDIPrinting(use_gdi_printing);
+
   int printing_mode;
   switch (pdf_render_settings_.mode) {
     case PdfRenderSettings::Mode::TEXTONLY:
@@ -39,10 +98,8 @@ void PdfToEmfConverter::SetPrintMode() {
     case PdfRenderSettings::Mode::POSTSCRIPT_LEVEL3:
       printing_mode = chrome_pdf::PrintingMode::kPostScript3;
       break;
-    case PdfRenderSettings::Mode::POSTSCRIPT_LEVEL3_WITH_TYPE42_FONTS:
-      printing_mode = chrome_pdf::PrintingMode::kPostScript3WithType42Fonts;
-      break;
     case PdfRenderSettings::Mode::EMF_WITH_REDUCED_RASTERIZATION:
+    case PdfRenderSettings::Mode::EMF_WITH_REDUCED_RASTERIZATION_AND_GDI_TEXT:
       printing_mode = chrome_pdf::PrintingMode::kEmfWithReducedRasterization;
       break;
     default:
@@ -72,7 +129,7 @@ void PdfToEmfConverter::LoadPdf(base::ReadOnlySharedMemoryRegion pdf_region) {
 }
 
 base::ReadOnlySharedMemoryRegion PdfToEmfConverter::RenderPdfPageToMetafile(
-    int page_index,
+    int page_number,
     bool postscript,
     float* scale_factor) {
   Emf metafile;
@@ -108,7 +165,7 @@ base::ReadOnlySharedMemoryRegion PdfToEmfConverter::RenderPdfPageToMetafile(
   base::ReadOnlySharedMemoryRegion invalid_emf_region;
   auto pdf_span = pdf_mapping_.GetMemoryAsSpan<const uint8_t>();
   if (!chrome_pdf::RenderPDFPageToDC(
-          pdf_span, page_index, metafile.context(),
+          pdf_span, page_number, metafile.context(),
           pdf_render_settings_.dpi.width(), pdf_render_settings_.dpi.height(),
           pdf_render_settings_.area.x() - offset_x,
           pdf_render_settings_.area.y() - offset_y,
@@ -132,11 +189,11 @@ base::ReadOnlySharedMemoryRegion PdfToEmfConverter::RenderPdfPageToMetafile(
   return std::move(region_mapping.region);
 }
 
-void PdfToEmfConverter::ConvertPage(uint32_t page_index,
+void PdfToEmfConverter::ConvertPage(uint32_t page_number,
                                     ConvertPageCallback callback) {
   static constexpr float kInvalidScaleFactor = 0;
   base::ReadOnlySharedMemoryRegion invalid_emf_region;
-  if (page_index >= total_page_count_) {
+  if (page_number >= total_page_count_) {
     std::move(callback).Run(std::move(invalid_emf_region), kInvalidScaleFactor);
     return;
   }
@@ -144,11 +201,9 @@ void PdfToEmfConverter::ConvertPage(uint32_t page_index,
   float scale_factor = 1.0f;
   bool postscript =
       pdf_render_settings_.mode == PdfRenderSettings::Mode::POSTSCRIPT_LEVEL2 ||
-      pdf_render_settings_.mode == PdfRenderSettings::Mode::POSTSCRIPT_LEVEL3 ||
-      pdf_render_settings_.mode ==
-          PdfRenderSettings::Mode::POSTSCRIPT_LEVEL3_WITH_TYPE42_FONTS;
+      pdf_render_settings_.mode == PdfRenderSettings::Mode::POSTSCRIPT_LEVEL3;
   base::ReadOnlySharedMemoryRegion emf_region =
-      RenderPdfPageToMetafile(page_index, postscript, &scale_factor);
+      RenderPdfPageToMetafile(page_number, postscript, &scale_factor);
   std::move(callback).Run(std::move(emf_region), scale_factor);
 }
 

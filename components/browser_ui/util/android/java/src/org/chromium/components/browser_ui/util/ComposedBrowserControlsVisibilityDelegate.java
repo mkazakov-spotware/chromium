@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.util;
 
 import org.chromium.base.Callback;
-import org.chromium.cc.input.BrowserControlsState;
+import org.chromium.content_public.common.BrowserControlsState;
 
 import java.util.ArrayList;
 import java.util.List;

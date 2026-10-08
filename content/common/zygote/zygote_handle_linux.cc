@@ -1,13 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/common/zygote/zygote_handle.h"
 
-#include "base/command_line.h"
 #include "content/common/zygote/zygote_communication_linux.h"
 #include "content/common/zygote/zygote_handle_impl_linux.h"
-#include "content/public/common/content_switches.h"
 
 namespace content {
 namespace {
@@ -40,11 +38,6 @@ ZygoteHandle CreateUnsandboxedZygote(ZygoteLaunchCallback launch_cb) {
 }
 
 ZygoteHandle GetUnsandboxedZygote() {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kNoUnsandboxedZygote)) {
-    CHECK(!g_unsandboxed_zygote);
-    return nullptr;
-  }
   CHECK(g_unsandboxed_zygote);
   return g_unsandboxed_zygote;
 }

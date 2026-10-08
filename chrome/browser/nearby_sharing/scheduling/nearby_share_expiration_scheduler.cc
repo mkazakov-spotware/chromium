@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,15 +24,15 @@ NearbyShareExpirationScheduler::NearbyShareExpirationScheduler(
 
 NearbyShareExpirationScheduler::~NearbyShareExpirationScheduler() = default;
 
-absl::optional<base::TimeDelta>
+base::Optional<base::TimeDelta>
 NearbyShareExpirationScheduler::TimeUntilRecurringRequest(
     base::Time now) const {
-  absl::optional<base::Time> expiration_time = expiration_time_functor_.Run();
+  base::Optional<base::Time> expiration_time = expiration_time_functor_.Run();
   if (!expiration_time)
-    return absl::nullopt;
+    return base::nullopt;
 
   if (*expiration_time <= now)
-    return base::Seconds(0);
+    return base::TimeDelta::FromSeconds(0);
 
   return *expiration_time - now;
 }

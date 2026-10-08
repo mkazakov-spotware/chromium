@@ -1,11 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ipc/ipc_logging.h"
-
-#include "base/task/single_thread_task_runner.h"
-#include "build/build_config.h"
 
 #if BUILDFLAG(IPC_MESSAGE_LOG_ENABLED)
 #define IPC_MESSAGE_MACROS_LOG_ENABLED
@@ -21,15 +18,15 @@
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-#include "base/strings/stringprintf.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "ipc/ipc_message_utils.h"
 #include "ipc/ipc_sender.h"
 #include "ipc/ipc_sync_message.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
@@ -51,9 +48,9 @@ Logging::Logging()
       enabled_color_(false),
       queue_invoke_later_pending_(false),
       sender_(nullptr),
-      main_thread_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      main_thread_(base::ThreadTaskRunnerHandle::Get()),
       consumer_(nullptr) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // getenv triggers an unsafe warning. Simply check how big of a buffer
   // would be needed to fetch the value to see if the enviornment variable is
   // set.
@@ -66,12 +63,12 @@ Logging::Logging()
     if (requiredSize && !strncmp("color", buffer, 6))
       enabled_color_ = true;
   }
-#else   // !BUILDFLAG(IS_WIN)
+#else  // !defined(OS_WIN)
   const char* ipc_logging = getenv("CHROME_IPC_LOGGING");
   bool logging_env_var_set = (ipc_logging != NULL);
   if (ipc_logging && !strcmp(ipc_logging, "color"))
     enabled_color_ = true;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  //defined(OS_WIN)
   if (logging_env_var_set) {
     enabled_ = true;
     enabled_on_stderr_ = true;
@@ -235,10 +232,10 @@ void Logging::Log(const LogData& data) {
       queued_logs_.push_back(data);
       if (!queue_invoke_later_pending_) {
         queue_invoke_later_pending_ = true;
-        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
             FROM_HERE,
             base::BindOnce(&Logging::OnSendLogs, base::Unretained(this)),
-            base::Milliseconds(kLogSendDelayMs));
+            base::TimeDelta::FromMilliseconds(kLogSendDelayMs));
       }
     }
   }

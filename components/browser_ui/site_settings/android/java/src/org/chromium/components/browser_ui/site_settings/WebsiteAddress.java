@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * A pattern that matches a certain set of URLs used in content settings rules. The pattern can be
@@ -28,10 +27,9 @@ public class WebsiteAddress implements Comparable<WebsiteAddress>, Serializable 
     private final String mScheme;
     private final String mHost;
     private final boolean mOmitProtocolAndPort;
-    private String mDomainAndRegistry;
 
     private static final String SCHEME_SUFFIX = "://";
-    static final String ANY_SUBDOMAIN_PATTERN = "[*.]";
+    private static final String ANY_SUBDOMAIN_PATTERN = "[*.]";
 
     /**
      * Creates a new WebsiteAddress from |originOrHostOrPattern|.
@@ -97,10 +95,6 @@ public class WebsiteAddress implements Comparable<WebsiteAddress>, Serializable 
         return mHost;
     }
 
-    public boolean getIsAnySubdomainPattern() {
-        return mOriginOrHostPattern.startsWith(ANY_SUBDOMAIN_PATTERN);
-    }
-
     public String getTitle() {
         if (mOrigin == null) return mHost;
         return UrlFormatter.formatUrlForSecurityDisplay(mOrigin,
@@ -115,28 +109,17 @@ public class WebsiteAddress implements Comparable<WebsiteAddress>, Serializable 
                 url, mOriginOrHostPattern);
     }
 
-    /**
-     * @return Domain and registry if those are defined; origin/host otherwise (for things like IP
-     *.        addresses and "localhost") with the scheme omitted.
-     */
-    public String getDomainAndRegistry() {
-        if (mDomainAndRegistry == null) {
-            // getDomainAndRegistry works better having a protocol prefix.
-            mDomainAndRegistry = UrlUtilities.getDomainAndRegistry(
-                    (mOrigin != null) ? mOrigin : UrlConstants.HTTP_URL_PREFIX + mHost, false);
-            if (mDomainAndRegistry == null || mDomainAndRegistry.isEmpty()) {
-                mDomainAndRegistry = mHost;
-            }
-        }
-        return mDomainAndRegistry;
+    private String getDomainAndRegistry() {
+        if (mOrigin != null) return UrlUtilities.getDomainAndRegistry(mOrigin, false);
+        // getDomainAndRegistry works better having a protocol prefix.
+        return UrlUtilities.getDomainAndRegistry(UrlConstants.HTTP_URL_PREFIX + mHost, false);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof WebsiteAddress) {
             WebsiteAddress other = (WebsiteAddress) obj;
-            return Objects.equals(mOrigin, other.mOrigin) && Objects.equals(mScheme, other.mScheme)
-                    && Objects.equals(mHost, other.mHost);
+            return compareTo(other) == 0;
         }
         return false;
     }

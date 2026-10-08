@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/host/client_session_details.h"
 #include "remoting/host/host_extension_session.h"
 #include "remoting/proto/control.pb.h"
@@ -18,10 +18,6 @@ namespace remoting {
 class FakeExtension::Session : public HostExtensionSession {
  public:
   Session(FakeExtension* extension, const std::string& message_type);
-
-  Session(const Session&) = delete;
-  Session& operator=(const Session&) = delete;
-
   ~Session() override = default;
 
   // HostExtensionSession interface.
@@ -30,8 +26,10 @@ class FakeExtension::Session : public HostExtensionSession {
                           const protocol::ExtensionMessage& message) override;
 
  private:
-  raw_ptr<FakeExtension> extension_;
+  FakeExtension* extension_;
   std::string message_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(Session);
 };
 
 FakeExtension::Session::Session(FakeExtension* extension,

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,67 +6,58 @@
 
 #include <algorithm>
 
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
+#include "ui/accessibility/ax_enums.mojom.h"
+#include "ui/accessibility/ax_node_data.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/scoped_canvas.h"
+#include "ui/native_theme/native_theme.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 
 namespace views {
-
-constexpr int Separator::kThickness;
 
 Separator::Separator() = default;
 
 Separator::~Separator() = default;
 
-ui::ColorId Separator::GetColorId() const {
-  return color_id_;
+SkColor Separator::GetColor() const {
+  return overridden_color_.value_or(0);
 }
 
-void Separator::SetColorId(ui::ColorId color_id) {
-  if (color_id_ == color_id)
+void Separator::SetColor(SkColor color) {
+  if (overridden_color_ == color)
     return;
 
-  color_id_ = color_id;
-  OnPropertyChanged(&color_id_, kPropertyEffectsPaint);
+  overridden_color_ = color;
+  OnPropertyChanged(&overridden_color_, kPropertyEffectsPaint);
 }
 
-int Separator::GetPreferredLength() const {
-  return preferred_length_;
+int Separator::GetPreferredHeight() const {
+  return preferred_height_;
 }
 
-void Separator::SetPreferredLength(int length) {
-  if (preferred_length_ == length)
+void Separator::SetPreferredHeight(int height) {
+  if (preferred_height_ == height)
     return;
 
-  preferred_length_ = length;
-  OnPropertyChanged(&preferred_length_, kPropertyEffectsPreferredSizeChanged);
-}
-
-Separator::Orientation Separator::GetOrientation() const {
-  return orientation_;
-}
-
-void Separator::SetOrientation(Orientation orientation) {
-  orientation_ = orientation;
+  preferred_height_ = height;
+  OnPropertyChanged(&preferred_height_, kPropertyEffectsPreferredSizeChanged);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Separator, View overrides:
 
 gfx::Size Separator::CalculatePreferredSize() const {
-  gfx::Size size(kThickness, preferred_length_);
-  if (orientation_ == Orientation::kHorizontal)
-    size.Transpose();
-
+  gfx::Size size(kThickness, preferred_height_);
   gfx::Insets insets = GetInsets();
   size.Enlarge(insets.width(), insets.height());
   return size;
 }
 
 void Separator::OnPaint(gfx::Canvas* canvas) {
-  const SkColor color = GetColorProvider()->GetColor(color_id_);
+  const SkColor color = overridden_color_
+                            ? *overridden_color_
+                            : GetNativeTheme()->GetSystemColor(
+                                  ui::NativeTheme::kColorId_SeparatorColor);
   // Paint background and border, if any.
   View::OnPaint(canvas);
 
@@ -104,9 +95,8 @@ void Separator::OnPaint(gfx::Canvas* canvas) {
 }
 
 BEGIN_METADATA(Separator, View)
-ADD_PROPERTY_METADATA(ui::ColorId, ColorId)
-ADD_PROPERTY_METADATA(int, PreferredLength)
-ADD_PROPERTY_METADATA(Separator::Orientation, Orientation)
+ADD_PROPERTY_METADATA(SkColor, Color)
+ADD_PROPERTY_METADATA(int, PreferredHeight)
 END_METADATA
 
 }  // namespace views

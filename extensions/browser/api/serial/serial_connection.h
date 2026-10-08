@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "base/callback_forward.h"
 #include "base/cancelable_callback.h"
 #include "base/memory/weak_ptr.h"
+#include "base/time/time.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/api_resource.h"
 #include "extensions/browser/api/api_resource_manager.h"
@@ -105,8 +106,9 @@ class SerialConnection : public ApiResource,
                     OpenCompleteCallback callback);
 
   // Begins an asynchronous send operation. Calling this while a Send
-  // is already pending will result in a serial::SEND_ERROR_PENDING error.
-  virtual void Send(const std::vector<uint8_t>& data,
+  // is already pending is a no-op and returns |false| without calling
+  // |callback|.
+  virtual bool Send(const std::vector<uint8_t>& data,
                     SendCompleteCallback callback);
 
   // Start to the polling process from |receive_pipe_|.
@@ -212,7 +214,7 @@ class SerialConnection : public ApiResource,
 
   // Callback to handle the completion of a pending Receive() request.
   ReceiveEventCallback receive_event_cb_;
-  absl::optional<device::mojom::SerialReceiveError> read_error_;
+  base::Optional<device::mojom::SerialReceiveError> read_error_;
 
   // Callback to handle the completion of a pending Send() request.
   SendCompleteCallback send_complete_;
@@ -223,11 +225,11 @@ class SerialConnection : public ApiResource,
 
   // Closure which will trigger a receive timeout unless cancelled. Reset on
   // initialization and after every successful Receive().
-  base::CancelableOnceClosure receive_timeout_task_;
+  base::CancelableClosure receive_timeout_task_;
 
   // Write timeout closure. Reset on initialization and after every successful
   // Send().
-  base::CancelableOnceClosure send_timeout_task_;
+  base::CancelableClosure send_timeout_task_;
 
   // Mojo interface remote corresponding with remote asynchronous I/O handler.
   mojo::Remote<device::mojom::SerialPort> serial_port_;

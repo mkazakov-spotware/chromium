@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <stdint.h>
 
-#include "base/component_export.h"
+#include "base/macros.h"
+#include "ui/accessibility/ax_export.h"
 
 namespace ui {
 
@@ -21,13 +22,9 @@ namespace ui {
 //
 // These ids must not be conflated with the int id, that comes with web node
 // data, which are only unique within their source frame.
-class COMPONENT_EXPORT(AX_PLATFORM) AXUniqueId {
+class AX_EXPORT AXUniqueId {
  public:
   AXUniqueId();
-
-  AXUniqueId(const AXUniqueId&) = delete;
-  AXUniqueId& operator=(const AXUniqueId&) = delete;
-
   virtual ~AXUniqueId();
 
   int32_t Get() const { return id_; }
@@ -46,6 +43,8 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXUniqueId {
   bool IsAssigned(int32_t) const;
 
   int32_t id_;
+
+  DISALLOW_COPY_AND_ASSIGN(AXUniqueId);
 };
 
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,6 @@
 
 namespace blink {
 
-class Frame;
-
 class CORE_EXPORT PerformanceEventTiming final : public PerformanceEntry {
   DEFINE_WRAPPERTYPEINFO();
 
@@ -23,8 +21,7 @@ class CORE_EXPORT PerformanceEventTiming final : public PerformanceEntry {
                                         DOMHighResTimeStamp processing_start,
                                         DOMHighResTimeStamp processing_end,
                                         bool cancelable,
-                                        Node* target,
-                                        uint32_t navigation_id);
+                                        Node* target);
 
   static PerformanceEventTiming* CreateFirstInputTiming(
       PerformanceEventTiming* entry);
@@ -35,11 +32,10 @@ class CORE_EXPORT PerformanceEventTiming final : public PerformanceEntry {
                          DOMHighResTimeStamp processing_start,
                          DOMHighResTimeStamp processing_end,
                          bool cancelable,
-                         Node* target,
-                         uint32_t navigation_id);
+                         Node* target);
   ~PerformanceEventTiming() override;
 
-  const AtomicString& entryType() const override { return entry_type_; }
+  AtomicString entryType() const override { return entry_type_; }
   PerformanceEntryType EntryTypeEnum() const override;
 
   bool cancelable() const { return cancelable_; }
@@ -49,21 +45,11 @@ class CORE_EXPORT PerformanceEventTiming final : public PerformanceEntry {
 
   Node* target() const;
 
-  uint32_t interactionId() const;
-
-  void SetInteractionId(uint32_t interaction_id);
-
-  base::TimeTicks unsafePresentationTimestamp() const;
-
-  void SetUnsafePresentationTimestamp(base::TimeTicks presentation_timestamp);
-
   void SetDuration(double duration);
 
   void BuildJSONValue(V8ObjectBuilder&) const override;
 
   void Trace(Visitor*) const override;
-
-  std::unique_ptr<TracedValue> ToTracedValue(Frame* frame) const;
 
  private:
   AtomicString entry_type_;
@@ -71,13 +57,6 @@ class CORE_EXPORT PerformanceEventTiming final : public PerformanceEntry {
   DOMHighResTimeStamp processing_end_;
   bool cancelable_;
   WeakMember<Node> target_;
-  uint32_t interaction_id_ = 0;
-
-  // This is the exact (non-rounded) monotonic timestamp for presentation, which
-  // is currently only used by eventTiming trace events to report accurate
-  // ending time. It should not be exposed to performance observer API entries
-  // for security and privacy reasons.
-  base::TimeTicks unsafe_presentation_timestamp_ = base::TimeTicks::Min();
 };
 }  // namespace blink
 

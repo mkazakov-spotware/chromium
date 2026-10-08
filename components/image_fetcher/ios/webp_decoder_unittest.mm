@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -17,8 +18,8 @@
 #include "base/mac/scoped_cftyperef.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -43,7 +44,7 @@ class WebpDecoderDelegate : public WebpDecoder::Delegate {
   void OnDataDecoded(NSData* data) override { [image_ appendData:data]; }
 
  private:
-  ~WebpDecoderDelegate() override {}
+  virtual ~WebpDecoderDelegate() {}
 
   __strong NSMutableData* image_;
 };
@@ -80,6 +81,9 @@ class WebpDecoderTest : public testing::Test {
       case WebpDecoder::TIFF:
         ADD_FAILURE() << "Data already decompressed";
         return nil;
+      case WebpDecoder::DECODED_FORMAT_COUNT:
+        ADD_FAILURE() << "Unknown format";
+        return nil;
     }
     size_t width = CGImageGetWidth(image);
     size_t height = CGImageGetHeight(image);
@@ -92,9 +96,7 @@ class WebpDecoderTest : public testing::Test {
         new std::vector<uint8_t>(width * height * bytes_per_pixel, 0);
     base::ScopedCFTypeRef<CGContextRef> context(CGBitmapContextCreate(
         &result->front(), width, height, bits_per_component, bytes_per_row,
-        color_space,
-        base::to_underlying(kCGImageAlphaPremultipliedLast) |
-            base::to_underlying(kCGBitmapByteOrder32Big)));
+        color_space, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big));
     CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
     // Check that someting has been written in |result|.
     std::vector<uint8_t> zeroes(width * height * bytes_per_pixel, 0);
@@ -250,7 +252,7 @@ TEST_F(WebpDecoderTest, InvalidFormat) {
   EXPECT_CALL(*delegate_, OnFinishedDecoding(false)).Times(1);
   const char dummy_image[] = "(>'-')> <('-'<) ^('-')^ <('-'<) (>'-')>";
   NSData* data = [[NSData alloc] initWithBytes:dummy_image
-                                        length:std::size(dummy_image)];
+                                        length:base::size(dummy_image)];
   decoder_->OnDataReceived(data);
   EXPECT_EQ(0u, [delegate_->GetImage() length]);
 }

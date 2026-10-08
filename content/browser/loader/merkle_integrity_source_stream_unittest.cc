@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/loader/merkle_integrity_source_stream.h"
 #include "base/base64.h"
-#include "base/memory/raw_ptr.h"
 #include "net/base/io_buffer.h"
 #include "net/base/test_completion_callback.h"
 #include "net/filter/mock_source_stream.h"
@@ -122,7 +121,7 @@ class MerkleIntegritySourceStreamTest
   scoped_refptr<net::IOBuffer> output_buffer_;
   int output_buffer_size_;
 
-  raw_ptr<net::MockSourceStream> source_;
+  net::MockSourceStream* source_;
   std::unique_ptr<MerkleIntegritySourceStream> stream_;
 };
 

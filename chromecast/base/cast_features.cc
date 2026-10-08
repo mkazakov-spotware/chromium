@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,20 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_param_associator.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
 
 namespace chromecast {
 namespace {
+// A constant used to always activate a FieldTrial.
+const base::FieldTrial::Probability k100PercentProbability = 100;
 
 // The name of the default group to use for Cast DCS features.
 const char kDefaultDCSFeaturesGroup[] = "default_dcs_features_group";
@@ -38,12 +40,13 @@ std::vector<const base::Feature*>& GetTestFeatures() {
   return *features_for_test;
 }
 
-void SetExperimentIds(const base::Value::List& list) {
+void SetExperimentIds(const base::ListValue& list) {
   DCHECK(!g_experiment_ids_initialized);
   std::unordered_set<int32_t> ids;
-  for (const auto& it : list) {
-    if (it.is_int()) {
-      ids.insert(it.GetInt());
+  for (size_t i = 0; i < list.GetSize(); ++i) {
+    int32_t id;
+    if (list.GetInteger(i, &id)) {
+      ids.insert(id);
     } else {
       LOG(ERROR) << "Non-integer value found in experiment id list!";
     }
@@ -69,8 +72,8 @@ void SetExperimentIds(const base::Value::List& list) {
 //    the value that the feature will hold until overriden by the server or the
 //    command line. Here's an exmaple:
 //
-//      BASE_FEATURE(kSuperSecretSauce, "SuperSecretSauce",
-//                   base::FEATURE_DISABLED_BY_DEFAULT);
+//      const base::Feature kSuperSecretSauce{
+//          "enable_super_secret_sauce", base::FEATURE_DISABLED_BY_DEFAULT};
 //
 //    IMPORTANT NOTE:
 //    The first parameter that you pass in the definition is the feature's name.
@@ -125,48 +128,37 @@ void SetExperimentIds(const base::Value::List& list) {
 
 // Allows applications to access media capture devices (webcams/microphones)
 // through getUserMedia API.
-BASE_FEATURE(kAllowUserMediaAccess,
-             "allow_user_media_access",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kAllowUserMediaAccess{"allow_user_media_access",
+                                          base::FEATURE_DISABLED_BY_DEFAULT};
 // Enables the use of QUIC in Cast-specific NetworkContexts. See
 // chromecast/browser/cast_network_contexts.cc for usage.
-BASE_FEATURE(kEnableQuic, "enable_quic", base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kEnableQuic{"enable_quic",
+                                base::FEATURE_DISABLED_BY_DEFAULT};
 // Enables triple-buffer 720p graphics (overriding default graphics buffer
 // settings for a platform).
-BASE_FEATURE(kTripleBuffer720,
-             "enable_triple_buffer_720",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kTripleBuffer720{"enable_triple_buffer_720",
+                                     base::FEATURE_DISABLED_BY_DEFAULT};
 // Enables single-buffered graphics (overriding default graphics buffer
 // settings and takes precedence over triple-buffer feature).
-BASE_FEATURE(kSingleBuffer,
-             "enable_single_buffer",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kSingleBuffer{"enable_single_buffer",
+                                  base::FEATURE_DISABLED_BY_DEFAULT};
 // Disable idle sockets closing on memory pressure. See
 // chromecast/browser/cast_network_contexts.cc for usage.
-BASE_FEATURE(kDisableIdleSocketsCloseOnMemoryPressure,
-             "disable_idle_sockets_close_on_memory_pressure",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kDisableIdleSocketsCloseOnMemoryPressure{
+    "disable_idle_sockets_close_on_memory_pressure",
+    base::FEATURE_DISABLED_BY_DEFAULT};
 
-BASE_FEATURE(kEnableGeneralAudienceBrowsing,
-             "enable_general_audience_browsing",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kEnableGeneralAudienceBrowsing{
+    "enable_general_audience_browsing", base::FEATURE_DISABLED_BY_DEFAULT};
 
-BASE_FEATURE(kEnableSideGesturePassThrough,
-             "enable_side_gesture_pass_through",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kEnableSideGesturePassThrough{
+    "enable_side_gesture_pass_through", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Uses AudioManagerAndroid, instead of CastAudioManagerAndroid. This will
 // disable lots of Cast features, so it should only be used for development and
 // testing.
-BASE_FEATURE(kEnableChromeAudioManagerAndroid,
-             "enable_chrome_audio_manager_android",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables CastAudioOutputDevice for audio output on Android. When disabled,
-// CastAudioManagerAndroid will be used.
-BASE_FEATURE(kEnableCastAudioOutputDevice,
-             "enable_cast_audio_output_device",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kEnableChromeAudioManagerAndroid{
+    "enable_chrome_audio_manager_android", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // End Chromecast Feature definitions.
 const base::Feature* kFeatures[] = {
@@ -178,16 +170,18 @@ const base::Feature* kFeatures[] = {
     &kEnableGeneralAudienceBrowsing,
     &kEnableSideGesturePassThrough,
     &kEnableChromeAudioManagerAndroid,
-    &kEnableCastAudioOutputDevice,
 };
+
+// An iterator for a base::DictionaryValue. Use an alias for brevity in loops.
+using Iterator = base::DictionaryValue::Iterator;
 
 std::vector<const base::Feature*> GetInternalFeatures();
 
 const std::vector<const base::Feature*>& GetFeatures() {
   static const base::NoDestructor<std::vector<const base::Feature*>> features(
       [] {
-        std::vector<const base::Feature*> features(std::begin(kFeatures),
-                                                   std::end(kFeatures));
+        auto features = std::vector<const base::Feature*>(
+            kFeatures, kFeatures + sizeof(kFeatures) / sizeof(base::Feature*));
         auto internal_features = GetInternalFeatures();
         features.insert(features.end(), internal_features.begin(),
                         internal_features.end());
@@ -198,8 +192,8 @@ const std::vector<const base::Feature*>& GetFeatures() {
   return *features;
 }
 
-void InitializeFeatureList(const base::Value::Dict& dcs_features,
-                           const base::Value::List& dcs_experiment_ids,
+void InitializeFeatureList(const base::DictionaryValue& dcs_features,
+                           const base::ListValue& dcs_experiment_ids,
                            const std::string& cmd_line_enable_features,
                            const std::string& cmd_line_disable_features,
                            const std::string& extra_enable_features,
@@ -220,7 +214,7 @@ void InitializeFeatureList(const base::Value::Dict& dcs_features,
                                           all_disable_features);
 
   // Override defaults from the DCS config.
-  for (const auto kv : dcs_features) {
+  for (Iterator it(dcs_features); !it.IsAtEnd(); it.Advance()) {
     // Each feature must have its own FieldTrial object. Since experiments are
     // controlled server-side for Chromecast, and this class is designed with a
     // client-side experimentation framework in mind, these parameters are
@@ -229,33 +223,33 @@ void InitializeFeatureList(const base::Value::Dict& dcs_features,
     //     maintain a 1:1 mapping with Features in order to properly store and
     //     access parameters associated with each Feature. Therefore, use the
     //     Feature's name as the FieldTrial name to ensure uniqueness.
+    //   - The probability is hard-coded to 100% so that the FeatureList always
+    //     respects the value from DCS.
+    //   - The default group is unused; it will be the same for every feature.
+    //   - Expiration year, month, and day use a special value such that the
+    //     feature will never expire.
+    //   - SESSION_RANDOMIZED is used to prevent the need for an
+    //     entropy_provider. However, this value doesn't matter.
     //   - We don't care about the group_id.
     //
-    const std::string& feature_name = kv.first;
-    auto* field_trial = base::FieldTrialList::CreateFieldTrial(
-        feature_name, kDefaultDCSFeaturesGroup);
+    const std::string& feature_name = it.key();
+    auto* field_trial = base::FieldTrialList::FactoryGetFieldTrial(
+        feature_name, k100PercentProbability, kDefaultDCSFeaturesGroup,
+        base::FieldTrial::SESSION_RANDOMIZED, nullptr);
 
-    // |field_trial| is null only if the trial has already been forced to
-    // another group. This shouldn't happen, unless we've processed a
-    // --force-fieldtrial commandline argument that overrides this to some other
-    // group.
-    if (!field_trial) {
-      LOG(ERROR) << "A trial was already created for a DCS feature: "
-                 << feature_name;
-      continue;
-    }
-
-    if (kv.second.is_bool()) {
+    bool enabled;
+    if (it.value().GetAsBoolean(&enabled)) {
       // A boolean entry simply either enables or disables a feature.
       feature_list->RegisterFieldTrialOverride(
           feature_name,
-          kv.second.GetBool() ? base::FeatureList::OVERRIDE_ENABLE_FEATURE
-                              : base::FeatureList::OVERRIDE_DISABLE_FEATURE,
+          enabled ? base::FeatureList::OVERRIDE_ENABLE_FEATURE
+                  : base::FeatureList::OVERRIDE_DISABLE_FEATURE,
           field_trial);
       continue;
     }
 
-    if (kv.second.is_dict()) {
+    const base::DictionaryValue* params_dict;
+    if (it.value().GetAsDictionary(&params_dict)) {
       // A dictionary entry implies that the feature is enabled.
       feature_list->RegisterFieldTrialOverride(
           feature_name, base::FeatureList::OVERRIDE_ENABLE_FEATURE,
@@ -268,9 +262,10 @@ void InitializeFeatureList(const base::Value::Dict& dcs_features,
         // Build a map of the FieldTrial parameters and associate it to the
         // FieldTrial.
         base::FieldTrialParams params;
-        for (const auto params_kv : kv.second.DictItems()) {
-          if (params_kv.second.is_string()) {
-            params[params_kv.first] = params_kv.second.GetString();
+        for (Iterator p(*params_dict); !p.IsAtEnd(); p.Advance()) {
+          std::string val;
+          if (p.value().GetAsString(&val)) {
+            params[p.key()] = val;
           } else {
             LOG(ERROR) << "Entry in params dict for \"" << feature_name << "\""
                        << " feature is not a string. Skipping.";
@@ -287,7 +282,7 @@ void InitializeFeatureList(const base::Value::Dict& dcs_features,
 
     // Other base::Value types are not supported.
     LOG(ERROR) << "A DCS feature mapped to an unsupported value. key: "
-               << feature_name << " type: " << kv.second.type();
+               << feature_name << " type: " << it.value().type();
   }
 
   base::FeatureList::SetInstance(std::move(feature_list));
@@ -298,30 +293,36 @@ bool IsFeatureEnabled(const base::Feature& feature) {
   return base::FeatureList::IsEnabled(feature);
 }
 
-base::Value::Dict GetOverriddenFeaturesForStorage(
-    const base::Value::Dict& features) {
-  base::Value::Dict persistent_dict;
+base::DictionaryValue GetOverriddenFeaturesForStorage(
+    const base::Value& features) {
+  base::DictionaryValue persistent_dict;
 
   // |features| maps feature names to either a boolean or a dict of params.
-  for (const auto feature : features) {
+  for (const auto& feature : features.DictItems()) {
     if (feature.second.is_bool()) {
-      persistent_dict.Set(feature.first, feature.second.GetBool());
+      persistent_dict.SetBoolean(feature.first, feature.second.GetBool());
       continue;
     }
 
-    if (feature.second.is_dict()) {
-      const base::Value* params_dict = &feature.second;
-      base::Value::Dict params;
+    const base::DictionaryValue* params_dict;
+    if (feature.second.GetAsDictionary(&params_dict)) {
+      auto params = std::make_unique<base::DictionaryValue>();
 
-      for (const auto [param_key, param_val] : params_dict->GetDict()) {
-        if (param_val.is_bool()) {
-          params.Set(param_key, param_val.GetBool() ? "true" : "false");
-        } else if (param_val.is_int()) {
-          params.Set(param_key, base::NumberToString(param_val.GetInt()));
-        } else if (param_val.is_double()) {
-          params.Set(param_key, base::NumberToString(param_val.GetDouble()));
-        } else if (param_val.is_string()) {
-          params.Set(param_key, param_val.GetString());
+      bool bval;
+      int ival;
+      double dval;
+      std::string sval;
+      for (Iterator p(*params_dict); !p.IsAtEnd(); p.Advance()) {
+        const auto& param_key = p.key();
+        const auto& param_val = p.value();
+        if (param_val.GetAsBoolean(&bval)) {
+          params->SetString(param_key, bval ? "true" : "false");
+        } else if (param_val.GetAsInteger(&ival)) {
+          params->SetString(param_key, base::NumberToString(ival));
+        } else if (param_val.GetAsDouble(&dval)) {
+          params->SetString(param_key, base::NumberToString(dval));
+        } else if (param_val.GetAsString(&sval)) {
+          params->SetString(param_key, sval);
         } else {
           LOG(ERROR) << "Entry in params dict for \"" << feature.first << "\""
                      << " is not of a supported type (key: " << param_key

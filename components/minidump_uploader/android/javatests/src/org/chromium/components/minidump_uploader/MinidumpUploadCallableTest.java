@@ -1,8 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.minidump_uploader;
+
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
@@ -10,9 +11,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.annotation.Config;
 
-import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.components.minidump_uploader.CrashTestRule.MockCrashReportingPermissionManager;
 import org.chromium.components.minidump_uploader.MinidumpUploadCallable.MinidumpUploadStatus;
@@ -26,8 +26,7 @@ import java.io.IOException;
 /**
  * Unittests for {@link MinidumpUploadCallable}.
  */
-@RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
+@RunWith(BaseJUnit4ClassRunner.class)
 public class MinidumpUploadCallableTest {
     private static final String LOCAL_CRASH_ID = "123_log";
     private static final String LOG_FILE_NAME = "chromium_renderer-123_log.dmp224";
@@ -43,8 +42,7 @@ public class MinidumpUploadCallableTest {
         private Result mMockResult;
 
         public static MinidumpUploader returnsSuccess() {
-            return new MockMinidumpUploader(
-                    Result.success(MinidumpUploaderTestConstants.UPLOAD_CRASH_ID));
+            return new MockMinidumpUploader(Result.success(MinidumpUploaderTest.UPLOAD_CRASH_ID));
         }
 
         public static MinidumpUploader returnsFailure(String message) {
@@ -68,7 +66,7 @@ public class MinidumpUploadCallableTest {
 
     private void createMinidumpFile() throws Exception {
         mTestUpload = new File(mTestRule.getCrashDir(), LOG_FILE_NAME);
-        CrashTestRule.setUpMinidumpFile(mTestUpload, MinidumpUploaderTestConstants.BOUNDARY);
+        CrashTestRule.setUpMinidumpFile(mTestUpload, MinidumpUploaderTest.BOUNDARY);
     }
 
     private void setForcedUpload() {
@@ -372,7 +370,7 @@ public class MinidumpUploadCallableTest {
         Assert.assertTrue(time <= now);
         Assert.assertTrue(time > now - 60 * 60);
 
-        Assert.assertEquals(uploadId, MinidumpUploaderTestConstants.UPLOAD_CRASH_ID);
+        Assert.assertEquals(uploadId, MinidumpUploaderTest.UPLOAD_CRASH_ID);
         Assert.assertEquals(localId, LOCAL_CRASH_ID);
     }
 }

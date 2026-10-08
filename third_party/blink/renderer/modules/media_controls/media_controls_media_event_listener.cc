@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,44 +27,32 @@ void MediaControlsMediaEventListener::Attach() {
   DCHECK(GetMediaElement().isConnected());
 
   GetMediaElement().addEventListener(event_type_names::kVolumechange, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kFocusin, this,
-                                     /*use_capture=*/false);
+                                     false);
+  GetMediaElement().addEventListener(event_type_names::kFocusin, this, false);
   GetMediaElement().addEventListener(event_type_names::kTimeupdate, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kPlay, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kPlaying, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kPause, this,
-                                     /*use_capture=*/false);
+                                     false);
+  GetMediaElement().addEventListener(event_type_names::kPlay, this, false);
+  GetMediaElement().addEventListener(event_type_names::kPlaying, this, false);
+  GetMediaElement().addEventListener(event_type_names::kPause, this, false);
   GetMediaElement().addEventListener(event_type_names::kDurationchange, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kSeeking, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kSeeked, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kError, this,
-                                     /*use_capture=*/false);
+                                     false);
+  GetMediaElement().addEventListener(event_type_names::kSeeking, this, false);
+  GetMediaElement().addEventListener(event_type_names::kSeeked, this, false);
+  GetMediaElement().addEventListener(event_type_names::kError, this, false);
   GetMediaElement().addEventListener(event_type_names::kLoadedmetadata, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kKeypress, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kKeydown, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kKeyup, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kWaiting, this,
-                                     /*use_capture=*/false);
-  GetMediaElement().addEventListener(event_type_names::kProgress, this,
-                                     /*use_capture=*/false);
+                                     false);
+  GetMediaElement().addEventListener(event_type_names::kKeypress, this, false);
+  GetMediaElement().addEventListener(event_type_names::kKeydown, this, false);
+  GetMediaElement().addEventListener(event_type_names::kKeyup, this, false);
+  GetMediaElement().addEventListener(event_type_names::kWaiting, this, false);
+  GetMediaElement().addEventListener(event_type_names::kProgress, this, false);
   GetMediaElement().addEventListener(event_type_names::kLoadeddata, this,
-                                     /*use_capture=*/false);
+                                     false);
 
   // Listen to two different fullscreen events in order to make sure the new and
   // old APIs are handled.
   GetMediaElement().addEventListener(event_type_names::kWebkitfullscreenchange,
-                                     this, /*use_capture=*/false);
+                                     this, false);
   media_controls_->GetDocument().addEventListener(
       event_type_names::kFullscreenchange, this, false);
 
@@ -76,19 +64,16 @@ void MediaControlsMediaEventListener::Attach() {
           ->GetPictureInPictureEnabled() &&
       IsA<HTMLVideoElement>(GetMediaElement())) {
     GetMediaElement().addEventListener(event_type_names::kEnterpictureinpicture,
-                                       this, /*use_capture=*/false);
+                                       this, false);
     GetMediaElement().addEventListener(event_type_names::kLeavepictureinpicture,
-                                       this, /*use_capture=*/false);
+                                       this, false);
   }
 
   // TextTracks events.
   TextTrackList* text_tracks = GetMediaElement().textTracks();
-  text_tracks->addEventListener(event_type_names::kAddtrack, this,
-                                /*use_capture=*/false);
-  text_tracks->addEventListener(event_type_names::kChange, this,
-                                /*use_capture=*/false);
-  text_tracks->addEventListener(event_type_names::kRemovetrack, this,
-                                /*use_capture=*/false);
+  text_tracks->addEventListener(event_type_names::kAddtrack, this, false);
+  text_tracks->addEventListener(event_type_names::kChange, this, false);
+  text_tracks->addEventListener(event_type_names::kRemovetrack, this, false);
 
   // Keypress events.
   if (media_controls_->ButtonPanelElement()) {
@@ -97,18 +82,15 @@ void MediaControlsMediaEventListener::Attach() {
   }
 
   RemotePlayback& remote = RemotePlayback::From(GetMediaElement());
-  remote.addEventListener(event_type_names::kConnect, this,
-                          /*use_capture=*/false);
-  remote.addEventListener(event_type_names::kConnecting, this,
-                          /*use_capture=*/false);
-  remote.addEventListener(event_type_names::kDisconnect, this,
-                          /*use_capture=*/false);
+  remote.addEventListener(event_type_names::kConnect, this);
+  remote.addEventListener(event_type_names::kConnecting, this);
+  remote.addEventListener(event_type_names::kDisconnect, this);
 
   // TODO(avayvod, mlamouri): Attach can be called twice. See
   // https://crbug.com/713275.
   if (!remote_playback_availability_callback_id_.has_value()) {
     remote_playback_availability_callback_id_ =
-        absl::make_optional(remote.WatchAvailabilityInternal(
+        base::make_optional(remote.WatchAvailabilityInternal(
             MakeGarbageCollected<AvailabilityCallbackWrapper>(
                 WTF::BindRepeating(&MediaControlsMediaEventListener::
                                        OnRemotePlaybackAvailabilityChanged,
@@ -120,28 +102,22 @@ void MediaControlsMediaEventListener::Detach() {
   DCHECK(!GetMediaElement().isConnected());
 
   media_controls_->GetDocument().removeEventListener(
-      event_type_names::kFullscreenchange, this, /*use_capture=*/false);
+      event_type_names::kFullscreenchange, this, false);
 
   TextTrackList* text_tracks = GetMediaElement().textTracks();
-  text_tracks->removeEventListener(event_type_names::kAddtrack, this,
-                                   /*use_capture=*/false);
-  text_tracks->removeEventListener(event_type_names::kChange, this,
-                                   /*use_capture=*/false);
-  text_tracks->removeEventListener(event_type_names::kRemovetrack, this,
-                                   /*use_capture=*/false);
+  text_tracks->removeEventListener(event_type_names::kAddtrack, this, false);
+  text_tracks->removeEventListener(event_type_names::kChange, this, false);
+  text_tracks->removeEventListener(event_type_names::kRemovetrack, this, false);
 
   if (media_controls_->ButtonPanelElement()) {
     media_controls_->ButtonPanelElement()->removeEventListener(
-        event_type_names::kKeypress, this, /*use_capture=*/false);
+        event_type_names::kKeypress, this, false);
   }
 
   RemotePlayback& remote = RemotePlayback::From(GetMediaElement());
-  remote.removeEventListener(event_type_names::kConnect, this,
-                             /*use_capture=*/false);
-  remote.removeEventListener(event_type_names::kConnecting, this,
-                             /*use_capture=*/false);
-  remote.removeEventListener(event_type_names::kDisconnect, this,
-                             /*use_capture=*/false);
+  remote.removeEventListener(event_type_names::kConnect, this);
+  remote.removeEventListener(event_type_names::kConnecting, this);
+  remote.removeEventListener(event_type_names::kDisconnect, this);
 
   // TODO(avayvod): apparently Detach() can be called without a previous
   // Attach() call. See https://crbug.com/713275 for more details.

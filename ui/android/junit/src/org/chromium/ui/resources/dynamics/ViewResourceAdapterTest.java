@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,18 +20,12 @@ import android.graphics.Rect;
 import android.view.View;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.Implementation;
-import org.robolectric.annotation.Implements;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
-import org.chromium.ui.resources.ResourceFactory;
-import org.chromium.ui.resources.ResourceFactoryJni;
 
 import java.lang.ref.WeakReference;
 
@@ -39,29 +33,10 @@ import java.lang.ref.WeakReference;
  * Tests for {@link ViewResourceAdapter}.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE, shadows = {ViewResourceAdapterTest.ShadowCaptureUtils.class})
+@Config(manifest = Config.NONE)
 public class ViewResourceAdapterTest {
-    /**
-     * Mock this out to avoid calling {@link View#draw(Canvas)} on the mocked mView.
-     * Otherwise the GC-related tests would fail because Mockito holds onto a references to the
-     * bitmap forever.
-     */
-    @Implements(CaptureUtils.class)
-    static class ShadowCaptureUtils {
-        @Implementation
-        public static boolean captureCommon(Canvas canvas, View view, Rect dirtyRect, float scale,
-                boolean drawWhileDetached, CaptureObserver observer) {
-            return true;
-        }
-    }
-
     private int mViewWidth;
     private int mViewHeight;
-
-    @Rule
-    public JniMocker mJniMocker = new JniMocker();
-    @Mock
-    private ResourceFactory.Natives mResourceFactoryJni;
     @Mock
     private View mView;
 
@@ -70,7 +45,6 @@ public class ViewResourceAdapterTest {
     @Before
     public void setup() {
         initMocks(this);
-        mJniMocker.mock(ResourceFactoryJni.TEST_HOOKS, mResourceFactoryJni);
 
         mViewWidth = 200;
         mViewHeight = 100;
@@ -78,24 +52,20 @@ public class ViewResourceAdapterTest {
         when(mView.getWidth()).thenAnswer((invocation) -> mViewWidth);
         when(mView.getHeight()).thenAnswer((invocation) -> mViewHeight);
 
-        mAdapter = new ViewResourceAdapter(mView);
-    }
+        mAdapter = new ViewResourceAdapter(mView) {
+            /**
+             * Mock this out to avoid calling {@link View#draw(Canvas)} on the mocked mView.
+             * Otherwise the GC-related tests would fail.
+             */
+            @Override
+            protected void capture(Canvas canvas) {}
+        };
 
-    private Rect getBitmapSize() {
-        // Need to mark dirty before requesting, otherwise it will no-op.
-        mAdapter.invalidate(null);
-        return DynamicResourceTestUtils.getBitmapSizeSync(mAdapter);
-    }
-
-    private Bitmap getBitmap() {
-        // Need to mark dirty before requesting, otherwise it will no-op.
-        mAdapter.invalidate(null);
-        return DynamicResourceTestUtils.getBitmapSync(mAdapter);
     }
 
     @Test
     public void testGetBitmap() {
-        Bitmap bitmap = getBitmap();
+        Bitmap bitmap = mAdapter.getBitmap();
         assertNotNull(bitmap);
         assertEquals(mViewWidth, bitmap.getWidth());
         assertEquals(mViewHeight, bitmap.getHeight());
@@ -103,9 +73,8 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testGetBitmapSize() {
-        Bitmap bitmap = getBitmap();
-        Rect rect = getBitmapSize();
-
+        Bitmap bitmap = mAdapter.getBitmap();
+        Rect rect = mAdapter.getBitmapSize();
         assertEquals(bitmap.getWidth(), rect.width());
         assertEquals(bitmap.getHeight(), rect.height());
     }
@@ -114,11 +83,11 @@ public class ViewResourceAdapterTest {
     public void testSetDownsamplingSize() {
         float scale = 0.5f;
         mAdapter.setDownsamplingScale(scale);
-        Bitmap bitmap = getBitmap();
+        Bitmap bitmap = mAdapter.getBitmap();
         assertEquals(mViewWidth * scale, bitmap.getWidth(), 1);
         assertEquals(mViewHeight * scale, bitmap.getHeight(), 1);
 
-        Rect rect = getBitmapSize();
+        Rect rect = mAdapter.getBitmapSize();
         assertEquals(mViewWidth, rect.width());
         assertEquals(mViewHeight, rect.height());
     }
@@ -127,13 +96,13 @@ public class ViewResourceAdapterTest {
     public void testIsDirty() {
         assertTrue(mAdapter.isDirty());
 
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
     }
 
     @Test
     public void testOnLayoutChange() {
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
 
         mAdapter.onLayoutChange(mView, 0, 0, 1, 2, 0, 0, mViewWidth, mViewHeight);
@@ -148,7 +117,7 @@ public class ViewResourceAdapterTest {
     public void testOnLayoutChangeDownsampled() {
         mAdapter.setDownsamplingScale(0.5f);
 
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
 
         mAdapter.onLayoutChange(mView, 0, 0, 1, 2, 0, 0, mViewWidth, mViewHeight);
@@ -161,7 +130,7 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testInvalidate() {
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
 
         mAdapter.invalidate(null);
@@ -174,7 +143,7 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testInvalidateRect() {
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
 
         Rect dirtyRect = new Rect(1, 2, 3, 4);
@@ -187,7 +156,7 @@ public class ViewResourceAdapterTest {
     public void testInvalidateRectDownsampled() {
         mAdapter.setDownsamplingScale(0.5f);
 
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
 
         Rect dirtyRect = new Rect(1, 2, 3, 4);
@@ -198,7 +167,7 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testInvalidateRectUnion() {
-        getBitmap();
+        mAdapter.getBitmap();
         assertFalse(mAdapter.isDirty());
 
         mAdapter.invalidate(new Rect(1, 2, 3, 4));
@@ -210,7 +179,7 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testGetBitmapResized() {
-        Bitmap bitmap = getBitmap();
+        Bitmap bitmap = mAdapter.getBitmap();
         assertNotNull(bitmap);
         assertEquals(mViewWidth, bitmap.getWidth());
         assertEquals(mViewHeight, bitmap.getHeight());
@@ -218,7 +187,7 @@ public class ViewResourceAdapterTest {
         mViewWidth = 10;
         mViewHeight = 20;
         mAdapter.invalidate(null);
-        Bitmap bitmap2 = getBitmap();
+        Bitmap bitmap2 = mAdapter.getBitmap();
         assertNotNull(bitmap2);
         assertEquals(mViewWidth, bitmap2.getWidth());
         assertEquals(mViewHeight, bitmap2.getHeight());
@@ -227,39 +196,39 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testBitmapReused() {
-        Bitmap bitmap = getBitmap();
+        Bitmap bitmap = mAdapter.getBitmap();
         assertNotNull(bitmap);
 
         mAdapter.invalidate(null);
         assertTrue(mAdapter.isDirty());
-        assertEquals(bitmap, getBitmap());
+        assertEquals(bitmap, mAdapter.getBitmap());
     }
 
     @Test
     public void testDropCachedBitmap() {
-        Bitmap bitmap = getBitmap();
+        Bitmap bitmap = mAdapter.getBitmap();
         assertNotNull(bitmap);
 
         mAdapter.invalidate(null);
         assertTrue(mAdapter.isDirty());
-        assertEquals(bitmap, getBitmap());
+        assertEquals(bitmap, mAdapter.getBitmap());
 
         mAdapter.dropCachedBitmap();
         mAdapter.invalidate(null);
         assertTrue(mAdapter.isDirty());
-        assertNotEquals(bitmap, getBitmap());
+        assertNotEquals(bitmap, mAdapter.getBitmap());
     }
 
     @Test
     public void testDropCachedBitmapNotDirty() {
-        getBitmap();
+        mAdapter.getBitmap();
         mAdapter.dropCachedBitmap();
         assertFalse(mAdapter.isDirty());
     }
 
     @Test
     public void testDropCachedBitmapGCed() {
-        WeakReference<Bitmap> bitmapWeakReference = new WeakReference<>(getBitmap());
+        WeakReference<Bitmap> bitmapWeakReference = new WeakReference<>(mAdapter.getBitmap());
         assertNotNull(bitmapWeakReference.get());
         assertFalse(canBeGarbageCollected(bitmapWeakReference));
 
@@ -269,19 +238,19 @@ public class ViewResourceAdapterTest {
 
     @Test
     public void testResizeGCed() {
-        WeakReference<Bitmap> bitmapWeakReference = new WeakReference<>(getBitmap());
+        WeakReference<Bitmap> bitmapWeakReference = new WeakReference<>(mAdapter.getBitmap());
         assertNotNull(bitmapWeakReference.get());
         assertFalse(canBeGarbageCollected(bitmapWeakReference));
 
         mViewWidth += 10;
         mAdapter.invalidate(null);
-        getBitmap();
+        mAdapter.getBitmap();
         assertTrue(canBeGarbageCollected(bitmapWeakReference));
     }
 
     @Test
     public void testGetDirtyRect() {
-        getBitmap();
+        mAdapter.getBitmap();
         Rect rect = mAdapter.getDirtyRect();
         assertTrue(rect.isEmpty());
 
@@ -295,7 +264,7 @@ public class ViewResourceAdapterTest {
     public void testGetDirtyRectDownsampled() {
         mAdapter.setDownsamplingScale(0.5f);
 
-        getBitmap();
+        mAdapter.getBitmap();
         Rect rect = mAdapter.getDirtyRect();
         assertTrue(rect.isEmpty());
 

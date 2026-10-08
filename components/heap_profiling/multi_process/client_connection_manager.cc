@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,6 +21,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/common/child_process_host.h"
 #include "content/public/common/process_type.h"
+#include "content/public/common/service_names.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
 namespace heap_profiling {
@@ -75,6 +76,31 @@ bool ShouldProfileNonRendererProcessType(Mode mode, int process_type) {
   return false;
 }
 
+void StartProfilingNonRendererChildOnIOThread(
+    base::WeakPtr<Controller> controller,
+    const content::ChildProcessData& data) {
+  DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::IO));
+
+  if (!controller)
+    return;
+
+  content::BrowserChildProcessHost* host =
+      content::BrowserChildProcessHost::FromID(data.id);
+  if (!host)
+    return;
+
+  mojom::ProcessType process_type =
+      (data.process_type == content::ProcessType::PROCESS_TYPE_GPU)
+          ? mojom::ProcessType::GPU
+          : mojom::ProcessType::OTHER;
+
+  // Tell the child process to start profiling.
+  mojo::PendingRemote<mojom::ProfilingClient> client;
+  host->GetHost()->BindReceiver(client.InitWithNewPipeAndPassReceiver());
+  controller->StartProfilingClient(std::move(client), data.GetProcess().Pid(),
+                                   process_type);
+}
+
 void StartProfilingClientOnIOThread(
     base::WeakPtr<Controller> controller,
     mojo::PendingRemote<mojom::ProfilingClient> client,
@@ -100,6 +126,52 @@ void StartProfilingBrowserProcessOnIOThread(
   client->BindToInterface(remote.InitWithNewPipeAndPassReceiver());
   controller->StartProfilingClient(std::move(remote), base::GetCurrentProcId(),
                                    mojom::ProcessType::BROWSER);
+}
+
+void StartProfilingPidOnIOThread(base::WeakPtr<Controller> controller,
+                                 base::ProcessId pid) {
+  DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::IO));
+
+  if (!controller)
+    return;
+
+  // Check if the request is for the current process.
+  if (pid == base::GetCurrentProcId()) {
+    StartProfilingBrowserProcessOnIOThread(std::move(controller));
+    return;
+  }
+
+  // Check if the request is for a non-renderer child process.
+  for (content::BrowserChildProcessHostIterator browser_child_iter;
+       !browser_child_iter.Done(); ++browser_child_iter) {
+    const content::ChildProcessData& data = browser_child_iter.GetData();
+    if (data.GetProcess().Pid() == pid) {
+      StartProfilingNonRendererChildOnIOThread(controller, data);
+      return;
+    }
+  }
+
+  DLOG(WARNING)
+      << "Attempt to start profiling failed as no process was found with pid: "
+      << pid;
+}
+
+void StartProfilingNonRenderersIfNecessaryOnIOThread(
+    Mode mode,
+    base::WeakPtr<Controller> controller) {
+  DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::IO));
+
+  if (!controller)
+    return;
+
+  for (content::BrowserChildProcessHostIterator browser_child_iter;
+       !browser_child_iter.Done(); ++browser_child_iter) {
+    const content::ChildProcessData& data = browser_child_iter.GetData();
+    if (ShouldProfileNonRendererProcessType(mode, data.process_type) &&
+        data.GetProcess().IsValid()) {
+      StartProfilingNonRendererChildOnIOThread(controller, data);
+    }
+  }
 }
 
 }  // namespace
@@ -144,27 +216,10 @@ void ClientConnectionManager::StartProfilingProcess(base::ProcessId pid) {
     }
   }
 
-  // Check if the request is for the current process.
-  if (pid == base::GetCurrentProcId()) {
-    content::GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(&StartProfilingBrowserProcessOnIOThread, controller_));
-    return;
-  }
-
-  // Check if the request is for a non-renderer child process.
-  for (content::BrowserChildProcessHostIterator browser_child_iter;
-       !browser_child_iter.Done(); ++browser_child_iter) {
-    const content::ChildProcessData& data = browser_child_iter.GetData();
-    if (data.GetProcess().Pid() == pid) {
-      StartProfilingNonRendererChild(data);
-      return;
-    }
-  }
-
-  DLOG(WARNING)
-      << "Attempt to start profiling failed as no process was found with pid: "
-      << pid;
+  // The BrowserChildProcessHostIterator iterator must be used on the IO thread.
+  content::GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(&StartProfilingPidOnIOThread, controller_, pid));
 }
 
 bool ClientConnectionManager::AllowedToProfileRenderer(
@@ -198,14 +253,10 @@ void ClientConnectionManager::StartProfilingExistingProcessesIfNecessary() {
     }
   }
 
-  for (content::BrowserChildProcessHostIterator browser_child_iter;
-       !browser_child_iter.Done(); ++browser_child_iter) {
-    const content::ChildProcessData& data = browser_child_iter.GetData();
-    if (ShouldProfileNonRendererProcessType(mode_, data.process_type) &&
-        data.GetProcess().IsValid()) {
-      StartProfilingNonRendererChild(data);
-    }
-  }
+  content::GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(&StartProfilingNonRenderersIfNecessaryOnIOThread,
+                     GetMode(), controller_));
 }
 
 void ClientConnectionManager::BrowserChildProcessLaunchedAndConnected(
@@ -225,25 +276,9 @@ void ClientConnectionManager::BrowserChildProcessLaunchedAndConnected(
 void ClientConnectionManager::StartProfilingNonRendererChild(
     const content::ChildProcessData& data) {
   DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
-
-  content::BrowserChildProcessHost* host =
-      content::BrowserChildProcessHost::FromID(data.id);
-  if (!host)
-    return;
-
-  mojom::ProcessType process_type =
-      (data.process_type == content::ProcessType::PROCESS_TYPE_GPU)
-          ? mojom::ProcessType::GPU
-          : mojom::ProcessType::OTHER;
-
-  // Tell the child process to start profiling.
-  mojo::PendingRemote<mojom::ProfilingClient> client;
-  host->GetHost()->BindReceiver(client.InitWithNewPipeAndPassReceiver());
-
   content::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(&StartProfilingClientOnIOThread, controller_,
-                     std::move(client), data.GetProcess().Pid(), process_type));
+      FROM_HERE, base::BindOnce(&StartProfilingNonRendererChildOnIOThread,
+                                controller_, data.Duplicate()));
 }
 
 void ClientConnectionManager::Observe(

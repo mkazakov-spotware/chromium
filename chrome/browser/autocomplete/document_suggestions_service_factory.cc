@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/memory/singleton.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/omnibox/browser/document_suggestions_service.h"
 #include "content/public/browser/storage_partition.h"
 
@@ -31,12 +32,15 @@ KeyedService* DocumentSuggestionsServiceFactory::BuildServiceInstanceFor(
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile);
   return new DocumentSuggestionsService(
-      identity_manager, profile->GetDefaultStoragePartition()
-                            ->GetURLLoaderFactoryForBrowserProcess());
+      identity_manager,
+      content::BrowserContext::GetDefaultStoragePartition(profile)
+          ->GetURLLoaderFactoryForBrowserProcess());
 }
 
 DocumentSuggestionsServiceFactory::DocumentSuggestionsServiceFactory()
-    : ProfileKeyedServiceFactory("DocumentSuggestionsService") {
+    : BrowserContextKeyedServiceFactory(
+          "DocumentSuggestionsService",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(IdentityManagerFactory::GetInstance());
 }
 

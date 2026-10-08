@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -14,9 +22,6 @@
 goog.provide('goog.graphics.StrokeAndFillElement');
 
 goog.require('goog.graphics.Element');
-goog.requireType('goog.graphics.AbstractGraphics');
-goog.requireType('goog.graphics.Fill');
-goog.requireType('goog.graphics.Stroke');
 
 
 
@@ -39,7 +44,6 @@ goog.requireType('goog.graphics.Stroke');
  *     http://en.wikipedia.org/wiki/Canvas_element for details.
  */
 goog.graphics.StrokeAndFillElement = function(element, graphics, stroke, fill) {
-  'use strict';
   goog.graphics.Element.call(this, element, graphics);
   this.setStroke(stroke);
   this.setFill(fill);
@@ -68,7 +72,6 @@ goog.graphics.StrokeAndFillElement.prototype.stroke_ = null;
  * @param {goog.graphics.Fill?} fill The fill object.
  */
 goog.graphics.StrokeAndFillElement.prototype.setFill = function(fill) {
-  'use strict';
   this.fill = fill;
   this.getGraphics().setElementFill(this, fill);
 };
@@ -78,7 +81,6 @@ goog.graphics.StrokeAndFillElement.prototype.setFill = function(fill) {
  * @return {goog.graphics.Fill?} fill The fill object.
  */
 goog.graphics.StrokeAndFillElement.prototype.getFill = function() {
-  'use strict';
   return this.fill;
 };
 
@@ -88,7 +90,6 @@ goog.graphics.StrokeAndFillElement.prototype.getFill = function() {
  * @param {goog.graphics.Stroke?} stroke The stroke object.
  */
 goog.graphics.StrokeAndFillElement.prototype.setStroke = function(stroke) {
-  'use strict';
   this.stroke_ = stroke;
   this.getGraphics().setElementStroke(this, stroke);
 };
@@ -98,7 +99,6 @@ goog.graphics.StrokeAndFillElement.prototype.setStroke = function(stroke) {
  * @return {goog.graphics.Stroke?} stroke The stroke object.
  */
 goog.graphics.StrokeAndFillElement.prototype.getStroke = function() {
-  'use strict';
   return this.stroke_;
 };
 
@@ -107,7 +107,6 @@ goog.graphics.StrokeAndFillElement.prototype.getStroke = function() {
  * Re-strokes the element to react to coordinate size changes.
  */
 goog.graphics.StrokeAndFillElement.prototype.reapplyStroke = function() {
-  'use strict';
   if (this.stroke_) {
     this.setStroke(this.stroke_);
   }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/bind.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace views {
@@ -27,7 +26,8 @@ class RepeatControllerTest : public testing::Test {
   // Short wait that must be below both
   // RepeatController::GetInitialWaitForTesting() and
   // RepeatController::GetRepeatingWaitForTesting().
-  static constexpr base::TimeDelta kShortWait = base::Milliseconds(10);
+  static constexpr base::TimeDelta kShortWait =
+      base::TimeDelta::FromMilliseconds(10);
   static_assert(
       kShortWait < RepeatController::GetInitialWaitForTesting(),
       "kShortWait must be shorter than the RepeatController initial wait.");

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,8 @@ TEST_F(ChromeManifestTest, ExperimentalPermission) {
       "experimental.json",
       "'experimental' requires the 'experimental-extension-apis' "
       "command line switch to be enabled.");
-  LoadAndExpectSuccess("experimental.json",
-                       extensions::mojom::ManifestLocation::kComponent);
-  LoadAndExpectSuccess("experimental.json",
-                       extensions::mojom::ManifestLocation::kInternal,
+  LoadAndExpectSuccess("experimental.json", extensions::Manifest::COMPONENT);
+  LoadAndExpectSuccess("experimental.json", extensions::Manifest::INTERNAL,
                        extensions::Extension::FROM_WEBSTORE);
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       extensions::switches::kEnableExperimentalExtensionApis);

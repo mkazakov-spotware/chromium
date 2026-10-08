@@ -57,8 +57,7 @@
     },
     {
       nodeName: 'IIRFilterNode',
-      ctorString:
-          `new IIRFilterNode(context, {feedforward: [1], feedback: [1, -0.99]});`,
+      ctorString: `new IIRFilterNode(context, {feedforward: [1], feedback: [1, -0.99]});`,
     },
     {
       nodeName: 'MediaElementAudioSourceNode',
@@ -74,9 +73,8 @@
     {
       nodeName: 'MediaStreamAudioSourceNode',
       ctorString: `
-        const generator = new MediaStreamTrackGenerator({kind: 'audio'});
-        const stream = new MediaStream([generator]);
-        new MediaStreamAudioSourceNode(context, {mediaStream: stream});
+        navigator.mediaDevices.getUserMedia({audio: true})
+            .then(stream => new MediaStreamAudioSourceNode(context, {mediaStream: stream}));
       `,
     },
     {
@@ -85,10 +83,7 @@
     },
     {
       nodeName: 'PannerNode',
-      audioParams: [
-        'positionX', 'positionY', 'positionZ', 'orientationX', 'orientationY',
-        'orientationZ'
-      ],
+      audioParams: ['positionX', 'positionY', 'positionZ', 'orientationX', 'orientationY', 'orientationZ'],
     },
     {
       nodeName: 'ScriptProcessorNode',
@@ -103,8 +98,7 @@
     },
   ];
 
-  const {_, session, dp} = await testRunner.startBlank(
-      `Test graph events for the object lifecycle.`);
+  const {_, session, dp} = await testRunner.startBlank(`Test graph events for the object lifecycle.`);
 
   await dp.WebAudio.enable();
 

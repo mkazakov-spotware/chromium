@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -81,6 +81,11 @@ IdentifiableTokenBuilder& IdentifiableTokenBuilder::AddAtomic(ByteSpan buffer) {
   AddBytes(buffer);
   AlignPartialBuffer();
   return *this;
+}
+
+IdentifiableTokenBuilder& IdentifiableTokenBuilder::AddToken(
+    IdentifiableToken token) {
+  return AddValue(token.value_);
 }
 
 IdentifiableTokenBuilder::operator IdentifiableToken() const {

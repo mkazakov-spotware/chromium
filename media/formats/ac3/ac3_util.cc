@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/formats/ac3/ac3_util.h"
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "media/base/bit_reader.h"
 
 namespace media {
@@ -120,9 +121,9 @@ int GetAc3SyncFrameSampleCount() {
 
 // Returns the size in bytes of the given AC3 synchronization frame.
 int ParseAc3SyncFrameSize(Ac3Header& header) {
-  if (header.sample_rate_code() >= std::size(kSampleRate) ||
+  if (header.sample_rate_code() >= base::size(kSampleRate) ||
       header.ac3_frame_size_code() >=
-          std::size(kSyncFrameSizeInWordsFor44kHz)) {
+          base::size(kSyncFrameSizeInWordsFor44kHz)) {
     DVLOG(2) << __func__ << " Invalid frame header."
              << " fscod:" << header.sample_rate_code()
              << " frmsizecod:" << header.ac3_frame_size_code();

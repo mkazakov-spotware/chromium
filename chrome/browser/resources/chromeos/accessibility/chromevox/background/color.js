@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,7 @@
  * @fileoverview Provides color matching services for ChromeVox.
  */
 
-import {Msgs} from '../common/msgs.js';
-
-export const Color = {};
+goog.provide('Color');
 
 /**
  * Returns a string representation of a color.
@@ -33,7 +31,9 @@ Color.getColorDescription = function(color) {
  * @param {number} color An integer representation of a color.
  * @return {number}
  */
-Color.getOpacityPercentage = color => Math.round(((color >>> 24) / 256) * 100);
+Color.getOpacityPercentage = function(color) {
+  return Math.round(((color >>> 24) / 256) * 100);
+};
 
 /**
  * Finds the most similar stored color given an rgb value.
@@ -41,19 +41,22 @@ Color.getOpacityPercentage = color => Math.round(((color >>> 24) / 256) * 100);
  * @return {string}
  */
 Color.findClosestMatchingColor = function(target) {
-  const bestMatch = Color.ColorObjectArray.reduce((closest, color) => {
-    const distance = Color.findDistance(target, color.value);
-    if (distance < closest.distance) {
-      return {color, distance};
-    }
-    return closest;
-  }, {distance: Number.MAX_VALUE});
+  let bestMessageId;
+  let bestDistance = Number.MAX_VALUE;
 
+  Color.ColorObjectArray.forEach(function(obj) {
+    const val = obj.value;
+    const distance = Color.findDistance(target, val);
+    if (distance < bestDistance) {
+      bestMessageId = obj.colorMessageId;
+      bestDistance = distance;
+    }
+  });
   // Do not report color if most similar color is too inaccurate.
-  if (bestMatch.distance > Color.DISTANCE_THRESHOLD) {
+  if (bestDistance > Color.DISTANCE_THRESHOLD) {
     return '';
   }
-  return Msgs.getMsg(bestMatch.color.colorMessageId);
+  return Msgs.getMsg(bestMessageId);
 };
 
 /**

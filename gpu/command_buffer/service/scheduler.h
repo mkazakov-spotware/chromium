@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,20 +13,21 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/synchronization/lock.h"
-#include "base/time/time.h"
+#include "base/threading/thread_checker.h"
 #include "gpu/command_buffer/common/command_buffer_id.h"
 #include "gpu/command_buffer/common/scheduling_priority.h"
 #include "gpu/command_buffer/common/sync_token.h"
 #include "gpu/command_buffer/service/sequence_id.h"
 #include "gpu/gpu_export.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 
 namespace base {
 class SingleThreadTaskRunner;
+namespace trace_event {
+class ConvertableToTraceFormat;
+}
 }
 
 namespace gpu {
@@ -34,17 +35,11 @@ class SyncPointManager;
 struct GpuPreferences;
 
 class GPU_EXPORT Scheduler {
-  // A callback to be used for reporting when the task is ready to run (when the
-  // dependencies have been solved).
-  using ReportingCallback =
-      base::OnceCallback<void(base::TimeTicks task_ready)>;
-
  public:
   struct GPU_EXPORT Task {
     Task(SequenceId sequence_id,
          base::OnceClosure closure,
-         std::vector<SyncToken> sync_token_fences,
-         ReportingCallback report_callback = ReportingCallback());
+         std::vector<SyncToken> sync_token_fences);
     Task(Task&& other);
     ~Task();
     Task& operator=(Task&& other);
@@ -52,40 +47,19 @@ class GPU_EXPORT Scheduler {
     SequenceId sequence_id;
     base::OnceClosure closure;
     std::vector<SyncToken> sync_token_fences;
-    ReportingCallback report_callback;
   };
 
-  struct ScopedAddWaitingPriority {
-   public:
-    ScopedAddWaitingPriority(Scheduler* scheduler,
-                             SequenceId sequence_id,
-                             SchedulingPriority priority);
-    ~ScopedAddWaitingPriority();
-
-   private:
-    const raw_ptr<Scheduler> scheduler_;
-    const SequenceId sequence_id_;
-    const SchedulingPriority priority_;
-  };
-
-  Scheduler(SyncPointManager* sync_point_manager,
+  Scheduler(scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+            SyncPointManager* sync_point_manager,
             const GpuPreferences& gpu_preferences);
 
-  Scheduler(const Scheduler&) = delete;
-  Scheduler& operator=(const Scheduler&) = delete;
-
-  ~Scheduler();
+  virtual ~Scheduler();
 
   // Create a sequence with given priority. Returns an identifier for the
-  // sequence that can be used with SyncPointManager for creating sync point
+  // sequence that can be used with SyncPonintManager for creating sync point
   // release clients. Sequences start off as enabled (see |EnableSequence|).
-  // Sequence is bound to the provided |task_runner|.
-  SequenceId CreateSequence(
-      SchedulingPriority priority,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner);
-
-  // Should be only used for tests.
-  SequenceId CreateSequenceForTesting(SchedulingPriority priority);
+  // Sequence could be created outside of GPU thread.
+  SequenceId CreateSequence(SchedulingPriority priority);
 
   // Destroy the sequence and run any scheduled tasks immediately. Sequence
   // could be destroyed outside of GPU thread.
@@ -120,14 +94,15 @@ class GPU_EXPORT Scheduler {
   // If the sequence should yield so that a higher priority sequence may run.
   bool ShouldYield(SequenceId sequence_id);
 
+  base::WeakPtr<Scheduler> AsWeakPtr();
+
   // Takes and resets current accumulated blocking time. Not available on all
   // platforms. Must be enabled with --enable-gpu-blocked-time.
   // Returns TimeDelta::Min() when not available.
   base::TimeDelta TakeTotalBlockingTime();
 
-  base::SingleThreadTaskRunner* GetTaskRunnerForTesting(SequenceId sequence_id);
-
  private:
+
   struct SchedulingState {
     static bool Comparator(const SchedulingState& lhs,
                            const SchedulingState& rhs) {
@@ -143,7 +118,8 @@ class GPU_EXPORT Scheduler {
              std::tie(other.priority, other.order_num);
     }
 
-    void WriteIntoTrace(perfetto::TracedValue context) const;
+    std::unique_ptr<base::trace_event::ConvertableToTraceFormat> AsValue()
+        const;
 
     SequenceId sequence_id;
     SchedulingPriority priority = SchedulingPriority::kLow;
@@ -154,12 +130,8 @@ class GPU_EXPORT Scheduler {
    public:
     Sequence(Scheduler* scheduler,
              SequenceId sequence_id,
-             scoped_refptr<base::SingleThreadTaskRunner> task_runner,
              SchedulingPriority priority,
              scoped_refptr<SyncPointOrderData> order_data);
-
-    Sequence(const Sequence&) = delete;
-    Sequence& operator=(const Sequence&) = delete;
 
     ~Sequence();
 
@@ -167,10 +139,6 @@ class GPU_EXPORT Scheduler {
 
     const scoped_refptr<SyncPointOrderData>& order_data() const {
       return order_data_;
-    }
-
-    base::SingleThreadTaskRunner* task_runner() const {
-      return task_runner_.get();
     }
 
     bool enabled() const { return enabled_; }
@@ -201,14 +169,6 @@ class GPU_EXPORT Scheduler {
     // Update cached scheduling priority while running.
     void UpdateRunningPriority();
 
-    // The time delta it took for the front task's dependencies to be completed.
-    base::TimeDelta FrontTaskWaitingDependencyDelta();
-
-    // The delay between when the front task was ready to run (no more
-    // dependencies) and now. This is used when the task is actually started to
-    // check for low scheduling delays.
-    base::TimeDelta FrontTaskSchedulingDelay();
-
     // Returns the next order number and closure. Sets running state to RUNNING.
     uint32_t BeginTask(base::OnceClosure* closure);
 
@@ -217,16 +177,11 @@ class GPU_EXPORT Scheduler {
     void FinishTask();
 
     // Enqueues a task in the sequence and returns the generated order number.
-    uint32_t ScheduleTask(base::OnceClosure closure,
-                          ReportingCallback report_callback);
+    uint32_t ScheduleTask(base::OnceClosure closure);
 
     // Continue running the current task with the given closure. Must be called
     // in between |BeginTask| and |FinishTask|.
     void ContinueTask(base::OnceClosure closure);
-
-    // Sets the first dependency added time on the last task if it wasn't
-    // already set, no-op otherwise.
-    void SetLastTaskFirstDependencyTimeIfNeeded();
 
     // Add a sync token fence that this sequence should wait on.
     void AddWaitFence(const SyncToken& sync_token,
@@ -274,20 +229,12 @@ class GPU_EXPORT Scheduler {
 
     struct Task {
       Task(Task&& other);
-      Task(base::OnceClosure closure,
-           uint32_t order_num,
-           ReportingCallback report_callback);
+      Task(base::OnceClosure closure, uint32_t order_num);
       ~Task();
       Task& operator=(Task&& other);
 
       base::OnceClosure closure;
       uint32_t order_num;
-
-      ReportingCallback report_callback;
-      // Note: this time is only correct once the last fence has been removed,
-      // as it is updated for all fences.
-      base::TimeTicks running_ready = base::TimeTicks::Now();
-      base::TimeTicks first_dependency_added;
     };
 
     // Description of Stream priority propagation: Each Stream has an initial
@@ -334,9 +281,8 @@ class GPU_EXPORT Scheduler {
     // running. Updated in |SetScheduled| and |UpdateRunningPriority|.
     SchedulingState scheduling_state_;
 
-    const raw_ptr<Scheduler> scheduler_;
+    Scheduler* const scheduler_;
     const SequenceId sequence_id_;
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
     const SchedulingPriority default_priority_;
     SchedulingPriority current_priority_;
@@ -359,11 +305,9 @@ class GPU_EXPORT Scheduler {
                                  1] = {};
 
     base::flat_set<CommandBufferId> client_waits_;
-  };
 
-  void AddWaitingPriority(SequenceId sequence_id, SchedulingPriority priority);
-  void RemoveWaitingPriority(SequenceId sequence_id,
-                             SchedulingPriority priority);
+    DISALLOW_COPY_AND_ASSIGN(Sequence);
+  };
 
   void SyncTokenFenceReleased(const SyncToken& sync_token,
                               uint32_t order_num,
@@ -374,54 +318,47 @@ class GPU_EXPORT Scheduler {
 
   void TryScheduleSequence(Sequence* sequence);
 
-  // If the scheduling queue needs to be rebuild because a sequence changed
-  // priority.
-  std::vector<SchedulingState>& RebuildSchedulingQueueIfNeeded(
-      base::SingleThreadTaskRunner* task_runner);
+  void RebuildSchedulingQueue();
 
   Sequence* GetSequence(SequenceId sequence_id);
 
   void RunNextTask();
 
-  const raw_ptr<SyncPointManager> sync_point_manager_;
+  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
+
+  SyncPointManager* const sync_point_manager_;
+
   mutable base::Lock lock_;
-  base::flat_map<SequenceId, std::unique_ptr<Sequence>> sequence_map_
-      GUARDED_BY(lock_);
 
-  // Each thread will have its own priority queue to schedule sequences
-  // created on that thread.
-  struct PerThreadState {
-    PerThreadState();
-    PerThreadState(PerThreadState&&);
-    ~PerThreadState();
-    PerThreadState& operator=(PerThreadState&&);
+  // The following are protected by |lock_|.
+  bool running_ = false;
 
-    // Used as a priority queue for scheduling sequences. Min heap of
-    // SchedulingState with highest priority (lowest order) in front.
-    std::vector<SchedulingState> scheduling_queue;
+  base::flat_map<SequenceId, std::unique_ptr<Sequence>> sequences_;
 
-    // Indicates if the scheduling queue for this thread should be rebuilt due
-    // to priority changes, sequences becoming unblocked, etc.
-    bool rebuild_scheduling_queue = false;
+  // Used as a priority queue for scheduling sequences. Min heap of
+  // SchedulingState with highest priority (lowest order) in front.
+  std::vector<SchedulingState> scheduling_queue_;
 
-    // Indicates if the scheduler is actively running tasks on this thread.
-    bool running = false;
-
-    // Indicates when the next task run was scheduled
-    base::TimeTicks run_next_task_scheduled;
-  };
-  base::flat_map<base::SingleThreadTaskRunner*, PerThreadState>
-      per_thread_state_map_ GUARDED_BY(lock_);
+  // If the scheduling queue needs to be rebuild because a sequence changed
+  // priority.
+  bool rebuild_scheduling_queue_ = false;
 
   // Accumulated time the thread was blocked during running task
-  base::TimeDelta total_blocked_time_ GUARDED_BY(lock_);
+  base::TimeDelta total_blocked_time_;
   const bool blocked_time_collection_enabled_;
+
+  base::ThreadChecker thread_checker_;
+
+  // Invalidated on main thread.
+  base::WeakPtr<Scheduler> weak_ptr_;
+  base::WeakPtrFactory<Scheduler> weak_factory_{this};
 
  private:
   FRIEND_TEST_ALL_PREFIXES(SchedulerTest, StreamPriorities);
   FRIEND_TEST_ALL_PREFIXES(SchedulerTest, StreamDestroyRemovesPriorities);
   FRIEND_TEST_ALL_PREFIXES(SchedulerTest, StreamPriorityChangeWhileReleasing);
   FRIEND_TEST_ALL_PREFIXES(SchedulerTest, CircularPriorities);
+  DISALLOW_COPY_AND_ASSIGN(Scheduler);
 };
 
 }  // namespace gpu

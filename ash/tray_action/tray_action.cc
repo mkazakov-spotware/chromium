@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ namespace ash {
 
 TrayAction::TrayAction(BacklightsForcedOffSetter* backlights_forced_off_setter)
     : backlights_forced_off_setter_(backlights_forced_off_setter) {
-  stylus_observation_.Observe(ui::DeviceDataManager::GetInstance());
+  stylus_observer_.Add(ui::DeviceDataManager::GetInstance());
 }
 
 TrayAction::~TrayAction() = default;

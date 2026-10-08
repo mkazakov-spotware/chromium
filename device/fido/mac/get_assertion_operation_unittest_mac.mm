@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,9 +36,9 @@ CtapGetAssertionRequest MakeTestRequest() {
   return CtapGetAssertionRequest(kRpId, test_data::kClientDataJson);
 }
 
-bool MakeCredential() {
+bool MakeCredential() API_AVAILABLE(macos(10.12.2)) {
   TestCallbackReceiver<CtapDeviceResponseCode,
-                       absl::optional<AuthenticatorMakeCredentialResponse>>
+                       base::Optional<AuthenticatorMakeCredentialResponse>>
       callback_receiver;
   auto request = CtapMakeCredentialRequest(
       test_data::kClientDataJson, PublicKeyCredentialRpEntity(kRpId),
@@ -62,12 +62,13 @@ bool MakeCredential() {
 // For demo purposes only. This test does a Touch ID user prompt. It will fail
 // on incompatible hardware and crash if not code signed or lacking the
 // keychain-access-group entitlement.
-TEST(GetAssertionOperationTest, DISABLED_TestRun) {
+TEST(GetAssertionOperationTest, DISABLED_TestRun)
+API_AVAILABLE(macos(10.12.2)) {
   base::test::TaskEnvironment task_environment;
   ASSERT_TRUE(MakeCredential());
 
   TestCallbackReceiver<CtapDeviceResponseCode,
-                       absl::optional<AuthenticatorGetAssertionResponse>>
+                       base::Optional<AuthenticatorGetAssertionResponse>>
       callback_receiver;
   auto request = MakeTestRequest();
   TouchIdCredentialStore credential_store(
@@ -82,8 +83,8 @@ TEST(GetAssertionOperationTest, DISABLED_TestRun) {
   EXPECT_EQ(CtapDeviceResponseCode::kSuccess, error);
   auto opt_response = std::move(std::get<1>(result));
   ASSERT_TRUE(opt_response);
-  ASSERT_TRUE(opt_response->credential);
-  EXPECT_FALSE(opt_response->credential->id.empty());
+  ASSERT_TRUE(opt_response->credential());
+  EXPECT_FALSE(opt_response->credential()->id().empty());
 }
 }  // namespace
 }  // namespace mac

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
-#include "build/build_config.h"
 #include "net/base/io_buffer.h"
 #include "remoting/codec/audio_encoder.h"
 #include "remoting/codec/audio_encoder_opus.h"
@@ -18,7 +17,6 @@
 #include "remoting/protocol/audio_source.h"
 #include "remoting/protocol/audio_writer.h"
 #include "remoting/protocol/clipboard_stub.h"
-#include "remoting/protocol/desktop_capturer.h"
 #include "remoting/protocol/host_control_dispatcher.h"
 #include "remoting/protocol/host_event_dispatcher.h"
 #include "remoting/protocol/host_stub.h"
@@ -27,15 +25,16 @@
 #include "remoting/protocol/transport_context.h"
 #include "remoting/protocol/video_frame_pump.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
 std::unique_ptr<AudioEncoder> CreateAudioEncoder(
     const protocol::SessionConfig& config) {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // TODO(nicholss): iOS should not use Opus. This is to prevent us from
-  // depending on //media. In the future we will use webrtc for connection
+  // depending on //media. In the future we will use webrtc for conneciton
   // and this will be a non-issue.
   return nullptr;
 #else
@@ -69,22 +68,22 @@ IceConnectionToClient::IceConnectionToClient(
 }
 
 IceConnectionToClient::~IceConnectionToClient() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 }
 
 void IceConnectionToClient::SetEventHandler(
     ConnectionToClient::EventHandler* event_handler) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   event_handler_ = event_handler;
 }
 
 protocol::Session* IceConnectionToClient::session() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   return session_.get();
 }
 
 void IceConnectionToClient::Disconnect(ErrorCode error) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   // This should trigger OnConnectionClosed() event and this object
   // may be destroyed as the result.
@@ -92,9 +91,8 @@ void IceConnectionToClient::Disconnect(ErrorCode error) {
 }
 
 std::unique_ptr<VideoStream> IceConnectionToClient::StartVideoStream(
-    const std::string& stream_name,
-    std::unique_ptr<DesktopCapturer> desktop_capturer) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+    std::unique_ptr<webrtc::DesktopCapturer> desktop_capturer) {
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   std::unique_ptr<VideoEncoder> video_encoder =
       VideoEncoder::Create(session_->config());
@@ -109,7 +107,7 @@ std::unique_ptr<VideoStream> IceConnectionToClient::StartVideoStream(
 
 std::unique_ptr<AudioStream> IceConnectionToClient::StartAudioStream(
     std::unique_ptr<AudioSource> audio_source) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   // Audio channel is disabled.
   if (!audio_writer_)
@@ -125,23 +123,23 @@ std::unique_ptr<AudioStream> IceConnectionToClient::StartAudioStream(
 
 // Return pointer to ClientStub.
 ClientStub* IceConnectionToClient::client_stub() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   return control_dispatcher_.get();
 }
 
 void IceConnectionToClient::set_clipboard_stub(
     protocol::ClipboardStub* clipboard_stub) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   control_dispatcher_->set_clipboard_stub(clipboard_stub);
 }
 
 void IceConnectionToClient::set_host_stub(protocol::HostStub* host_stub) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   control_dispatcher_->set_host_stub(host_stub);
 }
 
 void IceConnectionToClient::set_input_stub(protocol::InputStub* input_stub) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   event_dispatcher_->set_input_stub(input_stub);
 }
 
@@ -154,7 +152,7 @@ WebrtcEventLogData* IceConnectionToClient::rtc_event_log() {
 }
 
 void IceConnectionToClient::OnSessionStateChange(Session::State state) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   DCHECK(event_handler_);
   switch (state) {
@@ -200,25 +198,25 @@ void IceConnectionToClient::OnIceTransportRouteChange(
 }
 
 void IceConnectionToClient::OnIceTransportError(ErrorCode error) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   Disconnect(error);
 }
 
 void IceConnectionToClient::OnChannelInitialized(
     ChannelDispatcherBase* channel_dispatcher) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   NotifyIfChannelsReady();
 }
 
 void IceConnectionToClient::OnChannelClosed(
     ChannelDispatcherBase* channel_dispatcher) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   Disconnect(OK);
 }
 
 void IceConnectionToClient::NotifyIfChannelsReady() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   if (!control_dispatcher_ || !control_dispatcher_->is_connected())
     return;
@@ -241,4 +239,5 @@ void IceConnectionToClient::CloseChannels() {
   audio_writer_.reset();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

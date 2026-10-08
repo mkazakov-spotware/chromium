@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,7 +8,7 @@ import itertools
 class ExtendedAttribute(object):
     """
     Represents a single extended attribute.
-    https://webidl.spec.whatwg.org/#dfn-extended-attribute
+    https://heycam.github.io/webidl/#dfn-extended-attribute
     """
 
     # [Key]
@@ -165,7 +165,7 @@ class ExtendedAttributes(object):
         'B': (ExtendedAttribute('B', value='baz')),
       }
 
-    https://webidl.spec.whatwg.org/#idl-extended-attributes
+    https://heycam.github.io/webidl/#idl-extended-attributes
     """
 
     def __init__(self, extended_attributes=None):

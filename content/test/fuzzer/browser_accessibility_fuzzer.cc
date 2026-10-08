@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,9 @@
 #include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "content/browser/accessibility/one_shot_accessibility_tree_search.h"
 #include "content/browser/accessibility/test_browser_accessibility_delegate.h"
-#include "content/public/test/browser_task_environment.h"
 
 struct Env {
   Env() { base::CommandLine::Init(0, nullptr); }
-  content::BrowserTaskEnvironment task_environment;
   base::AtExitManager at_exit;
 };
 
@@ -27,7 +25,7 @@ ax::mojom::Role GetInterestingRole(FuzzedDataProvider& fdp) {
   switch (fdp.ConsumeIntegralInRange(0, 12)) {
     default:
     case 0:
-      return ax::mojom::Role::kNone;
+      return ax::mojom::Role::kIgnored;
     case 1:
       return ax::mojom::Role::kStaticText;
     case 2:
@@ -159,14 +157,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   std::vector<void*> results;
 
   // Test some tree-walking functions.
-  BrowserAccessibility* root = manager->GetBrowserAccessibilityRoot();
+  BrowserAccessibility* root = manager->GetRoot();
   results.push_back(root->PlatformDeepestFirstChild());
   results.push_back(root->PlatformDeepestLastChild());
   results.push_back(root->InternalDeepestFirstChild());
   results.push_back(root->InternalDeepestLastChild());
 
   // Test OneShotAccessibilityTreeSearch.
-  OneShotAccessibilityTreeSearch search(manager->GetBrowserAccessibilityRoot());
+  OneShotAccessibilityTreeSearch search(manager->GetRoot());
   search.SetDirection(fdp.ConsumeBool()
                           ? OneShotAccessibilityTreeSearch::FORWARDS
                           : OneShotAccessibilityTreeSearch::BACKWARDS);

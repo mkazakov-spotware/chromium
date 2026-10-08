@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,7 @@ import static org.chromium.chrome.browser.download.DownloadNotificationService.E
 import static org.chromium.chrome.browser.download.DownloadNotificationService.EXTRA_IS_OFF_THE_RECORD;
 import static org.chromium.chrome.browser.download.DownloadNotificationService.EXTRA_IS_SUPPORTED_MIME_TYPE;
 import static org.chromium.chrome.browser.download.DownloadNotificationService.EXTRA_NOTIFICATION_BUNDLE_ICON_ID;
-import static org.chromium.chrome.browser.download.DownloadNotificationService.EXTRA_OTR_PROFILE_ID;
 
-import android.app.DownloadManager;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.ComponentName;
@@ -40,15 +38,16 @@ import org.chromium.chrome.browser.notifications.NotificationConstants;
 import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
 import org.chromium.chrome.browser.notifications.NotificationWrapperBuilderFactory;
 import org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
 import org.chromium.components.browser_ui.notifications.NotificationMetadata;
 import org.chromium.components.browser_ui.notifications.NotificationWrapperBuilder;
 import org.chromium.components.browser_ui.notifications.PendingIntentProvider;
-import org.chromium.components.browser_ui.util.DownloadUtils;
+import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.LegacyHelpers;
 import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.PendingState;
+import org.chromium.components.url_formatter.SchemeDisplay;
+import org.chromium.components.url_formatter.UrlFormatter;
 
 /**
  * Creates and updates notifications related to downloads.
@@ -88,7 +87,6 @@ public final class DownloadNotificationFactory {
     public static Notification buildNotification(Context context,
             @DownloadNotificationService.DownloadStatus int downloadStatus,
             DownloadUpdate downloadUpdate, int notificationId) {
-        // TODO(xingliu): Write a unit test for this class.
         String channelId = ChromeChannelDefinitions.ChannelId.DOWNLOADS;
         if (LegacyHelpers.isLegacyDownload(downloadUpdate.getContentId())
                 && downloadStatus == DownloadNotificationService.DownloadStatus.COMPLETED
@@ -97,7 +95,8 @@ public final class DownloadNotificationFactory {
         }
         NotificationWrapperBuilder builder =
                 NotificationWrapperBuilderFactory
-                        .createNotificationWrapperBuilder(channelId,
+                        .createNotificationWrapperBuilder(true /* preferCompat */, channelId,
+                                null /* remoteAppPackageName */,
                                 new NotificationMetadata(LegacyHelpers.isLegacyDownload(
                                                                  downloadUpdate.getContentId())
                                                 ? NotificationUmaTracker.SystemNotificationType
@@ -149,9 +148,9 @@ public final class DownloadNotificationFactory {
                         : android.R.drawable.stat_sys_download;
 
                 Intent pauseIntent = buildActionIntent(context, ACTION_DOWNLOAD_PAUSE,
-                        downloadUpdate.getContentId(), downloadUpdate.getOTRProfileID());
+                        downloadUpdate.getContentId(), downloadUpdate.getIsOffTheRecord());
                 Intent cancelIntent = buildActionIntent(context, ACTION_DOWNLOAD_CANCEL,
-                        downloadUpdate.getContentId(), downloadUpdate.getOTRProfileID());
+                        downloadUpdate.getContentId(), downloadUpdate.getIsOffTheRecord());
                 switch (downloadUpdate.getPendingState()) {
                     case PendingState.NOT_PENDING:
                         cancelIntent.putExtra(EXTRA_DOWNLOAD_STATE_AT_CANCEL,
@@ -167,8 +166,7 @@ public final class DownloadNotificationFactory {
                                         .PENDING_ANOTHER_DOWNLOAD);
                         break;
                 }
-                cancelIntent.putExtra(NotificationConstants.EXTRA_NOTIFICATION_ID,
-                        downloadUpdate.getNotificationId());
+
                 builder.setOngoing(true)
                         .setPriorityBeforeO(NotificationCompat.PRIORITY_HIGH)
                         .setAutoCancel(false)
@@ -219,9 +217,9 @@ public final class DownloadNotificationFactory {
                 iconId = R.drawable.ic_download_pause;
 
                 Intent resumeIntent = buildActionIntent(context, ACTION_DOWNLOAD_RESUME,
-                        downloadUpdate.getContentId(), downloadUpdate.getOTRProfileID());
+                        downloadUpdate.getContentId(), downloadUpdate.getIsOffTheRecord());
                 cancelIntent = buildActionIntent(context, ACTION_DOWNLOAD_CANCEL,
-                        downloadUpdate.getContentId(), downloadUpdate.getOTRProfileID());
+                        downloadUpdate.getContentId(), downloadUpdate.getIsOffTheRecord());
                 cancelIntent.putExtra(EXTRA_DOWNLOAD_STATE_AT_CANCEL,
                         DownloadNotificationUmaHelper.StateAtCancel.PAUSED);
 
@@ -264,15 +262,8 @@ public final class DownloadNotificationFactory {
                 }
 
                 iconId = R.drawable.offline_pin;
-                // Download from Android DownloadManager carries an empty namespace.
-                if (TextUtils.isEmpty(downloadUpdate.getContentId().namespace)) {
-                    // Create an intent to view all Android downloads.
-                    Intent intent = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
-                    intent.setFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    builder.setContentIntent(PendingIntentProvider.getActivity(
-                            context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT));
-                } else if (downloadUpdate.getIsOpenable()) {
+
+                if (downloadUpdate.getIsOpenable()) {
                     Intent intent;
                     if (LegacyHelpers.isLegacyDownload(downloadUpdate.getContentId())
                             && !ChromeFeatureList.isEnabled(
@@ -289,8 +280,6 @@ public final class DownloadNotificationFactory {
                                 downloadUpdate.getIsSupportedMimeType());
                         intent.putExtra(
                                 EXTRA_IS_OFF_THE_RECORD, downloadUpdate.getIsOffTheRecord());
-                        intent.putExtra(EXTRA_OTR_PROFILE_ID,
-                                OTRProfileID.serialize(downloadUpdate.getOTRProfileID()));
                         intent.putExtra(
                                 EXTRA_DOWNLOAD_CONTENTID_ID, downloadUpdate.getContentId().id);
                         intent.putExtra(EXTRA_DOWNLOAD_CONTENTID_NAMESPACE,
@@ -298,11 +287,10 @@ public final class DownloadNotificationFactory {
                         intent.putExtra(NotificationConstants.EXTRA_NOTIFICATION_ID,
                                 downloadUpdate.getNotificationId());
                         MediaViewerUtils.setOriginalUrlAndReferralExtraToIntent(intent,
-                                downloadUpdate.getOriginalUrl().getSpec(),
-                                downloadUpdate.getReferrer().getSpec());
+                                downloadUpdate.getOriginalUrl(), downloadUpdate.getReferrer());
                     } else {
-                        intent = buildActionIntent(
-                                context, ACTION_DOWNLOAD_OPEN, downloadUpdate.getContentId(), null);
+                        intent = buildActionIntent(context, ACTION_DOWNLOAD_OPEN,
+                                downloadUpdate.getContentId(), false);
                     }
 
                     ComponentName component = new ComponentName(
@@ -351,7 +339,7 @@ public final class DownloadNotificationFactory {
                 && downloadStatus != DownloadNotificationService.DownloadStatus.COMPLETED
                 && downloadStatus != DownloadNotificationService.DownloadStatus.FAILED) {
             Intent downloadHomeIntent = buildActionIntent(
-                    context, ACTION_NOTIFICATION_CLICKED, null, downloadUpdate.getOTRProfileID());
+                    context, ACTION_NOTIFICATION_CLICKED, null, downloadUpdate.getIsOffTheRecord());
             builder.setContentIntent(
                     PendingIntentProvider.getService(context, downloadUpdate.getNotificationId(),
                             downloadHomeIntent, PendingIntent.FLAG_UPDATE_CURRENT));
@@ -362,11 +350,18 @@ public final class DownloadNotificationFactory {
             setSubText(builder,
                     context.getResources().getString(
                             R.string.download_notification_incognito_subtext));
-        } else if (downloadUpdate.getShouldPromoteOrigin()) {
+        } else if (downloadUpdate.getShouldPromoteOrigin()
+                && !TextUtils.isEmpty(downloadUpdate.getOriginalUrl())) {
             // Always show the origin URL if available (for normal profiles).
-            String formattedUrl = DownloadUtils.formatUrlForDisplayInNotification(
-                    downloadUpdate.getOriginalUrl());
-            if (formattedUrl != null) setSubText(builder, formattedUrl);
+            String formattedUrl = UrlFormatter.formatUrlForSecurityDisplay(
+                    downloadUpdate.getOriginalUrl(), SchemeDisplay.OMIT_HTTP_AND_HTTPS);
+
+            if (formattedUrl.length() > MAX_ORIGIN_LENGTH) {
+                // The origin is too long. Strip down to eTLD+1.
+                formattedUrl = UrlUtilities.getDomainAndRegistry(
+                        downloadUpdate.getOriginalUrl(), false /* includePrivateRegistries */);
+            }
+            setSubText(builder, formattedUrl);
         }
 
         return builder.build();
@@ -401,18 +396,17 @@ public final class DownloadNotificationFactory {
      * @param context {@link Context} to pull resources from.
      * @param action Download action to perform.
      * @param id The {@link ContentId} of the download.
-     * @param otrProfileID The {@link OTRProfileID} of the download. Null if in regular mode.
+     * @param isOffTheRecord Whether the download is incognito.
      */
     public static Intent buildActionIntent(
-            Context context, String action, ContentId id, OTRProfileID otrProfileID) {
+            Context context, String action, ContentId id, boolean isOffTheRecord) {
         ComponentName component = new ComponentName(
                 context.getPackageName(), DownloadBroadcastManager.class.getName());
         Intent intent = new Intent(action);
         intent.setComponent(component);
         intent.putExtra(EXTRA_DOWNLOAD_CONTENTID_ID, id != null ? id.id : "");
         intent.putExtra(EXTRA_DOWNLOAD_CONTENTID_NAMESPACE, id != null ? id.namespace : "");
-        intent.putExtra(EXTRA_IS_OFF_THE_RECORD, OTRProfileID.isOffTheRecord(otrProfileID));
-        intent.putExtra(EXTRA_OTR_PROFILE_ID, OTRProfileID.serialize(otrProfileID));
+        intent.putExtra(EXTRA_IS_OFF_THE_RECORD, isOffTheRecord);
         return intent;
     }
 }

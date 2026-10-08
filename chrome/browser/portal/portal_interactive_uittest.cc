@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,7 +34,7 @@ IN_PROC_BROWSER_TEST_F(PortalInteractiveUITest,
                        FocusTransfersAcrossActivation) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL("/portal/activate.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
 
   WebContents* contents = browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_EQ(true, content::EvalJs(contents, "loadPromise"));
@@ -60,29 +60,5 @@ IN_PROC_BROWSER_TEST_F(PortalInteractiveUITest,
   EXPECT_EQ(true, content::EvalJs(contents, "activate()"));
   EXPECT_EQ(true, content::EvalJs(contents, "blurPromise"));
   EXPECT_EQ(true, content::EvalJs(contents, "buttonBlurPromise"));
-  EXPECT_EQ(true, content::EvalJs(portal_contents, "focusPromise"));
-}
-
-IN_PROC_BROWSER_TEST_F(PortalInteractiveUITest, AutofocusAcrossActivation) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL url(embedded_test_server()->GetURL("/portal/autofocus.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-
-  WebContents* contents = browser()->tab_strip_model()->GetActiveWebContents();
-  EXPECT_EQ(true, content::EvalJs(contents, "loadComplete"));
-
-  // Elements with autofocus are only focused after a rendering update, so we
-  // call requestAnimationFrame() to wait for the update.
-  WebContents* portal_contents = contents->GetInnerWebContents()[0];
-  EXPECT_EQ(true, content::EvalJs(portal_contents, "rAF()"));
-
-  // Check that autofocused element inside the portal is the active element, but
-  // focus event hasn't been dispatched.
-  EXPECT_EQ(true, content::EvalJs(portal_contents, "checkActiveElement()"));
-  EXPECT_EQ(false, content::EvalJs(portal_contents, "focusEventDispatched"));
-
-  // Activate the portal, and then check if the autofocused element got focus.
-  EXPECT_EQ(true, content::EvalJs(contents, "activate()"));
-  EXPECT_EQ(true, content::EvalJs(portal_contents, "checkActiveElement()"));
   EXPECT_EQ(true, content::EvalJs(portal_contents, "focusPromise"));
 }

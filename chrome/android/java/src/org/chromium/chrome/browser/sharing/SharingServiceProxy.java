@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.sync.protocol.SharingSpecificFields;
-import org.chromium.components.sync_device_info.FormFactor;
+import org.chromium.components.sync.protocol.SyncEnums;
 
 import java.util.ArrayList;
 
@@ -57,17 +57,20 @@ public class SharingServiceProxy {
      * Sends a shared clipboard message to the device specified by GUID.
      * @param guid The guid of the receiver device.
      * @param text The text to send.
+     * @param retries The number of retries so far.
      * @param callback The result of the operation. Runs |callback| with a
      *         org.chromium.chrome.browser.sharing.SharingSendMessageResult enum value.
      */
-    public void sendSharedClipboardMessage(String guid, String text, Callback<Integer> callback) {
+    public void sendSharedClipboardMessage(
+            String guid, String text, int retries, Callback<Integer> callback) {
         if (sNativeSharingServiceProxyAndroid == 0) {
             callback.onResult(SharingSendMessageResult.INTERNAL_ERROR);
             return;
         }
 
         Natives jni = SharingServiceProxyJni.get();
-        jni.sendSharedClipboardMessage(sNativeSharingServiceProxyAndroid, guid, text, callback);
+        jni.sendSharedClipboardMessage(
+                sNativeSharingServiceProxyAndroid, guid, text, retries, callback);
     }
 
     /**
@@ -78,18 +81,17 @@ public class SharingServiceProxy {
 
         public String guid;
         public String clientName;
-        public @FormFactor int formFactor;
+        public SyncEnums.DeviceType deviceType;
         public long lastUpdatedTimestampMillis;
     }
 
     @CalledByNative
     private static void createDeviceInfoAndAppendToList(ArrayList<DeviceInfo> deviceInfo,
-            String guid, String clientName, @FormFactor int formFactor,
-            long lastUpdatedTimestampMillis) {
+            String guid, String clientName, int deviceType, long lastUpdatedTimestampMillis) {
         DeviceInfo device = new DeviceInfo();
         device.guid = guid;
         device.clientName = clientName;
-        device.formFactor = formFactor;
+        device.deviceType = SyncEnums.DeviceType.forNumber(deviceType);
         device.lastUpdatedTimestampMillis = lastUpdatedTimestampMillis;
         deviceInfo.add(device);
     }
@@ -129,7 +131,7 @@ public class SharingServiceProxy {
     interface Natives {
         void initSharingService(Profile profile);
         void sendSharedClipboardMessage(long nativeSharingServiceProxyAndroid, String guid,
-                String text, Callback<Integer> callback);
+                String text, int retries, Callback<Integer> callback);
         void getDeviceCandidates(long nativeSharingServiceProxyAndroid,
                 ArrayList<DeviceInfo> deviceInfo, int requiredFeature);
         void addDeviceCandidatesInitializedObserver(

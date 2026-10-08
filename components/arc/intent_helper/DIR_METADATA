@@ -1,5 +1,3 @@
-monorail: {
-  component: "Platform>Apps>Foundation>Intents"
+monorail {
+  component: "Platform>Apps>Foundation"
 }
-team_email: "chromeos-apps-foundation-team@google.com"
-os: CHROME_OS

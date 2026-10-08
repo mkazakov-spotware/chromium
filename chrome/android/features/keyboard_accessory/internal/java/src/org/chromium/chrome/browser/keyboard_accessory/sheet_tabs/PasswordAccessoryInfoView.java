@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 
 import org.chromium.chrome.browser.keyboard_accessory.R;
-import org.chromium.components.browser_ui.widget.chips.ChipView;
+import org.chromium.ui.widget.ChipView;
 
 /**
  * This view represents a section of user credentials in the password tab of the keyboard accessory.

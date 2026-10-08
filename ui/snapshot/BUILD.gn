@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -108,8 +108,6 @@ test("snapshot_unittests") {
     "//ui/gl",
   ]
 
-  data_deps = [ "//testing/buildbot/filters:snapshot_unittests_filters" ]
-
   if (use_aura) {
     sources += [ "snapshot_aura_unittest.cc" ]
     deps += [
@@ -117,18 +115,6 @@ test("snapshot_unittests") {
       "//ui/compositor",
       "//ui/compositor:test_support",
       "//ui/wm",
-    ]
-  }
-
-  if (is_fuchsia) {
-    # TODO(https://crbug.com/1185811): Investigate removing the requirement for
-    # job_policy_ambient_mark_vmo_exec for the sake of V8's allocator in tests.
-    test_runner_shard = "//build/config/fuchsia/test/elf_test_ambient_exec_runner.shard.test-cml"
-
-    additional_manifest_fragments = [
-      "//build/config/fuchsia/test/mark_vmo_executable.shard.test-cml",
-      "//build/config/fuchsia/test/present_view.shard.test-cml",
-      "//third_party/fuchsia-sdk/sdk/pkg/vulkan/client.shard.cml",
     ]
   }
 }

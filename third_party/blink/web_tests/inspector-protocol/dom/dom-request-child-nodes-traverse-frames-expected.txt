@@ -101,7 +101,6 @@ Tests how DOM.requestChildNodes pierces through frames.
                                                     parentId : <number>
                                                 }
                                             ]
-                                            compatibilityMode : QuirksMode
                                             documentURL : <string>
                                             localName : 
                                             nodeId : <number>

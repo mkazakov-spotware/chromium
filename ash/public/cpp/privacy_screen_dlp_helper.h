@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,6 @@ namespace ash {
 class ASH_PUBLIC_EXPORT PrivacyScreenDlpHelper {
  public:
   static PrivacyScreenDlpHelper* Get();
-
-  // Check if privacy screen is supported by the device.
-  virtual bool IsSupported() const = 0;
 
   // Set PrivacyScreen enforcement because of Data Leak Protection.
   virtual void SetEnforced(bool enforced) = 0;

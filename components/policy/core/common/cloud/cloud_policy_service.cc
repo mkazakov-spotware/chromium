@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/callback.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/observer_list.h"
 #include "base/time/time.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/cloud_policy_util.h"
@@ -28,6 +27,7 @@ CloudPolicyService::CloudPolicyService(const std::string& policy_type,
       client_(client),
       store_(store),
       refresh_state_(REFRESH_NONE),
+      unregister_state_(UNREGISTER_NONE),
       initialization_complete_(false) {
   client_->AddPolicyTypeToFetch(policy_type_, settings_entity_id_);
   client_->AddObserver(this);
@@ -49,8 +49,8 @@ CloudPolicyService::~CloudPolicyService() {
 void CloudPolicyService::RefreshPolicy(RefreshPolicyCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // If the client is not registered bail out.
-  if (!client_->is_registered()) {
+  // If the client is not registered or is unregistering, bail out.
+  if (!client_->is_registered() || unregister_state_ != UNREGISTER_NONE) {
     std::move(callback).Run(false);
     return;
   }
@@ -61,10 +61,26 @@ void CloudPolicyService::RefreshPolicy(RefreshPolicyCallback callback) {
   client_->FetchPolicy();
 }
 
+void CloudPolicyService::Unregister(UnregisterCallback callback) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  // Abort all pending refresh requests.
+  if (refresh_state_ != REFRESH_NONE)
+    RefreshCompleted(false);
+
+  // Abort previous unregister request if any.
+  if (unregister_state_  != UNREGISTER_NONE)
+    UnregisterCompleted(false);
+
+  unregister_callback_ = std::move(callback);
+  unregister_state_ = UNREGISTER_PENDING;
+  client_->Unregister();
+}
+
 void CloudPolicyService::OnPolicyFetched(CloudPolicyClient* client) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (client_->last_dm_status() != DM_STATUS_SUCCESS) {
+  if (client_->status() != DM_STATUS_SUCCESS) {
     RefreshCompleted(false);
     return;
   }
@@ -83,6 +99,9 @@ void CloudPolicyService::OnPolicyFetched(CloudPolicyClient* client) {
 
 void CloudPolicyService::OnRegistrationStateChanged(CloudPolicyClient* client) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (unregister_state_ == UNREGISTER_PENDING)
+    UnregisterCompleted(true);
 }
 
 void CloudPolicyService::OnClientError(CloudPolicyClient* client) {
@@ -90,6 +109,8 @@ void CloudPolicyService::OnClientError(CloudPolicyClient* client) {
 
   if (refresh_state_ == REFRESH_POLICY_FETCH)
     RefreshCompleted(false);
+  if (unregister_state_ == UNREGISTER_PENDING)
+    UnregisterCompleted(false);
 }
 
 void CloudPolicyService::OnStoreLoaded(CloudPolicyStore* store) {
@@ -232,6 +253,14 @@ void CloudPolicyService::RefreshCompleted(bool success) {
 
   for (auto& observer : observers_)
     observer.OnPolicyRefreshed(success);
+}
+
+void CloudPolicyService::UnregisterCompleted(bool success) {
+  if (!success)
+    LOG(ERROR) << "Unregister request failed.";
+
+  unregister_state_ = UNREGISTER_NONE;
+  std::move(unregister_callback_).Run(success);
 }
 
 void CloudPolicyService::AddObserver(Observer* observer) {

@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SELECT_ELEMENT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SELECT_ELEMENT_H_
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_form_control_element.h"
 #include "third_party/blink/public/web/web_option_element.h"
@@ -41,7 +40,7 @@ namespace blink {
 class HTMLSelectElement;
 
 // Provides readonly access to some properties of a DOM select element node.
-class BLINK_EXPORT WebSelectElement final : public WebFormControlElement {
+class WebSelectElement final : public WebFormControlElement {
  public:
   WebSelectElement() : WebFormControlElement() {}
   WebSelectElement(const WebSelectElement& element) = default;
@@ -54,7 +53,7 @@ class BLINK_EXPORT WebSelectElement final : public WebFormControlElement {
     WebFormControlElement::Assign(element);
   }
 
-  WebVector<WebElement> GetListItems() const;
+  BLINK_EXPORT WebVector<WebElement> GetListItems() const;
 
 #if INSIDE_BLINK
   WebSelectElement(HTMLSelectElement*);
@@ -67,4 +66,4 @@ DECLARE_WEB_NODE_TYPE_CASTS(WebSelectElement);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SELECT_ELEMENT_H_
+#endif

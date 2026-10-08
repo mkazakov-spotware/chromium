@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -76,12 +76,9 @@ public class TasksUma {
             if (tabLaunchType == TabLaunchType.FROM_CHROME_UI
                     || tabLaunchType == TabLaunchType.FROM_START_SURFACE
                     || tabLaunchType == TabLaunchType.FROM_LONGPRESS_BACKGROUND
-                    || tabLaunchType == TabLaunchType.FROM_LAUNCHER_SHORTCUT
-                    || tabLaunchType == TabLaunchType.FROM_APP_WIDGET
-                    || tabLaunchType == TabLaunchType.FROM_RECENT_TABS) {
+                    || tabLaunchType == TabLaunchType.FROM_LAUNCHER_SHORTCUT) {
                 manuallyCreatedCount++;
-            } else if (tabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND
-                    || tabLaunchType == TabLaunchType.FROM_LONGPRESS_INCOGNITO) {
+            } else if (tabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND) {
                 targetBlankCreatedCount++;
             } else if (tabLaunchType == TabLaunchType.FROM_EXTERNAL_APP
                     || tabLaunchType == TabLaunchType.FROM_LAUNCH_NEW_INCOGNITO_TAB) {
@@ -91,16 +88,16 @@ public class TasksUma {
             }
         }
 
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Tabs.Tasks.TabCreated.Count.FromManuallyCreated", manuallyCreatedCount);
 
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Tabs.Tasks.TabCreated.Count.FromTargetBlank", targetBlankCreatedCount);
 
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Tabs.Tasks.TabCreated.Count.FromExternalApp", externalAppCreatedCount);
 
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Tabs.Tasks.TabCreated.Count.FromOthers", othersCreatedCount);
 
         RecordHistogram.recordPercentageHistogram(
@@ -137,7 +134,7 @@ public class TasksUma {
         for (int i = 0; i < model.getCount(); i++) {
             Tab currentTab = model.getTabAt(i);
 
-            String url = currentTab.getUrl().getSpec();
+            String url = currentTab.getUrlString();
             int urlDuplicatedCount = 0;
             if (uniqueUrlCounterMap.containsKey(url)) {
                 duplicatedTabCount++;
@@ -159,9 +156,9 @@ public class TasksUma {
             int tabsInGroupCount, int tabGroupCount, int totalTabCount) {
         if (totalTabCount == 0) return;
 
-        RecordHistogram.recordCount1MHistogram("Tabs.Tasks.TabGroupCount", tabGroupCount);
+        RecordHistogram.recordCountHistogram("Tabs.Tasks.TabGroupCount", tabGroupCount);
 
-        RecordHistogram.recordCount1MHistogram("Tabs.Tasks.TabsInGroupCount", tabsInGroupCount);
+        RecordHistogram.recordCountHistogram("Tabs.Tasks.TabsInGroupCount", tabsInGroupCount);
 
         double tabsInGroupRatioPercent = tabsInGroupCount * 1.0 / totalTabCount * 100.0;
         RecordHistogram.recordPercentageHistogram(
@@ -169,7 +166,7 @@ public class TasksUma {
 
         if (tabGroupCount != 0) {
             int averageGroupSize = tabsInGroupCount / tabGroupCount;
-            RecordHistogram.recordCount1MHistogram(
+            RecordHistogram.recordCountHistogram(
                     "Tabs.Tasks.AverageTabGroupSize", averageGroupSize);
             Log.d(TAG, "AverageGroupSize: %d", averageGroupSize);
         }
@@ -188,7 +185,7 @@ public class TasksUma {
     private static void recordDuplicatedTabStatistic(int duplicatedTabCount, int totalTabCount) {
         if (totalTabCount == 0 || duplicatedTabCount >= totalTabCount) return;
 
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Tabs.Tasks.DuplicatedTab.DuplicatedTabCount", duplicatedTabCount);
 
         int duplicatedTabRatioPercent = 100 * duplicatedTabCount / totalTabCount;

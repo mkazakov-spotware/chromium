@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_ANDROID_COMPOSITOR_SCENE_LAYER_OVERSCROLL_SCENE_LAYER_H_
 
 #include "base/android/jni_weak_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/android/layouts/scene_layer.h"
 #include "ui/android/overscroll_glow.h"
@@ -28,10 +27,6 @@ class OverscrollSceneLayer : public SceneLayer,
   OverscrollSceneLayer(JNIEnv* env,
                        const base::android::JavaParamRef<jobject>& jobj,
                        const base::android::JavaParamRef<jobject>& jwindow);
-
-  OverscrollSceneLayer(const OverscrollSceneLayer&) = delete;
-  OverscrollSceneLayer& operator=(const OverscrollSceneLayer&) = delete;
-
   ~OverscrollSceneLayer() override;
 
   void Prepare(JNIEnv* env,
@@ -55,6 +50,7 @@ class OverscrollSceneLayer : public SceneLayer,
   void SetNeedsAnimate();
 
   // ui::WindowAndroidObserver implementation.
+  void OnCompositingDidCommit() override {}
   void OnRootWindowVisibilityChanged(bool visible) override {}
   void OnAttachCompositor() override;
   void OnDetachCompositor() override;
@@ -66,11 +62,13 @@ class OverscrollSceneLayer : public SceneLayer,
   // OverscrollGlowClient implementation.
   std::unique_ptr<ui::EdgeEffect> CreateEdgeEffect() override;
 
-  const raw_ptr<ui::WindowAndroid, DanglingUntriaged> window_;
+  ui::WindowAndroid* const window_;
   std::unique_ptr<ui::OverscrollGlow> glow_effect_;
-  raw_ptr<ui::ResourceManager> resource_manager_ = nullptr;
+  ui::ResourceManager* resource_manager_ = nullptr;
 
   gfx::Vector2dF start_pos_;
+
+  DISALLOW_COPY_AND_ASSIGN(OverscrollSceneLayer);
 };
 
 }  // namespace android

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "extensions/renderer/bindings/api_binding_types.h"
 #include "v8/include/v8.h"
 
@@ -30,10 +31,6 @@ class APILastError {
   APILastError(GetParent get_parent,
                binding::AddConsoleError add_console_error);
   APILastError(APILastError&& other);
-
-  APILastError(const APILastError&) = delete;
-  APILastError& operator=(const APILastError&) = delete;
-
   ~APILastError();
 
   // Sets the last error for the given |context| to |error|.
@@ -67,6 +64,8 @@ class APILastError {
   GetParent get_parent_;
 
   binding::AddConsoleError add_console_error_;
+
+  DISALLOW_COPY_AND_ASSIGN(APILastError);
 };
 
 }  // namespace extensions

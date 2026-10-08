@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,14 @@
 #include "media/capture/video_capture_types.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "services/video_capture/public/cpp/video_frame_access_handler.h"
+#include "services/video_capture/public/mojom/scoped_access_permission.mojom.h"
 #include "services/video_capture/public/mojom/video_frame_handler.mojom.h"
 
 namespace video_capture {
 
-// Implementation of media::VideoFrameReceiver that distributes frames to
+// Implementation of mojom::VideoFrameHandler that distributes frames to
 // potentially multiple clients.
-class BroadcastingReceiver : public media::VideoFrameReceiver {
+class BroadcastingReceiver : public mojom::VideoFrameHandler {
  public:
   class BufferContext {
    public:
@@ -33,6 +33,10 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
     BufferContext& operator=(BufferContext&& other);
     int32_t buffer_context_id() const { return buffer_context_id_; }
     int32_t buffer_id() const { return buffer_id_; }
+    void set_access_permission(
+        mojo::PendingRemote<mojom::ScopedAccessPermission> access_permission) {
+      access_permission_.Bind(std::move(access_permission));
+    }
     void IncreaseConsumerCount();
     void DecreaseConsumerCount();
     bool IsStillBeingConsumed() const;
@@ -42,6 +46,12 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
         media::VideoCaptureBufferType target_buffer_type);
 
    private:
+    // If the source handle is shared_memory_via_raw_file_descriptor, we first
+    // have to unwrap it before we can clone it. Instead of unwrapping, cloning,
+    // and than wrapping back each time we need to clone it, we convert it to
+    // a regular shared memory and keep it in this form.
+    void ConvertRawFileDescriptorToSharedBuffer();
+
     int32_t buffer_context_id_;
     int32_t buffer_id_;
     media::mojom::VideoBufferHandlePtr buffer_handle_;
@@ -49,12 +59,11 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
     // |access_permission_|.
     int32_t consumer_hold_count_;
     bool is_retired_;
+    mojo::Remote<mojom::ScopedAccessPermission> access_permission_;
   };
 
   BroadcastingReceiver();
   ~BroadcastingReceiver() override;
-
-  base::WeakPtr<media::VideoFrameReceiver> GetWeakPtr();
 
   // Indicates to the BroadcastingReceiver that we want to restart the source
   // without letting connected clients know about the restart. The
@@ -75,25 +84,23 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
   // Returns ownership of the client back to the caller.
   mojo::Remote<mojom::VideoFrameHandler> RemoveClient(int32_t client_id);
 
-  // media::VideoFrameReceiver:
+  // video_capture::mojom::VideoFrameHandler:
   void OnNewBuffer(int32_t buffer_id,
                    media::mojom::VideoBufferHandlePtr buffer_handle) override;
   void OnFrameReadyInBuffer(
-      media::ReadyFrameInBuffer frame,
-      std::vector<media::ReadyFrameInBuffer> scaled_frames) override;
+      int32_t buffer_id,
+      int32_t frame_feedback_id,
+      mojo::PendingRemote<mojom::ScopedAccessPermission> access_permission,
+      media::mojom::VideoFrameInfoPtr frame_info) override;
   void OnBufferRetired(int32_t buffer_id) override;
   void OnError(media::VideoCaptureError error) override;
   void OnFrameDropped(media::VideoCaptureFrameDropReason reason) override;
-  void OnNewCropVersion(uint32_t crop_version) override;
-  void OnFrameWithEmptyRegionCapture() override;
   void OnLog(const std::string& message) override;
   void OnStarted() override;
   void OnStartedUsingGpuDecode() override;
   void OnStopped() override;
 
  private:
-  friend class BroadcastingReceiverTest;
-
   enum class Status {
     kOnStartedHasNotYetBeenCalled,
     kOnStartedHasBeenCalled,
@@ -122,12 +129,6 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
     }
     void set_is_suspended(bool suspended) { is_suspended_ = suspended; }
     bool is_suspended() const { return is_suspended_; }
-    void set_has_client_frame_access_handler_remote() {
-      has_client_frame_access_handler_remote_ = true;
-    }
-    bool has_client_frame_access_handler_remote() const {
-      return has_client_frame_access_handler_remote_;
-    }
 
    private:
     mojo::Remote<mojom::VideoFrameHandler> client_;
@@ -135,10 +136,7 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
     bool is_suspended_;
     bool on_started_has_been_called_;
     bool on_started_using_gpu_decode_has_been_called_;
-    bool has_client_frame_access_handler_remote_;
   };
-
-  class ClientVideoFrameAccessHandler;
 
   void OnClientFinishedConsumingFrame(int32_t buffer_context_id);
   void OnClientDisconnected(int32_t client_id);
@@ -146,7 +144,6 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
       int32_t buffer_id);
 
   SEQUENCE_CHECKER(sequence_checker_);
-  scoped_refptr<VideoFrameAccessHandlerRemote> frame_access_handler_remote_;
   std::map<int32_t /*client_id*/, ClientContext> clients_;
   std::vector<BufferContext> buffer_contexts_;
   Status status_;
@@ -156,12 +153,6 @@ class BroadcastingReceiver : public media::VideoFrameReceiver {
   // This is used for relaying the error event to clients that connect after the
   // OnError() call has been received.
   media::VideoCaptureError error_;
-
-  std::map<
-      int32_t,
-      std::unique_ptr<
-          media::VideoCaptureDevice::Client::Buffer::ScopedAccessPermission>>
-      scoped_access_permissions_by_buffer_context_id_;
 
   // Keeps track of the id value for the next client to be added. This member is
   // incremented each time a client is added and represents a unique identifier

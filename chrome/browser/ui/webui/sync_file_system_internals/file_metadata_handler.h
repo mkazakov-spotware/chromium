@@ -1,15 +1,15 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_SYNC_FILE_SYSTEM_INTERNALS_FILE_METADATA_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_SYNC_FILE_SYSTEM_INTERNALS_FILE_METADATA_HANDLER_H_
 
-#include <string>
+#include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
 #include "chrome/browser/sync_file_system/remote_file_sync_service.h"
 #include "chrome/browser/sync_file_system/sync_status_code.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -25,24 +25,22 @@ namespace syncfs_internals {
 class FileMetadataHandler : public content::WebUIMessageHandler {
  public:
   explicit FileMetadataHandler(Profile* profile);
-
-  FileMetadataHandler(const FileMetadataHandler&) = delete;
-  FileMetadataHandler& operator=(const FileMetadataHandler&) = delete;
-
   ~FileMetadataHandler() override;
 
   // WebUIMessageHandler implementation.
   void RegisterMessages() override;
 
  private:
-  void HandleGetExtensions(const base::Value::List& args);
-  void DidGetExtensions(std::string callback_id, base::Value::List list);
+  void GetExtensions(const base::ListValue* args);
+  void DidGetExtensions(const base::ListValue& list);
 
-  void HandleGetFileMetadata(const base::Value::List& args);
-  void DidGetFileMetadata(std::string callback_id, base::Value::List files);
+  void GetFileMetadata(const base::ListValue* args);
+  void DidGetFileMetadata(const base::ListValue& files);
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   base::WeakPtrFactory<FileMetadataHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FileMetadataHandler);
 };
 }  // namespace syncfs_internals
 

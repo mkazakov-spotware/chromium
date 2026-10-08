@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_local_gatt_characteristic.h"
 #include "device/bluetooth/bluetooth_local_gatt_descriptor.h"
 #include "device/bluetooth/bluetooth_local_gatt_service.h"
@@ -20,12 +20,6 @@ class TestBluetoothLocalGattServiceDelegate
     : public BluetoothLocalGattService::Delegate {
  public:
   TestBluetoothLocalGattServiceDelegate();
-
-  TestBluetoothLocalGattServiceDelegate(
-      const TestBluetoothLocalGattServiceDelegate&) = delete;
-  TestBluetoothLocalGattServiceDelegate& operator=(
-      const TestBluetoothLocalGattServiceDelegate&) = delete;
-
   virtual ~TestBluetoothLocalGattServiceDelegate();
 
   // BluetoothLocalGattService::Delegate overrides:
@@ -33,7 +27,8 @@ class TestBluetoothLocalGattServiceDelegate
       const BluetoothDevice* device,
       const BluetoothLocalGattCharacteristic* characteristic,
       int offset,
-      ValueCallback callback) override;
+      ValueCallback callback,
+      ErrorCallback error_callback) override;
   void OnCharacteristicWriteRequest(
       const BluetoothDevice* device,
       const BluetoothLocalGattCharacteristic* characteristic,
@@ -52,7 +47,8 @@ class TestBluetoothLocalGattServiceDelegate
   void OnDescriptorReadRequest(const BluetoothDevice* device,
                                const BluetoothLocalGattDescriptor* descriptor,
                                int offset,
-                               ValueCallback callback) override;
+                               ValueCallback callback,
+                               ErrorCallback error_callback) override;
 
   void OnDescriptorWriteRequest(const BluetoothDevice* device,
                                 const BluetoothLocalGattDescriptor* descriptor,
@@ -90,11 +86,13 @@ class TestBluetoothLocalGattServiceDelegate
   std::string last_seen_device_;
 
  private:
-  raw_ptr<BluetoothLocalGattService> expected_service_;
-  raw_ptr<BluetoothLocalGattCharacteristic> expected_characteristic_;
-  raw_ptr<BluetoothLocalGattDescriptor> expected_descriptor_;
+  BluetoothLocalGattService* expected_service_;
+  BluetoothLocalGattCharacteristic* expected_characteristic_;
+  BluetoothLocalGattDescriptor* expected_descriptor_;
 
   std::map<std::string, bool> notifications_started_for_characteristic_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestBluetoothLocalGattServiceDelegate);
 };
 
 }  // namespace device

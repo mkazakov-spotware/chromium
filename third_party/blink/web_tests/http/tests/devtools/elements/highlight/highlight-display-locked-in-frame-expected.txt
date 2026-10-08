@@ -89,11 +89,10 @@ container{
     "idValue": "container",
     "nodeWidth": "14",
     "nodeHeight": "14",
-    "isKeyboardFocusable": true,
+    "isKeyboardFocusable": false,
     "accessibleName": "",
     "accessibleRole": "",
     "layoutObjectName": "LayoutIFrame",
-    "isLocked": true,
     "showAccessibilityInfo": true
   }
 }
@@ -186,11 +185,11 @@ child{
     "idValue": "container",
     "nodeWidth": "14",
     "nodeHeight": "14",
-    "isKeyboardFocusable": true,
+    "isKeyboardFocusable": false,
     "accessibleName": "",
     "accessibleRole": "",
     "layoutObjectName": "LayoutIFrame",
-    "isLockedAncestor": true,
+    "isLockedAncestor": "true",
     "showAccessibilityInfo": true
   }
 }

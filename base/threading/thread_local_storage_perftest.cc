@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/bind.h"
 #include "base/threading/simple_thread.h"
@@ -20,10 +19,10 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #include "base/win/windows_types.h"
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include <pthread.h>
 #endif
 
@@ -32,8 +31,6 @@ namespace internal {
 
 namespace {
 
-constexpr size_t kCount = 5000000;
-
 constexpr char kMetricPrefixThreadLocalStorage[] = "ThreadLocalStorage.";
 constexpr char kMetricBaseRead[] = "read";
 constexpr char kMetricBaseWrite[] = "write";
@@ -41,9 +38,9 @@ constexpr char kMetricBaseReadWrite[] = "read_write";
 constexpr char kMetricSuffixThroughput[] = "_throughput";
 constexpr char kMetricSuffixOperationTime[] = "_operation_time";
 constexpr char kStoryBaseTLS[] = "thread_local_storage";
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 constexpr char kStoryBasePlatformFLS[] = "platform_fiber_local_storage";
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 constexpr char kStoryBasePlatformTLS[] = "platform_thread_local_storage";
 constexpr char kStoryBaseCPPTLS[] = "c++_platform_thread_local_storage";
 constexpr char kStorySuffixFourThreads[] = "_4_threads";
@@ -82,9 +79,6 @@ class TLSThread : public SimpleThread {
     Start();
   }
 
-  TLSThread(const TLSThread&) = delete;
-  TLSThread& operator=(const TLSThread&) = delete;
-
   void Run() override {
     start_event_->Wait();
     std::move(action_).Run();
@@ -92,17 +86,14 @@ class TLSThread : public SimpleThread {
   }
 
  private:
-  const raw_ptr<WaitableEvent> start_event_;
+  WaitableEvent* const start_event_;
   base::OnceClosure action_;
   base::OnceClosure completion_;
+
+  DISALLOW_COPY_AND_ASSIGN(TLSThread);
 };
 
 class ThreadLocalStoragePerfTest : public testing::Test {
- public:
-  ThreadLocalStoragePerfTest(const ThreadLocalStoragePerfTest&) = delete;
-  ThreadLocalStoragePerfTest& operator=(const ThreadLocalStoragePerfTest&) =
-      delete;
-
  protected:
   ThreadLocalStoragePerfTest() = default;
   ~ThreadLocalStoragePerfTest() override = default;
@@ -119,7 +110,7 @@ class ThreadLocalStoragePerfTest : public testing::Test {
                   base::BindLambdaForTesting([&]() {
                     volatile intptr_t total = 0;
                     for (size_t i = 0; i < num_operation; ++i)
-                      total = total + read();
+                      total += read();
                   }),
                   num_operation, num_threads);
 
@@ -172,6 +163,9 @@ class ThreadLocalStoragePerfTest : public testing::Test {
     reporter.AddResult(metric_base + kMetricSuffixOperationTime,
                        nanos_per_operation);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ThreadLocalStoragePerfTest);
 };
 
 }  // namespace
@@ -183,10 +177,10 @@ TEST_F(ThreadLocalStoragePerfTest, ThreadLocalStorage) {
 
   Benchmark(kStoryBaseTLS, read, write, 10000000, 1);
   Benchmark(std::string(kStoryBaseTLS) + kStorySuffixFourThreads, read, write,
-            kCount, 4);
+            10000000, 4);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 void WINAPI destroy(void*) {}
 
@@ -201,7 +195,7 @@ TEST_F(ThreadLocalStoragePerfTest, PlatformFls) {
 
   Benchmark(kStoryBasePlatformFLS, read, write, 10000000, 1);
   Benchmark(std::string(kStoryBasePlatformFLS) + kStorySuffixFourThreads, read,
-            write, kCount, 4);
+            write, 10000000, 4);
 }
 
 TEST_F(ThreadLocalStoragePerfTest, PlatformTls) {
@@ -215,10 +209,10 @@ TEST_F(ThreadLocalStoragePerfTest, PlatformTls) {
 
   Benchmark(kStoryBasePlatformTLS, read, write, 10000000, 1);
   Benchmark(std::string(kStoryBasePlatformTLS) + kStorySuffixFourThreads, read,
-            write, kCount, 4);
+            write, 10000000, 4);
 }
 
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 
 TEST_F(ThreadLocalStoragePerfTest, PlatformTls) {
   pthread_key_t key;
@@ -234,7 +228,7 @@ TEST_F(ThreadLocalStoragePerfTest, PlatformTls) {
 
   Benchmark(kStoryBasePlatformTLS, read, write, 10000000, 1);
   Benchmark(std::string(kStoryBasePlatformTLS) + kStorySuffixFourThreads, read,
-            write, kCount, 4);
+            write, 10000000, 4);
 }
 
 #endif
@@ -249,7 +243,7 @@ TEST_F(ThreadLocalStoragePerfTest, Cpp11Tls) {
 
   Benchmark(kStoryBaseCPPTLS, read, write, 10000000, 1);
   Benchmark(std::string(kStoryBaseCPPTLS) + kStorySuffixFourThreads, read,
-            write, kCount, 4);
+            write, 10000000, 4);
 }
 
 }  // namespace internal

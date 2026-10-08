@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_SCOPED_CANVAS_H_
 #define UI_GFX_SCOPED_CANVAS_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/gfx_export.h"
 
@@ -24,7 +24,7 @@ class GFX_EXPORT ScopedCanvas {
   void FlipIfRTL(int width);
 
  private:
-  raw_ptr<gfx::Canvas> canvas_;
+  gfx::Canvas* canvas_;
 };
 
 }  // namespace gfx

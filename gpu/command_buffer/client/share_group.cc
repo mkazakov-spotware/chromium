@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-#include <memory>
 #include <vector>
 
 #include "base/containers/stack.h"
@@ -370,9 +369,9 @@ ShareGroup::ShareGroup(bool bind_generates_resource, uint64_t tracing_guid)
          i < static_cast<int>(SharedIdNamespaces::kNumSharedIdNamespaces);
          ++i) {
       if (i == static_cast<int>(SharedIdNamespaces::kProgramsAndShaders)) {
-        id_handlers_[i] = std::make_unique<NonReusedIdHandler>();
+        id_handlers_[i].reset(new NonReusedIdHandler());
       } else {
-        id_handlers_[i] = std::make_unique<IdHandler>();
+        id_handlers_[i].reset(new IdHandler());
       }
     }
   } else {
@@ -380,15 +379,15 @@ ShareGroup::ShareGroup(bool bind_generates_resource, uint64_t tracing_guid)
          i < static_cast<int>(SharedIdNamespaces::kNumSharedIdNamespaces);
          ++i) {
       if (i == static_cast<int>(SharedIdNamespaces::kProgramsAndShaders)) {
-        id_handlers_[i] = std::make_unique<NonReusedIdHandler>();
+        id_handlers_[i].reset(new NonReusedIdHandler());
       } else {
-        id_handlers_[i] = std::make_unique<StrictIdHandler>(i);
+        id_handlers_[i].reset(new StrictIdHandler(i));
       }
     }
   }
-  program_info_manager_ = std::make_unique<ProgramInfoManager>();
+  program_info_manager_.reset(new ProgramInfoManager);
   for (auto& range_id_handler : range_id_handlers_) {
-    range_id_handler = std::make_unique<RangeIdHandler>();
+    range_id_handler.reset(new RangeIdHandler());
   }
 }
 

@@ -1,13 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_CONTENT_SETTINGS_BROWSER_UI_COOKIE_CONTROLS_CONTROLLER_H_
 #define COMPONENTS_CONTENT_SETTINGS_BROWSER_UI_COOKIE_CONTROLS_CONTROLLER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/scoped_observation.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
@@ -26,9 +24,7 @@ class CookieSettings;
 class CookieControlsView;
 
 // Handles the tab specific state for cookie controls.
-class CookieControlsController
-    : content_settings::CookieSettings::Observer,
-      public base::SupportsWeakPtr<CookieControlsController> {
+class CookieControlsController : content_settings::CookieSettings::Observer {
  public:
   CookieControlsController(
       scoped_refptr<content_settings::CookieSettings> cookie_settings,
@@ -48,9 +44,6 @@ class CookieControlsController
   // blocking.
   void OnCookieBlockingEnabledForSite(bool block_third_party_cookies);
 
-  // Returns whether first-party cookies are blocked.
-  bool FirstPartyCookiesBlocked();
-
   void AddObserver(CookieControlsView* obs);
   void RemoveObserver(CookieControlsView* obs);
 
@@ -66,14 +59,13 @@ class CookieControlsController
     TabObserver(CookieControlsController* cookie_controls,
                 content::WebContents* web_contents);
 
-    TabObserver(const TabObserver&) = delete;
-    TabObserver& operator=(const TabObserver&) = delete;
-
     // PageSpecificContentSettings::SiteDataObserver:
     void OnSiteDataAccessed() override;
 
    private:
-    raw_ptr<CookieControlsController> cookie_controls_;
+    CookieControlsController* cookie_controls_;
+
+    DISALLOW_COPY_AND_ASSIGN(TabObserver);
   };
 
   void OnThirdPartyCookieBlockingChanged(

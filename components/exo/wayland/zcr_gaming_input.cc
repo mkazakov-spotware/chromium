@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "base/feature_list.h"
+#include "base/macros.h"
 #include "components/exo/gamepad.h"
 #include "components/exo/gamepad_delegate.h"
 #include "components/exo/gamepad_observer.h"
@@ -117,9 +118,6 @@ class WaylandGamepadDelegate : public GamepadDelegate {
   explicit WaylandGamepadDelegate(wl_resource* gamepad_resource)
       : gamepad_resource_(gamepad_resource) {}
 
-  WaylandGamepadDelegate(const WaylandGamepadDelegate&) = delete;
-  WaylandGamepadDelegate& operator=(const WaylandGamepadDelegate&) = delete;
-
   ~WaylandGamepadDelegate() override = default;
 
   // If gamepad_resource_ is destroyed first, ResetGamepadResource will
@@ -195,25 +193,6 @@ class WaylandGamepadDelegate : public GamepadDelegate {
                                          gamepad_vibrator_resource);
     }
 
-    if (wl_resource_get_version(gamepad_resource_) >=
-        ZCR_GAMEPAD_V2_SUPPORTED_KEY_BITS_SINCE_VERSION) {
-      // Sending key_bits.
-      wl_array wl_key_bits;
-      wl_array_init(&wl_key_bits);
-      std::vector<uint64_t> key_bits =
-          ui::OzonePlatform::GetInstance()
-              ->GetInputController()
-              ->GetGamepadKeyBits(gamepad->device.id);
-      size_t key_bits_len = key_bits.size() * sizeof(uint64_t);
-      uint64_t* wl_key_bits_ptr =
-          static_cast<uint64_t*>(wl_array_add(&wl_key_bits, key_bits_len));
-      if (wl_key_bits_ptr) {
-        memcpy(wl_key_bits_ptr, key_bits.data(), key_bits_len);
-        zcr_gamepad_v2_send_supported_key_bits(gamepad_resource_, &wl_key_bits);
-      }
-      wl_array_release(&wl_key_bits);
-    }
-
     zcr_gamepad_v2_send_activated(gamepad_resource_);
   }
 
@@ -225,6 +204,8 @@ class WaylandGamepadDelegate : public GamepadDelegate {
 
   // The gamepad resource associated with the gamepad.
   wl_resource* gamepad_resource_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandGamepadDelegate);
 };
 
 void gamepad_destroy(wl_client* client, wl_resource* resource) {
@@ -239,10 +220,6 @@ class WaylandGamingSeatDelegate : public GamingSeatDelegate {
  public:
   explicit WaylandGamingSeatDelegate(wl_resource* gaming_seat_resource)
       : gaming_seat_resource_{gaming_seat_resource} {}
-
-  WaylandGamingSeatDelegate(const WaylandGamingSeatDelegate&) = delete;
-  WaylandGamingSeatDelegate& operator=(const WaylandGamingSeatDelegate&) =
-      delete;
 
   // Override from GamingSeatDelegate:
   void OnGamingSeatDestroying(GamingSeat*) override { delete this; }
@@ -279,6 +256,8 @@ class WaylandGamingSeatDelegate : public GamingSeatDelegate {
  private:
   // The gaming seat resource associated with the gaming seat.
   wl_resource* const gaming_seat_resource_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandGamingSeatDelegate);
 };
 
 void gaming_seat_destroy(wl_client* client, wl_resource* resource) {

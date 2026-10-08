@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/containers/flat_map.h"
 #include "base/strings/string_piece.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
 #include "chromeos/printing/printer_config_cache.h"
@@ -38,7 +38,7 @@ void FakePrinterConfigCache::Fetch(const std::string& key,
                                    base::TimeDelta unused_expiration,
                                    PrinterConfigCache::FetchCallback cb) {
   if (contents_.contains(key)) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(cb),
                                   PrinterConfigCache::FetchResult::Success(
                                       key, contents_.at(key), base::Time())));
@@ -48,7 +48,7 @@ void FakePrinterConfigCache::Fetch(const std::string& key,
     // _not_ respond to this Fetch().
     return;
   }
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(cb),
                                 PrinterConfigCache::FetchResult::Failure(key)));
 }

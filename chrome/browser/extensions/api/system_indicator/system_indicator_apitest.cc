@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,26 +6,23 @@
 #include "chrome/browser/extensions/api/system_indicator/system_indicator_manager.h"
 #include "chrome/browser/extensions/api/system_indicator/system_indicator_manager_factory.h"
 #include "chrome/browser/extensions/extension_apitest.h"
+#include "chrome/browser/extensions/lazy_background_page_test_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "components/version_info/channel.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_action_manager.h"
-#include "extensions/browser/extension_host_test_helper.h"
 #include "extensions/browser/process_manager.h"
 #include "extensions/common/extension.h"
+#include "extensions/common/features/feature_channel.h"
 #include "extensions/common/manifest_test.h"
-#include "extensions/common/mojom/view_type.mojom.h"
 #include "extensions/test/result_catcher.h"
 
 namespace extensions {
 
 class SystemIndicatorApiTest : public ExtensionApiTest {
  public:
-  SystemIndicatorApiTest() = default;
-
-  SystemIndicatorApiTest(const SystemIndicatorApiTest&) = delete;
-  SystemIndicatorApiTest& operator=(const SystemIndicatorApiTest&) = delete;
-
+  SystemIndicatorApiTest() : scoped_channel_(version_info::Channel::DEV) {}
   ~SystemIndicatorApiTest() override = default;
 
   void SetUpOnMainThread() override {
@@ -37,24 +34,33 @@ class SystemIndicatorApiTest : public ExtensionApiTest {
   }
 
   const Extension* LoadExtensionAndWait(const std::string& test_name) {
-    ExtensionHostTestHelper host_helper(profile());
-    host_helper.RestrictToType(mojom::ViewType::kExtensionBackgroundPage);
+    LazyBackgroundObserver page_complete;
     base::FilePath extdir = test_data_dir_.AppendASCII(test_name);
     const Extension* extension = LoadExtension(extdir);
-    if (extension) {
-      // Wait for the background page to cycle.
-      host_helper.WaitForDocumentElementAvailable();
-      host_helper.WaitForHostDestroyed();
-    }
+    if (extension)
+      page_complete.Wait();
     return extension;
   }
+
+ private:
+  ScopedCurrentChannel scoped_channel_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemIndicatorApiTest);
 };
 
-IN_PROC_BROWSER_TEST_F(SystemIndicatorApiTest, SystemIndicatorBasic) {
+// https://crbug.com/960363: Test crashes on ChromeOS.
+#if defined(OS_CHROMEOS)
+#define MAYBE_SystemIndicatorBasic DISABLED_SystemIndicatorBasic
+#else
+#define MAYBE_SystemIndicatorBasic SystemIndicatorBasic
+#endif
+IN_PROC_BROWSER_TEST_F(SystemIndicatorApiTest, MAYBE_SystemIndicatorBasic) {
   ASSERT_TRUE(RunExtensionTest("system_indicator/basics")) << message_;
 }
 
-IN_PROC_BROWSER_TEST_F(SystemIndicatorApiTest, SystemIndicatorUnloaded) {
+// Failing on 10.6, flaky elsewhere http://crbug.com/497643
+IN_PROC_BROWSER_TEST_F(SystemIndicatorApiTest,
+                       DISABLED_SystemIndicatorUnloaded) {
   ResultCatcher catcher;
 
   const Extension* extension =

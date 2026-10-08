@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@
 #include "net/base/net_export.h"
 #include "net/cert/x509_certificate.h"
 
-namespace net::ct {
+namespace net {
+
+namespace ct {
 
 struct SignedEntryData;
 
@@ -55,6 +57,8 @@ NET_EXPORT_PRIVATE bool ExtractSCTListFromOCSPResponse(
     base::StringPiece ocsp_response,
     std::string* sct_list);
 
-}  // namespace net::ct
+}  // namespace ct
+
+}  // namespace net
 
 #endif  // NET_CERT_CT_OBJECTS_EXTRACTOR_H_

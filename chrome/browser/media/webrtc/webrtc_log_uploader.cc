@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,11 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "components/version_info/version_info.h"
 #include "components/webrtc_logging/browser/log_cleanup.h"
@@ -36,7 +36,6 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/zlib/zlib.h"
 
 namespace {
@@ -94,7 +93,7 @@ WebRtcLogUploader::UploadDoneData::UploadDoneData(
 WebRtcLogUploader::UploadDoneData::~UploadDoneData() = default;
 
 WebRtcLogUploader::WebRtcLogUploader()
-    : main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
+    : main_task_runner_(base::SequencedTaskRunnerHandle::Get()),
       background_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(), base::TaskPriority::BEST_EFFORT})) {}
 
@@ -312,7 +311,7 @@ void WebRtcLogUploader::OnSimpleLoaderComplete(
   DCHECK_CALLED_ON_VALID_SEQUENCE(main_sequence_checker_);
   DCHECK(!shutdown_);
   network::SimpleURLLoader* loader = it->get();
-  absl::optional<int> response_code;
+  base::Optional<int> response_code;
   if (loader->ResponseInfo() && loader->ResponseInfo()->headers) {
     response_code = loader->ResponseInfo()->headers->response_code();
   }
@@ -344,24 +343,20 @@ void WebRtcLogUploader::SetupMultipart(
     const base::FilePath& incoming_rtp_dump,
     const base::FilePath& outgoing_rtp_dump,
     const std::map<std::string, std::string>& meta_data) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   const char product[] = "Chrome";
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   const char product[] = "Chrome_Mac";
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX) && !defined(OS_CHROMEOS)
 #if !defined(ADDRESS_SANITIZER)
   const char product[] = "Chrome_Linux";
 #else
   const char product[] = "Chrome_Linux_ASan";
 #endif
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   const char product[] = "Chrome_Android";
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
   const char product[] = "Chrome_ChromeOS";
-#elif BUILDFLAG(IS_FUCHSIA)
-  const char product[] = "Chrome_Fuchsia";
 #else
 #error Platform not supported.
 #endif
@@ -602,7 +597,7 @@ void WebRtcLogUploader::AddUploadedLogInfoToUploadListFile(
 }
 
 void WebRtcLogUploader::NotifyUploadDoneAndLogStats(
-    absl::optional<int> response_code,
+    base::Optional<int> response_code,
     int network_error_code,
     const std::string& report_id,
     WebRtcLogUploader::UploadDoneData upload_done_data) {

@@ -27,7 +27,7 @@
 #include "third_party/blink/renderer/core/svg/linear_gradient_attributes.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_length.h"
 #include "third_party/blink/renderer/core/svg/svg_length.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -72,8 +72,7 @@ void SVGLinearGradientElement::Trace(Visitor* visitor) const {
 }
 
 void SVGLinearGradientElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kX1Attr || attr_name == svg_names::kX2Attr ||
       attr_name == svg_names::kY1Attr || attr_name == svg_names::kY2Attr) {
     SVGElement::InvalidationGuard invalidation_guard(this);
@@ -82,12 +81,12 @@ void SVGLinearGradientElement::SvgAttributeChanged(
     return;
   }
 
-  SVGGradientElement::SvgAttributeChanged(params);
+  SVGGradientElement::SvgAttributeChanged(attr_name);
 }
 
 LayoutObject* SVGLinearGradientElement::CreateLayoutObject(const ComputedStyle&,
                                                            LegacyLayout) {
-  return MakeGarbageCollected<LayoutSVGResourceLinearGradient>(this);
+  return new LayoutSVGResourceLinearGradient(this);
 }
 
 static void SetGradientAttributes(const SVGGradientElement& element,

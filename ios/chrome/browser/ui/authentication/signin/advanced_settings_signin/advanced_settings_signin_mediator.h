@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,7 @@
 @class AdvancedSettingsSigninNavigationController;
 class AuthenticationService;
 class PrefService;
-namespace signin {
-class IdentityManager;
-}
+class SyncSetupService;
 namespace syncer {
 class SyncService;
 }
@@ -25,17 +23,15 @@ class SyncService;
 
 - (instancetype)init NS_UNAVAILABLE;
 
-- (instancetype)
-    initWithAuthenticationService:(AuthenticationService*)authenticationService
-                      syncService:(syncer::SyncService*)syncService
-                      prefService:(PrefService*)prefService
-                  identityManager:(signin::IdentityManager*)identityManager
+- (instancetype)initWithSyncSetupService:(SyncSetupService*)syncSetupService
+                   authenticationService:
+                       (AuthenticationService*)authenticationService
+                             syncService:(syncer::SyncService*)syncService
+                             prefService:(PrefService*)prefService
     NS_DESIGNATED_INITIALIZER;
 
 // Saves the user sync preferences.
-- (void)saveUserPreferenceForSigninResult:(SigninCoordinatorResult)signinResult
-                      originalSigninState:
-                          (IdentitySigninState)originalSigninState;
+- (void)saveUserPreferenceForSigninResult:(SigninCoordinatorResult)signinResult;
 
 @end
 

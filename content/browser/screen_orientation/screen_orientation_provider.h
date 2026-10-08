@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,14 @@
 #define CONTENT_BROWSER_SCREEN_ORIENTATION_SCREEN_ORIENTATION_PROVIDER_H_
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "content/common/content_export.h"
-#include "content/public/browser/render_frame_host_receiver_set.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/browser/web_contents_receiver_set.h"
 #include "services/device/public/mojom/screen_orientation.mojom.h"
 #include "services/device/public/mojom/screen_orientation_lock_types.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/display/mojom/screen_orientation.mojom.h"
 
 namespace content {
 
@@ -27,16 +28,7 @@ class CONTENT_EXPORT ScreenOrientationProvider
  public:
   ScreenOrientationProvider(WebContents* web_contents);
 
-  ScreenOrientationProvider(const ScreenOrientationProvider&) = delete;
-  ScreenOrientationProvider& operator=(const ScreenOrientationProvider&) =
-      delete;
-
   ~ScreenOrientationProvider() override;
-
-  void BindScreenOrientation(
-      RenderFrameHost* rfh,
-      mojo::PendingAssociatedReceiver<device::mojom::ScreenOrientation>
-          receiver);
 
   // device::mojom::ScreenOrientation:
   void LockOrientation(device::mojom::ScreenOrientationLockType,
@@ -51,14 +43,11 @@ class CONTENT_EXPORT ScreenOrientationProvider
   // The delegate is not owned by ScreenOrientationProvider.
   static void SetDelegate(ScreenOrientationDelegate* delegate);
   static ScreenOrientationDelegate* GetDelegateForTesting();
-  static bool LockMatchesOrientation(
-      device::mojom::ScreenOrientationLockType lock,
-      display::mojom::ScreenOrientation orientation);
 
   // WebContentsObserver
   void DidToggleFullscreenModeForTab(bool entered_fullscreen,
                                      bool will_cause_resize) override;
-  void PrimaryPageChanged(Page& page) override;
+  void DidFinishNavigation(NavigationHandle* navigation_handle) override;
 
  private:
   // Calls on |on_result_callback_| with |result|, followed by resetting
@@ -83,12 +72,14 @@ class CONTENT_EXPORT ScreenOrientationProvider
 
   // Lock that require orientation changes are not completed until
   // OnOrientationChange.
-  absl::optional<device::mojom::ScreenOrientationLockType>
+  base::Optional<device::mojom::ScreenOrientationLockType>
       pending_lock_orientation_;
 
   LockOrientationCallback pending_callback_;
 
-  RenderFrameHostReceiverSet<device::mojom::ScreenOrientation> receivers_;
+  WebContentsFrameReceiverSet<device::mojom::ScreenOrientation> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScreenOrientationProvider);
 };
 
 }  // namespace content

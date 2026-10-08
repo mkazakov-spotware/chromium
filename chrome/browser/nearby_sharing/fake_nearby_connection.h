@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <queue>
 #include <vector>
 
-#include "chrome/browser/nearby_sharing/public/cpp/nearby_connection.h"
+#include "chrome/browser/nearby_sharing/nearby_connection.h"
 
 class FakeNearbyConnection : public NearbyConnection {
  public:
@@ -25,14 +25,11 @@ class FakeNearbyConnection : public NearbyConnection {
   std::vector<uint8_t> GetWrittenData();
 
   bool IsClosed();
-  bool has_read_callback_been_run() { return has_read_callback_been_run_; }
 
  private:
   void MaybeRunCallback();
 
   bool closed_ = false;
-  bool has_read_callback_been_run_ = false;
-
   ReadCallback callback_;
   std::queue<std::vector<uint8_t>> read_data_;
   std::queue<std::vector<uint8_t>> write_data_;

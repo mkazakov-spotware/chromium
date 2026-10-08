@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ class DEVICE_GAMEPAD_EXPORT XboxHidController final
   static bool IsXboxHid(GamepadId gamepad_id);
 
   // AbstractHapticGamepad public implementation.
-  void SetVibration(mojom::GamepadEffectParametersPtr params) override;
+  void SetVibration(double strong_magnitude, double weak_magnitude) override;
   base::WeakPtr<AbstractHapticGamepad> GetWeakPtr() override;
 
  private:

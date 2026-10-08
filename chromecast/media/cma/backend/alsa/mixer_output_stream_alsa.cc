@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
 #include "chromecast/base/chromecast_switches.h"
@@ -114,7 +115,7 @@ constexpr int* kAlsaDirDontCare = nullptr;
 // retried. Below constants define retries params.
 constexpr int kRestoreAfterSuspensionAttempts = 10;
 constexpr base::TimeDelta kRestoreAfterSuspensionAttemptDelay =
-    base::Milliseconds(20);
+    base::TimeDelta::FromMilliseconds(20);
 
 // These sample formats will be tried in order. 32 bit samples is ideal, but
 // some devices do not support 32 bit samples.
@@ -465,7 +466,7 @@ int MixerOutputStreamAlsa::DetermineOutputRate(int requested_sample_rate) {
   // doesn't always choose a rate that's actually near the given input sample
   // rate when the input sample rate is not supported.
   const int* kSupportedSampleRatesEnd =
-      kSupportedSampleRates + std::size(kSupportedSampleRates);
+      kSupportedSampleRates + base::size(kSupportedSampleRates);
   auto* nearest_sample_rate =
       std::min_element(kSupportedSampleRates, kSupportedSampleRatesEnd,
                        [requested_sample_rate](int r1, int r2) -> bool {

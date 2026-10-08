@@ -1,10 +1,10 @@
-rootWebArea wordStarts=0 wordEnds=20
-++genericContainer ignored wordStarts=0 wordEnds=20
-++++genericContainer ignored wordStarts=0 wordEnds=20
-++++++staticText name='Before' wordStarts=0 wordEnds=6
+rootWebArea
+++genericContainer ignored
+++++genericContainer ignored
+++++++staticText name='Before'
 ++++++++inlineTextBox name='Before' wordStarts=0 wordEnds=6
-++++++paragraph wordStarts=0 wordEnds=9
-++++++++staticText name='Paragraph' wordStarts=0 wordEnds=9
+++++++paragraph
+++++++++staticText name='Paragraph'
 ++++++++++inlineTextBox name='Paragraph' wordStarts=0 wordEnds=9
-++++++staticText name='After' wordStarts=0 wordEnds=5
+++++++staticText name='After'
 ++++++++inlineTextBox name='After' wordStarts=0 wordEnds=5

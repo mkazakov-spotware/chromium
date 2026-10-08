@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -19,7 +19,6 @@ class ToughWebglPage(rendering_story.RenderingStory):
     if extra_browser_args is None:
       extra_browser_args = []
     extra_browser_args.append("--enable-webgl-draft-extensions")
-    extra_browser_args.append("--disable-features=V8TurboFastApiCalls")
     super(ToughWebglPage, self).__init__(
         page_set=page_set,
         shared_page_state_class=shared_page_state_class,
@@ -74,34 +73,34 @@ class ManyPlanetsDeepPage(ToughWebglPage):
   TAGS = ToughWebglPage.TAGS + [story_tags.REPRESENTATIVE_WIN_DESKTOP]
 
 
-class Aquarium(ToughWebglPage):
+class AquariumPage(ToughWebglPage):
   BASE_NAME = 'aquarium'
   URL = 'http://webglsamples.org/aquarium/aquarium.html'
   TAGS = ToughWebglPage.TAGS + [story_tags.REPRESENTATIVE_WIN_DESKTOP]
 
 
-class Aquarium20KFish(ToughWebglPage):
+class Aquarium20KFishPage(ToughWebglPage):
   BASE_NAME = 'aquarium_20k'
   URL = 'http://webglsamples.org/aquarium/aquarium.html?numFish=20000'
   TAGS = ToughWebglPage.TAGS + [story_tags.REPRESENTATIVE_WIN_DESKTOP]
 
-class Blob(ToughWebglPage):
+
+class BlobPage(ToughWebglPage):
   BASE_NAME = 'blob'
   URL = 'http://webglsamples.org/blob/blob.html'
 
 
-class DynamicCubeMap(ToughWebglPage):
+class DynamicCubeMapPage(ToughWebglPage):
   BASE_NAME = 'dynamic_cube_map'
   URL = 'http://webglsamples.org/dynamic-cubemap/dynamic-cubemap.html'
 
 
-class AnimometerWebGL(ToughWebglPage):
+class KenRussellPage(ToughWebglPage):
   BASE_NAME = 'animometer_webgl'
   # pylint: disable=line-too-long
   URL = 'http://kenrussell.github.io/webgl-animometer/Animometer/tests/3d/webgl.html'
 
-
-class AnimometerWebGLMultiDraw(ToughWebglPage):
+class AnimometerWebGLMultiDrawPage(ToughWebglPage):
   BASE_NAME = 'animometer_webgl_multi_draw'
   # pylint: disable=line-too-long
   URL = 'http://kenrussell.github.io/webgl-animometer/Animometer/tests/3d/webgl.html?webgl_version=2&use_ubos=1&use_multi_draw=1'
@@ -121,14 +120,14 @@ class AnimometerWebGLIndexedMultiDraw(ToughWebglPage):
   URL = 'http://kenrussell.github.io/webgl-animometer/Animometer/tests/3d/webgl-indexed-instanced.html?webgl_version=2&use_attributes=1&use_multi_draw=1&num_geometries=120000'
 
 
-class AnimometerWebGLIndexedBaseVertexBaseInstance(ToughWebglPage):
+class AnimometerWebGLIndexedBaseVertexBaseInstancePage(ToughWebglPage):
   BASE_NAME = 'animometer_webgl_indexed_multi_draw_base_vertex_base_instance'
   SUPPORTED_PLATFORMS = platforms.DESKTOP_ONLY
   # pylint: disable=line-too-long
   URL = 'http://kenrussell.github.io/webgl-animometer/Animometer/tests/3d/webgl-indexed-instanced.html?webgl_version=2&use_attributes=1&use_multi_draw=1&use_base_vertex_base_instance=1&num_geometries=120000'
 
 
-class AnimometerWebGLAttribArrays(ToughWebglPage):
+class AnimometerWebGLAttribArraysPage(ToughWebglPage):
   BASE_NAME = 'animometer_webgl_attrib_arrays'
   # pylint: disable=line-too-long
   URL = 'http://kenrussell.github.io/webgl-animometer/Animometer/tests/3d/webgl.html?use_attributes=1'
@@ -136,7 +135,8 @@ class AnimometerWebGLAttribArrays(ToughWebglPage):
     story_tags.REPRESENTATIVE_MAC_DESKTOP
   ]
 
-class CameraToWebGL(ToughWebglPage):
+
+class CameraToWebGLPage(ToughWebglPage):
   TAGS = ToughWebglPage.TAGS + [story_tags.USE_FAKE_CAMERA_DEVICE]
   BASE_NAME = 'camera_to_webgl'
   # pylint: disable=line-too-long
@@ -162,55 +162,20 @@ class SkelebuddiesWasm2020(UnityPage):
   # pylint: disable=line-too-long
   URL = 'http://clb.confined.space/emunittest/Skelebuddies-Wasm-Release-2020-10-26-profiling/Skelebuddies.html?playback'
 
+
 class TinyRacingV3Wasm2020(UnityPage):
   BASE_NAME = 'tiny_racing_v3_wasm_2020'
   # pylint: disable=line-too-long
   URL = 'http://clb.confined.space/emunittest/llvm-tinyracing-wasm-release-2020-03-17/TinyRacing.html?playback'
+
 
 class MicrogameFPS(UnityPage):
   BASE_NAME = 'microgame_fps'
   # pylint: disable=line-too-long
   URL = 'http://clb.confined.space/emunittest/microgame-fps_20190922_131915_wasm_release_profiling/index.html?playback'
 
+
 class LostCrypt(UnityPage):
   BASE_NAME = 'lost_crypt'
-  SUPPORTED_PLATFORMS = platforms.DESKTOP_ONLY
   # pylint: disable=line-too-long
   URL = 'http://clb.confined.space/emunittest/LostCrypt_20191220_131436_wasm_release/index.html?playback'
-
-
-def MakeFastCallVariant(cls):
-  def __init__(self,
-               page_set,
-               shared_page_state_class,
-               name_suffix='',
-               extra_browser_args=None):
-    if extra_browser_args is None:
-      extra_browser_args = []
-    super(cls, self).__init__(page_set=page_set,
-                              shared_page_state_class=shared_page_state_class,
-                              name_suffix=name_suffix,
-                              extra_browser_args=extra_browser_args)
-    # This has to be after after superclass init in order to override the args
-    # added by ToughWebglPage.__init__
-    extra_browser_args.remove("--disable-features=V8TurboFastApiCalls")
-    extra_browser_args.append("--enable-features=V8TurboFastApiCalls")
-
-  return type(
-      cls.__name__ + 'FastCall', (cls,), {
-          'BASE_NAME':
-          cls.BASE_NAME + '_fast_call',
-          'SUPPORTED_PLATFORMS':
-          cls.SUPPORTED_PLATFORMS.intersection(platforms.DESKTOP_ONLY),
-          '__init__':
-          __init__,
-      })
-
-
-AnimometerWebGLFastCall = MakeFastCallVariant(AnimometerWebGL)
-AnimometerWebGLIndexedFastCall = MakeFastCallVariant(AnimometerWebGLIndexed)
-Aquarium20KFishFastCall = MakeFastCallVariant(Aquarium20KFish)
-SkelebuddiesWasm2020FastCall = MakeFastCallVariant(SkelebuddiesWasm2020)
-TinyRacingV3Wasm2020FastCall = MakeFastCallVariant(TinyRacingV3Wasm2020)
-MicrogameFPSFastCall = MakeFastCallVariant(MicrogameFPS)
-LostCryptFastCall = MakeFastCallVariant(LostCrypt)

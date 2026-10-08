@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,13 +24,13 @@ void GetStat(const FilePath& path, bool show_links, stat_wrapper_t* st) {
   if (res < 0) {
     // Print the stat() error message unless it was ENOENT and we're following
     // symlinks.
-    DPLOG_IF(ERROR, errno != ENOENT || show_links)
-        << "Cannot stat '" << path << "'";
+    if (!(errno == ENOENT && !show_links))
+      DPLOG(ERROR) << "Couldn't stat" << path.value();
     memset(st, 0, sizeof(*st));
   }
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 bool ShouldShowSymLinks(int file_type) {
   return false;
 }
@@ -38,9 +38,9 @@ bool ShouldShowSymLinks(int file_type) {
 bool ShouldShowSymLinks(int file_type) {
   return file_type & FileEnumerator::SHOW_SYM_LINKS;
 }
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 bool ShouldTrackVisitedDirectories(int file_type) {
   return false;
 }
@@ -48,7 +48,7 @@ bool ShouldTrackVisitedDirectories(int file_type) {
 bool ShouldTrackVisitedDirectories(int file_type) {
   return !(file_type & FileEnumerator::SHOW_SYM_LINKS);
 }
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
 }  // namespace
 
@@ -123,13 +123,6 @@ FileEnumerator::FileEnumerator(const FilePath& root_path,
   // INCLUDE_DOT_DOT must not be specified if recursive.
   DCHECK(!(recursive && (INCLUDE_DOT_DOT & file_type_)));
 
-  if (file_type_ & FileType::NAMES_ONLY) {
-    DCHECK(!recursive_);
-    DCHECK_EQ(file_type_ & ~(FileType::NAMES_ONLY | FileType::INCLUDE_DOT_DOT),
-              0);
-    file_type_ |= (FileType::FILES | FileType::DIRECTORIES);
-  }
-
   if (recursive && ShouldTrackVisitedDirectories(file_type_)) {
     stat_wrapper_t st;
     GetStat(root_path, false, &st);
@@ -165,7 +158,7 @@ FilePath FileEnumerator::Next() {
 
     directory_entries_.clear();
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
     // Fuchsia does not support .. on the file system server side, see
     // https://fuchsia.googlesource.com/docs/+/master/dotdot.md and
     // https://crbug.com/735540. However, for UI purposes, having the parent
@@ -178,7 +171,7 @@ FilePath FileEnumerator::Next() {
     if (!ShouldSkip(dotdot.filename_)) {
       directory_entries_.push_back(std::move(dotdot));
     }
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // OS_FUCHSIA
 
     current_directory_entry_ = 0;
     struct dirent* dent;
@@ -207,13 +200,6 @@ FilePath FileEnumerator::Next() {
       // there is no sense to obtain item below.
       if (!recursive_ && !is_pattern_matched)
         continue;
-
-      // If the caller only wants the names of files and directories, then
-      // continue without populating `info` further.
-      if (file_type_ & FileType::NAMES_ONLY) {
-        directory_entries_.push_back(std::move(info));
-        continue;
-      }
 
       const FilePath full_path = root_path_.Append(info.filename_);
       GetStat(full_path, ShouldShowSymLinks(file_type_), &info.stat_);
@@ -249,7 +235,6 @@ FilePath FileEnumerator::Next() {
 }
 
 FileEnumerator::FileInfo FileEnumerator::GetInfo() const {
-  DCHECK(!(file_type_ & FileType::NAMES_ONLY));
   return directory_entries_[current_directory_entry_];
 }
 

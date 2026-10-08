@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,6 +37,10 @@ const html = `
   const virtualTimeTicksBase =
      (await dp.Emulation.setVirtualTimePolicy({policy: 'pause'}))
          .result.virtualTimeTicksBase;
+  dp.Emulation.setVirtualTimePolicy({
+      policy: 'pauseIfNetworkFetchesPending',
+      budget: virtualTimeChunkSize,
+      waitForNavigation: true});
 
   let frameTimeTicks = 0;
   dp.Emulation.onVirtualTimeBudgetExpired(async e => {
@@ -53,10 +57,7 @@ const html = `
         policy: 'pauseIfNetworkFetchesPending', budget: virtualTimeChunkSize});
   });
 
-  await dp.Page.navigate({url: 'http://test.com/index.html'});
-  dp.Emulation.setVirtualTimePolicy({
-    policy: 'pauseIfNetworkFetchesPending',
-    budget: virtualTimeChunkSize});
+  dp.Page.navigate({url: 'http://test.com/index.html'});
 
   const params = (await dp.Runtime.onceConsoleAPICalled()).params;
   testRunner.log(`page says: ${params.args[0].value}`);

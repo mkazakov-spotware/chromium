@@ -96,7 +96,7 @@ void CSSFontFaceSource::PruneOldestIfNeeded() {
 }
 
 void CSSFontFaceSource::PruneTable() {
-  if (font_data_table_.empty())
+  if (font_data_table_.IsEmpty())
     return;
 
   for (const auto& item : font_data_table_) {

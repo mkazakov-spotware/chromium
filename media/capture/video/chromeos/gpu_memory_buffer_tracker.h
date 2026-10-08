@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,6 @@ class CAPTURE_EXPORT GpuMemoryBufferTracker final
     : public VideoCaptureBufferTracker {
  public:
   GpuMemoryBufferTracker();
-
-  GpuMemoryBufferTracker(const GpuMemoryBufferTracker&) = delete;
-  GpuMemoryBufferTracker& operator=(const GpuMemoryBufferTracker&) = delete;
-
   ~GpuMemoryBufferTracker() override;
 
   // Implementation of VideoCaptureBufferTracker:
@@ -41,6 +37,8 @@ class CAPTURE_EXPORT GpuMemoryBufferTracker final
  private:
   CameraBufferFactory buffer_factory_;
   std::unique_ptr<gfx::GpuMemoryBuffer> buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(GpuMemoryBufferTracker);
 };
 
 }  // namespace media

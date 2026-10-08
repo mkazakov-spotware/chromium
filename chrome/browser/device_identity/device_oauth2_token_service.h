@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/device_identity/device_oauth2_token_store.h"
 #include "google_apis/gaia/core_account_id.h"
 #include "google_apis/gaia/gaia_oauth_client.h"
@@ -33,11 +33,8 @@ class DeviceOAuth2TokenService : public OAuth2AccessTokenManager::Delegate,
                                  public gaia::GaiaOAuthClient::Delegate,
                                  public DeviceOAuth2TokenStore::Observer {
  public:
-  using RefreshTokenAvailableCallback = base::RepeatingClosure;
-  using StatusCallback = base::OnceCallback<void(bool)>;
-
-  DeviceOAuth2TokenService(const DeviceOAuth2TokenService&) = delete;
-  DeviceOAuth2TokenService& operator=(const DeviceOAuth2TokenService&) = delete;
+  typedef base::RepeatingCallback<void()> RefreshTokenAvailableCallback;
+  typedef base::RepeatingCallback<void(bool)> StatusCallback;
 
   // Persist the given refresh token on the device. Overwrites any previous
   // value. Should only be called during initial device setup. Signals
@@ -77,7 +74,7 @@ class DeviceOAuth2TokenService : public OAuth2AccessTokenManager::Delegate,
 
   OAuth2AccessTokenManager* GetAccessTokenManager();
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   // Used on non-ChromeOS platforms to set the email associated with the
   // current service account. On ChromeOS, this function isn't used because
   // the service account identity comes from CrosSettings.
@@ -114,7 +111,8 @@ class DeviceOAuth2TokenService : public OAuth2AccessTokenManager::Delegate,
   // gaia::GaiaOAuthClient::Delegate implementation.
   void OnRefreshTokenResponse(const std::string& access_token,
                               int expires_in_seconds) override;
-  void OnGetTokenInfoResponse(const base::Value::Dict& token_info) override;
+  void OnGetTokenInfoResponse(
+      std::unique_ptr<base::DictionaryValue> token_info) override;
   void OnOAuthError() override;
   void OnNetworkError(int response_code) override;
 
@@ -198,6 +196,8 @@ class DeviceOAuth2TokenService : public OAuth2AccessTokenManager::Delegate,
   std::unique_ptr<DeviceOAuth2TokenStore> store_;
 
   base::WeakPtrFactory<DeviceOAuth2TokenService> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DeviceOAuth2TokenService);
 };
 
 #endif  // CHROME_BROWSER_DEVICE_IDENTITY_DEVICE_OAUTH2_TOKEN_SERVICE_H_

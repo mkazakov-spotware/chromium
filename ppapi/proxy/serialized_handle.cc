@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "build/build_config.h"
 #include "ipc/ipc_platform_file.h"
 
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
 #include <unistd.h>
 #endif
 

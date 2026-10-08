@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/power/backlights_forced_off_setter.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/time/time.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "ui/events/devices/input_device_event_observer.h"
@@ -36,11 +37,6 @@ class ASH_EXPORT PowerButtonDisplayController
   PowerButtonDisplayController(
       BacklightsForcedOffSetter* backlights_forced_off_setter,
       const base::TickClock* tick_clock);
-
-  PowerButtonDisplayController(const PowerButtonDisplayController&) = delete;
-  PowerButtonDisplayController& operator=(const PowerButtonDisplayController&) =
-      delete;
-
   ~PowerButtonDisplayController() override;
 
   bool IsScreenOn() const;
@@ -56,15 +52,14 @@ class ASH_EXPORT PowerButtonDisplayController
 
   // Overridden from ScreenBacklightObserver:
   void OnBacklightsForcedOffChanged(bool forced_off) override;
-  void OnScreenBacklightStateChanged(
-      ScreenBacklightState screen_backlight_state) override;
+  void OnScreenStateChanged(ScreenState screen_state) override;
 
   // Overridden from chromeos::PowerManagerClient::Observer:
-  void SuspendDone(base::TimeDelta sleep_duration) override;
+  void SuspendDone(const base::TimeDelta& sleep_duration) override;
   void LidEventReceived(chromeos::PowerManagerClient::LidState state,
-                        base::TimeTicks timestamp) override;
+                        const base::TimeTicks& timestamp) override;
   void TabletModeEventReceived(chromeos::PowerManagerClient::TabletMode mode,
-                               base::TimeTicks timestamp) override;
+                               const base::TimeTicks& timestamp) override;
 
   // Overridden from ui::EventHandler:
   void OnKeyEvent(ui::KeyEvent* event) override;
@@ -79,8 +74,8 @@ class ASH_EXPORT PowerButtonDisplayController
 
   BacklightsForcedOffSetter* backlights_forced_off_setter_;  // Not owned.
 
-  base::ScopedObservation<BacklightsForcedOffSetter, ScreenBacklightObserver>
-      backlights_forced_off_observation_{this};
+  ScopedObserver<BacklightsForcedOffSetter, ScreenBacklightObserver>
+      backlights_forced_off_observer_;
 
   // Whether an accessibility alert should be sent when the backlights
   // forced-off state changes.
@@ -94,6 +89,8 @@ class ASH_EXPORT PowerButtonDisplayController
   std::unique_ptr<ScopedBacklightsForcedOff> backlights_forced_off_;
 
   base::WeakPtrFactory<PowerButtonDisplayController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PowerButtonDisplayController);
 };
 
 }  // namespace ash

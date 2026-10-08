@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,10 +7,7 @@ config("config") {
 }
 
 config("private_config") {
-  include_dirs = [
-    "src/src",
-    "src/src/private",
-  ]
+  include_dirs = [ "src/src" ]
   visibility = [ ":material_text_accessibility_ios" ]
 }
 
@@ -21,6 +18,8 @@ source_set("material_text_accessibility_ios") {
     "src/src/MDFTextAccessibility.m",
     "src/src/private/MDFColorCalculations.h",
     "src/src/private/MDFColorCalculations.m",
+    "src/src/private/MDFImageCalculations.h",
+    "src/src/private/MDFImageCalculations.m",
     "src/src/private/NSArray+MDFUtils.h",
     "src/src/private/NSArray+MDFUtils.m",
   ]

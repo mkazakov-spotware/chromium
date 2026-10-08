@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -36,7 +44,6 @@ goog.require('goog.asserts');
 goog.math.ExponentialBackoff = function(
     initialValue, maxValue, opt_randomFactor, opt_backoffFactor,
     opt_decayFactor) {
-  'use strict';
   goog.asserts.assert(
       initialValue > 0, 'Initial value must be greater than zero.');
   goog.asserts.assert(
@@ -130,7 +137,6 @@ goog.math.ExponentialBackoff.prototype.currDecayCount_ = 0;
  * Resets the backoff value to its initial value.
  */
 goog.math.ExponentialBackoff.prototype.reset = function() {
-  'use strict';
   this.currValue_ = this.initialValue_;
   this.currBaseValue_ = this.initialValue_;
   this.currBackoffCount_ = 0;
@@ -142,7 +148,6 @@ goog.math.ExponentialBackoff.prototype.reset = function() {
  * @return {number} The current backoff value.
  */
 goog.math.ExponentialBackoff.prototype.getValue = function() {
-  'use strict';
   return this.currValue_;
 };
 
@@ -151,7 +156,6 @@ goog.math.ExponentialBackoff.prototype.getValue = function() {
  * @return {number} The number of times this class has backed off.
  */
 goog.math.ExponentialBackoff.prototype.getBackoffCount = function() {
-  'use strict';
   return this.currBackoffCount_;
 };
 
@@ -160,7 +164,6 @@ goog.math.ExponentialBackoff.prototype.getBackoffCount = function() {
  * @return {number} The number of times this class has decayed.
  */
 goog.math.ExponentialBackoff.prototype.getDecayCount = function() {
-  'use strict';
   return this.currDecayCount_;
 };
 
@@ -169,7 +172,6 @@ goog.math.ExponentialBackoff.prototype.getDecayCount = function() {
  * Initiates a backoff.
  */
 goog.math.ExponentialBackoff.prototype.backoff = function() {
-  'use strict';
   // If we haven't hit the maximum value yet, keep increasing the base value.
   this.currBaseValue_ =
       Math.min(this.maxValue_, this.currBaseValue_ * this.backoffFactor_);
@@ -188,7 +190,6 @@ goog.math.ExponentialBackoff.prototype.backoff = function() {
  * Initiates a decay.
  */
 goog.math.ExponentialBackoff.prototype.decay = function() {
-  'use strict';
   // If we haven't hit the initial value yet, keep decreasing the base value.
   this.currBaseValue_ =
       Math.max(this.initialValue_, this.currBaseValue_ / this.decayFactor_);

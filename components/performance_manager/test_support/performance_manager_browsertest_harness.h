@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,9 @@
 #define COMPONENTS_PERFORMANCE_MANAGER_TEST_SUPPORT_PERFORMANCE_MANAGER_BROWSERTEST_HARNESS_H_
 
 #include "base/run_loop.h"
-#include "base/strings/string_piece.h"
 #include "base/test/bind.h"
-#include "components/performance_manager/embedder/graph_features.h"
 #include "components/performance_manager/public/performance_manager.h"
 #include "content/public/test/content_browser_test.h"
-#include "testing/gtest/include/gtest/gtest.h"
 
 namespace performance_manager {
 
@@ -25,13 +22,14 @@ class PerformanceManagerBrowserTestHarness
   using Super = content::ContentBrowserTest;
 
  public:
-  PerformanceManagerBrowserTestHarness();
+  PerformanceManagerBrowserTestHarness() = default;
   PerformanceManagerBrowserTestHarness(
       const PerformanceManagerBrowserTestHarness&) = delete;
   PerformanceManagerBrowserTestHarness& operator=(
       const PerformanceManagerBrowserTestHarness&) = delete;
   ~PerformanceManagerBrowserTestHarness() override;
 
+  // gtest::Test:
   void SetUp() override;
 
   // content::BrowserTestBase:
@@ -39,8 +37,7 @@ class PerformanceManagerBrowserTestHarness
   void SetUpCommandLine(base::CommandLine* command_line) override;
 
   // An additional seam that gets invoked as part of the PM initialization. This
-  // will be invoked on the PM sequence. This will be called after graph
-  // features have been configured (see "GetGraphFeatures").
+  // will be invoked on the PM sequence.
   virtual void OnGraphCreated(Graph* graph);
 
   // Creates a content shell with its own window, hosting a single tab that is
@@ -52,18 +49,6 @@ class PerformanceManagerBrowserTestHarness
 
   // Starts a navigation for the given |contents|.
   void StartNavigation(content::WebContents* contents, const GURL& url);
-
-  // Navigates the given |contents| to |url|, and waits for |console_pattern|
-  // to appear on the console. This can be used with test files like
-  // components/test/data/performance_manager/a_embeds_a.html, to wait for both
-  // the main frame and the embedded subframe to load. Returns
-  // ::testing::AssertionFailure if the navigation fails. If the navigation
-  // succeeds, will wait (potentially forever) for |console_pattern| to appear
-  // and then return ::testing::AssertionSuccess.
-  ::testing::AssertionResult NavigateAndWaitForConsoleMessage(
-      content::WebContents* contents,
-      const GURL& url,
-      base::StringPiece console_pattern);
 
   // Waits for an ongoing navigation to terminate on the given |contents|.
   void WaitForLoad(content::WebContents* contents);
@@ -82,18 +67,6 @@ class PerformanceManagerBrowserTestHarness
         }));
     run_loop.Run();
   }
-
-  // Allows configuring which Graph features are initialized during "SetUp".
-  // This defaults to initializing no features. Features will be initialized
-  // before "OnGraphCreated" is called.
-  GraphFeatures& GetGraphFeatures() { return graph_features_; }
-
- private:
-  // This is called during "SetUp". It installs features on the graph and then
-  // delegates to "OnGraphCreated".
-  void OnGraphCreatedImpl(Graph* graph);
-
-  GraphFeatures graph_features_;
 };
 
 }  // namespace performance_manager

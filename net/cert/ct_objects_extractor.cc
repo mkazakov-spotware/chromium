@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/hash/sha1.h"
 #include "base/logging.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "crypto/sha2.h"
 #include "net/cert/asn1_util.h"
@@ -17,7 +16,9 @@
 #include "third_party/boringssl/src/include/openssl/bytestring.h"
 #include "third_party/boringssl/src/include/openssl/mem.h"
 
-namespace net::ct {
+namespace net {
+
+namespace ct {
 
 namespace {
 
@@ -90,8 +91,10 @@ bool CopyAfter(const CBS& outer, const CBS& inner, CBB* out) {
 bool SkipTBSCertificateToExtensions(CBS* tbs_cert) {
   constexpr unsigned kVersionTag =
       CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | 0;
-  constexpr unsigned kIssuerUniqueIDTag = CBS_ASN1_CONTEXT_SPECIFIC | 1;
-  constexpr unsigned kSubjectUniqueIDTag = CBS_ASN1_CONTEXT_SPECIFIC | 2;
+  constexpr unsigned kIssuerUniqueIDTag =
+      CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | 1;
+  constexpr unsigned kSubjectUniqueIDTag =
+      CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | 2;
   return SkipOptionalElement(tbs_cert, kVersionTag) &&
          SkipElements(tbs_cert,
                       6 /* serialNumber through subjectPublicKeyInfo */) &&
@@ -197,7 +200,7 @@ bool FindMatchingSingleResponse(CBS* responses,
   // TODO(ekasper): only compute the hashes on demand.
   std::string issuer_key_sha256_hash = crypto::SHA256HashString(issuer_spk);
   std::string issuer_key_sha1_hash =
-      base::SHA1HashString(std::string(issuer_spk));
+      base::SHA1HashString(issuer_spk.as_string());
 
   while (CBS_len(responses) > 0) {
     CBS single_response, cert_id;
@@ -423,4 +426,6 @@ bool ExtractSCTListFromOCSPResponse(const CRYPTO_BUFFER* issuer,
                                     sizeof(kOCSPExtensionOid), sct_list);
 }
 
-}  // namespace net::ct
+}  // namespace ct
+
+}  // namespace net

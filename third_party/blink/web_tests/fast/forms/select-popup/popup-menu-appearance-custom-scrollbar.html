@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../../resources/ahem.js"></script>
+<html>
+<head>
+<script>
+  window.enablePixelTesting = true;
+</script>
 <script src="../resources/picker-common.js"></script>
-
 <style>
   select:focus {
     outline-width: 0;
@@ -47,18 +48,17 @@
 
   select::-webkit-scrollbar-thumb {
     border-width: 3px;
+    border-color: black;
     border-style: solid;
-    border-color: transparent;
-    border-right-color: black;
-    border-top-color: black;
-    background-clip: padding-box;
-    background-color: gray;
+    border-radius: 10px;
+    background: gray;
     border-radius: 0 20px 0 10px;
     box-shadow: -1px 0 4px 1px inset white;
   }
 </style>
-
-<select>
+</head>
+<body>
+<select id='menu'>
   <option>This is an option</option>
   <option>This is an option</option>
   <option>This is an option</option>
@@ -87,7 +87,8 @@
   <option>This is an option</option>
   <option>This is an option</option>
 </select>
-
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('select'));
+   openPickerAppearanceOnly(document.getElementById('menu'), () => testRunner.notifyDone());
 </script>
+</body>
+</html>

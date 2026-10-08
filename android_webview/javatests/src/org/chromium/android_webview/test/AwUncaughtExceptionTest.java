@@ -1,14 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.android_webview.test;
 
-import static org.chromium.android_webview.test.AwActivityTestRule.SCALED_WAIT_TIMEOUT_MS;
+import static org.chromium.android_webview.test.AwActivityTestRule.WAIT_TIMEOUT_MS;
 
 import android.os.Looper;
-import android.support.test.runner.lifecycle.ActivityLifecycleMonitor;
-import android.support.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 
 import androidx.test.filters.MediumTest;
 
@@ -24,7 +22,6 @@ import org.chromium.android_webview.common.crash.AwCrashReporterClient;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Feature;
 
-import java.lang.reflect.Field;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -72,6 +69,11 @@ public class AwUncaughtExceptionTest {
                 notifyAll();
             }
             try {
+                mActivityTestRule.createAwBrowserContext();
+                mActivityTestRule.startBrowserProcess();
+            } catch (Exception e) {
+            }
+            try {
                 Looper.loop();
             } finally {
             }
@@ -97,27 +99,14 @@ public class AwUncaughtExceptionTest {
     private AwContents mAwContents;
     private Thread.UncaughtExceptionHandler mDefaultUncaughtExceptionHandler;
 
-    // Since this test overrides the UI thread, Android's ActivityLifecycleMonitor assertions fail
-    // as our UI thread isn't the Main Looper thread, so we have to disable them.
-    private void disableLifecycleThreadAssertion() throws Exception {
-        ActivityLifecycleMonitor monitor = ActivityLifecycleMonitorRegistry.getInstance();
-        Field declawThreadCheck = monitor.getClass().getDeclaredField("mDeclawThreadCheck");
-        declawThreadCheck.setAccessible(true);
-        declawThreadCheck.set(monitor, true);
-    }
-
     @Before
-    public void setUp() throws Exception {
-        disableLifecycleThreadAssertion();
-        ThreadUtils.setThreadAssertsDisabledForTesting(true);
+    public void setUp() {
         mDefaultUncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         mBackgroundThread = new BackgroundThread("background");
         mBackgroundThread.start();
         // Once the background thread looper exists, it has been
         // designated as the main thread.
         mBackgroundThread.getLooper();
-        mActivityTestRule.createAwBrowserContext();
-        mActivityTestRule.startBrowserProcess();
     }
 
     @After
@@ -127,7 +116,6 @@ public class AwUncaughtExceptionTest {
             backgroundThreadLooper.quitSafely();
         }
         mBackgroundThread.join();
-        ThreadUtils.setUiThread(null);
         Thread.setDefaultUncaughtExceptionHandler(mDefaultUncaughtExceptionHandler);
     }
 
@@ -162,8 +150,7 @@ public class AwUncaughtExceptionTest {
                     new StackTraceElement("android.webkit.WebView", "loadUrl", "<none>", 0)});
             throw exception;
         });
-        Assert.assertTrue(
-                latch.await(SCALED_WAIT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS));
+        Assert.assertTrue(latch.await(WAIT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -182,8 +169,7 @@ public class AwUncaughtExceptionTest {
                     new StackTraceElement("java.lang.Object", "equals", "<none>", 0)});
             throw exception;
         });
-        Assert.assertTrue(
-                latch.await(SCALED_WAIT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS));
+        Assert.assertTrue(latch.await(WAIT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -212,7 +198,6 @@ public class AwUncaughtExceptionTest {
                     "data:text/html,<script>window.location='https://www.google.com';</script>");
         });
 
-        Assert.assertTrue(
-                latch.await(SCALED_WAIT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS));
+        Assert.assertTrue(latch.await(WAIT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS));
     }
 };

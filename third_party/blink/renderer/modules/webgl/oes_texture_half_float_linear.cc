@@ -25,8 +25,6 @@
 
 #include "third_party/blink/renderer/modules/webgl/oes_texture_half_float_linear.h"
 
-#include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
-
 namespace blink {
 
 OESTextureHalfFloatLinear::OESTextureHalfFloatLinear(

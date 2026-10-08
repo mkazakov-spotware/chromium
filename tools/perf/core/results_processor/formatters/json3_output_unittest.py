@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -104,7 +104,7 @@ class Json3OutputTest(unittest.TestCase):
 
     self.assertEqual(results['num_failures_by_type'], {'PASS': 2, 'SKIP': 2})
 
-  def testFailedAndSkippedTestCases(self):
+  def testFaliedAndSippedTestCases(self):
     results = self.Convert([
         testing.TestResult('benchmark/story1', status='PASS'),
         testing.TestResult('benchmark/story2', status='PASS'),
@@ -114,7 +114,7 @@ class Json3OutputTest(unittest.TestCase):
     ])
 
     test_result = self.FindTestResult(results, 'benchmark', 'story1')
-    self.assertEqual(test_result['actual'], 'FAIL')
+    self.assertEqual(test_result['actual'], 'PASS FAIL')
     self.assertEqual(test_result['expected'], 'PASS')
     self.assertTrue(test_result['is_unexpected'])
 
@@ -147,7 +147,7 @@ class Json3OutputTest(unittest.TestCase):
     self.assertFalse(test_result['is_unexpected'])
 
     test_result = self.FindTestResult(results, 'benchmark', 'story3')
-    self.assertEqual(test_result['actual'], 'FAIL')
+    self.assertEqual(test_result['actual'], 'FAIL FAIL')
     self.assertEqual(test_result['expected'], 'PASS')
     self.assertTrue(test_result['is_unexpected'])
 

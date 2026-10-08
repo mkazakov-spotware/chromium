@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,6 @@
 #include "ash/public/cpp/login_types.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
-#include "base/callback_helpers.h"
-#include "base/scoped_observation.h"
 #include "ui/views/window/dialog_delegate.h"
 
 namespace views {
@@ -48,7 +46,7 @@ struct ASH_EXPORT PinRequest {
   // Whether the help button is displayed.
   bool help_button_enabled = false;
 
-  absl::optional<int> pin_length;
+  base::Optional<int> pin_length;
 
   // When |pin_keyboard_always_enabled| is set, the PIN keyboard is displayed at
   // all times. Otherwise, it is only displayed when the device is in tablet
@@ -65,9 +63,9 @@ struct ASH_EXPORT PinRequest {
   bool obscure_pin = true;
 
   // Strings for UI.
-  std::u16string title;
-  std::u16string description;
-  std::u16string accessible_title;
+  base::string16 title;
+  base::string16 description;
+  base::string16 accessible_title;
 };
 
 // The view that allows for input of pins to authorize certain actions.
@@ -87,7 +85,7 @@ class ASH_EXPORT PinRequestView : public views::DialogDelegateView,
    public:
     virtual SubmissionResult OnPinSubmitted(const std::string& pin) = 0;
     virtual void OnBack() = 0;
-    virtual void OnHelp() = 0;
+    virtual void OnHelp(gfx::NativeWindow parent_window) = 0;
 
    protected:
     virtual ~Delegate() = default;
@@ -121,10 +119,6 @@ class ASH_EXPORT PinRequestView : public views::DialogDelegateView,
   // Creates pin request view that will enable the user to enter a pin.
   // |request| is used to configure callbacks and UI details.
   PinRequestView(PinRequest request, Delegate* delegate);
-
-  PinRequestView(const PinRequestView&) = delete;
-  PinRequestView& operator=(const PinRequestView&) = delete;
-
   ~PinRequestView() override;
 
   // views::View:
@@ -132,11 +126,10 @@ class ASH_EXPORT PinRequestView : public views::DialogDelegateView,
   void RequestFocus() override;
   gfx::Size CalculatePreferredSize() const override;
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-  void OnThemeChanged() override;
 
   // views::DialogDelegateView:
   views::View* GetInitiallyFocusedView() override;
-  std::u16string GetAccessibleWindowTitle() const override;
+  base::string16 GetAccessibleWindowTitle() const override;
 
   // TabletModeObserver:
   void OnTabletModeStarted() override;
@@ -152,8 +145,8 @@ class ASH_EXPORT PinRequestView : public views::DialogDelegateView,
 
   // Updates state of the view.
   void UpdateState(PinRequestViewState state,
-                   const std::u16string& title,
-                   const std::u16string& description);
+                   const base::string16& title,
+                   const base::string16& description);
 
  private:
   class FocusableLabelButton;
@@ -196,9 +189,9 @@ class ASH_EXPORT PinRequestView : public views::DialogDelegateView,
   bool pin_keyboard_always_enabled_ = true;
 
   // Strings as on view construction to enable restoring the original state.
-  std::u16string default_title_;
-  std::u16string default_description_;
-  std::u16string default_accessible_title_;
+  base::string16 default_title_;
+  base::string16 default_description_;
+  base::string16 default_accessible_title_;
 
   views::Label* title_label_ = nullptr;
   views::Label* description_label_ = nullptr;
@@ -208,10 +201,12 @@ class ASH_EXPORT PinRequestView : public views::DialogDelegateView,
   FocusableLabelButton* help_button_ = nullptr;
   ArrowButtonView* submit_button_ = nullptr;
 
-  base::ScopedObservation<TabletModeController, TabletModeObserver>
-      tablet_mode_observation_{this};
+  ScopedObserver<TabletModeController, TabletModeObserver>
+      tablet_mode_observer_{this};
 
   base::WeakPtrFactory<PinRequestView> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PinRequestView);
 };
 
 }  // namespace ash

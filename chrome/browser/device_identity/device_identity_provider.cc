@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,12 +21,6 @@ class ActiveAccountAccessTokenFetcherImpl
       DeviceOAuth2TokenService* token_service,
       const OAuth2AccessTokenManager::ScopeSet& scopes,
       invalidation::ActiveAccountAccessTokenCallback callback);
-
-  ActiveAccountAccessTokenFetcherImpl(
-      const ActiveAccountAccessTokenFetcherImpl&) = delete;
-  ActiveAccountAccessTokenFetcherImpl& operator=(
-      const ActiveAccountAccessTokenFetcherImpl&) = delete;
-
   ~ActiveAccountAccessTokenFetcherImpl() override;
 
  private:
@@ -45,6 +39,8 @@ class ActiveAccountAccessTokenFetcherImpl
 
   invalidation::ActiveAccountAccessTokenCallback callback_;
   std::unique_ptr<OAuth2AccessTokenManager::Request> access_token_request_;
+
+  DISALLOW_COPY_AND_ASSIGN(ActiveAccountAccessTokenFetcherImpl);
 };
 
 }  // namespace
@@ -105,6 +101,23 @@ DeviceIdentityProvider::~DeviceIdentityProvider() {
 
 CoreAccountId DeviceIdentityProvider::GetActiveAccountId() {
   return token_service_->GetRobotAccountId();
+}
+
+void DeviceIdentityProvider::SetActiveAccountId(
+    const CoreAccountId& account_id) {
+  // On ChromeOs, the account shouldn't change during runtime, so no need to
+  // alert observers here.
+  if (!account_id.empty()) {
+    auto robot_account_id = token_service_->GetRobotAccountId();
+    // When |account_id| and |robot_account_id| mismatch, it means that sync is
+    // using a different account than the one that's registered for
+    // invalidations. Given that we're in Kiosk mode, sync shouldn't be running
+    // anyways. Therefore, this shouldn't be a problem in practice.
+    // TODO(crbug.com/919788): Change the sync code to only call this method
+    // when sync is actually running.
+    LOG_IF(WARNING, account_id != robot_account_id) << "Account ids mismatch.";
+  }
+  return;
 }
 
 bool DeviceIdentityProvider::IsActiveAccountWithRefreshToken() {

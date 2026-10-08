@@ -1,16 +1,15 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/declarative/rules_registry.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -40,27 +39,27 @@ const char kDuplicateRuleId[] = "Duplicate rule ID: %s";
 const char kErrorCannotRemoveManifestRules[] =
     "Rules declared in the 'event_rules' manifest field cannot be removed";
 
-base::Value::List RulesToValue(
-    const std::vector<const api::events::Rule*>& rules) {
-  base::Value::List value;
+base::Value RulesToValue(const std::vector<const api::events::Rule*>& rules) {
+  base::Value value(base::Value::Type::LIST);
   for (const auto* rule : rules)
-    value.Append(rule->ToValue());
+    value.Append(std::move(*rule->ToValue()));
   return value;
 }
 
-std::vector<api::events::Rule> RulesFromValue(
-    const absl::optional<base::Value>& value) {
+std::vector<api::events::Rule> RulesFromValue(const base::Value* value) {
   std::vector<api::events::Rule> rules;
 
-  if (!value || !value->is_list())
+  const base::ListValue* list = NULL;
+  if (!value || !value->GetAsList(&list))
     return rules;
 
-  rules.reserve(value->GetList().size());
-  for (const base::Value& dict_value : value->GetList()) {
-    if (!dict_value.is_dict())
+  rules.reserve(list->GetSize());
+  for (size_t i = 0; i < list->GetSize(); ++i) {
+    const base::DictionaryValue* dict = NULL;
+    if (!list->GetDictionary(i, &dict))
       continue;
     api::events::Rule rule;
-    if (api::events::Rule::Populate(dict_value, &rule))
+    if (api::events::Rule::Populate(*dict, &rule))
       rules.push_back(std::move(rule));
   }
 
@@ -310,7 +309,7 @@ size_t RulesRegistry::GetNumberOfUsedRuleIdentifiersForTesting() const {
 }
 
 void RulesRegistry::DeserializeAndAddRules(const std::string& extension_id,
-                                           absl::optional<base::Value> rules) {
+                                           std::unique_ptr<base::Value> rules) {
   DCHECK_CURRENTLY_ON(owner_thread());
 
   // Since this is called in response to asynchronously loading rules from
@@ -321,8 +320,8 @@ void RulesRegistry::DeserializeAndAddRules(const std::string& extension_id,
     return;
   }
 
-  std::string error =
-      AddRulesNoFill(extension_id, RulesFromValue(rules), &rules_, nullptr);
+  std::string error = AddRulesNoFill(extension_id, RulesFromValue(rules.get()),
+                                     &rules_, nullptr);
   if (!error.empty())
     ReportInternalError(extension_id, error);
 }
@@ -405,7 +404,7 @@ std::string RulesRegistry::CheckAndFillInOptionalRules(
   // First we insert all rules with existing identifier, so that generated
   // identifiers cannot collide with identifiers passed by the caller.
   for (const auto& rule : *rules) {
-    if (rule.id) {
+    if (rule.id.get()) {
       std::string id = *(rule.id);
       if (!IsUniqueId(extension_id, id)) {
         RemoveUsedRuleIdentifiers(extension_id, rollback_log);
@@ -417,8 +416,8 @@ std::string RulesRegistry::CheckAndFillInOptionalRules(
   // Now we generate IDs in case they were not specified in the rules. This
   // cannot fail so we do not need to keep track of a rollback log.
   for (auto& rule : *rules) {
-    if (!rule.id) {
-      rule.id = GenerateUniqueId(extension_id);
+    if (!rule.id.get()) {
+      rule.id.reset(new std::string(GenerateUniqueId(extension_id)));
       used_rule_identifiers_[extension_id].insert(*(rule.id));
     }
   }
@@ -428,8 +427,8 @@ std::string RulesRegistry::CheckAndFillInOptionalRules(
 void RulesRegistry::FillInOptionalPriorities(
     std::vector<api::events::Rule>* rules) {
   for (auto& rule : *rules) {
-    if (!rule.priority)
-      rule.priority = DEFAULT_PRIORITY;
+    if (!rule.priority.get())
+      rule.priority.reset(new int(DEFAULT_PRIORITY));
   }
 }
 

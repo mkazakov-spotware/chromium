@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import android.os.UserManager;
 
 import androidx.browser.customtabs.CustomTabsIntent;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -46,9 +45,6 @@ import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
 import org.chromium.webapk.lib.common.WebApkConstants;
 import org.chromium.webapk.test.WebApkTestHelper;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /** JUnit tests for first run triggering code. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE,
@@ -61,13 +57,11 @@ public final class FirstRunIntegrationUnitTest {
         public void __constructor__() {}
 
         @Implementation
-        public void handlePreNativeStartupAndLoadLibraries(final BrowserParts parts) {}
+        public void handlePreNativeStartup(final BrowserParts parts) {}
     }
 
     @Rule
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
-
-    private final List<ActivityController> mActivityControllerList = new ArrayList<>();
 
     private Context mContext;
     private ShadowApplication mShadowApplication;
@@ -83,13 +77,6 @@ public final class FirstRunIntegrationUnitTest {
 
         FirstRunStatus.setFirstRunFlowComplete(false);
         WebApkValidator.setDisableValidationForTesting(true);
-    }
-
-    @After
-    public void tearDown() {
-        for (ActivityController activityController : mActivityControllerList) {
-            activityController.destroy();
-        }
     }
 
     /** Checks that the intent component targets the passed-in class. */
@@ -119,7 +106,7 @@ public final class FirstRunIntegrationUnitTest {
 
     /** Builds activity using the component class name from the provided intent. */
     @SuppressWarnings("unchecked")
-    private void buildActivityWithClassNameFromIntent(Intent intent) {
+    private static ActivityController buildActivityWithClassNameFromIntent(Intent intent) {
         Class<? extends Activity> activityClass = null;
         try {
             activityClass =
@@ -127,7 +114,7 @@ public final class FirstRunIntegrationUnitTest {
         } catch (ClassNotFoundException e) {
             Assert.fail();
         }
-        createActivity(activityClass, intent);
+        return Robolectric.buildActivity(activityClass, intent).create();
     }
 
     /**
@@ -135,7 +122,7 @@ public final class FirstRunIntegrationUnitTest {
      * the relaunch to occur.
      */
     private void launchWebappLauncherActivityProcessRelaunch(Intent intent) {
-        createActivity(WebappLauncherActivity.class, intent);
+        Robolectric.buildActivity(WebappLauncherActivity.class, intent).create();
         Intent launchedIntent = mShadowApplication.peekNextStartedActivity();
         if (checkIntentComponentClass(launchedIntent, WebappLauncherActivity.class)) {
             // Pop the WebappLauncherActivity from the 'started activities' list.
@@ -155,20 +142,13 @@ public final class FirstRunIntegrationUnitTest {
         Assert.assertTrue(checkIntentIsForFre(launchedIntent));
     }
 
-    private <T extends Activity> Activity createActivity(Class<T> clazz, Intent intent) {
-        ActivityController<T> activityController =
-                Robolectric.buildActivity(clazz, intent).create();
-        T activity = activityController.get();
-        mActivityControllerList.add(activityController);
-        return activity;
-    }
-
     @Test
     public void testGenericViewIntentGoesToFirstRun() {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://test.com"));
         intent.setPackage(mContext.getPackageName());
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Activity launcherActivity = createActivity(ChromeLauncherActivity.class, intent);
+        Activity launcherActivity =
+                Robolectric.buildActivity(ChromeLauncherActivity.class, intent).create().get();
         assertFirstRunActivityLaunched();
         Assert.assertTrue(launcherActivity.isFinishing());
     }
@@ -182,7 +162,10 @@ public final class FirstRunIntegrationUnitTest {
         Intent launchedIntent = mShadowApplication.getNextStartedActivity();
         Assert.assertNotNull(launchedIntent);
 
-        Activity launcherActivity = createActivity(ChromeLauncherActivity.class, launchedIntent);
+        Activity launcherActivity =
+                Robolectric.buildActivity(ChromeLauncherActivity.class, launchedIntent)
+                        .create()
+                        .get();
         assertFirstRunActivityLaunched();
         Assert.assertTrue(launcherActivity.isFinishing());
     }
@@ -191,7 +174,8 @@ public final class FirstRunIntegrationUnitTest {
     public void testRedirectChromeTabbedActivityToFirstRun() {
         Intent intent = new Intent();
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Activity tabbedActivity = createActivity(ChromeTabbedActivity.class, intent);
+        Activity tabbedActivity =
+                Robolectric.buildActivity(ChromeTabbedActivity.class, intent).create().get();
         assertFirstRunActivityLaunched();
         Assert.assertTrue(tabbedActivity.isFinishing());
     }
@@ -200,7 +184,8 @@ public final class FirstRunIntegrationUnitTest {
     public void testRedirectSearchActivityToFirstRun() {
         Intent intent = new Intent();
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Activity searchActivity = createActivity(SearchActivity.class, intent);
+        Activity searchActivity =
+                Robolectric.buildActivity(SearchActivity.class, intent).create().get();
         assertFirstRunActivityLaunched();
         Assert.assertTrue(searchActivity.isFinishing());
     }
@@ -259,10 +244,11 @@ public final class FirstRunIntegrationUnitTest {
 
         Intent launchedIntent = mShadowApplication.getNextStartedActivity();
         Assert.assertTrue(checkIntentComponentClass(launchedIntent, WebappActivity.class));
-        buildActivityWithClassNameFromIntent(launchedIntent);
+        ActivityController controller = buildActivityWithClassNameFromIntent(launchedIntent);
 
         // No FRE should have been launched.
         Assert.assertNull(mShadowApplication.getNextStartedActivity());
+        controller.destroy();
     }
 
     /**

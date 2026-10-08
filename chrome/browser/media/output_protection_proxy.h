@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,11 @@
 #include <stdint.h>
 
 #include "base/memory/weak_ptr.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/browser/browser_thread.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "ash/display/output_protection_delegate.h"
 #endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/crosapi/mojom/content_protection.mojom.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 // A class to query output protection status and/or enable output protection.
 //
@@ -52,17 +47,11 @@ class OutputProtectionProxy {
                                 uint32_t link_mask,
                                 uint32_t protection_mask);
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  void ProcessQueryStatusResultLacros(
-      QueryStatusCallback callback,
-      crosapi::mojom::ContentProtectionWindowStatusPtr window_status);
-#endif
-
   // Used to lookup the WebContents associated with the render frame.
   int render_process_id_;
   int render_frame_id_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   ash::OutputProtectionDelegate output_protection_delegate_;
 #endif
 

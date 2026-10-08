@@ -6,23 +6,16 @@
     if (window.testRunner) {
         testRunner.dumpAsText();
         testRunner.waitUntilDone();
-        testRunner.setPopupBlockingEnabled(false);
+        testRunner.setCanOpenWindows();
     }
 
     // Open a new window with the name matching form.target attribute below.
-    let w = window.open(
-        'http://localhost:8080/security/resources/post-done-to-opener.html',
+    window.open(
+        'http://localhost:8080/security/resources/empty.html',
         'namedCrossSiteWindow')
-     Promise.all([
-         new Promise(resolve => {
-             window.addEventListener('message', msg => {
-                 if (msg.source === w) resolve()
-             });
-         }),
-         new Promise(resolve =>
-             window.addEventListener('load', _ => resolve())),
-     ]).then(_ => {
-         document.getElementById('theform').addEventListener('submit', function(e) {
+
+    window.addEventListener('load', function() {
+        document.getElementById('theform').addEventListener('submit', function(e) {
             console.log('submit event fired.');
         });
 

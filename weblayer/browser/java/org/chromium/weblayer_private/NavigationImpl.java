@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.weblayer_private.interfaces.APICallException;
 import org.chromium.weblayer_private.interfaces.IClientNavigation;
-import org.chromium.weblayer_private.interfaces.IClientPage;
 import org.chromium.weblayer_private.interfaces.INavigation;
 import org.chromium.weblayer_private.interfaces.INavigationControllerClient;
 import org.chromium.weblayer_private.interfaces.LoadError;
@@ -27,29 +26,17 @@ import java.util.List;
 @JNINamespace("weblayer")
 public final class NavigationImpl extends INavigation.Stub {
     private final IClientNavigation mClientNavigation;
-    private final NavigationControllerImpl mNavigationController;
     // WARNING: NavigationImpl may outlive the native side, in which case this member is set to 0.
     private long mNativeNavigationImpl;
 
-    // Set to true if/when it is determined that an external intent was launched for this
-    // navigation.
-    private boolean mIntentLaunched;
-
-    // Set to true if/when it is determined that this navigation result in UI being presented to the
-    // user via which the user will determine whether an intent should be launched.
-    private boolean mIsUserDecidingIntentLaunch;
-
-    private PageImpl mPage;
-
-    public NavigationImpl(INavigationControllerClient client, long nativeNavigationImpl,
-            NavigationControllerImpl navigationController) {
+    public NavigationImpl(INavigationControllerClient client, long nativeNavigationImpl) {
         mNativeNavigationImpl = nativeNavigationImpl;
-        mNavigationController = navigationController;
         try {
             mClientNavigation = client.createClientNavigation(this);
         } catch (RemoteException e) {
             throw new APICallException(e);
         }
+        NavigationImplJni.get().setJavaNavigation(mNativeNavigationImpl, NavigationImpl.this);
     }
 
     public IClientNavigation getClientNavigation() {
@@ -99,13 +86,6 @@ public final class NavigationImpl extends INavigation.Stub {
         StrictModeWorkaround.apply();
         throwIfNativeDestroyed();
         return NavigationImplJni.get().getHttpStatusCode(mNativeNavigationImpl);
-    }
-
-    @Override
-    public List<String> getResponseHeaders() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return Arrays.asList(NavigationImplJni.get().getResponseHeaders(mNativeNavigationImpl));
     }
 
     @Override
@@ -161,23 +141,6 @@ public final class NavigationImpl extends INavigation.Stub {
     }
 
     @Override
-    public boolean isKnownProtocol() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return NavigationImplJni.get().isKnownProtocol(mNativeNavigationImpl);
-    }
-
-    @Override
-    public boolean wasIntentLaunched() {
-        return mIntentLaunched;
-    }
-
-    @Override
-    public boolean isUserDecidingIntentLaunch() {
-        return mIsUserDecidingIntentLaunch;
-    }
-
-    @Override
     public boolean wasStopCalled() {
         StrictModeWorkaround.apply();
         throwIfNativeDestroyed();
@@ -199,84 +162,10 @@ public final class NavigationImpl extends INavigation.Stub {
     }
 
     @Override
-    public boolean isServedFromBackForwardCache() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return NavigationImplJni.get().isServedFromBackForwardCache(mNativeNavigationImpl);
-    }
-
-    @Override
     public void disableNetworkErrorAutoReload() {
         if (!NavigationImplJni.get().disableNetworkErrorAutoReload(mNativeNavigationImpl)) {
             throw new IllegalStateException();
         }
-    }
-
-    @Override
-    public void disableIntentProcessing() {
-        if (!NavigationImplJni.get().disableIntentProcessing(mNativeNavigationImpl)) {
-            throw new IllegalStateException();
-        }
-    }
-
-    @Override
-    public boolean isFormSubmission() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return NavigationImplJni.get().isFormSubmission(mNativeNavigationImpl);
-    }
-
-    @Override
-    public String getReferrer() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return NavigationImplJni.get().getReferrer(mNativeNavigationImpl);
-    }
-
-    @Override
-    public IClientPage getPage() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        if (mPage == null) {
-            long nativePageImpl = NavigationImplJni.get().getPage(mNativeNavigationImpl);
-            if (nativePageImpl == -1) {
-                throw new IllegalStateException(
-                        "Invoking Navigation#getPage() outside of valid calling context");
-            }
-
-            // There should always be a Page associated with the navigation within the valid
-            // calling contexts for Navigation#getPage().
-            assert (nativePageImpl != 0);
-
-            mPage = mNavigationController.getPage(nativePageImpl);
-        }
-        return mPage.getClientPage();
-    }
-
-    @Override
-    public int getNavigationEntryOffset() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return NavigationImplJni.get().getNavigationEntryOffset(mNativeNavigationImpl);
-    }
-
-    @Override
-    public boolean wasFetchedFromCache() {
-        StrictModeWorkaround.apply();
-        throwIfNativeDestroyed();
-        return NavigationImplJni.get().wasFetchedFromCache(mNativeNavigationImpl);
-    }
-
-    public void setIntentLaunched() {
-        mIntentLaunched = true;
-    }
-
-    public void setIsUserDecidingIntentLaunch() {
-        mIsUserDecidingIntentLaunch = true;
-    }
-
-    public boolean areIntentLaunchesAllowedInBackground() {
-        return NavigationImplJni.get().areIntentLaunchesAllowedInBackground(mNativeNavigationImpl);
     }
 
     private void throwIfNativeDestroyed() {
@@ -315,15 +204,14 @@ public final class NavigationImpl extends INavigation.Stub {
 
     @NativeMethods
     interface Natives {
+        void setJavaNavigation(long nativeNavigationImpl, NavigationImpl caller);
         int getState(long nativeNavigationImpl);
         String getUri(long nativeNavigationImpl);
         String[] getRedirectChain(long nativeNavigationImpl);
         int getHttpStatusCode(long nativeNavigationImpl);
-        String[] getResponseHeaders(long nativeNavigationImpl);
         boolean isSameDocument(long nativeNavigationImpl);
         boolean isErrorPage(long nativeNavigationImpl);
         boolean isDownload(long nativeNavigationImpl);
-        boolean isKnownProtocol(long nativeNavigationImpl);
         boolean wasStopCalled(long nativeNavigationImpl);
         int getLoadError(long nativeNavigationImpl);
         boolean setRequestHeader(long nativeNavigationImpl, String name, String value);
@@ -332,14 +220,6 @@ public final class NavigationImpl extends INavigation.Stub {
         boolean setUserAgentString(long nativeNavigationImpl, String value);
         boolean isPageInitiated(long nativeNavigationImpl);
         boolean isReload(long nativeNavigationImpl);
-        boolean isServedFromBackForwardCache(long nativeNavigationImpl);
         boolean disableNetworkErrorAutoReload(long nativeNavigationImpl);
-        boolean disableIntentProcessing(long nativeNavigationImpl);
-        boolean areIntentLaunchesAllowedInBackground(long nativeNavigationImpl);
-        boolean isFormSubmission(long nativeNavigationImpl);
-        String getReferrer(long nativeNavigationImpl);
-        long getPage(long nativeNavigationImpl);
-        int getNavigationEntryOffset(long nativeNavigationImpl);
-        boolean wasFetchedFromCache(long nativeNavigationImpl);
     }
 }

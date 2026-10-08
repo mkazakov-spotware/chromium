@@ -1,47 +1,50 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/tabs/tab_icon.h"
 
-#include "base/i18n/rtl.h"
-#include "base/memory/raw_ptr.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/time/default_tick_clock.h"
 #include "base/timer/elapsed_timer.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/themes/theme_properties.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_renderer_data.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/grit/components_scaled_resources.h"
 #include "content/public/common/url_constants.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
-#include "ui/color/color_provider.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/linear_animation.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_palette.h"
-#include "ui/gfx/color_utils.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/resources/grit/ui_resources.h"
 #include "ui/views/border.h"
-#include "ui/views/cascading_property.h"
 #include "url/gurl.h"
 
 namespace {
 
 constexpr int kAttentionIndicatorRadius = 3;
 constexpr int kLoadingAnimationStrokeWidthDp = 2;
+
+// Returns whether the favicon for the given URL should be colored according to
+// the browser theme.
+bool ShouldThemifyFaviconForUrl(const GURL& url) {
+  return url.SchemeIs(content::kChromeUIScheme) &&
+         url.host_piece() != chrome::kChromeUIAppLauncherPageHost &&
+         url.host_piece() != chrome::kChromeUIHelpHost &&
+         url.host_piece() != chrome::kChromeUIVersionHost &&
+         url.host_piece() != chrome::kChromeUINetExportHost;
+}
 
 bool NetworkStateIsAnimated(TabNetworkState network_state) {
   return network_state != TabNetworkState::kNone &&
@@ -55,7 +58,8 @@ class TabIcon::CrashAnimation : public gfx::LinearAnimation,
                                 public gfx::AnimationDelegate {
  public:
   explicit CrashAnimation(TabIcon* target)
-      : gfx::LinearAnimation(base::Seconds(1), 25, this), target_(target) {}
+      : gfx::LinearAnimation(base::TimeDelta::FromSeconds(1), 25, this),
+        target_(target) {}
   CrashAnimation(const CrashAnimation&) = delete;
   CrashAnimation& operator=(const CrashAnimation&) = delete;
   ~CrashAnimation() override = default;
@@ -74,13 +78,13 @@ class TabIcon::CrashAnimation : public gfx::LinearAnimation,
   }
 
  private:
-  raw_ptr<TabIcon> target_;
+  TabIcon* target_;
 };
 
 TabIcon::TabIcon()
     : AnimationDelegateViews(this),
       clock_(base::DefaultTickClock::GetInstance()),
-      favicon_fade_in_animation_(base::Milliseconds(250),
+      favicon_fade_in_animation_(base::TimeDelta::FromMilliseconds(250),
                                  gfx::LinearAnimation::kDefaultFrameRate,
                                  this) {
   SetCanProcessEventsWithinSubtree(false);
@@ -91,21 +95,21 @@ TabIcon::TabIcon()
   SetPreferredSize(gfx::Size(preferred_width, preferred_width));
 
   // Initial state (before any data) should not be animating.
-  DCHECK(!GetShowingLoadingAnimation());
+  DCHECK(!ShowingLoadingAnimation());
 }
 
 TabIcon::~TabIcon() = default;
 
 void TabIcon::SetData(const TabRendererData& data) {
-  const bool was_showing_load = GetShowingLoadingAnimation();
+  const bool was_showing_load = ShowingLoadingAnimation();
 
   inhibit_loading_animation_ = data.should_hide_throbber;
-  SetIcon(data.favicon, data.should_themify_favicon);
+  SetIcon(data.visible_url, data.favicon);
   SetNetworkState(data.network_state);
-  SetCrashed(data.IsCrashed());
+  SetIsCrashed(data.IsCrashed());
   has_tab_renderer_data_ = true;
 
-  const bool showing_load = GetShowingLoadingAnimation();
+  const bool showing_load = ShowingLoadingAnimation();
 
   RefreshLayer();
 
@@ -132,14 +136,14 @@ void TabIcon::SetAttention(AttentionType type, bool enabled) {
     SchedulePaint();
 }
 
-bool TabIcon::GetShowingLoadingAnimation() const {
+bool TabIcon::ShowingLoadingAnimation() const {
   if (inhibit_loading_animation_)
     return false;
 
   return NetworkStateIsAnimated(network_state_);
 }
 
-bool TabIcon::GetShowingAttentionIndicator() const {
+bool TabIcon::ShowingAttentionIndicator() const {
   return attention_types_ > 0;
 }
 
@@ -155,11 +159,14 @@ void TabIcon::StepLoadingAnimation(const base::TimeDelta& elapsed_time) {
   // starting point for PaintThrobberSpinningAfterWaiting().
   if (network_state_ == TabNetworkState::kWaiting)
     waiting_state_.elapsed_time = elapsed_time;
-  if (GetShowingLoadingAnimation())
+  if (ShowingLoadingAnimation())
     SchedulePaint();
 }
 
 void TabIcon::OnPaint(gfx::Canvas* canvas) {
+  // This is used to log to UMA. NO EARLY RETURNS!
+  base::ElapsedTimer paint_timer;
+
   // Compute the bounds adjusted for the hiding fraction.
   gfx::Rect contents_bounds = GetContentsBounds();
 
@@ -174,22 +181,27 @@ void TabIcon::OnPaint(gfx::Canvas* canvas) {
       std::min(gfx::kFaviconSize, contents_bounds.height()));
 
   // Don't paint the attention indicator during the loading animation.
-  if (!GetShowingLoadingAnimation() && GetShowingAttentionIndicator() &&
+  if (!ShowingLoadingAnimation() && ShowingAttentionIndicator() &&
       !should_display_crashed_favicon_) {
     PaintAttentionIndicatorAndIcon(canvas, GetIconToPaint(), icon_bounds);
   } else {
     MaybePaintFavicon(canvas, GetIconToPaint(), icon_bounds);
   }
 
-  if (GetShowingLoadingAnimation())
+  if (ShowingLoadingAnimation())
     PaintLoadingAnimation(canvas, icon_bounds);
+
+  UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES(
+      "TabStrip.Tab.Icon.PaintDuration", paint_timer.Elapsed(),
+      base::TimeDelta::FromMicroseconds(1),
+      base::TimeDelta::FromMicroseconds(10000), 50);
 }
 
 void TabIcon::OnThemeChanged() {
   views::View::OnThemeChanged();
   crashed_icon_ = gfx::ImageSkia();  // Force recomputation if crashed.
   if (!themed_favicon_.isNull())
-    themed_favicon_ = ThemeFavicon(favicon_);
+    themed_favicon_ = ThemeImage(favicon_);
 }
 
 void TabIcon::AnimationProgressed(const gfx::Animation* animation) {
@@ -230,7 +242,8 @@ void TabIcon::PaintAttentionIndicatorAndIcon(gfx::Canvas* canvas,
 
   // Draws the actual attention indicator.
   cc::PaintFlags indicator_flags;
-  indicator_flags.setColor(views::GetCascadingAccentColor(this));
+  indicator_flags.setColor(GetNativeTheme()->GetSystemColor(
+      ui::NativeTheme::kColorId_ProminentButtonColor));
   indicator_flags.setAntiAlias(true);
   canvas->DrawCircle(circle_center, kAttentionIndicatorRadius, indicator_flags);
 }
@@ -238,22 +251,23 @@ void TabIcon::PaintAttentionIndicatorAndIcon(gfx::Canvas* canvas,
 void TabIcon::PaintLoadingAnimation(gfx::Canvas* canvas, gfx::Rect bounds) {
   TRACE_EVENT0("views", "TabIcon::PaintLoadingAnimation");
 
-  const SkColor spinning_color = views::GetCascadingAccentColor(this);
-  const SkColor waiting_color = color_utils::AlphaBlend(
-      spinning_color, views::GetCascadingBackgroundColor(this),
-      gfx::kGoogleGreyAlpha400);
+  const ui::ThemeProvider* tp = GetThemeProvider();
+
   if (network_state_ == TabNetworkState::kWaiting) {
-    gfx::PaintThrobberWaiting(canvas, bounds, waiting_color,
-                              waiting_state_.elapsed_time,
-                              kLoadingAnimationStrokeWidthDp);
+    gfx::PaintThrobberWaiting(
+        canvas, bounds,
+        tp->GetColor(ThemeProperties::COLOR_TAB_THROBBER_WAITING),
+        waiting_state_.elapsed_time, kLoadingAnimationStrokeWidthDp);
   } else {
     const base::TimeTicks current_time = clock_->NowTicks();
     if (loading_animation_start_time_.is_null())
       loading_animation_start_time_ = current_time;
 
-    waiting_state_.color = waiting_color;
+    waiting_state_.color =
+        tp->GetColor(ThemeProperties::COLOR_TAB_THROBBER_WAITING);
     gfx::PaintThrobberSpinningAfterWaiting(
-        canvas, bounds, spinning_color,
+        canvas, bounds,
+        tp->GetColor(ThemeProperties::COLOR_TAB_THROBBER_SPINNING),
         current_time - loading_animation_start_time_, &waiting_state_,
         kLoadingAnimationStrokeWidthDp);
   }
@@ -264,8 +278,7 @@ const gfx::ImageSkia& TabIcon::GetIconToPaint() {
     if (crashed_icon_.isNull()) {
       // Lazily create a themed sad tab icon.
       ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-      crashed_icon_ =
-          ThemeFavicon(*rb.GetImageSkiaNamed(IDR_CRASH_SAD_FAVICON));
+      crashed_icon_ = ThemeImage(*rb.GetImageSkiaNamed(IDR_CRASH_SAD_FAVICON));
     }
     return crashed_icon_;
   }
@@ -280,20 +293,19 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
   if (icon.isNull())
     return;
 
-  if (GetShowingLoadingAnimation()) {
+  if (ShowingLoadingAnimation()) {
     // Never paint the favicon during the waiting animation.
     if (network_state_ == TabNetworkState::kWaiting)
       return;
     // Don't paint the default favicon while we're still loading.
-    if (!GetNonDefaultFavicon())
+    if (!HasNonDefaultFavicon())
       return;
   }
 
   std::unique_ptr<gfx::ScopedCanvas> scoped_canvas;
   bool use_scale_filter = false;
 
-  if (GetShowingLoadingAnimation() ||
-      favicon_fade_in_animation_.is_animating()) {
+  if (ShowingLoadingAnimation() || favicon_fade_in_animation_.is_animating()) {
     scoped_canvas = std::make_unique<gfx::ScopedCanvas>(canvas);
     use_scale_filter = true;
     // The favicon is initially inset with the width of the loading-animation
@@ -324,13 +336,8 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
         2;
     const float scale = std::min(diameter, SkFloatToScalar(gfx::kFaviconSize)) /
                         gfx::kFaviconSize;
-    // Translating to/from bounds offset is done to scale around the center
-    // point. This fixes RTL issues where bounds.x() is non-zero. See
-    // https://crbug.com/1147408
-    canvas->Translate(gfx::Vector2d(bounds.x(), bounds.y()));
     canvas->Translate(gfx::Vector2d(offset, offset));
     canvas->Scale(scale, scale);
-    canvas->Translate(gfx::Vector2d(-bounds.x(), -bounds.y()));
   }
 
   canvas->DrawImageInt(icon, 0, 0, bounds.width(), bounds.height(), bounds.x(),
@@ -338,12 +345,12 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
                        use_scale_filter);
 }
 
-bool TabIcon::GetNonDefaultFavicon() const {
+bool TabIcon::HasNonDefaultFavicon() const {
   return !favicon_.isNull() && !favicon_.BackedBySameObjectAs(
                                    favicon::GetDefaultFavicon().AsImageSkia());
 }
 
-void TabIcon::SetIcon(const gfx::ImageSkia& icon, bool should_themify_favicon) {
+void TabIcon::SetIcon(const GURL& url, const gfx::ImageSkia& icon) {
   // Detect when updating to the same icon. This avoids re-theming and
   // re-painting.
   if (favicon_.BackedBySameObjectAs(icon))
@@ -351,8 +358,8 @@ void TabIcon::SetIcon(const gfx::ImageSkia& icon, bool should_themify_favicon) {
 
   favicon_ = icon;
 
-  if (!GetNonDefaultFavicon() || should_themify_favicon) {
-    themed_favicon_ = ThemeFavicon(icon);
+  if (!HasNonDefaultFavicon() || ShouldThemifyFaviconForUrl(url)) {
+    themed_favicon_ = ThemeImage(icon);
   } else {
     themed_favicon_ = gfx::ImageSkia();
   }
@@ -365,7 +372,7 @@ void TabIcon::SetNetworkState(TabNetworkState network_state) {
   network_state_ = network_state;
   const bool is_animated = NetworkStateIsAnimated(network_state_);
   if (was_animated != is_animated) {
-    if (was_animated && GetNonDefaultFavicon()) {
+    if (was_animated && HasNonDefaultFavicon()) {
       favicon_fade_in_animation_.Start();
     } else {
       favicon_fade_in_animation_.Stop();
@@ -374,12 +381,12 @@ void TabIcon::SetNetworkState(TabNetworkState network_state) {
   }
 }
 
-void TabIcon::SetCrashed(bool crashed) {
-  if (crashed == crashed_)
+void TabIcon::SetIsCrashed(bool is_crashed) {
+  if (is_crashed == is_crashed_)
     return;
-  crashed_ = crashed;
+  is_crashed_ = is_crashed;
 
-  if (!crashed_) {
+  if (!is_crashed_) {
     // Transitioned from crashed to non-crashed.
     if (crash_animation_)
       crash_animation_->Stop();
@@ -398,19 +405,15 @@ void TabIcon::SetCrashed(bool crashed) {
         crash_animation_->Start();
     }
   }
-  OnPropertyChanged(&crashed_, views::kPropertyEffectsPaint);
-}
-
-bool TabIcon::GetCrashed() const {
-  return crashed_;
+  SchedulePaint();
 }
 
 void TabIcon::RefreshLayer() {
   // Since the loading animation can run for a long time, paint animation to a
   // separate layer when possible to reduce repaint overhead.
   bool should_paint_to_layer =
-      can_paint_to_layer_ && (GetShowingLoadingAnimation() ||
-                              favicon_fade_in_animation_.is_animating());
+      can_paint_to_layer_ &&
+      (ShowingLoadingAnimation() || favicon_fade_in_animation_.is_animating());
   if (should_paint_to_layer == !!layer())
     return;
 
@@ -423,17 +426,12 @@ void TabIcon::RefreshLayer() {
   }
 }
 
-gfx::ImageSkia TabIcon::ThemeFavicon(const gfx::ImageSkia& source) {
-  const auto* cp = GetColorProvider();
-  return favicon::ThemeFavicon(
-      source, cp->GetColor(kColorToolbarButtonIcon),
-      cp->GetColor(kColorTabBackgroundActiveFrameActive),
-      cp->GetColor(kColorTabBackgroundInactiveFrameActive));
-}
+gfx::ImageSkia TabIcon::ThemeImage(const gfx::ImageSkia& source) {
+  if (!GetThemeProvider()->HasCustomColor(
+          ThemeProperties::COLOR_TOOLBAR_BUTTON_ICON))
+    return source;
 
-BEGIN_METADATA(TabIcon, views::View)
-ADD_READONLY_PROPERTY_METADATA(bool, ShowingLoadingAnimation)
-ADD_READONLY_PROPERTY_METADATA(bool, ShowingAttentionIndicator)
-ADD_READONLY_PROPERTY_METADATA(bool, NonDefaultFavicon)
-ADD_PROPERTY_METADATA(bool, Crashed)
-END_METADATA
+  return gfx::ImageSkiaOperations::CreateColorMask(
+      source,
+      GetThemeProvider()->GetColor(ThemeProperties::COLOR_TOOLBAR_BUTTON_ICON));
+}

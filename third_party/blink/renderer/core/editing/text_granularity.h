@@ -44,4 +44,4 @@ enum class TextGranularity {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_TEXT_GRANULARITY_H_
+#endif

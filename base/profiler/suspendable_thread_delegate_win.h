@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define BASE_PROFILER_SUSPENDABLE_THREAD_DELEGATE_WIN_H_
 
 #include <windows.h>
-#include <memory>
-#include <vector>
 
 #include "base/base_export.h"
 #include "base/profiler/sampling_profiler_thread_token.h"
@@ -26,10 +24,6 @@ class BASE_EXPORT SuspendableThreadDelegateWin
       : public SuspendableThreadDelegate::ScopedSuspendThread {
    public:
     explicit ScopedSuspendThread(HANDLE thread_handle);
-
-    ScopedSuspendThread(const ScopedSuspendThread&) = delete;
-    ScopedSuspendThread& operator=(const ScopedSuspendThread&) = delete;
-
     ~ScopedSuspendThread() override;
 
     bool WasSuccessful() const override;
@@ -37,6 +31,8 @@ class BASE_EXPORT SuspendableThreadDelegateWin
    private:
     HANDLE thread_handle_;
     bool was_successful_;
+
+    DISALLOW_COPY_AND_ASSIGN(ScopedSuspendThread);
   };
 
   explicit SuspendableThreadDelegateWin(

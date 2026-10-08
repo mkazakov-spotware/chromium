@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "ui/gfx/gfx_export.h"
 #include "ui/gfx/image/image_skia.h"
 
@@ -23,10 +24,6 @@ class GFX_EXPORT NineImagePainter {
  public:
   explicit NineImagePainter(const std::vector<ImageSkia>& images);
   NineImagePainter(const ImageSkia& image, const Insets& insets);
-
-  NineImagePainter(const NineImagePainter&) = delete;
-  NineImagePainter& operator=(const NineImagePainter&) = delete;
-
   ~NineImagePainter();
 
   bool IsEmpty() const;
@@ -49,6 +46,8 @@ class GFX_EXPORT NineImagePainter {
   // |__i3__|__i4__|__i5__|
   // |__i6__|__i7__|__i8__|
   ImageSkia images_[9];
+
+  DISALLOW_COPY_AND_ASSIGN(NineImagePainter);
 };
 
 }  // namespace gfx

@@ -1,55 +1,49 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/media_router/common/media_route_provider_helper.h"
 
-#include <ostream>
-
 #include "base/notreached.h"
 #include "base/strings/string_piece.h"
-#include "components/media_router/common/mojom/media_route_provider_id.mojom.h"
 
+constexpr const char kExtension[] = "EXTENSION";
 constexpr const char kWiredDisplay[] = "WIRED_DISPLAY";
 constexpr const char kDial[] = "DIAL";
 constexpr const char kCast[] = "CAST";
-constexpr const char kAndroidCaf[] = "ANDROID_CAF";
-constexpr const char kTest[] = "TEST";
+constexpr const char kUnknown[] = "UNKNOWN";
 
 namespace media_router {
 
-const char* ProviderIdToString(mojom::MediaRouteProviderId provider_id) {
+const char* ProviderIdToString(MediaRouteProviderId provider_id) {
   switch (provider_id) {
-    case mojom::MediaRouteProviderId::WIRED_DISPLAY:
+    case EXTENSION:
+      return kExtension;
+    case WIRED_DISPLAY:
       return kWiredDisplay;
-    case mojom::MediaRouteProviderId::CAST:
+    case CAST:
       return kCast;
-    case mojom::MediaRouteProviderId::DIAL:
+    case DIAL:
       return kDial;
-    case mojom::MediaRouteProviderId::ANDROID_CAF:
-      return kAndroidCaf;
-    case mojom::MediaRouteProviderId::TEST:
-      return kTest;
+    case UNKNOWN:
+      return kUnknown;
   }
 
   NOTREACHED() << "Unknown provider_id " << static_cast<int>(provider_id);
   return "Unknown provider_id";
 }
 
-absl::optional<mojom::MediaRouteProviderId> ProviderIdFromString(
-    base::StringPiece provider_id) {
-  if (provider_id == kWiredDisplay) {
-    return mojom::MediaRouteProviderId::WIRED_DISPLAY;
+MediaRouteProviderId ProviderIdFromString(base::StringPiece provider_id) {
+  if (provider_id == kExtension) {
+    return MediaRouteProviderId::EXTENSION;
+  } else if (provider_id == kWiredDisplay) {
+    return MediaRouteProviderId::WIRED_DISPLAY;
   } else if (provider_id == kCast) {
-    return mojom::MediaRouteProviderId::CAST;
+    return MediaRouteProviderId::CAST;
   } else if (provider_id == kDial) {
-    return mojom::MediaRouteProviderId::DIAL;
-  } else if (provider_id == kAndroidCaf) {
-    return mojom::MediaRouteProviderId::ANDROID_CAF;
-  } else if (provider_id == kTest) {
-    return mojom::MediaRouteProviderId::TEST;
+    return MediaRouteProviderId::DIAL;
   } else {
-    return absl::nullopt;
+    return MediaRouteProviderId::UNKNOWN;
   }
 }
 

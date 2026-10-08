@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,8 +27,8 @@ ConfirmInfoBarDelegate::GetInfoBarAutomationType() const {
   return CONFIRM_INFOBAR;
 }
 
-std::u16string ConfirmInfoBarDelegate::GetTitleText() const {
-  return std::u16string();
+base::string16 ConfirmInfoBarDelegate::GetTitleText() const {
+  return base::string16();
 }
 
 gfx::ElideBehavior ConfirmInfoBarDelegate::GetMessageElideBehavior() const {
@@ -39,31 +39,17 @@ int ConfirmInfoBarDelegate::GetButtons() const {
   return BUTTON_OK | BUTTON_CANCEL;
 }
 
-std::u16string ConfirmInfoBarDelegate::GetButtonLabel(
+base::string16 ConfirmInfoBarDelegate::GetButtonLabel(
     InfoBarButton button) const {
   return l10n_util::GetStringUTF16((button == BUTTON_OK) ? IDS_APP_OK
                                                          : IDS_APP_CANCEL);
-}
-
-ui::ImageModel ConfirmInfoBarDelegate::GetButtonImage(
-    InfoBarButton button) const {
-  return ui::ImageModel();
-}
-
-bool ConfirmInfoBarDelegate::GetButtonEnabled(InfoBarButton button) const {
-  return true;
-}
-
-std::u16string ConfirmInfoBarDelegate::GetButtonTooltip(
-    InfoBarButton button) const {
-  return std::u16string();
 }
 
 bool ConfirmInfoBarDelegate::OKButtonTriggersUACPrompt() const {
   return false;
 }
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 bool ConfirmInfoBarDelegate::UseIconBackgroundTint() const {
   return true;
 }

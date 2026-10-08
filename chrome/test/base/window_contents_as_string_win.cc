@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,28 +27,28 @@ constexpr long kCachedProperties[] = {
 };
 
 // Returns a string representation of the cached properties of |element|.
-std::wstring CachedElementContentsAsString(IUIAutomationElement* element) {
-  std::wstring contents;
+base::string16 CachedElementContentsAsString(IUIAutomationElement* element) {
+  base::string16 contents;
 
   base::win::ScopedVariant variant;
   HRESULT result = element->GetCachedPropertyValue(
       UIA_IsInvokePatternAvailablePropertyId, variant.Receive());
   if (SUCCEEDED(result) && variant.type() == VT_BOOL &&
       V_BOOL(variant.ptr()) == VARIANT_TRUE) {
-    contents.append(L"[invokable] ");
+    contents.append(STRING16_LITERAL("[invokable] "));
   }
 
   base::win::ScopedBstr value;
   result = element->get_CachedLocalizedControlType(value.Receive());
   if (SUCCEEDED(result))
-    contents.append(L"type: ").append(value.Get());
+    contents.append(STRING16_LITERAL("type: ")).append(value.Get());
 
   value.Reset();
   result = element->get_CachedName(value.Receive());
   if (SUCCEEDED(result)) {
     if (!contents.empty())
-      contents.append(L", ");
-    contents.append(L"name: ").append(value.Get());
+      contents.append(STRING16_LITERAL(", "));
+    contents.append(STRING16_LITERAL("name: ")).append(value.Get());
   }
 
   return contents;
@@ -57,18 +57,18 @@ std::wstring CachedElementContentsAsString(IUIAutomationElement* element) {
 void TreeAsString(IUIAutomationTreeWalker* walker,
                   IUIAutomationCacheRequest* cache_request,
                   IUIAutomationElement* element,
-                  const std::wstring& padding,
-                  std::wstring* contents) {
+                  const base::string16& padding,
+                  base::string16* contents) {
   contents->append(padding)
       .append(CachedElementContentsAsString(element))
-      .append(L"\n");
+      .append(STRING16_LITERAL("\n"));
 
   Microsoft::WRL::ComPtr<IUIAutomationElement> child_element;
   HRESULT result = walker->GetFirstChildElementBuildCache(
       element, cache_request, &child_element);
   if (FAILED(result))
     return;
-  const std::wstring next_padding = padding + L"  ";
+  const base::string16 next_padding = padding + STRING16_LITERAL("  ");
   while (child_element.Get()) {
     TreeAsString(walker, cache_request, child_element.Get(), next_padding,
                  contents);
@@ -83,7 +83,7 @@ void TreeAsString(IUIAutomationTreeWalker* walker,
 
 }  // namespace
 
-std::wstring WindowContentsAsString(HWND window_handle) {
+base::string16 WindowContentsAsString(HWND window_handle) {
   DCHECK(window_handle);
   base::win::AssertComInitialized();
 
@@ -93,12 +93,12 @@ std::wstring WindowContentsAsString(HWND window_handle) {
       ::CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER,
                          IID_PPV_ARGS(&automation));
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
 
   Microsoft::WRL::ComPtr<IUIAutomationCacheRequest> cache_request;
   result = automation->CreateCacheRequest(&cache_request);
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
   for (auto property_id : kCachedProperties)
     cache_request->AddProperty(property_id);
 
@@ -106,16 +106,16 @@ std::wstring WindowContentsAsString(HWND window_handle) {
   result = automation->ElementFromHandleBuildCache(
       window_handle, cache_request.Get(), &window_element);
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
 
   Microsoft::WRL::ComPtr<IUIAutomationTreeWalker> walker;
   result = automation->get_RawViewWalker(&walker);
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
 
-  std::wstring contents;
+  base::string16 contents;
   TreeAsString(walker.Get(), cache_request.Get(), window_element.Get(),
-               std::wstring(), &contents);
+               base::string16(), &contents);
   // Strip the trailing newline.
   if (!contents.empty())
     contents.pop_back();

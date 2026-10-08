@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/posix/eintr_wrapper.h"
 
 // Preserving errno for Close() is important because the function is very often
@@ -53,9 +54,6 @@ class FixedSizeStringBuilder {
     Reset();
   }
 
-  FixedSizeStringBuilder(const FixedSizeStringBuilder&) = delete;
-  FixedSizeStringBuilder& operator=(const FixedSizeStringBuilder&) = delete;
-
   const char* buffer() const { return buffer_; }
 
   void Reset() {
@@ -83,6 +81,7 @@ class FixedSizeStringBuilder {
   char buffer_[BufferSize];
 
   static_assert(BufferSize >= 1, "size of buffer must be at least one");
+  DISALLOW_COPY_AND_ASSIGN(FixedSizeStringBuilder);
 };
 
 }  // namespace forwarder2

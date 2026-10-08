@@ -31,12 +31,14 @@
 
 namespace blink {
 
-class LayoutWordBreak : public LayoutText {
+class HTMLElement;
+
+class LayoutWordBreak final : public LayoutText {
  public:
-  explicit LayoutWordBreak(Node* node);
+  explicit LayoutWordBreak(HTMLElement*);
 
   Position PositionForCaretOffset(unsigned offset) const final;
-  absl::optional<unsigned> CaretOffsetForPosition(const Position&) const final;
+  base::Optional<unsigned> CaretOffsetForPosition(const Position&) const final;
 
   const char* GetName() const override {
     NOT_DESTROYED();
@@ -47,4 +49,4 @@ class LayoutWordBreak : public LayoutText {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_WORD_BREAK_H_
+#endif

@@ -1,13 +1,16 @@
 AXWebArea
 ++AXList AXSubrole=AXContentList
 ++++AXGroup
-++++++AXListMarker AXValue='%E2%80%A2 '
+++++++AXListMarker AXValue='• '
+++++++++AXStaticText AXValue='• '
 ++++++AXStaticText AXValue='tic'
 ++++AXGroup
-++++++AXListMarker AXValue='%E2%80%A2 '
+++++++AXListMarker AXValue='• '
+++++++++AXStaticText AXValue='• '
 ++++++AXStaticText AXValue='tac'
 ++++AXGroup
-++++++AXListMarker AXValue='%E2%80%A2 '
+++++++AXListMarker AXValue='• '
+++++++++AXStaticText AXValue='• '
 ++++++AXStaticText AXValue='toe'
 ++AXList AXSubrole=AXContentList
 ++++AXGroup

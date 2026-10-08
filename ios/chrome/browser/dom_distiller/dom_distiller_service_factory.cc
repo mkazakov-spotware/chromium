@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/dom_distiller/core/article_entry.h"
 #include "components/dom_distiller/core/distiller.h"
@@ -39,10 +40,10 @@ class DomDistillerKeyedService : public KeyedService,
                             std::move(distilled_page_prefs),
                             std::move(distiller_ui_handle)) {}
 
-  DomDistillerKeyedService(const DomDistillerKeyedService&) = delete;
-  DomDistillerKeyedService& operator=(const DomDistillerKeyedService&) = delete;
-
   ~DomDistillerKeyedService() override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DomDistillerKeyedService);
 };
 }  // namespace
 

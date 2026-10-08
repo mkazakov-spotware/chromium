@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_forward.h"
 #include "base/callback_helpers.h"
-#include "base/token.h"
-#include "media/capture/mojom/video_capture_types.mojom.h"
 
 namespace content {
 
@@ -35,12 +32,12 @@ ServiceLaunchedVideoCaptureDevice::ServiceLaunchedVideoCaptureDevice(
 }
 
 ServiceLaunchedVideoCaptureDevice::~ServiceLaunchedVideoCaptureDevice() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
 }
 
 void ServiceLaunchedVideoCaptureDevice::GetPhotoState(
     media::VideoCaptureDevice::GetPhotoStateCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   subscription_->GetPhotoState(base::BindOnce(
       &ServiceLaunchedVideoCaptureDevice::OnGetPhotoStateResponse,
       base::Unretained(this), std::move(callback)));
@@ -49,7 +46,7 @@ void ServiceLaunchedVideoCaptureDevice::GetPhotoState(
 void ServiceLaunchedVideoCaptureDevice::SetPhotoOptions(
     media::mojom::PhotoSettingsPtr settings,
     media::VideoCaptureDevice::SetPhotoOptionsCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   subscription_->SetPhotoOptions(
       std::move(settings),
       base::BindOnce(
@@ -59,7 +56,7 @@ void ServiceLaunchedVideoCaptureDevice::SetPhotoOptions(
 
 void ServiceLaunchedVideoCaptureDevice::TakePhoto(
     media::VideoCaptureDevice::TakePhotoCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   TRACE_EVENT_INSTANT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
                        "ServiceLaunchedVideoCaptureDevice::TakePhoto",
                        TRACE_EVENT_SCOPE_PROCESS);
@@ -69,26 +66,17 @@ void ServiceLaunchedVideoCaptureDevice::TakePhoto(
 }
 
 void ServiceLaunchedVideoCaptureDevice::MaybeSuspendDevice() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   subscription_->Suspend(base::DoNothing());
 }
 
 void ServiceLaunchedVideoCaptureDevice::ResumeDevice() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   subscription_->Resume();
 }
 
-void ServiceLaunchedVideoCaptureDevice::Crop(
-    const base::Token& crop_id,
-    uint32_t crop_version,
-    base::OnceCallback<void(media::mojom::CropRequestResult)> callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  // TODO(crbug.com/1264849): Implement if necessary.
-  std::move(callback).Run(media::mojom::CropRequestResult::kNotImplemented);
-}
-
 void ServiceLaunchedVideoCaptureDevice::RequestRefreshFrame() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   // Nothing to do here. The video capture service does not support refresh
   // frames.
 }
@@ -103,18 +91,16 @@ void ServiceLaunchedVideoCaptureDevice::SetDesktopCaptureWindowIdAsync(
 }
 
 void ServiceLaunchedVideoCaptureDevice::OnUtilizationReport(
-    media::VideoCaptureFeedback feedback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (feedback != last_feedback_) {
-    subscription_->ProcessFeedback(feedback);
-    last_feedback_ = feedback;
-  }
+    int frame_feedback_id,
+    media::VideoFrameFeedback feedback) {
+  DCHECK(sequence_checker_.CalledOnValidSequence());
+  // Nothing to do here. The video capture service does not support utilization
+  // reporting.
 }
 
 void ServiceLaunchedVideoCaptureDevice::
     OnLostConnectionToSourceOrSubscription() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   source_.reset();
   subscription_.reset();
   std::move(connection_lost_cb_).Run();

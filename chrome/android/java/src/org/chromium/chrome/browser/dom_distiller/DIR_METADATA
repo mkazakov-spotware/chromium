@@ -1,1 +1,5 @@
-mixins: "//chrome/android/java/src/org/chromium/chrome/browser/dom_distiller/COMMON_METADATA"
+monorail {
+  component: "UI>Browser>ReaderMode"
+}
+team_email: "dom-distiller-eng@google.com"
+os: ANDROID

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "remoting/protocol/authenticator.h"
 #include "third_party/libjingle_xmpp/xmllite/qname.h"
 
@@ -18,7 +19,8 @@ class XmlElement;
 
 }  // namespace jingle_xmpp
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // Implements an authentication method that relies on a third party server for
 // authentication of both client and host.
@@ -31,10 +33,6 @@ namespace remoting::protocol {
 // an authentication key, which is used to establish the connection.
 class ThirdPartyAuthenticatorBase : public Authenticator {
  public:
-  ThirdPartyAuthenticatorBase(const ThirdPartyAuthenticatorBase&) = delete;
-  ThirdPartyAuthenticatorBase& operator=(const ThirdPartyAuthenticatorBase&) =
-      delete;
-
   ~ThirdPartyAuthenticatorBase() override;
 
   // Authenticator interface.
@@ -71,8 +69,12 @@ class ThirdPartyAuthenticatorBase : public Authenticator {
   State token_state_;
   bool started_;
   RejectionReason rejection_reason_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ThirdPartyAuthenticatorBase);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_THIRD_PARTY_AUTHENTICATOR_BASE_H_

@@ -357,7 +357,7 @@ Tests DOMSnapshot.getSnapshot method.
             properties : [
                 [0] : {
                     name : transform
-                    value : matrix(0, 1, -1, 0, 0, 0)
+                    value : matrix(6.12323e-17, 1, -1, 6.12323e-17, 0, 0)
                 }
                 [1] : {
                     name : transform-origin
@@ -389,7 +389,7 @@ Tests DOMSnapshot.getSnapshot method.
             properties : [
                 [0] : {
                     name : transform
-                    value : matrix(0, 1, -1, 0, 0, 0)
+                    value : matrix(6.12323e-17, 1, -1, 6.12323e-17, 0, 0)
                 }
                 [1] : {
                     name : transform-origin
@@ -654,7 +654,6 @@ Tests DOMSnapshot.getSnapshot method.
             documentURL : <string>
             eventListeners : [
                 [0] : {
-                    backendNodeId : <number>
                     columnNumber : 46
                     lineNumber : 43
                     once : false
@@ -872,7 +871,6 @@ Tests DOMSnapshot.getSnapshot method.
             ]
             eventListeners : [
                 [0] : {
-                    backendNodeId : <number>
                     columnNumber : 59
                     lineNumber : 40
                     once : false
@@ -974,7 +972,6 @@ Tests DOMSnapshot.getSnapshot method.
             ]
             eventListeners : [
                 [0] : {
-                    backendNodeId : <number>
                     columnNumber : 59
                     lineNumber : 41
                     once : false
@@ -1033,7 +1030,6 @@ Tests DOMSnapshot.getSnapshot method.
             ]
             eventListeners : [
                 [0] : {
-                    backendNodeId : <number>
                     columnNumber : 59
                     lineNumber : 42
                     once : false

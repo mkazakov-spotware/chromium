@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,31 +26,28 @@ IncognitoModePolicyHandler::~IncognitoModePolicyHandler() {}
 
 bool IncognitoModePolicyHandler::CheckPolicySettings(const PolicyMap& policies,
                                                      PolicyErrorMap* errors) {
-  // It is safe to use `GetValueUnsafe()` because type checking is performed
-  // before the value is used.
   const base::Value* availability =
-      policies.GetValueUnsafe(key::kIncognitoModeAvailability);
+      policies.GetValue(key::kIncognitoModeAvailability);
   if (availability) {
-    if (!availability->is_int()) {
+    int int_value = IncognitoModePrefs::ENABLED;
+    if (!availability->GetAsInteger(&int_value)) {
       errors->AddError(key::kIncognitoModeAvailability, IDS_POLICY_TYPE_ERROR,
                        base::Value::GetTypeName(base::Value::Type::INTEGER));
       return false;
     }
     IncognitoModePrefs::Availability availability_enum_value;
-    if (!IncognitoModePrefs::IntToAvailability(availability->GetInt(),
+    if (!IncognitoModePrefs::IntToAvailability(int_value,
                                                &availability_enum_value)) {
       errors->AddError(key::kIncognitoModeAvailability,
                        IDS_POLICY_OUT_OF_RANGE_ERROR,
-                       base::NumberToString(availability->GetInt()));
+                       base::NumberToString(int_value));
       return false;
     }
     return true;
   }
 
-  // It is safe to use `GetValueUnsafe()` because type checking is performed
-  // before the value is used.
   const base::Value* deprecated_enabled =
-      policies.GetValueUnsafe(key::kIncognitoEnabled);
+      policies.GetValue(key::kIncognitoEnabled);
   if (deprecated_enabled && !deprecated_enabled->is_bool()) {
     errors->AddError(key::kIncognitoEnabled, IDS_POLICY_TYPE_ERROR,
                      base::Value::GetTypeName(base::Value::Type::BOOLEAN));
@@ -61,7 +58,7 @@ bool IncognitoModePolicyHandler::CheckPolicySettings(const PolicyMap& policies,
 
 void IncognitoModePolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
                                                      PrefValueMap* prefs) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // When browser starts with GCPW sign-in flag, it runs in incognito mode and
   // gaia login page is loaded. With this flag, user can't use Chrome normally.
   // However GCPW can't work in non-incognito mode and policy setting prevents
@@ -72,25 +69,32 @@ void IncognitoModePolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
     return;
 #endif
 
-  const base::Value* availability = policies.GetValue(
-      key::kIncognitoModeAvailability, base::Value::Type::INTEGER);
+  const base::Value* availability =
+      policies.GetValue(key::kIncognitoModeAvailability);
   const base::Value* deprecated_enabled =
-      policies.GetValue(key::kIncognitoEnabled, base::Value::Type::BOOLEAN);
+      policies.GetValue(key::kIncognitoEnabled);
   if (availability) {
+    int int_value = IncognitoModePrefs::ENABLED;
     IncognitoModePrefs::Availability availability_enum_value;
-    if (IncognitoModePrefs::IntToAvailability(availability->GetInt(),
+    if (availability->GetAsInteger(&int_value) &&
+        IncognitoModePrefs::IntToAvailability(int_value,
                                               &availability_enum_value)) {
       prefs->SetInteger(prefs::kIncognitoModeAvailability,
-                        static_cast<int>(availability_enum_value));
+                        availability_enum_value);
+    } else {
+      NOTREACHED();
     }
   } else if (deprecated_enabled) {
     // If kIncognitoModeAvailability is not specified, check the obsolete
     // kIncognitoEnabled.
-    prefs->SetInteger(
-        prefs::kIncognitoModeAvailability,
-        static_cast<int>(deprecated_enabled->GetBool()
-                             ? IncognitoModePrefs::Availability::kEnabled
-                             : IncognitoModePrefs::Availability::kDisabled));
+    bool enabled = true;
+    if (deprecated_enabled->GetAsBoolean(&enabled)) {
+      prefs->SetInteger(
+          prefs::kIncognitoModeAvailability,
+          enabled ? IncognitoModePrefs::ENABLED : IncognitoModePrefs::DISABLED);
+    } else {
+      NOTREACHED();
+    }
   }
 }
 

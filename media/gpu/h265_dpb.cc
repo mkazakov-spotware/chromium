@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ H265DPB::H265DPB() = default;
 H265DPB::~H265DPB() = default;
 
 VaapiH265Picture* H265Picture::AsVaapiH265Picture() {
-  return nullptr;
-}
-
-D3D11H265Picture* H265Picture::AsD3D11H265Picture() {
   return nullptr;
 }
 

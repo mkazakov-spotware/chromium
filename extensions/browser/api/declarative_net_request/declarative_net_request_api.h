@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "extensions/browser/extension_function.h"
 
 namespace extensions {
@@ -29,7 +30,7 @@ class DeclarativeNetRequestUpdateDynamicRulesFunction
   ExtensionFunction::ResponseAction Run() override;
 
  private:
-  void OnDynamicRulesUpdated(absl::optional<std::string> error);
+  void OnDynamicRulesUpdated(base::Optional<std::string> error);
 };
 
 class DeclarativeNetRequestGetDynamicRulesFunction : public ExtensionFunction {
@@ -49,36 +50,6 @@ class DeclarativeNetRequestGetDynamicRulesFunction : public ExtensionFunction {
       declarative_net_request::ReadJSONRulesResult read_json_result);
 };
 
-class DeclarativeNetRequestUpdateSessionRulesFunction
-    : public ExtensionFunction {
- public:
-  DeclarativeNetRequestUpdateSessionRulesFunction();
-  DECLARE_EXTENSION_FUNCTION("declarativeNetRequest.updateSessionRules",
-                             DECLARATIVENETREQUEST_UPDATESESSIONRULES)
-
- protected:
-  ~DeclarativeNetRequestUpdateSessionRulesFunction() override;
-
-  // ExtensionFunction override:
-  ExtensionFunction::ResponseAction Run() override;
-
- private:
-  void OnSessionRulesUpdated(absl::optional<std::string> error);
-};
-
-class DeclarativeNetRequestGetSessionRulesFunction : public ExtensionFunction {
- public:
-  DeclarativeNetRequestGetSessionRulesFunction();
-  DECLARE_EXTENSION_FUNCTION("declarativeNetRequest.getSessionRules",
-                             DECLARATIVENETREQUEST_GETSESSIONRULES)
-
- protected:
-  ~DeclarativeNetRequestGetSessionRulesFunction() override;
-
-  // ExtensionFunction override:
-  ExtensionFunction::ResponseAction Run() override;
-};
-
 class DeclarativeNetRequestUpdateEnabledRulesetsFunction
     : public ExtensionFunction {
  public:
@@ -90,7 +61,7 @@ class DeclarativeNetRequestUpdateEnabledRulesetsFunction
   ~DeclarativeNetRequestUpdateEnabledRulesetsFunction() override;
 
  private:
-  void OnEnabledStaticRulesetsUpdated(absl::optional<std::string> error);
+  void OnEnabledStaticRulesetsUpdated(base::Optional<std::string> error);
 
   // ExtensionFunction override:
   ExtensionFunction::ResponseAction Run() override;
@@ -170,19 +141,6 @@ class DeclarativeNetRequestGetAvailableStaticRuleCountFunction
 
  protected:
   ~DeclarativeNetRequestGetAvailableStaticRuleCountFunction() override;
-
-  // ExtensionFunction override:
-  ExtensionFunction::ResponseAction Run() override;
-};
-
-class DeclarativeNetRequestTestMatchOutcomeFunction : public ExtensionFunction {
- public:
-  DeclarativeNetRequestTestMatchOutcomeFunction();
-  DECLARE_EXTENSION_FUNCTION("declarativeNetRequest.testMatchOutcome",
-                             DECLARATIVENETREQUEST_TESTMATCHOUTCOME)
-
- protected:
-  ~DeclarativeNetRequestTestMatchOutcomeFunction() override;
 
   // ExtensionFunction override:
   ExtensionFunction::ResponseAction Run() override;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,19 @@
 
 #include <memory>
 
+#include "cc/test/geometry_test_utils.h"
 #include "chrome/browser/vr/test/animation_utils.h"
 #include "chrome/browser/vr/test/constants.h"
 #include "chrome/browser/vr/ui_scene.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/gfx/geometry/test/geometry_util.h"
 
 namespace vr {
 
 void CheckScaleAndDepth(UiElement* element, float s) {
   EXPECT_POINT3F_EQ(gfx::Point3F(0, 0, -s), element->GetCenter());
-  EXPECT_POINT3F_EQ(
-      gfx::Point3F(s, 0, -s),
-      element->world_space_transform().MapPoint(gfx::Point3F(1.0f, 0, 0)));
+  gfx::Point3F x(1.0f, 0, 0);
+  element->world_space_transform().TransformPoint(&x);
+  EXPECT_POINT3F_EQ(gfx::Point3F(s, 0, -s), x);
 }
 
 // This test confirms that an element is both positioned the right distance from
@@ -31,7 +31,7 @@ TEST(ScaledDepthAdjuster, SimpleDepth) {
   auto adjuster = std::make_unique<ScaledDepthAdjuster>(2.5);
   adjuster->AddChild(std::move(element));
   scene.AddUiElement(kRoot, std::move(adjuster));
-  scene.OnBeginFrame(gfx::MsToTicks(0), kStartHeadPose);
+  scene.OnBeginFrame(MsToTicks(0), kStartHeadPose);
   CheckScaleAndDepth(p_element, 2.5);
 }
 
@@ -64,7 +64,7 @@ TEST(ScaledDepthAdjuster, InheritedDepth) {
   grandparent->AddChild(std::move(parent_adjuster));
   grandparent_adjuster->AddChild(std::move(grandparent));
   scene.AddUiElement(kRoot, std::move(grandparent_adjuster));
-  scene.OnBeginFrame(gfx::MsToTicks(0), kStartHeadPose);
+  scene.OnBeginFrame(MsToTicks(0), kStartHeadPose);
 
   CheckScaleAndDepth(p_child, 2.6f);
   CheckScaleAndDepth(p_parent, 2.4f);

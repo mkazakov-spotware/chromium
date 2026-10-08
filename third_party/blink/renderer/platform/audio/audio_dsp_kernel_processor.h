@@ -32,11 +32,8 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_AUDIO_DSP_KERNEL_PROCESSOR_H_
 
 #include <memory>
-
-#include "base/synchronization/lock.h"
 #include "third_party/blink/renderer/platform/audio/audio_bus.h"
 #include "third_party/blink/renderer/platform/audio/audio_processor.h"
-#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -55,9 +52,7 @@ class PLATFORM_EXPORT AudioDSPKernelProcessor : public AudioProcessor {
  public:
   // numberOfChannels may be later changed if object is not yet in an
   // "initialized" state
-  AudioDSPKernelProcessor(float sample_rate,
-                          unsigned number_of_channels,
-                          unsigned render_quantum_frames);
+  AudioDSPKernelProcessor(float sample_rate, unsigned number_of_channels);
 
   // Subclasses create the appropriate type of processing kernel here.
   // We'll call this to create a kernel for each channel.
@@ -80,7 +75,8 @@ class PLATFORM_EXPORT AudioDSPKernelProcessor : public AudioProcessor {
 
  protected:
   Vector<std::unique_ptr<AudioDSPKernel>> kernels_;
-  mutable base::Lock process_lock_;
+  mutable Mutex process_lock_;
+  bool has_just_reset_;
 };
 
 }  // namespace blink

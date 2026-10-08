@@ -1,13 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
 
 /**
  * Model for managing a list of Android apps.
  */
-export class AndroidAppListModel extends EventTarget {
+class AndroidAppListModel extends cr.EventTarget {
   /**
    * @param {boolean} showAndroidPickerApps Whether to show picker apps in file
    *     selector.

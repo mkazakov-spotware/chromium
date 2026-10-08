@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "base/macros.h"
 #include "base/strings/string_piece_forward.h"
 #include "base/values.h"
 
@@ -19,31 +21,31 @@ namespace cloud_devices {
 class CloudDeviceDescription {
  public:
   CloudDeviceDescription();
-
-  CloudDeviceDescription(const CloudDeviceDescription&) = delete;
-  CloudDeviceDescription& operator=(const CloudDeviceDescription&) = delete;
-
   ~CloudDeviceDescription();
 
   bool InitFromString(const std::string& json);
   bool InitFromValue(base::Value value);
 
-  std::string ToStringForTesting() const;
+  static bool IsValidTicket(const base::Value& value);
+
+  std::string ToString() const;
 
   base::Value ToValue() &&;
 
   // Returns item of given type with capability/option.
   // Returns nullptr if missing.
-  const base::Value::Dict* GetDictItem(base::StringPiece path) const;
-  const base::Value::List* GetListItem(base::StringPiece path) const;
+  const base::Value* GetItem(const std::vector<base::StringPiece>& path,
+                             base::Value::Type type) const;
 
   // Creates item with given type for capability/option.
   // Returns nullptr if an intermediate Value in the path is not a dictionary.
-  base::Value::Dict* CreateDictItem(base::StringPiece path);
-  base::Value::List* CreateListItem(base::StringPiece path);
+  base::Value* CreateItem(const std::vector<base::StringPiece>& path,
+                          base::Value::Type type);
 
  private:
-  base::Value::Dict root_;
+  base::Value root_;
+
+  DISALLOW_COPY_AND_ASSIGN(CloudDeviceDescription);
 };
 
 }  // namespace cloud_devices

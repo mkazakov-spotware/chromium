@@ -1,9 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/chrome_cleaner/ui/silent_main_dialog.h"
 
+#include <utility>
+#include <vector>
+
+#include "base/callback.h"
 #include "base/check.h"
 
 namespace chrome_cleaner {
@@ -36,6 +40,12 @@ void SilentMainDialog::CleanupDone(ResultCode cleanup_result) {
 
 void SilentMainDialog::Close() {
   delegate()->OnClose();
+}
+
+void SilentMainDialog::DisableExtensions(
+    const std::vector<std::wstring>& extensions,
+    base::OnceCallback<void(bool)> on_disable) {
+  std::move(on_disable).Run(true);
 }
 
 }  // namespace chrome_cleaner

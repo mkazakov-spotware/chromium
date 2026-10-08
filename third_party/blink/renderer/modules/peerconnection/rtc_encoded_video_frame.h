@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace webrtc {
@@ -37,12 +35,13 @@ class MODULES_EXPORT RTCEncodedVideoFrame final : public ScriptWrappable {
   // rtc_encoded_video_frame.idl implementation.
   String type() const;
   // Returns the RTP Packet Timestamp for this frame.
-  uint32_t timestamp() const;
+  uint64_t timestamp() const;
   DOMArrayBuffer* data() const;
   RTCEncodedVideoFrameMetadata* getMetadata() const;
+  DOMArrayBuffer* additionalData() const;
   void setData(DOMArrayBuffer*);
+  uint32_t synchronizationSource() const;
   String toString() const;
-  RTCEncodedVideoFrame* clone() const;
 
   scoped_refptr<RTCEncodedVideoFrameDelegate> Delegate() const;
   void SyncDelegate() const;
@@ -59,6 +58,8 @@ class MODULES_EXPORT RTCEncodedVideoFrame final : public ScriptWrappable {
 
   // Exposes encoded frame data from |delegate_|.
   mutable Member<DOMArrayBuffer> frame_data_;
+  // Exposes additional data from |delegate_|.
+  mutable Member<DOMArrayBuffer> additional_data_;
 };
 
 }  // namespace blink

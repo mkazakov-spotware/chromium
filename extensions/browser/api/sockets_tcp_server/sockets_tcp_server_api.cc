@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/sockets_tcp_server/sockets_tcp_server_api.h"
 
-#include <memory>
 #include <unordered_set>
 #include <vector>
 
@@ -16,7 +15,6 @@
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/common/permissions/socket_permission.h"
 #include "net/base/net_errors.h"
-#include "net/base/sys_addrinfo.h"
 
 using content::SocketPermissionRequest;
 using extensions::ResumableTCPServerSocket;
@@ -35,7 +33,7 @@ SocketInfo CreateSocketInfo(int socket_id, ResumableTCPServerSocket* socket) {
   // to the system.
   socket_info.socket_id = socket_id;
   if (!socket->name().empty()) {
-    socket_info.name = socket->name();
+    socket_info.name.reset(new std::string(socket->name()));
   }
   socket_info.persistent = socket->persistent();
   socket_info.paused = socket->paused();
@@ -43,20 +41,21 @@ SocketInfo CreateSocketInfo(int socket_id, ResumableTCPServerSocket* socket) {
   // Grab the local address as known by the OS.
   net::IPEndPoint localAddress;
   if (socket->GetLocalAddress(&localAddress)) {
-    socket_info.local_address = localAddress.ToStringWithoutPort();
-    socket_info.local_port = localAddress.port();
+    socket_info.local_address.reset(
+        new std::string(localAddress.ToStringWithoutPort()));
+    socket_info.local_port.reset(new int(localAddress.port()));
   }
 
   return socket_info;
 }
 
 void SetSocketProperties(ResumableTCPServerSocket* socket,
-                         const SocketProperties& properties) {
-  if (properties.name) {
-    socket->set_name(*properties.name);
+                         SocketProperties* properties) {
+  if (properties->name.get()) {
+    socket->set_name(*properties->name);
   }
-  if (properties.persistent) {
-    socket->set_persistent(*properties.persistent);
+  if (properties->persistent.get()) {
+    socket->set_persistent(*properties->persistent);
   }
 }
 
@@ -65,98 +64,71 @@ void SetSocketProperties(ResumableTCPServerSocket* socket,
 namespace extensions {
 namespace api {
 
-TCPServerSocketApiFunction::~TCPServerSocketApiFunction() = default;
+TCPServerSocketAsyncApiFunction::~TCPServerSocketAsyncApiFunction() {}
 
 std::unique_ptr<SocketResourceManagerInterface>
-TCPServerSocketApiFunction::CreateSocketResourceManager() {
+TCPServerSocketAsyncApiFunction::CreateSocketResourceManager() {
   return std::unique_ptr<SocketResourceManagerInterface>(
       new SocketResourceManager<ResumableTCPServerSocket>());
 }
 
-ResumableTCPServerSocket* TCPServerSocketApiFunction::GetTcpSocket(
+ResumableTCPServerSocket* TCPServerSocketAsyncApiFunction::GetTcpSocket(
     int socket_id) {
   return static_cast<ResumableTCPServerSocket*>(GetSocket(socket_id));
 }
 
-SocketsTcpServerCreateFunction::SocketsTcpServerCreateFunction() = default;
+SocketsTcpServerCreateFunction::SocketsTcpServerCreateFunction() {}
 
-SocketsTcpServerCreateFunction::~SocketsTcpServerCreateFunction() = default;
+SocketsTcpServerCreateFunction::~SocketsTcpServerCreateFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerCreateFunction::Work() {
-  std::unique_ptr<sockets_tcp_server::Create::Params> params =
-      sockets_tcp_server::Create::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params.get());
+bool SocketsTcpServerCreateFunction::Prepare() {
+  params_ = sockets_tcp_server::Create::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+  return true;
+}
 
-  auto* socket = new ResumableTCPServerSocket(browser_context(), GetOriginId());
+void SocketsTcpServerCreateFunction::Work() {
+  auto* socket =
+      new ResumableTCPServerSocket(browser_context(), extension_->id());
 
-  if (params->properties) {
-    SetSocketProperties(socket, *params->properties);
+  sockets_tcp_server::SocketProperties* properties = params_->properties.get();
+  if (properties) {
+    SetSocketProperties(socket, properties);
   }
 
   sockets_tcp_server::CreateInfo create_info;
   create_info.socket_id = AddSocket(socket);
-  return RespondNow(
-      ArgumentList(sockets_tcp_server::Create::Results::Create(create_info)));
+  results_ = sockets_tcp_server::Create::Results::Create(create_info);
 }
 
-SocketsTcpServerUpdateFunction::SocketsTcpServerUpdateFunction() = default;
+SocketsTcpServerUpdateFunction::SocketsTcpServerUpdateFunction() {}
 
-SocketsTcpServerUpdateFunction::~SocketsTcpServerUpdateFunction() = default;
+SocketsTcpServerUpdateFunction::~SocketsTcpServerUpdateFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerUpdateFunction::Work() {
-  std::unique_ptr<sockets_tcp_server::Update::Params> params =
-      sockets_tcp_server::Update::Params::Create(args());
+bool SocketsTcpServerUpdateFunction::Prepare() {
+  params_ = sockets_tcp_server::Update::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+  return true;
+}
 
-  ResumableTCPServerSocket* socket = GetTcpSocket(params->socket_id);
+void SocketsTcpServerUpdateFunction::Work() {
+  ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
   if (!socket) {
-    return RespondNow(Error(kSocketNotFoundError));
+    error_ = kSocketNotFoundError;
+    return;
   }
 
-  SetSocketProperties(socket, params->properties);
-  return RespondNow(NoArguments());
+  SetSocketProperties(socket, &params_->properties);
+  results_ = sockets_tcp_server::Update::Results::Create();
 }
 
-SocketsTcpServerSetPausedFunction::SocketsTcpServerSetPausedFunction() =
-    default;
+SocketsTcpServerSetPausedFunction::SocketsTcpServerSetPausedFunction()
+    : socket_event_dispatcher_(nullptr) {}
 
-SocketsTcpServerSetPausedFunction::~SocketsTcpServerSetPausedFunction() =
-    default;
+SocketsTcpServerSetPausedFunction::~SocketsTcpServerSetPausedFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerSetPausedFunction::Work() {
-  std::unique_ptr<sockets_tcp_server::SetPaused::Params> params =
-      api::sockets_tcp_server::SetPaused::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params.get());
-
-  TCPServerSocketEventDispatcher* socket_event_dispatcher =
-      TCPServerSocketEventDispatcher::Get(browser_context());
-  DCHECK(socket_event_dispatcher)
-      << "There is no socket event dispatcher. "
-         "If this assertion is failing during a test, then it is likely that "
-         "TestExtensionSystem is failing to provide an instance of "
-         "TCPServerSocketEventDispatcher.";
-
-  ResumableTCPServerSocket* socket = GetTcpSocket(params->socket_id);
-  if (!socket) {
-    return RespondNow(Error(kSocketNotFoundError));
-  }
-
-  if (socket->paused() != params->paused) {
-    socket->set_paused(params->paused);
-    if (socket->IsConnected() && !params->paused) {
-      socket_event_dispatcher->OnServerSocketResume(GetOriginId(),
-                                                    params->socket_id);
-    }
-  }
-
-  return RespondNow(NoArguments());
-}
-
-SocketsTcpServerListenFunction::SocketsTcpServerListenFunction() = default;
-
-SocketsTcpServerListenFunction::~SocketsTcpServerListenFunction() = default;
-
-ExtensionFunction::ResponseAction SocketsTcpServerListenFunction::Work() {
-  params_ = api::sockets_tcp_server::Listen::Params::Create(args());
+bool SocketsTcpServerSetPausedFunction::Prepare() {
+  params_ = api::sockets_tcp_server::SetPaused::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(params_.get());
 
   socket_event_dispatcher_ =
@@ -166,23 +138,66 @@ ExtensionFunction::ResponseAction SocketsTcpServerListenFunction::Work() {
          "If this assertion is failing during a test, then it is likely that "
          "TestExtensionSystem is failing to provide an instance of "
          "TCPServerSocketEventDispatcher.";
+  return !!socket_event_dispatcher_;
+}
 
+void SocketsTcpServerSetPausedFunction::Work() {
   ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
   if (!socket) {
-    return RespondNow(Error(kSocketNotFoundError));
+    error_ = kSocketNotFoundError;
+    return;
+  }
+
+  if (socket->paused() != params_->paused) {
+    socket->set_paused(params_->paused);
+    if (socket->IsConnected() && !params_->paused) {
+      socket_event_dispatcher_->OnServerSocketResume(extension_->id(),
+                                                     params_->socket_id);
+    }
+  }
+
+  results_ = sockets_tcp_server::SetPaused::Results::Create();
+}
+
+SocketsTcpServerListenFunction::SocketsTcpServerListenFunction()
+    : socket_event_dispatcher_(nullptr) {}
+
+SocketsTcpServerListenFunction::~SocketsTcpServerListenFunction() {}
+
+bool SocketsTcpServerListenFunction::Prepare() {
+  params_ = api::sockets_tcp_server::Listen::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+
+  socket_event_dispatcher_ =
+      TCPServerSocketEventDispatcher::Get(browser_context());
+  DCHECK(socket_event_dispatcher_)
+      << "There is no socket event dispatcher. "
+         "If this assertion is failing during a test, then it is likely that "
+         "TestExtensionSystem is failing to provide an instance of "
+         "TCPServerSocketEventDispatcher.";
+  return !!socket_event_dispatcher_;
+}
+
+void SocketsTcpServerListenFunction::AsyncWorkStart() {
+  ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
+  if (!socket) {
+    error_ = kSocketNotFoundError;
+    AsyncWorkCompleted();
+    return;
   }
 
   SocketPermissionRequest param(
       SocketPermissionRequest::TCP_LISTEN, params_->address, params_->port);
-  if (!CheckRequest(param)) {
-    return RespondNow(Error(kPermissionError));
+  if (!SocketsManifestData::CheckRequest(extension(), param)) {
+    error_ = kPermissionError;
+    AsyncWorkCompleted();
+    return;
   }
 
   socket->Listen(
       params_->address, params_->port,
-      params_->backlog.value_or(kDefaultListenBacklog),
+      params_->backlog.get() ? *params_->backlog : kDefaultListenBacklog,
       base::BindOnce(&SocketsTcpServerListenFunction::OnCompleted, this));
-  return RespondLater();
 }
 
 void SocketsTcpServerListenFunction::OnCompleted(
@@ -192,88 +207,94 @@ void SocketsTcpServerListenFunction::OnCompleted(
 
   ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
   if (!socket) {
-    Respond(Error(kSocketNotFoundError));
+    error_ = kSocketNotFoundError;
+    AsyncWorkCompleted();
     return;
   }
+  results_ = sockets_tcp_server::Listen::Results::Create(net_result);
   if (net_result == net::OK) {
-    socket_event_dispatcher_->OnServerSocketListen(GetOriginId(),
+    socket_event_dispatcher_->OnServerSocketListen(extension_->id(),
                                                    params_->socket_id);
   } else {
-    Respond(ErrorWithCode(net_result, net::ErrorToString(net_result)));
+    error_ = net::ErrorToString(net_result);
+    AsyncWorkCompleted();
     return;
   }
 
   OpenFirewallHole(params_->address, params_->socket_id, socket);
-  if (!did_respond()) {
-    Respond(OneArgument(base::Value(net_result)));
-  }
 }
 
-SocketsTcpServerDisconnectFunction::SocketsTcpServerDisconnectFunction() =
-    default;
+SocketsTcpServerDisconnectFunction::SocketsTcpServerDisconnectFunction() {}
 
-SocketsTcpServerDisconnectFunction::~SocketsTcpServerDisconnectFunction() =
-    default;
+SocketsTcpServerDisconnectFunction::~SocketsTcpServerDisconnectFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerDisconnectFunction::Work() {
-  std::unique_ptr<sockets_tcp_server::Disconnect::Params> params =
-      sockets_tcp_server::Disconnect::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params.get());
+bool SocketsTcpServerDisconnectFunction::Prepare() {
+  params_ = sockets_tcp_server::Disconnect::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+  return true;
+}
 
-  ResumableTCPServerSocket* socket = GetTcpSocket(params->socket_id);
+void SocketsTcpServerDisconnectFunction::Work() {
+  ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
   if (!socket) {
-    return RespondNow(Error(kSocketNotFoundError));
+    error_ = kSocketNotFoundError;
+    return;
   }
 
   socket->Disconnect(false /* socket_destroying */);
-  return RespondNow(NoArguments());
+  results_ = sockets_tcp_server::Disconnect::Results::Create();
 }
 
-SocketsTcpServerCloseFunction::SocketsTcpServerCloseFunction() = default;
+SocketsTcpServerCloseFunction::SocketsTcpServerCloseFunction() {}
 
-SocketsTcpServerCloseFunction::~SocketsTcpServerCloseFunction() = default;
+SocketsTcpServerCloseFunction::~SocketsTcpServerCloseFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerCloseFunction::Work() {
-  std::unique_ptr<sockets_tcp_server::Close::Params> params =
-      sockets_tcp_server::Close::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params.get());
+bool SocketsTcpServerCloseFunction::Prepare() {
+  params_ = sockets_tcp_server::Close::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+  return true;
+}
 
-  ResumableTCPServerSocket* socket = GetTcpSocket(params->socket_id);
+void SocketsTcpServerCloseFunction::Work() {
+  ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
   if (!socket) {
-    return RespondNow(Error(kSocketNotFoundError));
+    error_ = kSocketNotFoundError;
+    return;
   }
 
-  RemoveSocket(params->socket_id);
-  return RespondNow(NoArguments());
+  RemoveSocket(params_->socket_id);
+  results_ = sockets_tcp_server::Close::Results::Create();
 }
 
-SocketsTcpServerGetInfoFunction::SocketsTcpServerGetInfoFunction() = default;
+SocketsTcpServerGetInfoFunction::SocketsTcpServerGetInfoFunction() {}
 
-SocketsTcpServerGetInfoFunction::~SocketsTcpServerGetInfoFunction() = default;
+SocketsTcpServerGetInfoFunction::~SocketsTcpServerGetInfoFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerGetInfoFunction::Work() {
-  std::unique_ptr<sockets_tcp_server::GetInfo::Params> params =
-      sockets_tcp_server::GetInfo::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params.get());
+bool SocketsTcpServerGetInfoFunction::Prepare() {
+  params_ = sockets_tcp_server::GetInfo::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+  return true;
+}
 
-  ResumableTCPServerSocket* socket = GetTcpSocket(params->socket_id);
+void SocketsTcpServerGetInfoFunction::Work() {
+  ResumableTCPServerSocket* socket = GetTcpSocket(params_->socket_id);
   if (!socket) {
-    return RespondNow(Error(kSocketNotFoundError));
+    error_ = kSocketNotFoundError;
+    return;
   }
 
   sockets_tcp_server::SocketInfo socket_info =
-      CreateSocketInfo(params->socket_id, socket);
-  return RespondNow(
-      ArgumentList(sockets_tcp_server::GetInfo::Results::Create(socket_info)));
+      CreateSocketInfo(params_->socket_id, socket);
+  results_ = sockets_tcp_server::GetInfo::Results::Create(socket_info);
 }
 
-SocketsTcpServerGetSocketsFunction::SocketsTcpServerGetSocketsFunction() =
-    default;
+SocketsTcpServerGetSocketsFunction::SocketsTcpServerGetSocketsFunction() {}
 
-SocketsTcpServerGetSocketsFunction::~SocketsTcpServerGetSocketsFunction() =
-    default;
+SocketsTcpServerGetSocketsFunction::~SocketsTcpServerGetSocketsFunction() {}
 
-ExtensionFunction::ResponseAction SocketsTcpServerGetSocketsFunction::Work() {
+bool SocketsTcpServerGetSocketsFunction::Prepare() { return true; }
+
+void SocketsTcpServerGetSocketsFunction::Work() {
   std::vector<sockets_tcp_server::SocketInfo> socket_infos;
   std::unordered_set<int>* resource_ids = GetSocketIds();
   if (resource_ids) {
@@ -284,8 +305,7 @@ ExtensionFunction::ResponseAction SocketsTcpServerGetSocketsFunction::Work() {
       }
     }
   }
-  return RespondNow(ArgumentList(
-      sockets_tcp_server::GetSockets::Results::Create(socket_infos)));
+  results_ = sockets_tcp_server::GetSockets::Results::Create(socket_infos);
 }
 
 }  // namespace api

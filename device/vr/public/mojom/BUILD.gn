@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,6 +23,9 @@ mojom_component("vr_service") {
   ]
 
   enabled_features = []
+  if (enable_windows_mr) {
+    enabled_features += [ "enable_windows_mr" ]
+  }
   if (enable_openxr) {
     enabled_features += [ "enable_openxr" ]
   }
@@ -66,12 +69,9 @@ mojom_component("isolated_xr_service") {
     ":vr_service",
     "//gpu/ipc/common:interfaces",
     "//mojo/public/mojom/base",
-    "//sandbox/policy/mojom",
     "//skia/public/mojom",
     "//ui/gfx/geometry/mojom",
   ]
-
-  deps = [ "//services/viz/public/mojom" ]
 }
 
 mojom_component("test_mojom") {
@@ -99,7 +99,7 @@ component("vr_public_typemaps") {
   deps = [
     "//base:base",
     "//skia",
-    "//ui/gfx/geometry",
-    "//ui/gfx/geometry:geometry_skia",
+    "//ui/gfx:geometry_skia",
+    "//ui/gfx/geometry:geometry",
   ]
 }

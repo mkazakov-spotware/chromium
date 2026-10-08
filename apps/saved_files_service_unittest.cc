@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "apps/saved_files_service.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/values_test_util.h"
 #include "base/values.h"
@@ -38,7 +37,8 @@ std::string GenerateId(int i) {
 class SavedFilesServiceUnitTest : public testing::Test {
  protected:
   void SetUp() override {
-    static const char kManifest[] =
+    testing::Test::SetUp();
+    extension_ = env_.MakeExtension(*base::test::ParseJsonDeprecated(
         "{"
         "  \"app\": {"
         "    \"background\": {"
@@ -48,9 +48,7 @@ class SavedFilesServiceUnitTest : public testing::Test {
         "  \"permissions\": ["
         "    {\"fileSystem\": [\"retainEntries\"]}"
         "  ]"
-        "}";
-    testing::Test::SetUp();
-    extension_ = env_.MakeExtension(base::test::ParseJson(kManifest));
+        "}"));
     service_ = SavedFilesService::Get(env_.profile());
     path_ = base::FilePath(FILE_PATH_LITERAL("filename.ext"));
   }
@@ -84,8 +82,8 @@ class SavedFilesServiceUnitTest : public testing::Test {
   }
 
   extensions::TestExtensionEnvironment env_;
-  raw_ptr<const extensions::Extension> extension_;
-  raw_ptr<SavedFilesService> service_;
+  const extensions::Extension* extension_;
+  SavedFilesService* service_;
   base::FilePath path_;
 };
 
@@ -149,10 +147,9 @@ TEST_F(SavedFilesServiceUnitTest, RetainTwoFilesTest) {
 }
 
 TEST_F(SavedFilesServiceUnitTest, NoRetainEntriesPermissionTest) {
-  static const char kManifest[] =
+  extension_ = env_.MakeExtension(*base::test::ParseJsonDeprecated(
       "{\"app\": {\"background\": {\"scripts\": [\"background.js\"]}},"
-      "\"permissions\": [\"fileSystem\"]}";
-  extension_ = env_.MakeExtension(base::test::ParseJson(kManifest));
+      "\"permissions\": [\"fileSystem\"]}"));
   service_->RegisterFileEntry(extension_->id(), GenerateId(1), path_, true);
   TRACE_CALL(CheckEntrySequenceNumber(1, 0));
   SavedFileEntry entry;

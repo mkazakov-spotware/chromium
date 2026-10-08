@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/browser_agent/infobar_overlay_browser_agent.h"
 
-#import <map>
+#include <map>
 
 #import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/test/mock_infobar_interaction_handler.h"
@@ -12,20 +12,21 @@
 #import "ios/chrome/browser/infobars/test/fake_infobar_ios.h"
 #import "ios/chrome/browser/main/test_browser.h"
 #import "ios/chrome/browser/overlays/public/common/infobars/infobar_overlay_request_config.h"
-#import "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
+#include "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
 #import "ios/chrome/browser/overlays/public/overlay_presenter.h"
-#import "ios/chrome/browser/overlays/public/overlay_request.h"
+#include "ios/chrome/browser/overlays/public/overlay_request.h"
 #import "ios/chrome/browser/overlays/public/overlay_request_queue.h"
-#import "ios/chrome/browser/overlays/public/overlay_response.h"
-#import "ios/chrome/browser/overlays/test/fake_overlay_presentation_context.h"
-#import "ios/chrome/browser/overlays/test/fake_overlay_request_callback_installer.h"
-#import "ios/chrome/browser/overlays/test/overlay_test_macros.h"
+#include "ios/chrome/browser/overlays/public/overlay_response.h"
+#include "ios/chrome/browser/overlays/test/fake_overlay_presentation_context.h"
+#include "ios/chrome/browser/overlays/test/fake_overlay_request_callback_installer.h"
+#include "ios/chrome/browser/overlays/test/overlay_test_macros.h"
+#import "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gmock/include/gmock/gmock.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -63,16 +64,18 @@ class InfobarOverlayBrowserAgentTest
     : public testing::TestWithParam<InfobarOverlayType> {
  public:
   InfobarOverlayBrowserAgentTest()
-      : browser_state_(TestChromeBrowserState::Builder().Build()),
-        browser_(std::make_unique<TestBrowser>(browser_state_.get())),
-        interaction_handler_builder_(InfobarType::kInfobarTypeConfirm) {
+      : browser_state_(browser_state_builder_.Build()),
+        web_state_list_(&web_state_list_delegate_),
+        interaction_handler_builder_(InfobarType::kInfobarTypeConfirm),
+        browser_(browser_state_.get(), &web_state_list_) {
     // Add an activated WebState into whose queues infobar OverlayRequests will
     // be added.
-    auto web_state = std::make_unique<web::FakeWebState>();
+    std::unique_ptr<web::WebState> web_state =
+        std::make_unique<web::TestWebState>();
     web_state_ = web_state.get();
-    browser_->GetWebStateList()->InsertWebState(
-        /*index=*/0, std::move(web_state), WebStateList::INSERT_ACTIVATE,
-        WebStateOpener());
+    web_state_list_.InsertWebState(/*index=*/0, std::move(web_state),
+                                   WebStateList::INSERT_ACTIVATE,
+                                   WebStateOpener());
     // Set up the OverlayPresenter's presentation context so that presentation
     // can be faked.
     presenter()->SetPresentationContext(&presentation_context_);
@@ -80,6 +83,9 @@ class InfobarOverlayBrowserAgentTest
     request_supports_.emplace(
         InfobarOverlayType::kBanner,
         FakeInfobarOverlayRequestSupport(InfobarOverlayType::kBanner));
+    request_supports_.emplace(
+        InfobarOverlayType::kDetailSheet,
+        FakeInfobarOverlayRequestSupport(InfobarOverlayType::kDetailSheet));
     request_supports_.emplace(
         InfobarOverlayType::kModal,
         FakeInfobarOverlayRequestSupport(InfobarOverlayType::kModal));
@@ -89,11 +95,15 @@ class InfobarOverlayBrowserAgentTest
         interaction_handler_builder_.Build();
     EXPECT_CALL(*mock_handler(InfobarOverlayType::kBanner), CreateInstaller())
         .WillOnce(Return(ByMove(CreateInstaller(InfobarOverlayType::kBanner))));
+    EXPECT_CALL(*mock_handler(InfobarOverlayType::kDetailSheet),
+                CreateInstaller())
+        .WillOnce(
+            Return(ByMove(CreateInstaller(InfobarOverlayType::kDetailSheet))));
     EXPECT_CALL(*mock_handler(InfobarOverlayType::kModal), CreateInstaller())
         .WillOnce(Return(ByMove(CreateInstaller(InfobarOverlayType::kModal))));
     // Set up the browser agent and mock interaction handler.
-    InfobarOverlayBrowserAgent::CreateForBrowser(browser_.get());
-    InfobarOverlayBrowserAgent::FromBrowser(browser_.get())
+    InfobarOverlayBrowserAgent::CreateForBrowser(&browser_);
+    InfobarOverlayBrowserAgent::FromBrowser(&browser_)
         ->AddInfobarInteractionHandler(std::move(interaction_handler));
   }
   ~InfobarOverlayBrowserAgentTest() override {
@@ -101,9 +111,9 @@ class InfobarOverlayBrowserAgentTest
   }
 
   // Creates the OverlayRequestCallbackInstaller to return from
-  // CreateInstaller() for the mock interaction handler for `overlay_type`.
+  // CreateInstaller() for the mock interaction handler for |overlay_type|.
   // Returned installers forwards callbacks to the receivers in
-  // `mock_callback_receivers_`.
+  // |mock_callback_receivers_|.
   std::unique_ptr<FakeOverlayRequestCallbackInstaller> CreateInstaller(
       InfobarOverlayType overlay_type) {
     std::unique_ptr<FakeOverlayRequestCallbackInstaller> installer =
@@ -128,7 +138,7 @@ class InfobarOverlayBrowserAgentTest
                : OverlayModality::kInfobarModal;
   }
   OverlayPresenter* presenter() {
-    return OverlayPresenter::FromBrowser(browser_.get(), modality());
+    return OverlayPresenter::FromBrowser(&browser_, modality());
   }
   OverlayRequestQueue* queue() {
     return OverlayRequestQueue::FromWebState(web_state_, modality());
@@ -146,8 +156,10 @@ class InfobarOverlayBrowserAgentTest
 
  protected:
   web::WebTaskEnvironment task_environment_;
+  TestChromeBrowserState::Builder browser_state_builder_;
   std::unique_ptr<ChromeBrowserState> browser_state_;
-  std::unique_ptr<TestBrowser> browser_;
+  FakeWebStateListDelegate web_state_list_delegate_;
+  WebStateList web_state_list_;
   web::WebState* web_state_ = nullptr;
   std::map<InfobarOverlayType, FakeInfobarOverlayRequestSupport>
       request_supports_;
@@ -156,6 +168,7 @@ class InfobarOverlayBrowserAgentTest
   MockInfobarInteractionHandler::Builder interaction_handler_builder_;
   FakeOverlayPresentationContext presentation_context_;
   FakeInfobarIOS infobar_;
+  TestBrowser browser_;
 };
 
 // Tests the overlay presentation flow for a given InfobarOverlayType.
@@ -168,7 +181,7 @@ TEST_P(InfobarOverlayBrowserAgentTest, OverlayPresentation) {
   EXPECT_CALL(*mock_handler(),
               InfobarVisibilityChanged(&infobar_, /*visible=*/true));
   queue()->AddRequest(std::move(added_request));
-  // Verify that dispatched responses sent through `request`'s callback manager
+  // Verify that dispatched responses sent through |request|'s callback manager
   // are received by the expected receiver.
   EXPECT_CALL(*mock_callback_receiver(),
               DispatchCallback(request, DispatchInfo::ResponseSupport()));
@@ -188,4 +201,5 @@ TEST_P(InfobarOverlayBrowserAgentTest, OverlayPresentation) {
 INSTANTIATE_TEST_SUITE_P(/* No InstantiationName */,
                          InfobarOverlayBrowserAgentTest,
                          testing::Values(InfobarOverlayType::kBanner,
+                                         InfobarOverlayType::kDetailSheet,
                                          InfobarOverlayType::kModal));

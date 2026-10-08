@@ -1,36 +1,23 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/wm_helper_chromeos.h"
+#include "components/exo/wm_helper.h"
 
 #include "ash/frame_throttler/frame_throttling_controller.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/memory/singleton.h"
-#include "base/time/time.h"
-#include "chromeos/dbus/power/power_manager_client.h"
-#include "chromeos/dbus/power_manager/backlight.pb.h"
-#include "components/exo/wm_helper.h"
-#include "ui/aura/client/drag_drop_client.h"
 #include "ui/aura/client/drag_drop_delegate.h"
 #include "ui/aura/client/focus_client.h"
-#include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
-#include "ui/compositor/compositor.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/manager/display_configurator.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/types/display_snapshot.h"
-#include "ui/display/util/display_util.h"
-#include "ui/views/corewm/tooltip_controller.h"
 #include "ui/wm/core/capture_controller.h"
 #include "ui/wm/public/activation_client.h"
-#include "ui/wm/public/tooltip_observer.h"
 
 namespace exo {
 namespace {
@@ -39,23 +26,17 @@ aura::Window* GetPrimaryRoot() {
   return ash::Shell::Get()->GetPrimaryRootWindow();
 }
 
+// A property key to store whether IME should be blocked for the surface.
+DEFINE_UI_CLASS_PROPERTY_KEY(bool, kImeBlockedKey, false)
+
 }  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 // WMHelperChromeOS, public:
 
-WMHelperChromeOS::WMHelperChromeOS() : vsync_timing_manager_(this) {
-  auto* power_manager = chromeos::PowerManagerClient::Get();
-  // May be null in tests
-  if (power_manager)
-    power_manager->AddObserver(this);
-}
+WMHelperChromeOS::WMHelperChromeOS() : vsync_timing_manager_(this) {}
 
-WMHelperChromeOS::~WMHelperChromeOS() {
-  auto* power_manager = chromeos::PowerManagerClient::Get();
-  if (power_manager)
-    power_manager->RemoveObserver(this);
-}
+WMHelperChromeOS::~WMHelperChromeOS() {}
 
 WMHelperChromeOS* WMHelperChromeOS::GetInstance() {
   return static_cast<WMHelperChromeOS*>(WMHelper::GetInstance());
@@ -82,25 +63,13 @@ void WMHelperChromeOS::RemoveDisplayConfigurationObserver(
 }
 
 void WMHelperChromeOS::AddFrameThrottlingObserver() {
-  ash::FrameThrottlingController* controller =
-      ash::Shell::Get()->frame_throttling_controller();
-  if (!controller->HasArcObserver(&vsync_timing_manager_)) {
-    ash::Shell::Get()->frame_throttling_controller()->AddArcObserver(
-        &vsync_timing_manager_);
-  }
+  ash::Shell::Get()->frame_throttling_controller()->AddArcObserver(
+      &vsync_timing_manager_);
 }
 
 void WMHelperChromeOS::RemoveFrameThrottlingObserver() {
   ash::Shell::Get()->frame_throttling_controller()->RemoveArcObserver(
       &vsync_timing_manager_);
-}
-
-void WMHelperChromeOS::AddPowerObserver(WMHelper::PowerObserver* observer) {
-  power_observers_.AddObserver(observer);
-}
-
-void WMHelperChromeOS::RemovePowerObserver(WMHelper::PowerObserver* observer) {
-  power_observers_.RemoveObserver(observer);
 }
 
 void WMHelperChromeOS::AddActivationObserver(
@@ -111,14 +80,6 @@ void WMHelperChromeOS::AddActivationObserver(
 void WMHelperChromeOS::RemoveActivationObserver(
     wm::ActivationChangeObserver* observer) {
   ash::Shell::Get()->activation_client()->RemoveObserver(observer);
-}
-
-void WMHelperChromeOS::AddTooltipObserver(wm::TooltipObserver* observer) {
-  ash::Shell::Get()->tooltip_controller()->AddObserver(observer);
-}
-
-void WMHelperChromeOS::RemoveTooltipObserver(wm::TooltipObserver* observer) {
-  ash::Shell::Get()->tooltip_controller()->RemoveObserver(observer);
 }
 
 void WMHelperChromeOS::AddFocusObserver(
@@ -156,21 +117,11 @@ void WMHelperChromeOS::OnDragEntered(const ui::DropTargetEvent& event) {
     observer.OnDragEntered(event);
 }
 
-aura::client::DragUpdateInfo WMHelperChromeOS::OnDragUpdated(
-    const ui::DropTargetEvent& event) {
-  aura::client::DragUpdateInfo drag_info(
-      ui::DragDropTypes::DRAG_NONE,
-      ui::DataTransferEndpoint(ui::EndpointType::kUnknownVm));
-
-  for (DragDropObserver& observer : drag_drop_observers_) {
-    auto observer_drag_info = observer.OnDragUpdated(event);
-    drag_info.drag_operation =
-        drag_info.drag_operation | observer_drag_info.drag_operation;
-    if (observer_drag_info.data_endpoint.type() !=
-        drag_info.data_endpoint.type())
-      drag_info.data_endpoint = observer_drag_info.data_endpoint;
-  }
-  return drag_info;
+int WMHelperChromeOS::OnDragUpdated(const ui::DropTargetEvent& event) {
+  int valid_operation = ui::DragDropTypes::DRAG_NONE;
+  for (DragDropObserver& observer : drag_drop_observers_)
+    valid_operation = valid_operation | observer.OnDragUpdated(event);
+  return valid_operation;
 }
 
 void WMHelperChromeOS::OnDragExited() {
@@ -178,38 +129,12 @@ void WMHelperChromeOS::OnDragExited() {
     observer.OnDragExited();
 }
 
-aura::client::DragDropDelegate::DropCallback WMHelperChromeOS::GetDropCallback(
-    const ui::DropTargetEvent& event) {
-  std::vector<WMHelper::DragDropObserver::DropCallback> drop_callbacks;
-  for (DragDropObserver& observer : drag_drop_observers_) {
-    WMHelper::DragDropObserver::DropCallback drop_cb =
-        observer.GetDropCallback();
-    if (!drop_cb.is_null()) {
-      drop_callbacks.push_back(std::move(drop_cb));
-    }
-  }
-  return base::BindOnce(&WMHelperChromeOS::PerformDrop,
-                        weak_ptr_factory_.GetWeakPtr(),
-                        std::move(drop_callbacks));
-}
-
-void WMHelperChromeOS::SuspendDone(base::TimeDelta sleep_duration) {
-  for (PowerObserver& observer : power_observers_)
-    observer.SuspendDone();
-}
-
-void WMHelperChromeOS::ScreenBrightnessChanged(
-    const power_manager::BacklightBrightnessChange& change) {
-  for (PowerObserver& observer : power_observers_)
-    observer.ScreenBrightnessChanged(change.percent());
-}
-
-void WMHelperChromeOS::LidEventReceived(
-    chromeos::PowerManagerClient::LidState state,
-    base::TimeTicks timestamp) {
-  for (PowerObserver& observer : power_observers_)
-    observer.LidEventReceived(state ==
-                              chromeos::PowerManagerClient::LidState::OPEN);
+int WMHelperChromeOS::OnPerformDrop(const ui::DropTargetEvent& event,
+                                    std::unique_ptr<ui::OSExchangeData> data) {
+  int valid_operation = ui::DragDropTypes::DRAG_NONE;
+  for (DragDropObserver& observer : drag_drop_observers_)
+    valid_operation = valid_operation | observer.OnPerformDrop(event);
+  return valid_operation;
 }
 
 void WMHelperChromeOS::AddVSyncParameterObserver(
@@ -266,10 +191,6 @@ aura::client::CursorClient* WMHelperChromeOS::GetCursorClient() {
   return aura::client::GetCursorClient(ash::Shell::GetPrimaryRootWindow());
 }
 
-aura::client::DragDropClient* WMHelperChromeOS::GetDragDropClient() {
-  return aura::client::GetDragDropClient(ash::Shell::GetPrimaryRootWindow());
-}
-
 void WMHelperChromeOS::AddPreTargetHandler(ui::EventHandler* handler) {
   ash::Shell::Get()->AddPreTargetHandler(handler);
 }
@@ -296,33 +217,7 @@ bool WMHelperChromeOS::InTabletMode() const {
 }
 
 double WMHelperChromeOS::GetDefaultDeviceScaleFactor() const {
-  return exo::GetDefaultDeviceScaleFactor();
-}
-
-double WMHelperChromeOS::GetDeviceScaleFactorForWindow(
-    aura::Window* window) const {
-  if (default_scale_cancellation_)
-    return exo::GetDefaultDeviceScaleFactor();
-  const display::Screen* screen = display::Screen::GetScreen();
-  display::Display display = screen->GetDisplayNearestWindow(window);
-  return display.device_scale_factor();
-}
-
-void WMHelperChromeOS::SetDefaultScaleCancellation(
-    bool default_scale_cancellation) {
-  default_scale_cancellation_ = default_scale_cancellation;
-}
-
-WMHelper::LifetimeManager* WMHelperChromeOS::GetLifetimeManager() {
-  return &lifetime_manager_;
-}
-
-aura::client::CaptureClient* WMHelperChromeOS::GetCaptureClient() {
-  return wm::CaptureController::Get();
-}
-
-float GetDefaultDeviceScaleFactor() {
-  if (!display::HasInternalDisplay())
+  if (!display::Display::HasInternalDisplay())
     return 1.0;
 
   if (display::Display::HasForceDeviceScaleFactor())
@@ -336,16 +231,21 @@ float GetDefaultDeviceScaleFactor() {
   return display_info.display_modes()[0].device_scale_factor();
 }
 
-void WMHelperChromeOS::PerformDrop(
-    std::vector<WMHelper::DragDropObserver::DropCallback> drop_callbacks,
-    std::unique_ptr<ui::OSExchangeData> data,
-    ui::mojom::DragOperation& output_drag_op) {
-  for (auto& drop_cb : drop_callbacks) {
-    auto operation = ui::mojom::DragOperation::kNone;
-    std::move(drop_cb).Run(operation);
-    if (operation != ui::mojom::DragOperation::kNone)
-      output_drag_op = operation;
-  }
+void WMHelperChromeOS::SetImeBlocked(aura::Window* window, bool ime_blocked) {
+  DCHECK_EQ(window, window->GetToplevelWindow());
+  window->SetProperty(kImeBlockedKey, ime_blocked);
+}
+
+bool WMHelperChromeOS::IsImeBlocked(aura::Window* window) const {
+  return window && window->GetToplevelWindow()->GetProperty(kImeBlockedKey);
+}
+
+WMHelper::LifetimeManager* WMHelperChromeOS::GetLifetimeManager() {
+  return &lifetime_manager_;
+}
+
+aura::client::CaptureClient* WMHelperChromeOS::GetCaptureClient() {
+  return wm::CaptureController::Get();
 }
 
 }  // namespace exo

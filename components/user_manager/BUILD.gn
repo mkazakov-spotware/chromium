@@ -1,8 +1,6 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-import("//build/config/chromeos/ui_mode.gni")
 
 component("user_manager") {
   sources = [
@@ -18,20 +16,17 @@ component("user_manager") {
 
   public_deps = [
     "//base",
+    "//base/util/values:values_util",
     "//components/account_id",
     "//ui/gfx",
   ]
 
-  deps = [
-    "//components/crash/core/common",
-    "//google_apis",
-  ]
+  deps = [ "//google_apis" ]
 
   defines = [ "USER_MANAGER_IMPLEMENTATION" ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     sources += [
-      "common_types.h",
       "known_user.cc",
       "known_user.h",
       "remove_user_delegate.h",
@@ -39,8 +34,6 @@ component("user_manager") {
       "scoped_user_manager.h",
       "user.cc",
       "user.h",
-      "user_directory_integrity_manager.cc",
-      "user_directory_integrity_manager.h",
       "user_image/user_image.cc",
       "user_image/user_image.h",
       "user_manager.cc",
@@ -57,7 +50,7 @@ component("user_manager") {
   }
 }
 
-if (is_chromeos_ash) {
+if (is_chromeos) {
   source_set("test_support") {
     testonly = true
     sources = [
@@ -71,22 +64,15 @@ if (is_chromeos_ash) {
       "//components/account_id",
     ]
 
-    deps = [ "//ash/constants" ]
+    deps = [ "//chromeos/constants" ]
   }
 
   source_set("unit_tests") {
     testonly = true
-    sources = [
-      "known_user_unittest.cc",
-      "user_unittest.cc",
-    ]
+    sources = [ "user_unittest.cc" ]
     deps = [
-      ":test_support",
       ":user_manager",
-      "//base/test:test_support",
       "//components/account_id",
-      "//components/prefs:test_support",
-      "//testing/gmock",
       "//testing/gtest",
     ]
   }

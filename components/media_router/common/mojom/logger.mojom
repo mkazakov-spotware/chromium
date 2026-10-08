@@ -1,8 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 module media_router.mojom;
+
+import "mojo/public/mojom/base/time.mojom";
 
 enum LogCategory {
   kDiscovery,
@@ -48,8 +50,4 @@ interface Logger {
       string sink_id,
       string media_source,
       string session_id);
-
-  // Binds this logger to a new pending receiver, allowing any code with access
-  // to a Logger to create a new receiver for it.
-  BindReceiver(pending_receiver<Logger> receiver);
 };

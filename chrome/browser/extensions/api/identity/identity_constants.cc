@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ const char kSetAccountsInCookieFailure[] = "Account cookies could not be set.";
 const char kInvalidConsentResult[] = "Returned an invalid consent result.";
 const char kCanceled[] = "canceled";
 
-const int kCachedRemoteConsentTTLSeconds = 1;
+const int kCachedIssueAdviceTTLSeconds = 1;
 }  // namespace identity_constants
 
 }  // namespace extensions

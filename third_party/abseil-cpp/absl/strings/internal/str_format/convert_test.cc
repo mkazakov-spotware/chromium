@@ -24,7 +24,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/base/attributes.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/strings/internal/str_format/bind.h"
 #include "absl/strings/match.h"
@@ -125,7 +124,6 @@ void StrAppendV(std::string *dst, const char *format, va_list ap) {
   delete[] buf;
 }
 
-void StrAppend(std::string *, const char *, ...) ABSL_PRINTF_ATTRIBUTE(2, 3);
 void StrAppend(std::string *out, const char *format, ...) {
   va_list ap;
   va_start(ap, format);
@@ -133,7 +131,6 @@ void StrAppend(std::string *out, const char *format, ...) {
   va_end(ap);
 }
 
-std::string StrPrint(const char *, ...) ABSL_PRINTF_ATTRIBUTE(1, 2);
 std::string StrPrint(const char *format, ...) {
   va_list ap;
   va_start(ap, format);
@@ -232,9 +229,6 @@ TEST_F(FormatConvertTest, BasicString) {
   TestStringConvert(static_cast<const char*>("hello"));
   TestStringConvert(std::string("hello"));
   TestStringConvert(string_view("hello"));
-#if defined(ABSL_HAVE_STD_STRING_VIEW)
-  TestStringConvert(std::string_view("hello"));
-#endif  // ABSL_HAVE_STD_STRING_VIEW
 }
 
 TEST_F(FormatConvertTest, NullString) {
@@ -458,36 +452,25 @@ TYPED_TEST_P(TypedFormatConvertTest, AllIntsWithFlags) {
 }
 
 TYPED_TEST_P(TypedFormatConvertTest, Char) {
-  // Pass a bunch of values of type TypeParam to both FormatPack and libc's
-  // vsnprintf("%c", ...) (wrapped in StrPrint) to make sure we get the same
-  // value.
   typedef TypeParam T;
   using remove_volatile_t = typename std::remove_volatile<T>::type;
-  std::vector<remove_volatile_t> vals = {
-      remove_volatile_t(1),  remove_volatile_t(2),  remove_volatile_t(10),   //
-      remove_volatile_t(-1), remove_volatile_t(-2), remove_volatile_t(-10),  //
-      remove_volatile_t(0),
+  static const T kMin = std::numeric_limits<remove_volatile_t>::min();
+  static const T kMax = std::numeric_limits<remove_volatile_t>::max();
+  T kVals[] = {
+    remove_volatile_t(1), remove_volatile_t(2), remove_volatile_t(10),
+    remove_volatile_t(-1), remove_volatile_t(-2), remove_volatile_t(-10),
+    remove_volatile_t(0),
+    kMin + remove_volatile_t(1), kMin,
+    kMax - remove_volatile_t(1), kMax
   };
-
-  // We'd like to test values near std::numeric_limits::min() and
-  // std::numeric_limits::max(), too, but vsnprintf("%c", ...) can't handle
-  // anything larger than an int. Add in the most extreme values we can without
-  // exceeding that range.
-  static const T kMin =
-      static_cast<remove_volatile_t>(std::numeric_limits<int>::min());
-  static const T kMax =
-      static_cast<remove_volatile_t>(std::numeric_limits<int>::max());
-  vals.insert(vals.end(), {kMin + 1, kMin, kMax - 1, kMax});
-
-  for (const T c : vals) {
+  for (const T &c : kVals) {
     const FormatArgImpl args[] = {FormatArgImpl(c)};
     UntypedFormatSpecImpl format("%c");
-    EXPECT_EQ(StrPrint("%c", static_cast<int>(c)),
-              FormatPack(format, absl::MakeSpan(args)));
+    EXPECT_EQ(StrPrint("%c", c), FormatPack(format, absl::MakeSpan(args)));
   }
 }
 
-REGISTER_TYPED_TEST_SUITE_P(TypedFormatConvertTest, AllIntsWithFlags, Char);
+REGISTER_TYPED_TEST_CASE_P(TypedFormatConvertTest, AllIntsWithFlags, Char);
 
 typedef ::testing::Types<
     int, unsigned, volatile int,
@@ -496,8 +479,8 @@ typedef ::testing::Types<
     long long, unsigned long long,
     signed char, unsigned char, char>
     AllIntTypes;
-INSTANTIATE_TYPED_TEST_SUITE_P(TypedFormatConvertTestWithAllIntTypes,
-                               TypedFormatConvertTest, AllIntTypes);
+INSTANTIATE_TYPED_TEST_CASE_P(TypedFormatConvertTestWithAllIntTypes,
+                              TypedFormatConvertTest, AllIntTypes);
 TEST_F(FormatConvertTest, VectorBool) {
   // Make sure vector<bool>'s values behave as bools.
   std::vector<bool> v = {true, false};
@@ -571,8 +554,7 @@ TEST_F(FormatConvertTest, Uint128) {
 }
 
 template <typename Floating>
-void TestWithMultipleFormatsHelper(const std::vector<Floating> &floats,
-                                   const std::set<Floating> &skip_verify) {
+void TestWithMultipleFormatsHelper(const std::vector<Floating> &floats) {
   const NativePrintfTraits &native_traits = VerifyNativeImplementation();
   // Reserve the space to ensure we don't allocate memory in the output itself.
   std::string str_format_result;
@@ -620,16 +602,7 @@ void TestWithMultipleFormatsHelper(const std::vector<Floating> &floats,
           AppendPack(&str_format_result, format, absl::MakeSpan(args));
         }
 
-#ifdef _MSC_VER
-        // MSVC has a different rounding policy than us so we can't test our
-        // implementation against the native one there.
-        continue;
-#elif defined(__APPLE__)
-        // Apple formats NaN differently (+nan) vs. (nan)
-        if (std::isnan(d)) continue;
-#endif
-        if (string_printf_result != str_format_result &&
-            skip_verify.find(d) == skip_verify.end()) {
+        if (string_printf_result != str_format_result) {
           // We use ASSERT_EQ here because failures are usually correlated and a
           // bug would print way too many failed expectations causing the test
           // to time out.
@@ -643,6 +616,12 @@ void TestWithMultipleFormatsHelper(const std::vector<Floating> &floats,
 }
 
 TEST_F(FormatConvertTest, Float) {
+#ifdef _MSC_VER
+  // MSVC has a different rounding policy than us so we can't test our
+  // implementation against the native one there.
+  return;
+#endif  // _MSC_VER
+
   std::vector<float> floats = {0.0f,
                                -0.0f,
                                .9999999f,
@@ -656,8 +635,7 @@ TEST_F(FormatConvertTest, Float) {
                                std::numeric_limits<float>::epsilon(),
                                std::numeric_limits<float>::epsilon() + 1.0f,
                                std::numeric_limits<float>::infinity(),
-                               -std::numeric_limits<float>::infinity(),
-                               std::nanf("")};
+                               -std::numeric_limits<float>::infinity()};
 
   // Some regression tests.
   floats.push_back(0.999999989f);
@@ -686,14 +664,21 @@ TEST_F(FormatConvertTest, Float) {
   std::sort(floats.begin(), floats.end());
   floats.erase(std::unique(floats.begin(), floats.end()), floats.end());
 
-  TestWithMultipleFormatsHelper(floats, {});
+#ifndef __APPLE__
+  // Apple formats NaN differently (+nan) vs. (nan)
+  floats.push_back(std::nan(""));
+#endif
+
+  TestWithMultipleFormatsHelper(floats);
 }
 
 TEST_F(FormatConvertTest, Double) {
-  // For values that we know won't match the standard library implementation we
-  // skip verification, but still run the algorithm to catch asserts/sanitizer
-  // bugs.
-  std::set<double> skip_verify;
+#ifdef _MSC_VER
+  // MSVC has a different rounding policy than us so we can't test our
+  // implementation against the native one there.
+  return;
+#endif  // _MSC_VER
+
   std::vector<double> doubles = {0.0,
                                  -0.0,
                                  .99999999999999,
@@ -707,8 +692,7 @@ TEST_F(FormatConvertTest, Double) {
                                  std::numeric_limits<double>::epsilon(),
                                  std::numeric_limits<double>::epsilon() + 1,
                                  std::numeric_limits<double>::infinity(),
-                                 -std::numeric_limits<double>::infinity(),
-                                 std::nan("")};
+                                 -std::numeric_limits<double>::infinity()};
 
   // Some regression tests.
   doubles.push_back(0.99999999999999989);
@@ -738,29 +722,33 @@ TEST_F(FormatConvertTest, Double) {
       "5084551339423045832369032229481658085593321233482747978262041447231"
       "68738177180919299881250404026184124858368.000000";
 
-  for (int exp = -300; exp <= 300; ++exp) {
-    const double all_ones_mantissa = 0x1fffffffffffff;
-    doubles.push_back(std::ldexp(all_ones_mantissa, exp));
-    if (gcc_bug_22142) {
-      skip_verify.insert(doubles.back());
+  if (!gcc_bug_22142) {
+    for (int exp = -300; exp <= 300; ++exp) {
+      const double all_ones_mantissa = 0x1fffffffffffff;
+      doubles.push_back(std::ldexp(all_ones_mantissa, exp));
     }
   }
 
   if (gcc_bug_22142) {
-    using L = std::numeric_limits<double>;
-    skip_verify.insert(L::max());
-    skip_verify.insert(L::min());  // NOLINT
-    skip_verify.insert(L::denorm_min());
-    skip_verify.insert(-L::max());
-    skip_verify.insert(-L::min());  // NOLINT
-    skip_verify.insert(-L::denorm_min());
+    for (auto &d : doubles) {
+      using L = std::numeric_limits<double>;
+      double d2 = std::abs(d);
+      if (d2 == L::max() || d2 == L::min() || d2 == L::denorm_min()) {
+        d = 0;
+      }
+    }
   }
 
   // Remove duplicates to speed up the logic below.
   std::sort(doubles.begin(), doubles.end());
   doubles.erase(std::unique(doubles.begin(), doubles.end()), doubles.end());
 
-  TestWithMultipleFormatsHelper(doubles, skip_verify);
+#ifndef __APPLE__
+  // Apple formats NaN differently (+nan) vs. (nan)
+  doubles.push_back(std::nan(""));
+#endif
+
+  TestWithMultipleFormatsHelper(doubles);
 }
 
 TEST_F(FormatConvertTest, DoubleRound) {
@@ -1081,6 +1069,11 @@ TEST_F(FormatConvertTest, ExtremeWidthPrecision) {
 }
 
 TEST_F(FormatConvertTest, LongDouble) {
+#ifdef _MSC_VER
+  // MSVC has a different rounding policy than us so we can't test our
+  // implementation against the native one there.
+  return;
+#endif  // _MSC_VER
   const NativePrintfTraits &native_traits = VerifyNativeImplementation();
   const char *const kFormats[] = {"%",    "%.3", "%8.5", "%9",  "%.5000",
                                   "%.60", "%+",  "% ",   "%-10"};
@@ -1141,18 +1134,10 @@ TEST_F(FormatConvertTest, LongDouble) {
       for (auto d : doubles) {
         FormatArgImpl arg(d);
         UntypedFormatSpecImpl format(fmt_str);
-        std::string result = FormatPack(format, {&arg, 1});
-
-#ifdef _MSC_VER
-        // MSVC has a different rounding policy than us so we can't test our
-        // implementation against the native one there.
-        continue;
-#endif  // _MSC_VER
-
         // We use ASSERT_EQ here because failures are usually correlated and a
         // bug would print way too many failed expectations causing the test to
         // time out.
-        ASSERT_EQ(StrPrint(fmt_str.c_str(), d), result)
+        ASSERT_EQ(StrPrint(fmt_str.c_str(), d), FormatPack(format, {&arg, 1}))
             << fmt_str << " " << StrPrint("%.18Lg", d) << " "
             << StrPrint("%La", d) << " " << StrPrint("%.1080Lf", d);
       }

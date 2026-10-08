@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "chrome/browser/apps/app_shim/mach_bootstrap_acceptor.h"
 #include "content/public/browser/browser_thread.h"
@@ -29,8 +30,6 @@ class AppShimListener : public apps::MachBootstrapAcceptor::Delegate,
                             content::BrowserThread::DeleteOnUIThread> {
  public:
   AppShimListener();
-  AppShimListener(const AppShimListener&) = delete;
-  AppShimListener& operator=(const AppShimListener&) = delete;
 
   // Init passes this AppShimListener to PostTask which requires it to have
   // a non-zero refcount. Therefore, Init cannot be called in the constructor
@@ -58,6 +57,8 @@ class AppShimListener : public apps::MachBootstrapAcceptor::Delegate,
   base::FilePath directory_in_tmp_;
 
   std::unique_ptr<apps::MachBootstrapAcceptor> mach_acceptor_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppShimListener);
 };
 
 #endif  // CHROME_BROWSER_APPS_APP_SHIM_APP_SHIM_LISTENER_H_

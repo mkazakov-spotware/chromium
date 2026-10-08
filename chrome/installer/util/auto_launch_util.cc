@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@
 #include "base/files/file_path.h"
 #include "base/notreached.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/win_util.h"
@@ -29,7 +31,7 @@ const wchar_t kAutolaunchKeyValue[] = L"GoogleChromeAutoLaunch";
 // Builds a registry key name to use when deciding where to read/write the auto-
 // launch value to/from. It takes into account the path of the profile so that
 // different installations of Chrome don't conflict.
-std::wstring GetAutoLaunchKeyName() {
+base::string16 GetAutoLaunchKeyName() {
   base::FilePath path;
   if (!base::PathService::Get(chrome::DIR_USER_DATA, &path))
     NOTREACHED();
@@ -40,9 +42,9 @@ std::wstring GetAutoLaunchKeyName() {
 
   std::string input(path.AsUTF8Unsafe());
   uint8_t hash[16];
-  crypto::SHA256HashString(input, hash, std::size(hash));
-  return std::wstring(kAutolaunchKeyValue) + L"_" +
-         base::ASCIIToWide(base::HexEncode(hash, std::size(hash)));
+  crypto::SHA256HashString(input, hash, base::size(hash));
+  return base::string16(kAutolaunchKeyValue) + base::ASCIIToUTF16("_") +
+         base::ASCIIToUTF16(base::HexEncode(hash, base::size(hash)));
 }
 
 }  // namespace

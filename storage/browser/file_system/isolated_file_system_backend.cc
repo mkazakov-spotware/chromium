@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,8 @@
 #include "base/check.h"
 #include "base/files/file_path.h"
 #include "base/notreached.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/file_system/async_file_util_adapter.h"
 #include "storage/browser/file_system/copy_or_move_file_validator.h"
 #include "storage/browser/file_system/dragged_file_util.h"
@@ -38,12 +38,9 @@ IsolatedFileSystemBackend::IsolatedFileSystemBackend(
     bool use_for_type_platform_app)
     : use_for_type_native_local_(use_for_type_native_local),
       use_for_type_platform_app_(use_for_type_platform_app),
-      isolated_file_util_(std::make_unique<AsyncFileUtilAdapter>(
-          std::make_unique<LocalFileUtil>())),
-      dragged_file_util_(std::make_unique<AsyncFileUtilAdapter>(
-          std::make_unique<DraggedFileUtil>())),
-      transient_file_util_(std::make_unique<AsyncFileUtilAdapter>(
-          std::make_unique<TransientFileUtil>())) {}
+      isolated_file_util_(new AsyncFileUtilAdapter(new LocalFileUtil())),
+      dragged_file_util_(new AsyncFileUtilAdapter(new DraggedFileUtil())),
+      transient_file_util_(new AsyncFileUtilAdapter(new TransientFileUtil())) {}
 
 IsolatedFileSystemBackend::~IsolatedFileSystemBackend() = default;
 
@@ -53,9 +50,9 @@ bool IsolatedFileSystemBackend::CanHandleType(FileSystemType type) const {
     case kFileSystemTypeDragged:
     case kFileSystemTypeForTransientFile:
       return true;
-    case kFileSystemTypeLocal:
+    case kFileSystemTypeNativeLocal:
       return use_for_type_native_local_;
-    case kFileSystemTypeLocalForPlatformApp:
+    case kFileSystemTypeNativeForPlatformApp:
       return use_for_type_platform_app_;
     default:
       return false;
@@ -66,9 +63,9 @@ void IsolatedFileSystemBackend::Initialize(FileSystemContext* context) {}
 
 void IsolatedFileSystemBackend::ResolveURL(const FileSystemURL& url,
                                            OpenFileSystemMode mode,
-                                           ResolveURLCallback callback) {
+                                           OpenFileSystemCallback callback) {
   // We never allow opening a new isolated FileSystem via usual ResolveURL.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), GURL(), std::string(),
                                 base::File::FILE_ERROR_SECURITY));
 }
@@ -76,7 +73,7 @@ void IsolatedFileSystemBackend::ResolveURL(const FileSystemURL& url,
 AsyncFileUtil* IsolatedFileSystemBackend::GetAsyncFileUtil(
     FileSystemType type) {
   switch (type) {
-    case kFileSystemTypeLocal:
+    case kFileSystemTypeNativeLocal:
       return isolated_file_util_.get();
     case kFileSystemTypeDragged:
       return dragged_file_util_.get();
@@ -102,8 +99,7 @@ IsolatedFileSystemBackend::GetCopyOrMoveFileValidatorFactory(
   return nullptr;
 }
 
-std::unique_ptr<FileSystemOperation>
-IsolatedFileSystemBackend::CreateFileSystemOperation(
+FileSystemOperation* IsolatedFileSystemBackend::CreateFileSystemOperation(
     const FileSystemURL& url,
     FileSystemContext* context,
     base::File::Error* error_code) const {
@@ -118,7 +114,7 @@ bool IsolatedFileSystemBackend::SupportsStreaming(
 
 bool IsolatedFileSystemBackend::HasInplaceCopyImplementation(
     FileSystemType type) const {
-  DCHECK(type == kFileSystemTypeLocal || type == kFileSystemTypeDragged ||
+  DCHECK(type == kFileSystemTypeNativeLocal || type == kFileSystemTypeDragged ||
          type == kFileSystemTypeForTransientFile);
   return false;
 }

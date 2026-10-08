@@ -1,7 +1,8 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+from .code_generator_info import CodeGeneratorInfo
 from .composition_parts import WithCodeGeneratorInfo
 from .composition_parts import WithComponent
 from .composition_parts import WithDebugInfo
@@ -12,7 +13,7 @@ from .make_copy import make_copy
 
 class Typedef(WithIdentifier, WithCodeGeneratorInfo, WithComponent,
               WithDebugInfo):
-    """https://webidl.spec.whatwg.org/#idl-typedefs"""
+    """https://heycam.github.io/webidl/#idl-typedefs"""
 
     class IR(IRMap.IR, WithCodeGeneratorInfo, WithComponent, WithDebugInfo):
         def __init__(self,

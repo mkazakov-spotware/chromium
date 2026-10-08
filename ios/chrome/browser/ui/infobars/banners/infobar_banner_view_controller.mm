@@ -1,22 +1,24 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/infobars/banners/infobar_banner_view_controller.h"
 
+#include "base/feature_list.h"
 #import "base/ios/block_types.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/time/time.h"
-#import "ios/chrome/browser/infobars/infobar_metrics_recorder.h"
-#import "ios/chrome/browser/ui/icons/symbols.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "ios/chrome/browser/infobars/infobar_metrics_recorder.h"
 #import "ios/chrome/browser/ui/infobars/banners/infobar_banner_constants.h"
+#import "ios/chrome/browser/ui/infobars/banners/infobar_banner_container.h"
 #import "ios/chrome/browser/ui/infobars/banners/infobar_banner_delegate.h"
+#import "ios/chrome/browser/ui/infobars/infobar_feature.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -32,10 +34,8 @@ const CGFloat kBannerViewShadowOpacity = 0.23;
 // Banner View selected constants.
 const CGFloat kTappedBannerViewScale = 0.98;
 const CGFloat kSelectedBannerViewScale = 1.02;
-constexpr base::TimeDelta kSelectBannerAnimationDuration =
-    base::Milliseconds(200);
-constexpr base::TimeDelta kTappedBannerAnimationDuration =
-    base::Milliseconds(50);
+const CGFloat kSelectBannerAnimationDurationInSeconds = 0.2;
+const CGFloat kTappedBannerAnimationDurationInSeconds = 0.05;
 const CGFloat kSelectedBannerViewYShadowOffset = 8.0;
 
 // Button constants.
@@ -55,7 +55,7 @@ const CGFloat kIconCornerRadius = 5.0;
 
 // Gesture constants.
 const CGFloat kChangeInPositionForDismissal = -15.0;
-constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
+const CGFloat kLongPressTimeDurationInSeconds = 0.4;
 }  // namespace
 
 @interface InfobarBannerViewController ()
@@ -68,9 +68,6 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 @property(nonatomic, copy) NSString* titleText;
 @property(nonatomic, copy) NSString* subtitleText;
 @property(nonatomic, assign) BOOL useIconBackgroundTint;
-@property(nonatomic, strong) UIColor* iconImageTintColor;
-@property(nonatomic, strong) UIColor* iconBackgroundColor;
-@property(nonatomic, assign) BOOL restrictSubtitleTextToSingleLine;
 
 // The original position of this InfobarVC view in the parent's view coordinate
 // system.
@@ -86,16 +83,16 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 @property(nonatomic, assign) BOOL shouldDismissAfterTouchesEnded;
 // UIButton which opens the modal.
 @property(nonatomic, strong) UIButton* openModalButton;
-// UIButton with title `self.buttonText`, which triggers the Infobar action.
+// UIButton with title |self.buttonText|, which triggers the Infobar action.
 @property(nonatomic, strong) UIButton* infobarButton;
-// UILabel displaying `self.titleText`.
+// UILabel displaying |self.titleText|.
 @property(nonatomic, strong) UILabel* titleLabel;
-// UILabel displaying `self.subTitleText`.
+// UILabel displaying |self.subTitleText|.
 @property(nonatomic, strong) UILabel* subTitleLabel;
 // Used to build and record metrics.
 @property(nonatomic, strong) InfobarMetricsRecorder* metricsRecorder;
-// The time in which the Banner appeared on screen.
-@property(nonatomic, assign) base::TimeTicks bannerAppearedTime;
+// The NSTimeInterval in which the Banner appeared on screen.
+@property(nonatomic, assign) NSTimeInterval bannerAppearedTime;
 // YES if the banner on screen time metric has already been recorded for this
 // banner.
 @property(nonatomic, assign) BOOL bannerOnScreenTimeWasRecorded;
@@ -103,6 +100,8 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 @end
 
 @implementation InfobarBannerViewController
+// Synthesized from InfobarBannerContained.
+@synthesize infobarBannerContainer = _infobarBannerContainer;
 // Synthesized from InfobarBannerInteractable.
 @synthesize interactionDelegate = _interactionDelegate;
 
@@ -116,7 +115,6 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
         [[InfobarMetricsRecorder alloc] initWithType:infobarType];
     _presentsModal = presentsModal;
     _useIconBackgroundTint = YES;
-    _restrictSubtitleTextToSingleLine = NO;
   }
   return self;
 }
@@ -134,10 +132,14 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   [self.view.layer setShadowOpacity:kBannerViewShadowOpacity];
   // If dark mode is set when the banner is presented, the semantic color will
   // need to be set here.
-  [self.traitCollection performAsCurrentTraitCollection:^{
-    [self.view.layer
-        setShadowColor:[UIColor colorNamed:kToolbarShadowColor].CGColor];
-  }];
+  if (@available(iOS 13, *)) {
+    [self.traitCollection performAsCurrentTraitCollection:^{
+      [self.view.layer
+          setShadowColor:[UIColor colorNamed:kToolbarShadowColor].CGColor];
+    }];
+  } else {
+    [self.view.layer setShadowColor:[UIColor blackColor].CGColor];
+  }
   self.view.accessibilityIdentifier = kInfobarBannerViewIdentifier;
   self.view.isAccessibilityElement = YES;
   self.view.accessibilityLabel = [self accessibilityLabel];
@@ -156,15 +158,12 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
         [[UIImageView alloc] initWithImage:self.iconImage];
     iconImageView.contentMode = UIViewContentModeScaleAspectFit;
     iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
-    iconImageView.tintColor = self.iconImageTintColor;
 
     UIView* backgroundIconView =
         [[UIView alloc] initWithFrame:iconImageView.frame];
     backgroundIconView.layer.cornerRadius = kIconCornerRadius;
     if (self.useIconBackgroundTint) {
-      backgroundIconView.backgroundColor =
-          self.iconBackgroundColor ? self.iconBackgroundColor
-                                   : [UIColor colorNamed:kBlueHaloColor];
+      backgroundIconView.backgroundColor = [UIColor colorNamed:kBlueHaloColor];
     }
     backgroundIconView.translatesAutoresizingMaskIntoConstraints = NO;
 
@@ -208,12 +207,8 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
       [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
   self.subTitleLabel.adjustsFontForContentSizeCategory = YES;
   self.subTitleLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
-  if (_restrictSubtitleTextToSingleLine) {
-    self.subTitleLabel.numberOfLines = 1;
-  } else {
-    self.subTitleLabel.numberOfLines = 0;
-  }
-  // If `self.subTitleText` hasn't been set or is empty, hide the label to keep
+  self.subTitleLabel.numberOfLines = 0;
+  // If |self.subTitleText| hasn't been set or is empty, hide the label to keep
   // the title label centered in the Y axis.
   self.subTitleLabel.hidden = !self.subtitleText.length;
 
@@ -238,15 +233,21 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
                forControlEvents:UIControlEventTouchUpInside];
   self.infobarButton.accessibilityIdentifier =
       kInfobarBannerAcceptButtonIdentifier;
-  self.infobarButton.pointerInteractionEnabled = YES;
-  self.infobarButton.pointerStyleProvider =
-      ^UIPointerStyle*(UIButton* button, UIPointerEffect* proposedEffect,
-                       UIPointerShape* proposedShape) {
-    UIPointerShape* shape =
-        [UIPointerShape shapeWithRoundedRect:button.frame
-                                cornerRadius:kBannerViewCornerRadius];
-    return [UIPointerStyle styleWithEffect:proposedEffect shape:shape];
-  };
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      self.infobarButton.pointerInteractionEnabled = YES;
+      self.infobarButton.pointerStyleProvider =
+          ^UIPointerStyle*(UIButton* button, UIPointerEffect* proposedEffect,
+                           UIPointerShape* proposedShape) {
+        UIPointerShape* shape =
+            [UIPointerShape shapeWithRoundedRect:button.frame
+                                    cornerRadius:kBannerViewCornerRadius];
+        return [UIPointerStyle styleWithEffect:proposedEffect shape:shape];
+      };
+    }
+  }
+#endif  // defined(__IPHONE_13_4)
 
   UIView* buttonSeparator = [[UIView alloc] init];
   buttonSeparator.translatesAutoresizingMaskIntoConstraints = NO;
@@ -263,13 +264,8 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   [containerStack addArrangedSubview:labelsStackView];
     // Open Modal Button setup.
   self.openModalButton = [UIButton buttonWithType:UIButtonTypeSystem];
-  UIImage* gearImage = UseSymbols()
-                           ? DefaultSymbolWithPointSize(kSettingsFilledSymbol,
-                                                        kInfobarSymbolPointSize)
-                           : [UIImage imageNamed:@"infobar_settings_icon"];
-  gearImage =
-      [gearImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-
+  UIImage* gearImage = [[UIImage imageNamed:@"infobar_settings_icon"]
+      imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   [self.openModalButton setImage:gearImage forState:UIControlStateNormal];
   self.openModalButton.tintColor = [UIColor colorNamed:kTextSecondaryColor];
   [self.openModalButton addTarget:self
@@ -286,9 +282,15 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   [containerStack addArrangedSubview:self.openModalButton];
   // Hide open modal button if user shouldn't be allowed to open the modal.
   self.openModalButton.hidden = !self.presentsModal;
-  self.openModalButton.pointerInteractionEnabled = YES;
-  self.openModalButton.pointerStyleProvider =
-      CreateDefaultEffectCirclePointerStyleProvider();
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      self.openModalButton.pointerInteractionEnabled = YES;
+      self.openModalButton.pointerStyleProvider =
+          CreateDefaultEffectCirclePointerStyleProvider();
+    }
+  }
+#endif  // defined(__IPHONE_13_4)
 
   // Add accept button.
   [containerStack addArrangedSubview:self.infobarButton];
@@ -345,14 +347,20 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
       [[UILongPressGestureRecognizer alloc] init];
   [longPressGestureRecognizer addTarget:self action:@selector(handleGestures:)];
   longPressGestureRecognizer.minimumPressDuration =
-      kLongPressTimeDuration.InSecondsF();
+      kLongPressTimeDurationInSeconds;
   [self.view addGestureRecognizer:longPressGestureRecognizer];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
   [self.metricsRecorder recordBannerEvent:MobileMessagesBannerEvent::Presented];
-  self.bannerAppearedTime = base::TimeTicks::Now();
+  self.bannerAppearedTime = [NSDate timeIntervalSinceReferenceDate];
+  // Once the Banner animation has completed check if the banner container
+  // should still present banners.
+  if ([self.infobarBannerContainer shouldDismissBanner]) {
+    [self.presentingViewController dismissViewControllerAnimated:NO
+                                                      completion:nil];
+  }
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -369,6 +377,8 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   // this banner was dismissed in case it needs to present a queued one.
   if (self.delegate) {
     [self.delegate infobarBannerWasDismissed];
+  } else {
+    [self.infobarBannerContainer infobarBannerFinishedPresenting];
   }
   [super viewDidDisappear:animated];
 }
@@ -377,11 +387,13 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 // presented.
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
   [super traitCollectionDidChange:previousTraitCollection];
-  if ([self.traitCollection
-          hasDifferentColorAppearanceComparedToTraitCollection:
-              previousTraitCollection]) {
-    [self.view.layer
-        setShadowColor:[UIColor colorNamed:kToolbarShadowColor].CGColor];
+  if (@available(iOS 13, *)) {
+    if ([self.traitCollection
+            hasDifferentColorAppearanceComparedToTraitCollection:
+                previousTraitCollection]) {
+      [self.view.layer
+          setShadowColor:[UIColor colorNamed:kToolbarShadowColor].CGColor];
+    }
   }
 }
 
@@ -406,7 +418,6 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 - (void)setSubtitleText:(NSString*)subtitleText {
   _subtitleText = subtitleText;
   self.subTitleLabel.text = _subtitleText;
-  self.subTitleLabel.hidden = !self.subtitleText.length;
 }
 
 - (void)setButtonText:(NSString*)buttonText {
@@ -423,21 +434,17 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   self.view.accessibilityCustomActions = [self accessibilityActions];
 }
 
-- (void)setIconImageTintColor:(UIColor*)iconImageTintColor {
-  _iconImageTintColor = iconImageTintColor;
+- (void)setInfobarBannerContainer:
+    (id<InfobarBannerContainer>)infobarBannerContainer {
+  _infobarBannerContainer = infobarBannerContainer;
+  // infobarBannerContainer should only be set when the banner by the
+  // InfobarContainerCoordinator and not Overlays. Once we migrate to Overlays
+  // InfobarBannerContainer shouldn't be necessary.
+  DCHECK(!IsInfobarOverlayUIEnabled());
 }
 
 - (void)setUseIconBackgroundTint:(BOOL)useIconBackgroundTint {
   _useIconBackgroundTint = useIconBackgroundTint;
-}
-
-- (void)setIconBackgroundColor:(UIColor*)iconBackgroundColor {
-  _iconBackgroundColor = iconBackgroundColor;
-}
-
-- (void)setRestrictSubtitleTextToSingleLine:
-    (BOOL)restrictSubtitleTextToSingleLine {
-  _restrictSubtitleTextToSingleLine = restrictSubtitleTextToSingleLine;
 }
 
 #pragma mark - Private Methods
@@ -468,11 +475,11 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   }
 
   if (gesture.state == UIGestureRecognizerStateEnded) {
-    [self
-        animateBannerToOriginalStateWithDuration:kSelectBannerAnimationDuration
-                                      completion:nil];
+    [self animateBannerToOriginalStateWithDuration:
+              kSelectBannerAnimationDurationInSeconds
+                                        completion:nil];
     // If dragged up by more than kChangeInPositionForDismissal at the time
-    // the gesture ended, OR `self.shouldDismissAfterTouchesEnded` is YES.
+    // the gesture ended, OR |self.shouldDismissAfterTouchesEnded| is YES.
     // Dismiss the banner.
     BOOL dragUpExceededThreshold = (self.view.center.y - self.originalCenter.y -
                                         kChangeInPositionForDismissal <
@@ -502,7 +509,7 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 
 // Animate the Banner being selected by scaling it up.
 - (void)animateBannerToScaleUpState {
-  [UIView animateWithDuration:kSelectBannerAnimationDuration.InSecondsF()
+  [UIView animateWithDuration:kSelectBannerAnimationDurationInSeconds
                    animations:^{
                      self.view.superview.transform = CGAffineTransformMakeScale(
                          kSelectedBannerViewScale, kSelectedBannerViewScale);
@@ -515,9 +522,9 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 }
 
 // Animate the Banner back to its original size and styling.
-- (void)animateBannerToOriginalStateWithDuration:(base::TimeDelta)duration
+- (void)animateBannerToOriginalStateWithDuration:(NSTimeInterval)duration
                                       completion:(ProceduralBlock)completion {
-  [UIView animateWithDuration:duration.InSecondsF()
+  [UIView animateWithDuration:duration
       animations:^{
         self.view.superview.transform = CGAffineTransformIdentity;
         [self.view.layer
@@ -531,7 +538,7 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 
 // Animate the banner back to its original position.
 - (void)animateBannerToOriginalPosition {
-  [UIView animateWithDuration:kSelectBannerAnimationDuration.InSecondsF()
+  [UIView animateWithDuration:kSelectBannerAnimationDurationInSeconds
                    animations:^{
                      self.view.center = self.originalCenter;
                    }
@@ -546,7 +553,7 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
   // TODO(crbug.com/961343): Interrupt this animation in case the Banner needs
   // to be dismissed mid tap (Currently it will be dismmissed after the
   // animation).
-  [UIView animateWithDuration:kTappedBannerAnimationDuration.InSecondsF()
+  [UIView animateWithDuration:kTappedBannerAnimationDurationInSeconds
       animations:^{
         self.view.superview.transform = CGAffineTransformMakeScale(
             kTappedBannerViewScale, kTappedBannerViewScale);
@@ -556,7 +563,7 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
       completion:^(BOOL finished) {
         [self
             animateBannerToOriginalStateWithDuration:
-                kTappedBannerAnimationDuration
+                kTappedBannerAnimationDurationInSeconds
                                           completion:^{
                                             [self presentInfobarModalAfterTap];
                                           }];
@@ -578,8 +585,8 @@ constexpr base::TimeDelta kLongPressTimeDuration = base::Milliseconds(400);
 // doesn't call viewWillDissapear.
 - (void)recordBannerOnScreenTime {
   if (!self.bannerOnScreenTimeWasRecorded) {
-    const base::TimeDelta duration =
-        base::TimeTicks::Now() - self.bannerAppearedTime;
+    double duration =
+        [NSDate timeIntervalSinceReferenceDate] - self.bannerAppearedTime;
     [self.metricsRecorder recordBannerOnScreenDuration:duration];
     self.bannerOnScreenTimeWasRecorded = YES;
   }

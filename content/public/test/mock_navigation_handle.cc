@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,11 +26,7 @@ MockNavigationHandle::MockNavigationHandle(const GURL& url,
     : navigation_id_(++g_mock_handle_id),
       url_(url),
       web_contents_(WebContents::FromRenderFrameHost(render_frame_host)),
-      render_frame_host_(render_frame_host),
-      is_in_primary_main_frame_(render_frame_host_
-                                    ? render_frame_host_->IsInPrimaryMainFrame()
-                                    : true) {
-  redirect_chain_.push_back(url);
+      render_frame_host_(render_frame_host) {
   proxy_server_ = net::ProxyServer::Direct();
 }
 

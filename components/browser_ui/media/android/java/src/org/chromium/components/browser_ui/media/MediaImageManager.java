@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.components.browser_ui.media;
 
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -13,7 +14,6 @@ import org.chromium.base.FileUtils;
 import org.chromium.content_public.browser.ImageDownloadCallback;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.services.media_session.MediaImage;
-import org.chromium.url.GURL;
 
 import java.util.Iterator;
 import java.util.List;
@@ -73,7 +73,7 @@ public class MediaImageManager implements ImageDownloadCallback {
     // multiple times but the same src is chosen.
     //
     // Will be reset when initiating a new download request.
-    private GURL mLastImageSrc;
+    private String mLastImageSrc;
 
     /**
      * MediaImageManager constructor.
@@ -113,7 +113,7 @@ public class MediaImageManager implements ImageDownloadCallback {
         }
 
         // Avoid fetching the same image twice.
-        if (image.getSrc().equals(mLastImageSrc)) return;
+        if (TextUtils.equals(image.getSrc(), mLastImageSrc)) return;
         mLastImageSrc = image.getSrc();
 
         // Limit |maxBitmapSize| to |MAX_BITMAP_SIZE_FOR_DOWNLOAD| to avoid passing huge bitmaps
@@ -133,7 +133,7 @@ public class MediaImageManager implements ImageDownloadCallback {
      * corresponding to a previous request, it will be ignored.
      */
     @Override
-    public void onFinishDownloadImage(int id, int httpStatusCode, GURL imageUrl,
+    public void onFinishDownloadImage(int id, int httpStatusCode, String imageUrl,
             List<Bitmap> bitmaps, List<Rect> originalImageSizes) {
         if (id != mRequestId) return;
 
@@ -215,8 +215,8 @@ public class MediaImageManager implements ImageDownloadCallback {
         return shortEdge / longEdge;
     }
 
-    private double getImageTypeScore(GURL url, String type) {
-        String extension = FileUtils.getExtension(url.getSpec());
+    private double getImageTypeScore(String url, String type) {
+        String extension = FileUtils.getExtension(url);
 
         if ("bmp".equals(extension) || "image/bmp".equals(type)) {
             return TYPE_SCORE_BMP;

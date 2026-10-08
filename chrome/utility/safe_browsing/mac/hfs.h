@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <stdint.h>
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 
 namespace safe_browsing {
 namespace dmg {
@@ -39,10 +39,6 @@ class HFSIterator {
  public:
   // Constructs an iterator from a stream.
   explicit HFSIterator(ReadStream* stream);
-
-  HFSIterator(const HFSIterator&) = delete;
-  HFSIterator& operator=(const HFSIterator&) = delete;
-
   ~HFSIterator();
 
   // Opens the filesystem and initializes the iterator. The iterator is
@@ -69,7 +65,7 @@ class HFSIterator {
   bool IsDecmpfsCompressed();
 
   // Returns the full filesystem path of the current iterator item.
-  std::u16string GetPath();
+  base::string16 GetPath();
 
   // Returns a stream for the data fork of the current iterator item. This may
   // only be called if IsDirectory() and IsHardLink() returns false.
@@ -87,12 +83,14 @@ class HFSIterator {
   uint32_t block_size() const { return volume_header_.blockSize; }
   ReadStream* stream() const { return stream_; }
 
-  const raw_ptr<ReadStream> stream_;  // The stream backing the filesystem.
+  ReadStream* const stream_;  // The stream backing the filesystem.
   HFSPlusVolumeHeader volume_header_;
   std::unique_ptr<HFSForkReadStream>
       catalog_file_;  // Data of the catalog file.
   std::unique_ptr<HFSBTreeIterator>
       catalog_;  // Iterator over the catalog file.
+
+  DISALLOW_COPY_AND_ASSIGN(HFSIterator);
 };
 
 }  // namespace dmg

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,24 +38,24 @@ namespace extensions {
 // permission message, registerable as a callback.
 class PermissionMessage {
  public:
-  PermissionMessage(const std::u16string& message,
+  PermissionMessage(const base::string16& message,
                     const PermissionIDSet& permissions);
-  PermissionMessage(const std::u16string& message,
+  PermissionMessage(const base::string16& message,
                     const PermissionIDSet& permissions,
-                    const std::vector<std::u16string>& submessages);
+                    const std::vector<base::string16>& submessages);
   PermissionMessage(const PermissionMessage& other);
   virtual ~PermissionMessage();
 
-  const std::u16string& message() const { return message_; }
+  const base::string16& message() const { return message_; }
   const PermissionIDSet& permissions() const { return permissions_; }
-  const std::vector<std::u16string>& submessages() const {
+  const std::vector<base::string16>& submessages() const {
     return submessages_;
   }
 
  private:
-  const std::u16string message_;
+  const base::string16 message_;
   const PermissionIDSet permissions_;
-  const std::vector<std::u16string> submessages_;
+  const std::vector<base::string16> submessages_;
 };
 
 using PermissionMessages = std::vector<PermissionMessage>;

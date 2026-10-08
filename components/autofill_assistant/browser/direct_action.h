@@ -1,14 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_DIRECT_ACTION_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_DIRECT_ACTION_H_
 
+#include <set>
 #include <string>
 #include <vector>
-
-#include "base/containers/flat_set.h"
 
 namespace autofill_assistant {
 
@@ -29,7 +28,7 @@ struct DirectAction {
   bool empty() const { return names.empty(); }
 
   // Names of the direct action under which this action is available. Optional.
-  base::flat_set<std::string> names;
+  std::set<std::string> names;
 
   // Arguments that must be set to run the direct action.
   std::vector<std::string> required_arguments;

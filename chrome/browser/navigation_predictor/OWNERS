@@ -1,1 +1,3 @@
-file://chrome/browser/data_saver/OWNERS
+file://components/data_reduction_proxy/OWNERS
+
+# COMPONENT: Blink>Loader

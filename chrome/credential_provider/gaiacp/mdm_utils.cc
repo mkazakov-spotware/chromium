@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "base/files/file_path.h"
 #include "base/json/json_writer.h"
 #include "base/scoped_native_library.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/win_util.h"
@@ -92,7 +93,7 @@ T GetMdmFunctionPointer(const base::ScopedNativeLibrary& library,
 #define GET_MDM_FUNCTION_POINTER(library, name) \
   GetMdmFunctionPointer<decltype(&::name)>(library, #name)
 
-bool IsEnrolledWithGoogleMdm(const std::wstring& mdm_url) {
+bool IsEnrolledWithGoogleMdm(const base::string16& mdm_url) {
   switch (g_enrolled_status) {
     case EnrolledStatus::kForceTrue:
       return true;
@@ -131,8 +132,7 @@ bool IsEnrolledWithGoogleMdm(const std::wstring& mdm_url) {
       DeviceRegistrationBasicInfo, reinterpret_cast<void**>(&info));
 
   bool is_enrolled = SUCCEEDED(hr) && info->fDeviceRegisteredWithManagement &&
-                     GURL(base::AsStringPiece16(mdm_url)) ==
-                         GURL(base::AsStringPiece16(info->pszMDMServiceUri));
+                     GURL(mdm_url) == GURL(info->pszMDMServiceUri);
 
   if (SUCCEEDED(hr))
     ::HeapFree(::GetProcessHeap(), 0, info);
@@ -140,13 +140,13 @@ bool IsEnrolledWithGoogleMdm(const std::wstring& mdm_url) {
 }
 
 HRESULT ExtractRegistrationData(const base::Value& registration_data,
-                                std::wstring* out_email,
-                                std::wstring* out_id_token,
-                                std::wstring* out_access_token,
-                                std::wstring* out_sid,
-                                std::wstring* out_username,
-                                std::wstring* out_domain,
-                                std::wstring* out_is_ad_user_joined) {
+                                base::string16* out_email,
+                                base::string16* out_id_token,
+                                base::string16* out_access_token,
+                                base::string16* out_sid,
+                                base::string16* out_username,
+                                base::string16* out_domain,
+                                base::string16* out_is_ad_user_joined) {
   DCHECK(out_email);
   DCHECK(out_id_token);
   DCHECK(out_access_token);
@@ -205,16 +205,16 @@ HRESULT ExtractRegistrationData(const base::Value& registration_data,
   return S_OK;
 }
 
-HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
+HRESULT RegisterWithGoogleDeviceManagement(const base::string16& mdm_url,
                                            const base::Value& properties) {
   // Make sure all the needed data is present in the dictionary.
-  std::wstring email;
-  std::wstring id_token;
-  std::wstring access_token;
-  std::wstring sid;
-  std::wstring username;
-  std::wstring domain;
-  std::wstring is_ad_joined_user;
+  base::string16 email;
+  base::string16 id_token;
+  base::string16 access_token;
+  base::string16 sid;
+  base::string16 username;
+  base::string16 domain;
+  base::string16 is_ad_joined_user;
 
   HRESULT hr =
       ExtractRegistrationData(properties, &email, &id_token, &access_token,
@@ -226,10 +226,10 @@ HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
   }
 
   LOGFN(INFO) << "MDM_URL=" << mdm_url
-              << " token=" << std::wstring(id_token.c_str(), 10);
+              << " token=" << base::string16(id_token.c_str(), 10);
 
   // Add the serial number to the registration data dictionary.
-  std::wstring serial_number = GetSerialNumber();
+  base::string16 serial_number = GetSerialNumber();
 
   if (serial_number.empty()) {
     LOGFN(ERROR) << "Failed to get serial number.";
@@ -237,7 +237,7 @@ HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
   }
 
   // Add machine_guid to the registration data dictionary.
-  std::wstring machine_guid;
+  base::string16 machine_guid;
   hr = GetMachineGuid(&machine_guid);
 
   if (FAILED(hr) || machine_guid.empty()) {
@@ -247,14 +247,14 @@ HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
 
   // Need localized local user group name for Administrators group
   // for supporting account elevation scenarios.
-  std::wstring local_administrators_group_name;
+  base::string16 local_administrators_group_name;
   hr = LookupLocalizedNameForWellKnownSid(WinBuiltinAdministratorsSid,
                                           &local_administrators_group_name);
   if (FAILED(hr)) {
     LOGFN(WARNING) << "Failed to fetch name for administrators group";
   }
 
-  std::wstring builtin_administrator_name;
+  base::string16 builtin_administrator_name;
   hr = GetLocalizedNameBuiltinAdministratorAccount(&builtin_administrator_name);
   if (FAILED(hr)) {
     LOGFN(WARNING) << "Failed to fetch name for builtin administrator account";
@@ -262,30 +262,24 @@ HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
 
   // Build the json data needed by the server.
   base::Value registration_data(base::Value::Type::DICTIONARY);
-  registration_data.SetStringKey("id_token", base::WideToUTF8(id_token));
-  registration_data.SetStringKey("access_token",
-                                 base::WideToUTF8(access_token));
-  registration_data.SetStringKey("sid", base::WideToUTF8(sid));
-  registration_data.SetStringKey("username", base::WideToUTF8(username));
-  registration_data.SetStringKey("domain", base::WideToUTF8(domain));
-  registration_data.SetStringKey("serial_number",
-                                 base::WideToUTF8(serial_number));
-  registration_data.SetStringKey("machine_guid",
-                                 base::WideToUTF8(machine_guid));
-  registration_data.SetStringKey(
-      "admin_local_user_group_name",
-      base::WideToUTF8(local_administrators_group_name));
+  registration_data.SetStringKey("id_token", id_token);
+  registration_data.SetStringKey("access_token", access_token);
+  registration_data.SetStringKey("sid", sid);
+  registration_data.SetStringKey("username", username);
+  registration_data.SetStringKey("domain", domain);
+  registration_data.SetStringKey("serial_number", serial_number);
+  registration_data.SetStringKey("machine_guid", machine_guid);
+  registration_data.SetStringKey("admin_local_user_group_name",
+                                 local_administrators_group_name);
   registration_data.SetStringKey("builtin_administrator_name",
-                                 base::WideToUTF8(builtin_administrator_name));
-  registration_data.SetStringKey(kKeyIsAdJoinedUser,
-                                 base::WideToUTF8(is_ad_joined_user));
+                                 builtin_administrator_name);
+  registration_data.SetStringKey(kKeyIsAdJoinedUser, is_ad_joined_user);
 
   // Send device resource ID if available as part of the enrollment payload.
   // Enrollment backend should not assume that this will always be available.
-  std::wstring user_device_resource_id = GetUserDeviceResourceId(sid);
+  base::string16 user_device_resource_id = GetUserDeviceResourceId(sid);
   if (!user_device_resource_id.empty()) {
-    registration_data.SetStringKey("resource_id",
-                                   base::WideToUTF8(user_device_resource_id));
+    registration_data.SetStringKey("resource_id", user_device_resource_id);
   }
 
   std::string registration_data_str;
@@ -321,7 +315,7 @@ HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
       email.c_str(), mdm_url.c_str(), base::UTF8ToWide(data_encoded).c_str());
 }
 
-bool IsUserAllowedToEnrollWithMdm(const std::wstring& sid) {
+bool IsUserAllowedToEnrollWithMdm(const base::string16& sid) {
   UserPolicies policies;
   UserPoliciesManager::Get()->GetUserPolicies(sid, &policies);
   return policies.enable_dm_enrollment;
@@ -329,17 +323,17 @@ bool IsUserAllowedToEnrollWithMdm(const std::wstring& sid) {
 
 }  // namespace
 
-bool NeedsToEnrollWithMdm(const std::wstring& sid) {
+bool NeedsToEnrollWithMdm(const base::string16& sid) {
   if (UserPoliciesManager::Get()->CloudPoliciesEnabled()) {
     if (!IsUserAllowedToEnrollWithMdm(sid))
       return false;
   }
 
-  std::wstring mdm_url = GetMdmUrl();
+  base::string16 mdm_url = GetMdmUrl();
   return !mdm_url.empty() && !IsEnrolledWithGoogleMdm(mdm_url);
 }
 
-bool UploadDeviceDetailsNeeded(const std::wstring& sid) {
+bool UploadDeviceDetailsNeeded(const base::string16& sid) {
   switch (g_device_details_upload_needed) {
     case DeviceDetailsUploadNeeded::kForceTrue:
       return true;
@@ -354,7 +348,7 @@ bool UploadDeviceDetailsNeeded(const std::wstring& sid) {
 
   // GCPW token is required for ESA to communicate with the GEM backends. So
   // enforce upload if this token is missing.
-  std::wstring gcpw_token;
+  base::string16 gcpw_token;
   HRESULT hr = GetGCPWDmToken(sid, &gcpw_token);
   bool gcpw_token_upload_required = false;
   if (UserPoliciesManager::Get()->CloudPoliciesEnabled() && FAILED(hr)) {
@@ -383,12 +377,12 @@ bool MdmEnrollmentEnabled() {
     return policies.enable_dm_enrollment;
   }
 
-  std::wstring mdm_url = GetMdmUrl();
+  base::string16 mdm_url = GetMdmUrl();
   return !mdm_url.empty();
 }
 
-std::wstring GetMdmUrl() {
-  std::wstring enrollment_url = L"";
+base::string16 GetMdmUrl() {
+  base::string16 enrollment_url = L"";
 
   if (UserPoliciesManager::Get()->CloudPoliciesEnabled()) {
     enrollment_url = GetGlobalFlagOrDefault(kRegMdmUrl, kDefaultMdmUrl);
@@ -404,7 +398,7 @@ std::wstring GetMdmUrl() {
     }
   }
 
-  std::wstring dev = GetGlobalFlagOrDefault(kRegDeveloperMode, L"");
+  base::string16 dev = GetGlobalFlagOrDefault(kRegDeveloperMode, L"");
   if (!dev.empty())
     enrollment_url = GetDevelopmentUrl(enrollment_url, dev);
 
@@ -417,14 +411,13 @@ GURL EscrowServiceUrl() {
   if (disable_password_sync)
     return GURL();
 
-  std::wstring dev = GetGlobalFlagOrDefault(kRegDeveloperMode, L"");
+  base::string16 dev = GetGlobalFlagOrDefault(kRegDeveloperMode, L"");
 
   if (!dev.empty())
-    return GURL(base::AsStringPiece16(
-        GetDevelopmentUrl(kDefaultEscrowServiceServerUrl, dev)));
+    return GURL(GetDevelopmentUrl(kDefaultEscrowServiceServerUrl, dev));
 
   // By default, the password recovery feature should be enabled.
-  return GURL(base::WideToUTF8(kDefaultEscrowServiceServerUrl));
+  return GURL(base::UTF16ToUTF8(kDefaultEscrowServiceServerUrl));
 }
 
 bool PasswordRecoveryEnabled() {
@@ -436,7 +429,7 @@ bool IsGemEnabled() {
   return GetGlobalFlagOrDefault(kKeyEnableGemFeatures, 1);
 }
 
-bool IsOnlineLoginEnforced(const std::wstring& sid) {
+bool IsOnlineLoginEnforced(const base::string16& sid) {
   DWORD global_flag = GetGlobalFlagOrDefault(kRegMdmEnforceOnlineLogin, 0);
 
   // Return true if global flag is set. If it is not set check for
@@ -464,13 +457,13 @@ HRESULT EnrollToGoogleMdmIfNeeded(const base::Value& properties) {
   LOGFN(VERBOSE);
 
   if (UserPoliciesManager::Get()->CloudPoliciesEnabled()) {
-    std::wstring sid = GetDictString(properties, kKeySID);
+    base::string16 sid = GetDictString(properties, kKeySID);
     if (!IsUserAllowedToEnrollWithMdm(sid))
       return S_OK;
   }
 
   // Only enroll with MDM if configured.
-  std::wstring mdm_url = GetMdmUrl();
+  base::string16 mdm_url = GetMdmUrl();
   if (mdm_url.empty())
     return S_OK;
 
@@ -487,12 +480,7 @@ HRESULT EnrollToGoogleMdmIfNeeded(const base::Value& properties) {
   return hr;
 }
 
-bool IsEnrolledWithGoogleMdm() {
-  std::wstring mdm_url = GetMdmUrl();
-  return !mdm_url.empty() && IsEnrolledWithGoogleMdm(mdm_url);
-}
-
-std::wstring GetUserPasswordLsaStoreKey(const std::wstring& sid) {
+base::string16 GetUserPasswordLsaStoreKey(const base::string16& sid) {
   DCHECK(sid.size());
 
   return kUserPasswordLsaStoreKeyPrefix + sid;

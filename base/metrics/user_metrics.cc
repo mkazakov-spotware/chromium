@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "base/bind.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "base/trace_event/base_tracing.h"
@@ -69,9 +69,12 @@ void RemoveActionCallback(const ActionCallback& callback) {
   DCHECK(g_task_runner.Get());
   DCHECK(g_task_runner.Get()->BelongsToCurrentThread());
   std::vector<ActionCallback>* callbacks = g_callbacks.Pointer();
-  const auto i = ranges::find(*callbacks, callback);
-  if (i != callbacks->end())
-    callbacks->erase(i);
+  for (size_t i = 0; i < callbacks->size(); ++i) {
+    if ((*callbacks)[i] == callback) {
+      callbacks->erase(callbacks->begin() + i);
+      return;
+    }
+  }
 }
 
 void SetRecordActionTaskRunner(

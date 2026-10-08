@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/guest_view/browser/guest_view.h"
-#include "content/public/browser/global_routing_id.h"
 #include "extensions/common/api/mime_handler.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -34,10 +34,6 @@ class StreamContainer {
                   const std::string& extension_id,
                   blink::mojom::TransferrableURLLoaderPtr transferrable_loader,
                   const GURL& original_url);
-
-  StreamContainer(const StreamContainer&) = delete;
-  StreamContainer& operator=(const StreamContainer&) = delete;
-
   ~StreamContainer();
 
   base::WeakPtr<StreamContainer> GetWeakPtr();
@@ -56,14 +52,6 @@ class StreamContainer {
     return response_headers_.get();
   }
 
-  const mime_handler::PdfPluginAttributesPtr& pdf_plugin_attributes() const {
-    return pdf_plugin_attributes_;
-  }
-  void set_pdf_plugin_attributes(
-      mime_handler::PdfPluginAttributesPtr pdf_plugin_attributes) {
-    pdf_plugin_attributes_ = std::move(pdf_plugin_attributes);
-  }
-
  private:
   const bool embedded_;
   const int tab_id_;
@@ -75,30 +63,27 @@ class StreamContainer {
   GURL original_url_;
   GURL stream_url_;
   scoped_refptr<net::HttpResponseHeaders> response_headers_;
-  mime_handler::PdfPluginAttributesPtr pdf_plugin_attributes_;
 
   base::WeakPtrFactory<StreamContainer> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(StreamContainer);
 };
 
 class MimeHandlerViewGuest
     : public guest_view::GuestView<MimeHandlerViewGuest> {
  public:
-  ~MimeHandlerViewGuest() override;
-  MimeHandlerViewGuest(const MimeHandlerViewGuest&) = delete;
-  MimeHandlerViewGuest& operator=(const MimeHandlerViewGuest&) = delete;
-
-  static std::unique_ptr<GuestViewBase> Create(
+  static guest_view::GuestViewBase* Create(
       content::WebContents* owner_web_contents);
 
   static const char Type[];
 
   // GuestViewBase overrides.
-  bool CanBeEmbeddedInsideCrossProcessFrames() const override;
+  bool CanBeEmbeddedInsideCrossProcessFrames() override;
   content::RenderWidgetHost* GetOwnerRenderWidgetHost() override;
   content::SiteInstance* GetOwnerSiteInstance() override;
 
   content::RenderFrameHost* GetEmbedderFrame();
-  void SetEmbedderFrame(content::GlobalRenderFrameHostId frame_id);
+  void SetEmbedderFrame(int process_id, int routing_id);
 
   void SetBeforeUnloadController(
       mojo::PendingRemote<mime_handler::BeforeUnloadControl>
@@ -129,6 +114,7 @@ class MimeHandlerViewGuest
 
  protected:
   explicit MimeHandlerViewGuest(content::WebContents* owner_web_contents);
+  ~MimeHandlerViewGuest() override;
 
  private:
   friend class TestMimeHandlerViewGuest;
@@ -136,13 +122,13 @@ class MimeHandlerViewGuest
   // GuestViewBase implementation.
   const char* GetAPINamespace() const final;
   int GetTaskPrefix() const final;
-  void CreateWebContents(std::unique_ptr<GuestViewBase> owned_this,
-                         const base::Value::Dict& create_params,
+  void CreateWebContents(const base::DictionaryValue& create_params,
                          WebContentsCreatedCallback callback) override;
   void DidAttachToEmbedder() override;
-  void DidInitialize(const base::Value::Dict& create_params) final;
+  void DidInitialize(const base::DictionaryValue& create_params) final;
   void EmbedderFullscreenToggled(bool entered_fullscreen) final;
   bool ZoomPropagatesFromEmbedderToGuest() const final;
+  bool ShouldDestroyOnDetach() const final;
 
   // WebContentsDelegate implementation.
   content::WebContents* OpenURLFromTab(
@@ -150,16 +136,15 @@ class MimeHandlerViewGuest
       const content::OpenURLParams& params) final;
   void NavigationStateChanged(content::WebContents* source,
                               content::InvalidateTypes changed_flags) final;
-  bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
+  bool HandleContextMenu(content::RenderFrameHost* render_frame_host,
                          const content::ContextMenuParams& params) final;
   bool PreHandleGestureEvent(content::WebContents* source,
                              const blink::WebGestureEvent& event) final;
   content::JavaScriptDialogManager* GetJavaScriptDialogManager(
       content::WebContents* source) final;
   bool GuestSaveFrame(content::WebContents* guest_web_contents) final;
-  bool SaveFrame(const GURL& url,
-                 const content::Referrer& referrer,
-                 content::RenderFrameHost* rfh) final;
+  bool SaveFrame(const GURL& url, const content::Referrer& referrer) final;
+  void OnRenderFrameHostDeleted(int process_id, int routing_id) final;
   void EnterFullscreenModeForTab(
       content::RenderFrameHost* requesting_frame,
       const blink::mojom::FullscreenOptions& options) override;
@@ -179,7 +164,7 @@ class MimeHandlerViewGuest
       const GURL& opener_url,
       const std::string& frame_name,
       const GURL& target_url,
-      const content::StoragePartitionConfig& partition_config,
+      const std::string& partition_id,
       content::SessionStorageNamespace* session_storage_namespace) override;
 
   // Updates the fullscreen state for the guest. Returns whether the change
@@ -187,17 +172,16 @@ class MimeHandlerViewGuest
   bool SetFullscreenState(bool is_fullscreen);
 
   // content::WebContentsObserver implementation.
-  void DocumentOnLoadCompletedInPrimaryMainFrame() final;
+  void DocumentOnLoadCompletedInMainFrame() final;
   void ReadyToCommitNavigation(
       content::NavigationHandle* navigation_handle) final;
-  void DidFinishNavigation(content::NavigationHandle* navigation_handle) final;
 
   std::unique_ptr<MimeHandlerViewGuestDelegate> delegate_;
   std::unique_ptr<StreamContainer> stream_;
 
-  content::GlobalRenderFrameHostId embedder_frame_id_{
-      content::ChildProcessHost::kInvalidUniqueID, MSG_ROUTING_NONE};
-  int embedder_widget_routing_id_ = MSG_ROUTING_NONE;
+  int embedder_frame_process_id_;
+  int embedder_frame_routing_id_;
+  int embedder_widget_routing_id_;
 
   bool is_guest_fullscreen_ = false;
   bool is_embedder_fullscreen_ = false;
@@ -212,6 +196,8 @@ class MimeHandlerViewGuest
       pending_before_unload_control_;
 
   base::WeakPtrFactory<MimeHandlerViewGuest> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MimeHandlerViewGuest);
 };
 
 }  // namespace extensions

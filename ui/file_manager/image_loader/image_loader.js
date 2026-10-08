@@ -1,20 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-
-import {ImageCache} from './cache.js';
-import {ImageOrientation} from './image_orientation.js';
-import {ImageRequestTask} from './image_request_task.js';
-import {LoadImageRequest, LoadImageResponse} from './load_image_request.js';
-import {Scheduler} from './scheduler.js';
 
 /**
  * Loads and resizes an image.
  * @constructor
  */
-export function ImageLoader() {
+function ImageLoader() {
   /**
    * Persistent cache object.
    * @type {ImageCache}
@@ -70,7 +62,8 @@ export function ImageLoader() {
   });
 
   chrome.runtime['onConnectNative'].addListener((port) => {
-    if (port.sender.nativeApplication != 'com.google.ash_thumbnail_loader') {
+    if (port.sender.nativeApplication !=
+        'com.google.holding_space_thumbnail_loader') {
       port.disconnect();
       return;
     }
@@ -90,6 +83,7 @@ export function ImageLoader() {
   });
 }
 
+
 /**
  * List of extensions allowed to perform image requests.
  *
@@ -97,7 +91,9 @@ export function ImageLoader() {
  * @type {Array<string>}
  */
 ImageLoader.ALLOWED_CLIENT_ORIGINS = [
-  'chrome://file-manager',  // File Manager SWA
+  'chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj',  // File Manager
+  'chrome-extension://nlkncpkkdoccmpiclbokaimcnedabhhm',  // Gallery
+  'chrome-extension://jcgeabjmjgoblfofpppfkcoakmfobdko',  // Video Player
 ];
 
 /**

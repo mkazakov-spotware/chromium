@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 #include <algorithm>
 
 #include "base/i18n/string_search.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "components/drive/drive_api_util.h"
 #include "components/drive/file_system_core_util.h"
+#include "net/base/escape.h"
 
 namespace drive {
 namespace internal {
@@ -20,7 +20,7 @@ namespace internal {
 namespace {
 
 // Appends substring of |original_text| to |highlighted_text| with highlight.
-void AppendStringWithHighlight(const std::u16string& original_text,
+void AppendStringWithHighlight(const base::string16& original_text,
                                size_t start,
                                size_t length,
                                bool highlight,
@@ -28,7 +28,7 @@ void AppendStringWithHighlight(const std::u16string& original_text,
   if (highlight)
     highlighted_text->append("<b>");
 
-  highlighted_text->append(base::EscapeForHTML(
+  highlighted_text->append(net::EscapeForHTML(
       base::UTF16ToUTF8(original_text.substr(start, length))));
 
   if (highlight)
@@ -49,7 +49,7 @@ bool FindAndHighlight(
   size_t match_start = 0;
   size_t match_length = 0;
 
-  std::u16string text16 = base::UTF8ToUTF16(text);
+  base::string16 text16 = base::UTF8ToUTF16(text);
   std::vector<bool> highlights(text16.size(), false);
   for (const auto& query : queries) {
     if (!query->Search(text16, &match_start, &match_length))

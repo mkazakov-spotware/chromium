@@ -27,6 +27,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_AUDIO_RESAMPLER_KERNEL_H_
 
 #include "third_party/blink/renderer/platform/audio/audio_array.h"
+#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -36,13 +37,11 @@ class AudioResampler;
 // AudioResamplerKernel does resampling on a single mono channel.
 // It uses a simple linear interpolation for good performance.
 
-class AudioResamplerKernel {
+class PLATFORM_EXPORT AudioResamplerKernel {
   USING_FAST_MALLOC(AudioResamplerKernel);
 
  public:
-  explicit AudioResamplerKernel(AudioResampler*);
-  AudioResamplerKernel(const AudioResamplerKernel&) = delete;
-  AudioResamplerKernel& operator=(const AudioResamplerKernel&) = delete;
+  AudioResamplerKernel(AudioResampler*);
 
   // getSourcePointer() should be called each time before process() is called.
   // Given a number of frames to process (for subsequent call to process()), it
@@ -51,7 +50,7 @@ class AudioResamplerKernel {
   // process() is called.  framesToProcess must be less than or equal to
   // MaxFramesToProcess.
   float* GetSourcePointer(uint32_t frames_to_process,
-                          unsigned* number_of_source_frames_needed);
+                          size_t* number_of_source_frames_needed);
 
   // process() resamples framesToProcess frames from the source into
   // destination.  Each call to process() must be preceded by a call to
@@ -80,6 +79,8 @@ class AudioResamplerKernel {
   // there will be no buffered samples.
   float last_values_[2];
   unsigned fill_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioResamplerKernel);
 };
 
 }  // namespace blink

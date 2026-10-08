@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,13 @@ void AutocompleteProviderDebouncer::RequestRun(
     base::OnceCallback<void()> callback) {
   callback_ = std::move(callback);
 
-  base::TimeDelta delay(base::Milliseconds(delay_ms_));
+  base::TimeDelta delay(base::TimeDelta::FromMilliseconds(delay_ms_));
   if (from_last_run_)
     delay -= base::TimeTicks::Now() - time_last_run_;
 
-  if (delay <= base::TimeDelta()) {
-    CancelRequest();
+  if (delay <= base::TimeDelta())
     Run();
-  } else {
+  else {
     timer_.Start(FROM_HERE, delay,
                  base::BindOnce(&AutocompleteProviderDebouncer::Run,
                                 base::Unretained(this)));
@@ -30,12 +29,6 @@ void AutocompleteProviderDebouncer::RequestRun(
 
 void AutocompleteProviderDebouncer::CancelRequest() {
   timer_.Stop();
-}
-
-void AutocompleteProviderDebouncer::ResetTimeLastRun() {
-  time_last_run_ = base::TimeTicks::Now();
-  if (timer_.IsRunning())
-    RequestRun(std::move(callback_));
 }
 
 void AutocompleteProviderDebouncer::Run() {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 
 namespace blink {
 
-XRPose::XRPose(const gfx::Transform& pose_model_matrix, bool emulated_position)
+XRPose::XRPose(const TransformationMatrix& pose_model_matrix,
+               bool emulated_position)
     : transform_(MakeGarbageCollected<XRRigidTransform>(pose_model_matrix)),
       emulated_position_(emulated_position) {}
 

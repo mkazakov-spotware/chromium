@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include "base/check_op.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/strings/stringprintf.h"
 #include "device/bluetooth/bluetooth_adapter_win.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service_win.h"
 #include "device/bluetooth/bluetooth_service_record_win.h"
@@ -91,7 +92,7 @@ uint16_t BluetoothDeviceWin::GetAppearance() const {
   return 0;
 }
 
-absl::optional<std::string> BluetoothDeviceWin::GetName() const {
+base::Optional<std::string> BluetoothDeviceWin::GetName() const {
   return name_;
 }
 
@@ -121,16 +122,16 @@ BluetoothDevice::UUIDSet BluetoothDeviceWin::GetUUIDs() const {
   return uuids_;
 }
 
-absl::optional<int8_t> BluetoothDeviceWin::GetInquiryRSSI() const {
+base::Optional<int8_t> BluetoothDeviceWin::GetInquiryRSSI() const {
   // In windows, we can only get connected devices and connected
   // devices don't have an Inquiry RSSI.
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<int8_t> BluetoothDeviceWin::GetInquiryTxPower() const {
+base::Optional<int8_t> BluetoothDeviceWin::GetInquiryTxPower() const {
   // In windows, we can only get connected devices and connected
   // devices don't have an Inquiry Tx Power.
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 bool BluetoothDeviceWin::ExpectingPinCode() const {
@@ -161,7 +162,8 @@ void BluetoothDeviceWin::SetConnectionLatency(
 }
 
 void BluetoothDeviceWin::Connect(PairingDelegate* pairing_delegate,
-                                 ConnectCallback callback) {
+                                 base::OnceClosure callback,
+                                 ConnectErrorCallback error_callback) {
   NOTIMPLEMENTED();
 }
 
@@ -290,7 +292,7 @@ void BluetoothDeviceWin::GattServiceDiscoveryComplete(
 }
 
 void BluetoothDeviceWin::CreateGattConnectionImpl(
-    absl::optional<BluetoothUUID> service_uuid) {
+    base::Optional<BluetoothUUID> service_uuid) {
   // Windows will create the Gatt connection as needed.  See:
   // https://docs.microsoft.com/en-us/windows/uwp/devices-sensors/gatt-client#connecting-to-the-device
 }

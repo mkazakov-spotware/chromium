@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/settings_private/generated_prefs.h"
 #include "chrome/browser/extensions/api/settings_private/generated_prefs_factory.h"
@@ -48,7 +47,7 @@ void SettingsPrivateEventRouter::Shutdown() {
   EventRouter::Get(context_)->UnregisterObserver(this);
 
   if (listening_) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     cros_settings_subscription_map_.clear();
 #endif
     const PrefsUtil::TypedPrefMap& keys = prefs_util_->GetAllowlistedKeys();
@@ -99,30 +98,29 @@ void SettingsPrivateEventRouter::StartOrStopListeningForPrefsChanges() {
     for (const auto& it : keys) {
       std::string pref_name = it.first;
       if (prefs_util_->IsCrosSetting(pref_name)) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-        base::CallbackListSubscription subscription =
-            ash::CrosSettings::Get()->AddSettingsObserver(
+#if defined(OS_CHROMEOS)
+        std::unique_ptr<chromeos::CrosSettings::ObserverSubscription>
+            subscription = chromeos::CrosSettings::Get()->AddSettingsObserver(
                 pref_name.c_str(),
-                base::BindRepeating(
-                    &SettingsPrivateEventRouter::OnPreferenceChanged,
-                    base::Unretained(this), pref_name));
+                base::Bind(&SettingsPrivateEventRouter::OnPreferenceChanged,
+                           base::Unretained(this), pref_name));
         cros_settings_subscription_map_.insert(
             make_pair(pref_name, std::move(subscription)));
 #endif
       } else if (generated_prefs && generated_prefs->HasPref(pref_name)) {
         generated_prefs->AddObserver(pref_name, this);
       } else {
-        FindRegistrarForPref(it.first)->Add(
-            pref_name, base::BindRepeating(
-                           &SettingsPrivateEventRouter::OnPreferenceChanged,
-                           base::Unretained(this)));
+        FindRegistrarForPref(it.first)
+            ->Add(pref_name,
+                  base::Bind(&SettingsPrivateEventRouter::OnPreferenceChanged,
+                             base::Unretained(this)));
       }
     }
   } else if (!should_listen && listening_) {
     const PrefsUtil::TypedPrefMap& keys = prefs_util_->GetAllowlistedKeys();
     for (const auto& it : keys) {
       if (prefs_util_->IsCrosSetting(it.first)) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
         cros_settings_subscription_map_.erase(it.first);
 #endif
       } else if (generated_prefs && generated_prefs->HasPref(it.first)) {
@@ -140,7 +138,7 @@ void SettingsPrivateEventRouter::OnPreferenceChanged(
   // This posts an asynchronous task to ensure that all pref stores are updated,
   // as |prefs_util_->GetPref()| relies on this information to determine if a
   // preference is controlled by e.g. extensions.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SettingsPrivateEventRouter::SendPrefChange,
                                 weak_ptr_factory_.GetWeakPtr(), pref_name));
 }
@@ -159,7 +157,8 @@ void SettingsPrivateEventRouter::SendPrefChange(const std::string& pref_name) {
   if (pref_object)
     prefs.push_back(std::move(*pref_object));
 
-  auto args(api::settings_private::OnPrefsChanged::Create(prefs));
+  std::unique_ptr<base::ListValue> args(
+      api::settings_private::OnPrefsChanged::Create(prefs));
 
   std::unique_ptr<Event> extension_event(new Event(
       events::SETTINGS_PRIVATE_ON_PREFS_CHANGED,

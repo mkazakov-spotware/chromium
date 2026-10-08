@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <functional>
 
 #include "base/logging.h"
-#include "chrome/updater/updater_scope.h"
-#include "chrome/updater/util/win_util.h"
-#include "chrome/updater/win/ui/ui_constants.h"
-#include "chrome/updater/win/ui/ui_util.h"
+#include "chrome/updater/win/ui/constants.h"
+#include "chrome/updater/win/ui/util.h"
+#include "chrome/updater/win/util.h"
 
 namespace updater {
 namespace ui {
@@ -62,7 +61,7 @@ OmahaWnd::OmahaWnd(int dialog_id, WTL::CMessageLoop* message_loop, HWND parent)
       is_complete_(false),
       is_close_enabled_(true),
       events_sink_(nullptr),
-      scope_(UpdaterScope::kUser) {
+      is_machine_(false) {
   DCHECK(message_loop);
 }
 
@@ -172,16 +171,7 @@ void OmahaWnd::Show() {
   CenterWindow(nullptr);
   SetVisible(true);
 
-  // To allow the progress UI to get foreground, the splash screen calls
-  // `::LockSetForegroundWindow(LSFW_LOCK)` before closing the splash screen to
-  // prevent other applications from making a foreground change in between. The
-  // following call completes the cycle with LSFW_UNLOCK.
-  ::LockSetForegroundWindow(LSFW_UNLOCK);
-
-  if (!::SetForegroundWindow(*this)) {
-    LOG(WARNING) << __func__
-                 << ": ::SetForegroundWindow failed: " << ::GetLastError();
-  }
+  ::SetForegroundWindow(*this);
 }
 
 bool OmahaWnd::OnComplete() {

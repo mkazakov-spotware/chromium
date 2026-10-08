@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/session/session_limit_notification_controller.h"
 
-#include "ash/constants/notifier_catalogs.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/session/session_controller_impl.h"
@@ -26,7 +25,8 @@ const char kNotifierSessionLengthTimeout[] = "ash.session-length-timeout";
 // A notification is shown to the user only if the remaining session time falls
 // under this threshold. e.g. If the user has several days left in their
 // session, there is no use displaying a notification right now.
-constexpr base::TimeDelta kNotificationThreshold = base::Minutes(60);
+constexpr base::TimeDelta kNotificationThreshold =
+    base::TimeDelta::FromMinutes(60);
 
 }  // namespace
 
@@ -92,11 +92,10 @@ void SessionLimitNotificationController::UpdateNotification() {
           ComposeNotificationTitle(),
           l10n_util::GetStringUTF16(
               IDS_ASH_STATUS_TRAY_NOTIFICATION_SESSION_LENGTH_LIMIT_MESSAGE),
-          std::u16string() /* display_source */, GURL(),
+          base::string16() /* display_source */, GURL(),
           message_center::NotifierId(
               message_center::NotifierType::SYSTEM_COMPONENT,
-              kNotifierSessionLengthTimeout,
-              NotificationCatalogName::kSessionLengthTimeout),
+              kNotifierSessionLengthTimeout),
           data, nullptr /* delegate */, kNotificationTimerIcon,
           message_center::SystemNotificationWarningLevel::WARNING);
   notification->set_pinned(true);
@@ -109,7 +108,7 @@ void SessionLimitNotificationController::UpdateNotification() {
   has_notification_been_shown_ = true;
 }
 
-std::u16string SessionLimitNotificationController::ComposeNotificationTitle()
+base::string16 SessionLimitNotificationController::ComposeNotificationTitle()
     const {
   return l10n_util::GetStringFUTF16(
       IDS_ASH_STATUS_TRAY_NOTIFICATION_SESSION_LENGTH_LIMIT_TITLE,

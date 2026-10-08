@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,17 +37,16 @@ bool ParseOfflineHeaderValue(const std::string& header_value,
   if (header_value.empty())
     return false;
 
-  // TODO(dcheng): Use net::HttpUtil::NameValuePairsIterator instead?
   bool token_found = false;
   base::StringTokenizer tokenizer(header_value, ", ");
   while (tokenizer.GetNext()) {
     token_found = true;
-    base::StringPiece pair = tokenizer.token_piece();
+    std::string pair = tokenizer.token();
     std::size_t pos = pair.find('=');
     if (pos == std::string::npos)
       return false;
     std::string key = base::ToLowerASCII(pair.substr(0, pos));
-    base::StringPiece value = pair.substr(pos + 1);
+    std::string value = pair.substr(pos + 1);
     std::string lower_value = base::ToLowerASCII(value);
     if (key == kOfflinePageHeaderPersistKey) {
       if (lower_value == "1")
@@ -78,7 +77,7 @@ bool ParseOfflineHeaderValue(const std::string& header_value,
       else
         return false;
     } else if (key == kOfflinePageHeaderIDKey) {
-      *id = std::string(value);
+      *id = value;
     } else if (key == kOfflinePageHeaderIntentUrlKey) {
       std::string decoded_url;
       if (!base::Base64Decode(value, &decoded_url))

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace media {
 
@@ -19,14 +19,11 @@ class DestructionObserver;
 class DestructionObservable {
  public:
   DestructionObservable();
-
-  DestructionObservable(const DestructionObservable&) = delete;
-  DestructionObservable& operator=(const DestructionObservable&) = delete;
-
   virtual ~DestructionObservable();
   std::unique_ptr<DestructionObserver> CreateDestructionObserver();
 
   base::ScopedClosureRunner destruction_cb;
+  DISALLOW_COPY_AND_ASSIGN(DestructionObservable);
 };
 
 // DestructionObserver lets you set expectations about the destruction of an
@@ -34,10 +31,6 @@ class DestructionObservable {
 class DestructionObserver {
  public:
   DestructionObserver(DestructionObservable* observable);
-
-  DestructionObserver(const DestructionObserver&) = delete;
-  DestructionObserver& operator=(const DestructionObserver&) = delete;
-
   virtual ~DestructionObserver();
 
   void VerifyAndClearExpectations();
@@ -62,9 +55,10 @@ class DestructionObserver {
   bool destructed_;
 
   // Whether to expect destruction. Unset if there is no expectation.
-  absl::optional<bool> expect_destruction_;
+  base::Optional<bool> expect_destruction_;
 
   base::WeakPtrFactory<DestructionObserver> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(DestructionObserver);
 };
 
 }  // namespace media

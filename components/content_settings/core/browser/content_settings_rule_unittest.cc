@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ class ListIterator : public RuleIterator {
  public:
   explicit ListIterator(std::list<Rule> rules) : rules_(std::move(rules)) {}
 
-  ~ListIterator() override = default;
+  ~ListIterator() override {}
 
   bool HasNext() const override { return !rules_.empty(); }
 
@@ -37,26 +37,24 @@ class ListIterator : public RuleIterator {
 }  // namespace
 
 TEST(RuleTest, ConcatenationIterator) {
-  base::Time expiredTime = base::Time::Now() - base::Seconds(101);
-  base::Time validTime = base::Time::Now() - base::Seconds(101);
+  base::Time expiredTime =
+      base::Time::Now() - base::TimeDelta::FromSeconds(101);
+  base::Time validTime = base::Time::Now() - base::TimeDelta::FromSeconds(101);
 
   std::list<Rule> rules1;
   rules1.push_back(Rule(ContentSettingsPattern::FromString("a"),
                         ContentSettingsPattern::Wildcard(), base::Value(0),
-                        {}));
-  rules1.push_back(Rule(
-      ContentSettingsPattern::FromString("b"),
-      ContentSettingsPattern::Wildcard(), base::Value(0),
-      {.expiration = expiredTime, .session_model = SessionModel::UserSession}));
+                        base::Time(), SessionModel::Durable));
+  rules1.push_back(Rule(ContentSettingsPattern::FromString("b"),
+                        ContentSettingsPattern::Wildcard(), base::Value(0),
+                        expiredTime, SessionModel::UserSession));
   std::list<Rule> rules2;
-  rules2.push_back(
-      Rule(ContentSettingsPattern::FromString("c"),
-           ContentSettingsPattern::Wildcard(), base::Value(0),
-           {.expiration = validTime, .session_model = SessionModel::Durable}));
+  rules2.push_back(Rule(ContentSettingsPattern::FromString("c"),
+                        ContentSettingsPattern::Wildcard(), base::Value(0),
+                        validTime, SessionModel::Durable));
   rules2.push_back(Rule(ContentSettingsPattern::FromString("d"),
                         ContentSettingsPattern::Wildcard(), base::Value(0),
-                        {.expiration = base::Time(),
-                         .session_model = SessionModel::UserSession}));
+                        base::Time(), SessionModel::UserSession));
 
   std::vector<std::unique_ptr<RuleIterator>> iterators;
   iterators.push_back(std::make_unique<ListIterator>(std::move(rules1)));
@@ -67,26 +65,26 @@ TEST(RuleTest, ConcatenationIterator) {
   ASSERT_TRUE(concatenation_iterator.HasNext());
   rule = concatenation_iterator.Next();
   EXPECT_EQ(rule.primary_pattern, ContentSettingsPattern::FromString("a"));
-  EXPECT_EQ(rule.metadata.expiration, base::Time());
-  EXPECT_EQ(rule.metadata.session_model, SessionModel::Durable);
+  EXPECT_EQ(rule.expiration, base::Time());
+  EXPECT_EQ(rule.session_model, SessionModel::Durable);
 
   ASSERT_TRUE(concatenation_iterator.HasNext());
   rule = concatenation_iterator.Next();
   EXPECT_EQ(rule.primary_pattern, ContentSettingsPattern::FromString("b"));
-  EXPECT_EQ(rule.metadata.expiration, expiredTime);
-  EXPECT_EQ(rule.metadata.session_model, SessionModel::UserSession);
+  EXPECT_EQ(rule.expiration, expiredTime);
+  EXPECT_EQ(rule.session_model, SessionModel::UserSession);
 
   ASSERT_TRUE(concatenation_iterator.HasNext());
   rule = concatenation_iterator.Next();
   EXPECT_EQ(rule.primary_pattern, ContentSettingsPattern::FromString("c"));
-  EXPECT_EQ(rule.metadata.expiration, validTime);
-  EXPECT_EQ(rule.metadata.session_model, SessionModel::Durable);
+  EXPECT_EQ(rule.expiration, validTime);
+  EXPECT_EQ(rule.session_model, SessionModel::Durable);
 
   ASSERT_TRUE(concatenation_iterator.HasNext());
   rule = concatenation_iterator.Next();
   EXPECT_EQ(rule.primary_pattern, ContentSettingsPattern::FromString("d"));
-  EXPECT_EQ(rule.metadata.expiration, base::Time());
-  EXPECT_EQ(rule.metadata.session_model, SessionModel::UserSession);
+  EXPECT_EQ(rule.expiration, base::Time());
+  EXPECT_EQ(rule.session_model, SessionModel::UserSession);
 
   EXPECT_FALSE(concatenation_iterator.HasNext());
 }

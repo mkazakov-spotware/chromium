@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ ExtensionWebUIOverrideRegistrar::ExtensionWebUIOverrideRegistrar(
     content::BrowserContext* context) {
   ExtensionWebUI::InitializeChromeURLOverrides(
       Profile::FromBrowserContext(context));
-  extension_registry_observation_.Observe(ExtensionRegistry::Get(context));
+  extension_registry_observer_.Add(ExtensionRegistry::Get(context));
   ExtensionSystem::Get(context)->ready().Post(
       FROM_HERE,
       base::BindOnce(&ExtensionWebUIOverrideRegistrar::OnExtensionSystemReady,

@@ -1,23 +1,20 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_ANIMATION_ANIMATION_H_
 #define CC_ANIMATION_ANIMATION_H_
 
-#include <memory>
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
+#include "cc/animation/animation_curve.h"
 #include "cc/animation/animation_export.h"
 #include "cc/animation/element_animations.h"
 #include "cc/animation/keyframe_model.h"
-#include "cc/base/protected_sequence_synchronizer.h"
 #include "cc/paint/element_id.h"
-#include "ui/gfx/animation/keyframe/animation_curve.h"
 
 namespace cc {
 
@@ -42,8 +39,7 @@ struct AnimationEvent;
 // synchronizing to/from the impl thread when requested.
 //
 // There is a 1:1 relationship between Animation and KeyframeEffect.
-class CC_ANIMATION_EXPORT Animation : public base::RefCounted<Animation>,
-                                      public ProtectedSequenceSynchronizer {
+class CC_ANIMATION_EXPORT Animation : public base::RefCounted<Animation> {
  public:
   static scoped_refptr<Animation> Create(int id);
   virtual scoped_refptr<Animation> CreateImplInstance() const;
@@ -54,36 +50,22 @@ class CC_ANIMATION_EXPORT Animation : public base::RefCounted<Animation>,
   int id() const { return id_; }
   ElementId element_id() const;
 
-  KeyframeEffect* keyframe_effect() {
-    return keyframe_effect_.Write(*this).get();
-  }
-
-  const KeyframeEffect* keyframe_effect() const {
-    return keyframe_effect_.Read(*this);
-  }
+  KeyframeEffect* keyframe_effect() const { return keyframe_effect_.get(); }
 
   // Parent AnimationHost. Animation can be detached from AnimationTimeline.
-  AnimationHost* animation_host() {
-    DCHECK(IsOwnerThread() || InProtectedSequence());
-    return animation_host_;
-  }
-  const AnimationHost* animation_host() const {
-    DCHECK(IsOwnerThread() || InProtectedSequence());
-    return animation_host_;
-  }
+  AnimationHost* animation_host() { return animation_host_; }
+  const AnimationHost* animation_host() const { return animation_host_; }
   void SetAnimationHost(AnimationHost* animation_host);
-  bool has_animation_host() const { return !!animation_host(); }
+  bool has_animation_host() const { return !!animation_host_; }
 
   // Parent AnimationTimeline.
-  AnimationTimeline* animation_timeline() {
-    return animation_timeline_.Read(*this);
-  }
+  AnimationTimeline* animation_timeline() { return animation_timeline_; }
   const AnimationTimeline* animation_timeline() const {
-    return animation_timeline_.Read(*this);
+    return animation_timeline_;
   }
   void SetAnimationTimeline(AnimationTimeline* timeline);
 
-  scoped_refptr<const ElementAnimations> element_animations() const;
+  scoped_refptr<ElementAnimations> element_animations() const;
 
   void set_animation_delegate(AnimationDelegate* delegate) {
     animation_delegate_ = delegate;
@@ -133,12 +115,7 @@ class CC_ANIMATION_EXPORT Animation : public base::RefCounted<Animation>,
   // to be dispatched.
   void DispatchAndDelegateAnimationEvent(const AnimationEvent& event);
 
-  // Returns true if this animation effects pending tree, such as a custom
-  // property animation with paint worklet.
-  bool RequiresInvalidation() const;
-  // Returns true if this animation effects active tree, such as a transform
-  // animation.
-  bool AffectsNativeProperty() const;
+  bool AffectsCustomProperty() const;
 
   void SetNeedsPushProperties();
 
@@ -157,13 +134,6 @@ class CC_ANIMATION_EXPORT Animation : public base::RefCounted<Animation>,
 
   virtual bool IsWorkletAnimation() const;
 
-  void SetKeyframeEffectForTesting(std::unique_ptr<KeyframeEffect>);
-
-  // ProtectedSequenceSynchronizer implementation
-  bool IsOwnerThread() const override;
-  bool InProtectedSequence() const override;
-  void WaitForProtectedSequenceCompletion() const override;
-
  private:
   friend class base::RefCounted<Animation>;
 
@@ -178,20 +148,15 @@ class CC_ANIMATION_EXPORT Animation : public base::RefCounted<Animation>,
 
  protected:
   explicit Animation(int id);
-  ~Animation() override;
+  Animation(int id, std::unique_ptr<KeyframeEffect>);
+  virtual ~Animation();
 
-  raw_ptr<AnimationDelegate> animation_delegate_ = nullptr;
+  AnimationHost* animation_host_;
+  AnimationTimeline* animation_timeline_;
+  AnimationDelegate* animation_delegate_;
 
-  const int id_;
-
- private:
-  // Animation's ProtectedSequenceSynchronizer implementation is implemented
-  // using this member. As such the various helpers can not be used to protect
-  // access (otherwise we would get infinite recursion).
-  raw_ptr<AnimationHost> animation_host_ = nullptr;
-  ProtectedSequenceReadable<raw_ptr<AnimationTimeline>> animation_timeline_{
-      nullptr};
-  ProtectedSequenceWritable<std::unique_ptr<KeyframeEffect>> keyframe_effect_;
+  int id_;
+  std::unique_ptr<KeyframeEffect> keyframe_effect_;
 };
 
 }  // namespace cc

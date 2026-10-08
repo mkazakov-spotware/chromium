@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 #define CHROME_BROWSER_VR_ELEMENTS_TEXT_INPUT_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/elements/ui_texture.h"
 #include "chrome/browser/vr/model/color_scheme.h"
@@ -33,10 +32,6 @@ class VR_UI_EXPORT TextInput : public UiElement {
       OnInputCommittedCallback;
   TextInput(float font_height_meters,
             OnInputEditedCallback input_edit_callback);
-
-  TextInput(const TextInput&) = delete;
-  TextInput& operator=(const TextInput&) = delete;
-
   ~TextInput() override;
 
   void OnButtonDown(const gfx::PointF& position,
@@ -52,7 +47,7 @@ class VR_UI_EXPORT TextInput : public UiElement {
   void RequestUnfocus() override;
   void UpdateInput(const EditedText& info) override;
 
-  void SetHintText(const std::u16string& text);
+  void SetHintText(const base::string16& text);
   void SetTextColor(SkColor color);
   void SetHintColor(SkColor color);
   void SetSelectionColors(const TextSelectionColors& colors);
@@ -81,15 +76,17 @@ class VR_UI_EXPORT TextInput : public UiElement {
 
   OnInputEditedCallback input_edit_callback_;
   OnInputEditedCallback input_commit_callback_;
-  raw_ptr<TextInputDelegate> delegate_ = nullptr;
+  TextInputDelegate* delegate_ = nullptr;
   EditedText edited_text_;
   bool focused_ = false;
   bool cursor_visible_ = false;
   base::TimeTicks cursor_blink_start_ticks_;
 
-  raw_ptr<Text> hint_element_ = nullptr;
-  raw_ptr<Text> text_element_ = nullptr;
-  raw_ptr<Rect> cursor_element_ = nullptr;
+  Text* hint_element_ = nullptr;
+  Text* text_element_ = nullptr;
+  Rect* cursor_element_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(TextInput);
 };
 
 }  // namespace vr

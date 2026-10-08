@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,8 @@
 // and a detail text. This item uses multi-lines text field.
 @interface SendTabToSelfImageDetailTextItem : TableViewItem
 
-// The image to display (required).
-@property(nonatomic, strong) UIImage* iconImage;
+// The name of the image to display (required).
+@property(nonatomic, copy) NSString* iconImageName;
 
 // The title text to display.
 @property(nonatomic, copy) NSString* text;

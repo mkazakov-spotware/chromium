@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "components/page_info/page_info_ui.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 
@@ -28,8 +27,6 @@ class Widget;
 class PageInfoBubbleViewBase : public views::BubbleDialogDelegateView,
                                public content::WebContentsObserver {
  public:
-  METADATA_HEADER(PageInfoBubbleViewBase);
-
   // Type of the bubble being displayed.
   enum BubbleType {
     BUBBLE_NONE,
@@ -38,13 +35,8 @@ class PageInfoBubbleViewBase : public views::BubbleDialogDelegateView,
     // Custom bubble for internal pages like chrome:// and chrome-extensions://.
     BUBBLE_INTERNAL_PAGE,
     // Custom bubble for displaying safety tips.
-    BUBBLE_SAFETY_TIP,
-    // Custom bubble for displaying accuracy tips.
-    BUBBLE_ACCURACY_TIP,
+    BUBBLE_SAFETY_TIP
   };
-
-  PageInfoBubbleViewBase(const PageInfoBubbleViewBase&) = delete;
-  PageInfoBubbleViewBase& operator=(const PageInfoBubbleViewBase&) = delete;
 
   // Returns the type of the bubble being shown. For testing only.
   static BubbleType GetShownBubbleType();
@@ -62,8 +54,11 @@ class PageInfoBubbleViewBase : public views::BubbleDialogDelegateView,
   // views::BubbleDialogDelegateView:
   void OnWidgetDestroying(views::Widget* widget) override;
 
-  // WebContentsObserver:
-  void WebContentsDestroyed() override;
+  PageInfoUI::SecurityDescriptionType GetSecurityDescriptionType() const;
+  void set_security_description_type(
+      const PageInfoUI::SecurityDescriptionType& type) {
+    security_description_type_ = type;
+  }
 
  private:
   friend class SafetyTipPageInfoBubbleViewBrowserTest;
@@ -71,8 +66,13 @@ class PageInfoBubbleViewBase : public views::BubbleDialogDelegateView,
   // WebContentsObserver:
   void RenderFrameDeleted(content::RenderFrameHost* render_frame_host) override;
   void OnVisibilityChanged(content::Visibility visibility) override;
-  void PrimaryPageChanged(content::Page& page) override;
+  void DidStartNavigation(content::NavigationHandle* handle) override;
   void DidChangeVisibleSecurityState() override;
+
+  PageInfoUI::SecurityDescriptionType security_description_type_ =
+      PageInfoUI::SecurityDescriptionType::CONNECTION;
+
+  DISALLOW_COPY_AND_ASSIGN(PageInfoBubbleViewBase);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PAGE_INFO_PAGE_INFO_BUBBLE_VIEW_BASE_H_

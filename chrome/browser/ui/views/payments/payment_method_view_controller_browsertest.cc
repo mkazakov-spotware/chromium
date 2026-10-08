@@ -1,9 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -15,7 +14,6 @@
 #include "components/payments/core/test_payment_manifest_downloader.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
-#include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
@@ -24,12 +22,6 @@
 namespace payments {
 
 class PaymentMethodViewControllerTest : public PaymentRequestBrowserTestBase {
- public:
-  PaymentMethodViewControllerTest(const PaymentMethodViewControllerTest&) =
-      delete;
-  PaymentMethodViewControllerTest& operator=(
-      const PaymentMethodViewControllerTest&) = delete;
-
  protected:
   PaymentMethodViewControllerTest()
       : gpay_server_(net::EmbeddedTestServer::TYPE_HTTPS),
@@ -51,14 +43,14 @@ class PaymentMethodViewControllerTest : public PaymentRequestBrowserTestBase {
     content::BrowserContext* context =
         GetActiveWebContents()->GetBrowserContext();
     auto downloader = std::make_unique<TestDownloader>(
-        GetCSPCheckerForTests(), context->GetDefaultStoragePartition()
-                                     ->GetURLLoaderFactoryForBrowserProcess());
+        content::BrowserContext::GetDefaultStoragePartition(context)
+            ->GetURLLoaderFactoryForBrowserProcess());
     downloader->AddTestServerURL("https://kylepay.com/",
                                  kylepay_server_.GetURL("kylepay.com", "/"));
     downloader->AddTestServerURL("https://google.com/",
                                  gpay_server_.GetURL("google.com", "/"));
     ServiceWorkerPaymentAppFinder::GetOrCreateForCurrentDocument(
-        GetActiveWebContents()->GetPrimaryMainFrame())
+        GetActiveWebContents()->GetMainFrame())
         ->SetDownloaderAndIgnorePortInOriginComparisonForTesting(
             std::move(downloader));
   }
@@ -66,46 +58,60 @@ class PaymentMethodViewControllerTest : public PaymentRequestBrowserTestBase {
  private:
   net::EmbeddedTestServer gpay_server_;
   net::EmbeddedTestServer kylepay_server_;
-  base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentMethodViewControllerTest);
 };
 
-IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest,
-                       DoNotShowAddCardWhenBasicCardIsNotSupported) {
-  NavigateTo("/payment_request_bobpay_and_cards_test.html");
-  SetDownloaderAndIgnorePortInOriginComparisonForTesting();
+IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest, OneCardSelected) {
+  NavigateTo("/payment_request_no_shipping_test.html");
+  autofill::AutofillProfile billing_profile(autofill::test::GetFullProfile());
+  AddAutofillProfile(billing_profile);
+  autofill::CreditCard card = autofill::test::GetCreditCard();
+  card.set_billing_address_id(billing_profile.guid());
+  AddCreditCard(card);
 
-  ResetEventWaiterForDialogOpened();
-  content::ExecuteScriptAsync(GetActiveWebContents(), R"(
-    testPaymentMethods([
-      {supportedMethods: 'https://google.com/pay'},
-      {supportedMethods: 'https://kylepay.com/webpay'},
-    ]);
-  )");
-  WaitForObservedEvent();
-
-  // Confirm that "Add card" button is not shown since "basic-card" is not
-  // requested.
+  InvokePaymentRequestUI();
   OpenPaymentMethodScreen();
-  views::View* add_card_button = dialog_view()->GetViewByID(
-      static_cast<int>(DialogViewID::PAYMENT_METHOD_ADD_CARD_BUTTON));
-  EXPECT_EQ(nullptr, add_card_button);
+
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
+  EXPECT_EQ(1U, request->state()->available_apps().size());
+
+  views::View* list_view = dialog_view()->GetViewByID(
+      static_cast<int>(DialogViewID::PAYMENT_METHOD_SHEET_LIST_VIEW));
+  EXPECT_TRUE(list_view);
+  EXPECT_EQ(1u, list_view->children().size());
+
+  EXPECT_EQ(request->state()->available_apps().front().get(),
+            request->state()->selected_app());
+  views::View* checkmark_view = list_view->children().front()->GetViewByID(
+      static_cast<int>(DialogViewID::CHECKMARK_VIEW));
+  EXPECT_TRUE(checkmark_view->GetVisible());
 }
 
 IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest,
-                       OneAppSelectedOutOfMany) {
-  std::string payment_method_a;
-  InstallPaymentApp("a.com", "/nickpay.com/app.js", &payment_method_a);
-  std::string payment_method_b;
-  InstallPaymentApp("b.com", "/nickpay.com/app.js", &payment_method_b);
-
+                       OneCardSelectedOutOfMany) {
   NavigateTo("/payment_request_no_shipping_test.html");
+  autofill::AutofillProfile billing_profile(autofill::test::GetFullProfile());
+  AddAutofillProfile(billing_profile);
 
-  InvokePaymentRequestUIWithJs(content::JsReplace(
-      "buyWithMethods([{supportedMethods:$1},{supportedMethods:$2}])",
-      payment_method_a, payment_method_b));
+  autofill::CreditCard card1 = autofill::test::GetCreditCard();
+  card1.set_billing_address_id(billing_profile.guid());
+
+  // Ensure that this card is the first suggestion.
+  card1.set_use_count(5U);
+  AddCreditCard(card1);
+
+  // Slightly different visa.
+  autofill::CreditCard card2 = autofill::test::GetCreditCard();
+  card2.SetNumber(base::ASCIIToUTF16("4111111111111112"));
+  card2.set_billing_address_id(billing_profile.guid());
+  card2.set_use_count(1U);
+  AddCreditCard(card2);
+
+  InvokePaymentRequestUI();
   OpenPaymentMethodScreen();
 
-  PaymentRequest* request = GetPaymentRequests().front();
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
   EXPECT_EQ(2U, request->state()->available_apps().size());
   EXPECT_EQ(request->state()->available_apps().front().get(),
             request->state()->selected_app());
@@ -126,7 +132,7 @@ IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest,
   EXPECT_FALSE(checkmark_view2->GetVisible());
 
   ResetEventWaiter(DialogEvent::BACK_NAVIGATION);
-  // Simulate selecting the second app.
+  // Simulate selecting the second card.
   ClickOnDialogViewAndWait(list_view->children()[1]);
 
   EXPECT_EQ(request->state()->available_apps().back().get(),
@@ -137,12 +143,51 @@ IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest,
       static_cast<int>(DialogViewID::PAYMENT_METHOD_SHEET_LIST_VIEW));
 
   ResetEventWaiter(DialogEvent::BACK_NAVIGATION);
-  // Clicking on the second app again should not modify any state, and should
+  // Clicking on the second card again should not modify any state, and should
   // return to the main payment sheet.
   ClickOnDialogViewAndWait(list_view->children()[1]);
 
   EXPECT_EQ(request->state()->available_apps().back().get(),
             request->state()->selected_app());
+}
+
+IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest, EditButtonOpensEditor) {
+  NavigateTo("/payment_request_no_shipping_test.html");
+  AddCreditCard(autofill::test::GetCreditCard());
+
+  InvokePaymentRequestUI();
+  OpenPaymentMethodScreen();
+
+  views::View* list_view = dialog_view()->GetViewByID(
+      static_cast<int>(DialogViewID::PAYMENT_METHOD_SHEET_LIST_VIEW));
+  EXPECT_TRUE(list_view);
+  EXPECT_EQ(1u, list_view->children().size());
+
+  views::View* edit_button = list_view->children().front()->GetViewByID(
+      static_cast<int>(DialogViewID::EDIT_ITEM_BUTTON));
+
+  ResetEventWaiter(DialogEvent::CREDIT_CARD_EDITOR_OPENED);
+  ClickOnDialogViewAndWait(edit_button);
+}
+
+IN_PROC_BROWSER_TEST_F(PaymentMethodViewControllerTest,
+                       DoNotShowAddCardWhenBasicCardIsNotSupported) {
+  NavigateTo("/payment_request_bobpay_and_cards_test.html");
+  SetDownloaderAndIgnorePortInOriginComparisonForTesting();
+
+  ResetEventWaiterForDialogOpened();
+  EXPECT_TRUE(content::ExecJs(GetActiveWebContents(),
+                              "testPaymentMethods([{supportedMethods: "
+                              "'https://google.com/pay'},{supportedMethods: "
+                              "'https://kylepay.com/webpay'}])"));
+  WaitForObservedEvent();
+
+  // Confirm that "Add card" button is not shown since "basic-card" is not
+  // requested.
+  OpenPaymentMethodScreen();
+  views::View* add_card_button = dialog_view()->GetViewByID(
+      static_cast<int>(DialogViewID::PAYMENT_METHOD_ADD_CARD_BUTTON));
+  EXPECT_EQ(nullptr, add_card_button);
 }
 
 }  // namespace payments

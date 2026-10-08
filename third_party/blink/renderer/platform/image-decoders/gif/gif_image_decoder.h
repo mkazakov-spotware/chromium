@@ -28,6 +28,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
 
 #include "third_party/skia/include/codec/SkCodec.h"
@@ -39,43 +40,39 @@ class SegmentStream;
 // This class decodes the GIF image format.
 class PLATFORM_EXPORT GIFImageDecoder final : public ImageDecoder {
  public:
-  GIFImageDecoder(AlphaOption,
-                  const ColorBehavior&,
-                  wtf_size_t max_decoded_bytes);
-  GIFImageDecoder(const GIFImageDecoder&) = delete;
-  GIFImageDecoder& operator=(const GIFImageDecoder&) = delete;
+  GIFImageDecoder(AlphaOption, const ColorBehavior&, size_t max_decoded_bytes);
   ~GIFImageDecoder() override;
 
   // ImageDecoder:
   String FilenameExtension() const override { return "gif"; }
   void OnSetData(SegmentReader* data) override;
   int RepetitionCount() const override;
-  bool FrameIsReceivedAtIndex(wtf_size_t) const override;
-  base::TimeDelta FrameDurationAtIndex(wtf_size_t) const override;
+  bool FrameIsReceivedAtIndex(size_t) const override;
+  base::TimeDelta FrameDurationAtIndex(size_t) const override;
   // CAUTION: SetFailed() deletes |codec_|.  Be careful to avoid
   // accessing deleted memory.
   bool SetFailed() override;
 
-  wtf_size_t ClearCacheExceptFrame(wtf_size_t) override;
+  size_t ClearCacheExceptFrame(size_t) override;
 
  private:
   // ImageDecoder:
   void DecodeSize() override {}
-  wtf_size_t DecodeFrameCount() override;
-  void InitializeNewFrame(wtf_size_t) override;
-  void Decode(wtf_size_t) override;
+  size_t DecodeFrameCount() override;
+  void InitializeNewFrame(size_t) override;
+  void Decode(size_t) override;
   // When the disposal method of the frame is DisposeOverWritePrevious, the
   // next frame will use a previous frame's buffer as its starting state, so
   // we can't take over the data in that case. Before calling this method, the
   // caller must verify that the frame exists.
-  bool CanReusePreviousFrameBuffer(wtf_size_t) const override;
+  bool CanReusePreviousFrameBuffer(size_t) const override;
 
   // When a frame depends on a previous frame's content, there is a list of
   // candidate reference frames. This function will find a previous frame from
   // that list which satisfies the requirements of being a reference frame
   // (kFrameComplete, not kDisposeOverwritePrevious).
   // If no frame is found, it returns kNotFound.
-  wtf_size_t GetViableReferenceFrameIndex(wtf_size_t) const;
+  size_t GetViableReferenceFrameIndex(size_t) const;
 
   std::unique_ptr<SkCodec> codec_;
   // |codec_| owns the SegmentStream, but we need access to it to append more
@@ -83,8 +80,10 @@ class PLATFORM_EXPORT GIFImageDecoder final : public ImageDecoder {
   SegmentStream* segment_stream_ = nullptr;
   mutable int repetition_count_ = kAnimationLoopOnce;
   int prior_frame_ = SkCodec::kNoFrame;
+
+  DISALLOW_COPY_AND_ASSIGN(GIFImageDecoder);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_IMAGE_DECODERS_GIF_GIF_IMAGE_DECODER_H_
+#endif

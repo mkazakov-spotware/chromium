@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/api/image_writer_private/operation.h"
@@ -35,10 +36,6 @@ class ImageWriterUtilityClientTest : public InProcessBrowserTest {
         chrome::mojom::RemovableStorageWriter::kTestDevice);
     EXPECT_TRUE(temp_dir_.CreateUniqueTempDir());
   }
-
-  ImageWriterUtilityClientTest(const ImageWriterUtilityClientTest&) = delete;
-  ImageWriterUtilityClientTest& operator=(const ImageWriterUtilityClientTest&) =
-      delete;
 
   void FillImageFileWithPattern(char pattern) {
     base::ScopedAllowBlockingForTesting allow_blocking;
@@ -115,12 +112,12 @@ class ImageWriterUtilityClientTest : public InProcessBrowserTest {
     progress_ = 0;
 
     image_writer_utility_client_->Write(
-        base::BindRepeating(&ImageWriterUtilityClientTest::Progress,
-                            base::Unretained(this)),
-        base::BindOnce(&ImageWriterUtilityClientTest::Success,
-                       base::Unretained(this)),
-        base::BindOnce(&ImageWriterUtilityClientTest::Failure,
-                       base::Unretained(this)),
+        base::Bind(&ImageWriterUtilityClientTest::Progress,
+                   base::Unretained(this)),
+        base::Bind(&ImageWriterUtilityClientTest::Success,
+                   base::Unretained(this)),
+        base::Bind(&ImageWriterUtilityClientTest::Failure,
+                   base::Unretained(this)),
         image_, test_device_);
   }
 
@@ -131,7 +128,7 @@ class ImageWriterUtilityClientTest : public InProcessBrowserTest {
     if (!cancel_)
       return;
 
-    image_writer_utility_client_->Cancel(base::BindOnce(
+    image_writer_utility_client_->Cancel(base::Bind(
         &ImageWriterUtilityClientTest::Cancelled, base::Unretained(this)));
   }
 
@@ -163,12 +160,12 @@ class ImageWriterUtilityClientTest : public InProcessBrowserTest {
     progress_ = 0;
 
     image_writer_utility_client_->Verify(
-        base::BindRepeating(&ImageWriterUtilityClientTest::Progress,
-                            base::Unretained(this)),
-        base::BindOnce(&ImageWriterUtilityClientTest::Verified,
-                       base::Unretained(this)),
-        base::BindOnce(&ImageWriterUtilityClientTest::Failure,
-                       base::Unretained(this)),
+        base::Bind(&ImageWriterUtilityClientTest::Progress,
+                   base::Unretained(this)),
+        base::Bind(&ImageWriterUtilityClientTest::Verified,
+                   base::Unretained(this)),
+        base::Bind(&ImageWriterUtilityClientTest::Failure,
+                   base::Unretained(this)),
         image_, test_device_);
   }
 
@@ -242,7 +239,7 @@ class ImageWriterUtilityClientTest : public InProcessBrowserTest {
   base::FilePath device_;
   base::FilePath image_;
 
-  base::RepeatingClosure quit_closure_;
+  base::Closure quit_closure_;
   bool quit_called_ = false;
 
   // Lives on |task_runner_|.
@@ -253,6 +250,8 @@ class ImageWriterUtilityClientTest : public InProcessBrowserTest {
   bool cancel_ = false;
   std::string error_;
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageWriterUtilityClientTest);
 };
 
 IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, WriteNoImage) {
@@ -271,7 +270,13 @@ IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, WriteNoDevice) {
   EXPECT_FALSE(error().empty());
 }
 
-IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, Write) {
+// Flaky on Win. http://crbug.com/927218
+#if defined(OS_WIN)
+#define MAYBE_Write DISABLED_Write
+#else
+#define MAYBE_Write Write
+#endif
+IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, MAYBE_Write) {
   FillImageFileWithPattern('i');
   FillDeviceFileWithPattern(0);
 
@@ -281,7 +286,13 @@ IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, Write) {
   EXPECT_TRUE(error().empty());
 }
 
-IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, WriteVerify) {
+// Flaky on Win. http://crbug.com/927218
+#if defined(OS_WIN)
+#define MAYBE_WriteVerify DISABLED_WriteVerify
+#else
+#define MAYBE_WriteVerify WriteVerify
+#endif
+IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, MAYBE_WriteVerify) {
   FillImageFileWithPattern('m');
   FillDeviceFileWithPattern(0);
 
@@ -291,7 +302,13 @@ IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, WriteVerify) {
   EXPECT_TRUE(error().empty());
 }
 
-IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, WriteCancel) {
+// Flaky on Win. http://crbug.com/927218
+#if defined(OS_WIN)
+#define MAYBE_WriteCancel DISABLED_WriteCancel
+#else
+#define MAYBE_WriteCancel WriteCancel
+#endif
+IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, MAYBE_WriteCancel) {
   FillImageFileWithPattern('a');
   FillDeviceFileWithPattern(0);
 
@@ -327,7 +344,13 @@ IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, VerifyFailure) {
   EXPECT_FALSE(error().empty());
 }
 
-IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, Verify) {
+// Flaky on Win. http://crbug.com/927218
+#if defined(OS_WIN)
+#define MAYBE_Verify DISABLED_Verify
+#else
+#define MAYBE_Verify Verify
+#endif
+IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, MAYBE_Verify) {
   FillImageFileWithPattern('e');
   FillDeviceFileWithPattern('e');
 
@@ -337,7 +360,13 @@ IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, Verify) {
   EXPECT_TRUE(error().empty());
 }
 
-IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, VerifyCancel) {
+// Flaky on Win. http://crbug.com/927218
+#if defined(OS_WIN)
+#define MAYBE_VerifyCancel DISABLED_VerifyCancel
+#else
+#define MAYBE_VerifyCancel VerifyCancel
+#endif
+IN_PROC_BROWSER_TEST_F(ImageWriterUtilityClientTest, MAYBE_VerifyCancel) {
   FillImageFileWithPattern('s');
   FillDeviceFileWithPattern('s');
 

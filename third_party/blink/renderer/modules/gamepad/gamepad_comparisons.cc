@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,12 +19,14 @@ const double kButtonActivationThreshold = 0.9;
 }  // namespace
 
 // static
-bool GamepadComparisons::HasUserActivation(
-    const HeapVector<Member<Gamepad>> gamepads) {
+bool GamepadComparisons::HasUserActivation(GamepadList* gamepads) {
+  if (!gamepads)
+    return false;
   // A button press counts as a user activation if the button's value is greater
   // than the activation threshold. A threshold is used so that analog buttons
   // or triggers do not generate an activation from a light touch.
-  for (Gamepad* pad : gamepads) {
+  for (wtf_size_t pad_index = 0; pad_index < gamepads->length(); ++pad_index) {
+    Gamepad* pad = gamepads->item(pad_index);
     if (pad) {
       for (auto button : pad->buttons()) {
         if (button->value() > kButtonActivationThreshold)
@@ -47,11 +49,10 @@ void GamepadComparisons::HasGamepadConnectionChanged(bool old_connected,
     *gamepad_lost = id_changed || (old_connected && !new_connected);
 }
 
-GamepadStateCompareResult::GamepadStateCompareResult(
-    const HeapVector<Member<Gamepad>> old_gamepads,
-    const HeapVector<Member<Gamepad>> new_gamepads,
-    bool compare_all_axes,
-    bool compare_all_buttons) {
+GamepadStateCompareResult::GamepadStateCompareResult(GamepadList* old_gamepads,
+                                                     GamepadList* new_gamepads,
+                                                     bool compare_all_axes,
+                                                     bool compare_all_buttons) {
   any_change_ = CompareGamepads(old_gamepads, new_gamepads, compare_all_axes,
                                 compare_all_buttons);
 }
@@ -98,15 +99,16 @@ bool GamepadStateCompareResult::IsButtonUp(size_t pad_index,
   return button_up_[pad_index].test(button_index);
 }
 
-bool GamepadStateCompareResult::CompareGamepads(
-    const HeapVector<Member<Gamepad>> old_gamepads,
-    const HeapVector<Member<Gamepad>> new_gamepads,
-    bool compare_all_axes,
-    bool compare_all_buttons) {
+bool GamepadStateCompareResult::CompareGamepads(GamepadList* old_gamepads,
+                                                GamepadList* new_gamepads,
+                                                bool compare_all_axes,
+                                                bool compare_all_buttons) {
+  if (!new_gamepads)
+    return false;
   bool any_change = false;
-  for (uint32_t i = 0; i < new_gamepads.size(); ++i) {
-    Gamepad* old_gamepad = i < old_gamepads.size() ? old_gamepads[i] : nullptr;
-    Gamepad* new_gamepad = new_gamepads[i];
+  for (uint32_t i = 0; i < device::Gamepads::kItemsLengthCap; ++i) {
+    Gamepad* old_gamepad = old_gamepads ? old_gamepads->item(i) : nullptr;
+    Gamepad* new_gamepad = new_gamepads->item(i);
     // Check whether the gamepad is newly connected or disconnected.
     bool newly_connected = false;
     bool newly_disconnected = false;
@@ -224,8 +226,8 @@ bool GamepadStateCompareResult::CompareButtons(Gamepad* old_gamepad,
 }
 
 GamepadStateCompareResult GamepadComparisons::Compare(
-    const HeapVector<Member<Gamepad>> old_gamepads,
-    const HeapVector<Member<Gamepad>> new_gamepads,
+    GamepadList* old_gamepads,
+    GamepadList* new_gamepads,
     bool compare_all_axes,
     bool compare_all_buttons) {
   return GamepadStateCompareResult(old_gamepads, new_gamepads, compare_all_axes,

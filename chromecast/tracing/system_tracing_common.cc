@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include <string.h>
 
-#include <iterator>
-
+#include "base/stl_util.h"
 #include "base/trace_event/common/trace_event_common.h"
 
 namespace chromecast {
@@ -22,7 +21,7 @@ const char* const kCategories[] = {
     "gfx",   "input", TRACE_DISABLED_BY_DEFAULT("irq"),
     "power", "sched", "workq"};
 
-const size_t kCategoryCount = std::size(kCategories);
+const size_t kCategoryCount = base::size(kCategories);
 
 sockaddr_un GetSystemTracingSocketAddress() {
   struct sockaddr_un addr;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/location.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/trace_event/trace_event.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/audio_service.h"
@@ -28,18 +27,17 @@ namespace content {
 
 namespace {
 
-ForwardingAudioStreamFactory::AudioStreamFactoryBinder&
-GetAudioStreamFactoryBinderOverride() {
-  static base::NoDestructor<
-      ForwardingAudioStreamFactory::AudioStreamFactoryBinder>
+ForwardingAudioStreamFactory::StreamFactoryBinder&
+GetStreamFactoryBinderOverride() {
+  static base::NoDestructor<ForwardingAudioStreamFactory::StreamFactoryBinder>
       binder;
   return *binder;
 }
 
 void BindStreamFactoryFromUIThread(
-    mojo::PendingReceiver<media::mojom::AudioStreamFactory> receiver) {
+    mojo::PendingReceiver<audio::mojom::StreamFactory> receiver) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  const auto& binder_override = GetAudioStreamFactoryBinderOverride();
+  const auto& binder_override = GetStreamFactoryBinderOverride();
   if (binder_override) {
     binder_override.Run(std::move(receiver));
     return;
@@ -81,7 +79,6 @@ void ForwardingAudioStreamFactory::Core::CreateInputStream(
     const media::AudioParameters& params,
     uint32_t shared_memory_count,
     bool enable_agc,
-    media::mojom::AudioProcessingConfigPtr processing_config,
     mojo::PendingRemote<blink::mojom::RendererAudioInputStreamFactoryClient>
         renderer_factory_client) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
@@ -91,7 +88,6 @@ void ForwardingAudioStreamFactory::Core::CreateInputStream(
       .insert(broker_factory_->CreateAudioInputStreamBroker(
           render_process_id, render_frame_id, device_id, params,
           shared_memory_count, user_input_monitor_, enable_agc,
-          std::move(processing_config),
           base::BindOnce(&ForwardingAudioStreamFactory::Core::RemoveInput,
                          base::Unretained(this)),
           std::move(renderer_factory_client)))
@@ -240,19 +236,18 @@ ForwardingAudioStreamFactory::~ForwardingAudioStreamFactory() {
   // causes issues in unit tests where the UI thread and the IO thread are the
   // same.
   GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::DoNothingWithBoundArgs(std::move(core_)));
+      FROM_HERE,
+      base::BindOnce([](std::unique_ptr<Core>) {}, std::move(core_)));
 }
 
 void ForwardingAudioStreamFactory::LoopbackStreamStarted() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  capture_handle_ =
-      web_contents()->IncrementCapturerCount(gfx::Size(), /*stay_hidden=*/false,
-                                             /*stay_awake=*/true);
+  web_contents()->IncrementCapturerCount(gfx::Size(), /* stay_hidden */ false);
 }
 
 void ForwardingAudioStreamFactory::LoopbackStreamStopped() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  capture_handle_.RunAndReset();
+  web_contents()->DecrementCapturerCount(/* stay_hidden */ false);
 }
 
 void ForwardingAudioStreamFactory::SetMuted(bool muted) {
@@ -273,7 +268,7 @@ bool ForwardingAudioStreamFactory::IsMuted() const {
   return is_muted_;
 }
 
-void ForwardingAudioStreamFactory::RenderFrameDeleted(
+void ForwardingAudioStreamFactory::FrameDeleted(
     RenderFrameHost* render_frame_host) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(render_frame_host);
@@ -287,9 +282,9 @@ void ForwardingAudioStreamFactory::RenderFrameDeleted(
                                 render_frame_host->GetRoutingID()));
 }
 
-void ForwardingAudioStreamFactory::OverrideAudioStreamFactoryBinderForTesting(
-    AudioStreamFactoryBinder binder) {
-  GetAudioStreamFactoryBinderOverride() = std::move(binder);
+void ForwardingAudioStreamFactory::OverrideStreamFactoryBinderForTesting(
+    StreamFactoryBinder binder) {
+  GetStreamFactoryBinderOverride() = std::move(binder);
 }
 
 void ForwardingAudioStreamFactory::Core::CleanupStreamsBelongingTo(
@@ -335,8 +330,7 @@ void ForwardingAudioStreamFactory::Core::RemoveOutput(
   ResetRemoteFactoryPtrIfIdle();
 }
 
-media::mojom::AudioStreamFactory*
-ForwardingAudioStreamFactory::Core::GetFactory() {
+audio::mojom::StreamFactory* ForwardingAudioStreamFactory::Core::GetFactory() {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   if (!remote_factory_) {
     TRACE_EVENT_INSTANT1(

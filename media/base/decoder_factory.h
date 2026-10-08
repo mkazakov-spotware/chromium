@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "media/base/media_export.h"
 #include "media/base/overlay_info.h"
-#include "media/base/supported_video_decoder_config.h"
 
 namespace base {
 class SequencedTaskRunner;
@@ -32,10 +32,6 @@ class VideoDecoder;
 class MEDIA_EXPORT DecoderFactory {
  public:
   DecoderFactory();
-
-  DecoderFactory(const DecoderFactory&) = delete;
-  DecoderFactory& operator=(const DecoderFactory&) = delete;
-
   virtual ~DecoderFactory();
 
   // Creates audio decoders and append them to the end of |audio_decoders|.
@@ -54,6 +50,9 @@ class MEDIA_EXPORT DecoderFactory {
       RequestOverlayInfoCB request_overlay_info_cb,
       const gfx::ColorSpace& target_color_space,
       std::vector<std::unique_ptr<VideoDecoder>>* video_decoders);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DecoderFactory);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_UI_ASH_MULTI_USER_TEST_MULTI_USER_WINDOW_MANAGER_H_
 
 #include "ash/public/cpp/multi_user_window_manager.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/account_id/account_id.h"
 
 class Browser;
@@ -17,10 +17,6 @@ class Browser;
 // |browser| which is shown on |desktop_owner|'s desktop.
 class TestMultiUserWindowManager : public ash::MultiUserWindowManager {
  public:
-  TestMultiUserWindowManager(const TestMultiUserWindowManager&) = delete;
-  TestMultiUserWindowManager& operator=(const TestMultiUserWindowManager&) =
-      delete;
-
   ~TestMultiUserWindowManager() override;
 
   // Creates an installs TestMultiUserWindowManager as the
@@ -42,23 +38,27 @@ class TestMultiUserWindowManager : public ash::MultiUserWindowManager {
   const AccountId& GetUserPresentingWindow(
       const aura::Window* window) const override;
   const AccountId& CurrentAccountId() const override;
+  void AddObserver(ash::MultiUserWindowManagerObserver* observer) override;
+  void RemoveObserver(ash::MultiUserWindowManagerObserver* observer) override;
 
  private:
   TestMultiUserWindowManager(Browser* visiting_browser,
                              const AccountId& desktop_owner);
 
   // The window of the visiting browser.
-  raw_ptr<aura::Window, DanglingUntriaged> browser_window_;
+  aura::Window* browser_window_;
   // The owner of the visiting browser.
   AccountId browser_owner_;
   // The owner of the currently shown desktop.
   AccountId desktop_owner_;
   // The created window.
-  raw_ptr<aura::Window, DanglingUntriaged> created_window_ = nullptr;
+  aura::Window* created_window_ = nullptr;
   // The location of the window.
   AccountId created_window_shown_for_;
   // The current selected active user.
   AccountId current_account_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMultiUserWindowManager);
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_MULTI_USER_TEST_MULTI_USER_WINDOW_MANAGER_H_

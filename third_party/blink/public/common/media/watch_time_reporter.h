@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/callback.h"
 #include "base/power_monitor/power_observer.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "media/base/audio_codecs.h"
@@ -24,6 +24,10 @@
 #include "third_party/blink/public/common/media/watch_time_component.h"
 #include "ui/gfx/geometry/size.h"
 #include "url/origin.h"
+
+namespace media {
+class WatchTimeReporterTest;
+}
 
 namespace blink {
 
@@ -56,7 +60,7 @@ namespace blink {
 //
 // Each seek event will result in a new watch time metric being started and the
 // old metric finalized as accurately as possible.
-class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerStateObserver {
+class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerObserver {
  public:
   using GetMediaTimeCB = base::RepeatingCallback<base::TimeDelta(void)>;
   using GetPipelineStatsCB =
@@ -88,8 +92,6 @@ class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerStateObserver {
                     media::mojom::MediaMetricsProvider* provider,
                     scoped_refptr<base::SequencedTaskRunner> task_runner,
                     const base::TickClock* tick_clock = nullptr);
-  WatchTimeReporter(const WatchTimeReporter&) = delete;
-  WatchTimeReporter& operator=(const WatchTimeReporter&) = delete;
   ~WatchTimeReporter() override;
 
   // These methods are used to ensure that watch time is only reported for media
@@ -157,7 +159,7 @@ class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerStateObserver {
   void OnDurationChanged(base::TimeDelta duration);
 
  private:
-  friend class WatchTimeReporterTest;
+  friend class media::WatchTimeReporterTest;
 
   // Internal constructor for marking background status.
   WatchTimeReporter(media::mojom::PlaybackPropertiesPtr properties,
@@ -170,13 +172,12 @@ class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerStateObserver {
                     scoped_refptr<base::SequencedTaskRunner> task_runner,
                     const base::TickClock* tick_clock);
 
-  // base::PowerStateObserver implementation.
+  // base::PowerObserver implementation.
   //
   // We only observe power source changes. We don't need to observe suspend and
   // resume events because we report watch time in terms of elapsed media time
   // and not in terms of elapsed real time.
   void OnPowerStateChange(bool on_battery_power) override;
-
   void OnNativeControlsChanged(bool has_native_controls);
   void OnDisplayTypeChanged(DisplayType display_type);
 
@@ -215,7 +216,7 @@ class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerStateObserver {
   // The amount of time between each UpdateWatchTime(); this is the frequency by
   // which the watch times are updated. In the event of a process crash or kill
   // this is also the most amount of watch time that we might lose.
-  base::TimeDelta reporting_interval_ = base::Seconds(5);
+  base::TimeDelta reporting_interval_ = base::TimeDelta::FromSeconds(5);
 
   base::RepeatingTimer reporting_timer_;
 
@@ -263,6 +264,8 @@ class BLINK_COMMON_EXPORT WatchTimeReporter : base::PowerStateObserver {
   // Similar to the above, but for muted audio+video watch time. Configured as
   // an audio+video WatchTimeReporter with |is_muted_| set to true.
   std::unique_ptr<WatchTimeReporter> muted_reporter_;
+
+  DISALLOW_COPY_AND_ASSIGN(WatchTimeReporter);
 };
 
 }  // namespace blink

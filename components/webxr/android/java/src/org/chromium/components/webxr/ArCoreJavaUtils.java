@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,6 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
 
@@ -45,10 +43,6 @@ public class ArCoreJavaUtils {
     // reference to the ChromeActivity, and that shouldn't be retained beyond the duration of a
     // session.
     private static ArCoreJavaUtils sActiveSessionInstance;
-
-    /** Whether there is a non-null valid {@link #sActiveSessionInstance}. */
-    private static ObservableSupplierImpl<Boolean> sActiveSessionAvailableSupplier =
-            new ObservableSupplierImpl<>();
 
     // Helper, obtains android Activity out of passed in WebContents instance.
     // Equivalent to ChromeActivity.fromWebContents(), but does not require that
@@ -88,13 +82,12 @@ public class ArCoreJavaUtils {
 
     @CalledByNative
     private void startSession(final ArCompositorDelegateProvider compositorDelegateProvider,
-            final WebContents webContents, boolean useOverlay, boolean canRenderDomContent) {
+            final WebContents webContents, boolean useOverlay) {
         if (DEBUG_LOGS) Log.i(TAG, "startSession");
         mArImmersiveOverlay = new ArImmersiveOverlay();
         sActiveSessionInstance = this;
-        sActiveSessionAvailableSupplier.set(true);
-        mArImmersiveOverlay.show(compositorDelegateProvider.create(webContents), webContents, this,
-                useOverlay, canRenderDomContent);
+        mArImmersiveOverlay.show(
+                compositorDelegateProvider.create(webContents), webContents, this, useOverlay);
     }
 
     @CalledByNative
@@ -105,7 +98,6 @@ public class ArCoreJavaUtils {
         mArImmersiveOverlay.cleanupAndExit();
         mArImmersiveOverlay = null;
         sActiveSessionInstance = null;
-        sActiveSessionAvailableSupplier.set(false);
     }
 
     // Called from ArDelegateImpl
@@ -120,20 +112,11 @@ public class ArCoreJavaUtils {
         return false;
     }
 
-    public static boolean hasActiveArSession() {
-        return sActiveSessionInstance != null;
-    }
-
-    public static ObservableSupplier<Boolean> hasActiveArSessionSupplier() {
-        return sActiveSessionAvailableSupplier;
-    }
-
-    public void onDrawingSurfaceReady(
-            Surface surface, WindowAndroid rootWindow, int rotation, int width, int height) {
+    public void onDrawingSurfaceReady(Surface surface, int rotation, int width, int height) {
         if (DEBUG_LOGS) Log.i(TAG, "onDrawingSurfaceReady");
         if (mNativeArCoreJavaUtils == 0) return;
-        ArCoreJavaUtilsJni.get().onDrawingSurfaceReady(mNativeArCoreJavaUtils, ArCoreJavaUtils.this,
-                surface, rootWindow, rotation, width, height);
+        ArCoreJavaUtilsJni.get().onDrawingSurfaceReady(
+                mNativeArCoreJavaUtils, ArCoreJavaUtils.this, surface, rotation, width, height);
     }
 
     public void onDrawingSurfaceTouch(
@@ -163,7 +146,7 @@ public class ArCoreJavaUtils {
     @NativeMethods
     interface Natives {
         void onDrawingSurfaceReady(long nativeArCoreJavaUtils, ArCoreJavaUtils caller,
-                Surface surface, WindowAndroid rootWindow, int rotation, int width, int height);
+                Surface surface, int rotation, int width, int height);
         void onDrawingSurfaceTouch(long nativeArCoreJavaUtils, ArCoreJavaUtils caller,
                 boolean primary, boolean touching, int pointerId, float x, float y);
         void onDrawingSurfaceDestroyed(long nativeArCoreJavaUtils, ArCoreJavaUtils caller);

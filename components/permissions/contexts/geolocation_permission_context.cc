@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "content/public/browser/device_service.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "url/origin.h"
 
 namespace permissions {
@@ -19,15 +18,15 @@ namespace permissions {
 GeolocationPermissionContext::GeolocationPermissionContext(
     content::BrowserContext* browser_context,
     std::unique_ptr<Delegate> delegate)
-    : PermissionContextBase(
-          browser_context,
-          ContentSettingsType::GEOLOCATION,
-          blink::mojom::PermissionsPolicyFeature::kGeolocation),
+    : PermissionContextBase(browser_context,
+                            ContentSettingsType::GEOLOCATION,
+                            blink::mojom::FeaturePolicyFeature::kGeolocation),
       delegate_(std::move(delegate)) {}
 
 GeolocationPermissionContext::~GeolocationPermissionContext() = default;
 
 void GeolocationPermissionContext::DecidePermission(
+    content::WebContents* web_contents,
     const PermissionRequestID& id,
     const GURL& requesting_origin,
     const GURL& embedding_origin,
@@ -35,10 +34,10 @@ void GeolocationPermissionContext::DecidePermission(
     BrowserPermissionCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  if (!delegate_->DecidePermission(id, requesting_origin, user_gesture,
-                                   &callback, this)) {
+  if (!delegate_->DecidePermission(web_contents, id, requesting_origin,
+                                   user_gesture, &callback, this)) {
     DCHECK(callback);
-    PermissionContextBase::DecidePermission(id, requesting_origin,
+    PermissionContextBase::DecidePermission(web_contents, id, requesting_origin,
                                             embedding_origin, user_gesture,
                                             std::move(callback));
   }
@@ -55,7 +54,7 @@ void GeolocationPermissionContext::UpdateTabContext(
     bool allowed) {
   content_settings::PageSpecificContentSettings* content_settings =
       content_settings::PageSpecificContentSettings::GetForFrame(
-          id.global_render_frame_host_id());
+          id.render_process_id(), id.render_frame_id());
 
   // WebContents might not exist (extensions) or no longer exist. In which case,
   // PageSpecificContentSettings will be null.
@@ -69,6 +68,10 @@ void GeolocationPermissionContext::UpdateTabContext(
   if (allowed) {
     GetGeolocationControl()->UserDidOptIntoLocationServices();
   }
+}
+
+bool GeolocationPermissionContext::IsRestrictedToSecureOrigins() const {
+  return true;
 }
 
 device::mojom::GeolocationControl*

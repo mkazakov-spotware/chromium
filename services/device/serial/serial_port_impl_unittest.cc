@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/serial/serial_port_impl.h"
 
+#include "base/stl_util.h"
 #include "base/test/bind.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -23,38 +24,20 @@ class FakeSerialIoHandler : public SerialIoHandler {
   FakeSerialIoHandler()
       : SerialIoHandler(base::FilePath(), /*ui_thread_task_runner=*/nullptr) {}
 
-  void SimulateOpenFailure(bool fail) { fail_open_ = fail; }
-
-  void SimulateGetControlSignalsFailure(bool fail) {
-    fail_get_control_signals_ = fail;
-  }
-
-  void SimulateSetControlSignalsFailure(bool fail) {
-    fail_set_control_signals_ = fail;
-  }
-
-  // SerialIoHandler implementation
   void Open(const mojom::SerialConnectionOptions& options,
             OpenCompleteCallback callback) override {
-    std::move(callback).Run(!fail_open_);
+    std::move(callback).Run(true);
   }
 
   void Flush(mojom::SerialPortFlushMode mode) const override {}
   void Drain() override {}
 
   mojom::SerialPortControlSignalsPtr GetControlSignals() const override {
-    if (fail_get_control_signals_)
-      return nullptr;
-
-    return input_signals_.Clone();
+    return mojom::SerialPortControlSignals::New();
   }
 
   bool SetControlSignals(
       const mojom::SerialHostControlSignals& control_signals) override {
-    if (fail_set_control_signals_)
-      return false;
-
-    output_signals_ = control_signals;
     return true;
   }
 
@@ -67,27 +50,17 @@ class FakeSerialIoHandler : public SerialIoHandler {
   void WriteImpl() override {}
 
   void CancelReadImpl() override {
-    ReadCompleted(/*bytes_read=*/0, mojom::SerialReceiveError::NONE);
+    QueueReadCompleted(/*bytes_read=*/0, mojom::SerialReceiveError::NONE);
   }
 
   void CancelWriteImpl() override {
-    WriteCompleted(/*bytes_written=*/0, mojom::SerialSendError::NONE);
+    QueueWriteCompleted(/*bytes_written=*/0, mojom::SerialSendError::NONE);
   }
 
-  bool ConfigurePortImpl() override {
-    // Open() is overridden so this should never be called.
-    ADD_FAILURE() << "ConfigurePortImpl() should not be reached.";
-    return false;
-  }
+  bool ConfigurePortImpl() override { return true; }
 
  private:
   ~FakeSerialIoHandler() override = default;
-
-  mojom::SerialPortControlSignals input_signals_;
-  mojom::SerialHostControlSignals output_signals_;
-  bool fail_open_ = false;
-  bool fail_get_control_signals_ = false;
-  bool fail_set_control_signals_ = false;
 };
 
 }  // namespace
@@ -99,17 +72,17 @@ class SerialPortImplTest : public DeviceServiceTestBase {
   void operator=(const SerialPortImplTest& other) = delete;
   ~SerialPortImplTest() override = default;
 
-  scoped_refptr<FakeSerialIoHandler> CreatePort(
+  void CreatePort(
       mojo::Remote<mojom::SerialPort>* port,
       mojo::SelfOwnedReceiverRef<mojom::SerialPortConnectionWatcher>* watcher) {
-    auto io_handler = base::MakeRefCounted<FakeSerialIoHandler>();
     mojo::PendingRemote<mojom::SerialPortConnectionWatcher> watcher_remote;
     *watcher = mojo::MakeSelfOwnedReceiver(
         std::make_unique<mojom::SerialPortConnectionWatcher>(),
         watcher_remote.InitWithNewPipeAndPassReceiver());
     base::RunLoop loop;
     SerialPortImpl::OpenForTesting(
-        io_handler, mojom::SerialConnectionOptions::New(), mojo::NullRemote(),
+        base::MakeRefCounted<FakeSerialIoHandler>(),
+        mojom::SerialConnectionOptions::New(), mojo::NullRemote(),
         std::move(watcher_remote),
         base::BindLambdaForTesting(
             [&](mojo::PendingRemote<mojom::SerialPort> pending_remote) {
@@ -118,7 +91,6 @@ class SerialPortImplTest : public DeviceServiceTestBase {
               loop.Quit();
             }));
     loop.Run();
-    return io_handler;
   }
 
   void CreateDataPipe(mojo::ScopedDataPipeProducerHandle* producer,
@@ -129,7 +101,7 @@ class SerialPortImplTest : public DeviceServiceTestBase {
     options.element_num_bytes = 1;
     options.capacity_num_bytes = 64;
 
-    MojoResult result = mojo::CreateDataPipe(&options, *producer, *consumer);
+    MojoResult result = mojo::CreateDataPipe(&options, producer, consumer);
     DCHECK_EQ(result, MOJO_RESULT_OK);
   }
 
@@ -218,61 +190,6 @@ TEST_F(SerialPortImplTest, FlushRead) {
   watcher_loop.Run();
 }
 
-TEST_F(SerialPortImplTest, OpenFailure) {
-  auto io_handler = base::MakeRefCounted<FakeSerialIoHandler>();
-  io_handler->SimulateOpenFailure(true);
-
-  mojo::PendingRemote<mojom::SerialPortConnectionWatcher> watcher_remote;
-  mojo::MakeSelfOwnedReceiver(
-      std::make_unique<mojom::SerialPortConnectionWatcher>(),
-      watcher_remote.InitWithNewPipeAndPassReceiver());
-  base::RunLoop loop;
-  SerialPortImpl::OpenForTesting(
-      io_handler, mojom::SerialConnectionOptions::New(), mojo::NullRemote(),
-      std::move(watcher_remote),
-      base::BindLambdaForTesting(
-          [&](mojo::PendingRemote<mojom::SerialPort> pending_remote) {
-            EXPECT_FALSE(pending_remote.is_valid());
-            loop.Quit();
-          }));
-  loop.Run();
-}
-
-TEST_F(SerialPortImplTest, GetControlSignalsFailure) {
-  mojo::Remote<mojom::SerialPort> serial_port;
-  mojo::SelfOwnedReceiverRef<mojom::SerialPortConnectionWatcher> watcher;
-  scoped_refptr<FakeSerialIoHandler> io_handler =
-      CreatePort(&serial_port, &watcher);
-  io_handler->SimulateGetControlSignalsFailure(true);
-
-  base::RunLoop loop;
-  serial_port->GetControlSignals(base::BindLambdaForTesting(
-      [&](mojom::SerialPortControlSignalsPtr signals) {
-        EXPECT_FALSE(signals);
-        loop.Quit();
-      }));
-  loop.Run();
-}
-
-TEST_F(SerialPortImplTest, SetControlSignalsFailure) {
-  mojo::Remote<mojom::SerialPort> serial_port;
-  mojo::SelfOwnedReceiverRef<mojom::SerialPortConnectionWatcher> watcher;
-  scoped_refptr<FakeSerialIoHandler> io_handler =
-      CreatePort(&serial_port, &watcher);
-  io_handler->SimulateSetControlSignalsFailure(true);
-
-  base::RunLoop loop;
-  auto signals = mojom::SerialHostControlSignals::New();
-  signals->has_dtr = true;
-  signals->dtr = true;
-  serial_port->SetControlSignals(std::move(signals),
-                                 base::BindLambdaForTesting([&](bool success) {
-                                   EXPECT_FALSE(success);
-                                   loop.Quit();
-                                 }));
-  loop.Run();
-}
-
 TEST_F(SerialPortImplTest, FlushWrite) {
   mojo::Remote<mojom::SerialPort> serial_port;
   mojo::SelfOwnedReceiverRef<mojom::SerialPortConnectionWatcher> watcher;
@@ -322,7 +239,7 @@ TEST_F(SerialPortImplTest, Close) {
   CreatePort(&serial_port, &watcher);
 
   base::RunLoop loop;
-  serial_port->Close(/*flush=*/true, loop.QuitClosure());
+  serial_port->Close(loop.QuitClosure());
   loop.Run();
 }
 

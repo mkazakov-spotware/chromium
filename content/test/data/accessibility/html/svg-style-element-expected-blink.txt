@@ -3,5 +3,6 @@ rootWebArea
 ++++genericContainer ignored
 ++++++genericContainer
 ++++++++button name='Kettle'
+++++++++++presentational
 ++++++++++staticText name='Kettle'
 ++++++++++++inlineTextBox name='Kettle'

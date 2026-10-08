@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,9 @@ namespace autofill {
 
 class TestAutofillExternalDelegate : public AutofillExternalDelegate {
  public:
-  explicit TestAutofillExternalDelegate(
-      BrowserAutofillManager* autofill_manager,
-      AutofillDriver* autofill_driver,
-      bool call_parent_methods);
-
-  TestAutofillExternalDelegate(const TestAutofillExternalDelegate&) = delete;
-  TestAutofillExternalDelegate& operator=(const TestAutofillExternalDelegate&) =
-      delete;
-
+  explicit TestAutofillExternalDelegate(AutofillManager* autofill_manager,
+                                        AutofillDriver* autofill_driver,
+                                        bool call_parent_methods);
   ~TestAutofillExternalDelegate() override;
 
   // AutofillExternalDelegate overrides.
@@ -32,11 +26,10 @@ class TestAutofillExternalDelegate : public AutofillExternalDelegate {
                const FormData& form,
                const FormFieldData& field,
                const gfx::RectF& bounds) override;
-  void OnSuggestionsReturned(
-      int query_id,
-      const std::vector<Suggestion>& suggestions,
-      AutoselectFirstSuggestion autoselect_first_suggestion,
-      bool is_all_server_suggestions) override;
+  void OnSuggestionsReturned(int query_id,
+                             const std::vector<Suggestion>& suggestions,
+                             bool autoselect_first_suggestion,
+                             bool is_all_server_suggestions) override;
   bool HasActiveScreenReader() const override;
   void OnAutofillAvailabilityEvent(const mojom::AutofillState state) override;
 
@@ -61,7 +54,7 @@ class TestAutofillExternalDelegate : public AutofillExternalDelegate {
 
   bool on_suggestions_returned_seen() const;
 
-  AutoselectFirstSuggestion autoselect_first_suggestion() const;
+  bool autoselect_first_suggestion() const;
 
   bool is_all_server_suggestions() const;
 
@@ -84,8 +77,7 @@ class TestAutofillExternalDelegate : public AutofillExternalDelegate {
   bool on_suggestions_returned_seen_ = false;
 
   // Records if the first suggestion should be auto-selected.
-  AutoselectFirstSuggestion autoselect_first_suggestion_ =
-      AutoselectFirstSuggestion(false);
+  bool autoselect_first_suggestion_ = false;
 
   // Records whether the Autofill suggestions all come from Google Payments.
   bool is_all_server_suggestions_ = false;
@@ -104,6 +96,8 @@ class TestAutofillExternalDelegate : public AutofillExternalDelegate {
   bool has_suggestions_available_on_field_focus_ = false;
 
   base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestAutofillExternalDelegate);
 };
 
 }  // namespace autofill

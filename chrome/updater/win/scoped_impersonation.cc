@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/updater/win/scoped_impersonation.h"
 
 #include "base/logging.h"
-#include "chrome/updater/util/win_util.h"
+#include "chrome/updater/win/util.h"
 
 namespace updater {
 

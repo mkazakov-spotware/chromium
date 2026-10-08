@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,32 +13,24 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/memory/read_only_shared_memory_region.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "ipc/ipc_listener.h"
-#include "mojo/public/cpp/bindings/associated_receiver.h"
-#include "mojo/public/cpp/bindings/associated_remote.h"
-#include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
 #include "mojo/public/cpp/system/message_pipe.h"
-#include "remoting/host/base/desktop_environment_options.h"
 #include "remoting/host/client_session_control.h"
+#include "remoting/host/current_process_stats_agent.h"
+#include "remoting/host/desktop_and_cursor_conditional_composer.h"
 #include "remoting/host/desktop_display_info.h"
+#include "remoting/host/desktop_environment_options.h"
 #include "remoting/host/file_transfer/session_file_operations_handler.h"
-#include "remoting/host/mojom/desktop_session.mojom.h"
-#include "remoting/host/mojom/remoting_mojom_traits.h"
-#include "remoting/proto/url_forwarder_control.pb.h"
 #include "remoting/protocol/clipboard_stub.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "remoting/protocol/process_stats_stub.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_geometry.h"
 #include "third_party/webrtc/modules/desktop_capture/mouse_cursor_monitor.h"
 #include "ui/events/event.h"
-
-namespace base {
-class Location;
-}
 
 namespace IPC {
 class ChannelProxy;
@@ -51,18 +43,17 @@ class ActionExecutor;
 class AudioCapturer;
 class AudioPacket;
 class AutoThreadTaskRunner;
-class DesktopCapturer;
 class DesktopEnvironment;
 class DesktopEnvironmentFactory;
 class InputInjector;
 class KeyboardLayoutMonitor;
+class ProcessStatsSender;
 class RemoteInputFilter;
-class RemoteWebAuthnStateChangeNotifier;
 class ScreenControls;
 class ScreenResolution;
-class UrlForwarderConfigurator;
 
 namespace protocol {
+class ActionRequest;
 class InputEventTracker;
 }  // namespace protocol
 
@@ -74,8 +65,8 @@ class DesktopSessionAgent
       public webrtc::DesktopCapturer::Callback,
       public webrtc::MouseCursorMonitor::Callback,
       public ClientSessionControl,
-      public mojom::DesktopSessionAgent,
-      public mojom::DesktopSessionControl {
+      public protocol::ProcessStatsStub,
+      public IpcFileOperations::ResultHandler {
  public:
   class Delegate {
    public:
@@ -87,12 +78,6 @@ class DesktopSessionAgent
     // Notifies the delegate that the network-to-desktop channel has been
     // disconnected.
     virtual void OnNetworkProcessDisconnected() = 0;
-
-    // Allows the desktop process to ask the daemon process to crash the network
-    // process. This should be called any time the network process sends an
-    // invalid IPC message to the desktop process (indicating that the network
-    // process might have been compromised).
-    virtual void CrashNetworkProcess(const base::Location& location) = 0;
   };
 
   DesktopSessionAgent(
@@ -101,16 +86,10 @@ class DesktopSessionAgent
       scoped_refptr<AutoThreadTaskRunner> input_task_runner,
       scoped_refptr<AutoThreadTaskRunner> io_task_runner);
 
-  DesktopSessionAgent(const DesktopSessionAgent&) = delete;
-  DesktopSessionAgent& operator=(const DesktopSessionAgent&) = delete;
-
   // IPC::Listener implementation.
   bool OnMessageReceived(const IPC::Message& message) override;
   void OnChannelConnected(int32_t peer_pid) override;
   void OnChannelError() override;
-  void OnAssociatedInterfaceRequest(
-      const std::string& interface_name,
-      mojo::ScopedInterfaceEndpointHandle handle) override;
 
   // webrtc::DesktopCapturer::Callback implementation.
   void OnCaptureResult(webrtc::DesktopCapturer::Result result,
@@ -120,39 +99,23 @@ class DesktopSessionAgent
   void OnMouseCursor(webrtc::MouseCursor* cursor) override;
   void OnMouseCursorPosition(const webrtc::DesktopVector& position) override;
 
-  // Forwards a local clipboard event to the network process over IPC.
-  void OnClipboardEvent(const protocol::ClipboardEvent& event);
+  // Forwards a local clipboard event though the IPC channel to the network
+  // process.
+  void InjectClipboardEvent(const protocol::ClipboardEvent& event);
 
   // Forwards an audio packet though the IPC channel to the network process.
   void ProcessAudioPacket(std::unique_ptr<AudioPacket> packet);
 
-  // mojom::DesktopSessionAgent implementation.
-  void Start(const std::string& authenticated_jid,
-             const ScreenResolution& resolution,
-             const DesktopEnvironmentOptions& options,
-             StartCallback callback) override;
-
-  // mojom::DesktopSessionControl implementation.
-  void CaptureFrame() override;
-  void SelectSource(int id) override;
-  void SetScreenResolution(const ScreenResolution& resolution) override;
-  void LockWorkstation() override;
-  void InjectSendAttentionSequence() override;
-  void InjectClipboardEvent(const protocol::ClipboardEvent& event) override;
-  void InjectKeyEvent(const protocol::KeyEvent& event) override;
-  void InjectMouseEvent(const protocol::MouseEvent& event) override;
-  void InjectTextEvent(const protocol::TextEvent& event) override;
-  void InjectTouchEvent(const protocol::TouchEvent& event) override;
-  void SetUpUrlForwarder() override;
-  void SignalWebAuthnExtension() override;
-  void BeginFileRead(BeginFileReadCallback callback) override;
-  void BeginFileWrite(const base::FilePath& file_path,
-                      BeginFileWriteCallback callback) override;
+  // IpcFileOperations::ResultHandler implementation.
+  void OnResult(std::uint64_t file_id, ResultHandler::Result result) override;
+  void OnInfoResult(std::uint64_t file_id,
+                    ResultHandler::InfoResult result) override;
+  void OnDataResult(std::uint64_t file_id,
+                    ResultHandler::DataResult result) override;
 
   // Creates desktop integration components and a connected IPC channel to be
   // used to access them. The client end of the channel is returned.
-  mojo::ScopedMessagePipeHandle Initialize(
-      const base::WeakPtr<Delegate>& delegate);
+  mojo::ScopedMessagePipeHandle Start(const base::WeakPtr<Delegate>& delegate);
 
   // Stops the agent asynchronously.
   void Stop();
@@ -172,16 +135,38 @@ class DesktopSessionAgent
   void OnDesktopDisplayChanged(
       std::unique_ptr<protocol::VideoLayout> layout) override;
 
+  // ProcessStatsStub interface.
+  void OnProcessStats(
+      const protocol::AggregatedProcessResourceUsage& usage) override;
+
+  // Handles StartSessionAgent request from the client.
+  void OnStartSessionAgent(const std::string& authenticated_jid,
+                           const ScreenResolution& resolution,
+                           const DesktopEnvironmentOptions& options);
+
+  // Handles CaptureFrame requests from the client.
+  void OnCaptureFrame();
+
+  // Handles desktop display selection requests from the client.
+  void OnSelectSource(int id);
+
+  // Handles event executor requests from the client.
+  void OnInjectClipboardEvent(const std::string& serialized_event);
+  void OnInjectKeyEvent(const std::string& serialized_event);
+  void OnInjectTextEvent(const std::string& serialized_event);
+  void OnInjectMouseEvent(const std::string& serialized_event);
+  void OnInjectTouchEvent(const std::string& serialized_event);
+  void OnExecuteActionRequestEvent(const protocol::ActionRequest& request);
+
   // Handles keyboard layout changes.
   void OnKeyboardLayoutChange(const protocol::KeyboardLayout& layout);
 
-  // Notifies the network process when a new shared memory region is created.
-  void OnSharedMemoryRegionCreated(int id,
-                                   base::ReadOnlySharedMemoryRegion region,
-                                   uint32_t size);
+  // Handles ChromotingNetworkDesktopMsg_SetScreenResolution request from
+  // the client.
+  void SetScreenResolution(const ScreenResolution& resolution);
 
-  // Notifies the network process when a shared memory region is released.
-  void OnSharedMemoryRegionReleased(int id);
+  // Sends a message to the network process.
+  void SendToNetwork(std::unique_ptr<IPC::Message> message);
 
   // Posted to |audio_capture_task_runner_| to start the audio capturer.
   void StartAudioCapturer();
@@ -189,11 +174,15 @@ class DesktopSessionAgent
   // Posted to |audio_capture_task_runner_| to stop the audio capturer.
   void StopAudioCapturer();
 
- private:
-  void OnCheckUrlForwarderSetUpResult(bool is_set_up);
-  void OnUrlForwarderSetUpStateChanged(
-      protocol::UrlForwarderControl::SetUpUrlForwarderResponse::State state);
+  // Starts to report process statistic data to network process. If
+  // |interval| is less than or equal to 0, a default non-zero value will be
+  // used.
+  void StartProcessStatsReport(base::TimeDelta interval);
 
+  // Stops sending process statistic data to network process.
+  void StopProcessStatsReport();
+
+ private:
   // Task runner dedicated to running methods of |audio_capturer_|.
   scoped_refptr<AutoThreadTaskRunner> audio_capture_task_runner_;
 
@@ -238,7 +227,7 @@ class DesktopSessionAgent
   bool started_ = false;
 
   // Captures the screen and composites with the mouse cursor if necessary.
-  std::unique_ptr<DesktopCapturer> video_capturer_;
+  std::unique_ptr<DesktopAndCursorConditionalComposer> video_capturer_;
 
   // Captures mouse shapes.
   std::unique_ptr<webrtc::MouseCursorMonitor> mouse_cursor_monitor_;
@@ -252,26 +241,17 @@ class DesktopSessionAgent
 
   // Routes file-transfer messages to the corresponding reader/writer to be
   // executed.
-  absl::optional<SessionFileOperationsHandler> session_file_operations_handler_;
+  base::Optional<SessionFileOperationsHandler> session_file_operations_handler_;
 
-  mojo::AssociatedRemote<mojom::DesktopSessionEventHandler>
-      desktop_session_event_handler_;
-  mojo::AssociatedRemote<mojom::DesktopSessionStateHandler>
-      desktop_session_state_handler_;
-  mojo::AssociatedReceiver<mojom::DesktopSessionAgent> desktop_session_agent_{
-      this};
-  mojo::AssociatedReceiver<mojom::DesktopSessionControl>
-      desktop_session_control_{this};
+  // Reports process statistic data to network process.
+  std::unique_ptr<ProcessStatsSender> stats_sender_;
 
-  // Checks and configures the URL forwarder.
-  std::unique_ptr<::remoting::UrlForwarderConfigurator>
-      url_forwarder_configurator_;
-
-  std::unique_ptr<RemoteWebAuthnStateChangeNotifier>
-      webauthn_state_change_notifier_;
+  CurrentProcessStatsAgent current_process_stats_;
 
   // Used to disable callbacks to |this|.
   base::WeakPtrFactory<DesktopSessionAgent> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopSessionAgent);
 };
 
 }  // namespace remoting

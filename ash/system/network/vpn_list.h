@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/network/tray_network_state_observer.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
+#include "base/time/time.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom-forward.h"
 
 namespace ash {
@@ -31,19 +33,16 @@ class ASH_EXPORT VpnList : public TrayNetworkStateObserver {
   // the primary user's profile changes.
   class Observer {
    public:
-    Observer& operator=(const Observer&) = delete;
-
     virtual void OnVpnProvidersChanged() = 0;
 
    protected:
     virtual ~Observer();
+
+   private:
+    DISALLOW_ASSIGN(Observer);
   };
 
   explicit VpnList(TrayNetworkStateModel* model);
-
-  VpnList(const VpnList&) = delete;
-  VpnList& operator=(const VpnList&) = delete;
-
   ~VpnList() override;
 
   const std::vector<VpnProviderPtr>& extension_vpn_providers() {
@@ -92,6 +91,8 @@ class ASH_EXPORT VpnList : public TrayNetworkStateObserver {
   std::vector<VpnProviderPtr> arc_vpn_providers_;
 
   base::ObserverList<Observer>::Unchecked observer_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(VpnList);
 };
 
 }  // namespace ash

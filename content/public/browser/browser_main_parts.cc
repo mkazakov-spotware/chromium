@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,11 @@ int BrowserMainParts::PreEarlyInitialization() {
 }
 
 int BrowserMainParts::PreCreateThreads() {
-  return RESULT_CODE_NORMAL_EXIT;
+  return 0;
 }
 
-int BrowserMainParts::PreMainMessageLoopRun() {
-  return RESULT_CODE_NORMAL_EXIT;
-}
-
-bool BrowserMainParts::ShouldInterceptMainMessageLoopRun() {
-  return true;
+bool BrowserMainParts::MainMessageLoopRun(int* result_code) {
+  return false;
 }
 
 }  // namespace content

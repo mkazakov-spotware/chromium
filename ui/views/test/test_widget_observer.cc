@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 #include "base/check_op.h"
 #include "ui/views/widget/widget.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 TestWidgetObserver::TestWidgetObserver(Widget* widget) : widget_(widget) {
   widget_->AddObserver(this);
@@ -24,4 +25,5 @@ void TestWidgetObserver::OnWidgetDestroying(Widget* widget) {
   widget_ = nullptr;
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

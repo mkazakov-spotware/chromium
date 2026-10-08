@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,10 +41,10 @@ public abstract class NativeBackgroundTask implements BackgroundTask {
     private boolean mTaskStopped;
 
     /**
-     * If true, the task runs in Minimal Browser mode. If false, the task runs in Full Browser
+     * If true, the task runs in Service Manager Only Mode. If false, the task runs in Full Browser
      * Mode.
      */
-    private boolean mRunningInMinimalBrowserMode;
+    private boolean mRunningInServiceManagerOnlyMode;
 
     /** Make sure that we do not double record task finished metric */
     private boolean mFinishMetricRecorded;
@@ -71,10 +71,8 @@ public abstract class NativeBackgroundTask implements BackgroundTask {
         mTaskId = taskParameters.getTaskId();
 
         TaskFinishedCallback wrappedCallback = needsReschedule -> {
-            PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT, () -> {
-                recordTaskFinishedMetric();
-                callback.taskFinished(needsReschedule);
-            });
+            recordTaskFinishedMetric();
+            callback.taskFinished(needsReschedule);
         };
 
         // WrappedCallback will only be called when the work is done or in onStopTask. If the task
@@ -128,15 +126,16 @@ public abstract class NativeBackgroundTask implements BackgroundTask {
     private final void runWithNative(
             final Runnable startWithNativeRunnable, final Runnable rescheduleRunnable) {
         if (isNativeLoadedInFullBrowserMode()) {
-            mRunningInMinimalBrowserMode = false;
-            getUmaReporter().reportNativeTaskStarted(mTaskId, mRunningInMinimalBrowserMode);
+            mRunningInServiceManagerOnlyMode = false;
+            getUmaReporter().reportNativeTaskStarted(mTaskId, mRunningInServiceManagerOnlyMode);
+            mDelegate.recordMemoryUsageWithRandomDelay(mTaskId, mRunningInServiceManagerOnlyMode);
             PostTask.postTask(UiThreadTaskTraits.DEFAULT, startWithNativeRunnable);
             return;
         }
 
-        boolean wasInMinimalBrowserMode = isNativeLoadedInMinimalBrowserMode();
-        mRunningInMinimalBrowserMode = supportsMinimalBrowser();
-        getUmaReporter().reportNativeTaskStarted(mTaskId, mRunningInMinimalBrowserMode);
+        boolean wasInServiceManagerOnlyMode = isNativeLoadedInServiceManagerOnlyMode();
+        mRunningInServiceManagerOnlyMode = supportsServiceManagerOnly();
+        getUmaReporter().reportNativeTaskStarted(mTaskId, mRunningInServiceManagerOnlyMode);
 
         PostTask.postTask(UiThreadTaskTraits.DEFAULT, new Runnable() {
             @Override
@@ -144,27 +143,28 @@ public abstract class NativeBackgroundTask implements BackgroundTask {
                 // If task was stopped before we got here, don't start native initialization.
                 if (mTaskStopped) return;
 
-                // Record transitions from No Native to Minimal Browser Mode and from No Native
-                // to Full Browser mode, but not cases in which Minimal Browser Mode was
+                // Record transitions from No Native to Service Manager Only Mode and from No Native
+                // to Full Browser mode, but not cases in which Service Manager Only Mode was
                 // already started.
-                if (!wasInMinimalBrowserMode) {
-                    getUmaReporter().reportTaskStartedNative(mTaskId, mRunningInMinimalBrowserMode);
+                if (!wasInServiceManagerOnlyMode) {
+                    getUmaReporter().reportTaskStartedNative(
+                            mTaskId, mRunningInServiceManagerOnlyMode);
                 }
 
                 // Start native initialization.
-                mDelegate.initializeNativeAsync(
-                        mRunningInMinimalBrowserMode, startWithNativeRunnable, rescheduleRunnable);
+                mDelegate.initializeNativeAsync(mTaskId, mRunningInServiceManagerOnlyMode,
+                        startWithNativeRunnable, rescheduleRunnable);
             }
         });
     }
 
     /**
-     * Descendant classes should override this method if they support running in minimal browser
-     * mode.
+     * Descendant classes should override this method if they support running in service manager
+     * only mode.
      *
-     * @return if the task supports running in minimal browser mode.
+     * @return if the task supports running in service manager only mode.
      */
-    protected boolean supportsMinimalBrowser() {
+    protected boolean supportsServiceManagerOnly() {
         return false;
     }
 
@@ -227,9 +227,9 @@ public abstract class NativeBackgroundTask implements BackgroundTask {
         return getBrowserStartupController().isFullBrowserStarted();
     }
 
-    /** Whether the native part of the browser is loaded in Minimal Browser Mode. */
-    private boolean isNativeLoadedInMinimalBrowserMode() {
-        return getBrowserStartupController().isRunningInMinimalBrowserMode();
+    /** Whether the native part of the browser is loaded in Service Manager Only Mode. */
+    private boolean isNativeLoadedInServiceManagerOnlyMode() {
+        return getBrowserStartupController().isRunningInServiceManagerMode();
     }
 
     protected BrowserStartupController getBrowserStartupController() {
@@ -240,7 +240,7 @@ public abstract class NativeBackgroundTask implements BackgroundTask {
         ThreadUtils.assertOnUiThread();
         if (!mFinishMetricRecorded) {
             mFinishMetricRecorded = true;
-            getUmaReporter().reportNativeTaskFinished(mTaskId, mRunningInMinimalBrowserMode);
+            getUmaReporter().reportNativeTaskFinished(mTaskId, mRunningInServiceManagerOnlyMode);
         }
     }
 

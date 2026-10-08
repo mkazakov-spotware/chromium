@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_simple_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -60,10 +61,6 @@ class TestRegistrationObserver
   };
 
   TestRegistrationObserver() = default;
-
-  TestRegistrationObserver(const TestRegistrationObserver&) = delete;
-  TestRegistrationObserver& operator=(const TestRegistrationObserver&) = delete;
-
   ~TestRegistrationObserver() override = default;
 
   // Closes the bindings associated with this observer.
@@ -113,17 +110,14 @@ class TestRegistrationObserver
   mojo::Receiver<blink::mojom::BackgroundFetchRegistrationObserver> receiver_{
       this};
   bool records_available_ = true;
+
+  DISALLOW_COPY_AND_ASSIGN(TestRegistrationObserver);
 };
 
 class BackgroundFetchRegistrationNotifierTest : public ::testing::Test {
  public:
   BackgroundFetchRegistrationNotifierTest()
       : notifier_(std::make_unique<BackgroundFetchRegistrationNotifier>()) {}
-
-  BackgroundFetchRegistrationNotifierTest(
-      const BackgroundFetchRegistrationNotifierTest&) = delete;
-  BackgroundFetchRegistrationNotifierTest& operator=(
-      const BackgroundFetchRegistrationNotifierTest&) = delete;
 
   ~BackgroundFetchRegistrationNotifierTest() override = default;
 
@@ -157,6 +151,9 @@ class BackgroundFetchRegistrationNotifierTest : public ::testing::Test {
   base::test::TaskEnvironment task_environment_;
 
   std::unique_ptr<BackgroundFetchRegistrationNotifier> notifier_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchRegistrationNotifierTest);
 };
 
 TEST_F(BackgroundFetchRegistrationNotifierTest, NotifySingleObserver) {

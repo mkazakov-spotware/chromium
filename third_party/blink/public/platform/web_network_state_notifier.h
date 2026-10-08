@@ -38,17 +38,20 @@
 
 namespace blink {
 
-class BLINK_PLATFORM_EXPORT WebNetworkStateNotifier {
+class WebNetworkStateNotifier {
  public:
-  static void SetOnLine(bool);
-  static void SetWebConnection(WebConnectionType, double max_bandwidth_mbps);
-  static void SetNetworkQuality(WebEffectiveConnectionType,
-                                base::TimeDelta http_rtt,
-                                base::TimeDelta transport_rtt,
-                                int downlink_throughput_kbps);
-  static void SetNetworkQualityWebHoldback(WebEffectiveConnectionType);
-  static void SetSaveDataEnabled(bool enabled);
-  static bool SaveDataEnabled();
+  BLINK_PLATFORM_EXPORT static void SetOnLine(bool);
+  BLINK_PLATFORM_EXPORT static void SetWebConnection(WebConnectionType,
+                                                     double max_bandwidth_mbps);
+  BLINK_PLATFORM_EXPORT static void SetNetworkQuality(
+      WebEffectiveConnectionType,
+      base::TimeDelta http_rtt,
+      base::TimeDelta transport_rtt,
+      int downlink_throughput_kbps);
+  BLINK_PLATFORM_EXPORT static void SetNetworkQualityWebHoldback(
+      WebEffectiveConnectionType);
+  BLINK_PLATFORM_EXPORT static void SetSaveDataEnabled(bool enabled);
+  BLINK_PLATFORM_EXPORT static bool SaveDataEnabled();
 
  private:
   WebNetworkStateNotifier() = delete;
@@ -56,4 +59,4 @@ class BLINK_PLATFORM_EXPORT WebNetworkStateNotifier {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_NETWORK_STATE_NOTIFIER_H_
+#endif

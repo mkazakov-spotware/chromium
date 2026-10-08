@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,12 +22,11 @@ chrome.test.runTests([
       var reader = directoryEntry.createReader();
       reader.readEntries(chrome.test.callback(function(entries) {
         // On POSIX systems DIR_HOME is overridden for this test and
-        // dotfiles may be created there, ignore them
-        // See https://codereview.chromium.org/200473002/ and
-        // https://crrev.com/c/2858114.
+        // [.config] directory may be created there, ignore it
+        // See https://codereview.chromium.org/200473002/
         var testEntry;
         entries.forEach(function(entry) {
-          if (!entry.name.startsWith('.')) {
+          if (entry.name != '.config') {
             chrome.test.assertEq(entry.name, 'open_existing.txt');
             testEntry = entry;
           }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -338,6 +338,23 @@ public class SideSlideLayout extends ViewGroup {
         int targetDiff = (int) (slingshotDist * dragPercent + extraMove);
         int targetX = mOriginalOffset + (mIsForward ? -targetDiff : targetDiff);
         setTargetOffsetLeftAndRight(targetX - mCurrentTargetOffset);
+    }
+
+    /**
+     * Update arrow bubble transparency as navigation sheet state changes.
+     * @param faded {@code true} if arrow bubble should fade out.
+     * @param animate {@code true} if animation is needed.
+     */
+    void fadeBubble(boolean faded, boolean animate) {
+        mArrowView.setFaded(faded, animate);
+    }
+
+    /**
+     * Hide arrow bubble by making it fade away at the current position.
+     */
+    void hideBubble() {
+        mNavigating = false;
+        startHidingAnimation(mNavigateListener);
     }
 
     /**

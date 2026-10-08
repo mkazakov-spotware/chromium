@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,14 @@ import android.app.Activity;
 
 import androidx.annotation.Nullable;
 
+import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.components.external_intents.AuthenticatorNavigationInterceptor;
 import org.chromium.components.external_intents.ExternalNavigationHandler;
-import org.chromium.components.external_intents.ExternalNavigationHandler.OverrideUrlLoadingResult;
 import org.chromium.components.external_intents.InterceptNavigationDelegateClient;
 import org.chromium.components.external_intents.InterceptNavigationDelegateImpl;
 import org.chromium.components.external_intents.RedirectHandler;
+import org.chromium.components.navigation_interception.NavigationParams;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -44,14 +46,8 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
             }
 
             @Override
-            public void onDidFinishNavigationInPrimaryMainFrame(
-                    Tab tab, NavigationHandle navigation) {
-                mInterceptNavigationDelegate.onNavigationFinishedInPrimaryMainFrame(navigation);
-            }
-
-            @Override
-            public void onDidFinishNavigationNoop(Tab tab, NavigationHandle navigation) {
-                mInterceptNavigationDelegate.onNavigationFinishedNoop(navigation);
+            public void onDidFinishNavigation(Tab tab, NavigationHandle navigation) {
+                mInterceptNavigationDelegate.onNavigationFinished(navigation);
             }
 
             @Override
@@ -83,6 +79,11 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
     }
 
     @Override
+    public AuthenticatorNavigationInterceptor createAuthenticatorNavigationInterceptor() {
+        return AppHooks.get().createAuthenticatorNavigationInterceptor(mTab);
+    }
+
+    @Override
     public boolean isIncognito() {
         return mTab.isIncognito();
     }
@@ -90,11 +91,6 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
     @Override
     public boolean isHidden() {
         return mTab.isHidden();
-    }
-
-    @Override
-    public boolean areIntentLaunchesAllowedInHiddenTabsForNavigation(NavigationHandle handle) {
-        return false;
     }
 
     @Override
@@ -114,16 +110,11 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
 
     @Override
     public void closeTab() {
-        if (mTab.isClosing()) return;
         mTab.getActivity().getTabModelSelector().closeTab(mTab);
     }
 
     @Override
-    public void onNavigationStarted(NavigationHandle handle) {}
-
-    @Override
-    public void onDecisionReachedForNavigation(
-            NavigationHandle handle, OverrideUrlLoadingResult overrideUrlLoadingResult) {}
+    public void onNavigationStarted(NavigationParams params) {}
 
     public void initializeWithDelegate(InterceptNavigationDelegateImpl delegate) {
         mInterceptNavigationDelegate = delegate;

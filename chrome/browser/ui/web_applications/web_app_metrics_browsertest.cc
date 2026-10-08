@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,15 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/scoped_mock_clock_override.h"
+#include "chrome/browser/installable/installable_metrics.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_controller_browsertest.h"
 #include "chrome/browser/ui/web_applications/web_app_metrics.h"
+#include "chrome/browser/web_applications/components/web_app_constants.h"
 #include "chrome/browser/web_applications/daily_metrics_helper.h"
-#include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
-#include "chrome/browser/web_applications/user_display_mode.h"
-#include "chrome/browser/web_applications/web_app_constants.h"
 #include "components/ukm/test_ukm_recorder.h"
-#include "components/webapps/browser/installable/installable_metrics.h"
 #include "content/public/test/browser_test.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
@@ -41,7 +39,9 @@ class WebAppMetricsBrowserTest : public WebAppControllerBrowserTest {
   WebAppMetricsBrowserTest& operator=(const WebAppMetricsBrowserTest&) = delete;
   ~WebAppMetricsBrowserTest() override = default;
 
-  void SetUp() override { WebAppControllerBrowserTest::SetUp(); }
+  void SetUp() override {
+    WebAppControllerBrowserTest::SetUp();
+  }
 
   void SetUpOnMainThread() override {
     WebAppControllerBrowserTest::SetUpOnMainThread();
@@ -50,12 +50,12 @@ class WebAppMetricsBrowserTest : public WebAppControllerBrowserTest {
   }
 
   AppId InstallWebApp() {
-    auto web_app_info = std::make_unique<WebAppInstallInfo>();
+    auto web_app_info = std::make_unique<WebApplicationInfo>();
     web_app_info->start_url = GetInstallableAppURL();
-    web_app_info->title = u"A Web App";
+    web_app_info->title = base::ASCIIToUTF16("A Web App");
     web_app_info->display_mode = DisplayMode::kStandalone;
-    web_app_info->user_display_mode = UserDisplayMode::kStandalone;
-    return web_app::test::InstallWebApp(profile(), std::move(web_app_info));
+    web_app_info->open_as_window = true;
+    return web_app::InstallWebApp(profile(), std::move(web_app_info));
   }
 
   GURL GetNonWebAppUrl() {
@@ -107,12 +107,12 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
                        InstalledWebAppInTab_RecordsDailyInteraction) {
   ukm::TestAutoSetUkmRecorder ukm_recorder;
 
-  auto web_app_info = std::make_unique<WebAppInstallInfo>();
+  auto web_app_info = std::make_unique<WebApplicationInfo>();
   web_app_info->start_url = GetInstallableAppURL();
-  web_app_info->title = u"A Web App";
+  web_app_info->title = base::ASCIIToUTF16("A Web App");
   web_app_info->display_mode = DisplayMode::kStandalone;
-  web_app_info->user_display_mode = UserDisplayMode::kStandalone;
-  web_app::test::InstallWebApp(profile(), std::move(web_app_info));
+  web_app_info->open_as_window = true;
+  web_app::InstallWebApp(profile(), std::move(web_app_info));
 
   AddBlankTabAndShow(browser());
   NavigateAndAwaitInstallabilityCheck(browser(), GetInstallableAppURL());
@@ -130,7 +130,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
   // |InstallWebApp| always sets |OMNIBOX_INSTALL_ICON| as the install source.
   ukm::TestAutoSetUkmRecorder::ExpectEntryMetric(
       entry, UkmEntry::kInstallSourceName,
-      static_cast<int>(webapps::WebappInstallSource::OMNIBOX_INSTALL_ICON));
+      static_cast<int>(WebappInstallSource::OMNIBOX_INSTALL_ICON));
   ukm::TestAutoSetUkmRecorder::ExpectEntryMetric(
       entry, UkmEntry::kDisplayModeName,
       static_cast<int>(DisplayMode::kStandalone));
@@ -150,13 +150,12 @@ IN_PROC_BROWSER_TEST_F(
     InstalledWebAppInWindow_RecordsDailyInteractionWithSessionDurations) {
   ukm::TestAutoSetUkmRecorder ukm_recorder;
 
-  auto web_app_info = std::make_unique<WebAppInstallInfo>();
+  auto web_app_info = std::make_unique<WebApplicationInfo>();
   web_app_info->start_url = GetInstallableAppURL();
-  web_app_info->title = u"A Web App";
+  web_app_info->title = base::ASCIIToUTF16("A Web App");
   web_app_info->display_mode = DisplayMode::kStandalone;
-  web_app_info->user_display_mode = UserDisplayMode::kStandalone;
-  AppId app_id =
-      web_app::test::InstallWebApp(profile(), std::move(web_app_info));
+  web_app_info->open_as_window = true;
+  AppId app_id = web_app::InstallWebApp(profile(), std::move(web_app_info));
 
   LaunchWebAppBrowserAndAwaitInstallabilityCheck(app_id);
 
@@ -173,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(
   // |InstallWebApp| always sets |OMNIBOX_INSTALL_ICON| as the install source.
   ukm::TestAutoSetUkmRecorder::ExpectEntryMetric(
       entry, UkmEntry::kInstallSourceName,
-      static_cast<int>(webapps::WebappInstallSource::OMNIBOX_INSTALL_ICON));
+      static_cast<int>(WebappInstallSource::OMNIBOX_INSTALL_ICON));
   ukm::TestAutoSetUkmRecorder::ExpectEntryMetric(
       entry, UkmEntry::kDisplayModeName,
       static_cast<int>(DisplayMode::kStandalone));
@@ -189,9 +188,7 @@ IN_PROC_BROWSER_TEST_F(
                                                  UkmEntry::kNumSessionsName, 1);
 }
 
-// Flaky test: crbug.com/1170786
-IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
-                       DISABLED_NonWebApp_RecordsNothing) {
+IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest, NonWebApp_RecordsNothing) {
   ukm::TestAutoSetUkmRecorder ukm_recorder;
 
   NavigateAndAwaitInstallabilityCheck(browser(), GetNonWebAppUrl());
@@ -232,7 +229,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(1);
+                 base::TimeDelta::FromHours(1);
         },
         nullptr, nullptr);
     app_browser = web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
@@ -245,7 +242,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(3);
+                 base::TimeDelta::FromHours(3);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnBrowserNoLongerActive(app_browser);
@@ -255,7 +252,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(7);
+                 base::TimeDelta::FromHours(7);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnBrowserSetLastActive(app_browser);
@@ -275,48 +272,6 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
   EXPECT_THAT(metrics, Contains(Pair(UkmEntry::kNumSessionsNameHash, 2)));
 }
 
-IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
-                       InstalledWebApp_RecordsTimeAndSessionWhenClosed) {
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-  AppId app_id = InstallWebApp();
-  Browser* app_browser;
-
-  // Open the app.
-  {
-    base::subtle::ScopedTimeClockOverrides override(
-        []() {
-          return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(1);
-        },
-        nullptr, nullptr);
-    app_browser = web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
-    DCHECK(app_browser);
-    // Manually activate the web app window (observer is disabled for testing).
-    WebAppMetrics::Get(profile())->OnBrowserSetLastActive(app_browser);
-  }
-
-  // Close the app.
-  {
-    base::subtle::ScopedTimeClockOverrides override(
-        []() {
-          return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(3);
-        },
-        nullptr, nullptr);
-    CloseBrowserSynchronously(app_browser);
-  }
-
-  ForceEmitMetricsNow();
-
-  auto entries = ukm_recorder.GetEntriesByName(UkmEntry::kEntryName);
-  ASSERT_EQ(entries.size(), 1U);
-  auto metrics = entries[0]->metrics;
-  // 2 hours = 7200 seconds. Nearest 1/50 day bucket is 6912.
-  EXPECT_THAT(metrics,
-              Contains(Pair(UkmEntry::kForegroundDurationNameHash, 6912)));
-  EXPECT_THAT(metrics, Contains(Pair(UkmEntry::kNumSessionsNameHash, 1)));
-}
-
 // Verify that the behavior with multiple web app instances is as expected, even
 // though that behavior isn't completely accurate in recording time
 // (crbug.com/1081187).
@@ -331,7 +286,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(1);
+                 base::TimeDelta::FromHours(1);
         },
         nullptr, nullptr);
     app_browser = web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
@@ -350,7 +305,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(3);
+                 base::TimeDelta::FromHours(3);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnBrowserSetLastActive(app_browser);
@@ -360,7 +315,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(7);
+                 base::TimeDelta::FromHours(7);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnBrowserNoLongerActive(app_browser);
@@ -390,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(1);
+                 base::TimeDelta::FromHours(1);
         },
         nullptr, nullptr);
     app_browser = web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
@@ -403,7 +358,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest,
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(18);
+                 base::TimeDelta::FromHours(18);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnBrowserNoLongerActive(app_browser);
@@ -431,7 +386,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest, Suspend_FlushesSessionTimes) {
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(1);
+                 base::TimeDelta::FromHours(1);
         },
         nullptr, nullptr);
     app_browser = web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
@@ -443,7 +398,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest, Suspend_FlushesSessionTimes) {
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(3);
+                 base::TimeDelta::FromHours(3);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnSuspend();
@@ -453,7 +408,7 @@ IN_PROC_BROWSER_TEST_F(WebAppMetricsBrowserTest, Suspend_FlushesSessionTimes) {
     base::subtle::ScopedTimeClockOverrides override(
         []() {
           return base::subtle::TimeNowIgnoringOverride().LocalMidnight() +
-                 base::Hours(7);
+                 base::TimeDelta::FromHours(7);
         },
         nullptr, nullptr);
     WebAppMetrics::Get(profile())->OnBrowserSetLastActive(app_browser);

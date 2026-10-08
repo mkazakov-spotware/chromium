@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 @class TabStripMediator;
 @protocol TabFaviconDataSource;
-@protocol TabStripConsumerDelegate;
 
 // ViewController for the TabStrip. This ViewController is contained by
 // BrowserViewController. This TabStripViewController is responsible for
@@ -20,7 +19,6 @@
     : UICollectionViewController <TabStripConsumer>
 
 @property(nonatomic, weak) id<TabFaviconDataSource> faviconDataSource;
-@property(nonatomic, weak) id<TabStripConsumerDelegate> delegate;
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 

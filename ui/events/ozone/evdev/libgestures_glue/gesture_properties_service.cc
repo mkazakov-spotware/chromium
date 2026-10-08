@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,15 +34,15 @@ bool PropertyTypeMatchesValues(ui::GesturePropertyProvider::PropertyType type,
                                GesturePropValue::Tag values_tag) {
   switch (type) {
     case ui::GesturePropertyProvider::PT_INT:
-      return values_tag == GesturePropValue::Tag::kInts;
+      return values_tag == GesturePropValue::Tag::INTS;
     case ui::GesturePropertyProvider::PT_SHORT:
-      return values_tag == GesturePropValue::Tag::kShorts;
+      return values_tag == GesturePropValue::Tag::SHORTS;
     case ui::GesturePropertyProvider::PT_BOOL:
-      return values_tag == GesturePropValue::Tag::kBools;
+      return values_tag == GesturePropValue::Tag::BOOLS;
     case ui::GesturePropertyProvider::PT_STRING:
-      return values_tag == GesturePropValue::Tag::kStr;
+      return values_tag == GesturePropValue::Tag::STR;
     case ui::GesturePropertyProvider::PT_REAL:
-      return values_tag == GesturePropValue::Tag::kReals;
+      return values_tag == GesturePropValue::Tag::REALS;
   }
   // This should never happen.
   return false;
@@ -121,19 +121,19 @@ void GesturePropertiesService::SetProperty(
   }
   size_t num_values;
   switch (values->which()) {
-    case ozone::mojom::GesturePropValue::Tag::kInts:
+    case ozone::mojom::GesturePropValue::Tag::INTS:
       num_values = values->get_ints().size();
       break;
-    case ozone::mojom::GesturePropValue::Tag::kShorts:
+    case ozone::mojom::GesturePropValue::Tag::SHORTS:
       num_values = values->get_shorts().size();
       break;
-    case ozone::mojom::GesturePropValue::Tag::kBools:
+    case ozone::mojom::GesturePropValue::Tag::BOOLS:
       num_values = values->get_bools().size();
       break;
-    case ozone::mojom::GesturePropValue::Tag::kStr:
+    case ozone::mojom::GesturePropValue::Tag::STR:
       num_values = 1;
       break;
-    case ozone::mojom::GesturePropValue::Tag::kReals:
+    case ozone::mojom::GesturePropValue::Tag::REALS:
       num_values = values->get_reals().size();
       break;
   }

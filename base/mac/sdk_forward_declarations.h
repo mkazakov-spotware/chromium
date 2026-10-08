@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,5 +63,15 @@
 //   #endif  // MAC_OS_X_VERSION_10_77
 //
 // ----------------------------------------------------------------------------
+
+#if !defined(MAC_OS_VERSION_11_0)
+#include <CoreMedia/CoreMedia.h>
+enum : CMVideoCodecType { kCMVideoCodecType_VP9 = 'vp09' };
+
+extern "C" {
+void VTRegisterSupplementalVideoDecoderIfAvailable(CMVideoCodecType codecType);
+}
+
+#endif  // MAC_OS_VERSION_11_0
 
 #endif  // BASE_MAC_SDK_FORWARD_DECLARATIONS_H_

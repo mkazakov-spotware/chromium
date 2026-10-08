@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include <vector>
 
-#include "base/command_line.h"
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "ui/gl/gl_context.h"
@@ -242,23 +241,26 @@ void SetCurrentGL(CurrentGL* current) {
   g_current_gl_context_tls->Set(new_current);
 }
 
-GLApi::GLApi() = default;
+GLApi::GLApi() {
+}
 
-GLApi::~GLApi() = default;
+GLApi::~GLApi() {
+}
 
 GLApiBase::GLApiBase() : driver_(nullptr) {}
 
-GLApiBase::~GLApiBase() = default;
+GLApiBase::~GLApiBase() {
+}
 
 void GLApiBase::InitializeBase(DriverGL* driver) {
   driver_ = driver;
 }
 
-RealGLApi::RealGLApi()
-    : logging_enabled_(base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kEnableGPUServiceLogging)) {}
+RealGLApi::RealGLApi() {
+}
 
-RealGLApi::~RealGLApi() = default;
+RealGLApi::~RealGLApi() {
+}
 
 void RealGLApi::Initialize(DriverGL* driver) {
   InitializeBase(driver);
@@ -362,21 +364,19 @@ void RealGLApi::glTexStorageMem2DEXTFn(GLenum target,
                                     height, memory, offset);
 }
 
-void RealGLApi::glTexStorageMemFlags2DANGLEFn(
-    GLenum target,
-    GLsizei levels,
-    GLenum internalformat,
-    GLsizei width,
-    GLsizei height,
-    GLuint memory,
-    GLuint64 offset,
-    GLbitfield createFlags,
-    GLbitfield usageFlags,
-    const void* imageCreateInfoPNext) {
+void RealGLApi::glTexStorageMemFlags2DANGLEFn(GLenum target,
+                                              GLsizei levels,
+                                              GLenum internalformat,
+                                              GLsizei width,
+                                              GLsizei height,
+                                              GLuint memory,
+                                              GLuint64 offset,
+                                              GLbitfield createFlags,
+                                              GLbitfield usageFlags) {
   internalformat = GetInternalFormat(version_.get(), internalformat);
-  GLApiBase::glTexStorageMemFlags2DANGLEFn(
-      target, levels, internalformat, width, height, memory, offset,
-      createFlags, usageFlags, imageCreateInfoPNext);
+  GLApiBase::glTexStorageMemFlags2DANGLEFn(target, levels, internalformat,
+                                           width, height, memory, offset,
+                                           createFlags, usageFlags);
 }
 
 void RealGLApi::glRenderbufferStorageEXTFn(GLenum target,
@@ -424,11 +424,8 @@ void RealGLApi::glReadPixelsFn(GLint x,
 }
 
 void RealGLApi::glClearFn(GLbitfield mask) {
-  if (!g_null_draw_bindings_enabled) {
+  if (!g_null_draw_bindings_enabled)
     GLApiBase::glClearFn(mask);
-  } else if (logging_enabled_) {
-    LOG(WARNING) << "Skipped glClear()";
-  }
 }
 
 void RealGLApi::glClearColorFn(GLclampf red,
@@ -447,22 +444,16 @@ void RealGLApi::glClearColorFn(GLclampf red,
 }
 
 void RealGLApi::glDrawArraysFn(GLenum mode, GLint first, GLsizei count) {
-  if (!g_null_draw_bindings_enabled) {
+  if (!g_null_draw_bindings_enabled)
     GLApiBase::glDrawArraysFn(mode, first, count);
-  } else if (logging_enabled_) {
-    LOG(WARNING) << "Skipped glDrawArrays()";
-  }
 }
 
 void RealGLApi::glDrawElementsFn(GLenum mode,
                                  GLsizei count,
                                  GLenum type,
                                  const void* indices) {
-  if (!g_null_draw_bindings_enabled) {
+  if (!g_null_draw_bindings_enabled)
     GLApiBase::glDrawElementsFn(mode, count, type, indices);
-  } else if (logging_enabled_) {
-    LOG(WARNING) << "Skipped glDrawElements()";
-  }
 }
 
 void RealGLApi::glClearDepthFn(GLclampd depth) {
@@ -568,14 +559,17 @@ void RealGLApi::set_version(std::unique_ptr<GLVersionInfo> version) {
   version_ = std::move(version);
 }
 
-TraceGLApi::~TraceGLApi() = default;
+TraceGLApi::~TraceGLApi() {
+}
 
 LogGLApi::LogGLApi(GLApi* gl_api) : gl_api_(gl_api) {}
 
-LogGLApi::~LogGLApi() = default;
+LogGLApi::~LogGLApi() {}
 
-NoContextGLApi::NoContextGLApi() = default;
+NoContextGLApi::NoContextGLApi() {
+}
 
-NoContextGLApi::~NoContextGLApi() = default;
+NoContextGLApi::~NoContextGLApi() {
+}
 
 }  // namespace gl

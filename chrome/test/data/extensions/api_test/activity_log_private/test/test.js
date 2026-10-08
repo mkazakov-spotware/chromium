@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -133,10 +133,10 @@ testCases.push({
   expected_activity: [
     'webRequestInternal.addEventListener',
     'webRequestInternal.addEventListener',
-    'webRequest.onBeforeSendHeaders/g1',
+    'webRequest.onBeforeSendHeaders/1',
     'webRequestInternal.eventHandled',
     'webRequest.onBeforeSendHeaders',
-    'webRequest.onHeadersReceived/g2',
+    'webRequest.onHeadersReceived/2',
     'webRequestInternal.eventHandled',
     'webRequest.onHeadersReceived',
     'tabs.onUpdated',
@@ -156,10 +156,10 @@ testCases.push({
     'webRequestInternal.addEventListener',
     'webRequestInternal.addEventListener',
     'windows.create',
-    'webRequest.onBeforeSendHeaders/g3',
+    'webRequest.onBeforeSendHeaders/3',
     'webRequestInternal.eventHandled',
     'webRequest.onBeforeSendHeaders',
-    'webRequest.onHeadersReceived/g4',
+    'webRequest.onHeadersReceived/4',
     'webRequestInternal.eventHandled',
     'webRequest.onHeadersReceived',
     'tabs.onUpdated',
@@ -246,6 +246,8 @@ var domExpectedActivity = [
     'Storage.getItem',
     'Storage.removeItem',
     'Storage.clear',
+    // Web database access
+    'Window.openDatabase',
     // Canvas access
     // XHR from content script.
     'blinkRequestResource XMLHttpRequest',

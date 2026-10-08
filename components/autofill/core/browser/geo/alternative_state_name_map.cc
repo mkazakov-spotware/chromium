@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill/core/browser/geo/alternative_state_name_map.h"
 
-#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 
@@ -17,7 +16,7 @@ namespace {
 constexpr int kMaxMapSize = 500;
 
 // The characters to be removed from the state strings before the comparison.
-constexpr char16_t kCharsToStrip[] = u".- ";
+constexpr char kCharsToStrip[] = ".- ";
 
 }  // namespace
 
@@ -28,27 +27,18 @@ AlternativeStateNameMap* AlternativeStateNameMap::GetInstance() {
   return g_alternative_state_name_map.get();
 }
 
+AlternativeStateNameMap::AlternativeStateNameMap() = default;
+
 // static
 AlternativeStateNameMap::StateName AlternativeStateNameMap::NormalizeStateName(
     const StateName& text) {
-  std::u16string normalized_text;
-  base::RemoveChars(text.value(), kCharsToStrip, &normalized_text);
+  base::string16 normalized_text;
+  base::RemoveChars(text.value(), base::ASCIIToUTF16(kCharsToStrip),
+                    &normalized_text);
   return StateName(normalized_text);
 }
 
-// static
-absl::optional<AlternativeStateNameMap::CanonicalStateName>
-AlternativeStateNameMap::GetCanonicalStateName(
-    const std::string& country_code,
-    const std::u16string& state_name) {
-  return AlternativeStateNameMap::GetInstance()->GetCanonicalStateName(
-      AlternativeStateNameMap::CountryCode(country_code),
-      AlternativeStateNameMap::StateName(state_name));
-}
-
-AlternativeStateNameMap::AlternativeStateNameMap() = default;
-
-absl::optional<AlternativeStateNameMap::CanonicalStateName>
+base::Optional<AlternativeStateNameMap::CanonicalStateName>
 AlternativeStateNameMap::GetCanonicalStateName(
     const CountryCode& country_code,
     const StateName& state_name,
@@ -78,28 +68,32 @@ AlternativeStateNameMap::GetCanonicalStateName(
   if (it != localized_state_names_reverse_lookup_map_.end())
     return it->second;
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<StateEntry> AlternativeStateNameMap::GetEntry(
+base::Optional<StateEntry> AlternativeStateNameMap::GetEntry(
     const CountryCode& country_code,
     const StateName& state_string_from_profile) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(alternative_state_name_map_sequence_checker_);
 
   StateName normalized_state_string_from_profile =
       NormalizeStateName(state_string_from_profile);
-  absl::optional<CanonicalStateName> canonical_state_name =
+  base::Optional<CanonicalStateName> canonical_state_name =
       GetCanonicalStateName(country_code, normalized_state_string_from_profile,
                             /*is_state_name_normalized=*/true);
 
-  if (canonical_state_name) {
-    auto it = localized_state_names_map_.find(
-        {country_code, canonical_state_name.value()});
-    if (it != localized_state_names_map_.end())
-      return it->second;
+  if (!canonical_state_name) {
+    canonical_state_name =
+        CanonicalStateName(normalized_state_string_from_profile.value());
   }
 
-  return absl::nullopt;
+  DCHECK(canonical_state_name);
+  auto it = localized_state_names_map_.find(
+      {country_code, canonical_state_name.value()});
+  if (it != localized_state_names_map_.end())
+    return it->second;
+
+  return base::nullopt;
 }
 
 void AlternativeStateNameMap::AddEntry(
@@ -107,7 +101,7 @@ void AlternativeStateNameMap::AddEntry(
     const StateName& normalized_state_value_from_profile,
     const StateEntry& state_entry,
     const std::vector<StateName>& normalized_alternative_state_names,
-    const CanonicalStateName& normalized_canonical_state_name) {
+    CanonicalStateName* normalized_canonical_state_name) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(alternative_state_name_map_sequence_checker_);
 
   // Example:
@@ -126,17 +120,25 @@ void AlternativeStateNameMap::AddEntry(
   //    ("DE", "Bayern") -> "Bayern"
   //    ("DE", "BY") -> "Bayern"
   //    ("DE", "Bavaria") -> "Bayern"
+
   if (localized_state_names_map_.size() == kMaxMapSize ||
       GetCanonicalStateName(country_code, normalized_state_value_from_profile,
                             /*is_state_name_normalized=*/true)) {
     return;
   }
 
-  localized_state_names_map_[{country_code, normalized_canonical_state_name}] =
-      state_entry;
-  for (const auto& alternative_name : normalized_alternative_state_names) {
-    localized_state_names_reverse_lookup_map_[{
-        country_code, alternative_name}] = normalized_canonical_state_name;
+  if (normalized_canonical_state_name) {
+    localized_state_names_map_[{
+        country_code, *normalized_canonical_state_name}] = state_entry;
+    for (const auto& alternative_name : normalized_alternative_state_names) {
+      localized_state_names_reverse_lookup_map_[{
+          country_code, alternative_name}] = *normalized_canonical_state_name;
+    }
+  } else {
+    localized_state_names_map_[{
+        country_code,
+        CanonicalStateName(normalized_state_value_from_profile.value())}] =
+        state_entry;
   }
 }
 

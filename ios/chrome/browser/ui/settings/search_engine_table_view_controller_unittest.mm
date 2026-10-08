@@ -1,32 +1,32 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/search_engine_table_view_controller.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/files/scoped_temp_dir.h"
-#import "base/mac/foundation_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/compiler_specific.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/mac/foundation_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/metrics/histogram_tester.h"
-#import "components/password_manager/core/common/password_manager_features.h"
-#import "components/search_engines/template_url_data_util.h"
-#import "components/search_engines/template_url_prepopulate_data.h"
-#import "components/search_engines/template_url_service.h"
-#import "components/sync_preferences/testing_pref_service_syncable.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/favicon/favicon_service_factory.h"
-#import "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
-#import "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
-#import "ios/chrome/browser/history/history_service_factory.h"
-#import "ios/chrome/browser/search_engines/template_url_service_factory.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "components/search_engines/template_url_data_util.h"
+#include "components/search_engines/template_url_prepopulate_data.h"
+#include "components/search_engines/template_url_service.h"
+#include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/favicon/favicon_service_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
+#include "ios/chrome/browser/history/history_service_factory.h"
+#include "ios/chrome/browser/search_engines/template_url_service_factory.h"
 #import "ios/chrome/browser/ui/settings/cells/search_engine_item.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_controller_test.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -48,6 +48,9 @@ class SearchEngineTableViewControllerTest
     ChromeTableViewControllerTest::SetUp();
     TestChromeBrowserState::Builder test_cbs_builder;
 
+    ASSERT_TRUE(state_dir_.CreateUniqueTempDir());
+    test_cbs_builder.SetPath(state_dir_.GetPath());
+
     test_cbs_builder.AddTestingFactory(
         ios::TemplateURLServiceFactory::GetInstance(),
         ios::TemplateURLServiceFactory::GetDefaultFactory());
@@ -60,10 +63,8 @@ class SearchEngineTableViewControllerTest
     test_cbs_builder.AddTestingFactory(
         IOSChromeFaviconLoaderFactory::GetInstance(),
         IOSChromeFaviconLoaderFactory::GetDefaultFactory());
-    test_cbs_builder.AddTestingFactory(
-        ios::HistoryServiceFactory::GetInstance(),
-        ios::HistoryServiceFactory::GetDefaultFactory());
     chrome_browser_state_ = test_cbs_builder.Build();
+    ASSERT_TRUE(chrome_browser_state_->CreateHistoryService());
     DefaultSearchManager::SetFallbackSearchEnginesDisabledForTesting(true);
     template_url_service_ = ios::TemplateURLServiceFactory::GetForBrowserState(
         chrome_browser_state_.get());
@@ -72,8 +73,6 @@ class SearchEngineTableViewControllerTest
 
   void TearDown() override {
     DefaultSearchManager::SetFallbackSearchEnginesDisabledForTesting(false);
-    [base::mac::ObjCCastStrict<SearchEngineTableViewController>(controller())
-        settingsWillBeDismissed];
     ChromeTableViewControllerTest::TearDown();
   }
 
@@ -83,7 +82,7 @@ class SearchEngineTableViewControllerTest
   }
 
   // Adds a prepopulated search engine to TemplateURLService.
-  // `prepopulate_id` should be big enough (>1000) to avoid collision with real
+  // |prepopulate_id| should be big enough (>1000) to avoid collision with real
   // prepopulated search engines. The collision happens when
   // TemplateURLService::SetUserSelectedDefaultSearchProvider is called, in the
   // callback of PrefService the DefaultSearchManager will update the searchable
@@ -142,10 +141,10 @@ class SearchEngineTableViewControllerTest
   }
 
   // Checks a SearchEngineItem with data from a fabricated TemplateURL. The
-  // SearchEngineItem in the `row` of `section` should contain a title and a
-  // subtitle that are equal to `expected_text` and an URL which can be
-  // generated by filling empty query word into `expected_searchable_url`. If
-  // `expected_checked` is true, the SearchEngineItem should have a
+  // SearchEngineItem in the |row| of |section| should contain a title and a
+  // subtitle that are equal to |expected_text| and an URL which can be
+  // generated by filling empty query word into |expected_searchable_url|. If
+  // |expected_checked| is true, the SearchEngineItem should have a
   // UITableViewCellAccessoryCheckmark.
   void CheckPrepopulatedItem(const std::string& expected_text,
                              const GURL& expected_searchable_url,
@@ -157,7 +156,7 @@ class SearchEngineTableViewControllerTest
     data.SetURL(expected_searchable_url.possibly_invalid_spec());
     const std::string expected_url =
         TemplateURL(data).url_ref().ReplaceSearchTerms(
-            TemplateURLRef::SearchTermsArgs(std::u16string()),
+            TemplateURLRef::SearchTermsArgs(base::string16()),
             template_url_service_->search_terms_data());
     CheckItem(base::SysUTF8ToNSString(expected_text),
               base::SysUTF8ToNSString(expected_text), GURL(expected_url),
@@ -165,10 +164,10 @@ class SearchEngineTableViewControllerTest
   }
 
   // Checks a SearchEngineItem with data from a fabricated TemplateURL. The
-  // SearchEngineItem in the `row` of `section` should contain a title and a
-  // subtitle that are equal to `expected_text` and an URL
-  // which can be generated from `expected_searchable_url` by
-  // TemplateURL::GenerateFaviconURL. If `expected_checked` is true, the
+  // SearchEngineItem in the |row| of |section| should contain a title and a
+  // subtitle that are equal to |expected_text| and an URL
+  // which can be generated from |expected_searchable_url| by
+  // TemplateURL::GenerateFaviconURL. If |expected_checked| is true, the
   // SearchEngineItem should have a UITableViewCellAccessoryCheckmark.
   void CheckCustomItem(const std::string& expected_text,
                        const GURL& expected_searchable_url,
@@ -183,10 +182,10 @@ class SearchEngineTableViewControllerTest
   }
 
   // Checks a SearchEngineItem with data from a real prepopulated
-  // TemplateURL. The SearchEngineItem in the `row` of `section` should
-  // contain a title equal to `expected_text`, a subtitle equal to
-  // `expected_detail_text`, and an URL equal to `expected_favicon_url`. If
-  // `expected_checked` is true, the SearchEngineItem should have a
+  // TemplateURL. The SearchEngineItem in the |row| of |section| should
+  // contain a title equal to |expected_text|, a subtitle equal to
+  // |expected_detail_text|, and an URL equal to |expected_favicon_url|. If
+  // |expected_checked| is true, the SearchEngineItem should have a
   // UITableViewCellAccessoryCheckmark.
   void CheckRealItem(const TemplateURL* turl,
                      bool expected_checked,
@@ -196,20 +195,25 @@ class SearchEngineTableViewControllerTest
     CheckItem(base::SysUTF16ToNSString(turl->short_name()),
               base::SysUTF16ToNSString(turl->keyword()),
               GURL(turl->url_ref().ReplaceSearchTerms(
-                  TemplateURLRef::SearchTermsArgs(std::u16string()),
+                  TemplateURLRef::SearchTermsArgs(base::string16()),
                   template_url_service_->search_terms_data())),
               expected_checked, section, row, enabled);
   }
 
-  // Deletes items at `indexes` and wait util condition returns true or timeout.
-  [[nodiscard]] bool DeleteItemsAndWait(NSArray<NSIndexPath*>* indexes,
-                                        ConditionBlock condition) {
+  // Deletes items at |indexes| and wait util condition returns true or timeout.
+  bool DeleteItemsAndWait(NSArray<NSIndexPath*>* indexes,
+                          ConditionBlock condition) WARN_UNUSED_RESULT {
     SearchEngineTableViewController* searchEngineController =
         static_cast<SearchEngineTableViewController*>(controller());
     [searchEngineController deleteItems:indexes];
     return base::test::ios::WaitUntilConditionOrTimeout(
         base::test::ios::kWaitForUIElementTimeout, condition);
   }
+
+  // A state directory that outlives |task_environment_| is needed because
+  // CreateHistoryService/CreateBookmarkModel use the directory to host
+  // databases. See https://crbug.com/546640 for more details.
+  base::ScopedTempDir state_dir_;
 
   web::WebTaskEnvironment task_environment_;
   std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
@@ -248,13 +252,17 @@ TEST_F(SearchEngineTableViewControllerTest,
   AddPriorSearchEngine(kEngineP2Name, kEngineP2Url, 1002, true);
 
   AddCustomSearchEngine(kEngineC4Name, kEngineC4Url,
-                        base::Time::Now() - base::Days(10), false);
+                        base::Time::Now() - base::TimeDelta::FromDays(10),
+                        false);
   AddCustomSearchEngine(kEngineC1Name, kEngineC1Url,
-                        base::Time::Now() - base::Seconds(10), false);
+                        base::Time::Now() - base::TimeDelta::FromSeconds(10),
+                        false);
   AddCustomSearchEngine(kEngineC3Name, kEngineC3Url,
-                        base::Time::Now() - base::Hours(10), false);
+                        base::Time::Now() - base::TimeDelta::FromHours(10),
+                        false);
   AddCustomSearchEngine(kEngineC2Name, kEngineC2Url,
-                        base::Time::Now() - base::Minutes(10), false);
+                        base::Time::Now() - base::TimeDelta::FromMinutes(10),
+                        false);
 
   CreateController();
   CheckController();
@@ -296,13 +304,17 @@ TEST_F(SearchEngineTableViewControllerTest,
   AddPriorSearchEngine(kEngineP2Name, kEngineP2Url, 1002, false);
 
   AddCustomSearchEngine(kEngineC4Name, kEngineC4Url,
-                        base::Time::Now() - base::Days(10), false);
+                        base::Time::Now() - base::TimeDelta::FromDays(10),
+                        false);
   AddCustomSearchEngine(kEngineC1Name, kEngineC1Url,
-                        base::Time::Now() - base::Seconds(10), false);
+                        base::Time::Now() - base::TimeDelta::FromSeconds(10),
+                        false);
   AddCustomSearchEngine(kEngineC3Name, kEngineC3Url,
-                        base::Time::Now() - base::Hours(10), false);
+                        base::Time::Now() - base::TimeDelta::FromHours(10),
+                        false);
   AddCustomSearchEngine(kEngineC2Name, kEngineC2Url,
-                        base::Time::Now() - base::Minutes(10), true);
+                        base::Time::Now() - base::TimeDelta::FromMinutes(10),
+                        true);
 
   CreateController();
   CheckController();
@@ -390,7 +402,8 @@ TEST_F(SearchEngineTableViewControllerTest, TestChangeProvider) {
   TemplateURL* url_c1 = AddCustomSearchEngine(kEngineC1Name, kEngineC1Url,
                                               base::Time::Now(), false);
   AddCustomSearchEngine(kEngineC2Name, kEngineC2Url,
-                        base::Time::Now() - base::Seconds(10), false);
+                        base::Time::Now() - base::TimeDelta::FromSeconds(10),
+                        false);
 
   CreateController();
   CheckController();
@@ -467,13 +480,14 @@ TEST_F(SearchEngineTableViewControllerTest, TestChangeProvider) {
   histogram_tester_.ExpectTotalCount(kUmaSelectDefaultSearchEngine, 3);
 
   // Check that the selection was written back to the prefs.
-  const base::Value::Dict& searchProviderDict =
-      chrome_browser_state_->GetTestingPrefService()->GetDict(
+  const base::DictionaryValue* searchProviderDict =
+      chrome_browser_state_->GetTestingPrefService()->GetDictionary(
           DefaultSearchManager::kDefaultSearchProviderDataPrefName);
-  const std::string* short_name =
-      searchProviderDict.FindString(DefaultSearchManager::kShortName);
-  ASSERT_TRUE(short_name);
-  EXPECT_EQ(url_c1->short_name(), base::ASCIIToUTF16(*short_name));
+  ASSERT_TRUE(searchProviderDict);
+  base::string16 short_name;
+  EXPECT_TRUE(searchProviderDict->GetString(DefaultSearchManager::kShortName,
+                                            &short_name));
+  EXPECT_EQ(url_c1->short_name(), short_name);
 }
 
 // Tests that prepopulated engines are disabled with checkmark removed in
@@ -499,12 +513,17 @@ TEST_F(SearchEngineTableViewControllerTest, EditingMode) {
 
   // Edit button should be disabled since there is no custom engine.
   EXPECT_FALSE([searchEngineController editButtonEnabled]);
+  EXPECT_TRUE([searchEngineController shouldHideToolbar]);
+
   AddCustomSearchEngine(kEngineC2Name, kEngineC2Url,
-                        base::Time::Now() - base::Minutes(10), false);
+                        base::Time::Now() - base::TimeDelta::FromMinutes(10),
+                        false);
   AddCustomSearchEngine(kEngineC1Name, kEngineC1Url,
-                        base::Time::Now() - base::Seconds(10), false);
+                        base::Time::Now() - base::TimeDelta::FromSeconds(10),
+                        false);
 
   EXPECT_TRUE([searchEngineController editButtonEnabled]);
+  EXPECT_TRUE([searchEngineController shouldHideToolbar]);
   CheckPrepopulatedItem(kEngineP3Name, kEngineP3Url, false, 0, 0);
   CheckPrepopulatedItem(kEngineP1Name, kEngineP1Url, false, 0, 1);
   CheckPrepopulatedItem(kEngineP2Name, kEngineP2Url, true, 0, 2);
@@ -515,6 +534,8 @@ TEST_F(SearchEngineTableViewControllerTest, EditingMode) {
 
   // Toolbar should not be displayed unless selection happens.
   EXPECT_TRUE([searchEngineController editButtonEnabled]);
+  EXPECT_TRUE([searchEngineController shouldHideToolbar]);
+
   // Prepopulated engines should be disabled with checkmark removed.
   CheckPrepopulatedItem(kEngineP3Name, kEngineP3Url, false, 0, 0, false);
   CheckPrepopulatedItem(kEngineP1Name, kEngineP1Url, false, 0, 1, false);
@@ -539,7 +560,7 @@ TEST_F(SearchEngineTableViewControllerTest, EditingMode) {
   [searchEngineController setEditing:NO animated:NO];
 
   EXPECT_TRUE([searchEngineController editButtonEnabled]);
-
+  EXPECT_TRUE([searchEngineController shouldHideToolbar]);
   CheckPrepopulatedItem(kEngineP3Name, kEngineP3Url, false, 0, 0);
   CheckPrepopulatedItem(kEngineP1Name, kEngineP1Url, false, 0, 1);
   CheckPrepopulatedItem(kEngineP2Name, kEngineP2Url, true, 0, 2);
@@ -570,14 +591,17 @@ TEST_F(SearchEngineTableViewControllerTest, DeleteItems) {
   AddPriorSearchEngine(kEngineP2Name, kEngineP2Url, 1002, false);
 
   AddCustomSearchEngine(kEngineC4Name, kEngineC4Url,
-                        base::Time::Now() - base::Days(1), false);
+                        base::Time::Now() - base::TimeDelta::FromDays(1),
+                        false);
   AddCustomSearchEngine(kEngineC1Name, kEngineC1Url,
-                        base::Time::Now() - base::Seconds(10), false);
+                        base::Time::Now() - base::TimeDelta::FromSeconds(10),
+                        false);
   AddCustomSearchEngine(kEngineC3Name, kEngineC3Url,
-                        base::Time::Now() - base::Hours(10), true);
-  TemplateURL* url_c2 =
-      AddCustomSearchEngine(kEngineC2Name, kEngineC2Url,
-                            base::Time::Now() - base::Minutes(10), false);
+                        base::Time::Now() - base::TimeDelta::FromHours(10),
+                        true);
+  TemplateURL* url_c2 = AddCustomSearchEngine(
+      kEngineC2Name, kEngineC2Url,
+      base::Time::Now() - base::TimeDelta::FromMinutes(10), false);
 
   CreateController();
   CheckController();
@@ -602,7 +626,7 @@ TEST_F(SearchEngineTableViewControllerTest, DeleteItems) {
   CheckCustomItem(kEngineC2Name, kEngineC2Url, false, 1, 0);
   CheckCustomItem(kEngineC4Name, kEngineC4Url, false, 1, 1);
 
-  // Set C2 as default engine by `template_url_service_`. This will reload the
+  // Set C2 as default engine by |template_url_service_|. This will reload the
   // table and move C2 to the first list.
   template_url_service_->SetUserSelectedDefaultSearchProvider(url_c2);
   // Select C4 as default engine by user interaction.

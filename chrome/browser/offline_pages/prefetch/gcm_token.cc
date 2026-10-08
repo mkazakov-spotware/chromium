@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,7 +49,7 @@ void GetGCMToken(content::BrowserContext* context,
   }
 
   instance_id->GetToken(kProdSenderId, kScopeGCM,
-                        /*time_to_live=*/base::TimeDelta(),
+                        /*time_to_live=*/base::TimeDelta(), /*options=*/{},
                         /*flags=*/{}, std::move(callback));
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ import org.chromium.url.GURL;
  * This is a util class for TabUi unit tests.
  */
 // TODO(crbug.com/1023701): Generalize all prepareTab method from tab_ui/junit directory.
-@SuppressWarnings({"DoNotMock", "ResultOfMethodCallIgnored"}) // Mocks GURL
+@SuppressWarnings("ResultOfMethodCallIgnored")
 public class TabUiUnitTestUtils {
     public static TabImpl prepareTab() {
         TabImpl tab = mock(TabImpl.class);
@@ -53,13 +53,12 @@ public class TabUiUnitTestUtils {
         doReturn(userDataHost).when(tab).getUserDataHost();
     }
 
-    public static TabImpl prepareTab(int id, String title, GURL url) {
+    public static TabImpl prepareTab(int id, String title, String urlString) {
         CriticalPersistedTabData criticalPersistedTabData = mock(CriticalPersistedTabData.class);
         TabImpl tab = prepareTab(id, criticalPersistedTabData);
         doReturn(id).when(criticalPersistedTabData).getRootId();
+        doReturn(urlString).when(tab).getUrlString();
         doReturn(title).when(tab).getTitle();
-        doReturn(url).when(tab).getOriginalUrl();
-        doReturn(url).when(tab).getUrl();
         return tab;
     }
 
@@ -84,7 +83,7 @@ public class TabUiUnitTestUtils {
         userDataHost.setUserData(CriticalPersistedTabData.class, criticalPersistedTabData);
         doReturn(userDataHost).when(tab).getUserDataHost();
         doReturn(rootId).when(criticalPersistedTabData).getRootId();
-        doReturn(GURL.emptyGURL()).when(tab).getUrl();
+        doReturn("").when(tab).getUrlString();
         return tab;
     }
 
@@ -95,7 +94,6 @@ public class TabUiUnitTestUtils {
         doReturn(visibleUrl).when(gurl).getSpec();
         doReturn(gurl).when(webContents).getVisibleUrl();
         doReturn(webContents).when(tab).getWebContents();
-        doReturn(GURL.emptyGURL()).when(tab).getOriginalUrl();
         return tab;
     }
 }

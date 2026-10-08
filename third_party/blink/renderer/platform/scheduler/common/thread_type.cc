@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,10 +47,9 @@ const char* GetNameForThreadType(ThreadType thread_type) {
       return "Realtime AudioWorklet thread";
     case ThreadType::kSemiRealtimeAudioWorkletThread:
       return "Semi-Realtime AudioWorklet thread";
-    case ThreadType::kFontThread:
-      return "Font thread";
-    case ThreadType::kPreloadScannerThread:
-      return "Preload scanner";
+    case ThreadType::kCount:
+      NOTREACHED();
+      return nullptr;
   }
   return nullptr;
 }

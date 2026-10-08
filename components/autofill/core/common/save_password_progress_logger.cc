@@ -1,16 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill/core/common/save_password_progress_logger.h"
 
 #include <algorithm>
-#include <string>
 
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -18,6 +18,7 @@
 #include "components/autofill/core/common/signatures.h"
 
 using base::checked_cast;
+using base::DictionaryValue;
 using base::NumberToString;
 using base::Value;
 
@@ -37,18 +38,20 @@ bool IsUnwantedInElementID(char c) {
 SavePasswordProgressLogger::SavePasswordProgressLogger() = default;
 SavePasswordProgressLogger::~SavePasswordProgressLogger() = default;
 
-std::string FormSignatureToDebugString(FormSignature form_signature) {
-  return base::StrCat({NumberToString(form_signature.value()), " - ",
-                       NumberToString(HashFormSignature(form_signature))});
+std::string FormSignatureToDebugString(autofill::FormSignature form_signature) {
+  return base::StrCat(
+      {NumberToString(form_signature.value()), " - ",
+       NumberToString(autofill::HashFormSignature(form_signature))});
 }
 
 void SavePasswordProgressLogger::LogFormData(
     SavePasswordProgressLogger::StringID label,
     const FormData& form_data) {
   std::string message = GetStringFromID(label) + ": {\n";
-  message += GetStringFromID(STRING_FORM_SIGNATURE) + ": " +
-             FormSignatureToDebugString(CalculateFormSignature(form_data)) +
-             "\n";
+  message +=
+      GetStringFromID(STRING_FORM_SIGNATURE) + ": " +
+      FormSignatureToDebugString(autofill::CalculateFormSignature(form_data)) +
+      "\n";
   message +=
       GetStringFromID(STRING_ORIGIN) + ": " + ScrubURL(form_data.url) + "\n";
   message +=
@@ -92,10 +95,10 @@ void SavePasswordProgressLogger::LogHTMLForm(
     SavePasswordProgressLogger::StringID label,
     const std::string& name_or_id,
     const GURL& action) {
-  Value::Dict log;
-  log.Set(GetStringFromID(STRING_NAME_OR_ID), ScrubElementID(name_or_id));
-  log.Set(GetStringFromID(STRING_ACTION), ScrubURL(action));
-  LogValue(label, Value(std::move(log)));
+  DictionaryValue log;
+  log.SetString(GetStringFromID(STRING_NAME_OR_ID), ScrubElementID(name_or_id));
+  log.SetString(GetStringFromID(STRING_ACTION), ScrubURL(action));
+  LogValue(label, log);
 }
 
 void SavePasswordProgressLogger::LogURL(
@@ -145,7 +148,7 @@ void SavePasswordProgressLogger::LogValue(StringID label, const Value& log) {
 
 // static
 std::string SavePasswordProgressLogger::ScrubElementID(
-    const std::u16string& element_id) {
+    const base::string16& element_id) {
   return ScrubElementID(base::UTF16ToUTF8(element_id));
 }
 
@@ -262,10 +265,8 @@ std::string SavePasswordProgressLogger::GetStringFromID(
       return "Blocked password due to same origin but insecure scheme";
     case SavePasswordProgressLogger::STRING_ON_PASSWORD_FORMS_RENDERED_METHOD:
       return "PasswordManager::OnPasswordFormsRendered";
-    case SavePasswordProgressLogger::STRING_ON_DYNAMIC_FORM_SUBMISSION:
-      return "PasswordManager::OnDynamicFormSubmission";
-    case SavePasswordProgressLogger::STRING_ON_SUBFRAME_FORM_SUBMISSION:
-      return "PasswordManager::OnSubframeFormSubmission";
+    case SavePasswordProgressLogger::STRING_ON_SAME_DOCUMENT_NAVIGATION:
+      return "PasswordManager::OnSameDocumentNavigation";
     case SavePasswordProgressLogger::STRING_ON_ASK_USER_OR_SAVE_PASSWORD:
       return "PasswordManager::AskUserOrSavePassword";
     case SavePasswordProgressLogger::STRING_CAN_PROVISIONAL_MANAGER_SAVE_METHOD:
@@ -404,8 +405,8 @@ std::string SavePasswordProgressLogger::GetStringFromID(
     case STRING_LEAK_DETECTION_QUOTA_LIMIT:
       return "Leak detection failed: quota limit";
     case SavePasswordProgressLogger::
-        STRING_PASSWORD_REQUIREMENTS_VOTE_FOR_LETTER:
-      return "Uploading password requirements vote for using letters";
+        STRING_PASSWORD_REQUIREMENTS_VOTE_FOR_LOWERCASE:
+      return "Uploading password requirements vote for using lowercase letters";
     case SavePasswordProgressLogger::
         STRING_PASSWORD_REQUIREMENTS_VOTE_FOR_SPECIAL_SYMBOL:
       return "Uploading password requirements vote for using special symbols";

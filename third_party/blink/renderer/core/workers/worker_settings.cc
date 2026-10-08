@@ -1,16 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/workers/worker_settings.h"
 
-#include "third_party/blink/renderer/core/frame/settings.h"
-
 namespace blink {
 
 WorkerSettings::WorkerSettings(Settings* settings) {
   if (settings)
-    CopyFlagValuesFromSettings(settings);
+    this->CopyFlagValuesFromSettings(settings);
 }
 
 WorkerSettings::WorkerSettings(
@@ -23,8 +21,9 @@ WorkerSettings::WorkerSettings(
       strict_mixed_content_checking_(strict_mixed_content_checking),
       allow_running_of_insecure_content_(allow_running_of_insecure_content),
       strictly_block_blockable_mixed_content_(
-          strictly_block_blockable_mixed_content),
-      generic_font_family_settings_(generic_font_family_settings) {}
+          strictly_block_blockable_mixed_content) {
+  generic_font_family_settings.IsolatedCopyTo(generic_font_family_settings_);
+}
 
 std::unique_ptr<WorkerSettings> WorkerSettings::Copy(
     WorkerSettings* old_settings) {
@@ -38,8 +37,8 @@ std::unique_ptr<WorkerSettings> WorkerSettings::Copy(
       old_settings->allow_running_of_insecure_content_;
   new_settings->strictly_block_blockable_mixed_content_ =
       old_settings->strictly_block_blockable_mixed_content_;
-  new_settings->generic_font_family_settings_ =
-      old_settings->generic_font_family_settings_;
+  old_settings->generic_font_family_settings_.IsolatedCopyTo(
+      new_settings->generic_font_family_settings_);
   return new_settings;
 }
 
@@ -50,7 +49,8 @@ void WorkerSettings::CopyFlagValuesFromSettings(Settings* settings) {
       settings->GetAllowRunningOfInsecureContent();
   strictly_block_blockable_mixed_content_ =
       settings->GetStrictlyBlockBlockableMixedContent();
-  generic_font_family_settings_ = settings->GetGenericFontFamilySettings();
+  settings->GetGenericFontFamilySettings().IsolatedCopyTo(
+      generic_font_family_settings_);
 }
 
 }  // namespace blink

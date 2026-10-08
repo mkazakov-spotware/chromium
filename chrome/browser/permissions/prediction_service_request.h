@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 namespace permissions {
 class PredictionService;
 struct PredictionRequestFeatures;
-class GeneratePredictionsResponse;
+class GetSuggestionsResponse;
 }  // namespace permissions
 
 // Represents a singular request to the prediction service.
@@ -31,7 +31,7 @@ class PredictionServiceRequest {
   void LookupReponseReceived(
       bool lookup_succesful,
       bool response_from_cache,
-      const absl::optional<permissions::GeneratePredictionsResponse>& response);
+      std::unique_ptr<permissions::GetSuggestionsResponse> response);
 
   permissions::PredictionServiceBase::LookupResponseCallback callback_;
 

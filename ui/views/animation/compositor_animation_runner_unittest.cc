@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,10 @@
 #include "ui/views/buildflags.h"
 #include "ui/views/test/widget_test.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 namespace {
-constexpr base::TimeDelta kDuration = base::Milliseconds(100);
+constexpr base::TimeDelta kDuration = base::TimeDelta::FromMilliseconds(100);
 }
 
 using CompositorAnimationRunnerTest = WidgetTest;
@@ -196,4 +197,5 @@ TEST_F(CompositorAnimationRunnerDesktopTest, SwitchCompositor) {
 }
 #endif
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

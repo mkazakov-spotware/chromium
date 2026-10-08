@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/history/core/browser/visit_delegate.h"
 #include "components/visitedlink/browser/visitedlink_delegate.h"
@@ -29,10 +29,6 @@ class ContentVisitDelegate : public VisitDelegate,
                              public visitedlink::VisitedLinkDelegate {
  public:
   explicit ContentVisitDelegate(content::BrowserContext* browser_context);
-
-  ContentVisitDelegate(const ContentVisitDelegate&) = delete;
-  ContentVisitDelegate& operator=(const ContentVisitDelegate&) = delete;
-
   ~ContentVisitDelegate() override;
 
  private:
@@ -47,9 +43,11 @@ class ContentVisitDelegate : public VisitDelegate,
   void RebuildTable(const scoped_refptr<
       visitedlink::VisitedLinkDelegate::URLEnumerator>& enumerator) override;
 
-  raw_ptr<HistoryService> history_service_;  // Weak.
+  HistoryService* history_service_;  // Weak.
   std::unique_ptr<visitedlink::VisitedLinkWriter> visitedlink_writer_;
   base::CancelableTaskTracker task_tracker_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentVisitDelegate);
 };
 
 }  // namespace history

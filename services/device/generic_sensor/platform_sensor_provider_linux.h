@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "services/device/generic_sensor/platform_sensor_provider_linux_base.h"
 
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "services/device/generic_sensor/linux/sensor_device_manager.h"
 
 namespace device {
@@ -19,11 +19,6 @@ class PlatformSensorProviderLinux : public PlatformSensorProviderLinuxBase,
                                     public SensorDeviceManager::Delegate {
  public:
   PlatformSensorProviderLinux();
-
-  PlatformSensorProviderLinux(const PlatformSensorProviderLinux&) = delete;
-  PlatformSensorProviderLinux& operator=(const PlatformSensorProviderLinux&) =
-      delete;
-
   ~PlatformSensorProviderLinux() override;
 
   // Sets another service provided by tests.
@@ -68,16 +63,11 @@ class PlatformSensorProviderLinux : public PlatformSensorProviderLinuxBase,
   void OnDeviceRemoved(mojom::SensorType type,
                        const std::string& device_node) override;
 
-  enum class SensorEnumerationState : uint8_t {
-    // Original state.
-    kNotEnumerated,
+  // Set to true when enumeration is ready.
+  bool sensor_nodes_enumerated_;
 
-    // |sensor_device_manager_| has started to enumerate sensors.
-    kEnumerationStarted,
-
-    // Sensor enumeration has finished.
-    kEnumerationFinished
-  } enumeration_status_ = SensorEnumerationState::kNotEnumerated;
+  // Set to true when |sensor_device_manager_| has already started enumeration.
+  bool sensor_nodes_enumeration_started_;
 
   // Stores all available sensor devices by type.
   SensorDeviceMap sensor_devices_by_type_;
@@ -92,6 +82,8 @@ class PlatformSensorProviderLinux : public PlatformSensorProviderLinuxBase,
       sensor_device_manager_;
 
   base::WeakPtrFactory<PlatformSensorProviderLinux> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformSensorProviderLinux);
 };
 
 }  // namespace device

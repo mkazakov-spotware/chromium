@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/url_canon.h"
 
 namespace autofill {
@@ -104,6 +103,18 @@ void PasswordRequirementsSpecFetcherImpl::Fetch(GURL origin,
     return;
   }
 
+  if (!url_loader_factory_) {
+    TriggerCallback(std::move(callback), ResultCode::kErrorNoUrlLoader,
+                    PasswordRequirementsSpec());
+    return;
+  }
+
+  if (!url_loader_factory_) {
+    TriggerCallback(std::move(callback), ResultCode::kErrorNoUrlLoader,
+                    PasswordRequirementsSpec());
+    return;
+  }
+
   if (!origin.is_valid() || origin.HostIsIPAddress() ||
       !origin.SchemeIsHTTPOrHTTPS()) {
     VLOG(1) << "No valid origin";
@@ -113,11 +124,11 @@ void PasswordRequirementsSpecFetcherImpl::Fetch(GURL origin,
   }
 
   // Canonicalize away trailing periods in hostname.
-  while (!origin.host_piece().empty() && origin.host_piece().back() == '.') {
-    base::StringPiece new_host =
-        origin.host_piece().substr(0, origin.host_piece().length() - 1);
-    GURL::Replacements replacements;
-    replacements.SetHostStr(new_host);
+  while (!origin.host().empty() && origin.host().back() == '.') {
+    std::string new_host = origin.host().substr(0, origin.host().length() - 1);
+    url::Replacements<char> replacements;
+    replacements.SetHost(new_host.c_str(),
+                         url::Component(0, new_host.length()));
     origin = origin.ReplaceComponents(replacements);
   }
 
@@ -169,7 +180,7 @@ void PasswordRequirementsSpecFetcherImpl::Fetch(GURL origin,
                      base::Unretained(this), hash_prefix));
 
   lookup->download_timer.Start(
-      FROM_HERE, base::Milliseconds(timeout_),
+      FROM_HERE, base::TimeDelta::FromMilliseconds(timeout_),
       base::BindOnce(&PasswordRequirementsSpecFetcherImpl::OnFetchTimeout,
                      base::Unretained(this), hash_prefix));
 
@@ -184,10 +195,9 @@ void PasswordRequirementsSpecFetcherImpl::OnFetchComplete(
   lookup->download_timer.Stop();
   UMA_HISTOGRAM_TIMES("PasswordManager.RequirementsSpecFetcher.NetworkDuration",
                       base::TimeTicks::Now() - lookup->start_of_request);
-  // Network error codes are negative. See: src/net/base/net_error_list.h.
   base::UmaHistogramSparse(
       "PasswordManager.RequirementsSpecFetcher.NetErrorCode",
-      -lookup->url_loader->NetError());
+      lookup->url_loader->NetError());
   if (lookup->url_loader->ResponseInfo() &&
       lookup->url_loader->ResponseInfo()->headers) {
     base::UmaHistogramSparse(
@@ -196,8 +206,8 @@ void PasswordRequirementsSpecFetcherImpl::OnFetchComplete(
   }
 
   if (!response_body || lookup->url_loader->NetError() != net::Error::OK) {
-    VLOG(1) << "Fetch for " << hash_prefix << ": failed to fetch. Net Error: "
-            << net::ErrorToString(lookup->url_loader->NetError());
+    VLOG(1) << "Fetch for " << hash_prefix << ": failed to fetch "
+            << lookup->url_loader->NetError();
     TriggerCallbackToAll(&lookup->callbacks, ResultCode::kErrorFailedToFetch,
                          PasswordRequirementsSpec());
     return;
@@ -255,8 +265,6 @@ void PasswordRequirementsSpecFetcherImpl::OnFetchComplete(
 
     if (!found_entry) {
       VLOG(1) << "Found no entry for " << host;
-      // `found_entry` guards against moving out of `callback_function` twice.
-      // NOLINTNEXTLINE(bugprone-use-after-move)
       TriggerCallback(std::move(callback_function), ResultCode::kFoundNoSpec,
                       PasswordRequirementsSpec());
     }

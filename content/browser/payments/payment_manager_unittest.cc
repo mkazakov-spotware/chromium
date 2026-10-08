@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "content/browser/payments/payment_app_content_unittest_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -19,7 +19,7 @@ using ::payments::mojom::PaymentHandlerStatus;
 using ::payments::mojom::PaymentInstrument;
 using ::payments::mojom::PaymentInstrumentPtr;
 
-const char kServiceWorkerScope[] = "https://example.com/a/";
+const char kServiceWorkerScope[] = "https://example.com/a";
 const char kServiceWorkerScript[] = "https://example.com/a/script.js";
 
 void DeletePaymentInstrumentCallback(PaymentHandlerStatus* out_status,
@@ -67,9 +67,6 @@ class PaymentManagerTest : public PaymentAppContentUnitTestBase {
                                     GURL(kServiceWorkerScript));
     EXPECT_NE(nullptr, manager_);
   }
-
-  PaymentManagerTest(const PaymentManagerTest&) = delete;
-  PaymentManagerTest& operator=(const PaymentManagerTest&) = delete;
 
   PaymentManager* payment_manager() const { return manager_; }
 
@@ -122,8 +119,32 @@ class PaymentManagerTest : public PaymentAppContentUnitTestBase {
 
  private:
   // Owned by payment_app_context_.
-  raw_ptr<PaymentManager> manager_;
+  PaymentManager* manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentManagerTest);
 };
+
+TEST_F(PaymentManagerTest, SetAndGetPaymentInstrument) {
+  PaymentHandlerStatus write_status = PaymentHandlerStatus::NOT_FOUND;
+  PaymentInstrumentPtr write_details = PaymentInstrument::New();
+  write_details->name = "Visa ending ****4756";
+  write_details->method = "visa";
+  write_details->stringified_capabilities = "{}";
+  SetPaymentInstrument("test_key", std::move(write_details), &write_status);
+  // Write the first instrument of a web payment app will return
+  // FETCH_PAYMENT_APP_INFO_FAILED since the web app's manifest is not
+  // available, but the write of the instrument is succeed, othewise will return
+  // the other errors.
+  ASSERT_EQ(PaymentHandlerStatus::FETCH_PAYMENT_APP_INFO_FAILED, write_status);
+
+  PaymentHandlerStatus read_status = PaymentHandlerStatus::NOT_FOUND;
+  PaymentInstrumentPtr read_details;
+  GetPaymentInstrument("test_key", &read_details, &read_status);
+  ASSERT_EQ(PaymentHandlerStatus::SUCCESS, read_status);
+  EXPECT_EQ("Visa ending ****4756", read_details->name);
+  EXPECT_EQ("visa", read_details->method);
+  EXPECT_EQ("{}", read_details->stringified_capabilities);
+}
 
 TEST_F(PaymentManagerTest, GetUnstoredPaymentInstrument) {
   PaymentHandlerStatus read_status = PaymentHandlerStatus::SUCCESS;
@@ -141,8 +162,8 @@ TEST_F(PaymentManagerTest, DeletePaymentInstrument) {
   SetPaymentInstrument("test_key", std::move(write_details), &write_status);
   // Write the first instrument of a web payment app will return
   // FETCH_PAYMENT_APP_INFO_FAILED since the web app's manifest is not
-  // available, but the write of the instrument is succeed, otherwise will
-  // return the other errors.
+  // available, but the write of the instrument is succeed, othewise will return
+  // the other errors.
   ASSERT_EQ(PaymentHandlerStatus::FETCH_PAYMENT_APP_INFO_FAILED, write_status);
 
   PaymentHandlerStatus read_status = PaymentHandlerStatus::NOT_FOUND;
@@ -168,8 +189,8 @@ TEST_F(PaymentManagerTest, HasPaymentInstrument) {
   SetPaymentInstrument("test_key", std::move(write_details), &write_status);
   // Write the first instrument of a web payment app will return
   // FETCH_PAYMENT_APP_INFO_FAILED since the web app's manifest is not
-  // available, but the write of the instrument is succeed, otherwise will
-  // return the other errors.
+  // available, but the write of the instrument is succeed, othewise will return
+  // the other errors.
   ASSERT_EQ(PaymentHandlerStatus::FETCH_PAYMENT_APP_INFO_FAILED, write_status);
 
   PaymentHandlerStatus has_status = PaymentHandlerStatus::NOT_FOUND;
@@ -192,7 +213,7 @@ TEST_F(PaymentManagerTest, KeysOfPaymentInstruments) {
     SetPaymentInstrument("test_key1", PaymentInstrument::New(), &write_status);
     // Write the first instrument of a web payment app will return
     // FETCH_PAYMENT_APP_INFO_FAILED since the web app's manifest is not
-    // available, but the write of the instrument is succeed, otherwise will
+    // available, but the write of the instrument is succeed, othewise will
     // return the other errors.
     ASSERT_EQ(PaymentHandlerStatus::FETCH_PAYMENT_APP_INFO_FAILED,
               write_status);
@@ -229,7 +250,7 @@ TEST_F(PaymentManagerTest, ClearPaymentInstruments) {
     SetPaymentInstrument("test_key1", PaymentInstrument::New(), &write_status);
     // Write the first instrument of a web payment app will return
     // FETCH_PAYMENT_APP_INFO_FAILED since the web app's manifest is not
-    // available, but the write of the instrument is succeed, otherwise will
+    // available, but the write of the instrument is succeed, othewise will
     // return the other errors.
     ASSERT_EQ(PaymentHandlerStatus::FETCH_PAYMENT_APP_INFO_FAILED,
               write_status);
@@ -258,28 +279,6 @@ TEST_F(PaymentManagerTest, ClearPaymentInstruments) {
   KeysOfPaymentInstruments(&keys, &status);
   ASSERT_EQ(PaymentHandlerStatus::SUCCESS, status);
   ASSERT_EQ(0U, keys.size());
-}
-
-TEST_F(PaymentManagerTest, SetAndGetPaymentInstrument) {
-  PaymentHandlerStatus write_status = PaymentHandlerStatus::NOT_FOUND;
-  PaymentInstrumentPtr write_details = PaymentInstrument::New();
-  write_details->name = "ChromePay: chrome@chromepay.com";
-  write_details->method = "https://www.chromium.org";
-  write_details->stringified_capabilities = "{}";
-  SetPaymentInstrument("test_key", std::move(write_details), &write_status);
-  // Write the first instrument of a web payment app will return
-  // FETCH_PAYMENT_APP_INFO_FAILED since the web app's manifest is not
-  // available, but the write of the instrument is succeed, otherwise will
-  // return the other errors.
-  ASSERT_EQ(PaymentHandlerStatus::FETCH_PAYMENT_APP_INFO_FAILED, write_status);
-
-  PaymentHandlerStatus read_status = PaymentHandlerStatus::NOT_FOUND;
-  PaymentInstrumentPtr read_details;
-  GetPaymentInstrument("test_key", &read_details, &read_status);
-  ASSERT_EQ(PaymentHandlerStatus::SUCCESS, read_status);
-  EXPECT_EQ("ChromePay: chrome@chromepay.com", read_details->name);
-  EXPECT_EQ("https://www.chromium.org", read_details->method);
-  EXPECT_EQ("", read_details->stringified_capabilities);
 }
 
 }  // namespace content

@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tabmodel;
 
-import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -17,7 +16,7 @@ import org.chromium.chrome.browser.tab.Tab;
  * accessed from a single thread.
  */
 public class TabModelSelectorProfileSupplier
-        extends ObservableSupplierImpl<Profile> implements TabModelSelectorObserver, Destroyable {
+        extends ObservableSupplierImpl<Profile> implements TabModelSelectorObserver {
     private TabModelSelector mSelector;
     private boolean mIsTabStateInitialized;
 
@@ -47,9 +46,6 @@ public class TabModelSelectorProfileSupplier
     public void onNewTabCreated(Tab tab, int creationState) {}
 
     @Override
-    public void onTabHidden(Tab tab) {}
-
-    @Override
     public void onTabStateInitialized() {
         mIsTabStateInitialized = true;
         Profile profile = mSelector.getCurrentModel().getProfile();
@@ -57,7 +53,6 @@ public class TabModelSelectorProfileSupplier
         set(profile);
     }
 
-    @Override
     public void destroy() {
         if (mSelector != null) {
             mSelector.removeObserver(this);

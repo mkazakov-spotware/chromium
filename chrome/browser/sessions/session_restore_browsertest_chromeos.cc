@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,23 +7,19 @@
 #include <list>
 #include <vector>
 
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/strings/string_number_conversions.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/browser/ash/crostini/crostini_util.h"
-#include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
-#include "chrome/browser/ash/system_web_apps/test_support/system_web_app_browsertest_base.h"
-#include "chrome/browser/ash/system_web_apps/test_support/test_system_web_app_installation.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_notification_types.h"
+#include "chrome/browser/chromeos/crostini/crostini_util.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/web_applications/web_app_helpers.h"
+#include "chrome/browser/web_applications/components/web_app_helpers.h"
+#include "chrome/browser/web_applications/system_web_app_manager_browsertest.h"
+#include "chrome/browser/web_applications/test/web_app_test.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -33,53 +29,15 @@
 #include "content/public/browser/notification_service.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/wm/core/wm_core_switches.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/public/cpp/autotest_desks_api.h"
-#include "chromeos/ui/wm/desks/desks_helper.h"
-#endif
-
-#if defined(USE_AURA)
-#include "ui/aura/client/aura_constants.h"
-#endif
 
 namespace {
 const char* test_app_name1 = "TestApp1";
 const char* test_app_name2 = "TestApp2";
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-// Activates the desk at |index| and waits for its async operations to complete.
-void SwitchToDesk(int index) {
-  base::RunLoop run_loop;
-  ASSERT_TRUE(ash::AutotestDesksApi().ActivateDeskAtIndex(
-      index, run_loop.QuitClosure()));
-  run_loop.Run();
-}
-
-// Removes all the inactive desks and waits for their async operations to
-// complete.
-void RemoveInactiveDesks() {
-  const int kMaxDeskRemovalTries = 100;
-  for (int i = 0; i < kMaxDeskRemovalTries; ++i) {
-    base::RunLoop run_loop;
-    if (!ash::AutotestDesksApi().RemoveActiveDesk(run_loop.QuitClosure()))
-      return;
-    run_loop.Run();
-  }
-  // This should not be reached.
-  ADD_FAILURE();
-}
-#endif
-
 }  // namespace
 
 class SessionRestoreTestChromeOS : public InProcessBrowserTest {
  public:
-  SessionRestoreTestChromeOS()
-      : faster_animations_(
-            ui::ScopedAnimationDurationScaleMode::ZERO_DURATION) {}
   ~SessionRestoreTestChromeOS() override {}
 
  protected:
@@ -120,9 +78,6 @@ class SessionRestoreTestChromeOS : public InProcessBrowserTest {
   }
 
   Profile* profile() { return browser()->profile(); }
-
- private:
-  ui::ScopedAnimationDurationScaleMode faster_animations_;
 };
 
 // Thse tests are in pairs. The PRE_ test creates some browser windows and
@@ -135,8 +90,8 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, PRE_RestoreBrowserWindows) {
   // Create a second normal browser window.
   CreateBrowserWithParams(Browser::CreateParams(profile(), true));
   // Create a third incognito browser window which should not get restored.
-  CreateBrowserWithParams(Browser::CreateParams(
-      profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true), true));
+  CreateBrowserWithParams(
+      Browser::CreateParams(profile()->GetPrimaryOTRProfile(), true));
   TurnOnSessionRestore();
 }
 
@@ -151,134 +106,6 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, RestoreBrowserWindows) {
   EXPECT_EQ(2u, total_count);
   EXPECT_EQ(0u, incognito_count);
 }
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-
-// Assigns three browser windows to three different desks.
-// https://crbug.com/1337306
-IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS,
-                       DISABLED_PRE_RestoreBrowserWindowsToDesks) {
-  // Create two more desks so we have three desks in total.
-  ash::AutotestDesksApi().CreateNewDesk();
-  ash::AutotestDesksApi().CreateNewDesk();
-
-  // A browser window is always created to the current desk, which
-  // is the first desk by default.
-  EXPECT_TRUE(browser());
-  browser()->SetWindowUserTitle("0");
-
-  // Create a second normal browser window in the second desk by
-  // setting window workspace property.
-  SwitchToDesk(1);
-  Browser* browser_desk1 =
-      CreateBrowserWithParams(Browser::CreateParams(profile(), true));
-  browser_desk1->SetWindowUserTitle("1");
-  browser_desk1->window()->GetNativeWindow()->SetProperty(
-      aura::client::kWindowWorkspaceKey, 1);
-
-  // Create a third normal browser window in the third desk
-  // specified with params.initial_workspace.
-  SwitchToDesk(2);
-  Browser::CreateParams browser_desk2_params =
-      Browser::CreateParams(profile(), true);
-  browser_desk2_params.initial_workspace = "2";
-  Browser* browser_desk2 = CreateBrowserWithParams(browser_desk2_params);
-  browser_desk2->SetWindowUserTitle("2");
-
-  TurnOnSessionRestore();
-}
-
-// Verifies that three windows restored to their right desk after restored. Also
-// verifies that the fourth window is visible on all desks after being restored.
-// https://crbug.com/1337306
-IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS,
-                       DISABLED_RestoreBrowserWindowsToDesks) {
-  auto* browser_list = BrowserList::GetInstance();
-  ASSERT_EQ(3u, browser_list->size());
-
-  // The first, second and third browser should restore to the first, second
-  // and third desk, consecutively.
-  for (int i = 0; i < 3; i++) {
-    auto* browser = browser_list->get(i);
-    int desk_index = 0;
-    ASSERT_TRUE(base::StringToInt(browser->initial_workspace(), &desk_index));
-    // Verify that browser i_th with title i, has initial_workspace equals to
-    // desk i_th.
-    ASSERT_EQ(i, desk_index);
-    ASSERT_EQ(base::NumberToString(i), browser->user_title());
-
-    // Check that a browser window is restored to the right desk i_th.
-    ASSERT_TRUE(ash::AutotestDesksApi().IsWindowInDesk(
-        browser->window()->GetNativeWindow(), desk_index));
-    int workspace = browser->window()->GetNativeWindow()->GetProperty(
-        aura::client::kWindowWorkspaceKey);
-    ASSERT_EQ(desk_index,
-              workspace == aura::client::kWindowWorkspaceUnassignedWorkspace
-                  ? 0
-                  : workspace);
-  }
-
-  RemoveInactiveDesks();
-}
-
-// Assigns a browser window to all desks.
-IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS,
-                       PRE_RestoreAllDesksBrowserWindow) {
-  // Create two desks so we have three in total.
-  ash::AutotestDesksApi().CreateNewDesk();
-  ash::AutotestDesksApi().CreateNewDesk();
-
-  // Create a browser that is visible on all desks.
-  Browser::CreateParams visible_on_all_desks_browser_params =
-      Browser::CreateParams(profile(), true);
-  visible_on_all_desks_browser_params.initial_visible_on_all_workspaces_state =
-      true;
-  Browser* visible_on_all_desks_browser =
-      CreateBrowserWithParams(visible_on_all_desks_browser_params);
-
-  // Ensure the visible on all desks browser has the right properties.
-  auto* visible_on_all_desks_window =
-      visible_on_all_desks_browser->window()->GetNativeWindow();
-  ASSERT_TRUE(visible_on_all_desks_window->GetProperty(
-                  aura::client::kWindowWorkspaceKey) ==
-              aura::client::kWindowWorkspaceVisibleOnAllWorkspaces);
-  ASSERT_TRUE(chromeos::DesksHelper::Get(visible_on_all_desks_window)
-                  ->BelongsToActiveDesk(visible_on_all_desks_window));
-
-  // Check that there are two browsers, the default one and the visible on all
-  // desks browser.
-  auto* browser_list = BrowserList::GetInstance();
-  ASSERT_EQ(2u, browser_list->size());
-
-  TurnOnSessionRestore();
-}
-
-// Verifies that the visible on all desks browser window is restore properly.
-IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS,
-                       RestoreAllDesksBrowserWindow) {
-  // There should be two browsers restored, the default browser and the all
-  // desks browser.
-  auto* browser_list = BrowserList::GetInstance();
-  ASSERT_EQ(2u, browser_list->size());
-
-  // Check that the visible on all desks browser is restored properly.
-  auto* visible_on_all_desks_browser = browser_list->get(1);
-  auto* visible_on_all_desks_window =
-      visible_on_all_desks_browser->window()->GetNativeWindow();
-
-  EXPECT_EQ("", visible_on_all_desks_browser->initial_workspace());
-
-  EXPECT_TRUE(visible_on_all_desks_window->GetProperty(
-                  aura::client::kWindowWorkspaceKey) ==
-              aura::client::kWindowWorkspaceVisibleOnAllWorkspaces);
-  // Visible on all desks windows should always reside on the active desk,
-  // even if there is a desk switch.
-  EXPECT_TRUE(chromeos::DesksHelper::Get(visible_on_all_desks_window)
-                  ->BelongsToActiveDesk(visible_on_all_desks_window));
-
-  RemoveInactiveDesks();
-}
-#endif
 
 IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, PRE_RestoreAppsV1) {
   // Create a trusted app.
@@ -387,8 +214,7 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, PRE_RestoreMaximized) {
   TurnOnSessionRestore();
 }
 
-// https://crbug.com/1216209
-IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, DISABLED_RestoreMaximized) {
+IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, RestoreMaximized) {
   size_t total_count = 0;
   size_t app1_maximized_count = 0;
   size_t app2_maximized_count = 0;
@@ -425,8 +251,7 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, PRE_RestoreMinimized) {
   TurnOnSessionRestore();
 }
 
-// https://crbug.com/1216209
-IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, DISABLED_RestoreMinimized) {
+IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, RestoreMinimized) {
   size_t total_count = 0;
   size_t minimized_count = 0;
   for (auto* browser : *BrowserList::GetInstance()) {
@@ -441,15 +266,38 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, DISABLED_RestoreMinimized) {
   EXPECT_NE(2u, minimized_count);
 }
 
+IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, PRE_OmitTerminalApp) {
+  const std::string terminal_app_name =
+      web_app::GenerateApplicationNameFromAppId(
+          crostini::kCrostiniTerminalSystemAppId);
+  CreateBrowserWithParams(CreateParamsForApp(test_app_name1, true));
+  CreateBrowserWithParams(CreateParamsForApp(terminal_app_name, true));
+  TurnOnSessionRestore();
+}
+
+IN_PROC_BROWSER_TEST_F(SessionRestoreTestChromeOS, OmitTerminalApp) {
+  const std::string terminal_app_name =
+      web_app::GenerateApplicationNameFromAppId(
+          crostini::kCrostiniTerminalSystemAppId);
+  size_t total_count = 0;
+  for (auto* browser : *BrowserList::GetInstance()) {
+    ++total_count;
+    EXPECT_NE(terminal_app_name, browser->app_name());
+  }
+  // We should only count browser() and test_app_name1.
+  EXPECT_EQ(2u, total_count);
+}
+
 class SystemWebAppSessionRestoreTestChromeOS
-    : public ash::SystemWebAppManagerBrowserTest {
+    : public web_app::SystemWebAppManagerBrowserTest {
  public:
   SystemWebAppSessionRestoreTestChromeOS()
       : SystemWebAppManagerBrowserTest(/*install_mock=*/false) {
     maybe_installation_ =
-        ash::TestSystemWebAppInstallation::SetUpStandaloneSingleWindowApp();
+        web_app::TestSystemWebAppInstallation::SetUpStandaloneSingleWindowApp(
+            install_from_web_app_info());
     maybe_installation_->set_update_policy(
-        ash::SystemWebAppManager::UpdatePolicy::kOnVersionChange);
+        web_app::SystemWebAppManager::UpdatePolicy::kOnVersionChange);
   }
 
   ~SystemWebAppSessionRestoreTestChromeOS() override = default;
@@ -492,5 +340,5 @@ IN_PROC_BROWSER_TEST_P(SystemWebAppSessionRestoreTestChromeOS,
   }
 }
 
-INSTANTIATE_SYSTEM_WEB_APP_MANAGER_TEST_SUITE_REGULAR_PROFILE_P(
+INSTANTIATE_SYSTEM_WEB_APP_MANAGER_TEST_SUITE_MANIFEST_INSTALL_P(
     SystemWebAppSessionRestoreTestChromeOS);

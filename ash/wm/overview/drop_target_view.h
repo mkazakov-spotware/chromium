@@ -1,16 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_WM_OVERVIEW_DROP_TARGET_VIEW_H_
 #define ASH_WM_OVERVIEW_DROP_TARGET_VIEW_H_
 
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
-
-namespace views {
-class ImageView;
-}
 
 namespace ash {
 
@@ -19,8 +14,6 @@ namespace ash {
 // be dragged into it and then dropped into overview.
 class DropTargetView : public views::View {
  public:
-  METADATA_HEADER(DropTargetView);
-
   explicit DropTargetView(bool has_plus_icon);
   DropTargetView(const DropTargetView&) = delete;
   DropTargetView& operator=(const DropTargetView&) = delete;
@@ -34,8 +27,10 @@ class DropTargetView : public views::View {
   void Layout() override;
 
  private:
+  class PlusIconView;
+
   views::View* background_view_ = nullptr;
-  views::ImageView* plus_icon_ = nullptr;
+  PlusIconView* plus_icon_ = nullptr;
 };
 
 }  // namespace ash

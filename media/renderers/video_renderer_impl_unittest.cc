@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,19 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/containers/circular_deque.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/base/data_buffer.h"
 #include "media/base/limits.h"
 #include "media/base/media_switches.h"
@@ -63,13 +64,13 @@ class VideoRendererImplTest : public testing::Test {
   std::vector<std::unique_ptr<VideoDecoder>> CreateVideoDecodersForTest() {
     decoder_ = new NiceMock<MockVideoDecoder>();
     std::vector<std::unique_ptr<VideoDecoder>> decoders;
-    decoders.push_back(base::WrapUnique(decoder_.get()));
+    decoders.push_back(base::WrapUnique(decoder_));
     ON_CALL(*decoder_, Initialize_(_, _, _, _, _, _))
-        .WillByDefault(
-            DoAll(SaveArg<4>(&output_cb_),
-                  RunOnceCallback<3>(expect_init_success_
-                                         ? DecoderStatus::Codes::kOk
-                                         : DecoderStatus::Codes::kFailed)));
+        .WillByDefault(DoAll(
+            SaveArg<4>(&output_cb_),
+            RunOnceCallback<3>(expect_init_success_
+                                   ? OkStatus()
+                                   : Status(StatusCode::kCodeOnlyForTesting))));
     // Monitor decodes from the decoder.
     ON_CALL(*decoder_, Decode_(_, _))
         .WillByDefault(Invoke(this, &VideoRendererImplTest::DecodeRequested));
@@ -85,18 +86,17 @@ class VideoRendererImplTest : public testing::Test {
         demuxer_stream_(DemuxerStream::VIDEO),
         simulate_decode_delay_(false),
         expect_init_success_(true) {
-    null_video_sink_ = std::make_unique<NullVideoSink>(
-        false, base::Seconds(1.0 / 60),
-        base::BindRepeating(&MockCB::FrameReceived,
-                            base::Unretained(&mock_cb_)),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+    null_video_sink_.reset(
+        new NullVideoSink(false, base::TimeDelta::FromSecondsD(1.0 / 60),
+                          base::BindRepeating(&MockCB::FrameReceived,
+                                              base::Unretained(&mock_cb_)),
+                          base::ThreadTaskRunnerHandle::Get()));
 
-    renderer_ = std::make_unique<VideoRendererImpl>(
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        null_video_sink_.get(),
+    renderer_.reset(new VideoRendererImpl(
+        base::ThreadTaskRunnerHandle::Get(), null_video_sink_.get(),
         base::BindRepeating(&VideoRendererImplTest::CreateVideoDecodersForTest,
                             base::Unretained(this)),
-        true, &media_log_, nullptr, 0);
+        true, &media_log_, nullptr));
     renderer_->SetTickClockForTesting(&tick_clock_);
     null_video_sink_->set_tick_clock_for_testing(&tick_clock_);
     time_source_.SetTickClockForTesting(&tick_clock_);
@@ -111,9 +111,6 @@ class VideoRendererImplTest : public testing::Test {
     ON_CALL(demuxer_stream_, OnRead(_))
         .WillByDefault(Invoke(this, &VideoRendererImplTest::OnDemuxerRead));
   }
-
-  VideoRendererImplTest(const VideoRendererImplTest&) = delete;
-  VideoRendererImplTest& operator=(const VideoRendererImplTest&) = delete;
 
   ~VideoRendererImplTest() override = default;
 
@@ -143,7 +140,7 @@ class VideoRendererImplTest : public testing::Test {
                       bool low_delay,
                       bool expect_success) {
     if (low_delay)
-      demuxer_stream->set_liveness(StreamLiveness::kLive);
+      demuxer_stream->set_liveness(DemuxerStream::LIVENESS_LIVE);
     EXPECT_CALL(mock_cb_, OnWaiting(_)).Times(0);
     EXPECT_CALL(mock_cb_, OnAudioConfigChange(_)).Times(0);
     EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(AnyNumber());
@@ -156,7 +153,8 @@ class VideoRendererImplTest : public testing::Test {
 
   void StartPlayingFrom(int milliseconds) {
     SCOPED_TRACE(base::StringPrintf("StartPlayingFrom(%d)", milliseconds));
-    const base::TimeDelta media_time = base::Milliseconds(milliseconds);
+    const base::TimeDelta media_time =
+        base::TimeDelta::FromMilliseconds(milliseconds);
     time_source_.SetMediaTime(media_time);
     renderer_->StartPlayingFrom(media_time);
     base::RunLoop().RunUntilIdle();
@@ -221,13 +219,13 @@ class VideoRendererImplTest : public testing::Test {
                            base::SPLIT_WANT_ALL)) {
       if (token == "abort") {
         scoped_refptr<VideoFrame> null_frame;
-        QueueFrame(DecoderStatus::Codes::kAborted, null_frame);
+        QueueFrame(DecodeStatus::ABORTED, null_frame);
         continue;
       }
 
       if (token == "error") {
         scoped_refptr<VideoFrame> null_frame;
-        QueueFrame(DecoderStatus::Codes::kFailed, null_frame);
+        QueueFrame(DecodeStatus::DECODE_ERROR, null_frame);
         continue;
       }
 
@@ -236,8 +234,8 @@ class VideoRendererImplTest : public testing::Test {
         gfx::Size natural_size = TestVideoConfig::NormalCodedSize();
         scoped_refptr<VideoFrame> frame = VideoFrame::CreateFrame(
             PIXEL_FORMAT_I420, natural_size, gfx::Rect(natural_size),
-            natural_size, base::Milliseconds(timestamp_in_ms));
-        QueueFrame(DecoderStatus::Codes::kOk, frame);
+            natural_size, base::TimeDelta::FromMilliseconds(timestamp_in_ms));
+        QueueFrame(DecodeStatus::OK, frame);
         continue;
       }
 
@@ -246,14 +244,14 @@ class VideoRendererImplTest : public testing::Test {
   }
 
   // Queues video frames to be served by the decoder during rendering.
-  void QueueFrame(DecoderStatus status, scoped_refptr<VideoFrame> frame) {
+  void QueueFrame(DecodeStatus status, scoped_refptr<VideoFrame> frame) {
     decode_results_.push_back(std::make_pair(status, frame));
   }
 
   bool IsDecodePending() { return !!decode_cb_; }
 
   void WaitForError(PipelineStatus expected) {
-    SCOPED_TRACE(base::StringPrintf("WaitForError(%d)", expected.code()));
+    SCOPED_TRACE(base::StringPrintf("WaitForError(%d)", expected));
 
     WaitableMessageLoopEvent event;
     PipelineStatusCallback error_cb = event.GetPipelineStatusCB();
@@ -313,14 +311,12 @@ class VideoRendererImplTest : public testing::Test {
 
     // Satify pending |decode_cb_| to trigger a new DemuxerStream::Read().
     task_environment_.GetMainThreadTaskRunner()->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(decode_cb_), DecoderStatus::Codes::kOk));
+        FROM_HERE, base::BindOnce(std::move(decode_cb_), DecodeStatus::OK));
 
     WaitForPendingDecode();
 
     task_environment_.GetMainThreadTaskRunner()->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(decode_cb_), DecoderStatus::Codes::kOk));
+        FROM_HERE, base::BindOnce(std::move(decode_cb_), DecodeStatus::OK));
   }
 
   bool HasQueuedFrames() const { return decode_results_.size() > 0; }
@@ -329,14 +325,14 @@ class VideoRendererImplTest : public testing::Test {
     EXPECT_TRUE(
         task_environment_.GetMainThreadTaskRunner()->BelongsToCurrentThread());
     base::AutoLock l(lock_);
-    tick_clock_.Advance(base::Milliseconds(time_ms));
+    tick_clock_.Advance(base::TimeDelta::FromMilliseconds(time_ms));
   }
 
   void AdvanceTimeInMs(int time_ms) {
     EXPECT_TRUE(
         task_environment_.GetMainThreadTaskRunner()->BelongsToCurrentThread());
     base::AutoLock l(lock_);
-    time_ += base::Milliseconds(time_ms);
+    time_ += base::TimeDelta::FromMilliseconds(time_ms);
     time_source_.StopTicking();
     time_source_.SetMediaTime(time_);
     time_source_.StartTicking();
@@ -351,7 +347,7 @@ class VideoRendererImplTest : public testing::Test {
   // Fixture members.
   std::unique_ptr<VideoRendererImpl> renderer_;
   base::SimpleTestTickClock tick_clock_;
-  raw_ptr<NiceMock<MockVideoDecoder>> decoder_;  // Owned by |renderer_|.
+  NiceMock<MockVideoDecoder>* decoder_;    // Owned by |renderer_|.
   NiceMock<MockDemuxerStream> demuxer_stream_;
   bool simulate_decode_delay_;
 
@@ -422,8 +418,10 @@ class VideoRendererImplTest : public testing::Test {
   // Run during DecodeRequested() to unblock WaitForPendingDecode().
   base::OnceClosure wait_for_pending_decode_cb_;
 
-  base::circular_deque<std::pair<DecoderStatus, scoped_refptr<VideoFrame>>>
+  base::circular_deque<std::pair<DecodeStatus, scoped_refptr<VideoFrame>>>
       decode_results_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoRendererImplTest);
 };
 
 TEST_F(VideoRendererImplTest, DoNothing) {
@@ -479,7 +477,7 @@ TEST_F(VideoRendererImplTest, InitializeAndEndOfStreamOneStaleFrame) {
   Initialize();
   StartPlayingFrom(10000);
   QueueFrames("0");
-  QueueFrame(DecoderStatus::Codes::kOk, VideoFrame::CreateEOSFrame());
+  QueueFrame(DecodeStatus::OK, VideoFrame::CreateEOSFrame());
   WaitForPendingDecode();
   {
     SCOPED_TRACE("Waiting for BUFFERING_HAVE_ENOUGH");
@@ -562,7 +560,7 @@ static void VideoRendererImplTest_FlushDoneCB(VideoRendererImplTest* test,
                                               VideoRenderer* renderer,
                                               base::OnceClosure success_cb) {
   test->QueueFrames("0 10 20 30");
-  renderer->StartPlayingFrom(base::Seconds(0));
+  renderer->StartPlayingFrom(base::TimeDelta::FromSeconds(0));
   std::move(success_cb).Run();
 }
 
@@ -610,8 +608,7 @@ TEST_F(VideoRendererImplTest, DecodeError_Playing) {
 TEST_F(VideoRendererImplTest, DecodeError_DuringStartPlayingFrom) {
   Initialize();
   QueueFrames("error");
-  EXPECT_CALL(mock_cb_, OnError(HasStatusCode(PIPELINE_ERROR_DECODE)));
-  EXPECT_CALL(mock_cb_, OnFallback(HasStatusCode(PIPELINE_ERROR_DECODE)));
+  EXPECT_CALL(mock_cb_, OnError(PIPELINE_ERROR_DECODE));
   StartPlayingFrom(0);
   Destroy();
 }
@@ -638,7 +635,7 @@ TEST_F(VideoRendererImplTest, StartPlayingFrom_RightBefore) {
   EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(AnyNumber());
   EXPECT_CALL(mock_cb_, OnVideoNaturalSizeChange(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnVideoOpacityChange(_)).Times(1);
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(100)));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(100)));
   StartPlayingFrom(59);
   Destroy();
 }
@@ -652,7 +649,7 @@ TEST_F(VideoRendererImplTest, StartPlayingFrom_RightAfter) {
   EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(AnyNumber());
   EXPECT_CALL(mock_cb_, OnVideoNaturalSizeChange(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnVideoOpacityChange(_)).Times(1);
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(100)));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(100)));
   StartPlayingFrom(61);
   Destroy();
 }
@@ -780,7 +777,7 @@ TEST_F(VideoRendererImplTest, RenderingStartedThenStopped) {
     EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _))
         .WillOnce(RunOnceClosure(event.GetClosure()));
     EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_))
-        .Times(5)
+        .Times(4)
         .WillRepeatedly(SaveArg<0>(&last_pipeline_statistics));
     EXPECT_CALL(mock_cb_, FrameReceived(HasTimestampMatcher(0)));
     EXPECT_CALL(mock_cb_, OnVideoNaturalSizeChange(_)).Times(1);
@@ -1019,22 +1016,22 @@ TEST_F(VideoRendererImplTest, NaturalSizeChange) {
   gfx::Size initial_size(8, 8);
   gfx::Size larger_size(16, 16);
 
-  QueueFrame(DecoderStatus::Codes::kOk,
+  QueueFrame(DecodeStatus::OK,
              VideoFrame::CreateFrame(PIXEL_FORMAT_I420, initial_size,
                                      gfx::Rect(initial_size), initial_size,
-                                     base::Milliseconds(0)));
-  QueueFrame(DecoderStatus::Codes::kOk,
+                                     base::TimeDelta::FromMilliseconds(0)));
+  QueueFrame(DecodeStatus::OK,
              VideoFrame::CreateFrame(PIXEL_FORMAT_I420, larger_size,
                                      gfx::Rect(larger_size), larger_size,
-                                     base::Milliseconds(10)));
-  QueueFrame(DecoderStatus::Codes::kOk,
+                                     base::TimeDelta::FromMilliseconds(10)));
+  QueueFrame(DecodeStatus::OK,
              VideoFrame::CreateFrame(PIXEL_FORMAT_I420, larger_size,
                                      gfx::Rect(larger_size), larger_size,
-                                     base::Milliseconds(20)));
-  QueueFrame(DecoderStatus::Codes::kOk,
+                                     base::TimeDelta::FromMilliseconds(20)));
+  QueueFrame(DecodeStatus::OK,
              VideoFrame::CreateFrame(PIXEL_FORMAT_I420, initial_size,
                                      gfx::Rect(initial_size), initial_size,
-                                     base::Milliseconds(30)));
+                                     base::TimeDelta::FromMilliseconds(30)));
 
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _));
   EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(AnyNumber());
@@ -1085,22 +1082,22 @@ TEST_F(VideoRendererImplTest, OpacityChange) {
   VideoPixelFormat opaque_format = PIXEL_FORMAT_I420;
   VideoPixelFormat non_opaque_format = PIXEL_FORMAT_I420A;
 
-  QueueFrame(DecoderStatus::Codes::kOk,
+  QueueFrame(DecodeStatus::OK,
              VideoFrame::CreateFrame(non_opaque_format, frame_size,
                                      gfx::Rect(frame_size), frame_size,
-                                     base::Milliseconds(0)));
-  QueueFrame(DecoderStatus::Codes::kOk,
+                                     base::TimeDelta::FromMilliseconds(0)));
+  QueueFrame(DecodeStatus::OK,
              VideoFrame::CreateFrame(non_opaque_format, frame_size,
                                      gfx::Rect(frame_size), frame_size,
-                                     base::Milliseconds(10)));
-  QueueFrame(
-      DecoderStatus::Codes::kOk,
-      VideoFrame::CreateFrame(opaque_format, frame_size, gfx::Rect(frame_size),
-                              frame_size, base::Milliseconds(20)));
-  QueueFrame(
-      DecoderStatus::Codes::kOk,
-      VideoFrame::CreateFrame(opaque_format, frame_size, gfx::Rect(frame_size),
-                              frame_size, base::Milliseconds(30)));
+                                     base::TimeDelta::FromMilliseconds(10)));
+  QueueFrame(DecodeStatus::OK,
+             VideoFrame::CreateFrame(opaque_format, frame_size,
+                                     gfx::Rect(frame_size), frame_size,
+                                     base::TimeDelta::FromMilliseconds(20)));
+  QueueFrame(DecodeStatus::OK,
+             VideoFrame::CreateFrame(opaque_format, frame_size,
+                                     gfx::Rect(frame_size), frame_size,
+                                     base::TimeDelta::FromMilliseconds(30)));
 
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _));
   EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(AnyNumber());
@@ -1153,12 +1150,12 @@ TEST_F(VideoRendererImplTest, VideoFrameRateChange) {
   EXPECT_CALL(mock_cb_, OnVideoOpacityChange(_)).Times(1);
 
   // Send 50fps frames first.
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(50)));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(50)));
   QueueFrames("0 20 40 60 80 100 120 140 160 180 200");
   QueueFrames("220 240 260 280 300 320 340 360 380 400");
 
   // Also queue some frames that aren't at 50fps, so that we get an unknown fps.
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>()));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>()));
   QueueFrames("500 600");
 
   // Drain everything.
@@ -1170,7 +1167,7 @@ TEST_F(VideoRendererImplTest, VideoFrameRateChange) {
     AdvanceTimeInMs(20);
     AdvanceWallclockTimeInMs(20);
     // This runs the sink callbacks to consume frames.
-    task_environment_.FastForwardBy(base::Milliseconds(20));
+    task_environment_.FastForwardBy(base::TimeDelta::FromMilliseconds(20));
     base::RunLoop().RunUntilIdle();
   }
 
@@ -1180,15 +1177,14 @@ TEST_F(VideoRendererImplTest, VideoFrameRateChange) {
 class VideoRendererImplAsyncAddFrameReadyTest : public VideoRendererImplTest {
  public:
   void InitializeWithMockGpuMemoryBufferVideoFramePool() {
-    renderer_ = std::make_unique<VideoRendererImpl>(
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        null_video_sink_.get(),
+    renderer_.reset(new VideoRendererImpl(
+        base::ThreadTaskRunnerHandle::Get(), null_video_sink_.get(),
         base::BindRepeating(&VideoRendererImplAsyncAddFrameReadyTest::
                                 CreateVideoDecodersForTest,
                             base::Unretained(this)),
         true, &media_log_,
-        std::make_unique<MockGpuMemoryBufferVideoFramePool>(&frame_ready_cbs_),
-        0);
+        std::make_unique<MockGpuMemoryBufferVideoFramePool>(
+            &frame_ready_cbs_)));
     VideoRendererImplTest::Initialize();
   }
 
@@ -1381,7 +1377,7 @@ TEST_P(UnderflowTest, UnderflowAndRecoverTest) {
       // the have enough state.
       case UnderflowTestType::NORMAL:
         QueueFrames("80 100 120 140 160");
-        EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(50)));
+        EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(50)));
         break;
       // In either of these modes the HAVE_ENOUGH transition should still
       // occur with a single frame.
@@ -1463,7 +1459,7 @@ TEST_F(VideoRendererLatencyHintTest, HaveEnough_LowLatencyHint) {
 
   // Initial frames should trigger various callbacks.
   EXPECT_CALL(mock_cb_, FrameReceived(HasTimestampMatcher(0)));
-  EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(2);
+  EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnVideoNaturalSizeChange(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnVideoOpacityChange(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _));
@@ -1488,7 +1484,7 @@ TEST_F(VideoRendererLatencyHintTest, HaveEnough_LowLatencyHint) {
   EXPECT_EQ(renderer_->frames_queued_for_testing(), 4u);
 
   // Unset latencyHint, to verify default behavior.
-  renderer_->SetLatencyHint(absl::nullopt);
+  renderer_->SetLatencyHint(base::nullopt);
 
   // Flush to return to clean slate.
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_NOTHING, _));
@@ -1504,10 +1500,10 @@ TEST_F(VideoRendererLatencyHintTest, HaveEnough_HighLatencyHint) {
   // We must provide a |buffer_duration_| for the latencyHint to take effect
   // immediately. The VideoRendererAlgorithm will eventually provide a PTS-delta
   // duration, but not until after we've started rendering.
-  buffer_duration_ = base::Milliseconds(30);
+  buffer_duration_ = base::TimeDelta::FromMilliseconds(30);
 
   // Set latencyHint to a large value.
-  renderer_->SetLatencyHint(base::Milliseconds(400));
+  renderer_->SetLatencyHint(base::TimeDelta::FromMilliseconds(400));
 
   // NOTE: other tests will SetLatencyHint after Initialize(). Either way should
   // work. Initializing later is especially interesting for "high" hints because
@@ -1523,7 +1519,7 @@ TEST_F(VideoRendererLatencyHintTest, HaveEnough_HighLatencyHint) {
 
   // Queue 12 frames, each 30 ms apart. At this framerate, 400ms rounds to 13
   // frames, so 12 frames should be 1 shy of the HaveEnough threshold.
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(33)));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(33)));
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _))
       .Times(0);
   QueueFrames("0 30 60 90 120 150 180 210 240 270 300 330");
@@ -1543,7 +1539,7 @@ TEST_F(VideoRendererLatencyHintTest, HaveEnough_HighLatencyHint) {
   Mock::VerifyAndClearExpectations(&mock_cb_);
 
   // Unset latencyHint, to verify default behavior.
-  renderer_->SetLatencyHint(absl::nullopt);
+  renderer_->SetLatencyHint(base::nullopt);
 
   // Flush to return to clean slate.
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_NOTHING, _));
@@ -1565,10 +1561,10 @@ TEST_F(VideoRendererLatencyHintTest,
   // We must provide a |buffer_duration_| for the latencyHint to take effect
   // immediately. The VideoRendererAlgorithm will eventually provide a PTS-delta
   // duration, but not until after we've started rendering.
-  buffer_duration_ = base::Milliseconds(30);
+  buffer_duration_ = base::TimeDelta::FromMilliseconds(30);
 
   // Set latency hint to a medium value.
-  renderer_->SetLatencyHint(base::Milliseconds(200));
+  renderer_->SetLatencyHint(base::TimeDelta::FromMilliseconds(200));
 
   // Stall the demuxer after 7 frames.
   simulate_demuxer_stall_after_n_reads_ = 7;
@@ -1579,7 +1575,7 @@ TEST_F(VideoRendererLatencyHintTest,
   EXPECT_CALL(mock_cb_, OnVideoNaturalSizeChange(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnVideoOpacityChange(_)).Times(1);
   EXPECT_CALL(mock_cb_, OnStatisticsUpdate(_)).Times(AnyNumber());
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(33)));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(33)));
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _));
   QueueFrames("0 30 60 90 120 150 180");
   StartPlayingFrom(0);
@@ -1624,10 +1620,10 @@ TEST_F(VideoRendererLatencyHintTest, LatencyHintOverridesLowDelay) {
   // We must provide a |buffer_duration_| for the latencyHint to take effect
   // immediately. The VideoRendererAlgorithm will eventually provide a PTS-delta
   // duration, but not until after we've started rendering.
-  buffer_duration_ = base::Milliseconds(30);
+  buffer_duration_ = base::TimeDelta::FromMilliseconds(30);
 
   // Set latency hint to a medium value.
-  renderer_->SetLatencyHint(base::Milliseconds(200));
+  renderer_->SetLatencyHint(base::TimeDelta::FromMilliseconds(200));
 
   // Initial frames should trigger various callbacks.
   EXPECT_CALL(mock_cb_, FrameReceived(HasTimestampMatcher(0)));
@@ -1639,7 +1635,7 @@ TEST_F(VideoRendererLatencyHintTest, LatencyHintOverridesLowDelay) {
   // 7 frames, so 6 frames should be 1 shy of the HaveEnough threshold. Verify
   // that HAVE_ENOUGH is not triggered in spite of being initialized with low
   // delay mode.
-  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(absl::optional<int>(33)));
+  EXPECT_CALL(mock_cb_, OnVideoFrameRateChange(base::Optional<int>(33)));
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_ENOUGH, _))
       .Times(0);
   QueueFrames("0 30 60 90 120 150");
@@ -1659,7 +1655,7 @@ TEST_F(VideoRendererLatencyHintTest, LatencyHintOverridesLowDelay) {
 
   // Unset latencyHint, to verify default behavior. NOTE: low delay mode is not
   // restored when latency hint unset.
-  renderer_->SetLatencyHint(absl::nullopt);
+  renderer_->SetLatencyHint(base::nullopt);
 
   // Flush to return to clean slate.
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_NOTHING, _));
@@ -1684,11 +1680,11 @@ TEST_F(VideoRendererLatencyHintTest,
   // We must provide a |buffer_duration_| for the latencyHint to take effect
   // immediately. The VideoRendererAlgorithm will eventually provide a PTS-delta
   // duration, but not until after we've started rendering.
-  buffer_duration_ = base::Milliseconds(30);
+  buffer_duration_ = base::TimeDelta::FromMilliseconds(30);
 
   // Set latency hint to a medium value. At a spacing of 30ms this would set
   // the HAVE_ENOUGH threshold to 4 frames.
-  renderer_->SetLatencyHint(base::Milliseconds(200));
+  renderer_->SetLatencyHint(base::TimeDelta::FromMilliseconds(200));
 
   // Initial frames should trigger various callbacks.
   EXPECT_CALL(mock_cb_, FrameReceived(HasTimestampMatcher(0)));
@@ -1716,7 +1712,7 @@ TEST_F(VideoRendererLatencyHintTest,
   Mock::VerifyAndClearExpectations(&mock_cb_);
 
   // Unset latency hint to verify 1-frame HAVE_ENOUGH threshold is maintained.
-  renderer_->SetLatencyHint(absl::nullopt);
+  renderer_->SetLatencyHint(base::nullopt);
 
   // Flush to return to clean slate.
   EXPECT_CALL(mock_cb_, OnBufferingStateChange(BUFFERING_HAVE_NOTHING, _));

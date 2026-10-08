@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/views/payments/payment_request_row_view.h"
 
 namespace views {
@@ -41,10 +41,6 @@ class PaymentRequestItemList {
          bool selected,
          bool clickable,
          bool show_edit_button);
-
-    Item(const Item&) = delete;
-    Item& operator=(const Item&) = delete;
-
     ~Item() override;
 
     bool selected() const { return selected_; }
@@ -81,7 +77,7 @@ class PaymentRequestItemList {
     // |accessible_content| with the screen reader string for the returned
     // content. |accessible_content| shouldn't be null.
     virtual std::unique_ptr<views::View> CreateContentView(
-        std::u16string* accessible_content) = 0;
+        base::string16* accessible_content) = 0;
 
     // Creates the view that should be displayed after the checkmark in the
     // item's view, such as the credit card icon.
@@ -90,7 +86,7 @@ class PaymentRequestItemList {
     // Returns a string describing the type of data for which this row
     // represents an instance. e.g., "credit card" or "billing address". Used
     // when describing the row for accessibility.
-    virtual std::u16string GetNameForDataType() = 0;
+    virtual base::string16 GetNameForDataType() = 0;
 
     // Returns whether this item is complete/valid and can be selected by the
     // user. If this returns false when the user attempts to select this item,
@@ -114,18 +110,16 @@ class PaymentRequestItemList {
 
     base::WeakPtr<PaymentRequestSpec> spec_;
     base::WeakPtr<PaymentRequestState> state_;
-    raw_ptr<PaymentRequestItemList, DanglingUntriaged> list_;
-    std::u16string accessible_item_description_;
+    PaymentRequestItemList* list_;
+    base::string16 accessible_item_description_;
     bool selected_;
     bool show_edit_button_;
+
+    DISALLOW_COPY_AND_ASSIGN(Item);
   };
 
   explicit PaymentRequestItemList(
       base::WeakPtr<PaymentRequestDialogView> dialog);
-
-  PaymentRequestItemList(const PaymentRequestItemList&) = delete;
-  PaymentRequestItemList& operator=(const PaymentRequestItemList&) = delete;
-
   virtual ~PaymentRequestItemList();
 
   // Adds an item to this list. |item->list()| should return this object.
@@ -151,8 +145,10 @@ class PaymentRequestItemList {
   void UnselectSelectedItem();
 
   std::vector<std::unique_ptr<Item>> items_;
-  raw_ptr<Item, DanglingUntriaged> selected_item_;
+  Item* selected_item_;
   base::WeakPtr<PaymentRequestDialogView> dialog_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestItemList);
 };
 
 }  // namespace payments

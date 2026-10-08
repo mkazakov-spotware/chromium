@@ -1,9 +1,9 @@
-/* Copyright 2012 The Chromium Authors
+/* Copyright (c) 2012 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
-#ifndef EXAMPLES_DEMO_NACL_IO_DEMO_NACL_IO_DEMO_H_
-#define EXAMPLES_DEMO_NACL_IO_DEMO_NACL_IO_DEMO_H_
+#ifndef NACL_IO_DEMO_H_
+#define NACL_IO_DEMO_H_
 
 #include <stdarg.h>
 #include "ppapi/c/pp_instance.h"
@@ -22,4 +22,4 @@ extern PPB_Var* g_ppb_var;
 extern PPB_VarArray* g_ppb_var_array;
 extern PPB_VarDictionary* g_ppb_var_dictionary;
 
-#endif  // EXAMPLES_DEMO_NACL_IO_DEMO_NACL_IO_DEMO_H_
+#endif  /* NACL_IO_DEMO_H_ */

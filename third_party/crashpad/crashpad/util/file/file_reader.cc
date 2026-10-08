@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,10 +26,6 @@ class FileReaderReadExactly final : public internal::ReadExactlyInternal {
  public:
   explicit FileReaderReadExactly(FileReaderInterface* file_reader)
       : ReadExactlyInternal(), file_reader_(file_reader) {}
-
-  FileReaderReadExactly(const FileReaderReadExactly&) = delete;
-  FileReaderReadExactly& operator=(const FileReaderReadExactly&) = delete;
-
   ~FileReaderReadExactly() {}
 
  private:
@@ -40,6 +36,8 @@ class FileReaderReadExactly final : public internal::ReadExactlyInternal {
   }
 
   FileReaderInterface* file_reader_;  // weak
+
+  DISALLOW_COPY_AND_ASSIGN(FileReaderReadExactly);
 };
 
 }  // namespace

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 #include <string>
 #include <vector>
 
-#include "base/time/time.h"
 #include "chrome/browser/notifications/scheduler/internal/impression_history_tracker.h"
 #include "chrome/browser/notifications/scheduler/internal/impression_types.h"
 #include "chrome/browser/notifications/scheduler/public/notification_scheduler_types.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace notifications {
 
@@ -27,10 +25,10 @@ struct ImpressionTestData {
   ImpressionTestData(SchedulerClientType type,
                      size_t current_max_daily_show,
                      std::vector<Impression> impressions,
-                     absl::optional<SuppressionInfo> suppression_info,
+                     base::Optional<SuppressionInfo> suppression_info,
                      size_t negative_events_count,
-                     absl::optional<base::Time> last_negative_event_ts,
-                     absl::optional<base::Time> last_shown_ts);
+                     base::Optional<base::Time> last_negative_event_ts,
+                     base::Optional<base::Time> last_shown_ts);
 
   ImpressionTestData(const ImpressionTestData& other);
   ~ImpressionTestData();
@@ -38,10 +36,10 @@ struct ImpressionTestData {
   SchedulerClientType type;
   size_t current_max_daily_show;
   std::vector<Impression> impressions;
-  absl::optional<SuppressionInfo> suppression_info;
+  base::Optional<SuppressionInfo> suppression_info;
   size_t negative_events_count;
-  absl::optional<base::Time> last_negative_event_ts;
-  absl::optional<base::Time> last_shown_ts;
+  base::Optional<base::Time> last_negative_event_ts;
+  base::Optional<base::Time> last_shown_ts;
 };
 
 // Add one impression test data into a client state.

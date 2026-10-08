@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/fonts/shaping/case_mapping_harfbuzz_buffer_filler.h"
-
-#include <unicode/utf16.h>
 
 #include "third_party/blink/renderer/platform/wtf/text/case_map.h"
 
@@ -21,7 +19,7 @@ static const uint16_t* ToUint16(const UChar* src) {
 
 CaseMappingHarfBuzzBufferFiller::CaseMappingHarfBuzzBufferFiller(
     CaseMapIntend case_map_intend,
-    const AtomicString& locale,
+    AtomicString locale,
     hb_buffer_t* harfbuzz_buffer,
     const String& text,
     unsigned start_index,
@@ -62,7 +60,7 @@ CaseMappingHarfBuzzBufferFiller::CaseMappingHarfBuzzBufferFiller(
 // here.
 void CaseMappingHarfBuzzBufferFiller::FillSlowCase(
     CaseMapIntend case_map_intend,
-    const AtomicString& locale,
+    AtomicString locale,
     const UChar* buffer,
     unsigned buffer_length,
     unsigned start_index,

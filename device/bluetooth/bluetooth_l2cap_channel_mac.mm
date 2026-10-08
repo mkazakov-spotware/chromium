@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "device/bluetooth/bluetooth_classic_device_mac.h"
 #include "device/bluetooth/bluetooth_socket_mac.h"
 
@@ -16,16 +15,16 @@
 @interface BluetoothL2capChannelDelegate
     : NSObject <IOBluetoothL2CAPChannelDelegate> {
  @private
-  raw_ptr<device::BluetoothL2capChannelMac> _channel;  // weak
+  device::BluetoothL2capChannelMac* _channel;  // weak
 }
 
-- (instancetype)initWithChannel:(device::BluetoothL2capChannelMac*)channel;
+- (id)initWithChannel:(device::BluetoothL2capChannelMac*)channel;
 
 @end
 
 @implementation BluetoothL2capChannelDelegate
 
-- (instancetype)initWithChannel:(device::BluetoothL2capChannelMac*)channel {
+- (id)initWithChannel:(device::BluetoothL2capChannelMac*)channel {
   if ((self = [super init]))
     _channel = channel;
 

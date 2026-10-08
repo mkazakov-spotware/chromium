@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,17 +32,10 @@ base::Value CreateSources(base::Value urls) {
   return srcs;
 }
 
-base::Value CreateDestinations(absl::optional<base::Value> urls,
-                               absl::optional<base::Value> components) {
+base::Value CreateDestinations(base::Value urls, base::Value components) {
   base::Value dsts(base::Value::Type::DICTIONARY);
-  if (urls.has_value()) {
-    DCHECK(urls->is_list());
-    dsts.SetKey(kUrls, std::move(urls.value()));
-  }
-  if (components.has_value()) {
-    DCHECK(components->is_list());
-    dsts.SetKey(kComponents, std::move(components.value()));
-  }
+  dsts.SetKey(kUrls, std::move(urls));
+  dsts.SetKey(kComponents, std::move(components));
   return dsts;
 }
 
@@ -57,14 +50,16 @@ base::Value CreateRestrictionWithLevel(const std::string& restriction,
 base::Value CreateRule(const std::string& name,
                        const std::string& desc,
                        base::Value src_urls,
-                       absl::optional<base::Value> dst_urls,
-                       absl::optional<base::Value> dst_components,
+                       base::Value dst_urls,
+                       base::Value dst_components,
                        base::Value restrictions) {
   base::Value rule(base::Value::Type::DICTIONARY);
   rule.SetStringKey(kName, name);
   rule.SetStringKey(kDescription, desc);
   DCHECK(src_urls.is_list());
   rule.SetKey(kSources, CreateSources(std::move(src_urls)));
+  DCHECK(dst_urls.is_list());
+  DCHECK(dst_components.is_list());
   rule.SetKey(kDestinations, CreateDestinations(std::move(dst_urls),
                                                 std::move(dst_components)));
   DCHECK(restrictions.is_list());

@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_VR_ELEMENTS_PLATFORM_UI_ELEMENT_H_
 #define CHROME_BROWSER_VR_ELEMENTS_PLATFORM_UI_ELEMENT_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/gl_texture_location.h"
 
@@ -20,10 +20,6 @@ class PlatformUiInputDelegate;
 class PlatformUiElement : public UiElement {
  public:
   PlatformUiElement();
-
-  PlatformUiElement(const PlatformUiElement&) = delete;
-  PlatformUiElement& operator=(const PlatformUiElement&) = delete;
-
   ~PlatformUiElement() override;
 
   void OnHoverEnter(const gfx::PointF& position,
@@ -60,9 +56,11 @@ class PlatformUiElement : public UiElement {
   GlTextureLocation texture_location() const { return texture_location_; }
 
  private:
-  raw_ptr<PlatformUiInputDelegate, DanglingUntriaged> delegate_ = nullptr;
+  PlatformUiInputDelegate* delegate_ = nullptr;
   unsigned int texture_id_ = 0;
   GlTextureLocation texture_location_ = kGlTextureLocationExternal;
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformUiElement);
 };
 
 }  // namespace vr

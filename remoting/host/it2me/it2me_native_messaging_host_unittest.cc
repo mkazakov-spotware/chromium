@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,18 +15,20 @@
 #include "base/json/json_writer.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
+#include "base/strings/stringize_macros.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "components/policy/core/common/fake_async_policy_loader.h"
+#include "components/policy/core/common/mock_policy_service.h"
 #include "components/policy/policy_constants.h"
+#include "net/base/file_stream.h"
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/host/chromoting_host_context.h"
-#include "remoting/host/it2me/it2me_constants.h"
-#include "remoting/host/it2me/it2me_helpers.h"
 #include "remoting/host/native_messaging/log_message_handler.h"
 #include "remoting/host/native_messaging/native_messaging_pipe.h"
 #include "remoting/host/native_messaging/pipe_messaging_channel.h"
@@ -44,56 +46,65 @@ using protocol::ErrorCode;
 namespace {
 
 const char kTestAccessCode[] = "888888";
-constexpr base::TimeDelta kTestAccessCodeLifetime = base::Seconds(666);
+constexpr base::TimeDelta kTestAccessCodeLifetime =
+    base::TimeDelta::FromSeconds(666);
 const char kTestClientUsername[] = "some_user@gmail.com";
 const char kTestStunServer[] = "test_relay_server.com";
 
-void VerifyId(const base::Value::Dict& response, int expected_value) {
-  absl::optional<int> value = response.FindInt(kMessageId);
-  ASSERT_TRUE(value);
-  EXPECT_EQ(expected_value, *value);
+void VerifyId(std::unique_ptr<base::DictionaryValue> response,
+              int expected_value) {
+  ASSERT_TRUE(response);
+
+  int value;
+  EXPECT_TRUE(response->GetInteger("id", &value));
+  EXPECT_EQ(expected_value, value);
 }
 
-void VerifyStringProperty(const base::Value::Dict& response,
+void VerifyStringProperty(std::unique_ptr<base::DictionaryValue> response,
                           const std::string& name,
                           const std::string& expected_value) {
-  const std::string* value = response.FindString(name);
-  ASSERT_TRUE(value);
-  EXPECT_EQ(expected_value, *value);
+  ASSERT_TRUE(response);
+
+  std::string value;
+  EXPECT_TRUE(response->GetString(name, &value));
+  EXPECT_EQ(expected_value, value);
 }
 
 // Verity the values of the "type" and "id" properties
-void VerifyCommonProperties(const base::Value::Dict& response,
+void VerifyCommonProperties(std::unique_ptr<base::DictionaryValue> response,
                             const std::string& type,
                             int id) {
-  const std::string* string_value = response.FindString(kMessageType);
-  ASSERT_TRUE(string_value);
-  EXPECT_EQ(type, *string_value);
+  ASSERT_TRUE(response);
 
-  absl::optional<int> int_value = response.FindInt(kMessageId);
-  ASSERT_TRUE(int_value);
-  EXPECT_EQ(id, *int_value);
+  std::string string_value;
+  EXPECT_TRUE(response->GetString("type", &string_value));
+  EXPECT_EQ(type, string_value);
+
+  int int_value;
+  EXPECT_TRUE(response->GetInteger("id", &int_value));
+  EXPECT_EQ(id, int_value);
 }
 
-base::Value::Dict CreateConnectMessage(int id) {
-  base::Value::Dict connect_message;
-  connect_message.Set(kMessageId, id);
-  connect_message.Set(kMessageType, kConnectMessage);
-  connect_message.Set(kUserName, kTestClientUsername);
-  connect_message.Set(kAuthServiceWithToken, "oauth2:sometoken");
-  connect_message.Set(
-      kIceConfig,
-      base::Value::FromUniquePtrValue(base::JSONReader::ReadDeprecated(
-          "{ \"iceServers\": [ { \"urls\": [ \"stun:" +
-          std::string(kTestStunServer) + "\" ] } ] }")));
+base::DictionaryValue CreateConnectMessage(int id) {
+  base::DictionaryValue connect_message;
+  connect_message.SetInteger("id", id);
+  connect_message.SetString("type", "connect");
+  connect_message.SetString("xmppServerAddress", "talk.google.com:5222");
+  connect_message.SetBoolean("xmppServerUseTls", true);
+  connect_message.SetString("userName", kTestClientUsername);
+  connect_message.SetString("authServiceWithToken", "oauth2:sometoken");
+  connect_message.Set("iceConfig",
+                      base::JSONReader::ReadDeprecated(
+                          "{ \"iceServers\": [ { \"urls\": [ \"stun:" +
+                          std::string(kTestStunServer) + "\" ] } ] }"));
 
   return connect_message;
 }
 
-base::Value::Dict CreateDisconnectMessage(int id) {
-  base::Value::Dict disconnect_message;
-  disconnect_message.Set(kMessageId, id);
-  disconnect_message.Set(kMessageType, kDisconnectMessage);
+base::DictionaryValue CreateDisconnectMessage(int id) {
+  base::DictionaryValue disconnect_message;
+  disconnect_message.SetInteger("id", id);
+  disconnect_message.SetString("type", "disconnect");
   return disconnect_message;
 }
 
@@ -103,12 +114,9 @@ class MockIt2MeHost : public It2MeHost {
  public:
   MockIt2MeHost() = default;
 
-  MockIt2MeHost(const MockIt2MeHost&) = delete;
-  MockIt2MeHost& operator=(const MockIt2MeHost&) = delete;
-
   // It2MeHost overrides
   void Connect(std::unique_ptr<ChromotingHostContext> context,
-               base::Value::Dict policies,
+               std::unique_ptr<base::DictionaryValue> policies,
                std::unique_ptr<It2MeConfirmationDialogFactory> dialog_factory,
                base::WeakPtr<It2MeHost::Observer> observer,
                CreateDeferredConnectContext create_connection_context,
@@ -123,11 +131,13 @@ class MockIt2MeHost : public It2MeHost {
       CreateDeferredConnectContext create_connection_context);
 
   void RunSetState(It2MeHostState state);
+
+  DISALLOW_COPY_AND_ASSIGN(MockIt2MeHost);
 };
 
 void MockIt2MeHost::Connect(
     std::unique_ptr<ChromotingHostContext> context,
-    base::Value::Dict policies,
+    std::unique_ptr<base::DictionaryValue> policies,
     std::unique_ptr<It2MeConfirmationDialogFactory> dialog_factory,
     base::WeakPtr<It2MeHost::Observer> observer,
     CreateDeferredConnectContext create_connection_context,
@@ -149,22 +159,22 @@ void MockIt2MeHost::Connect(
 
   OnPolicyUpdate(std::move(policies));
 
-  RunSetState(It2MeHostState::kStarting);
-  RunSetState(It2MeHostState::kRequestedAccessCode);
+  RunSetState(kStarting);
+  RunSetState(kRequestedAccessCode);
 
   host_context()->ui_task_runner()->PostTask(
       FROM_HERE,
       base::BindOnce(&It2MeHost::Observer::OnStoreAccessCode, observer_,
                      kTestAccessCode, kTestAccessCodeLifetime));
 
-  RunSetState(It2MeHostState::kReceivedAccessCode);
-  RunSetState(It2MeHostState::kConnecting);
+  RunSetState(kReceivedAccessCode);
+  RunSetState(kConnecting);
 
   host_context()->ui_task_runner()->PostTask(
       FROM_HERE, base::BindOnce(&It2MeHost::Observer::OnClientAuthenticated,
                                 observer_, kTestClientUsername));
 
-  RunSetState(It2MeHostState::kConnected);
+  RunSetState(kConnected);
 }
 
 void MockIt2MeHost::Disconnect() {
@@ -179,7 +189,7 @@ void MockIt2MeHost::Disconnect() {
   register_request_.reset();
   signal_strategy_.reset();
 
-  RunSetState(It2MeHostState::kDisconnected);
+  RunSetState(kDisconnected);
 }
 
 void MockIt2MeHost::CreateConnectionContextOnNetworkThread(
@@ -204,34 +214,30 @@ void MockIt2MeHost::RunSetState(It2MeHostState state) {
 class MockIt2MeHostFactory : public It2MeHostFactory {
  public:
   MockIt2MeHostFactory() : host(new MockIt2MeHost()) {}
-
-  MockIt2MeHostFactory(const MockIt2MeHostFactory&) = delete;
-  MockIt2MeHostFactory& operator=(const MockIt2MeHostFactory&) = delete;
-
   ~MockIt2MeHostFactory() override = default;
 
-  scoped_refptr<It2MeHost> CreateIt2MeHost() override { return host; }
+  scoped_refptr<It2MeHost> CreateIt2MeHost() override {
+    return host;
+  }
 
   scoped_refptr<MockIt2MeHost> host;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockIt2MeHostFactory);
 };
 
 class It2MeNativeMessagingHostTest : public testing::Test {
  public:
   It2MeNativeMessagingHostTest() = default;
-
-  It2MeNativeMessagingHostTest(const It2MeNativeMessagingHostTest&) = delete;
-  It2MeNativeMessagingHostTest& operator=(const It2MeNativeMessagingHostTest&) =
-      delete;
-
   ~It2MeNativeMessagingHostTest() override = default;
 
   void SetUp() override;
   void TearDown() override;
 
  protected:
-  void SetPolicies(base::Value::Dict dict);
-  absl::optional<base::Value::Dict> ReadMessageFromOutputPipe();
-  void WriteMessageToInputPipe(const base::Value::Dict& message);
+  void SetPolicies(const base::DictionaryValue& dict);
+  std::unique_ptr<base::DictionaryValue> ReadMessageFromOutputPipe();
+  void WriteMessageToInputPipe(const base::Value& message);
 
   void VerifyHelloResponse(int request_id);
   void VerifyErrorResponse();
@@ -243,12 +249,11 @@ class It2MeNativeMessagingHostTest : public testing::Test {
   // This is tested by sending a known-good request, followed by |message|,
   // followed by the known-good request again. The response file should only
   // contain a single response from the first good request.
-  void TestBadRequest(const base::Value::Dict& message,
-                      bool expect_error_response);
+  void TestBadRequest(const base::Value& message, bool expect_error_response);
   void TestConnect();
 
   // Raw pointer to host factory (owned by It2MeNativeMessagingHost).
-  raw_ptr<MockIt2MeHostFactory> factory_raw_ptr_ = nullptr;
+  MockIt2MeHostFactory* factory_raw_ptr_ = nullptr;
 
  private:
   void StartHost();
@@ -274,11 +279,13 @@ class It2MeNativeMessagingHostTest : public testing::Test {
 
   // Retain a raw pointer to |policy_loader_| in order to control the policy
   // contents.
-  raw_ptr<policy::FakeAsyncPolicyLoader> policy_loader_ = nullptr;
+  policy::FakeAsyncPolicyLoader* policy_loader_ = nullptr;
 
   // Task runner of the host thread.
   scoped_refptr<AutoThreadTaskRunner> host_task_runner_;
   std::unique_ptr<remoting::NativeMessagingPipe> pipe_;
+
+  DISALLOW_COPY_AND_ASSIGN(It2MeNativeMessagingHostTest);
 };
 
 void It2MeNativeMessagingHostTest::SetUp() {
@@ -286,7 +293,7 @@ void It2MeNativeMessagingHostTest::SetUp() {
   test_run_loop_ = std::make_unique<base::RunLoop>();
 
   // Run the host on a dedicated thread.
-  host_thread_ = std::make_unique<base::Thread>("host_thread");
+  host_thread_.reset(new base::Thread("host_thread"));
   host_thread_->Start();
 
   host_task_runner_ = new AutoThreadTaskRunner(
@@ -312,11 +319,11 @@ void It2MeNativeMessagingHostTest::TearDown() {
   input_write_file_.Close();
 
   // Start a new RunLoop and Wait until the host finishes shutting down.
-  test_run_loop_ = std::make_unique<base::RunLoop>();
+  test_run_loop_.reset(new base::RunLoop());
   test_run_loop_->Run();
 
   // Verify there are no more message in the output pipe.
-  absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
+  std::unique_ptr<base::DictionaryValue> response = ReadMessageFromOutputPipe();
   EXPECT_FALSE(response);
 
   // The It2MeNativeMessagingHost dtor closes the handles that are passed to it.
@@ -324,7 +331,8 @@ void It2MeNativeMessagingHostTest::TearDown() {
   output_read_file_.Close();
 }
 
-void It2MeNativeMessagingHostTest::SetPolicies(base::Value::Dict dict) {
+void It2MeNativeMessagingHostTest::SetPolicies(
+    const base::DictionaryValue& dict) {
   DCHECK(task_environment_->GetMainThreadTaskRunner()
              ->RunsTasksInCurrentSequence());
   // Copy |dict| into |policy_bundle|.
@@ -332,19 +340,19 @@ void It2MeNativeMessagingHostTest::SetPolicies(base::Value::Dict dict) {
       policy::PolicyNamespace(policy::POLICY_DOMAIN_CHROME, std::string());
   policy::PolicyBundle policy_bundle;
   policy::PolicyMap& policy_map = policy_bundle.Get(policy_namespace);
-  policy_map.LoadFrom(dict, policy::POLICY_LEVEL_MANDATORY,
+  policy_map.LoadFrom(&dict, policy::POLICY_LEVEL_MANDATORY,
                       policy::POLICY_SCOPE_MACHINE,
                       policy::POLICY_SOURCE_CLOUD);
 
   // Simulate a policy update and wait for it to complete.
-  policy_run_loop_ = std::make_unique<base::RunLoop>();
+  policy_run_loop_.reset(new base::RunLoop);
   policy_loader_->SetPolicies(policy_bundle);
   policy_loader_->PostReloadOnBackgroundThread(true /* force reload asap */);
   policy_run_loop_->Run();
   policy_run_loop_.reset(nullptr);
 }
 
-absl::optional<base::Value::Dict>
+std::unique_ptr<base::DictionaryValue>
 It2MeNativeMessagingHostTest::ReadMessageFromOutputPipe() {
   while (true) {
     uint32_t length;
@@ -352,36 +360,38 @@ It2MeNativeMessagingHostTest::ReadMessageFromOutputPipe() {
         reinterpret_cast<char*>(&length), sizeof(length));
     if (read_result != sizeof(length)) {
       // The output pipe has been closed, return an empty message.
-      return absl::nullopt;
+      return nullptr;
     }
 
     std::string message_json(length, '\0');
     read_result =
-        output_read_file_.ReadAtCurrentPos(std::data(message_json), length);
+        output_read_file_.ReadAtCurrentPos(base::data(message_json), length);
     if (read_result != static_cast<int>(length)) {
       LOG(ERROR) << "Message size (" << read_result
                  << ") doesn't match the header (" << length << ").";
-      return absl::nullopt;
+      return nullptr;
     }
 
     std::unique_ptr<base::Value> message =
         base::JSONReader::ReadDeprecated(message_json);
     if (!message || !message->is_dict()) {
       LOG(ERROR) << "Malformed message:" << message_json;
-      return absl::nullopt;
+      return nullptr;
     }
 
-    base::Value::Dict result = std::move(*message).TakeDict();
+    std::unique_ptr<base::DictionaryValue> result = base::WrapUnique(
+        static_cast<base::DictionaryValue*>(message.release()));
+    std::string type;
     // If this is a debug message log, ignore it, otherwise return it.
-    const std::string* type = result.FindString(kMessageType);
-    if (!type || *type != LogMessageHandler::kDebugMessageTypeName) {
+    if (!result->GetString("type", &type) ||
+        type != LogMessageHandler::kDebugMessageTypeName) {
       return result;
     }
   }
 }
 
 void It2MeNativeMessagingHostTest::WriteMessageToInputPipe(
-    const base::Value::Dict& message) {
+    const base::Value& message) {
   std::string message_json;
   base::JSONWriter::Write(message, &message_json);
 
@@ -392,15 +402,13 @@ void It2MeNativeMessagingHostTest::WriteMessageToInputPipe(
 }
 
 void It2MeNativeMessagingHostTest::VerifyHelloResponse(int request_id) {
-  absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
-  ASSERT_TRUE(response);
-  VerifyCommonProperties(*response, kHelloResponse, request_id);
+  std::unique_ptr<base::DictionaryValue> response = ReadMessageFromOutputPipe();
+  VerifyCommonProperties(std::move(response), "helloResponse", request_id);
 }
 
 void It2MeNativeMessagingHostTest::VerifyErrorResponse() {
-  absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
-  ASSERT_TRUE(response);
-  VerifyStringProperty(*response, kMessageType, kErrorMessage);
+  std::unique_ptr<base::DictionaryValue> response = ReadMessageFromOutputPipe();
+  VerifyStringProperty(std::move(response), "type", "error");
 }
 
 void It2MeNativeMessagingHostTest::VerifyConnectResponses(int request_id) {
@@ -415,54 +423,55 @@ void It2MeNativeMessagingHostTest::VerifyConnectResponses(int request_id) {
   // We expect a total of 7 messages: 1 connectResponse, 1 natPolicyChanged,
   // and 5 hostStateChanged.
   for (int i = 0; i < 7; ++i) {
-    absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
+    std::unique_ptr<base::DictionaryValue> response =
+        ReadMessageFromOutputPipe();
     ASSERT_TRUE(response);
 
-    const std::string* type = response->FindString(kMessageType);
-    ASSERT_TRUE(type);
+    std::string type;
+    ASSERT_TRUE(response->GetString("type", &type));
 
-    if (*type == kConnectResponse) {
+    if (type == "connectResponse") {
       EXPECT_FALSE(connect_response_received);
       connect_response_received = true;
-      VerifyId(*response, request_id);
-    } else if (*type == kNatPolicyChangedMessage) {
+      VerifyId(std::move(response), request_id);
+    } else if (type == "natPolicyChanged") {
       EXPECT_FALSE(nat_policy_received);
       nat_policy_received = true;
-    } else if (*type == kHostStateChangedMessage) {
-      const std::string* state = response->FindString(kState);
-      ASSERT_TRUE(state);
+    } else if (type == "hostStateChanged") {
+      std::string state;
+      ASSERT_TRUE(response->GetString("state", &state));
 
-      if (*state == It2MeHostStateToString(It2MeHostState::kStarting)) {
+      std::string value;
+      if (state == It2MeNativeMessagingHost::HostStateToString(kStarting)) {
         EXPECT_FALSE(starting_received);
         starting_received = true;
-      } else if (*state ==
-                 It2MeHostStateToString(It2MeHostState::kRequestedAccessCode)) {
+      } else if (state == It2MeNativeMessagingHost::HostStateToString(
+                              kRequestedAccessCode)) {
         EXPECT_FALSE(requestedAccessCode_received);
         requestedAccessCode_received = true;
-      } else if (*state ==
-                 It2MeHostStateToString(It2MeHostState::kReceivedAccessCode)) {
+      } else if (state == It2MeNativeMessagingHost::HostStateToString(
+                              kReceivedAccessCode)) {
         EXPECT_FALSE(receivedAccessCode_received);
         receivedAccessCode_received = true;
 
-        const std::string* value = response->FindString(kAccessCode);
-        ASSERT_TRUE(value);
-        EXPECT_EQ(kTestAccessCode, *value);
+        EXPECT_TRUE(response->GetString("accessCode", &value));
+        EXPECT_EQ(kTestAccessCode, value);
 
-        absl::optional<int> access_code_lifetime =
-            response->FindInt(kAccessCodeLifetime);
-        ASSERT_TRUE(access_code_lifetime);
-        EXPECT_EQ(kTestAccessCodeLifetime.InSeconds(), *access_code_lifetime);
-      } else if (*state ==
-                 It2MeHostStateToString(It2MeHostState::kConnecting)) {
+        int access_code_lifetime;
+        EXPECT_TRUE(
+            response->GetInteger("accessCodeLifetime", &access_code_lifetime));
+        EXPECT_EQ(kTestAccessCodeLifetime.InSeconds(), access_code_lifetime);
+      } else if (state ==
+                 It2MeNativeMessagingHost::HostStateToString(kConnecting)) {
         EXPECT_FALSE(connecting_received);
         connecting_received = true;
-      } else if (*state == It2MeHostStateToString(It2MeHostState::kConnected)) {
+      } else if (state ==
+                 It2MeNativeMessagingHost::HostStateToString(kConnected)) {
         EXPECT_FALSE(connected_received);
         connected_received = true;
 
-        const std::string* value = response->FindString(kClient);
-        ASSERT_TRUE(value);
-        EXPECT_EQ(kTestClientUsername, *value);
+        EXPECT_TRUE(response->GetString("client", &value));
+        EXPECT_EQ(kTestClientUsername, value);
       } else {
         ADD_FAILURE() << "Unexpected host state: " << state;
       }
@@ -476,27 +485,25 @@ void It2MeNativeMessagingHostTest::VerifyDisconnectResponses(int request_id) {
   bool disconnect_response_received = false;
   bool disconnected_received = false;
 
-  // We expect a total of 2 messages: disconnectResponse and hostStateChanged.
-  for (int i = 0; i < 2; i++) {
-    absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
+  // We expect a total of 3 messages: 1 connectResponse and 1 hostStateChanged.
+  for (int i = 0; i < 2; ++i) {
+    std::unique_ptr<base::DictionaryValue> response =
+        ReadMessageFromOutputPipe();
     ASSERT_TRUE(response);
 
-    const std::string* type = response->FindString(kMessageType);
-    ASSERT_TRUE(type);
+    std::string type;
+    ASSERT_TRUE(response->GetString("type", &type));
 
-    if (*type == kDisconnectResponse) {
+    if (type == "disconnectResponse") {
       EXPECT_FALSE(disconnect_response_received);
       disconnect_response_received = true;
-      VerifyId(*response, request_id);
-    } else if (*type == kHostStateChangedMessage) {
-      const std::string* state = response->FindString(kState);
-      ASSERT_TRUE(state);
-      if (*state == It2MeHostStateToString(It2MeHostState::kDisconnected)) {
+      VerifyId(std::move(response), request_id);
+    } else if (type == "hostStateChanged") {
+      std::string state;
+      ASSERT_TRUE(response->GetString("state", &state));
+      if (state == It2MeNativeMessagingHost::HostStateToString(kDisconnected)) {
         EXPECT_FALSE(disconnected_received);
         disconnected_received = true;
-        const std::string* error_code = response->FindString(kDisconnectReason);
-        ASSERT_TRUE(error_code);
-        EXPECT_EQ(ErrorCodeToString(protocol::ErrorCode::OK), *error_code);
       } else {
         ADD_FAILURE() << "Unexpected host state: " << state;
       }
@@ -507,19 +514,18 @@ void It2MeNativeMessagingHostTest::VerifyDisconnectResponses(int request_id) {
 }
 
 void It2MeNativeMessagingHostTest::VerifyPolicyErrorResponse() {
-  absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
+  std::unique_ptr<base::DictionaryValue> response = ReadMessageFromOutputPipe();
   ASSERT_TRUE(response);
-  const std::string* type = response->FindString(kMessageType);
-  ASSERT_TRUE(type);
-  ASSERT_EQ(kPolicyErrorMessage, *type);
+  std::string type;
+  ASSERT_TRUE(response->GetString("type", &type));
+  ASSERT_EQ("policyError", type);
 }
 
-void It2MeNativeMessagingHostTest::TestBadRequest(
-    const base::Value::Dict& message,
-    bool expect_error_response) {
-  base::Value::Dict good_message;
-  good_message.Set(kMessageType, kHelloMessage);
-  good_message.Set(kMessageId, 1);
+void It2MeNativeMessagingHostTest::TestBadRequest(const base::Value& message,
+                                                  bool expect_error_response) {
+  base::DictionaryValue good_message;
+  good_message.SetString("type", "hello");
+  good_message.SetInteger("id", 1);
 
   WriteMessageToInputPipe(good_message);
   WriteMessageToInputPipe(message);
@@ -531,7 +537,7 @@ void It2MeNativeMessagingHostTest::TestBadRequest(
     VerifyErrorResponse();
   }
 
-  absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
+  std::unique_ptr<base::DictionaryValue> response = ReadMessageFromOutputPipe();
   EXPECT_FALSE(response);
 }
 
@@ -544,7 +550,7 @@ void It2MeNativeMessagingHostTest::StartHost() {
   ASSERT_TRUE(MakePipe(&input_read_file, &input_write_file_));
   ASSERT_TRUE(MakePipe(&output_read_file_, &output_write_file));
 
-  pipe_ = std::make_unique<NativeMessagingPipe>();
+  pipe_.reset(new NativeMessagingPipe());
 
   std::unique_ptr<extensions::NativeMessagingChannel> channel(
       new PipeMessagingChannel(std::move(input_read_file),
@@ -609,9 +615,9 @@ void It2MeNativeMessagingHostTest::TestConnect() {
 // Test hello request.
 TEST_F(It2MeNativeMessagingHostTest, Hello) {
   int next_id = 0;
-  base::Value::Dict message;
-  message.Set(kMessageId, ++next_id);
-  message.Set(kMessageType, kHelloMessage);
+  base::DictionaryValue message;
+  message.SetInteger("id", ++next_id);
+  message.SetString("type", "hello");
   WriteMessageToInputPipe(message);
 
   VerifyHelloResponse(next_id);
@@ -619,22 +625,21 @@ TEST_F(It2MeNativeMessagingHostTest, Hello) {
 
 // Verify that response ID matches request ID.
 TEST_F(It2MeNativeMessagingHostTest, Id) {
-  base::Value::Dict message;
-  message.Set(kMessageType, kHelloMessage);
+  base::DictionaryValue message;
+  message.SetString("type", "hello");
   WriteMessageToInputPipe(message);
-  message.Set(kMessageId, "42");
+  message.SetString("id", "42");
   WriteMessageToInputPipe(message);
 
-  absl::optional<base::Value::Dict> response = ReadMessageFromOutputPipe();
-  ASSERT_TRUE(response);
-  const std::string* value = response->FindString(kMessageId);
-  EXPECT_FALSE(value);
+  std::unique_ptr<base::DictionaryValue> response = ReadMessageFromOutputPipe();
+  EXPECT_TRUE(response);
+  std::string value;
+  EXPECT_FALSE(response->GetString("id", &value));
 
   response = ReadMessageFromOutputPipe();
-  ASSERT_TRUE(response);
-  value = response->FindString(kMessageId);
-  ASSERT_TRUE(value);
-  EXPECT_EQ("42", *value);
+  EXPECT_TRUE(response);
+  EXPECT_TRUE(response->GetString("id", &value));
+  EXPECT_EQ("42", value);
 }
 
 TEST_F(It2MeNativeMessagingHostTest, ConnectMultiple) {
@@ -649,11 +654,11 @@ TEST_F(It2MeNativeMessagingHostTest, ConnectMultiple) {
 TEST_F(It2MeNativeMessagingHostTest,
        ConnectRespectsSuppressUserDialogsParameterOnChromeOsOnly) {
   int next_id = 1;
-  base::Value::Dict connect_message = CreateConnectMessage(next_id);
-  connect_message.Set(kSuppressUserDialogs, true);
+  base::DictionaryValue connect_message = CreateConnectMessage(next_id);
+  connect_message.SetBoolean("suppressUserDialogs", true);
   WriteMessageToInputPipe(connect_message);
   VerifyConnectResponses(next_id);
-#if BUILDFLAG(IS_CHROMEOS_ASH) || !defined(NDEBUG)
+#if defined(OS_CHROMEOS) || !defined(NDEBUG)
   EXPECT_FALSE(factory_raw_ptr_->host->enable_dialogs());
 #else
   EXPECT_TRUE(factory_raw_ptr_->host->enable_dialogs());
@@ -666,11 +671,11 @@ TEST_F(It2MeNativeMessagingHostTest,
 TEST_F(It2MeNativeMessagingHostTest,
        ConnectRespectsSuppressNotificationsParameterOnChromeOsOnly) {
   int next_id = 1;
-  base::Value::Dict connect_message = CreateConnectMessage(next_id);
-  connect_message.Set(kSuppressNotifications, true);
+  base::DictionaryValue connect_message = CreateConnectMessage(next_id);
+  connect_message.SetBoolean("suppressNotifications", true);
   WriteMessageToInputPipe(connect_message);
   VerifyConnectResponses(next_id);
-#if BUILDFLAG(IS_CHROMEOS_ASH) || !defined(NDEBUG)
+#if defined(OS_CHROMEOS) || !defined(NDEBUG)
   EXPECT_FALSE(factory_raw_ptr_->host->enable_notifications());
 #else
   EXPECT_TRUE(factory_raw_ptr_->host->enable_notifications());
@@ -680,86 +685,42 @@ TEST_F(It2MeNativeMessagingHostTest,
   VerifyDisconnectResponses(next_id);
 }
 
-TEST_F(It2MeNativeMessagingHostTest,
-       ConnectRespectsTerminateUponInputParameterOnChromeOsOnly) {
-  int next_id = 1;
-  base::Value::Dict connect_message = CreateConnectMessage(next_id);
-  connect_message.Set(kTerminateUponInput, true);
-  WriteMessageToInputPipe(connect_message);
-  VerifyConnectResponses(next_id);
-#if BUILDFLAG(IS_CHROMEOS_ASH) || !defined(NDEBUG)
-  EXPECT_TRUE(factory_raw_ptr_->host->terminate_upon_input());
-#else
-  EXPECT_FALSE(factory_raw_ptr_->host->terminate_upon_input());
-#endif
-  ++next_id;
-  WriteMessageToInputPipe(CreateDisconnectMessage(next_id));
-  VerifyDisconnectResponses(next_id);
-}
-
-TEST_F(It2MeNativeMessagingHostTest,
-       ConnectRespectsIsEnterpriseAdminUserParameterOnChromeOsOnly) {
-  int next_id = 1;
-  base::Value::Dict connect_message = CreateConnectMessage(next_id);
-  connect_message.Set(kIsEnterpriseAdminUser, true);
-  WriteMessageToInputPipe(connect_message);
-  VerifyConnectResponses(next_id);
-#if BUILDFLAG(IS_CHROMEOS_ASH) || !defined(NDEBUG)
-  EXPECT_TRUE(factory_raw_ptr_->host->is_enterprise_session());
-#else
-  EXPECT_FALSE(factory_raw_ptr_->host->is_enterprise_session());
-#endif
-  ++next_id;
-  WriteMessageToInputPipe(CreateDisconnectMessage(next_id));
-  VerifyDisconnectResponses(next_id);
-}
-
-TEST_F(It2MeNativeMessagingHostTest,
-       ConnectRespectsCurtainLocalUserSessionParameterOnChromeOsOnly) {
-  int next_id = 1;
-  base::Value::Dict connect_message = CreateConnectMessage(next_id);
-  connect_message.Set(kCurtainLocalUserSession, true);
-  WriteMessageToInputPipe(connect_message);
-  VerifyConnectResponses(next_id);
-#if BUILDFLAG(IS_CHROMEOS_ASH) || !defined(NDEBUG)
-  EXPECT_TRUE(factory_raw_ptr_->host->enable_curtaining());
-#else
-  EXPECT_FALSE(factory_raw_ptr_->host->enable_curtaining());
-#endif
-  ++next_id;
-  WriteMessageToInputPipe(CreateDisconnectMessage(next_id));
-  VerifyDisconnectResponses(next_id);
+// Verify non-Dictionary requests are rejected.
+TEST_F(It2MeNativeMessagingHostTest, WrongFormat) {
+  base::ListValue message;
+  // No "error" response will be sent for non-Dictionary messages.
+  TestBadRequest(message, false);
 }
 
 // Verify requests with no type are rejected.
 TEST_F(It2MeNativeMessagingHostTest, MissingType) {
-  base::Value::Dict message;
+  base::DictionaryValue message;
   TestBadRequest(message, true);
 }
 
 // Verify rejection if type is unrecognized.
 TEST_F(It2MeNativeMessagingHostTest, InvalidType) {
-  base::Value::Dict message;
-  message.Set(kMessageType, "xxx");
+  base::DictionaryValue message;
+  message.SetString("type", "xxx");
   TestBadRequest(message, true);
 }
 
 // Verify rejection if type is unrecognized.
 TEST_F(It2MeNativeMessagingHostTest, BadPoliciesBeforeConnect) {
-  base::Value::Dict bad_policy;
-  bad_policy.Set(policy::key::kRemoteAccessHostFirewallTraversal, 1);
-  SetPolicies(std::move(bad_policy));
+  base::DictionaryValue bad_policy;
+  bad_policy.SetInteger(policy::key::kRemoteAccessHostFirewallTraversal, 1);
+  SetPolicies(bad_policy);
   WriteMessageToInputPipe(CreateConnectMessage(1));
   VerifyPolicyErrorResponse();
 }
 
 // Verify rejection if type is unrecognized.
 TEST_F(It2MeNativeMessagingHostTest, BadPoliciesAfterConnect) {
-  base::Value::Dict bad_policy;
-  bad_policy.Set(policy::key::kRemoteAccessHostFirewallTraversal, 1);
+  base::DictionaryValue bad_policy;
+  bad_policy.SetInteger(policy::key::kRemoteAccessHostFirewallTraversal, 1);
   WriteMessageToInputPipe(CreateConnectMessage(1));
   VerifyConnectResponses(1);
-  SetPolicies(std::move(bad_policy));
+  SetPolicies(bad_policy);
   VerifyPolicyErrorResponse();
 }
 

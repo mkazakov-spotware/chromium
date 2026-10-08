@@ -1,20 +1,17 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/devtools/device/usb/usb_device_provider.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/devtools/device/usb/android_rsa.h"
 #include "chrome/browser/devtools/device/usb/android_usb_device.h"
 #include "crypto/rsa_private_key.h"
-#include "net/base/completion_repeating_callback.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/socket/stream_socket.h"
@@ -25,68 +22,62 @@ const char kLocalAbstractCommand[] = "localabstract:%s";
 
 const int kBufferSize = 16 * 1024;
 
-void OnOpenSocket(UsbDeviceProvider::SocketCallback callback,
+void OnOpenSocket(const UsbDeviceProvider::SocketCallback& callback,
                   net::StreamSocket* socket_raw,
                   int result) {
   std::unique_ptr<net::StreamSocket> socket(socket_raw);
   if (result != net::OK)
     socket.reset();
-  std::move(callback).Run(result, std::move(socket));
+  callback.Run(result, std::move(socket));
 }
 
 void OnRead(net::StreamSocket* socket,
             scoped_refptr<net::IOBuffer> buffer,
             const std::string& data,
-            UsbDeviceProvider::CommandCallback callback,
+            const UsbDeviceProvider::CommandCallback& callback,
             int result) {
   if (result <= 0) {
-    std::move(callback).Run(result, result == 0 ? data : std::string());
+    callback.Run(result, result == 0 ? data : std::string());
     delete socket;
     return;
   }
 
   std::string new_data = data + std::string(buffer->data(), result);
-  auto split_callback = base::SplitOnceCallback(
-      base::BindOnce(&OnRead, socket, buffer, new_data, std::move(callback)));
   result =
-      socket->Read(buffer.get(), kBufferSize, std::move(split_callback.first));
-  if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(result);
-  }
+      socket->Read(buffer.get(), kBufferSize,
+                   base::BindOnce(&OnRead, socket, buffer, new_data, callback));
+  if (result != net::ERR_IO_PENDING)
+    OnRead(socket, buffer, new_data, callback, result);
 }
 
-void OpenedForCommand(UsbDeviceProvider::CommandCallback callback,
+void OpenedForCommand(const UsbDeviceProvider::CommandCallback& callback,
                       net::StreamSocket* socket,
                       int result) {
   if (result != net::OK) {
-    std::move(callback).Run(result, std::string());
+    callback.Run(result, std::string());
     return;
   }
   scoped_refptr<net::IOBuffer> buffer =
       base::MakeRefCounted<net::IOBuffer>(kBufferSize);
-  auto split_callback = base::SplitOnceCallback(base::BindOnce(
-      &OnRead, socket, buffer, std::string(), std::move(callback)));
-  result =
-      socket->Read(buffer.get(), kBufferSize, std::move(split_callback.first));
-  if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(result);
-  }
+  result = socket->Read(
+      buffer.get(), kBufferSize,
+      base::BindOnce(&OnRead, socket, buffer, std::string(), callback));
+  if (result != net::ERR_IO_PENDING)
+    OnRead(socket, buffer, std::string(), callback, result);
 }
 
 void RunCommand(scoped_refptr<AndroidUsbDevice> device,
                 const std::string& command,
-                UsbDeviceProvider::CommandCallback callback) {
+                const UsbDeviceProvider::CommandCallback& callback) {
   net::StreamSocket* socket = device->CreateSocket(command);
   if (!socket) {
-    std::move(callback).Run(net::ERR_CONNECTION_FAILED, std::string());
+    callback.Run(net::ERR_CONNECTION_FAILED, std::string());
     return;
   }
-  auto split_callback = base::SplitOnceCallback(std::move(callback));
-  int result = socket->Connect(base::BindOnce(
-      &OpenedForCommand, std::move(split_callback.first), socket));
-  if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(result, std::string());
-  }
+  int result =
+      socket->Connect(base::BindOnce(&OpenedForCommand, callback, socket));
+  if (result != net::ERR_IO_PENDING)
+    callback.Run(result, std::string());
 }
 
 }  // namespace
@@ -95,46 +86,44 @@ UsbDeviceProvider::UsbDeviceProvider(Profile* profile) {
   rsa_key_ = AndroidRSAPrivateKey(profile);
 }
 
-void UsbDeviceProvider::QueryDevices(SerialsCallback callback) {
+void UsbDeviceProvider::QueryDevices(const SerialsCallback& callback) {
   AndroidUsbDevice::Enumerate(
-      rsa_key_.get(), base::BindOnce(&UsbDeviceProvider::EnumeratedDevices,
-                                     this, std::move(callback)));
+      rsa_key_.get(),
+      base::Bind(&UsbDeviceProvider::EnumeratedDevices, this, callback));
 }
 
 void UsbDeviceProvider::QueryDeviceInfo(const std::string& serial,
-                                        DeviceInfoCallback callback) {
+                                        const DeviceInfoCallback& callback) {
   auto it = device_map_.find(serial);
   if (it == device_map_.end() || !it->second->is_connected()) {
     AndroidDeviceManager::DeviceInfo offline_info;
-    std::move(callback).Run(offline_info);
+    callback.Run(offline_info);
     return;
   }
-  AndroidDeviceManager::QueryDeviceInfo(base::BindOnce(&RunCommand, it->second),
-                                        std::move(callback));
+  AndroidDeviceManager::QueryDeviceInfo(base::Bind(&RunCommand, it->second),
+                                        callback);
 }
 
 void UsbDeviceProvider::OpenSocket(const std::string& serial,
                                    const std::string& name,
-                                   SocketCallback callback) {
+                                   const SocketCallback& callback) {
   auto it = device_map_.find(serial);
   if (it == device_map_.end()) {
-    std::move(callback).Run(net::ERR_CONNECTION_FAILED, nullptr);
+    callback.Run(net::ERR_CONNECTION_FAILED,
+                 base::WrapUnique<net::StreamSocket>(NULL));
     return;
   }
   std::string socket_name =
       base::StringPrintf(kLocalAbstractCommand, name.c_str());
   net::StreamSocket* socket = it->second->CreateSocket(socket_name);
   if (!socket) {
-    std::move(callback).Run(net::ERR_CONNECTION_FAILED, nullptr);
+    callback.Run(net::ERR_CONNECTION_FAILED,
+                 base::WrapUnique<net::StreamSocket>(NULL));
     return;
   }
-
-  auto split_callback = base::SplitOnceCallback(std::move(callback));
-  int result = socket->Connect(
-      base::BindOnce(&OnOpenSocket, std::move(split_callback.first), socket));
-  if (result != net::ERR_IO_PENDING) {
-    std::move(split_callback.second).Run(result, nullptr);
-  }
+  int result = socket->Connect(base::BindOnce(&OnOpenSocket, callback, socket));
+  if (result != net::ERR_IO_PENDING)
+    callback.Run(result, base::WrapUnique<net::StreamSocket>(NULL));
 }
 
 void UsbDeviceProvider::ReleaseDevice(const std::string& serial) {
@@ -144,7 +133,7 @@ void UsbDeviceProvider::ReleaseDevice(const std::string& serial) {
 UsbDeviceProvider::~UsbDeviceProvider() {
 }
 
-void UsbDeviceProvider::EnumeratedDevices(SerialsCallback callback,
+void UsbDeviceProvider::EnumeratedDevices(const SerialsCallback& callback,
                                           const AndroidUsbDevices& devices) {
   std::vector<std::string> result;
   device_map_.clear();
@@ -153,5 +142,5 @@ void UsbDeviceProvider::EnumeratedDevices(SerialsCallback callback,
     device_map_[(*it)->serial()] = *it;
     (*it)->InitOnCallerThread();
   }
-  std::move(callback).Run(std::move(result));
+  callback.Run(result);
 }

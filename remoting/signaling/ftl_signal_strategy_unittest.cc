@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/test/task_environment.h"
 #include "remoting/base/oauth_token_getter.h"
 #include "remoting/base/protobuf_http_status.h"
@@ -19,10 +18,10 @@
 #include "remoting/signaling/messaging_client.h"
 #include "remoting/signaling/registration_manager.h"
 #include "remoting/signaling/signaling_address.h"
-#include "remoting/signaling/xmpp_constants.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
+#include "third_party/libjingle_xmpp/xmpp/constants.h"
 
 namespace remoting {
 
@@ -60,13 +59,13 @@ std::unique_ptr<jingle_xmpp::XmlElement> CreateXmlStanza(
       "</iq>";
   auto stanza = base::WrapUnique<jingle_xmpp::XmlElement>(
       jingle_xmpp::XmlElement::ForStr(kStanzaTemplate));
-  stanza->SetAttr(kQNameId, id);
+  stanza->SetAttr(jingle_xmpp::QN_ID, id);
   if (direction == Direction::OUTGOING) {
-    stanza->SetAttr(kQNameFrom, kFakeLocalFtlId);
-    stanza->SetAttr(kQNameTo, kFakeRemoteFtlId);
+    stanza->SetAttr(jingle_xmpp::QN_FROM, kFakeLocalFtlId);
+    stanza->SetAttr(jingle_xmpp::QN_TO, kFakeRemoteFtlId);
   } else {
-    stanza->SetAttr(kQNameFrom, kFakeRemoteFtlId);
-    stanza->SetAttr(kQNameTo, kFakeLocalFtlId);
+    stanza->SetAttr(jingle_xmpp::QN_FROM, kFakeRemoteFtlId);
+    stanza->SetAttr(jingle_xmpp::QN_TO, kFakeLocalFtlId);
   }
   return stanza;
 }
@@ -79,10 +78,12 @@ class MockOAuthTokenGetter : public OAuthTokenGetter {
 
 class FakeMessagingClient : public MessagingClient {
  public:
-  base::CallbackListSubscription RegisterMessageCallback(
+  std::unique_ptr<MessageCallbackSubscription> RegisterMessageCallback(
       const MessageCallback& callback) override {
     return callback_list_.Add(callback);
   }
+
+  void PullMessages(DoneCallback on_done) override { NOTREACHED(); }
 
   void StartReceivingMessages(base::OnceClosure on_started,
                               DoneCallback on_closed) override {
@@ -237,9 +238,9 @@ class FtlSignalStrategyTest : public testing::Test,
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
 
-  raw_ptr<MockOAuthTokenGetter> token_getter_ = nullptr;
-  raw_ptr<FakeRegistrationManager> registration_manager_ = nullptr;
-  raw_ptr<FakeMessagingClient> messaging_client_ = nullptr;
+  MockOAuthTokenGetter* token_getter_ = nullptr;
+  FakeRegistrationManager* registration_manager_ = nullptr;
+  FakeMessagingClient* messaging_client_ = nullptr;
   std::unique_ptr<FtlSignalStrategy> signal_strategy_;
 
   std::vector<SignalStrategy::State> state_history_;
@@ -435,10 +436,10 @@ TEST_F(FtlSignalStrategyTest, SendStanza_NetworkError) {
 
   ASSERT_EQ(1u, received_messages_.size());
   auto& error_message = received_messages_[0];
-  ASSERT_EQ(kIqTypeError, error_message->Attr(kQNameType));
-  ASSERT_EQ(stanza_id, error_message->Attr(kQNameId));
-  ASSERT_EQ(kFakeRemoteFtlId, error_message->Attr(kQNameFrom));
-  ASSERT_EQ(kFakeLocalFtlId, error_message->Attr(kQNameTo));
+  ASSERT_EQ(jingle_xmpp::STR_ERROR, error_message->Attr(jingle_xmpp::QN_TYPE));
+  ASSERT_EQ(stanza_id, error_message->Attr(jingle_xmpp::QN_ID));
+  ASSERT_EQ(kFakeRemoteFtlId, error_message->Attr(jingle_xmpp::QN_FROM));
+  ASSERT_EQ(kFakeLocalFtlId, error_message->Attr(jingle_xmpp::QN_TO));
 }
 
 TEST_F(FtlSignalStrategyTest, ReceiveStanza_Success) {

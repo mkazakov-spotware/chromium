@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -184,7 +184,7 @@ class OAuthMultiloginHelperTest
     return std::make_unique<OAuthMultiloginHelper>(
         &test_signin_client_, this, token_service(),
         gaia::MultiloginMode::MULTILOGIN_UPDATE_COOKIE_ACCOUNTS_ORDER, accounts,
-        std::string(), gaia::GaiaSource::kChrome,
+        std::string(),
         base::BindOnce(&OAuthMultiloginHelperTest::OnOAuthMultiloginFinished,
                        base::Unretained(this)));
   }
@@ -194,7 +194,7 @@ class OAuthMultiloginHelperTest
     return std::make_unique<OAuthMultiloginHelper>(
         &test_signin_client_, this, token_service(),
         gaia::MultiloginMode::MULTILOGIN_UPDATE_COOKIE_ACCOUNTS_ORDER, accounts,
-        kExternalCcResult, gaia::GaiaSource::kChrome,
+        kExternalCcResult,
         base::BindOnce(&OAuthMultiloginHelperTest::OnOAuthMultiloginFinished,
                        base::Unretained(this)));
   }
@@ -226,9 +226,9 @@ class OAuthMultiloginHelperTest
 
   // AccountsCookieMuator::PartitionDelegate:
   std::unique_ptr<GaiaAuthFetcher> CreateGaiaAuthFetcherForPartition(
-      GaiaAuthConsumer* consumer,
-      const gaia::GaiaSource& source) override {
-    return test_signin_client_.CreateGaiaAuthFetcher(consumer, source);
+      GaiaAuthConsumer* consumer) override {
+    return test_signin_client_.CreateGaiaAuthFetcher(consumer,
+                                                     gaia::GaiaSource::kChrome);
   }
 
   network::mojom::CookieManager* GetCookieManagerForPartition() override {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,15 @@
 
 namespace {
 
-std::u16string clean(std::u16string text) {
+base::string16 clean(base::string16 text) {
   const size_t kMaxTextLength = 2000;
   return base::i18n::ToLower(text.substr(0, kMaxTextLength));
 }
 
 }  // namespace
 
-TermMatches FindTermMatches(std::u16string find_text,
-                            std::u16string text,
+TermMatches FindTermMatches(base::string16 find_text,
+                            base::string16 text,
                             bool allow_prefix_matching,
                             bool allow_mid_word_matching) {
   find_text = clean(find_text);
@@ -30,7 +30,8 @@ TermMatches FindTermMatches(std::u16string find_text,
       base::StartsWith(text, find_text, base::CompareCase::SENSITIVE))
     return {{0, 0, find_text.length()}};
 
-  String16Vector find_terms = String16VectorFromString16(find_text, NULL);
+  String16Vector find_terms =
+      String16VectorFromString16(find_text, false, NULL);
 
   TermMatches matches = MatchTermsInString(find_terms, text);
   matches = SortMatches(matches);
@@ -40,7 +41,7 @@ TermMatches FindTermMatches(std::u16string find_text,
     return matches;
 
   WordStarts word_starts;
-  String16VectorFromString16(text, &word_starts);
+  String16VectorFromString16(text, false, &word_starts);
   return ScoredHistoryMatch::FilterTermMatchesByWordStarts(
       matches, WordStarts(find_terms.size(), 0), word_starts, 0,
       std::string::npos);

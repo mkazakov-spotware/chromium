@@ -1,36 +1,35 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MOJO_PUBLIC_CPP_BINDINGS_LIB_BINDING_STATE_H_
 #define MOJO_PUBLIC_CPP_BINDINGS_LIB_BINDING_STATE_H_
 
-#include <stdint.h>
-
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/check.h"
 #include "base/component_export.h"
-#include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/string_piece.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "mojo/public/cpp/bindings/async_flusher.h"
 #include "mojo/public/cpp/bindings/connection_error_callback.h"
 #include "mojo/public/cpp/bindings/connection_group.h"
 #include "mojo/public/cpp/bindings/interface_endpoint_client.h"
 #include "mojo/public/cpp/bindings/interface_id.h"
+#include "mojo/public/cpp/bindings/interface_ptr_info.h"
+#include "mojo/public/cpp/bindings/interface_request.h"
 #include "mojo/public/cpp/bindings/lib/multiplex_router.h"
 #include "mojo/public/cpp/bindings/lib/pending_receiver_state.h"
-#include "mojo/public/cpp/bindings/lib/sync_method_traits.h"
 #include "mojo/public/cpp/bindings/message_header_validator.h"
 #include "mojo/public/cpp/bindings/pending_flush.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
+#include "mojo/public/cpp/system/core.h"
 
 namespace mojo {
 
@@ -54,7 +53,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) BindingStateBase {
   void FlushAsync(AsyncFlusher flusher);
 
   void Close();
-  void CloseWithReason(uint32_t custom_reason, base::StringPiece description);
+  void CloseWithReason(uint32_t custom_reason, const std::string& description);
 
   void RaiseError() { endpoint_client_->RaiseError(); }
 
@@ -93,11 +92,9 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) BindingStateBase {
                     const char* interface_name,
                     std::unique_ptr<MessageReceiver> request_validator,
                     bool passes_associated_kinds,
-                    base::span<const uint32_t> sync_method_ordinals,
+                    bool has_sync_methods,
                     MessageReceiverWithResponderStatus* stub,
-                    uint32_t interface_version,
-                    MessageToMethodInfoCallback method_info_callback,
-                    MessageToMethodNameCallback method_name_callback);
+                    uint32_t interface_version);
 
   scoped_refptr<internal::MultiplexRouter> router_;
   std::unique_ptr<InterfaceEndpointClient> endpoint_client_;
@@ -114,9 +111,6 @@ class BindingState : public BindingStateBase {
     stub_.set_sink(std::move(impl));
   }
 
-  BindingState(const BindingState&) = delete;
-  BindingState& operator=(const BindingState&) = delete;
-
   ~BindingState() { Close(); }
 
   void Bind(PendingReceiverState* receiver_state,
@@ -124,26 +118,29 @@ class BindingState : public BindingStateBase {
     BindingStateBase::BindInternal(
         std::move(receiver_state), runner, Interface::Name_,
         std::make_unique<typename Interface::RequestValidator_>(),
-        Interface::PassesAssociatedKinds_,
-        SyncMethodTraits<Interface>::GetOrdinals(), &stub_, Interface::Version_,
-        Interface::MessageToMethodInfo_, Interface::MessageToMethodName_);
+        Interface::PassesAssociatedKinds_, Interface::HasSyncMethods_, &stub_,
+        Interface::Version_);
   }
 
-  PendingReceiver<Interface> Unbind() {
+  InterfaceRequest<Interface> Unbind() {
     weak_ptr_factory_.InvalidateWeakPtrs();
     endpoint_client_.reset();
-    PendingReceiver<Interface> request(router_->PassMessagePipe());
+    InterfaceRequest<Interface> request(router_->PassMessagePipe());
     router_ = nullptr;
     return request;
   }
 
   Interface* impl() { return ImplRefTraits::GetRawPointer(&stub_.sink()); }
   ImplPointerType SwapImplForTesting(ImplPointerType new_impl) {
-    return std::exchange(stub_.sink(), std::move(new_impl));
+    Interface* old_impl = impl();
+    stub_.set_sink(std::move(new_impl));
+    return old_impl;
   }
 
  private:
   typename Interface::template Stub_<ImplRefTraits> stub_;
+
+  DISALLOW_COPY_AND_ASSIGN(BindingState);
 };
 
 }  // namespace internal

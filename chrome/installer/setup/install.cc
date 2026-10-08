@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,13 +21,11 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/win/shortcut.h"
-#include "base/win/windows_version.h"
 #include "chrome/install_static/install_details.h"
 #include "chrome/install_static/install_util.h"
 #include "chrome/installer/setup/install_params.h"
@@ -48,7 +46,6 @@
 #include "chrome/installer/util/installation_state.h"
 #include "chrome/installer/util/installer_util_strings.h"
 #include "chrome/installer/util/l10n_string_util.h"
-#include "chrome/installer/util/taskbar_util.h"
 #include "chrome/installer/util/util_constants.h"
 #include "chrome/installer/util/work_item.h"
 #include "chrome/installer/util/work_item_list.h"
@@ -92,7 +89,7 @@ void LogShortcutOperation(ShellUtil::ShortcutLocation location,
     case ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR:
       message.append(
           "Start menu/" +
-          base::WideToUTF8(InstallUtil::GetChromeAppsShortcutDirName()) + " ");
+          base::UTF16ToUTF8(InstallUtil::GetChromeAppsShortcutDirName()) + " ");
       break;
     default:
       NOTREACHED();
@@ -100,17 +97,17 @@ void LogShortcutOperation(ShellUtil::ShortcutLocation location,
 
   message.push_back('"');
   if (properties.has_shortcut_name())
-    message.append(base::WideToUTF8(properties.shortcut_name));
+    message.append(base::UTF16ToUTF8(properties.shortcut_name));
   else
-    message.append(base::WideToUTF8(InstallUtil::GetDisplayName()));
+    message.append(base::UTF16ToUTF8(InstallUtil::GetDisplayName()));
   message.push_back('"');
 
   message.append(" shortcut to ");
-  message.append(base::WideToUTF8(properties.target.value()));
+  message.append(base::UTF16ToUTF8(properties.target.value()));
   if (properties.has_arguments())
-    message.append(base::WideToUTF8(properties.arguments));
+    message.append(base::UTF16ToUTF8(properties.arguments));
 
-  if (properties.pin_to_taskbar && CanPinShortcutToTaskbar())
+  if (properties.pin_to_taskbar && base::win::CanPinShortcutToTaskbar())
     message.append(" and pinning to the taskbar");
 
   message.push_back('.');
@@ -125,24 +122,14 @@ void ExecuteAndLogShortcutOperation(
     ShellUtil::ShortcutLocation location,
     const ShellUtil::ShortcutProperties& properties,
     ShellUtil::ShortcutOperation operation) {
-  LogShortcutOperation(location, properties, operation, /*failed=*/false);
-  bool pinned = false;
-  bool success = ShellUtil::CreateOrUpdateShortcut(location, properties,
-                                                   operation, &pinned);
-  if (!success)
-    LogShortcutOperation(location, properties, operation, /*failed=*/true);
-
-  // For Start Menu shortcut creation on versions of Win10 that support
-  // pinning, record whether or not the installer pinned Chrome.
-  if (location == ShellUtil::SHORTCUT_LOCATION_START_MENU_ROOT &&
-      base::win::GetVersion() >= base::win::Version::WIN10 &&
-      CanPinShortcutToTaskbar()) {
-    SetInstallerPinnedChromeToTaskbar(properties.pin_to_taskbar && pinned);
+  LogShortcutOperation(location, properties, operation, false);
+  if (!ShellUtil::CreateOrUpdateShortcut(location, properties, operation)) {
+    LogShortcutOperation(location, properties, operation, true);
   }
 }
 
 void AddChromeToMediaPlayerList() {
-  std::wstring reg_path(kMediaPlayerRegPath);
+  base::string16 reg_path(kMediaPlayerRegPath);
   // registry paths can also be appended like file system path
   reg_path.push_back(base::FilePath::kSeparators[0]);
   reg_path.append(kChromeExe);
@@ -155,15 +142,15 @@ void AddChromeToMediaPlayerList() {
     LOG(ERROR) << "Could not add Chrome to media player inclusion list.";
 }
 
-// Copy the initial preferences file provided to installer, in the same folder
+// Copy master_preferences file provided to installer, in the same folder
 // as chrome.exe so Chrome first run can find it. This function will be called
 // only on the first install of Chrome.
 void CopyPreferenceFileForFirstRun(const InstallerState& installer_state,
                                    const base::FilePath& prefs_source_path) {
   base::FilePath prefs_dest_path(
-      installer_state.target_path().AppendASCII(kLegacyInitialPrefs));
+      installer_state.target_path().AppendASCII(kDefaultMasterPrefs));
   if (!base::CopyFile(prefs_source_path, prefs_dest_path)) {
-    VLOG(1) << "Failed to copy initial preferences from:"
+    VLOG(1) << "Failed to copy master preferences from:"
             << prefs_source_path.value() << " gle: " << ::GetLastError();
   }
 }
@@ -181,9 +168,9 @@ void CopyPreferenceFileForFirstRun(const InstallerState& installer_state,
 // and removes the whole directory during rollback.
 InstallStatus InstallNewVersion(const InstallParams& install_params,
                                 bool is_downgrade_allowed) {
-  const InstallerState& installer_state = *install_params.installer_state;
-  const base::Version& current_version = *install_params.current_version;
-  const base::Version& new_version = *install_params.new_version;
+  const InstallerState& installer_state = install_params.installer_state;
+  const base::Version& current_version = install_params.current_version;
+  const base::Version& new_version = install_params.new_version;
 
   installer_state.SetStage(BUILDING);
 
@@ -266,20 +253,20 @@ std::string GenerateVisualElementsManifest(const base::Version& version) {
       "</Application>\r\n";
 
   // Construct the relative path to the versioned VisualElements directory.
-  std::wstring elements_dir(base::ASCIIToWide(version.GetString()));
+  base::string16 elements_dir(base::ASCIIToUTF16(version.GetString()));
   elements_dir.push_back(base::FilePath::kSeparators[0]);
   elements_dir.append(kVisualElements);
 
-  const std::wstring manifest_template(base::ASCIIToWide(kManifestTemplate));
+  const base::string16 manifest_template(base::ASCIIToUTF16(kManifestTemplate));
 
   // Fill the manifest with the desired values.
-  const wchar_t* logo_suffix =
+  const base::char16* logo_suffix =
       install_static::InstallDetails::Get().logo_suffix();
-  std::wstring manifest(base::StringPrintf(
+  base::string16 manifest16(base::StringPrintf(
       manifest_template.c_str(), elements_dir.c_str(), logo_suffix,
       elements_dir.c_str(), logo_suffix, elements_dir.c_str(), logo_suffix));
 
-  return base::WideToUTF8(manifest);
+  return base::UTF16ToUTF8(manifest16);
 }
 
 // Whether VisualElements assets exist for this brand and mode.
@@ -408,11 +395,9 @@ void CreateOrUpdateShortcuts(const base::FilePath& target,
   // previous location (under a subdirectory) and, if so, move it to the new
   // location.
   base::FilePath old_shortcut_path;
-  if (!ShellUtil::GetShortcutPath(
-          ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED,
-          shortcut_level, &old_shortcut_path)) {
-    return;
-  }
+  ShellUtil::GetShortcutPath(
+      ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED,
+      shortcut_level, &old_shortcut_path);
   if (base::PathExists(old_shortcut_path)) {
     ShellUtil::MoveExistingShortcut(
         ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED,
@@ -457,60 +442,14 @@ void RegisterChromeOnMachine(const InstallerState& installer_state,
   }
 }
 
-// Run a child process that will create/update a shortcut for an
-// install. This is done in a child process to avoid crashing the main
-// install process if we crash in Windows shell functions. For more info,
-// see crbug.com/1276348.
-void RunShortcutCreationInChildProc(
-    const InstallerState& installer_state,
-    const base::FilePath& setup_path,
-    const absl::optional<const base::FilePath>& prefs_path,
-    InstallShortcutLevel install_level,
-    InstallShortcutOperation install_operation) {
-  base::CommandLine command_line(setup_path);
-  InstallUtil::AppendModeAndChannelSwitches(&command_line);
-  if (installer_state.system_install())
-    command_line.AppendSwitch(switches::kSystemLevel);
-
-  command_line.AppendSwitch(switches::kVerboseLogging);
-  if (prefs_path.has_value())
-    command_line.AppendSwitchPath(switches::kInstallerData, prefs_path.value());
-
-  command_line.AppendSwitchASCII(switches::kCreateShortcuts,
-                                 base::NumberToString(install_operation));
-  command_line.AppendSwitchASCII(switches::kInstallLevel,
-                                 base::NumberToString(install_level));
-  base::LaunchOptions launch_options;
-  launch_options.feedback_cursor_off = true;
-
-  VLOG(1) << "Launching \"" << command_line.GetCommandLineString()
-          << "\" to create shortcuts";
-  ::SetLastError(ERROR_SUCCESS);
-  base::Process process = base::LaunchProcess(command_line, launch_options);
-  if (!process.IsValid()) {
-    PLOG(ERROR) << "Failed to launch \"" << command_line.GetCommandLineString()
-                << "\"";
-    return;
-  }
-  int exit_code = OS_ERROR;
-  process.Process::WaitForExit(&exit_code);
-
-  if (exit_code != CREATE_SHORTCUTS_SUCCESS) {
-    LOG(ERROR) << "Launch shortcut creation process failed with exit code "
-               << exit_code;
-  } else {
-    VLOG(1) << "Shortcut creation process succeeded.";
-  }
-}
-
 InstallStatus InstallOrUpdateProduct(const InstallParams& install_params,
                                      const base::FilePath& prefs_path,
                                      const InitialPreferences& prefs) {
-  const InstallationState& original_state = *install_params.installation_state;
-  const InstallerState& installer_state = *install_params.installer_state;
-  const base::FilePath& setup_path = *install_params.setup_path;
-  const base::FilePath& src_path = *install_params.src_path;
-  const base::Version& new_version = *install_params.new_version;
+  const InstallationState& original_state = install_params.installation_state;
+  const InstallerState& installer_state = install_params.installer_state;
+  const base::FilePath& setup_path = install_params.setup_path;
+  const base::FilePath& src_path = install_params.src_path;
+  const base::Version& new_version = install_params.new_version;
 
   // TODO(robertshield): Removing the pending on-reboot moves should be done
   // elsewhere.
@@ -534,12 +473,22 @@ InstallStatus InstallOrUpdateProduct(const InstallParams& install_params,
   if (!InstallUtil::GetInstallReturnCode(result)) {
     installer_state.SetStage(COPYING_PREFERENCES_FILE);
 
-    const bool use_initial_prefs =
-        result == FIRST_INSTALL_SUCCESS && !prefs_path.empty();
-    if (use_initial_prefs)
+    if (result == FIRST_INSTALL_SUCCESS && !prefs_path.empty())
       CopyPreferenceFileForFirstRun(installer_state, prefs_path);
 
     installer_state.SetStage(CREATING_SHORTCUTS);
+
+    // Creates shortcuts for Chrome.
+    const base::FilePath chrome_exe(
+        installer_state.target_path().Append(kChromeExe));
+
+    // Install per-user shortcuts on user-level installs and all-users shortcuts
+    // on system-level installs. Note that Active Setup will take care of
+    // installing missing per-user shortcuts on system-level install (i.e.,
+    // quick launch, taskbar pin, and possibly deleted all-users shortcuts).
+    InstallShortcutLevel install_level =
+        installer_state.system_install() ? ALL_USERS : CURRENT_USER;
+
     InstallShortcutOperation install_operation =
         INSTALL_SHORTCUT_REPLACE_EXISTING;
     if (result == FIRST_INSTALL_SUCCESS || result == INSTALL_REPAIRED ||
@@ -548,13 +497,9 @@ InstallStatus InstallOrUpdateProduct(const InstallParams& install_params,
       // when the Chrome product is being added to the current install.
       install_operation = INSTALL_SHORTCUT_CREATE_ALL;
     }
-    InstallShortcutLevel install_level =
-        installer_state.system_install() ? ALL_USERS : CURRENT_USER;
-    RunShortcutCreationInChildProc(
-        installer_state, setup_path,
-        use_initial_prefs ? absl::optional<base::FilePath>(prefs_path)
-                          : absl::nullopt,
-        install_level, install_operation);
+
+    CreateOrUpdateShortcuts(chrome_exe, prefs, install_level,
+                            install_operation);
 
     // Register Chrome and, if requested, make Chrome the default browser.
     installer_state.SetStage(REGISTERING_CHROME);
@@ -565,7 +510,7 @@ InstallStatus InstallOrUpdateProduct(const InstallParams& install_params,
 
     // If this is not the user's first Chrome install, but they have chosen
     // Chrome to become their default browser on the download page, we must
-    // force it here because the initial preferences file will not get copied
+    // force it here because the master_preferences file will not get copied
     // into the build.
     bool force_chrome_default_for_user = false;
     if (result == NEW_VERSION_UPDATED || result == INSTALL_REPAIRED ||
@@ -628,19 +573,21 @@ void LaunchDeleteOldVersionsProcess(const base::FilePath& setup_path,
 }
 
 void HandleOsUpgradeForBrowser(const InstallerState& installer_state,
-                               const base::Version& installed_version,
-                               const base::FilePath& setup_path) {
+                               const base::Version& installed_version) {
   VLOG(1) << "Updating and registering shortcuts for --on-os-upgrade.";
+
+  // Read master_preferences copied beside chrome.exe at install.
+  const InitialPreferences prefs(
+      installer_state.target_path().AppendASCII(kDefaultMasterPrefs));
 
   // Update shortcuts at this install level (per-user shortcuts on system-level
   // installs will be updated through Active Setup).
   const InstallShortcutLevel level =
       installer_state.system_install() ? ALL_USERS : CURRENT_USER;
-
-  RunShortcutCreationInChildProc(
-      installer_state, setup_path,
-      installer_state.target_path().AppendASCII(kLegacyInitialPrefs), level,
-      INSTALL_SHORTCUT_REPLACE_EXISTING);
+  const base::FilePath chrome_exe(
+      installer_state.target_path().Append(kChromeExe));
+  CreateOrUpdateShortcuts(chrome_exe, prefs, level,
+                          INSTALL_SHORTCUT_REPLACE_EXISTING);
 
   // Adapt Chrome registrations to this new OS.
   RegisterChromeOnMachine(installer_state, false, installed_version);
@@ -667,8 +614,7 @@ void HandleOsUpgradeForBrowser(const InstallerState& installer_state,
   // can be done directly; whereas it requires triggering Active Setup for each
   // user's subsequent login on system-level installs.
   if (!installer_state.system_install()) {
-    UpdateDefaultBrowserBeaconForPath(
-        installer_state.target_path().Append(kChromeExe));
+    UpdateDefaultBrowserBeaconForPath(chrome_exe);
   } else {
     UpdateActiveSetupVersionWorkItem active_setup_work_item(
         install_static::GetActiveSetupPath(),
@@ -686,7 +632,6 @@ void HandleOsUpgradeForBrowser(const InstallerState& installer_state,
 // install. It may also be invoked again when a system-level chrome install goes
 // through an OS upgrade.
 void HandleActiveSetupForBrowser(const InstallerState& installer_state,
-                                 const base::FilePath& setup_path,
                                  bool force) {
   std::unique_ptr<WorkItemList> cleanup_list(WorkItem::CreateWorkItemList());
   cleanup_list->set_log_message("Cleanup deprecated per-user registrations");
@@ -707,23 +652,27 @@ void HandleActiveSetupForBrowser(const InstallerState& installer_state,
           ? INSTALL_SHORTCUT_REPLACE_EXISTING
           : INSTALL_SHORTCUT_CREATE_EACH_IF_NO_SYSTEM_LEVEL;
 
-  // Use the initial preferences copied beside chrome.exe at install for the
-  // sake of creating/updating shortcuts.
+  // Read master_preferences copied beside chrome.exe at install for the sake of
+  // creating/updating shortcuts.
   const base::FilePath installation_root = installer_state.target_path();
-  RunShortcutCreationInChildProc(
-      installer_state, setup_path,
-      installation_root.AppendASCII(kLegacyInitialPrefs), CURRENT_USER,
-      install_operation);
+  InitialPreferences prefs(installation_root.AppendASCII(kDefaultMasterPrefs));
+  base::FilePath chrome_exe(installation_root.Append(kChromeExe));
+  CreateOrUpdateShortcuts(chrome_exe, prefs, CURRENT_USER, install_operation);
 
-  UpdateDefaultBrowserBeaconForPath(installation_root.Append(kChromeExe));
+  UpdateDefaultBrowserBeaconForPath(chrome_exe);
 
   // This install may have been selected into a study for a retention
   // experiment following a successful update. In case the experiment was not
   // able to run immediately after the update (e.g., no user was logged on at
   // the time), try to run it now that the installer is running in the context
   // of a user.
-  if (ShouldRunUserExperiment(installer_state))
-    BeginUserExperiment(installer_state, setup_path, true /* user_context */);
+  if (ShouldRunUserExperiment(installer_state)) {
+    base::FilePath setup_exe;
+    if (!base::PathService::Get(base::FILE_EXE, &setup_exe))
+      LOG(ERROR) << "Failed to get path to setup.exe.";
+    else
+      BeginUserExperiment(installer_state, setup_exe, true /* user_context */);
+  }
 }
 
 }  // namespace installer

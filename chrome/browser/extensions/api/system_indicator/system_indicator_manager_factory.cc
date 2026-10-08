@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/system_indicator/system_indicator_manager.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "extensions/browser/extension_system_provider.h"
 #include "extensions/browser/extensions_browser_client.h"
 
@@ -25,7 +26,9 @@ SystemIndicatorManagerFactory* SystemIndicatorManagerFactory::GetInstance() {
 }
 
 SystemIndicatorManagerFactory::SystemIndicatorManagerFactory()
-    : ProfileKeyedServiceFactory("SystemIndicatorManager") {
+    : BrowserContextKeyedServiceFactory(
+        "SystemIndicatorManager",
+        BrowserContextDependencyManager::GetInstance()) {
   DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 

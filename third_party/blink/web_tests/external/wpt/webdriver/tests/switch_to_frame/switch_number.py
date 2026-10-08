@@ -3,6 +3,7 @@ import pytest
 import webdriver.protocol as protocol
 
 from tests.support.asserts import assert_error, assert_success
+from tests.support.inline import inline, iframe
 
 
 def switch_to_frame(session, frame):
@@ -20,7 +21,7 @@ def test_frame_id_number_out_of_bounds(session, value):
 
 
 @pytest.mark.parametrize("index", [1, 65535])
-def test_frame_id_number_index_out_of_bounds(session, inline, iframe, index):
+def test_frame_id_number_index_out_of_bounds(session, index):
     session.url = inline(iframe("<p>foo"))
 
     response = switch_to_frame(session, index)
@@ -28,7 +29,7 @@ def test_frame_id_number_index_out_of_bounds(session, inline, iframe, index):
 
 
 @pytest.mark.parametrize("index, value", [[0, "foo"], [1, "bar"]])
-def test_frame_id_number_index(session, inline, iframe, index, value):
+def test_frame_id_number_index(session, index, value):
     session.url = inline("{}{}".format(iframe("<p>foo"), iframe("<p>bar")))
 
     response = switch_to_frame(session, index)
@@ -38,7 +39,7 @@ def test_frame_id_number_index(session, inline, iframe, index, value):
     assert element.text == value
 
 
-def test_frame_id_number_index_nested(session, inline, iframe):
+def test_frame_id_number_index_nested(session):
     session.url = inline(iframe("{}<p>foo".format(iframe("<p>bar"))))
 
     expected_text = ["foo", "bar"]

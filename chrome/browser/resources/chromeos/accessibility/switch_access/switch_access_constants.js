@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 const AutomationNode = chrome.automation.AutomationNode;
-export const SwitchAccessMenuAction =
+const SwitchAccessMenuAction =
     chrome.accessibilityPrivate.SwitchAccessMenuAction;
 
 /** Constants used in Switch Access */
-export const SAConstants = {
+const SAConstants = {
 
   // ========================= Constants =========================
 
@@ -44,12 +44,9 @@ export const SAConstants = {
   ActionResponse: {
     NO_ACTION_TAKEN: -1,
     REMAIN_OPEN: 0,
-    // Closes the menu entirely.
     CLOSE_MENU: 1,
-    // Exits the current submenu.
-    EXIT_SUBMENU: 2,
-    RELOAD_MENU: 3,
-    OPEN_TEXT_NAVIGATION_MENU: 4,
+    RELOAD_MENU: 2,
+    OPEN_TEXT_NAVIGATION_MENU: 3,
   },
 
   /**
@@ -84,15 +81,7 @@ export const SAConstants = {
    * @enum {number}
    * @const
    */
-  MenuType: {MAIN_MENU: 0, TEXT_NAVIGATION: 1, POINT_SCAN_MENU: 2},
-
-  /**
-   * The modes of interaction the user can select for how to interact with the
-   * device.
-   * @enum {number}
-   * @const
-   */
-  Mode: {ITEM_SCAN: 0, POINT_SCAN: 1},
+  MenuType: {MAIN_MENU: 0, TEXT_NAVIGATION: 1},
 
   /**
    * Preferences that are configurable in Switch Access.
@@ -103,11 +92,9 @@ export const SAConstants = {
     AUTO_SCAN_TIME: 'settings.a11y.switch_access.auto_scan.speed_ms',
     AUTO_SCAN_KEYBOARD_TIME:
         'settings.a11y.switch_access.auto_scan.keyboard.speed_ms',
-    NEXT_DEVICE_KEY_CODES: 'settings.a11y.switch_access.next.device_key_codes',
-    PREVIOUS_DEVICE_KEY_CODES:
-        'settings.a11y.switch_access.previous.device_key_codes',
-    SELECT_DEVICE_KEY_CODES:
-        'settings.a11y.switch_access.select.device_key_codes',
+    NEXT_SETTING: 'settings.a11y.switch_access.next.setting',
+    PREVIOUS_SETTING: 'settings.a11y.switch_access.previous.setting',
+    SELECT_SETTING: 'settings.a11y.switch_access.select.setting',
   },
 
   // =========================== Sub-objects ===========================
@@ -146,27 +133,22 @@ export const SAConstants = {
       // The ID for the ring showing a preview of the next focus, if the user
       // selects the current element.
       PREVIEW: 'preview',
+      // The ID for the area where text is being input.
+      TEXT: 'text'
     },
 
     /**
-     * The inner color of the primary focus ring.
+     * The inner color of the focus rings.
      * @type {string}
      * @const
      */
-    PRIMARY_COLOR: '#8AB4F8',  // Google Blue 300
-
-    /**
-     * The inner color of the preview focus ring
-     * @type {string}
-     * @const
-     */
-    PREVIEW_COLOR: '#8AB4F880',  // Google Blue 300, 50% opacity
+    PRIMARY_COLOR: '#8AB4F8',
 
     /**
      * The outer color of the focus rings.
      * @type {string}
      * @const
      */
-    OUTER_COLOR: '#174EA6',  // Google Blue 900
+    SECONDARY_COLOR: '#000',
   },
 };

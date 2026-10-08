@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "components/viz/test/begin_frame_args_test.h"
 
@@ -68,11 +69,8 @@ void FakeExternalBeginFrameSource::RemoveObserver(BeginFrameObserver* obs) {
 
 void FakeExternalBeginFrameSource::DidFinishFrame(BeginFrameObserver* obs) {}
 
-void FakeExternalBeginFrameSource::SetDynamicBeginFrameDeadlineOffsetSource(
-    DynamicBeginFrameDeadlineOffsetSource*
-        dynamic_begin_frame_deadline_offset_source) {
-  begin_frame_args_generator_.set_dynamic_begin_frame_deadline_offset_source(
-      dynamic_begin_frame_deadline_offset_source);
+bool FakeExternalBeginFrameSource::IsThrottled() const {
+  return true;
 }
 
 BeginFrameArgs FakeExternalBeginFrameSource::CreateBeginFrameArgs(
@@ -86,14 +84,6 @@ BeginFrameArgs FakeExternalBeginFrameSource::CreateBeginFrameArgs(
     BeginFrameArgs::CreationLocation location) {
   return CreateBeginFrameArgsForTesting(location, source_id(),
                                         next_begin_frame_number_++);
-}
-
-BeginFrameArgs FakeExternalBeginFrameSource::CreateBeginFrameArgsWithGenerator(
-    base::TimeTicks frame_time,
-    base::TimeTicks next_frame_time,
-    base::TimeDelta vsync_interval) {
-  return begin_frame_args_generator_.GenerateBeginFrameArgs(
-      source_id(), frame_time, next_frame_time, vsync_interval);
 }
 
 void FakeExternalBeginFrameSource::TestOnBeginFrame(
@@ -112,9 +102,9 @@ void FakeExternalBeginFrameSource::PostTestOnBeginFrame() {
       base::BindOnce(&FakeExternalBeginFrameSource::TestOnBeginFrame,
                      weak_ptr_factory_.GetWeakPtr(),
                      CreateBeginFrameArgs(BEGINFRAME_FROM_HERE)));
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, begin_frame_task_.callback(),
-      base::Milliseconds(milliseconds_per_frame_));
+      base::TimeDelta::FromMilliseconds(milliseconds_per_frame_));
   next_begin_frame_number_++;
 }
 

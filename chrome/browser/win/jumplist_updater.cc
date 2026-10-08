@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/files/file_path.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
-#include "base/strings/string_util.h"
 #include "base/win/win_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "content/public/common/content_switches.h"
@@ -25,7 +24,7 @@ namespace {
 // requires three items: the absolute path to an application, an argument
 // string, and a title string.
 bool AddShellLink(Microsoft::WRL::ComPtr<IObjectCollection> collection,
-                  const base::FilePath& application_path,
+                  const base::string16& application_path,
                   scoped_refptr<ShellLinkItem> item) {
   // Create an IShellLink object.
   Microsoft::WRL::ComPtr<IShellLink> link;
@@ -37,7 +36,7 @@ bool AddShellLink(Microsoft::WRL::ComPtr<IObjectCollection> collection,
   // Set the application path.
   // We should exit this function when this call fails because it doesn't make
   // any sense to add a shortcut that we cannot execute.
-  result = link->SetPath(application_path.value().c_str());
+  result = link->SetPath(application_path.c_str());
   if (FAILED(result))
     return false;
 
@@ -45,7 +44,7 @@ bool AddShellLink(Microsoft::WRL::ComPtr<IObjectCollection> collection,
   // arguments and set it as the arguments of this IShellLink object.
   // We also exit this function when this call fails because it isn't useful to
   // add a shortcut that cannot open the given page.
-  std::wstring arguments(item->GetArguments());
+  base::string16 arguments(item->GetArguments());
   if (!arguments.empty()) {
     result = link->SetArguments(arguments.c_str());
     if (FAILED(result))
@@ -55,10 +54,8 @@ bool AddShellLink(Microsoft::WRL::ComPtr<IObjectCollection> collection,
   // Attach the given icon path to this IShellLink object.
   // Since an icon is an optional item for an IShellLink object, so we don't
   // have to exit even when it fails.
-  if (!item->icon_path().empty()) {
-    link->SetIconLocation(item->icon_path().value().c_str(),
-                          item->icon_index());
-  }
+  if (!item->icon_path().empty())
+    link->SetIconLocation(item->icon_path().c_str(), item->icon_index());
 
   // Set the title of the IShellLink object.
   // The IShellLink interface does not have any functions which update its
@@ -71,7 +68,9 @@ bool AddShellLink(Microsoft::WRL::ComPtr<IObjectCollection> collection,
     return false;
 
   if (!base::win::SetStringValueForPropertyStore(
-          property_store.Get(), PKEY_Title, base::as_wcstr(item->title()))) {
+          property_store.Get(),
+          PKEY_Title,
+          item->title().c_str())) {
     return false;
   }
 
@@ -90,7 +89,7 @@ ShellLinkItem::ShellLinkItem()
 
 ShellLinkItem::~ShellLinkItem() {}
 
-std::wstring ShellLinkItem::GetArguments() const {
+base::string16 ShellLinkItem::GetArguments() const {
   return command_line_.GetArgumentsString();
 }
 
@@ -101,7 +100,7 @@ base::CommandLine* ShellLinkItem::GetCommandLine() {
 
 // JumpListUpdater
 
-JumpListUpdater::JumpListUpdater(const std::wstring& app_user_model_id)
+JumpListUpdater::JumpListUpdater(const base::string16& app_user_model_id)
     : app_user_model_id_(app_user_model_id), user_max_items_(0) {}
 
 JumpListUpdater::~JumpListUpdater() {
@@ -179,7 +178,7 @@ bool JumpListUpdater::AddTasks(const ShellLinkItemList& link_items) {
   // Add items to the "Task" category.
   for (ShellLinkItemList::const_iterator it = link_items.begin();
        it != link_items.end(); ++it) {
-    if (!AddShellLink(collection, application_path, *it))
+    if (!AddShellLink(collection, application_path.value(), *it))
       return false;
   }
 
@@ -195,7 +194,7 @@ bool JumpListUpdater::AddTasks(const ShellLinkItemList& link_items) {
   return SUCCEEDED(destination_list_->AddUserTasks(object_array.Get()));
 }
 
-bool JumpListUpdater::AddCustomCategory(const std::u16string& category_name,
+bool JumpListUpdater::AddCustomCategory(const base::string16& category_name,
                                         const ShellLinkItemList& link_items,
                                         size_t max_items) {
   if (!destination_list_.Get())
@@ -224,7 +223,7 @@ bool JumpListUpdater::AddCustomCategory(const std::u16string& category_name,
 
   for (ShellLinkItemList::const_iterator item = link_items.begin();
        item != link_items.end() && max_items > 0; ++item, --max_items) {
-    if (!AddShellLink(collection, application_path, *item))
+    if (!AddShellLink(collection, application_path.value(), *item))
       return false;
   }
 
@@ -240,12 +239,12 @@ bool JumpListUpdater::AddCustomCategory(const std::u16string& category_name,
   if (FAILED(result))
     return false;
 
-  return SUCCEEDED(destination_list_->AppendCategory(
-      base::as_wcstr(category_name), object_array.Get()));
+  return SUCCEEDED(destination_list_->AppendCategory(category_name.c_str(),
+                                                     object_array.Get()));
 }
 
 // static
-bool JumpListUpdater::DeleteJumpList(const std::wstring& app_user_model_id) {
+bool JumpListUpdater::DeleteJumpList(const base::string16& app_user_model_id) {
   if (!JumpListUpdater::IsEnabled() || app_user_model_id.empty())
     return false;
 

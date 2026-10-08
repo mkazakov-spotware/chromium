@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -24,16 +24,16 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/supports_user_data.h"
 #include "components/download/public/common/download_danger_type.h"
 #include "components/download/public/common/download_export.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
-#include "components/download/public/common/download_item_rename_progress_update.h"
+#include "components/download/public/common/download_schedule.h"
 #include "components/download/public/common/download_source.h"
-#include "net/base/isolation_info.h"
-#include "services/network/public/mojom/fetch_api.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/page_transition_types.h"
 #include "url/origin.h"
 
@@ -51,7 +51,6 @@ class HttpResponseHeaders;
 
 namespace download {
 class DownloadFile;
-class DownloadItemRenameHandler;
 
 // One DownloadItem per download. This is the model class that stores all the
 // state for a download.
@@ -276,9 +275,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // user triggered resumption.
   virtual int32_t GetAutoResumeCount() const = 0;
 
-  // Whether the download is off the record.
-  virtual bool IsOffTheRecord() const = 0;
-
   //    Origin State accessors -------------------------------------------------
 
   // Final URL. The primary resource being downloaded is from this URL. This is
@@ -298,10 +294,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // URL of document that is considered the referrer for the original URL.
   virtual const GURL& GetReferrerUrl() const = 0;
 
-  // The serialized EmbedderDownloadData string. This is used by the embedder
-  // for placing extra download data, such as the appropriate storage partition
-  // for this download.
-  virtual const std::string& GetSerializedEmbedderDownloadData() const = 0;
+  // Site instance URL. Used to locate the correct storage partition during
+  // subsequent browser sessions. This may be different from all of
+  // GetOriginalUrl(), GetURL() and GetReferrerUrl().
+  virtual const GURL& GetSiteUrl() const = 0;
 
   // URL of the top level frame at the time the download was initiated.
   virtual const GURL& GetTabUrl() const = 0;
@@ -310,7 +306,7 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   virtual const GURL& GetTabReferrerUrl() const = 0;
 
   // Origin of the original originator of this download, before redirects, etc.
-  virtual const absl::optional<url::Origin>& GetRequestInitiator() const = 0;
+  virtual const base::Optional<url::Origin>& GetRequestInitiator() const = 0;
 
   // For downloads initiated via <a download>, this is the suggested download
   // filename from the download attribute.
@@ -354,13 +350,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
 
   // DownloadSource prompting this download.
   virtual DownloadSource GetDownloadSource() const = 0;
-
-  // The credentials mode of the request.
-  virtual ::network::mojom::CredentialsMode GetCredentialsMode() const = 0;
-
-  // The isolation mode of the request.
-  virtual const absl::optional<net::IsolationInfo>& GetIsolationInfo()
-      const = 0;
 
   //    Destination State accessors --------------------------------------------
 
@@ -443,15 +432,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // Gets the pointer to the DownloadFile owned by this object.
   virtual DownloadFile* GetDownloadFile() = 0;
 
-  // Gets a handler to perform the rename for a download item.  If no special
-  // rename handling is required, this function returns null and the default
-  // rename handling is performed.  The caller does not own the returned
-  // pointer.
-  virtual DownloadItemRenameHandler* GetRenameHandler() = 0;
-
-  // Gets the metadata needed to recover rename handler state.
-  virtual const DownloadItemRerouteInfo& GetRerouteInfo() const = 0;
-
   //    Progress State accessors -----------------------------------------------
 
   // Simple calculation of the amount of time remaining to completion. Fills
@@ -525,10 +505,6 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // for target file path determination.
   virtual bool IsTransient() const = 0;
 
-  // Returns whether the download requires safety checks. Only downloads
-  // triggered by Chrome itself are excluded from safety checks.
-  virtual bool RequireSafetyChecks() const = 0;
-
   // Returns whether the download item corresponds to a parallel download. This
   // usually means parallel download has been enabled and the download job is
   // parallelizable.
@@ -536,6 +512,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
 
   // Gets the DownloadCreationType of this item.
   virtual DownloadCreationType GetDownloadCreationType() const = 0;
+
+  // Gets the download schedule to start the time at particular time.
+  virtual const base::Optional<DownloadSchedule>& GetDownloadSchedule()
+      const = 0;
 
   // External state transitions/setters ----------------------------------------
 
@@ -554,6 +534,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
 
   // Called when async scanning completes with the given |danger_type|.
   virtual void OnAsyncScanningCompleted(DownloadDangerType danger_type) = 0;
+
+  // Called when the user changes the download schedule options.
+  virtual void OnDownloadScheduleChanged(
+      base::Optional<DownloadSchedule> schedule) = 0;
 
   // Mark the download to be auto-opened when completed.
   virtual void SetOpenWhenComplete(bool open) = 0;

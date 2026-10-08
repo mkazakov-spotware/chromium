@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.paintpreview.player;
 
-import org.chromium.base.TraceEvent;
 import org.chromium.url.GURL;
 
 /**
@@ -18,13 +17,11 @@ public class PlayerGestureListener {
 
     public PlayerGestureListener(LinkClickHandler linkClickHandler,
             Runnable userInteractionCallback, Runnable userFrustrationCallback) {
-        TraceEvent.begin("PlayerGestureListener");
         mLinkClickHandler = linkClickHandler;
         mUserInteractionCallback = userInteractionCallback;
         if (userFrustrationCallback == null) return;
 
         mUserFrustrationDetector = new PlayerUserFrustrationDetector(userFrustrationCallback);
-        TraceEvent.end("PlayerGestureListener");
     }
 
     /**

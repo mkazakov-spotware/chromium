@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,8 @@ void RecordDisplayChangeDialogHistogram(bool accepted) {
 }  // namespace
 
 DisplayChangeDialog::DisplayChangeDialog(
-    std::u16string window_title,
-    std::u16string timeout_message_with_placeholder,
+    base::string16 window_title,
+    base::string16 timeout_message_with_placeholder,
     base::OnceClosure on_accept_callback,
     CancelCallback on_cancel_callback)
     : timeout_message_with_placeholder_(
@@ -53,7 +53,7 @@ DisplayChangeDialog::DisplayChangeDialog(
   SetLayoutManager(std::make_unique<views::FillLayout>());
   SetBorder(views::CreateEmptyBorder(
       views::LayoutProvider::Get()->GetDialogInsetsForContentType(
-          views::DialogContentType::kText, views::DialogContentType::kText)));
+          views::TEXT, views::TEXT)));
   label_ =
       AddChildView(std::make_unique<views::Label>(GetRevertTimeoutString()));
   label_->SetMultiLine(true);
@@ -65,7 +65,7 @@ DisplayChangeDialog::DisplayChangeDialog(
   // TODO(baileyberro): Verify behavior in kiosk mode.
   widget->Show();
 
-  timer_.Start(FROM_HERE, base::Seconds(1), this,
+  timer_.Start(FROM_HERE, base::TimeDelta::FromSeconds(1), this,
                &DisplayChangeDialog::OnTimerTick);
 }
 
@@ -96,10 +96,10 @@ void DisplayChangeDialog::OnTimerTick() {
   label_->SetText(GetRevertTimeoutString());
 }
 
-std::u16string DisplayChangeDialog::GetRevertTimeoutString() const {
-  const std::u16string timer = ui::TimeFormat::Simple(
+base::string16 DisplayChangeDialog::GetRevertTimeoutString() const {
+  const base::string16 timer = ui::TimeFormat::Simple(
       ui::TimeFormat::FORMAT_DURATION, ui::TimeFormat::LENGTH_LONG,
-      base::Seconds(timeout_count_));
+      base::TimeDelta::FromSeconds(timeout_count_));
   return base::ReplaceStringPlaceholders(timeout_message_with_placeholder_,
                                          timer, /*offset=*/nullptr);
 }

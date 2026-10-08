@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 namespace vr {
 
 TextEditAction::TextEditAction(TextEditActionType type)
-    : TextEditAction(type, u"", 0) {}
+    : TextEditAction(type, base::UTF8ToUTF16(""), 0) {}
 TextEditAction::TextEditAction(TextEditActionType type,
-                               std::u16string text,
+                               base::string16 text,
                                int new_cursor_position)
     : type_(type), text_(text), new_cursor_position_(new_cursor_position) {}
 

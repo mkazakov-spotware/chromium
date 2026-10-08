@@ -1,18 +1,14 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {FileOperationManager} from '../../externs/background/file_operation_manager.js';
-
+'use strict';
 
 /**
  * Mock implementation of {FileOperationManager} for tests.
  * @implements {FileOperationManager}
  */
-export class MockFileOperationManager extends EventTarget {
+class MockFileOperationManager extends cr.EventTarget {
   constructor() {
     super();
 
@@ -56,7 +52,7 @@ export class MockFileOperationManager extends EventTarget {
         sourceEntries: sourceEntries,
         targetEntry: targetEntry,
         isMove: isMove,
-        opt_taskId: opt_taskId,
+        opt_taskId: opt_taskId
       });
       // Reset the resolver for the next paste call.
       this.pasteResolver = null;
@@ -95,23 +91,10 @@ export class MockFileOperationManager extends EventTarget {
     return this.generatedTaskIds.indexOf(id) !== -1;
   }
 
-  /** @return {boolean} */
-  hasQueuedTasks() {
-    throw new Error('Not implemented');
-  }
-  /** @return {Promise} */
-  filterSameDirectoryEntry(sourceEntries, targetEntry, isMove) {}
-  /** @return {boolean} */
-  willUseTrash(volumeManager, entries) {
-    throw new Error('Not implemented');
-  }
+  hasQueuedTasks() {}
+  filterSameDirectoryEntry() {}
+  willUseTrash() {}
   deleteEntries() {}
-  cancelZip() {}
-  setFileManager() {}
-  notifyExtractDone() {}
-  handleMissingPassword() {}
-  /** @return {!Promise<!FileEntry>} */
-  async writeFile(file, destination) {
-    throw new Error('Not implemented');
-  }
+  restoreDeleted() {}
+  zipSelection() {}
 }

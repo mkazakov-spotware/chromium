@@ -32,16 +32,15 @@
 
 #include "base/bind.h"
 #include "base/feature_list.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/simple_test_tick_clock.h"
-#include "base/time/time.h"
 #include "cc/paint/image_provider.h"
 #include "cc/paint/skia_paint_canvas.h"
 #include "cc/tiles/mipmap_util.h"
 #include "media/media_buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
+#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/graphics/bitmap_image_metrics.h"
 #include "third_party/blink/renderer/platform/graphics/deferred_image_decoder.h"
 #include "third_party/blink/renderer/platform/graphics/image_observer.h"
@@ -51,9 +50,9 @@
 #include "third_party/blink/renderer/platform/testing/testing_platform_support_with_mock_scheduler.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
+#include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkImage.h"
-#include "ui/gfx/geometry/rect_f.h"
 
 namespace blink {
 namespace {
@@ -70,9 +69,9 @@ class FrameSettingImageProvider : public cc::ImageProvider {
     DCHECK(!draw_image.paint_image().IsPaintWorklet());
     auto sk_image =
         draw_image.paint_image().GetSkImageForFrame(frame_index_, client_id_);
-    return ScopedResult(cc::DecodedDrawImage(
-        sk_image, nullptr, SkSize::MakeEmpty(), SkSize::Make(1, 1),
-        draw_image.filter_quality(), true));
+    return ScopedResult(
+        cc::DecodedDrawImage(sk_image, nullptr, SkSize::MakeEmpty(),
+                             SkSize::Make(1, 1), draw_image.filter_quality()));
   }
 
  private:
@@ -93,7 +92,7 @@ void GenerateBitmapForPaintImage(cc::PaintImage paint_image,
   bitmap->eraseColor(SK_AlphaTRANSPARENT);
   FrameSettingImageProvider image_provider(frame_index, client_id);
   cc::SkiaPaintCanvas canvas(*bitmap, &image_provider);
-  canvas.drawImage(paint_image, 0u, 0u);
+  canvas.drawImage(paint_image, 0u, 0u, nullptr);
 }
 
 }  // namespace
@@ -104,10 +103,6 @@ class TestingPlatformSupportWithMaxDecodedBytes
     : public TestingPlatformSupportWithMockScheduler {
  public:
   TestingPlatformSupportWithMaxDecodedBytes() {}
-  TestingPlatformSupportWithMaxDecodedBytes(
-      const TestingPlatformSupportWithMaxDecodedBytes&) = delete;
-  TestingPlatformSupportWithMaxDecodedBytes& operator=(
-      const TestingPlatformSupportWithMaxDecodedBytes&) = delete;
   ~TestingPlatformSupportWithMaxDecodedBytes() override {}
 
   void SetMaxDecodedImageBytes(size_t max_decoded_image_bytes) {
@@ -118,6 +113,8 @@ class TestingPlatformSupportWithMaxDecodedBytes
 
  private:
   size_t max_decoded_image_bytes_ = Platform::kNoDecodedImageByteLimit;
+
+  DISALLOW_COPY_AND_ASSIGN(TestingPlatformSupportWithMaxDecodedBytes);
 };
 
 class BitmapImageTest : public testing::Test {
@@ -130,8 +127,7 @@ class BitmapImageTest : public testing::Test {
 
     void DecodedSizeChangedTo(const Image*, size_t new_size) override {
       last_decoded_size_changed_delta_ =
-          base::checked_cast<int>(new_size) -
-          base::checked_cast<int>(last_decoded_size_);
+          SafeCast<int>(new_size) - SafeCast<int>(last_decoded_size_);
       last_decoded_size_ = new_size;
     }
     bool ShouldPauseAnimation(const Image*) override { return false; }
@@ -186,12 +182,12 @@ class BitmapImageTest : public testing::Test {
     CHECK(paint_image);
 
     SkBitmap bitmap;
-    SkImageInfo info = SkImageInfo::MakeN32Premul(image->Size().width(),
-                                                  image->Size().height());
-    bitmap.allocPixels(info, image->Size().width() * 4);
+    SkImageInfo info = SkImageInfo::MakeN32Premul(image->Size().Width(),
+                                                  image->Size().Height());
+    bitmap.allocPixels(info, image->Size().Width() * 4);
     bitmap.eraseColor(SK_AlphaTRANSPARENT);
     cc::SkiaPaintCanvas canvas(bitmap);
-    canvas.drawImage(paint_image, 0u, 0u);
+    canvas.drawImage(paint_image, 0u, 0u, nullptr);
     return bitmap;
   }
 
@@ -280,6 +276,12 @@ TEST_F(BitmapImageTest, isAllDataReceived) {
 
   image->SetData(image_data, true);
   EXPECT_TRUE(image->IsAllDataReceived());
+
+  image->SetData(SharedBuffer::Create("data", sizeof("data")), false);
+  EXPECT_FALSE(image->IsAllDataReceived());
+
+  image->SetData(image_data, true);
+  EXPECT_TRUE(image->IsAllDataReceived());
 }
 
 TEST_F(BitmapImageTest, noColorProfile) {
@@ -321,7 +323,7 @@ TEST_F(BitmapImageTest, correctDecodedDataSize) {
   LoadImage("anim_none.gif");
   image_->PaintImageForCurrentFrame();
   int frame_size =
-      static_cast<int>(image_->Size().Area64() * sizeof(ImageFrame::PixelData));
+      static_cast<int>(image_->Size().Area() * sizeof(ImageFrame::PixelData));
   EXPECT_EQ(frame_size, LastDecodedSizeChange());
 }
 
@@ -614,19 +616,19 @@ class BitmapImageTestWithMockDecoder : public BitmapImageTest,
 
   void DecoderBeingDestroyed() override {}
   void DecodeRequested() override {}
-  ImageFrame::Status GetStatus(wtf_size_t index) override {
+  ImageFrame::Status GetStatus(size_t index) override {
     if (index < frame_count_ - 1 || last_frame_complete_)
       return ImageFrame::Status::kFrameComplete;
     return ImageFrame::Status::kFramePartial;
   }
-  wtf_size_t FrameCount() override { return frame_count_; }
+  size_t FrameCount() override { return frame_count_; }
   int RepetitionCount() const override { return repetition_count_; }
   base::TimeDelta FrameDuration() const override { return duration_; }
 
  protected:
   base::TimeDelta duration_;
   int repetition_count_;
-  wtf_size_t frame_count_;
+  size_t frame_count_;
   bool last_frame_complete_;
 };
 
@@ -645,7 +647,7 @@ TEST_F(BitmapImageTestWithMockDecoder, ImageMetadataTracking) {
   EXPECT_EQ(image.repetition_count(), repetition_count_);
   for (size_t i = 0; i < image.GetFrameMetadata().size(); ++i) {
     const auto& data = image.GetFrameMetadata()[i];
-    EXPECT_EQ(data.duration, base::Milliseconds(100));
+    EXPECT_EQ(data.duration, base::TimeDelta::FromMilliseconds(100));
     if (i == frame_count_ - 1 && !last_frame_complete_)
       EXPECT_FALSE(data.complete);
     else
@@ -653,7 +655,7 @@ TEST_F(BitmapImageTestWithMockDecoder, ImageMetadataTracking) {
   }
 
   // Now the load is finished.
-  duration_ = base::Seconds(1);
+  duration_ = base::TimeDelta::FromSeconds(1);
   repetition_count_ = kAnimationLoopInfinite;
   frame_count_ = 6u;
   last_frame_complete_ = true;
@@ -667,9 +669,9 @@ TEST_F(BitmapImageTestWithMockDecoder, ImageMetadataTracking) {
   for (size_t i = 0; i < image.GetFrameMetadata().size(); ++i) {
     const auto& data = image.GetFrameMetadata()[i];
     if (i < 4u)
-      EXPECT_EQ(data.duration, base::Milliseconds(100));
+      EXPECT_EQ(data.duration, base::TimeDelta::FromMilliseconds(100));
     else
-      EXPECT_EQ(data.duration, base::Seconds(1));
+      EXPECT_EQ(data.duration, base::TimeDelta::FromSeconds(1));
     EXPECT_TRUE(data.complete);
   }
 }
@@ -832,19 +834,40 @@ TEST_F(BitmapHistogramTest, DecodedImageType) {
 #endif  // BUILDFLAG(ENABLE_AV1_DECODER)
 }
 
-TEST_F(BitmapHistogramTest, DecodedImageDensityKiBWeighted) {
+TEST_F(BitmapHistogramTest, DecodedImageDensitySizeCorrectionDetected) {
+  ExpectImageRecordsSample("exif-resolution-none.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           false);
+  ExpectImageRecordsSample("exif-resolution-invalid-cm.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           false);
+  ExpectImageRecordsSample("exif-resolution-invalid-no-match.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           false);
+  ExpectImageRecordsSample("exif-resolution-invalid-partial.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           false);
+  ExpectImageRecordsSample("exif-resolution-no-change.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           false);
+  ExpectImageRecordsSample("exif-resolution-valid-hires.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           true);
+  ExpectImageRecordsSample("exif-resolution-valid-lores.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           true);
+  ExpectImageRecordsSample("exif-resolution-valid-non-uniform.jpg",
+                           "Blink.DecodedImage.DensitySizeCorrectionDetected",
+                           true);
+}
+
+TEST_F(BitmapHistogramTest, DecodedImageDensityKiBWeighted_JpegDensity) {
+  // Test a 64x64 image, which should be too small to report any metrics.
   {
-    // Test images that don't report any density metrics.
     base::HistogramTester histogram_tester;
-    LoadImage("rgb-jpeg-red.jpg");           // 64x64
-    LoadImage("red-full-ranged-8bpc.avif");  // 3x3
-    LoadImage("animated-10color.gif");       // 100x100 but GIF is not reported.
+    LoadImage("rgb-jpeg-red.jpg");
     histogram_tester.ExpectTotalCount(
         "Blink.DecodedImage.JpegDensity.KiBWeighted", 0);
-    histogram_tester.ExpectTotalCount(
-        "Blink.DecodedImage.WebPDensity.KiBWeighted", 0);
-    histogram_tester.ExpectTotalCount(
-        "Blink.DecodedImage.AvifDensity.KiBWeighted", 0);
   }
 
   // 439x154, 23220 bytes --> 2.74 bpp, 23 KiB (rounded up)
@@ -856,11 +879,6 @@ TEST_F(BitmapHistogramTest, DecodedImageDensityKiBWeighted) {
   ExpectImageRecordsSample("blue-wheel-srgb-color-profile.jpg",
                            "Blink.DecodedImage.JpegDensity.KiBWeighted", 578,
                            72);
-
-  // 800x800, 19436 bytes --> 0.24, 19 KiB
-  ExpectImageRecordsSample("webp-color-profile-lossy.webp",
-                           "Blink.DecodedImage.WebPDensity.KiBWeighted", 24,
-                           19);
 }
 
 }  // namespace blink

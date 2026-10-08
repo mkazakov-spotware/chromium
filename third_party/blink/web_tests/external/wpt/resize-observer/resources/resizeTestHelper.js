@@ -36,9 +36,8 @@
       // Return true if next step should start on the next event loop.
     },
     timeout: function() {
-      // Define this if your test expects to time out, and the expected timeout
-      // value will be 100ms.
-      // If undefined, timeout is assert_unreached after 1000ms.
+      // Define this if your test expects to time out.
+      // If undefined, timeout is assert_unreached.
     }
   }
 */
@@ -53,17 +52,7 @@ function ResizeTestHelper(name, steps)
     this._nextStepBind = this._nextStep.bind(this);
 }
 
-// The default timeout value in ms.
-// We expect TIMEOUT to be longer than we would ever have to wait for notify()
-// to be fired. This is used for tests which are not expected to time out, so
-// it can be large without slowing down the test.
-ResizeTestHelper.TIMEOUT = 1000;
-// A reasonable short timeout value in ms.
-// We expect SHORT_TIMEOUT to be long enough that notify() would usually get a
-// chance to fire before SHORT_TIMEOUT expires. This is used for tests which
-// *are* expected to time out (with no callbacks fired), so we'd like to keep
-// it relatively short to avoid slowing down the test.
-ResizeTestHelper.SHORT_TIMEOUT = 100;
+ResizeTestHelper.TIMEOUT = 100;
 
 ResizeTestHelper.prototype = {
   get _currentStep() {
@@ -73,12 +62,8 @@ ResizeTestHelper.prototype = {
   _nextStep: function() {
     if (++this._stepIdx == this._steps.length)
       return this._done();
-    // Use SHORT_TIMEOUT if this step expects timeout.
-    let timeoutValue = this._steps[this._stepIdx].timeout ?
-        ResizeTestHelper.SHORT_TIMEOUT :
-        ResizeTestHelper.TIMEOUT;
     this._timeoutId = this._harnessTest.step_timeout(
-      this._timeoutBind, timeoutValue);
+      this._timeoutBind, ResizeTestHelper.TIMEOUT);
     try {
       this._steps[this._stepIdx].setup(this._observer);
     }

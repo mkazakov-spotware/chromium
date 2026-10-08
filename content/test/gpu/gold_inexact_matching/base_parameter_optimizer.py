@@ -1,26 +1,20 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import collections
 import glob
-import hashlib
 import itertools
 import io
-import json
 import logging
 import multiprocessing
 import os
+from PIL import Image
+import requests
 import shutil
 import subprocess
+import sys
 import tempfile
-import typing
 
-from PIL import Image  # pylint: disable=import-error
-
-import requests  # pylint: disable=import-error
-
-from gold_inexact_matching import common_typing as ct
 from gold_inexact_matching import parameter_set
 
 CHROMIUM_SRC_DIR = os.path.realpath(
@@ -33,7 +27,7 @@ GOLDCTL_PATHS = [
 ]
 
 
-class BaseParameterOptimizer():
+class BaseParameterOptimizer(object):
   """Abstract base class for running a parameter optimization for a test."""
   MIN_EDGE_THRESHOLD = 0
   MAX_EDGE_THRESHOLD = 255
@@ -42,7 +36,7 @@ class BaseParameterOptimizer():
   # 4 channels, ranging from 0-255 each.
   MAX_DELTA_THRESHOLD = 255 * 4
 
-  def __init__(self, args: ct.ParsedCmdArgs, test_name: str):
+  def __init__(self, args, test_name):
     """
     Args:
       args: The parse arguments from an argparse.ArgumentParser.
@@ -53,20 +47,18 @@ class BaseParameterOptimizer():
     self._goldctl_binary = None
     self._working_dir = None
     self._expectations = None
-    # TODO(skbug.com/10610): Switch away from the public instance once
-    # authentication is fixed for the non-public instance.
-    self._gold_url = 'https://%s-public-gold.skia.org' % args.gold_instance
+    self._gold_url = 'https://%s-gold.skia.org' % args.gold_instance
     self._pool = multiprocessing.Pool()
     # A map of strings, denoting a resolution or trace, to an iterable of
     # strings, denoting images that are that dimension or belong to that
     # trace.
-    self._images = collections.defaultdict(set)
+    self._images = {}
     self._VerifyArgs()
     parameter_set.ParameterSet.ignored_border_thickness = \
         self._args.ignored_border_thickness
 
   @classmethod
-  def AddArguments(cls, parser: ct.CmdArgParser) -> ct.ArgumentGroupTuple:
+  def AddArguments(cls, parser):
     """Add optimizer-specific arguments to the parser.
 
     Args:
@@ -87,9 +79,10 @@ class BaseParameterOptimizer():
         help='The name of a test to find parameter values for, as reported in '
         'the Skia Gold UI. Can be passed multiple times to run optimizations '
         'for multiple tests.')
-    common_group.add_argument('--gold-instance',
-                              default='chrome',
-                              help='The Skia Gold instance to interact with.')
+    common_group.add_argument(
+        '--gold-instance',
+        default='chrome-gpu',
+        help='The Skia Gold instance to interact with.')
     common_group.add_argument(
         '--corpus',
         default='chrome-gpu',
@@ -179,7 +172,7 @@ class BaseParameterOptimizer():
 
     return common_group, sobel_group, fuzzy_group
 
-  def _VerifyArgs(self) -> None:
+  def _VerifyArgs(self):
     """Verifies that the provided arguments are valid for an optimizer."""
     assert self._args.target_success_percent > 0
     assert self._args.target_success_percent <= 100
@@ -195,7 +188,7 @@ class BaseParameterOptimizer():
     assert self._args.min_delta_threshold <= self._args.max_delta_threshold
     assert self._args.ignored_border_thickness >= 0
 
-  def RunOptimization(self) -> None:
+  def RunOptimization(self):
     """Runs an optimization for whatever test and parameters were supplied.
 
     The results should be printed to stdout when they are available.
@@ -225,103 +218,83 @@ class BaseParameterOptimizer():
         for f in glob.iglob(os.path.join(tempfile.gettempdir(), 'goldctl-*')):
           shutil.rmtree(f)
 
-  def _RunOptimizationImpl(self) -> None:
+  def _RunOptimizationImpl(self):
     """Runs the algorithm-specific optimization code for an optimizer."""
     raise NotImplementedError()
 
-  def _GetMostPermissiveParameters(self) -> parameter_set.ParameterSet:
+  def _GetMostPermissiveParameters(self):
     return parameter_set.ParameterSet(self._args.max_max_diff,
                                       self._args.max_delta_threshold,
                                       self._args.min_edge_threshold)
 
-  def _DownloadData(self) -> None:
+  def _DownloadData(self):
     """Downloads all the necessary data for a test."""
     assert self._working_dir
     logging.info('Downloading images')
     if self._args.group_images_by_resolution:
-      self._DownloadExpectations('%s/json/v2/expectations' % self._gold_url)
+      self._DownloadExpectations('%s/json/expectations' % self._gold_url)
       self._DownloadImagesForResolutionGrouping()
     else:
-      # A grouping ID is an MD5 hash of a JSON object containing the corpus and
-      # name of a test with its keys sorted alphabetically.
-      grouping_dict = {
-          'name': self._test_name,
-          'source_type': self._args.corpus,
-      }
-      # Specify separators to avoid the automatic whitespace, which Go/Gold
-      # does.
-      json_str = json.dumps(grouping_dict,
-                            sort_keys=True,
-                            separators=(',', ':'))
-      md5 = hashlib.md5()
-      md5.update(json_str.encode('utf-8'))
-      self._DownloadExpectations('%s/json/v1/positivedigestsbygrouping/%s' %
-                                 (self._gold_url, md5.hexdigest()))
+      self._DownloadExpectations(
+          '%s/json/debug/digestsbytestname/%s/%s' %
+          (self._gold_url, self._args.corpus, self._test_name))
       self._DownloadImagesForTraceGrouping()
-    for grouping, digests in self._images.items():
+    for grouping, digests in self._images.iteritems():
       logging.info('Found %d images for group %s', len(digests), grouping)
       logging.debug('Digests: %r', digests)
 
-  def _DownloadExpectations(self, url: str) -> None:
+  def _DownloadExpectations(self, url):
     """Downloads the expectation JSON from Gold into memory."""
     logging.info('Downloading expectations JSON')
     r = requests.get(url)
     assert r.status_code == 200
     self._expectations = r.json()
 
-  def _DownloadImagesForResolutionGrouping(self) -> None:
+  def _DownloadImagesForResolutionGrouping(self):
     """Downloads all the positive images for a test to disk.
 
     Images are grouped by resolution.
     """
     assert self._expectations
-    # The downloaded expectations are in the following format:
-    # {
-    #   branch (str): {
-    #     test_name (str): {
-    #       digest1 (str): status (str),
-    #       digest2 (str): status (str),
-    #       ...
-    #     }
-    #   }
-    # }
-    test_expectations = self._expectations.get('primary',
-                                               {}).get(self._test_name, {})
+    test_expectations = self._expectations.get('master', {}).get(
+        self._test_name, {})
     positive_digests = [
-        digest for digest, status in test_expectations.items()
-        if status == 'positive'
+        digest for digest, val in test_expectations.items() if val == 1
     ]
     if not positive_digests:
-      raise RuntimeError('Failed to find any positive digests for test %s' %
+      raise RuntimeError('Failed to find any positive digests for test %s',
                          self._test_name)
     for digest in positive_digests:
       content = self._DownloadImageWithDigest(digest)
       image = Image.open(io.BytesIO(content))
-      self._images['%dx%d' % (image.size[0], image.size[1])].add(digest)
+      self._images.setdefault('%dx%d' % (image.size[0], image.size[1]),
+                              []).append(digest)
 
-  def _DownloadImagesForTraceGrouping(self) -> None:
+  def _DownloadImagesForTraceGrouping(self):
     """Download all recent positive images for a test to disk.
 
     Images are grouped by Skia Gold trace ID, i.e. each hardware/software
     combination is a separate group.
     """
     assert self._expectations
-    # The downloaded trace data contains a list of traces, each with a list of
-    # digests. The digests should be unique within each trace, but convert to
-    # sets just to be sure.
-    for trace in self._expectations['traces']:
-      trace_id = trace['trace_id']
-      digests = set(trace['digests'])
-      if not digests:
+    # The downloaded trace data maps a trace ID (string) to a list of digests.
+    # The digests can be empty (which we don't care about) or duplicated, so
+    # convert to a set and filter out the empty strings.
+    filtered_traces = {}
+    for trace, digests in self._expectations.iteritems():
+      filtered_digests = set(digests)
+      filtered_digests.discard('')
+      if not filtered_digests:
         logging.warning(
             'Failed to find any positive digests for test %s and trace %s. '
             'This is likely due to the trace being old.', self._test_name,
-            trace_id)
-      self._images[trace_id] = digests
-      for d in digests:
-        self._DownloadImageWithDigest(d)
+            trace)
+      filtered_traces[trace] = filtered_digests
+      for digest in filtered_digests:
+        self._DownloadImageWithDigest(digest)
+    self._images = filtered_traces
 
-  def _DownloadImageWithDigest(self, digest: str) -> bytes:
+  def _DownloadImageWithDigest(self, digest):
     """Downloads an image with the given digest and saves it to disk.
 
     Args:
@@ -337,7 +310,7 @@ class BaseParameterOptimizer():
       outfile.write(r.content)
     return r.content
 
-  def _GetImagePath(self, digest: str) -> str:
+  def _GetImagePath(self, digest):
     """Gets a filepath to an image based on digest.
 
     Args:
@@ -348,7 +321,7 @@ class BaseParameterOptimizer():
     """
     return os.path.join(self._working_dir, '%s.png' % digest)
 
-  def _GetGoldctlBinary(self) -> str:
+  def _GetGoldctlBinary(self):
     """Gets the filepath to the goldctl binary to use.
 
     Returns:
@@ -364,8 +337,7 @@ class BaseParameterOptimizer():
             'Could not find goldctl binary. Checked %s' % GOLDCTL_PATHS)
     return self._goldctl_binary
 
-  def _RunComparisonForParameters(self, parameters: parameter_set.ParameterSet
-                                  ) -> typing.Tuple[bool, int, int]:
+  def _RunComparisonForParameters(self, parameters):
     """Runs a comparison for all image combinations using some parameters.
 
     Args:
@@ -385,7 +357,7 @@ class BaseParameterOptimizer():
     max_num_pixels = -1
     max_max_delta = -1
 
-    for resolution, digest_list in self._images.items():
+    for resolution, digest_list in self._images.iteritems():
       logging.debug('Resolution/trace: %s, digests: %s', resolution,
                     digest_list)
       cmds = [
@@ -415,9 +387,7 @@ class BaseParameterOptimizer():
         '%d', successful, max_num_pixels, max_max_delta)
     return successful, max_num_pixels, max_max_delta
 
-  def _GenerateComparisonCmd(self, left_digest: str, right_digest: str,
-                             parameters: parameter_set.ParameterSet
-                             ) -> typing.List[str]:
+  def _GenerateComparisonCmd(self, left_digest, right_digest, parameters):
     """Generates a comparison command for the given arguments.
 
     The returned command can be passed directly to a subprocess call.
@@ -443,8 +413,7 @@ class BaseParameterOptimizer():
     return cmd
 
 
-def RunCommandAndExtractData(cmd: typing.List[str]
-                             ) -> typing.Tuple[bool, int, int]:
+def RunCommandAndExtractData(cmd):
   """Runs a comparison command and extracts data from it.
 
   This is outside of the parameter optimizers because it is meant to be run via
@@ -461,8 +430,6 @@ def RunCommandAndExtractData(cmd: typing.List[str]
     per-channel delta sum in the comparison.
   """
   output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-  if not isinstance(output, str):
-    output = output.decode('utf-8')
   success = False
   num_pixels = 0
   max_delta = 0

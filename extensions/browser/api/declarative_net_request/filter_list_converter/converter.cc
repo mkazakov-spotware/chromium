@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,9 +37,6 @@ using ElementTypeMap =
 // supported by Declarative Net Request.
 class ProtoToJSONRuleConverter {
  public:
-  ProtoToJSONRuleConverter(const ProtoToJSONRuleConverter&) = delete;
-  ProtoToJSONRuleConverter& operator=(const ProtoToJSONRuleConverter&) = delete;
-
   // Returns a dictionary value corresponding to a Declarative Net Request rule
   // on success. On error, returns an empty/null value and populates |error|.
   // |error| must be non-null.
@@ -76,15 +73,14 @@ class ProtoToJSONRuleConverter {
     }
 
     // Sanity check that we can parse this rule.
-    std::u16string err;
+    base::string16 err;
     dnr_api::Rule rule;
     CHECK(dnr_api::Rule::Populate(json_rule_, &rule, &err) && err.empty())
         << "Converted rule can't be parsed " << json_rule_;
 
     IndexedRule indexed_rule;
-    ParseResult result =
-        IndexedRule::CreateIndexedRule(std::move(rule), GURL() /* base_url */,
-                                       kMinValidStaticRulesetID, &indexed_rule);
+    ParseResult result = IndexedRule::CreateIndexedRule(
+        std::move(rule), GURL() /* base_url */, &indexed_rule);
 
     auto get_non_ascii_error = [this](const std::string& context) {
       return base::StringPrintf(
@@ -243,20 +239,17 @@ class ProtoToJSONRuleConverter {
   }
 
   bool PopulateDomainsInternal(base::StringPiece sub_key, bool exclude_value) {
-    base::Value::List domains;
+    base::Value domains(base::Value::Type::LIST);
 
-    // Note: This isn't always correct. Filters consider the $domain option to
-    //       match the request domain for main_frame requests - not the
-    //       initiator domain.
-    for (const proto::DomainListItem& item : input_rule_.initiator_domains()) {
+    for (const proto::DomainListItem& item : input_rule_.domains()) {
       if (item.exclude() == exclude_value)
         domains.Append(item.domain());
     }
 
     // Omit empty domain list.
-    if (!domains.empty()) {
-      CHECK(json_rule_.SetPath({kRuleConditionKey, sub_key},
-                               base::Value(std::move(domains))));
+    if (!domains.GetList().empty()) {
+      CHECK(
+          json_rule_.SetPath({kRuleConditionKey, sub_key}, std::move(domains)));
     }
 
     return true;
@@ -314,12 +307,6 @@ class ProtoToJSONRuleConverter {
           break;
         case proto::ELEMENT_TYPE_WEBSOCKET:
           resource_type = dnr_api::RESOURCE_TYPE_WEBSOCKET;
-          break;
-        case proto::ELEMENT_TYPE_WEBTRANSPORT:
-          resource_type = dnr_api::RESOURCE_TYPE_WEBTRANSPORT;
-          break;
-        case proto::ELEMENT_TYPE_WEBBUNDLE:
-          resource_type = dnr_api::RESOURCE_TYPE_WEBBUNDLE;
           break;
         case proto::ELEMENT_TYPE_ALL:
           CHECK(false);
@@ -420,13 +407,13 @@ class ProtoToJSONRuleConverter {
     dnr_api::RuleActionType action_type = dnr_api::RULE_ACTION_TYPE_NONE;
 
     CHECK(!is_allow_all_requests_rule_ ||
-          input_rule_.semantics() == proto::RULE_SEMANTICS_ALLOWLIST);
+          input_rule_.semantics() == proto::RULE_SEMANTICS_WHITELIST);
 
     switch (input_rule_.semantics()) {
-      case proto::RULE_SEMANTICS_BLOCKLIST:
+      case proto::RULE_SEMANTICS_BLACKLIST:
         action_type = dnr_api::RULE_ACTION_TYPE_BLOCK;
         break;
-      case proto::RULE_SEMANTICS_ALLOWLIST:
+      case proto::RULE_SEMANTICS_WHITELIST:
         if (is_allow_all_requests_rule_)
           action_type = dnr_api::RULE_ACTION_TYPE_ALLOWALLREQUESTS;
         else
@@ -458,6 +445,8 @@ class ProtoToJSONRuleConverter {
   int rule_id_;
   std::string error_;
   base::Value json_rule_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProtoToJSONRuleConverter);
 };
 
 // Writes rules/extension to |output_path| in the format supported by
@@ -472,9 +461,6 @@ class DNRJsonRuleOutputStream : public subresource_filter::RuleOutputStream {
         output_path_(output_path),
         write_type_(type),
         noisy_(noisy) {}
-
-  DNRJsonRuleOutputStream(const DNRJsonRuleOutputStream&) = delete;
-  DNRJsonRuleOutputStream& operator=(const DNRJsonRuleOutputStream&) = delete;
 
   bool PutUrlRule(const proto::UrlRule& rule) override {
     std::string error;
@@ -526,6 +512,8 @@ class DNRJsonRuleOutputStream : public subresource_filter::RuleOutputStream {
   const base::FilePath output_path_;
   const filter_list_converter::WriteType write_type_;
   const bool noisy_;
+
+  DISALLOW_COPY_AND_ASSIGN(DNRJsonRuleOutputStream);
 };
 
 }  // namespace

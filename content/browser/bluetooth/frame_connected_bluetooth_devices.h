@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/bluetooth/web_bluetooth_device_id.h"
 #include "third_party/blink/public/mojom/bluetooth/web_bluetooth.mojom.h"
 #include "url/origin.h"
@@ -37,13 +36,7 @@ class CONTENT_EXPORT FrameConnectedBluetoothDevices final {
  public:
   // |rfh| should be the RenderFrameHost that owns the WebBluetoothServiceImpl
   // that owns this map.
-  explicit FrameConnectedBluetoothDevices(RenderFrameHost& rfh);
-
-  FrameConnectedBluetoothDevices(const FrameConnectedBluetoothDevices&) =
-      delete;
-  FrameConnectedBluetoothDevices& operator=(
-      const FrameConnectedBluetoothDevices&) = delete;
-
+  explicit FrameConnectedBluetoothDevices(RenderFrameHost* rfh);
   ~FrameConnectedBluetoothDevices();
 
   // Returns true if the map holds a connection to |device_id|.
@@ -65,14 +58,8 @@ class CONTENT_EXPORT FrameConnectedBluetoothDevices final {
   // WebContents count of connected devices if |device_address| had a
   // connection. Returns the device_id of the device associated with the
   // connection.
-  absl::optional<blink::WebBluetoothDeviceId>
+  base::Optional<blink::WebBluetoothDeviceId>
   CloseConnectionToDeviceWithAddress(const std::string& device_address);
-
-  // Deletes all connections that are NOT in the list of |permitted_ids| and
-  // decrements the WebContents count of connected devices for each device that
-  // had a connection.
-  void CloseConnectionsToDevicesNotInList(
-      const std::set<blink::WebBluetoothDeviceId>& permitted_ids);
 
  private:
   // Increments the Connected Devices count of the frame's WebContents.
@@ -81,7 +68,7 @@ class CONTENT_EXPORT FrameConnectedBluetoothDevices final {
   void DecrementDevicesConnectedCount();
 
   // WebContentsImpl that owns the WebBluetoothServiceImpl that owns this map.
-  raw_ptr<WebContentsImpl> web_contents_impl_;
+  WebContentsImpl* web_contents_impl_;
 
   // Keeps the BluetoothGattConnection objects alive so that connections don't
   // get closed.
@@ -93,6 +80,8 @@ class CONTENT_EXPORT FrameConnectedBluetoothDevices final {
   // Keeps track of which device addresses correspond to which ids.
   std::unordered_map<std::string, blink::WebBluetoothDeviceId>
       device_address_to_id_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(FrameConnectedBluetoothDevices);
 };
 
 }  // namespace content

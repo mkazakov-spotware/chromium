@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <zircon/rights.h>
 
 #include "base/bits.h"
-#include "base/check_op.h"
 #include "base/fuchsia/fuchsia_logging.h"
-#include "base/memory/page_size.h"
+#include "base/process/process_metrics.h"
 
 namespace base {
 namespace subtle {
@@ -95,6 +94,26 @@ bool PlatformSharedMemoryRegion::ConvertToUnsafe() {
   return true;
 }
 
+bool PlatformSharedMemoryRegion::MapAtInternal(off_t offset,
+                                               size_t size,
+                                               void** memory,
+                                               size_t* mapped_size) const {
+  uintptr_t addr;
+  zx_vm_option_t options = ZX_VM_REQUIRE_NON_RESIZABLE | ZX_VM_PERM_READ;
+  if (mode_ != Mode::kReadOnly)
+    options |= ZX_VM_PERM_WRITE;
+  zx_status_t status = zx::vmar::root_self()->map(
+      options, /*vmar_offset=*/0, handle_, offset, size, &addr);
+  if (status != ZX_OK) {
+    ZX_DLOG(ERROR, status) << "zx_vmar_map";
+    return false;
+  }
+
+  *memory = reinterpret_cast<void*>(addr);
+  *mapped_size = size;
+  return true;
+}
+
 // static
 PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Create(Mode mode,
                                                               size_t size) {
@@ -102,7 +121,7 @@ PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Create(Mode mode,
     return {};
 
   // Aligning may overflow so check that the result doesn't decrease.
-  size_t rounded_size = bits::AlignUp(size, GetPageSize());
+  size_t rounded_size = bits::Align(size, GetPageSize());
   if (rounded_size < size ||
       rounded_size > static_cast<size_t>(std::numeric_limits<int>::max())) {
     return {};
@@ -137,7 +156,7 @@ PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Create(Mode mode,
 
 // static
 bool PlatformSharedMemoryRegion::CheckPlatformHandlePermissionsCorrespondToMode(
-    PlatformSharedMemoryHandle handle,
+    PlatformHandle handle,
     Mode mode,
     size_t size) {
   zx_info_handle_basic_t basic = {};

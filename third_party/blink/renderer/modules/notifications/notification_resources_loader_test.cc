@@ -1,19 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/notifications/notification_resources_loader.h"
 
 #include <memory>
-
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/notifications/notification_constants.h"
 #include "third_party/blink/public/mojom/notifications/notification.mojom-blink.h"
 #include "third_party/blink/public/platform/web_url_loader_mock_factory.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/loader/fetch/memory_cache.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
@@ -39,8 +37,8 @@ class NotificationResourcesLoaderTest : public PageTestBase {
  public:
   NotificationResourcesLoaderTest()
       : loader_(MakeGarbageCollected<NotificationResourcesLoader>(
-            WTF::BindOnce(&NotificationResourcesLoaderTest::DidFetchResources,
-                          WTF::Unretained(this)))) {}
+            Bind(&NotificationResourcesLoaderTest::DidFetchResources,
+                 WTF::Unretained(this)))) {}
 
   ~NotificationResourcesLoaderTest() override {
     loader_->Stop();
@@ -48,7 +46,7 @@ class NotificationResourcesLoaderTest : public PageTestBase {
         ->UnregisterAllURLsAndClearMemoryCache();
   }
 
-  void SetUp() override { PageTestBase::SetUp(gfx::Size()); }
+  void SetUp() override { PageTestBase::SetUp(IntSize()); }
 
  protected:
   ExecutionContext* GetExecutionContext() const {

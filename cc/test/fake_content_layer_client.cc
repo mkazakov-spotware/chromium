@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,59 +8,30 @@
 #include <cstddef>
 
 #include "cc/paint/paint_op_buffer.h"
-#include "third_party/skia/include/core/SkTextBlob.h"
 #include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 
 FakeContentLayerClient::ImageData::ImageData(PaintImage img,
                                              const gfx::Point& point,
-                                             const SkSamplingOptions& sampling,
                                              const PaintFlags& flags)
-    : image(std::move(img)), point(point), sampling(sampling), flags(flags) {}
+    : image(std::move(img)), point(point), flags(flags) {}
 
 FakeContentLayerClient::ImageData::ImageData(PaintImage img,
                                              const gfx::Transform& transform,
-                                             const SkSamplingOptions& sampling,
                                              const PaintFlags& flags)
-    : image(std::move(img)),
-      transform(transform),
-      sampling(sampling),
-      flags(flags) {}
+    : image(std::move(img)), transform(transform), flags(flags) {}
 
 FakeContentLayerClient::ImageData::ImageData(const ImageData& other) = default;
 
 FakeContentLayerClient::ImageData::~ImageData() = default;
 
-FakeContentLayerClient::SkottieData::SkottieData(
-    scoped_refptr<SkottieWrapper> skottie,
-    const gfx::Rect& dst,
-    float t,
-    SkottieFrameDataMap images,
-    SkottieColorMap color_map,
-    SkottieTextPropertyValueMap text_map)
-    : skottie(std::move(skottie)),
-      dst(dst),
-      t(t),
-      images(std::move(images)),
-      color_map(std::move(color_map)),
-      text_map(std::move(text_map)) {}
-
-FakeContentLayerClient::SkottieData::SkottieData(const SkottieData& other) =
-    default;
-
-FakeContentLayerClient::SkottieData&
-FakeContentLayerClient::SkottieData::operator=(const SkottieData& other) =
-    default;
-
-FakeContentLayerClient::SkottieData::~SkottieData() = default;
-
 FakeContentLayerClient::FakeContentLayerClient() = default;
 
 FakeContentLayerClient::~FakeContentLayerClient() = default;
 
-gfx::Rect FakeContentLayerClient::PaintableRegion() const {
+gfx::Rect FakeContentLayerClient::PaintableRegion() {
   CHECK(bounds_set_);
   return gfx::Rect(bounds_);
 }
@@ -84,7 +55,8 @@ FakeContentLayerClient::PaintContentsToDisplayList() {
     if (!it->transform.IsIdentity()) {
       display_list->StartPaint();
       display_list->push<SaveOp>();
-      display_list->push<ConcatOp>(gfx::TransformToSkM44(it->transform));
+      display_list->push<ConcatOp>(
+          static_cast<SkMatrix>(it->transform.matrix()));
       display_list->EndPaintOfPairedBegin();
     }
 
@@ -94,10 +66,7 @@ FakeContentLayerClient::PaintContentsToDisplayList() {
                                    SkClipOp::kIntersect, false);
     display_list->push<DrawImageOp>(
         it->image, static_cast<float>(it->point.x()),
-        static_cast<float>(it->point.y()),
-        PaintFlags::FilterQualityToSkSamplingOptions(
-            it->flags.getFilterQuality()),
-        &it->flags);
+        static_cast<float>(it->point.y()), &it->flags);
     display_list->push<RestoreOp>();
     display_list->EndPaintOfUnpaired(PaintableRegion());
 
@@ -106,15 +75,6 @@ FakeContentLayerClient::PaintContentsToDisplayList() {
       display_list->push<RestoreOp>();
       display_list->EndPaintOfPairedEnd();
     }
-  }
-
-  for (const SkottieData& skottie_data : skottie_data_) {
-    display_list->StartPaint();
-    display_list->push<DrawSkottieOp>(
-        skottie_data.skottie, gfx::RectToSkRect(skottie_data.dst),
-        skottie_data.t, skottie_data.images, skottie_data.color_map,
-        skottie_data.text_map);
-    display_list->EndPaintOfUnpaired(PaintableRegion());
   }
 
   if (contains_slow_paths_) {
@@ -137,7 +97,7 @@ FakeContentLayerClient::PaintContentsToDisplayList() {
     display_list->StartPaint();
     while (!draw_rect.IsEmpty()) {
       display_list->push<DrawIRectOp>(gfx::RectToSkIRect(draw_rect), flags);
-      draw_rect.Inset(1);
+      draw_rect.Inset(1, 1);
     }
     display_list->EndPaintOfUnpaired(PaintableRegion());
   }
@@ -153,7 +113,7 @@ FakeContentLayerClient::PaintContentsToDisplayList() {
   if (has_draw_text_op_) {
     display_list->StartPaint();
     display_list->push<DrawTextBlobOp>(
-        SkTextBlob::MakeFromString("any", SkFont()), 0.0f, 0.0f, PaintFlags());
+        SkTextBlob::MakeFromString("any", SkFont()), 0, 0, PaintFlags());
     display_list->EndPaintOfUnpaired(PaintableRegion());
   }
 

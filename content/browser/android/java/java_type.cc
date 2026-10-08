@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/android/java/java_type.h"
-
-#include <memory>
 
 #include "base/check_op.h"
 #include "base/notreached.h"
@@ -85,7 +83,7 @@ JavaType& JavaType::operator=(const JavaType& other) {
   type = other.type;
   if (other.inner_type) {
     DCHECK_EQ(JavaType::TypeArray, type);
-    inner_type = std::make_unique<JavaType>(*other.inner_type);
+    inner_type.reset(new JavaType(*other.inner_type));
   } else {
     inner_type.reset();
   }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,8 +43,8 @@ TEST(GTestMac, NSStringComparators) {
 }
 
 TEST(GTestMac, NSNumberComparators) {
-  EXPECT_NSNE(@2, @42);
-  EXPECT_NSEQ(@42, @42);
+  EXPECT_NSNE([NSNumber numberWithInt:2], [NSNumber numberWithInt:42]);
+  EXPECT_NSEQ([NSNumber numberWithInt:42], [NSNumber numberWithInt:42]);
 }
 
 #if !defined(GTEST_OS_IOS)

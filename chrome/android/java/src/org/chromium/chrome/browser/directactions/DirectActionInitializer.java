@@ -1,22 +1,28 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.directactions;
 
+import android.annotation.TargetApi;
+import android.content.Context;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.AppHooks;
+import org.chromium.chrome.browser.autofill_assistant.AutofillAssistantFacade;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.findinpage.FindToolbarManager;
 import org.chromium.chrome.browser.flags.ActivityType;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
 
 import java.util.Collections;
@@ -30,8 +36,13 @@ import java.util.function.Consumer;
  * <p>To extend the set of direct actions beyond what's provided by this class, register handlers to
  * the coordinator {@code mCoordinator}.
  */
-@RequiresApi(29)
-public class DirectActionInitializer implements NativeInitObserver, DestroyObserver {
+@TargetApi(29)
+public class DirectActionInitializer implements NativeInitObserver, Destroyable {
+    private final Context mContext;
+    private final BottomSheetController mBottomSheetController;
+    private final BrowserControlsStateProvider mBrowserControls;
+    private final CompositorViewHolder mCompositorViewHolder;
+    private final ActivityTabProvider mActivityTabProvider;
     private final TabModelSelector mTabModelSelector;
 
     @ActivityType
@@ -47,21 +58,34 @@ public class DirectActionInitializer implements NativeInitObserver, DestroyObser
     private MenuDirectActionHandler mMenuHandler;
 
     /**
+     * @param context The current context, often the activity instance.
      * @param activityType The type of the current activity
      * @param actionController Controller to use to execute menu actions
      * @param goBackAction Implementation of the "go_back" action, usually {@link
      *         android.app.Activity#onBackPressed}.
      * @param tabModelSelector The activity's {@link TabModelSelector}
      * @param findToolbarManager Manager to use for the "find_in_page" action, if it exists
+     * @param bottomSheetController Controller for the activity's bottom sheet, if it exists
+     * @param browserControls Provider of browser controls of the activity
+     * @param compositorViewHolder Compositor view holder of the activity
+     * @param activityTabProvider Activity tab provider
      */
-    public DirectActionInitializer(@ActivityType int activityType,
+    public DirectActionInitializer(Context context, @ActivityType int activityType,
             MenuOrKeyboardActionController actionController, Runnable goBackAction,
-            TabModelSelector tabModelSelector, @Nullable FindToolbarManager findToolbarManager) {
+            TabModelSelector tabModelSelector, @Nullable FindToolbarManager findToolbarManager,
+            @Nullable BottomSheetController bottomSheetController,
+            BrowserControlsStateProvider browserControls, CompositorViewHolder compositorViewHolder,
+            ActivityTabProvider activityTabProvider) {
+        mContext = context;
         mActivityType = activityType;
         mMenuOrKeyboardActionController = actionController;
         mGoBackAction = goBackAction;
         mTabModelSelector = tabModelSelector;
         mFindToolbarManager = findToolbarManager;
+        mBottomSheetController = bottomSheetController;
+        mBrowserControls = browserControls;
+        mCompositorViewHolder = compositorViewHolder;
+        mActivityTabProvider = activityTabProvider;
 
         mDirectActionsRegistered = false;
     }
@@ -103,21 +127,37 @@ public class DirectActionInitializer implements NativeInitObserver, DestroyObser
     /**
      * Registers common action that manipulate the current activity or the browser content.
      *
+     * @param context The current context, often the activity instance.
+     * @param activityType The type of the current activity
      * @param actionController Controller to use to execute menu actions
      * @param goBackAction Implementation of the "go_back" action, usually {@link
      *         android.app.Activity#onBackPressed}.
      * @param tabModelSelector The activity's {@link TabModelSelector}
      * @param findToolbarManager Manager to use for the "find_in_page" action, if it exists
+     * @param bottomSheetController Controller for the activity's bottom sheet, if it exists
+     * @param browserControls Browser controls manager of the activity
+     * @param compositorViewHolder Compositor view holder of the activity
+     * @param activityTabProvider Activity tab provider
      */
-    private void registerCommonChromeActions(MenuOrKeyboardActionController actionController,
-            Runnable goBackAction, TabModelSelector tabModelSelector,
-            @Nullable FindToolbarManager findToolbarManager) {
+    private void registerCommonChromeActions(Context context, @ActivityType int activityType,
+            MenuOrKeyboardActionController actionController, Runnable goBackAction,
+            TabModelSelector tabModelSelector, @Nullable FindToolbarManager findToolbarManager,
+            @Nullable BottomSheetController bottomSheetController,
+            BrowserControlsStateProvider browserControls, CompositorViewHolder compositorViewHolder,
+            ActivityTabProvider activityTabProvider) {
         mCoordinator.register(new GoBackDirectActionHandler(goBackAction));
         mCoordinator.register(
                 new FindInPageDirectActionHandler(tabModelSelector, findToolbarManager));
 
         registerMenuHandlerIfNecessary(actionController, tabModelSelector)
                 .allowlistActions(R.id.forward_menu_id, R.id.reload_menu_id);
+
+        if (AutofillAssistantFacade.areDirectActionsAvailable(activityType)) {
+            DirectActionHandler handler = AutofillAssistantFacade.createDirectActionHandler(context,
+                    bottomSheetController, browserControls, compositorViewHolder,
+                    activityTabProvider);
+            if (handler != null) mCoordinator.register(handler);
+        }
     }
 
     /**
@@ -144,9 +184,9 @@ public class DirectActionInitializer implements NativeInitObserver, DestroyObser
                 .allowlistActions(itemIds);
     }
 
-    // Implements DestroyObserver
+    // Implements Destroyable
     @Override
-    public void onDestroy() {
+    public void destroy() {
         mCoordinator = null;
         mDirectActionsRegistered = false;
     }
@@ -165,8 +205,12 @@ public class DirectActionInitializer implements NativeInitObserver, DestroyObser
      * Registers the set of direct actions available to assist apps.
      */
     void registerDirectActions() {
-        registerCommonChromeActions(mMenuOrKeyboardActionController, mGoBackAction,
-                mTabModelSelector, mFindToolbarManager);
+        registerCommonChromeActions(mContext, mActivityType, mMenuOrKeyboardActionController,
+                mGoBackAction, mTabModelSelector, mFindToolbarManager,
+                AutofillAssistantFacade.areDirectActionsAvailable(mActivityType)
+                        ? mBottomSheetController
+                        : null,
+                mBrowserControls, mCompositorViewHolder, mActivityTabProvider);
 
         if (mActivityType == ActivityType.TABBED) {
             registerTabManipulationActions(mMenuOrKeyboardActionController, mTabModelSelector);

@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <utility>
 
-#include "build/build_config.h"
 #include "gpu/command_buffer/service/abstract_texture.h"
 #include "gpu/command_buffer/service/context_group.h"
 #include "gpu/command_buffer/service/error_state.h"
@@ -47,24 +46,8 @@ void PassthroughAbstractTextureImpl::SetParameteri(GLenum pname, GLint param) {
   gl_api_->glTexParameteriFn(texture_passthrough_->target(), pname, param);
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-void PassthroughAbstractTextureImpl::SetUnboundImage(gl::GLImage* image) {
-  BindImageInternal(image, /*client_managed=*/false);
-}
-#else
-void PassthroughAbstractTextureImpl::SetBoundImage(gl::GLImage* image) {
-  BindImageInternal(image, /*client_managed=*/true);
-}
-#endif
-
-void PassthroughAbstractTextureImpl::BindImageInternal(gl::GLImage* image,
-                                                       bool client_managed) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  CHECK(!client_managed);
-#else
-  CHECK(client_managed);
-#endif
-
+void PassthroughAbstractTextureImpl::BindImage(gl::GLImage* image,
+                                               bool client_managed) {
   if (!texture_passthrough_)
     return;
 
@@ -102,7 +85,7 @@ void PassthroughAbstractTextureImpl::BindStreamTextureImage(gl::GLImage* image,
   texture_passthrough_->SetStreamLevelImage(target, level, image, service_id);
 }
 
-gl::GLImage* PassthroughAbstractTextureImpl::GetImageForTesting() const {
+gl::GLImage* PassthroughAbstractTextureImpl::GetImage() const {
   if (!texture_passthrough_)
     return nullptr;
 
@@ -117,10 +100,6 @@ void PassthroughAbstractTextureImpl::SetCleared() {
 
 void PassthroughAbstractTextureImpl::SetCleanupCallback(CleanupCallback cb) {
   cleanup_cb_ = std::move(cb);
-}
-
-void PassthroughAbstractTextureImpl::NotifyOnContextLost() {
-  NOTIMPLEMENTED();
 }
 
 scoped_refptr<TexturePassthrough>

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,10 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox.mojom.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
@@ -36,10 +37,6 @@ class OmniboxPageHandler : public AutocompleteController::Observer,
   // OmniboxPageHandler is deleted when the supplied pipe is destroyed.
   OmniboxPageHandler(Profile* profile,
                      mojo::PendingReceiver<mojom::OmniboxPageHandler> receiver);
-
-  OmniboxPageHandler(const OmniboxPageHandler&) = delete;
-  OmniboxPageHandler& operator=(const OmniboxPageHandler&) = delete;
-
   ~OmniboxPageHandler() override;
 
   // AutocompleteController::Observer overrides:
@@ -67,7 +64,7 @@ class OmniboxPageHandler : public AutocompleteController::Observer,
   // Looks up whether the hostname is a typed host (i.e., has received
   // typed visits).  Return true if the lookup succeeded; if so, the
   // value of |is_typed_host| is set appropriately.
-  bool LookupIsTypedHost(const std::u16string& host, bool* is_typed_host) const;
+  bool LookupIsTypedHost(const base::string16& host, bool* is_typed_host) const;
 
   // Re-initializes the AutocompleteController in preparation for the
   // next query.
@@ -89,15 +86,16 @@ class OmniboxPageHandler : public AutocompleteController::Observer,
   mojo::Remote<mojom::OmniboxPage> page_;
 
   // The Profile* handed to us in our constructor.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   mojo::Receiver<mojom::OmniboxPageHandler> receiver_;
 
-  base::ScopedObservation<OmniboxControllerEmitter,
-                          AutocompleteController::Observer>
-      observation_{this};
+  ScopedObserver<OmniboxControllerEmitter, AutocompleteController::Observer>
+      observer_;
 
   base::WeakPtrFactory<OmniboxPageHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(OmniboxPageHandler);
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_OMNIBOX_OMNIBOX_PAGE_HANDLER_H_

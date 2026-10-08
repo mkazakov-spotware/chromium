@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "remoting/host/config_watcher.h"
 
 namespace base {
@@ -29,10 +30,6 @@ class ConfigFileWatcher : public ConfigWatcher {
       scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
       const base::FilePath& config_path);
-
-  ConfigFileWatcher(const ConfigFileWatcher&) = delete;
-  ConfigFileWatcher& operator=(const ConfigFileWatcher&) = delete;
-
   ~ConfigFileWatcher() override;
 
   // Inherited from ConfigWatcher.
@@ -40,6 +37,8 @@ class ConfigFileWatcher : public ConfigWatcher {
 
  private:
   scoped_refptr<ConfigFileWatcherImpl> impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConfigFileWatcher);
 };
 
 }  // namespace remoting

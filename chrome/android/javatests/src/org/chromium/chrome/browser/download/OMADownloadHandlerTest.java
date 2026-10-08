@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,13 @@ import androidx.test.filters.SmallTest;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.base.test.util.AdvancedMockContext;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
@@ -33,13 +32,11 @@ import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.OfflineItemState;
 import org.chromium.components.offline_items_collection.UpdateDelta;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
-import org.chromium.url.GURL;
 
 import java.io.ByteArrayInputStream;
 import java.util.HashSet;
@@ -50,10 +47,9 @@ import java.util.Set;
  * Tests for OMADownloadHandler class.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.PER_CLASS)
 public class OMADownloadHandlerTest {
-    @ClassRule
-    public static final ChromeBrowserTestRule sBrowserTestRule = new ChromeBrowserTestRule();
+    @Rule
+    public final ChromeBrowserTestRule mBrowserTestRule = new ChromeBrowserTestRule();
 
     private static final String INSTALL_NOTIFY_URI = "http://test/test";
 
@@ -73,13 +69,14 @@ public class OMADownloadHandlerTest {
     }
 
     /**
-     * Mock implementation of the DownloadMessageUiController.
+     * Mock implementation of the DownloadInfoBarController.
      */
-    static class TestInfoBarController implements DownloadMessageUiController {
+    static class TestInfoBarController extends DownloadInfoBarController {
         public boolean mDownloadStarted;
         public OfflineItem mLastUpdatedItem;
 
         public TestInfoBarController() {
+            super(false);
         }
 
         @Override
@@ -88,33 +85,8 @@ public class OMADownloadHandlerTest {
         }
 
         @Override
-        public void showIncognitoDownloadMessage(Callback<Boolean> callback) {}
-
-        @Override
-        public void addDownloadInterstitialSource(GURL originalUrl) {}
-
-        @Override
-        public boolean isDownloadInterstitialItem(GURL originalUrl, String guid) {
-            return false;
-        }
-
-        @Override
-        public void onItemsAdded(List<OfflineItem> items) {}
-
-        @Override
         public void onItemUpdated(OfflineItem item, UpdateDelta updateDelta) {
             mLastUpdatedItem = item;
-        }
-
-        @Override
-        public void onItemRemoved(ContentId id) {}
-
-        @Override
-        public void onNotificationShown(ContentId id, int notificationId) {}
-
-        @Override
-        public boolean isShowing() {
-            return false;
         }
 
         public OfflineItem getLastUpdatedItem() {
@@ -393,15 +365,12 @@ public class OMADownloadHandlerTest {
 
         try {
             DownloadInfo info = new DownloadInfo.Builder().build();
-            final OMADownloadHandlerForTest omaHandler =
-                    TestThreadUtils.runOnUiThreadBlockingNoException(() -> {
-                        return new OMADownloadHandlerForTest(context) {
-                            @Override
-                            public void onReceive(Context context, Intent intent) {
-                                // Ignore all the broadcasts.
-                            }
-                        };
-                    });
+            final OMADownloadHandlerForTest omaHandler = new OMADownloadHandlerForTest(context) {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    // Ignore all the broadcasts.
+                }
+            };
 
             omaHandler.clearPendingOMADownloads();
             omaHandler.downloadOMAContent(0, info, omaInfo);

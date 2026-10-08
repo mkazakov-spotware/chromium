@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/tiles/tile_draw_info.h"
-
-#include <utility>
 
 #include "base/metrics/histogram_macros.h"
 #include "cc/base/math_util.h"
@@ -19,7 +17,7 @@ TileDrawInfo::~TileDrawInfo() {
 void TileDrawInfo::AsValueInto(base::trace_event::TracedValue* state) const {
   state->SetBoolean("is_solid_color", mode_ == SOLID_COLOR_MODE);
   state->SetBoolean("is_transparent",
-                    mode_ == SOLID_COLOR_MODE && !solid_color_.isOpaque());
+                    mode_ == SOLID_COLOR_MODE && !SkColorGetA(solid_color_));
 }
 
 void TileDrawInfo::SetResource(ResourcePool::InUsePoolResource resource,
@@ -35,7 +33,7 @@ void TileDrawInfo::SetResource(ResourcePool::InUsePoolResource resource,
   resource_ = std::move(resource);
 }
 
-const ResourcePool::InUsePoolResource& TileDrawInfo::GetResource() const {
+const ResourcePool::InUsePoolResource& TileDrawInfo::GetResource() {
   DCHECK_EQ(mode_, RESOURCE_MODE);
   DCHECK(resource_);
   return resource_;

@@ -1,18 +1,19 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/setup/daemon_controller_delegate_linux.h"
 
 #include <unistd.h>
-#include <utility>
 
+#include "base/base_paths.h"
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/hash/md5.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -25,10 +26,9 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "remoting/base/file_path_util_linux.h"
+#include "net/base/network_interfaces.h"
 #include "remoting/host/host_config.h"
 #include "remoting/host/usage_stats_consent.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace remoting {
 
@@ -45,15 +45,16 @@ const char kDaemonScript[] =
 // file to use.
 const char kHostConfigSwitchName[] = "host-config";
 
-bool start_host_after_setup = true;
-
 base::FilePath GetConfigPath() {
   base::CommandLine* current_process = base::CommandLine::ForCurrentProcess();
   if (current_process->HasSwitch(kHostConfigSwitchName)) {
     return current_process->GetSwitchValuePath(kHostConfigSwitchName);
   }
-  std::string filename = GetHostHash() + ".json";
-  return GetConfigDirectoryPath().Append(filename);
+  std::string filename =
+      "host#" + base::MD5String(net::GetHostName()) + ".json";
+  base::FilePath homedir;
+  base::PathService::Get(base::DIR_HOME, &homedir);
+  return homedir.Append(".config/chrome-remote-desktop").Append(filename);
 }
 
 bool GetScriptPath(base::FilePath* result) {
@@ -146,23 +147,21 @@ DaemonController::State DaemonControllerDelegateLinux::GetState() {
   }
 }
 
-absl::optional<base::Value::Dict> DaemonControllerDelegateLinux::GetConfig() {
-  absl::optional<base::Value::Dict> host_config(
+std::unique_ptr<base::DictionaryValue>
+DaemonControllerDelegateLinux::GetConfig() {
+  std::unique_ptr<base::DictionaryValue> config(
       HostConfigFromJsonFile(GetConfigPath()));
-  if (!host_config.has_value())
-    return absl::nullopt;
+  if (!config)
+    return nullptr;
 
-  base::Value::Dict result;
-  std::string* value = host_config->FindString(kHostIdConfigPath);
-  if (value) {
-    result.Set(kHostIdConfigPath, *value);
+  std::unique_ptr<base::DictionaryValue> result(new base::DictionaryValue());
+  std::string value;
+  if (config->GetString(kHostIdConfigPath, &value)) {
+    result->SetString(kHostIdConfigPath, value);
   }
-
-  value = host_config->FindString(kXmppLoginConfigPath);
-  if (value) {
-    result.Set(kXmppLoginConfigPath, *value);
+  if (config->GetString(kXmppLoginConfigPath, &value)) {
+    result->SetString(kXmppLoginConfigPath, value);
   }
-
   return result;
 }
 
@@ -173,9 +172,16 @@ void DaemonControllerDelegateLinux::CheckPermission(
 }
 
 void DaemonControllerDelegateLinux::SetConfigAndStart(
-    base::Value::Dict config,
+    std::unique_ptr<base::DictionaryValue> config,
     bool consent,
     DaemonController::CompletionCallback done) {
+  // Add the user to chrome-remote-desktop group first.
+  if (!RunHostScript({"--add-user"})) {
+    LOG(ERROR) << "Failed to add user to chrome-remote-desktop group.";
+    std::move(done).Run(DaemonController::RESULT_FAILED);
+    return;
+  }
+
   // Ensure the configuration directory exists.
   base::FilePath config_dir = GetConfigPath().DirName();
   if (!base::DirectoryExists(config_dir)) {
@@ -189,45 +195,31 @@ void DaemonControllerDelegateLinux::SetConfigAndStart(
   }
 
   // Write config.
-  if (!HostConfigToJsonFile(std::move(config), GetConfigPath())) {
+  if (!HostConfigToJsonFile(*config, GetConfigPath())) {
     LOG(ERROR) << "Failed to update config file.";
     std::move(done).Run(DaemonController::RESULT_FAILED);
     return;
   }
 
-  if (start_host_after_setup) {
-    // Finally start the host.
-    std::vector<std::string> args = {"--enable-and-start"};
+  // Finally start the host.
+  std::vector<std::string> args = {"--start",
+                                   "--config=" + GetConfigPath().value()};
 
-    // TODO(rkjnsn): At this point, the host is configured and just requires an
-    // administrator to enable and start it. If that fails here, e.g., due to no
-    // policy kit agent running, it might be nice to tell the user what they
-    // need to do so they can perform the last step manually (or have an
-    // administrator do it, if the user isn't one).
-    if (!RunHostScript(args)) {
-      LOG(ERROR) << "Failed to start host.";
-      std::move(done).Run(DaemonController::RESULT_FAILED);
-      return;
-    }
-  }
+  DaemonController::AsyncResult result = DaemonController::RESULT_FAILED;
+  if (RunHostScript(args))
+    result = DaemonController::RESULT_OK;
 
-  std::move(done).Run(DaemonController::RESULT_OK);
+  std::move(done).Run(result);
 }
 
 void DaemonControllerDelegateLinux::UpdateConfig(
-    base::Value::Dict config,
+    std::unique_ptr<base::DictionaryValue> config,
     DaemonController::CompletionCallback done) {
-  absl::optional<base::Value::Dict> new_config(
+  std::unique_ptr<base::DictionaryValue> new_config(
       HostConfigFromJsonFile(GetConfigPath()));
-  if (!new_config.has_value()) {
-    LOG(ERROR) << "Failed to read existing config file.";
-    std::move(done).Run(DaemonController::RESULT_FAILED);
-    return;
-  }
-
-  new_config->Merge(std::move(config));
-
-  if (!HostConfigToJsonFile(std::move(*new_config), GetConfigPath())) {
+  if (new_config)
+    new_config->MergeDictionary(config.get());
+  if (!new_config || !HostConfigToJsonFile(*new_config, GetConfigPath())) {
     LOG(ERROR) << "Failed to update config file.";
     std::move(done).Run(DaemonController::RESULT_FAILED);
     return;
@@ -262,11 +254,6 @@ DaemonControllerDelegateLinux::GetUsageStatsConsent() {
   consent.allowed = false;
   consent.set_by_policy = false;
   return consent;
-}
-
-void DaemonControllerDelegateLinux::set_start_host_after_setup(
-    bool start_host) {
-  start_host_after_setup = start_host;
 }
 
 scoped_refptr<DaemonController> DaemonController::Create() {

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,18 +13,16 @@
 #include "base/atomicops.h"
 #include "base/compiler_specific.h"
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "base/process/process_handle.h"
 #include "base/threading/thread_checker.h"
 #include "ipc/ipc.mojom.h"
 #include "ipc/ipc_message.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
-#include "mojo/public/cpp/bindings/generic_pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
-#include "mojo/public/cpp/bindings/shared_remote.h"
+#include "mojo/public/cpp/system/core.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 
 namespace IPC {
@@ -55,7 +53,8 @@ class COMPONENT_EXPORT(IPC) MessagePipeReader : public mojom::Channel {
     virtual void OnBrokenDataReceived() = 0;
     virtual void OnPipeError() = 0;
     virtual void OnAssociatedInterfaceRequest(
-        mojo::GenericPendingAssociatedReceiver receiver) = 0;
+        const std::string& name,
+        mojo::ScopedInterfaceEndpointHandle handle) = 0;
   };
 
   // Builds a reader that reads messages from |receive_handle| and lets
@@ -69,17 +68,10 @@ class COMPONENT_EXPORT(IPC) MessagePipeReader : public mojom::Channel {
   //
   // Note that MessagePipeReader doesn't delete |delegate|.
   MessagePipeReader(mojo::MessagePipeHandle pipe,
-                    mojo::PendingAssociatedRemote<mojom::Channel> sender,
+                    mojo::AssociatedRemote<mojom::Channel> sender,
                     mojo::PendingAssociatedReceiver<mojom::Channel> receiver,
-                    scoped_refptr<base::SequencedTaskRunner> task_runner,
                     Delegate* delegate);
-
-  MessagePipeReader(const MessagePipeReader&) = delete;
-  MessagePipeReader& operator=(const MessagePipeReader&) = delete;
-
   ~MessagePipeReader() override;
-
-  void FinishInitializationOnIOThread(base::ProcessId self_pid);
 
   // Close and destroy the MessagePipe.
   void Close();
@@ -92,10 +84,10 @@ class COMPONENT_EXPORT(IPC) MessagePipeReader : public mojom::Channel {
   bool Send(std::unique_ptr<Message> message);
 
   // Requests an associated interface from the other end of the pipe.
-  void GetRemoteInterface(mojo::GenericPendingAssociatedReceiver receiver);
+  void GetRemoteInterface(const std::string& name,
+                          mojo::ScopedInterfaceEndpointHandle handle);
 
   mojo::AssociatedRemote<mojom::Channel>& sender() { return sender_; }
-  mojom::Channel& thread_safe_sender() { return thread_safe_sender_->proxy(); }
 
  protected:
   void OnPipeClosed();
@@ -106,18 +98,17 @@ class COMPONENT_EXPORT(IPC) MessagePipeReader : public mojom::Channel {
   void SetPeerPid(int32_t peer_pid) override;
   void Receive(MessageView message_view) override;
   void GetAssociatedInterface(
-      mojo::GenericPendingAssociatedReceiver receiver) override;
-
-  void ForwardMessage(mojo::Message message);
+      const std::string& name,
+      mojo::PendingAssociatedReceiver<mojom::GenericInterface> receiver)
+      override;
 
   // |delegate_| is null once the message pipe is closed.
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
   mojo::AssociatedRemote<mojom::Channel> sender_;
-  std::unique_ptr<mojo::ThreadSafeForwarder<mojom::Channel>>
-      thread_safe_sender_;
   mojo::AssociatedReceiver<mojom::Channel> receiver_;
   base::ThreadChecker thread_checker_;
-  base::WeakPtrFactory<MessagePipeReader> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MessagePipeReader);
 };
 
 }  // namespace internal

@@ -1,30 +1,31 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_DOWNLOAD_DOWNLOAD_SHELF_H_
 #define CHROME_BROWSER_DOWNLOAD_DOWNLOAD_SHELF_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/download/download_ui_model.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Browser;
 class Profile;
 
 namespace base {
+template <typename T>
+class Optional;
 class TimeDelta;
+}  // namespace base
+
+namespace base {
+template <typename T>
+class Optional;
 }  // namespace base
 
 namespace offline_items_collection {
 struct ContentId;
 struct OfflineItem;
 }  // namespace offline_items_collection
-
-namespace views {
-class View;
-}
 
 // This is an abstract base class for platform specific download shelf
 // implementations.
@@ -67,7 +68,6 @@ class DownloadShelf {
   void Unhide();
 
   Browser* browser() { return browser_; }
-  virtual views::View* GetView() = 0;
   bool is_hidden() const { return is_hidden_; }
 
  protected:
@@ -94,10 +94,10 @@ class DownloadShelf {
   // Callback used by ShowDownloadById() to trigger ShowDownload() once |item|
   // has been fetched.
   void OnGetDownloadDoneForOfflineItem(
-      const absl::optional<offline_items_collection::OfflineItem>& item);
+      const base::Optional<offline_items_collection::OfflineItem>& item);
 
-  const raw_ptr<Browser> browser_;
-  const raw_ptr<Profile> profile_;
+  Browser* const browser_;
+  Profile* const profile_;
   bool should_show_on_unhide_ = false;
   bool is_hidden_ = false;
   base::WeakPtrFactory<DownloadShelf> weak_ptr_factory_{this};

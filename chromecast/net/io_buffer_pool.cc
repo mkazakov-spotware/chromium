@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,9 +41,6 @@ class IOBufferPool::Internal {
  public:
   Internal(size_t buffer_size, size_t max_buffers, bool threadsafe);
 
-  Internal(const Internal&) = delete;
-  Internal& operator=(const Internal&) = delete;
-
   size_t num_allocated() const {
     base::AutoLockMaybe lock(lock_ptr_);
     return num_allocated_;
@@ -84,29 +81,27 @@ class IOBufferPool::Internal {
   size_t num_free_;
 
   int refs_;
+
+  DISALLOW_COPY_AND_ASSIGN(Internal);
 };
 
 class IOBufferPool::Internal::Buffer : public net::IOBuffer {
  public:
   explicit Buffer(char* data) : net::IOBuffer(data) {}
 
-  Buffer(const Buffer&) = delete;
-  Buffer& operator=(const Buffer&) = delete;
-
  private:
   friend class Wrapper;
 
   ~Buffer() override { data_ = nullptr; }
   static void operator delete(void* ptr);
+
+  DISALLOW_COPY_AND_ASSIGN(Buffer);
 };
 
 class IOBufferPool::Internal::Wrapper {
  public:
   Wrapper(char* data, IOBufferPool::Internal* pool)
       : buffer_(data), pool_(pool) {}
-
-  Wrapper(const Wrapper&) = delete;
-  Wrapper& operator=(const Wrapper&) = delete;
 
   ~Wrapper() = delete;
   static void operator delete(void*) = delete;
@@ -118,6 +113,8 @@ class IOBufferPool::Internal::Wrapper {
  private:
   Buffer buffer_;
   IOBufferPool::Internal* const pool_;
+
+  DISALLOW_COPY_AND_ASSIGN(Wrapper);
 };
 
 union IOBufferPool::Internal::Storage {
@@ -152,7 +149,7 @@ IOBufferPool::Internal::~Internal() {
 
 // static
 void* IOBufferPool::Internal::AllocateAlignedSpace(size_t buffer_size) {
-  size_t kAlignedStorageSize = base::bits::AlignUp(sizeof(Storage), kAlignment);
+  size_t kAlignedStorageSize = base::bits::Align(sizeof(Storage), kAlignment);
   return base::AlignedAlloc(kAlignedStorageSize + buffer_size, kAlignment);
 }
 
@@ -214,7 +211,7 @@ scoped_refptr<net::IOBuffer> IOBufferPool::Internal::GetBuffer() {
     ptr = static_cast<char*>(AllocateAlignedSpace(buffer_size_));
   }
 
-  size_t kAlignedStorageSize = base::bits::AlignUp(sizeof(Storage), kAlignment);
+  size_t kAlignedStorageSize = base::bits::Align(sizeof(Storage), kAlignment);
   char* data = ptr + kAlignedStorageSize;
   Wrapper* wrapper = new (ptr) Wrapper(data, this);
   return scoped_refptr<net::IOBuffer>(wrapper->buffer());

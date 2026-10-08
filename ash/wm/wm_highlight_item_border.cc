@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,17 +26,12 @@ WmHighlightItemBorder::WmHighlightItemBorder(int corner_radius,
       corner_radius_(corner_radius),
       border_insets_(gfx::Insets(kBorderSize + kBorderPadding) + padding) {}
 
-bool WmHighlightItemBorder::SetFocused(bool focused) {
+void WmHighlightItemBorder::SetFocused(bool focused) {
   // Note that all WM features that use this custom border currently have dark
   // mode as the default color mode.
-  const SkColor new_color =
-      focused ? AshColorProvider::Get()->GetControlsLayerColor(
-                    AshColorProvider::ControlsLayerType::kFocusRingColor)
-              : SK_ColorTRANSPARENT;
-  if (new_color == color())
-    return false;
-  set_color(new_color);
-  return true;
+  set_color(focused ? AshColorProvider::Get()->GetControlsLayerColor(
+                          AshColorProvider::ControlsLayerType::kFocusRingColor)
+                    : SK_ColorTRANSPARENT);
 }
 
 void WmHighlightItemBorder::Paint(const views::View& view,
@@ -54,7 +49,7 @@ void WmHighlightItemBorder::Paint(const views::View& view,
   // The following inset is needed for the rounded corners of the border to
   // look correct. Otherwise, the borders will be painted at the edge of the
   // view, resulting in this border looking chopped.
-  bounds.Inset(kBorderSize / 2);
+  bounds.Inset(kBorderSize / 2, kBorderSize / 2);
   canvas->DrawRoundRect(bounds, corner_radius_, flags);
 }
 

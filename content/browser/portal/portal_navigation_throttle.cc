@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,11 +32,8 @@ const char* GetBlockedInfoURL() {
 std::unique_ptr<PortalNavigationThrottle>
 PortalNavigationThrottle::MaybeCreateThrottleFor(
     NavigationHandle* navigation_handle) {
-  if (!Portal::IsEnabled() || !navigation_handle->IsInMainFrame() ||
-      navigation_handle->GetNavigatingFrameType() ==
-          FrameType::kFencedFrameRoot) {
+  if (!Portal::IsEnabled() || !navigation_handle->IsInMainFrame())
     return nullptr;
-  }
 
   return base::WrapUnique(new PortalNavigationThrottle(navigation_handle));
 }
@@ -68,9 +65,6 @@ PortalNavigationThrottle::WillStartOrRedirectRequest() {
   Portal* portal = web_contents->portal();
   if (!portal)
     return PROCEED;
-
-  DCHECK_NE(navigation_handle()->GetNavigatingFrameType(),
-            FrameType::kFencedFrameRoot);
 
   GURL url = navigation_handle()->GetURL();
   CHECK(!HasWebUIScheme(url))

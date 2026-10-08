@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
   TestRunner.addResult(`Tests the node model.\n`);
 
   await TestRunner.showPanel('web-audio');
-  await TestRunner.loadLegacyModule('web_audio');
 
   const nodeData1 = {
     nodeId: 'node1',

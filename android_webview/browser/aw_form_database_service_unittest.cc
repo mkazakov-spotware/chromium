@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
@@ -33,7 +32,7 @@ class AwFormDatabaseServiceTest : public Test {
     env_ = AttachCurrentThread();
     ASSERT_TRUE(env_);
 
-    service_ = std::make_unique<AwFormDatabaseService>(temp_dir_.GetPath());
+    service_.reset(new AwFormDatabaseService(temp_dir_.GetPath()));
   }
 
   void TearDown() override {
@@ -44,7 +43,7 @@ class AwFormDatabaseServiceTest : public Test {
   // The path to the temporary directory used for the test operations.
   base::test::TaskEnvironment task_environment_;
   base::ScopedTempDir temp_dir_;
-  raw_ptr<JNIEnv> env_;
+  JNIEnv* env_;
   std::unique_ptr<AwFormDatabaseService> service_;
 };
 
@@ -52,8 +51,8 @@ TEST_F(AwFormDatabaseServiceTest, HasAndClearFormData) {
   EXPECT_FALSE(service_->HasFormData());
   std::vector<FormFieldData> fields;
   FormFieldData field;
-  field.name = u"foo";
-  field.value = u"bar";
+  field.name = base::ASCIIToUTF16("foo");
+  field.value = base::ASCIIToUTF16("bar");
   fields.push_back(field);
   service_->get_autofill_webdata_service()->AddFormFields(fields);
   EXPECT_TRUE(service_->HasFormData());

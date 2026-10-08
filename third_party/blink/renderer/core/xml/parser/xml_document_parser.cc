@@ -29,8 +29,6 @@
 #include <libxml/parser.h>
 #include <libxml/parserInternals.h>
 #include <libxml/xmlversion.h>
-
-#include "base/numerics/safe_conversions.h"
 #if defined(LIBXML_CATALOG_ENABLED)
 #include <libxml/catalog.h>
 #endif
@@ -39,7 +37,7 @@
 #include <memory>
 
 #include "base/auto_reset.h"
-#include "base/cxx17_backports.h"
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/cdata_section.h"
 #include "third_party/blink/renderer/core/dom/comment.h"
@@ -67,7 +65,7 @@
 #include "third_party/blink/renderer/core/xml/parser/xml_document_parser_scope.h"
 #include "third_party/blink/renderer/core/xml/parser/xml_parser_input.h"
 #include "third_party/blink/renderer/core/xmlns_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_initiator_type_names.h"
@@ -113,8 +111,8 @@ static inline bool HasNoStyleInformation(Document* document) {
   if (!document->GetFrame() || !document->GetFrame()->GetPage())
     return false;
 
-  if (!document->IsInMainFrame() || document->GetFrame()->IsInFencedFrameTree())
-    return false;  // This document has style information from a parent.
+  if (document->GetFrame()->Tree().Parent())
+    return false;  // This document is not in a top frame
 
   if (SVGImage::IsInSVGImage(document))
     return false;
@@ -364,7 +362,6 @@ void XMLDocumentParser::HandleError(XMLErrors::ErrorType type,
 }
 
 void XMLDocumentParser::CreateLeafTextNodeIfNeeded() {
-  is_start_of_new_chunk_ = false;
   if (leaf_text_node_)
     return;
 
@@ -377,7 +374,6 @@ bool XMLDocumentParser::UpdateLeafTextNode() {
   if (IsStopped())
     return false;
 
-  is_start_of_new_chunk_ = false;
   if (!leaf_text_node_)
     return true;
 
@@ -506,10 +502,9 @@ static int MatchFunc(const char*) {
          CurrentThread() == g_libxml_loader_thread;
 }
 
-static inline void SetAttributes(
-    Element* element,
-    Vector<Attribute, kAttributePrealloc>& attribute_vector,
-    ParserContentPolicy parser_content_policy) {
+static inline void SetAttributes(Element* element,
+                                 Vector<Attribute>& attribute_vector,
+                                 ParserContentPolicy parser_content_policy) {
   if (!ScriptingContentIsAllowed(parser_content_policy))
     element->StripScriptingAttributes(attribute_vector);
   element->ParserSetAttributes(attribute_vector);
@@ -552,7 +547,7 @@ static void FinishParsing(xmlParserCtxtPtr ctxt) {
 }
 
 #define xmlParseChunk \
-#error "Use parseChunk instead to select the correct encoding."
+  #error "Use parseChunk instead to select the correct encoding."
 
 static bool IsLibxmlDefaultCatalogFile(const String& url_string) {
   // On non-Windows platforms libxml with catalogs enabled asks for
@@ -611,16 +606,10 @@ static bool ShouldAllowExternalLoad(const KURL& url) {
 }
 
 static void* OpenFunc(const char* uri) {
-  Document* document = XMLDocumentParserScope::current_document_;
-  DCHECK(document);
+  DCHECK(XMLDocumentParserScope::current_document_);
   DCHECK_EQ(CurrentThread(), g_libxml_loader_thread);
 
   KURL url(NullURL(), uri);
-
-  // If the document has no ExecutionContext, it's detached. Detached documents
-  // aren't allowed to fetch.
-  if (!document->GetExecutionContext())
-    return &g_global_descriptor;
 
   if (!ShouldAllowExternalLoad(url))
     return &g_global_descriptor;
@@ -629,6 +618,7 @@ static void* OpenFunc(const char* uri) {
   scoped_refptr<const SharedBuffer> data;
 
   {
+    Document* document = XMLDocumentParserScope::current_document_;
     XMLDocumentParserScope scope(nullptr);
     // FIXME: We should restore the original global error handler as well.
     ResourceLoaderOptions options(
@@ -717,8 +707,8 @@ scoped_refptr<XMLParserContext> XMLParserContext::CreateMemoryParser(
   InitializeLibXMLIfNecessary();
 
   // appendFragmentSource() checks that the length doesn't overflow an int.
-  xmlParserCtxtPtr parser = xmlCreateMemoryParserCtxt(
-      chunk.c_str(), base::checked_cast<int>(chunk.length()));
+  xmlParserCtxtPtr parser =
+      xmlCreateMemoryParserCtxt(chunk.c_str(), chunk.length());
 
   if (!parser)
     return nullptr;
@@ -806,10 +796,10 @@ XMLDocumentParser::XMLDocumentParser(DocumentFragment* fragment,
   for (; parent_element; parent_element = parent_element->parentElement())
     elem_stack.push_back(parent_element);
 
-  if (elem_stack.empty())
+  if (elem_stack.IsEmpty())
     return;
 
-  for (; !elem_stack.empty(); elem_stack.pop_back()) {
+  for (; !elem_stack.IsEmpty(); elem_stack.pop_back()) {
     Element* element = elem_stack.back();
     // According to https://dom.spec.whatwg.org/#locate-a-namespace, a namespace
     // from the element name should have higher priority. So we check xmlns
@@ -824,7 +814,7 @@ XMLDocumentParser::XMLDocumentParser(DocumentFragment* fragment,
     }
     if (element->namespaceURI().IsNull())
       continue;
-    if (element->prefix().empty())
+    if (element->prefix().IsEmpty())
       default_namespace_uri_ = element->namespaceURI();
     else
       prefix_to_namespace_map_.Set(element->prefix(), element->namespaceURI());
@@ -865,7 +855,6 @@ void XMLDocumentParser::DoWrite(const String& parse_string) {
     XMLDocumentParserScope scope(GetDocument());
     base::AutoReset<bool> encoding_scope(&is_currently_parsing8_bit_chunk_,
                                          parse_string.Is8Bit());
-    is_start_of_new_chunk_ = true;
     ParseChunk(context->Context(), parse_string);
 
     // JavaScript (which may be run under the parseChunk callstack) may
@@ -891,7 +880,7 @@ struct xmlSAX2Namespace {
 };
 
 static inline void HandleNamespaceAttributes(
-    Vector<Attribute, kAttributePrealloc>& prefixed_attributes,
+    Vector<Attribute>& prefixed_attributes,
     const xmlChar** libxml_namespaces,
     int nb_namespaces,
     ExceptionState& exception_state) {
@@ -922,7 +911,7 @@ struct xmlSAX2Attributes {
 };
 
 static inline void HandleElementAttributes(
-    Vector<Attribute, kAttributePrealloc>& prefixed_attributes,
+    Vector<Attribute>& prefixed_attributes,
     const xmlChar** libxml_attributes,
     int nb_attributes,
     const HashMap<AtomicString, AtomicString>& initial_prefix_to_namespace_map,
@@ -935,7 +924,7 @@ static inline void HandleElementAttributes(
     AtomicString attr_value = ToAtomicString(attributes[i].value, value_length);
     AtomicString attr_prefix = ToAtomicString(attributes[i].prefix);
     AtomicString attr_uri;
-    if (!attr_prefix.empty()) {
+    if (!attr_prefix.IsEmpty()) {
       // If provided, use the namespace URI from libxml2 because libxml2
       // updates its namespace table as it parses whereas the
       // initialPrefixToNamespaceMap is the initial map from namespace
@@ -953,7 +942,7 @@ static inline void HandleElementAttributes(
       }
     }
     AtomicString attr_q_name =
-        attr_prefix.empty()
+        attr_prefix.IsEmpty()
             ? ToAtomicString(attributes[i].localname)
             : attr_prefix + ":" + ToString(attributes[i].localname);
 
@@ -992,19 +981,16 @@ void XMLDocumentParser::StartElementNs(const AtomicString& local_name,
 
   AtomicString adjusted_uri = uri;
   if (parsing_fragment_ && adjusted_uri.IsNull()) {
-    if (!prefix.IsNull()) {
-      auto it = prefix_to_namespace_map_.find(prefix);
-      if (it != prefix_to_namespace_map_.end())
-        adjusted_uri = it->value;
-    } else {
+    if (!prefix.IsNull())
+      adjusted_uri = prefix_to_namespace_map_.at(prefix);
+    else
       adjusted_uri = default_namespace_uri_;
-    }
   }
 
   bool is_first_element = !saw_first_element_;
   saw_first_element_ = true;
 
-  Vector<Attribute, kAttributePrealloc> prefixed_attributes;
+  Vector<Attribute> prefixed_attributes;
   DummyExceptionStateForTesting exception_state;
   HandleNamespaceAttributes(prefixed_attributes, libxml_namespaces,
                             nb_namespaces, exception_state);
@@ -1024,18 +1010,13 @@ void XMLDocumentParser::StartElementNs(const AtomicString& local_name,
   }
 
   QualifiedName q_name(prefix, local_name, adjusted_uri);
-  if (!prefix.empty() && adjusted_uri.empty())
+  if (!prefix.IsEmpty() && adjusted_uri.IsEmpty())
     q_name = QualifiedName(g_null_atom, prefix + ":" + local_name, g_null_atom);
   Element* new_element = current_node_->GetDocument().CreateElement(
       q_name,
       parsing_fragment_ ? CreateElementFlags::ByFragmentParser(document_)
                         : CreateElementFlags::ByParser(document_),
       is);
-  // Check IsStopped() because custom element constructors may synchronously
-  // trigger removal of the document and cancellation of this parser.
-  if (IsStopped()) {
-    return;
-  }
   if (!new_element) {
     StopParsing();
     return;
@@ -1057,6 +1038,7 @@ void XMLDocumentParser::StartElementNs(const AtomicString& local_name,
   // Event handlers may synchronously trigger removal of the
   // document and cancellation of this parser.
   if (IsStopped()) {
+    StopParsing();
     return;
   }
 
@@ -1211,6 +1193,9 @@ void XMLDocumentParser::GetProcessingInstruction(const String& target,
 
   CheckIfBlockingStyleSheetAdded();
 
+  if (!RuntimeEnabledFeatures::XSLTEnabled())
+    return;
+
   saw_xsl_transform_ = !saw_first_element_ && pi->IsXSL();
   if (saw_xsl_transform_ &&
       !DocumentXSLT::HasTransformSourceDocument(*GetDocument())) {
@@ -1234,25 +1219,11 @@ void XMLDocumentParser::CdataBlock(const String& text) {
     return;
   }
 
-  // `is_start_of_new_chunk_` is reset by UpdateLeafTextNode(). If it was set
-  // when we entered this method, this CDATA block appears at the beginning of
-  // the current input chunk.
-  const bool is_start_of_new_chunk = is_start_of_new_chunk_;
   if (!UpdateLeafTextNode())
     return;
 
-  // If the most recent child is already a CDATA node *AND* this is the first
-  // parse event emitted from the current input chunk, we append this text to
-  // the existing node. Otherwise we append a new CDATA node.
-  CDATASection* cdata_tail =
-      current_node_ ? DynamicTo<CDATASection>(current_node_->lastChild())
-                    : nullptr;
-  if (cdata_tail && is_start_of_new_chunk) {
-    cdata_tail->ParserAppendData(text);
-  } else {
-    current_node_->ParserAppendChild(
-        CDATASection::Create(current_node_->GetDocument(), text));
-  }
+  current_node_->ParserAppendChild(
+      CDATASection::Create(current_node_->GetDocument(), text));
 }
 
 void XMLDocumentParser::Comment(const String& text) {
@@ -1433,7 +1404,7 @@ static xmlEntityPtr GetXHTMLEntity(const xmlChar* name) {
     return nullptr;
 
   constexpr size_t kSharedXhtmlEntityResultLength =
-      std::size(g_shared_xhtml_entity_result);
+      base::size(g_shared_xhtml_entity_result);
   size_t entity_length_in_utf8;
   // Unlike HTML parser, XML parser parses the content of named
   // entities. So we need to escape '&' and '<'.
@@ -1474,7 +1445,7 @@ static xmlEntityPtr GetXHTMLEntity(const xmlChar* name) {
   DCHECK_LE(entity_length_in_utf8, kSharedXhtmlEntityResultLength);
 
   xmlEntityPtr entity = SharedXHTMLEntity();
-  entity->length = base::checked_cast<int>(entity_length_in_utf8);
+  entity->length = SafeCast<int>(entity_length_in_utf8);
   entity->name = name;
   return entity;
 }
@@ -1616,7 +1587,7 @@ void XMLDocumentParser::DoEnd() {
 xmlDocPtr XmlDocPtrForString(Document* document,
                              const String& source,
                              const String& url) {
-  if (source.empty())
+  if (source.IsEmpty())
     return nullptr;
   // Parse in a single chunk into an xmlDocPtr
   // FIXME: Hook up error handlers so that a failure to parse the main
@@ -1659,7 +1630,7 @@ void XMLDocumentParser::ResumeParsing() {
   parser_paused_ = false;
 
   // First, execute any pending callbacks
-  while (!pending_callbacks_.empty()) {
+  while (!pending_callbacks_.IsEmpty()) {
     callback_ = pending_callbacks_.TakeFirst();
     callback_->Call(this);
 
@@ -1684,7 +1655,7 @@ void XMLDocumentParser::ResumeParsing() {
 
   // Finally, if finish() has been called and write() didn't result
   // in any further callbacks being queued, call end()
-  if (finish_called_ && pending_callbacks_.empty())
+  if (finish_called_ && pending_callbacks_.IsEmpty())
     end();
 }
 
@@ -1782,7 +1753,7 @@ static void AttributesStartElementNsHandler(void* closure,
     int value_length = (int)(attributes[i].end - attributes[i].value);
     String attr_value = ToString(attributes[i].value, value_length);
     String attr_prefix = ToString(attributes[i].prefix);
-    String attr_q_name = attr_prefix.empty()
+    String attr_q_name = attr_prefix.IsEmpty()
                              ? attr_local_name
                              : attr_prefix + ":" + attr_local_name;
 

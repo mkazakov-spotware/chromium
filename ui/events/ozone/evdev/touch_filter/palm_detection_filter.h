@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <bitset>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "ui/events/ozone/evdev/touch_evdev_types.h"
 #include "ui/events/ozone/evdev/touch_filter/shared_palm_detection_filter_state.h"
@@ -47,7 +46,7 @@ class COMPONENT_EXPORT(EVDEV) PalmDetectionFilter {
 
  protected:
   // Not owned!
-  const raw_ptr<SharedPalmDetectionFilterState> shared_palm_state_;
+  SharedPalmDetectionFilterState* const shared_palm_state_;
 };
 
 }  // namespace ui

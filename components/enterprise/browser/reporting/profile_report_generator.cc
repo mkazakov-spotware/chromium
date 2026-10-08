@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,7 @@
 #include <utility>
 
 #include "base/files/file_path.h"
-#include "base/notreached.h"
-#include "build/chromeos_buildflags.h"
 #include "components/enterprise/browser/reporting/policy_info.h"
-#include "components/enterprise/browser/reporting/report_type.h"
-#include "components/enterprise/browser/reporting/report_util.h"
 #include "components/enterprise/browser/reporting/reporting_delegate_factory.h"
 #include "components/policy/core/browser/policy_conversions.h"
 
@@ -42,37 +38,33 @@ ProfileReportGenerator::MaybeGenerate(const base::FilePath& path,
   }
 
   report_ = std::make_unique<em::ChromeUserProfileInfo>();
+  report_->set_id(path.AsUTF8Unsafe());
 
-  switch (report_type) {
-    case ReportType::kFull:
-      report_->set_id(path.AsUTF8Unsafe());
-      break;
-    case ReportType::kProfileReport:
-      report_->set_id(ObfuscateFilePath(path.AsUTF8Unsafe()));
-      break;
-    case ReportType::kBrowserVersion:
-      NOTREACHED();
-      break;
-  }
+  if (report_type == ReportType::kExtensionRequest) {
+    delegate_->GetExtensionRequest(report_.get());
+    report_->set_is_full_report(true);
+#if defined(OS_CHROMEOS)
+    // Extension request is aggregated at the user level on CrOS.
+    report_->set_name(name);
+    delegate_->GetSigninUserInfo(report_.get());
+#endif  // defined(OS_CHROMEOS)
+  } else {
+    report_->set_name(name);
+    report_->set_is_full_report(true);
 
-  report_->set_name(name);
-  report_->set_is_detail_available(true);
+    delegate_->GetSigninUserInfo(report_.get());
+    if (extensions_enabled_) {
+      delegate_->GetExtensionInfo(report_.get());
+    }
+    delegate_->GetExtensionRequest(report_.get());
 
-  delegate_->GetSigninUserInfo(report_.get());
-  if (extensions_enabled_) {
-    delegate_->GetExtensionInfo(report_.get());
-  }
-  delegate_->GetExtensionRequest(report_.get());
-
-  if (policies_enabled_) {
-    // TODO(crbug.com/983151): Upload policy error as their IDs.
-    auto client = delegate_->MakePolicyConversionsClient();
-    // `client` may not be provided in unit test.
-    if (client) {
+    if (policies_enabled_) {
+      // TODO(crbug.com/983151): Upload policy error as their IDs.
+      auto client = delegate_->MakePolicyConversionsClient();
       policies_ = policy::DictionaryPolicyConversions(std::move(client))
                       .EnableConvertTypes(false)
                       .EnablePrettyPrint(false)
-                      .ToValueDict();
+                      .ToValue();
       GetChromePolicyInfo();
       GetExtensionPolicyInfo();
       GetPolicyFetchTimestampInfo();
@@ -91,10 +83,10 @@ void ProfileReportGenerator::GetExtensionPolicyInfo() {
 }
 
 void ProfileReportGenerator::GetPolicyFetchTimestampInfo() {
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   AppendMachineLevelUserCloudPolicyFetchTimestamp(
       report_.get(), delegate_->GetCloudPolicyManager());
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !defined(OS_CHROMEOS)
 }
 
 }  // namespace enterprise_reporting

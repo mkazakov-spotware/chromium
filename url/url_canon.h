@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 
 #include "base/component_export.h"
 #include "base/export_template.h"
-#include "base/memory/raw_ptr_exclusion.h"
-#include "base/numerics/clamped_math.h"
+#include "base/strings/string16.h"
 #include "url/third_party/mozilla/url_parse.h"
 
 namespace url {
@@ -29,33 +28,42 @@ namespace url {
 template<typename T>
 class CanonOutputT {
  public:
-  CanonOutputT() = default;
-  virtual ~CanonOutputT() = default;
+  CanonOutputT() : buffer_(nullptr), buffer_len_(0), cur_len_(0) {}
+  virtual ~CanonOutputT() {
+  }
 
   // Implemented to resize the buffer. This function should update the buffer
   // pointer to point to the new buffer, and any old data up to |cur_len_| in
   // the buffer must be copied over.
   //
   // The new size |sz| must be larger than buffer_len_.
-  virtual void Resize(size_t sz) = 0;
+  virtual void Resize(int sz) = 0;
 
   // Accessor for returning a character at a given position. The input offset
   // must be in the valid range.
-  inline T at(size_t offset) const { return buffer_[offset]; }
+  inline T at(int offset) const {
+    return buffer_[offset];
+  }
 
   // Sets the character at the given position. The given position MUST be less
   // than the length().
-  inline void set(size_t offset, T ch) { buffer_[offset] = ch; }
+  inline void set(int offset, T ch) {
+    buffer_[offset] = ch;
+  }
 
   // Returns the number of characters currently in the buffer.
-  inline size_t length() const { return cur_len_; }
+  inline int length() const {
+    return cur_len_;
+  }
 
   // Returns the current capacity of the buffer. The length() is the number of
   // characters that have been declared to be written, but the capacity() is
   // the number that can be written without reallocation. If the caller must
   // write many characters at once, it can make sure there is enough capacity,
   // write the data, then use set_size() to declare the new length().
-  size_t capacity() const { return buffer_len_; }
+  int capacity() const {
+    return buffer_len_;
+  }
 
   // Called by the user of this class to get the output. The output will NOT
   // be NULL-terminated. Call length() to get the
@@ -73,7 +81,9 @@ class CanonOutputT {
   // to declare the new length.
   //
   // This MUST NOT be used to expand the size of the buffer beyond capacity().
-  void set_length(size_t new_len) { cur_len_ = new_len; }
+  void set_length(int new_len) {
+    cur_len_ = new_len;
+  }
 
   // This is the most performance critical function, since it is called for
   // every character.
@@ -97,28 +107,28 @@ class CanonOutputT {
   }
 
   // Appends the given string to the output.
-  void Append(const T* str, size_t str_len) {
-    if (str_len > buffer_len_ - cur_len_) {
-      if (!Grow(str_len - (buffer_len_ - cur_len_)))
+  void Append(const T* str, int str_len) {
+    if (cur_len_ + str_len > buffer_len_) {
+      if (!Grow(cur_len_ + str_len - buffer_len_))
         return;
     }
-    for (size_t i = 0; i < str_len; i++)
+    for (int i = 0; i < str_len; i++)
       buffer_[cur_len_ + i] = str[i];
     cur_len_ += str_len;
   }
 
-  void ReserveSizeIfNeeded(size_t estimated_size) {
+  void ReserveSizeIfNeeded(int estimated_size) {
     // Reserve a bit extra to account for escaped chars.
     if (estimated_size > buffer_len_)
-      Resize((base::ClampedNumeric<size_t>(estimated_size) + 8).RawValue());
+      Resize(estimated_size + 8);
   }
 
  protected:
   // Grows the given buffer so that it can fit at least |min_additional|
   // characters. Returns true if the buffer could be resized, false on OOM.
-  bool Grow(size_t min_additional) {
-    static const size_t kMinBufferLen = 16;
-    size_t new_len = (buffer_len_ == 0) ? kMinBufferLen : buffer_len_;
+  bool Grow(int min_additional) {
+    static const int kMinBufferLen = 16;
+    int new_len = (buffer_len_ == 0) ? kMinBufferLen : buffer_len_;
     do {
       if (new_len >= (1 << 30))  // Prevent overflow below.
         return false;
@@ -128,13 +138,11 @@ class CanonOutputT {
     return true;
   }
 
-  // `buffer_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION T* buffer_ = nullptr;
-  size_t buffer_len_ = 0;
+  T* buffer_;
+  int buffer_len_;
 
   // Used characters in the buffer.
-  size_t cur_len_ = 0;
+  int cur_len_;
 };
 
 // Simple implementation of the CanonOutput using new[]. This class
@@ -152,7 +160,7 @@ class RawCanonOutputT : public CanonOutputT<T> {
       delete[] this->buffer_;
   }
 
-  void Resize(size_t sz) override {
+  void Resize(int sz) override {
     T* new_buf = new T[sz];
     memcpy(new_buf, this->buffer_,
            sizeof(T) * (this->cur_len_ < sz ? this->cur_len_ : sz));
@@ -170,18 +178,18 @@ class RawCanonOutputT : public CanonOutputT<T> {
 extern template class EXPORT_TEMPLATE_DECLARE(COMPONENT_EXPORT(URL))
     CanonOutputT<char>;
 extern template class EXPORT_TEMPLATE_DECLARE(COMPONENT_EXPORT(URL))
-    CanonOutputT<char16_t>;
+    CanonOutputT<base::char16>;
 
 // Normally, all canonicalization output is in narrow characters. We support
 // the templates so it can also be used internally if a wide buffer is
 // required.
 typedef CanonOutputT<char> CanonOutput;
-typedef CanonOutputT<char16_t> CanonOutputW;
+typedef CanonOutputT<base::char16> CanonOutputW;
 
 template<int fixed_capacity>
 class RawCanonOutput : public RawCanonOutputT<char, fixed_capacity> {};
-template <int fixed_capacity>
-class RawCanonOutputW : public RawCanonOutputT<char16_t, fixed_capacity> {};
+template<int fixed_capacity>
+class RawCanonOutputW : public RawCanonOutputT<base::char16, fixed_capacity> {};
 
 // Character set converter ----------------------------------------------------
 //
@@ -207,7 +215,7 @@ class COMPONENT_EXPORT(URL) CharsetConverter {
   // decimal, (such as "&#20320;") with escaping of the ampersand, number
   // sign, and semicolon (in the previous example it would be
   // "%26%2320320%3B"). This rule is based on what IE does in this situation.
-  virtual void ConvertFromUTF16(const char16_t* input,
+  virtual void ConvertFromUTF16(const base::char16* input,
                                 int input_len,
                                 CanonOutput* output) = 0;
 };
@@ -265,11 +273,11 @@ const char* RemoveURLWhitespace(const char* input,
                                 int* output_len,
                                 bool* potentially_dangling_markup);
 COMPONENT_EXPORT(URL)
-const char16_t* RemoveURLWhitespace(const char16_t* input,
-                                    int input_len,
-                                    CanonOutputT<char16_t>* buffer,
-                                    int* output_len,
-                                    bool* potentially_dangling_markup);
+const base::char16* RemoveURLWhitespace(const base::char16* input,
+                                        int input_len,
+                                        CanonOutputT<base::char16>* buffer,
+                                        int* output_len,
+                                        bool* potentially_dangling_markup);
 
 // IDN ------------------------------------------------------------------------
 
@@ -283,12 +291,12 @@ const char16_t* RemoveURLWhitespace(const char16_t* input,
 //
 // On error, returns false. The output in this case is undefined.
 COMPONENT_EXPORT(URL)
-bool IDNToASCII(const char16_t* src, int src_len, CanonOutputW* output);
+bool IDNToASCII(const base::char16* src, int src_len, CanonOutputW* output);
 
 // Piece-by-piece canonicalizers ----------------------------------------------
 //
 // These individual canonicalizers append the canonicalized versions of the
-// corresponding URL component to the given CanonOutput. The spec and the
+// corresponding URL component to the given std::string. The spec and the
 // previously-identified range of that component are the input. The range of
 // the canonicalized component will be written to the output component.
 //
@@ -315,7 +323,7 @@ bool CanonicalizeScheme(const char* spec,
                         CanonOutput* output,
                         Component* out_scheme);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeScheme(const char16_t* spec,
+bool CanonicalizeScheme(const base::char16* spec,
                         const Component& scheme,
                         CanonOutput* output,
                         Component* out_scheme);
@@ -339,9 +347,9 @@ bool CanonicalizeUserInfo(const char* username_source,
                           Component* out_username,
                           Component* out_password);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeUserInfo(const char16_t* username_source,
+bool CanonicalizeUserInfo(const base::char16* username_source,
                           const Component& username,
-                          const char16_t* password_source,
+                          const base::char16* password_source,
                           const Component& password,
                           CanonOutput* output,
                           Component* out_username,
@@ -403,7 +411,7 @@ bool CanonicalizeHost(const char* spec,
                       CanonOutput* output,
                       Component* out_host);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeHost(const char16_t* spec,
+bool CanonicalizeHost(const base::char16* spec,
                       const Component& host,
                       CanonOutput* output,
                       Component* out_host);
@@ -418,7 +426,7 @@ void CanonicalizeHostVerbose(const char* spec,
                              CanonOutput* output,
                              CanonHostInfo* host_info);
 COMPONENT_EXPORT(URL)
-void CanonicalizeHostVerbose(const char16_t* spec,
+void CanonicalizeHostVerbose(const base::char16* spec,
                              const Component& host,
                              CanonOutput* output,
                              CanonHostInfo* host_info);
@@ -448,7 +456,7 @@ bool CanonicalizeHostSubstring(const char* spec,
                                const Component& host,
                                CanonOutput* output);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeHostSubstring(const char16_t* spec,
+bool CanonicalizeHostSubstring(const base::char16* spec,
                                const Component& host,
                                CanonOutput* output);
 
@@ -468,7 +476,7 @@ void CanonicalizeIPAddress(const char* spec,
                            CanonOutput* output,
                            CanonHostInfo* host_info);
 COMPONENT_EXPORT(URL)
-void CanonicalizeIPAddress(const char16_t* spec,
+void CanonicalizeIPAddress(const base::char16* spec,
                            const Component& host,
                            CanonOutput* output,
                            CanonHostInfo* host_info);
@@ -485,7 +493,7 @@ bool CanonicalizePort(const char* spec,
                       CanonOutput* output,
                       Component* out_port);
 COMPONENT_EXPORT(URL)
-bool CanonicalizePort(const char16_t* spec,
+bool CanonicalizePort(const base::char16* spec,
                       const Component& port,
                       int default_port_for_scheme,
                       CanonOutput* output,
@@ -511,23 +519,10 @@ bool CanonicalizePath(const char* spec,
                       CanonOutput* output,
                       Component* out_path);
 COMPONENT_EXPORT(URL)
-bool CanonicalizePath(const char16_t* spec,
+bool CanonicalizePath(const base::char16* spec,
                       const Component& path,
                       CanonOutput* output,
                       Component* out_path);
-
-// Like CanonicalizePath(), but does not assume that its operating on the
-// entire path.  It therefore does not prepend a slash, etc.
-COMPONENT_EXPORT(URL)
-bool CanonicalizePartialPath(const char* spec,
-                             const Component& path,
-                             CanonOutput* output,
-                             Component* out_path);
-COMPONENT_EXPORT(URL)
-bool CanonicalizePartialPath(const char16_t* spec,
-                             const Component& path,
-                             CanonOutput* output,
-                             Component* out_path);
 
 // Canonicalizes the input as a file path. This is like CanonicalizePath except
 // that it also handles Windows drive specs. For example, the path can begin
@@ -541,7 +536,7 @@ bool FileCanonicalizePath(const char* spec,
                           CanonOutput* output,
                           Component* out_path);
 COMPONENT_EXPORT(URL)
-bool FileCanonicalizePath(const char16_t* spec,
+bool FileCanonicalizePath(const base::char16* spec,
                           const Component& path,
                           CanonOutput* output,
                           Component* out_path);
@@ -565,7 +560,7 @@ void CanonicalizeQuery(const char* spec,
                        CanonOutput* output,
                        Component* out_query);
 COMPONENT_EXPORT(URL)
-void CanonicalizeQuery(const char16_t* spec,
+void CanonicalizeQuery(const base::char16* spec,
                        const Component& query,
                        CharsetConverter* converter,
                        CanonOutput* output,
@@ -583,7 +578,7 @@ void CanonicalizeRef(const char* spec,
                      CanonOutput* output,
                      Component* out_path);
 COMPONENT_EXPORT(URL)
-void CanonicalizeRef(const char16_t* spec,
+void CanonicalizeRef(const base::char16* spec,
                      const Component& path,
                      CanonOutput* output,
                      Component* out_path);
@@ -608,7 +603,7 @@ bool CanonicalizeStandardURL(const char* spec,
                              CanonOutput* output,
                              Parsed* new_parsed);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeStandardURL(const char16_t* spec,
+bool CanonicalizeStandardURL(const base::char16* spec,
                              int spec_len,
                              const Parsed& parsed,
                              SchemeType scheme_type,
@@ -625,7 +620,7 @@ bool CanonicalizeFileURL(const char* spec,
                          CanonOutput* output,
                          Parsed* new_parsed);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeFileURL(const char16_t* spec,
+bool CanonicalizeFileURL(const base::char16* spec,
                          int spec_len,
                          const Parsed& parsed,
                          CharsetConverter* query_converter,
@@ -641,7 +636,7 @@ bool CanonicalizeFileSystemURL(const char* spec,
                                CanonOutput* output,
                                Parsed* new_parsed);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeFileSystemURL(const char16_t* spec,
+bool CanonicalizeFileSystemURL(const base::char16* spec,
                                int spec_len,
                                const Parsed& parsed,
                                CharsetConverter* query_converter,
@@ -657,24 +652,11 @@ bool CanonicalizePathURL(const char* spec,
                          CanonOutput* output,
                          Parsed* new_parsed);
 COMPONENT_EXPORT(URL)
-bool CanonicalizePathURL(const char16_t* spec,
+bool CanonicalizePathURL(const base::char16* spec,
                          int spec_len,
                          const Parsed& parsed,
                          CanonOutput* output,
                          Parsed* new_parsed);
-
-// Use to canonicalize just the path component of a "path" URL; e.g. the
-// path of a javascript URL.
-COMPONENT_EXPORT(URL)
-void CanonicalizePathURLPath(const char* source,
-                             const Component& component,
-                             CanonOutput* output,
-                             Component* new_component);
-COMPONENT_EXPORT(URL)
-void CanonicalizePathURLPath(const char16_t* source,
-                             const Component& component,
-                             CanonOutput* output,
-                             Component* new_component);
 
 // Use for mailto URLs. This "canonicalizes" the URL into a path and query
 // component. It does not attempt to merge "to" fields. It uses UTF-8 for
@@ -688,7 +670,7 @@ bool CanonicalizeMailtoURL(const char* spec,
                            CanonOutput* output,
                            Parsed* new_parsed);
 COMPONENT_EXPORT(URL)
-bool CanonicalizeMailtoURL(const char16_t* spec,
+bool CanonicalizeMailtoURL(const base::char16* spec,
                            int spec_len,
                            const Parsed& parsed,
                            CanonOutput* output,
@@ -887,7 +869,7 @@ bool ReplaceStandardURL(const char* base,
 COMPONENT_EXPORT(URL)
 bool ReplaceStandardURL(const char* base,
                         const Parsed& base_parsed,
-                        const Replacements<char16_t>& replacements,
+                        const Replacements<base::char16>& replacements,
                         SchemeType scheme_type,
                         CharsetConverter* query_converter,
                         CanonOutput* output,
@@ -905,7 +887,7 @@ bool ReplaceFileSystemURL(const char* base,
 COMPONENT_EXPORT(URL)
 bool ReplaceFileSystemURL(const char* base,
                           const Parsed& base_parsed,
-                          const Replacements<char16_t>& replacements,
+                          const Replacements<base::char16>& replacements,
                           CharsetConverter* query_converter,
                           CanonOutput* output,
                           Parsed* new_parsed);
@@ -922,7 +904,7 @@ bool ReplaceFileURL(const char* base,
 COMPONENT_EXPORT(URL)
 bool ReplaceFileURL(const char* base,
                     const Parsed& base_parsed,
-                    const Replacements<char16_t>& replacements,
+                    const Replacements<base::char16>& replacements,
                     CharsetConverter* query_converter,
                     CanonOutput* output,
                     Parsed* new_parsed);
@@ -938,7 +920,7 @@ bool ReplacePathURL(const char* base,
 COMPONENT_EXPORT(URL)
 bool ReplacePathURL(const char* base,
                     const Parsed& base_parsed,
-                    const Replacements<char16_t>& replacements,
+                    const Replacements<base::char16>& replacements,
                     CanonOutput* output,
                     Parsed* new_parsed);
 
@@ -953,7 +935,7 @@ bool ReplaceMailtoURL(const char* base,
 COMPONENT_EXPORT(URL)
 bool ReplaceMailtoURL(const char* base,
                       const Parsed& base_parsed,
-                      const Replacements<char16_t>& replacements,
+                      const Replacements<base::char16>& replacements,
                       CanonOutput* output,
                       Parsed* new_parsed);
 
@@ -981,7 +963,7 @@ bool IsRelativeURL(const char* base,
 COMPONENT_EXPORT(URL)
 bool IsRelativeURL(const char* base,
                    const Parsed& base_parsed,
-                   const char16_t* fragment,
+                   const base::char16* fragment,
                    int fragment_len,
                    bool is_base_hierarchical,
                    bool* is_relative,
@@ -1018,7 +1000,7 @@ COMPONENT_EXPORT(URL)
 bool ResolveRelativeURL(const char* base_url,
                         const Parsed& base_parsed,
                         bool base_is_file,
-                        const char16_t* relative_url,
+                        const base::char16* relative_url,
                         const Component& relative_component,
                         CharsetConverter* query_converter,
                         CanonOutput* output,

@@ -34,7 +34,6 @@
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
-#include "third_party/blink/renderer/core/inspector/identifiers_factory.h"
 #include "third_party/blink/renderer/core/inspector/inspected_frames.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/modules/storage/cached_storage_area.h"
@@ -42,7 +41,7 @@
 #include "third_party/blink/renderer/modules/storage/storage_controller.h"
 #include "third_party/blink/renderer/modules/storage/storage_namespace.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/storage/blink_storage_key.h"
+#include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 
 namespace blink {
 using protocol::Response;
@@ -177,12 +176,10 @@ Response InspectorDOMStorageAgent::removeDOMStorageItem(
 }
 
 std::unique_ptr<protocol::DOMStorage::StorageId>
-InspectorDOMStorageAgent::GetStorageId(const BlinkStorageKey& storage_key,
+InspectorDOMStorageAgent::GetStorageId(const SecurityOrigin* security_origin,
                                        bool is_local_storage) {
   return protocol::DOMStorage::StorageId::create()
-      .setStorageKey(
-          WTF::String(static_cast<StorageKey>(storage_key).Serialize()))
-      .setSecurityOrigin(storage_key.GetSecurityOrigin()->ToRawString())
+      .setSecurityOrigin(security_origin->ToRawString())
       .setIsLocalStorage(is_local_storage)
       .build();
 }
@@ -192,12 +189,12 @@ void InspectorDOMStorageAgent::DidDispatchDOMStorageEvent(
     const String& old_value,
     const String& new_value,
     StorageArea::StorageType storage_type,
-    const BlinkStorageKey& storage_key) {
+    const SecurityOrigin* security_origin) {
   if (!GetFrontend())
     return;
 
   std::unique_ptr<protocol::DOMStorage::StorageId> id = GetStorageId(
-      storage_key, storage_type == StorageArea::StorageType::kLocalStorage);
+      security_origin, storage_type == StorageArea::StorageType::kLocalStorage);
 
   if (key.IsNull())
     GetFrontend()->domStorageItemsCleared(std::move(id));
@@ -210,32 +207,16 @@ void InspectorDOMStorageAgent::DidDispatchDOMStorageEvent(
                                          new_value);
 }
 
-namespace {
-LocalFrame* FrameWithStorageKey(const String& key_raw_string,
-                                InspectedFrames& frames) {
-  for (LocalFrame* frame : frames) {
-    // any frame with given storage key would do, as it's only needed to satisfy
-    // the current API
-    if (static_cast<StorageKey>(frame->DomWindow()->GetStorageKey())
-            .Serialize() == key_raw_string.Utf8())
-      return frame;
-  }
-  return nullptr;
-}
-}  // namespace
-
 Response InspectorDOMStorageAgent::FindStorageArea(
     std::unique_ptr<protocol::DOMStorage::StorageId> storage_id,
     StorageArea*& storage_area) {
-  String security_origin = storage_id->getSecurityOrigin("");
-  String storage_key = storage_id->getStorageKey("");
+  String security_origin = storage_id->getSecurityOrigin();
   bool is_local_storage = storage_id->getIsLocalStorage();
-  LocalFrame* const frame =
-      storage_key ? FrameWithStorageKey(storage_key, *inspected_frames_)
-                  : inspected_frames_->FrameWithSecurityOrigin(security_origin);
-
+  LocalFrame* frame =
+      inspected_frames_->FrameWithSecurityOrigin(security_origin);
   if (!frame) {
-    return Response::ServerError("Frame not found for the given storage id");
+    return Response::ServerError(
+        "Frame not found for the given security origin");
   }
   if (is_local_storage) {
     if (!frame->DomWindow()->GetSecurityOrigin()->CanAccessLocalStorage()) {
@@ -245,7 +226,7 @@ Response InspectorDOMStorageAgent::FindStorageArea(
     storage_area = StorageArea::CreateForInspectorAgent(
         frame->DomWindow(),
         StorageController::GetInstance()->GetLocalStorageArea(
-            frame->DomWindow()),
+            frame->DomWindow()->GetSecurityOrigin()),
         StorageArea::StorageType::kLocalStorage);
     return Response::Success();
   }
@@ -261,7 +242,8 @@ Response InspectorDOMStorageAgent::FindStorageArea(
   DCHECK(session_namespace->IsSessionStorage());
 
   storage_area = StorageArea::CreateForInspectorAgent(
-      frame->DomWindow(), session_namespace->GetCachedArea(frame->DomWindow()),
+      frame->DomWindow(),
+      session_namespace->GetCachedArea(frame->DomWindow()->GetSecurityOrigin()),
       StorageArea::StorageType::kSessionStorage);
   return Response::Success();
 }

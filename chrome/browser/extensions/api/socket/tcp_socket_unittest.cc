@@ -1,9 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/test/bind.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
@@ -19,8 +20,6 @@
 #include "net/base/test_completion_callback.h"
 #include "net/socket/socket_test_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "services/network/network_context.h"
 #include "services/network/public/mojom/network_context.mojom.h"
@@ -37,9 +36,8 @@ const char FAKE_ID[] = "abcdefghijklmnopqrst";
 class TCPSocketUnitTestBase : public extensions::ExtensionServiceTestBase {
  public:
   TCPSocketUnitTestBase()
-      : url_request_context_builder_(
-            net::CreateTestURLRequestContextBuilder()) {}
-  ~TCPSocketUnitTestBase() override = default;
+      : url_request_context_(true /* delay_initialization */) {}
+  ~TCPSocketUnitTestBase() override {}
 
   std::unique_ptr<TCPSocket> CreateSocket() {
     auto socket = std::make_unique<TCPSocket>(&profile_, FAKE_ID);
@@ -91,19 +89,18 @@ class TCPSocketUnitTestBase : public extensions::ExtensionServiceTestBase {
   void SetUp() override { InitializeEmptyExtensionService(); }
 
   void Initialize() {
-    url_request_context_ = url_request_context_builder_->Build();
+    url_request_context_.Init();
     network_context_ = std::make_unique<network::NetworkContext>(
         nullptr, network_context_remote_.BindNewPipeAndPassReceiver(),
-        url_request_context_.get(),
+        &url_request_context_,
         /*cors_exempt_header_list=*/std::vector<std::string>());
     partition_.set_network_context(network_context_remote_.get());
   }
 
-  std::unique_ptr<net::URLRequestContextBuilder> url_request_context_builder_;
+  net::TestURLRequestContext url_request_context_;
 
  private:
   TestingProfile profile_;
-  std::unique_ptr<net::URLRequestContext> url_request_context_;
   content::TestStoragePartition partition_;
   std::unique_ptr<network::NetworkContext> network_context_;
   mojo::Remote<network::mojom::NetworkContext> network_context_remote_;
@@ -116,7 +113,7 @@ class TCPSocketUnitTest : public TCPSocketUnitTestBase,
  public:
   TCPSocketUnitTest() : TCPSocketUnitTestBase() {
     mock_client_socket_factory_.set_enable_read_if_ready(true);
-    url_request_context_builder_->set_client_socket_factory_for_testing(
+    url_request_context_.set_client_socket_factory(
         &mock_client_socket_factory_);
     Initialize();
   }
@@ -477,11 +474,6 @@ class ExtensionsMockClientSocket : public net::MockTCPClientSocket {
         success_(success) {
     this->set_enable_read_if_ready(true);
   }
-
-  ExtensionsMockClientSocket(const ExtensionsMockClientSocket&) = delete;
-  ExtensionsMockClientSocket& operator=(const ExtensionsMockClientSocket&) =
-      delete;
-
   ~ExtensionsMockClientSocket() override {}
 
   bool SetNoDelay(bool no_delay) override { return success_; }
@@ -490,6 +482,8 @@ class ExtensionsMockClientSocket : public net::MockTCPClientSocket {
  private:
   // Whether to return success for SetNoDelay() and SetKeepAlive().
   const bool success_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionsMockClientSocket);
 };
 
 static const net::MockRead kMockReads[] = {net::MockRead(net::ASYNC, net::OK)};
@@ -499,10 +493,6 @@ static const net::MockRead kMockReads[] = {net::MockRead(net::ASYNC, net::OK)};
 class TestSocketFactory : public net::ClientSocketFactory {
  public:
   explicit TestSocketFactory(bool success) : success_(success) {}
-
-  TestSocketFactory(const TestSocketFactory&) = delete;
-  TestSocketFactory& operator=(const TestSocketFactory&) = delete;
-
   ~TestSocketFactory() override = default;
 
   std::unique_ptr<net::DatagramClientSocket> CreateDatagramClientSocket(
@@ -531,12 +521,28 @@ class TestSocketFactory : public net::ClientSocketFactory {
     NOTIMPLEMENTED();
     return nullptr;
   }
+  std::unique_ptr<net::ProxyClientSocket> CreateProxyClientSocket(
+      std::unique_ptr<net::StreamSocket> stream_socket,
+      const std::string& user_agent,
+      const net::HostPortPair& endpoint,
+      const net::ProxyServer& proxy_server,
+      net::HttpAuthController* http_auth_controller,
+      bool tunnel,
+      bool using_spdy,
+      net::NextProto negotiated_protocol,
+      net::ProxyDelegate* proxy_delegate,
+      const net::NetworkTrafficAnnotationTag& traffic_annotation) override {
+    NOTIMPLEMENTED();
+    return nullptr;
+  }
 
  private:
   std::vector<std::unique_ptr<net::StaticSocketDataProvider>> providers_;
   // Whether to return success for net::TransportClientSocket::SetNoDelay() and
   // SetKeepAlive().
   const bool success_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestSocketFactory);
 };
 
 }  // namespace
@@ -544,9 +550,9 @@ class TestSocketFactory : public net::ClientSocketFactory {
 class TCPSocketSettingsTest : public TCPSocketUnitTestBase,
                               public ::testing::WithParamInterface<bool> {
  public:
-  TCPSocketSettingsTest() : client_socket_factory_(GetParam()) {
-    url_request_context_builder_->set_client_socket_factory_for_testing(
-        &client_socket_factory_);
+  TCPSocketSettingsTest()
+      : TCPSocketUnitTestBase(), client_socket_factory_(GetParam()) {
+    url_request_context_.set_client_socket_factory(&client_socket_factory_);
     Initialize();
   }
   ~TCPSocketSettingsTest() override {}
@@ -635,7 +641,7 @@ TEST_F(TCPSocketServerTest, ListenAccept) {
       [&](int result,
           mojo::PendingRemote<network::mojom::TCPConnectedSocket>
               accepted_socket,
-          const absl::optional<net::IPEndPoint>& remote_addr,
+          const base::Optional<net::IPEndPoint>& remote_addr,
           mojo::ScopedDataPipeConsumerHandle receive_handle,
           mojo::ScopedDataPipeProducerHandle send_handle) {
         EXPECT_EQ(net::OK, result);
@@ -674,16 +680,14 @@ TEST_F(TCPSocketServerTest, ReadAndWrite) {
   // Create a server socket.
   std::unique_ptr<TCPSocket> socket = CreateSocket();
   net::TestCompletionCallback callback;
-  {
-    base::RunLoop run_loop;
-    socket->Listen("127.0.0.1", 0 /* port */, 1 /* backlog */,
-                   base::BindLambdaForTesting(
-                       [&](int result, const std::string& error_msg) {
-                         EXPECT_EQ(net::OK, result);
-                         run_loop.Quit();
-                       }));
-    run_loop.Run();
-  }
+  base::RunLoop run_loop;
+  socket->Listen(
+      "127.0.0.1", 0 /* port */, 1 /* backlog */,
+      base::BindLambdaForTesting([&](int result, const std::string& error_msg) {
+        EXPECT_EQ(net::OK, result);
+        run_loop.Quit();
+      }));
+  run_loop.Run();
   net::IPEndPoint server_addr;
   EXPECT_TRUE(socket->GetLocalAddress(&server_addr));
 
@@ -694,7 +698,7 @@ TEST_F(TCPSocketServerTest, ReadAndWrite) {
       [&](int result,
           mojo::PendingRemote<network::mojom::TCPConnectedSocket>
               connected_socket,
-          const absl::optional<net::IPEndPoint>& remote_addr,
+          const base::Optional<net::IPEndPoint>& remote_addr,
           mojo::ScopedDataPipeConsumerHandle receive_handle,
           mojo::ScopedDataPipeProducerHandle send_handle) {
         EXPECT_EQ(net::OK, result);

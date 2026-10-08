@@ -1,24 +1,23 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/scroll/programmatic_scroll_animator.h"
 
 #include <memory>
-
-#include "cc/animation/animation_id_provider.h"
-#include "cc/animation/scroll_offset_animation_curve_factory.h"
-#include "cc/trees/target_property.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/smooth_scroll_sequencer.h"
-#include "ui/gfx/geometry/size.h"
+#include "third_party/blink/renderer/platform/animation/compositor_keyframe_model.h"
+#include "third_party/blink/renderer/platform/animation/compositor_scroll_offset_animation_curve.h"
+#include "third_party/blink/renderer/platform/geometry/int_size.h"
+#include "third_party/blink/renderer/platform/graphics/graphics_layer.h"
 
 namespace blink {
 
 ProgrammaticScrollAnimator::ProgrammaticScrollAnimator(
     ScrollableArea* scrollable_area)
-    : scrollable_area_(scrollable_area) {}
+    : scrollable_area_(scrollable_area), start_time_(0.0) {}
 
 ProgrammaticScrollAnimator::~ProgrammaticScrollAnimator() {
   if (on_finish_)
@@ -28,14 +27,17 @@ ProgrammaticScrollAnimator::~ProgrammaticScrollAnimator() {
 void ProgrammaticScrollAnimator::ResetAnimationState() {
   ScrollAnimatorCompositorCoordinator::ResetAnimationState();
   animation_curve_.reset();
-  start_time_ = base::TimeTicks();
+  start_time_ = 0.0;
   if (on_finish_)
     std::move(on_finish_).Run();
 }
 
-mojom::blink::ScrollType ProgrammaticScrollAnimator::GetScrollType() const {
-  return is_sequenced_scroll_ ? mojom::blink::ScrollType::kSequenced
-                              : mojom::blink::ScrollType::kProgrammatic;
+void ProgrammaticScrollAnimator::NotifyOffsetChanged(
+    const ScrollOffset& offset) {
+  mojom::blink::ScrollType scroll_type =
+      is_sequenced_scroll_ ? mojom::blink::ScrollType::kSequenced
+                           : mojom::blink::ScrollType::kProgrammatic;
+  ScrollOffsetChanged(offset, scroll_type);
 }
 
 void ProgrammaticScrollAnimator::ScrollToOffsetWithoutAnimation(
@@ -43,7 +45,7 @@ void ProgrammaticScrollAnimator::ScrollToOffsetWithoutAnimation(
     bool is_sequenced_scroll) {
   CancelAnimation();
   is_sequenced_scroll_ = is_sequenced_scroll;
-  ScrollOffsetChanged(offset, GetScrollType());
+  NotifyOffsetChanged(offset);
   is_sequenced_scroll_ = false;
   if (SmoothScrollSequencer* sequencer =
           GetScrollableArea()->GetSmoothScrollSequencer())
@@ -57,20 +59,20 @@ void ProgrammaticScrollAnimator::AnimateToOffset(
   if (run_state_ == RunState::kPostAnimationCleanup)
     ResetAnimationState();
 
-  start_time_ = base::TimeTicks();
+  start_time_ = 0.0;
   target_offset_ = offset;
   is_sequenced_scroll_ = is_sequenced_scroll;
   if (on_finish_)
     std::move(on_finish_).Run();
   on_finish_ = std::move(on_finish);
-  animation_curve_ = cc::ScrollOffsetAnimationCurveFactory::CreateAnimation(
+  animation_curve_ = std::make_unique<CompositorScrollOffsetAnimationCurve>(
       CompositorOffsetFromBlinkOffset(target_offset_),
-      cc::ScrollOffsetAnimationCurveFactory::ScrollType::kProgrammatic);
+      CompositorScrollOffsetAnimationCurve::ScrollType::kProgrammatic);
 
   scrollable_area_->RegisterForAnimation();
   if (!scrollable_area_->ScheduleAnimation()) {
     ResetAnimationState();
-    ScrollOffsetChanged(offset, GetScrollType());
+    NotifyOffsetChanged(offset);
   }
   run_state_ = RunState::kWaitingToSendToCompositor;
 }
@@ -82,23 +84,23 @@ void ProgrammaticScrollAnimator::CancelAnimation() {
     std::move(on_finish_).Run();
 }
 
-void ProgrammaticScrollAnimator::TickAnimation(base::TimeTicks monotonic_time) {
+void ProgrammaticScrollAnimator::TickAnimation(double monotonic_time) {
   if (run_state_ != RunState::kRunningOnMainThread)
     return;
 
-  if (start_time_ == base::TimeTicks())
+  if (!start_time_)
     start_time_ = monotonic_time;
-  base::TimeDelta elapsed_time = monotonic_time - start_time_;
+  double elapsed_time = monotonic_time - start_time_;
   bool is_finished = (elapsed_time > animation_curve_->Duration());
   ScrollOffset offset =
       BlinkOffsetFromCompositorOffset(animation_curve_->GetValue(elapsed_time));
-  ScrollOffsetChanged(offset, GetScrollType());
+  NotifyOffsetChanged(offset);
 
   if (is_finished) {
     run_state_ = RunState::kPostAnimationCleanup;
     AnimationFinished();
   } else if (!scrollable_area_->ScheduleAnimation()) {
-    ScrollOffsetChanged(offset, GetScrollType());
+    NotifyOffsetChanged(offset);
     ResetAnimationState();
   }
 }
@@ -141,12 +143,8 @@ void ProgrammaticScrollAnimator::UpdateCompositorAnimations() {
     // crbug.com/730705
     if (!scrollable_area_->ShouldScrollOnMainThread() &&
         !is_sequenced_scroll_) {
-      auto animation = cc::KeyframeModel::Create(
-          animation_curve_->Clone(),
-          cc::AnimationIdProvider::NextKeyframeModelId(),
-          cc::AnimationIdProvider::NextGroupId(),
-          cc::KeyframeModel::TargetPropertyId(
-              cc::TargetProperty::SCROLL_OFFSET));
+      auto animation = std::make_unique<CompositorKeyframeModel>(
+          *animation_curve_, compositor_target_property::SCROLL_OFFSET, 0, 0);
 
       if (AddAnimation(std::move(animation))) {
         sent_to_compositor = true;
@@ -159,21 +157,21 @@ void ProgrammaticScrollAnimator::UpdateCompositorAnimations() {
       animation_curve_->SetInitialValue(
           CompositorOffsetFromBlinkOffset(scrollable_area_->GetScrollOffset()));
       if (!scrollable_area_->ScheduleAnimation()) {
-        ScrollOffsetChanged(target_offset_, GetScrollType());
+        NotifyOffsetChanged(target_offset_);
         ResetAnimationState();
       }
     }
   }
 }
 
-void ProgrammaticScrollAnimator::MainThreadScrollingDidChange() {
-  ReattachCompositorAnimationIfNeeded(
-      scrollable_area_->GetCompositorAnimationTimeline());
+void ProgrammaticScrollAnimator::LayerForCompositedScrollingDidChange(
+    CompositorAnimationTimeline* timeline) {
+  ReattachCompositorAnimationIfNeeded(timeline);
 
-  // If the scrollable area switched to require main thread scrolling during a
-  // composited animation, continue the animation on the main thread.
+  // If the composited scrolling layer is lost during a composited animation,
+  // continue the animation on the main thread.
   if (run_state_ == RunState::kRunningOnCompositor &&
-      scrollable_area_->ShouldScrollOnMainThread()) {
+      !scrollable_area_->LayerForScrolling()) {
     RemoveAnimation();
     run_state_ = RunState::kRunningOnMainThread;
     animation_curve_->SetInitialValue(
@@ -181,7 +179,7 @@ void ProgrammaticScrollAnimator::MainThreadScrollingDidChange() {
     scrollable_area_->RegisterForAnimation();
     if (!scrollable_area_->ScheduleAnimation()) {
       ResetAnimationState();
-      ScrollOffsetChanged(target_offset_, GetScrollType());
+      NotifyOffsetChanged(target_offset_);
     }
   }
 }

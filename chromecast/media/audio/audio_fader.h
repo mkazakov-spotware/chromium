@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <cstdint>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
-#include "chromecast/media/api/audio_provider.h"
+#include "chromecast/media/audio/audio_provider.h"
 #include "chromecast/media/audio/cast_audio_bus.h"
 
 namespace chromecast {
@@ -27,10 +28,6 @@ class AudioFader : public AudioProvider {
              base::TimeDelta fade_time,
              double playback_rate);
   AudioFader(AudioProvider* provider, int fade_frames, double playback_rate);
-
-  AudioFader(const AudioFader&) = delete;
-  AudioFader& operator=(const AudioFader&) = delete;
-
   ~AudioFader() override;
 
   int buffered_frames() const { return buffered_frames_; }
@@ -41,10 +38,6 @@ class AudioFader : public AudioProvider {
                  float* const* channel_data) override;
   size_t num_channels() const override;
   int sample_rate() const override;
-
-  void set_playback_rate(double playback_rate) {
-    playback_rate_ = playback_rate;
-  }
 
   // Returns the total number of frames that will be requested from the source
   // (potentially over multiple calls to source_->FillFaderFrames()) if
@@ -88,12 +81,14 @@ class AudioFader : public AudioProvider {
   const int fade_frames_;
   const size_t num_channels_;
   const int sample_rate_;
-  double playback_rate_;
+  const double playback_rate_;
 
   State state_ = State::kSilent;
   std::unique_ptr<CastAudioBus> fade_buffer_;
   int buffered_frames_ = 0;
   int fade_frames_remaining_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioFader);
 };
 
 }  // namespace media

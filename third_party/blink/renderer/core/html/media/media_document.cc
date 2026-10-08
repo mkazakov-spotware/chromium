@@ -25,6 +25,8 @@
 
 #include "third_party/blink/renderer/core/html/media/media_document.h"
 
+#include "base/macros.h"
+#include "third_party/blink/renderer/bindings/core/v8/add_event_listener_options_or_boolean.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/dom/events/event_listener.h"
@@ -44,7 +46,7 @@
 #include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/keyboard_codes.h"
 
@@ -82,8 +84,7 @@ void MediaDocumentParser::CreateDocumentStructure() {
     return;  // runScriptsAtDocumentElementAvailable can detach the frame.
 
   auto* head = MakeGarbageCollected<HTMLHeadElement>(*GetDocument());
-  auto* meta = MakeGarbageCollected<HTMLMetaElement>(*GetDocument(),
-                                                     CreateElementFlags());
+  auto* meta = MakeGarbageCollected<HTMLMetaElement>(*GetDocument());
   meta->setAttribute(html_names::kNameAttr, "viewport");
   meta->setAttribute(html_names::kContentAttr, "width=device-width");
   head->AppendChild(meta);
@@ -124,7 +125,7 @@ MediaDocument::MediaDocument(const DocumentInit& initializer)
   LockCompatibilityMode();
 
   // Set the autoplay policy to kNoUserGestureRequired.
-  if (GetSettings() && IsInOutermostMainFrame()) {
+  if (GetSettings() && IsInMainFrame()) {
     GetSettings()->SetAutoplayPolicy(
         AutoplayPolicy::Type::kNoUserGestureRequired);
   }

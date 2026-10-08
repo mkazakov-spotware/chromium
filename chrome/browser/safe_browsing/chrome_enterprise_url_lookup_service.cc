@@ -1,22 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/chrome_enterprise_url_lookup_service.h"
 
 #include "base/callback.h"
-#include "chrome/browser/enterprise/connectors/connectors_service.h"
+#include "base/task/post_task.h"
 #include "chrome/browser/policy/dm_token_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/policy/core/common/cloud/dm_token.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/core/browser/realtime/policy_engine.h"
-#include "components/safe_browsing/core/browser/realtime/url_lookup_service_base.h"
-#include "components/safe_browsing/core/browser/referrer_chain_provider.h"
-#include "components/safe_browsing/core/browser/verdict_cache_manager.h"
-#include "components/safe_browsing/core/common/features.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
-#include "components/safe_browsing/core/common/proto/realtimeapi.pb.h"
+#include "components/safe_browsing/core/common/thread_utils.h"
+#include "components/safe_browsing/core/features.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
+#include "components/safe_browsing/core/proto/realtimeapi.pb.h"
+#include "components/safe_browsing/core/realtime/policy_engine.h"
+#include "components/safe_browsing/core/realtime/url_lookup_service_base.h"
+#include "components/safe_browsing/core/verdict_cache_manager.h"
+#include "components/sync/driver/sync_service.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "url/gurl.h"
@@ -28,24 +29,27 @@ ChromeEnterpriseRealTimeUrlLookupService::
         scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
         VerdictCacheManager* cache_manager,
         Profile* profile,
-        base::RepeatingCallback<ChromeUserPopulation()>
-            get_user_population_callback,
-        enterprise_connectors::ConnectorsService* connectors_service,
-        ReferrerChainProvider* referrer_chain_provider)
+        syncer::SyncService* sync_service,
+        PrefService* pref_service,
+        const ChromeUserPopulation::ProfileManagementStatus&
+            profile_management_status,
+        bool is_under_advanced_protection,
+        bool is_off_the_record)
     : RealTimeUrlLookupServiceBase(url_loader_factory,
                                    cache_manager,
-                                   get_user_population_callback,
-                                   referrer_chain_provider),
-      profile_(profile),
-      connectors_service_(connectors_service) {}
+                                   sync_service,
+                                   pref_service,
+                                   profile_management_status,
+                                   is_under_advanced_protection,
+                                   is_off_the_record),
+      profile_(profile) {}
 
 ChromeEnterpriseRealTimeUrlLookupService::
     ~ChromeEnterpriseRealTimeUrlLookupService() = default;
 
 bool ChromeEnterpriseRealTimeUrlLookupService::CanPerformFullURLLookup() const {
   return RealTimePolicyEngine::CanPerformEnterpriseFullURLLookup(
-      profile_->GetPrefs(),
-      connectors_service_->GetDMTokenForRealTimeUrlCheck().has_value(),
+      profile_->GetPrefs(), GetDMToken().is_valid(),
       profile_->IsOffTheRecord());
 }
 
@@ -55,59 +59,30 @@ bool ChromeEnterpriseRealTimeUrlLookupService::
   return false;
 }
 
-int ChromeEnterpriseRealTimeUrlLookupService::GetReferrerUserGestureLimit()
-    const {
-  return 2;
-}
-
-bool ChromeEnterpriseRealTimeUrlLookupService::CanSendPageLoadToken() const {
-  // Page load token is disabled for enterprise users.
-  return false;
-}
-
 bool ChromeEnterpriseRealTimeUrlLookupService::CanCheckSubresourceURL() const {
   return false;
 }
 
 bool ChromeEnterpriseRealTimeUrlLookupService::CanCheckSafeBrowsingDb() const {
-  // Check database if safe browsing is enabled.
   return safe_browsing::IsSafeBrowsingEnabled(*profile_->GetPrefs());
-}
-
-bool ChromeEnterpriseRealTimeUrlLookupService::
-    CanCheckSafeBrowsingHighConfidenceAllowlist() const {
-  // Check allowlist if it can check database and allowlist bypass is
-  // disabled. Check the feature value at the end. This ensures that with the
-  // finch experiment set to starts_active false, the active users in our
-  // control and experimental arms will be a comparable population (Enterprise
-  // users with SafeBrowsing and RTLookup enabled)
-  return CanCheckSafeBrowsingDb() &&
-         (!CanPerformFullURLLookup() ||
-          !base::FeatureList::IsEnabled(
-              safe_browsing::kRealTimeUrlLookupForEnterpriseAllowlistBypass));
 }
 
 void ChromeEnterpriseRealTimeUrlLookupService::GetAccessToken(
     const GURL& url,
-    const GURL& last_committed_url,
-    bool is_mainframe,
     RTLookupRequestCallback request_callback,
-    RTLookupResponseCallback response_callback,
-    scoped_refptr<base::SequencedTaskRunner> callback_task_runner) {
+    RTLookupResponseCallback response_callback) {
   NOTREACHED() << "URL lookup with token is disabled for enterprise users.";
 }
 
-absl::optional<std::string>
-ChromeEnterpriseRealTimeUrlLookupService::GetDMTokenString() const {
-  DCHECK(connectors_service_);
-  return connectors_service_->GetDMTokenForRealTimeUrlCheck();
+policy::DMToken ChromeEnterpriseRealTimeUrlLookupService::GetDMToken() const {
+  return policy::GetDMToken(profile_);
 }
 
-GURL ChromeEnterpriseRealTimeUrlLookupService::GetRealTimeLookupUrl() const {
-  std::string endpoint =
-      "https://enterprise-safebrowsing.googleapis.com/"
-      "safebrowsing/clientreport/realtime";
-  return GURL(endpoint);
+base::Optional<std::string>
+ChromeEnterpriseRealTimeUrlLookupService::GetDMTokenString() const {
+  DCHECK(GetDMToken().is_valid())
+      << "Get a dm token string only if the dm token is valid.";
+  return GetDMToken().value();
 }
 
 net::NetworkTrafficAnnotationTag
@@ -153,19 +128,7 @@ std::string ChromeEnterpriseRealTimeUrlLookupService::GetMetricSuffix() const {
 
 bool ChromeEnterpriseRealTimeUrlLookupService::ShouldIncludeCredentials()
     const {
-  return false;
-}
-
-double ChromeEnterpriseRealTimeUrlLookupService::
-    GetMinAllowedTimestampForReferrerChains() const {
-  // Enterprise URL lookup is enabled at startup and managed by the admin, so
-  // all referrer URLs should be included in the referrer chain.
-  return 0;
-}
-
-bool ChromeEnterpriseRealTimeUrlLookupService::CanSendRTSampleRequest() const {
-  // Do not send sampled pings for enterprise users.
-  return false;
+  return !base::FeatureList::IsEnabled(kSafeBrowsingRemoveCookies);
 }
 
 }  // namespace safe_browsing

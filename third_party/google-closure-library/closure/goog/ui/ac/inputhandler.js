@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Class for managing the interactions between an
@@ -87,7 +95,6 @@ goog.require('goog.Timer');
 goog.require('goog.a11y.aria');
 goog.require('goog.a11y.aria.Role');
 goog.require('goog.a11y.aria.State');
-goog.require('goog.dispose');
 goog.require('goog.dom');
 goog.require('goog.dom.selection');
 goog.require('goog.events.EventHandler');
@@ -96,9 +103,7 @@ goog.require('goog.events.KeyCodes');
 goog.require('goog.events.KeyHandler');
 goog.require('goog.string');
 goog.require('goog.userAgent');
-goog.requireType('goog.events.BrowserEvent');
-goog.requireType('goog.events.Event');
-goog.requireType('goog.events.EventTarget');
+goog.require('goog.userAgent.product');
 
 
 
@@ -119,7 +124,6 @@ goog.requireType('goog.events.EventTarget');
  */
 goog.ui.ac.InputHandler = function(
     opt_separators, opt_literals, opt_multi, opt_throttleTime) {
-  'use strict';
   goog.Disposable.call(this);
   var throttleTime = opt_throttleTime || 150;
 
@@ -200,6 +204,7 @@ goog.ui.ac.InputHandler = function(
   this.lastKeyCode_ = -1;  // Initialize to a non-existent value.
 };
 goog.inherits(goog.ui.ac.InputHandler, goog.Disposable);
+goog.tagUnsealableClass(goog.ui.ac.InputHandler);
 
 
 /**
@@ -210,7 +215,10 @@ goog.inherits(goog.ui.ac.InputHandler, goog.Disposable);
  * @type {boolean}
  * @private
  */
-goog.ui.ac.InputHandler.REQUIRES_ASYNC_BLUR_ = false;
+goog.ui.ac.InputHandler.REQUIRES_ASYNC_BLUR_ =
+    (goog.userAgent.product.IPHONE || goog.userAgent.product.IPAD) &&
+    // Check the webkit version against the version for iOS 4.2.1.
+    !goog.userAgent.isVersionOrHigher('533.17.9');
 
 
 /**
@@ -374,7 +382,6 @@ goog.ui.ac.InputHandler.prototype.updateDuringTyping_ = true;
  * @param {goog.ui.ac.AutoComplete} ac Autocomplete object.
  */
 goog.ui.ac.InputHandler.prototype.attachAutoComplete = function(ac) {
-  'use strict';
   this.ac_ = ac;
 };
 
@@ -384,7 +391,6 @@ goog.ui.ac.InputHandler.prototype.attachAutoComplete = function(ac) {
  * @return {goog.ui.ac.AutoComplete} The associated autocomplete instance.
  */
 goog.ui.ac.InputHandler.prototype.getAutoComplete = function() {
-  'use strict';
   return this.ac_;
 };
 
@@ -394,7 +400,6 @@ goog.ui.ac.InputHandler.prototype.getAutoComplete = function() {
  * @return {Element} The currently active element.
  */
 goog.ui.ac.InputHandler.prototype.getActiveElement = function() {
-  'use strict';
   return this.activeElement_;
 };
 
@@ -404,7 +409,6 @@ goog.ui.ac.InputHandler.prototype.getActiveElement = function() {
  * @return {string} The value of the current active element.
  */
 goog.ui.ac.InputHandler.prototype.getValue = function() {
-  'use strict';
   return this.activeElement_.value;
 };
 
@@ -414,7 +418,6 @@ goog.ui.ac.InputHandler.prototype.getValue = function() {
  * @param {string} value The new value.
  */
 goog.ui.ac.InputHandler.prototype.setValue = function(value) {
-  'use strict';
   this.activeElement_.value = value;
 };
 
@@ -424,7 +427,6 @@ goog.ui.ac.InputHandler.prototype.setValue = function(value) {
  * @return {number} The index of the cursor position.
  */
 goog.ui.ac.InputHandler.prototype.getCursorPosition = function() {
-  'use strict';
   return goog.dom.selection.getStart(this.activeElement_);
 };
 
@@ -434,7 +436,6 @@ goog.ui.ac.InputHandler.prototype.getCursorPosition = function() {
  * @param {number} pos The index of the cursor position.
  */
 goog.ui.ac.InputHandler.prototype.setCursorPosition = function(pos) {
-  'use strict';
   goog.dom.selection.setStart(this.activeElement_, pos);
   goog.dom.selection.setEnd(this.activeElement_, pos);
 };
@@ -448,7 +449,6 @@ goog.ui.ac.InputHandler.prototype.setCursorPosition = function(pos) {
  *     input handler to.
  */
 goog.ui.ac.InputHandler.prototype.attachInput = function(target) {
-  'use strict';
   if (goog.dom.isElement(target)) {
     var el = /** @type {!Element} */ (target);
     goog.a11y.aria.setRole(el, goog.a11y.aria.Role.COMBOBOX);
@@ -481,7 +481,6 @@ goog.ui.ac.InputHandler.prototype.attachInput = function(target) {
  *     input handler from.
  */
 goog.ui.ac.InputHandler.prototype.detachInput = function(target) {
-  'use strict';
   if (goog.dom.isElement(target)) {
     var el = /** @type {!Element} */ (target);
     goog.a11y.aria.removeRole(el);
@@ -507,7 +506,6 @@ goog.ui.ac.InputHandler.prototype.detachInput = function(target) {
  * @param {...Element} var_args Elements to attach the input handler too.
  */
 goog.ui.ac.InputHandler.prototype.attachInputs = function(var_args) {
-  'use strict';
   for (var i = 0; i < arguments.length; i++) {
     this.attachInput(arguments[i]);
   }
@@ -519,7 +517,6 @@ goog.ui.ac.InputHandler.prototype.attachInputs = function(var_args) {
  * @param {...Element} var_args Variable arguments for elements to unbind from.
  */
 goog.ui.ac.InputHandler.prototype.detachInputs = function(var_args) {
-  'use strict';
   for (var i = 0; i < arguments.length; i++) {
     this.detachInput(arguments[i]);
   }
@@ -534,7 +531,6 @@ goog.ui.ac.InputHandler.prototype.detachInputs = function(var_args) {
  * @return {boolean} Whether to suppress the update event.
  */
 goog.ui.ac.InputHandler.prototype.selectRow = function(row, opt_multi) {
-  'use strict';
   if (this.activeElement_) {
     this.setTokenText(row.toString(), opt_multi);
   }
@@ -552,7 +548,6 @@ goog.ui.ac.InputHandler.prototype.selectRow = function(row, opt_multi) {
  */
 goog.ui.ac.InputHandler.prototype.setTokenText = function(
     tokenText, opt_multi) {
-  'use strict';
   if (opt_multi !== undefined ? opt_multi : this.multi_) {
     var index = this.getTokenIndex_(this.getValue(), this.getCursorPosition());
 
@@ -597,7 +592,8 @@ goog.ui.ac.InputHandler.prototype.setTokenText = function(
       // to detect. Since text editing is finicky we restrict this
       // workaround to Firefox and IE 9 where it's necessary.
       // (Note: this has been fixed in Edge and since FF 41)
-      if (goog.userAgent.GECKO || goog.userAgent.IE) {
+      if (goog.userAgent.GECKO ||
+          (goog.userAgent.IE && goog.userAgent.isVersionOrHigher('9'))) {
         el.blur();
       }
       // Join the array and replace the contents of the input.
@@ -624,7 +620,6 @@ goog.ui.ac.InputHandler.prototype.setTokenText = function(
 
 /** @override */
 goog.ui.ac.InputHandler.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.ac.InputHandler.superClass_.disposeInternal.call(this);
   if (this.activeTimeoutId_ != null) {
     // Need to check against null explicitly because 0 is a valid value.
@@ -646,7 +641,6 @@ goog.ui.ac.InputHandler.prototype.disposeInternal = function() {
  */
 goog.ui.ac.InputHandler.prototype.setSeparators = function(
     separators, opt_defaultSeparators) {
-  'use strict';
   this.separators_ = separators;
   this.defaultSeparator_ = (opt_defaultSeparators != null) ?
       opt_defaultSeparators :
@@ -665,7 +659,6 @@ goog.ui.ac.InputHandler.prototype.setSeparators = function(
  * @param {boolean} upsideDown Whether the orientation is upside down.
  */
 goog.ui.ac.InputHandler.prototype.setUpsideDown = function(upsideDown) {
-  'use strict';
   this.upsideDown_ = upsideDown;
 };
 
@@ -677,7 +670,6 @@ goog.ui.ac.InputHandler.prototype.setUpsideDown = function(upsideDown) {
  */
 goog.ui.ac.InputHandler.prototype.setWhitespaceWrapEntries = function(
     newValue) {
-  'use strict';
   this.whitespaceWrapEntries_ = newValue;
 };
 
@@ -690,7 +682,6 @@ goog.ui.ac.InputHandler.prototype.setWhitespaceWrapEntries = function(
  */
 goog.ui.ac.InputHandler.prototype.setGenerateNewTokenOnLiteral = function(
     newValue) {
-  'use strict';
   this.generateNewTokenOnLiteral_ = newValue;
 };
 
@@ -702,7 +693,6 @@ goog.ui.ac.InputHandler.prototype.setGenerateNewTokenOnLiteral = function(
  * @param {?RegExp} trimmer Regexp to use for trimming or null to disable it.
  */
 goog.ui.ac.InputHandler.prototype.setTrimmingRegExp = function(trimmer) {
-  'use strict';
   this.trimmer_ = trimmer;
 };
 
@@ -717,7 +707,6 @@ goog.ui.ac.InputHandler.prototype.setTrimmingRegExp = function(trimmer) {
  */
 goog.ui.ac.InputHandler.prototype.setEndsWithSeparatorRegExp = function(
     separatorCheck) {
-  'use strict';
   this.separatorCheck_ = separatorCheck;
 };
 
@@ -728,7 +717,6 @@ goog.ui.ac.InputHandler.prototype.setEndsWithSeparatorRegExp = function(
  * @param {boolean} newValue Whether to preventDefault on TAB.
  */
 goog.ui.ac.InputHandler.prototype.setPreventDefaultOnTab = function(newValue) {
-  'use strict';
   this.preventDefaultOnTab_ = newValue;
 };
 
@@ -739,7 +727,6 @@ goog.ui.ac.InputHandler.prototype.setPreventDefaultOnTab = function(newValue) {
  */
 goog.ui.ac.InputHandler.prototype.setPreventSelectionOnTab = function(
     newValue) {
-  'use strict';
   this.preventSelectionOnTab_ = newValue;
 };
 
@@ -749,7 +736,6 @@ goog.ui.ac.InputHandler.prototype.setPreventSelectionOnTab = function(
  * @param {boolean} newValue Whether to autocomplete on separators.
  */
 goog.ui.ac.InputHandler.prototype.setSeparatorCompletes = function(newValue) {
-  'use strict';
   this.separatorUpdates_ = newValue;
   this.separatorSelects_ = newValue;
 };
@@ -760,7 +746,6 @@ goog.ui.ac.InputHandler.prototype.setSeparatorCompletes = function(newValue) {
  * @param {boolean} newValue Whether to autocomplete on separators.
  */
 goog.ui.ac.InputHandler.prototype.setSeparatorSelects = function(newValue) {
-  'use strict';
   this.separatorSelects_ = newValue;
 };
 
@@ -772,7 +757,6 @@ goog.ui.ac.InputHandler.prototype.setSeparatorSelects = function(newValue) {
  * @return {number} Throttle time in milliseconds.
  */
 goog.ui.ac.InputHandler.prototype.getThrottleTime = function() {
-  'use strict';
   return this.timer_ ? this.timer_.getInterval() : -1;
 };
 
@@ -782,7 +766,6 @@ goog.ui.ac.InputHandler.prototype.getThrottleTime = function() {
  * @param {boolean} justSelected Whether or not the row has just been selected.
  */
 goog.ui.ac.InputHandler.prototype.setRowJustSelected = function(justSelected) {
-  'use strict';
   this.rowJustSelected_ = justSelected;
 };
 
@@ -792,7 +775,6 @@ goog.ui.ac.InputHandler.prototype.setRowJustSelected = function(justSelected) {
  * @param {number} time New throttle time in milliseconds.
  */
 goog.ui.ac.InputHandler.prototype.setThrottleTime = function(time) {
-  'use strict';
   if (time < 0) {
     this.timer_.dispose();
     this.timer_ = null;
@@ -811,7 +793,6 @@ goog.ui.ac.InputHandler.prototype.setThrottleTime = function(time) {
  * @return {boolean} Value of the flag.
  */
 goog.ui.ac.InputHandler.prototype.getUpdateDuringTyping = function() {
-  'use strict';
   return this.updateDuringTyping_;
 };
 
@@ -821,7 +802,6 @@ goog.ui.ac.InputHandler.prototype.getUpdateDuringTyping = function() {
  * @param {boolean} value New value of the flag.
  */
 goog.ui.ac.InputHandler.prototype.setUpdateDuringTyping = function(value) {
-  'use strict';
   this.updateDuringTyping_ = value;
 };
 
@@ -833,7 +813,6 @@ goog.ui.ac.InputHandler.prototype.setUpdateDuringTyping = function(value) {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.handleKeyEvent = function(e) {
-  'use strict';
   switch (e.keyCode) {
     // If the menu is open and 'down' caused a change then prevent the default
     // action and prevent scrolling.  If the box isn't a multi autocomplete
@@ -930,7 +909,6 @@ goog.ui.ac.InputHandler.prototype.handleKeyEvent = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.handleSeparator_ = function(e) {
-  'use strict';
   var isSeparatorKey = this.multi_ && e.charCode &&
       this.separators_.indexOf(String.fromCharCode(e.charCode)) != -1;
   if (this.separatorUpdates_ && isSeparatorKey) {
@@ -951,7 +929,6 @@ goog.ui.ac.InputHandler.prototype.handleSeparator_ = function(e) {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.needKeyUpListener = function() {
-  'use strict';
   return false;
 };
 
@@ -963,7 +940,6 @@ goog.ui.ac.InputHandler.prototype.needKeyUpListener = function() {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.handleKeyUp = function(e) {
-  'use strict';
   return false;
 };
 
@@ -973,7 +949,6 @@ goog.ui.ac.InputHandler.prototype.handleKeyUp = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.addEventHandlers_ = function() {
-  'use strict';
   this.keyHandler_.attach(this.activeElement_);
   this.eh_.listen(
       this.keyHandler_, goog.events.KeyHandler.EventType.KEY, this.onKey_);
@@ -998,7 +973,6 @@ goog.ui.ac.InputHandler.prototype.addEventHandlers_ = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.removeEventHandlers_ = function() {
-  'use strict';
   this.eh_.unlisten(
       this.keyHandler_, goog.events.KeyHandler.EventType.KEY, this.onKey_);
   this.keyHandler_.detach();
@@ -1025,7 +999,6 @@ goog.ui.ac.InputHandler.prototype.removeEventHandlers_ = function() {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.handleFocus = function(e) {
-  'use strict';
   this.processFocus(/** @type {Element} */ (e.target || null));
 };
 
@@ -1036,7 +1009,6 @@ goog.ui.ac.InputHandler.prototype.handleFocus = function(e) {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.processFocus = function(target) {
-  'use strict';
   this.activateHandler_.removeAll();
 
   if (this.ac_) {
@@ -1063,7 +1035,6 @@ goog.ui.ac.InputHandler.prototype.processFocus = function(target) {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.handleBlur = function(opt_e) {
-  'use strict';
   // Phones running iOS prior to version 4.2.
   if (goog.ui.ac.InputHandler.REQUIRES_ASYNC_BLUR_) {
     // @bug 4484488 This is required so that the menu works correctly on
@@ -1085,7 +1056,6 @@ goog.ui.ac.InputHandler.prototype.handleBlur = function(opt_e) {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.processBlur = function() {
-  'use strict';
   // it's possible that a blur event could fire when there's no active element,
   // in the case where attachInput was called on an input that already had
   // the focus
@@ -1114,7 +1084,6 @@ goog.ui.ac.InputHandler.prototype.processBlur = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onTick_ = function(e) {
-  'use strict';
   this.update();
 };
 
@@ -1125,7 +1094,6 @@ goog.ui.ac.InputHandler.prototype.onTick_ = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onKeyDownOnInactiveElement_ = function(e) {
-  'use strict';
   this.handleFocus(e);
 };
 
@@ -1137,7 +1105,6 @@ goog.ui.ac.InputHandler.prototype.onKeyDownOnInactiveElement_ = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onKey_ = function(e) {
-  'use strict';
   this.lastKeyCode_ = e.keyCode;
   if (this.ac_) {
     this.handleKeyEvent(e);
@@ -1152,7 +1119,6 @@ goog.ui.ac.InputHandler.prototype.onKey_ = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onKeyPress_ = function(e) {
-  'use strict';
   if (this.waitingForIme_ &&
       this.lastKeyCode_ != goog.events.KeyCodes.WIN_IME) {
     this.stopWaitingForIme_();
@@ -1167,7 +1133,6 @@ goog.ui.ac.InputHandler.prototype.onKeyPress_ = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onKeyUp_ = function(e) {
-  'use strict';
   if (this.waitingForIme_ &&
       (e.keyCode == goog.events.KeyCodes.ENTER ||
        (e.keyCode == goog.events.KeyCodes.M && e.ctrlKey))) {
@@ -1182,7 +1147,6 @@ goog.ui.ac.InputHandler.prototype.onKeyUp_ = function(e) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onMouseDown_ = function(e) {
-  'use strict';
   if (this.ac_) {
     this.handleMouseDown(e);
   }
@@ -1202,7 +1166,6 @@ goog.ui.ac.InputHandler.prototype.handleMouseDown = function(e) {};
  * @private
  */
 goog.ui.ac.InputHandler.prototype.startWaitingForIme_ = function() {
-  'use strict';
   if (this.waitingForIme_) {
     return;
   }
@@ -1219,7 +1182,6 @@ goog.ui.ac.InputHandler.prototype.startWaitingForIme_ = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.stopWaitingForIme_ = function() {
-  'use strict';
   if (!this.waitingForIme_) {
     return;
   }
@@ -1238,7 +1200,6 @@ goog.ui.ac.InputHandler.prototype.stopWaitingForIme_ = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.onIeKeyPress_ = function(e) {
-  'use strict';
   this.handleSeparator_(e);
 };
 
@@ -1249,7 +1210,6 @@ goog.ui.ac.InputHandler.prototype.onIeKeyPress_ = function(e) {
  * @param {boolean=} opt_force If true the menu will be forced to update.
  */
 goog.ui.ac.InputHandler.prototype.update = function(opt_force) {
-  'use strict';
   if (this.activeElement_ &&
       (opt_force || this.getValue() != this.lastValue_)) {
     if (opt_force || !this.rowJustSelected_) {
@@ -1272,7 +1232,6 @@ goog.ui.ac.InputHandler.prototype.update = function(opt_force) {
  * @protected
  */
 goog.ui.ac.InputHandler.prototype.parseToken = function() {
-  'use strict';
   return this.parseToken_();
 };
 
@@ -1283,7 +1242,6 @@ goog.ui.ac.InputHandler.prototype.parseToken = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.moveUp_ = function() {
-  'use strict';
   return this.upsideDown_ ? this.ac_.hiliteNext() : this.ac_.hilitePrev();
 };
 
@@ -1294,7 +1252,6 @@ goog.ui.ac.InputHandler.prototype.moveUp_ = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.moveDown_ = function() {
-  'use strict';
   return this.upsideDown_ ? this.ac_.hilitePrev() : this.ac_.hiliteNext();
 };
 
@@ -1305,7 +1262,6 @@ goog.ui.ac.InputHandler.prototype.moveDown_ = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.parseToken_ = function() {
-  'use strict';
   var caret = this.getCursorPosition();
   var text = this.getValue();
   return this.trim_(this.splitInput_(text)[this.getTokenIndex_(text, caret)]);
@@ -1319,7 +1275,6 @@ goog.ui.ac.InputHandler.prototype.parseToken_ = function() {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.trim_ = function(text) {
-  'use strict';
   return this.trimmer_ ? String(text).replace(this.trimmer_, '') : text;
 };
 
@@ -1332,7 +1287,6 @@ goog.ui.ac.InputHandler.prototype.trim_ = function(text) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.getTokenIndex_ = function(text, caret) {
-  'use strict';
   // Split up the input string into multiple entries
   var entries = this.splitInput_(text);
 
@@ -1364,7 +1318,6 @@ goog.ui.ac.InputHandler.prototype.getTokenIndex_ = function(text, caret) {
  * @private
  */
 goog.ui.ac.InputHandler.prototype.splitInput_ = function(text) {
-  'use strict';
   if (!this.multi_) {
     return [text];
   }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,16 @@ import java.util.List;
  */
 public interface TabModelSelector {
     /**
-     * Should be called when the app starts showing a view with multiple tabs.
+     * A delegate interface to push close all tabs requests.
      */
-    void onTabsViewShown();
+    public interface CloseAllTabsDelegate {
+        /**
+         * Sends a request to close all tabs for a {@link TabModel}.
+         * @param incognito Whether the tabs to be closed are incognito.
+         * @return Whether the request was handled successfully.
+         */
+        boolean closeAllTabsRequest(boolean incognito);
+    }
 
     /**
      * Set the current model. This won't cause an animation, but will still change the stack that is
@@ -145,9 +152,20 @@ public interface TabModelSelector {
     void commitAllTabClosures();
 
     /**
+     * Sets the delegate to handle the requests to close tabs in a single model.
+     * @param delegate The delegate to be used.
+     */
+    void setCloseAllTabsDelegate(CloseAllTabsDelegate delegate);
+
+    /**
      * @return Whether the tab state for this {@link TabModelSelector} has been initialized.
      */
     boolean isTabStateInitialized();
+
+    /**
+     * Merges the tab states from two tab models.
+     */
+    void mergeState();
 
     /**
      * Prevents the TabModelSelector from destroying its tabs to allow for reparenting.
@@ -173,17 +191,6 @@ public interface TabModelSelector {
      * Unsubscribe from {@link IncognitoTabModelObserver}.
      */
     void removeIncognitoTabModelObserver(IncognitoTabModelObserver incognitoObserver);
-
-    /**
-     * Sets the delegate to handle {@link TabModel} events that triggers an Incognito
-     * re-authentication. This delegate is invoked when all the observers observing
-     * onTabModelSelected event have been notified.
-     *
-     * @param incognitoReauthDialogDelegate A delegate which takes care of triggering an Incognito
-     *         re-authentication.
-     */
-    void setIncognitoReauthDialogDelegate(
-            IncognitoTabModelObserver.IncognitoReauthDialogDelegate incognitoReauthDialogDelegate);
 
     /**
      * Destroy all owned {@link TabModel}s and {@link Tab}s referenced by this selector.

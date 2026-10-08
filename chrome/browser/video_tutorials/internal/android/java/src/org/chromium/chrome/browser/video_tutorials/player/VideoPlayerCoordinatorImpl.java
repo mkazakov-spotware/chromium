@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,6 @@ import org.chromium.components.thinwebview.ThinWebViewConstraints;
 import org.chromium.components.thinwebview.ThinWebViewFactory;
 import org.chromium.content_public.browser.MediaSession;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
@@ -49,23 +48,23 @@ public class VideoPlayerCoordinatorImpl implements VideoPlayerCoordinator {
      * @param webContentsFactory A supplier to supply WebContents and ContentView.
      * @param tryNowCallback Callback to be invoked when try now button is clicked.
      * @param closeCallback Callback to be invoked when this UI is closed.
-     * @param intentRequestTracker The {@link IntentRequestTracker} of the current activity.
      */
     public VideoPlayerCoordinatorImpl(Context context, VideoTutorialService videoTutorialService,
             Supplier<Pair<WebContents, ContentView>> webContentsFactory,
             LanguageInfoProvider languageInfoProvider, Callback<Tutorial> tryNowCallback,
-            Runnable closeCallback, IntentRequestTracker intentRequestTracker) {
+            Runnable closeCallback) {
         mContext = context;
         mVideoTutorialService = videoTutorialService;
         mModel = new PropertyModel(VideoPlayerProperties.ALL_KEYS);
 
-        ThinWebView thinWebView = createThinWebView(webContentsFactory, intentRequestTracker);
+        ThinWebView thinWebView = createThinWebView(webContentsFactory);
         mView = new VideoPlayerView(context, mModel, thinWebView);
         mLanguagePicker =
                 new LanguagePickerCoordinator(mView.getView().findViewById(R.id.language_picker),
                         mVideoTutorialService, languageInfoProvider);
         mMediator = new VideoPlayerMediator(mContext, mModel, videoTutorialService, mLanguagePicker,
-                mWebContents, mMediaSessionObserver, tryNowCallback, closeCallback);
+                languageInfoProvider, mWebContents, mMediaSessionObserver, tryNowCallback,
+                closeCallback);
         PropertyModelChangeProcessor.create(mModel, mView, new VideoPlayerViewBinder());
     }
 
@@ -93,8 +92,7 @@ public class VideoPlayerCoordinatorImpl implements VideoPlayerCoordinator {
     }
 
     private ThinWebView createThinWebView(
-            Supplier<Pair<WebContents, ContentView>> webContentsFactory,
-            IntentRequestTracker intentRequestTracker) {
+            Supplier<Pair<WebContents, ContentView>> webContentsFactory) {
         Pair<WebContents, ContentView> pair = webContentsFactory.get();
         mWebContents = pair.first;
         ContentView webContentView = pair.second;
@@ -104,8 +102,7 @@ public class VideoPlayerCoordinatorImpl implements VideoPlayerCoordinator {
 
         ThinWebViewConstraints constraints = new ThinWebViewConstraints();
         constraints.backgroundColor = Color.BLACK;
-        ThinWebView thinWebView =
-                ThinWebViewFactory.create(mContext, constraints, intentRequestTracker);
+        ThinWebView thinWebView = ThinWebViewFactory.create(mContext, constraints);
         thinWebView.attachWebContents(mWebContents, webContentView, mWebContentsDelegate);
         return thinWebView;
     }

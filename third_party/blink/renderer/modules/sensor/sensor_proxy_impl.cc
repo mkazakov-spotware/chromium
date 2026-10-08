@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/modules/sensor/sensor_provider_proxy.h"
 #include "third_party/blink/renderer/modules/sensor/sensor_reading_remapper.h"
+#include "third_party/blink/renderer/platform/mojo/mojo_helper.h"
 
 using device::mojom::blink::SensorCreationResult;
 
@@ -33,7 +34,6 @@ SensorProxyImpl::~SensorProxyImpl() {}
 void SensorProxyImpl::Trace(Visitor* visitor) const {
   visitor->Trace(sensor_remote_);
   visitor->Trace(client_receiver_);
-  visitor->Trace(polling_timer_);
   SensorProxy::Trace(visitor);
 }
 
@@ -48,8 +48,8 @@ void SensorProxyImpl::Initialize() {
 
   state_ = kInitializing;
   sensor_provider_proxy()->GetSensor(
-      type_, WTF::BindOnce(&SensorProxyImpl::OnSensorCreated,
-                           WrapWeakPersistent(this)));
+      type_,
+      WTF::Bind(&SensorProxyImpl::OnSensorCreated, WrapWeakPersistent(this)));
 }
 
 void SensorProxyImpl::AddConfiguration(
@@ -138,6 +138,8 @@ void SensorProxyImpl::ReportError(DOMExceptionCode code,
   reading_ = device::SensorReading();
   UpdatePollingStatus();
 
+  // The m_sensor.reset() will release all callbacks and its bound parameters,
+  // therefore, handleSensorError accepts messages by value.
   sensor_remote_.reset();
   shared_buffer_reader_.reset();
   default_frequency_ = 0.0;
@@ -187,12 +189,7 @@ void SensorProxyImpl::OnSensorCreated(
     return;
   }
 
-  device::SensorReading reading;
-  if (!shared_buffer_reader_->GetReading(&reading)) {
-    HandleSensorError();
-    return;
-  }
-  reading_ = std::move(reading);
+  shared_buffer_reader_->GetReading(&reading_);
 
   frequency_limits_.first = params->minimum_frequency;
   frequency_limits_.second = params->maximum_frequency;
@@ -202,9 +199,9 @@ void SensorProxyImpl::OnSensorCreated(
   DCHECK_GE(device::GetSensorMaxAllowedFrequency(type_),
             frequency_limits_.second);
 
-  auto error_callback = WTF::BindOnce(
-      &SensorProxyImpl::HandleSensorError, WrapWeakPersistent(this),
-      SensorCreationResult::ERROR_NOT_AVAILABLE);
+  auto error_callback =
+      WTF::Bind(&SensorProxyImpl::HandleSensorError, WrapWeakPersistent(this),
+                SensorCreationResult::ERROR_NOT_AVAILABLE);
   sensor_remote_.set_disconnect_handler(std::move(error_callback));
 
   state_ = kInitialized;
@@ -220,7 +217,7 @@ void SensorProxyImpl::OnPollingTimer(TimerBase*) {
 }
 
 bool SensorProxyImpl::ShouldProcessReadings() const {
-  return IsInitialized() && !suspended_ && !active_frequencies_.empty();
+  return IsInitialized() && !suspended_ && !active_frequencies_.IsEmpty();
 }
 
 void SensorProxyImpl::UpdatePollingStatus() {
@@ -230,8 +227,9 @@ void SensorProxyImpl::UpdatePollingStatus() {
   if (ShouldProcessReadings()) {
     // TODO(crbug/721297) : We need to find out an algorithm for resulting
     // polling frequency.
-    polling_timer_.StartRepeating(base::Seconds(1 / active_frequencies_.back()),
-                                  FROM_HERE);
+    polling_timer_.StartRepeating(
+        base::TimeDelta::FromSecondsD(1 / active_frequencies_.back()),
+        FROM_HERE);
   } else {
     polling_timer_.Stop();
   }
@@ -250,7 +248,7 @@ void SensorProxyImpl::RemoveActiveFrequency(double frequency) {
   active_frequencies_.erase(it);
   UpdatePollingStatus();
 
-  if (active_frequencies_.empty())
+  if (active_frequencies_.IsEmpty())
     reading_ = device::SensorReading();
 }
 

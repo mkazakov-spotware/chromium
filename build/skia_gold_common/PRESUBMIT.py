@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Presubmit script for //build/skia_gold_common/.
@@ -6,8 +6,6 @@
 See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
 for more details on the presubmit API built into depot_tools.
 """
-
-USE_PYTHON3 = True
 
 
 def CommonChecks(input_api, output_api):
@@ -23,11 +21,8 @@ def CommonChecks(input_api, output_api):
           input_api,
           output_api,
           input_api.PresubmitLocalPath(), [r'^.+_unittest\.py$'],
-          env=skia_gold_env,
-          run_on_python2=False,
-          skip_shebang_check=True))
-  output.extend(
-      input_api.canned_checks.RunPylint(input_api, output_api, version='2.7'))
+          env=skia_gold_env))
+  output.extend(input_api.canned_checks.RunPylint(input_api, output_api))
   return output
 
 

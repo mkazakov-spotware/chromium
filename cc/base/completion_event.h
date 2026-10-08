@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,9 @@ namespace cc {
 // It is safe to destroy this object as soon as Wait() returns.
 class CompletionEvent {
  public:
-  explicit CompletionEvent(base::WaitableEvent::ResetPolicy policy =
-                               base::WaitableEvent::ResetPolicy::AUTOMATIC)
-      : event_(policy, base::WaitableEvent::InitialState::NOT_SIGNALED) {
+  CompletionEvent()
+      : event_(base::WaitableEvent::ResetPolicy::AUTOMATIC,
+               base::WaitableEvent::InitialState::NOT_SIGNALED) {
 #if DCHECK_IS_ON()
     waited_ = false;
     signaled_ = false;

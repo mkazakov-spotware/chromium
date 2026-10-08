@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,7 +14,6 @@ import os
 import plistlib
 import shutil
 import subprocess
-import stat
 import sys
 import tempfile
 
@@ -59,13 +58,9 @@ def LoadPlistFile(plist_path):
   Returns:
     The content of the property list file as a python object.
   """
-  if sys.version_info.major == 2:
-    return plistlib.readPlistFromString(
-        subprocess.check_output(
-            ['xcrun', 'plutil', '-convert', 'xml1', '-o', '-', plist_path]))
-  else:
-    with open(plist_path, 'rb') as fp:
-      return plistlib.load(fp)
+  return ReadPlistFromString(
+      subprocess.check_output(
+          ['xcrun', 'plutil', '-convert', 'xml1', '-o', '-', plist_path]))
 
 
 def CreateSymlink(value, location):
@@ -227,8 +222,6 @@ class ProvisioningProfile(object):
   def Install(self, installation_path):
     """Copies mobile provisioning profile info to |installation_path|."""
     shutil.copy2(self.path, installation_path)
-    st = os.stat(installation_path)
-    os.chmod(installation_path, st.st_mode | stat.S_IWUSR)
 
 
 class Entitlements(object):
@@ -269,15 +262,10 @@ class Entitlements(object):
         self._data[key] = value
 
   def WriteTo(self, target_path):
-    with open(target_path, 'wb') as fp:
-      if sys.version_info.major == 2:
-        plistlib.writePlist(self._data, fp)
-      else:
-        plistlib.dump(self._data, fp)
+    plistlib.writePlist(self._data, target_path)
 
 
-def FindProvisioningProfile(provisioning_profile_paths, bundle_identifier,
-                            required):
+def FindProvisioningProfile(bundle_identifier, required):
   """Finds mobile provisioning profile to use to sign bundle.
 
   Args:
@@ -287,9 +275,8 @@ def FindProvisioningProfile(provisioning_profile_paths, bundle_identifier,
     The ProvisioningProfile object that can be used to sign the Bundle
     object or None if no matching provisioning profile was found.
   """
-  if not provisioning_profile_paths:
-    provisioning_profile_paths = glob.glob(
-        os.path.join(GetProvisioningProfilesDir(), '*.mobileprovision'))
+  provisioning_profile_paths = glob.glob(
+      os.path.join(GetProvisioningProfilesDir(), '*.mobileprovision'))
 
   # Iterate over all installed mobile provisioning profiles and filter those
   # that can be used to sign the bundle, ignoring expired ones.
@@ -309,8 +296,8 @@ def FindProvisioningProfile(provisioning_profile_paths, bundle_identifier,
   if not valid_provisioning_profiles:
     if required:
       sys.stderr.write(
-          'Error: no mobile provisioning profile found for "%s" in %s.\n' %
-          (bundle_identifier, provisioning_profile_paths))
+          'Error: no mobile provisioning profile found for "%s".\n' %
+          bundle_identifier)
       sys.exit(1)
     return None
 
@@ -330,11 +317,9 @@ def FindProvisioningProfile(provisioning_profile_paths, bundle_identifier,
 
 
 def CodeSignBundle(bundle_path, identity, extra_args):
-  process = subprocess.Popen(
-      ['xcrun', 'codesign', '--force', '--sign', identity, '--timestamp=none'] +
-      list(extra_args) + [bundle_path],
-      stderr=subprocess.PIPE,
-      universal_newlines=True)
+  process = subprocess.Popen(['xcrun', 'codesign', '--force', '--sign',
+      identity, '--timestamp=none'] + list(extra_args) + [bundle_path],
+      stderr=subprocess.PIPE)
   _, stderr = process.communicate()
   if process.returncode:
     sys.stderr.write(stderr)
@@ -406,7 +391,7 @@ def GenerateBundleInfoPlist(bundle, plist_compiler, partial_plist):
 
   # Invoke the plist_compiler script. It needs to be a python script.
   subprocess.check_call([
-      'python3',
+      'python',
       plist_compiler,
       'merge',
       '-f',
@@ -464,14 +449,6 @@ class CodeSignBundleAction(Action):
     parser.add_argument(
         '--plist-compiler-path', '-P', action='store',
         help='path to the plist compiler script (for --partial-info-plist)')
-    parser.add_argument(
-        '--mobileprovision',
-        '-m',
-        action='append',
-        default=[],
-        dest='mobileprovision_files',
-        help='list of mobileprovision files to use. If empty, uses the files ' +
-        'in $HOME/Library/MobileDevice/Provisioning Profiles')
     parser.set_defaults(no_signature=False)
 
   @staticmethod
@@ -567,8 +544,7 @@ class CodeSignBundleAction(Action):
       # provisioning is found).
       provisioning_profile_required = args.identity != '-'
       provisioning_profile = FindProvisioningProfile(
-          args.mobileprovision_files, bundle.identifier,
-          provisioning_profile_required)
+          bundle.identifier, provisioning_profile_required)
       if provisioning_profile and args.platform != 'iphonesimulator':
         provisioning_profile.Install(embedded_provisioning_profile)
 
@@ -643,21 +619,12 @@ class GenerateEntitlementsAction(Action):
     parser.add_argument(
         '--info-plist', '-p', required=True,
         help='path to the bundle Info.plist')
-    parser.add_argument(
-        '--mobileprovision',
-        '-m',
-        action='append',
-        default=[],
-        dest='mobileprovision_files',
-        help='set of mobileprovision files to use. If empty, uses the files ' +
-        'in $HOME/Library/MobileDevice/Provisioning Profiles')
 
   @staticmethod
   def _Execute(args):
     info_plist = LoadPlistFile(args.info_plist)
     bundle_identifier = info_plist['CFBundleIdentifier']
-    provisioning_profile = FindProvisioningProfile(args.mobileprovision_files,
-                                                   bundle_identifier, False)
+    provisioning_profile = FindProvisioningProfile(bundle_identifier, False)
     entitlements = GenerateEntitlements(
         args.entitlements_path, provisioning_profile, bundle_identifier)
     entitlements.WriteTo(args.path)
@@ -675,20 +642,11 @@ class FindProvisioningProfileAction(Action):
                         '-b',
                         required=True,
                         help='bundle identifier')
-    parser.add_argument(
-        '--mobileprovision',
-        '-m',
-        action='append',
-        default=[],
-        dest='mobileprovision_files',
-        help='set of mobileprovision files to use. If empty, uses the files ' +
-        'in $HOME/Library/MobileDevice/Provisioning Profiles')
 
   @staticmethod
   def _Execute(args):
     provisioning_profile_info = {}
-    provisioning_profile = FindProvisioningProfile(args.mobileprovision_files,
-                                                   args.bundle_id, False)
+    provisioning_profile = FindProvisioningProfile(args.bundle_id, False)
     for key in ('team_identifier', 'name'):
       if provisioning_profile:
         provisioning_profile_info[key] = getattr(provisioning_profile, key)

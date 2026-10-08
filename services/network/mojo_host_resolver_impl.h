@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <string>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "net/log/net_log_with_source.h"
@@ -18,7 +18,7 @@
 
 namespace net {
 class HostResolver;
-class NetworkAnonymizationKey;
+class NetworkIsolationKey;
 }  // namespace net
 
 namespace network {
@@ -37,15 +37,11 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) MojoHostResolverImpl {
   // |resolver| is expected to outlive |this|.
   MojoHostResolverImpl(net::HostResolver* resolver,
                        const net::NetLogWithSource& net_log);
-
-  MojoHostResolverImpl(const MojoHostResolverImpl&) = delete;
-  MojoHostResolverImpl& operator=(const MojoHostResolverImpl&) = delete;
-
   ~MojoHostResolverImpl();
 
   void Resolve(
       const std::string& hostname,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const net::NetworkIsolationKey& network_isolation_key,
       bool is_ex,
       mojo::PendingRemote<proxy_resolver::mojom::HostResolverRequestClient>
           client);
@@ -59,7 +55,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) MojoHostResolverImpl {
   void DeleteJob(std::list<Job>::iterator job);
 
   // Resolver for resolving incoming requests. Not owned.
-  raw_ptr<net::HostResolver> resolver_;
+  net::HostResolver* resolver_;
 
   // The NetLogWithSource to be passed to |resolver_| for all requests.
   const net::NetLogWithSource net_log_;
@@ -68,6 +64,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) MojoHostResolverImpl {
   std::list<Job> pending_jobs_;
 
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(MojoHostResolverImpl);
 };
 
 }  // namespace network

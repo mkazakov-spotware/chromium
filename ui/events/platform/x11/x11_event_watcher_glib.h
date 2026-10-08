@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/events/platform/x11/x11_event_source.h"
 
 using GPollFD = struct _GPollFD;
@@ -21,10 +21,6 @@ namespace ui {
 class X11EventWatcherGlib : public X11EventWatcher {
  public:
   explicit X11EventWatcherGlib(X11EventSource* source);
-
-  X11EventWatcherGlib(const X11EventWatcherGlib&) = delete;
-  X11EventWatcherGlib& operator=(const X11EventWatcherGlib&) = delete;
-
   ~X11EventWatcherGlib() override;
 
   // X11EventWatcher:
@@ -32,15 +28,17 @@ class X11EventWatcherGlib : public X11EventWatcher {
   void StopWatching() override;
 
  private:
-  raw_ptr<X11EventSource> event_source_;
+  X11EventSource* event_source_;
 
   // The GLib event source for X events.
-  raw_ptr<GSource> x_source_ = nullptr;
+  GSource* x_source_ = nullptr;
 
   // The poll attached to |x_source_|.
   std::unique_ptr<GPollFD> x_poll_;
 
   bool started_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(X11EventWatcherGlib);
 };
 
 }  // namespace ui

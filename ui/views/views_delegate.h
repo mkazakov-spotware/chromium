@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,15 @@
 #include <string>
 #include <utility>
 
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
 #include "base/callback.h"
+#include "base/location.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
+#include "build/build_config.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/buildflags.h"
@@ -28,7 +30,7 @@ class Rect;
 }  // namespace gfx
 
 namespace ui {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
 class ContextFactory;
 #endif
 class TouchEditingControllerFactory;
@@ -59,7 +61,7 @@ class VIEWS_EXPORT ViewsDelegate {
   using NativeWidgetFactory =
       base::RepeatingCallback<NativeWidget*(const Widget::InitParams&,
                                             internal::NativeWidgetDelegate*)>;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   enum AppbarAutohideEdge {
     EDGE_TOP = 1 << 0,
     EDGE_LEFT = 1 << 1,
@@ -77,9 +79,6 @@ class VIEWS_EXPORT ViewsDelegate {
     // handling should stop for this event.
     CLOSE_MENU,
   };
-
-  ViewsDelegate(const ViewsDelegate&) = delete;
-  ViewsDelegate& operator=(const ViewsDelegate&) = delete;
 
   virtual ~ViewsDelegate();
 
@@ -113,8 +112,8 @@ class VIEWS_EXPORT ViewsDelegate {
 
   // For accessibility, notify the delegate that a menu item was focused
   // so that alternate feedback (speech / magnified text) can be provided.
-  virtual void NotifyMenuItemFocused(const std::u16string& menu_name,
-                                     const std::u16string& menu_item_name,
+  virtual void NotifyMenuItemFocused(const base::string16& menu_name,
+                                     const base::string16& menu_item_name,
                                      int item_index,
                                      int item_count,
                                      bool has_submenu);
@@ -126,11 +125,7 @@ class VIEWS_EXPORT ViewsDelegate {
   virtual ProcessMenuAcceleratorResult ProcessAcceleratorWhileMenuShowing(
       const ui::Accelerator& accelerator);
 
-  // If a menu is showing and its window loses mouse capture, it will close if
-  // this returns true.
-  virtual bool ShouldCloseMenuIfMouseCaptureLost() const;
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Retrieves the default window icon to use for windows if none is specified.
   virtual HICON GetDefaultWindowIcon() const;
   // Retrieves the small window icon to use for windows if none is specified.
@@ -139,7 +134,7 @@ class VIEWS_EXPORT ViewsDelegate {
   // environment.
   virtual bool IsWindowInMetro(gfx::NativeWindow window) const;
 #elif BUILDFLAG(ENABLE_DESKTOP_AURA) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS))
+  (defined(OS_LINUX) || defined(OS_CHROMEOS))
   virtual gfx::ImageSkia* GetDefaultWindowIcon() const;
 #endif
 
@@ -167,7 +162,7 @@ class VIEWS_EXPORT ViewsDelegate {
   // maximized windows; otherwise to restored windows.
   virtual bool WindowManagerProvidesTitleBar(bool maximized);
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
   // Returns the context factory for new windows.
   virtual ui::ContextFactory* GetContextFactory();
 #endif
@@ -175,7 +170,7 @@ class VIEWS_EXPORT ViewsDelegate {
   // Returns the user-visible name of the application.
   virtual std::string GetApplicationName();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Starts a query for the appbar autohide edges of the specified monitor and
   // returns the current value.  If the query finds the edges have changed from
   // the current value, |callback| is subsequently invoked.  If the edges have
@@ -203,6 +198,8 @@ class VIEWS_EXPORT ViewsDelegate {
 #endif
 
   NativeWidgetFactory native_widget_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewsDelegate);
 };
 
 }  // namespace views

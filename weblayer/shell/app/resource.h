@@ -1,9 +1,6 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#ifndef WEBLAYER_SHELL_APP_RESOURCE_H_
-#define WEBLAYER_SHELL_APP_RESOURCE_H_
 
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
@@ -40,5 +37,3 @@
 #define _APS_NEXT_SYMED_VALUE 117
 #endif
 #endif
-
-#endif  // WEBLAYER_SHELL_APP_RESOURCE_H_

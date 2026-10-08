@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,11 @@
 #include "ash/highlighter/highlighter_gesture_util.h"
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
-#include "base/trace_event/trace_event.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkTypes.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/gfx/canvas.h"
@@ -25,6 +23,8 @@ namespace ash {
 namespace {
 
 // Variables for rendering the highlighter. Sizes in DIP.
+const SkColor kHighlighterColor = SkColorSetRGB(0x42, 0x85, 0xF4);
+constexpr int kHighlighterOpacity = 0xCC;
 constexpr float kPenTipWidth = 4;
 constexpr float kPenTipHeight = 14;
 constexpr int kOutsetForAntialiasing = 1;
@@ -37,9 +37,9 @@ constexpr int kStrokeScaleDurationMs = 300;
 
 gfx::Rect InflateDamageRect(const gfx::Rect& r) {
   gfx::Rect inflated = r;
-  inflated.Inset(gfx::Insets::VH(
-      -kOutsetForAntialiasing - static_cast<int>(kPenTipHeight / 2 + 1),
-      -kOutsetForAntialiasing - static_cast<int>(kPenTipWidth / 2 + 1)));
+  inflated.Inset(
+      -kOutsetForAntialiasing - static_cast<int>(kPenTipWidth / 2 + 1),
+      -kOutsetForAntialiasing - static_cast<int>(kPenTipHeight / 2 + 1));
   return inflated;
 }
 
@@ -74,6 +74,9 @@ void DrawSegment(gfx::Canvas& canvas,
 
 }  // namespace
 
+const SkColor HighlighterView::kPenColor =
+    SkColorSetA(kHighlighterColor, kHighlighterOpacity);
+
 const gfx::SizeF HighlighterView::kPenTipSize(kPenTipWidth, kPenTipHeight);
 
 HighlighterView::HighlighterView(base::TimeDelta presentation_delay)
@@ -89,12 +92,6 @@ views::UniqueWidgetPtr HighlighterView::Create(
     aura::Window* container) {
   return fast_ink::FastInkView::CreateWidgetWithContents(
       base::WrapUnique(new HighlighterView(presentation_delay)), container);
-}
-
-void HighlighterView::ChangeColor(SkColor color) {
-  pen_color_ = color;
-  if (!points_.IsEmpty())
-    AddGap();
 }
 
 void HighlighterView::AddNewPoint(const gfx::PointF& point,
@@ -119,7 +116,7 @@ void HighlighterView::AddNewPoint(const gfx::PointF& point,
         InflateDamageRect(predicted_points_.GetBoundingBox()));
   }
 
-  points_.AddPoint(point, time, pen_color_);
+  points_.AddPoint(point, time);
 
   base::TimeTicks current_time = ui::EventTimeForNow();
   gfx::Rect screen_bounds = GetWidget()->GetNativeView()->GetBoundsInScreen();
@@ -144,27 +141,9 @@ void HighlighterView::Animate(const gfx::PointF& pivot,
                               base::OnceClosure done) {
   animation_timer_ = std::make_unique<base::OneShotTimer>();
   animation_timer_->Start(
-      FROM_HERE, base::Milliseconds(kStrokeFadeoutDelayMs),
+      FROM_HERE, base::TimeDelta::FromMilliseconds(kStrokeFadeoutDelayMs),
       base::BindOnce(&HighlighterView::FadeOut, base::Unretained(this), pivot,
                      gesture_type, std::move(done)));
-}
-
-void HighlighterView::UndoLastStroke() {
-  if (points_.IsEmpty())
-    return;
-
-  // Previous prediction needs to be erased.
-  if (!predicted_points_.IsEmpty()) {
-    highlighter_damage_rect_.Union(
-        InflateDamageRect(predicted_points_.GetBoundingBox()));
-    predicted_points_.Clear();
-  }
-
-  const gfx::Rect bounding_box = points_.UndoLastStroke();
-  // Ensure deleting the points also erases them by expanding the damage
-  // rectangle.
-  highlighter_damage_rect_.Union(InflateDamageRect(bounding_box));
-  ScheduleUpdateBuffer();
 }
 
 void HighlighterView::FadeOut(const gfx::PointF& pivot,
@@ -172,7 +151,8 @@ void HighlighterView::FadeOut(const gfx::PointF& pivot,
                               base::OnceClosure done) {
   ui::Layer* layer = GetWidget()->GetLayer();
 
-  base::TimeDelta duration = base::Milliseconds(kStrokeFadeoutDurationMs);
+  base::TimeDelta duration =
+      base::TimeDelta::FromMilliseconds(kStrokeFadeoutDurationMs);
 
   {
     ui::ScopedLayerAnimationSettings settings(layer->GetAnimator());
@@ -184,7 +164,8 @@ void HighlighterView::FadeOut(const gfx::PointF& pivot,
 
   if (gesture_type != HighlighterGestureType::kHorizontalStroke) {
     ui::ScopedLayerAnimationSettings settings(layer->GetAnimator());
-    settings.SetTransitionDuration(base::Milliseconds(kStrokeScaleDurationMs));
+    settings.SetTransitionDuration(
+        base::TimeDelta::FromMilliseconds(kStrokeScaleDurationMs));
     settings.SetTweenType(gfx::Tween::LINEAR_OUT_SLOW_IN);
 
     const float scale = gesture_type == HighlighterGestureType::kClosedShape
@@ -207,7 +188,7 @@ void HighlighterView::ScheduleUpdateBuffer() {
     return;
 
   pending_update_buffer_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&HighlighterView::UpdateBuffer,
                                 weak_ptr_factory_.GetWeakPtr()));
 }
@@ -243,6 +224,7 @@ void HighlighterView::Draw(gfx::Canvas& canvas) {
   cc::PaintFlags flags;
   flags.setStyle(cc::PaintFlags::kFill_Style);
   flags.setAntiAlias(true);
+  flags.setColor(kPenColor);
   flags.setBlendMode(SkBlendMode::kSrc);
 
   // Decrease the segment height by the outline stroke width,
@@ -266,7 +248,6 @@ void HighlighterView::Draw(gfx::Canvas& canvas) {
           gfx::BoundingRect(previous_point.location, current_point.location)));
       // Only draw the segment if it is touching the clip rect.
       if (clip_rect.Intersects(damage_rect)) {
-        flags.setColor(current_point.color);
         DrawSegment(canvas, previous_point.location, current_point.location,
                     height, flags, kPenTipWidth);
       }

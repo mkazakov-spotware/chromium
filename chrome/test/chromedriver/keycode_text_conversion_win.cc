@@ -1,15 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/keycode_text_conversion.h"
 
-// windows.h must be included before versionhelpers.h
-#include <windows.h>
-
+#include <VersionHelpers.h>
 #include <stdlib.h>
 #include <string.h>
-#include <versionhelpers.h>
+#include <windows.h>
 
 #include <memory>
 
@@ -40,10 +38,9 @@ bool ConvertKeyCodeToText(
   return true;
 }
 
-bool ConvertCharToKeyCode(char16_t key,
-                          ui::KeyboardCode* key_code,
-                          int* necessary_modifiers,
-                          std::string* error_msg) {
+bool ConvertCharToKeyCode(
+    base::char16 key, ui::KeyboardCode* key_code, int *necessary_modifiers,
+    std::string* error_msg) {
   short vkey_and_modifiers = ::VkKeyScanW(key);
   bool translated = vkey_and_modifiers != -1 &&
                     LOBYTE(vkey_and_modifiers) != 0xFF &&

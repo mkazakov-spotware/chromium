@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/trace_event/trace_event.h"
 
 namespace offline_pages {
@@ -38,7 +37,11 @@ bool InitializeSync(
     const base::FilePath& path,
     const std::string& histogram_tag,
     base::OnceCallback<bool(sql::Database*)> initialize_schema) {
+  // These values are default.
+  db->set_page_size(4096);
+  db->set_cache_size(500);
   db->set_histogram_tag(histogram_tag);
+  db->set_exclusive_locking();
   const bool in_memory = path.empty();
   if (!in_memory && !PrepareDirectory(path))
     return false;
@@ -99,14 +102,11 @@ void SqlStoreBase::Initialize(base::OnceClosure pending_command) {
 
   // This is how we reset a pointer and provide deleter. This is necessary to
   // ensure that we can close the store more than once.
-  db_ = DatabaseUniquePtr(new sql::Database({// These values are default.
-                                             .exclusive_locking = true,
-                                             .page_size = 4096,
-                                             .cache_size = 500}),
+  db_ = DatabaseUniquePtr(new sql::Database,
                           base::OnTaskRunnerDeleter(background_task_runner_));
 
-  background_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      background_task_runner_.get(), FROM_HERE,
       base::BindOnce(&InitializeSync, db_.get(), db_file_path_, histogram_tag_,
                      GetSchemaInitializationFunction()),
       base::BindOnce(&SqlStoreBase::InitializeDone,
@@ -174,14 +174,13 @@ void SqlStoreBase::CloseInternal() {
   background_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(
-          &CloseDatabaseSync, db_.get(),
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
+          &CloseDatabaseSync, db_.get(), base::ThreadTaskRunnerHandle::Get(),
           base::BindOnce(&SqlStoreBase::CloseInternalDone,
                          weak_ptr_factory_.GetWeakPtr(), std::move(db_))));
 }
 
 void SqlStoreBase::RescheduleClosingBefore() {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&SqlStoreBase::CloseInternal,
                      closing_weak_ptr_factory_.GetWeakPtr()),

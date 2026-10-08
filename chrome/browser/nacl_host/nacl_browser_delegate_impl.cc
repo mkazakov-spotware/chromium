@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,21 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/cxx17_backports.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/component_updater/pnacl_component_installer.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/nacl_host/nacl_infobar_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.h"
-#include "chrome/common/chrome_constants.h"
+#include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_paths_internal.h"
 #include "chrome/common/logging_chrome.h"
 #include "chrome/common/pepper_permission_util.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/buildflags/buildflags.h"
@@ -40,20 +40,34 @@
 #include "extensions/common/url_pattern.h"
 #endif
 
+namespace {
+
+// These are temporarily needed for testing non-sfi mode on ChromeOS without
+// passing command-line arguments to Chrome.
+const char* const kAllowedNonSfiOrigins[] = {
+    "6EAED1924DB611B6EEF2A664BD077BE7EAD33B8F",  // see http://crbug.com/355141
+    "4EB74897CB187C7633357C2FE832E0AD6A44883A"   // see http://crbug.com/355141
+};
+
+}  // namespace
+
 NaClBrowserDelegateImpl::NaClBrowserDelegateImpl(
     ProfileManager* profile_manager)
     : profile_manager_(profile_manager), inverse_debug_patterns_(false) {
   DCHECK(profile_manager_);
+  for (size_t i = 0; i < base::size(kAllowedNonSfiOrigins); ++i) {
+    allowed_nonsfi_origins_.insert(kAllowedNonSfiOrigins[i]);
+  }
 }
 
 NaClBrowserDelegateImpl::~NaClBrowserDelegateImpl() {
 }
 
 void NaClBrowserDelegateImpl::ShowMissingArchInfobar(int render_process_id,
-                                                     int render_frame_id) {
+                                                     int render_view_id) {
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&CreateInfoBarOnUiThread, render_process_id,
-                                render_frame_id));
+                                render_view_id));
 }
 
 bool NaClBrowserDelegateImpl::DialogsAreSuppressed() {
@@ -81,7 +95,7 @@ bool NaClBrowserDelegateImpl::GetUserDirectory(base::FilePath* user_dir) {
 }
 
 std::string NaClBrowserDelegateImpl::GetVersionString() const {
-  return chrome::kChromeVersion;
+  return chrome::GetVersionString();
 }
 
 ppapi::host::HostFactory* NaClBrowserDelegateImpl::CreatePpapiHostFactory(
@@ -169,19 +183,33 @@ NaClBrowserDelegateImpl::GetMapUrlToLocalFilePathCallback(
 #endif
 }
 
+bool NaClBrowserDelegateImpl::IsNonSfiModeAllowed(
+    const base::FilePath& profile_directory,
+    const GURL& manifest_url) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+  auto* registry = extensions::ExtensionRegistry::Get(
+      profile_manager_->GetProfileByPath(profile_directory));
+  return IsExtensionOrSharedModuleWhitelisted(
+      manifest_url, &registry->enabled_extensions(), allowed_nonsfi_origins_);
+#else
+  return false;
+#endif
+}
+
 // static
 void NaClBrowserDelegateImpl::CreateInfoBarOnUiThread(int render_process_id,
-                                                      int render_frame_id) {
-  content::RenderFrameHost* rfh =
-      content::RenderFrameHost::FromID(render_process_id, render_frame_id);
-  if (!rfh)
+                                                      int render_view_id) {
+  content::RenderViewHost* rvh =
+      content::RenderViewHost::FromID(render_process_id, render_view_id);
+  if (!rvh)
     return;
   content::WebContents* web_contents =
-      content::WebContents::FromRenderFrameHost(rfh);
+      content::WebContents::FromRenderViewHost(rvh);
   if (!web_contents)
     return;
-  infobars::ContentInfoBarManager* infobar_manager =
-      infobars::ContentInfoBarManager::FromWebContents(web_contents);
-  if (infobar_manager)
-    NaClInfoBarDelegate::Create(infobar_manager);
+  InfoBarService* infobar_service =
+      InfoBarService::FromWebContents(web_contents);
+  if (infobar_service)
+    NaClInfoBarDelegate::Create(infobar_service);
 }

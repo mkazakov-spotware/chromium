@@ -1,45 +1,35 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/app/chrome_exe_main_win.h"
-
 #include <windows.h>
-
 #include <malloc.h>
 #include <stddef.h>
 #include <tchar.h>
 
 #include <algorithm>
-#include <array>
 #include <string>
 
 #include "base/at_exit.h"
-#include "base/base_switches.h"
 #include "base/command_line.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/debug/alias.h"
-#include "base/debug/handle_hooks_win.h"
-#include "base/feature_list.h"
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/process/memory.h"
 #include "base/process/process.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
-#include "base/win/current_module.h"
 #include "base/win/registry.h"
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
 #include "build/build_config.h"
-#include "chrome/app/delay_load_failure_hook_win.h"
 #include "chrome/app/main_dll_loader_win.h"
-#include "chrome/app/packed_resources_integrity.h"
 #include "chrome/browser/policy/policy_path_parser.h"
 #include "chrome/browser/win/chrome_process_finder.h"
 #include "chrome/chrome_elf/chrome_elf_main.h"
@@ -63,26 +53,6 @@ int main();
 #endif
 
 namespace {
-
-// Sets the current working directory for the process to the directory holding
-// the executable if this is the browser process. This avoids leaking a handle
-// to an arbitrary directory to child processes (e.g., the crashpad handler
-// process) created before MainDllLoader changes the current working directory
-// to the browser's version directory.
-void SetCwdForBrowserProcess() {
-  if (!::IsBrowserProcess())
-    return;
-
-  std::array<wchar_t, MAX_PATH + 1> buffer;
-  buffer[0] = L'\0';
-  DWORD length = ::GetModuleFileName(nullptr, &buffer[0], buffer.size());
-  if (!length || length >= buffer.size())
-    return;
-
-  base::SetCurrentDirectory(
-      base::FilePath(base::FilePath::StringPieceType(&buffer[0], length))
-          .DirName());
-}
 
 bool IsFastStartSwitch(const std::string& command_line_switch) {
   return command_line_switch == switches::kProfileDirectory;
@@ -118,14 +88,14 @@ bool AttemptFastNotify(const base::CommandLine& command_line) {
 // Returns true if |command_line| contains a /prefetch:# argument where # is in
 // [1, 8].
 bool HasValidWindowsPrefetchArgument(const base::CommandLine& command_line) {
-  const wchar_t kPrefetchArgumentPrefix[] = L"/prefetch:";
+  const base::char16 kPrefetchArgumentPrefix[] = L"/prefetch:";
 
   for (const auto& arg : command_line.argv()) {
-    if (arg.size() == std::size(kPrefetchArgumentPrefix) &&
+    if (arg.size() == base::size(kPrefetchArgumentPrefix) &&
         base::StartsWith(arg, kPrefetchArgumentPrefix,
                          base::CompareCase::SENSITIVE)) {
-      return arg[std::size(kPrefetchArgumentPrefix) - 1] >= L'1' &&
-             arg[std::size(kPrefetchArgumentPrefix) - 1] <= L'8';
+      return arg[base::size(kPrefetchArgumentPrefix) - 1] >= L'1' &&
+             arg[base::size(kPrefetchArgumentPrefix) - 1] <= L'8';
     }
   }
   return false;
@@ -147,7 +117,7 @@ bool RemoveAppCompatFlagsEntry() {
                KEY_READ | KEY_WRITE) == ERROR_SUCCESS) {
     std::wstring layers;
     if (key.ReadValue(current_exe.value().c_str(), &layers) == ERROR_SUCCESS) {
-      std::vector<std::wstring> tokens = base::SplitString(
+      std::vector<base::string16> tokens = base::SplitString(
           layers, L" ", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
       size_t initial_size = tokens.size();
       static const wchar_t* const kCompatModeTokens[] = {
@@ -162,7 +132,7 @@ bool RemoveAppCompatFlagsEntry() {
       if (tokens.empty()) {
         result = key.DeleteValue(current_exe.value().c_str());
       } else {
-        std::wstring without_compat_mode_tokens =
+        base::string16 without_compat_mode_tokens =
             base::JoinString(tokens, L" ");
         result = key.WriteValue(current_exe.value().c_str(),
                                 without_compat_mode_tokens.c_str());
@@ -179,16 +149,23 @@ int RunFallbackCrashHandler(const base::CommandLine& cmd_line) {
   // Retrieve the product & version details we need to report the crash
   // correctly.
   wchar_t exe_file[MAX_PATH] = {};
-  CHECK(::GetModuleFileName(nullptr, exe_file, std::size(exe_file)));
+  CHECK(::GetModuleFileName(nullptr, exe_file, base::size(exe_file)));
 
-  std::wstring product_name, version, channel_name, special_build;
+  base::string16 product_name;
+  base::string16 version;
+  base::string16 channel_name;
+  base::string16 special_build;
   install_static::GetExecutableVersionDetails(exe_file, &product_name, &version,
                                               &special_build, &channel_name);
 
   return crash_reporter::RunAsFallbackCrashHandler(
-      cmd_line, base::WideToUTF8(product_name), base::WideToUTF8(version),
-      base::WideToUTF8(channel_name));
+      cmd_line, base::UTF16ToUTF8(product_name), base::UTF16ToUTF8(version),
+      base::UTF16ToUTF8(channel_name));
 }
+
+}  // namespace
+
+namespace {
 
 // In 32-bit builds, the main thread starts with the default (small) stack size.
 // The ARCH_CPU_32_BITS blocks here and below are in support of moving the main
@@ -223,15 +200,6 @@ void WINAPI FiberBinder(void* params) {
 #endif  // defined(ARCH_CPU_32_BITS)
 
 }  // namespace
-
-__declspec(dllexport) __cdecl void GetPakFileHashes(
-    const uint8_t** resources_pak,
-    const uint8_t** chrome_100_pak,
-    const uint8_t** chrome_200_pak) {
-  *resources_pak = kSha256_resources_pak.data();
-  *chrome_100_pak = kSha256_chrome_100_percent_pak.data();
-  *chrome_200_pak = kSha256_chrome_200_percent_pak.data();
-}
 
 #if !defined(WIN_CONSOLE_APP)
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE prev, wchar_t*, int) {
@@ -280,11 +248,8 @@ int main() {
   // If we are already a fiber then continue normal execution.
 #endif  // defined(ARCH_CPU_32_BITS)
 
-  SetCwdForBrowserProcess();
   install_static::InitializeFromPrimaryModule();
   SignalInitializeCrashReporting();
-  if (IsBrowserProcess())
-    chrome::DisableDelayLoadFailureHooksForMainExecutable();
 #if defined(ARCH_CPU_32_BITS)
   // Intentionally crash if converting to a fiber failed.
   CHECK_EQ(fiber_status, FiberStatus::kSuccess);
@@ -301,21 +266,6 @@ int main() {
 
   const std::string process_type =
       command_line->GetSwitchValueASCII(switches::kProcessType);
-
-#if !defined(COMPONENT_BUILD) && DCHECK_IS_ON()
-  // In non-component mode, chrome.exe contains its own base::FeatureList
-  // instance pointer, which remains nullptr. Attempts to access feature state
-  // from chrome.exe should fail, instead of silently returning a default state.
-  base::FeatureList::FailOnFeatureAccessWithoutFeatureList();
-
-  // Patch the main EXE on non-component builds when DCHECKs are enabled.
-  // This allows detection of third party code that might attempt to meddle with
-  // Chrome's handles. This must be done when single-threaded to avoid other
-  // threads attempting to make calls through the hooks while they are being
-  // emplaced.
-  // Note: The DLL is patched separately, in chrome/app/chrome_main.cc.
-  base::debug::HandleHooks::AddIATPatch(CURRENT_MODULE());
-#endif  // !defined(COMPONENT_BUILD) && !DCHECK_IS_ON()
 
   // Confirm that an explicit prefetch profile is used for all process types
   // except for the browser process. Any new process type will have to assign
@@ -380,6 +330,10 @@ int main() {
   // The exit manager is in charge of calling the dtors of singletons.
   base::AtExitManager exit_manager;
 
+  // Only enable High DPI support for browser and GPU process.
+  if (process_type.empty() || process_type == switches::kGpuProcess)
+    base::win::EnableHighDPISupport();
+
   if (AttemptFastNotify(*command_line))
     return 0;
 
@@ -393,10 +347,10 @@ int main() {
   delete loader;
 
   // Process shutdown is hard and some process types have been crashing during
-  // shutdown. TerminateCurrentProcessImmediately is safer and faster.
+  // shutdown. TerminateProcess is safer and faster.
   if (process_type == switches::kUtilityProcess ||
       process_type == switches::kPpapiPluginProcess) {
-    base::Process::TerminateCurrentProcessImmediately(rc);
+    TerminateProcess(GetCurrentProcess(), rc);
   }
   return rc;
 }

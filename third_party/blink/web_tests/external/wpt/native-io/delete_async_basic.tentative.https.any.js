@@ -4,23 +4,17 @@
 'use strict';
 
 promise_test(async testCase => {
-  const file = await storageFoundation.open('test_file');
+  const file = await nativeIO.open('test_file');
   testCase.add_cleanup(async () => {
-    await storageFoundation.delete('test_file');
+    await nativeIO.delete('test_file');
   });
   await file.close();
 
-  const fileNamesBeforeDelete = await storageFoundation.getAll();
+  const fileNamesBeforeDelete = await nativeIO.getAll();
   assert_in_array('test_file', fileNamesBeforeDelete);
 
-  await storageFoundation.delete('test_file');
-  const fileNames = await storageFoundation.getAll();
+  await nativeIO.delete('test_file');
+  const fileNames = await nativeIO.getAll();
   assert_equals(fileNames.indexOf('test_file'), -1);
-}, 'storageFoundation.getAll does not return file deleted by' +
-     ' storageFoundation.delete');
+}, 'nativeIO.getAll does not return file deleted by nativeIO.delete');
 
-promise_test(async testCase => {
-  await storageFoundation.delete('test_file');
-  // Delete a second time if the file existed before the first delete.
-  await storageFoundation.delete('test_file');
-}, 'storageFoundation.delete does not fail when deleting a non-existing file');

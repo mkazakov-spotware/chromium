@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 
 #include <utility>
 
+#include "base/feature_list.h"
+#include "components/sync/driver/sync_auth_util.h"
 #include "components/sync/driver/sync_service.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 
@@ -19,6 +21,8 @@ SharingMessageModelTypeController::SharingMessageModelTypeController(
                                   std::move(delegate_for_full_sync_mode),
                                   std::move(delegate_for_transport_mode)),
       sync_service_(sync_service) {
+  // TODO(crbug.com/906995): Remove this observing mechanism once all sync
+  // datatypes are stopped by ProfileSyncService, when sync is paused.
   sync_service_->AddObserver(this);
 }
 
@@ -29,12 +33,10 @@ SharingMessageModelTypeController::~SharingMessageModelTypeController() {
 syncer::DataTypeController::PreconditionState
 SharingMessageModelTypeController::GetPreconditionState() const {
   DCHECK(CalledOnValidThread());
-  // TODO(crbug.com/1156584): No need to handle IsPersistentError() once the
-  // feature toggle is cleaned up and sync gets paused for all persistent auth
-  // errors. Instead, consider forcing DISABLE_SYNC_AND_CLEAR_DATA in Stop().
-  return sync_service_->GetAuthError().IsPersistentError()
-             ? PreconditionState::kMustStopAndClearData
-             : PreconditionState::kPreconditionsMet;
+  if (sync_service_->GetAuthError().IsPersistentError()) {
+    return PreconditionState::kMustStopAndClearData;
+  }
+  return PreconditionState::kPreconditionsMet;
 }
 
 void SharingMessageModelTypeController::OnStateChanged(

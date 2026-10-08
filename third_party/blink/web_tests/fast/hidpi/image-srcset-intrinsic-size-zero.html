@@ -9,8 +9,9 @@
     addEventListener("load", function() {
         imgWidth = document.getElementById("foo").clientWidth;
         var expected = 33554432; // blink::intMaxForLayoutUnit
-        expected = Math.round(expected / window.devicePixelRatio);
-        shouldBe('imgWidth', '' + expected, /* quiet */ true);
+        if (sessionStorage.useZoomForDsfEnabled === 'true')
+          expected = Math.round(expected / window.devicePixelRatio);
+        shouldBe('imgWidth', '' + expected);
     }, false);
 </script>
 <div>

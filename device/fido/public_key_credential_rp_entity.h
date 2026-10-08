@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 #include <vector>
 
 #include "base/component_export.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "components/cbor/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "url/gurl.h"
 
 namespace device {
 
@@ -20,12 +22,14 @@ namespace device {
 // https://www.w3.org/TR/webauthn/#dictdef-publickeycredentialrpentity
 struct COMPONENT_EXPORT(DEVICE_FIDO) PublicKeyCredentialRpEntity {
  public:
-  static absl::optional<PublicKeyCredentialRpEntity> CreateFromCBORValue(
+  static base::Optional<PublicKeyCredentialRpEntity> CreateFromCBORValue(
       const cbor::Value& cbor);
 
   PublicKeyCredentialRpEntity();
   explicit PublicKeyCredentialRpEntity(std::string id);
-  PublicKeyCredentialRpEntity(std::string id, absl::optional<std::string> name);
+  PublicKeyCredentialRpEntity(std::string id,
+                              base::Optional<std::string> name,
+                              base::Optional<GURL> icon_url);
   PublicKeyCredentialRpEntity(const PublicKeyCredentialRpEntity& other);
   PublicKeyCredentialRpEntity(PublicKeyCredentialRpEntity&& other);
   PublicKeyCredentialRpEntity& operator=(
@@ -35,7 +39,8 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) PublicKeyCredentialRpEntity {
   ~PublicKeyCredentialRpEntity();
 
   std::string id;
-  absl::optional<std::string> name;
+  base::Optional<std::string> name;
+  base::Optional<GURL> icon_url;
 };
 
 cbor::Value AsCBOR(const PublicKeyCredentialRpEntity&);

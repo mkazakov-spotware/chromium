@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "media/base/audio_bus.h"
 #include "media/base/audio_push_fifo.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -19,17 +20,13 @@ namespace {
 class AudioPushFifoTest : public testing::TestWithParam<int> {
  public:
   AudioPushFifoTest() = default;
-
-  AudioPushFifoTest(const AudioPushFifoTest&) = delete;
-  AudioPushFifoTest& operator=(const AudioPushFifoTest&) = delete;
-
   ~AudioPushFifoTest() override = default;
 
   int output_chunk_size() const { return GetParam(); }
 
   void SetUp() final {
-    fifo_ = std::make_unique<AudioPushFifo>(base::BindRepeating(
-        &AudioPushFifoTest::ReceiveAndCheckNextChunk, base::Unretained(this)));
+    fifo_.reset(new AudioPushFifo(base::BindRepeating(
+        &AudioPushFifoTest::ReceiveAndCheckNextChunk, base::Unretained(this))));
     fifo_->Reset(output_chunk_size());
     ASSERT_EQ(output_chunk_size(), fifo_->frames_per_buffer());
   }
@@ -164,6 +161,8 @@ class AudioPushFifoTest : public testing::TestWithParam<int> {
   }
 
   uint32_t rand_seed_ = 0x7e110;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioPushFifoTest);
 };
 
 // Tests an atypical edge case: Push()ing one frame at a time.

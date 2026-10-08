@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
 
@@ -24,10 +22,6 @@ class ManageProfileHandler : public settings::SettingsPageUIHandler,
                              public ProfileAttributesStorage::Observer {
  public:
   explicit ManageProfileHandler(Profile* profile);
-
-  ManageProfileHandler(const ManageProfileHandler&) = delete;
-  ManageProfileHandler& operator=(const ManageProfileHandler&) = delete;
-
   ~ManageProfileHandler() override;
 
   // settings::SettingsPageUIHandler:
@@ -59,21 +53,24 @@ class ManageProfileHandler : public settings::SettingsPageUIHandler,
 
   // Callback for the "getAvailableIcons" message.
   // Sends the array of default profile icon URLs and profile names to WebUI.
-  void HandleGetAvailableIcons(const base::Value::List& args);
+  void HandleGetAvailableIcons(const base::ListValue* args);
+
+  // Get all the available profile icons to choose from.
+  std::unique_ptr<base::ListValue> GetAvailableIcons();
 
   // Callback for the "setProfileIconToGaiaAvatar" message.
-  void HandleSetProfileIconToGaiaAvatar(const base::Value::List& args);
+  void HandleSetProfileIconToGaiaAvatar(const base::ListValue* args);
 
   // Callback for the "setProfileIconToDefaultAvatar" message.
-  void HandleSetProfileIconToDefaultAvatar(const base::Value::List& args);
+  void HandleSetProfileIconToDefaultAvatar(const base::ListValue* args);
 
   // Callback for the "setProfileName" message.
-  void HandleSetProfileName(const base::Value::List& args);
+  void HandleSetProfileName(const base::ListValue* args);
 
   // Callback for the "requestProfileShortcutStatus" message, which is called
   // when editing an existing profile. Asks the profile shortcut manager whether
   // the profile has shortcuts and gets the result in |OnHasProfileShortcuts()|.
-  void HandleRequestProfileShortcutStatus(const base::Value::List& args);
+  void HandleRequestProfileShortcutStatus(const base::ListValue* args);
 
   // Callback invoked from the profile manager indicating whether the profile
   // being edited has any desktop shortcuts.
@@ -83,23 +80,24 @@ class ManageProfileHandler : public settings::SettingsPageUIHandler,
   // Callback for the "addProfileShortcut" message, which is called when editing
   // an existing profile and the user clicks the "Add desktop shortcut" button.
   // Adds a desktop shortcut for the profile.
-  void HandleAddProfileShortcut(const base::Value::List& args);
+  void HandleAddProfileShortcut(const base::ListValue* args);
 
   // Callback for the "removeProfileShortcut" message, which is called when
   // editing an existing profile and the user clicks the "Remove desktop
   // shortcut" button. Removes the desktop shortcut for the profile.
-  void HandleRemoveProfileShortcut(const base::Value::List& args);
+  void HandleRemoveProfileShortcut(const base::ListValue* args);
 
   // Non-owning pointer to the associated profile.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Used to observe profile avatar updates.
-  base::ScopedObservation<ProfileAttributesStorage,
-                          ProfileAttributesStorage::Observer>
-      observation_{this};
+  ScopedObserver<ProfileAttributesStorage, ProfileAttributesStorage::Observer>
+      observer_{this};
 
   // For generating weak pointers to itself for callbacks.
   base::WeakPtrFactory<ManageProfileHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ManageProfileHandler);
 };
 
 }  // namespace settings

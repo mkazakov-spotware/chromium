@@ -34,11 +34,12 @@
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/html/html_image_loader.h"
 #include "third_party/blink/renderer/core/html/lazy_load_image_observer.h"
+#include "third_party/blink/renderer/platform/geometry/int_size.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_types.h"
 #include "third_party/blink/renderer/platform/graphics/image_orientation.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
-#include "ui/gfx/geometry/size.h"
 
 namespace blink {
 
@@ -100,14 +101,8 @@ class CORE_EXPORT HTMLImageElement final
   ImageResourceContent* CachedImage() const {
     return GetImageLoader().GetContent();
   }
-  void LoadDeferredImageFromMicrotask() {
-    GetImageLoader().LoadDeferredImage(referrer_policy_,
-                                       /*force_blocking*/ false,
-                                       /*update_from_microtask*/ true);
-  }
-  void LoadDeferredImageBlockingLoad() {
-    GetImageLoader().LoadDeferredImage(referrer_policy_,
-                                       /*force_blocking*/ true);
+  void LoadDeferredImage() {
+    GetImageLoader().LoadDeferredImage(referrer_policy_);
   }
   void SetImageForTest(ImageResourceContent* content) {
     GetImageLoader().SetImageForTest(content);
@@ -144,11 +139,9 @@ class CORE_EXPORT HTMLImageElement final
   virtual void EnsurePrimaryContent();
   bool IsCollapsed() const;
 
-  void SetAutoSizesUsecounter();
-
   // CanvasImageSource interface implementation.
-  gfx::SizeF DefaultDestinationSize(
-      const gfx::SizeF&,
+  FloatSize DefaultDestinationSize(
+      const FloatSize&,
       const RespectImageOrientationEnum) const override;
 
   // public so that HTMLPictureElement can call this as well.
@@ -188,18 +181,6 @@ class CORE_EXPORT HTMLImageElement final
   void SetIsAdRelated() { is_ad_related_ = true; }
   bool IsAdRelated() const override { return is_ad_related_; }
 
-  // Keeps track whether this image is an LCP element.
-  void SetIsLCPElement() { is_lcp_element_ = true; }
-  bool IsLCPElement() const { return is_lcp_element_; }
-
-  bool IsChangedShortlyAfterMouseover() const {
-    return is_changed_shortly_after_mouseover_;
-  }
-
-  void InvalidateAttributeMapping();
-
-  bool IsRichlyEditableForAccessibility() const override { return false; }
-
   static bool SupportedImageType(const String& type,
                                  const HashSet<String>* disabled_image_types);
 
@@ -223,8 +204,7 @@ class CORE_EXPORT HTMLImageElement final
   void DidMoveToNewDocument(Document& old_document) override;
 
   void DidAddUserAgentShadowRoot(ShadowRoot&) override;
-  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject(
-      const StyleRecalcContext&) override;
+  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject() override;
 
  private:
   bool AreAuthorShadowsAllowed() const override { return false; }
@@ -234,12 +214,6 @@ class CORE_EXPORT HTMLImageElement final
   void CollectStyleForPresentationAttribute(
       const QualifiedName&,
       const AtomicString&,
-      MutableCSSPropertyValueSet*) override;
-  // For mapping attributes from the <source> element, if any.
-  bool HasExtraStyleForPresentationAttribute() const override {
-    return source_;
-  }
-  void CollectExtraStyleForPresentationAttribute(
       MutableCSSPropertyValueSet*) override;
   void SetLayoutDisposition(LayoutDisposition, bool force_reattach = false);
 
@@ -285,16 +259,13 @@ class CORE_EXPORT HTMLImageElement final
   // policies. When any policy is violated, the image should be rendered as a
   // placeholder image.
   bool is_legacy_format_or_unoptimized_image_ : 1;
-  bool is_ad_related_ : 1;
-  bool is_lcp_element_ : 1;
-  bool is_changed_shortly_after_mouseover_ : 1;
-  bool has_sizes_attribute_in_img_or_sibling_ : 1;
-  bool is_lazy_loaded_ : 1;
 
   network::mojom::ReferrerPolicy referrer_policy_;
 
   std::unique_ptr<LazyLoadImageObserver::VisibleLoadTimeMetrics>
       visible_load_time_metrics_;
+
+  bool is_ad_related_ = false;
 };
 
 }  // namespace blink

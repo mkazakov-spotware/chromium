@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests V8 code cache for javascript resources\n`);
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
   await TestRunner.showPanel('timeline');
 
   // Clear browser cache to avoid any existing entries for the fetched
@@ -15,18 +15,14 @@
       'http://127.0.0.1:8000/devtools/resources/test-page-v8-code-cache.html');
 
   await TestRunner.evaluateInPagePromise(`
-      function waitUntilIdle() {
-        return new Promise(resolve=>window.requestIdleCallback(resolve));
-      }
-      async function loadScript() {
+      function loadScript() {
         const url =
             'http://localhost:8000/devtools/resources/v8-cache-script.js';
         const frameId = 'frame_id';
         let iframeWindow = document.getElementById(frameId).contentWindow;
-        await iframeWindow.loadScript(url);
-        await iframeWindow.loadScript(url);
-        await waitUntilIdle();
-        await iframeWindow.loadScript(url);
+        return iframeWindow.loadScript(url)
+            .then(() => iframeWindow.loadScript(url))
+            .then(() => iframeWindow.loadScript(url));
       }
   `);
 
@@ -45,8 +41,7 @@
   // change this if the heuristics change.
   await PerformanceTestRunner.invokeAsyncWithTimeline('loadScript');
   await PerformanceTestRunner.printTimelineRecordsWithDetails(
-      TimelineModel.TimelineModel.RecordType.CompileScript,
-      TimelineModel.TimelineModel.RecordType.CacheScript);
+      TimelineModel.TimelineModel.RecordType.CompileScript);
 
   // Second navigation
   TestRunner.addResult(
@@ -70,8 +65,7 @@
   await TestRunner.addIframe(localhost_scope, {id: frameId});
   await PerformanceTestRunner.invokeAsyncWithTimeline('loadScript');
   await PerformanceTestRunner.printTimelineRecordsWithDetails(
-      TimelineModel.TimelineModel.RecordType.CompileScript,
-      TimelineModel.TimelineModel.RecordType.CacheScript);
+      TimelineModel.TimelineModel.RecordType.CompileScript);
 
   TestRunner.completeTest();
 })();

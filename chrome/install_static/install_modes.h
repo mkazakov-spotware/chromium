@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,8 +30,6 @@
 
 #include <string>
 
-#include "build/branding_buildflags.h"
-#include "chrome/browser/chrome_for_testing/buildflags.h"
 #include "chrome/install_static/install_constants.h"
 
 // Include the brand-specific values. Each of these must define:
@@ -39,10 +37,8 @@
 //   array.
 // - NUM_INSTALL_MODES: the total number of modes (i.e., the number of items in
 //   kInstallModes.
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
 #include "chrome/install_static/google_chrome_install_modes.h"
-#elif BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
-#include "chrome/install_static/google_chrome_for_testing_install_modes.h"
 #else
 #include "chrome/install_static/chromium_install_modes.h"
 #endif

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,8 @@
 #include "third_party/boringssl/src/include/openssl/curve25519.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -53,7 +54,7 @@ std::unique_ptr<jingle_xmpp::XmlElement> EncodeBinaryValueToXml(
 
 // Finds tag named |qname| in base_message and decodes it from base64 and stores
 // in |data|. If the element is not present then found is set to false otherwise
-// it's set to true. If the element is there and it's content couldn't be decoded
+// it's set to true. If the element is there and it's content cound't be decoded
 // then false is returned.
 bool DecodeBinaryValueFromXml(const jingle_xmpp::XmlElement* message,
                               const jingle_xmpp::QName& qname,
@@ -164,7 +165,7 @@ void Spake2Authenticator::ProcessMessageInternal(
   if (!DecodeBinaryValueFromXml(message, kCertificateTag, &cert_present,
                                 &remote_cert_)) {
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
@@ -172,7 +173,7 @@ void Spake2Authenticator::ProcessMessageInternal(
   if (!is_host_ && remote_cert_.empty()) {
     LOG(WARNING) << "No valid host certificate.";
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
@@ -186,7 +187,7 @@ void Spake2Authenticator::ProcessMessageInternal(
                                 &verification_hash_present,
                                 &verification_hash)) {
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
@@ -195,7 +196,7 @@ void Spake2Authenticator::ProcessMessageInternal(
     if (!spake_message_present) {
       LOG(WARNING) << "<spake-message> not found.";
       state_ = REJECTED;
-      rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+      rejection_reason_ = PROTOCOL_ERROR;
       return;
     }
     uint8_t key[SPAKE2_MAX_KEY_SIZE];
@@ -207,7 +208,7 @@ void Spake2Authenticator::ProcessMessageInternal(
         spake_message.size());
     if (!result) {
       state_ = REJECTED;
-      rejection_reason_ = RejectionReason::INVALID_CREDENTIALS;
+      rejection_reason_ = INVALID_CREDENTIALS;
       return;
     }
     CHECK(key_size);
@@ -220,14 +221,14 @@ void Spake2Authenticator::ProcessMessageInternal(
   } else if (spake_message_present) {
     LOG(WARNING) << "Received duplicate <spake-message>.";
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
   if (spake_message_sent_ && !verification_hash_present) {
     LOG(WARNING) << "Didn't receive <verification-hash> when expected.";
     state_ = REJECTED;
-    rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+    rejection_reason_ = PROTOCOL_ERROR;
     return;
   }
 
@@ -237,7 +238,7 @@ void Spake2Authenticator::ProcessMessageInternal(
                                 expected_verification_hash_.data(),
                                 verification_hash.size())) {
       state_ = REJECTED;
-      rejection_reason_ = RejectionReason::INVALID_CREDENTIALS;
+      rejection_reason_ = INVALID_CREDENTIALS;
       return;
     }
     state_ = ACCEPTED;
@@ -313,4 +314,5 @@ std::string Spake2Authenticator::CalculateVerificationHash(
   return result;
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

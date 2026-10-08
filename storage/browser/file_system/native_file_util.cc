@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,11 @@
 
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "storage/browser/file_system/file_system_operation_context.h"
 #include "storage/browser/file_system/file_system_url.h"
 #include "storage/common/file_system/file_system_mount_option.h"
-
-#if BUILDFLAG(IS_WIN)
-#include "windows.h"
-#endif  // BUILDFLAG(IS_WIN)
 
 namespace storage {
 
@@ -134,7 +129,7 @@ NativeFileUtil::CopyOrMoveMode NativeFileUtil::CopyOrMoveModeForDestination(
 }
 
 base::File NativeFileUtil::CreateOrOpen(const base::FilePath& path,
-                                        uint32_t file_flags) {
+                                        int file_flags) {
   if (!base::DirectoryExists(path.DirName())) {
     // If its parent does not exist, should return NOT_FOUND error.
     return base::File(base::File::FILE_ERROR_NOT_FOUND);
@@ -254,7 +249,7 @@ bool NativeFileUtil::DirectoryExists(const base::FilePath& path) {
 base::File::Error NativeFileUtil::CopyOrMoveFile(
     const base::FilePath& src_path,
     const base::FilePath& dest_path,
-    FileSystemOperation::CopyOrMoveOptionSet options,
+    FileSystemOperation::CopyOrMoveOption option,
     CopyOrMoveMode mode) {
   base::File::Info info;
   base::File::Error error = NativeFileUtil::GetFileInfo(src_path, &info);
@@ -271,7 +266,7 @@ base::File::Error NativeFileUtil::CopyOrMoveFile(
   if (error == base::File::FILE_OK) {
     if (info.is_directory != src_is_directory)
       return base::File::FILE_ERROR_INVALID_OPERATION;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // Overwriting an empty directory with another directory isn't supported
     // natively on Windows, so treat this an unsupported. A higher layer is
     // responsible for handling it.
@@ -286,25 +281,6 @@ base::File::Error NativeFileUtil::CopyOrMoveFile(
     if (!info.is_directory)
       return base::File::FILE_ERROR_NOT_FOUND;
   }
-
-  // Cache permissions of dest file before copy/move overwrites the file.
-  bool should_retain_file_permissions = false;
-#if BUILDFLAG(IS_POSIX)
-  int dest_mode;
-  if (options.Has(FileSystemOperation::CopyOrMoveOption::
-                      kPreserveDestinationPermissions)) {
-    // Will be false if the destination file doesn't exist.
-    should_retain_file_permissions =
-        base::GetPosixFilePermissions(dest_path, &dest_mode);
-  }
-#elif BUILDFLAG(IS_WIN)
-  DWORD dest_attributes;
-  if (options.Has(FileSystemOperation::CopyOrMoveOption::
-                      kPreserveDestinationPermissions)) {
-    dest_attributes = ::GetFileAttributes(dest_path.value().c_str());
-    should_retain_file_permissions = dest_attributes != INVALID_FILE_ATTRIBUTES;
-  }
-#endif  // BUILDFLAG(IS_POSIX)
 
   switch (mode) {
     case COPY_NOSYNC:
@@ -323,18 +299,8 @@ base::File::Error NativeFileUtil::CopyOrMoveFile(
 
   // Preserve the last modified time. Do not return error here even if
   // the setting is failed, because the copy itself is successfully done.
-  if (options.Has(
-          FileSystemOperation::CopyOrMoveOption::kPreserveLastModified)) {
+  if (option == FileSystemOperation::OPTION_PRESERVE_LAST_MODIFIED)
     base::TouchFile(dest_path, last_modified, last_modified);
-  }
-
-  if (should_retain_file_permissions) {
-#if BUILDFLAG(IS_POSIX)
-    base::SetPosixFilePermissions(dest_path, dest_mode);
-#elif BUILDFLAG(IS_WIN)
-    ::SetFileAttributes(dest_path.value().c_str(), dest_attributes);
-#endif  // BUILDFLAG(IS_POSIX)
-  }
 
   return base::File::FILE_OK;
 }

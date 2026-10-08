@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 namespace extensions {
 
 // Enumerate all the ways SandboxedUnpacker can fail.
-// Note: enum used for UMA. Do NOT reorder or remove entries. Don't forget to
-// update enums.xml (name: ExtensionUnpackFailureReason) when adding new
-// entries.
+// Don't change the order or change the value of the enums.
 // Don't forget to update device_management_backend.proto (name:
 // ExtensionInstallReportLogEvent::SandboxedUnpackerFailureReason) when adding
 // new entries. Don't forget to update ConvertUnpackerFailureReasonToProto
@@ -84,14 +82,6 @@ enum class SandboxedUnpackerFailureReason {
 
   // SandboxedUnpacker::ValidateSignature()
   CRX_REQUIRED_PROOF_MISSING = 41,
-
-  // SandboxedUnpacker::OnVerifiedContentsUncompressed()
-  CRX_HEADER_VERIFIED_CONTENTS_UNCOMPRESSING_FAILURE = 42,
-
-  // SandboxedUnpacker::StoreVerifiedContentsInExtensionDir()
-  MALFORMED_VERIFIED_CONTENTS = 43,
-  COULD_NOT_CREATE_METADATA_DIRECTORY = 44,
-  COULD_NOT_WRITE_VERIFIED_CONTENTS_INTO_FILE = 45,
 
   NUM_FAILURE_REASONS
 };

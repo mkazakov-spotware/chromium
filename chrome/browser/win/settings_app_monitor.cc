@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <wrl/client.h>
 
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
@@ -14,10 +13,11 @@
 #include "base/location.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/pattern.h"
-#include "base/strings/string_util.h"
+#include "base/strings/string16.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/win/scoped_variant.h"
 #include "chrome/browser/win/automation_controller.h"
 #include "chrome/browser/win/ui_automation_util.h"
@@ -51,8 +51,8 @@ void ConfigureCacheRequest(IUIAutomationCacheRequest* cache_request) {
 
 // Helper function to get the parent element with class name "Flyout". Used to
 // determine the |element|'s type.
-std::wstring GetFlyoutParentAutomationId(IUIAutomation* automation,
-                                         IUIAutomationElement* element) {
+base::string16 GetFlyoutParentAutomationId(IUIAutomation* automation,
+                                           IUIAutomationElement* element) {
   // Create a condition that will include only elements with the right class
   // name in the tree view.
   base::win::ScopedVariant class_name(L"Flyout");
@@ -60,17 +60,17 @@ std::wstring GetFlyoutParentAutomationId(IUIAutomation* automation,
   HRESULT result = automation->CreatePropertyCondition(UIA_ClassNamePropertyId,
                                                        class_name, &condition);
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
 
   Microsoft::WRL::ComPtr<IUIAutomationTreeWalker> tree_walker;
   result = automation->CreateTreeWalker(condition.Get(), &tree_walker);
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
 
   Microsoft::WRL::ComPtr<IUIAutomationCacheRequest> cache_request;
   result = automation->CreateCacheRequest(&cache_request);
   if (FAILED(result))
-    return std::wstring();
+    return base::string16();
   ConfigureCacheRequest(cache_request.Get());
 
   // From MSDN, NormalizeElementBuildCache() "Retrieves the ancestor element
@@ -79,7 +79,7 @@ std::wstring GetFlyoutParentAutomationId(IUIAutomation* automation,
   result = tree_walker->NormalizeElementBuildCache(element, cache_request.Get(),
                                                    &flyout_element);
   if (FAILED(result) || !flyout_element)
-    return std::wstring();
+    return base::string16();
 
   return GetCachedBstrValue(flyout_element, UIA_AutomationIdPropertyId);
 }
@@ -88,15 +88,14 @@ ElementType DetectElementType(IUIAutomation* automation,
                               IUIAutomationElement* sender) {
   DCHECK(automation);
   DCHECK(sender);
-  std::wstring aid(GetCachedBstrValue(sender, UIA_AutomationIdPropertyId));
+  base::string16 aid(GetCachedBstrValue(sender, UIA_AutomationIdPropertyId));
   if (aid == L"SystemSettings_DefaultApps_Browser_Button")
     return ElementType::DEFAULT_BROWSER;
   if (aid == L"SystemSettings_DefaultApps_Browser_App0_HyperlinkButton")
     return ElementType::SWITCH_ANYWAY;
-  if (base::MatchPattern(base::AsString16(aid),
-                         u"SystemSettings_DefaultApps_Browser_*_Button")) {
+  if (base::MatchPattern(aid, L"SystemSettings_DefaultApps_Browser_*_Button")) {
     // This element type depends on the automation id of one of its ancestors.
-    std::wstring automation_id =
+    base::string16 automation_id =
         GetFlyoutParentAutomationId(automation, sender);
     if (automation_id == L"settingsFlyout")
       return ElementType::CHECK_IT_OUT;
@@ -114,11 +113,6 @@ class SettingsAppMonitor::AutomationControllerDelegate
   AutomationControllerDelegate(
       scoped_refptr<base::SequencedTaskRunner> monitor_runner,
       base::WeakPtr<SettingsAppMonitor> monitor);
-
-  AutomationControllerDelegate(const AutomationControllerDelegate&) = delete;
-  AutomationControllerDelegate& operator=(const AutomationControllerDelegate&) =
-      delete;
-
   ~AutomationControllerDelegate() override;
 
   // AutomationController::Delegate:
@@ -153,6 +147,8 @@ class SettingsAppMonitor::AutomationControllerDelegate
 
   // The browser chooser must only be invoked once.
   mutable bool browser_chooser_invoked_;
+
+  DISALLOW_COPY_AND_ASSIGN(AutomationControllerDelegate);
 };
 
 SettingsAppMonitor::AutomationControllerDelegate::AutomationControllerDelegate(
@@ -189,7 +185,8 @@ void SettingsAppMonitor::AutomationControllerDelegate::OnAutomationEvent(
           base::BindOnce(&SettingsAppMonitor::OnChooserInvoked, monitor_));
       break;
     case ElementType::BROWSER_BUTTON: {
-      std::wstring browser_name(GetCachedBstrValue(sender, UIA_NamePropertyId));
+      base::string16 browser_name(
+          GetCachedBstrValue(sender, UIA_NamePropertyId));
       if (!browser_name.empty()) {
         monitor_runner_->PostTask(
             FROM_HERE, base::BindOnce(&SettingsAppMonitor::OnBrowserChosen,
@@ -265,7 +262,7 @@ SettingsAppMonitor::SettingsAppMonitor(Delegate* delegate)
   // AutomationControllerDelegate.
   auto automation_controller_delegate =
       std::make_unique<SettingsAppMonitor::AutomationControllerDelegate>(
-          base::SequencedTaskRunner::GetCurrentDefault(),
+          base::SequencedTaskRunnerHandle::Get(),
           weak_ptr_factory_.GetWeakPtr());
 
   automation_controller_ = std::make_unique<AutomationController>(
@@ -289,7 +286,7 @@ void SettingsAppMonitor::OnChooserInvoked() {
   delegate_->OnChooserInvoked();
 }
 
-void SettingsAppMonitor::OnBrowserChosen(const std::wstring& browser_name) {
+void SettingsAppMonitor::OnBrowserChosen(const base::string16& browser_name) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   delegate_->OnBrowserChosen(browser_name);
 }

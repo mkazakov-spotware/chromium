@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define EXTENSIONS_SHELL_BROWSER_SHELL_APP_WINDOW_CLIENT_H_
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "extensions/browser/app_window/app_window_client.h"
 
 namespace extensions {
@@ -14,10 +15,6 @@ namespace extensions {
 class ShellAppWindowClient : public AppWindowClient {
  public:
   ShellAppWindowClient();
-
-  ShellAppWindowClient(const ShellAppWindowClient&) = delete;
-  ShellAppWindowClient& operator=(const ShellAppWindowClient&) = delete;
-
   ~ShellAppWindowClient() override;
 
   // AppWindowClient overrides:
@@ -29,12 +26,15 @@ class ShellAppWindowClient : public AppWindowClient {
       api::app_runtime::ActionType action) override;
   // Note that CreateNativeAppWindow is defined in separate (per-framework)
   // implementation files.
-  std::unique_ptr<NativeAppWindow> CreateNativeAppWindow(
+  NativeAppWindow* CreateNativeAppWindow(
       AppWindow* window,
       AppWindow::CreateParams* params) override;
   void OpenDevToolsWindow(content::WebContents* web_contents,
                           base::OnceClosure callback) override;
   bool IsCurrentChannelOlderThanDev() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ShellAppWindowClient);
 };
 
 }  // namespace extensions

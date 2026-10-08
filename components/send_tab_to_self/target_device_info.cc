@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,23 +13,31 @@
 
 namespace {
 
-std::string GetDeviceType(syncer::DeviceInfo::FormFactor form_factor) {
+std::string GetDeviceType(sync_pb::SyncEnums::DeviceType type) {
   int device_type_message_id = -1;
 
-  switch (form_factor) {
-    case syncer::DeviceInfo::FormFactor::kDesktop:
+  switch (type) {
+    case sync_pb::SyncEnums::TYPE_LINUX:
+    case sync_pb::SyncEnums::TYPE_WIN:
+    case sync_pb::SyncEnums::TYPE_CROS:
+    case sync_pb::SyncEnums::TYPE_MAC:
+      device_type_message_id = IDS_SHARING_DEVICE_TYPE_COMPUTER;
       device_type_message_id = IDS_SHARING_DEVICE_TYPE_COMPUTER;
       break;
 
-    case syncer::DeviceInfo::FormFactor::kUnknown:
+    case sync_pb::SyncEnums::TYPE_UNSET:
+    case sync_pb::SyncEnums::TYPE_OTHER:
+      device_type_message_id = IDS_SHARING_DEVICE_TYPE_DEVICE;
       device_type_message_id = IDS_SHARING_DEVICE_TYPE_DEVICE;
       break;
 
-    case syncer::DeviceInfo::FormFactor::kPhone:
+    case sync_pb::SyncEnums::TYPE_PHONE:
+      device_type_message_id = IDS_SHARING_DEVICE_TYPE_PHONE;
       device_type_message_id = IDS_SHARING_DEVICE_TYPE_PHONE;
       break;
 
-    case syncer::DeviceInfo::FormFactor::kTablet:
+    case sync_pb::SyncEnums::TYPE_TABLET:
+      device_type_message_id = IDS_SHARING_DEVICE_TYPE_TABLET;
       device_type_message_id = IDS_SHARING_DEVICE_TYPE_TABLET;
       break;
   }
@@ -55,13 +63,13 @@ TargetDeviceInfo::TargetDeviceInfo(
     const std::string& full_name,
     const std::string& short_name,
     const std::string& cache_guid,
-    const syncer::DeviceInfo::FormFactor form_factor,
+    const sync_pb::SyncEnums::DeviceType device_type,
     base::Time last_updated_timestamp)
     : full_name(full_name),
       short_name(short_name),
       device_name(short_name),
       cache_guid(cache_guid),
-      form_factor(form_factor),
+      device_type(device_type),
       last_updated_timestamp(last_updated_timestamp) {}
 
 TargetDeviceInfo::TargetDeviceInfo(const TargetDeviceInfo& other) = default;
@@ -72,7 +80,7 @@ bool TargetDeviceInfo::operator==(const TargetDeviceInfo& rhs) const {
          this->short_name == rhs.short_name &&
          this->device_name == rhs.device_name &&
          this->cache_guid == rhs.cache_guid &&
-         this->form_factor == rhs.form_factor &&
+         this->device_type == rhs.device_type &&
          this->last_updated_timestamp == rhs.last_updated_timestamp;
 }
 
@@ -86,9 +94,10 @@ SharingDeviceNames GetSharingDeviceNames(const syncer::DeviceInfo* device) {
     return {device->client_name(), device->client_name()};
 
   std::string manufacturer = CapitalizeWords(device->manufacturer_name());
+  sync_pb::SyncEnums::DeviceType type = device->device_type();
 
   // For chromeOS, return manufacturer + model.
-  if (device->os_type() == syncer::DeviceInfo::OsType::kChromeOsAsh) {
+  if (type == sync_pb::SyncEnums::TYPE_CROS) {
     std::string name = base::StrCat({manufacturer, " ", model});
     return {name, name};
   }
@@ -99,7 +108,7 @@ SharingDeviceNames GetSharingDeviceNames(const syncer::DeviceInfo* device) {
     return {model, model.substr(0, model.find_first_of("0123456789,"))};
 
   std::string short_name =
-      base::StrCat({manufacturer, " ", GetDeviceType(device->form_factor())});
+      base::StrCat({manufacturer, " ", GetDeviceType(type)});
   std::string full_name = base::StrCat({short_name, " ", model});
   return {full_name, short_name};
 }

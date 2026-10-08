@@ -1,21 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/extensions/extension_installed_bubble_model.h"
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/load_error_reporter.h"
 #include "chrome/browser/extensions/test_extension_system.h"
-#include "chrome/common/extensions/api/omnibox.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/browser/extension_system.h"
-#include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -42,10 +39,10 @@ class ExtensionInstalledBubbleModelTest : public BrowserWithTestWindowTest {
 
   void AddOmniboxKeyword(extensions::ExtensionBuilder* builder,
                          const std::string& keyword) {
-    using ManifestKeys = extensions::api::omnibox::ManifestKeys;
     auto info = std::make_unique<base::DictionaryValue>();
-    info->SetStringKey(ManifestKeys::Omnibox::kKeyword, keyword);
-    builder->SetManifestKey(ManifestKeys::kOmnibox, std::move(info));
+    info->SetStringKey("keyword", keyword);
+    builder->SetManifestKey(extensions::manifest_keys::kOmnibox,
+                            std::move(info));
   }
 
   void AddRegularAction(extensions::ExtensionBuilder* builder) {
@@ -73,7 +70,7 @@ class ExtensionInstalledBubbleModelTest : public BrowserWithTestWindowTest {
   const SkBitmap empty_icon_;
 
  private:
-  raw_ptr<extensions::ExtensionService> extension_service_ = nullptr;
+  extensions::ExtensionService* extension_service_ = nullptr;
 };
 
 TEST_F(ExtensionInstalledBubbleModelTest, SyntheticPageActionExtension) {
@@ -120,9 +117,10 @@ TEST_F(ExtensionInstalledBubbleModelTest, OmniboxExtension) {
 
 TEST_F(ExtensionInstalledBubbleModelTest, PageActionExtension) {
   // An extension with a page action...
-  auto extension = extensions::ExtensionBuilder("Foo")
-                       .SetAction(extensions::ActionInfo::TYPE_PAGE)
-                       .Build();
+  auto extension =
+      extensions::ExtensionBuilder("Foo")
+          .SetAction(extensions::ExtensionBuilder::ActionType::PAGE_ACTION)
+          .Build();
   extension_service()->AddExtension(extension.get());
 
   ExtensionInstalledBubbleModel model(browser()->profile(), extension.get(),
@@ -142,7 +140,7 @@ TEST_F(ExtensionInstalledBubbleModelTest, PageActionExtension) {
 TEST_F(ExtensionInstalledBubbleModelTest, ExtensionWithKeyBinding) {
   // An extension with a browser action and a key binding...
   auto builder = extensions::ExtensionBuilder("Foo");
-  builder.SetAction(extensions::ActionInfo::TYPE_BROWSER);
+  builder.SetAction(extensions::ExtensionBuilder::ActionType::BROWSER_ACTION);
   AddBrowserActionKeyBinding(&builder, "Alt+Shift+E");
   auto extension = builder.Build();
 
@@ -164,7 +162,7 @@ TEST_F(ExtensionInstalledBubbleModelTest, ExtensionWithKeyBinding) {
   // model.GetHowToUseText(), since on Mac, modifier keys are represented by
   // special sigils rather than their textual names.
   ui::Accelerator accelerator(ui::VKEY_E, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN);
-  EXPECT_NE(std::u16string::npos,
+  EXPECT_NE(base::string16::npos,
             model.GetHowToUseText().find(accelerator.GetShortcutText()));
 }
 

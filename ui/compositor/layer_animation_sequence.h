@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
@@ -42,10 +43,6 @@ class COMPOSITOR_EXPORT LayerAnimationSequence
   // Takes ownership of the given element and adds it to the sequence.
   explicit LayerAnimationSequence(
       std::unique_ptr<LayerAnimationElement> element);
-
-  LayerAnimationSequence(const LayerAnimationSequence&) = delete;
-  LayerAnimationSequence& operator=(const LayerAnimationSequence&) = delete;
-
   virtual ~LayerAnimationSequence();
 
   // Sets the start time for the animation. This must be called before the
@@ -77,12 +74,11 @@ class COMPOSITOR_EXPORT LayerAnimationSequence
   bool IsFinished(base::TimeTicks time);
 
   // Updates the delegate to the end of the animation; if this sequence is
-  // repeating, updates the delegate to the end of one repetition of the
-  // sequence.
+  // cyclic, updates the delegate to the end of one cycle of the sequence.
   void ProgressToEnd(LayerAnimationDelegate* delegate);
 
   // Sets the target value to the value that would have been set had
-  // the sequence completed. Does nothing if the sequence is repeating.
+  // the sequence completed. Does nothing if the sequence is cyclic.
   void GetTargetValue(LayerAnimationElement::TargetValue* target) const;
 
   // Aborts the given animation.
@@ -97,9 +93,9 @@ class COMPOSITOR_EXPORT LayerAnimationSequence
   // element.
   void AddElement(std::unique_ptr<LayerAnimationElement> element);
 
-  // Sequences can repeat indefinitely.
-  void set_is_repeating(bool is_repeating) { is_repeating_ = is_repeating; }
-  bool is_repeating() const { return is_repeating_; }
+  // Sequences can be looped indefinitely.
+  void set_is_cyclic(bool is_cyclic) { is_cyclic_ = is_cyclic; }
+  bool is_cyclic() const { return is_cyclic_; }
 
   // Returns true if this sequence has at least one element conflicting with a
   // property in |other|.
@@ -164,9 +160,6 @@ class COMPOSITOR_EXPORT LayerAnimationSequence
   // Notifies the observers that this sequence has ended.
   void NotifyEnded();
 
-  // Notifies the observers that this sequence has ended and will repeat.
-  void NotifyWillRepeat();
-
   // Notifies the observers that this sequence has been aborted.
   void NotifyAborted();
 
@@ -180,7 +173,7 @@ class COMPOSITOR_EXPORT LayerAnimationSequence
   Elements elements_;
 
   // True if the sequence should be looped forever.
-  bool is_repeating_;
+  bool is_cyclic_;
 
   // These are used when animating to efficiently find the next element.
   size_t last_element_;
@@ -205,6 +198,8 @@ class COMPOSITOR_EXPORT LayerAnimationSequence
   // Tracks the last_progressed_fraction() of the most recently progressed
   // element.
   double last_progressed_fraction_;
+
+  DISALLOW_COPY_AND_ASSIGN(LayerAnimationSequence);
 };
 
 }  // namespace ui

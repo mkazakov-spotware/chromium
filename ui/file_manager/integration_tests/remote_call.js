@@ -1,47 +1,33 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ElementObject} from './element_object.js';
-import {KeyModifiers} from './key_modifiers.js';
-import {getCaller, pending, repeatUntil, sendTestMessage} from './test_util.js';
-import {VolumeManagerCommonVolumeType} from './volume_manager_common_volume_type.js';
+'use strict';
 
 /**
  * When step by step tests are enabled, turns on automatic step() calls. Note
  * that if step() is defined at the time of this call, invoke it to start the
  * test auto-stepping ball rolling.
  */
-window.autoStep = () => {
+function autoStep() {
   window.autostep = window.autostep || false;
   if (!window.autostep) {
     window.autostep = true;
   }
-  if (window.autostep && typeof window.step === 'function') {
+  if (window.autostep && typeof window.step == 'function') {
     window.step();
-  }
-};
-
-/**
- * This error type is thrown by executeJsInPreviewTagSwa_ if the script to
- * execute in the untrusted context produces an error.
- */
-export class ExecuteScriptError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'ExecuteScriptError';
   }
 }
 
 /**
  * Class to manipulate the window in the remote extension.
  */
-export class RemoteCall {
+class RemoteCall {
   /**
-   * @param {string} origin ID of the app to be manipulated.
+   * @param {string} extensionId ID of extension to be manipulated.
    */
-  constructor(origin) {
-    this.origin_ = origin;
+  constructor(extensionId) {
+    this.extensionId_ = extensionId;
 
     /**
      * Tristate holding the cached result of isStepByStepEnabled_().
@@ -63,18 +49,6 @@ export class RemoteCall {
       });
     }
     return this.cachedStepByStepEnabled_;
-  }
-
-  /**
-   * Sends a test |message| to the test code running in the File Manager.
-   * @param {!Object} message
-   * @return {!Promise<*>} A promise which when fulfilled returns the
-   *     result of executing test code with the given message.
-   */
-  sendMessage(message) {
-    return new Promise((fulfill) => {
-      chrome.runtime.sendMessage(this.origin_, message, {}, fulfill);
-    });
   }
 
   /**
@@ -117,7 +91,11 @@ export class RemoteCall {
         console.info('Auto calling step() ...');
       }
     }
-    const response = await this.sendMessage({func, appId, args});
+    const response = await new Promise((onFulfilled) => {
+      chrome.runtime.sendMessage(
+          this.extensionId_, {func: func, appId: appId, args: args}, {},
+          onFulfilled);
+    });
 
     if (stepByStep) {
       console.info('Returned value:');
@@ -133,21 +111,49 @@ export class RemoteCall {
   /**
    * Waits until a window having the given ID prefix appears.
    * @param {string} windowIdPrefix ID prefix of the requested window.
-   * @return {!Promise<string>} promise Promise to be fulfilled with a found
-   *     window's ID.
+   * @return {Promise} promise Promise to be fulfilled with a found window's ID.
    */
   waitForWindow(windowIdPrefix) {
     const caller = getCaller();
-    const windowIdRegex = new RegExp(windowIdPrefix);
     return repeatUntil(async () => {
       const windows = await this.callRemoteTestUtil('getWindows', null, []);
       for (const id in windows) {
-        if (id.indexOf(windowIdPrefix) === 0 || windowIdRegex.test(id)) {
+        if (id.indexOf(windowIdPrefix) === 0) {
           return id;
         }
       }
       return pending(
           caller, 'Window with the prefix %s is not found.', windowIdPrefix);
+    });
+  }
+
+  /**
+   * Closes a window and waits until the window is closed.
+   *
+   * @param {string} appId App window Id.
+   * @return {Promise} promise Promise to be fulfilled with the result (true:
+   *     success, false: failed).
+   */
+  async closeWindowAndWait(appId) {
+    const caller = getCaller();
+
+    // Closes the window.
+    if (!await this.callRemoteTestUtil('closeWindow', null, [appId])) {
+      // Returns false when the closing is failed.
+      return false;
+    }
+
+    return repeatUntil(async () => {
+      const windows = await this.callRemoteTestUtil('getWindows', null, []);
+      for (const id in windows) {
+        if (id === appId) {
+          // Window is still available. Continues waiting.
+          return pending(
+              caller, 'Window with the prefix %s is not found.', appId);
+        }
+      }
+      // Window is not available. Closing is done successfully.
+      return true;
     });
   }
 
@@ -204,7 +210,7 @@ export class RemoteCall {
     return repeatUntil(async () => {
       const elements = await this.callRemoteTestUtil(
           'deepQueryAllElements', appId, [query, styleNames]);
-      if (elements && elements.length > 0) {
+      if (elements.length > 0) {
         return /** @type {ElementObject} */ (elements[0]);
       }
       return pending(caller, 'Element %s is not found.', query);
@@ -258,7 +264,7 @@ export class RemoteCall {
       const elements =
           await this.callRemoteTestUtil('deepQueryAllElements', appId, [query]);
       if (elements.length > 0) {
-        return pending(caller, 'Elements %j still exists.', elements);
+        return pending(caller, 'Elements %j is still exists.', elements);
       }
       return true;
     });
@@ -310,21 +316,9 @@ export class RemoteCall {
   }
 
   /**
-   * Sets the given input text on the element identified by the query.
-   * @param {string} appId App window ID.
-   * @param {string|!Array<string>} selector The query selector to locate
-   *     the element
-   * @param {string} text The text to be set on the element.
-   */
-  async inputText(appId, selector, text) {
-    chrome.test.assertTrue(
-        await this.callRemoteTestUtil('inputText', appId, [selector, text]));
-  }
-
-  /**
    * Gets file entries just under the volume.
    *
-   * @param {VolumeManagerCommonVolumeType} volumeType Volume type.
+   * @param {VolumeManagerCommon.VolumeType} volumeType Volume type.
    * @param {Array<string>} names File name list.
    * @return {Promise} Promise to be fulfilled with file entries or rejected
    *     depending on the result.
@@ -336,7 +330,7 @@ export class RemoteCall {
 
   /**
    * Waits for a single file.
-   * @param {VolumeManagerCommonVolumeType} volumeType Volume type.
+   * @param {VolumeManagerCommon.VolumeType} volumeType Volume type.
    * @param {string} name File name.
    * @return {!Promise} Promise to be fulfilled when the file had found.
    */
@@ -417,165 +411,23 @@ export class RemoteCall {
     const y =
         Math.floor(element['renderedTop'] + (element['renderedHeight'] / 2));
 
-    return sendTestMessage(
-        {appId, name: 'simulateClick', 'clickX': x, 'clickY': y});
+    return sendTestMessage({name: 'simulateClick', 'clickX': x, 'clickY': y});
   }
 }
 
 /**
  * Class to manipulate the window in the remote extension.
  */
-export class RemoteCallFilesApp extends RemoteCall {
-  /**
-   * Sends a test |message| to the test code running in the File Manager.
-   * @param {!Object} message
-   * @return {!Promise<*>}
-   * @override
-   */
-  sendMessage(message) {
-    const command = {
-      name: 'callSwaTestMessageListener',
-      appId: message.appId,
-      data: JSON.stringify(message),
-    };
-
-    return new Promise((fulfill) => {
-      chrome.test.sendMessage(JSON.stringify(command), (response) => {
-        if (response === '"@undefined@"') {
-          fulfill(undefined);
-        } else {
-          try {
-            fulfill(response == '' ? true : JSON.parse(response));
-          } catch (e) {
-            console.error(`Failed to parse "${response}" due to ${e}`);
-            fulfill(false);
-          }
-        }
-      });
-    });
-  }
-
-  /** @override */
-  async waitForWindow(windowIdPrefix) {
-    return this.waitForSwaWindow();
-  }
-
-  async getWindows() {
-    return JSON.parse(await sendTestMessage({name: 'getWindows'}));
-  }
-
-  /**
-   * Wait for a SWA window to be open.
-   * @return {!Promise<string>}
-   */
-  async waitForSwaWindow() {
-    const caller = getCaller();
-    const appId = await repeatUntil(async () => {
-      const ret = await sendTestMessage({name: 'findSwaWindow'});
-      if (ret === 'none') {
-        return pending(caller, 'Wait for SWA window');
-      }
-      return ret;
-    });
-
-    return appId;
-  }
-
-  /**
-   * Executes a script in the context of a <preview-tag> element contained in
-   * the window.
-   * For SWA: It's the first chrome-untrusted://file-manager <iframe>.
-   * For legacy: It's the first elements based on the `query`.
-   * Responds with its output.
-   *
-   * @param {string} appId App window Id.
-   * @param {!Array<string>} query Query to the <preview-tag> element (this is
-   *     ignored for SWA).
-   * @param {string} statement Javascript statement to be executed within the
-   *     <preview-tag>.
-   * @return {!Promise<*>} resolved with the return value of the `statement`.
-   */
-  async executeJsInPreviewTag(appId, query, statement) {
-    return this.executeJsInPreviewTagSwa_(statement);
-  }
-
-  /**
-   * Inject javascript statemenent in the first chrome-untrusted://file-manager
-   * page found and respond with its output.
-   * @private
-   * @param {string} statement
-   * @return {!Promise}
-   */
-  async executeJsInPreviewTagSwa_(statement) {
-    const script = `try {
-          let result = ${statement};
-          result = result === undefined ? '@undefined@' : [result];
-          window.domAutomationController.send(JSON.stringify(result));
-        } catch (error) {
-          const errorInfo = {'@error@':  error.message, '@stack@': error.stack};
-          window.domAutomationController.send(JSON.stringify(errorInfo));
-        }`;
-
-    const command = {
-      name: 'executeScriptInChromeUntrusted',
-      data: script,
-    };
-
-    const response = await sendTestMessage(command);
-    if (response === '"@undefined@"') {
-      return undefined;
-    }
-    const output = JSON.parse(response);
-    if ('@error@' in output) {
-      console.error(output['@error@']);
-      console.error('Original StackTrace:\n' + output['@stack@']);
-      throw new ExecuteScriptError(
-          'Error executing JS in Preview: ' + output['@error@']);
-    } else {
-      return output;
-    }
-  }
-
-  /**
-   * Waits until the expected URL shows in the last opened browser tab.
-   * @param {string} expectedUrl
-   * @return {!Promise} Promise to be fulfilled when the expected URL is shown
-   *     in a browser window.
-   */
-  async waitForLastOpenedBrowserTabUrl(expectedUrl) {
-    const caller = getCaller();
-    return repeatUntil(async () => {
-      const command = {name: 'getLastActiveTabURL'};
-      const activeBrowserTabURL = await sendTestMessage(command);
-      if (activeBrowserTabURL !== expectedUrl) {
-        return pending(
-            caller, 'waitForActiveBrowserTabUrl: expected %j actual %j.',
-            expectedUrl, activeBrowserTabURL);
-      }
-    });
-  }
-
-  /**
-   * Returns whether an window exists with the expected URL.
-   * @param {string} expectedUrl
-   * @return {!Promise<boolean>} Promise resolved with true or false depending
-   *     on whether such window exists.
-   */
-  async windowUrlExists(expectedUrl) {
-    const command = {name: 'expectWindowURL', expectedUrl: expectedUrl};
-    const windowExists = await sendTestMessage(command);
-    return windowExists == 'true';
-  }
-
+class RemoteCallFilesApp extends RemoteCall {
   /**
    * Waits for the file list turns to the given contents.
    * @param {string} appId App window Id.
    * @param {Array<Array<string>>} expected Expected contents of file list.
-   * @param {{orderCheck:(?boolean|undefined), ignoreFileSize:
-   *     (?boolean|undefined), ignoreLastModifiedTime:(?boolean|undefined)}=}
-   *     opt_options Options of the comparison. If orderCheck is true, it also
-   *     compares the order of files. If ignoreLastModifiedTime is true, it
-   *     compares the file without its last modified time.
+   * @param {{orderCheck:(?boolean|undefined),
+   *     ignoreLastModifiedTime:(?boolean|undefined)}=} opt_options Options of
+   *     the comparison. If orderCheck is true, it also compares the order of
+   *     files. If ignoreLastModifiedTime is true, it compares the file without
+   *     its last modified time.
    * @return {Promise} Promise to be fulfilled when the file list turns to the
    *     given contents.
    */
@@ -641,32 +493,22 @@ export class RemoteCallFilesApp extends RemoteCall {
   /**
    * Waits until the given taskId appears in the executed task list.
    * @param {string} appId App window Id.
-   * @param {!chrome.fileManagerPrivate.FileTaskDescriptor} descriptor Task to
-   *     watch.
-   * @param {!Array<string>} fileNames Name of files that should have been
-   *     passed to the executeTasks().
-   * @param {Array<Object>=} replyArgs arguments to reply to executed task.
+   * @param {string} taskId Task ID to watch.
+   * @param {Array<Object>=} opt_replyArgs arguments to reply to executed task.
    * @return {Promise} Promise to be fulfilled when the task appears in the
    *     executed task list.
    */
-  waitUntilTaskExecutes(appId, descriptor, fileNames, replyArgs) {
+  waitUntilTaskExecutes(appId, taskId, opt_replyArgs) {
     const caller = getCaller();
     return repeatUntil(async () => {
-      if (!await this.callRemoteTestUtil(
-              'taskWasExecuted', appId, [descriptor, fileNames])) {
-        const tasks =
-            await this.callRemoteTestUtil('getExecutedTasks', appId, []);
-        const executedTasks = tasks.map((task) => {
-          const {appId, taskType, actionId} = task.descriptor;
-          const executedFileNames = task['fileNames'];
-          return `${appId}|${taskType}|${actionId} for ${
-              JSON.stringify(executedFileNames)}`;
-        });
+      const executedTasks =
+          await this.callRemoteTestUtil('getExecutedTasks', appId, []);
+      if (executedTasks.indexOf(taskId) === -1) {
         return pending(caller, 'Executed task is %j', executedTasks);
       }
-      if (replyArgs) {
+      if (opt_replyArgs) {
         await this.callRemoteTestUtil(
-            'replyExecutedTask', appId, [descriptor, replyArgs]);
+            'replyExecutedTask', appId, [taskId, opt_replyArgs]);
       }
     });
   }
@@ -700,30 +542,6 @@ export class RemoteCallFilesApp extends RemoteCall {
           caller,
           'Waiting for active element with id: "' + elementId +
               '", but current is: "' + element.attributes['id'] + '"');
-    });
-  }
-
-  /**
-   * Returns a promise that repeatedly checks for a file with the given
-   * name to be selected in the app window with the given ID. Typical
-   * use
-   *
-   * await remoteCall.waitUntilSelected('file#0', 'hello.txt');
-   * ... // either the test timed out or hello.txt is currently selected.
-   *
-   * @param {string} appId App window Id.
-   * @param {string} fileName the name of the file to be selected.
-   * @return {Promise<boolean>} Promise that indicates if selection was
-   *     successful.
-   */
-  waitUntilSelected(appId, fileName) {
-    const caller = getCaller();
-    return repeatUntil(async () => {
-      const selected =
-          await this.callRemoteTestUtil('selectFile', appId, [fileName]);
-      if (!selected) {
-        return pending(caller, `File ${fileName} not yet selected`);
-      }
     });
   }
 
@@ -818,167 +636,117 @@ export class RemoteCallFilesApp extends RemoteCall {
   }
 
   /**
-   * Wait until the expected number of volumes is mounted.
-   * @param {number} expectedVolumesCount Expected number of mounted volumes.
-   * @return {Promise} promise Promise to be fulfilled.
+   * Navigates to specified directory on the specified volume by using directory
+   * tree.
+   * DEPRECATED: Use background.js:navigateWithDirectoryTree instead
+   * crbug.com/996626.
    */
-  async waitForVolumesCount(expectedVolumesCount) {
+  async navigateWithDirectoryTree(
+      appId, path, rootLabel, volumeType = 'downloads') {
+    await this.expandDirectoryTreeFor(appId, path, volumeType);
+
+    // Select target path.
+    await this.callRemoteTestUtil(
+        'fakeMouseClick', appId, [`[full-path-for-testing="${path}"]`]);
+
+    // Entries within Drive starts with /root/ but it isn't displayed in the
+    // breadcrubms used by waitUntilCurrentDirectoryIsChanged.
+    path = path.replace(/^\/root/, '')
+               .replace(/^\/team_drives/, '')
+               .replace(/^\/Computers/, '');
+
+    // TODO(lucmult): Remove this once MyFilesVolume is rolled out.
+    // Remove /Downloads duplication when MyFilesVolume is enabled.
+    if (volumeType == 'downloads' && path.startsWith('/Downloads') &&
+        rootLabel.endsWith('/Downloads')) {
+      rootLabel = rootLabel.replace('/Downloads', '');
+    }
+
+    // Wait until the Files app is navigated to the path.
+    return this.waitUntilCurrentDirectoryIsChanged(
+        appId, `/${rootLabel}${path}`);
+  }
+}
+
+/**
+ * Class to manipulate the window in the remote extension.
+ */
+class RemoteCallGallery extends RemoteCall {
+  /**
+   * Waits until the expected image is shown.
+   *
+   * @param {string} appId App window Id.
+   * @param {number} width Expected width of the image.
+   * @param {number} height Expected height of the image.
+   * @param {string|null} name Expected name of the image.
+   * @return {Promise} Promsie to be fulfilled when the check is passed.
+   */
+  waitForSlideImage(appId, width, height, name) {
+    const expected = {};
+    if (width) {
+      expected.width = width;
+    }
+    if (height) {
+      expected.height = height;
+    }
+    if (name) {
+      expected.name = name;
+    }
+
     const caller = getCaller();
     return repeatUntil(async () => {
-      const volumesCount = await sendTestMessage({name: 'getVolumesCount'});
-      if (volumesCount === expectedVolumesCount.toString()) {
-        return;
+      const query = '.gallery[mode="slide"] .image-container > .image';
+      const [nameBox, image] = await Promise.all([
+        this.waitForElement(appId, '#rename-input'),
+        this.waitForElementStyles(appId, query, ['any'])
+      ]);
+      const actual = {};
+      if (width && image) {
+        actual.width = image.imageWidth;
       }
-      const msg =
-          'Expected number of mounted volumes: ' + expectedVolumesCount +
-          '. Actual: ' + volumesCount;
-      return pending(caller, msg);
+      if (height && image) {
+        actual.height = image.imageHeight;
+      }
+      if (name && nameBox) {
+        actual.name = nameBox.value;
+      }
+
+      if (!chrome.test.checkDeepEq(expected, actual)) {
+        return pending(
+            caller, 'Slide mode state, expected is %j, actual is %j.', expected,
+            actual);
+      }
+      return actual;
     });
   }
 
-  /**
-   * Isolates the specified banner to test. The banner is still checked against
-   * it's filters, but is now the top priority banner.
-   * @param {string} appId App window Id
-   * @param {string} bannerTagName Banner tag name in lowercase to isolate.
-   */
-  async isolateBannerForTesting(appId, bannerTagName) {
-    await this.waitFor('isFileManagerLoaded', appId, true);
-    chrome.test.assertTrue(await this.callRemoteTestUtil(
-        'isolateBannerForTesting', appId, [bannerTagName]));
+  async changeNameAndWait(appId, newName) {
+    await this.callRemoteTestUtil('changeName', appId, [newName]);
+    return this.waitForSlideImage(appId, 0, 0, newName);
   }
 
   /**
-   * Disables banners from attaching to the DOM.
-   * @param {string} appId App window Id
-   */
-  async disableBannersForTesting(appId) {
-    await this.waitFor('isFileManagerLoaded', appId, true);
-    chrome.test.assertTrue(
-        await this.callRemoteTestUtil('disableBannersForTesting', appId, []));
-  }
-
-  /**
-   * Sends text to the search box in the Files app.
-   * @param {string} appId App window Id
-   * @param {string} text The text to type in the search box.
-   */
-  async typeSearchText(appId, text) {
-    const searchBoxInput = ['#search-box cr-input'];
-
-    // Focus the search box.
-    await this.waitAndClickElement(appId, '#search-button');
-
-    // Input the text.
-    await this.inputText(appId, searchBoxInput, text);
-
-    // Notify the element of the input.
-    chrome.test.assertTrue(await this.callRemoteTestUtil(
-        'fakeEvent', appId, ['#search-box cr-input', 'input']));
-  }
-
-  /**
-   * Waits for the search box auto complete list to appear.
-   * @param {string} appId
-   * @return {!Promise<!Array<string>>} Array of the names in the auto complete
-   *     list.
-   */
-  async waitForSearchAutoComplete(appId) {
-    // Wait for the list to appear.
-    await this.waitForElement(appId, '#autocomplete-list li');
-
-    // Return the result.
-    const elements = await this.callRemoteTestUtil(
-        'deepQueryAllElements', appId, ['#autocomplete-list li']);
-    return elements.map((element) => element.text);
-  }
-
-  /**
-   * Disable nudges from expiring for testing.
-   * @param {string} appId App window Id
-   */
-  async disableNudgeExpiry(appId) {
-    await this.waitFor('isFileManagerLoaded', appId, true);
-    chrome.test.assertTrue(
-        await this.callRemoteTestUtil('disableNudgeExpiry', appId, []));
-  }
-
-  /**
-   * Selects the file and displays the context menu for the file.
-   * @return {!Promise<void>} resolved when the context menu is visible.
-   */
-  async showContextMenuFor(appId, fileName) {
-    // Select the file.
-    await this.waitUntilSelected(appId, fileName);
-
-    // Right-click to display the context menu.
-    await this.waitAndRightClick(appId, '.table-row[selected]');
-
-    // Wait for the context menu to appear.
-    await this.waitForElement(appId, '#file-context-menu:not([hidden])');
-
-    // Wait for the tasks to be fully fetched.
-    await this.waitForElement(appId, '#tasks[get-tasks-completed]');
-  }
-
-  /**
+   * Waits for the "Press Enter" message.
+   *
    * @param {string} appId App window Id.
-   * @return {!Promise<void>}
+   * @return {Promise} Promise to be fulfilled when the element appears.
    */
-  async dismissMenu(appId) {
-    await this.fakeKeyDown(appId, 'body', 'Escape', false, false, false);
+  async waitForPressEnterMessage(appId) {
+    const element = await this.waitForElement(appId, '.prompt-wrapper .prompt');
+    chrome.test.assertEq('Press Enter when done', element.text.trim());
   }
 
   /**
+   * Shorthand for selecting an image in thumbnail mode.
    * @param {string} appId App window Id.
-   * @param {string|!Array<string>} query Query to find the elements.
-   * @return {!Promise<!Array<!ElementObject>>} Promise to be fulfilled with the
-   *     elements.
-   * @private
+   * @param {string} name File name to be selected.
+   * @return {!Promise<boolean>} A promise which will be resolved with true if
+   *     the thumbnail has clicked. This method does not guarantee whether the
+   *     thumbnail has actually selected or not.
    */
-  async queryElements_(appId, query) {
-    if (typeof query === 'string') {
-      query = [query];
-    }
-    return this.callRemoteTestUtil('deepQueryAllElements', appId, query);
-  }
-
-  /**
-   * Returns the menu as ElementObject and its menu-items (including separators)
-   * in the `items` property.
-   * @param {string} appId App window Id.
-   * @param {string|!Array<string>} menu The name of the menu.
-   * @return {!Promise<undefined|!ElementObject>} Promise to be fulfilled with
-   *     the menu.
-   */
-  async getMenu(appId, menu) {
-    let menuId = '';
-    // TODO: Implement for other menus.
-    if (menu === 'context-menu') {
-      menuId = '#file-context-menu';
-    } else if (menu == 'tasks') {
-      menuId = '#tasks-menu';
-    }
-
-    if (!menuId) {
-      console.error(`Invalid menu '${menu}'`);
-      return;
-    }
-
-    // Get the top level menu element.
-    const menuElement = await this.waitForElement(appId, menuId);
-    // Query all the menu items.
-    menuElement.items = await this.queryElements_(appId, `${menuId} > *`);
-    return menuElement;
-  }
-
-  /**
-   * Displays the "tasks" menu from the "OPEN" button dropdown.
-   * The caller code has to prepare the selection to have multiple tasks.
-   * @param {string} appId App window Id.
-   */
-  async expandOpenDropdown(appId) {
-    // Wait the OPEN button to have multiple tasks.
-    await this.waitAndClickElement(appId, '#tasks[multiple]');
+  selectImageInThumbnailMode(appId, name) {
+    return this.callRemoteTestUtil(
+        'fakeMouseClick', appId,
+        ['.thumbnail-view > ul > li[title="' + name + '"] > .selection.frame']);
   }
 }

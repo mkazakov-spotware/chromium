@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,6 @@ namespace display {
 class DISPLAY_EXPORT ScreenBase : public Screen {
  public:
   ScreenBase();
-
-  ScreenBase(const ScreenBase&) = delete;
-  ScreenBase& operator=(const ScreenBase&) = delete;
-
   ~ScreenBase() override;
 
   DisplayList& display_list() { return display_list_; }
@@ -45,8 +41,6 @@ class DISPLAY_EXPORT ScreenBase : public Screen {
   void SetPanelRotationForTesting(int64_t display_id,
                                   Display::Rotation rotation) override;
 
-  bool HasDisplayObservers() const;
-
  protected:
   // Invoked when a display changed in some way, including being added.
   // If |is_primary| is true, |changed_display| is the primary display.
@@ -54,6 +48,8 @@ class DISPLAY_EXPORT ScreenBase : public Screen {
 
  private:
   DisplayList display_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScreenBase);
 };
 
 }  // namespace display

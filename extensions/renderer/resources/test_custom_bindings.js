@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,6 @@ apiBridge.registerCustomHook(function(api) {
   var testCount = 1;
   var failureException = 'chrome.test.failure';
   var pendingCallbacks = 0;
-  var pendingPromiseRejections = 0;
 
   function safeFunctionApply(func, args) {
     try {
@@ -44,10 +43,9 @@ apiBridge.registerCustomHook(function(api) {
   }
 
   function runNextTest() {
-    // There may have been callbacks or promise rejections which were
-    // interrupted by failure exceptions.
+    // There may have been callbacks which were interrupted by failure
+    // exceptions.
     pendingCallbacks = 0;
-    pendingPromiseRejections = 0;
 
     lastTest = currentTest;
     currentTest = $Array.shift(chromeTest.tests);
@@ -63,10 +61,7 @@ apiBridge.registerCustomHook(function(api) {
         if (e !== failureException)
           chromeTest.fail('uncaught exception: ' + message);
       });
-      const result = $Function.call(currentTest);
-      if (result instanceof Promise) {
-        result.catch(e => handleException(e.message, e));
-      }
+      $Function.call(currentTest);
     } catch (e) {
       handleException(e.message, e);
     }
@@ -153,12 +148,6 @@ apiBridge.registerCustomHook(function(api) {
   });
 
   apiFunctions.setHandleRequest('succeed', function() {
-    chromeTest.assertEq(
-        0, pendingPromiseRejections,
-        'Test had pending promise rejections. This is likely the result of ' +
-        'not waiting for the promise returned by `assertPromiseRejects()` to ' +
-        'resolve. Instead, use `await assertPromiseRejects(...)` or ' +
-        '`assertPromiseRejects(...).then(...).`.');
     console.log("[SUCCESS] " + testName(currentTest));
     chromeTest.log("(  SUCCESS )");
     testDone();
@@ -293,67 +282,6 @@ apiBridge.registerCustomHook(function(api) {
         }
       }
     }
-  });
-
-  apiFunctions.setHandleRequest('loadScript', function(scriptUrl) {
-    // Note: Importing scripts is different depending on if this script is
-    // executing in a Service Worker context.
-    const inServiceWorker = 'ServiceWorkerGlobalScope' in self;
-
-    function createError(exception) {
-      let errorStr = 'Unable to load script: "' + scriptUrl + '"';
-      if (inServiceWorker) {
-        return new Error(errorStr, { cause:exception });
-      } else {
-        return new Error(errorStr);
-      }
-    }
-
-    if (inServiceWorker) {
-      try {
-        importScripts(scriptUrl);
-      } catch (e) {
-        return Promise.reject(createError(e));
-      }
-      return Promise.resolve();
-    }
-    let script = document.createElement('script');
-    let onScriptLoad = new Promise((resolve, reject) => {
-      script.onload = resolve;
-      function onError() {
-        reject(createError());
-      }
-      script.onerror = onError;
-    });
-    script.src = scriptUrl;
-    document.body.appendChild(script);
-    return onScriptLoad;
-  });
-
-  apiFunctions.setHandleRequest('assertPromiseRejects',
-                                function(promise, expectedMessage) {
-    pendingPromiseRejections++;
-    return promise.then(
-        () => {
-          pendingPromiseRejections--;
-          chromeTest.assertTrue(pendingPromiseRejections >= 0,
-                                'Negative pending promise rejection count!');
-          chromeTest.fail(
-              'Promise did not reject. Expected error: ' + expectedMessage);
-        },
-        (e) => {
-          pendingPromiseRejections--;
-          chromeTest.assertTrue(pendingPromiseRejections >= 0,
-                                'Negative pending promise rejection count!');
-          if (expectedMessage instanceof RegExp) {
-            chromeTest.assertTrue(
-                expectedMessage.test(e.toString()),
-                `"${e.message}" should match "${expectedMessage}"`);
-          } else {
-            chromeTest.assertEq('string', typeof expectedMessage);
-            chromeTest.assertEq(expectedMessage, e.toString());
-          }
-        });
   });
 
   // Wrapper for generating test functions, that takes care of calling

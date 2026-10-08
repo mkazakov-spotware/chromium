@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/navigation_details.h"
@@ -59,9 +60,6 @@ class CONTENT_EXPORT PresentationServiceImpl
   // Creates a PresentationServiceImpl using the given RenderFrameHost.
   static std::unique_ptr<PresentationServiceImpl> Create(
       RenderFrameHost* render_frame_host);
-
-  PresentationServiceImpl(const PresentationServiceImpl&) = delete;
-  PresentationServiceImpl& operator=(const PresentationServiceImpl&) = delete;
 
   ~PresentationServiceImpl() override;
 
@@ -133,7 +131,7 @@ class CONTENT_EXPORT PresentationServiceImpl
 
    private:
     const GURL availability_url_;
-    const raw_ptr<PresentationServiceImpl> service_;
+    PresentationServiceImpl* const service_;
   };
 
   // Ensures the provided NewPresentationCallback is invoked exactly once
@@ -141,12 +139,6 @@ class CONTENT_EXPORT PresentationServiceImpl
   class NewPresentationCallbackWrapper {
    public:
     explicit NewPresentationCallbackWrapper(NewPresentationCallback callback);
-
-    NewPresentationCallbackWrapper(const NewPresentationCallbackWrapper&) =
-        delete;
-    NewPresentationCallbackWrapper& operator=(
-        const NewPresentationCallbackWrapper&) = delete;
-
     ~NewPresentationCallbackWrapper();
 
     void Run(blink::mojom::PresentationConnectionResultPtr result,
@@ -154,6 +146,8 @@ class CONTENT_EXPORT PresentationServiceImpl
 
    private:
     NewPresentationCallback callback_;
+
+    DISALLOW_COPY_AND_ASSIGN(NewPresentationCallbackWrapper);
   };
 
   // Note: Use |PresentationServiceImpl::Create| instead. This constructor
@@ -251,17 +245,17 @@ class CONTENT_EXPORT PresentationServiceImpl
   PresentationServiceDelegate* GetPresentationServiceDelegate();
 
   // The RenderFrameHost associated with this object.
-  const raw_ptr<RenderFrameHost> render_frame_host_;
+  RenderFrameHost* const render_frame_host_;
 
   // Embedder-specific delegate for controller to forward Presentation requests
   // to. Must be nullptr if current page is receiver page or
   // embedder does not support Presentation API .
-  raw_ptr<ControllerPresentationServiceDelegate> controller_delegate_;
+  ControllerPresentationServiceDelegate* controller_delegate_;
 
   // Embedder-specific delegate for receiver to forward Presentation requests
   // to. Must be nullptr if current page is receiver page or
   // embedder does not support Presentation API.
-  raw_ptr<ReceiverPresentationServiceDelegate> receiver_delegate_;
+  ReceiverPresentationServiceDelegate* receiver_delegate_;
 
   // Pointer to the PresentationController implementation in the renderer.
   mojo::Remote<blink::mojom::PresentationController>
@@ -295,11 +289,13 @@ class CONTENT_EXPORT PresentationServiceImpl
   int render_process_id_;
   int render_frame_id_;
 
-  // If current frame is the outermost frame (not an iframe nor a fenced frame).
-  bool is_outermost_document_;
+  // If current frame is top level frame.
+  bool is_main_frame_;
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<PresentationServiceImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PresentationServiceImpl);
 };
 
 }  // namespace content

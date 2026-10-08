@@ -17,11 +17,7 @@
     async jsNavigateWithExtraInfo(url) {
       const requestExtraInfoPromise = this._dp.Network.onceRequestWillBeSentExtraInfo();
       const responseExtraInfoPromise = this._dp.Network.onceResponseReceivedExtraInfo();
-      const response = await this._session.protocol.Runtime.evaluate(
-          {expression: `window.location.href = '${url}'`});
-      if (response.error && response.error.message != 'Inspected target navigated or closed') {
-        throw new Error(response.error.message || response.error);
-      }
+      await this._session.evaluate(`window.location.href = '${url}'`);
       const requestExtraInfo = await requestExtraInfoPromise;
       const responseExtraInfo = await responseExtraInfoPromise;
       return {requestExtraInfo, responseExtraInfo};

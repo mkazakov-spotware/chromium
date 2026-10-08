@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,9 +8,7 @@ import os
 
 from absl import flags
 
-from chrome_ent_test.infra.core import before_all
-from chrome_ent_test.infra.core import environment
-from chrome_ent_test.infra.core import test
+from chrome_ent_test.infra.core import environment, before_all, test
 from infra import ChromeEnterpriseTestCase
 
 FLAGS = flags.FLAGS
@@ -96,9 +94,11 @@ class RestoreOnStartupTest(ChromeEnterpriseTestCase):
     self.assertEqual(len(output_urls), 1)
 
     # The URL of the new tab can be one of the following:
+    # - https://www.google.com/_/chrome/newtab?ie=UTF-8
     # - chrome://new-tab-page/
-    # - chrome://new-tab-page-third-party/
-    self.assertTrue('new-tab-page' in output_urls[0])
+    # - chrome-search://local-ntp/local-ntp.html
+    self.assertTrue('new-tab-page' in output_urls[0] or
+                    'local-ntp.html' in output_urls[0])
 
   @test
   def test_OpenListOfUrls(self):

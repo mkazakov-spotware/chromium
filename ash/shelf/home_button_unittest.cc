@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include "ash/assistant/assistant_controller_impl.h"
 #include "ash/assistant/model/assistant_ui_model.h"
 #include "ash/assistant/test/test_assistant_service.h"
-#include "ash/constants/ash_features.h"
+#include "ash/public/cpp/ash_features.h"
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "ash/public/cpp/tablet_mode.h"
 #include "ash/root_window_controller.h"
@@ -31,12 +31,9 @@
 #include "base/command_line.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
-#include "ui/compositor/layer.h"
-#include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/views/animation/bounds_animator.h"
-#include "ui/wm/core/coordinate_conversion.h"
 
 namespace ash {
 
@@ -46,45 +43,32 @@ ui::GestureEvent CreateGestureEvent(ui::GestureEventDetails details) {
   return ui::GestureEvent(0, 0, ui::EF_NONE, base::TimeTicks(), details);
 }
 
-class HomeButtonTestBase : public AshTestBase {
- public:
-  HomeButtonTestBase() = default;
-  HomeButtonTestBase(const HomeButtonTestBase&) = delete;
-  HomeButtonTestBase& operator=(const HomeButtonTestBase&) = delete;
-  ~HomeButtonTestBase() override = default;
-
-  void SendGestureEvent(ui::GestureEvent* event) {
-    ASSERT_TRUE(home_button());
-    home_button()->OnGestureEvent(event);
-  }
-
-  HomeButton* home_button() const {
-    return GetPrimaryShelf()
-        ->shelf_widget()
-        ->navigation_widget()
-        ->GetHomeButton();
-  }
-
- protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-class HomeButtonTest : public HomeButtonTestBase,
+class HomeButtonTest : public AshTestBase,
                        public testing::WithParamInterface<bool> {
  public:
-  // HomeButtonTestBase:
+  HomeButtonTest() = default;
+  ~HomeButtonTest() override = default;
+
+  // AshTestBase:
   void SetUp() override {
     scoped_feature_list_.InitWithFeatureState(
         features::kHideShelfControlsInTabletMode,
         IsHideShelfControlsInTabletModeEnabled());
 
-    HomeButtonTestBase::SetUp();
+    AshTestBase::SetUp();
+  }
+
+  void SendGestureEvent(ui::GestureEvent* event) {
+    HomeButton* const home_button =
+        GetPrimaryShelf()->navigation_widget()->GetHomeButton();
+    ASSERT_TRUE(home_button);
+    home_button->OnGestureEvent(event);
   }
 
   void SendGestureEventToSecondaryDisplay(ui::GestureEvent* event) {
     // Add secondary display.
     UpdateDisplay("1+1-1000x600,1002+0-600x400");
-    ASSERT_TRUE(Shelf::ForWindow(Shell::GetAllRootWindows()[1])
+    ASSERT_TRUE(GetPrimaryShelf()
                     ->shelf_widget()
                     ->navigation_widget()
                     ->GetHomeButton());
@@ -98,6 +82,13 @@ class HomeButtonTest : public HomeButtonTestBase,
 
   bool IsHideShelfControlsInTabletModeEnabled() const { return GetParam(); }
 
+  const HomeButton* home_button() const {
+    return GetPrimaryShelf()
+        ->shelf_widget()
+        ->navigation_widget()
+        ->GetHomeButton();
+  }
+
   AssistantState* assistant_state() const { return AssistantState::Get(); }
 
   PrefService* prefs() {
@@ -106,10 +97,12 @@ class HomeButtonTest : public HomeButtonTestBase,
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(HomeButtonTest);
 };
 
 // Tests home button visibility animations.
-class HomeButtonAnimationTest : public HomeButtonTestBase {
+class HomeButtonAnimationTest : public AshTestBase {
  public:
   HomeButtonAnimationTest() {
     scoped_feature_list_.InitAndEnableFeature(
@@ -117,9 +110,9 @@ class HomeButtonAnimationTest : public HomeButtonTestBase {
   }
   ~HomeButtonAnimationTest() override = default;
 
-  // HomeButtonTestBase:
+  // AshTestBase:
   void SetUp() override {
-    HomeButtonTestBase::SetUp();
+    AshTestBase::SetUp();
 
     animation_duration_.emplace(
         ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
@@ -127,30 +120,12 @@ class HomeButtonAnimationTest : public HomeButtonTestBase {
 
   void TearDown() override {
     animation_duration_.reset();
-    HomeButtonTestBase::TearDown();
+    AshTestBase::TearDown();
   }
 
  private:
-  absl::optional<ui::ScopedAnimationDurationScaleMode> animation_duration_;
+  base::Optional<ui::ScopedAnimationDurationScaleMode> animation_duration_;
 
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-class HomeButtonWithTextTest : public HomeButtonTestBase {
- public:
-  HomeButtonWithTextTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kHomeButtonWithText);
-  }
-  ~HomeButtonWithTextTest() override = default;
-
-  bool IsLabelVisible() const {
-    if (!home_button())
-      return false;
-    auto* label_container = home_button()->label_container_for_test();
-    return label_container->GetVisible() && label_container->layer()->visible();
-  }
-
- private:
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
@@ -164,7 +139,7 @@ enum class TestAccessibilityFeature {
 // Tests home button visibility with number of accessibility setting enabled,
 // with kHideControlsInTabletModeFeature.
 class HomeButtonVisibilityWithAccessibilityFeaturesTest
-    : public HomeButtonTestBase,
+    : public AshTestBase,
       public ::testing::WithParamInterface<TestAccessibilityFeature> {
  public:
   HomeButtonVisibilityWithAccessibilityFeaturesTest() {
@@ -205,79 +180,39 @@ class HomeButtonVisibilityWithAccessibilityFeaturesTest
 // is enabled.
 INSTANTIATE_TEST_SUITE_P(All, HomeButtonTest, testing::Bool());
 
-// Tests that the shelf navigation widget clip rect is not clipping the intended
-// home button bounds.
-TEST_P(HomeButtonTest, ClipRectDoesNotClipHomeButtonBounds) {
-  ShelfNavigationWidget* const nav_widget =
-      GetPrimaryShelf()->navigation_widget();
-  ShelfNavigationWidget::TestApi test_api(nav_widget);
-  ASSERT_TRUE(test_api.IsHomeButtonVisible());
-  ASSERT_TRUE(home_button());
+TEST_P(HomeButtonTest, SwipeUpToOpenFullscreenAppList) {
+  Shelf* shelf = GetPrimaryShelf();
+  EXPECT_EQ(ShelfAlignment::kBottom, shelf->alignment());
 
-  auto home_button_bounds = [&]() -> gfx::Rect {
-    return home_button()->GetBoundsInScreen();
-  };
+  // Start the drags from the center of the shelf.
+  const ShelfView* shelf_view = shelf->GetShelfViewForTesting();
+  gfx::Point start =
+      gfx::Point(shelf_view->width() / 2, shelf_view->height() / 2);
+  views::View::ConvertPointToScreen(shelf_view, &start);
+  // Swiping up less than the threshold should trigger a peeking app list.
+  gfx::Point end = start;
+  end.set_y(shelf->GetIdealBounds().bottom() -
+            AppListView::kDragSnapToPeekingThreshold + 10);
+  GetEventGenerator()->GestureScrollSequence(
+      start, end, base::TimeDelta::FromMilliseconds(100), 4 /* steps */);
+  GetAppListTestHelper()->WaitUntilIdle();
+  GetAppListTestHelper()->CheckVisibility(true);
+  GetAppListTestHelper()->CheckState(AppListViewState::kPeeking);
 
-  auto clip_rect_bounds = [&]() -> gfx::Rect {
-    gfx::Rect clip_bounds = nav_widget->GetLayer()->clip_rect();
-    wm::ConvertRectToScreen(nav_widget->GetNativeWindow(), &clip_bounds);
-    return clip_bounds;
-  };
+  // Closing the app list.
+  GetAppListTestHelper()->DismissAndRunLoop();
+  GetAppListTestHelper()->CheckVisibility(false);
+  GetAppListTestHelper()->CheckState(AppListViewState::kClosed);
 
-  std::string display_configs[] = {
-      "1+1-1200x1000",
-      "1+1-1000x1200",
-      "1+1-800x600",
-      "1+1-600x800",
-  };
-
-  for (const auto& display_config : display_configs) {
-    SCOPED_TRACE(display_config);
-    UpdateDisplay(display_config);
-
-    EXPECT_TRUE(clip_rect_bounds().Contains(home_button_bounds()));
-
-    // Enter tablet mode - note that home button may be invisible in this case.
-    Shell::Get()->tablet_mode_controller()->SetEnabledForTest(true);
-    ShelfViewTestAPI shelf_test_api(
-        GetPrimaryShelf()->GetShelfViewForTesting());
-    shelf_test_api.RunMessageLoopUntilAnimationsDone(
-        test_api.GetBoundsAnimator());
-
-    if (home_button() && test_api.IsHomeButtonVisible())
-      EXPECT_TRUE(clip_rect_bounds().Contains(home_button_bounds()));
-
-    // Create a test widget to transition to in-app shelf.
-    std::unique_ptr<views::Widget> widget = CreateTestWidget();
-    shelf_test_api.RunMessageLoopUntilAnimationsDone(
-        test_api.GetBoundsAnimator());
-
-    if (home_button() && test_api.IsHomeButtonVisible())
-      EXPECT_TRUE(clip_rect_bounds().Contains(home_button_bounds()));
-
-    // Back to home launcher shelf.
-    widget.reset();
-    shelf_test_api.RunMessageLoopUntilAnimationsDone(
-        test_api.GetBoundsAnimator());
-
-    if (home_button() && test_api.IsHomeButtonVisible())
-      EXPECT_TRUE(clip_rect_bounds().Contains(home_button_bounds()));
-
-    // Open another window and go back to clamshell.
-    Shell::Get()->tablet_mode_controller()->SetEnabledForTest(false);
-    widget = CreateTestWidget();
-    shelf_test_api.RunMessageLoopUntilAnimationsDone(
-        test_api.GetBoundsAnimator());
-
-    EXPECT_TRUE(clip_rect_bounds().Contains(home_button_bounds()));
-
-    // Verify bounds after the test widget is closed.
-    widget.reset();
-    shelf_test_api.RunMessageLoopUntilAnimationsDone(
-        test_api.GetBoundsAnimator());
-
-    EXPECT_TRUE(clip_rect_bounds().Contains(home_button_bounds()));
-  }
+  // Swiping above the threshold should trigger a fullscreen app list.
+  end.set_y(shelf->GetIdealBounds().bottom() -
+            AppListView::kDragSnapToPeekingThreshold - 10);
+  GetEventGenerator()->GestureScrollSequence(
+      start, end, base::TimeDelta::FromMilliseconds(100), 4 /* steps */);
+  base::RunLoop().RunUntilIdle();
+  GetAppListTestHelper()->WaitUntilIdle();
+  GetAppListTestHelper()->CheckVisibility(true);
+  GetAppListTestHelper()->CheckState(AppListViewState::kFullscreenAllApps);
 }
 
 TEST_P(HomeButtonTest, ClickToOpenAppList) {
@@ -296,9 +231,27 @@ TEST_P(HomeButtonTest, ClickToOpenAppList) {
   GetEventGenerator()->ClickLeftButton();
   GetAppListTestHelper()->WaitUntilIdle();
   GetAppListTestHelper()->CheckVisibility(true);
+  GetAppListTestHelper()->CheckState(AppListViewState::kPeeking);
   GetEventGenerator()->ClickLeftButton();
   GetAppListTestHelper()->WaitUntilIdle();
   GetAppListTestHelper()->CheckVisibility(false);
+  GetAppListTestHelper()->CheckState(AppListViewState::kClosed);
+
+  // Shift-click should open the app list in fullscreen.
+  GetEventGenerator()->set_flags(ui::EF_SHIFT_DOWN);
+  GetEventGenerator()->ClickLeftButton();
+  GetEventGenerator()->set_flags(0);
+  GetAppListTestHelper()->WaitUntilIdle();
+  GetAppListTestHelper()->CheckVisibility(true);
+  GetAppListTestHelper()->CheckState(AppListViewState::kFullscreenAllApps);
+
+  // Another shift-click should close the app list.
+  GetEventGenerator()->set_flags(ui::EF_SHIFT_DOWN);
+  GetEventGenerator()->ClickLeftButton();
+  GetEventGenerator()->set_flags(0);
+  GetAppListTestHelper()->WaitUntilIdle();
+  GetAppListTestHelper()->CheckVisibility(false);
+  GetAppListTestHelper()->CheckState(AppListViewState::kClosed);
 }
 
 TEST_P(HomeButtonTest, ClickToOpenAppListInTabletMode) {
@@ -400,7 +353,8 @@ TEST_P(HomeButtonTest, ButtonPositionInTabletMode) {
 
 // Verifies that home button visibility updates are animated.
 TEST_F(HomeButtonAnimationTest, VisibilityAnimation) {
-  views::View* const home_button_view = home_button();
+  views::View* const home_button_view =
+      GetPrimaryShelf()->shelf_widget()->navigation_widget()->GetHomeButton();
   ASSERT_TRUE(home_button_view);
   EXPECT_TRUE(home_button_view->GetVisible());
   EXPECT_EQ(1.0f, home_button_view->layer()->opacity());
@@ -433,7 +387,8 @@ TEST_F(HomeButtonAnimationTest, VisibilityAnimation) {
 // Verifies that home button visibility updates if the button gets hidden while
 // it's still being shown.
 TEST_F(HomeButtonAnimationTest, HideWhileAnimatingToShow) {
-  views::View* const home_button_view = home_button();
+  views::View* const home_button_view =
+      GetPrimaryShelf()->shelf_widget()->navigation_widget()->GetHomeButton();
   ASSERT_TRUE(home_button_view);
 
   EXPECT_TRUE(home_button_view->GetVisible());
@@ -466,7 +421,8 @@ TEST_F(HomeButtonAnimationTest, HideWhileAnimatingToShow) {
 // Verifies that home button becomes visible if reshown while a hide animation
 // is still in progress.
 TEST_F(HomeButtonAnimationTest, ShowWhileAnimatingToHide) {
-  views::View* const home_button_view = home_button();
+  views::View* const home_button_view =
+      GetPrimaryShelf()->shelf_widget()->navigation_widget()->GetHomeButton();
   ASSERT_TRUE(home_button_view);
 
   EXPECT_TRUE(home_button_view->GetVisible());
@@ -496,7 +452,9 @@ TEST_F(HomeButtonAnimationTest, ShowWhileAnimatingToHide) {
 // Verifies that unanimated navigation widget layout update interrupts in
 // progress button animation.
 TEST_F(HomeButtonAnimationTest, NonAnimatedLayoutDuringAnimation) {
-  views::View* const home_button_view = home_button();
+  Shelf* const shelf = GetPrimaryShelf();
+  views::View* const home_button_view =
+      shelf->shelf_widget()->navigation_widget()->GetHomeButton();
   ASSERT_TRUE(home_button_view);
   EXPECT_TRUE(home_button_view->GetVisible());
   EXPECT_EQ(1.0f, home_button_view->layer()->opacity());
@@ -505,7 +463,6 @@ TEST_F(HomeButtonAnimationTest, NonAnimatedLayoutDuringAnimation) {
   // Switch to tablet mode changes the button visibility.
   Shell::Get()->tablet_mode_controller()->SetEnabledForTest(true);
 
-  Shelf* const shelf = GetPrimaryShelf();
   ShelfViewTestAPI shelf_test_api(shelf->GetShelfViewForTesting());
   ShelfNavigationWidget::TestApi test_api(shelf->navigation_widget());
 
@@ -548,10 +505,11 @@ TEST_P(HomeButtonTest, LongPressGesture) {
   CreateUserSessions(2);
 
   // Enable the Assistant in system settings.
-  prefs()->SetBoolean(assistant::prefs::kAssistantEnabled, true);
+  prefs()->SetBoolean(chromeos::assistant::prefs::kAssistantEnabled, true);
   assistant_state()->NotifyFeatureAllowed(
-      assistant::AssistantAllowedState::ALLOWED);
-  assistant_state()->NotifyStatusChanged(assistant::AssistantStatus::READY);
+      chromeos::assistant::AssistantAllowedState::ALLOWED);
+  assistant_state()->NotifyStatusChanged(
+      chromeos::assistant::AssistantStatus::READY);
 
   ShelfNavigationWidget::TestApi test_api(
       GetPrimaryShelf()->navigation_widget());
@@ -566,7 +524,7 @@ TEST_P(HomeButtonTest, LongPressGesture) {
             AssistantUiController::Get()->GetModel()->visibility());
 
   AssistantUiController::Get()->CloseUi(
-      assistant::AssistantExitPoint::kUnspecified);
+      chromeos::assistant::AssistantExitPoint::kUnspecified);
   // Test long press gesture on secondary display.
   SendGestureEventToSecondaryDisplay(&long_press);
   GetAppListTestHelper()->WaitUntilIdle();
@@ -579,10 +537,11 @@ TEST_P(HomeButtonTest, LongPressGestureInTabletMode) {
   CreateUserSessions(2);
 
   // Enable the Assistant in system settings.
-  prefs()->SetBoolean(assistant::prefs::kAssistantEnabled, true);
+  prefs()->SetBoolean(chromeos::assistant::prefs::kAssistantEnabled, true);
   assistant_state()->NotifyFeatureAllowed(
-      assistant::AssistantAllowedState::ALLOWED);
-  assistant_state()->NotifyStatusChanged(assistant::AssistantStatus::READY);
+      chromeos::assistant::AssistantAllowedState::ALLOWED);
+  assistant_state()->NotifyStatusChanged(
+      chromeos::assistant::AssistantStatus::READY);
 
   Shell::Get()->tablet_mode_controller()->SetEnabledForTest(true);
 
@@ -621,16 +580,17 @@ TEST_P(HomeButtonTest, LongPressGestureInTabletMode) {
             AssistantUiController::Get()->GetModel()->visibility());
 
   AssistantUiController::Get()->CloseUi(
-      assistant::AssistantExitPoint::kUnspecified);
+      chromeos::assistant::AssistantExitPoint::kUnspecified);
 }
 
 TEST_P(HomeButtonTest, LongPressGestureWithSecondaryUser) {
   // Disallowed by secondary user.
   assistant_state()->NotifyFeatureAllowed(
-      assistant::AssistantAllowedState::DISALLOWED_BY_NONPRIMARY_USER);
+      chromeos::assistant::AssistantAllowedState::
+          DISALLOWED_BY_NONPRIMARY_USER);
 
   // Enable the Assistant in system settings.
-  prefs()->SetBoolean(assistant::prefs::kAssistantEnabled, true);
+  prefs()->SetBoolean(chromeos::assistant::prefs::kAssistantEnabled, true);
 
   ShelfNavigationWidget::TestApi test_api(
       GetPrimaryShelf()->navigation_widget());
@@ -656,9 +616,9 @@ TEST_P(HomeButtonTest, LongPressGestureWithSettingsDisabled) {
 
   // Simulate a user who has already completed setup flow, but disabled the
   // Assistant in settings.
-  prefs()->SetBoolean(assistant::prefs::kAssistantEnabled, false);
+  prefs()->SetBoolean(chromeos::assistant::prefs::kAssistantEnabled, false);
   assistant_state()->NotifyFeatureAllowed(
-      assistant::AssistantAllowedState::ALLOWED);
+      chromeos::assistant::AssistantAllowedState::ALLOWED);
 
   ShelfNavigationWidget::TestApi test_api(
       GetPrimaryShelf()->navigation_widget());
@@ -763,7 +723,8 @@ TEST_P(HomeButtonTest, ClickOnCornerPixel) {
 // the center point of the home button is the same as the content view's center
 // point will avoid this problem. See http://crbug.com/1083713
 TEST_P(HomeButtonTest, GestureHomeButtonHitTest) {
-  ShelfNavigationWidget* nav_widget = GetPrimaryShelf()->navigation_widget();
+  ShelfNavigationWidget* nav_widget =
+      AshTestBase::GetPrimaryShelf()->navigation_widget();
   ShelfNavigationWidget::TestApi test_api(nav_widget);
   gfx::Rect nav_widget_bounds = nav_widget->GetRootView()->bounds();
 
@@ -835,33 +796,6 @@ TEST_P(HomeButtonTest, GestureHomeButtonHitTest) {
     // Check that the event target is the home button.
     EXPECT_EQ(target, nav_widget->GetHomeButton());
   }
-}
-
-// Checks the basic behavior of the label beside the home button when the
-// HomeButtonWithText feature is enabled.
-TEST_F(HomeButtonWithTextTest, Basic) {
-  // Verify that the label is visible at the beginning.
-  EXPECT_TRUE(IsLabelVisible());
-
-  // Open the app list and check that the label still exists.
-  gfx::Point center = home_button()->GetBoundsInScreen().CenterPoint();
-  GetEventGenerator()->MoveMouseTo(center);
-  GetEventGenerator()->ClickLeftButton();
-  GetAppListTestHelper()->WaitUntilIdle();
-  GetAppListTestHelper()->CheckVisibility(true);
-  EXPECT_TRUE(IsLabelVisible());
-
-  // Change to tablet mode, where the label and home button shouldn't be
-  // visible.
-  Shell::Get()->tablet_mode_controller()->SetEnabledForTest(true);
-  ShelfNavigationWidget::TestApi test_api(
-      GetPrimaryShelf()->navigation_widget());
-  EXPECT_FALSE(test_api.IsHomeButtonVisible());
-  EXPECT_FALSE(IsLabelVisible());
-
-  // Change back to clamshell mode. The label should be visible again.
-  Shell::Get()->tablet_mode_controller()->SetEnabledForTest(false);
-  EXPECT_TRUE(IsLabelVisible());
 }
 
 INSTANTIATE_TEST_SUITE_P(

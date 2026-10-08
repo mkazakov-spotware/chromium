@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,25 +18,24 @@ using base::android::ScopedJavaLocalRef;
 
 namespace infobars {
 
-ConfirmInfoBar::ConfirmInfoBar(std::unique_ptr<ConfirmInfoBarDelegate> delegate)
-    : InfoBarAndroid(std::move(delegate)) {}
+ConfirmInfoBar::ConfirmInfoBar(std::unique_ptr<ConfirmInfoBarDelegate> delegate,
+                               const ResourceIdMapper& resource_id_mapper)
+    : InfoBarAndroid(std::move(delegate), resource_id_mapper) {}
 
-ConfirmInfoBar::~ConfirmInfoBar() = default;
+ConfirmInfoBar::~ConfirmInfoBar() {}
 
-std::u16string ConfirmInfoBar::GetTextFor(
+base::string16 ConfirmInfoBar::GetTextFor(
     ConfirmInfoBarDelegate::InfoBarButton button) {
   ConfirmInfoBarDelegate* delegate = GetDelegate();
   return (delegate->GetButtons() & button) ? delegate->GetButtonLabel(button)
-                                           : std::u16string();
+                                           : base::string16();
 }
 
 ConfirmInfoBarDelegate* ConfirmInfoBar::GetDelegate() {
   return delegate()->AsConfirmInfoBarDelegate();
 }
 
-ScopedJavaLocalRef<jobject> ConfirmInfoBar::CreateRenderInfoBar(
-    JNIEnv* env,
-    const ResourceIdMapper& resource_id_mapper) {
+ScopedJavaLocalRef<jobject> ConfirmInfoBar::CreateRenderInfoBar(JNIEnv* env) {
   ScopedJavaLocalRef<jstring> ok_button_text =
       base::android::ConvertUTF16ToJavaString(
           env, GetTextFor(ConfirmInfoBarDelegate::BUTTON_OK));
@@ -52,13 +51,12 @@ ScopedJavaLocalRef<jobject> ConfirmInfoBar::CreateRenderInfoBar(
   ScopedJavaLocalRef<jobject> java_bitmap;
   if (delegate->GetIconId() == infobars::InfoBarDelegate::kNoIconID &&
       !delegate->GetIcon().IsEmpty()) {
-    java_bitmap = gfx::ConvertToJavaBitmap(
-        *delegate->GetIcon().Rasterize(nullptr).bitmap());
+    java_bitmap = gfx::ConvertToJavaBitmap(*delegate->GetIcon().ToSkBitmap());
   }
 
-  return Java_ConfirmInfoBar_create(
-      env, resource_id_mapper.Run(delegate->GetIconId()), java_bitmap,
-      message_text, link_text, ok_button_text, cancel_button_text);
+  return Java_ConfirmInfoBar_create(env, GetJavaIconId(), java_bitmap,
+                                    message_text, link_text, ok_button_text,
+                                    cancel_button_text);
 }
 
 void ConfirmInfoBar::OnLinkClicked(JNIEnv* env,

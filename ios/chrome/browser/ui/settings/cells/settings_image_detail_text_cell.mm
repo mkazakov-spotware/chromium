@@ -1,49 +1,26 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/cells/settings_image_detail_text_cell.h"
 
-#import "base/check.h"
+#include "base/check.h"
+#include "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-namespace {
-
-// Value of the constant used to provide an alignment on the X center of the
-// images in different rows.
-const CGFloat kImageXCenterAlignmentOffset = 14;
-
-}  // namespace
-
 @interface SettingsImageDetailTextCell ()
 
+// Width constraint for the image view.
+@property(nonatomic, weak, readonly) NSLayoutConstraint* imageWidthConstraint;
+// Height constraint for the image view.
+@property(nonatomic, weak, readonly) NSLayoutConstraint* imageHeightConstraint;
 // Image view for the cell.
 @property(nonatomic, strong) UIImageView* imageView;
-
-// Constraint used for leading text constraint without `imageView`.
-@property(nonatomic, strong) NSLayoutConstraint* textNoImageConstraint;
-
-// Constraint used for leading text constraint with `imageView` showing.
-@property(nonatomic, strong) NSLayoutConstraint* textWithImageConstraint;
-
-// Constraint used for aligning the image with the content view centerYAnchor.
-@property(nonatomic, strong)
-    NSLayoutConstraint* alignImageWithContentViewCenterYConstraint;
-
-// Constraint used for aligning the image with the content view
-// firstBaselineAnchor.
-@property(nonatomic, strong)
-    NSLayoutConstraint* alignImageWithContentViewFirstBaselineAnchorConstraint;
-
-// Constraint between the image and the text that is used to center the images
-// in different rows. Only active when there is an image.
-@property(nonatomic, strong) NSLayoutConstraint* imageTextAlignmentConstraint;
 
 @end
 
@@ -70,19 +47,14 @@ const CGFloat kImageXCenterAlignmentOffset = 14;
 
   _imageView = [[UIImageView alloc] init];
   _imageView.translatesAutoresizingMaskIntoConstraints = NO;
-  _imageView.tintColor = [UIColor colorNamed:kTextPrimaryColor];
-  [_imageView setContentHuggingPriority:UILayoutPriorityRequired
-                                forAxis:UILayoutConstraintAxisHorizontal];
-  [_imageView
-      setContentCompressionResistancePriority:UILayoutPriorityRequired
-                                      forAxis:UILayoutConstraintAxisHorizontal];
+  _imageView.tintColor = UIColor.cr_labelColor;
   [contentView addSubview:_imageView];
 
   _textLabel = [[UILabel alloc] init];
   _textLabel.numberOfLines = 0;
   _textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   _textLabel.adjustsFontForContentSizeCategory = YES;
-  _textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
+  _textLabel.textColor = UIColor.cr_labelColor;
 
   _detailTextLabel = [[UILabel alloc] init];
   _detailTextLabel.numberOfLines = 0;
@@ -101,49 +73,29 @@ const CGFloat kImageXCenterAlignmentOffset = 14;
   textStackView.translatesAutoresizingMaskIntoConstraints = NO;
   [contentView addSubview:textStackView];
 
-  _textNoImageConstraint = [textStackView.leadingAnchor
-      constraintEqualToAnchor:contentView.leadingAnchor
-                     constant:kTableViewHorizontalSpacing];
-
-  _textWithImageConstraint = [textStackView.leadingAnchor
-      constraintGreaterThanOrEqualToAnchor:_imageView.trailingAnchor
-                                  constant:kTableViewImagePadding];
-
-  _alignImageWithContentViewCenterYConstraint = [_imageView.centerYAnchor
-      constraintEqualToAnchor:contentView.centerYAnchor];
-
-  _alignImageWithContentViewFirstBaselineAnchorConstraint =
-      [_imageView.firstBaselineAnchor
-          constraintEqualToAnchor:contentView.firstBaselineAnchor];
-
-  // To ensure the images are aligned in different rows even if they have
-  // different width.
-  NSLayoutConstraint* imageLeadingAlignmentConstraint =
-      [_imageView.centerXAnchor
-          constraintEqualToAnchor:contentView.leadingAnchor
-                         constant:kTableViewHorizontalSpacing +
-                                  kImageXCenterAlignmentOffset];
-  imageLeadingAlignmentConstraint.priority = UILayoutPriorityDefaultHigh + 1;
-  imageLeadingAlignmentConstraint.active = YES;
-
-  _imageTextAlignmentConstraint = [_imageView.centerXAnchor
-      constraintEqualToAnchor:contentView.leadingAnchor
-                     constant:kTableViewHorizontalSpacing +
-                              kImageXCenterAlignmentOffset];
-  _imageTextAlignmentConstraint.priority = UILayoutPriorityDefaultHigh + 1;
+  _imageWidthConstraint = [_imageView.widthAnchor constraintEqualToConstant:0];
+  _imageHeightConstraint =
+      [_imageView.heightAnchor constraintEqualToConstant:0];
 
   [NSLayoutConstraint activateConstraints:@[
+    // Horizontal contraints for |_imageView| and |textStackView|.
+    _imageWidthConstraint,
     [_imageView.leadingAnchor
-        constraintGreaterThanOrEqualToAnchor:contentView.leadingAnchor
-                                    constant:kTableViewHorizontalSpacing],
-    _alignImageWithContentViewCenterYConstraint,
-    [_imageView.topAnchor
-        constraintGreaterThanOrEqualToAnchor:contentView.topAnchor
-                                    constant:
-                                        kTableViewTwoLabelsCellVerticalSpacing],
+        constraintEqualToAnchor:contentView.leadingAnchor
+                       constant:kTableViewHorizontalSpacing],
+    [textStackView.leadingAnchor
+        constraintEqualToAnchor:_imageView.trailingAnchor
+                       constant:kTableViewHorizontalSpacing],
     [contentView.trailingAnchor
         constraintEqualToAnchor:textStackView.trailingAnchor
                        constant:kTableViewHorizontalSpacing],
+    // Vertical contraints for |_imageView| and |textStackView|.
+    _imageHeightConstraint,
+    [_imageView.centerYAnchor
+        constraintEqualToAnchor:contentView.centerYAnchor],
+    [_imageView.topAnchor
+        constraintGreaterThanOrEqualToAnchor:contentView.topAnchor
+                                    constant:kTableViewVerticalSpacing],
     [contentView.bottomAnchor
         constraintGreaterThanOrEqualToAnchor:_imageView.bottomAnchor
                                     constant:kTableViewVerticalSpacing],
@@ -158,62 +110,30 @@ const CGFloat kImageXCenterAlignmentOffset = 14;
                                     constant:
                                         kTableViewTwoLabelsCellVerticalSpacing],
 
-    // Leading constraint for `customSepartor`.
+    // Leading constraint for |customSepartor|.
     [self.customSeparator.leadingAnchor
         constraintEqualToAnchor:self.textLabel.leadingAnchor],
   ]];
 }
 
 - (void)setImage:(UIImage*)image {
-  BOOL hidden = !image;
+  DCHECK(image);
   self.imageView.image = image;
-  self.imageView.hidden = hidden;
-  // Update the leading text constraint based on `image` being provided.
-  if (hidden) {
-    self.imageTextAlignmentConstraint.active = NO;
-    self.textWithImageConstraint.active = NO;
-    self.textNoImageConstraint.active = YES;
-  } else {
-    self.textNoImageConstraint.active = NO;
-    self.imageTextAlignmentConstraint.active = YES;
-    self.textWithImageConstraint.active = YES;
-  }
+  self.imageWidthConstraint.constant = image.size.width;
+  self.imageHeightConstraint.constant = image.size.height;
 }
 
 - (UIImage*)image {
   return self.imageView.image;
 }
 
-- (void)setImageViewTintColor:(UIColor*)color {
-  _imageView.tintColor = color;
-}
-
-- (void)alignImageWithFirstLineOfText:(BOOL)alignImageWithFirstBaseline {
-  self.alignImageWithContentViewCenterYConstraint.active =
-      !alignImageWithFirstBaseline;
-  self.alignImageWithContentViewFirstBaselineAnchorConstraint.active =
-      alignImageWithFirstBaseline;
-}
-
-#pragma mark - UITableViewCell
-
-- (void)prepareForReuse {
-  [super prepareForReuse];
-  [self alignImageWithFirstLineOfText:NO];
-}
-
 #pragma mark - UIAccessibility
 
 - (NSString*)accessibilityLabel {
-  if (!self.textLabel.text) {
-    return self.detailTextLabel.text;
-  }
-
   if (self.detailTextLabel.text) {
     return [NSString stringWithFormat:@"%@, %@", self.textLabel.text,
                                       self.detailTextLabel.text];
   }
-
   return self.textLabel.text;
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 namespace {
 
 bool g_skip_picker_for_test = false;
-base::FilePath* g_path_to_be_picked_for_test = nullptr;
+base::FilePath* g_path_to_be_picked_for_test = NULL;
 
 }  // namespace
 
@@ -30,7 +30,7 @@ EntryPicker::EntryPicker(EntryPickerClient* client,
                          content::WebContents* web_contents,
                          ui::SelectFileDialog::Type picker_type,
                          const base::FilePath& last_directory,
-                         const std::u16string& select_title,
+                         const base::string16& select_title,
                          const ui::SelectFileDialog::FileTypeInfo& info,
                          int file_type_index)
     : client_(client) {
@@ -98,7 +98,7 @@ void EntryPicker::SkipPickerAndAlwaysSelectPathForTest(
 // static
 void EntryPicker::SkipPickerAndAlwaysCancelForTest() {
   g_skip_picker_for_test = true;
-  g_path_to_be_picked_for_test = nullptr;
+  g_path_to_be_picked_for_test = NULL;
 }
 
 // static

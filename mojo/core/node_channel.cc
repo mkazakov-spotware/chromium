@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "build/build_config.h"
 #include "mojo/core/broker_host.h"
 #include "mojo/core/channel.h"
 #include "mojo/core/configuration.h"
@@ -35,11 +34,11 @@ enum class MessageType : uint32_t {
   REQUEST_PORT_MERGE,
   REQUEST_INTRODUCTION,
   INTRODUCE,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   RELAY_EVENT_MESSAGE,
 #endif
   BROADCAST_EVENT,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   EVENT_MESSAGE_FROM_RELAY,
 #endif
   ACCEPT_PEER,
@@ -48,54 +47,40 @@ enum class MessageType : uint32_t {
 
 #pragma pack(push, 1)
 
-struct alignas(8) Header {
+struct Header {
   MessageType type;
+  uint32_t padding;
 };
 
 static_assert(IsAlignedForChannelMessage(sizeof(Header)),
               "Invalid header size.");
 
-struct alignas(8) AcceptInviteeDataV0 {
+struct AcceptInviteeData {
   ports::NodeName inviter_name;
   ports::NodeName token;
 };
 
-struct alignas(8) AcceptInviteeDataV1 : AcceptInviteeDataV0 {
-  uint64_t capabilities = kNodeCapabilityNone;
-};
-
-using AcceptInviteeData = AcceptInviteeDataV1;
-
-struct alignas(8) AcceptInvitationDataV0 {
+struct AcceptInvitationData {
   ports::NodeName token;
   ports::NodeName invitee_name;
 };
 
-struct alignas(8) AcceptInvitationDataV1 : AcceptInvitationDataV0 {
-  uint64_t capabilities = kNodeCapabilityNone;
-};
-
-using AcceptInvitationData = AcceptInvitationDataV1;
-
-struct alignas(8) AcceptPeerDataV0 {
+struct AcceptPeerData {
   ports::NodeName token;
   ports::NodeName peer_name;
   ports::PortName port_name;
 };
 
-using AcceptPeerData = AcceptPeerDataV0;
-
-// This message may include a process handle on platforms that require it.
-struct alignas(8) AddBrokerClientDataV0 {
+// This message may include a process handle on plaforms that require it.
+struct AddBrokerClientData {
   ports::NodeName client_name;
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   uint32_t process_handle;
+  uint32_t padding;
 #endif
 };
 
-using AddBrokerClientData = AddBrokerClientDataV0;
-
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
 static_assert(sizeof(base::ProcessHandle) == sizeof(uint32_t),
               "Unexpected pid size");
 static_assert(sizeof(AddBrokerClientData) % kChannelMessageAlignment == 0,
@@ -103,96 +88,51 @@ static_assert(sizeof(AddBrokerClientData) % kChannelMessageAlignment == 0,
 #endif
 
 // This data is followed by a platform channel handle to the broker.
-struct alignas(8) BrokerClientAddedDataV0 {
+struct BrokerClientAddedData {
   ports::NodeName client_name;
 };
 
-using BrokerClientAddedData = BrokerClientAddedDataV0;
-
 // This data may be followed by a platform channel handle to the broker. If not,
 // then the inviter is the broker and its channel should be used as such.
-struct alignas(8) AcceptBrokerClientDataV0 {
+struct AcceptBrokerClientData {
   ports::NodeName broker_name;
 };
 
-struct alignas(8) AcceptBrokerClientDataV1 : AcceptBrokerClientDataV0 {
-  uint64_t capabilities = kNodeCapabilityNone;
-  uint64_t broker_capabilities = kNodeCapabilityNone;
-};
-
-using AcceptBrokerClientData = AcceptBrokerClientDataV1;
-
 // This is followed by arbitrary payload data which is interpreted as a token
 // string for port location.
-// NOTE: Because this field is variable length it cannot be versioned.
-struct alignas(8) RequestPortMergeData {
+struct RequestPortMergeData {
   ports::PortName connector_port_name;
 };
 
 // Used for both REQUEST_INTRODUCTION and INTRODUCE.
 //
-// For INTRODUCE the message also includes a valid platform handle for a
-// channel the receiver may use to communicate with the named node directly,
-// or an invalid platform handle if the node is unknown to the sender or
-// otherwise cannot be introduced.
-struct alignas(8) IntroductionDataV0 {
+// For INTRODUCE the message also includes a valid platform handle for a channel
+// the receiver may use to communicate with the named node directly, or an
+// invalid platform handle if the node is unknown to the sender or otherwise
+// cannot be introduced.
+struct IntroductionData {
   ports::NodeName name;
 };
 
-struct alignas(8) IntroductionDataV1 : IntroductionDataV0 {
-  uint64_t capabilities = kNodeCapabilityNone;
+// This message is just a PlatformHandle. The data struct here has only a
+// padding field to ensure an aligned, non-zero-length payload.
+struct BindBrokerHostData {
+  uint64_t padding;
 };
 
-using IntroductionData = IntroductionDataV1;
-
-// This message is just a PlatformHandle. The data struct alignas(8) here has
-// only a padding field to ensure an aligned, non-zero-length payload.
-struct alignas(8) BindBrokerHostDataV0 {};
-
-using BindBrokerHostData = BindBrokerHostDataV0;
-
-#if BUILDFLAG(IS_WIN)
-// This struct alignas(8) is followed by the full payload of a message to be
-// relayed.
-// NOTE: Because this field is variable length it cannot be versioned.
-struct alignas(8) RelayEventMessageData {
+#if defined(OS_WIN)
+// This struct is followed by the full payload of a message to be relayed.
+struct RelayEventMessageData {
   ports::NodeName destination;
 };
 
-// This struct alignas(8) is followed by the full payload of a relayed
-// message.
-struct alignas(8) EventMessageFromRelayDataV0 {
+// This struct is followed by the full payload of a relayed message.
+struct EventMessageFromRelayData {
   ports::NodeName source;
 };
-
-using EventMessageFromRelayData = EventMessageFromRelayDataV0;
-
 #endif
 
 #pragma pack(pop)
-
-Channel::MessagePtr CreateMessage(MessageType type,
-                                  size_t payload_size,
-                                  size_t num_handles,
-                                  void** out_data,
-                                  size_t capacity = 0) {
-  const size_t total_size = payload_size + sizeof(Header);
-  if (capacity == 0)
-    capacity = total_size;
-  else
-    capacity = std::max(total_size, capacity);
-  auto message =
-      Channel::Message::CreateMessage(capacity, total_size, num_handles);
-  Header* header = reinterpret_cast<Header*>(message->mutable_payload());
-
-  // Make sure any header padding gets zeroed.
-  memset(header, 0, sizeof(Header));
-  header->type = type;
-
-  // The out_data starts beyond the header.
-  *out_data = reinterpret_cast<void*>(header + 1);
-  return message;
-}
 
 template <typename DataType>
 Channel::MessagePtr CreateMessage(MessageType type,
@@ -200,47 +140,30 @@ Channel::MessagePtr CreateMessage(MessageType type,
                                   size_t num_handles,
                                   DataType** out_data,
                                   size_t capacity = 0) {
-  auto msg_ptr = CreateMessage(type, payload_size, num_handles,
-                               reinterpret_cast<void**>(out_data), capacity);
-
-  // Since we know the type let's make sure any padding areas are zeroed.
-  memset(*out_data, 0, sizeof(DataType));
-
-  return msg_ptr;
-}
-
-// This method takes a second template argument which is another datatype
-// which represents the smallest size this payload can be to be considered
-// valid this MUST be used when there is more than one version of a message to
-// specify the oldest version of the message.
-template <typename DataType, typename MinSizedDataType>
-bool GetMessagePayloadMinimumSized(const void* bytes,
-                                   size_t num_bytes,
-                                   DataType* out_data) {
-  static_assert(sizeof(DataType) > 0, "DataType must have non-zero size.");
-  if (num_bytes < sizeof(Header) + sizeof(MinSizedDataType)) {
-    return false;
-  }
-
-  // Always make sure that the full object is zeored and default constructed
-  // as we may not have the complete type. The default construction allows
-  // fields to be default initialized to be resilient to older message
-  // versions.
-  memset(out_data, 0, sizeof(*out_data));
-  new (out_data) DataType;
-
-  // Overwrite any fields we received.
-  memcpy(out_data, static_cast<const uint8_t*>(bytes) + sizeof(Header),
-         std::min(sizeof(DataType), num_bytes - sizeof(Header)));
-  return true;
+  const size_t total_size = payload_size + sizeof(Header);
+  if (capacity == 0)
+    capacity = total_size;
+  else
+    capacity = std::max(total_size, capacity);
+  auto message =
+      std::make_unique<Channel::Message>(capacity, total_size, num_handles);
+  Header* header = reinterpret_cast<Header*>(message->mutable_payload());
+  header->type = type;
+  header->padding = 0;
+  *out_data = reinterpret_cast<DataType*>(&header[1]);
+  return message;
 }
 
 template <typename DataType>
 bool GetMessagePayload(const void* bytes,
                        size_t num_bytes,
-                       DataType* out_data) {
-  return GetMessagePayloadMinimumSized<DataType, DataType>(bytes, num_bytes,
-                                                           out_data);
+                       DataType** out_data) {
+  static_assert(sizeof(DataType) > 0, "DataType must have non-zero size.");
+  if (num_bytes < sizeof(Header) + sizeof(DataType))
+    return false;
+  *out_data = reinterpret_cast<const DataType*>(
+      static_cast<const char*>(bytes) + sizeof(Header));
+  return true;
 }
 
 }  // namespace
@@ -252,7 +175,7 @@ scoped_refptr<NodeChannel> NodeChannel::Create(
     Channel::HandlePolicy channel_handle_policy,
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
     const ProcessErrorCallback& process_error_callback) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
   LOG(FATAL) << "Multi-process not yet supported on NaCl-SFI";
   return nullptr;
 #else
@@ -272,16 +195,13 @@ Channel::MessagePtr NodeChannel::CreateEventMessage(size_t capacity,
 }
 
 // static
-bool NodeChannel::GetEventMessageData(Channel::Message& message,
+void NodeChannel::GetEventMessageData(Channel::Message* message,
                                       void** data,
                                       size_t* num_data_bytes) {
-  // NOTE: Callers must guarantee that the payload in `message` must be at least
-  // large enough to hold a Header.
-  if (message.payload_size() < sizeof(Header))
-    return false;
-  *data = reinterpret_cast<Header*>(message.mutable_payload()) + 1;
-  *num_data_bytes = message.payload_size() - sizeof(Header);
-  return true;
+  // NOTE: OnChannelMessage guarantees that we never accept a Channel::Message
+  // with a payload of fewer than |sizeof(Header)| bytes.
+  *data = reinterpret_cast<Header*>(message->mutable_payload()) + 1;
+  *num_data_bytes = message->payload_size() - sizeof(Header);
 }
 
 void NodeChannel::Start() {
@@ -311,27 +231,29 @@ void NodeChannel::NotifyBadMessage(const std::string& error) {
   process_error_callback_.Run("Received bad user message: " + error);
 }
 
-void NodeChannel::SetRemoteProcessHandle(base::Process process_handle) {
+void NodeChannel::SetRemoteProcessHandle(ScopedProcessHandle process_handle) {
   DCHECK(owning_task_runner()->RunsTasksInCurrentSequence());
   {
     base::AutoLock lock(channel_lock_);
     if (channel_)
-      channel_->set_remote_process(process_handle.Duplicate());
+      channel_->set_remote_process(process_handle.Clone());
   }
   base::AutoLock lock(remote_process_handle_lock_);
-  DCHECK(!remote_process_handle_.IsValid());
-  CHECK_NE(remote_process_handle_.Handle(), base::GetCurrentProcessHandle());
+  DCHECK(!remote_process_handle_.is_valid());
+  CHECK_NE(remote_process_handle_.get(), base::GetCurrentProcessHandle());
   remote_process_handle_ = std::move(process_handle);
 }
 
 bool NodeChannel::HasRemoteProcessHandle() {
   base::AutoLock lock(remote_process_handle_lock_);
-  return remote_process_handle_.IsValid();
+  return remote_process_handle_.is_valid();
 }
 
-base::Process NodeChannel::CloneRemoteProcessHandle() {
+ScopedProcessHandle NodeChannel::CloneRemoteProcessHandle() {
   base::AutoLock lock(remote_process_handle_lock_);
-  return remote_process_handle_.Duplicate();
+  if (!remote_process_handle_.is_valid())
+    return ScopedProcessHandle();
+  return remote_process_handle_.Clone();
 }
 
 void NodeChannel::SetRemoteNodeName(const ports::NodeName& name) {
@@ -346,7 +268,6 @@ void NodeChannel::AcceptInvitee(const ports::NodeName& inviter_name,
       MessageType::ACCEPT_INVITEE, sizeof(AcceptInviteeData), 0, &data);
   data->inviter_name = inviter_name;
   data->token = token;
-  data->capabilities = local_capabilities_;
   WriteChannelMessage(std::move(message));
 }
 
@@ -357,7 +278,6 @@ void NodeChannel::AcceptInvitation(const ports::NodeName& token,
       MessageType::ACCEPT_INVITATION, sizeof(AcceptInvitationData), 0, &data);
   data->token = token;
   data->invitee_name = invitee_name;
-  data->capabilities = local_capabilities_;
   WriteChannelMessage(std::move(message));
 }
 
@@ -374,21 +294,20 @@ void NodeChannel::AcceptPeer(const ports::NodeName& sender_name,
 }
 
 void NodeChannel::AddBrokerClient(const ports::NodeName& client_name,
-                                  base::Process process_handle) {
+                                  ScopedProcessHandle process_handle) {
   AddBrokerClientData* data;
   std::vector<PlatformHandle> handles;
-#if BUILDFLAG(IS_WIN)
-  handles.emplace_back(base::win::ScopedHandle(process_handle.Release()));
+#if defined(OS_WIN)
+  handles.emplace_back(base::win::ScopedHandle(process_handle.release()));
 #endif
   Channel::MessagePtr message =
       CreateMessage(MessageType::ADD_BROKER_CLIENT, sizeof(AddBrokerClientData),
                     handles.size(), &data);
   message->SetHandles(std::move(handles));
   data->client_name = client_name;
-#if !BUILDFLAG(IS_WIN)
-  // Older clients treat this as a real process handle, but don't actually need
-  // it, so send a valid null handle.
-  data->process_handle = base::kNullProcessHandle;
+#if !defined(OS_WIN)
+  data->process_handle = process_handle.get();
+  data->padding = 0;
 #endif
   WriteChannelMessage(std::move(message));
 }
@@ -408,8 +327,7 @@ void NodeChannel::BrokerClientAdded(const ports::NodeName& client_name,
 }
 
 void NodeChannel::AcceptBrokerClient(const ports::NodeName& broker_name,
-                                     PlatformHandle broker_channel,
-                                     const uint64_t broker_capabilities) {
+                                     PlatformHandle broker_channel) {
   AcceptBrokerClientData* data;
   std::vector<PlatformHandle> handles;
   if (broker_channel.is_valid())
@@ -419,8 +337,6 @@ void NodeChannel::AcceptBrokerClient(const ports::NodeName& broker_name,
                     sizeof(AcceptBrokerClientData), handles.size(), &data);
   message->SetHandles(std::move(handles));
   data->broker_name = broker_name;
-  data->broker_capabilities = broker_capabilities;
-  data->capabilities = local_capabilities_;
   WriteChannelMessage(std::move(message));
 }
 
@@ -444,8 +360,7 @@ void NodeChannel::RequestIntroduction(const ports::NodeName& name) {
 }
 
 void NodeChannel::Introduce(const ports::NodeName& name,
-                            PlatformHandle channel_handle,
-                            uint64_t capabilities) {
+                            PlatformHandle channel_handle) {
   IntroductionData* data;
   std::vector<PlatformHandle> handles;
   if (channel_handle.is_valid())
@@ -454,9 +369,6 @@ void NodeChannel::Introduce(const ports::NodeName& name,
       MessageType::INTRODUCE, sizeof(IntroductionData), handles.size(), &data);
   message->SetHandles(std::move(handles));
   data->name = name;
-  // Note that these are not our capabilities, but the capabilities of the peer
-  // we're introducing.
-  data->capabilities = capabilities;
   WriteChannelMessage(std::move(message));
 }
 
@@ -474,7 +386,7 @@ void NodeChannel::Broadcast(Channel::MessagePtr message) {
 }
 
 void NodeChannel::BindBrokerHost(PlatformHandle broker_host_handle) {
-#if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_APPLE) && !defined(OS_NACL) && !defined(OS_FUCHSIA)
   DCHECK(broker_host_handle.is_valid());
   BindBrokerHostData* data;
   std::vector<PlatformHandle> handles;
@@ -482,14 +394,16 @@ void NodeChannel::BindBrokerHost(PlatformHandle broker_host_handle) {
   Channel::MessagePtr message =
       CreateMessage(MessageType::BIND_BROKER_HOST, sizeof(BindBrokerHostData),
                     handles.size(), &data);
+  data->padding = 0;
   message->SetHandles(std::move(handles));
   WriteChannelMessage(std::move(message));
 #endif
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void NodeChannel::RelayEventMessage(const ports::NodeName& destination,
                                     Channel::MessagePtr message) {
+#if defined(OS_WIN)
   DCHECK(message->has_handles());
 
   // Note that this is only used on Windows, and on Windows all platform
@@ -515,6 +429,24 @@ void NodeChannel::RelayEventMessage(const ports::NodeName& destination,
   for (auto& handle : handles)
     handle.TakeHandle().release();
 
+#else
+  DCHECK(message->has_mach_ports());
+
+  // On OSX, the handles are extracted from the relayed message and attached to
+  // the wrapper. The broker then takes the handles attached to the wrapper and
+  // moves them back to the relayed message. This is necessary because the
+  // message may contain fds which need to be attached to the outer message so
+  // that they can be transferred to the broker.
+  std::vector<PlatformHandleInTransit> handles = message->TakeHandles();
+  size_t num_bytes = sizeof(RelayEventMessageData) + message->data_num_bytes();
+  RelayEventMessageData* data;
+  Channel::MessagePtr relay_message = CreateMessage(
+      MessageType::RELAY_EVENT_MESSAGE, num_bytes, handles.size(), &data);
+  data->destination = destination;
+  memcpy(data + 1, message->data(), message->data_num_bytes());
+  relay_message->SetHandles(std::move(handles));
+#endif  // defined(OS_WIN)
+
   WriteChannelMessage(std::move(relay_message));
 }
 
@@ -532,7 +464,7 @@ void NodeChannel::EventMessageFromRelay(const ports::NodeName& source,
   relayed_message->SetHandles(message->TakeHandles());
   WriteChannelMessage(std::move(relayed_message));
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 NodeChannel::NodeChannel(
     Delegate* delegate,
@@ -543,7 +475,7 @@ NodeChannel::NodeChannel(
     : base::RefCountedDeleteOnSequence<NodeChannel>(io_task_runner),
       delegate_(delegate),
       process_error_callback_(process_error_callback)
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL_SFI)
       ,
       channel_(Channel::Create(this,
                                std::move(connection_params),
@@ -551,7 +483,6 @@ NodeChannel::NodeChannel(
                                std::move(io_task_runner)))
 #endif
 {
-  InitializeLocalCapabilities();
 }
 
 NodeChannel::~NodeChannel() {
@@ -560,12 +491,12 @@ NodeChannel::~NodeChannel() {
 
 void NodeChannel::CreateAndBindLocalBrokerHost(
     PlatformHandle broker_host_handle) {
-#if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_APPLE) && !defined(OS_NACL) && !defined(OS_FUCHSIA)
   // Self-owned.
   ConnectionParams connection_params(
       PlatformChannelEndpoint(std::move(broker_host_handle)));
-  new BrokerHost(remote_process_handle_.Duplicate(),
-                 std::move(connection_params), process_error_callback_);
+  new BrokerHost(remote_process_handle_.get(), std::move(connection_params),
+                 process_error_callback_);
 #endif
 }
 
@@ -584,49 +515,42 @@ void NodeChannel::OnChannelMessage(const void* payload,
   const Header* header = static_cast<const Header*>(payload);
   switch (header->type) {
     case MessageType::ACCEPT_INVITEE: {
-      AcceptInviteeData data;
-      if (GetMessagePayloadMinimumSized<AcceptInviteeData, AcceptInviteeDataV0>(
-              payload, payload_size, &data)) {
-        // Attach any capabilities that the other side advertised.
-        SetRemoteCapabilities(data.capabilities);
-        delegate_->OnAcceptInvitee(remote_node_name_, data.inviter_name,
-                                   data.token);
+      const AcceptInviteeData* data;
+      if (GetMessagePayload(payload, payload_size, &data)) {
+        delegate_->OnAcceptInvitee(remote_node_name_, data->inviter_name,
+                                   data->token);
         return;
       }
       break;
     }
 
     case MessageType::ACCEPT_INVITATION: {
-      AcceptInvitationData data;
-      if (GetMessagePayloadMinimumSized<AcceptInvitationData,
-                                        AcceptInvitationDataV0>(
-              payload, payload_size, &data)) {
-        // Attach any capabilities that the other side advertised.
-        SetRemoteCapabilities(data.capabilities);
-        delegate_->OnAcceptInvitation(remote_node_name_, data.token,
-                                      data.invitee_name);
+      const AcceptInvitationData* data;
+      if (GetMessagePayload(payload, payload_size, &data)) {
+        delegate_->OnAcceptInvitation(remote_node_name_, data->token,
+                                      data->invitee_name);
         return;
       }
       break;
     }
 
     case MessageType::ADD_BROKER_CLIENT: {
-      AddBrokerClientData data;
+      const AddBrokerClientData* data;
       if (GetMessagePayload(payload, payload_size, &data)) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
         if (handles.size() != 1) {
           DLOG(ERROR) << "Dropping invalid AddBrokerClient message.";
           break;
         }
-        delegate_->OnAddBrokerClient(remote_node_name_, data.client_name,
+        delegate_->OnAddBrokerClient(remote_node_name_, data->client_name,
                                      handles[0].ReleaseHandle());
 #else
         if (!handles.empty()) {
           DLOG(ERROR) << "Dropping invalid AddBrokerClient message.";
           break;
         }
-        delegate_->OnAddBrokerClient(remote_node_name_, data.client_name,
-                                     base::kNullProcessHandle);
+        delegate_->OnAddBrokerClient(remote_node_name_, data->client_name,
+                                     data->process_handle);
 #endif
         return;
       }
@@ -634,13 +558,13 @@ void NodeChannel::OnChannelMessage(const void* payload,
     }
 
     case MessageType::BROKER_CLIENT_ADDED: {
-      BrokerClientAddedData data;
+      const BrokerClientAddedData* data;
       if (GetMessagePayload(payload, payload_size, &data)) {
         if (handles.size() != 1) {
           DLOG(ERROR) << "Dropping invalid BrokerClientAdded message.";
           break;
         }
-        delegate_->OnBrokerClientAdded(remote_node_name_, data.client_name,
+        delegate_->OnBrokerClientAdded(remote_node_name_, data->client_name,
                                        std::move(handles[0]));
         return;
       }
@@ -648,10 +572,8 @@ void NodeChannel::OnChannelMessage(const void* payload,
     }
 
     case MessageType::ACCEPT_BROKER_CLIENT: {
-      AcceptBrokerClientData data;
-      if (GetMessagePayloadMinimumSized<AcceptBrokerClientData,
-                                        AcceptBrokerClientDataV0>(
-              payload, payload_size, &data)) {
+      const AcceptBrokerClientData* data;
+      if (GetMessagePayload(payload, payload_size, &data)) {
         PlatformHandle broker_channel;
         if (handles.size() > 1) {
           DLOG(ERROR) << "Dropping invalid AcceptBrokerClient message.";
@@ -660,19 +582,16 @@ void NodeChannel::OnChannelMessage(const void* payload,
         if (handles.size() == 1)
           broker_channel = std::move(handles[0]);
 
-        // Attach any capabilities that the other side advertised.
-        SetRemoteCapabilities(data.capabilities);
-        delegate_->OnAcceptBrokerClient(remote_node_name_, data.broker_name,
-                                        std::move(broker_channel),
-                                        data.broker_capabilities);
+        delegate_->OnAcceptBrokerClient(remote_node_name_, data->broker_name,
+                                        std::move(broker_channel));
         return;
       }
       break;
     }
 
     case MessageType::EVENT_MESSAGE: {
-      Channel::MessagePtr message =
-          Channel::Message::CreateMessage(payload_size, handles.size());
+      Channel::MessagePtr message(
+          new Channel::Message(payload_size, handles.size()));
       message->SetHandles(std::move(handles));
       memcpy(message->mutable_payload(), payload, payload_size);
       delegate_->OnEventMessage(remote_node_name_, std::move(message));
@@ -680,36 +599,32 @@ void NodeChannel::OnChannelMessage(const void* payload,
     }
 
     case MessageType::REQUEST_PORT_MERGE: {
-      RequestPortMergeData data;
+      const RequestPortMergeData* data;
       if (GetMessagePayload(payload, payload_size, &data)) {
         // Don't accept an empty token.
-        size_t token_size = payload_size - sizeof(data) - sizeof(Header);
+        size_t token_size = payload_size - sizeof(*data) - sizeof(Header);
         if (token_size == 0)
           break;
-        std::string token(reinterpret_cast<const char*>(payload) +
-                              sizeof(Header) + sizeof(data),
-                          token_size);
+        std::string token(reinterpret_cast<const char*>(data + 1), token_size);
         delegate_->OnRequestPortMerge(remote_node_name_,
-                                      data.connector_port_name, token);
+                                      data->connector_port_name, token);
         return;
       }
       break;
     }
 
     case MessageType::REQUEST_INTRODUCTION: {
-      IntroductionData data;
-      if (GetMessagePayloadMinimumSized<IntroductionData, IntroductionDataV0>(
-              payload, payload_size, &data)) {
-        delegate_->OnRequestIntroduction(remote_node_name_, data.name);
+      const IntroductionData* data;
+      if (GetMessagePayload(payload, payload_size, &data)) {
+        delegate_->OnRequestIntroduction(remote_node_name_, data->name);
         return;
       }
       break;
     }
 
     case MessageType::INTRODUCE: {
-      IntroductionData data;
-      if (GetMessagePayloadMinimumSized<IntroductionData, IntroductionDataV0>(
-              payload, payload_size, &data)) {
+      const IntroductionData* data;
+      if (GetMessagePayload(payload, payload_size, &data)) {
         if (handles.size() > 1) {
           DLOG(ERROR) << "Dropping invalid introduction message.";
           break;
@@ -718,17 +633,14 @@ void NodeChannel::OnChannelMessage(const void* payload,
         if (handles.size() == 1)
           channel_handle = std::move(handles[0]);
 
-        // The node channel for this introduction will be created later, so we
-        // can only pass up the capabilities we received from the broker for
-        // that remote.
-        delegate_->OnIntroduce(remote_node_name_, data.name,
-                               std::move(channel_handle), data.capabilities);
+        delegate_->OnIntroduce(remote_node_name_, data->name,
+                               std::move(channel_handle));
         return;
       }
       break;
     }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case MessageType::RELAY_EVENT_MESSAGE: {
       base::ProcessHandle from_process;
       {
@@ -736,30 +648,24 @@ void NodeChannel::OnChannelMessage(const void* payload,
         // NOTE: It's safe to retain a weak reference to this process handle
         // through the extent of this call because |this| is kept alive and
         // |remote_process_handle_| is never reset once set.
-        from_process = remote_process_handle_.Handle();
-
-        // If we don't have a handle to the remote process, we should not be
-        // receiving relay requests from them because we're not the broker.
-        if (from_process == base::kNullProcessHandle)
-          break;
+        from_process = remote_process_handle_.get();
       }
-      RelayEventMessageData data;
+      const RelayEventMessageData* data;
       if (GetMessagePayload(payload, payload_size, &data)) {
         // Don't try to relay an empty message.
-        if (payload_size <= sizeof(Header) + sizeof(data))
+        if (payload_size <= sizeof(Header) + sizeof(RelayEventMessageData))
           break;
 
-        const void* message_start = reinterpret_cast<const uint8_t*>(payload) +
-                                    sizeof(Header) + sizeof(data);
+        const void* message_start = data + 1;
         Channel::MessagePtr message = Channel::Message::Deserialize(
-            message_start, payload_size - sizeof(Header) - sizeof(data),
-            Channel::HandlePolicy::kAcceptHandles, from_process);
+            message_start, payload_size - sizeof(Header) - sizeof(*data),
+            from_process);
         if (!message) {
           DLOG(ERROR) << "Dropping invalid relay message.";
           break;
         }
         delegate_->OnRelayEventMessage(remote_node_name_, from_process,
-                                       data.destination, std::move(message));
+                                       data->destination, std::move(message));
         return;
       }
       break;
@@ -772,9 +678,8 @@ void NodeChannel::OnChannelMessage(const void* payload,
       const void* data = static_cast<const void*>(
           reinterpret_cast<const Header*>(payload) + 1);
       Channel::MessagePtr message =
-          Channel::Message::Deserialize(data, payload_size - sizeof(Header),
-                                        Channel::HandlePolicy::kRejectHandles);
-      if (!message) {
+          Channel::Message::Deserialize(data, payload_size - sizeof(Header));
+      if (!message || message->has_handles()) {
         DLOG(ERROR) << "Dropping invalid broadcast message.";
         break;
       }
@@ -782,36 +687,33 @@ void NodeChannel::OnChannelMessage(const void* payload,
       return;
     }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case MessageType::EVENT_MESSAGE_FROM_RELAY: {
-      EventMessageFromRelayData data;
+      const EventMessageFromRelayData* data;
       if (GetMessagePayload(payload, payload_size, &data)) {
-        if (payload_size < (sizeof(Header) + sizeof(data)))
+        size_t num_bytes = payload_size - sizeof(*data);
+        if (num_bytes < sizeof(Header))
           break;
+        num_bytes -= sizeof(Header);
 
-        size_t num_bytes = payload_size - sizeof(data) - sizeof(Header);
-
-        Channel::MessagePtr message =
-            Channel::Message::CreateMessage(num_bytes, handles.size());
+        Channel::MessagePtr message(
+            new Channel::Message(num_bytes, handles.size()));
         message->SetHandles(std::move(handles));
         if (num_bytes)
-          memcpy(message->mutable_payload(),
-                 static_cast<const uint8_t*>(payload) + sizeof(Header) +
-                     sizeof(data),
-                 num_bytes);
-        delegate_->OnEventMessageFromRelay(remote_node_name_, data.source,
+          memcpy(message->mutable_payload(), data + 1, num_bytes);
+        delegate_->OnEventMessageFromRelay(remote_node_name_, data->source,
                                            std::move(message));
         return;
       }
       break;
     }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
     case MessageType::ACCEPT_PEER: {
-      AcceptPeerData data;
+      const AcceptPeerData* data;
       if (GetMessagePayload(payload, payload_size, &data)) {
-        delegate_->OnAcceptPeer(remote_node_name_, data.token, data.peer_name,
-                                data.port_name);
+        delegate_->OnAcceptPeer(remote_node_name_, data->token, data->peer_name,
+                                data->port_name);
         return;
       }
       break;
@@ -829,8 +731,7 @@ void NodeChannel::OnChannelMessage(const void* payload,
       return;
   }
 
-  DLOG(ERROR) << "Received invalid message type: "
-              << static_cast<int>(header->type) << " closing channel.";
+  DLOG(ERROR) << "Received invalid message. Closing channel.";
   if (process_error_callback_)
     process_error_callback_.Run("NodeChannel received a malformed message");
   delegate_->OnChannelError(remote_node_name_, this);
@@ -848,8 +749,8 @@ void NodeChannel::OnChannelError(Channel::Error error) {
     process_error_callback_.Run("Channel received a malformed message");
   }
 
-  // |OnChannelError()| may cause |this| to be destroyed, but still need
-  // access to the name after that destruction. So make a copy of
+  // |OnChannelError()| may cause |this| to be destroyed, but still need access
+  // to the name after that destruction. So make a copy of
   // |remote_node_name_| so it can be used if |this| becomes destroyed.
   ports::NodeName node_name = remote_node_name_;
   delegate_->OnChannelError(node_name, this);
@@ -861,51 +762,6 @@ void NodeChannel::WriteChannelMessage(Channel::MessagePtr message) {
     DLOG(ERROR) << "Dropping message on closed channel.";
   else
     channel_->Write(std::move(message));
-}
-
-void NodeChannel::OfferChannelUpgrade() {
-#if !BUILDFLAG(IS_NACL)
-  base::AutoLock lock(channel_lock_);
-  channel_->OfferChannelUpgrade();
-#endif
-}
-
-uint64_t NodeChannel::RemoteCapabilities() const {
-  return remote_capabilities_;
-}
-
-bool NodeChannel::HasRemoteCapability(const uint64_t capability) const {
-  return (remote_capabilities_ & capability) == capability;
-}
-
-void NodeChannel::SetRemoteCapabilities(const uint64_t capabilities) {
-  remote_capabilities_ |= capabilities;
-}
-
-uint64_t NodeChannel::LocalCapabilities() const {
-  return local_capabilities_;
-}
-
-bool NodeChannel::HasLocalCapability(const uint64_t capability) const {
-  return (local_capabilities_ & capability) == capability;
-}
-
-void NodeChannel::SetLocalCapabilities(const uint64_t capabilities) {
-  if (GetConfiguration().dont_advertise_capabilities) {
-    return;
-  }
-
-  local_capabilities_ |= capabilities;
-}
-
-void NodeChannel::InitializeLocalCapabilities() {
-  if (GetConfiguration().dont_advertise_capabilities) {
-    return;
-  }
-
-  if (core::Channel::SupportsChannelUpgrade()) {
-    SetLocalCapabilities(kNodeCapabilitySupportsUpgrade);
-  }
 }
 
 }  // namespace core

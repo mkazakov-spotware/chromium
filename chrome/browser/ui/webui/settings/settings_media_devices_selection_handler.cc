@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -29,18 +30,19 @@ const char kVideo[] = "camera";
 namespace settings {
 
 MediaDevicesSelectionHandler::MediaDevicesSelectionHandler(Profile* profile)
-    : profile_(profile) {}
+    : profile_(profile), observer_(this) {
+}
 
 MediaDevicesSelectionHandler::~MediaDevicesSelectionHandler() {
 }
 
 void MediaDevicesSelectionHandler::OnJavascriptAllowed() {
   // Register to the device observer list to get up-to-date device lists.
-  observation_.Observe(MediaCaptureDevicesDispatcher::GetInstance());
+  observer_.Add(MediaCaptureDevicesDispatcher::GetInstance());
 }
 
 void MediaDevicesSelectionHandler::OnJavascriptDisallowed() {
-  observation_.Reset();
+  observer_.RemoveAll();
 }
 
 void MediaDevicesSelectionHandler::RegisterMessages() {
@@ -67,13 +69,13 @@ void MediaDevicesSelectionHandler::OnUpdateVideoDevices(
 }
 
 void MediaDevicesSelectionHandler::GetDefaultCaptureDevices(
-    const base::Value::List& args) {
-  DCHECK_EQ(1U, args.size());
-  if (!args[0].is_string()) {
+    const base::ListValue* args) {
+  DCHECK_EQ(1U, args->GetSize());
+  std::string type;
+  if (!args->GetString(0, &type)) {
     NOTREACHED();
     return;
   }
-  const std::string& type = args[0].GetString();
   DCHECK(!type.empty());
 
   if (type == kAudio)
@@ -83,14 +85,13 @@ void MediaDevicesSelectionHandler::GetDefaultCaptureDevices(
 }
 
 void MediaDevicesSelectionHandler::SetDefaultCaptureDevice(
-    const base::Value::List& args) {
-  DCHECK_EQ(2U, args.size());
-  if (!args[0].is_string() || !args[1].is_string()) {
+    const base::ListValue* args) {
+  DCHECK_EQ(2U, args->GetSize());
+  std::string type, device;
+  if (!(args->GetString(0, &type) && args->GetString(1, &device))) {
     NOTREACHED();
     return;
   }
-  const std::string& type = args[0].GetString();
-  const std::string& device = args[1].GetString();
 
   DCHECK(!type.empty());
   DCHECK(!device.empty());
@@ -126,13 +127,13 @@ void MediaDevicesSelectionHandler::UpdateDevicesMenu(
 
   // Build the list of devices to send to JS.
   std::string default_id;
-  base::Value::List device_list;
-  for (const auto& device : devices) {
-    base::Value::Dict entry;
-    entry.Set("name", GetDeviceDisplayName(device));
-    entry.Set("id", device.id);
+  base::ListValue device_list;
+  for (size_t i = 0; i < devices.size(); ++i) {
+    std::unique_ptr<base::DictionaryValue> entry(new base::DictionaryValue());
+    entry->SetString("name", GetDeviceDisplayName(devices[i]));
+    entry->SetString("id",  devices[i].id);
     device_list.Append(std::move(entry));
-    if (device.id == default_device)
+    if (devices[i].id == default_device)
       default_id = default_device;
   }
 
@@ -143,7 +144,6 @@ void MediaDevicesSelectionHandler::UpdateDevicesMenu(
 
   base::Value default_value(default_id);
   base::Value type_value(device_type);
-
   FireWebUIListener("updateDevicesMenu", type_value, device_list,
                     default_value);
 }

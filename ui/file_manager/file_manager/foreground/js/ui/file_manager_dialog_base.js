@@ -1,32 +1,20 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {util} from '../../../common/js/util.js';
-import {xfm} from '../../../common/js/xfm.js';
-
-import {BaseDialog} from './dialogs.js';
 
 /**
  * This class is an extended class, to manage the status of the dialogs.
  */
-export class FileManagerDialogBase extends BaseDialog {
+class FileManagerDialogBase extends cr.ui.dialogs.BaseDialog {
   /**
    * @param {HTMLElement} parentNode Parent node of the dialog.
    */
   constructor(parentNode) {
     super(parentNode);
 
-    this.container.classList.add('files-ng');
-  }
-
-  /**
-   * @protected
-   * @override
-   */
-  initDom() {
-    super.initDom();
-    super.hasModalContainer = true;
+    if (util.isFilesNg()) {
+      this.container.classList.add('files-ng');
+    }
   }
 
   /**
@@ -58,7 +46,7 @@ export class FileManagerDialogBase extends BaseDialog {
     FileManagerDialogBase.shown = true;
 
     // If a dialog is shown, activate the window.
-    const appWindow = xfm.getCurrentWindow();
+    const appWindow = chrome.app.window.current();
     if (appWindow) {
       appWindow.focus();
     }
@@ -113,25 +101,15 @@ export class FileManagerDialogBase extends BaseDialog {
   }
 
   /**
-   * @override
-   * @suppress {accessControls}
+   * @param {Function=} opt_onHide Called when the dialog is hidden.
    */
-  show_(...args) {
-    this.parentNode_ = util.getFilesAppModalDialogInstance();
-
-    super.show_(...args);
-
-    this.parentNode_.showModal();
-  }
-
-  /**
-   * @override
-   */
-  hide(...args) {
-    this.parentNode_.close();
-
+  hide(opt_onHide) {
     FileManagerDialogBase.shown = false;
-    super.hide(...args);
+    super.hide(() => {
+      if (opt_onHide) {
+        opt_onHide();
+      }
+    });
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,14 @@
 
 #include <stdint.h>
 
+#include <list>
 #include <memory>
 #include <utility>
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/decrypt_config.h"
 #include "media/base/media_export.h"
@@ -41,9 +44,6 @@ class MEDIA_EXPORT EsParserAdts : public EsParser {
                EncryptionScheme init_encryption_scheme,
                bool sbr_in_mimetype);
 #endif
-
-  EsParserAdts(const EsParserAdts&) = delete;
-  EsParserAdts& operator=(const EsParserAdts&) = delete;
 
   ~EsParserAdts() override;
 
@@ -99,6 +99,8 @@ class MEDIA_EXPORT EsParserAdts : public EsParser {
   AudioDecoderConfig last_audio_decoder_config_;
 
   ADTSStreamParser adts_parser_;
+
+  DISALLOW_COPY_AND_ASSIGN(EsParserAdts);
 };
 
 }  // namespace mp2t

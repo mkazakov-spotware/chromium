@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "remoting/protocol/ice_config.h"
@@ -20,9 +20,11 @@ namespace network {
 class SharedURLLoaderFactory;
 }  // namespace network
 
-namespace remoting {
+namespace rtc {
+class NetworkManager;
+}  // namespace rtc
 
-class OAuthTokenGetter;
+namespace remoting {
 
 namespace protocol {
 
@@ -41,24 +43,27 @@ class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
 
   TransportContext(
       std::unique_ptr<PortAllocatorFactory> port_allocator_factory,
-      rtc::SocketFactory* socket_factory,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-      OAuthTokenGetter* oauth_token_getter,
       const NetworkSettings& network_settings,
       TransportRole role);
 
-  TransportContext(const TransportContext&) = delete;
-  TransportContext& operator=(const TransportContext&) = delete;
-
   void set_turn_ice_config(const IceConfig& ice_config) {
-    DCHECK(!ice_config.is_null());
-    // If an external entity provides a valid ICE Config, then disable the local
-    // caching logic and use the provided config.
+    // If an external entity is providing the ICE Config, then disable the
+    // local caching logic and use the provided config.
     //
     // Note: Using this method to provide a config means the caller is
     // responsible for ensuring the ICE config's validity and freshness.
     last_request_completion_time_ = base::Time::Max();
     ice_config_ = ice_config;
+  }
+
+  // Sets a reference to the NetworkManager that holds the list of
+  // network interfaces. If the NetworkManager is deleted while this
+  // TransportContext is live, the caller should set this to nullptr.
+  // TODO(crbug.com/848045): This should be a singleton - either a global
+  // instance, or one that is owned by this TransportContext.
+  void set_network_manager(rtc::NetworkManager* network_manager) {
+    network_manager_ = network_manager;
   }
 
   // Prepares fresh ICE configs. It may be called while connection is being
@@ -72,9 +77,9 @@ class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
   PortAllocatorFactory* port_allocator_factory() {
     return port_allocator_factory_.get();
   }
-  rtc::SocketFactory* socket_factory() const { return socket_factory_; }
   const NetworkSettings& network_settings() const { return network_settings_; }
   TransportRole role() const { return role_; }
+  rtc::NetworkManager* network_manager() const { return network_manager_; }
 
   // Returns the suggested bandwidth cap for TURN relay connections, or 0 if
   // no rate-limit is set in the IceConfig.
@@ -89,11 +94,11 @@ class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
   void OnIceConfig(const IceConfig& ice_config);
 
   std::unique_ptr<PortAllocatorFactory> port_allocator_factory_;
-  raw_ptr<rtc::SocketFactory> socket_factory_;
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
-  raw_ptr<OAuthTokenGetter> oauth_token_getter_ = nullptr;
   NetworkSettings network_settings_;
   TransportRole role_;
+
+  rtc::NetworkManager* network_manager_ = nullptr;
 
   IceConfig ice_config_;
 
@@ -102,6 +107,8 @@ class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
 
   // Called once |ice_config_request_| completes.
   std::list<GetIceConfigCallback> pending_ice_config_callbacks_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransportContext);
 };
 
 }  // namespace protocol

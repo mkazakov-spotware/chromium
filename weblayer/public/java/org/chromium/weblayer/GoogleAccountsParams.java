@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,10 @@ import androidx.annotation.NonNull;
 
 /**
  * Params passed to {@link GoogleAccountsCallback#onGoogleAccountsRequest}.
+ *
+ * @since 86
  */
-class GoogleAccountsParams {
+public class GoogleAccountsParams {
     /**
      * The requested service type such as "ADD_SESSION".
      */

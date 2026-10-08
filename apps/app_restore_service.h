@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "apps/app_lifetime_monitor.h"
-#include "base/memory/raw_ptr.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 
@@ -71,7 +70,7 @@ class AppRestoreService : public KeyedService,
   void StartObservingAppLifetime();
   void StopObservingAppLifetime();
 
-  raw_ptr<content::BrowserContext> context_;
+  content::BrowserContext* context_;
 };
 
 }  // namespace apps

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -235,8 +235,9 @@ static constexpr size_t kButtonColorsSize = 20;
 }  // namespace
 
 ColorScheme::ColorScheme() = default;
-ColorScheme::ColorScheme(const ColorScheme& other) = default;
-ColorScheme& ColorScheme::operator=(const ColorScheme& other) = default;
+ColorScheme::ColorScheme(const ColorScheme& other) {
+  *this = other;
+}
 
 static_assert(kButtonColorsSize == sizeof(ButtonColors),
               "If the new colors are added to ButtonColors, we must explicitly "

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,8 @@
 using base::android::ScopedJavaLocalRef;
 
 void ShowAutoSigninPrompt(content::WebContents* web_contents,
-                          const std::u16string& username) {
-  std::u16string message = l10n_util::GetStringFUTF16(
+                          const base::string16& username) {
+  base::string16 message = l10n_util::GetStringFUTF16(
       IDS_MANAGE_PASSWORDS_AUTO_SIGNIN_TITLE, username);
 
   JNIEnv* env = base::android::AttachCurrentThread();

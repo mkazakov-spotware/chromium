@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <vector>
 
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
 
 namespace extensions {
@@ -19,21 +18,21 @@ struct InstallPromptPermissions;
 // there are any.
 class ExtensionPermissionsView : public views::View {
  public:
-  METADATA_HEADER(ExtensionPermissionsView);
   explicit ExtensionPermissionsView(int available_width);
-  ExtensionPermissionsView(const ExtensionPermissionsView&) = delete;
-  ExtensionPermissionsView& operator=(const ExtensionPermissionsView&) = delete;
 
   // Adds a single pair of |permission_text| and |permission_details| to
   // be rendered in the view.
-  void AddItem(const std::u16string& permission_text,
-               const std::u16string& permission_details);
+  void AddItem(const base::string16& permission_text,
+               const base::string16& permission_details);
 
   // Adds the set of |permissions| to be rendered in the view.
   void AddPermissions(const extensions::InstallPromptPermissions& permissions);
 
   // views::View:
   void ChildPreferredSizeChanged(views::View* child) override;
+
+  ExtensionPermissionsView(const ExtensionPermissionsView&) = delete;
+  ExtensionPermissionsView& operator=(const ExtensionPermissionsView&) = delete;
 
  private:
   int available_width_;

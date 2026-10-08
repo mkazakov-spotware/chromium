@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include "base/cancelable_callback.h"
 #include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
@@ -43,10 +43,6 @@ class MEDIA_EXPORT SilentSinkSuspender
                       const AudioParameters& params,
                       scoped_refptr<AudioRendererSink> sink,
                       scoped_refptr<base::SingleThreadTaskRunner> worker);
-
-  SilentSinkSuspender(const SilentSinkSuspender&) = delete;
-  SilentSinkSuspender& operator=(const SilentSinkSuspender&) = delete;
-
   ~SilentSinkSuspender() override;
 
   // AudioRendererSink::RenderCallback implementation.
@@ -74,7 +70,7 @@ class MEDIA_EXPORT SilentSinkSuspender
   void TransitionSinks(bool use_fake_sink);
 
   // Actual RenderCallback providing audio data to the output device.
-  const raw_ptr<AudioRendererSink::RenderCallback> callback_;
+  AudioRendererSink::RenderCallback* const callback_;
 
   // Parameters used to construct |sink_|.
   const AudioParameters params_;
@@ -118,7 +114,7 @@ class MEDIA_EXPORT SilentSinkSuspender
   // A cancelable task that is posted to switch to or from the |fake_sink_|
   // after a period of silence or first non-silent audio respective. We do this
   // on Android to save battery consumption.
-  base::CancelableRepeatingCallback<void(bool)> sink_transition_callback_;
+  base::CancelableCallback<void(bool)> sink_transition_callback_;
 
   // Audio output delay at the moment when transition to |fake_sink_| starts.
   base::TimeDelta latest_output_delay_;
@@ -129,6 +125,8 @@ class MEDIA_EXPORT SilentSinkSuspender
 
   // Time when transition to |fake_sink_| starts.
   base::TimeTicks fake_sink_transition_time_;
+
+  DISALLOW_COPY_AND_ASSIGN(SilentSinkSuspender);
 };
 
 }  // namespace media

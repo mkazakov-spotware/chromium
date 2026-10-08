@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,174 +7,119 @@
  * for languages and inputs settings.
  */
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
-import 'chrome://resources/js/action_link.js';
-import 'chrome://resources/cr_elements/action_link.css.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.js';
-import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
-import './change_device_language_dialog.js';
-import './os_add_languages_dialog.js';
-import 'chrome://resources/cr_components/localized_link/localized_link.js';
-import '../../controls/settings_toggle_button.js';
-import '../../settings_shared.css.js';
-
-import {focusWithoutInk} from 'chrome://resources/ash/common/focus_without_ink_js.js';
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {loadTimeData} from '../../i18n_setup.js';
-import {Setting} from '../../mojom-webui/setting.mojom-webui.js';
-import {Route, Router} from '../../router.js';
-import {DeepLinkingBehavior, DeepLinkingBehaviorInterface} from '../deep_linking_behavior.js';
-import {recordSettingChange} from '../metrics_recorder.js';
-import {routes} from '../os_route.js';
-import {PrefsBehavior, PrefsBehaviorInterface} from '../prefs_behavior.js';
-import {RouteObserverBehavior, RouteObserverBehaviorInterface} from '../route_observer_behavior.js';
-
-import {LanguagesMetricsProxy, LanguagesMetricsProxyImpl, LanguagesPageInteraction} from './languages_metrics_proxy.js';
-import {LanguageHelper, LanguagesModel, LanguageState} from './languages_types.js';
-import {getTemplate} from './os_languages_page_v2.html.js';
-
 /**
  * @type {number} Millisecond delay that can be used when closing an action
  * menu to keep it briefly on-screen so users can see the changes.
  */
 const kMenuCloseDelay = 100;
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {DeepLinkingBehaviorInterface}
- * @implements {I18nBehaviorInterface}
- * @implements {PrefsBehaviorInterface}
- * @implements {RouteObserverBehaviorInterface}
- */
-const OsSettingsLanguagesPageV2ElementBase = mixinBehaviors(
-    [DeepLinkingBehavior, I18nBehavior, PrefsBehavior, RouteObserverBehavior],
-    PolymerElement);
+Polymer({
+  is: 'os-settings-languages-page-v2',
 
-/** @polymer */
-class OsSettingsLanguagesPageV2Element extends
-    OsSettingsLanguagesPageV2ElementBase {
-  static get is() {
-    return 'os-settings-languages-page-v2';
-  }
+  behaviors: [
+    DeepLinkingBehavior,
+    I18nBehavior,
+    PrefsBehavior,
+    settings.RouteObserverBehavior,
+  ],
 
-  static get template() {
-    return getTemplate();
-  }
+  properties: {
+    /**
+     * Preferences state.
+     */
+    prefs: {
+      type: Object,
+      notify: true,
+    },
 
-  static get properties() {
-    return {
-      /**
-       * Preferences state.
-       */
-      prefs: {
-        type: Object,
-        notify: true,
+    /**
+     * Read-only reference to the languages model provided by the
+     * 'os-settings-languages' instance.
+     * @type {!LanguagesModel|undefined}
+     */
+    languages: {
+      type: Object,
+      notify: true,
+    },
+
+    /** @type {!LanguageHelper} */
+    languageHelper: Object,
+
+    /**
+     * The language to display the details for and its index.
+     * @type {{state: !LanguageState, index: number}|undefined}
+     * @private
+     */
+    detailLanguage_: Object,
+
+    /** @private */
+    showAddLanguagesDialog_: Boolean,
+
+    /** @private */
+    showChangeDeviceLanguageDialog_: {
+      type: Boolean,
+      value: false,
+    },
+
+    /** @private */
+    isGuest_: {
+      type: Boolean,
+      value() {
+        return loadTimeData.getBoolean('isGuest');
       },
+    },
 
-      /**
-       * Read-only reference to the languages model provided by the
-       * 'os-settings-languages' instance.
-       * @type {!LanguagesModel|undefined}
-       */
-      languages: {
-        type: Object,
-        notify: true,
+    /** @private */
+    isSecondaryUser_: {
+      type: Boolean,
+      value() {
+        return loadTimeData.getBoolean('isSecondaryUser');
       },
+    },
 
-      /** @type {!LanguageHelper} */
-      languageHelper: Object,
-
-      /**
-       * The language to display the details for and its index.
-       * @type {{state: !LanguageState, index: number}|undefined}
-       * @private
-       */
-      detailLanguage_: Object,
-
-      /** @private */
-      showAddLanguagesDialog_: Boolean,
-
-      /** @private */
-      showChangeDeviceLanguageDialog_: {
-        type: Boolean,
-        value: false,
+    /** @private */
+    primaryUserEmail_: {
+      type: String,
+      value() {
+        return loadTimeData.getString('primaryUserEmail');
       },
+    },
 
-      /** @private */
-      isGuest_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('isGuest');
-        },
-      },
+    /**
+     * Used by DeepLinkingBehavior to focus this page's deep links.
+     * @type {!Set<!chromeos.settings.mojom.Setting>}
+     */
+    supportedSettingIds: {
+      type: Object,
+      value: () => new Set([
+        chromeos.settings.mojom.Setting.kAddLanguage,
+        chromeos.settings.mojom.Setting.kChangeDeviceLanguage,
+        chromeos.settings.mojom.Setting.kOfferTranslation,
+      ]),
+    },
+  },
 
-      /** @private */
-      isSecondaryUser_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('isSecondaryUser');
-        },
-      },
-
-      /** @private */
-      primaryUserEmail_: {
-        type: String,
-        value() {
-          return loadTimeData.getString('primaryUserEmail');
-        },
-      },
-
-      /**
-       * Used by DeepLinkingBehavior to focus this page's deep links.
-       * @type {!Set<!Setting>}
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set([
-          Setting.kAddLanguage,
-          Setting.kChangeDeviceLanguage,
-          Setting.kOfferTranslation,
-        ]),
-      },
-
-      /** @private */
-      languageSettingsV2Update2Enabled_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('enableLanguageSettingsV2Update2');
-        },
-      },
-    };
-  }
+  /** @private {?settings.LanguagesMetricsProxy} */
+  languagesMetricsProxy_: null,
 
   /** @override */
-  constructor() {
-    super();
-
-    /** @private {!LanguagesMetricsProxy} */
-    this.languagesMetricsProxy_ = LanguagesMetricsProxyImpl.getInstance();
-  }
+  created() {
+    this.languagesMetricsProxy_ =
+        settings.LanguagesMetricsProxyImpl.getInstance();
+  },
 
   /**
-   * @param {!Route} route
-   * @param {!Route=} oldRoute
+   * @param {!settings.Route} route
+   * @param {!settings.Route} oldRoute
    */
   currentRouteChanged(route, oldRoute) {
     // Does not apply to this page.
-    if (route !== routes.OS_LANGUAGES_LANGUAGES) {
+    if (route !== settings.routes.OS_LANGUAGES_LANGUAGES) {
       return;
     }
 
     this.attemptDeepLink();
-  }
+  },
 
   /**
    * @param {string} language
@@ -183,19 +128,18 @@ class OsSettingsLanguagesPageV2Element extends
    */
   getLanguageDisplayName_(language) {
     return this.languageHelper.getLanguage(language).displayName;
-  }
+  },
 
   /** @private */
   onChangeDeviceLanguageClick_() {
     this.showChangeDeviceLanguageDialog_ = true;
-  }
+  },
 
   /** @private */
   onChangeDeviceLanguageDialogClose_() {
     this.showChangeDeviceLanguageDialog_ = false;
-    focusWithoutInk(
-        assert(this.shadowRoot.querySelector('#changeDeviceLanguage')));
-  }
+    cr.ui.focusWithoutInk(assert(this.$$('#changeDeviceLanguage')));
+  },
 
   /**
    * @param {string} language
@@ -206,7 +150,7 @@ class OsSettingsLanguagesPageV2Element extends
     return this.i18n(
         'changeDeviceLanguageButtonDescription',
         this.getLanguageDisplayName_(language));
-  }
+  },
 
   /**
    * Stamps and opens the Add Languages dialog, registering a listener to
@@ -218,13 +162,13 @@ class OsSettingsLanguagesPageV2Element extends
     e.preventDefault();
     this.languagesMetricsProxy_.recordAddLanguages();
     this.showAddLanguagesDialog_ = true;
-  }
+  },
 
   /** @private */
   onAddLanguagesDialogClose_() {
     this.showAddLanguagesDialog_ = false;
-    focusWithoutInk(assert(this.$.addLanguages));
-  }
+    cr.ui.focusWithoutInk(assert(this.$.addLanguages));
+  },
 
   /**
    * Checks if there are supported languages that are not enabled but can be
@@ -237,7 +181,7 @@ class OsSettingsLanguagesPageV2Element extends
     return languages !== undefined && languages.supported.some(language => {
       return this.languageHelper.canEnableLanguage(language);
     });
-  }
+  },
 
   /**
    * @return {boolean} True if the translate checkbox should be disabled.
@@ -259,11 +203,11 @@ class OsSettingsLanguagesPageV2Element extends
 
     return this.languageHelper.convertLanguageCodeForTranslate(
                languageState.language.code) === this.languages.translateTarget;
-  }
+  },
 
   /**
    * Handler for changes to the translate checkbox.
-   * @param {{target: !Element}} e
+   * @param {!{target: !Element}} e
    * @private
    */
   onTranslateCheckboxChange_(e) {
@@ -276,9 +220,9 @@ class OsSettingsLanguagesPageV2Element extends
     }
     this.languagesMetricsProxy_.recordTranslateCheckboxChanged(
         e.target.checked);
-    recordSettingChange();
+    settings.recordSettingChange();
     this.closeMenuSoon_();
-  }
+  },
 
   /**
    * Closes the shared action menu after a short delay, so when a checkbox is
@@ -286,14 +230,13 @@ class OsSettingsLanguagesPageV2Element extends
    * @private
    */
   closeMenuSoon_() {
-    const menu = /** @type {!CrActionMenuElement} */ (
-        this.shadowRoot.querySelector('#menu').get());
+    const menu = /** @type {!CrActionMenuElement} */ (this.$$('#menu').get());
     setTimeout(() => {
       if (menu.open) {
         menu.close();
       }
     }, kMenuCloseDelay);
-  }
+  },
 
   /**
    * @return {boolean} True if the "Move to top" option for |language| should
@@ -304,7 +247,7 @@ class OsSettingsLanguagesPageV2Element extends
     // "Move To Top" is a no-op for the top language.
     return this.detailLanguage_ !== undefined &&
         this.detailLanguage_.index === 0;
-  }
+  },
 
   /**
    * @return {boolean} True if the "Move up" option for |language| should
@@ -316,7 +259,7 @@ class OsSettingsLanguagesPageV2Element extends
     // "Move to top" for the 2nd language.
     return this.detailLanguage_ !== undefined &&
         this.detailLanguage_.index !== 0 && this.detailLanguage_.index !== 1;
-  }
+  },
 
   /**
    * @return {boolean} True if the "Move down" option for |language| should be
@@ -326,7 +269,7 @@ class OsSettingsLanguagesPageV2Element extends
   showMoveDown_() {
     return this.languages !== undefined && this.detailLanguage_ !== undefined &&
         this.detailLanguage_.index !== this.languages.enabled.length - 1;
-  }
+  },
 
   /**
    * Moves the language to the top of the list.
@@ -336,8 +279,8 @@ class OsSettingsLanguagesPageV2Element extends
     /** @type {!CrActionMenuElement} */ (this.$.menu.get()).close();
     this.languageHelper.moveLanguageToFront(
         this.detailLanguage_.state.language.code);
-    recordSettingChange();
-  }
+    settings.recordSettingChange();
+  },
 
   /**
    * Moves the language up in the list.
@@ -347,8 +290,8 @@ class OsSettingsLanguagesPageV2Element extends
     /** @type {!CrActionMenuElement} */ (this.$.menu.get()).close();
     this.languageHelper.moveLanguage(
         this.detailLanguage_.state.language.code, /*upDirection=*/ true);
-    recordSettingChange();
-  }
+    settings.recordSettingChange();
+  },
 
   /**
    * Moves the language down in the list.
@@ -358,8 +301,8 @@ class OsSettingsLanguagesPageV2Element extends
     /** @type {!CrActionMenuElement} */ (this.$.menu.get()).close();
     this.languageHelper.moveLanguage(
         this.detailLanguage_.state.language.code, /*upDirection=*/ false);
-    recordSettingChange();
-  }
+    settings.recordSettingChange();
+  },
 
   /**
    * Disables the language.
@@ -369,8 +312,8 @@ class OsSettingsLanguagesPageV2Element extends
     /** @type {!CrActionMenuElement} */ (this.$.menu.get()).close();
     this.languageHelper.disableLanguage(
         this.detailLanguage_.state.language.code);
-    recordSettingChange();
-  }
+    settings.recordSettingChange();
+  },
 
   /**
    * @param {!Event} e
@@ -382,12 +325,12 @@ class OsSettingsLanguagesPageV2Element extends
     this.detailLanguage_ =
         /** @type {{state: !LanguageState, index: number}} */ ({
           state: /** @type {!LanguageState} */ (e.model.item),
-          index: /** @type {number} */ (e.model.index),
+          index: /** @type {number} */ (e.model.index)
         });
 
     const menu = /** @type {!CrActionMenuElement} */ (this.$.menu.get());
-    menu.showAt(/** @type {!HTMLElement} */ (e.target));
-  }
+    menu.showAt(/** @type {!Element} */ (e.target));
+  },
 
   /**
    * @param {!Event} e
@@ -395,7 +338,7 @@ class OsSettingsLanguagesPageV2Element extends
    */
   onTranslateToggleChange_(e) {
     this.languagesMetricsProxy_.recordToggleTranslate(e.target.checked);
-  }
+  },
 
   /**
    * @param {string} languageCode The language code identifying a language.
@@ -408,61 +351,5 @@ class OsSettingsLanguagesPageV2Element extends
             translateTarget ?
         'translate-target' :
         'non-translate-target';
-  }
-
-  /**
-   * @param {boolean} update2Enabled
-   * @return {string}
-   * @private
-   */
-  getOfferTranslationLabel_(update2Enabled) {
-    return this.i18n(
-        update2Enabled ? 'offerGoogleTranslateLabel' : 'offerTranslationLabel');
-  }
-
-  /**
-   * @param {boolean} update2Enabled
-   * @return {string}
-   * @private
-   */
-  getOfferTranslationSublabel_(update2Enabled) {
-    return update2Enabled ? '' : this.i18n('offerTranslationSublabel');
-  }
-
-  /**
-   * @param {boolean} update2Enabled
-   * @return {string}
-   * @private
-   */
-  getLanguagePreferenceTitle_(update2Enabled) {
-    return this.i18n(
-        update2Enabled ? 'websiteLanguagesTitle' : 'languagesPreferenceTitle');
-  }
-
-  /**
-   * @param {boolean} update2Enabled
-   * @return {string}
-   * @private
-   */
-  getLanguagePreferenceDescription_(update2Enabled) {
-    return this.i18nAdvanced(
-        update2Enabled ? 'websiteLanguagesDescription' :
-                         'languagesPreferenceDescription');
-  }
-
-  /** @private */
-  openManageGoogleAccountLanguage_() {
-    this.languagesMetricsProxy_.recordInteraction(
-        LanguagesPageInteraction.OPEN_MANAGE_GOOGLE_ACCOUNT_LANGUAGE);
-    window.open(loadTimeData.getString('googleAccountLanguagesURL'));
-  }
-
-  /** @private */
-  onLanguagePreferenceDescriptionLinkClick_() {
-    this.languagesMetricsProxy_.recordInteraction(
-        LanguagesPageInteraction.OPEN_WEB_LANGUAGES_LEARN_MORE);
-  }
-}
-
-customElements.define(
-    OsSettingsLanguagesPageV2Element.is, OsSettingsLanguagesPageV2Element);
+  },
+});

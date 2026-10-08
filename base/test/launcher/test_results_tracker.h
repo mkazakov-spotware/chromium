@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,10 @@
 #include <map>
 #include <set>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "base/callback.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/test/launcher/test_result.h"
 #include "base/threading/thread_checker.h"
 
@@ -34,15 +32,11 @@ class FilePath;
 class TestResultsTracker {
  public:
   TestResultsTracker();
-
-  TestResultsTracker(const TestResultsTracker&) = delete;
-  TestResultsTracker& operator=(const TestResultsTracker&) = delete;
-
   ~TestResultsTracker();
 
   // Initialize the result tracker. Must be called exactly once before
   // calling any other methods. Returns true on success.
-  [[nodiscard]] bool Init(const CommandLine& command_line);
+  bool Init(const CommandLine& command_line) WARN_UNUSED_RESULT;
 
   // Called when a test iteration is starting.
   void OnTestIterationStarting();
@@ -90,9 +84,9 @@ class TestResultsTracker {
   // Saves a JSON summary of all test iterations results to |path|. Adds
   // |additional_tags| to the summary (just for this invocation). Returns
   // true on success.
-  [[nodiscard]] bool SaveSummaryAsJSON(
+  bool SaveSummaryAsJSON(
       const FilePath& path,
-      const std::vector<std::string>& additional_tags) const;
+      const std::vector<std::string>& additional_tags) const WARN_UNUSED_RESULT;
 
   // Map where keys are test result statuses, and values are sets of tests
   // which finished with that status.
@@ -107,14 +101,6 @@ class TestResultsTracker {
  private:
   FRIEND_TEST_ALL_PREFIXES(TestResultsTrackerTest,
                            SaveSummaryAsJSONWithLinkInResult);
-  FRIEND_TEST_ALL_PREFIXES(TestResultsTrackerTest,
-                           SaveSummaryAsJSONWithTagInResult);
-  FRIEND_TEST_ALL_PREFIXES(TestResultsTrackerTest,
-                           SaveSummaryAsJSONWithPropertyInResult);
-  FRIEND_TEST_ALL_PREFIXES(TestResultsTrackerTest,
-                           SaveSummaryAsJSONWithOutTimestampInResult);
-  FRIEND_TEST_ALL_PREFIXES(TestResultsTrackerTest,
-                           SaveSummaryAsJSONWithTimestampInResult);
   void GetTestStatusForIteration(int iteration, TestStatusMap* map) const;
 
   template<typename InputIterator>
@@ -181,7 +167,9 @@ class TestResultsTracker {
   int iteration_;
 
   // File handle of output file (can be NULL if no file).
-  raw_ptr<FILE> out_;
+  FILE* out_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestResultsTracker);
 };
 
 }  // namespace base

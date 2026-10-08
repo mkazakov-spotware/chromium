@@ -1,15 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_TEST_APP_PASSWORD_TEST_UTIL_H_
 #define IOS_CHROME_TEST_APP_PASSWORD_TEST_UTIL_H_
 
-#import <memory>
-
 #import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
-
-#import "ios/chrome/browser/ui/settings/password/password_settings/scoped_password_settings_reauth_module_override.h"
 
 @interface MockReauthenticationModule : NSObject<ReauthenticationProtocol>
 
@@ -20,7 +16,7 @@
 @property(nonatomic, assign) BOOL canAttempt;
 
 // Indicates whether (mock) authentication should succeed or not. Setting
-// `shouldSucceed` to any value sets `canAttempt` to YES.
+// |shouldSucceed| to any value sets |canAttempt| to YES.
 @property(nonatomic, assign) ReauthenticationResult expectedResult;
 
 @end
@@ -28,20 +24,14 @@
 namespace chrome_test_util {
 
 // Replace the reauthentication module in
-// PasswordDetailsTableViewController with a fake one to avoid being
+// PasswordDetailsCollectionViewController with a fake one to avoid being
 // blocked with a reauth prompt, and return the fake reauthentication module.
 MockReauthenticationModule* SetUpAndReturnMockReauthenticationModule();
 
-// Replace the reauthentication module in Password Manager's
+// Replace the reauthentication module in
 // PasswordExporter with a fake one to avoid being
 // blocked with a reauth prompt, and return the fake reauthentication module.
 MockReauthenticationModule* SetUpAndReturnMockReauthenticationModuleForExport();
-
-// Replace the reauthentication module in Password Settings'
-// PasswordExporter with a fake one to avoid being
-// blocked with a reauth prompt, and return the fake reauthentication module.
-std::unique_ptr<ScopedPasswordSettingsReauthModuleOverride>
-SetUpAndReturnMockReauthenticationModuleForExportFromSettings();
 
 }  // namespace chrome_test_util
 

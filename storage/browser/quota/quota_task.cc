@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <functional>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 using base::TaskRunner;
 
@@ -28,7 +29,7 @@ void QuotaTask::Start() {
 
 QuotaTask::QuotaTask(QuotaTaskObserver* observer)
     : observer_(observer),
-      original_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      original_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       delete_scheduled_(false) {
   DCHECK(observer != nullptr);
 }
@@ -52,8 +53,7 @@ void QuotaTask::DeleteSoon() {
   if (delete_scheduled_)
     return;
   delete_scheduled_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                this);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
 // QuotaTaskObserver -------------------------------------------------------

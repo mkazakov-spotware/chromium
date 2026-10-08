@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,8 @@ TEST(ECSignatureCreatorTest, BasicTest) {
 
   std::string data("Hello, World!");
   std::vector<uint8_t> signature;
-  ASSERT_TRUE(signer->Sign(base::as_bytes(base::make_span(data)), &signature));
+  ASSERT_TRUE(signer->Sign(reinterpret_cast<const uint8_t*>(data.c_str()),
+                           data.size(), &signature));
 
   std::vector<uint8_t> public_key_info;
   ASSERT_TRUE(key_original->ExportPublicKey(&public_key_info));

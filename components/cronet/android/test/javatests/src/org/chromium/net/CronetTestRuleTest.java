@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.net;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.support.test.runner.AndroidJUnit4;
@@ -22,7 +21,6 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
-import org.chromium.net.CronetTestRule.OnlyRunJavaCronet;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
 import org.chromium.net.impl.CronetUrlRequestContext;
@@ -98,16 +96,5 @@ public class CronetTestRuleTest {
         assertFalse(mTestWasRun);
         mTestWasRun = true;
         assertEquals(mTestFramework.mCronetEngine.getClass(), CronetUrlRequestContext.class);
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Cronet"})
-    @OnlyRunJavaCronet
-    public void testRunOnlyJavaMustRun() {
-        assertTrue(mTestRule.testingJavaImpl());
-        assertFalse(mTestWasRun);
-        mTestWasRun = true;
-        assertEquals(mTestFramework.mCronetEngine.getClass(), JavaCronetEngine.class);
     }
 }

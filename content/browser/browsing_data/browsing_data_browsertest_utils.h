@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "content/browser/service_worker/service_worker_context_core_observer.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_response.h"
-
-namespace blink {
-class StorageKey;
-}  // namespace blink
+#include "services/network/public/mojom/cookie_manager.mojom.h"
 
 namespace content {
 class StoragePartition;
@@ -42,10 +38,9 @@ class ServiceWorkerActivationObserver
   // ServiceWorkerContextCoreObserver overrides.
   void OnVersionStateChanged(int64_t version_id,
                              const GURL& scope,
-                             const blink::StorageKey& key,
                              ServiceWorkerVersion::Status) override;
 
-  raw_ptr<ServiceWorkerContextWrapper> context_;
+  ServiceWorkerContextWrapper* context_;
   base::ScopedObservation<ServiceWorkerContextWrapper,
                           ServiceWorkerContextCoreObserver>
       scoped_observation_{this};
@@ -59,8 +54,8 @@ void SetIgnoreCertificateErrors(base::CommandLine* command_line);
 
 // Adds a service worker for the given |origin|. The EmbeddedTestServer
 // |https_server| is required to retrieve a URL to the server based on the
-// |origin|. Returns the scope url with port number.
-GURL AddServiceWorker(const std::string& origin,
+// |origin|.
+void AddServiceWorker(const std::string& origin,
                       StoragePartition* storage_partition,
                       net::EmbeddedTestServer* https_server);
 

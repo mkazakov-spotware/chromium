@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,16 +28,13 @@ class WeightedMean {
     AddDelta(value - weighted_mean_, weight);
   }
 
-  // Resets to initial state.
-  void Reset();
-
  private:
   void AddDelta(double delta, double weight);
 
-  double weighted_mean_ = 0.0;
-  double variance_sum_ = 0.0;
-  double sum_weights_ = 0.0;
-  double sum_squared_weights_ = 0.0;
+  double weighted_mean_;
+  double variance_sum_;
+  double sum_weights_;
+  double sum_squared_weights_;
 };
 
 }  // namespace chromecast

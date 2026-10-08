@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,13 +26,8 @@ class Value;
 
 namespace sandbox {
 class BrokerServices;
-class TargetConfig;
 class TargetPolicy;
 class TargetServices;
-
-namespace mojom {
-enum class Sandbox;
-}  // namespace mojom
 }  // namespace sandbox
 
 namespace sandbox {
@@ -40,65 +35,45 @@ namespace policy {
 
 class SANDBOX_POLICY_EXPORT SandboxWin {
  public:
-  // Create a sandboxed process `process` with the specified `cmd_line` of type
-  // `process_type` (e.g. 'renderer' or 'utility'). `handles_to_inherit`
-  // specifies a set of handles to inherit. `delegate` specifies the sandbox
-  // delegate to use when resolving specific sandbox policy.
-  //
-  // Returns SBOX_ALL_OK if the process was successfully created.
-  // Otherwise, returns one of sandbox::ResultCode for any other error.
   static ResultCode StartSandboxedProcess(
-      const base::CommandLine& cmd_line,
+      base::CommandLine* cmd_line,
       const std::string& process_type,
       const base::HandlesToInheritVector& handles_to_inherit,
       SandboxDelegate* delegate,
       base::Process* process);
 
-  // Generates a sandbox policy into `policy` to match the one that would be
-  // applied during `StartSandboxedProcess` for the identical set of arguments.
-  //
-  // Returns SBOX_ALL_OK if the policy was successfully generated.
-  // Returns SBOX_ERROR_UNSANDBOXED_PROCESS if the process has no valid
-  // sandbox policy because it should be run unsandboxed, otherwise returns one
-  // of sandbox::ResultCode for any other error while constructing the policy.
-  static ResultCode GeneratePolicyForSandboxedProcess(
-      const base::CommandLine& cmd_line,
-      const std::string& process_type,
-      const base::HandlesToInheritVector& handles_to_inherit,
-      SandboxDelegate* delegate,
-      TargetPolicy* policy);
-
   // Wrapper around TargetPolicy::SetJobLevel that checks if the
   // sandbox should be let to run without a job object assigned.
-  static ResultCode SetJobLevel(sandbox::mojom::Sandbox sandbox_type,
+  static ResultCode SetJobLevel(const base::CommandLine& cmd_line,
                                 JobLevel job_level,
                                 uint32_t ui_exceptions,
-                                TargetConfig* config);
+                                TargetPolicy* policy);
 
   // Closes handles that are opened at process creation and initialization.
-  static ResultCode AddBaseHandleClosePolicy(TargetConfig* config);
+  static ResultCode AddBaseHandleClosePolicy(TargetPolicy* policy);
 
   // Add AppContainer policy for |sid| on supported OS.
-  static ResultCode AddAppContainerPolicy(TargetConfig* config,
+  static ResultCode AddAppContainerPolicy(TargetPolicy* policy,
                                           const wchar_t* sid);
 
   // Add the win32k lockdown policy on supported OS.
-  static ResultCode AddWin32kLockdownPolicy(TargetConfig* config);
+  static ResultCode AddWin32kLockdownPolicy(TargetPolicy* policy,
+                                            bool enable_opm);
 
-  // Add the AppContainer sandbox profile to the config. `sandbox_type`
-  // determines what policy is enabled. `appcontainer_id` is used to create
+  // Add the AppContainer sandbox profile to the policy. |sandbox_type|
+  // determines what policy is enabled. |appcontainer_id| is used to create
   // a unique package SID, it can be anything the caller wants.
-  static ResultCode AddAppContainerProfileToConfig(
+  static ResultCode AddAppContainerProfileToPolicy(
       const base::CommandLine& command_line,
-      sandbox::mojom::Sandbox sandbox_type,
+      SandboxType sandbox_type,
       const std::string& appcontainer_id,
-      TargetConfig* config);
+      TargetPolicy* policy);
 
   // Returns whether the AppContainer sandbox is enabled or not for a specific
   // sandbox type from |command_line| and |sandbox_type|.
   static bool IsAppContainerEnabledForSandbox(
       const base::CommandLine& command_line,
-      sandbox::mojom::Sandbox sandbox_type);
+      SandboxType sandbox_type);
 
   static bool InitBrokerServices(BrokerServices* broker_services);
   static bool InitTargetServices(TargetServices* target_services);
@@ -112,19 +87,13 @@ class SANDBOX_POLICY_EXPORT SandboxWin {
       base::OnceCallback<void(base::Value)> response);
 
   // Provides a friendly name for the sandbox for chrome://sandbox and tracing.
-  static std::string GetSandboxTypeInEnglish(
-      sandbox::mojom::Sandbox sandbox_type);
-
-  // Helper for sandbox delegates to generate a SandboxTag
-  static std::string GetSandboxTagForDelegate(
-      base::StringPiece prefix,
-      sandbox::mojom::Sandbox sandbox_type);
+  static std::string GetSandboxTypeInEnglish(SandboxType sandbox_type);
 };
 
 SANDBOX_POLICY_EXPORT
 void BlocklistAddOneDllForTesting(const wchar_t* module_name,
                                   bool check_in_browser,
-                                  TargetConfig* config);
+                                  TargetPolicy* policy);
 
 }  // namespace policy
 }  // namespace sandbox

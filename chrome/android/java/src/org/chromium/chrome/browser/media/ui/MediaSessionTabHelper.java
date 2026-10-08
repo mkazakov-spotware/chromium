@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@ package org.chromium.chrome.browser.media.ui;
 import android.content.Intent;
 import android.graphics.Bitmap;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.document.ChromeIntentUtil;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
@@ -19,9 +18,7 @@ import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.components.browser_ui.media.MediaNotificationInfo;
 import org.chromium.components.browser_ui.media.MediaNotificationManager;
 import org.chromium.components.browser_ui.media.MediaSessionHelper;
-import org.chromium.content_public.browser.BrowserContextHandle;
-import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 
 /**
  * A tab helper that wraps {@link MediaSessionHelper} and is responsible for Chrome-specific
@@ -41,7 +38,7 @@ public class MediaSessionTabHelper implements MediaSessionHelper.Delegate {
         }
 
         @Override
-        public void onFaviconUpdated(Tab tab, Bitmap icon, GURL iconUrl) {
+        public void onFaviconUpdated(Tab tab, Bitmap icon) {
             assert tab == mTab;
             mMediaSessionHelper.updateFavicon(icon);
         }
@@ -53,11 +50,6 @@ public class MediaSessionTabHelper implements MediaSessionHelper.Delegate {
             if (mMediaSessionHelper != null) mMediaSessionHelper.destroy();
             mTab.removeObserver(this);
             mTab = null;
-        }
-
-        @Override
-        public void onActivityAttachmentChanged(Tab tab, @Nullable WindowAndroid window) {
-            // Intentionally do nothing to prevent automatic observer removal on detachment.
         }
     };
 
@@ -86,8 +78,7 @@ public class MediaSessionTabHelper implements MediaSessionHelper.Delegate {
 
     @Override
     public Intent createBringTabToFrontIntent() {
-        return IntentHandler.createTrustedBringTabToFrontIntent(
-                mTab.getId(), IntentHandler.BringToFrontSource.NOTIFICATION);
+        return ChromeIntentUtil.createBringTabToFrontIntent(mTab.getId());
     }
 
     @Override

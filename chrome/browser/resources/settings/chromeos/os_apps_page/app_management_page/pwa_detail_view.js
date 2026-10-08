@@ -1,71 +1,51 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import './app_details_item.js';
-import './pin_to_shelf_item.js';
-import './supported_links_item.js';
-import './app_management_cros_shared_style.css.js';
-import 'chrome://resources/cr_components/app_management/file_handling_item.js';
-import 'chrome://resources/cr_components/app_management/icons.html.js';
-import 'chrome://resources/cr_components/app_management/more_permissions_item.js';
-import 'chrome://resources/cr_components/app_management/permission_item.js';
-import 'chrome://resources/cr_elements/icons.html.js';
+Polymer({
+  is: 'app-management-pwa-detail-view',
 
-import {App} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {getAppIcon, getSelectedApp} from 'chrome://resources/cr_components/app_management/util.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  behaviors: [
+    app_management.StoreClient,
+  ],
 
-import {AppManagementStoreClient, AppManagementStoreClientInterface} from './store_client.js';
+  properties: {
+    /**
+     * @private {App}
+     */
+    app_: Object,
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {AppManagementStoreClientInterface}
- */
-const AppManagementPwaDetailViewElementBase =
-    mixinBehaviors([AppManagementStoreClient], PolymerElement);
+    /**
+     * @private {boolean}
+     */
+    listExpanded_: {
+      type: Boolean,
+      value: false,
+    },
+  },
 
-/** @polymer */
-class AppManagementPwaDetailViewElement extends
-    AppManagementPwaDetailViewElementBase {
-  static get is() {
-    return 'app-management-pwa-detail-view';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /**
-       * @private {App}
-       */
-      app_: Object,
-
-      /**
-       * @private {boolean}
-       */
-      listExpanded_: {
-        type: Boolean,
-        value: false,
-      },
-    };
-  }
-
-  connectedCallback() {
-    super.connectedCallback();
-
-    this.watch('app_', state => getSelectedApp(state));
+  attached() {
+    this.watch('app_', state => app_management.util.getSelectedApp(state));
     this.updateFromStore();
 
     this.listExpanded_ = false;
-  }
+  },
 
-  /** @private */
+  /**
+   * @private
+   */
+  onClickSiteSettingsButton_() {
+    app_management.BrowserProxy.getInstance().handler.openNativeSettings(
+        this.app_.id);
+    app_management.util.recordAppManagementUserAction(
+        this.app_.type, AppManagementUserAction.NativeSettingsOpened);
+  },
+
+  /**
+   * @private
+   */
   toggleListExpanded_() {
     this.listExpanded_ = !this.listExpanded_;
-  }
+  },
 
   /**
    * @param {App} app
@@ -73,8 +53,8 @@ class AppManagementPwaDetailViewElement extends
    * @private
    */
   iconUrlFromId_(app) {
-    return getAppIcon(app);
-  }
+    return app_management.util.getAppIcon(app);
+  },
 
   /**
    * @param {boolean} listExpanded
@@ -83,8 +63,5 @@ class AppManagementPwaDetailViewElement extends
    */
   getCollapsedIcon_(listExpanded) {
     return listExpanded ? 'cr:expand-less' : 'cr:expand-more';
-  }
-}
-
-customElements.define(
-    AppManagementPwaDetailViewElement.is, AppManagementPwaDetailViewElement);
+  },
+});

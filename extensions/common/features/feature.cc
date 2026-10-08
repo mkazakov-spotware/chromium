@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 
 #include "base/command_line.h"
 #include "base/lazy_instance.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "extensions/common/extension.h"
@@ -20,20 +20,18 @@ namespace extensions {
 // static
 Feature::Platform Feature::GetCurrentPlatform() {
 // TODO(https://crbug.com/1052397): For readability, this should become
-// BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(IS_CHROMEOS_LACROS). The second
-// conditional should be BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(IS_CHROMEOS_ASH).
+// defined(OS_CHROMEOS) && BUILDFLAG(IS_CHROMEOS_LACROS). The second conditional
+// should be defined(OS_CHROMEOS) && BUILDFLAG(IS_CHROMEOS_ASH).
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
   return LACROS_PLATFORM;
 #elif BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_CHROMEOS_LACROS)
   return CHROMEOS_PLATFORM;
-#elif BUILDFLAG(IS_LINUX)
+#elif defined(OS_LINUX)
   return LINUX_PLATFORM;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   return MACOSX_PLATFORM;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return WIN_PLATFORM;
-#elif BUILDFLAG(IS_FUCHSIA)
-  return FUCHSIA_PLATFORM;
 #else
   return UNSPECIFIED_PLATFORM;
 #endif
@@ -41,9 +39,9 @@ Feature::Platform Feature::GetCurrentPlatform() {
 
 Feature::Availability Feature::IsAvailableToExtension(
     const Extension* extension) const {
-  return IsAvailableToManifest(
-      extension->hashed_id(), extension->GetType(), extension->location(),
-      extension->manifest_version(), kUnspecifiedContextId);
+  return IsAvailableToManifest(extension->hashed_id(), extension->GetType(),
+                               extension->location(),
+                               extension->manifest_version());
 }
 
 Feature::Feature() : no_parent_(false) {}
@@ -51,15 +49,15 @@ Feature::Feature() : no_parent_(false) {}
 Feature::~Feature() {}
 
 void Feature::set_name(base::StringPiece name) {
-  name_ = std::string(name);
+  name_ = name.as_string();
 }
 
 void Feature::set_alias(base::StringPiece alias) {
-  alias_ = std::string(alias);
+  alias_ = alias.as_string();
 }
 
 void Feature::set_source(base::StringPiece source) {
-  source_ = std::string(source);
+  source_ = source.as_string();
 }
 
 }  // namespace extensions

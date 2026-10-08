@@ -1,13 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // ReportingService handles uploading serialized logs to a server.
 
 #include "components/metrics/reporting_service.h"
-
-#include <cstdio>
-#include <memory>
 
 #include "base/base64.h"
 #include "base/bind.h"
@@ -30,11 +27,9 @@ void ReportingService::RegisterPrefs(PrefRegistrySimple* registry) {
 
 ReportingService::ReportingService(MetricsServiceClient* client,
                                    PrefService* local_state,
-                                   size_t max_retransmit_size,
-                                   MetricsLogsEventManager* logs_event_manager)
+                                   size_t max_retransmit_size)
     : client_(client),
       max_retransmit_size_(max_retransmit_size),
-      logs_event_manager_(logs_event_manager),
       reporting_active_(false),
       log_upload_in_progress_(false),
       data_use_tracker_(DataUseTracker::Create(local_state)) {
@@ -54,8 +49,8 @@ void ReportingService::Initialize() {
   base::RepeatingClosure send_next_log_callback = base::BindRepeating(
       &ReportingService::SendNextLog, self_ptr_factory_.GetWeakPtr());
   bool fast_startup_for_testing = client_->ShouldStartUpFastForTesting();
-  upload_scheduler_ = std::make_unique<MetricsUploadScheduler>(
-      send_next_log_callback, fast_startup_for_testing);
+  upload_scheduler_.reset(new MetricsUploadScheduler(send_next_log_callback,
+                                                     fast_startup_for_testing));
 }
 
 void ReportingService::Start() {
@@ -119,25 +114,6 @@ void ReportingService::SendNextLog() {
     log_store()->StageNextLog();
   }
 
-  // Check whether the log should be uploaded based on user id. If it should not
-  // be sent, then discard the log from the store and notify the scheduler.
-  auto staged_user_id = log_store()->staged_log_user_id();
-  if (staged_user_id.has_value() &&
-      !client_->ShouldUploadMetricsForUserId(staged_user_id.value())) {
-    // Remove the log and update list to disk.
-    log_store()->DiscardStagedLog();
-    log_store()->TrimAndPersistUnsentLogs(/*overwrite_in_memory_store=*/true);
-
-    // Notify the scheduler that the next log should be uploaded. If there are
-    // no more logs, then stop the scheduler.
-    if (!log_store()->has_unsent_logs()) {
-      DVLOG(1) << "Stopping upload_scheduler_.";
-      upload_scheduler_->Stop();
-    }
-    upload_scheduler_->UploadFinished(true);
-    return;
-  }
-
   // Proceed to stage the log for upload if log size satisfies cellular log
   // upload constrains.
   bool upload_canceled = false;
@@ -179,12 +155,6 @@ void ReportingService::SendStagedLog() {
                       log_store()->staged_log_hash().size());
   std::string signature;
   base::Base64Encode(log_store()->staged_log_signature(), &signature);
-
-  if (logs_event_manager_) {
-    logs_event_manager_->NotifyLogEvent(
-        MetricsLogsEventManager::LogEvent::kLogUploading,
-        log_store()->staged_log_hash());
-  }
   log_uploader_->UploadLog(log_store()->staged_log(), hash, signature,
                            reporting_info_);
 }
@@ -224,22 +194,13 @@ void ReportingService::OnLogUploadComplete(int response_code,
       discard_log = true;
     }
 
-    if (!upload_succeeded && !discard_log && logs_event_manager_) {
-      // The log failed to upload and we did not discard it. We will try to
-      // retransmit.
-      logs_event_manager_->NotifyLogEvent(
-          MetricsLogsEventManager::LogEvent::kLogStaged,
-          log_store()->staged_log_hash(),
-          "Failed to upload. Staged again for retransmission.");
-    }
-
     if (upload_succeeded || discard_log) {
       if (upload_succeeded)
         log_store()->MarkStagedLogAsSent();
 
       log_store()->DiscardStagedLog();
       // Store the updated list to disk now that the removed log is uploaded.
-      log_store()->TrimAndPersistUnsentLogs(/*overwrite_in_memory_store=*/true);
+      log_store()->TrimAndPersistUnsentLogs();
     }
   }
 

@@ -4,7 +4,8 @@ if (window.testRunner) {
     testRunner.waitUntilDone();
 }
 </script>
-<iframe src="javascript:
+<iframe src="data:text/html,
+  <script>
   try{
     history.pushState({}, '', 'data:');
     alert('FAIL data URL was manipulated via pushState.');
@@ -12,4 +13,5 @@ if (window.testRunner) {
     alert('PASS: data URLs cannot be manipulated via pushState.');
   }
   if (window.testRunner)
-    testRunner.notifyDone();"></iframe>
+    testRunner.notifyDone();
+  </script>"></iframe>

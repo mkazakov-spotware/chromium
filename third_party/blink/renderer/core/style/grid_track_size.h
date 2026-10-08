@@ -94,19 +94,6 @@ class GridTrackSize {
   const GridLength& MinTrackBreadth() const { return min_track_breadth_; }
   const GridLength& MaxTrackBreadth() const { return max_track_breadth_; }
 
-  const GridLength& MinOrFitContentTrackBreadth() const {
-    if (IsFitContent())
-      return fit_content_track_breadth_;
-
-    return min_track_breadth_;
-  }
-  const GridLength& MaxOrFitContentTrackBreadth() const {
-    if (IsFitContent())
-      return fit_content_track_breadth_;
-
-    return max_track_breadth_;
-  }
-
   GridTrackSizeType GetType() const { return type_; }
 
   bool IsContentSized() const {
@@ -114,13 +101,6 @@ class GridTrackSize {
            max_track_breadth_.IsContentSized();
   }
   bool IsFitContent() const { return type_ == kFitContentTrackSizing; }
-  bool HasPercentage() const {
-    if (IsFitContent())
-      return FitContentTrackBreadth().HasPercentage();
-
-    return min_track_breadth_.HasPercentage() ||
-           max_track_breadth_.HasPercentage();
-  }
 
   bool operator==(const GridTrackSize& other) const {
     return type_ == other.type_ &&
@@ -130,27 +110,27 @@ class GridTrackSize {
   }
 
   void CacheMinMaxTrackBreadthTypes() {
-    min_track_breadth_is_auto_ = min_track_breadth_.IsAuto();
-    min_track_breadth_is_fixed_ = min_track_breadth_.IsLength() &&
-                                  min_track_breadth_.length().IsSpecified();
-    min_track_breadth_is_flex_ = min_track_breadth_.IsFlex();
+    min_track_breadth_is_auto_ = MinTrackBreadth().IsAuto();
+    min_track_breadth_is_fixed_ = MinTrackBreadth().IsLength() &&
+                                  MinTrackBreadth().length().IsSpecified();
+    min_track_breadth_is_flex_ = MinTrackBreadth().IsFlex();
     min_track_breadth_is_max_content_ =
-        min_track_breadth_.IsLength() &&
-        min_track_breadth_.length().IsMaxContent();
+        MinTrackBreadth().IsLength() &&
+        MinTrackBreadth().length().IsMaxContent();
     min_track_breadth_is_min_content_ =
-        min_track_breadth_.IsLength() &&
-        min_track_breadth_.length().IsMinContent();
+        MinTrackBreadth().IsLength() &&
+        MinTrackBreadth().length().IsMinContent();
 
-    max_track_breadth_is_auto_ = max_track_breadth_.IsAuto();
-    max_track_breadth_is_fixed_ = max_track_breadth_.IsLength() &&
-                                  max_track_breadth_.length().IsSpecified();
-    max_track_breadth_is_flex_ = max_track_breadth_.IsFlex();
+    max_track_breadth_is_auto_ = MaxTrackBreadth().IsAuto();
+    max_track_breadth_is_fixed_ = MaxTrackBreadth().IsLength() &&
+                                  MaxTrackBreadth().length().IsSpecified();
+    max_track_breadth_is_flex_ = MaxTrackBreadth().IsFlex();
     max_track_breadth_is_max_content_ =
-        max_track_breadth_.IsLength() &&
-        max_track_breadth_.length().IsMaxContent();
+        MaxTrackBreadth().IsLength() &&
+        MaxTrackBreadth().length().IsMaxContent();
     max_track_breadth_is_min_content_ =
-        max_track_breadth_.IsLength() &&
-        max_track_breadth_.length().IsMinContent();
+        MaxTrackBreadth().IsLength() &&
+        MaxTrackBreadth().length().IsMinContent();
 
     min_track_breadth_is_intrinsic_ = min_track_breadth_is_max_content_ ||
                                       min_track_breadth_is_min_content_ ||
@@ -205,11 +185,6 @@ class GridTrackSize {
   bool HasFixedMaxTrackBreadth() const { return max_track_breadth_is_fixed_; }
   bool HasFlexMinTrackBreadth() const { return min_track_breadth_is_flex_; }
   bool HasFlexMaxTrackBreadth() const { return max_track_breadth_is_flex_; }
-
-  bool IsDefinite() const {
-    return min_track_breadth_is_fixed_ && max_track_breadth_is_fixed_ &&
-           min_track_breadth_.length() == max_track_breadth_.length();
-  }
 
  private:
   GridTrackSizeType type_;

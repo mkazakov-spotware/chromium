@@ -56,11 +56,6 @@ class CanvasPattern final : public ScriptWrappable {
 
   IdentifiableToken GetIdentifiableToken() const;
 
-  // Sets on internal IdentifiabilityStudyHelper.
-  void SetExecutionContext(ExecutionContext*);
-
-  void Trace(Visitor* visitor) const override;
-
  private:
   scoped_refptr<Pattern> pattern_;
   AffineTransform pattern_transform_;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,7 @@ class ProtocolEvent {
 
   // Assembles the data exposed through the ProtocolEvent's interface into a
   // single DictionaryValue.
-  base::Value::Dict ToValue(bool include_specifics) const;
+  std::unique_ptr<base::DictionaryValue> ToValue(bool include_specifics) const;
 
   // Returns the time when the request was sent or received.
   base::Time GetTimestampForTesting() const;

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,30 +11,22 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
+#include "content/common/frame_messages.h"
 #include "content/common/navigation_client.mojom-forward.h"
+#include "content/common/navigation_params.mojom-forward.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/test_renderer_host.h"
-#include "content/test/mock_agent_scheduling_group_host.h"
-#include "content/test/test_page.h"
 #include "content/test/test_render_view_host.h"
 #include "content/test/test_render_widget_host.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/bluetooth/web_bluetooth.mojom-forward.h"
-#include "third_party/blink/public/mojom/loader/transferrable_url_loader.mojom.h"
-#include "third_party/blink/public/mojom/navigation/navigation_params.mojom-forward.h"
 #include "third_party/blink/public/mojom/security_context/insecure_request_policy.mojom-forward.h"
-#include "third_party/blink/public/mojom/usb/web_usb_service.mojom-forward.h"
 #include "ui/base/page_transition_types.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "third_party/blink/public/mojom/hid/hid.mojom-forward.h"
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 namespace net {
 class IPEndPoint;
@@ -53,43 +45,30 @@ class TestRenderFrameHostCreationObserver : public WebContentsObserver {
   RenderFrameHost* last_created_frame() const { return last_created_frame_; }
 
  private:
-  raw_ptr<RenderFrameHost> last_created_frame_;
+  RenderFrameHost* last_created_frame_;
 };
 
 class TestRenderFrameHost : public RenderFrameHostImpl,
                             public RenderFrameHostTester {
  public:
-  TestRenderFrameHost(
-      SiteInstance* site_instance,
-      scoped_refptr<RenderViewHostImpl> render_view_host,
-      RenderFrameHostDelegate* delegate,
-      FrameTree* frame_tree,
-      FrameTreeNode* frame_tree_node,
-      int32_t routing_id,
-      mojo::PendingAssociatedRemote<mojom::Frame> frame_remote,
-      const blink::LocalFrameToken& frame_token,
-      const blink::DocumentToken& document_token,
-      base::UnguessableToken devtools_frame_token,
-      LifecycleStateImpl lifecycle_state,
-      scoped_refptr<BrowsingContextState> browsing_context_state);
-
-  TestRenderFrameHost(const TestRenderFrameHost&) = delete;
-  TestRenderFrameHost& operator=(const TestRenderFrameHost&) = delete;
-
+  TestRenderFrameHost(SiteInstance* site_instance,
+                      scoped_refptr<RenderViewHostImpl> render_view_host,
+                      RenderFrameHostDelegate* delegate,
+                      FrameTree* frame_tree,
+                      FrameTreeNode* frame_tree_node,
+                      int32_t routing_id,
+                      const base::UnguessableToken& frame_token,
+                      LifecycleState lifecyle_state);
   ~TestRenderFrameHost() override;
 
-  // Flushes mojo messages on `local_frame_`.
-  void FlushLocalFrameMessages();
-
   // RenderFrameHostImpl overrides (same values, but in Test*/Mock* types)
-  TestRenderViewHost* GetRenderViewHost() const override;
-  TestPage& GetPage() override;
-  MockRenderProcessHost* GetProcess() const override;
-  MockAgentSchedulingGroupHost& GetAgentSchedulingGroup() override;
+  TestRenderViewHost* GetRenderViewHost() override;
+  MockRenderProcessHost* GetProcess() override;
   TestRenderWidgetHost* GetRenderWidgetHost() override;
   void AddMessageToConsole(blink::mojom::ConsoleMessageLevel level,
                            const std::string& message) override;
-  void ReportInspectorIssue(blink::mojom::InspectorIssueInfoPtr issue) override;
+  void ReportHeavyAdIssue(blink::mojom::HeavyAdResolutionStatus resolution,
+                          blink::mojom::HeavyAdReason reason) override;
   bool IsTestRenderFrameHost() const override;
 
   // Public overrides to expose RenderFrameHostImpl's mojo methods to tests.
@@ -100,9 +79,7 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
   TestRenderFrameHost* AppendChild(const std::string& frame_name) override;
   TestRenderFrameHost* AppendChildWithPolicy(
       const std::string& frame_name,
-      const blink::ParsedPermissionsPolicy& allow) override;
-  TestRenderFrameHost* AppendCredentiallessChild(
-      const std::string& frame_name) override;
+      const blink::ParsedFeaturePolicy& allow) override;
   void Detach() override;
   void SendNavigateWithTransition(int nav_entry_id,
                                   bool did_create_new_entry,
@@ -110,34 +87,23 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
                                   ui::PageTransition transition);
   void SimulateBeforeUnloadCompleted(bool proceed) override;
   void SimulateUnloadACK() override;
+  void SimulateFeaturePolicyHeader(
+      blink::mojom::FeaturePolicyFeature feature,
+      const std::vector<url::Origin>& allowlist) override;
   void SimulateUserActivation() override;
   const std::vector<std::string>& GetConsoleMessages() override;
   int GetHeavyAdIssueCount(HeavyAdIssueType type) override;
-  void SimulateManifestURLUpdate(const GURL& manifest_url) override;
-  TestRenderFrameHost* AppendFencedFrame(
-      blink::mojom::FencedFrameMode mode =
-          blink::mojom::FencedFrameMode::kDefault) override;
-  void CreateWebUsbServiceForTesting(
-      mojo::PendingReceiver<blink::mojom::WebUsbService> receiver) override;
-
-#if !BUILDFLAG(IS_ANDROID)
-  void CreateHidServiceForTesting(
-      mojo::PendingReceiver<blink::mojom::HidService> receiver) override;
-#endif  // !BUILDFLAG(IS_ANDROID)
 
   void SendNavigate(int nav_entry_id,
                     bool did_create_new_entry,
                     const GURL& url);
-  void SendNavigateWithParams(mojom::DidCommitProvisionalLoadParamsPtr params,
-                              bool was_within_same_document);
+  void SendNavigateWithParams(
+      FrameHostMsg_DidCommitProvisionalLoad_Params* params,
+      bool was_within_same_document);
   void SendNavigateWithParamsAndInterfaceParams(
-      mojom::DidCommitProvisionalLoadParamsPtr params,
+      FrameHostMsg_DidCommitProvisionalLoad_Params* params,
       mojom::DidCommitProvisionalLoadInterfaceParamsPtr interface_params,
       bool was_within_same_document);
-  void SendDidCommitSameDocumentNavigation(
-      mojom::DidCommitProvisionalLoadParamsPtr params,
-      blink::mojom::SameDocumentNavigationType same_document_navigation_type,
-      bool should_replace_current_entry);
 
   // With the current navigation logic this method is a no-op.
   // Simulates a renderer-initiated navigation to |url| starting in the
@@ -150,24 +116,24 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
   // DEPRECATED: use NavigationSimulator instead.
   void SimulateRedirect(const GURL& new_url);
 
+  // Simulates a navigation to |url| committing in the RenderFrameHost.
+  // DEPRECATED: use NavigationSimulator instead.
+  void SimulateNavigationCommit(const GURL& url);
+
   // This method simulates receiving a BeginNavigation IPC.
   // DEPRECATED: use NavigationSimulator instead.
   void SendRendererInitiatedNavigationRequest(const GURL& url,
                                               bool has_user_gesture);
 
   void SimulateDidChangeOpener(
-      const absl::optional<blink::LocalFrameToken>& opener_frame_token);
+      const base::Optional<base::UnguessableToken>& opener_frame_token);
 
   void DidEnforceInsecureRequestPolicy(
       blink::mojom::InsecureRequestPolicy policy);
 
-  // Returns the number of FedCM issues sent to DevTools with the given
-  // FederatedAuthRequestResult.
-  int GetFederatedAuthRequestIssueCount(
-      blink::mojom::FederatedAuthRequestResult result);
-
   // If set, navigations will appear to have cleared the history list in the
-  // RenderFrame (DidCommitProvisionalLoadParams::history_list_was_cleared).
+  // RenderFrame
+  // (FrameHostMsg_DidCommitProvisionalLoad_Params::history_list_was_cleared).
   // False by default.
   void set_simulate_history_list_was_cleared(bool cleared) {
     simulate_history_list_was_cleared_ = cleared;
@@ -187,46 +153,42 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
       bool was_fetched_via_cache,
       bool is_signed_exchange_inner_response,
       net::HttpResponseInfo::ConnectionInfo connection_info,
-      absl::optional<net::SSLInfo> ssl_info,
-      scoped_refptr<net::HttpResponseHeaders> response_headers,
-      mojo::ScopedDataPipeConsumerHandle response_body,
-      const std::vector<std::string>& dns_aliases);
+      base::Optional<net::SSLInfo> ssl_info,
+      scoped_refptr<net::HttpResponseHeaders> response_headers);
 
   // Used to simulate the commit of a navigation having been processed in the
   // renderer. If parameters required to commit are not provided, they will be
   // set to default null values.
   void SimulateCommitProcessed(
       NavigationRequest* navigation_request,
-      mojom::DidCommitProvisionalLoadParamsPtr params,
+      std::unique_ptr<FrameHostMsg_DidCommitProvisionalLoad_Params> params,
+      mojo::PendingReceiver<service_manager::mojom::InterfaceProvider>
+          interface_provider_receiver,
       mojo::PendingReceiver<blink::mojom::BrowserInterfaceBroker>
           browser_interface_broker_receiver,
       bool same_document);
 
+  // Send a message with the sandbox flags and feature policy
+  void SendFramePolicy(network::mojom::WebSandboxFlags sandbox_flags,
+                       const blink::ParsedFeaturePolicy& fp_header,
+                       const blink::DocumentPolicyFeatureState& dp_header);
+
   // Creates a WebBluetooth Service with a dummy InterfaceRequest.
   WebBluetoothServiceImpl* CreateWebBluetoothServiceForTesting();
 
-  // Returns a pending Frame remote that represents a connection to a non-
-  // existent renderer, where all messages will go into the void.
-  static mojo::PendingAssociatedRemote<mojom::Frame> CreateStubFrameRemote();
+  bool last_commit_was_error_page() const {
+    return last_commit_was_error_page_;
+  }
+
+  // Returns a PendingReceiver<InterfaceProvider> that is safe to bind to an
+  // implementation, but will never receive any interface receivers.
+  static mojo::PendingReceiver<service_manager::mojom::InterfaceProvider>
+  CreateStubInterfaceProviderReceiver();
 
   // Returns a PendingReceiver<BrowserInterfaceBroker> that is safe to bind to
   // an implementation, but will never receive any interface requests.
   static mojo::PendingReceiver<blink::mojom::BrowserInterfaceBroker>
   CreateStubBrowserInterfaceBrokerReceiver();
-
-  // Returns an `AssociatedInterfaceProvider` that will never receive any
-  // interface requests.
-  static mojo::PendingAssociatedReceiver<
-      blink::mojom::AssociatedInterfaceProvider>
-  CreateStubAssociatedInterfaceProviderReceiver();
-
-  // Returns a blink::mojom::PolicyContainerBindParams containing a
-  // PendingAssociatedReceiver<PolicyContainerHost> and a
-  // PendingReceiver<PolicyContainerHostKeepAliveHandle> that are safe to bind
-  // to an implementation, but will never receive any interface requests. To be
-  // passed to RenderFrameHostImpl::CreateChildFrame.
-  static blink::mojom::PolicyContainerBindParamsPtr
-  CreateStubPolicyContainerBindParams();
 
   // This simulates aborting a cross document navigation.
   // Will abort the navigation with the given |navigation_id|.
@@ -251,44 +213,36 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
   // callbacks.
   void SimulateLoadingCompleted(LoadingScenario loading_scenario);
 
-  // Expose this for testing.
-  using RenderFrameHostImpl::SetPolicyContainerHost;
-
  protected:
   void SendCommitNavigation(
       mojom::NavigationClient* navigation_client,
       NavigationRequest* navigation_request,
-      blink::mojom::CommonNavigationParamsPtr common_params,
-      blink::mojom::CommitNavigationParamsPtr commit_params,
+      mojom::CommonNavigationParamsPtr common_params,
+      mojom::CommitNavigationParamsPtr commit_params,
       network::mojom::URLResponseHeadPtr response_head,
       mojo::ScopedDataPipeConsumerHandle response_body,
       network::mojom::URLLoaderClientEndpointsPtr url_loader_client_endpoints,
       std::unique_ptr<blink::PendingURLLoaderFactoryBundle>
           subresource_loader_factories,
-      absl::optional<std::vector<blink::mojom::TransferrableURLLoaderPtr>>
+      base::Optional<std::vector<blink::mojom::TransferrableURLLoaderPtr>>
           subresource_overrides,
       blink::mojom::ControllerServiceWorkerInfoPtr
           controller_service_worker_info,
       blink::mojom::ServiceWorkerContainerInfoForClientPtr container_info,
       mojo::PendingRemote<network::mojom::URLLoaderFactory>
           prefetch_loader_factory,
-      const absl::optional<blink::ParsedPermissionsPolicy>& permissions_policy,
       blink::mojom::PolicyContainerPtr policy_container,
-      const blink::DocumentToken& document_token,
       const base::UnguessableToken& devtools_navigation_token) override;
   void SendCommitFailedNavigation(
       mojom::NavigationClient* navigation_client,
       NavigationRequest* navigation_request,
-      blink::mojom::CommonNavigationParamsPtr common_params,
-      blink::mojom::CommitNavigationParamsPtr commit_params,
+      mojom::CommonNavigationParamsPtr common_params,
+      mojom::CommitNavigationParamsPtr commit_params,
       bool has_stale_copy_in_cache,
       int32_t error_code,
-      int32_t extended_error_code,
-      const absl::optional<std::string>& error_page_content,
+      const base::Optional<std::string>& error_page_content,
       std::unique_ptr<blink::PendingURLLoaderFactoryBundle>
-          subresource_loader_factories,
-      const blink::DocumentToken& document_token,
-      blink::mojom::PolicyContainerPtr policy_container) override;
+          subresource_loader_factories) override;
 
  private:
   void SendNavigateWithParameters(int nav_entry_id,
@@ -302,20 +256,18 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
       bool was_fetched_via_cache,
       bool is_signed_exchange_inner_response,
       net::HttpResponseInfo::ConnectionInfo connection_info,
-      absl::optional<net::SSLInfo> ssl_info,
-      scoped_refptr<net::HttpResponseHeaders> response_headers,
-      mojo::ScopedDataPipeConsumerHandle response_body,
-      const std::vector<std::string>& dns_aliases);
+      base::Optional<net::SSLInfo> ssl_info,
+      scoped_refptr<net::HttpResponseHeaders> response_headers);
 
   // Computes the page ID for a pending navigation in this RenderFrameHost;
   int32_t ComputeNextPageID();
 
-  mojom::DidCommitProvisionalLoadParamsPtr BuildDidCommitParams(
-      bool did_create_new_entry,
-      const GURL& url,
-      ui::PageTransition transition,
-      int response_code,
-      bool is_same_document);
+  std::unique_ptr<FrameHostMsg_DidCommitProvisionalLoad_Params>
+  BuildDidCommitParams(int nav_entry_id,
+                       bool did_create_new_entry,
+                       const GURL& url,
+                       ui::PageTransition transition,
+                       int response_code);
 
   mojom::DidCommitProvisionalLoadInterfaceParamsPtr
   BuildDidCommitInterfaceParams(bool is_same_document);
@@ -323,15 +275,10 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
   // Keeps a running vector of messages sent to AddMessageToConsole.
   std::vector<std::string> console_messages_;
 
-  // Keep a count of the heavy ad issues sent to ReportInspectorIssue.
+  // Keep a count of the heavy ad issues sent to ReportHeavyAdIssue.
   int heavy_ad_issue_network_count_ = 0;
   int heavy_ad_issue_cpu_total_count_ = 0;
   int heavy_ad_issue_cpu_peak_count_ = 0;
-
-  // Keeps a count of federated authentication request issues sent to
-  // ReportInspectorIssue.
-  std::unordered_map<blink::mojom::FederatedAuthRequestResult, int>
-      federated_auth_counts_;
 
   TestRenderFrameHostCreationObserver child_creation_observer_;
 
@@ -350,6 +297,8 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
 
   mojo::PendingRemote<blink::mojom::WebBluetoothService>
       dummy_web_bluetooth_service_remote_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestRenderFrameHost);
 };
 
 }  // namespace content

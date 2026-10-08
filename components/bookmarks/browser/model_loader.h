@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/synchronization/waitable_event.h"
@@ -32,12 +33,9 @@ class ModelLoader : public base::RefCountedThreadSafe<ModelLoader> {
   // Creates the ModelLoader, and schedules loading on a backend task runner.
   // |callback| is run once loading completes (on the main thread).
   static scoped_refptr<ModelLoader> Create(
-      const base::FilePath& file_path,
+      const base::FilePath& profile_path,
       std::unique_ptr<BookmarkLoadDetails> details,
       LoadCallback callback);
-
-  ModelLoader(const ModelLoader&) = delete;
-  ModelLoader& operator=(const ModelLoader&) = delete;
 
   // Blocks until loaded. This is intended for usage on a thread other than
   // the main thread.
@@ -56,7 +54,7 @@ class ModelLoader : public base::RefCountedThreadSafe<ModelLoader> {
 
   // Performs the load on a background thread.
   std::unique_ptr<BookmarkLoadDetails> DoLoadOnBackgroundThread(
-      const base::FilePath& file_path,
+      const base::FilePath& profile_path,
       std::unique_ptr<BookmarkLoadDetails> details);
 
   scoped_refptr<base::SequencedTaskRunner> backend_task_runner_;
@@ -65,6 +63,8 @@ class ModelLoader : public base::RefCountedThreadSafe<ModelLoader> {
 
   // Signaled once loading completes.
   base::WaitableEvent loaded_signal_;
+
+  DISALLOW_COPY_AND_ASSIGN(ModelLoader);
 };
 
 }  // namespace bookmarks

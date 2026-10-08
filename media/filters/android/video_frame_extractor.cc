@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "media/ffmpeg/ffmpeg_common.h"
 #include "media/filters/blocking_url_protocol.h"
 #include "media/filters/ffmpeg_bitstream_converter.h"
+#include "media/filters/ffmpeg_demuxer.h"
 #include "media/filters/ffmpeg_glue.h"
 
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
@@ -118,7 +119,7 @@ void VideoFrameExtractor::ConvertPacket(AVPacket* packet) {
 
 ScopedAVPacket VideoFrameExtractor::ReadVideoFrame() {
   AVFormatContext* format_context = glue_->format_context();
-  auto packet = ScopedAVPacket::Allocate();
+  ScopedAVPacket packet(new AVPacket());
   while (av_read_frame(format_context, packet.get()) >= 0) {
     // Skip frames from streams other than video.
     if (packet->stream_index != video_stream_index_)
@@ -127,7 +128,7 @@ ScopedAVPacket VideoFrameExtractor::ReadVideoFrame() {
     DCHECK(packet->flags & AV_PKT_FLAG_KEY);
     return packet;
   }
-  return {};
+  return nullptr;
 }
 
 void VideoFrameExtractor::NotifyComplete(std::vector<uint8_t> encoded_frame,

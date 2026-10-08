@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/main/incognito_blocker_scene_agent.h"
 
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -19,14 +19,12 @@ class IncognitoBlockerSceneAgentTest : public PlatformTest {
       : scene_state_([[SceneState alloc] initWithAppState:nil]),
         scene_state_mock_(OCMPartialMock(scene_state_)),
         agent_([[IncognitoBlockerSceneAgent alloc] init]) {
-    scene_mock_ = OCMClassMock([UIWindowScene class]);
-    scene_state_.scene = scene_mock_;
-    OCMStub([scene_state_mock_ scene]).andReturn(scene_mock_);
+    if (@available(iOS 13, *)) {
+      scene_mock_ = OCMClassMock([UIWindowScene class]);
+      scene_state_.scene = scene_mock_;
+      OCMStub([scene_state_mock_ scene]).andReturn(scene_mock_);
+    }
     agent_.sceneState = scene_state_;
-  }
-
-  ~IncognitoBlockerSceneAgentTest() override {
-    scene_state_.incognitoContentVisible = NO;
   }
 
  protected:
@@ -45,14 +43,19 @@ TEST_F(IncognitoBlockerSceneAgentTest, ShowIncognitoBlocker) {
   UIWindow* window = [[UIWindow alloc] init];
 
   id applicationWindowMock = nil;
-  OCMStub([scene_mock_ windows]).andReturn(@[ window ]);
+  if (@available(iOS 13, *)) {
+    OCMStub([scene_mock_ windows]).andReturn(@[ window ]);
+  } else {
+    applicationWindowMock = OCMPartialMock(UIApplication.sharedApplication);
+    OCMStub([applicationWindowMock windows]).andReturn(@[ window ]);
+  }
 
   // Prepare to go to background with some incognito content.
   scene_state_.activationLevel = SceneActivationLevelForegroundActive;
   scene_state_.incognitoContentVisible = YES;
   EXPECT_EQ(window.subviews.count, 0u);
 
-  // Upon background with incognito content, the blocker should be added.
+  // Upon background, the blocker should be added.
   scene_state_.activationLevel = SceneActivationLevelBackground;
   EXPECT_EQ(window.subviews.count, 1u);
 
@@ -64,15 +67,6 @@ TEST_F(IncognitoBlockerSceneAgentTest, ShowIncognitoBlocker) {
   scene_state_.incognitoContentVisible = NO;
   scene_state_.activationLevel = SceneActivationLevelBackground;
   EXPECT_EQ(window.subviews.count, 0u);
-
-  // Prepare to go to background with the QR scanner visible.
-  scene_state_.activationLevel = SceneActivationLevelForegroundActive;
-  scene_state_.QRScannerVisible = YES;
-  EXPECT_EQ(window.subviews.count, 0u);
-
-  // Upon background with the QR scanner visible, the blocker should be added.
-  scene_state_.activationLevel = SceneActivationLevelBackground;
-  EXPECT_EQ(window.subviews.count, 1u);
 
   [applicationWindowMock stopMocking];
 }
@@ -90,7 +84,12 @@ TEST_F(IncognitoBlockerSceneAgentTest, ShowBlockerOnTopWindow) {
   NSArray* windows = @[ topWindow, bottomWindow ];
 
   id applicationWindowMock = nil;
-  OCMStub([scene_mock_ windows]).andReturn(windows);
+  if (@available(iOS 13, *)) {
+    OCMStub([scene_mock_ windows]).andReturn(windows);
+  } else {
+    applicationWindowMock = OCMPartialMock(UIApplication.sharedApplication);
+    OCMStub([applicationWindowMock windows]).andReturn(windows);
+  }
 
   // Prepare to go to background with some incognito content.
   scene_state_.activationLevel = SceneActivationLevelForegroundActive;

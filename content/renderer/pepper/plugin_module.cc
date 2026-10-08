@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,10 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/nacl/common/buildflags.h"
-#include "content/public/common/content_plugin_info.h"
+#include "content/common/frame_messages.h"
 #include "content/public/renderer/content_renderer_client.h"
 #include "content/renderer/pepper/host_dispatcher_wrapper.h"
 #include "content/renderer/pepper/host_globals.h"
-#include "content/renderer/pepper/pepper_browser_connection.h"
 #include "content/renderer/pepper/pepper_hung_plugin_filter.h"
 #include "content/renderer/pepper/pepper_plugin_instance_impl.h"
 #include "content/renderer/pepper/pepper_plugin_registry.h"
@@ -36,6 +35,7 @@
 #include "content/renderer/pepper/renderer_ppapi_host_impl.h"
 #include "content/renderer/render_frame_impl.h"
 #include "content/renderer/render_thread_impl.h"
+#include "content/renderer/render_view_impl.h"
 #include "ppapi/c/dev/ppb_audio_input_dev.h"
 #include "ppapi/c/dev/ppb_audio_output_dev.h"
 #include "ppapi/c/dev/ppb_buffer_dev.h"
@@ -104,9 +104,12 @@
 #include "ppapi/c/private/ppb_ext_crx_file_system_private.h"
 #include "ppapi/c/private/ppb_file_io_private.h"
 #include "ppapi/c/private/ppb_file_ref_private.h"
+#include "ppapi/c/private/ppb_find_private.h"
+#include "ppapi/c/private/ppb_flash_font_file.h"
 #include "ppapi/c/private/ppb_host_resolver_private.h"
 #include "ppapi/c/private/ppb_instance_private.h"
 #include "ppapi/c/private/ppb_isolated_file_system_private.h"
+#include "ppapi/c/private/ppb_pdf.h"
 #include "ppapi/c/private/ppb_proxy_private.h"
 #include "ppapi/c/private/ppb_tcp_server_socket_private.h"
 #include "ppapi/c/private/ppb_tcp_socket_private.h"
@@ -131,7 +134,6 @@
 #include "ppapi/thunk/thunk.h"
 #include "third_party/blink/public/platform/web_security_origin.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "third_party/blink/public/web/web_view.h"
 
 using ppapi::InputEventData;
 using ppapi::PpapiGlobals;
@@ -187,7 +189,7 @@ void CallOnMainThread(int delay_in_msec,
   if (callback.func) {
     PpapiGlobals::Get()->GetMainThreadMessageLoop()->PostDelayedTask(
         FROM_HERE, base::BindOnce(callback.func, callback.user_data, result),
-        base::Milliseconds(delay_in_msec));
+        base::TimeDelta::FromMilliseconds(delay_in_msec));
   }
 }
 
@@ -292,7 +294,9 @@ const void* InternalGetInterface(const char* name) {
     return ppapi::thunk::Get##iface_struct##_Thunk();
 
 #include "ppapi/thunk/interfaces_ppb_private.h"
+#include "ppapi/thunk/interfaces_ppb_private_flash.h"
 #include "ppapi/thunk/interfaces_ppb_private_no_permissions.h"
+#include "ppapi/thunk/interfaces_ppb_private_pdf.h"
 #include "ppapi/thunk/interfaces_ppb_public_dev.h"
 #include "ppapi/thunk/interfaces_ppb_public_dev_channel.h"
 #include "ppapi/thunk/interfaces_ppb_public_socket.h"
@@ -329,9 +333,9 @@ const void* GetInterface(const char* name) {
 // Gets the PPAPI entry points from the given library and places them into the
 // given structure. Returns true on success.
 bool LoadEntryPointsFromLibrary(const base::NativeLibrary& library,
-                                ContentPluginInfo::EntryPoints* entry_points) {
+                                PepperPluginInfo::EntryPoints* entry_points) {
   entry_points->get_interface =
-      reinterpret_cast<ContentPluginInfo::GetInterfaceFunc>(
+      reinterpret_cast<PepperPluginInfo::GetInterfaceFunc>(
           base::GetFunctionPointerFromNativeLibrary(library,
                                                     "PPP_GetInterface"));
   if (!entry_points->get_interface) {
@@ -340,7 +344,7 @@ bool LoadEntryPointsFromLibrary(const base::NativeLibrary& library,
   }
 
   entry_points->initialize_module =
-      reinterpret_cast<ContentPluginInfo::PPP_InitializeModuleFunc>(
+      reinterpret_cast<PepperPluginInfo::PPP_InitializeModuleFunc>(
           base::GetFunctionPointerFromNativeLibrary(library,
                                                     "PPP_InitializeModule"));
   if (!entry_points->initialize_module) {
@@ -351,7 +355,7 @@ bool LoadEntryPointsFromLibrary(const base::NativeLibrary& library,
   // It's okay for PPP_ShutdownModule to not be defined and shutdown_module to
   // be NULL.
   entry_points->shutdown_module =
-      reinterpret_cast<ContentPluginInfo::PPP_ShutdownModuleFunc>(
+      reinterpret_cast<PepperPluginInfo::PPP_ShutdownModuleFunc>(
           base::GetFunctionPointerFromNativeLibrary(library,
                                                     "PPP_ShutdownModule"));
 
@@ -362,7 +366,7 @@ void CreateHostForInProcessModule(RenderFrameImpl* render_frame,
                                   PluginModule* module,
                                   const WebPluginInfo& webplugin_info) {
   // First time an in-process plugin was used, make a host for it.
-  const ContentPluginInfo* info =
+  const PepperPluginInfo* info =
       PepperPluginRegistry::GetInstance()->GetInfoForPlugin(webplugin_info);
   DCHECK(!info->is_out_of_process);
 
@@ -444,7 +448,7 @@ void PluginModule::SetRendererPpapiHost(
 }
 
 bool PluginModule::InitAsInternalPlugin(
-    const ContentPluginInfo::EntryPoints& entry_points) {
+    const PepperPluginInfo::EntryPoints& entry_points) {
   if (InitializeModule(entry_points)) {
     entry_points_ = entry_points;
     return true;
@@ -457,7 +461,7 @@ bool PluginModule::InitAsLibrary(const base::FilePath& path) {
   if (!library)
     return false;
 
-  ContentPluginInfo::EntryPoints entry_points;
+  PepperPluginInfo::EntryPoints entry_points;
 
   if (!LoadEntryPointsFromLibrary(library, &entry_points) ||
       !InitializeModule(entry_points)) {
@@ -598,13 +602,8 @@ RendererPpapiHostImpl* PluginModule::CreateOutOfProcessModule(
     int plugin_child_id,
     bool is_external,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
-  mojo::PendingRemote<mojom::PepperHungDetectorHost> hung_host;
-  render_frame->GetPepperHost()->BindHungDetectorHost(
-      hung_host.InitWithNewPipeAndPassReceiver(), plugin_child_id, path);
-  scoped_refptr<PepperHungPluginFilter> hung_filter(
-      new PepperHungPluginFilter());
-  hung_filter->BindHungDetectorHost(std::move(hung_host));
-
+  scoped_refptr<PepperHungPluginFilter> hung_filter(new PepperHungPluginFilter(
+      path, render_frame->GetRoutingID(), plugin_child_id));
   std::unique_ptr<HostDispatcherWrapper> dispatcher(new HostDispatcherWrapper(
       this, peer_pid, plugin_child_id, permissions, is_external));
 
@@ -618,12 +617,11 @@ RendererPpapiHostImpl* PluginModule::CreateOutOfProcessModule(
   const gpu::GpuFeatureInfo& gpu_feature_info =
       channel ? channel->gpu_feature_info() : default_gpu_feature_info;
 
-  if (!dispatcher->Init(
-          channel_handle, &GetInterface,
-          ppapi::Preferences(PpapiPreferencesBuilder::Build(
-              render_frame->GetWebFrame()->View()->GetWebPreferences(),
-              gpu_feature_info)),
-          hung_filter.get(), task_runner)) {
+  if (!dispatcher->Init(channel_handle, &GetInterface,
+                        ppapi::Preferences(PpapiPreferencesBuilder::Build(
+                            render_frame->render_view()->GetBlinkPreferences(),
+                            gpu_feature_info)),
+                        hung_filter.get(), task_runner)) {
     return nullptr;
   }
 
@@ -643,7 +641,7 @@ void PluginModule::ResetHostGlobalsForTest() {
 }
 
 bool PluginModule::InitializeModule(
-    const ContentPluginInfo::EntryPoints& entry_points) {
+    const PepperPluginInfo::EntryPoints& entry_points) {
   DCHECK(!host_dispatcher_wrapper_.get()) << "Don't call for proxied modules.";
   DCHECK(entry_points.initialize_module != nullptr);
   int retval = entry_points.initialize_module(pp_module(), &GetInterface);
@@ -659,7 +657,7 @@ bool PluginModule::InitializeModule(
 scoped_refptr<PluginModule> PluginModule::Create(
     RenderFrameImpl* render_frame,
     const WebPluginInfo& webplugin_info,
-    const absl::optional<url::Origin>& origin_lock,
+    const base::Optional<url::Origin>& origin_lock,
     bool* pepper_plugin_was_registered,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
   *pepper_plugin_was_registered = true;
@@ -681,7 +679,7 @@ scoped_refptr<PluginModule> PluginModule::Create(
   // In-process plugins will have always been created up-front to avoid the
   // sandbox restrictions. So getting here implies it doesn't exist or should
   // be out of process.
-  const ContentPluginInfo* info =
+  const PepperPluginInfo* info =
       PepperPluginRegistry::GetInstance()->GetInfoForPlugin(webplugin_info);
   if (!info) {
     *pepper_plugin_was_registered = false;
@@ -692,16 +690,13 @@ scoped_refptr<PluginModule> PluginModule::Create(
   }
 
   // Out of process: have the browser start the plugin process for us.
-  mojo::ScopedMessagePipeHandle channel_handle;
+  IPC::ChannelHandle channel_handle;
   base::ProcessId peer_pid = 0;
   int plugin_child_id = 0;
-
-  auto* browser_connection = PepperBrowserConnection::Get(render_frame);
-  mojom::PepperHost* host = browser_connection->GetHost();
-  host->OpenChannelToPepperPlugin(
+  render_frame->Send(new FrameHostMsg_OpenChannelToPepperPlugin(
       render_frame->GetWebFrame()->GetSecurityOrigin(), path, origin_lock,
-      &channel_handle, &peer_pid, &plugin_child_id);
-  if (!channel_handle.is_valid()) {
+      &channel_handle, &peer_pid, &plugin_child_id));
+  if (!channel_handle.is_mojo_channel_handle()) {
     // Couldn't be initialized.
     return scoped_refptr<PluginModule>();
   }
@@ -715,7 +710,7 @@ scoped_refptr<PluginModule> PluginModule::Create(
                                                      module.get());
 
   if (!module->CreateOutOfProcessModule(render_frame, path, permissions,
-                                        channel_handle.release(), peer_pid,
+                                        channel_handle, peer_pid,
                                         plugin_child_id, false,
                                         task_runner))  // is_external = false
     return scoped_refptr<PluginModule>();

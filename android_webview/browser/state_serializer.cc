@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/time/time.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
-#include "content/public/browser/navigation_entry_restore_context.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/restore_type.h"
 #include "content/public/browser/web_contents.h"
@@ -47,10 +46,8 @@ void WriteToPickle(content::WebContents& web_contents, base::Pickle* pickle) {
   content::NavigationController& controller = web_contents.GetController();
   const int entry_count = controller.GetEntryCount();
   const int selected_entry = controller.GetLastCommittedEntryIndex();
-  // A NavigationEntry will always exist, so there will always be at least 1
-  // entry.
-  DCHECK_GE(entry_count, 1);
-  DCHECK_GE(selected_entry, 0);
+  DCHECK_GE(entry_count, 0);
+  DCHECK_GE(selected_entry, -1);  // -1 is valid
   DCHECK_LT(selected_entry, entry_count);
 
   pickle->WriteInt(entry_count);
@@ -91,20 +88,20 @@ bool RestoreFromPickle(base::PickleIterator* iterator,
   if (selected_entry >= entry_count)
     return false;
 
-  std::unique_ptr<content::NavigationEntryRestoreContext> context =
-      content::NavigationEntryRestoreContext::Create();
   std::vector<std::unique_ptr<content::NavigationEntry>> entries;
   entries.reserve(entry_count);
   for (int i = 0; i < entry_count; ++i) {
     entries.push_back(content::NavigationEntry::Create());
-    if (!internal::RestoreNavigationEntryFromPickle(
-            state_version, iterator, entries[i].get(), context.get()))
+    if (!internal::RestoreNavigationEntryFromPickle(state_version, iterator,
+                                                    entries[i].get()))
       return false;
   }
 
   // |web_contents| takes ownership of these entries after this call.
   content::NavigationController& controller = web_contents->GetController();
-  controller.Restore(selected_entry, content::RestoreType::kRestored, &entries);
+  controller.Restore(selected_entry,
+                     content::RestoreType::LAST_SESSION_EXITED_CLEANLY,
+                     &entries);
   DCHECK_EQ(0u, entries.size());
   controller.LoadIfNecessary();
 
@@ -184,23 +181,17 @@ void WriteNavigationEntryToPickle(uint32_t state_version,
   // way.
 }
 
-bool RestoreNavigationEntryFromPickle(
-    base::PickleIterator* iterator,
-    content::NavigationEntry* entry,
-    content::NavigationEntryRestoreContext* context) {
-  return RestoreNavigationEntryFromPickle(AW_STATE_VERSION, iterator, entry,
-                                          context);
+bool RestoreNavigationEntryFromPickle(base::PickleIterator* iterator,
+                                      content::NavigationEntry* entry) {
+  return RestoreNavigationEntryFromPickle(AW_STATE_VERSION, iterator, entry);
 }
 
-bool RestoreNavigationEntryFromPickle(
-    uint32_t state_version,
-    base::PickleIterator* iterator,
-    content::NavigationEntry* entry,
-    content::NavigationEntryRestoreContext* context) {
+bool RestoreNavigationEntryFromPickle(uint32_t state_version,
+                                      base::PickleIterator* iterator,
+                                      content::NavigationEntry* entry) {
   DCHECK(IsSupportedVersion(state_version));
   DCHECK(iterator);
   DCHECK(entry);
-  DCHECK(context);
 
   GURL deserialized_url;
   {
@@ -244,7 +235,7 @@ bool RestoreNavigationEntryFromPickle(
   }
 
   {
-    std::u16string title;
+    base::string16 title;
     if (!iterator->ReadString16(&title))
       return false;
     entry->SetTitle(title);
@@ -261,8 +252,7 @@ bool RestoreNavigationEntryFromPickle(
     if (content_state.empty()) {
       // Ensure that the deserialized/restored content::NavigationEntry (and
       // the content::FrameNavigationEntry underneath) has a valid PageState.
-      entry->SetPageState(blink::PageState::CreateFromURL(deserialized_url),
-                          context);
+      entry->SetPageState(blink::PageState::CreateFromURL(deserialized_url));
 
       // The |deserialized_referrer| might be inconsistent with the referrer
       // embedded inside the PageState set above.  Nevertheless, to minimize
@@ -278,7 +268,7 @@ bool RestoreNavigationEntryFromPickle(
       // Note that PageState covers and will clobber some of the values covered
       // by data within |iterator| (e.g. URL and referrer).
       entry->SetPageState(
-          blink::PageState::CreateFromEncodedData(content_state), context);
+          blink::PageState::CreateFromEncodedData(content_state));
 
       // |deserialized_url| and |deserialized_referrer| are redundant wrt
       // PageState, but they should be consistent / in-sync.
@@ -311,7 +301,7 @@ bool RestoreNavigationEntryFromPickle(
 
   if (state_version >= internal::AW_STATE_VERSION_DATA_URL) {
     const char* data;
-    size_t size;
+    int size;
     if (!iterator->ReadData(&data, &size))
       return false;
     if (size > 0) {

@@ -1,21 +1,22 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/autofill/autofill_add_credit_card_coordinator.h"
 
-#import "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/browser/personal_data_manager.h"
 #import "components/autofill/ios/browser/personal_data_manager_observer_bridge.h"
-#import "ios/chrome/browser/autofill/personal_data_manager_factory.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/autofill/personal_data_manager_factory.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/alert_coordinator/action_sheet_coordinator.h"
 #import "ios/chrome/browser/ui/alert_coordinator/alert_coordinator.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_add_credit_card_mediator.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_add_credit_card_mediator_delegate.h"
 #import "ios/chrome/browser/ui/settings/autofill/autofill_add_credit_card_view_controller.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#import "ios/chrome/browser/ui/settings/credit_card_scanner/credit_card_scanner_coordinator.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -27,6 +28,11 @@
 
 // Displays message for invalid credit card data.
 @property(nonatomic, strong) AlertCoordinator* alertCoordinator;
+
+// The Credit Card Scanner Coordinator.
+@property(nonatomic, strong)
+    CreditCardScannerCoordinator* creditCardScannerCoordinator API_AVAILABLE(
+        ios(13.0));
 
 // The view controller attached to this coordinator.
 @property(nonatomic, strong)
@@ -68,6 +74,11 @@
 }
 
 - (void)stop {
+  if (@available(iOS 13, *)) {
+    [self.creditCardScannerCoordinator stop];
+    self.creditCardScannerCoordinator = nil;
+  }
+
   [self.addCreditCardViewController.navigationController
       dismissViewControllerAnimated:YES
                          completion:nil];
@@ -100,6 +111,16 @@
   [self
       showAlertWithMessage:l10n_util::GetNSString(
                                IDS_IOS_ADD_CREDIT_CARD_INVALID_NICKNAME_ALERT)];
+}
+
+- (void)creditCardMediatorShowScanner:(AutofillAddCreditCardMediator*)mediator
+    API_AVAILABLE(ios(13.0)) {
+  self.creditCardScannerCoordinator = [[CreditCardScannerCoordinator alloc]
+      initWithBaseViewController:self.addCreditCardViewController
+                         browser:self.browser
+              creditCardConsumer:self.addCreditCardViewController];
+
+  [self.creditCardScannerCoordinator start];
 }
 
 #pragma mark - UIAdaptivePresentationControllerDelegate
@@ -148,7 +169,7 @@
   [self.actionSheetCoordinator start];
 }
 
-// Shows alert with received message by `AlertCoordinator`.
+// Shows alert with received message by |AlertCoordinator|.
 - (void)showAlertWithMessage:(NSString*)message {
   self.alertCoordinator = [[AlertCoordinator alloc]
       initWithBaseViewController:self.addCreditCardViewController

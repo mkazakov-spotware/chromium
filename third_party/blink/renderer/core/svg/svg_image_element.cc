@@ -21,8 +21,8 @@
 
 #include "third_party/blink/renderer/core/svg/svg_image_element.h"
 
-#include "third_party/blink/public/mojom/permissions_policy/document_policy_feature.mojom-blink.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
+#include "third_party/blink/public/mojom/feature_policy/document_policy_feature.mojom-blink.h"
+#include "third_party/blink/public/mojom/feature_policy/feature_policy.mojom-blink.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/style_change_reason.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
@@ -31,7 +31,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_length.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_preserve_aspect_ratio.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 
 namespace blink {
@@ -131,9 +131,7 @@ void SVGImageElement::CollectStyleForPresentationAttribute(
   }
 }
 
-void SVGImageElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGImageElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   bool is_length_attribute =
       attr_name == svg_names::kXAttr || attr_name == svg_names::kYAttr ||
       attr_name == svg_names::kWidthAttr || attr_name == svg_names::kHeightAttr;
@@ -167,7 +165,7 @@ void SVGImageElement::SvgAttributeChanged(
     return;
   }
 
-  SVGGraphicsElement::SvgAttributeChanged(params);
+  SVGGraphicsElement::SvgAttributeChanged(attr_name);
 }
 
 void SVGImageElement::ParseAttribute(
@@ -188,7 +186,7 @@ bool SVGImageElement::SelfHasRelativeLengths() const {
 
 LayoutObject* SVGImageElement::CreateLayoutObject(const ComputedStyle&,
                                                   LegacyLayout) {
-  return MakeGarbageCollected<LayoutSVGImage>(this);
+  return new LayoutSVGImage(this);
 }
 
 bool SVGImageElement::HaveLoadedRequiredResources() {

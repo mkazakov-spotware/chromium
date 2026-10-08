@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/win/atl.h"
 #include "ui/base/win/atl_module.h"
 #include "ui/gfx/range/range.h"
@@ -34,10 +33,6 @@ class ATL_NO_VTABLE TSFEventRouter::Delegate
   END_COM_MAP()
 
   Delegate();
-
-  Delegate(const Delegate&) = delete;
-  Delegate& operator=(const Delegate&) = delete;
-
   ~Delegate();
 
   // ITfTextEditSink:
@@ -88,8 +83,10 @@ class ATL_NO_VTABLE TSFEventRouter::Delegate
   // The cookie for |ui_source_|.
   DWORD ui_source_cookie_ = TF_INVALID_COOKIE;
 
-  raw_ptr<TSFEventRouter> router_ = nullptr;
+  TSFEventRouter* router_ = nullptr;
   gfx::Range previous_composition_range_;
+
+  DISALLOW_COPY_AND_ASSIGN(Delegate);
 };
 
 TSFEventRouter::Delegate::Delegate()

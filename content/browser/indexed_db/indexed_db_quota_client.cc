@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,90 +11,140 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
+#include "base/task_runner_util.h"
 #include "base/threading/sequenced_task_runner_handle.h"
-#include "components/services/storage/public/cpp/buckets/bucket_locator.h"
 #include "content/browser/indexed_db/indexed_db_context_impl.h"
 #include "storage/browser/database/database_util.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/quota/quota_types.mojom-shared.h"
 #include "third_party/blink/public/mojom/quota/quota_types.mojom.h"
 #include "url/origin.h"
 
-using ::blink::StorageKey;
-using ::blink::mojom::StorageType;
-using ::storage::DatabaseUtil;
-using ::storage::mojom::QuotaClient;
+using blink::mojom::StorageType;
+using storage::DatabaseUtil;
+using storage::QuotaClient;
 
 namespace content {
+namespace {
+
+void DidDeleteIDBData(scoped_refptr<base::SequencedTaskRunner> task_runner,
+                      IndexedDBQuotaClient::DeleteOriginDataCallback callback,
+                      bool) {
+  task_runner->PostTask(
+      FROM_HERE,
+      base::BindOnce(std::move(callback), blink::mojom::QuotaStatusCode::kOk));
+}
+
+int64_t GetOriginUsageOnIndexedDBThread(IndexedDBContextImpl* context,
+                                        const url::Origin& origin) {
+  DCHECK(context->IDBTaskRunner()->RunsTasksInCurrentSequence());
+  return context->GetOriginDiskUsage(origin);
+}
+
+void GetAllOriginsOnIndexedDBThread(
+    IndexedDBContextImpl* context,
+    std::vector<url::Origin>* origins_to_return) {
+  DCHECK(context->IDBTaskRunner()->RunsTasksInCurrentSequence());
+  *origins_to_return = context->GetAllOrigins();
+}
+
+void DidGetOrigins(IndexedDBQuotaClient::GetOriginsForTypeCallback callback,
+                   const std::vector<url::Origin>* origins) {
+  // Run on the same sequence that GetOriginsForType was called on,
+  // which is likely the IO thread.
+  std::move(callback).Run(*origins);
+}
+
+void GetOriginsForHostOnIndexedDBThread(
+    IndexedDBContextImpl* context,
+    const std::string& host,
+    std::vector<url::Origin>* origins_to_return) {
+  DCHECK(context->IDBTaskRunner()->RunsTasksInCurrentSequence());
+  std::vector<url::Origin> all_origins = context->GetAllOrigins();
+  for (auto& origin : all_origins) {
+    if (host == origin.host())
+      origins_to_return->push_back(std::move(origin));
+  }
+}
+
+}  // namespace
+
+// IndexedDBQuotaClient --------------------------------------------------------
 
 IndexedDBQuotaClient::IndexedDBQuotaClient(
-    IndexedDBContextImpl& indexed_db_context)
-    : indexed_db_context_(indexed_db_context) {
-  DETACH_FROM_SEQUENCE(sequence_checker_);
+    scoped_refptr<IndexedDBContextImpl> indexed_db_context)
+    : indexed_db_context_(std::move(indexed_db_context)) {
+  DCHECK(indexed_db_context_.get());
 }
 
-IndexedDBQuotaClient::~IndexedDBQuotaClient() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-}
+IndexedDBQuotaClient::~IndexedDBQuotaClient() = default;
 
-void IndexedDBQuotaClient::GetBucketUsage(const storage::BucketLocator& bucket,
-                                          GetBucketUsageCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK_EQ(bucket.type, StorageType::kTemporary);
+void IndexedDBQuotaClient::OnQuotaManagerDestroyed() {}
 
-  // Skip non-default buckets until Storage Buckets are supported for IndexedDB.
-  if (!bucket.is_default) {
-    std::move(callback).Run(0);
-    return;
-  }
-
-  std::move(callback).Run(indexed_db_context_->GetBucketDiskUsage(bucket));
-}
-
-void IndexedDBQuotaClient::GetStorageKeysForType(
-    StorageType type,
-    GetStorageKeysForTypeCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK_EQ(type, StorageType::kTemporary);
-  const auto& bucket_locators = indexed_db_context_->GetAllBuckets();
-  std::vector<StorageKey> storage_keys;
-  for (const auto& bucket_locator : bucket_locators)
-    storage_keys.push_back(bucket_locator.storage_key);
-  std::move(callback).Run(std::move(storage_keys));
-}
-
-void IndexedDBQuotaClient::DeleteBucketData(
-    const storage::BucketLocator& bucket,
-    DeleteBucketDataCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK_EQ(bucket.type, StorageType::kTemporary);
+void IndexedDBQuotaClient::GetOriginUsage(const url::Origin& origin,
+                                          StorageType type,
+                                          GetOriginUsageCallback callback) {
   DCHECK(!callback.is_null());
+  DCHECK_EQ(type, StorageType::kTemporary);
 
-  // Skip non-default buckets until Storage Buckets are supported for IndexedDB.
-  if (!bucket.is_default) {
-    std::move(callback).Run(blink::mojom::QuotaStatusCode::kOk);
-    return;
-  }
+  base::PostTaskAndReplyWithResult(
+      indexed_db_context_->IDBTaskRunner(), FROM_HERE,
+      base::BindOnce(&GetOriginUsageOnIndexedDBThread,
+                     base::RetainedRef(indexed_db_context_), origin),
+      std::move(callback));
+}
 
-  indexed_db_context_->DeleteBucketData(
-      bucket,
-      base::BindOnce(
-          [](DeleteBucketDataCallback callback, bool success) {
-            blink::mojom::QuotaStatusCode status =
-                success ? blink::mojom::QuotaStatusCode::kOk
-                        : blink::mojom::QuotaStatusCode::kUnknown;
-            std::move(callback).Run(status);
-          },
-          std::move(callback)));
+void IndexedDBQuotaClient::GetOriginsForType(
+    StorageType type,
+    GetOriginsForTypeCallback callback) {
+  DCHECK(!callback.is_null());
+  DCHECK_EQ(type, StorageType::kTemporary);
+
+  auto* origins_to_return = new std::vector<url::Origin>();
+  indexed_db_context_->IDBTaskRunner()->PostTaskAndReply(
+      FROM_HERE,
+      base::BindOnce(&GetAllOriginsOnIndexedDBThread,
+                     base::RetainedRef(indexed_db_context_),
+                     base::Unretained(origins_to_return)),
+      base::BindOnce(&DidGetOrigins, std::move(callback),
+                     base::Owned(origins_to_return)));
+}
+
+void IndexedDBQuotaClient::GetOriginsForHost(
+    StorageType type,
+    const std::string& host,
+    GetOriginsForHostCallback callback) {
+  DCHECK(!callback.is_null());
+  DCHECK_EQ(type, StorageType::kTemporary);
+
+  auto* origins_to_return = new std::vector<url::Origin>();
+  indexed_db_context_->IDBTaskRunner()->PostTaskAndReply(
+      FROM_HERE,
+      base::BindOnce(&GetOriginsForHostOnIndexedDBThread,
+                     base::RetainedRef(indexed_db_context_), host,
+                     base::Unretained(origins_to_return)),
+      base::BindOnce(&DidGetOrigins, std::move(callback),
+                     base::Owned(origins_to_return)));
+}
+
+void IndexedDBQuotaClient::DeleteOriginData(const url::Origin& origin,
+                                            StorageType type,
+                                            DeleteOriginDataCallback callback) {
+  DCHECK(!callback.is_null());
+  DCHECK_EQ(type, StorageType::kTemporary);
+
+  indexed_db_context_->IDBTaskRunner()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&IndexedDBContextImpl::DeleteForOrigin,
+                     base::RetainedRef(indexed_db_context_), origin,
+                     base::BindOnce(DidDeleteIDBData,
+                                    base::SequencedTaskRunnerHandle::Get(),
+                                    std::move(callback))));
 }
 
 void IndexedDBQuotaClient::PerformStorageCleanup(
     blink::mojom::StorageType type,
     PerformStorageCleanupCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK_EQ(type, StorageType::kTemporary);
   std::move(callback).Run();
 }
 

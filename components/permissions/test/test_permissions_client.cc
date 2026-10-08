@@ -1,13 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/permissions/test/test_permissions_client.h"
 
 #include "components/content_settings/core/browser/cookie_settings.h"
-#include "components/permissions/permission_actions_history.h"
-#include "components/sync_preferences/testing_pref_service_syncable.h"
-#include "content/public/browser/web_contents.h"
+#include "components/ukm/content/source_url_recorder.h"
 
 namespace permissions {
 namespace {
@@ -17,17 +15,14 @@ scoped_refptr<HostContentSettingsMap> CreateSettingsMap(
   HostContentSettingsMap::RegisterProfilePrefs(prefs->registry());
   return base::MakeRefCounted<HostContentSettingsMap>(
       prefs, false /* is_off_the_record */, false /* store_last_modified */,
-      false /* restore_session */, false /* should_record_metrics */);
+      false /* restore_session */);
 }
 
 }  // namespace
 
 TestPermissionsClient::TestPermissionsClient()
     : settings_map_(CreateSettingsMap(&prefs_)),
-      autoblocker_(settings_map_.get()),
-      permission_actions_history_(&prefs_) {
-  PermissionActionsHistory::RegisterProfilePrefs(prefs_.registry());
-}
+      autoblocker_(settings_map_.get()) {}
 
 TestPermissionsClient::~TestPermissionsClient() {
   settings_map_->ShutdownOnUIThread();
@@ -50,24 +45,18 @@ bool TestPermissionsClient::IsSubresourceFilterActivated(
   return false;
 }
 
-OriginKeyedPermissionActionService*
-TestPermissionsClient::GetOriginKeyedPermissionActionService(
-    content::BrowserContext* browser_context) {
-  return &origin_keyed_permission_action_service_;
-}
-
-PermissionActionsHistory* TestPermissionsClient::GetPermissionActionsHistory(
-    content::BrowserContext* browser_context) {
-  return &permission_actions_history_;
-}
-
 PermissionDecisionAutoBlocker*
 TestPermissionsClient::GetPermissionDecisionAutoBlocker(
     content::BrowserContext* browser_context) {
   return &autoblocker_;
 }
 
-ObjectPermissionContextBase* TestPermissionsClient::GetChooserContext(
+PermissionManager* TestPermissionsClient::GetPermissionManager(
+    content::BrowserContext* browser_context) {
+  return nullptr;
+}
+
+ChooserContextBase* TestPermissionsClient::GetChooserContext(
     content::BrowserContext* browser_context,
     ContentSettingsType type) {
   return nullptr;
@@ -75,15 +64,15 @@ ObjectPermissionContextBase* TestPermissionsClient::GetChooserContext(
 
 void TestPermissionsClient::GetUkmSourceId(
     content::BrowserContext* browser_context,
-    content::WebContents* web_contents,
+    const content::WebContents* web_contents,
     const GURL& requesting_origin,
     GetUkmSourceIdCallback callback) {
   if (web_contents) {
     ukm::SourceId source_id =
-        web_contents->GetPrimaryMainFrame()->GetPageUkmSourceId();
+        ukm::GetSourceIdForWebContentsDocument(web_contents);
     std::move(callback).Run(source_id);
   } else {
-    std::move(callback).Run(absl::nullopt);
+    std::move(callback).Run(base::nullopt);
   }
 }
 

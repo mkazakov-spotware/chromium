@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,11 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/metrics/histogram_base.h"
-#include "base/metrics/statistics_recorder.h"
 #include "base/metrics/user_metrics.h"
-#include "base/no_destructor.h"
 #include "base/sequence_checker.h"
-#include "base/thread_annotations.h"
 #include "base/threading/thread_local.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -26,17 +23,15 @@
 #include "base/trace_event/typed_macros.h"
 #include "services/tracing/public/cpp/perfetto/perfetto_traced_process.h"
 #include "services/tracing/public/cpp/perfetto/track_event_thread_local_event_sink.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/perfetto/protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "third_party/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 
 namespace base {
-
 namespace trace_event {
+class ThreadInstructionCount;
 class TraceEvent;
 struct TraceEventHandle;
 }  // namespace trace_event
-
 }  // namespace base
 
 namespace perfetto {
@@ -47,6 +42,21 @@ namespace tracing {
 
 class ThreadLocalEventSink;
 
+class AutoThreadLocalBoolean {
+ public:
+  explicit AutoThreadLocalBoolean(
+      base::ThreadLocalBoolean* thread_local_boolean)
+      : thread_local_boolean_(thread_local_boolean) {
+    DCHECK(!thread_local_boolean_->Get());
+    thread_local_boolean_->Set(true);
+  }
+  ~AutoThreadLocalBoolean() { thread_local_boolean_->Set(false); }
+
+ private:
+  base::ThreadLocalBoolean* thread_local_boolean_;
+  DISALLOW_COPY_AND_ASSIGN(AutoThreadLocalBoolean);
+};
+
 // This class is a data source that clients can use to provide
 // global metadata in dictionary form, by registering callbacks.
 class COMPONENT_EXPORT(TRACING_CPP) TraceEventMetadataSource
@@ -54,11 +64,8 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventMetadataSource
  public:
   static TraceEventMetadataSource* GetInstance();
 
-  TraceEventMetadataSource(const TraceEventMetadataSource&) = delete;
-  TraceEventMetadataSource& operator=(const TraceEventMetadataSource&) = delete;
-
   using JsonMetadataGeneratorFunction =
-      base::RepeatingCallback<absl::optional<base::Value>()>;
+      base::RepeatingCallback<std::unique_ptr<base::DictionaryValue>()>;
 
   using MetadataGeneratorFunction = base::RepeatingCallback<void(
       perfetto::protos::pbzero::ChromeMetadataPacket*,
@@ -79,28 +86,20 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventMetadataSource
   // metadata fields to be uploaded as POST args in addition to being
   // embedded in the trace. TODO(oysteine): Remove when only the
   // UMA uploader path is used.
-  base::Value GenerateLegacyMetadataDict();
+  std::unique_ptr<base::DictionaryValue> GenerateLegacyMetadataDict();
 
-  // PerfettoTracedProcess::DataSourceBase implementation:
-  void StartTracingImpl(
+  // PerfettoTracedProcess::DataSourceBase implementation, called by
+  // ProducerClent.
+  void StartTracing(
       PerfettoProducer* producer,
       const perfetto::DataSourceConfig& data_source_config) override;
-  void StopTracingImpl(base::OnceClosure stop_complete_callback) override;
+  void StopTracing(base::OnceClosure stop_complete_callback) override;
   void Flush(base::RepeatingClosure flush_complete_callback) override;
-#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
-  base::SequencedTaskRunner* GetTaskRunner() override;
-#endif
 
   void ResetForTesting();
 
-#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
-  using DataSourceProxy =
-      PerfettoTracedProcess::DataSourceProxy<TraceEventMetadataSource>;
-#endif
-
  private:
   friend class base::NoDestructor<TraceEventMetadataSource>;
-  friend class perfetto::DataSource<TraceEventMetadataSource>;
 
   TraceEventMetadataSource();
   ~TraceEventMetadataSource() override;
@@ -117,10 +116,7 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventMetadataSource
       perfetto::protos::pbzero::ChromeEventBundle* event_bundle);
   void GenerateMetadataPacket(
       const TraceEventMetadataSource::PacketGeneratorFunction& generator);
-
-  void WriteMetadataPacket(perfetto::protos::pbzero::ChromeMetadataPacket*,
-                           bool privacy_filtering_enabled);
-  absl::optional<base::Value> GenerateTraceConfigMetadataDict();
+  std::unique_ptr<base::DictionaryValue> GenerateTraceConfigMetadataDict();
 
   // All members are protected by |lock_|.
   // TODO(crbug.com/1138893): Change annotations to GUARDED_BY
@@ -134,14 +130,14 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventMetadataSource
   const scoped_refptr<base::SequencedTaskRunner> origin_task_runner_
       GUARDED_BY_FIXME(lock_);
 
-#if !BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
   std::unique_ptr<perfetto::TraceWriter> trace_writer_ GUARDED_BY_FIXME(lock_);
-#endif
   bool privacy_filtering_enabled_ GUARDED_BY_FIXME(lock_) = false;
   std::string chrome_config_ GUARDED_BY(lock_);
   std::unique_ptr<base::trace_event::TraceConfig> parsed_chrome_config_
       GUARDED_BY(lock_);
   bool emit_metadata_at_start_ GUARDED_BY(lock_) = false;
+
+  DISALLOW_COPY_AND_ASSIGN(TraceEventMetadataSource);
 };
 
 // This class acts as a bridge between the TraceLog and
@@ -163,23 +159,27 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventDataSource
 
   static TraceEventDataSource* GetInstance();
 
-  TraceEventDataSource(const TraceEventDataSource&) = delete;
-  TraceEventDataSource& operator=(const TraceEventDataSource&) = delete;
-
   // Destroys and recreates the global instance for testing.
   static void ResetForTesting();
 
   // Flushes and deletes the TraceWriter for the current thread, if any.
   static void FlushCurrentThread();
 
+  static base::ThreadLocalBoolean* GetThreadIsInTraceEventTLS();
+
   // Installs TraceLog overrides for tracing during Chrome startup.
   void RegisterStartupHooks();
 
-  // PerfettoProducer::DataSourceBase implementation:
-  void StartTracingImpl(
+  // The PerfettoProducer is responsible for calling StopTracing
+  // which will clear the stored pointer to it, before it
+  // gets destroyed. PerfettoProducer::CreateTraceWriter can be
+  // called by the TraceEventDataSource on any thread.
+  void StartTracing(
       PerfettoProducer* producer,
       const perfetto::DataSourceConfig& data_source_config) override;
-  void StopTracingImpl(base::OnceClosure stop_complete_callback) override;
+
+  // Called from the PerfettoProducer.
+  void StopTracing(base::OnceClosure stop_complete_callback) override;
   void Flush(base::RepeatingClosure flush_complete_callback) override;
   void ClearIncrementalState() override;
   void SetupStartupTracing(PerfettoProducer* producer,
@@ -190,8 +190,22 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventDataSource
   // Deletes TraceWriter safely on behalf of a ThreadLocalEventSink.
   void ReturnTraceWriter(std::unique_ptr<perfetto::TraceWriter> trace_writer);
 
+  bool privacy_filtering_enabled() const { return privacy_filtering_enabled_; }
+
   bool IsEnabled();
-  bool IsPrivacyFilteringEnabled();
+
+  // Records trace event for a histogram sample. When histogram_samples category
+  // is enabled, it is registered with base::StatisticsRecorder to monitor the
+  // histograms listed in the trace config. If there are no histograms listed in
+  // the trace config, all the histograms will be monitored.
+  static void OnMetricsSampleCallback(const char* histogram_name,
+                                      uint64_t name_hash,
+                                      base::HistogramBase::Sample sample);
+
+  // Registered as a callback to receive every action recorded using
+  // base::RecordAction(), when tracing is enabled with a histogram category.
+  static void OnUserActionSampleCallback(const std::string& action,
+                                         base::TimeTicks action_time);
 
  private:
   friend class base::NoDestructor<TraceEventDataSource>;
@@ -212,8 +226,7 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventDataSource
   std::unique_ptr<perfetto::TraceWriter> CreateTraceWriterLocked();
   TrackEventThreadLocalEventSink* CreateThreadLocalEventSink();
 
-  // Returns the event sink for the current thread, creates it if none unless |!create_if_needed|.
-  static TrackEventThreadLocalEventSink* GetOrPrepareEventSink(bool create_if_needed = true);
+  static TrackEventThreadLocalEventSink* GetOrPrepareEventSink();
 
   // Callback from TraceLog / typed macros, can be called from any thread.
   static void OnAddLegacyTraceEvent(
@@ -222,26 +235,33 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventDataSource
       base::trace_event::TraceEventHandle* handle);
   static base::trace_event::TrackEventHandle OnAddTypedTraceEvent(
       base::trace_event::TraceEvent* trace_event);
-  static void OnUpdateDuration(const unsigned char* category_group_enabled,
-                               const char* name,
-                               base::trace_event::TraceEventHandle handle,
-                               base::PlatformThreadId thread_id,
-                               bool explicit_timestamps,
-                               const base::TimeTicks& now,
-                               const base::ThreadTicks& thread_now);
+  static void OnUpdateDuration(
+      const unsigned char* category_group_enabled,
+      const char* name,
+      base::trace_event::TraceEventHandle handle,
+      int thread_id,
+      bool explicit_timestamps,
+      const base::TimeTicks& now,
+      const base::ThreadTicks& thread_now,
+      base::trace_event::ThreadInstructionCount thread_instruction_now);
   static base::trace_event::TracePacketHandle OnAddTracePacket();
-  static void OnAddEmptyPacket();
 
-  void EmitRecurringUpdates();
+  // Extracts UMA histogram names that should be logged in traces and logs their
+  // starting values.
+  void ResetHistograms(const base::trace_event::TraceConfig& trace_config);
+  // Logs selected UMA histogram.
+  void LogHistograms();
+  // Logs a given histogram in traces.
+  void LogHistogram(base::HistogramBase* histogram);
   void EmitTrackDescriptor();
 
   uint32_t IncrementSessionIdOrClearStartupFlagWhileLocked();
   void SetStartupTracingFlagsWhileLocked();
   bool IsStartupTracingActive() const;
+  bool IsPrivacyFilteringEnabled();  // Takes the |lock_|.
 
   bool disable_interning_ = false;
   base::OnceClosure stop_complete_callback_;
-  base::TimeTicks process_creation_time_ticks_;
 
   // Incremented and accessed atomically but without memory order guarantees.
   static constexpr uint32_t kInvalidSessionID = 0;
@@ -253,19 +273,25 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventDataSource
   // that may acquire another lock that may also be held while emitting a trace
   // event (crbug.com/986248). Use AutoLockWithDeferredTaskPosting rather than
   // base::AutoLock to protect code paths which may post tasks.
-  // TODO(eseckler): Use GUARDED_BY annotations on all fields below.
   base::Lock lock_;  // Protects subsequent members.
-  raw_ptr<PerfettoProducer> producer_ GUARDED_BY(lock_) = nullptr;
   uint32_t target_buffer_ = 0;
   std::unique_ptr<perfetto::TraceWriter> trace_writer_;
   bool is_enabled_ = false;
   bool flushing_trace_log_ = false;
   base::OnceClosure flush_complete_task_;
+  std::vector<std::string> histograms_;
+  // Stores all histogram names for which OnMetricsSampleCallback was set as an
+  // OnSampleCallback. This is done in order to avoid clearing callbacks for the
+  // other histograms.
+  std::vector<std::string> monitored_histograms_;
   bool privacy_filtering_enabled_ = false;
-  base::trace_event::TraceRecordMode record_mode_ =
-      base::trace_event::RECORD_UNTIL_FULL;
   std::string process_name_;
   int process_id_ = base::kNullProcessId;
+  base::ActionCallback user_action_callback_ =
+      base::BindRepeating(&TraceEventDataSource::OnUserActionSampleCallback);
+  SEQUENCE_CHECKER(perfetto_sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(TraceEventDataSource);
 };
 
 }  // namespace tracing

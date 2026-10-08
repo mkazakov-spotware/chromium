@@ -1,23 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/client/notification/gstatic_json_fetcher.h"
 
 #include <memory>
-#include <string>
 
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
-#include "base/test/values_test_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "net/url_request/url_request_error_job.h"
-#include "net/url_request/url_request_filter.h"
-#include "net/url_request/url_request_test_job.h"
+#include "net/url_request/test_url_fetcher_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -37,81 +33,47 @@ MATCHER(NoJsonData, "") {
 }
 
 MATCHER(IsJsonData1, "") {
-  if (!arg) {
+  if (!arg || !arg->is_dict()) {
     return false;
   }
-  return *arg == base::test::ParseJson(R"({"a":1})");
+  const base::Value* a = arg->FindKey("a");
+  return a && a->is_int() && a->GetInt() == 1;
 }
 
 MATCHER(IsJsonData2, "") {
-  if (!arg) {
+  if (!arg || !arg->is_list()) {
     return false;
   }
-  return *arg == base::test::ParseJson(R"(["123"])");
+  auto list = arg->GetList();
+  return list.size() == 1 && list[0].is_string() &&
+         list[0].GetString() == "123";
 }
-
-class TestURLRequestInterceptor : public net::URLRequestInterceptor {
- public:
-  TestURLRequestInterceptor(const std::string& headers,
-                            const std::string& response)
-      : headers_(headers), response_(response) {}
-
-  ~TestURLRequestInterceptor() override = default;
-
-  std::unique_ptr<net::URLRequestJob> MaybeInterceptRequest(
-      net::URLRequest* request) const override {
-    return std::make_unique<net::URLRequestTestJob>(
-        request, headers_, response_, /*auto_advance=*/true);
-  }
-
- private:
-  const std::string headers_;
-  const std::string response_;
-};
-
-// Creates URLRequestJobs that fail at the specified phase.
-class TestFailingURLRequestInterceptor : public net::URLRequestInterceptor {
- public:
-  TestFailingURLRequestInterceptor() = default;
-
-  ~TestFailingURLRequestInterceptor() override = default;
-
-  std::unique_ptr<net::URLRequestJob> MaybeInterceptRequest(
-      net::URLRequest* request) const override {
-    return std::make_unique<net::URLRequestErrorJob>(request, net::ERR_FAILED);
-  }
-};
 
 }  // namespace
 
 class GstaticJsonFetcherTest : public testing::Test {
  protected:
-  ~GstaticJsonFetcherTest() override {
-    net::URLRequestFilter::GetInstance()->ClearHandlers();
+  void SetFakeOkResponse(const std::string& relative_path,
+                         const std::string& data) {
+    url_fetcher_factory_.SetFakeResponse(
+        GstaticJsonFetcher::GetFullUrl(relative_path), data, net::HTTP_OK,
+        net::OK);
+  }
+  void SetFakeFailedResponse(const std::string& relative_path,
+                             net::HttpStatusCode status_code) {
+    url_fetcher_factory_.SetFakeResponse(
+        GstaticJsonFetcher::GetFullUrl(relative_path), "", status_code,
+        net::ERR_FAILED);
   }
 
-  void SetFakeResponse(const std::string& relative_path,
-                       const std::string& headers,
-                       const std::string& data) {
-    net::URLRequestFilter::GetInstance()->AddUrlInterceptor(
-        GstaticJsonFetcher::GetFullUrl(relative_path),
-        std::make_unique<TestURLRequestInterceptor>(headers, data));
-  }
-  void SetFakeFailedResponse(const std::string& relative_path) {
-    net::URLRequestFilter::GetInstance()->AddUrlInterceptor(
-        GstaticJsonFetcher::GetFullUrl(relative_path),
-        std::make_unique<TestFailingURLRequestInterceptor>());
-  }
-
-  base::test::TaskEnvironment task_environment_{
-      base::test::TaskEnvironment::MainThreadType::IO};
-  GstaticJsonFetcher fetcher_{
-      base::SingleThreadTaskRunner::GetCurrentDefault()};
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
+  net::FakeURLFetcherFactory url_fetcher_factory_{nullptr};
+  GstaticJsonFetcher fetcher_{base::ThreadTaskRunnerHandle::Get()};
 };
 
 TEST_F(GstaticJsonFetcherTest, FetchJsonFileSuccess) {
-  SetFakeResponse(kTestPath1, net::URLRequestTestJob::test_headers(),
-                  kTestJsonData1);
+  SetFakeOkResponse(kTestPath1, kTestJsonData1);
   base::MockCallback<JsonFetcher::FetchJsonFileCallback> callback;
   base::RunLoop run_loop;
   EXPECT_CALL(callback, Run(IsJsonData1()))
@@ -122,10 +84,8 @@ TEST_F(GstaticJsonFetcherTest, FetchJsonFileSuccess) {
 }
 
 TEST_F(GstaticJsonFetcherTest, FetchTwoJsonFilesInParallel) {
-  SetFakeResponse(kTestPath1, net::URLRequestTestJob::test_headers(),
-                  kTestJsonData1);
-  SetFakeResponse(kTestPath2, net::URLRequestTestJob::test_headers(),
-                  kTestJsonData2);
+  SetFakeOkResponse(kTestPath1, kTestJsonData1);
+  SetFakeOkResponse(kTestPath2, kTestJsonData2);
 
   base::RunLoop run_loop;
   base::MockRepeatingClosure quit_on_second_run;
@@ -148,23 +108,8 @@ TEST_F(GstaticJsonFetcherTest, FetchTwoJsonFilesInParallel) {
   run_loop.Run();
 }
 
-TEST_F(GstaticJsonFetcherTest, FetchJsonFileStatusNotOk) {
-  SetFakeResponse(kTestPath1,
-                  "HTTP/1.1 500 Internal Error\n"
-                  "Content-type: text/html\n"
-                  "\n",
-                  kTestJsonData1);
-  base::MockCallback<JsonFetcher::FetchJsonFileCallback> callback;
-  base::RunLoop run_loop;
-  EXPECT_CALL(callback, Run(NoJsonData()))
-      .WillOnce(base::test::RunClosure(run_loop.QuitClosure()));
-  fetcher_.FetchJsonFile(kTestPath1, callback.Get(),
-                         TRAFFIC_ANNOTATION_FOR_TESTS);
-  run_loop.Run();
-}
-
-TEST_F(GstaticJsonFetcherTest, FetchJsonFileNetworkError) {
-  SetFakeFailedResponse(kTestPath1);
+TEST_F(GstaticJsonFetcherTest, FetchJsonFileNotOk) {
+  SetFakeFailedResponse(kTestPath1, net::HTTP_INTERNAL_SERVER_ERROR);
   base::MockCallback<JsonFetcher::FetchJsonFileCallback> callback;
   base::RunLoop run_loop;
   EXPECT_CALL(callback, Run(NoJsonData()))
@@ -175,8 +120,7 @@ TEST_F(GstaticJsonFetcherTest, FetchJsonFileNetworkError) {
 }
 
 TEST_F(GstaticJsonFetcherTest, FetchJsonFileMalformed) {
-  SetFakeResponse(kTestPath1, net::URLRequestTestJob::test_headers(),
-                  "Malformed!");
+  SetFakeOkResponse(kTestPath1, "Malformed!");
   base::MockCallback<JsonFetcher::FetchJsonFileCallback> callback;
   base::RunLoop run_loop;
   EXPECT_CALL(callback, Run(NoJsonData()))

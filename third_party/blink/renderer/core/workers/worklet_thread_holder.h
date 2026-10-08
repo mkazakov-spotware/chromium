@@ -1,17 +1,15 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_WORKERS_WORKLET_THREAD_HOLDER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_WORKERS_WORKLET_THREAD_HOLDER_H_
 
-#include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/thread_annotations.h"
+#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/workers/worker_backing_thread.h"
 #include "third_party/blink/renderer/core/workers/worker_backing_thread_startup_data.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/wtf/wtf.h"
 
 namespace blink {
 
@@ -22,13 +20,13 @@ template <class DerivedWorkletThread>
 class WorkletThreadHolder {
  public:
   static WorkletThreadHolder<DerivedWorkletThread>* GetInstance() {
-    base::AutoLock locker(HolderInstanceLock());
+    MutexLocker locker(HolderInstanceMutex());
     return thread_holder_instance_;
   }
 
   static void EnsureInstance(const ThreadCreationParams& params) {
     DCHECK(IsMainThread());
-    base::AutoLock locker(HolderInstanceLock());
+    MutexLocker locker(HolderInstanceMutex());
     if (thread_holder_instance_)
       return;
     thread_holder_instance_ = new WorkletThreadHolder<DerivedWorkletThread>;
@@ -38,7 +36,7 @@ class WorkletThreadHolder {
 
   static void ClearInstance() {
     DCHECK(IsMainThread());
-    base::AutoLock locker(HolderInstanceLock());
+    MutexLocker locker(HolderInstanceMutex());
     if (thread_holder_instance_) {
       thread_holder_instance_->ShutdownAndWait();
       delete thread_holder_instance_;
@@ -52,9 +50,9 @@ class WorkletThreadHolder {
   WorkletThreadHolder() = default;
   ~WorkletThreadHolder() = default;
 
-  static base::Lock& HolderInstanceLock() {
-    DEFINE_THREAD_SAFE_STATIC_LOCAL(base::Lock, holder_lock, ());
-    return holder_lock;
+  static Mutex& HolderInstanceMutex() {
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(Mutex, holder_mutex, ());
+    return holder_mutex;
   }
 
   void Initialize(std::unique_ptr<WorkerBackingThread> backing_thread) {
@@ -66,7 +64,7 @@ class WorkletThreadHolder {
   }
 
   void InitializeOnWorkletThread() {
-    base::AutoLock locker(HolderInstanceLock());
+    MutexLocker locker(HolderInstanceMutex());
     thread_->InitializeOnBackingThread(
         WorkerBackingThreadStartupData::CreateDefault());
   }
@@ -94,11 +92,9 @@ class WorkletThreadHolder {
 
 template <class DerivedWorkletThread>
 WorkletThreadHolder<DerivedWorkletThread>*
-    WorkletThreadHolder<DerivedWorkletThread>::thread_holder_instance_
-        GUARDED_BY(
-            WorkletThreadHolder<DerivedWorkletThread>::HolderInstanceLock()) =
-            nullptr;
+    WorkletThreadHolder<DerivedWorkletThread>::thread_holder_instance_ =
+        nullptr;
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_WORKERS_WORKLET_THREAD_HOLDER_H_
+#endif  // WorkletBackingThreadHolder_h

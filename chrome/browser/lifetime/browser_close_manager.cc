@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "build/build_config.h"
 #include "chrome/browser/background/background_mode_manager.h"
 #include "chrome/browser/browser_process.h"
@@ -17,6 +16,7 @@
 #include "chrome/browser/download/download_core_service_factory.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
+#include "chrome/browser/notifications/notification_ui_manager.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -26,10 +26,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/buildflags.h"
 #include "content/public/browser/web_contents.h"
-
-#if BUILDFLAG(ENABLE_CHROME_NOTIFICATIONS)
-#include "chrome/browser/notifications/notification_ui_manager.h"
-#endif
 
 namespace {
 
@@ -78,8 +74,8 @@ void BrowserCloseManager::TryToCloseBrowsers() {
   // this will trigger TryToCloseBrowsers to try again.
   for (auto* browser : *BrowserList::GetInstance()) {
     if (browser->TryToCloseWindow(
-            false, base::BindRepeating(
-                       &BrowserCloseManager::OnBrowserReportCloseable, this))) {
+            false,
+            base::Bind(&BrowserCloseManager::OnBrowserReportCloseable, this))) {
       current_browser_ = browser;
       return;
     }
@@ -100,7 +96,7 @@ void BrowserCloseManager::OnBrowserReportCloseable(bool proceed) {
 }
 
 void BrowserCloseManager::CheckForDownloadsInProgress() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Mac has its own in-progress downloads prompt in app_controller_mac.mm.
   CloseBrowsers();
 #else
@@ -113,23 +109,17 @@ void BrowserCloseManager::CheckForDownloadsInProgress() {
 
   ConfirmCloseWithPendingDownloads(
       download_count,
-      base::BindOnce(&BrowserCloseManager::OnReportDownloadsCancellable, this));
+      base::Bind(&BrowserCloseManager::OnReportDownloadsCancellable, this));
 #endif
 }
 
 void BrowserCloseManager::ConfirmCloseWithPendingDownloads(
     int download_count,
-    base::OnceCallback<void(bool)> callback) {
+    const base::Callback<void(bool)>& callback) {
   Browser* browser = BrowserList::GetInstance()->GetLastActive();
-  if (browser == nullptr) {
-    // Background may call CloseAllBrowsers() with no Browsers. In this
-    // case immediately continue with shutting down.
-    std::move(callback).Run(/* proceed= */ true);
-    return;
-  }
+  DCHECK(browser);
   browser->window()->ConfirmBrowserCloseWithPendingDownloads(
-      download_count, Browser::DownloadCloseType::kBrowserShutdown,
-      std::move(callback));
+      download_count, Browser::DownloadCloseType::kBrowserShutdown, callback);
 }
 
 void BrowserCloseManager::OnReportDownloadsCancellable(bool proceed) {
@@ -167,8 +157,9 @@ void BrowserCloseManager::CloseBrowsers() {
   // Make a copy of the BrowserList to simplify the case where we need to
   // destroy a Browser during the loop.
   std::vector<Browser*> browser_list_copy;
-  base::ranges::copy(*BrowserList::GetInstance(),
-                     std::back_inserter(browser_list_copy));
+  std::copy(BrowserList::GetInstance()->begin(),
+            BrowserList::GetInstance()->end(),
+            std::back_inserter(browser_list_copy));
 
   bool ignore_unload_handlers = browser_shutdown::ShouldIgnoreUnloadHandlers();
 
@@ -183,17 +174,15 @@ void BrowserCloseManager::CloseBrowsers() {
       // DestroyBrowser to make sure the browser is deleted and cleanup can
       // happen.
       while (browser->tab_strip_model()->count())
-        browser->tab_strip_model()->DetachAndDeleteWebContentsAt(0);
+        browser->tab_strip_model()->DetachWebContentsAt(0);
       browser->window()->DestroyBrowser();
       // Destroying the browser should have removed it from the browser list.
       DCHECK(!base::Contains(*BrowserList::GetInstance(), browser));
     }
   }
 
-#if BUILDFLAG(ENABLE_CHROME_NOTIFICATIONS)
   NotificationUIManager* notification_manager =
       g_browser_process->notification_ui_manager();
   if (notification_manager)
     notification_manager->CancelAll();
-#endif
 }

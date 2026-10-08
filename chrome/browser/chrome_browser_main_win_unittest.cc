@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ TEST(ChromeBrowserMainWinTest, GetRestartCommand) {
 
   // Simple command line with just the program.
   const base::CommandLine::StringType kNoArgsResult =
-      L" --restore-last-session --restart";
+      L" --restore-last-session";
   base::CommandLine restart_command_line =
       ChromeBrowserMainPartsWin::GetRestartCommandLine(simple_command_line);
   EXPECT_EQ(restart_command_line.GetCommandLineString(), kNoArgsResult);
@@ -42,7 +42,7 @@ TEST(ChromeBrowserMainWinTest, GetRestartCommand) {
   // Command line with a retained switch.
   const std::string kRetainedSwitch = "--enable-sandbox-audio";
   const base::CommandLine::StringType kRetainedSwitchResult =
-      L" --enable-sandbox-audio --restore-last-session --restart";
+      L" --enable-sandbox-audio --restore-last-session";
   base::CommandLine retained_switch_command_line(chrome_path);
   retained_switch_command_line.AppendSwitch(kRetainedSwitch);
   restart_command_line = ChromeBrowserMainPartsWin::GetRestartCommandLine(
@@ -65,8 +65,8 @@ TEST(ChromeBrowserMainWinTest, GetRestartCommand) {
   prefs.registry()->RegisterDictionaryPref(
       flags_ui::prefs::kAboutFlagsOriginLists);
   const char kExperimentName[] = "exp-flag";
-  about_flags::testing::ScopedFeatureEntries scoped_feature_entries(
-      {{kExperimentName, "Exp", "description", static_cast<unsigned short>(-1),
+  about_flags::testing::SetFeatureEntries(
+      {{kExperimentName, "Exp", "description", -1,
         ORIGIN_LIST_VALUE_TYPE("flag-switch", "")}});
   about_flags::SetFeatureEntryEnabled(&flags_storage, kExperimentName,
                                       /*enable=*/true);
@@ -85,7 +85,7 @@ TEST(ChromeBrowserMainWinTest, GetRestartCommand) {
   EXPECT_EQ(restart_command_line.GetCommandLineString(),
             L" --enable-features=Exp2 --enable-foo"
             L" --enable-sandbox-audio"
-            L" --restore-last-session --restart");
+            L" --restore-last-session");
 }
 
 // Test RegisterApplicationRestart to make sure there are no crashes.

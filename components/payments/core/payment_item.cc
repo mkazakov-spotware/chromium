@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,33 +47,32 @@ PaymentItem& PaymentItem::operator=(const PaymentItem& other) {
   return *this;
 }
 
-bool PaymentItem::FromValueDict(const base::Value::Dict& dict) {
-  const std::string* label_val = dict.FindString(kPaymentItemLabel);
-  if (!label_val) {
+bool PaymentItem::FromDictionaryValue(const base::DictionaryValue& value) {
+  if (!value.GetString(kPaymentItemLabel, &label)) {
     return false;
   }
-  label = *label_val;
 
-  const base::Value::Dict* amount_dict = dict.FindDict(kPaymentItemAmount);
-  if (!amount_dict) {
+  const base::DictionaryValue* amount_dict = nullptr;
+  if (!value.GetDictionary(kPaymentItemAmount, &amount_dict)) {
     return false;
   }
   amount = mojom::PaymentCurrencyAmount::New();
-  if (!PaymentCurrencyAmountFromValueDict(*amount_dict, amount.get())) {
+  if (!PaymentCurrencyAmountFromDictionaryValue(*amount_dict, amount.get())) {
     return false;
   }
 
   // Pending is optional.
-  pending = dict.FindBool(kPaymentItemPending).value_or(pending);
+  value.GetBoolean(kPaymentItemPending, &pending);
 
   return true;
 }
 
-base::Value::Dict PaymentItem::ToValueDict() const {
-  base::Value::Dict result;
-  result.Set(kPaymentItemLabel, label);
-  result.Set(kPaymentItemAmount, PaymentCurrencyAmountToValueDict(*amount));
-  result.Set(kPaymentItemPending, pending);
+std::unique_ptr<base::DictionaryValue> PaymentItem::ToDictionaryValue() const {
+  auto result = std::make_unique<base::DictionaryValue>();
+  result->SetString(kPaymentItemLabel, label);
+  result->SetDictionary(kPaymentItemAmount,
+                        PaymentCurrencyAmountToDictionaryValue(*amount));
+  result->SetBoolean(kPaymentItemPending, pending);
 
   return result;
 }

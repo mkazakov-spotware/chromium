@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 
 #include "base/component_export.h"
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/address_family.h"
@@ -75,10 +75,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) UDPSocket : public mojom::UDPSocket {
 
   UDPSocket(mojo::PendingRemote<mojom::UDPSocketListener> listener,
             net::NetLog* net_log);
-
-  UDPSocket(const UDPSocket&) = delete;
-  UDPSocket& operator=(const UDPSocket&) = delete;
-
   ~UDPSocket() override;
 
   // UDPSocket implementation.
@@ -145,7 +141,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) UDPSocket : public mojom::UDPSocket {
   void OnRecvFromCompleted(uint32_t buffer_size, int net_result);
   void OnSendToCompleted(int net_result);
 
-  raw_ptr<net::NetLog> net_log_;
+  net::NetLog* net_log_;
 
   // Whether a Bind() has been successfully executed.
   bool is_bound_;
@@ -175,6 +171,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) UDPSocket : public mojom::UDPSocket {
   // The queue owns the PendingSendRequest instances.
   base::circular_deque<std::unique_ptr<PendingSendRequest>>
       pending_send_requests_;
+
+  DISALLOW_COPY_AND_ASSIGN(UDPSocket);
 };
 
 }  // namespace network

@@ -1,82 +1,62 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/corewm/tooltip_controller_test_helper.h"
 
-#include "base/time/time.h"
 #include "ui/aura/window.h"
-#include "ui/wm/public/activation_change_observer.h"
+#include "ui/views/corewm/tooltip_controller.h"
 
-namespace views::corewm::test {
+namespace views {
+namespace corewm {
+namespace test {
 
 TooltipControllerTestHelper::TooltipControllerTestHelper(
     TooltipController* controller)
     : controller_(controller) {
-  SkipTooltipShowDelay(true);
+  controller_->DisableTooltipShowDelay();
 }
 
 TooltipControllerTestHelper::~TooltipControllerTestHelper() = default;
 
-const std::u16string& TooltipControllerTestHelper::GetTooltipText() {
-  return controller_->state_manager_->tooltip_text();
+base::string16 TooltipControllerTestHelper::GetTooltipText() {
+  return controller_->tooltip_text_;
 }
 
-const aura::Window* TooltipControllerTestHelper::GetTooltipParentWindow() {
-  return controller_->state_manager_->tooltip_parent_window();
+aura::Window* TooltipControllerTestHelper::GetTooltipWindow() {
+  return controller_->tooltip_window_;
 }
 
-const aura::Window* TooltipControllerTestHelper::GetObservedWindow() {
-  return controller_->observed_window_;
+void TooltipControllerTestHelper::UpdateIfRequired() {
+  controller_->UpdateIfRequired();
 }
 
-const gfx::Point& TooltipControllerTestHelper::GetTooltipPosition() {
-  return controller_->state_manager_->position_;
+void TooltipControllerTestHelper::FireTooltipShownTimer() {
+  controller_->tooltip_shown_timer_.Stop();
+  controller_->TooltipShownTimerFired();
 }
 
-base::TimeDelta TooltipControllerTestHelper::GetShowTooltipDelay() {
-  return controller_->GetShowTooltipDelay();
-}
-
-void TooltipControllerTestHelper::HideAndReset() {
-  controller_->HideAndReset();
-}
-
-void TooltipControllerTestHelper::UpdateIfRequired(TooltipTrigger trigger) {
-  controller_->UpdateIfRequired(trigger);
-}
-
-void TooltipControllerTestHelper::FireHideTooltipTimer() {
-  controller_->state_manager_->HideAndReset();
-}
-
-bool TooltipControllerTestHelper::IsHideTooltipTimerRunning() {
-  return controller_->state_manager_->IsWillHideTooltipTimerRunningForTesting();
+bool TooltipControllerTestHelper::IsTooltipShownTimerRunning() {
+  return controller_->tooltip_shown_timer_.IsRunning();
 }
 
 bool TooltipControllerTestHelper::IsTooltipVisible() {
-  return controller_->state_manager_->IsVisible();
+  return controller_->IsTooltipVisible();
 }
 
-void TooltipControllerTestHelper::SkipTooltipShowDelay(bool enable) {
-  controller_->skip_show_delay_for_testing_ = enable;
-}
-
-void TooltipControllerTestHelper::MockWindowActivated(aura::Window* window,
-                                                      bool active) {
-  aura::Window* gained_active = active ? window : nullptr;
-  aura::Window* lost_active = active ? nullptr : window;
-  controller_->OnWindowActivated(
-      wm::ActivationChangeObserver::ActivationReason::ACTIVATION_CLIENT,
-      gained_active, lost_active);
+void TooltipControllerTestHelper::SetTooltipShowDelayEnable(
+    bool tooltip_show_delay) {
+  controller_->tooltip_show_delayed_ = tooltip_show_delay;
 }
 
 TooltipTestView::TooltipTestView() = default;
 
 TooltipTestView::~TooltipTestView() = default;
 
-std::u16string TooltipTestView::GetTooltipText(const gfx::Point& p) const {
+base::string16 TooltipTestView::GetTooltipText(const gfx::Point& p) const {
   return tooltip_text_;
 }
 
-}  // namespace views::corewm::test
+}  // namespace test
+}  // namespace corewm
+}  // namespace views

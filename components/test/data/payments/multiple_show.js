@@ -1,8 +1,10 @@
 /*
- * Copyright 2017 The Chromium Authors
+ * Copyright 2017 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
+/* global PaymentRequest:false */
 
 var request;
 var request2;
@@ -10,25 +12,16 @@ var request2;
 /**
  * Show a Payment Request.
  */
-function buy() {
-  buyWithMethods([
-    {supportedMethods: 'https://bobpay.com'},
-    {
-      supportedMethods: 'basic-card',
-      data: {supportedNetworks: ['visa']},
-    },
-  ]);
-}
-
-/**
- * Show a Payment Request with given methods.
- * @param {sequence<PaymentMethodData>} methodData An array of payment method
- *        objects.
- */
-function buyWithMethods(methodData) {
+function buy() { // eslint-disable-line no-unused-vars
   try {
     request = new PaymentRequest(
-        methodData,
+        [
+          {supportedMethods: 'https://bobpay.com'},
+          {
+            supportedMethods: 'basic-card',
+            data: {supportedNetworks: ['visa']},
+          },
+        ],
         {total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}}});
     request.show()
         .then(function(resp) {
@@ -51,7 +44,7 @@ function buyWithMethods(methodData) {
 /**
  * Try to re-show an existing Payment Request.
  */
-function showAgain() {
+function showAgain() { // eslint-disable-line no-unused-vars
   try {
     request.show()
         .then(function(resp) {
@@ -74,25 +67,16 @@ function showAgain() {
 /**
  * Show a second Payment Request.
  */
-function showSecondRequest() {
-  showSecondRequestWithMethods([
-    {supportedMethods: 'https://bobpay.com'},
-    {
-      supportedMethods: 'basic-card',
-      data: {supportedNetworks: ['visa']},
-    },
-  ]);
-}
-
-/**
- * Show a second Payment Request with given methods.
- * @param {sequence<PaymentMethodData>} methodData An array of payment method
- *        objects.
- */
-function showSecondRequestWithMethods(methodData) {
+function showSecondRequest() { // eslint-disable-line no-unused-vars
   try {
     request2 = new PaymentRequest(
-        methodData,
+        [
+          {supportedMethods: 'https://bobpay.com'},
+          {
+            supportedMethods: 'basic-card',
+            data: {supportedNetworks: ['visa']},
+          },
+        ],
         {total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}}});
     request2.show()
         .then(function(resp) {

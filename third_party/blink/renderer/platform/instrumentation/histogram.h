@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/tick_clock.h"
-#include "base/time/time.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
@@ -32,11 +31,27 @@ class PLATFORM_EXPORT CustomCountHistogram {
   void Count(base::HistogramBase::Sample);
   void CountMany(base::HistogramBase::Sample, int count);
   void CountMicroseconds(base::TimeDelta);
+  void CountMilliseconds(base::TimeDelta);
 
  protected:
   explicit CustomCountHistogram(base::HistogramBase*);
 
   base::HistogramBase* histogram_;
+};
+
+class PLATFORM_EXPORT EnumerationHistogram : public CustomCountHistogram {
+ public:
+  // |boundaryValue| must be strictly greater than samples passed to |count|.
+  EnumerationHistogram(const char* name,
+                       base::HistogramBase::Sample boundary_value);
+};
+
+class PLATFORM_EXPORT LinearHistogram : public CustomCountHistogram {
+ public:
+  explicit LinearHistogram(const char* name,
+                           base::HistogramBase::Sample min,
+                           base::HistogramBase::Sample max,
+                           int32_t bucket_count);
 };
 
 template <typename Derived>

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,8 +46,7 @@ HostContentSettingsMapFactory::BuildServiceInstanceFor(
       base::MakeRefCounted<HostContentSettingsMap>(
           user_prefs::UserPrefs::Get(context), context->IsOffTheRecord(),
           /*store_last_modified=*/true,
-          /*restore_session=*/false,
-          /*should_record_metrics=*/!context->IsOffTheRecord());
+          /*restore_session=*/false);
 
   return settings_map;
 }

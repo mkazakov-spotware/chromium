@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "base/compiler_specific.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -53,22 +54,20 @@ void RecordMemoryMetricsImpl(
             process_dump.os_dump().private_footprint_kb / 1024);
         break;
       }
-      case memory_instrumentation::mojom::ProcessType::GPU: {
-        MEMORY_METRICS_HISTOGRAM_MB(
-            GetPrivateFootprintHistogramName(HistogramProcessType::kGpu),
-            process_dump.os_dump().private_footprint_kb / 1024);
-        break;
-      }
 
       // Currently this class only records metrics for the browser and
       // renderer process, as it originated from WebView, where there are no
       // other processes.
+      // TODO(weblayer-team): refactor to allow the embedder to record GPU
+      // metrics.
+      case memory_instrumentation::mojom::ProcessType::GPU:
+        FALLTHROUGH;
       case memory_instrumentation::mojom::ProcessType::ARC:
-        [[fallthrough]];
+        FALLTHROUGH;
       case memory_instrumentation::mojom::ProcessType::UTILITY:
-        [[fallthrough]];
+        FALLTHROUGH;
       case memory_instrumentation::mojom::ProcessType::PLUGIN:
-        [[fallthrough]];
+        FALLTHROUGH;
       case memory_instrumentation::mojom::ProcessType::OTHER:
         break;
     }
@@ -88,9 +87,6 @@ void RecordMemoryMetricsImpl(
 struct MemoryMetricsLogger::State : public base::RefCountedThreadSafe<State> {
   State() = default;
 
-  State(const State&) = delete;
-  State& operator=(const State&) = delete;
-
   // MemoryInstrumentation requires a SequencedTaskRunner.
   scoped_refptr<base::SequencedTaskRunner> task_runner;
 
@@ -100,6 +96,8 @@ struct MemoryMetricsLogger::State : public base::RefCountedThreadSafe<State> {
   friend class base::RefCountedThreadSafe<State>;
 
   ~State() = default;
+
+  DISALLOW_COPY_AND_ASSIGN(State);
 };
 
 MemoryMetricsLogger::MemoryMetricsLogger()
@@ -145,14 +143,9 @@ void MemoryMetricsLogger::RecordMemoryMetricsAfterDelay(
 // static
 void MemoryMetricsLogger::RecordMemoryMetrics(scoped_refptr<State> state,
                                               RecordCallback done_callback) {
-  auto* instrumentation =
-      memory_instrumentation::MemoryInstrumentation::GetInstance();
-  if (!instrumentation) {
-    // Content layer is not initialized yet, nothing to log.
-    return;
-  }
-  instrumentation->RequestGlobalDump(
-      {}, base::BindOnce(&RecordMemoryMetricsImpl, std::move(done_callback)));
+  memory_instrumentation::MemoryInstrumentation::GetInstance()
+      ->RequestGlobalDump({}, base::BindOnce(&RecordMemoryMetricsImpl,
+                                             std::move(done_callback)));
   RecordMemoryMetricsAfterDelay(state);
 }
 

@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/usb/usb_blocklist.h"
 
-#include "base/memory/raw_ref.h"
 #include "base/strings/string_piece.h"
 #include "components/variations/variations_params_manager.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -13,16 +12,16 @@ class UsbBlocklistTest : public testing::Test {
  public:
   UsbBlocklistTest() : blocklist_(UsbBlocklist::Get()) {}
 
-  const UsbBlocklist& list() { return *blocklist_; }
+  const UsbBlocklist& list() { return blocklist_; }
 
   void SetDynamicBlocklist(base::StringPiece list) {
     params_manager_.ClearAllVariationParams();
 
     std::map<std::string, std::string> params;
-    params["blocklist_additions"] = std::string(list);
+    params["blocklist_additions"] = list.as_string();
     params_manager_.SetVariationParams("WebUSBBlocklist", params);
 
-    blocklist_->ResetToDefaultValuesForTest();
+    blocklist_.ResetToDefaultValuesForTest();
   }
 
  private:
@@ -30,11 +29,11 @@ class UsbBlocklistTest : public testing::Test {
     // Because UsbBlocklist is a singleton it must be cleared after tests run
     // to prevent leakage between tests.
     params_manager_.ClearAllVariationParams();
-    blocklist_->ResetToDefaultValuesForTest();
+    blocklist_.ResetToDefaultValuesForTest();
   }
 
   variations::testing::VariationParamsManager params_manager_;
-  const raw_ref<UsbBlocklist> blocklist_;
+  UsbBlocklist& blocklist_;
 };
 
 TEST_F(UsbBlocklistTest, BasicExclusions) {

@@ -1,26 +1,22 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_ANIMATION_TEST_TEST_INK_DROP_HOST_H_
 #define UI_VIEWS_ANIMATION_TEST_TEST_INK_DROP_HOST_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "ui/views/animation/ink_drop_host_view.h"
-#include "ui/views/animation/ink_drop_impl.h"
 
 namespace views {
 
-// A non-functional implementation of an View with an ink drop that can be used
-// during tests.  Tracks the number of hosted ink drop layers.
-class TestInkDropHost : public View {
+// A non-functional implementation of an InkDropHost that can be used during
+// tests.  Tracks the number of hosted ink drop layers.
+class TestInkDropHost : public InkDropHostView {
  public:
-  explicit TestInkDropHost(InkDropImpl::AutoHighlightMode auto_highlight_mode =
-                               InkDropImpl::AutoHighlightMode::NONE);
-
-  TestInkDropHost(const TestInkDropHost&) = delete;
-  TestInkDropHost& operator=(const TestInkDropHost&) = delete;
-
+  TestInkDropHost();
   ~TestInkDropHost() override;
 
   int num_ink_drop_layers_added() const { return num_ink_drop_layers_added_; }
@@ -46,9 +42,12 @@ class TestInkDropHost : public View {
     disable_timers_for_test_ = disable_timers_for_test;
   }
 
-  // View:
-  void AddLayerBeneathView(ui::Layer* layer) override;
-  void RemoveLayerBeneathView(ui::Layer* layer) override;
+  // InkDropHostView:
+  void AddInkDropLayer(ui::Layer* ink_drop_layer) override;
+  void RemoveInkDropLayer(ui::Layer* ink_drop_layer) override;
+  std::unique_ptr<InkDrop> CreateInkDrop() override;
+  std::unique_ptr<InkDropRipple> CreateInkDropRipple() const override;
+  std::unique_ptr<InkDropHighlight> CreateInkDropHighlight() const override;
 
  private:
   int num_ink_drop_layers_added_ = 0;
@@ -59,12 +58,14 @@ class TestInkDropHost : public View {
   mutable int num_ink_drop_ripples_created_ = 0;
   mutable int num_ink_drop_highlights_created_ = 0;
 
-  mutable raw_ptr<const InkDropRipple> last_ink_drop_ripple_ = nullptr;
-  mutable raw_ptr<const InkDropHighlight> last_ink_drop_highlight_ = nullptr;
+  mutable const InkDropRipple* last_ink_drop_ripple_ = nullptr;
+  mutable const InkDropHighlight* last_ink_drop_highlight_ = nullptr;
 
   // When true, the InkDropRipple/InkDropHighlight instances will have their
   // timers disabled after creation.
   bool disable_timers_for_test_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(TestInkDropHost);
 };
 
 }  // namespace views

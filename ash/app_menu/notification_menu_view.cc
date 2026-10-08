@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "ash/app_menu/notification_menu_header_view.h"
 #include "ash/app_menu/notification_overflow_view.h"
 #include "ash/public/cpp/app_menu_constants.h"
-#include "base/ranges/algorithm.h"
 #include "ui/base/models/menu_separator_types.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
@@ -42,7 +41,7 @@ NotificationMenuView::~NotificationMenuView() = default;
 
 gfx::Size NotificationMenuView::CalculatePreferredSize() const {
   return gfx::Size(
-      views::MenuConfig::instance().touchable_menu_min_width,
+      views::MenuConfig::instance().touchable_menu_width,
       double_separator_->GetPreferredSize().height() +
           header_view_->GetPreferredSize().height() +
           kNotificationItemViewHeight +
@@ -51,10 +50,10 @@ gfx::Size NotificationMenuView::CalculatePreferredSize() const {
 
 void NotificationMenuView::Layout() {
   int y = 0;
-  double_separator_->SetBoundsRect(gfx::Rect(
-      gfx::Point(0, y),
-      gfx::Size(views::MenuConfig::instance().touchable_menu_min_width,
-                double_separator_->GetPreferredSize().height())));
+  double_separator_->SetBoundsRect(
+      gfx::Rect(gfx::Point(0, y),
+                gfx::Size(views::MenuConfig::instance().touchable_menu_width,
+                          double_separator_->GetPreferredSize().height())));
   y += double_separator_->GetPreferredSize().height();
 
   header_view_->SetBoundsRect(
@@ -175,8 +174,9 @@ const std::string& NotificationMenuView::GetDisplayedNotificationID() const {
 
 NotificationMenuView::NotificationItemViews::iterator
 NotificationMenuView::NotificationIterForId(const std::string& id) {
-  return base::ranges::find(notification_item_views_, id,
-                            &NotificationItemView::notification_id);
+  return std::find_if(
+      notification_item_views_.begin(), notification_item_views_.end(),
+      [id](const auto& item) { return item->notification_id() == id; });
 }
 
 }  // namespace ash

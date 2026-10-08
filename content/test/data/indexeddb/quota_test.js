@@ -1,20 +1,20 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 function test() {
-  if (navigator.storage) {
+  if (window.webkitStorageInfo) {
     window.jsTestIsAsync = true;
-    navigator.storage.estimate()
-        .then(initUsageCallback)
-        .catch(unexpectedErrorCallback);
+    navigator.webkitTemporaryStorage.queryUsageAndQuota(
+      initUsageCallback,
+      unexpectedErrorCallback);
   } else
-    debug('This test requires navigator.storage.');
+    debug("This test requires window.webkitStorageInfo.");
 }
 
-function initUsageCallback(result) {
-  origReturnedUsage = returnedUsage = result.usage;
-  origReturnedQuota = returnedQuota = result.quota;
+function initUsageCallback(usage, quota) {
+  origReturnedUsage = returnedUsage = usage;
+  origReturnedQuota = returnedQuota = quota;
   debug("original quota is " + displaySize(origReturnedQuota));
   debug("original usage is " + displaySize(origReturnedUsage));
 

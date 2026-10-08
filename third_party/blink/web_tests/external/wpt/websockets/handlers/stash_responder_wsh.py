@@ -1,7 +1,8 @@
 #!/usr/bin/python
+from six.moves import urllib
 import json
-import urllib
-from mod_pywebsocket import msgutil
+from mod_pywebsocket import common, msgutil, util
+from mod_pywebsocket.handshake import hybi
 from wptserve import stash
 
 address, authkey = stash.load_env_config()

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "base/values.h"
+#include "base/macros.h"
 #include "components/prefs/scoped_user_pref_update.h"
 
 class PrefService;
@@ -15,7 +15,7 @@ class PrefService;
 namespace arc {
 
 // Pref updater for ARC apps. Used in deferent pref sections.
-class ArcAppScopedPrefUpdate {
+class ArcAppScopedPrefUpdate : public DictionaryPrefUpdate {
  public:
   // This is used in following cases:
   // |path| is "arc.apps" - To update ARC apps preferences. In this case |id|
@@ -27,19 +27,15 @@ class ArcAppScopedPrefUpdate {
   ArcAppScopedPrefUpdate(PrefService* service,
                          const std::string& id,
                          const std::string& path);
+  ~ArcAppScopedPrefUpdate() override;
 
-  ArcAppScopedPrefUpdate(const ArcAppScopedPrefUpdate&) = delete;
-  ArcAppScopedPrefUpdate& operator=(const ArcAppScopedPrefUpdate&) = delete;
-
-  ~ArcAppScopedPrefUpdate();
-
-  base::Value::Dict& Get();
-
-  base::Value::Dict* operator->() { return &Get(); }
+  // DictionaryPrefUpdate:
+  base::DictionaryValue* Get() override;
 
  private:
   const std::string id_;
-  ScopedDictPrefUpdate pref_update_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppScopedPrefUpdate);
 };
 
 }  // namespace arc

@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/activity_services/activities/copy_activity.h"
 
 #import "ios/chrome/browser/ui/activity_services/data/share_to_data.h"
-#import "ios/chrome/browser/ui/icons/symbols.h"
 #import "ios/chrome/browser/ui/util/pasteboard_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
@@ -23,7 +22,7 @@ NSString* const kCopyActivityType = @"com.google.chrome.copyActivity";
 
 @interface CopyActivity ()
 
-@property(nonatomic, strong) NSArray<ShareToData*>* dataItems;
+@property(nonatomic, strong) ShareToData* data;
 
 @end
 
@@ -31,12 +30,11 @@ NSString* const kCopyActivityType = @"com.google.chrome.copyActivity";
 
 #pragma mark - Public
 
-- (instancetype)initWithDataItems:(NSArray<ShareToData*>*)dataItems {
-  DCHECK(dataItems);
-  DCHECK(dataItems.count);
+- (instancetype)initWithData:(ShareToData*)data {
+  DCHECK(data);
   self = [super init];
   if (self) {
-    _dataItems = dataItems;
+    _data = data;
   }
   return self;
 }
@@ -52,15 +50,11 @@ NSString* const kCopyActivityType = @"com.google.chrome.copyActivity";
 }
 
 - (UIImage*)activityImage {
-  if (UseSymbols()) {
-    return DefaultSymbolWithPointSize(kCopyActionSymbol,
-                                      kSymbolActionPointSize);
-  }
   return [UIImage imageNamed:@"activity_services_copy"];
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {
-  return !!self.dataItems && self.dataItems.count;
+  return !!self.data;
 }
 
 - (void)prepareWithActivityItems:(NSArray*)activityItems {
@@ -71,17 +65,12 @@ NSString* const kCopyActivityType = @"com.google.chrome.copyActivity";
 }
 
 - (void)performActivity {
-  [self activityDidFinish:YES];
-  if (self.dataItems.count == 1 && self.dataItems.firstObject.additionalText) {
-    StoreInPasteboard(self.dataItems.firstObject.additionalText,
-                      self.dataItems.firstObject.shareURL);
+  if (self.data.additionalText) {
+    StoreInPasteboard(self.data.additionalText, self.data.shareURL);
   } else {
-    std::vector<const GURL> urls;
-    for (ShareToData* shareToData in self.dataItems) {
-      urls.push_back(shareToData.shareURL);
-    }
-    StoreURLsInPasteboard(urls);
+    StoreURLInPasteboard(self.data.shareURL);
   }
+  [self activityDidFinish:YES];
 }
 
 @end

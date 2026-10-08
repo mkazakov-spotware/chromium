@@ -31,10 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_WINDOW_FEATURES_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_WINDOW_FEATURES_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
-
-#include "third_party/blink/public/common/navigation/impression.h"
-
 namespace blink {
 
 struct WebWindowFeatures {
@@ -64,12 +60,8 @@ struct WebWindowFeatures {
   bool noreferrer = false;
   bool background = false;
   bool persistent = false;
-
-  // Represents the attribution source declared by Attribution Reporting related
-  // window features, if any.
-  absl::optional<Impression> impression;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_WINDOW_FEATURES_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,8 @@
 @interface FakeChromeIdentityInteractionManager
     : ChromeIdentityInteractionManager
 
-// Identity that will be returned by the add account method if the dialog is
-// closed successfully.
-@property(nonatomic, strong, class) id<SystemIdentity> identity;
-
-// YES if the fake add account view is presented.
-@property(nonatomic, assign, readonly) BOOL viewControllerPresented;
+// Fake identity that will be returned by the add account method.
+@property(nonatomic, weak) ChromeIdentity* fakeIdentity;
 
 // Simulates a user tapping the sign-in button.
 - (void)addAccountViewControllerDidTapSignIn;
@@ -24,11 +20,8 @@
 // Simulates a user tapping the cancel button.
 - (void)addAccountViewControllerDidTapCancel;
 
-// Simulates the user encountering an error not handled by SystemIdentity.
+// Simulates the user encountering an error not handled by ChromeIdentity.
 - (void)addAccountViewControllerDidThrowUnhandledError;
-
-// Simulates the add account view being interrupted.
-- (void)addAccountViewControllerDidInterrupt;
 
 @end
 

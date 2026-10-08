@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -31,7 +30,7 @@ struct MainParams {
   MainParams(const MainParams& other);
   ~MainParams();
 
-  raw_ptr<MainDelegate> delegate;
+  MainDelegate* delegate;
 
   // If set, logging will redirect to this file.
   base::FilePath log_filename;
@@ -41,7 +40,7 @@ struct MainParams {
 };
 
 int Main(MainParams params
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #if !defined(WIN_CONSOLE_APP)
          ,
          HINSTANCE instance

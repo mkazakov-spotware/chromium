@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,6 @@ import android.graphics.drawable.Drawable;
 import android.hardware.biometrics.BiometricManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.hardware.fingerprint.FingerprintManagerCompat;
@@ -22,18 +19,12 @@ import androidx.preference.PreferenceScreen;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.autofill.AutofillEditorBase;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.CreditCard;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.payments.AndroidPaymentAppFactory;
 import org.chromium.chrome.browser.payments.ServiceWorkerPaymentAppBridge;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
-import org.chromium.components.autofill.VirtualCardEnrollmentState;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
-import org.chromium.components.payments.AndroidPaymentAppFactory;
 
 /**
  * Autofill credit cards fragment, which allows the user to edit credit cards and control
@@ -46,32 +37,13 @@ public class AutofillPaymentMethodsFragment extends PreferenceFragmentCompat
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         getActivity().setTitle(R.string.autofill_payment_methods);
-        setHasOptionsMenu(true);
+
         PreferenceScreen screen = getPreferenceManager().createPreferenceScreen(getStyledContext());
         // Suppresses unwanted animations while Preferences are removed from and re-added to the
         // screen.
         screen.setShouldUseGeneratedIds(false);
 
         setPreferenceScreen(screen);
-    }
-
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        menu.clear();
-        MenuItem help =
-                menu.add(Menu.NONE, R.id.menu_id_targeted_help, Menu.NONE, R.string.menu_help);
-        help.setIcon(R.drawable.ic_help_and_feedback);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.menu_id_targeted_help) {
-            HelpAndFeedbackLauncherImpl.getInstance().show(getActivity(),
-                    getActivity().getString(R.string.help_context_autofill),
-                    Profile.getLastUsedRegularProfile(), null);
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -105,7 +77,7 @@ public class AutofillPaymentMethodsFragment extends PreferenceFragmentCompat
             @Override
             public boolean isPreferenceClickDisabledByPolicy(Preference preference) {
                 return PersonalDataManager.isAutofillCreditCardManaged()
-                        && !PersonalDataManager.isAutofillCreditCardEnabled();
+                        && !PersonalDataManager.isAutofillProfileEnabled();
             }
         });
         getPreferenceScreen().addPreference(autofillSwitch);
@@ -131,22 +103,7 @@ public class AutofillPaymentMethodsFragment extends PreferenceFragmentCompat
             // line.
             card_pref.setSingleLineTitle(false);
             card_pref.setTitle(card.getCardLabel());
-
-            // Show virtual card enrollment status for eligible cards, expiration date otherwise.
-            if (ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.AUTOFILL_ENABLE_VIRTUAL_CARD_METADATA)) {
-                if (card.getVirtualCardEnrollmentState() == VirtualCardEnrollmentState.ENROLLED) {
-                    card_pref.setSummary(R.string.autofill_virtual_card_enrolled_text);
-                } else if (card.getVirtualCardEnrollmentState()
-                        == VirtualCardEnrollmentState.UNENROLLED_AND_ELIGIBLE) {
-                    card_pref.setSummary(R.string.autofill_virtual_card_enrollment_eligible_text);
-                } else {
-                    card_pref.setSummary(card.getFormattedExpirationDate(getActivity()));
-                }
-            } else {
-                card_pref.setSummary(card.getFormattedExpirationDate(getActivity()));
-            }
-
+            card_pref.setSummary(card.getFormattedExpirationDate(getActivity()));
             card_pref.setIcon(
                     AppCompatResources.getDrawable(getActivity(), card.getIssuerIconDrawableId()));
 
@@ -154,12 +111,7 @@ public class AutofillPaymentMethodsFragment extends PreferenceFragmentCompat
                 card_pref.setFragment(AutofillLocalCardEditor.class.getName());
             } else {
                 card_pref.setFragment(AutofillServerCardEditor.class.getName());
-                if (ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.AUTOFILL_ENABLE_VIRTUAL_CARD_METADATA)) {
-                    card_pref.setWidgetLayoutResource(R.layout.autofill_server_data_label);
-                } else {
-                    card_pref.setWidgetLayoutResource(R.layout.autofill_server_data_text_label);
-                }
+                card_pref.setWidgetLayoutResource(R.layout.autofill_server_data_label);
             }
 
             Bundle args = card_pref.getExtras();
@@ -173,7 +125,8 @@ public class AutofillPaymentMethodsFragment extends PreferenceFragmentCompat
             Preference add_card_pref = new Preference(getStyledContext());
             Drawable plusIcon = ApiCompatibilityUtils.getDrawable(getResources(), R.drawable.plus);
             plusIcon.mutate();
-            plusIcon.setColorFilter(SemanticColorUtils.getDefaultControlColorActive(getContext()),
+            plusIcon.setColorFilter(ApiCompatibilityUtils.getColor(
+                                            getResources(), R.color.default_control_color_active),
                     PorterDuff.Mode.SRC_IN);
             add_card_pref.setIcon(plusIcon);
             add_card_pref.setTitle(R.string.autofill_create_credit_card);

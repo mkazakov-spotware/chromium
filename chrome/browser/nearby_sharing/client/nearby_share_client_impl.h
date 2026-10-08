@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,11 @@
 
 #include "base/callback.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "chrome/browser/nearby_sharing/client/nearby_share_api_call_flow.h"
 #include "chrome/browser/nearby_sharing/client/nearby_share_client.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_http_result.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace signin {
@@ -33,8 +33,7 @@ class GoogleServiceAuthError;
 class NearbyShareHttpNotifier;
 
 // An implementation of NearbyShareClient that fetches access tokens for the
-// primary account and makes HTTP calls using NearbyShareApiCallFlow. Callbacks
-// are guaranteed to not be invoked after NearbyShareClientImpl is destroyed.
+// primary account and makes HTTP calls using NearbyShareApiCallFlow.
 class NearbyShareClientImpl : public NearbyShareClient {
  public:
   // Creates the client using |url_loader_factory| to make the HTTP request
@@ -86,8 +85,8 @@ class NearbyShareClientImpl : public NearbyShareClient {
   void MakeApiCall(
       const GURL& request_url,
       RequestType request_type,
-      const absl::optional<std::string>& serialized_request,
-      const absl::optional<NearbyShareApiCallFlow::QueryParameters>&
+      const base::Optional<std::string>& serialized_request,
+      const base::Optional<NearbyShareApiCallFlow::QueryParameters>&
           request_as_query_parameters,
       base::OnceCallback<void(const ResponseProto&)>&& response_callback,
       ErrorCallback&& error_callback,
@@ -98,8 +97,8 @@ class NearbyShareClientImpl : public NearbyShareClient {
   template <class ResponseProto>
   void OnAccessTokenFetched(
       RequestType request_type,
-      const absl::optional<std::string>& serialized_request,
-      const absl::optional<NearbyShareApiCallFlow::QueryParameters>&
+      const base::Optional<std::string>& serialized_request,
+      const base::Optional<NearbyShareApiCallFlow::QueryParameters>&
           request_as_query_parameters,
       base::OnceCallback<void(const ResponseProto&)>&& response_callback,
       GoogleServiceAuthError error,

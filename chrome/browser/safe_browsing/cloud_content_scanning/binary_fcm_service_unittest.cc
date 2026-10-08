@@ -1,13 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/cloud_content_scanning/binary_fcm_service.h"
-
-#include <memory>
-#include <set>
-#include <string>
-#include <utility>
 
 #include "base/base64.h"
 #include "base/callback_helpers.h"
@@ -32,8 +27,8 @@
 
 namespace safe_browsing {
 
+using ::testing::_;
 using ::testing::Invoke;
-using ::testing::NiceMock;
 using ::testing::Return;
 
 namespace {
@@ -46,12 +41,13 @@ std::unique_ptr<KeyedService> BuildFakeGCMProfileService(
 class MockInstanceIDDriver : public instance_id::InstanceIDDriver {
  public:
   MockInstanceIDDriver() : InstanceIDDriver(/*gcm_driver=*/nullptr) {}
-  MockInstanceIDDriver(const MockInstanceIDDriver&) = delete;
-  MockInstanceIDDriver& operator=(const MockInstanceIDDriver&) = delete;
   ~MockInstanceIDDriver() override = default;
 
   MOCK_METHOD1(GetInstanceID,
                instance_id::InstanceID*(const std::string& app_id));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockInstanceIDDriver);
 };
 
 class MockInstanceID : public instance_id::InstanceID {
@@ -59,10 +55,11 @@ class MockInstanceID : public instance_id::InstanceID {
   MockInstanceID() : InstanceID("", nullptr) {}
   ~MockInstanceID() override = default;
 
-  MOCK_METHOD5(GetToken,
+  MOCK_METHOD6(GetToken,
                void(const std::string& authorized_entity,
                     const std::string& scope,
                     base::TimeDelta time_to_live,
+                    const std::map<std::string, std::string>& options,
                     std::set<Flags> flags,
                     GetTokenCallback callback));
 
@@ -179,6 +176,89 @@ TEST_F(BinaryFCMServiceTest, RoutesMessages) {
   EXPECT_EQ(response2.request_token(), "");
 }
 
+TEST_F(BinaryFCMServiceTest, EmitsHasKeyHistogram) {
+  {
+    base::HistogramTester histograms;
+    gcm::IncomingMessage incoming_message;
+
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageHasKey", false, 1);
+  }
+  {
+    base::HistogramTester histograms;
+    gcm::IncomingMessage incoming_message;
+
+    incoming_message.data["proto"] = "proto";
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageHasKey", true, 1);
+  }
+}
+
+TEST_F(BinaryFCMServiceTest, EmitsMessageParsedHistogram) {
+  {
+    base::HistogramTester histograms;
+    gcm::IncomingMessage incoming_message;
+
+    incoming_message.data["proto"] = "invalid base 64";
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageParsedBase64", false, 1);
+  }
+  {
+    base::HistogramTester histograms;
+    gcm::IncomingMessage incoming_message;
+
+    incoming_message.data["proto"] = "invalid+proto+data==";
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageParsedBase64", true, 1);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageParsedProto", false, 1);
+  }
+  {
+    base::HistogramTester histograms;
+    gcm::IncomingMessage incoming_message;
+    enterprise_connectors::ContentAnalysisResponse message;
+    std::string serialized_message;
+
+    ASSERT_TRUE(message.SerializeToString(&serialized_message));
+    base::Base64Encode(serialized_message, &serialized_message);
+    incoming_message.data["proto"] = serialized_message;
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageParsedBase64", true, 1);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageParsedProto", true, 1);
+  }
+}
+
+TEST_F(BinaryFCMServiceTest, EmitsMessageHasValidTokenHistogram) {
+  gcm::IncomingMessage incoming_message;
+  enterprise_connectors::ContentAnalysisResponse message;
+
+  message.set_request_token("token1");
+  std::string serialized_message;
+  ASSERT_TRUE(message.SerializeToString(&serialized_message));
+  base::Base64Encode(serialized_message, &serialized_message);
+  incoming_message.data["proto"] = serialized_message;
+
+  {
+    base::HistogramTester histograms;
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageHasValidToken", false, 1);
+  }
+  {
+    binary_fcm_service_->SetCallbackForToken("token1", base::DoNothing());
+    base::HistogramTester histograms;
+    binary_fcm_service_->OnMessage("app_id", incoming_message);
+    histograms.ExpectUniqueSample(
+        "SafeBrowsingFCMService.IncomingMessageHasValidToken", true, 1);
+  }
+}
+
 TEST_F(BinaryFCMServiceTest, UnregisterToken) {
   // Get an instance ID
   std::string received_instance_id = BinaryFCMService::kInvalidId;
@@ -249,18 +329,19 @@ TEST_F(BinaryFCMServiceTest, UnregistersTokensOnShutdown) {
 }
 
 TEST_F(BinaryFCMServiceTest, UnregisterOneTokensOneCall) {
-  NiceMock<MockInstanceIDDriver> driver;
+  MockInstanceIDDriver driver;
   MockInstanceID instance_id;
-  ON_CALL(driver, GetInstanceID).WillByDefault(Return(&instance_id));
+  ON_CALL(driver, GetInstanceID(_)).WillByDefault(Return(&instance_id));
   binary_fcm_service_.reset();
   binary_fcm_service_ = std::make_unique<BinaryFCMService>(
       gcm::GCMProfileServiceFactory::GetForProfile(&profile_)->driver(),
       &driver);
 
-  EXPECT_CALL(instance_id, GetToken)
+  EXPECT_CALL(instance_id, GetToken(_, _, _, _, _, _))
       .Times(2)
       .WillRepeatedly(
           Invoke([](const std::string&, const std::string&, base::TimeDelta,
+                    const std::map<std::string, std::string>&,
                     std::set<instance_id::InstanceID::Flags>,
                     instance_id::InstanceID::GetTokenCallback callback) {
             std::move(callback).Run("token",
@@ -283,7 +364,7 @@ TEST_F(BinaryFCMServiceTest, UnregisterOneTokensOneCall) {
 
   content::RunAllTasksUntilIdle();
 
-  EXPECT_CALL(instance_id, DeleteToken)
+  EXPECT_CALL(instance_id, DeleteToken(_, _, _))
       .WillOnce(
           Invoke([](const std::string&, const std::string&,
                     instance_id::InstanceID::DeleteTokenCallback callback) {
@@ -297,17 +378,18 @@ TEST_F(BinaryFCMServiceTest, UnregisterOneTokensOneCall) {
 }
 
 TEST_F(BinaryFCMServiceTest, UnregisterTwoTokensTwoCalls) {
-  NiceMock<MockInstanceIDDriver> driver;
+  MockInstanceIDDriver driver;
   MockInstanceID instance_id;
-  ON_CALL(driver, GetInstanceID).WillByDefault(Return(&instance_id));
+  ON_CALL(driver, GetInstanceID(_)).WillByDefault(Return(&instance_id));
   binary_fcm_service_.reset();
   binary_fcm_service_ = std::make_unique<BinaryFCMService>(
       gcm::GCMProfileServiceFactory::GetForProfile(&profile_)->driver(),
       &driver);
 
-  EXPECT_CALL(instance_id, GetToken)
+  EXPECT_CALL(instance_id, GetToken(_, _, _, _, _, _))
       .WillOnce(
           Invoke([](const std::string&, const std::string&, base::TimeDelta,
+                    const std::map<std::string, std::string>&,
                     std::set<instance_id::InstanceID::Flags>,
                     instance_id::InstanceID::GetTokenCallback callback) {
             std::move(callback).Run("token",
@@ -315,6 +397,7 @@ TEST_F(BinaryFCMServiceTest, UnregisterTwoTokensTwoCalls) {
           }))
       .WillOnce(
           Invoke([](const std::string&, const std::string&, base::TimeDelta,
+                    const std::map<std::string, std::string>&,
                     std::set<instance_id::InstanceID::Flags>,
                     instance_id::InstanceID::GetTokenCallback callback) {
             std::move(callback).Run("token 2",
@@ -337,7 +420,7 @@ TEST_F(BinaryFCMServiceTest, UnregisterTwoTokensTwoCalls) {
 
   content::RunAllTasksUntilIdle();
 
-  EXPECT_CALL(instance_id, DeleteToken)
+  EXPECT_CALL(instance_id, DeleteToken(_, _, _))
       .Times(2)
       .WillOnce(
           Invoke([](const std::string&, const std::string&,
@@ -352,9 +435,9 @@ TEST_F(BinaryFCMServiceTest, UnregisterTwoTokensTwoCalls) {
 }
 
 TEST_F(BinaryFCMServiceTest, UnregisterTwoTokenConflict) {
-  NiceMock<MockInstanceIDDriver> driver;
+  MockInstanceIDDriver driver;
   MockInstanceID instance_id;
-  ON_CALL(driver, GetInstanceID).WillByDefault(Return(&instance_id));
+  ON_CALL(driver, GetInstanceID(_)).WillByDefault(Return(&instance_id));
   binary_fcm_service_.reset();
   binary_fcm_service_ = std::make_unique<BinaryFCMService>(
       gcm::GCMProfileServiceFactory::GetForProfile(&profile_)->driver(),
@@ -365,17 +448,18 @@ TEST_F(BinaryFCMServiceTest, UnregisterTwoTokenConflict) {
 
   // Both calls to GetToken return the same value since we mock a case where the
   // second GetToken call happens before the first DeleteToken call resolves.
-  EXPECT_CALL(instance_id, GetToken)
+  EXPECT_CALL(instance_id, GetToken(_, _, _, _, _, _))
       .Times(2)
       .WillRepeatedly(
           Invoke([](const std::string&, const std::string&, base::TimeDelta,
+                    const std::map<std::string, std::string>&,
                     std::set<instance_id::InstanceID::Flags>,
                     instance_id::InstanceID::GetTokenCallback callback) {
             std::move(callback).Run("token",
                                     instance_id::InstanceID::Result::SUCCESS);
           }));
 
-  EXPECT_CALL(instance_id, DeleteToken)
+  EXPECT_CALL(instance_id, DeleteToken(_, _, _))
       .WillOnce(
           Invoke([this, &second_id](
                      const std::string&, const std::string&,
@@ -400,7 +484,7 @@ TEST_F(BinaryFCMServiceTest, UnregisterTwoTokenConflict) {
   task_environment_.RunUntilIdle();
 
   // Unregister the second token.
-  EXPECT_CALL(instance_id, DeleteToken)
+  EXPECT_CALL(instance_id, DeleteToken(_, _, _))
       .WillOnce(
           Invoke([](const std::string&, const std::string&,
                     instance_id::InstanceID::DeleteTokenCallback callback) {
@@ -413,17 +497,18 @@ TEST_F(BinaryFCMServiceTest, UnregisterTwoTokenConflict) {
 }
 
 TEST_F(BinaryFCMServiceTest, QueuesGetInstanceIDOnRetriableError) {
-  NiceMock<MockInstanceIDDriver> driver;
+  MockInstanceIDDriver driver;
   MockInstanceID instance_id;
-  ON_CALL(driver, GetInstanceID).WillByDefault(Return(&instance_id));
+  ON_CALL(driver, GetInstanceID(_)).WillByDefault(Return(&instance_id));
   binary_fcm_service_.reset();
   binary_fcm_service_ = std::make_unique<BinaryFCMService>(
       gcm::GCMProfileServiceFactory::GetForProfile(&profile_)->driver(),
       &driver);
 
-  EXPECT_CALL(instance_id, GetToken)
+  EXPECT_CALL(instance_id, GetToken(_, _, _, _, _, _))
       .WillOnce(
           Invoke([](const std::string&, const std::string&, base::TimeDelta,
+                    const std::map<std::string, std::string>&,
                     std::set<instance_id::InstanceID::Flags>,
                     instance_id::InstanceID::GetTokenCallback callback) {
             std::move(callback).Run(
@@ -431,6 +516,7 @@ TEST_F(BinaryFCMServiceTest, QueuesGetInstanceIDOnRetriableError) {
           }))
       .WillOnce(
           Invoke([](const std::string&, const std::string&, base::TimeDelta,
+                    const std::map<std::string, std::string>&,
                     std::set<instance_id::InstanceID::Flags>,
                     instance_id::InstanceID::GetTokenCallback callback) {
             std::move(callback).Run("token",

@@ -1,10 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/quota_service.h"
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/common/error_utils.h"
 
@@ -24,9 +24,10 @@ bool g_purge_disabled_for_testing = false;
 namespace extensions {
 
 QuotaService::QuotaService() {
-  if (!g_purge_disabled_for_testing &&
-      base::SingleThreadTaskRunner::HasCurrentDefault()) {
-    purge_timer_.Start(FROM_HERE, base::Days(kPurgeIntervalInDays), this,
+  if (!g_purge_disabled_for_testing && base::ThreadTaskRunnerHandle::IsSet()) {
+    purge_timer_.Start(FROM_HERE,
+                       base::TimeDelta::FromDays(kPurgeIntervalInDays),
+                       this,
                        &QuotaService::Purge);
   }
 }
@@ -39,7 +40,7 @@ QuotaService::~QuotaService() {
 
 std::string QuotaService::Assess(const std::string& extension_id,
                                  ExtensionFunction* function,
-                                 const base::Value::List& args,
+                                 const base::ListValue* args,
                                  const base::TimeTicks& event_time) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
@@ -57,7 +58,7 @@ std::string QuotaService::Assess(const std::string& extension_id,
   if (heuristics.empty())
     return std::string();  // No heuristic implies no limit.
 
-  QuotaLimitHeuristic* failed_heuristic = nullptr;
+  QuotaLimitHeuristic* failed_heuristic = NULL;
   for (const auto& heuristic : heuristics) {
     // Apply heuristic to each item (bucket).
     if (!heuristic->ApplyToArgs(args, event_time)) {
@@ -99,7 +100,7 @@ void QuotaLimitHeuristic::Bucket::Reset(const Config& config,
 }
 
 void QuotaLimitHeuristic::SingletonBucketMapper::GetBucketsForArgs(
-    const base::Value::List& args,
+    const base::ListValue* args,
     BucketList* buckets) {
   buckets->push_back(&bucket_);
 }
@@ -111,7 +112,7 @@ QuotaLimitHeuristic::QuotaLimitHeuristic(const Config& config,
 
 QuotaLimitHeuristic::~QuotaLimitHeuristic() {}
 
-bool QuotaLimitHeuristic::ApplyToArgs(const base::Value::List& args,
+bool QuotaLimitHeuristic::ApplyToArgs(const base::ListValue* args,
                                       const base::TimeTicks& event_time) {
   BucketList buckets;
   bucket_mapper_->GetBucketsForArgs(args, &buckets);

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 #include "base/memory/scoped_refptr.h"
-#include "base/test/task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
@@ -46,7 +45,6 @@ sk_sp<SkImage> CreateFrameAtIndex(DeferredImageDecoder* decoder, size_t index) {
 static void MixImages(const char* file_name,
                       size_t bytes_for_first_frame,
                       size_t later_frame) {
-  base::test::SingleThreadTaskEnvironment task_environment;
   const Vector<char> file = ReadFile(file_name)->CopyAs<Vector<char>>();
 
   scoped_refptr<SharedBuffer> partial_file =
@@ -95,7 +93,6 @@ TEST(DeferredImageDecoderTestWoPlatform, mixImagesIco) {
 }
 
 TEST(DeferredImageDecoderTestWoPlatform, fragmentedSignature) {
-  base::test::SingleThreadTaskEnvironment task_environment;
   const char* test_files[] = {
       "/images/resources/animated.gif",
       "/images/resources/mu.png",

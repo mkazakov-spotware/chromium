@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "base/callback_forward.h"
+#include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
 #include "components/sync/model/sync_data.h"
@@ -28,7 +28,7 @@ class Value;
 namespace sync_pb {
 class EntitySpecifics;
 class PreferenceSpecifics;
-}  // namespace sync_pb
+}
 
 namespace sync_preferences {
 
@@ -46,10 +46,6 @@ class PrefModelAssociator : public syncer::SyncableService {
   PrefModelAssociator(const PrefModelAssociatorClient* client,
                       syncer::ModelType type,
                       PersistentPrefStore* user_pref_store);
-
-  PrefModelAssociator(const PrefModelAssociator&) = delete;
-  PrefModelAssociator& operator=(const PrefModelAssociator&) = delete;
-
   ~PrefModelAssociator() override;
 
   // See description above field for details.
@@ -63,13 +59,13 @@ class PrefModelAssociator : public syncer::SyncableService {
 
   // syncer::SyncableService implementation.
   void WaitUntilReadyToSync(base::OnceClosure done) override;
-  absl::optional<syncer::ModelError> MergeDataAndStartSyncing(
+  base::Optional<syncer::ModelError> MergeDataAndStartSyncing(
       syncer::ModelType type,
       const syncer::SyncDataList& initial_sync_data,
       std::unique_ptr<syncer::SyncChangeProcessor> sync_processor,
       std::unique_ptr<syncer::SyncErrorFactory> sync_error_factory) override;
   void StopSyncing(syncer::ModelType type) override;
-  absl::optional<syncer::ModelError> ProcessSyncChanges(
+  base::Optional<syncer::ModelError> ProcessSyncChanges(
       const base::Location& from_here,
       const syncer::SyncChangeList& change_list) override;
   // Note for GetAllSyncDataForTesting: This will build a model of all
@@ -99,9 +95,9 @@ class PrefModelAssociator : public syncer::SyncableService {
   // value always takes precedence. Note that only certain preferences will
   // actually be merged, all others will return a copy of the server value. See
   // the method's implementation for details.
-  base::Value MergePreference(const std::string& name,
-                              const base::Value& local_value,
-                              const base::Value& server_value);
+  std::unique_ptr<base::Value> MergePreference(const std::string& name,
+                                               const base::Value& local_value,
+                                               const base::Value& server_value);
 
   // Fills |sync_data| with a sync representation of the preference data
   // provided.
@@ -144,15 +140,15 @@ class PrefModelAssociator : public syncer::SyncableService {
                             const std::string& pref_name,
                             syncer::SyncChangeList* sync_changes);
 
-  static base::Value::List MergeListValues(const base::Value::List& from_value,
-                                           const base::Value::List& to_value);
+  static std::unique_ptr<base::Value> MergeListValues(
+      const base::Value& from_value,
+      const base::Value& to_value);
 
-  static base::Value::Dict MergeDictionaryValues(
-      const base::Value::Dict& from_value,
-      const base::Value::Dict& to_value);
+  static base::Value MergeDictionaryValues(const base::Value& from_value,
+                                           const base::Value& to_value);
 
   // Extract preference value from sync specifics.
-  static absl::optional<base::Value> ReadPreferenceSpecifics(
+  static base::Optional<base::Value> ReadPreferenceSpecifics(
       const sync_pb::PreferenceSpecifics& specifics);
 
   void NotifySyncedPrefObservers(const std::string& path, bool from_sync) const;
@@ -172,10 +168,6 @@ class PrefModelAssociator : public syncer::SyncableService {
   // matches the type of any persisted value. On mismatch, the persisted value
   // gets removed.
   void EnforceRegisteredTypeInStore(const std::string& pref_name);
-
-  // Notifies the synced pref observers that the pref for the given |path| is
-  // synced.
-  void NotifyStartedSyncing(const std::string& path) const;
 
   // Do we have an active association between the preferences and sync models?
   // Set when start syncing, reset in StopSyncing. While this is not set, we
@@ -210,7 +202,7 @@ class PrefModelAssociator : public syncer::SyncableService {
   PreferenceSet legacy_model_type_preferences_;
 
   // The PrefService we are syncing to.
-  raw_ptr<PrefServiceSyncable> pref_service_ = nullptr;
+  PrefServiceSyncable* pref_service_ = nullptr;
 
   // Sync's syncer::SyncChange handler. We push all our changes through this.
   std::unique_ptr<syncer::SyncChangeProcessor> sync_processor_;
@@ -229,11 +221,13 @@ class PrefModelAssociator : public syncer::SyncableService {
       base::ObserverList<SyncedPrefObserver>::Unchecked;
   std::unordered_map<std::string, std::unique_ptr<SyncedPrefObserverList>>
       synced_pref_observers_;
-  raw_ptr<const PrefModelAssociatorClient> client_;  // Weak.
+  const PrefModelAssociatorClient* client_;  // Weak.
 
-  const raw_ptr<PersistentPrefStore> user_pref_store_;
+  PersistentPrefStore* const user_pref_store_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(PrefModelAssociator);
 };
 
 }  // namespace sync_preferences

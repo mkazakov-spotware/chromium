@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,19 +20,20 @@ ExtensionMigrator::ExtensionMigrator(Profile* profile,
                                      const std::string& new_id)
     : profile_(profile), old_id_(old_id), new_id_(new_id) {}
 
-ExtensionMigrator::~ExtensionMigrator() = default;
+ExtensionMigrator::~ExtensionMigrator() {
+}
 
 void ExtensionMigrator::StartLoading() {
-  auto prefs = base::Value::Dict();
+  auto prefs = std::make_unique<base::DictionaryValue>();
 
   const bool should_have_extension =
       IsAppPresent(old_id_) || IsAppPresent(new_id_);
   if (should_have_extension) {
-    base::Value::Dict entry;
-    entry.Set(ExternalProviderImpl::kExternalUpdateUrl,
-              extension_urls::GetWebstoreUpdateUrl().spec());
+    std::unique_ptr<base::DictionaryValue> entry(new base::DictionaryValue);
+    entry->SetKey(ExternalProviderImpl::kExternalUpdateUrl,
+                  base::Value(extension_urls::GetWebstoreUpdateUrl().spec()));
 
-    prefs.Set(new_id_, std::move(entry));
+    prefs->SetWithoutPathExpansion(new_id_, std::move(entry));
   }
 
   LoadFinished(std::move(prefs));

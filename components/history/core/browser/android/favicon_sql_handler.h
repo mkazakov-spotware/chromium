@@ -1,11 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_HISTORY_CORE_BROWSER_ANDROID_FAVICON_SQL_HANDLER_H_
 #define COMPONENTS_HISTORY_CORE_BROWSER_ANDROID_FAVICON_SQL_HANDLER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/history/core/browser/android/sql_handler.h"
 
 namespace favicon {
@@ -18,10 +18,6 @@ namespace history {
 class FaviconSQLHandler : public SQLHandler {
  public:
   explicit FaviconSQLHandler(favicon::FaviconDatabase* favicon_db);
-
-  FaviconSQLHandler(const FaviconSQLHandler&) = delete;
-  FaviconSQLHandler& operator=(const FaviconSQLHandler&) = delete;
-
   ~FaviconSQLHandler() override;
 
   // SQLHandler overrides:
@@ -35,7 +31,9 @@ class FaviconSQLHandler : public SQLHandler {
   // true if all unused favicons are deleted.
   bool DeleteUnusedFavicon(const std::vector<favicon_base::FaviconID>& ids);
 
-  raw_ptr<favicon::FaviconDatabase> favicon_db_;
+  favicon::FaviconDatabase* favicon_db_;
+
+  DISALLOW_COPY_AND_ASSIGN(FaviconSQLHandler);
 };
 
 }  // namespace history.

@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/device_sharing/device_sharing_browser_agent.h"
 
-#import <memory>
+#include <memory>
 
 #import "components/handoff/handoff_manager.h"
 #import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
@@ -14,7 +14,7 @@
 #import "ios/chrome/browser/main/test_browser.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "net/base/mac/url_conversions.h"
 #import "testing/gtest_mac.h"
@@ -53,18 +53,18 @@ class DeviceSharingBrowserAgentTest : public PlatformTest {
     return [sharing_manager->handoff_manager_ userActivityWebpageURL];
   }
 
-  web::FakeWebState* AppendNewWebState(Browser* browser, const GURL url) {
+  web::TestWebState* AppendNewWebState(Browser* browser, const GURL url) {
     return AppendNewWebState(browser, url, WebStateList::INSERT_ACTIVATE);
   }
 
-  web::FakeWebState* AppendNewWebState(Browser* browser,
+  web::TestWebState* AppendNewWebState(Browser* browser,
                                        const GURL url,
                                        WebStateList::InsertionFlags flags) {
-    auto fake_web_state = std::make_unique<web::FakeWebState>();
-    fake_web_state->SetCurrentURL(url);
-    web::FakeWebState* inserted_web_state = fake_web_state.get();
+    auto test_web_state = std::make_unique<web::TestWebState>();
+    test_web_state->SetCurrentURL(url);
+    web::TestWebState* inserted_web_state = test_web_state.get();
     browser->GetWebStateList()->InsertWebState(WebStateList::kInvalidIndex,
-                                               std::move(fake_web_state), flags,
+                                               std::move(test_web_state), flags,
                                                WebStateOpener());
     return inserted_web_state;
   }
@@ -93,7 +93,7 @@ TEST_F(DeviceSharingBrowserAgentTest, UpdatePopulatedBrowser) {
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
   AppendNewWebState(browser_.get(), url_1_);
   DeviceSharingBrowserAgent::CreateForBrowser(browser_.get());
-  // `browser_` isn't the active browser in the device manager yet, so expect
+  // |browser_| isn't the active browser in the device manager yet, so expect
   // the active URL hasn't yet changed.
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
   DeviceSharingBrowserAgent::FromBrowser(browser_.get())
@@ -116,7 +116,7 @@ TEST_F(DeviceSharingBrowserAgentTest, ActivateInBrowser) {
 
 TEST_F(DeviceSharingBrowserAgentTest, NavigateInBrowser) {
   DeviceSharingBrowserAgent::CreateForBrowser(browser_.get());
-  web::FakeWebState* web_state = AppendNewWebState(browser_.get(), url_1_);
+  web::TestWebState* web_state = AppendNewWebState(browser_.get(), url_1_);
   DeviceSharingBrowserAgent::FromBrowser(browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_1_));
@@ -129,7 +129,7 @@ TEST_F(DeviceSharingBrowserAgentTest, NavigateInBrowser) {
 
 TEST_F(DeviceSharingBrowserAgentTest, NavigateInactiveInBrowser) {
   DeviceSharingBrowserAgent::CreateForBrowser(browser_.get());
-  web::FakeWebState* web_state =
+  web::TestWebState* web_state =
       AppendNewWebState(browser_.get(), url_1_, WebStateList::INSERT_NO_FLAGS);
   AppendNewWebState(browser_.get(), url_2_);
 
@@ -175,7 +175,7 @@ TEST_F(DeviceSharingBrowserAgentTest, ActivateInIncognitoBrowser) {
 
 TEST_F(DeviceSharingBrowserAgentTest, NavigateInIncognitoBrowser) {
   DeviceSharingBrowserAgent::CreateForBrowser(incognito_browser_.get());
-  web::FakeWebState* incognito_web_state =
+  web::TestWebState* incognito_web_state =
       AppendNewWebState(incognito_browser_.get(), url_1_);
 
   incognito_web_state->SetVisibleURL(url_2_);
@@ -216,30 +216,30 @@ TEST_F(DeviceSharingBrowserAgentTest, UpdateTwoPopulatedBrowsers) {
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_2_));
 
-  // Append to `browser_`, but expect no change in active URL as `browser_`
+  // Append to |browser_|, but expect no change in active URL as |browser_|
   // isn't active.
   AppendNewWebState(browser_.get(), url_3_);
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_2_));
 
-  // Now make `browser_` active and its URL should be the active one.
+  // Now make |browser_| active and its URL should be the active one.
   DeviceSharingBrowserAgent::FromBrowser(browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_3_));
 
-  // Destroy `browser_` and the ative browser should be cleared.
+  // Destroy |browser_| and the ative browser should be cleared.
   browser_.reset();
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
 
-  // Activate `other_browser_` and its URL should become active again.
+  // Activate |other_browser_| and its URL should become active again.
   DeviceSharingBrowserAgent::FromBrowser(other_browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_2_));
 }
 
 TEST_F(DeviceSharingBrowserAgentTest, UpdateAndNavigateTwoBrowsers) {
-  web::FakeWebState* web_state = AppendNewWebState(browser_.get(), url_1_);
+  web::TestWebState* web_state = AppendNewWebState(browser_.get(), url_1_);
   DeviceSharingBrowserAgent::CreateForBrowser(browser_.get());
-  web::FakeWebState* other_web_state =
+  web::TestWebState* other_web_state =
       AppendNewWebState(other_browser_.get(), url_2_);
   DeviceSharingBrowserAgent::CreateForBrowser(other_browser_.get());
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
@@ -252,24 +252,24 @@ TEST_F(DeviceSharingBrowserAgentTest, UpdateAndNavigateTwoBrowsers) {
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_2_));
 
-  // Navigate in `browser_`, but expect no change in active URL as `browser_`
+  // Navigate in |browser_|, but expect no change in active URL as |browser_|
   // isn't active.
   web_state->SetVisibleURL(url_3_);
   web_state->OnNavigationFinished(nullptr);
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_2_));
 
-  // Now make `browser_` active and its URL should be the active one.
+  // Now make |browser_| active and its URL should be the active one.
   DeviceSharingBrowserAgent::FromBrowser(browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_3_));
 
-  // Navigate in `other_browser_`, but again expect no change because it isn't
+  // Navigate in |other_browser_|, but again expect no change because it isn't
   // active.
   other_web_state->SetVisibleURL(url_4_);
   other_web_state->OnNavigationFinished(nullptr);
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_3_));
 
-  // Activate `other_browser` and observe the navigated URL
+  // Activate |other_browser| and observe the navigated URL
   DeviceSharingBrowserAgent::FromBrowser(other_browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_4_));
@@ -290,21 +290,21 @@ TEST_F(DeviceSharingBrowserAgentTest, UpdateRegularAndIncognitoBrowsers) {
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
 
-  // Append to `browser_`, but expect no change in active URL as `browser_`
+  // Append to |browser_|, but expect no change in active URL as |browser_|
   // isn't active.
   AppendNewWebState(browser_.get(), url_3_);
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
 
-  // Now make `browser_` active and its URL should be the active one.
+  // Now make |browser_| active and its URL should be the active one.
   DeviceSharingBrowserAgent::FromBrowser(browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_3_));
 }
 
 TEST_F(DeviceSharingBrowserAgentTest, NavigateInRegularAndIncognitoBrowsers) {
-  web::FakeWebState* web_state = AppendNewWebState(browser_.get(), url_1_);
+  web::TestWebState* web_state = AppendNewWebState(browser_.get(), url_1_);
   DeviceSharingBrowserAgent::CreateForBrowser(browser_.get());
-  web::FakeWebState* incognito_web_state =
+  web::TestWebState* incognito_web_state =
       AppendNewWebState(incognito_browser_.get(), url_2_);
   DeviceSharingBrowserAgent::CreateForBrowser(incognito_browser_.get());
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
@@ -317,24 +317,24 @@ TEST_F(DeviceSharingBrowserAgentTest, NavigateInRegularAndIncognitoBrowsers) {
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
 
-  // Navigate in `browser_`, but expect no change in active URL as `browser_`
+  // Navigate in |browser_|, but expect no change in active URL as |browser_|
   // isn't active.
   web_state->SetVisibleURL(url_3_);
   web_state->OnNavigationFinished(nullptr);
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);
 
-  // Now make `browser_` active and its URL should be the active one.
+  // Now make |browser_| active and its URL should be the active one.
   DeviceSharingBrowserAgent::FromBrowser(browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_3_));
 
-  // Navigate in `incognito_browser_`, but again expect no change because it
+  // Navigate in |incognito_browser_|, but again expect no change because it
   // isn't active.
   incognito_web_state->SetVisibleURL(url_4_);
   incognito_web_state->OnNavigationFinished(nullptr);
   EXPECT_NSEQ(ActiveHandoffUrl(), net::NSURLWithGURL(url_3_));
 
-  // Activate `incognito_browser_` and observe no URL.
+  // Activate |incognito_browser_| and observe no URL.
   DeviceSharingBrowserAgent::FromBrowser(incognito_browser_.get())
       ->UpdateForActiveBrowser();
   EXPECT_NSEQ(ActiveHandoffUrl(), nil);

@@ -29,13 +29,6 @@
 
 #include "third_party/blink/renderer/core/editing/serializers/serialization.h"
 
-#include "base/memory/weak_ptr.h"
-#include "services/network/public/cpp/resource_request.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
-#include "third_party/blink/public/common/tokens/tokens.h"
-#include "third_party/blink/public/platform/web_back_forward_cache_loader_helper.h"
-#include "third_party/blink/public/platform/web_url_loader_client.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
 #include "third_party/blink/renderer/core/css/css_value.h"
@@ -79,14 +72,12 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/runtime_call_stats.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
-
-using TaskRunnerHandle = scheduler::WebResourceLoadingTaskRunnerHandle;
 
 class AttributeChange {
   DISALLOW_NEW();
@@ -115,117 +106,6 @@ WTF_ALLOW_INIT_WITH_MEM_FUNCTIONS(blink::AttributeChange)
 
 namespace blink {
 
-namespace {
-
-class FailingLoader final : public WebURLLoader {
- public:
-  explicit FailingLoader(
-      std::unique_ptr<TaskRunnerHandle> freezable_task_runner_handle,
-      std::unique_ptr<TaskRunnerHandle> unfreezable_task_runner_handle)
-      : freezable_task_runner_handle_(std::move(freezable_task_runner_handle)),
-        unfreezable_task_runner_handle_(
-            std::move(unfreezable_task_runner_handle)) {}
-  ~FailingLoader() override = default;
-
-  // WebURLLoader implementation:
-  void LoadSynchronously(
-      std::unique_ptr<network::ResourceRequest> request,
-      scoped_refptr<WebURLRequestExtraData> url_request_extra_data,
-      bool pass_response_pipe_to_client,
-      bool no_mime_sniffing,
-      base::TimeDelta timeout_interval,
-      WebURLLoaderClient*,
-      WebURLResponse&,
-      absl::optional<WebURLError>& error,
-      WebData&,
-      int64_t& encoded_data_length,
-      int64_t& encoded_body_length,
-      WebBlobInfo& downloaded_blob,
-      std::unique_ptr<blink::ResourceLoadInfoNotifierWrapper>
-          resource_load_info_notifier_wrapper) override {
-    error.emplace(ResourceError::Failure(KURL(request->url)));
-  }
-  void LoadAsynchronously(
-      std::unique_ptr<network::ResourceRequest> request,
-      scoped_refptr<WebURLRequestExtraData> url_request_extra_data,
-      bool no_mime_sniffing,
-      std::unique_ptr<blink::ResourceLoadInfoNotifierWrapper>
-          resource_load_info_notifier_wrapper,
-      WebURLLoaderClient* client) override {
-    url_ = KURL(request->url);
-    client_ = client;
-    freezable_task_runner_handle_->GetTaskRunner()->PostTask(
-        FROM_HERE,
-        WTF::BindOnce(&FailingLoader::Fail, weak_ptr_factory_.GetWeakPtr()));
-  }
-  void Freeze(LoaderFreezeMode mode) override {
-    mode_ = mode;
-    if (mode_ != LoaderFreezeMode::kNone || !client_) {
-      return;
-    }
-    freezable_task_runner_handle_->GetTaskRunner()->PostTask(
-        FROM_HERE,
-        WTF::BindOnce(&FailingLoader::Fail, weak_ptr_factory_.GetWeakPtr()));
-  }
-  void DidChangePriority(WebURLRequest::Priority, int) override {}
-  scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunnerForBodyLoader()
-      override {
-    return freezable_task_runner_handle_->GetTaskRunner();
-  }
-
- private:
-  void Fail() {
-    if (mode_ != LoaderFreezeMode::kNone || !client_) {
-      return;
-    }
-
-    auto* client = client_;
-    client_ = nullptr;
-    client->DidFail(static_cast<WebURLError>(ResourceError::Failure(url_)),
-                    /*finish_time=*/base::TimeTicks::Now(),
-                    /*total_encoded_data_length=*/0,
-                    /*total_encoded_body_length=*/0,
-                    /*total_decoded_body_length=*/0);
-  }
-
-  KURL url_;
-  WebURLLoaderClient* client_ = nullptr;
-  LoaderFreezeMode mode_ = LoaderFreezeMode::kNone;
-
-  const std::unique_ptr<TaskRunnerHandle> freezable_task_runner_handle_;
-  const std::unique_ptr<TaskRunnerHandle> unfreezable_task_runner_handle_;
-
-  // This must be the last member.
-  base::WeakPtrFactory<FailingLoader> weak_ptr_factory_{this};
-};
-
-class FailingLoaderFactory final : public WebURLLoaderFactory {
- public:
-  // WebURLLoaderFactory implementation:
-  std::unique_ptr<WebURLLoader> CreateURLLoader(
-      const WebURLRequest&,
-      std::unique_ptr<TaskRunnerHandle> freezable_task_runner_handle,
-      std::unique_ptr<TaskRunnerHandle> unfreezable_task_runner_handle,
-      CrossVariantMojoRemote<mojom::KeepAliveHandleInterfaceBase>
-          keep_alive_handle,
-      WebBackForwardCacheLoaderHelper back_forward_cache_loader_helper)
-      override {
-    return std::make_unique<FailingLoader>(
-        std::move(freezable_task_runner_handle),
-        std::move(unfreezable_task_runner_handle));
-  }
-};
-
-class EmptyLocalFrameClientWithFailingLoaderFactory final
-    : public EmptyLocalFrameClient {
- public:
-  std::unique_ptr<WebURLLoaderFactory> CreateURLLoaderFactory() override {
-    return std::make_unique<FailingLoaderFactory>();
-  }
-};
-
-}  // namespace
-
 static void CompleteURLs(DocumentFragment& fragment, const String& base_url) {
   HeapVector<AttributeChange> changes;
 
@@ -235,7 +115,7 @@ static void CompleteURLs(DocumentFragment& fragment, const String& base_url) {
     AttributeCollection attributes = element.Attributes();
     // AttributeCollection::iterator end = attributes.end();
     for (const auto& attribute : attributes) {
-      if (element.IsURLAttribute(attribute) && !attribute.Value().empty())
+      if (element.IsURLAttribute(attribute) && !attribute.Value().IsEmpty())
         changes.push_back(AttributeChange(
             &element, attribute.GetName(),
             KURL(parsed_base_url, attribute.Value()).GetString()));
@@ -317,7 +197,12 @@ static HTMLElement* HighestAncestorToWrapMarkup(
           FirstPositionInOrBeforeNode(*first_node);
       if (Node* parent_list_node =
               EnclosingNodeOfType(first_node_position, IsListItem)) {
-        if (AreSameRanges(parent_list_node, start_position, end_position)) {
+        EphemeralRangeTemplate<Strategy> markup_range =
+            EphemeralRangeTemplate<Strategy>(start_position, end_position);
+        EphemeralRangeTemplate<Strategy> node_range =
+            NormalizeRange(EphemeralRangeTemplate<Strategy>::RangeOfContents(
+                *parent_list_node));
+        if (node_range == markup_range) {
           ContainerNode* ancestor = parent_list_node->parentNode();
           while (ancestor && !IsHTMLListElement(ancestor))
             ancestor = ancestor->parentNode();
@@ -451,7 +336,7 @@ DocumentFragment* CreateFragmentFromMarkup(
 
   fragment->ParseHTML(markup, fake_body, parser_content_policy);
 
-  if (!base_url.empty() && base_url != BlankURL() &&
+  if (!base_url.IsEmpty() && base_url != BlankURL() &&
       base_url != document.BaseURL())
     CompleteURLs(*fragment, base_url);
 
@@ -531,9 +416,8 @@ DocumentFragment* CreateFragmentFromMarkupWithContext(
     return nullptr;
 
   auto* tagged_document = MakeGarbageCollected<Document>(
-      DocumentInit::Create()
-          .WithExecutionContext(document.GetExecutionContext())
-          .WithAgent(document.GetAgent()));
+      DocumentInit::Create().WithExecutionContext(
+          document.GetExecutionContext()));
   tagged_document->SetContextFeatures(document.GetContextFeatures());
 
   auto* root =
@@ -585,7 +469,7 @@ static void FillContainerFromString(ContainerNode* paragraph,
                                     const String& string) {
   Document& document = paragraph->GetDocument();
 
-  if (string.empty()) {
+  if (string.IsEmpty()) {
     paragraph->AppendChild(MakeGarbageCollected<HTMLBRElement>(document));
     return;
   }
@@ -601,8 +485,8 @@ static void FillContainerFromString(ContainerNode* paragraph,
     const String& s = tab_list[i];
 
     // append the non-tab textual part
-    if (!s.empty()) {
-      if (!tab_text.empty()) {
+    if (!s.IsEmpty()) {
+      if (!tab_text.IsEmpty()) {
         paragraph->AppendChild(
             CreateTabSpanElement(document, tab_text.ToString()));
         tab_text.Clear();
@@ -616,7 +500,7 @@ static void FillContainerFromString(ContainerNode* paragraph,
     // (if the last character is a tab, the list gets an extra empty entry)
     if (i + 1 != num_entries)
       tab_text.Append('\t');
-    else if (!tab_text.empty())
+    else if (!tab_text.IsEmpty())
       paragraph->AppendChild(
           CreateTabSpanElement(document, tab_text.ToString()));
 
@@ -665,7 +549,7 @@ DocumentFragment* CreateFragmentFromText(const EphemeralRange& context,
   Document& document = context.GetDocument();
   DocumentFragment* fragment = document.createDocumentFragment();
 
-  if (text.empty())
+  if (text.IsEmpty())
     return fragment;
 
   String string = text;
@@ -704,7 +588,7 @@ DocumentFragment* CreateFragmentFromText(const EphemeralRange& context,
     const String& s = list[i];
 
     Element* element = nullptr;
-    if (s.empty() && i + 1 == num_lines) {
+    if (s.IsEmpty() && i + 1 == num_lines) {
       // For last line, use the "magic BR" rather than a P.
       element = MakeGarbageCollected<HTMLBRElement>(document);
       element->setAttribute(html_names::kClassAttr, AppleInterchangeNewline);
@@ -725,7 +609,7 @@ DocumentFragment* CreateFragmentForInnerOuterHTML(
     Element* context_element,
     ParserContentPolicy parser_content_policy,
     const char* method,
-    bool include_shadow_roots,
+    bool allow_shadow_root,
     ExceptionState& exception_state) {
   DCHECK(context_element);
   const HTMLTemplateElement* template_element =
@@ -739,7 +623,7 @@ DocumentFragment* CreateFragmentForInnerOuterHTML(
           ? context_element->GetDocument().EnsureTemplateDocument()
           : context_element->GetDocument();
   DocumentFragment* fragment = DocumentFragment::Create(document);
-  document.setAllowDeclarativeShadowRoots(include_shadow_roots);
+  document.setAllowDeclarativeShadowRoot(allow_shadow_root);
 
   if (IsA<HTMLDocument>(document)) {
     fragment->ParseHTML(markup, context_element, parser_content_policy);
@@ -765,11 +649,6 @@ DocumentFragment* CreateFragmentForTransformToFragment(
     Document& output_doc) {
   DocumentFragment* fragment = output_doc.createDocumentFragment();
 
-  // The HTML spec says that we should execute scripts and set their already
-  // started flag to false for transformToFragment, so we use
-  // kAllowScriptingContentAndDoNotMarkAlreadyStarted in ParseHTML and ParseXML
-  // below. https://html.spec.whatwg.org/multipage/scripting.html#scriptTagXSLT
-
   if (source_mime_type == "text/html") {
     // As far as I can tell, there isn't a spec for how transformToFragment is
     // supposed to work. Based on the documentation I can find, it looks like we
@@ -778,14 +657,11 @@ DocumentFragment* CreateFragmentForTransformToFragment(
     // that effect here by passing in a fake body element as context for the
     // fragment.
     auto* fake_body = MakeGarbageCollected<HTMLBodyElement>(output_doc);
-    fragment->ParseHTML(source_string, fake_body,
-                        kAllowScriptingContentAndDoNotMarkAlreadyStarted);
+    fragment->ParseHTML(source_string, fake_body);
   } else if (source_mime_type == "text/plain") {
     fragment->ParserAppendChild(Text::Create(output_doc, source_string));
   } else {
-    bool successful_parse =
-        fragment->ParseXML(source_string, nullptr,
-                           kAllowScriptingContentAndDoNotMarkAlreadyStarted);
+    bool successful_parse = fragment->ParseXML(source_string, nullptr);
     if (!successful_parse)
       return nullptr;
   }
@@ -815,7 +691,7 @@ DocumentFragment* CreateContextualFragment(
 
   DocumentFragment* fragment = CreateFragmentForInnerOuterHTML(
       markup, element, parser_content_policy, "createContextualFragment",
-      /*include_shadow_roots=*/false, exception_state);
+      /*allow_shadow_root=*/false, exception_state);
   if (!fragment)
     return nullptr;
 
@@ -900,10 +776,10 @@ void MergeWithNextTextNode(Text* text_node, ExceptionState& exception_state) {
     text_next->remove(exception_state);
 }
 
-static Document* CreateStagingDocumentForMarkupSanitization(
-    AgentGroupScheduler& agent_group_scheduler) {
-  Page* page = Page::CreateNonOrdinary(GetStaticEmptyChromeClientInstance(),
-                                       agent_group_scheduler);
+static Document* CreateStagingDocumentForMarkupSanitization() {
+  Page::PageClients page_clients;
+  FillWithEmptyClients(page_clients);
+  Page* page = Page::CreateNonOrdinary(page_clients);
 
   page->GetSettings().SetScriptEnabled(false);
   page->GetSettings().SetPluginsEnabled(false);
@@ -911,24 +787,21 @@ static Document* CreateStagingDocumentForMarkupSanitization(
   page->GetSettings().SetParserScriptingFlagPolicy(
       ParserScriptingFlagPolicy::kEnabled);
 
-  auto* client =
-      MakeGarbageCollected<EmptyLocalFrameClientWithFailingLoaderFactory>();
   LocalFrame* frame = MakeGarbageCollected<LocalFrame>(
-      client, *page,
+      MakeGarbageCollected<EmptyLocalFrameClient>(), *page,
       nullptr,  // FrameOwner*
       nullptr,  // Frame* parent
       nullptr,  // Frame* previous_sibling
-      FrameInsertType::kInsertInConstructor, blink::LocalFrameToken(),
+      FrameInsertType::kInsertInConstructor, base::UnguessableToken::Create(),
       nullptr,  // WindowAgentFactory*
-      nullptr   // InterfaceRegistry*
+      nullptr,  // InterfaceRegistry*
+      nullptr   // policy_container
   );
   // Don't leak the actual viewport size to unsanitized markup
   LocalFrameView* frame_view =
-      MakeGarbageCollected<LocalFrameView>(*frame, gfx::Size(800, 600));
+      MakeGarbageCollected<LocalFrameView>(*frame, IntSize(800, 600));
   frame->SetView(frame_view);
-  // TODO(https://crbug.com/1355751) Initialize `storage_key`.
-  frame->Init(/*opener=*/nullptr, DocumentToken(), /*policy_container=*/nullptr,
-              StorageKey(), /*document_ukm_source_id=*/ukm::kInvalidSourceId);
+  frame->Init(nullptr);
 
   Document* document = frame->GetDocument();
   DCHECK(document);
@@ -967,97 +840,52 @@ static bool StripSVGUseDataURLs(Node& node) {
   return stripped;
 }
 
-namespace {
-
-constexpr unsigned kMaxSanitizationIterations = 16;
-
-}  // namespace
-
-String CreateSanitizedMarkupWithContext(Document& document,
-                                        const String& raw_markup,
-                                        unsigned fragment_start,
-                                        unsigned fragment_end,
-                                        const String& base_url,
-                                        ChildrenOnly children_only,
-                                        AbsoluteURLs should_resolve_urls,
-                                        IncludeShadowRoots include_shadow_roots,
-                                        ClosedRootsSet include_closed_roots) {
-  if (raw_markup.empty())
-    return String();
-
-  Document* staging_document = CreateStagingDocumentForMarkupSanitization(
-      *document.GetFrame()->GetFrameScheduler()->GetAgentGroupScheduler());
-
-  // Iterate on parsing, sanitization and serialization until the markup is
-  // stable, or if we have exceeded the maximum allowed number of iterations.
-  String last_markup;
-  String markup = raw_markup;
-  for (unsigned iteration = 0;
-       iteration < kMaxSanitizationIterations && last_markup != markup;
-       ++iteration) {
-    last_markup = markup;
-
-    DocumentFragment* fragment = CreateFragmentFromMarkupWithContext(
-        *staging_document, last_markup, fragment_start, fragment_end, KURL(),
-        kDisallowScriptingAndPluginContent);
-    if (!fragment) {
-      staging_document->GetPage()->WillBeDestroyed();
-      return String();
-    }
-
-    bool needs_sanitization = false;
-    if (ContainsStyleElements(*fragment))
-      needs_sanitization = true;
-    if (StripSVGUseDataURLs(*fragment))
-      needs_sanitization = true;
-
-    if (!needs_sanitization) {
-      markup = CreateMarkup(fragment);
-    } else {
-      Element* body = staging_document->body();
-      staging_document->body()->appendChild(fragment);
-      staging_document->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
-
-      // This sanitizes stylesheets in the markup into element inline styles
-      markup = CreateMarkup(Position::FirstPositionInNode(*body),
-                            Position::LastPositionInNode(*body),
-                            CreateMarkupOptions::Builder()
-                                .SetShouldAnnotateForInterchange(true)
-                                .SetIsForMarkupSanitization(true)
-                                .Build());
-
-      body->RemoveChildren();
-    }
-
-    fragment_start = 0;
-    fragment_end = markup.length();
-  }
-
-  String final_markup;
-  // Sanitization succeeds only if the markup can stabilize.
-  if (last_markup == markup) {
-    DocumentFragment* final_fragment =
-        CreateFragmentFromMarkup(*staging_document, markup, base_url,
-                                 kDisallowScriptingAndPluginContent);
-    final_markup =
-        CreateMarkup(final_fragment, children_only, should_resolve_urls,
-                     include_shadow_roots, include_closed_roots);
-  }
-  staging_document->GetPage()->WillBeDestroyed();
-  return final_markup;
-}
-
 DocumentFragment* CreateSanitizedFragmentFromMarkupWithContext(
     Document& document,
     const String& raw_markup,
     unsigned fragment_start,
     unsigned fragment_end,
     const String& base_url) {
-  String sanitized_markup = CreateSanitizedMarkupWithContext(
-      document, raw_markup, fragment_start, fragment_end, KURL());
-  if (sanitized_markup.IsNull())
+  if (raw_markup.IsEmpty())
     return nullptr;
-  return CreateFragmentFromMarkup(document, sanitized_markup, base_url,
+
+  Document* staging_document = CreateStagingDocumentForMarkupSanitization();
+  Element* body = staging_document->body();
+
+  DocumentFragment* fragment = CreateFragmentFromMarkupWithContext(
+      *staging_document, raw_markup, fragment_start, fragment_end, KURL(),
+      kDisallowScriptingAndPluginContent);
+  if (!fragment) {
+    staging_document->GetPage()->WillBeDestroyed();
+    return nullptr;
+  }
+
+  bool needs_sanitization = false;
+  if (ContainsStyleElements(*fragment))
+    needs_sanitization = true;
+  if (StripSVGUseDataURLs(*fragment))
+    needs_sanitization = true;
+
+  if (!needs_sanitization) {
+    staging_document->GetPage()->WillBeDestroyed();
+    return CreateFragmentFromMarkupWithContext(
+        document, raw_markup, fragment_start, fragment_end, base_url,
+        kDisallowScriptingAndPluginContent);
+  }
+
+  body->appendChild(fragment);
+  staging_document->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
+
+  // This sanitizes stylesheets in the markup into element inline styles
+  String markup = CreateMarkup(Position::FirstPositionInNode(*body),
+                               Position::LastPositionInNode(*body),
+                               CreateMarkupOptions::Builder()
+                                   .SetShouldAnnotateForInterchange(true)
+                                   .SetIsForMarkupSanitization(true)
+                                   .Build());
+  staging_document->GetPage()->WillBeDestroyed();
+
+  return CreateFragmentFromMarkup(document, markup, base_url,
                                   kDisallowScriptingAndPluginContent);
 }
 

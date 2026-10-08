@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,6 @@ namespace blink {
 
 LayoutUnit LayoutBoxUtils::AvailableLogicalWidth(const LayoutBox& box,
                                                  const LayoutBlock* cb) {
-  // SVG <text> and <foreignObject> should not refer to its containing block.
-  DCHECK(!box.IsSVGChild());
   auto writing_mode = box.StyleRef().GetWritingMode();
   bool parallel_containing_block = IsParallelWritingMode(
       cb ? cb->StyleRef().GetWritingMode() : writing_mode, writing_mode);
@@ -47,8 +45,6 @@ LayoutUnit LayoutBoxUtils::AvailableLogicalWidth(const LayoutBox& box,
 
 LayoutUnit LayoutBoxUtils::AvailableLogicalHeight(const LayoutBox& box,
                                                   const LayoutBlock* cb) {
-  // SVG <text> and <foreignObject> should not refer to its containing block.
-  DCHECK(!box.IsSVGChild());
   auto writing_mode = box.StyleRef().GetWritingMode();
   bool parallel_containing_block = IsParallelWritingMode(
       cb ? cb->StyleRef().GetWritingMode() : writing_mode, writing_mode);
@@ -174,17 +170,6 @@ bool LayoutBoxUtils::SkipContainingBlockForPercentHeightCalculation(
   return LayoutBox::SkipContainingBlockForPercentHeightCalculation(cb);
 }
 
-LayoutUnit LayoutBoxUtils::InlineSize(const LayoutBox& box) {
-  DCHECK_GT(box.PhysicalFragmentCount(), 0u);
-
-  // TODO(almaher): We can't assume all fragments will have the same inline
-  // size.
-  return box.GetPhysicalFragment(0u)
-      ->Size()
-      .ConvertToLogical(box.StyleRef().GetWritingMode())
-      .inline_size;
-}
-
 LayoutUnit LayoutBoxUtils::TotalBlockSize(const LayoutBox& box) {
   wtf_size_t num_fragments = box.PhysicalFragmentCount();
   DCHECK_GT(num_fragments, 0u);
@@ -206,9 +191,10 @@ LayoutUnit LayoutBoxUtils::TotalBlockSize(const LayoutBox& box) {
   }
 
   if (num_fragments > 1) {
-    total_block_size += box.GetPhysicalFragment(num_fragments - 2)
-                            ->BreakToken()
-                            ->ConsumedBlockSize();
+    total_block_size +=
+        To<NGBlockBreakToken>(
+            box.GetPhysicalFragment(num_fragments - 2)->BreakToken())
+            ->ConsumedBlockSize();
   }
   return total_block_size;
 }

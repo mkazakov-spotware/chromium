@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,13 @@
 #include "remoting/host/client_session_control.h"
 
 // Minutes before the local user should confirm that the session should go on.
-constexpr base::TimeDelta kSessionExpirationTimeout = base::Minutes(30);
+constexpr base::TimeDelta kSessionExpirationTimeout =
+    base::TimeDelta::FromMinutes(30);
 
 // Minutes before the session will be disconnected (from the moment the Continue
 // window has been shown).
-constexpr base::TimeDelta kSessionDisconnectTimeout = base::Minutes(5);
+constexpr base::TimeDelta kSessionDisconnectTimeout =
+    base::TimeDelta::FromMinutes(5);
 
 namespace remoting {
 

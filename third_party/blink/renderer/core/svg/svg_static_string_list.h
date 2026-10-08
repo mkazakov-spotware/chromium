@@ -33,7 +33,8 @@
 
 #include "third_party/blink/renderer/core/svg/properties/svg_animated_property.h"
 #include "third_party/blink/renderer/core/svg/svg_string_list_tear_off.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -79,4 +80,4 @@ class SVGStaticStringList final : public GarbageCollected<SVGStaticStringList>,
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_STATIC_STRING_LIST_H_
+#endif

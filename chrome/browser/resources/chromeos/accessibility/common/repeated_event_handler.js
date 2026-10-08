@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
  * This class assists with processing repeated events in nontrivial ways by
  * allowing only the most recent event to be processed.
  */
-export class RepeatedEventHandler {
+class RepeatedEventHandler {
   /**
    * @param {!chrome.automation.AutomationNode |
    *     !Array<!chrome.automation.AutomationNode>} nodes
@@ -56,7 +56,7 @@ export class RepeatedEventHandler {
     this.listening_ = false;
 
     /** @private {!function(!chrome.automation.AutomationEvent)} */
-    this.handler_ = event => this.onEvent_(event);
+    this.handler_ = this.onEvent_.bind(this);
 
     this.start();
   }
@@ -89,7 +89,7 @@ export class RepeatedEventHandler {
    */
   onEvent_(event) {
     this.eventStack_.push(event);
-    setTimeout(() => this.handleEvent_( ), 0);
+    setTimeout(this.handleEvent_.bind(this), 0);
   }
 
   /** @private */

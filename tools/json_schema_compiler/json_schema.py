@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -40,8 +40,8 @@ def DeleteNodes(item, delete_key=None, matcher=None):
 
 def Load(filename):
   try:
-    with open(filename, 'rb') as handle:
-      schemas = json_parse.Parse(handle.read().decode('utf8'))
+    with open(filename, 'r') as handle:
+      schemas = json_parse.Parse(handle.read())
     return schemas
   except:
     print('FAILED: Exception encountered while loading "%s"' % filename)

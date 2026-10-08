@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/values.h"
 
 // Parses INI files in a string. Users should in inherit from this class.
@@ -33,9 +34,9 @@ class INIParser {
   void Parse(const std::string& content);
 
  private:
-  virtual void HandleTriplet(base::StringPiece section,
-                             base::StringPiece key,
-                             base::StringPiece value) = 0;
+  virtual void HandleTriplet(const std::string& section,
+                             const std::string& key,
+                             const std::string& value) = 0;
 
   bool used_;
 };
@@ -45,21 +46,19 @@ class INIParser {
 class DictionaryValueINIParser : public INIParser {
  public:
   DictionaryValueINIParser();
-
-  DictionaryValueINIParser(const DictionaryValueINIParser&) = delete;
-  DictionaryValueINIParser& operator=(const DictionaryValueINIParser&) = delete;
-
   ~DictionaryValueINIParser() override;
 
-  const base::Value::Dict& root() const { return root_; }
+  const base::DictionaryValue& root() const { return root_; }
 
  private:
   // INIParser implementation.
-  void HandleTriplet(base::StringPiece section,
-                     base::StringPiece key,
-                     base::StringPiece value) override;
+  void HandleTriplet(const std::string& section,
+                     const std::string& key,
+                     const std::string& value) override;
 
-  base::Value::Dict root_;
+  base::DictionaryValue root_;
+
+  DISALLOW_COPY_AND_ASSIGN(DictionaryValueINIParser);
 };
 
 #endif  // CHROME_COMMON_INI_PARSER_H_

@@ -1,53 +1,38 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/events/accessibility_event_rewriter.h"
 
 #include "ash/accessibility/accessibility_controller_impl.h"
-#include "ash/accessibility/magnifier/docked_magnifier_controller.h"
-#include "ash/accessibility/magnifier/fullscreen_magnifier_controller.h"
-#include "ash/accessibility/switch_access/point_scan_controller.h"
-#include "ash/constants/ash_constants.h"
+#include "ash/accessibility/point_scan_controller.h"
 #include "ash/keyboard/keyboard_util.h"
+#include "ash/magnifier/magnification_controller.h"
 #include "ash/public/cpp/accessibility_event_rewriter_delegate.h"
 #include "ash/shell.h"
-#include "base/system/sys_info.h"
 #include "ui/chromeos/events/event_rewriter_chromeos.h"
-#include "ui/events/devices/device_data_manager.h"
+#include "ui/events/devices/input_device.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
-#include "ui/events/keycodes/dom/keycode_converter.h"
 #include "ui/events/types/event_type.h"
 
 namespace ash {
-
-namespace {
-
-// Returns a ui::InputDeviceType given a Switch Access string device type.
-ui::InputDeviceType GetInputDeviceType(
-    const std::string& switch_access_device_type) {
-  if (switch_access_device_type == kSwitchAccessInternalDevice)
-    return ui::INPUT_DEVICE_INTERNAL;
-  if (switch_access_device_type == kSwitchAccessUsbDevice)
-    return ui::INPUT_DEVICE_USB;
-  if (switch_access_device_type == kSwitchAccessBluetoothDevice)
-    return ui::INPUT_DEVICE_BLUETOOTH;
-  // On Chrome OS emulated on Linux, the keyboard is always "UNKNOWN".
-  if (base::SysInfo::IsRunningOnChromeOS())
-    NOTREACHED();
-  return ui::INPUT_DEVICE_UNKNOWN;
-}
-}  // namespace
 
 AccessibilityEventRewriter::AccessibilityEventRewriter(
     ui::EventRewriterChromeOS* event_rewriter_chromeos,
     AccessibilityEventRewriterDelegate* delegate)
     : delegate_(delegate), event_rewriter_chromeos_(event_rewriter_chromeos) {
   Shell::Get()->accessibility_controller()->SetAccessibilityEventRewriter(this);
-  observation_.Observe(input_method::InputMethodManager::Get());
-  // InputMethodManagerImpl::AddObserver calls our InputMethodChanged, so no
-  // further initialization needed.
+
+  // By default, observe all input device types.
+  keyboard_input_device_types_.insert(ui::INPUT_DEVICE_INTERNAL);
+  keyboard_input_device_types_.insert(ui::INPUT_DEVICE_USB);
+  keyboard_input_device_types_.insert(ui::INPUT_DEVICE_BLUETOOTH);
+  keyboard_input_device_types_.insert(ui::INPUT_DEVICE_UNKNOWN);
+
+  UpdateKeyboardDeviceIds();
+
+  observer_.Add(ui::DeviceDataManager::GetInstance());
 }
 
 AccessibilityEventRewriter::~AccessibilityEventRewriter() {
@@ -81,36 +66,58 @@ void AccessibilityEventRewriter::OnUnhandledSpokenFeedbackEvent(
   }
 }
 
-void AccessibilityEventRewriter::SetKeyCodesForSwitchAccessCommand(
-    const std::map<int, std::set<std::string>>& key_codes,
+bool AccessibilityEventRewriter::SetKeyCodesForSwitchAccessCommand(
+    std::set<int> new_key_codes,
     SwitchAccessCommand command) {
-  // Remove all keys for the command.
-  for (auto it = key_code_to_switch_access_command_.begin();
-       it != key_code_to_switch_access_command_.end();) {
-    if (it->second == command) {
-      switch_access_key_codes_to_capture_.erase(it->first);
-      it = key_code_to_switch_access_command_.erase(it);
-    } else {
-      it++;
+  bool has_changed = false;
+  std::set<int> to_clear;
+
+  // Clear old values that conflict with the new assignment.
+  // TODO(anastasi): convert to use iterators directly and remove has_changed as
+  // an extra step.
+  for (const auto& val : key_code_to_switch_access_command_) {
+    int old_key_code = val.first;
+    SwitchAccessCommand old_command = val.second;
+
+    if (new_key_codes.count(old_key_code) > 0) {
+      if (old_command != command) {
+        has_changed = true;
+        // Modifying the map while iterating through it causes reference
+        // failures.
+        to_clear.insert(old_key_code);
+      } else {
+        new_key_codes.erase(old_key_code);
+      }
+      continue;
+    }
+
+    // This value was previously mapped to the command, but is no longer.
+    if (old_command == command) {
+      has_changed = true;
+      to_clear.insert(old_key_code);
+      switch_access_key_codes_to_capture_.erase(old_key_code);
     }
   }
-
-  for (const auto& key_code : key_codes) {
-    // Remove any preexisting key.
-    switch_access_key_codes_to_capture_.erase(key_code.first);
-    key_code_to_switch_access_command_.erase(key_code.first);
-
-    // Map device types from Switch Access's internal representation.
-    std::set<ui::InputDeviceType> device_types;
-    for (const std::string& switch_access_device : key_code.second)
-      device_types.insert(GetInputDeviceType(switch_access_device));
-
-    switch_access_key_codes_to_capture_.insert({key_code.first, device_types});
-    key_code_to_switch_access_command_.insert({key_code.first, command});
+  for (int key_code : to_clear) {
+    key_code_to_switch_access_command_.erase(key_code);
   }
 
-  // Conflict resolution occurs up the stack (e.g. in the settings pages for
-  // Switch Access).
+  if (new_key_codes.size() == 0)
+    return has_changed;
+
+  // Add any new key codes to the map.
+  for (int key_code : new_key_codes) {
+    switch_access_key_codes_to_capture_.insert(key_code);
+    key_code_to_switch_access_command_[key_code] = command;
+  }
+
+  return true;
+}
+
+void AccessibilityEventRewriter::SetKeyboardInputDeviceTypes(
+    const std::set<ui::InputDeviceType>& keyboard_input_device_types) {
+  keyboard_input_device_types_ = keyboard_input_device_types;
+  UpdateKeyboardDeviceIds();
 }
 
 bool AccessibilityEventRewriter::RewriteEventForChromeVox(
@@ -140,16 +147,8 @@ bool AccessibilityEventRewriter::RewriteEventForChromeVox(
     std::unique_ptr<ui::Event> rewritten_event;
     ui::EventRewriterChromeOS::BuildRewrittenKeyEvent(*key_event, state,
                                                       &rewritten_event);
-    ui::KeyEvent* rewritten_key_event = rewritten_event.get()->AsKeyEvent();
-
-    // Account for positional keys which we want to remap.
-    if (try_rewriting_positional_keys_for_chromevox_) {
-      const ui::KeyboardCode remapped_key_code =
-          ui::KeycodeConverter::MapPositionalDomCodeToUSShortcutKey(
-              key_event->code());
-      if (remapped_key_code != ui::VKEY_UNKNOWN)
-        rewritten_key_event->set_key_code(remapped_key_code);
-    }
+    const ui::KeyEvent* rewritten_key_event =
+        rewritten_event.get()->AsKeyEvent();
 
     bool capture = chromevox_capture_all_keys_;
 
@@ -164,10 +163,13 @@ bool AccessibilityEventRewriter::RewriteEventForChromeVox(
     if (rewritten_key_event->GetDomKey() == ui::DomKey::TAB)
       capture = false;
 
-    delegate_->DispatchKeyEventToChromeVox(rewritten_key_event->Clone(),
-                                           capture);
+    delegate_->DispatchKeyEventToChromeVox(
+        ui::Event::Clone(*rewritten_key_event), capture);
     return capture;
   }
+
+  if (chromevox_send_mouse_events_ && event.IsMouseEvent())
+    delegate_->DispatchMouseEventToChromeVox(ui::Event::Clone(event));
 
   return false;
 }
@@ -175,60 +177,32 @@ bool AccessibilityEventRewriter::RewriteEventForChromeVox(
 bool AccessibilityEventRewriter::RewriteEventForSwitchAccess(
     const ui::Event& event,
     const Continuation continuation) {
-  if (!event.IsKeyEvent() || suspend_switch_access_key_handling_)
+  if (!event.IsKeyEvent())
     return false;
 
   const ui::KeyEvent* key_event = event.AsKeyEvent();
-  ui::EventRewriterChromeOS::MutableKeyState state(key_event);
-  event_rewriter_chromeos_->RewriteModifierKeys(*key_event, &state);
-  event_rewriter_chromeos_->RewriteFunctionKeys(*key_event, &state);
+  bool capture =
+      switch_access_key_codes_to_capture_.count(key_event->key_code()) > 0;
 
-  std::unique_ptr<ui::Event> rewritten_event;
-  ui::EventRewriterChromeOS::BuildRewrittenKeyEvent(*key_event, state,
-                                                    &rewritten_event);
-  ui::KeyEvent* rewritten_key_event = rewritten_event.get()->AsKeyEvent();
-
-  const auto& key =
-      switch_access_key_codes_to_capture_.find(rewritten_key_event->key_code());
-  if (key == switch_access_key_codes_to_capture_.end())
-    return false;
-
-  int source_device_id = key_event->source_device_id();
-  ui::InputDeviceType keyboard_type = ui::INPUT_DEVICE_UNKNOWN;
-  for (const auto& keyboard :
-       ui::DeviceDataManager::GetInstance()->GetKeyboardDevices()) {
-    if (source_device_id == keyboard.id) {
-      keyboard_type = keyboard.type;
-      break;
-    }
-  }
-
-  // An unknown |source_device_id| needs to pass this check as it's set that way
-  // in tests.
-  if (source_device_id != ui::ED_UNKNOWN_DEVICE &&
-      key->second.count(keyboard_type) == 0) {
-    return false;
-  }
-
-  if (key_event->type() == ui::ET_KEY_PRESSED) {
+  if (capture && key_event->type() == ui::ET_KEY_PRESSED) {
     AccessibilityControllerImpl* accessibility_controller =
         Shell::Get()->accessibility_controller();
 
     if (accessibility_controller->IsPointScanEnabled()) {
       PointScanController* point_scan_controller =
           accessibility_controller->GetPointScanController();
-      absl::optional<gfx::PointF> point =
+      base::Optional<gfx::PointF> point =
           point_scan_controller->OnPointSelect();
       if (point.has_value()) {
         delegate_->SendPointScanPoint(point.value());
       }
     } else {
       SwitchAccessCommand command =
-          key_code_to_switch_access_command_[rewritten_key_event->key_code()];
+          key_code_to_switch_access_command_[key_event->key_code()];
       delegate_->SendSwitchAccessCommand(command);
     }
   }
-  return true;
+  return capture;
 }
 
 bool AccessibilityEventRewriter::RewriteEventForMagnifier(
@@ -263,27 +237,20 @@ bool AccessibilityEventRewriter::RewriteEventForMagnifier(
 
 void AccessibilityEventRewriter::OnMagnifierKeyPressed(
     const ui::KeyEvent* event) {
-  FullscreenMagnifierController* controller =
-      Shell::Get()->fullscreen_magnifier_controller();
+  MagnificationController* controller =
+      Shell::Get()->magnification_controller();
   switch (event->key_code()) {
     case ui::VKEY_UP:
-      controller->SetScrollDirection(FullscreenMagnifierController::SCROLL_UP);
-      delegate_->SendMagnifierCommand(MagnifierCommand::kMoveUp);
+      controller->SetScrollDirection(MagnificationController::SCROLL_UP);
       break;
     case ui::VKEY_DOWN:
-      controller->SetScrollDirection(
-          FullscreenMagnifierController::SCROLL_DOWN);
-      delegate_->SendMagnifierCommand(MagnifierCommand::kMoveDown);
+      controller->SetScrollDirection(MagnificationController::SCROLL_DOWN);
       break;
     case ui::VKEY_LEFT:
-      controller->SetScrollDirection(
-          FullscreenMagnifierController::SCROLL_LEFT);
-      delegate_->SendMagnifierCommand(MagnifierCommand::kMoveLeft);
+      controller->SetScrollDirection(MagnificationController::SCROLL_LEFT);
       break;
     case ui::VKEY_RIGHT:
-      controller->SetScrollDirection(
-          FullscreenMagnifierController::SCROLL_RIGHT);
-      delegate_->SendMagnifierCommand(MagnifierCommand::kMoveRight);
+      controller->SetScrollDirection(MagnificationController::SCROLL_RIGHT);
       break;
     default:
       NOTREACHED() << "Unexpected keyboard_code:" << event->key_code();
@@ -292,31 +259,28 @@ void AccessibilityEventRewriter::OnMagnifierKeyPressed(
 
 void AccessibilityEventRewriter::OnMagnifierKeyReleased(
     const ui::KeyEvent* event) {
-  FullscreenMagnifierController* controller =
-      Shell::Get()->fullscreen_magnifier_controller();
-  controller->SetScrollDirection(FullscreenMagnifierController::SCROLL_NONE);
-  delegate_->SendMagnifierCommand(MagnifierCommand::kMoveStop);
+  MagnificationController* controller =
+      Shell::Get()->magnification_controller();
+  controller->SetScrollDirection(MagnificationController::SCROLL_NONE);
 }
 
-void AccessibilityEventRewriter::MaybeSendMouseEvent(const ui::Event& event) {
-  // Mouse moves are the only pertinent event for accessibility component
-  // extensions.
-  if (send_mouse_events_ &&
-      (event.type() == ui::ET_MOUSE_MOVED ||
-       event.type() == ui::ET_MOUSE_DRAGGED) &&
-      (Shell::Get()
-           ->accessibility_controller()
-           ->fullscreen_magnifier()
-           .enabled() ||
-       Shell::Get()->accessibility_controller()->docked_magnifier().enabled() ||
-       Shell::Get()->accessibility_controller()->spoken_feedback().enabled())) {
-    delegate_->DispatchMouseEvent(event.Clone());
+void AccessibilityEventRewriter::UpdateKeyboardDeviceIds() {
+  keyboard_device_ids_.clear();
+  for (auto& keyboard :
+       ui::DeviceDataManager::GetInstance()->GetKeyboardDevices()) {
+    if (keyboard_input_device_types_.count(keyboard.type))
+      keyboard_device_ids_.insert(keyboard.id);
   }
 }
 
 ui::EventDispatchDetails AccessibilityEventRewriter::RewriteEvent(
     const ui::Event& event,
     const Continuation continuation) {
+  if (event.IsKeyEvent() && event.source_device_id() != ui::ED_UNKNOWN_DEVICE &&
+      keyboard_device_ids_.count(event.source_device_id()) == 0) {
+    return SendEvent(continuation, &event);
+  }
+
   bool captured = false;
   if (!delegate_)
     return SendEvent(continuation, &event);
@@ -325,10 +289,7 @@ ui::EventDispatchDetails AccessibilityEventRewriter::RewriteEvent(
     captured = RewriteEventForSwitchAccess(event, continuation);
   }
 
-  if (!captured && Shell::Get()
-                       ->accessibility_controller()
-                       ->fullscreen_magnifier()
-                       .enabled()) {
+  if (!captured && Shell::Get()->magnification_controller()->IsEnabled()) {
     captured = RewriteEventForMagnifier(event, continuation);
   }
 
@@ -336,20 +297,14 @@ ui::EventDispatchDetails AccessibilityEventRewriter::RewriteEvent(
     captured = RewriteEventForChromeVox(event, continuation);
   }
 
-  if (!captured) {
-    MaybeSendMouseEvent(event);
-  }
-
   return captured ? DiscardEvent(continuation)
                   : SendEvent(continuation, &event);
 }
 
-void AccessibilityEventRewriter::InputMethodChanged(
-    input_method::InputMethodManager* manager,
-    Profile* profile,
-    bool show_message) {
-  try_rewriting_positional_keys_for_chromevox_ =
-      manager->ArePositionalShortcutsUsedByCurrentInputMethod();
+void AccessibilityEventRewriter::OnInputDeviceConfigurationChanged(
+    uint8_t input_device_types) {
+  if (input_device_types & ui::InputDeviceEventObserver::kKeyboard)
+    UpdateKeyboardDeviceIds();
 }
 
 }  // namespace ash

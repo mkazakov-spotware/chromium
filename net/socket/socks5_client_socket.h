@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "net/base/address_list.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/completion_repeating_callback.h"
@@ -39,9 +40,6 @@ class NET_EXPORT_PRIVATE SOCKS5ClientSocket : public StreamSocket {
                      const HostPortPair& destination,
                      const NetworkTrafficAnnotationTag& traffic_annotation);
 
-  SOCKS5ClientSocket(const SOCKS5ClientSocket&) = delete;
-  SOCKS5ClientSocket& operator=(const SOCKS5ClientSocket&) = delete;
-
   // On destruction Disconnect() is called.
   ~SOCKS5ClientSocket() override;
 
@@ -57,6 +55,9 @@ class NET_EXPORT_PRIVATE SOCKS5ClientSocket : public StreamSocket {
   bool WasAlpnNegotiated() const override;
   NextProto GetNegotiatedProtocol() const override;
   bool GetSSLInfo(SSLInfo* ssl_info) override;
+  void GetConnectionAttempts(ConnectionAttempts* out) const override;
+  void ClearConnectionAttempts() override {}
+  void AddConnectionAttempts(const ConnectionAttempts& attempts) override {}
   int64_t GetTotalReceivedBytes() const override;
   void ApplySocketTag(const SocketTag& tag) override;
 
@@ -125,7 +126,7 @@ class NET_EXPORT_PRIVATE SOCKS5ClientSocket : public StreamSocket {
   // Stores the underlying socket.
   std::unique_ptr<StreamSocket> transport_socket_;
 
-  State next_state_ = STATE_NONE;
+  State next_state_;
 
   // Stores the callback to the layer above, called on completing Connect().
   CompletionOnceCallback user_callback_;
@@ -141,15 +142,15 @@ class NET_EXPORT_PRIVATE SOCKS5ClientSocket : public StreamSocket {
 
   // This becomes true when the SOCKS handshake has completed and the
   // overlying connection is free to communicate.
-  bool completed_handshake_ = false;
+  bool completed_handshake_;
 
   // These contain the bytes sent / received by the SOCKS handshake.
-  size_t bytes_sent_ = 0;
-  size_t bytes_received_ = 0;
+  size_t bytes_sent_;
+  size_t bytes_received_;
 
   size_t read_header_size;
 
-  bool was_ever_used_ = false;
+  bool was_ever_used_;
 
   const HostPortPair destination_;
 
@@ -157,6 +158,8 @@ class NET_EXPORT_PRIVATE SOCKS5ClientSocket : public StreamSocket {
 
   // Traffic annotation for socket control.
   NetworkTrafficAnnotationTag traffic_annotation_;
+
+  DISALLOW_COPY_AND_ASSIGN(SOCKS5ClientSocket);
 };
 
 }  // namespace net

@@ -1,13 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_MAIN_BROWSER_OBSERVER_BRIDGE_H_
 #define IOS_CHROME_BROWSER_MAIN_BROWSER_OBSERVER_BRIDGE_H_
 
-#include <CoreFoundation/CoreFoundation.h>
-
-#include "base/scoped_observation.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/main/browser_observer.h"
 
@@ -21,21 +18,16 @@
 // implements the BrowserObserver protocol (the observer is *not* owned).
 class BrowserObserverBridge final : public BrowserObserver {
  public:
-  // Creates a bridge which observes `browser`, forwarding events to `observer`.
-  // This class will handle ending observation after forwarding BrowserDestroyed
-  // calls to the Objective-C observer.
-  BrowserObserverBridge(Browser* browser, id<BrowserObserving> observer);
+  // It is the responsibility of calling code to add/remove the instance
+  // from the WebStates observer lists.
+  explicit BrowserObserverBridge(id<BrowserObserving> observer);
   ~BrowserObserverBridge() final;
 
-  // Not copyable or moveable.
-  BrowserObserverBridge(const BrowserObserverBridge&) = delete;
-  BrowserObserverBridge& operator=(const BrowserObserverBridge&) = delete;
-
  private:
-  // BrowserObserver
   void BrowserDestroyed(Browser* browser) override;
   __weak id<BrowserObserving> observer_ = nil;
-  base::ScopedObservation<Browser, BrowserObserver> browser_observation_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserObserverBridge);
 };
 
 #endif  // IOS_CHROME_BROWSER_MAIN_BROWSER_OBSERVER_BRIDGE_H_

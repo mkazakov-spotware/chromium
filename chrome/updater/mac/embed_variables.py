@@ -1,9 +1,13 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import ConfigParser
+import glob
 import optparse
 import os
+import shutil
+import subprocess
 import sys
 
 
@@ -24,21 +28,24 @@ def embed_version(input_file, output_file, version, product_full_name):
     fin.close()
     fout.close()
 
-    os.chmod(output_file, 0o755)
+    os.chmod(output_file, 0755)
 
 
 def parse_options():
     parser = optparse.OptionParser()
     parser.add_option('-i', '--input_file', help='Path to the input script.')
-    parser.add_option('-o',
-                      '--output_file',
-                      help='Path to where we should output the script')
-    parser.add_option('-v',
-                      '--version',
-                      help='Version of the application bundle being built.')
-    parser.add_option('-p',
-                      '--product_full_name',
-                      help='Name of the product being built.')
+    parser.add_option(
+        '-o',
+        '--output_file',
+        help='Path to where we should output the script')
+    parser.add_option(
+        '-v',
+        '--version',
+        help='Version of the application bundle being built.')
+    parser.add_option(
+        '-p',
+        '--product_full_name',
+        help='Name of the product being built.')
     options, _ = parser.parse_args()
 
     if not options.version and not options.product_full_name:
@@ -48,8 +55,8 @@ def parse_options():
 
 
 def main(options):
-    embed_version(options.input_file, options.output_file, options.version,
-                  options.product_full_name)
+    embed_version(options.input_file, options.output_file,
+                  options.version, options.product_full_name)
     return 0
 
 

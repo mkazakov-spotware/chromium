@@ -1,11 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_USER_EDUCATION_REOPEN_TAB_IN_PRODUCT_HELP_H_
 #define CHROME_BROWSER_UI_USER_EDUCATION_REOPEN_TAB_IN_PRODUCT_HELP_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "base/time/tick_clock.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_list_observer.h"
@@ -31,10 +33,6 @@ class TabStripModel;
 class ReopenTabInProductHelp : public BrowserListObserver, public KeyedService {
  public:
   ReopenTabInProductHelp(Profile* profile, const base::TickClock* clock);
-
-  ReopenTabInProductHelp(const ReopenTabInProductHelp&) = delete;
-  ReopenTabInProductHelp& operator=(const ReopenTabInProductHelp&) = delete;
-
   ~ReopenTabInProductHelp() override;
 
   // Should be called when the user opens a blank new tab. Possibly triggers
@@ -59,14 +57,16 @@ class ReopenTabInProductHelp : public BrowserListObserver, public KeyedService {
   // Callback passed to |ReopenTabInProductHelpTrigger|.
   void OnShowHelp();
 
-  const raw_ptr<Profile> profile_;
-  const raw_ptr<const base::TickClock> clock_;
+  Profile* const profile_;
+  const base::TickClock* const clock_;
 
   // Tracks active tab durations and notifies us when an active tab is closed.
   ActiveTabTracker active_tab_tracker_;
   // Manages the triggering logic for this IPH. This object calls into the IPH
   // backend.
   ReopenTabInProductHelpTrigger trigger_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReopenTabInProductHelp);
 };
 
 #endif  // CHROME_BROWSER_UI_USER_EDUCATION_REOPEN_TAB_IN_PRODUCT_HELP_H_

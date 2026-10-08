@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/test/fake_ui_resource_layer_tree_host_impl.h"
-
-#include <utility>
 
 #include "base/callback_helpers.h"
 #include "cc/resources/ui_resource_bitmap.h"
@@ -28,10 +26,10 @@ void FakeUIResourceLayerTreeHostImpl::CreateUIResource(
   UIResourceData data;
 
   data.resource_id_for_export = resource_provider()->ImportResource(
-      viz::TransferableResource::MakeGpu(
+      viz::TransferableResource::MakeGL(
           gpu::Mailbox::Generate(), GL_LINEAR, GL_TEXTURE_2D, gpu::SyncToken(),
-          bitmap.GetSize(), viz::RGBA_8888, false /* is_overlay_candidate */),
-      base::DoNothing());
+          bitmap.GetSize(), false /* is_overlay_candidate */),
+      viz::SingleReleaseCallback::Create(base::DoNothing()));
 
   data.opaque = bitmap.GetOpaque();
   fake_ui_resource_map_[uid] = std::move(data);

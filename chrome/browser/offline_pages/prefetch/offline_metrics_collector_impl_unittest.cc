@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/simple_test_clock.h"
-#include "base/time/time.h"
 #include "chrome/common/pref_names.h"
 #include "components/offline_pages/core/offline_store_utils.h"
 #include "components/offline_pages/core/test_scoped_offline_clock.h"
@@ -25,11 +24,6 @@ using DailyUsageType = OfflineMetricsCollectorImpl::DailyUsageType;
 class OfflineMetricsCollectorTest : public testing::Test {
  public:
   OfflineMetricsCollectorTest() {}
-
-  OfflineMetricsCollectorTest(const OfflineMetricsCollectorTest&) = delete;
-  OfflineMetricsCollectorTest& operator=(const OfflineMetricsCollectorTest&) =
-      delete;
-
   ~OfflineMetricsCollectorTest() override {}
 
   // testing::Test:
@@ -82,6 +76,8 @@ class OfflineMetricsCollectorTest : public testing::Test {
   std::unique_ptr<OfflineMetricsCollectorImpl> collector_;
   base::HistogramTester histogram_tester_;
   TestScopedOfflineClock test_clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(OfflineMetricsCollectorTest);
 };
 
 TEST_F(OfflineMetricsCollectorTest, CheckCleanInit) {
@@ -277,7 +273,7 @@ TEST_F(OfflineMetricsCollectorTest, ChangesWithinDay) {
   EXPECT_EQ(true, prefs().GetBoolean(prefs::kOfflineUsageOnlineObserved));
 
   // Move time ahead but still same day.
-  test_clock()->Advance(base::Hours(1));
+  test_clock()->Advance(base::TimeDelta::FromHours(1));
   collector()->OnSuccessfulNavigationOffline();
   // Timestamp shouldn't change.
   EXPECT_EQ(GetTimestampFromPrefs(), start);
@@ -301,7 +297,7 @@ TEST_F(OfflineMetricsCollectorTest, MultipleDays) {
   ExpectNotResilientOfflineUsageTotalCount(0);
 
   // Advance the clock to the next day
-  test_clock()->Advance(base::Hours(25));
+  test_clock()->Advance(base::TimeDelta::FromHours(25));
 
   collector()->OnAppStartupOrResume();
   // 1 day 'started' counter, another is being tracked as current day...
@@ -316,7 +312,7 @@ TEST_F(OfflineMetricsCollectorTest, MultipleDays) {
   ExpectNotResilientOfflineUsageTotalCount(1);
 
   // Skip the next 4 days within the virtual clock
-  test_clock()->Advance(base::Days(4));
+  test_clock()->Advance(base::TimeDelta::FromDays(4));
   collector()->OnSuccessfulNavigationOnline();
   // 2 days started, 3 days skipped ('unused').
   EXPECT_EQ(2, prefs().GetInteger(prefs::kOfflineUsageStartedCount));
@@ -351,21 +347,21 @@ TEST_F(OfflineMetricsCollectorTest, OverDayBoundaryPrefetch) {
   // Clock starts at epoch.LocalMidnight()
   collector()->OnPrefetchEnabled();
 
-  test_clock()->Advance(base::Days(1));
+  test_clock()->Advance(base::TimeDelta::FromDays(1));
   collector()->OnPrefetchEnabled();
 
-  test_clock()->Advance(base::Days(1));
+  test_clock()->Advance(base::TimeDelta::FromDays(1));
   collector()->OnSuccessfulPagePrefetch();
 
-  test_clock()->Advance(base::Days(1));
+  test_clock()->Advance(base::TimeDelta::FromDays(1));
   collector()->OnPrefetchedPageOpened();
 
-  test_clock()->Advance(base::Days(1));
+  test_clock()->Advance(base::TimeDelta::FromDays(1));
   collector()->OnPrefetchEnabled();
   collector()->OnSuccessfulPagePrefetch();
   collector()->OnPrefetchedPageOpened();
 
-  test_clock()->Advance(base::Days(1));
+  test_clock()->Advance(base::TimeDelta::FromDays(1));
   collector()->OnPrefetchEnabled();
 
   // Force collector to report stats and observe them reported correctly.

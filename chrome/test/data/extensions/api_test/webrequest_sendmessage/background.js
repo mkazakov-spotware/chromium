@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,10 +43,6 @@ runTests([
         chrome.test.fail("Invalid message: " + details.message);
       }
       chrome.test.assertEq(getURLHttpSimpleLoad(), details.url);
-      chrome.test.assertEq('outermost_frame', details.frameType);
-      chrome.test.assertEq('active', details.documentLifecycle);
-      chrome.test.assertFalse('parentDocumentId' in details);
-      chrome.test.assertFalse('documentId' in details);
       var messageKey = details.stage + "-" + details.message;
       if (messageKey in expectedEvents) {
         delete expectedEvents[messageKey];
@@ -75,3 +71,4 @@ runTests([
     });
   }
 ]);
+

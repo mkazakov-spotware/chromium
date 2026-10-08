@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <limits>
 #include <memory>
 #include <set>
-#include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/win/scoped_handle.h"
@@ -187,7 +187,7 @@ class ATL_NO_VTABLE CGaiaCredentialProvider
   // perform auto logon (if any).
   void AddCredentialAndCheckAutoLogon(
       const Microsoft::WRL::ComPtr<IGaiaCredential>& cred,
-      const std::wstring& sid,
+      const base::string16& sid,
       GaiaCredentialComPtrStorage* auto_logon_credential);
 
   // Destroys existing credentials and recreates them based on the contents of
@@ -252,14 +252,14 @@ class ATL_NO_VTABLE CGaiaCredentialProvider
   // The SID extracted from the serialization information passed into
   // SetSerialization. This sid is used to determine which credential to try
   // to auto logon when GetCredentialCount is called.
-  std::wstring set_serialization_sid_;
+  base::string16 set_serialization_sid_;
 
   ProviderConcurrentState concurrent_state_;
 
   CredentialCreatorFn anonymous_cred_creator_ = nullptr;
   CredentialCreatorFn other_user_cred_creator_ = nullptr;
   CredentialCreatorFn reauth_cred_creator_ = nullptr;
-  std::vector<std::wstring> reauth_cred_sids_;
+  std::vector<base::string16> reauth_cred_sids_;
 };
 
 // OBJECT_ENTRY_AUTO() contains an extra semicolon.

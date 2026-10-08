@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,44 +47,39 @@ TEST_F(ConfirmQuitPanelControllerTest, KeyCombinationForMenuItem) {
                                                  action:@selector(unused)
                                           keyEquivalent:@""] autorelease];
   item.keyEquivalent = @"q";
-  item.keyEquivalentModifierMask = NSEventModifierFlagCommand;
+  item.keyEquivalentModifierMask = NSCommandKeyMask;
   EXPECT_NSEQ(TestString(@"{Cmd}Q"),
               [controller keyCombinationForMenuItem:item]);
 
   item.keyEquivalent = @"c";
-  item.keyEquivalentModifierMask =
-      NSEventModifierFlagCommand | NSEventModifierFlagShift;
+  item.keyEquivalentModifierMask = NSCommandKeyMask | NSShiftKeyMask;
   EXPECT_NSEQ(TestString(@"{Cmd}{Shift}C"),
               [controller keyCombinationForMenuItem:item]);
 
   item.keyEquivalent = @"h";
-  item.keyEquivalentModifierMask = NSEventModifierFlagCommand |
-                                   NSEventModifierFlagShift |
-                                   NSEventModifierFlagOption;
+  item.keyEquivalentModifierMask =
+      NSCommandKeyMask | NSShiftKeyMask | NSAlternateKeyMask;
   EXPECT_NSEQ(TestString(@"{Cmd}{Opt}{Shift}H"),
               [controller keyCombinationForMenuItem:item]);
 
   item.keyEquivalent = @"r";
   item.keyEquivalentModifierMask =
-      NSEventModifierFlagCommand | NSEventModifierFlagShift |
-      NSEventModifierFlagOption | NSEventModifierFlagControl;
+      NSCommandKeyMask | NSShiftKeyMask | NSAlternateKeyMask | NSControlKeyMask;
   EXPECT_NSEQ(TestString(@"{Cmd}{Ctrl}{Opt}{Shift}R"),
               [controller keyCombinationForMenuItem:item]);
 
   item.keyEquivalent = @"o";
-  item.keyEquivalentModifierMask = NSEventModifierFlagControl;
+  item.keyEquivalentModifierMask = NSControlKeyMask;
   EXPECT_NSEQ(TestString(@"{Ctrl}O"),
               [controller keyCombinationForMenuItem:item]);
 
   item.keyEquivalent = @"m";
-  item.keyEquivalentModifierMask =
-      NSEventModifierFlagShift | NSEventModifierFlagControl;
+  item.keyEquivalentModifierMask = NSShiftKeyMask | NSControlKeyMask;
   EXPECT_NSEQ(TestString(@"{Ctrl}{Shift}M"),
               [controller keyCombinationForMenuItem:item]);
 
   item.keyEquivalent = @"e";
-  item.keyEquivalentModifierMask =
-      NSEventModifierFlagCommand | NSEventModifierFlagOption;
+  item.keyEquivalentModifierMask = NSCommandKeyMask | NSAlternateKeyMask;
   EXPECT_NSEQ(TestString(@"{Cmd}{Opt}E"),
               [controller keyCombinationForMenuItem:item]);
 }

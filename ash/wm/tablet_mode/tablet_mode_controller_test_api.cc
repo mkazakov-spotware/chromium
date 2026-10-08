@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/tablet_mode/tablet_mode_controller_test_api.h"
 
-#include "ash/constants/ash_switches.h"
+#include "ash/public/cpp/ash_switches.h"
 #include "ash/shell.h"
 #include "base/command_line.h"
 #include "base/numerics/math_constants.h"
@@ -89,18 +89,18 @@ void TabletModeControllerTestApi::DetachAllTouchpads() {
 }
 
 void TabletModeControllerTestApi::TriggerLidUpdate(const gfx::Vector3dF& lid) {
-  AccelerometerUpdate update;
-  update.Set(ACCELEROMETER_SOURCE_SCREEN, lid.x(), lid.y(), lid.z());
+  scoped_refptr<AccelerometerUpdate> update(new AccelerometerUpdate());
+  update->Set(ACCELEROMETER_SOURCE_SCREEN, lid.x(), lid.y(), lid.z());
   tablet_mode_controller_->OnAccelerometerUpdated(update);
 }
 
 void TabletModeControllerTestApi::TriggerBaseAndLidUpdate(
     const gfx::Vector3dF& base,
     const gfx::Vector3dF& lid) {
-  AccelerometerUpdate update;
-  update.Set(ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD, base.x(), base.y(),
-             base.z());
-  update.Set(ACCELEROMETER_SOURCE_SCREEN, lid.x(), lid.y(), lid.z());
+  scoped_refptr<AccelerometerUpdate> update(new AccelerometerUpdate());
+  update->Set(ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD, base.x(), base.y(),
+              base.z());
+  update->Set(ACCELEROMETER_SOURCE_SCREEN, lid.x(), lid.y(), lid.z());
   tablet_mode_controller_->OnAccelerometerUpdated(update);
 }
 

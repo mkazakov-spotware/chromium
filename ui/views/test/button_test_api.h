@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_TEST_BUTTON_TEST_API_H_
 #define UI_VIEWS_TEST_BUTTON_TEST_API_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace ui {
 class Event;
@@ -21,13 +21,12 @@ class ButtonTestApi {
  public:
   explicit ButtonTestApi(Button* button) : button_(button) {}
 
-  ButtonTestApi(const ButtonTestApi&) = delete;
-  ButtonTestApi& operator=(const ButtonTestApi&) = delete;
-
   void NotifyClick(const ui::Event& event);
 
  private:
-  raw_ptr<Button, DanglingUntriaged> button_;
+  Button* button_;
+
+  DISALLOW_COPY_AND_ASSIGN(ButtonTestApi);
 };
 
 }  // namespace test

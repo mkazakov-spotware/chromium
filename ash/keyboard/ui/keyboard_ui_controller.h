@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,14 +22,15 @@
 #include "ash/keyboard/ui/queued_display_change.h"
 #include "ash/public/cpp/keyboard/keyboard_config.h"
 #include "ash/public/cpp/keyboard/keyboard_types.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "base/time/time.h"
 #include "ui/aura/window_observer.h"
 #include "ui/base/ime/input_method.h"
+#include "ui/base/ime/input_method_keyboard_controller.h"
 #include "ui/base/ime/input_method_observer.h"
 #include "ui/base/ime/text_input_type.h"
-#include "ui/base/ime/virtual_keyboard_controller.h"
 #include "ui/events/event.h"
 #include "ui/events/gestures/gesture_types.h"
 #include "ui/gfx/geometry/rect.h"
@@ -60,10 +61,6 @@ class KEYBOARD_EXPORT KeyboardUIController
       public ContainerBehavior::Delegate {
  public:
   KeyboardUIController();
-
-  KeyboardUIController(const KeyboardUIController&) = delete;
-  KeyboardUIController& operator=(const KeyboardUIController&) = delete;
-
   ~KeyboardUIController() override;
 
   // Initialize the virtual keyboard controller with two delegates:
@@ -244,8 +241,8 @@ class KEYBOARD_EXPORT KeyboardUIController
 
   aura::Window* parent_container() { return parent_container_; }
 
-  ui::VirtualKeyboardController* virtual_keyboard_controller() {
-    return virtual_keyboard_controller_.get();
+  ui::InputMethodKeyboardController* input_method_keyboard_controller() {
+    return input_method_keyboard_controller_.get();
   }
 
   bool keyboard_locked() const { return keyboard_locked_; }
@@ -314,7 +311,7 @@ class KEYBOARD_EXPORT KeyboardUIController
   void OnFocus() override {}
   void OnInputMethodDestroyed(const ui::InputMethod* input_method) override;
   void OnTextInputStateChanged(const ui::TextInputClient* client) override;
-  void OnVirtualKeyboardVisibilityChangedIfEnabled(bool should_show) override;
+  void OnShowVirtualKeyboardIfEnabled() override;
 
   // Enables the virtual keyboard.
   // Immediately starts pre-loading the keyboard window in the background.
@@ -419,10 +416,10 @@ class KEYBOARD_EXPORT KeyboardUIController
 
   std::unique_ptr<KeyboardUIFactory> ui_factory_;
   std::unique_ptr<KeyboardUI> ui_;
-  std::unique_ptr<ui::VirtualKeyboardController> virtual_keyboard_controller_;
+  std::unique_ptr<ui::InputMethodKeyboardController>
+      input_method_keyboard_controller_;
   KeyboardLayoutDelegate* layout_delegate_ = nullptr;
-  base::ScopedObservation<ui::InputMethod, ui::InputMethodObserver>
-      ime_observation_{this};
+  ScopedObserver<ui::InputMethod, ui::InputMethodObserver> ime_observer_{this};
 
   // Container window that the keyboard window is a child of.
   aura::Window* parent_container_ = nullptr;
@@ -473,6 +470,8 @@ class KEYBOARD_EXPORT KeyboardUIController
   base::WeakPtrFactory<KeyboardUIController>
       weak_factory_report_lingering_state_{this};
   base::WeakPtrFactory<KeyboardUIController> weak_factory_will_hide_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardUIController);
 };
 
 }  // namespace keyboard

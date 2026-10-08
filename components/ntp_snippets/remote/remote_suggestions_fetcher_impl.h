@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/time/clock.h"
 #include "components/ntp_snippets/remote/json_request.h"
 #include "components/ntp_snippets/remote/json_to_categories.h"
@@ -54,9 +55,6 @@ class RemoteSuggestionsFetcherImpl : public RemoteSuggestionsFetcher {
       const GURL& api_endpoint,
       const std::string& api_key,
       const UserClassifier* user_classifier);
-  RemoteSuggestionsFetcherImpl(const RemoteSuggestionsFetcherImpl&) = delete;
-  RemoteSuggestionsFetcherImpl& operator=(const RemoteSuggestionsFetcherImpl&) =
-      delete;
   ~RemoteSuggestionsFetcherImpl() override;
 
   void FetchSnippets(const RequestParams& params,
@@ -110,7 +108,7 @@ class RemoteSuggestionsFetcherImpl : public RemoteSuggestionsFetcher {
       OptionalFetchedCategories fetched_categories);
 
   // Authentication for signed-in users.
-  raw_ptr<signin::IdentityManager> identity_manager_;
+  signin::IdentityManager* identity_manager_;
 
   std::unique_ptr<signin::PrimaryAccountAccessTokenFetcher> token_fetcher_;
 
@@ -123,7 +121,7 @@ class RemoteSuggestionsFetcherImpl : public RemoteSuggestionsFetcher {
       pending_requests_;
 
   // Weak reference, not owned.
-  const raw_ptr<language::UrlLanguageHistogram> language_histogram_;
+  language::UrlLanguageHistogram* const language_histogram_;
 
   const ParseJSONCallback parse_json_callback_;
 
@@ -134,10 +132,10 @@ class RemoteSuggestionsFetcherImpl : public RemoteSuggestionsFetcher {
   const std::string api_key_;
 
   // Allow for an injectable clock for testing.
-  raw_ptr<const base::Clock> clock_;
+  const base::Clock* clock_;
 
   // Classifier that tells us how active the user is. Not owned.
-  raw_ptr<const UserClassifier> user_classifier_;
+  const UserClassifier* user_classifier_;
 
   // Info on the last finished fetch.
   std::string last_status_;
@@ -145,6 +143,8 @@ class RemoteSuggestionsFetcherImpl : public RemoteSuggestionsFetcher {
   bool last_fetch_authenticated_;
 
   static bool skip_api_key_check_for_testing_;
+
+  DISALLOW_COPY_AND_ASSIGN(RemoteSuggestionsFetcherImpl);
 };
 
 }  // namespace ntp_snippets

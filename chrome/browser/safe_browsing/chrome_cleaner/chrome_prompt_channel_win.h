@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "base/process/launch.h"
 #include "base/process/process.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/win/scoped_handle.h"
 #include "chrome/browser/safe_browsing/chrome_cleaner/chrome_prompt_actions_win.h"
 #include "components/chrome_cleaner/public/proto/chrome_prompt.pb.h"
@@ -82,9 +82,7 @@ class ChromePromptChannel {
     kRequestUnknownField = 7,
     kUndisplayableFilePath = 8,
     kUndisplayableRegistryKey = 9,
-    DEPRECATED_kUndisplayableExtension = 10,
-    kDeprecatedRequest = 11,
-    kDeprecatedFieldInRequest = 12,
+    kUndisplayableExtension = 10,
   };
 
   static int32_t GetErrorCodeInt(ErrorCategory category,
@@ -151,6 +149,10 @@ class ChromePromptChannel {
   // Handles |request| and sends a PromptUserResponse in reply.
   void HandlePromptUserRequest(
       const chrome_cleaner::PromptUserRequest& request);
+
+  // Handles |request| and sends a RemoveExtensionsResponse in reply.
+  void HandleRemoveExtensionsRequest(
+      const chrome_cleaner::RemoveExtensionsRequest& request);
 
   // Closes request_read_handle_ and request_write_handle_, which will trigger
   // an error handler in ServiceChromePromptRequests.

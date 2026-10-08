@@ -1,17 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ActionManager} from './action_manager.js';
-import {AutoScanManager} from './auto_scan_manager.js';
-import {Navigator} from './navigator.js';
 
 const SwitchAccessCommand = chrome.accessibilityPrivate.SwitchAccessCommand;
 
 /**
  * Runs user commands.
  */
-export class Commands {
+class Commands {
   /** @private */
   constructor() {
     /**
@@ -20,18 +16,12 @@ export class Commands {
      */
     this.commandMap_ = new Map([
       [SwitchAccessCommand.SELECT, ActionManager.onSelect],
-      [
-        SwitchAccessCommand.NEXT,
-        Navigator.byItem.moveForward.bind(Navigator.byItem),
-      ],
-      [
-        SwitchAccessCommand.PREVIOUS,
-        Navigator.byItem.moveBackward.bind(Navigator.byItem),
-      ],
+      [SwitchAccessCommand.NEXT, NavigationManager.moveForward],
+      [SwitchAccessCommand.PREVIOUS, NavigationManager.moveBackward]
     ]);
 
     chrome.accessibilityPrivate.onSwitchAccessCommand.addListener(
-        command => this.runCommand_(command));
+        this.runCommand_.bind(this));
   }
 
   static initialize() {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ LoadCompletionObserver::~LoadCompletionObserver() {
 }
 
 void LoadCompletionObserver::LoadStateChanged(bool is_loading,
-                                              bool should_show_loading_ui) {
+                                              bool to_different_document) {
   if (!is_loading)
     run_loop_.Quit();
 }

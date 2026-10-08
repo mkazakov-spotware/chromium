@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,6 @@ namespace ui_devtools {
 class PageAgentViews : public PageAgent {
  public:
   explicit PageAgentViews(DOMAgent* dom_agent);
-  PageAgentViews(const PageAgentViews&) = delete;
-  PageAgentViews& operator=(const PageAgentViews&) = delete;
   ~PageAgentViews() override;
 
   // PageAgent:
@@ -26,7 +24,11 @@ class PageAgentViews : public PageAgent {
                                         protocol::String* out_content,
                                         bool* out_base64Encoded) override;
 
-  bool GetDevtoolsDismissOverrideForTesting() const;
+ private:
+  friend class PageAgentViewsTest;
+  bool devtools_dismiss_override();
+
+  DISALLOW_COPY_AND_ASSIGN(PageAgentViews);
 };
 
 }  // namespace ui_devtools

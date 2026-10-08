@@ -31,36 +31,52 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_WIDGET_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_WIDGET_H_
 
+#include "base/callback.h"
+#include "base/time/time.h"
+#include "build/build_config.h"
+#include "cc/input/browser_controls_state.h"
+#include "cc/metrics/begin_main_frame_metrics.h"
+#include "cc/paint/element_id.h"
+#include "cc/trees/layer_tree_host_client.h"
+#include "third_party/blink/public/common/input/web_menu_source_type.h"
 #include "third_party/blink/public/common/metrics/document_update_reason.h"
+#include "third_party/blink/public/common/widget/screen_info.h"
+#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
+#include "third_party/blink/public/mojom/input/pointer_lock_context.mojom-shared.h"
+#include "third_party/blink/public/mojom/input/pointer_lock_result.mojom-shared.h"
+#include "third_party/blink/public/mojom/manifest/display_mode.mojom-shared.h"
+#include "third_party/blink/public/platform/cross_variant_mojo_util.h"
+#include "third_party/blink/public/platform/input/input_handler_proxy.h"
+#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_input_event_result.h"
-#include "third_party/blink/public/platform/web_string.h"
+#include "third_party/blink/public/platform/web_rect.h"
+#include "third_party/blink/public/platform/web_text_input_info.h"
+#include "third_party/blink/public/platform/web_vector.h"
+#include "third_party/blink/public/web/web_hit_test_result.h"
 #include "third_party/blink/public/web/web_lifecycle_update.h"
-#include "ui/gfx/geometry/size.h"
+#include "third_party/blink/public/web/web_range.h"
+#include "third_party/blink/public/web/web_swap_result.h"
 
 namespace cc {
 class LayerTreeHost;
 class LayerTreeSettings;
+class TaskGraphRunner;
+class UkmRecorderFactory;
 }
-
-namespace display {
-struct ScreenInfo;
-struct ScreenInfos;
-}  // namespace display
-
-namespace gfx {
-class PointF;
-class Rect;
-class Vector2dF;
-}  // namespace gfx
 
 namespace ui {
 class Cursor;
+class LatencyInfo;
 }
 
 namespace blink {
 struct VisualProperties;
 class WebCoalescedInputEvent;
-class WebHitTestResult;
+
+namespace scheduler {
+class WebRenderWidgetSchedulingState;
+class WebThreadScheduler;
+}
 
 class WebWidget {
  public:
@@ -69,8 +85,19 @@ class WebWidget {
   // is called. |settings| is typically null. When |settings| is null
   // the default settings will be used, tests may provide a |settings| object to
   // override the defaults.
-  virtual void InitializeCompositing(const display::ScreenInfos& screen_info,
-                                     const cc::LayerTreeSettings* settings) = 0;
+  virtual cc::LayerTreeHost* InitializeCompositing(
+      scheduler::WebThreadScheduler* main_thread_scheduler,
+      cc::TaskGraphRunner* task_graph_runner,
+      bool for_child_local_root_frame,
+      const ScreenInfo& screen_info,
+      std::unique_ptr<cc::UkmRecorderFactory> ukm_recorder_factory,
+      const cc::LayerTreeSettings* settings) = 0;
+
+  // This method closes and deletes the WebWidget. If a |cleanup_task| is
+  // provided it should run on the |cleanup_runner| after the WebWidget has
+  // added its own tasks to the |cleanup_runner|.
+  virtual void Close(
+      scoped_refptr<base::SingleThreadTaskRunner> cleanup_runner = nullptr) {}
 
   // Set the compositor as visible. If |visible| is true, then the compositor
   // will request a new layer frame sink and begin producing frames from the
@@ -125,6 +152,10 @@ class WebWidget {
   // Returns the state of focus for the WebWidget.
   virtual bool HasFocus() { return false; }
 
+  // Accessor to the WebWidget scheduing state.
+  virtual scheduler::WebRenderWidgetSchedulingState*
+  RendererWidgetSchedulingState() = 0;
+
   virtual void SetCursor(const ui::Cursor& cursor) = 0;
 
   // Get the current tooltip text.
@@ -136,9 +167,17 @@ class WebWidget {
   // Set state that the widget is in the process of handling input events.
   virtual void SetHandlingInputEvent(bool handling) = 0;
 
-  // Process the input event, blocking until complete.
+  using HandledEventCallback = base::OnceCallback<void(
+      mojom::InputEventResultState ack_state,
+      const ui::LatencyInfo& latency_info,
+      std::unique_ptr<InputHandlerProxy::DidOverscrollParams>,
+      base::Optional<cc::TouchAction>)>;
+
+  // Process the input event, invoking the callback when complete. This
+  // method will call the callback synchronously.
   virtual void ProcessInputEventSynchronouslyForTesting(
-      const WebCoalescedInputEvent&) = 0;
+      const WebCoalescedInputEvent&,
+      HandledEventCallback) = 0;
 
   virtual void DidOverscrollForTesting(
       const gfx::Vector2dF& overscroll_delta,
@@ -168,17 +207,11 @@ class WebWidget {
 
   // Returns information about the screen where this view's widgets are being
   // displayed.
-  virtual const display::ScreenInfo& GetScreenInfo() = 0;
-
-  // Returns information about all available screens.
-  virtual const display::ScreenInfos& GetScreenInfos() = 0;
+  virtual const ScreenInfo& GetScreenInfo() = 0;
 
   // Returns original (non-emulated) information about the screen where this
   // view's widgets are being displayed.
-  virtual const display::ScreenInfo& GetOriginalScreenInfo() = 0;
-
-  // Returns original (non-emulated) information about all available screens.
-  virtual const display::ScreenInfos& GetOriginalScreenInfos() = 0;
+  virtual const ScreenInfo& GetOriginalScreenInfo() = 0;
 
   // Called to get the position of the widget's window in screen
   // coordinates. Note, the window includes any decorations such as borders,
@@ -207,4 +240,4 @@ class WebWidget {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_WIDGET_H_
+#endif

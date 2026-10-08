@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "media/base/encryption_scheme.h"
 #include "media/base/media_log.h"
 #include "media/formats/webm/webm_parser.h"
@@ -22,10 +22,6 @@ class AudioDecoderConfig;
 class WebMAudioClient : public WebMParserClient {
  public:
   explicit WebMAudioClient(MediaLog* media_log);
-
-  WebMAudioClient(const WebMAudioClient&) = delete;
-  WebMAudioClient& operator=(const WebMAudioClient&) = delete;
-
   ~WebMAudioClient() override;
 
   // Reset this object's state so it can process a new audio track element.
@@ -49,10 +45,12 @@ class WebMAudioClient : public WebMParserClient {
   bool OnUInt(int id, int64_t val) override;
   bool OnFloat(int id, double val) override;
 
-  raw_ptr<MediaLog> media_log_;
+  MediaLog* media_log_;
   int channels_;
   double samples_per_second_;
   double output_samples_per_second_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebMAudioClient);
 };
 
 }  // namespace media

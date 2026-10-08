@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/file_descriptor_posix.h"
-#include "printing/mojom/print.mojom.h"
 #include "printing/printing_context.h"
 
 namespace ui {
@@ -18,10 +17,11 @@ class WindowAndroid;
 
 namespace printing {
 
+class MetafilePlayer;
+
 // Android subclass of PrintingContext. This class communicates with the
 // Java side through JNI.
-class COMPONENT_EXPORT(PRINTING) PrintingContextAndroid
-    : public PrintingContext {
+class PRINTING_EXPORT PrintingContextAndroid : public PrintingContext {
  public:
   explicit PrintingContextAndroid(Delegate* delegate);
   PrintingContextAndroid(const PrintingContextAndroid&) = delete;
@@ -30,7 +30,7 @@ class COMPONENT_EXPORT(PRINTING) PrintingContextAndroid
 
   // Called when the page is successfully written to a PDF using the file
   // descriptor specified, or when the printing operation failed. On success,
-  // the PDF has `page_count` pages. Non-positive `page_count` indicates
+  // the PDF has |page_count| pages. Non-positive |page_count| indicates
   // failure.
   static void PdfWritingDone(int page_count);
 
@@ -50,20 +50,23 @@ class COMPONENT_EXPORT(PRINTING) PrintingContextAndroid
   void ShowSystemDialogDone(JNIEnv* env,
                             const base::android::JavaParamRef<jobject>& obj);
 
+  // Prints the document contained in |metafile|.
+  void PrintDocument(const MetafilePlayer& metafile);
+
   // PrintingContext implementation.
   void AskUserForSettings(int max_pages,
                           bool has_selection,
                           bool is_scripted,
                           PrintSettingsCallback callback) override;
-  mojom::ResultCode UseDefaultSettings() override;
+  Result UseDefaultSettings() override;
   gfx::Size GetPdfPaperSizeDeviceUnits() override;
-  mojom::ResultCode UpdatePrinterSettings(
-      const PrinterSettings& printer_settings) override;
-  mojom::ResultCode NewDocument(const std::u16string& document_name) override;
-  mojom::ResultCode PrintDocument(const MetafilePlayer& metafile,
-                                  const PrintSettings& settings,
-                                  uint32_t num_pages) override;
-  mojom::ResultCode DocumentDone() override;
+  Result UpdatePrinterSettings(bool external_preview,
+                               bool show_system_dialog,
+                               int page_count) override;
+  Result NewDocument(const base::string16& document_name) override;
+  Result NewPage() override;
+  Result PageDone() override;
+  Result DocumentDone() override;
   void Cancel() override;
   void ReleaseContext() override;
   printing::NativeDrawingContext context() const override;

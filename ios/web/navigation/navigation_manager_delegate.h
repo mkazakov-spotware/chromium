@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,6 +24,10 @@ class NavigationManagerDelegate {
  public:
   virtual ~NavigationManagerDelegate() {}
 
+  // Instructs the delegate to clear any transient content to prepare for new
+  // navigation.
+  virtual void ClearTransientContent() = 0;
+
   // Instructs the delegate to clear any presented dialogs to prepare for a new
   // navigation.
   virtual void ClearDialogs() = 0;
@@ -32,6 +36,10 @@ class NavigationManagerDelegate {
   // values, whatever can be harvested) from the current page into the
   // navigation item.
   virtual void RecordPageStateInNavigationItem() = 0;
+
+  // Informs the delegate that a go to index same-document navigation occured.
+  virtual void OnGoToIndexSameDocumentNavigation(NavigationInitiationType type,
+                                                 bool has_user_gesture) = 0;
 
   // Instructs the delegate to load the current navigation item.
   virtual void LoadCurrentItem(NavigationInitiationType type) = 0;
@@ -56,8 +64,8 @@ class NavigationManagerDelegate {
   // navigation related functions on the main WKWebView.
   virtual id<CRWWebViewNavigationProxy> GetWebViewNavigationProxy() const = 0;
 
-  // Instructs WKWebView to navigate to the given navigation item. `wk_item` and
-  // `item` must point to the same navigation item. Calling this method may
+  // Instructs WKWebView to navigate to the given navigation item. |wk_item| and
+  // |item| must point to the same navigation item. Calling this method may
   // result in an iframe navigation.
   virtual void GoToBackForwardListItem(WKBackForwardListItem* wk_item,
                                        NavigationItem* item,

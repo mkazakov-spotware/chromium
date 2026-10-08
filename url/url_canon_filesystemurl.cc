@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -94,14 +94,14 @@ bool CanonicalizeFileSystemURL(const char* spec,
       new_parsed);
 }
 
-bool CanonicalizeFileSystemURL(const char16_t* spec,
+bool CanonicalizeFileSystemURL(const base::char16* spec,
                                int spec_len,
                                const Parsed& parsed,
                                CharsetConverter* charset_converter,
                                CanonOutput* output,
                                Parsed* new_parsed) {
-  return DoCanonicalizeFileSystemURL<char16_t, char16_t>(
-      spec, URLComponentSource<char16_t>(spec), parsed, charset_converter,
+  return DoCanonicalizeFileSystemURL<base::char16, base::char16>(
+      spec, URLComponentSource<base::char16>(spec), parsed, charset_converter,
       output, new_parsed);
 }
 
@@ -120,7 +120,7 @@ bool ReplaceFileSystemURL(const char* base,
 
 bool ReplaceFileSystemURL(const char* base,
                           const Parsed& base_parsed,
-                          const Replacements<char16_t>& replacements,
+                          const Replacements<base::char16>& replacements,
                           CharsetConverter* charset_converter,
                           CanonOutput* output,
                           Parsed* new_parsed) {

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -128,7 +128,7 @@ base::scoped_nsobject<NSMenu> BuildMainMenu() {
 
 namespace content {
 
-void ShellBrowserMainParts::PreCreateMainMessageLoop() {
+void ShellBrowserMainParts::PreMainMessageLoopStart() {
   base::scoped_nsobject<NSMenu> main_menu = BuildMainMenu();
   [[NSApplication sharedApplication] setMainMenu:main_menu];
 }

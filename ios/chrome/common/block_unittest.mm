@@ -1,12 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <Foundation/Foundation.h>
-#import <vector>
+#include <vector>
 
-#import "base/memory/ref_counted.h"
-#import "testing/platform_test.h"
+#include "base/memory/ref_counted.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -66,7 +66,14 @@ TEST_F(BlockTest, BlockAndCPlusPlus) {
         EXPECT_EQ(object_void_ptr, object_ptr.get());
         EXPECT_EQ(expected, object_ptr.get()->refcount());
       };
+#ifdef XCODE_CLANG
+      // TODO(crbug.com/939749): With newer Clang versions, the expected value
+      // is 3. Remove this ifdef when moving to a newer xcode. Note:
+      // XCODE_CLANG is a Chromium-specific define local to this build target.
       stack_block(4);
+#else
+      stack_block(3);
+#endif
       heap_block = [stack_block copy];
       stack_block(4);
     }

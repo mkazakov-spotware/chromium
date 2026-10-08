@@ -9,7 +9,7 @@
 	<key>CFBundleExecutable</key>
 	<string>share_extension</string>
 	<key>CFBundleIdentifier</key>
-	<string>${BUNDLE_IDENTIFIER}</string>
+	<string>${IOS_BUNDLE_ID_PREFIX}.${SHARE_EXTENSION_BUNDLE_ID}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -36,14 +36,7 @@
 					SUBQUERY (
 						$extensionItem.attachments,
 						$attachment,
-						(
-							ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
-						)
-						AND (
-							NOT (
-								ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url"
-							)
-						)
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
 					).@count == 1
 				).@count == 1
 			</string>

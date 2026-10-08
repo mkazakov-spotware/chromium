@@ -1,42 +1,26 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
+'use strict';
 
-import {queryDecoratedElement} from '../../../common/js/dom_utils.js';
-import {decorate} from '../../../common/js/ui.js';
-import {util} from '../../../common/js/util.js';
-
-import {Command} from './command.js';
-import {Menu} from './menu.js';
-import {MultiMenuButton} from './multi_menu_button.js';
-
-/** @type {MultiMenuButton} */
+/** @type {cr.ui.MultiMenuButton} */
 let menubutton;
 
-/** @type {Menu} */
+/** @type {cr.ui.Menu} */
 let topMenu;
 
-/** @type {Menu} */
+/** @type {cr.ui.Menu} */
 let subMenu;
 
-/** @type {Menu} */
+/** @type {cr.ui.Menu} */
 let secondSubMenu;
 
-/** @type {number} */
-let initialWindowHeight;
-
 // Set up test components.
-export function setUp() {
-  // Multiple tests rely on the window height, reset between tests to avoid
-  // interference.
-  if (!initialWindowHeight) {
-    initialWindowHeight = window.innerHeight;
-  }
-  window.innerHeight = initialWindowHeight;
-
+function setUp() {
+  // Internals of WebUI reference this property when processing
+  // keyboard events, so we need to prepare it to stop asserts.
+  loadTimeData.data = {'SHORTCUT_ENTER': 'Enter'};
   // Install cr.ui <command> elements and <cr-menu>s on the page.
   document.body.innerHTML = [
     '<style>',
@@ -74,16 +58,17 @@ export function setUp() {
     '</cr-menu>',
     '<div id="focus-div" tabindex="1"/>',
     '<button id="focus-button" tabindex="2"/>',
-    '<cr-input id="focus-input" input-tabindex="3">',
+    '<cr-input id="focus-input" tabindex="3">',
     '</cr-input>',
   ].join('');
 
   // Initialize cr.ui.Command with the <command>s.
-  decorate('command', Command);
-  menubutton = queryDecoratedElement('#test-menu-button', MultiMenuButton);
-  topMenu = queryDecoratedElement('#menu', Menu);
-  subMenu = queryDecoratedElement('#sub-menu', Menu);
-  secondSubMenu = queryDecoratedElement('#second-sub-menu', Menu);
+  cr.ui.decorate('command', cr.ui.Command);
+  menubutton =
+      util.queryDecoratedElement('#test-menu-button', cr.ui.MultiMenuButton);
+  topMenu = util.queryDecoratedElement('#menu', cr.ui.Menu);
+  subMenu = util.queryDecoratedElement('#sub-menu', cr.ui.Menu);
+  secondSubMenu = util.queryDecoratedElement('#second-sub-menu', cr.ui.Menu);
 }
 
 /**
@@ -152,7 +137,7 @@ function sendKeyDown(targetQuery, key) {
  * Tests that making the top level menu visible doesn't
  * cause the sub-menu to become visible.
  */
-export function testShowMenuDoesntShowSubMenu() {
+function testShowMenuDoesntShowSubMenu() {
   menubutton.showMenu(true);
   // Check the top level menu is not hidden.
   assertFalse(topMenu.hasAttribute('hidden'));
@@ -164,7 +149,7 @@ export function testShowMenuDoesntShowSubMenu() {
  * Tests that a 'mouseover' event on top of normal menu-items
  * doesn't cause the sub-menu to become visible.
  */
-export function testMouseOverNormalItemsDoesntShowSubMenu() {
+function testMouseOverNormalItemsDoesntShowSubMenu() {
   menubutton.showMenu(true);
   sendMouseOver('#default-task');
   assertTrue(subMenu.hasAttribute('hidden'));
@@ -176,7 +161,7 @@ export function testMouseOverNormalItemsDoesntShowSubMenu() {
  * Tests that 'mouseover' on a menu-item with 'show-submenu' command
  * causes the sub-menu to become visible.
  */
-export function testMouseOverHostMenuShowsSubMenu() {
+function testMouseOverHostMenuShowsSubMenu() {
   menubutton.showMenu(true);
   sendMouseOver('#host-sub-menu');
   assertFalse(subMenu.hasAttribute('hidden'));
@@ -186,7 +171,7 @@ export function testMouseOverHostMenuShowsSubMenu() {
  * Tests that 'mouseout' with the mouse over the top level
  * menu causes the sub-menu to hide.
  */
-export function testMouseoutFromHostMenuItemToHostMenu() {
+function testMouseoutFromHostMenuItemToHostMenu() {
   menubutton.showMenu(true);
   sendMouseOver('#host-sub-menu');
   assertFalse(subMenu.hasAttribute('hidden'));
@@ -201,7 +186,7 @@ export function testMouseoutFromHostMenuItemToHostMenu() {
  * Tests that 'mouseout' with the mouse over the sub-menu
  * doesn't hide the sub-menu.
  */
-export function testMouseoutFromHostMenuToSubMenu() {
+function testMouseoutFromHostMenuToSubMenu() {
   menubutton.showMenu(true);
   sendMouseOver('#host-sub-menu');
   assertFalse(subMenu.hasAttribute('hidden'));
@@ -215,7 +200,7 @@ export function testMouseoutFromHostMenuToSubMenu() {
  * Tests that selecting a menu-item with a 'show-submenu' command
  * doesn't cause the sub-menu to become visible.
  */
-export function testSelectHostMenuItem() {
+function testSelectHostMenuItem() {
   menubutton.showMenu(true);
   topMenu.selectedIndex = 2;
   const hostItem = document.querySelector('#host-sub-menu');
@@ -231,7 +216,7 @@ export function testSelectHostMenuItem() {
  * (Note: in an application, this would happen from a command
  * being executed rather than a direct showSubMenu() call.)
  */
-export function testSelectHostMenuItemAndCallShowSubMenu() {
+function testSelectHostMenuItemAndCallShowSubMenu() {
   testSelectHostMenuItem();
   menubutton.menu.showSubMenu();
   assertFalse(subMenu.hasAttribute('hidden'));
@@ -241,7 +226,7 @@ export function testSelectHostMenuItemAndCallShowSubMenu() {
  * Tests that a mouse click outside of a menu and sub-menu causes
  * both menus to hide.
  */
-export function testClickOutsideVisibleMenuAndSubMenu() {
+function testClickOutsideVisibleMenuAndSubMenu() {
   testSelectHostMenuItemAndCallShowSubMenu();
   const event = new MouseEvent('mousedown', {
     bubbles: true,
@@ -260,7 +245,7 @@ export function testClickOutsideVisibleMenuAndSubMenu() {
  * Tests that shrinking the window height will limit
  * the height of the sub-menu.
  */
-export function testShrinkWindowSizesSubMenu() {
+function testShrinkWindowSizesSubMenu() {
   testSelectHostMenuItemAndCallShowSubMenu();
   const subMenuPosition = subMenu.getBoundingClientRect();
   // Reduce window innerHeight so sub-menu won't fit.
@@ -279,7 +264,7 @@ export function testShrinkWindowSizesSubMenu() {
  * Tests that growing the window height will increase
  * the height of the sub-menu.
  */
-export function testGrowWindowSizesSubMenu() {
+function testGrowWindowSizesSubMenu() {
   // Remember the full size of the sub-menu
   testSelectHostMenuItemAndCallShowSubMenu();
   const subMenuPosition = subMenu.getBoundingClientRect();
@@ -318,7 +303,7 @@ function prepareForKeyboardNavigation() {
 /**
  * Tests that arrow navigates from main menu to sub-menu.
  */
-export function testNavigateFromMenuToSubMenu() {
+function testNavigateFromMenuToSubMenu() {
   prepareForKeyboardNavigation();
   // Check that the hosting menu-item is not selected.
   const hostItem = document.querySelector('#host-sub-menu');
@@ -332,7 +317,7 @@ export function testNavigateFromMenuToSubMenu() {
  * Tests that arrow left moves back to the top level menu
  * only when the selected sub-menu item is the first one.
  */
-export function testNavigateFromSubMenuToParentMenu() {
+function testNavigateFromSubMenuToParentMenu() {
   testNavigateFromMenuToSubMenu();
   // Use the arrow key to go to the next sub-menu item.
   sendKeyDown('#test-menu-button', 'ArrowDown');
@@ -361,7 +346,7 @@ export function testNavigateFromSubMenuToParentMenu() {
  * Tests that arrow up on the top level menu hides the
  * sub menu when the sub-menu is visible.
  */
-export function testTopMenuArrowUpDismissesSubMenu() {
+function testTopMenuArrowUpDismissesSubMenu() {
   prepareForKeyboardNavigation();
   // Check that the hosting menu-item is not selected.
   const hostItem = document.querySelector('#host-sub-menu');
@@ -380,7 +365,7 @@ export function testTopMenuArrowUpDismissesSubMenu() {
  * Tests that the top level menu is resized when the parent
  * window is too small to fit in without clipping.
  */
-export function testShrinkWindowSizesTopMenu() {
+function testShrinkWindowSizesTopMenu() {
   menubutton.showMenu(true);
   const menuPosition = topMenu.getBoundingClientRect();
   // Reduce window innerHeight so the menu won't fit.
@@ -395,7 +380,7 @@ export function testShrinkWindowSizesTopMenu() {
 /**
  * Tests that mousedown the menu button grabs focus.
  */
-export function testFocusMenuButtonWithMouse() {
+function testFocusMenuButtonWithMouse() {
   // Set focus on a div element.
   //* @type {HTMLElement} */
   const divElement = document.querySelector('#focus-div');
@@ -439,7 +424,7 @@ export function testFocusMenuButtonWithMouse() {
 /**
  * Tests that opening a sub menu hides any showing sub menu.
  */
-export function testShowSubMenuHidesExisting() {
+function testShowSubMenuHidesExisting() {
   testMouseOverHostMenuShowsSubMenu();
   sendMouseOver('#host-second-sub-menu');
   // Check the previously shown sub menu is hidden.

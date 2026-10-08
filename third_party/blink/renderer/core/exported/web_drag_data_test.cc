@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/renderer/core/clipboard/data_object.h"
 #include "third_party/blink/renderer/platform/file_metadata.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -44,8 +44,8 @@ TEST(WebDragDataTest, items) {
     metadata.length = 1234;
     KURL url(
         "filesystem:http://example.com/isolated/hash/visible-non-native-file");
-    data_object->Add(File::CreateForFileSystemFile(
-        url, metadata, File::kIsUserVisible, BlobDataHandle::Create()));
+    data_object->Add(
+        File::CreateForFileSystemFile(url, metadata, File::kIsUserVisible));
   }
 
   // Not user visible file system URL file.
@@ -55,8 +55,8 @@ TEST(WebDragDataTest, items) {
     KURL url(
         "filesystem:http://example.com/isolated/hash/"
         "not-visible-non-native-file");
-    data_object->Add(File::CreateForFileSystemFile(
-        url, metadata, File::kIsNotUserVisible, BlobDataHandle::Create()));
+    data_object->Add(
+        File::CreateForFileSystemFile(url, metadata, File::kIsNotUserVisible));
   }
 
   WebDragData data = data_object->ToWebDragData();

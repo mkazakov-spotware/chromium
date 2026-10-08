@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-blink.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_image_resource.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -24,12 +25,12 @@ TEST(ImageResourceConverter, EmptySizesTest) {
       blink::ManifestImageResource::Create();
 
   ManifestImageResourcePtr converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->sizes.empty());
+  ASSERT_TRUE(converted->sizes.IsEmpty());
 
   // Explicitly set to empty.
   resource->setSizes("");
   converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->sizes.empty());
+  ASSERT_TRUE(converted->sizes.IsEmpty());
 }
 
 TEST(ImageResourceConverter, ValidSizesTest) {
@@ -81,19 +82,19 @@ TEST(ImageResourceConverter, InvalidSizesTest) {
 
   resource->setSizes("02x3");
   ManifestImageResourcePtr converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->sizes.empty());
+  ASSERT_TRUE(converted->sizes.IsEmpty());
 
   resource->setSizes("42X024");
   converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->sizes.empty());
+  ASSERT_TRUE(converted->sizes.IsEmpty());
 
   resource->setSizes("42x");
   converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->sizes.empty());
+  ASSERT_TRUE(converted->sizes.IsEmpty());
 
   resource->setSizes("foo");
   converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->sizes.empty());
+  ASSERT_TRUE(converted->sizes.IsEmpty());
 }
 
 TEST(ImageResourceConverter, EmptyPurposeTest) {
@@ -101,12 +102,12 @@ TEST(ImageResourceConverter, EmptyPurposeTest) {
       blink::ManifestImageResource::Create();
 
   ManifestImageResourcePtr converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->purpose.empty());
+  ASSERT_TRUE(converted->purpose.IsEmpty());
 
   // Explicitly set to empty.
   resource->setPurpose("");
   converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->purpose.empty());
+  ASSERT_TRUE(converted->purpose.IsEmpty());
 }
 
 TEST(ImageResourceConverter, ValidPurposeTest) {
@@ -142,7 +143,7 @@ TEST(ImageResourceConverter, InvalidPurposeTest) {
 
   resource->setPurpose("any?");
   ManifestImageResourcePtr converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->purpose.empty());
+  ASSERT_TRUE(converted->purpose.IsEmpty());
 }
 
 TEST(ImageResourceConverter, EmptyTypeTest) {
@@ -150,12 +151,12 @@ TEST(ImageResourceConverter, EmptyTypeTest) {
       blink::ManifestImageResource::Create();
 
   ManifestImageResourcePtr converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->type.empty());
+  ASSERT_TRUE(converted->type.IsEmpty());
 
   // Explicitly set to empty.
   resource->setType("");
   converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->type.empty());
+  ASSERT_TRUE(converted->type.IsEmpty());
 }
 
 TEST(ImageResourceConverter, InvalidTypeTest) {
@@ -164,7 +165,7 @@ TEST(ImageResourceConverter, InvalidTypeTest) {
 
   resource->setType("image/NOTVALID!");
   ManifestImageResourcePtr converted = ManifestImageResource::From(resource);
-  ASSERT_TRUE(converted->type.empty());
+  ASSERT_TRUE(converted->type.IsEmpty());
 }
 
 TEST(ImageResourceConverter, ValidTypeTest) {

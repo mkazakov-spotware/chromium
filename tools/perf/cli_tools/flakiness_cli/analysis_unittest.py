@@ -1,10 +1,8 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import unittest
-
-import six
 
 from cli_tools.flakiness_cli import analysis
 from cli_tools.flakiness_cli import frames
@@ -27,23 +25,23 @@ class TestAnalysis(unittest.TestCase):
 
     # Let's find where desktop_tests are running.
     df = analysis.FilterBy(builders, test_type='desktop_tests')
-    six.assertCountEqual(self, df['builder'], ['my-mac-bot', 'my-linux-bot'])
+    self.assertItemsEqual(df['builder'], ['my-mac-bot', 'my-linux-bot'])
 
     # Let's find all android bots and tests. (`None` patterns are ignored.)
     df = analysis.FilterBy(builders, builder='*android*', master=None)
     self.assertEqual(len(df), 4)
-    six.assertCountEqual(self, df['builder'].unique(),
-                         ['my-android-bot', 'my-new-android-bot'])
-    six.assertCountEqual(self, df['master'].unique(),
-                         ['chromium.perf', 'chromium.perf.fyi'])
-    six.assertCountEqual(self, df['test_type'].unique(),
-                         ['common_tests', 'mobile_tests'])
+    self.assertItemsEqual(df['builder'].unique(),
+                          ['my-android-bot', 'my-new-android-bot'])
+    self.assertItemsEqual(df['master'].unique(),
+                          ['chromium.perf', 'chromium.perf.fyi'])
+    self.assertItemsEqual(df['test_type'].unique(),
+                          ['common_tests', 'mobile_tests'])
 
     # Let's find all bots running common_tests on the main waterfall.
     df = analysis.FilterBy(
         builders, master='chromium.perf', test_type='common_tests')
-    six.assertCountEqual(self, df['builder'],
-                         ['my-mac-bot', 'my-linux-bot', 'my-android-bot'])
+    self.assertItemsEqual(df['builder'],
+                          ['my-mac-bot', 'my-linux-bot', 'my-android-bot'])
 
     # There are no android bots running desktop tests.
     df = analysis.FilterBy(

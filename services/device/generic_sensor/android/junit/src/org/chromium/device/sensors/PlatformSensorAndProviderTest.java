@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,8 +50,7 @@ import java.util.List;
  * Unit tests for PlatformSensor and PlatformSensorProvider.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
-@SuppressWarnings("GuardedBy") // verify(sensor, times(1)).sensorError() cannot resolve |mLock|.
+@Config(sdk = 21, manifest = Config.NONE)
 public class PlatformSensorAndProviderTest {
     @Mock
     private Context mContext;
@@ -63,8 +62,6 @@ public class PlatformSensorAndProviderTest {
     private static final long PLATFORM_SENSOR_ANDROID = 123456789L;
     private static final long PLATFORM_SENSOR_TIMESTAMP = 314159265358979L;
     private static final double SECONDS_IN_NANOSECOND = 0.000000001d;
-
-    @SuppressWarnings("LockNotBeforeTry")
 
     /**
      * Class that overrides thread management callbacks for testing purposes.
@@ -92,7 +89,7 @@ public class PlatformSensorAndProviderTest {
     private static class TestPlatformSensor extends PlatformSensor {
         public TestPlatformSensor(
                 Sensor sensor, int readingCount, PlatformSensorProvider provider) {
-            super(sensor, readingCount, provider, PLATFORM_SENSOR_ANDROID);
+            super(sensor, readingCount, provider);
         }
 
         @Override
@@ -133,8 +130,7 @@ public class PlatformSensorAndProviderTest {
     public void testNullSensorManager() {
         doReturn(null).when(mContext).getSystemService(Context.SENSOR_SERVICE);
         PlatformSensorProvider provider = PlatformSensorProvider.createForTest(mContext);
-        PlatformSensor sensor =
-                PlatformSensor.create(provider, SensorType.AMBIENT_LIGHT, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor sensor = provider.createSensor(SensorType.AMBIENT_LIGHT);
         assertNull(sensor);
     }
 
@@ -145,8 +141,7 @@ public class PlatformSensorAndProviderTest {
     @Feature({"PlatformSensorProvider"})
     public void testSensorNotSupported() {
         PlatformSensorProvider provider = PlatformSensorProvider.createForTest(mContext);
-        PlatformSensor sensor =
-                PlatformSensor.create(provider, SensorType.AMBIENT_LIGHT, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor sensor = provider.createSensor(SensorType.AMBIENT_LIGHT);
         assertNull(sensor);
     }
 
@@ -157,23 +152,19 @@ public class PlatformSensorAndProviderTest {
     @Feature({"PlatformSensorProvider"})
     public void testSensorTypeMappings() {
         PlatformSensorProvider provider = PlatformSensorProvider.createForTest(mContext);
-        PlatformSensor.create(provider, SensorType.AMBIENT_LIGHT, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.AMBIENT_LIGHT);
         verify(mSensorManager).getSensorList(Sensor.TYPE_LIGHT);
-        PlatformSensor.create(provider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.ACCELEROMETER);
         verify(mSensorManager).getSensorList(Sensor.TYPE_ACCELEROMETER);
-        PlatformSensor.create(provider, SensorType.LINEAR_ACCELERATION, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.LINEAR_ACCELERATION);
         verify(mSensorManager).getSensorList(Sensor.TYPE_LINEAR_ACCELERATION);
-        PlatformSensor.create(provider, SensorType.GRAVITY, PLATFORM_SENSOR_ANDROID);
-        verify(mSensorManager).getSensorList(Sensor.TYPE_GRAVITY);
-        PlatformSensor.create(provider, SensorType.GYROSCOPE, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.GYROSCOPE);
         verify(mSensorManager).getSensorList(Sensor.TYPE_GYROSCOPE);
-        PlatformSensor.create(provider, SensorType.MAGNETOMETER, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.MAGNETOMETER);
         verify(mSensorManager).getSensorList(Sensor.TYPE_MAGNETIC_FIELD);
-        PlatformSensor.create(
-                provider, SensorType.ABSOLUTE_ORIENTATION_QUATERNION, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.ABSOLUTE_ORIENTATION_QUATERNION);
         verify(mSensorManager).getSensorList(Sensor.TYPE_ROTATION_VECTOR);
-        PlatformSensor.create(
-                provider, SensorType.RELATIVE_ORIENTATION_QUATERNION, PLATFORM_SENSOR_ANDROID);
+        provider.createSensor(SensorType.RELATIVE_ORIENTATION_QUATERNION);
         verify(mSensorManager).getSensorList(Sensor.TYPE_GAME_ROTATION_VECTOR);
     }
 
@@ -196,8 +187,8 @@ public class PlatformSensorAndProviderTest {
     @Feature({"PlatformSensor"})
     public void testSensorStartStop() {
         addMockSensor(50000, Sensor.TYPE_ACCELEROMETER, Sensor.REPORTING_MODE_CONTINUOUS);
-        PlatformSensor sensor = PlatformSensor.create(
-                mPlatformSensorProvider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor sensor =
+                PlatformSensor.create(Sensor.TYPE_ACCELEROMETER, 3, mPlatformSensorProvider);
         assertNotNull(sensor);
 
         sensor.startSensor(5);
@@ -225,42 +216,6 @@ public class PlatformSensorAndProviderTest {
     }
 
     /**
-     * Test that PlatformSensor notifies PlatformSensorProvider when it starts (stops) polling,
-     * and SensorEventListener is registered (unregistered) to sensor manager.
-     */
-    @Test
-    @Feature({"PlatformSensor"})
-    public void testSensorStartStop2() {
-        addMockSensor(50000, Sensor.TYPE_ACCELEROMETER, Sensor.REPORTING_MODE_CONTINUOUS);
-        PlatformSensor sensor = PlatformSensor.create(
-                mPlatformSensorProvider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
-        assertNotNull(sensor);
-
-        sensor.startSensor2(5);
-        sensor.stopSensor();
-
-        // Multiple start invocations.
-        sensor.startSensor2(1);
-        sensor.startSensor2(2);
-        sensor.startSensor2(3);
-        // Same frequency, should not restart sensor
-        sensor.startSensor2(3);
-
-        // Started polling with 5, 1, 2 and 3 Hz frequency.
-        verify(mPlatformSensorProvider, times(4)).getHandler();
-        verify(mPlatformSensorProvider, times(4)).sensorStarted(sensor);
-        verify(mSensorManager, times(4))
-                .registerListener(any(SensorEventListener.class), any(Sensor.class), anyInt(),
-                        any(Handler.class));
-
-        sensor.stopSensor();
-        sensor.stopSensor();
-        verify(mPlatformSensorProvider, times(3)).sensorStopped(sensor);
-        verify(mSensorManager, times(4))
-                .unregisterListener(any(SensorEventListener.class), any(Sensor.class));
-    }
-
-    /**
      * Test that PlatformSensorProvider is notified when PlatformSensor starts and in case of
      * failure, tells PlatformSensorProvider that the sensor is stopped, so that polling thread
      * can be stopped.
@@ -269,8 +224,8 @@ public class PlatformSensorAndProviderTest {
     @Feature({"PlatformSensor"})
     public void testSensorStartFails() {
         addMockSensor(50000, Sensor.TYPE_ACCELEROMETER, Sensor.REPORTING_MODE_CONTINUOUS);
-        PlatformSensor sensor = PlatformSensor.create(
-                mPlatformSensorProvider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor sensor =
+                PlatformSensor.create(Sensor.TYPE_ACCELEROMETER, 3, mPlatformSensorProvider);
         assertNotNull(sensor);
 
         doReturn(false)
@@ -282,35 +237,6 @@ public class PlatformSensorAndProviderTest {
         verify(mPlatformSensorProvider, times(1)).sensorStarted(sensor);
         verify(mPlatformSensorProvider, times(1)).sensorStopped(sensor);
         verify(mPlatformSensorProvider, times(1)).getHandler();
-    }
-
-    /**
-     * Test that PlatformSensorProvider is notified when PlatformSensor starts and in case of
-     * failure, tells PlatformSensorProvider that the sensor is stopped, so that polling thread
-     * can be stopped.
-     */
-    @Test
-    @Feature({"PlatformSensor"})
-    public void testSensorStartFails2() {
-        TestPlatformSensor sensor = createTestPlatformSensor(
-                50000, Sensor.TYPE_ACCELEROMETER, 3, Sensor.REPORTING_MODE_CONTINUOUS);
-        TestPlatformSensor spySensor = spy(sensor);
-        // Accelerometer requires 3 reading values x,y and z, create fake event with 1 reading
-        // value.
-        SensorEvent event = createFakeEvent(1);
-        assertNotNull(event);
-        spySensor.onSensorChanged(event);
-
-        doReturn(false)
-                .when(mSensorManager)
-                .registerListener(any(SensorEventListener.class), any(Sensor.class), anyInt(),
-                        any(Handler.class));
-
-        spySensor.startSensor2(5);
-        verify(mPlatformSensorProvider, times(1)).sensorStarted(spySensor);
-        verify(mPlatformSensorProvider, times(2)).sensorStopped(spySensor);
-        verify(mPlatformSensorProvider, times(1)).getHandler();
-        verify(spySensor, times(2)).sensorError();
     }
 
     /**
@@ -320,8 +246,8 @@ public class PlatformSensorAndProviderTest {
     @Feature({"PlatformSensor"})
     public void testSensorStartFailsWithException() {
         addMockSensor(50000, Sensor.TYPE_ACCELEROMETER, Sensor.REPORTING_MODE_CONTINUOUS);
-        PlatformSensor sensor = PlatformSensor.create(
-                mPlatformSensorProvider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor sensor =
+                PlatformSensor.create(Sensor.TYPE_ACCELEROMETER, 3, mPlatformSensorProvider);
         assertNotNull(sensor);
 
         when(mSensorManager.registerListener(any(SensorEventListener.class), any(Sensor.class),
@@ -332,32 +258,6 @@ public class PlatformSensorAndProviderTest {
         verify(mPlatformSensorProvider, times(1)).sensorStarted(sensor);
         verify(mPlatformSensorProvider, times(1)).sensorStopped(sensor);
         verify(mPlatformSensorProvider, times(1)).getHandler();
-    }
-
-    /**
-     * Same as the above except instead of a clean failure an exception is thrown.
-     */
-    @Test
-    @Feature({"PlatformSensor"})
-    public void testSensorStartFailsWithException2() {
-        TestPlatformSensor sensor = createTestPlatformSensor(
-                50000, Sensor.TYPE_ACCELEROMETER, 3, Sensor.REPORTING_MODE_CONTINUOUS);
-        TestPlatformSensor spySensor = spy(sensor);
-        // Accelerometer requires 3 reading values x,y and z, create fake event with 1 reading
-        // value.
-        SensorEvent event = createFakeEvent(1);
-        assertNotNull(event);
-        spySensor.onSensorChanged(event);
-
-        when(mSensorManager.registerListener(any(SensorEventListener.class), any(Sensor.class),
-                     anyInt(), any(Handler.class)))
-                .thenThrow(RuntimeException.class);
-
-        spySensor.startSensor2(5);
-        verify(mPlatformSensorProvider, times(1)).sensorStarted(spySensor);
-        verify(mPlatformSensorProvider, times(2)).sensorStopped(spySensor);
-        verify(mPlatformSensorProvider, times(1)).getHandler();
-        verify(spySensor, times(2)).sensorError();
     }
 
     /**
@@ -408,6 +308,7 @@ public class PlatformSensorAndProviderTest {
     public void testSensorReadingFromEvent() {
         TestPlatformSensor sensor = createTestPlatformSensor(
                 50000, Sensor.TYPE_LIGHT, 1, Sensor.REPORTING_MODE_ON_CHANGE);
+        initPlatformSensor(sensor);
         TestPlatformSensor spySensor = spy(sensor);
         SensorEvent event = createFakeEvent(1);
         assertNotNull(event);
@@ -428,6 +329,7 @@ public class PlatformSensorAndProviderTest {
     public void testSensorReadingFromEventMoreValues() {
         TestPlatformSensor sensor = createTestPlatformSensor(
                 50000, Sensor.TYPE_ROTATION_VECTOR, 4, Sensor.REPORTING_MODE_ON_CHANGE);
+        initPlatformSensor(sensor);
         TestPlatformSensor spySensor = spy(sensor);
         SensorEvent event = createFakeEvent(4);
         assertNotNull(event);
@@ -448,6 +350,7 @@ public class PlatformSensorAndProviderTest {
     public void testSensorInvalidReadingSize() {
         TestPlatformSensor sensor = createTestPlatformSensor(
                 50000, Sensor.TYPE_ACCELEROMETER, 3, Sensor.REPORTING_MODE_CONTINUOUS);
+        initPlatformSensor(sensor);
         TestPlatformSensor spySensor = spy(sensor);
         // Accelerometer requires 3 reading values x,y and z, create fake event with 1 reading
         // value.
@@ -468,54 +371,15 @@ public class PlatformSensorAndProviderTest {
         addMockSensor(50000, Sensor.TYPE_ACCELEROMETER, Sensor.REPORTING_MODE_CONTINUOUS);
 
         TestPlatformSensorProvider spyProvider = spy(new TestPlatformSensorProvider(mContext));
-        PlatformSensor lightSensor = PlatformSensor.create(
-                spyProvider, SensorType.AMBIENT_LIGHT, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor lightSensor = PlatformSensor.create(Sensor.TYPE_LIGHT, 1, spyProvider);
         assertNotNull(lightSensor);
 
-        PlatformSensor accelerometerSensor = PlatformSensor.create(
-                spyProvider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
+        PlatformSensor accelerometerSensor =
+                PlatformSensor.create(Sensor.TYPE_ACCELEROMETER, 3, spyProvider);
         assertNotNull(accelerometerSensor);
 
         lightSensor.startSensor(3);
         accelerometerSensor.startSensor(10);
-        lightSensor.stopSensor();
-        accelerometerSensor.stopSensor();
-
-        verify(spyProvider, times(2)).getHandler();
-        verify(spyProvider, times(1)).sensorStarted(lightSensor);
-        verify(spyProvider, times(1)).sensorStarted(accelerometerSensor);
-        verify(spyProvider, times(1)).sensorStopped(lightSensor);
-        verify(spyProvider, times(1)).sensorStopped(accelerometerSensor);
-        verify(spyProvider, times(1)).startSensorThread();
-        verify(spyProvider, times(1)).stopSensorThread();
-        verify(mSensorManager, times(2))
-                .registerListener(any(SensorEventListener.class), any(Sensor.class), anyInt(),
-                        any(Handler.class));
-        verify(mSensorManager, times(2))
-                .unregisterListener(any(SensorEventListener.class), any(Sensor.class));
-    }
-
-    /**
-     * Test that multiple PlatformSensor instances correctly register (unregister) to
-     * sensor manager and notify PlatformSensorProvider when they start (stop) polling for data.
-     */
-    @Test
-    @Feature({"PlatformSensor"})
-    public void testMultipleSensorTypeInstances2() {
-        addMockSensor(200000, Sensor.TYPE_LIGHT, Sensor.REPORTING_MODE_ON_CHANGE);
-        addMockSensor(50000, Sensor.TYPE_ACCELEROMETER, Sensor.REPORTING_MODE_CONTINUOUS);
-
-        TestPlatformSensorProvider spyProvider = spy(new TestPlatformSensorProvider(mContext));
-        PlatformSensor lightSensor = PlatformSensor.create(
-                spyProvider, SensorType.AMBIENT_LIGHT, PLATFORM_SENSOR_ANDROID);
-        assertNotNull(lightSensor);
-
-        PlatformSensor accelerometerSensor = PlatformSensor.create(
-                spyProvider, SensorType.ACCELEROMETER, PLATFORM_SENSOR_ANDROID);
-        assertNotNull(accelerometerSensor);
-
-        lightSensor.startSensor2(3);
-        accelerometerSensor.startSensor2(10);
         lightSensor.stopSensor();
         accelerometerSensor.stopSensor();
 
@@ -555,6 +419,10 @@ public class PlatformSensorAndProviderTest {
         }
     }
 
+    private void initPlatformSensor(PlatformSensor sensor) {
+        sensor.initPlatformSensorAndroid(PLATFORM_SENSOR_ANDROID);
+    }
+
     private void addMockSensor(long minDelayUsec, int sensorType, int reportingMode) {
         List<Sensor> mockSensorList = new ArrayList<Sensor>();
         mockSensorList.add(createMockSensor(minDelayUsec, sensorType, reportingMode));
@@ -580,7 +448,7 @@ public class PlatformSensorAndProviderTest {
             long minDelayUsec, int androidSensorType, int mojoSensorType, int reportingMode) {
         addMockSensor(minDelayUsec, androidSensorType, reportingMode);
         PlatformSensorProvider provider = PlatformSensorProvider.createForTest(mContext);
-        return PlatformSensor.create(provider, mojoSensorType, PLATFORM_SENSOR_ANDROID);
+        return provider.createSensor(mojoSensorType);
     }
 
     private TestPlatformSensor createTestPlatformSensor(

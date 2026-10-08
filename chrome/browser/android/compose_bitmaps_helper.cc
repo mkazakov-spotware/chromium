@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/logging.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "third_party/skia/include/core/SkFilterQuality.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkPixmap.h"
 
@@ -126,9 +127,8 @@ SkBitmap ScaleBitmap(int icon_size, const SkBitmap& bitmap) {
   SkImageInfo scaledIconInfo = bitmap.info().makeWH(icon_size, icon_size);
   temp_bitmap.setInfo(scaledIconInfo);
   temp_bitmap.allocPixels();
-  const SkSamplingOptions mitchellCubic({1.0f/3, 1.0f/3});
   bool did_scale =
-      bitmap.pixmap().scalePixels(temp_bitmap.pixmap(), mitchellCubic);
+      bitmap.pixmap().scalePixels(temp_bitmap.pixmap(), kHigh_SkFilterQuality);
   if (!did_scale) {
     DLOG(ERROR) << "Unable to scale icon";
     return SkBitmap();

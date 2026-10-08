@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -61,7 +61,7 @@ class IncludeFinderPPCallbacks : public clang::PPCallbacks {
                           llvm::StringRef file_name,
                           bool is_angled,
                           clang::CharSourceRange range,
-                          llvm::Optional<clang::FileEntryRef> file,
+                          const clang::FileEntry* file,
                           llvm::StringRef search_path,
                           llvm::StringRef relative_path,
                           const clang::Module* imported,
@@ -158,12 +158,12 @@ void IncludeFinderPPCallbacks::InclusionDirective(
     llvm::StringRef file_name,
     bool is_angled,
     clang::CharSourceRange range,
-    llvm::Optional<clang::FileEntryRef> file,
+    const clang::FileEntry* file,
     llvm::StringRef search_path,
     llvm::StringRef relative_path,
     const clang::Module* imported,
     clang::SrcMgr::CharacteristicKind /*file_type*/
-) {
+    ) {
   if (!file)
     return;
 
@@ -281,13 +281,7 @@ static llvm::cl::extrahelp common_help(CommonOptionsParser::HelpMessage);
 
 int main(int argc, const char* argv[]) {
   llvm::cl::OptionCategory category("TranslationUnitGenerator Tool");
-  auto ExpectedParser = CommonOptionsParser::create(
-      argc, argv, category, llvm::cl::OneOrMore, nullptr);
-  if (!ExpectedParser) {
-    llvm::errs() << ExpectedParser.takeError();
-    return 1;
-  }
-  CommonOptionsParser& options = ExpectedParser.get();
+  CommonOptionsParser options(argc, argv, category);
   std::unique_ptr<clang::tooling::FrontendActionFactory> frontend_factory =
       clang::tooling::newFrontendActionFactory<CompilationIndexerAction>();
   clang::tooling::ClangTool tool(options.getCompilations(),

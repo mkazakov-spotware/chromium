@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/resource_coordinator/resource_coordinator_parts.h"
 #include "chrome/browser/resource_coordinator/tab_load_tracker.h"
+#include "chrome/browser/resource_coordinator/tab_manager_stats_collector.h"
+#include "chrome/browser/resource_coordinator/tab_manager_web_contents_data.h"
 #include "chrome/browser/resource_coordinator/utils.h"
 #include "components/performance_manager/public/graph/graph_operations.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -33,11 +35,10 @@ TabManager::ResourceCoordinatorSignalObserver::
 TabManager::ResourceCoordinatorSignalObserver::
     ~ResourceCoordinatorSignalObserver() = default;
 
-void TabManager::ResourceCoordinatorSignalObserver::OnLoadingStateChanged(
-    const PageNode* page_node,
-    PageNode::LoadingState previous_state) {
+void TabManager::ResourceCoordinatorSignalObserver::OnIsLoadingChanged(
+    const PageNode* page_node) {
   // Forward the notification over to the UI thread when the page stops loading.
-  if (page_node->GetLoadingState() == PageNode::LoadingState::kLoadedIdle) {
+  if (!page_node->IsLoading()) {
     content::GetUIThreadTaskRunner({})->PostTask(
         FROM_HERE, base::BindOnce(&OnPageStoppedLoadingOnUi,
                                   page_node->GetContentsProxy()));

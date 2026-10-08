@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,6 @@ import org.junit.Test;
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.metrics.AwMetricsServiceClient;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.MetricsUtils;
 import org.chromium.blink.mojom.WebFeature;
@@ -32,7 +30,6 @@ import java.util.concurrent.Callable;
 /**
  * Integration test for PageLoadMetrics.
  */
-@Batch(Batch.PER_CLASS)
 public class AwPageLoadMetricsTest {
     private static final String MAIN_FRAME_FILE = "/main_frame.html";
 
@@ -40,6 +37,7 @@ public class AwPageLoadMetricsTest {
     public AwActivityTestRule mRule = new AwActivityTestRule();
 
     private AwTestContainerView mTestContainerView;
+    private AwContents mAwContents;
     private TestAwContentsClient mContentsClient;
     private TestWebServer mWebServer;
 
@@ -47,7 +45,7 @@ public class AwPageLoadMetricsTest {
     public void setUp() throws Exception {
         mContentsClient = new TestAwContentsClient();
         mTestContainerView = mRule.createAwTestContainerViewOnMainSync(mContentsClient);
-        AwContents mAwContents = mTestContainerView.getAwContents();
+        mAwContents = mTestContainerView.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(mAwContents);
         mWebServer = TestWebServer.start();
     }
@@ -96,7 +94,7 @@ public class AwPageLoadMetricsTest {
         int navigationToFirstContentfulPaint = RecordHistogram.getHistogramTotalCountForTesting(
                 "PageLoad.PaintTiming.NavigationToFirstContentfulPaint");
         int navigationToLargestContentfulPaint = RecordHistogram.getHistogramTotalCountForTesting(
-                "PageLoad.PaintTiming.NavigationToLargestContentfulPaint2");
+                "PageLoad.PaintTiming.NavigationToLargestContentfulPaint");
         loadUrlSync(url);
         AwActivityTestRule.pollInstrumentationThread(
                 () -> (1 + navigationToFirstPaint
@@ -109,10 +107,9 @@ public class AwPageLoadMetricsTest {
         // Flush NavigationToLargestContentfulPaint.
         loadUrlSync("about:blank");
         AwActivityTestRule.pollInstrumentationThread(
-                ()
-                        -> (1 + navigationToLargestContentfulPaint
-                                == RecordHistogram.getHistogramTotalCountForTesting(
-                                        "PageLoad.PaintTiming.NavigationToLargestContentfulPaint2")));
+                () -> (1 + navigationToLargestContentfulPaint
+                        == RecordHistogram.getHistogramTotalCountForTesting(
+                                "PageLoad.PaintTiming.NavigationToLargestContentfulPaint")));
     }
 
     /**
@@ -121,11 +118,8 @@ public class AwPageLoadMetricsTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView"})
-    @DisabledTest(message = "https://crbug.com/1312527")
     public void testFirstInputDelay4() throws Throwable {
-        final String data = "<html><head></head><body>"
-                + "<p>Hello World</p><input type='text' id='text1'>"
-                + "</body></html>";
+        final String data = "<html><head></head><body><input type='text' id='text1'></body></html>";
         final String url = mWebServer.setResponse(MAIN_FRAME_FILE, data, null);
         int firstInputDelay4 = RecordHistogram.getHistogramTotalCountForTesting(
                 "PageLoad.InteractiveTiming.FirstInputDelay4");
@@ -147,7 +141,7 @@ public class AwPageLoadMetricsTest {
         int foregroundDuration = RecordHistogram.getHistogramTotalCountForTesting(
                 "PageLoad.PageTiming.ForegroundDuration");
         TestThreadUtils.runOnUiThreadBlocking(
-                () -> { AwMetricsServiceClient.setConsentSetting(true); });
+                () -> { AwMetricsServiceClient.setConsentSetting(mRule.getActivity(), true); });
         loadUrlSync(url);
         // Remove the WebView from the container, to simulate app going to background.
         TestThreadUtils.runOnUiThreadBlocking(() -> { mRule.getActivity().removeAllViews(); });

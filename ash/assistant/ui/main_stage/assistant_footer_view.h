@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "ash/public/cpp/assistant/assistant_state.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "ui/views/view.h"
 
 namespace ui {
@@ -27,10 +28,6 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantFooterView
       public AssistantStateObserver {
  public:
   explicit AssistantFooterView(AssistantViewDelegate* delegate);
-
-  AssistantFooterView(const AssistantFooterView&) = delete;
-  AssistantFooterView& operator=(const AssistantFooterView&) = delete;
-
   ~AssistantFooterView() override;
 
   // views::View:
@@ -40,8 +37,6 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantFooterView
 
   // AssistantStateObserver:
   void OnAssistantConsentStatusChanged(int consent_status) override;
-
-  void InitializeUIForBubbleView();
 
  private:
   void InitLayout();
@@ -55,6 +50,8 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantFooterView
   AssistantOptInView* opt_in_view_;                // Owned by view hierarchy.
 
   std::unique_ptr<ui::CallbackLayerAnimationObserver> animation_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantFooterView);
 };
 
 }  // namespace ash

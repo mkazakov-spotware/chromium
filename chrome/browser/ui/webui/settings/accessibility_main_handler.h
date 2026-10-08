@@ -1,16 +1,22 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_ACCESSIBILITY_MAIN_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_SETTINGS_ACCESSIBILITY_MAIN_HANDLER_H_
 
-#include "build/chromeos_buildflags.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/accessibility/accessibility_manager.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/accessibility/accessibility_manager.h"
+#endif  // defined(OS_CHROMEOS)
+
+namespace base {
+class ListValue;
+}
 
 namespace settings {
 
@@ -28,18 +34,19 @@ class AccessibilityMainHandler : public ::settings::SettingsPageUIHandler {
   void OnJavascriptAllowed() override;
   void OnJavascriptDisallowed() override;
 
-  void HandleA11yPageReady(const base::Value::List& args);
-  void HandleCheckAccessibilityImageLabels(const base::Value::List& args);
+  void HandleA11yPageReady(const base::ListValue* args);
+  void HandleCheckAccessibilityImageLabels(const base::ListValue* args);
 
  private:
   void SendScreenReaderStateChanged();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   void OnAccessibilityStatusChanged(
-      const ash::AccessibilityStatusEventDetails& details);
+      const chromeos::AccessibilityStatusEventDetails& details);
 
-  base::CallbackListSubscription accessibility_subscription_;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  std::unique_ptr<chromeos::AccessibilityStatusSubscription>
+      accessibility_subscription_;
+#endif  // defined(OS_CHROMEOS)
 };
 
 }  // namespace settings

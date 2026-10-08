@@ -2,9 +2,9 @@ Verifies that a subresource accessing a SameSite=Strict cookie across schemes tr
 
 Inspector issue:{
     issue : {
-        code : CookieIssue
+        code : SameSiteCookieIssue
         details : {
-            cookieIssueDetails : {
+            sameSiteCookieIssueDetails : {
                 cookie : {
                     domain : cookie.test
                     name : name

@@ -1,11 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_EXPLORE_SITES_GET_IMAGES_TASK_H_
 #define CHROME_BROWSER_ANDROID_EXPLORE_SITES_GET_IMAGES_TASK_H_
 
-#include "base/memory/raw_ptr.h"
+#include <vector>
+
 #include "chrome/browser/android/explore_sites/explore_sites_store.h"
 #include "chrome/browser/android/explore_sites/explore_sites_types.h"
 #include "components/offline_pages/task/task.h"
@@ -39,9 +40,6 @@ class GetImagesTask : public Task {
                 int max_images,
                 EncodedImageListCallback callback);
 
-  GetImagesTask(const GetImagesTask&) = delete;
-  GetImagesTask& operator=(const GetImagesTask&) = delete;
-
   ~GetImagesTask() override;
 
  private:
@@ -50,7 +48,7 @@ class GetImagesTask : public Task {
 
   void FinishedExecuting(EncodedImageList images);
 
-  raw_ptr<ExploreSitesStore> store_;  // outlives this class.
+  ExploreSitesStore* store_;  // outlives this class.
 
   DataType data_type_;
   int id_;
@@ -59,6 +57,8 @@ class GetImagesTask : public Task {
   EncodedImageListCallback callback_;
 
   base::WeakPtrFactory<GetImagesTask> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GetImagesTask);
 };
 
 }  // namespace explore_sites

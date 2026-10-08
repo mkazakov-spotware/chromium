@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,8 @@ import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory.Type;
 import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.content_settings.CookieControlsMode;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.BrowserContextHandle;
 
 /**
  * The main Site Settings screen, which shows all the site settings categories: All sites, Location,
@@ -31,7 +31,7 @@ public class SiteSettings
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         SettingsUtils.addPreferencesFromResource(this, R.xml.site_settings_preferences);
-        getActivity().setTitle(getContext().getString(R.string.prefs_site_settings));
+        getActivity().setTitle(R.string.prefs_site_settings);
 
         configurePreferences();
         updatePreferenceStates();
@@ -51,7 +51,7 @@ public class SiteSettings
         // Remove unsupported settings categories.
         for (@SiteSettingsCategory.Type int type = 0; type < SiteSettingsCategory.Type.NUM_ENTRIES;
                 type++) {
-            if (!getSiteSettingsDelegate().isCategoryVisible(type)) {
+            if (!getSiteSettingsClient().isCategoryVisible(type)) {
                 getPreferenceScreen().removePreference(findPreference(type));
             }
         }
@@ -61,10 +61,7 @@ public class SiteSettings
         // Initialize the summary and icon for all preferences that have an
         // associated content settings entry.
         BrowserContextHandle browserContextHandle =
-                getSiteSettingsDelegate().getBrowserContextHandle();
-        @CookieControlsMode
-        int cookieControlsMode =
-                UserPrefs.get(browserContextHandle).getInteger(COOKIE_CONTROLS_MODE);
+                getSiteSettingsClient().getBrowserContextHandle();
         for (@Type int prefCategory = 0; prefCategory < Type.NUM_ENTRIES; prefCategory++) {
             Preference p = findPreference(prefCategory);
             int contentType = SiteSettingsCategory.contentSettingsType(prefCategory);
@@ -75,40 +72,36 @@ public class SiteSettings
             boolean requiresTriStateSetting =
                     WebsitePreferenceBridge.requiresTriStateContentSetting(contentType);
 
-            boolean checked = false; // Used for binary settings
+            boolean checked = false;
             @ContentSettingValues
-            int setting = ContentSettingValues.DEFAULT; // Used for tri-state settings.
+            int setting = ContentSettingValues.DEFAULT;
 
             if (prefCategory == Type.DEVICE_LOCATION) {
                 checked =
                         WebsitePreferenceBridge.areAllLocationSettingsEnabled(browserContextHandle);
-            } else if (prefCategory == Type.THIRD_PARTY_COOKIES) {
-                checked = cookieControlsMode != CookieControlsMode.BLOCK_THIRD_PARTY;
             } else if (requiresTriStateSetting) {
-                setting = WebsitePreferenceBridge.getDefaultContentSetting(
+                setting = WebsitePreferenceBridge.getContentSetting(
                         browserContextHandle, contentType);
             } else {
                 checked = WebsitePreferenceBridge.isCategoryEnabled(
                         browserContextHandle, contentType);
             }
 
-            if (prefCategory != Type.THIRD_PARTY_COOKIES) {
-                p.setTitle(
-                        ContentSettingsResources.getTitle(contentType, getSiteSettingsDelegate()));
-            }
+            p.setTitle(ContentSettingsResources.getTitle(contentType));
             p.setOnPreferenceClickListener(this);
 
             if ((Type.CAMERA == prefCategory || Type.MICROPHONE == prefCategory
                         || Type.NOTIFICATIONS == prefCategory
                         || Type.AUGMENTED_REALITY == prefCategory)
                     && SiteSettingsCategory
-                               .createFromType(getSiteSettingsDelegate().getBrowserContextHandle(),
+                               .createFromType(getSiteSettingsClient().getBrowserContextHandle(),
                                        prefCategory)
-                               .showPermissionBlockedMessage(getContext())) {
+                               .showPermissionBlockedMessage(getActivity())) {
                 // Show 'disabled' message when permission is not granted in Android.
                 p.setSummary(ContentSettingsResources.getCategorySummary(contentType, false));
             } else if (Type.COOKIES == prefCategory && checked
-                    && cookieControlsMode == CookieControlsMode.BLOCK_THIRD_PARTY) {
+                    && UserPrefs.get(browserContextHandle).getInteger(COOKIE_CONTROLS_MODE)
+                            == CookieControlsMode.BLOCK_THIRD_PARTY) {
                 p.setSummary(ContentSettingsResources.getCookieAllowedExceptThirdPartySummary());
             } else if (Type.DEVICE_LOCATION == prefCategory && checked
                     && WebsitePreferenceBridge.isLocationAllowedByPolicy(browserContextHandle)) {
@@ -119,19 +112,17 @@ public class SiteSettings
                 p.setSummary(ContentSettingsResources.getAdsBlockedListSummary());
             } else if (Type.SOUND == prefCategory && !checked) {
                 p.setSummary(ContentSettingsResources.getSoundBlockedListSummary());
-            } else if (Type.REQUEST_DESKTOP_SITE == prefCategory) {
-                p.setSummary(ContentSettingsResources.getDesktopSiteListSummary(checked));
-            } else if (Type.AUTO_DARK_WEB_CONTENT == prefCategory) {
-                p.setSummary(ContentSettingsResources.getAutoDarkWebContentListSummary(checked));
             } else if (requiresTriStateSetting) {
                 p.setSummary(ContentSettingsResources.getCategorySummary(setting));
             } else {
                 p.setSummary(ContentSettingsResources.getCategorySummary(contentType, checked));
             }
 
-            if (prefCategory != Type.THIRD_PARTY_COOKIES) {
-                p.setIcon(SettingsUtils.getTintedIcon(getContext(),
-                        ContentSettingsResources.getIcon(contentType, getSiteSettingsDelegate())));
+            if (p.isEnabled()) {
+                p.setIcon(SettingsUtils.getTintedIcon(
+                        getActivity(), ContentSettingsResources.getIcon(contentType)));
+            } else {
+                p.setIcon(ContentSettingsResources.getDisabledIcon(contentType, getResources()));
             }
         }
 

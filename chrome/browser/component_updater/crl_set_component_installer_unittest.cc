@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,8 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/test_data_directory.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
 #include "services/network/network_service.h"
-#include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/network_context.mojom.h"
-#include "services/network/public/mojom/url_loader_factory.mojom.h"
 #include "services/network/test/test_url_loader_client.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
@@ -32,10 +29,6 @@ class CRLSetComponentInstallerTest : public PlatformTest {
       : task_environment_(content::BrowserTaskEnvironment::IO_MAINLOOP),
         test_server_(net::EmbeddedTestServer::TYPE_HTTPS),
         network_service_(std::make_unique<network::NetworkService>(nullptr)) {}
-
-  CRLSetComponentInstallerTest(const CRLSetComponentInstallerTest&) = delete;
-  CRLSetComponentInstallerTest& operator=(const CRLSetComponentInstallerTest&) =
-      delete;
 
   void SetUp() override {
     PlatformTest::SetUp();
@@ -73,7 +66,7 @@ class CRLSetComponentInstallerTest : public PlatformTest {
         loader_factory.BindNewPipeAndPassReceiver(), std::move(params));
     loader_.reset();
     loader_factory->CreateLoaderAndStart(
-        loader_.BindNewPipeAndPassReceiver(), 1,
+        loader_.BindNewPipeAndPassReceiver(), 1, 1,
         network::mojom::kURLLoadOptionSendSSLInfoWithResponse |
             network::mojom::kURLLoadOptionSendSSLInfoForCertificateError,
         request, client_->CreateRemote(),
@@ -83,17 +76,17 @@ class CRLSetComponentInstallerTest : public PlatformTest {
 
   void InstallCRLSet(const base::FilePath& raw_crl_file) {
     base::CopyFile(raw_crl_file, temp_dir_.GetPath().AppendASCII("crl-set"));
-    ASSERT_TRUE(policy_->VerifyInstallation(
-        base::Value(base::Value::Type::DICTIONARY), temp_dir_.GetPath()));
+    ASSERT_TRUE(policy_->VerifyInstallation(base::DictionaryValue(),
+                                            temp_dir_.GetPath()));
     policy_->ComponentReady(base::Version("1.0"), temp_dir_.GetPath(),
-                            base::Value(base::Value::Type::DICTIONARY));
+                            std::make_unique<base::DictionaryValue>());
     task_environment_.RunUntilIdle();
   }
 
   network::mojom::NetworkContextParamsPtr CreateNetworkContextParams() {
     auto params = network::mojom::NetworkContextParams::New();
     params->cert_verifier_params = content::GetCertVerifierParams(
-        cert_verifier::mojom::CertVerifierCreationParams::New());
+        network::mojom::CertVerifierCreationParams::New());
     return params;
   }
 
@@ -107,6 +100,9 @@ class CRLSetComponentInstallerTest : public PlatformTest {
   mojo::Remote<network::mojom::NetworkContext> network_context_;
   mojo::Remote<network::mojom::URLLoader> loader_;
   base::ScopedTempDir temp_dir_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CRLSetComponentInstallerTest);
 };
 
 TEST_F(CRLSetComponentInstallerTest, ConfiguresOnInstall) {

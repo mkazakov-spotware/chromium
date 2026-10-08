@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -44,7 +44,6 @@ def main(argv):
   parser = argparse.ArgumentParser()
   build_utils.AddDepfileOption(parser)
   parser.add_argument('--protoc', required=True, help='Path to protoc binary.')
-  parser.add_argument('--plugin', help='Path to plugin executable')
   parser.add_argument('--proto-path',
                       required=True,
                       help='Path to proto directory.')
@@ -66,22 +65,15 @@ def main(argv):
   _EnforceJavaPackage(options.protos)
 
   with build_utils.TempDir() as temp_dir:
-    protoc_args = []
+    out_arg = '--java_out=lite:' + temp_dir
 
-    generator = 'java'
-    if options.plugin:
-      generator = 'plugin'
-      protoc_args += ['--plugin', 'protoc-gen-plugin=' + options.plugin]
-
-    protoc_args += ['--proto_path', options.proto_path]
+    proto_path_args = ['--proto_path', options.proto_path]
     for path in options.import_dir:
-      protoc_args += ['--proto_path', path]
-
-    protoc_args += ['--' + generator + '_out=lite:' + temp_dir]
+      proto_path_args += ["--proto_path", path]
 
     # Generate Java files using protoc.
     build_utils.CheckOutput(
-        [options.protoc] + protoc_args + options.protos,
+        [options.protoc] + proto_path_args + [out_arg] + options.protos,
         # protoc generates superfluous warnings about LITE_RUNTIME deprecation
         # even though we are using the new non-deprecated method.
         stderr_filter=lambda output: build_utils.FilterLines(

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_piece.h"
 #include "base/test/gtest_util.h"
 #include "base/threading/simple_thread.h"
 #include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace {
@@ -87,14 +85,14 @@ class DisrupterT : public Foo {
     if (remove_self_)
       list_->RemoveObserver(this);
     if (doomed_)
-      list_->RemoveObserver(doomed_.get());
+      list_->RemoveObserver(doomed_);
   }
 
   void SetDoomed(Foo* doomed) { doomed_ = doomed; }
 
  private:
-  raw_ptr<ObserverListType> list_;
-  raw_ptr<Foo> doomed_;
+  ObserverListType* list_;
+  Foo* doomed_;
   bool remove_self_;
 };
 
@@ -109,20 +107,20 @@ class AddInObserve : public Foo {
 
   void Observe(int x) override {
     if (to_add_) {
-      observer_list->AddObserver(to_add_.get());
+      observer_list->AddObserver(to_add_);
       to_add_ = nullptr;
     }
   }
 
-  raw_ptr<ObserverListType> observer_list;
-  raw_ptr<Foo> to_add_;
+  ObserverListType* observer_list;
+  Foo* to_add_;
 };
 
 template <class ObserverListType>
 class ObserverListCreator : public DelegateSimpleThread::Delegate {
  public:
   std::unique_ptr<ObserverListType> Create(
-      absl::optional<base::ObserverListPolicy> policy = absl::nullopt) {
+      base::Optional<base::ObserverListPolicy> policy = nullopt) {
     policy_ = policy;
     DelegateSimpleThread thread(this, "ListCreator");
     thread.Start();
@@ -140,7 +138,7 @@ class ObserverListCreator : public DelegateSimpleThread::Delegate {
   }
 
   std::unique_ptr<ObserverListType> observer_list_;
-  absl::optional<base::ObserverListPolicy> policy_;
+  base::Optional<base::ObserverListPolicy> policy_;
 };
 
 }  // namespace
@@ -366,7 +364,7 @@ TYPED_TEST(ObserverListTest, CompactsWhenNoActiveIterator) {
   EXPECT_TRUE(col.HasObserver(&a));
   EXPECT_FALSE(col.HasObserver(&c));
 
-  EXPECT_TRUE(!col.empty());
+  EXPECT_TRUE(col.might_have_observers());
 
   using It = typename ObserverListConstFoo::const_iterator;
 
@@ -381,45 +379,45 @@ TYPED_TEST(ObserverListTest, CompactsWhenNoActiveIterator) {
     EXPECT_EQ(itb, it);
     EXPECT_EQ(++it, col.end());
 
-    EXPECT_TRUE(!col.empty());
+    EXPECT_TRUE(col.might_have_observers());
     EXPECT_EQ(&*ita, &a);
     EXPECT_EQ(&*itb, &b);
 
     ol.RemoveObserver(&a);
-    EXPECT_TRUE(!col.empty());
+    EXPECT_TRUE(col.might_have_observers());
     EXPECT_FALSE(col.HasObserver(&a));
     EXPECT_EQ(&*itb, &b);
 
     ol.RemoveObserver(&b);
-    EXPECT_FALSE(!col.empty());
+    EXPECT_TRUE(col.might_have_observers());
     EXPECT_FALSE(col.HasObserver(&a));
     EXPECT_FALSE(col.HasObserver(&b));
 
     it = It();
     ita = It();
-    EXPECT_FALSE(!col.empty());
+    EXPECT_TRUE(col.might_have_observers());
     ita = itb;
     itb = It();
-    EXPECT_FALSE(!col.empty());
+    EXPECT_TRUE(col.might_have_observers());
     ita = It();
-    EXPECT_FALSE(!col.empty());
+    EXPECT_FALSE(col.might_have_observers());
   }
 
   ol.AddObserver(&a);
   ol.AddObserver(&b);
-  EXPECT_TRUE(!col.empty());
+  EXPECT_TRUE(col.might_have_observers());
   ol.Clear();
-  EXPECT_FALSE(!col.empty());
+  EXPECT_FALSE(col.might_have_observers());
 
   ol.AddObserver(&a);
   ol.AddObserver(&b);
-  EXPECT_TRUE(!col.empty());
+  EXPECT_TRUE(col.might_have_observers());
   {
     const It it = col.begin();
     ol.Clear();
-    EXPECT_FALSE(!col.empty());
+    EXPECT_TRUE(col.might_have_observers());
   }
-  EXPECT_FALSE(!col.empty());
+  EXPECT_FALSE(col.might_have_observers());
 }
 
 TYPED_TEST(ObserverListTest, DisruptSelf) {
@@ -512,7 +510,7 @@ class AddInClearObserve : public Foo {
   const AdderT<Foo>& adder() const { return adder_; }
 
  private:
-  const raw_ptr<ObserverListType> list_;
+  ObserverListType* const list_;
 
   bool added_;
   AdderT<Foo> adder_;
@@ -556,7 +554,7 @@ class ListDestructor : public Foo {
   void Observe(int x) override { delete list_; }
 
  private:
-  raw_ptr<ObserverListType> list_;
+  ObserverListType* list_;
 };
 
 TYPED_TEST(ObserverListTest, IteratorOutlivesList) {
@@ -958,7 +956,7 @@ class TestCheckedObserver : public CheckedObserver {
   void Observe() { ++(*count_); }
 
  private:
-  raw_ptr<int> count_;
+  int* count_;
 };
 
 // A second, identical observer, used to test multiple inheritance.
@@ -971,7 +969,7 @@ class TestCheckedObserver2 : public CheckedObserver {
   void Observe() { ++(*count_); }
 
  private:
-  raw_ptr<int> count_;
+  int* count_;
 };
 
 using CheckedObserverListTest = ::testing::Test;
@@ -1003,7 +1001,7 @@ TEST_F(CheckedObserverListTest, CheckedObserver) {
     // On the non-death fork, no UAF occurs since the deleted observer is never
     // notified, but also the observer list still has |l2| in it. Check that.
     list->RemoveObserver(&l1);
-    EXPECT_TRUE(!list->empty());
+    EXPECT_TRUE(list->might_have_observers());
 
     // Now (in the non-death fork()) there's a problem. To delete |it|, we need
     // to compact the list, but that needs to iterate, which would CHECK again.

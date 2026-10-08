@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,12 @@ package org.chromium.ui.util;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.Context;
 import android.content.res.Configuration;
-import android.os.Build.VERSION_CODES;
+import android.os.Build;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityManager.AccessibilityStateChangeListener;
 import android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContextUtils;
@@ -32,8 +31,8 @@ public class AccessibilityUtil {
      */
     public interface Observer {
         /**
-         * @param enabled Whether touch exploration or an accessibility service that can perform
-         *        gestures is enabled. Indicates that the UI must be fully navigable using
+         * @param enabled Whether a touch exploration or an accessibility service that performs can
+         *        perform gestures is enabled. Indicates that the UI must be fully navigable using
          *        the accessibility view tree.
          */
         void onAccessibilityModeChanged(boolean enabled);
@@ -42,7 +41,6 @@ public class AccessibilityUtil {
     // Cached value of isAccessibilityEnabled(). If null, indicates the value needs to be
     // recalculated.
     private Boolean mIsAccessibilityEnabled;
-    private Boolean mIsTouchExplorationEnabled;
     private ObserverList<Observer> mObservers;
     private final class ModeChangeHandler
             implements AccessibilityStateChangeListener, TouchExplorationStateChangeListener {
@@ -66,8 +64,7 @@ public class AccessibilityUtil {
     protected AccessibilityUtil() {}
 
     /**
-     * Checks to see that touch exploration or an accessibility service that can perform gestures
-     * is enabled.
+     * Checks to see that this device has accessibility and touch exploration enabled.
      * @return        Whether or not accessibility and touch exploration are enabled.
      */
     public boolean isAccessibilityEnabled() {
@@ -79,7 +76,6 @@ public class AccessibilityUtil {
         AccessibilityManager manager = getAccessibilityManager();
         boolean accessibilityEnabled =
                 manager != null && manager.isEnabled() && manager.isTouchExplorationEnabled();
-        mIsTouchExplorationEnabled = accessibilityEnabled;
 
         if (manager != null && manager.isEnabled() && !accessibilityEnabled) {
             List<AccessibilityServiceInfo> services = manager.getEnabledAccessibilityServiceList(
@@ -96,41 +92,6 @@ public class AccessibilityUtil {
 
         TraceEvent.end("AccessibilityManager::isAccessibilityEnabled");
         return mIsAccessibilityEnabled;
-    }
-
-    /**
-     * Checks to see that touch exploration is enabled. Does not include accessibility services that
-     * perform gestures (e.g. switchaccess returns false here)
-     * @return        Whether or not accessibility and touch exploration are enabled.
-     */
-    public boolean isTouchExplorationEnabled() {
-        if (mModeChangeHandler == null) registerModeChangeListeners();
-        if (mIsTouchExplorationEnabled != null) return mIsTouchExplorationEnabled;
-
-        TraceEvent.begin("AccessibilityManager::isTouchExplorationEnabled");
-
-        AccessibilityManager manager = getAccessibilityManager();
-        mIsTouchExplorationEnabled =
-                manager != null && manager.isEnabled() && manager.isTouchExplorationEnabled();
-
-        TraceEvent.end("AccessibilityManager::isTouchExplorationEnabled");
-        return mIsTouchExplorationEnabled;
-    }
-
-    /**
-     * Get the recommended timeout for changes to the UI needed by this user. The timeout value
-     * can be set by users on Q+.
-     *
-     * https://d.android.com/reference/android/view/accessibility/AccessibilityManager#getRecommendedTimeoutMillis(int,%20int)
-     * @param originalTimeout The timeout appropriate for users with no accessibility needs.
-     * @param uiContentFlags The combination of content flags to indicate contents of UI.
-     * @return The recommended UI timeout for the current user in milliseconds.
-     */
-    @RequiresApi(api = VERSION_CODES.Q)
-    public int getRecommendedTimeoutMillis(int originalTimeout, int uiContentFlags) {
-        AccessibilityManager manager = getAccessibilityManager();
-        assert manager != null : "AccessibilityManager is not available";
-        return manager.getRecommendedTimeoutMillis(originalTimeout, uiContentFlags);
     }
 
     /**
@@ -186,7 +147,6 @@ public class AccessibilityUtil {
         AccessibilityManager manager = getAccessibilityManager();
         manager.removeAccessibilityStateChangeListener(mModeChangeHandler);
         manager.removeTouchExplorationStateChangeListener(mModeChangeHandler);
-        mModeChangeHandler = null;
     }
 
     /**
@@ -197,7 +157,6 @@ public class AccessibilityUtil {
         boolean oldIsAccessibilityEnabled = isAccessibilityEnabled();
         // Setting to null forces the next call to isAccessibilityEnabled() to update the value.
         mIsAccessibilityEnabled = null;
-        mIsTouchExplorationEnabled = null;
         if (oldIsAccessibilityEnabled != isAccessibilityEnabled()) notifyModeChange();
     }
 
@@ -219,13 +178,18 @@ public class AccessibilityUtil {
     /**
      * Checks whether the given {@link AccessibilityServiceInfo} can perform gestures.
      * @param service The service to check.
-     * @return Whether the {@code service} can perform gestures. This relies on the capabilities
-     *         the service can perform.
+     * @return Whether the {@code service} can perform gestures. On N+, this relies on the
+     *         capabilities the service can perform. On L & M, this looks specifically for
+     *         Switch Access.
      */
     private boolean canPerformGestures(AccessibilityServiceInfo service) {
-        return (service.getCapabilities()
-                       & AccessibilityServiceInfo.CAPABILITY_CAN_PERFORM_GESTURES)
-                != 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            return (service.getCapabilities()
+                           & AccessibilityServiceInfo.CAPABILITY_CAN_PERFORM_GESTURES)
+                    != 0;
+        }
+        return service.getResolveInfo() != null
+                && service.getResolveInfo().toString().contains("switchaccess");
     }
 
     /**
@@ -237,18 +201,6 @@ public class AccessibilityUtil {
     public void setAccessibilityEnabledForTesting(@Nullable Boolean isEnabled) {
         ThreadUtils.assertOnUiThread();
         mIsAccessibilityEnabled = isEnabled;
-        notifyModeChange();
-    }
-
-    /**
-     * Set whether the device has touch exploration enabled. Should be reset back to null after the
-     * test has finished.
-     * @param isEnabled whether the device has touch exploration enabled.
-     */
-    @VisibleForTesting
-    public void setTouchExplorationEnabledForTesting(@Nullable Boolean isEnabled) {
-        ThreadUtils.assertOnUiThread();
-        mIsTouchExplorationEnabled = isEnabled;
         notifyModeChange();
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/i18n/time_formatting.h"
 #include "build/build_config.h"
+#include "components/invalidation/impl/invalidation_switches.h"
 #include "components/invalidation/public/invalidator_state.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "google_apis/gaia/gaia_constants.h"
@@ -37,13 +38,20 @@ void FCMInvalidationService::Init() {
 
   if (IsReadyToStart()) {
     StartInvalidator();
+  } else {
+    if (identity_provider_->GetActiveAccountId().empty()) {
+      ReportInvalidatorState(syncer::NOT_STARTED_NO_ACTIVE_ACCOUNT);
+    } else {
+      ReportInvalidatorState(syncer::NOT_STARTED_NO_REFRESH_TOKEN);
+    }
   }
 
   identity_provider_->AddObserver(this);
 }
 
 void FCMInvalidationService::RequestDetailedStatus(
-    base::RepeatingCallback<void(base::Value::Dict)> return_callback) const {
+    base::RepeatingCallback<void(const base::DictionaryValue&)> return_callback)
+    const {
   FCMInvalidationServiceBase::RequestDetailedStatus(return_callback);
 
   if (identity_provider_) {
@@ -62,6 +70,8 @@ void FCMInvalidationService::OnActiveAccountLogin() {
   }
   if (IsReadyToStart()) {
     StartInvalidator();
+  } else {
+    ReportInvalidatorState(syncer::NOT_STARTED_NO_REFRESH_TOKEN);
   }
 }
 
@@ -80,25 +90,25 @@ void FCMInvalidationService::OnActiveAccountLogout() {
   }
 }
 
-base::Value::Dict FCMInvalidationService::CollectDebugData() const {
-  base::Value::Dict status = FCMInvalidationServiceBase::CollectDebugData();
+base::DictionaryValue FCMInvalidationService::CollectDebugData() const {
+  base::DictionaryValue status = FCMInvalidationServiceBase::CollectDebugData();
 
-  status.SetByDottedPath(
+  status.SetString(
       "InvalidationService.Active-account-login",
       base::TimeFormatShortDateAndTime(diagnostic_info_.active_account_login));
-  status.SetByDottedPath("InvalidationService.Active-account-token-updated",
-                         base::TimeFormatShortDateAndTime(
-                             diagnostic_info_.active_account_token_updated));
-  status.SetByDottedPath("InvalidationService.Active-account-logged-out",
-                         base::TimeFormatShortDateAndTime(
-                             diagnostic_info_.active_account_logged_out));
-  status.SetByDottedPath("InvalidationService.Started-on-active-account-login",
-                         diagnostic_info_.was_already_started_on_login);
-  status.SetByDottedPath(
+  status.SetString("InvalidationService.Active-account-token-updated",
+                   base::TimeFormatShortDateAndTime(
+                       diagnostic_info_.active_account_token_updated));
+  status.SetString("InvalidationService.Active-account-logged-out",
+                   base::TimeFormatShortDateAndTime(
+                       diagnostic_info_.active_account_logged_out));
+  status.SetBoolean("InvalidationService.Started-on-active-account-login",
+                    diagnostic_info_.was_already_started_on_login);
+  status.SetBoolean(
       "InvalidationService.Ready-to-start-on-active-account-login",
       diagnostic_info_.was_ready_to_start_on_login);
-  status.SetByDottedPath("InvalidationService.Active-account-id",
-                         diagnostic_info_.active_account_id.ToString());
+  status.SetString("InvalidationService.Active-account-id",
+                   diagnostic_info_.active_account_id.ToString());
 
   return status;
 }
@@ -107,12 +117,16 @@ bool FCMInvalidationService::IsReadyToStart() {
   bool valid_account_info_available =
       identity_provider_->IsActiveAccountWithRefreshToken();
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // IsReadyToStart checks if account is available (active account logged in
   // and token is available). As currently observed, FCMInvalidationService
   // isn't always notified on Android when token is available.
-  valid_account_info_available =
-      !identity_provider_->GetActiveAccountId().empty();
+  if (base::FeatureList::IsEnabled(
+          invalidation::switches::
+              kFCMInvalidationsStartOnceActiveAccountAvailable)) {
+    valid_account_info_available =
+        !identity_provider_->GetActiveAccountId().empty();
+  }
 #endif
 
   if (!valid_account_info_available) {

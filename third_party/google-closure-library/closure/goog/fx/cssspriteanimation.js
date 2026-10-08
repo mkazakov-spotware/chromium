@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview An animation class that animates CSS sprites by changing the
@@ -13,9 +21,9 @@
 
 goog.provide('goog.fx.CssSpriteAnimation');
 
+goog.forwardDeclare('goog.math.Box');
+goog.forwardDeclare('goog.math.Size');
 goog.require('goog.fx.Animation');
-goog.requireType('goog.math.Box');
-goog.requireType('goog.math.Size');
 
 
 
@@ -49,7 +57,6 @@ goog.requireType('goog.math.Size');
  */
 goog.fx.CssSpriteAnimation = function(
     element, size, box, time, opt_acc, opt_disableLoop) {
-  'use strict';
   var start = [box.left, box.top];
   // We never draw for the end so we do not need to subtract for the size
   var end = [box.right, box.bottom];
@@ -83,7 +90,6 @@ goog.inherits(goog.fx.CssSpriteAnimation, goog.fx.Animation);
 
 /** @override */
 goog.fx.CssSpriteAnimation.prototype.onAnimate = function() {
-  'use strict';
   // Round to nearest sprite.
   var x = -Math.floor(this.coords[0] / this.size_.width) * this.size_.width;
   var y = -Math.floor(this.coords[1] / this.size_.height) * this.size_.height;
@@ -95,7 +101,6 @@ goog.fx.CssSpriteAnimation.prototype.onAnimate = function() {
 
 /** @override */
 goog.fx.CssSpriteAnimation.prototype.onFinish = function() {
-  'use strict';
   if (!this.disableLoop_) {
     this.play(true);
   }
@@ -109,7 +114,6 @@ goog.fx.CssSpriteAnimation.prototype.onFinish = function() {
  * same element when the sprite animation is not runniing.
  */
 goog.fx.CssSpriteAnimation.prototype.clearSpritePosition = function() {
-  'use strict';
   var style = this.element_.style;
   style.backgroundPosition = '';
 
@@ -123,7 +127,6 @@ goog.fx.CssSpriteAnimation.prototype.clearSpritePosition = function() {
 
 /** @override */
 goog.fx.CssSpriteAnimation.prototype.disposeInternal = function() {
-  'use strict';
   goog.fx.CssSpriteAnimation.superClass_.disposeInternal.call(this);
   this.element_ = null;
 };

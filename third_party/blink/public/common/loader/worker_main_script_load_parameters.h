@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,20 +15,19 @@
 
 namespace blink {
 
-// Used to load the main script for dedicated workers (PlzDedicatedWorker),
-// service workers (PlzServiceWorker), and shared workers, which is
-// pre-requested by browser process.
+// Used to load the main script for dedicated workers (PlzDedicatedWorker) and
+// shared workers, which is pre-requested by browser process.
 struct BLINK_COMMON_EXPORT WorkerMainScriptLoadParameters {
  public:
   WorkerMainScriptLoadParameters() = default;
   ~WorkerMainScriptLoadParameters() = default;
 
-  int request_id;
+  std::vector<GURL> redirects;
+  std::vector<network::mojom::URLResponseHeadPtr> redirect_responses;
+  std::vector<net::RedirectInfo> redirect_infos;
   network::mojom::URLResponseHeadPtr response_head;
   mojo::ScopedDataPipeConsumerHandle response_body;
   network::mojom::URLLoaderClientEndpointsPtr url_loader_client_endpoints;
-  std::vector<net::RedirectInfo> redirect_infos;
-  std::vector<network::mojom::URLResponseHeadPtr> redirect_responses;
 };
 
 }  // namespace blink

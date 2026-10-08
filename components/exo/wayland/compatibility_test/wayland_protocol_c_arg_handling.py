@@ -1,16 +1,14 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import wayland_protocol_data_classes
 
-# Short aliases for typing
-Message = wayland_protocol_data_classes.Message
-MessageArg = wayland_protocol_data_classes.MessageArg
 MessageArgType = wayland_protocol_data_classes.MessageArgType
 
 
-def get_c_argument_type(arg_type: MessageArgType) -> str:
+def get_c_argument_type(arg_type):
+    # type: (MessageArgType) -> str
     """Maps a protocol argument type to a C type."""
     # Note: This should match what the core scanner.c does
     return {
@@ -24,29 +22,33 @@ def get_c_argument_type(arg_type: MessageArgType) -> str:
     }[arg_type]
 
 
-def get_c_arg_for_server_request_arg(arg: MessageArg) -> str:
+def get_c_arg_for_server_request_arg(arg):
+    # type: (MessageArg) -> str:
     """Maps a protocol argument to C argument(s) for server-side requests."""
     # Note: This should match what the core scanner.c does
     if arg.type == MessageArgType.NEW_ID.value and not arg.interface:
-        return f', const char *interface, uint32_t version, uint32_t {arg.name}'
+        return (', const char *interface, uint32_t version, '
+                'uint32_t %s' % arg.name)
     elif arg.type == MessageArgType.NEW_ID.value:
-        return f', uint32_t {arg.name}'
+        return ', uint32_t %s' % arg.name
     elif arg.type == MessageArgType.OBJECT.value:
-        return f', struct {arg.interface} *{arg.name}'
+        return ', struct %s *%s' % (arg.interface, arg.name)
     else:
-        return f', {get_c_argument_type(arg.type)} {arg.name}'
+        return ', %s %s' % (get_c_argument_type(arg.type), arg.name)
 
 
-def get_c_arg_for_server_event_arg(arg: MessageArg) -> str:
+def get_c_arg_for_server_event_arg(arg):
+    # type: (MessageArg) -> str:
     """Maps a protocol argument to C argument(s) for server-side events."""
     # Note: This should match what the core scanner.c does
     if arg.type == MessageArgType.NEW_ID.value:
-        return f', struct wl_resource* {arg.name}'
+        return ', struct wl_resource* %s' % arg.name
     else:
-        return f', {get_c_argument_type(arg.type)} {arg.name}'
+        return ', %s %s' % (get_c_argument_type(arg.type), arg.name)
 
 
-def get_c_return_type_for_client_request(message: Message) -> str:
+def get_c_return_type_for_client_request(message):
+    # type: (Message) -> str:
     """Determines the C return type for client-side requests."""
     # Note: This should match what the core scanner.c does
     for arg in message.args:
@@ -54,11 +56,12 @@ def get_c_return_type_for_client_request(message: Message) -> str:
             if arg.interface is None:
                 return 'void *'
             else:
-                return f'struct {arg.interface}'
+                return 'struct %s' % arg.interface
     return 'void'
 
 
-def get_c_arg_for_client_request_arg(arg: MessageArg) -> str:
+def get_c_arg_for_client_request_arg(arg):
+    # type: (MessageArg) -> str:
     """Maps a protocol argument to C argument(s) for client-side requeuests."""
     # Note: This should match what the core scanner.c does
     if arg.type == MessageArgType.NEW_ID.value and not arg.interface:
@@ -66,16 +69,17 @@ def get_c_arg_for_client_request_arg(arg: MessageArg) -> str:
     elif arg.type == MessageArgType.NEW_ID.value:
         return ''
     else:
-        return f', {get_c_argument_type(arg.type)} {arg.name}'
+        return ', %s %s' % (get_c_argument_type(arg.type), arg.name)
 
 
-def get_c_arg_for_client_event_arg(arg: MessageArg) -> str:
+def get_c_arg_for_client_event_arg(arg):
+    # type: (MessageArg) -> str:
     """Maps a protocol argument to C argument(s) for client-side events."""
     if arg.type == MessageArgType.OBJECT.value and arg.interface is None:
-        return f', void * {arg.name}'
+        return ', void * %s' % arg.name
     elif arg.type == MessageArgType.NEW_ID.value:
-        return f', struct {arg.interface} *{arg.name}'
+        return ', struct %s *%s' % (arg.interface, arg.name)
     elif arg.type == MessageArgType.OBJECT.value:
-        return f', struct {arg.interface} *{arg.name}'
+        return ', struct %s *%s' % (arg.interface, arg.name)
     else:
-        return f', {get_c_argument_type(arg.type)} {arg.name}'
+        return ', %s %s' % (get_c_argument_type(arg.type), arg.name)

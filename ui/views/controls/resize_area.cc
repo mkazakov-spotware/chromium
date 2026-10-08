@@ -1,25 +1,25 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/controls/resize_area.h"
 
-#include "base/i18n/rtl.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/cursor/cursor.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/controls/resize_area_delegate.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
+#include "ui/views/native_cursor.h"
 
 namespace views {
 
-ResizeArea::ResizeArea(ResizeAreaDelegate* delegate) : delegate_(delegate) {}
+ResizeArea::ResizeArea(ResizeAreaDelegate* delegate)
+    : delegate_(delegate), initial_position_(0) {}
 
 ResizeArea::~ResizeArea() = default;
 
-ui::Cursor ResizeArea::GetCursor(const ui::MouseEvent& event) {
-  return GetEnabled() ? ui::Cursor(ui::mojom::CursorType::kEastWestResize)
-                      : ui::Cursor();
+gfx::NativeCursor ResizeArea::GetCursor(const ui::MouseEvent& event) {
+  return GetEnabled() ? GetNativeEastWestResizeCursor() : gfx::kNullCursor;
 }
 
 void ResizeArea::OnGestureEvent(ui::GestureEvent* event) {

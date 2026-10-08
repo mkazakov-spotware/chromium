@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,11 @@
 #define NET_SPDY_SPDY_SESSION_KEY_H_
 
 #include "net/base/net_export.h"
-#include "net/base/network_anonymization_key.h"
 #include "net/base/network_isolation_key.h"
 #include "net/base/privacy_mode.h"
 #include "net/base/proxy_server.h"
-#include "net/dns/public/secure_dns_policy.h"
 #include "net/socket/socket_tag.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
 namespace net {
 
 // SpdySessionKey is used as unique index for SpdySessionPool.
@@ -36,8 +34,8 @@ class NET_EXPORT_PRIVATE SpdySessionKey {
                  PrivacyMode privacy_mode,
                  IsProxySession is_proxy_session,
                  const SocketTag& socket_tag,
-                 const NetworkAnonymizationKey& network_anonymization_key,
-                 SecureDnsPolicy secure_dns_policy);
+                 const NetworkIsolationKey& network_isolation_key,
+                 bool disable_secure_dns);
 
   SpdySessionKey(const SpdySessionKey& other);
 
@@ -90,11 +88,14 @@ class NET_EXPORT_PRIVATE SpdySessionKey {
 
   const SocketTag& socket_tag() const { return socket_tag_; }
 
-  const NetworkAnonymizationKey& network_anonymization_key() const {
-    return network_anonymization_key_;
+  const NetworkIsolationKey& network_isolation_key() const {
+    return network_isolation_key_;
   }
 
-  SecureDnsPolicy secure_dns_policy() const { return secure_dns_policy_; }
+  bool disable_secure_dns() const { return disable_secure_dns_; }
+
+  // Returns the estimate of dynamically allocated memory in bytes.
+  size_t EstimateMemoryUsage() const;
 
  private:
   HostPortProxyPair host_port_proxy_pair_;
@@ -102,11 +103,9 @@ class NET_EXPORT_PRIVATE SpdySessionKey {
   PrivacyMode privacy_mode_ = PRIVACY_MODE_DISABLED;
   IsProxySession is_proxy_session_;
   SocketTag socket_tag_;
-  // Used to separate requests made in different contexts. If
-  // `kPartitionConnectionsByNetworkIsolationKey` is disabled this will be set
-  // to an empty key.
-  NetworkAnonymizationKey network_anonymization_key_;
-  SecureDnsPolicy secure_dns_policy_;
+  // Used to separate requests made in different contexts.
+  NetworkIsolationKey network_isolation_key_;
+  bool disable_secure_dns_;
 };
 
 }  // namespace net

@@ -1,9 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.device;
 
+import android.annotation.TargetApi;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
@@ -15,11 +16,8 @@ import android.os.Build;
 import android.os.PowerManager;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.ContextUtils;
-import org.chromium.base.compat.ApiHelperForM;
 import org.chromium.net.ConnectionType;
 import org.chromium.net.NetworkChangeNotifier;
 
@@ -40,9 +38,7 @@ public class DeviceConditions {
 
     // If true, getCurrentNetConnectionType() will always return CONNECTION_NONE.
     @VisibleForTesting
-    public static boolean sForceConnectionTypeForTesting;
-    @VisibleForTesting
-    public static @ConnectionType int mConnectionTypeForTesting = ConnectionType.CONNECTION_NONE;
+    public static boolean sForceNoConnectionForTesting;
 
     /**
      * Creates a DeviceConditions instance that stores a snapshot of the current set of device
@@ -134,10 +130,10 @@ public class DeviceConditions {
         return isCurrentlyInIdleModeM(context);
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
+    @TargetApi(Build.VERSION_CODES.M)
     private static boolean isCurrentlyInIdleModeM(Context context) {
-        return ApiHelperForM.isDeviceIdleMode(
-                (PowerManager) context.getSystemService(Context.POWER_SERVICE));
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        return powerManager.isDeviceIdleMode();
     }
 
     /**
@@ -146,8 +142,8 @@ public class DeviceConditions {
      */
     public static int getCurrentNetConnectionType(Context context) {
         int connectionType = ConnectionType.CONNECTION_NONE;
-        if (sForceConnectionTypeForTesting) {
-            return mConnectionTypeForTesting;
+        if (sForceNoConnectionForTesting) {
+            return connectionType;
         }
 
         // If we are starting in the background, native portion might not be initialized.
@@ -196,7 +192,7 @@ public class DeviceConditions {
         IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
         // Note this is a sticky intent, so we aren't really registering a receiver, just getting
         // the sticky intent.  That means that we don't need to unregister the filter later.
-        return ContextUtils.registerProtectedBroadcastReceiver(context, null, filter);
+        return context.registerReceiver(null, filter);
     }
 
     /** Returns the NCN network type corresponding to the connectivity manager network type */

@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_DRIVER_DATA_TYPE_MANAGER_H__
 #define COMPONENTS_SYNC_DRIVER_DATA_TYPE_MANAGER_H__
 
+#include <list>
 #include <set>
 #include <string>
 
@@ -36,9 +37,9 @@ class DataTypeManager {
   // this.
   enum ConfigureStatus {
     UNKNOWN = -1,
-    OK,       // Configuration finished some or all types.
-    ABORTED,  // Start was aborted by calling Stop() before
-              // all types were started.
+    OK,                  // Configuration finished some or all types.
+    ABORTED,             // Start was aborted by calling Stop() before
+                         // all types were started.
   };
 
   // Note: |errors| is only filled when status is not OK.
@@ -53,21 +54,21 @@ class DataTypeManager {
     DataTypeStatusTable data_type_status_table;
   };
 
-  virtual ~DataTypeManager() = default;
+  virtual ~DataTypeManager() {}
 
   // Convert a ConfigureStatus to string for debug purposes.
   static std::string ConfigureStatusToString(ConfigureStatus status);
 
   // Begins asynchronous configuration of data types.  Any currently
-  // running data types that are not in the preferred_types set will be
-  // stopped.  Any stopped data types that are in the preferred_types
+  // running data types that are not in the desired_types set will be
+  // stopped.  Any stopped data types that are in the desired_types
   // set will be started.  All other data types are left in their
   // current state.
   //
   // Note that you may call Configure() while configuration is in
   // progress.  Configuration will be complete only when the
-  // preferred_types supplied in the last call to Configure is achieved.
-  virtual void Configure(ModelTypeSet preferred_types,
+  // desired_types supplied in the last call to Configure is achieved.
+  virtual void Configure(ModelTypeSet desired_types,
                          const ConfigureContext& context) = 0;
 
   // Informs the data type manager that the ready-for-start status of a
@@ -100,10 +101,6 @@ class DataTypeManager {
   // datatypes, which doesn't necessarily mean the sync metadata was cleared, if
   // KEEP_DATA was used when stopping (or if the datatype was never started).
   virtual ModelTypeSet GetPurgedDataTypes() const = 0;
-
-  // Returns the datatypes that are configured but not connected to the sync
-  // engine. Note that during configuration, this will be empty.
-  virtual ModelTypeSet GetActiveProxyDataTypes() const = 0;
 
   // The current state of the data type manager.
   virtual State state() const = 0;

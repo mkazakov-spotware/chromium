@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,21 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
-#include "build/build_config.h"
+#include "base/memory/ref_counted.h"
 #include "build/chromeos_buildflags.h"
 #include "extensions/browser/api/clipboard/clipboard_api.h"
 #include "extensions/browser/api/declarative_content/content_rules_registry.h"
 #include "extensions/browser/api/storage/settings_namespace.h"
-#include "extensions/browser/api/storage/settings_observer.h"
 #include "extensions/common/api/clipboard.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_id.h"
 
 class GURL;
+
+namespace base {
+template <class T>
+class ObserverListThreadSafe;
+}
 
 namespace content {
 class BrowserContext;
@@ -31,10 +34,6 @@ class WebContents;
 namespace guest_view {
 class GuestViewManagerDelegate;
 }  // namespace guest_view
-
-namespace value_store {
-class ValueStoreFactory;
-}
 
 namespace extensions {
 
@@ -53,20 +52,19 @@ class MessagingDelegate;
 class MetricsPrivateDelegate;
 class MimeHandlerViewGuest;
 class MimeHandlerViewGuestDelegate;
+class NetworkingCastPrivateDelegate;
 class NonNativeFileSystemDelegate;
 class RulesCacheDelegate;
+class SettingsObserver;
 class SupervisedUserExtensionsDelegate;
 class ValueStoreCache;
+class ValueStoreFactory;
 class VirtualKeyboardDelegate;
 struct WebRequestInfo;
 class WebViewGuest;
 class WebViewGuestDelegate;
 class WebViewPermissionHelper;
 class WebViewPermissionHelperDelegate;
-
-#if BUILDFLAG(IS_CHROMEOS)
-class ConsentProvider;
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Allows the embedder of the extensions module to customize its support for
 // API features. The embedder must create a single instance in the browser
@@ -88,8 +86,9 @@ class ExtensionsAPIClient {
   // to |caches|. By default adds nothing.
   virtual void AddAdditionalValueStoreCaches(
       content::BrowserContext* context,
-      const scoped_refptr<value_store::ValueStoreFactory>& factory,
-      SettingsChangedCallback observer,
+      const scoped_refptr<ValueStoreFactory>& factory,
+      const scoped_refptr<base::ObserverListThreadSafe<SettingsObserver>>&
+          observers,
       std::map<settings_namespace::Namespace, ValueStoreCache*>* caches);
 
   // Attaches any extra web contents helpers (like ExtensionWebContentsObserver)
@@ -153,13 +152,6 @@ class ExtensionsAPIClient {
   CreateWebViewPermissionHelperDelegate(
       WebViewPermissionHelper* web_view_permission_helper) const;
 
-#if BUILDFLAG(IS_CHROMEOS)
-  // Returns an interface for requesting consent for file system API. The caller
-  // owns the returned ConsentProvider.
-  virtual std::unique_ptr<ConsentProvider> CreateConsentProvider(
-      content::BrowserContext* browser_context) const;
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
   // TODO(wjmaclean): Remove this when (if) ContentRulesRegistry code moves
   // to extensions/browser/api.
   virtual scoped_refptr<ContentRulesRegistry> CreateContentRulesRegistry(
@@ -169,11 +161,6 @@ class ExtensionsAPIClient {
   // Creates a DevicePermissionsPrompt appropriate for the embedder.
   virtual std::unique_ptr<DevicePermissionsPrompt>
   CreateDevicePermissionsPrompt(content::WebContents* web_contents) const;
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Returns true if device policy allows detaching a given USB device.
-  virtual bool ShouldAllowDetachingUsb(int vid, int pid) const;
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Returns a delegate for some of VirtualKeyboardAPI's behavior.
   virtual std::unique_ptr<VirtualKeyboardDelegate>
@@ -196,6 +183,9 @@ class ExtensionsAPIClient {
   // MetricsPrivateAPI behavior.
   virtual MetricsPrivateDelegate* GetMetricsPrivateDelegate();
 
+  // Creates a delegate for networking.castPrivate's API behavior.
+  virtual NetworkingCastPrivateDelegate* GetNetworkingCastPrivateDelegate();
+
   // Returns a delegate for embedder-specific chrome.fileSystem behavior.
   virtual FileSystemDelegate* GetFileSystemDelegate();
 
@@ -213,17 +203,15 @@ class ExtensionsAPIClient {
   // Returns a delegate for embedder-specific chrome.mediaPerceptionPrivate API
   // behavior.
   virtual MediaPerceptionAPIDelegate* GetMediaPerceptionAPIDelegate();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-#if BUILDFLAG(IS_CHROMEOS)
   // Saves image data on clipboard.
   virtual void SaveImageDataToClipboard(
-      std::vector<uint8_t> image_data,
+      const std::vector<char>& image_data,
       api::clipboard::ImageType type,
       AdditionalDataItemList additional_items,
       base::OnceClosure success_callback,
       base::OnceCallback<void(const std::string&)> error_callback);
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
   virtual AutomationInternalApiDelegate* GetAutomationInternalApiDelegate();
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,13 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.MultiActivityTestRule;
 import org.chromium.chrome.test.TestContentProvider;
-import org.chromium.chrome.test.util.ActivityTestUtils;
+import org.chromium.chrome.test.util.ActivityUtils;
 import org.chromium.chrome.test.util.browser.Features;
 
 import java.util.Arrays;
@@ -44,6 +45,7 @@ import java.util.concurrent.Callable;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@Features.EnableFeatures(ChromeFeatureList.SHARE_BY_DEFAULT_IN_CCT)
 public class MediaLauncherActivityTest {
     @Rule
     public MultiActivityTestRule mTestRule = new MultiActivityTestRule();
@@ -127,13 +129,13 @@ public class MediaLauncherActivityTest {
 
     private void waitForCustomTabActivityToStart(Callable<Void> trigger, String expectedUrl)
             throws Exception {
-        CustomTabActivity cta = ActivityTestUtils.waitForActivity(
+        CustomTabActivity cta = ActivityUtils.waitForActivity(
                 InstrumentationRegistry.getInstrumentation(), CustomTabActivity.class, trigger);
 
         CriteriaHelper.pollUiThread(() -> {
             Tab tab = cta.getActivityTab();
             Criteria.checkThat(tab, Matchers.notNullValue());
-            Criteria.checkThat(tab.getUrl().getSpec(), Matchers.is(expectedUrl));
+            Criteria.checkThat(tab.getUrlString(), Matchers.is(expectedUrl));
         });
     }
 }

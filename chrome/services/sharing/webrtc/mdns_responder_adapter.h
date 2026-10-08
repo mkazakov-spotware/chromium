@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ namespace sharing {
 class MdnsResponderAdapter : public webrtc::MdnsResponderInterface {
  public:
   explicit MdnsResponderAdapter(
-      mojo::Remote<network::mojom::MdnsResponder> mdns_responder);
+      const mojo::SharedRemote<network::mojom::MdnsResponder>& mdns_responder);
   MdnsResponderAdapter(const MdnsResponderAdapter&) = delete;
   MdnsResponderAdapter& operator=(const MdnsResponderAdapter&) = delete;
   ~MdnsResponderAdapter() override;
@@ -35,7 +35,7 @@ class MdnsResponderAdapter : public webrtc::MdnsResponderInterface {
                             NameRemovedCallback callback) override;
 
  private:
-  mojo::Remote<network::mojom::MdnsResponder> mdns_responder_;
+  mojo::SharedRemote<network::mojom::MdnsResponder> mdns_responder_;
 };
 
 }  // namespace sharing

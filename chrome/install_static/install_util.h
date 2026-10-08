@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #ifndef CHROME_INSTALL_STATIC_INSTALL_UTIL_H_
 #define CHROME_INSTALL_STATIC_INSTALL_UTIL_H_
 
+#include <windows.h>
+
 #include <string>
 #include <vector>
-
-#include "base/win/windows_types.h"
 
 namespace version_info {
 enum class Channel;
@@ -194,8 +194,9 @@ void InitializeProcessType();
 // Returns true if the process type is initialized. False otherwise.
 bool IsProcessTypeInitialized();
 
-// Returns true if invoked in the main browser process; false, otherwise.
-bool IsBrowserProcess();
+// Returns true if invoked in a Chrome process other than the main browser
+// process. False otherwise.
+bool IsNonBrowserProcess();
 
 // Returns true if invoked in a Crashpad handler process. False otherwise.
 bool IsCrashpadHandlerProcess();
@@ -215,45 +216,48 @@ std::wstring GetCrashDumpLocation();
 // block of the calling process. Returns an empty string if the variable does
 // not exist.
 std::string GetEnvironmentString(const std::string& variable_name);
-std::wstring GetEnvironmentString(const wchar_t* variable_name);
+std::wstring GetEnvironmentString16(const wchar_t* variable_name);
 
 // Sets the environment variable identified by |variable_name| to the value
 // identified by |new_value|.
 bool SetEnvironmentString(const std::string& variable_name,
                           const std::string& new_value);
-bool SetEnvironmentString(const std::wstring& variable_name,
-                          const std::wstring& new_value);
+bool SetEnvironmentString16(const std::wstring& variable_name,
+                            const std::wstring& new_value);
 
 // Returns true if the environment variable identified by |variable_name|
 // exists.
 bool HasEnvironmentVariable(const std::string& variable_name);
-bool HasEnvironmentVariable(const std::wstring& variable_name);
+bool HasEnvironmentVariable16(const std::wstring& variable_name);
 
 // Gets the exe version details like the |product_name|, |version|,
-// |special_build|, and |channel_name| from the browser executable at
-// |exe_path|. |channel_name| will be "extended" for clients that follow the
-// extended stable update channel.
+// |special_build|, |channel_name|, etc. Most of this information is read
+// from the version resource. |exe_path| is the path of chrome.exe.
+// TODO(ananta)
+// http://crbug.com/604923
+// Unify this with the Browser Distribution code.
 void GetExecutableVersionDetails(const std::wstring& exe_path,
                                  std::wstring* product_name,
                                  std::wstring* version,
                                  std::wstring* special_build,
                                  std::wstring* channel_name);
 
-// Gets the channel for the current Chrome process.
+// Gets the channel or channel name for the current Chrome process.
 version_info::Channel GetChromeChannel();
+std::wstring GetChromeChannelName();
 
-// Gets the channel for the current Chrome process. Unless
-// `with_extended_stable` is true, extended stable will be reported as regular
-// stable (i.e., an empty string).
-std::wstring GetChromeChannelName(bool with_extended_stable);
+// Returns true if the |source| string matches the |pattern|. The pattern
+// may contain wildcards like '?', which matches one character or a '*'
+// which matches 0 or more characters.
+// Please note that pattern matches the whole string. If you want to find
+// something in the middle of the string then you need to specify the pattern
+// as '*xyz*'.
+bool MatchPattern(const std::wstring& source, const std::wstring& pattern);
 
-// Returns true if the current Chrome process is on the extended stable channel.
-bool IsExtendedStableChannel();
+// UTF8 to UTF16 and vice versa conversion helpers.
+std::wstring UTF8ToUTF16(const std::string& source);
 
-// UTF8 to Wide and vice versa conversion helpers.
-std::wstring UTF8ToWide(const std::string& source);
-
-std::string WideToUTF8(const std::wstring& source);
+std::string UTF16ToUTF8(const std::wstring& source);
 
 // Tokenizes a string |str| based on single character delimiter.
 // The tokens are returned in a vector. The |trim_spaces| parameter indicates
@@ -261,9 +265,9 @@ std::string WideToUTF8(const std::wstring& source);
 std::vector<std::string> TokenizeString(const std::string& str,
                                         char delimiter,
                                         bool trim_spaces);
-std::vector<std::wstring> TokenizeString(const std::wstring& str,
-                                         wchar_t delimiter,
-                                         bool trim_spaces);
+std::vector<std::wstring> TokenizeString16(const std::wstring& str,
+                                           wchar_t delimiter,
+                                           bool trim_spaces);
 
 // Tokenizes |command_line| in the same way as CommandLineToArgvW() in
 // shell32.dll, handling quoting, spacing etc. Normally only used from
@@ -287,19 +291,14 @@ bool RecursiveDirectoryCreate(const std::wstring& full_path);
 struct DetermineChannelResult {
   std::wstring channel_name;
   ChannelOrigin origin;
-
-  // True if this client follows the extended stable update channel. May only be
-  // true if `channel_name` is "" and `origin` is kPolicy.
-  bool is_extended_stable;
 };
 
-// Returns the unadorned channel name, its origin, and an indication of whether
-// or not a stable ("") channel is truly the extended stable channel based on
-// the channel strategy for the install mode. |channel_override|, if not empty
-// is the channel to return if |mode| supports non-fixed channels. |update_ap|,
-// if not null, is set to the raw "ap" value read from Chrome's ClientState key
-// in the registry. |update_cohort_name|, if not null, is set to the raw
-// "cohort\name" value read from Chrome's ClientState key in the registry.
+// Returns the unadorned channel name and its origin based on the channel
+// strategy for the install mode. |channel_override|, if not empty is the
+// channel to return if |mode| supports non-fixed channels. |update_ap|, if not
+// null, is set to the raw "ap" value read from Chrome's ClientState key in the
+// registry. |update_cohort_name|, if not null, is set to the raw "cohort\name"
+// value read from Chrome's ClientState key in the registry.
 DetermineChannelResult DetermineChannel(const InstallConstants& mode,
                                         bool system_level,
                                         const wchar_t* channel_override,

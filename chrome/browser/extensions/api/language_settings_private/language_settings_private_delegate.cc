@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/profiles/profile.h"
@@ -62,9 +61,9 @@ LanguageSettingsPrivateDelegate::LanguageSettingsPrivateDelegate(
       GetPrefs());
 
   StartOrStopListeningForSpellcheckChanges();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   StartOrStopListeningForInputMethodChanges();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 LanguageSettingsPrivateDelegate::~LanguageSettingsPrivateDelegate() {
@@ -90,9 +89,9 @@ LanguageSettingsPrivateDelegate::GetHunspellDictionaryStatuses() {
     status.is_ready = dictionary->IsReady();
     if (!status.is_ready) {
       if (dictionary->IsDownloadInProgress())
-        status.is_downloading = true;
+        status.is_downloading.reset(new bool(true));
       if (dictionary->IsDownloadFailure())
-        status.download_failed = true;
+        status.download_failed.reset(new bool(true));
     }
     statuses.push_back(std::move(status));
   }
@@ -112,14 +111,15 @@ void LanguageSettingsPrivateDelegate::Shutdown() {
     listening_spellcheck_ = false;
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (listening_input_method_) {
-    auto* input_method_manager = ash::input_method::InputMethodManager::Get();
+    auto* input_method_manager =
+        chromeos::input_method::InputMethodManager::Get();
     if (input_method_manager)
       input_method_manager->RemoveObserver(this);
     listening_input_method_ = false;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 void LanguageSettingsPrivateDelegate::OnListenerAdded(
@@ -132,7 +132,7 @@ void LanguageSettingsPrivateDelegate::OnListenerAdded(
     StartOrStopListeningForSpellcheckChanges();
     return;
   }
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   if (details.event_name ==
           language_settings_private::OnInputMethodAdded::kEventName ||
       details.event_name ==
@@ -140,16 +140,16 @@ void LanguageSettingsPrivateDelegate::OnListenerAdded(
     StartOrStopListeningForInputMethodChanges();
     return;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 void LanguageSettingsPrivateDelegate::OnListenerRemoved(
     const EventListenerInfo& details) {
   // Stop listening to events if there are no more listeners.
   StartOrStopListeningForSpellcheckChanges();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   StartOrStopListeningForInputMethodChanges();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 }
 
 void LanguageSettingsPrivateDelegate::Observe(
@@ -160,9 +160,9 @@ void LanguageSettingsPrivateDelegate::Observe(
   StartOrStopListeningForSpellcheckChanges();
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 void LanguageSettingsPrivateDelegate::InputMethodChanged(
-    ash::input_method::InputMethodManager* manager,
+    chromeos::input_method::InputMethodManager* manager,
     Profile* profile,
     bool show_message) {
   // Nothing to do.
@@ -170,7 +170,7 @@ void LanguageSettingsPrivateDelegate::InputMethodChanged(
 
 void LanguageSettingsPrivateDelegate::OnInputMethodExtensionAdded(
     const std::string& extension_id) {
-  auto args(
+  std::unique_ptr<base::ListValue> args(
       language_settings_private::OnInputMethodAdded::Create(extension_id));
   std::unique_ptr<extensions::Event> extension_event(new extensions::Event(
       events::LANGUAGE_SETTINGS_PRIVATE_ON_INPUT_METHOD_ADDED,
@@ -181,7 +181,7 @@ void LanguageSettingsPrivateDelegate::OnInputMethodExtensionAdded(
 
 void LanguageSettingsPrivateDelegate::OnInputMethodExtensionRemoved(
     const std::string& extension_id) {
-  auto args(
+  std::unique_ptr<base::ListValue> args(
       language_settings_private::OnInputMethodRemoved::Create(extension_id));
   std::unique_ptr<extensions::Event> extension_event(new extensions::Event(
       events::LANGUAGE_SETTINGS_PRIVATE_ON_INPUT_METHOD_REMOVED,
@@ -189,7 +189,7 @@ void LanguageSettingsPrivateDelegate::OnInputMethodExtensionRemoved(
       std::move(args)));
   EventRouter::Get(context_)->BroadcastEvent(std::move(extension_event));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 void LanguageSettingsPrivateDelegate::OnHunspellDictionaryInitialized(
     const std::string& language) {
@@ -220,8 +220,9 @@ void LanguageSettingsPrivateDelegate::OnCustomDictionaryChanged(
                                   change.to_add().end());
   std::vector<std::string> to_remove(change.to_remove().begin(),
                                      change.to_remove().end());
-  auto args(language_settings_private::OnCustomDictionaryChanged::Create(
-      to_add, to_remove));
+  std::unique_ptr<base::ListValue> args(
+      language_settings_private::OnCustomDictionaryChanged::Create(to_add,
+                                                                   to_remove));
   std::unique_ptr<Event> extension_event(new Event(
       events::LANGUAGE_SETTINGS_PRIVATE_ON_CUSTOM_DICTIONARY_CHANGED,
       language_settings_private::OnCustomDictionaryChanged::kEventName,
@@ -273,7 +274,7 @@ void LanguageSettingsPrivateDelegate::
     // Observe the dictionaries preference.
     pref_change_registrar_.Add(
         spellcheck::prefs::kSpellCheckDictionaries,
-        base::BindRepeating(
+        base::Bind(
             &LanguageSettingsPrivateDelegate::OnSpellcheckDictionariesChanged,
             base::Unretained(this)));
     // Observe the dictionary of custom words.
@@ -291,7 +292,7 @@ void LanguageSettingsPrivateDelegate::
   listening_spellcheck_ = should_listen;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 void LanguageSettingsPrivateDelegate::
     StartOrStopListeningForInputMethodChanges() {
   EventRouter* event_router = EventRouter::Get(context_);
@@ -301,7 +302,8 @@ void LanguageSettingsPrivateDelegate::
       event_router->HasEventListener(
           language_settings_private::OnInputMethodRemoved::kEventName);
 
-  auto* input_method_manager = ash::input_method::InputMethodManager::Get();
+  auto* input_method_manager =
+      chromeos::input_method::InputMethodManager::Get();
   if (input_method_manager) {
     if (should_listen && !listening_input_method_)
       input_method_manager->AddObserver(this);
@@ -311,7 +313,7 @@ void LanguageSettingsPrivateDelegate::
 
   listening_input_method_ = should_listen;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 void LanguageSettingsPrivateDelegate::RetryDownloadHunspellDictionary(
     const std::string& language) {
@@ -333,8 +335,9 @@ void LanguageSettingsPrivateDelegate::BroadcastDictionariesChangedEvent() {
   std::vector<language_settings_private::SpellcheckDictionaryStatus> statuses =
       GetHunspellDictionaryStatuses();
 
-  auto args(language_settings_private::OnSpellcheckDictionariesChanged::Create(
-      statuses));
+  std::unique_ptr<base::ListValue> args(
+      language_settings_private::OnSpellcheckDictionariesChanged::Create(
+          statuses));
   std::unique_ptr<extensions::Event> extension_event(new extensions::Event(
       events::LANGUAGE_SETTINGS_PRIVATE_ON_SPELLCHECK_DICTIONARIES_CHANGED,
       language_settings_private::OnSpellcheckDictionariesChanged::kEventName,

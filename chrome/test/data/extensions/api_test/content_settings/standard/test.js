@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,19 +21,17 @@ var default_content_settings = {
 };
 
 var settings = {
-  'cookies': 'block',
-  'images': 'allow',
-  'javascript': 'block',
-  'popups': 'allow',
-  'location': 'block',
-  'notifications': 'block',
-  'fullscreen': 'block',          // Should be ignored.
-  'mouselock': 'block',           // Should be ignored.
-  'plugins': 'block',             // Should be ignored.
-  'unsandboxedPlugins': 'block',  // Should be ignored.
-  'microphone': 'block',
-  'camera': 'block',
-  'automaticDownloads': 'block'
+  "cookies": "block",
+  "images": "allow",
+  "javascript": "block",
+  "popups": "allow",
+  "location": "block",
+  "notifications": "block",
+  "fullscreen": "block",  // Should be ignored.
+  "mouselock": "block",  // Should be ignored.
+  "microphone": "block",
+  "camera": "block",
+  "automaticDownloads": "block"
 };
 
 // List of settings that are expected to return different values than were
@@ -42,16 +40,9 @@ var settings = {
 // omitted from this list is expected to read back whatever was written.
 var deprecatedSettingsExpectations = {
   // Due to deprecation, these should be "allow", regardless of the setting.
-  'fullscreen': 'allow',
-  'mouselock': 'allow',
-  // These should be "block", regardless of the setting.
-  'plugins': 'block',
-  'unsandboxedPlugins': 'block'
+  "fullscreen": "allow",
+  "mouselock": "allow"
 };
-
-// List of deprecated APIs. It is expected to return 'block' to get(), and will
-// be ignored to set() and clear().
-var deprecatedExtenionApis = [ 'plugins', 'unsandboxedPlugins' ];
 
 Object.prototype.forEach = function(f) {
   var k;
@@ -107,7 +98,7 @@ chrome.test.runTests([
     cs.cookies.get({
       'primaryUrl': 'moo'
     }, chrome.test.callbackFail("The URL \"moo\" is invalid."));
-    cs.javascript.set({
+    cs.plugins.set({
       'primaryPattern': 'http://example.com/*',
       'secondaryPattern': 'http://example.com/path',
       'setting': 'block'
@@ -127,38 +118,5 @@ chrome.test.runTests([
       caught = true;
     }
     chrome.test.assertTrue(caught);
-  },
-
-  function testDeprecatedApi_SetIgnored() {
-    deprecatedExtenionApis.forEach(api => {
-      cs[api].set(
-        {
-          'primaryPattern': 'https://*.google.com:443/*',
-          'secondaryPattern': '<all_urls>',
-          'setting': 'allow'
-        },
-        () => {
-          chrome.test.assertNoLastError();
-          chrome.test.succeed();
-        });
-    });
-  },
-  function testDeprecatedApi_GetBlocked() {
-    deprecatedExtenionApis.forEach(api => {
-      cs[api].get(
-          {'primaryUrl': 'https://drive.google.com:443/*'}, (value) => {
-            chrome.test.assertNoLastError();
-            chrome.test.assertEq({setting: 'block'}, value);
-            chrome.test.succeed();
-          });
-    });
-  },
-  function testDeprecatedApi_ClearIgnored() {
-    deprecatedExtenionApis.forEach(api => {
-      cs[api].clear({}, () => {
-        chrome.test.assertNoLastError();
-        chrome.test.succeed();
-      });
-    });
   }
 ]);

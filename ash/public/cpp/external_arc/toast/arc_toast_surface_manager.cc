@@ -1,17 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/public/cpp/external_arc/toast/arc_toast_surface_manager.h"
 
-#include "base/ranges/algorithm.h"
 #include "components/exo/toast_surface.h"
 
 namespace ash {
 
 ArcToastSurfaceManager::ArcToastSurfaceManager()
     : locked_(ash::SessionController::Get()->IsScreenLocked()) {
-  scoped_observation_.Observe(ash::SessionController::Get());
+  scoped_observer_.Add(ash::SessionController::Get());
 }
 
 ArcToastSurfaceManager::~ArcToastSurfaceManager() = default;
@@ -22,7 +21,7 @@ void ArcToastSurfaceManager::AddSurface(exo::ToastSurface* surface) {
 }
 
 void ArcToastSurfaceManager::RemoveSurface(exo::ToastSurface* surface) {
-  auto it = base::ranges::find(toast_surfaces_, surface);
+  auto it = std::find(toast_surfaces_.begin(), toast_surfaces_.end(), surface);
   DLOG_IF(ERROR, it == toast_surfaces_.end())
       << "Can't remove not registered surface";
 

@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/providers/cast/cast_activity.h"
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "chrome/browser/media/router/providers/cast/cast_internal_message_util.h"
 #include "chrome/browser/media/router/providers/cast/cast_session_client_impl.h"
@@ -23,23 +22,18 @@ CastActivity::CastActivity(const MediaRoute& route,
 
 CastActivity::~CastActivity() = default;
 
-void CastActivity::SetRouteIsConnecting(bool is_connecting) {
-  route_.set_is_connecting(is_connecting);
-}
-
 mojom::RoutePresentationConnectionPtr CastActivity::AddClient(
     const CastMediaSource& source,
     const url::Origin& origin,
-    int frame_tree_node_id) {
+    int tab_id) {
   const std::string& client_id = source.client_id();
   DCHECK(!base::Contains(connected_clients_, client_id));
   std::unique_ptr<CastSessionClient> client =
       client_factory_for_test_
-          ? client_factory_for_test_->MakeClientForTest(  // IN-TEST
-                client_id, origin, frame_tree_node_id)
+          ? client_factory_for_test_->MakeClientForTest(client_id, origin,
+                                                        tab_id)
           : std::make_unique<CastSessionClientImpl>(
-                client_id, origin, frame_tree_node_id,
-                source.auto_join_policy(), this);
+                client_id, origin, tab_id, source.auto_join_policy(), this);
   auto presentation_connection = client->Init();
   connected_clients_.emplace(client_id, std::move(client));
 
@@ -75,7 +69,7 @@ void CastActivity::SetOrUpdateSession(const CastSession& session,
            << session_id_.value_or("<missing>")
            << ", new session_id = " << session.session_id();
   DCHECK(sink.is_cast_sink());
-  route_.set_description(GetRouteDescription(session));
+  route_.set_description(session.GetRouteDescription());
   sink_ = sink;
   if (session_id_) {
     DCHECK_EQ(*session_id_, session.session_id());
@@ -106,9 +100,8 @@ void CastActivity::SendMessageToClient(
   it->second->SendMessageToClient(std::move(message));
 }
 
-void CastActivity::SendMediaStatusToClients(
-    const base::Value::Dict& media_status,
-    absl::optional<int> request_id) {
+void CastActivity::SendMediaStatusToClients(const base::Value& media_status,
+                                            base::Optional<int> request_id) {
   for (auto& client : connected_clients_)
     client.second->SendMediaStatusToClient(media_status, request_id);
 }
@@ -124,10 +117,10 @@ void CastActivity::TerminatePresentationConnections() {
     client.second->TerminateConnection();
 }
 
-absl::optional<int> CastActivity::SendMediaRequestToReceiver(
+base::Optional<int> CastActivity::SendMediaRequestToReceiver(
     const CastInternalMessage& cast_message) {
   NOTIMPLEMENTED();
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 cast_channel::Result CastActivity::SendAppMessageToReceiver(
@@ -160,7 +153,7 @@ void CastActivity::CloseConnectionOnReceiver(const std::string& client_id) {
   if (!session)
     return;
   message_handler_->CloseConnection(cast_channel_id(), client_id,
-                                    session->destination_id());
+                                    session->transport_id());
 }
 
 void CastActivity::HandleLeaveSession(const std::string& client_id) {
@@ -169,13 +162,12 @@ void CastActivity::HandleLeaveSession(const std::string& client_id) {
   auto& client = *client_it->second;
   std::vector<std::string> leaving_client_ids;
   for (const auto& pair : connected_clients_) {
-    if (pair.second->MatchesAutoJoinPolicy(client.origin(),
-                                           client.frame_tree_node_id()))
+    if (pair.second->MatchesAutoJoinPolicy(client.origin(), client.tab_id()))
       leaving_client_ids.push_back(pair.first);
   }
 
-  for (const auto& leaving_client_id : leaving_client_ids) {
-    auto leaving_client_it = connected_clients_.find(leaving_client_id);
+  for (const auto& client_id : leaving_client_ids) {
+    auto leaving_client_it = connected_clients_.find(client_id);
     CHECK(leaving_client_it != connected_clients_.end());
     leaving_client_it->second->CloseConnection(
         blink::mojom::PresentationConnectionCloseReason::CLOSED);
@@ -185,11 +177,6 @@ void CastActivity::HandleLeaveSession(const std::string& client_id) {
 
 void CastActivity::OnSessionUpdated(const CastSession& session,
                                     const std::string& hash_token) {}
-
-std::string CastActivity::GetRouteDescription(
-    const CastSession& session) const {
-  return session.GetRouteDescription();
-}
 
 CastSessionClientFactoryForTest* CastActivity::client_factory_for_test_ =
     nullptr;

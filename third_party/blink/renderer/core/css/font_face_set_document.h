@@ -28,7 +28,6 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/iterable.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_font_selector.h"
 #include "third_party/blink/renderer/core/css/font_face.h"
 #include "third_party/blink/renderer/core/css/font_face_set.h"
@@ -36,7 +35,7 @@
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/events/event_listener.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -82,7 +81,8 @@ class CORE_EXPORT FontFaceSetDocument final : public FontFaceSet,
  protected:
   bool InActiveContext() const override;
   FontSelector* GetFontSelector() const override {
-    DCHECK(IsMainThread());
+    // TODO(Fserb): tracking down crbug.com/988125, can be DCHECK later.
+    CHECK(IsMainThread());
     return GetDocument()->GetStyleEngine().GetFontSelector();
   }
 
@@ -128,7 +128,7 @@ class CORE_EXPORT FontFaceSetDocument final : public FontFaceSet,
   };
   FontDisplayAutoAlignHistogram font_display_auto_align_histogram_;
 
-  HeapTaskRunnerTimer<FontFaceSetDocument> lcp_limit_timer_;
+  TaskRunnerTimer<FontFaceSetDocument> lcp_limit_timer_;
 
   bool has_reached_lcp_limit_ = false;
 };

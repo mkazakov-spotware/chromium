@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 #define CHROME_BROWSER_UI_VIEWS_STATUS_BUBBLE_VIEWS_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/status_bubble.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
@@ -31,8 +32,6 @@ class Widget;
 // to allow users to see where hovered links point to.
 class StatusBubbleViews : public StatusBubble {
  public:
-  class StatusView;
-
   // How wide the bubble's shadow is.
   static const int kShadowThickness;
 
@@ -41,10 +40,6 @@ class StatusBubbleViews : public StatusBubble {
 
   // |base_view| is the view that this bubble is positioned relative to.
   explicit StatusBubbleViews(views::View* base_view);
-
-  StatusBubbleViews(const StatusBubbleViews&) = delete;
-  StatusBubbleViews& operator=(const StatusBubbleViews&) = delete;
-
   ~StatusBubbleViews() override;
 
   views::View* base_view() { return base_view_; }
@@ -64,13 +59,13 @@ class StatusBubbleViews : public StatusBubble {
   void SetBubbleWidth(int width);
 
   // Gets the width that a bubble should be for a given string
-  int GetWidthForURL(const std::u16string& url_string);
+  int GetWidthForURL(const base::string16& url_string);
 
   // Notifies the bubble's popup that browser's theme is changed.
   void OnThemeChanged();
 
   // Overridden from StatusBubble:
-  void SetStatus(const std::u16string& status) override;
+  void SetStatus(const base::string16& status) override;
   void SetURL(const GURL& url) override;
   void Hide() override;
   void MouseMoved(bool left_content) override;
@@ -84,6 +79,7 @@ class StatusBubbleViews : public StatusBubble {
   void MouseMovedAt(const gfx::Point& location, bool left_content);
 
  private:
+  class StatusView;
   class StatusViewAnimation;
   class StatusViewExpander;
 
@@ -126,10 +122,10 @@ class StatusBubbleViews : public StatusBubble {
   bool IsDestroyPopupTimerRunningForTest();
 
   // The status text we want to display when there are no URLs to display.
-  std::u16string status_text_;
+  base::string16 status_text_;
 
   // The url we want to display when there is no status text to display.
-  std::u16string url_text_;
+  base::string16 url_text_;
 
   // The original, non-elided URL.
   GURL url_;
@@ -153,8 +149,8 @@ class StatusBubbleViews : public StatusBubble {
   // going outside the bounds of the hosting widget.
   std::unique_ptr<views::Widget> popup_;
 
-  raw_ptr<views::View, DanglingUntriaged> base_view_;
-  raw_ptr<StatusView, DanglingUntriaged> view_ = nullptr;
+  views::View* base_view_;
+  StatusView* view_ = nullptr;
 
   // Manages the expansion of a status bubble to fit a long URL.
   std::unique_ptr<StatusViewExpander> expand_view_;
@@ -167,12 +163,14 @@ class StatusBubbleViews : public StatusBubble {
   bool is_expanded_ = false;
 
   // Used for posting tasks. This is typically
-  // base::SingleThreadTaskRunner::GetCurrentDefault(), but may be set to
-  // something else for tests.
-  raw_ptr<base::SequencedTaskRunner> task_runner_;
+  // base::ThreadTaskRunnerHandle::Get(), but may be set to something else for
+  // tests.
+  base::SequencedTaskRunner* task_runner_;
 
   // Times expansion of status bubble when URL is too long for standard width.
   base::WeakPtrFactory<StatusBubbleViews> expand_timer_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(StatusBubbleViews);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_STATUS_BUBBLE_VIEWS_H_

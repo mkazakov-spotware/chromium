@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SANDBOX_LINUX_SERVICES_YAMA_H_
 #define SANDBOX_LINUX_SERVICES_YAMA_H_
 
+#include "base/macros.h"
 #include "sandbox/sandbox_export.h"
 
 namespace sandbox {
@@ -26,10 +27,6 @@ class SANDBOX_EXPORT Yama {
     STATUS_STRICT_ENFORCING = 1 << 3
   };
 
-  Yama() = delete;
-  Yama(const Yama&) = delete;
-  Yama& operator=(const Yama&) = delete;
-
   // Restrict who can ptrace() the current process to its ancestors.
   // If this succeeds, then Yama is available on this kernel.
   // However, Yama may not be enforcing at this time.
@@ -50,6 +47,9 @@ class SANDBOX_EXPORT Yama {
   static bool IsPresent();
   // Helper for checkking for STATUS_ENFORCING in GetStatus().
   static bool IsEnforcing();
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Yama);
 };
 
 }  // namespace sandbox

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,9 @@
  * The supported formats are NTFS filetimes, Unix time (in seconds or ms),
  * and ISO 8601.
  */
+
+cr.define('samlTimestamps', function() {
+  'use strict';
 
   /** @const @private {number} Maximum length of a valid timestamp. */
   const MAX_SANE_LENGTH = 30;
@@ -41,9 +44,9 @@
    * @param {string} str A timestamp formatted as a string.
    * @return {?Date} A valid decoded timestamp, or null.
    */
-  export function decodeTimestamp(str) {
+  /* #export */ function decodeTimestamp(str) {
     str = str.trim();
-    if (str.length === 0 || str.length > MAX_SANE_LENGTH) {
+    if (str.length == 0 || str.length > MAX_SANE_LENGTH) {
       return null;
     }
 
@@ -130,3 +133,8 @@
     const date = new Date(arg);
     return isNaN(date) ? null : date;
   }
+
+  // #cr_define_end
+  // Public functions:
+  return {decodeTimestamp: decodeTimestamp};
+});

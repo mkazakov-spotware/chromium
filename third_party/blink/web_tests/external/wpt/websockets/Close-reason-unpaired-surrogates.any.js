@@ -1,22 +1,21 @@
-// META: script=constants.sub.js
-// META: variant=
-// META: variant=?wss
-// META: variant=?wpt_flags=h2
+// META: script=websocket.sub.js
 
-var test = async_test("Create WebSocket - Close the Connection - close(reason with unpaired surrogates) - connection should get closed");
+var testOpen = async_test("Create WebSocket - Close the Connection - close(reason with unpaired surrogates) - connection should get opened");
+var testClose = async_test("Create WebSocket - Close the Connection - close(reason with unpaired surrogates) - connection should get closed");
 
-var wsocket = CreateWebSocket(false, false);
+var wsocket = CreateWebSocket(false, false, false);
 var isOpenCalled = false;
 var replacementChar = "\uFFFD";
 var reason = "\uD807";
 
-wsocket.addEventListener('open', test.step_func(function(evt) {
+wsocket.addEventListener('open', testOpen.step_func(function(evt) {
   wsocket.close(1000, reason);
   isOpenCalled = true;
+  testOpen.done();
 }), true);
 
-wsocket.addEventListener('close', test.step_func(function(evt) {
+wsocket.addEventListener('close', testClose.step_func(function(evt) {
   assert_true(isOpenCalled, "WebSocket connection should be opened");
   assert_equals(evt.reason, replacementChar, "reason replaced with replacement character");
-  test.done();
+  testClose.done();
 }), true);

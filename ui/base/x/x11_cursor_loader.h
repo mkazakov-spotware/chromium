@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 #include <unordered_map>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/version.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/x/x11_cursor.h"
@@ -28,7 +26,7 @@ class COMPONENT_EXPORT(UI_BASE_X) XCursorLoader {
   struct Image {
     SkBitmap bitmap;
     gfx::Point hotspot;
-    base::TimeDelta frame_delay;
+    int frame_delay_ms;
   };
 
   explicit XCursorLoader(x11::Connection* connection);
@@ -57,14 +55,14 @@ class COMPONENT_EXPORT(UI_BASE_X) XCursorLoader {
 
   // Populate the |rm_*| variables from the value of the RESOURCE_MANAGER
   // property on the root window.
-  void ParseXResources(base::StringPiece resources);
+  void ParseXResources(const std::string& resources);
 
   uint16_t CursorNamesToChar(const std::vector<std::string>& names) const;
 
   bool SupportsCreateCursor() const;
   bool SupportsCreateAnimCursor() const;
 
-  raw_ptr<x11::Connection> connection_ = nullptr;
+  x11::Connection* connection_ = nullptr;
 
   x11::Font cursor_font_ = x11::Font::None;
 

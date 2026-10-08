@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_ACCESSIBILITY_TEST_AX_NODE_HELPER_H_
 #define UI_ACCESSIBILITY_TEST_AX_NODE_HELPER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "ui/accessibility/ax_clipping_behavior.h"
 #include "ui/accessibility/ax_coordinate_system.h"
 #include "ui/accessibility/ax_node.h"
@@ -40,15 +39,10 @@ class TestAXNodeHelper {
   gfx::RectF GetLocation() const;
   gfx::RectF GetInlineTextRect(const int start_offset,
                                const int end_offset) const;
-  // Helper for determining if the two rects, including empty rects, intersect
-  // each other.
-  bool Intersects(gfx::RectF rect1, gfx::RectF rect2) const;
-
-  // Determine the offscreen status of a particular element given its bounds.
   AXOffscreenResult DetermineOffscreenResult(gfx::RectF bounds) const;
 
-  raw_ptr<AXTree> tree_;
-  raw_ptr<AXNode> node_;
+  AXTree* tree_;
+  AXNode* node_;
 };
 
 }  // namespace ui

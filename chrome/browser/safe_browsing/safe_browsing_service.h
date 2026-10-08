@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,22 +15,20 @@
 #include "base/callback.h"
 #include "base/callback_list.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/scoped_multi_source_observation.h"
-#include "base/task/sequenced_task_runner_helpers.h"
-#include "build/build_config.h"
+#include "base/observer_list.h"
+#include "base/scoped_observer.h"
+#include "base/sequenced_task_runner_helpers.h"
 #include "chrome/browser/net/proxy_config_monitor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager_observer.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/safe_browsing/services_delegate.h"
 #include "components/safe_browsing/buildflags.h"
-#include "components/safe_browsing/content/browser/safe_browsing_service_interface.h"
-#include "components/safe_browsing/core/browser/db/util.h"
-#include "components/safe_browsing/core/browser/ping_manager.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
-#include "content/public/browser/browser_context.h"
+#include "components/safe_browsing/core/db/util.h"
+#include "components/safe_browsing/core/safe_browsing_service_interface.h"
 #include "content/public/browser/browser_thread.h"
 #include "services/network/public/mojom/network_context.mojom-forward.h"
 
@@ -43,10 +41,6 @@ class PrefService;
 
 namespace content {
 class DownloadManager;
-}
-
-namespace download {
-class DownloadItem;
 }
 
 namespace network {
@@ -68,12 +62,15 @@ class SafeBrowsingPrivateApiUnitTest;
 }  // namespace extensions
 
 namespace safe_browsing {
+class PingManager;
 class VerdictCacheManager;
 #if BUILDFLAG(FULL_SAFE_BROWSING)
 class DownloadProtectionService;
 #endif
 class PasswordProtectionService;
 class SafeBrowsingDatabaseManager;
+class SafeBrowsingNavigationObserverManager;
+class SafeBrowsingNetworkContext;
 class SafeBrowsingServiceFactory;
 class SafeBrowsingUIManager;
 class TriggerManager;
@@ -87,9 +84,6 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
                             public ProfileManagerObserver,
                             public ProfileObserver {
  public:
-  SafeBrowsingService(const SafeBrowsingService&) = delete;
-  SafeBrowsingService& operator=(const SafeBrowsingService&) = delete;
-
   static base::FilePath GetCookieFilePathForTesting();
 
   static base::FilePath GetBaseFilename();
@@ -129,29 +123,33 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   }
 #endif
 
+  // NetworkContext and URLLoaderFactory used for safe browsing requests.
+  // Called on UI thread.
+  // TODO(crbug/1049833): Transition all callers of these functions to the
+  // per-profile methods below.
+  network::mojom::NetworkContext* GetNetworkContext();
+  virtual scoped_refptr<network::SharedURLLoaderFactory> GetURLLoaderFactory();
+
   // Get the NetworkContext or URLLoaderFactory attached to |browser_context|.
   // Called on UI thread.
   network::mojom::NetworkContext* GetNetworkContext(
       content::BrowserContext* browser_context) override;
   virtual scoped_refptr<network::SharedURLLoaderFactory> GetURLLoaderFactory(
-      content::BrowserContext* browser_context);
+      Profile* profile);
 
   // Flushes above two interfaces to avoid races in tests.
-  void FlushNetworkInterfaceForTesting(
-      content::BrowserContext* browser_context);
+  void FlushNetworkInterfaceForTesting();
 
   const scoped_refptr<SafeBrowsingUIManager>& ui_manager() const;
 
   virtual const scoped_refptr<SafeBrowsingDatabaseManager>& database_manager()
       const;
 
-  ReferrerChainProvider* GetReferrerChainProviderFromBrowserContext(
-      content::BrowserContext* browser_context) override;
+  scoped_refptr<SafeBrowsingNavigationObserverManager>
+  navigation_observer_manager();
 
-#if BUILDFLAG(IS_ANDROID)
-  LoginReputationClientRequest::ReferringAppInfo GetReferringAppInfo(
-      content::WebContents* web_contents) override;
-#endif
+  // Called on UI thread.
+  PingManager* ping_manager() const;
 
   TriggerManager* trigger_manager() const;
 
@@ -179,22 +177,14 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   // Adds a listener for when SafeBrowsing preferences might have changed.
   // To get the current state, the callback should call enabled_by_prefs().
   // Should only be called on the UI thread.
-  virtual base::CallbackListSubscription RegisterStateCallback(
+  virtual std::unique_ptr<StateSubscription> RegisterStateCallback(
       const base::RepeatingClosure& callback);
 
-#if BUILDFLAG(FULL_SAFE_BROWSING)
-  // Sends download report to backend. Returns true if the report is sent
-  // successfully.
-  virtual bool SendDownloadReport(
-      download::DownloadItem* download,
-      ClientSafeBrowsingReportRequest::ReportType report_type,
-      bool did_proceed,
-      absl::optional<bool> show_download_in_folder);
-#endif
+  // Sends serialized download report to backend.
+  virtual void SendSerializedDownloadReport(Profile* profile,
+                                            const std::string& report);
 
-  // Create the default v4 protocol config struct. This just calls into a helper
-  // function, but it's still useful so that TestSafeBrowsingService can
-  // override it.
+  // Create the default v4 protocol config struct.
   virtual V4ProtocolConfig GetV4ProtocolConfig() const;
 
   // Get the cache manager by profile.
@@ -228,6 +218,9 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   friend class TestSafeBrowsingServiceFactory;
   friend class V4SafeBrowsingServiceTest;
 
+  // Returns the client_name to use for Safe Browsing requests..
+  std::string GetProtocolConfigClientName() const;
+
   void SetDatabaseManagerForTest(SafeBrowsingDatabaseManager* database_manager);
 
   // Called to initialize objects that are used on the io_thread. This may be
@@ -235,7 +228,10 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   // |sb_url_loader_factory| is a SharedURLLoaderFactory attached to the Safe
   // Browsing NetworkContexts, and |browser_url_loader_factory| is attached to
   // the global browser process.
+  // TODO(crbug.com/1049833): Remove the sb_url_loader_factory here.
   void StartOnIOThread(std::unique_ptr<network::PendingSharedURLLoaderFactory>
+                           sb_url_loader_factory,
+                       std::unique_ptr<network::PendingSharedURLLoaderFactory>
                            browser_url_loader_factory);
 
   // Called to stop or shutdown operations on the io_thread. This may be called
@@ -274,10 +270,14 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   // use.
   network::mojom::NetworkContextParamsPtr CreateNetworkContextParams();
 
-  // Logs metrics related to cookies.
-  void RecordCookieMetrics(Profile* profile);
-
   std::unique_ptr<ProxyConfigMonitor> proxy_config_monitor_;
+
+  // This owns the URLRequestContext inside the network service. This is used by
+  // SimpleURLLoader for safe browsing requests.
+  std::unique_ptr<safe_browsing::SafeBrowsingNetworkContext> network_context_;
+
+  // Provides phishing and malware statistics. Accessed on UI thread.
+  std::unique_ptr<PingManager> ping_manager_;
 
   // Whether SafeBrowsing Extended Reporting is enabled by the current set of
   // profiles. Updated on the UI thread.
@@ -300,11 +300,6 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   // Accessed on UI thread.
   std::map<PrefService*, std::unique_ptr<PrefChangeRegistrar>> prefs_map_;
 
-  // Tracks existing PrefServices. This is used to clear the cached user
-  // population whenever a relevant pref is changed.
-  std::map<PrefService*, std::unique_ptr<PrefChangeRegistrar>>
-      user_population_prefs_;
-
   // Callbacks when SafeBrowsing state might have changed.
   // Should only be accessed on the UI thread.
   base::RepeatingClosureList state_callback_list_;
@@ -313,10 +308,16 @@ class SafeBrowsingService : public SafeBrowsingServiceInterface,
   // thread.
   scoped_refptr<SafeBrowsingUIManager> ui_manager_;
 
-  base::ScopedMultiSourceObservation<Profile, ProfileObserver>
-      observed_profiles_{this};
+  // The navigation observer manager handles attribution of safe browsing
+  // events.
+  scoped_refptr<SafeBrowsingNavigationObserverManager>
+      navigation_observer_manager_;
+
+  ScopedObserver<Profile, ProfileObserver> observed_profiles_{this};
 
   std::unique_ptr<TriggerManager> trigger_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(SafeBrowsingService);
 };
 
 SafeBrowsingServiceFactory* GetSafeBrowsingServiceFactory();

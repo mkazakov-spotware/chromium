@@ -1,7 +1,7 @@
 # Architecture (as of July 29th 2016)
 This document describes the browser-process implementation of the [Cache
 Storage specification](
-https://w3c.github.io/ServiceWorker/#cachestorage-interface).
+https://slightlyoff.github.io/ServiceWorker/spec/service_worker/index.html).
 
 As of June 2018, Chrome components can use the Cache Storage interface via
 `CacheStorageManager` to store Request/Response key-value pairs. The concept of

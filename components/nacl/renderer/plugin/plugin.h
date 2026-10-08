@@ -1,4 +1,5 @@
-// Copyright 2012 The Chromium Authors
+// -*- c++ -*-
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +15,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "components/nacl/renderer/plugin/nacl_subprocess.h"
 #include "components/nacl/renderer/plugin/pnacl_coordinator.h"
 #include "components/nacl/renderer/plugin/service_runtime.h"
@@ -44,9 +46,6 @@ class Plugin : public pp::Instance {
  public:
   explicit Plugin(PP_Instance instance);
 
-  Plugin(const Plugin&) = delete;
-  Plugin& operator=(const Plugin&) = delete;
-
   // ----- Methods inherited from pp::Instance:
 
   // Initializes this plugin with <embed/object ...> tag attribute count |argc|,
@@ -74,6 +73,7 @@ class Plugin : public pp::Instance {
   // mechanism(s) take over.
   // This function takes over ownership of the file_info.
   void LoadNaClModule(PP_NaClFileInfo file_info,
+                      bool uses_nonsfi_mode,
                       PP_NaClAppProcessType process_type);
 
   // Load support.
@@ -124,6 +124,8 @@ class Plugin : public pp::Instance {
   // Keep track of the NaCl module subprocess that was spun up in the plugin.
   NaClSubprocess main_subprocess_;
 
+  bool uses_nonsfi_mode_;
+
   pp::CompletionCallbackFactory<Plugin> callback_factory_;
 
   std::unique_ptr<PnaclCoordinator> pnacl_coordinator_;
@@ -133,6 +135,8 @@ class Plugin : public pp::Instance {
   PP_NaClFileInfo nexe_file_info_;
 
   pp::UMAPrivate uma_interface_;
+
+  DISALLOW_COPY_AND_ASSIGN(Plugin);
 };
 
 }  // namespace plugin

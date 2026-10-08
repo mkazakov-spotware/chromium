@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,39 +6,30 @@
 
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace browser_defaults {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC)
+#if defined(OS_CHROMEOS) || defined(OS_MAC)
 const bool kBrowserAliveWithNoWindows = true;
-const bool kShowExitMenuItem = false;
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-// Note: Lacros can get kicked out of memory when the last window closes.
-const bool kBrowserAliveWithNoWindows = false;
 const bool kShowExitMenuItem = false;
 #else
 const bool kBrowserAliveWithNoWindows = false;
 const bool kShowExitMenuItem = true;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 const bool kShowUpgradeMenuItem = false;
 const bool kShowImportOnBookmarkBar = false;
 const bool kAlwaysOpenIncognitoWindow = true;
+const bool kAlwaysCreateTabbedBrowserOnSessionRestore = false;
 #else
 const bool kShowUpgradeMenuItem = true;
 const bool kShowImportOnBookmarkBar = true;
 const bool kAlwaysOpenIncognitoWindow = false;
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
-const bool kAlwaysCreateTabbedBrowserOnSessionRestore = false;
-#else
 const bool kAlwaysCreateTabbedBrowserOnSessionRestore = true;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 const bool kShowHelpMenuItemIcon = true;
 #else
 const bool kShowHelpMenuItemIcon = false;
@@ -46,19 +37,19 @@ const bool kShowHelpMenuItemIcon = false;
 
 const bool kDownloadPageHasShowInFolder = true;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 const bool kSyncAutoStarts = true;
 #else
 const bool kSyncAutoStarts = false;
 #endif
 
-#if BUILDFLAG(IS_LINUX)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 const bool kScrollEventChangesTab = true;
 #else
 const bool kScrollEventChangesTab = false;
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 const bool kPasswordEchoEnabled = false;
 #endif
 

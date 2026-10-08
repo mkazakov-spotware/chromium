@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -14,7 +15,6 @@
 #include "ui/views/background.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/examples/examples_color_id.h"
 #include "ui/views/examples/grit/views_examples_resources.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
@@ -24,7 +24,8 @@
 using l10n_util::GetStringUTF16;
 using l10n_util::GetStringUTF8;
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 WidgetExample::WidgetExample()
     : ExampleBase(GetStringUTF8(IDS_WIDGET_SELECT_LABEL).c_str()) {}
@@ -49,7 +50,7 @@ void WidgetExample::CreateExampleView(View* container) {
   modal_button->SetCallback(
       base::BindRepeating(&WidgetExample::CreateDialogWidget,
                           base::Unretained(this), modal_button, true));
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Windows does not support TYPE_CONTROL top-level widgets.
   LabelButton* control_button = BuildButton(
       container, GetStringUTF16(IDS_WIDGET_CHILD_WIDGET_BUTTON_LABEL));
@@ -60,7 +61,7 @@ void WidgetExample::CreateExampleView(View* container) {
 }
 
 LabelButton* WidgetExample::BuildButton(View* container,
-                                        const std::u16string& label) {
+                                        const base::string16& label) {
   LabelButton* button = container->AddChildView(
       std::make_unique<LabelButton>(Button::PressedCallback(), label));
   button->SetRequestFocusOnPress(true);
@@ -70,8 +71,7 @@ LabelButton* WidgetExample::BuildButton(View* container,
 void WidgetExample::CreateDialogWidget(View* sender, bool modal) {
   auto dialog = std::make_unique<DialogDelegateView>();
   dialog->SetTitle(IDS_WIDGET_WINDOW_TITLE);
-  dialog->SetBackground(CreateThemedSolidBackground(
-      ExamplesColorIds::kColorWidgetExampleDialogBorder));
+  dialog->SetBackground(CreateSolidBackground(SK_ColorGRAY));
   dialog->SetLayoutManager(std::make_unique<BoxLayout>(
       BoxLayout::Orientation::kVertical, gfx::Insets(10), 10));
   dialog->SetExtraView(std::make_unique<MdTextButton>(
@@ -103,8 +103,7 @@ void WidgetExample::ShowWidget(View* sender, Widget::InitParams::Type type) {
     View* contents = widget->SetContentsView(std::make_unique<View>());
     contents->SetLayoutManager(
         std::make_unique<BoxLayout>(BoxLayout::Orientation::kHorizontal));
-    contents->SetBackground(CreateThemedSolidBackground(
-        ExamplesColorIds::kColorWidgetExampleContentBorder));
+    contents->SetBackground(CreateSolidBackground(SK_ColorGRAY));
     BuildButton(contents, GetStringUTF16(IDS_WIDGET_CLOSE_BUTTON_LABEL))
         ->SetCallback(
             base::BindRepeating(&Widget::Close, base::Unretained(widget)));
@@ -113,4 +112,5 @@ void WidgetExample::ShowWidget(View* sender, Widget::InitParams::Type type) {
   widget->Show();
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

@@ -1,10 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/test/fake_tile_manager_client.h"
 
-#include "cc/tiles/tiles_with_resource_iterator.h"
+#include <vector>
 
 namespace cc {
 
@@ -23,18 +23,13 @@ FakeTileManagerClient::BuildEvictionQueue(TreePriority tree_priority) {
   return nullptr;
 }
 
-std::unique_ptr<TilesWithResourceIterator>
-FakeTileManagerClient::CreateTilesWithResourceIterator() {
-  return nullptr;
+gfx::ColorSpace FakeTileManagerClient::GetRasterColorSpace(
+    gfx::ContentColorUsage /*content_color_usage*/) const {
+  return color_space_;
 }
 
-TargetColorParams FakeTileManagerClient::GetTargetColorParams(
-    gfx::ContentColorUsage /*content_color_usage*/) const {
-  TargetColorParams result;
-  result.color_space = color_space_;
-  result.sdr_max_luminance_nits = gfx::ColorSpace::kDefaultSDRWhiteLevel;
-  result.hdr_max_luminance_relative = 1.f;
-  return result;
+float FakeTileManagerClient::GetSDRWhiteLevel() const {
+  return gfx::ColorSpace::kDefaultSDRWhiteLevel;
 }
 
 size_t FakeTileManagerClient::GetFrameIndexForImage(

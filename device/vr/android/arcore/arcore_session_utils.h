@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,12 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/weak_ptr.h"
-#include "gpu/ipc/common/surface_handle.h"
 #include "ui/display/display.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_widget_types.h"
 
-namespace ui {
-class WindowAndroid;
-}  // namespace ui
-
-namespace device {
+namespace vr {
 
 // Immersive AR sessions use callbacks in the following sequence:
 //
@@ -29,8 +24,6 @@ namespace device {
 //
 using SurfaceReadyCallback =
     base::RepeatingCallback<void(gfx::AcceleratedWidget window,
-                                 gpu::SurfaceHandle handle,
-                                 ui::WindowAndroid* root_window,
                                  display::Display::Rotation rotation,
                                  const gfx::Size& size)>;
 using SurfaceTouchCallback =
@@ -50,13 +43,12 @@ class ArCoreSessionUtils {
       int render_process_id,
       int render_frame_id,
       bool use_overlay,
-      bool can_render_dom_content,
       SurfaceReadyCallback ready_callback,
       SurfaceTouchCallback touch_callback,
       SurfaceDestroyedCallback destroyed_callback) = 0;
   virtual void EndSession() = 0;
 };
 
-}  // namespace device
+}  // namespace vr
 
 #endif  // DEVICE_VR_ANDROID_ARCORE_ARCORE_SESSION_UTILS_H_

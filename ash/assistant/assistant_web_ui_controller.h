@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include "ash/public/cpp/assistant/assistant_state.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "ui/views/widget/widget_observer.h"
 
 namespace ash {
@@ -26,10 +27,6 @@ class ASH_EXPORT AssistantWebUiController : public views::WidgetObserver,
                                             public AssistantStateObserver {
  public:
   AssistantWebUiController();
-
-  AssistantWebUiController(const AssistantWebUiController&) = delete;
-  AssistantWebUiController& operator=(const AssistantWebUiController&) = delete;
-
   ~AssistantWebUiController() override;
 
   // views::WidgetObserver:
@@ -65,8 +62,10 @@ class ASH_EXPORT AssistantWebUiController : public views::WidgetObserver,
   // Observes key press events on the |web_container_view_|.
   std::unique_ptr<AssistantWebContainerEventObserver> event_observer_;
 
-  base::ScopedObservation<AssistantController, AssistantControllerObserver>
-      assistant_controller_observation_{this};
+  ScopedObserver<AssistantController, AssistantControllerObserver>
+      assistant_controller_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantWebUiController);
 };
 
 }  // namespace ash

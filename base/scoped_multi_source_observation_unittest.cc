@@ -1,12 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/scoped_multi_source_observation.h"
 
-#include "base/containers/contains.h"
 #include "base/ranges/algorithm.h"
-#include "base/scoped_observation_traits.h"
+#include "base/stl_util.h"
 #include "base/test/gtest_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -191,22 +190,11 @@ class TestSourceWithNonDefaultNames {
 
 using TestScopedMultiSourceObservationWithNonDefaultNames =
     ScopedMultiSourceObservation<TestSourceWithNonDefaultNames,
-                                 TestSourceObserver>;
+                                 TestSourceObserver,
+                                 &TestSourceWithNonDefaultNames::AddFoo,
+                                 &TestSourceWithNonDefaultNames::RemoveFoo>;
 
 }  // namespace
-
-template <>
-struct ScopedObservationTraits<TestSourceWithNonDefaultNames,
-                               TestSourceObserver> {
-  static void AddObserver(TestSourceWithNonDefaultNames* source,
-                          TestSourceObserver* observer) {
-    source->AddFoo(observer);
-  }
-  static void RemoveObserver(TestSourceWithNonDefaultNames* source,
-                             TestSourceObserver* observer) {
-    source->RemoveFoo(observer);
-  }
-};
 
 TEST_F(ScopedMultiSourceObservationTest, NonDefaultNames) {
   TestSourceWithNonDefaultNames nds1;

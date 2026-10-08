@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,23 +19,19 @@
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/sync/test/integration/profile_sync_service_harness.h"
 #include "chrome/browser/sync/test/integration/sync_datatype_helper.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/search_engines/template_url.h"
 
-namespace {
-
 using sync_datatype_helper::test;
 
-using ::testing::Contains;
-using ::testing::Key;
-using ::testing::Not;
+namespace {
 
 GUIDToTURLMap CreateGUIDToTURLMap(TemplateURLService* service) {
   GUIDToTURLMap map;
   for (TemplateURL* turl : service->GetTemplateURLs()) {
-    EXPECT_THAT(map, Not(Contains(Key(turl->sync_guid()))))
-        << "Found two template URLs with same GUID";
+    EXPECT_TRUE(map.find(turl->sync_guid()) == map.end());
     map[turl->sync_guid()] = turl;
   }
   return map;
@@ -78,14 +74,13 @@ bool ServicesMatch(int profile_a, int profile_b, std::ostream* os) {
     return false;
   }
 
-  for (const auto& [guid, a_turl] : a_turls) {
-    if (b_turls.find(guid) == b_turls.end()) {
-      *os << "TURL GUID from a not found in b's TURLs: " << guid;
+  for (auto it = a_turls.begin(); it != a_turls.end(); ++it) {
+    if (b_turls.find(it->first) == b_turls.end()) {
+      *os << "TURL GUID from a not found in b's TURLs: " << it->first;
       return false;
     }
-    if (!TURLsMatch(*b_turls[guid], *a_turl)) {
+    if (!TURLsMatch(*b_turls[it->first], *it->second))
       return false;
-    }
   }
 
   const TemplateURL* default_a = service_a->GetDefaultSearchProvider();
@@ -128,18 +123,18 @@ bool ServiceMatchesVerifier(int profile_index) {
     return false;
   }
 
-  for (TemplateURL* verifier_turl : verifier_turls) {
+  for (size_t i = 0; i < verifier_turls.size(); ++i) {
+    const TemplateURL& verifier_turl = *verifier_turls.at(i);
     const TemplateURL* other_turl =
-        other->GetTemplateURLForKeyword(verifier_turl->keyword());
+        other->GetTemplateURLForKeyword(verifier_turl.keyword());
 
     if (!other_turl) {
       DVLOG(1) << "The other service did not contain a TURL with keyword: "
-               << verifier_turl->keyword();
+               << verifier_turl.keyword();
       return false;
     }
-    if (!TURLsMatch(*verifier_turl, *other_turl)) {
+    if (!TURLsMatch(verifier_turl, *other_turl))
       return false;
-    }
   }
 
   return true;
@@ -195,14 +190,13 @@ void AddSearchEngine(int profile_index, const std::string& keyword) {
   Profile* profile = test()->GetProfile(profile_index);
   TemplateURLBuilder builder(keyword);
   TemplateURLServiceFactory::GetForProfile(profile)->Add(builder.Build());
-  if (test()->UseVerifier()) {
+  if (test()->UseVerifier())
     GetVerifierService()->Add(builder.Build());
-  }
 }
 
 void EditSearchEngine(int profile_index,
                       const std::string& keyword,
-                      const std::u16string& short_name,
+                      const base::string16& short_name,
                       const std::string& new_keyword,
                       const std::string& url) {
   ASSERT_FALSE(url.empty());
@@ -267,11 +261,11 @@ std::string GetDefaultSearchEngineKeyword(int profile_index) {
 
 SearchEnginesMatchChecker::SearchEnginesMatchChecker() {
   if (test()->UseVerifier()) {
-    observations_.AddObservation(GetVerifierService());
+    observer_.Add(GetVerifierService());
   }
 
   for (int i = 0; i < test()->num_clients(); ++i) {
-    observations_.AddObservation(GetServiceForBrowserContext(i));
+    observer_.Add(GetServiceForBrowserContext(i));
   }
 }
 
@@ -289,7 +283,7 @@ HasSearchEngineChecker::HasSearchEngineChecker(int profile_index,
                                                const std::string& keyword)
     : service_(GetServiceForBrowserContext(profile_index)),
       keyword_(base::UTF8ToUTF16(keyword)) {
-  observations_.AddObservation(service_.get());
+  observer_.Add(service_);
 }
 
 HasSearchEngineChecker::~HasSearchEngineChecker() = default;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/callback.h"
 #include "base/files/scoped_file.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_device_base.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_source.h"
@@ -47,8 +46,6 @@ class WaylandDataDevice : public WaylandDataDeviceBase {
     virtual void OnDragLeave() = 0;
     virtual void OnDragDrop() = 0;
 
-    virtual const WaylandWindow* GetDragTarget() const = 0;
-
    protected:
     virtual ~DragDelegate() = default;
   };
@@ -61,7 +58,6 @@ class WaylandDataDevice : public WaylandDataDeviceBase {
   // Starts a wayland drag and drop session, controlled by |delegate|.
   void StartDrag(const WaylandDataSource& data_source,
                  const WaylandWindow& origin_window,
-                 uint32_t serial,
                  wl_surface* icon_surface,
                  DragDelegate* delegate);
 
@@ -78,18 +74,12 @@ class WaylandDataDevice : public WaylandDataDeviceBase {
   // Returns the underlying wl_data_device singleton object.
   wl_data_device* data_device() const { return data_device_.get(); }
 
-  // wl_data_device::set_selection makes the corresponding wl_data_source the
-  // target of future wl_data_device::data_offer events. In non-Wayland terms,
-  // this is equivalent to "writing" to the clipboard, although the actual
-  // transfer of data happens asynchronously, on-demand-only.
-  void SetSelectionSource(WaylandDataSource* source, uint32_t serial);
+  void SetSelectionSource(WaylandDataSource* source);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest, StartDrag);
-  FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest, ReceiveDrag);
 
   void ReadDragDataFromFD(base::ScopedFD fd, RequestDataCallback callback);
-  void ResetDragDelegateIfNeeded();
 
   // wl_data_device_listener callbacks
   static void OnOffer(void* data,
@@ -125,7 +115,7 @@ class WaylandDataDevice : public WaylandDataDeviceBase {
   // The wl_data_device wrapped by this WaylandDataDevice.
   wl::Object<wl_data_device> data_device_;
 
-  raw_ptr<DragDelegate> drag_delegate_ = nullptr;
+  DragDelegate* drag_delegate_ = nullptr;
 
   // There are two separate data offers at a time, the drag offer and the
   // selection offer, each with independent lifetimes. When we receive a new

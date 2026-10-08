@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,10 +29,6 @@ class CastBluetoothChooser : public content::BluetoothChooser,
   CastBluetoothChooser(content::BluetoothChooser::EventHandler event_handler,
                        mojo::PendingRemote<mojom::BluetoothDeviceAccessProvider>
                            pending_provider);
-
-  CastBluetoothChooser(const CastBluetoothChooser&) = delete;
-  CastBluetoothChooser& operator=(const CastBluetoothChooser&) = delete;
-
   ~CastBluetoothChooser() override;
 
  private:
@@ -43,7 +39,7 @@ class CastBluetoothChooser : public content::BluetoothChooser,
   // content::BluetoothChooser implementation:
   void AddOrUpdateDevice(const std::string& device_id,
                          bool should_update_name,
-                         const std::u16string& device_name,
+                         const base::string16& device_name,
                          bool is_gatt_connected,
                          bool is_paired,
                          int signal_strength_level) override;
@@ -61,6 +57,8 @@ class CastBluetoothChooser : public content::BluetoothChooser,
   std::unordered_set<std::string> available_devices_;
   std::unordered_set<std::string> approved_devices_;
   bool all_devices_approved_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(CastBluetoothChooser);
 };
 
 }  // namespace chromecast

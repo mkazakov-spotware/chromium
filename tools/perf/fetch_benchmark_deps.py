@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2015 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 
 import argparse
 import json
-import optparse  # pylint: disable=deprecated-module
+import optparse
 import os
 import sys
 import logging
-from six.moves import input  # pylint: disable=redefined-builtin
 
 from chrome_telemetry_build import chromium_config
 from core import benchmark_finders
@@ -97,7 +96,7 @@ def main(args):
   parser.add_argument('--output-deps',
                       help=('Output dependencies to a json file'))
   parser.add_argument(
-        '-v', '--verbose', action='count', dest='verbosity', default=0,
+        '-v', '--verbose', action='count', dest='verbosity',
         help='Increase verbosity level (repeat as needed)')
 
   options = parser.parse_args(args)
@@ -122,8 +121,9 @@ def main(args):
     deps[benchmark.Name()] = _FetchDepsForBenchmark(benchmark)
   else:
     if not options.force:
-      input('No benchmark name is specified. Fetching all benchmark deps. '
-            'Press enter to continue...')
+      raw_input(
+          'No benchmark name is specified. Fetching all benchmark deps. '
+          'Press enter to continue...')
     for b in benchmark_finders.GetOfficialBenchmarks():
       supported_platforms = b.GetSupportedPlatformNames(b.SUPPORTED_PLATFORMS)
       if(not options.platform or

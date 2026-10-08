@@ -102,13 +102,6 @@ current bot, that means that the top-level builder will also take 10 minutes
 longer to run -- or 20 minutes longer if there are failures and retries. Ensure
 that the builder pool has enough capacity to handle that increase as well.
 
-Additionally, if your change is expected to increase utilization in the testing
-pools by any more than 5 VMs or 50 CPU cores, it will need to be approved via
-a resource request. (Consult anyone in //infra/OWNERS if you need help
-calculating the resource usage of a test change.) See http://go/i-need-hw
-for the steps involved in getting the approval. See [go/estimating-bot-capacity](https://goto.google.com/estimating-bot-capacity)
-for guidance on how many hosts to request.
-
 ## How to use the generate_buildbot_json tool
 ### Test suites
 #### Basic test suites
@@ -136,15 +129,6 @@ affect how the test runs. Generally speaking, these are copied verbatim into the
 generated JSON file. Commonly used arguments include:
 
 * `args`: an array of command line arguments for the test.
-
-* `ci_only`: a boolean value (`True`|`False`) indicating whether the test
-  should only be run post-submit on the continuous (CI) builders, instead
-  of run both post-submit and on any matching pre-submit / cq / try builders.
-  This flag should be set rarely, usually only temporarily to manage capacity
-  concerns during an outage.
-
-* `description`: a string to describe the test suite. The text will be shown on
-  Milo.
 
 * `swarming`: a dictionary of Swarming parameters. Note that these will be
   applied to *every* bot that refers to this test suite. It is often more useful
@@ -201,7 +185,7 @@ An example of a composition test suite:
     },
 
     'linux_specific_gtests': {
-      'ozone_x11_unittests': {},
+      'x11_unittests': {},
     },
 
     # Composition test suite
@@ -211,7 +195,7 @@ An example of a composition test suite:
     ],
 
 A bot referring to `linux_gtests` will run both `base_unittests` and
-`ozone_x11_unittests`.
+`x11_unittests`.
 
 #### Matrix compound test suites
 
@@ -223,10 +207,6 @@ reference other composition or matrix test suites. Configurations defined for
 a basic test suite in a matrix test suite are applied to each tests for the
 referenced basic test suite. "variants" is the only supported key via matrix
 compound suites at this time.
-Matrix compound test suites also supports no "variants". So if you want a
-compound test suites, which some of basic test suites have "variants", and
-other basic test suites don't have "variants", you will define a matrix compound
-test suites.
 
 ##### Variants
 
@@ -376,7 +356,9 @@ Each bot's description is a dictionary containing the following:
 * `swarming`: a dictionary specifying Swarming parameters to be applied to all
   tests that run on the bot.
 
-* `os_type`: the type of OS this bot tests.
+* `os_type`: the type of OS this bot tests. The only useful value currently is
+  `'android'`, and enables outputting of certain Android-specific entries into
+  the JSON files.
 
 * `skip_cipd_packages`: (Android-specific) when True, disables emission of the
   `'cipd_packages'` Swarming dictionary entry. Not commonly used; further use is

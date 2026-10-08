@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "chrome/installer/util/experiment_metrics.h"
 #include "ui/events/event_handler.h"
@@ -65,9 +65,6 @@ class TryChromeDialog : public views::WidgetObserver, public ui::EventHandler {
   // The dialog does not steal focus and does not have an entry in the taskbar.
   static Result Show(size_t group, ActiveModalDialogListener listener);
 
-  TryChromeDialog(const TryChromeDialog&) = delete;
-  TryChromeDialog& operator=(const TryChromeDialog&) = delete;
-
   ~TryChromeDialog() override;
 
  private:
@@ -101,11 +98,7 @@ class TryChromeDialog : public views::WidgetObserver, public ui::EventHandler {
   // the interaction.
   TryChromeDialog(size_t group, Delegate* delegate);
 
-  // Suppresses use of the TaskbarIconFinder for the sake of tests. This omits
-  // costly work that leads to flaky test failures.
-  void BypassTaskbarIconSearchForTesting();
-
-  // Starts the process of presenting the dialog by initiating an asynchronous
+  // Starts the process of presenting the dialog by initiating an asychronous
   // search for Chrome's taskbar icon via the encapsulated context object.
   void ShowDialogAsync();
 
@@ -132,8 +125,9 @@ class TryChromeDialog : public views::WidgetObserver, public ui::EventHandler {
   void ButtonPressed(installer::ExperimentMetrics::State state);
 
   // views::WidgetObserver:
+  void OnWidgetClosing(views::Widget* widget) override;
   void OnWidgetCreated(views::Widget* widget) override;
-  void OnWidgetDestroying(views::Widget* widget) override;
+  void OnWidgetDestroyed(views::Widget* widget) override;
 
   Result result() const { return result_; }
 
@@ -147,9 +141,12 @@ class TryChromeDialog : public views::WidgetObserver, public ui::EventHandler {
 
   // Controls which experiment group to use for varying the layout and controls.
   const size_t group_;
-  const raw_ptr<Delegate> delegate_;
+  Delegate* const delegate_;
 
   std::unique_ptr<Context> context_;
+
+  // A closure to run when the interaction has completed.
+  base::Closure on_complete_;
 
   // The pessimistic result that will prevent launching Chrome.
   Result result_ = NOT_NOW;
@@ -164,7 +161,7 @@ class TryChromeDialog : public views::WidgetObserver, public ui::EventHandler {
       installer::ExperimentMetrics::kOtherClose;
 
   // Unowned; |popup_| owns itself.
-  raw_ptr<views::Widget> popup_ = nullptr;
+  views::Widget* popup_ = nullptr;
 
   // The close button; owned by |popup_|.
   views::View* close_button_ = nullptr;
@@ -173,6 +170,8 @@ class TryChromeDialog : public views::WidgetObserver, public ui::EventHandler {
   bool has_hover_ = false;
 
   SEQUENCE_CHECKER(my_sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(TryChromeDialog);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TRY_CHROME_DIALOG_WIN_TRY_CHROME_DIALOG_H_

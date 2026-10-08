@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ struct VIEWS_EXPORT MenuConfig {
   // Returns whether |item_view| should show accelerator text. If so, returns
   // the text to show.
   bool ShouldShowAcceleratorText(const MenuItemView* item_view,
-                                 std::u16string* text) const;
+                                 base::string16* text) const;
 
   // Font list used by menus.
   gfx::FontList font_list;
@@ -167,16 +167,16 @@ struct VIEWS_EXPORT MenuConfig {
 
   // Radius of the rounded corners of the menu border. Must be >= 0.
   int corner_radius =
-      LayoutProvider::Get()->GetCornerRadiusMetric(Emphasis::kNone);
+      LayoutProvider::Get()->GetCornerRadiusMetric(EMPHASIS_NONE);
 
   // Radius of "auxiliary" rounded corners - comboboxes and context menus.
   // Must be >= 0.
   int auxiliary_corner_radius =
-      LayoutProvider::Get()->GetCornerRadiusMetric(Emphasis::kNone);
+      LayoutProvider::Get()->GetCornerRadiusMetric(EMPHASIS_NONE);
 
   // Radius of the rounded corners of the touchable menu border
   int touchable_corner_radius =
-      LayoutProvider::Get()->GetCornerRadiusMetric(Emphasis::kHigh);
+      LayoutProvider::Get()->GetCornerRadiusMetric(EMPHASIS_HIGH);
 
   // Anchor offset for touchable menus created by a touch event.
   int touchable_anchor_offset = 8;
@@ -184,17 +184,11 @@ struct VIEWS_EXPORT MenuConfig {
   // Height of child MenuItemViews for touchable menus.
   int touchable_menu_height = 36;
 
-  // Minimum width of touchable menus.
-  int touchable_menu_min_width = 256;
-
-  // Maximum width of touchable menus.
-  int touchable_menu_max_width = 352;
+  // Width of touchable menus.
+  int touchable_menu_width = 256;
 
   // Shadow elevation of touchable menus.
   int touchable_menu_shadow_elevation = 12;
-
-  // Shadow elevation of touchable submenus.
-  int touchable_submenu_shadow_elevation = 16;
 
   // Vertical padding for touchable menus.
   int vertical_touchable_menu_item_padding = 8;
@@ -213,11 +207,6 @@ struct VIEWS_EXPORT MenuConfig {
 
   // Margins for footnotes (HIGHLIGHTED item at the end of a menu).
   int footnote_vertical_margin = 11;
-
-  // Should use Win11 style menus.
-  // TODO(kylixrd): This should not exist. Menus should be fully configurable
-  // without needing any platform specific metrics.
-  bool win11_style_menus = false;
 
  private:
   // Configures a MenuConfig as appropriate for the current platform.

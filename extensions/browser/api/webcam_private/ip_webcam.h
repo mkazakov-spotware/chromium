@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "extensions/browser/api/webcam_private/webcam.h"
 
 namespace extensions {
@@ -14,9 +15,6 @@ namespace extensions {
 class IpWebcam : public Webcam {
  public:
   explicit IpWebcam(const std::string& device_id);
-
-  IpWebcam(const IpWebcam&) = delete;
-  IpWebcam& operator=(const IpWebcam&) = delete;
 
  private:
   ~IpWebcam() override;
@@ -54,6 +52,8 @@ class IpWebcam : public Webcam {
                        const SetPTZCompleteCallback& callback) override;
 
   const std::string device_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(IpWebcam);
 };
 
 }  // namespace extensions

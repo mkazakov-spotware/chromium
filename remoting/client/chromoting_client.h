@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/client/host_experiment_sender.h"
@@ -52,9 +52,6 @@ class ChromotingClient : public SignalStrategy::Listener,
                    ClientUserInterface* user_interface,
                    protocol::VideoRenderer* video_renderer,
                    base::WeakPtr<protocol::AudioStub> audio_stream_consumer);
-
-  ChromotingClient(const ChromotingClient&) = delete;
-  ChromotingClient& operator=(const ChromotingClient&) = delete;
 
   ~ChromotingClient() override;
 
@@ -130,10 +127,10 @@ class ChromotingClient : public SignalStrategy::Listener,
   std::unique_ptr<protocol::CandidateSessionConfig> protocol_config_;
 
   // The following are not owned by this class.
-  raw_ptr<ClientUserInterface> user_interface_ = nullptr;
-  raw_ptr<protocol::VideoRenderer> video_renderer_ = nullptr;
+  ClientUserInterface* user_interface_ = nullptr;
+  protocol::VideoRenderer* video_renderer_ = nullptr;
   base::WeakPtr<protocol::AudioStub> audio_stream_consumer_;
-  raw_ptr<SignalStrategy> signal_strategy_ = nullptr;
+  SignalStrategy* signal_strategy_ = nullptr;
 
   std::string host_jid_;
   protocol::ClientAuthenticationConfig client_auth_config_;
@@ -153,6 +150,8 @@ class ChromotingClient : public SignalStrategy::Listener,
   bool host_capabilities_received_ = false;
 
   std::unique_ptr<HostExperimentSender> host_experiment_sender_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromotingClient);
 };
 
 }  // namespace remoting

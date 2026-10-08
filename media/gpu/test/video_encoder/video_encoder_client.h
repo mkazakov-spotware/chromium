@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,17 +11,17 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/unsafe_shared_memory_region.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/threading/thread.h"
-#include "base/time/time.h"
-#include "media/base/bitstream_buffer.h"
-#include "media/base/video_bitrate_allocation.h"
 #include "media/gpu/test/bitstream_helpers.h"
 #include "media/gpu/test/video_encoder/video_encoder.h"
 #include "media/video/video_encode_accelerator.h"
+
+namespace gpu {
+class GpuMemoryBufferFactory;
+}
 
 namespace media {
 
@@ -35,36 +35,23 @@ class AlignedDataHelper;
 // TODO(dstaessens): Add extra parameters (e.g. h264 output level)
 struct VideoEncoderClientConfig {
   static constexpr uint32_t kDefaultBitrate = 200000;
-  VideoEncoderClientConfig(
-      const Video* video,
-      VideoCodecProfile output_profile,
-      const std::vector<VideoEncodeAccelerator::Config::SpatialLayer>&
-          spatial_layers,
-      const media::VideoBitrateAllocation& bitrate,
-      bool reverse);
+  VideoEncoderClientConfig(const Video* video,
+                           VideoCodecProfile output_profile,
+                           size_t num_temporal_layers,
+                           uint32_t bitrate);
   VideoEncoderClientConfig(const VideoEncoderClientConfig&);
-  ~VideoEncoderClientConfig();
 
   // The output profile to be used.
   VideoCodecProfile output_profile = VideoCodecProfile::H264PROFILE_MAIN;
-  // The resolution output by VideoEncoderClient.
-  gfx::Size output_resolution;
-  // The number of temporal/spatial layers of the output stream.
+  // The number of temporal layers of the output stream.
   size_t num_temporal_layers = 1u;
-  size_t num_spatial_layers = 1u;
-  // The spatial layers for SVC stream, it's empty for simple stream.
-  std::vector<VideoEncodeAccelerator::Config::SpatialLayer> spatial_layers;
   // The maximum number of bitstream buffer encodes that can be requested
   // without waiting for the result of the previous encodes requests.
   size_t max_outstanding_encode_requests = 1;
   // The desired bitrate in bits/second.
-  media::VideoBitrateAllocation bitrate_allocation;
+  uint32_t bitrate = kDefaultBitrate;
   // The desired framerate in frames/second.
   uint32_t framerate = 30.0;
-  // The interval of calling VideoEncodeAccelerator::Encode(). If this is
-  // absl::nullopt, Encode() is called once VideoEncodeAccelerator consumes
-  // the previous VideoFrames.
-  absl::optional<base::TimeDelta> encode_interval = absl::nullopt;
   // The number of frames to be encoded. This can be more than the number of
   // frames in the video, and in which case the VideoEncoderClient loops the
   // video during encoding.
@@ -72,31 +59,22 @@ struct VideoEncoderClientConfig {
   // The storage type of the input VideoFrames.
   VideoEncodeAccelerator::Config::StorageType input_storage_type =
       VideoEncodeAccelerator::Config::StorageType::kShmem;
-  // True if the video should play backwards at reaching the end of video.
-  // Otherwise the video loops. See the comment in AlignedDataHelper for detail.
-  const bool reverse = false;
 };
 
-class VideoEncoderStats {
- public:
+struct VideoEncoderStats {
   VideoEncoderStats();
   VideoEncoderStats(const VideoEncoderStats&);
   ~VideoEncoderStats();
-  VideoEncoderStats(uint32_t framerate,
-                    size_t num_temporal_layers,
-                    size_t num_spatial_layers);
+  VideoEncoderStats(uint32_t framerate, size_t num_temporal_layers);
   uint32_t Bitrate() const;
-  uint32_t LayerBitrate(size_t spatial_idx, size_t temporal_idx) const;
   void Reset();
 
   uint32_t framerate = 0;
   size_t total_num_encoded_frames = 0;
   size_t total_encoded_frames_size = 0;
-  // Filled in spatial/temporal layer encoding and codec is vp9.
-  std::vector<std::vector<size_t>> num_encoded_frames_per_layer;
-  std::vector<std::vector<size_t>> encoded_frames_size_per_layer;
-  size_t num_spatial_layers = 0;
-  size_t num_temporal_layers = 0;
+  // Filled in temporal layer encoding and codec is vp9.
+  std::vector<size_t> num_encoded_frames_per_layer;
+  std::vector<size_t> encoded_frames_size_per_layer;
 };
 
 // The video encoder client is responsible for the communication between the
@@ -117,11 +95,15 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
 
   ~VideoEncoderClient() override;
 
-  // Return an instance of the VideoEncoderClient. The |event_cb| will be called
-  // whenever an event occurs (e.g. frame encoded) and should be thread-safe.
+  // Return an instance of the VideoEncoderClient. The
+  // |gpu_memory_buffer_factory| will not be owned by the encoder client, the
+  // caller should guarantee it outlives the encoder client. The |event_cb| will
+  // be called whenever an event occurs (e.g. frame encoded) and should be
+  // thread-safe.
   static std::unique_ptr<VideoEncoderClient> Create(
       const VideoEncoder::EventCallback& event_cb,
       std::vector<std::unique_ptr<BitstreamProcessor>> bitstream_processors,
+      gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory,
       const VideoEncoderClientConfig& config);
 
   // Initialize the video encode accelerator for the specified |video|.
@@ -140,9 +122,6 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
 
   // Updates bitrate based on the specified |bitrate| and |framerate|.
   void UpdateBitrate(const VideoBitrateAllocation& bitrate, uint32_t framerate);
-
-  // Force the next frame to be encoded to be a key frame.
-  void ForceKeyFrame();
 
   // Wait until all bitstream processors have finished processing. Returns
   // whether processing was successful.
@@ -172,6 +151,7 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
   VideoEncoderClient(
       const VideoEncoder::EventCallback& event_cb,
       std::vector<std::unique_ptr<BitstreamProcessor>> bitstream_processors,
+      gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory,
       const VideoEncoderClientConfig& config);
 
   // Destroy the video encoder client.
@@ -193,8 +173,6 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
   void FlushTask();
   void UpdateBitrateTask(const VideoBitrateAllocation& bitrate,
                          uint32_t framerate);
-  // Instruct the encoder to force a key frame on the |encoder_client_thread_|.
-  void ForceKeyFrameTask();
 
   // Called by the encoder when a frame has been encoded.
   void EncodeDoneTask(base::TimeDelta timestamp);
@@ -241,7 +219,7 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
   VideoEncoderClientState encoder_client_state_;
 
   // The video being encoded, owned by the video encoder test environment.
-  raw_ptr<const Video> video_ = nullptr;
+  const Video* video_ = nullptr;
   // Helper used to align data and create frames from the raw video stream.
   std::unique_ptr<media::test::AlignedDataHelper> aligned_data_helper_;
 
@@ -260,19 +238,10 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
   // BitstreamBufferReady().
   size_t frame_index_ = 0;
 
-  // The current top spatial layer index.
-  uint8_t current_top_spatial_index_ = 0;
-
-  // A map from an input VideoFrame timestamp to the time when it is enqueued
-  // into |encoder_|.
-  std::map<base::TimeDelta, base::TimeTicks> source_timestamps_;
-
-  // Force a key frame on next Encode(), only accessed on the
-  // |encoder_client_thread_|.
-  bool force_keyframe_ = false;
-
   VideoEncoderStats current_stats_ GUARDED_BY(stats_lock_);
   mutable base::Lock stats_lock_;
+
+  gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory_;
 
   SEQUENCE_CHECKER(test_sequence_checker_);
   SEQUENCE_CHECKER(encoder_client_sequence_checker_);

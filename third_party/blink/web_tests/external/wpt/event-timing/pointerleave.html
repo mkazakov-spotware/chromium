@@ -12,8 +12,7 @@
 <div id='target'>Target</div>
 <script>
   promise_test(async t => {
-    // Loose event because a pointerleave from html -> body also occurs
-    return testEventType(t, 'pointerleave', true);
+    return testEventType(t, 'pointerleave');
   })
 </script>
 </html>

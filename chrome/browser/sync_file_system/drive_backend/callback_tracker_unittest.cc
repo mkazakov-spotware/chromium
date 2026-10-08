@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,13 +25,13 @@ TEST(CallbackTrackerTest, AbortAll) {
 
   bool aborted = false;
   bool invoked = false;
-  base::OnceClosure callback = tracker.Register(
-      base::BindOnce(&Receiver, &aborted), base::BindOnce(&Receiver, &invoked));
+  base::Closure callback = tracker.Register(base::Bind(&Receiver, &aborted),
+                                            base::Bind(&Receiver, &invoked));
   tracker.AbortAll();
   EXPECT_TRUE(aborted);
   EXPECT_FALSE(invoked);
 
-  std::move(callback).Run();
+  callback.Run();
   EXPECT_TRUE(aborted);
   EXPECT_FALSE(invoked);
 }
@@ -41,11 +41,16 @@ TEST(CallbackTrackerTest, Invoke) {
 
   bool aborted = false;
   bool invoked = false;
-  base::OnceClosure callback = tracker.Register(
-      base::BindOnce(&Receiver, &aborted), base::BindOnce(&Receiver, &invoked));
-  std::move(callback).Run();
+  base::Closure callback = tracker.Register(base::Bind(&Receiver, &aborted),
+                                            base::Bind(&Receiver, &invoked));
+  callback.Run();
   EXPECT_FALSE(aborted);
   EXPECT_TRUE(invoked);
+
+  // Second call should not do anything.
+  invoked = false;
+  callback.Run();
+  EXPECT_FALSE(invoked);
 
   tracker.AbortAll();
   EXPECT_FALSE(aborted);

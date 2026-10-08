@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
 #include "base/sequence_checker.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -24,8 +25,10 @@ namespace internal {
 namespace {
 constexpr int kInverseProbabilityOfDelay = 8;
 constexpr int kInverseProbabilityOfNotResuming = 10;
-constexpr base::TimeDelta kMillisecondsToResume = base::Milliseconds(2);
-constexpr base::TimeDelta kPauseBindingsFrequency = base::Milliseconds(7);
+constexpr base::TimeDelta kMillisecondsToResume =
+    base::TimeDelta::FromMilliseconds(2);
+constexpr base::TimeDelta kPauseBindingsFrequency =
+    base::TimeDelta::FromMilliseconds(7);
 }  // namespace
 
 // TODO(mpdenton) This only adds random delays on method call processing. This
@@ -109,7 +112,7 @@ class RandomMojoDelays {
       // resumption task in the future.
       // TODO(mpdenton) similar problem as below: can freeze shutdown if we
       // forget to unpause bindings.
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(
               &RandomMojoDelays::ResumeFrozenBindingStateBasesOnTaskRunner,
@@ -120,11 +123,10 @@ class RandomMojoDelays {
     }
     // Re-attach the bindings to the global map for future pausing.
     runner_for_pauses_->PostTask(
-        FROM_HERE,
-        base::BindOnce(&RandomMojoDelays::AddBindingStateBaseList,
-                       base::Unretained(this),
-                       base::SequencedTaskRunner::GetCurrentDefault(),
-                       std::move(binding_state_bases)));
+        FROM_HERE, base::BindOnce(&RandomMojoDelays::AddBindingStateBaseList,
+                                  base::Unretained(this),
+                                  base::SequencedTaskRunnerHandle::Get(),
+                                  std::move(binding_state_bases)));
   }
 
   // Pause a random selection of bindings in the list |binding_state_bases|,
@@ -152,7 +154,7 @@ class RandomMojoDelays {
     // TODO(mpdenton) may cause deadlock on shutdown if this doesn't run. But
     // there is no PostDelayedTask for a SequencedTaskRunner.
     if (paused_binding_state_bases.size() > 0) {
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(
               &RandomMojoDelays::ResumeFrozenBindingStateBasesOnTaskRunner,
@@ -164,11 +166,10 @@ class RandomMojoDelays {
       // map for future pausing, if there are any left after deleting all the
       // invalidated weak ptrs.
       runner_for_pauses_->PostTask(
-          FROM_HERE,
-          base::BindOnce(&RandomMojoDelays::AddBindingStateBaseList,
-                         base::Unretained(this),
-                         base::SequencedTaskRunner::GetCurrentDefault(),
-                         std::move(binding_state_bases)));
+          FROM_HERE, base::BindOnce(&RandomMojoDelays::AddBindingStateBaseList,
+                                    base::Unretained(this),
+                                    base::SequencedTaskRunnerHandle::Get(),
+                                    std::move(binding_state_bases)));
     }
   }
 
@@ -192,7 +193,7 @@ class RandomMojoDelays {
     }
     // Post delayed task, instead of using a RepeatingTimer, to avoid
     // overwhelming the task scheduling.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&RandomMojoDelays::PauseRandomBindingStateBases,
                        base::Unretained(this)),

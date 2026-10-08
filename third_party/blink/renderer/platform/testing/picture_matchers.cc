@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 
 #include <utility>
 
+#include "third_party/blink/renderer/platform/geometry/float_quad.h"
+#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkPicture.h"
-#include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 
 namespace blink {
 
@@ -33,16 +33,15 @@ class DrawsRectangleCanvas : public SkCanvas {
     SkRect device_rect;
     device_rect.setBounds(quad, 4);
     SkIRect device_clip_bounds;
-    gfx::RectF clipped_rect;
+    FloatRect clipped_rect;
     if (getDeviceClipBounds(&device_clip_bounds) &&
         device_rect.intersect(SkRect::Make(device_clip_bounds)))
-      clipped_rect = gfx::SkRectToRectF(device_rect);
+      clipped_rect = device_rect;
 
     unsigned paint_alpha = static_cast<unsigned>(paint.getAlpha());
     SkPaint paint_with_alpha(paint);
     paint_with_alpha.setAlpha(static_cast<U8CPU>(alpha_ * paint_alpha / 255));
-    // TODO(https://crbug.com/1351544): This class should use SkColor4f.
-    Color color = Color::FromSkColor(paint_with_alpha.getColor());
+    Color color = Color(paint_with_alpha.getColor());
 
     rects_.emplace_back(clipped_rect, color);
     SkCanvas::onDrawRect(rect, paint);
@@ -102,14 +101,13 @@ class DrawsRectanglesMatcher
       const auto& actual_rect_with_color = actual_rects[index];
       const auto& expect_rect_with_color = rects_with_color_[index];
 
-      if (gfx::ToEnclosingRect(actual_rect_with_color.rect) !=
-              gfx::ToEnclosingRect(expect_rect_with_color.rect) ||
+      if (EnclosingIntRect(actual_rect_with_color.rect) !=
+              EnclosingIntRect(expect_rect_with_color.rect) ||
           actual_rect_with_color.color != expect_rect_with_color.color) {
         if (listener->IsInterested()) {
           *listener << "at index " << index << " which draws "
-                    << actual_rect_with_color.rect.ToString() << " with color "
-                    << actual_rect_with_color.color.SerializeAsCSSColor()
-                    << "\n";
+                    << actual_rect_with_color.rect << " with color "
+                    << actual_rect_with_color.color.Serialized() << "\n";
         }
         return false;
       }
@@ -122,9 +120,8 @@ class DrawsRectanglesMatcher
     *os << "\n";
     for (unsigned index = 0; index < rects_with_color_.size(); index++) {
       const auto& rect_with_color = rects_with_color_[index];
-      *os << "at index " << index << " rect draws "
-          << rect_with_color.rect.ToString() << " with color "
-          << rect_with_color.color.SerializeAsCSSColor() << "\n";
+      *os << "at index " << index << " rect draws " << rect_with_color.rect
+          << " with color " << rect_with_color.color.Serialized() << "\n";
     }
   }
 
@@ -134,7 +131,7 @@ class DrawsRectanglesMatcher
 
 }  // namespace
 
-testing::Matcher<const SkPicture&> DrawsRectangle(const gfx::RectF& rect,
+testing::Matcher<const SkPicture&> DrawsRectangle(const FloatRect& rect,
                                                   Color color) {
   Vector<RectWithColor> rects_with_color;
   rects_with_color.push_back(RectWithColor(rect, color));

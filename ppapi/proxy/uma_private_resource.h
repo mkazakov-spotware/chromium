@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ppapi/proxy/connection.h"
 #include "ppapi/proxy/plugin_resource.h"
 #include "ppapi/proxy/ppapi_proxy_export.h"
@@ -21,10 +22,6 @@ class PPAPI_PROXY_EXPORT UMAPrivateResource
       public thunk::PPB_UMA_Singleton_API {
  public:
   UMAPrivateResource(Connection connection, PP_Instance instance);
-
-  UMAPrivateResource(const UMAPrivateResource&) = delete;
-  UMAPrivateResource& operator=(const UMAPrivateResource&) = delete;
-
   ~UMAPrivateResource() override;
 
   // Resource overrides.
@@ -58,6 +55,8 @@ class PPAPI_PROXY_EXPORT UMAPrivateResource
   void OnPluginMsgIsCrashReportingEnabled(
       const ResourceMessageReplyParams& params);
   scoped_refptr<TrackedCallback> pending_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(UMAPrivateResource);
 };
 
 }  // namespace proxy

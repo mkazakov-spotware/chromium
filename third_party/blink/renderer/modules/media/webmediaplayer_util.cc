@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,9 @@
 #include "base/metrics/histogram_macros.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/media_log.h"
-#include "third_party/blink/public/common/scheme_registry.h"
 #include "third_party/blink/public/platform/url_conversion.h"
 #include "third_party/blink/public/platform/web_media_player_encrypted_media_client.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "third_party/blink/renderer/platform/weborigin/kurl.h"
-#include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace {
@@ -26,7 +23,7 @@ void RunSetSinkIdCallback(blink::WebSetSinkIdCompleteCallback callback,
                           media::OutputDeviceStatus result) {
   switch (result) {
     case media::OUTPUT_DEVICE_STATUS_OK:
-      std::move(callback).Run(/*error =*/absl::nullopt);
+      std::move(callback).Run(/*error =*/base::nullopt);
       break;
     case media::OUTPUT_DEVICE_STATUS_ERROR_NOT_FOUND:
       std::move(callback).Run(blink::WebSetSinkIdError::kNotFound);
@@ -70,10 +67,9 @@ media::mojom::MediaURLScheme GetMediaURLScheme(const WebURL& url) {
     return media::mojom::MediaURLScheme::kContentId;
 
   // Some internals pages and extension pages play media.
-  KURL kurl(url);
-  if (SchemeRegistry::IsWebUIScheme(kurl.Protocol()))
+  if (url.ProtocolIs("chrome"))
     return media::mojom::MediaURLScheme::kChrome;
-  if (CommonSchemeRegistry::IsExtensionScheme(kurl.Protocol().Ascii()))
+  if (url.ProtocolIs("chrome-extension"))
     return media::mojom::MediaURLScheme::kChromeExtension;
 
   return media::mojom::MediaURLScheme::kUnknown;
@@ -91,7 +87,7 @@ WebTimeRanges ConvertToWebTimeRanges(
 
 WebMediaPlayer::NetworkState PipelineErrorToNetworkState(
     media::PipelineStatus error) {
-  switch (error.code()) {
+  switch (error) {
     case media::PIPELINE_ERROR_NETWORK:
     case media::PIPELINE_ERROR_READ:
     case media::CHUNK_DEMUXER_ERROR_EOS_STATUS_NETWORK_ERROR:
@@ -110,8 +106,6 @@ WebMediaPlayer::NetworkState PipelineErrorToNetworkState(
     case media::PIPELINE_ERROR_DECODE:
     case media::PIPELINE_ERROR_ABORT:
     case media::PIPELINE_ERROR_INVALID_STATE:
-    case media::PIPELINE_ERROR_HARDWARE_CONTEXT_RESET:
-    case media::PIPELINE_ERROR_DISCONNECTED:
     case media::CHUNK_DEMUXER_ERROR_APPEND_FAILED:
     case media::CHUNK_DEMUXER_ERROR_EOS_STATUS_DECODE_ERROR:
     case media::AUDIO_RENDERER_ERROR:
@@ -139,7 +133,7 @@ void ReportMetrics(WebMediaPlayer::LoadType load_type,
                             WebMediaPlayer::kLoadTypeMax + 1);
 
   // Report load type separately for ad frames.
-  if (frame.IsAdFrame()) {
+  if (frame.IsAdSubframe()) {
     UMA_HISTOGRAM_ENUMERATION("Ads.Media.LoadType", load_type,
                               WebMediaPlayer::kLoadTypeMax + 1);
   }
@@ -148,7 +142,7 @@ void ReportMetrics(WebMediaPlayer::LoadType load_type,
 media::OutputDeviceStatusCB ConvertToOutputDeviceStatusCB(
     WebSetSinkIdCompleteCallback callback) {
   return media::BindToCurrentLoop(
-      WTF::BindOnce(RunSetSinkIdCallback, std::move(callback)));
+      WTF::Bind(RunSetSinkIdCallback, std::move(callback)));
 }
 
 }  // namespace blink

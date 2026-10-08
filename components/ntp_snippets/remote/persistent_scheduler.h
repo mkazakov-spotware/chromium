@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_NTP_SNIPPETS_REMOTE_PERSISTENT_SCHEDULER_H_
 #define COMPONENTS_NTP_SNIPPETS_REMOTE_PERSISTENT_SCHEDULER_H_
 
+#include "base/macros.h"
 #include "base/time/time.h"
 
 namespace ntp_snippets {
@@ -18,8 +19,6 @@ namespace ntp_snippets {
 // object is obtained from ContentSuggestionsService.
 class PersistentScheduler {
  public:
-  PersistentScheduler(const PersistentScheduler&) = delete;
-  PersistentScheduler& operator=(const PersistentScheduler&) = delete;
   // Schedule periodic fetching of remote suggestions, with different periods
   // depending on network state. Any of the periods can be zero to indicate that
   // the corresponding task should not be scheduled. Returns whether the
@@ -37,6 +36,9 @@ class PersistentScheduler {
 
  protected:
   PersistentScheduler() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PersistentScheduler);
 };
 
 }  // namespace ntp_snippets

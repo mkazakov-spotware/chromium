@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,7 +34,7 @@ namespace safe_browsing {
 
 namespace {
 
-std::u16string FormatUrlForDisplay(const GURL& url) {
+base::string16 FormatUrlForDisplay(const GURL& url) {
   return url_formatter::FormatUrlForSecurityDisplay(
       url, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
 }
@@ -76,7 +76,7 @@ SettingsResetPromptController::SettingsResetPromptController(
 
 SettingsResetPromptController::~SettingsResetPromptController() {}
 
-std::u16string SettingsResetPromptController::GetWindowTitle() const {
+base::string16 SettingsResetPromptController::GetWindowTitle() const {
   if (ResetSearchEnabled(*model_)) {
     return l10n_util::GetStringUTF16(
         IDS_SETTINGS_RESET_PROMPT_TITLE_SEARCH_ENGINE);
@@ -89,10 +89,10 @@ std::u16string SettingsResetPromptController::GetWindowTitle() const {
     return l10n_util::GetStringUTF16(IDS_SETTINGS_RESET_PROMPT_TITLE_HOMEPAGE);
 
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
-std::u16string SettingsResetPromptController::GetMainText() const {
+base::string16 SettingsResetPromptController::GetMainText() const {
   DCHECK(!main_text_.empty());
   return main_text_;
 }
@@ -144,7 +144,7 @@ void SettingsResetPromptController::InitMainText() {
   DCHECK(main_text_.empty());
 
   // Get the URL string to be displayed in the dialog message.
-  std::u16string url_string;
+  base::string16 url_string;
   if (ResetSearchEnabled(*model_)) {
     url_string = FormatUrlForDisplay(model_->default_search());
   } else if (ResetStartupUrlsEnabled(*model_)) {

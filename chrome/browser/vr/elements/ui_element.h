@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,10 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "cc/animation/animation_target.h"
+#include "cc/animation/transform_operations.h"
+#include "chrome/browser/vr/animation.h"
 #include "chrome/browser/vr/audio_delegate.h"
 #include "chrome/browser/vr/databinding/binding_base.h"
 #include "chrome/browser/vr/elements/corner_radii.h"
@@ -24,15 +27,12 @@
 #include "chrome/browser/vr/model/sounds.h"
 #include "chrome/browser/vr/target_property.h"
 #include "chrome/browser/vr/vr_ui_export.h"
-#include "ui/gfx/animation/keyframe/animation_curve.h"
-#include "ui/gfx/animation/keyframe/keyframe_effect.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/quaternion.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size_f.h"
-#include "ui/gfx/geometry/transform.h"
-#include "ui/gfx/geometry/transform_operations.h"
 #include "ui/gfx/geometry/vector3d_f.h"
+#include "ui/gfx/transform.h"
 
 namespace base {
 class TimeTicks;
@@ -76,7 +76,7 @@ struct HitTestRequest {
 
 // The result of performing a hit test.
 struct HitTestResult {
-  enum class Type {
+  enum Type {
     // The given ray does not pass through the element.
     kNone = 0,
     // The given ray does not pass through the element, but passes through the
@@ -96,16 +96,9 @@ struct HitTestResult {
   float distance_to_plane;
 };
 
-class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
-                               public gfx::TransformAnimationCurve::Target,
-                               public gfx::SizeAnimationCurve::Target,
-                               public gfx::ColorAnimationCurve::Target {
+class VR_UI_EXPORT UiElement : public cc::AnimationTarget {
  public:
   UiElement();
-
-  UiElement(const UiElement&) = delete;
-  UiElement& operator=(const UiElement&) = delete;
-
   ~UiElement() override;
 
   enum OperationIndex {
@@ -258,7 +251,7 @@ class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
   // Returns the target value of the animation if the corresponding property is
   // being animated, or the current value otherwise.
   gfx::SizeF GetTargetSize() const;
-  gfx::TransformOperations GetTargetTransform() const;
+  cc::TransformOperations GetTargetTransform() const;
   float GetTargetOpacity() const;
 
   float opacity() const { return opacity_; }
@@ -397,23 +390,32 @@ class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
   gfx::PointF GetUnitRectangleCoordinates(
       const gfx::Point3F& world_point) const;
 
-  void OnFloatAnimated(const float& value,
-                       int target_property_id,
-                       gfx::KeyframeModel* keyframe_model) override;
-  void OnTransformAnimated(const gfx::TransformOperations& operations,
-                           int target_property_id,
-                           gfx::KeyframeModel* keyframe_model) override;
-  void OnSizeAnimated(const gfx::SizeF& size,
-                      int target_property_id,
-                      gfx::KeyframeModel* keyframe_model) override;
-  void OnColorAnimated(const SkColor& size,
-                       int target_property_id,
-                       gfx::KeyframeModel* keyframe_model) override;
+  // cc::AnimationTarget
+  void NotifyClientFloatAnimated(float value,
+                                 int target_property_id,
+                                 cc::KeyframeModel* keyframe_model) override;
+  void NotifyClientTransformOperationsAnimated(
+      const cc::TransformOperations& operations,
+      int target_property_id,
+      cc::KeyframeModel* keyframe_model) override;
+  void NotifyClientSizeAnimated(const gfx::SizeF& size,
+                                int target_property_id,
+                                cc::KeyframeModel* keyframe_model) override;
+  void NotifyClientFilterAnimated(const cc::FilterOperations& filter,
+                                  int target_property_id,
+                                  cc::KeyframeModel* keyframe_model) override {}
+  void NotifyClientColorAnimated(SkColor color,
+                                 int target_property_id,
+                                 cc::KeyframeModel* keyframe_model) override {}
+  void NotifyClientScrollOffsetAnimated(
+      const gfx::ScrollOffset& scroll_offset,
+      int target_property_id,
+      cc::KeyframeModel* keyframe_model) override {}
 
   void SetTransitionedProperties(const std::set<TargetProperty>& properties);
   void SetTransitionDuration(base::TimeDelta delta);
 
-  void AddKeyframeModel(std::unique_ptr<gfx::KeyframeModel> keyframe_model);
+  void AddKeyframeModel(std::unique_ptr<cc::KeyframeModel> keyframe_model);
   void RemoveKeyframeModel(int keyframe_model_id);
   void RemoveKeyframeModels(int target_property);
   bool IsAnimatingProperty(TargetProperty property) const;
@@ -509,7 +511,7 @@ class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
 
   gfx::RectF GetAbsoluteClipRect() const;
 
-  gfx::KeyframeEffect& animator() { return animator_; }
+  Animation& animation() { return animation_; }
 
   virtual const Sounds& GetSounds() const;
 
@@ -618,7 +620,7 @@ class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
   float top_padding_ = 0.0f;
   float bottom_padding_ = 0.0f;
 
-  gfx::KeyframeEffect animator_;
+  Animation animation_;
 
   DrawPhase draw_phase_ = kPhaseNone;
 
@@ -646,20 +648,20 @@ class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
   // stored as a list of operations rather than a baked transform to make
   // transitions easier to implement (you may, for example, want to animate just
   // the translation, but leave the rotation and scale in tact).
-  gfx::TransformOperations transform_operations_;
+  cc::TransformOperations transform_operations_;
 
   // This is a cached version of the local transform.
   gfx::Transform local_transform_;
 
   // This is set by the parent and is combined into LocalTransform()
-  gfx::TransformOperations layout_offset_;
+  cc::TransformOperations layout_offset_;
 
   // This is the combined, local to world transform. It includes
   // |inheritable_transform_|, |transform_|, and anchoring adjustments.
   gfx::Transform world_space_transform_;
   bool world_space_transform_dirty_ = false;
 
-  raw_ptr<UiElement> parent_ = nullptr;
+  UiElement* parent_ = nullptr;
   std::vector<std::unique_ptr<UiElement>> children_;
 
   // This is true if a descendant has been added and the total list has not yet
@@ -670,13 +672,15 @@ class VR_UI_EXPORT UiElement : public gfx::FloatAnimationCurve::Target,
 
   UpdatePhase update_phase_ = kClean;
 
-  raw_ptr<AudioDelegate> audio_delegate_ = nullptr;
+  AudioDelegate* audio_delegate_ = nullptr;
   Sounds sounds_;
 
   // Indicates that this element may be resized by parent layout elements.
   bool resizable_by_layout_ = false;
 
   CursorType cursor_type_ = kCursorDefault;
+
+  DISALLOW_COPY_AND_ASSIGN(UiElement);
 };
 
 }  // namespace vr

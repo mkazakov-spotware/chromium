@@ -49,7 +49,7 @@ TransitionEvent::TransitionEvent(const AtomicString& type,
     property_name_ = initializer->propertyName();
   if (initializer->hasElapsedTime()) {
     elapsed_time_ =
-        ANIMATION_TIME_DELTA_FROM_SECONDS(initializer->elapsedTime());
+        AnimationTimeDelta::FromSecondsD(initializer->elapsedTime());
   }
   if (initializer->hasPseudoElement())
     pseudo_element_ = initializer->pseudoElement();

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/timer/elapsed_timer.h"
 #import "ios/web/public/navigation/navigation_context.h"
@@ -49,10 +50,6 @@ class NavigationContextImpl : public NavigationContext {
   NSError* GetError() const override;
   net::HttpResponseHeaders* GetResponseHeaders() const override;
   bool IsRendererInitiated() const override;
-
-  NavigationContextImpl(const NavigationContextImpl&) = delete;
-  NavigationContextImpl& operator=(const NavigationContextImpl&) = delete;
-
   ~NavigationContextImpl() override;
 
   // Setters for navigation context data members.
@@ -88,12 +85,13 @@ class NavigationContextImpl : public NavigationContext {
   bool IsLoadingHtmlString() const;
   void SetLoadingHtmlString(bool is_loading_html);
 
+  // true if this navigation context is a placeholder navigation.
+  bool IsPlaceholderNavigation() const;
+  void SetPlaceholderNavigation(bool flag);
+
   // MIMEType of the navigation.
   void SetMimeType(NSString* mime_type);
   NSString* GetMimeType() const;
-
-  HttpsUpgradeType GetFailedHttpsUpgradeType() const override;
-  void SetFailedHttpsUpgradeType(HttpsUpgradeType https_upgrade_type);
 
   // Returns pending navigation item.
   NavigationItemImpl* GetItem();
@@ -131,10 +129,8 @@ class NavigationContextImpl : public NavigationContext {
   WKNavigationType wk_navigation_type_ = WKNavigationTypeOther;
   bool is_loading_error_page_ = false;
   bool is_loading_html_string_ = false;
+  bool is_placeholder_navigation_ = false;
   NSString* mime_type_ = nil;
-  // If not equal to kNone, this navigation was an HTTPS upgrade from HTTP and
-  // failed due to an SSL or net error.
-  HttpsUpgradeType failed_https_upgrade_type_ = HttpsUpgradeType::kNone;
   base::ElapsedTimer elapsed_timer_;
 
   // Holds pending navigation item in this object. Pending item is stored in
@@ -142,6 +138,8 @@ class NavigationContextImpl : public NavigationContext {
   // NavigationManager if the navigated was requested, but context does not yet
   // exist or when navigation was aborted.
   std::unique_ptr<NavigationItemImpl> item_;
+
+  DISALLOW_COPY_AND_ASSIGN(NavigationContextImpl);
 };
 
 }  // namespace web

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,6 @@
       [prefs[kDisplayNeverTranslateSiteButtonPrefKey] boolValue];
   self.isTranslatableLanguage =
       [prefs[kIsTranslatableLanguagePrefKey] boolValue];
-  self.isSiteOnNeverPromptList =
-      [prefs[kIsSiteOnNeverPromptListPrefKey] boolValue];
+  self.isSiteBlacklisted = [prefs[kIsSiteBlacklistedPrefKey] boolValue];
 }
 @end

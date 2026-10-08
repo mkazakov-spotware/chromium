@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 #include <memory>
 
 #include "base/containers/flat_map.h"
-#include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/task_manager/providers/task.h"
 #include "content/public/browser/dedicated_worker_service.h"
 #include "content/public/browser/service_worker_context.h"
@@ -19,10 +17,6 @@
 #include "third_party/blink/public/common/tokens/tokens.h"
 
 class Profile;
-
-namespace content {
-class RenderProcessHost;
-}
 
 namespace task_manager {
 
@@ -50,10 +44,10 @@ class PerProfileWorkerTaskTracker
   void OnWorkerCreated(
       const blink::DedicatedWorkerToken& worker_token,
       int worker_process_id,
-      content::GlobalRenderFrameHostId ancestor_render_frame_host_id) override;
+      content::GlobalFrameRoutingId ancestor_render_frame_host_id) override;
   void OnBeforeWorkerDestroyed(
       const blink::DedicatedWorkerToken& worker_token,
-      content::GlobalRenderFrameHostId ancestor_render_frame_host_id) override;
+      content::GlobalFrameRoutingId ancestor_render_frame_host_id) override;
   void OnFinalResponseURLDetermined(
       const blink::DedicatedWorkerToken& worker_token,
       const GURL& url) override;
@@ -69,10 +63,10 @@ class PerProfileWorkerTaskTracker
       const GURL& url) override;
   void OnClientAdded(
       const blink::SharedWorkerToken& shared_worker_token,
-      content::GlobalRenderFrameHostId render_frame_host_id) override {}
+      content::GlobalFrameRoutingId render_frame_host_id) override {}
   void OnClientRemoved(
       const blink::SharedWorkerToken& shared_worker_token,
-      content::GlobalRenderFrameHostId render_frame_host_id) override {}
+      content::GlobalFrameRoutingId render_frame_host_id) override {}
 
   // content::ServiceWorkerContextObserver:
   void OnVersionStartedRunning(
@@ -90,7 +84,7 @@ class PerProfileWorkerTaskTracker
   void CreateWorkerTask(
       const WorkerId& worker_id,
       Task::Type task_type,
-      content::RenderProcessHost* worker_process_host,
+      int worker_process_id,
       base::flat_map<WorkerId, std::unique_ptr<WorkerTask>>* out_worker_tasks);
 
   // Deletes an existing WorkerTask from |out_worker_tasks| and notifies
@@ -114,36 +108,31 @@ class PerProfileWorkerTaskTracker
       base::flat_map<WorkerId, std::unique_ptr<WorkerTask>>* out_worker_tasks);
 
   // The provider that gets notified when a WorkerTask is created/deleted.
-  const raw_ptr<WorkerTaskProvider> worker_task_provider_;  // Owner.
+  WorkerTaskProvider* const worker_task_provider_;  // Owner.
 
   // For dedicated workers:
-  base::ScopedObservation<content::DedicatedWorkerService,
-                          content::DedicatedWorkerService::Observer>
-      scoped_dedicated_worker_service_observation_{this};
+  ScopedObserver<content::DedicatedWorkerService,
+                 content::DedicatedWorkerService::Observer>
+      scoped_dedicated_worker_service_observer_{this};
 
   base::flat_map<blink::DedicatedWorkerToken, std::unique_ptr<WorkerTask>>
       dedicated_worker_tasks_;
 
   // For shared workers:
-  base::ScopedObservation<content::SharedWorkerService,
-                          content::SharedWorkerService::Observer>
-      scoped_shared_worker_service_observation_{this};
+  ScopedObserver<content::SharedWorkerService,
+                 content::SharedWorkerService::Observer>
+      scoped_shared_worker_service_observer_{this};
 
   base::flat_map<blink::SharedWorkerToken, std::unique_ptr<WorkerTask>>
       shared_worker_tasks_;
 
   // For service workers:
-  base::ScopedObservation<content::ServiceWorkerContext,
-                          content::ServiceWorkerContextObserver>
-      scoped_service_worker_context_observation_{this};
+  ScopedObserver<content::ServiceWorkerContext,
+                 content::ServiceWorkerContextObserver>
+      scoped_service_worker_context_observer_{this};
 
   base::flat_map<int64_t /*version_id*/, std::unique_ptr<WorkerTask>>
       service_worker_tasks_;
-
-  // Because service worker notifications are asynchronous, it is possible to
-  // be notified of the creation of a service worker after its render process
-  // was deleted. Those workers are ignored.
-  base::flat_set<int64_t /*version_id*/> ignored_service_worker_;
 };
 
 }  // namespace task_manager

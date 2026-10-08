@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/timer/timer.h"
@@ -55,7 +54,7 @@ class HistoryCounter : public browsing_data::BrowsingDataCounter {
 
   void OnGetLocalHistoryCount(history::HistoryCountResult result);
   void OnGetWebHistoryCount(history::WebHistoryService::Request* request,
-                            const base::Value* result);
+                            const base::DictionaryValue* result);
   void OnWebHistoryTimeout();
   void MergeResults();
 
@@ -63,7 +62,7 @@ class HistoryCounter : public browsing_data::BrowsingDataCounter {
 
   bool IsHistorySyncEnabled(const syncer::SyncService* sync_service);
 
-  raw_ptr<history::HistoryService> history_service_;
+  history::HistoryService* history_service_;
 
   GetUpdatedWebHistoryServiceCallback web_history_service_callback_;
 

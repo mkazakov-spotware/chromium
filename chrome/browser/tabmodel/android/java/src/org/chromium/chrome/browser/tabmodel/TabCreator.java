@@ -1,21 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tabmodel;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.TraceEvent;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabState;
-import org.chromium.chrome.browser.tab.state.SerializedCriticalPersistedTabData;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.url.GURL;
 
 /**
  * Creates Tabs.  If the TabCreator creates Tabs asynchronously, null pointers will be returned
@@ -41,29 +38,15 @@ public abstract class TabCreator {
             LoadUrlParams loadUrlParams, @TabLaunchType int type, Tab parent);
 
     /**
-     * Creates a new tab and posts to UI.
-     * @param loadUrlParams parameters of the url load.
-     * @param type Information about how the tab was launched.
-     * @param parent the parent tab, if present.
-     * @param position the requested position (index in the tab model)
-     * @return The new tab or null if no tab was created.
-     */
-    @Nullable
-    public abstract Tab createNewTab(
-            LoadUrlParams loadUrlParams, @TabLaunchType int type, Tab parent, int position);
-
-    /**
      * On restore, allows us to create a frozen version of a tab using saved tab state we read
      * from disk.
      * @param state    The tab state that the tab can be restored from.
-     * @param serializedCriticalPersistedTabData serialized {@link CriticalPersistedTabData}
      * @param id       The id to give the new tab.
-     * @param isIncognito if the {@link Tab} is incognito or not
+     * @param criticalPersistedTabData serialized {@link CriticalPersistedTabData}
      * @param index    The index for where to place the tab.
      */
-    public abstract Tab createFrozenTab(TabState state,
-            SerializedCriticalPersistedTabData serializedCriticalPersistedTabData, int id,
-            boolean isIncognito, int index);
+    public abstract Tab createFrozenTab(
+            TabState state, byte[] serializedCriticalPersistedTabData, int id, int index);
 
     /**
      * Creates a new tab and loads the specified URL in it. This is a convenience method for
@@ -85,8 +68,8 @@ public abstract class TabCreator {
      * @param url         URL to show in the Tab. (Needed only for asynchronous tab creation.)
      * @return            Whether a Tab was created successfully.
      */
-    public abstract boolean createTabWithWebContents(@Nullable Tab parent, WebContents webContents,
-            @TabLaunchType int type, @NonNull GURL url);
+    public abstract boolean createTabWithWebContents(
+            @Nullable Tab parent, WebContents webContents, @TabLaunchType int type, String url);
 
     /**
      * Creates a tab around the native web contents pointer.
@@ -97,7 +80,8 @@ public abstract class TabCreator {
      */
     public final boolean createTabWithWebContents(
             Tab parent, WebContents webContents, @TabLaunchType int type) {
-        return createTabWithWebContents(parent, webContents, type, webContents.getVisibleUrl());
+        return createTabWithWebContents(
+                parent, webContents, type, webContents.getVisibleUrlString());
     }
 
     /**

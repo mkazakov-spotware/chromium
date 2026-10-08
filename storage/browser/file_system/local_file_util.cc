@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "storage/browser/file_system/async_file_util_adapter.h"
 #include "storage/browser/file_system/file_system_context.h"
 #include "storage/browser/file_system/file_system_operation_context.h"
@@ -24,7 +23,7 @@
 namespace storage {
 
 AsyncFileUtil* AsyncFileUtil::CreateForLocalFileSystem() {
-  return new AsyncFileUtilAdapter(std::make_unique<LocalFileUtil>());
+  return new AsyncFileUtilAdapter(new LocalFileUtil());
 }
 
 class LocalFileUtil::LocalFileEnumerator
@@ -66,7 +65,7 @@ class LocalFileUtil::LocalFileEnumerator
  private:
   // The |LocalFileUtil| producing |this| is expected to remain valid
   // through the whole lifetime of the enumerator.
-  const raw_ptr<const LocalFileUtil> file_util_;
+  const LocalFileUtil* const file_util_;
   base::FileEnumerator file_enum_;
   base::FileEnumerator::FileInfo file_util_info_;
   base::FilePath platform_root_path_;
@@ -137,7 +136,7 @@ LocalFileUtil::CreateFileEnumerator(FileSystemOperationContext* context,
                                     bool recursive) {
   base::FilePath file_path;
   if (GetLocalFilePath(context, root_url, &file_path) != base::File::FILE_OK) {
-    return std::make_unique<EmptyFileEnumerator>();
+    return base::WrapUnique(new EmptyFileEnumerator);
   }
   return std::make_unique<LocalFileEnumerator>(
       this, file_path, root_url.path(), recursive,
@@ -183,7 +182,7 @@ base::File::Error LocalFileUtil::CopyOrMoveFile(
     FileSystemOperationContext* context,
     const FileSystemURL& src_url,
     const FileSystemURL& dest_url,
-    CopyOrMoveOptionSet options,
+    CopyOrMoveOption option,
     bool copy) {
   base::FilePath src_file_path;
   base::File::Error error = GetLocalFilePath(context, src_url, &src_file_path);
@@ -196,7 +195,7 @@ base::File::Error LocalFileUtil::CopyOrMoveFile(
     return error;
 
   return NativeFileUtil::CopyOrMoveFile(
-      src_file_path, dest_file_path, options,
+      src_file_path, dest_file_path, option,
       NativeFileUtil::CopyOrMoveModeForDestination(dest_url, copy));
 }
 
@@ -213,7 +212,7 @@ base::File::Error LocalFileUtil::CopyInForeignFile(
   if (error != base::File::FILE_OK)
     return error;
   return NativeFileUtil::CopyOrMoveFile(
-      src_file_path, dest_file_path, FileSystemOperation::CopyOrMoveOptionSet(),
+      src_file_path, dest_file_path, FileSystemOperation::OPTION_NONE,
       NativeFileUtil::CopyOrMoveModeForDestination(dest_url, true /* copy */));
 }
 

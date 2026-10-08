@@ -1,1 +1,3 @@
-file://ash/webui/common/resources/network/OWNERS
+file://chrome/browser/resources/settings/chromeos/internet_page/OWNERS
+
+# COMPONENT: OS>Systems>Network

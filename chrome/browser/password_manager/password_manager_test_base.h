@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "chrome/browser/ssl/cert_verifier_browser_test.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -23,6 +22,43 @@ namespace password_manager {
 struct PasswordForm;
 }  // namespace password_manager
 
+class NavigationObserver : public content::WebContentsObserver {
+ public:
+  explicit NavigationObserver(content::WebContents* web_contents);
+  ~NavigationObserver() override;
+
+  // Normally Wait() will not return until a main frame navigation occurs.
+  // If a path is set, Wait() will return after this path has been seen,
+  // regardless of the frame that navigated. Useful for multi-frame pages.
+  void SetPathToWaitFor(const std::string& path) { wait_for_path_ = path; }
+
+  // Normally Wait() will not return until a main frame navigation occurs.
+  // If quit_on_entry_committed is true Wait() will return on EntryCommited.
+  void set_quit_on_entry_committed(bool quit_on_entry_committed) {
+    quit_on_entry_committed_ = quit_on_entry_committed;
+  }
+
+  // Wait for navigation to succeed.
+  void Wait();
+
+  // Returns the RenderFrameHost that navigated.
+  content::RenderFrameHost* render_frame_host() { return render_frame_host_; }
+
+  // content::WebContentsObserver:
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
+  void DidFinishLoad(content::RenderFrameHost* render_frame_host,
+                     const GURL& validated_url) override;
+
+ private:
+  std::string wait_for_path_;
+  content::RenderFrameHost* render_frame_host_;
+  bool quit_on_entry_committed_ = false;
+  base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(NavigationObserver);
+};
+
 // Checks the save password prompt for a specified WebContents and allows
 // accepting saving passwords through it.
 class BubbleObserver {
@@ -30,9 +66,6 @@ class BubbleObserver {
   // The constructor doesn't start tracking |web_contents|. To check the status
   // of the prompt one can even construct a temporary BubbleObserver.
   explicit BubbleObserver(content::WebContents* web_contents);
-
-  BubbleObserver(const BubbleObserver&) = delete;
-  BubbleObserver& operator=(const BubbleObserver&) = delete;
 
   // Checks if the save prompt is being currently available due to either manual
   // fallback or successful login.
@@ -100,8 +133,9 @@ class BubbleObserver {
   void WaitForSaveUnsyncedCredentialsPrompt() const;
 
  private:
-  const raw_ptr<ManagePasswordsUIController, DanglingUntriaged>
-      passwords_ui_controller_;
+  ManagePasswordsUIController* const passwords_ui_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(BubbleObserver);
 };
 
 // A helper class that synchronously waits until the password store handles a
@@ -110,17 +144,10 @@ class PasswordStoreResultsObserver
     : public password_manager::PasswordStoreConsumer {
  public:
   PasswordStoreResultsObserver();
-
-  PasswordStoreResultsObserver(const PasswordStoreResultsObserver&) = delete;
-  PasswordStoreResultsObserver& operator=(const PasswordStoreResultsObserver&) =
-      delete;
-
   ~PasswordStoreResultsObserver() override;
 
   // Waits for OnGetPasswordStoreResults() and returns the result.
   std::vector<std::unique_ptr<password_manager::PasswordForm>> WaitForResults();
-
-  base::WeakPtr<PasswordStoreConsumer> GetWeakPtr();
 
  private:
   void OnGetPasswordStoreResults(
@@ -129,18 +156,13 @@ class PasswordStoreResultsObserver
 
   base::RunLoop run_loop_;
   std::vector<std::unique_ptr<password_manager::PasswordForm>> results_;
-  base::WeakPtrFactory<PasswordStoreResultsObserver> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PasswordStoreResultsObserver);
 };
 
 class PasswordManagerBrowserTestBase : public CertVerifierBrowserTest {
  public:
   PasswordManagerBrowserTestBase();
-
-  PasswordManagerBrowserTestBase(const PasswordManagerBrowserTestBase&) =
-      delete;
-  PasswordManagerBrowserTestBase& operator=(
-      const PasswordManagerBrowserTestBase&) = delete;
-
   ~PasswordManagerBrowserTestBase() override;
 
   // InProcessBrowserTest:
@@ -148,7 +170,6 @@ class PasswordManagerBrowserTestBase : public CertVerifierBrowserTest {
   void SetUp() override;
   void SetUpOnMainThread() override;
   void TearDownOnMainThread() override;
-  void SetUpCommandLine(base::CommandLine* command_line) override;
 
   // Creates a new tab with all the password manager test hooks and returns it
   // in |web_contents|.
@@ -161,7 +182,7 @@ class PasswordManagerBrowserTestBase : public CertVerifierBrowserTest {
  protected:
   // Wrapper around ui_test_utils::NavigateToURL that waits until
   // DidFinishLoad() fires. Normally this function returns after
-  // DidStopLoading(), which caused flakiness as the PasswordsNavigationObserver
+  // DidStopLoading(), which caused flakiness as the NavigationObserver
   // would sometimes see the DidFinishLoad event from a previous navigation and
   // return immediately.
   void NavigateToFile(const std::string& path);
@@ -224,7 +245,11 @@ class PasswordManagerBrowserTestBase : public CertVerifierBrowserTest {
   // A tab with some hooks injected.
   content::WebContents* web_contents_;
 
-  base::CallbackListSubscription create_services_subscription_;
+  std::unique_ptr<
+      BrowserContextDependencyManager::CreateServicesCallbackList::Subscription>
+      create_services_subscription_;
+
+  DISALLOW_COPY_AND_ASSIGN(PasswordManagerBrowserTestBase);
 };
 
 #endif  // CHROME_BROWSER_PASSWORD_MANAGER_PASSWORD_MANAGER_TEST_BASE_H_

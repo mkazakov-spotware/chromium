@@ -1,15 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/cert/cert_verify_proc_android.h"
 
-#include <set>
 #include <string>
 #include <vector>
 
 #include "base/check_op.h"
-#include "base/containers/adapters.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
@@ -22,9 +20,9 @@
 #include "net/cert/cert_net_fetcher.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/cert_verify_result.h"
+#include "net/cert/internal/cert_errors.h"
+#include "net/cert/internal/parsed_certificate.h"
 #include "net/cert/known_roots.h"
-#include "net/cert/pki/cert_errors.h"
-#include "net/cert/pki/parsed_certificate.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
 #include "url/gurl.h"
@@ -97,9 +95,9 @@ scoped_refptr<ParsedCertificate> FindLastCertWithUnknownIssuer(
 // successful and the result could be parsed as a certificate, and false
 // otherwise.
 bool PerformAIAFetchAndAddResultToVector(scoped_refptr<CertNetFetcher> fetcher,
-                                         std::string_view uri,
+                                         base::StringPiece uri,
                                          ParsedCertificateList* cert_list) {
-  GURL url(base::StringPiece(uri.data(), uri.size()));
+  GURL url(uri);
   if (!url.is_valid())
     return false;
   std::unique_ptr<CertNetFetcher::Request> request(fetcher->FetchCaIssuers(
@@ -107,11 +105,14 @@ bool PerformAIAFetchAndAddResultToVector(scoped_refptr<CertNetFetcher> fetcher,
   Error error;
   std::vector<uint8_t> aia_fetch_bytes;
   request->WaitForResult(&error, &aia_fetch_bytes);
+  base::UmaHistogramSparse("Net.Certificate.AndroidAIAFetchError",
+                           std::abs(error));
   if (error != OK)
     return false;
   CertErrors errors;
   return ParsedCertificate::CreateAndAddToVector(
-      x509_util::CreateCryptoBuffer(aia_fetch_bytes),
+      x509_util::CreateCryptoBuffer(aia_fetch_bytes.data(),
+                                    aia_fetch_bytes.size()),
       x509_util::DefaultParseCertificateOptions(), cert_list, &errors);
 }
 
@@ -257,6 +258,9 @@ bool VerifyFromAndroidTrustManager(
     status = TryVerifyWithAIAFetching(cert_bytes, hostname,
                                       std::move(cert_net_fetcher),
                                       verify_result, &verified_chain);
+    UMA_HISTOGRAM_BOOLEAN(
+        "Net.Certificate.VerificationSuccessAfterAIAFetchingNeeded",
+        status == android::CERT_VERIFY_STATUS_ANDROID_OK);
   }
 
   switch (status) {
@@ -300,9 +304,9 @@ bool VerifyFromAndroidTrustManager(
   // Extract the public key hashes and check whether or not any are known
   // roots. Walk from the end of the chain (root) to leaf, to optimize for
   // known root checks.
-  for (const auto& cert : base::Reversed(verified_chain)) {
+  for (auto it = verified_chain.rbegin(); it != verified_chain.rend(); ++it) {
     base::StringPiece spki_bytes;
-    if (!asn1::ExtractSPKIFromDERCert(cert, &spki_bytes)) {
+    if (!asn1::ExtractSPKIFromDERCert(*it, &spki_bytes)) {
       verify_result->cert_status |= CERT_STATUS_INVALID;
       continue;
     }
@@ -341,7 +345,7 @@ CertVerifyProcAndroid::CertVerifyProcAndroid(
     scoped_refptr<CertNetFetcher> cert_net_fetcher)
     : cert_net_fetcher_(std::move(cert_net_fetcher)) {}
 
-CertVerifyProcAndroid::~CertVerifyProcAndroid() = default;
+CertVerifyProcAndroid::~CertVerifyProcAndroid() {}
 
 bool CertVerifyProcAndroid::SupportsAdditionalTrustAnchors() const {
   return false;

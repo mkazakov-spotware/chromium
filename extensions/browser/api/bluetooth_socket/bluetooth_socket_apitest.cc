@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,12 +51,20 @@ class BluetoothSocketApiTest : public extensions::ShellApiTest {
     mock_adapter_ = new testing::StrictMock<MockBluetoothAdapter>();
     BluetoothAdapterFactory::SetAdapterForTesting(mock_adapter_);
 
-    mock_device1_ = std::make_unique<testing::NiceMock<MockBluetoothDevice>>(
-        mock_adapter_.get(), 0, "d1", "11:12:13:14:15:16", true /* paired */,
-        false /* connected */);
-    mock_device2_ = std::make_unique<testing::NiceMock<MockBluetoothDevice>>(
-        mock_adapter_.get(), 0, "d2", "21:22:23:24:25:26", true /* paired */,
-        false /* connected */);
+    mock_device1_.reset(
+        new testing::NiceMock<MockBluetoothDevice>(mock_adapter_.get(),
+                                                   0,
+                                                   "d1",
+                                                   "11:12:13:14:15:16",
+                                                   true /* paired */,
+                                                   false /* connected */));
+    mock_device2_.reset(
+        new testing::NiceMock<MockBluetoothDevice>(mock_adapter_.get(),
+                                                   0,
+                                                   "d2",
+                                                   "21:22:23:24:25:26",
+                                                   true /* paired */,
+                                                   false /* connected */));
   }
 
  protected:
@@ -80,7 +88,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothSocketApiTest, DISABLED_Connect) {
   EXPECT_CALL(*mock_adapter_, GetDevice(mock_device1_->GetAddress()))
       .WillRepeatedly(testing::Return(mock_device1_.get()));
   EXPECT_CALL(*mock_adapter_, GetDevice(std::string("aa:aa:aa:aa:aa:aa")))
-      .WillOnce(testing::Return(static_cast<BluetoothDevice*>(nullptr)));
+      .WillOnce(testing::Return(static_cast<BluetoothDevice*>(NULL)));
 
   // Return a mock socket object as a successful result to the connect() call.
   BluetoothUUID service_uuid("8e3ad063-db38-4289-aa8f-b30e4223cf40");
@@ -94,12 +102,13 @@ IN_PROC_BROWSER_TEST_F(BluetoothSocketApiTest, DISABLED_Connect) {
   // dispatcher. Since there is no data, this will not call its callback.
   EXPECT_CALL(*mock_socket, Receive(testing::_, testing::_, testing::_));
 
-  // The test also cleans up by calling Disconnect.
+  // The test also cleans up by calling Disconnect and Close.
   EXPECT_CALL(*mock_socket, Disconnect(testing::_))
       .WillOnce(base::test::RunOnceCallback<0>());
+  EXPECT_CALL(*mock_socket, Close());
 
   // Run the test.
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   scoped_refptr<const Extension> extension(
       LoadApp("api_test/bluetooth_socket/connect"));
   ASSERT_TRUE(extension.get());
@@ -143,8 +152,7 @@ IN_PROC_BROWSER_TEST_F(BluetoothSocketApiTest, Listen) {
 
   // Run the test, it sends a ready signal once it's ready for us to dispatch
   // a client connection to it.
-  ExtensionTestMessageListener socket_listening("ready",
-                                                ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener socket_listening("ready", true);
   scoped_refptr<const Extension> extension(
       LoadApp("api_test/bluetooth_socket/listen"));
   ASSERT_TRUE(extension.get());
@@ -154,16 +162,18 @@ IN_PROC_BROWSER_TEST_F(BluetoothSocketApiTest, Listen) {
   // thread. Waiting until idle ensures the event is dispatched to the
   // receiver(s).
   base::RunLoop().RunUntilIdle();
-  ExtensionTestMessageListener listener("ready", ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("ready", true);
   socket_listening.Reply("go");
 
   // Second stage of tests checks for error conditions, and will clean up
   // the existing server and client sockets.
   EXPECT_CALL(*mock_server_socket, Disconnect(testing::_))
       .WillOnce(base::test::RunOnceCallback<0>());
+  EXPECT_CALL(*mock_server_socket, Close());
 
   EXPECT_CALL(*mock_client_socket, Disconnect(testing::_))
       .WillOnce(base::test::RunOnceCallback<0>());
+  EXPECT_CALL(*mock_client_socket, Close());
 
   EXPECT_TRUE(listener.WaitUntilSatisfied());
   listener.Reply("go");

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,8 @@
 
 #include "base/callback_forward.h"
 #include "base/callback_list.h"
-#include "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/task/cancelable_task_tracker.h"
@@ -122,14 +121,16 @@ class FaviconCache : public history::HistoryServiceObserver {
 
   // history::HistoryServiceObserver:
   void OnURLVisited(history::HistoryService* history_service,
-                    const history::URLRow& url_row,
-                    const history::VisitRow& new_visit) override;
+                    ui::PageTransition transition,
+                    const history::URLRow& row,
+                    const history::RedirectList& redirects,
+                    base::Time visit_time) override;
   void OnURLsDeleted(history::HistoryService* history_service,
                      const history::DeletionInfo& deletion_info) override;
   void OnFaviconsChanged(const std::set<GURL>& page_urls, const GURL& icon_url);
 
   // Non-owning pointer to a KeyedService.
-  raw_ptr<favicon::FaviconService> favicon_service_;
+  favicon::FaviconService* favicon_service_;
 
   base::ScopedObservation<history::HistoryService,
                           history::HistoryServiceObserver>
@@ -138,15 +139,17 @@ class FaviconCache : public history::HistoryServiceObserver {
   base::CancelableTaskTracker task_tracker_;
   std::map<Request, std::list<FaviconFetchedCallback>> pending_requests_;
 
-  base::LRUCache<Request, gfx::Image> lru_cache_;
+  base::MRUCache<Request, gfx::Image> mru_cache_;
 
   // Keep responses with empty favicons in a separate list, to prevent a
   // response with an empty favicon from ever evicting an existing favicon.
   // The value is always set to true and has no meaning.
-  base::LRUCache<Request, bool> responses_without_favicons_;
+  base::MRUCache<Request, bool> responses_without_favicons_;
 
   // Subscription for notifications of changes to favicons.
-  base::CallbackListSubscription favicons_changed_subscription_;
+  std::unique_ptr<
+      history::HistoryService::FaviconsChangedCallbackList::Subscription>
+      favicons_changed_subscription_;
 
   base::WeakPtrFactory<FaviconCache> weak_factory_{this};
 };

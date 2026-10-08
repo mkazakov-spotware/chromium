@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,20 +13,20 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.metrics.UmaRecorderHolder;
+import org.chromium.base.metrics.test.ShadowRecordHistogram;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 
 /**
  * Test suite for the SplitInstallStatusLogger class.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
+@Config(manifest = Config.NONE, shadows = {ShadowRecordHistogram.class})
 public class SplitInstallStatusLoggerTest {
     private SplitInstallStatusLogger mStatusLogger;
 
     @Before
     public void setUp() {
-        UmaRecorderHolder.resetForTesting();
+        ShadowRecordHistogram.reset();
         mStatusLogger = new SplitInstallStatusLogger();
     }
 
@@ -77,7 +77,7 @@ public class SplitInstallStatusLoggerTest {
     }
 
     private int logStatusChange(String moduleName, int status) {
-        UmaRecorderHolder.resetForTesting();
+        ShadowRecordHistogram.reset();
         mStatusLogger.logStatusChange(moduleName, status);
         return getHistogramStatus(moduleName);
     }

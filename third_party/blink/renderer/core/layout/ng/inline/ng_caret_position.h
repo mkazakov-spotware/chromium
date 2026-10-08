@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_CARET_POSITION_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_CARET_POSITION_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_cursor.h"
@@ -30,9 +30,6 @@ struct NGCaretPosition {
   STACK_ALLOCATED();
 
  public:
-  explicit operator bool() const { return IsNotNull(); }
-
-  bool IsNotNull() const { return cursor.IsNotNull(); }
   bool IsNull() const { return cursor.IsNull(); }
 
   Position ToPositionInDOMTree() const;
@@ -40,7 +37,7 @@ struct NGCaretPosition {
 
   NGInlineCursor cursor;
   NGCaretPositionType position_type;
-  absl::optional<unsigned> text_offset;
+  base::Optional<unsigned> text_offset;
 };
 
 // Given an inline formatting context, a text offset in the context and a text

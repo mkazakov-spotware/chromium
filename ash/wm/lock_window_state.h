@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ASH_WM_LOCK_WINDOW_STATE_H_
 
 #include "ash/wm/window_state.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -23,9 +24,6 @@ class LockWindowState : public WindowState::State {
   // virtual keyboard window into consideration when calculating the window
   // size.
   LockWindowState(aura::Window* window, bool exclude_shelf);
-
-  LockWindowState(const LockWindowState&) = delete;
-  LockWindowState& operator=(const LockWindowState&) = delete;
 
   ~LockWindowState() override;
 
@@ -65,6 +63,8 @@ class LockWindowState : public WindowState::State {
   // Restrict window size to the work area defined by the shelf - i.e. window
   // bounds exclude system shelf bounds.
   bool exclude_shelf_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(LockWindowState);
 };
 
 }  // namespace ash

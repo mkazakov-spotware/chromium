@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,19 @@
 #include <memory>
 
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "content/public/browser/browser_context.h"
 #include "net/cookies/cookie_options.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace browsing_data {
 
 MockCookieHelper::MockCookieHelper(content::BrowserContext* browser_context)
-    : CookieHelper(browser_context->GetDefaultStoragePartition(),
-                   base::NullCallback()) {}
+    : CookieHelper(
+          content::BrowserContext::GetDefaultStoragePartition(browser_context),
+          base::NullCallback()) {}
 
 MockCookieHelper::~MockCookieHelper() {}
 
@@ -29,23 +30,25 @@ void MockCookieHelper::StartFetching(FetchCallback callback) {
 }
 
 void MockCookieHelper::DeleteCookie(const net::CanonicalCookie& cookie) {
-  ASSERT_TRUE(base::Contains(cookies_, cookie));
-  cookies_[cookie] = false;
+  std::string key = cookie.Name() + "=" + cookie.Value();
+  ASSERT_TRUE(base::Contains(cookies_, key));
+  cookies_[key] = false;
 }
 
-void MockCookieHelper::AddCookieSamples(
-    const GURL& url,
-    const std::string& cookie_line,
-    absl::optional<net::CookiePartitionKey> cookie_partition_key) {
+void MockCookieHelper::AddCookieSamples(const GURL& url,
+                                        const std::string& cookie_line) {
   std::unique_ptr<net::CanonicalCookie> cc(net::CanonicalCookie::Create(
-      url, cookie_line, base::Time::Now(), absl::nullopt /* server_time */,
-      cookie_partition_key));
+      url, cookie_line, base::Time::Now(), base::nullopt /* server_time */));
 
   if (cc.get()) {
-    if (cookies_.count(*cc))
-      return;
+    for (const auto& cookie : cookie_list_) {
+      if (cookie.Name() == cc->Name() && cookie.Domain() == cc->Domain() &&
+          cookie.Path() == cc->Path()) {
+        return;
+      }
+    }
     cookie_list_.push_back(*cc);
-    cookies_[*cc] = true;
+    cookies_[cookie_line] = true;
   }
 }
 

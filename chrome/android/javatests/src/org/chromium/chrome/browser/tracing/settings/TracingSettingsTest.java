@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,11 +33,13 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.settings.SettingsActivity;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.tracing.TracingController;
 import org.chromium.chrome.browser.tracing.TracingNotificationManager;
@@ -45,7 +47,6 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.notifications.MockNotificationManagerProxy;
 import org.chromium.components.browser_ui.settings.ButtonPreference;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.settings.TextMessagePreference;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
@@ -143,15 +144,14 @@ public class TracingSettingsTest {
     @Test
     @MediumTest
     @Feature({"Preferences"})
-    @DisabledTest(message = "crbug.com/1111655")
+    @DisabledTest
+    @DisableIf.Build(sdk_is_less_than = 21, message = "crbug.com/899894")
     public void testRecordTrace() throws Exception {
         mActivityTestRule.startMainActivityOnBlankPage();
         mSettingsActivityTestRule.startSettingsActivity();
         final PreferenceFragmentCompat fragment = mSettingsActivityTestRule.getFragment();
         final ButtonPreference startTracingButton =
                 (ButtonPreference) fragment.findPreference(TracingSettings.UI_PREF_START_RECORDING);
-        final ButtonPreference shareTraceButton =
-                (ButtonPreference) fragment.findPreference(TracingSettings.UI_PREF_SHARE_TRACE);
 
         waitForTracingControllerInitialization(fragment);
 
@@ -165,7 +165,6 @@ public class TracingSettingsTest {
                     TracingController.State.IDLE, TracingController.getInstance().getState());
             Assert.assertTrue(startTracingButton.isEnabled());
             Assert.assertEquals(TracingSettings.MSG_START, startTracingButton.getTitle());
-            Assert.assertFalse(shareTraceButton.isEnabled());
 
             // Tap the button to start recording a trace.
             startTracingButton.getOnPreferenceClickListener().onPreferenceClick(startTracingButton);
@@ -224,12 +223,10 @@ public class TracingSettingsTest {
         Assert.assertNotEquals(null, notification.deleteIntent);
         PendingIntent deleteIntent = notification.deleteIntent;
 
-        // The temporary tracing output file should now exist and the "share trace" button
-        // should be active.
+        // The temporary tracing output file should now exist.
         File tempFile = TracingController.getInstance().getTracingTempFile();
         Assert.assertNotEquals(null, tempFile);
         Assert.assertTrue(tempFile.exists());
-        Assert.assertTrue(shareTraceButton.isEnabled());
 
         // Discard the trace and wait for state change back to IDLE.
         deleteIntent.send();
@@ -241,9 +238,6 @@ public class TracingSettingsTest {
         // Notification should be deleted, too.
         waitForNotificationManagerMutation();
         Assert.assertEquals(0, mMockNotificationManager.getNotifications().size());
-
-        // The share trace button should be disabled again.
-        Assert.assertFalse(shareTraceButton.isEnabled());
     }
 
     @Test

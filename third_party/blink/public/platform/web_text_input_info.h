@@ -37,38 +37,32 @@
 
 namespace blink {
 
-struct BLINK_PLATFORM_EXPORT WebTextInputInfo {
-  // Identifier for the currently focused input field, or 0 if there is no
-  // focus. This identifier is unique for nodes within the same document.
-  int node_id = 0;
-
-  WebTextInputType type = kWebTextInputTypeNone;
-
-  // Bitfield of WebTextInputFlags values.
-  int flags = kWebTextInputFlagNone;
+struct WebTextInputInfo {
+  WebTextInputType type;
+  int flags;
 
   // The value of the currently focused input field.
   WebString value;
 
   // The cursor position of the current selection start, or the caret position
   // if nothing is selected.
-  int selection_start = 0;
+  int selection_start;
 
   // The cursor position of the current selection end, or the caret position
   // if nothing is selected.
-  int selection_end = 0;
+  int selection_end;
 
   // The start position of the current composition, or -1 if there is none.
-  int composition_start = -1;
+  int composition_start;
 
   // The end position of the current composition, or -1 if there is none.
-  int composition_end = -1;
+  int composition_end;
 
   // The inputmode attribute value of the currently focused input field.
-  WebTextInputMode input_mode = kWebTextInputModeDefault;
+  WebTextInputMode input_mode;
 
   // The enterkeyhint attribute value of the currently focused input field.
-  ui::TextInputAction action = ui::TextInputAction::kDefault;
+  ui::TextInputAction action;
 
   // The virtualkeyboardpolicy attribute value of the currently focused editable
   // element.
@@ -78,7 +72,17 @@ struct BLINK_PLATFORM_EXPORT WebTextInputInfo {
   // The array of ime_text_spans at the current caret position.
   WebVector<ui::ImeTextSpan> ime_text_spans;
 
-  bool Equals(const WebTextInputInfo&) const;
+  BLINK_PLATFORM_EXPORT bool Equals(const WebTextInputInfo&) const;
+
+  WebTextInputInfo()
+      : type(kWebTextInputTypeNone),
+        flags(kWebTextInputFlagNone),
+        selection_start(0),
+        selection_end(0),
+        composition_start(-1),
+        composition_end(-1),
+        input_mode(kWebTextInputModeDefault),
+        action(ui::TextInputAction::kDefault) {}
 };
 
 inline bool operator==(const WebTextInputInfo& a, const WebTextInputInfo& b) {
@@ -91,4 +95,4 @@ inline bool operator!=(const WebTextInputInfo& a, const WebTextInputInfo& b) {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_TEXT_INPUT_INFO_H_
+#endif

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utilities for working with ranges in HTML documents.
@@ -14,6 +22,7 @@ goog.provide('goog.dom.Range');
 
 goog.require('goog.dom');
 goog.require('goog.dom.AbstractRange');
+goog.require('goog.dom.BrowserFeature');
 goog.require('goog.dom.ControlRange');
 goog.require('goog.dom.MultiRange');
 goog.require('goog.dom.NodeType');
@@ -30,7 +39,6 @@ goog.require('goog.dom.TextRange');
  *     was an error.
  */
 goog.dom.Range.createFromWindow = function(opt_win) {
-  'use strict';
   var sel =
       goog.dom.AbstractRange.getBrowserSelectionForWindow(opt_win || window);
   return sel && goog.dom.Range.createFromBrowserSelection(sel);
@@ -46,7 +54,6 @@ goog.dom.Range.createFromWindow = function(opt_win) {
  *    was an error.
  */
 goog.dom.Range.createFromBrowserSelection = function(selection) {
-  'use strict';
   var range;
   var isReversed = false;
   if (selection.createRange) {
@@ -84,7 +91,6 @@ goog.dom.Range.createFromBrowserSelection = function(selection) {
  * @return {!goog.dom.AbstractRange} A range wrapper object.
  */
 goog.dom.Range.createFromBrowserRange = function(range, opt_isReversed) {
-  'use strict';
   // Create an IE control range when appropriate.
   return goog.dom.AbstractRange.isNativeControlRange(range) ?
       goog.dom.ControlRange.createFromBrowserRange(range) :
@@ -100,7 +106,6 @@ goog.dom.Range.createFromBrowserRange = function(range, opt_isReversed) {
  * @return {!goog.dom.AbstractRange} A range wrapper object.
  */
 goog.dom.Range.createFromNodeContents = function(node, opt_isReversed) {
-  'use strict';
   return goog.dom.TextRange.createFromNodeContents(node, opt_isReversed);
 };
 
@@ -114,7 +119,6 @@ goog.dom.Range.createFromNodeContents = function(node, opt_isReversed) {
  * @return {!goog.dom.AbstractRange} A range wrapper object.
  */
 goog.dom.Range.createCaret = function(node, offset) {
-  'use strict';
   return goog.dom.TextRange.createFromNodes(node, offset, node, offset);
 };
 
@@ -130,7 +134,6 @@ goog.dom.Range.createCaret = function(node, offset) {
  */
 goog.dom.Range.createFromNodes = function(
     anchorNode, anchorOffset, focusNode, focusOffset) {
-  'use strict';
   return goog.dom.TextRange.createFromNodes(
       anchorNode, anchorOffset, focusNode, focusOffset);
 };
@@ -142,7 +145,6 @@ goog.dom.Range.createFromNodes = function(
  *     window this class was defined in.
  */
 goog.dom.Range.clearSelection = function(opt_win) {
-  'use strict';
   var sel =
       goog.dom.AbstractRange.getBrowserSelectionForWindow(opt_win || window);
   if (!sel) {
@@ -175,10 +177,11 @@ goog.dom.Range.clearSelection = function(opt_win) {
  * @return {boolean} Whether the window has a selection.
  */
 goog.dom.Range.hasSelection = function(opt_win) {
-  'use strict';
   var sel =
       goog.dom.AbstractRange.getBrowserSelectionForWindow(opt_win || window);
-  return !!(sel && sel.rangeCount);
+  return !!sel &&
+      (goog.dom.BrowserFeature.LEGACY_IE_RANGES ? sel.type != 'None' :
+                                                  !!sel.rangeCount);
 };
 
 
@@ -193,7 +196,6 @@ goog.dom.Range.hasSelection = function(opt_win) {
  */
 goog.dom.Range.isReversed = function(
     anchorNode, anchorOffset, focusNode, focusOffset) {
-  'use strict';
   if (anchorNode == focusNode) {
     return focusOffset < anchorOffset;
   }

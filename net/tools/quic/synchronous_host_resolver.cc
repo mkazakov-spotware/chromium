@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,13 @@
 #include "base/at_exit.h"
 #include "base/bind.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/message_loop/message_pump_type.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/single_thread_task_executor.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/simple_thread.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "net/base/host_port_pair.h"
@@ -23,8 +25,6 @@
 #include "net/dns/host_resolver.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_with_source.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "url/scheme_host_port.h"
 
 namespace net {
 
@@ -35,13 +35,10 @@ class ResolverThread : public base::SimpleThread {
  public:
   ResolverThread();
 
-  ResolverThread(const ResolverThread&) = delete;
-  ResolverThread& operator=(const ResolverThread&) = delete;
-
   ~ResolverThread() override;
 
   // Called on the main thread.
-  int Resolve(url::SchemeHostPort scheme_host_port, AddressList* addresses);
+  int Resolve(const std::string& host, AddressList* addresses);
 
   // SimpleThread methods:
   void Run() override;
@@ -50,11 +47,14 @@ class ResolverThread : public base::SimpleThread {
   void OnResolutionComplete(base::OnceClosure on_done, int rv);
 
   AddressList* addresses_;
-  url::SchemeHostPort scheme_host_port_;
-  int rv_ = ERR_UNEXPECTED;
+  std::string host_;
+  int rv_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResolverThread);
 };
 
-ResolverThread::ResolverThread() : SimpleThread("resolver_thread") {}
+ResolverThread::ResolverThread()
+    : SimpleThread("resolver_thread"), rv_(ERR_UNEXPECTED) {}
 
 ResolverThread::~ResolverThread() = default;
 
@@ -67,11 +67,12 @@ void ResolverThread::Run() {
   std::unique_ptr<net::HostResolver> resolver =
       net::HostResolver::CreateStandaloneResolver(NetLog::Get(), options);
 
-  // No need to use a NetworkAnonymizationKey here, since this is an external
-  // tool not used by net/ consumers.
+  HostPortPair host_port_pair(host_, 80);
+  // No need to use a NetworkIsolationKey here, since this is an external tool
+  // not used by net/ consumers.
   std::unique_ptr<net::HostResolver::ResolveHostRequest> request =
-      resolver->CreateRequest(scheme_host_port_, NetworkAnonymizationKey(),
-                              NetLogWithSource(), absl::nullopt);
+      resolver->CreateRequest(host_port_pair, NetworkIsolationKey(),
+                              NetLogWithSource(), base::nullopt);
 
   base::RunLoop run_loop;
   rv_ = request->Start(base::BindOnce(&ResolverThread::OnResolutionComplete,
@@ -84,13 +85,12 @@ void ResolverThread::Run() {
   }
 
   if (rv_ == OK) {
-    *addresses_ = *request->GetAddressResults();
+    *addresses_ = request->GetAddressResults().value();
   }
 }
 
-int ResolverThread::Resolve(url::SchemeHostPort scheme_host_port,
-                            AddressList* addresses) {
-  scheme_host_port_ = std::move(scheme_host_port);
+int ResolverThread::Resolve(const std::string& host, AddressList* addresses) {
+  host_ = host;
   addresses_ = addresses;
   this->Start();
   this->Join();
@@ -105,10 +105,10 @@ void ResolverThread::OnResolutionComplete(base::OnceClosure on_done, int rv) {
 }  // namespace
 
 // static
-int SynchronousHostResolver::Resolve(url::SchemeHostPort scheme_host_port,
+int SynchronousHostResolver::Resolve(const std::string& host,
                                      AddressList* addresses) {
   ResolverThread resolver;
-  return resolver.Resolve(std::move(scheme_host_port), addresses);
+  return resolver.Resolve(host, addresses);
 }
 
 }  // namespace net

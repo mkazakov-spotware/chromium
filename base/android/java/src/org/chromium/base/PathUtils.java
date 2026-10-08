@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
 import org.chromium.base.annotations.CalledByNative;
-import org.chromium.base.compat.ApiHelperForM;
-import org.chromium.base.compat.ApiHelperForQ;
-import org.chromium.base.compat.ApiHelperForR;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.task.AsyncTask;
-import org.chromium.build.annotations.MainDex;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -201,23 +198,22 @@ public abstract class PathUtils {
     /**
      * Returns the downloads directory. Before Android Q, this returns the public download directory
      * for Chrome app. On Q+, this returns the first private download directory for the app, since Q
-     * will block public directory access. May return empty string when there are no external
-     * storage volumes mounted.
+     * will block public directory access. May return null when there is no external storage volumes
+     * mounted.
      */
     @SuppressWarnings("unused")
     @CalledByNative
-    public static @NonNull String getDownloadsDirectory() {
+    private static @NonNull String getDownloadsDirectory() {
         // TODO(crbug.com/508615): Move calls to getDownloadsDirectory() to background thread.
         try (StrictModeContext ignored = StrictModeContext.allowDiskReads()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (BuildInfo.isAtLeastQ()) {
                 // https://developer.android.com/preview/privacy/scoped-storage
                 // In Q+, Android has begun sandboxing external storage. Chrome may not have
                 // permission to write to Environment.getExternalStoragePublicDirectory(). Instead
                 // using Context.getExternalFilesDir() will return a path to sandboxed external
                 // storage for which no additional permissions are required.
                 String[] dirs = getAllPrivateDownloadsDirectories();
-                assert dirs != null;
-                return dirs.length == 0 ? "" : dirs[0];
+                return getAllPrivateDownloadsDirectories().length == 0 ? "" : dirs[0];
             }
             return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                     .getPath();
@@ -230,13 +226,17 @@ public abstract class PathUtils {
      */
     @SuppressWarnings("unused")
     @CalledByNative
-    public static @NonNull String[] getAllPrivateDownloadsDirectories() {
+    public static String[] getAllPrivateDownloadsDirectories() {
         List<File> files = new ArrayList<>();
-        try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
-            File[] externalDirs = ContextUtils.getApplicationContext().getExternalFilesDirs(
-                    Environment.DIRECTORY_DOWNLOADS);
-            files = (externalDirs == null) ? files : Arrays.asList(externalDirs);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
+                files = Arrays.asList(ContextUtils.getApplicationContext().getExternalFilesDirs(
+                        Environment.DIRECTORY_DOWNLOADS));
+            }
+        } else {
+            files.add(Environment.getExternalStorageDirectory());
         }
+
         return toAbsolutePathStrings(files);
     }
 
@@ -248,24 +248,23 @@ public abstract class PathUtils {
      */
     @RequiresApi(Build.VERSION_CODES.R)
     @CalledByNative
-    public static @NonNull String[] getExternalDownloadVolumesNames() {
+    public static String[] getExternalDownloadVolumesNames() {
         ArrayList<File> files = new ArrayList<>();
         Set<String> volumes =
-                ApiHelperForQ.getExternalVolumeNames(ContextUtils.getApplicationContext());
+                MediaStore.getExternalVolumeNames(ContextUtils.getApplicationContext());
         for (String vol : volumes) {
             if (!TextUtils.isEmpty(vol) && !vol.contains(MediaStore.VOLUME_EXTERNAL_PRIMARY)) {
-                StorageManager manager = ApiHelperForM.getSystemService(
-                        ContextUtils.getApplicationContext(), StorageManager.class);
-                File volumeDir =
-                        ApiHelperForR.getVolumeDir(manager, MediaStore.Files.getContentUri(vol));
-                File volumeDownloadDir = new File(volumeDir, Environment.DIRECTORY_DOWNLOADS);
-                // Happens in rare case when Android doesn't create the download directory for this
-                // volume.
-                if (!volumeDownloadDir.isDirectory()) {
-                    Log.w(TAG, "Download dir missing: %s, parent dir:%s, isDirectory:%s",
-                            volumeDownloadDir.getAbsolutePath(), volumeDir.getAbsolutePath(),
-                            volumeDir.isDirectory());
-                }
+                File volumeDir = ContextUtils.getApplicationContext()
+                                         .getSystemService(StorageManager.class)
+                                         .getStorageVolume(MediaStore.Files.getContentUri(vol))
+                                         .getDirectory();
+                assert volumeDir.isDirectory();
+                assert volumeDir.exists();
+
+                File volumeDownloadDir =
+                        new File(volumeDir.getAbsolutePath(), Environment.DIRECTORY_DOWNLOADS);
+                assert volumeDownloadDir.isDirectory();
+                assert volumeDownloadDir.exists();
                 files.add(volumeDownloadDir);
             }
         }
@@ -273,7 +272,7 @@ public abstract class PathUtils {
         return toAbsolutePathStrings(files);
     }
 
-    private static @NonNull String[] toAbsolutePathStrings(@NonNull List<File> files) {
+    private static String[] toAbsolutePathStrings(List<File> files) {
         ArrayList<String> absolutePaths = new ArrayList<String>();
         for (File file : files) {
             if (file == null || TextUtils.isEmpty(file.getAbsolutePath())) continue;

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,13 +23,13 @@ class SaveCardInfobarBannerInteractionHandler
   SaveCardInfobarBannerInteractionHandler();
   ~SaveCardInfobarBannerInteractionHandler() override;
 
-  // Instructs the handler to update the credentials with `cardholder_name`,
-  // `expiration_date_month`, and `expiration_date_year`. This replaces
+  // Instructs the handler to update the credentials with |cardholder_name|,
+  // |expiration_date_month|, and |expiration_date_year|. This replaces
   // MainButtonTapped.
   virtual void SaveCredentials(InfoBarIOS* infobar,
-                               std::u16string cardholder_name,
-                               std::u16string expiration_date_month,
-                               std::u16string expiration_date_year);
+                               base::string16 cardholder_name,
+                               base::string16 expiration_date_month,
+                               base::string16 expiration_date_year);
 
   // Overrides InfobarBannerInteractionHandler implementation because a banner
   // dismissal should not call InfoBarDismissed();
@@ -40,7 +40,7 @@ class SaveCardInfobarBannerInteractionHandler
   std::unique_ptr<InfobarBannerOverlayRequestCallbackInstaller>
   CreateBannerInstaller() override;
 
-  // Returns the SaveCard delegate from `infobar`.
+  // Returns the SaveCard delegate from |infobar|.
   autofill::AutofillSaveCardInfoBarDelegateMobile* GetInfobarDelegate(
       InfoBarIOS* infobar);
 };

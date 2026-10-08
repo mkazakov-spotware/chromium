@@ -1,25 +1,39 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_PAINT_PAINT_RECORDER_H_
 #define CC_PAINT_PAINT_RECORDER_H_
 
-#include <memory>
 #include "base/compiler_specific.h"
-#include "cc/paint/display_item_list.h"
+#include "base/optional.h"
 #include "cc/paint/paint_record.h"
 #include "cc/paint/record_paint_canvas.h"
-#include "ui/gfx/geometry/size.h"
 
 namespace cc {
 
 class DisplayItemList;
 
-class CC_PAINT_EXPORT PaintRecorderBase {
+class CC_PAINT_EXPORT PaintRecorder {
  public:
-  PaintRecorderBase(const PaintRecorderBase&) = delete;
-  PaintRecorderBase& operator=(const PaintRecorderBase&) = delete;
+  PaintRecorder();
+  PaintRecorder(const PaintRecorder&) = delete;
+  virtual ~PaintRecorder();
+
+  PaintRecorder& operator=(const PaintRecorder&) = delete;
+
+  PaintCanvas* beginRecording(const SkRect& bounds);
+
+  // TODO(enne): should make everything go through the non-rect version.
+  // See comments in RecordPaintCanvas ctor for why.
+  PaintCanvas* beginRecording(SkScalar width, SkScalar height) {
+    return beginRecording(SkRect::MakeWH(width, height));
+  }
+
+  // Only valid while recording.
+  ALWAYS_INLINE RecordPaintCanvas* getRecordingCanvas() {
+    return canvas_.get();
+  }
 
   sk_sp<PaintRecord> finishRecordingAsPicture();
 
@@ -28,43 +42,13 @@ class CC_PAINT_EXPORT PaintRecorderBase {
   // Ops with nested paint ops are considered as a single op.
   size_t num_paint_ops() const;
 
-  size_t TotalOpCount() const { return display_item_list_->TotalOpCount(); }
-  size_t OpBytesUsed() const { return display_item_list_->OpBytesUsed(); }
-
-  // Only valid while recording.
-  PaintCanvas* getRecordingCanvas() {
-    return is_recording_ ? canvas_.get() : nullptr;
-  }
-
  protected:
-  PaintRecorderBase();
-  ~PaintRecorderBase();
-
-  // The subclass must create `canvas_` before calling this method.
-  void beginRecording();
-
-  bool is_recording_ = false;
-  scoped_refptr<DisplayItemList> display_item_list_;
-  std::unique_ptr<RecordPaintCanvas> canvas_;
-};
-
-class CC_PAINT_EXPORT PaintRecorder : public PaintRecorderBase {
- public:
-  // Begins recording. The returned PaintCanvas doesn't support inspection of
-  // the current clip and the CTM during recording.
-  PaintCanvas* beginRecording();
-};
-
-class CC_PAINT_EXPORT InspectablePaintRecorder : public PaintRecorderBase {
- public:
-  // Begins recording. The returned PaintCanvas supports inspection of the
-  // current clip and the CTM during recording. `size` doesn't affect the
-  // recorded results because all operations will be recorded regardless of it,
-  // but it determines the top-level device clip.
-  PaintCanvas* beginRecording(const gfx::Size& size);
+  virtual std::unique_ptr<RecordPaintCanvas> CreateCanvas(DisplayItemList* list,
+                                                          const SkRect& bounds);
 
  private:
-  gfx::Size size_;
+  scoped_refptr<DisplayItemList> display_item_list_;
+  std::unique_ptr<RecordPaintCanvas> canvas_;
 };
 
 }  // namespace cc

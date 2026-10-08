@@ -64,10 +64,6 @@ class PLATFORM_EXPORT FontDataForRangeSet
     return font_data_ && font_data_->IsLoadingFallback();
   }
 
-  bool IsPendingDataUrlCustomFont() const {
-    return font_data_ && font_data_->IsPendingDataUrlCustomFont();
-  }
-
  protected:
   scoped_refptr<SimpleFontData> font_data_;
   scoped_refptr<UnicodeRangeSet> range_set_;
@@ -85,4 +81,4 @@ class PLATFORM_EXPORT FontDataForRangeSetFromCache
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_DATA_FOR_RANGE_SET_H_
+#endif

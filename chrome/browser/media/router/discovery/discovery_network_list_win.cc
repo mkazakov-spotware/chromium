@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <ws2tcpip.h>
 
 #include <iphlpapi.h>  // NOLINT
+
 #include <windot11.h>  // NOLINT
 #include <wlanapi.h>   // NOLINT
 
@@ -20,6 +21,7 @@
 #include "base/check.h"
 #include "base/containers/small_map.h"
 #include "base/memory/ptr_util.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 
 namespace media_router {
@@ -68,7 +70,7 @@ class WlanApi {
   static std::unique_ptr<WlanApi> Create() {
     static const wchar_t* kWlanDllPath = L"%WINDIR%\\system32\\wlanapi.dll";
     wchar_t path[MAX_PATH] = {0};
-    ExpandEnvironmentStrings(kWlanDllPath, path, std::size(path));
+    ExpandEnvironmentStrings(kWlanDllPath, path, base::size(path));
     HINSTANCE library =
         LoadLibraryEx(path, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
     if (!library) {
@@ -76,9 +78,6 @@ class WlanApi {
     }
     return base::WrapUnique(new WlanApi(library));
   }
-
-  WlanApi(const WlanApi&) = delete;
-  WlanApi& operator=(const WlanApi&) = delete;
 
   ~WlanApi() { FreeLibrary(library_); }
 
@@ -104,6 +103,8 @@ class WlanApi {
   }
 
   HINSTANCE library_;
+
+  DISALLOW_COPY_AND_ASSIGN(WlanApi);
 };
 
 class ScopedWlanClientHandle {
@@ -111,10 +112,6 @@ class ScopedWlanClientHandle {
   explicit ScopedWlanClientHandle(
       const WlanCloseHandleFunction wlan_close_handle)
       : wlan_close_handle_(wlan_close_handle) {}
-
-  ScopedWlanClientHandle(const ScopedWlanClientHandle&) = delete;
-  ScopedWlanClientHandle& operator=(const ScopedWlanClientHandle&) = delete;
-
   ~ScopedWlanClientHandle() {
     if (handle != nullptr) {
       wlan_close_handle_(handle, nullptr);
@@ -125,6 +122,8 @@ class ScopedWlanClientHandle {
 
  private:
   const WlanCloseHandleFunction wlan_close_handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedWlanClientHandle);
 };
 
 // Returns a map from a network interface's GUID to its MAC address.  This

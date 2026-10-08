@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,8 @@
 #include "ash/system/network/network_icon_animation_observer.h"
 #include "ash/system/network/network_info.h"
 #include "ash/system/network/network_state_list_detailed_view.h"
+#include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom-forward.h"
 #include "chromeos/services/network_config/public/mojom/network_types.mojom-forward.h"
@@ -24,12 +26,13 @@ class View;
 }  // namespace views
 
 namespace ash {
-
 class HoverHighlightView;
-class NetworkSectionHeaderView;
-class MobileSectionHeaderView;
 class TrayInfoLabel;
 class TriView;
+
+namespace tray {
+class NetworkSectionHeaderView;
+class MobileSectionHeaderView;
 class WifiSectionHeaderView;
 
 // A list of available networks of a given type. This class is used for all
@@ -38,10 +41,6 @@ class NetworkListView : public NetworkStateListDetailedView,
                         public network_icon::AnimationObserver {
  public:
   NetworkListView(DetailedViewDelegate* delegate, LoginStatus login);
-
-  NetworkListView(const NetworkListView&) = delete;
-  NetworkListView& operator=(const NetworkListView&) = delete;
-
   ~NetworkListView() override;
 
   // NetworkStateListDetailedView:
@@ -90,12 +89,12 @@ class NetworkListView : public NetworkStateListDetailedView,
   // connections.
   std::unique_ptr<std::set<std::string>> UpdateNetworkChildren(
       chromeos::network_config::mojom::NetworkType type,
-      size_t child_index);
-  void UpdateNetworkChild(size_t index, const NetworkInfo* info);
+      int child_index);
+  void UpdateNetworkChild(int index, const NetworkInfo* info);
 
   // Reorders children of |scroll_content()| as necessary placing |view| at
   // |index|.
-  void PlaceViewAtIndex(views::View* view, size_t index);
+  void PlaceViewAtIndex(views::View* view, int index);
 
   // Creates an info label with text specified by |message_id| and adds it to
   // |scroll_content()| if necessary or updates the text and reorders the
@@ -104,17 +103,17 @@ class NetworkListView : public NetworkStateListDetailedView,
   // |scroll_content()| and destroys it. |info_label_ptr| is an in/out parameter
   // and is only modified if the info label is created or destroyed.
   void UpdateInfoLabel(int message_id,
-                       size_t insertion_index,
+                       int insertion_index,
                        TrayInfoLabel** info_label_ptr);
 
   // Updates a cellular/Wi-Fi header row |view| and reorders the
   // |scroll_content()| placing the |view| at |child_index|. Returns the index
   // where the next child should be inserted, i.e., the index directly after the
   // last inserted child.
-  size_t UpdateNetworkSectionHeader(
+  int UpdateNetworkSectionHeader(
       chromeos::network_config::mojom::NetworkType type,
       bool enabled,
-      size_t child_index,
+      int child_index,
       NetworkSectionHeaderView* view,
       views::Separator** separator_view);
 
@@ -126,11 +125,11 @@ class NetworkListView : public NetworkStateListDetailedView,
   bool NeedUpdateViewForNetwork(const NetworkInfo& info) const;
 
   // Creates an accessibility label for given network.
-  std::u16string GenerateAccessibilityLabel(const NetworkInfo& info);
+  base::string16 GenerateAccessibilityLabel(const NetworkInfo& info);
 
   // Creates an accessibility description for the given network that includes
   // all details that are shown in the ui.
-  std::u16string GenerateAccessibilityDescription(const NetworkInfo& info);
+  base::string16 GenerateAccessibilityDescription(const NetworkInfo& info);
 
   bool needs_relayout_ = false;
 
@@ -163,8 +162,11 @@ class NetworkListView : public NetworkStateListDetailedView,
   NetworkInfoMap last_network_info_map_;
 
   base::WeakPtrFactory<NetworkListView> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkListView);
 };
 
+}  // namespace tray
 }  // namespace ash
 
 #endif  // ASH_SYSTEM_NETWORK_NETWORK_LIST_VIEW_H_

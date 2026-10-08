@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 
 namespace blink {
+
+class StringOrTrustedScriptURL;
 
 // This is an "access wrapper" for the 'href' attribute. The object
 // itself holds the value for 'href' in the null/default NS and wraps
@@ -24,9 +26,8 @@ class SVGAnimatedHref final : public SVGAnimatedString {
   SVGString* CurrentValue();
   const SVGString* CurrentValue() const;
 
-  V8UnionStringOrTrustedScriptURL* baseVal() override;
-  void setBaseVal(const V8UnionStringOrTrustedScriptURL* value,
-                  ExceptionState& exception_state) override;
+  void baseVal(StringOrTrustedScriptURL&) override;
+  void setBaseVal(const StringOrTrustedScriptURL&, ExceptionState&) override;
   String animVal() override;
 
   bool IsSpecified() const {

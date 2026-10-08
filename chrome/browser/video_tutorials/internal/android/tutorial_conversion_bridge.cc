@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,7 @@ ScopedJavaLocalRef<jobject> TutorialConversionBridge::CreateJavaTutorials(
 
 ScopedJavaLocalRef<jobject> TutorialConversionBridge::CreateJavaTutorial(
     JNIEnv* env,
-    absl::optional<Tutorial> tutorial) {
+    base::Optional<Tutorial> tutorial) {
   ScopedJavaLocalRef<jobject> jobj;
   if (tutorial.has_value()) {
     jobj = CreateJavaTutorialAndMaybeAddToList(

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests XHR replaying. Bug 95187\n`);
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   function lastRequest() {
@@ -33,14 +33,12 @@
   async function testXHRReplay(method, url, async, user, password, headers, withCredentials, payload, type, callback) {
     NetworkTestRunner.makeXHR(method, url, async, user, password, headers, withCredentials, payload, type);
 
-    var originalRequest = await TestRunner.waitForEvent(
-        NetworkTestRunner.NetworkLogEvents.RequestAdded,
-        NetworkTestRunner.networkLog());
+    var originalRequest =
+        await TestRunner.waitForEvent(SDK.NetworkLog.Events.RequestAdded, SDK.NetworkLog.instance());
     await dumpRequest(originalRequest);
     TestRunner.NetworkAgent.replayXHR(originalRequest.requestId());
-    var replayedRequest = await TestRunner.waitForEvent(
-        NetworkTestRunner.NetworkLogEvents.RequestAdded,
-        NetworkTestRunner.networkLog());
+    var replayedRequest =
+        await TestRunner.waitForEvent(SDK.NetworkLog.Events.RequestAdded, SDK.NetworkLog.instance());
 
     assertRequestEqual(originalRequest, replayedRequest);
     callback();

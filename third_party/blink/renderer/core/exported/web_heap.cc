@@ -30,17 +30,26 @@
 
 #include "third_party/blink/public/web/web_heap.h"
 
-#include "third_party/blink/renderer/platform/heap/thread_state.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
 void WebHeap::CollectGarbageForTesting() {
   ThreadState::Current()->CollectAllGarbageForTesting(
-      ThreadState::StackState::kMayContainHeapPointers);
+      BlinkGC::kHeapPointersOnStack);
 }
 
 void WebHeap::CollectAllGarbageForTesting() {
   ThreadState::Current()->CollectAllGarbageForTesting();
+}
+
+void WebHeap::SetAllocationHook(AllocationHook alloc_hook) {
+  HeapAllocHooks::SetAllocationHook(alloc_hook);
+}
+
+void WebHeap::SetFreeHook(FreeHook free_hook) {
+  HeapAllocHooks::SetFreeHook(free_hook);
 }
 
 }  // namespace blink

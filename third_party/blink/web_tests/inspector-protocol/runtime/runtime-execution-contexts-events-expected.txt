@@ -3,10 +3,12 @@ Page context was created
 Create new frame
 Frame context was created
 Navigate frame
+Frame's context was destroyed
 Frame context was created
 Remove frame
+Frame's context was destroyed
 Create new crafted frame
 Crafted frame context was created
 Remove crafted frame
-All contexts destroyed!
+Crafted frame's context was destroyed
 

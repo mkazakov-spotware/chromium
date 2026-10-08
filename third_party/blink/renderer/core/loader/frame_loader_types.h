@@ -33,9 +33,19 @@ namespace blink {
 
 enum ShouldSendReferrer { kMaybeSendReferrer, kNeverSendReferrer };
 
+enum ReasonForCallingAllowPlugins {
+  kAboutToInstantiatePlugin,
+  kNotAboutToInstantiatePlugin
+};
+
 enum LoadStartType {
   kNavigationToDifferentDocument,
   kNavigationWithinSameDocument
+};
+
+enum SameDocumentNavigationSource {
+  kSameDocumentNavigationDefault,
+  kSameDocumentNavigationHistoryApi,
 };
 
 enum class SavePreviousDocumentResources {
@@ -53,7 +63,6 @@ enum SinglePageAppNavigationType {
   kSPANavTypeHistoryPushStateOrReplaceState = 0,
   kSPANavTypeSameDocumentBackwardOrForward = 1,
   kSPANavTypeOtherFragmentNavigation = 2,
-  kSPANavTypeNavigationApiIntercept = 3,
   kSPANavTypeCount
 };
 
@@ -69,14 +78,6 @@ enum class ClientNavigationReason {
   kNone
 };
 
-enum class CancelNavigationReason {
-  // The navigation was dropped, e.g. due to a 204, 205, or Content-Disposition:
-  // attachment.
-  kDropped,
-  // Anything else (including error cases that don't drop the navigation).
-  kOther
-};
-
 enum class CommitReason {
   // Committing initial empty document.
   kInitialization,
@@ -90,4 +91,4 @@ enum class CommitReason {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LOADER_FRAME_LOADER_TYPES_H_
+#endif

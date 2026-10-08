@@ -1,1 +1,6 @@
-file://components/webxr/OWNERS
+alcooper@chromium.org
+bajones@chromium.org
+klausw@chromium.org
+
+# TEAM: xr-dev@chromium.org
+# COMPONENT: Blink>WebXR

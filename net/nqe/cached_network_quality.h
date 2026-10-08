@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,11 @@
 #include "net/nqe/effective_connection_type.h"
 #include "net/nqe/network_quality.h"
 
-namespace net::nqe::internal {
+namespace net {
+
+namespace nqe {
+
+namespace internal {
 
 // CachedNetworkQuality stores the quality of a previously seen network.
 class NET_EXPORT_PRIVATE CachedNetworkQuality {
@@ -52,6 +56,10 @@ class NET_EXPORT_PRIVATE CachedNetworkQuality {
   EffectiveConnectionType effective_connection_type_;
 };
 
-}  // namespace net::nqe::internal
+}  // namespace internal
+
+}  // namespace nqe
+
+}  // namespace net
 
 #endif  // NET_NQE_CACHED_NETWORK_QUALITY_H_

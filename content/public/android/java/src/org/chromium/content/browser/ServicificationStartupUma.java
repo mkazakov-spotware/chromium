@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,24 +12,24 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * A singleton class to record metrics about how Chrome is launched, either as full browser or
- * minimal browser.
+ * An singleton class to record metrics about how Chrome is launched, either as full browser or only
+ * the ServiceManager.
  */
 public class ServicificationStartupUma {
     // This enum is used to back UMA histograms, and should therefore be treated as append-only.
     @IntDef({ServicificationStartup.CHROME_COLD, ServicificationStartup.CHROME_HALF_WARM,
-            ServicificationStartup.MINIMAL_BROWSER_COLD,
-            ServicificationStartup.MINIMAL_BROWSER_WARM})
+            ServicificationStartup.SERVICE_MANAGER_COLD,
+            ServicificationStartup.SERVICE_MANAGER_WARM})
     @Retention(RetentionPolicy.SOURCE)
     public @interface ServicificationStartup {
         // Cold start of Chrome as a full browser.
         int CHROME_COLD = 0;
-        // Half warm start of Chrome.
+        // Half warm start of Chrome with ServiceManager is already running.
         int CHROME_HALF_WARM = 1;
-        // Cold start of only the minimal browser.
-        int MINIMAL_BROWSER_COLD = 2;
-        // Warm start of only the minimal browser when already running.
-        int MINIMAL_BROWSER_WARM = 3;
+        // Cold start of only ServiceManager.
+        int SERVICE_MANAGER_COLD = 2;
+        // Warm start of only ServiceManager when the ServiceManager is already running.
+        int SERVICE_MANAGER_WARM = 3;
 
         int NUM_ENTRIES = 4;
     }
@@ -38,7 +38,7 @@ public class ServicificationStartupUma {
     private int[] mPendingCommits = new int[ServicificationStartup.NUM_ENTRIES];
     private boolean mIsNativeInitialized;
 
-    private static final ServicificationStartupUma sInstance = new ServicificationStartupUma();
+    private final static ServicificationStartupUma sInstance = new ServicificationStartupUma();
 
     /**
      * Returns the singleton instance.
@@ -50,21 +50,21 @@ public class ServicificationStartupUma {
     /**
      * Returns the startup mode.
      */
-    public static int getStartupMode(boolean isFullBrowserStarted, boolean isMinimalBrowserStarted,
-            boolean startMinimalBrowser) {
+    public static int getStartupMode(boolean isFullBrowserStarted, boolean isServiceManagerStarted,
+            boolean startServiceManagerOnly) {
         if (isFullBrowserStarted) {
             return -1;
         }
 
-        if (isMinimalBrowserStarted) {
-            if (startMinimalBrowser) {
-                return ServicificationStartup.MINIMAL_BROWSER_WARM;
+        if (isServiceManagerStarted) {
+            if (startServiceManagerOnly) {
+                return ServicificationStartup.SERVICE_MANAGER_WARM;
             }
             return ServicificationStartup.CHROME_HALF_WARM;
         }
 
-        if (startMinimalBrowser) {
-            return ServicificationStartup.MINIMAL_BROWSER_COLD;
+        if (startServiceManagerOnly) {
+            return ServicificationStartup.SERVICE_MANAGER_COLD;
         }
         return ServicificationStartup.CHROME_COLD;
     }

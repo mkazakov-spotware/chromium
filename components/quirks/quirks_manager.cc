@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,11 @@
 #include "base/memory/ptr_util.h"
 #include "base/path_service.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner.h"
+#include "base/task_runner_util.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/quirks/pref_names.h"
@@ -134,8 +136,8 @@ void QuirksManager::RequestIccProfilePath(
   }
 
   std::string name = IdToFileName(product_id);
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      task_runner_.get(), FROM_HERE,
       base::BindOnce(&CheckForIccFile,
                      delegate_->GetDisplayProfileDirectory().Append(name)),
       base::BindOnce(&QuirksManager::OnIccFilePathRequestCompleted,
@@ -166,15 +168,15 @@ void QuirksManager::OnIccFilePathRequestCompleted(
     return;
   }
 
-  double last_check = local_state_->GetDict(prefs::kQuirksClientLastServerCheck)
-                          .FindDouble(IdToHexString(product_id))
-                          .value_or(0.0);
+  double last_check = 0.0;
+  local_state_->GetDictionary(prefs::kQuirksClientLastServerCheck)
+      ->GetDouble(IdToHexString(product_id), &last_check);
 
   const base::TimeDelta time_since =
       base::Time::Now() - base::Time::FromDoubleT(last_check);
 
   // Don't need server check if we've checked within last 30 days.
-  if (time_since < base::Days(kDaysBetweenServerChecks)) {
+  if (time_since < base::TimeDelta::FromDays(kDaysBetweenServerChecks)) {
     VLOG(2) << time_since.InDays()
             << " days since last Quirks Server check for display "
             << IdToHexString(product_id);
@@ -204,7 +206,7 @@ void QuirksManager::SetLastServerCheck(int64_t product_id,
                                        const base::Time& last_check) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DictionaryPrefUpdate dict(local_state_, prefs::kQuirksClientLastServerCheck);
-  dict->SetDoubleKey(IdToHexString(product_id), last_check.ToDoubleT());
+  dict->SetDouble(IdToHexString(product_id), last_check.ToDoubleT());
 }
 
 }  // namespace quirks

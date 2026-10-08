@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,11 +19,11 @@
 #include "build/build_config.h"
 #include "remoting/base/auto_thread_task_runner.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/file_descriptor_watcher_posix.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -31,15 +31,15 @@ namespace remoting {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 std::unique_ptr<base::win::ScopedCOMInitializer> CreateComInitializer(
     AutoThread::ComInitType type) {
   std::unique_ptr<base::win::ScopedCOMInitializer> initializer;
   if (type == AutoThread::COM_INIT_MTA) {
-    initializer = std::make_unique<base::win::ScopedCOMInitializer>(
-        base::win::ScopedCOMInitializer::kMTA);
+    initializer.reset(new base::win::ScopedCOMInitializer(
+        base::win::ScopedCOMInitializer::kMTA));
   } else if (type == AutoThread::COM_INIT_STA) {
-    initializer = std::make_unique<base::win::ScopedCOMInitializer>();
+    initializer.reset(new base::win::ScopedCOMInitializer());
   }
   return initializer;
 }
@@ -83,7 +83,7 @@ scoped_refptr<AutoThreadTaskRunner> AutoThread::Create(
   return CreateWithType(name, joiner, base::MessagePumpType::DEFAULT);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // static
 scoped_refptr<AutoThreadTaskRunner> AutoThread::CreateWithLoopAndComInitTypes(
     const char* name,
@@ -102,7 +102,7 @@ scoped_refptr<AutoThreadTaskRunner> AutoThread::CreateWithLoopAndComInitTypes(
 
 AutoThread::AutoThread(const char* name)
     : startup_data_(nullptr),
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       com_init_type_(COM_INIT_NONE),
 #endif
       thread_(),
@@ -113,7 +113,7 @@ AutoThread::AutoThread(const char* name)
 
 AutoThread::AutoThread(const char* name, AutoThreadTaskRunner* joiner)
     : startup_data_(nullptr),
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       com_init_type_(COM_INIT_NONE),
 #endif
       thread_(),
@@ -137,7 +137,7 @@ AutoThread::~AutoThread() {
 scoped_refptr<AutoThreadTaskRunner> AutoThread::StartWithType(
     base::MessagePumpType type) {
   DCHECK(thread_.is_null());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DCHECK(com_init_type_ != COM_INIT_STA || type == base::MessagePumpType::UI);
 #endif
 
@@ -166,7 +166,7 @@ scoped_refptr<AutoThreadTaskRunner> AutoThread::StartWithType(
   return startup_data.task_runner;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void AutoThread::SetComInitType(ComInitType com_init_type) {
   DCHECK_EQ(com_init_type_, COM_INIT_NONE);
   com_init_type_ = com_init_type;
@@ -213,14 +213,14 @@ void AutoThread::ThreadMain() {
   // startup_data_ can't be touched anymore since the starting thread is now
   // unlocked.
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   // Allow threads running a MessageLoopForIO to use FileDescriptorWatcher.
   std::unique_ptr<base::FileDescriptorWatcher> file_descriptor_watcher;
   if (single_thread_task_executor.type() == base::MessagePumpType::IO) {
-    file_descriptor_watcher = std::make_unique<base::FileDescriptorWatcher>(
-        single_thread_task_executor.task_runner());
+    file_descriptor_watcher.reset(new base::FileDescriptorWatcher(
+        single_thread_task_executor.task_runner()));
   }
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   // Initialize COM on the thread, if requested.
   std::unique_ptr<base::win::ScopedCOMInitializer> com_initializer(
       CreateComInitializer(com_init_type_));

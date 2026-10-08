@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,10 @@
 
 #include <cstddef>
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/renderer_context_menu/render_view_context_menu_proxy.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/models/simple_menu_model.h"
@@ -38,16 +38,11 @@ class MockRenderViewContextMenu : public ui::SimpleMenuModel::Delegate,
     bool enabled;
     bool checked;
     bool hidden;
-    std::u16string title;
+    base::string16 title;
     ui::ImageModel icon;
   };
 
   explicit MockRenderViewContextMenu(bool incognito);
-
-  MockRenderViewContextMenu(const MockRenderViewContextMenu&) = delete;
-  MockRenderViewContextMenu& operator=(const MockRenderViewContextMenu&) =
-      delete;
-
   ~MockRenderViewContextMenu() override;
 
   // SimpleMenuModel::Delegate implementation.
@@ -56,14 +51,14 @@ class MockRenderViewContextMenu : public ui::SimpleMenuModel::Delegate,
   void ExecuteCommand(int command_id, int event_flags) override;
 
   // RenderViewContextMenuProxy implementation.
-  void AddMenuItem(int command_id, const std::u16string& title) override;
+  void AddMenuItem(int command_id, const base::string16& title) override;
   void AddMenuItemWithIcon(int command_id,
-                           const std::u16string& title,
+                           const base::string16& title,
                            const ui::ImageModel& icon) override;
-  void AddCheckItem(int command_id, const std::u16string& title) override;
+  void AddCheckItem(int command_id, const base::string16& title) override;
   void AddSeparator() override;
   void AddSubMenu(int command_id,
-                  const std::u16string& label,
+                  const base::string16& label,
                   ui::MenuModel* model) override;
   void AddSubMenuWithStringIdAndIcon(int command_id,
                                      int message_id,
@@ -72,11 +67,10 @@ class MockRenderViewContextMenu : public ui::SimpleMenuModel::Delegate,
   void UpdateMenuItem(int command_id,
                       bool enabled,
                       bool hidden,
-                      const std::u16string& title) override;
+                      const base::string16& title) override;
   void UpdateMenuIcon(int command_id, const ui::ImageModel& icon) override;
   void RemoveMenuItem(int command_id) override;
   void RemoveAdjacentSeparators() override;
-  void RemoveSeparatorBeforeMenuItem(int command_id) override;
   void AddSpellCheckServiceItem(bool is_checked) override;
   void AddAccessibilityLabelsServiceItem(bool is_checked) override;
   content::RenderViewHost* GetRenderViewHost() const override;
@@ -107,21 +101,23 @@ class MockRenderViewContextMenu : public ui::SimpleMenuModel::Delegate,
   // An observer used for initializing the status of menu items added in this
   // test. This is owned by our owner and the owner is responsible for its
   // lifetime.
-  raw_ptr<RenderViewContextMenuObserver, DanglingUntriaged> observer_;
+  RenderViewContextMenuObserver* observer_;
 
   // A dummy profile used in this test. Call GetPrefs() when a test needs to
   // change this profile and use PrefService methods.
   std::unique_ptr<TestingProfile> original_profile_;
 
   // Either |original_profile_| or its incognito profile.
-  raw_ptr<Profile, DanglingUntriaged> profile_;
+  Profile* profile_;
 
   // The WebContents returned by GetWebContents(). This is owned by our owner
   // and the owner is responsible for its lifetime.
-  raw_ptr<content::WebContents, DanglingUntriaged> web_contents_ = nullptr;
+  content::WebContents* web_contents_ = nullptr;
 
   // A list of menu items added.
   std::vector<MockMenuItem> items_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockRenderViewContextMenu);
 };
 
 #endif  // CHROME_BROWSER_RENDERER_CONTEXT_MENU_MOCK_RENDER_VIEW_CONTEXT_MENU_H_

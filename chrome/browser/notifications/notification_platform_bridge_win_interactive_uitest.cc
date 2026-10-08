@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,7 @@
 #include "base/metrics/statistics_recorder.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/string16.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -36,7 +37,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/notifications/notification_operation.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
@@ -82,13 +82,50 @@ Profile* CreateTestingProfile(const std::string& profile_name) {
   return CreateTestingProfile(path);
 }
 
-std::wstring GetToastString(const std::wstring& notification_id,
-                            const std::wstring& profile_id,
-                            bool incognito) {
+base::string16 GetToastString(const base::string16& notification_id,
+                              const base::string16& profile_id,
+                              bool incognito) {
   return base::StringPrintf(
       LR"(<toast launch="0|0|%ls|%d|https://foo.com/|%ls"></toast>)",
       profile_id.c_str(), incognito, notification_id.c_str());
 }
+
+// Observes the passed |histogram_name| and calls |callback| when a new sample
+// is recorded. Stops observing after the first sample or when this object is
+// destructed. Note that this may not call |callback| if it has been destructed
+// before a sample has been recorded.
+class ScopedHistogramObserver {
+ public:
+  ScopedHistogramObserver(const std::string& histogram_name,
+                          base::OnceClosure callback)
+      : histogram_name_(histogram_name), callback_(std::move(callback)) {
+    DCHECK(callback_);
+    // base::Unretained is safe as we remove the callback before destruction.
+    EXPECT_TRUE(base::StatisticsRecorder::SetCallback(
+        histogram_name_,
+        base::BindRepeating(&ScopedHistogramObserver::OnHistogramRecorded,
+                            base::Unretained(this))));
+  }
+  ScopedHistogramObserver(const ScopedHistogramObserver&) = delete;
+  ScopedHistogramObserver& operator=(const ScopedHistogramObserver&) = delete;
+  ~ScopedHistogramObserver() {
+    // Only clear the callback once (either here or in OnHistogramRecorded()) so
+    // we don't clear any callbacks from other observers.
+    if (callback_)
+      base::StatisticsRecorder::ClearCallback(histogram_name_);
+  }
+
+ private:
+  void OnHistogramRecorded(const char* histogram_name,
+                           uint64_t name_hash,
+                           base::HistogramBase::Sample sample) {
+    base::StatisticsRecorder::ClearCallback(histogram_name_);
+    std::move(callback_).Run();
+  }
+
+  std::string histogram_name_;
+  base::OnceClosure callback_;
+};
 
 }  // namespace
 
@@ -111,13 +148,13 @@ class NotificationPlatformBridgeWinUITest : public InProcessBrowserTest {
   void TearDownOnMainThread() override { display_service_tester_.reset(); }
 
   void HandleOperation(const base::RepeatingClosure& quit_task,
-                       NotificationOperation operation,
+                       NotificationCommon::Operation operation,
                        NotificationHandler::Type notification_type,
                        const GURL& origin,
                        const std::string& notification_id,
-                       const absl::optional<int>& action_index,
-                       const absl::optional<std::u16string>& reply,
-                       const absl::optional<bool>& by_user) {
+                       const base::Optional<int>& action_index,
+                       const base::Optional<base::string16>& reply,
+                       const base::Optional<bool>& by_user) {
     last_operation_ = operation;
     last_notification_type_ = notification_type;
     last_origin_ = origin;
@@ -143,13 +180,6 @@ class NotificationPlatformBridgeWinUITest : public InProcessBrowserTest {
     quit_task.Run();
   }
 
-  void OnHistogramRecorded(const base::RepeatingClosure& quit_closure,
-                           const char* histogram_name,
-                           uint64_t name_hash,
-                           base::HistogramBase::Sample sample) {
-    quit_closure.Run();
-  }
-
  protected:
   void ProcessLaunchIdViaCmdLine(const std::string& launch_id,
                                  const std::string& inline_reply) {
@@ -171,13 +201,13 @@ class NotificationPlatformBridgeWinUITest : public InProcessBrowserTest {
     run_loop.Run();
   }
 
-  bool ValidateNotificationValues(NotificationOperation operation,
+  bool ValidateNotificationValues(NotificationCommon::Operation operation,
                                   NotificationHandler::Type notification_type,
                                   const GURL& origin,
                                   const std::string& notification_id,
-                                  const absl::optional<int>& action_index,
-                                  const absl::optional<std::u16string>& reply,
-                                  const absl::optional<bool>& by_user) {
+                                  const base::Optional<int>& action_index,
+                                  const base::Optional<base::string16>& reply,
+                                  const base::Optional<bool>& by_user) {
     return operation == last_operation_ &&
            notification_type == last_notification_type_ &&
            origin == last_origin_ && notification_id == last_notification_id_ &&
@@ -187,13 +217,13 @@ class NotificationPlatformBridgeWinUITest : public InProcessBrowserTest {
 
   std::unique_ptr<NotificationDisplayServiceTester> display_service_tester_;
 
-  NotificationOperation last_operation_;
+  NotificationCommon::Operation last_operation_;
   NotificationHandler::Type last_notification_type_;
   GURL last_origin_;
   std::string last_notification_id_;
-  absl::optional<int> last_action_index_;
-  absl::optional<std::u16string> last_reply_;
-  absl::optional<bool> last_by_user_;
+  base::Optional<int> last_action_index_;
+  base::Optional<base::string16> last_reply_;
+  base::Optional<bool> last_by_user_;
 
   std::set<std::string> displayed_notifications_;
 
@@ -206,7 +236,7 @@ class FakeIToastActivatedEventArgs
               Microsoft::WRL::WinRt | Microsoft::WRL::InhibitRoOriginateError>,
           winui::Notifications::IToastActivatedEventArgs> {
  public:
-  explicit FakeIToastActivatedEventArgs(const std::wstring& args)
+  explicit FakeIToastActivatedEventArgs(const base::string16& args)
       : arguments_(args) {}
   FakeIToastActivatedEventArgs(const FakeIToastActivatedEventArgs&) = delete;
   FakeIToastActivatedEventArgs& operator=(const FakeIToastActivatedEventArgs&) =
@@ -221,7 +251,7 @@ class FakeIToastActivatedEventArgs
   }
 
  private:
-  std::wstring arguments_;
+  base::string16 arguments_;
 };
 
 IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleEvent) {
@@ -254,18 +284,18 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleEvent) {
   // Simulate clicks on the toast.
   NotificationPlatformBridgeWin* bridge = GetBridge();
   ASSERT_TRUE(bridge);
-  bridge->ForwardHandleEventForTesting(NotificationOperation::kClick, &toast,
-                                       &args, absl::nullopt);
+  bridge->ForwardHandleEventForTesting(NotificationCommon::OPERATION_CLICK,
+                                       &toast, &args, base::nullopt);
   run_loop.Run();
 
   // Validate the click values.
-  EXPECT_EQ(NotificationOperation::kClick, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLICK, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
   EXPECT_EQ(1, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
-  EXPECT_EQ(absl::nullopt, last_by_user_);
+  EXPECT_EQ(base::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_by_user_);
 }
 
 IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleActivation) {
@@ -286,12 +316,12 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleActivation) {
   run_loop.Run();
 
   // Validate the values.
-  EXPECT_EQ(NotificationOperation::kClick, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLICK, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
   EXPECT_EQ(1, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_reply_);
   EXPECT_EQ(true, last_by_user_);
 }
 
@@ -325,18 +355,18 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleSettings) {
   // Simulate clicks on the toast.
   NotificationPlatformBridgeWin* bridge = GetBridge();
   ASSERT_TRUE(bridge);
-  bridge->ForwardHandleEventForTesting(NotificationOperation::kSettings, &toast,
-                                       &args, absl::nullopt);
+  bridge->ForwardHandleEventForTesting(NotificationCommon::OPERATION_SETTINGS,
+                                       &toast, &args, base::nullopt);
   run_loop.Run();
 
   // Validate the click values.
-  EXPECT_EQ(NotificationOperation::kSettings, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_SETTINGS, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
-  EXPECT_EQ(absl::nullopt, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
-  EXPECT_EQ(absl::nullopt, last_by_user_);
+  EXPECT_EQ(base::nullopt, last_action_index_);
+  EXPECT_EQ(base::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_by_user_);
 }
 
 IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleClose) {
@@ -357,12 +387,12 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, HandleClose) {
   run_loop.Run();
 
   // Validate the values.
-  EXPECT_EQ(NotificationOperation::kClose, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLOSE, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
-  EXPECT_EQ(absl::nullopt, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_action_index_);
+  EXPECT_EQ(base::nullopt, last_reply_);
   EXPECT_EQ(true, last_by_user_);
 }
 
@@ -409,7 +439,7 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, GetDisplayed) {
   {
     base::RunLoop run_loop;
     bridge->GetDisplayed(
-        profile1->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+        profile1->GetPrimaryOTRProfile(),
         base::BindOnce(
             &NotificationPlatformBridgeWinUITest::DisplayedNotifications,
             base::Unretained(this), run_loop.QuitClosure()));
@@ -435,7 +465,7 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, GetDisplayed) {
   {
     base::RunLoop run_loop;
     bridge->GetDisplayed(
-        profile2->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+        profile2->GetPrimaryOTRProfile(),
         base::BindOnce(
             &NotificationPlatformBridgeWinUITest::DisplayedNotifications,
             base::Unretained(this), run_loop.QuitClosure()));
@@ -512,10 +542,10 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest,
        /*notification_id=*/"P1i"}));
 
   // Validate the close event values.
-  EXPECT_EQ(NotificationOperation::kClose, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLOSE, last_operation_);
   EXPECT_EQ("P2i", last_notification_id_);
-  EXPECT_EQ(absl::nullopt, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_action_index_);
+  EXPECT_EQ(base::nullopt, last_reply_);
   EXPECT_EQ(true, last_by_user_);
 
   bridge->SetDisplayedNotificationsForTesting(nullptr);
@@ -534,17 +564,13 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest,
 
   // Show a new notification.
   message_center::Notification notification(
-      message_center::NOTIFICATION_TYPE_SIMPLE, "notification_id", u"Text1",
-      u"Text2", ui::ImageModel(), std::u16string(),
-      GURL("https://example.com/"), message_center::NotifierId(),
-      message_center::RichNotificationData(), nullptr);
+      message_center::NOTIFICATION_TYPE_SIMPLE, "notification_id", L"Text1",
+      L"Text2", gfx::Image(), base::string16(), GURL("https://example.com/"),
+      message_center::NotifierId(), message_center::RichNotificationData(),
+      nullptr);
   base::RunLoop display_run_loop;
-  base::StatisticsRecorder::ScopedHistogramSampleObserver
-      display_histogram_observer(
-          "Notifications.Windows.DisplayStatus",
-          base::BindRepeating(
-              &NotificationPlatformBridgeWinUITest::OnHistogramRecorded,
-              base::Unretained(this), display_run_loop.QuitClosure()));
+  ScopedHistogramObserver display_observer(
+      "Notifications.Windows.DisplayStatus", display_run_loop.QuitClosure());
   bridge->Display(NotificationHandler::Type::WEB_PERSISTENT,
                   browser()->profile(), notification, /*metadata=*/nullptr);
   display_run_loop.Run();
@@ -554,12 +580,8 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest,
 
   // Close the notification
   base::RunLoop close_run_loop;
-  base::StatisticsRecorder::ScopedHistogramSampleObserver
-      close_histogram_observer(
-          "Notifications.Windows.CloseStatus",
-          base::BindRepeating(
-              &NotificationPlatformBridgeWinUITest::OnHistogramRecorded,
-              base::Unretained(this), close_run_loop.QuitClosure()));
+  ScopedHistogramObserver close_observer("Notifications.Windows.CloseStatus",
+                                         close_run_loop.QuitClosure());
   bridge->Close(browser()->profile(), notification.id());
   close_run_loop.Run();
 
@@ -586,10 +608,10 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, DisplayWithFakeAC) {
   ASSERT_TRUE(launch_id.is_valid());
 
   auto notification = std::make_unique<message_center::Notification>(
-      message_center::NOTIFICATION_TYPE_SIMPLE, "notification_id", u"Text1",
-      u"Text2", ui::ImageModel(), std::u16string(),
-      GURL("https://example.com/"), message_center::NotifierId(),
-      message_center::RichNotificationData(), nullptr);
+      message_center::NOTIFICATION_TYPE_SIMPLE, "notification_id", L"Text1",
+      L"Text2", gfx::Image(), base::string16(), GURL("https://example.com/"),
+      message_center::NotifierId(), message_center::RichNotificationData(),
+      nullptr);
 
   std::unique_ptr<NotificationCommon::Metadata> metadata;
   Profile* profile = CreateTestingProfile("P1");
@@ -614,12 +636,12 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, CmdLineClick) {
   ASSERT_NO_FATAL_FAILURE(ProcessLaunchIdViaCmdLine(kLaunchId, /*reply=*/""));
 
   // Validate the click values.
-  EXPECT_EQ(NotificationOperation::kClick, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLICK, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
-  EXPECT_EQ(absl::nullopt, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_action_index_);
+  EXPECT_EQ(base::nullopt, last_reply_);
   EXPECT_TRUE(last_by_user_);
 }
 
@@ -632,12 +654,12 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest,
       ProcessLaunchIdViaCmdLine(kLaunchIdButtonClick, "Inline reply"));
 
   // Validate the click values.
-  EXPECT_EQ(NotificationOperation::kClick, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLICK, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
   EXPECT_EQ(0, last_action_index_);
-  EXPECT_EQ(u"Inline reply", last_reply_);
+  EXPECT_EQ(L"Inline reply", last_reply_);
   EXPECT_TRUE(last_by_user_);
 }
 
@@ -649,12 +671,12 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, CmdLineButton) {
       ProcessLaunchIdViaCmdLine(kLaunchIdButtonClick, /*reply=*/""));
 
   // Validate the click values.
-  EXPECT_EQ(NotificationOperation::kClick, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_CLICK, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
   EXPECT_EQ(0, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_reply_);
   EXPECT_TRUE(last_by_user_);
 }
 
@@ -666,11 +688,11 @@ IN_PROC_BROWSER_TEST_F(NotificationPlatformBridgeWinUITest, CmdLineSettings) {
       ProcessLaunchIdViaCmdLine(kLaunchIdSettings, /*reply=*/""));
 
   // Validate the click values.
-  EXPECT_EQ(NotificationOperation::kSettings, last_operation_);
+  EXPECT_EQ(NotificationCommon::OPERATION_SETTINGS, last_operation_);
   EXPECT_EQ(NotificationHandler::Type::WEB_PERSISTENT, last_notification_type_);
   EXPECT_EQ(GURL("https://example.com/"), last_origin_);
   EXPECT_EQ("notification_id", last_notification_id_);
-  EXPECT_EQ(absl::nullopt, last_action_index_);
-  EXPECT_EQ(absl::nullopt, last_reply_);
+  EXPECT_EQ(base::nullopt, last_action_index_);
+  EXPECT_EQ(base::nullopt, last_reply_);
   EXPECT_TRUE(last_by_user_);
 }

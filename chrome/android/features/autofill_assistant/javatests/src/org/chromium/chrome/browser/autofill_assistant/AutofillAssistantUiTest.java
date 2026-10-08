@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.inOrder;
 
+import android.content.Intent;
 import android.support.test.InstrumentationRegistry;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,27 +39,24 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.UrlUtils;
+import org.chromium.chrome.autofill_assistant.R;
+import org.chromium.chrome.browser.autofill_assistant.carousel.AssistantActionsCarouselCoordinator;
+import org.chromium.chrome.browser.autofill_assistant.carousel.AssistantCarouselModel;
+import org.chromium.chrome.browser.autofill_assistant.carousel.AssistantChip;
+import org.chromium.chrome.browser.autofill_assistant.details.AssistantDetails;
+import org.chromium.chrome.browser.autofill_assistant.details.AssistantDetailsModel;
+import org.chromium.chrome.browser.autofill_assistant.header.AssistantHeaderModel;
+import org.chromium.chrome.browser.autofill_assistant.infobox.AssistantInfoBox;
+import org.chromium.chrome.browser.autofill_assistant.infobox.AssistantInfoBoxModel;
+import org.chromium.chrome.browser.autofill_assistant.overlay.AssistantOverlayModel;
+import org.chromium.chrome.browser.autofill_assistant.overlay.AssistantOverlayState;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
-import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
+import org.chromium.chrome.browser.customtabs.CustomTabsTestUtils;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.autofill_assistant.AssistantCoordinator;
-import org.chromium.components.autofill_assistant.AssistantDependencies;
-import org.chromium.components.autofill_assistant.R;
-import org.chromium.components.autofill_assistant.carousel.AssistantActionsCarouselCoordinator;
-import org.chromium.components.autofill_assistant.carousel.AssistantCarouselModel;
-import org.chromium.components.autofill_assistant.carousel.AssistantChip;
-import org.chromium.components.autofill_assistant.carousel.AssistantChip.NativeChipType;
-import org.chromium.components.autofill_assistant.details.AssistantDetails;
-import org.chromium.components.autofill_assistant.header.AssistantHeaderModel;
-import org.chromium.components.autofill_assistant.infobox.AssistantInfoBox;
-import org.chromium.components.autofill_assistant.infobox.AssistantInfoBoxModel;
-import org.chromium.components.autofill_assistant.overlay.AssistantOverlayModel;
-import org.chromium.components.autofill_assistant.overlay.AssistantOverlayState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
@@ -66,9 +64,10 @@ import org.chromium.net.test.EmbeddedTestServer;
 import java.util.Arrays;
 import java.util.List;
 
-/** Instrumentation tests for autofill assistant UI. */
+/**
+ * Instrumentation tests for autofill assistant UI.
+ */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.PER_CLASS)
 public class AutofillAssistantUiTest {
     private String mTestPage;
     private EmbeddedTestServer mTestServer;
@@ -98,6 +97,14 @@ public class AutofillAssistantUiTest {
         mTestServer.stopAndDestroyServer();
     }
 
+    /**
+     * @see CustomTabsTestUtils#createMinimalCustomTabIntent(Context, String).
+     */
+    private Intent createMinimalCustomTabIntent() {
+        return AutofillAssistantUiTestUtil.createMinimalCustomTabIntentForAutobot(
+                mTestPage, /* startImmediately = */ true);
+    }
+
     private CustomTabActivity getActivity() {
         return mCustomTabActivityTestRule.getActivity();
     }
@@ -106,38 +113,25 @@ public class AutofillAssistantUiTest {
         return AutofillAssistantUiTestUtil.getBottomSheetController(getActivity());
     }
 
-    private AssistantCoordinator createAndShowAssistantCoordinator() {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(() -> {
-            AssistantDependencies dependencies = new AssistantDependenciesChrome(getActivity());
-            AssistantCoordinator coordinator = new AssistantCoordinator(getActivity(),
-                    initializeBottomSheet(),
-                    dependencies.getTabObscuringUtilOrNull(getActivity().getWindowAndroid()),
-                    /* overlayCoordinator= */ null,
-                    /* keyboardCoordinatorDelegate= */ null,
-                    dependencies.getKeyboardVisibilityDelegate(),
-                    getActivity().getCompositorViewHolderForTesting(),
-                    dependencies.getRootViewGroup(), dependencies.createBrowserControlsFactory(),
-                    dependencies.getBottomInsetProvider(), dependencies.getAccessibilityUtil(),
-                    dependencies.createInfoPageUtil(),
-                    dependencies.createProfileImageUtilOrNull(
-                            getActivity(), R.dimen.autofill_assistant_profile_size),
-                    dependencies.createImageFetcher(), dependencies.createEditorFactory(),
-                    dependencies.getWindowAndroid(), dependencies.createSettingsUtil());
-            coordinator.show();
-            return coordinator;
-        });
-    }
 
     // TODO(crbug.com/806868): Add more UI details test and check, like payment request UI,
     // highlight chips and so on.
     @Test
     @MediumTest
-    public void testStartAndAccept() {
+    public void testStartAndAccept() throws Exception {
         InOrder inOrder = inOrder(mRunnableMock);
-        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
-                        InstrumentationRegistry.getTargetContext(), mTestPage));
-        AssistantCoordinator assistantCoordinator = createAndShowAssistantCoordinator();
+
+        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
+        BottomSheetController bottomSheetController =
+                TestThreadUtils.runOnUiThreadBlocking(this::initializeBottomSheet);
+        AssistantCoordinator assistantCoordinator = TestThreadUtils.runOnUiThreadBlocking(() -> {
+            AssistantCoordinator coordinator = new AssistantCoordinator(getActivity(),
+                    bottomSheetController, getActivity().getTabObscuringHandler(),
+                    /* overlayCoordinator= */ null,
+                    /* keyboardCoordinatorDelegate= */ null);
+            coordinator.show();
+            return coordinator;
+        });
 
         // Bottom sheet is shown in the BottomSheet when creating the AssistantCoordinator.
         View contentView = AutofillAssistantUiTestUtil.getBottomSheetController(getActivity())
@@ -186,21 +180,22 @@ public class AutofillAssistantUiTest {
         String descriptionLine3 = "This is a fancy line3";
         TestThreadUtils.runOnUiThreadBlocking(
                 ()
-                        -> assistantCoordinator.getModel().getDetailsModel().setDetailsList(
-                                Arrays.asList(new AssistantDetails(movieTitle,
+                        -> assistantCoordinator.getModel().getDetailsModel().set(
+                                AssistantDetailsModel.DETAILS,
+                                new AssistantDetails(movieTitle, /* titleMaxLines = */ 1,
                                         /* imageUrl = */ "",
                                         /* imageAccessibilityHint = */ "",
                                         /* imageClickthroughData = */ null,
+                                        /* showImage = */ false,
                                         /* totalPriceLabel = */ "",
                                         /* totalPrice = */ "", descriptionLine1, descriptionLine2,
                                         descriptionLine3,
                                         /* priceAttribution = */ "",
                                         /* userApprovalRequired= */ false,
-                                        /* highlightTitle= */ false,
-                                        /* highlightLine1= */ false,
-                                        /* highlightLine2 = */ false,
+                                        /* highlightTitle= */ false, /* highlightLine1= */
+                                        false, /* highlightLine2 = */ false,
                                         /* highlightLine3 = */ false,
-                                        AutofillAssistantDetailsUiTest.NO_PLACEHOLDERS))));
+                                        /* animatePlaceholders= */ false)));
         onView(withId(R.id.details_title))
                 .check(matches(allOf(withText(movieTitle), withEffectiveVisibility(VISIBLE))));
         onView(withId(R.id.details_line1))
@@ -214,14 +209,14 @@ public class AutofillAssistantUiTest {
                         allOf(withText(descriptionLine3), withEffectiveVisibility(VISIBLE))));
 
         // Progress bar must be shown.
-        Assert.assertTrue(bottomSheetContent.findViewById(R.id.step_progress_bar).isShown());
+        Assert.assertTrue(bottomSheetContent.findViewById(R.id.progress_bar).isShown());
 
         // Disable progress bar.
         TestThreadUtils.runOnUiThreadBlocking(
                 ()
                         -> assistantCoordinator.getModel().getHeaderModel().set(
                                 AssistantHeaderModel.PROGRESS_VISIBLE, false));
-        Assert.assertFalse(bottomSheetContent.findViewById(R.id.step_progress_bar).isShown());
+        Assert.assertFalse(bottomSheetContent.findViewById(R.id.progress_bar).isShown());
 
         // Show info box content.
         String infoBoxExplanation = "InfoBox explanation.";
@@ -229,8 +224,8 @@ public class AutofillAssistantUiTest {
                 ()
                         -> assistantCoordinator.getModel().getInfoBoxModel().set(
                                 AssistantInfoBoxModel.INFO_BOX,
-                                new AssistantInfoBox(null, infoBoxExplanation,
-                                        /*useIntrinsicDimensions=*/false)));
+                                new AssistantInfoBox(
+                                        /* imagePath = */ "", infoBoxExplanation)));
         TextView infoBoxExplanationView =
                 bottomSheetContent.findViewById(R.id.info_box_explanation);
         onView(is(infoBoxExplanationView)).check(matches(withText(infoBoxExplanation)));
@@ -238,16 +233,15 @@ public class AutofillAssistantUiTest {
 
     private void testChips(InOrder inOrder, AssistantCarouselModel carouselModel,
             AssistantActionsCarouselCoordinator carouselCoordinator) {
-        List<AssistantChip> chips = Arrays.asList(
-                new AssistantChip(AssistantChip.Type.CHIP_ASSISTIVE, NativeChipType.NORMAL_ACTION,
-                        AssistantChip.Icon.NONE, "chip 0",
-                        /* disabled= */ false, /* sticky= */ false,
-                        /* visible= */ true,
-                        () -> {/* do nothing */}, /* contentDescription= */ ""),
-                new AssistantChip(AssistantChip.Type.CHIP_ASSISTIVE, NativeChipType.NORMAL_ACTION,
-                        AssistantChip.Icon.NONE, "chip 1",
-                        /* disabled= */ false, /* sticky= */ false, /* visible= */ true,
-                        mRunnableMock, /* contentDescription= */ ""));
+        List<AssistantChip> chips =
+                Arrays.asList(new AssistantChip(AssistantChip.Type.CHIP_ASSISTIVE,
+                                      AssistantChip.Icon.NONE, "chip 0",
+                                      /* disabled= */ false, /* sticky= */ false,
+                                      /* visible= */ true, () -> {/* do nothing */}),
+                        new AssistantChip(AssistantChip.Type.CHIP_ASSISTIVE,
+                                AssistantChip.Icon.NONE, "chip 1",
+                                /* disabled= */ false, /* sticky= */ false, /* visible= */ true,
+                                mRunnableMock));
         TestThreadUtils.runOnUiThreadBlocking(() -> carouselModel.setChips(chips));
         RecyclerView chipsViewContainer = carouselCoordinator.getView();
         Assert.assertEquals(2, chipsViewContainer.getAdapter().getItemCount());
@@ -260,13 +254,20 @@ public class AutofillAssistantUiTest {
 
     @Test
     @MediumTest
-    public void testTooltipBubble() {
+    public void testTooltipBubble() throws Exception {
         InOrder inOrder = inOrder(mRunnableMock);
 
-        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
-                        InstrumentationRegistry.getTargetContext(), mTestPage));
-        AssistantCoordinator assistantCoordinator = createAndShowAssistantCoordinator();
+        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
+        BottomSheetController bottomSheetController =
+                TestThreadUtils.runOnUiThreadBlocking(this::initializeBottomSheet);
+        AssistantCoordinator assistantCoordinator = TestThreadUtils.runOnUiThreadBlocking(() -> {
+            AssistantCoordinator coordinator = new AssistantCoordinator(getActivity(),
+                    bottomSheetController, getActivity().getTabObscuringHandler(),
+                    /* overlayCoordinator= */ null,
+                    /* keyboardCoordinatorDelegate= */ null);
+            coordinator.show();
+            return coordinator;
+        });
 
         // Bottom sheet is shown in the BottomSheet when creating the AssistantCoordinator.
         View contentView = AutofillAssistantUiTestUtil.getBottomSheetController(getActivity())

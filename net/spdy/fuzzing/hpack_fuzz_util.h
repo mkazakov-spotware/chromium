@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include <memory>
 #include <vector>
 
-#include "net/third_party/quiche/src/quiche/spdy/core/hpack/hpack_decoder_adapter.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/hpack/hpack_encoder.h"
+#include "net/third_party/quiche/src/common/platform/api/quiche_string_piece.h"
+#include "net/third_party/quiche/src/spdy/core/hpack/hpack_decoder_adapter.h"
+#include "net/third_party/quiche/src/spdy/core/hpack/hpack_encoder.h"
 
 namespace spdy {
 
@@ -46,7 +47,7 @@ class HpackFuzzUtil {
     const char* ptr() { return input.data() + offset; }
 
     std::string input;
-    size_t offset = 0;
+    size_t offset;
   };
 
   // Returns true if the next header block was set at |out|. Returns

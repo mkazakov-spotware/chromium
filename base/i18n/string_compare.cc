@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 namespace base {
 namespace i18n {
 
-// Compares the character data stored in two different std::u16string strings by
+// Compares the character data stored in two different string16 strings by
 // specified Collator instance.
 UCollationResult CompareString16WithCollator(const icu::Collator& collator,
                                              StringPiece16 lhs,

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,14 +48,14 @@ class LanguageSettingsPrivateDelegateTest
     EventRouterFactory::GetInstance()->SetTestingFactory(
         profile(), base::BindRepeating(&BuildEventRouter));
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // Tests were designed assuming Hunspell dictionary used and may fail when
     // Windows spellcheck is enabled by default.
     feature_list_.InitAndDisableFeature(spellcheck::kWinUseBrowserSpellChecker);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
     base::ListValue language_codes;
-    language_codes.Append("fr");
+    language_codes.AppendString("fr");
     profile()->GetPrefs()->Set(spellcheck::prefs::kSpellCheckDictionaries,
                                language_codes);
 
@@ -98,9 +98,9 @@ class LanguageSettingsPrivateDelegateTest
       run_loop_->Quit();
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::test::ScopedFeatureList feature_list_;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   std::unique_ptr<LanguageSettingsPrivateDelegate> delegate_;
   std::unique_ptr<base::RunLoop> run_loop_;
 };

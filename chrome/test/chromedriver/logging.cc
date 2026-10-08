@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <cmath>
 #include <memory>
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -28,11 +27,9 @@
 #include "chrome/test/chromedriver/performance_logger.h"
 #include "chrome/test/chromedriver/session.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <fcntl.h>
 #include <unistd.h>
-#elif BUILDFLAG(IS_WIN)
-#include <windows.h>
 #endif
 
 const char* GetPortProtectionMessage() {
@@ -64,7 +61,7 @@ const char* const kLevelToName[] = {
 const char* LevelToName(Log::Level level) {
   const int index = level - Log::kAll;
   CHECK_GE(index, 0);
-  CHECK_LT(static_cast<size_t>(index), std::size(kLevelToName));
+  CHECK_LT(static_cast<size_t>(index), base::size(kLevelToName));
   return kLevelToName[index];
 }
 
@@ -100,7 +97,7 @@ Log::Level GetLevelFromSeverity(int severity) {
 WebDriverLog* GetSessionLog() {
   Session* session = GetThreadLocalSession();
   if (!session)
-    return nullptr;
+    return NULL;
   return session->driver_log.get();
 }
 
@@ -124,7 +121,7 @@ bool HandleLogMessage(int severity,
     std::string entry;
 
     if (readable_timestamp) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       SYSTEMTIME local_time;
       GetLocalTime(&local_time);
 
@@ -135,7 +132,7 @@ bool HandleLogMessage(int severity,
           local_time.wMilliseconds,
           level_name,
           message.c_str());
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
       timeval tv;
       gettimeofday(&tv, nullptr);
       time_t t = tv.tv_sec;
@@ -181,7 +178,7 @@ const char WebDriverLog::kPerformanceType[] = "performance";
 const char WebDriverLog::kDevToolsType[] = "devtools";
 
 bool WebDriverLog::NameToLevel(const std::string& name, Log::Level* out_level) {
-  for (size_t i = 0; i < std::size(kNameToLevel); ++i) {
+  for (size_t i = 0; i < base::size(kNameToLevel); ++i) {
     if (name == kNameToLevel[i].name) {
       *out_level = kNameToLevel[i].level;
       return true;
@@ -196,7 +193,7 @@ WebDriverLog::WebDriverLog(const std::string& type, Log::Level min_level)
 WebDriverLog::~WebDriverLog() {
   size_t sum = 0;
   for (const std::unique_ptr<base::ListValue>& batch : batches_of_entries_)
-    sum += batch->GetList().size();
+    sum += batch->GetSize();
   VLOG(1) << "Log type '" << type_ << "' lost " << sum
           << " entries on destruction";
 }
@@ -204,7 +201,7 @@ WebDriverLog::~WebDriverLog() {
 std::unique_ptr<base::ListValue> WebDriverLog::GetAndClearEntries() {
   std::unique_ptr<base::ListValue> ret;
   if (batches_of_entries_.empty()) {
-    ret = std::make_unique<base::ListValue>();
+    ret.reset(new base::ListValue());
     emptied_ = true;
   } else {
     ret = std::move(batches_of_entries_.front());
@@ -216,17 +213,15 @@ std::unique_ptr<base::ListValue> WebDriverLog::GetAndClearEntries() {
 
 bool GetFirstErrorMessageFromList(const base::ListValue* list,
                                   std::string* message) {
-  for (const auto& entry : list->GetList()) {
-    if (entry.is_dict()) {
-      const base::Value::Dict& log_entry = entry.GetDict();
-      const std::string* level = log_entry.FindString("level");
-      if (!level || *level != kLevelToName[Log::kError])
-        continue;
-
-      if (const std::string* maybe_message = log_entry.FindString("message")) {
-        *message = *maybe_message;
-        return true;
-      }
+  for (auto it = list->begin(); it != list->end(); ++it) {
+    const base::DictionaryValue* log_entry = NULL;
+    it->GetAsDictionary(&log_entry);
+    if (log_entry != NULL) {
+      std::string level;
+      if (log_entry->GetString("level", &level))
+        if (level == kLevelToName[Log::kError])
+          if (log_entry->GetString("message", message))
+            return true;
     }
   }
   return false;
@@ -247,18 +242,22 @@ void WebDriverLog::AddEntryTimestamped(const base::Time& timestamp,
   if (level < min_level_)
     return;
 
-  base::Value::Dict log_entry_dict;
-  log_entry_dict.Set("timestamp", std::trunc(timestamp.ToJsTime()));
-  log_entry_dict.Set("level", LevelToName(level));
+  std::unique_ptr<base::DictionaryValue> log_entry_dict(
+      new base::DictionaryValue());
+  log_entry_dict->SetDouble("timestamp",
+                            static_cast<int64_t>(timestamp.ToJsTime()));
+  log_entry_dict->SetString("level", LevelToName(level));
   if (!source.empty())
-    log_entry_dict.Set("source", source);
-  log_entry_dict.Set("message", message);
+    log_entry_dict->SetString("source", source);
+  log_entry_dict->SetString("message", message);
   if (batches_of_entries_.empty() ||
-      batches_of_entries_.back()->GetList().size() >=
-          internal::kMaxReturnedEntries) {
-    batches_of_entries_.push_back(std::make_unique<base::ListValue>());
+      batches_of_entries_.back()->GetSize() >= internal::kMaxReturnedEntries) {
+    std::unique_ptr<base::ListValue> list(new base::ListValue());
+    list->Append(std::move(log_entry_dict));
+    batches_of_entries_.push_back(std::move(list));
+  } else {
+    batches_of_entries_.back()->Append(std::move(log_entry_dict));
   }
-  batches_of_entries_.back()->Append(base::Value(std::move(log_entry_dict)));
 }
 
 bool WebDriverLog::Emptied() const {
@@ -285,17 +284,17 @@ bool InitLogging(uint16_t port) {
     g_log_level = Log::kInfo;
     base::FilePath log_path = cmd_line->GetSwitchValuePath("log-path");
 
-    const base::FilePath::CharType* log_mode = FILE_PATH_LITERAL("w");
+    const base::FilePath::CharType* logMode = FILE_PATH_LITERAL("w");
     if (cmd_line->HasSwitch("append-log")) {
-      log_mode = FILE_PATH_LITERAL("a");
+        logMode = FILE_PATH_LITERAL("a");
     }
   if (cmd_line->HasSwitch("readable-timestamp")) {
     readable_timestamp = true;
   }
-#if BUILDFLAG(IS_WIN)
-  FILE* redir_stderr = _wfreopen(log_path.value().c_str(), log_mode, stderr);
+#if defined(OS_WIN)
+    FILE* redir_stderr = _wfreopen(log_path.value().c_str(), logMode, stderr);
 #else
-  FILE* redir_stderr = freopen(log_path.value().c_str(), log_mode, stderr);
+    FILE* redir_stderr = freopen(log_path.value().c_str(), logMode, stderr);
 #endif
     if (!redir_stderr) {
       printf("Failed to redirect stderr to log file.\n");
@@ -374,9 +373,7 @@ Status CreateLogs(
       if (level != Log::kOff) {
         logs.push_back(std::make_unique<WebDriverLog>(type, Log::kAll));
         devtools_listeners.push_back(std::make_unique<PerformanceLogger>(
-            logs.back().get(), session, capabilities.perf_logging_prefs,
-            base::Contains(capabilities.window_types,
-                           WebViewInfo::kServiceWorker)));
+            logs.back().get(), session, capabilities.perf_logging_prefs));
         PerformanceLogger* perf_log =
             static_cast<PerformanceLogger*>(devtools_listeners.back().get());
         // We use a proxy for |perf_log|'s |CommandListener| interface.
@@ -389,8 +386,10 @@ Status CreateLogs(
       }
     } else if (type == WebDriverLog::kDevToolsType) {
       logs.push_back(std::make_unique<WebDriverLog>(type, Log::kAll));
-      devtools_listeners.push_back(std::make_unique<DevToolsEventsLogger>(
-          logs.back().get(), capabilities.devtools_events_logging_prefs));
+      devtools_listeners.push_back(
+          std::make_unique<DevToolsEventsLogger>(
+            logs.back().get(),
+            capabilities.devtools_events_logging_prefs.get()));
     } else if (type == WebDriverLog::kBrowserType) {
       browser_log_level = level;
     } else if (type != WebDriverLog::kDriverType) {

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,18 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/address_list.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 FakeDatagramSocket::FakeDatagramSocket()
-    : input_pos_(0),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+    : input_pos_(0), task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 
 FakeDatagramSocket::~FakeDatagramSocket() {
   EXPECT_TRUE(task_runner_->BelongsToCurrentThread());
@@ -124,7 +125,7 @@ int FakeDatagramSocket::CopyReadData(const scoped_refptr<net::IOBuffer>& buf,
 }
 
 FakeDatagramChannelFactory::FakeDatagramChannelFactory()
-    : task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : task_runner_(base::ThreadTaskRunnerHandle::Get()),
       asynchronous_create_(false),
       fail_create_(false) {}
 
@@ -186,4 +187,5 @@ void FakeDatagramChannelFactory::CancelChannelCreation(
   channels_.erase(name);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

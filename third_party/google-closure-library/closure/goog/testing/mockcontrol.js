@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A MockControl holds a set of mocks for a particular test.
@@ -22,10 +30,10 @@ goog.setTestOnly('goog.testing.MockControl');
 goog.provide('goog.testing.MockControl');
 
 goog.require('goog.Promise');
+goog.require('goog.array');
 goog.require('goog.testing');
 goog.require('goog.testing.LooseMock');
 goog.require('goog.testing.StrictMock');
-goog.requireType('goog.testing.MockInterface');
 
 
 
@@ -35,7 +43,6 @@ goog.requireType('goog.testing.MockInterface');
  * @constructor
  */
 goog.testing.MockControl = function() {
-  'use strict';
   /**
    * The list of mocks being controlled.
    * @type {Array<goog.testing.MockInterface>}
@@ -52,7 +59,6 @@ goog.testing.MockControl = function() {
  *     for convenience.
  */
 goog.testing.MockControl.prototype.addMock = function(mock) {
-  'use strict';
   this.mocks_.push(mock);
   return mock;
 };
@@ -62,11 +68,7 @@ goog.testing.MockControl.prototype.addMock = function(mock) {
  * Calls replay on each controlled mock.
  */
 goog.testing.MockControl.prototype.$replayAll = function() {
-  'use strict';
-  this.mocks_.forEach(function(m) {
-    'use strict';
-    m.$replay();
-  });
+  goog.array.forEach(this.mocks_, function(m) { m.$replay(); });
 };
 
 
@@ -74,11 +76,7 @@ goog.testing.MockControl.prototype.$replayAll = function() {
  * Calls reset on each controlled mock.
  */
 goog.testing.MockControl.prototype.$resetAll = function() {
-  'use strict';
-  this.mocks_.forEach(function(m) {
-    'use strict';
-    m.$reset();
-  });
+  goog.array.forEach(this.mocks_, function(m) { m.$reset(); });
 };
 
 
@@ -88,9 +86,7 @@ goog.testing.MockControl.prototype.$resetAll = function() {
  * @return {!goog.Promise<!Array<undefined>>}
  */
 goog.testing.MockControl.prototype.$waitAndVerifyAll = function() {
-  'use strict';
-  return goog.Promise.all(this.mocks_.map(function(m) {
-    'use strict';
+  return goog.Promise.all(goog.array.map(this.mocks_, function(m) {
     return m.$waitAndVerify();
   }));
 };
@@ -100,11 +96,7 @@ goog.testing.MockControl.prototype.$waitAndVerifyAll = function() {
  * Calls verify on each controlled mock.
  */
 goog.testing.MockControl.prototype.$verifyAll = function() {
-  'use strict';
-  this.mocks_.forEach(function(m) {
-    'use strict';
-    m.$verify();
-  });
+  goog.array.forEach(this.mocks_, function(m) { m.$verify(); });
 };
 
 
@@ -112,17 +104,18 @@ goog.testing.MockControl.prototype.$verifyAll = function() {
  * Calls tearDown on each controlled mock, if necesssary.
  */
 goog.testing.MockControl.prototype.$tearDown = function() {
-  'use strict';
-  this.mocks_.forEach(function(m) {
-    'use strict';
+  goog.array.forEach(this.mocks_, function(m) {
     if (!m) {
       return;
     }
+
     m = /** @type {?} */ (m);
     // $tearDown if defined.
     if (m.$tearDown) {
       m.$tearDown();
     }
+    // TODO(user): Somehow determine if verifyAll should have been called
+    // but was not.
   });
 };
 
@@ -140,7 +133,6 @@ goog.testing.MockControl.prototype.$tearDown = function() {
  */
 goog.testing.MockControl.prototype.createStrictMock = function(
     objectToMock, opt_mockStaticMethods, opt_createProxy) {
-  'use strict';
   var m = new goog.testing.StrictMock(
       objectToMock, opt_mockStaticMethods, opt_createProxy);
   this.addMock(m);
@@ -164,7 +156,6 @@ goog.testing.MockControl.prototype.createStrictMock = function(
 goog.testing.MockControl.prototype.createLooseMock = function(
     objectToMock, opt_ignoreUnexpectedCalls, opt_mockStaticMethods,
     opt_createProxy) {
-  'use strict';
   var m = new goog.testing.LooseMock(
       objectToMock, opt_ignoreUnexpectedCalls, opt_mockStaticMethods,
       opt_createProxy);
@@ -184,7 +175,6 @@ goog.testing.MockControl.prototype.createLooseMock = function(
  */
 goog.testing.MockControl.prototype.createFunctionMock = function(
     opt_functionName, opt_strictness) {
-  'use strict';
   var m = goog.testing.createFunctionMock(opt_functionName, opt_strictness);
   this.addMock(m);
   return m;
@@ -202,7 +192,6 @@ goog.testing.MockControl.prototype.createFunctionMock = function(
  */
 goog.testing.MockControl.prototype.createMethodMock = function(
     scope, functionName, opt_strictness) {
-  'use strict';
   var m = goog.testing.createMethodMock(scope, functionName, opt_strictness);
   this.addMock(m);
   return m;
@@ -221,7 +210,6 @@ goog.testing.MockControl.prototype.createMethodMock = function(
  */
 goog.testing.MockControl.prototype.createConstructorMock = function(
     scope, constructorName, opt_strictness) {
-  'use strict';
   var m = goog.testing.createConstructorMock(
       scope, constructorName, opt_strictness);
   this.addMock(m);
@@ -239,7 +227,6 @@ goog.testing.MockControl.prototype.createConstructorMock = function(
  */
 goog.testing.MockControl.prototype.createGlobalFunctionMock = function(
     functionName, opt_strictness) {
-  'use strict';
   var m = goog.testing.createGlobalFunctionMock(functionName, opt_strictness);
   this.addMock(m);
   return m;

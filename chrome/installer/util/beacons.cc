@@ -1,12 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/installer/util/beacons.h"
 
 #include <stdint.h>
-
-#include <tuple>
 
 #include "base/notreached.h"
 #include "base/win/registry.h"
@@ -17,7 +15,7 @@
 void UpdateDefaultBrowserBeaconForPath(const base::FilePath& chrome_exe) {
   // Getting Chrome's default state causes the beacon to be updated via a call
   // to UpdateDefaultBrowserBeaconWithState below.
-  std::ignore = ShellUtil::GetChromeDefaultStateFromPath(chrome_exe);
+  ignore_result(ShellUtil::GetChromeDefaultStateFromPath(chrome_exe));
 }
 
 void UpdateDefaultBrowserBeaconWithState(
@@ -59,7 +57,7 @@ std::unique_ptr<Beacon> MakeFirstNotDefaultBeacon() {
 
 // Beacon ----------------------------------------------------------------------
 
-Beacon::Beacon(base::WStringPiece name, BeaconType type, BeaconScope scope)
+Beacon::Beacon(base::StringPiece16 name, BeaconType type, BeaconScope scope)
     : type_(type),
       root_(install_static::IsSystemInstall() ? HKEY_LOCAL_MACHINE
                                               : HKEY_CURRENT_USER),
@@ -108,7 +106,7 @@ base::Time Beacon::Get() {
   return base::Time::FromInternalValue(now);
 }
 
-void Beacon::Initialize(base::WStringPiece name) {
+void Beacon::Initialize(base::StringPiece16 name) {
   const install_static::InstallDetails& install_details =
       install_static::InstallDetails::Get();
 

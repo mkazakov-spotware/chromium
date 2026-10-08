@@ -29,20 +29,19 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_FFT_CONVOLVER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_AUDIO_FFT_CONVOLVER_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/audio/audio_array.h"
 #include "third_party/blink/renderer/platform/audio/fft_frame.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
 
-class FFTConvolver {
+class PLATFORM_EXPORT FFTConvolver {
   USING_FAST_MALLOC(FFTConvolver);
 
  public:
   // fftSize must be a power of two
-  explicit FFTConvolver(unsigned fft_size);
-  FFTConvolver(const FFTConvolver&) = delete;
-  FFTConvolver& operator=(const FFTConvolver&) = delete;
+  FFTConvolver(size_t fft_size);
 
   // For now, with multiple calls to Process(), framesToProcess MUST add up
   // EXACTLY to fftSize / 2
@@ -60,7 +59,7 @@ class FFTConvolver {
 
   void Reset();
 
-  unsigned FftSize() const { return frame_.FftSize(); }
+  size_t FftSize() const { return frame_.FftSize(); }
 
  private:
   FFTFrame frame_;
@@ -75,6 +74,8 @@ class FFTConvolver {
   // Saves the 2nd half of the FFT buffer, so we can do an overlap-add with the
   // 1st half of the next one
   AudioFloatArray last_overlap_buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(FFTConvolver);
 };
 
 }  // namespace blink

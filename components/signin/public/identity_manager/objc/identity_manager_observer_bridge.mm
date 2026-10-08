@@ -1,11 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
-
-#include "base/feature_list.h"
-#include "components/signin/public/base/account_consistency_method.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,10 +21,17 @@ IdentityManagerObserverBridge::~IdentityManagerObserverBridge() {
   identity_manager_->RemoveObserver(this);
 }
 
-void IdentityManagerObserverBridge::OnPrimaryAccountChanged(
-    const signin::PrimaryAccountChangeEvent& event) {
-  if ([delegate_ respondsToSelector:@selector(onPrimaryAccountChanged:)]) {
-    [delegate_ onPrimaryAccountChanged:event];
+void IdentityManagerObserverBridge::OnPrimaryAccountSet(
+    const CoreAccountInfo& primary_account_info) {
+  if ([delegate_ respondsToSelector:@selector(onPrimaryAccountSet:)]) {
+    [delegate_ onPrimaryAccountSet:primary_account_info];
+  }
+}
+
+void IdentityManagerObserverBridge::OnPrimaryAccountCleared(
+    const CoreAccountInfo& previous_primary_account_info) {
+  if ([delegate_ respondsToSelector:@selector(onPrimaryAccountCleared:)]) {
+    [delegate_ onPrimaryAccountCleared:previous_primary_account_info];
   }
 }
 

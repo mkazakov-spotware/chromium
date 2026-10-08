@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,13 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chromecast/media/api/decoder_buffer_base.h"
 #include "chromecast/media/cma/base/balanced_media_task_runner_factory.h"
@@ -35,12 +37,6 @@ const int kMaxPtsDiffMs = 2000;
 class MultiDemuxerStreamAdaptersTest : public testing::Test {
  public:
   MultiDemuxerStreamAdaptersTest();
-
-  MultiDemuxerStreamAdaptersTest(const MultiDemuxerStreamAdaptersTest&) =
-      delete;
-  MultiDemuxerStreamAdaptersTest& operator=(
-      const MultiDemuxerStreamAdaptersTest&) = delete;
-
   ~MultiDemuxerStreamAdaptersTest() override;
 
   void Start();
@@ -73,6 +69,7 @@ class MultiDemuxerStreamAdaptersTest : public testing::Test {
   int running_stream_count_;
 
   scoped_refptr<BalancedMediaTaskRunnerFactory> media_task_runner_factory_;
+  DISALLOW_COPY_AND_ASSIGN(MultiDemuxerStreamAdaptersTest);
 };
 
 MultiDemuxerStreamAdaptersTest::MultiDemuxerStreamAdaptersTest() {
@@ -82,22 +79,22 @@ MultiDemuxerStreamAdaptersTest::~MultiDemuxerStreamAdaptersTest() {
 }
 
 void MultiDemuxerStreamAdaptersTest::Start() {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&MultiDemuxerStreamAdaptersTest::OnTestTimeout,
                      base::Unretained(this)),
-      base::Seconds(5));
+      base::TimeDelta::FromSeconds(5));
 
-  media_task_runner_factory_ =
-      new BalancedMediaTaskRunnerFactory(base::Milliseconds(kMaxPtsDiffMs));
+  media_task_runner_factory_ = new BalancedMediaTaskRunnerFactory(
+      base::TimeDelta::FromMilliseconds(kMaxPtsDiffMs));
 
   coded_frame_providers_.clear();
   frame_received_count_ = 0;
 
   for (const auto& stream : demuxer_streams_) {
     coded_frame_providers_.push_back(std::make_unique<DemuxerStreamAdapter>(
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        media_task_runner_factory_, stream.get()));
+        base::ThreadTaskRunnerHandle::Get(), media_task_runner_factory_,
+        stream.get()));
   }
   running_stream_count_ = coded_frame_providers_.size();
 
@@ -111,8 +108,7 @@ void MultiDemuxerStreamAdaptersTest::Start() {
         &CodedFrameProvider::Read, base::Unretained(code_frame_provider.get()),
         std::move(read_cb));
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(task));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(task));
   }
 }
 
@@ -164,7 +160,7 @@ TEST_F(MultiDemuxerStreamAdaptersTest, EarlyEos) {
   total_expected_frames_ = frame_count_short + frame_count_long;
 
   base::test::SingleThreadTaskEnvironment task_environment;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&MultiDemuxerStreamAdaptersTest::Start,
                                 base::Unretained(this)));
   base::RunLoop().Run();

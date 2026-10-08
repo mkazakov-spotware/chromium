@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@
 
 #include "base/test/trace_event_analyzer.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/page_load_metrics/browser/page_load_metrics_test_waiter.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/test/browser_test.h"
-#include "content/public/test/hit_test_region_observer.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 
 using ukm::TestUkmRecorder;
@@ -53,7 +51,7 @@ IN_PROC_BROWSER_TEST_F(TotalInputDelayIntegrationTest, NoInputEvent) {
 
   StartTracing({"loading"});
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+  ui_test_utils::NavigateToURL(browser(), GURL("about:blank"));
 
   // Check UKM.
   ExpectUKMPageLoadMetric(PageLoad::kInteractiveTiming_NumInputEventsName, 0);
@@ -63,65 +61,12 @@ IN_PROC_BROWSER_TEST_F(TotalInputDelayIntegrationTest, NoInputEvent) {
       PageLoad::kInteractiveTiming_TotalAdjustedInputDelayName, int64_t(0), 0);
 }
 
-// TODO(crbug.com/1352082): Fix flakiness.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
-#define MAYBE_MultipleInputEvents DISABLED_MultipleInputEvents
-#else
-#define MAYBE_MultipleInputEvents MultipleInputEvents
-#endif
-IN_PROC_BROWSER_TEST_F(TotalInputDelayIntegrationTest,
-                       MAYBE_MultipleInputEvents) {
-  auto waiter = std::make_unique<page_load_metrics::PageLoadMetricsTestWaiter>(
-      web_contents());
-  waiter->AddPageExpectation(page_load_metrics::PageLoadMetricsTestWaiter::
-                                 TimingField::kTotalInputDelay);
-  // In the test, we simulate 3 clicks, which generate 9 input delays for 3
-  // pointerup, mouseup and click events respectively.
-  waiter->AddNumInputEventsExpectation(9);
+IN_PROC_BROWSER_TEST_F(TotalInputDelayIntegrationTest, MultipleInputEvents) {
   LoadHTML(R"HTML(
-    <script type="text/javascript">
-    let eventCounts = {mouseup: 0, pointerup: 0, click: 0};
-    const loadPromise = new Promise(resolve => {
-      window.addEventListener("load", () => {
-        resolve(true);
-      });
-    });
-
-    let eventPromise;
-    checkLoad = async () => {
-      await loadPromise;
-      eventPromise = new Promise(resolve => {
-        for (let evt in eventCounts) {
-          window.addEventListener(evt, function(e) {
-            eventCounts[e.type]++;
-            if (eventCounts.click == 3 &&
-                eventCounts.pointerup == 3 &&
-                eventCounts.mouseup == 3) {
-              resolve(true);
-            }
-          });
-        }
-      });
-      return true;
-    };
-
-    runtest = async () => {
-      return await eventPromise;
-    };
-    </script>
+    <p>Sample website</p>
   )HTML");
 
   StartTracing({"loading"});
-
-  // Make sure the page is fully loaded.
-  ASSERT_TRUE(EvalJs(web_contents(), "checkLoad()").ExtractBool());
-
-  // We should wait for the main frame's hit-test data to be ready before
-  // sending the click event below to avoid flakiness.
-  content::WaitForHitTestData(web_contents()->GetPrimaryMainFrame());
-  // Ensure the compositor thread is aware of the mouse events.
-  content::MainThreadFrameObserver frame_observer(GetRenderWidgetHost());
-  frame_observer.Wait();
 
   // Simulate user's input.
   content::SimulateMouseClick(web_contents(), 0,
@@ -131,11 +76,7 @@ IN_PROC_BROWSER_TEST_F(TotalInputDelayIntegrationTest,
   content::SimulateMouseClick(web_contents(), 0,
                               blink::WebMouseEvent::Button::kLeft);
 
-  ASSERT_TRUE(EvalJs(web_contents(), "runtest()").ExtractBool());
-
-  waiter->Wait();
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+  ui_test_utils::NavigateToURL(browser(), GURL("about:blank"));
 
   // Get all input delay recorded by UKM.
   std::vector<int64_t> input_delay_list = GetAllInputDelay();

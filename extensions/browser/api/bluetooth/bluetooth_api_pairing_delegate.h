@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_device.h"
 #include "extensions/common/api/bluetooth_private.h"
 
@@ -26,11 +26,6 @@ class BluetoothApiPairingDelegate
  public:
   explicit BluetoothApiPairingDelegate(
       content::BrowserContext* browser_context);
-
-  BluetoothApiPairingDelegate(const BluetoothApiPairingDelegate&) = delete;
-  BluetoothApiPairingDelegate& operator=(const BluetoothApiPairingDelegate&) =
-      delete;
-
   ~BluetoothApiPairingDelegate() override;
 
   // device::PairingDelegate overrides:
@@ -50,7 +45,9 @@ class BluetoothApiPairingDelegate
   void DispatchPairingEvent(
       const api::bluetooth_private::PairingEvent& pairing_event);
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothApiPairingDelegate);
 };
 
 }  // namespace extensions

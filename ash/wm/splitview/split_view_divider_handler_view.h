@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,18 @@
 
 #include <memory>
 
+#include "ash/ash_export.h"
+#include "ash/public/cpp/ash_constants.h"
+#include "base/macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/views/view.h"
 
 namespace ash {
 
 // The white handler bar in the middle of the divider.
-class SplitViewDividerHandlerView : public views::View {
+class ASH_EXPORT SplitViewDividerHandlerView : public views::View {
  public:
   SplitViewDividerHandlerView();
-
-  SplitViewDividerHandlerView(const SplitViewDividerHandlerView&) = delete;
-  SplitViewDividerHandlerView& operator=(const SplitViewDividerHandlerView&) =
-      delete;
-
   ~SplitViewDividerHandlerView() override;
 
   // Play the white handler's part in the divider spawn animation.
@@ -39,7 +37,7 @@ class SplitViewDividerHandlerView : public views::View {
 
   // Updates the corner radius of the handler bar to |radius|. Happens during
   // the animation of starting and ending dragging.
-  void UpdateCornerRadius(float radius);
+  void UpdateCornerRadius(int radius);
 
  private:
   class SelectionAnimation;
@@ -56,6 +54,8 @@ class SplitViewDividerHandlerView : public views::View {
 
   // Handles the spawning animation.
   std::unique_ptr<SpawningAnimation> spawning_animation_;
+
+  DISALLOW_COPY_AND_ASSIGN(SplitViewDividerHandlerView);
 };
 
 }  // namespace ash

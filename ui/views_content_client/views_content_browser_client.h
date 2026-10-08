@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/public/browser/content_browser_client.h"
 
 namespace ui {
@@ -18,19 +18,16 @@ class ViewsContentBrowserClient : public content::ContentBrowserClient {
  public:
   explicit ViewsContentBrowserClient(
       ViewsContentClient* views_content_client);
-
-  ViewsContentBrowserClient(const ViewsContentBrowserClient&) = delete;
-  ViewsContentBrowserClient& operator=(const ViewsContentBrowserClient&) =
-      delete;
-
   ~ViewsContentBrowserClient() override;
 
   // content::ContentBrowserClient:
   std::unique_ptr<content::BrowserMainParts> CreateBrowserMainParts(
-      bool is_integration_test) override;
+      const content::MainFunctionParams& parameters) override;
 
  private:
-  raw_ptr<ViewsContentClient> views_content_client_;
+  ViewsContentClient* views_content_client_;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewsContentBrowserClient);
 };
 
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,12 +24,12 @@ TEST_F(ContainerFinderTest, GetContainerForWindow) {
   aura::Window* window = widget->GetNativeWindow();
 
   // The window itself is not a container.
-  EXPECT_EQ(kShellWindowId_Invalid, window->GetId());
+  EXPECT_EQ(kShellWindowId_Invalid, window->id());
 
   // Container lookup finds the default container.
   aura::Window* container = GetContainerForWindow(window);
   ASSERT_TRUE(container);
-  EXPECT_EQ(desks_util::GetActiveDeskContainerId(), container->GetId());
+  EXPECT_EQ(desks_util::GetActiveDeskContainerId(), container->id());
 }
 
 }  // namespace ash

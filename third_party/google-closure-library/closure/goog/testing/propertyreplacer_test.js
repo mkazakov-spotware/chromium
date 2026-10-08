@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.testing.PropertyReplacerTest');
 goog.setTestOnly();
@@ -21,10 +29,6 @@ function isSafari8() {
 
 testSuite({
   // Test PropertyReplacer with JavaScript objects.
-  /**
-     @suppress {strictMissingProperties,missingProperties} suppression added to
-     enable type checking
-   */
   testSetJsProperties() {
     const stubs = new PropertyReplacer();
     const x = {a: 1, b: undefined};
@@ -118,10 +122,6 @@ testSuite({
   },
 
   // Test PropertyReplacer with prototype chain.
-  /**
-     @suppress {checkTypes,missingProperties} suppression added to enable type
-     checking
-   */
   testPrototype() {
     let stubs = new PropertyReplacer();
 
@@ -129,7 +129,6 @@ testSuite({
     const a = {a: 0};
     function B() {}
     B.prototype = a;
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const b = new B();
 
     stubs.set(a, 0, 1);
@@ -144,7 +143,6 @@ testSuite({
     C.prototype = c;
     function D() {}
     goog.inherits(D, C);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const d = new D();
 
     stubs = new PropertyReplacer();
@@ -176,7 +174,6 @@ testSuite({
   },
 
   // Test replacing function properties.
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testFunctionProperties() {
     const stubs = new PropertyReplacer();
     stubs.set(Array, 'x', 1);
@@ -191,9 +188,7 @@ testSuite({
   },
 
   // Test the hasKey_ private method.
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testHasKey() {
-    /** @suppress {visibility} suppression added to enable type checking */
     const f = PropertyReplacer.hasKey_;
 
     assertFalse('{}.a', f({}, 'a'));
@@ -207,7 +202,6 @@ testSuite({
     C.a = 0;
     assertTrue('C.a set', f(C, 'a'));
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const c = new C();
     assertFalse('C().a, inherited', f(c, 'a'));
     c.a = 0;
@@ -275,13 +269,8 @@ testSuite({
   },
 
   // Test PropertyReplacer with DOM objects' custom attributes.
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testDomCustomAttributes() {
     const div = dom.createElement(TagName.DIV);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     div.attr1 = 'old';
 
     const stubs = new PropertyReplacer();
@@ -318,18 +307,10 @@ testSuite({
         'Trying to remove a read-only property fails silently.',
         goog.bind(stubs.remove, stubs, a, 'length'));
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     window.foo = foo;
     assertThrows(
         'Trying to set a read-only property by path fails silently.',
         goog.bind(stubs.setPath, stubs, 'window.foo.length', 10));
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     window.foo = undefined;
   },
 
@@ -349,7 +330,7 @@ testSuite({
 
   // Test PropertyReplacer trying to override a sealed property.
   testSealedProperties() {
-    if (typeof Object.seal !== 'function') {
+    if (!goog.isFunction(Object.seal)) {
       return;
     }
 
@@ -365,10 +346,6 @@ testSuite({
         'Trying to remove a sealed property fails.',
         goog.bind(stubs.remove, stubs, sealed, 'a'));
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     window.sealed = sealed;
     assertThrows(
         'Trying to set a new sealed property by path fails silently in strict ' +
@@ -391,10 +368,6 @@ testSuite({
           'Trying to remove a sealed property fails in strict mode.',
           goog.bind(stubs.remove, stubs, sealed, 'a'));
 
-      /**
-       * @suppress {strictMissingProperties} suppression added to enable type
-       * checking
-       */
       window.sealed = sealed;
       assertThrows(
           'Trying to set a new sealed property by path fails silently in ' +
@@ -407,7 +380,7 @@ testSuite({
 
   // Test PropertyReplacer trying to override a frozen property.
   testFrozenProperty() {
-    if (typeof Object.freeze !== 'function') {
+    if (!goog.isFunction(Object.freeze)) {
       return;
     }
 
@@ -429,10 +402,6 @@ testSuite({
         'Trying to remove a frozen property fails silently.',
         goog.bind(stubs.remove, stubs, frozen, 'a'));
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     window.frozen = frozen;
     assertThrows(
         'Trying to set a frozen property by path fails silently.',
@@ -460,10 +429,6 @@ testSuite({
           'Trying to remove a frozen property fails silently in strict mode.',
           goog.bind(stubs.remove, stubs, frozen, 'a'));
 
-      /**
-       * @suppress {strictMissingProperties} suppression added to enable type
-       * checking
-       */
       window.frozen = frozen;
       assertThrows(
           'Trying to set a new frozen property by path fails silently in ' +
@@ -496,7 +461,6 @@ testSuite({
     }
     C.prototype.b = 1;
     C.prototype.toString = () => 'obj';
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const obj = new C();
 
     stubs.replace(obj, 'a', 2);
@@ -564,61 +528,49 @@ testSuite({
   },
 
   // Tests altering complete namespace paths.
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testSetPath() {
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
-    globalThis.a = {b: {}};
+    goog.global.a = {b: {}};
     const stubs = new PropertyReplacer();
 
     stubs.setPath('a.b.c.d', 1);
-    assertObjectEquals('a.b.c.d=1', {b: {c: {d: 1}}}, globalThis.a);
+    assertObjectEquals('a.b.c.d=1', {b: {c: {d: 1}}}, goog.global.a);
     stubs.setPath('a.b.e', 2);
-    assertObjectEquals('a.b.e=2', {b: {c: {d: 1}, e: 2}}, globalThis.a);
+    assertObjectEquals('a.b.e=2', {b: {c: {d: 1}, e: 2}}, goog.global.a);
     stubs.setPath('a.f', 3);
-    assertObjectEquals('a.f=3', {b: {c: {d: 1}, e: 2}, f: 3}, globalThis.a);
+    assertObjectEquals('a.f=3', {b: {c: {d: 1}, e: 2}, f: 3}, goog.global.a);
     stubs.setPath('a.f.g', 4);
     assertObjectEquals(
-        'a.f.g=4', {b: {c: {d: 1}, e: 2}, f: {g: 4}}, globalThis.a);
+        'a.f.g=4', {b: {c: {d: 1}, e: 2}, f: {g: 4}}, goog.global.a);
     stubs.setPath('a', 5);
-    assertEquals('a=5', 5, globalThis.a);
+    assertEquals('a=5', 5, goog.global.a);
 
     stubs.setPath('x.y.z', 5);
-    assertObjectEquals('x.y.z=5', {y: {z: 5}}, globalThis.x);
+    assertObjectEquals('x.y.z=5', {y: {z: 5}}, goog.global.x);
 
     stubs.reset();
-    assertObjectEquals('a.* reset', {b: {}}, globalThis.a);
+    assertObjectEquals('a.* reset', {b: {}}, goog.global.a);
     // NOTE: it's impossible to delete global variables in Internet Explorer,
-    // so ('x' in globalThis) would be true.
-    assertUndefined('x.* reset', globalThis.x);
+    // so ('x' in goog.global) would be true.
+    assertUndefined('x.* reset', goog.global.x);
   },
 
   // Tests altering paths with functions in them.
-  /**
-     @suppress {missingProperties,checkTypes} suppression added to enable type
-     checking
-   */
   testSetPathWithFunction() {
     const f = function() {};
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
-    globalThis.a = {b: f};
+    goog.global.a = {b: f};
     const stubs = new PropertyReplacer();
 
     stubs.setPath('a.b.c', 1);
-    assertEquals('a.b.c=1, f kept', f, globalThis.a.b);
-    assertEquals('a.b.c=1, c set', 1, globalThis.a.b.c);
+    assertEquals('a.b.c=1, f kept', f, goog.global.a.b);
+    assertEquals('a.b.c=1, c set', 1, goog.global.a.b.c);
 
     stubs.setPath('a.b.prototype.d', 2);
-    assertEquals('a.b.prototype.d=2, b kept', f, globalThis.a.b);
-    assertEquals('a.b.prototype.d=2, c kept', 1, globalThis.a.b.c);
-    assertFalse('a.b.prototype.d=2, a.b.d not set', 'd' in globalThis.a.b);
-    assertTrue('a.b.prototype.d=2, proto set', 'd' in globalThis.a.b.prototype);
-    assertEquals('a.b.prototype.d=2, d set', 2, new globalThis.a.b().d);
+    assertEquals('a.b.prototype.d=2, b kept', f, goog.global.a.b);
+    assertEquals('a.b.prototype.d=2, c kept', 1, goog.global.a.b.c);
+    assertFalse('a.b.prototype.d=2, a.b.d not set', 'd' in goog.global.a.b);
+    assertTrue(
+        'a.b.prototype.d=2, proto set', 'd' in goog.global.a.b.prototype);
+    assertEquals('a.b.prototype.d=2, d set', 2, new goog.global.a.b().d);
 
     const invalidSetPath = () => {
       stubs.setPath('a.prototype.e', 3);
@@ -626,16 +578,12 @@ testSuite({
     assertThrows('setting the prototype of a non-function', invalidSetPath);
 
     stubs.reset();
-    assertObjectEquals('a.b.c reset', {b: f}, globalThis.a);
-    assertObjectEquals('a.b.prototype reset', {}, globalThis.a.b.prototype);
+    assertObjectEquals('a.b.c reset', {b: f}, goog.global.a);
+    assertObjectEquals('a.b.prototype reset', {}, goog.global.a.b.prototype);
   },
 
   // Tests restoring original attribute values with restore() rather than
   // reset().
-  /**
-     @suppress {strictMissingProperties,missingProperties} suppression added to
-     enable type checking
-   */
   testRestore() {
     const stubs = new PropertyReplacer();
     const x = {a: 1, b: undefined};

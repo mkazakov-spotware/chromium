@@ -1,8 +1,6 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-typedef (CSSNumericValue or CSSKeywordish) CSSPerspectiveValue;
 
 // Represents a perspective value in a CSSTransformValue used for properties
 // like "transform".
@@ -10,6 +8,6 @@ typedef (CSSNumericValue or CSSKeywordish) CSSPerspectiveValue;
 [
     Exposed=(Window,LayoutWorklet,PaintWorklet)
 ] interface CSSPerspective : CSSTransformComponent {
-    [RaisesException] constructor(CSSPerspectiveValue length);
-    [RaisesException=Setter] attribute CSSPerspectiveValue length;
+    [RaisesException] constructor(CSSNumericValue length);
+    [RaisesException=Setter] attribute CSSNumericValue length;
 };

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/sync_file_system/drive_backend/callback_tracker_internal.h"
 
@@ -24,8 +25,7 @@ namespace drive_backend {
 //   };
 //
 //   void DoSomethingAsync(const SomeCallbackType& callback) {
-//     base::OnceClosure abort_case_handler =
-//         base::BindOnce(callback, ABORT_ERROR);
+//     base::Closure abort_case_handler = base::Bind(callback, ABORT_ERROR);
 //
 //     SomeCallbackType wrapped_callback =
 //         callback_tracker_.Register(
@@ -35,14 +35,9 @@ namespace drive_backend {
 //   }
 class CallbackTracker {
  public:
-  using AbortClosureByHelper =
-      std::map<internal::AbortHelper*, base::OnceClosure>;
+  typedef std::map<internal::AbortHelper*, base::Closure> AbortClosureByHelper;
 
   CallbackTracker();
-
-  CallbackTracker(const CallbackTracker&) = delete;
-  CallbackTracker& operator=(const CallbackTracker&) = delete;
-
   ~CallbackTracker();
 
   // Returns a wrapped callback.
@@ -51,12 +46,12 @@ class CallbackTracker {
   // Invocation of the wrapped callback unregisters |callback| from
   // CallbackTracker.
   template <typename T>
-  base::OnceCallback<T> Register(base::OnceClosure abort_closure,
-                                 base::OnceCallback<T> callback) {
+  base::Callback<T> Register(const base::Closure& abort_closure,
+                             const base::Callback<T>& callback) {
     internal::AbortHelper* helper = new internal::AbortHelper(this);
-    helpers_[helper] = std::move(abort_closure);
-    return base::BindOnce(&internal::InvokeAndInvalidateHelper<T>::Run,
-                          helper->AsWeakPtr(), std::move(callback));
+    helpers_[helper] = abort_closure;
+    return base::Bind(&internal::InvokeAndInvalidateHelper<T>::Run,
+                      helper->AsWeakPtr(), callback);
   }
 
   void AbortAll();
@@ -68,6 +63,8 @@ class CallbackTracker {
       internal::AbortHelper* helper);
 
   AbortClosureByHelper helpers_;  // Owns AbortHelpers.
+
+  DISALLOW_COPY_AND_ASSIGN(CallbackTracker);
 };
 
 }  // namespace drive_backend

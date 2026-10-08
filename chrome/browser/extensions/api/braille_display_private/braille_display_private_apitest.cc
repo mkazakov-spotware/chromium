@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include "base/bind.h"
 #include "base/containers/circular_deque.h"
 #include "base/threading/thread_restrictions.h"
-#include "chrome/browser/ash/accessibility/accessibility_manager.h"
-#include "chrome/browser/ash/login/lock/screen_locker.h"
-#include "chrome/browser/ash/login/lock/screen_locker_tester.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/accessibility/accessibility_manager.h"
+#include "chrome/browser/chromeos/login/lock/screen_locker.h"
+#include "chrome/browser/chromeos/login/lock/screen_locker_tester.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
 #include "chrome/browser/extensions/api/braille_display_private/braille_controller_brlapi.h"
 #include "chrome/browser/extensions/api/braille_display_private/braille_display_private_api.h"
 #include "chrome/browser/extensions/api/braille_display_private/brlapi_connection.h"
@@ -19,6 +19,7 @@
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/test/base/testing_profile.h"
+#include "chromeos/constants/chromeos_switches.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/user_manager/user_names.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -64,10 +65,9 @@ class MockBrlapiConnection : public BrlapiConnection {
  public:
   explicit MockBrlapiConnection(MockBrlapiConnectionData* data)
       : data_(data) {}
-
-  ConnectResult Connect(OnDataReadyCallback on_data_ready) override {
+  ConnectResult Connect(const OnDataReadyCallback& on_data_ready) override {
     data_->connected = true;
-    on_data_ready_ = std::move(on_data_ready);
+    on_data_ready_ = on_data_ready;
     if (!data_->pending_keys.empty()) {
       content::GetIOThreadTaskRunner({})->PostTask(
           FROM_HERE, base::BindOnce(&MockBrlapiConnection::NotifyDataReady,
@@ -154,8 +154,9 @@ class BrailleDisplayPrivateApiTest : public ExtensionApiTest {
     connection_data_.error.brlerrno = BRLAPI_ERROR_SUCCESS;
     connection_data_.reappear_on_disconnect = false;
     BrailleControllerImpl::GetInstance()->SetCreateBrlapiConnectionForTesting(
-        base::BindOnce(&BrailleDisplayPrivateApiTest::CreateBrlapiConnection,
-                       base::Unretained(this)));
+        base::Bind(
+            &BrailleDisplayPrivateApiTest::CreateBrlapiConnection,
+            base::Unretained(this)));
     BrailleControllerImpl::GetInstance()->skip_libbrlapi_so_load_ = true;
     DisableAccessibilityManagerBraille();
   }
@@ -167,7 +168,7 @@ class BrailleDisplayPrivateApiTest : public ExtensionApiTest {
   // steal events.  Some tests override this to keep the normal behaviour
   // of the accessibility manager.
   virtual void DisableAccessibilityManagerBraille() {
-    ash::AccessibilityManager::SetBrailleControllerForTest(
+    chromeos::AccessibilityManager::SetBrailleControllerForTest(
         &stub_braille_controller_);
   }
 
@@ -184,8 +185,7 @@ IN_PROC_BROWSER_TEST_F(BrailleDisplayPrivateApiTest, WriteDots) {
   connection_data_.display_columns = 11;
   connection_data_.display_rows = 1;
   connection_data_.cell_size = 6;
-  ASSERT_TRUE(RunExtensionTest("braille_display_private/write_dots", {},
-                               {.load_as_component = true}))
+  ASSERT_TRUE(RunComponentExtensionTest("braille_display_private/write_dots"))
       << message_;
   ASSERT_EQ(3U, connection_data_.written_content.size());
   const std::string expected_content(
@@ -261,8 +261,7 @@ IN_PROC_BROWSER_TEST_F(BrailleDisplayPrivateApiTest, KeyEvents) {
                                             BRLAPI_KEY_CMD_PASSDOTS | i);
   }
 
-  ASSERT_TRUE(RunExtensionTest("braille_display_private/key_events", {},
-                               {.load_as_component = true}));
+  ASSERT_TRUE(RunComponentExtensionTest("braille_display_private/key_events"));
 }
 
 IN_PROC_BROWSER_TEST_F(BrailleDisplayPrivateApiTest, DisplayStateChanges) {
@@ -271,8 +270,8 @@ IN_PROC_BROWSER_TEST_F(BrailleDisplayPrivateApiTest, DisplayStateChanges) {
   connection_data_.cell_size = 6;
   connection_data_.pending_keys.push_back(kErrorKeyCode);
   connection_data_.reappear_on_disconnect = true;
-  ASSERT_TRUE(RunExtensionTest("braille_display_private/display_state_changes",
-                               {}, {.load_as_component = true}));
+  ASSERT_TRUE(RunComponentExtensionTest(
+      "braille_display_private/display_state_changes"));
 }
 
 class BrailleDisplayPrivateAPIUserTest : public BrailleDisplayPrivateApiTest {
@@ -328,10 +327,10 @@ class BrailleDisplayPrivateAPIUserTest : public BrailleDisplayPrivateApiTest {
 };
 
 IN_PROC_BROWSER_TEST_F(BrailleDisplayPrivateAPIUserTest, KeyEventOnLockScreen) {
-  ash::ScreenLockerTester tester;
+  chromeos::ScreenLockerTester tester;
 
   // Make sure the signin profile and active profile are different.
-  Profile* signin_profile = ash::ProfileHelper::GetSigninProfile();
+  Profile* signin_profile = chromeos::ProfileHelper::GetSigninProfile();
   Profile* user_profile = ProfileManager::GetActiveUserProfile();
   ASSERT_FALSE(signin_profile->IsSameOrParent(user_profile))
       << signin_profile->GetDebugName() << " vs "

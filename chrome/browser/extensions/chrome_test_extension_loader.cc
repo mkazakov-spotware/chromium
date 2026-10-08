@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,34 +7,69 @@
 #include <memory>
 
 #include "base/files/file_util.h"
-#include "base/test/test_future.h"
+#include "base/run_loop.h"
+#include "base/scoped_observer.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/browser/extensions/chrome_extension_test_notification_observer.h"
 #include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_util.h"
-#include "chrome/browser/extensions/load_error_waiter.h"
 #include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/profiles/profile.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_source.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/extension_creator.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/extension_util.h"
+#include "extensions/browser/notification_types.h"
+#include "extensions/browser/shared_user_script_manager.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/browser/user_script_loader.h"
-#include "extensions/browser/user_script_manager.h"
-#include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/background_info.h"
 #include "extensions/common/manifest_handlers/content_scripts_handler.h"
 #include "extensions/common/manifest_handlers/incognito_info.h"
-#include "extensions/common/mojom/host_id.mojom.h"
 #include "extensions/test/extension_background_page_waiter.h"
-#include "extensions/test/test_content_script_load_waiter.h"
+#include "extensions/test/extension_test_notification_observer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace extensions {
+
+namespace {
+
+// A single-use class to wait for content scripts to be loaded.
+class ContentScriptLoadWaiter : public UserScriptLoader::Observer {
+ public:
+  ContentScriptLoadWaiter(UserScriptLoader* loader, const HostID& host_id)
+      : host_id_(host_id), loader_(loader), scoped_observer_(this) {
+    scoped_observer_.Add(loader_);
+  }
+  ~ContentScriptLoadWaiter() = default;
+
+  void Wait() { run_loop_.Run(); }
+
+ private:
+  // UserScriptLoader::Observer:
+  void OnScriptsLoaded(UserScriptLoader* loader,
+                       content::BrowserContext* browser_context) override {
+    if (loader_->HasLoadedScripts(host_id_)) {
+      // Quit when idle in order to allow other observers to run.
+      run_loop_.QuitWhenIdle();
+    }
+  }
+  void OnUserScriptLoaderDestroyed(UserScriptLoader* loader) override {}
+
+  const HostID host_id_;
+  UserScriptLoader* const loader_;
+  base::RunLoop run_loop_;
+  ScopedObserver<UserScriptLoader, UserScriptLoader::Observer> scoped_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentScriptLoadWaiter);
+};
+
+}  // namespace
 
 ChromeTestExtensionLoader::ChromeTestExtensionLoader(
     content::BrowserContext* browser_context)
@@ -54,7 +89,6 @@ ChromeTestExtensionLoader::~ChromeTestExtensionLoader() {
 scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadExtension(
     const base::FilePath& path) {
   scoped_refptr<const Extension> extension;
-  bool is_unpacked = false;
   if (path.MatchesExtension(FILE_PATH_LITERAL(".crx"))) {
     extension = LoadCrx(path);
   } else if (pack_extension_) {
@@ -63,7 +97,6 @@ scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadExtension(
       return nullptr;
     extension = LoadCrx(crx_path);
   } else {
-    is_unpacked = true;
     extension = LoadUnpacked(path);
   }
 
@@ -77,42 +110,31 @@ scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadExtension(
 
   extension_id_ = extension->id();
 
-  // Permissions and the install param are handled by the unpacked installer
-  // before the extension is installed.
-  // TODO(https://crbug.com/1157606): Fix CrxInstaller to enable this for
-  // packed extensions.
-  if (!is_unpacked) {
-    // Trying to reload a shared module (as we do when adjusting extension
-    // permissions) causes ExtensionService to crash. Only adjust permissions
-    // for non-shared modules.
-    // TODO(devlin): That's not good; we shouldn't be crashing.
-    if (!SharedModuleInfo::IsSharedModule(extension.get())) {
-      CheckPermissions(extension.get());
-      // Make |extension| null since it may have been reloaded invalidating
-      // pointers to it.
-      extension = nullptr;
-    }
+  // Trying to reload a shared module (as we do when adjusting extension
+  // permissions) causes ExtensionService to crash. Only adjust permissions for
+  // non-shared modules.
+  // TODO(devlin): That's not good; we shouldn't be crashing.
+  if (!SharedModuleInfo::IsSharedModule(extension.get())) {
+    CheckPermissions(extension.get());
+    // Make |extension| null since it may have been reloaded invalidating
+    // pointers to it.
+    extension = nullptr;
+  }
 
-    if (install_param_.has_value()) {
-      DCHECK(!install_param_->empty());
-      ExtensionPrefs::Get(browser_context_)
-          ->SetInstallParam(extension_id_, *install_param_);
-      // Reload the extension so listeners of the loaded notification have
-      // access to the install param.
-      TestExtensionRegistryObserver registry_observer(extension_registry_,
-                                                      extension_id_);
-      extension_service_->ReloadExtension(extension_id_);
-      registry_observer.WaitForExtensionLoaded();
-    }
+  if (!install_param_.empty()) {
+    ExtensionPrefs::Get(browser_context_)
+        ->SetInstallParam(extension_id_, install_param_);
+    // Reload the extension so listeners of the loaded notification have access
+    // to the install param.
+    TestExtensionRegistryObserver registry_observer(extension_registry_,
+                                                    extension_id_);
+    extension_service_->ReloadExtension(extension_id_);
+    registry_observer.WaitForExtensionLoaded();
   }
 
   extension = extension_registry_->enabled_extensions().GetByID(extension_id_);
   if (!extension)
     return nullptr;
-  if (!VerifyPermissions(extension.get())) {
-    ADD_FAILURE() << "The extension did not get the requested permissions.";
-    return nullptr;
-  }
   if (!CheckInstallWarnings(*extension))
     return nullptr;
 
@@ -125,17 +147,15 @@ scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadExtension(
 
 bool ChromeTestExtensionLoader::WaitForExtensionReady(
     const Extension& extension) {
-  UserScriptManager* user_script_manager =
-      ExtensionSystem::Get(browser_context_)->user_script_manager();
+  SharedUserScriptManager* user_script_manager =
+      ExtensionSystem::Get(browser_context_)->shared_user_script_manager();
   // Note: |user_script_manager| can be null in tests.
   if (user_script_manager &&
       !ContentScriptsInfo::GetContentScripts(&extension).empty()) {
-    ExtensionUserScriptLoader* user_script_loader =
-        user_script_manager->GetUserScriptLoaderForExtension(extension_id_);
-    if (!user_script_loader->HasLoadedScripts()) {
-      ContentScriptLoadWaiter waiter(user_script_loader);
-      waiter.Wait();
-    }
+    UserScriptLoader* user_script_loader = user_script_manager->script_loader();
+    HostID host_id(HostID::EXTENSIONS, extension_id_);
+    if (!user_script_loader->HasLoadedScripts(host_id))
+      ContentScriptLoadWaiter(user_script_loader, host_id).Wait();
   }
 
   const int num_processes =
@@ -153,15 +173,9 @@ bool ChromeTestExtensionLoader::WaitForExtensionReady(
 
   content::BrowserContext* context_to_use =
       IncognitoInfo::IsSplitMode(&extension)
-          ? browser_context_.get()
+          ? browser_context_
           : Profile::FromBrowserContext(browser_context_)->GetOriginalProfile();
-
-  // If possible, wait for the extension's background context to be loaded.
-  std::string reason_unused;
-  if (ExtensionBackgroundPageWaiter::CanWaitFor(extension, reason_unused)) {
-    ExtensionBackgroundPageWaiter(context_to_use, extension)
-        .WaitForBackgroundInitialized();
-  }
+  ExtensionBackgroundPageWaiter(context_to_use, extension).Wait();
 
   // TODO(devlin): Should this use |context_to_use|? Or should
   // WaitForExtensionViewsToLoad check both contexts if one is OTR?
@@ -246,20 +260,14 @@ scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadCrx(
           CrxInstaller::OffStoreInstallAllowedInTest);
     }
 
-    base::test::TestFuture<absl::optional<CrxInstallError>>
-        installer_done_future;
-    installer->AddInstallerCallback(
-        installer_done_future
-            .GetCallback<const absl::optional<CrxInstallError>&>());
-
+    content::WindowedNotificationObserver install_observer(
+        NOTIFICATION_CRX_INSTALLER_DONE,
+        content::Source<CrxInstaller>(installer.get()));
     installer->InstallCrx(file_path);
+    install_observer.Wait();
 
-    absl::optional<CrxInstallError> error = installer_done_future.Get();
-    if (error) {
-      return nullptr;
-    }
-
-    extension = installer->extension();
+    extension =
+        content::Details<const Extension>(install_observer.details()).ptr();
   }
 
   return extension;
@@ -287,26 +295,12 @@ void ChromeTestExtensionLoader::CheckPermissions(const Extension* extension) {
     registry_observer.WaitForExtensionLoaded();
   }
 
-  if (allow_incognito_access_.has_value() &&
-      *allow_incognito_access_ !=
-          util::IsIncognitoEnabled(id, browser_context_)) {
+  if (allow_incognito_access_ !=
+      util::IsIncognitoEnabled(id, browser_context_)) {
     TestExtensionRegistryObserver registry_observer(extension_registry_, id);
     util::SetIsIncognitoEnabled(id, browser_context_, true);
     registry_observer.WaitForExtensionLoaded();
   }
-}
-
-bool ChromeTestExtensionLoader::VerifyPermissions(const Extension* extension) {
-  const ExtensionPrefs* prefs = ExtensionPrefs::Get(browser_context_);
-  if (allow_file_access_.has_value() &&
-      prefs->AllowFileAccess(extension->id()) != *allow_file_access_) {
-    return false;
-  }
-  if (allow_incognito_access_.has_value() &&
-      prefs->IsIncognitoEnabled(extension->id()) != *allow_incognito_access_) {
-    return false;
-  }
-  return true;
 }
 
 scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadUnpacked(
@@ -317,21 +311,13 @@ scoped_refptr<const Extension> ChromeTestExtensionLoader::LoadUnpacked(
       UnpackedInstaller::Create(extension_service_);
   installer->set_require_modern_manifest_version(
       require_modern_manifest_version_);
-  if (allow_file_access_.has_value()) {
-    installer->set_allow_file_access(*allow_file_access_);
-  }
-  if (allow_incognito_access_.has_value()) {
-    installer->set_allow_incognito_access(*allow_incognito_access_);
-  }
-  if (install_param_.has_value()) {
-    installer->set_install_param(*install_param_);
-  }
-  LoadErrorWaiter waiter;
   installer->Load(file_path);
   if (!should_fail_) {
     extension = registry_observer.WaitForExtensionLoaded();
   } else {
-    EXPECT_TRUE(waiter.Wait()) << "No load error observed";
+    EXPECT_TRUE(ExtensionTestNotificationObserver(browser_context_)
+                    .WaitForExtensionLoadError())
+        << "No load error observed";
   }
 
   return extension;
@@ -341,24 +327,16 @@ bool ChromeTestExtensionLoader::CheckInstallWarnings(
     const Extension& extension) {
   if (ignore_manifest_warnings_)
     return true;
-
   const std::vector<InstallWarning>& install_warnings =
       extension.install_warnings();
-  std::string install_warnings_string;
-  for (const InstallWarning& warning : install_warnings) {
-    // Don't fail on the manifest v2 deprecation warning in tests for now.
-    // TODO(https://crbug.com/1269161): Stop skipping this warning when all
-    // tests are updated to MV3.
-    if (warning.message == manifest_errors::kManifestV2IsDeprecatedWarning)
-      continue;
-    install_warnings_string += "  " + warning.message + "\n";
-  }
-
-  if (install_warnings_string.empty())
+  if (install_warnings.empty())
     return true;
 
-  ADD_FAILURE() << "Unexpected warnings for extension:\n"
-                << install_warnings_string;
+  std::string install_warnings_message = "Unexpected warnings for extension:\n";
+  for (const InstallWarning& warning : install_warnings)
+    install_warnings_message += "  " + warning.message + "\n";
+
+  ADD_FAILURE() << install_warnings_message;
   return false;
 }
 

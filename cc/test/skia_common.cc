@@ -1,21 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/test/skia_common.h"
 
 #include <stddef.h>
-
-#include <cstdint>
 #include <string>
 #include <utility>
-#include <vector>
 
-#include "base/base_paths.h"
-#include "base/check.h"
 #include "base/containers/span.h"
-#include "base/files/file_util.h"
-#include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "cc/paint/display_item_list.h"
 #include "cc/paint/draw_image.h"
@@ -27,7 +20,7 @@
 #include "third_party/skia/include/core/SkPixmap.h"
 #include "third_party/skia/include/gpu/GrDirectContext.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 namespace {
@@ -116,32 +109,22 @@ SkYUVAPixmapInfo GetYUVAPixmapInfo(const gfx::Size& image_size,
     NOTREACHED();
     return SkYUVAPixmapInfo();
   }
-  SkYUVAInfo::Subsampling subsampling;
+  SkYUVAInfo::PlanarConfig planar_config;
   switch (format) {
-    case YUVSubsampling::k410:
-      subsampling = SkYUVAInfo::Subsampling::k410;
-      break;
-    case YUVSubsampling::k411:
-      subsampling = SkYUVAInfo::Subsampling::k411;
-      break;
     case YUVSubsampling::k420:
-      subsampling = SkYUVAInfo::Subsampling::k420;
+      planar_config = SkYUVAInfo::PlanarConfig::kY_U_V_420;
       break;
     case YUVSubsampling::k422:
-      subsampling = SkYUVAInfo::Subsampling::k422;
-      break;
-    case YUVSubsampling::k440:
-      subsampling = SkYUVAInfo::Subsampling::k440;
+      planar_config = SkYUVAInfo::PlanarConfig::kY_U_V_422;
       break;
     case YUVSubsampling::k444:
-      subsampling = SkYUVAInfo::Subsampling::k444;
+      planar_config = SkYUVAInfo::PlanarConfig::kY_U_V_444;
       break;
     default:
       NOTREACHED();
       return SkYUVAPixmapInfo();
   }
-  SkYUVAInfo yuva_info({image_size.width(), image_size.height()},
-                       SkYUVAInfo::PlaneConfig::kY_U_V, subsampling,
+  SkYUVAInfo yuva_info({image_size.width(), image_size.height()}, planar_config,
                        kJPEG_Full_SkYUVColorSpace);
   return SkYUVAPixmapInfo(yuva_info, yuv_data_type, /*row bytes*/ nullptr);
 }
@@ -152,7 +135,7 @@ PaintImage CreateDiscardablePaintImage(
     bool allocate_encoded_data,
     PaintImage::Id id,
     SkColorType color_type,
-    absl::optional<YUVSubsampling> yuv_format,
+    base::Optional<YUVSubsampling> yuv_format,
     SkYUVAPixmapInfo::DataType yuv_data_type) {
   if (!color_space)
     color_space = SkColorSpace::MakeSRGB();
@@ -188,8 +171,8 @@ PaintImage CreateDiscardablePaintImage(
 DrawImage CreateDiscardableDrawImage(const gfx::Size& size,
                                      sk_sp<SkColorSpace> color_space,
                                      SkRect rect,
-                                     PaintFlags::FilterQuality filter_quality,
-                                     const SkM44& matrix) {
+                                     SkFilterQuality filter_quality,
+                                     const SkMatrix& matrix) {
   SkIRect irect;
   rect.roundOut(&irect);
 
@@ -246,31 +229,8 @@ scoped_refptr<SkottieWrapper> CreateSkottie(const gfx::Size& size,
                  base::NumberToString(duration_secs * kFps));
   }
 
-  return CreateSkottieFromString(json);
-}
-
-scoped_refptr<SkottieWrapper> CreateSkottieFromString(base::StringPiece json) {
-  base::span<const uint8_t> json_span = base::as_bytes(base::make_span(json));
-  return SkottieWrapper::CreateSerializable(
-      std::vector<uint8_t>(json_span.begin(), json_span.end()));
-}
-
-std::string LoadSkottieFileFromTestData(
-    base::FilePath::StringPieceType animation_file_name) {
-  base::FilePath animation_path;
-  CHECK(base::PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, &animation_path));
-  animation_path = animation_path.AppendASCII("cc/test/data/lottie")
-                       .Append(base::FilePath(animation_file_name));
-  std::string animation_json;
-  CHECK(base::ReadFileToString(animation_path, &animation_json))
-      << animation_path;
-  return animation_json;
-}
-
-scoped_refptr<SkottieWrapper> CreateSkottieFromTestDataDir(
-    base::FilePath::StringPieceType animation_file_name) {
-  return CreateSkottieFromString(
-      LoadSkottieFileFromTestData(animation_file_name));
+  return SkottieWrapper::CreateNonSerializable(
+      base::as_bytes(base::make_span(json)));
 }
 
 PaintImage CreateNonDiscardablePaintImage(const gfx::Size& size) {

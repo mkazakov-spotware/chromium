@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include "base/files/file_util.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace storage {
 
@@ -27,7 +27,7 @@ ScopedFile::ScopedFile(const base::FilePath& path,
   DCHECK(path.empty() || policy != DELETE_ON_SCOPE_OUT ||
          file_task_runner_.get())
       << "path:" << path.value() << " policy:" << policy
-      << " runner:" << file_task_runner_.get();
+      << " runner:" << file_task_runner.get();
 }
 
 ScopedFile::ScopedFile(ScopedFile&& other) {
@@ -41,7 +41,7 @@ ScopedFile::~ScopedFile() {
 void ScopedFile::AddScopeOutCallback(ScopeOutCallback callback,
                                      base::TaskRunner* callback_runner) {
   if (!callback_runner)
-    callback_runner = base::SingleThreadTaskRunner::GetCurrentDefault().get();
+    callback_runner = base::ThreadTaskRunnerHandle::Get().get();
   scope_out_callbacks_.emplace_back(std::move(callback), callback_runner);
 }
 
@@ -69,7 +69,8 @@ void ScopedFile::Reset() {
            << path_.value();
 
   if (scope_out_policy_ == DELETE_ON_SCOPE_OUT) {
-    file_task_runner_->PostTask(FROM_HERE, base::GetDeleteFileCallback(path_));
+    file_task_runner_->PostTask(
+        FROM_HERE, base::BindOnce(base::GetDeleteFileCallback(), path_));
   }
 
   // Clear all fields.

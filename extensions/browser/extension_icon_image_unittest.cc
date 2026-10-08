@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "base/json/json_file_value_serializer.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "content/public/test/test_browser_context.h"
@@ -20,19 +21,15 @@
 #include "skia/ext/image_operations.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/gfx/image/image_skia_rep.h"
 #include "ui/gfx/image/image_skia_source.h"
 #include "ui/gfx/skia_util.h"
-
-using extensions::mojom::ManifestLocation;
 
 namespace extensions {
 namespace {
 
-SkBitmap CreateBlankBitmapForScale(int size_dip,
-                                   ui::ResourceScaleFactor scale_factor) {
+SkBitmap CreateBlankBitmapForScale(int size_dip, ui::ScaleFactor scale_factor) {
   SkBitmap bitmap;
-  const float scale = ui::GetScaleForResourceScaleFactor(scale_factor);
+  const float scale = ui::GetScaleForScaleFactor(scale_factor);
   bitmap.allocN32Pixels(static_cast<int>(size_dip * scale),
                         static_cast<int>(size_dip * scale));
   bitmap.eraseColor(SkColorSetARGB(0, 0, 0, 0));
@@ -72,9 +69,6 @@ class ExtensionIconImageTest : public ExtensionsTest,
   ExtensionIconImageTest()
       : image_loaded_count_(0), quit_in_image_loaded_(false) {}
 
-  ExtensionIconImageTest(const ExtensionIconImageTest&) = delete;
-  ExtensionIconImageTest& operator=(const ExtensionIconImageTest&) = delete;
-
   ~ExtensionIconImageTest() override {}
 
   void WaitForImageLoad() {
@@ -90,7 +84,7 @@ class ExtensionIconImageTest : public ExtensionsTest,
   }
 
   scoped_refptr<Extension> CreateExtension(const char* name,
-                                           ManifestLocation location) {
+                                           Manifest::Location location) {
     // Create and load an extension.
     base::FilePath test_file;
     if (!base::PathService::Get(DIR_TEST_DATA, &test_file)) {
@@ -131,18 +125,19 @@ class ExtensionIconImageTest : public ExtensionsTest,
  private:
   int image_loaded_count_;
   bool quit_in_image_loaded_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionIconImageTest);
 };
 
 }  // namespace
 
 TEST_F(ExtensionIconImageTest, Basic) {
-  std::vector<ui::ResourceScaleFactor> supported_factors;
-  supported_factors.push_back(ui::k100Percent);
-  supported_factors.push_back(ui::k200Percent);
-  ui::test::ScopedSetSupportedResourceScaleFactors scoped_supported(
-      supported_factors);
+  std::vector<ui::ScaleFactor> supported_factors;
+  supported_factors.push_back(ui::SCALE_FACTOR_100P);
+  supported_factors.push_back(ui::SCALE_FACTOR_200P);
+  ui::test::ScopedSetSupportedScaleFactors scoped_supported(supported_factors);
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   gfx::ImageSkia default_icon = GetDefaultIcon();
@@ -175,9 +170,9 @@ TEST_F(ExtensionIconImageTest, Basic) {
 
   // Before the image representation is loaded, image should contain blank
   // image representation.
-  EXPECT_TRUE(
-      gfx::BitmapsAreEqual(representation.GetBitmap(),
-                           CreateBlankBitmapForScale(16, ui::k100Percent)));
+  EXPECT_TRUE(gfx::BitmapsAreEqual(
+      representation.GetBitmap(),
+      CreateBlankBitmapForScale(16, ui::SCALE_FACTOR_100P)));
 
   WaitForImageLoad();
   EXPECT_EQ(1, ImageLoadedCount());
@@ -192,9 +187,9 @@ TEST_F(ExtensionIconImageTest, Basic) {
   // Gets representation for an additional scale factor.
   representation = image.image_skia().GetRepresentation(2.0f);
 
-  EXPECT_TRUE(
-      gfx::BitmapsAreEqual(representation.GetBitmap(),
-                           CreateBlankBitmapForScale(16, ui::k200Percent)));
+  EXPECT_TRUE(gfx::BitmapsAreEqual(
+      representation.GetBitmap(),
+      CreateBlankBitmapForScale(16, ui::SCALE_FACTOR_200P)));
 
   WaitForImageLoad();
   EXPECT_EQ(1, ImageLoadedCount());
@@ -211,13 +206,12 @@ TEST_F(ExtensionIconImageTest, Basic) {
 // There is no resource with either exact or bigger size, but there is a smaller
 // resource.
 TEST_F(ExtensionIconImageTest, FallbackToSmallerWhenNoBigger) {
-  std::vector<ui::ResourceScaleFactor> supported_factors;
-  supported_factors.push_back(ui::k100Percent);
-  supported_factors.push_back(ui::k200Percent);
-  ui::test::ScopedSetSupportedResourceScaleFactors scoped_supported(
-      supported_factors);
+  std::vector<ui::ScaleFactor> supported_factors;
+  supported_factors.push_back(ui::SCALE_FACTOR_100P);
+  supported_factors.push_back(ui::SCALE_FACTOR_200P);
+  ui::test::ScopedSetSupportedScaleFactors scoped_supported(supported_factors);
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   gfx::ImageSkia default_icon = GetDefaultIcon();
@@ -255,7 +249,7 @@ TEST_F(ExtensionIconImageTest, FallbackToSmallerWhenNoBigger) {
 // one. The bigger resource should be loaded.
 TEST_F(ExtensionIconImageTest, FallbackToBigger) {
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   gfx::ImageSkia default_icon = GetDefaultIcon();
@@ -292,7 +286,7 @@ TEST_F(ExtensionIconImageTest, FallbackToBigger) {
 // default icon, without notifying observer of image change.
 TEST_F(ExtensionIconImageTest, NoResources) {
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   ExtensionIconSet empty_icon_set;
@@ -332,7 +326,7 @@ TEST_F(ExtensionIconImageTest, NoResources) {
 // return the default icon representation once image load is done.
 TEST_F(ExtensionIconImageTest, InvalidResource) {
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   const int kInvalidIconSize = 24;
@@ -351,7 +345,7 @@ TEST_F(ExtensionIconImageTest, InvalidResource) {
   gfx::ImageSkiaRep representation = image.image_skia().GetRepresentation(1.0f);
   EXPECT_TRUE(gfx::BitmapsAreEqual(
       representation.GetBitmap(),
-      CreateBlankBitmapForScale(kInvalidIconSize, ui::k100Percent)));
+      CreateBlankBitmapForScale(kInvalidIconSize, ui::SCALE_FACTOR_100P)));
 
   WaitForImageLoad();
   EXPECT_EQ(1, ImageLoadedCount());
@@ -369,7 +363,7 @@ TEST_F(ExtensionIconImageTest, InvalidResource) {
 // icon when IconImage returns synchronously.
 TEST_F(ExtensionIconImageTest, LazyDefaultIcon) {
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   gfx::ImageSkia default_icon = GetDefaultIcon();
@@ -408,7 +402,7 @@ TEST_F(ExtensionIconImageTest, LazyDefaultIcon) {
 // icon when IconImage returns asynchronously.
 TEST_F(ExtensionIconImageTest, LazyDefaultIcon_AsyncIconImage) {
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   gfx::ImageSkia default_icon = GetDefaultIcon();
@@ -450,7 +444,7 @@ TEST_F(ExtensionIconImageTest, LazyDefaultIcon_AsyncIconImage) {
 // representations should be returned.
 TEST_F(ExtensionIconImageTest, IconImageDestruction) {
   scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+      "extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
 
   gfx::ImageSkia default_icon = GetDefaultIcon();
@@ -499,8 +493,8 @@ TEST_F(ExtensionIconImageTest, IconImageDestruction) {
 // cached for future use.
 TEST_F(ExtensionIconImageTest, ImageCachesNewRepresentations) {
   // Load up an extension and create an icon image.
-  scoped_refptr<Extension> extension(CreateExtension(
-      "extension_icon_image", ManifestLocation::kInvalidLocation));
+  scoped_refptr<Extension> extension(
+      CreateExtension("extension_icon_image", Manifest::INVALID_LOCATION));
   ASSERT_TRUE(extension.get() != nullptr);
   gfx::ImageSkia default_icon = GetDefaultIcon();
   std::unique_ptr<IconImage> icon_image(new IconImage(

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,9 @@ class OneEuroFilterTest : public InputFilterTest {
  public:
   explicit OneEuroFilterTest() {}
 
-  OneEuroFilterTest(const OneEuroFilterTest&) = delete;
-  OneEuroFilterTest& operator=(const OneEuroFilterTest&) = delete;
-
   void SetUp() override { filter_ = std::make_unique<OneEuroFilter>(1, 1); }
+
+  DISALLOW_COPY_AND_ASSIGN(OneEuroFilterTest);
 };
 
 TEST_F(OneEuroFilterTest, TestClone) {

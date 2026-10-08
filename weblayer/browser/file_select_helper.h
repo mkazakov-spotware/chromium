@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,14 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/file_select_listener.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
 
 namespace content {
 class FileSelectListener;
-class RenderFrameHost;
-class WebContents;
 }  // namespace content
 
 namespace ui {
@@ -35,11 +34,9 @@ namespace weblayer {
 class FileSelectHelper : public base::RefCountedThreadSafe<
                              FileSelectHelper,
                              content::BrowserThread::DeleteOnUIThread>,
-                         public ui::SelectFileDialog::Listener {
+                         public ui::SelectFileDialog::Listener,
+                         public content::WebContentsObserver {
  public:
-  FileSelectHelper(const FileSelectHelper&) = delete;
-  FileSelectHelper& operator=(const FileSelectHelper&) = delete;
-
   // Show the file chooser dialog.
   static void RunFileChooser(
       content::RenderFrameHost* render_frame_host,
@@ -83,8 +80,9 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
   void ConvertToFileChooserFileInfoList(
       const std::vector<ui::SelectedFileInfo>& files);
 
-  // A weak pointer to the WebContents of the RenderFrameHost, for life checks.
-  base::WeakPtr<content::WebContents> web_contents_;
+  // Calls RunFileChooserEnd() if the webcontents was destroyed. Returns true
+  // if the file chooser operation shouldn't proceed.
+  bool AbortIfWebContentsDestroyed();
 
   // |listener_| receives the result of the FileSelectHelper.
   scoped_refptr<content::FileSelectListener> listener_;
@@ -99,6 +97,8 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
   // The mode of file dialog last shown.
   blink::mojom::FileChooserParams::Mode dialog_mode_ =
       blink::mojom::FileChooserParams::Mode::kOpen;
+
+  DISALLOW_COPY_AND_ASSIGN(FileSelectHelper);
 };
 
 }  // namespace weblayer

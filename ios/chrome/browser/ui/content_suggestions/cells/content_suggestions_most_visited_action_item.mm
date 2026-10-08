@@ -1,42 +1,25 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_most_visited_action_item.h"
 
-#import "base/check.h"
-#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_tile_constants.h"
-#import "ios/chrome/browser/ui/icons/symbols.h"
+#include "base/check.h"
+#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_most_visited_action_cell.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 @implementation ContentSuggestionsMostVisitedActionItem
+@synthesize metricsRecorded;
+@synthesize suggestionIdentifier;
 
 - (instancetype)initWithCollectionShortcutType:(NTPCollectionShortcutType)type {
-  self = [super init];
+  self = [super initWithType:0];
   if (self) {
     _collectionShortcutType = type;
-    switch (_collectionShortcutType) {
-      case NTPCollectionShortcutTypeBookmark:
-        _index = NTPCollectionShortcutTypeBookmark;
-        break;
-      case NTPCollectionShortcutTypeReadingList:
-        _index = NTPCollectionShortcutTypeReadingList;
-        break;
-      case NTPCollectionShortcutTypeRecentTabs:
-        _index = NTPCollectionShortcutTypeRecentTabs;
-        break;
-      case NTPCollectionShortcutTypeHistory:
-        _index = NTPCollectionShortcutTypeHistory;
-        break;
-      case NTPCollectionShortcutTypeWhatsNew:
-        _index = NTPCollectionShortcutTypeWhatsNew;
-        break;
-      default:
-        break;
-    }
+    self.cellClass = [ContentSuggestionsMostVisitedActionCell class];
     self.title = TitleForCollectionShortcutType(_collectionShortcutType);
   }
   return self;
@@ -56,6 +39,34 @@
     return;
   _count = count;
   [self updateAccessibilityLabel];
+}
+
+#pragma mark - AccessibilityCustomAction
+
+- (void)configureCell:(ContentSuggestionsMostVisitedActionCell*)cell {
+  [super configureCell:cell];
+  cell.accessibilityCustomActions = nil;
+  cell.titleLabel.text = self.title;
+  cell.accessibilityLabel =
+      self.accessibilityLabel.length ? self.accessibilityLabel : self.title;
+  if (@available(iOS 13, *)) {
+    // The accessibilityUserInputLabel should just be the title, with nothing
+    // extra from the accessibilityLabel.
+    cell.accessibilityUserInputLabels = @[ self.title ];
+  }
+  cell.iconView.image = ImageForCollectionShortcutType(_collectionShortcutType);
+  if (self.count != 0) {
+    cell.countLabel.text = [@(self.count) stringValue];
+    cell.countContainer.hidden = NO;
+  } else {
+    cell.countContainer.hidden = YES;
+  }
+}
+
+#pragma mark - ContentSuggestionsItem
+
+- (CGFloat)cellHeightForWidth:(CGFloat)width {
+  return [ContentSuggestionsMostVisitedActionCell defaultSize].height;
 }
 
 #pragma mark - Private

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,17 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
 #include "base/scoped_native_library.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/scoped_blocking_call.h"
-#include "base/threading/scoped_thread_priority.h"
 
 namespace base {
 
 namespace {
+
+// forward declare
+HMODULE AddDllDirectory(PCWSTR new_directory);
 
 // This enum is used to back an UMA histogram, and should therefore be treated
 // as append-only.
@@ -61,7 +61,7 @@ bool AreSearchFlagsAvailable() {
   // The LOAD_LIBRARY_SEARCH_* flags are used in the LoadNativeLibraryHelper
   // method.
   static const auto add_dll_dir_func =
-      reinterpret_cast<decltype(::AddDllDirectory)*>(
+      reinterpret_cast<decltype(AddDllDirectory)*>(
           GetProcAddress(GetModuleHandle(L"kernel32.dll"), "AddDllDirectory"));
   return !!add_dll_dir_func;
 }
@@ -89,12 +89,6 @@ NativeLibrary LoadNativeLibraryHelper(const FilePath& library_path,
   // LoadLibrary() opens the file off disk and acquires the LoaderLock, hence
   // must not be called from DllMain.
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
-
-  // Mitigate the issues caused by loading DLLs on a background thread
-  // (see http://crbug/973868 for context). This temporarily boosts this
-  // thread's priority so that it doesn't get starved by higher priority threads
-  // while it holds the LoaderLock.
-  SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY_REPEATEDLY();
 
   HMODULE module = nullptr;
 
@@ -206,7 +200,7 @@ void* GetFunctionPointerFromNativeLibrary(NativeLibrary library,
 
 std::string GetNativeLibraryName(StringPiece name) {
   DCHECK(IsStringASCII(name));
-  return StrCat({name, ".dll"});
+  return name.as_string() + ".dll";
 }
 
 std::string GetLoadableModuleName(StringPiece name) {

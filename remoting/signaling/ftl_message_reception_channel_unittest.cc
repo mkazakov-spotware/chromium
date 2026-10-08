@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,10 @@
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "remoting/base/protobuf_http_status.h"
 #include "remoting/base/scoped_protobuf_http_request.h"
 #include "remoting/proto/ftl/v1/ftl_messages.pb.h"
@@ -51,12 +50,7 @@ class MockSignalingTracker : public SignalingTracker {
 class FakeScopedProtobufHttpRequest : public ScopedProtobufHttpRequest {
  public:
   FakeScopedProtobufHttpRequest()
-      : ScopedProtobufHttpRequest(base::DoNothing()) {}
-
-  FakeScopedProtobufHttpRequest(const FakeScopedProtobufHttpRequest&) = delete;
-  FakeScopedProtobufHttpRequest& operator=(
-      const FakeScopedProtobufHttpRequest&) = delete;
-
+      : ScopedProtobufHttpRequest(base::DoNothing::Once()) {}
   ~FakeScopedProtobufHttpRequest() override = default;
 
   base::WeakPtr<FakeScopedProtobufHttpRequest> GetWeakPtr() {
@@ -65,6 +59,7 @@ class FakeScopedProtobufHttpRequest : public ScopedProtobufHttpRequest {
 
  private:
   base::WeakPtrFactory<FakeScopedProtobufHttpRequest> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(FakeScopedProtobufHttpRequest);
 };
 
 std::unique_ptr<FakeScopedProtobufHttpRequest> CreateFakeServerStream() {
@@ -88,7 +83,7 @@ decltype(auto) StartStream(OnStreamOpenedLambda on_stream_opened,
       *optional_out_stream = fake_stream->GetWeakPtr();
     }
     auto on_stream_opened_cb = base::BindLambdaForTesting(on_stream_opened);
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(on_stream_opened_cb, std::move(on_channel_ready),
                        on_incoming_msg, std::move(on_channel_closed)));
@@ -477,7 +472,8 @@ TEST_F(FtlMessageReceptionChannelTest, TimeoutIncreasesToMaximum) {
                 time_until_retry - FtlServicesContext::kBackoffMaxDelay;
 
             // Adjust for fuzziness.
-            if (max_delay_diff.magnitude() < base::Milliseconds(500)) {
+            if (max_delay_diff.magnitude() <
+                base::TimeDelta::FromMilliseconds(500)) {
               hitting_max_delay_count++;
             }
 

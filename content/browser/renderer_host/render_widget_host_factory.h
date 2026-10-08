@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,34 +8,28 @@
 #include <stdint.h>
 #include <memory>
 
-#include "base/memory/safe_ref.h"
+#include "base/macros.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 
 namespace content {
-class FrameTree;
+class AgentSchedulingGroupHost;
 class RenderWidgetHostDelegate;
 class RenderWidgetHostImpl;
-class SiteInstanceGroup;
 
 // A factory for creating RenderWidgetHostImpls. There is a global factory
 // function that can be installed for the purposes of testing to provide a
 // specialized RenderWidgetHostImpl class.
 class RenderWidgetHostFactory {
  public:
-  RenderWidgetHostFactory(const RenderWidgetHostFactory&) = delete;
-  RenderWidgetHostFactory& operator=(const RenderWidgetHostFactory&) = delete;
-
   // Creates a RenderWidgetHostImpl using the currently registered factory, or
   // the default one if no factory is registered. Ownership of the returned
   // pointer will be passed to the caller.
   static std::unique_ptr<RenderWidgetHostImpl> Create(
-      FrameTree* frame_tree,
       RenderWidgetHostDelegate* delegate,
-      base::SafeRef<SiteInstanceGroup> site_instance_group,
+      AgentSchedulingGroupHost& agent_scheduling_group,
       int32_t routing_id,
-      bool hidden,
-      bool renderer_initiated_creation);
+      bool hidden);
 
   // Returns true if there is currently a globally-registered factory.
   static bool has_factory() { return !!factory_; }
@@ -47,9 +41,8 @@ class RenderWidgetHostFactory {
   // You can derive from this class and specify an implementation for this
   // function to create a different kind of RenderWidgetHostImpl for testing.
   virtual std::unique_ptr<RenderWidgetHostImpl> CreateRenderWidgetHost(
-      FrameTree* frame_tree,
       RenderWidgetHostDelegate* delegate,
-      base::SafeRef<SiteInstanceGroup> site_instance_group,
+      AgentSchedulingGroupHost& agent_scheduling_group,
       int32_t routing_id,
       bool hidden) = 0;
 
@@ -67,6 +60,8 @@ class RenderWidgetHostFactory {
   // The current globally registered factory. This is NULL when we should
   // create the default RenderWidgetHostImpls.
   CONTENT_EXPORT static RenderWidgetHostFactory* factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderWidgetHostFactory);
 };
 
 }  // namespace content

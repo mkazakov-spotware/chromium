@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -169,16 +169,15 @@ class Context(cr.config.Config):
           Overrides CR_DRY_RUN
           """
     )
-    parser.add_argument('-v',
-                        '--verbose',
-                        dest='CR_VERBOSE',
-                        action='count',
-                        default=0,
-                        help="""
+    parser.add_argument(
+        '-v', '--verbose', dest='CR_VERBOSE',
+        action='count', default=None,
+        help="""
           Print information about commands being performed.
           Repeating multiple times increases the verbosity level.
           Overrides CR_VERBOSE
-          """)
+          """
+    )
 
   @property
   def args(self):
@@ -210,8 +209,8 @@ class Context(cr.config.Config):
   @property
   def verbose(self):
     if self.autocompleting:
-      return 0
-    return self.Find('CR_VERBOSE') or (self.dry_run and 1 or 0)
+      return False
+    return self.Find('CR_VERBOSE') or self.dry_run
 
   @property
   def dry_run(self):

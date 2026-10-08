@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,14 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task_runner_util.h"
 #include "remoting/codec/audio_decoder.h"
 #include "remoting/proto/audio.pb.h"
 #include "remoting/protocol/audio_stub.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 AudioDecodeScheduler::AudioDecodeScheduler(
     scoped_refptr<base::SingleThreadTaskRunner> audio_decode_task_runner,
@@ -22,12 +24,12 @@ AudioDecodeScheduler::AudioDecodeScheduler(
       audio_consumer_(audio_consumer) {}
 
 AudioDecodeScheduler::~AudioDecodeScheduler() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   audio_decode_task_runner_->DeleteSoon(FROM_HERE, decoder_.release());
 }
 
 void AudioDecodeScheduler::Initialize(const protocol::SessionConfig& config) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!decoder_);
   decoder_ = AudioDecoder::CreateAudioDecoder(config);
 }
@@ -35,10 +37,10 @@ void AudioDecodeScheduler::Initialize(const protocol::SessionConfig& config) {
 void AudioDecodeScheduler::ProcessAudioPacket(
     std::unique_ptr<AudioPacket> packet,
     base::OnceClosure done) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
-  audio_decode_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      audio_decode_task_runner_.get(), FROM_HERE,
       base::BindOnce(&AudioDecoder::Decode, base::Unretained(decoder_.get()),
                      std::move(packet)),
       base::BindOnce(&AudioDecodeScheduler::ProcessDecodedPacket,
@@ -48,7 +50,7 @@ void AudioDecodeScheduler::ProcessAudioPacket(
 void AudioDecodeScheduler::ProcessDecodedPacket(
     base::OnceClosure done,
     std::unique_ptr<AudioPacket> packet) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   if (!packet || !audio_consumer_) {
     std::move(done).Run();
@@ -58,4 +60,5 @@ void AudioDecodeScheduler::ProcessDecodedPacket(
   audio_consumer_->ProcessAudioPacket(std::move(packet), std::move(done));
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

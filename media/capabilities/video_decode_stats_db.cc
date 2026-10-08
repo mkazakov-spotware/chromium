@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -76,11 +76,10 @@ VideoDecodeStatsDB::DecodeStatsEntry::DecodeStatsEntry(
 }
 
 VideoDecodeStatsDB::DecodeStatsEntry::DecodeStatsEntry(
-    const DecodeStatsEntry& entry) = default;
-
-VideoDecodeStatsDB::DecodeStatsEntry&
-VideoDecodeStatsDB::DecodeStatsEntry::operator=(const DecodeStatsEntry& entry) =
-    default;
+    const DecodeStatsEntry& entry)
+    : frames_decoded(entry.frames_decoded),
+      frames_dropped(entry.frames_dropped),
+      frames_power_efficient(entry.frames_power_efficient) {}
 
 std::string VideoDecodeStatsDB::DecodeStatsEntry::ToLogString() const {
   return base::StringPrintf(
@@ -122,6 +121,11 @@ bool operator==(const VideoDecodeStatsDB::DecodeStatsEntry& x,
 bool operator!=(const VideoDecodeStatsDB::DecodeStatsEntry& x,
                 const VideoDecodeStatsDB::DecodeStatsEntry& y) {
   return !(x == y);
+}
+
+VideoDecodeStatsDB::~VideoDecodeStatsDB() {
+  // Tracking down crash. See https://crbug/865321.
+  CHECK(!dependent_db_) << __func__ << " Destroying before dependent_db_!";
 }
 
 }  // namespace media

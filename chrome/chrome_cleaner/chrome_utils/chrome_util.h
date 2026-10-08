@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,9 +31,9 @@ bool RetrieveChromeVersionAndInstalledDomain(std::wstring* chrome_version,
 // path exists.
 bool RetrieveChromeExePathFromCommandLine(base::FilePath* chrome_exe_path);
 
-// Search for all Chrome executable path directories, for example
+// Search for all Chrome executable paths, for example
 // "C:\Program Files\Google\Chrome\Application".
-void ListChromeExeDirectories(std::set<base::FilePath>* paths);
+void ListChromeExePaths(std::set<base::FilePath>* paths);
 
 // Search for all Chrome versioned installation paths, for example
 // "C:\Program Files\Google\Chrome\Application\68.0.3440.84".

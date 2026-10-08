@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 #include "net/base/auth.h"
 #include "net/base/net_export.h"
 #include "net/http/http_auth_mechanism.h"

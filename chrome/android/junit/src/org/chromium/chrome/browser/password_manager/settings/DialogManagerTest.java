@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 
@@ -34,7 +33,6 @@ import java.lang.annotation.RetentionPolicy;
  */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@LooperMode(LooperMode.Mode.LEGACY)
 public class DialogManagerTest {
     @Rule
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -50,9 +48,9 @@ public class DialogManagerTest {
         /** The dialog has not been shown yet. */
         public static final int NEW = 0;
         /** The dialog is showing. */
-        public static final int SHOWING = 1;
+        public static final int SHOWING = 0;
         /** The dialog has been dismissed. */
-        public static final int DISMISSED = 2;
+        public static final int DISMISSED = 0;
 
         @DialogState
         private int mState = NEW;

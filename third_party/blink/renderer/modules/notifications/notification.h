@@ -43,7 +43,7 @@
 #include "third_party/blink/renderer/modules/event_target_modules.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/vibration/vibration_controller.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
 #include "third_party/blink/renderer/platform/timer.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -118,7 +118,6 @@ class MODULES_EXPORT Notification final
   ScriptValue data(ScriptState* script_state);
   Vector<v8::Local<v8::Value>> actions(ScriptState* script_state) const;
   TimestampTrigger* showTrigger() const { return show_trigger_; }
-  String scenario() const;
 
   static String PermissionString(mojom::blink::PermissionStatus permission);
   static String permission(ExecutionContext* context);
@@ -188,7 +187,7 @@ class MODULES_EXPORT Notification final
 
   String token_;
 
-  HeapTaskRunnerTimer<Notification> prepare_show_timer_;
+  TaskRunnerTimer<Notification> prepare_show_timer_;
 
   Member<NotificationResourcesLoader> loader_;
 

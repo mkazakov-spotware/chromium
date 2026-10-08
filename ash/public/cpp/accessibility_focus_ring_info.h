@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ash/public/cpp/ash_public_export.h"
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -18,14 +19,6 @@ enum class ASH_PUBLIC_EXPORT FocusRingBehavior { FADE_OUT, PERSIST };
 
 // The visual style of the focus ring.
 enum class ASH_PUBLIC_EXPORT FocusRingType { GLOW, SOLID, DASHED };
-
-// How focus rings are layered.
-enum class ASH_PUBLIC_EXPORT FocusRingStackingOrder {
-  // Above most UI, including accessibility bubble panels.
-  ABOVE_ACCESSIBILITY_BUBBLES,
-  // Above most UI, except below accessibility bubble panels.
-  BELOW_ACCESSIBILITY_BUBBLES
-};
 
 // Defines a specific focus ring by specifying:
 // - |rects_in_screen| the regions around which to draw the focus ring (in
@@ -40,11 +33,6 @@ enum class ASH_PUBLIC_EXPORT FocusRingStackingOrder {
 // TODO: This struct could possibly be merged with ash::AccessibilityFocusRing.
 struct ASH_PUBLIC_EXPORT AccessibilityFocusRingInfo {
   AccessibilityFocusRingInfo();
-
-  AccessibilityFocusRingInfo(const AccessibilityFocusRingInfo&) = delete;
-  AccessibilityFocusRingInfo& operator=(const AccessibilityFocusRingInfo&) =
-      delete;
-
   ~AccessibilityFocusRingInfo();
 
   bool operator==(const AccessibilityFocusRingInfo& other) const;
@@ -52,11 +40,12 @@ struct ASH_PUBLIC_EXPORT AccessibilityFocusRingInfo {
   std::vector<gfx::Rect> rects_in_screen;
   FocusRingBehavior behavior = FocusRingBehavior::FADE_OUT;
   FocusRingType type = FocusRingType::GLOW;
-  FocusRingStackingOrder stacking_order =
-      FocusRingStackingOrder::ABOVE_ACCESSIBILITY_BUBBLES;
   SkColor color = SK_ColorTRANSPARENT;
   SkColor secondary_color = SK_ColorTRANSPARENT;
   SkColor background_color = SK_ColorTRANSPARENT;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AccessibilityFocusRingInfo);
 };
 
 }  // namespace ash

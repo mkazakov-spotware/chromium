@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@ import android.content.DialogInterface;
 
 import androidx.appcompat.app.AlertDialog;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
+import org.chromium.ui.UiUtils;
 
 /**
  * A dialog to notify user of network errors while loading WebAPK's start URL.
@@ -29,13 +31,13 @@ public class WebApkOfflineDialog {
      * @param errorMessage
      */
     public void show(final Activity activity, String errorMessage) {
-        AlertDialog.Builder builder =
-                new AlertDialog.Builder(activity, R.style.ThemeOverlay_BrowserUI_AlertDialog);
+        AlertDialog.Builder builder = new UiUtils.CompatibleAlertDialogBuilder(
+                activity, R.style.Theme_Chromium_AlertDialog);
         builder.setMessage(errorMessage)
                 .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        activity.finishAndRemoveTask();
+                        ApiCompatibilityUtils.finishAndRemoveTask(activity);
                     }
                 });
 

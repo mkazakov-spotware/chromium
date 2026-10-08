@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,12 @@
 #include "base/bind.h"
 #include "net/test/embedded_test_server/android/embedded_test_server_android.h"
 
-namespace net::test {
+namespace net {
+namespace test {
 
 bool OnJNIOnLoadInit() {
   return base::android::OnJNIOnLoadInit();
 }
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net

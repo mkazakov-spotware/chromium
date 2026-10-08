@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,6 @@ MITMSoftwareBlockingPage::MITMSoftwareBlockingPage(
     int cert_error,
     const GURL& request_url,
     std::unique_ptr<SSLCertReporter> ssl_cert_reporter,
-    bool can_show_enhanced_protection_message,
     const net::SSLInfo& ssl_info,
     const std::string& mitm_software_name,
     bool is_enterprise_managed,
@@ -53,7 +52,6 @@ MITMSoftwareBlockingPage::MITMSoftwareBlockingPage(
                           std::move(ssl_cert_reporter),
                           false /* overridable */,
                           base::Time::Now(),
-                          can_show_enhanced_protection_message,
                           std::move(controller_client)),
 
       ssl_info_(ssl_info),
@@ -73,7 +71,7 @@ MITMSoftwareBlockingPage::GetTypeForTesting() {
 }
 
 void MITMSoftwareBlockingPage::PopulateInterstitialStrings(
-    base::Value::Dict& load_time_data) {
+    base::DictionaryValue* load_time_data) {
   mitm_software_ui_->PopulateStringsForHTML(load_time_data);
   cert_report_helper()->PopulateExtendedReportingOption(load_time_data);
   cert_report_helper()->PopulateEnhancedProtectionMessage(load_time_data);

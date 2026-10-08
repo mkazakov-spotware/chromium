@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "google_apis/gcm/engine/connection_handler_impl.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -52,10 +51,7 @@ ConnectionHandlerImpl::ConnectionHandlerImpl(
     const ProtoSentCallback& write_callback,
     const ConnectionChangedCallback& connection_callback)
     : io_task_runner_(std::move(io_task_runner)),
-      read_timeout_timer_(FROM_HERE,
-                          read_timeout,
-                          base::BindRepeating(&ConnectionHandlerImpl::OnTimeout,
-                                              base::Unretained(this))),
+      read_timeout_(read_timeout),
       handshake_complete_(false),
       message_tag_(0),
       message_size_(0),
@@ -84,9 +80,8 @@ void ConnectionHandlerImpl::Init(
   handshake_complete_ = false;
   message_tag_ = 0;
   message_size_ = 0;
-  input_stream_ =
-      std::make_unique<SocketInputStream>(std::move(receive_stream));
-  output_stream_ = std::make_unique<SocketOutputStream>(std::move(send_stream));
+  input_stream_.reset(new SocketInputStream(std::move(receive_stream)));
+  output_stream_.reset(new SocketOutputStream(std::move(send_stream)));
 
   Login(login_request);
 }
@@ -145,7 +140,9 @@ void ConnectionHandlerImpl::Login(
                                   weak_ptr_factory_.GetWeakPtr()));
   }
 
-  read_timeout_timer_.Reset();
+  read_timeout_timer_.Start(FROM_HERE, read_timeout_,
+                            base::BindOnce(&ConnectionHandlerImpl::OnTimeout,
+                                           weak_ptr_factory_.GetWeakPtr()));
   WaitForData(MCS_VERSION_TAG_AND_SIZE);
 }
 
@@ -323,8 +320,11 @@ void ConnectionHandlerImpl::OnGotMessageTag() {
   DVLOG(1) << "Received proto of type "
            << static_cast<unsigned int>(message_tag_);
 
-  if (!read_timeout_timer_.IsRunning())
-    read_timeout_timer_.Reset();
+  if (!read_timeout_timer_.IsRunning()) {
+    read_timeout_timer_.Start(FROM_HERE, read_timeout_,
+                              base::BindOnce(&ConnectionHandlerImpl::OnTimeout,
+                                             weak_ptr_factory_.GetWeakPtr()));
+  }
   OnGotMessageSize();
 }
 
@@ -439,7 +439,10 @@ void ConnectionHandlerImpl::OnGotMessageBytes() {
                 << ", expecting " << message_size_;
       input_stream_->RebuildBuffer();
 
-      read_timeout_timer_.Reset();
+      read_timeout_timer_.Start(
+          FROM_HERE, read_timeout_,
+          base::BindOnce(&ConnectionHandlerImpl::OnTimeout,
+                         weak_ptr_factory_.GetWeakPtr()));
       WaitForData(MCS_PROTO_BYTES);
       return;
     }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,19 +19,27 @@ VROrientationDeviceProvider::VROrientationDeviceProvider(
 
 VROrientationDeviceProvider::~VROrientationDeviceProvider() = default;
 
-void VROrientationDeviceProvider::Initialize(VRDeviceProviderClient* client) {
+void VROrientationDeviceProvider::Initialize(
+    base::RepeatingCallback<void(mojom::XRDeviceId,
+                                 mojom::VRDisplayInfoPtr,
+                                 mojom::XRDeviceDataPtr,
+                                 mojo::PendingRemote<mojom::XRRuntime>)>
+        add_device_callback,
+    base::RepeatingCallback<void(mojom::XRDeviceId)> remove_device_callback,
+    base::OnceClosure initialization_complete) {
   if (device_ && device_->IsAvailable()) {
-    client->AddRuntime(device_->GetId(), device_->GetDeviceData(),
-                       device_->BindXRRuntime());
+    add_device_callback.Run(device_->GetId(), device_->GetVRDisplayInfo(),
+                            device_->GetDeviceData(), device_->BindXRRuntime());
     return;
   }
 
   if (!device_) {
-    client_ = client;
     device_ = std::make_unique<VROrientationDevice>(
         sensor_provider_.get(),
         base::BindOnce(&VROrientationDeviceProvider::DeviceInitialized,
                        base::Unretained(this)));
+    add_device_callback_ = add_device_callback;
+    initialized_callback_ = std::move(initialization_complete);
   }
 }
 
@@ -47,12 +55,13 @@ void VROrientationDeviceProvider::DeviceInitialized() {
 
   // If the device successfully connected to the orientation APIs, provide it.
   if (device_->IsAvailable()) {
-    client_->AddRuntime(device_->GetId(), device_->GetDeviceData(),
-                        device_->BindXRRuntime());
+    add_device_callback_.Run(device_->GetId(), device_->GetVRDisplayInfo(),
+                             device_->GetDeviceData(),
+                             device_->BindXRRuntime());
   }
 
   initialized_ = true;
-  client_->OnProviderInitialized();
+  std::move(initialized_callback_).Run();
 }
 
 }  // namespace device

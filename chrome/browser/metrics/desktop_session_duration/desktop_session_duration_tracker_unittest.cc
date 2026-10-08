@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,18 +12,14 @@
 namespace metrics {
 namespace {
 
-const base::TimeDelta kZeroTime = base::Seconds(0);
-const base::TimeDelta kInactivityTimeoutForTesting = base::Seconds(1);
+const base::TimeDelta kZeroTime = base::TimeDelta::FromSeconds(0);
+const base::TimeDelta kInactivityTimeoutForTesting =
+    base::TimeDelta::FromSeconds(1);
 
 // Mock class for |DesktopSessionDurationTracker| for testing.
 class MockDesktopSessionDurationTracker : public DesktopSessionDurationTracker {
  public:
   MockDesktopSessionDurationTracker() {}
-
-  MockDesktopSessionDurationTracker(const MockDesktopSessionDurationTracker&) =
-      delete;
-  MockDesktopSessionDurationTracker& operator=(
-      const MockDesktopSessionDurationTracker&) = delete;
 
   bool is_timeout() const { return time_out_; }
 
@@ -38,6 +34,8 @@ class MockDesktopSessionDurationTracker : public DesktopSessionDurationTracker {
 
  private:
   bool time_out_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(MockDesktopSessionDurationTracker);
 };
 
 // Mock class for |DesktopSessionDurationTracker::Observer| for testing.
@@ -45,10 +43,6 @@ class MockDesktopSessionObserver
     : public metrics::DesktopSessionDurationTracker::Observer {
  public:
   MockDesktopSessionObserver() {}
-
-  MockDesktopSessionObserver(const MockDesktopSessionObserver&) = delete;
-  MockDesktopSessionObserver& operator=(const MockDesktopSessionObserver&) =
-      delete;
 
   int session_started_count() const { return session_started_count_; }
   int session_ended_count() const { return session_ended_count_; }
@@ -66,16 +60,13 @@ class MockDesktopSessionObserver
  private:
   int session_started_count_ = false;
   int session_ended_count_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(MockDesktopSessionObserver);
 };
 
 class DesktopSessionDurationTrackerTest : public testing::Test {
  public:
   DesktopSessionDurationTrackerTest() {}
-
-  DesktopSessionDurationTrackerTest(const DesktopSessionDurationTrackerTest&) =
-      delete;
-  DesktopSessionDurationTrackerTest& operator=(
-      const DesktopSessionDurationTrackerTest&) = delete;
 
   void SetUp() override {
     metrics::DesktopSessionDurationTracker::Initialize();
@@ -100,6 +91,8 @@ class DesktopSessionDurationTrackerTest : public testing::Test {
 
  private:
   base::test::SingleThreadTaskEnvironment task_environment_;
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopSessionDurationTrackerTest);
 };
 
 }  // namespace
@@ -226,7 +219,7 @@ TEST_F(DesktopSessionDurationTrackerTest, TestVisibilityTimeoutDiscount) {
   histogram_tester_.ExpectTotalCount("Session.TotalDuration", 0);
 
   // Sleep a little while.
-  base::TimeDelta kDelay = base::Seconds(2);
+  base::TimeDelta kDelay = base::TimeDelta::FromSeconds(2);
   while (true) {
     base::TimeDelta elapsed = base::TimeTicks::Now() - before_session_start;
     if (elapsed >= kDelay)

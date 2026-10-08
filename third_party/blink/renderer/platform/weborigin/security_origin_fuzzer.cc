@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 // Run:       # ./out/Fuzz/blink_security_origin_fuzzer
 //
 // For more details, see
-// https://chromium.googlesource.com/chromium/src/+/main/testing/libfuzzer/README.md
+// https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/README.md
 #include "third_party/blink/public/platform/web_security_origin.h"
 #include "third_party/blink/renderer/platform/testing/blink_fuzzer_test_support.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
@@ -31,6 +31,28 @@ void RoundTripFromContent(const GURL& input) {
   scoped_refptr<const SecurityOrigin> security_origin = web_security_origin_1;
   WebSecurityOrigin web_security_origin_2 = security_origin;
   url::Origin origin_2 = web_security_origin_2;
+
+  // The notion of unspecified port and port zero doesn't match in between
+  // url::Origin and blink::SecurityOrigin. This cause some conversion problems
+  // when the scheme is a standard one and the unspecified port can be converted
+  // to the default one.
+  //                       ┌──────────────────┬───────────┐
+  //                       │ port unspecified │ port zero │
+  // ┌─────────────────────┼──────────────────┼───────────┤
+  // │url::Origin          │ -1               │ 0         │
+  // ├─────────────────────┼──────────────────┼───────────┤
+  // │blink::SecurityOrigin│ 0                │ 0         │
+  // └─────────────────────┴──────────────────┴───────────┘
+  // TODO(https://crbug.com/1136678): Remove this, once fixed.
+  if (!origin_1.opaque() && origin_1.port() == 0 &&
+      url::DefaultPortForScheme(origin_1.scheme().data(),
+                                origin_1.scheme().size()) != -1) {
+    CHECK_NE(origin_1, origin_2);
+    CHECK_EQ(url::DefaultPortForScheme(origin_2.scheme().data(),
+                                       origin_2.scheme().size()),
+             origin_2.port());
+    return;
+  }
 
   CHECK_EQ(origin_1, origin_2);
 }

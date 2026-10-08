@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 
 #include <memory>
 
-#include "base/containers/span.h"
+#include "base/stl_util.h"
 #include "components/webcrypto/algorithm_implementation.h"
 #include "components/webcrypto/algorithms/secret_key_util.h"
 #include "components/webcrypto/algorithms/util.h"
 #include "components/webcrypto/blink_key_handle.h"
+#include "components/webcrypto/crypto_data.h"
 #include "components/webcrypto/status.h"
 #include "crypto/openssl_util.h"
 #include "third_party/blink/public/platform/web_crypto_algorithm_params.h"
@@ -29,7 +30,7 @@ class Pbkdf2Implementation : public AlgorithmImplementation {
   Pbkdf2Implementation() {}
 
   Status ImportKey(blink::WebCryptoKeyFormat format,
-                   base::span<const uint8_t> key_data,
+                   const CryptoData& key_data,
                    const blink::WebCryptoAlgorithm& algorithm,
                    bool extractable,
                    blink::WebCryptoKeyUsageMask usages,
@@ -42,7 +43,7 @@ class Pbkdf2Implementation : public AlgorithmImplementation {
     }
   }
 
-  Status ImportKeyRaw(base::span<const uint8_t> key_data,
+  Status ImportKeyRaw(const CryptoData& key_data,
                       const blink::WebCryptoAlgorithm& algorithm,
                       bool extractable,
                       blink::WebCryptoKeyUsageMask usages,
@@ -97,7 +98,7 @@ class Pbkdf2Implementation : public AlgorithmImplementation {
 
     if (!PKCS5_PBKDF2_HMAC(
             reinterpret_cast<const char*>(password.data()), password.size(),
-            params->Salt().data(), params->Salt().size(), params->Iterations(),
+            params->Salt().Data(), params->Salt().size(), params->Iterations(),
             digest_algorithm, keylen_bytes, derived_bytes->data())) {
       return Status::OperationError();
     }
@@ -108,7 +109,7 @@ class Pbkdf2Implementation : public AlgorithmImplementation {
                                 blink::WebCryptoKeyType type,
                                 bool extractable,
                                 blink::WebCryptoKeyUsageMask usages,
-                                base::span<const uint8_t> key_data,
+                                const CryptoData& key_data,
                                 blink::WebCryptoKey* key) const override {
     if (algorithm.ParamsType() != blink::kWebCryptoKeyAlgorithmParamsTypeNone ||
         type != blink::kWebCryptoKeyTypeSecret)

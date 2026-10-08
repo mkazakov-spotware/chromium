@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@ import static org.chromium.chrome.browser.keyboard_accessory.sheet_component.Acc
 import static org.chromium.chrome.browser.keyboard_accessory.sheet_component.AccessorySheetProperties.TOP_SHADOW_VISIBLE;
 import static org.chromium.chrome.browser.keyboard_accessory.sheet_component.AccessorySheetProperties.VISIBLE;
 
+import android.view.ViewStub;
+
 import androidx.annotation.Nullable;
 import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
@@ -19,11 +21,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
-import org.chromium.base.TraceEvent;
-import org.chromium.chrome.browser.keyboard_accessory.R;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
-import org.chromium.ui.AsyncViewProvider;
-import org.chromium.ui.AsyncViewStub;
+import org.chromium.ui.DeferredViewStubInflationProvider;
 import org.chromium.ui.ViewProvider;
 import org.chromium.ui.modelutil.LazyConstructionPropertyMcp;
 import org.chromium.ui.modelutil.ListModel;
@@ -42,14 +41,14 @@ public class AccessorySheetCoordinator {
     /**
      * Creates the sheet component by instantiating Model, View and Controller before wiring these
      * parts up.
-     * @param sheetStub A {@link AsyncViewStub} for the accessory sheet layout.
+     * @param sheetStub A {@link ViewStub} for the accessory sheet layout.
      */
-    public AccessorySheetCoordinator(AsyncViewStub sheetStub) {
-        this(AsyncViewProvider.of(sheetStub, R.id.keyboard_accessory_sheet_container));
+    public AccessorySheetCoordinator(ViewStub sheetStub) {
+        this(new DeferredViewStubInflationProvider<>(sheetStub));
     }
 
     /**
-     * Constructor that allows to mock the {@link AsyncViewProvider}.
+     * Constructor that allows to mock the {@link DeferredViewStubInflationProvider}.
      * @param viewProvider A provider for the accessory.
      */
     @VisibleForTesting
@@ -121,9 +120,7 @@ public class AccessorySheetCoordinator {
      * Shows the Accessory Sheet.
      */
     public void show() {
-        TraceEvent.begin("AccessorySheetCoordinator#show");
         mMediator.show();
-        TraceEvent.end("AccessorySheetCoordinator#show");
     }
 
     /**

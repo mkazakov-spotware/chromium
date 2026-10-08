@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,6 +27,9 @@ struct BLINK_COMMON_EXPORT
   static void SetToNull(BundleInfoType* bundle) { bundle->reset(); }
 
   static mojo::PendingRemote<network::mojom::URLLoaderFactory> default_factory(
+      BundleInfoType& bundle);
+
+  static mojo::PendingRemote<network::mojom::URLLoaderFactory> appcache_factory(
       BundleInfoType& bundle);
 
   static blink::PendingURLLoaderFactoryBundle::SchemeMap

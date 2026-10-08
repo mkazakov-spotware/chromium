@@ -10,7 +10,6 @@
 
     const foo = document.createElement('div');
     foo.textContent = 'foo';
-    foo.hidden = 'until-found';
     document.body.appendChild(foo);
     window.beforematchFiredOnFoo = false;
     foo.addEventListener('beforematch', () => {

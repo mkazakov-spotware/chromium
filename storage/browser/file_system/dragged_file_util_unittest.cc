@@ -1,8 +1,6 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "storage/browser/file_system/dragged_file_util.h"
 
 #include <stddef.h>
 
@@ -17,26 +15,25 @@
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/services/filesystem/public/mojom/types.mojom.h"
+#include "storage/browser/file_system/dragged_file_util.h"
 #include "storage/browser/file_system/file_system_context.h"
 #include "storage/browser/file_system/file_system_operation_context.h"
 #include "storage/browser/file_system/isolated_context.h"
 #include "storage/browser/file_system/local_file_util.h"
 #include "storage/browser/file_system/native_file_util.h"
-#include "storage/browser/quota/quota_manager_proxy.h"
 #include "storage/browser/test/async_file_test_helper.h"
 #include "storage/browser/test/file_system_test_file_set.h"
-#include "storage/browser/test/mock_quota_manager.h"
-#include "storage/browser/test/mock_quota_manager_proxy.h"
-#include "storage/browser/test/mock_special_storage_policy.h"
 #include "storage/browser/test/test_file_system_context.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace storage {
 
@@ -55,7 +52,9 @@ constexpr const base::FilePath::CharType* kRootPaths[] = {
 };
 
 base::FilePath GetTopLevelPath(const base::FilePath& path) {
-  return base::FilePath(path.GetComponents()[0]);
+  std::vector<base::FilePath::StringType> components;
+  path.GetComponents(&components);
+  return base::FilePath(components[0]);
 }
 
 bool IsDirectoryEmpty(FileSystemContext* context, const FileSystemURL& url) {
@@ -69,7 +68,7 @@ FileSystemURL GetEntryURL(FileSystemContext* file_system_context,
                           const FileSystemURL& dir,
                           const base::FilePath::StringType& name) {
   return file_system_context->CreateCrackedFileSystemURL(
-      dir.storage_key(), dir.mount_type(), dir.virtual_path().Append(name));
+      dir.origin(), dir.mount_type(), dir.virtual_path().Append(name));
 }
 
 base::FilePath GetRelativeVirtualPath(const FileSystemURL& root,
@@ -88,7 +87,7 @@ FileSystemURL GetOtherURL(FileSystemContext* file_system_context,
                           const FileSystemURL& other_root,
                           const FileSystemURL& url) {
   return file_system_context->CreateCrackedFileSystemURL(
-      other_root.storage_key(), other_root.mount_type(),
+      other_root.origin(), other_root.mount_type(),
       other_root.virtual_path().Append(GetRelativeVirtualPath(root, url)));
 }
 
@@ -97,9 +96,6 @@ FileSystemURL GetOtherURL(FileSystemContext* file_system_context,
 class DraggedFileUtilTest : public testing::Test {
  public:
   DraggedFileUtilTest() = default;
-
-  DraggedFileUtilTest(const DraggedFileUtilTest&) = delete;
-  DraggedFileUtilTest& operator=(const DraggedFileUtilTest&) = delete;
 
   void SetUp() override {
     ASSERT_TRUE(data_dir_.CreateUniqueTempDir());
@@ -110,17 +106,8 @@ class DraggedFileUtilTest : public testing::Test {
     // root paths) as dropped files.
     SimulateDropFiles();
 
-    base::FilePath partition_path = partition_dir_.GetPath();
-    quota_manager_ = base::MakeRefCounted<storage::MockQuotaManager>(
-        /*is_incognito=*/false, partition_path,
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        base::MakeRefCounted<storage::MockSpecialStoragePolicy>());
-    quota_manager_proxy_ = base::MakeRefCounted<storage::MockQuotaManagerProxy>(
-        quota_manager_.get(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
-    // Prepare file system.
-    file_system_context_ = storage::CreateFileSystemContextForTesting(
-        quota_manager_proxy_.get(), partition_path);
+    file_system_context_ = CreateFileSystemContextForTesting(
+        nullptr /* quota_manager */, partition_dir_.GetPath());
 
     isolated_context()->AddReference(filesystem_id_);
   }
@@ -158,13 +145,13 @@ class DraggedFileUtilTest : public testing::Test {
     base::FilePath virtual_path =
         isolated_context()->CreateVirtualRootPath(filesystem_id()).Append(path);
     return file_system_context_->CreateCrackedFileSystemURL(
-        blink::StorageKey::CreateFromStringForTesting("http://example.com"),
+        url::Origin::Create(GURL("http://example.com")),
         kFileSystemTypeIsolated, virtual_path);
   }
 
   FileSystemURL GetOtherFileSystemURL(const base::FilePath& path) const {
     return file_system_context()->CreateCrackedFileSystemURL(
-        blink::StorageKey::CreateFromStringForTesting("http://example.com"),
+        url::Origin::Create(GURL("http://example.com")),
         kFileSystemTypeTemporary,
         base::FilePath().AppendASCII("dest").Append(path));
   }
@@ -272,7 +259,7 @@ class DraggedFileUtilTest : public testing::Test {
       // to simulate a drop with multiple directories.
       if (toplevel_root_map_.find(toplevel) == toplevel_root_map_.end()) {
         base::FilePath root = root_path().Append(
-            kRootPaths[(root_path_index++) % std::size(kRootPaths)]);
+            kRootPaths[(root_path_index++) % base::size(kRootPaths)]);
         toplevel_root_map_[toplevel] = root;
         toplevels.AddPath(root.Append(path), nullptr);
       }
@@ -286,14 +273,13 @@ class DraggedFileUtilTest : public testing::Test {
 
   base::ScopedTempDir data_dir_;
   base::ScopedTempDir partition_dir_;
-  base::test::TaskEnvironment task_environment_{
-      base::test::TaskEnvironment::MainThreadType::IO};
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
   std::string filesystem_id_;
-  scoped_refptr<storage::MockQuotaManager> quota_manager_;
-  scoped_refptr<storage::MockQuotaManagerProxy> quota_manager_proxy_;
   scoped_refptr<FileSystemContext> file_system_context_;
   std::map<base::FilePath, base::FilePath> toplevel_root_map_;
   std::unique_ptr<DraggedFileUtil> file_util_;
+  DISALLOW_COPY_AND_ASSIGN(DraggedFileUtilTest);
 };
 
 TEST_F(DraggedFileUtilTest, BasicTest) {
@@ -330,7 +316,7 @@ TEST_F(DraggedFileUtilTest, UnregisteredPathsTest) {
       {false, FILE_PATH_LITERAL("bar"), 20},
   };
 
-  for (size_t i = 0; i < std::size(kUnregisteredCases); ++i) {
+  for (size_t i = 0; i < base::size(kUnregisteredCases); ++i) {
     SCOPED_TRACE(testing::Message() << "Creating kUnregisteredCases " << i);
     const FileSystemTestCaseRecord& test_case = kUnregisteredCases[i];
 
@@ -345,7 +331,7 @@ TEST_F(DraggedFileUtilTest, UnregisteredPathsTest) {
     ASSERT_EQ(test_case.is_directory, info.is_directory);
   }
 
-  for (size_t i = 0; i < std::size(kUnregisteredCases); ++i) {
+  for (size_t i = 0; i < base::size(kUnregisteredCases); ++i) {
     SCOPED_TRACE(testing::Message() << "Creating kUnregisteredCases " << i);
     const FileSystemTestCaseRecord& test_case = kUnregisteredCases[i];
     FileSystemURL url = GetFileSystemURL(base::FilePath(test_case.path));
@@ -384,7 +370,7 @@ TEST_F(DraggedFileUtilTest, ReadDirectoryTest) {
       entry.name = current.BaseName();
       expected_entry_map[entry.name.value()] = entry;
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
       // Creates a symlink for each file/directory.
       // They should be ignored by ReadDirectory, so we don't add them
       // to expected_entry_map.
@@ -401,7 +387,8 @@ TEST_F(DraggedFileUtilTest, ReadDirectoryTest) {
                                        file_system_context(), url, &entries));
 
     EXPECT_EQ(expected_entry_map.size(), entries.size());
-    for (const auto& entry : entries) {
+    for (size_t i = 0; i < entries.size(); ++i) {
+      const filesystem::mojom::DirectoryEntry& entry = entries[i];
       auto found = expected_entry_map.find(entry.name.value());
       EXPECT_TRUE(found != expected_entry_map.end());
       EXPECT_EQ(found->second.name, entry.name);
@@ -490,12 +477,6 @@ TEST_F(DraggedFileUtilTest, CopyOutDirectoryTest) {
   }
 }
 
-// TODO(https://crbug.com/702990): Remove this test once last_access_time has
-// been removed after PPAPI has been deprecated. Fuchsia does not support touch,
-// which breaks this test that relies on it. Since PPAPI is being deprecated,
-// this test is excluded from the Fuchsia build.
-// See https://crbug.com/1077456 for details.
-#if !BUILDFLAG(IS_FUCHSIA)
 TEST_F(DraggedFileUtilTest, TouchTest) {
   for (size_t i = 0; i < kRegularFileSystemTestCaseSize; ++i) {
     const FileSystemTestCaseRecord& test_case = kRegularFileSystemTestCases[i];
@@ -521,7 +502,6 @@ TEST_F(DraggedFileUtilTest, TouchTest) {
     EXPECT_EQ(last_modified_time.ToTimeT(), info.last_modified.ToTimeT());
   }
 }
-#endif  // !BUILDFLAG(IS_FUCHSIA)
 
 TEST_F(DraggedFileUtilTest, TruncateTest) {
   for (size_t i = 0; i < kRegularFileSystemTestCaseSize; ++i) {
@@ -613,10 +593,6 @@ TEST_F(DraggedFileUtilTest, EnumerateRecursivelyTest) {
           base::FilePath(FILE_PATH_LITERAL("dir a/dir d/dir e/dir g/file 3"))
               .NormalizePathSeparators(),
           base::FilePath(FILE_PATH_LITERAL("dir a/dir d/dir e/dir h"))
-              .NormalizePathSeparators(),
-          base::FilePath(FILE_PATH_LITERAL("dir a/dir d/dir e/dir h/file 0"))
-              .NormalizePathSeparators(),
-          base::FilePath(FILE_PATH_LITERAL("dir a/dir d/dir e/dir h/file 1"))
               .NormalizePathSeparators()));
 }
 

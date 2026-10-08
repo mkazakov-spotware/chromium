@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,24 +7,12 @@
  * the "dictionary" of custom words used for spell check.
  */
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
-import 'chrome://resources/cr_elements/cr_input/cr_input.js';
-import 'chrome://resources/cr_elements/icons.html.js';
-import 'chrome://resources/polymer/v3_0/iron-a11y-keys/iron-a11y-keys.js';
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import '../../settings_shared.css.js';
-
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {Route} from '../../router.js';
-import {GlobalScrollTargetBehavior, GlobalScrollTargetBehaviorInterface} from '../global_scroll_target_behavior.js';
-import {recordSettingChange} from '../metrics_recorder.js';
-import {routes} from '../os_route.js';
-
-import {LanguagesBrowserProxy, LanguagesBrowserProxyImpl} from './languages_browser_proxy.js';
-import {getTemplate} from './os_edit_dictionary_page.html.js';
+// clang-format off
+// #import {GlobalScrollTargetBehavior} from '../../global_scroll_target_behavior.m.js';
+// #import {loadTimeData} from '../../i18n_setup.js';
+// #import {PrefsBehavior} from '../../prefs/prefs_behavior.m.js';
+// #import {LanguagesBrowserProxyImpl} from '../../languages_page/languages_browser_proxy.m.js';
+// clang-format on
 
 // Max valid word size, keep in sync with kMaxCustomDictionaryWordBytes in
 // //components/spellcheck/common/spellcheck_common.h
@@ -38,86 +26,70 @@ const NewWordState = {
   WORD_TOO_LONG: 3,
 };
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {I18nBehaviorInterface}
- * @implements {GlobalScrollTargetBehaviorInterface}
- */
-const OsSettingsEditDictionaryPageElementBase =
-    mixinBehaviors([I18nBehavior, GlobalScrollTargetBehavior], PolymerElement);
+Polymer({
+  is: 'os-settings-edit-dictionary-page',
 
-/** @polymer */
-class OsSettingsEditDictionaryPageElement extends
-    OsSettingsEditDictionaryPageElementBase {
-  static get is() {
-    return 'os-settings-edit-dictionary-page';
-  }
+  behaviors: [
+    I18nBehavior,
+    settings.GlobalScrollTargetBehavior,
+  ],
 
-  static get template() {
-    return getTemplate();
-  }
+  properties: {
+    /** @private */
+    newWordValue_: {
+      type: String,
+      value: '',
+    },
 
-  static get properties() {
-    return {
-      /** @private */
-      newWordValue_: {
-        type: String,
-        value: '',
-      },
+    /**
+     * Needed for GlobalScrollTargetBehavior.
+     * @override
+     */
+    subpageRoute: {
+      type: Object,
+      value: settings.routes.OS_LANGUAGES_EDIT_DICTIONARY,
+    },
 
-      /**
-       * Needed for GlobalScrollTargetBehavior.
-       * @type {!Route}
-       * @override
-       */
-      subpageRoute: {
-        type: Object,
-        value: routes.OS_LANGUAGES_EDIT_DICTIONARY,
-      },
+    /** @private {!Array<string>} */
+    words_: {
+      type: Array,
+      value: [],
+    },
 
-      /** @private {!Array<string>} */
-      words_: {
-        type: Array,
-        value: [],
-      },
+    /** @private */
+    hasWords_: {
+      type: Boolean,
+      value: false,
+      computed: 'computeHasWords_(words_.length)',
+    },
 
-      /** @private */
-      hasWords_: {
-        type: Boolean,
-        value: false,
-        computed: 'computeHasWords_(words_.length)',
-      },
+    /** @private */
+    disableAddButton_: {
+      type: Boolean,
+      value: true,
+      computed: 'shouldDisableAddButton_(newWordState_)',
+    },
 
-      /** @private */
-      disableAddButton_: {
-        type: Boolean,
-        value: true,
-        computed: 'shouldDisableAddButton_(newWordState_)',
-      },
+    /** @private */
+    newWordState_: {
+      type: Number,
+      value: NewWordState.NO_WORD,
+      computed: 'updateNewWordState_(newWordValue_, words_.*)',
+    }
+  },
 
-      /** @private */
-      newWordState_: {
-        type: Number,
-        value: NewWordState.NO_WORD,
-        computed: 'updateNewWordState_(newWordValue_, words_.*)',
-      },
-    };
-  }
+  /** @private {?LanguageSettingsPrivate} */
+  languageSettingsPrivate_: null,
 
   /** @override */
-  constructor() {
-    super();
-
-    /** @private {!LanguageSettingsPrivate} */
+  created() {
     this.languageSettingsPrivate_ =
-        LanguagesBrowserProxyImpl.getInstance().getLanguageSettingsPrivate();
-  }
+        settings.LanguagesBrowserProxyImpl.getInstance()
+            .getLanguageSettingsPrivate();
+  },
 
   /** @override */
   ready() {
-    super.ready();
-
     this.languageSettingsPrivate_.getSpellcheckWords(words => {
       this.words_ = words;
     });
@@ -127,7 +99,7 @@ class OsSettingsEditDictionaryPageElement extends
 
     // Add a key handler for the new-word input.
     this.$.keys.target = this.$.newWord;
-  }
+  },
 
   /**
    * @return {boolean}
@@ -135,7 +107,7 @@ class OsSettingsEditDictionaryPageElement extends
    */
   computeHasWords_() {
     return this.words_.length > 0;
-  }
+  },
 
   /**
    * Adds the word in the new-word input to the dictionary.
@@ -147,9 +119,9 @@ class OsSettingsEditDictionaryPageElement extends
     this.newWordValue_ = '';
     if (word) {
       this.languageSettingsPrivate_.addSpellcheckWord(word);
-      recordSettingChange();
+      settings.recordSettingChange();
     }
-  }
+  },
 
   /**
    * @return {string}
@@ -157,7 +129,7 @@ class OsSettingsEditDictionaryPageElement extends
    */
   getTrimmedNewWord_() {
     return this.newWordValue_.trim();
-  }
+  },
 
   /**
    * @return {NewWordState}
@@ -175,7 +147,7 @@ class OsSettingsEditDictionaryPageElement extends
       return NewWordState.WORD_TOO_LONG;
     }
     return NewWordState.VALID_WORD;
-  }
+  },
 
   /**
    * @return {boolean}
@@ -183,7 +155,7 @@ class OsSettingsEditDictionaryPageElement extends
    */
   shouldDisableAddButton_() {
     return this.newWordState_ !== NewWordState.VALID_WORD;
-  }
+  },
 
   /**
    * @return {string}
@@ -198,7 +170,7 @@ class OsSettingsEditDictionaryPageElement extends
       default:
         return '';
     }
-  }
+  },
 
   /**
    * @return {boolean}
@@ -207,7 +179,7 @@ class OsSettingsEditDictionaryPageElement extends
   isNewWordInvalid_() {
     return this.newWordState_ === NewWordState.WORD_TOO_LONG ||
         this.newWordState_ === NewWordState.WORD_ALREADY_ADDED;
-  }
+  },
 
   /**
    * Handles tapping on the Add Word button.
@@ -216,7 +188,7 @@ class OsSettingsEditDictionaryPageElement extends
   onAddWordTap_() {
     this.addWordFromInput_();
     this.$.newWord.focus();
-  }
+  },
 
   /**
    * Handles updates to the word list. Additions are unshifted to the top
@@ -227,10 +199,7 @@ class OsSettingsEditDictionaryPageElement extends
    */
   onCustomDictionaryChanged_(added, removed) {
     for (const word of removed) {
-      const index = this.words_.indexOf(word);
-      if (index !== -1) {
-        this.splice('words_', index, 1);
-      }
+      this.arrayDelete('words_', word);
     }
 
     for (const word of added) {
@@ -238,11 +207,11 @@ class OsSettingsEditDictionaryPageElement extends
         this.unshift('words_', word);
       }
     }
-  }
+  },
 
   /**
    * Handles Enter and Escape key presses for the new-word input.
-   * @param {!CustomEvent<{key: string}>} e
+   * @param {!CustomEvent<!{key: string}>} e
    * @private
    */
   onKeysPress_(e) {
@@ -251,19 +220,15 @@ class OsSettingsEditDictionaryPageElement extends
     } else if (e.detail.key === 'esc') {
       e.detail.keyboardEvent.target.value = '';
     }
-  }
+  },
 
   /**
    * Handles tapping on a "Remove word" icon button.
-   * @param {{model: {item: string}}} e
+   * @param {!{model: !{item: string}}} e
    * @private
    */
   onRemoveWordTap_(e) {
     this.languageSettingsPrivate_.removeSpellcheckWord(e.model.item);
-    recordSettingChange();
+    settings.recordSettingChange();
   }
-}
-
-customElements.define(
-    OsSettingsEditDictionaryPageElement.is,
-    OsSettingsEditDictionaryPageElement);
+});

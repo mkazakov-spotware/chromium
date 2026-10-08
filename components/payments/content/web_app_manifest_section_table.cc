@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -102,10 +102,10 @@ bool WebAppManifestSectionTable::MigrateToVersion(
 }
 
 void WebAppManifestSectionTable::RemoveExpiredData() {
-  const base::Time now = base::Time::NowFromSystemTime();
+  const time_t now_date_in_seconds = base::Time::NowFromSystemTime().ToTimeT();
   sql::Statement s(db_->GetUniqueStatement(
       "DELETE FROM web_app_manifest_section WHERE expire_date < ? "));
-  s.BindTime(0, now);
+  s.BindInt64(0, now_date_in_seconds);
   s.Run();
 }
 
@@ -130,17 +130,18 @@ bool WebAppManifestSectionTable::AddWebAppManifest(
       db_->GetUniqueStatement("INSERT INTO web_app_manifest_section "
                               "(expire_date, id, min_version, fingerprints) "
                               "VALUES (?, ?, ?, ?)"));
-  const base::Time expire_date =
-      base::Time::FromTimeT(base::Time::NowFromSystemTime().ToTimeT() +
-                            WEB_APP_MANIFEST_VALID_TIME_IN_SECONDS);
+  const time_t expire_date_in_seconds =
+      base::Time::NowFromSystemTime().ToTimeT() +
+      WEB_APP_MANIFEST_VALID_TIME_IN_SECONDS;
   for (const auto& section : manifest) {
     int index = 0;
-    s2.BindTime(index++, expire_date);
+    s2.BindInt64(index++, expire_date_in_seconds);
     s2.BindString(index++, section.id);
     s2.BindInt64(index++, section.min_version);
     std::unique_ptr<std::vector<uint8_t>> serialized_fingerprints =
         SerializeFingerPrints(section.fingerprints);
-    s2.BindBlob(index, *serialized_fingerprints);
+    s2.BindBlob(index, serialized_fingerprints->data(),
+                serialized_fingerprints->size());
     if (!s2.Run())
       return false;
     s2.Reset(true);

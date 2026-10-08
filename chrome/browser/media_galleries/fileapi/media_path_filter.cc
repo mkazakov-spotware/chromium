@@ -1,21 +1,22 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media_galleries/fileapi/media_path_filter.h"
 
+#if defined(OS_WIN)
+#include <windows.h>
+#endif
+
 #include <algorithm>
 #include <string>
 
-#include "base/containers/cxx20_erase.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "net/base/mime_util.h"
 #include "third_party/blink/public/common/mime_util/mime_util.h"
-
-#if BUILDFLAG(IS_WIN)
-#include <windows.h>
-#endif
 
 namespace {
 
@@ -109,7 +110,7 @@ bool MediaPathFilter::ShouldSkip(const base::FilePath& path) {
   if (base_name == FILE_PATH_LITERAL("__MACOSX"))
     return true;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DWORD file_attributes = ::GetFileAttributes(path.value().c_str());
   if ((file_attributes != INVALID_FILE_ATTRIBUTES) &&
       ((file_attributes & FILE_ATTRIBUTE_HIDDEN) != 0))
@@ -131,13 +132,13 @@ bool MediaPathFilter::ShouldSkip(const base::FilePath& path) {
       base::StartsWith(base_name, win_vista_recycle_bin_name,
                        base::CompareCase::INSENSITIVE_ASCII))
     return true;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   return false;
 }
 
 MediaPathFilter::MediaPathFilter()
     : initialized_(false) {
-  DETACH_FROM_SEQUENCE(sequence_checker_);
+  sequence_checker_.DetachFromSequence();
 }
 
 MediaPathFilter::~MediaPathFilter() {
@@ -157,7 +158,7 @@ MediaGalleryFileType MediaPathFilter::GetType(const base::FilePath& path) {
 }
 
 void MediaPathFilter::EnsureInitialized() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(sequence_checker_.CalledOnValidSequence());
   if (initialized_)
     return;
 
@@ -171,13 +172,16 @@ void MediaPathFilter::EnsureInitialized() {
   AddExtensionsToMediaFileExtensionMap(GetMediaExtensionList("video/*"),
                                        MEDIA_GALLERY_FILE_TYPE_VIDEO);
   AddAdditionalExtensionsToMediaFileExtensionMap(
-      kExtraSupportedImageExtensions, std::size(kExtraSupportedImageExtensions),
+      kExtraSupportedImageExtensions,
+      base::size(kExtraSupportedImageExtensions),
       MEDIA_GALLERY_FILE_TYPE_IMAGE);
   AddAdditionalExtensionsToMediaFileExtensionMap(
-      kExtraSupportedAudioExtensions, std::size(kExtraSupportedAudioExtensions),
+      kExtraSupportedAudioExtensions,
+      base::size(kExtraSupportedAudioExtensions),
       MEDIA_GALLERY_FILE_TYPE_AUDIO);
   AddAdditionalExtensionsToMediaFileExtensionMap(
-      kExtraSupportedVideoExtensions, std::size(kExtraSupportedVideoExtensions),
+      kExtraSupportedVideoExtensions,
+      base::size(kExtraSupportedVideoExtensions),
       MEDIA_GALLERY_FILE_TYPE_VIDEO);
 
   initialized_ = true;

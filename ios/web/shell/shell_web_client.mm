@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,14 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/bind.h"
-#import "ios/web/common/user_agent.h"
+#include "base/bind.h"
+#include "ios/web/common/user_agent.h"
 #import "ios/web/public/web_state.h"
-#import "ios/web/shell/shell_web_main_parts.h"
+#include "ios/web/shell/shell_web_main_parts.h"
 #import "ios/web/shell/web_usage_controller.mojom.h"
-#import "mojo/public/cpp/bindings/pending_receiver.h"
-#import "mojo/public/cpp/bindings/self_owned_receiver.h"
-#import "ui/base/resource/resource_bundle.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
+#include "ui/base/resource/resource_bundle.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -63,7 +63,7 @@ std::string ShellWebClient::GetUserAgent(UserAgentType type) const {
 
 base::StringPiece ShellWebClient::GetDataResource(
     int resource_id,
-    ui::ResourceScaleFactor scale_factor) const {
+    ui::ScaleFactor scale_factor) const {
   return ui::ResourceBundle::GetSharedInstance().GetRawDataResourceForScale(
       resource_id, scale_factor);
 }
@@ -83,8 +83,40 @@ void ShellWebClient::BindInterfaceReceiverFromMainFrame(
   }
 }
 
-bool ShellWebClient::EnableLongPressUIContextMenu() const {
-  return true;
+void ShellWebClient::AllowCertificateError(
+    WebState*,
+    int /*cert_error*/,
+    const net::SSLInfo&,
+    const GURL&,
+    bool overridable,
+    int64_t /*navigation_id*/,
+    base::OnceCallback<void(bool)> callback) {
+  UIAlertController* alert = [UIAlertController
+      alertControllerWithTitle:@"Your connection is not private"
+                       message:nil
+                preferredStyle:UIAlertControllerStyleActionSheet];
+
+  __block base::OnceCallback<void(bool)> local_callback = std::move(callback);
+  void (^callback_block)(bool result) = ^(bool result) {
+    std::move(local_callback).Run(result);
+  };
+  [alert addAction:[UIAlertAction actionWithTitle:@"Go Back"
+                                            style:UIAlertActionStyleCancel
+                                          handler:^(UIAlertAction*) {
+                                            callback_block(false);
+                                          }]];
+
+  if (overridable) {
+    [alert addAction:[UIAlertAction actionWithTitle:@"Continue"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction*) {
+                                              callback_block(true);
+                                            }]];
+  }
+  [[UIApplication sharedApplication].keyWindow.rootViewController
+      presentViewController:alert
+                   animated:YES
+                 completion:nil];
 }
 
 }  // namespace web

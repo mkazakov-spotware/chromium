@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,9 @@
 
 #include <memory>
 
+#include "base/logging.h"
+#include "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/javascript_dialogs/app_modal_dialog_view.h"
 #include "components/remote_cocoa/app_shim/alert.h"
@@ -17,17 +20,12 @@ class PopunderPreventer;
 
 namespace javascript_dialogs {
 class AppModalDialogController;
-class AppModalDialogView;
-}
-
-namespace remote_cocoa {
-class AlertBridge;
 }
 
 class JavaScriptAppModalDialogCocoa
     : public javascript_dialogs::AppModalDialogView {
  public:
-  static javascript_dialogs::AppModalDialogView* CreateNativeJavaScriptDialog(
+  explicit JavaScriptAppModalDialogCocoa(
       javascript_dialogs::AppModalDialogController* controller);
 
   // Overridden from NativeAppModalDialog:
@@ -39,11 +37,6 @@ class JavaScriptAppModalDialogCocoa
   bool IsShowing() const override;
 
  private:
-  explicit JavaScriptAppModalDialogCocoa(
-      javascript_dialogs::AppModalDialogController* controller);
-  JavaScriptAppModalDialogCocoa(const JavaScriptAppModalDialogCocoa&) = delete;
-  JavaScriptAppModalDialogCocoa& operator=(
-      const JavaScriptAppModalDialogCocoa&) = delete;
   ~JavaScriptAppModalDialogCocoa() override;
 
   // Return the parameters to use for the alert.
@@ -51,7 +44,7 @@ class JavaScriptAppModalDialogCocoa
 
   // Called when the alert completes. Deletes |this|.
   void OnAlertFinished(remote_cocoa::mojom::AlertDisposition disposition,
-                       const std::u16string& prompt_text,
+                       const base::string16& prompt_text,
                        bool suppress_js_messages);
 
   // Called if there is an error connecting to the alert process. Deletes
@@ -59,7 +52,7 @@ class JavaScriptAppModalDialogCocoa
   void OnMojoDisconnect();
 
   // Mojo interface to the NSAlert.
-  mojo::Remote<remote_cocoa::mojom::AlertBridge> alert_bridge_remote_;
+  mojo::Remote<remote_cocoa::mojom::AlertBridge> alert_bridge_;
 
   std::unique_ptr<javascript_dialogs::AppModalDialogController> controller_;
   std::unique_ptr<PopunderPreventer> popunder_preventer_;
@@ -68,6 +61,7 @@ class JavaScriptAppModalDialogCocoa
   bool is_showing_ = false;
 
   base::WeakPtrFactory<JavaScriptAppModalDialogCocoa> weak_factory_;
+  DISALLOW_COPY_AND_ASSIGN(JavaScriptAppModalDialogCocoa);
 };
 
 #endif  // CHROME_BROWSER_UI_COCOA_JAVASCRIPT_APP_MODAL_DIALOG_COCOA_H_

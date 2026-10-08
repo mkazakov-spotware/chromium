@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,12 +41,12 @@ public interface NavigationController {
     void goToNavigationIndex(int index);
 
     /**
-     * Goes to the first non-skippable navigation entry before the current.
+     * Goes to the navigation entry before the current one.
      */
     void goBack();
 
     /**
-     * Goes to the first non-skippable navigation entry following the current.
+     * Goes to the navigation entry following the current one.
      */
     void goForward();
 
@@ -135,9 +135,8 @@ public interface NavigationController {
      * Set whether or not we're using a desktop user agent for the currently loaded page.
      * @param override If true, use a desktop user agent.  Use a mobile one otherwise.
      * @param reloadOnChange Reload the page if the UA has changed.
-     * @param caller The caller of this method.
      */
-    public void setUseDesktopUserAgent(boolean override, boolean reloadOnChange, int caller);
+    public void setUseDesktopUserAgent(boolean override, boolean reloadOnChange);
 
     /**
      * Return the NavigationEntry at the given index.

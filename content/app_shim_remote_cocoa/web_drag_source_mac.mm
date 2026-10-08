@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <sys/param.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -14,7 +13,6 @@
 #include "base/files/file_path.h"
 #include "base/mac/foundation_util.h"
 #include "base/pickle.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -24,6 +22,7 @@
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/drop_data.h"
+#include "net/base/escape.h"
 #include "net/base/filename_util.h"
 #include "net/base/mime_util.h"
 #include "ui/base/clipboard/clipboard_constants.h"
@@ -50,20 +49,20 @@ using content::DropData;
 
 @implementation WebDragSource
 
-- (instancetype)initWithHost:(remote_cocoa::mojom::WebContentsNSViewHost*)host
-                        view:(NSView*)contentsView
-                    dropData:(const DropData*)dropData
-                       image:(NSImage*)image
-                      offset:(NSPoint)offset
-                  pasteboard:(NSPasteboard*)pboard
-           dragOperationMask:(NSDragOperation)dragOperationMask {
+- (id)initWithHost:(remote_cocoa::mojom::WebContentsNSViewHost*)host
+              view:(NSView*)contentsView
+          dropData:(const DropData*)dropData
+             image:(NSImage*)image
+            offset:(NSPoint)offset
+        pasteboard:(NSPasteboard*)pboard
+ dragOperationMask:(NSDragOperation)dragOperationMask {
   if ((self = [super init])) {
     _host = host;
 
     _contentsView = contentsView;
     DCHECK(_contentsView);
 
-    _dropData = std::make_unique<DropData>(*dropData);
+    _dropData.reset(new DropData(*dropData));
     DCHECK(_dropData.get());
 
     _dragImage.reset([image retain]);
@@ -89,11 +88,11 @@ using content::DropData;
   return _dragOperationMask;
 }
 
-- (void)pasteboard:(NSPasteboard*)pboard provideDataForType:(NSString*)type {
+- (void)lazyWriteToPasteboard:(NSPasteboard*)pboard forType:(NSString*)type {
   // NSHTMLPboardType requires the character set to be declared. Otherwise, it
   // assumes US-ASCII. Awesome.
-  static constexpr char16_t kHtmlHeader[] =
-      u"<meta http-equiv=\"Content-Type\" content=\"text/html;charset=UTF-8\">";
+  const base::string16 kHtmlHeader = base::ASCIIToUTF16(
+      "<meta http-equiv=\"Content-Type\" content=\"text/html;charset=UTF-8\">");
 
   // Be extra paranoid; avoid crashing.
   if (!_dropData) {
@@ -118,9 +117,9 @@ using content::DropData;
     // Strip out any existing escapes and then re-escape uniformly.
     if (!url && _dropData->url.SchemeIs(url::kJavaScriptScheme)) {
       std::string unescapedUrlString =
-          base::UnescapeBinaryURLComponent(_dropData->url.spec());
+          net::UnescapeBinaryURLComponent(_dropData->url.spec());
       std::string escapedUrlString =
-          base::EscapeUrlEncodedData(unescapedUrlString, false);
+          net::EscapeUrlEncodedData(unescapedUrlString, false);
       url = [NSURL URLWithString:SysUTF8ToNSString(escapedUrlString)];
     }
     [url writeToPasteboard:pboard];
@@ -179,9 +178,9 @@ using content::DropData;
   NSWindow* window = [_contentsView window];
   NSPoint position = [window mouseLocationOutsideOfEventStream];
   NSTimeInterval eventTime = [currentEvent timestamp];
-  NSEvent* dragEvent = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDragged
+  NSEvent* dragEvent = [NSEvent mouseEventWithType:NSLeftMouseDragged
                                           location:position
-                                     modifierFlags:0
+                                     modifierFlags:NSLeftMouseDraggedMask
                                          timestamp:eventTime
                                       windowNumber:[window windowNumber]
                                            context:nil
@@ -234,15 +233,9 @@ using content::DropData;
       operation,
       gfx::PointF(localPoint.x, viewFrame.size.height - localPoint.y),
       gfx::PointF(screenPoint.x, screenFrame.size.height - screenPoint.y));
-}
 
-- (void)clearPasteboard {
-  // Since all drag operations share the same pasteboard, we only want to
-  // reset the pasteboard if we were the last to use it
-  if ([_pasteboard changeCount] == _changeCount) {
-    // Make sure the pasteboard owner isn't us.
-    [_pasteboard declareTypes:@[] owner:nil];
-  }
+  // Make sure the pasteboard owner isn't us.
+  [_pasteboard declareTypes:[NSArray array] owner:nil];
 }
 
 - (NSString*)dragPromisedFileTo:(NSString*)path {
@@ -269,15 +262,15 @@ using content::DropData;
 
   DCHECK(_pasteboard.get());
 
-  _changeCount = [_pasteboard declareTypes:@[ ui::kChromeDragDummyPboardType ]
-                                     owner:self];
+  [_pasteboard declareTypes:@[ ui::kChromeDragDummyPboardType ]
+                      owner:_contentsView];
 
   // URL (and title).
   if (_dropData->url.is_valid()) {
     [_pasteboard addTypes:@[
       NSURLPboardType, ui::kUTTypeURLName, base::mac::CFToNSCast(kUTTypeURL)
     ]
-                    owner:self];
+                    owner:_contentsView];
   }
 
   // MIME type.
@@ -289,14 +282,14 @@ using content::DropData;
     // TODO(https://crbug.com/898608): The |downloadFileName_| and
     // |downloadURL_| values should be computed by the caller.
     if (_dropData->download_metadata.empty()) {
-      absl::optional<base::FilePath> suggestedFilename =
+      base::Optional<base::FilePath> suggestedFilename =
           _dropData->GetSafeFilenameForImageFileContents();
       if (suggestedFilename) {
         _downloadFileName = std::move(*suggestedFilename);
         net::GetMimeTypeFromFile(_downloadFileName, &mimeType);
       }
     } else {
-      std::u16string mimeType16;
+      base::string16 mimeType16;
       base::FilePath fileName;
       if (content::ParseDownloadMetadata(
               _dropData->download_metadata,
@@ -348,12 +341,12 @@ using content::DropData;
       //   dropped. <http://crbug.com/284942> <rdar://14943881>
       //   <http://openradar.me/14943881>
       NSArray* fileUTIList = @[ base::mac::CFToNSCast(_fileUTI.get()) ];
-      [_pasteboard addTypes:@[ NSFilesPromisePboardType ] owner:self];
+      [_pasteboard addTypes:@[ NSFilesPromisePboardType ] owner:_contentsView];
       [_pasteboard setPropertyList:fileUTIList
                            forType:NSFilesPromisePboardType];
 
       if (!_dropData->file_contents.empty())
-        [_pasteboard addTypes:fileUTIList owner:self];
+        [_pasteboard addTypes:fileUTIList owner:_contentsView];
     }
   }
 
@@ -371,19 +364,22 @@ using content::DropData;
                       UTTypeConformsTo(_fileUTI.get(), kUTTypeImage);
   if (hasHTMLData) {
     if (hasImageData) {
-      [_pasteboard addTypes:@[ ui::kChromeDragImageHTMLPboardType ] owner:self];
+      [_pasteboard addTypes:@[ ui::kChromeDragImageHTMLPboardType ]
+                      owner:_contentsView];
     } else {
-      [_pasteboard addTypes:@[ NSHTMLPboardType ] owner:self];
+      [_pasteboard addTypes:@[ NSHTMLPboardType ] owner:_contentsView];
     }
   }
 
   // Plain text.
   if (_dropData->text && !_dropData->text->empty()) {
-    [_pasteboard addTypes:@[ NSStringPboardType ] owner:self];
+    [_pasteboard addTypes:@[ NSStringPboardType ]
+                    owner:_contentsView];
   }
 
   if (!_dropData->custom_data.empty()) {
-    [_pasteboard addTypes:@[ ui::kWebCustomDataPboardType ] owner:self];
+    [_pasteboard addTypes:@[ ui::kWebCustomDataPboardType ]
+                    owner:_contentsView];
   }
 }
 
@@ -394,11 +390,6 @@ using content::DropData;
   // Default to returning a generic image.
   return content::GetContentClient()->GetNativeImageNamed(
       IDR_DEFAULT_FAVICON).ToNSImage();
-}
-
-- (void)dealloc {
-  [self clearPasteboard];
-  [super dealloc];
 }
 
 @end  // @implementation WebDragSource (Private)

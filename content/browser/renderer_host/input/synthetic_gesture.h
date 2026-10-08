@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "content/common/content_export.h"
 #include "content/common/input/synthetic_gesture_params.h"
@@ -30,10 +31,6 @@ class SyntheticGestureTarget;
 class CONTENT_EXPORT SyntheticGesture {
  public:
   SyntheticGesture();
-
-  SyntheticGesture(const SyntheticGesture&) = delete;
-  SyntheticGesture& operator=(const SyntheticGesture&) = delete;
-
   virtual ~SyntheticGesture();
 
   static std::unique_ptr<SyntheticGesture> Create(
@@ -65,6 +62,7 @@ class CONTENT_EXPORT SyntheticGesture {
   virtual bool AllowHighFrequencyDispatch() const;
 
  protected:
+  DISALLOW_COPY_AND_ASSIGN(SyntheticGesture);
 };
 
 }  // namespace content

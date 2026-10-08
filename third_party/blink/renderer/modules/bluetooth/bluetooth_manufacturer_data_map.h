@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,9 @@
 
 namespace blink {
 
-class BluetoothManufacturerDataMap final : public ScriptWrappable,
-                                           public Maplike<uint16_t,
-                                                          IDLUnsignedShort,
-                                                          Member<DOMDataView>,
-                                                          DOMDataView> {
+class BluetoothManufacturerDataMap final
+    : public ScriptWrappable,
+      public Maplike<uint16_t, Member<DOMDataView>> {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -33,9 +31,9 @@ class BluetoothManufacturerDataMap final : public ScriptWrappable,
   uint32_t size() const { return parameter_map_.size(); }
 
  private:
-  PairIterable<uint16_t, IDLUnsignedShort, Member<DOMDataView>, DOMDataView>::
-      IterationSource*
-      StartIteration(ScriptState*, ExceptionState&) override;
+  PairIterable<uint16_t, Member<DOMDataView>>::IterationSource* StartIteration(
+      ScriptState*,
+      ExceptionState&) override;
   bool GetMapEntry(ScriptState*,
                    const uint16_t& key,
                    Member<DOMDataView>&,
@@ -46,4 +44,4 @@ class BluetoothManufacturerDataMap final : public ScriptWrappable,
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_BLUETOOTH_BLUETOOTH_MANUFACTURER_DATA_MAP_H_
+#endif

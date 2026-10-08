@@ -24,10 +24,10 @@
 
 #include "third_party/blink/renderer/platform/graphics/filters/fe_displacement_map.h"
 
-#include "base/types/optional_util.h"
 #include "third_party/blink/renderer/platform/graphics/filters/filter.h"
 #include "third_party/blink/renderer/platform/graphics/filters/paint_filter_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_stream.h"
+#include "third_party/skia/include/effects/SkDisplacementMapEffect.h"
 
 namespace blink {
 
@@ -40,15 +40,14 @@ FEDisplacementMap::FEDisplacementMap(Filter* filter,
       y_channel_selector_(y_channel_selector),
       scale_(scale) {}
 
-gfx::RectF FEDisplacementMap::MapEffect(const gfx::RectF& rect) const {
-  gfx::RectF result = rect;
-  result.Outset(gfx::OutsetsF::VH(
-      GetFilter()->ApplyVerticalScale(std::abs(scale_) / 2),
-      GetFilter()->ApplyHorizontalScale(std::abs(scale_) / 2)));
+FloatRect FEDisplacementMap::MapEffect(const FloatRect& rect) const {
+  FloatRect result = rect;
+  result.InflateX(GetFilter()->ApplyHorizontalScale(std::abs(scale_) / 2));
+  result.InflateY(GetFilter()->ApplyVerticalScale(std::abs(scale_) / 2));
   return result;
 }
 
-gfx::RectF FEDisplacementMap::MapInputs(const gfx::RectF& rect) const {
+FloatRect FEDisplacementMap::MapInputs(const FloatRect& rect) const {
   return InputEffect(0)->MapRect(rect);
 }
 
@@ -87,20 +86,20 @@ bool FEDisplacementMap::SetScale(float scale) {
   return true;
 }
 
-static SkColorChannel ToSkiaMode(ChannelSelectorType type) {
+static SkDisplacementMapEffect::ChannelSelectorType ToSkiaMode(
+    ChannelSelectorType type) {
   switch (type) {
     case CHANNEL_R:
-      return SkColorChannel::kR;
+      return SkDisplacementMapEffect::kR_ChannelSelectorType;
     case CHANNEL_G:
-      return SkColorChannel::kG;
+      return SkDisplacementMapEffect::kG_ChannelSelectorType;
     case CHANNEL_B:
-      return SkColorChannel::kB;
+      return SkDisplacementMapEffect::kB_ChannelSelectorType;
     case CHANNEL_A:
-      return SkColorChannel::kA;
+      return SkDisplacementMapEffect::kA_ChannelSelectorType;
     case CHANNEL_UNKNOWN:
     default:
-      // Historically, Skia's raster backend treated unknown as blue.
-      return SkColorChannel::kB;
+      return SkDisplacementMapEffect::kUnknown_ChannelSelectorType;
   }
 }
 
@@ -115,16 +114,18 @@ sk_sp<PaintFilter> FEDisplacementMap::CreateImageFilter() {
 
   sk_sp<PaintFilter> displ = paint_filter_builder::Build(
       InputEffect(1), OperatingInterpolationSpace());
-  SkColorChannel type_x = ToSkiaMode(x_channel_selector_);
-  SkColorChannel type_y = ToSkiaMode(y_channel_selector_);
-  absl::optional<PaintFilter::CropRect> crop_rect = GetCropRect();
+  SkDisplacementMapEffect::ChannelSelectorType type_x =
+      ToSkiaMode(x_channel_selector_);
+  SkDisplacementMapEffect::ChannelSelectorType type_y =
+      ToSkiaMode(y_channel_selector_);
+  PaintFilter::CropRect crop_rect = GetCropRect();
   // FIXME : Only applyHorizontalScale is used and applyVerticalScale is ignored
   // This can be fixed by adding a 2nd scale parameter to
   // DisplacementMapEffectPaintFilter.
   return sk_make_sp<DisplacementMapEffectPaintFilter>(
       type_x, type_y,
       SkFloatToScalar(GetFilter()->ApplyHorizontalScale(scale_)),
-      std::move(displ), std::move(color), base::OptionalToPtr(crop_rect));
+      std::move(displ), std::move(color), &crop_rect);
 }
 
 static WTF::TextStream& operator<<(WTF::TextStream& ts,

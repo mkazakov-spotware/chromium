@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import android.widget.RemoteViews;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
-import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 
 /**
@@ -66,7 +65,7 @@ public class AudioFocusGrabberListenerService extends Service {
         return START_NOT_STICKY;
     }
 
-    private void processIntent(Intent intent) {
+    void processIntent(Intent intent) {
         if (mMediaPlayer != null) {
             Log.i(TAG, "There's already a MediaPlayer playing,"
                     + " stopping the existing player and abandon focus");
@@ -88,7 +87,8 @@ public class AudioFocusGrabberListenerService extends Service {
         }
     }
 
-    private void gainFocusAndPlay(int focusType) {
+
+    void gainFocusAndPlay(int focusType) {
         int result = mAudioManager.requestAudioFocus(
                 mOnAudioFocusChangeListener,
                 AudioManager.STREAM_MUSIC,
@@ -100,13 +100,13 @@ public class AudioFocusGrabberListenerService extends Service {
         }
     }
 
-    private void playSound() {
+    void playSound() {
         mMediaPlayer = MediaPlayer.create(getApplicationContext(), R.raw.ping);
         mMediaPlayer.setOnCompletionListener(mOnCompletionListener);
         mMediaPlayer.start();
     }
 
-    private void releaseAndAbandonAudioFocus() {
+    void releaseAndAbandonAudioFocus() {
         mMediaPlayer.release();
         mMediaPlayer = null;
         mAudioManager.abandonAudioFocus(mOnAudioFocusChangeListener);
@@ -178,8 +178,6 @@ public class AudioFocusGrabberListenerService extends Service {
     private PendingIntent createPendingIntent(String action) {
         Intent i = new Intent(this, AudioFocusGrabberListenerService.class);
         i.setAction(action);
-        return PendingIntent.getService(this, 0, i,
-                PendingIntent.FLAG_CANCEL_CURRENT
-                        | IntentUtils.getPendingIntentMutabilityFlag(false));
+        return PendingIntent.getService(this, 0, i, PendingIntent.FLAG_CANCEL_CURRENT);
     }
 }

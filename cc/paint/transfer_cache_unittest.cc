@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,7 +49,8 @@ class TransferCacheTest : public testing::Test {
     context_ = std::make_unique<gpu::RasterInProcessContext>();
     auto result = context_->Initialize(
         viz::TestGpuServiceHolder::GetInstance()->task_executor(), attribs,
-        gpu::SharedMemoryLimits(), &image_factory_, nullptr, nullptr);
+        gpu::SharedMemoryLimits(), &gpu_memory_buffer_manager_, &image_factory_,
+        /*gpu_channel_manager_delegate=*/nullptr, nullptr, nullptr);
 
     ASSERT_EQ(result, gpu::ContextResult::kSuccess);
     ASSERT_TRUE(context_->GetCapabilities().supports_oop_raster);

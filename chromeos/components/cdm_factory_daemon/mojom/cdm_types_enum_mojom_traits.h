@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -72,6 +72,8 @@ struct EnumTraits<chromeos::cdm::mojom::CdmSessionType,
         return chromeos::cdm::mojom::CdmSessionType::kTemporary;
       case ::media::CdmSessionType::kPersistentLicense:
         return chromeos::cdm::mojom::CdmSessionType::kPersistentLicense;
+      case ::media::CdmSessionType::kPersistentUsageRecord:
+        return chromeos::cdm::mojom::CdmSessionType::kPersistentUsageRecord;
     }
 
     NOTREACHED();
@@ -88,6 +90,9 @@ struct EnumTraits<chromeos::cdm::mojom::CdmSessionType,
         return true;
       case chromeos::cdm::mojom::CdmSessionType::kPersistentLicense:
         *output = ::media::CdmSessionType::kPersistentLicense;
+        return true;
+      case chromeos::cdm::mojom::CdmSessionType::kPersistentUsageRecord:
+        *output = ::media::CdmSessionType::kPersistentUsageRecord;
         return true;
     }
 

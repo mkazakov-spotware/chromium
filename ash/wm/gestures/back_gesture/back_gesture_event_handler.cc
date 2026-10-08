@@ -1,23 +1,22 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/gestures/back_gesture/back_gesture_event_handler.h"
 
 #include "ash/app_list/app_list_controller_impl.h"
-#include "ash/constants/app_types.h"
-#include "ash/constants/ash_features.h"
-#include "ash/controls/contextual_tooltip.h"
 #include "ash/display/screen_orientation_controller.h"
+#include "ash/home_screen/home_screen_controller.h"
 #include "ash/keyboard/keyboard_util.h"
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
+#include "ash/public/cpp/app_types.h"
+#include "ash/public/cpp/ash_features.h"
 #include "ash/session/session_controller_impl.h"
+#include "ash/shelf/contextual_tooltip.h"
 #include "ash/shell.h"
 #include "ash/shell_delegate.h"
 #include "ash/system/model/system_tray_model.h"
 #include "ash/system/model/virtual_keyboard_model.h"
-#include "ash/wm/desks/desks_controller.h"
-#include "ash/wm/float/float_controller.h"
 #include "ash/wm/gestures/back_gesture/back_gesture_affordance.h"
 #include "ash/wm/gestures/back_gesture/back_gesture_contextual_nudge_controller_impl.h"
 #include "ash/wm/overview/overview_controller.h"
@@ -26,11 +25,9 @@
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "ash/wm/wm_event.h"
-#include "base/containers/contains.h"
 #include "base/i18n/rtl.h"
 #include "base/metrics/user_metrics.h"
 #include "chromeos/ui/base/window_properties.h"
-#include "chromeos/ui/wm/features.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
 #include "ui/wm/core/coordinate_conversion.h"
@@ -62,9 +59,9 @@ bool CanStartGoingBackFromSplitViewDivider(const gfx::Point& screen_location) {
   // Same thing for ARC virtual keyboard as well.
   SystemTrayModel* system_tray_model = Shell::Get()->system_tray_model();
   if (system_tray_model) {
-    auto* virtual_keyboard = system_tray_model->virtual_keyboard();
-    if (virtual_keyboard->arc_keyboard_visible() &&
-        virtual_keyboard->arc_keyboard_bounds().Contains(screen_location)) {
+    auto* arc_keyboard = system_tray_model->virtual_keyboard();
+    if (arc_keyboard->visible() &&
+        arc_keyboard->arc_keyboard_bounds().Contains(screen_location)) {
       return false;
     }
   }
@@ -138,30 +135,27 @@ void ActivateUnderneathWindowInSplitViewMode(
     return;
 
   const bool is_rtl = base::i18n::IsRTL();
-  auto* left_window = is_rtl ? split_view_controller->secondary_window()
-                             : split_view_controller->primary_window();
-  auto* right_window = is_rtl ? split_view_controller->primary_window()
-                              : split_view_controller->secondary_window();
-  const chromeos::OrientationType current_orientation =
-      GetCurrentScreenOrientation();
-  if (current_orientation == chromeos::OrientationType::kLandscapePrimary) {
+  auto* left_window = is_rtl ? split_view_controller->right_window()
+                             : split_view_controller->left_window();
+  auto* right_window = is_rtl ? split_view_controller->left_window()
+                              : split_view_controller->right_window();
+  const OrientationLockType current_orientation = GetCurrentScreenOrientation();
+  if (current_orientation == OrientationLockType::kLandscapePrimary) {
     ActivateWindow(dragged_from_splitview_divider ? right_window : left_window);
-  } else if (current_orientation ==
-             chromeos::OrientationType::kLandscapeSecondary) {
+  } else if (current_orientation == OrientationLockType::kLandscapeSecondary) {
     ActivateWindow(dragged_from_splitview_divider ? left_window : right_window);
   } else {
-    if (left_window && split_view_controller
-                           ->GetSnappedWindowBoundsInScreen(
-                               SplitViewController::SnapPosition::kPrimary,
-                               /*window_for_minimum_size=*/nullptr)
-                           .Contains(location)) {
+    if (left_window &&
+        split_view_controller
+            ->GetSnappedWindowBoundsInScreen(
+                SplitViewController::LEFT, /*window_for_minimum_size=*/nullptr)
+            .Contains(location)) {
       ActivateWindow(left_window);
-    } else if (right_window &&
-               split_view_controller
-                   ->GetSnappedWindowBoundsInScreen(
-                       SplitViewController::SnapPosition::kSecondary,
-                       /*window_for_minimum_size=*/nullptr)
-                   .Contains(location)) {
+    } else if (right_window && split_view_controller
+                                   ->GetSnappedWindowBoundsInScreen(
+                                       SplitViewController::RIGHT,
+                                       /*window_for_minimum_size=*/nullptr)
+                                   .Contains(location)) {
       ActivateWindow(right_window);
     } else if (split_view_controller->split_view_divider()
                    ->GetDividerBoundsInScreen(
@@ -177,14 +171,19 @@ void ActivateUnderneathWindowInSplitViewMode(
 
 }  // namespace
 
-BackGestureEventHandler::BackGestureEventHandler() {
+BackGestureEventHandler::BackGestureEventHandler()
+    : gesture_provider_(this, this) {
   if (features::AreContextualNudgesEnabled()) {
     nudge_controller_ =
         std::make_unique<BackGestureContextualNudgeControllerImpl>();
   }
+
+  display::Screen::GetScreen()->AddObserver(this);
 }
 
-BackGestureEventHandler::~BackGestureEventHandler() = default;
+BackGestureEventHandler::~BackGestureEventHandler() {
+  display::Screen::GetScreen()->RemoveObserver(this);
+}
 
 void BackGestureEventHandler::OnDisplayMetricsChanged(
     const display::Display& display,
@@ -297,11 +296,6 @@ void BackGestureEventHandler::OnTouchEvent(ui::TouchEvent* event) {
   }
 }
 
-const std::string& BackGestureEventHandler::GetName() const {
-  static const std::string name("BackGestureEventHandler");
-  return name;
-}
-
 void BackGestureEventHandler::OnGestureEvent(GestureConsumer* consumer,
                                              ui::GestureEvent* event) {
   // Gesture events here are generated by |gesture_provider_|, and they're
@@ -356,63 +350,50 @@ bool BackGestureEventHandler::MaybeHandleBackGesture(
       if (back_gesture_affordance_->IsActivated() ||
           (event->type() == ui::ET_SCROLL_FLING_START &&
            event->details().velocity_x() >= kFlingVelocityForGoingBack)) {
-        auto* shell = Shell::Get();
         if (!keyboard_util::CloseKeyboardIfActive()) {
           ActivateUnderneathWindowInSplitViewMode(
               back_start_location_, dragged_from_splitview_divider_);
-          if (shell->app_list_controller()->IsHomeScreenVisible()) {
-            DCHECK(shell->app_list_controller()->GetAppListViewState() ==
-                   AppListViewState::kFullscreenSearch);
-            // Exit home screen search and go back to home screen all apps page.
-            shell->app_list_controller()->Back();
-          } else {
-            auto* top_window = window_util::GetTopWindow();
-            auto* top_window_state = WindowState::Get(top_window);
-            if (top_window_state && top_window_state->IsFullscreen() &&
-                !shell->overview_controller()->InOverviewSession()) {
-              // For fullscreen ARC apps, show the hotseat and shelf on the
-              // first back swipe, and send a back event on the second back
-              // swipe. For other fullscreen apps, exit fullscreen.
-              const bool arc_app = top_window_state->window()->GetProperty(
-                                       aura::client::kAppType) ==
-                                   static_cast<int>(AppType::ARC_APP);
-              if (arc_app) {
-                // Go back to the previous page if the shelf was already shown,
-                // otherwise record as showing shelf.
-                if (Shelf::ForWindow(top_window_state->window())->IsVisible()) {
-                  SendBackEvent(screen_location);
-                } else {
-                  Shelf::ForWindow(top_window_state->window())
-                      ->shelf_layout_manager()
-                      ->UpdateVisibilityStateForBackGesture();
-                  RecordEndScenarioType(
-                      BackGestureEndScenarioType::kShowShelfAndHotseat);
-                }
+          auto* top_window = window_util::GetTopWindow();
+          DCHECK(top_window);
+          auto* top_window_state = WindowState::Get(top_window);
+          if (top_window_state && top_window_state->IsFullscreen() &&
+              !Shell::Get()->overview_controller()->InOverviewSession()) {
+            // For fullscreen ARC apps, show the hotseat and shelf on the first
+            // back swipe, and send a back event on the second back swipe. For
+            // other fullscreen apps, exit fullscreen.
+            const bool arc_app = top_window_state->window()->GetProperty(
+                                     aura::client::kAppType) ==
+                                 static_cast<int>(AppType::ARC_APP);
+            if (arc_app) {
+              // Go back to the previous page if the shelf was already shown,
+              // otherwise record as showing shelf.
+              if (Shelf::ForWindow(top_window_state->window())->IsVisible()) {
+                SendBackEvent(screen_location);
               } else {
-                // Complete as exiting the fullscreen mode of the underneath
-                // window.
-                const WMEvent wm_event(WM_EVENT_TOGGLE_FULLSCREEN);
-                top_window_state->OnWMEvent(&wm_event);
+                Shelf::ForWindow(top_window_state->window())
+                    ->shelf_layout_manager()
+                    ->UpdateVisibilityStateForBackGesture();
                 RecordEndScenarioType(
-                    BackGestureEndScenarioType::kExitFullscreen);
+                    BackGestureEndScenarioType::kShowShelfAndHotseat);
               }
-            } else if (window_util::ShouldMinimizeTopWindowOnBack()) {
-              // Complete as minimizing the underneath window.
-              top_window_state->Minimize();
-              RecordEndScenarioType(
-                  GetEndScenarioType(back_gesture_start_scenario_type_,
-                                     BackGestureEndType::kMinimize));
             } else {
-              // Complete as going back to the previous page of the underneath
+              // Complete as exiting the fullscreen mode of the underneath
               // window.
-              SendBackEvent(screen_location);
+              const WMEvent event(WM_EVENT_TOGGLE_FULLSCREEN);
+              top_window_state->OnWMEvent(&event);
+              RecordEndScenarioType(
+                  BackGestureEndScenarioType::kExitFullscreen);
             }
-            // |top_window| could be nullptr while in overview mode since back
-            // gesture is allowed in overview mode even no window opens.
-            if (top_window) {
-              RecordUnderneathWindowType(
-                  GetUnderneathWindowType(back_gesture_start_scenario_type_));
-            }
+          } else if (window_util::ShouldMinimizeTopWindowOnBack()) {
+            // Complete as minimizing the underneath window.
+            top_window_state->Minimize();
+            RecordEndScenarioType(
+                GetEndScenarioType(back_gesture_start_scenario_type_,
+                                   BackGestureEndType::kMinimize));
+          } else {
+            // Complete as going back to the previous page of the underneath
+            // window.
+            SendBackEvent(screen_location);
           }
         }
         back_gesture_affordance_->Complete();
@@ -421,11 +402,13 @@ bool BackGestureEventHandler::MaybeHandleBackGesture(
         RecordEndScenarioType(GetEndScenarioType(
             back_gesture_start_scenario_type_, BackGestureEndType::kAbort));
       }
+      RecordUnderneathWindowType(
+          GetUnderneathWindowType(back_gesture_start_scenario_type_));
       going_back_started_ = false;
       dragged_from_splitview_divider_ = false;
 
       return true;
-    }
+    } break;
     default:
       break;
   }
@@ -436,11 +419,6 @@ bool BackGestureEventHandler::MaybeHandleBackGesture(
 bool BackGestureEventHandler::CanStartGoingBack(
     const gfx::Point& screen_location) {
   Shell* shell = Shell::Get();
-  // Do not enable back gesture in Kiosk mode, as we are never supposed to leave
-  // fullscreen mode there.
-  if (shell->session_controller()->IsRunningInAppMode())
-    return false;
-
   if (!shell->tablet_mode_controller()->InTabletMode())
     return false;
 
@@ -451,50 +429,11 @@ bool BackGestureEventHandler::CanStartGoingBack(
     return false;
   }
 
-  // Do not enable back gesture if `screen_location` is inside the tuck handle,
-  // let `FloatController` handle the event instead.
-  if (chromeos::wm::features::IsFloatWindowEnabled()) {
-    auto* float_controller = Shell::Get()->float_controller();
-    auto* floated_window = float_controller->FindFloatedWindowOfDesk(
-        DesksController::Get()->GetTargetActiveDesk());
-    if (floated_window &&
-        float_controller->IsFloatedWindowTuckedForTablet(floated_window)) {
-      auto* tuck_handle_widget =
-          float_controller->GetTuckHandleWidget(floated_window);
-      if (tuck_handle_widget &&
-          tuck_handle_widget->GetWindowBoundsInScreen().Contains(
-              screen_location)) {
-        return false;
-      }
-    }
-  }
-
-  gfx::Rect hit_bounds_in_screen(
-      display::Screen::GetScreen()
-          ->GetDisplayNearestWindow(
-              window_util::GetRootWindowAt(screen_location))
-          .work_area());
-  if (base::i18n::IsRTL()) {
-    hit_bounds_in_screen.set_x(hit_bounds_in_screen.right() -
-                               kStartGoingBackLeftEdgeInset);
-  }
-
-  hit_bounds_in_screen.set_width(kStartGoingBackLeftEdgeInset);
-  const bool hit_in_limited_area =
-      hit_bounds_in_screen.Contains(screen_location);
-
-  const bool is_home_launcher_visible =
-      shell->app_list_controller()->IsHomeScreenVisible();
-  const bool is_fullscreen_search_state =
-      shell->app_list_controller()->GetAppListViewState() ==
-      AppListViewState::kFullscreenSearch;
-
-  // Enable back gesture if it is in home screen |kFullScreenSearch| state and
-  // swipe from the left limited area. Otherwise, always disable the back
-  // gesture when it is in home screen.
-  if (is_home_launcher_visible) {
-    if (is_fullscreen_search_state)
-      return hit_in_limited_area;
+  // Do not enable back gesture if home screen is visible but not in
+  // |kFullscreenSearch| state.
+  if (shell->home_screen_controller()->IsHomeScreenVisible() &&
+      shell->app_list_controller()->GetAppListViewState() !=
+          AppListViewState::kFullscreenSearch) {
     return false;
   }
 
@@ -523,7 +462,15 @@ bool BackGestureEventHandler::CanStartGoingBack(
   if (!Shell::Get()->shell_delegate()->AllowDefaultTouchActions(top_window))
     return false;
 
-  if (hit_in_limited_area)
+  gfx::Rect hit_bounds_in_screen(display::Screen::GetScreen()
+                                     ->GetDisplayNearestWindow(top_window)
+                                     .work_area());
+  if (base::i18n::IsRTL()) {
+    hit_bounds_in_screen.set_x(hit_bounds_in_screen.right() -
+                               kStartGoingBackLeftEdgeInset);
+  }
+  hit_bounds_in_screen.set_width(kStartGoingBackLeftEdgeInset);
+  if (hit_bounds_in_screen.Contains(screen_location))
     return true;
 
   dragged_from_splitview_divider_ =
@@ -539,10 +486,10 @@ void BackGestureEventHandler::SendBackEvent(const gfx::Point& screen_location) {
 
 bool BackGestureEventHandler::ShouldWaitForTouchPressAck(
     const gfx::Point& screen_location) {
-  aura::Window* top_window = window_util::GetTopWindow();
-  if (!top_window || !CanStartGoingBack(screen_location))
+  if (!CanStartGoingBack(screen_location))
     return false;
 
+  aura::Window* top_window = window_util::GetTopWindow();
   return !top_window->GetProperty(chromeos::kIsShowingInOverviewKey) &&
          Shell::Get()->shell_delegate()->ShouldWaitForTouchPressAck(top_window);
 }

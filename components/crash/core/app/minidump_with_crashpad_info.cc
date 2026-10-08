@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/crash/core/app/minidump_with_crashpad_info.h"
 
-#include "base/containers/cxx20_erase.h"
 #include "base/files/file_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "third_party/crashpad/crashpad/client/crash_report_database.h"
 #include "third_party/crashpad/crashpad/client/crashpad_info.h"
 #include "third_party/crashpad/crashpad/client/settings.h"
@@ -26,9 +25,6 @@ class MinidumpUpdater {
  public:
   MinidumpUpdater();
 
-  MinidumpUpdater(const MinidumpUpdater&) = delete;
-  MinidumpUpdater& operator=(const MinidumpUpdater&) = delete;
-
   // Reads the existing directory from |file|.
   bool Initialize(base::File* file);
 
@@ -43,8 +39,10 @@ class MinidumpUpdater {
                        size_t data_len,
                        FilePosition* position);
 
-  raw_ptr<base::File> file_;
+  base::File* file_;
   std::vector<MINIDUMP_DIRECTORY> directory_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpUpdater);
 };
 
 MinidumpUpdater::MinidumpUpdater() : file_(nullptr) {}

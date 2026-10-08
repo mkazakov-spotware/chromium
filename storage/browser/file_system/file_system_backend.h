@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@
 #include "storage/browser/file_system/open_file_system_mode.h"
 #include "storage/browser/file_system/task_runner_bound_observer_list.h"
 #include "storage/common/file_system/file_system_types.h"
-#include "url/origin.h"
 
 class GURL;
 
@@ -53,11 +52,9 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemBackend {
  public:
   // Callback for InitializeFileSystem.
   using OpenFileSystemCallback =
-      base::OnceCallback<void(const FileSystemURL& root_url,
+      base::OnceCallback<void(const GURL& root_url,
                               const std::string& name,
                               base::File::Error error)>;
-  using ResolveURLCallback = base::OnceCallback<
-      void(const GURL&, const std::string&, base::File::Error)>;
   virtual ~FileSystemBackend() = default;
 
   // Returns true if this filesystem backend can handle |type|.
@@ -77,7 +74,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemBackend {
   // doesn't exist.
   virtual void ResolveURL(const FileSystemURL& url,
                           OpenFileSystemMode mode,
-                          ResolveURLCallback callback) = 0;
+                          OpenFileSystemCallback callback) = 0;
 
   // Returns the specialized AsyncFileUtil for this backend.
   virtual AsyncFileUtil* GetAsyncFileUtil(FileSystemType type) = 0;
@@ -98,7 +95,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemBackend {
   // |error_code| correspondingly.
   // This method is usually dispatched by
   // FileSystemContext::CreateFileSystemOperation.
-  virtual std::unique_ptr<FileSystemOperation> CreateFileSystemOperation(
+  virtual FileSystemOperation* CreateFileSystemOperation(
       const FileSystemURL& url,
       FileSystemContext* context,
       base::File::Error* error_code) const = 0;
@@ -170,11 +167,12 @@ class ExternalFileSystemBackend : public FileSystemBackend {
   // provider. This list is used to set appropriate child process file access
   // permissions.
   virtual std::vector<base::FilePath> GetRootDirectories() const = 0;
-  // Grants access to |virtual_path| from |origin| URL.
-  virtual void GrantFileAccessToOrigin(const url::Origin& origin,
-                                       const base::FilePath& virtual_path) = 0;
-  // Revokes file access from origin identified with |origin|.
-  virtual void RevokeAccessForOrigin(const url::Origin& origin) = 0;
+  // Grants access to |virtual_path| from |origin_url|.
+  virtual void GrantFileAccessToExtension(
+      const std::string& extension_id,
+      const base::FilePath& virtual_path) = 0;
+  // Revokes file access from extension identified with |extension_id|.
+  virtual void RevokeAccessForExtension(const std::string& extension_id) = 0;
   // Gets virtual path by known filesystem path. Returns false when filesystem
   // path is not exposed by this provider.
   virtual bool GetVirtualPath(const base::FilePath& file_system_path,

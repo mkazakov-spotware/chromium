@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/strings/string_piece.h"
 #include "components/prefs/pref_service.h"
 #include "services/preferences/public/cpp/dictionary_value_update.h"
 
@@ -15,7 +14,7 @@ namespace prefs {
 
 ScopedDictionaryPrefUpdate::ScopedDictionaryPrefUpdate(PrefService* service,
                                                        base::StringPiece path)
-    : service_(service), path_(path) {}
+    : service_(service), path_(path.as_string()) {}
 
 ScopedDictionaryPrefUpdate::~ScopedDictionaryPrefUpdate() {
   if (!updated_paths_.empty())

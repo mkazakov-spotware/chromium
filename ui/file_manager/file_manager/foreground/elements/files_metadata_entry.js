@@ -1,12 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-Polymer({
-  _template: html`{__html_template__}`,
-
+const FilesMetadataEntry = Polymer({
   is: 'files-metadata-entry',
 
   properties: {
@@ -32,6 +28,16 @@ Polymer({
       type: Boolean,
       value: false,
     },
+
+    /**
+     * True if files-ng is enabled.
+     * @const @type {boolean}
+     * @private
+     */
+    filesNg_: {
+      type: Boolean,
+      value: util.isFilesNg(),
+    }
   },
 
   /**
@@ -39,7 +45,9 @@ Polymer({
    * specific CSS styling.
    */
   created: function() {
-    this.setAttribute('files-ng', '');
+    if (this.filesNg_) {
+      this.setAttribute('files-ng', '');
+    }
   },
 
   /**

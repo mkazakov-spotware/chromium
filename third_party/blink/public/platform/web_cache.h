@@ -37,7 +37,7 @@
 namespace blink {
 
 // An interface to query and configure Blink's resource cache.
-class BLINK_PLATFORM_EXPORT WebCache {
+class WebCache {
  public:
   struct UsageStats {
     size_t capacity;
@@ -45,18 +45,19 @@ class BLINK_PLATFORM_EXPORT WebCache {
   };
 
   // Sets the capacities of the resource cache, evicting objects as necessary.
-  static void SetCapacity(size_t);
+  BLINK_PLATFORM_EXPORT static void SetCapacity(size_t);
 
   // Clears the cache (as much as possible; some resources may not be
   // cleared if they are actively referenced). Note that this method
   // only removes resources from live list, w/o releasing cache memory.
-  static void Clear();
+  BLINK_PLATFORM_EXPORT static void Clear();
 
   // Gets the usage statistics from the resource cache.
-  static void GetUsageStats(UsageStats*);
+  BLINK_PLATFORM_EXPORT static void GetUsageStats(UsageStats*);
 
   // Get usage stats about the resource cache.
-  static void GetResourceTypeStats(WebCacheResourceTypeStats*);
+  BLINK_PLATFORM_EXPORT static void GetResourceTypeStats(
+      WebCacheResourceTypeStats*);
 
  private:
   WebCache() = delete;  // Not intended to be instanced.
@@ -64,4 +65,4 @@ class BLINK_PLATFORM_EXPORT WebCache {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_CACHE_H_
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,8 @@ void NotificationHandler::OnClose(Profile* profile,
 void NotificationHandler::OnClick(Profile* profile,
                                   const GURL& origin,
                                   const std::string& notification_id,
-                                  const absl::optional<int>& action_index,
-                                  const absl::optional<std::u16string>& reply,
+                                  const base::Optional<int>& action_index,
+                                  const base::Optional<base::string16>& reply,
                                   base::OnceClosure completed_closure) {
   std::move(completed_closure).Run();
 }

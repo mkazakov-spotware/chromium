@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,11 @@ namespace password_manager {
 struct PasswordForm;
 }  // namespace password_manager
 
-// Connivence method to create a PasswordForm from a Credential.
-password_manager::PasswordForm PasswordFormFromCredential(
-    id<Credential> credential);
-
 // Category for adding convenience logic related to PasswordForms.
 @interface ArchivableCredential (PasswordForm)
 
 // Convenience initializer from a PasswordForm. Will return nil for forms
-// blocked by the user, with an empty origin or Android forms.
+// blacklisted by the user, with an empty origin or Android forms.
 - (instancetype)initWithPasswordForm:
                     (const password_manager::PasswordForm&)passwordForm
                              favicon:(NSString*)favicon

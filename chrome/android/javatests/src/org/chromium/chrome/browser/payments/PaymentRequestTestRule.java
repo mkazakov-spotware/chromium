@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@ package org.chromium.chrome.browser.payments;
 import android.os.Handler;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -30,6 +32,8 @@ import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.CardUnmaskPrompt;
 import org.chromium.chrome.browser.autofill.CardUnmaskPrompt.CardUnmaskObserverForTest;
+import org.chromium.chrome.browser.autofill.prefeditor.EditorObserverForTest;
+import org.chromium.chrome.browser.autofill.prefeditor.EditorTextField;
 import org.chromium.chrome.browser.payments.ChromePaymentRequestFactory.ChromePaymentRequestDelegateImpl;
 import org.chromium.chrome.browser.payments.ChromePaymentRequestFactory.ChromePaymentRequestDelegateImplObserverForTest;
 import org.chromium.chrome.browser.payments.ui.PaymentRequestSection.OptionSection;
@@ -37,7 +41,6 @@ import org.chromium.chrome.browser.payments.ui.PaymentRequestSection.OptionSecti
 import org.chromium.chrome.browser.payments.ui.PaymentRequestUI;
 import org.chromium.chrome.browser.payments.ui.PaymentRequestUI.PaymentRequestObserverForTest;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.autofill.prefeditor.EditorObserverForTest;
 import org.chromium.components.payments.AbortReason;
 import org.chromium.components.payments.PayerData;
 import org.chromium.components.payments.PaymentApp;
@@ -146,7 +149,7 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
     final CallbackHelper mHasEnrolledInstrumentQueryResponded;
     final CallbackHelper mExpirationMonthChange;
     final CallbackHelper mPaymentResponseReady;
-    final CallbackHelper mCompleteHandled;
+    final CallbackHelper mCompleteReplied;
     final CallbackHelper mRendererClosedMojoConnection;
     private ChromePaymentRequestDelegateImpl mChromePaymentRequestDelegateImpl;
     PaymentRequestUI mUI;
@@ -234,7 +237,7 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
         mShowFailed = new CallbackHelper();
         mCanMakePaymentQueryResponded = new CallbackHelper();
         mHasEnrolledInstrumentQueryResponded = new CallbackHelper();
-        mCompleteHandled = new CallbackHelper();
+        mCompleteReplied = new CallbackHelper();
         mRendererClosedMojoConnection = new CallbackHelper();
         mWebContentsRef = new AtomicReference<>();
         if (testFilePath.equals("about:blank") || testFilePath.startsWith("data:")) {
@@ -268,7 +271,7 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
                     PaymentRequestTestRule.this);
             CardUnmaskPrompt.setObserverForTest(PaymentRequestTestRule.this);
         });
-        assertWaitForPageScaleFactorMatch(0.5f);
+        assertWaitForPageScaleFactorMatch(1);
     }
 
     public PaymentsCallbackHelper<PaymentRequestUI> getReadyForInput() {
@@ -328,8 +331,8 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
     public CallbackHelper getPaymentResponseReady() {
         return mPaymentResponseReady;
     }
-    public CallbackHelper getCompleteHandled() {
-        return mCompleteHandled;
+    public CallbackHelper getCompleteReplied() {
+        return mCompleteReplied;
     }
     public CallbackHelper getRendererClosedMojoConnection() {
         return mRendererClosedMojoConnection;
@@ -379,38 +382,13 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
         helper.waitForCallback(callCount);
     }
 
-    /**
-     * Executes a snippet of JavaScript code in the current tab, and returns the result of the
-     * snippet. The JavaScript code is run without a user gesture, and any async result (i.e.,
-     * Promise) is not waited for.
-     */
     protected String executeJavaScriptAndWaitForResult(String script) throws TimeoutException {
         return JavaScriptUtils.executeJavaScriptAndWaitForResult(mWebContentsRef.get(), script);
     }
 
-    /**
-     * Executes a snippet of JavaScript code in the current tab, and waits for a given UI event to
-     * occur. The JavaScript code is run with a user gesture present, and any async result (i.e.,
-     * Promise) is not waited for.
-     */
-    protected void runJavaScriptAndWaitForUIEvent(String code, CallbackHelper helper)
-            throws TimeoutException {
-        int callCount = helper.getCallCount();
-        runJavaScriptCodeWithUserGestureInCurrentTab(code);
-        helper.waitForCallback(callCount);
-    }
-
-    /**
-     * Executes a snippet of JavaScript code in the current tab, and waits for the promise it
-     * returns to settle with some value or to reject with an error message; returning the result as
-     * a String in either case. The JavaScript code is run with a user gesture present.
-     *
-     * @param promiseCode a JavaScript snippet that will return a promise
-     */
-    protected String runJavaScriptAndWaitForPromise(String promiseCode) throws TimeoutException {
-        String code = promiseCode + ".then(result => domAutomationController.send(result))"
-                + ".catch(error => domAutomationController.send(error));";
-        return JavaScriptUtils.runJavascriptWithUserGestureAndAsyncResult(getWebContents(), code);
+    // public is used so as to be visible to the payment tests in //clank.
+    public String runJavascriptWithAsyncResult(String script) throws TimeoutException {
+        return JavaScriptUtils.runJavascriptWithAsyncResult(mWebContentsRef.get(), script);
     }
 
     /** Clicks on an HTML node. */
@@ -422,7 +400,6 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
 
     /** Clicks on an HTML node. */
     protected void clickNode(String nodeId) throws TimeoutException {
-        DOMUtils.waitForNonZeroNodeBounds(mWebContentsRef.get(), nodeId);
         DOMUtils.clickNode(mWebContentsRef.get(), nodeId);
     }
 
@@ -473,6 +450,15 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
         ThreadUtils.runOnUiThreadBlocking(() -> {
             mUI.getContactDetailsSectionForTest().findViewById(resourceId).performClick();
         });
+        helper.waitForCallback(callCount);
+    }
+
+    /** Clicks on an element in the editor UI for credit cards. */
+    protected void clickInCardEditorAndWait(final int resourceId, CallbackHelper helper)
+            throws TimeoutException {
+        int callCount = helper.getCallCount();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> { mUI.getCardEditorDialog().findViewById(resourceId).performClick(); });
         helper.waitForCallback(callCount);
     }
 
@@ -680,6 +666,11 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
         });
     }
 
+    /** Returns the focused view in the card editor view. */
+    protected View getCardEditorFocusedView() {
+        return mUI.getCardEditorDialog().getCurrentFocus();
+    }
+
     /**
      * Clicks on the label corresponding to the shipping address suggestion at the specified
      * |suggestionIndex|.
@@ -788,9 +779,55 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
                                    .getOptionRowAtIndex(index));
     }
 
+    /** Returns the selected spinner value in the editor UI for credit cards. */
+    protected String getSpinnerSelectionTextInCardEditor(final int dropdownIndex) {
+        return ThreadUtils.runOnUiThreadBlockingNoException(
+                ()
+                        -> mUI.getCardEditorDialog()
+                                   .getDropdownFieldsForTest()
+                                   .get(dropdownIndex)
+                                   .getSelectedItem()
+                                   .toString());
+    }
+
+    /** Returns the spinner value at the specified position in the editor UI for credit cards. */
+    protected String getSpinnerTextAtPositionInCardEditor(
+            final int dropdownIndex, final int itemPosition) {
+        return ThreadUtils.runOnUiThreadBlockingNoException(
+                ()
+                        -> mUI.getCardEditorDialog()
+                                   .getDropdownFieldsForTest()
+                                   .get(dropdownIndex)
+                                   .getItemAtPosition(itemPosition)
+                                   .toString());
+    }
+
+    /** Returns the number of items offered by the spinner in the editor UI for credit cards. */
+    protected int getSpinnerItemCountInCardEditor(final int dropdownIndex) {
+        return ThreadUtils.runOnUiThreadBlockingNoException(
+                ()
+                        -> mUI.getCardEditorDialog()
+                                   .getDropdownFieldsForTest()
+                                   .get(dropdownIndex)
+                                   .getCount());
+    }
+
     /** Returns the error message visible to the user in the credit card unmask prompt. */
     protected String getUnmaskPromptErrorMessage() {
         return mCardUnmaskPrompt.getErrorMessage();
+    }
+
+    /** Selects the spinner value in the editor UI for credit cards. */
+    protected void setSpinnerSelectionsInCardEditorAndWait(
+            final int[] selections, CallbackHelper helper) throws TimeoutException {
+        int callCount = helper.getCallCount();
+        ThreadUtils.runOnUiThreadBlocking(() -> {
+            List<Spinner> fields = mUI.getCardEditorDialog().getDropdownFieldsForTest();
+            for (int i = 0; i < selections.length && i < fields.size(); i++) {
+                fields.get(i).setSelection(selections[i]);
+            }
+        });
+        helper.waitForCallback(callCount);
     }
 
     /** Selects the spinner value in the editor UI. */
@@ -801,6 +838,23 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
                 ()
                         -> ((Spinner) mUI.getEditorDialog().findViewById(R.id.spinner))
                                    .setSelection(selection));
+        helper.waitForCallback(callCount);
+    }
+
+    /** Directly sets the text in the editor UI for credit cards. */
+    protected void setTextInCardEditorAndWait(final String[] values, CallbackHelper helper)
+            throws TimeoutException {
+        int callCount = helper.getCallCount();
+        ThreadUtils.runOnUiThreadBlocking(() -> {
+            ViewGroup contents = (ViewGroup) mUI.getCardEditorDialog().findViewById(R.id.contents);
+            Assert.assertNotNull(contents);
+            for (int i = 0, j = 0; i < contents.getChildCount() && j < values.length; i++) {
+                View view = contents.getChildAt(i);
+                if (view instanceof EditorTextField) {
+                    ((EditorTextField) view).getEditText().setText(values[j++]);
+                }
+            }
+        });
         helper.waitForCallback(callCount);
     }
 
@@ -815,6 +869,17 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
                 fields.get(i).setText(values[i]);
             }
         });
+        helper.waitForCallback(callCount);
+    }
+
+    /** Directly sets the checkbox selection in the editor UI for credit cards. */
+    protected void selectCheckboxAndWait(final int resourceId, final boolean isChecked,
+            CallbackHelper helper) throws TimeoutException {
+        int callCount = helper.getCallCount();
+        ThreadUtils.runOnUiThreadBlocking(
+                ()
+                        -> ((CheckBox) mUI.getCardEditorDialog().findViewById(resourceId))
+                                   .setChecked(isChecked));
         helper.waitForCallback(callCount);
     }
 
@@ -947,6 +1012,12 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
                 () -> mUI.getEditorDialog().findViewById(R.id.editor_container));
     }
 
+    /** Allows to skip UI into paymenthandler for"basic-card". */
+    protected void enableSkipUIForBasicCard() {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> mChromePaymentRequestDelegateImpl.setSkipUiForBasicCard());
+    }
+
     @Override
     public void onPaymentRequestReadyForInput(PaymentRequestUI ui) {
         ThreadUtils.assertOnUiThread();
@@ -1076,9 +1147,9 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
     }
 
     @Override
-    public void onCompletedHandled() {
+    public void onCompleteReplied() {
         ThreadUtils.assertOnUiThread();
-        mCompleteHandled.notifyCalled();
+        mCompleteReplied.notifyCalled();
     }
 
     @Override
@@ -1174,7 +1245,6 @@ public class PaymentRequestTestRule extends ChromeTabbedActivityTestRule
         @Override
         public void create(PaymentAppFactoryDelegate delegate) {
             Runnable createApp = () -> {
-                if (delegate.getParams().hasClosed()) return;
                 boolean canMakePayment =
                         delegate.getParams().getMethodData().containsKey(mAppMethodName);
                 delegate.onCanMakePaymentCalculated(canMakePayment);

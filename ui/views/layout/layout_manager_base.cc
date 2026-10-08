@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/auto_reset.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "ui/views/view.h"
 
 namespace views {
@@ -64,8 +63,6 @@ int LayoutManagerBase::GetPreferredHeightForWidth(const View* host,
 SizeBounds LayoutManagerBase::GetAvailableSize(const View* host,
                                                const View* view) const {
   DCHECK_EQ(host_view_, host);
-  if (!cached_layout_size_)
-    GetProposedLayout(host->size());
   if (cached_layout_size_) {
     for (const auto& child_layout : cached_layout_.child_layouts)
       if (child_layout.child_view == view) {
@@ -95,11 +92,6 @@ std::vector<View*> LayoutManagerBase::GetChildViewsInPaintOrder(
 ProposedLayout LayoutManagerBase::GetProposedLayout(
     const gfx::Size& host_size) const {
   if (cached_layout_size_ != host_size) {
-#if (DCHECK_IS_ON())
-    // This calculation must not be re-entrant.
-    DCHECK(!calculating_layout_);
-    base::AutoReset<bool> calculating_layout(&calculating_layout_, true);
-#endif
     cached_layout_size_ = host_size;
     cached_layout_ = CalculateProposedLayout(SizeBounds(host_size));
   }
@@ -172,7 +164,7 @@ void LayoutManagerBase::ApplyLayout(const ProposedLayout& layout) {
     // a non-const reference to the child.
     View* const child_view = child_layout.child_view;
     // Should not be attempting to modify a child view that has been removed.
-    DCHECK(host_view()->GetIndexOf(child_view).has_value());
+    DCHECK_GE(host_view()->GetIndexOf(child_view), 0);
     if (child_view->GetVisible() != child_layout.visible)
       SetViewVisibility(child_view, child_layout.visible);
 

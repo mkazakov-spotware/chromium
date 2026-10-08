@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/api_resource_manager.h"
 #include "extensions/browser/api/sockets_tcp/sockets_tcp_api.h"
@@ -26,7 +25,9 @@ namespace api {
 
 // Dispatch events related to "sockets.tcp" sockets from callback on native
 // socket instances. There is one instance per profile.
-class TCPSocketEventDispatcher : public BrowserContextKeyedAPI {
+class TCPSocketEventDispatcher
+    : public BrowserContextKeyedAPI,
+      public base::SupportsWeakPtr<TCPSocketEventDispatcher> {
  public:
   explicit TCPSocketEventDispatcher(content::BrowserContext* context);
   ~TCPSocketEventDispatcher() override;
@@ -60,7 +61,7 @@ class TCPSocketEventDispatcher : public BrowserContextKeyedAPI {
     ~ReadParams();
 
     content::BrowserThread::ID thread_id;
-    raw_ptr<void> browser_context_id;
+    void* browser_context_id;
     std::string extension_id;
     scoped_refptr<SocketData> sockets;
     int socket_id;
@@ -88,7 +89,7 @@ class TCPSocketEventDispatcher : public BrowserContextKeyedAPI {
 
   // Usually IO thread (except for unit testing).
   content::BrowserThread::ID thread_id_;
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
   scoped_refptr<SocketData> sockets_;
 };
 

@@ -1,12 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_BASE_LOAD_STATES_H__
 #define NET_BASE_LOAD_STATES_H__
 
-#include <string>
-
+#include "base/strings/string16.h"
 
 namespace net {
 
@@ -25,9 +24,9 @@ enum LoadState {
 // This class provides an easy way to hold a load state with an extra parameter.
 struct LoadStateWithParam {
   LoadState state;
-  std::u16string param;
+  base::string16 param;
   LoadStateWithParam() : state(LOAD_STATE_IDLE) {}
-  LoadStateWithParam(LoadState state, const std::u16string& param)
+  LoadStateWithParam(LoadState state, const base::string16& param)
       : state(state), param(param) {}
 };
 

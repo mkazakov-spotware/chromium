@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,17 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <memory>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/limits.h"
 #include "media/base/media_log.h"
 #include "media/base/timestamp_constants.h"
-#include "media/base/video_aspect_ratio.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_util.h"
 #include "media/ffmpeg/ffmpeg_common.h"
@@ -36,23 +35,23 @@ static int GetFFmpegVideoDecoderThreadCount(const VideoDecoderConfig& config) {
   // Some ffmpeg codecs don't actually benefit from using more threads.
   // Only add more threads for those codecs that we know will benefit.
   switch (config.codec()) {
-    case VideoCodec::kUnknown:
-    case VideoCodec::kVC1:
-    case VideoCodec::kMPEG2:
-    case VideoCodec::kHEVC:
-    case VideoCodec::kVP9:
-    case VideoCodec::kAV1:
-    case VideoCodec::kDolbyVision:
+    case kUnknownVideoCodec:
+    case kCodecVC1:
+    case kCodecMPEG2:
+    case kCodecHEVC:
+    case kCodecVP9:
+    case kCodecAV1:
+    case kCodecDolbyVision:
       // We do not compile ffmpeg with support for any of these codecs.
       break;
 
-    case VideoCodec::kTheora:
-    case VideoCodec::kMPEG4:
+    case kCodecTheora:
+    case kCodecMPEG4:
       // No extra threads for these codecs.
       break;
 
-    case VideoCodec::kH264:
-    case VideoCodec::kVP8:
+    case kCodecH264:
+    case kCodecVP8:
       // Normalize to three threads for 1080p content, then scale linearly
       // with number of pixels.
       // Examples:
@@ -84,32 +83,8 @@ bool FFmpegVideoDecoder::IsCodecSupported(VideoCodec codec) {
   return avcodec_find_decoder(VideoCodecToCodecID(codec)) != nullptr;
 }
 
-// static
-SupportedVideoDecoderConfigs FFmpegVideoDecoder::SupportedConfigsForWebRTC() {
-  SupportedVideoDecoderConfigs supported_configs;
-
-  if (IsCodecSupported(VideoCodec::kH264)) {
-    supported_configs.emplace_back(/*profile_min=*/H264PROFILE_BASELINE,
-                                   /*profile_max=*/H264PROFILE_HIGH,
-                                   /*coded_size_min=*/kDefaultSwDecodeSizeMin,
-                                   /*coded_size_max=*/kDefaultSwDecodeSizeMax,
-                                   /*allow_encrypted=*/false,
-                                   /*require_encrypted=*/false);
-  }
-  if (IsCodecSupported(VideoCodec::kVP8)) {
-    supported_configs.emplace_back(/*profile_min=*/VP8PROFILE_ANY,
-                                   /*profile_max=*/VP8PROFILE_ANY,
-                                   /*coded_size_min=*/kDefaultSwDecodeSizeMin,
-                                   /*coded_size_max=*/kDefaultSwDecodeSizeMax,
-                                   /*allow_encrypted=*/false,
-                                   /*require_encrypted=*/false);
-  }
-
-  return supported_configs;
-}
-
 FFmpegVideoDecoder::FFmpegVideoDecoder(MediaLog* media_log)
-    : media_log_(media_log) {
+    : media_log_(media_log), state_(kUninitialized), decode_nalus_(false) {
   DVLOG(1) << __func__;
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
@@ -139,13 +114,15 @@ int FFmpegVideoDecoder::GetVideoBuffer(struct AVCodecContext* codec_context,
   if (ret < 0)
     return ret;
 
-  VideoAspectRatio aspect_ratio = config_.aspect_ratio();
-  if (!aspect_ratio.IsValid() && codec_context->sample_aspect_ratio.num > 0) {
-    aspect_ratio =
-        VideoAspectRatio::PAR(codec_context->sample_aspect_ratio.num,
-                              codec_context->sample_aspect_ratio.den);
+  gfx::Size natural_size;
+  if (codec_context->sample_aspect_ratio.num > 0) {
+    natural_size = GetNaturalSize(size,
+                                  codec_context->sample_aspect_ratio.num,
+                                  codec_context->sample_aspect_ratio.den);
+  } else {
+    natural_size =
+        GetNaturalSize(gfx::Rect(size), config_.GetPixelAspectRatio());
   }
-  gfx::Size natural_size = aspect_ratio.GetNaturalSize(gfx::Rect(size));
 
   // FFmpeg has specific requirements on the allocation size of the frame.  The
   // following logic replicates FFmpeg's allocation strategy to ensure buffers
@@ -156,9 +133,6 @@ int FFmpegVideoDecoder::GetVideoBuffer(struct AVCodecContext* codec_context,
   DCHECK_EQ(codec_context->lowres, 0);
   gfx::Size coded_size(std::max(size.width(), codec_context->coded_width),
                        std::max(size.height(), codec_context->coded_height));
-
-  if (force_allocation_error_)
-    return AVERROR(EINVAL);
 
   // FFmpeg expects the initial allocation to be zero-initialized.  Failure to
   // do so can lead to uninitialized value usage.  See http://crbug.com/390941
@@ -187,13 +161,6 @@ int FFmpegVideoDecoder::GetVideoBuffer(struct AVCodecContext* codec_context,
     if (codec_context->color_range == AVCOL_RANGE_JPEG) {
       video_frame->set_color_space(gfx::ColorSpace::CreateJpeg());
     }
-  } else if (codec_context->codec_id == AV_CODEC_ID_H264 &&
-             codec_context->colorspace == AVCOL_SPC_RGB &&
-             format == PIXEL_FORMAT_I420) {
-    // Some H.264 videos contain a VUI that specifies a color matrix of GBR,
-    // when they are actually ordinary YUV. Only 4:2:0 formats are checked,
-    // because GBR is reasonable for 4:4:4 content. See crbug.com/1067377.
-    video_frame->set_color_space(gfx::ColorSpace::CreateREC709());
   } else if (codec_context->color_primaries != AVCOL_PRI_UNSPECIFIED ||
              codec_context->color_trc != AVCOL_TRC_UNSPECIFIED ||
              codec_context->colorspace != AVCOL_SPC_UNSPECIFIED) {
@@ -207,7 +174,7 @@ int FFmpegVideoDecoder::GetVideoBuffer(struct AVCodecContext* codec_context,
   }
 
   for (size_t i = 0; i < VideoFrame::NumPlanes(video_frame->format()); i++) {
-    frame->data[i] = video_frame->writable_data(i);
+    frame->data[i] = video_frame->data(i);
     frame->linesize[i] = video_frame->stride(i);
   }
 
@@ -229,8 +196,8 @@ int FFmpegVideoDecoder::GetVideoBuffer(struct AVCodecContext* codec_context,
   return 0;
 }
 
-VideoDecoderType FFmpegVideoDecoder::GetDecoderType() const {
-  return VideoDecoderType::kFFmpeg;
+std::string FFmpegVideoDecoder::GetDisplayName() const {
+  return "FFmpegVideoDecoder";
 }
 
 void FFmpegVideoDecoder::Initialize(const VideoDecoderConfig& config,
@@ -247,21 +214,20 @@ void FFmpegVideoDecoder::Initialize(const VideoDecoderConfig& config,
   InitCB bound_init_cb = BindToCurrentLoop(std::move(init_cb));
 
   if (config.is_encrypted()) {
-    std::move(bound_init_cb)
-        .Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    std::move(bound_init_cb).Run(StatusCode::kEncryptedContentUnsupported);
     return;
   }
 
   if (!ConfigureDecoder(config, low_delay)) {
-    std::move(bound_init_cb).Run(DecoderStatus::Codes::kUnsupportedConfig);
+    std::move(bound_init_cb).Run(StatusCode::kDecoderFailedInitialization);
     return;
   }
 
   // Success!
   config_ = config;
   output_cb_ = output_cb;
-  state_ = DecoderState::kNormal;
-  std::move(bound_init_cb).Run(DecoderStatus::Codes::kOk);
+  state_ = kNormal;
+  std::move(bound_init_cb).Run(OkStatus());
 }
 
 void FFmpegVideoDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
@@ -270,52 +236,52 @@ void FFmpegVideoDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(buffer.get());
   DCHECK(decode_cb);
-  CHECK_NE(state_, DecoderState::kUninitialized);
+  CHECK_NE(state_, kUninitialized);
 
   DecodeCB decode_cb_bound = BindToCurrentLoop(std::move(decode_cb));
 
-  if (state_ == DecoderState::kError) {
-    std::move(decode_cb_bound).Run(DecoderStatus::Codes::kFailed);
+  if (state_ == kError) {
+    std::move(decode_cb_bound).Run(DecodeStatus::DECODE_ERROR);
     return;
   }
 
-  if (state_ == DecoderState::kDecodeFinished) {
-    std::move(decode_cb_bound).Run(DecoderStatus::Codes::kOk);
+  if (state_ == kDecodeFinished) {
+    std::move(decode_cb_bound).Run(DecodeStatus::OK);
     return;
   }
 
-  DCHECK_EQ(state_, DecoderState::kNormal);
+  DCHECK_EQ(state_, kNormal);
 
   // During decode, because reads are issued asynchronously, it is possible to
   // receive multiple end of stream buffers since each decode is acked. There
   // are three states the decoder can be in:
   //
-  //   DecoderState::kNormal: This is the starting state. Buffers are decoded.
-  //                          Decode errors are discarded.
-  //   DecoderState::kDecodeFinished: All calls return empty frames.
-  //   DecoderState::kError: Unexpected error happened.
+  //   kNormal: This is the starting state. Buffers are decoded. Decode errors
+  //            are discarded.
+  //   kDecodeFinished: All calls return empty frames.
+  //   kError: Unexpected error happened.
   //
   // These are the possible state transitions.
   //
-  // DecoderState::kNormal -> DecoderState::kDecodeFinished:
+  // kNormal -> kDecodeFinished:
   //     When EOS buffer is received and the codec has been flushed.
-  // DecoderState::kNormal -> DecoderState::kError:
+  // kNormal -> kError:
   //     A decoding error occurs and decoding needs to stop.
-  // (any state) -> DecoderState::kNormal:
+  // (any state) -> kNormal:
   //     Any time Reset() is called.
 
   if (!FFmpegDecode(*buffer)) {
-    state_ = DecoderState::kError;
-    std::move(decode_cb_bound).Run(DecoderStatus::Codes::kFailed);
+    state_ = kError;
+    std::move(decode_cb_bound).Run(DecodeStatus::DECODE_ERROR);
     return;
   }
 
   if (buffer->end_of_stream())
-    state_ = DecoderState::kDecodeFinished;
+    state_ = kDecodeFinished;
 
   // VideoDecoderShim expects that |decode_cb| is called only after
   // |output_cb_|.
-  std::move(decode_cb_bound).Run(DecoderStatus::Codes::kOk);
+  std::move(decode_cb_bound).Run(DecodeStatus::OK);
 }
 
 void FFmpegVideoDecoder::Reset(base::OnceClosure closure) {
@@ -323,43 +289,41 @@ void FFmpegVideoDecoder::Reset(base::OnceClosure closure) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   avcodec_flush_buffers(codec_context_.get());
-  state_ = DecoderState::kNormal;
+  state_ = kNormal;
   // PostTask() to avoid calling |closure| immediately.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                           std::move(closure));
+  base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                   std::move(closure));
 }
 
 FFmpegVideoDecoder::~FFmpegVideoDecoder() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (state_ != DecoderState::kUninitialized)
+  if (state_ != kUninitialized)
     ReleaseFFmpegResources();
 }
 
 bool FFmpegVideoDecoder::FFmpegDecode(const DecoderBuffer& buffer) {
   // Create a packet for input data.
   // Due to FFmpeg API changes we no longer have const read-only pointers.
-  // av_init_packet is deprecated and being removed, and ffmpeg clearly does
-  // not want to allow on-stack allocation of AVPackets.
-  AVPacket* packet = av_packet_alloc();
+  AVPacket packet;
+  av_init_packet(&packet);
   if (buffer.end_of_stream()) {
-    packet->data = NULL;
-    packet->size = 0;
+    packet.data = NULL;
+    packet.size = 0;
   } else {
-    packet->data = const_cast<uint8_t*>(buffer.data());
-    packet->size = buffer.data_size();
+    packet.data = const_cast<uint8_t*>(buffer.data());
+    packet.size = buffer.data_size();
 
-    DCHECK(packet->data);
-    DCHECK_GT(packet->size, 0);
+    DCHECK(packet.data);
+    DCHECK_GT(packet.size, 0);
 
     // Let FFmpeg handle presentation timestamp reordering.
     codec_context_->reordered_opaque = buffer.timestamp().InMicroseconds();
   }
-  FFmpegDecodingLoop::DecodeStatus decode_status = decoding_loop_->DecodePacket(
-      packet, base::BindRepeating(&FFmpegVideoDecoder::OnNewFrame,
-                                  base::Unretained(this)));
-  av_packet_free(&packet);
-  switch (decode_status) {
+
+  switch (decoding_loop_->DecodePacket(
+      &packet, base::BindRepeating(&FFmpegVideoDecoder::OnNewFrame,
+                                   base::Unretained(this)))) {
     case FFmpegDecodingLoop::DecodeStatus::kSendPacketFailed:
       MEDIA_LOG(ERROR, media_log_)
           << "Failed to send video packet for decoding: "
@@ -370,7 +334,7 @@ bool FFmpegVideoDecoder::FFmpegDecode(const DecoderBuffer& buffer) {
       return false;
     case FFmpegDecodingLoop::DecodeStatus::kDecodeFrameFailed:
       MEDIA_LOG(DEBUG, media_log_)
-          << GetDecoderType() << " failed to decode a video frame: "
+          << GetDisplayName() << " failed to decode a video frame: "
           << AVErrorToString(decoding_loop_->last_averror_code()) << ", at "
           << buffer.AsHumanReadableString();
       return false;
@@ -393,8 +357,9 @@ bool FFmpegVideoDecoder::OnNewFrame(AVFrame* frame) {
 
   scoped_refptr<VideoFrame> video_frame =
       reinterpret_cast<VideoFrame*>(av_buffer_get_opaque(frame->buf[0]));
-  video_frame->set_timestamp(base::Microseconds(frame->reordered_opaque));
-  video_frame->metadata().power_efficient = false;
+  video_frame->set_timestamp(
+      base::TimeDelta::FromMicroseconds(frame->reordered_opaque));
+  video_frame->metadata()->power_efficient = false;
   output_cb_.Run(video_frame);
   return true;
 }
@@ -425,13 +390,13 @@ bool FFmpegVideoDecoder::ConfigureDecoder(const VideoDecoderConfig& config,
   if (decode_nalus_)
     codec_context_->flags2 |= AV_CODEC_FLAG2_CHUNKS;
 
-  const AVCodec* codec = avcodec_find_decoder(codec_context_->codec_id);
+  AVCodec* codec = avcodec_find_decoder(codec_context_->codec_id);
   if (!codec || avcodec_open2(codec_context_.get(), codec, NULL) < 0) {
     ReleaseFFmpegResources();
     return false;
   }
 
-  decoding_loop_ = std::make_unique<FFmpegDecodingLoop>(codec_context_.get());
+  decoding_loop_.reset(new FFmpegDecodingLoop(codec_context_.get()));
   return true;
 }
 

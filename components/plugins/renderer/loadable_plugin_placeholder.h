@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "components/plugins/renderer/plugin_placeholder.h"
@@ -19,10 +20,6 @@ namespace plugins {
 // (blocked or disabled).
 class LoadablePluginPlaceholder : public PluginPlaceholderBase {
  public:
-  LoadablePluginPlaceholder(const LoadablePluginPlaceholder&) = delete;
-  LoadablePluginPlaceholder& operator=(const LoadablePluginPlaceholder&) =
-      delete;
-
   void set_blocked_for_prerendering(bool blocked_for_prerendering) {
     is_blocked_for_prerendering_ = blocked_for_prerendering;
   }
@@ -40,7 +37,7 @@ class LoadablePluginPlaceholder : public PluginPlaceholderBase {
 
   void OnSetIsPrerendering(bool is_prerendering);
 
-  void SetMessage(const std::u16string& message);
+  void SetMessage(const base::string16& message);
   void SetPluginInfo(const content::WebPluginInfo& plugin_info);
   const content::WebPluginInfo& GetPluginInfo() const;
   void SetIdentifier(const std::string& identifier);
@@ -76,7 +73,7 @@ class LoadablePluginPlaceholder : public PluginPlaceholderBase {
 
   content::WebPluginInfo plugin_info_;
 
-  std::u16string message_;
+  base::string16 message_;
 
   // True if the plugin was blocked because the page was being prerendered.
   // Plugin may be automatically be loaded when the page is displayed.
@@ -88,6 +85,8 @@ class LoadablePluginPlaceholder : public PluginPlaceholderBase {
   std::string identifier_;
 
   base::WeakPtrFactory<LoadablePluginPlaceholder> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LoadablePluginPlaceholder);
 };
 
 }  // namespace plugins

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "ui/base/models/combobox_model.h"
 
@@ -31,10 +31,6 @@ class RegionDataLoader;
 class RegionComboboxModel : public ui::ComboboxModel {
  public:
   RegionComboboxModel();
-
-  RegionComboboxModel(const RegionComboboxModel&) = delete;
-  RegionComboboxModel& operator=(const RegionComboboxModel&) = delete;
-
   ~RegionComboboxModel() override;
 
   void LoadRegionData(const std::string& country_code,
@@ -51,9 +47,11 @@ class RegionComboboxModel : public ui::ComboboxModel {
   }
 
   // ui::ComboboxModel implementation:
-  size_t GetItemCount() const override;
-  std::u16string GetItemAt(size_t index) const override;
-  bool IsItemSeparatorAt(size_t index) const override;
+  int GetItemCount() const override;
+  base::string16 GetItemAt(int index) const override;
+  bool IsItemSeparatorAt(int index) const override;
+  void AddObserver(ui::ComboboxModelObserver* observer) override;
+  void RemoveObserver(ui::ComboboxModelObserver* observer) override;
 
  private:
   // Callback for the RegionDataLoader.
@@ -65,13 +63,18 @@ class RegionComboboxModel : public ui::ComboboxModel {
 
   // Lifespan not owned by RegionComboboxModel, but guaranteed to be alive up to
   // a call to OnRegionDataLoaded where soft ownership must be released.
-  raw_ptr<RegionDataLoader> region_data_loader_;
+  RegionDataLoader* region_data_loader_;
 
   // List of <code, name> pairs for ADDRESS_HOME_STATE combobox values;
   std::vector<std::pair<std::string, std::string>> regions_;
 
+  // To be called when the data for the given country code was loaded.
+  base::ObserverList<ui::ComboboxModelObserver> observers_;
+
   // Weak pointer factory.
   base::WeakPtrFactory<RegionComboboxModel> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(RegionComboboxModel);
 };
 
 }  // namespace autofill

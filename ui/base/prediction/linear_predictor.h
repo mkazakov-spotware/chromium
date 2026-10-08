@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,10 +26,6 @@ class COMPONENT_EXPORT(UI_BASE_PREDICTION) LinearPredictor
   enum class EquationOrder : size_t { kFirstOrder = 2, kSecondOrder = 3 };
 
   explicit LinearPredictor(EquationOrder order);
-
-  LinearPredictor(const LinearPredictor&) = delete;
-  LinearPredictor& operator=(const LinearPredictor&) = delete;
-
   ~LinearPredictor() override;
 
   const char* GetName() const override;
@@ -46,8 +42,7 @@ class COMPONENT_EXPORT(UI_BASE_PREDICTION) LinearPredictor
   // Generate the prediction based on stored points and given time_stamp.
   // Return false if no prediction available.
   std::unique_ptr<InputData> GeneratePrediction(
-      base::TimeTicks predict_time,
-      base::TimeDelta frame_interval) override;
+      base::TimeTicks predict_time) const override;
 
   // Return the average time delta in the event queue.
   base::TimeDelta TimeInterval() const override;
@@ -76,6 +71,8 @@ class COMPONENT_EXPORT(UI_BASE_PREDICTION) LinearPredictor
 
   // Store the current delta time between the last 2 events
   float events_dt_;
+
+  DISALLOW_COPY_AND_ASSIGN(LinearPredictor);
 };
 
 }  // namespace ui

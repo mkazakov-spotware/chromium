@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -22,8 +22,6 @@ namespace device {
 
 // This class acts like device::UsbDevice and provides mojom::UsbDeviceInfo.
 // It should be used together with FakeUsbDeviceManager just for testing.
-// For convenience, a default configuration will be set if the chosen
-// constructor does not explicitly set these.
 class FakeUsbDeviceInfo : public base::RefCounted<FakeUsbDeviceInfo> {
  public:
   class Observer : public base::CheckedObserver {
@@ -40,8 +38,6 @@ class FakeUsbDeviceInfo : public base::RefCounted<FakeUsbDeviceInfo> {
                     uint16_t device_version,
                     uint16_t vendor_id,
                     uint16_t product_id,
-                    uint32_t bus_number,
-                    uint32_t port_number,
                     const std::string& manufacturer_string,
                     const std::string& product_string,
                     const std::string& serial_number);
@@ -68,9 +64,6 @@ class FakeUsbDeviceInfo : public base::RefCounted<FakeUsbDeviceInfo> {
                     uint8_t device_class,
                     std::vector<mojom::UsbConfigurationInfoPtr> configurations);
 
-  FakeUsbDeviceInfo(const FakeUsbDeviceInfo&) = delete;
-  FakeUsbDeviceInfo& operator=(const FakeUsbDeviceInfo&) = delete;
-
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
   void NotifyDeviceRemoved();
@@ -82,21 +75,16 @@ class FakeUsbDeviceInfo : public base::RefCounted<FakeUsbDeviceInfo> {
   void SetMockDevice(MockUsbMojoDevice* device) { mock_device_ = device; }
   MockUsbMojoDevice* mock_device() const { return mock_device_; }
 
-  static mojom::UsbConfigurationInfoPtr CreateConfiguration(
-      uint8_t device_class,
-      uint8_t subclass_code,
-      uint8_t protocol_code,
-      uint8_t configuration_value = 1);
-
  protected:
-  friend class base::RefCounted<FakeUsbDeviceInfo>;
+  friend class RefCounted<FakeUsbDeviceInfo>;
   virtual ~FakeUsbDeviceInfo();
 
  private:
   void SetDefault();
   mojom::UsbDeviceInfo device_info_;
   base::ObserverList<Observer> observer_list_;
-  raw_ptr<MockUsbMojoDevice> mock_device_ = nullptr;
+  MockUsbMojoDevice* mock_device_ = nullptr;
+  DISALLOW_COPY_AND_ASSIGN(FakeUsbDeviceInfo);
 };
 
 }  // namespace device

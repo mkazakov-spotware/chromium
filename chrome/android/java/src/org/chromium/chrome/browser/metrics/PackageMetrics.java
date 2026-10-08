@@ -1,8 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 package org.chromium.chrome.browser.metrics;
 
+import android.annotation.TargetApi;
 import android.app.usage.StorageStats;
 import android.app.usage.StorageStatsManager;
 import android.content.Context;
@@ -12,8 +13,6 @@ import android.os.Environment;
 import android.os.Process;
 import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
-
-import androidx.annotation.RequiresApi;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
@@ -35,7 +34,7 @@ public class PackageMetrics {
         public long cacheSize;
     }
 
-    @RequiresApi(26)
+    @TargetApi(26)
     private static PackageMetricsData getPackageStatsForAndroidO() {
         Context context = ContextUtils.getApplicationContext();
         StorageManager storageManager = context.getSystemService(StorageManager.class);

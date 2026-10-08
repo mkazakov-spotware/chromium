@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_KEYBOARD_VIRTUAL_KEYBOARD_CONTAINER_LAYOUT_MANAGER_H_
 #define ASH_KEYBOARD_VIRTUAL_KEYBOARD_CONTAINER_LAYOUT_MANAGER_H_
 
+#include "base/macros.h"
 #include "ui/aura/layout_manager.h"
 
 namespace ash {
@@ -15,11 +16,6 @@ class VirtualKeyboardContainerLayoutManager : public aura::LayoutManager {
  public:
   explicit VirtualKeyboardContainerLayoutManager(
       aura::Window* ime_window_parent_container);
-
-  VirtualKeyboardContainerLayoutManager(
-      const VirtualKeyboardContainerLayoutManager&) = delete;
-  VirtualKeyboardContainerLayoutManager& operator=(
-      const VirtualKeyboardContainerLayoutManager&) = delete;
 
   // Overridden from aura::LayoutManager
   void OnWindowResized() override;
@@ -33,6 +29,8 @@ class VirtualKeyboardContainerLayoutManager : public aura::LayoutManager {
 
  private:
   aura::Window* ime_window_parent_container_;
+
+  DISALLOW_COPY_AND_ASSIGN(VirtualKeyboardContainerLayoutManager);
 };
 
 }  // namespace ash

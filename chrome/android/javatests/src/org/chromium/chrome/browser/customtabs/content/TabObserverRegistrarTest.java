@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,9 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
-import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
+import org.chromium.chrome.browser.customtabs.CustomTabsTestUtils;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar.CustomTabTabObserver;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
@@ -64,7 +63,6 @@ public class TabObserverRegistrarTest {
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/1269017")
     public void testObserveActiveTab() throws Throwable {
         EmbeddedTestServer testServer = mCustomTabActivityTestRule.getTestServer();
         final String windowOpenUrl =
@@ -73,7 +71,7 @@ public class TabObserverRegistrarTest {
         final String url2 = testServer.getURL("/chrome/test/data/android/simple.html");
 
         mCustomTabActivityTestRule.startCustomTabActivityWithIntent(
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
+                CustomTabsTestUtils.createMinimalCustomTabIntent(
                         InstrumentationRegistry.getTargetContext(), windowOpenUrl));
 
         // Register TabObserver via TabObserverRegistrar#registerActiveTabObserver()
@@ -81,8 +79,7 @@ public class TabObserverRegistrarTest {
         TabObserverRegistrar tabObserverRegistrar =
                 customTabActivity.getComponent().resolveTabObserverRegistrar();
         LoadUrlTabObserver loadUrlTabObserver = new LoadUrlTabObserver();
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> tabObserverRegistrar.registerActivityTabObserver(loadUrlTabObserver));
+        tabObserverRegistrar.registerActivityTabObserver(loadUrlTabObserver);
 
         final TabModelSelector tabSelector = customTabActivity.getTabModelSelector();
         final Tab initialActiveTab = tabSelector.getCurrentTab();

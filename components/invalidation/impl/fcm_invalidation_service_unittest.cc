@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,15 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/strings/strcat.h"
 #include "base/test/task_environment.h"
 #include "base/values.h"
 #include "components/gcm_driver/fake_gcm_driver.h"
 #include "components/gcm_driver/gcm_driver.h"
 #include "components/gcm_driver/instance_id/instance_id.h"
 #include "components/gcm_driver/instance_id/instance_id_driver.h"
-#include "components/invalidation/impl/fake_invalidation_handler.h"
 #include "components/invalidation/impl/fcm_invalidation_listener.h"
 #include "components/invalidation/impl/fcm_network_handler.h"
 #include "components/invalidation/impl/fcm_sync_network_channel.h"
@@ -29,7 +27,6 @@
 #include "components/invalidation/impl/profile_identity_provider.h"
 #include "components/invalidation/public/topic_invalidation_map.h"
 #include "components/prefs/pref_registry_simple.h"
-#include "components/prefs/scoped_user_pref_update.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
@@ -46,14 +43,14 @@ namespace invalidation {
 
 namespace {
 
-class TestFCMSyncNetworkChannel : public FCMSyncNetworkChannel {
+class TestFCMSyncNetworkChannel : public syncer::FCMSyncNetworkChannel {
  public:
   void StartListening() override {}
   void StopListening() override {}
 
   void RequestDetailedStatus(
-      const base::RepeatingCallback<void(base::Value::Dict)>& callback)
-      override {}
+      const base::RepeatingCallback<void(const base::DictionaryValue&)>&
+          callback) override {}
 };
 
 // TODO: Make FCMInvalidationListener class abstract and explicitly make all the
@@ -61,24 +58,32 @@ class TestFCMSyncNetworkChannel : public FCMSyncNetworkChannel {
 // FakeFCMInvalidationListener classes that will inherit from
 // FCMInvalidationListener. The reason for such a change is that
 // FCMInvalidationService relies of FCMInvalidationListener class.
-class FakeFCMInvalidationListener : public FCMInvalidationListener {
+class FakeFCMInvalidationListener : public syncer::FCMInvalidationListener {
  public:
-  explicit FakeFCMInvalidationListener(
-      std::unique_ptr<FCMSyncNetworkChannel> network_channel)
-      : FCMInvalidationListener(std::move(network_channel)) {}
-  ~FakeFCMInvalidationListener() override = default;
+  FakeFCMInvalidationListener(
+      std::unique_ptr<syncer::FCMSyncNetworkChannel> network_channel);
+  ~FakeFCMInvalidationListener() override;
 
   void RequestDetailedStatus(
-      const base::RepeatingCallback<void(base::Value::Dict)>& callback)
-      const override {
-    callback.Run(base::Value::Dict());
-  }
+      const base::RepeatingCallback<void(const base::DictionaryValue&)>&
+          callback) const override;
 };
+
+FakeFCMInvalidationListener::FakeFCMInvalidationListener(
+    std::unique_ptr<syncer::FCMSyncNetworkChannel> network_channel)
+    : syncer::FCMInvalidationListener(std::move(network_channel)) {}
+
+FakeFCMInvalidationListener::~FakeFCMInvalidationListener() {}
+
+void FakeFCMInvalidationListener::RequestDetailedStatus(
+    const base::RepeatingCallback<void(const base::DictionaryValue&)>& callback)
+    const {
+  callback.Run(base::DictionaryValue());
+}
 
 }  // namespace
 
 const char kApplicationName[] = "com.google.chrome.fcm.invalidations";
-const char kSenderId[] = "invalidations-sender-id";
 
 class MockInstanceID : public InstanceID {
  public:
@@ -87,10 +92,11 @@ class MockInstanceID : public InstanceID {
 
   MOCK_METHOD1(GetID, void(GetIDCallback callback));
   MOCK_METHOD1(GetCreationTime, void(GetCreationTimeCallback callback));
-  MOCK_METHOD5(GetToken,
+  MOCK_METHOD6(GetToken,
                void(const std::string& authorized_entity,
                     const std::string& scope,
                     base::TimeDelta time_to_live,
+                    const std::map<std::string, std::string>& options,
                     std::set<Flags> flags,
                     GetTokenCallback callback));
   MOCK_METHOD4(ValidateToken,
@@ -104,6 +110,9 @@ class MockInstanceID : public InstanceID {
                     const std::string& scope,
                     DeleteTokenCallback callback));
   MOCK_METHOD1(DeleteIDImpl, void(DeleteIDCallback callback));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockInstanceID);
 };
 
 class MockInstanceIDDriver : public InstanceIDDriver {
@@ -114,6 +123,9 @@ class MockInstanceIDDriver : public InstanceIDDriver {
   MOCK_METHOD1(GetInstanceID, InstanceID*(const std::string& app_id));
   MOCK_METHOD1(RemoveInstanceID, void(const std::string& app_id));
   MOCK_CONST_METHOD1(ExistsInstanceID, bool(const std::string& app_id));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockInstanceIDDriver);
 };
 
 class FCMInvalidationServiceTestDelegate {
@@ -124,11 +136,11 @@ class FCMInvalidationServiceTestDelegate {
         /*default_value=*/std::string());
     pref_service_.registry()->RegisterDictionaryPref(
         prefs::kInvalidationClientIDCache);
-    InvalidatorRegistrarWithMemory::RegisterProfilePrefs(
+    syncer::InvalidatorRegistrarWithMemory::RegisterProfilePrefs(
         pref_service_.registry());
   }
 
-  ~FCMInvalidationServiceTestDelegate() = default;
+  ~FCMInvalidationServiceTestDelegate() {}
 
   void CreateInvalidationService() {
     CreateUninitializedInvalidationService();
@@ -144,8 +156,7 @@ class FCMInvalidationServiceTestDelegate {
     mock_instance_id_driver_ =
         std::make_unique<testing::NiceMock<MockInstanceIDDriver>>();
     mock_instance_id_ = std::make_unique<testing::NiceMock<MockInstanceID>>();
-    ON_CALL(*mock_instance_id_driver_,
-            GetInstanceID(base::StrCat({kApplicationName, "-", kSenderId})))
+    ON_CALL(*mock_instance_id_driver_, GetInstanceID(kApplicationName))
         .WillByDefault(testing::Return(mock_instance_id_.get()));
     ON_CALL(*mock_instance_id_, GetID(_))
         .WillByDefault(testing::WithArg<0>(
@@ -155,18 +166,18 @@ class FCMInvalidationServiceTestDelegate {
 
     invalidation_service_ = std::make_unique<FCMInvalidationService>(
         identity_provider_.get(),
-        base::BindRepeating(&FCMNetworkHandler::Create, gcm_driver_.get(),
-                            mock_instance_id_driver_.get()),
-        base::BindRepeating(&PerUserTopicSubscriptionManager::Create,
+        base::BindRepeating(&syncer::FCMNetworkHandler::Create,
+                            gcm_driver_.get(), mock_instance_id_driver_.get()),
+        base::BindRepeating(&syncer::PerUserTopicSubscriptionManager::Create,
                             identity_provider_.get(), &pref_service_,
                             &url_loader_factory_),
-        mock_instance_id_driver_.get(), &pref_service_, kSenderId);
+        mock_instance_id_driver_.get(), &pref_service_);
   }
 
   void InitializeInvalidationService() {
     fake_listener_ = new FakeFCMInvalidationListener(
         std::make_unique<TestFCMSyncNetworkChannel>());
-    invalidation_service_->InitForTest(base::WrapUnique(fake_listener_.get()));
+    invalidation_service_->InitForTest(base::WrapUnique(fake_listener_));
   }
 
   FCMInvalidationService* GetInvalidationService() {
@@ -175,12 +186,12 @@ class FCMInvalidationServiceTestDelegate {
 
   void DestroyInvalidationService() { invalidation_service_.reset(); }
 
-  void TriggerOnInvalidatorStateChange(InvalidatorState state) {
+  void TriggerOnInvalidatorStateChange(syncer::InvalidatorState state) {
     fake_listener_->EmitStateChangeForTest(state);
   }
 
   void TriggerOnIncomingInvalidation(
-      const TopicInvalidationMap& invalidation_map) {
+      const syncer::TopicInvalidationMap& invalidation_map) {
     fake_listener_->EmitSavedInvalidationsForTest(invalidation_map);
   }
 
@@ -190,8 +201,8 @@ class FCMInvalidationServiceTestDelegate {
   std::unique_ptr<MockInstanceIDDriver> mock_instance_id_driver_;
   std::unique_ptr<MockInstanceID> mock_instance_id_;
   signin::IdentityTestEnvironment identity_test_env_;
-  std::unique_ptr<IdentityProvider> identity_provider_;
-  raw_ptr<FCMInvalidationListener> fake_listener_;  // Owned by the service.
+  std::unique_ptr<invalidation::IdentityProvider> identity_provider_;
+  syncer::FCMInvalidationListener* fake_listener_;  // Owned by the service.
   network::TestURLLoaderFactory url_loader_factory_;
   TestingPrefServiceSimple pref_service_;
 
@@ -203,62 +214,6 @@ class FCMInvalidationServiceTestDelegate {
 INSTANTIATE_TYPED_TEST_SUITE_P(FCMInvalidationServiceTest,
                                InvalidationServiceTest,
                                FCMInvalidationServiceTestDelegate);
-
-TEST(FCMInvalidationServiceTest, NotifiesAboutInstanceID) {
-  auto delegate = std::make_unique<FCMInvalidationServiceTestDelegate>();
-
-  // Set up a cached InstanceID aka client ID stored in prefs.
-  {
-    ScopedDictPrefUpdate update(&delegate->pref_service_,
-                                prefs::kInvalidationClientIDCache);
-    update->Set(kSenderId, "InstanceIDFromPrefs");
-  }
-
-  // Create the invalidation service, but do not initialize it yet.
-  delegate->CreateUninitializedInvalidationService();
-  FCMInvalidationService* invalidation_service =
-      delegate->GetInvalidationService();
-  ASSERT_TRUE(invalidation_service->GetInvalidatorClientId().empty());
-
-  // Register a handler *before* initializing the invalidation service.
-  FakeInvalidationHandler handler("owner_1");
-  invalidation_service->RegisterInvalidationHandler(&handler);
-
-  // Because the invalidation service hasn't been initialized, the client ID is
-  // still empty.
-  EXPECT_TRUE(handler.GetInvalidatorClientId().empty());
-
-  // Make sure the MockInstanceID doesn't immediately provide a fresh client ID.
-  InstanceID::GetIDCallback get_id_callback;
-  EXPECT_CALL(*delegate->mock_instance_id_, GetID(_))
-      .WillOnce([&](InstanceID::GetIDCallback callback) {
-        get_id_callback = std::move(callback);
-      });
-
-  // Initialize the service. It should read the client ID from prefs.
-  delegate->InitializeInvalidationService();
-  // The invalidation service has requested a fresh client ID.
-  ASSERT_FALSE(get_id_callback.is_null());
-
-  // The invalidation service should have restored the client ID from prefs, and
-  // passed it on to the handler.
-  EXPECT_EQ(handler.GetInvalidatorClientId(), "InstanceIDFromPrefs");
-
-  // Once the invalidation service receives a fresh client ID, it should notify
-  // the handler again. (Note that in practice, the fresh ID will almost always
-  // be identical to the cached one.)
-  std::move(get_id_callback).Run("FreshInstanceID");
-  EXPECT_EQ(handler.GetInvalidatorClientId(), "FreshInstanceID");
-
-  // Another handler that gets registered should immediately be informed of the
-  // client ID.
-  FakeInvalidationHandler handler2(/*owner=*/"owner_2");
-  invalidation_service->RegisterInvalidationHandler(&handler2);
-  EXPECT_EQ(handler2.GetInvalidatorClientId(), "FreshInstanceID");
-
-  invalidation_service->UnregisterInvalidationHandler(&handler2);
-  invalidation_service->UnregisterInvalidationHandler(&handler);
-}
 
 TEST(FCMInvalidationServiceTest, ClearsInstanceIDOnSignout) {
   // Set up an invalidation service and make sure it generated a client ID (aka
@@ -288,9 +243,11 @@ namespace internal {
 
 class FakeCallbackContainer {
  public:
-  void FakeCallback(base::Value::Dict value) { called_ = true; }
+  FakeCallbackContainer() : called_(false) {}
 
-  bool called_ = false;
+  void FakeCallback(const base::DictionaryValue& value) { called_ = true; }
+
+  bool called_;
   base::WeakPtrFactory<FakeCallbackContainer> weak_ptr_factory_{this};
 };
 
@@ -303,7 +260,8 @@ TEST(FCMInvalidationServiceLoggingTest, DetailedStatusCallbacksWork) {
       new FCMInvalidationServiceTestDelegate());
 
   delegate->CreateUninitializedInvalidationService();
-  InvalidationService* const invalidator = delegate->GetInvalidationService();
+  invalidation::InvalidationService* const invalidator =
+      delegate->GetInvalidationService();
 
   internal::FakeCallbackContainer fake_container;
   invalidator->RequestDetailedStatus(

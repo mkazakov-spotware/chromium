@@ -14,14 +14,18 @@
 
 namespace woff2 {
 
-inline std::string GetFileContent(std::string filename) {
+using std::string;
+
+
+inline string GetFileContent(string filename) {
   std::ifstream ifs(filename.c_str(), std::ios::binary);
-  return std::string(std::istreambuf_iterator<char>(ifs.rdbuf()),
-                     std::istreambuf_iterator<char>());
+  return string(
+    std::istreambuf_iterator<char>(ifs.rdbuf()),
+    std::istreambuf_iterator<char>());
 }
 
-inline void SetFileContents(std::string filename, std::string::iterator start,
-                            std::string::iterator end) {
+inline void SetFileContents(string filename, string::iterator start,
+    string::iterator end) {
   std::ofstream ofs(filename.c_str(), std::ios::binary);
   std::copy(start, end, std::ostream_iterator<char>(ofs));
 }

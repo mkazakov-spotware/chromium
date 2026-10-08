@@ -1,17 +1,18 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_CHROMEOS_APP_MODE_KIOSK_APP_EXTERNAL_LOADER_H_
 #define CHROME_BROWSER_CHROMEOS_APP_MODE_KIOSK_APP_EXTERNAL_LOADER_H_
 
+#include <memory>
+
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
-#include "chrome/browser/chromeos/app_mode/chrome_kiosk_external_loader_broker.h"
 #include "chrome/browser/extensions/external_loader.h"
 
-namespace ash {
+namespace chromeos {
 
 // An extensions::ExternalLoader that loads apps and extensions for a kiosk
 // session. It is used to either load primary kiosk app, or secondary kiosk
@@ -29,8 +30,6 @@ class KioskAppExternalLoader : public extensions::ExternalLoader {
   enum class AppClass { kPrimary, kSecondary };
 
   explicit KioskAppExternalLoader(AppClass app_class);
-  KioskAppExternalLoader(const KioskAppExternalLoader&) = delete;
-  KioskAppExternalLoader& operator=(const KioskAppExternalLoader&) = delete;
 
   // extensions::ExternalLoader:
   void StartLoading() override;
@@ -41,13 +40,17 @@ class KioskAppExternalLoader : public extensions::ExternalLoader {
  private:
   enum class State { kInitial, kLoading, kLoaded };
 
-  // Registers callback for handling kiosk apps prefs changes.
-  void SetPrefsChangedHandler(
-      ChromeKioskExternalLoaderBroker::InstallDataChangeCallback handler);
+  // Gets prefs describing appropriate set of external extensions (depending
+  // on the class of kiosk apps handled by |this|) from KioskAppManager.
+  std::unique_ptr<base::DictionaryValue> GetAppsPrefs();
 
-  // Sends |prefs| through to the external loader owner (using
-  // extensions::ExternalLoader interface).
-  void SendPrefs(base::Value::Dict prefs);
+  // Registers callback for handling kiosk apps prefs changes.
+  void SetPrefsChangedHandler(base::RepeatingClosure handler);
+
+  // If prefs for the set of kiosk apps handled by |this| are available, sends
+  // them to the external loader owner (using extensions::ExternalLoader
+  // interface).
+  void SendPrefsIfAvailable();
 
   // The class of kiosk apps this external extensions loader handles.
   const AppClass app_class_;
@@ -55,8 +58,10 @@ class KioskAppExternalLoader : public extensions::ExternalLoader {
   State state_ = State::kInitial;
 
   base::WeakPtrFactory<KioskAppExternalLoader> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(KioskAppExternalLoader);
 };
 
-}  // namespace ash
+}  // namespace chromeos
 
 #endif  // CHROME_BROWSER_CHROMEOS_APP_MODE_KIOSK_APP_EXTERNAL_LOADER_H_

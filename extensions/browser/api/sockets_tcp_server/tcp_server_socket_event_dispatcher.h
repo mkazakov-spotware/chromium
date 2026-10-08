@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/api_resource_manager.h"
 #include "extensions/browser/api/sockets_tcp/sockets_tcp_api.h"
@@ -30,7 +29,9 @@ namespace api {
 
 // Dispatch events related to "sockets.tcp" sockets from callback on native
 // socket instances. There is one instance per profile.
-class TCPServerSocketEventDispatcher : public BrowserContextKeyedAPI {
+class TCPServerSocketEventDispatcher
+    : public BrowserContextKeyedAPI,
+      public base::SupportsWeakPtr<TCPServerSocketEventDispatcher> {
  public:
   explicit TCPServerSocketEventDispatcher(content::BrowserContext* context);
   ~TCPServerSocketEventDispatcher() override;
@@ -67,7 +68,7 @@ class TCPServerSocketEventDispatcher : public BrowserContextKeyedAPI {
     ~AcceptParams();
 
     content::BrowserThread::ID thread_id;
-    raw_ptr<void> browser_context_id;
+    void* browser_context_id;
     std::string extension_id;
     scoped_refptr<ServerSocketData> server_sockets;
     scoped_refptr<ClientSocketData> client_sockets;
@@ -85,7 +86,7 @@ class TCPServerSocketEventDispatcher : public BrowserContextKeyedAPI {
       const AcceptParams& params,
       int result,
       mojo::PendingRemote<network::mojom::TCPConnectedSocket> socket,
-      const absl::optional<net::IPEndPoint>& remote_addr,
+      const base::Optional<net::IPEndPoint>& remote_addr,
       mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
       mojo::ScopedDataPipeProducerHandle send_pipe_handle);
 
@@ -100,7 +101,7 @@ class TCPServerSocketEventDispatcher : public BrowserContextKeyedAPI {
 
   // Usually IO thread (except for unit testing).
   content::BrowserThread::ID thread_id_;
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
   scoped_refptr<ServerSocketData> server_sockets_;
   scoped_refptr<ClientSocketData> client_sockets_;
 };

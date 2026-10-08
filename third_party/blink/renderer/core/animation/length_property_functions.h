@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,27 +13,22 @@
 namespace blink {
 
 class ComputedStyle;
-class ComputedStyleBuilder;
 class CSSProperty;
 
 class LengthPropertyFunctions {
   STATIC_ONLY(LengthPropertyFunctions);
 
  public:
-  static Length::ValueRange GetValueRange(const CSSProperty&);
+  static ValueRange GetValueRange(const CSSProperty&);
   static bool IsZoomedLength(const CSSProperty&);
   static bool GetPixelsForKeyword(const CSSProperty&,
                                   CSSValueID,
                                   double& result_pixels);
-  static bool GetInitialLength(const CSSProperty&,
-                               const ComputedStyle& initial_style,
-                               Length& result);
+  static bool GetInitialLength(const CSSProperty&, Length& result);
   static bool GetLength(const CSSProperty&,
                         const ComputedStyle&,
                         Length& result);
-  static bool SetLength(const CSSProperty&,
-                        ComputedStyleBuilder&,
-                        const Length&);
+  static bool SetLength(const CSSProperty&, ComputedStyle&, const Length&);
 };
 
 }  // namespace blink

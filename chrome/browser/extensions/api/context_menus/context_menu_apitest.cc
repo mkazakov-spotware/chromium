@@ -1,10 +1,7 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
-
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/extensions/extension_apitest.h"
@@ -23,65 +20,29 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "extensions/browser/extension_action.h"
+#include "extensions/common/scoped_worker_based_extensions_channel.h"
 #include "extensions/test/result_catcher.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/base/models/menu_model.h"
 
 namespace extensions {
 
-using ContextType = ExtensionBrowserTest::ContextType;
-
 class ExtensionContextMenuApiTest : public ExtensionApiTest {
  public:
-  explicit ExtensionContextMenuApiTest(
-      ContextType context_type = ContextType::kNone)
-      : ExtensionApiTest(context_type) {}
-  ~ExtensionContextMenuApiTest() override = default;
-  ExtensionContextMenuApiTest(const ExtensionContextMenuApiTest&) = delete;
-  ExtensionContextMenuApiTest& operator=(const ExtensionContextMenuApiTest&) =
-      delete;
+  ExtensionContextMenuApiTest() = default;
 };
 
-class ExtensionContextMenuApiTestWithContextType
-    : public ExtensionContextMenuApiTest,
-      public testing::WithParamInterface<ContextType> {
- public:
-  ExtensionContextMenuApiTestWithContextType()
-      : ExtensionContextMenuApiTest(GetParam()) {}
-  ~ExtensionContextMenuApiTestWithContextType() override = default;
-  ExtensionContextMenuApiTestWithContextType(
-      const ExtensionContextMenuApiTestWithContextType&) = delete;
-  ExtensionContextMenuApiTestWithContextType& operator=(
-      const ExtensionContextMenuApiTestWithContextType&) = delete;
-};
-
-INSTANTIATE_TEST_SUITE_P(PersistentBackground,
-                         ExtensionContextMenuApiTestWithContextType,
-                         ::testing::Values(ContextType::kPersistentBackground));
-INSTANTIATE_TEST_SUITE_P(ServiceWorker,
-                         ExtensionContextMenuApiTestWithContextType,
-                         ::testing::Values(ContextType::kServiceWorker));
-
-// These tests are run from lazy extension contexts, namely event-page or
-// service worker extensions.
-using ExtensionContextMenuApiLazyTest =
-    ExtensionContextMenuApiTestWithContextType;
-
-INSTANTIATE_TEST_SUITE_P(EventPage,
-                         ExtensionContextMenuApiLazyTest,
-                         ::testing::Values(ContextType::kEventPage));
-INSTANTIATE_TEST_SUITE_P(ServiceWorker,
-                         ExtensionContextMenuApiLazyTest,
-                         ::testing::Values(ContextType::kServiceWorker));
-
-IN_PROC_BROWSER_TEST_P(ExtensionContextMenuApiLazyTest, ContextMenus) {
-  ASSERT_TRUE(RunExtensionTest("context_menus/event_page")) << message_;
+IN_PROC_BROWSER_TEST_F(ExtensionApiTest, ServiceWorkerContextMenus) {
+  ScopedWorkerBasedExtensionsChannel worker_channel_override;
+  ASSERT_TRUE(RunExtensionTestWithFlags("context_menus/event_page",
+                                        kFlagRunAsServiceWorkerBasedExtension,
+                                        kFlagNone))
+      << message_;
 }
 
 // crbug.com/51436 -- creating context menus from multiple script contexts
 // should work.
-IN_PROC_BROWSER_TEST_P(ExtensionContextMenuApiTestWithContextType,
-                       ContextMenusFromMultipleContexts) {
+IN_PROC_BROWSER_TEST_F(ExtensionApiTest, ContextMenusFromMultipleContexts) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(RunExtensionTest("context_menus/add_from_multiple_contexts"))
       << message_;
@@ -91,44 +52,25 @@ IN_PROC_BROWSER_TEST_P(ExtensionContextMenuApiTestWithContextType,
   {
     // Tell the extension to update the page action state.
     ResultCatcher catcher;
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), extension->GetResourceURL("popup.html")));
+    ui_test_utils::NavigateToURL(browser(),
+                                 extension->GetResourceURL("popup.html"));
     ASSERT_TRUE(catcher.GetNextResult());
   }
 
   {
     // Tell the extension to update the page action state again.
     ResultCatcher catcher;
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), extension->GetResourceURL("popup2.html")));
+    ui_test_utils::NavigateToURL(browser(),
+                                 extension->GetResourceURL("popup2.html"));
     ASSERT_TRUE(catcher.GetNextResult());
   }
-}
-
-IN_PROC_BROWSER_TEST_P(ExtensionContextMenuApiTestWithContextType,
-                       ContextMenusBasics) {
-  ASSERT_TRUE(RunExtensionTest("context_menus/basics")) << message_;
-}
-
-IN_PROC_BROWSER_TEST_P(ExtensionContextMenuApiTestWithContextType,
-                       ContextMenusNoPerms) {
-  ASSERT_TRUE(RunExtensionTest("context_menus/no_perms")) << message_;
-}
-
-IN_PROC_BROWSER_TEST_P(ExtensionContextMenuApiTestWithContextType,
-                       ContextMenusMultipleIds) {
-  ASSERT_TRUE(RunExtensionTest("context_menus/item_ids")) << message_;
 }
 
 class ExtensionContextMenuVisibilityApiTest
     : public ExtensionContextMenuApiTest {
  public:
-  ExtensionContextMenuVisibilityApiTest() = default;
-
-  ExtensionContextMenuVisibilityApiTest(
-      const ExtensionContextMenuVisibilityApiTest&) = delete;
-  ExtensionContextMenuVisibilityApiTest& operator=(
-      const ExtensionContextMenuVisibilityApiTest&) = delete;
+  ExtensionContextMenuVisibilityApiTest()
+      : top_level_model_(nullptr), menu_(nullptr), top_level_index_(-1) {}
 
   void SetUpTestExtension() {
     extension_ = LoadExtension(
@@ -138,15 +80,13 @@ class ExtensionContextMenuVisibilityApiTest
   // Sets up the top-level model, which is the list of menu items (both related
   // and unrelated to extensions) that is passed to UI code to be displayed.
   bool SetupTopLevelMenuModel() {
-    content::RenderFrameHost* frame = browser()
-                                          ->tab_strip_model()
-                                          ->GetActiveWebContents()
-                                          ->GetPrimaryMainFrame();
+    content::RenderFrameHost* frame =
+        browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame();
     content::ContextMenuParams params;
     params.page_url = frame->GetLastCommittedURL();
 
     // Create context menu.
-    menu_ = std::make_unique<TestRenderViewContextMenu>(*frame, params);
+    menu_.reset(new TestRenderViewContextMenu(frame, params));
     menu_->Init();
 
     // Get menu model.
@@ -154,7 +94,7 @@ class ExtensionContextMenuVisibilityApiTest
         menu_->extension_items().ConvertToExtensionsCustomCommandId(0),
         &top_level_model_, &top_level_index_);
 
-    EXPECT_GT(top_level_index(), 0u);
+    EXPECT_GT(top_level_index(), 0);
 
     return valid_setup;
   }
@@ -174,14 +114,14 @@ class ExtensionContextMenuVisibilityApiTest
   void VerifyNumExtensionItemsInMenuModel(int num_items,
                                           ui::MenuModel::ItemType type) {
     int num_found = 0;
-    for (size_t i = 0; i < top_level_model_->GetItemCount(); ++i) {
+    for (int i = 0; i < top_level_model_->GetItemCount(); i++) {
       int command_id = top_level_model_->GetCommandIdAt(i);
       if (ContextMenuMatcher::IsExtensionsCustomCommandId(command_id) &&
           top_level_model_->GetTypeAt(i) == type) {
-        ++num_found;
+        num_found++;
       }
     }
-    ASSERT_EQ(num_found, num_items);
+    ASSERT_TRUE(num_found == num_items);
   }
 
   // Verifies that the context menu is valid and contains the given number of
@@ -195,7 +135,7 @@ class ExtensionContextMenuVisibilityApiTest
   // Verifies a context menu item's visibility, title, and item type.
   void VerifyMenuItem(const std::string& title,
                       ui::MenuModel* model,
-                      size_t index,
+                      int index,
                       ui::MenuModel::ItemType type,
                       bool visible) {
     EXPECT_EQ(base::ASCIIToUTF16(title), model->GetLabelAt(index));
@@ -203,13 +143,13 @@ class ExtensionContextMenuVisibilityApiTest
     EXPECT_EQ(visible, model->IsVisibleAt(index));
   }
 
-  size_t top_level_index() const { return top_level_index_; }
+  int top_level_index() { return top_level_index_; }
 
   TestRenderViewContextMenu* menu() { return menu_.get(); }
 
   const Extension* extension() { return extension_; }
 
-  ui::MenuModel* top_level_model_ = nullptr;
+  ui::MenuModel* top_level_model_;
 
  private:
   content::WebContents* GetBackgroundPage(const std::string& extension_id) {
@@ -220,10 +160,32 @@ class ExtensionContextMenuVisibilityApiTest
 
   ProcessManager* process_manager() { return ProcessManager::Get(profile()); }
 
-  raw_ptr<const Extension, DanglingUntriaged> extension_ = nullptr;
+  const Extension* extension_;
   std::unique_ptr<TestRenderViewContextMenu> menu_;
-  size_t top_level_index_ = 0;
+  int top_level_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionContextMenuVisibilityApiTest);
 };
+
+IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
+                       ContextMenusBasics) {
+  ASSERT_TRUE(RunExtensionTest("context_menus/basics")) << message_;
+}
+
+IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
+                       ContextMenusNoPerms) {
+  ASSERT_TRUE(RunExtensionTest("context_menus/no_perms")) << message_;
+}
+
+IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
+                       ContextMenusMultipleIds) {
+  ASSERT_TRUE(RunExtensionTest("context_menus/item_ids")) << message_;
+}
+
+IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
+                       ContextMenusEventPage) {
+  ASSERT_TRUE(RunExtensionTest("context_menus/event_page")) << message_;
+}
 
 // Tests showing a single visible menu item in the top-level menu model, which
 // includes actions like "Back", "View Page Source", "Inspect", etc.
@@ -286,7 +248,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(2u, submodel->GetItemCount());
+  EXPECT_EQ(2, submodel->GetItemCount());
 
   VerifyMenuItem("child1", submodel, 0, ui::MenuModel::TYPE_COMMAND, false);
   VerifyMenuItem("child2", submodel, 1, ui::MenuModel::TYPE_COMMAND, false);
@@ -316,7 +278,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(2u, submodel->GetItemCount());
+  EXPECT_EQ(2, submodel->GetItemCount());
 
   // Though the children's internal visibility state remains unchanged, the ui
   // code will hide the children if the parent is hidden.
@@ -346,7 +308,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(2u, submodel->GetItemCount());
+  EXPECT_EQ(2, submodel->GetItemCount());
 
   VerifyMenuItem("child1", submodel, 0, ui::MenuModel::TYPE_COMMAND, false);
   VerifyMenuItem("child2", submodel, 1, ui::MenuModel::TYPE_COMMAND, false);
@@ -374,7 +336,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(2u, submodel->GetItemCount());
+  EXPECT_EQ(2, submodel->GetItemCount());
 
   VerifyMenuItem("child1", submodel, 0, ui::MenuModel::TYPE_COMMAND, true);
   VerifyMenuItem("child2", submodel, 1, ui::MenuModel::TYPE_COMMAND, false);
@@ -406,7 +368,7 @@ IN_PROC_BROWSER_TEST_F(
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(1u, submodel->GetItemCount());
+  EXPECT_EQ(1, submodel->GetItemCount());
 
   // When a parent item is specified by the developer (as opposed to generated),
   // its visibility is determined by the specified state.
@@ -414,7 +376,7 @@ IN_PROC_BROWSER_TEST_F(
 
   submodel = submodel->GetSubmenuModelAt(0);
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(2u, submodel->GetItemCount());
+  EXPECT_EQ(2, submodel->GetItemCount());
 
   VerifyMenuItem("child2", submodel, 0, ui::MenuModel::TYPE_COMMAND, false);
   VerifyMenuItem("child3", submodel, 1, ui::MenuModel::TYPE_COMMAND, false);
@@ -442,7 +404,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(3u, submodel->GetItemCount());
+  EXPECT_EQ(3, submodel->GetItemCount());
 
   VerifyMenuItem("item1", submodel, 0, ui::MenuModel::TYPE_COMMAND, false);
   VerifyMenuItem("item2", submodel, 1, ui::MenuModel::TYPE_COMMAND, false);
@@ -471,7 +433,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(1u, submodel->GetItemCount());
+  EXPECT_EQ(1, submodel->GetItemCount());
   VerifyMenuItem("child1", submodel, 0, ui::MenuModel::TYPE_COMMAND, false);
 
   // Update child1 to visible.
@@ -525,7 +487,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
   ui::MenuModel* submodel =
       top_level_model_->GetSubmenuModelAt(top_level_index());
   ASSERT_TRUE(submodel);
-  EXPECT_EQ(3u, submodel->GetItemCount());
+  EXPECT_EQ(3, submodel->GetItemCount());
 
   VerifyMenuItem("item1", submodel, 0, ui::MenuModel::TYPE_COMMAND, true);
   VerifyMenuItem("item2", submodel, 1, ui::MenuModel::TYPE_COMMAND, true);
@@ -533,7 +495,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuVisibilityApiTest,
 
   ui::MenuModel* item3_submodel = submodel->GetSubmenuModelAt(2);
   ASSERT_TRUE(item3_submodel);
-  EXPECT_EQ(2u, item3_submodel->GetItemCount());
+  EXPECT_EQ(2, item3_submodel->GetItemCount());
 
   // Though the children's internal visibility state remains unchanged, the ui
   // code will hide the children if the parent is hidden.

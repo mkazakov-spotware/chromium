@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "chrome/browser/device_identity/device_oauth2_token_store.h"
 
-#include "chrome/browser/ash/settings/cros_settings.h"
+#include "chrome/browser/chromeos/settings/cros_settings.h"
 
 class PrefRegistrySimple;
 
@@ -64,7 +64,8 @@ class DeviceOAuth2TokenStoreChromeOS : public DeviceOAuth2TokenStore {
 
   PrefService* local_state_;
 
-  base::CallbackListSubscription service_account_identity_subscription_;
+  std::unique_ptr<CrosSettings::ObserverSubscription>
+      service_account_identity_subscription_;
 
   // The system salt for encrypting and decrypting the refresh token.
   std::string system_salt_;

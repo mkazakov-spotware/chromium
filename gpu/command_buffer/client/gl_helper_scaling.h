@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "gpu/command_buffer/client/gl_helper.h"
 #include "gpu/gpu_export.h"
 #include "ui/gfx/geometry/vector2d.h"
@@ -41,10 +41,6 @@ class GPU_EXPORT GLHelperScaling {
   using ShaderProgramKeyType = std::pair<ShaderType, bool>;
 
   GLHelperScaling(gles2::GLES2Interface* gl, GLHelper* helper);
-
-  GLHelperScaling(const GLHelperScaling&) = delete;
-  GLHelperScaling& operator=(const GLHelperScaling&) = delete;
-
   ~GLHelperScaling();
   void InitBuffer();
 
@@ -180,8 +176,8 @@ class GPU_EXPORT GLHelperScaling {
   // 2-dimentional texture coordinates (s, t).
   static const GLfloat kVertexAttributes[];
 
-  raw_ptr<gles2::GLES2Interface> gl_;
-  raw_ptr<GLHelper> helper_;
+  gles2::GLES2Interface* gl_;
+  GLHelper* helper_;
 
   // The buffer that holds the vertices and the texture coordinates data for
   // drawing a quad.
@@ -193,6 +189,7 @@ class GPU_EXPORT GLHelperScaling {
   friend class ScalerImpl;
   friend class GLHelperBenchmark;
   friend class GLHelperTest;
+  DISALLOW_COPY_AND_ASSIGN(GLHelperScaling);
 };
 
 }  // namespace gpu

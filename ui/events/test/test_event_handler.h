@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/events/event_handler.h"
 
 typedef std::vector<std::string> HandlerSequenceRecorder;
@@ -21,10 +22,6 @@ namespace test {
 class TestEventHandler : public EventHandler {
  public:
   TestEventHandler();
-
-  TestEventHandler(const TestEventHandler&) = delete;
-  TestEventHandler& operator=(const TestEventHandler&) = delete;
-
   ~TestEventHandler() override;
 
   int num_key_events() const { return num_key_events_; }
@@ -58,8 +55,10 @@ class TestEventHandler : public EventHandler {
   int num_touch_events_;
   int num_gesture_events_;
 
-  raw_ptr<HandlerSequenceRecorder> recorder_;
+  HandlerSequenceRecorder* recorder_;
   std::string handler_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEventHandler);
 };
 
 }  // namespace test

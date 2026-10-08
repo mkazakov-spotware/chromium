@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
+#include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
 #include "components/safe_browsing/buildflags.h"
@@ -17,14 +19,8 @@
 #include "services/service_manager/public/cpp/binder_registry.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 
-class SkBitmap;
-
 namespace gfx {
 class Size;
-}
-
-namespace optimization_guide {
-class PageTextAgent;
 }
 
 namespace safe_browsing {
@@ -46,11 +42,6 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
  public:
   ChromeRenderFrameObserver(content::RenderFrame* render_frame,
                             web_cache::WebCacheImpl* web_cache_impl);
-
-  ChromeRenderFrameObserver(const ChromeRenderFrameObserver&) = delete;
-  ChromeRenderFrameObserver& operator=(const ChromeRenderFrameObserver&) =
-      delete;
-
   ~ChromeRenderFrameObserver() override;
 
   service_manager::BinderRegistry* registry() { return &registry_; }
@@ -58,7 +49,7 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
     return &associated_interfaces_;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // This is called on the main thread for subresources or worker threads for
   // dedicated workers.
   static std::string GetCCTClientHeader(int render_frame_id);
@@ -66,6 +57,8 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
 
  private:
   friend class ChromeRenderFrameObserverTest;
+
+  enum TextCaptureType { PRELIMINARY_CAPTURE, FINAL_CAPTURE };
 
   // RenderFrameObserver implementation.
   void OnInterfaceRequestForFrame(
@@ -82,20 +75,19 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
   void DidClearWindowObject() override;
   void DidMeaningfulLayout(blink::WebMeaningfulLayout layout_type) override;
   void OnDestruct() override;
-  void DraggableRegionsChanged() override;
 
   // chrome::mojom::ChromeRenderFrame:
   void SetWindowFeatures(
       blink::mojom::WindowFeaturesPtr window_features) override;
-  void ExecuteWebUIJavaScript(const std::u16string& javascript) override;
+  void ExecuteWebUIJavaScript(const base::string16& javascript) override;
   void RequestImageForContextNode(
       int32_t thumbnail_min_area_pixels,
       const gfx::Size& thumbnail_max_size_pixels,
       chrome::mojom::ImageFormat image_format,
-      int32_t quality,
       RequestImageForContextNodeCallback callback) override;
   void RequestReloadImageForContextNode() override;
-#if BUILDFLAG(IS_ANDROID)
+  void GetWebPageMetadata(GetWebPageMetadataCallback callback) override;
+#if defined(OS_ANDROID)
   void SetCCTClientHeader(const std::string& header) override;
 #endif
   void GetMediaFeedURL(GetMediaFeedURLCallback callback) override;
@@ -109,14 +101,11 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
           receiver);
 
   // Captures page information using the top (main) frame of a frame tree.
-  // Currently, this page information is just the text content of the local
+  // Currently, this page information is just the text content of the all
   // frames, collected and concatenated until a certain limit (kMaxIndexChars)
   // is reached.
-  void CapturePageText(blink::WebMeaningfulLayout layout_type);
-
-  // Returns true if |CapturePageText| should be run for Translate or Phishing.
-  bool ShouldCapturePageTextForTranslateOrPhishing(
-      blink::WebMeaningfulLayout layout_type) const;
+  // TODO(dglazkov): This is incompatible with OOPIF and needs to be updated.
+  void CapturePageText(TextCaptureType capture_type);
 
   // Check if the image need to downscale.
   static bool NeedsDownscale(const gfx::Size& original_image_size,
@@ -137,7 +126,6 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
 
   // Have the same lifetime as us.
   translate::TranslateAgent* translate_agent_;
-  optimization_guide::PageTextAgent* page_text_agent_;
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
   safe_browsing::PhishingClassifierDelegate* phishing_classifier_ = nullptr;
 #endif
@@ -145,15 +133,17 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
   // Owned by ChromeContentRendererClient and outlive us.
   web_cache::WebCacheImpl* web_cache_impl_;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Save the JavaScript to preload if ExecuteWebUIJavaScript is invoked.
-  std::vector<std::u16string> webui_javascript_;
+  std::vector<base::string16> webui_javascript_;
 #endif
 
   mojo::AssociatedReceiverSet<chrome::mojom::ChromeRenderFrame> receivers_;
 
   service_manager::BinderRegistry registry_;
   blink::AssociatedInterfaceRegistry associated_interfaces_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeRenderFrameObserver);
 };
 
 #endif  // CHROME_RENDERER_CHROME_RENDER_FRAME_OBSERVER_H_

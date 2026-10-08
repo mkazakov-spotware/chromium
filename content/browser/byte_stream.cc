@@ -1,20 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/byte_stream.h"
 
-#include <memory>
 #include <set>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/containers/circular_deque.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/time/time.h"
+#include "base/sequenced_task_runner.h"
 
 namespace content {
 namespace {
@@ -33,15 +31,14 @@ class ByteStreamReaderImpl;
 struct LifetimeFlag : public base::RefCountedThreadSafe<LifetimeFlag> {
  public:
   LifetimeFlag() : is_alive(true) { }
-
-  LifetimeFlag(const LifetimeFlag&) = delete;
-  LifetimeFlag& operator=(const LifetimeFlag&) = delete;
-
   bool is_alive;
 
  protected:
   friend class base::RefCountedThreadSafe<LifetimeFlag>;
-  virtual ~LifetimeFlag() {}
+  virtual ~LifetimeFlag() { }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LifetimeFlag);
 };
 
 // For both ByteStreamWriterImpl and ByteStreamReaderImpl, Construction and
@@ -103,7 +100,7 @@ class ByteStreamWriterImpl : public ByteStreamWriter {
 
   // Only valid to access on peer_task_runner_ if
   // |*peer_lifetime_flag_ == true|
-  raw_ptr<ByteStreamReaderImpl> peer_;
+  ByteStreamReaderImpl* peer_;
 };
 
 class ByteStreamReaderImpl : public ByteStreamReader {
@@ -176,7 +173,7 @@ class ByteStreamReaderImpl : public ByteStreamReader {
 
   // Only valid to access on peer_task_runner_ if
   // |*peer_lifetime_flag_ == true|
-  raw_ptr<ByteStreamWriterImpl> peer_;
+  ByteStreamWriterImpl* peer_;
 };
 
 ByteStreamWriterImpl::ByteStreamWriterImpl(
@@ -293,7 +290,7 @@ void ByteStreamWriterImpl::PostToPeer(bool complete, int status) {
   std::unique_ptr<ContentVector> transfer_buffer;
   size_t buffer_size = 0;
   if (0 != input_contents_size_) {
-    transfer_buffer = std::make_unique<ContentVector>();
+    transfer_buffer.reset(new ContentVector);
     transfer_buffer->swap(input_contents_);
     buffer_size = input_contents_size_;
     output_size_used_ += input_contents_size_;

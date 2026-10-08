@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,10 +28,13 @@ JavaService::JavaService(
 
 JavaService::~JavaService() {}
 
-void JavaService::GetScriptsForUrl(
-    const GURL& url,
-    const TriggerContext& trigger_context,
-    ServiceRequestSender::ResponseCallback callback) {
+bool JavaService::IsLiteService() const {
+  return false;
+}
+
+void JavaService::GetScriptsForUrl(const GURL& url,
+                                   const TriggerContext& trigger_context,
+                                   ResponseCallback callback) {
   DCHECK(url.is_valid());
   JNIEnv* env = base::android::AttachCurrentThread();
   auto jresponse = Java_AutofillAssistantTestService_getScriptsForUrlNative(
@@ -39,8 +42,7 @@ void JavaService::GetScriptsForUrl(
       base::android::ConvertUTF8ToJavaString(env, url.spec()));
   std::string response;
   base::android::JavaByteArrayToString(env, jresponse, &response);
-  std::move(callback).Run(net::HTTP_OK, response,
-                          ServiceRequestSender::ResponseInfo{});
+  std::move(callback).Run(net::HTTP_OK, response);
 }
 
 void JavaService::GetActions(const std::string& script_path,
@@ -48,7 +50,7 @@ void JavaService::GetActions(const std::string& script_path,
                              const TriggerContext& trigger_context,
                              const std::string& global_payload,
                              const std::string& script_payload,
-                             ServiceRequestSender::ResponseCallback callback) {
+                             ResponseCallback callback) {
   JNIEnv* env = base::android::AttachCurrentThread();
   auto jresponse = Java_AutofillAssistantTestService_getActionsNative(
       env, java_service_,
@@ -58,8 +60,7 @@ void JavaService::GetActions(const std::string& script_path,
       base::android::ToJavaByteArray(env, script_payload));
   std::string response;
   base::android::JavaByteArrayToString(env, jresponse, &response);
-  std::move(callback).Run(net::HTTP_OK, response,
-                          ServiceRequestSender::ResponseInfo{});
+  std::move(callback).Run(net::HTTP_OK, response);
 }
 
 void JavaService::GetNextActions(
@@ -68,8 +69,7 @@ void JavaService::GetNextActions(
     const std::string& previous_script_payload,
     const std::vector<ProcessedActionProto>& processed_actions,
     const RoundtripTimingStats& timing_stats,
-    const RoundtripNetworkStats& network_stats,
-    ServiceRequestSender::ResponseCallback callback) {
+    ResponseCallback callback) {
   JNIEnv* env = base::android::AttachCurrentThread();
   auto jprocessed_actions =
       Java_AutofillAssistantTestService_createProcessedActionsList(env);
@@ -88,34 +88,7 @@ void JavaService::GetNextActions(
       jprocessed_actions);
   std::string response;
   base::android::JavaByteArrayToString(env, jresponse, &response);
-  std::move(callback).Run(net::HTTP_OK, response,
-                          ServiceRequestSender::ResponseInfo{});
-}
-
-void JavaService::GetUserData(const CollectUserDataOptions& options,
-                              uint64_t run_id,
-                              const UserData* user_data,
-                              ServiceRequestSender::ResponseCallback callback) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  auto jresponse =
-      Java_AutofillAssistantTestService_getUserDataNative(env, java_service_);
-  std::string response;
-  base::android::JavaByteArrayToString(env, jresponse, &response);
-  std::move(callback).Run(net::HTTP_OK, response,
-                          ServiceRequestSender::ResponseInfo{});
-}
-
-void JavaService::ReportProgress(
-    const std::string& token,
-    const std::string& payload,
-    ServiceRequestSender::ResponseCallback callback) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  auto jresponse = Java_AutofillAssistantTestService_reportProgressNative(
-      env, java_service_);
-  std::string response;
-  base::android::JavaByteArrayToString(env, jresponse, &response);
-  std::move(callback).Run(net::HTTP_OK, response,
-                          ServiceRequestSender::ResponseInfo{});
+  std::move(callback).Run(net::HTTP_OK, response);
 }
 
 }  // namespace autofill_assistant

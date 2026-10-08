@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,11 +43,11 @@ import android.content.DialogInterface;
 import android.util.Pair;
 
 import androidx.appcompat.app.AlertDialog;
-import androidx.test.core.app.ApplicationProvider;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -54,16 +57,19 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.metrics.UmaRecorderHolder;
+import org.chromium.base.metrics.RecordHistogramJni;
+import org.chromium.base.metrics.test.ShadowRecordHistogram;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.device_reauth.ReauthenticatorBridge;
+import org.chromium.base.test.util.JniMocker;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_check.PasswordCheckProperties.ItemType;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckChangePasswordHelper;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckIconHelper;
-import org.chromium.chrome.browser.password_manager.PasswordCheckReferrer;
-import org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper;
+import org.chromium.chrome.browser.password_check.helper.PasswordCheckReauthenticationHelper;
+import org.chromium.chrome.browser.password_check.helper.PasswordCheckReauthenticationHelper.ReauthReason;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -74,31 +80,36 @@ import org.chromium.url.GURL;
  * properly.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
-@SuppressWarnings("DoNotMock") // Mocks GURL.
+@EnableFeatures(ChromeFeatureList.PASSWORD_CHECK)
+@Config(manifest = Config.NONE, shadows = {ShadowRecordHistogram.class})
 public class PasswordCheckControllerTest {
     private static final CompromisedCredential ANA =
             new CompromisedCredential("https://m.a.xyz/signin", mock(GURL.class), "Ana", "m.a.xyz",
-                    "Ana", "password", "", "xyz.a.some.package", 2, 2, true, false);
-    private static final CompromisedCredential BOB = new CompromisedCredential(
-            "http://www.b.ch/signin", mock(GURL.class), "", "http://www.b.ch", "(No username)",
-            "DoneSth", "http://www.b.ch/.well-known/change-password", "", 1, 1, true, false);
+                    "Ana", "password", "", "xyz.a.some.package", 2, true, false, false, false);
+    private static final CompromisedCredential BOB =
+            new CompromisedCredential("http://www.b.ch/signin", mock(GURL.class), "",
+                    "http://www.b.ch", "(No username)", "DoneSth",
+                    "http://www.b.ch/.well-known/change-password", "", 1, true, false, true, true);
     private static final CompromisedCredential CHARLIE = new CompromisedCredential(
             "http://www.c.de/login", mock(GURL.class), "", "http://www.c.de", "user1", "secret",
-            "http://www.c.de/.well-known/change-password", "", 1, 1, true, false);
+            "http://www.c.de/.well-known/change-password", "", 1, true, false, true, false);
     private static final Pair<Integer, Integer> PROGRESS_UPDATE = new Pair<>(2, 19);
+    private static final String PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON =
+            "PasswordManager.AutomaticChange.AcceptanceWithAutoButton";
     private static final String PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON =
             "PasswordManager.AutomaticChange.AcceptanceWithoutAutoButton";
+    private static final String PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES =
+            "PasswordManager.AutomaticChange.ForSitesWithScripts";
     private static final String PASSWORD_CHECK_REFERRER_HISTOGRAM =
-            "PasswordManager.BulkCheck.PasswordCheckReferrerAndroid2";
+            "PasswordManager.BulkCheck.PasswordCheckReferrerAndroid";
     private static final String PASSWORD_CHECK_USER_ACTION_HISTOGRAM =
             "PasswordManager.BulkCheck.UserActionAndroid";
-    private static final String PASSWORD_CHECK_COMPROMISED_CREDENTIALS_AFTER_CHECK_HISTOGRAM =
-            "PasswordManager.BulkCheck.CompromisedCredentialsCountAfterCheckAndroid";
-    private static final boolean USE_LAST_VALID_AUTH = true;
 
     @Rule
-    public Features.JUnitProcessor mFeaturesProcessor = new Features.JUnitProcessor();
+    public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
+
+    @Rule
+    public final JniMocker mJniMocker = new JniMocker();
 
     @Mock
     private PasswordCheckComponentUi.Delegate mDelegate;
@@ -107,13 +118,13 @@ public class PasswordCheckControllerTest {
     @Mock
     private PasswordCheck mPasswordCheck;
     @Mock
-    private PasswordAccessReauthenticationHelper mReauthenticationHelper;
-    @Mock
-    private ReauthenticatorBridge mReauthenticatorBridge;
+    private PasswordCheckReauthenticationHelper mReauthenticationHelper;
     @Mock
     private SettingsLauncher mSettingsLauncher;
     @Mock
     private PasswordCheckIconHelper mIconHelper;
+    @Mock
+    private RecordHistogram.Natives mRecordHistogramBridge;
     @Captor
     private ArgumentCaptor<Callback<Boolean>> mCallbackCaptor;
 
@@ -123,14 +134,24 @@ public class PasswordCheckControllerTest {
 
     @Before
     public void setUp() {
-        UmaRecorderHolder.resetForTesting();
+        ShadowRecordHistogram.reset();
         MockitoAnnotations.initMocks(this);
+        mJniMocker.mock(RecordHistogramJni.TEST_HOOKS, mRecordHistogramBridge);
         mModel = PasswordCheckProperties.createDefaultModel();
-        mMediator = new PasswordCheckMediator(mChangePasswordDelegate, mReauthenticationHelper,
-                mReauthenticatorBridge, mSettingsLauncher, mIconHelper);
+        mMediator = new PasswordCheckMediator(
+                mChangePasswordDelegate, mReauthenticationHelper, mSettingsLauncher, mIconHelper);
         PasswordCheckFactory.setPasswordCheckForTesting(mPasswordCheck);
         mMediator.initialize(mModel, mDelegate, PasswordCheckReferrer.PASSWORD_SETTINGS, () -> {});
         PasswordCheckMediator.setStatusUpdateDelayMillis(0);
+    }
+
+    @Test
+    public void testRecordsStartCheckAutomatically() {
+        // This depends on the referrer with which the mediator was initialized.
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_USER_ACTION_HISTOGRAM,
+                           PasswordCheckUserAction.START_CHECK_AUTOMATICALLY),
+                is(1));
     }
 
     @Test
@@ -222,11 +243,32 @@ public class PasswordCheckControllerTest {
 
     @Test
     public void testOnEditRecordsEditClick() {
-        mMediator.onEdit(ANA, ApplicationProvider.getApplicationContext());
+        mMediator.onEdit(ANA);
         assertThat(RecordHistogram.getHistogramValueCountForTesting(
                            PASSWORD_CHECK_USER_ACTION_HISTOGRAM,
                            PasswordCheckUserAction.EDIT_PASSWORD_CLICK),
                 is(1));
+    }
+
+    @Test
+    public void testEditTriggersCanReauthenticate() {
+        mMediator.onEdit(ANA);
+        verify(mReauthenticationHelper).canReauthenticate();
+    }
+
+    @Test
+    public void testCannotReauthenticateDoesNothing() {
+        when(mReauthenticationHelper.canReauthenticate()).thenReturn(false);
+        mMediator.onEdit(ANA);
+        verify(mReauthenticationHelper, never()).reauthenticate(anyInt(), any(Callback.class));
+    }
+
+    @Test
+    public void testCanReauthenticateTriggersReauthenticate() {
+        when(mReauthenticationHelper.canReauthenticate()).thenReturn(true);
+        mMediator.onEdit(ANA);
+        verify(mReauthenticationHelper)
+                .reauthenticate(eq(ReauthReason.EDIT_PASSWORD), any(Callback.class));
     }
 
     @Test
@@ -256,9 +298,28 @@ public class PasswordCheckControllerTest {
         mMediator.onPasswordCheckStatusChanged(IDLE);
         mMediator.onCompromisedCredentialsFetchCompleted();
 
+        assertThat(mModel.get(ITEMS).get(1).type, is(ItemType.COMPROMISED_CREDENTIAL_WITH_SCRIPT));
         assertThat(mModel.get(ITEMS).get(1).model.get(COMPROMISED_CREDENTIAL), equalTo(BOB));
         assertThat(mModel.get(ITEMS).get(1).model.get(CREDENTIAL_HANDLER), is(mMediator));
         assertThat(mModel.get(ITEMS).get(1).model.get(HAS_MANUAL_CHANGE_BUTTON), is(false));
+    }
+
+    @Test
+    public void testAppendsEntryForNewlyFoundCredentials() {
+        when(mPasswordCheck.getCompromisedCredentials())
+                .thenReturn(new CompromisedCredential[] {ANA});
+        when(mPasswordCheck.areScriptsRefreshed()).thenReturn(true);
+        when(mChangePasswordDelegate.canManuallyChangeCredential(eq(BOB))).thenReturn(true);
+        mMediator.onPasswordCheckStatusChanged(IDLE);
+        mMediator.onCompromisedCredentialsFetchCompleted();
+        assertThat(mModel.get(ITEMS).size(), is(2)); // Header + existing credentials.
+
+        mMediator.onCompromisedCredentialFound(BOB);
+
+        assertThat(mModel.get(ITEMS).get(2).type, is(ItemType.COMPROMISED_CREDENTIAL_WITH_SCRIPT));
+        assertThat(mModel.get(ITEMS).get(2).model.get(COMPROMISED_CREDENTIAL), equalTo(BOB));
+        assertThat(mModel.get(ITEMS).get(2).model.get(CREDENTIAL_HANDLER), is(mMediator));
+        assertThat(mModel.get(ITEMS).get(2).model.get(HAS_MANUAL_CHANGE_BUTTON), is(true));
     }
 
     @Test
@@ -277,6 +338,7 @@ public class PasswordCheckControllerTest {
                 .thenReturn(new CompromisedCredential[] {BOB});
         mMediator.onCompromisedCredentialsFetchCompleted();
         assertThat(mModel.get(ITEMS).size(), is(2));
+        assertThat(mModel.get(ITEMS).get(1).type, is(ItemType.COMPROMISED_CREDENTIAL_WITH_SCRIPT));
         assertThat(mModel.get(ITEMS).get(1).model.get(COMPROMISED_CREDENTIAL), equalTo(BOB));
         assertThat(mModel.get(ITEMS).get(1).model.get(CREDENTIAL_HANDLER), is(mMediator));
     }
@@ -326,6 +388,36 @@ public class PasswordCheckControllerTest {
     }
 
     @Test
+    public void testIdleStatusUpdatedOnCredentialFound() {
+        // Set initial status to IDLE with no compromised credentials.
+        when(mPasswordCheck.getCompromisedCredentialsCount()).thenReturn(0);
+        mMediator.onPasswordCheckStatusChanged(IDLE);
+        assertThat(getHeaderModel().get(COMPROMISED_CREDENTIALS_COUNT), is(0));
+
+        // Add ANA to the compromised credentials.
+        when(mPasswordCheck.getCompromisedCredentialsCount()).thenReturn(1);
+        mMediator.onCompromisedCredentialFound(ANA);
+        assertThat(mModel.get(ITEMS).size(), is(2)); // Header + existing credentials.
+
+        // Check the compromised credentials count updated.
+        assertThat(getHeaderModel().get(COMPROMISED_CREDENTIALS_COUNT), is(1));
+    }
+
+    @Test
+    public void testNotIdleStatusNotUpdatedOnCredentialFound() {
+        mMediator.onPasswordCheckStatusChanged(ERROR_UNKNOWN);
+        assertNull(getHeaderModel().get(COMPROMISED_CREDENTIALS_COUNT));
+
+        // Add ANA after the check has failed.
+        when(mPasswordCheck.getCompromisedCredentialsCount()).thenReturn(1);
+        mMediator.onCompromisedCredentialFound(ANA);
+        assertThat(mModel.get(ITEMS).size(), is(2)); // Header + existing credentials.
+
+        // Check the compromised credentials count did not update.
+        assertNull(getHeaderModel().get(COMPROMISED_CREDENTIALS_COUNT));
+    }
+
+    @Test
     public void testOnStatusUpdateAsIdleShowSubtitle() {
         mMediator.onPasswordCheckStatusChanged(IDLE);
         assertThat(getHeaderModel().get(SHOW_CHECK_SUBTITLE), is(true));
@@ -335,6 +427,13 @@ public class PasswordCheckControllerTest {
     public void testOnStatusUpdateAsNotIdleNotShowSubtitle() {
         mMediator.onPasswordCheckStatusChanged(ERROR_UNKNOWN);
         assertThat(getHeaderModel().get(SHOW_CHECK_SUBTITLE), is(false));
+    }
+
+    @Test
+    public void testShowSubtitleOnCompromisedCredentialFound() {
+        when(mPasswordCheck.getCompromisedCredentialsCount()).thenReturn(1);
+        mMediator.onCompromisedCredentialFound(ANA);
+        assertThat(getHeaderModel().get(SHOW_CHECK_SUBTITLE), is(true));
     }
 
     @Test
@@ -370,13 +469,10 @@ public class PasswordCheckControllerTest {
     public void testSortsInitialSetOfCredentals() {
         mMediator.onPasswordCheckStatusChanged(IDLE);
 
-        CompromisedCredential phishedEarly =
-                makeCredential("example.com", "alice", 1, 1, false, true);
-        CompromisedCredential phishedLeakedLate =
-                makeCredential("test.com", "bob", 3, 3, true, true);
-        CompromisedCredential leakedEarly =
-                makeCredential("example.org", "alice", 2, 2, true, false);
-        CompromisedCredential leakedLate = makeCredential("site.com", "john", 4, 4, true, false);
+        CompromisedCredential phishedEarly = makeCredential("example.com", "alice", 1, false, true);
+        CompromisedCredential phishedLeakedLate = makeCredential("test.com", "bob", 3, true, true);
+        CompromisedCredential leakedEarly = makeCredential("example.org", "alice", 2, true, false);
+        CompromisedCredential leakedLate = makeCredential("site.com", "john", 4, true, false);
 
         when(mPasswordCheck.areScriptsRefreshed()).thenReturn(true);
         when(mPasswordCheck.getCompromisedCredentials())
@@ -396,13 +492,10 @@ public class PasswordCheckControllerTest {
     public void testSortsAppendedCredentials() {
         mMediator.onPasswordCheckStatusChanged(IDLE);
 
-        CompromisedCredential phishedEarly =
-                makeCredential("example.com", "alice", 1, 1, false, true);
-        CompromisedCredential phishedLeakedLate =
-                makeCredential("test.com", "bob", 3, 3, true, true);
-        CompromisedCredential leakedEarly =
-                makeCredential("example.org", "alice", 2, 2, true, false);
-        CompromisedCredential leakedLate = makeCredential("site.com", "john", 4, 4, true, false);
+        CompromisedCredential phishedEarly = makeCredential("example.com", "alice", 1, false, true);
+        CompromisedCredential phishedLeakedLate = makeCredential("test.com", "bob", 3, true, true);
+        CompromisedCredential leakedEarly = makeCredential("example.org", "alice", 2, true, false);
+        CompromisedCredential leakedLate = makeCredential("site.com", "john", 4, true, false);
 
         when(mPasswordCheck.areScriptsRefreshed()).thenReturn(true);
 
@@ -414,11 +507,9 @@ public class PasswordCheckControllerTest {
 
         // Send an updated list simulating credentials found in the current check.
         CompromisedCredential leakedNewEarly1 =
-                makeCredential("example.com", "john", 5, 5, true, false);
-        CompromisedCredential leakedNewEarly2 =
-                makeCredential("test.com", "john", 5, 5, true, false);
-        CompromisedCredential leakedNewLate =
-                makeCredential("site.org", "alice", 6, 6, true, false);
+                makeCredential("example.com", "john", 5, true, false);
+        CompromisedCredential leakedNewEarly2 = makeCredential("test.com", "john", 5, true, false);
+        CompromisedCredential leakedNewLate = makeCredential("site.org", "alice", 6, true, false);
         when(mPasswordCheck.getCompromisedCredentials())
                 .thenReturn(new CompromisedCredential[] {phishedEarly, leakedEarly, leakedLate,
                         leakedNewEarly2, leakedNewLate, leakedNewEarly1, phishedLeakedLate});
@@ -475,13 +566,21 @@ public class PasswordCheckControllerTest {
                 is(1));
         assertThat(RecordHistogram.getHistogramTotalCountForTesting(
                            PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON),
+                is(0));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.DELETED_PASSWORD),
+                is(1));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.DELETED_PASSWORD),
                 is(1));
     }
 
     @Test
     public void testOnChangePasswordButtonClick() {
+        // No auto change button. A user clicks "Change password" (manually).
         mMediator.onChangePasswordButtonClick(ANA);
-        verify(mDelegate).onManualPasswordChangeStarted(eq(ANA));
         verify(mChangePasswordDelegate).launchAppOrCctWithChangePasswordUrl(eq(ANA));
 
         assertThat(RecordHistogram.getHistogramValueCountForTesting(
@@ -492,12 +591,96 @@ public class PasswordCheckControllerTest {
                            PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON,
                            PasswordCheckResolutionAction.OPENED_SITE),
                 is(1));
+        assertThat(RecordHistogram.getHistogramTotalCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON),
+                is(0));
+        assertThat(RecordHistogram.getHistogramTotalCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES),
+                is(0));
     }
 
     @Test
-    public void testOnEditTriggersDelegateWhenNewEditEnabled() {
-        mMediator.onEdit(ANA, ApplicationProvider.getApplicationContext());
-        verify(mDelegate).onEditCredential(ANA, ApplicationProvider.getApplicationContext());
+    public void testOnChangePasswordManuallyButtonClick() {
+        // There is an auto change button, but a user clicks "Change manually".
+        mMediator.onChangePasswordButtonClick(BOB);
+        verify(mChangePasswordDelegate).launchAppOrCctWithChangePasswordUrl(eq(BOB));
+
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_USER_ACTION_HISTOGRAM,
+                           PasswordCheckUserAction.CHANGE_PASSWORD_MANUALLY),
+                is(1));
+        assertThat(RecordHistogram.getHistogramTotalCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON),
+                is(0));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.OPENED_SITE),
+                is(1));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.OPENED_SITE),
+                is(1));
+    }
+
+    @Test
+    public void testOnChangePasswordButtonClickScriptOnly() {
+        // There is a script but auto change button isn't shown. A user clicks "Change password"
+        // (manually).
+        mMediator.onChangePasswordButtonClick(CHARLIE);
+        verify(mChangePasswordDelegate).launchAppOrCctWithChangePasswordUrl(eq(CHARLIE));
+
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_USER_ACTION_HISTOGRAM,
+                           PasswordCheckUserAction.CHANGE_PASSWORD),
+                is(1));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.OPENED_SITE),
+                is(1));
+        assertThat(RecordHistogram.getHistogramTotalCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON),
+                is(0));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.OPENED_SITE),
+                is(1));
+    }
+
+    @Test
+    public void testOnAutoChangePasswordButtonClick() {
+        // There is a auto change button, a user clicks it.
+        mMediator.onChangePasswordWithScriptButtonClick(BOB);
+        verify(mChangePasswordDelegate).launchCctWithScript(eq(BOB));
+
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_USER_ACTION_HISTOGRAM,
+                           PasswordCheckUserAction.CHANGE_PASSWORD_AUTOMATICALLY),
+                is(1));
+        assertThat(RecordHistogram.getHistogramTotalCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON),
+                is(0));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.STARTED_SCRIPT),
+                is(1));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.STARTED_SCRIPT),
+                is(1));
+    }
+
+    @Test
+    public void testOnEditPasswordButtonClick() {
+        when(mReauthenticationHelper.canReauthenticate()).thenReturn(true);
+        doAnswer(invocation -> {
+            Callback<Boolean> cb = invocation.getArgument(1);
+            cb.onResult(true);
+            return true;
+        })
+                .when(mReauthenticationHelper)
+                .reauthenticate(anyInt(), notNull());
+        mMediator.onEdit(ANA);
+        verify(mChangePasswordDelegate).launchEditPage(eq(ANA));
     }
 
     @Test
@@ -527,14 +710,21 @@ public class PasswordCheckControllerTest {
         assertThat(RecordHistogram.getHistogramValueCountForTesting(
                            PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON,
                            PasswordCheckResolutionAction.DID_NOTHING),
-                is(3));
+                is(2));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(1));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(2));
     }
 
     @Test
-    public void testRecordCompromisedCredentialCount() {
+    public void testDoesntRecordDidNothingOnLeavingPageIfCctIsOpen() {
         when(mPasswordCheck.getCompromisedCredentials())
                 .thenReturn(new CompromisedCredential[] {ANA, BOB, CHARLIE});
-        when(mPasswordCheck.getCompromisedCredentialsCount()).thenReturn(3);
         when(mPasswordCheck.areScriptsRefreshed()).thenReturn(true);
         when(mChangePasswordDelegate.canManuallyChangeCredential(any(CompromisedCredential.class)))
                 .thenReturn(true);
@@ -542,11 +732,52 @@ public class PasswordCheckControllerTest {
         mMediator.onPasswordCheckStatusChanged(IDLE);
         mMediator.onCompromisedCredentialsFetchCompleted();
 
+        // A user opens a CCT and then open the tab in browser => a user leaves the check page.
+        mMediator.onChangePasswordWithScriptButtonClick(BOB);
         mMediator.onUserLeavesCheckPage();
 
         assertThat(RecordHistogram.getHistogramValueCountForTesting(
-                           PASSWORD_CHECK_COMPROMISED_CREDENTIALS_AFTER_CHECK_HISTOGRAM, 3),
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(0));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(0));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(0));
+    }
+
+    @Test
+    public void testRecordDidNothingOnLeavingPageIfCctIsClosed() {
+        when(mPasswordCheck.getCompromisedCredentials())
+                .thenReturn(new CompromisedCredential[] {ANA, BOB, CHARLIE});
+        when(mPasswordCheck.areScriptsRefreshed()).thenReturn(true);
+        when(mChangePasswordDelegate.canManuallyChangeCredential(any(CompromisedCredential.class)))
+                .thenReturn(true);
+
+        mMediator.onPasswordCheckStatusChanged(IDLE);
+        mMediator.onCompromisedCredentialsFetchCompleted();
+
+        // A user opens a CCT, closes it, and leaves the password check page.
+        mMediator.onChangePasswordWithScriptButtonClick(BOB);
+        mMediator.onResumeFragment();
+        mMediator.onUserLeavesCheckPage();
+
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITHOUT_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(2));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_WITH_AUTO_BUTTON,
+                           PasswordCheckResolutionAction.DID_NOTHING),
                 is(1));
+        assertThat(RecordHistogram.getHistogramValueCountForTesting(
+                           PASSWORD_CHECK_RESOLUTION_HISTOGRAM_FOR_SCRIPTED_SITES,
+                           PasswordCheckResolutionAction.DID_NOTHING),
+                is(2));
     }
 
     private void assertIdleHeader(MVCListAdapter.ListItem header) {
@@ -572,10 +803,10 @@ public class PasswordCheckControllerTest {
         assertNotNull(header.model.get(LAUNCH_ACCOUNT_CHECKUP_ACTION));
     }
 
-    private CompromisedCredential makeCredential(String origin, String username, long creationTime,
-            long lastUsedTime, boolean leaked, boolean phished) {
+    private CompromisedCredential makeCredential(
+            String origin, String username, long creationTime, boolean leaked, boolean phished) {
         return new CompromisedCredential(origin, mock(GURL.class), username, origin, username,
-                "password", origin, new String(), creationTime, lastUsedTime, leaked, phished);
+                "password", origin, new String(), creationTime, leaked, phished, false, false);
     }
 
     private PropertyModel getHeaderModel() {

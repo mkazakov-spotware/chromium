@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include <utility>
 
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/ash_switches.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/root_window_controller.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
@@ -15,6 +14,7 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
+#include "chromeos/constants/chromeos_switches.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -44,7 +44,7 @@ void TouchDevicesController::RegisterProfilePrefs(PrefRegistrySimple* registry,
     registry->RegisterBooleanPref(
         prefs::kNaturalScroll,
         base::CommandLine::ForCurrentProcess()->HasSwitch(
-            switches::kNaturalScrollDefault),
+            chromeos::switches::kNaturalScrollDefault),
         user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PRIORITY_PREF);
   }
 }

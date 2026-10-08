@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/bind.h"
 #include "base/test/task_environment.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/services/printing/pdf_thumbnailer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/codec/SkCodec.h"
@@ -95,7 +94,7 @@ class PdfThumbnailerTest : public testing::Test {
   base::WeakPtrFactory<PdfThumbnailerTest> weak_factory_{this};
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // A valid PDF should produce a valid PNG thumbnail.
 TEST_F(PdfThumbnailerTest, CreatePdfThumbnail) {
   base::RunLoop run_loop;
@@ -175,6 +174,6 @@ TEST_F(PdfThumbnailerTest, TooLargeThumbnailSize) {
   run_loop.Run();
   EXPECT_TRUE(bitmap_.isNull());
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace printing

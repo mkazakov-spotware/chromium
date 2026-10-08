@@ -1,32 +1,34 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.download;
 
+import android.annotation.TargetApi;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
 import android.provider.BaseColumns;
+import android.provider.MediaStore;
 import android.provider.MediaStore.Downloads;
 import android.provider.MediaStore.MediaColumns;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 
+import org.chromium.base.BuildInfo;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.StrictModeContext;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.compat.ApiHelperForQ;
 import org.chromium.third_party.android.provider.MediaStoreUtils;
 import org.chromium.third_party.android.provider.MediaStoreUtils.PendingParams;
 import org.chromium.third_party.android.provider.MediaStoreUtils.PendingSession;
@@ -130,7 +132,7 @@ public class DownloadCollectionBridge {
      */
     @CalledByNative
     public static boolean shouldPublishDownload(final String filePath) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (isAtLeastQ()) {
             if (filePath == null) return false;
             // Only need to publish downloads that are on primary storage.
             return !sDownloadDelegate.isDownloadOnSDCard(filePath);
@@ -145,14 +147,14 @@ public class DownloadCollectionBridge {
      * @return True on success, or false otherwise.
      */
     @CalledByNative
-    @RequiresApi(29)
+    @TargetApi(29)
     public static boolean copyFileToIntermediateUri(
             final String sourcePath, final String destinationUri) {
         try {
             PendingSession session = openPendingUri(destinationUri);
             OutputStream out = session.openOutputStream();
             InputStream in = new FileInputStream(sourcePath);
-            ApiHelperForQ.copy(in, out);
+            FileUtils.copy(in, out);
             in.close();
             out.close();
             return true;
@@ -190,7 +192,7 @@ public class DownloadCollectionBridge {
             cursor = resolver.query(Uri.parse(intermediateUri),
                     new String[] {MediaColumns.MIME_TYPE}, null, null, null);
             if (cursor != null && cursor.getCount() != 0 && cursor.moveToNext()) {
-                mimeType = cursor.getString(cursor.getColumnIndexOrThrow(MediaColumns.MIME_TYPE));
+                mimeType = cursor.getString(cursor.getColumnIndex(MediaColumns.MIME_TYPE));
             }
         } catch (Exception e) {
             Log.e(TAG, "Unable to get mimeType.", e);
@@ -265,21 +267,21 @@ public class DownloadCollectionBridge {
      * @return an array of download Uri and display name pair.
      */
     @CalledByNative
-    @RequiresApi(29)
+    @TargetApi(29)
     private static DisplayNameInfo[] getDisplayNamesForDownloads() {
         ContentResolver resolver = ContextUtils.getApplicationContext().getContentResolver();
         Cursor cursor = null;
         try {
             Uri uri = Downloads.EXTERNAL_CONTENT_URI;
-            cursor = resolver.query(ApiHelperForQ.setIncludePending(uri),
+            cursor = resolver.query(MediaStore.setIncludePending(uri),
                     new String[] {BaseColumns._ID, MediaColumns.DISPLAY_NAME}, null, null, null);
             if (cursor == null || cursor.getCount() == 0) return null;
             List<DisplayNameInfo> infos = new ArrayList<DisplayNameInfo>();
             while (cursor.moveToNext()) {
                 String displayName =
-                        cursor.getString(cursor.getColumnIndexOrThrow(MediaColumns.DISPLAY_NAME));
+                        cursor.getString(cursor.getColumnIndex(MediaColumns.DISPLAY_NAME));
                 Uri downloadUri = ContentUris.withAppendedId(
-                        uri, cursor.getInt(cursor.getColumnIndexOrThrow(BaseColumns._ID)));
+                        uri, cursor.getInt(cursor.getColumnIndex(BaseColumns._ID)));
                 infos.add(new DisplayNameInfo(downloadUri.toString(), displayName));
             }
             return infos.toArray(new DisplayNameInfo[0]);
@@ -295,26 +297,26 @@ public class DownloadCollectionBridge {
      * @return whether download collection is supported.
      */
     public static boolean supportsDownloadCollection() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
+        return isAtLeastQ();
     }
 
     /**
      * Gets the content URI of the download that has the given file name.
-     * @param fileName name of the file.
+     * @param pendingUri name of the file.
      * @return Uri of the download with the given display name.
      */
-    @RequiresApi(29)
+    @TargetApi(29)
     public static Uri getDownloadUriForFileName(String fileName) {
         Cursor cursor = null;
         try {
             Uri uri = Downloads.EXTERNAL_CONTENT_URI;
             cursor = ContextUtils.getApplicationContext().getContentResolver().query(
-                    ApiHelperForQ.setIncludePending(uri), new String[] {BaseColumns._ID},
+                    MediaStore.setIncludePending(uri), new String[] {BaseColumns._ID},
                     "_display_name LIKE ?1", new String[] {fileName}, null);
             if (cursor == null) return null;
             if (cursor.moveToNext()) {
                 return ContentUris.withAppendedId(
-                        uri, cursor.getInt(cursor.getColumnIndexOrThrow(BaseColumns._ID)));
+                        uri, cursor.getInt(cursor.getColumnIndex(BaseColumns._ID)));
             }
         } catch (Exception e) {
             Log.e(TAG, "Unable to check file name existence.", e);
@@ -329,6 +331,10 @@ public class DownloadCollectionBridge {
      */
     public static int getExpirationDurationInDays() {
         return DownloadCollectionBridgeJni.get().getExpirationDurationInDays();
+    }
+
+    private static boolean isAtLeastQ() {
+        return BuildInfo.isAtLeastQ() || Build.VERSION.SDK_INT >= 29;
     }
 
     /**
@@ -360,7 +366,7 @@ public class DownloadCollectionBridge {
      * @param referrer Referrer of the download.
      * @return PendingParams needed for creating the PendingSession.
      */
-    @RequiresApi(29)
+    @TargetApi(29)
     private static PendingParams createPendingParams(final String fileName, final String mimeType,
             final String originalUrl, final String referrer) {
         Uri downloadsUri = Downloads.EXTERNAL_CONTENT_URI;
@@ -428,7 +434,7 @@ public class DownloadCollectionBridge {
                     new String[] {MediaColumns.DISPLAY_NAME}, null, null, null);
             if (cursor == null || cursor.getCount() == 0) return null;
             if (cursor.moveToNext()) {
-                return cursor.getString(cursor.getColumnIndexOrThrow(MediaColumns.DISPLAY_NAME));
+                return cursor.getString(cursor.getColumnIndex(MediaColumns.DISPLAY_NAME));
             }
         } catch (Exception e) {
             Log.e(TAG, "Unable to get display name for download.", e);

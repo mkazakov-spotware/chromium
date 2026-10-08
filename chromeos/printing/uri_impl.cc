@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -72,10 +72,24 @@ bool ParseCharacter(const Iter& end, Iter* current, char* out) {
   return true;
 }
 
+// Helper struct for the function below.
+class Comparator {
+ public:
+  // The string given as a parameter must be valid for the whole lifetime
+  // of this object.
+  explicit Comparator(const std::string& chars) : chars_(chars) {}
+  bool operator()(std::string::value_type element) const {
+    return (chars_.find(element) != std::string::npos);
+  }
+
+ private:
+  const std::string& chars_;
+};
+
 // Returns iterator to the first occurrence of any character from |chars|
 // in |begin|-|end|. Returns |end| if none of the characters were found.
 Iter FindFirstOf(Iter begin, Iter end, const std::string& chars) {
-  return std::find_first_of(begin, end, chars.begin(), chars.end());
+  return std::find_if(begin, end, Comparator(chars));
 }
 
 }  // namespace
@@ -214,7 +228,7 @@ bool Uri::Pim::SaveQuery(
     // Process parameter name.
     auto it1 = val[i].first.begin();
     auto it2 = val[i].first.end();
-    if (!ParseString<encoded>(it1, it2, &out[i].first, encoded))
+    if (!ParseString<encoded>(it1, it2, &out[i].first, true))
       return false;
     if (out[i].first.empty()) {
       --parser_error_.parsed_strings;  // it was already counted
@@ -225,7 +239,7 @@ bool Uri::Pim::SaveQuery(
     // Process parameter value.
     it1 = val[i].second.begin();
     it2 = val[i].second.end();
-    if (!ParseString<encoded>(it1, it2, &out[i].second, encoded))
+    if (!ParseString<encoded>(it1, it2, &out[i].second, true))
       return false;
   }
   query_ = std::move(out);
@@ -406,10 +420,8 @@ bool Uri::Pim::ParseUri(const Iter& begin, const Iter end) {
   parser_error_.parsed_strings = 0;
   parser_error_.parsed_chars = 0;
   Iter it1 = begin;
-  // The Scheme component starts from character different than slash ("/"),
-  // question mark ("?"), and number sign ("#"). Non-empty Scheme must be
-  // followed by the colon (":") character.
-  if (it1 < end && *it1 != '/' && *it1 != '?' && *it1 != '#') {
+  // The Scheme component ends at the first colon (":").
+  {
     auto it2 = std::find(it1, end, ':');
     if (it2 == end) {
       parser_error_.status = ParserStatus::kInvalidScheme;

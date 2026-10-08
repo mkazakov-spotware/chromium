@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "components/viz/service/display_embedder/skia_output_device.h"
 
 namespace viz {
@@ -22,17 +21,17 @@ class SkiaOutputDeviceVulkanSecondaryCB final : public SkiaOutputDevice {
       gpu::MemoryTracker* memory_tracker,
       DidSwapBufferCompleteCallback did_swap_buffer_complete_callback);
 
-  std::unique_ptr<SkiaOutputDevice::ScopedPaint> BeginScopedPaint() override;
   void Submit(bool sync_cpu, base::OnceClosure callback) override;
-  bool Reshape(const SkSurfaceCharacterization& characterization,
-               const gfx::ColorSpace& color_space,
+  bool Reshape(const gfx::Size& size,
                float device_scale_factor,
+               const gfx::ColorSpace& color_space,
+               gfx::BufferFormat format,
                gfx::OverlayTransform transform) override;
   void SwapBuffers(BufferPresentedCallback feedback,
-                   OutputSurfaceFrame frame) override;
+                   std::vector<ui::LatencyInfo> latency_info) override;
   void PostSubBuffer(const gfx::Rect& rect,
                      BufferPresentedCallback feedback,
-                     OutputSurfaceFrame frame) override;
+                     std::vector<ui::LatencyInfo> latency_info) override;
   SkSurface* BeginPaint(
       std::vector<GrBackendSemaphore>* end_semaphores) override;
   void EndPaint() override;
@@ -50,7 +49,7 @@ class SkiaOutputDeviceVulkanSecondaryCB final : public SkiaOutputDevice {
             sk_sp<const SkDeferredDisplayList> ddl) override;
 
  private:
-  const raw_ptr<VulkanContextProvider> context_provider_;
+  VulkanContextProvider* const context_provider_;
   gfx::Size size_;
 };
 

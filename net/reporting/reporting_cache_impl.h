@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,25 +9,23 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/unique_ptr_adapters.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
-#include "base/unguessable_token.h"
 #include "base/values.h"
-#include "net/base/isolation_info.h"
 #include "net/reporting/reporting_cache.h"
 #include "net/reporting/reporting_context.h"
 #include "net/reporting/reporting_endpoint.h"
 #include "net/reporting/reporting_header_parser.h"
 #include "net/reporting/reporting_report.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -35,21 +33,17 @@ namespace net {
 
 class ReportingCacheImpl : public ReportingCache {
  public:
-  explicit ReportingCacheImpl(ReportingContext* context);
-
-  ReportingCacheImpl(const ReportingCacheImpl&) = delete;
-  ReportingCacheImpl& operator=(const ReportingCacheImpl&) = delete;
+  ReportingCacheImpl(ReportingContext* context);
 
   ~ReportingCacheImpl() override;
 
   // ReportingCache implementation
-  void AddReport(const absl::optional<base::UnguessableToken>& reporting_source,
-                 const NetworkAnonymizationKey& network_anonymization_key,
+  void AddReport(const NetworkIsolationKey& network_isolation_key,
                  const GURL& url,
                  const std::string& user_agent,
                  const std::string& group_name,
                  const std::string& type,
-                 base::Value::Dict body,
+                 std::unique_ptr<const base::Value> body,
                  int depth,
                  base::TimeTicks queued,
                  int attempts) override;
@@ -57,49 +51,31 @@ class ReportingCacheImpl : public ReportingCache {
       std::vector<const ReportingReport*>* reports_out) const override;
   base::Value GetReportsAsValue() const override;
   std::vector<const ReportingReport*> GetReportsToDeliver() override;
-  std::vector<const ReportingReport*> GetReportsToDeliverForSource(
-      const base::UnguessableToken& reporting_source) override;
   void ClearReportsPending(
       const std::vector<const ReportingReport*>& reports) override;
   void IncrementReportsAttempts(
       const std::vector<const ReportingReport*>& reports) override;
-  base::flat_map<url::Origin, std::vector<ReportingEndpoint>>
-  GetV1ReportingEndpointsByOrigin() const override;
   void IncrementEndpointDeliveries(const ReportingEndpointGroupKey& group_key,
                                    const GURL& url,
                                    int reports_delivered,
                                    bool successful) override;
-  void SetExpiredSource(
-      const base::UnguessableToken& reporting_source) override;
-  const base::flat_set<base::UnguessableToken>& GetExpiredSources()
-      const override;
-  void RemoveReports(
-      const std::vector<const ReportingReport*>& reports) override;
   void RemoveReports(const std::vector<const ReportingReport*>& reports,
-                     bool delivery_success) override;
-  void RemoveAllReports() override;
+                     ReportingReport::Outcome outcome) override;
+  void RemoveAllReports(ReportingReport::Outcome outcome) override;
   size_t GetFullReportCountForTesting() const override;
-  size_t GetReportCountWithStatusForTesting(
-      ReportingReport::Status status) const override;
   bool IsReportPendingForTesting(const ReportingReport* report) const override;
   bool IsReportDoomedForTesting(const ReportingReport* report) const override;
   void OnParsedHeader(
-      const NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkIsolationKey& network_isolation_key,
       const url::Origin& origin,
       std::vector<ReportingEndpointGroup> parsed_header) override;
-  void OnParsedReportingEndpointsHeader(
-      const base::UnguessableToken& reporting_source,
-      const IsolationInfo& isolation_info,
-      std::vector<ReportingEndpoint> parsed_header) override;
   std::set<url::Origin> GetAllOrigins() const override;
-  void RemoveClient(const NetworkAnonymizationKey& network_anonymization_key,
+  void RemoveClient(const NetworkIsolationKey& network_isolation_key,
                     const url::Origin& origin) override;
   void RemoveClientsForOrigin(const url::Origin& origin) override;
   void RemoveAllClients() override;
   void RemoveEndpointGroup(const ReportingEndpointGroupKey& group_key) override;
   void RemoveEndpointsForUrl(const GURL& url) override;
-  void RemoveSourceAndEndpoints(
-      const base::UnguessableToken& reporting_source) override;
   void AddClientsLoadedFromStore(
       std::vector<ReportingEndpoint> loaded_endpoints,
       std::vector<CachedReportingEndpointGroup> loaded_endpoint_groups)
@@ -109,38 +85,27 @@ class ReportingCacheImpl : public ReportingCache {
   base::Value GetClientsAsValue() const override;
   size_t GetEndpointCount() const override;
   void Flush() override;
-  ReportingEndpoint GetV1EndpointForTesting(
-      const base::UnguessableToken& reporting_source,
-      const std::string& endpoint_name) const override;
   ReportingEndpoint GetEndpointForTesting(
       const ReportingEndpointGroupKey& group_key,
       const GURL& url) const override;
   bool EndpointGroupExistsForTesting(const ReportingEndpointGroupKey& group_key,
                                      OriginSubdomains include_subdomains,
                                      base::Time expires) const override;
-  bool ClientExistsForTesting(
-      const NetworkAnonymizationKey& network_anonymization_key,
-      const url::Origin& origin) const override;
+  bool ClientExistsForTesting(const NetworkIsolationKey& network_isolation_key,
+                              const url::Origin& origin) const override;
   size_t GetEndpointGroupCountForTesting() const override;
   size_t GetClientCountForTesting() const override;
-  size_t GetReportingSourceCountForTesting() const override;
   void SetEndpointForTesting(const ReportingEndpointGroupKey& group_key,
                              const GURL& url,
                              OriginSubdomains include_subdomains,
                              base::Time expires,
                              int priority,
                              int weight) override;
-  void SetV1EndpointForTesting(const ReportingEndpointGroupKey& group_key,
-                               const base::UnguessableToken& reporting_source,
-                               const IsolationInfo& isolation_info,
-                               const GURL& url) override;
-  IsolationInfo GetIsolationInfoForEndpoint(
-      const ReportingEndpoint& endpoint) const override;
 
  private:
   // Represents the entire Report-To configuration for a (NIK, origin) pair.
   struct Client {
-    Client(const NetworkAnonymizationKey& network_anonymization_key,
+    Client(const NetworkIsolationKey& network_isolation_key,
            const url::Origin& origin);
 
     Client(const Client& other);
@@ -153,7 +118,7 @@ class ReportingCacheImpl : public ReportingCache {
 
     // NIK of the context associated with this client. Needed to prevent leaking
     // third party contexts across sites.
-    NetworkAnonymizationKey network_anonymization_key;
+    NetworkIsolationKey network_isolation_key;
 
     // Origin that configured this client.
     url::Origin origin;
@@ -181,34 +146,34 @@ class ReportingCacheImpl : public ReportingCache {
 
   ReportSet::const_iterator FindReportToEvict() const;
 
-  // Consistency-checks the entire data structure of clients, groups, and
-  // endpoints, if DCHECK is on. The cached clients should pass this consistency
-  // check after completely parsing a header (i.e. not after the intermediate
-  // steps), and before and after any of the public methods that remove or
-  // retrieve client info. Also calls |sequence_checker_| to DCHECK that we are
-  // being called on a valid sequence.
-  void ConsistencyCheckClients() const;
+  // Sanity-checks the entire data structure of clients, groups, and endpoints,
+  // if DCHECK is on. The cached clients should pass this sanity check after
+  // completely parsing a header (i.e. not after the intermediate steps), and
+  // before and after any of the public methods that remove or retrieve client
+  // info. Also calls |sequence_checker_| to DCHECK that we are being called on
+  // a valid sequence.
+  void SanityCheckClients() const;
 
-  // Helper methods for ConsistencyCheckClients():
+  // Helper methods for SanityCheckClients():
 #if DCHECK_IS_ON()
   // Returns number of endpoint groups found in |client|.
-  size_t ConsistencyCheckClient(const std::string& domain,
-                                const Client& client) const;
+  size_t SanityCheckClient(const std::string& domain,
+                           const Client& client) const;
 
   // Returns the number of endpoints found in |group|.
-  size_t ConsistencyCheckEndpointGroup(
+  size_t SanityCheckEndpointGroup(
       const ReportingEndpointGroupKey& key,
       const CachedReportingEndpointGroup& group) const;
 
-  void ConsistencyCheckEndpoint(const ReportingEndpointGroupKey& key,
-                                const ReportingEndpoint& endpoint,
-                                EndpointMap::const_iterator endpoint_it) const;
+  void SanityCheckEndpoint(const ReportingEndpointGroupKey& key,
+                           const ReportingEndpoint& endpoint,
+                           EndpointMap::const_iterator endpoint_it) const;
 #endif  // DCHECK_IS_ON()
 
-  // Finds iterator to the client with the given |network_anonymization_key| and
+  // Finds iterator to the client with the given |network_isolation_key| and
   // |origin|, if one exists. Returns |clients_.end()| if none is found.
   ClientMap::iterator FindClientIt(
-      const NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkIsolationKey& network_isolation_key,
       const url::Origin& origin);
 
   // Overload that takes a ReportingEndpointGroupKey and finds the client
@@ -246,7 +211,7 @@ class ReportingCacheImpl : public ReportingCache {
   // in |groups_to_keep_names|. Does not guarantee that all the groups in
   // |groups_to_keep_names| exist in the cache for that client.
   void RemoveEndpointGroupsForClientOtherThan(
-      const NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkIsolationKey& network_isolation_key,
       const url::Origin& origin,
       const std::set<std::string>& groups_to_keep_names);
 
@@ -267,10 +232,10 @@ class ReportingCacheImpl : public ReportingCache {
   // Also takes iterators to the client and endpoint group to avoid repeated
   // lookups. May cause the client and/or group to be removed if they become
   // empty, which would invalidate those iterators.
-  // Returns the iterator following the endpoint removed, or absl::nullopt if
+  // Returns the iterator following the endpoint removed, or base::nullopt if
   // either of |group_it| or |client_it| were invalidated. (If |client_it| is
   // invalidated, then so must |group_it|).
-  absl::optional<EndpointMap::iterator> RemoveEndpointInternal(
+  base::Optional<EndpointMap::iterator> RemoveEndpointInternal(
       ClientMap::iterator client_it,
       EndpointGroupMap::iterator group_it,
       EndpointMap::iterator endpoint_it);
@@ -281,9 +246,9 @@ class ReportingCacheImpl : public ReportingCache {
   // invalidate |client_it|. If |num_endpoints_removed| is not null, then
   // |*num_endpoints_removed| is incremented by the number of endpoints
   // removed.
-  // Returns the iterator following the endpoint group removed, or absl::nullopt
+  // Returns the iterator following the endpoint group removed, or base::nullopt
   // if |client_it| was invalidated.
-  absl::optional<EndpointGroupMap::iterator> RemoveEndpointGroupInternal(
+  base::Optional<EndpointGroupMap::iterator> RemoveEndpointGroupInternal(
       ClientMap::iterator client_it,
       EndpointGroupMap::iterator group_it,
       size_t* num_endpoints_removed = nullptr);
@@ -330,11 +295,6 @@ class ReportingCacheImpl : public ReportingCache {
   void AddEndpointItToIndex(EndpointMap::iterator endpoint_it);
   void RemoveEndpointItFromIndex(EndpointMap::iterator endpoint_it);
 
-  // Helper method for IncrementEndpointDeliveries
-  ReportingEndpoint::Statistics* GetEndpointStats(
-      const ReportingEndpointGroupKey& group_key,
-      const GURL& url);
-
   // Helper methods for GetClientsAsValue().
   base::Value GetClientAsValue(const Client& client) const;
   base::Value GetEndpointGroupAsValue(
@@ -346,56 +306,29 @@ class ReportingCacheImpl : public ReportingCache {
   const base::TickClock& tick_clock() const { return context_->tick_clock(); }
   PersistentReportingStore* store() { return context_->store(); }
 
-  raw_ptr<ReportingContext> context_;
+  ReportingContext* context_;
 
   // Reports that have not yet been successfully uploaded.
   ReportSet reports_;
-
-  // Reporting API V0 Cache:
-  // The |clients_|, |endpoint_groups_| and |endpoints_| members all hold
-  // endpoint group configuration for the V0 API. These endpoint groups are
-  // configured through the Report-To HTTP header, and are currently used for
-  // both document and network reports.
 
   // Map of clients for all configured origins and NIKs, keyed on domain name
   // (there may be multiple NIKs and origins per domain name).
   ClientMap clients_;
 
-  // Map of endpoint groups, keyed on origin and group name. Keys and values
-  // must only contain V0 endpoint group keys.
+  // Map of endpoint groups, keyed on origin and group name.
   EndpointGroupMap endpoint_groups_;
 
   // Map of endpoints, keyed on origin and group name (there may be multiple
-  // endpoints for a given origin and group, with different urls). Keys must
-  // only contain V0 endpoint group keys.
+  // endpoints for a given origin and group, with different urls).
   EndpointMap endpoints_;
 
   // Index of endpoints stored in |endpoints_| keyed on URL, for easier lookup
   // during RemoveEndpointsForUrl(). Should stay in sync with |endpoints_|.
   std::multimap<GURL, EndpointMap::iterator> endpoint_its_by_url_;
 
-  // Reporting API V1 Cache:
-  // The `document_endpoints_` member holds endpoint configuration for the V1
-  // API, configured through the Reporting-Endpoints HTTP header. These
-  // endpoints are strongly associated with the resource which configured them,
-  // and are only used for document reports.
-
-  // Map of endpoints for each reporting source, keyed on the reporting source
-  // token. This contains only V1 document endpoints.
-  std::map<base::UnguessableToken, std::vector<ReportingEndpoint>>
-      document_endpoints_;
-
-  // Isolation info for each reporting source. Used for determining credentials
-  // to send when delivering reports. This contains only V1 document endpoints.
-  std::map<base::UnguessableToken, IsolationInfo> isolation_info_;
-
-  // Reporting source tokens representing sources which have been destroyed.
-  // The configuration in `document_endpoints_` and `isolation_info_` for these
-  // sources can be removed once all outstanding reports are delivered (or
-  // expired).
-  base::flat_set<base::UnguessableToken> expired_sources_;
-
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(ReportingCacheImpl);
 };
 
 }  // namespace net

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,41 +6,35 @@
 
 #include "base/numerics/safe_conversions.h"
 #include "third_party/blink/public/common/widget/visual_properties.h"
-#include "third_party/blink/renderer/core/frame/web_frame_widget_impl.h"
+#include "third_party/blink/renderer/core/frame/web_view_frame_widget.h"
 
 namespace blink {
 
 ScreenMetricsEmulator::ScreenMetricsEmulator(
-    WebFrameWidgetImpl* frame_widget,
-    const display::ScreenInfos& screen_infos,
+    WebViewFrameWidget* delegate,
+    const ScreenInfo& screen_info,
     const gfx::Size& widget_size,
     const gfx::Size& visible_viewport_size,
     const gfx::Rect& view_screen_rect,
     const gfx::Rect& window_screen_rect)
-    : frame_widget_(frame_widget),
-      original_screen_infos_(screen_infos),
+    : delegate_(delegate),
+      original_screen_info_(screen_info),
       original_widget_size_(widget_size),
       original_visible_viewport_size_(visible_viewport_size),
       original_view_screen_rect_(view_screen_rect),
       original_window_screen_rect_(window_screen_rect) {}
 
-const display::ScreenInfo& ScreenMetricsEmulator::GetOriginalScreenInfo()
-    const {
-  return original_screen_infos_.current();
-}
-
 void ScreenMetricsEmulator::Trace(Visitor* vistor) const {
-  vistor->Trace(frame_widget_);
+  vistor->Trace(delegate_);
 }
 
 void ScreenMetricsEmulator::DisableAndApply() {
-  frame_widget_->SetScreenMetricsEmulationParameters(false, emulation_params_);
-  frame_widget_->SetScreenRects(original_view_screen_rect_,
-                                original_window_screen_rect_);
-  frame_widget_->SetWindowSegments(original_root_window_segments_);
-  frame_widget_->SetScreenInfoAndSize(original_screen_infos_,
-                                      original_widget_size_,
-                                      original_visible_viewport_size_);
+  delegate_->SetScreenMetricsEmulationParameters(false, emulation_params_);
+  delegate_->SetScreenRects(original_view_screen_rect_,
+                            original_window_screen_rect_);
+  delegate_->SetWindowSegments(original_root_window_segments_);
+  delegate_->SetScreenInfoAndSize(original_screen_info_, original_widget_size_,
+                                  original_visible_viewport_size_);
 }
 
 void ScreenMetricsEmulator::ChangeEmulationParams(
@@ -100,9 +94,7 @@ void ScreenMetricsEmulator::Apply() {
     window_pos = widget_pos;
   }
 
-  const display::ScreenInfo& original_screen_info =
-      original_screen_infos_.current();
-  gfx::Rect screen_rect = original_screen_info.rect;
+  gfx::Rect screen_rect = original_screen_info().rect;
 
   if (!emulation_params_.screen_size.IsEmpty()) {
     // The emulated screen size overrides the real one, and moves the screen's
@@ -114,16 +106,16 @@ void ScreenMetricsEmulator::Apply() {
     screen_rect = gfx::Rect(widget_pos, widget_size);
   }
 
-  float device_scale_factor = original_screen_info.device_scale_factor;
+  float device_scale_factor = original_screen_info().device_scale_factor;
 
   if (emulation_params_.device_scale_factor)
     device_scale_factor = emulation_params_.device_scale_factor;
 
-  display::mojom::blink::ScreenOrientation orientation_type =
-      original_screen_info.orientation_type;
-  uint16_t orientation_angle = original_screen_info.orientation_angle;
+  mojom::blink::ScreenOrientation orientation_type =
+      original_screen_info().orientation_type;
+  uint16_t orientation_angle = original_screen_info().orientation_angle;
   if (emulation_params_.screen_orientation_type !=
-      display::mojom::blink::ScreenOrientation::kUndefined) {
+      mojom::blink::ScreenOrientation::kUndefined) {
     orientation_type = emulation_params_.screen_orientation_type;
     orientation_angle = emulation_params_.screen_orientation_angle;
   }
@@ -133,45 +125,42 @@ void ScreenMetricsEmulator::Apply() {
   //   even when emulating different scale factor;
   DeviceEmulationParams modified_emulation_params = emulation_params_;
   modified_emulation_params.device_scale_factor =
-      original_screen_info.device_scale_factor;
-  frame_widget_->SetScreenMetricsEmulationParameters(
+      original_screen_info().device_scale_factor;
+  delegate_->SetScreenMetricsEmulationParameters(
       true, std::move(modified_emulation_params));
 
-  frame_widget_->SetScreenRects(gfx::Rect(widget_pos, widget_size),
-                                gfx::Rect(window_pos, window_size));
+  delegate_->SetScreenRects(gfx::Rect(widget_pos, widget_size),
+                            gfx::Rect(window_pos, window_size));
 
   // If there are no emulated window segments, use the emulated widget size
   // instead. When we switch from emulated segments to not having any, we should
   // have a single segment that matches the widget size.
   bool has_emulated_segments = emulation_params_.window_segments.size();
   if (has_emulated_segments) {
-    frame_widget_->SetWindowSegments(emulation_params_.window_segments);
+    delegate_->SetWindowSegments(emulation_params_.window_segments);
   } else {
     std::vector<gfx::Rect> emulated_segments{
         {0, 0, widget_size.width(), widget_size.height()}};
-    frame_widget_->SetWindowSegments(emulated_segments);
+    delegate_->SetWindowSegments(emulated_segments);
   }
 
-  display::ScreenInfos emulated_screen_infos = original_screen_infos_;
-  display::ScreenInfo& emulated_screen_info =
-      emulated_screen_infos.mutable_current();
-  emulated_screen_info.device_scale_factor = device_scale_factor;
-  emulated_screen_info.rect = screen_rect;
-  emulated_screen_info.available_rect = screen_rect;
-  emulated_screen_info.orientation_type = orientation_type;
-  emulated_screen_info.orientation_angle = orientation_angle;
-  frame_widget_->SetScreenInfoAndSize(emulated_screen_infos,
-                                      /*widget_size=*/widget_size,
-                                      /*visible_viewport_size=*/widget_size);
+  ScreenInfo screen_info = original_screen_info();
+  screen_info.device_scale_factor = device_scale_factor;
+  screen_info.rect = screen_rect;
+  screen_info.available_rect = screen_rect;
+  screen_info.orientation_type = orientation_type;
+  screen_info.orientation_angle = orientation_angle;
+  delegate_->SetScreenInfoAndSize(screen_info, /*widget_size=*/widget_size,
+                                  /*visible_viewport_size=*/widget_size);
 }
 
 void ScreenMetricsEmulator::UpdateVisualProperties(
     const VisualProperties& visual_properties) {
   // Device emulation isn't supported for widgets that have auto resize mode
   // enabled.
-  DCHECK(!frame_widget_->AutoResizeMode());
+  DCHECK(!delegate_->AutoResizeMode());
 
-  original_screen_infos_ = visual_properties.screen_infos;
+  original_screen_info_ = visual_properties.screen_info;
   original_widget_size_ = visual_properties.new_size;
   original_visible_viewport_size_ = visual_properties.visible_viewport_size;
   original_root_window_segments_ =
@@ -181,7 +170,7 @@ void ScreenMetricsEmulator::UpdateVisualProperties(
   // Appy the compositor viewport rect and surface id allocation. The screen
   // info is kept the same as the current ScreenInfo state. The screen info
   // already was updated in |Apply| via |SetScreenInfoAndSize|.
-  frame_widget_->UpdateSurfaceAndCompositorRect(
+  delegate_->UpdateSurfaceAndCompositorRect(
       visual_properties.local_surface_id.value_or(viz::LocalSurfaceId()),
       visual_properties.compositor_viewport_pixel_rect);
 }

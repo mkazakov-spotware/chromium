@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,18 @@
 
 #include <utility>
 
-#include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
+#include "components/autofill/core/browser/autofill_metrics.h"
 #include "components/autofill/core/browser/data_model/autofill_offer_data.h"
-#include "components/autofill/core/browser/metrics/autofill_metrics.h"
-#include "components/autofill/core/browser/metrics/payments/offers_metrics.h"
 #include "components/autofill/core/browser/webdata/autofill_sync_bridge_util.h"
 #include "components/autofill/core/browser/webdata/autofill_table.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_backend.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/sync/base/hash_util.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
 #include "components/sync/model/mutable_data_batch.h"
-#include "components/sync/model/sync_metadata_store_change_list.h"
+#include "components/sync/model_impl/client_tag_based_model_type_processor.h"
+#include "components/sync/model_impl/sync_metadata_store_change_list.h"
 
 namespace autofill {
 
@@ -80,17 +78,15 @@ std::unique_ptr<syncer::MetadataChangeList>
 AutofillWalletOfferSyncBridge::CreateMetadataChangeList() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return std::make_unique<syncer::SyncMetadataStoreChangeList>(
-      GetAutofillTable(), syncer::AUTOFILL_WALLET_OFFER,
-      base::BindRepeating(&syncer::ModelTypeChangeProcessor::ReportError,
-                          change_processor()->GetWeakPtr()));
+      GetAutofillTable(), syncer::AUTOFILL_WALLET_OFFER);
 }
 
-absl::optional<syncer::ModelError> AutofillWalletOfferSyncBridge::MergeSyncData(
+base::Optional<syncer::ModelError> AutofillWalletOfferSyncBridge::MergeSyncData(
     std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
     syncer::EntityChangeList entity_data) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   // All metadata changes have been already written, return early for an error.
-  absl::optional<syncer::ModelError> error =
+  base::Optional<syncer::ModelError> error =
       static_cast<syncer::SyncMetadataStoreChangeList*>(
           metadata_change_list.get())
           ->TakeError();
@@ -99,17 +95,17 @@ absl::optional<syncer::ModelError> AutofillWalletOfferSyncBridge::MergeSyncData(
   }
 
   MergeRemoteData(std::move(entity_data));
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<syncer::ModelError>
+base::Optional<syncer::ModelError>
 AutofillWalletOfferSyncBridge::ApplySyncChanges(
     std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
     syncer::EntityChangeList entity_data) {
   // This bridge does not support incremental updates, so whenever this is
   // called, the change list should be empty.
   DCHECK(entity_data.empty()) << "Received an unsupported incremental update.";
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void AutofillWalletOfferSyncBridge::GetData(StorageKeyList storage_keys,
@@ -151,7 +147,7 @@ void AutofillWalletOfferSyncBridge::GetAllDataImpl(DataCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   std::vector<std::unique_ptr<AutofillOfferData>> offers;
-  if (!GetAutofillTable()->GetAutofillOffers(&offers)) {
+  if (!GetAutofillTable()->GetCreditCardOffers(&offers)) {
     change_processor()->ReportError(
         {FROM_HERE, "Failed to load offer data from table."});
     return;
@@ -185,7 +181,7 @@ void AutofillWalletOfferSyncBridge::MergeRemoteData(
     if (offer_valid) {
       offer_data.push_back(AutofillOfferDataFromOfferSpecifics(specifics));
     }
-    autofill_metrics::LogSyncedOfferDataBeingValid(offer_valid);
+    AutofillMetrics::LogSyncedOfferDataBeingValid(offer_valid);
   }
 
   AutofillTable* table = GetAutofillTable();
@@ -193,11 +189,11 @@ void AutofillWalletOfferSyncBridge::MergeRemoteData(
   // Only do a write operation if there is any difference between server data
   // and local data.
   std::vector<std::unique_ptr<AutofillOfferData>> existing_offers;
-  table->GetAutofillOffers(&existing_offers);
+  table->GetCreditCardOffers(&existing_offers);
 
   bool offer_data_changed = AreAnyItemsDifferent(existing_offers, offer_data);
   if (offer_data_changed) {
-    table->SetAutofillOffers(offer_data);
+    table->SetCreditCardOffers(offer_data);
   }
 
   // Commit the transaction to make sure the data and the metadata with the
@@ -208,6 +204,7 @@ void AutofillWalletOfferSyncBridge::MergeRemoteData(
   web_data_backend_->CommitChanges();
 
   if (offer_data_changed) {
+    // TODO(crbug.com/1112095): Add enum to indicate what actually changed.
     web_data_backend_->NotifyOfMultipleAutofillChanges();
   }
 }

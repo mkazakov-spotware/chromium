@@ -1,11 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PAYMENTS_CORE_PAYMENT_CURRENCY_AMOUNT_H_
 #define COMPONENTS_PAYMENTS_CORE_PAYMENT_CURRENCY_AMOUNT_H_
 
-#include "base/values.h"
+#include <memory>
+#include <string>
+
 #include "components/payments/mojom/payment_request_data.mojom.h"
 
 // C++ bindings for the PaymentRequest API PaymentCurrencyAmount. Conforms to
@@ -13,20 +15,20 @@
 // https://w3c.github.io/browser-payment-api/#dom-paymentcurrencyamount
 
 namespace base {
-class Value;
+class DictionaryValue;
 }
 
 namespace payments {
 
-// Populates the properties of |amount| from |dictionary_value|.
-// Returns true if the required values are present.
-bool PaymentCurrencyAmountFromValueDict(
-    const base::Value::Dict& dictionary_value,
+// Populates the properties of |amount| from |value|. Returns true if the
+// required values are present.
+bool PaymentCurrencyAmountFromDictionaryValue(
+    const base::DictionaryValue& dictionary_value,
     mojom::PaymentCurrencyAmount* amount);
 
-// Creates a base::Value::Dict with the properties of the given
+// Creates a base::DictionaryValue with the properties of the given
 // PaymentCurrencyAmount.
-base::Value::Dict PaymentCurrencyAmountToValueDict(
+std::unique_ptr<base::DictionaryValue> PaymentCurrencyAmountToDictionaryValue(
     const mojom::PaymentCurrencyAmount& amount);
 
 }  // namespace payments

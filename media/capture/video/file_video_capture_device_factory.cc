@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/files/file_path.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/threading/scoped_blocking_call.h"
-#include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
 #include "media/base/media_switches.h"
 #include "media/capture/video/file_video_capture_device.h"
@@ -23,19 +22,20 @@ base::FilePath GetFilePathFromCommandLine() {
   base::FilePath command_line_file_path =
       base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
           switches::kUseFileForFakeVideoCapture);
+  CHECK(!command_line_file_path.empty());
   return command_line_file_path;
 }
 
-VideoCaptureErrorOrDevice FileVideoCaptureDeviceFactory::CreateDevice(
+std::unique_ptr<VideoCaptureDevice> FileVideoCaptureDeviceFactory::CreateDevice(
     const VideoCaptureDeviceDescriptor& device_descriptor) {
   DCHECK(thread_checker_.CalledOnValidThread());
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
-#if BUILDFLAG(IS_WIN)
-  return VideoCaptureErrorOrDevice(std::make_unique<FileVideoCaptureDevice>(
+#if defined(OS_WIN)
+  return std::unique_ptr<VideoCaptureDevice>(new FileVideoCaptureDevice(
       base::FilePath(base::SysUTF8ToWide(device_descriptor.display_name()))));
 #else
-  return VideoCaptureErrorOrDevice(std::make_unique<FileVideoCaptureDevice>(
+  return std::unique_ptr<VideoCaptureDevice>(new FileVideoCaptureDevice(
       base::FilePath(device_descriptor.display_name())));
 #endif
 }
@@ -43,16 +43,16 @@ VideoCaptureErrorOrDevice FileVideoCaptureDeviceFactory::CreateDevice(
 void FileVideoCaptureDeviceFactory::GetDevicesInfo(
     GetDevicesInfoCallback callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  base::ScopedAllowBlocking allow_blocking;
+  base::ThreadRestrictions::SetIOAllowed(true);
 
   std::vector<VideoCaptureDeviceInfo> devices_info;
 
   auto api =
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       VideoCaptureApi::WIN_DIRECT_SHOW;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
       VideoCaptureApi::MACOSX_AVFOUNDATION;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
       VideoCaptureApi::LINUX_V4L2_SINGLE_PLANE;
 #else
       VideoCaptureApi::UNKNOWN;

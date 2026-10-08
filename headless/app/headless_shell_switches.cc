@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,11 @@ const char kEnableBeginFrameControl[] = "enable-begin-frame-control";
 // Enable crash reporter for headless.
 const char kEnableCrashReporter[] = "enable-crash-reporter";
 
+// If enabled, generate a tagged (accessible) file when printing to PDF.
+// The plan is for this to go away once tagged PDFs become the default.
+// See https://crbug.com/607777
+const char kExportTaggedPDF[] = "export-tagged-pdf";
+
 // Disable crash reporter for headless. It is enabled by default in official
 // builds.
 const char kDisableCrashReporter[] = "disable-crash-reporter";
@@ -41,6 +46,9 @@ const char kDiskCacheDir[] = "disk-cache-dir";
 // Instructs headless_shell to print document.body.innerHTML to stdout.
 const char kDumpDom[] = "dump-dom";
 
+// Hide scrollbars from screenshots.
+const char kHideScrollbars[] = "hide-scrollbars";
+
 // Specifies which encryption storage backend to use. Possible values are
 // kwallet, kwallet5, gnome, gnome-keyring, gnome-libsecret, basic. Any other
 // value will lead to Chrome detecting the best backend automatically.
@@ -56,9 +64,6 @@ const char kPrintToPDF[] = "print-to-pdf";
 
 // Do not display header and footer in the pdf file.
 const char kPrintToPDFNoHeader[] = "print-to-pdf-no-header";
-
-// Do not emit tags when printing PDFs.
-const char kDisablePDFTagging[] = "disable-pdf-tagging";
 
 // Specifies a list of hosts for whom we bypass proxy settings and use direct
 // connections. Ignored unless --proxy-server is also specified. This is a
@@ -86,6 +91,12 @@ const char kRepl[] = "repl";
 // Save a screenshot of the loaded page.
 const char kScreenshot[] = "screenshot";
 
+// Causes SSL key material to be logged to the specified file for debugging
+// purposes. See
+// https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format
+// for the format.
+const char kSSLKeyLogFile[] = "ssl-key-log-file";
+
 // Issues a stop after the specified number of milliseconds.  This cancels all
 // navigation and causes the DOMContentLoaded event to fire.
 const char kTimeout[] = "timeout";
@@ -94,21 +105,11 @@ const char kTimeout[] = "timeout";
 // rendering.
 const char kUseGL[] = "use-gl";
 
-// Sets the ANGLE implementation to use. Only relevant if "use-gl" is set to
-// "angle"
-const char kUseANGLE[] = "use-angle";
-
 // A string used to override the default user agent with a custom one.
 const char kUserAgent[] = "user-agent";
 
-// Directory where the browser stores the user profile. Note that if this switch
-// is added, the session will no longer be Incognito, unless Incognito mode is
-// forced with --incognito switch.
+// Directory where the browser stores the user profile.
 const char kUserDataDir[] = "user-data-dir";
-
-// Forces Incognito mode even if user data directory is specified using the
-// --user-data-dir switch.
-const char kIncognito[] = "incognito";
 
 // If set the system waits the specified number of virtual milliseconds before
 // deeming the page to be ready.  For determinism virtual time does not advance
@@ -122,7 +123,7 @@ const char kVirtualTimeBudget[] = "virtual-time-budget";
 const char kWindowSize[] = "window-size";
 
 // Allowlist for Negotiate Auth servers.
-const char kAuthServerAllowlist[] = "auth-server-allowlist";
+const char kAuthServerAllowlist[] = "auth-server-whitelist";
 
 // Sets font render hinting when running headless, affects Skia rendering and
 // whether glyph subpixel positioning is enabled.
@@ -131,10 +132,5 @@ const char kFontRenderHinting[] = "font-render-hinting";
 
 // If true, then all pop-ups and calls to window.open will fail.
 const char kBlockNewWebContents[] = "block-new-web-contents";
-
-// Allows overriding the list of restricted ports by passing a comma-separated
-// list of port numbers.
-const char kExplicitlyAllowedPorts[] = "explicitly-allowed-ports";
-
 }  // namespace switches
 }  // namespace headless

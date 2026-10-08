@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/downgrade/snapshot_manager.h"
 
-#include "base/containers/adapters.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -182,8 +181,8 @@ TEST_F(SnapshotManagerTest, TakeSnapshot) {
       TestFolderAndFiles::CreateFilesAndFolders(user_data_dir()));
 
   // Files and folders at User Data level that should be snapshotted.
-  base::File user_data_file(user_data_dir().Append(kUserDataFile),
-                            base::File::FLAG_CREATE | base::File::FLAG_WRITE);
+  base::File file(user_data_dir().Append(kUserDataFile),
+                  base::File::FLAG_CREATE | base::File::FLAG_WRITE);
   ASSERT_NO_FATAL_FAILURE(TestFolderAndFiles::CreateFilesAndFolders(
       user_data_dir().Append(kUserDataFolder)));
 
@@ -390,7 +389,7 @@ TEST_F(SnapshotManagerTest, PurgeInvalidAndOldSnapshotsKeepsMaxValidSnapshots) {
   int max_number_of_snapshots = 3;
   SnapshotManager snapshot_manager(user_data_dir());
   snapshot_manager.PurgeInvalidAndOldSnapshots(max_number_of_snapshots,
-                                               absl::nullopt);
+                                               base::nullopt);
 
   const base::FilePath deletion_directory =
       user_data_dir()
@@ -404,9 +403,10 @@ TEST_F(SnapshotManagerTest, PurgeInvalidAndOldSnapshotsKeepsMaxValidSnapshots) {
   }
 
   // Only 3 valid snapshots remains
-  for (const base::FilePath& path : base::Reversed(valid_snapshot_paths)) {
-    EXPECT_EQ(base::PathExists(path), max_number_of_snapshots != 0);
-    EXPECT_EQ(!base::PathExists(deletion_directory.Append(path.BaseName())),
+  for (auto it = valid_snapshot_paths.rbegin();
+       it != valid_snapshot_paths.rend(); ++it) {
+    EXPECT_EQ(base::PathExists(*it), max_number_of_snapshots != 0);
+    EXPECT_EQ(!base::PathExists(deletion_directory.Append(it->BaseName())),
               max_number_of_snapshots != 0);
     --max_number_of_snapshots;
   }
@@ -427,7 +427,7 @@ TEST_F(SnapshotManagerTest, PurgeInvalidAndOldSnapshotsKeepsValidSnapshots) {
   int max_number_of_snapshots = 3;
   SnapshotManager snapshot_manager(user_data_dir());
   snapshot_manager.PurgeInvalidAndOldSnapshots(max_number_of_snapshots,
-                                               absl::nullopt);
+                                               base::nullopt);
 
   for (const auto& path : valid_snapshot_paths)
     EXPECT_TRUE(base::PathExists(path));

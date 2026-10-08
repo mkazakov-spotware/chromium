@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,72 +7,38 @@
 #include "base/logging.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "media/base/video_color_space.h"
-#include "ui/gfx/color_space.h"
 
 namespace media {
 
 // The names come from src/third_party/ffmpeg/libavcodec/codec_desc.c
-// TODO(crbug.com/1357080): The returned strings are used by ChunkDemuxer in
-// the code logic as well in tests. Merge with GetCodecNameForUMA() if possible.
 std::string GetCodecName(VideoCodec codec) {
   switch (codec) {
-    case VideoCodec::kUnknown:
+    case kUnknownVideoCodec:
       return "unknown";
-    case VideoCodec::kH264:
+    case kCodecH264:
       return "h264";
-    case VideoCodec::kHEVC:
+    case kCodecHEVC:
       return "hevc";
-    case VideoCodec::kDolbyVision:
+    case kCodecDolbyVision:
       return "dolbyvision";
-    case VideoCodec::kVC1:
+    case kCodecVC1:
       return "vc1";
-    case VideoCodec::kMPEG2:
+    case kCodecMPEG2:
       return "mpeg2video";
-    case VideoCodec::kMPEG4:
+    case kCodecMPEG4:
       return "mpeg4";
-    case VideoCodec::kTheora:
+    case kCodecTheora:
       return "theora";
-    case VideoCodec::kVP8:
+    case kCodecVP8:
       return "vp8";
-    case VideoCodec::kVP9:
+    case kCodecVP9:
       return "vp9";
-    case VideoCodec::kAV1:
+    case kCodecAV1:
       return "av1";
-  }
-  NOTREACHED();
-  return "";
-}
-
-// Reported as part of some UMA names. NEVER change existing strings!
-std::string GetCodecNameForUMA(VideoCodec codec) {
-  switch (codec) {
-    case VideoCodec::kUnknown:
-      return "Unknown";
-    case VideoCodec::kH264:
-      return "H264";
-    case VideoCodec::kHEVC:
-      return "HEVC";
-    case VideoCodec::kDolbyVision:
-      return "DolbyVision";
-    case VideoCodec::kVC1:
-      return "VC1";
-    case VideoCodec::kMPEG2:
-      return "MPEG2Video";
-    case VideoCodec::kMPEG4:
-      return "MPEG4";
-    case VideoCodec::kTheora:
-      return "Theora";
-    case VideoCodec::kVP8:
-      return "VP8";
-    case VideoCodec::kVP9:
-      return "VP9";
-    case VideoCodec::kAV1:
-      return "AV1";
   }
   NOTREACHED();
   return "";
@@ -110,22 +76,6 @@ std::string GetProfileName(VideoCodecProfile profile) {
       return "hevc main 10";
     case HEVCPROFILE_MAIN_STILL_PICTURE:
       return "hevc main still-picture";
-    case HEVCPROFILE_REXT:
-      return "hevc range extensions";
-    case HEVCPROFILE_HIGH_THROUGHPUT:
-      return "hevc high throughput";
-    case HEVCPROFILE_MULTIVIEW_MAIN:
-      return "hevc multiview main";
-    case HEVCPROFILE_SCALABLE_MAIN:
-      return "hevc scalable main";
-    case HEVCPROFILE_3D_MAIN:
-      return "hevc 3d main";
-    case HEVCPROFILE_SCREEN_EXTENDED:
-      return "hevc screen extended";
-    case HEVCPROFILE_SCALABLE_REXT:
-      return "hevc scalable range extensions";
-    case HEVCPROFILE_HIGH_THROUGHPUT_SCREEN_EXTENDED:
-      return "hevc high throughput screen extended";
     case VP8PROFILE_ANY:
       return "vp8";
     case VP9PROFILE_PROFILE0:
@@ -205,7 +155,7 @@ std::string BuildH264MimeSuffix(media::VideoCodecProfile profile,
   return base::StringPrintf(".%s%04x", profile_str.c_str(), level);
 }
 
-bool ParseNewStyleVp9CodecID(base::StringPiece codec_id,
+bool ParseNewStyleVp9CodecID(const std::string& codec_id,
                              VideoCodecProfile* profile,
                              uint8_t* level_idc,
                              VideoColorSpace* color_space) {
@@ -343,7 +293,7 @@ bool ParseNewStyleVp9CodecID(base::StringPiece codec_id,
   return true;
 }
 
-bool ParseLegacyVp9CodecID(base::StringPiece codec_id,
+bool ParseLegacyVp9CodecID(const std::string& codec_id,
                            VideoCodecProfile* profile,
                            uint8_t* level_idc) {
   if (codec_id == "vp9" || codec_id == "vp9.0") {
@@ -359,7 +309,7 @@ bool ParseLegacyVp9CodecID(base::StringPiece codec_id,
 }
 
 #if BUILDFLAG(ENABLE_AV1_DECODER)
-bool ParseAv1CodecId(base::StringPiece codec_id,
+bool ParseAv1CodecId(const std::string& codec_id,
                      VideoCodecProfile* profile,
                      uint8_t* level_idc,
                      VideoColorSpace* color_space) {
@@ -561,7 +511,7 @@ bool ParseAv1CodecId(base::StringPiece codec_id,
 }
 #endif  // BUILDFLAG(ENABLE_AV1_DECODER)
 
-bool ParseAVCCodecId(base::StringPiece codec_id,
+bool ParseAVCCodecId(const std::string& codec_id,
                      VideoCodecProfile* profile,
                      uint8_t* level_idc) {
   // Make sure we have avc1.xxxxxx or avc3.xxxxxx , where xxxxxx are hex digits
@@ -660,7 +610,7 @@ static char IntToHex(int i) {
   return kHexString[i];
 }
 
-std::string TranslateLegacyAvc1CodecIds(base::StringPiece codec_id) {
+std::string TranslateLegacyAvc1CodecIds(const std::string& codec_id) {
   // Special handling for old, pre-RFC 6381 format avc1 strings, which are still
   // being used by some HLS apps to preserve backward compatibility with older
   // iOS devices. The old format was avc1.<profile>.<level>
@@ -697,14 +647,14 @@ std::string TranslateLegacyAvc1CodecIds(base::StringPiece codec_id) {
   }
 
   // This is not a valid legacy avc1 codec id - return the original codec id.
-  return std::string(codec_id);
+  return codec_id;
 }
 #endif
 
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
 // The specification for HEVC codec id strings can be found in ISO IEC 14496-15
 // dated 2012 or newer in the Annex E.3
-bool ParseHEVCCodecId(base::StringPiece codec_id,
+bool ParseHEVCCodecId(const std::string& codec_id,
                       VideoCodecProfile* profile,
                       uint8_t* level_idc) {
   if (!base::StartsWith(codec_id, "hev1.", base::CompareCase::SENSITIVE) &&
@@ -756,69 +706,19 @@ bool ParseHEVCCodecId(base::StringPiece codec_id,
     return false;
   }
 
-  VideoCodecProfile out_profile = VIDEO_CODEC_PROFILE_UNKNOWN;
-  // Spec A.3.8
-  if (general_profile_idc == 11 ||
-      (general_profile_compatibility_flags & 2048)) {
-    out_profile = HEVCPROFILE_HIGH_THROUGHPUT_SCREEN_EXTENDED;
+  if (profile) {
+    // TODO(servolk): Handle format range extension profiles as explained in
+    // HEVC standard (ISO/IEC ISO/IEC 23008-2) section A.3.5
+    if (general_profile_idc == 3 || (general_profile_compatibility_flags & 4)) {
+      *profile = HEVCPROFILE_MAIN_STILL_PICTURE;
+    }
+    if (general_profile_idc == 2 || (general_profile_compatibility_flags & 2)) {
+      *profile = HEVCPROFILE_MAIN10;
+    }
+    if (general_profile_idc == 1 || (general_profile_compatibility_flags & 1)) {
+      *profile = HEVCPROFILE_MAIN;
+    }
   }
-  // Spec H.11.1.2
-  if (general_profile_idc == 10 ||
-      (general_profile_compatibility_flags & 1024)) {
-    out_profile = HEVCPROFILE_SCALABLE_REXT;
-  }
-  // Spec A.3.7
-  if (general_profile_idc == 9 || (general_profile_compatibility_flags & 512)) {
-    out_profile = HEVCPROFILE_SCREEN_EXTENDED;
-  }
-  // Spec I.11.1.1
-  if (general_profile_idc == 8 || (general_profile_compatibility_flags & 256)) {
-    out_profile = HEVCPROFILE_3D_MAIN;
-  }
-  // Spec H.11.1.1
-  if (general_profile_idc == 7 || (general_profile_compatibility_flags & 128)) {
-    out_profile = HEVCPROFILE_SCALABLE_MAIN;
-  }
-  // Spec G.11.1.1
-  if (general_profile_idc == 6 || (general_profile_compatibility_flags & 64)) {
-    out_profile = HEVCPROFILE_MULTIVIEW_MAIN;
-  }
-  // Spec A.3.6
-  if (general_profile_idc == 5 || (general_profile_compatibility_flags & 32)) {
-    out_profile = HEVCPROFILE_HIGH_THROUGHPUT;
-  }
-  // Spec A.3.5
-  if (general_profile_idc == 4 || (general_profile_compatibility_flags & 16)) {
-    out_profile = HEVCPROFILE_REXT;
-  }
-  // Spec A.3.3
-  // NOTICE: Do not change the order of below sections
-  if (general_profile_idc == 2 || (general_profile_compatibility_flags & 4)) {
-    out_profile = HEVCPROFILE_MAIN10;
-  }
-  // Spec A.3.2
-  // When general_profile_compatibility_flag[1] is equal to 1,
-  // general_profile_compatibility_flag[2] should be equal to 1 as well.
-  if (general_profile_idc == 1 || (general_profile_compatibility_flags & 2)) {
-    out_profile = HEVCPROFILE_MAIN;
-  }
-  // Spec A.3.4
-  // When general_profile_compatibility_flag[3] is equal to 1,
-  // general_profile_compatibility_flag[1] and
-  // general_profile_compatibility_flag[2] should be equal to 1 as well.
-  if (general_profile_idc == 3 || (general_profile_compatibility_flags & 8)) {
-    out_profile = HEVCPROFILE_MAIN_STILL_PICTURE;
-  }
-
-  if (out_profile == VIDEO_CODEC_PROFILE_UNKNOWN) {
-    DVLOG(1) << "Warning: unrecognized HEVC/H.265 general_profile_idc: "
-             << general_profile_idc << ", general_profile_compatibility_flags: "
-             << general_profile_compatibility_flags;
-    return false;
-  }
-
-  if (profile)
-    *profile = out_profile;
 
   uint8_t general_tier_flag;
   if (elem[3].size() > 0 && (elem[3][0] == 'L' || elem[3][0] == 'H')) {
@@ -862,20 +762,19 @@ bool ParseHEVCCodecId(base::StringPiece codec_id,
 #endif
 
 #if BUILDFLAG(ENABLE_PLATFORM_DOLBY_VISION)
-bool IsDolbyVisionAVCCodecId(base::StringPiece codec_id) {
+bool IsDolbyVisionAVCCodecId(const std::string& codec_id) {
   return base::StartsWith(codec_id, "dva1.", base::CompareCase::SENSITIVE) ||
          base::StartsWith(codec_id, "dvav.", base::CompareCase::SENSITIVE);
 }
 
-bool IsDolbyVisionHEVCCodecId(base::StringPiece codec_id) {
+bool IsDolbyVisionHEVCCodecId(const std::string& codec_id) {
   return base::StartsWith(codec_id, "dvh1.", base::CompareCase::SENSITIVE) ||
          base::StartsWith(codec_id, "dvhe.", base::CompareCase::SENSITIVE);
 }
 
 // The specification for Dolby Vision codec id strings can be found in Dolby
-// Vision streams within the MPEG-DASH format:
-// https://professional.dolby.com/siteassets/content-creation/dolby-vision-for-content-creators/dolbyvisioninmpegdashspecification_v2_0_public_20190107.pdf
-bool ParseDolbyVisionCodecId(base::StringPiece codec_id,
+// Vision streams within the MPEG-DASH format.
+bool ParseDolbyVisionCodecId(const std::string& codec_id,
                              VideoCodecProfile* profile,
                              uint8_t* level_idc) {
   if (!IsDolbyVisionAVCCodecId(codec_id) &&
@@ -956,7 +855,7 @@ bool ParseDolbyVisionCodecId(base::StringPiece codec_id,
   // Level string should be two digits.
   unsigned level_id = 0;
   if (elem[2].size() != 2 || !base::StringToUint(elem[2], &level_id) ||
-      level_id > 13 || level_id < 1) {
+      level_id > 9 || level_id < 1) {
     DVLOG(4) << __func__ << ": invalid format level_id=" << elem[2];
     return false;
   }
@@ -967,8 +866,8 @@ bool ParseDolbyVisionCodecId(base::StringPiece codec_id,
 }
 #endif
 
-VideoCodec StringToVideoCodec(base::StringPiece codec_id) {
-  VideoCodec codec = VideoCodec::kUnknown;
+VideoCodec StringToVideoCodec(const std::string& codec_id) {
+  VideoCodec codec = kUnknownVideoCodec;
   VideoCodecProfile profile = VIDEO_CODEC_PROFILE_UNKNOWN;
   uint8_t level = 0;
   VideoColorSpace color_space;
@@ -976,7 +875,7 @@ VideoCodec StringToVideoCodec(base::StringPiece codec_id) {
   return codec;
 }
 
-void ParseCodec(base::StringPiece codec_id,
+void ParseCodec(const std::string& codec_id,
                 VideoCodec& codec,
                 VideoCodecProfile& profile,
                 uint8_t& level,
@@ -984,61 +883,61 @@ void ParseCodec(base::StringPiece codec_id,
   std::vector<std::string> elem = base::SplitString(
       codec_id, ".", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
   if (elem.empty()) {
-    codec = VideoCodec::kUnknown;
+    codec = kUnknownVideoCodec;
     return;
   }
 
   if (codec_id == "vp8" || codec_id == "vp8.0") {
-    codec = VideoCodec::kVP8;
+    codec = kCodecVP8;
     return;
   }
   if (ParseNewStyleVp9CodecID(codec_id, &profile, &level, &color_space) ||
       ParseLegacyVp9CodecID(codec_id, &profile, &level)) {
-    codec = VideoCodec::kVP9;
+    codec = kCodecVP9;
     return;
   }
 
 #if BUILDFLAG(ENABLE_AV1_DECODER)
   if (ParseAv1CodecId(codec_id, &profile, &level, &color_space)) {
-    codec = VideoCodec::kAV1;
+    codec = kCodecAV1;
     return;
   }
 #endif
 
   if (codec_id == "theora") {
-    codec = VideoCodec::kTheora;
+    codec = kCodecTheora;
     return;
   }
   if (ParseAVCCodecId(codec_id, &profile, &level)) {
-    codec = VideoCodec::kH264;
+    codec = kCodecH264;
     return;
   }
 #if BUILDFLAG(ENABLE_MSE_MPEG2TS_STREAM_PARSER)
   if (ParseAVCCodecId(TranslateLegacyAvc1CodecIds(codec_id), &profile,
                       &level)) {
-    codec = VideoCodec::kH264;
+    codec = kCodecH264;
     return;
   }
 #endif
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
   if (ParseHEVCCodecId(codec_id, &profile, &level)) {
-    codec = VideoCodec::kHEVC;
+    codec = kCodecHEVC;
     return;
   }
 #endif
 #if BUILDFLAG(ENABLE_PLATFORM_DOLBY_VISION)
   if (ParseDolbyVisionCodecId(codec_id, &profile, &level)) {
-    codec = VideoCodec::kDolbyVision;
+    codec = kCodecDolbyVision;
     return;
   }
 #endif
-  codec = VideoCodec::kUnknown;
+  codec = kUnknownVideoCodec;
 }
 
 VideoCodec VideoCodecProfileToVideoCodec(VideoCodecProfile profile) {
   switch (profile) {
     case VIDEO_CODEC_PROFILE_UNKNOWN:
-      return VideoCodec::kUnknown;
+      return kUnknownVideoCodec;
     case H264PROFILE_BASELINE:
     case H264PROFILE_MAIN:
     case H264PROFILE_EXTENDED:
@@ -1050,44 +949,31 @@ VideoCodec VideoCodecProfileToVideoCodec(VideoCodecProfile profile) {
     case H264PROFILE_SCALABLEHIGH:
     case H264PROFILE_STEREOHIGH:
     case H264PROFILE_MULTIVIEWHIGH:
-      return VideoCodec::kH264;
+      return kCodecH264;
     case HEVCPROFILE_MAIN:
     case HEVCPROFILE_MAIN10:
     case HEVCPROFILE_MAIN_STILL_PICTURE:
-    case HEVCPROFILE_REXT:
-    case HEVCPROFILE_HIGH_THROUGHPUT:
-    case HEVCPROFILE_MULTIVIEW_MAIN:
-    case HEVCPROFILE_SCALABLE_MAIN:
-    case HEVCPROFILE_3D_MAIN:
-    case HEVCPROFILE_SCREEN_EXTENDED:
-    case HEVCPROFILE_SCALABLE_REXT:
-    case HEVCPROFILE_HIGH_THROUGHPUT_SCREEN_EXTENDED:
-      return VideoCodec::kHEVC;
+      return kCodecHEVC;
     case VP8PROFILE_ANY:
-      return VideoCodec::kVP8;
+      return kCodecVP8;
     case VP9PROFILE_PROFILE0:
     case VP9PROFILE_PROFILE1:
     case VP9PROFILE_PROFILE2:
     case VP9PROFILE_PROFILE3:
-      return VideoCodec::kVP9;
+      return kCodecVP9;
     case DOLBYVISION_PROFILE0:
     case DOLBYVISION_PROFILE4:
     case DOLBYVISION_PROFILE5:
     case DOLBYVISION_PROFILE7:
     case DOLBYVISION_PROFILE8:
     case DOLBYVISION_PROFILE9:
-      return VideoCodec::kDolbyVision;
+      return kCodecDolbyVision;
     case THEORAPROFILE_ANY:
-      return VideoCodec::kTheora;
+      return kCodecTheora;
     case AV1PROFILE_PROFILE_MAIN:
     case AV1PROFILE_PROFILE_HIGH:
     case AV1PROFILE_PROFILE_PRO:
-      return VideoCodec::kAV1;
+      return kCodecAV1;
   }
 }
-
-std::ostream& operator<<(std::ostream& os, const VideoCodec& codec) {
-  return os << GetCodecName(codec);
-}
-
 }  // namespace media

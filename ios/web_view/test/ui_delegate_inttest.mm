@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,13 +53,10 @@ TEST_F(UIDelegateTest, CreateWebView) {
                  forNavigationAction:expected_navigation_action]);
 
   ASSERT_TRUE(test::LoadUrl(web_view_, GetEchoURL()));
-
   NSError* error = nil;
-  EXPECT_NE(nil,
-            test::EvaluateJavaScript(
-                web_view_, @"typeof open('http://example.com/') === 'object'",
-                &error));
-  EXPECT_FALSE(error);
+  EXPECT_NE(nil, test::EvaluateJavaScript(
+                     web_view_, @"open('http://example.com/')", &error));
+  EXPECT_EQ(nil, error);
 
   [(id)mock_delegate_ verify];
 }
@@ -80,7 +77,7 @@ TEST_F(UIDelegateTest, RunJavaScriptAlertPanel) {
   ASSERT_TRUE(test::LoadUrl(web_view_, GetEchoURL()));
   NSError* error = nil;
   test::EvaluateJavaScript(web_view_, @"alert('message')", &error);
-  EXPECT_FALSE(error);
+  EXPECT_EQ(nil, error);
 
   [(id)mock_delegate_ verify];
 }
@@ -103,7 +100,7 @@ TEST_F(UIDelegateTest, RunJavaScriptConfirmPanel) {
   NSError* error = nil;
   EXPECT_NSEQ(@(YES), test::EvaluateJavaScript(web_view_, @"confirm('message')",
                                                &error));
-  EXPECT_FALSE(error);
+  EXPECT_EQ(nil, error);
 
   [(id)mock_delegate_ verify];
 }
@@ -127,7 +124,7 @@ TEST_F(UIDelegateTest, RunJavaScriptTextInputPanel) {
   NSError* error = nil;
   EXPECT_NSEQ(@"input", test::EvaluateJavaScript(
                             web_view_, @"prompt('prompt', 'default')", &error));
-  EXPECT_FALSE(error);
+  EXPECT_EQ(nil, error);
 
   [(id)mock_delegate_ verify];
 }
@@ -156,7 +153,7 @@ TEST_F(UIDelegateTest, DidLoadFavicons) {
   OCMExpect([mock_delegate_ webView:web_view_ didLoadFavicons:favicons_arg]);
 
   ASSERT_TRUE(test::LoadUrl(web_view_, page_url));
-  [(id)mock_delegate_ verifyWithDelay:kWaitForUIElementTimeout.InSecondsF()];
+  [(id)mock_delegate_ verifyWithDelay:kWaitForUIElementTimeout];
 
   ASSERT_EQ(1u, favicons.count);
   EXPECT_EQ(CWVFaviconTypeFavicon, favicons[0].type);

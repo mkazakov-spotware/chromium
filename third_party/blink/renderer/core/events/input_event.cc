@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/events/input_event.h"
 
-#include "base/cxx17_backports.h"
-#include "third_party/blink/renderer/core/clipboard/data_transfer.h"
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/core/dom/events/event_dispatcher.h"
 #include "third_party/blink/renderer/core/dom/range.h"
 #include "third_party/blink/renderer/core/editing/commands/editing_command_type.h"
@@ -61,7 +60,7 @@ const struct {
 };
 
 static_assert(
-    std::size(kInputTypeStringNameMap) ==
+    base::size(kInputTypeStringNameMap) ==
         static_cast<size_t>(InputEvent::InputType::kNumberOfInputTypes),
     "must handle all InputEvent::InputType");
 

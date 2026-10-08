@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <wrl/implements.h>
 
+#include "base/containers/flat_map.h"
 #include "base/no_destructor.h"
 #include "base/synchronization/waitable_event.h"
 
@@ -22,9 +23,6 @@ namespace elevation_service {
 class ServiceMain {
  public:
   static ServiceMain* GetInstance();
-
-  ServiceMain(const ServiceMain&) = delete;
-  ServiceMain& operator=(const ServiceMain&) = delete;
 
   // This function parses the command line and selects the action routine.
   bool InitWithCommandLine(const base::CommandLine* command_line);
@@ -70,7 +68,7 @@ class ServiceMain {
   static void WINAPI ServiceControlHandler(DWORD control);
 
   // The main service entry point.
-  static void WINAPI ServiceMainEntry(DWORD argc, wchar_t* argv[]);
+  static void WINAPI ServiceMainEntry(DWORD argc, base::char16* argv[]);
 
   // Calls ::SetServiceStatus().
   void SetServiceStatus(DWORD state);
@@ -91,7 +89,7 @@ class ServiceMain {
   void SignalExit();
 
   // Registers |factory| as the factory for the elevator identified by |id|.
-  void RegisterElevatorFactory(const std::u16string& id,
+  void RegisterElevatorFactory(const base::string16& id,
                                IClassFactory* factory);
 
   // The action routine to be executed.
@@ -108,6 +106,8 @@ class ServiceMain {
   base::WaitableEvent exit_signal_;
 
   friend class base::NoDestructor<ServiceMain>;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceMain);
 };
 
 }  // namespace elevation_service

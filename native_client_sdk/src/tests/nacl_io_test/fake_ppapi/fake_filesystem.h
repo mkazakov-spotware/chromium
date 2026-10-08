@@ -1,9 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef TESTS_NACL_IO_TEST_FAKE_PPAPI_FAKE_FILESYSTEM_H_
-#define TESTS_NACL_IO_TEST_FAKE_PPAPI_FAKE_FILESYSTEM_H_
+#ifndef LIBRARIES_NACL_IO_TEST_FAKE_FILESYSTEM_H_
+#define LIBRARIES_NACL_IO_TEST_FAKE_FILESYSTEM_H_
 
 #include <map>
 #include <string>
@@ -50,4 +50,4 @@ class FakeFilesystem {
   PP_FileSystemType filesystem_type_;
 };
 
-#endif  // TESTS_NACL_IO_TEST_FAKE_PPAPI_FAKE_FILESYSTEM_H_
+#endif  // LIBRARIES_NACL_IO_TEST_FAKE_FILESYSTEM_H_

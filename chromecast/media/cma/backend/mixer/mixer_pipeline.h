@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "chromecast/public/media/audio_post_processor_shlib.h"
 #include "chromecast/public/media/media_pipeline_backend.h"
 
@@ -37,9 +38,6 @@ class MixerPipeline {
       PostProcessingPipelineParser* parser,
       PostProcessingPipelineFactory* factory,
       int expected_input_channels);
-
-  MixerPipeline(const MixerPipeline&) = delete;
-  MixerPipeline& operator=(const MixerPipeline&) = delete;
 
   ~MixerPipeline();
 
@@ -78,6 +76,10 @@ class MixerPipeline {
   // and GetOutput(), i.e. the group delay of PostProcessors in "linearize"
   int64_t GetPostLoopbackRenderingDelayMicroseconds() const;
 
+  // Informs FilterGroups and PostProcessors which channel will be played out.
+  // |playout_channel| may be |-1| to signal all channels will be played out.
+  void SetPlayoutChannel(int playout_channel);
+
   // Determines whether the pipeline is still ringing out after all input
   // streams have stopped playing.
   bool IsRinging() const;
@@ -98,6 +100,8 @@ class MixerPipeline {
   base::flat_map<std::string, FilterGroup*> stream_sinks_;
   FilterGroup* loopback_output_group_ = nullptr;
   FilterGroup* output_group_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(MixerPipeline);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <windows.h>
 
-#include "chrome/updater/updater_scope.h"
 #include "chrome/updater/win/scoped_handle.h"
 
 namespace updater {
@@ -20,16 +19,16 @@ namespace ui {
 class UIDisplayedEventManager {
  public:
   // Signals the event. Creates the event if the event does not exist.
-  static void SignalEvent(UpdaterScope scope);
+  static void SignalEvent(bool is_machine);
 
  private:
   // Creates the event and sets its name in an environment variable.
-  static HRESULT CreateEvent(UpdaterScope scope);
+  static HRESULT CreateEvent(bool is_machine);
 
   // Gets the event from the name in the environment variable. The caller does
   // not own the event handle and must not close it. The handle is own by
   // the process and the handle is closed when the process exits.
-  static HRESULT GetEvent(UpdaterScope scope, HANDLE* ui_displayed_event);
+  static HRESULT GetEvent(bool is_machine, HANDLE* ui_displayed_event);
 
   // Returns true if the event handle has been initialized in this process.
   static bool IsEventHandleInitialized();

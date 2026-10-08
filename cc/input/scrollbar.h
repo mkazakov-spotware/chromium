@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@
 // autoscroll velocity = delta / 0.05 sec = delta x 20
 static constexpr float kAutoscrollMultiplier = 20.f;
 static constexpr base::TimeDelta kInitialAutoscrollTimerDelay =
-    base::Milliseconds(250);
+    base::TimeDelta::FromMilliseconds(250);
 
 // Constants used to figure the how far out in the non-scrolling direction
 // should trigger the thumb to snap back to its origin.  These calculations are

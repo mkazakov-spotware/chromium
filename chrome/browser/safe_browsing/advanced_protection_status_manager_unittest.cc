@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,10 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
-#include "build/chromeos_buildflags.h"
 #include "components/prefs/pref_service.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
-#include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/accounts_mutator.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
-#include "components/signin/public/identity_manager/tribool.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -59,8 +56,7 @@ class AdvancedProtectionStatusManagerTest : public TestWithPrefService {
     AccountInfo account_info = identity_test_env_.MakeAccountAvailable(email);
 
     account_info.is_under_advanced_protection = is_under_advanced_protection;
-    identity_test_env_.SetPrimaryAccount(account_info.email,
-                                         signin::ConsentLevel::kSync);
+    identity_test_env_.SetPrimaryAccount(account_info.email);
     identity_test_env_.UpdateAccountInfoForAccount(account_info);
 
     return account_info.account_id;
@@ -69,7 +65,8 @@ class AdvancedProtectionStatusManagerTest : public TestWithPrefService {
   void MakeOAuthTokenFetchSucceed(const CoreAccountId& account_id,
                                   bool is_under_advanced_protection) {
     identity_test_env_.WaitForAccessTokenRequestIfNecessaryAndRespondWithToken(
-        account_id, "access_token", base::Time::Now() + base::Hours(1),
+        account_id, "access_token",
+        base::Time::Now() + base::TimeDelta::FromHours(1),
         is_under_advanced_protection ? kIdTokenAdvancedProtectionEnabled
                                      : kIdTokenAdvancedProtectionDisabled);
   }
@@ -278,14 +275,14 @@ TEST_F(AdvancedProtectionStatusManagerTest, StayInAdvancedProtection) {
   // Simulate gets refresh token.
   aps_manager.OnGetIDToken(account_id, kIdTokenAdvancedProtectionEnabled);
   EXPECT_GT(
-      base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(
+      base::Time::FromDeltaSinceWindowsEpoch(base::TimeDelta::FromMicroseconds(
           pref_service_.GetInt64(prefs::kAdvancedProtectionLastRefreshInUs))),
       last_update);
   EXPECT_TRUE(aps_manager.IsRefreshScheduled());
   aps_manager.UnsubscribeFromSigninEvents();
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 // Not applicable to Chrome OS.
 TEST_F(AdvancedProtectionStatusManagerTest, SignInAndSignOutEvent) {
   AdvancedProtectionStatusManager aps_manager(
@@ -323,10 +320,9 @@ TEST_F(AdvancedProtectionStatusManagerTest, AccountRemoval) {
   // Simulates account update.
   identity_test_env_.identity_manager()
       ->GetAccountsMutator()
-      ->UpdateAccountInfo(
-          account_id,
-          /*is_child_account=*/signin::Tribool::kUnknown,
-          /*is_under_advanced_protection=*/signin::Tribool::kTrue);
+      ->UpdateAccountInfo(account_id,
+                          /*is_child_account=*/false,
+                          /*is_under_advanced_protection=*/true);
   EXPECT_TRUE(aps_manager.IsUnderAdvancedProtection());
   EXPECT_TRUE(aps_manager.IsRefreshScheduled());
 
@@ -374,7 +370,8 @@ TEST_F(AdvancedProtectionStatusManagerTest,
                                     /* is_under_advanced_protection = */ true);
   base::RunLoop().RunUntilIdle();
 
-  base::Time last_refresh_time = base::Time::Now() - base::Days(1);
+  base::Time last_refresh_time =
+      base::Time::Now() - base::TimeDelta::FromDays(1);
   pref_service_.SetInt64(
       prefs::kAdvancedProtectionLastRefreshInUs,
       last_refresh_time.ToDeltaSinceWindowsEpoch().InMicroseconds());
@@ -397,7 +394,7 @@ TEST_F(AdvancedProtectionStatusManagerTest,
 
 // On ChromeOS, there is no unconsented primary account. We can only track the
 // primary account.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 TEST_F(AdvancedProtectionStatusManagerTest, TracksUnconsentedPrimaryAccount) {
   AdvancedProtectionStatusManager aps_manager(
       &pref_service_, identity_test_env_.identity_manager(),
@@ -406,8 +403,9 @@ TEST_F(AdvancedProtectionStatusManagerTest, TracksUnconsentedPrimaryAccount) {
   ASSERT_TRUE(aps_manager.GetUnconsentedPrimaryAccountId().empty());
 
   // Sign in, but don't set this as the primary account.
-  AccountInfo account_info = identity_test_env_.MakePrimaryAccountAvailable(
-      "test@test.com", signin::ConsentLevel::kSignin);
+  AccountInfo account_info =
+      identity_test_env_.MakeUnconsentedPrimaryAccountAvailable(
+          "test@test.com");
   account_info.is_under_advanced_protection = true;
   identity_test_env_.UpdateAccountInfoForAccount(account_info);
 

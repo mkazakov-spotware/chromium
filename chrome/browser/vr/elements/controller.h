@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/renderers/base_renderer.h"
 
@@ -16,10 +17,6 @@ namespace vr {
 class Controller : public UiElement {
  public:
   Controller();
-
-  Controller(const Controller&) = delete;
-  Controller& operator=(const Controller&) = delete;
-
   ~Controller() override;
 
   void set_local_transform(const gfx::Transform& transform) {
@@ -32,10 +29,6 @@ class Controller : public UiElement {
   class Renderer : public BaseRenderer {
    public:
     Renderer();
-
-    Renderer(const Renderer&) = delete;
-    Renderer& operator=(const Renderer&) = delete;
-
     ~Renderer() override;
 
     void Draw(float opacity, const gfx::Transform& view_proj_matrix);
@@ -50,6 +43,8 @@ class Controller : public UiElement {
     GLuint vertex_buffer_ = 0;
     GLuint color_buffer_ = 0;
     GLuint index_buffer_ = 0;
+
+    DISALLOW_COPY_AND_ASSIGN(Renderer);
   };
 
  private:
@@ -60,6 +55,8 @@ class Controller : public UiElement {
   gfx::Transform GetTargetLocalTransform() const override;
 
   gfx::Transform local_transform_;
+
+  DISALLOW_COPY_AND_ASSIGN(Controller);
 };
 
 }  // namespace vr

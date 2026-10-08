@@ -1,46 +1,50 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_METRICS_FAMILY_LINK_USER_METRICS_PROVIDER_H_
 #define CHROME_BROWSER_METRICS_FAMILY_LINK_USER_METRICS_PROVIDER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/signin/identity_manager_factory.h"
+#include <memory>
+
+#include "base/optional.h"
 #include "components/metrics/metrics_provider.h"
 #include "components/session_manager/core/session_manager_observer.h"
-#include "components/signin/public/identity_manager/identity_manager.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "components/signin/public/identity_manager/access_token_info.h"
+#include "google_apis/gaia/google_service_auth_error.h"
 
 namespace metrics {
 class ChromeUserMetricsExtension;
 }  // namespace metrics
 
-// Categorizes the primary account of the active user profile into a FamilyLink
-// supervision type to segment the Chrome user population.
-// TODO(crbug.com/1347816): Support multi-profile supervision type segmentation.
-class FamilyLinkUserMetricsProvider : public metrics::MetricsProvider,
-                                      public IdentityManagerFactory::Observer,
-                                      public signin::IdentityManager::Observer {
+namespace signin {
+class PrimaryAccountAccessTokenFetcher;
+}  // namespace signin
+
+// This metrics provider categorizes the current user into over or under the age
+// of consent for UMA dashboard filtering. This metrics provider is ChromeOS
+// specific.
+class FamilyLinkUserMetricsProvider
+    : public metrics::MetricsProvider,
+      public session_manager::SessionManagerObserver {
  public:
-  // These enum values represent the user's supervision type and how the
-  // supervision has been enabled.
+  // These enum values represent the current user's supervision type for the
+  // Family Experiences team's metrics.
   // These values are logged to UMA. Entries should not be renumbered and
   // numeric values should never be reused. Please keep in sync with
   // "FamilyLinkUserLogSegment" in src/tools/metrics/histograms/enums.xml.
   enum class LogSegment {
-    // User is not supervised by FamilyLink.
-    kUnsupervised = 0,
-    // User that is required to be supervised by FamilyLink due to child account
-    // policies (maps to Unicorn and Griffin accounts).
-    kSupervisionEnabledByPolicy = 1,
-    // User that has chosen to be supervised by FamilyLink (maps to Geller
-    // accounts).
-    kSupervisionEnabledByUser = 2,
+    // User does not fall into any of the below categories. For example, this
+    // bucket includes regular users.
+    kOther = 0,
+    // Child under age of consent.
+    kUnderConsentAge = 1,
+    // Regular Gaia account above the age of consent with supervision added.
+    kOverConsentAge = 2,
     // Add future entries above this comment, in sync with
     // "FamilyLinkUserLogSegment" in src/tools/metrics/histograms/enums.xml.
     // Update kMaxValue to the last value.
-    kMaxValue = kSupervisionEnabledByUser
+    kMaxValue = kOverConsentAge
   };
 
   FamilyLinkUserMetricsProvider();
@@ -53,38 +57,25 @@ class FamilyLinkUserMetricsProvider : public metrics::MetricsProvider,
   void ProvideCurrentSessionData(
       metrics::ChromeUserMetricsExtension* uma_proto_unused) override;
 
-  // IdentityManagerFactoryObserver:
-  void IdentityManagerCreated(
-      signin::IdentityManager* identity_manager) override;
-
-  // signin::IdentityManager::Observer
-  void OnPrimaryAccountChanged(
-      const signin::PrimaryAccountChangeEvent& event_details) override;
-  void OnExtendedAccountInfoUpdated(const AccountInfo& info) override;
-  void OnIdentityManagerShutdown(
-      signin::IdentityManager* identity_manager) override;
+  // session_manager::SessionManagerObserver:
+  void OnUserSessionStarted(bool is_primary_user) override;
 
   static const char* GetHistogramNameForTesting();
 
+ protected:
+  // This function is protected for testing.
+  virtual void SetLogSegment(LogSegment log_segment);
+
  private:
-  void SetLogSegment(LogSegment log_segment);
+  void OnAccessTokenRequestCompleted(GoogleServiceAuthError error,
+                                     signin::AccessTokenInfo access_token_info);
 
-  raw_ptr<signin::IdentityManager> identity_manager_ = nullptr;
-
-  // Used to track the IdentityManager that this instance is observing so that
-  // this instance can be removed as an observer on its destruction.
-  base::ScopedObservation<signin::IdentityManager,
-                          signin::IdentityManager::Observer>
-      scoped_observation_{this};
-
-  // Used to track the IdentityManagerFactory instance.
-  base::ScopedObservation<IdentityManagerFactory,
-                          IdentityManagerFactory::Observer>
-      scoped_factory_observation_{this};
+  std::unique_ptr<signin::PrimaryAccountAccessTokenFetcher>
+      access_token_fetcher_;
 
   // Cache the log segment because it won't change during the session once
   // assigned.
-  absl::optional<LogSegment> log_segment_;
+  base::Optional<LogSegment> log_segment_;
 };
 
 #endif  // CHROME_BROWSER_METRICS_FAMILY_LINK_USER_METRICS_PROVIDER_H_

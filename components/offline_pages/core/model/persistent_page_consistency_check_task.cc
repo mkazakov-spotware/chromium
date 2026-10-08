@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "components/offline_pages/core/model/get_pages_task.h"
 #include "components/offline_pages/core/offline_page_client_policy.h"
 #include "components/offline_pages/core/offline_page_metadata_store.h"
+#include "components/offline_pages/core/offline_store_utils.h"
 #include "components/offline_pages/core/page_criteria.h"
 #include "sql/database.h"
 #include "sql/statement.h"
@@ -31,7 +32,7 @@ namespace offline_pages {
 
 namespace {
 
-const base::TimeDelta kExpireThreshold = base::Days(365);
+const base::TimeDelta kExpireThreshold = base::TimeDelta::FromDays(365);
 
 std::vector<OfflinePageItem> GetPersistentPages(
     sql::Database* db) {
@@ -49,7 +50,7 @@ bool SetItemsFileMissingTimeSync(const std::vector<int64_t>& item_ids,
 
   for (auto offline_id : item_ids) {
     sql::Statement statement(db->GetCachedStatement(SQL_FROM_HERE, kSql));
-    statement.BindTime(0, missing_time);
+    statement.BindInt64(0, store_utils::ToDatabaseTime(missing_time));
     statement.BindInt64(1, offline_id);
     if (!statement.Run())
       return false;

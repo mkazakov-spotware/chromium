@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,10 @@
 #define COMPONENTS_BROWSING_DATA_CONTENT_CANONICAL_COOKIE_HASH_H_
 
 #include <stddef.h>
+
 #include <unordered_set>
 
-namespace net {
-class CanonicalCookie;
-}
+#include "net/cookies/canonical_cookie.h"
 
 namespace canonical_cookie {
 
@@ -29,7 +28,11 @@ struct CanonicalCookieHasher {
 
 struct CanonicalCookieComparer {
   bool operator()(const net::CanonicalCookie& cookie1,
-                  const net::CanonicalCookie& cookie2) const;
+                  const net::CanonicalCookie& cookie2) const {
+    return cookie1.Name() == cookie2.Name() &&
+           cookie1.Domain() == cookie2.Domain() &&
+           cookie1.Path() == cookie2.Path();
+  }
 };
 
 typedef std::unordered_set<net::CanonicalCookie,

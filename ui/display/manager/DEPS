@@ -1,5 +1,4 @@
 include_rules = [
-  "+ash/constants",
   "+chromeos",
   "+third_party/skia",
   "+ui/base",

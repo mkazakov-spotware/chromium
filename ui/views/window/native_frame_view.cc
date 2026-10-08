@@ -1,15 +1,14 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/window/native_frame_view.h"
 
 #include "build/build_config.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/widget/native_widget.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/views/win/hwnd_util.h"
 #endif
 
@@ -17,6 +16,9 @@ namespace views {
 
 ////////////////////////////////////////////////////////////////////////////////
 // NativeFrameView, public:
+
+// static
+const char NativeFrameView::kViewClassName[] = "NativeFrameView";
 
 NativeFrameView::NativeFrameView(Widget* frame) : frame_(frame) {}
 
@@ -31,7 +33,7 @@ gfx::Rect NativeFrameView::GetBoundsForClientView() const {
 
 gfx::Rect NativeFrameView::GetWindowBoundsForClientBounds(
     const gfx::Rect& client_bounds) const {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return views::GetWindowBoundsForClientBounds(
       static_cast<View*>(const_cast<NativeFrameView*>(this)), client_bounds);
 #else
@@ -71,7 +73,7 @@ void NativeFrameView::SizeConstraintsChanged() {
 
 gfx::Size NativeFrameView::CalculatePreferredSize() const {
   gfx::Size client_preferred_size = frame_->client_view()->GetPreferredSize();
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Returns the client size. On Windows, this is the expected behavior for
   // native frames (see |NativeWidgetWin::WidgetSizeIsClientSize()|), while
   // other platforms currently always return client bounds from
@@ -92,7 +94,8 @@ gfx::Size NativeFrameView::GetMaximumSize() const {
   return frame_->client_view()->GetMaximumSize();
 }
 
-BEGIN_METADATA(NativeFrameView, NonClientFrameView)
-END_METADATA
+const char* NativeFrameView::GetClassName() const {
+  return kViewClassName;
+}
 
 }  // namespace views

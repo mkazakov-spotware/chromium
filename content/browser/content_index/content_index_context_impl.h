@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_CONTENT_INDEX_CONTENT_INDEX_CONTEXT_IMPL_H_
 #define CONTENT_BROWSER_CONTENT_INDEX_CONTENT_INDEX_CONTEXT_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "content/browser/content_index/content_index_database.h"
+#include "content/common/content_export.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_index_context.h"
 #include "third_party/blink/public/mojom/content_index/content_index.mojom.h"
@@ -20,16 +20,13 @@ class ServiceWorkerContextWrapper;
 
 // Owned by the Storage Partition. Components that want to query or modify the
 // Content Index database should hold a reference to this.
-class ContentIndexContextImpl
+class CONTENT_EXPORT ContentIndexContextImpl
     : public ContentIndexContext,
       public base::RefCountedThreadSafe<ContentIndexContextImpl> {
  public:
   ContentIndexContextImpl(
       BrowserContext* browser_context,
       scoped_refptr<ServiceWorkerContextWrapper> service_worker_context);
-
-  ContentIndexContextImpl(const ContentIndexContextImpl&) = delete;
-  ContentIndexContextImpl& operator=(const ContentIndexContextImpl&) = delete;
 
   void Shutdown();
 
@@ -58,8 +55,10 @@ class ContentIndexContextImpl
 
   ~ContentIndexContextImpl() override;
 
-  raw_ptr<ContentIndexProvider, DanglingUntriaged> provider_;
+  ContentIndexProvider* provider_;
   ContentIndexDatabase content_index_database_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentIndexContextImpl);
 };
 
 }  // namespace content

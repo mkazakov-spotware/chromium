@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,16 @@
 
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
-#import <memory>
+#include <memory>
 
-#import "base/strings/sys_string_conversions.h"
+#include "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
 #import "ios/web/common/web_view_creation_util.h"
-#import "ios/web/public/test/fakes/fake_web_client.h"
+#include "ios/web/public/browsing_data/cookie_blocking_mode.h"
+#include "ios/web/public/test/fakes/test_browser_state.h"
+#import "ios/web/public/test/fakes/test_web_client.h"
 #import "ios/web/public/test/js_test_util.h"
-#import "ios/web/public/test/web_test.h"
-#import "ios/web/test/js_test_util_internal.h"
+#include "ios/web/public/test/web_test.h"
 #import "testing/gtest_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -24,87 +25,84 @@
 using base::test::ios::WaitUntilConditionOrTimeout;
 using base::test::ios::kWaitForPageLoadTimeout;
 
-namespace {
-
-NSString* GetSharedScripts() {
-  // Scripts must be all injected at once because as soon as __gCrWeb exists,
-  // injection is assumed to be done and __gCrWeb.message is used.
-  return [NSString stringWithFormat:@"%@; %@; %@",
-                                    web::test::GetPageScript(@"gcrweb"),
-                                    web::test::GetPageScript(@"common"),
-                                    web::test::GetPageScript(@"message")];
-}
-
-void AddSharedScriptsToWebView(WKWebView* web_view) {
-  web::test::ExecuteJavaScript(web_view, GetSharedScripts());
-}
-
-}  // namespace
-
 namespace web {
 namespace {
 
 // A test fixture for testing the page_script_util methods.
 class PageScriptUtilTest : public WebTest {
  protected:
-  PageScriptUtilTest() : WebTest(std::make_unique<FakeWebClient>()) {}
+  PageScriptUtilTest() : WebTest(std::make_unique<TestWebClient>()) {}
 
-  FakeWebClient* GetWebClient() override {
-    return static_cast<FakeWebClient*>(WebTest::GetWebClient());
+  TestWebClient* GetWebClient() override {
+    return static_cast<TestWebClient*>(WebTest::GetWebClient());
   }
 };
-
-// Tests that `MakeScriptInjectableOnce` prevents a script from being injected
-// twice.
-TEST_F(PageScriptUtilTest, MakeScriptInjectableOnce) {
-  WKWebView* web_view = BuildWKWebView(CGRectZero, GetBrowserState());
-  NSString* identifier = @"script_id";
-
-  test::ExecuteJavaScript(
-      web_view, MakeScriptInjectableOnce(identifier, @"var value = 1;"));
-  EXPECT_NSEQ(@(1), test::ExecuteJavaScript(web_view, @"value"));
-
-  test::ExecuteJavaScript(web_view,
-                          MakeScriptInjectableOnce(identifier, @"value = 2;"));
-  EXPECT_NSEQ(@(1), test::ExecuteJavaScript(web_view, @"value"));
-}
 
 // Tests that WKWebView early page script is a valid script that injects global
 // __gCrWeb object.
 TEST_F(PageScriptUtilTest, WKWebViewEarlyPageScript) {
   WKWebView* web_view = BuildWKWebView(CGRectZero, GetBrowserState());
-  AddSharedScriptsToWebView(web_view);
   test::ExecuteJavaScript(
       web_view, GetDocumentStartScriptForAllFrames(GetBrowserState()));
   EXPECT_NSEQ(@"object", test::ExecuteJavaScript(web_view, @"typeof __gCrWeb"));
-}
-
-// Tests that WKWebView shared scripts are valid scripts that injects global
-// __gCrWeb object in an isolated world.
-TEST_F(PageScriptUtilTest, WKWebViewEarlyPageScriptIsolatedWorld) {
-  if (@available(iOS 14, *)) {
-    WKWebView* web_view = BuildWKWebView(CGRectZero, GetBrowserState());
-    WKContentWorld* content_world = WKContentWorld.defaultClientWorld;
-    web::test::ExecuteJavaScript(web_view, content_world, GetSharedScripts());
-    test::ExecuteJavaScript(
-        web_view, content_world,
-        GetDocumentStartScriptForAllFrames(GetBrowserState()));
-    EXPECT_NSEQ(@"object", test::ExecuteJavaScript(web_view, content_world,
-                                                   @"typeof __gCrWeb"));
-  }
 }
 
 // Tests that embedder's WKWebView script is included into early script.
 TEST_F(PageScriptUtilTest, WKEmbedderScript) {
   GetWebClient()->SetEarlyPageScript(@"__gCrEmbedder = {};");
   WKWebView* web_view = BuildWKWebView(CGRectZero, GetBrowserState());
-  AddSharedScriptsToWebView(web_view);
   test::ExecuteJavaScript(
       web_view, GetDocumentStartScriptForAllFrames(GetBrowserState()));
   test::ExecuteJavaScript(
       web_view, GetDocumentStartScriptForMainFrame(GetBrowserState()));
   EXPECT_NSEQ(@"object",
               test::ExecuteJavaScript(web_view, @"typeof __gCrEmbedder"));
+}
+
+// Tests that the correct replacement has been made for the cookie blocking
+// state in the DocumentStartScriptForAllFrames.
+TEST_F(PageScriptUtilTest, AllFrameStartCookieReplacement) {
+  web::BrowserState* browser_state = GetBrowserState();
+
+  __block bool success = false;
+  browser_state->SetCookieBlockingMode(web::CookieBlockingMode::kAllow,
+                                       base::BindOnce(^{
+                                         success = true;
+                                       }));
+
+  ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
+    return success;
+  }));
+
+  NSString* script = GetDocumentStartScriptForAllFrames(browser_state);
+  EXPECT_EQ(0U, [script rangeOfString:@"$(COOKIE_STATE)"].length);
+  EXPECT_LT(0U, [script rangeOfString:@"(\"allow\")"].length);
+
+  success = false;
+  browser_state->SetCookieBlockingMode(
+      web::CookieBlockingMode::kBlockThirdParty, base::BindOnce(^{
+        success = true;
+      }));
+
+  ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
+    return success;
+  }));
+  script = GetDocumentStartScriptForAllFrames(browser_state);
+  EXPECT_EQ(0U, [script rangeOfString:@"$(COOKIE_STATE)"].length);
+  EXPECT_LT(0U, [script rangeOfString:@"(\"block-third-party\")"].length);
+
+  success = false;
+  browser_state->SetCookieBlockingMode(web::CookieBlockingMode::kBlock,
+                                       base::BindOnce(^{
+                                         success = true;
+                                       }));
+
+  ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, ^{
+    return success;
+  }));
+  script = GetDocumentStartScriptForAllFrames(browser_state);
+  EXPECT_EQ(0U, [script rangeOfString:@"$(COOKIE_STATE)"].length);
+  EXPECT_LT(0U, [script rangeOfString:@"(\"block\")"].length);
 }
 
 }  // namespace

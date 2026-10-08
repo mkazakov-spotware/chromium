@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -46,6 +46,8 @@
 #include "ppapi/cpp/point.h"
 #include "ppapi/cpp/private/camera_capabilities_private.h"
 #include "ppapi/cpp/private/camera_device_private.h"
+#include "ppapi/cpp/private/find_private.h"
+#include "ppapi/cpp/private/flash_font_file.h"
 #include "ppapi/cpp/private/instance_private.h"
 #include "ppapi/cpp/private/net_address_private.h"
 #include "ppapi/cpp/private/tcp_socket_private.h"

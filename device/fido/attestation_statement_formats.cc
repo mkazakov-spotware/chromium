@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -135,10 +135,6 @@ cbor::Value FidoAttestationStatement::AsCBOR() const {
   return cbor::Value(std::move(attestation_statement_map));
 }
 
-bool FidoAttestationStatement::IsNoneAttestation() const {
-  return false;
-}
-
 bool FidoAttestationStatement::IsSelfAttestation() const {
   return false;
 }
@@ -157,10 +153,10 @@ bool FidoAttestationStatement::
   return false;
 }
 
-absl::optional<base::span<const uint8_t>>
+base::Optional<base::span<const uint8_t>>
 FidoAttestationStatement::GetLeafCertificate() const {
   if (x509_certificates_.empty()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return x509_certificates_[0];
 }
@@ -198,10 +194,6 @@ cbor::Value PackedAttestationStatement::AsCBOR() const {
   return cbor::Value(std::move(attestation_statement_map));
 }
 
-bool PackedAttestationStatement::IsNoneAttestation() const {
-  return false;
-}
-
 bool PackedAttestationStatement::IsSelfAttestation() const {
   return x509_certificates_.empty();
 }
@@ -217,10 +209,10 @@ bool PackedAttestationStatement::
   return false;
 }
 
-absl::optional<base::span<const uint8_t>>
+base::Optional<base::span<const uint8_t>>
 PackedAttestationStatement::GetLeafCertificate() const {
   if (x509_certificates_.empty()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return x509_certificates_[0];
 }

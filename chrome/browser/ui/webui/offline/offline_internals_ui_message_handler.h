@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
 #include "components/offline_pages/core/background/request_coordinator.h"
@@ -30,12 +29,6 @@ namespace offline_internals {
 class OfflineInternalsUIMessageHandler : public content::WebUIMessageHandler {
  public:
   OfflineInternalsUIMessageHandler();
-
-  OfflineInternalsUIMessageHandler(const OfflineInternalsUIMessageHandler&) =
-      delete;
-  OfflineInternalsUIMessageHandler& operator=(
-      const OfflineInternalsUIMessageHandler&) = delete;
-
   ~OfflineInternalsUIMessageHandler() override;
 
   // WebUIMessageHandler implementation.
@@ -44,66 +37,69 @@ class OfflineInternalsUIMessageHandler : public content::WebUIMessageHandler {
 
  private:
   // Delete selected list of page ids from the store.
-  void HandleDeleteSelectedPages(const base::Value::List& args);
+  void HandleDeleteSelectedPages(const base::ListValue* args);
 
   // Delete selected list of requests from the request queue.
-  void HandleDeleteSelectedRequests(const base::Value::List& args);
+  void HandleDeleteSelectedRequests(const base::ListValue* args);
 
   // Load Request Queue info.
-  void HandleGetRequestQueue(const base::Value::List& args);
+  void HandleGetRequestQueue(const base::ListValue* args);
 
   // Load Stored pages info.
-  void HandleGetStoredPages(const base::Value::List& args);
+  void HandleGetStoredPages(const base::ListValue* args);
 
   // Set whether to record offline page model events.
-  void HandleSetRecordPageModel(const base::Value::List& args);
+  void HandleSetRecordPageModel(const base::ListValue* args);
 
   // Set whether to record request queue events.
-  void HandleSetRecordRequestQueue(const base::Value::List& args);
+  void HandleSetRecordRequestQueue(const base::ListValue* args);
 
   // Set whether to record prefetch service events.
-  void HandleSetRecordPrefetchService(const base::Value::List& args);
+  void HandleSetRecordPrefetchService(const base::ListValue* args);
 
   // Set whether to enable limitless prefetching.
-  void HandleSetLimitlessPrefetchingEnabled(const base::Value::List& args);
+  void HandleSetLimitlessPrefetchingEnabled(const base::ListValue* args);
 
   // Get whether limitless prefetching is enabled.
-  void HandleGetLimitlessPrefetchingEnabled(const base::Value::List& args);
+  void HandleGetLimitlessPrefetchingEnabled(const base::ListValue* args);
 
   // Set whether to enable sending the testing header when making
   // GeneratePageBundle requests.
-  void HandleSetPrefetchTestingHeader(const base::Value::List& args);
+  void HandleSetPrefetchTestingHeader(const base::ListValue* args);
 
   // Get whether we are sending the testing header for GeneratePageBundle
   // requests.
-  void HandleGetPrefetchTestingHeader(const base::Value::List& args);
+  void HandleGetPrefetchTestingHeader(const base::ListValue* args);
 
   // Load all offline services' event logs.
-  void HandleGetEventLogs(const base::Value::List& args);
+  void HandleGetEventLogs(const base::ListValue* args);
 
   // Load whether logs are being recorded.
-  void HandleGetLoggingState(const base::Value::List& args);
+  void HandleGetLoggingState(const base::ListValue* args);
 
   // Adds a url to the background loader queue.
-  void HandleAddToRequestQueue(const base::Value::List& args);
+  void HandleAddToRequestQueue(const base::ListValue* args);
 
   // Load whether device is currently offline.
-  void HandleGetNetworkStatus(const base::Value::List& args);
+  void HandleGetNetworkStatus(const base::ListValue* args);
 
   // Schedules an NWake signal.
-  void HandleScheduleNwake(const base::Value::List& args);
+  void HandleScheduleNwake(const base::ListValue* args);
 
   // Cancels an NWake signal.
-  void HandleCancelNwake(const base::Value::List& args);
+  void HandleCancelNwake(const base::ListValue* args);
+
+  // Shows an example prefetching notification.
+  void HandleShowPrefetchNotification(const base::ListValue* args);
 
   // Sends and processes the request to generate page bundle.
-  void HandleGeneratePageBundle(const base::Value::List& args);
+  void HandleGeneratePageBundle(const base::ListValue* args);
 
   // Sends and processes a request to get the info about an operation.
-  void HandleGetOperation(const base::Value::List& args);
+  void HandleGetOperation(const base::ListValue* args);
 
   // Downloads an archive.
-  void HandleDownloadArchive(const base::Value::List& args);
+  void HandleDownloadArchive(const base::ListValue* args);
 
   // Callback for async GetAllPages calls.
   void HandleStoredPagesCallback(
@@ -129,17 +125,19 @@ class OfflineInternalsUIMessageHandler : public content::WebUIMessageHandler {
                                    offline_pages::AddRequestResult result);
 
   // Offline page model to call methods on.
-  raw_ptr<offline_pages::OfflinePageModel> offline_page_model_;
+  offline_pages::OfflinePageModel* offline_page_model_;
 
   // Request coordinator for background offline actions.
-  raw_ptr<offline_pages::RequestCoordinator> request_coordinator_;
+  offline_pages::RequestCoordinator* request_coordinator_;
 
   // Prefetch service for prefetching service logs and actions.
-  raw_ptr<offline_pages::PrefetchService> prefetch_service_;
+  offline_pages::PrefetchService* prefetch_service_;
 
   // Factory for creating references in callbacks.
   base::WeakPtrFactory<OfflineInternalsUIMessageHandler> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(OfflineInternalsUIMessageHandler);
 };
 
 }  // namespace offline_internals

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,24 +13,20 @@
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/values.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "components/cloud_devices/common/cloud_device_description.h"
 #include "components/cloud_devices/common/printer_description.h"
 #include "printing/backend/print_backend.h"
 #include "printing/mojom/print.mojom.h"
+
+#if defined(OS_CHROMEOS)
+#include "base/feature_list.h"
+#include "printing/printing_features.h"
+#endif  // defined(OS_CHROMEOS)
 
 namespace printer = cloud_devices::printer;
 
 namespace cloud_print {
 
 namespace {
-
-#if BUILDFLAG(IS_WIN)
-constexpr char kIdPageOutputQuality[] = "page_output_quality";
-constexpr char kDisplayNamePageOutputQuality[] = "Page output quality";
-#endif  // BUILDFLAG(IS_WIN)
 
 printer::DuplexType ToCloudDuplexType(printing::mojom::DuplexMode mode) {
   switch (mode) {
@@ -46,7 +42,7 @@ printer::DuplexType ToCloudDuplexType(printing::mojom::DuplexMode mode) {
   return printer::DuplexType::NO_DUPLEX;
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 printer::TypedValueVendorCapability::ValueType ToCloudValueType(
     printing::AdvancedCapability::Type type) {
   switch (type) {
@@ -63,14 +59,15 @@ printer::TypedValueVendorCapability::ValueType ToCloudValueType(
   }
   return printer::TypedValueVendorCapability::ValueType::STRING;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
 printer::Media ConvertPaperToMedia(
     const printing::PrinterSemanticCapsAndDefaults::Paper& paper) {
   gfx::Size paper_size = paper.size_um;
   if (paper_size.width() > paper_size.height())
     paper_size.SetSize(paper_size.height(), paper_size.width());
-  printer::Media new_media(paper.display_name, paper.vendor_id, paper_size);
+  printer::Media new_media(paper.display_name, paper.vendor_id,
+                           paper_size.width(), paper_size.height());
   new_media.MatchBySize();
   return new_media;
 }
@@ -82,7 +79,8 @@ printer::MediaCapability GetMediaCapabilities(
 
   printer::Media default_media(semantic_info.default_paper.display_name,
                                semantic_info.default_paper.vendor_id,
-                               semantic_info.default_paper.size_um);
+                               semantic_info.default_paper.size_um.width(),
+                               semantic_info.default_paper.size_um.height());
   default_media.MatchBySize();
 
   for (const auto& paper : semantic_info.papers) {
@@ -140,7 +138,7 @@ printer::DpiCapability GetDpiCapabilities(
   return dpi_capabilities;
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 printer::VendorCapabilities GetVendorCapabilities(
     const printing::PrinterSemanticCapsAndDefaults& semantic_info) {
   printer::VendorCapabilities vendor_capabilities;
@@ -170,23 +168,7 @@ printer::VendorCapabilities GetVendorCapabilities(
 
   return vendor_capabilities;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_WIN)
-printer::SelectVendorCapability GetPageOutputQualityCapabilities(
-    const printing::PrinterSemanticCapsAndDefaults& semantic_info) {
-  printer::SelectVendorCapability page_output_quality_capabilities;
-  const absl::optional<printing::PageOutputQuality>& page_output_quality =
-      semantic_info.page_output_quality;
-  for (const auto& attribute : page_output_quality->qualities) {
-    page_output_quality_capabilities.AddDefaultOption(
-        printer::SelectVendorCapabilityOption(attribute.name,
-                                              attribute.display_name),
-        attribute.name == page_output_quality->default_quality);
-  }
-  return page_output_quality_capabilities;
-}
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace
 
@@ -253,27 +235,19 @@ base::Value PrinterSemanticCapsAndDefaultsToCdd(
   orientation.AddOption(printer::OrientationType::AUTO_ORIENTATION);
   orientation.SaveTo(&description);
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   printer::PinCapability pin;
   pin.set_value(semantic_info.pin_supported);
   pin.SaveTo(&description);
 
-  if (!semantic_info.advanced_capabilities.empty()) {
+  if (base::FeatureList::IsEnabled(
+          printing::features::kAdvancedPpdAttributes) &&
+      !semantic_info.advanced_capabilities.empty()) {
     printer::VendorCapabilities vendor_capabilities =
         GetVendorCapabilities(semantic_info);
     vendor_capabilities.SaveTo(&description);
   }
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_WIN)
-  if (semantic_info.page_output_quality) {
-    printer::VendorCapabilities vendor_capabilities;
-    vendor_capabilities.AddOption(printer::VendorCapability(
-        kIdPageOutputQuality, kDisplayNamePageOutputQuality,
-        GetPageOutputQualityCapabilities(semantic_info)));
-    vendor_capabilities.SaveTo(&description);
-  }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_CHROMEOS)
 
   return std::move(description).ToValue();
 }

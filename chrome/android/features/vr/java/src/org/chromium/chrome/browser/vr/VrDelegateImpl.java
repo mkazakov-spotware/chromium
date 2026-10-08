@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.chrome.browser.app.ChromeActivity;
 
 /**
  * {@link VrDelegate} implementation if the VR module is available. Mostly forwards calls to {@link
@@ -47,22 +47,12 @@ import org.chromium.base.supplier.ObservableSupplier;
     }
 
     @Override
-    public void handleBackPress() {
-        onBackPressed();
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
-        return VrShellDelegate.getVrModeEnabledSupplier();
-    }
-
-    @Override
     public boolean enterVrIfNecessary() {
         return VrShellDelegate.enterVrIfNecessary();
     }
 
     @Override
-    public void maybeRegisterVrEntryHook(final Activity activity) {
+    public void maybeRegisterVrEntryHook(final ChromeActivity activity) {
         VrShellDelegate.maybeRegisterVrEntryHook(activity);
     }
 
@@ -103,12 +93,12 @@ import org.chromium.base.supplier.ObservableSupplier;
     }
 
     @Override
-    public void onActivityShown(Activity activity) {
+    public void onActivityShown(ChromeActivity activity) {
         VrShellDelegate.onActivityShown(activity);
     }
 
     @Override
-    public void onActivityHidden(Activity activity) {
+    public void onActivityHidden(ChromeActivity activity) {
         VrShellDelegate.onActivityHidden(activity);
     }
 
@@ -123,12 +113,12 @@ import org.chromium.base.supplier.ObservableSupplier;
     }
 
     @Override
-    public void onNewIntentWithNative(Activity activity, Intent intent) {
+    public void onNewIntentWithNative(ChromeActivity activity, Intent intent) {
         VrShellDelegate.onNewIntentWithNative(activity, intent);
     }
 
     @Override
-    public void maybeHandleVrIntentPreNative(Activity activity, Intent intent) {
+    public void maybeHandleVrIntentPreNative(ChromeActivity activity, Intent intent) {
         VrShellDelegate.maybeHandleVrIntentPreNative(activity, intent);
     }
 
@@ -138,7 +128,7 @@ import org.chromium.base.supplier.ObservableSupplier;
     }
 
     @Override
-    public void doPreInflationStartup(Activity activity, Bundle savedInstanceState) {
+    public void doPreInflationStartup(ChromeActivity activity, Bundle savedInstanceState) {
         VrShellDelegate.doPreInflationStartup(activity, savedInstanceState);
     }
 

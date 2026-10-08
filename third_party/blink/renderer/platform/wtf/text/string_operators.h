@@ -115,7 +115,7 @@ class StringTypeAdapter<StringAppend<StringType1, StringType2>> {
   STACK_ALLOCATED();
 
  public:
-  explicit StringTypeAdapter(
+  StringTypeAdapter<StringAppend<StringType1, StringType2>>(
       const StringAppend<StringType1, StringType2>& buffer)
       : buffer_(buffer) {}
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,16 +15,15 @@
 #include "base/hash/md5.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/image_writer_private/image_writer_utility_client.h"
 #include "chrome/common/extensions/api/image_writer_private.h"
 #include "extensions/common/extension_id.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/ash/components/disks/disk_mount_manager.h"
+#if defined(OS_CHROMEOS)
+#include "chromeos/disks/disk_mount_manager.h"
 #endif
 
 namespace image_writer_api = extensions::api::image_writer_private;
@@ -68,9 +67,6 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
             const std::string& device_path,
             const base::FilePath& download_folder);
 
-  Operation(const Operation&) = delete;
-  Operation& operator=(const Operation&) = delete;
-
   // Starts the operation.
   void Start();
 
@@ -100,15 +96,15 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
   // operation.  It will be called from Start().
   virtual void StartImpl() = 0;
 
-  // Extracts the current file if it's an archive.  The current_file will be set
-  // to the extracted file.
-  void Extract(base::OnceClosure continuation);
+  // Unzips the current file if it ends in ".zip".  The current_file will be set
+  // to the unzipped file.
+  void Unzip(const base::Closure& continuation);
 
   // Writes the current file to device_path.
-  void Write(base::OnceClosure continuation);
+  void Write(const base::Closure& continuation);
 
   // Verifies that the current file and device_path contents match.
-  void VerifyWrite(base::OnceClosure continuation);
+  void VerifyWrite(const base::Closure& continuation);
 
   // Completes the operation.
   void Finish();
@@ -135,7 +131,7 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
 
   // Completes the current operation (progress set to 100) and runs the
   // continuation.
-  void CompleteAndContinue(base::OnceClosure continuation);
+  void CompleteAndContinue(const base::Closure& continuation);
 
   // If |file_size| is non-zero, only |file_size| bytes will be read from file,
   // otherwise the entire file will be read.
@@ -166,7 +162,7 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
   friend class ImageWriterUtilityClientTest;
   friend class WriteFromUrlOperationForTest;
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   // Ensures the client is started.  This may be called many times but will only
   // instantiate one client which should exist for the lifetime of the
   // Operation.
@@ -182,17 +178,17 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
   scoped_refptr<ImageWriterUtilityClient> image_writer_client_;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Unmounts all volumes on |device_path_|.
-  void UnmountVolumes(base::OnceClosure continuation);
+  void UnmountVolumes(const base::Closure& continuation);
   // Starts the write after unmounting.
-  void UnmountVolumesCallback(base::OnceClosure continuation,
-                              ash::MountError error_code);
+  void UnmountVolumesCallback(const base::Closure& continuation,
+                              chromeos::MountError error_code);
   // Starts the ImageBurner write.  Note that target_path is the file path of
   // the device where device_path has been a system device path.
   void StartWriteOnUIThread(const std::string& target_path,
-                            base::OnceClosure continuation);
-  void OnBurnFinished(base::OnceClosure continuation,
+                            const base::Closure& continuation);
+  void OnBurnFinished(const base::Closure& continuation,
                       const std::string& target_path,
                       bool success,
                       const std::string& error);
@@ -210,10 +206,10 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
                 int progress_scale,
                 const base::OnceCallback<void(const std::string&)> callback);
 
-  // Callbacks for Extractor.
-  void OnExtractOpenComplete(const base::FilePath& image_path);
-  void OnExtractProgress(int64_t total_bytes, int64_t progress_bytes);
-  void OnExtractFailure(const std::string& error);
+  // Callbacks for UnzipHelper.
+  void OnUnzipOpenComplete(const base::FilePath& image_path);
+  void OnUnzipProgress(int64_t total_bytes, int64_t progress_bytes);
+  void OnUnzipFailure(const std::string& error);
 
   // Runs all cleanup functions.
   void CleanUp();
@@ -248,6 +244,8 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
   // Sequenced task runner where all I/O operation will be performed.
   // Most of the methods of this class run in this task runner.
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(Operation);
 };
 
 }  // namespace image_writer

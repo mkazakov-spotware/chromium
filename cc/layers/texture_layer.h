@@ -1,16 +1,13 @@
-// Copyright 2010 The Chromium Authors
+// Copyright 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_LAYERS_TEXTURE_LAYER_H_
 #define CC_LAYERS_TEXTURE_LAYER_H_
 
-#include <memory>
 #include <string>
-#include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
@@ -18,16 +15,18 @@
 #include "cc/layers/layer.h"
 #include "cc/resources/cross_thread_shared_bitmap.h"
 #include "cc/resources/shared_bitmap_id_registrar.h"
-#include "components/viz/common/resources/release_callback.h"
 #include "components/viz/common/resources/transferable_resource.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/gfx/hdr_metadata.h"
 
 namespace gpu {
 struct SyncToken;
 }
 
+namespace viz {
+class SingleReleaseCallback;
+}
+
 namespace cc {
+class SingleReleaseCallback;
 class TextureLayer;
 class TextureLayerClient;
 
@@ -40,45 +39,75 @@ class CC_EXPORT TextureLayer : public Layer, SharedBitmapIdRegistrar {
   class CC_EXPORT TransferableResourceHolder
       : public base::RefCountedThreadSafe<TransferableResourceHolder> {
    public:
+    class CC_EXPORT MainThreadReference {
+     public:
+      explicit MainThreadReference(TransferableResourceHolder* holder);
+      MainThreadReference(const MainThreadReference&) = delete;
+      ~MainThreadReference();
+
+      MainThreadReference& operator=(const MainThreadReference&) = delete;
+
+      TransferableResourceHolder* holder() { return holder_.get(); }
+
+     private:
+      scoped_refptr<TransferableResourceHolder> holder_;
+    };
+
     TransferableResourceHolder(const TransferableResourceHolder&) = delete;
     TransferableResourceHolder& operator=(const TransferableResourceHolder&) =
         delete;
 
     const viz::TransferableResource& resource() const { return resource_; }
-    void Return(
-        scoped_refptr<base::SequencedTaskRunner> main_thread_task_runner,
-        const gpu::SyncToken& sync_token,
-        bool is_lost);
+    void Return(const gpu::SyncToken& sync_token, bool is_lost);
 
-    static scoped_refptr<TransferableResourceHolder> Create(
-        const viz::TransferableResource& resource,
-        viz::ReleaseCallback release_callback);
+    // Gets a viz::ReleaseCallback that can be called from another thread. Note:
+    // the caller must ensure the callback is called.
+    std::unique_ptr<viz::SingleReleaseCallback> GetCallbackForImplThread(
+        scoped_refptr<base::SequencedTaskRunner> main_thread_task_runner);
 
    protected:
+    friend class TextureLayer;
+
+    // Protected visiblity so only TextureLayer and unit tests can create these.
+    static std::unique_ptr<MainThreadReference> Create(
+        const viz::TransferableResource& resource,
+        std::unique_ptr<viz::SingleReleaseCallback> release_callback);
     virtual ~TransferableResourceHolder();
 
    private:
     friend class base::RefCountedThreadSafe<TransferableResourceHolder>;
+    friend class MainThreadReference;
     explicit TransferableResourceHolder(
         const viz::TransferableResource& resource,
-        viz::ReleaseCallback release_callback);
+        std::unique_ptr<viz::SingleReleaseCallback> release_callback);
 
-    const viz::TransferableResource resource_;
+    void InternalAddRef();
+    void InternalRelease();
+    void ReturnAndReleaseOnImplThread(
+        const scoped_refptr<base::SequencedTaskRunner>& main_thread_task_runner,
+        const gpu::SyncToken& sync_token,
+        bool is_lost);
 
-    // This is accessed only on the main thread.
-    viz::ReleaseCallback release_callback_;
+    // These members are only accessed on the main thread, or on the impl thread
+    // during commit where the main thread is blocked.
+    int internal_references_ = 0;
+#if DCHECK_IS_ON()
+    // The number of derefs posted from the impl thread, and a lock for
+    // accessing it.
+    base::Lock posted_internal_derefs_lock_;
+    int posted_internal_derefs_ = 0;
+#endif
+    viz::TransferableResource resource_;
+    std::unique_ptr<viz::SingleReleaseCallback> release_callback_;
 
-    // release_callback_task_runner_, sync_token_, and is_lost_ are only
-    // modified on the impl thread, and only read from the destructor, so they
-    // are not subject to race conditions.
-
-    // If a reference to the resource is sent to the impl thread, then there's a
-    // possibility that the resource will be destructed on the impl thread; but
-    // release_callback_ has to run on the main thread. In that case, we use
-    // release_callback_task_runner_ to PostTask to run the ReleaseCallback.
-    scoped_refptr<base::SequencedTaskRunner> release_callback_task_runner_;
+    // This lock guards the sync_token_ and is_lost_ fields because they can be
+    // accessed on both the impl and main thread. We do this to ensure that the
+    // values of these fields are well-ordered such that the last call to
+    // ReturnAndReleaseOnImplThread() defines their values.
+    base::Lock arguments_lock_;
     gpu::SyncToken sync_token_;
     bool is_lost_ = false;
+    base::ThreadChecker main_thread_checker_;
   };
 
   // Used when mailbox names are specified instead of texture IDs.
@@ -94,13 +123,12 @@ class CC_EXPORT TextureLayer : public Layer, SharedBitmapIdRegistrar {
   // Resets the texture.
   void ClearTexture();
 
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
 
   // Sets whether this texture should be Y-flipped at draw time. Defaults to
   // true.
   void SetFlipped(bool flipped);
-  bool flipped() const { return flipped_.Read(*this); }
+  bool flipped() const { return flipped_; }
 
   // Sets whether this texture should use nearest neighbor interpolation as
   // opposed to bilinear. Defaults to false.
@@ -122,19 +150,16 @@ class CC_EXPORT TextureLayer : public Layer, SharedBitmapIdRegistrar {
   void SetForceTextureToOpaque(bool opaque);
 
   // Code path for plugins which supply their own mailbox.
-  void SetTransferableResource(const viz::TransferableResource& resource,
-                               viz::ReleaseCallback release_callback);
+  void SetTransferableResource(
+      const viz::TransferableResource& resource,
+      std::unique_ptr<viz::SingleReleaseCallback> release_callback);
 
-  // Set or unset HDR metadata.
-  void SetHDRConfiguration(gfx::HDRMode mode,
-                           absl::optional<gfx::HDRMetadata> hdr_metadata);
+  void SetNeedsDisplayRect(const gfx::Rect& dirty_rect) override;
 
   void SetLayerTreeHost(LayerTreeHost* layer_tree_host) override;
   bool Update() override;
-  bool IsSnappedToPixelGridInTarget() const override;
-  void PushPropertiesTo(LayerImpl* layer,
-                        const CommitState& commit_state,
-                        const ThreadUnsafeCommitState& unsafe_state) override;
+  bool IsSnappedToPixelGridInTarget() override;
+  void PushPropertiesTo(LayerImpl* layer) override;
 
   // Request a mapping from SharedBitmapId to SharedMemory be registered via the
   // LayerTreeFrameSink with the display compositor. Once this mapping is
@@ -147,10 +172,9 @@ class CC_EXPORT TextureLayer : public Layer, SharedBitmapIdRegistrar {
       const viz::SharedBitmapId& id,
       scoped_refptr<CrossThreadSharedBitmap> bitmap) override;
 
-  const viz::TransferableResource current_transferable_resource() const {
-    if (const auto& resource_holder = resource_holder_.Read(*this))
-      return resource_holder->resource();
-    return viz::TransferableResource();
+  viz::TransferableResource current_transferable_resource() const {
+    return holder_ref_ ? holder_ref_->holder()->resource()
+                       : viz::TransferableResource();
   }
 
  protected:
@@ -161,7 +185,7 @@ class CC_EXPORT TextureLayer : public Layer, SharedBitmapIdRegistrar {
  private:
   void SetTransferableResourceInternal(
       const viz::TransferableResource& resource,
-      viz::ReleaseCallback release_callback,
+      std::unique_ptr<viz::SingleReleaseCallback> release_callback,
       bool requires_commit);
 
   // Friends to give access to UnregisterSharedBitmapId().
@@ -170,43 +194,37 @@ class CC_EXPORT TextureLayer : public Layer, SharedBitmapIdRegistrar {
   // compositor.
   void UnregisterSharedBitmapId(viz::SharedBitmapId id);
 
-  ProtectedSequenceForbidden<raw_ptr<TextureLayerClient>> client_;
+  TextureLayerClient* client_;
 
-  ProtectedSequenceReadable<bool> flipped_;
-  ProtectedSequenceReadable<bool> nearest_neighbor_;
-  ProtectedSequenceReadable<gfx::PointF> uv_top_left_;
-  ProtectedSequenceReadable<gfx::PointF> uv_bottom_right_;
+  bool flipped_ = true;
+  bool nearest_neighbor_ = false;
+  gfx::PointF uv_top_left_ = gfx::PointF();
+  gfx::PointF uv_bottom_right_ = gfx::PointF(1.f, 1.f);
   // [bottom left, top left, top right, bottom right]
-  ProtectedSequenceReadable<bool> premultiplied_alpha_;
-  ProtectedSequenceReadable<bool> blend_background_color_;
-  ProtectedSequenceReadable<bool> force_texture_to_opaque_;
-  ProtectedSequenceReadable<gfx::HDRMode> hdr_mode_;
-  ProtectedSequenceWritable<absl::optional<gfx::HDRMetadata>> hdr_metadata_;
+  bool premultiplied_alpha_ = true;
+  bool blend_background_color_ = false;
+  bool force_texture_to_opaque_ = false;
 
-  ProtectedSequenceWritable<scoped_refptr<TransferableResourceHolder>>
-      resource_holder_;
-  ProtectedSequenceWritable<bool> needs_set_resource_;
-
-  typedef base::flat_map<viz::SharedBitmapId,
-                         scoped_refptr<CrossThreadSharedBitmap>>
-      BitMapMap;
+  std::unique_ptr<TransferableResourceHolder::MainThreadReference> holder_ref_;
+  bool needs_set_resource_ = false;
 
   // The set of SharedBitmapIds to register with the LayerTreeFrameSink on the
   // compositor thread. These requests are forwarded to the TextureLayerImpl to
   // use, then stored in |registered_bitmaps_| to re-send if the
   // TextureLayerImpl object attached to this layer changes, by moving out of
   // the LayerTreeHost.
-  ProtectedSequenceWritable<BitMapMap> to_register_bitmaps_;
+  base::flat_map<viz::SharedBitmapId, scoped_refptr<CrossThreadSharedBitmap>>
+      to_register_bitmaps_;
   // The set of previously registered SharedBitmapIds for the current
   // LayerTreeHost. If the LayerTreeHost changes, these must be re-sent to the
   // (new) TextureLayerImpl to be re-registered.
-  ProtectedSequenceWritable<BitMapMap> registered_bitmaps_;
+  base::flat_map<viz::SharedBitmapId, scoped_refptr<CrossThreadSharedBitmap>>
+      registered_bitmaps_;
   // The SharedBitmapIds to unregister on the compositor thread, passed to the
   // TextureLayerImpl.
-  ProtectedSequenceWritable<std::vector<viz::SharedBitmapId>>
-      to_unregister_bitmap_ids_;
+  std::vector<viz::SharedBitmapId> to_unregister_bitmap_ids_;
 
-  const base::WeakPtrFactory<TextureLayer> weak_ptr_factory_{this};
+  base::WeakPtrFactory<TextureLayer> weak_ptr_factory_{this};
 };
 
 }  // namespace cc

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,10 +51,6 @@ void X11OzoneUIControlsTestHelper::RunClosureAfterAllPendingUIEvents(
     base::OnceClosure closure) {
   x11_ui_controls_test_helper_.RunClosureAfterAllPendingUIEvents(
       std::move(closure));
-}
-
-bool X11OzoneUIControlsTestHelper::MustUseUiControlsForMoveCursorTo() {
-  return false;
 }
 
 OzoneUIControlsTestHelper* CreateOzoneUIControlsTestHelperX11() {

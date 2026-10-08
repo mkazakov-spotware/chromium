@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/callback.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/api/messaging/incognito_connectability.h"
 #include "chrome/browser/extensions/api/messaging/native_message_port.h"
@@ -51,30 +50,32 @@ ChromeMessagingDelegate::IsNativeMessagingHostAllowed(
   // All native messaging hosts are allowed if there is no blocklist.
   if (!pref_service->IsManagedPreference(pref_names::kNativeMessagingBlocklist))
     return allow_result;
-  const base::Value::List& blocklist =
+  const base::ListValue* blocklist =
       pref_service->GetList(pref_names::kNativeMessagingBlocklist);
+  if (!blocklist)
+    return allow_result;
 
   // Check if the name or the wildcard is in the blocklist.
   base::Value name_value(native_host_name);
   base::Value wildcard_value("*");
-  if (!base::Contains(blocklist, name_value) &&
-      !base::Contains(blocklist, wildcard_value)) {
+  if (blocklist->Find(name_value) == blocklist->end() &&
+      blocklist->Find(wildcard_value) == blocklist->end()) {
     return allow_result;
   }
 
   // The native messaging host is blocklisted. Check the allowlist.
   if (pref_service->IsManagedPreference(
           pref_names::kNativeMessagingAllowlist)) {
-    const base::Value::List& allowlist =
+    const base::ListValue* allowlist =
         pref_service->GetList(pref_names::kNativeMessagingAllowlist);
-    if (base::Contains(allowlist, name_value))
+    if (allowlist && allowlist->Find(name_value) != allowlist->end())
       return allow_result;
   }
 
   return PolicyPermission::DISALLOW;
 }
 
-absl::optional<base::Value::Dict> ChromeMessagingDelegate::MaybeGetTabInfo(
+std::unique_ptr<base::DictionaryValue> ChromeMessagingDelegate::MaybeGetTabInfo(
     content::WebContents* web_contents) {
   // Add info about the opener's tab (if it was a tab).
   if (web_contents && ExtensionTabUtil::GetTabId(web_contents) >= 0) {
@@ -92,9 +93,9 @@ absl::optional<base::Value::Dict> ChromeMessagingDelegate::MaybeGetTabInfo(
         ExtensionTabUtil::kDontScrubTab, ExtensionTabUtil::kDontScrubTab};
     return ExtensionTabUtil::CreateTabObject(web_contents, scrub_tab_behavior,
                                              nullptr)
-        .ToValue();
+        ->ToValue();
   }
-  return absl::nullopt;
+  return nullptr;
 }
 
 content::WebContents* ChromeMessagingDelegate::GetWebContentsByTabId(
@@ -113,40 +114,13 @@ std::unique_ptr<MessagePort> ChromeMessagingDelegate::CreateReceiverForTab(
     const std::string& extension_id,
     const PortId& receiver_port_id,
     content::WebContents* receiver_contents,
-    int receiver_frame_id,
-    const std::string& receiver_document_id) {
+    int receiver_frame_id) {
   // Frame ID -1 is every frame in the tab.
-  bool include_child_frames =
-      receiver_frame_id == -1 && receiver_document_id.empty();
-
-  content::RenderFrameHost* receiver_rfh = nullptr;
-  if (include_child_frames) {
-    // The target is the active outermost main frame of the WebContents.
-    receiver_rfh = receiver_contents->GetPrimaryMainFrame();
-  } else if (!receiver_document_id.empty()) {
-    ExtensionApiFrameIdMap::DocumentId document_id =
-        ExtensionApiFrameIdMap::DocumentIdFromString(receiver_document_id);
-
-    // Return early for invalid documentIds.
-    if (!document_id)
-      return nullptr;
-
-    receiver_rfh =
-        ExtensionApiFrameIdMap::Get()->GetRenderFrameHostByDocumentId(
-            document_id);
-
-    // If both |document_id| and |receiver_frame_id| are provided they
-    // should find the same RenderFrameHost, if not return early.
-    if (receiver_frame_id != -1 &&
-        ExtensionApiFrameIdMap::GetRenderFrameHostById(
-            receiver_contents, receiver_frame_id) != receiver_rfh) {
-      return nullptr;
-    }
-  } else {
-    DCHECK_GT(receiver_frame_id, -1);
-    receiver_rfh = ExtensionApiFrameIdMap::GetRenderFrameHostById(
-        receiver_contents, receiver_frame_id);
-  }
+  bool include_child_frames = receiver_frame_id == -1;
+  content::RenderFrameHost* receiver_rfh =
+      include_child_frames ? receiver_contents->GetMainFrame()
+                           : ExtensionApiFrameIdMap::GetRenderFrameHostById(
+                                 receiver_contents, receiver_frame_id);
   if (!receiver_rfh)
     return nullptr;
 
@@ -181,10 +155,10 @@ void ChromeMessagingDelegate::QueryIncognitoConnectability(
     const Extension* target_extension,
     content::WebContents* source_contents,
     const GURL& source_url,
-    base::OnceCallback<void(bool)> callback) {
+    const base::Callback<void(bool)>& callback) {
   DCHECK(context->IsOffTheRecord());
   IncognitoConnectability::Get(context)->Query(
-      target_extension, source_contents, source_url, std::move(callback));
+      target_extension, source_contents, source_url, callback);
 }
 
 }  // namespace extensions

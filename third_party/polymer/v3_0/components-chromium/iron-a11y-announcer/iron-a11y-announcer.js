@@ -43,10 +43,10 @@ Example:
 
 Note: announcements are only audible if you have a screen reader enabled.
 
+@group Iron Elements
 @demo demo/index.html
 */
-export const IronA11yAnnouncer = Polymer({
-  /** @override */
+export var IronA11yAnnouncer = Polymer({
   _template: html`
     <style>
       :host {
@@ -69,22 +69,16 @@ export const IronA11yAnnouncer = Polymer({
      */
     mode: {type: String, value: 'polite'},
 
-    /**
-     * The timeout on refreshing the announcement text. Larger timeouts are
-     * needed for certain screen readers to re-announce the same message.
-     */
-    timeout: {type: Number, value: 150},
-
-    _text: {type: String, value: ''},
+    _text: {type: String, value: ''}
   },
 
-  /** @override */
   created: function() {
     if (!IronA11yAnnouncer.instance) {
       IronA11yAnnouncer.instance = this;
     }
 
-    document.addEventListener('iron-announce', this._onIronAnnounce.bind(this));
+    document.body.addEventListener(
+        'iron-announce', this._onIronAnnounce.bind(this));
   },
 
   /**
@@ -96,7 +90,7 @@ export const IronA11yAnnouncer = Polymer({
     this._text = '';
     this.async(function() {
       this._text = text;
-    }, this.timeout);
+    }, 100);
   },
 
   _onIronAnnounce: function(event) {
@@ -113,11 +107,5 @@ IronA11yAnnouncer.requestAvailability = function() {
     IronA11yAnnouncer.instance = document.createElement('iron-a11y-announcer');
   }
 
-  if (document.body) {
-    document.body.appendChild(IronA11yAnnouncer.instance);
-  } else {
-    document.addEventListener('load', function() {
-      document.body.appendChild(IronA11yAnnouncer.instance);
-    });
-  }
+  document.body.appendChild(IronA11yAnnouncer.instance);
 };

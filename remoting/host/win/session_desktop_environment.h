@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "remoting/host/me2me_desktop_environment.h"
 
 namespace remoting {
@@ -17,10 +18,6 @@ namespace remoting {
 // with Windows sessions.
 class SessionDesktopEnvironment : public Me2MeDesktopEnvironment {
  public:
-  SessionDesktopEnvironment(const SessionDesktopEnvironment&) = delete;
-  SessionDesktopEnvironment& operator=(const SessionDesktopEnvironment&) =
-      delete;
-
   ~SessionDesktopEnvironment() override;
 
   // DesktopEnvironment implementation.
@@ -44,6 +41,8 @@ class SessionDesktopEnvironment : public Me2MeDesktopEnvironment {
 
   // Used to lock the workstation for the current session.
   base::RepeatingClosure lock_workstation_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionDesktopEnvironment);
 };
 
 // Used to create |SessionDesktopEnvironment| instances.
@@ -56,18 +55,11 @@ class SessionDesktopEnvironmentFactory : public Me2MeDesktopEnvironmentFactory {
       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner,
       const base::RepeatingClosure& inject_sas,
       const base::RepeatingClosure& lock_workstation);
-
-  SessionDesktopEnvironmentFactory(const SessionDesktopEnvironmentFactory&) =
-      delete;
-  SessionDesktopEnvironmentFactory& operator=(
-      const SessionDesktopEnvironmentFactory&) = delete;
-
   ~SessionDesktopEnvironmentFactory() override;
 
   // DesktopEnvironmentFactory implementation.
   std::unique_ptr<DesktopEnvironment> Create(
       base::WeakPtr<ClientSessionControl> client_session_control,
-      base::WeakPtr<ClientSessionEvents> client_session_events,
       const DesktopEnvironmentOptions& options) override;
 
  private:
@@ -76,6 +68,8 @@ class SessionDesktopEnvironmentFactory : public Me2MeDesktopEnvironmentFactory {
 
   // Used to lock the workstation for the current session.
   base::RepeatingClosure lock_workstation_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionDesktopEnvironmentFactory);
 };
 
 }  // namespace remoting

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@ struct WebFrameOwnerProperties {
   bool allow_payment_request{false};
   bool is_display_none{false};
   mojom::ColorScheme color_scheme{mojom::ColorScheme::kLight};
+  WebString required_csp;
 
  public:
   WebFrameOwnerProperties() = default;
@@ -32,7 +33,8 @@ struct WebFrameOwnerProperties {
                           bool allow_fullscreen,
                           bool allow_payment_request,
                           bool is_display_none,
-                          mojom::ColorScheme color_scheme)
+                          mojom::ColorScheme color_scheme,
+                          const WebString& required_csp)
       : name(name),
         scrollbar_mode(scrollbar_mode),
         margin_width(margin_width),
@@ -40,10 +42,11 @@ struct WebFrameOwnerProperties {
         allow_fullscreen(allow_fullscreen),
         allow_payment_request(allow_payment_request),
         is_display_none(is_display_none),
-        color_scheme(color_scheme) {}
+        color_scheme(color_scheme),
+        required_csp(required_csp) {}
 #endif
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_FRAME_OWNER_PROPERTIES_H_
+#endif

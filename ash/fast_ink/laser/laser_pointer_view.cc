@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include "ash/fast_ink/laser/laser_segment_utils.h"
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/trace_event/trace_event.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkTypes.h"
 #include "ui/aura/window.h"
@@ -146,15 +145,14 @@ class LaserSegment {
     path_points_.push_back(ordered_points[3]);
   }
 
-  LaserSegment(const LaserSegment&) = delete;
-  LaserSegment& operator=(const LaserSegment&) = delete;
-
   SkPath path() const { return path_; }
   std::vector<gfx::PointF> path_points() const { return path_points_; }
 
  private:
   SkPath path_;
   std::vector<gfx::PointF> path_points_;
+
+  DISALLOW_COPY_AND_ASSIGN(LaserSegment);
 };
 
 // LaserPointerView
@@ -204,7 +202,7 @@ void LaserPointerView::FadeOut(base::OnceClosure done) {
 
 void LaserPointerView::AddPoint(const gfx::PointF& point,
                                 const base::TimeTicks& time) {
-  laser_points_.AddPoint(point, time, kPointColor);
+  laser_points_.AddPoint(point, time);
 
   // Current time is needed to determine presentation time and the number of
   // predicted points to add.
@@ -226,7 +224,7 @@ void LaserPointerView::ScheduleUpdateBuffer() {
     return;
 
   pending_update_buffer_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&LaserPointerView::UpdateBuffer,
                                 weak_ptr_factory_.GetWeakPtr()));
 }
@@ -298,7 +296,7 @@ gfx::Rect LaserPointerView::GetBoundingBox() {
   // edges and antialiasing.
   const int kOutsetForAntialiasing = 1;
   int outset = kPointInitialRadius + kOutsetForAntialiasing;
-  bounding_box.Inset(-outset);
+  bounding_box.Inset(-outset, -outset);
   return bounding_box;
 }
 

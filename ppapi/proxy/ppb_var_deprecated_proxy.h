@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,9 @@
 
 #include <stdint.h>
 
+#include <vector>
+
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/proxy/interface_proxy.h"
@@ -25,10 +28,6 @@ class SerializedVarReturnValue;
 class PPB_Var_Deprecated_Proxy : public InterfaceProxy {
  public:
   explicit PPB_Var_Deprecated_Proxy(Dispatcher* dispatcher);
-
-  PPB_Var_Deprecated_Proxy(const PPB_Var_Deprecated_Proxy&) = delete;
-  PPB_Var_Deprecated_Proxy& operator=(const PPB_Var_Deprecated_Proxy&) = delete;
-
   ~PPB_Var_Deprecated_Proxy() override;
 
   static const PPB_Var_Deprecated* GetProxyInterface();
@@ -96,6 +95,8 @@ class PPB_Var_Deprecated_Proxy : public InterfaceProxy {
   const PPB_Var_Deprecated* ppb_var_impl_;
 
   base::WeakPtrFactory<PPB_Var_Deprecated_Proxy> task_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PPB_Var_Deprecated_Proxy);
 };
 
 }  // namespace proxy

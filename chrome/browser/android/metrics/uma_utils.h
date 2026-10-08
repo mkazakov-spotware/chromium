@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,10 @@ namespace android {
 
 base::TimeTicks GetApplicationStartTime();
 base::TimeTicks GetProcessStartTime();
+
+// Sets whether UMA reporting is enabled. This will call to Java to update
+// the shared preference that is the source of truth for UMA reporting.
+void SetUsageAndCrashReporting(bool enabled);
 
 }  // namespace android
 }  // namespace chrome

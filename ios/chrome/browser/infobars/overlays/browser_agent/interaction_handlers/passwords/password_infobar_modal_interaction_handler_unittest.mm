@@ -1,20 +1,24 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/passwords/password_infobar_modal_interaction_handler.h"
 
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/infobars/core/infobar_feature.h"
 #import "ios/chrome/browser/infobars/test/fake_infobar_ios.h"
 #import "ios/chrome/browser/main/test_browser.h"
 #import "ios/chrome/browser/overlays/public/overlay_request_queue.h"
 #import "ios/chrome/browser/passwords/test/mock_ios_chrome_save_passwords_infobar_delegate.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
 #import "ios/chrome/browser/ui/commands/command_dispatcher.h"
+#import "ios/chrome/browser/ui/infobars/infobar_feature.h"
+#import "ios/chrome/browser/ui/infobars/test/fake_infobar_ui_delegate.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "third_party/ocmock/gtest_support.h"
 
@@ -29,19 +33,19 @@ class PasswordInfobarModalInteractionHandlerTest : public PlatformTest {
       : mock_command_receiver_(
             OCMStrictProtocolMock(@protocol(ApplicationSettingsCommands))),
         infobar_(
-            InfobarType::kInfobarTypePasswordSave,
+            [[FakeInfobarUIDelegate alloc] init],
             MockIOSChromeSavePasswordInfoBarDelegate::Create(@"username",
                                                              @"password")) {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(browser_state_.get());
-    [browser_->GetCommandDispatcher()
+    scoped_feature_list_.InitWithFeatures({kIOSInfobarUIReboot},
+                                          {kInfobarUIRebootOnlyiOS13});
+    [browser_.GetCommandDispatcher()
         startDispatchingToTarget:mock_command_receiver_
                      forProtocol:@protocol(ApplicationSettingsCommands)];
     handler_ = std::make_unique<PasswordInfobarModalInteractionHandler>(
-        browser_.get(), password_modal::PasswordAction::kSave);
+        &browser_, password_modal::PasswordAction::kSave);
   }
   ~PasswordInfobarModalInteractionHandlerTest() override {
-    [browser_->GetCommandDispatcher()
+    [browser_.GetCommandDispatcher()
         stopDispatchingToTarget:mock_command_receiver_];
     EXPECT_OCMOCK_VERIFY(mock_command_receiver_);
   }
@@ -52,9 +56,9 @@ class PasswordInfobarModalInteractionHandlerTest : public PlatformTest {
   }
 
  protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  std::unique_ptr<TestBrowser> browser_;
+  TestBrowser browser_;
   id mock_command_receiver_ = nil;
   InfoBarIOS infobar_;
   std::unique_ptr<PasswordInfobarModalInteractionHandler> handler_;
@@ -77,8 +81,7 @@ TEST_F(PasswordInfobarModalInteractionHandlerTest, NeverSaveCredentials) {
 // Tests that PresentPasswordsSettings() forwards the call to the mock delegate.
 TEST_F(PasswordInfobarModalInteractionHandlerTest, PresentPasswordsSettings) {
   OCMExpect([mock_command_receiver_
-      showSavedPasswordsSettingsFromViewController:nil
-                                  showCancelButton:YES]);
+      showSavedPasswordsSettingsFromViewController:nil]);
   handler_->PresentPasswordsSettings(&infobar_);
 }
 

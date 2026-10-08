@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "skia/ext/image_operations.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -38,8 +39,7 @@ void SnapshotAsync::ScaleCopyOutputResult(
     GrabWindowSnapshotAsyncCallback callback,
     const gfx::Size& target_size,
     std::unique_ptr<viz::CopyOutputResult> result) {
-  auto scoped_bitmap = result->ScopedAccessSkBitmap();
-  auto bitmap = scoped_bitmap.GetOutScopedBitmap();
+  const SkBitmap bitmap = result->AsSkBitmap();
   if (!bitmap.readyToDraw()) {
     std::move(callback).Run(gfx::Image());
     return;
@@ -58,8 +58,7 @@ void SnapshotAsync::ScaleCopyOutputResult(
 void SnapshotAsync::RunCallbackWithCopyOutputResult(
     GrabWindowSnapshotAsyncCallback callback,
     std::unique_ptr<viz::CopyOutputResult> result) {
-  auto scoped_bitmap = result->ScopedAccessSkBitmap();
-  auto bitmap = scoped_bitmap.GetOutScopedBitmap();
+  const SkBitmap bitmap = result->AsSkBitmap();
   if (!bitmap.readyToDraw()) {
     std::move(callback).Run(gfx::Image());
     return;

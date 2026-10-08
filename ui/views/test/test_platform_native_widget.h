@@ -1,14 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_TEST_TEST_PLATFORM_NATIVE_WIDGET_H_
 #define UI_VIEWS_TEST_TEST_PLATFORM_NATIVE_WIDGET_H_
 
-#include <utility>
-
-#include "base/functional/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/views/view.h"
 
 namespace views {
@@ -33,23 +31,10 @@ class TestPlatformNativeWidget : public PlatformNativeWidget {
         mouse_capture_(false),
         mock_capture_(mock_capture),
         destroyed_(destroyed) {}
-  TestPlatformNativeWidget(internal::NativeWidgetDelegate* delegate,
-                           bool mock_capture,
-                           base::OnceClosure destroyed_callback)
-      : PlatformNativeWidget(delegate),
-        mouse_capture_(false),
-        mock_capture_(mock_capture),
-        destroyed_(nullptr),
-        destroyed_callback_(std::move(destroyed_callback)) {}
-
-  TestPlatformNativeWidget(const TestPlatformNativeWidget&) = delete;
-  TestPlatformNativeWidget& operator=(const TestPlatformNativeWidget&) = delete;
 
   ~TestPlatformNativeWidget() override {
     if (destroyed_)
       *destroyed_ = true;
-    if (destroyed_callback_)
-      std::move(destroyed_callback_).Run();
   }
 
   // PlatformNativeWidget:
@@ -77,8 +62,9 @@ class TestPlatformNativeWidget : public PlatformNativeWidget {
  private:
   bool mouse_capture_;
   const bool mock_capture_;
-  raw_ptr<bool> destroyed_;
-  base::OnceClosure destroyed_callback_;
+  bool* destroyed_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestPlatformNativeWidget);
 };
 
 }  // namespace test

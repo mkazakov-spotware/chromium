@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 #include "chrome/browser/apps/digital_goods/util.h"
 #include "components/payments/core/features.h"
 #include "components/payments/core/payments_experimental_features.h"
-#include "content/public/browser/render_frame_host.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
 
 namespace {
 
@@ -37,12 +35,6 @@ void DigitalGoodsFactoryImpl::BindDigitalGoodsFactory(
 void DigitalGoodsFactoryImpl::CreateDigitalGoods(
     const std::string& payment_method,
     CreateDigitalGoodsCallback callback) {
-  if (!render_frame_host().IsFeatureEnabled(
-          blink::mojom::PermissionsPolicyFeature::kPayment)) {
-    receiver_.ReportBadMessage("Feature policy blocks Payment");
-    return;
-  }
-
   // Check feature flag.
   if (!payments::PaymentsExperimentalFeatures::IsEnabled(
           payments::features::kAppStoreBilling)) {
@@ -59,7 +51,7 @@ void DigitalGoodsFactoryImpl::CreateDigitalGoods(
     return;
   }
 
-  if (apps::GetTwaPackageName(&render_frame_host()).empty()) {
+  if (apps::GetTwaPackageName(render_frame_host_).empty()) {
     std::move(callback).Run(
         payments::mojom::CreateDigitalGoodsResponseCode::kUnsupportedContext,
         /*digital_goods=*/mojo::NullRemote());
@@ -67,22 +59,21 @@ void DigitalGoodsFactoryImpl::CreateDigitalGoods(
   }
 
   // TODO(jshikaram): check with Android if there is a payment_method available.
-  std::move(callback).Run(
-      payments::mojom::CreateDigitalGoodsResponseCode::kOk,
-      DigitalGoodsImpl::CreateAndBind(&render_frame_host()));
+  std::move(callback).Run(payments::mojom::CreateDigitalGoodsResponseCode::kOk,
+                          DigitalGoodsImpl::CreateAndBind(render_frame_host_));
 }
 
 // Private methods:
 
-DigitalGoodsFactoryImpl::DigitalGoodsFactoryImpl(content::RenderFrameHost* rfh)
-    : content::DocumentUserData<DigitalGoodsFactoryImpl>(rfh),
-      receiver_(this) {}
+DigitalGoodsFactoryImpl::DigitalGoodsFactoryImpl(
+    content::RenderFrameHost* render_frame_host)
+    : render_frame_host_(render_frame_host), receiver_(this) {}
 
 void DigitalGoodsFactoryImpl::BindRequest(
     mojo::PendingReceiver<payments::mojom::DigitalGoodsFactory> receiver) {
   receiver_.Bind(std::move(receiver));
 }
 
-DOCUMENT_USER_DATA_KEY_IMPL(DigitalGoodsFactoryImpl);
+RENDER_DOCUMENT_HOST_USER_DATA_KEY_IMPL(DigitalGoodsFactoryImpl)
 
 }  // namespace apps

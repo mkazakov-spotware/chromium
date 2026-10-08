@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/button/label_button.h"
@@ -19,18 +18,21 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/examples/examples_window.h"
-#include "ui/views/examples/grit/views_examples_resources.h"
 #include "ui/views/layout/fill_layout.h"
-#include "ui/views/layout/flex_layout.h"
+#include "ui/views/layout/grid_layout.h"
 #include "ui/views/layout/layout_provider.h"
-#include "ui/views/layout/table_layout.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
 
-namespace views::examples {
+using base::ASCIIToUTF16;
+
+namespace views {
+namespace examples {
 namespace {
 
-constexpr size_t kFakeModeless = ui::MODAL_TYPE_SYSTEM + 1;
+constexpr int kFieldsColumnId = 0;
+constexpr int kButtonsColumnId = 1;
+constexpr int kFakeModeless = ui::MODAL_TYPE_SYSTEM + 1;
 
 }  // namespace
 
@@ -45,9 +47,6 @@ class DialogExample::Delegate : public virtual DialogType {
                                    parent_->cancel_button_label_->GetText());
     WidgetDelegate::SetModalType(parent_->GetModalType());
   }
-
-  Delegate(const Delegate&) = delete;
-  Delegate& operator=(const Delegate&) = delete;
 
   void InitDelegate() {
     this->SetLayoutManager(std::make_unique<FillLayout>());
@@ -64,7 +63,7 @@ class DialogExample::Delegate : public virtual DialogType {
   }
 
  protected:
-  std::u16string GetWindowTitle() const override {
+  base::string16 GetWindowTitle() const override {
     return parent_->title_->GetText();
   }
 
@@ -72,7 +71,9 @@ class DialogExample::Delegate : public virtual DialogType {
   bool Accept() override { return parent_->AllowDialogClose(true); }
 
  private:
-  raw_ptr<DialogExample> parent_;
+  DialogExample* parent_;
+
+  DISALLOW_COPY_AND_ASSIGN(Delegate);
 };
 
 class DialogExample::Bubble : public Delegate<BubbleDialogDelegateView> {
@@ -83,148 +84,124 @@ class DialogExample::Bubble : public Delegate<BubbleDialogDelegateView> {
     set_close_on_deactivate(!parent->persistent_bubble_->GetChecked());
   }
 
-  Bubble(const Bubble&) = delete;
-  Bubble& operator=(const Bubble&) = delete;
-
   // BubbleDialogDelegateView:
   void Init() override { InitDelegate(); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Bubble);
 };
 
 class DialogExample::Dialog : public Delegate<DialogDelegateView> {
  public:
-  explicit Dialog(DialogExample* parent) : Delegate(parent) {
+  explicit Dialog(DialogExample* parent) : Delegate(parent) {}
+
+  // WidgetDelegate:
+  bool CanResize() const override {
     // Mac supports resizing of modal dialogs (parent or window-modal). On other
     // platforms this will be weird unless the modal type is "none", but helps
     // test layout.
-    SetCanResize(true);
+    return true;
   }
 
-  Dialog(const Dialog&) = delete;
-  Dialog& operator=(const Dialog&) = delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Dialog);
 };
 
 DialogExample::DialogExample()
     : ExampleBase("Dialog"),
       mode_model_({
-          ui::SimpleComboboxModel::Item(u"Modeless"),
-          ui::SimpleComboboxModel::Item(u"Window Modal"),
-          ui::SimpleComboboxModel::Item(u"Child Modal"),
-          ui::SimpleComboboxModel::Item(u"System Modal"),
-          ui::SimpleComboboxModel::Item(u"Fake Modeless (non-bubbles)"),
+          base::ASCIIToUTF16("Modeless"),
+          base::ASCIIToUTF16("Window Modal"),
+          base::ASCIIToUTF16("Child Modal"),
+          base::ASCIIToUTF16("System Modal"),
+          base::ASCIIToUTF16("Fake Modeless (non-bubbles)"),
       }) {}
 
 DialogExample::~DialogExample() = default;
 
 void DialogExample::CreateExampleView(View* container) {
-  auto* flex_layout =
-      container->SetLayoutManager(std::make_unique<FlexLayout>());
-  flex_layout->SetOrientation(LayoutOrientation::kVertical);
+  // GridLayout |resize_percent| constants.
+  const float kFixed = 0.f;
+  const float kStretchy = 1.f;
 
-  auto* table = container->AddChildView(std::make_unique<View>());
   views::LayoutProvider* provider = views::LayoutProvider::Get();
   const int horizontal_spacing =
       provider->GetDistanceMetric(views::DISTANCE_RELATED_BUTTON_HORIZONTAL);
-  auto* table_layout = table->SetLayoutManager(std::make_unique<TableLayout>());
-  table_layout
-      ->AddColumn(LayoutAlignment::kStart, LayoutAlignment::kStretch,
-                  TableLayout::kFixedSize,
-                  TableLayout::ColumnSize::kUsePreferred, 0, 0)
-      .AddPaddingColumn(TableLayout::kFixedSize, horizontal_spacing)
-      .AddColumn(LayoutAlignment::kStretch, LayoutAlignment::kStretch, 1.0f,
-                 TableLayout::ColumnSize::kUsePreferred, 0, 0)
-      .AddPaddingColumn(TableLayout::kFixedSize, horizontal_spacing)
-      .AddColumn(LayoutAlignment::kStretch, LayoutAlignment::kStretch,
-                 TableLayout::kFixedSize,
-                 TableLayout::ColumnSize::kUsePreferred, 0, 0);
-  const int vertical_padding =
-      provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_VERTICAL);
-  for (int i = 0; i < 7; ++i) {
-    table_layout->AddPaddingRow(TableLayout::kFixedSize, vertical_padding)
-        .AddRows(1, TableLayout::kFixedSize);
-  }
+  GridLayout* layout =
+      container->SetLayoutManager(std::make_unique<views::GridLayout>());
+  ColumnSet* column_set = layout->AddColumnSet(kFieldsColumnId);
+  column_set->AddColumn(GridLayout::LEADING, GridLayout::FILL, kFixed,
+                        GridLayout::ColumnSize::kUsePreferred, 0, 0);
+  column_set->AddPaddingColumn(kFixed, horizontal_spacing);
+  column_set->AddColumn(GridLayout::FILL, GridLayout::FILL, kStretchy,
+                        GridLayout::ColumnSize::kUsePreferred, 0, 0);
+  column_set->AddPaddingColumn(kFixed, horizontal_spacing);
+  column_set->AddColumn(GridLayout::FILL, GridLayout::FILL, kFixed,
+                        GridLayout::ColumnSize::kUsePreferred, 0, 0);
+  StartTextfieldRow(layout, &title_, "Dialog Title", "Title");
+  StartTextfieldRow(layout, &body_, "Dialog Body Text", "Body Text");
 
-  StartTextfieldRow(
-      table, &title_, l10n_util::GetStringUTF16(IDS_DIALOG_TITLE_LABEL),
-      l10n_util::GetStringUTF16(IDS_DIALOG_TITLE_TEXT), nullptr, true);
-  StartTextfieldRow(
-      table, &body_, l10n_util::GetStringUTF16(IDS_DIALOG_BODY_LABEL),
-      l10n_util::GetStringUTF16(IDS_DIALOG_BODY_LABEL), nullptr, true);
+  StartTextfieldRow(layout, &ok_button_label_, "OK Button Label", "Done");
+  AddCheckbox(layout, &has_ok_button_);
 
-  Label* row_label = nullptr;
-  StartTextfieldRow(table, &ok_button_label_,
-                    l10n_util::GetStringUTF16(IDS_DIALOG_OK_BUTTON_LABEL),
-                    l10n_util::GetStringUTF16(IDS_DIALOG_OK_BUTTON_TEXT),
-                    &row_label, false);
-  AddCheckbox(table, &has_ok_button_, row_label);
+  StartTextfieldRow(layout, &cancel_button_label_, "Cancel Button Label",
+                    "Cancel");
+  AddCheckbox(layout, &has_cancel_button_);
 
-  StartTextfieldRow(table, &cancel_button_label_,
-                    l10n_util::GetStringUTF16(IDS_DIALOG_CANCEL_BUTTON_LABEL),
-                    l10n_util::GetStringUTF16(IDS_DIALOG_CANCEL_BUTTON_TEXT),
-                    &row_label, false);
-  AddCheckbox(table, &has_cancel_button_, row_label);
+  StartTextfieldRow(layout, &extra_button_label_, "Extra Button Label", "Edit");
+  AddCheckbox(layout, &has_extra_button_);
 
-  StartTextfieldRow(table, &extra_button_label_,
-                    l10n_util::GetStringUTF16(IDS_DIALOG_EXTRA_BUTTON_LABEL),
-                    l10n_util::GetStringUTF16(IDS_DIALOG_EXTRA_BUTTON_TEXT),
-                    &row_label, false);
-  AddCheckbox(table, &has_extra_button_, row_label);
-
-  std::u16string modal_label =
-      l10n_util::GetStringUTF16(IDS_DIALOG_MODAL_TYPE_LABEL);
-  table->AddChildView(std::make_unique<Label>(modal_label));
-  mode_ = table->AddChildView(std::make_unique<Combobox>(&mode_model_));
+  StartRowWithLabel(layout, "Modal Type");
+  mode_ = layout->AddView(std::make_unique<Combobox>(&mode_model_));
   mode_->SetCallback(base::BindRepeating(&DialogExample::OnPerformAction,
                                          base::Unretained(this)));
   mode_->SetSelectedIndex(ui::MODAL_TYPE_CHILD);
-  mode_->SetAccessibleName(modal_label);
-  table->AddChildView(std::make_unique<View>());
 
-  Label* bubble_label = table->AddChildView(std::make_unique<Label>(
-      l10n_util::GetStringUTF16(IDS_DIALOG_BUBBLE_LABEL)));
-  AddCheckbox(table, &bubble_, bubble_label);
-  AddCheckbox(table, &persistent_bubble_, nullptr);
-  persistent_bubble_->SetText(
-      l10n_util::GetStringUTF16(IDS_DIALOG_PERSISTENT_LABEL));
+  StartRowWithLabel(layout, "Bubble");
+  AddCheckbox(layout, &bubble_);
+  AddCheckbox(layout, &persistent_bubble_);
+  persistent_bubble_->SetText(base::ASCIIToUTF16("Persistent"));
 
-  show_ = container->AddChildView(std::make_unique<views::MdTextButton>(
+  column_set = layout->AddColumnSet(kButtonsColumnId);
+  column_set->AddColumn(GridLayout::CENTER, GridLayout::CENTER, kStretchy,
+                        GridLayout::ColumnSize::kUsePreferred, 0, 0);
+  layout->StartRowWithPadding(
+      kFixed, kButtonsColumnId, kFixed,
+      provider->GetDistanceMetric(views::DISTANCE_UNRELATED_CONTROL_VERTICAL));
+
+  show_ = layout->AddView(std::make_unique<views::MdTextButton>(
       base::BindRepeating(&DialogExample::ShowButtonPressed,
                           base::Unretained(this)),
-      l10n_util::GetStringUTF16(IDS_DIALOG_SHOW_BUTTON_LABEL)));
-  show_->SetProperty(kCrossAxisAlignmentKey, LayoutAlignment::kCenter);
-  show_->SetProperty(
-      kMarginsKey,
-      gfx::Insets::TLBR(provider->GetDistanceMetric(
-                            views::DISTANCE_UNRELATED_CONTROL_VERTICAL),
-                        0, 0, 0));
+      base::ASCIIToUTF16("Show")));
 }
 
-void DialogExample::StartTextfieldRow(View* parent,
+void DialogExample::StartRowWithLabel(GridLayout* layout, const char* label) {
+  const float kFixedVerticalResize = 0.f;
+  layout->StartRowWithPadding(kFixedVerticalResize, kFieldsColumnId,
+                              kFixedVerticalResize,
+                              views::LayoutProvider::Get()->GetDistanceMetric(
+                                  views::DISTANCE_RELATED_CONTROL_VERTICAL));
+  layout->AddView(std::make_unique<Label>(base::ASCIIToUTF16(label)));
+}
+
+void DialogExample::StartTextfieldRow(GridLayout* layout,
                                       Textfield** member,
-                                      std::u16string label,
-                                      std::u16string value,
-                                      Label** created_label,
-                                      bool pad_last_col) {
-  Label* row_label = parent->AddChildView(std::make_unique<Label>(label));
-  if (created_label)
-    *created_label = row_label;
+                                      const char* label,
+                                      const char* value) {
+  StartRowWithLabel(layout, label);
   auto textfield = std::make_unique<Textfield>();
   textfield->set_controller(this);
-  textfield->SetText(value);
-  textfield->SetAssociatedLabel(row_label);
-  *member = parent->AddChildView(std::move(textfield));
-  if (pad_last_col)
-    parent->AddChildView(std::make_unique<View>());
+  textfield->SetText(base::ASCIIToUTF16(value));
+  *member = layout->AddView(std::move(textfield));
 }
 
-void DialogExample::AddCheckbox(View* parent, Checkbox** member, Label* label) {
+void DialogExample::AddCheckbox(GridLayout* layout, Checkbox** member) {
   auto callback = member == &bubble_ ? &DialogExample::BubbleCheckboxPressed
                                      : &DialogExample::OtherCheckboxPressed;
   auto checkbox = std::make_unique<Checkbox>(
-      std::u16string(), base::BindRepeating(callback, base::Unretained(this)));
+      base::string16(), base::BindRepeating(callback, base::Unretained(this)));
   checkbox->SetChecked(true);
-  if (label)
-    checkbox->SetAssociatedLabel(label);
-  *member = parent->AddChildView(std::move(checkbox));
+  *member = layout->AddView(std::move(checkbox));
 }
 
 ui::ModalType DialogExample::GetModalType() const {
@@ -237,7 +214,7 @@ ui::ModalType DialogExample::GetModalType() const {
   if (mode_->GetSelectedIndex() == kFakeModeless)
     return ui::MODAL_TYPE_WINDOW;
 
-  return static_cast<ui::ModalType>(mode_->GetSelectedIndex().value());
+  return static_cast<ui::ModalType>(mode_->GetSelectedIndex());
 }
 
 int DialogExample::GetDialogButtons() const {
@@ -314,14 +291,13 @@ void DialogExample::OtherCheckboxPressed() {
   // Buttons other than show and bubble are pressed. They are all checkboxes.
   // Update the dialog if there is one.
   if (last_dialog_) {
-    // TODO(crbug.com/1261666): This can segfault.
     last_dialog_->DialogModelChanged();
     ResizeDialog();
   }
 }
 
 void DialogExample::ContentsChanged(Textfield* sender,
-                                    const std::u16string& new_contents) {
+                                    const base::string16& new_contents) {
   if (!last_dialog_)
     return;
 
@@ -341,7 +317,7 @@ void DialogExample::ContentsChanged(Textfield* sender,
 
 void DialogExample::OnPerformAction() {
   bool enable = bubble_->GetChecked() || GetModalType() != ui::MODAL_TYPE_CHILD;
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
   enable = enable && GetModalType() != ui::MODAL_TYPE_SYSTEM;
 #endif
   show_->SetEnabled(enable);
@@ -351,4 +327,5 @@ void DialogExample::OnPerformAction() {
     LogStatus("MODAL_TYPE_SYSTEM isn't supported on Mac.");
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

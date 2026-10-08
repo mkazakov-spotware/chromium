@@ -15,13 +15,9 @@ responseXML serialized
   <d id="id3">Three</d>
 </doc>
 getAllResponseHeaders()
-content-type: text/xml
-last-modified: (date)
-
 status
-200
+0
 statusText
-OK
 readyState
 4
 Event information
@@ -43,6 +39,7 @@ initEvent : 'function initEvent() { [native code] }'
 isTrusted : 'true'
 lengthComputable : 'true'
 loaded : '0'
+path : ''
 preventDefault : 'function preventDefault() { [native code] }'
 returnValue : 'true'
 srcElement : '[object XMLHttpRequest]'

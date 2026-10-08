@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/metrics/cached_metrics_profile.h"
 #include "components/metrics/metrics_provider.h"
@@ -51,8 +50,7 @@ class ExtensionsMetricsProvider : public metrics::MetricsProvider {
   static metrics::ExtensionInstallProto ConstructInstallProtoForTesting(
       const extensions::Extension& extension,
       extensions::ExtensionPrefs* prefs,
-      base::Time last_sample_time,
-      Profile* profile);
+      base::Time last_sample_time);
   static std::vector<metrics::ExtensionInstallProto>
   GetInstallsForProfileForTesting(Profile* profile,
                                   base::Time last_sample_time);
@@ -87,7 +85,7 @@ class ExtensionsMetricsProvider : public metrics::MetricsProvider {
       metrics::SystemProfileProto* system_profile);
 
   // The MetricsStateManager from which the client ID is obtained.
-  raw_ptr<metrics::MetricsStateManager> metrics_state_manager_;
+  metrics::MetricsStateManager* metrics_state_manager_;
 
   metrics::CachedMetricsProfile cached_profile_;
 

@@ -1,16 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GOOGLE_APIS_GCM_ENGINE_CONNECTION_FACTORY_IMPL_H_
 #define GOOGLE_APIS_GCM_ENGINE_CONNECTION_FACTORY_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "google_apis/gcm/engine/connection_factory.h"
 
 #include <stddef.h>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "google_apis/gcm/engine/connection_event_tracker.h"
@@ -39,10 +39,6 @@ class GCM_EXPORT ConnectionFactoryImpl
       scoped_refptr<base::SequencedTaskRunner> io_task_runner,
       GCMStatsRecorder* recorder,
       network::NetworkConnectionTracker* network_connection_tracker);
-
-  ConnectionFactoryImpl(const ConnectionFactoryImpl&) = delete;
-  ConnectionFactoryImpl& operator=(const ConnectionFactoryImpl&) = delete;
-
   ~ConnectionFactoryImpl() override;
 
   // ConnectionFactory implementation.
@@ -95,8 +91,8 @@ class GCM_EXPORT ConnectionFactoryImpl
 
   // Callback for Socket connection completion. This is public for testing.
   void OnConnectDone(int result,
-                     const absl::optional<net::IPEndPoint>& local_addr,
-                     const absl::optional<net::IPEndPoint>& peer_addr,
+                     const base::Optional<net::IPEndPoint>& local_addr,
+                     const base::Optional<net::IPEndPoint>& peer_addr,
                      mojo::ScopedDataPipeConsumerHandle receive_stream,
                      mojo::ScopedDataPipeProducerHandle send_stream);
 
@@ -190,16 +186,18 @@ class GCM_EXPORT ConnectionFactoryImpl
   const scoped_refptr<base::SequencedTaskRunner> io_task_runner_;
 
   // Recorder that records GCM activities for debugging purpose. Not owned.
-  raw_ptr<GCMStatsRecorder> recorder_;
+  GCMStatsRecorder* recorder_;
 
   // Notifies this class of network connection changes.
   // Must outlive the ConnectionFactoryImpl.
-  raw_ptr<network::NetworkConnectionTracker> network_connection_tracker_;
+  network::NetworkConnectionTracker* network_connection_tracker_;
 
   // The currently registered listener to notify of connection changes.
-  raw_ptr<ConnectionListener> listener_;
+  ConnectionListener* listener_;
 
   base::WeakPtrFactory<ConnectionFactoryImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ConnectionFactoryImpl);
 };
 
 }  // namespace gcm

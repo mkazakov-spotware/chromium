@@ -27,7 +27,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_GEOLOCATION_GEOLOCATION_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_GEOLOCATION_GEOLOCATION_H_
 
-#include "base/dcheck_is_on.h"
 #include "services/device/public/mojom/geolocation.mojom-blink.h"
 #include "third_party/blink/public/mojom/geolocation/geolocation_service.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
@@ -42,8 +41,7 @@
 #include "third_party/blink/renderer/modules/geolocation/geoposition.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/timer.h"
@@ -122,47 +120,49 @@ class MODULES_EXPORT Geolocation final
  private:
   // Customized HeapHashSet class that checks notifiers' timers. Notifier's
   // timer may be active only when the notifier is owned by the Geolocation.
-  class GeoNotifierSet final : public GarbageCollected<GeoNotifierSet> {
-   public:
-    void Trace(Visitor* visitor) const { visitor->Trace(set_); }
+  class GeoNotifierSet : private HeapHashSet<Member<GeoNotifier>> {
+    using BaseClass = HeapHashSet<Member<GeoNotifier>>;
 
-    auto begin() const { return set_.begin(); }
-    auto end() const { return set_.end(); }
-    auto size() const { return set_.size(); }
+   public:
+    using BaseClass::Trace;
+
+    using BaseClass::const_iterator;
+    using BaseClass::iterator;
+
+    using BaseClass::begin;
+    using BaseClass::end;
+    using BaseClass::size;
 
     auto insert(GeoNotifier* value) {
       DCHECK(!value->IsTimerActive());
-      return set_.insert(value);
+      return BaseClass::insert(value);
     }
 
     void erase(GeoNotifier* value) {
       DCHECK(!value->IsTimerActive());
-      return set_.erase(value);
+      return BaseClass::erase(value);
     }
 
     void clear() {
 #if DCHECK_IS_ON()
-      for (const auto& notifier : set_) {
+      for (const auto& notifier : *this) {
         DCHECK(!notifier->IsTimerActive());
       }
 #endif
-      set_.clear();
+      BaseClass::clear();
     }
 
-    auto Contains(GeoNotifier* value) const { return set_.Contains(value); }
-    auto IsEmpty() const { return set_.empty(); }
+    using BaseClass::Contains;
+    using BaseClass::IsEmpty;
 
     auto InsertWithoutTimerCheck(GeoNotifier* value) {
-      return set_.insert(value);
+      return BaseClass::insert(value);
     }
-    void ClearWithoutTimerCheck() { set_.clear(); }
-
-   private:
-    HeapHashSet<Member<GeoNotifier>> set_;
+    void ClearWithoutTimerCheck() { BaseClass::clear(); }
   };
 
   bool HasListeners() const {
-    return !one_shots_->IsEmpty() || !watchers_->IsEmpty();
+    return !one_shots_.IsEmpty() || !watchers_->IsEmpty();
   }
 
   void StopTimers();
@@ -204,7 +204,7 @@ class MODULES_EXPORT Geolocation final
   void OnGeolocationPermissionStatusUpdated(GeoNotifier*,
                                             mojom::PermissionStatus);
 
-  Member<GeoNotifierSet> one_shots_;
+  GeoNotifierSet one_shots_;
   Member<GeolocationWatchers> watchers_;
   // GeoNotifiers that are in the middle of invocation.
   //
@@ -217,7 +217,7 @@ class MODULES_EXPORT Geolocation final
   // wrapper-tracing.
   // TODO(https://crbug.com/796145): Remove this hack once on-stack objects
   // get supported by either of wrapper-tracing or unified GC.
-  Member<GeoNotifierSet> one_shots_being_invoked_;
+  GeoNotifierSet one_shots_being_invoked_;
   HeapVector<Member<GeoNotifier>> watchers_being_invoked_;
   Member<Geoposition> last_position_;
 

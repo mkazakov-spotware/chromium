@@ -23,26 +23,24 @@
 
 #include "third_party/blink/renderer/platform/graphics/filters/fe_flood.h"
 
-#include "base/types/optional_util.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_stream.h"
 #include "third_party/skia/include/core/SkColorFilter.h"
+#include "third_party/skia/include/effects/SkColorFilterImageFilter.h"
 
 namespace blink {
 
-FEFlood::FEFlood(Filter* filter,
-                 const SkColor4f& flood_color,
-                 float flood_opacity)
+FEFlood::FEFlood(Filter* filter, const Color& flood_color, float flood_opacity)
     : FilterEffect(filter),
       flood_color_(flood_color),
       flood_opacity_(flood_opacity) {
   FilterEffect::SetOperatingInterpolationSpace(kInterpolationSpaceSRGB);
 }
 
-SkColor4f FEFlood::FloodColor() const {
+Color FEFlood::FloodColor() const {
   return flood_color_;
 }
 
-bool FEFlood::SetFloodColor(const SkColor4f& color) {
+bool FEFlood::SetFloodColor(const Color& color) {
   if (flood_color_ == color)
     return false;
   flood_color_ = color;
@@ -61,14 +59,10 @@ bool FEFlood::SetFloodOpacity(float flood_opacity) {
 }
 
 sk_sp<PaintFilter> FEFlood::CreateImageFilter() {
-  SkColor4f color = flood_color_;
-  color.fA *= flood_opacity_;
-  absl::optional<PaintFilter::CropRect> crop_rect = GetCropRect();
+  Color color = FloodColor().CombineWithAlpha(FloodOpacity());
+  PaintFilter::CropRect rect = GetCropRect();
   return sk_make_sp<ColorFilterPaintFilter>(
-      // TODO(crbug.com/1308932): SkColorFilters::Blend to SkColor4f
-      SkColorFilters::Blend(Color::FromSkColor4f(color).Rgb(),
-                            SkBlendMode::kSrc),
-      nullptr, base::OptionalToPtr(crop_rect));
+      SkColorFilters::Blend(color.Rgb(), SkBlendMode::kSrc), nullptr, &rect);
 }
 
 WTF::TextStream& FEFlood::ExternalRepresentation(WTF::TextStream& ts,
@@ -76,9 +70,7 @@ WTF::TextStream& FEFlood::ExternalRepresentation(WTF::TextStream& ts,
   WriteIndent(ts, indent);
   ts << "[feFlood";
   FilterEffect::ExternalRepresentation(ts);
-  // TODO(crbug.com/1308932): Color::NameForLayoutTreeAsText to SkColor4f
-  ts << " flood-color=\""
-     << Color::FromSkColor4f(FloodColor()).NameForLayoutTreeAsText() << "\" "
+  ts << " flood-color=\"" << FloodColor().NameForLayoutTreeAsText() << "\" "
      << "flood-opacity=\"" << FloodOpacity() << "\"]\n";
   return ts;
 }

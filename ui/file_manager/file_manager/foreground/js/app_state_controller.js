@@ -1,20 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
 
-import {appUtil} from '../../common/js/app_util.js';
-import {DialogType} from '../../common/js/dialog_type.js';
-import {util} from '../../common/js/util.js';
-import {xfm} from '../../common/js/xfm.js';
-
-import {DirectoryModel} from './directory_model.js';
-import {GROUP_BY_FIELD_DIRECTORY, GROUP_BY_FIELD_MODIFICATION_TIME} from './file_list_model.js';
-import {FileManagerUI} from './ui/file_manager_ui.js';
-import {ListContainer} from './ui/list_container.js';
-
-export class AppStateController {
+class AppStateController {
   /**
    * @param {DialogType} dialogType
    */
@@ -49,37 +38,45 @@ export class AppStateController {
   /**
    * @return {Promise}
    */
-  async loadInitialViewOptions() {
+  loadInitialViewOptions() {
     // Load initial view option.
-    try {
-      const values =
-          await xfm.storage.local.getAsync(this.viewOptionStorageKey_);
-
-      this.viewOptions_ = {};
-
-      const value = /** @type {string} */ (values[this.viewOptionStorageKey_]);
-      if (!value) {
-        return;
-      }
-
-      // Load the global default options.
-      try {
-        this.viewOptions_ = JSON.parse(value);
-      } catch (ignore) {
-      }
-
-      // Override with window-specific options.
-      if (window.appState && window.appState.viewOptions) {
-        for (const key in window.appState.viewOptions) {
-          if (window.appState.viewOptions.hasOwnProperty(key)) {
-            this.viewOptions_[key] = window.appState.viewOptions[key];
+    return new Promise((fulfill, reject) => {
+             chrome.storage.local.get(this.viewOptionStorageKey_, values => {
+               if (chrome.runtime.lastError) {
+                 reject(
+                     'Failed to load view options: ' +
+                     chrome.runtime.lastError.message);
+               } else {
+                 fulfill(values);
+               }
+             });
+           })
+        .then(values => {
+          this.viewOptions_ = {};
+          const value = values[this.viewOptionStorageKey_];
+          if (!value) {
+            return;
           }
-        }
-      }
-    } catch (error) {
-      this.viewOptions_ = {};
-      console.warn(error);
-    }
+
+          // Load the global default options.
+          try {
+            this.viewOptions_ = JSON.parse(value);
+          } catch (ignore) {
+          }
+
+          // Override with window-specific options.
+          if (window.appState && window.appState.viewOptions) {
+            for (const key in window.appState.viewOptions) {
+              if (window.appState.viewOptions.hasOwnProperty(key)) {
+                this.viewOptions_[key] = window.appState.viewOptions[key];
+              }
+            }
+          }
+        })
+        .catch(error => {
+          this.viewOptions_ = {};
+          console.error(error);
+        });
   }
 
   /**
@@ -125,21 +122,26 @@ export class AppStateController {
   /**
    * Saves current view option.
    */
-  async saveViewOptions() {
+  saveViewOptions() {
     const prefs = {
       sortField: this.fileListSortField_,
       sortDirection: this.fileListSortDirection_,
       columnConfig: {},
       listType: this.ui_.listContainer.currentListType,
       isAllAndroidFoldersVisible:
-          this.directoryModel_.getFileFilter().isAllAndroidFoldersVisible(),
+          this.directoryModel_.getFileFilter().isAllAndroidFoldersVisible()
     };
     const cm = this.ui_.listContainer.table.columnModel;
     prefs.columnConfig = cm.exportColumnConfig();
     // Save the global default.
     const items = {};
     items[this.viewOptionStorageKey_] = JSON.stringify(prefs);
-    xfm.storage.local.setAsync(items);
+    chrome.storage.local.set(items, () => {
+      if (chrome.runtime.lastError) {
+        console.error(
+            'Failed to save view options: ' + chrome.runtime.lastError.message);
+      }
+    });
 
     // Save the window-specific preference.
     if (window.appState) {
@@ -151,7 +153,7 @@ export class AppStateController {
   /**
    * @private
    */
-  async onFileListSorted_() {
+  onFileListSorted_() {
     const currentDirectory = this.directoryModel_.getCurrentDirEntry();
     if (!currentDirectory) {
       return;
@@ -170,7 +172,7 @@ export class AppStateController {
   /**
    * @private
    */
-  async onFileFilterChanged_() {
+  onFileFilterChanged_() {
     const isAllAndroidFoldersVisible =
         this.directoryModel_.getFileFilter().isAllAndroidFoldersVisible();
     if (this.viewOptions_.isAllAndroidFoldersVisible !==
@@ -193,33 +195,25 @@ export class AppStateController {
     // 1) 'date-mofidied' and 'desc' order on Recent folder.
     // 2) preferred field and direction on other folders.
     const isOnRecent = util.isRecentRoot(event.newDirEntry);
-    const fileListModel = this.directoryModel_.getFileList();
-    this.ui_.listContainer.isOnRecent = isOnRecent;
     const isOnRecentBefore =
         event.previousDirEntry && util.isRecentRoot(event.previousDirEntry);
     if (isOnRecent != isOnRecentBefore) {
       if (isOnRecent) {
-        if (util.isRecentsFilterV2Enabled()) {
-          fileListModel.groupByField = GROUP_BY_FIELD_MODIFICATION_TIME;
-        }
-        fileListModel.sort(
+        this.directoryModel_.getFileList().sort(
             AppStateController.DEFAULT_SORT_FIELD,
             AppStateController.DEFAULT_SORT_DIRECTION);
       } else {
-        const isGridView = this.ui_.listContainer.currentListType ===
-            ListContainer.ListType.THUMBNAIL;
-        fileListModel.groupByField =
-            isGridView ? GROUP_BY_FIELD_DIRECTORY : null;
-        fileListModel.sort(
+        this.directoryModel_.getFileList().sort(
             this.fileListSortField_, this.fileListSortDirection_);
       }
     }
 
+    // TODO(mtomasz): Consider remembering the selection.
     appUtil.updateAppState(
         this.directoryModel_.getCurrentDirEntry() ?
             this.directoryModel_.getCurrentDirEntry().toURL() :
             '',
-        /*selectionURL=*/ '');
+        '' /* selectionURL */, '' /* opt_param */);
   }
 }
 

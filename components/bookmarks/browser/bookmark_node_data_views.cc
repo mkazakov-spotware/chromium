@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,7 +58,7 @@ bool BookmarkNodeData::Read(const ui::OSExchangeData& data) {
   } else {
     // See if there is a URL on the clipboard.
     GURL url;
-    std::u16string title;
+    base::string16 title;
     if (data.GetURLAndTitle(ui::FilenameToURLPolicy::CONVERT_FILENAMES, &url,
                             &title))
       ReadFromTuple(url, title);

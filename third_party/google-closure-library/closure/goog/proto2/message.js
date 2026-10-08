@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Protocol Buffer Message base class.
@@ -11,10 +19,10 @@
 
 goog.provide('goog.proto2.Message');
 
+goog.forwardDeclare('goog.proto2.LazyDeserializer');
 goog.require('goog.asserts');
 goog.require('goog.proto2.Descriptor');
-goog.require('goog.proto2.FieldDescriptor');
-goog.requireType('goog.proto2.LazyDeserializer');
+goog.require('goog.proto2.FieldDescriptor');  // circular reference
 
 
 
@@ -25,7 +33,6 @@ goog.requireType('goog.proto2.LazyDeserializer');
  * @constructor
  */
 goog.proto2.Message = function() {
-  'use strict';
   /**
    * Stores the field values in this message. Keyed by the tag of the fields.
    * @type {!Object}
@@ -117,7 +124,7 @@ goog.proto2.Message.descriptor_;
  */
 goog.proto2.Message.prototype.initializeForLazyDeserializer = function(
     deserializer, data) {
-  'use strict';
+
   this.lazyDeserializer_ = deserializer;
   this.values_ = data;
   this.deserializedFields_ = {};
@@ -131,7 +138,6 @@ goog.proto2.Message.prototype.initializeForLazyDeserializer = function(
  * @param {*} value The value for that unknown field.
  */
 goog.proto2.Message.prototype.setUnknown = function(tag, value) {
-  'use strict';
   goog.asserts.assert(
       !this.fields_[tag], 'Field is not unknown in this message');
   goog.asserts.assert(
@@ -157,7 +163,6 @@ goog.proto2.Message.prototype.setUnknown = function(tag, value) {
  * @template T
  */
 goog.proto2.Message.prototype.forEachUnknown = function(callback, opt_scope) {
-  'use strict';
   var scope = opt_scope || this;
   for (var key in this.values_) {
     var keyNum = Number(key);
@@ -188,7 +193,6 @@ goog.proto2.Message.prototype.getDescriptor = goog.abstractMethod;
  * @return {boolean} True if a value was found.
  */
 goog.proto2.Message.prototype.has = function(field) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -206,7 +210,6 @@ goog.proto2.Message.prototype.has = function(field) {
  * @return {!Array<?>} The values found.
  */
 goog.proto2.Message.prototype.arrayOf = function(field) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -224,7 +227,6 @@ goog.proto2.Message.prototype.arrayOf = function(field) {
  * @return {number} The count of the values in the given field.
  */
 goog.proto2.Message.prototype.countOf = function(field) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -245,7 +247,6 @@ goog.proto2.Message.prototype.countOf = function(field) {
  * @return {?} The value found or null if none.
  */
 goog.proto2.Message.prototype.get = function(field, opt_index) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -266,7 +267,6 @@ goog.proto2.Message.prototype.get = function(field, opt_index) {
  * @return {?} The value found or the default if none.
  */
 goog.proto2.Message.prototype.getOrDefault = function(field, opt_index) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -284,7 +284,6 @@ goog.proto2.Message.prototype.getOrDefault = function(field, opt_index) {
  * @param {*} value The new value for the field.
  */
 goog.proto2.Message.prototype.set = function(field, value) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -302,7 +301,6 @@ goog.proto2.Message.prototype.set = function(field, value) {
  * @param {*} value The new value to add to the field.
  */
 goog.proto2.Message.prototype.add = function(field, value) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -317,7 +315,6 @@ goog.proto2.Message.prototype.add = function(field, value) {
  * @param {goog.proto2.FieldDescriptor} field The field to clear.
  */
 goog.proto2.Message.prototype.clear = function(field) {
-  'use strict';
   goog.asserts.assert(
       field.getContainingType() == this.getDescriptor(),
       'The current message does not contain the given field');
@@ -333,7 +330,6 @@ goog.proto2.Message.prototype.clear = function(field) {
  *     argument is a different type of message or not a message.
  */
 goog.proto2.Message.prototype.equals = function(other) {
-  'use strict';
   if (!other || this.constructor != other.constructor) {
     return false;
   }
@@ -350,7 +346,6 @@ goog.proto2.Message.prototype.equals = function(other) {
       var isComposite = field.isCompositeType();
 
       var fieldsEqual = function(value1, value2) {
-        'use strict';
         return isComposite ? value1.equals(value2) : value1 == value2;
       };
 
@@ -383,7 +378,6 @@ goog.proto2.Message.prototype.equals = function(other) {
  * @param {!goog.proto2.Message} message The source message.
  */
 goog.proto2.Message.prototype.copyFrom = function(message) {
-  'use strict';
   goog.asserts.assert(
       this.constructor == message.constructor,
       'The source message must have the same type.');
@@ -406,7 +400,6 @@ goog.proto2.Message.prototype.copyFrom = function(message) {
  * @param {!goog.proto2.Message} message The source message.
  */
 goog.proto2.Message.prototype.mergeFrom = function(message) {
-  'use strict';
   goog.asserts.assert(
       this.constructor == message.constructor,
       'The source message must have the same type.');
@@ -449,7 +442,6 @@ goog.proto2.Message.prototype.mergeFrom = function(message) {
  *     the known fields.
  */
 goog.proto2.Message.prototype.clone = function() {
-  'use strict';
   /** @type {!goog.proto2.Message} */
   var clone = new this.constructor;
   clone.copyFrom(this);
@@ -464,7 +456,6 @@ goog.proto2.Message.prototype.clone = function() {
  *     if false, only the nested messages and groups.
  */
 goog.proto2.Message.prototype.initDefaults = function(simpleFieldsToo) {
-  'use strict';
   var fields = this.getDescriptor().getFields();
   for (var i = 0; i < fields.length; i++) {
     var field = fields[i];
@@ -506,7 +497,6 @@ goog.proto2.Message.prototype.initDefaults = function(simpleFieldsToo) {
  * @return {boolean} Whether the message has a value for the field.
  */
 goog.proto2.Message.prototype.has$Value = function(tag) {
-  'use strict';
   return this.values_[tag] != null;
 };
 
@@ -521,7 +511,6 @@ goog.proto2.Message.prototype.has$Value = function(tag) {
  * @private
  */
 goog.proto2.Message.prototype.getValueForTag_ = function(tag) {
-  'use strict';
   // Retrieve the current value, which may still be serialized.
   var value = this.values_[tag];
   if (value == null) {
@@ -561,7 +550,6 @@ goog.proto2.Message.prototype.getValueForTag_ = function(tag) {
  * @protected
  */
 goog.proto2.Message.prototype.get$Value = function(tag, opt_index) {
-  'use strict';
   var value = this.getValueForTag_(tag);
 
   if (this.fields_[tag].isRepeated()) {
@@ -591,7 +579,6 @@ goog.proto2.Message.prototype.get$Value = function(tag, opt_index) {
  * @protected
  */
 goog.proto2.Message.prototype.get$ValueOrDefault = function(tag, opt_index) {
-  'use strict';
   if (!this.has$Value(tag)) {
     // Return the default value.
     var field = this.fields_[tag];
@@ -613,7 +600,6 @@ goog.proto2.Message.prototype.get$ValueOrDefault = function(tag, opt_index) {
  * @protected
  */
 goog.proto2.Message.prototype.array$Values = function(tag) {
-  'use strict';
   var value = this.getValueForTag_(tag);
   return value || [];
 };
@@ -630,7 +616,6 @@ goog.proto2.Message.prototype.array$Values = function(tag) {
  * @protected
  */
 goog.proto2.Message.prototype.count$Values = function(tag) {
-  'use strict';
   var field = this.fields_[tag];
   if (field.isRepeated()) {
     return this.has$Value(tag) ? this.values_[tag].length : 0;
@@ -650,7 +635,6 @@ goog.proto2.Message.prototype.count$Values = function(tag) {
  * @protected
  */
 goog.proto2.Message.prototype.set$Value = function(tag, value) {
-  'use strict';
   if (goog.asserts.ENABLE_ASSERTS) {
     var field = this.fields_[tag];
     this.checkFieldType_(field, value);
@@ -673,7 +657,6 @@ goog.proto2.Message.prototype.set$Value = function(tag, value) {
  * @protected
  */
 goog.proto2.Message.prototype.add$Value = function(tag, value) {
-  'use strict';
   if (goog.asserts.ENABLE_ASSERTS) {
     var field = this.fields_[tag];
     this.checkFieldType_(field, value);
@@ -699,7 +682,6 @@ goog.proto2.Message.prototype.add$Value = function(tag, value) {
  * @private
  */
 goog.proto2.Message.prototype.checkFieldType_ = function(field, value) {
-  'use strict';
   if (field.getFieldType() == goog.proto2.FieldDescriptor.FieldType.ENUM) {
     goog.asserts.assertNumber(value);
   } else {
@@ -717,7 +699,6 @@ goog.proto2.Message.prototype.checkFieldType_ = function(field, value) {
  * @protected
  */
 goog.proto2.Message.prototype.clear$Field = function(tag) {
-  'use strict';
   delete this.values_[tag];
   if (this.deserializedFields_) {
     delete this.deserializedFields_[tag];
@@ -734,7 +715,6 @@ goog.proto2.Message.prototype.clear$Field = function(tag) {
  * @return {!goog.proto2.Descriptor} The new descriptor.
  */
 goog.proto2.Message.createDescriptor = function(messageType, metadataObj) {
-  'use strict';
   var fields = [];
   var descriptorInfo = metadataObj[0];
 

@@ -1,17 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/utility/image_writer/image_writer_handler.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/optional.h"
 #include "chrome/services/removable_storage_writer/public/mojom/removable_storage_writer.mojom.h"
 #include "chrome/utility/image_writer/error_message_strings.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -46,7 +45,7 @@ void ImageWriterHandler::Write(
     target_device = MakeTestDevicePath(image);
 
   if (ShouldResetImageWriter(image, target_device))
-    image_writer_ = std::make_unique<ImageWriter>(this, image, target_device);
+    image_writer_.reset(new ImageWriter(this, image, target_device));
 
   if (image_writer_->IsRunning()) {
     SendFailed(error::kOperationAlreadyInProgress);
@@ -81,7 +80,7 @@ void ImageWriterHandler::Verify(
     target_device = MakeTestDevicePath(image);
 
   if (ShouldResetImageWriter(image, target_device))
-    image_writer_ = std::make_unique<ImageWriter>(this, image, target_device);
+    image_writer_.reset(new ImageWriter(this, image, target_device));
 
   if (image_writer_->IsRunning()) {
     SendFailed(error::kOperationAlreadyInProgress);
@@ -106,7 +105,7 @@ void ImageWriterHandler::SendProgress(int64_t progress) {
 }
 
 void ImageWriterHandler::SendSucceeded() {
-  client_->Complete(absl::nullopt);
+  client_->Complete(base::nullopt);
   client_.reset();
 }
 

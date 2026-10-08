@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ void ExtensionPrefStore::OnPrefValueChanged(const std::string& key) {
   const base::Value* winner = extension_pref_value_map_->GetEffectivePrefValue(
       key, incognito_pref_store_, nullptr);
   if (winner) {
-    SetValue(key, winner->Clone(),
+    SetValue(key, winner->CreateDeepCopy(),
              WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
   } else {
     RemoveValue(key, WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,10 @@
 
 #include "base/at_exit.h"
 #include "base/command_line.h"
-#include "build/build_config.h"
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/scoped_nsautorelease_pool.h"
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/strings/utf_string_conversions.h"
 #endif
 #include "base/message_loop/message_pump_type.h"
@@ -35,17 +34,17 @@ int main(int argc, char *argv[]) {
   base::CommandLine::StringVector args =
       base::CommandLine::ForCurrentProcess()->GetArgs();
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   base::mac::ScopedNSAutoreleasePool pool;
 #endif
 
   std::unique_ptr<const char* []> argsArray(new const char*[args.size() + 1]);
   argsArray[0] = argv[0];
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::vector<std::string> argsNonWide(args.size());
   for (size_t index = 0; index < args.size(); ++index) {
-    argsNonWide[index] = base::WideToASCII(args[index]);
+    argsNonWide[index] = base::UTF16ToASCII(args[index]);
     argsArray[index+1] = argsNonWide[index].c_str();
   }
 #else

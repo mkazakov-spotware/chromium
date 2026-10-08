@@ -1,15 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/send_tab_to_self/send_tab_to_self_image_detail_text_item.h"
 
-#import "base/check.h"
-#import "ios/chrome/browser/ui/icons/symbols.h"
+#include "base/check.h"
 #import "ios/chrome/browser/ui/settings/cells/settings_image_detail_text_cell.h"
+#include "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -30,11 +28,9 @@
   [super configureCell:cell withStyler:styler];
   cell.textLabel.text = self.text;
   cell.detailTextLabel.text = self.detailText;
-  if (UseSymbols()) {
-    [cell setImageViewTintColor:[UIColor colorNamed:kGrey400Color]];
-  }
-  DCHECK(self.iconImage);
-  cell.image = self.iconImage;
+  DCHECK([self.iconImageName length]);
+  cell.image = [[UIImage imageNamed:self.iconImageName]
+      imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   if (self.selected) {
     cell.accessoryType = UITableViewCellAccessoryCheckmark;
   } else {

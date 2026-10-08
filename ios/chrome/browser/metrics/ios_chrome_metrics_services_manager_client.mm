@@ -1,51 +1,56 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/metrics/ios_chrome_metrics_services_manager_client.h"
+#include "ios/chrome/browser/metrics/ios_chrome_metrics_services_manager_client.h"
 
-#import <string>
-
-#import "base/bind.h"
-#import "base/check.h"
-#import "base/command_line.h"
-#import "base/files/file_path.h"
-#import "base/path_service.h"
-#import "components/metrics/enabled_state_provider.h"
-#import "components/metrics/metrics_state_manager.h"
-#import "components/prefs/pref_service.h"
-#import "components/variations/service/variations_service.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state_manager.h"
+#include "base/bind.h"
+#include "base/check.h"
+#include "base/command_line.h"
+#include "base/strings/string16.h"
+#include "components/metrics/enabled_state_provider.h"
+#include "components/metrics/metrics_state_manager.h"
+#include "components/prefs/pref_service.h"
+#include "components/rappor/rappor_service_impl.h"
+#include "components/variations/service/variations_service.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state_manager.h"
+#include "ios/chrome/browser/chrome_switches.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/main/browser_list.h"
 #import "ios/chrome/browser/main/browser_list_factory.h"
-#import "ios/chrome/browser/metrics/ios_chrome_metrics_service_accessor.h"
-#import "ios/chrome/browser/metrics/ios_chrome_metrics_service_client.h"
-#import "ios/chrome/browser/paths/paths.h"
-#import "ios/chrome/browser/variations/ios_chrome_variations_service_client.h"
-#import "ios/chrome/browser/variations/ios_ui_string_overrider_factory.h"
+#include "ios/chrome/browser/metrics/ios_chrome_metrics_service_accessor.h"
+#include "ios/chrome/browser/metrics/ios_chrome_metrics_service_client.h"
+#include "ios/chrome/browser/variations/ios_chrome_variations_service_client.h"
+#include "ios/chrome/browser/variations/ios_ui_string_overrider_factory.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
-#import "services/network/public/cpp/shared_url_loader_factory.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
+namespace {
+
+void PostStoreMetricsClientInfo(const metrics::ClientInfo& client_info) {}
+
+std::unique_ptr<metrics::ClientInfo> LoadMetricsClientInfo() {
+  return std::unique_ptr<metrics::ClientInfo>();
+}
+
+}  // namespace
+
 class IOSChromeMetricsServicesManagerClient::IOSChromeEnabledStateProvider
     : public metrics::EnabledStateProvider {
  public:
   IOSChromeEnabledStateProvider() {}
-
-  IOSChromeEnabledStateProvider(const IOSChromeEnabledStateProvider&) = delete;
-  IOSChromeEnabledStateProvider& operator=(
-      const IOSChromeEnabledStateProvider&) = delete;
-
   ~IOSChromeEnabledStateProvider() override {}
 
   bool IsConsentGiven() const override {
     return IOSChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled();
   }
+
+  DISALLOW_COPY_AND_ASSIGN(IOSChromeEnabledStateProvider);
 };
 
 IOSChromeMetricsServicesManagerClient::IOSChromeMetricsServicesManagerClient(
@@ -58,6 +63,15 @@ IOSChromeMetricsServicesManagerClient::IOSChromeMetricsServicesManagerClient(
 
 IOSChromeMetricsServicesManagerClient::
     ~IOSChromeMetricsServicesManagerClient() = default;
+
+std::unique_ptr<rappor::RapporServiceImpl>
+IOSChromeMetricsServicesManagerClient::CreateRapporServiceImpl() {
+  DCHECK(thread_checker_.CalledOnValidThread());
+  return std::make_unique<rappor::RapporServiceImpl>(
+      local_state_,
+      base::BindRepeating(
+          &IOSChromeMetricsServicesManagerClient::AreIncognitoTabsPresent));
+}
 
 std::unique_ptr<variations::VariationsService>
 IOSChromeMetricsServicesManagerClient::CreateVariationsService() {
@@ -84,11 +98,10 @@ metrics::MetricsStateManager*
 IOSChromeMetricsServicesManagerClient::GetMetricsStateManager() {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (!metrics_state_manager_) {
-    base::FilePath user_data_dir;
-    base::PathService::Get(ios::DIR_USER_DATA, &user_data_dir);
     metrics_state_manager_ = metrics::MetricsStateManager::Create(
-        local_state_, enabled_state_provider_.get(), std::wstring(),
-        user_data_dir, metrics::StartupVisibility::kUnknown);
+        local_state_, enabled_state_provider_.get(), base::string16(),
+        base::BindRepeating(&PostStoreMetricsClientInfo),
+        base::BindRepeating(&LoadMetricsClientInfo));
   }
   return metrics_state_manager_.get();
 }

@@ -1,13 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/javascript_dialogs/views/app_modal_dialog_view_views.h"
-#include <memory>
 
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/javascript_dialogs/app_modal_dialog_controller.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -15,11 +13,6 @@
 #include "ui/views/controls/message_box_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/widget/widget.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "components/javascript_dialogs/views/layer_dimmer.h"
-#include "ui/aura/window.h"
-#endif  // IS_CHROMEOS_LACROS
 
 namespace javascript_dialogs {
 
@@ -82,18 +75,7 @@ AppModalDialogViewViews::~AppModalDialogViewViews() = default;
 // AppModalDialogViewViews, AppModalDialogView implementation:
 
 void AppModalDialogViewViews::ShowAppModalDialog() {
-  auto* widget = GetWidget();
-  widget->Show();
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  auto* dialogWindow = widget->GetNativeWindow();
-  auto* parentWindow = dialogWindow->parent();
-
-  if (!layerDimmer_) {
-    layerDimmer_ = std::make_unique<LayerDimmer>(parentWindow, dialogWindow);
-  }
-  layerDimmer_->Show();
-#endif  // IS_CHROMEOS_LACROS
+  GetWidget()->Show();
 }
 
 void AppModalDialogViewViews::ActivateAppModalDialog() {
@@ -103,12 +85,6 @@ void AppModalDialogViewViews::ActivateAppModalDialog() {
 
 void AppModalDialogViewViews::CloseAppModalDialog() {
   GetWidget()->Close();
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  if (layerDimmer_) {
-    layerDimmer_->Hide();
-  }
-#endif  // IS_CHROMEOS_LACROS
 }
 
 void AppModalDialogViewViews::AcceptAppModalDialog() {
@@ -126,12 +102,12 @@ bool AppModalDialogViewViews::IsShowing() const {
 //////////////////////////////////////////////////////////////////////////////
 // AppModalDialogViewViews, views::DialogDelegate implementation:
 
-std::u16string AppModalDialogViewViews::GetWindowTitle() const {
+base::string16 AppModalDialogViewViews::GetWindowTitle() const {
   return controller_->title();
 }
 
 ui::ModalType AppModalDialogViewViews::GetModalType() const {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // TODO(https://crbug.com/1127133): Remove this hack. This works around the
   // linked bug. This dialog should be window-modal on ChromeOS as well.
   return ui::MODAL_TYPE_SYSTEM;

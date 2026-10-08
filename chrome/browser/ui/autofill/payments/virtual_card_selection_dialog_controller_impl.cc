@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,7 @@ namespace autofill {
 
 VirtualCardSelectionDialogControllerImpl::
     VirtualCardSelectionDialogControllerImpl(content::WebContents* web_contents)
-    : content::WebContentsUserData<VirtualCardSelectionDialogControllerImpl>(
-          *web_contents) {}
+    : content::WebContentsObserver(web_contents) {}
 
 VirtualCardSelectionDialogControllerImpl::
     ~VirtualCardSelectionDialogControllerImpl() {
@@ -41,7 +40,7 @@ void VirtualCardSelectionDialogControllerImpl::ShowDialog(
 
   callback_ = std::move(callback);
   dialog_view_ =
-      VirtualCardSelectionDialogView::CreateAndShow(this, &GetWebContents());
+      VirtualCardSelectionDialogView::CreateAndShow(this, web_contents());
 }
 
 bool VirtualCardSelectionDialogControllerImpl::IsOkButtonEnabled() {
@@ -50,27 +49,27 @@ bool VirtualCardSelectionDialogControllerImpl::IsOkButtonEnabled() {
   return !selected_card_id_.empty();
 }
 
-std::u16string VirtualCardSelectionDialogControllerImpl::GetContentTitle()
+base::string16 VirtualCardSelectionDialogControllerImpl::GetContentTitle()
     const {
   return l10n_util::GetPluralStringFUTF16(
       IDS_AUTOFILL_VIRTUAL_CARD_SELECTION_DIALOG_CONTENT_TITLE,
       candidates_.size());
 }
 
-std::u16string VirtualCardSelectionDialogControllerImpl::GetContentExplanation()
+base::string16 VirtualCardSelectionDialogControllerImpl::GetContentExplanation()
     const {
   return l10n_util::GetPluralStringFUTF16(
       IDS_AUTOFILL_VIRTUAL_CARD_SELECTION_DIALOG_CONTENT_EXPLANATION,
       candidates_.size());
 }
 
-std::u16string VirtualCardSelectionDialogControllerImpl::GetOkButtonLabel()
+base::string16 VirtualCardSelectionDialogControllerImpl::GetOkButtonLabel()
     const {
   return l10n_util::GetStringUTF16(
       IDS_AUTOFILL_VIRTUAL_CARD_SELECTION_DIALOG_OK_BUTTON_LABEL);
 }
 
-std::u16string VirtualCardSelectionDialogControllerImpl::GetCancelButtonLabel()
+base::string16 VirtualCardSelectionDialogControllerImpl::GetCancelButtonLabel()
     const {
   return l10n_util::GetStringUTF16(
       IDS_AUTOFILL_VIRTUAL_CARD_SELECTION_DIALOG_CANCEL_BUTTON_LABEL);
@@ -102,6 +101,6 @@ void VirtualCardSelectionDialogControllerImpl::OnDialogClosed() {
   callback_.Reset();
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(VirtualCardSelectionDialogControllerImpl);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(VirtualCardSelectionDialogControllerImpl)
 
 }  // namespace autofill

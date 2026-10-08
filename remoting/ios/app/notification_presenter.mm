@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #import "remoting/ios/persistence/remoting_preferences.h"
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/no_destructor.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "remoting/base/string_resources.h"
@@ -32,13 +31,8 @@ namespace {
 // UserStatusPresenter).
 // TODO(yuweih): Chain this class with UserStatusPresenter on the
 // kUserDidUpdate event.
-constexpr base::TimeDelta kFetchNotificationDelay = base::Seconds(2);
-
-// The "Don't show again" checkbox only appears if the notification has been
-// shown for at least |kTimesShownRequiredToAllowSilencing| times. Note that
-// this means the checkbox shows up starting from the
-// (|kTimesShownRequiredToAllowSilencing| + 1)th app launch.
-constexpr unsigned int kTimesShownRequiredToAllowSilencing = 2u;
+constexpr base::TimeDelta kFetchNotificationDelay =
+    base::TimeDelta::FromSeconds(2);
 
 enum NotificationUiState : unsigned int {
   NOT_SHOWN = 0,
@@ -71,7 +65,9 @@ void NotificationPresenter::Start() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(!user_update_observer_);
 
-  FetchNotification();
+  if ([RemotingService.instance.authentication.user isAuthenticated]) {
+    FetchNotificationIfNecessary();
+  }
   user_update_observer_ = [NSNotificationCenter.defaultCenter
       addObserverForName:kUserDidUpdate
                   object:nil
@@ -79,24 +75,23 @@ void NotificationPresenter::Start() {
               usingBlock:^(NSNotification*) {
                 // This implicitly captures |this|, but should be fine since
                 // |NotificationPresenter| is singleton.
-                FetchNotification();
+                FetchNotificationIfNecessary();
               }];
 }
 
-void NotificationPresenter::FetchNotification() {
+void NotificationPresenter::FetchNotificationIfNecessary() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (state_ == State::FETCHED) {
+  if (state_ != State::NOT_FETCHED) {
     return;
   }
   UserInfo* user = RemotingService.instance.authentication.user;
-  std::string user_email = [user isAuthenticated]
-                               ? base::SysNSStringToUTF8(user.userEmail)
-                               : std::string();
+  if (![user isAuthenticated]) {
+    // Can't show notification since user email is unknown.
+    return;
+  }
 
   state_ = State::FETCHING;
-  // If FetchNotification() is called when the timer is already running, this
-  // will restart the timer with the new user email.
   fetch_notification_timer_.Start(
       FROM_HERE, kFetchNotificationDelay,
       base::BindOnce(
@@ -106,11 +101,11 @@ void NotificationPresenter::FetchNotification() {
                 base::BindOnce(&NotificationPresenter::OnNotificationFetched,
                                base::Unretained(that)));
           },
-          base::Unretained(this), user_email));
+          base::Unretained(this), base::SysNSStringToUTF8(user.userEmail)));
 }
 
 void NotificationPresenter::OnNotificationFetched(
-    absl::optional<NotificationMessage> notification) {
+    base::Optional<NotificationMessage> notification) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(State::FETCHING, state_);
 
@@ -141,21 +136,10 @@ void NotificationPresenter::OnNotificationFetched(
     ui_state = NOT_SHOWN;
     [RemotingPreferences.instance setObject:UiStateToNSNumber(ui_state)
                                     forFlag:RemotingFlagNotificationUiState];
-    [RemotingPreferences.instance setObject:@(0u)
-                                    forFlag:RemotingFlagNotificationShownTimes];
     [RemotingPreferences.instance synchronizeFlags];
   }
 
-  NSNumber* notificationShownTimesNsNumber = [RemotingPreferences.instance
-      objectForFlag:RemotingFlagNotificationShownTimes];
-  unsigned int notification_shown_times =
-      notificationShownTimesNsNumber
-          ? notificationShownTimesNsNumber.unsignedIntValue
-          : 0u;
-
-  BOOL allowSilence =
-      notification->allow_silence && ui_state == SHOWN &&
-      notification_shown_times >= kTimesShownRequiredToAllowSilencing;
+  BOOL allowSilence = notification->allow_silence && ui_state == SHOWN;
   NotificationDialogViewController* dialogVc =
       [[NotificationDialogViewController alloc]
           initWithNotificationMessage:*notification
@@ -164,8 +148,6 @@ void NotificationPresenter::OnNotificationFetched(
     NotificationUiState new_ui_state = isSilenced ? SILENCED : SHOWN;
     [RemotingPreferences.instance setObject:UiStateToNSNumber(new_ui_state)
                                     forFlag:RemotingFlagNotificationUiState];
-    [RemotingPreferences.instance setObject:@(notification_shown_times + 1)
-                                    forFlag:RemotingFlagNotificationShownTimes];
     [RemotingPreferences.instance synchronizeFlags];
   }];
 }

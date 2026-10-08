@@ -1,19 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_CRASH_REPORT_BREADCRUMBS_BREADCRUMB_MANAGER_BROWSER_AGENT_H_
 #define IOS_CHROME_BROWSER_CRASH_REPORT_BREADCRUMBS_BREADCRUMB_MANAGER_BROWSER_AGENT_H_
 
-#import <string>
+#include <string>
 
-#import "base/scoped_observation.h"
-#import "components/breadcrumbs/core/breadcrumb_manager_browser_agent.h"
-#import "ios/chrome/browser/main/browser_observer.h"
-#import "ios/chrome/browser/main/browser_user_data.h"
-#import "ios/chrome/browser/overlays/public/overlay_presenter.h"
-#import "ios/chrome/browser/overlays/public/overlay_presenter_observer.h"
-#import "ios/chrome/browser/web_state_list/web_state_list_observer.h"
+#include "base/scoped_observer.h"
+#include "ios/chrome/browser/main/browser_observer.h"
+#include "ios/chrome/browser/main/browser_user_data.h"
+#include "ios/chrome/browser/overlays/public/overlay_presenter.h"
+#include "ios/chrome/browser/overlays/public/overlay_presenter_observer.h"
+#include "ios/chrome/browser/web_state_list/web_state_list_observer.h"
 
 class Browser;
 class WebStateList;
@@ -21,54 +20,70 @@ class WebStateList;
 // Name of Overlay initial presentation event.
 extern const char kBreadcrumbOverlay[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay was re-activated rather
+// Appended to |kBreadcrumbOverlay| event if overlay was re-activated rather
 // than presented for the first time (f.e. the user has switched to a tab with
 // an overlay).
 extern const char kBreadcrumbOverlayActivated[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay is Http Authentication.
+// Appended to |kBreadcrumbOverlay| event if overlay is Http Authentication.
 extern const char kBreadcrumbOverlayHttpAuth[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay is generic app dialog.
+// Appended to |kBreadcrumbOverlay| event if overlay is generic app dialog.
 extern const char kBreadcrumbOverlayAlert[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay is app launch confirmation.
+// Appended to |kBreadcrumbOverlay| event if overlay is app launch confirmation.
 extern const char kBreadcrumbOverlayAppLaunch[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay is JavaScript alert.
+// Appended to |kBreadcrumbOverlay| event if overlay is JavaScript alert.
 extern const char kBreadcrumbOverlayJsAlert[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay is JavaScript confirm.
+// Appended to |kBreadcrumbOverlay| event if overlay is JavaScript confirm.
 extern const char kBreadcrumbOverlayJsConfirm[];
 
-// Appended to `kBreadcrumbOverlay` event if overlay is JavaScript prompt.
+// Appended to |kBreadcrumbOverlay| event if overlay is JavaScript prompt.
 extern const char kBreadcrumbOverlayJsPrompt[];
 
+// Logs activity for the associated Browser's underlying WebStateList based on
+// callbacks from various observers. Event logs are sent to the BrowserState's
+// BreadcrumbManagerKeyedService.
+// For example:
+//   Browser1 Insert active WebState2 at 0
+// which indicates that a WebState with identifier 2 (from
+// BreadcrumbManagerTabHelper) was inserted into the Browser with identifier 1
+// (from BreadcrumbManagerBrowserAgent)
 class BreadcrumbManagerBrowserAgent
-    : public breadcrumbs::BreadcrumbManagerBrowserAgent,
-      BrowserObserver,
+    : BrowserObserver,
       public OverlayPresenterObserver,
       public BrowserUserData<BreadcrumbManagerBrowserAgent>,
       WebStateListObserver {
  public:
-  BreadcrumbManagerBrowserAgent(const BreadcrumbManagerBrowserAgent&) = delete;
-  BreadcrumbManagerBrowserAgent& operator=(
-      const BreadcrumbManagerBrowserAgent&) = delete;
+  // Gets and Sets whether or not logging is enabled. Disabling logging be used
+  // to prevent the over-collection of breadcrumb events during known states
+  // such as a clean shutdown.
+  // |IsLoggingEnabled()| defaults to true on initialization.
+  bool IsLoggingEnabled();
+  void SetLoggingEnabled(bool enabled);
+
   ~BreadcrumbManagerBrowserAgent() override;
 
  private:
+  explicit BreadcrumbManagerBrowserAgent(Browser* browser);
   friend class BrowserUserData<BreadcrumbManagerBrowserAgent>;
   BROWSER_USER_DATA_KEY_DECL();
 
-  explicit BreadcrumbManagerBrowserAgent(Browser* browser);
+  BreadcrumbManagerBrowserAgent(const BreadcrumbManagerBrowserAgent&) = delete;
+  BreadcrumbManagerBrowserAgent& operator=(
+      const BreadcrumbManagerBrowserAgent&) = delete;
 
-  // breadcrumbs::BreadcrumbManagerBrowserAgent:
-  void PlatformLogEvent(const std::string& event) override;
+  // Logs a breadcrumb event with message data |event| associated with
+  // |browser_|. NOTE: |event| must not include newline characters as newlines
+  // are used by BreadcrumbPersistentStore as a deliminator.
+  void LogEvent(const std::string& event);
 
-  // BrowserObserver:
+  // BrowserObserver
   void BrowserDestroyed(Browser* browser) override;
 
-  // WebStateListObserver:
+  // WebStateListObserver overrides
   void WebStateInsertedAt(WebStateList* web_state_list,
                           web::WebState* web_state,
                           int index,
@@ -93,12 +108,18 @@ class BreadcrumbManagerBrowserAgent
   void WillBeginBatchOperation(WebStateList* web_state_list) override;
   void BatchOperationEnded(WebStateList* web_state_list) override;
 
-  // OverlayPresenterObserver:
+  // OverlayPresenterObservers overrides
   void WillShowOverlay(OverlayPresenter* presenter,
                        OverlayRequest* request,
                        bool initial_presentation) override;
   void OverlayPresenterDestroyed(OverlayPresenter* presenter) override;
 
+  // Unique (across this application run only) identifier for logs associated
+  // with |browser_| instance. Used to differentiate logs associated with the
+  // same underlying BrowserState.
+  int unique_id_ = -1;
+  // Whether or not events will be logged.
+  bool logging_enabled_ = true;
   Browser* browser_ = nullptr;
 
   // Keeps track of WebState mutation count to avoid logging every event.
@@ -115,8 +136,7 @@ class BreadcrumbManagerBrowserAgent
   std::unique_ptr<BatchOperation> batch_operation_;
 
   // Observes overlays presentation.
-  base::ScopedObservation<OverlayPresenter, OverlayPresenterObserver>
-      overlay_observation_{this};
+  ScopedObserver<OverlayPresenter, OverlayPresenterObserver> overlay_observer_;
 };
 
 #endif  // IOS_CHROME_BROWSER_CRASH_REPORT_BREADCRUMBS_BREADCRUMB_MANAGER_BROWSER_AGENT_H_

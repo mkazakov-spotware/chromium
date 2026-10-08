@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@ import android.webkit.ValueCallback;
 /**
  * Used along with {@link MediaCaptureController} to control and observe Media Capture and Streams
  * usage.
+ *
+ * @since 84
  */
-abstract class MediaCaptureCallback {
+public abstract class MediaCaptureCallback {
     /**
      * Called when a site in a Tab requests to start capturing media from the user's device.
      *

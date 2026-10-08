@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.Manual;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
@@ -26,33 +26,33 @@ public class IntentionalCrashTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
-    @Test
+    @DisabledTest
     @SmallTest
-    @Manual(message = "Intentional crash.")
+    @Test
     public void testRendererCrash() {
         mActivityTestRule.startMainActivityFromLauncher();
         mActivityTestRule.loadUrl("chrome://crash");
     }
 
-    @Test
+    @DisabledTest
     @SmallTest
-    @Manual(message = "Intentional crash.")
+    @Test
     public void testBrowserCrash() {
         mActivityTestRule.startMainActivityFromLauncher();
         mActivityTestRule.loadUrl("chrome://inducebrowsercrashforrealz");
     }
 
-    @Test
+    @DisabledTest
     @SmallTest
-    @Manual(message = "Intentional crash.")
+    @Test
     public void testJavaCrash() {
         mActivityTestRule.startMainActivityFromLauncher();
         mActivityTestRule.loadUrl("chrome://java-crash/");
     }
 
-    @Test
+    @DisabledTest
     @SmallTest
-    @Manual(message = "Intentional crash.")
+    @Test
     public void testGpuCrash() {
         mActivityTestRule.startMainActivityFromLauncher();
         mActivityTestRule.loadUrl("chrome://gpucrash");

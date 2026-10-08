@@ -21,25 +21,25 @@ SELECT UMAMetrics(
     FROM histogram_samples
     WHERE histogram_name = 'CompositorLatency.TotalLatency'
   ),
-  'event_latency_first_gesture_scroll_update_touchscreen_total_latency', (
+  'event_latency_scroll_begin_touch_time_to_scroll_update_swap_begin4', (
     SELECT RepeatedField(sample / 1e3)
     FROM histogram_samples
-    WHERE histogram_name = 'EventLatency.FirstGestureScrollUpdate.Touchscreen.TotalLatency'
+    WHERE histogram_name = 'Event.Latency.ScrollBegin.Touch.TimeToScrollUpdateSwapBegin4'
   ),
-  'event_latency_gesture_scroll_update_touchscreen_total_latency', (
+  'event_latency_scroll_update_touch_time_to_scroll_update_swap_begin4', (
     SELECT RepeatedField(sample / 1e3)
     FROM histogram_samples
-    WHERE histogram_name = 'EventLatency.GestureScrollUpdate.Touchscreen.TotalLatency'
+    WHERE histogram_name = 'Event.Latency.ScrollUpdate.Touch.TimeToScrollUpdateSwapBegin4'
   ),
-  'event_latency_first_gesture_scroll_update_wheel_total_latency', (
+  'event_latency_scroll_begin_wheel_time_to_scroll_update_swap_begin4', (
     SELECT RepeatedField(sample / 1e3)
     FROM histogram_samples
-    WHERE histogram_name = 'EventLatency.FirstGestureScrollUpdate.Wheel.TotalLatency'
+    WHERE histogram_name = 'Event.Latency.ScrollBegin.Wheel.TimeToScrollUpdateSwapBegin4'
   ),
-  'event_latency_gesture_scroll_update_wheel_total_latency', (
+  'event_latency_scroll_update_wheel_time_to_scroll_update_swap_begin4', (
     SELECT RepeatedField(sample / 1e3)
     FROM histogram_samples
-    WHERE histogram_name = 'EventLatency.GestureScrollUpdate.Wheel.TotalLatency'
+    WHERE histogram_name = 'Event.Latency.ScrollUpdate.Wheel.TimeToScrollUpdateSwapBegin4'
   ),
   'graphics_smoothness_checkerboarding_compositor_animation', (
     SELECT RepeatedField(sample / 1e2)
@@ -51,7 +51,7 @@ SELECT UMAMetrics(
     FROM histogram_samples
     WHERE histogram_name = 'Graphics.Smoothness.Checkerboarding.MainThreadAnimation'
   ),
-  'graphics_smoothness_checkerboarding_pinch_zoom', (
+  'graphics_smoothness_checkerboarding_pitch_zoom', (
     SELECT RepeatedField(sample / 1e2)
     FROM histogram_samples
     WHERE histogram_name = 'Graphics.Smoothness.Checkerboarding.PinchZoom'
@@ -159,11 +159,11 @@ SELECT UMAMetrics(
   'memory_gpu_peak_memory_usage_scroll', (
     SELECT RepeatedField(sample * 1e3)
     FROM histogram_samples
-    WHERE histogram_name = 'Memory.GPU.PeakMemoryUsage2.Scroll'
+    WHERE histogram_name = 'Memory.GPU.PeakMemoryUsage.Scroll'
   ),
   'memory_gpu_peak_memory_usage_page_load', (
     SELECT RepeatedField(sample * 1e3)
     FROM histogram_samples
-    WHERE histogram_name = 'Memory.GPU.PeakMemoryUsage2.PageLoad'
+    WHERE histogram_name = 'Memory.GPU.PeakMemoryUsage.PageLoad'
   )
 );

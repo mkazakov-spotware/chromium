@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "components/omnibox/browser/autocomplete_result.h"
 
 OmniboxLog::OmniboxLog(
-    const std::u16string& text,
+    const base::string16& text,
     bool just_deleted_text,
     metrics::OmniboxInputType input_type,
     bool in_keyword_mode,
@@ -21,8 +21,7 @@ OmniboxLog::OmniboxLog(
     base::TimeDelta elapsed_time_since_user_first_modified_omnibox,
     size_t completed_length,
     base::TimeDelta elapsed_time_since_last_change_to_default_match,
-    const AutocompleteResult& result,
-    const GURL& final_destination_url)
+    const AutocompleteResult& result)
     : text(text),
       just_deleted_text(just_deleted_text),
       input_type(input_type),
@@ -39,8 +38,7 @@ OmniboxLog::OmniboxLog(
       completed_length(completed_length),
       elapsed_time_since_last_change_to_default_match(
           elapsed_time_since_last_change_to_default_match),
-      result(result),
-      final_destination_url(final_destination_url) {
+      result(result) {
   DCHECK(selected_index < result.size())
       << "The selected index should always be valid. See comments on "
          "OmniboxLog::selected_index.";

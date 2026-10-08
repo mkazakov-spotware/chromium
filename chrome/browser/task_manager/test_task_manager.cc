@@ -1,10 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/task_manager/test_task_manager.h"
-
-#include "base/timer/mock_timer.h"
 
 namespace task_manager {
 
@@ -80,12 +78,12 @@ bool TestTaskManager::IsTaskOnBackgroundedProcess(TaskId task_id) const {
   return false;
 }
 
-const std::u16string& TestTaskManager::GetTitle(TaskId task_id) const {
+const base::string16& TestTaskManager::GetTitle(TaskId task_id) const {
   return title_;
 }
 
-std::u16string TestTaskManager::GetProfileName(TaskId task_id) const {
-  return std::u16string();
+base::string16 TestTaskManager::GetProfileName(TaskId task_id) const {
+  return base::string16();
 }
 
 const gfx::ImageSkia& TestTaskManager::GetIcon(TaskId task_id) const {

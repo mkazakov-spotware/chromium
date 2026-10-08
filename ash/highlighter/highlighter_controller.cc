@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "base/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/timer/timer.h"
+#include "chromeos/constants/chromeos_switches.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/events/base_event_utils.h"
@@ -128,7 +129,7 @@ void HighlighterController::UpdatePointerView(ui::TouchEvent* event) {
 
   gfx::Rect bounds =
       highlighter_view_widget_->GetNativeWindow()->GetRootWindow()->bounds();
-  bounds.Inset(kScreenEdgeMargin);
+  bounds.Inset(kScreenEdgeMargin, kScreenEdgeMargin);
 
   const gfx::PointF pos = GetHighlighterView()->points().GetNewest().location;
   if (bounds.Contains(
@@ -145,7 +146,7 @@ void HighlighterController::UpdatePointerView(ui::TouchEvent* event) {
 
   interrupted_stroke_timer_ = std::make_unique<base::OneShotTimer>();
   interrupted_stroke_timer_->Start(
-      FROM_HERE, base::Milliseconds(kInterruptedStrokeTimeoutMs),
+      FROM_HERE, base::TimeDelta::FromMilliseconds(kInterruptedStrokeTimeoutMs),
       base::BindOnce(&HighlighterController::RecognizeGesture,
                      base::Unretained(this)));
 }
@@ -232,22 +233,12 @@ void HighlighterController::DestroyPointerView() {
   DestroyResultView();
 }
 
-bool HighlighterController::CanStartNewGesture(ui::LocatedEvent* event) {
+bool HighlighterController::CanStartNewGesture(ui::TouchEvent* event) {
   // Ignore events over the palette.
   if (palette_utils::PaletteContainsPointInScreen(event->root_location()))
     return false;
   return !interrupted_stroke_timer_ &&
          FastInkPointerController::CanStartNewGesture(event);
-}
-
-bool HighlighterController::ShouldProcessEvent(ui::LocatedEvent* event) {
-  // Allow mouse clicking when Assistant tool is enabled.
-  if (event->type() == ui::ET_MOUSE_PRESSED ||
-      event->type() == ui::ET_MOUSE_RELEASED) {
-    return false;
-  }
-
-  return FastInkPointerController::ShouldProcessEvent(event);
 }
 
 void HighlighterController::DestroyHighlighterView() {

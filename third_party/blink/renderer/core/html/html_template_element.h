@@ -31,25 +31,17 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_HTML_TEMPLATE_ELEMENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_HTML_TEMPLATE_ELEMENT_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
 class DocumentFragment;
 class TemplateContentDocumentFragment;
 
-// TODO(crbug.com/1379513) Only three of these should be needed at a time,
-// depending on the state of the StreamingDeclarativeShadowDOM feature. That
-// feature flips between kOpen/kClosed and kStreamingOpen/kStreamingClosed.
 enum class DeclarativeShadowRootType {
   kNone,
   kOpen,
-  kStreamingOpen,
   kClosed,
-  kStreamingClosed,
 };
 
 class CORE_EXPORT HTMLTemplateElement final : public HTMLElement {
@@ -68,10 +60,6 @@ class CORE_EXPORT HTMLTemplateElement final : public HTMLElement {
   // This gives direct access to ContentInternal, and should *only*
   // be used by HTMLConstructionSite.
   DocumentFragment* TemplateContentForHTMLConstructionSite() const {
-    if (declarative_shadow_root_) {
-      DCHECK(RuntimeEnabledFeatures::StreamingDeclarativeShadowDOMEnabled());
-      return declarative_shadow_root_.Get();
-    }
     return ContentInternal();
   }
 
@@ -86,15 +74,6 @@ class CORE_EXPORT HTMLTemplateElement final : public HTMLElement {
     return declarative_shadow_root_type_ != DeclarativeShadowRootType::kNone;
   }
 
-  void SetDeclarativeShadowRoot(ShadowRoot& shadow) {
-    DCHECK(RuntimeEnabledFeatures::StreamingDeclarativeShadowDOMEnabled());
-    DCHECK(declarative_shadow_root_type_ ==
-               DeclarativeShadowRootType::kStreamingOpen ||
-           declarative_shadow_root_type_ ==
-               DeclarativeShadowRootType::kStreamingClosed);
-    declarative_shadow_root_ = &shadow;
-  }
-
  private:
   void CloneNonAttributePropertiesFrom(const Element&,
                                        CloneChildrenFlag) override;
@@ -103,8 +82,6 @@ class CORE_EXPORT HTMLTemplateElement final : public HTMLElement {
   DocumentFragment* ContentInternal() const;
 
   mutable Member<TemplateContentDocumentFragment> content_;
-
-  Member<ShadowRoot> declarative_shadow_root_;
   DeclarativeShadowRootType declarative_shadow_root_type_;
 };
 

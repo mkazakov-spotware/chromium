@@ -1,29 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 #include "base/json/json_reader.h"
-#include "base/logging.h"
-#include "base/numerics/clamped_math.h"
-#include "base/numerics/ostream_operators.h"
+#include "base/optional.h"
 #include "base/strings/string_piece_forward.h"
 #include "net/dns/host_cache.h"
-#include "net/dns/host_cache_fuzzer.pb.h"
-#include "testing/libfuzzer/proto/json.pb.h"
-#include "testing/libfuzzer/proto/json_proto_converter.h"
-#include "testing/libfuzzer/proto/lpm_interface.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace net {
 
 struct Environment {
-  Environment() { logging::SetMinLogLevel(logging::LOG_INFO); }
-  const bool kDumpStats = getenv("DUMP_FUZZER_STATS");
-  const bool kDumpNativeInput = getenv("LPM_DUMP_NATIVE_INPUT");
+  Environment() { logging::SetMinLogLevel(logging::LOG_ERROR); }
 };
 
 // This fuzzer checks that parsing a JSON list to a HostCache and then
@@ -36,57 +26,29 @@ struct Environment {
 // TODO(dmcardle): Check the other direction of this property. Starting from an
 // arbitrary HostCache, serialize it and then parse a different HostCache.
 // Verify that the two HostCaches are equal.
-DEFINE_PROTO_FUZZER(const host_cache_fuzzer_proto::JsonOrBytes& input) {
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   static Environment env;
 
-  // Clamp these counters to avoid incorrect statistics in case of overflow. On
-  // platforms with 8-byte size_t, it would take roughly 58,000 centuries to
-  // overflow, assuming a very fast fuzzer running at 100,000 exec/s. However, a
-  // 4-byte size_t could overflow in roughly 12 hours.
-  static base::ClampedNumeric<size_t> valid_json_count = 0;
-  static base::ClampedNumeric<size_t> iteration_count = 0;
-
-  constexpr size_t kIterationsPerStatsDump = 1024;
-  static_assert(SIZE_MAX % kIterationsPerStatsDump != 0,
-                "After saturation, stats would print on every iteration.");
-
-  ++iteration_count;
-  if (env.kDumpStats && iteration_count % kIterationsPerStatsDump == 0) {
-    LOG(INFO) << "Valid JSON hit rate:" << valid_json_count << "/"
-              << iteration_count;
-  }
-
-  std::string native_input;
-  if (input.has_json()) {
-    json_proto::JsonProtoConverter converter;
-    native_input = converter.Convert(input.json());
-  } else if (input.has_bytes()) {
-    native_input = input.bytes();
-  } else {
-    return;
-  }
-
-  if (env.kDumpNativeInput)
-    LOG(INFO) << "native_input: " << native_input;
-
-  absl::optional<base::Value> value = base::JSONReader::Read(native_input);
+  // Attempt to read a JSON list from the fuzzed string.
+  base::StringPiece data_view(reinterpret_cast<const char*>(data), size);
+  base::Optional<base::Value> value = base::JSONReader::Read(data_view);
   if (!value || !value->is_list())
-    return;
-  ++valid_json_count;
+    return 0;
+  const base::ListValue& list_input = base::Value::AsListValue(*value);
 
   // Parse the HostCache.
   constexpr size_t kMaxEntries = 1000;
   HostCache host_cache(kMaxEntries);
-  if (!host_cache.RestoreFromListValue(value->GetList()))
-    return;
+  if (!host_cache.RestoreFromListValue(list_input))
+    return 0;
 
   // Serialize the HostCache.
-  base::Value::List serialized;
-  host_cache.GetList(
-      serialized /* entry_list */, true /* include_staleness */,
+  base::ListValue serialized;
+  host_cache.GetAsListValue(
+      &serialized /* entry_list */, true /* include_staleness */,
       HostCache::SerializationType::kRestorable /* serialization_type */);
 
-  CHECK_EQ(*value, serialized);
-  return;
+  CHECK_EQ(list_input, serialized);
+  return 0;
 }
 }  // namespace net

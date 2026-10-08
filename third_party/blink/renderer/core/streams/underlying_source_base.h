@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,14 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
 class ReadableStreamDefaultControllerWithScriptScope;
-class ScriptState;
 
 class CORE_EXPORT UnderlyingSourceBase
     : public ScriptWrappable,
@@ -28,7 +29,7 @@ class CORE_EXPORT UnderlyingSourceBase
   void Trace(Visitor*) const override;
   ~UnderlyingSourceBase() override = default;
 
-  ScriptPromise startWrapper(ScriptState*, ScriptValue controller);
+  ScriptPromise startWrapper(ScriptState*, ScriptValue stream);
   virtual ScriptPromise Start(ScriptState*);
 
   virtual ScriptPromise pull(ScriptState*);
@@ -39,10 +40,8 @@ class CORE_EXPORT UnderlyingSourceBase
 
   ScriptValue type(ScriptState*) const;
 
-  // ExecutionContextLifecycleObserver implementation:
-
-  // This is needed to prevent stream operations being performed after the
-  // window or worker is destroyed.
+  // ExecutionContextLifecycleObserver
+  // TODO(ricea): Is this still useful?
   void ContextDestroyed() override;
 
  protected:

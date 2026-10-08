@@ -1,18 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_GESTURE_EDUCATION_GESTURE_EDUCATION_NOTIFICATION_CONTROLLER_H_
 #define ASH_SYSTEM_GESTURE_EDUCATION_GESTURE_EDUCATION_NOTIFICATION_CONTROLLER_H_
 
-#include <string>
-
 #include "ash/ash_export.h"
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
+#include "base/strings/string16.h"
 
 class PrefRegistrySimple;
 
@@ -46,14 +47,14 @@ class ASH_EXPORT GestureEducationNotificationController
   friend class GestureEducationNotificationControllerTest;
 
   void GenerateGestureEducationNotification();
-  std::u16string GetNotificationTitle() const;
-  std::u16string GetNotificationMessage() const;
+  base::string16 GetNotificationTitle() const;
+  base::string16 GetNotificationMessage() const;
   void HandleNotificationClick();
 
   void ResetPrefForTest();
 
-  base::ScopedObservation<TabletModeController, TabletModeObserver>
-      tablet_mode_observation_{this};
+  ScopedObserver<TabletModeController, TabletModeObserver>
+      tablet_mode_observer_{this};
 
   PrefService* active_user_prefs_ = nullptr;  // Not owned.
 

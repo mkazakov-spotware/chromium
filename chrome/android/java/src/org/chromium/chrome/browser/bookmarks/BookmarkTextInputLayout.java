@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,14 +56,14 @@ public class BookmarkTextInputLayout extends TextInputLayout {
     /**
      * @return Trimmed text for validation.
      */
-    public String getTrimmedText() {
+    String getTrimmedText() {
         return getEditText().getText().toString().trim();
     }
 
     /**
      * @return Whether the content is empty.
      */
-    public boolean isEmpty() {
+    boolean isEmpty() {
         return TextUtils.isEmpty(getTrimmedText());
     }
 
@@ -72,7 +72,7 @@ public class BookmarkTextInputLayout extends TextInputLayout {
      * If there is a need for extra validation, this method should be overridden
      * and extra validation statements should be added after calling super.validate()
      */
-    public void validate() {
+    void validate() {
         if (mEmptyErrorMessage != null) {
             setError(isEmpty() ? mEmptyErrorMessage : null);
         }

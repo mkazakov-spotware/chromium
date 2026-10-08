@@ -1,16 +1,17 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base;
 
 import android.text.TextUtils;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.build.annotations.MainDex;
 
 import java.io.File;
 import java.io.FileReader;
@@ -145,13 +146,7 @@ public abstract class CommandLine {
      */
     public static void initFromFile(String file) {
         char[] buffer = readFileAsUtf8(file);
-        String[] tokenized = buffer == null ? null : tokenizeQuotedArguments(buffer);
-        init(tokenized);
-        // The file existed, which should never be the case under normal operation.
-        // Use a log message to help with debugging if it's the flags that are causing issues.
-        if (tokenized != null) {
-            Log.i(TAG, "COMMAND-LINE FLAGS: %s (from %s)", Arrays.toString(tokenized), file);
-        }
+        init(buffer == null ? null : tokenizeQuotedArguments(buffer));
     }
 
     /**
@@ -207,7 +202,7 @@ public abstract class CommandLine {
         }
         if (arg != null) {
             if (currentQuote != noQuote) {
-                Log.w(TAG, "Unterminated quoted string: %s", arg);
+                Log.w(TAG, "Unterminated quoted string: " + arg);
             }
             args.add(arg.toString());
         }

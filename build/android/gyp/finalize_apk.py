@@ -1,4 +1,4 @@
-# Copyright 2013 The Chromium Authors
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Signs and aligns an APK."""
@@ -7,7 +7,6 @@ import argparse
 import logging
 import shutil
 import subprocess
-import sys
 import tempfile
 
 from util import build_utils
@@ -71,8 +70,4 @@ def FinalizeApk(apksigner_path,
                             print_stdout=True,
                             fail_on_output=warnings_as_errors)
     shutil.move(staging_file.name, final_apk_path)
-    # TODO(crbug.com/1174969): Remove this once Python2 is obsoleted.
-    if sys.version_info.major == 2:
-      staging_file.delete = False
-    else:
-      staging_file._closer.delete = False
+    staging_file.delete = False

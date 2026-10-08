@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,11 @@
 
 #include <stdint.h>
 
+#include <string>
+#include <vector>
+
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "ppapi/c/private/ppb_net_address_private.h"
 #include "ppapi/proxy/ppapi_proxy_export.h"
 #include "ppapi/proxy/serialized_structs.h"
@@ -22,10 +27,6 @@ class NetworkListResource
  public:
   NetworkListResource(PP_Instance instance,
                       const SerializedNetworkList& list);
-
-  NetworkListResource(const NetworkListResource&) = delete;
-  NetworkListResource& operator=(const NetworkListResource&) = delete;
-
   ~NetworkListResource() override;
 
   // Resource override.
@@ -42,6 +43,8 @@ class NetworkListResource
 
  private:
   SerializedNetworkList list_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkListResource);
 };
 
 }  // namespace proxy

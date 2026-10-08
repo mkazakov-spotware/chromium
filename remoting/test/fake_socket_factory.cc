@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,15 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
-#include <memory>
 #include <string>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/numerics/math_constants.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "net/base/io_buffer.h"
 #include "remoting/base/leaky_bucket.h"
@@ -47,10 +47,6 @@ class FakeUdpSocket : public rtc::AsyncPacketSocket {
   FakeUdpSocket(FakePacketSocketFactory* factory,
                 scoped_refptr<FakeNetworkDispatcher> dispatcher,
                 const rtc::SocketAddress& local_address);
-
-  FakeUdpSocket(const FakeUdpSocket&) = delete;
-  FakeUdpSocket& operator=(const FakeUdpSocket&) = delete;
-
   ~FakeUdpSocket() override;
 
   void ReceivePacket(const rtc::SocketAddress& from,
@@ -76,10 +72,12 @@ class FakeUdpSocket : public rtc::AsyncPacketSocket {
   void SetError(int error) override;
 
  private:
-  raw_ptr<FakePacketSocketFactory> factory_;
+  FakePacketSocketFactory* factory_;
   scoped_refptr<FakeNetworkDispatcher> dispatcher_;
   rtc::SocketAddress local_address_;
   State state_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeUdpSocket);
 };
 
 FakeUdpSocket::FakeUdpSocket(FakePacketSocketFactory* factory,
@@ -180,7 +178,7 @@ FakePacketSocketFactory::PendingPacket::~PendingPacket() = default;
 
 FakePacketSocketFactory::FakePacketSocketFactory(
     FakeNetworkDispatcher* dispatcher)
-    : task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : task_runner_(base::ThreadTaskRunnerHandle::Get()),
       dispatcher_(dispatcher),
       address_(dispatcher_->AllocateAddress()),
       out_of_order_rate_(0.0),
@@ -203,7 +201,7 @@ void FakePacketSocketFactory::SetBandwidth(int bandwidth, int max_buffer) {
   if (bandwidth <= 0) {
     leaky_bucket_.reset();
   } else {
-    leaky_bucket_ = std::make_unique<LeakyBucket>(max_buffer, bandwidth);
+    leaky_bucket_.reset(new LeakyBucket(max_buffer, bandwidth));
   }
 }
 
@@ -250,7 +248,7 @@ rtc::AsyncPacketSocket* FakePacketSocketFactory::CreateUdpSocket(
   return result;
 }
 
-rtc::AsyncListenSocket* FakePacketSocketFactory::CreateServerTcpSocket(
+rtc::AsyncPacketSocket* FakePacketSocketFactory::CreateServerTcpSocket(
     const rtc::SocketAddress& local_address,
     uint16_t min_port,
     uint16_t max_port,
@@ -306,11 +304,12 @@ void FakePacketSocketFactory::ReceivePacket(
     max_buffer_delay_ = delay;
   ++total_packets_received_;
 
-  if (latency_average_.is_positive()) {
-    delay += base::Milliseconds(GetNormalRandom(
-        latency_average_.InMillisecondsF(), latency_stddev_.InMillisecondsF()));
+  if (latency_average_ > base::TimeDelta()) {
+    delay += base::TimeDelta::FromMillisecondsD(
+        GetNormalRandom(latency_average_.InMillisecondsF(),
+                        latency_stddev_.InMillisecondsF()));
   }
-  if (delay.is_negative())
+  if (delay < base::TimeDelta())
     delay = base::TimeDelta();
 
   // Put the packet to the |pending_packets_| and post a task for

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "chromecast/external_mojo/external_service_support/external_connector.h"
@@ -31,15 +32,11 @@ class ExternalConnectorImpl : public ExternalConnector {
   explicit ExternalConnectorImpl(
       mojo::PendingRemote<external_mojo::mojom::ExternalConnector>
           pending_remote);
-
-  ExternalConnectorImpl(const ExternalConnectorImpl&) = delete;
-  ExternalConnectorImpl& operator=(const ExternalConnectorImpl&) = delete;
-
   ~ExternalConnectorImpl() override;
 
   // ExternalConnector implementation:
-  base::CallbackListSubscription AddConnectionErrorCallback(
-      base::RepeatingClosure callback) override;
+  std::unique_ptr<base::CallbackList<void()>::Subscription>
+  AddConnectionErrorCallback(base::RepeatingClosure callback) override;
   void RegisterService(const std::string& service_name,
                        ExternalService* service) override;
   void RegisterService(
@@ -56,8 +53,6 @@ class ExternalConnectorImpl : public ExternalConnector {
                      mojo::ScopedMessagePipeHandle interface_pipe,
                      bool async = true) override;
   std::unique_ptr<ExternalConnector> Clone() override;
-  mojo::PendingRemote<external_mojo::mojom::ExternalConnector>
-  RequestConnector() override;
   void SendChromiumConnectorRequest(
       mojo::ScopedMessagePipeHandle request) override;
   void QueryServiceList(
@@ -80,11 +75,13 @@ class ExternalConnectorImpl : public ExternalConnector {
   mojo::PendingRemote<external_mojo::mojom::ExternalConnector> pending_remote_;
   mojo::Remote<external_mojo::mojom::ExternalConnector> connector_;
 
-  base::RepeatingClosureList error_closures_;
+  base::CallbackList<void()> error_callbacks_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<ExternalConnectorImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ExternalConnectorImpl);
 };
 
 }  // namespace external_service_support

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 
 #include "base/containers/flat_map.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/browser/configuration_policy_handler.h"
 #include "printing/backend/printing_restrictions.h"
-#include "printing/buildflags/buildflags.h"
 
 class PrefValueMap;
 
@@ -48,7 +46,7 @@ class PrintingEnumPolicyHandler : public TypeCheckingPolicyHandler {
   base::flat_map<std::string, Mode> policy_value_to_mode_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 class PrintingAllowedColorModesPolicyHandler
     : public PrintingEnumPolicyHandler<printing::ColorModeRestriction> {
  public:
@@ -90,9 +88,8 @@ class PrintingPinDefaultPolicyHandler
   PrintingPinDefaultPolicyHandler();
   ~PrintingPinDefaultPolicyHandler() override;
 };
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 class PrintingAllowedBackgroundGraphicsModesPolicyHandler
     : public PrintingEnumPolicyHandler<
           printing::BackgroundGraphicsModeRestriction> {
@@ -128,20 +125,6 @@ class PrintingPaperSizeDefaultPolicyHandler : public TypeCheckingPolicyHandler {
                 PolicyErrorMap* errors,
                 const base::Value** result);
 };
-
-class PrintPdfAsImageDefaultPolicyHandler : public TypeCheckingPolicyHandler {
- public:
-  PrintPdfAsImageDefaultPolicyHandler();
-  ~PrintPdfAsImageDefaultPolicyHandler() override;
-
-  // ConfigurationPolicyHandler implementation:
-  bool CheckPolicySettings(const PolicyMap& policies,
-                           PolicyErrorMap* errors) override;
-  void ApplyPolicySettings(const PolicyMap& policies,
-                           PrefValueMap* prefs) override;
-};
-
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 }  // namespace policy
 

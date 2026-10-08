@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,20 @@
 #include <Security/Authorization.h>
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 
 // ScopedAuthorizationRef maintains ownership of an AuthorizationRef.  It is
 // patterned after the unique_ptr interface.
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 class BASE_EXPORT ScopedAuthorizationRef {
  public:
   explicit ScopedAuthorizationRef(AuthorizationRef authorization = NULL)
       : authorization_(authorization) {
   }
-
-  ScopedAuthorizationRef(const ScopedAuthorizationRef&) = delete;
-  ScopedAuthorizationRef& operator=(const ScopedAuthorizationRef&) = delete;
 
   ~ScopedAuthorizationRef() {
     if (authorization_) {
@@ -65,7 +65,7 @@ class BASE_EXPORT ScopedAuthorizationRef {
   // ScopedAuthorizationRef::release() is like std::unique_ptr<>::release. It is
   // NOT a wrapper for AuthorizationFree(). To force a ScopedAuthorizationRef
   // object to call AuthorizationFree(), use ScopedAuthorizationRef::reset().
-  [[nodiscard]] AuthorizationRef release() {
+  AuthorizationRef release() WARN_UNUSED_RESULT {
     AuthorizationRef temp = authorization_;
     authorization_ = NULL;
     return temp;
@@ -80,8 +80,11 @@ class BASE_EXPORT ScopedAuthorizationRef {
   void FreeInternal();
 
   AuthorizationRef authorization_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedAuthorizationRef);
 };
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #endif  // BASE_MAC_SCOPED_AUTHORIZATIONREF_H_

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "third_party/blink/public/common/mime_util/mime_util.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-blink.h"
 #include "third_party/blink/public/platform/web_icon_sizes_parser.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_image_resource.h"
@@ -20,6 +21,7 @@ namespace mojo {
 namespace {
 
 using Purpose = blink::mojom::blink::ManifestImageResource::Purpose;
+using blink::WebSize;
 using blink::WebString;
 using blink::WebVector;
 
@@ -82,7 +84,7 @@ WTF::Vector<Purpose> ParsePurpose(const WTF::String& purpose) {
 }
 
 WTF::String ParseType(const WTF::String& type) {
-  if (type.IsNull() || type.empty())
+  if (type.IsNull() || type.IsEmpty())
     return "";
 
   if (!blink::IsSupportedMimeType(type.Ascii())) {
@@ -120,7 +122,7 @@ namespace blink {
 Manifest::ImageResource ConvertManifestImageResource(
     const ManifestImageResource* icon) {
   Manifest::ImageResource manifest_icon;
-  manifest_icon.src = GURL(icon->src().Utf8());
+  manifest_icon.src = blink::KURL(icon->src());
   if (icon->hasType())
     manifest_icon.type = WebString(mojo::ParseType(icon->type())).Utf16();
 

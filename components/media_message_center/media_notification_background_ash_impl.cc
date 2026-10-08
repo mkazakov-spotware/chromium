@@ -1,14 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/media_message_center/media_notification_background_ash_impl.h"
 
-#include "base/i18n/rtl.h"
 #include "ui/gfx/canvas.h"
-#include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/image/image_skia_operations.h"
+#include "ui/gfx/skia_util.h"
 #include "ui/views/view.h"
 
 namespace media_message_center {
@@ -38,10 +36,6 @@ gfx::Size ScaleToFitSize(const gfx::Size& image_size) {
 }
 
 }  // namespace
-
-MediaNotificationBackgroundAshImpl::MediaNotificationBackgroundAshImpl(
-    bool paint_artwork)
-    : paint_artwork_(paint_artwork) {}
 
 gfx::Rect MediaNotificationBackgroundAshImpl::GetArtworkBounds(
     const gfx::Rect& view_bounds) const {
@@ -77,9 +71,6 @@ SkPath MediaNotificationBackgroundAshImpl::GetArtworkClipPath(
 
 void MediaNotificationBackgroundAshImpl::Paint(gfx::Canvas* canvas,
                                                views::View* view) const {
-  if (!paint_artwork_)
-    return;
-
   gfx::Rect source_bounds(0, 0, artwork_.width(), artwork_.height());
   gfx::Rect target_bounds = GetArtworkBounds(view->GetContentsBounds());
 

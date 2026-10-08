@@ -25,7 +25,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg_names.h"
 #include "third_party/blink/renderer/platform/graphics/filters/fe_gaussian_blur.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -62,8 +62,7 @@ void SVGFEGaussianBlurElement::Trace(Visitor* visitor) const {
 }
 
 void SVGFEGaussianBlurElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kInAttr ||
       attr_name == svg_names::kStdDeviationAttr) {
     SVGElement::InvalidationGuard invalidation_guard(this);
@@ -71,7 +70,7 @@ void SVGFEGaussianBlurElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFEGaussianBlurElement::Build(SVGFilterBuilder* filter_builder,

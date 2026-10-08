@@ -1,38 +1,35 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.image_descriptions;
-
-import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.content_public.browser.WebContents;
 
 /**
  * A delegate to {@link ImageDescriptionsController} to allow UIs to control its state.
  */
 public interface ImageDescriptionsControllerDelegate {
     /**
-     * Enable image descriptions for the given Profile. Any currently opened tabs for this profile
-     * will receive image descriptions, as will any future pages.
-     * @param profile       Profile - the profile to enable descriptions for.
+     * Enable image descriptions. Calling this method will enable the image descriptions feature
+     * for the current profile. Any currently opened tabs will receive image descriptions, as will
+     * any future pages.
      */
-    void enableImageDescriptions(Profile profile);
+    void enableImageDescriptions();
 
     /**
-     * Disable image descriptions for the given Profile. No new image descriptions will be generated
-     * for any tabs of the given profile.
-     * @param profile       Profile - the profile to disable descriptions for.
+     * Disable image descriptions. Calling this method will disable the image descriptions feature
+     * for the current profile. Any existing image descriptions will persist, but no new image
+     * descriptions will be generated.
      */
-    void disableImageDescriptions(Profile profile);
+    void disableImageDescriptions();
 
     /**
-     * Set "Only on Wi-Fi" requirement for the given profile.
-     * If set to true, the image descriptions feature will not be run while on mobile data.
+     * Set "Only on Wi-Fi" requirement. Calling this method will set the only on wifi user
+     * preference for the current profile. If set to true, the image descriptions feature will not
+     * be run while on mobile data but instead only on wifi.
      *
      * @param onlyOnWifi    Boolean - whether or not to require wifi for image descriptions.
-     * @param profile   Profile - the profile to set requirement on.
      */
-    void setOnlyOnWifiRequirement(boolean onlyOnWifi, Profile profile);
+    void setOnlyOnWifiRequirement(boolean onlyOnWifi);
 
     /**
      * Get image descriptions once. Calling this method will fetch image descriptions one time for
@@ -41,7 +38,6 @@ public interface ImageDescriptionsControllerDelegate {
      * option in shared prefs so users can easily fetch one-off descriptions bypassing the dialog.
      *
      * @param dontAskAgain  Boolean - whether or not to ask again before next one-off use.
-     * @param webContents   WebContents - The web contents of the tab to get descriptions for.
      */
-    void getImageDescriptionsJustOnce(boolean dontAskAgain, WebContents webContents);
+    void getImageDescriptionsJustOnce(boolean dontAskAgain);
 }

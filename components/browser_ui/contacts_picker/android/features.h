@@ -1,15 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BROWSER_UI_CONTACTS_PICKER_ANDROID_FEATURES_H_
 #define COMPONENTS_BROWSER_UI_CONTACTS_PICKER_ANDROID_FEATURES_H_
 
-#include "base/feature_list.h"
+namespace base {
+struct Feature;
+}  // namespace base
 
 namespace browser_ui {
 
-BASE_DECLARE_FEATURE(kContactsPickerSelectAll);
+extern const base::Feature kContactsPickerSelectAll;
 
 }  // namespace browser_ui
 

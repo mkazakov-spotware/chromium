@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "ash/shell.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/display/display.h"
+#include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/widget/widget.h"
@@ -32,7 +33,7 @@ TouchObserverHud::TouchObserverHud(aura::Window* initial_root,
   views::Widget::InitParams params(
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-  params.activatable = views::Widget::InitParams::Activatable::kNo;
+  params.activatable = views::Widget::InitParams::ACTIVATABLE_NO;
   params.accept_events = false;
   params.bounds = display.bounds();
   params.parent =
@@ -46,6 +47,7 @@ TouchObserverHud::TouchObserverHud(aura::Window* initial_root,
   widget_->AddObserver(this);
 
   // Observe changes in display size and mode to update touch HUD.
+  display::Screen::GetScreen()->AddObserver(this);
   Shell::Get()->display_configurator()->AddObserver(this);
   Shell::Get()->window_tree_host_manager()->AddObserver(this);
   root_window_->AddPreTargetHandler(this);
@@ -54,6 +56,7 @@ TouchObserverHud::TouchObserverHud(aura::Window* initial_root,
 TouchObserverHud::~TouchObserverHud() {
   Shell::Get()->window_tree_host_manager()->RemoveObserver(this);
   Shell::Get()->display_configurator()->RemoveObserver(this);
+  display::Screen::GetScreen()->RemoveObserver(this);
 
   widget_->RemoveObserver(this);
   CHECK(!views::WidgetObserver::IsInObserverList());
@@ -111,7 +114,8 @@ void TouchObserverHud::OnDisplayConfigurationChanging() {
 
   views::Widget::ReparentNativeView(
       widget_->GetNativeView(),
-      Shell::GetContainer(root_window_, kShellWindowId_UnparentedContainer));
+      Shell::GetContainer(root_window_,
+                          kShellWindowId_UnparentedControlContainer));
 
   root_window_ = NULL;
 }

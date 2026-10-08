@@ -1,11 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
-
-#include "base/task/single_thread_task_runner.h"
 #import "content/browser/renderer_host/render_widget_host_view_mac_editcommand_helper.h"
+#include "content/browser/renderer_host/agent_scheduling_group_host.h"
 
 #import <Cocoa/Cocoa.h>
 #include <stddef.h>
@@ -13,13 +11,14 @@
 
 #include "base/mac/scoped_nsautorelease_pool.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/browser/compositor/test/test_image_transport_factory.h"
 #include "content/browser/gpu/compositor_util.h"
+#include "content/browser/renderer_host/agent_scheduling_group_host.h"
 #include "content/browser/renderer_host/frame_token_message_queue.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
-#include "content/browser/site_instance_group.h"
-#include "content/browser/site_instance_impl.h"
+#include "content/common/input_messages.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/test_browser_context.h"
@@ -29,7 +28,6 @@
 #include "testing/platform_test.h"
 #include "ui/accelerated_widget_mac/window_resize_helper_mac.h"
 #include "ui/base/layout.h"
-#include "ui/display/screen.h"
 
 using content::RenderWidgetHostViewMac;
 
@@ -43,7 +41,7 @@ using content::RenderWidgetHostViewMac;
 // Class that owns a RenderWidgetHostViewMac.
 @interface RenderWidgetHostNSViewHostOwner
     : NSObject <RenderWidgetHostNSViewHostOwner> {
-  raw_ptr<RenderWidgetHostViewMac> _rwhvm;
+  RenderWidgetHostViewMac* _rwhvm;
 }
 
 - (id)initWithRenderWidgetHostViewMac:(RenderWidgetHostViewMac*)rwhvm;
@@ -91,7 +89,7 @@ class RenderWidgetHostDelegateEditCommandCounter
  private:
   void ExecuteEditCommand(
       const std::string& command,
-      const absl::optional<std::u16string>& value) override {
+      const base::Optional<base::string16>& value) override {
     edit_command_message_count_++;
   }
   void Undo() override {}
@@ -125,7 +123,6 @@ class RenderWidgetHostViewMacEditCommandHelperWithTaskEnvTest
   void TearDown() override { ImageTransportFactory::Terminate(); }
 
  private:
-  display::ScopedNativeScreen screen_;
   // This has a MessageLoop for ImageTransportFactory and enables
   // BrowserThread::UI for RecyclableCompositorMac used by
   // RenderWidgetHostViewMac.
@@ -143,41 +140,34 @@ TEST_F(RenderWidgetHostViewMacEditCommandHelperWithTaskEnvTest,
   MockRenderProcessHostFactory process_host_factory;
   RenderProcessHost* process_host =
       process_host_factory.CreateRenderProcessHost(&browser_context, nullptr);
-  scoped_refptr<SiteInstanceGroup> site_instance_group =
-      base::WrapRefCounted(new SiteInstanceGroup(
-          SiteInstanceImpl::NextBrowsingInstanceId(), process_host));
+  auto agent_scheduling_group_host =
+      std::make_unique<AgentSchedulingGroupHost>(*process_host);
   // Populates |g_supported_scale_factors|.
-  std::vector<ui::ResourceScaleFactor> supported_factors;
-  supported_factors.push_back(ui::k100Percent);
-  ui::test::ScopedSetSupportedResourceScaleFactors scoped_supported(
-      supported_factors);
+  std::vector<ui::ScaleFactor> supported_factors;
+  supported_factors.push_back(ui::SCALE_FACTOR_100P);
+  ui::test::ScopedSetSupportedScaleFactors scoped_supported(supported_factors);
 
   @autoreleasepool {
     int32_t routing_id = process_host->GetNextRoutingID();
-    std::unique_ptr<RenderWidgetHostImpl> render_widget =
-        RenderWidgetHostImpl::Create(
-            /*frmae_tree=*/nullptr, &delegate,
-            site_instance_group->GetSafeRef(), routing_id,
-            /*hidden=*/false, /*renderer_initiated_creation=*/false,
-            std::make_unique<FrameTokenMessageQueue>());
+    RenderWidgetHostImpl* render_widget = new RenderWidgetHostImpl(
+        &delegate, *agent_scheduling_group_host, routing_id,
+        /*hidden=*/false, std::make_unique<FrameTokenMessageQueue>());
 
-    ui::WindowResizeHelperMac::Get()->Init(
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+    ui::WindowResizeHelperMac::Get()->Init(base::ThreadTaskRunnerHandle::Get());
 
     // Owned by its |GetInProcessNSView()|, i.e. |rwhv_cocoa|.
     RenderWidgetHostViewMac* rwhv_mac =
-        new RenderWidgetHostViewMac(render_widget.get());
+        new RenderWidgetHostViewMac(render_widget);
     base::scoped_nsobject<RenderWidgetHostViewCocoa> rwhv_cocoa(
         [rwhv_mac->GetInProcessNSView() retain]);
 
-    NSArray* edit_command_strings = RenderWidgetHostViewMacEditCommandHelper::
-        GetEditSelectorNamesForTesting();
+    RenderWidgetHostViewMacEditCommandHelper helper;
+    NSArray* edit_command_strings = helper.GetEditSelectorNames();
     RenderWidgetHostNSViewHostOwner* rwhwvm_owner =
         [[[RenderWidgetHostNSViewHostOwner alloc]
             initWithRenderWidgetHostViewMac:rwhv_mac] autorelease];
 
-    RenderWidgetHostViewMacEditCommandHelper::AddEditingSelectorsToClass(
-        [rwhwvm_owner class]);
+    helper.AddEditingSelectorsToClass([rwhwvm_owner class]);
 
     for (NSString* edit_command_name in edit_command_strings) {
       NSString* sel_str = [edit_command_name stringByAppendingString:@":"];
@@ -188,6 +178,9 @@ TEST_F(RenderWidgetHostViewMacEditCommandHelperWithTaskEnvTest,
     size_t num_edit_commands = [edit_command_strings count];
     EXPECT_EQ(delegate.edit_command_message_count_, num_edit_commands);
     rwhv_cocoa.reset();
+
+    // The |render_widget|'s process needs to be deleted within |message_loop|.
+    delete render_widget;
   }
   process_host->Cleanup();
   ui::WindowResizeHelperMac::Get()->ShutdownForTests();
@@ -197,8 +190,7 @@ TEST_F(RenderWidgetHostViewMacEditCommandHelperWithTaskEnvTest,
 TEST_F(RenderWidgetHostViewMacEditCommandHelperTest,
        TestAddEditingSelectorsToClass) {
   RenderWidgetHostViewMacEditCommandHelper helper;
-  NSArray* edit_command_strings = RenderWidgetHostViewMacEditCommandHelper::
-      GetEditSelectorNamesForTesting();
+  NSArray* edit_command_strings = helper.GetEditSelectorNames();
   ASSERT_GT([edit_command_strings count], 0U);
 
   // Create a class instance and add methods to the class.
@@ -210,16 +202,14 @@ TEST_F(RenderWidgetHostViewMacEditCommandHelperTest,
   ASSERT_FALSE(CheckObjectRespondsToEditCommands(edit_command_strings,
       test_obj));
 
-  RenderWidgetHostViewMacEditCommandHelper::AddEditingSelectorsToClass(
-      [test_obj class]);
+  helper.AddEditingSelectorsToClass([test_obj class]);
 
   // Check that all edit commands where added.
   ASSERT_TRUE(CheckObjectRespondsToEditCommands(edit_command_strings,
       test_obj));
 
   // AddEditingSelectorsToClass() should be idempotent.
-  RenderWidgetHostViewMacEditCommandHelper::AddEditingSelectorsToClass(
-      [test_obj class]);
+  helper.AddEditingSelectorsToClass([test_obj class]);
 
   // Check that all edit commands are still there.
   ASSERT_TRUE(CheckObjectRespondsToEditCommands(edit_command_strings,

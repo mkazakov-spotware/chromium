@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@ SaveCardInfobarInteractionHandler::SaveCardInfobarInteractionHandler()
     : InfobarInteractionHandler(
           InfobarType::kInfobarTypeSaveCard,
           std::make_unique<SaveCardInfobarBannerInteractionHandler>(),
+          /*sheet_handler=*/nullptr,
           std::make_unique<SaveCardInfobarModalInteractionHandler>()) {}
 
 SaveCardInfobarInteractionHandler::~SaveCardInfobarInteractionHandler() =

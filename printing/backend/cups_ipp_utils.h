@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,17 @@
 
 #include <memory>
 
-#include "base/values.h"
+namespace base {
+class Value;
+}  // namespace base
 
 namespace printing {
 
 class CupsConnection;
 
-// Creates a CUPS connection using `print_backend_settings`.
+// Creates a CUPS connection using |print_backend_settings|.
 std::unique_ptr<CupsConnection> CreateConnection(
-    const base::Value::Dict* print_backend_settings);
+    const base::Value* print_backend_settings);
 
 }  // namespace printing
 

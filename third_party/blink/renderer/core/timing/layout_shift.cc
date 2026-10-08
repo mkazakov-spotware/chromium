@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,20 +15,17 @@ LayoutShift* LayoutShift::Create(double start_time,
                                  double value,
                                  bool input_detected,
                                  double input_timestamp,
-                                 AttributionList sources,
-                                 uint32_t navigation_id) {
+                                 AttributionList sources) {
   return MakeGarbageCollected<LayoutShift>(start_time, value, input_detected,
-                                           input_timestamp, sources,
-                                           navigation_id);
+                                           input_timestamp, sources);
 }
 
 LayoutShift::LayoutShift(double start_time,
                          double value,
                          bool input_detected,
                          double input_timestamp,
-                         AttributionList sources,
-                         uint32_t navigation_id)
-    : PerformanceEntry(g_empty_atom, start_time, start_time, navigation_id),
+                         AttributionList sources)
+    : PerformanceEntry(g_empty_atom, start_time, start_time),
       value_(value),
       had_recent_input_(input_detected),
       most_recent_input_timestamp_(input_timestamp),
@@ -36,7 +33,7 @@ LayoutShift::LayoutShift(double start_time,
 
 LayoutShift::~LayoutShift() = default;
 
-const AtomicString& LayoutShift::entryType() const {
+AtomicString LayoutShift::entryType() const {
   return performance_entry_names::kLayoutShift;
 }
 

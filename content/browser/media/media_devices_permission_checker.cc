@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "build/build_config.h"
-#include "content/browser/permissions/permission_util.h"
 #include "content/browser/renderer_host/render_frame_host_delegate.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/browser/browser_context.h"
@@ -21,7 +20,6 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
 #include "third_party/blink/public/common/mediastream/media_devices.h"
-#include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -45,12 +43,12 @@ MediaDevicesManager::BoolDeviceTypes DoCheckPermissionsOnUIThread(
   url::Origin origin = frame_host->GetLastCommittedOrigin();
   bool audio_permission = delegate->CheckMediaAccessPermission(
       frame_host, origin, blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE);
-  bool mic_permissions_policy = true;
-  bool camera_permissions_policy = true;
-  mic_permissions_policy = frame_host->IsFeatureEnabled(
-      blink::mojom::PermissionsPolicyFeature::kMicrophone);
-  camera_permissions_policy = frame_host->IsFeatureEnabled(
-      blink::mojom::PermissionsPolicyFeature::kCamera);
+  bool mic_feature_policy = true;
+  bool camera_feature_policy = true;
+  mic_feature_policy = frame_host->IsFeatureEnabled(
+      blink::mojom::FeaturePolicyFeature::kMicrophone);
+  camera_feature_policy =
+      frame_host->IsFeatureEnabled(blink::mojom::FeaturePolicyFeature::kCamera);
 
   MediaDevicesManager::BoolDeviceTypes result;
   // Speakers.
@@ -65,7 +63,7 @@ MediaDevicesManager::BoolDeviceTypes DoCheckPermissionsOnUIThread(
   result[static_cast<size_t>(MediaDeviceType::MEDIA_AUDIO_INPUT)] =
       requested_device_types[static_cast<size_t>(
           MediaDeviceType::MEDIA_AUDIO_INPUT)] &&
-      audio_permission && mic_permissions_policy;
+      audio_permission && mic_feature_policy;
 
   // Camera.
   result[static_cast<size_t>(MediaDeviceType::MEDIA_VIDEO_INPUT)] =
@@ -74,7 +72,7 @@ MediaDevicesManager::BoolDeviceTypes DoCheckPermissionsOnUIThread(
       delegate->CheckMediaAccessPermission(
           frame_host, origin,
           blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE) &&
-      camera_permissions_policy;
+      camera_feature_policy;
 
   return result;
 }
@@ -156,10 +154,11 @@ bool MediaDevicesPermissionChecker::HasPanTiltZoomPermissionGrantedOnUIThread(
     int render_process_id,
     int render_frame_id) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-#if BUILDFLAG(IS_ANDROID)
-  // The PTZ permission is automatically granted on Android. This way, zoom is
-  // not initially empty in ImageCapture. It is safe to do so because pan and
-  // tilt are not supported on Android.
+#if defined(OS_ANDROID)
+  // The PTZ permission is automatically granted on Android, regardless of the
+  // MediaCapturePanTilt Blink feature state. This way, zoom is not initially
+  // empty in ImageCapture. It is safe to do so because pan and tilt are not
+  // supported on Android.
   return true;
 #else
   RenderFrameHostImpl* frame_host =
@@ -168,13 +167,18 @@ bool MediaDevicesPermissionChecker::HasPanTiltZoomPermissionGrantedOnUIThread(
   if (!frame_host)
     return false;
 
-  auto* permission_controller =
-      frame_host->GetBrowserContext()->GetPermissionController();
+  auto* web_contents = WebContents::FromRenderFrameHost(frame_host);
+  if (!web_contents)
+    return false;
+
+  auto* permission_controller = BrowserContext::GetPermissionController(
+      web_contents->GetBrowserContext());
   DCHECK(permission_controller);
 
+  const GURL& origin = web_contents->GetLastCommittedURL();
   blink::mojom::PermissionStatus status =
-      permission_controller->GetPermissionStatusForCurrentDocument(
-          blink::PermissionType::CAMERA_PAN_TILT_ZOOM, frame_host);
+      permission_controller->GetPermissionStatusForFrame(
+          PermissionType::CAMERA_PAN_TILT_ZOOM, frame_host, origin);
 
   return status == blink::mojom::PermissionStatus::GRANTED;
 #endif

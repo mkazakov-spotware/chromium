@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,7 +47,7 @@ TEST(DomDistillerUrlUtilsTest, TestGetValueForKeyInUrlPathQuery) {
 }
 
 void AssertEqualExceptHost(const GURL& a, const GURL& b) {
-  GURL::Replacements no_host;
+  url::Replacements<char> no_host;
   no_host.ClearHost();
   EXPECT_EQ(a.ReplaceComponents(no_host), b.ReplaceComponents(no_host));
 }

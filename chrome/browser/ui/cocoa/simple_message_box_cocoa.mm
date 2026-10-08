@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,16 +19,16 @@
 
 namespace chrome {
 
-MessageBoxResult ShowMessageBoxCocoa(const std::u16string& message,
+MessageBoxResult ShowMessageBoxCocoa(const base::string16& message,
                                      MessageBoxType type,
-                                     const std::u16string& checkbox_text) {
+                                     const base::string16& checkbox_text) {
   startup_metric_utils::SetNonBrowserUIDisplayed();
   if (internal::g_should_skip_message_box_for_test)
     return MESSAGE_BOX_RESULT_YES;
 
   NSAlert* alert = [[[NSAlert alloc] init] autorelease];
   [alert setMessageText:base::SysUTF16ToNSString(message)];
-  [alert setAlertStyle:NSAlertStyleWarning];
+  [alert setAlertStyle:NSWarningAlertStyle];
   if (type == MESSAGE_BOX_TYPE_QUESTION) {
     [alert addButtonWithTitle:l10n_util::GetNSString(
                                   IDS_CONFIRM_MESSAGEBOX_YES_BUTTON_LABEL)];
@@ -41,7 +41,7 @@ MessageBoxResult ShowMessageBoxCocoa(const std::u16string& message,
   base::scoped_nsobject<NSButton> checkbox;
   if (!checkbox_text.empty()) {
     checkbox.reset([[NSButton alloc] initWithFrame:NSZeroRect]);
-    [checkbox setButtonType:NSButtonTypeSwitch];
+    [checkbox setButtonType:NSSwitchButton];
     [checkbox setTitle:base::SysUTF16ToNSString(checkbox_text)];
     [checkbox sizeToFit];
     [alert setAccessoryView:checkbox];
@@ -51,7 +51,7 @@ MessageBoxResult ShowMessageBoxCocoa(const std::u16string& message,
   if (result == NSAlertSecondButtonReturn)
     return MESSAGE_BOX_RESULT_NO;
 
-  if (!checkbox || ([checkbox state] == NSControlStateValueOn))
+  if (!checkbox || ([checkbox state] == NSOnState))
     return MESSAGE_BOX_RESULT_YES;
 
   return MESSAGE_BOX_RESULT_NO;

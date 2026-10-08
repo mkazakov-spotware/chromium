@@ -3,11 +3,9 @@
 <head>
 <script src="../../../resources/testharness.js"></script>
 <script src="../../../resources/testharnessreport.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/common.js"></script>
-<script src="../resources/picker-common.js"></script>
-<script src="../calendar-picker/resources/calendar-picker-common.js"></script>
+<script src="../../../fast/forms/resources/common.js"></script>
+<script src="../../../fast/forms/resources/picker-common.js"></script>
+<script src="../../../fast/forms/calendar-picker/resources/calendar-picker-common.js"></script>
 </head>
 <body>
 <input type="datetime-local" id="datetime-local-0" value="2019-02-14T13:02">
@@ -17,7 +15,7 @@
 
 promise_test(() => {
   let dateTimeElement = document.getElementById('datetime-local-0');
-  return openPicker(dateTimeElement)
+  return openPickerWithPromise(dateTimeElement)
   .then(() => {
     // Make the picker dismiss synchronously so we don't need to insert
     // an artificial delay in the test
@@ -39,7 +37,7 @@ promise_test(() => {
 
 promise_test(() => {
   let dateTimeElement = document.getElementById('datetime-local-1');
-  return openPicker(dateTimeElement)
+  return openPickerWithPromise(dateTimeElement)
   .then(() => {
     clickMonthPopupButton();
     eventSender.keyDown('ArrowRight');
@@ -56,7 +54,7 @@ promise_test(() => {
 
 promise_test(() => {
   let dateTimeElement = document.getElementById('datetime-local-2');
-  return openPicker(dateTimeElement)
+  return openPickerWithPromise(dateTimeElement)
   .then(() => {
     clickMonthPopupButton();
     eventSender.keyDown('Enter');

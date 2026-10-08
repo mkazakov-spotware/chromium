@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,14 @@
 namespace blink {
 
 class Element;
-class ComputedStyleBuilder;
+class ComputedStyle;
 
 class HTMLImageFallbackHelper {
   STATIC_ONLY(HTMLImageFallbackHelper);
 
  public:
   static void CreateAltTextShadowTree(Element&);
-  static void CustomStyleForAltText(Element&, ComputedStyleBuilder&);
+  static void CustomStyleForAltText(Element&, ComputedStyle& new_style);
 };
 
 }  // namespace blink

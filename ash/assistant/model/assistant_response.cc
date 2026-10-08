@@ -1,21 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/assistant/model/assistant_response.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "ash/assistant/model/assistant_response_observer.h"
 #include "ash/assistant/model/ui/assistant_error_element.h"
 #include "ash/assistant/model/ui/assistant_ui_element.h"
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/memory/weak_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/unguessable_token.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
-#include "chromeos/ash/services/assistant/public/cpp/features.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
+#include "chromeos/services/assistant/public/cpp/features.h"
 
 namespace ash {
 
@@ -125,6 +124,13 @@ void AssistantResponse::RemoveObserver(
 
 void AssistantResponse::AddUiElement(
     std::unique_ptr<AssistantUiElement> ui_element) {
+  // In processing v1, UI elements are immediately added to the response.
+  if (!chromeos::assistant::features::IsResponseProcessingV2Enabled()) {
+    ui_elements_.push_back(std::move(ui_element));
+    NotifyUiElementAdded(ui_elements_.back().get());
+    return;
+  }
+
   // In processing v2, UI elements are first cached in a pending state...
   auto pending_ui_element = std::make_unique<PendingUiElement>();
   pending_ui_element->ui_element = std::move(ui_element);
@@ -170,8 +176,8 @@ void AssistantResponse::AddSuggestions(
   NotifySuggestionsAdded(suggestions);
 }
 
-const assistant::AssistantSuggestion* AssistantResponse::GetSuggestionById(
-    const base::UnguessableToken& id) const {
+const chromeos::assistant::AssistantSuggestion*
+AssistantResponse::GetSuggestionById(const base::UnguessableToken& id) const {
   for (auto& suggestion : suggestions_) {
     if (suggestion.id == id)
       return &suggestion;
@@ -179,7 +185,7 @@ const assistant::AssistantSuggestion* AssistantResponse::GetSuggestionById(
   return nullptr;
 }
 
-const std::vector<assistant::AssistantSuggestion>&
+const std::vector<chromeos::assistant::AssistantSuggestion>&
 AssistantResponse::GetSuggestions() const {
   return suggestions_;
 }
@@ -205,8 +211,11 @@ bool AssistantResponse::ContainsUiElement(
     const AssistantUiElement* element) const {
   DCHECK(element);
 
-  bool contains_element = base::Contains(
-      ui_elements_, *element, &std::unique_ptr<AssistantUiElement>::operator*);
+  bool contains_element =
+      std::any_of(ui_elements_.cbegin(), ui_elements_.cend(),
+                  [element](const std::unique_ptr<AssistantUiElement>& other) {
+                    return *other == *element;
+                  });
 
   return contains_element || ContainsPendingUiElement(element);
 }
@@ -215,10 +224,9 @@ bool AssistantResponse::ContainsPendingUiElement(
     const AssistantUiElement* element) const {
   DCHECK(element);
 
-  return base::ranges::any_of(
-      pending_ui_elements_,
-      [element](const std::unique_ptr<PendingUiElement>& other) {
-        return *other->ui_element == *element;
-      });
+  return std::any_of(pending_ui_elements_.cbegin(), pending_ui_elements_.cend(),
+                     [element](const std::unique_ptr<PendingUiElement>& other) {
+                       return *other->ui_element == *element;
+                     });
 }
 }  // namespace ash

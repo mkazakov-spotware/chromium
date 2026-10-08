@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "chrome/browser/diagnostics/diagnostics_model.h"
 
 namespace diagnostics {
@@ -24,10 +25,6 @@ class DiagnosticsWriter : public DiagnosticsModel::Observer {
   };
 
   explicit DiagnosticsWriter(FormatType format);
-
-  DiagnosticsWriter(const DiagnosticsWriter&) = delete;
-  DiagnosticsWriter& operator=(const DiagnosticsWriter&) = delete;
-
   ~DiagnosticsWriter() override;
 
   // How many tests reported failure.
@@ -63,6 +60,8 @@ class DiagnosticsWriter : public DiagnosticsModel::Observer {
   // Keeps track of how many tests reported failure.
   int failures_;
   FormatType format_;
+
+  DISALLOW_COPY_AND_ASSIGN(DiagnosticsWriter);
 };
 
 }  // namespace diagnostics

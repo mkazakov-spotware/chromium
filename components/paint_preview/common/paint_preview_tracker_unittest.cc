@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/paint_preview/common/paint_preview_tracker.h"
 
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
 #include "base/unguessable_token.h"
 #include "components/paint_preview/common/serial_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -22,7 +21,7 @@ namespace paint_preview {
 namespace {
 
 struct TestContext {
-  raw_ptr<const gfx::Rect> rect;
+  const gfx::Rect* rect;
   bool was_called;
 };
 

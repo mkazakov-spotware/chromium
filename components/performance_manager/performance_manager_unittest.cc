@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,21 +42,20 @@ class PerformanceManagerTest : public PerformanceManagerTestHarness {
     EXPECT_FALSE(PerformanceManager::IsAvailable());
   }
 
-  PerformanceManagerTest(const PerformanceManagerTest&) = delete;
-  PerformanceManagerTest& operator=(const PerformanceManagerTest&) = delete;
-
   ~PerformanceManagerTest() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(PerformanceManagerTest);
 };
 
 TEST_F(PerformanceManagerTest, NodeAccessors) {
   auto contents = CreateTestWebContents();
-  content::RenderFrameHost* rfh = contents->GetPrimaryMainFrame();
+  content::RenderFrameHost* rfh = contents->GetMainFrame();
   ASSERT_TRUE(rfh);
   content::RenderProcessHost* rph = rfh->GetProcess();
   ASSERT_TRUE(rph);
 
   base::WeakPtr<PageNode> page_node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(contents.get());
+      PerformanceManager::GetPageNodeForWebContents(contents.get());
 
   // FrameNode's and ProcessNode's don't exist until an observer fires on
   // navigation. Verify that looking them up before that returns null instead

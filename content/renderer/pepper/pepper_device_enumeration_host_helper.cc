@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,10 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "ipc/ipc_message.h"
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/host/dispatch_host_message.h"
@@ -32,7 +34,7 @@ class PepperDeviceEnumerationHostHelper::ScopedEnumerationRequest
       : callback_(std::move(callback)), requested_(false), sync_call_(false) {
     if (!owner->delegate_) {
       // If no delegate, return an empty list of devices.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(
               &ScopedEnumerationRequest::EnumerateDevicesCallbackBody,
@@ -56,16 +58,13 @@ class PepperDeviceEnumerationHostHelper::ScopedEnumerationRequest
     sync_call_ = false;
   }
 
-  ScopedEnumerationRequest(const ScopedEnumerationRequest&) = delete;
-  ScopedEnumerationRequest& operator=(const ScopedEnumerationRequest&) = delete;
-
   bool requested() const { return requested_; }
 
  private:
   void EnumerateDevicesCallbackBody(
       const std::vector<ppapi::DeviceRefData>& devices) {
     if (sync_call_) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(
               &ScopedEnumerationRequest::EnumerateDevicesCallbackBody,
@@ -79,6 +78,8 @@ class PepperDeviceEnumerationHostHelper::ScopedEnumerationRequest
   PepperDeviceEnumerationHostHelper::Delegate::DevicesOnceCallback callback_;
   bool requested_;
   bool sync_call_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedEnumerationRequest);
 };
 
 // Makes sure that StopMonitoringDevices() is called for each
@@ -106,9 +107,6 @@ class PepperDeviceEnumerationHostHelper::ScopedMonitoringRequest
         owner_->device_type_, callback_);
   }
 
-  ScopedMonitoringRequest(const ScopedMonitoringRequest&) = delete;
-  ScopedMonitoringRequest& operator=(const ScopedMonitoringRequest&) = delete;
-
   ~ScopedMonitoringRequest() {
     if (requested_ && owner_->delegate_) {
       owner_->delegate_->StopMonitoringDevices(owner_->device_type_,
@@ -123,6 +121,8 @@ class PepperDeviceEnumerationHostHelper::ScopedMonitoringRequest
   PepperDeviceEnumerationHostHelper::Delegate::DevicesCallback callback_;
   bool requested_;
   size_t subscription_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedMonitoringRequest);
 };
 
 PepperDeviceEnumerationHostHelper::PepperDeviceEnumerationHostHelper(

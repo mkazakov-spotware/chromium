@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <string>
 
-#include "base/values.h"
+namespace base {
+class DictionaryValue;
+}
 
 class DevToolsClient;
 class Status;
@@ -19,15 +21,13 @@ class DevToolsEventListener {
  public:
   virtual ~DevToolsEventListener();
 
-  virtual bool ListensToConnections() const;
-
   // Called when a connection is made to the DevTools server.
   virtual Status OnConnected(DevToolsClient* client);
 
   // Called when an event is received. Should avoid blocking if possible.
   virtual Status OnEvent(DevToolsClient* client,
                          const std::string& method,
-                         const base::Value::Dict& params);
+                         const base::DictionaryValue& params);
 
   // Called when a command success response is received.
   virtual Status OnCommandSuccess(DevToolsClient* client,

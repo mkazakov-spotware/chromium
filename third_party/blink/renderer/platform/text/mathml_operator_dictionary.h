@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,34 +13,28 @@ namespace blink {
 
 enum class MathMLOperatorDictionaryCategory : uint8_t {
   kNone,
-  kForceDefault,
   kA,
   kB,
   kC,
-  kDorEorK,
+  kDorEorL,
   kForG,
   kH,
   kI,
   kJ,
-  kL,
+  kK,
   kM,
   kUndefined = 15
 };
 
-enum MathMLOperatorDictionaryForm {
-  kInfix,
-  kPrefix,
-  kPostfix,
-  kMaxValue = kPostfix
-};
+enum MathMLOperatorDictionaryForm { kInfix, kPrefix, kPostfix };
 
 // FindCategory takes a UTF-16 string and form (infix, prefix, postfix) as input
 // and returns the operator dictionary category for this pair, see:
-// https://w3c.github.io/mathml-core/#operator-dictionary
+// https://mathml-refresh.github.io/mathml-core/#operator-dictionary
 // The returned value is never MathMLOperatorDictionaryCategory::kUndefined.
 PLATFORM_EXPORT MathMLOperatorDictionaryCategory
 FindCategory(const String& content, MathMLOperatorDictionaryForm);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_TEXT_MATHML_OPERATOR_DICTIONARY_H_
+#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_MATHML_MATHML_OPERATOR_ELEMENT_H_

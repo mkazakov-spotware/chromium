@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,15 @@
 #include <stdint.h>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/process.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/browser_thread.h"
 #include "ipc/ipc_channel_proxy.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/synchronization/lock.h"
 #endif
 
@@ -42,7 +41,6 @@ class CONTENT_EXPORT BrowserMessageFilter
           BrowserMessageFilter, BrowserMessageFilterTraits>,
       public IPC::Sender {
  public:
-  BrowserMessageFilter();  // For mojo-only BrowserAssociatedInterface.
   explicit BrowserMessageFilter(uint32_t message_class_to_filter);
   BrowserMessageFilter(const uint32_t* message_classes_to_filter,
                        size_t num_message_classes_to_filter);
@@ -125,7 +123,6 @@ class CONTENT_EXPORT BrowserMessageFilter
                                           BrowserMessageFilterTraits>;
 
   class Internal;
-  friend class AgentSchedulingGroupHost;
   friend class BrowserAssociatedInterfaceTest;
   friend class BrowserChildProcessHostImpl;
   friend class BrowserPpapiHost;
@@ -142,9 +139,9 @@ class CONTENT_EXPORT BrowserMessageFilter
   // classes. Internal keeps a reference to this class, which is why there's a
   // weak pointer back. This class could outlive Internal based on what the
   // child class does in its OnDestruct method.
-  raw_ptr<Internal, DanglingUntriaged> internal_ = nullptr;
+  Internal* internal_;
 
-  raw_ptr<IPC::Sender> sender_ = nullptr;
+  IPC::Sender* sender_;
   base::Process peer_process_;
 
   std::vector<uint32_t> message_classes_to_filter_;

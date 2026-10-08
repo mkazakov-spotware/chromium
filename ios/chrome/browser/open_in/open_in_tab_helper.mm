@@ -1,24 +1,25 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/open_in/open_in_tab_helper.h"
 
-#import "base/memory/ptr_util.h"
-#import "base/metrics/histogram_functions.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "base/memory/ptr_util.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "base/strings/sys_string_conversions.h"
+#import "ios/chrome/browser/open_in/features.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state.h"
-#import "net/base/filename_util.h"
-#import "net/http/http_response_headers.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "url/gurl.h"
+#include "net/base/filename_util.h"
+#include "net/http/http_response_headers.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -53,6 +54,15 @@ const char kMimeTypeMicrosoftExcel[] = "application/vnd.ms-excel";
 
 }  // namespace content_type
 
+// static
+void OpenInTabHelper::CreateForWebState(web::WebState* web_state) {
+  DCHECK(web_state);
+  if (!FromWebState(web_state)) {
+    web_state->SetUserData(UserDataKey(),
+                           base::WrapUnique(new OpenInTabHelper(web_state)));
+  }
+}
+
 void OpenInTabHelper::SetDelegate(id<OpenInTabHelperDelegate> delegate) {
   delegate_ = delegate;
 }
@@ -61,7 +71,6 @@ OpenInTabHelper::~OpenInTabHelper() {
   // In case that the destructor is called before WebStateDestroyed. stop
   // observing the WebState.
   if (web_state_) {
-    [delegate_ destroyOpenInForWebState:web_state_];
     web_state_->RemoveObserver(this);
     web_state_ = nullptr;
   }
@@ -96,17 +105,35 @@ OpenInMimeType OpenInTabHelper::GetUmaResult(
 
 void OpenInTabHelper::HandleExportableFile() {
   OpenInMimeType mime_type = GetUmaResult(web_state_->GetContentsMimeType());
-  if (mime_type == OpenInMimeType::kMimeTypeNotHandled)
+  if (base::FeatureList::IsEnabled(kExtendOpenInFilesSupport)) {
+    if (mime_type == OpenInMimeType::kMimeTypeNotHandled)
+      return;
+  } else if (web_state_->GetContentsMimeType() != "application/pdf") {
     return;
+  }
 
   DCHECK_NE(mime_type, OpenInMimeType::kMimeTypeNotHandled);
   base::UmaHistogramEnumeration("IOS.OpenIn.MimeType", mime_type);
   base::RecordAction(base::UserMetricsAction("IOS.OpenIn.Presented"));
 
+  // Try to generate a filename by first looking at |content_disposition_|, then
+  // at the last component of WebState's last committed URL and if both of these
+  // fail use the default filename "document".
+  std::string content_disposition;
+  if (response_headers_)
+    response_headers_->GetNormalizedHeader("content-disposition",
+                                           &content_disposition);
+  std::string default_file_name =
+      l10n_util::GetStringUTF8(IDS_IOS_OPEN_IN_FILE_DEFAULT_TITLE);
   web::NavigationItem* item =
       web_state_->GetNavigationManager()->GetLastCommittedItem();
   const GURL& last_committed_url = item ? item->GetURL() : GURL::EmptyGURL();
-  std::u16string file_name = GetFileNameSuggestion();
+  base::string16 file_name =
+      net::GetSuggestedFilename(last_committed_url, content_disposition,
+                                "",  // referrer-charset
+                                "",  // suggested-name
+                                web_state_->GetContentsMimeType(),  // mime-type
+                                default_file_name);
   [delegate_ enableOpenInForWebState:web_state_
                      withDocumentURL:last_committed_url
                    suggestedFileName:base::SysUTF16ToNSString(file_name)];
@@ -148,48 +175,6 @@ void OpenInTabHelper::WebStateDestroyed(web::WebState* web_state) {
   // so nothing should be done after that point (this is like "delete this;").
   // Unregistration as an observer happens in the destructor.
   web_state_->RemoveUserData(UserDataKey());
-}
-
-std::u16string OpenInTabHelper::GetFileNameSuggestion() {
-  // Try to generate a filename by first looking at `content_disposition`, then
-  // at the last component of WebState's last committed URL and if both of these
-  // fail use the default filename "document".
-  std::string content_disposition;
-  if (response_headers_)
-    response_headers_->GetNormalizedHeader("content-disposition",
-                                           &content_disposition);
-  std::string default_file_name =
-      l10n_util::GetStringUTF8(IDS_IOS_OPEN_IN_FILE_DEFAULT_TITLE);
-  web::NavigationItem* item =
-      web_state_->GetNavigationManager()->GetLastCommittedItem();
-  const GURL& last_committed_url = item ? item->GetURL() : GURL::EmptyGURL();
-  std::u16string file_name =
-      net::GetSuggestedFilename(last_committed_url, content_disposition,
-                                "",  // referrer-charset
-                                "",  // suggested-name
-                                web_state_->GetContentsMimeType(),  // mime-type
-                                default_file_name);
-  return file_name;
-}
-
-// static
-bool OpenInTabHelper::ShouldDownload(web::WebState* web_state) {
-  if (!web_state) {
-    return false;
-  }
-
-  std::string mime_type = web_state->GetContentsMimeType();
-  return (mime_type == content_type::kMimeTypePDF ||
-          mime_type == content_type::kMimeTypeMicrosoftWord ||
-          mime_type == content_type::kMimeTypeMicrosoftWordOpenXML ||
-          mime_type == content_type::kMimeTypeJPEG ||
-          mime_type == content_type::kMimeTypePNG ||
-          mime_type == content_type::kMimeTypeMicrosoftPowerPoint ||
-          mime_type == content_type::kMimeTypeMicrosoftPowerPointOpenXML ||
-          mime_type == content_type::kMimeTypeRTF ||
-          mime_type == content_type::kMimeTypeSVG ||
-          mime_type == content_type::kMimeTypeMicrosoftExcel ||
-          mime_type == content_type::kMimeTypeMicrosoftExcelOpenXML);
 }
 
 WEB_STATE_USER_DATA_KEY_IMPL(OpenInTabHelper)

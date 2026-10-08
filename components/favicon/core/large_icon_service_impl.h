@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/favicon/core/large_icon_service.h"
@@ -25,6 +26,8 @@ namespace favicon {
 
 class FaviconService;
 
+extern const base::Feature kLargeIconServiceFetchingFeature;
+
 // Implementation class for LargeIconService.
 class LargeIconServiceImpl : public LargeIconService {
  public:
@@ -34,10 +37,6 @@ class LargeIconServiceImpl : public LargeIconService {
       int desired_size_in_dip_for_server_requests,
       favicon_base::IconType icon_type_for_server_requests,
       const std::string& google_server_client_param);
-
-  LargeIconServiceImpl(const LargeIconServiceImpl&) = delete;
-  LargeIconServiceImpl& operator=(const LargeIconServiceImpl&) = delete;
-
   ~LargeIconServiceImpl() override;
 
   // LargeIconService Implementation.
@@ -95,7 +94,7 @@ class LargeIconServiceImpl : public LargeIconService {
       favicon_base::GoogleFaviconServerCallback callback,
       bool can_set_on_demand_favicon);
 
-  const raw_ptr<FaviconService> favicon_service_;
+  FaviconService* const favicon_service_;
 
   const std::unique_ptr<image_fetcher::ImageFetcher> image_fetcher_;
 
@@ -109,6 +108,8 @@ class LargeIconServiceImpl : public LargeIconService {
   GURL server_url_;
 
   base::WeakPtrFactory<LargeIconServiceImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LargeIconServiceImpl);
 };
 
 }  // namespace favicon

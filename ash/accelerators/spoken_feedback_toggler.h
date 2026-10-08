@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/accelerators/key_hold_detector.h"
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/events/event_handler.h"
 
 namespace ui {
@@ -20,9 +21,6 @@ namespace ash {
 // A KeyHoldDetector delegate to toggle spoken feedback.
 class ASH_EXPORT SpokenFeedbackToggler : public KeyHoldDetector::Delegate {
  public:
-  SpokenFeedbackToggler(const SpokenFeedbackToggler&) = delete;
-  SpokenFeedbackToggler& operator=(const SpokenFeedbackToggler&) = delete;
-
   static bool IsEnabled();
   static void SetEnabled(bool enabled);
   static std::unique_ptr<ui::EventHandler> CreateHandler();
@@ -31,9 +29,10 @@ class ASH_EXPORT SpokenFeedbackToggler : public KeyHoldDetector::Delegate {
   class ScopedEnablerForTest {
    public:
     ScopedEnablerForTest() { SetEnabled(true); }
-    ScopedEnablerForTest(const ScopedEnablerForTest&) = delete;
-    ScopedEnablerForTest& operator=(const ScopedEnablerForTest&) = delete;
     ~ScopedEnablerForTest() { SetEnabled(false); }
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ScopedEnablerForTest);
   };
 
  private:
@@ -48,6 +47,8 @@ class ASH_EXPORT SpokenFeedbackToggler : public KeyHoldDetector::Delegate {
   ~SpokenFeedbackToggler() override;
 
   bool toggled_;
+
+  DISALLOW_COPY_AND_ASSIGN(SpokenFeedbackToggler);
 };
 
 }  // namespace ash

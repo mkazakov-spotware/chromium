@@ -31,13 +31,13 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_DOM_DEBUGGER_AGENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_DOM_DEBUGGER_AGENT_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_event_listener_info.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/frame/csp/content_security_policy_violation_type.h"
 #include "third_party/blink/renderer/core/inspector/inspector_base_agent.h"
 #include "third_party/blink/renderer/core/inspector/inspector_dom_agent.h"
-#include "third_party/blink/renderer/core/inspector/protocol/dom_debugger.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
+#include "third_party/blink/renderer/core/inspector/protocol/DOMDebugger.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "v8/include/v8-inspector.h"
 
@@ -57,8 +57,7 @@ class DictionaryValue;
 }
 
 class CORE_EXPORT InspectorDOMDebuggerAgent final
-    : public InspectorBaseAgent<protocol::DOMDebugger::Metainfo>,
-      public InspectorDOMAgent::DOMListener {
+    : public InspectorBaseAgent<protocol::DOMDebugger::Metainfo> {
  public:
   static void EventListenersInfoForTarget(v8::Isolate*,
                                           v8::Local<v8::Value>,
@@ -67,14 +66,9 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
   InspectorDOMDebuggerAgent(v8::Isolate*,
                             InspectorDOMAgent*,
                             v8_inspector::V8InspectorSession*);
-  InspectorDOMDebuggerAgent(const InspectorDOMDebuggerAgent&) = delete;
-  InspectorDOMDebuggerAgent& operator=(const InspectorDOMDebuggerAgent&) =
-      delete;
   ~InspectorDOMDebuggerAgent() override;
   void Trace(Visitor*) const override;
 
-  protocol::Response setBreakOnCSPViolation(
-      std::unique_ptr<protocol::Array<String>> violationTypes) override;
   // DOMDebugger API for frontend
   protocol::Response setDOMBreakpoint(int node_id, const String& type) override;
   protocol::Response removeDOMBreakpoint(int node_id,
@@ -102,7 +96,7 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
   void WillInsertDOMNode(Node* parent);
   void DidInvalidateStyleAttr(Node*);
   void DidInsertDOMNode(Node*);
-  void CharacterDataModified(CharacterData*);
+  void WillRemoveDOMNode(Node*);
   void DidRemoveDOMNode(Node*);
   void WillModifyDOMAttr(Element*, const AtomicString&, const AtomicString&);
   void WillSendXMLHttpOrFetchNetworkRequest(const String& url);
@@ -120,8 +114,6 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
   void DidCloseAudioContext();
   void DidResumeAudioContext();
   void DidSuspendAudioContext();
-  void OnContentSecurityPolicyViolation(
-      const ContentSecurityPolicyViolationType);
 
   protocol::Response disable() override;
   void Restore() override;
@@ -143,13 +135,11 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
  private:
   String MatchXHRBreakpoints(const String& url) const;
 
-  static void EventListenersInfoForTarget(
-      v8::Isolate*,
-      v8::Local<v8::Value>,
-      int depth,
-      bool pierce,
-      InspectorDOMAgent::IncludeWhitespaceEnum include_whitespace,
-      V8EventListenerInfoList* listeners);
+  static void EventListenersInfoForTarget(v8::Isolate*,
+                                          v8::Local<v8::Value>,
+                                          int depth,
+                                          bool pierce,
+                                          V8EventListenerInfoList* listeners);
   void AllowNativeBreakpoint(const String& breakpoint_name,
                              const String* target_name,
                              bool sync);
@@ -164,9 +154,7 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
                               int breakpoint_type,
                               bool insertion);
   void UpdateSubtreeBreakpoints(Node*, uint32_t root_mask, bool set);
-  bool HasBreakpoint(Node*, int type) const;
-  // Returns value if node is in `dom_breakpoints_`, otherwise zero.
-  uint32_t FindBreakpointMask(Node*) const;
+  bool HasBreakpoint(Node*, int type);
   protocol::Response SetBreakpoint(const String& event_name,
                                    const String& target_name);
   protocol::Response RemoveBreakpoint(const String& event_name,
@@ -175,11 +163,6 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
   void DidAddBreakpoint();
   void DidRemoveBreakpoint();
   void SetEnabled(bool);
-
-  // InspectorDOMAgent::DOMListener implementation
-  void DidAddDocument(Document*) override;
-  void WillRemoveDOMNode(Node*) override;
-  void DidModifyDOMAttr(Element*) override;
 
   std::unique_ptr<protocol::DOMDebugger::EventListener>
   BuildObjectForEventListener(v8::Local<v8::Context>,
@@ -194,7 +177,7 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
   InspectorAgentState::Boolean pause_on_all_xhrs_;
   InspectorAgentState::BooleanMap xhr_breakpoints_;
   InspectorAgentState::BooleanMap event_listener_breakpoints_;
-  InspectorAgentState::BooleanMap csp_violation_breakpoints_;
+  DISALLOW_COPY_AND_ASSIGN(InspectorDOMDebuggerAgent);
 };
 
 }  // namespace blink

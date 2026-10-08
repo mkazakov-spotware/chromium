@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,12 @@
 #include "base/callback_forward.h"
 #include "base/memory/weak_ptr.h"
 #include "extensions/browser/api/messaging/message_port.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace content {
 class BrowserContext;
@@ -44,7 +47,7 @@ class MessagingDelegate {
 
   // If web_contents is a tab, returns a dictionary representing its tab.
   // Otherwise returns nullptr.
-  virtual absl::optional<base::Value::Dict> MaybeGetTabInfo(
+  virtual std::unique_ptr<base::DictionaryValue> MaybeGetTabInfo(
       content::WebContents* web_contents);
 
   // Returns the WebContents for the given tab ID, if found.
@@ -60,8 +63,7 @@ class MessagingDelegate {
       const std::string& extension_id,
       const PortId& receiver_port_id,
       content::WebContents* receiver_contents,
-      int receiver_frame_id,
-      const std::string& receiver_document_id);
+      int receiver_frame_id);
 
   // Creates a MessagePort for a native app. If the port cannot be created,
   // returns nullptr and may populate |error_out|.
@@ -84,7 +86,7 @@ class MessagingDelegate {
       const Extension* extension,
       content::WebContents* web_contents,
       const GURL& url,
-      base::OnceCallback<void(bool)> callback);
+      const base::Callback<void(bool)>& callback);
 };
 
 }  // namespace extensions

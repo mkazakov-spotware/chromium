@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ package org.chromium.chrome.browser.customtabs;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabController;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
@@ -104,17 +104,12 @@ public class CloseButtonNavigator {
             // consider the current Tab) because in that case if the user started on a landing page,
             // we would not navigate at all.
             Tab nextTab = mTabProvider.getTab();
-            if (nextTab != null && isLandingPage(nextTab.getUrl().getSpec())) {
+            if (nextTab != null && isLandingPage(nextTab.getUrlString())) {
                 if (isFromChildTab) {
                     recordChildTabScopeAlgorithmClosesOneTab(numTabsClosed == 1);
                 }
                 return;
             }
-        }
-
-        if (numTabsClosed > 0) {
-            RecordHistogram.recordCount100Histogram(
-                    "CustomTabs.TabCounts.OnClosingAllTabs", numTabsClosed);
         }
     }
 
@@ -127,7 +122,7 @@ public class CloseButtonNavigator {
 
         NavigationHistory history = controller.getNavigationHistory();
         for (int i = history.getCurrentEntryIndex() - 1; i >= 0; i--) {
-            String url = history.getEntryAtIndex(i).getUrl().getSpec();
+            String url = history.getEntryAtIndex(i).getUrl();
             if (!isLandingPage(url)) continue;
 
             controller.goToNavigationIndex(i);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,7 @@ import androidx.browser.trusted.TrustedWebActivityServiceConnectionPool;
 import org.chromium.base.ContextUtils;
 import org.chromium.chrome.browser.WarmupManager;
 import org.chromium.chrome.browser.app.tabmodel.AsyncTabParamsManagerSingleton;
-import org.chromium.chrome.browser.browserservices.metrics.TrustedWebActivityUmaRecorder;
-import org.chromium.chrome.browser.browserservices.permissiondelegation.InstalledWebappPermissionStore;
+import org.chromium.chrome.browser.browserservices.permissiondelegation.TrustedWebActivityPermissionStore;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.night_mode.SystemNightModeMonitor;
 import org.chromium.chrome.browser.notifications.channels.SiteChannelsManager;
@@ -67,23 +66,13 @@ public class ChromeAppModule {
 
     @Provides
     @Singleton
-    public InstalledWebappPermissionStore providesTwaPermissionStore() {
-        return WebappRegistry.getInstance().getPermissionStore();
+    public TrustedWebActivityPermissionStore providesTwaPermissionStore() {
+        return WebappRegistry.getInstance().getTrustedWebActivityPermissionStore();
     }
 
     @Provides
     public SiteChannelsManager providesSiteChannelsManager() {
         return SiteChannelsManager.getInstance();
-    }
-
-    @Provides
-    public TrustedWebActivityUmaRecorder.DeferredTaskHandler provideTwaUmaRecorderTaskHandler() {
-        return new TrustedWebActivityUmaRecorder.DeferredTaskHandler() {
-            @Override
-            public void doWhenNativeLoaded(Runnable runnable) {
-                provideChromeBrowserInitializer().runNowOrAfterFullBrowserStarted(runnable);
-            }
-        };
     }
 
     @Provides

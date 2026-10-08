@@ -1,13 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 'use strict';
-
-import {PluginVmBrowserProxyImpl, PermissionType, createBoolPermission, AppManagementStore, updateSelectedAppId, getPermissionValueBool, convertOptionalBoolToBool} from 'chrome://os-settings/chromeos/os_settings.js';
-import {TestPluginVmBrowserProxy} from './test_plugin_vm_browser_proxy.js';
-import {setupFakeHandler, replaceStore, replaceBody, getPermissionCrToggleByType, getPermissionToggleByType} from './test_util.js';
-import {AppType, OptionalBool} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
 
 suite('<app-management-plugin-vm-detail-view>', function() {
   /** @enum {number} */
@@ -23,7 +18,8 @@ suite('<app-management-plugin-vm-detail-view>', function() {
   let appId;
 
   function getPermissionBoolByType(permissionType) {
-    return getPermissionValueBool(pluginVmDetailView.app_, permissionType);
+    return app_management.util.getPermissionValueBool(
+        pluginVmDetailView.app_, permissionType);
   }
 
   function isCrToggleChecked(permissionType) {
@@ -41,7 +37,7 @@ suite('<app-management-plugin-vm-detail-view>', function() {
   }
 
   function getSelectedAppFromStore() {
-    const storeData = AppManagementStore.getInstance().data;
+    const storeData = app_management.Store.getInstance().data;
     return storeData.apps[storeData.selectedAppId];
   }
 
@@ -73,31 +69,22 @@ suite('<app-management-plugin-vm-detail-view>', function() {
 
   async function checkAndAcceptDialog(textId) {
     assertEquals(
-        pluginVmDetailView.shadowRoot
-            .querySelector('cr-dialog div[slot="body"]')
-            .textContent,
+        pluginVmDetailView.$$('cr-dialog div[slot="body"]').textContent,
         loadTimeData.getString(textId));
-    pluginVmDetailView.shadowRoot
-        .querySelector('cr-dialog cr-button.action-button')
-        .click();
+    pluginVmDetailView.$$('cr-dialog cr-button.action-button').click();
     await fakeHandler.flushPipesForTesting();
   }
 
   async function checkAndCancelDialog(textId, cancelByEsc) {
     assertEquals(
-        pluginVmDetailView.shadowRoot
-            .querySelector('cr-dialog div[slot="body"]')
-            .textContent,
+        pluginVmDetailView.$$('cr-dialog div[slot="body"]').textContent,
         loadTimeData.getString(textId));
     if (cancelByEsc) {
       // When <esc> is used to cancel the button, <cr-dialog> will fire a
       // "cancel" event.
-      pluginVmDetailView.shadowRoot.querySelector(`cr-dialog`)
-          .dispatchEvent(new Event('cancel'));
+      pluginVmDetailView.$$(`cr-dialog`).dispatchEvent(new Event('cancel'));
     } else {
-      pluginVmDetailView.shadowRoot
-          .querySelector(`cr-dialog cr-button.cancel-button`)
-          .click();
+      pluginVmDetailView.$$(`cr-dialog cr-button.cancel-button`).click();
     }
     await fakeHandler.flushPipesForTesting();
   }
@@ -112,7 +99,7 @@ suite('<app-management-plugin-vm-detail-view>', function() {
 
   setup(async function() {
     pluginVmBrowserProxy = new TestPluginVmBrowserProxy();
-    PluginVmBrowserProxyImpl.setInstanceForTesting(pluginVmBrowserProxy);
+    settings.PluginVmBrowserProxyImpl.instance_ = pluginVmBrowserProxy;
     fakeHandler = setupFakeHandler();
     replaceStore();
 
@@ -122,26 +109,28 @@ suite('<app-management-plugin-vm-detail-view>', function() {
     });
 
     const permissions = {};
-    const permissionTypes = [
-      PermissionType.kPrinting,
-      PermissionType.kCamera,
-      PermissionType.kMicrophone,
+    const permissionIds = [
+      PluginVmPermissionType.PRINTING,
+      PluginVmPermissionType.CAMERA,
+      PluginVmPermissionType.MICROPHONE,
     ];
-    for (const permissionType of permissionTypes) {
-      permissions[permissionType] =
-          createBoolPermission(permissionType, true, false /*is_managed*/);
+    for (const permissionId of permissionIds) {
+      permissions[permissionId] = app_management.util.createPermission(
+          permissionId, PermissionValueType.kBool, Bool.kTrue,
+          false /*is_managed*/);
     }
 
     pluginVmBrowserProxy.pluginVmRunning = false;
 
     // Add an app, and make it the currently selected app.
     const options = {
-      type: AppType.kPluginVm,
-      permissions: permissions,
+      type: apps.mojom.AppType.kPluginVm,
+      permissions: permissions
     };
     const app = await fakeHandler.addApp(null, options);
     appId = app.id;
-    AppManagementStore.getInstance().dispatch(updateSelectedAppId(appId));
+    app_management.Store.getInstance().dispatch(
+        app_management.actions.updateSelectedAppId(appId));
 
     pluginVmDetailView =
         document.createElement('app-management-plugin-vm-detail-view');
@@ -151,14 +140,14 @@ suite('<app-management-plugin-vm-detail-view>', function() {
 
   test('App is rendered correctly', function() {
     assertEquals(
-        AppManagementStore.getInstance().data.selectedAppId,
+        app_management.Store.getInstance().data.selectedAppId,
         pluginVmDetailView.app_.id);
   });
 
   // The testing browser proxy return false by default in
   // `isRelaunchNeededForNewPermissions()`, so camera and microphone toggles
   // will not trigger the dialog.
-  ['kCamera', 'kMicrophone', 'kPrinting'].forEach(
+  ['CAMERA', 'MICROPHONE', 'PRINTING'].forEach(
       (permissionType) =>
           test(`Toggle ${permissionType} without dialogs`, async function() {
             assertTrue(getPermissionBoolByType(permissionType));
@@ -166,21 +155,19 @@ suite('<app-management-plugin-vm-detail-view>', function() {
 
             // Toggle off.
             await clickToggle(permissionType);
-            assertFalse(
-                !!pluginVmDetailView.shadowRoot.querySelector('cr-dialog'));
+            assertFalse(!!pluginVmDetailView.$$('cr-dialog'));
             assertFalse(getPermissionBoolByType(permissionType));
             assertFalse(isCrToggleChecked(permissionType));
 
             // Toggle on.
             await clickToggle(permissionType);
-            assertFalse(
-                !!pluginVmDetailView.shadowRoot.querySelector('cr-dialog'));
+            assertFalse(!!pluginVmDetailView.$$('cr-dialog'));
             assertTrue(getPermissionBoolByType(permissionType));
             assertTrue(isCrToggleChecked(permissionType));
           }));
 
-  [['kCamera', 'pluginVmPermissionDialogCameraLabel'],
-   ['kMicrophone', 'pluginVmPermissionDialogMicrophoneLabel']]
+  [['CAMERA', 'pluginVmPermissionDialogCameraLabel'],
+   ['MICROPHONE', 'pluginVmPermissionDialogMicrophoneLabel']]
       .forEach(
           ([permissionType, dialogTextId]) => [true, false].forEach(
               (cancelByEsc) => test(
@@ -243,18 +230,21 @@ suite('<app-management-plugin-vm-detail-view>', function() {
     assertFalse(toggle.checked);
     assertEquals(
         toggle.checked,
-        convertOptionalBoolToBool(getSelectedAppFromStore().isPinned));
+        app_management.util.convertOptionalBoolToBool(
+            getSelectedAppFromStore().isPinned));
     pinToShelfItem.click();
     await fakeHandler.flushPipesForTesting();
     assertTrue(toggle.checked);
     assertEquals(
         toggle.checked,
-        convertOptionalBoolToBool(getSelectedAppFromStore().isPinned));
+        app_management.util.convertOptionalBoolToBool(
+            getSelectedAppFromStore().isPinned));
     pinToShelfItem.click();
     await fakeHandler.flushPipesForTesting();
     assertFalse(toggle.checked);
     assertEquals(
         toggle.checked,
-        convertOptionalBoolToBool(getSelectedAppFromStore().isPinned));
+        app_management.util.convertOptionalBoolToBool(
+            getSelectedAppFromStore().isPinned));
   });
 });

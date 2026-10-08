@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "base/containers/flat_tree.h"
 #include "base/functional/identity.h"
-#include "base/ranges/algorithm.h"
 #include "base/template_util.h"
 
 namespace base {
@@ -141,7 +140,7 @@ namespace base {
 //   template <typename K> const_iterator           upper_bound(const K&) const;
 //
 // General functions:
-//   void swap(flat_set&);
+//   void swap(flat_set&&);
 //
 // Non-member operators:
 //   bool operator==(const flat_set&, const flat_set);
@@ -156,30 +155,6 @@ template <class Key,
           class Container = std::vector<Key>>
 using flat_set = typename ::base::internal::
     flat_tree<Key, base::identity, Compare, Container>;
-
-// Utility function to simplify constructing a flat_set from a fixed list
-// of keys. The keys are obtained by applying the projection |proj| to the
-// |unprojected_elements|. The set's keys are sorted by |comp|.
-//
-// Example usage (creates a set {16, 9, 4, 1}):
-//   auto set = base::MakeFlatSet<int>(
-//       std::vector<int>{1, 2, 3, 4}, [](int i, int j) { return i > j; },
-//       [](int i) { return i * i; });
-template <class Key,
-          class Compare = std::less<>,
-          class Container = std::vector<Key>,
-          class InputContainer,
-          class Projection = base::identity>
-constexpr flat_set<Key, Compare, Container> MakeFlatSet(
-    const InputContainer& unprojected_elements,
-    const Compare& comp = Compare(),
-    const Projection& proj = Projection()) {
-  Container elements;
-  internal::ReserveIfSupported(elements, unprojected_elements);
-  base::ranges::transform(unprojected_elements, std::back_inserter(elements),
-                          proj);
-  return flat_set<Key, Compare, Container>(std::move(elements), comp);
-}
 
 }  // namespace base
 

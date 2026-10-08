@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -88,9 +89,9 @@ password_manager::PasswordForm ConvertImportedPasswordForm(
 
 // Attempts to create a TemplateURL from the provided data. |title| is optional.
 // If TemplateURL creation fails, returns null.
-std::unique_ptr<TemplateURL> CreateTemplateURL(const std::u16string& url,
-                                               const std::u16string& keyword,
-                                               const std::u16string& title) {
+std::unique_ptr<TemplateURL> CreateTemplateURL(const base::string16& url,
+                                               const base::string16& keyword,
+                                               const base::string16& title) {
   if (url.empty() || keyword.empty())
     return nullptr;
   TemplateURLData data;
@@ -112,7 +113,7 @@ InProcessImporterBridge::InProcessImporterBridge(
 
 void InProcessImporterBridge::AddBookmarks(
     const std::vector<ImportedBookmarkEntry>& bookmarks,
-    const std::u16string& first_folder_name) {
+    const base::string16& first_folder_name) {
   writer_->AddBookmarks(bookmarks, first_folder_name);
 }
 
@@ -159,8 +160,8 @@ void InProcessImporterBridge::SetAutofillFormData(
   for (size_t i = 0; i < entries.size(); ++i) {
     // Using method c_str() in order to avoid data which contains null
     // terminating symbols.
-    const std::u16string name = entries[i].name.c_str();
-    const std::u16string value = entries[i].value.c_str();
+    const base::string16 name = entries[i].name.c_str();
+    const base::string16 value = entries[i].value.c_str();
     if (name.empty() || value.empty())
       continue;
     autofill_entries.push_back(
@@ -187,7 +188,7 @@ void InProcessImporterBridge::NotifyEnded() {
   host_->NotifyImportEnded();
 }
 
-std::u16string InProcessImporterBridge::GetLocalizedString(int message_id) {
+base::string16 InProcessImporterBridge::GetLocalizedString(int message_id) {
   return l10n_util::GetStringUTF16(message_id);
 }
 

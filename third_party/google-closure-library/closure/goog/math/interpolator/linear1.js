@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A one dimensional linear interpolator.
@@ -24,7 +32,6 @@ goog.require('goog.math.interpolator.Interpolator1');
  * @final
  */
 goog.math.interpolator.Linear1 = function() {
-  'use strict';
   /**
    * The abscissa of the data points.
    * @type {!Array<number>}
@@ -43,7 +50,6 @@ goog.math.interpolator.Linear1 = function() {
 
 /** @override */
 goog.math.interpolator.Linear1.prototype.setData = function(x, y) {
-  'use strict';
   goog.asserts.assert(
       x.length == y.length,
       'input arrays to setData should have the same length');
@@ -59,22 +65,20 @@ goog.math.interpolator.Linear1.prototype.setData = function(x, y) {
 
 /** @override */
 goog.math.interpolator.Linear1.prototype.interpolate = function(x) {
-  'use strict';
-  let pos = goog.array.binarySearch(this.x_, x);
+  var pos = goog.array.binarySearch(this.x_, x);
   if (pos < 0) {
     pos = -pos - 2;
   }
   pos = goog.math.clamp(pos, 0, this.x_.length - 2);
 
-  const progress = (x - this.x_[pos]) / (this.x_[pos + 1] - this.x_[pos]);
+  var progress = (x - this.x_[pos]) / (this.x_[pos + 1] - this.x_[pos]);
   return goog.math.lerp(this.y_[pos], this.y_[pos + 1], progress);
 };
 
 
 /** @override */
 goog.math.interpolator.Linear1.prototype.getInverse = function() {
-  'use strict';
-  const interpolator = new goog.math.interpolator.Linear1();
+  var interpolator = new goog.math.interpolator.Linear1();
   interpolator.setData(this.y_, this.x_);
   return interpolator;
 };

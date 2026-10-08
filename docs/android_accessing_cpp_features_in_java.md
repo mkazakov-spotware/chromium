@@ -16,7 +16,7 @@ This outputs Java String constants which represent the name of the
    2020" to be whatever the year is at the time of writing (as you would for any
    other file).
    ```java
-    // Copyright 2020 The Chromium Authors
+    // Copyright 2020 The Chromium Authors. All rights reserved.
     // Use of this source code is governed by a BSD-style license that can be
     // found in the LICENSE file.
 
@@ -63,26 +63,11 @@ This outputs Java String constants which represent the name of the
     }
     ```
 
-3. Add a `deps` entry to `"common_java"` in `"//android_webview/BUILD.gn"` if
-   creating a new `android_library` in the previous step:
-
-   ```gn
-   android_library("common_java") {
-     ...
-
-     deps = [
-       ...
-       "//path/to:foo_java",
-       ...
-     ]
-   }
-   ```
-
-4. The generated file `out/Default/gen/.../org/chromium/foo/FooFeatures.java`
+3. The generated file `out/Default/gen/.../org/chromium/foo/FooFeatures.java`
    would contain:
 
     ```java
-    // Copyright $YEAR The Chromium Authors
+    // Copyright $YEAR The Chromium Authors. All rights reserved.
     // Use of this source code is governed by a BSD-style license that can be
     // found in the LICENSE file.
 
@@ -129,9 +114,11 @@ disabled-by-default for another). Example:
 
 ```c++
 #if defined(...)
-BASE_FEATURE(kMyFeature, "MyFeature", base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kMyFeature{
+    "MyFeature", base::FEATURE_ENABLED_BY_DEFAULT};
 #else
-BASE_FEATURE(kMyFeature, "MyFeature", base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kMyFeature{
+    "MyFeature", base::FEATURE_DISABLED_BY_DEFAULT};
 #endif
 ```
 
@@ -141,12 +128,12 @@ compilation error is complaining about). Fortunately, the workaround is fairly
 simple. Rewrite the definition to only use directives around the enabled state:
 
 ```c++
-BASE_FEATURE(kMyFeature,
-             "MyFeature",
+const base::Feature kMyFeature{
+    "MyFeature",
 #if defined(...)
-             base::FEATURE_ENABLED_BY_DEFAULT
+    base::FEATURE_ENABLED_BY_DEFAULT
 #else
-             base::FEATURE_DISABLED_BY_DEFAULT
+    base::FEATURE_DISABLED_BY_DEFAULT
 #endif
 };
 

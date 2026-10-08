@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -29,7 +29,7 @@ BASE_EXPORT NOINLINE void AsanHeapUseAfterFree();
 
 // The "corrupt-block" and "corrupt-heap" classes of bugs is specific to
 // Windows.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Corrupts a memory block and makes sure that the corruption gets detected when
 // we try to free this block.
 BASE_EXPORT NOINLINE void AsanCorruptHeapBlock();
@@ -38,7 +38,7 @@ BASE_EXPORT NOINLINE void AsanCorruptHeapBlock();
 // crash occur.
 BASE_EXPORT NOINLINE void AsanCorruptHeap();
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 #endif  // ADDRESS_SANITIZER
 
 }  // namespace debug

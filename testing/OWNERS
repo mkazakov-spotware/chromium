@@ -1,5 +1,2 @@
-bpastene@chromium.org
+dpranke@google.com
 johnchen@chromium.org
-
-per-file BUILD.gn=file://build/OWNERS
-per-file *.gni=file://build/OWNERS

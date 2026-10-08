@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 #include "base/bind.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "build/build_config.h"
 #include "components/nacl/browser/pnacl_translation_cache.h"
@@ -22,7 +21,7 @@
 #include "net/disk_cache/disk_cache.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define snprintf _snprintf
 #endif
 
@@ -106,7 +105,7 @@ class PnaclHostTest : public testing::Test {
   }
 
  protected:
-  raw_ptr<PnaclHost> host_;
+  PnaclHost* host_;
   int temp_callback_count_;
   int write_callback_count_;
   content::BrowserTaskEnvironment task_environment_;
@@ -127,7 +126,8 @@ static nacl::PnaclCacheInfo GetTestCacheInfo() {
   do {                                                                       \
     SCOPED_TRACE("");                                                        \
     host_->GetNexeFd(                                                        \
-        renderer, instance, incognito, info,                                 \
+        renderer, 0, /* ignore render_view_id for now */                     \
+        instance, incognito, info,                                           \
         base::BindRepeating(expect_hit ? &PnaclHostTest::CallbackExpectHit   \
                                        : &PnaclHostTest::CallbackExpectMiss, \
                             base::Unretained(this)));                        \

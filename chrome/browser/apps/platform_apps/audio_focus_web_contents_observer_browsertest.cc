@@ -1,8 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
 #include "chrome/browser/apps/platform_apps/audio_focus_web_contents_observer.h"
 #include "content/public/test/browser_test.h"
@@ -16,10 +16,6 @@ class AudioFocusWebContentsObserverBrowserTest
     : public extensions::PlatformAppBrowserTest {
  public:
   AudioFocusWebContentsObserverBrowserTest() = default;
-  AudioFocusWebContentsObserverBrowserTest(
-      const AudioFocusWebContentsObserverBrowserTest&) = delete;
-  AudioFocusWebContentsObserverBrowserTest& operator=(
-      const AudioFocusWebContentsObserverBrowserTest&) = delete;
   ~AudioFocusWebContentsObserverBrowserTest() override = default;
 
   const base::UnguessableToken& GetAudioFocusGroupId(
@@ -28,20 +24,16 @@ class AudioFocusWebContentsObserverBrowserTest
         AudioFocusWebContentsObserver::FromWebContents(web_contents);
     return wco->audio_focus_group_id_;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AudioFocusWebContentsObserverBrowserTest);
 };
 
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_PlatformAppHasDifferentAudioFocus \
-  DISABLED_PlatformAppHasDifferentAudioFocus
-#else
-#define MAYBE_PlatformAppHasDifferentAudioFocus \
-  PlatformAppHasDifferentAudioFocus
-#endif
 IN_PROC_BROWSER_TEST_F(AudioFocusWebContentsObserverBrowserTest,
-                       MAYBE_PlatformAppHasDifferentAudioFocus) {
+                       PlatformAppHasDifferentAudioFocus) {
   ASSERT_TRUE(embedded_test_server()->Start());
 
-  ExtensionTestMessageListener launched_listener("Launched");
+  ExtensionTestMessageListener launched_listener("Launched", false);
   const extensions::Extension* extension =
       InstallAndLaunchPlatformApp("minimal");
   ASSERT_TRUE(extension);
@@ -57,7 +49,7 @@ IN_PROC_BROWSER_TEST_F(AudioFocusWebContentsObserverBrowserTest,
   EXPECT_NE(base::UnguessableToken::Null(), GetAudioFocusGroupId(web_contents));
 
   // Create a new window and navigate it to the test app.
-  ExtensionTestMessageListener new_launched_listener("Launched");
+  ExtensionTestMessageListener new_launched_listener("Launched", false);
   LaunchPlatformApp(extension);
   ASSERT_TRUE(new_launched_listener.WaitUntilSatisfied());
 

@@ -1,10 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_INPUT_TAP_SUPPRESSION_CONTROLLER_H_
 #define CONTENT_BROWSER_RENDERER_HOST_INPUT_TAP_SUPPRESSION_CONTROLLER_H_
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "content/common/content_export.h"
@@ -29,10 +30,6 @@ class CONTENT_EXPORT TapSuppressionController {
   };
 
   TapSuppressionController(const Config& config);
-
-  TapSuppressionController(const TapSuppressionController&) = delete;
-  TapSuppressionController& operator=(const TapSuppressionController&) = delete;
-
   virtual ~TapSuppressionController();
 
   // Should be called whenever a GestureFlingCancel actually stopped a fling and
@@ -72,6 +69,8 @@ class CONTENT_EXPORT TapSuppressionController {
   // Replace the use of base::TimeTicks with an accurate event time when they
   // become available post http://crbug.com/119556.
   base::TimeTicks fling_cancel_time_;
+
+  DISALLOW_COPY_AND_ASSIGN(TapSuppressionController);
 };
 
 }  // namespace content

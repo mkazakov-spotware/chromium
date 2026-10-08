@@ -1,15 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.app.tab_activity_glue;
 
+import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
+import org.chromium.chrome.browser.night_mode.NightModeReparentingController;
 import org.chromium.chrome.browser.tab.TabDelegateFactory;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 
 /** Constructs delegates needed for reparenting tabs. */
 public class ReparentingDelegateFactory {
@@ -39,19 +40,25 @@ public class ReparentingDelegateFactory {
     }
 
     /**
-     * @return Creates an implementation of {@link TabReparentingController.Delegate} that
-     *         supplies dependencies to {@link TabReparentingController}.
+     * @return Creates an implementation of {@link NightModeReparentingController.Delegate} that
+     *         supplies dependencies to {@link NightModeReparentingController}.
      */
-    public static TabReparentingController.Delegate createReparentingControllerDelegate(
+    public static NightModeReparentingController.Delegate
+    createNightModeReparentingControllerDelegate(final ActivityTabProvider activityTabProvider,
             final TabModelSelector tabModelSelector) {
-        return new TabReparentingController.Delegate() {
+        return new NightModeReparentingController.Delegate() {
+            @Override
+            public ActivityTabProvider getActivityTabProvider() {
+                return activityTabProvider;
+            }
+
             @Override
             public TabModelSelector getTabModelSelector() {
                 return tabModelSelector;
             }
 
             @Override
-            public boolean isNTPUrl(GURL url) {
+            public boolean isNTPUrl(String url) {
                 return UrlUtilities.isNTPUrl(url);
             }
         };

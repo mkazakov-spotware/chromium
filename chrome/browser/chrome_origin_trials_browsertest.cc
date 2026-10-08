@@ -1,15 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/testing_browser_process.h"
-#include "components/embedder_support/origin_trials/pref_names.h"
 #include "components/embedder_support/switches.h"
-#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -43,10 +43,6 @@ const DisabledItemsTestData kDisabledTokensTests[] = {
 };
 
 class ChromeOriginTrialsTest : public InProcessBrowserTest {
- public:
-  ChromeOriginTrialsTest(const ChromeOriginTrialsTest&) = delete;
-  ChromeOriginTrialsTest& operator=(const ChromeOriginTrialsTest&) = delete;
-
  protected:
   ChromeOriginTrialsTest() {}
 
@@ -57,25 +53,23 @@ class ChromeOriginTrialsTest : public InProcessBrowserTest {
   }
 
   void AddDisabledFeaturesToPrefs(const std::vector<std::string>& features) {
-    base::Value::List disabled_feature_list;
-    for (const std::string& feature : features) {
-      disabled_feature_list.Append(feature);
-    }
-    local_state()->SetList(
-        embedder_support::prefs::kOriginTrialDisabledFeatures,
-        std::move(disabled_feature_list));
+    base::ListValue disabled_feature_list;
+    disabled_feature_list.AppendStrings(features);
+    ListPrefUpdate update(local_state(), prefs::kOriginTrialDisabledFeatures);
+    update->Swap(&disabled_feature_list);
   }
 
   void AddDisabledTokensToPrefs(const std::vector<std::string>& tokens) {
-    base::Value::List disabled_token_list;
-    for (const std::string& token : tokens) {
-      disabled_token_list.Append(token);
-    }
-    local_state()->SetList(embedder_support::prefs::kOriginTrialDisabledTokens,
-                           std::move(disabled_token_list));
+    base::ListValue disabled_token_list;
+    disabled_token_list.AppendStrings(tokens);
+    ListPrefUpdate update(local_state(), prefs::kOriginTrialDisabledTokens);
+    update->Swap(&disabled_token_list);
   }
 
   PrefService* local_state() { return g_browser_process->local_state(); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ChromeOriginTrialsTest);
 };
 
 // Tests to verify that the command line is not set, when no prefs exist for
@@ -102,15 +96,14 @@ IN_PROC_BROWSER_TEST_F(ChromeOriginTrialsTest, NoDisabledTokens) {
 // Tests to verify that the public key is correctly read from prefs and
 // added to the command line
 IN_PROC_BROWSER_TEST_F(ChromeOriginTrialsTest, PRE_PublicKeySetOnCommandLine) {
-  local_state()->Set(embedder_support::prefs::kOriginTrialPublicKey,
-                     base::Value(kNewPublicKey));
-  ASSERT_EQ(kNewPublicKey, local_state()->GetString(
-                               embedder_support::prefs::kOriginTrialPublicKey));
+  local_state()->Set(prefs::kOriginTrialPublicKey, base::Value(kNewPublicKey));
+  ASSERT_EQ(kNewPublicKey,
+            local_state()->GetString(prefs::kOriginTrialPublicKey));
 }
 
 IN_PROC_BROWSER_TEST_F(ChromeOriginTrialsTest, PublicKeySetOnCommandLine) {
-  ASSERT_EQ(kNewPublicKey, local_state()->GetString(
-                               embedder_support::prefs::kOriginTrialPublicKey));
+  ASSERT_EQ(kNewPublicKey,
+            local_state()->GetString(prefs::kOriginTrialPublicKey));
   std::string actual =
       GetCommandLineSwitch(embedder_support::kOriginTrialPublicKey);
   EXPECT_EQ(kNewPublicKey, actual);
@@ -125,14 +118,12 @@ class ChromeOriginTrialsDisabledFeaturesTest
 IN_PROC_BROWSER_TEST_P(ChromeOriginTrialsDisabledFeaturesTest,
                        PRE_DisabledFeaturesSetOnCommandLine) {
   AddDisabledFeaturesToPrefs(GetParam().input_list);
-  ASSERT_TRUE(local_state()->HasPrefPath(
-      embedder_support::prefs::kOriginTrialDisabledFeatures));
+  ASSERT_TRUE(local_state()->HasPrefPath(prefs::kOriginTrialDisabledFeatures));
 }
 
 IN_PROC_BROWSER_TEST_P(ChromeOriginTrialsDisabledFeaturesTest,
                        DisabledFeaturesSetOnCommandLine) {
-  ASSERT_TRUE(local_state()->HasPrefPath(
-      embedder_support::prefs::kOriginTrialDisabledFeatures));
+  ASSERT_TRUE(local_state()->HasPrefPath(prefs::kOriginTrialDisabledFeatures));
   std::string actual =
       GetCommandLineSwitch(embedder_support::kOriginTrialDisabledFeatures);
   EXPECT_EQ(GetParam().expected_switch, actual);
@@ -151,14 +142,12 @@ class ChromeOriginTrialsDisabledTokensTest
 IN_PROC_BROWSER_TEST_P(ChromeOriginTrialsDisabledTokensTest,
                        PRE_DisabledTokensSetOnCommandLine) {
   AddDisabledTokensToPrefs(GetParam().input_list);
-  ASSERT_TRUE(local_state()->HasPrefPath(
-      embedder_support::prefs::kOriginTrialDisabledTokens));
+  ASSERT_TRUE(local_state()->HasPrefPath(prefs::kOriginTrialDisabledTokens));
 }
 
 IN_PROC_BROWSER_TEST_P(ChromeOriginTrialsDisabledTokensTest,
                        DisabledTokensSetOnCommandLine) {
-  ASSERT_TRUE(local_state()->HasPrefPath(
-      embedder_support::prefs::kOriginTrialDisabledTokens));
+  ASSERT_TRUE(local_state()->HasPrefPath(prefs::kOriginTrialDisabledTokens));
   std::string actual =
       GetCommandLineSwitch(embedder_support::kOriginTrialDisabledTokens);
   EXPECT_EQ(GetParam().expected_switch, actual);

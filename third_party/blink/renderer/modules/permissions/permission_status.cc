@@ -1,33 +1,46 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/permissions/permission_status.h"
 
-#include "third_party/blink/public/mojom/frame/lifecycle.mojom-shared.h"
+#include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/modules/event_target_modules_names.h"
-#include "third_party/blink/renderer/modules/permissions/permission_status_listener.h"
+#include "third_party/blink/renderer/modules/permissions/permission_utils.h"
+#include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
 // static
-PermissionStatus* PermissionStatus::Take(PermissionStatusListener* listener,
-                                         ScriptPromiseResolver* resolver) {
-  ExecutionContext* execution_context = resolver->GetExecutionContext();
-  PermissionStatus* permission_status =
-      MakeGarbageCollected<PermissionStatus>(listener, execution_context);
+PermissionStatus* PermissionStatus::Take(ScriptPromiseResolver* resolver,
+                                         MojoPermissionStatus status,
+                                         MojoPermissionDescriptor descriptor) {
+  return PermissionStatus::CreateAndListen(resolver->GetExecutionContext(),
+                                           status, std::move(descriptor));
+}
+
+PermissionStatus* PermissionStatus::CreateAndListen(
+    ExecutionContext* execution_context,
+    MojoPermissionStatus status,
+    MojoPermissionDescriptor descriptor) {
+  PermissionStatus* permission_status = MakeGarbageCollected<PermissionStatus>(
+      execution_context, status, std::move(descriptor));
   permission_status->UpdateStateIfNeeded();
   permission_status->StartListening();
   return permission_status;
 }
 
-PermissionStatus::PermissionStatus(PermissionStatusListener* listener,
-                                   ExecutionContext* execution_context)
+PermissionStatus::PermissionStatus(ExecutionContext* execution_context,
+                                   MojoPermissionStatus status,
+                                   MojoPermissionDescriptor descriptor)
     : ExecutionContextLifecycleStateObserver(execution_context),
-      listener_(listener) {}
+      status_(status),
+      descriptor_(std::move(descriptor)),
+      receiver_(this, execution_context) {}
 
 PermissionStatus::~PermissionStatus() = default;
 
@@ -39,41 +52,8 @@ ExecutionContext* PermissionStatus::GetExecutionContext() const {
   return ExecutionContextLifecycleStateObserver::GetExecutionContext();
 }
 
-void PermissionStatus::AddedEventListener(
-    const AtomicString& event_type,
-    RegisteredEventListener& registered_listener) {
-  EventTargetWithInlineData::AddedEventListener(event_type,
-                                                registered_listener);
-
-  if (!listener_)
-    return;
-
-  if (event_type == event_type_names::kChange) {
-    listener_->AddedEventListener(event_type);
-  }
-}
-
-void PermissionStatus::RemovedEventListener(
-    const AtomicString& event_type,
-    const RegisteredEventListener& registered_listener) {
-  EventTargetWithInlineData::RemovedEventListener(event_type,
-                                                  registered_listener);
-  if (!listener_)
-    return;
-
-  // Permission `change` event listener can be set via two independent JS-API.
-  // We should remove an internal listener only if none of the two JS-based
-  // event listeners exist. Without checking it, the internal listener will be
-  // removed while there could be an alive JS listener.
-  if (!HasJSBasedEventListeners(event_type_names::kChange)) {
-    listener_->RemovedEventListener(event_type);
-  }
-}
-
 bool PermissionStatus::HasPendingActivity() const {
-  if (!listener_)
-    return false;
-  return listener_->HasPendingActivity();
+  return receiver_.is_bound();
 }
 
 void PermissionStatus::ContextLifecycleStateChanged(
@@ -85,38 +65,39 @@ void PermissionStatus::ContextLifecycleStateChanged(
 }
 
 String PermissionStatus::state() const {
-  if (!listener_)
-    return String();
-  return listener_->state();
-}
-
-String PermissionStatus::name() const {
-  if (!listener_)
-    return String();
-  return listener_->name();
+  return PermissionStatusToString(status_);
 }
 
 void PermissionStatus::StartListening() {
-  if (!listener_)
-    return;
-  listener_->AddObserver(this);
+  DCHECK(!receiver_.is_bound());
+  mojo::PendingRemote<mojom::blink::PermissionObserver> observer;
+  scoped_refptr<base::SingleThreadTaskRunner> task_runner =
+      GetExecutionContext()->GetTaskRunner(TaskType::kPermission);
+  receiver_.Bind(observer.InitWithNewPipeAndPassReceiver(), task_runner);
+
+  mojo::Remote<mojom::blink::PermissionService> service;
+  ConnectToPermissionService(GetExecutionContext(),
+                             service.BindNewPipeAndPassReceiver(task_runner));
+  service->AddPermissionObserver(descriptor_->Clone(), status_,
+                                 std::move(observer));
 }
 
 void PermissionStatus::StopListening() {
-  if (!listener_)
-    return;
-  listener_->RemoveObserver(this);
+  receiver_.reset();
 }
 
 void PermissionStatus::OnPermissionStatusChange(MojoPermissionStatus status) {
+  if (status_ == status)
+    return;
+
+  status_ = status;
   DispatchEvent(*Event::Create(event_type_names::kChange));
 }
 
 void PermissionStatus::Trace(Visitor* visitor) const {
-  visitor->Trace(listener_);
+  visitor->Trace(receiver_);
   EventTargetWithInlineData::Trace(visitor);
   ExecutionContextLifecycleStateObserver::Trace(visitor);
-  PermissionStatusListener::Observer::Trace(visitor);
 }
 
 }  // namespace blink

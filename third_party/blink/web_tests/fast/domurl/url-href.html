@@ -15,19 +15,15 @@ test(function() {
 }, 'href property');
 
 test(function() {
-    var orig = 'http://abc.de/path/file?query#fragment'
-    var url = new URL(orig);
-    assert_equals(url.href, orig);
-
-    assert_throws_js(TypeError, () => { url.href = 'invalid'; });
-    assert_equals(url.href, orig);
+    var url = new URL('http://abc.de/path/file?query#fragment');
+    url.href = 'invalid';
+    assert_equals(url.href, 'invalid');
 }, 'setting href to an invalid URL');
 
 test(function() {
-    var orig = 'http://domain.com/';
-    var url = new URL(orig);
-    assert_throws_js(TypeError, () => { url.href = null; });
-    assert_equals(url.href, orig);
+    var url = new URL('http://domain.com/');
+    url.href = null;
+    assert_equals(url.href, 'null');
 }, 'setting href to null');
 
 </script>

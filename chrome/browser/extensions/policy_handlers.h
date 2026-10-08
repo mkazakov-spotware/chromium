@@ -1,10 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_EXTENSIONS_POLICY_HANDLERS_H_
 #define CHROME_BROWSER_EXTENSIONS_POLICY_HANDLERS_H_
 
+#include <memory>
+
+#include "base/macros.h"
 #include "base/values.h"
 #include "components/policy/core/browser/configuration_policy_handler.h"
 
@@ -22,11 +25,6 @@ class ExtensionListPolicyHandler : public policy::ListPolicyHandler {
   ExtensionListPolicyHandler(const char* policy_name,
                              const char* pref_path,
                              bool allow_wildcards);
-
-  ExtensionListPolicyHandler(const ExtensionListPolicyHandler&) = delete;
-  ExtensionListPolicyHandler& operator=(const ExtensionListPolicyHandler&) =
-      delete;
-
   ~ExtensionListPolicyHandler() override;
 
  protected:
@@ -41,34 +39,57 @@ class ExtensionListPolicyHandler : public policy::ListPolicyHandler {
  private:
   const char* pref_path_;
   bool allow_wildcards_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionListPolicyHandler);
 };
 
-// Class for parsing the list of extensions to force install.
-class ExtensionInstallForceListPolicyHandler
+// Base class for parsing the list of extensions to force install.
+class ExtensionInstallListPolicyHandler
     : public policy::TypeCheckingPolicyHandler {
  public:
-  ExtensionInstallForceListPolicyHandler();
-  ExtensionInstallForceListPolicyHandler(
-      const ExtensionInstallForceListPolicyHandler&) = delete;
-  ExtensionInstallForceListPolicyHandler& operator=(
-      const ExtensionInstallForceListPolicyHandler&) = delete;
-  ~ExtensionInstallForceListPolicyHandler() override = default;
-
   // ConfigurationPolicyHandler methods:
   bool CheckPolicySettings(const policy::PolicyMap& policies,
                            policy::PolicyErrorMap* errors) override;
   void ApplyPolicySettings(const policy::PolicyMap& policies,
                            PrefValueMap* prefs) override;
 
-  // Convenience method to directly get a base::Value::Dict with the policy
-  // values.
-  base::Value::Dict GetPolicyDict(const policy::PolicyMap& policy_map);
+ protected:
+  ExtensionInstallListPolicyHandler(const char* policy_name,
+                                    const char* pref_name);
+
+  ~ExtensionInstallListPolicyHandler() override = default;
 
  private:
   // Parses the data in |policy_value| and writes them to |extension_dict|.
   bool ParseList(const base::Value* policy_value,
-                 base::Value::Dict* extension_dict,
+                 base::DictionaryValue* extension_dict,
                  policy::PolicyErrorMap* errors);
+
+  const char* const pref_name_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInstallListPolicyHandler);
+};
+
+// Parses the extension force install list for user sessions.
+class ExtensionInstallForcelistPolicyHandler
+    : public ExtensionInstallListPolicyHandler {
+ public:
+  ExtensionInstallForcelistPolicyHandler();
+  ~ExtensionInstallForcelistPolicyHandler() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInstallForcelistPolicyHandler);
+};
+
+// Parses the extension force install list for the login profile.
+class ExtensionInstallLoginScreenExtensionsPolicyHandler
+    : public ExtensionInstallListPolicyHandler {
+ public:
+  ExtensionInstallLoginScreenExtensionsPolicyHandler();
+  ~ExtensionInstallLoginScreenExtensionsPolicyHandler() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInstallLoginScreenExtensionsPolicyHandler);
 };
 
 // Implements additional checks for policies that are lists of extension
@@ -78,12 +99,6 @@ class ExtensionURLPatternListPolicyHandler
  public:
   ExtensionURLPatternListPolicyHandler(const char* policy_name,
                                        const char* pref_path);
-
-  ExtensionURLPatternListPolicyHandler(
-      const ExtensionURLPatternListPolicyHandler&) = delete;
-  ExtensionURLPatternListPolicyHandler& operator=(
-      const ExtensionURLPatternListPolicyHandler&) = delete;
-
   ~ExtensionURLPatternListPolicyHandler() override;
 
   // ConfigurationPolicyHandler methods:
@@ -94,18 +109,14 @@ class ExtensionURLPatternListPolicyHandler
 
  private:
   const char* pref_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionURLPatternListPolicyHandler);
 };
 
 class ExtensionSettingsPolicyHandler
     : public policy::SchemaValidatingPolicyHandler {
  public:
   explicit ExtensionSettingsPolicyHandler(const policy::Schema& chrome_schema);
-
-  ExtensionSettingsPolicyHandler(const ExtensionSettingsPolicyHandler&) =
-      delete;
-  ExtensionSettingsPolicyHandler& operator=(
-      const ExtensionSettingsPolicyHandler&) = delete;
-
   ~ExtensionSettingsPolicyHandler() override;
 
   // ConfigurationPolicyHandler methods:
@@ -115,11 +126,7 @@ class ExtensionSettingsPolicyHandler
                            PrefValueMap* prefs) override;
 
  private:
-  // Performs sanitization for both Check/ApplyPolicySettings(). If an entry
-  // in |dict_value| doesn't pass validation, that entry is removed from the
-  // dictionary. Validation errors are stored in |errors| if non-null.
-  void SanitizePolicySettings(base::Value* dict_value,
-                              policy::PolicyErrorMap* errors);
+  DISALLOW_COPY_AND_ASSIGN(ExtensionSettingsPolicyHandler);
 };
 
 }  // namespace extensions

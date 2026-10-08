@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <cmath>
 
 #include "third_party/blink/renderer/bindings/modules/v8/v8_xr_render_state_init.h"
-#include "third_party/blink/renderer/modules/xr/xr_layer.h"
 #include "third_party/blink/renderer/modules/xr/xr_webgl_layer.h"
 
 namespace blink {
@@ -38,11 +37,6 @@ void XRRenderState::Update(const XRRenderStateInit* init) {
   }
   if (init->hasBaseLayer()) {
     base_layer_ = init->baseLayer();
-    layers_.clear();
-  }
-  if (init->hasLayers()) {
-    base_layer_ = nullptr;
-    layers_ = *init->layers();
   }
   if (init->hasInlineVerticalFieldOfView()) {
     double fov = init->inlineVerticalFieldOfView();
@@ -61,15 +55,15 @@ HTMLCanvasElement* XRRenderState::output_canvas() const {
   return nullptr;
 }
 
-absl::optional<double> XRRenderState::inlineVerticalFieldOfView() const {
+base::Optional<double> XRRenderState::inlineVerticalFieldOfView() const {
   if (immersive_)
-    return absl::nullopt;
+    return base::nullopt;
   return inline_vertical_fov_;
 }
 
 void XRRenderState::Trace(Visitor* visitor) const {
   visitor->Trace(base_layer_);
-  visitor->Trace(layers_);
+  visitor->Trace(inline_vertical_fov_);
   ScriptWrappable::Trace(visitor);
 }
 

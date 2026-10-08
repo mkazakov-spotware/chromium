@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 
@@ -23,17 +24,12 @@ class TestExtensionRegistryObserver : public ExtensionRegistryObserver {
   TestExtensionRegistryObserver(ExtensionRegistry* registry,
                                 const std::string& extension_id);
 
-  TestExtensionRegistryObserver(const TestExtensionRegistryObserver&) = delete;
-  TestExtensionRegistryObserver& operator=(
-      const TestExtensionRegistryObserver&) = delete;
-
   ~TestExtensionRegistryObserver() override;
 
   // Waits for the notification, and returns the extension that caused it.
   scoped_refptr<const Extension> WaitForExtensionWillBeInstalled();
   scoped_refptr<const Extension> WaitForExtensionInstalled();
   scoped_refptr<const Extension> WaitForExtensionUninstalled();
-  scoped_refptr<const Extension> WaitForExtensionUninstallationDenied();
   scoped_refptr<const Extension> WaitForExtensionLoaded();
   scoped_refptr<const Extension> WaitForExtensionReady();
   scoped_refptr<const Extension> WaitForExtensionUnloaded();
@@ -52,8 +48,6 @@ class TestExtensionRegistryObserver : public ExtensionRegistryObserver {
   void OnExtensionUninstalled(content::BrowserContext* browser_context,
                               const Extension* extension,
                               extensions::UninstallReason reason) override;
-  void OnExtensionUninstallationDenied(content::BrowserContext* browser_context,
-                                       const Extension* extension) override;
   void OnExtensionLoaded(content::BrowserContext* browser_context,
                          const Extension* extension) override;
   void OnExtensionReady(content::BrowserContext* browser_context,
@@ -67,15 +61,16 @@ class TestExtensionRegistryObserver : public ExtensionRegistryObserver {
   std::unique_ptr<Waiter> will_be_installed_waiter_;
   std::unique_ptr<Waiter> installed_waiter_;
   std::unique_ptr<Waiter> uninstalled_waiter_;
-  std::unique_ptr<Waiter> uninstallation_denied_waiter_;
   std::unique_ptr<Waiter> loaded_waiter_;
   std::unique_ptr<Waiter> ready_waiter_;
   std::unique_ptr<Waiter> unloaded_waiter_;
 
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
 
   std::string extension_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestExtensionRegistryObserver);
 };
 
 }  // namespace extensions

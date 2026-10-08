@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -24,10 +25,6 @@ namespace device {
 class TestWakeLockProvider : public mojom::WakeLockProvider {
  public:
   TestWakeLockProvider();
-
-  TestWakeLockProvider(const TestWakeLockProvider&) = delete;
-  TestWakeLockProvider& operator=(const TestWakeLockProvider&) = delete;
-
   ~TestWakeLockProvider() override;
 
   // For internal use only.
@@ -70,6 +67,8 @@ class TestWakeLockProvider : public mojom::WakeLockProvider {
   // Stores wake lock count and observers associated with each wake lock type.
   std::map<mojom::WakeLockType, std::unique_ptr<WakeLockDataPerType>>
       wake_lock_store_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWakeLockProvider);
 };
 
 }  // namespace device

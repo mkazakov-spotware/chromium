@@ -1,19 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/testing/empty_web_media_player.h"
 
 #include "media/base/video_frame.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/public/platform/web_time_range.h"
 
 namespace blink {
 
-WebMediaPlayer::LoadTiming EmptyWebMediaPlayer::Load(
-    LoadType,
-    const WebMediaPlayerSource&,
-    CorsMode,
-    bool is_cache_disabled) {
+WebMediaPlayer::LoadTiming
+EmptyWebMediaPlayer::Load(LoadType, const WebMediaPlayerSource&, CorsMode) {
   return LoadTiming::kImmediate;
 }
 
@@ -37,14 +35,8 @@ WebString EmptyWebMediaPlayer::GetErrorMessage() const {
   return WebString();
 }
 
-scoped_refptr<media::VideoFrame>
-EmptyWebMediaPlayer::GetCurrentFrameThenUpdate() {
+scoped_refptr<media::VideoFrame> EmptyWebMediaPlayer::GetCurrentFrame() {
   return nullptr;
-}
-
-absl::optional<media::VideoFrame::ID> EmptyWebMediaPlayer::CurrentFrameId()
-    const {
-  return absl::nullopt;
 }
 
 }  // namespace blink

@@ -12,22 +12,68 @@ is_debug = false
 
 ## How is the code optimized?
 
-### Bundling
+### Resource combination
 
-[JS Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
-are used heavily throughout the code. Fetching all imports and their transitive
-dependencies can be slow, especially when there are too many requests during
-initial page load.
+[HTML imports](https://www.html5rocks.com/en/tutorials/webcomponents/imports/)
+are a swell technology, but can be used is slow ways.  Each import may also
+contain additional imports, which must be satisfied before certain things can
+continue (i.e. script execution may be paused).
 
-To reduce this latency, Chrome uses [Rollup](https://rollupjs.org) to bundle the
-code into a couple JS bundle files (usually one or two). This greatly decreases
-latency of initial load, by eliminating the overhead that is associated with
-each individual request.
+```html
+<!-- If a.html contains more imports... -->
+<link rel="import" href="a.html">
+<!-- This script is blocked until done. -->
+<script> startThePageUp(); </script>
+```
+
+To reduce this latency, Chrome uses a tool created by the Polymer project named
+[polymer-bundler](https://github.com/Polymer/polymer-bundler).  It processes
+a page starting from a URL entry point and inlines resources the first time
+they're encountered.  This greatly decreases latency due to HTML imports.
+
+```html
+<!-- Contents of a.html and all its dependencies. -->
+<script> startThePageUp(); </script>
+```
+
+### CSS @apply to --var transformation
+
+We also use
+[polymer-css-build](https://github.com/PolymerLabs/polymer-css-build) to
+transform CSS @apply mixins (which are not yet natively supported) into faster
+--css-variables.  This turns something like this:
+
+```css
+:host {
+  --mixin-name: {
+    color: red;
+    display: block;
+  };
+}
+/* In a different place */
+.red-thing {
+  @apply(--mixin-name);
+}
+```
+
+into the more performant:
+
+```css
+:host {
+  --mixin-name_-_color: red;
+  --mixin-name_-_display: block;
+}
+/* In a different place */
+.red-thing {
+  color: var(--mixin-name_-_color);
+  display: var(--mixin-name_-_display);
+}
+```
 
 ### JavaScript Minification
 
 In order to minimize disk size, we run
-[terser](https://github.com/terser/terser) on all combined JavaScript. This
+[uglifyjs](https://github.com/mishoo/UglifyJS2) on all combined JavaScript. This
 reduces installer and the size of resources required to load to show a UI.
 
 Code like this:

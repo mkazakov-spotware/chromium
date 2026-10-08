@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "components/web_modal/single_web_contents_dialog_manager.h"
 #include "components/web_modal/test_web_contents_modal_dialog_manager_delegate.h"
@@ -56,11 +56,6 @@ class TestNativeWebContentsModalDialogManager
       tracker_->SetState(NativeManagerTracker::NOT_SHOWN);
   }
 
-  TestNativeWebContentsModalDialogManager(
-      const TestNativeWebContentsModalDialogManager&) = delete;
-  TestNativeWebContentsModalDialogManager& operator=(
-      const TestNativeWebContentsModalDialogManager&) = delete;
-
   void Show() override {
     if (tracker_)
       tracker_->SetState(NativeManagerTracker::SHOWN);
@@ -82,9 +77,11 @@ class TestNativeWebContentsModalDialogManager
   void StopTracking() { tracker_ = nullptr; }
 
  private:
-  raw_ptr<SingleWebContentsDialogManagerDelegate> delegate_;
+  SingleWebContentsDialogManagerDelegate* delegate_;
   gfx::NativeWindow dialog_;
-  raw_ptr<NativeManagerTracker> tracker_;
+  NativeManagerTracker* tracker_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNativeWebContentsModalDialogManager);
 };
 
 class WebContentsModalDialogManagerTest
@@ -92,20 +89,14 @@ class WebContentsModalDialogManagerTest
  public:
   WebContentsModalDialogManagerTest() : next_dialog_id(1), manager(nullptr) {}
 
-  WebContentsModalDialogManagerTest(const WebContentsModalDialogManagerTest&) =
-      delete;
-  WebContentsModalDialogManagerTest& operator=(
-      const WebContentsModalDialogManagerTest&) = delete;
-
   void SetUp() override {
     content::RenderViewHostTestHarness::SetUp();
 
-    delegate = std::make_unique<TestWebContentsModalDialogManagerDelegate>();
+    delegate.reset(new TestWebContentsModalDialogManagerDelegate);
     WebContentsModalDialogManager::CreateForWebContents(web_contents());
     manager = WebContentsModalDialogManager::FromWebContents(web_contents());
     manager->SetDelegate(delegate.get());
-    test_api =
-        std::make_unique<WebContentsModalDialogManager::TestApi>(manager);
+    test_api.reset(new WebContentsModalDialogManager::TestApi(manager));
   }
 
   void TearDown() override {
@@ -117,7 +108,7 @@ class WebContentsModalDialogManagerTest
   gfx::NativeWindow MakeFakeDialog() {
     // WebContentsModalDialogManager treats the dialog window as an opaque
     // type, so creating fake dialog windows using reinterpret_cast is valid.
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     NSWindow* window = reinterpret_cast<NSWindow*>(next_dialog_id++);
     return gfx::NativeWindow(window);
 #else
@@ -127,8 +118,10 @@ class WebContentsModalDialogManagerTest
 
   int next_dialog_id;
   std::unique_ptr<TestWebContentsModalDialogManagerDelegate> delegate;
-  raw_ptr<WebContentsModalDialogManager> manager;
+  WebContentsModalDialogManager* manager;
   std::unique_ptr<WebContentsModalDialogManager::TestApi> test_api;
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsModalDialogManagerTest);
 };
 
 // Test that the dialog is shown immediately when the delegate indicates the web

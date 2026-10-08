@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/callback.h"
 #include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "components/policy/core/browser/policy_conversions_client.h"
 #include "components/policy/core/common/policy_details.h"
 #include "components/policy/core/common/policy_map.h"
@@ -38,10 +39,6 @@ class POLICY_EXPORT ConfigurationPolicyHandlerList {
       const PopulatePolicyHandlerParametersCallback& parameters_callback,
       const GetChromePolicyDetailsCallback& details_callback,
       bool allow_future_policies);
-  ConfigurationPolicyHandlerList(const ConfigurationPolicyHandlerList&) =
-      delete;
-  ConfigurationPolicyHandlerList& operator=(
-      const ConfigurationPolicyHandlerList&) = delete;
   ~ConfigurationPolicyHandlerList();
 
   // Adds a policy handler to the list.
@@ -84,6 +81,8 @@ class POLICY_EXPORT ConfigurationPolicyHandlerList {
   const GetChromePolicyDetailsCallback details_callback_;
 
   bool allow_future_policies_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ConfigurationPolicyHandlerList);
 };
 
 // Callback with signature of BuildHandlerList(), to be used in constructor of

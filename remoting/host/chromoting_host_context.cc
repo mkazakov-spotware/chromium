@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "remoting/base/auto_thread.h"
 #include "remoting/base/url_request_context_getter.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -22,9 +21,9 @@ namespace remoting {
 namespace {
 
 void DisallowBlockingOperations() {
-  base::DisallowBlocking();
+  base::ThreadRestrictions::SetIOAllowed(false);
   // TODO(crbug.com/793486): Re-enable after the underlying issue is fixed.
-  // base::DisallowBaseSyncPrimitives();
+  // base::ThreadRestrictions::DisallowBaseSyncPrimitives();
 }
 
 }  // namespace
@@ -111,24 +110,20 @@ ChromotingHostContext::url_loader_factory() {
   return url_loader_factory_owner_->GetURLLoaderFactory();
 }
 
-policy::ManagementService* ChromotingHostContext::management_service() {
-  return policy::PlatformManagementService::GetInstance();
-}
-
 std::unique_ptr<ChromotingHostContext> ChromotingHostContext::Create(
     scoped_refptr<AutoThreadTaskRunner> ui_task_runner) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // On Windows the AudioCapturer requires COM, so we run a single-threaded
   // apartment, which requires a UI thread.
   scoped_refptr<AutoThreadTaskRunner> audio_task_runner =
       AutoThread::CreateWithLoopAndComInitTypes(
           "ChromotingAudioThread", ui_task_runner, base::MessagePumpType::UI,
           AutoThread::COM_INIT_STA);
-#else   // !BUILDFLAG(IS_WIN)
+#else   // !defined(OS_WIN)
   scoped_refptr<AutoThreadTaskRunner> audio_task_runner =
       AutoThread::CreateWithType("ChromotingAudioThread", ui_task_runner,
                                  base::MessagePumpType::IO);
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !defined(OS_WIN)
   scoped_refptr<AutoThreadTaskRunner> file_task_runner =
       AutoThread::CreateWithType("ChromotingFileThread", ui_task_runner,
                                  base::MessagePumpType::IO);
@@ -139,20 +134,12 @@ std::unique_ptr<ChromotingHostContext> ChromotingHostContext::Create(
   network_task_runner->PostTask(FROM_HERE,
                                 base::BindOnce(&DisallowBlockingOperations));
 
-  // InputInjectorX11 requires an X11EventSource, which can only be created
-  // on a UI thread.
-  scoped_refptr<AutoThreadTaskRunner> input_task_runner =
-      AutoThread::CreateWithType("ChromotingInputThread", ui_task_runner,
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-                                 base::MessagePumpType::UI);
-#else
-                                 base::MessagePumpType::IO);
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-
   return base::WrapUnique(new ChromotingHostContext(
-      ui_task_runner, audio_task_runner, file_task_runner, input_task_runner,
+      ui_task_runner, audio_task_runner, file_task_runner,
+      AutoThread::CreateWithType("ChromotingInputThread", ui_task_runner,
+                                 base::MessagePumpType::IO),
       network_task_runner,
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
       // Mac requires a UI thread for the capturer.
       AutoThread::CreateWithType("ChromotingCaptureThread", ui_task_runner,
                                  base::MessagePumpType::UI),
@@ -163,7 +150,7 @@ std::unique_ptr<ChromotingHostContext> ChromotingHostContext::Create(
       base::MakeRefCounted<URLRequestContextGetter>(network_task_runner)));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 
 // static
 std::unique_ptr<ChromotingHostContext> ChromotingHostContext::CreateForChromeOS(
@@ -195,6 +182,6 @@ std::unique_ptr<ChromotingHostContext> ChromotingHostContext::CreateForChromeOS(
       AutoThread::Create("ChromotingEncodeThread", file_auto_task_runner),
       base::MakeRefCounted<URLRequestContextGetter>(io_auto_task_runner)));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace remoting

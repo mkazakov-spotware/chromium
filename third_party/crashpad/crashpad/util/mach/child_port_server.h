@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <set>
 
+#include "base/macros.h"
 #include "util/mach/child_port_types.h"
 #include "util/mach/mach_message_server.h"
 
@@ -61,9 +62,6 @@ class ChildPortServer : public MachMessageServer::Interface {
   //! \param[in] interface The interface to dispatch requests to. Weak.
   explicit ChildPortServer(Interface* interface);
 
-  ChildPortServer(const ChildPortServer&) = delete;
-  ChildPortServer& operator=(const ChildPortServer&) = delete;
-
   // MachMessageServer::Interface:
   bool MachMessageServerFunction(const mach_msg_header_t* in_header,
                                  mach_msg_header_t* out_header,
@@ -74,6 +72,8 @@ class ChildPortServer : public MachMessageServer::Interface {
 
  private:
   Interface* interface_;  // weak
+
+  DISALLOW_COPY_AND_ASSIGN(ChildPortServer);
 };
 
 }  // namespace crashpad

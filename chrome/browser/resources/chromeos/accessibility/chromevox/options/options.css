@@ -1,4 +1,4 @@
-/* Copyright 2017 The Chromium Authors
+/* Copyright 2017 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
@@ -65,11 +65,6 @@ h2 {
     width: 40px;
 }
 
-#developerLog {
-  padding: 0;
-  width: 686px;
-}
-
 .option .developerLog {
   height: 60px;
   padding-inline-end: 0;
@@ -83,7 +78,6 @@ h2 {
 
 .option .developer-option-icon-button {
   height: 60px;
-  padding: 0 20px;
 }
 
 .option input[type='checkbox']:checked {

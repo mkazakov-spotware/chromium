@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "base/test/task_environment.h"
-#include "mojo/public/cpp/bindings/lib/message_fragment.h"
+#include "mojo/public/cpp/bindings/lib/fixed_buffer.h"
 #include "mojo/public/cpp/bindings/lib/serialization.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -29,16 +29,17 @@ class DataViewTest : public testing::Test {
 struct DataViewHolder {
   std::unique_ptr<TestStructDataView> data_view;
   mojo::Message message;
+  mojo::internal::SerializationContext context;
 };
 
 std::unique_ptr<DataViewHolder> SerializeTestStruct(TestStructPtr input) {
   auto result = std::make_unique<DataViewHolder>();
   result->message = Message(0, 0, 0, 0, nullptr);
-  mojo::internal::MessageFragment<internal::TestStruct_Data> fragment(
-      result->message);
-  mojo::internal::Serialize<TestStructDataView>(input, fragment);
+  internal::TestStruct_Data::BufferWriter writer;
+  mojo::internal::Serialize<TestStructDataView>(
+      input, result->message.payload_buffer(), &writer, &result->context);
   result->data_view =
-      std::make_unique<TestStructDataView>(fragment.data(), &result->message);
+      std::make_unique<TestStructDataView>(writer.data(), &result->context);
   return result;
 }
 
@@ -158,6 +159,7 @@ TEST_F(DataViewTest, EnumArray) {
   ASSERT_EQ(2u, array_data_view.size());
   EXPECT_EQ(TestEnum::VALUE_1, array_data_view[0]);
   EXPECT_EQ(TestEnum::VALUE_0, array_data_view[1]);
+  EXPECT_EQ(TestEnum::VALUE_0, *(array_data_view.data() + 1));
 
   TestEnum output;
   ASSERT_TRUE(array_data_view.Read(0, &output));
@@ -275,7 +277,8 @@ TEST_F(DataViewTest, Map) {
 }
 
 TEST_F(DataViewTest, UnionArray) {
-  TestUnionPtr union_ptr = TestUnion::NewFInt32(1024);
+  TestUnionPtr union_ptr(TestUnion::New());
+  union_ptr->set_f_int32(1024);
 
   TestStructPtr obj(TestStruct::New());
   obj->f_union_array.push_back(std::move(union_ptr));

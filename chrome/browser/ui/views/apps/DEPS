@@ -1,6 +1,5 @@
 include_rules = [
-  "+extensions/components/native_app_window",
-  "+components/app_constants",
+ "+extensions/components/native_app_window"
 ]
 
 specific_include_rules = {
@@ -9,9 +8,5 @@ specific_include_rules = {
     "+ash/frame/non_client_frame_view_ash.h",
     "+ash/wm/window_state.h",
     "+ash/wm/window_state_observer.h",
-    "+components/app_restore/full_restore_utils.h",
-  ],
-  "chrome/browser/ui/views/apps/app_dialog/app_dialog_view_browsertest.cc": [
-    "+ash/components/arc/mojom/app.mojom.h",
   ],
 }

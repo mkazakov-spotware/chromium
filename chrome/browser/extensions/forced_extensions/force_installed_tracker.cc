@@ -1,36 +1,26 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/forced_extensions/force_installed_tracker.h"
 
 #include "base/bind.h"
-#include "base/observer_list.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_management_constants.h"
 #include "chrome/browser/extensions/external_provider_impl.h"
 #include "chrome/browser/extensions/forced_extensions/install_stage_tracker.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "extensions/browser/install/crx_install_error.h"
-#include "extensions/browser/install/sandboxed_unpacker_failure_reason.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/common/extension_urls.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/components/arc/arc_prefs.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#include "components/arc/arc_prefs.h"
+#endif  // defined(OS_CHROMEOS)
 
 namespace extensions {
-
-namespace {
-constexpr int kHttpErrorCodeBadRequest = 400;
-constexpr int kHttpErrorCodeForbidden = 403;
-constexpr int kHttpErrorCodeNotFound = 404;
-}  // namespace
 
 ForceInstalledTracker::ForceInstalledTracker(ExtensionRegistry* registry,
                                              Profile* profile)
@@ -42,7 +32,7 @@ ForceInstalledTracker::ForceInstalledTracker(ExtensionRegistry* registry,
   // Load immediately if PolicyService is ready, or wait for it to finish
   // initializing first.
   if (policy_service()->IsInitializationComplete(policy::POLICY_DOMAIN_CHROME))
-    OnPolicyServiceInitialized(policy::POLICY_DOMAIN_CHROME);
+    OnForcedExtensionsPrefReady();
   else
     policy_service()->AddObserver(policy::POLICY_DOMAIN_CHROME, this);
 }
@@ -53,14 +43,14 @@ ForceInstalledTracker::~ForceInstalledTracker() {
 
 void ForceInstalledTracker::UpdateCounters(ExtensionStatus status, int delta) {
   switch (status) {
-    case ExtensionStatus::kPending:
+    case ExtensionStatus::PENDING:
       load_pending_count_ += delta;
-      [[fallthrough]];
-    case ExtensionStatus::kLoaded:
+      FALLTHROUGH;
+    case ExtensionStatus::LOADED:
       ready_pending_count_ += delta;
       break;
-    case ExtensionStatus::kReady:
-    case ExtensionStatus::kFailed:
+    case ExtensionStatus::READY:
+    case ExtensionStatus::FAILED:
       break;
   }
 }
@@ -94,76 +84,42 @@ void ForceInstalledTracker::OnPolicyServiceInitialized(
     policy::PolicyDomain domain) {
   DCHECK_EQ(domain, policy::POLICY_DOMAIN_CHROME);
   DCHECK_EQ(status_, kWaitingForPolicyService);
-
   policy_service()->RemoveObserver(policy::POLICY_DOMAIN_CHROME, this);
-
-  // Continue to listen to |kInstallForceList| pref changes if it is empty.
-  if (!ProceedIfForcedExtensionsPrefReady()) {
-    status_ = kWaitingForInstallForcelistPref;
-    pref_change_registrar_.Init(pref_service_);
-    pref_change_registrar_.Add(
-        pref_names::kInstallForceList,
-        base::BindRepeating(&ForceInstalledTracker::OnInstallForcelistChanged,
-                            base::Unretained(this)));
-  }
-}
-
-void ForceInstalledTracker::OnInstallForcelistChanged() {
-  DCHECK_EQ(status_, kWaitingForInstallForcelistPref);
-  ProceedIfForcedExtensionsPrefReady();
-}
-
-bool ForceInstalledTracker::ProceedIfForcedExtensionsPrefReady() {
-  DCHECK(
-      policy_service()->IsInitializationComplete(policy::POLICY_DOMAIN_CHROME));
-  DCHECK(status_ == kWaitingForPolicyService ||
-         status_ == kWaitingForInstallForcelistPref);
-
-  const base::Value::Dict& value =
-      pref_service_->GetDict(pref_names::kInstallForceList);
-  if (!forced_extensions_pref_ready_ && !value.empty()) {
-    forced_extensions_pref_ready_ = true;
-    OnForcedExtensionsPrefReady();
-    return true;
-  }
-  return false;
+  OnForcedExtensionsPrefReady();
 }
 
 void ForceInstalledTracker::OnForcedExtensionsPrefReady() {
-  DCHECK(forced_extensions_pref_ready_);
   DCHECK(
       policy_service()->IsInitializationComplete(policy::POLICY_DOMAIN_CHROME));
-  DCHECK(status_ == kWaitingForPolicyService ||
-         status_ == kWaitingForInstallForcelistPref);
-
-  pref_change_registrar_.RemoveAll();
+  DCHECK_EQ(status_, kWaitingForPolicyService);
 
   // Listen for extension loads and install failures.
   status_ = kWaitingForExtensionLoads;
-  registry_observation_.Observe(registry_.get());
-  collector_observation_.Observe(InstallStageTracker::Get(profile_));
+  registry_observer_.Add(registry_);
+  collector_observer_.Add(InstallStageTracker::Get(profile_));
 
-  const base::Value::Dict& value =
-      pref_service_->GetDict(pref_names::kInstallForceList);
+  const base::DictionaryValue* value =
+      pref_service_->GetDictionary(pref_names::kInstallForceList);
+  if (value) {
+    // Add each extension to |extensions_|.
+    for (const auto& entry : *value) {
+      const ExtensionId& extension_id = entry.first;
+      std::string* update_url = nullptr;
+      if (entry.second->is_dict()) {
+        update_url = entry.second->FindStringKey(
+            ExternalProviderImpl::kExternalUpdateUrl);
+      }
+      bool is_from_store =
+          update_url && *update_url == extension_urls::kChromeWebstoreUpdateURL;
 
-  // Add each extension to |extensions_|.
-  for (auto entry : value) {
-    const ExtensionId& extension_id = entry.first;
-    const std::string* update_url = nullptr;
-    if (entry.second.is_dict()) {
-      update_url =
-          entry.second.FindStringKey(ExternalProviderImpl::kExternalUpdateUrl);
+      ExtensionStatus status = ExtensionStatus::PENDING;
+      if (registry_->enabled_extensions().Contains(extension_id)) {
+        status = registry_->ready_extensions().Contains(extension_id)
+                     ? ExtensionStatus::READY
+                     : ExtensionStatus::LOADED;
+      }
+      AddExtensionInfo(extension_id, status, is_from_store);
     }
-    bool is_from_store =
-        update_url && *update_url == extension_urls::kChromeWebstoreUpdateURL;
-
-    ExtensionStatus status = ExtensionStatus::kPending;
-    if (registry_->enabled_extensions().Contains(extension_id)) {
-      status = registry_->ready_extensions().Contains(extension_id)
-                   ? ExtensionStatus::kReady
-                   : ExtensionStatus::kLoaded;
-    }
-    AddExtensionInfo(extension_id, status, is_from_store);
   }
 
   // Run observers if there are no pending installs.
@@ -171,7 +127,7 @@ void ForceInstalledTracker::OnForcedExtensionsPrefReady() {
 }
 
 void ForceInstalledTracker::OnShutdown(ExtensionRegistry*) {
-  registry_observation_.Reset();
+  registry_observer_.RemoveAll();
 }
 
 void ForceInstalledTracker::AddObserver(Observer* obs) {
@@ -185,14 +141,14 @@ void ForceInstalledTracker::RemoveObserver(Observer* obs) {
 void ForceInstalledTracker::OnExtensionLoaded(
     content::BrowserContext* browser_context,
     const Extension* extension) {
-  ChangeExtensionStatus(extension->id(), ExtensionStatus::kLoaded);
+  ChangeExtensionStatus(extension->id(), ExtensionStatus::LOADED);
   MaybeNotifyObservers();
 }
 
 void ForceInstalledTracker::OnExtensionReady(
     content::BrowserContext* browser_context,
     const Extension* extension) {
-  ChangeExtensionStatus(extension->id(), ExtensionStatus::kReady);
+  ChangeExtensionStatus(extension->id(), ExtensionStatus::READY);
   MaybeNotifyObservers();
 }
 
@@ -202,13 +158,10 @@ void ForceInstalledTracker::OnExtensionInstallationFailed(
   auto item = extensions_.find(extension_id);
   // If the extension is loaded, ignore the failure.
   if (item == extensions_.end() ||
-      item->second.status == ExtensionStatus::kLoaded ||
-      item->second.status == ExtensionStatus::kReady)
+      item->second.status == ExtensionStatus::LOADED ||
+      item->second.status == ExtensionStatus::READY)
     return;
-  ChangeExtensionStatus(extension_id, ExtensionStatus::kFailed);
-  bool is_from_store = item->second.is_from_store;
-  for (auto& obs : observers_)
-    obs.OnForceInstalledExtensionFailed(extension_id, reason, is_from_store);
+  ChangeExtensionStatus(extension_id, ExtensionStatus::FAILED);
   MaybeNotifyObservers();
 }
 
@@ -227,9 +180,7 @@ void ForceInstalledTracker::OnExtensionDownloadCacheStatusRetrieved(
 }
 
 bool ForceInstalledTracker::IsReady() const {
-  // `kWaitingForInstallForcelistPref` status means that there are no force
-  // installed extensions present at the start up.
-  return status_ == kComplete || status_ == kWaitingForInstallForcelistPref;
+  return status_ == kComplete;
 }
 
 bool ForceInstalledTracker::IsMisconfiguration(
@@ -249,14 +200,7 @@ bool ForceInstalledTracker::IsMisconfiguration(
     }
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // REPLACED_BY_SYSTEM_APP is a misconfiguration because these apps are legacy
-  // apps and are replaced by system apps.
-  if (installation_data.failure_reason ==
-      InstallStageTracker::FailureReason::REPLACED_BY_SYSTEM_APP) {
-    return true;
-  }
-
+#if defined(OS_CHROMEOS)
   // REPLACED_BY_ARC_APP error is a misconfiguration if ARC++ is enabled for
   // the device.
   if (profile_->GetPrefs()->IsManagedPreference(arc::prefs::kArcEnabled) &&
@@ -265,7 +209,7 @@ bool ForceInstalledTracker::IsMisconfiguration(
           InstallStageTracker::FailureReason::REPLACED_BY_ARC_APP) {
     return true;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
   if (installation_data.failure_reason ==
       InstallStageTracker::FailureReason::NOT_PERFORMING_NEW_INSTALL) {
@@ -301,40 +245,12 @@ bool ForceInstalledTracker::IsMisconfiguration(
     }
   }
 
-  // When we receive 403 during update manifest fetch, it means that either
-  // update URL is wrong, or self-hosting server is misconfigured. Both cases
-  // are misconfigurations from Chrome's point view.
-  if (installation_data.failure_reason ==
-      InstallStageTracker::FailureReason::MANIFEST_FETCH_FAILED) {
-    auto extension = extensions_.find(id);
-    if (extension != extensions_.end() && !extension->second.is_from_store) {
-      if (installation_data.response_code == kHttpErrorCodeBadRequest ||
-          installation_data.response_code == kHttpErrorCodeForbidden ||
-          installation_data.response_code == kHttpErrorCodeNotFound) {
-        return true;
-      }
-    }
-  }
-
-  if (installation_data.failure_reason ==
-      InstallStageTracker::FailureReason::MANIFEST_INVALID) {
-    auto extension = extensions_.find(id);
-    if (extension != extensions_.end() && !extension->second.is_from_store) {
-      return true;
-    }
-  }
-
-  if (installation_data.failure_reason ==
-      InstallStageTracker::FailureReason::OVERRIDDEN_BY_SETTINGS) {
-    return true;
-  }
-
   return false;
 }
 
 // static
 bool ForceInstalledTracker::IsExtensionFetchedFromCache(
-    const absl::optional<ExtensionDownloaderDelegate::CacheStatus>& status) {
+    const base::Optional<ExtensionDownloaderDelegate::CacheStatus>& status) {
   if (!status)
     return false;
   return status.value() == ExtensionDownloaderDelegate::CacheStatus::
@@ -357,8 +273,8 @@ void ForceInstalledTracker::MaybeNotifyObservers() {
     for (auto& obs : observers_)
       obs.OnForceInstalledExtensionsReady();
     status_ = kComplete;
-    registry_observation_.Reset();
-    collector_observation_.Reset();
+    registry_observer_.RemoveAll();
+    collector_observer_.RemoveAll();
     InstallStageTracker::Get(profile_)->Clear();
   }
 }

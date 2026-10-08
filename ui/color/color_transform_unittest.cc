@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,7 @@ TEST(ColorTransformTest, BlendForMinContrast) {
       BlendForMinContrast(FromTransformInput(), kColorTest0);
   constexpr SkColor kBackground = SK_ColorWHITE;
   ColorMixer mixer;
-  mixer[kColorTest0] = {kBackground};
+  mixer.AddSet({kColorSetTest0, {{kColorTest0, kBackground}}});
   const auto verify_contrast = [&](SkColor input) {
     EXPECT_GE(
         color_utils::GetContrastRatio(transform.Run(input, mixer), kBackground),
@@ -64,8 +64,9 @@ TEST(ColorTransformTest, BlendForMinContrastOptionalArgs) {
       FromTransformInput(), kColorTest0, kColorTest1, kMinContrast);
   constexpr SkColor kBackground = SK_ColorWHITE;
   ColorMixer mixer;
-  mixer[kColorTest0] = {kBackground};
-  mixer[kColorTest1] = {gfx::kGoogleBlue900};
+  mixer.AddSet(
+      {kColorSetTest0,
+       {{kColorTest0, kBackground}, {kColorTest1, gfx::kGoogleBlue900}}});
   const auto verify_contrast = [&](SkColor input) {
     EXPECT_GE(
         color_utils::GetContrastRatio(transform.Run(input, mixer), kBackground),
@@ -153,14 +154,32 @@ TEST(ColorTransformTest, FromColor) {
   verify_color(SK_ColorRED);
 }
 
+// Tests that FromOriginalColorFromSet() produces a transform that ignores the
+// input color and always outputs a specified color from a specified color set.
+TEST(ColorTransformTest, FromOriginalColorFromSet) {
+  const ColorTransform transform =
+      FromOriginalColorFromSet(kColorTest0, kColorSetTest0);
+  constexpr SkColor kSet0Test0Color = SK_ColorGREEN;
+  ColorMixer mixer;
+  mixer.AddSet({kColorSetTest0, {{kColorTest0, kSet0Test0Color}}});
+  mixer.AddSet({kColorSetTest1, {{kColorTest0, SK_ColorRED}}});
+  const auto verify_color = [&](SkColor input) {
+    EXPECT_EQ(kSet0Test0Color, transform.Run(input, mixer));
+  };
+  verify_color(SK_ColorBLACK);
+  verify_color(SK_ColorWHITE);
+  verify_color(SK_ColorRED);
+}
+
 // Tests that a transform created from a ColorId produces a transform that
 // ignores the input color and always outputs a specified result color.
 TEST(ColorTransformTest, FromColorId) {
   const ColorTransform transform = {kColorTest0};
   constexpr SkColor kTest1Color = SK_ColorRED;
   ColorMixer mixer;
+  mixer.AddSet({kColorSetTest0,
+                {{kColorTest0, SK_ColorGREEN}, {kColorTest1, kTest1Color}}});
   mixer[kColorTest0] = {kColorTest1};
-  mixer[kColorTest1] = {kTest1Color};
   const auto verify_color = [&](SkColor input) {
     EXPECT_EQ(kTest1Color, transform.Run(input, mixer));
   };
@@ -201,7 +220,7 @@ TEST(ColorTransformTest, GetResultingPaintColor) {
       GetResultingPaintColor(FromTransformInput(), kColorTest0);
   constexpr SkColor kBackground = SK_ColorWHITE;
   ColorMixer mixer;
-  mixer[kColorTest0] = {kBackground};
+  mixer.AddSet({kColorSetTest0, {{kColorTest0, kBackground}}});
   EXPECT_EQ(SK_ColorBLACK, transform.Run(SK_ColorBLACK, mixer));
   EXPECT_EQ(kBackground, transform.Run(SK_ColorTRANSPARENT, mixer));
   EXPECT_EQ(color_utils::AlphaBlend(SK_ColorBLACK, kBackground, SkAlpha{0x80}),

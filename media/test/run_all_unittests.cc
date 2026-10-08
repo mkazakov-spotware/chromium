@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "media/base/media_switches.h"
 #include "mojo/core/embedder/embedder.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "media/base/android/media_codec_bridge_impl.h"
 #include "media/base/android/media_codec_util.h"
 #endif
@@ -33,8 +33,11 @@ void TestSuiteNoAtExit::Initialize() {
   // Run TestSuite::Initialize first so that logging is initialized.
   base::TestSuite::Initialize();
 
-#if BUILDFLAG(IS_ANDROID)
-  media::MediaCodecBridgeImpl::SetupCallbackHandlerForTesting();
+#if defined(OS_ANDROID)
+  if (media::MediaCodecUtil::IsMediaCodecAvailable()) {
+    media::EnablePlatformDecoderSupport();
+    media::MediaCodecBridgeImpl::SetupCallbackHandlerForTesting();
+  }
 #endif
 
   // Run this here instead of main() to ensure an AtExitManager is already

@@ -1,8 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// https://fullscreen.spec.whatwg.org/
+// https://github.com/dtapuska/fullscreen
 
 enum FullscreenNavigationUI {
   "auto",
@@ -13,7 +13,6 @@ enum FullscreenNavigationUI {
 dictionary FullscreenOptions {
   FullscreenNavigationUI navigationUI = "auto";
 
-  // Specifies a screen for element fullscreen requests.
-  // https://w3c.github.io/window-placement/
-  Screen screen;
+  // https://github.com/webscreens/window-placement
+  [RuntimeEnabled=WindowPlacement] Screen screen;
 };

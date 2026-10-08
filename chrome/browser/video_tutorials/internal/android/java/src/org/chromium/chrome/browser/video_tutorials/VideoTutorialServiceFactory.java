@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,14 @@ package org.chromium.chrome.browser.video_tutorials;
 
 import android.content.Context;
 import android.util.Pair;
-import android.view.ViewGroup;
 import android.view.ViewStub;
+
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.base.Callback;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.chrome.browser.image_fetcher.ImageFetcher;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.video_tutorials.iph.TryNowTrackerImpl;
 import org.chromium.chrome.browser.video_tutorials.iph.VideoIPHCoordinator;
@@ -22,9 +24,7 @@ import org.chromium.chrome.browser.video_tutorials.list.TutorialListCoordinatorI
 import org.chromium.chrome.browser.video_tutorials.player.VideoPlayerCoordinator;
 import org.chromium.chrome.browser.video_tutorials.player.VideoPlayerCoordinatorImpl;
 import org.chromium.components.embedder_support.view.ContentView;
-import org.chromium.components.image_fetcher.ImageFetcher;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.ui.base.IntentRequestTracker;
 
 /**
  * Basic factory that creates and returns an {@link VideoTutorialService} that is attached
@@ -55,17 +55,17 @@ public class VideoTutorialServiceFactory {
             VideoTutorialService videoTutorialService,
             Supplier<Pair<WebContents, ContentView>> webContentsFactory,
             LanguageInfoProvider languageInfoProvider, Callback<Tutorial> tryNowCallback,
-            Runnable closeCallback, IntentRequestTracker intentRequestTracker) {
+            Runnable closeCallback) {
         return new VideoPlayerCoordinatorImpl(context, videoTutorialService, webContentsFactory,
-                languageInfoProvider, tryNowCallback, closeCallback, intentRequestTracker);
+                languageInfoProvider, tryNowCallback, closeCallback);
     }
 
     /** See {@link TutorialListCoordinator}.*/
-    public static TutorialListCoordinator createTutorialListCoordinator(ViewGroup mainView,
+    public static TutorialListCoordinator createTutorialListCoordinator(RecyclerView recyclerView,
             VideoTutorialService videoTutorialService, ImageFetcher imageFetcher,
             Callback<Tutorial> clickCallback) {
         return new TutorialListCoordinatorImpl(
-                mainView, videoTutorialService, imageFetcher, clickCallback);
+                recyclerView, videoTutorialService, imageFetcher, clickCallback);
     }
 
     /** @return The tracker to track Try Now button clicks. */

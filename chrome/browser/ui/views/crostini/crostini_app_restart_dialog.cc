@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/crostini/crostini_app_restart_dialog.h"
 
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_types.h"
@@ -34,7 +35,7 @@ std::unique_ptr<views::View> MakeCrostiniAppRestartView() {
       provider->GetInsetsMetric(views::InsetsMetric::INSETS_DIALOG),
       provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_VERTICAL)));
 
-  const std::u16string message =
+  const base::string16 message =
       l10n_util::GetStringUTF16(IDS_CROSTINI_APP_RESTART_BODY);
   views::Label* message_label = new views::Label(message);
   message_label->SetMultiLine(true);
@@ -47,7 +48,6 @@ std::unique_ptr<views::View> MakeCrostiniAppRestartView() {
 std::unique_ptr<views::DialogDelegate> MakeCrostiniAppRestartDelegate(
     std::unique_ptr<views::View> contents) {
   auto delegate = std::make_unique<views::DialogDelegate>();
-  delegate->set_internal_name("CrostiniAppRestart");
   delegate->SetButtons(ui::DIALOG_BUTTON_OK);
   delegate->SetContentsView(std::move(contents));
   delegate->SetModalType(ui::MODAL_TYPE_SYSTEM);
@@ -65,6 +65,7 @@ void ShowInternal(gfx::NativeWindow context) {
   views::DialogDelegate::CreateDialogWidget(std::move(delegate), context,
                                             nullptr)
       ->Show();
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::CROSTINI_APP_RESTART);
 }
 
 }  // namespace

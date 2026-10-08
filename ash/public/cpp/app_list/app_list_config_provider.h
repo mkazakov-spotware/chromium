@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <map>
 #include <memory>
-#include <set>
 
 #include "ash/public/cpp/ash_public_export.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/observer_list_types.h"
 
 namespace gfx {
+class Insets;
 class Size;
 }
 
@@ -24,25 +24,20 @@ enum class AppListConfigType;
 // Used to create and keep track of existing AppListConfigs.
 class ASH_PUBLIC_EXPORT AppListConfigProvider {
  public:
-  class Observer : public base::CheckedObserver {
+  class Observer {
    public:
+    virtual ~Observer() = default;
+
     // Called when a new config is created. Note that this will not be called
     // for AppListConfigType::kShared configs, as they're assumed to always
     // exist.
     // |config_type| - The created config's type.
     virtual void OnAppListConfigCreated(AppListConfigType config_type) = 0;
-
-   protected:
-    ~Observer() override = default;
   };
 
   static AppListConfigProvider& Get();
 
   AppListConfigProvider();
-
-  AppListConfigProvider(const AppListConfigProvider&) = delete;
-  AppListConfigProvider& operator=(const AppListConfigProvider&) = delete;
-
   ~AppListConfigProvider();
 
   void AddObserver(Observer* observer);
@@ -57,24 +52,20 @@ class ASH_PUBLIC_EXPORT AppListConfigProvider {
 
   // Returns the app list config that should be used by an app list instance
   // based on the app list display, and available size for the apps grid.
-  // Returns nullptr if the new app list config is the same as `current_config`.
-  // `work_area_size`: The work area size of the display showing the app list.
-  // `grid_columns`: The number of columns the root apps grid has. Note that the
-  // number of rows will be reduced to fit the grid vertically.
-
-  // `available_size`: The size of the space available for the root apps grid
-  // layout.
-  // `current_config`: If not null, the app list config currently used by the
+  // Returns nullptr if the new app list config is the same as |current_config|.
+  // |work_area_size|: The work area size of the display showing the app list.
+  // |shelf_insets|: The insets added to app list content to accommodate the
+  // shelf.
+  // |current_config|: If not null, the app list config currently used by the
   //     app list.
-  std::unique_ptr<AppListConfig> CreateForTabletAppList(
+  // TODO(crbug.com/976947): Once ScalableAppList feature is removed (and
+  // enabled by default), this should return a reference or a pointer to an
+  // AppListConfig owned by |this|, as then the number of possible different
+  // configs will be restricted to the number of supported config types.
+  std::unique_ptr<AppListConfig> CreateForAppListWidget(
       const gfx::Size& display_work_area_size,
-      int grid_columns,
-      const gfx::Size& available_size,
+      const gfx::Insets& shelf_insets,
       const AppListConfig* current_config);
-
-  // Returns all app list config types for which an AppListConfig instance has
-  // been created.
-  std::set<AppListConfigType> GetAvailableConfigTypes();
 
   // Clears the set of configs owned by the provider.
   void ResetForTesting();
@@ -85,7 +76,9 @@ class ASH_PUBLIC_EXPORT AppListConfigProvider {
 
   std::map<AppListConfigType, std::unique_ptr<AppListConfig>> configs_;
 
-  base::ObserverList<Observer> observers_;
+  base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppListConfigProvider);
 };
 
 }  // namespace ash

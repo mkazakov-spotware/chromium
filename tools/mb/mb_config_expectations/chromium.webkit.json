@@ -1,7 +1,6 @@
 {
   "WebKit Linux Trusty ASAN": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_asan": true,
       "is_component_build": false,
       "is_debug": false,
@@ -11,7 +10,6 @@
   },
   "WebKit Linux Trusty Leak": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -19,8 +17,6 @@
   },
   "WebKit Linux Trusty MSAN": {
     "gn_args": {
-      "dcheck_always_on": false,
-      "instrumented_libraries_release": "xenial",
       "is_component_build": false,
       "is_debug": false,
       "is_msan": true,
@@ -30,7 +26,6 @@
   },
   "WebKit Mac Builder": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -38,7 +33,6 @@
   },
   "WebKit Win Builder": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "symbol_level": 1,

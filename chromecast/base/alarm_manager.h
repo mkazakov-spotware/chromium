@@ -1,18 +1,19 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_BASE_ALARM_MANAGER_H_
 #define CHROMECAST_BASE_ALARM_MANAGER_H_
 
+#include <functional>
 #include <memory>
 #include <queue>
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 
 namespace base {
@@ -36,10 +37,6 @@ class AlarmManager {
   // Construct and start the alarm manager. The clock poller will run on the
   // caller's thread.
   AlarmManager();
-
-  AlarmManager(const AlarmManager&) = delete;
-  AlarmManager& operator=(const AlarmManager&) = delete;
-
   ~AlarmManager();
 
   // For testing only. Allows setting a fake clock and using a custom task
@@ -60,9 +57,9 @@ class AlarmManager {
   // if it is past the requested time if the software is suspended. However,
   // once woken up, the event will fire within 5 seconds if the target time has
   // passed.
-  [[nodiscard]] std::unique_ptr<AlarmHandle> PostAlarmTask(
-      base::OnceClosure task,
-      base::Time time);
+  std::unique_ptr<AlarmHandle> PostAlarmTask(base::OnceClosure task,
+                                             base::Time time)
+      WARN_UNUSED_RESULT;
 
  private:
   class AlarmInfo {
@@ -70,10 +67,6 @@ class AlarmManager {
     AlarmInfo(base::OnceClosure task,
               base::Time time,
               scoped_refptr<base::SingleThreadTaskRunner> task_runner);
-
-    AlarmInfo(const AlarmInfo&) = delete;
-    AlarmInfo& operator=(const AlarmInfo&) = delete;
-
     ~AlarmInfo();
 
     void PostTask();
@@ -84,6 +77,7 @@ class AlarmManager {
     base::OnceClosure task_;
     const base::Time time_;
     const scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
+    DISALLOW_COPY_AND_ASSIGN(AlarmInfo);
   };
 
   // Check if an alarm should fire.
@@ -94,7 +88,10 @@ class AlarmManager {
                 scoped_refptr<base::SingleThreadTaskRunner> task_runner);
 
   // Ordering alarms by earliest time.
-  struct alarm_compare {
+  struct alarm_compare
+      : public std::binary_function<std::unique_ptr<AlarmInfo>&,
+                                    std::unique_ptr<AlarmInfo>&,
+                                    bool> {
     bool operator()(const std::unique_ptr<AlarmInfo>& lhs,
                     const std::unique_ptr<AlarmInfo>& rhs) const {
       return lhs->time() > rhs->time();
@@ -113,6 +110,8 @@ class AlarmManager {
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
   base::WeakPtrFactory<AlarmManager> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(AlarmManager);
 };
 
 }  // namespace chromecast

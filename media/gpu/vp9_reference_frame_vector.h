@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "media/filters/vp9_parser.h"
-#include "media/gpu/media_gpu_export.h"
 
 namespace media {
 
@@ -18,13 +17,9 @@ class VP9Picture;
 
 // This class encapsulates VP9-specific reference frame management code. This
 // class is thread afine.
-class MEDIA_GPU_EXPORT Vp9ReferenceFrameVector {
+class Vp9ReferenceFrameVector {
  public:
   Vp9ReferenceFrameVector();
-
-  Vp9ReferenceFrameVector(const Vp9ReferenceFrameVector&) = delete;
-  Vp9ReferenceFrameVector& operator=(const Vp9ReferenceFrameVector&) = delete;
-
   ~Vp9ReferenceFrameVector();
 
   void Refresh(scoped_refptr<VP9Picture> pic);
@@ -36,6 +31,7 @@ class MEDIA_GPU_EXPORT Vp9ReferenceFrameVector {
   std::array<scoped_refptr<VP9Picture>, kVp9NumRefFrames> reference_frames_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+  DISALLOW_COPY_AND_ASSIGN(Vp9ReferenceFrameVector);
 };
 
 }  // namespace media

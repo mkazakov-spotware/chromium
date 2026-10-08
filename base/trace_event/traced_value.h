@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,12 @@
 #include <string>
 #include <vector>
 
-#include "base/base_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/pickle.h"
 #include "base/strings/string_piece.h"
-#include "base/trace_event/trace_arguments.h"
+#include "base/trace_event/trace_event_impl.h"
 
 namespace base {
 
-class TraceEventMemoryOverhead;
 class Value;
 
 namespace trace_event {
@@ -101,17 +99,17 @@ class BASE_EXPORT TracedValue : public ConvertableToTraceFormat {
    private:
     explicit ArrayScope(TracedValue* value);
 
-    raw_ptr<TracedValue> value_;
+    TracedValue* value_;
 
     friend class TracedValue;
   };
 
   // Call |BeginArray| or |BeginArrayWithCopiedName| with no / the same
   // parameter and return an |ArrayScope| holding |this|.
-  [[nodiscard]] ArrayScope AppendArrayScoped();
-  [[nodiscard]] ArrayScope BeginArrayScoped(const char* name);
-  [[nodiscard]] ArrayScope BeginArrayScopedWithCopiedName(
-      base::StringPiece name);
+  ArrayScope AppendArrayScoped() WARN_UNUSED_RESULT;
+  ArrayScope BeginArrayScoped(const char* name) WARN_UNUSED_RESULT;
+  ArrayScope BeginArrayScopedWithCopiedName(base::StringPiece name)
+      WARN_UNUSED_RESULT;
 
   // Helper to auto-close a dictionary. The call to
   // |DictionaryScope::~DictionaryScope| closes the dictionary.
@@ -144,17 +142,17 @@ class BASE_EXPORT TracedValue : public ConvertableToTraceFormat {
    private:
     explicit DictionaryScope(TracedValue* value);
 
-    raw_ptr<TracedValue> value_;
+    TracedValue* value_;
 
     friend class TracedValue;
   };
 
   // Call |BeginDictionary| or |BeginDictionaryWithCopiedName| with no / the
   // same parameter and return a |DictionaryScope| holding |this|.
-  [[nodiscard]] DictionaryScope AppendDictionaryScoped();
-  [[nodiscard]] DictionaryScope BeginDictionaryScoped(const char* name);
-  [[nodiscard]] DictionaryScope BeginDictionaryScopedWithCopiedName(
-      base::StringPiece name);
+  DictionaryScope AppendDictionaryScoped() WARN_UNUSED_RESULT;
+  DictionaryScope BeginDictionaryScoped(const char* name) WARN_UNUSED_RESULT;
+  DictionaryScope BeginDictionaryScopedWithCopiedName(base::StringPiece name)
+      WARN_UNUSED_RESULT;
 
   class BASE_EXPORT Array;
   class BASE_EXPORT Dictionary;

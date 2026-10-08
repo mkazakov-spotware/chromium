@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,6 @@ import android.os.RemoteException;
 
 import org.chromium.IsReadyToPayService;
 import org.chromium.IsReadyToPayServiceCallback;
-import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.components.payments.PrePurchaseQuery;
 
 /** A helper to query the payment app's IsReadyToPay service. */
 public class IsReadyToPayServiceHelper
@@ -105,8 +103,6 @@ public class IsReadyToPayServiceHelper
             return;
         }
 
-        RecordHistogram.recordEnumeratedHistogram("PaymentRequest.PrePurchaseQuery",
-                PrePurchaseQuery.ANDROID_INTENT, PrePurchaseQuery.MAX_VALUE);
         mIsReadyToPayQueried = true;
         try {
             isReadyToPayService.isReadyToPay(/*callback=*/this);
@@ -135,8 +131,6 @@ public class IsReadyToPayServiceHelper
     @Override
     public void handleIsReadyToPay(boolean isReadyToPay) throws RemoteException {
         if (mResultHandler == null) return;
-        RecordHistogram.recordBooleanHistogram(
-                "PaymentRequest.EventResponse.IsReadyToPay", isReadyToPay);
         mResultHandler.onIsReadyToPayServiceResponse(isReadyToPay);
         mResultHandler = null;
         destroy();

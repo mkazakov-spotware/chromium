@@ -1,10 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SPEECH_EXTENSION_API_TTS_EXTENSION_API_CONSTANTS_H_
 #define CHROME_BROWSER_SPEECH_EXTENSION_API_TTS_EXTENSION_API_CONSTANTS_H_
 
+#include <string>
+
+#include "base/values.h"
 
 namespace tts_extension_api_constants {
 
@@ -27,11 +30,6 @@ extern const char kRequiredEventTypesKey[];
 extern const char kSrcIdKey[];
 extern const char kVoiceNameKey[];
 extern const char kVolumeKey[];
-
-extern const char kSampleRateKey[];
-extern const char kBufferSizeKey[];
-extern const char kAudioBufferKey[];
-extern const char kIsLastBufferKey[];
 
 extern const char kEventTypeCancelled[];
 extern const char kEventTypeEnd[];

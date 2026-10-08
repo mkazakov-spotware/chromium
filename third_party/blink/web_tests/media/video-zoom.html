@@ -1,19 +1,27 @@
 <html>
 <head>
-    <meta name="fuzzy" content="0-1;0-100">
     <style> video { zoom: 150%; border: 3px solid red; } </style>
     <script src=media-file.js></script>
     <script>
+        function waitForVideoPresentation(video) {
+            return new Promise(resolve => {
+                video.requestVideoFrameCallback(resolve);
+            });
+        }
+
         function init()
         {
-            var videosPresented = allVideosPresentedPromise();
             setSrcByTagName("video", "content/test.ogv");
 
             if (!window.testRunner)
                 return;
             testRunner.waitUntilDone();
 
-            videosPresented.then(() => testRunner.notifyDone());
+            let videos = Array.from(document.getElementsByTagName('video'));
+            Promise.all(videos.map(
+                video => waitForVideoPresentation(video))).then(() => {
+                    testRunner.notifyDone();
+                });
         }
     </script>
 

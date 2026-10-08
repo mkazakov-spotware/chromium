@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,14 @@
 #include <map>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "gin/gin_export.h"
 #include "gin/public/isolate_holder.h"
 #include "gin/public/wrapper_info.h"
 #include "gin/v8_foreground_task_runner_base.h"
-#include "v8/include/v8-array-buffer.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
 
 namespace gin {
 
@@ -33,8 +32,6 @@ class GIN_EXPORT PerIsolateData {
                  v8::ArrayBuffer::Allocator* allocator,
                  IsolateHolder::AccessMode access_mode,
                  scoped_refptr<base::SingleThreadTaskRunner> task_runner);
-  PerIsolateData(const PerIsolateData&) = delete;
-  PerIsolateData& operator=(const PerIsolateData&) = delete;
   ~PerIsolateData();
 
   static PerIsolateData* From(v8::Isolate* isolate);
@@ -88,13 +85,15 @@ class GIN_EXPORT PerIsolateData {
 
   // PerIsolateData doesn't actually own |isolate_|. Instead, the isolate is
   // owned by the IsolateHolder, which also owns the PerIsolateData.
-  raw_ptr<v8::Isolate, DanglingUntriaged> isolate_;
-  raw_ptr<v8::ArrayBuffer::Allocator, DanglingUntriaged> allocator_;
+  v8::Isolate* isolate_;
+  v8::ArrayBuffer::Allocator* allocator_;
   ObjectTemplateMap object_templates_;
   FunctionTemplateMap function_templates_;
   IndexedPropertyInterceptorMap indexed_interceptors_;
   NamedPropertyInterceptorMap named_interceptors_;
   std::shared_ptr<V8ForegroundTaskRunnerBase> task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(PerIsolateData);
 };
 
 }  // namespace gin

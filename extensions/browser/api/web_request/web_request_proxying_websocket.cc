@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/web_request/web_request_proxying_websocket.h"
 
 #include "base/bind.h"
-#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
@@ -13,7 +12,6 @@
 #include "extensions/browser/api/web_request/permission_helper.h"
 #include "extensions/browser/extension_navigation_ui_data.h"
 #include "net/base/ip_endpoint.h"
-#include "net/cookies/site_for_cookies.h"
 #include "net/http/http_util.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 
@@ -26,9 +24,6 @@ namespace {
 class ShutdownNotifierFactory
     : public BrowserContextKeyedServiceShutdownNotifierFactory {
  public:
-  ShutdownNotifierFactory(const ShutdownNotifierFactory&) = delete;
-  ShutdownNotifierFactory& operator=(const ShutdownNotifierFactory&) = delete;
-
   static ShutdownNotifierFactory* GetInstance() {
     static base::NoDestructor<ShutdownNotifierFactory> factory;
     return factory.get();
@@ -43,6 +38,8 @@ class ShutdownNotifierFactory
     DependsOn(PermissionHelper::GetFactoryInstance());
   }
   ~ShutdownNotifierFactory() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(ShutdownNotifierFactory);
 };
 
 }  // namespace
@@ -70,16 +67,17 @@ WebRequestProxyingWebSocket::WebRequestProxyingWebSocket(
           process_id,
           render_frame_id,
           nullptr,
+          MSG_ROUTING_NONE,
           request,
           /*is_download=*/false,
           /*is_async=*/true,
           /*is_service_worker_script=*/false,
-          /*navigation_id=*/absl::nullopt,
+          /*navigation_id=*/base::nullopt,
           ukm_source_id)),
       proxies_(proxies) {
   // base::Unretained is safe here because the callback will be canceled when
-  // |shutdown_notifier_subscription_| is destroyed, and |proxies_| owns this.
-  shutdown_notifier_subscription_ =
+  // |shutdown_notifier_| is destroyed, and |proxies_| owns this.
+  shutdown_notifier_ =
       ShutdownNotifierFactory::GetInstance()
           ->Get(browser_context)
           ->Subscribe(base::BindRepeating(&WebRequestAPI::ProxySet::RemoveProxy,
@@ -93,11 +91,11 @@ WebRequestProxyingWebSocket::~WebRequestProxyingWebSocket() {
       browser_context_, &info_);
   if (on_before_send_headers_callback_) {
     std::move(on_before_send_headers_callback_)
-        .Run(net::ERR_ABORTED, absl::nullopt);
+        .Run(net::ERR_ABORTED, base::nullopt);
   }
   if (on_headers_received_callback_) {
     std::move(on_headers_received_callback_)
-        .Run(net::ERR_ABORTED, absl::nullopt, absl::nullopt);
+        .Run(net::ERR_ABORTED, base::nullopt, base::nullopt);
   }
 }
 
@@ -280,8 +278,8 @@ void WebRequestProxyingWebSocket::OnHeadersReceived(
 void WebRequestProxyingWebSocket::StartProxying(
     WebSocketFactory factory,
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const absl::optional<std::string>& user_agent,
+    const GURL& site_for_cookies,
+    const base::Optional<std::string>& user_agent,
     mojo::PendingRemote<network::mojom::WebSocketHandshakeClient>
         handshake_client,
     bool has_extra_headers,
@@ -295,7 +293,7 @@ void WebRequestProxyingWebSocket::StartProxying(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   network::ResourceRequest request;
   request.url = url;
-  request.site_for_cookies = site_for_cookies;
+  request.site_for_cookies = net::SiteForCookies::FromUrl(site_for_cookies);
   if (user_agent) {
     request.headers.SetHeader(net::HttpRequestHeaders::kUserAgent, *user_agent);
   }
@@ -417,11 +415,11 @@ void WebRequestProxyingWebSocket::OnHeadersReceivedComplete(int error_code) {
   }
 
   if (on_headers_received_callback_) {
-    absl::optional<std::string> headers;
+    base::Optional<std::string> headers;
     if (override_headers_)
       headers = override_headers_->raw_headers();
     std::move(on_headers_received_callback_)
-        .Run(net::OK, headers, absl::nullopt);
+        .Run(net::OK, headers, base::nullopt);
   }
 
   if (override_headers_) {
@@ -447,7 +445,7 @@ void WebRequestProxyingWebSocket::OnAuthRequiredComplete(
         AUTH_REQUIRED_RESPONSE_NO_ACTION:
     case ExtensionWebRequestEventRouter::AuthRequiredResponse::
         AUTH_REQUIRED_RESPONSE_CANCEL_AUTH:
-      std::move(auth_required_callback_).Run(absl::nullopt);
+      std::move(auth_required_callback_).Run(base::nullopt);
       break;
 
     case ExtensionWebRequestEventRouter::AuthRequiredResponse::

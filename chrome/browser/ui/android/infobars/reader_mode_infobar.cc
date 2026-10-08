@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include "base/bind.h"
 #include "chrome/android/chrome_jni_headers/ReaderModeInfoBar_jni.h"
+#include "chrome/browser/android/resource_mapper.h"
 #include "chrome/browser/android/tab_android.h"
-#include "components/infobars/content/content_infobar_manager.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "components/infobars/core/infobar_delegate.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/android/window_android.h"
@@ -20,7 +21,7 @@ using base::android::ScopedJavaLocalRef;
 
 class ReaderModeInfoBarDelegate : public infobars::InfoBarDelegate {
  public:
-  ~ReaderModeInfoBarDelegate() override = default;
+  ~ReaderModeInfoBarDelegate() override {}
 
   infobars::InfoBarDelegate::InfoBarIdentifier GetIdentifier() const override {
     return InfoBarDelegate::InfoBarIdentifier::READER_MODE_INFOBAR_ANDROID;
@@ -33,17 +34,18 @@ class ReaderModeInfoBarDelegate : public infobars::InfoBarDelegate {
 
 ReaderModeInfoBar::ReaderModeInfoBar(
     std::unique_ptr<ReaderModeInfoBarDelegate> delegate)
-    : infobars::InfoBarAndroid(std::move(delegate)) {}
+    : infobars::InfoBarAndroid(
+          std::move(delegate),
+          base::BindRepeating(&ResourceMapper::MapToJavaDrawableId)) {}
 
-ReaderModeInfoBar::~ReaderModeInfoBar() = default;
+ReaderModeInfoBar::~ReaderModeInfoBar() {}
 
 infobars::InfoBarDelegate* ReaderModeInfoBar::GetDelegate() {
   return delegate();
 }
 
 ScopedJavaLocalRef<jobject> ReaderModeInfoBar::CreateRenderInfoBar(
-    JNIEnv* env,
-    const ResourceIdMapper& resource_id_mapper) {
+    JNIEnv* env) {
   return Java_ReaderModeInfoBar_create(env);
 }
 
@@ -51,7 +53,7 @@ base::android::ScopedJavaLocalRef<jobject> ReaderModeInfoBar::GetTab(
     JNIEnv* env,
     const JavaParamRef<jobject>& obj) {
   content::WebContents* web_contents =
-      infobars::ContentInfoBarManager::WebContentsFromInfoBar(this);
+      InfoBarService::WebContentsFromInfoBar(this);
   if (!web_contents)
     return nullptr;
 
@@ -63,10 +65,9 @@ void ReaderModeInfoBar::ProcessButton(int action) {}
 
 void JNI_ReaderModeInfoBar_Create(JNIEnv* env,
                                   const JavaParamRef<jobject>& j_tab) {
-  infobars::ContentInfoBarManager* manager =
-      infobars::ContentInfoBarManager::FromWebContents(
-          TabAndroid::GetNativeTab(env, j_tab)->web_contents());
+  InfoBarService* service = InfoBarService::FromWebContents(
+      TabAndroid::GetNativeTab(env, j_tab)->web_contents());
 
-  manager->AddInfoBar(std::make_unique<ReaderModeInfoBar>(
+  service->AddInfoBar(std::make_unique<ReaderModeInfoBar>(
       std::make_unique<ReaderModeInfoBarDelegate>()));
 }

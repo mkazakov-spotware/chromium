@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,20 @@
 #include <type_traits>
 
 #include "base/numerics/safe_conversions.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace mojo {
 
 // Converts |int_value| to |TMojoEnum|.  If |int_value| represents a known enum
 // value, then a corresponding |TMojoEnum| value will be returned.  Returns
-// |absl::nullopt| otherwise.
+// |base::nullopt| otherwise.
 //
 // Using base::StrictNumeric as the parameter type prevents callers from
 // accidentally using an implicit narrowing conversion when calling this
 // function (e.g. calling it with an int64_t argument, when the enum's
 // underlying type is int32_t).
 template <typename TMojoEnum>
-absl::optional<TMojoEnum> ConvertIntToMojoEnum(
+base::Optional<TMojoEnum> ConvertIntToMojoEnum(
     base::StrictNumeric<int32_t> int_value) {
   // Today all mojo enums use |int32_t| as the underlying type, so the code
   // can simply use |int32_t| rather than |std::underlying_type_t<TMojoEnum>|.
@@ -56,7 +56,7 @@ absl::optional<TMojoEnum> ConvertIntToMojoEnum(
   // TMojoEnum and |enum_value|) - we rely on ADL (argument-dependent lookup) to
   // find the right overload below.
   if (!IsKnownEnumValue(enum_value))
-    return absl::nullopt;
+    return base::nullopt;
 
   return enum_value;
 }

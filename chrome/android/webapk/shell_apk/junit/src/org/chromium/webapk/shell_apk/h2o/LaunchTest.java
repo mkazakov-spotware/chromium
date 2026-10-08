@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 
 import org.junit.Assert;
@@ -32,7 +33,6 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowActivityManager;
 import org.robolectric.shadows.ShadowApplication;
 import org.robolectric.shadows.ShadowPackageManager;
@@ -54,7 +54,6 @@ import java.util.stream.Collectors;
 /** Tests launching WebAPK. */
 @RunWith(LocalRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, shadows = {CustomAndroidOsShadowAsyncTask.class})
-@LooperMode(LooperMode.Mode.LEGACY)
 public final class LaunchTest {
     /** Values based on manifest specified in GN file. */
     private static final String BROWSER_PACKAGE_NAME = "com.google.android.apps.chrome";
@@ -86,6 +85,32 @@ public final class LaunchTest {
     }
 
     /**
+     * Test launching via a deep link on pre-N Android.
+     * Check:
+     * 1) That the host browser was launched.
+     * 2) That no activities have been enabled/disabled.
+     */
+    @Test
+    @Config(sdk = Build.VERSION_CODES.LOLLIPOP)
+    public void testDeepLinkPreN() {
+        registerWebApk(true /* isNewStyleWebApk */);
+
+        final String deepLinkUrl = "https://pwa.rocks/deep.html";
+
+        Intent launchIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(deepLinkUrl));
+        launchIntent.setPackage(sWebApkPackageName);
+
+        ArrayList<Intent> launchedIntents =
+                launchAndCheckBrowserLaunched(false /* opaqueMainActivityInitiallyEnabled */,
+                        launchIntent, H2OTransparentLauncherActivity.class,
+                        HostBrowserUtils.MINIMUM_REQUIRED_CHROMIUM_VERSION_NEW_SPLASH);
+        Assert.assertEquals(1, launchedIntents.size());
+        assertIntentIsForBrowserLaunch(launchedIntents.get(0), deepLinkUrl);
+
+        assertOnlyEnabledMainIntentHandler(H2OMainActivity.class);
+    }
+
+    /**
      * Test launching via a deep link on Android N+.
      * Check:
      * 1) That the host browser was launched.
@@ -93,7 +118,8 @@ public final class LaunchTest {
      * the intent and the host browser getting launched.
      */
     @Test
-    public void testDeepLink() {
+    @Config(sdk = Build.VERSION_CODES.N_MR1)
+    public void testDeepLinkN() {
         registerWebApk(true /* isNewStyleWebApk */);
 
         final String deepLinkUrl = "https://pwa.rocks/deep.html";
@@ -192,8 +218,10 @@ public final class LaunchTest {
      */
     @Test
     public void testTargetShareActivityPreserved() {
+        registerWebApk(true /* isNewStyleWebApk */);
+
         Bundle metadata = new Bundle();
-        metadata.putString(WebApkMetaDataKeys.START_URL, DEFAULT_START_URL);
+        metadata.putString(WebApkMetaDataKeys.START_URL, "https://pwa.rocks/");
         Bundle[] shareMetadata = new Bundle[2];
         for (int i = 0; i < shareMetadata.length; ++i) {
             shareMetadata[i] = new Bundle();
@@ -394,9 +422,46 @@ public final class LaunchTest {
     /**
      * Test {@link H2OOpaqueMainActivity#checkComponentEnabled()} when:
      * - Component enabled setting is default
+     * AND
+     * - Android API level < N
      */
     @Test
-    public void testCheckH2OOpaqueMainActivityEnabled() {
+    @Config(sdk = Build.VERSION_CODES.LOLLIPOP)
+    public void testCheckH2OOpaqueMainActivityEnabledPreN() {
+        changeWebApkActivityEnabledSetting(mPackageManager, H2OOpaqueMainActivity.class,
+                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT);
+        Assert.assertFalse(H2OOpaqueMainActivity.checkComponentEnabled(
+                RuntimeEnvironment.application, false /* isNewStyleWebApk */));
+        Assert.assertFalse(H2OOpaqueMainActivity.checkComponentEnabled(
+                RuntimeEnvironment.application, true /* isNewStyleWebApk */));
+    }
+
+    /**
+     * Test {@link H2OMainActivity#checkComponentEnabled()} when:
+     * - Component enabled setting is default
+     * AND
+     * - Android API level < N
+     */
+    @Test
+    @Config(sdk = Build.VERSION_CODES.LOLLIPOP)
+    public void testCheckH2oMainActivityEnabledPreN() {
+        changeWebApkActivityEnabledSetting(mPackageManager, H2OMainActivity.class,
+                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT);
+        Assert.assertTrue(H2OMainActivity.checkComponentEnabled(
+                RuntimeEnvironment.application, false /* isNewStyleWebApk */));
+        Assert.assertTrue(H2OMainActivity.checkComponentEnabled(
+                RuntimeEnvironment.application, true /* isNewStyleWebApk */));
+    }
+
+    /**
+     * Test {@link H2OOpaqueMainActivity#checkComponentEnabled()} when:
+     * - Component enabled setting is default
+     * AND
+     * - Android API level >= N
+     */
+    @Test
+    @Config(sdk = Build.VERSION_CODES.N_MR1)
+    public void testCheckH2OOpaqueMainActivityEnabledN() {
         changeWebApkActivityEnabledSetting(mPackageManager, H2OOpaqueMainActivity.class,
                 PackageManager.COMPONENT_ENABLED_STATE_DEFAULT);
         Assert.assertFalse(H2OOpaqueMainActivity.checkComponentEnabled(
@@ -408,9 +473,12 @@ public final class LaunchTest {
     /**
      * Test {@link H2OMainActivity#checkComponentEnabled()} when:
      * - Component enabled setting is default
+     * AND
+     * - Android API level >= N
      */
     @Test
-    public void testCheckH2OMainActivityEnabled() {
+    @Config(sdk = Build.VERSION_CODES.N_MR1)
+    public void testCheckH2OMainActivityEnabledN() {
         changeWebApkActivityEnabledSetting(mPackageManager, H2OMainActivity.class,
                 PackageManager.COMPONENT_ENABLED_STATE_DEFAULT);
         Assert.assertTrue(H2OMainActivity.checkComponentEnabled(
@@ -424,8 +492,10 @@ public final class LaunchTest {
      * opaque main activity is enabled and when it is not enabled.
      */
     @Test
+    @Config(sdk = Build.VERSION_CODES.N_MR1)
     public void testAddsSiteSettings() {
-        registerApkForSiteSettings(true /*enableInMetadata*/, true /*addCategory*/);
+        registerWebApk(true /* isNewStyleWebApk */);
+        registerSiteSettingsCategory();
 
         Intent launchIntent = new Intent(Intent.ACTION_MAIN);
         launchIntent.setPackage(sWebApkPackageName);
@@ -444,11 +514,13 @@ public final class LaunchTest {
     }
 
     /**
-     * Tests that no shortcut is added if the current version of Chrome does not support it.
+     * Tests that we remove the shortcut in the case that it was previously
+     * added but the current version of Chrome no longer supports it.
      */
     @Test
+    @Config(sdk = Build.VERSION_CODES.N_MR1)
     public void testDoesNotAddSiteSettingsIfCategoryMissing() {
-        registerApkForSiteSettings(true /*enableInMetadata*/, false /*addCategory*/);
+        registerWebApk(true /* isNewStyleWebApk */);
 
         Intent launchIntent = new Intent(Intent.ACTION_MAIN);
         launchIntent.setPackage(sWebApkPackageName);
@@ -460,12 +532,12 @@ public final class LaunchTest {
         assertFalse(containsSiteSettingsDynamicShortcut(shortcutManager));
     }
 
-    /**
-     * Tests that no shortcut is added if the feature is disabled in the metadata of the WebAPK.
-     */
+    /** Tests that we do not attempt to add a shortcut on Android versions lower than N. */
     @Test
-    public void testDoesNotAddSiteSettingsIfDisabledInMetadata() {
-        registerApkForSiteSettings(false /*enableInMetadata*/, true /*addCategory*/);
+    @Config(sdk = Build.VERSION_CODES.LOLLIPOP)
+    public void testDoesNotAddSiteSettingsWhenSdkLow() {
+        registerWebApk(true /* isNewStyleWebApk */);
+        registerSiteSettingsCategory();
 
         Intent launchIntent = new Intent(Intent.ACTION_MAIN);
         launchIntent.setPackage(sWebApkPackageName);
@@ -473,8 +545,8 @@ public final class LaunchTest {
         launchAndCheckBrowserLaunched(false /* opaqueMainActivityInitiallyEnabled */, launchIntent,
                 H2OMainActivity.class, SITE_SETTINGS_COMPATIBLE_BROWSER_VERSION);
 
-        ShortcutManager shortcutManager = mAppContext.getSystemService(ShortcutManager.class);
-        assertFalse(containsSiteSettingsDynamicShortcut(shortcutManager));
+        // There is no shortcut manager in Android M. Therefore if
+        // this test passes, then we did not attempt to add the shortcut.
     }
 
     private static boolean containsSiteSettingsDynamicShortcut(ShortcutManager shortcutManager) {
@@ -506,18 +578,11 @@ public final class LaunchTest {
     private static void registerWebApk(boolean isNewStyleWebApk) {
         Bundle metadata = new Bundle();
         metadata.putBoolean(WebApkMetaDataKeys.IS_NEW_STYLE_WEBAPK, isNewStyleWebApk);
-        metadata.putString(WebApkMetaDataKeys.START_URL, DEFAULT_START_URL);
+        metadata.putString(WebApkMetaDataKeys.START_URL, "https://pwa.rocks/");
         WebApkTestHelper.registerWebApkWithMetaData(sWebApkPackageName, metadata, null);
     }
 
-    private void registerApkForSiteSettings(boolean enableInMetadata, boolean addCategory) {
-        Bundle metadata = new Bundle();
-        metadata.putString(WebApkMetaDataKeys.START_URL, DEFAULT_START_URL);
-        metadata.putBoolean(WebApkMetaDataKeys.ENABLE_SITE_SETTINGS_SHORTCUT, enableInMetadata);
-        WebApkTestHelper.registerWebApkWithMetaData(sWebApkPackageName, metadata, null);
-
-        if (!addCategory) return;
-
+    private void registerSiteSettingsCategory() {
         Intent intent =
                 new Intent().setAction("android.support.customtabs.action.CustomTabsService");
         intent.setPackage(BROWSER_PACKAGE_NAME);
@@ -654,6 +719,8 @@ public final class LaunchTest {
     }
 
     private static void setAppTaskTopActivity(int taskId, Activity topActivity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+
         ActivityManager.RecentTaskInfo recentTaskInfo = new ActivityManager.RecentTaskInfo();
         recentTaskInfo.id = taskId;
         recentTaskInfo.topActivity = topActivity.getComponentName();

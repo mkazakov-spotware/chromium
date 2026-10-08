@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "components/autofill/core/browser/data_model/autofill_structured_address_component.h"
+
+using autofill::structured_address::AddressComponent;
 
 namespace autofill {
 namespace structured_address {
@@ -21,13 +23,13 @@ class AddressComponentWithRewriter : public AddressComponent {
 
  protected:
   // Apply a country-specific rewriter to the normalized value.
-  std::u16string ValueForComparison(
-      const AddressComponent& other) const override;
+  base::string16 ValueForComparison() const override;
 
-  // Applies the |country_code| specific rewriter to the normalized value. If
-  // |country_code| is empty, it defaults to US.
-  std::u16string RewriteValue(const std::u16string& value,
-                              const std::u16string& country_code) const;
+  // Tries to retrieve the |ADDRESS_HOME_COUNTRY| node from the structure tree
+  // to apply a country-specific rewriter to the normalized value.
+  // If the country value cannot be retrieved or is empty, the method returns
+  // the normalized values without further processing.
+  base::string16 RewriteValue(const base::string16&) const;
 };
 
 // The name of the street.
@@ -108,7 +110,7 @@ class StreetAddress : public AddressComponentWithRewriter {
   void GetAdditionalSupportedFieldTypes(
       ServerFieldTypeSet* supported_types) const override;
 
-  void SetValue(std::u16string value, VerificationStatus status) override;
+  void SetValue(base::string16 value, VerificationStatus status) override;
 
   void UnsetValue() override;
 
@@ -123,7 +125,7 @@ class StreetAddress : public AddressComponentWithRewriter {
       const override;
 
   // Returns the format string to create the full name from its subcomponents.
-  std::u16string GetBestFormatString() const override;
+  base::string16 GetBestFormatString() const override;
 
   // Recalculates the address line after an assignment.
   void PostAssignSanitization() override;
@@ -135,12 +137,12 @@ class StreetAddress : public AddressComponentWithRewriter {
   // Implements support for getting the value of the individual address lines.
   bool ConvertAndGetTheValueForAdditionalFieldTypeName(
       const std::string& type_name,
-      std::u16string* value) const override;
+      base::string16* value) const override;
 
   // Implements support for setting the value of the individual address lines.
   bool ConvertAndSetValueForAdditionalFieldTypeName(
       const std::string& type_name,
-      const std::u16string& value,
+      const base::string16& value,
       const VerificationStatus& status) override;
 
   // Returns true of the address lines do not contain an empty line.
@@ -157,7 +159,7 @@ class StreetAddress : public AddressComponentWithRewriter {
 
   // Holds the values of the individual address lines.
   // Must be recalculated if the value of the component changes.
-  std::vector<std::u16string> address_lines_;
+  std::vector<base::string16> address_lines_;
 };
 
 // Stores the country code of an address profile.
@@ -188,10 +190,6 @@ class State : public AddressComponentWithRewriter {
  public:
   explicit State(AddressComponent* parent);
   ~State() override;
-
-  // For states we use the AlternativeStateNameMap to offer canonicalized state
-  // names.
-  absl::optional<std::u16string> GetCanonicalizedValue() const override;
 };
 
 // Stores the postal code of an address.
@@ -205,7 +203,7 @@ class PostalCode : public AddressComponentWithRewriter {
  protected:
   // In contrast to the base class, the normalization removes all white spaces
   // from the value.
-  std::u16string NormalizedValue() const override;
+  base::string16 NormalizedValue() const override;
 };
 
 // Stores the sorting code.
@@ -223,9 +221,10 @@ class Address : public AddressComponent {
   Address(const Address& other);
   explicit Address(AddressComponent* parent);
   ~Address() override;
-  Address& operator=(const Address& other);
 
-  void MigrateLegacyStructure(bool is_verified_profile) override;
+  // Migrates from a legacy structure in which name tokens are imported without
+  // a status.
+  void MigrateLegacyStructure(bool is_verified_profile);
 
   // Checks if the street address contains an invalid structure and wipes it if
   // necessary.

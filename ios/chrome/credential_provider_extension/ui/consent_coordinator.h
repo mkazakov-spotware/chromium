@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,20 @@
 
 #import <Foundation/Foundation.h>
 
-@class ASCredentialProviderExtensionContext;
-@class ConsentCoordinator;
-@class ReauthenticationHandler;
 @class UIViewController;
+@class ASCredentialProviderExtensionContext;
+@class ReauthenticationHandler;
 
 @interface ConsentCoordinator : NSObject
 
 // Default initializer. When the coordinator is started it will present on
-// `baseViewController`.
+// |baseViewController|.
 - (instancetype)
-    initWithBaseViewController:(UIViewController*)baseViewController
-                       context:(ASCredentialProviderExtensionContext*)context
+       initWithBaseViewController:(UIViewController*)baseViewController
+                          context:(ASCredentialProviderExtensionContext*)context
+          reauthenticationHandler:
+              (ReauthenticationHandler*)reauthenticationHandler
+    isInitialConfigurationRequest:(BOOL)isInitialConfigurationRequest
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

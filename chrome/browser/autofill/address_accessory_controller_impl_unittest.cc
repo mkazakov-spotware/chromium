@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <vector>
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/mock_callback.h"
-#include "chrome/browser/autofill/accessory_controller.h"
 #include "chrome/browser/autofill/mock_manual_filling_controller.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/grit/generated_resources.h"
@@ -31,24 +30,24 @@ using base::ASCIIToUTF16;
 using testing::_;
 using testing::ByMove;
 using testing::Mock;
+using testing::NiceMock;
 using testing::Return;
 using testing::SaveArg;
 using testing::StrictMock;
 using FillingSource = ManualFillingController::FillingSource;
-using IsFillingSourceAvailable = AccessoryController::IsFillingSourceAvailable;
 
-std::u16string addresses_empty_str() {
+base::string16 addresses_empty_str() {
   return l10n_util::GetStringUTF16(IDS_AUTOFILL_ADDRESS_SHEET_EMPTY_MESSAGE);
 }
 
-std::u16string manage_addresses_str() {
+base::string16 manage_addresses_str() {
   return l10n_util::GetStringUTF16(
       IDS_AUTOFILL_ADDRESS_SHEET_ALL_ADDRESSES_LINK);
 }
 
 // Creates a AccessorySheetData::Builder with a "Manage Addresses" footer.
 AccessorySheetData::Builder AddressAccessorySheetDataBuilder(
-    const std::u16string& title) {
+    const base::string16& title) {
   return AccessorySheetData::Builder(AccessoryTabType::ADDRESSES, title)
       .AppendFooterCommand(manage_addresses_str(),
                            AccessoryAction::MANAGE_ADDRESSES);
@@ -77,10 +76,7 @@ class AddressAccessoryControllerTest : public ChromeRenderViewHostTestHarness {
         web_contents(), mock_manual_filling_controller_.AsWeakPtr());
   }
 
-  void TearDown() override {
-    personal_data_manager()->ClearProfiles();
-    ChromeRenderViewHostTestHarness::TearDown();
-  }
+  void TearDown() override { personal_data_manager()->ClearProfiles(); }
 
   AddressAccessoryController* controller() {
     return AddressAccessoryControllerImpl::FromWebContents(web_contents());
@@ -93,8 +89,6 @@ class AddressAccessoryControllerTest : public ChromeRenderViewHostTestHarness {
 
  protected:
   StrictMock<MockManualFillingController> mock_manual_filling_controller_;
-  base::MockCallback<AccessoryController::FillingSourceObserver>
-      filling_source_observer_;
 };
 
 TEST_F(AddressAccessoryControllerTest, IsNotRecreatedForSameWebContents) {
@@ -106,34 +100,19 @@ TEST_F(AddressAccessoryControllerTest, IsNotRecreatedForSameWebContents) {
             initial_controller);
 }
 
-TEST_F(AddressAccessoryControllerTest, ProvidesNoSheetBeforeInitialRefresh) {
-  AutofillProfile canadian = test::GetFullValidProfileForCanada();
-  personal_data_manager()->AddProfile(canadian);
-  controller()->RegisterFillingSourceObserver(filling_source_observer_.Get());
-
-  EXPECT_FALSE(controller()->GetSheetData().has_value());
-
-  EXPECT_CALL(filling_source_observer_,
-              Run(controller(), IsFillingSourceAvailable(true)));
-  controller()->RefreshSuggestions();
-
-  EXPECT_TRUE(controller()->GetSheetData().has_value());
-}
-
 TEST_F(AddressAccessoryControllerTest, RefreshSuggestionsCallsUI) {
   AutofillProfile canadian = test::GetFullValidProfileForCanada();
   personal_data_manager()->AddProfile(canadian);
 
-  AccessorySheetData result(AccessoryTabType::PASSWORDS, std::u16string());
+  AccessorySheetData result(AccessoryTabType::PASSWORDS, base::string16());
   EXPECT_CALL(mock_manual_filling_controller_, RefreshSuggestions(_))
       .WillOnce(SaveArg<0>(&result));
 
   controller()->RefreshSuggestions();
 
-  EXPECT_EQ(result, controller()->GetSheetData());
-  EXPECT_EQ(
+  ASSERT_EQ(
       result,
-      AddressAccessorySheetDataBuilder(std::u16string())
+      AddressAccessorySheetDataBuilder(base::string16())
           .AddUserInfo()
           .AppendSimpleField(canadian.GetRawInfo(ServerFieldType::NAME_FULL))
           .AppendSimpleField(canadian.GetRawInfo(ServerFieldType::COMPANY_NAME))
@@ -157,52 +136,48 @@ TEST_F(AddressAccessoryControllerTest, RefreshSuggestionsCallsUI) {
 }
 
 TEST_F(AddressAccessoryControllerTest, ProvidesEmptySuggestionsMessage) {
-  AccessorySheetData result(AccessoryTabType::PASSWORDS, std::u16string());
+  AccessorySheetData result(AccessoryTabType::PASSWORDS, base::string16());
   EXPECT_CALL(mock_manual_filling_controller_, RefreshSuggestions(_))
       .WillOnce(SaveArg<0>(&result));
 
   controller()->RefreshSuggestions();
 
-  EXPECT_EQ(result, controller()->GetSheetData());
-  EXPECT_EQ(result,
+  ASSERT_EQ(result,
             AddressAccessorySheetDataBuilder(addresses_empty_str()).Build());
 }
 
 TEST_F(AddressAccessoryControllerTest, TriggersRefreshWhenDataChanges) {
-  AccessorySheetData result(AccessoryTabType::PASSWORDS, std::u16string());
+  AccessorySheetData result(AccessoryTabType::PASSWORDS, base::string16());
   EXPECT_CALL(mock_manual_filling_controller_, RefreshSuggestions(_))
       .WillRepeatedly(SaveArg<0>(&result));
 
   // A refresh without data stores an empty sheet and registers an observer.
   controller()->RefreshSuggestions();
-
-  EXPECT_EQ(result, controller()->GetSheetData());
-  EXPECT_EQ(result,
+  ASSERT_EQ(result,
             AddressAccessorySheetDataBuilder(addresses_empty_str()).Build());
 
   // When new data is added, a refresh is automatically triggered.
   AutofillProfile email = test::GetIncompleteProfile2();
   personal_data_manager()->AddProfile(email);
-  EXPECT_EQ(result, controller()->GetSheetData());
-  EXPECT_EQ(result, AddressAccessorySheetDataBuilder(std::u16string())
+  ASSERT_EQ(result, AddressAccessorySheetDataBuilder(base::string16())
                         .AddUserInfo()
                         /*name full:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*company name:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*address line1:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*address line2:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*address zip:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*address city:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*address state:*/
-                        .AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
                         /*address country:*/
-                        .AppendSimpleField(std::u16string())
-                        /*phone number:*/.AppendSimpleField(std::u16string())
+                        .AppendSimpleField(base::string16())
+                        /*phone number:*/.AppendSimpleField(base::string16())
                         .AppendSimpleField(
                             email.GetRawInfo(ServerFieldType::EMAIL_ADDRESS))
                         .Build());

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <memory>
 
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
 class TemplateURLService;
 
 // Singleton that owns all TemplateURLService and associates them with
 // Profiles.
-class TemplateURLServiceFactory : public ProfileKeyedServiceFactory {
+class TemplateURLServiceFactory : public BrowserContextKeyedServiceFactory {
  public:
   static TemplateURLService* GetForProfile(Profile* profile);
 
@@ -32,9 +32,11 @@ class TemplateURLServiceFactory : public ProfileKeyedServiceFactory {
 
   // BrowserContextKeyedServiceFactory:
   KeyedService* BuildServiceInstanceFor(
-      content::BrowserContext* context) const override;
+      content::BrowserContext* profile) const override;
   void RegisterProfilePrefs(
       user_prefs::PrefRegistrySyncable* registry) override;
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override;
   bool ServiceIsNULLWhileTesting() const override;
 };
 

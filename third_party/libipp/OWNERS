@@ -1,1 +1,4 @@
-file://chromeos/printing/OWNERS
+pawliczek@chromium.org
+skau@chromium.org
+
+# COMPONENT: Internals>Printing>CUPS

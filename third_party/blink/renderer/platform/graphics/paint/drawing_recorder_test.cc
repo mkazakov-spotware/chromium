@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,69 +17,54 @@ using DrawingRecorderTest = PaintControllerTestBase;
 
 namespace {
 
-const gfx::Rect kBounds(1, 2, 3, 4);
+const IntRect kBounds(1, 2, 3, 4);
 
 TEST_F(DrawingRecorderTest, Nothing) {
-  FakeDisplayItemClient& client =
-      *MakeGarbageCollected<FakeDisplayItemClient>();
+  FakeDisplayItemClient client;
   GraphicsContext context(GetPaintController());
-  {
-    PaintControllerCycleScopeForTest cycle_scope(GetPaintController());
-    InitRootChunk();
-    DrawNothing(context, client, kForegroundType);
-    GetPaintController().CommitNewDisplayItems();
-  }
+  InitRootChunk();
+  DrawNothing(context, client, kForegroundType);
+  CommitAndFinishCycle();
   EXPECT_THAT(GetPaintController().GetDisplayItemList(),
-              ElementsAre(IsSameId(client.Id(), kForegroundType)));
-  EXPECT_FALSE(
-      To<DrawingDisplayItem>(GetPaintController().GetDisplayItemList()[0])
-          .GetPaintRecord());
+              ElementsAre(IsSameId(&client, kForegroundType)));
+  EXPECT_FALSE(static_cast<const DrawingDisplayItem&>(
+                   GetPaintController().GetDisplayItemList()[0])
+                   .GetPaintRecord());
 }
 
 TEST_F(DrawingRecorderTest, Rect) {
-  FakeDisplayItemClient& client =
-      *MakeGarbageCollected<FakeDisplayItemClient>();
+  FakeDisplayItemClient client;
   GraphicsContext context(GetPaintController());
-  {
-    PaintControllerCycleScopeForTest cycle_scope(GetPaintController());
-    InitRootChunk();
-    DrawRect(context, client, kForegroundType, kBounds);
-    GetPaintController().CommitNewDisplayItems();
-  }
+  InitRootChunk();
+  DrawRect(context, client, kForegroundType, kBounds);
+  CommitAndFinishCycle();
   EXPECT_THAT(GetPaintController().GetDisplayItemList(),
-              ElementsAre(IsSameId(client.Id(), kForegroundType)));
+              ElementsAre(IsSameId(&client, kForegroundType)));
 }
 
 TEST_F(DrawingRecorderTest, Cached) {
-  FakeDisplayItemClient& client =
-      *MakeGarbageCollected<FakeDisplayItemClient>();
+  FakeDisplayItemClient client;
   GraphicsContext context(GetPaintController());
-  {
-    PaintControllerCycleScopeForTest cycle_scope(GetPaintController());
-    InitRootChunk();
-    DrawNothing(context, client, kBackgroundType);
-    DrawRect(context, client, kForegroundType, kBounds);
-    GetPaintController().CommitNewDisplayItems();
-  }
+  InitRootChunk();
+  DrawNothing(context, client, kBackgroundType);
+  DrawRect(context, client, kForegroundType, kBounds);
+  CommitAndFinishCycle();
 
   EXPECT_THAT(GetPaintController().GetDisplayItemList(),
-              ElementsAre(IsSameId(client.Id(), kBackgroundType),
-                          IsSameId(client.Id(), kForegroundType)));
+              ElementsAre(IsSameId(&client, kBackgroundType),
+                          IsSameId(&client, kForegroundType)));
 
-  {
-    PaintControllerCycleScopeForTest cycle_scope(GetPaintController());
-    InitRootChunk();
-    DrawNothing(context, client, kBackgroundType);
-    DrawRect(context, client, kForegroundType, kBounds);
+  InitRootChunk();
+  DrawNothing(context, client, kBackgroundType);
+  DrawRect(context, client, kForegroundType, kBounds);
 
-    EXPECT_EQ(2u, NumCachedNewItems());
+  EXPECT_EQ(2u, NumCachedNewItems());
 
-    GetPaintController().CommitNewDisplayItems();
-  }
+  CommitAndFinishCycle();
 
   EXPECT_THAT(GetPaintController().GetDisplayItemList(),
-              ElementsAre(IsSameId(client.Id(), kBackgroundType),
-                          IsSameId(client.Id(), kForegroundType)));
+              ElementsAre(IsSameId(&client, kBackgroundType),
+                          IsSameId(&client, kForegroundType)));
 }
 
 }  // namespace

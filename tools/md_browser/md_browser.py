@@ -1,22 +1,23 @@
-#!/usr/bin/env python3
-# Copyright 2015 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Simple Markdown browser for a Git checkout."""
+from __future__ import print_function
 
-import http.server
-import socketserver
+import SimpleHTTPServer
+import SocketServer
 import argparse
+import cgi
 import codecs
-import html
 import os
 import re
 import socket
 import sys
 import threading
 import time
-import urllib.request, urllib.parse, urllib.error
+import urllib
 import webbrowser
 from xml.etree import ElementTree
 
@@ -112,18 +113,17 @@ def _gitiles_slugify(value, _separator):
     # behavior (ex. 95 -> '_').
     return chr(int(regex_match.group(1)))
 
-  # Non-ASCII turns into '?'.
-  value = value.encode('ascii', 'replace').decode('ascii')
-  value = re.sub('\x02(\\d+)\x03', decode_escaped_chars, value)
+  value = value.encode('ascii', 'replace')  # Non-ASCII turns into '?'.
+  value = re.sub(u'\x02(\\d+)\x03', decode_escaped_chars, value)
   value = re.sub(r'[^- a-zA-Z0-9]', '_', value)  # Non-alphanumerics to '_'.
-  value = value.replace(' ', '-')
+  value = value.replace(u' ', u'-')
   value = re.sub(r'([-_])[-_]+', r'\1', value)  # Fold hyphens and underscores.
   return value
 
 
-class Server(socketserver.TCPServer):
+class Server(SocketServer.TCPServer):
   def __init__(self, server_address, top_level):
-    socketserver.TCPServer.__init__(self, server_address, Handler)
+    SocketServer.TCPServer.__init__(self, server_address, Handler)
     self.top_level = top_level
 
   def server_bind(self):
@@ -131,9 +131,9 @@ class Server(socketserver.TCPServer):
     self.socket.bind(self.server_address)
 
 
-class Handler(http.server.SimpleHTTPRequestHandler):
+class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
   def do_GET(self):
-    self.path = urllib.parse.unquote(self.path)
+    self.path = urllib.unquote(self.path)
     path = self.path
 
     # strip off the repo and branch info, if present, for compatibility
@@ -196,16 +196,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             if (line.startswith('#') and
                                 not line.startswith('##'))]) == 1)
 
-    md.treeprocessors.register(_AdjustTOC(has_a_single_h1), 'adjust_toc', 4)
+    md.treeprocessors['adjust_toc'] = _AdjustTOC(has_a_single_h1)
 
-    md_fragment = md.convert(contents)
+    md_fragment = md.convert(contents).encode('utf-8')
 
     try:
       self._WriteHeader('text/html')
       self._WriteTemplate('header.html')
-      self._Write('<div class="doc">')
-      self._Write(md_fragment)
-      self._Write('</div>')
+      self.wfile.write('<div class="doc">')
+      self.wfile.write(md_fragment)
+      self.wfile.write('</div>')
       self._WriteTemplate('footer.html')
     except:
       raise
@@ -214,7 +214,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     self._WriteHeader('text/html')
     self._WriteTemplate('header.html')
 
-    self._Write('<table class="FileContents">')
+    self.wfile.write('<table class="FileContents">')
     with open(full_path) as fp:
       # Escape html over the entire file at once.
       data = fp.read().replace(
@@ -223,18 +223,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
           '>', '&gt;').replace(
           '"', '&quot;')
       for i, line in enumerate(data.splitlines(), start=1):
-        self._Write(
-            ('<tr class="u-pre u-monospace FileContents-line">'
-             '<td class="u-lineNum u-noSelect FileContents-lineNum">'
-             '<a name="%(num)s" '
-             'onclick="window.location.hash=%(quot)s#%(num)s%(quot)s">'
-             '%(num)s</a></td>'
-             '<td class="FileContents-lineContents">%(line)s</td></tr>') % {
-                 'num': i,
-                 'quot': "'",
-                 'line': line
-             })
-    self._Write('</table>')
+        self.wfile.write(
+          ('<tr class="u-pre u-monospace FileContents-line">'
+           '<td class="u-lineNum u-noSelect FileContents-lineNum">'
+           '<a name="%(num)s" '
+           'onclick="window.location.hash=%(quot)s#%(num)s%(quot)s">'
+           '%(num)s</a></td>'
+           '<td class="FileContents-lineContents">%(line)s</td></tr>')
+          % {'num': i, 'quot': "'", 'line': line})
+    self.wfile.write('</table>')
 
     self._WriteTemplate('footer.html')
 
@@ -244,55 +241,57 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
   def _DoNotFound(self):
     self._WriteHeader('text/html', status_code=404)
-    self._Write('<html><body>%s not found</body></html>' %
-                html.escape(self.path))
+    self.wfile.write(
+        '<html><body>%s not found</body></html>' % cgi.escape(self.path))
 
   def _DoUnknown(self):
     self._WriteHeader('text/html', status_code=501)
-    self._Write('<html><body>I do not know how to serve %s.</body>'
-                '</html>' % html.escape(self.path))
+    self.wfile.write('<html><body>I do not know how to serve %s.</body>'
+                     '</html>' % cgi.escape(self.path))
 
   def _DoDirListing(self, full_path):
     self._WriteHeader('text/html')
     self._WriteTemplate('header.html')
-    self._Write('<div class="doc">')
+    self.wfile.write('<div class="doc">')
 
-    self._Write('<div class="Breadcrumbs">\n')
-    self._Write('<a class="Breadcrumbs-crumb">%s</a>\n' %
-                html.escape(self.path))
-    self._Write('</div>\n')
+    self.wfile.write('<div class="Breadcrumbs">\n')
+    self.wfile.write(
+        '<a class="Breadcrumbs-crumb">%s</a>\n' % cgi.escape(self.path))
+    self.wfile.write('</div>\n')
 
-    escaped_dir = html.escape(self.path.rstrip('/'), quote=True)
+    escaped_dir = cgi.escape(self.path.rstrip('/'), quote=True)
 
     for _, dirs, files in os.walk(full_path):
       for f in sorted(files):
         if f.startswith('.'):
           continue
-        f = html.escape(f, quote=True)
+        f = cgi.escape(f, quote=True)
         if f.endswith('.md'):
           bold = ('<b>', '</b>')
         else:
           bold = ('', '')
-        self._Write('<a href="%s/%s">%s%s%s</a><br/>\n' %
-                    (escaped_dir, f, bold[0], f, bold[1]))
+        self.wfile.write('<a href="%s/%s">%s%s%s</a><br/>\n' %
+                         (escaped_dir, f, bold[0], f, bold[1]))
 
-      self._Write('<br/>\n')
+      self.wfile.write('<br/>\n')
 
       for d in sorted(dirs):
         if d.startswith('.'):
           continue
-        d = html.escape(d, quote=True)
-        self._Write('<a href="%s/%s">%s/</a><br/>\n' % (escaped_dir, d, d))
+        d = cgi.escape(d, quote=True)
+        self.wfile.write('<a href="%s/%s">%s/</a><br/>\n' %
+                         (escaped_dir, d, d))
 
       break
 
-    self._Write('</div>')
+    self.wfile.write('</div>')
     self._WriteTemplate('footer.html')
 
   def _DoImage(self, full_path, mime_type):
     self._WriteHeader(mime_type)
-    with open(full_path, 'rb') as f:
+    with open(full_path) as f:
       self.wfile.write(f.read())
+      f.close()
 
   def _Read(self, relpath, relative_to=None):
     if relative_to is None:
@@ -302,9 +301,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     with codecs.open(path, encoding='utf-8') as fp:
       return fp.read()
 
-  def _Write(self, contents):
-    self.wfile.write(contents.encode('utf-8'))
-
   def _WriteHeader(self, content_type='text/plain', status_code=200):
     self.send_response(status_code)
     self.send_header('Content-Type', content_type)
@@ -313,7 +309,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   def _WriteTemplate(self, template):
     contents = self._Read(os.path.join('tools', 'md_browser', template),
                           relative_to=SRC_DIR)
-    self._Write(contents)
+    self.wfile.write(contents.encode('utf-8'))
 
 
 class _AdjustTOC(markdown.treeprocessors.Treeprocessor):

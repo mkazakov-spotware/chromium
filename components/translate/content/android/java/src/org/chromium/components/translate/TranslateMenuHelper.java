@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,6 @@ public class TranslateMenuHelper implements AdapterView.OnItemClickListener {
     private View mAnchorView;
     private ListPopupWindow mPopup;
     private boolean mIsIncognito;
-    private boolean mIsSourceLangUnknown;
 
     /**
      * Interface for receiving the click event of menu item.
@@ -48,93 +47,39 @@ public class TranslateMenuHelper implements AdapterView.OnItemClickListener {
     }
 
     public TranslateMenuHelper(Context context, View anchorView, TranslateOptions options,
-            TranslateMenuListener itemListener, boolean isIncognito, boolean isSourceLangUnknown) {
+            TranslateMenuListener itemListener, boolean isIncognito) {
         mContextWrapper = new ContextThemeWrapper(context, R.style.OverflowMenuThemeOverlay);
         mAnchorView = anchorView;
         mOptions = options;
         mMenuListener = itemListener;
         mIsIncognito = isIncognito;
-        mIsSourceLangUnknown = isSourceLangUnknown;
     }
 
-    // Helper method for deciding if a language should be skipped from the list
-    // in case it's a source or target language for the corresponding language list.
-    private boolean shouldBeSkippedFromList(int menuType, String code) {
-        // Avoid source language in the source language list.
-        if (menuType == TranslateMenu.MENU_SOURCE_LANGUAGE
-                && code.equals(mOptions.sourceLanguageCode())) {
-            return true;
-        }
-        // Avoid target language in the target language list.
-        if (menuType == TranslateMenu.MENU_TARGET_LANGUAGE
-                && code.equals(mOptions.targetLanguageCode())) {
-            return true;
-        }
-        return false;
-    }
     /**
-     *
      * Build translate menu by menu type.
      */
     private List<TranslateMenu.MenuItem> getMenuList(int menuType) {
         List<TranslateMenu.MenuItem> menuList = new ArrayList<TranslateMenu.MenuItem>();
         if (menuType == TranslateMenu.MENU_OVERFLOW) {
             // TODO(googleo): Add language short list above static menu after its data is ready.
-            menuList.addAll(TranslateMenu.getOverflowMenu(mIsIncognito, mIsSourceLangUnknown));
+            menuList.addAll(TranslateMenu.getOverflowMenu(mIsIncognito));
         } else {
-            int contentLanguagesCount = 0;
-            if (TranslateFeatureList.isEnabled(
-                        TranslateFeatureList.CONTENT_LANGUAGES_IN_LANGUAGE_PICKER)
-                    && menuType == TranslateMenu.MENU_TARGET_LANGUAGE
-                    && mOptions.contentLanguages() != null) {
-                contentLanguagesCount = mOptions.contentLanguages().length;
-                // If false it means that the list is not empty and the last element should be
-                // skipped from the list, meaning the second to last should have a divider.
-                boolean lastHasDivider = contentLanguagesCount > 0
-                        && !(shouldBeSkippedFromList(
-                                menuType, mOptions.contentLanguages()[contentLanguagesCount - 1]));
-
-                for (int i = 0; i < contentLanguagesCount; ++i) {
-                    String code = mOptions.contentLanguages()[i];
-                    if (shouldBeSkippedFromList(menuType, code)) {
-                        continue;
-                    }
-                    menuList.add(
-                            new TranslateMenu.MenuItem(TranslateMenu.ITEM_CONTENT_LANGUAGE, i, code,
-                                    (i == contentLanguagesCount - 1 && lastHasDivider
-                                            || i == contentLanguagesCount - 2 && !lastHasDivider)));
-                }
-
-                // Keeps track how many were added.
-                contentLanguagesCount = menuList.size();
-            }
             for (int i = 0; i < mOptions.allLanguages().size(); ++i) {
-                // "Detected Language" is the first item in the languages list and should only be
-                // added to the source language menu.
-                if (i == 0 && menuType == TranslateMenu.MENU_TARGET_LANGUAGE) {
-                    continue;
-                }
                 String code = mOptions.allLanguages().get(i).mLanguageCode;
-                if (shouldBeSkippedFromList(menuType, code)) {
+                // Avoid source language in the source language list.
+                if (menuType == TranslateMenu.MENU_SOURCE_LANGUAGE
+                        && code.equals(mOptions.sourceLanguageCode())) {
                     continue;
                 }
-                // Subtract 1 from item IDs if skipping the "Detected Language" option.
-                int itemID = menuType == TranslateMenu.MENU_TARGET_LANGUAGE
-                        ? contentLanguagesCount + i - 1
-                        : contentLanguagesCount + i;
-                menuList.add(new TranslateMenu.MenuItem(TranslateMenu.ITEM_LANGUAGE, itemID, code));
+                // Avoid target language in the target language list.
+                if (menuType == TranslateMenu.MENU_TARGET_LANGUAGE
+                        && code.equals(mOptions.targetLanguageCode())) {
+                    continue;
+                }
+                menuList.add(new TranslateMenu.MenuItem(TranslateMenu.ITEM_LANGUAGE, i, code));
             }
         }
         return menuList;
-    }
-
-    /**
-     * Content languages are the only mutable property of translate options.
-     * Refresh menu when they change.
-     */
-    public void onContentLanguagesChanged(String[] codes) {
-        mOptions.updateContentLanguages(codes);
-        mAdapter.refreshMenu(TranslateMenu.MENU_TARGET_LANGUAGE);
     }
 
     /**
@@ -153,7 +98,7 @@ public class TranslateMenuHelper implements AdapterView.OnItemClickListener {
             // caused an incorrectly drawn background.
             // TODO(martiw): We might need a new menu background here.
             mPopup.setBackgroundDrawable(
-                    ContextCompat.getDrawable(mContextWrapper, R.drawable.menu_bg_tinted));
+                    ContextCompat.getDrawable(mContextWrapper, R.drawable.popup_bg_tinted));
 
             mPopup.setOnItemClickListener(this);
 
@@ -334,22 +279,6 @@ public class TranslateMenuHelper implements AdapterView.OnItemClickListener {
             return menuItemView;
         }
 
-        private View getExtendedItemView(
-                View menuItemView, int position, ViewGroup parent, int resourceId) {
-            if (menuItemView == null) {
-                menuItemView = mInflater.inflate(resourceId, parent, false);
-            }
-            TranslateMenu.MenuItem item = getItem(position);
-            ((TextView) menuItemView.findViewById(R.id.menu_item_text))
-                    .setText(getItemViewText(item));
-            ((TextView) menuItemView.findViewById(R.id.menu_item_secondary_text))
-                    .setText(mOptions.getNativeRepresentationFromCode(item.mCode));
-
-            int dividerVisibility = item.mWithDivider ? View.VISIBLE : View.GONE;
-            menuItemView.findViewById(R.id.menu_item_list_divider).setVisibility(dividerVisibility);
-            return menuItemView;
-        }
-
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             View menuItemView = convertView;
@@ -376,10 +305,6 @@ public class TranslateMenuHelper implements AdapterView.OnItemClickListener {
                     if (getItem(position).mWithDivider) {
                         divider.setVisibility(View.VISIBLE);
                     }
-                    break;
-                case TranslateMenu.ITEM_CONTENT_LANGUAGE:
-                    menuItemView = getExtendedItemView(
-                            menuItemView, position, parent, R.layout.translate_menu_extended_item);
                     break;
                 case TranslateMenu.ITEM_LANGUAGE:
                     menuItemView = getItemView(

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 namespace ash {
 namespace hud_display {
 
-class ReferenceLines;
+class Grid;
 
 // MemoryGraphPageView class draws memory graphs.
 class MemoryGraphPageView : public GraphPageViewBase {
@@ -30,7 +30,7 @@ class MemoryGraphPageView : public GraphPageViewBase {
   void UpdateData(const DataSource::Snapshot& snapshot) override;
 
  private:
-  // This is used to re-layout reference lines when total ram size is known.
+  // This is used to re-layout grid when total ram size is known.
   double total_ram_ = 0;
 
   // --- Stacked:
@@ -54,7 +54,7 @@ class MemoryGraphPageView : public GraphPageViewBase {
   // Share of the total RAM occupied by Chrome browser process shared RSS.
   Graph graph_chrome_rss_shared_;
 
-  ReferenceLines* reference_lines_ = nullptr;  // not owned.
+  Grid* grid_ = nullptr;  // not owned.
 };
 
 }  // namespace hud_display

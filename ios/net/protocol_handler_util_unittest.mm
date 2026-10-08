@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,6 @@
 #include "net/http/http_request_headers.h"
 #include "net/http/http_response_headers.h"
 #include "net/url_request/url_request.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_filter.h"
 #include "net/url_request/url_request_interceptor.h"
 #include "net/url_request/url_request_job.h"
@@ -111,7 +109,7 @@ class ProtocolHandlerUtilTest : public PlatformTest,
  public:
   ProtocolHandlerUtilTest()
       : task_environment_(base::test::TaskEnvironment::MainThreadType::IO),
-        request_context_(net::CreateTestURLRequestContextBuilder()->Build()) {
+        request_context_(std::make_unique<TestURLRequestContext>()) {
     URLRequestFilter::GetInstance()->AddHostnameInterceptor(
         "http", "foo.test", std::make_unique<NetURLRequestInterceptor>());
   }

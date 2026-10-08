@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/optional.h"
 #include "media/base/media_export.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -16,6 +17,18 @@ namespace media {
 
 // These chromium classes are the corresponding classes in webrtc project.
 // See third_party/webrtc/api/video_codecs/video_encoder.h for the detail.
+
+struct MEDIA_EXPORT ScalingSettings {
+  ScalingSettings();
+  ScalingSettings(int min_qp, int max_qp);
+  ScalingSettings(const ScalingSettings&);
+  ~ScalingSettings();
+
+  // Quantization Parameter in ScalingSettings are codec specific.
+  // The range of qp is 0-51 (H264), 0-127 (VP8) and 0-255 (VP9 and AV1).
+  int min_qp = 0;
+  int max_qp = 255;
+};
 
 struct MEDIA_EXPORT ResolutionBitrateLimit {
   ResolutionBitrateLimit();
@@ -45,15 +58,14 @@ struct MEDIA_EXPORT VideoEncoderInfo {
   bool has_trusted_rate_controller = false;
   bool is_hardware_accelerated = true;
   bool supports_simulcast = false;
-  // True if encoder uses same QP for all macroblocks of a picture without
-  // per-macroblock QP adjustment, and that QP can be calculated from
-  // uncompressed sequence/frame/slice/tile headers.
-  bool reports_average_qp = true;
 
+  base::Optional<ScalingSettings> scaling_settings;
   std::vector<uint8_t> fps_allocation[kMaxSpatialLayers];
   std::vector<ResolutionBitrateLimit> resolution_bitrate_limits;
 };
 
+MEDIA_EXPORT bool operator==(const ScalingSettings& l,
+                             const ScalingSettings& r);
 MEDIA_EXPORT bool operator==(const ResolutionBitrateLimit& l,
                              const ResolutionBitrateLimit& r);
 MEDIA_EXPORT bool operator==(const VideoEncoderInfo& l,

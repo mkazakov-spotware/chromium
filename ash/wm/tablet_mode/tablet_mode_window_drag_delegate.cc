@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/geometry/point_conversions.h"
-#include "ui/gfx/geometry/transform_util.h"
+#include "ui/gfx/transform_util.h"
 #include "ui/wm/core/coordinate_conversion.h"
 
 namespace ash {
@@ -55,7 +55,8 @@ constexpr float kMinimumDragToSnapDistanceDp = 96.f;
 // least the duration of the split view divider snap animation, or else issues
 // like crbug.com/946601, crbug.com/997764, and https://crbug.com/997765, which
 // all refer to dragging from overview, will apply to dragging from the top.
-constexpr base::TimeDelta kIsWindowMovedTimeoutMs = base::Milliseconds(300);
+constexpr base::TimeDelta kIsWindowMovedTimeoutMs =
+    base::TimeDelta::FromMilliseconds(300);
 
 constexpr char kSwipeDownDragWindowHistogram[] =
     "Ash.SwipeDownDrag.Window.PresentationTime.TabletMode";
@@ -122,7 +123,7 @@ TabletModeWindowDragDelegate::~TabletModeWindowDragDelegate() {
   }
 
   split_view_controller_->OnWindowDragCanceled();
-  Shelf::UpdateShelfVisibility();
+  Shell::Get()->UpdateShelfVisibility();
 }
 
 void TabletModeWindowDragDelegate::StartWindowDrag(
@@ -173,8 +174,7 @@ void TabletModeWindowDragDelegate::StartWindowDrag(
             ->overview_button_tray();
     DCHECK(overview_button_tray);
     overview_button_tray->SnapRippleToActivated();
-    controller->StartOverview(OverviewStartAction::kSplitView,
-                              OverviewEnterExitType::kImmediateEnter);
+    controller->StartOverview(OverviewEnterExitType::kImmediateEnter);
   }
 
   if (controller->InOverviewSession()) {
@@ -271,8 +271,7 @@ void TabletModeWindowDragDelegate::EndWindowDrag(
   EndingWindowDrag(result, location_in_screen);
 
   WindowBackdrop::Get(dragged_window_)->RestoreBackdrop();
-  SplitViewController::SnapPosition snap_position =
-      SplitViewController::SnapPosition::kNone;
+  SplitViewController::SnapPosition snap_position = SplitViewController::NONE;
   if (result == ToplevelWindowEventHandler::DragResult::SUCCESS &&
       split_view_controller_->CanSnapWindow(dragged_window_)) {
     snap_position = GetSnapPosition(location_in_screen);
@@ -285,11 +284,8 @@ void TabletModeWindowDragDelegate::EndWindowDrag(
     GetOverviewSession()->OnWindowDragEnded(
         dragged_window_, location_in_screen,
         ShouldDropWindowIntoOverview(snap_position, location_in_screen),
-        snap_position != SplitViewController::SnapPosition::kNone);
+        snap_position != SplitViewController::NONE);
   }
-
-  WindowState::Get(dragged_window_)
-      ->set_snap_action_source(WindowSnapActionSource::kDragDownFromTopToSnap);
   split_view_controller_->OnWindowDragEnded(
       dragged_window_, snap_position, gfx::ToRoundedPoint(location_in_screen));
   split_view_drag_indicators_->SetWindowDraggingState(
@@ -329,8 +325,7 @@ void TabletModeWindowDragDelegate::FlingOrSwipe(ui::GestureEvent* event) {
           ->overview_controller()
           ->overview_session()
           ->AddItemInMruOrder(dragged_window_, /*reposition=*/true,
-                              /*animate=*/false, /*restack=*/true,
-                              /*use_spawn_animation=*/false);
+                              /*animate=*/false, /*restack=*/true);
     }
     StartFling(event);
   }
@@ -364,7 +359,7 @@ SplitViewController::SnapPosition TabletModeWindowDragDelegate::GetSnapPosition(
   // become snapped, although if it already was snapped, it can stay snapped.
   if (!(is_window_considered_moved_ &&
         split_view_controller_->CanSnapWindow(dragged_window_))) {
-    return SplitViewController::SnapPosition::kNone;
+    return SplitViewController::NONE;
   }
 
   const gfx::Rect area =
@@ -388,11 +383,9 @@ SplitViewController::SnapPosition TabletModeWindowDragDelegate::GetSnapPosition(
   const bool is_landscape = IsCurrentScreenOrientationLandscape();
   const bool is_primary = IsCurrentScreenOrientationPrimary();
   if (!is_landscape &&
-      ((is_primary &&
-        snap_position == SplitViewController::SnapPosition::kPrimary) ||
-       (!is_primary &&
-        snap_position == SplitViewController::SnapPosition::kSecondary))) {
-    snap_position = SplitViewController::SnapPosition::kNone;
+      ((is_primary && snap_position == SplitViewController::LEFT) ||
+       (!is_primary && snap_position == SplitViewController::RIGHT))) {
+    snap_position = SplitViewController::NONE;
   }
 
   return snap_position;
@@ -430,7 +423,7 @@ bool TabletModeWindowDragDelegate::ShouldDropWindowIntoOverview(
     SplitViewController::SnapPosition snap_position,
     const gfx::PointF& location_in_screen) {
   // Do not drop the dragged window into overview if preview area is shown.
-  if (snap_position != SplitViewController::SnapPosition::kNone)
+  if (snap_position != SplitViewController::NONE)
     return false;
 
   OverviewItem* drop_target = GetDropTarget(dragged_window_);
@@ -477,18 +470,18 @@ bool TabletModeWindowDragDelegate::ShouldFlingIntoOverview(
   // opposite snap position when preview area is shown.
   if (IsCurrentScreenOrientationPrimary()) {
     if (window_dragging_state ==
-        SplitViewDragIndicators::WindowDraggingState::kToSnapPrimary) {
+        SplitViewDragIndicators::WindowDraggingState::kToSnapLeft) {
       return velocity > kFlingToOverviewFromSnappingAreaThreshold;
     } else if (window_dragging_state ==
-               SplitViewDragIndicators::WindowDraggingState::kToSnapSecondary) {
+               SplitViewDragIndicators::WindowDraggingState::kToSnapRight) {
       return -velocity > kFlingToOverviewFromSnappingAreaThreshold;
     }
   } else {
     if (window_dragging_state ==
-        SplitViewDragIndicators::WindowDraggingState::kToSnapPrimary) {
+        SplitViewDragIndicators::WindowDraggingState::kToSnapLeft) {
       return -velocity > kFlingToOverviewFromSnappingAreaThreshold;
     } else if (window_dragging_state ==
-               SplitViewDragIndicators::WindowDraggingState::kToSnapSecondary) {
+               SplitViewDragIndicators::WindowDraggingState::kToSnapRight) {
       return velocity > kFlingToOverviewFromSnappingAreaThreshold;
     }
   }

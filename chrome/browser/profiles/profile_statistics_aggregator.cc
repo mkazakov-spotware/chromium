@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
@@ -22,33 +23,31 @@
 #include "components/browsing_data/core/counters/history_counter.h"
 #include "components/browsing_data/core/counters/passwords_counter.h"
 #include "components/browsing_data/core/pref_names.h"
-#include "components/password_manager/core/browser/password_store.h"
 #include "content/public/browser/browser_thread.h"
 
 using browsing_data::BrowsingDataCounter;
 
 ProfileStatisticsAggregator::ProfileStatisticsAggregator(
     Profile* profile,
-    base::OnceClosure done_callback)
+    const base::Closure& done_callback)
     : profile_(profile),
       profile_path_(profile_->GetPath()),
-      done_callback_(std::move(done_callback)) {}
+      done_callback_(done_callback) {}
 
 ProfileStatisticsAggregator::~ProfileStatisticsAggregator() {}
 
 void ProfileStatisticsAggregator::AddCallbackAndStartAggregator(
-    profiles::ProfileStatisticsCallback stats_callback) {
+    const profiles::ProfileStatisticsCallback& stats_callback) {
   if (stats_callback)
-    stats_callbacks_.push_back(std::move(stats_callback));
+    stats_callbacks_.push_back(stats_callback);
   StartAggregator();
 }
 
 void ProfileStatisticsAggregator::AddCounter(
     std::unique_ptr<BrowsingDataCounter> counter) {
   counter->InitWithoutPref(
-      base::Time(),
-      base::BindRepeating(&ProfileStatisticsAggregator::OnCounterResult,
-                          base::Unretained(this)));
+      base::Time(), base::Bind(&ProfileStatisticsAggregator::OnCounterResult,
+                               base::Unretained(this)));
   counter->Restart();
   counters_.push_back(std::move(counter));
 }
@@ -76,10 +75,11 @@ void ProfileStatisticsAggregator::StartAggregator() {
       /*sync_service=*/nullptr));
 
   // Initiate stored password counting. Only count local passwords.
+  scoped_refptr<password_manager::PasswordStore> password_store =
+      PasswordStoreFactory::GetForProfile(
+          profile_, ServiceAccessType::EXPLICIT_ACCESS);
   AddCounter(std::make_unique<browsing_data::PasswordsCounter>(
-      PasswordStoreFactory::GetForProfile(profile_,
-                                          ServiceAccessType::EXPLICIT_ACCESS),
-      /*account_store=*/nullptr, /*sync_service=*/nullptr));
+      password_store, /*account_store=*/nullptr, /*sync_service=*/nullptr));
 
   // Initiate autofill counting.
   scoped_refptr<autofill::AutofillWebDataService> autofill_service =
@@ -123,7 +123,7 @@ void ProfileStatisticsAggregator::StatisticsCallback(const char* category,
 
   if (profile_category_stats_.size() ==
       profiles::kProfileStatisticsCategories.size()) {
-    DCHECK(done_callback_);
-    std::move(done_callback_).Run();
+    if (done_callback_)
+      done_callback_.Run();
   }
 }

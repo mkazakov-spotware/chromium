@@ -30,6 +30,7 @@
 #include "third_party/blink/renderer/core/paint/paint_layer_resource_info.h"
 
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
+#include "third_party/blink/renderer/platform/graphics/filters/filter_effect.h"
 
 namespace blink {
 
@@ -40,11 +41,25 @@ PaintLayerResourceInfo::~PaintLayerResourceInfo() {
   DCHECK(!layer_);
 }
 
-void PaintLayerResourceInfo::ResourceContentChanged(SVGResource*) {
+void PaintLayerResourceInfo::ResourceContentChanged(InvalidationModeMask) {
   DCHECK(layer_);
   LayoutObject& layout_object = layer_->GetLayoutObject();
   layout_object.SetShouldDoFullPaintInvalidation();
   layer_->SetNeedsCompositingInputsUpdate();
+  layout_object.InvalidateClipPathCache();
+  // The effect paint property nodes depend on SVG filters so we need
+  // to update these properties when filter resources change.
+  layout_object.SetNeedsPaintPropertyUpdate();
+  layer_->SetFilterOnEffectNodeDirty();
+  layer_->SetBackdropFilterOnEffectNodeDirty();
+}
+
+void PaintLayerResourceInfo::ResourceElementChanged() {
+  DCHECK(layer_);
+  LayoutObject& layout_object = layer_->GetLayoutObject();
+  layout_object.SetShouldDoFullPaintInvalidation();
+  layer_->SetNeedsCompositingInputsUpdate();
+  layout_object.InvalidateClipPathCache();
   // The effect paint property nodes depend on SVG filters so we need
   // to update these properties when filter resources change.
   layout_object.SetNeedsPaintPropertyUpdate();

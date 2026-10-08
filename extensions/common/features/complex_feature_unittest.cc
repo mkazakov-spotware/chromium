@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 #include "extensions/common/manifest.h"
 #include "extensions/common/value_builder.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-using extensions::mojom::ManifestLocation;
 
 namespace extensions {
 
@@ -40,42 +38,38 @@ TEST(ComplexFeatureTest, MultipleRulesAllowlist) {
   std::unique_ptr<ComplexFeature> feature(new ComplexFeature(&features));
 
   // Test match 1st rule.
-  EXPECT_EQ(Feature::IS_AVAILABLE,
-            feature
-                ->IsAvailableToManifest(kIdFoo, Manifest::TYPE_EXTENSION,
-                                        ManifestLocation::kInvalidLocation,
-                                        Feature::UNSPECIFIED_PLATFORM,
-                                        Feature::GetCurrentPlatform(),
-                                        kUnspecifiedContextId)
-                .result());
+  EXPECT_EQ(
+      Feature::IS_AVAILABLE,
+      feature->IsAvailableToManifest(kIdFoo,
+                                     Manifest::TYPE_EXTENSION,
+                                     Manifest::INVALID_LOCATION,
+                                     Feature::UNSPECIFIED_PLATFORM,
+                                     Feature::GetCurrentPlatform()).result());
 
   // Test match 2nd rule.
   EXPECT_EQ(
       Feature::IS_AVAILABLE,
-      feature
-          ->IsAvailableToManifest(
-              kIdBar, Manifest::TYPE_LEGACY_PACKAGED_APP,
-              ManifestLocation::kInvalidLocation, Feature::UNSPECIFIED_PLATFORM,
-              Feature::GetCurrentPlatform(), kUnspecifiedContextId)
-          .result());
+      feature->IsAvailableToManifest(kIdBar,
+                                     Manifest::TYPE_LEGACY_PACKAGED_APP,
+                                     Manifest::INVALID_LOCATION,
+                                     Feature::UNSPECIFIED_PLATFORM,
+                                     Feature::GetCurrentPlatform()).result());
 
   // Test allowlist with wrong extension type.
-  EXPECT_NE(Feature::IS_AVAILABLE,
-            feature
-                ->IsAvailableToManifest(kIdBar, Manifest::TYPE_EXTENSION,
-                                        ManifestLocation::kInvalidLocation,
-                                        Feature::UNSPECIFIED_PLATFORM,
-                                        Feature::GetCurrentPlatform(),
-                                        kUnspecifiedContextId)
-                .result());
   EXPECT_NE(
       Feature::IS_AVAILABLE,
-      feature
-          ->IsAvailableToManifest(
-              kIdFoo, Manifest::TYPE_LEGACY_PACKAGED_APP,
-              ManifestLocation::kInvalidLocation, Feature::UNSPECIFIED_PLATFORM,
-              Feature::GetCurrentPlatform(), kUnspecifiedContextId)
-          .result());
+      feature->IsAvailableToManifest(kIdBar,
+                                     Manifest::TYPE_EXTENSION,
+                                     Manifest::INVALID_LOCATION,
+                                     Feature::UNSPECIFIED_PLATFORM,
+                                     Feature::GetCurrentPlatform()).result());
+  EXPECT_NE(
+      Feature::IS_AVAILABLE,
+      feature->IsAvailableToManifest(kIdFoo,
+                                     Manifest::TYPE_LEGACY_PACKAGED_APP,
+                                     Manifest::INVALID_LOCATION,
+                                     Feature::UNSPECIFIED_PLATFORM,
+                                     Feature::GetCurrentPlatform()).result());
 }
 
 // Tests that dependencies are correctly checked.
@@ -100,24 +94,23 @@ TEST(ComplexFeatureTest, Dependencies) {
   std::unique_ptr<ComplexFeature> feature(new ComplexFeature(&features));
 
   // Available to extensions because of the content_security_policy rule.
-  EXPECT_EQ(
-      Feature::IS_AVAILABLE,
-      feature
-          ->IsAvailableToManifest(
-              HashedExtensionId(std::string(32, 'a')), Manifest::TYPE_EXTENSION,
-              ManifestLocation::kInvalidLocation, Feature::UNSPECIFIED_PLATFORM,
-              Feature::GetCurrentPlatform(), kUnspecifiedContextId)
-          .result());
+  EXPECT_EQ(Feature::IS_AVAILABLE,
+            feature
+                ->IsAvailableToManifest(HashedExtensionId(std::string(32, 'a')),
+                                        Manifest::TYPE_EXTENSION,
+                                        Manifest::INVALID_LOCATION,
+                                        Feature::UNSPECIFIED_PLATFORM,
+                                        Feature::GetCurrentPlatform())
+                .result());
 
   // Available to platform apps because of the serial rule.
   EXPECT_EQ(Feature::IS_AVAILABLE,
             feature
                 ->IsAvailableToManifest(HashedExtensionId(std::string(32, 'b')),
                                         Manifest::TYPE_PLATFORM_APP,
-                                        ManifestLocation::kInvalidLocation,
+                                        Manifest::INVALID_LOCATION,
                                         Feature::UNSPECIFIED_PLATFORM,
-                                        Feature::GetCurrentPlatform(),
-                                        kUnspecifiedContextId)
+                                        Feature::GetCurrentPlatform())
                 .result());
 
   // Not available to hosted apps.
@@ -125,10 +118,9 @@ TEST(ComplexFeatureTest, Dependencies) {
             feature
                 ->IsAvailableToManifest(HashedExtensionId(std::string(32, 'c')),
                                         Manifest::TYPE_HOSTED_APP,
-                                        ManifestLocation::kInvalidLocation,
+                                        Manifest::INVALID_LOCATION,
                                         Feature::UNSPECIFIED_PLATFORM,
-                                        Feature::GetCurrentPlatform(),
-                                        kUnspecifiedContextId)
+                                        Feature::GetCurrentPlatform())
                 .result());
 }
 

@@ -1,11 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_ACCELERATED_WIDGET_MAC_ACCELERATED_WIDGET_MAC_H_
 #define UI_ACCELERATED_WIDGET_MAC_ACCELERATED_WIDGET_MAC_H_
 
-#include "base/memory/raw_ptr.h"
+#include <vector>
+
 #include "ui/accelerated_widget_mac/accelerated_widget_mac_export.h"
 #include "ui/accelerated_widget_mac/ca_layer_frame_sink.h"
 #include "ui/gfx/geometry/size.h"
@@ -33,10 +34,6 @@ class ACCELERATED_WIDGET_MAC_EXPORT AcceleratedWidgetMac
     : public CALayerFrameSink {
  public:
   AcceleratedWidgetMac();
-
-  AcceleratedWidgetMac(const AcceleratedWidgetMac&) = delete;
-  AcceleratedWidgetMac& operator=(const AcceleratedWidgetMac&) = delete;
-
   ~AcceleratedWidgetMac() override;
 
   gfx::AcceleratedWidget accelerated_widget() { return native_widget_; }
@@ -68,7 +65,7 @@ class ACCELERATED_WIDGET_MAC_EXPORT AcceleratedWidgetMac
   void UpdateCALayerTree(const gfx::CALayerParams& ca_layer_params) override;
 
   // The AcceleratedWidgetMacNSView that is using this as its internals.
-  raw_ptr<AcceleratedWidgetMacNSView> view_ = nullptr;
+  AcceleratedWidgetMacNSView* view_ = nullptr;
 
   // A phony NSView handle used to identify this.
   gfx::AcceleratedWidget native_widget_ = gfx::kNullAcceleratedWidget;
@@ -80,6 +77,8 @@ class ACCELERATED_WIDGET_MAC_EXPORT AcceleratedWidgetMac
   // The last CALayer parameter update from the CALayerFrameSink interface.
   bool last_ca_layer_params_valid_ = false;
   gfx::CALayerParams last_ca_layer_params_;
+
+  DISALLOW_COPY_AND_ASSIGN(AcceleratedWidgetMac);
 };
 
 }  // namespace ui

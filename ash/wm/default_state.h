@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/wm/base_state.h"
 #include "ash/wm/window_state.h"
+#include "base/macros.h"
 #include "ui/display/display.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -21,10 +22,6 @@ enum class WindowStateType;
 class DefaultState : public BaseState {
  public:
   explicit DefaultState(chromeos::WindowStateType initial_state_type);
-
-  DefaultState(const DefaultState&) = delete;
-  DefaultState& operator=(const DefaultState&) = delete;
-
   ~DefaultState() override;
 
   // WindowState::State overrides:
@@ -50,11 +47,9 @@ class DefaultState : public BaseState {
                         const SetBoundsWMEvent* bounds_event);
 
   // Enters next state. This is used when the state moves from one to another
-  // within the same desktop mode. Uses `snap_ratio` for the next state type if
-  // provided.
+  // within the same desktop mode.
   void EnterToNextState(WindowState* window_state,
-                        chromeos::WindowStateType next_state_type,
-                        absl::optional<float> snap_ratio);
+                        chromeos::WindowStateType next_state_type);
 
   // Reenters the current state. This is called when migrating from
   // previous desktop mode, and the window's state needs to re-construct the
@@ -62,11 +57,9 @@ class DefaultState : public BaseState {
   void ReenterToCurrentState(WindowState* window_state,
                              WindowState::State* state_in_previous_mode);
 
-  // Animates to new window bounds, using `snap_ratio` if provided, based on the
-  // current and previous state type.
+  // Animates to new window bounds based on the current and previous state type.
   void UpdateBoundsFromState(WindowState* window_state,
-                             chromeos::WindowStateType old_state_type,
-                             absl::optional<float> snap_ratio);
+                             chromeos::WindowStateType old_state_type);
 
   // Updates the window bounds for display bounds, or display work area bounds
   // changes.
@@ -86,6 +79,8 @@ class DefaultState : public BaseState {
 
   // The window state only gets remembered for DCHECK reasons.
   WindowState* stored_window_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(DefaultState);
 };
 
 }  // namespace ash

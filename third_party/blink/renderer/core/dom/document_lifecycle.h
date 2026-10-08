@@ -32,10 +32,9 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_DOM_DOCUMENT_LIFECYCLE_H_
 
 #include "base/auto_reset.h"
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 #if DCHECK_IS_ON()
 #include "third_party/blink/renderer/platform/wtf/forward.h"
@@ -58,9 +57,18 @@ class CORE_EXPORT DocumentLifecycle {
     kInStyleRecalc,
     kStyleClean,
 
+    kInLayoutSubtreeChange,
+    kLayoutSubtreeChangeClean,
+
+    kInPreLayout,
     kInPerformLayout,
     kAfterPerformLayout,
     kLayoutClean,
+
+    // In InAccessibility step, fire deferred accessibility events which
+    // require layout to be in a clean state.
+    kInAccessibility,
+    kAccessibilityClean,
 
     kInCompositingInputsUpdate,
     kCompositingInputsClean,
@@ -69,6 +77,9 @@ class CORE_EXPORT DocumentLifecycle {
     // Paint property trees are built and paint invalidations are issued.
     kInPrePaint,
     kPrePaintClean,
+
+    kInCompositingAssignmentsUpdate,
+    kCompositingAssignmentsClean,
 
     // In InPaint step, paint artifacts are generated and raster invalidations
     // are issued.
@@ -193,6 +204,7 @@ class CORE_EXPORT DocumentLifecycle {
   bool StateAllowsTreeMutations() const;
   bool StateAllowsLayoutTreeMutations() const;
   bool StateAllowsDetach() const;
+  bool StateAllowsLayoutTreeNotifications() const;
 
   void AdvanceTo(LifecycleState);
   void EnsureStateAtMost(LifecycleState);
@@ -235,24 +247,32 @@ class CORE_EXPORT DocumentLifecycle {
 };
 
 inline bool DocumentLifecycle::StateAllowsTreeMutations() const {
-  // TODO: We should not allow mutations in AfterPerformLayout
+  // FIXME: We should not allow mutations in InPreLayout or AfterPerformLayout
   // either, but we need to fix MediaList listeners and plugins first.
   return state_ != kInStyleRecalc && state_ != kInPerformLayout &&
+         state_ != kInCompositingAssignmentsUpdate &&
          state_ != kInCompositingInputsUpdate && state_ != kInPrePaint &&
          state_ != kInPaint;
 }
 
 inline bool DocumentLifecycle::StateAllowsLayoutTreeMutations() const {
-  return detach_count_ || state_ == kInStyleRecalc;
+  return detach_count_ || state_ == kInStyleRecalc ||
+         state_ == kInLayoutSubtreeChange;
+}
+
+inline bool DocumentLifecycle::StateAllowsLayoutTreeNotifications() const {
+  return state_ == kInLayoutSubtreeChange;
 }
 
 inline bool DocumentLifecycle::StateAllowsDetach() const {
   return state_ == kVisualUpdatePending || state_ == kInStyleRecalc ||
-         state_ == kStyleClean || state_ == kLayoutClean ||
-         state_ == kCompositingInputsClean || state_ == kPrePaintClean ||
+         state_ == kStyleClean || state_ == kLayoutSubtreeChangeClean ||
+         state_ == kInPreLayout || state_ == kLayoutClean ||
+         state_ == kCompositingInputsClean ||
+         state_ == kCompositingAssignmentsClean || state_ == kPrePaintClean ||
          state_ == kPaintClean || state_ == kStopping || state_ == kInactive;
 }
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_DOM_DOCUMENT_LIFECYCLE_H_
+#endif

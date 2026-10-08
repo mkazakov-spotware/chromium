@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,9 +23,7 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/platform/scheduler/common/features.h"
 #include "third_party/blink/renderer/platform/scheduler/common/process_state.h"
-#include "third_party/blink/renderer/platform/scheduler/common/throttling/cpu_time_budget_pool.h"
 #include "third_party/blink/renderer/platform/scheduler/common/throttling/task_queue_throttler.h"
-#include "third_party/blink/renderer/platform/scheduler/common/throttling/wake_up_budget_pool.h"
 #include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 #include "third_party/blink/renderer/platform/scheduler/public/worker_scheduler.h"
 #include "third_party/blink/renderer/platform/scheduler/worker/non_main_thread_scheduler_helper.h"
@@ -45,11 +43,12 @@ const char kWorkerThrottlingMaxBudgetParam[] = "max_budget_ms";
 const char kWorkerThrottlingRecoveryRateParam[] = "recovery_rate";
 const char kWorkerThrottlingMaxDelayParam[] = "max_delay_ms";
 
-constexpr base::TimeDelta kDefaultMaxBudget = base::Seconds(1);
+constexpr base::TimeDelta kDefaultMaxBudget = base::TimeDelta::FromSeconds(1);
 constexpr double kDefaultRecoveryRate = 0.01;
-constexpr base::TimeDelta kDefaultMaxThrottlingDelay = base::Seconds(60);
+constexpr base::TimeDelta kDefaultMaxThrottlingDelay =
+    base::TimeDelta::FromSeconds(60);
 
-absl::optional<base::TimeDelta> GetMaxBudgetLevel() {
+base::Optional<base::TimeDelta> GetMaxBudgetLevel() {
   int max_budget_level_ms;
   if (!base::StringToInt(
           base::GetFieldTrialParamValue(kWorkerThrottlingTrial,
@@ -58,8 +57,8 @@ absl::optional<base::TimeDelta> GetMaxBudgetLevel() {
     return kDefaultMaxBudget;
   }
   if (max_budget_level_ms < 0)
-    return absl::nullopt;
-  return base::Milliseconds(max_budget_level_ms);
+    return base::nullopt;
+  return base::TimeDelta::FromMilliseconds(max_budget_level_ms);
 }
 
 double GetBudgetRecoveryRate() {
@@ -73,7 +72,7 @@ double GetBudgetRecoveryRate() {
   return recovery_rate;
 }
 
-absl::optional<base::TimeDelta> GetMaxThrottlingDelay() {
+base::Optional<base::TimeDelta> GetMaxThrottlingDelay() {
   int max_throttling_delay_ms;
   if (!base::StringToInt(
           base::GetFieldTrialParamValue(kWorkerThrottlingTrial,
@@ -82,15 +81,8 @@ absl::optional<base::TimeDelta> GetMaxThrottlingDelay() {
     return kDefaultMaxThrottlingDelay;
   }
   if (max_throttling_delay_ms < 0)
-    return absl::nullopt;
-  return base::Milliseconds(max_throttling_delay_ms);
-}
-
-std::unique_ptr<ukm::MojoUkmRecorder> CreateMojoUkmRecorder() {
-  mojo::PendingRemote<ukm::mojom::UkmRecorderInterface> recorder;
-  Platform::Current()->GetBrowserInterfaceBroker()->GetInterface(
-      recorder.InitWithNewPipeAndPassReceiver());
-  return std::make_unique<ukm::MojoUkmRecorder>(std::move(recorder));
+    return base::nullopt;
+  return base::TimeDelta::FromMilliseconds(max_throttling_delay_ms);
 }
 
 }  // namespace
@@ -99,29 +91,33 @@ WorkerThreadScheduler::WorkerThreadScheduler(
     ThreadType thread_type,
     base::sequence_manager::SequenceManager* sequence_manager,
     WorkerSchedulerProxy* proxy)
-    : NonMainThreadSchedulerBase(sequence_manager,
+    : NonMainThreadSchedulerImpl(sequence_manager,
                                  TaskType::kWorkerThreadTaskQueueDefault),
       thread_type_(thread_type),
-      idle_helper_queue_(GetHelper().NewTaskQueue(
-          TaskQueue::Spec(base::sequence_manager::QueueName::WORKER_IDLE_TQ))),
-      idle_helper_(&GetHelper(),
+      idle_helper_(helper(),
                    this,
                    "WorkerSchedulerIdlePeriod",
-                   base::Milliseconds(300),
-                   idle_helper_queue_->GetTaskQueue()),
+                   base::TimeDelta::FromMilliseconds(300),
+                   helper()->NewTaskQueue(TaskQueue::Spec("worker_idle_tq"))),
       lifecycle_state_(proxy ? proxy->lifecycle_state()
                              : SchedulingLifecycleState::kNotThrottled),
-      worker_metrics_helper_(thread_type,
-                             GetHelper().HasCPUTimingForEachTask()),
+      worker_metrics_helper_(thread_type, helper()->HasCPUTimingForEachTask()),
       initial_frame_status_(proxy ? proxy->initial_frame_status()
                                   : FrameStatus::kNone),
       ukm_source_id_(proxy ? proxy->ukm_source_id() : ukm::kInvalidSourceId) {
+  if (base::SequencedTaskRunnerHandle::IsSet()) {
+    mojo::PendingRemote<ukm::mojom::UkmRecorderInterface> recorder;
+    Platform::Current()->GetBrowserInterfaceBroker()->GetInterface(
+        recorder.InitWithNewPipeAndPassReceiver());
+    ukm_recorder_ = std::make_unique<ukm::MojoUkmRecorder>(std::move(recorder));
+  }
+
   if (proxy && proxy->parent_frame_type())
     worker_metrics_helper_.SetParentFrameType(*proxy->parent_frame_type());
 
   if (thread_type == ThreadType::kDedicatedWorkerThread &&
       base::FeatureList::IsEnabled(kDedicatedWorkerThrottling)) {
-    CreateBudgetPools();
+    CreateTaskQueueThrottler();
   }
 
   TRACE_EVENT_OBJECT_CREATED_WITH_ID(
@@ -132,7 +128,7 @@ WorkerThreadScheduler::~WorkerThreadScheduler() {
   TRACE_EVENT_OBJECT_DELETED_WITH_ID(
       TRACE_DISABLED_BY_DEFAULT("worker.scheduler"), "WorkerScheduler", this);
 
-  DCHECK(worker_schedulers_.empty());
+  DCHECK(worker_schedulers_.IsEmpty());
 }
 
 scoped_refptr<SingleThreadIdleTaskRunner>
@@ -148,14 +144,20 @@ WorkerThreadScheduler::V8TaskRunner() {
 }
 
 scoped_refptr<base::SingleThreadTaskRunner>
-WorkerThreadScheduler::CleanupTaskRunner() {
-  return DefaultTaskQueue()->GetTaskRunnerWithDefaultTaskType();
-}
-
-scoped_refptr<base::SingleThreadTaskRunner>
 WorkerThreadScheduler::CompositorTaskRunner() {
   DCHECK(initialized_);
   return compositor_task_runner_;
+}
+
+scoped_refptr<base::SingleThreadTaskRunner>
+WorkerThreadScheduler::NonWakingTaskRunner() {
+  NOTREACHED() << "Not implemented";
+  return nullptr;
+}
+
+bool WorkerThreadScheduler::CanExceedIdleDeadlineIfRequired() const {
+  DCHECK(initialized_);
+  return idle_helper_.CanExceedIdleDeadlineIfRequired();
 }
 
 bool WorkerThreadScheduler::ShouldYieldForHighPriorityWork() {
@@ -165,29 +167,29 @@ bool WorkerThreadScheduler::ShouldYieldForHighPriorityWork() {
 
 void WorkerThreadScheduler::AddTaskObserver(base::TaskObserver* task_observer) {
   DCHECK(initialized_);
-  GetHelper().AddTaskObserver(task_observer);
+  helper()->AddTaskObserver(task_observer);
 }
 
 void WorkerThreadScheduler::RemoveTaskObserver(
     base::TaskObserver* task_observer) {
   DCHECK(initialized_);
-  GetHelper().RemoveTaskObserver(task_observer);
+  helper()->RemoveTaskObserver(task_observer);
 }
 
 void WorkerThreadScheduler::Shutdown() {
   DCHECK(initialized_);
-  ThreadSchedulerBase::Shutdown();
+  task_queue_throttler_.reset();
   idle_helper_.Shutdown();
-  GetHelper().Shutdown();
+  helper()->Shutdown();
 }
 
 scoped_refptr<NonMainThreadTaskQueue>
 WorkerThreadScheduler::DefaultTaskQueue() {
   DCHECK(initialized_);
-  return GetHelper().DefaultNonMainThreadTaskQueue();
+  return helper()->DefaultNonMainThreadTaskQueue();
 }
 
-void WorkerThreadScheduler::Init() {
+void WorkerThreadScheduler::InitImpl() {
   initialized_ = true;
   idle_helper_.EnableLongIdlePeriod();
 
@@ -201,21 +203,22 @@ void WorkerThreadScheduler::OnTaskCompleted(
     NonMainThreadTaskQueue* task_queue,
     const base::sequence_manager::Task& task,
     TaskQueue::TaskTiming* task_timing,
-    base::LazyNow* lazy_now) {
+    base::sequence_manager::LazyNow* lazy_now) {
   PerformMicrotaskCheckpoint();
 
   task_timing->RecordTaskEnd(lazy_now);
-  DispatchOnTaskCompletionCallbacks();
   worker_metrics_helper_.RecordTaskMetrics(task, *task_timing);
 
-  if (task_queue != nullptr)
-    task_queue->OnTaskRunTimeReported(task_timing);
+  if (task_queue_throttler_) {
+    task_queue_throttler_->OnTaskRunTimeReported(
+        task_queue, task_timing->start_time(), task_timing->end_time());
+  }
 
   RecordTaskUkm(task_queue, task, *task_timing);
 }
 
 SchedulerHelper* WorkerThreadScheduler::GetSchedulerHelperForTesting() {
-  return &GetHelper();
+  return helper();
 }
 
 bool WorkerThreadScheduler::CanEnterLongIdlePeriod(base::TimeTicks,
@@ -252,18 +255,20 @@ void WorkerThreadScheduler::UnregisterWorkerScheduler(
 
 scoped_refptr<NonMainThreadTaskQueue>
 WorkerThreadScheduler::ControlTaskQueue() {
-  return GetHelper().ControlNonMainThreadTaskQueue();
+  return helper()->ControlNonMainThreadTaskQueue();
 }
 
-void WorkerThreadScheduler::CreateBudgetPools() {
-  if (wake_up_budget_pool_ && cpu_time_budget_pool_)
+void WorkerThreadScheduler::CreateTaskQueueThrottler() {
+  if (task_queue_throttler_)
     return;
-  base::TimeTicks now = GetTickClock()->NowTicks();
+  task_queue_throttler_ = std::make_unique<TaskQueueThrottler>(
+      this, &traceable_variable_controller_);
   wake_up_budget_pool_ =
-      std::make_unique<WakeUpBudgetPool>("worker_wake_up_pool");
-  cpu_time_budget_pool_ = std::make_unique<CPUTimeBudgetPool>(
-      "worker_cpu_time_pool", &traceable_variable_controller_, now);
+      task_queue_throttler_->CreateWakeUpBudgetPool("worker_wake_up_pool");
+  cpu_time_budget_pool_ =
+      task_queue_throttler_->CreateCPUTimeBudgetPool("worker_cpu_time_pool");
 
+  base::TimeTicks now = GetTickClock()->NowTicks();
   cpu_time_budget_pool_->SetMaxBudgetLevel(now, GetMaxBudgetLevel());
   cpu_time_budget_pool_->SetTimeBudgetRecoveryRate(now,
                                                    GetBudgetRecoveryRate());
@@ -274,12 +279,8 @@ void WorkerThreadScheduler::RecordTaskUkm(
     NonMainThreadTaskQueue* worker_task_queue,
     const base::sequence_manager::Task& task,
     const base::sequence_manager::TaskQueue::TaskTiming& task_timing) {
-  if (!GetHelper().ShouldRecordTaskUkm(task_timing.has_thread_time()))
+  if (!helper()->ShouldRecordTaskUkm(task_timing.has_thread_time()))
     return;
-
-  if (!ukm_recorder_)
-    ukm_recorder_ = CreateMojoUkmRecorder();
-
   ukm::builders::RendererSchedulerTask builder(ukm_source_id_);
 
   builder.SetVersion(kUkmMetricVersion);
@@ -303,12 +304,12 @@ void WorkerThreadScheduler::SetUkmRecorderForTest(
 }
 
 void WorkerThreadScheduler::SetUkmTaskSamplingRateForTest(double rate) {
-  GetHelper().SetUkmTaskSamplingRateForTest(rate);
+  helper()->SetUkmTaskSamplingRateForTest(rate);
 }
 
 void WorkerThreadScheduler::SetCPUTimeBudgetPoolForTesting(
-    std::unique_ptr<CPUTimeBudgetPool> cpu_time_budget_pool) {
-  cpu_time_budget_pool_ = std::move(cpu_time_budget_pool);
+    CPUTimeBudgetPool* cpu_time_budget_pool) {
+  cpu_time_budget_pool_ = cpu_time_budget_pool;
 }
 
 HashSet<WorkerScheduler*>&
@@ -319,31 +320,6 @@ WorkerThreadScheduler::GetWorkerSchedulersForTesting() {
 void WorkerThreadScheduler::PerformMicrotaskCheckpoint() {
   if (isolate())
     EventLoop::PerformIsolateGlobalMicrotasksCheckpoint(isolate());
-}
-
-void WorkerThreadScheduler::PostIdleTask(const base::Location& location,
-                                         Thread::IdleTask task) {
-  IdleTaskRunner()->PostIdleTask(location, std::move(task));
-}
-
-void WorkerThreadScheduler::PostNonNestableIdleTask(
-    const base::Location& location,
-    Thread::IdleTask task) {
-  IdleTaskRunner()->PostNonNestableIdleTask(location, std::move(task));
-}
-
-void WorkerThreadScheduler::PostDelayedIdleTask(const base::Location& location,
-                                                base::TimeDelta delay,
-                                                Thread::IdleTask task) {
-  IdleTaskRunner()->PostDelayedIdleTask(location, delay, std::move(task));
-}
-
-base::TimeTicks WorkerThreadScheduler::MonotonicallyIncreasingVirtualTime() {
-  return base::TimeTicks::Now();
-}
-
-void WorkerThreadScheduler::SetV8Isolate(v8::Isolate* isolate) {
-  NonMainThreadSchedulerBase::SetV8Isolate(isolate);
 }
 
 }  // namespace scheduler

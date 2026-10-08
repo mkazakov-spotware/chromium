@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <string>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "components/download/internal/background_service/download_driver.h"
@@ -35,10 +34,6 @@ class DownloadDriverImpl : public DownloadDriver,
   // Create the driver.
   DownloadDriverImpl(
       SimpleDownloadManagerCoordinator* download_manager_coordinator);
-
-  DownloadDriverImpl(const DownloadDriverImpl&) = delete;
-  DownloadDriverImpl& operator=(const DownloadDriverImpl&) = delete;
-
   ~DownloadDriverImpl() override;
 
   // DownloadDriver implementation.
@@ -54,7 +49,7 @@ class DownloadDriverImpl : public DownloadDriver,
   void Remove(const std::string& guid, bool remove_file) override;
   void Pause(const std::string& guid) override;
   void Resume(const std::string& guid) override;
-  absl::optional<DriverEntry> Find(const std::string& guid) override;
+  base::Optional<DriverEntry> Find(const std::string& guid) override;
   std::set<std::string> GetActiveDownloads() override;
   size_t EstimateMemoryUsage() const override;
 
@@ -79,14 +74,14 @@ class DownloadDriverImpl : public DownloadDriver,
   void DoRemoveDownload(const std::string& guid, bool remove_file);
 
   // The client that receives updates from low level download logic.
-  raw_ptr<DownloadDriver::Client> client_;
+  DownloadDriver::Client* client_;
 
   // Pending guid set of downloads that will be removed soon.
   std::set<std::string> guid_to_remove_;
 
   // Coordinator for handling the actual download when |download_manager_| is
   // no longer used.
-  raw_ptr<SimpleDownloadManagerCoordinator> download_manager_coordinator_;
+  SimpleDownloadManagerCoordinator* download_manager_coordinator_;
 
   // Whether this object is ready to handle download requests.
   bool is_ready_;
@@ -95,6 +90,8 @@ class DownloadDriverImpl : public DownloadDriver,
 
   // Only used to post tasks on the same thread.
   base::WeakPtrFactory<DownloadDriverImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadDriverImpl);
 };
 
 }  // namespace download

@@ -30,9 +30,11 @@
 #include "third_party/blink/renderer/modules/event_modules.h"
 #include "third_party/blink/renderer/modules/speech/speech_recognition_result.h"
 #include "third_party/blink/renderer/modules/speech/speech_recognition_result_list.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
+
+class Document;
 
 class SpeechRecognitionEvent final : public Event {
   DEFINE_WRAPPERTYPEINFO();
@@ -55,6 +57,11 @@ class SpeechRecognitionEvent final : public Event {
 
   uint32_t resultIndex() const { return result_index_; }
   SpeechRecognitionResultList* results() const { return results_; }
+
+  // These two methods are here to satisfy the specification which requires
+  // these attributes to exist.
+  Document* interpretation() { return nullptr; }
+  Document* emma() { return nullptr; }
 
   // Event
   const AtomicString& InterfaceName() const override;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <map>
 #include <memory>
-#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view.h"
 #include "chrome/browser/ui/views/payments/payment_request_sheet_controller.h"
 #include "chrome/browser/ui/views/payments/validation_delegate.h"
@@ -26,6 +26,7 @@ class ComboboxModel;
 }
 
 namespace views {
+class GridLayout;
 class Label;
 class Textfield;
 class View;
@@ -50,7 +51,7 @@ struct EditorField {
   };
 
   EditorField(autofill::ServerFieldType type,
-              std::u16string label,
+              base::string16 label,
               LengthHint length_hint,
               bool required,
               ControlType control_type = ControlType::TEXTFIELD)
@@ -63,7 +64,7 @@ struct EditorField {
   // Data type in the field.
   autofill::ServerFieldType type;
   // Label to be shown alongside the field.
-  std::u16string label;
+  base::string16 label;
   // Hint about the length of this field's contents.
   LengthHint length_hint;
   // Whether the field is required.
@@ -92,16 +93,12 @@ class EditorViewController : public PaymentRequestSheetController,
                        base::WeakPtr<PaymentRequestDialogView> dialog,
                        BackNavigationType back_navigation_type,
                        bool is_incognito);
-
-  EditorViewController(const EditorViewController&) = delete;
-  EditorViewController& operator=(const EditorViewController&) = delete;
-
   ~EditorViewController() override;
 
   // Will display |error_message| alongside the input field represented by
   // field |type|.
   void DisplayErrorMessageForField(autofill::ServerFieldType type,
-                                   const std::u16string& error_message);
+                                   const base::string16& error_message);
 
   const ComboboxMap& comboboxes() const { return comboboxes_; }
   const TextFieldsMap& text_fields() const { return text_fields_; }
@@ -124,7 +121,7 @@ class EditorViewController : public PaymentRequestSheetController,
       autofill::ServerFieldType type,
       views::View** focusable_field,
       bool* valid,
-      std::u16string* error_message);
+      base::string16* error_message);
   // Create an extra view to go to the right of the field with |type|, which
   // can either be a textfield, combobox, or custom view.
   virtual std::unique_ptr<views::View> CreateExtraViewForField(
@@ -133,7 +130,7 @@ class EditorViewController : public PaymentRequestSheetController,
   virtual bool IsEditingExistingItem() = 0;
   // Returns the field definitions used to build the UI.
   virtual std::vector<EditorField> GetFieldDefinitions() = 0;
-  virtual std::u16string GetInitialValueForType(
+  virtual base::string16 GetInitialValueForType(
       autofill::ServerFieldType type) = 0;
   // Validates the data entered and attempts to save; returns true on success.
   virtual bool ValidateModelAndSave() = 0;
@@ -149,8 +146,8 @@ class EditorViewController : public PaymentRequestSheetController,
   bool ValidateInputFields();
 
   // PaymentRequestSheetController:
-  std::u16string GetPrimaryButtonLabel() override;
-  ButtonCallback GetPrimaryButtonCallback() override;
+  base::string16 GetPrimaryButtonLabel() override;
+  views::Button::PressedCallback GetPrimaryButtonCallback() override;
   int GetPrimaryButtonId() override;
   bool GetPrimaryButtonEnabled() override;
   bool ShouldShowSecondaryButton() override;
@@ -174,26 +171,26 @@ class EditorViewController : public PaymentRequestSheetController,
   // appropriate.
   std::unique_ptr<ValidatingCombobox> CreateComboboxForField(
       const EditorField& field,
-      std::u16string* error_message);
+      base::string16* error_message);
 
   bool is_incognito() const { return is_incognito_; }
 
  private:
   // views::TextfieldController:
   void ContentsChanged(views::Textfield* sender,
-                       const std::u16string& new_contents) override;
+                       const base::string16& new_contents) override;
 
   // Creates the whole editor view to go within the editor dialog. It
   // encompasses all the input fields created by CreateInputField().
   std::unique_ptr<views::View> CreateEditorView();
 
-  // Adds some views to `editor_view`, to represent an input field and its
-  // labels. |field| is the field definition, which contains the label and the
-  // hint about the length of the input field. A placeholder error label is also
+  // Adds some views to |layout|, to represent an input field and its labels.
+  // |field| is the field definition, which contains the label and the hint
+  // about the length of the input field. A placeholder error label is also
   // added (see implementation). Returns the input view for this field that
   // could be used as the initial focused and set |valid| with false if the
   // initial value of the field is not valid.
-  views::View* CreateInputField(views::View* editor_view,
+  views::View* CreateInputField(views::GridLayout* layout,
                                 const EditorField& field,
                                 bool* valid);
 
@@ -202,7 +199,7 @@ class EditorViewController : public PaymentRequestSheetController,
   int ComputeWidestExtraViewWidth(EditorField::LengthHint size);
 
   void AddOrUpdateErrorMessageForField(autofill::ServerFieldType type,
-                                       const std::u16string& error_message);
+                                       const base::string16& error_message);
 
   void SaveButtonPressed();
 
@@ -216,12 +213,14 @@ class EditorViewController : public PaymentRequestSheetController,
   ErrorLabelMap error_labels_;
 
   // The input field view in the editor used to set the initial focus.
-  raw_ptr<views::View, DanglingUntriaged> initial_focus_field_view_;
+  views::View* initial_focus_field_view_;
 
   // Identifies where to go back when the editing completes successfully.
   BackNavigationType back_navigation_type_;
 
   bool is_incognito_;
+
+  DISALLOW_COPY_AND_ASSIGN(EditorViewController);
 };
 
 }  // namespace payments

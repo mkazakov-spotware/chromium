@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/public/web/web_associated_url_loader_options.h"
@@ -41,16 +42,12 @@ class MultiResolutionImageResourceFetcher {
   using StartCallback = base::OnceCallback<void(const WebURLResponse& response,
                                                 const std::string& data)>;
 
-  MultiResolutionImageResourceFetcher(const KURL& image_url,
-                                      LocalFrame* frame,
-                                      bool is_favicon,
-                                      mojom::blink::FetchCacheMode cache_mode,
-                                      Callback callback);
-
   MultiResolutionImageResourceFetcher(
-      const MultiResolutionImageResourceFetcher&) = delete;
-  MultiResolutionImageResourceFetcher& operator=(
-      const MultiResolutionImageResourceFetcher&) = delete;
+      const KURL& image_url,
+      LocalFrame* frame,
+      mojom::blink::RequestContextType request_context,
+      mojom::blink::FetchCacheMode cache_mode,
+      Callback callback);
 
   virtual ~MultiResolutionImageResourceFetcher();
 
@@ -84,7 +81,7 @@ class MultiResolutionImageResourceFetcher {
   // |fetch_credentials_mode| is the credentials mode to use. See
   // https://fetch.spec.whatwg.org/#concept-request-credentials-mode
   void Start(LocalFrame* frame,
-             bool is_favicon,
+             mojom::blink::RequestContextType request_context,
              network::mojom::RequestMode request_mode,
              network::mojom::CredentialsMode credentials_mode,
              StartCallback callback);
@@ -105,6 +102,8 @@ class MultiResolutionImageResourceFetcher {
 
   // Request to send.
   WebURLRequest request_;
+
+  DISALLOW_COPY_AND_ASSIGN(MultiResolutionImageResourceFetcher);
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <memory>
+#include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/win/scoped_gdi_object.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/size.h"
@@ -78,13 +80,12 @@ class GFX_EXPORT IconUtil {
   // The number of elements in kIconDimensions <= kMediumIconSize.
   static const size_t kNumIconDimensionsUpToMediumSize;
 
-  // Prevent clients from instantiating objects of that class.
-  IconUtil() = delete;
-  IconUtil(const IconUtil&) = delete;
-  IconUtil& operator=(const IconUtil&) = delete;
-
   // Given an SkBitmap object, the function converts the bitmap to a Windows
-  // icon and returns the corresponding HICON handle if conversion succeeds.
+  // icon and returns the corresponding HICON handle. If the function cannot
+  // convert the bitmap, NULL is returned.
+  //
+  // The client is responsible for destroying the icon when it is no longer
+  // needed by calling ::DestroyIcon().
   static base::win::ScopedHICON CreateHICONFromSkBitmap(const SkBitmap& bitmap);
 
   // Given a valid HICON handle representing an icon, this function converts
@@ -262,6 +263,10 @@ class GFX_EXPORT IconUtil {
   // A helper function of CreateSkBitmapFromHICON.
   static SkBitmap CreateSkBitmapFromHICONHelper(HICON icon,
                                                 const gfx::Size& s);
+
+  // Prevent clients from instantiating objects of that class by declaring the
+  // ctor/dtor as private.
+  DISALLOW_IMPLICIT_CONSTRUCTORS(IconUtil);
 };
 
 #endif  // UI_GFX_ICON_UTIL_H_

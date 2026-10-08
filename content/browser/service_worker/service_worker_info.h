@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,47 +14,43 @@
 #include "base/time/time.h"
 #include "content/browser/service_worker/service_worker_version.h"
 #include "content/common/content_export.h"
-#include "content/public/browser/service_worker_version_base_info.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_container_type.mojom.h"
 #include "url/gurl.h"
-
-namespace blink {
-class StorageKey;
-}  // namespace blink
+#include "url/origin.h"
 
 namespace content {
 
 class ServiceWorkerClientInfo;
 enum class EmbeddedWorkerStatus;
 
-struct CONTENT_EXPORT ServiceWorkerVersionInfo
-    : public ServiceWorkerVersionBaseInfo {
+struct CONTENT_EXPORT ServiceWorkerVersionInfo {
  public:
   ServiceWorkerVersionInfo();
   ServiceWorkerVersionInfo(
       EmbeddedWorkerStatus running_status,
       ServiceWorkerVersion::Status status,
-      absl::optional<ServiceWorkerVersion::FetchHandlerType> fetch_handler_type,
+      ServiceWorkerVersion::FetchHandlerExistence fetch_handler_existence,
       const GURL& script_url,
-      const GURL& scope,
-      const blink::StorageKey& storage_key,
+      const url::Origin& origin,
       int64_t registration_id,
       int64_t version_id,
       int process_id,
       int thread_id,
       int devtools_agent_route_id,
-      ukm::SourceId ukm_source_id,
-      blink::mojom::AncestorFrameType ancestor_frame_type);
+      ukm::SourceId ukm_source_id);
   ServiceWorkerVersionInfo(const ServiceWorkerVersionInfo& other);
-  ~ServiceWorkerVersionInfo() override;
+  ~ServiceWorkerVersionInfo();
 
   EmbeddedWorkerStatus running_status;
   ServiceWorkerVersion::Status status;
-  absl::optional<ServiceWorkerVersion::FetchHandlerType> fetch_handler_type;
+  ServiceWorkerVersion::FetchHandlerExistence fetch_handler_existence;
   blink::mojom::NavigationPreloadState navigation_preload_state;
   GURL script_url;
+  url::Origin origin;
+  int64_t registration_id;
+  int64_t version_id;
+  int process_id;
   int thread_id;
   int devtools_agent_route_id;
   ukm::SourceId ukm_source_id = ukm::kInvalidSourceId;
@@ -68,12 +64,10 @@ struct CONTENT_EXPORT ServiceWorkerRegistrationInfo {
   enum DeleteFlag { IS_NOT_DELETED, IS_DELETED };
   ServiceWorkerRegistrationInfo();
   ServiceWorkerRegistrationInfo(const GURL& scope,
-                                const blink::StorageKey& key,
                                 int64_t registration_id,
                                 DeleteFlag delete_flag);
   ServiceWorkerRegistrationInfo(
       const GURL& scope,
-      const blink::StorageKey& key,
       blink::mojom::ServiceWorkerUpdateViaCache update_via_cache,
       int64_t registration_id,
       DeleteFlag delete_flag,
@@ -87,7 +81,6 @@ struct CONTENT_EXPORT ServiceWorkerRegistrationInfo {
   ~ServiceWorkerRegistrationInfo();
 
   GURL scope;
-  blink::StorageKey key;
   blink::mojom::ServiceWorkerUpdateViaCache update_via_cache;
   int64_t registration_id;
   DeleteFlag delete_flag;

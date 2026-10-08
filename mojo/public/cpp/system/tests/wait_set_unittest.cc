@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,16 +42,14 @@ class ThreadedRunner : public base::SimpleThread {
  public:
   explicit ThreadedRunner(base::OnceClosure callback)
       : SimpleThread("ThreadedRunner"), callback_(std::move(callback)) {}
-
-  ThreadedRunner(const ThreadedRunner&) = delete;
-  ThreadedRunner& operator=(const ThreadedRunner&) = delete;
-
   ~ThreadedRunner() override { Join(); }
 
   void Run() override { std::move(callback_).Run(); }
 
  private:
   base::OnceClosure callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ThreadedRunner);
 };
 
 TEST_F(WaitSetTest, Satisfied) {
@@ -167,7 +165,7 @@ TEST_F(WaitSetTest, CloseWhileWaiting) {
   ThreadedRunner close_after_delay(base::BindOnce(
       [](ScopedMessagePipeHandle* handle) {
         // Wait a little while, then close the handle.
-        base::PlatformThread::Sleep(base::Milliseconds(200));
+        base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(200));
         handle->reset();
       },
       &p.handle0));
@@ -244,7 +242,7 @@ TEST_F(WaitSetTest, SatisfiedThenUnsatisfied) {
   ThreadedRunner write_after_delay(base::BindOnce(
       [](ScopedMessagePipeHandle* handle) {
         // Wait a little while, then write a message.
-        base::PlatformThread::Sleep(base::Milliseconds(200));
+        base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(200));
         WriteMessage(*handle, "wakey wakey");
       },
       &p.handle1));
@@ -300,7 +298,7 @@ TEST_F(WaitSetTest, EventAndHandle) {
   ThreadedRunner signal_after_delay(base::BindOnce(
       [](base::WaitableEvent* event) {
         // Wait a little while, then close the handle.
-        base::PlatformThread::Sleep(base::Milliseconds(200));
+        base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(200));
         event->Signal();
       },
       &event));

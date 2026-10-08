@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "media/base/media_export.h"
 
 namespace media {
@@ -38,10 +39,6 @@ class MEDIA_EXPORT MediaDrmBridgeClient {
   typedef std::unordered_map<std::string, UUID> KeySystemUuidMap;
 
   MediaDrmBridgeClient();
-
-  MediaDrmBridgeClient(const MediaDrmBridgeClient&) = delete;
-  MediaDrmBridgeClient& operator=(const MediaDrmBridgeClient&) = delete;
-
   virtual ~MediaDrmBridgeClient();
 
   // Adds extra mappings from key-system name to Android UUID into |map|.
@@ -54,6 +51,8 @@ class MEDIA_EXPORT MediaDrmBridgeClient {
 
  private:
   friend class KeySystemManager;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaDrmBridgeClient);
 };
 
 }  // namespace media

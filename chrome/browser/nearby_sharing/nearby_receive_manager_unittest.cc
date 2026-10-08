@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/nearby_sharing/nearby_receive_manager.h"
 
+#include "base/optional.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
 #include "chrome/browser/nearby_sharing/mock_nearby_sharing_service.h"
@@ -13,7 +14,6 @@
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -30,19 +30,9 @@ class FakeReceiveObserver : public nearby_share::mojom::ReceiveObserver {
     last_metadata_ = *metadata;
   }
 
-  void OnNearbyProcessStopped() override {
-    on_nearby_process_stopped_called_ = true;
-  }
-
-  void OnStartAdvertisingFailure() override {
-    on_start_advertising_failure_called_ = true;
-  }
-
-  absl::optional<nearby_share::mojom::TransferMetadata> last_metadata_;
-  absl::optional<bool> in_high_visibility_;
+  base::Optional<nearby_share::mojom::TransferMetadata> last_metadata_;
+  base::Optional<bool> in_high_visibility_;
   ShareTarget last_share_target_;
-  bool on_nearby_process_stopped_called_ = false;
-  bool on_start_advertising_failure_called_ = false;
   mojo::Receiver<nearby_share::mojom::ReceiveObserver> receiver_{this};
 };
 
@@ -50,8 +40,6 @@ class NearbyReceiveManagerTest : public testing::Test {
  public:
   using ReceiveSurfaceState = NearbySharingService::ReceiveSurfaceState;
   using StatusCodes = NearbySharingService::StatusCodes;
-  using RegisterReceiveSurfaceResult =
-      nearby_share::mojom::RegisterReceiveSurfaceResult;
 
   NearbyReceiveManagerTest()
       : transfer_metadata_(TransferMetadata::Status::kAwaitingLocalConfirmation,
@@ -122,9 +110,9 @@ class NearbyReceiveManagerTest : public testing::Test {
 
 TEST_F(NearbyReceiveManagerTest, Enter_Exit_Success) {
   ExpectRegister();
-  RegisterReceiveSurfaceResult result = RegisterReceiveSurfaceResult::kFailure;
-  receive_manager_waiter_.RegisterForegroundReceiveSurface(&result);
-  EXPECT_EQ(RegisterReceiveSurfaceResult::kSuccess, result);
+  bool success = false;
+  receive_manager_waiter_.RegisterForegroundReceiveSurface(&success);
+  EXPECT_TRUE(success);
 
   ExpectUnregister();
   bool exited = false;
@@ -135,39 +123,39 @@ TEST_F(NearbyReceiveManagerTest, Enter_Exit_Success) {
 }
 
 TEST_F(NearbyReceiveManagerTest, Enter_Failed) {
-  RegisterReceiveSurfaceResult result = RegisterReceiveSurfaceResult::kSuccess;
+  bool success = true;
   ExpectRegister(StatusCodes::kError);
-  receive_manager_waiter_.RegisterForegroundReceiveSurface(&result);
-  EXPECT_EQ(RegisterReceiveSurfaceResult::kFailure, result);
+  receive_manager_waiter_.RegisterForegroundReceiveSurface(&success);
+  EXPECT_FALSE(success);
   ExpectUnregister();
 }
 
 TEST_F(NearbyReceiveManagerTest, Multiple_Enter_Successful) {
-  RegisterReceiveSurfaceResult result = RegisterReceiveSurfaceResult::kFailure;
+  bool success = false;
   ExpectRegister(StatusCodes::kOk);
-  receive_manager_waiter_.RegisterForegroundReceiveSurface(&result);
+  receive_manager_waiter_.RegisterForegroundReceiveSurface(&success);
   FlushMojoMessages();
-  EXPECT_EQ(RegisterReceiveSurfaceResult::kSuccess, result);
+  EXPECT_TRUE(success);
 
-  result = RegisterReceiveSurfaceResult::kFailure;
+  success = false;
   ExpectRegister(StatusCodes::kOk);
-  receive_manager_waiter_.RegisterForegroundReceiveSurface(&result);
+  receive_manager_waiter_.RegisterForegroundReceiveSurface(&success);
   FlushMojoMessages();
-  EXPECT_EQ(RegisterReceiveSurfaceResult::kSuccess, result);
+  EXPECT_TRUE(success);
 
   ExpectUnregister();
 }
 
 TEST_F(NearbyReceiveManagerTest, Exit_Failed) {
-  RegisterReceiveSurfaceResult result = RegisterReceiveSurfaceResult::kFailure;
+  bool success = false;
   ExpectRegister();
-  receive_manager_waiter_.RegisterForegroundReceiveSurface(&result);
-  EXPECT_EQ(RegisterReceiveSurfaceResult::kSuccess, result);
+  receive_manager_waiter_.RegisterForegroundReceiveSurface(&success);
+  EXPECT_TRUE(success);
 
   ExpectUnregister(StatusCodes::kError);
-  bool exited = false;
-  receive_manager_waiter_.UnregisterForegroundReceiveSurface(&exited);
-  EXPECT_FALSE(exited);
+  success = false;
+  receive_manager_waiter_.UnregisterForegroundReceiveSurface(&success);
+  EXPECT_FALSE(success);
 
   ExpectUnregister();
 }
@@ -213,7 +201,7 @@ TEST_F(NearbyReceiveManagerTest,
   // Simulate the sender canceling before we accept the share target and causing
   // the accept to fail before hitting the service.
   TransferMetadata transfer_metadata_final(TransferMetadata::Status::kCancelled,
-                                           1.f, absl::nullopt, true, true);
+                                           1.f, base::nullopt, true, true);
   receive_manager_.OnTransferUpdate(share_target_, transfer_metadata_final);
   FlushMojoMessages();
 
@@ -235,7 +223,7 @@ TEST_F(NearbyReceiveManagerTest,
   // Simulate the sender canceling before we reject the share target and causing
   // the reject to fail before hitting the service.
   TransferMetadata transfer_metadata_final(TransferMetadata::Status::kCancelled,
-                                           1.f, absl::nullopt, true, true);
+                                           1.f, base::nullopt, true, true);
   receive_manager_.OnTransferUpdate(share_target_, transfer_metadata_final);
   FlushMojoMessages();
 
@@ -268,21 +256,12 @@ TEST_F(NearbyReceiveManagerTest, OnHighVisibilityChangedObserver) {
   ASSERT_TRUE(observer_.in_high_visibility_.has_value());
   EXPECT_FALSE(*observer_.in_high_visibility_);
 
-  observer_.in_high_visibility_ = absl::nullopt;
+  observer_.in_high_visibility_ = base::nullopt;
 
   receive_manager_.OnHighVisibilityChanged(true);
   FlushMojoMessages();
   ASSERT_TRUE(observer_.in_high_visibility_.has_value());
   EXPECT_TRUE(*observer_.in_high_visibility_);
-
-  ExpectUnregister();
-}
-
-TEST_F(NearbyReceiveManagerTest, OnStartAdvertisingFailureObserver) {
-  EXPECT_FALSE(observer_.on_start_advertising_failure_called_);
-  receive_manager_.OnStartAdvertisingFailure();
-  FlushMojoMessages();
-  EXPECT_TRUE(observer_.on_start_advertising_failure_called_);
 
   ExpectUnregister();
 }

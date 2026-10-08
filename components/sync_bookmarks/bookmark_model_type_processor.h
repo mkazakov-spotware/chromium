@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 
 #include "base/callback.h"
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "components/sync/engine/model_type_processor.h"
@@ -38,11 +38,6 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
   // |bookmark_undo_service| must not be nullptr and must outlive this object.
   explicit BookmarkModelTypeProcessor(
       BookmarkUndoService* bookmark_undo_service);
-
-  BookmarkModelTypeProcessor(const BookmarkModelTypeProcessor&) = delete;
-  BookmarkModelTypeProcessor& operator=(const BookmarkModelTypeProcessor&) =
-      delete;
-
   ~BookmarkModelTypeProcessor() override;
 
   // ModelTypeProcessor implementation.
@@ -55,12 +50,7 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
       const syncer::CommitResponseDataList& committed_response_list,
       const syncer::FailedCommitResponseDataList& error_response_list) override;
   void OnUpdateReceived(const sync_pb::ModelTypeState& type_state,
-                        syncer::UpdateResponseDataList updates,
-                        absl::optional<sync_pb::GarbageCollectionDirective>
-                            gc_directive) override;
-  void StorePendingInvalidations(
-      std::vector<sync_pb::ModelTypeState::Invalidation> invalidations_to_store)
-      override;
+                        syncer::UpdateResponseDataList updates) override;
 
   // ModelTypeControllerDelegate implementation.
   void OnSyncStarting(const syncer::DataTypeActivationRequest& request,
@@ -98,9 +88,6 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
   const SyncedBookmarkTracker* GetTrackerForTest() const;
   bool IsConnectedForTest() const;
 
-  // Reset max bookmarks till which sync is enabled.
-  void SetMaxBookmarksTillSyncEnabledForTest(size_t limit);
-
   base::WeakPtr<syncer::ModelTypeControllerDelegate> GetWeakPtr();
 
  private:
@@ -123,14 +110,9 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
                                syncer::UpdateResponseDataList updates);
 
   // Instantiates the required objects to track metadata and starts observing
-  // changes from the bookmark model. Note that this does not include tracking
-  // of metadata fields managed by the processor but only those tracked by the
-  // bookmark tracker.
+  // changes from the bookmark model.
   void StartTrackingMetadata();
   void StopTrackingMetadata();
-
-  // Resets bookmark tracker in addition to stopping metadata tracking.
-  void StopTrackingMetadataAndResetTracker();
 
   // Creates a DictionaryValue for local and remote debugging information about
   // |node| and appends it to |all_nodes|. It does the same for child nodes
@@ -139,7 +121,7 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
   // since we iterate over child nodes already in the calling sites.
   void AppendNodeAndChildrenForDebugging(const bookmarks::BookmarkNode* node,
                                          int index,
-                                         base::Value::List* all_nodes) const;
+                                         base::ListValue* all_nodes) const;
 
   // Stores the start callback in between OnSyncStarting() and
   // ModelReadyToSync().
@@ -148,17 +130,15 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
   // The bookmark model we are processing local changes from and forwarding
   // remote changes to. It is set during ModelReadyToSync(), which is called
   // during startup, as part of the bookmark-loading process.
-  raw_ptr<bookmarks::BookmarkModel, DanglingUntriaged> bookmark_model_ =
-      nullptr;
+  bookmarks::BookmarkModel* bookmark_model_ = nullptr;
 
   // Used to when processing remote updates to apply favicon information. It's
   // not set at start up because it's only avialable after the bookmark model
   // has been loaded.
-  raw_ptr<favicon::FaviconService, DanglingUntriaged> favicon_service_ =
-      nullptr;
+  favicon::FaviconService* favicon_service_ = nullptr;
 
   // Used to suspend bookmark undo when processing remote changes.
-  const raw_ptr<BookmarkUndoService, DanglingUntriaged> bookmark_undo_service_;
+  BookmarkUndoService* const bookmark_undo_service_;
 
   // The callback used to schedule the persistence of bookmark model as well as
   // the metadata to a file during which latest metadata should also be pulled
@@ -181,14 +161,6 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
   // bookmark-loading process.
   std::unique_ptr<SyncedBookmarkTracker> bookmark_tracker_;
 
-  // Maintains whether the count of remote updates downloaded on the latest
-  // initial merge exceeded the limit. Note that this is set only when limit is
-  // active, i.e. the feature is enabled. Also note that this would only be
-  // relevant where bookmark_tracker is null, since this can be set only in an
-  // error case and in an error case, we clear the tracker(or it remains
-  // uninitialized).
-  bool last_initial_merge_remote_updates_exceeded_limit_ = false;
-
   // GUID string that identifies the sync client and is received from the sync
   // engine.
   std::string cache_guid_;
@@ -197,9 +169,6 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
 
   std::unique_ptr<BookmarkModelObserverImpl> bookmark_model_observer_;
 
-  // This member variable exists only to allow tests to override the limit.
-  size_t max_bookmarks_till_sync_enabled_;
-
   // WeakPtrFactory for this processor for ModelTypeController.
   base::WeakPtrFactory<BookmarkModelTypeProcessor>
       weak_ptr_factory_for_controller_{this};
@@ -207,6 +176,8 @@ class BookmarkModelTypeProcessor : public syncer::ModelTypeProcessor,
   // WeakPtrFactory for this processor which will be sent to sync thread.
   base::WeakPtrFactory<BookmarkModelTypeProcessor> weak_ptr_factory_for_worker_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(BookmarkModelTypeProcessor);
 };
 
 }  // namespace sync_bookmarks

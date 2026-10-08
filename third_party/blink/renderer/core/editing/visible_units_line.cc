@@ -24,7 +24,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,13 +46,18 @@ namespace {
 
 struct VisualOrdering;
 
+// See also InlineBidiResolver::NeedsTrailingSpace()
+bool NeedsTrailingSpace(const ComputedStyle& style) {
+  return style.BreakOnlyAfterWhiteSpace() && style.AutoWrap();
+}
+
 static PositionWithAffinity AdjustForSoftLineWrap(
     const NGInlineCursorPosition& line_box,
     const PositionWithAffinity& position) {
   DCHECK(line_box.IsLineBox());
   if (position.IsNull())
     return PositionWithAffinity();
-  if (!line_box.Style().NeedsTrailingSpace() ||
+  if (!NeedsTrailingSpace(line_box.Style()) ||
       !line_box.HasSoftWrapToNextLine())
     return position;
   // Returns a position after first space causing soft line wrap for editable.
@@ -71,6 +76,7 @@ static PositionWithAffinity AdjustForSoftLineWrap(
   const Position adjusted_position = mapping->GetFirstPosition(*offset + 1);
   if (adjusted_position.IsNull())
     return position;
+  DCHECK(IsA<Text>(adjusted_position.AnchorNode())) << adjusted_position;
   if (!IsA<Text>(adjusted_position.AnchorNode()))
     return position;
   if (!adjusted_position.AnchorNode()
@@ -78,8 +84,6 @@ static PositionWithAffinity AdjustForSoftLineWrap(
            ->StyleRef()
            .IsCollapsibleWhiteSpace(mapping->GetText()[*offset]))
     return position;
-  // See |TryResolveCaretPositionInTextFragment()| to locate upstream position
-  // of caret after soft line wrap space.
   return PositionWithAffinity(adjusted_position,
                               TextAffinity::kUpstreamIfPossible);
 }
@@ -287,11 +291,8 @@ struct VisualOrdering {
     const PositionWithAffinityTemplate<Strategy> candidate_position =
         PositionWithAffinityTemplate<Strategy>(
             candidate, TextAffinity::kUpstreamIfPossible);
-    if (InSameLine(current_position, candidate_position)) {
-      return PositionWithAffinityTemplate<Strategy>(
-          CreateVisiblePosition(candidate).DeepEquivalent(),
-          TextAffinity::kUpstreamIfPossible);
-    }
+    if (InSameLine(current_position, candidate_position))
+      return candidate_position;
     const PositionWithAffinityTemplate<Strategy>& adjusted_position =
         PreviousPositionOf(CreateVisiblePosition(current_position))
             .ToPositionWithAffinity();
@@ -400,6 +401,20 @@ PositionWithAffinity EndOfLine(const PositionWithAffinity& position) {
 PositionInFlatTreeWithAffinity EndOfLine(
     const PositionInFlatTreeWithAffinity& position) {
   return EndOfLineAlgorithm<EditingInFlatTreeStrategy>(position);
+}
+
+// TODO(yosin) Rename this function to reflect the fact it ignores bidi levels.
+VisiblePosition EndOfLine(const VisiblePosition& current_position) {
+  DCHECK(current_position.IsValid()) << current_position;
+  return CreateVisiblePosition(
+      EndOfLine(current_position.ToPositionWithAffinity()));
+}
+
+VisiblePositionInFlatTree EndOfLine(
+    const VisiblePositionInFlatTree& current_position) {
+  DCHECK(current_position.IsValid()) << current_position;
+  return CreateVisiblePosition(
+      EndOfLine(current_position.ToPositionWithAffinity()));
 }
 
 template <typename Strategy>
@@ -535,14 +550,9 @@ bool IsStartOfLine(const VisiblePositionInFlatTree& p) {
 }
 
 template <typename Strategy>
-static bool IsEndOfLineAlgorithm(
-    const VisiblePositionTemplate<Strategy>& visible_position) {
-  DCHECK(visible_position.IsValid()) << visible_position;
-  if (visible_position.IsNull())
-    return false;
-  const auto& end_of_line =
-      EndOfLine(visible_position.ToPositionWithAffinity());
-  return visible_position.DeepEquivalent() == end_of_line.GetPosition();
+static bool IsEndOfLineAlgorithm(const VisiblePositionTemplate<Strategy>& p) {
+  DCHECK(p.IsValid()) << p;
+  return p.IsNotNull() && p.DeepEquivalent() == EndOfLine(p).DeepEquivalent();
 }
 
 bool IsEndOfLine(const VisiblePosition& p) {

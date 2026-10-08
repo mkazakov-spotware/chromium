@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ ValidationRulesStorageFactory::ValidationRulesStorageFactory() {
 
   json_pref_store_ = new JsonPrefStore(
       user_data_dir.Append(FILE_PATH_LITERAL("Address Validation Rules")));
-  json_pref_store_->ReadPrefsAsync(nullptr);
+  json_pref_store_->ReadPrefsAsync(NULL);
 }
 
 ValidationRulesStorageFactory::~ValidationRulesStorageFactory() {}

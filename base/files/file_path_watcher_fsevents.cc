@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <dispatch/dispatch.h>
 
-#include <algorithm>
 #include <list>
 
 #include "base/bind.h"
@@ -14,6 +13,7 @@
 #include "base/files/file_util.h"
 #include "base/lazy_instance.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/sequenced_task_runner_handle.h"
@@ -29,7 +29,8 @@ const CFAbsoluteTime kEventLatencySeconds = 0.3;
 FilePath ResolvePath(const FilePath& path) {
   const unsigned kMaxLinksToResolve = 255;
 
-  std::vector<FilePath::StringType> component_vector = path.GetComponents();
+  std::vector<FilePath::StringType> component_vector;
+  path.GetComponents(&component_vector);
   std::list<FilePath::StringType>
       components(component_vector.begin(), component_vector.end());
 
@@ -50,8 +51,8 @@ FilePath ResolvePath(const FilePath& path) {
     if (ReadSymbolicLink(current, &target)) {
       if (target.IsAbsolute())
         result.clear();
-      std::vector<FilePath::StringType> target_components =
-          target.GetComponents();
+      std::vector<FilePath::StringType> target_components;
+      target.GetComponents(&target_components);
       components.insert(components.begin(), target_components.begin(),
                         target_components.end());
       resolve_count++;
@@ -71,7 +72,9 @@ FilePathWatcherFSEvents::FilePathWatcherFSEvents()
     : queue_(dispatch_queue_create(
           base::StringPrintf("org.chromium.base.FilePathWatcher.%p", this)
               .c_str(),
-          DISPATCH_QUEUE_SERIAL)) {}
+          DISPATCH_QUEUE_SERIAL)),
+      fsevent_stream_(nullptr),
+      weak_factory_(this) {}
 
 FilePathWatcherFSEvents::~FilePathWatcherFSEvents() {
   DCHECK(!task_runner() || task_runner()->RunsTasksInCurrentSequence());
@@ -221,7 +224,7 @@ void FilePathWatcherFSEvents::UpdateEventStream(
   CFStringRef paths_array[] = { cf_path.get(), cf_dir_path.get() };
   ScopedCFTypeRef<CFArrayRef> watched_paths(
       CFArrayCreate(NULL, reinterpret_cast<const void**>(paths_array),
-                    std::size(paths_array), &kCFTypeArrayCallBacks));
+                    base::size(paths_array), &kCFTypeArrayCallBacks));
 
   FSEventStreamContext context;
   context.version = 0;

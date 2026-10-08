@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <queue>
 
+#include "base/macros.h"
 #include "chromecast/base/statistics/weighted_mean.h"
 
 namespace chromecast {
@@ -30,12 +31,6 @@ class WeightedMovingLinearRegression {
   };
 
   explicit WeightedMovingLinearRegression(int64_t max_x_range);
-
-  WeightedMovingLinearRegression(const WeightedMovingLinearRegression&) =
-      delete;
-  WeightedMovingLinearRegression& operator=(
-      const WeightedMovingLinearRegression&) = delete;
-
   ~WeightedMovingLinearRegression();
 
   // Returns the current number of samples that are in the regression.
@@ -64,12 +59,6 @@ class WeightedMovingLinearRegression {
   // useful for debugging.
   const std::deque<Sample>& samples() { return samples_; }
 
-  // Reserves space for |count| samples, to reduce memory allocation during use.
-  void Reserve(int count);
-
-  // Resets to initial state.
-  void Reset();
-
  private:
   // Adds (x, y) to the set if |weight| is positive; removes (x, y) from the
   // set if |weight| is negative.
@@ -78,14 +67,16 @@ class WeightedMovingLinearRegression {
   const int64_t max_x_range_;
   WeightedMean x_mean_;
   WeightedMean y_mean_;
-  double covariance_ = 0.0;
+  double covariance_;
   std::deque<Sample> samples_;
 
-  double slope_ = 0.0;
-  double slope_variance_ = 0.0;
-  double intercept_variance_ = 0.0;
+  double slope_;
+  double slope_variance_;
+  double intercept_variance_;
 
-  bool has_estimate_ = false;
+  bool has_estimate_;
+
+  DISALLOW_COPY_AND_ASSIGN(WeightedMovingLinearRegression);
 };
 
 }  // namespace chromecast

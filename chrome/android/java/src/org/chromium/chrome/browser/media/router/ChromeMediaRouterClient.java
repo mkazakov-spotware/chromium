@@ -1,23 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.media.router;
 
-import android.content.Context;
 import android.content.Intent;
 
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 
 import org.chromium.base.ApplicationStatus;
-import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.DeferredStartupHandler;
-import org.chromium.chrome.browser.IntentHandler;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.document.ChromeIntentUtil;
 import org.chromium.chrome.browser.media.ui.ChromeMediaNotificationManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabUtils;
@@ -31,11 +27,6 @@ public class ChromeMediaRouterClient extends MediaRouterClient {
     private ChromeMediaRouterClient() {}
 
     @Override
-    public Context getContextForRemoting() {
-        return ContextUtils.getApplicationContext();
-    }
-
-    @Override
     public int getTabId(WebContents webContents) {
         Tab tab = TabUtils.fromWebContents(webContents);
         return tab == null ? -1 : tab.getId();
@@ -43,8 +34,7 @@ public class ChromeMediaRouterClient extends MediaRouterClient {
 
     @Override
     public Intent createBringTabToFrontIntent(int tabId) {
-        return IntentHandler.createTrustedBringTabToFrontIntent(
-                tabId, IntentHandler.BringToFrontSource.NOTIFICATION);
+        return ChromeIntentUtil.createBringTabToFrontIntent(tabId);
     }
 
     @Override
@@ -67,17 +57,6 @@ public class ChromeMediaRouterClient extends MediaRouterClient {
         FragmentActivity currentActivity =
                 (FragmentActivity) ApplicationStatus.getLastTrackedFocusedActivity();
         return currentActivity == null ? null : currentActivity.getSupportFragmentManager();
-    }
-
-    @Override
-    public void addDeferredTask(Runnable deferredTask) {
-        DeferredStartupHandler.getInstance().addDeferredTask(deferredTask);
-        DeferredStartupHandler.getInstance().queueDeferredTasksOnIdleHandler();
-    }
-
-    @Override
-    public boolean isCafMrpDeferredDiscoveryEnabled() {
-        return ChromeFeatureList.isEnabled(ChromeFeatureList.CAF_MRP_DEFERRED_DISCOVERY);
     }
 
     @CalledByNative

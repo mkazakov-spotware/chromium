@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,27 +8,92 @@
 #include <atomic>
 #include <type_traits>
 
-#include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/immediate_crash.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread.h"
-#include "base/allocator/partition_allocator/partition_alloc_check.h"
-#include "base/allocator/partition_allocator/pkey.h"
+#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/spinning_mutex.h"
+#include "base/thread_annotations.h"
+#include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 
-namespace partition_alloc::internal {
+namespace base {
+namespace internal {
 
-class PA_LOCKABLE Lock {
+template <bool thread_safe>
+class LOCKABLE MaybeSpinLock {
  public:
-  inline constexpr Lock();
-  void Acquire() PA_EXCLUSIVE_LOCK_FUNCTION() {
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-#if BUILDFLAG(ENABLE_PKEYS)
-    LiftPkeyRestrictionsScope lift_pkey_restrictions;
-#endif
+  void Lock() EXCLUSIVE_LOCK_FUNCTION() {}
+  void Unlock() UNLOCK_FUNCTION() {}
+  void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK() {}
+};
 
+template <bool thread_safe>
+class SCOPED_LOCKABLE ScopedGuard {
+ public:
+  explicit ScopedGuard(MaybeSpinLock<thread_safe>& lock)
+      EXCLUSIVE_LOCK_FUNCTION(lock)
+      : lock_(lock) {
+    lock_.Lock();
+  }
+  ~ScopedGuard() UNLOCK_FUNCTION() { lock_.Unlock(); }
+
+ private:
+  MaybeSpinLock<thread_safe>& lock_;
+};
+
+template <bool thread_safe>
+class SCOPED_LOCKABLE ScopedUnlockGuard {
+ public:
+  explicit ScopedUnlockGuard(MaybeSpinLock<thread_safe>& lock)
+      UNLOCK_FUNCTION(lock)
+      : lock_(lock) {
+    lock_.Unlock();
+  }
+  ~ScopedUnlockGuard() EXCLUSIVE_LOCK_FUNCTION() { lock_.Lock(); }
+
+ private:
+  MaybeSpinLock<thread_safe>& lock_;
+};
+
+#if !defined(PA_HAS_SPINNING_MUTEX)
+// Spinlock. Do not use, to be removed. crbug.com/1061437.
+class LOCKABLE BASE_EXPORT SpinLock {
+ public:
+  constexpr SpinLock() = default;
+  ~SpinLock() = default;
+
+  ALWAYS_INLINE void Acquire() EXCLUSIVE_LOCK_FUNCTION() {
+    if (LIKELY(!lock_.exchange(true, std::memory_order_acquire)))
+      return;
+    AcquireSlow();
+  }
+
+  ALWAYS_INLINE bool Try() EXCLUSIVE_TRYLOCK_FUNCTION(true) {
+    // Faster than simple CAS.
+    return !lock_.load(std::memory_order_relaxed) &&
+           !lock_.exchange(true, std::memory_order_acquire);
+  }
+
+  ALWAYS_INLINE void Release() UNLOCK_FUNCTION() {
+    lock_.store(false, std::memory_order_release);
+  }
+
+  // Not supported.
+  void AssertAcquired() const {}
+
+ private:
+  // This is called if the initial attempt to acquire the lock fails. It's
+  // slower, but has a much better scheduling and power consumption behavior.
+  void AcquireSlow();
+
+  std::atomic_int lock_{0};
+};
+#endif  // !defined(PA_HAS_SPINNING_MUTEX)
+
+template <>
+class LOCKABLE MaybeSpinLock<true> {
+ public:
+  constexpr MaybeSpinLock() : lock_() {}
+  void Lock() EXCLUSIVE_LOCK_FUNCTION() {
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && DCHECK_IS_ON()
     // When PartitionAlloc is malloc(), it can easily become reentrant. For
     // instance, a DCHECK() triggers in external code (such as
     // base::Lock). DCHECK() error message formatting allocates, which triggers
@@ -36,7 +101,7 @@ class PA_LOCKABLE Lock {
     // recursion.
     //
     // To avoid that, crash quickly when the code becomes reentrant.
-    base::PlatformThreadRef current_thread = base::PlatformThread::CurrentRef();
+    PlatformThreadRef current_thread = PlatformThread::CurrentRef();
     if (!lock_.Try()) {
       // The lock wasn't free when we tried to acquire it. This can be because
       // another thread or *this* thread was holding it.
@@ -50,97 +115,63 @@ class PA_LOCKABLE Lock {
       // Note that we don't rely on a DCHECK() in base::Lock(), as it would
       // itself allocate. Meaning that without this code, a reentrancy issue
       // hangs on Linux.
-      if (PA_UNLIKELY(owning_thread_ref_.load(std::memory_order_acquire) ==
-                      current_thread)) {
+      if (UNLIKELY(TS_UNCHECKED_READ(owning_thread_ref_) == current_thread)) {
         // Trying to acquire lock while it's held by this thread: reentrancy
         // issue.
-        PA_IMMEDIATE_CRASH();
+        IMMEDIATE_CRASH();
       }
       lock_.Acquire();
     }
-    owning_thread_ref_.store(current_thread, std::memory_order_release);
+    owning_thread_ref_ = current_thread;
 #else
     lock_.Acquire();
 #endif
   }
 
-  void Release() PA_UNLOCK_FUNCTION() {
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-    owning_thread_ref_.store(base::PlatformThreadRef(),
-                             std::memory_order_release);
+  void Unlock() UNLOCK_FUNCTION() {
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && DCHECK_IS_ON()
+    owning_thread_ref_ = PlatformThreadRef();
 #endif
     lock_.Release();
   }
-  void AssertAcquired() const PA_ASSERT_EXCLUSIVE_LOCK() {
+  void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK() {
     lock_.AssertAcquired();
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-#if BUILDFLAG(ENABLE_PKEYS)
-    LiftPkeyRestrictionsScope lift_pkey_restrictions;
-#endif
-    PA_DCHECK(owning_thread_ref_.load(std ::memory_order_acquire) ==
-              base::PlatformThread::CurrentRef());
-#endif
-  }
-
-  void Reinit() PA_UNLOCK_FUNCTION() {
-    lock_.AssertAcquired();
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-    owning_thread_ref_.store(base::PlatformThreadRef(),
-                             std::memory_order_release);
-#endif
-    lock_.Reinit();
   }
 
  private:
+#if defined(PA_HAS_SPINNING_MUTEX)
   SpinningMutex lock_;
+#else
+  // base::Lock is slower on the fast path than SpinLock, hence we still use
+  // SpinLock. crbug.com/1125999
+  SpinLock lock_;
+#endif  // defined(PA_HAS_SPINNING_MUTEX)
 
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-  // Should in theory be protected by |lock_|, but we need to read it to detect
-  // recursive lock acquisition (and thus, the allocator becoming reentrant).
-  std::atomic<base::PlatformThreadRef> owning_thread_ref_ =
-      base::PlatformThreadRef();
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && DCHECK_IS_ON()
+  PlatformThreadRef owning_thread_ref_ GUARDED_BY(lock_);
 #endif
 };
-
-class PA_SCOPED_LOCKABLE ScopedGuard {
- public:
-  explicit ScopedGuard(Lock& lock) PA_EXCLUSIVE_LOCK_FUNCTION(lock)
-      : lock_(lock) {
-    lock_.Acquire();
-  }
-  ~ScopedGuard() PA_UNLOCK_FUNCTION() { lock_.Release(); }
-
- private:
-  Lock& lock_;
-};
-
-class PA_SCOPED_LOCKABLE ScopedUnlockGuard {
- public:
-  explicit ScopedUnlockGuard(Lock& lock) PA_UNLOCK_FUNCTION(lock)
-      : lock_(lock) {
-    lock_.Release();
-  }
-  ~ScopedUnlockGuard() PA_EXCLUSIVE_LOCK_FUNCTION() { lock_.Acquire(); }
-
- private:
-  Lock& lock_;
-};
-
-constexpr Lock::Lock() = default;
-
 // We want PartitionRoot to not have a global destructor, so this should not
 // have one.
-static_assert(std::is_trivially_destructible<Lock>::value, "");
+static_assert(std::is_trivially_destructible<MaybeSpinLock<true>>::value, "");
 
-}  // namespace partition_alloc::internal
+template <>
+class LOCKABLE MaybeSpinLock<false> {
+ public:
+  void Lock() EXCLUSIVE_LOCK_FUNCTION() {}
+  void Unlock() UNLOCK_FUNCTION() {}
+  void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK() {}
 
-namespace base {
-namespace internal {
+  char padding_[sizeof(MaybeSpinLock<true>)];
+};
 
-using PartitionLock = ::partition_alloc::internal::Lock;
-using PartitionAutoLock = ::partition_alloc::internal::ScopedGuard;
+static_assert(
+    sizeof(MaybeSpinLock<true>) == sizeof(MaybeSpinLock<false>),
+    "Sizes should be equal to ensure identical layout of PartitionRoot");
+
+using PartitionLock = MaybeSpinLock<true>;
+using PartitionAutoLock = ScopedGuard<true>;
 
 }  // namespace internal
 }  // namespace base
-
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_LOCK_H_

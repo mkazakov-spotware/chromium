@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/testing/sequence_test.h"
-
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_double_doublesequence.h"
 
 namespace blink {
 
@@ -32,8 +30,8 @@ Vector<int32_t> SequenceTest::identityLongSequence(
   return arg;
 }
 
-absl::optional<Vector<uint8_t>> SequenceTest::identityOctetSequenceOrNull(
-    const absl::optional<Vector<uint8_t>>& arg) const {
+base::Optional<Vector<uint8_t>> SequenceTest::identityOctetSequenceOrNull(
+    const base::Optional<Vector<uint8_t>>& arg) const {
   return arg;
 }
 
@@ -45,9 +43,8 @@ void SequenceTest::setElementSequence(const HeapVector<Member<Element>>& arg) {
   element_sequence_ = arg;
 }
 
-bool SequenceTest::unionReceivedSequence(
-    const V8UnionDoubleOrDoubleSequence* arg) {
-  return arg->IsDoubleSequence();
+bool SequenceTest::unionReceivedSequence(const DoubleOrDoubleSequence& arg) {
+  return arg.IsDoubleSequence();
 }
 
 void SequenceTest::Trace(Visitor* visitor) const {

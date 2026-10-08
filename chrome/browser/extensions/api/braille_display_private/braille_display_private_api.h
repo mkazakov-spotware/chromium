@@ -1,12 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_EXTENSIONS_API_BRAILLE_DISPLAY_PRIVATE_BRAILLE_DISPLAY_PRIVATE_API_H_
 #define CHROME_BROWSER_EXTENSIONS_API_BRAILLE_DISPLAY_PRIVATE_BRAILLE_DISPLAY_PRIVATE_API_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/extensions/api/braille_display_private/braille_controller.h"
 #include "chrome/common/extensions/api/braille_display_private.h"
 #include "extensions/browser/api/async_api_function.h"
@@ -66,10 +65,9 @@ class BrailleDisplayPrivateAPI : public BrowserContextKeyedAPI,
 
   void SetEventDelegateForTest(std::unique_ptr<EventDelegate> delegate);
 
-  raw_ptr<Profile> profile_;
-  base::ScopedObservation<api::braille_display_private::BrailleController,
-                          BrailleObserver>
-      scoped_observation_{this};
+  Profile* profile_;
+  ScopedObserver<api::braille_display_private::BrailleController,
+                 BrailleObserver> scoped_observer_;
   std::unique_ptr<EventDelegate> event_delegate_;
 
   // BrowserContextKeyedAPI implementation.

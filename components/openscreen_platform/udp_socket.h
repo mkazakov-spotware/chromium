@@ -1,11 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OPENSCREEN_PLATFORM_UDP_SOCKET_H_
 #define COMPONENTS_OPENSCREEN_PLATFORM_UDP_SOCKET_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -48,16 +49,17 @@ class UdpSocket final : public openscreen::UdpSocket,
 
   // network::mojom::UDPSocketListener overrides:
   void OnReceived(int32_t net_result,
-                  const absl::optional<net::IPEndPoint>& source_endpoint,
-                  absl::optional<base::span<const uint8_t>> data) override;
+                  const base::Optional<net::IPEndPoint>& source_endpoint,
+                  base::Optional<base::span<const uint8_t>> data) override;
 
  private:
   void BindCallback(int32_t result,
-                    const absl::optional<net::IPEndPoint>& address);
+                    const base::Optional<net::IPEndPoint>& address);
   void JoinGroupCallback(int32_t result);
   void SendCallback(int32_t result);
 
-  const raw_ptr<Client> client_ = nullptr;
+  // Note: This can be null, per UdpSocket API header comments.
+  Client* const client_;
 
   // The local endpoint can change as a result of bind calls.
   openscreen::IPEndpoint local_endpoint_;

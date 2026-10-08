@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,18 @@
 #include <string>
 #include <vector>
 
-#include "base/component_export.h"
 #include "base/memory/weak_ptr.h"
 #include "printing/backend/cups_deleters.h"
 #include "printing/backend/cups_jobs.h"
 #include "printing/backend/cups_printer.h"
 #include "printing/printer_status.h"
+#include "printing/printing_export.h"
 #include "url/gurl.h"
 
 namespace printing {
 
 // Represents the status of a printer queue.
-struct COMPONENT_EXPORT(PRINT_BACKEND) QueueStatus {
+struct PRINTING_EXPORT QueueStatus {
   QueueStatus();
   QueueStatus(const QueueStatus& other);
   ~QueueStatus();
@@ -32,40 +32,47 @@ struct COMPONENT_EXPORT(PRINT_BACKEND) QueueStatus {
 };
 
 // Represents a connection to a CUPS server.
-class COMPONENT_EXPORT(PRINT_BACKEND) CupsConnection {
+class PRINTING_EXPORT CupsConnection {
  public:
-  virtual ~CupsConnection() = default;
+  CupsConnection(const GURL& print_server_url,
+                 http_encryption_t encryption,
+                 bool blocking);
+  CupsConnection(CupsConnection&& connection);
+  CupsConnection(const CupsConnection&) = delete;
+  CupsConnection& operator=(const CupsConnection&) = delete;
+  ~CupsConnection();
 
-  static std::unique_ptr<CupsConnection> Create(const GURL& print_server_url,
-                                                http_encryption_t encryption,
-                                                bool blocking);
+  // Returns a vector of all the printers configure on the CUPS server.
+  std::vector<CupsPrinter> GetDests();
 
-  // Obtain a vector of all the printers configure on the CUPS server.  Returns
-  // true if the list of printers was obtained, and false if an error was
-  // encountered during the query.
-  virtual bool GetDests(
-      std::vector<std::unique_ptr<CupsPrinter>>& printers) = 0;
+  // Returns a printer for |printer_name| from the connected server.
+  std::unique_ptr<CupsPrinter> GetPrinter(const std::string& printer_name);
 
-  // Returns a printer for `printer_name` from the connected server.
-  virtual std::unique_ptr<CupsPrinter> GetPrinter(
-      const std::string& printer_name) = 0;
-
-  // Queries CUPS for printer queue status for `printer_ids`.  Populates `jobs`
+  // Queries CUPS for printer queue status for |printer_ids|.  Populates |jobs|
   // with said information with one QueueStatus per printer_id.  Returns true if
-  // all the queries were successful.  In the event of failure, `jobs` will be
+  // all the queries were successful.  In the event of failure, |jobs| will be
   // unchanged.
-  virtual bool GetJobs(const std::vector<std::string>& printer_ids,
-                       std::vector<QueueStatus>* jobs) = 0;
+  bool GetJobs(const std::vector<std::string>& printer_ids,
+               std::vector<QueueStatus>* jobs);
 
-  // Queries CUPS for printer status for `printer_id`.
+  // Queries CUPS for printer status for |printer_id|.
   // Returns true if the query was successful.
-  virtual bool GetPrinterStatus(const std::string& printer_id,
-                                PrinterStatus* printer_status) = 0;
+  bool GetPrinterStatus(const std::string& printer_id,
+                        PrinterStatus* printer_status);
 
-  virtual std::string server_name() const = 0;
+  std::string server_name() const;
 
-  virtual int last_error() const = 0;
-  virtual std::string last_error_message() const = 0;
+  int last_error() const;
+
+ private:
+  // lazily initialize http connection
+  bool Connect();
+
+  GURL print_server_url_;
+  http_encryption_t cups_encryption_;
+  bool blocking_;
+
+  ScopedHttpPtr cups_http_;
 };
 
 }  // namespace printing

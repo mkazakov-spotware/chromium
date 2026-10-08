@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,12 @@ import android.support.test.InstrumentationRegistry;
 import android.text.TextUtils;
 import android.view.View;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.junit.Assert;
 
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -30,14 +28,10 @@ import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab.TabWebContentsObserver;
-import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.tabmodel.TabModelSelectorSupplier;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
-import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.browser.TabTitleObserver;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -46,7 +40,6 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TestTouchUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
-import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
 
 import java.util.List;
@@ -118,8 +111,8 @@ public class ChromeTabUtils {
         }
 
         @Override
-        public void onPageLoadFinished(Tab tab, GURL url) {
-            if (mExpectedUrl == null || TextUtils.equals(url.getSpec(), mExpectedUrl)) {
+        public void onPageLoadFinished(Tab tab, String url) {
+            if (mExpectedUrl == null || TextUtils.equals(url, mExpectedUrl)) {
                 mCallback.notifyCalled();
                 tab.removeObserver(this);
             }
@@ -129,7 +122,7 @@ public class ChromeTabUtils {
     private static boolean loadComplete(Tab tab, String url) {
         return !tab.isLoading()
                 && (url == null || TextUtils.equals(getUrlStringOnUiThread(tab), url))
-                && !tab.getWebContents().shouldShowLoadingUI();
+                && !tab.getWebContents().isLoadingToDifferentDocument();
     }
 
     public static String getTitleOnUiThread(Tab tab) {
@@ -140,7 +133,7 @@ public class ChromeTabUtils {
 
     public static String getUrlStringOnUiThread(Tab tab) {
         AtomicReference<String> res = new AtomicReference<>();
-        TestThreadUtils.runOnUiThreadBlocking(() -> { res.set(tab.getUrl().getSpec()); });
+        TestThreadUtils.runOnUiThreadBlocking(() -> { res.set(tab.getUrlString()); });
         return res.get();
     }
 
@@ -241,9 +234,9 @@ public class ChromeTabUtils {
                         "Page did not load.  Tab information at time of failure -- "
                                 + "expected url: '%s', actual URL: '%s', load progress: %d, is "
                                 + "loading: %b, web contents init: %b, web contents loading: %b",
-                        url, getUrlStringOnUiThread(tab), Math.round(100 * tab.getProgress()),
+                        url, tab.getUrlString(), Math.round(100 * tab.getProgress()),
                         tab.isLoading(), webContents != null,
-                        webContents == null ? false : webContents.shouldShowLoadingUI()));
+                        webContents == null ? false : webContents.isLoadingToDifferentDocument()));
             }
         }
     }
@@ -278,8 +271,8 @@ public class ChromeTabUtils {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             tab.addObserver(new EmptyTabObserver() {
                 @Override
-                public void onPageLoadStarted(Tab tab, GURL url) {
-                    if (expectedUrl == null || TextUtils.equals(url.getSpec(), expectedUrl)) {
+                public void onPageLoadStarted(Tab tab, String url) {
+                    if (expectedUrl == null || TextUtils.equals(url, expectedUrl)) {
                         startedCallback.notifyCalled();
                         tab.removeObserver(this);
                     }
@@ -291,7 +284,7 @@ public class ChromeTabUtils {
             startedCallback.waitForCallback(0, 1, secondsToWait, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             Assert.fail("Page did not start loading.  Tab information at time of failure --"
-                    + " url: " + tab.getUrl().getSpec() + ", load progress: " + tab.getProgress()
+                    + " url: " + tab.getUrlString() + ", load progress: " + tab.getProgress()
                     + ", is loading: " + Boolean.toString(tab.isLoading()));
         }
     }
@@ -371,7 +364,7 @@ public class ChromeTabUtils {
     public static void switchTabInCurrentTabModel(final ChromeActivity activity,
             final int tabIndex) {
         TestThreadUtils.runOnUiThreadBlocking(
-                () -> { TabModelUtils.setIndex(activity.getCurrentTabModel(), tabIndex, false); });
+                () -> { TabModelUtils.setIndex(activity.getCurrentTabModel(), tabIndex); });
     }
 
     /**
@@ -383,15 +376,13 @@ public class ChromeTabUtils {
             Instrumentation instrumentation, ChromeTabbedActivity activity) {
         final TabModel normalTabModel = activity.getTabModelSelector().getModel(false);
         final CallbackHelper createdCallback = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            normalTabModel.addObserver(new TabModelObserver() {
-                @Override
-                public void didAddTab(
-                        Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
-                    createdCallback.notifyCalled();
-                    normalTabModel.removeObserver(this);
-                }
-            });
+        normalTabModel.addObserver(new TabModelObserver() {
+            @Override
+            public void didAddTab(
+                    Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
+                createdCallback.notifyCalled();
+                normalTabModel.removeObserver(this);
+            }
         });
         // Tablet and phone have different new tab buttons; click the right one.
         if (activity.isTablet()) {
@@ -444,7 +435,7 @@ public class ChromeTabUtils {
                 selectedCallback.notifyCalled();
             }
         };
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabModel.addObserver(observer));
+        tabModel.addObserver(observer);
 
         MenuUtils.invokeCustomMenuActionSync(instrumentation, activity,
                 incognito ? R.id.new_incognito_tab_menu_id : R.id.new_tab_menu_id);
@@ -459,7 +450,7 @@ public class ChromeTabUtils {
         } catch (TimeoutException ex) {
             Assert.fail("Never received tab selected event");
         }
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabModel.removeObserver(observer));
+        tabModel.removeObserver(observer);
 
         Tab tab = activity.getActivityTab();
         waitForTabPageLoaded(tab, (String) null);
@@ -484,10 +475,8 @@ public class ChromeTabUtils {
      * Creates a new tab in the specified model then waits for it to load.
      * <p>
      * Returns when the tab has been created and finishes loading.
-     *
-     * @return Newly created Tab object.
      */
-    public static Tab fullyLoadUrlInNewTab(Instrumentation instrumentation,
+    public static void fullyLoadUrlInNewTab(Instrumentation instrumentation,
             final ChromeTabbedActivity activity, final String url, final boolean incognito) {
         newTabFromMenu(instrumentation, activity, incognito, false);
 
@@ -498,8 +487,7 @@ public class ChromeTabUtils {
                 loadUrlOnUiThread(tab, url);
             }
         });
-        waitForInteractable(tab);
-        return tab;
+        instrumentation.waitForIdleSync();
     }
 
     public static void loadUrlOnUiThread(final Tab tab, final String url) {
@@ -557,7 +545,7 @@ public class ChromeTabUtils {
         final CallbackHelper closeCallback = new CallbackHelper();
         final TabModelObserver observer = new TabModelObserver() {
             @Override
-            public void willCloseTab(Tab tab, boolean animate, boolean didCloseAlone) {
+            public void willCloseTab(Tab tab, boolean animate) {
                 closeCallback.notifyCalled();
             }
         };
@@ -594,8 +582,8 @@ public class ChromeTabUtils {
     /**
      * Close all tabs and waits for all tabs pending closure to be observed.
      */
-    public static void closeAllTabs(Instrumentation instrumentation,
-            ObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
+    public static void closeAllTabs(
+            Instrumentation instrumentation, final ChromeTabbedActivity activity) {
         final CallbackHelper closeCallback = new CallbackHelper();
         final TabModelObserver observer = new TabModelObserver() {
             @Override
@@ -606,7 +594,7 @@ public class ChromeTabUtils {
         instrumentation.runOnMainSync(new Runnable() {
             @Override
             public void run() {
-                TabModelSelector selector = tabModelSelectorSupplier.get();
+                TabModelSelector selector = activity.getTabModelSelector();
                 for (TabModel tabModel : selector.getModels()) {
                     tabModel.addObserver(observer);
                 }
@@ -614,7 +602,7 @@ public class ChromeTabUtils {
         });
 
         TestThreadUtils.runOnUiThreadBlocking(
-                () -> { tabModelSelectorSupplier.get().closeAllTabs(); });
+                () -> { activity.getTabModelSelector().closeAllTabs(); });
 
         try {
             closeCallback.waitForCallback(0);
@@ -624,23 +612,13 @@ public class ChromeTabUtils {
         instrumentation.runOnMainSync(new Runnable() {
             @Override
             public void run() {
-                TabModelSelector selector = tabModelSelectorSupplier.get();
+                TabModelSelector selector = activity.getTabModelSelector();
                 for (TabModel tabModel : selector.getModels()) {
                     tabModel.removeObserver(observer);
                 }
             }
         });
         instrumentation.waitForIdleSync();
-    }
-
-    /**
-     * @deprecated Transitory method, use {@link #closeAllTabs(Instrumentation,
-     *         ObservableSupplier<TabModelSelector>)} instead.
-     * TODO(crbug.com/1233155): Remove this after the usages are migrated.
-     */
-    public static void closeAllTabs(
-            Instrumentation instrumentation, final ChromeTabbedActivity activity) {
-        closeAllTabs(instrumentation, activity.getTabModelSelectorSupplier());
     }
 
     /**
@@ -684,52 +662,6 @@ public class ChromeTabUtils {
     }
 
     /**
-     * @param windowAndroid the WindowAndroid used to acquire the TabModelSelector.
-     * @return The TabModelSelector used with the supplied WindowAndroid.
-     */
-    public static @NonNull TabModelSelector getTabModelSelector(WindowAndroid windowAndroid) {
-        Assert.assertTrue(ThreadUtils.runningOnUiThread());
-        Assert.assertNotNull(windowAndroid);
-
-        final ObservableSupplier<TabModelSelector> supplier =
-                TabModelSelectorSupplier.from(windowAndroid);
-        Assert.assertNotNull(supplier);
-
-        final TabModelSelector selector = supplier.get();
-        Assert.assertNotNull(selector);
-        return selector;
-    }
-
-    /**
-     * @param tab The tab to retrieve Root ID for.
-     * @return the Root ID for a supplied tab object.
-     */
-    public static int getRootId(Tab tab) {
-        Assert.assertTrue(ThreadUtils.runningOnUiThread());
-        return CriticalPersistedTabData.from(tab).getRootId();
-    }
-
-    /**
-     * Groups together two tabs.
-     * @param tab1 First tab to group.
-     * @param tab2 Second tab to group.
-     */
-    public static void mergeTabsToGroup(Tab tab1, Tab tab2) {
-        Assert.assertTrue(ThreadUtils.runningOnUiThread());
-
-        // Verify that the two tabs do not belong with different models.
-        Assert.assertEquals(tab1.isIncognito(), tab2.isIncognito());
-        final TabModelSelector selector = getTabModelSelector(tab1.getWindowAndroid());
-        final TabModelFilter filter =
-                selector.getTabModelFilterProvider().getTabModelFilter(tab1.isIncognito());
-        Assert.assertTrue(filter instanceof TabGroupModelFilter);
-        TabGroupModelFilter groupingFilter = (TabGroupModelFilter) filter;
-
-        groupingFilter.mergeTabsToGroup(tab1.getId(), tab2.getId());
-        Assert.assertEquals(getRootId(tab1), getRootId(tab2));
-    }
-
-    /**
      * Long presses the view, selects an item from the context menu, and
      * asserts that a new tab is opened and is incognito if expectIncognito is true.
      * For use in testing long-press context menu options that open new tabs.
@@ -747,17 +679,15 @@ public class ChromeTabUtils {
         final CallbackHelper createdCallback = new CallbackHelper();
         final TabModel tabModel =
                 testRule.getActivity().getTabModelSelector().getModel(expectIncognito);
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            tabModel.addObserver(new TabModelObserver() {
-                @Override
-                public void didAddTab(
-                        Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
-                    if (TextUtils.equals(expectedUrl, tab.getUrl().getSpec())) {
-                        createdCallback.notifyCalled();
-                        tabModel.removeObserver(this);
-                    }
+        tabModel.addObserver(new TabModelObserver() {
+            @Override
+            public void didAddTab(
+                    Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
+                if (TextUtils.equals(expectedUrl, tab.getUrlString())) {
+                    createdCallback.notifyCalled();
+                    tabModel.removeObserver(this);
                 }
-            });
+            }
         });
 
         TestTouchUtils.performLongClickOnMainSync(
@@ -799,17 +729,15 @@ public class ChromeTabUtils {
         final CallbackHelper createdCallback = new CallbackHelper();
         final TabModel tabModel =
                 backgroundActivity.getTabModelSelector().getModel(expectIncognito);
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            tabModel.addObserver(new TabModelObserver() {
-                @Override
-                public void didAddTab(
-                        Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
-                    if (TextUtils.equals(expectedUrl, tab.getUrl().getSpec())) {
-                        createdCallback.notifyCalled();
-                        tabModel.removeObserver(this);
-                    }
+        tabModel.addObserver(new TabModelObserver() {
+            @Override
+            public void didAddTab(
+                    Tab tab, @TabLaunchType int type, @TabCreationState int creationState) {
+                if (TextUtils.equals(expectedUrl, tab.getUrlString())) {
+                    createdCallback.notifyCalled();
+                    tabModel.removeObserver(this);
                 }
-            });
+            }
         });
 
         TestTouchUtils.performLongClickOnMainSync(
@@ -834,11 +762,13 @@ public class ChromeTabUtils {
      * Issues a fake notification about the renderer being killed.
      *
      * @param tab {@link Tab} instance where the target renderer resides.
+     * @param wasOomProtected True if the renderer was protected from the OS out-of-memory killer
+     *                        (e.g. renderer for the currently selected tab)
      */
-    public static void simulateRendererKilledForTesting(Tab tab) {
+    public static void simulateRendererKilledForTesting(Tab tab, boolean wasOomProtected) {
         TabWebContentsObserver observer = TabWebContentsObserver.get(tab);
         if (observer != null) {
-            observer.simulateRendererKilledForTesting();
+            observer.simulateRendererKilledForTesting(wasOomProtected);
         }
     }
 

@@ -18,7 +18,7 @@ function repaintTest() {
     textElement.setAttribute("textLength", "200");
     shouldBeEqualToString("textElement.getAttribute('textLength')", "200");
     shouldBe("textElement.textLength.baseVal.value", "200");
-    shouldBe("textElement.getComputedTextLength()", "lastLength", false, 0.1);
+    shouldBeTrue("textElement.getComputedTextLength() == lastLength");
 }
 
 var successfullyParsed = true;

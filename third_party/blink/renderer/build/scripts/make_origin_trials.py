@@ -27,6 +27,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import sys
+
 import json5_generator
 import make_runtime_features
 import name_utilities
@@ -70,14 +72,14 @@ class OriginTrialsWriter(make_runtime_features.BaseRuntimeFeatureWriter):
 
                     implied_by_trials.append(implied_by_name)
 
-                    # Keep a set of origin trial features implied for each
+                    # Keep a list of origin trial features implied for each
                     # trial. This is essentially an inverse of the implied_by
                     # list attached to each feature.
-                    implied_set = implied_mappings.get(implied_by_name)
-                    if implied_set is None:
-                        implied_set = set()
-                        implied_mappings[implied_by_name] = implied_set
-                    implied_set.add(implied_feature['name'].original)
+                    implied_list = implied_mappings.get(implied_by_name)
+                    if implied_list is None:
+                        implied_list = set()
+                        implied_mappings[implied_by_name] = implied_list
+                    implied_list.add(implied_feature['name'].original)
 
             implied_feature['implied_by_origin_trials'] = implied_by_trials
 

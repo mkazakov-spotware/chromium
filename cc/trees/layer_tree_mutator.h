@@ -1,22 +1,21 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TREES_LAYER_TREE_MUTATOR_H_
 #define CC_TREES_LAYER_TREE_MUTATOR_H_
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include "base/callback_forward.h"
-#include "base/check.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "cc/cc_export.h"
 #include "cc/trees/animation_effect_timings.h"
 #include "cc/trees/animation_options.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace cc {
 
@@ -146,7 +145,7 @@ struct CC_EXPORT AnimationWorkletOutput {
     ~AnimationState();
 
     WorkletAnimationId worklet_animation_id;
-    std::vector<absl::optional<base::TimeDelta>> local_times;
+    std::vector<base::Optional<base::TimeDelta>> local_times;
   };
 
   AnimationWorkletOutput();

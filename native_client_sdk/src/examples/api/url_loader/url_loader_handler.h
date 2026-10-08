@@ -1,9 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef EXAMPLES_API_URL_LOADER_URL_LOADER_HANDLER_H_
-#define EXAMPLES_API_URL_LOADER_URL_LOADER_HANDLER_H_
+#ifndef URL_LOADER_HANDLER_H_
+#define URL_LOADER_HANDLER_H_
 
 #include <string>
 #include "ppapi/cpp/completion_callback.h"
@@ -85,4 +85,4 @@ class URLLoaderHandler {
   void operator=(const URLLoaderHandler&);
 };
 
-#endif  // EXAMPLES_API_URL_LOADER_URL_LOADER_HANDLER_H_
+#endif  // URL_LOADER_HANDLER_H_

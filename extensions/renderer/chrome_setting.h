@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,15 @@
 
 #include <string>
 
-#include "base/values.h"
+#include "base/macros.h"
 #include "extensions/renderer/bindings/argument_spec.h"
 #include "gin/wrappable.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
+
+namespace base {
+class DictionaryValue;
+class ListValue;
+}
 
 namespace gin {
 class Arguments;
@@ -24,16 +29,13 @@ class BindingAccessChecker;
 // The custom implementation of the ChromeSetting type exposed to APIs.
 class ChromeSetting final : public gin::Wrappable<ChromeSetting> {
  public:
-  ChromeSetting(const ChromeSetting&) = delete;
-  ChromeSetting& operator=(const ChromeSetting&) = delete;
-
   ~ChromeSetting() override;
 
   // Creates a ChromeSetting object for the given property.
   static v8::Local<v8::Object> Create(
       v8::Isolate* isolate,
       const std::string& property_name,
-      const base::Value::List* property_values,
+      const base::ListValue* property_values,
       APIRequestHandler* request_handler,
       APIEventHandler* event_handler,
       APITypeReferenceMap* type_refs,
@@ -80,6 +82,8 @@ class ChromeSetting final : public gin::Wrappable<ChromeSetting> {
   // different settings can take a different type of argument depending on the
   // preference it manages).
   ArgumentSpec argument_spec_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeSetting);
 };
 
 }  // namespace extensions

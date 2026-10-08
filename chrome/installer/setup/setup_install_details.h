@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,11 @@ class InitialPreferences;
 // global InstallDetails for the process.
 void InitializeInstallDetails(
     const base::CommandLine& command_line,
-    const installer::InitialPreferences& initial_preferences);
+    const installer::InitialPreferences& master_preferences);
 
 // Returns a PrimaryInstallDetails instance for the installer.
 std::unique_ptr<install_static::PrimaryInstallDetails> MakeInstallDetails(
     const base::CommandLine& command_line,
-    const installer::InitialPreferences& initial_preferences);
+    const installer::InitialPreferences& master_preferences);
 
 #endif  // CHROME_INSTALLER_SETUP_SETUP_INSTALL_DETAILS_H_

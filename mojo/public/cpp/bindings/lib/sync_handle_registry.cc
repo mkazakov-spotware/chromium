@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,10 @@
 
 #include "base/auto_reset.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/threading/sequence_local_storage_slot.h"
-#include "base/types/pass_key.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "mojo/public/c/system/core.h"
 
 namespace mojo {
@@ -35,25 +32,19 @@ SyncHandleRegistry::Subscription::~Subscription() = default;
 
 // static
 scoped_refptr<SyncHandleRegistry> SyncHandleRegistry::current() {
-  static base::SequenceLocalStorageSlot<scoped_refptr<SyncHandleRegistry>>
+  static base::NoDestructor<
+      base::SequenceLocalStorageSlot<scoped_refptr<SyncHandleRegistry>>>
       g_current_sync_handle_watcher;
 
   // SyncMessageFilter can be used on threads without sequence-local storage
   // being available. Those receive a unique, standalone SyncHandleRegistry.
-  if (!base::SequencedTaskRunner::HasCurrentDefault()) {
-    return base::MakeRefCounted<SyncHandleRegistry>(
-        base::PassKey<SyncHandleRegistry>());
-  }
+  if (!base::SequencedTaskRunnerHandle::IsSet())
+    return new SyncHandleRegistry();
 
-  if (!g_current_sync_handle_watcher) {
-    g_current_sync_handle_watcher.emplace(
-        base::MakeRefCounted<SyncHandleRegistry>(
-            base::PassKey<SyncHandleRegistry>()));
-  }
-  return *g_current_sync_handle_watcher.GetValuePointer();
+  if (!*g_current_sync_handle_watcher)
+    g_current_sync_handle_watcher->emplace(new SyncHandleRegistry());
+  return *g_current_sync_handle_watcher->GetValuePointer();
 }
-
-SyncHandleRegistry::SyncHandleRegistry(base::PassKey<SyncHandleRegistry>) {}
 
 bool SyncHandleRegistry::RegisterHandle(const Handle& handle,
                                         MojoHandleSignals handle_signals,
@@ -163,8 +154,12 @@ bool SyncHandleRegistry::Wait(const bool* should_stop[], size_t count) {
                       [](const auto& entry) { return entry.second->empty(); });
       }
     }
-  }
+  };
+
+  return false;
 }
+
+SyncHandleRegistry::SyncHandleRegistry() = default;
 
 SyncHandleRegistry::~SyncHandleRegistry() = default;
 

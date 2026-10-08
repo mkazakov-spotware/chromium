@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,33 +6,81 @@
 
 #import <MaterialComponents/MaterialCollectionCells.h>
 
-#import "base/check.h"
-#import "base/mac/foundation_util.h"
+#include "base/check.h"
+#include "base/mac/foundation_util.h"
 #import "ios/chrome/browser/ui/collection_view/cells/MDCCollectionViewCell+Chrome.h"
 #import "ios/chrome/browser/ui/collection_view/cells/collection_view_item.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_model.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
+#import "ios/chrome/browser/ui/material_components/chrome_app_bar_view_controller.h"
+#import "ios/chrome/browser/ui/material_components/utils.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
+// The implementation of this controller follows the guidelines from
+// https://github.com/material-components/material-components-ios/tree/develop/components/AppBar
 @implementation CollectionViewController
+@synthesize appBarViewController = _appBarViewController;
 @synthesize collectionViewModel = _collectionViewModel;
 
 - (instancetype)initWithLayout:(UICollectionViewLayout*)layout
                          style:(CollectionViewControllerStyle)style {
-  return [super initWithCollectionViewLayout:layout];
+  self = [super initWithCollectionViewLayout:layout];
+  if (self) {
+    if (style == CollectionViewControllerStyleAppBar) {
+      _appBarViewController = [[ChromeAppBarViewController alloc] init];
+    }
+  }
+  return self;
 }
 
 - (void)viewDidLoad {
   [super viewDidLoad];
 
+  // Configure the app bar, if there is one.
+  if (self.appBarViewController) {
+    // Configure the app bar style.
+    ConfigureAppBarViewControllerWithCardStyle(self.appBarViewController);
+    // Set the header view's tracking scroll view.
+    self.appBarViewController.headerView.trackingScrollView =
+        self.collectionView;
+    // After all other views have been registered.
+    [self addChildViewController:_appBarViewController];
+    // Match the width of the parent view.
+    CGRect frame = self.appBarViewController.view.frame;
+    frame.origin.x = 0;
+    frame.size.width =
+        self.appBarViewController.parentViewController.view.bounds.size.width;
+    self.appBarViewController.view.frame = frame;
+    [self.view addSubview:self.appBarViewController.view];
+    [self.appBarViewController didMoveToParentViewController:self];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(contentSizeCategoryDidChange:)
+               name:UIContentSizeCategoryDidChangeNotification
+             object:nil];
+  }
+
   // Suport dark mode.
-  self.collectionView.backgroundColor =
-      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+  self.collectionView.backgroundColor = UIColor.cr_systemGroupedBackgroundColor;
   self.styler.cellBackgroundColor =
-      [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
+      UIColor.cr_secondarySystemGroupedBackgroundColor;
+}
+
+- (void)contentSizeCategoryDidChange:(id)sender {
+  [MDCCollectionViewCell cr_clearPreferredHeightForWidthCellCache];
+  [self.collectionView.collectionViewLayout invalidateLayout];
+}
+
+- (UIViewController*)childViewControllerForStatusBarHidden {
+  return self.appBarViewController;
+}
+
+- (UIViewController*)childViewControllerForStatusBarStyle {
+  return self.appBarViewController;
 }
 
 - (void)loadModel {
@@ -69,7 +117,7 @@
       [indexPaths sortedArrayUsingSelector:@selector(compare:)];
   for (NSIndexPath* indexPath in [sortedIndexPaths reverseObjectEnumerator]) {
     NSInteger sectionIdentifier = [self.collectionViewModel
-        sectionIdentifierForSectionIndex:indexPath.section];
+        sectionIdentifierForSection:indexPath.section];
     NSInteger itemType =
         [self.collectionViewModel itemTypeForIndexPath:indexPath];
     NSUInteger index =
@@ -93,8 +141,8 @@
       [self.collectionViewModel itemAtIndexPath:indexPath];
 
   // Item coordinates.
-  NSInteger sectionIdentifier = [self.collectionViewModel
-      sectionIdentifierForSectionIndex:indexPath.section];
+  NSInteger sectionIdentifier =
+      [self.collectionViewModel sectionIdentifierForSection:indexPath.section];
   NSInteger itemType =
       [self.collectionViewModel itemTypeForIndexPath:indexPath];
   NSUInteger indexInItemType =
@@ -105,7 +153,7 @@
                      fromSectionWithIdentifier:sectionIdentifier
                                        atIndex:indexInItemType];
   NSInteger section = [self.collectionViewModel
-      sectionIdentifierForSectionIndex:newIndexPath.section];
+      sectionIdentifierForSection:newIndexPath.section];
   [self.collectionViewModel insertItem:item
                inSectionWithIdentifier:section
                                atIndex:newIndexPath.item];
@@ -144,10 +192,10 @@
   CollectionViewItem* item = nil;
   UIAccessibilityTraits traits = UIAccessibilityTraitNone;
   if ([kind isEqualToString:UICollectionElementKindSectionHeader]) {
-    item = [self.collectionViewModel headerForSectionIndex:indexPath.section];
+    item = [self.collectionViewModel headerForSection:indexPath.section];
     traits = UIAccessibilityTraitHeader;
   } else if ([kind isEqualToString:UICollectionElementKindSectionFooter]) {
-    item = [self.collectionViewModel footerForSectionIndex:indexPath.section];
+    item = [self.collectionViewModel footerForSection:indexPath.section];
   } else {
     return [super collectionView:collectionView
         viewForSupplementaryElementOfKind:kind
@@ -175,7 +223,7 @@
                                  (UICollectionViewLayout*)collectionViewLayout
     referenceSizeForHeaderInSection:(NSInteger)section {
   CollectionViewItem* item =
-      [self.collectionViewModel headerForSectionIndex:section];
+      [self.collectionViewModel headerForSection:section];
 
   if (item) {
     // TODO(crbug.com/635604): Support arbitrary sized headers.
@@ -189,13 +237,48 @@
                                  (UICollectionViewLayout*)collectionViewLayout
     referenceSizeForFooterInSection:(NSInteger)section {
   CollectionViewItem* item =
-      [self.collectionViewModel footerForSectionIndex:section];
+      [self.collectionViewModel footerForSection:section];
 
   if (item) {
     // TODO(crbug.com/635604): Support arbitrary sized footers.
     return CGSizeMake(0, MDCCellDefaultOneLineHeight);
   }
   return CGSizeZero;
+}
+
+#pragma mark UIScrollViewDelegate
+
+- (void)scrollViewDidScroll:(UIScrollView*)scrollView {
+  MDCFlexibleHeaderView* headerView = self.appBarViewController.headerView;
+  if (scrollView == headerView.trackingScrollView) {
+    [headerView trackingScrollViewDidScroll];
+  }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView*)scrollView {
+  MDCFlexibleHeaderView* headerView = self.appBarViewController.headerView;
+  if (scrollView == headerView.trackingScrollView) {
+    [headerView trackingScrollViewDidEndDecelerating];
+  }
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView*)scrollView
+                  willDecelerate:(BOOL)decelerate {
+  MDCFlexibleHeaderView* headerView = self.appBarViewController.headerView;
+  if (scrollView == headerView.trackingScrollView) {
+    [headerView trackingScrollViewDidEndDraggingWillDecelerate:decelerate];
+  }
+}
+
+- (void)scrollViewWillEndDragging:(UIScrollView*)scrollView
+                     withVelocity:(CGPoint)velocity
+              targetContentOffset:(inout CGPoint*)targetContentOffset {
+  MDCFlexibleHeaderView* headerView = self.appBarViewController.headerView;
+  if (scrollView == headerView.trackingScrollView) {
+    [headerView
+        trackingScrollViewWillEndDraggingWithVelocity:velocity
+                                  targetContentOffset:targetContentOffset];
+  }
 }
 
 #pragma mark - NSObject
@@ -206,14 +289,14 @@
 
 #pragma mark - Private
 
-// Reconfigures the cell at `indexPath` by calling `configureCell:` with `item`.
+// Reconfigures the cell at |indexPath| by calling |configureCell:| with |item|.
 - (void)reconfigureCellAtIndexPath:(NSIndexPath*)indexPath
                           withItem:(CollectionViewItem*)item {
   MDCCollectionViewCell* cell =
       base::mac::ObjCCastStrict<MDCCollectionViewCell>(
           [self.collectionView cellForItemAtIndexPath:indexPath]);
 
-  // `cell` may be nil if the row is not currently on screen.
+  // |cell| may be nil if the row is not currently on screen.
   if (cell) {
     [item configureCell:cell];
   }

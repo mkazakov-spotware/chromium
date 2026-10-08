@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/ui/global_error/global_error.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -16,10 +17,6 @@ namespace {
 class BaseError : public GlobalError {
  public:
   BaseError() { ++count_; }
-
-  BaseError(const BaseError&) = delete;
-  BaseError& operator=(const BaseError&) = delete;
-
   ~BaseError() override { --count_; }
 
   static int count() { return count_; }
@@ -29,20 +26,22 @@ class BaseError : public GlobalError {
     ADD_FAILURE();
     return 0;
   }
-  std::u16string MenuItemLabel() override {
+  base::string16 MenuItemLabel() override {
     ADD_FAILURE();
-    return std::u16string();
+    return base::string16();
   }
   void ExecuteMenuItem(Browser* browser) override { ADD_FAILURE(); }
 
   bool HasBubbleView() override { return false; }
   bool HasShownBubbleView() override { return false; }
   void ShowBubbleView(Browser* browser) override { ADD_FAILURE(); }
-  GlobalErrorBubbleViewBase* GetBubbleView() override { return nullptr; }
+  GlobalErrorBubbleViewBase* GetBubbleView() override { return NULL; }
 
  private:
   // This tracks the number BaseError objects that are currently instantiated.
   static int count_;
+
+  DISALLOW_COPY_AND_ASSIGN(BaseError);
 };
 
 int BaseError::count_ = 0;
@@ -55,19 +54,18 @@ class MenuError : public BaseError {
         severity_(severity) {
   }
 
-  MenuError(const MenuError&) = delete;
-  MenuError& operator=(const MenuError&) = delete;
-
   Severity GetSeverity() override { return severity_; }
 
   bool HasMenuItem() override { return true; }
   int MenuItemCommandID() override { return command_id_; }
-  std::u16string MenuItemLabel() override { return std::u16string(); }
+  base::string16 MenuItemLabel() override { return base::string16(); }
   void ExecuteMenuItem(Browser* browser) override {}
 
  private:
   int command_id_;
   Severity severity_;
+
+  DISALLOW_COPY_AND_ASSIGN(MenuError);
 };
 
 } // namespace
@@ -132,7 +130,7 @@ TEST(GlobalErrorServiceTest, GetMenuItem) {
 
   EXPECT_EQ(error2, service.GetGlobalErrorByMenuItemCommandID(2));
   EXPECT_EQ(error3, service.GetGlobalErrorByMenuItemCommandID(3));
-  EXPECT_EQ(nullptr, service.GetGlobalErrorByMenuItemCommandID(4));
+  EXPECT_EQ(NULL, service.GetGlobalErrorByMenuItemCommandID(4));
 }
 
 // Test getting the error with the highest severity.
@@ -142,7 +140,7 @@ TEST(GlobalErrorServiceTest, HighestSeverity) {
   MenuError* error3 = new MenuError(3, GlobalError::SEVERITY_HIGH);
 
   GlobalErrorService service;
-  EXPECT_EQ(nullptr, service.GetHighestSeverityGlobalErrorWithAppMenuItem());
+  EXPECT_EQ(NULL, service.GetHighestSeverityGlobalErrorWithAppMenuItem());
 
   service.AddGlobalError(base::WrapUnique(error1));
   EXPECT_EQ(error1, service.GetHighestSeverityGlobalErrorWithAppMenuItem());

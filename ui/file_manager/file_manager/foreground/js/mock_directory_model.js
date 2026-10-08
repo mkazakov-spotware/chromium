@@ -1,16 +1,6 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {FakeEntry, FilesAppDirEntry} from '../../externs/files_app_entry_interfaces.js';
-import {VolumeInfo} from '../../externs/volume_info.js';
-
-import {FileFilter} from './directory_contents.js';
-import {DirectoryModel} from './directory_model.js';
-import {FileListModel} from './file_list_model.js';
 
 /**
  * @returns {!FileFilter} fake for unittests.
@@ -19,7 +9,7 @@ function createFakeFileFilter() {
   /**
    * FileFilter fake.
    */
-  class FakeFileFilter extends EventTarget {
+  class FakeFileFilter extends cr.EventTarget {
     /**
      * @param {Entry} entry File entry.
      * @return {boolean} True if the file should be shown.
@@ -36,11 +26,11 @@ function createFakeFileFilter() {
 /**
  * @returns {!DirectoryModel} fake for unittests.
  */
-export function createFakeDirectoryModel() {
+function createFakeDirectoryModel() {
   /**
    * DirectoryModel fake.
    */
-  class FakeDirectoryModel extends EventTarget {
+  class FakeDirectoryModel extends cr.EventTarget {
     constructor() {
       super();
 
@@ -69,27 +59,6 @@ export function createFakeDirectoryModel() {
      * @return {DirectoryEntry|FakeEntry|FilesAppDirEntry} Current directory.
      */
     getCurrentDirEntry() {
-      return null;
-    }
-
-    /**
-     * @returns {?VolumeInfo}
-     */
-    getCurrentVolumeInfo() {
-      return null;
-    }
-
-    /**
-     * @returns {?VolumeManagerCommon.RootType}
-     */
-    getCurrentRootType() {
-      return null;
-    }
-
-    /**
-     * @returns {?FileListModel}
-     */
-    getFileList() {
       return null;
     }
 

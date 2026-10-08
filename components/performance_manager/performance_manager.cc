@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,29 +58,14 @@ void PerformanceManager::PassToGraph(const base::Location& from_here,
 }
 
 // static
-base::WeakPtr<PageNode> PerformanceManager::GetPrimaryPageNodeForWebContents(
+base::WeakPtr<PageNode> PerformanceManager::GetPageNodeForWebContents(
     content::WebContents* wc) {
   DCHECK(wc);
   PerformanceManagerTabHelper* helper =
       PerformanceManagerTabHelper::FromWebContents(wc);
   if (!helper)
     return nullptr;
-  return helper->primary_page_node()->GetWeakPtrOnUIThread();
-}
-
-// static
-base::WeakPtr<PageNode> PerformanceManager::GetPageNodeForRenderFrameHost(
-    content::RenderFrameHost* rfh) {
-  auto* wc = content::WebContents::FromRenderFrameHost(rfh);
-  DCHECK(wc);
-  PerformanceManagerTabHelper* helper =
-      PerformanceManagerTabHelper::FromWebContents(wc);
-  if (!helper)
-    return nullptr;
-  auto* page_node = helper->GetPageNodeForRenderFrameHost(rfh);
-  if (!page_node)
-    return nullptr;
-  return page_node->GetWeakPtrOnUIThread();
+  return helper->page_node()->GetWeakPtr();
 }
 
 // static
@@ -95,11 +80,11 @@ base::WeakPtr<FrameNode> PerformanceManager::GetFrameNodeForRenderFrameHost(
   auto* frame_node = helper->GetFrameNode(rfh);
   if (!frame_node) {
     // This should only happen if GetFrameNodeForRenderFrameHost is called
-    // before the RenderFrameCreated notification is dispatched.
-    DCHECK(!rfh->IsRenderFrameLive());
+    // before the RenderFrameCreate notification is dispatched.
+    DCHECK(!rfh->IsRenderFrameCreated());
     return nullptr;
   }
-  return frame_node->GetWeakPtrOnUIThread();
+  return frame_node->GetWeakPtr();
 }
 
 // static
@@ -114,7 +99,7 @@ PerformanceManager::GetProcessNodeForRenderProcessHost(
   // called indirectly from RenderProcessHost::Init.)
   if (!user_data)
     return nullptr;
-  return user_data->process_node()->GetWeakPtrOnUIThread();
+  return user_data->process_node()->GetWeakPtr();
 }
 
 // static

@@ -1,11 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/api/declarative_content/chrome_content_rules_registry.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/test/values_test_util.h"
 #include "chrome/browser/extensions/api/declarative_content/content_predicate.h"
 #include "chrome/browser/extensions/api/declarative_content/content_predicate_evaluator.h"
@@ -29,15 +29,14 @@ class TestPredicate : public ContentPredicate {
       : evaluator_(evaluator) {
   }
 
-  TestPredicate(const TestPredicate&) = delete;
-  TestPredicate& operator=(const TestPredicate&) = delete;
-
   ContentPredicateEvaluator* GetEvaluator() const override {
     return evaluator_;
   }
 
  private:
-  raw_ptr<ContentPredicateEvaluator> evaluator_;
+  ContentPredicateEvaluator* evaluator_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestPredicate);
 };
 
 class TestPredicateEvaluator : public ContentPredicateEvaluator {
@@ -47,9 +46,6 @@ class TestPredicateEvaluator : public ContentPredicateEvaluator {
         contents_for_next_operation_evaluation_(nullptr),
         next_evaluation_result_(false) {
   }
-
-  TestPredicateEvaluator(const TestPredicateEvaluator&) = delete;
-  TestPredicateEvaluator& operator=(const TestPredicateEvaluator&) = delete;
 
   std::string GetPredicateApiAttributeName() const override {
     return "test_predicate";
@@ -84,12 +80,6 @@ class TestPredicateEvaluator : public ContentPredicateEvaluator {
     RequestEvaluationIfSpecified();
   }
 
-  void OnWatchedPageChanged(
-      content::WebContents* contents,
-      const std::vector<std::string>& css_selectors) override {
-    RequestEvaluationIfSpecified();
-  }
-
   bool EvaluatePredicate(const ContentPredicate* predicate,
                          content::WebContents* tab) const override {
     bool result = next_evaluation_result_;
@@ -116,9 +106,11 @@ class TestPredicateEvaluator : public ContentPredicateEvaluator {
     contents_for_next_operation_evaluation_ = nullptr;
   }
 
-  raw_ptr<ContentPredicateEvaluator::Delegate> delegate_;
-  raw_ptr<content::WebContents> contents_for_next_operation_evaluation_;
+  ContentPredicateEvaluator::Delegate* delegate_;
+  content::WebContents* contents_for_next_operation_evaluation_;
   mutable bool next_evaluation_result_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestPredicateEvaluator);
 };
 
 // Create the test evaluator and set |evaluator| to its pointer.
@@ -137,11 +129,6 @@ class DeclarativeChromeContentRulesRegistryTest : public testing::Test {
  public:
   DeclarativeChromeContentRulesRegistryTest() {}
 
-  DeclarativeChromeContentRulesRegistryTest(
-      const DeclarativeChromeContentRulesRegistryTest&) = delete;
-  DeclarativeChromeContentRulesRegistryTest& operator=(
-      const DeclarativeChromeContentRulesRegistryTest&) = delete;
-
  protected:
   TestExtensionEnvironment* env() { return &env_; }
 
@@ -150,14 +137,16 @@ class DeclarativeChromeContentRulesRegistryTest : public testing::Test {
 
   // Must come after |env_| so only one UI MessageLoop is created.
   content::RenderViewHostTestEnabler rvh_enabler_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeclarativeChromeContentRulesRegistryTest);
 };
 
 TEST_F(DeclarativeChromeContentRulesRegistryTest, ActiveRulesDoesntGrow) {
   TestPredicateEvaluator* evaluator = nullptr;
   scoped_refptr<ChromeContentRulesRegistry> registry(
-      new ChromeContentRulesRegistry(
-          env()->profile(), nullptr,
-          base::BindOnce(&CreateTestEvaluator, &evaluator)));
+      new ChromeContentRulesRegistry(env()->profile(), nullptr,
+                                     base::Bind(&CreateTestEvaluator,
+                                                &evaluator)));
 
   EXPECT_EQ(0u, registry->GetActiveRulesCountForTesting());
 
@@ -196,10 +185,7 @@ TEST_F(DeclarativeChromeContentRulesRegistryTest, ActiveRulesDoesntGrow) {
   evaluator->RequestImmediateEvaluation(tab.get(), true);
   EXPECT_EQ(1u, registry->GetActiveRulesCountForTesting());
 
-  // Closing the tab should erase its entry from active_rules_. Invoke
-  // WebContentsDestroyed on the registry to mock it being notified that the tab
-  // has closed.
-  registry->WebContentsDestroyed(tab.get());
+  // Closing the tab should erase its entry from active_rules_.
   tab.reset();
   EXPECT_EQ(0u, registry->GetActiveRulesCountForTesting());
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,7 @@ import androidx.browser.customtabs.CustomTabsIntent;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappIntentUtils;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
 
 /**
@@ -88,12 +86,5 @@ public class WebappActivity extends BaseCustomTabActivity {
     @Override
     protected Drawable getBackgroundDrawable() {
         return null;
-    }
-
-    @Override
-    protected LaunchCauseMetrics createLaunchCauseMetrics() {
-        return new WebappLaunchCauseMetrics(this,
-                mWebappActivityCoordinator == null ? null
-                                                   : mWebappActivityCoordinator.getWebappInfo());
     }
 }

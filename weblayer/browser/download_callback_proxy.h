@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "weblayer/public/download_delegate.h"
 
 namespace weblayer {
@@ -20,10 +20,6 @@ class Profile;
 class DownloadCallbackProxy : public DownloadDelegate {
  public:
   DownloadCallbackProxy(JNIEnv* env, jobject obj, Profile* profile);
-
-  DownloadCallbackProxy(const DownloadCallbackProxy&) = delete;
-  DownloadCallbackProxy& operator=(const DownloadCallbackProxy&) = delete;
-
   ~DownloadCallbackProxy() override;
 
   // DownloadDelegate:
@@ -35,7 +31,7 @@ class DownloadCallbackProxy : public DownloadDelegate {
   void AllowDownload(Tab* tab,
                      const GURL& url,
                      const std::string& request_method,
-                     absl::optional<url::Origin> request_initiator,
+                     base::Optional<url::Origin> request_initiator,
                      AllowDownloadCallback callback) override;
   void DownloadStarted(Download* download) override;
   void DownloadProgressChanged(Download* download) override;
@@ -43,8 +39,10 @@ class DownloadCallbackProxy : public DownloadDelegate {
   void DownloadFailed(Download* download) override;
 
  private:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   base::android::ScopedJavaGlobalRef<jobject> java_delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadCallbackProxy);
 };
 
 }  // namespace weblayer

@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests the AudioContextSelector.`);
-  await TestRunner.loadLegacyModule('web_audio');
+  await TestRunner.loadModule('web_audio');
 
   /** @type {!Protocol.WebAudio.BaseAudioContext} */
   const context1 = {
@@ -20,8 +20,8 @@
   function dumpSelectorState(
       /** @type {!WebAudio.AudioContextSelector} */ selector) {
     TestRunner.addResult(`
-Number of contexts (items): ${selector.items.length}
-Title: ${selector.toolbarItem().title}}
+Number of contexts (items): ${selector._items.length}
+Title: ${selector.toolbarItem()._title}}
 Selected Context: ${JSON.stringify(selector.selectedContext(), null, 3)}
 `);
   }
@@ -91,12 +91,12 @@ Selected Context: ${JSON.stringify(selector.selectedContext(), null, 3)}
     async function testOnListItemReplacedCalled() {
       function dumpItemCount() {
         TestRunner.addResult(
-            `onListItemReplaced called with contexts (items) count: ${
-                this.items.length}`);
+            `_onListItemReplaced called with contexts (items) count: ${
+                this._items.length}`);
       }
 
       TestRunner.addSniffer(
-          WebAudio.AudioContextSelector.prototype, 'onListItemReplaced',
+          WebAudio.AudioContextSelector.prototype, '_onListItemReplaced',
           dumpItemCount);
 
       const selector = new WebAudio.AudioContextSelector();

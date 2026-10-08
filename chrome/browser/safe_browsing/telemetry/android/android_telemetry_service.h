@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 #define CHROME_BROWSER_SAFE_BROWSING_TELEMETRY_ANDROID_ANDROID_TELEMETRY_SERVICE_H_
 
 #include <memory>
+#include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/safe_browsing/telemetry/telemetry_service.h"
 #include "components/download/public/common/download_item.h"
 #include "components/download/public/common/simple_download_manager_coordinator.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/download_manager.h"
 
@@ -20,11 +20,12 @@ class Profile;
 class PrefService;
 
 namespace content {
-class RenderFrameHost;
 class WebContents;
 }
 
 namespace safe_browsing {
+
+class SafeBrowsingService;
 
 // Enumerates the possibilities for whether the CSBRR report was sent (or not).
 enum class ApkDownloadTelemetryOutcome {
@@ -66,11 +67,7 @@ class AndroidTelemetryService
       public download::SimpleDownloadManagerCoordinator::Observer,
       public TelemetryService {
  public:
-  explicit AndroidTelemetryService(Profile* profile);
-
-  AndroidTelemetryService(const AndroidTelemetryService&) = delete;
-  AndroidTelemetryService& operator=(const AndroidTelemetryService&) = delete;
-
+  AndroidTelemetryService(SafeBrowsingService* sb_service, Profile* profile);
   ~AndroidTelemetryService() override;
 
   // download::SimpleDownloadManagerCoordinator::Observer.
@@ -89,9 +86,8 @@ class AndroidTelemetryService
   bool CanSendPing(download::DownloadItem* item);
 
   // Fill the referrer chain in |report| with the actual referrer chain for the
-  // given |rfh|, as well as recent navigations.
+  // given |web_contents|, as well as recent navigations.
   void FillReferrerChain(content::WebContents* web_contents,
-                         content::RenderFrameHost* rfh,
                          ClientSafeBrowsingReportRequest* report);
 
   // Sets the relevant fields in an instance of
@@ -109,9 +105,14 @@ class AndroidTelemetryService
   const PrefService* GetPrefs();
 
   // Profile associated with this instance. Unowned.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
+
+  // Unowned.
+  SafeBrowsingService* sb_service_;
 
   base::WeakPtrFactory<AndroidTelemetryService> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AndroidTelemetryService);
 };
 
 }  // namespace safe_browsing

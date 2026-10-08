@@ -29,26 +29,14 @@
 
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_marker.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
+#include "third_party/blink/renderer/core/layout/svg/svg_resources_cache.h"
 #include "third_party/blink/renderer/core/svg/svg_geometry_element.h"
 
 namespace blink {
 
-namespace {
-
-bool SupportsMarkers(const SVGGeometryElement& element) {
-  return element.HasTagName(svg_names::kLineTag) ||
-         element.HasTagName(svg_names::kPathTag) ||
-         element.HasTagName(svg_names::kPolygonTag) ||
-         element.HasTagName(svg_names::kPolylineTag);
-}
-
-}  // namespace
-
 LayoutSVGPath::LayoutSVGPath(SVGGeometryElement* node)
     // <line> elements have no joins and thus needn't care about miters.
-    : LayoutSVGShape(node, IsA<SVGLineElement>(node) ? kNoMiters : kComplex) {
-  DCHECK(SupportsMarkers(*node));
-}
+    : LayoutSVGShape(node, IsA<SVGLineElement>(node) ? kNoMiters : kComplex) {}
 
 LayoutSVGPath::~LayoutSVGPath() = default;
 
@@ -56,12 +44,12 @@ void LayoutSVGPath::StyleDidChange(StyleDifference diff,
                                    const ComputedStyle* old_style) {
   NOT_DESTROYED();
   LayoutSVGShape::StyleDidChange(diff, old_style);
-  SVGResources::UpdateMarkers(*this, old_style);
+  SVGResources::UpdateMarkers(*GetElement(), old_style, StyleRef());
 }
 
 void LayoutSVGPath::WillBeDestroyed() {
   NOT_DESTROYED();
-  SVGResources::ClearMarkers(*this, Style());
+  SVGResources::ClearMarkers(*GetElement(), Style());
   LayoutSVGShape::WillBeDestroyed();
 }
 
@@ -75,25 +63,25 @@ const StylePath* LayoutSVGPath::GetStylePath() const {
   NOT_DESTROYED();
   if (!IsA<SVGPathElement>(*GetElement()))
     return nullptr;
-  return StyleRef().D();
+  return StyleRef().SvgStyle().D();
 }
 
 void LayoutSVGPath::UpdateMarkers() {
   NOT_DESTROYED();
   marker_positions_.clear();
 
-  const ComputedStyle& style = StyleRef();
-  if (!style.HasMarkers())
+  if (!StyleRef().SvgStyle().HasMarkers() ||
+      !SVGResources::SupportsMarkers(*To<SVGGraphicsElement>(GetElement())))
     return;
-  SVGElementResourceClient* client = SVGResources::GetClient(*this);
-  if (!client)
+
+  SVGResources* resources =
+      SVGResourcesCache::CachedResourcesForLayoutObject(*this);
+  if (!resources)
     return;
-  auto* marker_start = GetSVGResourceAsType<LayoutSVGResourceMarker>(
-      *client, style.MarkerStartResource());
-  auto* marker_mid = GetSVGResourceAsType<LayoutSVGResourceMarker>(
-      *client, style.MarkerMidResource());
-  auto* marker_end = GetSVGResourceAsType<LayoutSVGResourceMarker>(
-      *client, style.MarkerEndResource());
+
+  LayoutSVGResourceMarker* marker_start = resources->MarkerStart();
+  LayoutSVGResourceMarker* marker_mid = resources->MarkerMid();
+  LayoutSVGResourceMarker* marker_end = resources->MarkerEnd();
   if (!(marker_start || marker_mid || marker_end))
     return;
 
@@ -103,20 +91,20 @@ void LayoutSVGPath::UpdateMarkers() {
   else
     builder.Build(GetPath());
 
-  if (marker_positions_.empty())
+  if (marker_positions_.IsEmpty())
     return;
 
   const float stroke_width = StrokeWidthForMarkerUnits();
-  gfx::RectF boundaries;
+  FloatRect boundaries;
   for (const auto& position : marker_positions_) {
     if (LayoutSVGResourceMarker* marker =
             position.SelectMarker(marker_start, marker_mid, marker_end)) {
-      boundaries.Union(marker->MarkerBoundaries(
+      boundaries.Unite(marker->MarkerBoundaries(
           marker->MarkerTransformation(position, stroke_width)));
     }
   }
 
-  stroke_bounding_box_.Union(boundaries);
+  stroke_bounding_box_.Unite(boundaries);
 }
 
 }  // namespace blink

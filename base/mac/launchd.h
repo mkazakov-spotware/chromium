@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 
 #include "base/base_export.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 // MessageForJob sends a single message to launchd with a simple dictionary
 // mapping |operation| to |job_label|, and returns the result of calling
@@ -27,6 +28,7 @@ launch_data_t MessageForJob(const std::string& job_label,
 BASE_EXPORT
 pid_t PIDForJob(const std::string& job_label);
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #endif  // BASE_MAC_LAUNCHD_H_

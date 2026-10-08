@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,9 @@ import org.chromium.base.annotations.JNINamespace;
 import org.chromium.chrome.browser.payments.ChromePaymentRequestFactory;
 import org.chromium.chrome.browser.payments.ChromePaymentRequestService;
 import org.chromium.components.autofill.EditableOption;
-import org.chromium.components.payments.BrowserPaymentRequest;
-import org.chromium.components.payments.PaymentApp;
 import org.chromium.components.payments.PaymentRequestService;
 import org.chromium.components.payments.PaymentRequestService.NativeObserverForTest;
 import org.chromium.components.payments.PaymentUiServiceTestInterface;
-import org.chromium.components.payments.secure_payment_confirmation.SecurePaymentConfirmationAuthnController;
-import org.chromium.components.payments.secure_payment_confirmation.SecurePaymentConfirmationNoMatchingCredController;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.payments.mojom.PaymentItem;
 
@@ -40,15 +36,17 @@ public class PaymentRequestTestBridge {
      */
     private static class ChromePaymentRequestDelegateForTest
             extends PaymentRequestDelegateForTest implements ChromePaymentRequestService.Delegate {
+        private final boolean mSkipUiForBasicCard;
+
         ChromePaymentRequestDelegateForTest(boolean isOffTheRecord, boolean isValidSsl,
-                boolean prefsCanMakePayment, String twaPackageName) {
+                boolean prefsCanMakePayment, String twaPackageName, boolean skipUiForBasicCard) {
             super(isOffTheRecord, isValidSsl, prefsCanMakePayment, twaPackageName);
+            mSkipUiForBasicCard = skipUiForBasicCard;
         }
 
         @Override
-        public BrowserPaymentRequest createBrowserPaymentRequest(
-                PaymentRequestService paymentRequestService) {
-            return new ChromePaymentRequestService(paymentRequestService, this);
+        public boolean skipUiForBasicCard() {
+            return mSkipUiForBasicCard;
         }
     }
 
@@ -57,8 +55,7 @@ public class PaymentRequestTestBridge {
      * answers about the state of the system, in order to control which paths should be tested in
      * the ChromePaymentRequestService.
      */
-    private abstract static class PaymentRequestDelegateForTest
-            implements PaymentRequestService.Delegate {
+    private static class PaymentRequestDelegateForTest implements PaymentRequestService.Delegate {
         private final boolean mIsOffTheRecord;
         private final boolean mIsValidSsl;
         private final boolean mPrefsCanMakePayment;
@@ -108,42 +105,40 @@ public class PaymentRequestTestBridge {
         private final long mOnHasEnrolledInstrumentReturnedPtr;
         private final long mOnAppListReadyPtr;
         private final long mSetAppDescriptionsPtr;
-        private final long mOnErrorDisplayedPtr;
         private final long mOnNotSupportedErrorPtr;
         private final long mOnConnectionTerminatedPtr;
         private final long mOnAbortCalledPtr;
-        private final long mOnCompleteHandledPtr;
-        private final long mOnUiDisplayed;
+        private final long mOnCompleteCalledPtr;
+        private final long mOnMinimalUIReadyPtr;
 
         PaymentRequestNativeObserverBridgeToNativeForTest(long onCanMakePaymentCalledPtr,
                 long onCanMakePaymentReturnedPtr, long onHasEnrolledInstrumentCalledPtr,
                 long onHasEnrolledInstrumentReturnedPtr, long onAppListReadyPtr,
-                long setAppDescriptionPtr, long onErrorDisplayedPtr, long onNotSupportedErrorPtr,
-                long onConnectionTerminatedPtr, long onAbortCalledPtr, long onCompleteHandledPtr,
-                long onUiDisplayed) {
+                long setAppDescriptionPtr, long onNotSupportedErrorPtr,
+                long onConnectionTerminatedPtr, long onAbortCalledPtr, long onCompleteCalledPtr,
+                long onMinimalUIReadyPtr) {
             mOnCanMakePaymentCalledPtr = onCanMakePaymentCalledPtr;
             mOnCanMakePaymentReturnedPtr = onCanMakePaymentReturnedPtr;
             mOnHasEnrolledInstrumentCalledPtr = onHasEnrolledInstrumentCalledPtr;
             mOnHasEnrolledInstrumentReturnedPtr = onHasEnrolledInstrumentReturnedPtr;
             mOnAppListReadyPtr = onAppListReadyPtr;
             mSetAppDescriptionsPtr = setAppDescriptionPtr;
-            mOnErrorDisplayedPtr = onErrorDisplayedPtr;
             mOnNotSupportedErrorPtr = onNotSupportedErrorPtr;
             mOnConnectionTerminatedPtr = onConnectionTerminatedPtr;
             mOnAbortCalledPtr = onAbortCalledPtr;
-            mOnCompleteHandledPtr = onCompleteHandledPtr;
-            mOnUiDisplayed = onUiDisplayed;
+            mOnCompleteCalledPtr = onCompleteCalledPtr;
+            mOnMinimalUIReadyPtr = onMinimalUIReadyPtr;
         }
 
         @Override
         public void onPaymentUiServiceCreated(PaymentUiServiceTestInterface uiService) {
             assert uiService != null;
-            sUiService = uiService;
+            PaymentRequestTestBridge.sUiService = uiService;
         }
 
         @Override
         public void onClosed() {
-            sUiService = null;
+            PaymentRequestTestBridge.sUiService = null;
         }
 
         @Override
@@ -164,7 +159,14 @@ public class PaymentRequestTestBridge {
         }
 
         @Override
-        public void onAppListReady(List<PaymentApp> apps, PaymentItem total) {
+        public void onAppListReady(@Nullable List<EditableOption> apps, PaymentItem total) {
+            if (apps == null) {
+                nativeSetAppDescriptions(
+                        mSetAppDescriptionsPtr, new String[0], new String[0], new String[0]);
+                nativeResolvePaymentRequestObserverCallback(mOnAppListReadyPtr);
+                return;
+            }
+
             String[] appLabels = new String[apps.size()];
             String[] appSublabels = new String[apps.size()];
             String[] appTotals = new String[apps.size()];
@@ -184,11 +186,6 @@ public class PaymentRequestTestBridge {
             nativeResolvePaymentRequestObserverCallback(mOnAppListReadyPtr);
         }
 
-        @Override
-        public void onErrorDisplayed() {
-            nativeResolvePaymentRequestObserverCallback(mOnErrorDisplayedPtr);
-        }
-
         private static String ensureNotNull(@Nullable String value) {
             return value == null ? "" : value;
         }
@@ -206,37 +203,42 @@ public class PaymentRequestTestBridge {
             nativeResolvePaymentRequestObserverCallback(mOnAbortCalledPtr);
         }
         @Override
-        public void onCompleteHandled() {
-            nativeResolvePaymentRequestObserverCallback(mOnCompleteHandledPtr);
+        public void onCompleteCalled() {
+            nativeResolvePaymentRequestObserverCallback(mOnCompleteCalledPtr);
         }
         @Override
-        public void onUiDisplayed() {
-            nativeResolvePaymentRequestObserverCallback(mOnUiDisplayed);
+        public void onMinimalUIReady() {
+            nativeResolvePaymentRequestObserverCallback(mOnMinimalUIReadyPtr);
         }
     }
 
     private static final String TAG = "PaymentRequestTestBridge";
 
     @CalledByNative
-    private static void setUseDelegateForTest(boolean isOffTheRecord, boolean isValidSsl,
-            boolean prefsCanMakePayment, String twaPackageName) {
-        ChromePaymentRequestFactory.sDelegateForTest = new ChromePaymentRequestDelegateForTest(
-                isOffTheRecord, isValidSsl, prefsCanMakePayment, twaPackageName);
+    private static void setUseDelegateForTest(boolean useDelegate, boolean isOffTheRecord,
+            boolean isValidSsl, boolean prefsCanMakePayment, boolean skipUiForBasicCard,
+            String twaPackageName) {
+        if (useDelegate) {
+            ChromePaymentRequestFactory.sDelegateForTest =
+                    new ChromePaymentRequestDelegateForTest(isOffTheRecord, isValidSsl,
+                            prefsCanMakePayment, twaPackageName, skipUiForBasicCard);
+        } else {
+            ChromePaymentRequestFactory.sDelegateForTest = null;
+        }
     }
 
     @CalledByNative
     private static void setUseNativeObserverForTest(long onCanMakePaymentCalledPtr,
             long onCanMakePaymentReturnedPtr, long onHasEnrolledInstrumentCalledPtr,
             long onHasEnrolledInstrumentReturnedPtr, long onAppListReadyPtr,
-            long setAppDescriptionPtr, long onErrorDisplayedPtr, long onNotSupportedErrorPtr,
-            long onConnectionTerminatedPtr, long onAbortCalledPtr, long onCompleteCalledPtr,
-            long onUiDisplayedPtr) {
+            long setAppDescriptionPtr, long onNotSupportedErrorPtr, long onConnectionTerminatedPtr,
+            long onAbortCalledPtr, long onCompleteCalledPtr, long onMinimalUIReadyPtr) {
         PaymentRequestService.setNativeObserverForTest(
                 new PaymentRequestNativeObserverBridgeToNativeForTest(onCanMakePaymentCalledPtr,
                         onCanMakePaymentReturnedPtr, onHasEnrolledInstrumentCalledPtr,
                         onHasEnrolledInstrumentReturnedPtr, onAppListReadyPtr, setAppDescriptionPtr,
-                        onErrorDisplayedPtr, onNotSupportedErrorPtr, onConnectionTerminatedPtr,
-                        onAbortCalledPtr, onCompleteCalledPtr, onUiDisplayedPtr));
+                        onNotSupportedErrorPtr, onConnectionTerminatedPtr, onAbortCalledPtr,
+                        onCompleteCalledPtr, onMinimalUIReadyPtr));
     }
 
     @CalledByNative
@@ -255,30 +257,13 @@ public class PaymentRequestTestBridge {
     }
 
     @CalledByNative
-    private static boolean closeDialogForTest() {
-        SecurePaymentConfirmationAuthnController authnUi =
-                PaymentRequestService.getSecurePaymentConfirmationAuthnUiForTesting();
-        if (authnUi != null) return authnUi.cancelForTest();
-
-        SecurePaymentConfirmationNoMatchingCredController noMatchingUi =
-                PaymentRequestService.getSecurePaymentConfirmationNoMatchingCredUiForTesting();
-        if (noMatchingUi != null) {
-            noMatchingUi.close();
-            return true;
-        }
-
-        return sUiService == null || sUiService.closeDialogForTest();
+    private static boolean confirmMinimalUIForTest() {
+        return sUiService.confirmMinimalUIForTest();
     }
 
     @CalledByNative
-    private static boolean clickSecurePaymentConfirmationOptOutForTest() {
-        SecurePaymentConfirmationAuthnController authnUi =
-                PaymentRequestService.getSecurePaymentConfirmationAuthnUiForTesting();
-        if (authnUi != null) return authnUi.optOutForTest();
-        SecurePaymentConfirmationNoMatchingCredController noMatchingUi =
-                PaymentRequestService.getSecurePaymentConfirmationNoMatchingCredUiForTesting();
-        if (noMatchingUi != null) return noMatchingUi.optOutForTest();
-        return false;
+    private static boolean dismissMinimalUIForTest() {
+        return sUiService.dismissMinimalUIForTest();
     }
 
     @CalledByNative

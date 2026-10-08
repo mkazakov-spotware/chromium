@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,13 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "components/policy/core/common/cloud/resource_cache.h"
 #include "components/policy/core/common/policy_bundle.h"
 #include "components/policy/core/common/policy_namespace.h"
 #include "components/policy/core/common/policy_types.h"
-#include "components/policy/core/common/values_util.h"
 #include "components/policy/policy_export.h"
 
 namespace enterprise_management {
@@ -58,12 +57,14 @@ class POLICY_EXPORT ComponentCloudPolicyStore {
   // kChromeExtensionPolicyType, kChromeMachineLevelExtensionCloudPolicyType.
   // Please update component_cloud_policy_store.cc in case there is new policy
   // type added.
+  // |policy_source| specifies where the policy originates from, and can be used
+  // to configure precedence when the same components are configured by policies
+  // from different sources. It only accepts POLICY_SOURCE_CLOUD and
+  // POLICY_SOURCE_PRIORITY_CLOUD now.
   ComponentCloudPolicyStore(Delegate* delegate,
                             ResourceCache* cache,
-                            const std::string& policy_type);
-  ComponentCloudPolicyStore(const ComponentCloudPolicyStore&) = delete;
-  ComponentCloudPolicyStore& operator=(const ComponentCloudPolicyStore&) =
-      delete;
+                            const std::string& policy_type,
+                            PolicySource policy_source);
   ~ComponentCloudPolicyStore();
 
   // Helper that returns true for PolicyDomains that can be managed by this
@@ -78,9 +79,6 @@ class POLICY_EXPORT ComponentCloudPolicyStore {
 
   // The current list of policies.
   const PolicyBundle& policy() const { return policy_bundle_; }
-
-  // Returns the map of JSON policy value for each namespace.
-  ComponentPolicyMap GetJsonPolicyMap();
 
   // The cached hash for namespace |ns|, or the empty string if |ns| is not
   // cached.
@@ -135,8 +133,7 @@ class POLICY_EXPORT ComponentCloudPolicyStore {
       const PolicyNamespace& ns,
       std::unique_ptr<enterprise_management::PolicyFetchResponse> proto,
       enterprise_management::PolicyData* policy_data,
-      enterprise_management::ExternalPolicyData* payload,
-      std::string* error);
+      enterprise_management::ExternalPolicyData* payload);
 
  private:
   // Validates the JSON policy serialized in |data|, and verifies its hash
@@ -144,17 +141,14 @@ class POLICY_EXPORT ComponentCloudPolicyStore {
   // parsed policies in |policy|.
   bool ValidateData(const std::string& data,
                     const std::string& secure_hash,
-                    PolicyMap* policy,
-                    std::string* error);
+                    PolicyMap* policy);
 
   // Parses the JSON policy in |data| into |policy|, and returns true if the
   // parse was successful.
-  bool ParsePolicy(const std::string& data,
-                   PolicyMap* policy,
-                   std::string* error);
+  bool ParsePolicy(const std::string& data, PolicyMap* policy);
 
-  const raw_ptr<Delegate> delegate_;
-  const raw_ptr<ResourceCache> cache_;
+  Delegate* const delegate_;
+  ResourceCache* const cache_;
 
   // The following fields contain credentials used for validating the policy.
   std::string username_;
@@ -173,9 +167,13 @@ class POLICY_EXPORT ComponentCloudPolicyStore {
   // exposed component.
   std::map<PolicyNamespace, base::Time> stored_policy_times_;
 
-  raw_ptr<const DomainConstants> domain_constants_;
+  const DomainConstants* domain_constants_;
+
+  const PolicySource policy_source_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(ComponentCloudPolicyStore);
 };
 
 }  // namespace policy

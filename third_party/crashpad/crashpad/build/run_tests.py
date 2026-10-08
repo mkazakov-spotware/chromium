@@ -1,6 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# coding: utf-8
 
-# Copyright 2014 The Crashpad Authors
+# Copyright 2014 The Crashpad Authors. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from __future__ import print_function
 
 import argparse
 import os
@@ -37,7 +40,7 @@ def _FindGNFromBinaryDir(binary_dir):
 
     build_ninja = os.path.join(binary_dir, 'build.ninja')
     if os.path.isfile(build_ninja):
-        with open(build_ninja, 'r') as f:
+        with open(build_ninja, 'rb') as f:
             # Look for the always-generated regeneration rule of the form:
             #
             # rule gn
@@ -75,11 +78,10 @@ def _BinaryDirTargetOS(binary_dir):
         ],
                                  shell=IS_WINDOWS_HOST,
                                  stdout=subprocess.PIPE,
-                                 stderr=open(os.devnull),
-                                 text=True)
+                                 stderr=open(os.devnull))
         value = popen.communicate()[0]
         if popen.returncode == 0:
-            match = re.match('target_os = "(.*)"$', value)
+            match = re.match('target_os = "(.*)"$', value.decode('utf-8'))
             if match:
                 return match.group(1)
 
@@ -194,14 +196,13 @@ def _RunOnAndroidTarget(binary_dir, test, android_device, extra_command_line):
         child = subprocess.Popen(adb_command,
                                  shell=IS_WINDOWS_HOST,
                                  stdin=open(os.devnull),
-                                 stdout=subprocess.PIPE,
-                                 text=True)
+                                 stdout=subprocess.PIPE)
 
         FINAL_LINE_RE = re.compile('status=(\d+)$')
         final_line = None
         while True:
             # Use readline so that the test output appears “live” when running.
-            data = child.stdout.readline()
+            data = child.stdout.readline().decode('utf-8')
             if data == '':
                 break
             if final_line is not None:
@@ -368,11 +369,10 @@ def _RunOnIOSTarget(binary_dir, test, is_xcuitest=False):
 
         xctestrun_path = f.name
         print(xctestrun_path)
-        with open(xctestrun_path, 'wb') as fp:
-            if is_xcuitest:
-                plistlib.dump(xcuitest(binary_dir, test), fp)
-            else:
-                plistlib.dump(xctest(binary_dir, test), fp)
+        if is_xcuitest:
+            plistlib.writePlist(xcuitest(binary_dir, test), xctestrun_path)
+        else:
+            plistlib.writePlist(xctest(binary_dir, test), xctestrun_path)
 
         subprocess.check_call([
             'xcodebuild', 'test-without-building', '-xctestrun', xctestrun_path,
@@ -421,11 +421,10 @@ def main(args):
         android_device = os.environ.get('ANDROID_DEVICE')
         if not android_device:
             adb_devices = subprocess.check_output(['adb', 'devices'],
-                                                  shell=IS_WINDOWS_HOST,
-                                                  text=True)
+                                                  shell=IS_WINDOWS_HOST)
             devices = []
             for line in adb_devices.splitlines():
-                line = line
+                line = line.decode('utf-8')
                 if (line == 'List of devices attached' or
                         re.match('^\* daemon .+ \*$', line) or line == ''):
                     continue

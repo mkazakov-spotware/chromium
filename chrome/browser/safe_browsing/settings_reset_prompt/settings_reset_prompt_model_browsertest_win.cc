@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -125,8 +125,8 @@ class SettingsResetPromptModelBrowserTest
     ASSERT_TRUE(template_url_service);
 
     TemplateURLData data;
-    data.SetShortName(u"default");
-    data.SetKeyword(u"default");
+    data.SetShortName(base::ASCIIToUTF16("default"));
+    data.SetKeyword(base::ASCIIToUTF16("default"));
     data.SetURL(kDefaultSearchUrl);
 
     TemplateURL* template_url =
@@ -173,11 +173,12 @@ class SettingsResetPromptModelBrowserTest
     LoadManifest(manifest, out_extension);
 
     // Ensure that the startup url seen in the prefs is same as |startup_url|.
-    const base::Value::List& url_list =
+    const base::ListValue* url_list =
         GetPrefs()->GetList(prefs::kURLsToRestoreOnStartup);
-    ASSERT_EQ(url_list.size(), 1U);
-    ASSERT_TRUE(url_list[0].is_string());
-    ASSERT_EQ(GURL(url_list[0].GetString()), GURL(startup_url));
+    ASSERT_EQ(url_list->GetSize(), 1U);
+    std::string url_text;
+    ASSERT_TRUE(url_list->GetString(0, &url_text));
+    ASSERT_EQ(GURL(url_text), GURL(startup_url));
   }
 
   void LoadManifest(const std::string& manifest,

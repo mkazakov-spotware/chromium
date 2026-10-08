@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,21 @@
 #include "android_webview/browser/gfx/render_thread_manager.h"
 #include "base/android/android_hardware_buffer_compat.h"
 #include "base/android/scoped_hardware_buffer_fence_sync.h"
-#include "gpu/command_buffer/service/ahardwarebuffer_utils.h"
 #include "gpu/command_buffer/service/skia_utils.h"
+#include "gpu/ipc/common/android/android_image_reader_utils.h"
 #include "gpu/vulkan/vulkan_fence_helper.h"
 #include "gpu/vulkan/vulkan_function_pointers.h"
 #include "gpu/vulkan/vulkan_image.h"
 #include "gpu/vulkan/vulkan_implementation.h"
-#include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColorSpace.h"
 #include "third_party/skia/include/gpu/GrBackendSemaphore.h"
 #include "third_party/skia/include/gpu/vk/GrVkBackendContext.h"
 #include "third_party/skia/include/gpu/vk/GrVkExtensions.h"
 #include "third_party/skia/src/gpu/vk/GrVkSecondaryCBDrawContext.h"
 #include "ui/gfx/gpu_memory_buffer.h"
-#include "ui/gl/android/egl_fence_utils.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_context_egl.h"
+#include "ui/gl/gl_image_ahardwarebuffer.h"
 #include "ui/gl/gl_surface_egl.h"
 #include "ui/gl/init/gl_factory.h"
 
@@ -54,20 +53,14 @@ class VulkanGLInterop::GLNonOwnedCompatibilityContext
  public:
   GLNonOwnedCompatibilityContext()
       : gl::GLContextEGL(nullptr),
-        surface_(base::MakeRefCounted<gl::PbufferGLSurfaceEGL>(
-            gl::GLSurfaceEGL::GetGLDisplayEGL(),
-            gfx::Size(1, 1))) {
+        surface_(
+            base::MakeRefCounted<gl::PbufferGLSurfaceEGL>(gfx::Size(1, 1))) {
     gl::GLContextAttribs attribs;
     Initialize(surface_.get(), attribs);
 
     DCHECK(!g_gl_context);
     g_gl_context = this;
   }
-
-  GLNonOwnedCompatibilityContext(const GLNonOwnedCompatibilityContext&) =
-      delete;
-  GLNonOwnedCompatibilityContext& operator=(
-      const GLNonOwnedCompatibilityContext&) = delete;
 
   bool MakeCurrentImpl(gl::GLSurface* surface) override {
     // A GLNonOwnedCompatibilityContext may have set the GetRealCurrent()
@@ -102,6 +95,8 @@ class VulkanGLInterop::GLNonOwnedCompatibilityContext
   }
 
   scoped_refptr<gl::GLSurface> surface_;
+
+  DISALLOW_COPY_AND_ASSIGN(GLNonOwnedCompatibilityContext);
 };
 
 VulkanGLInterop::InFlightInteropDraw::InFlightInteropDraw(
@@ -169,8 +164,7 @@ VulkanGLInterop::~VulkanGLInterop() {
 
 void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
                              sk_sp<SkColorSpace> color_space,
-                             const HardwareRendererDrawParams& params,
-                             const OverlaysParams& overlays_params) {
+                             HardwareRendererDrawParams* params) {
   if (!gl_context_)
     return;
 
@@ -193,8 +187,8 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
   }
 
   // If prev buffer is wrong size, just re-allocate.
-  if (pending_draw &&
-      pending_draw->image_size != gfx::Size(params.width, params.height)) {
+  if (pending_draw && pending_draw->ahb_image->GetSize() !=
+                          gfx::Size(params->width, params->height)) {
     pending_draw.reset();
   }
 
@@ -204,8 +198,8 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
         std::make_unique<InFlightInteropDraw>(vulkan_context_provider_);
 
     AHardwareBuffer_Desc desc = {};
-    desc.width = params.width;
-    desc.height = params.height;
+    desc.width = params->width;
+    desc.height = params->height;
     desc.layers = 1;  // number of images
     // TODO(ericrk): Handle other formats.
     desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
@@ -219,22 +213,24 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
       LOG(ERROR) << "Failed to allocate AHardwareBuffer for WebView rendering.";
       return;
     }
-    pending_draw->scoped_buffer =
+    auto scoped_buffer =
         base::android::ScopedHardwareBufferHandle::Adopt(buffer);
-    pending_draw->image_size = gfx::Size(params.width, params.height);
 
-    // Create an EGLImage for the buffer.
-    pending_draw->egl_image = gpu::CreateEGLImageFromAHardwareBuffer(
-        pending_draw->scoped_buffer.get());
-    if (!pending_draw->egl_image.is_valid()) {
-      LOG(ERROR) << "Failed to initialize EGLImage for AHardwareBuffer";
+    pending_draw->ahb_image = base::MakeRefCounted<gl::GLImageAHardwareBuffer>(
+        gfx::Size(params->width, params->height));
+    if (!pending_draw->ahb_image->Initialize(scoped_buffer.get(),
+                                             false /* preserved */)) {
+      LOG(ERROR) << "Failed to initialize GLImage for AHardwareBuffer.";
       return;
     }
 
     glGenTextures(1, static_cast<GLuint*>(&pending_draw->texture_id));
     GLenum target = GL_TEXTURE_2D;
     glBindTexture(target, pending_draw->texture_id);
-    glEGLImageTargetTexture2DOES(target, pending_draw->egl_image.get());
+    if (!pending_draw->ahb_image->BindTexImage(target)) {
+      LOG(ERROR) << "Failed to bind GLImage for AHardwareBuffer.";
+      return;
+    }
     glBindTexture(target, 0);
     glGenFramebuffersEXT(1, &pending_draw->framebuffer_id);
     glBindFramebufferEXT(GL_FRAMEBUFFER, pending_draw->framebuffer_id);
@@ -248,20 +244,19 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
   }
 
   // Ask GL to wait on any Vk sync_fd before writing.
-  gl::InsertEglFenceAndWait(std::move(pending_draw->sync_fd));
+  gpu::InsertEglFenceAndWait(std::move(pending_draw->sync_fd));
 
   // Bind buffer and render with GL.
   base::ScopedFD gl_done_fd;
   {
     glBindFramebufferEXT(GL_FRAMEBUFFER, pending_draw->framebuffer_id);
-    glViewport(0, 0, params.width, params.height);
+    glViewport(0, 0, params->width, params->height);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_SCISSOR_TEST);
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    render_thread_manager_->DrawOnRT(/*save_restore=*/false, params,
-                                     overlays_params);
-    gl_done_fd = gl::CreateEglFenceAndExportFd();
+    render_thread_manager_->DrawOnRT(false /* save_restore */, params);
+    gl_done_fd = gpu::CreateEglFenceAndExportFd();
   }
 
   pending_draw->draw_context = std::move(draw_context);
@@ -294,14 +289,13 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
   // Create a VkImage and import AHB.
   if (!pending_draw->vulkan_image) {
     auto handle = base::android::ScopedHardwareBufferHandle::Create(
-        pending_draw->scoped_buffer.get());
+        pending_draw->ahb_image->GetAHardwareBuffer()->buffer());
     gfx::GpuMemoryBufferHandle gmb_handle(std::move(handle));
     auto* device_queue = vulkan_context_provider_->GetDeviceQueue();
     auto vulkan_image = gpu::VulkanImage::CreateFromGpuMemoryBufferHandle(
         device_queue, std::move(gmb_handle),
-        gfx::Size(params.width, params.height), VK_FORMAT_R8G8B8A8_UNORM,
-        /*usage=*/0, /*flags=*/0, /*image_tiling=*/VK_IMAGE_TILING_OPTIMAL,
-        /*queue_family_index=*/VK_QUEUE_FAMILY_EXTERNAL);
+        gfx::Size(params->width, params->height), VK_FORMAT_R8G8B8A8_UNORM,
+        0 /* usage */);
     if (!vulkan_image) {
       LOG(ERROR) << "Could not create VkImage from AHB.";
       return;
@@ -312,7 +306,7 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
   }
 
   // Create an SkImage from AHB.
-  GrBackendTexture backend_texture(params.width, params.height,
+  GrBackendTexture backend_texture(params->width, params->height,
                                    pending_draw->image_info);
   pending_draw->ahb_skimage = SkImage::MakeFromTexture(
       vulkan_context_provider_->GetGrContext(), backend_texture,
@@ -326,8 +320,8 @@ void VulkanGLInterop::DrawVk(sk_sp<GrVkSecondaryCBDrawContext> draw_context,
   // Draw the SkImage.
   SkPaint paint;
   paint.setBlendMode(SkBlendMode::kSrcOver);
-  pending_draw->draw_context->getCanvas()->drawImage(
-      pending_draw->ahb_skimage, 0, 0, SkSamplingOptions(), &paint);
+  pending_draw->draw_context->getCanvas()->drawImage(pending_draw->ahb_skimage,
+                                                     0, 0, &paint);
   pending_draw->draw_context->flush();
 
   // Transfer |pending_draw| to |pending_draw_| for handling in

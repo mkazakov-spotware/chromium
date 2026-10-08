@@ -1,28 +1,32 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/download/internal/background_service/test/entry_utils.h"
+#include <algorithm>
+
 #include "base/guid.h"
-#include "base/memory/values_equivalent.h"
-#include "base/ranges/algorithm.h"
+#include "components/download/internal/background_service/test/entry_utils.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 
 namespace download {
 namespace test {
 
 bool CompareEntry(const Entry* const& expected, const Entry* const& actual) {
-  return base::ValuesEquivalent(expected, actual);
+  if (expected == nullptr || actual == nullptr)
+    return expected == actual;
+
+  return *expected == *actual;
 }
 
 bool CompareEntryList(const std::vector<Entry*>& expected,
                       const std::vector<Entry*>& actual) {
-  return base::ranges::is_permutation(actual, expected, CompareEntry);
+  return std::is_permutation(actual.cbegin(), actual.cend(), expected.cbegin(),
+                             CompareEntry);
 }
 
 bool CompareEntryList(const std::vector<Entry>& list1,
                       const std::vector<Entry>& list2) {
-  return base::ranges::is_permutation(list1, list2);
+  return std::is_permutation(list1.begin(), list1.end(), list2.begin());
 }
 
 bool CompareEntryUsingGuidOnly(const Entry* const& expected,
@@ -35,8 +39,8 @@ bool CompareEntryUsingGuidOnly(const Entry* const& expected,
 
 bool CompareEntryListUsingGuidOnly(const std::vector<Entry*>& expected,
                                    const std::vector<Entry*>& actual) {
-  return base::ranges::is_permutation(actual, expected,
-                                      CompareEntryUsingGuidOnly);
+  return std::is_permutation(actual.cbegin(), actual.cend(), expected.cbegin(),
+                             CompareEntryUsingGuidOnly);
 }
 
 Entry BuildBasicEntry() {

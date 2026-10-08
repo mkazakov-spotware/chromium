@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/values.h"
 #include "services/preferences/tracked/dictionary_hash_store_contents.h"
 #include "services/preferences/tracked/hash_store_contents.h"
@@ -19,9 +20,6 @@ class PrefHashStoreImplTest : public testing::Test {
  public:
   PrefHashStoreImplTest() : contents_(&pref_store_contents_) {}
 
-  PrefHashStoreImplTest(const PrefHashStoreImplTest&) = delete;
-  PrefHashStoreImplTest& operator=(const PrefHashStoreImplTest&) = delete;
-
  protected:
   HashStoreContents* GetHashStoreContents() { return &contents_; }
 
@@ -30,6 +28,8 @@ class PrefHashStoreImplTest : public testing::Test {
   // Must be declared after |pref_store_contents_| as it needs to be outlived
   // by it.
   DictionaryHashStoreContents contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefHashStoreImplTest);
 };
 
 TEST_F(PrefHashStoreImplTest, ComputeMac) {
@@ -65,7 +65,7 @@ TEST_F(PrefHashStoreImplTest, ComputeSplitMacs) {
   const std::string mac_3 =
       computed_macs->FindKey("http://www.example.com")->GetString();
 
-  EXPECT_EQ(3U, computed_macs->DictSize());
+  EXPECT_EQ(3U, computed_macs->size());
 
   base::Value string_1("string1");
   base::Value string_2("string2");
@@ -83,7 +83,7 @@ TEST_F(PrefHashStoreImplTest, ComputeNullSplitMacs) {
       pref_hash_store.ComputeSplitMacs("foo.bar", nullptr);
 
   ASSERT_TRUE(computed_macs);
-  EXPECT_TRUE(computed_macs->DictEmpty());
+  EXPECT_TRUE(computed_macs->empty());
 }
 
 TEST_F(PrefHashStoreImplTest, AtomicHashStoreAndCheck) {
@@ -177,11 +177,10 @@ TEST_F(PrefHashStoreImplTest, ImportExportOperations) {
   }
 
   // Make a copy of the stored hash for future use.
-  const base::Value* hash =
-      GetHashStoreContents()->GetContents()->FindKey("path1");
-  ASSERT_TRUE(hash);
-  base::Value path_1_string_1_hash_copy(hash->Clone());
-  hash = nullptr;
+  const base::Value* hash = NULL;
+  ASSERT_TRUE(GetHashStoreContents()->GetContents()->Get("path1", &hash));
+  std::unique_ptr<base::Value> path_1_string_1_hash_copy(hash->DeepCopy());
+  hash = NULL;
 
   // Verify that the super MAC was stamped.
   {
@@ -222,7 +221,7 @@ TEST_F(PrefHashStoreImplTest, ImportExportOperations) {
     ASSERT_FALSE(transaction->HasHash("path1"));
 
     // An import should preserve invalidity.
-    transaction->ImportHash("path1", &path_1_string_1_hash_copy);
+    transaction->ImportHash("path1", path_1_string_1_hash_copy.get());
 
     ASSERT_TRUE(transaction->HasHash("path1"));
 
@@ -281,7 +280,7 @@ TEST_F(PrefHashStoreImplTest, ImportExportOperations) {
     ASSERT_TRUE(transaction->IsSuperMACValid());
 
     // "Over-import". An import should preserve validity.
-    transaction->ImportHash("path1", &path_1_string_1_hash_copy);
+    transaction->ImportHash("path1", path_1_string_1_hash_copy.get());
     EXPECT_EQ(ValueState::UNCHANGED,
               transaction->CheckValue("path1", &string_1));
     EXPECT_EQ(ValueState::CHANGED, transaction->CheckValue("path1", &string_2));

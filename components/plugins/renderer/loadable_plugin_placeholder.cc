@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/json/string_escape.h"
-#include "base/metrics/user_metrics_action.h"
 #include "base/strings/string_piece.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
@@ -88,7 +88,7 @@ void LoadablePluginPlaceholder::ReplacePlugin(blink::WebPlugin* new_plugin) {
   plugin()->Destroy();
 }
 
-void LoadablePluginPlaceholder::SetMessage(const std::u16string& message) {
+void LoadablePluginPlaceholder::SetMessage(const base::string16& message) {
   message_ = message;
   if (finished_loading_)
     UpdateMessage();

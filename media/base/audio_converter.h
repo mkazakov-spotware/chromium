@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -22,7 +22,8 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "media/base/audio_glitch_info.h"
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "media/base/audio_parameters.h"
 #include "media/base/media_export.h"
 
@@ -57,8 +58,7 @@ class MEDIA_EXPORT AudioConverter {
     // the volume level will be used to scale the provided audio data.
     // |frames_delayed| is given in terms of the input sample rate.
     virtual double ProvideInput(AudioBus* audio_bus,
-                                uint32_t frames_delayed,
-                                const AudioGlitchInfo& glitch_info) = 0;
+                                uint32_t frames_delayed) = 0;
 
    protected:
     virtual ~InputCallback() {}
@@ -73,21 +73,13 @@ class MEDIA_EXPORT AudioConverter {
   AudioConverter(const AudioParameters& input_params,
                  const AudioParameters& output_params,
                  bool disable_fifo);
-
-  AudioConverter(const AudioConverter&) = delete;
-  AudioConverter& operator=(const AudioConverter&) = delete;
-
   ~AudioConverter();
 
   // Converts audio from all inputs into the |dest|. If |frames_delayed| is
   // specified, it will be propagated to each input. Count of frames must be
-  // given in terms of the output sample rate. If |glitch_info| is specified, it
-  // will be accumulated and propagated to all inputs on the next call to
-  // InputCallback::ProvideInput().
+  // given in terms of the output sample rate.
   void Convert(AudioBus* dest);
-  void ConvertWithInfo(uint32_t frames_delayed,
-                       const AudioGlitchInfo& glitch_info,
-                       AudioBus* dest);
+  void ConvertWithDelay(uint32_t frames_delayed, AudioBus* dest);
 
   // Adds or removes an input from the converter.  RemoveInput() will call
   // Reset() if no inputs remain after the specified input is removed.
@@ -158,9 +150,7 @@ class MEDIA_EXPORT AudioConverter {
   // AudioBus structures on demand in response to varying frame size requests.
   const int input_channel_count_;
 
-  // Accumulates glitch info in ConvertWithInfo() and passes it on to all inputs
-  // in SourceCallback().
-  AudioGlitchInfo::Accumulator glitch_info_accumulator_;
+  DISALLOW_COPY_AND_ASSIGN(AudioConverter);
 };
 
 }  // namespace media

@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_HTML_CANVAS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_HTML_CANVAS_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/layout_replaced.h"
 
 namespace blink {
@@ -41,12 +40,11 @@ class CORE_EXPORT LayoutHTMLCanvas final : public LayoutReplaced {
     NOT_DESTROYED();
     return type == kLayoutObjectCanvas || LayoutReplaced::IsOfType(type);
   }
+  PaintLayerType LayerTypeRequired() const override;
 
   void InvalidatePaint(const PaintInvalidatorContext&) const final;
 
   void CanvasSizeChanged();
-
-  bool DrawsBackgroundOntoContentLayer() const final;
 
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
 
@@ -64,6 +62,12 @@ class CORE_EXPORT LayoutHTMLCanvas final : public LayoutReplaced {
     NOT_DESTROYED();
     CanvasSizeChanged();
   }
+
+  bool CanHaveAdditionalCompositingReasons() const override {
+    NOT_DESTROYED();
+    return true;
+  }
+  CompositingReasons AdditionalCompositingReasons() const override;
 };
 
 template <>

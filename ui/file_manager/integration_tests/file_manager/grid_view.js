@@ -1,12 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {addEntries, ENTRIES, getCaller, pending, repeatUntil, RootPath, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {openNewWindow, remoteCall, setupAndWaitUntilReady} from './background.js';
-import {BASIC_DRIVE_ENTRY_SET, BASIC_LOCAL_ENTRY_SET} from './test_data.js';
+'use strict';
 
 /**
  * Shows the grid view and checks the label texts of entries.
@@ -25,8 +21,14 @@ async function showGridView(rootPath, expectedSet) {
 
   // Open Files app on |rootPath|.
   const appId = await setupAndWaitUntilReady(rootPath);
-  // Disable all banners.
-  await remoteCall.disableBannersForTesting(appId);
+
+  // Dismiss the Drive banner so Grid View can display the all entries.
+  if (rootPath === RootPath.DRIVE) {
+    if (await isFilesNg(appId)) {
+      await remoteCall.waitAndClickElement(
+          appId, '.drive-welcome-wrapper .banner-close');
+    }
+  }
 
   // Click the grid view button.
   await remoteCall.waitForElement(appId, '#view-button');
@@ -129,11 +131,11 @@ testcase.showGridViewTitles = async () => {
 testcase.showGridViewDocumentsProvider = async () => {
   const caller = getCaller();
 
-  // Add files to the DocumentsProvider volume.
-  await addEntries(['documents_provider'], BASIC_LOCAL_ENTRY_SET);
-
   // Open Files app.
   const appId = await openNewWindow(RootPath.DOWNLOADS);
+
+  // Add files to the DocumentsProvider volume.
+  await addEntries(['documents_provider'], BASIC_LOCAL_ENTRY_SET);
 
   // Wait for the DocumentsProvider volume to mount.
   const documentsProviderVolumeQuery =

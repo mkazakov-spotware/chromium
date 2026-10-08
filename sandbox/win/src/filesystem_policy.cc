@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,12 @@
 #include <string>
 
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/win/scoped_handle.h"
+#include "base/win/windows_version.h"
 #include "sandbox/win/src/ipc_tags.h"
 #include "sandbox/win/src/policy_engine_opcodes.h"
 #include "sandbox/win/src/policy_params.h"
-#include "sandbox/win/src/sandbox_nt_util.h"
 #include "sandbox/win/src/sandbox_types.h"
 #include "sandbox/win/src/sandbox_utils.h"
 #include "sandbox/win/src/win_utils.h"
@@ -31,11 +32,14 @@ NTSTATUS NtCreateFileInTarget(HANDLE* target_file_handle,
                               PVOID ea_buffer,
                               ULONG ea_length,
                               HANDLE target_process) {
+  NtCreateFileFunction NtCreateFile = nullptr;
+  ResolveNTFunctionPtr("NtCreateFile", &NtCreateFile);
+
   HANDLE local_handle = INVALID_HANDLE_VALUE;
-  NTSTATUS status = sandbox::GetNtExports()->CreateFile(
-      &local_handle, desired_access, obj_attributes, io_status_block, nullptr,
-      file_attributes, share_access, create_disposition, create_options,
-      ea_buffer, ea_length);
+  NTSTATUS status =
+      NtCreateFile(&local_handle, desired_access, obj_attributes,
+                   io_status_block, nullptr, file_attributes, share_access,
+                   create_disposition, create_options, ea_buffer, ea_length);
   if (!NT_SUCCESS(status)) {
     return status;
   }
@@ -71,14 +75,13 @@ SECURITY_QUALITY_OF_SERVICE GetAnonymousQOS() {
 namespace sandbox {
 
 bool FileSystemPolicy::GenerateRules(const wchar_t* name,
-                                     Semantics semantics,
+                                     TargetPolicy::Semantics semantics,
                                      LowLevelPolicy* policy) {
   std::wstring mod_name(name);
   if (mod_name.empty()) {
     return false;
   }
 
-  bool is_pipe = IsPipe(mod_name);
   if (!PreProcessName(&mod_name)) {
     // The path to be added might contain a reparse point.
     NOTREACHED();
@@ -113,7 +116,12 @@ bool FileSystemPolicy::GenerateRules(const wchar_t* name,
   PolicyRule rename(result);
 
   switch (semantics) {
-    case Semantics::kFilesAllowReadonly: {
+    case TargetPolicy::FILES_ALLOW_DIR_ANY: {
+      open.AddNumberMatch(IF, OpenFile::OPTIONS, FILE_DIRECTORY_FILE, AND);
+      create.AddNumberMatch(IF, OpenFile::OPTIONS, FILE_DIRECTORY_FILE, AND);
+      break;
+    }
+    case TargetPolicy::FILES_ALLOW_READONLY: {
       // We consider all flags that are not known to be readonly as potentially
       // used for write.
       DWORD allowed_flags = FILE_READ_DATA | FILE_READ_ATTRIBUTES |
@@ -121,21 +129,21 @@ bool FileSystemPolicy::GenerateRules(const wchar_t* name,
                             GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL;
       DWORD restricted_flags = ~allowed_flags;
       open.AddNumberMatch(IF_NOT, OpenFile::ACCESS, restricted_flags, AND);
-      open.AddNumberMatch(IF, OpenFile::OPENONLY, true, EQUAL);
+      open.AddNumberMatch(IF, OpenFile::DISPOSITION, FILE_OPEN, EQUAL);
       create.AddNumberMatch(IF_NOT, OpenFile::ACCESS, restricted_flags, AND);
-      create.AddNumberMatch(IF, OpenFile::OPENONLY, true, EQUAL);
+      create.AddNumberMatch(IF, OpenFile::DISPOSITION, FILE_OPEN, EQUAL);
 
       // Read only access don't work for rename.
       rule_to_add &= ~kCallNtSetInfoRename;
       break;
     }
-    case Semantics::kFilesAllowQuery: {
+    case TargetPolicy::FILES_ALLOW_QUERY: {
       // Here we don't want to add policy for the open or the create.
       rule_to_add &=
           ~(kCallNtOpenFile | kCallNtCreateFile | kCallNtSetInfoRename);
       break;
     }
-    case Semantics::kFilesAllowAny: {
+    case TargetPolicy::FILES_ALLOW_ANY: {
       break;
     }
     default: {
@@ -157,22 +165,76 @@ bool FileSystemPolicy::GenerateRules(const wchar_t* name,
   }
 
   if ((rule_to_add & kCallNtQueryAttributesFile) &&
-      (!query.AddStringMatch(IF, OpenFile::NAME, name, CASE_INSENSITIVE) ||
+      (!query.AddStringMatch(IF, FileName::NAME, name, CASE_INSENSITIVE) ||
        !policy->AddRule(IpcTag::NTQUERYATTRIBUTESFILE, &query))) {
     return false;
   }
 
   if ((rule_to_add & kCallNtQueryFullAttributesFile) &&
-      (!query_full.AddStringMatch(IF, OpenFile::NAME, name, CASE_INSENSITIVE) ||
+      (!query_full.AddStringMatch(IF, FileName::NAME, name, CASE_INSENSITIVE) ||
        !policy->AddRule(IpcTag::NTQUERYFULLATTRIBUTESFILE, &query_full))) {
     return false;
   }
 
-  if ((rule_to_add & kCallNtSetInfoRename) && !is_pipe &&
-      (!rename.AddStringMatch(IF, OpenFile::NAME, name, CASE_INSENSITIVE) ||
+  if ((rule_to_add & kCallNtSetInfoRename) &&
+      (!rename.AddStringMatch(IF, FileName::NAME, name, CASE_INSENSITIVE) ||
        !policy->AddRule(IpcTag::NTSETINFO_RENAME, &rename))) {
     return false;
   }
+
+  return true;
+}
+
+// Right now we insert two rules, to be evaluated before any user supplied rule:
+// - go to the broker if the path doesn't look like the paths that we push on
+//    the policy (namely \??\something).
+// - go to the broker if it looks like this is a short-name path.
+//
+// It is possible to add a rule to go to the broker in any case; it would look
+// something like:
+//    rule = new PolicyRule(ASK_BROKER);
+//    rule->AddNumberMatch(IF_NOT, FileName::BROKER, true, AND);
+//    policy->AddRule(service, rule);
+bool FileSystemPolicy::SetInitialRules(LowLevelPolicy* policy) {
+  PolicyRule format(ASK_BROKER);
+  PolicyRule short_name(ASK_BROKER);
+
+  bool rv = format.AddNumberMatch(IF_NOT, FileName::BROKER, BROKER_TRUE, AND);
+  rv &= format.AddStringMatch(IF_NOT, FileName::NAME, L"\\/?/?\\*",
+                              CASE_SENSITIVE);
+
+  rv &= short_name.AddNumberMatch(IF_NOT, FileName::BROKER, BROKER_TRUE, AND);
+  rv &= short_name.AddStringMatch(IF, FileName::NAME, L"*~*", CASE_SENSITIVE);
+
+  if (!rv || !policy->AddRule(IpcTag::NTCREATEFILE, &format))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTCREATEFILE, &short_name))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTOPENFILE, &format))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTOPENFILE, &short_name))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTQUERYATTRIBUTESFILE, &format))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTQUERYATTRIBUTESFILE, &short_name))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTQUERYFULLATTRIBUTESFILE, &format))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTQUERYFULLATTRIBUTESFILE, &short_name))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTSETINFO_RENAME, &format))
+    return false;
+
+  if (!policy->AddRule(IpcTag::NTSETINFO_RENAME, &short_name))
+    return false;
 
   return true;
 }
@@ -260,13 +322,16 @@ bool FileSystemPolicy::QueryAttributesFileAction(
     return false;
   }
 
+  NtQueryAttributesFileFunction NtQueryAttributesFile = nullptr;
+  ResolveNTFunctionPtr("NtQueryAttributesFile", &NtQueryAttributesFile);
+
   UNICODE_STRING uni_name = {0};
   OBJECT_ATTRIBUTES obj_attributes = {0};
   SECURITY_QUALITY_OF_SERVICE security_qos = GetAnonymousQOS();
 
   InitObjectAttribs(file, attributes, nullptr, &obj_attributes, &uni_name,
                     IsPipe(file) ? &security_qos : nullptr);
-  *nt_status = GetNtExports()->QueryAttributesFile(&obj_attributes, file_info);
+  *nt_status = NtQueryAttributesFile(&obj_attributes, file_info);
 
   return true;
 }
@@ -284,14 +349,17 @@ bool FileSystemPolicy::QueryFullAttributesFileAction(
     *nt_status = STATUS_ACCESS_DENIED;
     return false;
   }
+
+  NtQueryFullAttributesFileFunction NtQueryFullAttributesFile = nullptr;
+  ResolveNTFunctionPtr("NtQueryFullAttributesFile", &NtQueryFullAttributesFile);
+
   UNICODE_STRING uni_name = {0};
   OBJECT_ATTRIBUTES obj_attributes = {0};
   SECURITY_QUALITY_OF_SERVICE security_qos = GetAnonymousQOS();
 
   InitObjectAttribs(file, attributes, nullptr, &obj_attributes, &uni_name,
                     IsPipe(file) ? &security_qos : nullptr);
-  *nt_status =
-      GetNtExports()->QueryFullAttributesFile(&obj_attributes, file_info);
+  *nt_status = NtQueryFullAttributesFile(&obj_attributes, file_info);
 
   return true;
 }
@@ -311,6 +379,9 @@ bool FileSystemPolicy::SetInformationFileAction(EvalResult eval_result,
     return false;
   }
 
+  NtSetInformationFileFunction NtSetInformationFile = nullptr;
+  ResolveNTFunctionPtr("NtSetInformationFile", &NtSetInformationFile);
+
   HANDLE local_handle = nullptr;
   if (!::DuplicateHandle(client_info.process, target_file_handle,
                          ::GetCurrentProcess(), &local_handle, 0, false,
@@ -323,8 +394,8 @@ bool FileSystemPolicy::SetInformationFileAction(EvalResult eval_result,
 
   FILE_INFORMATION_CLASS file_info_class =
       static_cast<FILE_INFORMATION_CLASS>(info_class);
-  *nt_status = GetNtExports()->SetInformationFile(
-      local_handle, io_block, file_info, length, file_info_class);
+  *nt_status = NtSetInformationFile(local_handle, io_block, file_info, length,
+                                    file_info_class);
 
   return true;
 }
@@ -344,7 +415,7 @@ std::wstring FixNTPrefixForMatch(const std::wstring& name) {
 
   // NT prefix escaped for rule matcher
   const wchar_t kNTPrefixEscaped[] = L"\\/?/?\\";
-  const int kNTPrefixEscapedLen = std::size(kNTPrefixEscaped) - 1;
+  const int kNTPrefixEscapedLen = base::size(kNTPrefixEscaped) - 1;
 
   if (0 != mod_name.compare(0, kNTPrefixLen, kNTPrefix)) {
     if (0 != mod_name.compare(0, kNTPrefixEscapedLen, kNTPrefixEscaped)) {

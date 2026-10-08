@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,96 +7,63 @@
  * 'settings-users-page' is the settings page for managing user accounts on
  * the device.
  */
+Polymer({
+  is: 'settings-users-page',
 
-import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
-import 'chrome://resources/cr_elements/action_link.css.js';
-import 'chrome://resources/js/action_link.js';
-import '../../controls/settings_toggle_button.js';
-import '../../settings_shared.css.js';
-import './user_list.js';
-import './users_add_user_dialog.js';
+  behaviors: [
+    DeepLinkingBehavior,
+    settings.RouteObserverBehavior,
+  ],
 
-import {focusWithoutInk} from 'chrome://resources/ash/common/focus_without_ink_js.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {afterNextRender, html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  properties: {
+    /**
+     * Preferences state.
+     */
+    prefs: {
+      type: Object,
+      notify: true,
+    },
 
-import {loadTimeData} from '../../i18n_setup.js';
-import {Setting} from '../../mojom-webui/setting.mojom-webui.js';
-import {Route} from '../../router.js';
-import {DeepLinkingBehavior, DeepLinkingBehaviorInterface} from '../deep_linking_behavior.js';
-import {routes} from '../os_route.js';
-import {RouteObserverBehavior, RouteObserverBehaviorInterface} from '../route_observer_behavior.js';
+    /** @private */
+    isOwner_: {
+      type: Boolean,
+      value: true,
+    },
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {DeepLinkingBehaviorInterface}
- * @implements {RouteObserverBehaviorInterface}
- */
-const SettingsUsersPageElementBase = mixinBehaviors(
-    [DeepLinkingBehavior, RouteObserverBehavior], PolymerElement);
+    /** @private */
+    isUserListManaged_: {
+      type: Boolean,
+      value: false,
+    },
 
-/** @polymer */
-class SettingsUsersPageElement extends SettingsUsersPageElementBase {
-  static get is() {
-    return 'settings-users-page';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  static get properties() {
-    return {
-      /**
-       * Preferences state.
-       */
-      prefs: {
-        type: Object,
-        notify: true,
+    /** @private */
+    isChild_: {
+      type: Boolean,
+      value() {
+        return loadTimeData.getBoolean('isSupervised');
       },
+    },
 
-      /** @private */
-      isOwner_: {
-        type: Boolean,
-        value: true,
-      },
+    /**
+     * Used by DeepLinkingBehavior to focus this page's deep links.
+     * @type {!Set<!chromeos.settings.mojom.Setting>}
+     */
+    supportedSettingIds: {
+      type: Object,
+      value: () => new Set([
+        chromeos.settings.mojom.Setting.kGuestBrowsing,
+        chromeos.settings.mojom.Setting.kShowUsernamesAndPhotosAtSignIn,
+        chromeos.settings.mojom.Setting.kRestrictSignIn,
+        chromeos.settings.mojom.Setting.kAddToUserAllowlist,
+        chromeos.settings.mojom.Setting.kRemoveFromUserAllowlist,
+      ]),
+    },
+  },
 
-      /** @private */
-      isUserListManaged_: {
-        type: Boolean,
-        value: false,
-      },
-
-      /** @private */
-      isChild_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('isChildAccount');
-        },
-      },
-
-      /**
-       * Used by DeepLinkingBehavior to focus this page's deep links.
-       * @type {!Set<!Setting>}
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set([
-          Setting.kGuestBrowsingV2,
-          Setting.kShowUsernamesAndPhotosAtSignInV2,
-          Setting.kRestrictSignInV2,
-          Setting.kAddToUserAllowlistV2,
-          Setting.kRemoveFromUserAllowlistV2,
-        ]),
-      },
-    };
-  }
+  listeners: {'all-managed-users-removed': 'focusAddUserButton_'},
 
   /** @override */
-  constructor() {
-    super();
-
+  created() {
     chrome.usersPrivate.getCurrentUser(user => {
       this.isOwner_ = user.isOwner;
     });
@@ -104,29 +71,23 @@ class SettingsUsersPageElement extends SettingsUsersPageElementBase {
     chrome.usersPrivate.isUserListManaged(isUserListManaged => {
       this.isUserListManaged_ = isUserListManaged;
     });
-  }
-
-  ready() {
-    super.ready();
-
-    this.addEventListener(
-        'all-managed-users-removed', this.focusAddUserButton_);
-  }
+  },
 
   /**
    * Overridden from DeepLinkingBehavior.
-   * @param {!Setting} settingId
+   * @param {!chromeos.settings.mojom.Setting} settingId
    * @return {boolean}
    */
   beforeDeepLinkAttempt(settingId) {
-    if (settingId !== Setting.kRemoveFromUserAllowlistV2) {
+    if (settingId !==
+        chromeos.settings.mojom.Setting.kRemoveFromUserAllowlist) {
       // Continue with deep linking attempt.
       return true;
     }
 
     // Wait for element to load.
-    afterNextRender(this, () => {
-      const userList = this.shadowRoot.querySelector('settings-user-list');
+    Polymer.RenderStatus.afterNextRender(this, () => {
+      const userList = this.$$('settings-user-list');
       const removeButton = userList.$$('cr-icon-button');
       if (removeButton) {
         this.showDeepLinkElement(removeButton);
@@ -136,22 +97,22 @@ class SettingsUsersPageElement extends SettingsUsersPageElementBase {
     });
     // Stop deep link attempt since we completed it manually.
     return false;
-  }
+  },
 
   /**
-   * RouteObserverBehavior
-   * @param {!Route} route
-   * @param {!Route=} oldRoute
+   * settings.RouteObserverBehavior
+   * @param {!settings.Route} route
+   * @param {!settings.Route} oldRoute
    * @protected
    */
   currentRouteChanged(route, oldRoute) {
     // Does not apply to this page.
-    if (route !== routes.ACCOUNTS) {
+    if (route !== settings.routes.ACCOUNTS) {
       return;
     }
 
     this.attemptDeepLink();
-  }
+  },
 
   /**
    * @param {!Event} e
@@ -160,12 +121,12 @@ class SettingsUsersPageElement extends SettingsUsersPageElementBase {
   openAddUserDialog_(e) {
     e.preventDefault();
     this.$.addUserDialog.open();
-  }
+  },
 
   /** @private */
   onAddUserDialogClose_() {
     this.focusAddUserButton_();
-  }
+  },
 
   /**
    * @param {boolean} isOwner
@@ -175,7 +136,7 @@ class SettingsUsersPageElement extends SettingsUsersPageElementBase {
    */
   isEditingDisabled_(isOwner, isUserListManaged) {
     return !isOwner || isUserListManaged;
-  }
+  },
 
   /**
    * @param {boolean} isOwner
@@ -187,18 +148,15 @@ class SettingsUsersPageElement extends SettingsUsersPageElementBase {
    */
   isEditingUsersEnabled_(isOwner, isUserListManaged, allowGuest, isChild) {
     return isOwner && !isUserListManaged && !allowGuest && !isChild;
-  }
+  },
 
   /** @return {boolean} */
   shouldHideModifiedByOwnerLabel_() {
     return this.isUserListManaged_ || this.isOwner_;
-  }
+  },
 
   /** @private */
   focusAddUserButton_() {
-    focusWithoutInk(
-        assert(this.shadowRoot.querySelector('#add-user-button a')));
-  }
-}
-
-customElements.define(SettingsUsersPageElement.is, SettingsUsersPageElement);
+    cr.ui.focusWithoutInk(assert(this.$$('#add-user-button a')));
+  },
+});

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,11 +52,11 @@ CastWebUI::CastWebUI(content::WebUI* webui,
 CastWebUI::~CastWebUI() {}
 
 void CastWebUI::InvokeCallback(const std::string& message,
-                               const base::Value::List& args) {
+                               const base::ListValue* args) {
   if (message_callbacks_.count(message) == 0) {
     return;
   }
-  message_callbacks_[message]->OnMessage(args.Clone());
+  message_callbacks_[message]->OnMessage(args->Clone());
 }
 
 void CastWebUI::RegisterMessageCallback(
@@ -70,8 +70,7 @@ void CastWebUI::RegisterMessageCallback(
 
 void CastWebUI::CallJavascriptFunction(const std::string& function,
                                        std::vector<base::Value> args) {
-  message_handler_->CallJavascriptFunction(
-      function, std::vector<const base::ValueView>(args.begin(), args.end()));
+  message_handler_->CallJavascriptFunction(function, std::move(args));
 }
 
 }  // namespace chromecast

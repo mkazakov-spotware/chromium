@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,8 @@
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/dom_distiller/core/url_constants.h"
 #include "components/dom_distiller/core/url_utils.h"
-#include "extensions/buildflags/buildflags.h"
-#include "url/gurl.h"
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/common/constants.h"
-#endif
+#include "url/gurl.h"
 
 namespace {
 
@@ -37,12 +33,8 @@ ChromeFaviconClient::~ChromeFaviconClient() {
 }
 
 bool ChromeFaviconClient::IsNativeApplicationURL(const GURL& url) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (url.SchemeIs(extensions::kExtensionScheme))
-    return true;
-#endif
-
-  return url.SchemeIs(content::kChromeUIScheme);
+  return url.SchemeIs(content::kChromeUIScheme) ||
+         url.SchemeIs(extensions::kExtensionScheme);
 }
 
 bool ChromeFaviconClient::IsReaderModeURL(const GURL& url) {

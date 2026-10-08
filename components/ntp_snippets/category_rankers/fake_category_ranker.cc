@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/ntp_snippets/category_rankers/fake_category_ranker.h"
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
+#include "base/stl_util.h"
 
 namespace ntp_snippets {
 
@@ -17,8 +18,8 @@ bool FakeCategoryRanker::Compare(Category left, Category right) const {
   DCHECK(base::Contains(categories_, left));
   DCHECK(base::Contains(categories_, right));
 
-  return base::ranges::find(categories_, left) <
-         base::ranges::find(categories_, right);
+  return std::find(categories_.begin(), categories_.end(), left) <
+         std::find(categories_.begin(), categories_.end(), right);
 }
 
 void FakeCategoryRanker::ClearHistory(base::Time begin, base::Time end) {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,18 +16,21 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
+#include "base/containers/span.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece_forward.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "device/bluetooth/bluetooth_common.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service.h"
 #include "device/bluetooth/public/cpp/bluetooth_uuid.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -89,56 +92,16 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
 
   // Possible errors passed back to an error callback function in case of a
   // failed call to Connect().
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused. This enum should be kept in sync
-  // with the BluetoothDeviceConnectErrorCode enum in
-  // src/tools/metrics/histograms/enums.xml.
   enum ConnectErrorCode {
-    ERROR_AUTH_CANCELED = 0,
-    ERROR_AUTH_FAILED = 1,
-    ERROR_AUTH_REJECTED = 2,
-    ERROR_AUTH_TIMEOUT = 3,
-    ERROR_FAILED = 4,
-    ERROR_INPROGRESS = 5,
-    ERROR_UNKNOWN = 6,
-    ERROR_UNSUPPORTED_DEVICE = 7,
-    NUM_CONNECT_ERROR_CODES,  // Keep as last enum.
-  };
-
-  // Possible battery types that this device could have information for.
-  enum class BatteryType {
-    // Used for devices who have a single battery.
-    kDefault,
-    // The left bud on a True Wireless device.
-    kLeftBudTrueWireless,
-    // The right bud on a True Wireless device.
-    kRightBudTrueWireless,
-    // The True Wireless device case.
-    kCaseTrueWireless,
-  };
-
-  struct DEVICE_BLUETOOTH_EXPORT BatteryInfo {
-    enum class ChargeState {
-      kUnknown,
-      kCharging,
-      kDischarging,
-    };
-
-    BatteryType type;
-    absl::optional<uint8_t> percentage;
-    ChargeState charge_state;
-
-    BatteryInfo();
-    BatteryInfo(BatteryType type, absl::optional<uint8_t> percentage);
-    BatteryInfo(BatteryType type,
-                absl::optional<uint8_t> percentage,
-                ChargeState charge_state);
-    BatteryInfo(const BatteryInfo&);
-    BatteryInfo& operator=(const BatteryInfo&);
-    BatteryInfo(BatteryInfo&&);
-    BatteryInfo& operator=(BatteryInfo&&);
-    ~BatteryInfo();
-    bool operator==(const BatteryInfo& other);
+    ERROR_AUTH_CANCELED,
+    ERROR_AUTH_FAILED,
+    ERROR_AUTH_REJECTED,
+    ERROR_AUTH_TIMEOUT,
+    ERROR_FAILED,
+    ERROR_INPROGRESS,
+    ERROR_UNKNOWN,
+    ERROR_UNSUPPORTED_DEVICE,
+    NUM_CONNECT_ERROR_CODES  // Keep as last enum.
   };
 
   typedef std::vector<BluetoothUUID> UUIDList;
@@ -148,8 +111,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
                              BluetoothUUIDHash>
       ServiceDataMap;
   typedef uint16_t ManufacturerId;
-  typedef std::vector<uint8_t> ManufacturerData;
-  typedef std::unordered_map<ManufacturerId, ManufacturerData>
+  typedef std::unordered_map<ManufacturerId, std::vector<uint8_t>>
       ManufacturerDataMap;
   typedef std::unordered_set<ManufacturerId> ManufacturerIDSet;
 
@@ -243,9 +205,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
     virtual void AuthorizePairing(BluetoothDevice* device) = 0;
   };
 
-  BluetoothDevice(const BluetoothDevice&) = delete;
-  BluetoothDevice& operator=(const BluetoothDevice&) = delete;
-
   virtual ~BluetoothDevice();
 
   // Clamps numbers less than -128 to -128 and numbers greater than 127 to 127.
@@ -255,7 +214,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // and metrics logging,
   virtual uint32_t GetBluetoothClass() const = 0;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Returns the transport type of the device. Some devices only support one
   // of BR/EDR or LE, and some support both.
   virtual BluetoothTransport GetType() const = 0;
@@ -264,13 +223,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // Returns the identifier of the bluetooth device.
   virtual std::string GetIdentifier() const;
 
-  // Returns the Bluetooth address of the device. This should be used as
+  // Returns the Bluetooth of address the device. This should be used as
   // a unique key to identify the device and copied where needed.
   virtual std::string GetAddress() const = 0;
-
-  // Returns the OUI portion of the Bluetooth address, which refers to the
-  // device's vendor.
-  std::string GetOuiPortionOfBluetoothAddress() const;
 
   // Returns the Bluetooth address type of the device. Currently available on
   // Linux and Chrome OS.
@@ -294,12 +249,12 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   virtual uint16_t GetAppearance() const = 0;
 
   // Returns the name of the device, which may be empty.
-  virtual absl::optional<std::string> GetName() const = 0;
+  virtual base::Optional<std::string> GetName() const = 0;
 
   // Returns the name of the device suitable for displaying, this may
   // be a synthesized string containing the address and localized type name
   // if the device has no obtained name.
-  virtual std::u16string GetNameForDisplay() const;
+  virtual base::string16 GetNameForDisplay() const;
 
   // Returns the type of the device, limited to those we support or are
   // aware of, by decoding the bluetooth class information. The returned
@@ -318,11 +273,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
 
   // Indicates whether the device is paired with the adapter.
   virtual bool IsPaired() const = 0;
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Indicates whether the device is bonded with the adapter.
-  virtual bool IsBonded() const = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Indicates whether the device is currently connected to the adapter.
   // Note that if IsConnected() is true, does not imply that the device is
@@ -362,12 +312,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // a device stops advertising a service this function will still return
   // its UUID.
   virtual UUIDSet GetUUIDs() const;
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Sets if this device is blocked by admin policy.
-  void SetIsBlockedByPolicy(bool);
-  bool IsBlockedByPolicy() const;
-#endif
 
   // Returns the last advertised Service Data. Returns an empty map if the
   // adapter is not discovering.
@@ -414,31 +358,31 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // The received signal strength, in dBm. This field is avaliable and valid
   // only during discovery.
   // TODO(http://crbug.com/580406): Devirtualize once BlueZ sets inquiry_rssi_.
-  virtual absl::optional<int8_t> GetInquiryRSSI() const;
+  virtual base::Optional<int8_t> GetInquiryRSSI() const;
 
   // The transmitted power level. This field is avaliable only for LE devices
   // that include this field in AD. It is avaliable and valid only during
   // discovery.
   // TODO(http://crbug.com/580406): Devirtualize once BlueZ sets
   // inquiry_tx_power_.
-  virtual absl::optional<int8_t> GetInquiryTxPower() const;
+  virtual base::Optional<int8_t> GetInquiryTxPower() const;
 
   // Returns Advertising Data Flags.
   // Returns cached value if the adapter is not discovering.
   //
   // Only Chrome OS and WinRT support this now. Upstream BlueZ has this feature
-  // as experimental. This method returns absl::nullopt on platforms that don't
+  // as experimental. This method returns base::nullopt on platforms that don't
   // support this feature.
-  absl::optional<uint8_t> GetAdvertisingDataFlags() const;
+  base::Optional<uint8_t> GetAdvertisingDataFlags() const;
 
   // The ErrorCallback is used for methods that can fail in which case it
   // is called, in the success case the callback is simply not called.
   using ErrorCallback = base::OnceClosure;
 
-  // Reports the status of a device connection attempt. |error_code| will
-  // contain a value upon failure, otherwise the attempt was successful.
-  using ConnectCallback =
-      base::OnceCallback<void(absl::optional<ConnectErrorCode> error_code)>;
+  // The ConnectErrorCallback is used for methods that can fail with an error,
+  // passed back as an error code argument to this callback.
+  // In the success case this callback is not called.
+  using ConnectErrorCallback = base::OnceCallback<void(enum ConnectErrorCode)>;
 
   using ConnectionInfoCallback =
       base::OnceCallback<void(const ConnectionInfo&)>;
@@ -483,32 +427,16 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // back to the device object. Not all devices require user responses
   // during pairing, so it is normal for |pairing_delegate| to receive no
   // calls. To explicitly force a low-security connection without bonding,
-  // pass nullptr, though this is ignored if the device is already paired.
+  // pass NULL, though this is ignored if the device is already paired.
   //
-  // |callback| will be called with the status of the connection attempt.
+  // If the request fails, |error_callback| will be called; otherwise,
+  // |callback| is called when the request is complete.
   // After calling Connect, CancelPairing should be called to cancel the pairing
   // process and release the pairing delegate if user cancels the pairing and
   // closes the pairing UI.
   virtual void Connect(PairingDelegate* pairing_delegate,
-                       ConnectCallback callback) = 0;
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Initiates a classic connection to the device, pairing first if necessary.
-  //
-  // Method calls will be made on the supplied object |pairing_delegate|
-  // to indicate what display, and in response should make method calls
-  // back to the device object. Not all devices require user responses
-  // during pairing, so it is normal for |pairing_delegate| to receive no
-  // calls. To explicitly force a low-security connection without bonding,
-  // pass nullptr, though this is ignored if the device is already paired.
-  //
-  // |callback| will be called with the status of the connection attempt.  After
-  // calling ConnectClassic, CancelPairing should be called to cancel the
-  // pairing process and release the pairing delegate if user cancels the
-  // pairing and closes the pairing UI.
-  virtual void ConnectClassic(PairingDelegate* pairing_delegate,
-                              ConnectCallback callback) = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+                       base::OnceClosure callback,
+                       ConnectErrorCallback error_callback) = 0;
 
   // Pairs the device. This method triggers pairing unconditially, i.e. it
   // ignores the |IsPaired()| value.
@@ -517,7 +445,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // implemented on ChromeOS, Linux and Windows 10. On Windows, only pairing
   // with a pin code is currently supported.
   virtual void Pair(PairingDelegate* pairing_delegate,
-                    ConnectCallback callback);
+                    base::OnceClosure callback,
+                    ConnectErrorCallback error_callback);
 
   // Sends the PIN code |pincode| to the remote device during pairing.
   //
@@ -590,10 +519,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
       ConnectToServiceCallback callback,
       ConnectToServiceErrorCallback error_callback) = 0;
 
-  // Opens a new GATT connection to this device. On success, |callback| will
-  // be called with a valid BluetoothGattConnection and |error_code| will have
-  // no value. On error, |callback| will be called with a null connection and
-  // a valid |error_code|. The connection will be kept alive,
+  // Opens a new GATT connection to this device. On success, a new
+  // BluetoothGattConnection will be handed to the caller via |callback|. On
+  // error, |error_callback| will be called. The connection will be kept alive,
   // as long as there is at least one active GATT connection. In the case that
   // the underlying connection gets terminated, either due to a call to
   // BluetoothDevice::Disconnect or other unexpected circumstances, the
@@ -609,11 +537,11 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // |BluetoothAdapter::Observer::GattServicesDiscovered| is still the correct
   // event to watch for.
   using GattConnectionCallback =
-      base::OnceCallback<void(std::unique_ptr<BluetoothGattConnection>,
-                              absl::optional<ConnectErrorCode> error_code)>;
+      base::OnceCallback<void(std::unique_ptr<BluetoothGattConnection>)>;
   virtual void CreateGattConnection(
       GattConnectionCallback callback,
-      absl::optional<BluetoothUUID> service_uuid = absl::nullopt);
+      ConnectErrorCallback error_callback,
+      base::Optional<BluetoothUUID> service_uuid = base::nullopt);
 
   // Set the gatt services discovery complete flag for this device.
   virtual void SetGattServicesDiscoveryComplete(bool complete);
@@ -628,7 +556,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   virtual std::vector<BluetoothRemoteGattService*> GetGattServices() const;
 
   // Returns the GATT service with device-specific identifier |identifier|.
-  // Returns nullptr, if no such service exists.
+  // Returns NULL, if no such service exists.
   virtual BluetoothRemoteGattService* GetGattService(
       const std::string& identifier) const;
 
@@ -644,9 +572,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // arguments matches the order of their corresponding Data Type specified in
   // https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile.
   void UpdateAdvertisementData(int8_t rssi,
-                               absl::optional<uint8_t> flags,
+                               base::Optional<uint8_t> flags,
                                UUIDList advertised_uuids,
-                               absl::optional<int8_t> tx_power,
+                               base::Optional<int8_t> tx_power,
                                ServiceDataMap service_data,
                                ManufacturerDataMap manufacturer_data);
 
@@ -661,7 +589,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   std::vector<BluetoothRemoteGattService*> GetPrimaryServicesByUUID(
       const BluetoothUUID& service_uuid);
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
   using ExecuteWriteErrorCallback =
       base::OnceCallback<void(device::BluetoothGattService::GattErrorCode)>;
   using AbortWriteErrorCallback =
@@ -672,18 +600,23 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // Aborts all the previous prepare writes in a reliable write session.
   virtual void AbortWrite(base::OnceClosure callback,
                           AbortWriteErrorCallback error_callback) = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
-  // Set the battery information for the battery type |info.type|. Overrides
-  // previously set value (if any).
-  void SetBatteryInfo(const BatteryInfo& info);
-  // Removes the battery information associated with |type|.
-  // Returns true if removed, otherwise false.
-  bool RemoveBatteryInfo(const BatteryType& type);
-  absl::optional<BatteryInfo> GetBatteryInfo(const BatteryType& type) const;
-  // Returns the list of currently set BatteryTypes.
-  std::vector<BatteryType> GetAvailableBatteryTypes();
+#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+  // Set the remaining battery of the device to show in the UI. This value must
+  // be between 0 and 100, inclusive.
+  // TODO(http://b/160905785): Battery percentage is populated by
+  // ash::HfpBatteryListener, ash::HidBatteryListener, and
+  // device::BluetoothAdapterBlueZ. When Battery information is entirely
+  // consolidated in BlueZ's Battery API, only device::BluetoothAdapterBlueZ
+  // should have control over this field with the value originating from a
+  // single source, the BlueZ Battery API..
+  void SetBatteryPercentage(base::Optional<uint8_t> battery_percentage);
+
+  // Returns the remaining battery for the device.
+  const base::Optional<uint8_t>& battery_percentage() const {
+    return battery_percentage_;
+  }
 #endif
 
   // Returns whether this device supports discovering specific services, i.e.
@@ -695,7 +628,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
  protected:
   // BluetoothGattConnection is a friend to call Add/RemoveGattConnection.
   friend BluetoothGattConnection;
-  FRIEND_TEST_ALL_PREFIXES(BluetoothDeviceTest, GattConnectionErrorReentrancy);
   FRIEND_TEST_ALL_PREFIXES(
       BluetoothTest,
       BluetoothGattConnection_DisconnectGatt_SimulateConnect);
@@ -740,8 +672,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
     void ReplaceServiceUUIDs(
         const BluetoothDevice::GattServiceMap& gatt_services);
 
-    void ReplaceServiceUUIDs(UUIDList new_service_uuids);
-
     void ClearServiceUUIDs();
 
     // Returns the union of Advertised UUIDs and Service UUIDs.
@@ -758,10 +688,11 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   explicit BluetoothDevice(BluetoothAdapter* adapter);
 
   // Implements platform specific operations to initiate a GATT connection.
-  // Subclasses must also call DidConnectGatt or DidDisconnectGatt immediately
-  // or asynchronously as the connection state changes.
+  // Subclasses must also call DidConnectGatt, DidFailToConnectGatt, or
+  // DidDisconnectGatt immediately or asynchronously as the connection state
+  // changes.
   virtual void CreateGattConnectionImpl(
-      absl::optional<BluetoothUUID> service_uuid) = 0;
+      base::Optional<BluetoothUUID> service_uuid) = 0;
 
   // UpgradeToFullDiscovery is called when there is a pending or current GATT
   // connection that was created with a service UUID, but now discovery of all
@@ -784,8 +715,10 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // to ensure a change in platform state is correctly tracked.
   //
   // Under normal behavior it is expected that after CreateGattConnectionImpl
-  // a platform will call DidConnectGatt but not DidDisconnectGatt.
-  void DidConnectGatt(absl::optional<ConnectErrorCode> error_code);
+  // an platform will call DidConnectGatt or DidFailToConnectGatt, but not
+  // DidDisconnectGatt.
+  void DidConnectGatt();
+  void DidFailToConnectGatt(ConnectErrorCode);
   void DidDisconnectGatt();
 
   // Tracks BluetoothGattConnection instances that act as a reference count
@@ -808,10 +741,11 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
 
   // Contains the specified service that was targeted for discovery. Only ever
   // contains a value if |supports_service_specific_discovery_| is true.
-  absl::optional<BluetoothUUID> target_service_;
+  base::Optional<BluetoothUUID> target_service_;
 
-  // Callbacks for result of CreateGattConnection.
-  std::vector<GattConnectionCallback> create_gatt_connection_callbacks_;
+  // Callbacks for pending success and error result of CreateGattConnection.
+  std::vector<GattConnectionCallback> create_gatt_connection_success_callbacks_;
+  std::vector<ConnectErrorCallback> create_gatt_connection_error_callbacks_;
 
   // BluetoothGattConnection objects keeping the GATT connection alive.
   std::set<BluetoothGattConnection*> gatt_connections_;
@@ -820,13 +754,13 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   bool gatt_services_discovery_complete_;
 
   // Received Signal Strength Indicator of the advertisement received.
-  absl::optional<int8_t> inquiry_rssi_;
+  base::Optional<int8_t> inquiry_rssi_;
 
   // Advertising Data flags of the device.
-  absl::optional<uint8_t> advertising_data_flags_;
+  base::Optional<uint8_t> advertising_data_flags_;
 
   // Tx Power advertised by the device.
-  absl::optional<int8_t> inquiry_tx_power_;
+  base::Optional<int8_t> inquiry_tx_power_;
 
   // Class that holds the union of Advertised UUIDs and Service UUIDs.
   DeviceUUIDs device_uuids_;
@@ -843,19 +777,17 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
  private:
   // Returns a localized string containing the device's bluetooth address and
   // a device type for display when |name_| is empty.
-  std::u16string GetAddressWithLocalizedDeviceTypeName() const;
+  base::string16 GetAddressWithLocalizedDeviceTypeName() const;
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
-  // Battery information for the known battery types for this device.
-  base::flat_map<BatteryType, BatteryInfo> battery_info_map_;
+#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+  // Remaining battery level of the device.
+  // TODO(https://crbug.com/973237): This field is different from others because
+  // it is not filled by the platform. In the future, when there is a unified
+  // Mojo service, this field will be moved to BluetoothDeviceInfo.
+  base::Optional<uint8_t> battery_percentage_;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS)
-  // Indicate whether or not this device is blocked by admin policy. This would
-  // be true if any of its auto-connect service does not exist in the
-  // ServiceAllowList under org.bluez.AdminPolicyStatus1.
-  bool is_blocked_by_policy_ = false;
-#endif
+  DISALLOW_COPY_AND_ASSIGN(BluetoothDevice);
 };
 
 }  // namespace device

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/files/file_path.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -267,7 +268,7 @@ TEST_F(RTLTest, WrapPathWithLTRFormatting) {
 
   for (auto*& i : cases) {
     FilePath path;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     std::wstring win_path(i);
     std::replace(win_path.begin(), win_path.end(), '/', '\\');
     path = FilePath(win_path);
@@ -277,7 +278,7 @@ TEST_F(RTLTest, WrapPathWithLTRFormatting) {
     path = FilePath(base::SysWideToNativeMB(i));
     std::wstring wrapped_expected = std::wstring(L"\x202a") + i + L"\x202c";
 #endif
-    std::u16string localized_file_path_string;
+    string16 localized_file_path_string;
     WrapPathWithLTRFormatting(path, &localized_file_path_string);
 
     std::wstring wrapped_actual = UTF16ToWide(localized_file_path_string);
@@ -303,21 +304,21 @@ TEST_F(RTLTest, WrapString) {
     // Toggle the application default text direction (to try each direction).
     SetRTLForTesting(!IsRTL());
 
-    std::u16string empty;
+    string16 empty;
     WrapStringWithLTRFormatting(&empty);
     EXPECT_TRUE(empty.empty());
     WrapStringWithRTLFormatting(&empty);
     EXPECT_TRUE(empty.empty());
 
     for (auto*& test_case : cases) {
-      std::u16string input = WideToUTF16(test_case);
-      std::u16string ltr_wrap = input;
+      string16 input = WideToUTF16(test_case);
+      string16 ltr_wrap = input;
       WrapStringWithLTRFormatting(&ltr_wrap);
       EXPECT_EQ(ltr_wrap[0], kLeftToRightEmbeddingMark);
       EXPECT_EQ(ltr_wrap.substr(1, ltr_wrap.length() - 2), input);
       EXPECT_EQ(ltr_wrap[ltr_wrap.length() -1], kPopDirectionalFormatting);
 
-      std::u16string rtl_wrap = input;
+      string16 rtl_wrap = input;
       WrapStringWithRTLFormatting(&rtl_wrap);
       EXPECT_EQ(rtl_wrap[0], kRightToLeftEmbeddingMark);
       EXPECT_EQ(rtl_wrap.substr(1, rtl_wrap.length() - 2), input);
@@ -351,8 +352,8 @@ TEST_F(RTLTest, GetDisplayStringInLTRDirectionality) {
     // Toggle the application default text direction (to try each direction).
     SetRTLForTesting(!IsRTL());
     for (auto& test_case : cases) {
-      std::u16string input = WideToUTF16(test_case.path);
-      std::u16string output = GetDisplayStringInLTRDirectionality(input);
+      string16 input = WideToUTF16(test_case.path);
+      string16 output = GetDisplayStringInLTRDirectionality(input);
       // Test the expected wrapping behavior for the current UI directionality.
       if (IsRTL() ? test_case.wrap_rtl : test_case.wrap_ltr)
         EXPECT_NE(output, input);
@@ -439,8 +440,8 @@ TEST_F(RTLTest, UnadjustStringForLocaleDirection) {
     SetRTLForTesting(!IsRTL());
 
     for (auto*& test_case : cases) {
-      std::u16string unadjusted_string = WideToUTF16(test_case);
-      std::u16string adjusted_string = unadjusted_string;
+      string16 unadjusted_string = WideToUTF16(test_case);
+      string16 adjusted_string = unadjusted_string;
 
       if (!AdjustStringForLocaleDirection(&adjusted_string))
         continue;
@@ -490,8 +491,8 @@ TEST_F(RTLTest, EnsureTerminatedDirectionalFormatting) {
     // Toggle the application default text direction (to try each direction).
     SetRTLForTesting(!IsRTL());
     for (auto& test_case : cases) {
-      std::u16string unsanitized_text = WideToUTF16(test_case.unformated_text);
-      std::u16string sanitized_text = WideToUTF16(test_case.formatted_text);
+      string16 unsanitized_text = WideToUTF16(test_case.unformated_text);
+      string16 sanitized_text = WideToUTF16(test_case.formatted_text);
       EnsureTerminatedDirectionalFormatting(&unsanitized_text);
       EXPECT_EQ(sanitized_text, unsanitized_text);
     }
@@ -524,14 +525,13 @@ TEST_F(RTLTest, SanitizeUserSuppliedString) {
 
   for (auto& i : cases) {
     // On Windows for an LTR locale, no changes to the string are made.
-    std::u16string prefix, suffix = u"";
-#if !BUILDFLAG(IS_WIN)
-    prefix = u"\x200e\x202b";
-    suffix = u"\x202c\x200e";
-#endif  // !BUILDFLAG(IS_WIN)
-    std::u16string unsanitized_text = WideToUTF16(i.unformatted_text);
-    std::u16string sanitized_text =
-        prefix + WideToUTF16(i.formatted_text) + suffix;
+    string16 prefix, suffix = WideToUTF16(L"");
+#if !defined(OS_WIN)
+    prefix = WideToUTF16(L"\x200e\x202b");
+    suffix = WideToUTF16(L"\x202c\x200e");
+#endif  // !OS_WIN
+    string16 unsanitized_text = WideToUTF16(i.unformatted_text);
+    string16 sanitized_text = prefix + WideToUTF16(i.formatted_text) + suffix;
     SanitizeUserSuppliedString(&unsanitized_text);
     EXPECT_EQ(sanitized_text, unsanitized_text);
   }
@@ -542,18 +542,13 @@ class SetICULocaleTest : public PlatformTest {};
 TEST_F(SetICULocaleTest, OverlongLocaleId) {
   test::ScopedRestoreICUDefaultLocale restore_locale;
   std::string id("fr-ca-x-foo");
-  std::string lid("fr_CA@x=foo");
-  while (id.length() < 152) {
+  while (id.length() < 152)
     id.append("-x-foo");
-    lid.append("-x-foo");
-  }
   SetICUDefaultLocale(id);
   EXPECT_STRNE("en_US", icu::Locale::getDefault().getName());
   id.append("zzz");
-  lid.append("zzz");
   SetICUDefaultLocale(id);
-  // ICU-21639 fix the long locale issue now.
-  EXPECT_STREQ(lid.c_str(), icu::Locale::getDefault().getName());
+  EXPECT_STREQ("en_US", icu::Locale::getDefault().getName());
 }
 
 }  // namespace i18n

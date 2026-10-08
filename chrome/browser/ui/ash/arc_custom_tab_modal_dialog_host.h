@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 
 #include <memory>
 
-#include "base/observer_list.h"
+#include "base/macros.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
-#include "content/public/browser/web_contents_observer.h"
 #include "ui/gfx/native_widget_types.h"
 
 namespace arc {
@@ -32,22 +31,14 @@ class ModalDialogHostObserver;
 
 // Implements a WebContentsModalDialogHost for an ARC Custom Tab. This allows a
 // web contents modal dialog to be drawn in the ARC Custom Tab.
+// The WebContents hosted by this object must outlive it.
 class ArcCustomTabModalDialogHost
-    : public content::WebContentsObserver,
-      public web_modal::WebContentsModalDialogHost,
+    : public web_modal::WebContentsModalDialogHost,
       public web_modal::WebContentsModalDialogManagerDelegate {
  public:
   ArcCustomTabModalDialogHost(std::unique_ptr<arc::CustomTab> custom_tab,
                               content::WebContents* web_contents);
-
-  ArcCustomTabModalDialogHost(const ArcCustomTabModalDialogHost&) = delete;
-  ArcCustomTabModalDialogHost& operator=(const ArcCustomTabModalDialogHost&) =
-      delete;
-
   ~ArcCustomTabModalDialogHost() override = 0;
-
-  // content::WebContentsObserver:
-  void PrimaryMainFrameWasResized(bool width_changed) override;
 
   // web_modal::WebContentsModalDialogManagerDelegate:
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost()
@@ -64,9 +55,7 @@ class ArcCustomTabModalDialogHost
   std::unique_ptr<arc::CustomTab> custom_tab_;
   content::WebContents* web_contents_;
 
- private:
-  base::ObserverList<web_modal::ModalDialogHostObserver>::Unchecked
-      observer_list_;
+  DISALLOW_COPY_AND_ASSIGN(ArcCustomTabModalDialogHost);
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_ARC_CUSTOM_TAB_MODAL_DIALOG_HOST_H_

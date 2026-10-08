@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "chrome/browser/extensions/api/language_settings_private/language_settings_private_delegate.h"
 #include "chrome/browser/spellchecker/spellcheck_factory.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "extensions/browser/extension_system_provider.h"
 #include "extensions/browser/extensions_browser_client.h"
@@ -27,9 +28,9 @@ LanguageSettingsPrivateDelegateFactory::GetInstance() {
 }
 
 LanguageSettingsPrivateDelegateFactory::LanguageSettingsPrivateDelegateFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "LanguageSettingsPrivateDelegate",
-          ProfileSelections::BuildRedirectedInIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(SpellcheckServiceFactory::GetInstance());
 }
@@ -41,6 +42,12 @@ LanguageSettingsPrivateDelegateFactory::
 KeyedService* LanguageSettingsPrivateDelegateFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
   return LanguageSettingsPrivateDelegate::Create(context);
+}
+
+content::BrowserContext*
+LanguageSettingsPrivateDelegateFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return ExtensionsBrowserClient::Get()->GetOriginalContext(context);
 }
 
 bool LanguageSettingsPrivateDelegateFactory::

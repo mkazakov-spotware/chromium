@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A basic statistics tracker.
@@ -25,7 +33,7 @@ goog.require('goog.structs.CircularBuffer');
  *
  * Most methods optionally allow passing in the current time, so that
  * higher level stats can synchronize operations on multiple child
- * objects.  Under normal usage, the default of Date.now() should be
+ * objects.  Under normal usage, the default of goog.now() should be
  * sufficient.
  *
  * @param {number} interval The stat interval, in milliseconds.
@@ -33,7 +41,6 @@ goog.require('goog.structs.CircularBuffer');
  * @final
  */
 goog.stats.BasicStat = function(interval) {
-  'use strict';
   goog.asserts.assert(interval > 50);
 
   /**
@@ -83,7 +90,6 @@ goog.stats.BasicStat.prototype.logger_ =
  *     accumulated, in milliseconds.
  */
 goog.stats.BasicStat.prototype.getInterval = function() {
-  'use strict';
   return this.interval_;
 };
 
@@ -97,10 +103,9 @@ goog.stats.BasicStat.prototype.getInterval = function() {
  *     than or equal to the last time recorded by this stat tracker.
  */
 goog.stats.BasicStat.prototype.incBy = function(amt, opt_now) {
-  'use strict';
-  const now = opt_now ? opt_now : Date.now();
+  var now = opt_now ? opt_now : goog.now();
   this.checkForTimeTravel_(now);
-  let slot = /** @type {goog.stats.BasicStat.Slot_} */ (this.slots_.getLast());
+  var slot = /** @type {goog.stats.BasicStat.Slot_} */ (this.slots_.getLast());
   if (!slot || now >= slot.end) {
     slot = new goog.stats.BasicStat.Slot_(this.getSlotBoundary_(now));
     this.slots_.add(slot);
@@ -120,11 +125,8 @@ goog.stats.BasicStat.prototype.incBy = function(amt, opt_now) {
  * @return {number} The total count over the tracked interval.
  */
 goog.stats.BasicStat.prototype.get = function(opt_now) {
-  'use strict';
-  return this.reduceSlots_(opt_now, function(sum, slot) {
-    'use strict';
-    return sum + slot.count;
-  }, 0);
+  return this.reduceSlots_(
+      opt_now, function(sum, slot) { return sum + slot.count; }, 0);
 };
 
 
@@ -137,9 +139,7 @@ goog.stats.BasicStat.prototype.get = function(opt_now) {
  * @return {number} The maximum count of this statistic.
  */
 goog.stats.BasicStat.prototype.getMax = function(opt_now) {
-  'use strict';
   return this.reduceSlots_(opt_now, function(max, slot) {
-    'use strict';
     return Math.max(max, slot.max);
   }, Number.MIN_VALUE);
 };
@@ -154,9 +154,7 @@ goog.stats.BasicStat.prototype.getMax = function(opt_now) {
  * @return {number} The minimum count of this statistic.
  */
 goog.stats.BasicStat.prototype.getMin = function(opt_now) {
-  'use strict';
   return this.reduceSlots_(opt_now, function(min, slot) {
-    'use strict';
     return Math.min(min, slot.min);
   }, Number.MAX_VALUE);
 };
@@ -175,13 +173,12 @@ goog.stats.BasicStat.prototype.getMin = function(opt_now) {
  * @private
  */
 goog.stats.BasicStat.prototype.reduceSlots_ = function(now, func, val) {
-  'use strict';
-  now = now || Date.now();
+  now = now || goog.now();
   this.checkForTimeTravel_(now);
-  let rval = val;
-  const start = this.getSlotBoundary_(now) - this.interval_;
-  for (let i = this.slots_.getCount() - 1; i >= 0; --i) {
-    const slot = /** @type {goog.stats.BasicStat.Slot_} */ (this.slots_.get(i));
+  var rval = val;
+  var start = this.getSlotBoundary_(now) - this.interval_;
+  for (var i = this.slots_.getCount() - 1; i >= 0; --i) {
+    var slot = /** @type {goog.stats.BasicStat.Slot_} */ (this.slots_.get(i));
     if (slot.end <= start) {
       break;
     }
@@ -200,7 +197,6 @@ goog.stats.BasicStat.prototype.reduceSlots_ = function(now, func, val) {
  * @private
  */
 goog.stats.BasicStat.prototype.getSlotBoundary_ = function(time) {
-  'use strict';
   return this.slotInterval_ * (Math.floor(time / this.slotInterval_) + 1);
 };
 
@@ -212,11 +208,9 @@ goog.stats.BasicStat.prototype.getSlotBoundary_ = function(time) {
  * @private
  */
 goog.stats.BasicStat.prototype.checkForTimeTravel_ = function(now) {
-  'use strict';
-  const slot =
-      /** @type {goog.stats.BasicStat.Slot_} */ (this.slots_.getLast());
+  var slot = /** @type {goog.stats.BasicStat.Slot_} */ (this.slots_.getLast());
   if (slot) {
-    const slotStart = slot.end - this.slotInterval_;
+    var slotStart = slot.end - this.slotInterval_;
     if (now < slotStart) {
       goog.log.warning(
           this.logger_,
@@ -235,7 +229,6 @@ goog.stats.BasicStat.prototype.checkForTimeTravel_ = function(now) {
  * @private
  */
 goog.stats.BasicStat.prototype.reset_ = function() {
-  'use strict';
   this.slots_.clear();
 };
 
@@ -248,7 +241,6 @@ goog.stats.BasicStat.prototype.reset_ = function() {
  * @private
  */
 goog.stats.BasicStat.Slot_ = function(end) {
-  'use strict';
   /**
    * End time of this slot, exclusive.
    * @type {number}

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,49 +10,66 @@
 #include <vector>
 
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sync/test/integration/fake_server_match_status_checker.h"
 #include "chrome/browser/sync/test/integration/multi_client_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/password_manager/core/browser/password_form.h"
 
 namespace syncer {
-class Cryptographer;
 class KeyDerivationParams;
 }
 
 namespace password_manager {
-class PasswordStoreInterface;
+class PasswordStore;
 }
 
 namespace passwords_helper {
+
+// Adds the login held in |form| to the password store |store|. Even though
+// logins are normally added asynchronously, this method will block until the
+// login is added.
+void AddLogin(password_manager::PasswordStore* store,
+              const password_manager::PasswordForm& form);
+
+// Update the data held in password store |store| with a modified |form|.
+// This method blocks until the operation is complete.
+void UpdateLogin(password_manager::PasswordStore* store,
+                 const password_manager::PasswordForm& form);
+
+// Removes |old_form| from password store |store| and immediately adds
+// |new_form|. This method blocks until the operation is complete.
+void UpdateLoginWithPrimaryKey(password_manager::PasswordStore* store,
+                               const password_manager::PasswordForm& new_form,
+                               const password_manager::PasswordForm& old_form);
 
 // Returns all logins from |store| matching a fake signon realm (see
 // CreateTestPasswordForm()).
 // TODO(treib): Rename this to make clear how specific it is.
 std::vector<std::unique_ptr<password_manager::PasswordForm>> GetLogins(
-    password_manager::PasswordStoreInterface* store);
+    password_manager::PasswordStore* store);
 
-// Returns all logins from |store| (including blocklisted ones)
+// Returns all logins from |store| (including blacklisted ones)
 std::vector<std::unique_ptr<password_manager::PasswordForm>> GetAllLogins(
-    password_manager::PasswordStoreInterface* store);
+    password_manager::PasswordStore* store);
 
-// Removes all password forms from the password store |store|. This is an async
-// method that return immediately and does *not* block until the operation is
-// finished on the background thread.
-void RemoveLogins(password_manager::PasswordStoreInterface* store);
+// Removes the login held in |form| from the password store |store|.  This
+// method blocks until the operation is complete.
+void RemoveLogin(password_manager::PasswordStore* store,
+                 const password_manager::PasswordForm& form);
+
+// Removes all password forms from the password store |store|.
+void RemoveLogins(password_manager::PasswordStore* store);
 
 // Gets the password store of the profile with index |index|.
-password_manager::PasswordStoreInterface* GetProfilePasswordStoreInterface(
-    int index);
+// TODO(treib): Rename to GetProfilePasswordStore.
+password_manager::PasswordStore* GetPasswordStore(int index);
 
 // Gets the password store of the verifier profile.
-password_manager::PasswordStoreInterface*
-GetVerifierProfilePasswordStoreInterface();
+// TODO(treib): Rename to GetVerifierProfilePasswordStore.
+password_manager::PasswordStore* GetVerifierPasswordStore();
 
 // Gets the account-scoped password store of the profile with index |index|.
-password_manager::PasswordStoreInterface* GetAccountPasswordStoreInterface(
-    int index);
+password_manager::PasswordStore* GetAccountPasswordStore(int index);
 
 // Returns true iff the profile with index |index| contains the same password
 // forms as the verifier profile.
@@ -111,7 +128,7 @@ void InjectKeystoreEncryptedServerPassword(
 // Checker to wait until the PASSWORDS datatype becomes active.
 class PasswordSyncActiveChecker : public SingleClientStatusChangeChecker {
  public:
-  explicit PasswordSyncActiveChecker(syncer::SyncServiceImpl* service);
+  explicit PasswordSyncActiveChecker(syncer::ProfileSyncService* service);
   ~PasswordSyncActiveChecker() override;
 
   // StatusChangeChecker implementation.
@@ -124,13 +141,13 @@ class PasswordSyncActiveChecker : public SingleClientStatusChangeChecker {
 class SamePasswordFormsChecker : public MultiClientStatusChangeChecker {
  public:
   SamePasswordFormsChecker();
-  ~SamePasswordFormsChecker() override;
+
   // StatusChangeChecker implementation.
   bool IsExitConditionSatisfied(std::ostream* os) override;
 
  private:
-  bool in_progress_ = false;
-  bool needs_recheck_ = false;
+  bool in_progress_;
+  bool needs_recheck_;
 };
 
 // Checker to block until specified profile contains the same password forms as
@@ -167,26 +184,6 @@ class PasswordFormsChecker : public SingleClientStatusChangeChecker {
   std::vector<std::unique_ptr<password_manager::PasswordForm>> expected_forms_;
   bool in_progress_;
   bool needs_recheck_;
-};
-
-// Checker to block until server has the given password forms encrypted with
-// given encryption params.
-class ServerPasswordsEqualityChecker
-    : public fake_server::FakeServerMatchStatusChecker {
- public:
-  ServerPasswordsEqualityChecker(
-      const std::vector<password_manager::PasswordForm>& expected_forms,
-      const std::string& encryption_passphrase,
-      const syncer::KeyDerivationParams& key_derivation_params);
-  ~ServerPasswordsEqualityChecker() override;
-
-  // StatusChangeChecker implementation.
-  bool IsExitConditionSatisfied(std::ostream* os) override;
-
- private:
-  const std::unique_ptr<syncer::Cryptographer> cryptographer_;
-
-  std::vector<std::unique_ptr<password_manager::PasswordForm>> expected_forms_;
 };
 
 #endif  // CHROME_BROWSER_SYNC_TEST_INTEGRATION_PASSWORDS_HELPER_H_

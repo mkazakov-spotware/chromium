@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,21 @@
 
 namespace leveldb_proto {
 
+namespace {
+const char kTestClientName[] = "TestDatabase1";
+}
 
 class SharedProtoDatabaseClientListTest : public testing::Test {
  public:
-  void SetUpExperiment(bool isExperimentOn) {
-    scoped_feature_list_.InitWithFeatureState(kProtoDBSharedMigration,
-                                              isExperimentOn);
+  void SetUpExperimentParam(std::string key, std::string value) {
+    std::map<std::string, std::string> params = {
+        {"migrate_TestDatabase0", "true"},
+        {"migrate_" + key, value},
+        {"migrate_TestDatabase2", "false"},
+    };
+
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        kProtoDBSharedMigration, params);
   }
 
  private:
@@ -25,8 +34,8 @@ class SharedProtoDatabaseClientListTest : public testing::Test {
 };
 
 TEST_F(SharedProtoDatabaseClientListTest, ShouldUseSharedDBTest) {
-  // Set experiment to use Shared DB.
-  SetUpExperiment(true);
+  // Parameter value is case sensitive
+  SetUpExperimentParam(kTestClientName, "true");
 
   bool use_shared = SharedProtoDatabaseClientList::ShouldUseSharedDB(
       ProtoDbType::TEST_DATABASE1);
@@ -35,9 +44,8 @@ TEST_F(SharedProtoDatabaseClientListTest, ShouldUseSharedDBTest) {
 }
 
 TEST_F(SharedProtoDatabaseClientListTest,
-       ShouldUseSharedDBTest_OnlyWhenExperimentIsOn) {
-  // Set experiment to use Unique DB.
-  SetUpExperiment(false);
+       ShouldUseSharedDBTest_OnlyWhenParamMatchesName) {
+  SetUpExperimentParam("TestDatabase10", "true");
 
   bool use_shared = SharedProtoDatabaseClientList::ShouldUseSharedDB(
       ProtoDbType::TEST_DATABASE1);
@@ -46,13 +54,11 @@ TEST_F(SharedProtoDatabaseClientListTest,
 }
 
 TEST_F(SharedProtoDatabaseClientListTest,
-       ShouldUseSharedDBTest_ExceptIfDbIsBlocklisted) {
-  SetUpExperiment(true);
+       ShouldUseSharedDBTest_OnlyWhenParamValueIsTrue) {
+  SetUpExperimentParam(kTestClientName, "false");
 
-  // GCM_KEY_STORE is blocklisted, it won't use a shared DB, regardless of
-  // experiment state.
   bool use_shared = SharedProtoDatabaseClientList::ShouldUseSharedDB(
-      ProtoDbType::GCM_KEY_STORE);
+      ProtoDbType::TEST_DATABASE1);
 
   ASSERT_FALSE(use_shared);
 }

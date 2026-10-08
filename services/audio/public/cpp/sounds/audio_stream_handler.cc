@@ -1,26 +1,26 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/audio/public/cpp/sounds/audio_stream_handler.h"
 
 #include <stdint.h>
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/cancelable_callback.h"
 #include "base/logging.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/time/time.h"
 #include "media/audio/wav_audio_handler.h"
 #include "media/base/channel_layout.h"
 #include "media/mojo/mojom/audio_output_stream.mojom.h"
-#include "media/mojo/mojom/audio_stream_factory.mojom.h"
 #include "services/audio/public/cpp/output_device.h"
+#include "services/audio/public/mojom/stream_factory.mojom.h"
 
 namespace audio {
 
@@ -51,11 +51,8 @@ class AudioStreamHandler::AudioStreamContainer
         delayed_stop_posted_(false),
         wav_audio_(std::move(wav_audio)) {
     DCHECK(wav_audio_);
-    task_runner_ = base::SequencedTaskRunner::GetCurrentDefault();
+    task_runner_ = base::SequencedTaskRunnerHandle::Get();
   }
-
-  AudioStreamContainer(const AudioStreamContainer&) = delete;
-  AudioStreamContainer& operator=(const AudioStreamContainer&) = delete;
 
   ~AudioStreamContainer() override {
     DCHECK(task_runner_->RunsTasksInCurrentSequence());
@@ -68,12 +65,12 @@ class AudioStreamHandler::AudioStreamContainer
     if (device_ == nullptr) {
       const media::AudioParameters params(
           media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-          media::ChannelLayoutConfig::Guess(wav_audio_->num_channels()),
+          media::GuessChannelLayout(wav_audio_->num_channels()),
           wav_audio_->sample_rate(), kDefaultFrameCount);
       if (g_observer_for_testing) {
         g_observer_for_testing->Initialize(this, params);
       } else {
-        mojo::PendingRemote<media::mojom::AudioStreamFactory> stream_factory;
+        mojo::PendingRemote<audio::mojom::StreamFactory> stream_factory;
         stream_factory_binder_.Run(
             stream_factory.InitWithNewPipeAndPassReceiver());
         device_ = std::make_unique<audio::OutputDevice>(
@@ -128,8 +125,9 @@ class AudioStreamHandler::AudioStreamContainer
       if (delayed_stop_posted_)
         return 0;
       delayed_stop_posted_ = true;
-      task_runner_->PostDelayedTask(FROM_HERE, stop_closure_.callback(),
-                                    base::Milliseconds(kKeepAliveMs));
+      task_runner_->PostDelayedTask(
+          FROM_HERE, stop_closure_.callback(),
+          base::TimeDelta::FromMilliseconds(kKeepAliveMs));
       return 0;
     }
     cursor_ += bytes_written;
@@ -166,13 +164,15 @@ class AudioStreamHandler::AudioStreamContainer
   size_t cursor_;
   bool delayed_stop_posted_;
   std::unique_ptr<media::WavAudioHandler> wav_audio_;
-  base::CancelableRepeatingClosure stop_closure_;
+  base::CancelableClosure stop_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioStreamContainer);
 };
 
 AudioStreamHandler::AudioStreamHandler(
     SoundsManager::StreamFactoryBinder stream_factory_binder,
     const base::StringPiece& wav_data) {
-  task_runner_ = base::SequencedTaskRunner::GetCurrentDefault();
+  task_runner_ = base::SequencedTaskRunnerHandle::Get();
   std::unique_ptr<media::WavAudioHandler> wav_audio =
       media::WavAudioHandler::Create(wav_data);
   if (!wav_audio) {
@@ -182,7 +182,7 @@ AudioStreamHandler::AudioStreamHandler(
 
   const media::AudioParameters params(
       media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-      media::ChannelLayoutConfig::Guess(wav_audio->num_channels()),
+      media::GuessChannelLayout(wav_audio->num_channels()),
       wav_audio->sample_rate(), kDefaultFrameCount);
   if (!params.IsValid()) {
     LOG(ERROR) << "Audio params are invalid.";
@@ -191,8 +191,8 @@ AudioStreamHandler::AudioStreamHandler(
 
   // Store the duration of the WAV data then pass the handler to |stream_|.
   duration_ = wav_audio->GetDuration();
-  stream_ = std::make_unique<AudioStreamContainer>(
-      std::move(stream_factory_binder), std::move(wav_audio));
+  stream_.reset(new AudioStreamContainer(std::move(stream_factory_binder),
+                                         std::move(wav_audio)));
 }
 
 AudioStreamHandler::~AudioStreamHandler() {

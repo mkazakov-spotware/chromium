@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -60,10 +60,6 @@ class WakeLock : public mojom::WakeLock {
            WakeLockContextCallback native_view_getter,
            scoped_refptr<base::SingleThreadTaskRunner> file_task_runner,
            Observer* observer);
-
-  WakeLock(const WakeLock&) = delete;
-  WakeLock& operator=(const WakeLock&) = delete;
-
   ~WakeLock() override;
 
   // mojom::WakeLock implementation.
@@ -89,7 +85,7 @@ class WakeLock : public mojom::WakeLock {
   mojom::WakeLockReason reason_;
   std::unique_ptr<std::string> description_;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   int context_id_;
   WakeLockContextCallback native_view_getter_;
 #endif
@@ -101,7 +97,7 @@ class WakeLock : public mojom::WakeLock {
   std::unique_ptr<PowerSaveBlocker> wake_lock_;
 
   // Not owned. |observer_| must outlive this instance of WakeLock.
-  const raw_ptr<Observer> observer_;
+  Observer* const observer_;
 
   // Multiple clients that associate to the same WebContents share the same one
   // WakeLock instance. Two consecutive |RequestWakeLock| requests
@@ -109,6 +105,8 @@ class WakeLock : public mojom::WakeLock {
   // client is being added into the ReceiverSet, we create an unique_ptr<bool>
   // as its context, which records this client's request status.
   mojo::ReceiverSet<mojom::WakeLock, std::unique_ptr<bool>> receiver_set_;
+
+  DISALLOW_COPY_AND_ASSIGN(WakeLock);
 };
 
 }  // namespace device

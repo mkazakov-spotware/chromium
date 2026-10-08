@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,10 +56,6 @@ ResultExpr RendererProcessPolicy::EvaluateSyscall(int sysno) const {
     // The baseline policy allows __NR_clock_gettime. Allow
     // clock_getres() for V8. crbug.com/329053.
     case __NR_clock_getres:
-#if defined(__i386__) || defined(__arm__) || \
-    (defined(ARCH_CPU_MIPS_FAMILY) && defined(ARCH_CPU_32_BITS))
-    case __NR_clock_getres_time64:
-#endif
       return RestrictClockID();
     case __NR_ioctl:
       return RestrictIoctl();
@@ -97,12 +93,12 @@ ResultExpr RendererProcessPolicy::EvaluateSyscall(int sysno) const {
     case __NR_sysinfo:
     case __NR_times:
     case __NR_uname:
-      // getcpu() is allowed on ARM chips because it is used in
-      // //third_party/cpuinfo/ on those chips.
-#if defined(__arm__) || defined(__aarch64__)
-    case __NR_getcpu:
-#endif
       return Allow();
+    case __NR_sched_getaffinity:
+    case __NR_sched_getparam:
+    case __NR_sched_getscheduler:
+    case __NR_sched_setscheduler:
+      return RestrictSchedTarget(GetPolicyPid(), sysno);
     case __NR_prlimit64:
       // See crbug.com/662450 and setrlimit comment above.
       return RestrictPrlimit(GetPolicyPid());

@@ -1,13 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * @fileoverview
- * @suppress {missingRequire} Overriding goog.i18n.DateTimeSymbols
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.DatePickerTest');
 goog.setTestOnly();
@@ -40,7 +43,7 @@ testSuite({
     sandbox = dom.getElement('sandbox');
 
     // Set the current date to a constant.
-    Date.now = () => +new Date(2017, 9, 17);
+    goog.now = () => +new Date(2017, 9, 17);
   },
 
   tearDown() {
@@ -53,7 +56,6 @@ testSuite({
     picker = new DatePicker();
     picker.create(sandbox);
     const head = $$('tr', 'goog-date-picker-head')[0];
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const month = $$('button', 'goog-date-picker-month', head.firstChild)[0];
     assertSameElements(
         'Button element must have expected class names',
@@ -66,7 +68,6 @@ testSuite({
     picker = new DatePicker();
     picker.create(sandbox);
     const head = $$('tr', 'goog-date-picker-head')[0];
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const year = $$('button', 'goog-date-picker-year', head.firstChild)[0];
     assertSameElements(
         'Button element must have expected class names',
@@ -264,7 +265,6 @@ testSuite({
     }
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetDateAt() {
     picker = new DatePicker();
     picker.create(sandbox);
@@ -287,12 +287,10 @@ testSuite({
     assertNull(date);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetDateElementAt() {
     picker = new DatePicker();
     picker.create(sandbox);
     picker.setDate(new Date(2000, 5, 5));
-    /** @suppress {visibility} suppression added to enable type checking */
     const element = picker.getDateElementAt(0, 0);
     assertEquals('td', element.tagName.toLowerCase());
     assertObjectEquals(element, picker.elTable_[1][1]);
@@ -302,19 +300,15 @@ testSuite({
     picker = new DatePicker();
     picker.create(sandbox);
     picker.setDate(new Date(2000, 5, 5));
-    /** @suppress {visibility} suppression added to enable type checking */
     let element = picker.getDateElementAt(-1, 0);
     assertNull(element);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     element = picker.getDateElementAt(0, -1);
     assertNull(element);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     element = picker.getDateElementAt(picker.elTable_.length - 1, 0);
     assertNull(element);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     element = picker.getDateElementAt(0, picker.elTable_[0].length - 1);
     assertNull(element);
   },
@@ -469,7 +463,6 @@ testSuite({
     assertEquals('No grid size changes', 0, gridSizeIncreaseEvents);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testUserSelectableDates() {
     const dateRange =
         new DateRange(new DateDate(2010, 1, 25), new DateDate(2010, 1, 27));
@@ -532,7 +525,6 @@ testSuite({
     assertTrue(classlist.contains(div, 'existing-class'));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testKeyboardNavigation_arrowKey() {
     // This is a Sunday, so it's the first cell in the grid.
     picker = new DatePicker(new Date(2017, 9, 1));
@@ -559,7 +551,6 @@ testSuite({
     selectEvents.assertCallCount(1);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testKeyboardNavigation_homeKey() {
     // This is a Sunday, so it's the first cell in the grid.
     picker = new DatePicker(new Date(2017, 9, 1));

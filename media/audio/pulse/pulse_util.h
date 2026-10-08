@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "media/audio/audio_device_name.h"
 #include "media/base/audio_parameters.h"
@@ -31,15 +31,13 @@ class AutoPulseLock {
     pa_threaded_mainloop_lock(pa_mainloop_);
   }
 
-  AutoPulseLock(const AutoPulseLock&) = delete;
-  AutoPulseLock& operator=(const AutoPulseLock&) = delete;
-
   ~AutoPulseLock() {
     pa_threaded_mainloop_unlock(pa_mainloop_);
   }
 
  private:
-  raw_ptr<pa_threaded_mainloop> pa_mainloop_;
+  pa_threaded_mainloop* pa_mainloop_;
+  DISALLOW_COPY_AND_ASSIGN(AutoPulseLock);
 };
 
 bool MEDIA_EXPORT InitPulse(pa_threaded_mainloop** mainloop,

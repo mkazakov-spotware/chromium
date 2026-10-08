@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <cstdint>
 #include <limits>
-#include "ash/hud_display/cpu_stats.h"
+#include "ash/hud_display/cpu_status.h"
 
 namespace ash {
 namespace hud_display {
@@ -18,7 +18,6 @@ class DataSource {
   struct Snapshot {
     Snapshot();
     Snapshot(const Snapshot&);
-    Snapshot& operator=(const Snapshot&);
 
     // All memory sizes are in bytes.
     // Separate non-zero-initialized members from zero-initialized.

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,14 @@
 
 #include <stddef.h>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "base/callback.h"
 #include "base/callback_helpers.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
 #include "ipc/ipc_message.h"
-#include "third_party/blink/public/mojom/frame/fullscreen.mojom.h"
-#include "third_party/blink/public/mojom/frame/text_autosizer_page_info.mojom.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom-shared.h"
-#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 #include "ui/gfx/native_widget_types.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -29,14 +26,21 @@ bool RenderFrameHostDelegate::OnMessageReceived(
   return false;
 }
 
+const GURL& RenderFrameHostDelegate::GetMainFrameLastCommittedURL() {
+  return GURL::EmptyGURL();
+}
+
 bool RenderFrameHostDelegate::DidAddMessageToConsole(
-    RenderFrameHostImpl* source_frame,
+    RenderFrameHost* source_frame,
     blink::mojom::ConsoleMessageLevel log_level,
-    const std::u16string& message,
+    const base::string16& message,
     int32_t line_no,
-    const std::u16string& source_id,
-    const absl::optional<std::u16string>& untrusted_stack_trace) {
+    const base::string16& source_id) {
   return false;
+}
+
+WebContents* RenderFrameHostDelegate::GetAsWebContents() {
+  return nullptr;
 }
 
 void RenderFrameHostDelegate::RequestMediaAccessPermission(
@@ -44,13 +48,13 @@ void RenderFrameHostDelegate::RequestMediaAccessPermission(
     MediaResponseCallback callback) {
   LOG(ERROR) << "RenderFrameHostDelegate::RequestMediaAccessPermission: "
              << "Not supported.";
-  std::move(callback).Run(blink::mojom::StreamDevicesSet(),
+  std::move(callback).Run(blink::MediaStreamDevices(),
                           blink::mojom::MediaStreamRequestResult::NOT_SUPPORTED,
                           std::unique_ptr<MediaStreamUI>());
 }
 
 bool RenderFrameHostDelegate::CheckMediaAccessPermission(
-    RenderFrameHostImpl* render_frame_host,
+    RenderFrameHost* render_frame_host,
     const url::Origin& security_origin,
     blink::mojom::MediaStreamType type) {
   LOG(ERROR) << "RenderFrameHostDelegate::CheckMediaAccessPermission: "
@@ -72,45 +76,40 @@ RenderFrameHostDelegate::GetGeolocationContext() {
   return nullptr;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void RenderFrameHostDelegate::GetNFC(
     RenderFrameHost* render_frame_host,
     mojo::PendingReceiver<device::mojom::NFC> receiver) {}
 #endif
 
-bool RenderFrameHostDelegate::CanEnterFullscreenMode(
-    RenderFrameHostImpl* requesting_frame,
-    const blink::mojom::FullscreenOptions& options) {
+bool RenderFrameHostDelegate::CanEnterFullscreenMode() {
   return true;
 }
 
-void RenderFrameHostDelegate::FullscreenStateChanged(
-    RenderFrameHostImpl* rfh,
-    bool is_fullscreen,
-    blink::mojom::FullscreenOptionsPtr options) {}
-
 bool RenderFrameHostDelegate::ShouldRouteMessageEvent(
-    RenderFrameHostImpl* target_rfh) const {
+    RenderFrameHost* target_rfh,
+    SiteInstance* source_site_instance) const {
   return false;
 }
 
-bool RenderFrameHostDelegate::IsInnerWebContentsForGuest() {
-  return false;
+RenderFrameHost*
+RenderFrameHostDelegate::GetFocusedFrameIncludingInnerWebContents() {
+  return nullptr;
 }
 
-RenderFrameHostImpl* RenderFrameHostDelegate::GetFocusedFrame() {
+RenderFrameHostImpl* RenderFrameHostDelegate::GetMainFrame() {
   return nullptr;
 }
 
 std::unique_ptr<WebUIImpl>
 RenderFrameHostDelegate::CreateWebUIForRenderFrameHost(
-    RenderFrameHostImpl* frame_host,
+    RenderFrameHost* frame_host,
     const GURL& url) {
   return nullptr;
 }
 
-FrameTree* RenderFrameHostDelegate::CreateNewWindow(
-    RenderFrameHostImpl* opener,
+RenderFrameHostDelegate* RenderFrameHostDelegate::CreateNewWindow(
+    RenderFrameHost* opener,
     const mojom::CreateNewWindowParams& params,
     bool is_new_browsing_instance,
     bool has_user_gesture,
@@ -125,34 +124,47 @@ bool RenderFrameHostDelegate::ShouldAllowRunningInsecureContent(
   return false;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 base::android::ScopedJavaLocalRef<jobject>
 RenderFrameHostDelegate::GetJavaRenderFrameHostDelegate() {
   return nullptr;
 }
 #endif
 
+bool RenderFrameHostDelegate::IsBeingDestroyed() {
+  return false;
+}
+
 Visibility RenderFrameHostDelegate::GetVisibility() {
   return Visibility::HIDDEN;
 }
 
-std::vector<FrameTreeNode*> RenderFrameHostDelegate::GetUnattachedOwnedNodes(
-    RenderFrameHostImpl* owner) {
-  return {};
+ukm::SourceId RenderFrameHostDelegate::
+    GetUkmSourceIdForLastCommittedSourceIncludingSameDocument() const {
+  return ukm::kInvalidSourceId;
+}
+
+RenderFrameHostImpl* RenderFrameHostDelegate::GetMainFrameForInnerDelegate(
+    FrameTreeNode* frame_tree_node) {
+  return nullptr;
 }
 
 media::MediaMetricsProvider::RecordAggregateWatchTimeCallback
-RenderFrameHostDelegate::GetRecordAggregateWatchTimeCallback(
-    const GURL& page_main_frame_last_committed_url) {
+RenderFrameHostDelegate::GetRecordAggregateWatchTimeCallback() {
   return base::NullCallback();
 }
 
-void RenderFrameHostDelegate::IsClipboardPasteContentAllowed(
+bool RenderFrameHostDelegate::IsFrameLowPriority(
+    const RenderFrameHost* render_frame_host) {
+  return false;
+}
+
+void RenderFrameHostDelegate::IsClipboardPasteAllowed(
     const GURL& url,
     const ui::ClipboardFormatType& data_type,
     const std::string& data,
-    IsClipboardPasteContentAllowedCallback callback) {
-  std::move(callback).Run(data);
+    IsClipboardPasteAllowedCallback callback) {
+  std::move(callback).Run(ClipboardPasteAllowed(true));
 }
 
 bool RenderFrameHostDelegate::HasSeenRecentScreenOrientationChange() {
@@ -163,12 +175,8 @@ bool RenderFrameHostDelegate::IsTransientAllowFullscreenActive() const {
   return false;
 }
 
-bool RenderFrameHostDelegate::IsBackForwardCacheSupported() {
-  return false;
-}
-
 RenderWidgetHostImpl* RenderFrameHostDelegate::CreateNewPopupWidget(
-    base::SafeRef<SiteInstanceGroup> site_instance_group,
+    AgentSchedulingGroupHost& agent_scheduling_group,
     int32_t route_id,
     mojo::PendingAssociatedReceiver<blink::mojom::PopupWidgetHost>
         blink_popup_widget_host,
@@ -179,22 +187,15 @@ RenderWidgetHostImpl* RenderFrameHostDelegate::CreateNewPopupWidget(
 
 bool RenderFrameHostDelegate::ShowPopupMenu(
     RenderFrameHostImpl* render_frame_host,
-    const gfx::Rect& bounds) {
+    mojo::PendingRemote<blink::mojom::PopupMenuClient>* popup_client,
+    const gfx::Rect& bounds,
+    int32_t item_height,
+    double font_size,
+    int32_t selected_item,
+    std::vector<blink::mojom::MenuItemPtr>* menu_items,
+    bool right_aligned,
+    bool allow_multiple_selection) {
   return false;
-}
-
-std::vector<RenderFrameHostImpl*>
-RenderFrameHostDelegate::GetActiveTopLevelDocumentsInBrowsingContextGroup(
-    RenderFrameHostImpl* render_frame_host) {
-  return std::vector<RenderFrameHostImpl*>();
-}
-
-PrerenderHostRegistry* RenderFrameHostDelegate::GetPrerenderHostRegistry() {
-  return nullptr;
-}
-
-bool RenderFrameHostDelegate::IsAllowedToGoToEntryAtOffset(int32_t offset) {
-  return true;
 }
 
 }  // namespace content

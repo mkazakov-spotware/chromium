@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ public class CoreAccountInfo {
      * @param gaiaId String representation of the Gaia ID. Must not be an email address.
      */
     @CalledByNative
-    protected CoreAccountInfo(
+    public CoreAccountInfo(
             @NonNull CoreAccountId id, @NonNull String email, @NonNull String gaiaId) {
         assert id != null;
         assert email != null;
@@ -120,12 +120,5 @@ public class CoreAccountInfo {
      */
     public static @Nullable String getGaiaIdFrom(@Nullable CoreAccountInfo accountInfo) {
         return accountInfo == null ? null : accountInfo.getGaiaId();
-    }
-
-    /**
-     * Creates a {@link CoreAccountInfo} object from email and gaiaID.
-     */
-    public static CoreAccountInfo createFromEmailAndGaiaId(String email, String gaiaId) {
-        return new CoreAccountInfo(new CoreAccountId(gaiaId), email, gaiaId);
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
-#include "base/time/time.h"
 #include "components/gcm_driver/common/gcm_message.h"
 #include "components/gcm_driver/gcm_activity.h"
 #include "components/gcm_driver/registration_info.h"
@@ -58,7 +57,7 @@ class GCMClient {
   };
 
   // Used for UMA. Can add enum values, but never renumber or delete and reuse.
-  enum Result : uint8_t {
+  enum Result {
     // Successful operation.
     SUCCESS,
     // Invalid parameter.
@@ -241,9 +240,9 @@ class GCMClient {
   //     during the migration of account identifier from email to Gaia ID.
   // |blocking_task_runner|: for running blocking file tasks.
   // |io_task_runner|: for running IO tasks. When provided, it could be a
-  //     wrapper on top of base::SingleThreadTaskRunner::GetCurrentDefault() to
-  //     provide power management featueres so that a delayed task posted to it
-  //     can wake the system up from sleep to perform the task.
+  //     wrapper on top of base::ThreadTaskRunnerHandle::Get() to provide power
+  //     management featueres so that a delayed task posted to it can wake the
+  //     system up from sleep to perform the task.
   // |get_socket_factory_callback|: a callback that can accept a receiver for a
   //     network::mojom::ProxyResolvingSocketFactory. It needs to be safe to
   //     run on any thread.

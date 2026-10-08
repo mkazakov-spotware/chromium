@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/mac/foundation_util.h"
 #include "base/message_loop/message_pump_type.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
 
@@ -200,16 +199,16 @@ ServiceDiscoveryClientMac::CreateLocalDomainResolver(
     LocalDomainResolver::IPAddressCallback callback) {
   NOTIMPLEMENTED();  // TODO(noamsml): Implement.
   VLOG(1) << "CreateLocalDomainResolver: " << domain;
-  return nullptr;
+  return std::unique_ptr<LocalDomainResolver>();
 }
 
 void ServiceDiscoveryClientMac::StartThreadIfNotStarted() {
   if (!service_discovery_thread_) {
-    service_discovery_thread_ =
-        std::make_unique<base::Thread>(kServiceDiscoveryThreadName);
+    service_discovery_thread_.reset(
+        new base::Thread(kServiceDiscoveryThreadName));
     // Only TYPE_UI uses an NSRunLoop.
     base::Thread::Options options(base::MessagePumpType::UI, 0);
-    service_discovery_thread_->StartWithOptions(std::move(options));
+    service_discovery_thread_->StartWithOptions(options);
   }
 }
 
@@ -237,7 +236,7 @@ void ServiceWatcherImplMac::Start() {
                  callback:base::BindRepeating(
                               &ServiceWatcherImplMac::OnServicesUpdate,
                               weak_factory_.GetWeakPtr())
-           callbackRunner:base::SingleThreadTaskRunner::GetCurrentDefault()]);
+           callbackRunner:base::ThreadTaskRunnerHandle::Get()]);
   started_ = true;
 }
 
@@ -290,7 +289,7 @@ void ServiceResolverImplMac::StartResolving() {
          resolvedCallback:base::BindOnce(
                               &ServiceResolverImplMac::OnResolveComplete,
                               weak_factory_.GetWeakPtr())
-           callbackRunner:base::SingleThreadTaskRunner::GetCurrentDefault()]);
+           callbackRunner:base::ThreadTaskRunnerHandle::Get()]);
   // Provide an additional reference on the resolver_, in case |this|
   // gets deleted and releases its reference.
   service_discovery_runner_->PostTask(
@@ -441,7 +440,7 @@ void ParseNetService(NSNetService* service, ServiceDescription& description) {
     [netService stopMonitoring];
     [netService setDelegate:nil];
 
-    netService = _services[index];
+    netService = [_services objectAtIndex:index];
     [netService stopMonitoring];
     [netService setDelegate:nil];
 

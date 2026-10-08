@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,14 @@
 
 #include "base/run_loop.h"
 #include "base/test/bind.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
-#include "chromeos/ash/components/dbus/spaced/fake_spaced_client.h"
-#include "chromeos/ash/components/dbus/spaced/spaced_client.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/mac_util.h"
-#endif
-
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_CHROMEOS)
-#include "chrome/test/base/scoped_channel_override.h"
 #endif
 
 namespace system_logs {
@@ -43,27 +36,11 @@ using ChromeInternalLogSourceTest = BrowserWithTestWindowTest;
 
 TEST_F(ChromeInternalLogSourceTest, VersionTagContainsActualVersion) {
   auto response = GetChromeInternalLogs();
-  EXPECT_PRED_FORMAT2(
-      testing::IsSubstring,
-      chrome::GetVersionString(chrome::WithExtendedStable(true)),
-      response->at("CHROME VERSION"));
+  EXPECT_PRED_FORMAT2(testing::IsSubstring, chrome::GetVersionString(),
+                      response->at("CHROME VERSION"));
 }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_CHROMEOS)
-TEST_F(ChromeInternalLogSourceTest, VersionTagContainsExtendedLabel) {
-  chrome::ScopedChannelOverride channel_override(
-      chrome::ScopedChannelOverride::Channel::kExtendedStable);
-
-  ASSERT_TRUE(chrome::IsExtendedStableChannel());
-  auto response = GetChromeInternalLogs();
-  EXPECT_PRED_FORMAT2(
-      testing::IsSubstring,
-      chrome::GetVersionString(chrome::WithExtendedStable(true)),
-      response->at("CHROME VERSION"));
-}
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 TEST_F(ChromeInternalLogSourceTest, CpuTypePresentAndValid) {
   auto response = GetChromeInternalLogs();
   auto value = response->at("cpu_arch");
@@ -80,21 +57,6 @@ TEST_F(ChromeInternalLogSourceTest, CpuTypePresentAndValid) {
   }
 }
 #endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-TEST_F(ChromeInternalLogSourceTest, FreeAndTotalDiskSpacePresent) {
-  ash::SpacedClient::InitializeFake();
-  ash::FakeSpacedClient::Get()->set_free_disk_space(1000);
-  ash::FakeSpacedClient::Get()->set_total_disk_space(100000);
-
-  auto response = GetChromeInternalLogs();
-  auto free_disk_space = response->at("FREE_DISK_SPACE");
-  auto total_disk_space = response->at("TOTAL_DISK_SPACE");
-
-  EXPECT_EQ(free_disk_space, "1000");
-  EXPECT_EQ(total_disk_space, "100000");
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 }  // namespace
 }  // namespace system_logs

@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/credential_provider/setup/setup_lib.h"
 
+#include <atlbase.h>
 #include <shlobj.h>
-
 #include <iomanip>
 #include <string>
 
@@ -14,11 +14,13 @@
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
 #include "base/scoped_native_library.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/win/atl.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/win_util.h"
@@ -156,7 +158,7 @@ HRESULT UnregisterDlls(const base::FilePath& dest_path,
 }  // namespace
 
 HRESULT DoInstall(const base::FilePath& installer_path,
-                  const std::wstring& product_version,
+                  const base::string16& product_version,
                   FakesForTesting* fakes) {
   const base::FilePath gcp_path = CreateInstallDirectory();
   if (gcp_path.empty())
@@ -299,7 +301,7 @@ HRESULT RelaunchUninstaller(const base::FilePath& installer_path) {
   cmdline.AppendSwitch(switches::kUninstall);
   cmdline.AppendSwitchPath(switches::kInstallPath, installer_path.DirName());
   cmdline.AppendSwitchNative(switches::kParentHandle,
-                             base::NumberToWString(base::win::HandleToUint32(
+                             base::NumberToString16(base::win::HandleToUint32(
                                  this_process_handle_handle)));
 
   LOGFN(VERBOSE) << "Cmd: " << cmdline.GetCommandLineString();

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -73,19 +73,6 @@ public class MediaPlayerBridge {
     @CalledByNative
     protected void setSurface(Surface surface) {
         getLocalPlayer().setSurface(surface);
-    }
-
-    @SuppressLint("NewApi")
-    @CalledByNative
-    protected void setPlaybackRate(double speed) {
-        try {
-            MediaPlayer player = getLocalPlayer();
-            player.setPlaybackParams(player.getPlaybackParams().setSpeed((float) speed));
-        } catch (IllegalStateException ise) {
-            Log.e(TAG, "Unable to set playback rate", ise);
-        } catch (IllegalArgumentException iae) {
-            Log.e(TAG, "Unable to set playback rate", iae);
-        }
     }
 
     @CalledByNative

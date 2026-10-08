@@ -1,28 +1,33 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/authentication/cells/table_view_account_item.h"
 
-#import "base/mac/foundation_util.h"
+#include "base/mac/foundation_util.h"
 #import "ios/chrome/browser/ui/settings/cells/settings_cells_constants.h"
+#include "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
+// Padding used between the image and text.
+const CGFloat kHorizontalPaddingBetweenImageAndText = 10;
 
 // Padding used between the text and error icon.
 const CGFloat kHorizontalPaddingBetweenTextAndError = 5;
 
-// Size of the error icon image.
-const CGFloat KErrorIconImageSize = 18;
+// Image fixed horizontal size.
+const CGFloat kHorizontalImageFixedSize = 40;
 
-}  // namespace
+// Error icon fixed horizontal size.
+const CGFloat kHorizontalErrorIconFixedSize = 25;
+}
 
 @implementation TableViewAccountItem
 
@@ -52,7 +57,7 @@ const CGFloat KErrorIconImageSize = 18;
     cell.detailTextLabel.textColor = [UIColor colorNamed:kRedColor];
   } else {
     cell.errorIcon.image = nil;
-    cell.detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+    cell.detailTextLabel.textColor = UIColor.cr_secondaryLabelColor;
   }
 
   cell.userInteractionEnabled = self.mode == TableViewAccountModeEnabled;
@@ -108,10 +113,11 @@ const CGFloat KErrorIconImageSize = 18;
 
   _imageView = [[UIImageView alloc] init];
   _imageView.translatesAutoresizingMaskIntoConstraints = NO;
+  _imageView.contentMode = UIViewContentModeCenter;
   _imageView.layer.masksToBounds = YES;
   _imageView.contentMode = UIViewContentModeScaleAspectFit;
   // Creates the image rounded corners.
-  _imageView.layer.cornerRadius = kTableViewIconImageSize / 2.0f;
+  _imageView.layer.cornerRadius = kHorizontalImageFixedSize / 2.0f;
   [contentView addSubview:_imageView];
 
   _errorIcon = [[UIImageView alloc] init];
@@ -122,7 +128,7 @@ const CGFloat KErrorIconImageSize = 18;
   _textLabel.translatesAutoresizingMaskIntoConstraints = NO;
   _textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   _textLabel.adjustsFontForContentSizeCategory = YES;
-  _textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
+  _textLabel.textColor = UIColor.cr_labelColor;
   [contentView addSubview:_textLabel];
 
   _detailTextLabel = [[UILabel alloc] init];
@@ -130,7 +136,7 @@ const CGFloat KErrorIconImageSize = 18;
   _detailTextLabel.font =
       [UIFont preferredFontForTextStyle:kTableViewSublabelFontStyle];
   _detailTextLabel.adjustsFontForContentSizeCategory = YES;
-  _detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+  _detailTextLabel.textColor = UIColor.cr_secondaryLabelColor;
   [contentView addSubview:_detailTextLabel];
 }
 
@@ -145,8 +151,8 @@ const CGFloat KErrorIconImageSize = 18;
 
   _textLeadingAnchorConstraint = [_textLabel.leadingAnchor
       constraintEqualToAnchor:_imageView.trailingAnchor];
-  _errorIconWidthConstraint =
-      [_errorIcon.widthAnchor constraintEqualToConstant:KErrorIconImageSize];
+  _errorIconWidthConstraint = [_errorIcon.widthAnchor
+      constraintEqualToConstant:kHorizontalErrorIconFixedSize];
   [NSLayoutConstraint activateConstraints:@[
     // Set leading anchors.
     [_imageView.leadingAnchor
@@ -155,12 +161,11 @@ const CGFloat KErrorIconImageSize = 18;
     [_detailTextLabel.leadingAnchor
         constraintEqualToAnchor:_textLabel.leadingAnchor],
 
-    // Fix image widths. The account images have been resized to fit this size.
-    // Update the resize if this changes.
-    [_imageView.widthAnchor constraintEqualToConstant:kTableViewIconImageSize],
+    // Fix image widths.
+    [_imageView.widthAnchor
+        constraintEqualToConstant:kHorizontalImageFixedSize],
     [_imageView.heightAnchor constraintEqualToAnchor:_imageView.widthAnchor],
     _errorIconWidthConstraint,
-    [_errorIcon.heightAnchor constraintEqualToAnchor:_errorIcon.widthAnchor],
 
     // Set vertical anchors.
     [_imageView.centerYAnchor
@@ -193,7 +198,7 @@ const CGFloat KErrorIconImageSize = 18;
     // Set trailing anchors.
     [_errorIcon.trailingAnchor
         constraintEqualToAnchor:contentView.trailingAnchor
-                       constant:-kTableViewTrailingContentPadding],
+                       constant:-kHorizontalPaddingBetweenImageAndText],
     [_detailTextLabel.trailingAnchor
         constraintEqualToAnchor:_errorIcon.leadingAnchor
                        constant:-kHorizontalPaddingBetweenTextAndError],
@@ -222,13 +227,13 @@ const CGFloat KErrorIconImageSize = 18;
   // Adjust the leading margin depending on existence of image.
   if (_imageView.image) {
     _textLeadingAnchorConstraint.constant =
-        kTableViewOneLabelCellVerticalSpacing;
+        kHorizontalPaddingBetweenImageAndText;
   } else {
     _textLeadingAnchorConstraint.constant = 0;
   }
 
   if (_errorIcon.image) {
-    _errorIconWidthConstraint.constant = KErrorIconImageSize;
+    _errorIconWidthConstraint.constant = kHorizontalErrorIconFixedSize;
   } else {
     _errorIconWidthConstraint.constant = 0;
   }
@@ -241,8 +246,8 @@ const CGFloat KErrorIconImageSize = 18;
   self.imageView.image = nil;
   self.textLabel.text = nil;
   self.detailTextLabel.text = nil;
-  self.textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
-  self.detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+  self.textLabel.textColor = UIColor.cr_labelColor;
+  self.detailTextLabel.textColor = UIColor.cr_secondaryLabelColor;
   self.errorIcon.image = nil;
   self.userInteractionEnabled = YES;
   self.contentView.alpha = 1;

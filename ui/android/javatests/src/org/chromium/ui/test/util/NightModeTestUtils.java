@@ -1,12 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.test.util;
 
+import androidx.annotation.UiThread;
 import androidx.appcompat.app.AppCompatDelegate;
 
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterProvider;
 import org.chromium.base.test.params.ParameterSet;
 
@@ -32,23 +32,20 @@ public class NightModeTestUtils {
     }
 
     /**
-     * Sets up the night mode state for {@link BlankUiTestActivity}.
+     * Sets up the night mode state for {@link DummyUiActivity}.
      * @param nightModeEnabled Whether night mode should be enabled.
      */
-    public static void setUpNightModeForBlankUiTestActivity(boolean nightModeEnabled) {
-        ThreadUtils.runOnUiThreadBlocking(() -> {
-            AppCompatDelegate.setDefaultNightMode(nightModeEnabled
-                            ? AppCompatDelegate.MODE_NIGHT_YES
-                            : AppCompatDelegate.MODE_NIGHT_NO);
-        });
+    @UiThread
+    public static void setUpNightModeForDummyUiActivity(boolean nightModeEnabled) {
+        AppCompatDelegate.setDefaultNightMode(nightModeEnabled ? AppCompatDelegate.MODE_NIGHT_YES
+                                                               : AppCompatDelegate.MODE_NIGHT_NO);
     }
 
     /**
-     * Resets the night mode state for {@link BlankUiTestActivity}.
+     * Resets the night mode state for {@link DummyUiActivity}.
      */
-    public static void tearDownNightModeForBlankUiTestActivity() {
-        ThreadUtils.runOnUiThreadBlocking(() -> {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-        });
+    @UiThread
+    public static void tearDownNightModeForDummyUiActivity() {
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
     }
 }

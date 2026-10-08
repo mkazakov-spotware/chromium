@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,7 @@ namespace webshare {
 TEST(FakeStorageFileStaticsTest, CreateStreamedFileAsync) {
   base::test::SingleThreadTaskEnvironment task_environment;
   if (!base::win::ScopedHString::ResolveCoreWinRTStringDelayload())
-    GTEST_SKIP();
+    return;
 
   auto file_statics = Make<FakeStorageFileStatics>();
 

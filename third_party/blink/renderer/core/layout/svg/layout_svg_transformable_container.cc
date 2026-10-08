@@ -91,9 +91,10 @@ SVGTransformChange LayoutSVGTransformableContainer::CalculateLocalTransform(
   // attributes.
   if (IsA<SVGUseElement>(element)) {
     const ComputedStyle& style = StyleRef();
+    const SVGComputedStyle& svg_style = style.SvgStyle();
     SVGLengthContext length_context(element);
-    gfx::Vector2dF translation =
-        length_context.ResolveLengthPair(style.X(), style.Y(), style);
+    FloatSize translation(ToFloatSize(
+        length_context.ResolveLengthPair(svg_style.X(), svg_style.Y(), style)));
     // TODO(fs): Signal this on style update instead.
     if (translation != additional_translation_)
       SetNeedsTransformUpdate();
@@ -111,8 +112,8 @@ SVGTransformChange LayoutSVGTransformableContainer::CalculateLocalTransform(
   SVGTransformChangeDetector change_detector(local_transform_);
   local_transform_ =
       element->CalculateTransform(SVGElement::kIncludeMotionTransform);
-  local_transform_.Translate(additional_translation_.x(),
-                             additional_translation_.y());
+  local_transform_.Translate(additional_translation_.Width(),
+                             additional_translation_.Height());
   needs_transform_update_ = false;
   return change_detector.ComputeChange(local_transform_);
 }

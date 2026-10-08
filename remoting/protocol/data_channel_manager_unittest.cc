@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,8 @@
 #include "remoting/protocol/named_message_pipe_handler.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -118,14 +119,11 @@ void TestDataChannelManagerFullMatch(bool asynchronous) {
                                             expected_data);
           },
           "AnotherFullMatchContent"));
-  manager.OnRegistrationComplete();
 
   FakeMessagePipe pipe1(asynchronous);
   FakeMessagePipe pipe2(asynchronous);
-  manager.OnIncomingDataChannel("FullMatch", pipe1.Wrap());
-  ASSERT_TRUE(pipe1.HasWrappers());
-  manager.OnIncomingDataChannel("AnotherFullMatch", pipe2.Wrap());
-  ASSERT_TRUE(pipe2.HasWrappers());
+  ASSERT_TRUE(manager.OnIncomingDataChannel("FullMatch", pipe1.Wrap()));
+  ASSERT_TRUE(manager.OnIncomingDataChannel("AnotherFullMatch", pipe2.Wrap()));
   base::RunLoop().RunUntilIdle();
 
   FakeNamedMessagePipeHandler* handler1 =
@@ -217,20 +215,16 @@ void TestDataChannelManagerMultipleRegistrations(bool asynchronous) {
                                             expected_data);
           },
           "PrefixMatchContent"));
-  manager.OnRegistrationComplete();
 
   FakeMessagePipe pipe1(asynchronous);
   FakeMessagePipe pipe2(asynchronous);
   FakeMessagePipe pipe3(asynchronous);
   FakeMessagePipe pipe4(asynchronous);
-  manager.OnIncomingDataChannel("Prefix-1", pipe1.Wrap());
-  ASSERT_TRUE(pipe1.HasWrappers());
-  manager.OnIncomingDataChannel("Prefix-2", pipe2.Wrap());
-  ASSERT_TRUE(pipe2.HasWrappers());
-  manager.OnIncomingDataChannel("PrefixShouldNotMatch", pipe3.Wrap());
-  ASSERT_FALSE(pipe3.HasWrappers());
-  manager.OnIncomingDataChannel("FullMatch", pipe4.Wrap());
-  ASSERT_TRUE(pipe4.HasWrappers());
+  ASSERT_TRUE(manager.OnIncomingDataChannel("Prefix-1", pipe1.Wrap()));
+  ASSERT_TRUE(manager.OnIncomingDataChannel("Prefix-2", pipe2.Wrap()));
+  ASSERT_FALSE(manager.OnIncomingDataChannel(
+      "PrefixShouldNotMatch", pipe3.Wrap()));
+  ASSERT_TRUE(manager.OnIncomingDataChannel("FullMatch", pipe4.Wrap()));
   base::RunLoop().RunUntilIdle();
 
   FakeNamedMessagePipeHandler* handler1 =
@@ -252,60 +246,6 @@ void TestDataChannelManagerMultipleRegistrations(bool asynchronous) {
   base::RunLoop().RunUntilIdle();
 }
 
-void TestDataChannelManagerPendingDataChannels(bool asynchronous) {
-  base::test::SingleThreadTaskEnvironment task_environment;
-  DataChannelManager manager;
-
-  FakeMessagePipe pipe1(asynchronous);
-  FakeMessagePipe pipe2(asynchronous);
-  FakeMessagePipe pipe3(asynchronous);
-  manager.OnIncomingDataChannel("FullMatch", pipe1.Wrap());
-  ASSERT_TRUE(pipe1.HasWrappers());
-  manager.OnIncomingDataChannel("AnotherFullMatch", pipe2.Wrap());
-  ASSERT_TRUE(pipe2.HasWrappers());
-  manager.OnIncomingDataChannel("NoMatch", pipe3.Wrap());
-  ASSERT_TRUE(pipe3.HasWrappers());
-  base::RunLoop().RunUntilIdle();
-
-  manager.RegisterCreateHandlerCallback(
-      "FullMatch",
-      base::BindRepeating(
-          [](const std::string& expected_data, const std::string& name,
-             std::unique_ptr<MessagePipe> pipe) -> void {
-            new FakeNamedMessagePipeHandler(name, std::move(pipe),
-                                            expected_data);
-          },
-          "FullMatchContent"));
-  manager.RegisterCreateHandlerCallback(
-      "AnotherFullMatch",
-      base::BindRepeating(
-          [](const std::string& expected_data, const std::string& name,
-             std::unique_ptr<MessagePipe> pipe) -> void {
-            new FakeNamedMessagePipeHandler(name, std::move(pipe),
-                                            expected_data);
-          },
-          "AnotherFullMatchContent"));
-  manager.OnRegistrationComplete();
-
-  ASSERT_TRUE(pipe1.HasWrappers());
-  ASSERT_TRUE(pipe2.HasWrappers());
-  ASSERT_FALSE(pipe3.HasWrappers());
-
-  FakeNamedMessagePipeHandler* handler1 =
-      FakeNamedMessagePipeHandler::Find("FullMatch");
-  FakeNamedMessagePipeHandler* handler2 =
-      FakeNamedMessagePipeHandler::Find("AnotherFullMatch");
-  FakeNamedMessagePipeHandler* handler3 =
-      FakeNamedMessagePipeHandler::Find("NoMatch");
-  ASSERT_TRUE(handler1 != nullptr);
-  ASSERT_TRUE(handler2 != nullptr);
-  ASSERT_TRUE(handler3 == nullptr);
-
-  handler1->Close();
-  handler2->Close();
-  base::RunLoop().RunUntilIdle();
-}
-
 }  // namespace
 
 TEST(DataChannelManagerTest, FullMatchWithSynchronousPipe) {
@@ -324,12 +264,5 @@ TEST(DataChannelManagerTest, MultipleRegistrationsWithAsynchronousPipe) {
   TestDataChannelManagerMultipleRegistrations(true);
 }
 
-TEST(DataChannelManagerTest, PendingDataChannelsWithSynchronousPipe) {
-  TestDataChannelManagerPendingDataChannels(false);
-}
-
-TEST(DataChannelManagerTest, PendingDataChannelsWithAsynchronousPipe) {
-  TestDataChannelManagerPendingDataChannels(true);
-}
-
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

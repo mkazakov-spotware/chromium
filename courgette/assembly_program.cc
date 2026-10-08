@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,10 +22,6 @@ class LabelReceptor : public InstructionReceptor {
   using VECTOR = CONTAINER<Label*>;
 
   LabelReceptor() = default;
-
-  LabelReceptor(const LabelReceptor&) = delete;
-  LabelReceptor& operator=(const LabelReceptor&) = delete;
-
   ~LabelReceptor() override = default;
 
   VECTOR* mutable_abs32_vector() { return &abs32_vector_; }
@@ -55,6 +51,8 @@ class LabelReceptor : public InstructionReceptor {
  private:
   VECTOR abs32_vector_;
   VECTOR rel32_vector_;
+
+  DISALLOW_COPY_AND_ASSIGN(LabelReceptor);
 };
 
 }  // namespace

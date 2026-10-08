@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,55 +12,51 @@
 #include "ash/assistant/model/assistant_interaction_model_observer.h"
 #include "ash/assistant/model/assistant_response.h"
 #include "ash/assistant/model/assistant_response_observer.h"
-#include "ash/assistant/model/ui/assistant_card_element.h"
 #include "ash/assistant/model/ui/assistant_error_element.h"
 #include "ash/assistant/model/ui/assistant_ui_element.h"
 #include "ash/assistant/test/assistant_ash_test_base.h"
-#include "ash/assistant/ui/assistant_view_ids.h"
 #include "ash/assistant/ui/main_stage/assistant_error_element_view.h"
-#include "ash/constants/ash_features.h"
-#include "ash/public/cpp/app_list/app_list_features.h"
-#include "ash/public/cpp/ash_web_view.h"
 #include "ash/public/cpp/assistant/controller/assistant_interaction_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_suggestions_controller.h"
 #include "ash/test/fake_android_intent_helper.h"
-#include "ash/test/test_ash_web_view.h"
 #include "base/bind.h"
-#include "base/run_loop.h"
+#include "base/scoped_observer.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/time/time.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
-#include "chromeos/ash/services/assistant/public/cpp/features.h"
-#include "chromeos/ash/services/assistant/test_support/mock_assistant_interaction_subscriber.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
+#include "chromeos/services/assistant/public/cpp/features.h"
+#include "chromeos/services/assistant/test_support/mock_assistant_interaction_subscriber.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace ash {
 
 namespace {
 
-using assistant::AndroidAppInfo;
-using assistant::Assistant;
-using assistant::AssistantInteractionMetadata;
-using assistant::AssistantInteractionSubscriber;
-using assistant::AssistantInteractionType;
-using assistant::AssistantQuerySource;
-using assistant::AssistantSuggestion;
-using assistant::AssistantSuggestionType;
-using assistant::MockAssistantInteractionSubscriber;
-using assistant::ScopedAssistantInteractionSubscriber;
+using chromeos::assistant::AndroidAppInfo;
+using chromeos::assistant::Assistant;
+using chromeos::assistant::AssistantInteractionMetadata;
+using chromeos::assistant::AssistantInteractionSubscriber;
+using chromeos::assistant::AssistantInteractionType;
+using chromeos::assistant::AssistantQuerySource;
+using chromeos::assistant::AssistantSuggestion;
+using chromeos::assistant::AssistantSuggestionType;
+using chromeos::assistant::MockAssistantInteractionSubscriber;
+using chromeos::assistant::ScopedAssistantInteractionSubscriber;
 
 using ::testing::Invoke;
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::StrictMock;
 
+constexpr bool kErrorResult = false;
+constexpr bool kSuccessResult = true;
+
 // Mocks -----------------------------------------------------------------------
 
 class AssistantInteractionSubscriberMock
-    : public AssistantInteractionSubscriber {
+    : public chromeos::assistant::AssistantInteractionSubscriber {
  public:
   explicit AssistantInteractionSubscriberMock(Assistant* service) {
-    scoped_subscriber_.Observe(service);
+    scoped_subscriber_.Add(service);
   }
 
   ~AssistantInteractionSubscriberMock() override = default;
@@ -71,14 +67,25 @@ class AssistantInteractionSubscriberMock
               (override));
 
  private:
-  ScopedAssistantInteractionSubscriber scoped_subscriber_{this};
+  chromeos::assistant::ScopedAssistantInteractionSubscriber scoped_subscriber_{
+      this};
 };
 
 // AssistantInteractionControllerImplTest --------------------------------------
 
-class AssistantInteractionControllerImplTest : public AssistantAshTestBase {
+class AssistantInteractionControllerImplTest
+    : public AssistantAshTestBase,
+      public testing::WithParamInterface<bool> {
  public:
-  AssistantInteractionControllerImplTest() = default;
+  AssistantInteractionControllerImplTest() {
+    if (GetParam()) {
+      feature_list_.InitAndEnableFeature(
+          chromeos::assistant::features::kAssistantResponseProcessingV2);
+    } else {
+      feature_list_.InitAndDisableFeature(
+          chromeos::assistant::features::kAssistantResponseProcessingV2);
+    }
+  }
 
   AssistantInteractionControllerImpl* interaction_controller() {
     return static_cast<AssistantInteractionControllerImpl*>(
@@ -104,21 +111,14 @@ class AssistantInteractionControllerImplTest : public AssistantAshTestBase {
     result.localized_app_name = app_name;
     return result;
   }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
-
-AssistantCardElement* GetAssistantCardElement(
-    const std::vector<std::unique_ptr<AssistantUiElement>>& ui_elements) {
-  if (ui_elements.size() != 1lu ||
-      ui_elements.front()->type() != AssistantUiElementType::kCard) {
-    return nullptr;
-  }
-
-  return static_cast<AssistantCardElement*>(ui_elements.front().get());
-}
 
 }  // namespace
 
-TEST_F(AssistantInteractionControllerImplTest,
+TEST_P(AssistantInteractionControllerImplTest,
        ShouldBecomeActiveWhenInteractionStarts) {
   EXPECT_EQ(interaction_model()->interaction_state(),
             InteractionState::kInactive);
@@ -130,29 +130,34 @@ TEST_F(AssistantInteractionControllerImplTest,
             InteractionState::kActive);
 }
 
-TEST_F(AssistantInteractionControllerImplTest,
-       ShouldBeNoOpWhenOpenAppIsCalledWhileInactive) {
+TEST_P(AssistantInteractionControllerImplTest,
+       ShouldReturnErrorWhenOpenAppIsCalledWhileInactive) {
   EXPECT_EQ(interaction_model()->interaction_state(),
             InteractionState::kInactive);
 
-  FakeAndroidIntentHelper fake_helper;
-  fake_helper.AddApp("app-name", "app-intent");
-  interaction_controller()->OnOpenAppResponse(CreateAndroidAppInfo("app-name"));
-
-  EXPECT_FALSE(fake_helper.last_launched_android_intent().has_value());
+  auto result =
+      interaction_controller()->OnOpenAppResponse(CreateAndroidAppInfo());
+  EXPECT_EQ(result, kErrorResult);
 }
 
-TEST_F(AssistantInteractionControllerImplTest,
-       ShouldBeNoOpWhenOpenAppIsCalledForUnknownAndroidApp) {
+TEST_P(AssistantInteractionControllerImplTest,
+       ShouldReturnErrorWhenOpenAppIsCalledWithoutAnAndroidIntentHelper) {
+  StartInteraction();
+
+  auto result =
+      interaction_controller()->OnOpenAppResponse(CreateAndroidAppInfo());
+  EXPECT_EQ(result, kErrorResult);
+}
+
+TEST_P(AssistantInteractionControllerImplTest,
+       ShouldReturnErrorWhenOpenAppIsCalledForUnknownAndroidApp) {
   StartInteraction();
   FakeAndroidIntentHelper fake_helper;
-  interaction_controller()->OnOpenAppResponse(
-      CreateAndroidAppInfo("unknown-app-name"));
-
-  EXPECT_FALSE(fake_helper.last_launched_android_intent().has_value());
+  EXPECT_EQ(kErrorResult, interaction_controller()->OnOpenAppResponse(
+                              CreateAndroidAppInfo("unknown-app-name")));
 }
 
-TEST_F(AssistantInteractionControllerImplTest,
+TEST_P(AssistantInteractionControllerImplTest,
        ShouldLaunchAppAndReturnSuccessWhenOpenAppIsCalled) {
   const std::string app_name = "AppName";
   const std::string intent = "intent://AppName";
@@ -161,12 +166,13 @@ TEST_F(AssistantInteractionControllerImplTest,
   FakeAndroidIntentHelper fake_helper;
   fake_helper.AddApp(app_name, intent);
 
-  interaction_controller()->OnOpenAppResponse(CreateAndroidAppInfo(app_name));
+  EXPECT_EQ(kSuccessResult, interaction_controller()->OnOpenAppResponse(
+                                CreateAndroidAppInfo(app_name)));
 
   EXPECT_EQ(intent, fake_helper.last_launched_android_intent());
 }
 
-TEST_F(AssistantInteractionControllerImplTest,
+TEST_P(AssistantInteractionControllerImplTest,
        ShouldAddSchemeToIntentWhenLaunchingAndroidApp) {
   const std::string app_name = "AppName";
   const std::string intent = "#Intent-without-a-scheme";
@@ -176,12 +182,13 @@ TEST_F(AssistantInteractionControllerImplTest,
   FakeAndroidIntentHelper fake_helper;
   fake_helper.AddApp(app_name, intent);
 
-  interaction_controller()->OnOpenAppResponse(CreateAndroidAppInfo(app_name));
+  EXPECT_EQ(kSuccessResult, interaction_controller()->OnOpenAppResponse(
+                                CreateAndroidAppInfo(app_name)));
 
   EXPECT_EQ(intent_with_scheme, fake_helper.last_launched_android_intent());
 }
 
-TEST_F(AssistantInteractionControllerImplTest,
+TEST_P(AssistantInteractionControllerImplTest,
        ShouldCorrectlyMapSuggestionTypeToQuerySource) {
   // Mock Assistant interaction subscriber.
   StrictMock<AssistantInteractionSubscriberMock> mock(assistant_service());
@@ -219,7 +226,7 @@ TEST_F(AssistantInteractionControllerImplTest,
   }
 }
 
-TEST_F(AssistantInteractionControllerImplTest, ShouldDisplayGenericErrorOnce) {
+TEST_P(AssistantInteractionControllerImplTest, ShouldDisplayGenericErrorOnce) {
   StartInteraction();
 
   // Call OnTtsStarted twice to mimic the behavior of libassistant when network
@@ -238,7 +245,7 @@ TEST_F(AssistantInteractionControllerImplTest, ShouldDisplayGenericErrorOnce) {
   base::RunLoop().RunUntilIdle();
 
   interaction_controller()->OnInteractionFinished(
-      assistant::AssistantInteractionResolution::kError);
+      chromeos::assistant::AssistantInteractionResolution::kError);
 
   base::RunLoop().RunUntilIdle();
 
@@ -246,11 +253,11 @@ TEST_F(AssistantInteractionControllerImplTest, ShouldDisplayGenericErrorOnce) {
   EXPECT_EQ(ui_elements.front()->type(), AssistantUiElementType::kError);
 }
 
-TEST_F(AssistantInteractionControllerImplTest,
+TEST_P(AssistantInteractionControllerImplTest,
        ShouldUpdateTimeOfLastInteraction) {
   MockAssistantInteractionSubscriber mock_subscriber;
   ScopedAssistantInteractionSubscriber scoped_subscriber{&mock_subscriber};
-  scoped_subscriber.Observe(assistant_service());
+  scoped_subscriber.Add(assistant_service());
 
   base::RunLoop run_loop;
   base::Time actual_time_of_last_interaction;
@@ -270,88 +277,9 @@ TEST_F(AssistantInteractionControllerImplTest,
   EXPECT_NEAR(actual.InSeconds(), expected.InSeconds(), 1);
 }
 
-TEST_F(AssistantInteractionControllerImplTest, CompactBubbleLauncher) {
-  static constexpr int kStandardLayoutAshWebViewWidth = 592;
-  static constexpr int kNarrowLayoutAshWebViewWidth = 496;
-
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(
-      app_list_features::kCompactBubbleLauncher);
-
-  UpdateDisplay("1200x800");
-  ShowAssistantUi();
-  StartInteraction();
-
-  interaction_controller()->OnHtmlResponse("<html></html>", "fallback");
-
-  base::RunLoop().RunUntilIdle();
-
-  AssistantCardElement* card_element = GetAssistantCardElement(
-      interaction_controller()->GetModel()->response()->GetUiElements());
-  ASSERT_TRUE(card_element);
-  EXPECT_EQ(card_element->viewport_width(), 638);
-  EXPECT_EQ(
-      page_view()->GetViewByID(AssistantViewID::kAshWebView)->size().width(),
-      kStandardLayoutAshWebViewWidth);
-
-  ASSERT_TRUE(page_view()->GetViewByID(AssistantViewID::kAshWebView) !=
-              nullptr);
-  TestAshWebView* ash_web_view = static_cast<TestAshWebView*>(
-      page_view()->GetViewByID(AssistantViewID::kAshWebView));
-  // max_size and min_size in AshWebView::InitParams are different from the view
-  // size. min_size affects to the size of rendered content, i.e. renderer will
-  // try to render the content to the size. But View::Size() doesn't.
-  ASSERT_TRUE(ash_web_view->init_params_for_testing().max_size);
-  ASSERT_TRUE(ash_web_view->init_params_for_testing().min_size);
-  EXPECT_EQ(ash_web_view->init_params_for_testing().max_size.value().width(),
-            kStandardLayoutAshWebViewWidth);
-  EXPECT_EQ(ash_web_view->init_params_for_testing().min_size.value().width(),
-            kStandardLayoutAshWebViewWidth);
-
-  CloseAssistantUi();
-
-  // Change work area width < 1200 and confirm that the viewport width gets
-  // updated to narrow layout one.
-  UpdateDisplay("1199x800");
-  ShowAssistantUi();
-  StartInteraction();
-
-  interaction_controller()->OnHtmlResponse("<html></html>", "fallback");
-
-  base::RunLoop().RunUntilIdle();
-
-  card_element = GetAssistantCardElement(
-      interaction_controller()->GetModel()->response()->GetUiElements());
-  ASSERT_TRUE(card_element);
-  ASSERT_TRUE(page_view()->GetViewByID(AssistantViewID::kAshWebView) !=
-              nullptr);
-  EXPECT_EQ(card_element->viewport_width(), 542);
-  EXPECT_EQ(
-      page_view()->GetViewByID(AssistantViewID::kAshWebView)->size().width(),
-      kNarrowLayoutAshWebViewWidth);
-
-  ASSERT_TRUE(page_view()->GetViewByID(AssistantViewID::kAshWebView) !=
-              nullptr);
-  ash_web_view = static_cast<TestAshWebView*>(
-      page_view()->GetViewByID(AssistantViewID::kAshWebView));
-  ASSERT_TRUE(ash_web_view->init_params_for_testing().max_size);
-  ASSERT_TRUE(ash_web_view->init_params_for_testing().min_size);
-  EXPECT_EQ(ash_web_view->init_params_for_testing().max_size.value().width(),
-            kNarrowLayoutAshWebViewWidth);
-  EXPECT_EQ(ash_web_view->init_params_for_testing().min_size.value().width(),
-            kNarrowLayoutAshWebViewWidth);
-}
-
-TEST_F(AssistantInteractionControllerImplTest, FixedZoomLevel) {
-  ShowAssistantUi();
-  StartInteraction();
-
-  interaction_controller()->OnHtmlResponse("<html></html>", "fallback");
-
-  base::RunLoop().RunUntilIdle();
-
-  TestAshWebView* ash_web_view = static_cast<TestAshWebView*>(
-      page_view()->GetViewByID(AssistantViewID::kAshWebView));
-  EXPECT_TRUE(ash_web_view->init_params_for_testing().fix_zoom_level_to_one);
-}
+// We parameterize all AssistantInteractionControllerImplTests to verify that
+// they work for both response processing v1 as well as response processing v2.
+INSTANTIATE_TEST_SUITE_P(All,
+                         AssistantInteractionControllerImplTest,
+                         testing::Bool());
 }  // namespace ash

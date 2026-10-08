@@ -22,7 +22,7 @@
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_radial_gradient.h"
 
 #include "third_party/blink/renderer/core/svg/svg_radial_gradient_element.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -34,11 +34,6 @@ LayoutSVGResourceRadialGradient::LayoutSVGResourceRadialGradient(
 
 LayoutSVGResourceRadialGradient::~LayoutSVGResourceRadialGradient() = default;
 
-void LayoutSVGResourceRadialGradient::Trace(Visitor* visitor) const {
-  visitor->Trace(attributes_wrapper_);
-  LayoutSVGResourceGradient::Trace(visitor);
-}
-
 void LayoutSVGResourceRadialGradient::CollectGradientAttributes() {
   NOT_DESTROYED();
   DCHECK(GetElement());
@@ -47,7 +42,7 @@ void LayoutSVGResourceRadialGradient::CollectGradientAttributes() {
       ->CollectGradientAttributes(MutableAttributes());
 }
 
-gfx::PointF LayoutSVGResourceRadialGradient::CenterPoint(
+FloatPoint LayoutSVGResourceRadialGradient::CenterPoint(
     const RadialGradientAttributes& attributes) const {
   NOT_DESTROYED();
   return SVGLengthContext::ResolvePoint(GetElement(),
@@ -55,7 +50,7 @@ gfx::PointF LayoutSVGResourceRadialGradient::CenterPoint(
                                         *attributes.Cx(), *attributes.Cy());
 }
 
-gfx::PointF LayoutSVGResourceRadialGradient::FocalPoint(
+FloatPoint LayoutSVGResourceRadialGradient::FocalPoint(
     const RadialGradientAttributes& attributes) const {
   NOT_DESTROYED();
   return SVGLengthContext::ResolvePoint(GetElement(),

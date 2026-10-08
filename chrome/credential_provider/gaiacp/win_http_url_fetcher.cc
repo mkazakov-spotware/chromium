@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,19 +10,17 @@
 #include <atlconv.h>
 #include <process.h>
 
-#include <string>
+#include <set>
 
 #include "base/base64.h"
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
-#include "base/memory/ptr_util.h"
+#include "base/stl_util.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string16.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/synchronization/lock.h"
-#include "base/time/time.h"
 #include "chrome/credential_provider/gaiacp/logging.h"
 
 namespace {
@@ -34,7 +32,7 @@ constexpr char kHttpErrorCodeKeyNameInResponse[] = "code";
 const char kErrorKeyInRequestResult[] = "error";
 
 // The HTTP response codes for which the request is re-tried on failure.
-constexpr int kRetryableHttpErrorCodes[] = {
+const std::set<int> kRetryableHttpErrorCodes = {
     503,  // Service Unavailable
     504   // Gateway Timeout
 };
@@ -70,28 +68,29 @@ class HttpServiceRequest {
   // within the given |request_timeout|. If the background thread returns before
   // the timeout expires, it is guaranteed that a result can be returned and the
   // requester will delete itself.
-  absl::optional<base::Value> WaitForResponseFromHttpService(
+  base::Optional<base::Value> WaitForResponseFromHttpService(
       const base::TimeDelta& request_timeout) {
-    absl::optional<base::Value> result;
+    base::Optional<base::Value> result;
 
     // Start the thread and wait on its handle until |request_timeout| expires
     // or the thread finishes.
     unsigned wait_thread_id;
     uintptr_t wait_thread = ::_beginthreadex(
-        nullptr, 0, &HttpServiceRequest::FetchResultFromHttpService, this, 0,
-        &wait_thread_id);
+        nullptr, 0, &HttpServiceRequest::FetchResultFromHttpService,
+        reinterpret_cast<void*>(this), 0, &wait_thread_id);
 
     HRESULT hr = S_OK;
-    if (wait_thread == 0)
+    if (wait_thread == 0) {
       return result;
-
-    // Hold the handle in the scoped handle so that it can be immediately
-    // closed when the wait is complete allowing the thread to finish
-    // completely if needed.
-    base::win::ScopedHandle thread_handle(
-        reinterpret_cast<HANDLE>(wait_thread));
-    hr = ::WaitForSingleObject(thread_handle.Get(),
-                               request_timeout.InMilliseconds());
+    } else {
+      // Hold the handle in the scoped handle so that it can be immediately
+      // closed when the wait is complete allowing the thread to finish
+      // completely if needed.
+      base::win::ScopedHandle thread_handle(
+          reinterpret_cast<HANDLE>(wait_thread));
+      hr = ::WaitForSingleObject(thread_handle.Get(),
+                                 request_timeout.InMilliseconds());
+    }
 
     // The race condition starts here. It is possible that between the expiry of
     // the timeout in the call for WaitForSingleObject and the call to
@@ -110,8 +109,7 @@ class HttpServiceRequest {
 
     result = base::JSONReader::Read(
         base::StringPiece(response_.data(), response_.size()),
-        base::JSON_PARSE_CHROMIUM_EXTENSIONS |
-            base::JSON_ALLOW_TRAILING_COMMAS);
+        base::JSON_ALLOW_TRAILING_COMMAS);
     if (!result || !result->is_dict()) {
       LOGFN(ERROR) << "Failed to read json result from server response";
       result.reset();
@@ -165,8 +163,9 @@ class HttpServiceRequest {
   // as finished processing when it is done.
   static unsigned __stdcall FetchResultFromHttpService(void* param) {
     DCHECK(param);
+    HttpServiceRequest* requester =
+        reinterpret_cast<HttpServiceRequest*>(param);
 
-    auto* requester = reinterpret_cast<HttpServiceRequest*>(param);
     HRESULT hr = requester->fetcher_->Fetch(&requester->response_);
     if (FAILED(hr))
       LOGFN(ERROR) << "fetcher.Fetch hr=" << credential_provider::putHR(hr);
@@ -218,7 +217,7 @@ HttpServiceRequest* HttpServiceRequest::Create(
     url_fetcher->SetHttpRequestTimeout(request_timeout.InMilliseconds());
   }
 
-  return new HttpServiceRequest(std::move(url_fetcher));
+  return (new HttpServiceRequest(std::move(url_fetcher)));
 }
 
 }  // namespace
@@ -236,7 +235,7 @@ WinHttpUrlFetcher::GetCreatorFunctionStorage() {
 std::unique_ptr<WinHttpUrlFetcher> WinHttpUrlFetcher::Create(const GURL& url) {
   return !GetCreatorFunctionStorage()->is_null()
              ? GetCreatorFunctionStorage()->Run(url)
-             : base::WrapUnique(new WinHttpUrlFetcher(url));
+             : std::unique_ptr<WinHttpUrlFetcher>(new WinHttpUrlFetcher(url));
 }
 
 // static
@@ -258,7 +257,7 @@ WinHttpUrlFetcher::WinHttpUrlFetcher(const GURL& url)
   session_.Set(session);
 }
 
-WinHttpUrlFetcher::WinHttpUrlFetcher() = default;
+WinHttpUrlFetcher::WinHttpUrlFetcher() {}
 
 WinHttpUrlFetcher::~WinHttpUrlFetcher() {
   // Closing the session handle closes all derived handles too.
@@ -348,7 +347,7 @@ HRESULT WinHttpUrlFetcher::Fetch(std::vector<char>* response) {
   for (const auto& kv : request_headers_) {
     const wchar_t* key = A2CW(kv.first.c_str());
     const wchar_t* value = A2CW(kv.second.c_str());
-    std::wstring header = base::StringPrintf(L"%ls: %ls", key, value);
+    base::string16 header = base::StringPrintf(L"%ls: %ls", key, value);
     if (!::WinHttpAddRequestHeaders(
             request_.Get(), header.c_str(), header.length(),
             WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE)) {
@@ -391,7 +390,7 @@ HRESULT WinHttpUrlFetcher::Fetch(std::vector<char>* response) {
   // buffer than 256k.
   constexpr size_t kMaxResponseSize = 256 * 1024 * 1024;
   // Read the response.
-  auto buffer = std::make_unique<char[]>(length);
+  std::unique_ptr<char> buffer(new char[length]);
   DWORD actual = 0;
   do {
     if (!::WinHttpReadData(request_.Get(), buffer.get(), length, &actual)) {
@@ -424,8 +423,9 @@ HRESULT WinHttpUrlFetcher::BuildRequestAndFetchResultFromHttpService(
     const base::Value& request_dict,
     const base::TimeDelta& request_timeout,
     unsigned int request_retries,
-    absl::optional<base::Value>* request_result) {
+    base::Optional<base::Value>* request_result) {
   DCHECK(request_result);
+  HRESULT hr = S_OK;
 
   std::string request_body;
   if (request_dict.is_dict()) {
@@ -438,32 +438,40 @@ HRESULT WinHttpUrlFetcher::BuildRequestAndFetchResultFromHttpService(
   for (unsigned int try_count = 0; try_count <= request_retries; ++try_count) {
     HttpServiceRequest* request = HttpServiceRequest::Create(
         request_url, access_token, headers, request_body, request_timeout);
+
     if (!request)
       return E_FAIL;
 
     auto extracted_param =
         request->WaitForResponseFromHttpService(request_timeout);
-    if (!extracted_param)
+
+    if (!extracted_param) {
+      hr = E_FAIL;
       continue;
-
-    *request_result = std::move(extracted_param);
-    const base::Value* error_detail =
-        (*request_result)->FindDictKey(kErrorKeyInRequestResult);
-    if (!error_detail)
-      return S_OK;
-
-    LOGFN(ERROR) << "error: " << *error_detail;
-
-    // If error code is known, retry only on retryable server errors.
-    absl::optional<int> error_code =
-        error_detail->FindIntKey(kHttpErrorCodeKeyNameInResponse);
-    if (error_code.has_value() &&
-        !base::Contains(kRetryableHttpErrorCodes, error_code.value())) {
-      return E_FAIL;
     }
+    *request_result = std::move(extracted_param);
+
+    base::Value* error_detail =
+        (*request_result)->FindDictKey(kErrorKeyInRequestResult);
+    if (error_detail) {
+      hr = E_FAIL;
+      LOGFN(ERROR) << "error: " << *error_detail;
+
+      // If error code is known, retry only on retryable server errors.
+      base::Optional<int> error_code =
+          error_detail->FindIntKey(kHttpErrorCodeKeyNameInResponse);
+      if (error_code.has_value() &&
+          kRetryableHttpErrorCodes.find(error_code.value()) ==
+              kRetryableHttpErrorCodes.end())
+        break;
+
+      continue;
+    }
+
+    hr = S_OK;
+    break;
   }
 
-  return E_FAIL;
+  return hr;
 }
-
 }  // namespace credential_provider

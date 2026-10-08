@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -98,7 +98,7 @@ ScriptPromise InternalsPermission::setPermission(
   raw_permission_automation->SetPermission(
       std::move(descriptor), ToPermissionStatus(state.Utf8()), url,
       embedding_url,
-      WTF::BindOnce(
+      WTF::Bind(
           // While we only really need |resolver|, we also take the
           // mojo::Remote<> so that it remains alive after this function exits.
           [](ScriptPromiseResolver* resolver,

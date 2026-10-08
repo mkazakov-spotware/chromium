@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "remoting/proto/internal.pb.h"
 #include "remoting/protocol/channel_dispatcher_base.h"
 #include "remoting/protocol/clipboard_filter.h"
@@ -25,7 +25,8 @@
 #include "remoting/protocol/session.h"
 #include "remoting/protocol/session_config.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class AudioDecodeScheduler;
 class AudioReader;
@@ -39,10 +40,6 @@ class IceConnectionToHost : public ConnectionToHost,
                             public ChannelDispatcherBase::EventHandler {
  public:
   IceConnectionToHost();
-
-  IceConnectionToHost(const IceConnectionToHost&) = delete;
-  IceConnectionToHost& operator=(const IceConnectionToHost&) = delete;
-
   ~IceConnectionToHost() override;
 
   // ConnectionToHost interface.
@@ -85,12 +82,12 @@ class IceConnectionToHost : public ConnectionToHost,
 
   void SetState(State state, ErrorCode error);
 
-  raw_ptr<HostEventCallback> event_callback_ = nullptr;
+  HostEventCallback* event_callback_ = nullptr;
 
   // Stub for incoming messages.
-  raw_ptr<ClientStub> client_stub_ = nullptr;
-  raw_ptr<ClipboardStub> clipboard_stub_ = nullptr;
-  raw_ptr<VideoRenderer> video_renderer_ = nullptr;
+  ClientStub* client_stub_ = nullptr;
+  ClipboardStub* clipboard_stub_ = nullptr;
+  VideoRenderer* video_renderer_ = nullptr;
 
   std::unique_ptr<AudioDecodeScheduler> audio_decode_scheduler_;
 
@@ -111,8 +108,11 @@ class IceConnectionToHost : public ConnectionToHost,
 
  private:
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(IceConnectionToHost);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_ICE_CONNECTION_TO_HOST_H_

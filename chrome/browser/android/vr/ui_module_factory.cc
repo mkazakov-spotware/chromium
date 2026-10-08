@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,7 +45,7 @@ std::unique_ptr<UiInterface> UiModuleFactory::Create(
   for (const auto& library_name : library_name_possibilities) {
     ui_library_handle =
         base::android::BundleUtils::DlOpenModuleLibraryPartition(
-            library_name, partition_name, "vr");
+            library_name, partition_name);
     if (ui_library_handle != nullptr) {
       break;
     }

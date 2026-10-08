@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/controls/tree/tree_view_drawing_provider.h"
 
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/controls/tree/tree_view.h"
 
 namespace views {
@@ -16,34 +15,29 @@ TreeViewDrawingProvider::~TreeViewDrawingProvider() = default;
 SkColor TreeViewDrawingProvider::GetBackgroundColorForNode(
     TreeView* tree_view,
     ui::TreeModelNode* node) {
-  ui::ColorId color_id = (tree_view->HasFocus() || tree_view->GetEditingNode())
-                             ? ui::kColorTreeNodeBackgroundSelectedFocused
-                             : ui::kColorTreeNodeBackgroundSelectedUnfocused;
-  return tree_view->GetColorProvider()->GetColor(color_id);
+  ui::NativeTheme::ColorId color_id =
+      (tree_view->HasFocus() || tree_view->GetEditingNode())
+          ? ui::NativeTheme::kColorId_TreeSelectionBackgroundFocused
+          : ui::NativeTheme::kColorId_TreeSelectionBackgroundUnfocused;
+  return tree_view->GetNativeTheme()->GetSystemColor(color_id);
 }
 
 SkColor TreeViewDrawingProvider::GetTextColorForNode(TreeView* tree_view,
                                                      ui::TreeModelNode* node) {
-  ui::ColorId color_id = ui::kColorTreeNodeForeground;
+  ui::NativeTheme::ColorId color_id = ui::NativeTheme::kColorId_TreeText;
   if (tree_view->GetSelectedNode() == node) {
-    color_id = tree_view->HasFocus()
-                   ? ui::kColorTreeNodeForegroundSelectedFocused
-                   : ui::kColorTreeNodeForegroundSelectedUnfocused;
+    if (tree_view->HasFocus())
+      color_id = ui::NativeTheme::kColorId_TreeSelectedText;
+    else
+      color_id = ui::NativeTheme::kColorId_TreeSelectedTextUnfocused;
   }
-  return tree_view->GetColorProvider()->GetColor(color_id);
+  return tree_view->GetNativeTheme()->GetSystemColor(color_id);
 }
 
-SkColor TreeViewDrawingProvider::GetAuxiliaryTextColorForNode(
+base::string16 TreeViewDrawingProvider::GetAuxiliaryTextForNode(
     TreeView* tree_view,
     ui::TreeModelNode* node) {
-  // Default to using the same color as the primary text.
-  return GetTextColorForNode(tree_view, node);
-}
-
-std::u16string TreeViewDrawingProvider::GetAuxiliaryTextForNode(
-    TreeView* tree_view,
-    ui::TreeModelNode* node) {
-  return std::u16string();
+  return base::string16();
 }
 
 bool TreeViewDrawingProvider::ShouldDrawIconForNode(TreeView* tree_view,

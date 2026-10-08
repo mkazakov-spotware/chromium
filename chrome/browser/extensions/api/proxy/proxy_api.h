@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,15 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/singleton.h"
-#include "base/values.h"
-#include "chrome/browser/extensions/pref_transformer_interface.h"
+#include "base/strings/string16.h"
+#include "chrome/browser/extensions/api/preference/preference_api.h"
 #include "components/proxy_config/proxy_prefs.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
+namespace base {
+class Value;
+}
 
 namespace extensions {
 class EventRouterForwarder;
@@ -25,20 +29,19 @@ class EventRouterForwarder;
 class ProxyPrefTransformer : public PrefTransformerInterface {
  public:
   ProxyPrefTransformer();
-
-  ProxyPrefTransformer(const ProxyPrefTransformer&) = delete;
-  ProxyPrefTransformer& operator=(const ProxyPrefTransformer&) = delete;
-
   ~ProxyPrefTransformer() override;
 
   // Implementation of PrefTransformerInterface.
-  absl::optional<base::Value> ExtensionToBrowserPref(
-      const base::Value& extension_pref,
-      std::string& error,
-      bool& bad_message) override;
-  absl::optional<base::Value> BrowserToExtensionPref(
-      const base::Value& browser_pref,
+  std::unique_ptr<base::Value> ExtensionToBrowserPref(
+      const base::Value* extension_pref,
+      std::string* error,
+      bool* bad_message) override;
+  std::unique_ptr<base::Value> BrowserToExtensionPref(
+      const base::Value* browser_pref,
       bool is_incognito_profile) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ProxyPrefTransformer);
 };
 
 // This class observes proxy error events and routes them to the appropriate
@@ -46,9 +49,6 @@ class ProxyPrefTransformer : public PrefTransformerInterface {
 // thread unless otherwise specified.
 class ProxyEventRouter {
  public:
-  ProxyEventRouter(const ProxyEventRouter&) = delete;
-  ProxyEventRouter& operator=(const ProxyEventRouter&) = delete;
-
   static ProxyEventRouter* GetInstance();
 
   void OnProxyError(EventRouterForwarder* event_router,
@@ -58,13 +58,15 @@ class ProxyEventRouter {
   void OnPACScriptError(EventRouterForwarder* event_router,
                         void* profile,
                         int line_number,
-                        const std::u16string& error);
+                        const base::string16& error);
 
  private:
   friend struct base::DefaultSingletonTraits<ProxyEventRouter>;
 
   ProxyEventRouter();
   ~ProxyEventRouter();
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyEventRouter);
 };
 
 }  // namespace extensions

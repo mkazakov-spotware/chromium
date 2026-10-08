@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define ASH_SYSTEM_TRAY_TRI_VIEW_H_
 
 #include <memory>
-#include <utility>
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/view.h"
@@ -68,9 +68,6 @@ class ASH_EXPORT TriView : public views::View {
   // |padding_between_containers|.
   TriView(Orientation orientation, int padding_between_containers);
 
-  TriView(const TriView&) = delete;
-  TriView& operator=(const TriView&) = delete;
-
   ~TriView() override;
 
   // Set the minimum height for all containers to |height|.
@@ -85,28 +82,13 @@ class ASH_EXPORT TriView : public views::View {
   // Set the maximum size for the given |container|.
   void SetMaxSize(Container container, const gfx::Size& size);
 
-  // Adds the child `view` to the specified `container`. Returns a raw pointer
-  // to the view.
-  template <typename T>
-  T* AddView(Container container, std::unique_ptr<T> view) {
-    return GetContainer(container)->AddChildView(std::move(view));
-  }
-
-  // Adds the child `view` to the specified `container` at the child index.
-  // Returns a raw pointer to the view.
-  template <typename T>
-  T* AddViewAt(Container container, std::unique_ptr<T> view, int index) {
-    return GetContainer(container)->AddChildViewAt(std::move(view), index);
-  }
-
-  // Adds the child `view` to the specified `container`. Takes ownership of the
-  // view. Prefer the unique_ptr version above when possible.
+  // Adds the child |view| to the specified |container|.
   void AddView(Container container, views::View* view);
 
-  // Adds the child `view` to the specified `container` at the child index.
-  // Takes ownership of the view. Prefer the unique_ptr version above when
-  // possible.
-  void AddViewAt(Container container, views::View* view, int index);
+  // Removes all the children from the specified |container|. If
+  // |delete_children| is true, the views are deleted, unless marked as not
+  // parent owned.
+  void RemoveAllChildren(Container container, bool delete_children);
 
   // During layout the |insets| are applied to the host views entire space
   // before allocating the remaining space to the container views.
@@ -144,7 +126,6 @@ class ASH_EXPORT TriView : public views::View {
   void ViewHierarchyChanged(
       const views::ViewHierarchyChangedDetails& details) override;
   const char* GetClassName() const override;
-  gfx::Rect GetAnchorBoundsInScreen() const override;
 
  private:
   friend class TriViewTest;
@@ -168,6 +149,8 @@ class ASH_EXPORT TriView : public views::View {
   // to manipulate the child views during construction/destruction so this flag
   // is used to disable the DCHECK during construction/destruction.
   bool enable_hierarchy_changed_dcheck_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(TriView);
 };
 
 }  // namespace ash

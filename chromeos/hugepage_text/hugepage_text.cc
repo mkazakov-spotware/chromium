@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 // Author: Ken Chen <kenchen@google.com> Tiancong Wang <tcwang@google.com>
@@ -58,9 +58,8 @@ constexpr static bool kIsOrderfileEnabled = true;
 constexpr static bool kIsOrderfileEnabled = false;
 #endif
 
-BASE_FEATURE(kCrOSHugepageRemapAndLockZygote,
-             "CrOSHugepageRemapAndLockInZygote",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kCrOSHugepageRemapAndLockZygote{
+    "CrOSHugepageRemapAndLockInZygote", base::FEATURE_ENABLED_BY_DEFAULT};
 
 const int kHpageShift = 21;
 const int kHpageSize = (1 << kHpageShift);
@@ -245,8 +244,7 @@ static int FilterElfHeader(struct dl_phdr_info* info, size_t size, void* data) {
   for (int i = 0; i < info->dlpi_phnum; i++) {
     if (info->dlpi_phdr[i].p_type == PT_LOAD &&
         info->dlpi_phdr[i].p_flags == (PF_R | PF_X)) {
-      vaddr =
-          base::bit_cast<void*>(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
+      vaddr = bit_cast<void*>(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
       segsize = info->dlpi_phdr[i].p_filesz;
       RemapHugetlbTextWithOrderfileLayout(vaddr, segsize);
       return 1;

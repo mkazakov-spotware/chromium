@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 #include <wtsdefs.h>
 
 #include <list>
-#include <string>
 
 #include "base/bind.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_local.h"
 #include "base/win/scoped_bstr.h"
@@ -37,7 +38,8 @@ constexpr BYTE kKeyPressedFlag = 0x80;
 
 constexpr int kKeyboardStateLength = 256;
 
-constexpr base::TimeDelta kReapplyResolutionPeriod = base::Milliseconds(250);
+constexpr base::TimeDelta kReapplyResolutionPeriod =
+    base::TimeDelta::FromMilliseconds(250);
 
 // We want to try to reapply resolution changes for ~5 seconds (20 * 250ms).
 constexpr int kMaxResolutionReapplyAttempts = 20;
@@ -65,7 +67,7 @@ base::LazyInstance<base::ThreadLocalPointer<RdpClientWindow::WindowHook>>::
 // FindWindowEx() this function walks the tree of windows recursively. The walk
 // is done in breadth-first order. The function returns nullptr if the child
 // window could not be found.
-HWND FindWindowRecursively(HWND parent, const std::wstring& class_name) {
+HWND FindWindowRecursively(HWND parent, const base::string16& class_name) {
   std::list<HWND> windows;
   windows.push_back(parent);
 
@@ -74,8 +76,8 @@ HWND FindWindowRecursively(HWND parent, const std::wstring& class_name) {
     while (child != nullptr) {
       // See if the window class name matches |class_name|.
       WCHAR name[kMaxWindowClassLength];
-      int length = GetClassName(child, name, std::size(name));
-      if (std::wstring(name, length) == class_name)
+      int length = GetClassName(child, name, base::size(name));
+      if (base::string16(name, length)  == class_name)
         return child;
 
       // Remember the window to look through its children.
@@ -102,9 +104,6 @@ class RdpClientWindow::WindowHook
  public:
   static scoped_refptr<WindowHook> Create();
 
-  WindowHook(const WindowHook&) = delete;
-  WindowHook& operator=(const WindowHook&) = delete;
-
  private:
   friend class base::RefCounted<WindowHook>;
 
@@ -115,6 +114,8 @@ class RdpClientWindow::WindowHook
       int code, WPARAM wparam, LPARAM lparam);
 
   HHOOK hook_;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowHook);
 };
 
 RdpClientWindow::RdpClientWindow(const net::IPEndPoint& server_endpoint,
@@ -264,8 +265,8 @@ LRESULT RdpClientWindow::OnCreate(CREATESTRUCT* create_struct) {
   Microsoft::WRL::ComPtr<mstsc::IMsTscSecuredSettings> secured_settings;
   Microsoft::WRL::ComPtr<mstsc::IMsRdpClientSecuredSettings> secured_settings2;
   base::win::ScopedBstr server_name(
-      base::UTF8ToWide(server_endpoint_.ToStringWithoutPort()));
-  base::win::ScopedBstr terminal_id(base::UTF8ToWide(terminal_id_));
+      base::UTF8ToUTF16(server_endpoint_.ToStringWithoutPort()));
+  base::win::ScopedBstr terminal_id(base::UTF8ToUTF16(terminal_id_));
 
   // Create the child window that actually hosts the ActiveX control.
   RECT rect = {0, 0, screen_resolution_.dimensions().width(),
@@ -403,8 +404,7 @@ void RdpClientWindow::OnDestroy() {
   apply_resolution_timer_.Stop();
 }
 
-STDMETHODIMP
-RdpClientWindow::OnAuthenticationWarningDisplayed() {
+HRESULT RdpClientWindow::OnAuthenticationWarningDisplayed() {
   LOG(WARNING) << "RDP: authentication warning is about to be shown.";
 
   // Hook window activation to cancel any modal UI shown by the RDP control.
@@ -414,22 +414,21 @@ RdpClientWindow::OnAuthenticationWarningDisplayed() {
   return S_OK;
 }
 
-STDMETHODIMP
-RdpClientWindow::OnAuthenticationWarningDismissed() {
+HRESULT RdpClientWindow::OnAuthenticationWarningDismissed() {
   LOG(WARNING) << "RDP: authentication warning has been dismissed.";
 
   window_activate_hook_ = nullptr;
   return S_OK;
 }
 
-STDMETHODIMP RdpClientWindow::OnConnected() {
+HRESULT RdpClientWindow::OnConnected() {
   VLOG(1) << "RDP: successfully connected to " << server_endpoint_.ToString();
 
   NotifyConnected();
   return S_OK;
 }
 
-STDMETHODIMP RdpClientWindow::OnLoginComplete() {
+HRESULT RdpClientWindow::OnLoginComplete() {
   VLOG(1) << "RDP: user successfully logged in.";
 
   user_logged_in_ = true;
@@ -448,7 +447,7 @@ STDMETHODIMP RdpClientWindow::OnLoginComplete() {
   return S_OK;
 }
 
-STDMETHODIMP RdpClientWindow::OnDisconnected(long reason) {
+HRESULT RdpClientWindow::OnDisconnected(long reason) {
   if (reason == kDisconnectReasonNoInfo ||
       reason == kDisconnectReasonLocalNotError ||
       reason == kDisconnectReasonRemoteByUser ||
@@ -484,7 +483,7 @@ STDMETHODIMP RdpClientWindow::OnDisconnected(long reason) {
   return S_OK;
 }
 
-STDMETHODIMP RdpClientWindow::OnFatalError(long error_code) {
+HRESULT RdpClientWindow::OnFatalError(long error_code) {
   LOG(ERROR) << "RDP: an error occured: error_code="
              << error_code;
 
@@ -492,7 +491,7 @@ STDMETHODIMP RdpClientWindow::OnFatalError(long error_code) {
   return S_OK;
 }
 
-STDMETHODIMP RdpClientWindow::OnConfirmClose(VARIANT_BOOL* allow_close) {
+HRESULT RdpClientWindow::OnConfirmClose(VARIANT_BOOL* allow_close) {
   *allow_close = VARIANT_TRUE;
 
   NotifyDisconnected();

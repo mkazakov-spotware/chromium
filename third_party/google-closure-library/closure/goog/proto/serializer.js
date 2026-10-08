@@ -1,11 +1,23 @@
 /**
  * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright The Closure Library Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS-IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 /**
  * @fileoverview Protocol buffer serializer.
+ * @author arv@google.com (Erik Arvidsson)
  */
 
 
@@ -27,7 +39,6 @@ goog.require('goog.string');
  * @final
  */
 goog.proto.Serializer = function() {
-  'use strict';
   goog.json.Serializer.call(this);
 };
 goog.inherits(goog.proto.Serializer, goog.json.Serializer);
@@ -41,12 +52,11 @@ goog.inherits(goog.proto.Serializer, goog.json.Serializer);
  * @override
  */
 goog.proto.Serializer.prototype.serializeArray = function(arr, sb) {
-  'use strict';
-  const l = arr.length;
+  var l = arr.length;
   sb.push('[');
-  let emptySlots = 0;
-  let sep = '';
-  for (let i = 0; i < l; i++) {
+  var emptySlots = 0;
+  var sep = '';
+  for (var i = 0; i < l; i++) {
     if (arr[i] == null) {  // catches undefined as well
       emptySlots++;
     } else {

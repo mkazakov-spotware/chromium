@@ -1,11 +1,7 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {addEntries, ENTRIES, RootPath, sendTestMessage, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {openNewWindow, remoteCall} from './background.js';
+'use strict';
 
 /**
  * Query used to find USB removable volume.
@@ -47,7 +43,9 @@ async function copyBetweenWindows(
 
   await remoteCall.waitForFiles(window1, [file.getExpectedRow()]);
 
-  await remoteCall.waitUntilSelected(window1, name);
+  chrome.test.assertTrue(
+      !!await remoteCall.callRemoteTestUtil('selectFile', window1, [name]),
+      'Failed: selectFile ' + name);
 
   await remoteCall.callRemoteTestUtil('execCommand', window1, ['copy']);
 

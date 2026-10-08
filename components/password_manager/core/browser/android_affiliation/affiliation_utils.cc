@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <ostream>
 
 #include "base/base64.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "components/url_formatter/elide_url.h"
+#include "net/base/escape.h"
 #include "url/third_party/mozilla/url_parse.h"
 #include "url/url_canon_stdstring.h"
 
@@ -93,8 +93,7 @@ bool CanonicalizeHashComponent(const base::StringPiece& input_hash,
   // safe" base64 alphabet; plus the padding ('=').
   const char kBase64NonAlphanumericChars[] = "-_=";
 
-  std::string base64_encoded_hash =
-      base::UnescapeBinaryURLComponent(input_hash);
+  std::string base64_encoded_hash = net::UnescapeBinaryURLComponent(input_hash);
 
   if (!base64_encoded_hash.empty() &&
       CanonicalizeBase64Padding(&base64_encoded_hash) &&
@@ -118,7 +117,7 @@ bool CanonicalizePackageNameComponent(
   const char kPackageNameNonAlphanumericChars[] = "._";
 
   std::string package_name =
-      base::UnescapeBinaryURLComponent(input_package_name);
+      net::UnescapeBinaryURLComponent(input_package_name);
 
   // TODO(engedy): We might want to use a regex to check this more throughly.
   if (!package_name.empty() &&
@@ -156,10 +155,10 @@ bool CanonicalizeAndroidFacetURI(const std::string& input_uri,
 
   canonical_output.Complete();
 
-  return success && input_parsed.password.is_empty() &&
-         (input_parsed.path.is_empty() ||
+  return success && !input_parsed.password.is_nonempty() &&
+         (!input_parsed.path.is_nonempty() ||
           ComponentString(input_uri, input_parsed.path) == "/") &&
-         input_parsed.port.is_empty() && !input_parsed.query.is_valid() &&
+         !input_parsed.port.is_nonempty() && !input_parsed.query.is_valid() &&
          !input_parsed.ref.is_valid();
 }
 
@@ -175,9 +174,9 @@ bool ParseAndCanonicalizeFacetURI(const std::string& input_uri,
   url::ParseStandardURL(input_uri.c_str(), input_uri.size(), &input_parsed);
 
   base::StringPiece scheme = ComponentString(input_uri, input_parsed.scheme);
-  if (base::EqualsCaseInsensitiveASCII(scheme, url::kHttpsScheme)) {
+  if (base::LowerCaseEqualsASCII(scheme, url::kHttpsScheme)) {
     return CanonicalizeWebFacetURI(input_uri, input_parsed, canonical_uri);
-  } else if (base::EqualsCaseInsensitiveASCII(scheme, kAndroidAppScheme)) {
+  } else if (base::LowerCaseEqualsASCII(scheme, kAndroidAppScheme)) {
     return CanonicalizeAndroidFacetURI(input_uri, input_parsed, canonical_uri);
   }
   return false;
@@ -199,7 +198,8 @@ std::vector<FacetURI> ExtractAndSortFacetURIs(const AffiliatedFacets& facets) {
 
 // FacetURI -------------------------------------------------------------------
 
-FacetURI::FacetURI() = default;
+FacetURI::FacetURI() : is_valid_(false) {
+}
 
 // static
 FacetURI FacetURI::FromPotentiallyInvalidSpec(const std::string& spec) {
@@ -247,14 +247,14 @@ bool FacetURI::IsValidAndroidFacetURI() const {
 
 std::string FacetURI::scheme() const {
   return is_valid()
-             ? std::string(ComponentString(canonical_spec_, parsed_.scheme))
+             ? ComponentString(canonical_spec_, parsed_.scheme).as_string()
              : "";
 }
 
 std::string FacetURI::android_package_name() const {
   if (!IsValidAndroidFacetURI())
     return "";
-  return std::string(ComponentString(canonical_spec_, parsed_.host));
+  return ComponentString(canonical_spec_, parsed_.host).as_string();
 }
 
 FacetURI::FacetURI(const std::string& canonical_spec, bool is_valid)
@@ -264,20 +264,6 @@ FacetURI::FacetURI(const std::string& canonical_spec, bool is_valid)
   url::ParseStandardURL(canonical_spec_.c_str(), canonical_spec_.size(),
                         &parsed_);
 }
-
-// GroupedFacets
-
-GroupedFacets::GroupedFacets() = default;
-
-GroupedFacets::~GroupedFacets() = default;
-
-GroupedFacets::GroupedFacets(const GroupedFacets& other) = default;
-
-GroupedFacets::GroupedFacets(GroupedFacets&& other) = default;
-
-GroupedFacets& GroupedFacets::operator=(const GroupedFacets& other) = default;
-
-GroupedFacets& GroupedFacets::operator=(GroupedFacets&& other) = default;
 
 // AffiliatedFacetsWithUpdateTime ---------------------------------------------
 

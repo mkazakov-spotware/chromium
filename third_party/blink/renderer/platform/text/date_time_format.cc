@@ -25,7 +25,6 @@
 
 #include "third_party/blink/renderer/platform/text/date_time_format.h"
 
-#include "base/notreached.h"
 #include "third_party/blink/renderer/platform/wtf/text/ascii_ctype.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
@@ -33,7 +32,7 @@ namespace blink {
 
 static const DateTimeFormat::FieldType kLowerCaseToFieldTypeMap[26] = {
     DateTimeFormat::kFieldTypePeriod,                   // a
-    DateTimeFormat::kFieldTypePeriodAmPmNoonMidnight,   // b
+    DateTimeFormat::kFieldTypeInvalid,                  // b
     DateTimeFormat::kFieldTypeLocalDayOfWeekStandAlon,  // c
     DateTimeFormat::kFieldTypeDayOfMonth,               // d
     DateTimeFormat::kFieldTypeLocalDayOfWeek,           // e
@@ -49,20 +48,20 @@ static const DateTimeFormat::FieldType kLowerCaseToFieldTypeMap[26] = {
     DateTimeFormat::kFieldTypeInvalid,                  // o
     DateTimeFormat::kFieldTypeInvalid,                  // p
     DateTimeFormat::kFieldTypeQuaterStandAlone,         // q
-    DateTimeFormat::kFieldTypeYearRelatedGregorian,     // r
+    DateTimeFormat::kFieldTypeInvalid,                  // r
     DateTimeFormat::kFieldTypeSecond,                   // s
     DateTimeFormat::kFieldTypeInvalid,                  // t
     DateTimeFormat::kFieldTypeExtendedYear,             // u
     DateTimeFormat::kFieldTypeNonLocationZone,          // v
     DateTimeFormat::kFieldTypeWeekOfYear,               // w
-    DateTimeFormat::kFieldTypeZoneIso8601,              // x
+    DateTimeFormat::kFieldTypeInvalid,                  // x
     DateTimeFormat::kFieldTypeYear,                     // y
     DateTimeFormat::kFieldTypeZone,                     // z
 };
 
 static const DateTimeFormat::FieldType kUpperCaseToFieldTypeMap[26] = {
     DateTimeFormat::kFieldTypeMillisecondsInDay,  // A
-    DateTimeFormat::kFieldTypePeriodFlexible,     // B
+    DateTimeFormat::kFieldTypeInvalid,            // B
     DateTimeFormat::kFieldTypeInvalid,            // C
     DateTimeFormat::kFieldTypeDayOfYear,          // D
     DateTimeFormat::kFieldTypeDayOfWeek,          // E
@@ -75,16 +74,16 @@ static const DateTimeFormat::FieldType kUpperCaseToFieldTypeMap[26] = {
     DateTimeFormat::kFieldTypeMonthStandAlone,    // L
     DateTimeFormat::kFieldTypeMonth,              // M
     DateTimeFormat::kFieldTypeInvalid,            // N
-    DateTimeFormat::kFieldTypeZoneLocalized,      // O
+    DateTimeFormat::kFieldTypeInvalid,            // O
     DateTimeFormat::kFieldTypeInvalid,            // P
     DateTimeFormat::kFieldTypeQuater,             // Q
     DateTimeFormat::kFieldTypeInvalid,            // R
     DateTimeFormat::kFieldTypeFractionalSecond,   // S
     DateTimeFormat::kFieldTypeInvalid,            // T
-    DateTimeFormat::kFieldTypeYearCyclicName,     // U
-    DateTimeFormat::kFieldTypeZoneId,             // V
+    DateTimeFormat::kFieldTypeInvalid,            // U
+    DateTimeFormat::kFieldTypeInvalid,            // V
     DateTimeFormat::kFieldTypeWeekOfMonth,        // W
-    DateTimeFormat::kFieldTypeZoneIso8601Z,       // X
+    DateTimeFormat::kFieldTypeInvalid,            // X
     DateTimeFormat::kFieldTypeYearOfWeekOfYear,   // Y
     DateTimeFormat::kFieldTypeRFC822Zone,         // Z
 };
@@ -182,7 +181,7 @@ bool DateTimeFormat::Parse(const String& source, TokenHandler& token_handler) {
       case kStateSymbol: {
         DCHECK_NE(field_type, kFieldTypeInvalid);
         DCHECK_NE(field_type, kFieldTypeLiteral);
-        DCHECK(literal_buffer.empty());
+        DCHECK(literal_buffer.IsEmpty());
 
         FieldType field_type2 = MapCharacterToFieldType(ch);
         if (field_type2 == kFieldTypeInvalid)

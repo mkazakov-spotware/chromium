@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <mach-o/loader.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 namespace crashpad {
 
@@ -65,9 +65,9 @@ struct TestCrashpadInfo {
 // to get this test version to be interpreted as a genuine CrashpadInfo
 // structure. The size is set to the actual size of this structure (that’s kind
 // of the point of this test).
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 __attribute__((
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     section(SEG_DATA ",crashpad_info"),
 #endif
 #if defined(ADDRESS_SANITIZER)
@@ -75,12 +75,12 @@ __attribute__((
 #endif  // defined(ADDRESS_SANITIZER)
     visibility("hidden"),
     used))
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #pragma section("CPADinfo", read, write)
 __declspec(allocate("CPADinfo"))
-#else  // !BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_WIN)
+#else  // !defined(OS_POSIX) && !defined(OS_WIN)
 #error Port
-#endif  // !BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_WIN)
+#endif  // !defined(OS_POSIX) && !defined(OS_WIN)
 TestCrashpadInfo g_test_crashpad_info = {'CPad',
                                          sizeof(TestCrashpadInfo),
                                          1,
@@ -105,15 +105,14 @@ TestCrashpadInfo g_test_crashpad_info = {'CPad',
 
 extern "C" {
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 __attribute__((visibility("default")))
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 __declspec(dllexport)
 #else
 #error Port
-#endif  // BUILDFLAG(IS_POSIX)
-crashpad::TestCrashpadInfo*
-TestModule_GetCrashpadInfo() {
+#endif  // OS_POSIX
+crashpad::TestCrashpadInfo* TestModule_GetCrashpadInfo() {
   // Note that there's no need to do the back-reference here to the note on
   // POSIX like CrashpadInfo::GetCrashpadInfo() because the note .S file is
   // directly included into this test binary.
@@ -122,8 +121,8 @@ TestModule_GetCrashpadInfo() {
 
 }  // extern "C"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 BOOL WINAPI DllMain(HINSTANCE hinstance, DWORD reason, LPVOID reserved) {
   return TRUE;
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN

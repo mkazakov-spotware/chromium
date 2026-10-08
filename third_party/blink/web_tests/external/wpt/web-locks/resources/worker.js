@@ -5,21 +5,17 @@
 const held = new Map();
 let next_lock_id = 1;
 
-function processMessage(e) {
-  const target = this;
-
+self.addEventListener('message', e => {
   function respond(data) {
-    target.postMessage(Object.assign(data, {rqid: e.data.rqid}));
+    self.postMessage(Object.assign(data, {rqid: e.data.rqid}));
   }
 
   switch (e.data.op) {
-  case 'request': {
-    const controller = new AbortController();
+  case 'request':
     navigator.locks.request(
       e.data.name, {
         mode: e.data.mode || 'exclusive',
-        ifAvailable: e.data.ifAvailable || false,
-        signal: e.data.abortImmediately ? controller.signal : undefined,
+        ifAvailable: e.data.ifAvailable || false
       }, lock => {
         if (lock === null) {
           respond({ack: 'request', failed: true});
@@ -31,14 +27,8 @@ function processMessage(e) {
         held.set(lock_id, release);
         respond({ack: 'request', lock_id: lock_id});
         return promise;
-      }).catch(e => {
-        respond({ack: 'request', error: e.name});
       });
-    if (e.data.abortImmediately) {
-      controller.abort();
-    }
     break;
-  }
 
   case 'release':
     held.get(e.data.lock_id)();
@@ -46,11 +36,4 @@ function processMessage(e) {
     respond({ack: 'release', lock_id: e.data.lock_id});
     break;
   }
-}
-
-self.addEventListener('message', processMessage);
-
-self.addEventListener('connect', ev => {
-  // Shared worker case
-  ev.ports[0].onmessage = processMessage;
 });

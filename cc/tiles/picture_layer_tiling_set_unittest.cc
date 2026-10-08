@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <map>
 #include <vector>
 
-#include "build/build_config.h"
 #include "cc/test/fake_output_surface_client.h"
 #include "cc/test/fake_picture_layer_tiling_client.h"
 #include "cc/test/fake_raster_source.h"
@@ -244,7 +243,7 @@ class PictureLayerTilingSetTestWithResources : public testing::Test {
                float expected_scale) {
     scoped_refptr<viz::TestContextProvider> context_provider =
         viz::TestContextProvider::Create();
-    ASSERT_EQ(context_provider->BindToCurrentSequence(),
+    ASSERT_EQ(context_provider->BindToCurrentThread(),
               gpu::ContextResult::kSuccess);
     std::unique_ptr<viz::ClientResourceProvider> resource_provider =
         std::make_unique<viz::ClientResourceProvider>();
@@ -318,23 +317,11 @@ TEST_F(PictureLayerTilingSetTestWithResources, TwoTilings_Larger) {
   RunTest(2, 2.f, 8.f, 1.f, 2.f);
 }
 
-// Test is flaky: https://crbug.com/1056828.
-#if BUILDFLAG(IS_LINUX) && defined(THREAD_SANITIZER)
-#define MAYBE_ManyTilings_Equal DISABLED_ManyTilings_Equal
-#else
-#define MAYBE_ManyTilings_Equal ManyTilings_Equal
-#endif
-TEST_F(PictureLayerTilingSetTestWithResources, MAYBE_ManyTilings_Equal) {
+TEST_F(PictureLayerTilingSetTestWithResources, ManyTilings_Equal) {
   RunTest(10, 1.f, 1.f, 5.f, 5.f);
 }
 
-// Test is flaky: https://crbug.com/1056828.
-#if BUILDFLAG(IS_LINUX) && defined(THREAD_SANITIZER)
-#define MAYBE_ManyTilings_NotEqual DISABLED_ManyTilings_NotEqual
-#else
-#define MAYBE_ManyTilings_NotEqual ManyTilings_NotEqual
-#endif
-TEST_F(PictureLayerTilingSetTestWithResources, MAYBE_ManyTilings_NotEqual) {
+TEST_F(PictureLayerTilingSetTestWithResources, ManyTilings_NotEqual) {
   RunTest(10, 1.f, 1.f, 4.5f, 5.f);
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 
 #include "ash/assistant/assistant_controller_impl.h"
 #include "ash/assistant/model/assistant_notification_model_observer.h"
-#include "ash/assistant/test/assistant_ash_test_base.h"
 #include "ash/assistant/test/test_assistant_service.h"
 #include "ash/shell.h"
+#include "ash/test/ash_test_base.h"
 #include "base/test/task_environment.h"
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
+#include "chromeos/constants/chromeos_features.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/message_center/message_center.h"
@@ -23,9 +24,9 @@ namespace ash {
 
 namespace {
 
-using assistant::AssistantNotification;
-using assistant::AssistantNotificationButton;
-using assistant::AssistantNotificationPriority;
+using chromeos::assistant::AssistantNotification;
+using chromeos::assistant::AssistantNotificationButton;
+using chromeos::assistant::AssistantNotificationPriority;
 
 using testing::_;
 using testing::Eq;
@@ -111,16 +112,16 @@ class AssistantNotificationBuilder {
   }
 
   AssistantNotificationBuilder& WithTimeout(
-      absl::optional<base::TimeDelta> timeout) {
+      base::Optional<base::TimeDelta> timeout) {
     notification_.expiry_time =
         timeout.has_value()
-            ? absl::optional<base::Time>(base::Time::Now() + timeout.value())
-            : absl::nullopt;
+            ? base::Optional<base::Time>(base::Time::Now() + timeout.value())
+            : base::nullopt;
     return *this;
   }
 
   AssistantNotificationBuilder& WithTimeoutMs(int timeout_ms) {
-    return WithTimeout(base::Milliseconds(timeout_ms));
+    return WithTimeout(base::TimeDelta::FromMilliseconds(timeout_ms));
   }
 
  private:
@@ -166,12 +167,6 @@ class AssistantNotificationModelObserverMock
     : public AssistantNotificationModelObserver {
  public:
   AssistantNotificationModelObserverMock() = default;
-
-  AssistantNotificationModelObserverMock(
-      const AssistantNotificationModelObserverMock&) = delete;
-  AssistantNotificationModelObserverMock& operator=(
-      const AssistantNotificationModelObserverMock&) = delete;
-
   ~AssistantNotificationModelObserverMock() override = default;
 
   MOCK_METHOD(void,
@@ -187,6 +182,9 @@ class AssistantNotificationModelObserverMock
               (const AssistantNotification& notification, bool from_server),
               (override));
   MOCK_METHOD(void, OnAllNotificationsRemoved, (bool from_server), (override));
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AssistantNotificationModelObserverMock);
 };
 
 class AssistantServiceMock : public TestAssistantService {
@@ -199,21 +197,14 @@ class AssistantServiceMock : public TestAssistantService {
 
 // AssistantNotificationControllerTest -----------------------------------------
 
-class AssistantNotificationControllerTest : public AssistantAshTestBase {
- public:
-  AssistantNotificationControllerTest(
-      const AssistantNotificationControllerTest&) = delete;
-  AssistantNotificationControllerTest& operator=(
-      const AssistantNotificationControllerTest&) = delete;
-
+class AssistantNotificationControllerTest : public AshTestBase {
  protected:
   AssistantNotificationControllerTest()
-      : AssistantAshTestBase(
-            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
+      : AshTestBase(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
   ~AssistantNotificationControllerTest() override = default;
 
   void SetUp() override {
-    AssistantAshTestBase::SetUp();
+    AshTestBase::SetUp();
 
     controller_ =
         Shell::Get()->assistant_controller()->notification_controller();
@@ -238,12 +229,15 @@ class AssistantNotificationControllerTest : public AssistantAshTestBase {
   }
 
   void ForwardTimeInMs(int time_in_ms) {
-    task_environment()->FastForwardBy(base::Milliseconds(time_in_ms));
+    task_environment()->FastForwardBy(
+        base::TimeDelta::FromMilliseconds(time_in_ms));
   }
 
  private:
   AssistantNotificationControllerImpl* controller_;
   std::unique_ptr<AssistantNotificationModelObserverMock> observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantNotificationControllerTest);
 };
 
 }  // namespace
@@ -436,7 +430,7 @@ TEST_F(AssistantNotificationControllerTest,
   auto notification_bldr = AssistantNotificationBuilder().WithId("id");
 
   AddOrUpdateNotification(notification_bldr.WithTimeoutMs(kTimeoutMs).Build());
-  AddOrUpdateNotification(notification_bldr.WithTimeout(absl::nullopt).Build());
+  AddOrUpdateNotification(notification_bldr.WithTimeout(base::nullopt).Build());
 
   auto& observer = AddStrictObserverMock();
 

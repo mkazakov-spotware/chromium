@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/badges/badge_button.h"
 
-#import <ostream>
-
+#include "base/feature_list.h"
 #import "base/notreached.h"
 #import "ios/chrome/browser/ui/badges/badge_constants.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
@@ -37,8 +37,15 @@ const CGFloat kButtonCircularCornerRadiusDivisor = 2.0;
 + (instancetype)badgeButtonWithType:(BadgeType)badgeType {
   BadgeButton* button = [self buttonWithType:UIButtonTypeSystem];
   button.badgeType = badgeType;
-  button.pointerInteractionEnabled = YES;
-  button.pointerStyleProvider = CreateDefaultEffectCirclePointerStyleProvider();
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      button.pointerInteractionEnabled = YES;
+      button.pointerStyleProvider =
+          CreateDefaultEffectCirclePointerStyleProvider();
+    }
+  }
+#endif  // defined(__IPHONE_13_4)
   return button;
 }
 
@@ -84,41 +91,26 @@ const CGFloat kButtonCircularCornerRadiusDivisor = 2.0;
 
 - (NSString*)accessibilityIdentifierForAcceptedState:(BOOL)accepted {
   switch (self.badgeType) {
-    case kBadgeTypeNone:
+    case BadgeType::kBadgeTypeNone:
       NOTREACHED() << "A badge should not have kBadgeTypeNone";
       return nil;
-    case kBadgeTypePasswordSave:
+    case BadgeType::kBadgeTypePasswordSave:
       return accepted ? kBadgeButtonSavePasswordAcceptedAccessibilityIdentifier
                       : kBadgeButtonSavePasswordAccessibilityIdentifier;
-    case kBadgeTypePasswordUpdate:
+    case BadgeType::kBadgeTypePasswordUpdate:
       return accepted
                  ? kBadgeButtonUpdatePasswordAccpetedAccessibilityIdentifier
                  : kBadgeButtonUpdatePasswordAccessibilityIdentifier;
-    case kBadgeTypeIncognito:
+    case BadgeType::kBadgeTypeIncognito:
       return kBadgeButtonIncognitoAccessibilityIdentifier;
-    case kBadgeTypeOverflow:
+    case BadgeType::kBadgeTypeOverflow:
       return kBadgeButtonOverflowAccessibilityIdentifier;
-    case kBadgeTypeSaveCard:
+    case BadgeType::kBadgeTypeSaveCard:
       return accepted ? kBadgeButtonSaveCardAcceptedAccessibilityIdentifier
                       : kBadgeButtonSaveCardAccessibilityIdentifier;
-    case kBadgeTypeSaveAddressProfile:
-      return accepted
-                 ? kBadgeButtonSaveAddressProfileAcceptedAccessibilityIdentifier
-                 : kBadgeButtonSaveAddressProfileAccessibilityIdentifier;
-    case kBadgeTypeTranslate:
+    case BadgeType::kBadgeTypeTranslate:
       return accepted ? kBadgeButtonTranslateAcceptedAccessibilityIdentifier
                       : kBadgeButtonTranslateAccessibilityIdentifier;
-    case kBadgeTypeAddToReadingList:
-      return accepted ? kBadgeButtonReadingListAcceptedAccessibilityIdentifier
-                      : kBadgeButtonReadingListAccessibilityIdentifier;
-    case kBadgeTypePermissionsCamera:
-      return accepted
-                 ? kBadgeButtonPermissionsCameraAcceptedAccessibilityIdentifier
-                 : kBadgeButtonPermissionsCameraAccessibilityIdentifier;
-    case kBadgeTypePermissionsMicrophone:
-      return accepted
-                 ? kBadgeButtonPermissionsMicrophoneAcceptedAccessibilityIdentifier
-                 : kBadgeButtonPermissionsMicrophoneAccessibilityIdentifier;
   }
 }
 

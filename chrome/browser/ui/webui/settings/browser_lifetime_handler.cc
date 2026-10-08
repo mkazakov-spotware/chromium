@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,34 +7,27 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/tpm_firmware_update.h"
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/tpm_firmware_update.h"
 #include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/user_manager.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/grit/generated_resources.h"
-#include "ui/base/l10n/l10n_util.h"
-#endif
+#endif  // defined(OS_CHROMEOS)
 
 namespace settings {
 
 namespace {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Triggers a TPM firmware update using the least destructive mode from
 // |available_modes|.
 void TriggerTPMFirmwareUpdate(
-    const std::set<ash::tpm_firmware_update::Mode>& available_modes) {
-  using ::ash::tpm_firmware_update::Mode;
+    const std::set<chromeos::tpm_firmware_update::Mode>& available_modes) {
+  using chromeos::tpm_firmware_update::Mode;
 
   // Decide which update mode to use.
   for (Mode mode :
@@ -54,7 +47,7 @@ void TriggerTPMFirmwareUpdate(
     return;
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace
 
@@ -69,7 +62,7 @@ void BrowserLifetimeHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "relaunch", base::BindRepeating(&BrowserLifetimeHandler::HandleRelaunch,
                                       base::Unretained(this)));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   web_ui()->RegisterMessageCallback(
       "signOutAndRestart",
       base::BindRepeating(&BrowserLifetimeHandler::HandleSignOutAndRestart,
@@ -78,42 +71,33 @@ void BrowserLifetimeHandler::RegisterMessages() {
       "factoryReset",
       base::BindRepeating(&BrowserLifetimeHandler::HandleFactoryReset,
                           base::Unretained(this)));
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-  web_ui()->RegisterMessageCallback(
-      "shouldShowRelaunchConfirmationDialog",
-      base::BindRepeating(
-          &BrowserLifetimeHandler::HandleShouldShowRelaunchConfirmationDialog,
-          base::Unretained(this)));
-  web_ui()->RegisterMessageCallback(
-      "getRelaunchConfirmationDialogDescription",
-      base::BindRepeating(&BrowserLifetimeHandler::
-                              HandleGetRelaunchConfirmationDialogDescription,
-                          base::Unretained(this)));
-#endif
+#endif  // defined(OS_CHROMEOS)
 }
 
-void BrowserLifetimeHandler::HandleRestart(const base::Value::List& args) {
+void BrowserLifetimeHandler::HandleRestart(
+    const base::ListValue* args) {
   chrome::AttemptRestart();
 }
 
-void BrowserLifetimeHandler::HandleRelaunch(const base::Value::List& args) {
+void BrowserLifetimeHandler::HandleRelaunch(
+    const base::ListValue* args) {
   chrome::AttemptRelaunch();
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 void BrowserLifetimeHandler::HandleSignOutAndRestart(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   chrome::AttemptUserExit();
 }
 
-void BrowserLifetimeHandler::HandleFactoryReset(const base::Value::List& args) {
-  CHECK_EQ(1U, args.size());
-  bool tpm_firmware_update_requested = args[0].GetBool();
+void BrowserLifetimeHandler::HandleFactoryReset(
+    const base::ListValue* args) {
+  base::Value::ConstListView args_list = args->GetList();
+  CHECK_EQ(1U, args_list.size());
+  bool tpm_firmware_update_requested = args_list[0].GetBool();
 
   if (tpm_firmware_update_requested) {
-    ash::tpm_firmware_update::GetAvailableUpdateModes(
+    chromeos::tpm_firmware_update::GetAvailableUpdateModes(
         base::BindOnce(&TriggerTPMFirmwareUpdate), base::TimeDelta());
     return;
   }
@@ -135,29 +119,6 @@ void BrowserLifetimeHandler::HandleFactoryReset(const base::Value::List& args) {
   // be launched (as if it was a restart).
   chrome::AttemptRelaunch();
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-void BrowserLifetimeHandler::HandleGetRelaunchConfirmationDialogDescription(
-    const base::Value::List& args) {
-  AllowJavascript();
-  const base::Value& callback_id = args[0];
-  size_t incognito_count = BrowserList::GetIncognitoBrowserCount();
-  base::Value description;
-  if (incognito_count > 0) {
-    description = base::Value(l10n_util::GetPluralStringFUTF16(
-        IDS_RELAUNCH_CONFIRMATION_DIALOG_BODY, incognito_count));
-  }
-  ResolveJavascriptCallback(callback_id, description);
-}
-
-void BrowserLifetimeHandler::HandleShouldShowRelaunchConfirmationDialog(
-    const base::Value::List& args) {
-  AllowJavascript();
-  const base::Value& callback_id = args[0];
-  base::Value result = base::Value(BrowserList::GetIncognitoBrowserCount() > 0);
-  ResolveJavascriptCallback(callback_id, result);
-}
-#endif
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace settings

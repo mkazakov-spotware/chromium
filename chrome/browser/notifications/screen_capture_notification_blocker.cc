@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,8 @@
 
 #include <algorithm>
 
-#include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
-#include "chrome/browser/browser_features.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/grit/generated_resources.h"
@@ -22,9 +19,10 @@
 
 namespace {
 
-// Suffix for a mute notification action. Should match suffixes of the
-// Notifications.Blocker.ScreenCapture.* metrics in
-// metadata/notifications/histograms.xml
+const char kMuteNotificationId[] = "notifications_muted";
+
+// Suffix for a mute notification action. Should match suffix
+// NotificationMuteAction in histogram_suffixes_list.xml.
 std::string MutedActionSuffix(MutedNotificationHandler::Action action) {
   switch (action) {
     case MutedNotificationHandler::Action::kUserClose:
@@ -33,8 +31,6 @@ std::string MutedActionSuffix(MutedNotificationHandler::Action action) {
       return "Body";
     case MutedNotificationHandler::Action::kShowClick:
       return "Show";
-    case MutedNotificationHandler::Action::kSnoozeClick:
-      return "Snooze";
   }
 }
 
@@ -45,15 +41,13 @@ void RecordScreenCaptureCount(const std::string& suffix, int count) {
 
 }  // namespace
 
-const char kMuteNotificationId[] = "notifications_muted";
-
 ScreenCaptureNotificationBlocker::ScreenCaptureNotificationBlocker(
     NotificationDisplayService* notification_display_service)
     : notification_display_service_(notification_display_service) {
   DCHECK(notification_display_service_);
-  observation_.Observe(MediaCaptureDevicesDispatcher::GetInstance()
-                           ->GetMediaStreamCaptureIndicator()
-                           .get());
+  observer_.Add(MediaCaptureDevicesDispatcher::GetInstance()
+                    ->GetMediaStreamCaptureIndicator()
+                    .get());
 }
 
 ScreenCaptureNotificationBlocker::~ScreenCaptureNotificationBlocker() = default;
@@ -69,8 +63,8 @@ bool ScreenCaptureNotificationBlocker::ShouldBlockNotification(
     return false;
 
   // Otherwise block all notifications that belong to non-capturing origins.
-  return base::ranges::none_of(
-      capturing_web_contents_,
+  return std::none_of(
+      capturing_web_contents_.begin(), capturing_web_contents_.end(),
       [&notification](content::WebContents* web_contents) {
         return url::IsSameOriginWith(notification.origin_url(),
                                      web_contents->GetLastCommittedURL());
@@ -84,9 +78,6 @@ void ScreenCaptureNotificationBlocker::OnBlockedNotification(
     ++replaced_notification_count_;
   else
     ++muted_notification_count_;
-
-  if (state_ == NotifyState::kSnooze)
-    ++snoozed_notification_count_;
 
   if (state_ == NotifyState::kNotifyMuted)
     DisplayMuteNotification();
@@ -111,10 +102,7 @@ void ScreenCaptureNotificationBlocker::OnAction(
     case MutedNotificationHandler::Action::kShowClick:
       state_ = NotifyState::kShowAll;
       NotifyBlockingStateChanged();
-      ReportSessionMetrics(/*revealed=*/true);
-      break;
-    case MutedNotificationHandler::Action::kSnoozeClick:
-      state_ = NotifyState::kSnooze;
+      ReportSessionMetrics();
       break;
   }
 }
@@ -128,53 +116,34 @@ void ScreenCaptureNotificationBlocker::OnIsCapturingDisplayChanged(
     capturing_web_contents_.erase(web_contents);
 
   if (capturing_web_contents_.empty()) {
-    ReportSessionMetrics(/*revealed=*/false);
+    ReportSessionMetrics();
     muted_notification_count_ = 0;
     replaced_notification_count_ = 0;
     closed_notification_count_ = 0;
-    snoozed_notification_count_ = 0;
     reported_session_metrics_ = false;
     state_ = NotifyState::kNotifyMuted;
-    last_screen_capture_session_start_time_ = base::TimeTicks();
     CloseMuteNotification();
-  } else if (last_screen_capture_session_start_time_.is_null()) {
-    last_screen_capture_session_start_time_ = base::TimeTicks::Now();
   }
 
   NotifyBlockingStateChanged();
 }
 
-void ScreenCaptureNotificationBlocker::ReportSessionMetrics(bool revealed) {
-  auto elapsed_time =
-      base::TimeTicks::Now() - last_screen_capture_session_start_time_;
-  base::UmaHistogramLongTimes(
-      base::StrCat({"Notifications.Blocker.ScreenCapture.",
-                    revealed ? "RevealDuration" : "SessionDuration"}),
-      elapsed_time);
-
+void ScreenCaptureNotificationBlocker::ReportSessionMetrics() {
   if (reported_session_metrics_)
     return;
 
   RecordScreenCaptureCount("MutedCount", muted_notification_count_);
   RecordScreenCaptureCount("ReplacedCount", replaced_notification_count_);
   RecordScreenCaptureCount("ClosedCount", closed_notification_count_);
-  RecordScreenCaptureCount("SnoozedCount", snoozed_notification_count_);
 
   reported_session_metrics_ = true;
 }
 
 void ScreenCaptureNotificationBlocker::ReportMuteNotificationAction(
     MutedNotificationHandler::Action action) {
-  std::string action_suffix = MutedActionSuffix(action);
   RecordScreenCaptureCount(
-      base::StrCat({"Action.", action_suffix}),
+      base::StrCat({"Action.", MutedActionSuffix(action)}),
       muted_notification_count_ + replaced_notification_count_);
-
-  auto elapsed_time = base::TimeTicks::Now() - last_mute_notification_time_;
-  base::UmaHistogramMediumTimes(
-      base::StrCat(
-          {"Notifications.Blocker.ScreenCapture.ActionTiming.", action_suffix}),
-      elapsed_time);
 }
 
 void ScreenCaptureNotificationBlocker::DisplayMuteNotification() {
@@ -183,11 +152,6 @@ void ScreenCaptureNotificationBlocker::DisplayMuteNotification() {
 
   message_center::RichNotificationData rich_notification_data;
   rich_notification_data.renotify = true;
-
-  if (base::FeatureList::IsEnabled(features::kMuteNotificationSnoozeAction)) {
-    rich_notification_data.buttons.emplace_back(
-        l10n_util::GetStringUTF16(IDS_NOTIFICATION_MUTED_ACTION_SNOOZE));
-  }
   rich_notification_data.buttons.emplace_back(l10n_util::GetPluralStringFUTF16(
       IDS_NOTIFICATION_MUTED_ACTION_SHOW, total_notification_count));
 
@@ -196,8 +160,8 @@ void ScreenCaptureNotificationBlocker::DisplayMuteNotification() {
       l10n_util::GetPluralStringFUTF16(IDS_NOTIFICATION_MUTED_TITLE,
                                        total_notification_count),
       l10n_util::GetStringUTF16(IDS_NOTIFICATION_MUTED_MESSAGE),
-      /*icon=*/ui::ImageModel(),
-      /*display_source=*/std::u16string(),
+      /*icon=*/gfx::Image(),
+      /*display_source=*/base::string16(),
       /*origin_url=*/GURL(), message_center::NotifierId(),
       rich_notification_data,
       /*delegate=*/nullptr);
@@ -205,8 +169,6 @@ void ScreenCaptureNotificationBlocker::DisplayMuteNotification() {
   notification_display_service_->Display(
       NotificationHandler::Type::NOTIFICATIONS_MUTED, notification,
       /*metadata=*/nullptr);
-
-  last_mute_notification_time_ = base::TimeTicks::Now();
 }
 
 void ScreenCaptureNotificationBlocker::CloseMuteNotification() {

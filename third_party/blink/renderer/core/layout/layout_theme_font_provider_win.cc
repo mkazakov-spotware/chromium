@@ -32,6 +32,8 @@
 
 namespace blink {
 
+constexpr float kDefaultFontSize = 16.0;
+
 // Converts |points| to pixels. One point is 1/72 of an inch.
 static float PointsToPixels(float points) {
   const float kPixelsPerInch = 96.0f;
@@ -40,49 +42,38 @@ static float PointsToPixels(float points) {
 }
 
 // static
-const FontSelectionValue& LayoutThemeFontProvider::SystemFontStyle(
-    CSSValueID system_font_id) {
-  return NormalSlopeValue();
-}
+void LayoutThemeFontProvider::SystemFont(CSSValueID system_font_id,
+                                         FontSelectionValue& font_style,
+                                         FontSelectionValue& font_weight,
+                                         float& font_size,
+                                         AtomicString& font_family) {
+  font_style = NormalSlopeValue();
+  font_weight = NormalWeightValue();
 
-// static
-const FontSelectionValue& LayoutThemeFontProvider::SystemFontWeight(
-    CSSValueID system_font_id) {
-  return NormalWeightValue();
-}
-
-// static
-const AtomicString& LayoutThemeFontProvider::SystemFontFamily(
-    CSSValueID system_font_id) {
   switch (system_font_id) {
     case CSSValueID::kSmallCaption:
-      return FontCache::SmallCaptionFontFamily();
+      font_size = FontCache::SmallCaptionFontHeight();
+      font_family = FontCache::SmallCaptionFontFamily();
+      break;
     case CSSValueID::kMenu:
-      return FontCache::MenuFontFamily();
+      font_size = FontCache::MenuFontHeight();
+      font_family = FontCache::MenuFontFamily();
+      break;
     case CSSValueID::kStatusBar:
-      return FontCache::StatusFontFamily();
-    default:
-      return DefaultGUIFont();
-  }
-}
-
-// static
-float LayoutThemeFontProvider::SystemFontSize(CSSValueID system_font_id,
-                                              const Document* document) {
-  switch (system_font_id) {
-    case CSSValueID::kSmallCaption:
-      return FontCache::SmallCaptionFontHeight();
-    case CSSValueID::kMenu:
-      return FontCache::MenuFontHeight();
-    case CSSValueID::kStatusBar:
-      return FontCache::StatusFontHeight();
+      font_size = FontCache::StatusFontHeight();
+      font_family = FontCache::StatusFontFamily();
+      break;
     case CSSValueID::kWebkitMiniControl:
     case CSSValueID::kWebkitSmallControl:
     case CSSValueID::kWebkitControl:
       // Why 2 points smaller? Because that's what Gecko does.
-      return DefaultFontSize(document) - PointsToPixels(2);
+      font_size = kDefaultFontSize - PointsToPixels(2);
+      font_family = DefaultGUIFont();
+      break;
     default:
-      return DefaultFontSize(document);
+      font_size = kDefaultFontSize;
+      font_family = DefaultGUIFont();
+      break;
   }
 }
 

@@ -1,20 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/reading_list/reading_list_app_interface.h"
 
-#import "base/memory/singleton.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/memory/singleton.h"
+#include "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/time/time.h"
-#import "components/reading_list/core/reading_list_model.h"
-#import "ios/chrome/browser/reading_list/reading_list_model_factory.h"
+#include "components/reading_list/core/reading_list_model.h"
+#include "ios/chrome/browser/reading_list/reading_list_model_factory.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/app/tab_test_util.h"
 #import "ios/testing/nserror_util.h"
-#import "net/base/mac/url_conversions.h"
-#import "net/base/network_change_notifier.h"
+#include "net/base/mac/url_conversions.h"
+#include "net/base/network_change_notifier.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -26,7 +25,7 @@ ReadingListModel* GetReadingListModel(NSError** error) {
   ReadingListModel* model =
       ReadingListModelFactory::GetInstance()->GetForBrowserState(
           chrome_test_util::GetOriginalBrowserState());
-  if (!base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(2), ^{
+  if (!base::test::ios::WaitUntilConditionOrTimeout(2, ^{
         return model->loaded();
       })) {
     *error = testing::NSErrorWithLocalizedDescription(
@@ -41,13 +40,12 @@ class WifiNetworkChangeNotifier : public net::NetworkChangeNotifier {
  public:
   WifiNetworkChangeNotifier() : net::NetworkChangeNotifier() {}
 
-  WifiNetworkChangeNotifier(const WifiNetworkChangeNotifier&) = delete;
-  WifiNetworkChangeNotifier& operator=(const WifiNetworkChangeNotifier&) =
-      delete;
-
   ConnectionType GetCurrentConnectionType() const override {
     return CONNECTION_WIFI;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WifiNetworkChangeNotifier);
 };
 
 // Overrides the NetworkChangeNotifier to enable distillation even if the device
@@ -59,9 +57,6 @@ class ConnectionTypeOverrider {
   }
 
   ConnectionTypeOverrider() {}
-
-  ConnectionTypeOverrider(const ConnectionTypeOverrider&) = delete;
-  ConnectionTypeOverrider& operator=(const ConnectionTypeOverrider&) = delete;
 
   void OverrideConnectionType() {
     network_change_disabler_.reset(
@@ -78,6 +73,8 @@ class ConnectionTypeOverrider {
   std::unique_ptr<net::NetworkChangeNotifier::DisableForTest>
       network_change_disabler_;
   std::unique_ptr<WifiNetworkChangeNotifier> wifi_network_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConnectionTypeOverrider);
 };
 
 }  // namespace

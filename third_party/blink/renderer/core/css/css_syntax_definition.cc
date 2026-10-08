@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,19 +14,23 @@
 #include "third_party/blink/renderer/core/css/parser/css_variable_parser.h"
 #include "third_party/blink/renderer/core/css/properties/css_parsing_utils.h"
 #include "third_party/blink/renderer/core/html/parser/html_parser_idioms.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 namespace {
 
-// The 'default' keyword is reserved despite not being a CSS-wide keyword.
+// The 'revert' and 'default' keywords are reserved.
 //
+// https://drafts.csswg.org/css-cascade/#default
 // https://drafts.csswg.org/css-values-4/#identifier-value
 //
-// TODO(https://crbug.com/1344170): This code may be unneeded.
+// TODO(crbug.com/579788): Implement 'revert'.
+// TODO(crbug.com/882285): Make 'default' invalid as <custom-ident>.
 bool IsReservedIdentToken(const CSSParserToken& token) {
   if (token.GetType() != kIdentToken)
     return false;
-  return css_parsing_utils::IsDefaultKeyword(token.Value());
+  return css_parsing_utils::IsRevertKeyword(token.Value()) ||
+         css_parsing_utils::IsDefaultKeyword(token.Value());
 }
 
 bool CouldConsumeReservedKeyword(CSSParserTokenRange range) {
@@ -51,21 +55,20 @@ const CSSValue* ConsumeSingleType(const CSSSyntaxComponent& syntax,
     case CSSSyntaxType::kLength: {
       CSSParserContext::ParserModeOverridingScope scope(context,
                                                         kHTMLStandardMode);
-      return css_parsing_utils::ConsumeLength(
-          range, context, CSSPrimitiveValue::ValueRange::kAll);
+      return css_parsing_utils::ConsumeLength(range, context,
+                                              ValueRange::kValueRangeAll);
     }
     case CSSSyntaxType::kNumber:
-      return css_parsing_utils::ConsumeNumber(
-          range, context, CSSPrimitiveValue::ValueRange::kAll);
+      return css_parsing_utils::ConsumeNumber(range, context,
+                                              ValueRange::kValueRangeAll);
     case CSSSyntaxType::kPercentage:
-      return css_parsing_utils::ConsumePercent(
-          range, context, CSSPrimitiveValue::ValueRange::kAll);
+      return css_parsing_utils::ConsumePercent(range, context,
+                                               ValueRange::kValueRangeAll);
     case CSSSyntaxType::kLengthPercentage: {
       CSSParserContext::ParserModeOverridingScope scope(context,
                                                         kHTMLStandardMode);
       return css_parsing_utils::ConsumeLengthOrPercent(
-          range, context, CSSPrimitiveValue::ValueRange::kAll,
-          css_parsing_utils::UnitlessQuirk::kForbid, kCSSAnchorQueryTypesAll);
+          range, context, ValueRange::kValueRangeAll);
     }
     case CSSSyntaxType::kColor: {
       CSSParserContext::ParserModeOverridingScope scope(context,
@@ -80,10 +83,10 @@ const CSSValue* ConsumeSingleType(const CSSSyntaxComponent& syntax,
       return css_parsing_utils::ConsumeIntegerOrNumberCalc(range, context);
     case CSSSyntaxType::kAngle:
       return css_parsing_utils::ConsumeAngle(range, context,
-                                             absl::optional<WebFeature>());
+                                             base::Optional<WebFeature>());
     case CSSSyntaxType::kTime:
-      return css_parsing_utils::ConsumeTime(
-          range, context, CSSPrimitiveValue::ValueRange::kAll);
+      return css_parsing_utils::ConsumeTime(range, context,
+                                            ValueRange::kValueRangeAll);
     case CSSSyntaxType::kResolution:
       return css_parsing_utils::ConsumeResolution(range);
     case CSSSyntaxType::kTransformFunction:
@@ -91,6 +94,10 @@ const CSSValue* ConsumeSingleType(const CSSSyntaxComponent& syntax,
     case CSSSyntaxType::kTransformList:
       return css_parsing_utils::ConsumeTransformList(range, context);
     case CSSSyntaxType::kCustomIdent:
+      // TODO(crbug.com/579788): Implement 'revert'.
+      // TODO(crbug.com/882285): Make 'default' invalid as <custom-ident>.
+      if (IsReservedIdentToken(range.Peek()))
+        return nullptr;
       return css_parsing_utils::ConsumeCustomIdent(range, context);
     default:
       NOTREACHED();
@@ -134,12 +141,12 @@ const CSSValue* CSSSyntaxDefinition::Parse(CSSParserTokenRange range,
                                            const CSSParserContext& context,
                                            bool is_animation_tainted) const {
   if (IsUniversal()) {
-    // The 'default' keyword is reserved despite not being a CSS-wide keyword.
-    // TODO(https://crbug.com/1344170): This code may be unneeded.
+    // TODO(crbug.com/579788): Implement 'revert'.
+    // TODO(crbug.com/882285): Make 'default' invalid as <custom-ident>.
     if (CouldConsumeReservedKeyword(range))
       return nullptr;
-    return CSSVariableParser::ParseVariableReferenceValue(range, context,
-                                                          is_animation_tainted);
+    return CSSVariableParser::ParseRegisteredPropertyValue(
+        range, context, false, is_animation_tainted);
   }
   range.ConsumeWhitespace();
   for (const CSSSyntaxComponent& component : syntax_components_) {
@@ -147,15 +154,16 @@ const CSSValue* CSSSyntaxDefinition::Parse(CSSParserTokenRange range,
             ConsumeSyntaxComponent(component, range, context))
       return result;
   }
-  return nullptr;
+  return CSSVariableParser::ParseRegisteredPropertyValue(range, context, true,
+                                                         is_animation_tainted);
 }
 
 CSSSyntaxDefinition CSSSyntaxDefinition::IsolatedCopy() const {
   Vector<CSSSyntaxComponent> syntax_components_copy;
-  syntax_components_copy.reserve(syntax_components_.size());
+  syntax_components_copy.ReserveCapacity(syntax_components_.size());
   for (const auto& syntax_component : syntax_components_) {
     syntax_components_copy.push_back(CSSSyntaxComponent(
-        syntax_component.GetType(), syntax_component.GetString(),
+        syntax_component.GetType(), syntax_component.GetString().IsolatedCopy(),
         syntax_component.GetRepeat()));
   }
   return CSSSyntaxDefinition(std::move(syntax_components_copy));

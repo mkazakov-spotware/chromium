@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that editing is canceled properly after incremental editing.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <div id="inspected" style="color: red">Text</div>
@@ -38,7 +38,7 @@
     function testCommitEditing(next) {
       // Commit editing.
       treeElement.valueElement.textContent = 'green';
-      TestRunner.selectTextInTextNode(treeElement.valueElement.firstChild);
+      treeElement.valueElement.firstChild.select();
       ElementsTestRunner.waitForStyleCommitted(next);
       treeElement.valueElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
     },

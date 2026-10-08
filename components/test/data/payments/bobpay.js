@@ -1,8 +1,10 @@
 /*
- * Copyright 2016 The Chromium Authors
+ * Copyright 2016 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
+/* global PaymentRequest:false */
 
 /**
  * Builds a payment request with URL based payment methods.
@@ -20,37 +22,45 @@ function buildPaymentRequest() {
 
 /**
  * Launches the PaymentRequest UI with Bob Pay as one of multiple payment
- * methods. The result or error is both printed and returned as the Java test
- * reads it from the page and the C++ browser test reads the return value.
- * @return {string} - the response or error string.
+ * methods.
  */
-async function buy() {
-  let responseString;
+function buy() { // eslint-disable-line no-unused-vars
   try {
-    const resp = await buildPaymentRequest().show();
-    await resp.complete('success');
-    responseString = resp.methodName + '\n' +
-        JSON.stringify(resp.details, undefined, 2);
+    buildPaymentRequest()
+        .show()
+        .then(function(resp) {
+          resp.complete('success')
+              .then(function() {
+                print(
+                    resp.methodName + '<br>' +
+                    JSON.stringify(resp.details, undefined, 2));
+              })
+              .catch(function(error) {
+                print('complete() rejected<br>' + error);
+              });
+        })
+        .catch(function(error) {
+          print('show() rejected<br>' + error);
+        });
   } catch (error) {
-    responseString = error.toString();
+    print('exception thrown<br>' + error);
   }
-  print(responseString);
-  return responseString;
 }
 
 /**
- * Queries CanMakePayment but does not show the PaymentRequest after. The result
- * or error is both printed and returned as the Java test reads it from the page
- * and the C++ browser test reads the return value.
- * @return {string} - the result or error string.
+ * Queries CanMakePayment but does not show the PaymentRequest after.
  */
-async function canMakePayment() {
+function canMakePayment() { // eslint-disable-line no-unused-vars
   try {
-    const result = await buildPaymentRequest().canMakePayment();
-    print(result);
-    return result.toString();
+    buildPaymentRequest()
+        .canMakePayment()
+        .then(function(result) {
+          print(result);
+        })
+        .catch(function(error) {
+          print(error);
+        });
   } catch (error) {
     print('exception thrown<br>' + error);
-    return error.toString();
   }
 }

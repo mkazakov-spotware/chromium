@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "build/build_config.h"
 #include "components/viz/service/display_embedder/skia_output_surface_dependency.h"
 
 namespace base {
@@ -22,15 +22,8 @@ class GpuServiceImpl;
 class VIZ_SERVICE_EXPORT SkiaOutputSurfaceDependencyImpl
     : public SkiaOutputSurfaceDependency {
  public:
-  SkiaOutputSurfaceDependencyImpl(
-      GpuServiceImpl* gpu_service_impl,
-      gpu::SurfaceHandle surface_handle);
-
-  SkiaOutputSurfaceDependencyImpl(const SkiaOutputSurfaceDependencyImpl&) =
-      delete;
-  SkiaOutputSurfaceDependencyImpl& operator=(
-      const SkiaOutputSurfaceDependencyImpl&) = delete;
-
+  SkiaOutputSurfaceDependencyImpl(GpuServiceImpl* gpu_service_impl,
+                                  gpu::SurfaceHandle surface_handle);
   ~SkiaOutputSurfaceDependencyImpl() override;
 
   std::unique_ptr<gpu::SingleTaskSequence> CreateSequence() override;
@@ -51,9 +44,18 @@ class VIZ_SERVICE_EXPORT SkiaOutputSurfaceDependencyImpl
       base::WeakPtr<gpu::ImageTransportSurfaceDelegate> stub,
       gl::GLSurfaceFormat format) override;
   base::ScopedClosureRunner CacheGLSurface(gl::GLSurface* surface) override;
-  scoped_refptr<base::TaskRunner> GetClientTaskRunner() override;
+  void PostTaskToClientThread(base::OnceClosure closure) override;
   void ScheduleGrContextCleanup() override;
   void ScheduleDelayedGPUTaskFromGPUThread(base::OnceClosure task) override;
+
+#if defined(OS_WIN)
+  void DidCreateAcceleratedSurfaceChildWindow(
+      gpu::SurfaceHandle parent_window,
+      gpu::SurfaceHandle child_window) override;
+#endif
+
+  void RegisterDisplayContext(gpu::DisplayContext* display_context) override;
+  void UnregisterDisplayContext(gpu::DisplayContext* display_context) override;
   void DidLoseContext(gpu::error::ContextLostReason reason,
                       const GURL& active_url) override;
 
@@ -61,9 +63,11 @@ class VIZ_SERVICE_EXPORT SkiaOutputSurfaceDependencyImpl
   bool NeedsSupportForExternalStencil() override;
 
  private:
-  const raw_ptr<GpuServiceImpl> gpu_service_impl_;
+  GpuServiceImpl* const gpu_service_impl_;
   const gpu::SurfaceHandle surface_handle_;
   scoped_refptr<base::SingleThreadTaskRunner> client_thread_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(SkiaOutputSurfaceDependencyImpl);
 };
 
 }  // namespace viz

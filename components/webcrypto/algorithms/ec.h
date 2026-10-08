@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ class EcAlgorithm : public AlgorithmImplementation {
                      GenerateKeyResult* result) const override;
 
   Status ImportKey(blink::WebCryptoKeyFormat format,
-                   base::span<const uint8_t> key_data,
+                   const CryptoData& key_data,
                    const blink::WebCryptoAlgorithm& algorithm,
                    bool extractable,
                    blink::WebCryptoKeyUsageMask usages,
@@ -47,29 +47,29 @@ class EcAlgorithm : public AlgorithmImplementation {
                                 blink::WebCryptoKeyType type,
                                 bool extractable,
                                 blink::WebCryptoKeyUsageMask usages,
-                                base::span<const uint8_t> key_data,
+                                const CryptoData& key_data,
                                 blink::WebCryptoKey* key) const override;
 
  private:
-  Status ImportKeyRaw(base::span<const uint8_t> key_data,
+  Status ImportKeyRaw(const CryptoData& key_data,
                       const blink::WebCryptoAlgorithm& algorithm,
                       bool extractable,
                       blink::WebCryptoKeyUsageMask usages,
                       blink::WebCryptoKey* key) const;
 
-  Status ImportKeyPkcs8(base::span<const uint8_t> key_data,
+  Status ImportKeyPkcs8(const CryptoData& key_data,
                         const blink::WebCryptoAlgorithm& algorithm,
                         bool extractable,
                         blink::WebCryptoKeyUsageMask usages,
                         blink::WebCryptoKey* key) const;
 
-  Status ImportKeySpki(base::span<const uint8_t> key_data,
+  Status ImportKeySpki(const CryptoData& key_data,
                        const blink::WebCryptoAlgorithm& algorithm,
                        bool extractable,
                        blink::WebCryptoKeyUsageMask usages,
                        blink::WebCryptoKey* key) const;
 
-  Status ImportKeyJwk(base::span<const uint8_t> key_data,
+  Status ImportKeyJwk(const CryptoData& key_data,
                       const blink::WebCryptoAlgorithm& algorithm,
                       bool extractable,
                       blink::WebCryptoKeyUsageMask usages,

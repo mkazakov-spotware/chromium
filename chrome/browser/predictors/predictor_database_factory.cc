@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,12 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/predictors/predictor_database.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 namespace predictors {
 
@@ -26,7 +28,9 @@ PredictorDatabaseFactory* PredictorDatabaseFactory::GetInstance() {
 }
 
 PredictorDatabaseFactory::PredictorDatabaseFactory()
-    : ProfileKeyedServiceFactory("PredictorDatabase") {}
+    : BrowserContextKeyedServiceFactory(
+        "PredictorDatabase", BrowserContextDependencyManager::GetInstance()) {
+}
 
 PredictorDatabaseFactory::~PredictorDatabaseFactory() {
 }

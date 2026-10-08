@@ -1,11 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PROFILE_RESETTER_RESET_REPORT_UPLOADER_FACTORY_H_
 #define CHROME_BROWSER_PROFILE_RESETTER_RESET_REPORT_UPLOADER_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 namespace base {
 template <typename T>
@@ -18,7 +19,7 @@ class BrowserContext;
 
 class ResetReportUploader;
 
-class ResetReportUploaderFactory : public ProfileKeyedServiceFactory {
+class ResetReportUploaderFactory : public BrowserContextKeyedServiceFactory {
  public:
   // Returns singleton instance of ResetReportUploaderFactory.
   static ResetReportUploaderFactory* GetInstance();
@@ -26,10 +27,6 @@ class ResetReportUploaderFactory : public ProfileKeyedServiceFactory {
   // Returns the ResetReportUploader associated with |context|.
   static ResetReportUploader* GetForBrowserContext(
       content::BrowserContext* context);
-
-  ResetReportUploaderFactory(const ResetReportUploaderFactory&) = delete;
-  ResetReportUploaderFactory& operator=(const ResetReportUploaderFactory&) =
-      delete;
 
  private:
   friend struct base::DefaultSingletonTraits<ResetReportUploaderFactory>;
@@ -40,6 +37,8 @@ class ResetReportUploaderFactory : public ProfileKeyedServiceFactory {
   // BrowserContextKeyedServiceFactory overrides:
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(ResetReportUploaderFactory);
 };
 
 #endif  // CHROME_BROWSER_PROFILE_RESETTER_RESET_REPORT_UPLOADER_FACTORY_H_

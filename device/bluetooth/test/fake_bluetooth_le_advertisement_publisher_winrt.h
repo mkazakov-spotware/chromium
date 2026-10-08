@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <wrl/client.h>
 #include <wrl/implements.h>
 
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 
 namespace device {
@@ -23,12 +24,6 @@ class FakeBluetoothLEAdvertisementPublisherWinrt
   explicit FakeBluetoothLEAdvertisementPublisherWinrt(
       Microsoft::WRL::ComPtr<ABI::Windows::Devices::Bluetooth::Advertisement::
                                  IBluetoothLEAdvertisement> advertisement);
-
-  FakeBluetoothLEAdvertisementPublisherWinrt(
-      const FakeBluetoothLEAdvertisementPublisherWinrt&) = delete;
-  FakeBluetoothLEAdvertisementPublisherWinrt& operator=(
-      const FakeBluetoothLEAdvertisementPublisherWinrt&) = delete;
-
   ~FakeBluetoothLEAdvertisementPublisherWinrt() override;
 
   // IBluetoothLEAdvertisementPublisher:
@@ -70,6 +65,8 @@ class FakeBluetoothLEAdvertisementPublisherWinrt
       ABI::Windows::Devices::Bluetooth::Advertisement::
           BluetoothLEAdvertisementPublisherStatusChangedEventArgs*>>
       handler_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothLEAdvertisementPublisherWinrt);
 };
 
 class FakeBluetoothLEAdvertisementPublisherFactoryWinrt
@@ -80,12 +77,6 @@ class FakeBluetoothLEAdvertisementPublisherFactoryWinrt
               IBluetoothLEAdvertisementPublisherFactory> {
  public:
   FakeBluetoothLEAdvertisementPublisherFactoryWinrt();
-
-  FakeBluetoothLEAdvertisementPublisherFactoryWinrt(
-      const FakeBluetoothLEAdvertisementPublisherFactoryWinrt&) = delete;
-  FakeBluetoothLEAdvertisementPublisherFactoryWinrt& operator=(
-      const FakeBluetoothLEAdvertisementPublisherFactoryWinrt&) = delete;
-
   ~FakeBluetoothLEAdvertisementPublisherFactoryWinrt() override;
 
   // IBluetoothLEAdvertisementPublisherFactory:
@@ -94,6 +85,9 @@ class FakeBluetoothLEAdvertisementPublisherFactoryWinrt
           IBluetoothLEAdvertisement* advertisement,
       ABI::Windows::Devices::Bluetooth::Advertisement::
           IBluetoothLEAdvertisementPublisher** value) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothLEAdvertisementPublisherFactoryWinrt);
 };
 
 }  // namespace device

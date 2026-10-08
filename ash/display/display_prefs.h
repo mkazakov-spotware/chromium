@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/session/session_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 #include "ui/display/display.h"
 #include "ui/display/display_layout.h"
@@ -39,10 +39,6 @@ class ASH_EXPORT DisplayPrefs : public SessionObserver {
   static void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
 
   explicit DisplayPrefs(PrefService* local_state);
-
-  DisplayPrefs(const DisplayPrefs&) = delete;
-  DisplayPrefs& operator=(const DisplayPrefs&) = delete;
-
   ~DisplayPrefs() override;
 
   // SessionObserver:
@@ -71,7 +67,7 @@ class ASH_EXPORT DisplayPrefs : public SessionObserver {
   // Stores the given |mixed_params| for tests. Clears stored parameters if
   // |mixed_params| is null.
   void StoreDisplayMixedMirrorModeParamsForTest(
-      const absl::optional<display::MixedMirrorModeParams>& mixed_params);
+      const base::Optional<display::MixedMirrorModeParams>& mixed_params);
 
  protected:
   friend class DisplayPrefsTest;
@@ -82,6 +78,8 @@ class ASH_EXPORT DisplayPrefs : public SessionObserver {
  private:
   PrefService* local_state_;  // Non-owned and must out-live this.
   bool store_requested_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayPrefs);
 };
 
 }  // namespace ash

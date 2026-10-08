@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,6 @@
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 // The containted omnibox textfield.
-// Depending on kIOSNewOmniboxImplementation flag, it's either a legacy or a new
-// implementation.
 @property(nonatomic, strong, readonly) OmniboxTextFieldIOS* textField;
 
 // Incognito status of the location bar changes the appearance, such as text

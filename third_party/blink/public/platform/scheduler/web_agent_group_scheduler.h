@@ -1,19 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_PUBLIC_PLATFORM_SCHEDULER_WEB_AGENT_GROUP_SCHEDULER_H_
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_SCHEDULER_WEB_AGENT_GROUP_SCHEDULER_H_
 
-#include "base/task/single_thread_task_runner.h"
-#include "mojo/public/cpp/bindings/pending_remote.h"
-#include "third_party/blink/public/mojom/browser_interface_broker.mojom-forward.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/blink/public/platform/web_common.h"
-#include "third_party/blink/public/platform/web_private_ptr.h"
-
-namespace v8 {
-class Isolate;
-}  // namespace v8
 
 namespace blink {
 class AgentGroupScheduler;
@@ -30,33 +23,14 @@ class BLINK_PLATFORM_EXPORT WebAgentGroupScheduler {
   static std::unique_ptr<blink::scheduler::WebAgentGroupScheduler>
   CreateForTesting();
 
-  WebAgentGroupScheduler() = delete;
-  ~WebAgentGroupScheduler();
+  virtual ~WebAgentGroupScheduler() = default;
 
-  // Bind this AgentSchedulingGroup's BrowserInterfaceBroker.
-  void BindInterfaceBroker(
-      mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker>);
+  virtual AgentGroupScheduler& AsAgentGroupScheduler() = 0;
 
   // Default task runner for an AgentSchedulingGroup.
   // Default task runners for different AgentSchedulingGroup would be
   // independent and won't have any ordering guarantees between them.
-  scoped_refptr<base::SingleThreadTaskRunner> DefaultTaskRunner();
-
-  // Compositor task runner for an AgentSchedulingGroup.
-  // Compositor task runners for different AgentSchedulingGroup would be
-  // independent and won't have any ordering guarantees between them.
-  scoped_refptr<base::SingleThreadTaskRunner> CompositorTaskRunner();
-
-  // The isolate for this WebAgentGroupScheduler.
-  v8::Isolate* Isolate();
-
-#if INSIDE_BLINK
-  explicit WebAgentGroupScheduler(AgentGroupScheduler*);
-  AgentGroupScheduler& GetAgentGroupScheduler();
-#endif
-
- protected:
-  WebPrivatePtr<AgentGroupScheduler> private_;
+  virtual scoped_refptr<base::SingleThreadTaskRunner> DefaultTaskRunner() = 0;
 };
 
 }  // namespace scheduler

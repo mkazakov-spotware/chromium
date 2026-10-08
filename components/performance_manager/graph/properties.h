@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,28 +7,16 @@
 
 #include <utility>
 
-#include "base/check.h"
-#include "components/performance_manager/public/graph/node_state.h"
-
 namespace performance_manager {
 
+// TODO(chrisha): Deprecate the private observer type and have everyone use the
+// public observers!
+
 // Helper classes for setting properties and invoking observer callbacks based
-// on the value change. This is templated on the observer type to allow
+// on the value change. Note that by contract the NodeType must have a member
+// function "observers()" that returns an iterable collection of
+// ObserverType pointers. This is templated on the observer type to allow
 // easy testing.
-//
-// Objects of NodeImplType are expected to fulfill the contract:
-//
-//   IterableCollection GetObservers() const;
-//   bool NodeImplType::CanSetProperty() const;
-//   bool NodeImplType::CanSetAndNotifyProperty() const;
-//
-// These are used in DCHECKs to assert that properties are only being modified
-// at appropriate moments. If your code is blowing up in one of these DCHECKS
-// you are trying to change a property while a node is being added or removed
-// from the graph. When adding to the graph property changes should be done in a
-// separate posted task. When removing from the graph, they should simply not be
-// done. See class comments on node observers, NodeState, and NodeBase for full
-// details.
 template <typename NodeImplType, typename NodeType, typename ObserverType>
 class ObservedPropertyImpl {
  public:
@@ -50,8 +38,6 @@ class ObservedPropertyImpl {
     // Sets the property and sends a notification.
     template <typename U = PropertyType>
     void SetAndNotify(NodeImplType* node, U&& value) {
-      // If your code is blowing up here see the class comment!
-      DCHECK(node->CanSetAndNotifyProperty());
       value_ = std::forward<U>(value);
       for (auto* observer : node->GetObservers())
         ((observer)->*(NotifyFunctionPtr))(node);
@@ -59,9 +45,7 @@ class ObservedPropertyImpl {
 
     // Sets the property without sending a notification.
     template <typename U = PropertyType>
-    void Set(NodeImplType* node, U&& value) {
-      // If your code is blowing up here see the class comment!
-      DCHECK(node->CanSetProperty());
+    void Set(U&& value) {
       value_ = std::forward<U>(value);
     }
 
@@ -91,8 +75,6 @@ class ObservedPropertyImpl {
     // notification was sent, false otherwise.
     template <typename U = PropertyType>
     bool SetAndMaybeNotify(NodeImplType* node, U&& value) {
-      // If your code is blowing up here see the class comment!
-      DCHECK(node->CanSetAndNotifyProperty());
       if (value_ == value)
         return false;
       value_ = std::forward<U>(value);
@@ -103,9 +85,7 @@ class ObservedPropertyImpl {
 
     // Sets the property without sending a notification.
     template <typename U = PropertyType>
-    void Set(NodeImplType* node, U&& value) {
-      // If your code is blowing up here see the class comment!
-      DCHECK(node->CanSetProperty());
+    void Set(U&& value) {
       value_ = std::forward<U>(value);
     }
 
@@ -138,8 +118,6 @@ class ObservedPropertyImpl {
     // notification was sent, false otherwise.
     template <typename U = PropertyType>
     bool SetAndMaybeNotify(NodeImplType* node, U&& value) {
-      // If your code is blowing up here see the class comment!
-      DCHECK(node->CanSetAndNotifyProperty());
       if (value_ == value)
         return false;
       PropertyType previous_value = std::move(value_);
@@ -151,9 +129,7 @@ class ObservedPropertyImpl {
 
     // Sets the property without sending a notification.
     template <typename U = PropertyType>
-    void Set(NodeImplType* node, U&& value) {
-      // If your code is blowing up here see the class comment!
-      DCHECK(node->CanSetProperty());
+    void Set(U&& value) {
       value_ = std::forward<U>(value);
     }
 

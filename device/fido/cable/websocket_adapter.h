@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,10 @@
 #include "base/callback_forward.h"
 #include "base/component_export.h"
 #include "base/containers/span.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "device/fido/cable/v2_handshake.h"
-#include "mojo/public/cpp/bindings/pending_remote.h"
-#include "mojo/public/cpp/bindings/receiver.h"
-#include "mojo/public/cpp/bindings/remote.h"
 #include "services/network/public/mojom/network_context.mojom.h"
-#include "services/network/public/mojom/websocket.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 namespace cablev2 {
@@ -29,19 +25,10 @@ class COMPONENT_EXPORT(DEVICE_FIDO) WebSocketAdapter
     : public network::mojom::WebSocketHandshakeClient,
       network::mojom::WebSocketClient {
  public:
-  // Result enumerates the possible results of attempting to connect a tunnel.
-  enum class Result {
-    OK,
-    FAILED,
-    // GONE indicates that the tunnel failed and that the contact ID used is
-    // permanently inactive and should be forgotten.
-    GONE,
-  };
-
   using TunnelReadyCallback = base::OnceCallback<
-      void(Result, absl::optional<std::array<uint8_t, kRoutingIdSize>>)>;
+      void(bool, base::Optional<std::array<uint8_t, kRoutingIdSize>>)>;
   using TunnelDataCallback =
-      base::RepeatingCallback<void(absl::optional<base::span<const uint8_t>>)>;
+      base::RepeatingCallback<void(base::Optional<base::span<const uint8_t>>)>;
   WebSocketAdapter(
       // on_tunnel_ready is called once with a boolean that indicates whether
       // the WebSocket successfully connected and an optional routing ID.
@@ -61,10 +48,6 @@ class COMPONENT_EXPORT(DEVICE_FIDO) WebSocketAdapter
   // written at once is limited by the size of an internal Mojo buffer which
   // defaults to 64KiB. Exceeding that will cause the function to return false.
   bool Write(base::span<const uint8_t> data);
-
-  // Reparent updates the data callback. This is only valid to call after the
-  // tunnel is established.
-  void Reparent(TunnelDataCallback on_tunnel_data);
 
   // WebSocketHandshakeClient:
 
@@ -109,7 +92,7 @@ class COMPONENT_EXPORT(DEVICE_FIDO) WebSocketAdapter
   bool pending_message_finished_ = false;
 
   TunnelReadyCallback on_tunnel_ready_;
-  TunnelDataCallback on_tunnel_data_;
+  const TunnelDataCallback on_tunnel_data_;
   mojo::Receiver<network::mojom::WebSocketHandshakeClient> handshake_receiver_{
       this};
   mojo::Receiver<network::mojom::WebSocketClient> client_receiver_{this};

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,6 @@ class SizeRangeLayoutTest : public testing::Test {
  public:
   SizeRangeLayoutTest();
 
-  SizeRangeLayoutTest(const SizeRangeLayoutTest&) = delete;
-  SizeRangeLayoutTest& operator=(const SizeRangeLayoutTest&) = delete;
-
   // Wrapper function to access the minimum preferred size of |layout|.
   gfx::Size GetMinSize(const SizeRangeLayout* layout) const;
 
@@ -29,6 +26,9 @@ class SizeRangeLayoutTest : public testing::Test {
 
   const gfx::Size kAbsoluteMinSize;
   const gfx::Size kAbsoluteMaxSize;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SizeRangeLayoutTest);
 };
 
 SizeRangeLayoutTest::SizeRangeLayoutTest()

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ namespace {
 // succeeded.
 bool SyncToBookmark(const ReadingListEntry& entry, BookmarkNode* bookmark) {
   DCHECK(bookmark);
-  std::u16string title;
+  base::string16 title;
   if (!base::UTF8ToUTF16(entry.Title().c_str(), entry.Title().size(), &title)) {
     LOG(ERROR) << "Failed to convert the following title to string16:"
                << entry.Title();
@@ -37,8 +37,8 @@ bool SyncToBookmark(const ReadingListEntry& entry, BookmarkNode* bookmark) {
   }
 
   bookmark->set_url(entry.URL());
-  bookmark->set_date_added(base::Time::UnixEpoch() +
-                           base::Microseconds(entry.CreationTime()));
+  bookmark->set_date_added(base::Time::FromDeltaSinceWindowsEpoch(
+      base::TimeDelta::FromMicroseconds(entry.CreationTime())));
   bookmark->SetTitle(title);
   bookmark->SetMetaInfo(kReadStatusKey,
                         entry.IsRead() ? kReadStatusRead : kReadStatusUnread);
@@ -54,8 +54,8 @@ ReadingListManagerImpl::ReadingListManagerImpl(
       loaded_(false),
       performing_batch_update_(false) {
   DCHECK(reading_list_model_);
-  root_ = std::make_unique<BookmarkNode>(
-      maximum_id_++, base::GUID::GenerateRandomV4(), GURL());
+  root_ = std::make_unique<BookmarkNode>(maximum_id_++, base::GenerateGUID(),
+                                         GURL());
   root_->SetTitle(l10n_util::GetStringUTF16(IDS_READ_LATER_TITLE));
   DCHECK(root_->is_folder());
   reading_list_model_->AddObserver(this);
@@ -260,7 +260,7 @@ BookmarkNode* ReadingListManagerImpl::FindBookmarkByURL(const GURL& url) const {
 void ReadingListManagerImpl::RemoveBookmark(const GURL& url) {
   const BookmarkNode* node = FindBookmarkByURL(url);
   if (node)
-    root_->Remove(root_->GetIndexOf(node).value());
+    root_->Remove(root_->GetIndexOf(node));
 }
 
 const BookmarkNode* ReadingListManagerImpl::AddOrUpdateBookmark(
@@ -277,7 +277,7 @@ const BookmarkNode* ReadingListManagerImpl::AddOrUpdateBookmark(
 
   // Add a new node.
   auto new_node = std::make_unique<BookmarkNode>(
-      maximum_id_++, base::GUID::GenerateRandomV4(), entry->URL());
+      maximum_id_++, base::GenerateGUID(), entry->URL());
   bool success = SyncToBookmark(*entry, new_node.get());
   return success ? root_->Add(std::move(new_node)) : nullptr;
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,9 @@
 #include "net/der/parse_values.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::der::test {
+namespace net {
+namespace der {
+namespace test {
 
 TEST(ParserTest, ConsumesAllBytesOfTLV) {
   const uint8_t der[] = {0x04 /* OCTET STRING */, 0x00};
@@ -93,7 +95,7 @@ TEST(ParserTest, ReadOptionalTag2Present) {
   const uint8_t der[] = {0x02, 0x01, 0x01, 0x04, 0x01, 0x02};
   Parser parser((Input(der)));
 
-  absl::optional<Input> optional_value;
+  base::Optional<Input> optional_value;
   ASSERT_TRUE(parser.ReadOptionalTag(kInteger, &optional_value));
   ASSERT_TRUE(optional_value.has_value());
   const uint8_t expected_int_value[] = {0x01};
@@ -135,7 +137,7 @@ TEST(ParserTest, ReadOptionalTag2NotPresent) {
   const uint8_t der[] = {0x04, 0x01, 0x02};
   Parser parser((Input(der)));
 
-  absl::optional<Input> optional_value;
+  base::Optional<Input> optional_value;
   ASSERT_TRUE(parser.ReadOptionalTag(kInteger, &optional_value));
   ASSERT_FALSE(optional_value.has_value());
 
@@ -342,14 +344,14 @@ TEST(ParserTest, ReadBitString) {
   const uint8_t der[] = {0x03, 0x03, 0x01, 0xAA, 0xBE};
   Parser parser((Input(der)));
 
-  absl::optional<BitString> bit_string = parser.ReadBitString();
-  ASSERT_TRUE(bit_string.has_value());
+  BitString bit_string;
+  ASSERT_TRUE(parser.ReadBitString(&bit_string));
   EXPECT_FALSE(parser.HasMore());
 
-  EXPECT_EQ(1u, bit_string->unused_bits());
-  ASSERT_EQ(2u, bit_string->bytes().Length());
-  EXPECT_EQ(0xAA, bit_string->bytes().UnsafeData()[0]);
-  EXPECT_EQ(0xBE, bit_string->bytes().UnsafeData()[1]);
+  EXPECT_EQ(1u, bit_string.unused_bits());
+  ASSERT_EQ(2u, bit_string.bytes().Length());
+  EXPECT_EQ(0xAA, bit_string.bytes().UnsafeData()[0]);
+  EXPECT_EQ(0xBE, bit_string.bytes().UnsafeData()[1]);
 }
 
 // Tries reading a BIT STRING. This should fail because the tag is not for a
@@ -358,8 +360,10 @@ TEST(ParserTest, ReadBitStringBadTag) {
   const uint8_t der[] = {0x05, 0x03, 0x01, 0xAA, 0xBE};
   Parser parser((Input(der)));
 
-  absl::optional<BitString> bit_string = parser.ReadBitString();
-  EXPECT_FALSE(bit_string.has_value());
+  BitString bit_string;
+  EXPECT_FALSE(parser.ReadBitString(&bit_string));
 }
 
-}  // namespace net::der::test
+}  // namespace test
+}  // namespace der
+}  // namespace net

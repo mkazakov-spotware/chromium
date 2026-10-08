@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,7 +71,7 @@ bool IsInternalApp(const std::string& app_id);
 // |test_delegate| is used to mock OpenTabsUIDelegate in test.
 bool HasRecommendableForeignTab(
     Profile* profile,
-    std::u16string* title,
+    base::string16* title,
     GURL* url,
     sync_sessions::OpenTabsUIDelegate* test_delegate);
 

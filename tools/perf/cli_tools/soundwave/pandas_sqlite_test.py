@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,8 +7,6 @@ try:
 except ImportError:
   pass
 import unittest
-
-import six
 
 from cli_tools.soundwave import pandas_sqlite
 from core.external_modules import pandas
@@ -73,6 +71,6 @@ class TestPandasSQLite(unittest.TestCase):
       df = pandas.read_sql('SELECT * FROM bugs', con, index_col='bug_id')
       self.assertEqual(len(df), 3)  # Only one extra record added.
       self.assertEqual(df.loc[123]['status'], 'Fixed')  # Bug is now fixed.
-      six.assertCountEqual(self, df.index, (123, 456, 789))
+      self.assertItemsEqual(df.index, (123, 456, 789))
     finally:
       con.close()

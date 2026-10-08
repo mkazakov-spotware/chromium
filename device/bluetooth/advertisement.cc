@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,14 +21,12 @@ void Advertisement::Unregister(UnregisterCallback callback) {
   if (!bluetooth_advertisement_)
     return;
 
-  auto split_callback = base::SplitOnceCallback(std::move(callback));
+  auto copyable_callback = base::AdaptCallbackForRepeating(std::move(callback));
   bluetooth_advertisement_->Unregister(
       base::BindOnce(&Advertisement::OnUnregister,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::move(split_callback.first)),
+                     weak_ptr_factory_.GetWeakPtr(), copyable_callback),
       base::BindOnce(&Advertisement::OnUnregisterError,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::move(split_callback.second)));
+                     weak_ptr_factory_.GetWeakPtr(), copyable_callback));
 }
 
 void Advertisement::OnUnregister(UnregisterCallback callback) {

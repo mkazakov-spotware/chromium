@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
  */
 
 /**
- * Note: This method is deprecated. Use the equvalent method in assert_ts.ts
- * instead.
  * Verify |condition| is truthy and return |condition| if so.
  * @template T
  * @param {T} condition A condition to check for truthiness.  Note that this
@@ -19,7 +17,7 @@
  * @closurePrimitive {asserts.truthy}
  * @suppress {reportUnknownTypes} because T is not sufficiently constrained.
  */
-export function assert(condition, opt_message) {
+/* #export */ function assert(condition, opt_message) {
   if (!condition) {
     let message = 'Assertion failed';
     if (opt_message) {
@@ -41,8 +39,6 @@ export function assert(condition, opt_message) {
 }
 
 /**
- * Note: This method is deprecated. Use the equvalent method in assert_ts.ts
- * instead.
  * Call this from places in the code that should never be reached.
  *
  * For example, handling all the values of enum with a switch() like this:
@@ -61,28 +57,27 @@ export function assert(condition, opt_message) {
  * This code should only be hit in the case of serious programmer error or
  * unexpected input.
  *
- * @param {string=} message A message to show when this is hit.
+ * @param {string=} opt_message A message to show when this is hit.
  * @closurePrimitive {asserts.fail}
  */
-export function assertNotReached(message) {
-  assert(false, message || 'Unreachable code hit');
+/* #export */ function assertNotReached(opt_message) {
+  assert(false, opt_message || 'Unreachable code hit');
 }
 
 /**
  * @param {*} value The value to check.
  * @param {function(new: T, ...)} type A user-defined constructor.
- * @param {string=} message A message to show when this is hit.
+ * @param {string=} opt_message A message to show when this is hit.
  * @return {T}
  * @template T
  */
-export function assertInstanceof(value, type, message) {
+/* #export */ function assertInstanceof(value, type, opt_message) {
   // We don't use assert immediately here so that we avoid constructing an error
   // message if we don't have to.
   if (!(value instanceof type)) {
     assertNotReached(
-        message ||
+        opt_message ||
         'Value ' + value + ' is not a[n] ' + (type.name || typeof type));
   }
   return value;
 }
-

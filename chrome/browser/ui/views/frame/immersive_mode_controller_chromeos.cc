@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/frame/immersive_mode_controller_chromeos.h"
 
-#include "build/buildflag.h"
-#include "build/chromeos_buildflags.h"
+#include "base/macros.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -13,7 +12,6 @@
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chromeos/ui/base/tablet_state.h"
 #include "chromeos/ui/base/window_properties.h"
-#include "chromeos/ui/base/window_state_type.h"
 #include "chromeos/ui/frame/immersive/immersive_revealed_lock.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/aura/client/aura_constants.h"
@@ -27,12 +25,6 @@
 #include "ui/views/widget/native_widget_aura.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/non_client_view.h"
-
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chrome/browser/ui/ash/window_pin_util.h"
-#else
-#include "chrome/browser/ui/lacros/window_properties.h"
-#endif
 
 namespace {
 
@@ -51,17 +43,15 @@ ToImmersiveFullscreenControllerAnimateReveal(
   return chromeos::ImmersiveFullscreenController::ANIMATE_REVEAL_NO;
 }
 
-class ImmersiveRevealedLockChromeos : public ImmersiveRevealedLock {
+class ImmersiveRevealedLockAsh : public ImmersiveRevealedLock {
  public:
-  explicit ImmersiveRevealedLockChromeos(chromeos::ImmersiveRevealedLock* lock)
+  explicit ImmersiveRevealedLockAsh(chromeos::ImmersiveRevealedLock* lock)
       : lock_(lock) {}
-
-  ImmersiveRevealedLockChromeos(const ImmersiveRevealedLockChromeos&) = delete;
-  ImmersiveRevealedLockChromeos& operator=(
-      const ImmersiveRevealedLockChromeos&) = delete;
 
  private:
   std::unique_ptr<chromeos::ImmersiveRevealedLock> lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImmersiveRevealedLockAsh);
 };
 
 }  // namespace
@@ -75,17 +65,17 @@ void ImmersiveModeControllerChromeos::Init(BrowserView* browser_view) {
   controller_.Init(this, browser_view_->frame(),
                    browser_view_->top_container());
 
-  window_observation_.Observe(browser_view_->GetNativeWindow());
+  observed_windows_.Add(browser_view_->GetNativeWindow());
 }
 
 void ImmersiveModeControllerChromeos::SetEnabled(bool enabled) {
   if (controller_.IsEnabled() == enabled)
     return;
 
-  if (!fullscreen_observer_.IsObserving()) {
-    fullscreen_observer_.Observe(browser_view_->browser()
-                                     ->exclusive_access_manager()
-                                     ->fullscreen_controller());
+  if (!fullscreen_observer_.IsObservingSources()) {
+    fullscreen_observer_.Add(browser_view_->browser()
+                                 ->exclusive_access_manager()
+                                 ->fullscreen_controller());
   }
 
   chromeos::ImmersiveFullscreenController::EnableForWidget(
@@ -113,11 +103,10 @@ int ImmersiveModeControllerChromeos::GetTopContainerVerticalOffset(
                           (visible_fraction_ - 1));
 }
 
-std::unique_ptr<ImmersiveRevealedLock>
-ImmersiveModeControllerChromeos::GetRevealedLock(AnimateReveal animate_reveal) {
-  return std::make_unique<ImmersiveRevealedLockChromeos>(
-      controller_.GetRevealedLock(
-          ToImmersiveFullscreenControllerAnimateReveal(animate_reveal)));
+ImmersiveRevealedLock* ImmersiveModeControllerChromeos::GetRevealedLock(
+    AnimateReveal animate_reveal) {
+  return new ImmersiveRevealedLockAsh(controller_.GetRevealedLock(
+      ToImmersiveFullscreenControllerAnimateReveal(animate_reveal)));
 }
 
 void ImmersiveModeControllerChromeos::OnFindBarVisibleBoundsChanged(
@@ -127,14 +116,14 @@ void ImmersiveModeControllerChromeos::OnFindBarVisibleBoundsChanged(
 
 bool ImmersiveModeControllerChromeos::
     ShouldStayImmersiveAfterExitingFullscreen() {
-  return !browser_view_->GetSupportsTabStrip() &&
+  return !browser_view_->CanSupportTabStrip() &&
          chromeos::TabletState::Get()->InTabletMode();
 }
 
 void ImmersiveModeControllerChromeos::OnWidgetActivationChanged(
     views::Widget* widget,
     bool active) {
-  if (browser_view_->GetSupportsTabStrip())
+  if (browser_view_->CanSupportTabStrip())
     return;
 
   if (!chromeos::TabletState::Get()->InTabletMode())
@@ -145,19 +134,10 @@ void ImmersiveModeControllerChromeos::OnWidgetActivationChanged(
   if (platform_util::IsBrowserLockedFullscreen(browser_view_->browser()))
     return;
 
-  // TODO(sammiequon): Investigate if we can move immersive mode logic to the
-  // browser non client frame view.
-  DCHECK_EQ(browser_view_->frame(), widget);
-  if (widget->GetNativeWindow()->GetProperty(chromeos::kWindowStateTypeKey) ==
-      chromeos::WindowStateType::kFloated) {
-    chromeos::ImmersiveFullscreenController::EnableForWidget(widget, false);
-    return;
-  }
-
   // Enable immersive mode if the widget is activated. Do not disable immersive
   // mode if the widget deactivates, but is not minimized.
   chromeos::ImmersiveFullscreenController::EnableForWidget(
-      widget, active || !widget->IsMinimized());
+      browser_view_->frame(), active || !widget->IsMinimized());
 }
 
 void ImmersiveModeControllerChromeos::LayoutBrowserRootView() {
@@ -199,7 +179,7 @@ void ImmersiveModeControllerChromeos::SetVisibleFraction(
   // means some gesture may not be recognized well during the animation, but
   // that's fine since a complicated gesture wouldn't be involved during the
   // animation duration. See: https://crbug.com/901544.
-  if (browser_view_->GetSupportsTabStrip()) {
+  if (browser_view_->CanSupportTabStrip()) {
     if (visible_fraction == 1.0) {
       browser_view_->contents_web_view()->holder()->SetHitTestTopInset(
           browser_view_->top_container()->height());
@@ -247,20 +227,8 @@ void ImmersiveModeControllerChromeos::OnWindowPropertyChanged(
     aura::Window* window,
     const void* key,
     intptr_t old) {
-  bool pin_state_transition = false;
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // TODO(crbug.com/1250129): Get pin state from exo.
-  pin_state_transition = key == lacros::kWindowPinTypeKey;
-#else
   // Track locked fullscreen changes.
-  if (key == chromeos::kWindowStateTypeKey) {
-    auto old_type = static_cast<chromeos::WindowStateType>(old);
-    // Check if there is a transition into or out of a pinned state.
-    pin_state_transition =
-        IsWindowPinned(window) || chromeos::IsPinnedWindowStateType(old_type);
-  }
-#endif
-  if (pin_state_transition) {
+  if (key == chromeos::kWindowPinTypeKey) {
     browser_view_->FullscreenStateChanging();
     return;
   }
@@ -286,7 +254,6 @@ void ImmersiveModeControllerChromeos::OnWindowPropertyChanged(
 void ImmersiveModeControllerChromeos::OnWindowDestroying(aura::Window* window) {
   // Clean up observers here rather than in the destructor because the owning
   // BrowserView has already destroyed the aura::Window.
-  DCHECK(window_observation_.IsObservingSource(window));
-  window_observation_.Reset();
-  DCHECK(!window_observation_.IsObserving());
+  observed_windows_.Remove(window);
+  DCHECK(!observed_windows_.IsObservingSources());
 }

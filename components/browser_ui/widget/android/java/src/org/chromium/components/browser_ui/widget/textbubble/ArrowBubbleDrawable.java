@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,30 +27,21 @@ import org.chromium.components.browser_ui.widget.R;
 class ArrowBubbleDrawable extends Drawable implements Drawable.Callback {
     private final Rect mCachedBubblePadding = new Rect();
 
+    private final int mRadiusPx;
     private final int mArrowWidthPx;
     private final int mArrowHeightPx;
 
     private final Path mArrowPath;
     private final Paint mArrowPaint;
 
-    private final ShapeDrawable mBubbleDrawable;
+    private final Drawable mBubbleDrawable;
 
-    private final boolean mIsRoundBubble;
-    private final Context mContext;
-
-    private int mRadiusPx;
     private int mArrowXOffsetPx;
     private boolean mArrowOnTop;
     private boolean mShowArrow;
 
-    /**
-     * Constructs an {@link ArrowBubbleDrawable} instance.
-     * @param context  Context to draw resources from.
-     * @param isRoundBubble Whether the bubble should be round.
-     **/
-    public ArrowBubbleDrawable(Context context, boolean isRoundBubble) {
-        mContext = context;
-        mIsRoundBubble = isRoundBubble;
+    public ArrowBubbleDrawable(Context context) {
+        mRadiusPx = context.getResources().getDimensionPixelSize(R.dimen.text_bubble_corner_radius);
         mArrowWidthPx =
                 context.getResources().getDimensionPixelSize(R.dimen.text_bubble_arrow_width);
         mArrowHeightPx =
@@ -69,7 +60,10 @@ class ArrowBubbleDrawable extends Drawable implements Drawable.Callback {
         mArrowPaint.setColor(Color.WHITE);
         mArrowPaint.setStyle(Paint.Style.FILL);
 
-        mBubbleDrawable = new ShapeDrawable();
+        mBubbleDrawable = DrawableCompat.wrap(new ShapeDrawable(
+                new RoundRectShape(new float[] {mRadiusPx, mRadiusPx, mRadiusPx, mRadiusPx,
+                                           mRadiusPx, mRadiusPx, mRadiusPx, mRadiusPx},
+                        null, null)));
 
         mBubbleDrawable.setCallback(this);
     }
@@ -119,12 +113,9 @@ class ArrowBubbleDrawable extends Drawable implements Drawable.Callback {
     }
 
     /**
-     * Sets whether the bubble should have an arrow. Should not be shown when {@code mIsRoundBubble}
-     * is true.
      * @param showArrow Whether the bubble should have an arrow.
      */
     public void setShowArrow(boolean showArrow) {
-        assert !(showArrow && mIsRoundBubble);
         mShowArrow = showArrow;
         invalidateSelf();
     }
@@ -178,17 +169,6 @@ class ArrowBubbleDrawable extends Drawable implements Drawable.Callback {
     protected void onBoundsChange(Rect bounds) {
         super.onBoundsChange(bounds);
         if (bounds == null) return;
-
-        if (mIsRoundBubble) {
-            mRadiusPx = bounds.height() / 2;
-        } else {
-            mRadiusPx = mContext.getResources().getDimensionPixelSize(
-                    R.dimen.text_bubble_corner_radius);
-        }
-        mBubbleDrawable.setShape(
-                new RoundRectShape(new float[] {mRadiusPx, mRadiusPx, mRadiusPx, mRadiusPx,
-                                           mRadiusPx, mRadiusPx, mRadiusPx, mRadiusPx},
-                        null, null));
 
         // Calculate the bubble bounds.  Account for the arrow size requiring more space.
         mBubbleDrawable.getPadding(mCachedBubblePadding);

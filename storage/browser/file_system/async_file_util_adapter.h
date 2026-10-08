@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "storage/browser/file_system/async_file_util.h"
 
@@ -30,11 +31,11 @@ class FileSystemFileUtil;
 class COMPONENT_EXPORT(STORAGE_BROWSER) AsyncFileUtilAdapter
     : public AsyncFileUtil {
  public:
-  explicit AsyncFileUtilAdapter(
-      std::unique_ptr<FileSystemFileUtil> sync_file_util);
-
-  AsyncFileUtilAdapter(const AsyncFileUtilAdapter&) = delete;
-  AsyncFileUtilAdapter& operator=(const AsyncFileUtilAdapter&) = delete;
+  // Creates a new AsyncFileUtil for |sync_file_util|. This takes the
+  // ownership of |sync_file_util|. (This doesn't take std::unique_ptr<> just
+  // to save extra base::WrapUnique; in all use cases a new fresh FileUtil is
+  // created only for this adapter.)
+  explicit AsyncFileUtilAdapter(FileSystemFileUtil* sync_file_util);
 
   ~AsyncFileUtilAdapter() override;
 
@@ -43,7 +44,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) AsyncFileUtilAdapter
   // AsyncFileUtil overrides.
   void CreateOrOpen(std::unique_ptr<FileSystemOperationContext> context,
                     const FileSystemURL& url,
-                    uint32_t file_flags,
+                    int file_flags,
                     CreateOrOpenCallback callback) override;
   void EnsureFileExists(std::unique_ptr<FileSystemOperationContext> context,
                         const FileSystemURL& url,
@@ -72,13 +73,13 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) AsyncFileUtilAdapter
   void CopyFileLocal(std::unique_ptr<FileSystemOperationContext> context,
                      const FileSystemURL& src_url,
                      const FileSystemURL& dest_url,
-                     CopyOrMoveOptionSet options,
+                     CopyOrMoveOption option,
                      CopyFileProgressCallback progress_callback,
                      StatusCallback callback) override;
   void MoveFileLocal(std::unique_ptr<FileSystemOperationContext> context,
                      const FileSystemURL& src_url,
                      const FileSystemURL& dest_url,
-                     CopyOrMoveOptionSet options,
+                     CopyOrMoveOption option,
                      StatusCallback callback) override;
   void CopyInForeignFile(std::unique_ptr<FileSystemOperationContext> context,
                          const base::FilePath& src_file_path,
@@ -99,6 +100,8 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) AsyncFileUtilAdapter
 
  private:
   std::unique_ptr<FileSystemFileUtil> sync_file_util_;
+
+  DISALLOW_COPY_AND_ASSIGN(AsyncFileUtilAdapter);
 };
 
 }  // namespace storage

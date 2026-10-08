@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "base/metrics/user_metrics_action.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -23,13 +24,10 @@
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/models/image_model.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/text_constants.h"
-#include "ui/views/animation/ink_drop.h"
-#include "ui/views/border.h"
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_frame_view.h"
@@ -39,9 +37,9 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "chrome/browser/platform_util.h"
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 // static
 views::Widget* RelaunchRecommendedBubbleView::ShowBubble(
@@ -77,7 +75,7 @@ bool RelaunchRecommendedBubbleView::Accept() {
   return false;
 }
 
-std::u16string RelaunchRecommendedBubbleView::GetWindowTitle() const {
+base::string16 RelaunchRecommendedBubbleView::GetWindowTitle() const {
   return relaunch_recommended_timer_.GetWindowTitle();
 }
 
@@ -85,11 +83,12 @@ bool RelaunchRecommendedBubbleView::ShouldShowCloseButton() const {
   return true;
 }
 
-ui::ImageModel RelaunchRecommendedBubbleView::GetWindowIcon() {
-  return ui::ImageModel::FromVectorIcon(
-      vector_icons::kBusinessIcon, ui::kColorIcon,
-      ChromeLayoutProvider::Get()->GetDistanceMetric(
-          DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE));
+gfx::ImageSkia RelaunchRecommendedBubbleView::GetWindowIcon() {
+  return gfx::CreateVectorIcon(
+      gfx::IconDescription(vector_icons::kBusinessIcon,
+                           ChromeLayoutProvider::Get()->GetDistanceMetric(
+                               DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE),
+                           gfx::kChromeIconGrey));
 }
 
 void RelaunchRecommendedBubbleView::Init() {
@@ -111,7 +110,7 @@ void RelaunchRecommendedBubbleView::Init() {
                            ChromeLayoutProvider::Get()->GetDistanceMetric(
                                DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE);
   label->SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::TLBR(0, title_offset - margins().left(), 0, 0)));
+      gfx::Insets(0, title_offset - margins().left(), 0, 0)));
 
   AddChildView(std::move(label));
 
@@ -121,8 +120,8 @@ void RelaunchRecommendedBubbleView::Init() {
 void RelaunchRecommendedBubbleView::VisibilityChanged(
     views::View* starting_from,
     bool is_visible) {
-  views::InkDrop::Get(GetAnchorView())
-      ->AnimateToState(is_visible ? views::InkDropState::ACTIVATED
+  views::Button::AsButton(GetAnchorView())
+      ->AnimateInkDrop(is_visible ? views::InkDropState::ACTIVATED
                                   : views::InkDropState::DEACTIVATED,
                        nullptr);
 }
@@ -152,7 +151,8 @@ RelaunchRecommendedBubbleView::RelaunchRecommendedBubbleView(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));
 
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kText));
+      views::TEXT, views::TEXT));
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::RELAUNCH_RECOMMENDED);
 }
 
 void RelaunchRecommendedBubbleView::UpdateWindowTitle() {

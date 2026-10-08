@@ -1,16 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/test/fake_port_allocator.h"
 
-#include <memory>
-
+#include "base/macros.h"
 #include "remoting/protocol/transport_context.h"
 #include "remoting/test/fake_network_dispatcher.h"
 #include "remoting/test/fake_network_manager.h"
 #include "remoting/test/fake_socket_factory.h"
-#include "third_party/abseil-cpp/absl/strings/string_view.h"
 #include "third_party/webrtc/p2p/client/basic_port_allocator.h"
 
 namespace remoting {
@@ -24,11 +22,10 @@ class FakePortAllocatorSession : public cricket::BasicPortAllocatorSession {
                            int component,
                            const std::string& ice_username_fragment,
                            const std::string& ice_password);
-
-  FakePortAllocatorSession(const FakePortAllocatorSession&) = delete;
-  FakePortAllocatorSession& operator=(const FakePortAllocatorSession&) = delete;
-
   ~FakePortAllocatorSession() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakePortAllocatorSession);
 };
 
 FakePortAllocatorSession::FakePortAllocatorSession(
@@ -63,21 +60,19 @@ FakePortAllocator::FakePortAllocator(
 FakePortAllocator::~FakePortAllocator() = default;
 
 cricket::PortAllocatorSession* FakePortAllocator::CreateSessionInternal(
-    absl::string_view content_name,
+    const std::string& content_name,
     int component,
-    absl::string_view ice_username_fragment,
-    absl::string_view ice_password) {
-  return new FakePortAllocatorSession(
-      this, std::string(content_name), component,
-      std::string(ice_username_fragment), std::string(ice_password));
+    const std::string& ice_username_fragment,
+    const std::string& ice_password) {
+  return new FakePortAllocatorSession(this, content_name, component,
+                                      ice_username_fragment, ice_password);
 }
 
 FakePortAllocatorFactory::FakePortAllocatorFactory(
     scoped_refptr<FakeNetworkDispatcher> fake_network_dispatcher) {
-  socket_factory_ =
-      std::make_unique<FakePacketSocketFactory>(fake_network_dispatcher.get());
-  network_manager_ =
-      std::make_unique<FakeNetworkManager>(socket_factory_->GetAddress());
+  socket_factory_.reset(
+      new FakePacketSocketFactory(fake_network_dispatcher.get()));
+  network_manager_.reset(new FakeNetworkManager(socket_factory_->GetAddress()));
 }
 
 FakePortAllocatorFactory::~FakePortAllocatorFactory() = default;

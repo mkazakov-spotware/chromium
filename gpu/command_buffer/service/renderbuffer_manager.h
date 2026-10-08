@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include <unordered_map>
 
 #include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/trace_event/memory_dump_provider.h"
 #include "gpu/command_buffer/service/gl_utils.h"
@@ -111,7 +111,7 @@ class GPU_GLES2_EXPORT Renderbuffer : public base::RefCounted<Renderbuffer> {
   }
 
   // RenderbufferManager that owns this Renderbuffer.
-  raw_ptr<RenderbufferManager> manager_;
+  RenderbufferManager* manager_;
 
   // Client side renderbuffer id.
   GLuint client_id_;
@@ -153,10 +153,6 @@ class GPU_GLES2_EXPORT RenderbufferManager
                       GLint max_renderbuffer_size,
                       GLint max_samples,
                       FeatureInfo* feature_info);
-
-  RenderbufferManager(const RenderbufferManager&) = delete;
-  RenderbufferManager& operator=(const RenderbufferManager&) = delete;
-
   ~RenderbufferManager() override;
 
   GLint max_renderbuffer_size() const {
@@ -213,7 +209,7 @@ class GPU_GLES2_EXPORT RenderbufferManager
   void StopTracking(Renderbuffer* renderbuffer);
 
   std::unique_ptr<MemoryTypeTracker> memory_type_tracker_;
-  raw_ptr<MemoryTracker> memory_tracker_;
+  MemoryTracker* memory_tracker_;
 
   GLint max_renderbuffer_size_;
   GLint max_samples_;
@@ -232,6 +228,8 @@ class GPU_GLES2_EXPORT RenderbufferManager
   typedef std::unordered_map<GLuint, scoped_refptr<Renderbuffer>>
       RenderbufferMap;
   RenderbufferMap renderbuffers_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderbufferManager);
 };
 
 }  // namespace gles2

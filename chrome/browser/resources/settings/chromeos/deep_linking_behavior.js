@@ -1,24 +1,29 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
 
 /**
  * @fileoverview Polymer behavior for scrolling/focusing/indicating
  * setting elements with deep links.
  */
 
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+// clang-format off
+// #import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js'
+// #import '../constants/setting.mojom-lite.js';
 
-import {afterNextRender} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {Setting} from '../mojom-webui/setting.mojom-webui.js';
-import {getSettingIdParameter} from '../setting_id_param_util.js';
+// #import {afterNextRender, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {getSettingIdParameter} from '../setting_id_param_util.m.js';
+// #import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+// #import {Router} from '../router.m.js';
+// clang-format on
 
 /** @type {string} */
 const kDeepLinkFocusId = 'deep-link-focus-id';
 
 /** @polymerBehavior */
-export const DeepLinkingBehavior = {
+/* #export */ const DeepLinkingBehavior = {
   properties: {
     /**
      * An object whose values are the kSetting mojom values which can be used to
@@ -27,13 +32,13 @@ export const DeepLinkingBehavior = {
      */
     Setting: {
       type: Object,
-      value: Setting,
+      value: chromeos.settings.mojom.Setting,
     },
 
     /**
      * Set of setting IDs that could be deep linked to. Initialized as an
      * empty set, should be overridden with applicable setting IDs.
-     * @type {!Set<!Setting>}
+     * @type {!Set<!chromeos.settings.mojom.Setting>}
      */
     supportedSettingIds: {
       type: Object,
@@ -44,7 +49,7 @@ export const DeepLinkingBehavior = {
   /**
    * Retrieves the settingId saved in the url's query parameter. Returns null if
    * deep linking is disabled or if no settingId is found.
-   * @return {?Setting}
+   * @return {?chromeos.settings.mojom.Setting}
    */
   getDeepLinkSettingId() {
     const settingIdStr = getSettingIdParameter();
@@ -55,7 +60,7 @@ export const DeepLinkingBehavior = {
     if (isNaN(settingIdNum)) {
       return null;
     }
-    return /** @type {!Setting} */ (settingIdNum);
+    return /** @type {!chromeos.settings.mojom.Setting} */ (settingIdNum);
   },
 
   /**
@@ -63,13 +68,15 @@ export const DeepLinkingBehavior = {
    * Promise for an object that reflects if the deep link was shown or not. The
    * object has a boolean |deepLinkShown| and any |pendingSettingId| that
    * couldn't be shown.
-   * @param {!Setting} settingId
+   * @param {!chromeos.settings.mojom.Setting} settingId
    * @return {!Promise<!{deepLinkShown: boolean, pendingSettingId:
-   *     ?Setting}>}
+   *     ?chromeos.settings.mojom.Setting}>}
    */
   showDeepLink(settingId) {
+    assert(loadTimeData.getBoolean('isDeepLinkingEnabled'));
+
     return new Promise(resolve => {
-      afterNextRender(this, () => {
+      Polymer.RenderStatus.afterNextRender(this, () => {
         const elToFocus = this.$$(`[${kDeepLinkFocusId}~="${settingId}"]`);
         if (!elToFocus || elToFocus.hidden) {
           console.warn(`Element with deep link id ${settingId} not focusable.`);
@@ -89,6 +96,8 @@ export const DeepLinkingBehavior = {
    * @param {!Element} elToFocus
    */
   showDeepLinkElement(elToFocus) {
+    assert(loadTimeData.getBoolean('isDeepLinkingEnabled'));
+
     elToFocus.focus();
   },
 
@@ -97,7 +106,7 @@ export const DeepLinkingBehavior = {
    * and before the deep link is shown. Returns whether or not the deep link
    * attempt should continue. Default behavior is to no op and then return
    * true, continuing the deep link attempt.
-   * @param {!Setting} settingId
+   * @param {!chromeos.settings.mojom.Setting} settingId
    * @return {boolean}
    */
   beforeDeepLinkAttempt(settingId) {
@@ -110,7 +119,7 @@ export const DeepLinkingBehavior = {
    * link was shown or not. The object has a boolean |deepLinkShown| and any
    * |pendingSettingId| that couldn't be shown.
    * @return {!Promise<!{deepLinkShown: boolean, pendingSettingId:
-   *     ?Setting}>}
+   *     ?chromeos.settings.mojom.Setting}>}
    */
   attemptDeepLink() {
     const settingId = this.getDeepLinkSettingId();
@@ -133,43 +142,3 @@ export const DeepLinkingBehavior = {
     return this.showDeepLink(settingId);
   },
 };
-
-/** @interface */
-export class DeepLinkingBehaviorInterface {
-  constructor() {
-    /** @type {!Object} */
-    this.Setting;
-
-    /** @type {!Set<!Setting>}} */
-    this.supportedSettingIds;
-  }
-
-  /**
-   * @return {?Setting}
-   */
-  getDeepLinkSettingId() {}
-
-  /**
-   * @param {!Setting} settingId
-   * @return {!Promise<!{deepLinkShown: boolean, pendingSettingId:
-   *     ?Setting}>}
-   */
-  showDeepLink(settingId) {}
-
-  /**
-   * @param {!Element} elToFocus
-   */
-  showDeepLinkElement(elToFocus) {}
-
-  /**
-   * @param {!Setting} settingId
-   * @return {boolean}
-   */
-  beforeDeepLinkAttempt(settingId) {}
-
-  /**
-   * @return {!Promise<!{deepLinkShown: boolean, pendingSettingId:
-   *     ?Setting}>}
-   */
-  attemptDeepLink() {}
-}

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #include <windows.h>
 
-#include <string>
-
 #include "base/files/file_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
 #include "build/branding_buildflags.h"
@@ -37,7 +36,7 @@ const wchar_t kUninstallStringField[] = L"UninstallString";
 const wchar_t kVersionStringField[] = L"pv";
 
 // Returns the registry path to where Client state is stored.
-std::wstring GetClientStateRegKey() {
+base::string16 GetClientStateRegKey() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   return kUpdateClientStateRegKey;
 #else
@@ -47,7 +46,7 @@ std::wstring GetClientStateRegKey() {
 
 // Returns the registry path to where basic information about the Clients
 // like name and version information are stored.
-std::wstring GetClientsRegKey() {
+base::string16 GetClientsRegKey() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   return kUpdateClientsRegKey;
 #else
@@ -58,13 +57,13 @@ std::wstring GetClientsRegKey() {
 // Reads a string value from the specified product's registry key. Returns true
 // iff the value is present and successfully read.
 bool GetValueFromRegistry(InstallationLevel level,
-                          const std::wstring key_path,
+                          const base::string16 key_path,
                           const wchar_t* app_guid,
                           const wchar_t* value_name,
-                          std::wstring* value) {
+                          base::string16* value) {
   HKEY root_key = (level == USER_LEVEL_INSTALLATION) ? HKEY_CURRENT_USER
                                                      : HKEY_LOCAL_MACHINE;
-  std::wstring subkey(key_path);
+  base::string16 subkey(key_path);
   if (app_guid)
     subkey.append(1, L'\\').append(app_guid);
   base::win::RegKey reg_key;
@@ -83,7 +82,7 @@ bool GetValueFromRegistry(InstallationLevel level,
 // occurs or the product is not installed at the specified level.
 base::FilePath GetSetupExeFromRegistry(InstallationLevel level,
                                        const wchar_t* app_guid) {
-  std::wstring uninstall;
+  base::string16 uninstall;
   if (GetValueFromRegistry(level, GetClientStateRegKey(), app_guid,
                            kUninstallStringField, &uninstall)) {
     base::FilePath setup_exe_path(uninstall);
@@ -164,10 +163,10 @@ base::Version GetChromeVersionForInstallationLevel(InstallationLevel level,
     return base::Version();
 #endif
 
-  std::wstring version_str;
+  base::string16 version_str;
   if (GetValueFromRegistry(level, GetClientsRegKey(), app_guid,
                            kVersionStringField, &version_str)) {
-    base::Version version(base::WideToASCII(version_str));
+    base::Version version(base::UTF16ToASCII(version_str));
     if (version.IsValid())
       return version;
   }

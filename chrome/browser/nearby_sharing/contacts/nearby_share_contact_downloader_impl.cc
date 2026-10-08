@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,81 +8,25 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/metrics/histogram_functions.h"
 #include "chrome/browser/nearby_sharing/client/nearby_share_client.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_features.h"
 #include "chrome/browser/nearby_sharing/logging/logging.h"
 
 namespace {
 
-void RecordListContactPeopleResultMetrics(NearbyShareHttpResult result) {
-  base::UmaHistogramEnumeration("Nearby.Share.Contacts.HttpResult", result);
+void RecordListContactPeopleResultMetrics(NearbyShareHttpResult result,
+                                          size_t current_page_number) {
+  // TODO(https://crbug.com/1105579): Record a histogram value for each result.
+  // TODO(https://crbug.com/1105579): On failure, record a histogram value for
+  // the page that the request failed on.
 }
 
-void RecordContactDownloadResultMetrics(bool success,
-                                        size_t current_page_number,
-                                        base::TimeTicks start_timestamp_) {
-  base::UmaHistogramBoolean("Nearby.Share.Contacts.DownloadResult", success);
-  if (success) {
-    base::UmaHistogramCounts100(
-        "Nearby.Share.Contacts.DownloadPageCount.Success", current_page_number);
-    base::UmaHistogramTimes("Nearby.Share.Contacts.TimeToDownload.Success",
-                            base::TimeTicks::Now() - start_timestamp_);
-  } else {
-    base::UmaHistogramCounts100(
-        "Nearby.Share.Contacts.DownloadPageCount.Failure", current_page_number);
-    base::UmaHistogramTimes("Nearby.Share.Contacts.TimeToDownload.Failure",
-                            base::TimeTicks::Now() - start_timestamp_);
-  }
-}
-
-void RecordContactDistributionMetrics(
-    const std::vector<nearbyshare::proto::ContactRecord>& unfiltered_contacts) {
-  size_t num_reachable = 0;
-  size_t num_unknown_type = 0;
-  size_t num_google_type = 0;
-  size_t num_device_type = 0;
-  for (const auto& contact : unfiltered_contacts) {
-    if (contact.is_reachable())
-      ++num_reachable;
-
-    switch (contact.type()) {
-      case nearbyshare::proto::ContactRecord::UNKNOWN:
-        ++num_unknown_type;
-        break;
-      case nearbyshare::proto::ContactRecord::GOOGLE_CONTACT:
-        ++num_google_type;
-        break;
-      case nearbyshare::proto::ContactRecord::DEVICE_CONTACT:
-        ++num_device_type;
-        break;
-      case nearbyshare::proto::
-          ContactRecord_Type_ContactRecord_Type_INT_MIN_SENTINEL_DO_NOT_USE_:
-      case nearbyshare::proto::
-          ContactRecord_Type_ContactRecord_Type_INT_MAX_SENTINEL_DO_NOT_USE_:
-        NOTREACHED();
-    }
-  }
-  base::UmaHistogramCounts10000("Nearby.Share.Contacts.NumContacts.Unfiltered",
-                                unfiltered_contacts.size());
-  base::UmaHistogramCounts10000("Nearby.Share.Contacts.NumContacts.Reachable",
-                                num_reachable);
-  base::UmaHistogramCounts10000("Nearby.Share.Contacts.NumContacts.Unreachable",
-                                unfiltered_contacts.size() - num_reachable);
-  base::UmaHistogramCounts10000(
-      "Nearby.Share.Contacts.NumContacts.UnknownContactType", num_unknown_type);
-  base::UmaHistogramCounts10000(
-      "Nearby.Share.Contacts.NumContacts.GoogleContactType", num_google_type);
-  base::UmaHistogramCounts10000(
-      "Nearby.Share.Contacts.NumContacts.DeviceContactType", num_device_type);
-  if (!unfiltered_contacts.empty()) {
-    base::UmaHistogramPercentage(
-        "Nearby.Share.Contacts.PercentReachable",
-        std::lround(100.0f * num_reachable / unfiltered_contacts.size()));
-    base::UmaHistogramPercentage(
-        "Nearby.Share.Contacts.PercentDeviceContactType",
-        std::lround(100.0f * num_device_type / unfiltered_contacts.size()));
-  }
+void RecordContactDownloadMetrics(
+    const std::vector<nearbyshare::proto::ContactRecord>& contacts,
+    size_t num_pages) {
+  // TODO(https://crbug.com/1105579): Record a histogram for the total number of
+  // pages needed, the ratio of contact types, and the ratio of (un)reachable
+  // contacts.
 }
 
 }  // namespace
@@ -99,11 +43,10 @@ NearbyShareContactDownloaderImpl::Factory::Create(
     NearbyShareClientFactory* client_factory,
     SuccessCallback success_callback,
     FailureCallback failure_callback) {
-  if (test_factory_) {
+  if (test_factory_)
     return test_factory_->CreateInstance(device_id, timeout, client_factory,
                                          std::move(success_callback),
                                          std::move(failure_callback));
-  }
 
   return base::WrapUnique(new NearbyShareContactDownloaderImpl(
       device_id, timeout, client_factory, std::move(success_callback),
@@ -134,12 +77,11 @@ NearbyShareContactDownloaderImpl::~NearbyShareContactDownloaderImpl() = default;
 
 void NearbyShareContactDownloaderImpl::OnRun() {
   NS_LOG(VERBOSE) << __func__ << ": Starting contacts download.";
-  start_timestamp_ = base::TimeTicks::Now();
-  CallListContactPeople(/*next_page_token=*/absl::nullopt);
+  CallListContactPeople(/*next_page_token=*/base::nullopt);
 }
 
 void NearbyShareContactDownloaderImpl::CallListContactPeople(
-    const absl::optional<std::string>& next_page_token) {
+    const base::Optional<std::string>& next_page_token) {
   ++current_page_number_;
   NS_LOG(VERBOSE) << __func__
                   << ": Making ListContactPeople RPC call to fetch page number "
@@ -171,12 +113,13 @@ void NearbyShareContactDownloaderImpl::OnListContactPeopleSuccess(
   timer_.Stop();
   contacts_.insert(contacts_.end(), response.contact_records().begin(),
                    response.contact_records().end());
-  absl::optional<std::string> next_page_token =
+  base::Optional<std::string> next_page_token =
       response.next_page_token().empty()
-          ? absl::nullopt
-          : absl::make_optional<std::string>(response.next_page_token());
+          ? base::nullopt
+          : base::make_optional<std::string>(response.next_page_token());
   client_.reset();
-  RecordListContactPeopleResultMetrics(NearbyShareHttpResult::kSuccess);
+  RecordListContactPeopleResultMetrics(NearbyShareHttpResult::kSuccess,
+                                       current_page_number_);
 
   if (next_page_token) {
     CallListContactPeople(next_page_token);
@@ -185,9 +128,7 @@ void NearbyShareContactDownloaderImpl::OnListContactPeopleSuccess(
 
   NS_LOG(VERBOSE) << __func__ << ": Download of " << contacts_.size()
                   << " contacts succeeded.";
-  RecordContactDownloadResultMetrics(/*success=*/true, current_page_number_,
-                                     start_timestamp_);
-  RecordContactDistributionMetrics(contacts_);
+  RecordContactDownloadMetrics(contacts_, current_page_number_);
 
   // Remove device contacts if the feature flag is disabled.
   if (!base::FeatureList::IsEnabled(features::kNearbySharingDeviceContacts)) {
@@ -226,9 +167,8 @@ void NearbyShareContactDownloaderImpl::OnListContactPeopleFailure(
     NearbyShareHttpError error) {
   timer_.Stop();
   client_.reset();
-  RecordListContactPeopleResultMetrics(NearbyShareHttpErrorToResult(error));
-  RecordContactDownloadResultMetrics(/*success=*/false, current_page_number_,
-                                     start_timestamp_);
+  RecordListContactPeopleResultMetrics(NearbyShareHttpErrorToResult(error),
+                                       current_page_number_);
 
   NS_LOG(ERROR) << __func__ << ": Contact download RPC call failed with error "
                 << error << " fetching page number " << current_page_number_;
@@ -237,9 +177,8 @@ void NearbyShareContactDownloaderImpl::OnListContactPeopleFailure(
 
 void NearbyShareContactDownloaderImpl::OnListContactPeopleTimeout() {
   client_.reset();
-  RecordListContactPeopleResultMetrics(NearbyShareHttpResult::kTimeout);
-  RecordContactDownloadResultMetrics(/*success=*/false, current_page_number_,
-                                     start_timestamp_);
+  RecordListContactPeopleResultMetrics(NearbyShareHttpResult::kTimeout,
+                                       current_page_number_);
 
   NS_LOG(ERROR) << __func__ << ": Contact download RPC call timed out.";
   Fail();

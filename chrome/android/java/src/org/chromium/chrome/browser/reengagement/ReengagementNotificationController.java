@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,7 +117,8 @@ public class ReengagementNotificationController {
                 new NotificationMetadata(notificationUmaType, NOTIFICATION_TAG, NOTIFICATION_ID);
         NotificationWrapperBuilder builder =
                 NotificationWrapperBuilderFactory.createNotificationWrapperBuilder(
-                        ChannelId.UPDATES, metadata);
+                        /* preferCompat = */ true, ChannelId.UPDATES,
+                        /* remoteAppPackageName = */ null, metadata);
 
         Intent intent = new Intent(mContext, mActivityClazz);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

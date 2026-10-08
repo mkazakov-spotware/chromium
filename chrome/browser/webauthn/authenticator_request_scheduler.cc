@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,6 @@ namespace {
 class ActiveRequestWeakHolder : public base::SupportsUserData::Data {
  public:
   ActiveRequestWeakHolder() = default;
-
-  ActiveRequestWeakHolder(const ActiveRequestWeakHolder&) = delete;
-  ActiveRequestWeakHolder& operator=(const ActiveRequestWeakHolder&) = delete;
-
   ~ActiveRequestWeakHolder() override = default;
 
   static ActiveRequestWeakHolder* EnsureForWebContents(
@@ -39,6 +35,8 @@ class ActiveRequestWeakHolder : public base::SupportsUserData::Data {
 
  private:
   base::WeakPtr<ChromeAuthenticatorRequestDelegate> request_;
+
+  DISALLOW_COPY_AND_ASSIGN(ActiveRequestWeakHolder);
 };
 
 }  // namespace
@@ -47,11 +45,6 @@ class ActiveRequestWeakHolder : public base::SupportsUserData::Data {
 std::unique_ptr<ChromeAuthenticatorRequestDelegate>
 AuthenticatorRequestScheduler::CreateRequestDelegate(
     content::RenderFrameHost* render_frame_host) {
-  // RenderFrameHosts which are not exposed to the user can't create
-  // authenticator request delegate.
-  if (!render_frame_host->IsActive())
-    return nullptr;
-
   auto* const web_contents =
       content::WebContents::FromRenderFrameHost(render_frame_host);
   auto* const active_request_holder =
@@ -68,7 +61,7 @@ AuthenticatorRequestScheduler::CreateRequestDelegate(
 
 // static
 ChromeAuthenticatorRequestDelegate*
-AuthenticatorRequestScheduler::GetRequestDelegate(
+AuthenticatorRequestScheduler::GetRequestDelegateForTest(
     content::WebContents* web_contents) {
   return ActiveRequestWeakHolder::EnsureForWebContents(web_contents)
       ->request()

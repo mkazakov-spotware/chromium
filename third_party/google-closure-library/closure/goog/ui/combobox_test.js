@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.ComboBoxTest');
 goog.setTestOnly();
@@ -49,10 +57,6 @@ testSuite({
     comboBox.dispose();
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testInputElementAttributes() {
     const comboBox = new ComboBox();
     comboBox.setFieldName('a_form_field');
@@ -64,7 +68,6 @@ testSuite({
     comboBox.dispose();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSetDefaultText() {
     assertEquals('Select a color...', comboBox.getDefaultText());
     comboBox.setDefaultText('new default text...');
@@ -97,10 +100,6 @@ testSuite({
         'Menu becomes visible after UP key', comboBox.getMenu().isVisible());
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testActionSelectsItem() {
     comboBox.getMenu().getItemAt(2).dispatchEvent(Component.EventType.ACTION);
     assertEquals('Gre<en', input.value);
@@ -113,18 +112,9 @@ testSuite({
     assertEquals('one', comboBox.getValue());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testRedisplayMenuAfterBackspace() {
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     input.value = 'mx';
     comboBox.onInputEvent_();
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     input.value = 'm';
     comboBox.onInputEvent_();
     assertEquals(
@@ -142,18 +132,12 @@ testSuite({
     comboBox = new ComboBox(null, menu);
     comboBox.render(dom.getElement('combo'));
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     input = dom.getElementsByTagName(TagName.INPUT, comboBox.getElement())[0];
     menu.getItemAt(2).dispatchEvent(Component.EventType.ACTION);
     assertEquals('Blue', input.value);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testRecomputeVisibleCountAfterChangingItems() {
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     input.value = 'Black';
     comboBox.onInputEvent_();
     assertEquals(
@@ -162,10 +146,6 @@ testSuite({
     assertEquals(
         'One item should be displayed', 1, comboBox.getNumberOfVisibleItems_());
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     input.value = 'Red';
     comboBox.onInputEvent_();
     assertEquals(
@@ -175,10 +155,6 @@ testSuite({
         'No items should be displayed', 0, comboBox.getNumberOfVisibleItems_());
   },
 
-  /**
-     @suppress {strictMissingProperties,checkTypes} suppression added to enable
-     type checking
-   */
   testSetEnabled() {
     // By default, everything should be enabled.
     assertFalse('Text input should initially not be disabled', input.disabled);
@@ -254,7 +230,6 @@ testSuite({
     assertTrue(div.innerHTML == 'A<b>B</b>c' || div.innerHTML == 'A<B>B</B>c');
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSetValue() {
     const clock = new MockClock(/* autoInstall */ true);
 
@@ -265,10 +240,6 @@ testSuite({
     events.fireClickSequence(input);
 
     // Simulate text input.
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     input.value = 'Black';
     comboBox.onInputEvent_();
     clock.tick();
@@ -286,10 +257,6 @@ testSuite({
 
     // Simulate user input to ensure all the items are invisible again, then
     // blur away.
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     input.value = 'Black';
     comboBox.onInputEvent_();
     clock.tick();

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "ui/gfx/codec/codec_export.h"
 
 class SkBitmap;
@@ -51,9 +52,6 @@ class CODEC_EXPORT PNGCodec {
     std::string key;
     std::string text;
   };
-
-  PNGCodec(const PNGCodec&) = delete;
-  PNGCodec& operator=(const PNGCodec&) = delete;
 
   // Encodes the given raw 'input' data, with each pixel being represented as
   // given in 'format'. The encoded PNG data will be written into the supplied
@@ -124,6 +122,9 @@ class CODEC_EXPORT PNGCodec {
   // otherwise.
   static bool Decode(const unsigned char* input, size_t input_size,
                      SkBitmap* bitmap);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PNGCodec);
 };
 
 }  // namespace gfx

@@ -1,8 +1,5 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+// Use of this source code is governed by the Apache License, Version 2.0.
 
 goog.module('goog.graphics.SvgGraphicsTest');
 goog.setTestOnly();
@@ -70,7 +67,6 @@ testSuite({
     assertNull(graphics.getDef(defKey));
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testSetElementAffineTransform() {
     if (!graphics) {
       // setUp has failed (no browser support), we should not run this test.
@@ -90,9 +86,6 @@ testSuite({
     graphics.render();
     // getTransformToElement was deleted in Chrome48. See
     // https://code.google.com/p/chromium/issues/detail?id=524432.
-    /**
-     * @suppress {missingProperties} suppression added to enable type checking
-     */
     function getTransformToElement(element, target) {
       return target.getScreenCTM().inverse().multiply(element.getScreenCTM());
     }

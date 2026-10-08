@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/ui/gestures/view_revealing_animatee.h"
 #import "ios/chrome/browser/ui/tabs/requirements/tab_strip_constants.h"
 
 @protocol PopupMenuLongPressDelegate;
@@ -17,9 +16,9 @@
 class Browser;
 
 // Controller class for the tabstrip.  Manages displaying tabs and keeping the
-// display in sync with a Browser's WebStateList.  This controller is only
-// instantiated on tablet.  The tab strip view itself is a subclass of
-// UIScrollView, which manages scroll offsets and scroll animations.
+// display in sync with the TabModel.  This controller is only instantiated on
+// tablet.  The tab strip view itself is a subclass of UIScrollView, which
+// manages scroll offsets and scroll animations.
 @interface TabStripController : NSObject
 
 @property(nonatomic, assign) BOOL highlightsSelectedTab;
@@ -38,11 +37,7 @@ class Browser;
 // Pan gesture handler for the tab strip.
 @property(nonatomic, weak) ViewRevealingVerticalPanHandler* panGestureHandler;
 
-// Animatee for this tab strip. It is not added to the `panGestureHandler` as
-// it needs to be run in sync with BVC.
-@property(nonatomic, readonly, strong) id<ViewRevealingAnimatee> animatee;
-
-// Designated initializer, `dispatcher` is not retained.
+// Designated initializer, |dispatcher| is not retained.
 - (instancetype)initWithBrowser:(Browser*)browser
                           style:(TabStripStyle)style NS_DESIGNATED_INITIALIZER;
 

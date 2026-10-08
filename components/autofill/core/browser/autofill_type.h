@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,11 +53,12 @@ class AutofillType {
 
  private:
   // The server-native field type, or UNKNOWN_TYPE if unset.
-  ServerFieldType server_type_ = UNKNOWN_TYPE;
+  ServerFieldType server_type_;
 
-  // The HTML autocomplete field type and mode hints, if set.
-  HtmlFieldType html_type_ = HtmlFieldType::kUnspecified;
-  HtmlFieldMode html_mode_ = HtmlFieldMode::kNone;
+  // The HTML autocomplete field type and mode hints, or HTML_TYPE_UNKNOWN and
+  // HTML_MODE_NONE if unset.
+  HtmlFieldType html_type_;
+  HtmlFieldMode html_mode_;
 };
 
 }  // namespace autofill

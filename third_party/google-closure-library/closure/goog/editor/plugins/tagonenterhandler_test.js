@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.editor.plugins.TagOnEnterHandlerTest');
 goog.setTestOnly();
@@ -29,10 +37,7 @@ let savedHtml;
 let editor;
 let field1;
 
-/**
- * Assert that the prepared contents matches the expected.
- * @suppress {visibility} suppression added to enable type checking
- */
+/** Assert that the prepared contents matches the expected. */
 function assertPreparedContents(expected, original, tag = undefined) {
   const field = makeField('field1', tag);
   field.makeEditable();
@@ -42,7 +47,7 @@ function assertPreparedContents(expected, original, tag = undefined) {
 
 /**
  * Selects the node at the given id, and simulates an ENTER keypress.
- * @param {?} field The field with the node.
+ * @param {googe.editor.Field} field The field with the node.
  * @param {string} id A DOM id.
  * @return {boolean} Whether preventDefault was called on the event.
  */
@@ -56,7 +61,7 @@ function selectNodeAndHitEnter(field, id) {
  * Creates a field with only the enter handler plugged in, for testing.
  * @param {string} id A DOM id.
  * @param {!TagName=} tag The block tag to use. Defaults to P.
- * @return {!Field} A field.
+ * @return {Field} A field.
  */
 function makeField(id, tag = undefined) {
   const field = new Field(id);
@@ -75,8 +80,6 @@ function makeField(id, tag = undefined) {
  *     DOM.
  * @param {boolean=} opt_goToRoot True if the root argument for splitDom should
  *     be excluded.
- * @suppress {checkTypes,strictMissingProperties} suppression added to enable
- * type checking
  */
 function helpTestSplit(
     offset, firstHalfString, secondHalfString, isAppend, goToBody = undefined) {
@@ -86,10 +89,8 @@ function helpTestSplit(
 
   const italic = dom.getElementsByTagName(TagName.I, node)[0].firstChild;
 
-  /** @suppress {visibility} suppression added to enable type checking */
   const splitFn = isAppend ? TagOnEnterHandler.splitDomAndAppend_ :
                              TagOnEnterHandler.splitDom_;
-  /** @suppress {checkTypes} suppression added to enable type checking */
   const secondHalf = splitFn(italic, offset, goToBody ? undefined : node);
 
   if (goToBody) {
@@ -438,7 +439,6 @@ testSuite({
     });
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSplitDomAtElement() {
     const node = dom.createElement(TagName.DIV);
     node.innerHTML = '<div>abc<br>def</div>';
@@ -452,7 +452,6 @@ testSuite({
     dom.removeNode(node);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSplitDomAtElementStart() {
     const node = dom.createElement(TagName.DIV);
     node.innerHTML = '<div>abc<br>def</div>';
@@ -466,7 +465,6 @@ testSuite({
     dom.removeNode(node);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSplitDomAtChildlessElement() {
     const node = dom.createElement(TagName.DIV);
     node.innerHTML = '<div>abc<br>def</div>';
@@ -481,7 +479,6 @@ testSuite({
     dom.removeNode(node);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testReplaceWhiteSpaceWithNbsp() {
     const node = dom.createElement(TagName.DIV);
     const textNode = document.createTextNode('');

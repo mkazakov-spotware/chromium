@@ -1,62 +1,37 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_NETWORK_PUBLIC_CPP_IP_ADDRESS_SPACE_UTIL_H_
 #define SERVICES_NETWORK_PUBLIC_CPP_IP_ADDRESS_SPACE_UTIL_H_
 
-#include <vector>
-
-#include "base/component_export.h"
-#include "base/strings/string_piece_forward.h"
-#include "services/network/public/mojom/ip_address_space.mojom-forward.h"
-#include "services/network/public/mojom/parsed_headers.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "services/network/public/mojom/ip_address_space.mojom.h"
+#include "services/network/public/mojom/url_response_head.mojom-forward.h"
 
 class GURL;
 
 namespace net {
 
-class IPEndPoint;
-struct TransportInfo;
+class IPAddress;
 
 }  // namespace net
 
 namespace network {
 
-// Returns a human-readable string representing `space`, suitable for logging.
-base::StringPiece COMPONENT_EXPORT(NETWORK_CPP)
-    IPAddressSpaceToStringPiece(mojom::IPAddressSpace space);
-
-// Returns the `IPAddressSpace` to which the endpoint of `transport` belongs.
-//
-// When the transport is a proxied connection, returns `kUnknown`. See
-// https://github.com/WICG/private-network-access/issues/62 for more details on
-// the reasoning there.
-//
-// When the transport is a direct connection, returns the IP address space of
-// `info.endpoint`. This returns `kUnknown` for invalid IP addresses. Otherwise,
-// takes into account the `--ip-address-space-overrides` command-line switch. If
-// no override applies, then follows this algorithm:
-// https://wicg.github.io/private-network-access/#determine-the-ip-address-space
-//
-// `info.endpoint`'s port is only used for matching to command-line overrides.
-// It is ignored otherwise. In particular, if no overrides are specified on the
-// command-line, then this function ignores the port entirely.
+// Returns the IPAddressSpace from an IPAddress.
 //
 // WARNING: This can only be used as-is for subresource requests loaded over the
-// network. Special URL schemes and resource headers must also be taken into
-// account at higher layers.
+// network. For other cases, see the Calculate*AddressSpace() functions below.
 mojom::IPAddressSpace COMPONENT_EXPORT(NETWORK_CPP)
-    TransportInfoToIPAddressSpace(const net::TransportInfo& info);
+    IPAddressToIPAddressSpace(const net::IPAddress& address);
 
-// Returns whether `lhs` is less public than `rhs`.
+// Returns whether |lhs| is less public than |rhs|.
 //
 // This comparator is compatible with std::less.
 //
 // Address spaces go from most public to least public in the following order:
 //
-//  - public and unknown (equivalent)
+//  - public and unknown
 //  - private
 //  - local
 //
@@ -64,30 +39,13 @@ bool COMPONENT_EXPORT(NETWORK_CPP)
     IsLessPublicAddressSpace(mojom::IPAddressSpace lhs,
                              mojom::IPAddressSpace rhs);
 
-// Represents optional parameters of CalculateClientAddressSpace().
-// This is effectively a subset of network::mojom::URLResponseHead.
-// WARNING: This struct just keeps references to parameters and does not own
-// them nor make copy of them. Parameters must outlive this struct. For example,
-// passing net::IPEndPoint() as `remote_endpoint` is invalid.
-struct COMPONENT_EXPORT(NETWORK_CPP) CalculateClientAddressSpaceParams {
-  CalculateClientAddressSpaceParams(
-      const std::vector<GURL>& url_list_via_service_worker,
-      const mojom::ParsedHeadersPtr& parsed_headers,
-      const net::IPEndPoint& remote_endpoint);
-  ~CalculateClientAddressSpaceParams();
-
-  const std::vector<GURL>& url_list_via_service_worker;
-  const mojom::ParsedHeadersPtr& parsed_headers;
-  const net::IPEndPoint& remote_endpoint;
-};
-
-// Given a request URL and `params`, this function calculates the
+// Given a request URL and response information, this function calculates the
 // IPAddressSpace which should be associated with documents or worker global
 // scopes (collectively: request clients) instantiated from this resource.
 //
-// `params` is optional. If `params` contain values, values must be valid and
-// `params.value().parsed_headers` must be populated with the result of
-// parsing the corresponding response headers.
+// |response_head| may be nullptr. Caller retains ownership. If not nullptr,
+// then |response_head->parsed_headers| must be populated with the result of
+// parsing |response->headers|.
 //
 // WARNING: This function is defined here for proximity with related code and
 // the data structures involved. However since it deals with higher-level
@@ -95,21 +53,15 @@ struct COMPONENT_EXPORT(NETWORK_CPP) CalculateClientAddressSpaceParams {
 // used at the content/ layer or above.
 //
 // See: https://wicg.github.io/cors-rfc1918/#address-space
-mojom::IPAddressSpace COMPONENT_EXPORT(NETWORK_CPP) CalculateClientAddressSpace(
-    const GURL& url,
-    absl::optional<CalculateClientAddressSpaceParams> params);
-
-// Given a response URL and the IP endpoint the requested resource was fetched
-// from, this function calculates the IPAddressSpace of the requested resource.
 //
-// As opposed to CalculateClientAddressSpace(), this function is used to
-// determine the address space of the *target* of a fetch, for comparison with
-// that of the client of the fetch.
-//
-// See: https://wicg.github.io/cors-rfc1918/#integration-fetch
+// TODO(https://crbug.com/1134601): This implementation treats requests that
+// don't use a URL loader (`about:blank`), as well as requests whose IP address
+// is invalid (`about:srcdoc`, `blob:`, etc.) as `kUnknown`. This is incorrect.
+// We'll eventually want to make sure we inherit from the client's creator
+// in some cases), but safe, as `kUnknown` is treated the same as `kPublic`.
 mojom::IPAddressSpace COMPONENT_EXPORT(NETWORK_CPP)
-    CalculateResourceAddressSpace(const GURL& url,
-                                  const net::IPEndPoint& endpoint);
+    CalculateClientAddressSpace(const GURL& url,
+                                const mojom::URLResponseHead* response_head);
 
 }  // namespace network
 

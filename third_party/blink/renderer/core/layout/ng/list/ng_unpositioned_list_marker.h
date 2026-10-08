@@ -1,18 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_LIST_NG_UNPOSITIONED_LIST_MARKER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_LIST_NG_UNPOSITIONED_LIST_MARKER_H_
 
-#include "base/dcheck_is_on.h"
 #include "base/memory/scoped_refptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/ng/geometry/ng_box_strut.h"
 #include "third_party/blink/renderer/platform/fonts/font_baseline.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -25,6 +21,8 @@ class NGConstraintSpace;
 class NGBoxFragmentBuilder;
 class NGLayoutResult;
 class NGPhysicalFragment;
+
+struct LogicalOffset;
 
 // Represents an unpositioned list marker.
 //
@@ -60,10 +58,10 @@ class CORE_EXPORT NGUnpositionedListMarker final {
 
   // Returns the baseline that the list-marker should place itself along.
   //
-  // |absl::nullopt| indicates that the child |content| does not have a baseline
+  // |base::nullopt| indicates that the child |content| does not have a baseline
   // to align to, and that caller should try next child, or use the
   // |AddToBoxWithoutLineBoxes()| method.
-  absl::optional<LayoutUnit> ContentAlignmentBaseline(
+  base::Optional<LayoutUnit> ContentAlignmentBaseline(
       const NGConstraintSpace&,
       FontBaseline,
       const NGPhysicalFragment& content) const;
@@ -74,32 +72,31 @@ class CORE_EXPORT NGUnpositionedListMarker final {
                 const NGBoxStrut&,
                 const NGLayoutResult& marker_layout_result,
                 LayoutUnit content_baseline,
-                LayoutUnit* block_offset,
+                LogicalOffset* content_offset,
                 NGBoxFragmentBuilder*) const;
 
   // Add a fragment for an outside list marker when the list item has no line
-  // boxes. Also adjust |intrinsic_block_size| if it was smaller than the list
-  // marker.
-  void AddToBoxWithoutLineBoxes(const NGConstraintSpace&,
-                                FontBaseline,
-                                const NGLayoutResult& marker_layout_result,
-                                NGBoxFragmentBuilder*,
-                                LayoutUnit* intrinsic_block_size) const;
+  // boxes.
+  // Returns the block size of the list marker.
+  LayoutUnit AddToBoxWithoutLineBoxes(
+      const NGConstraintSpace&,
+      FontBaseline,
+      const NGLayoutResult& marker_layout_result,
+      NGBoxFragmentBuilder*) const;
   LayoutUnit InlineOffset(const LayoutUnit marker_inline_size) const;
 
   bool operator==(const NGUnpositionedListMarker& other) const {
     return marker_layout_object_ == other.marker_layout_object_;
   }
 
-  const NGLayoutResult* Layout(const NGConstraintSpace& parent_space,
-                               const ComputedStyle& parent_style,
-                               FontBaseline) const;
+  scoped_refptr<const NGLayoutResult> Layout(
+      const NGConstraintSpace& parent_space,
+      const ComputedStyle& parent_style,
+      FontBaseline) const;
 
 #if DCHECK_IS_ON()
   void CheckMargin() const;
 #endif
-
-  void Trace(Visitor*) const;
 
  private:
   LayoutUnit ComputeIntrudedFloatOffset(const NGConstraintSpace&,
@@ -107,7 +104,7 @@ class CORE_EXPORT NGUnpositionedListMarker final {
                                         const NGBoxStrut&,
                                         LayoutUnit) const;
 
-  Member<LayoutNGOutsideListMarker> marker_layout_object_;
+  LayoutNGOutsideListMarker* marker_layout_object_;
 };
 
 }  // namespace blink

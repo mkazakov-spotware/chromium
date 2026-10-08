@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define COMPONENTS_VIZ_COMMON_QUADS_COMPOSITOR_RENDER_PASS_DRAW_QUAD_H_
 
 #include <stddef.h>
+
+#include <memory>
 
 #include "cc/paint/filter_operations.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
@@ -28,7 +30,7 @@ class VIZ_COMMON_EXPORT CompositorRenderPassDrawQuad
   void SetNew(const SharedQuadState* shared_quad_state,
               const gfx::Rect& rect,
               const gfx::Rect& visible_rect,
-              CompositorRenderPassId render_pass,
+              CompositorRenderPassId render_pass_id,
               ResourceId mask_resource_id,
               const gfx::RectF& mask_uv_rect,
               const gfx::Size& mask_texture_size,
@@ -42,7 +44,7 @@ class VIZ_COMMON_EXPORT CompositorRenderPassDrawQuad
               const gfx::Rect& rect,
               const gfx::Rect& visible_rect,
               bool needs_blending,
-              CompositorRenderPassId render_pass,
+              CompositorRenderPassId render_pass_id,
               ResourceId mask_resource_id,
               const gfx::RectF& mask_uv_rect,
               const gfx::Size& mask_texture_size,
@@ -51,7 +53,7 @@ class VIZ_COMMON_EXPORT CompositorRenderPassDrawQuad
               const gfx::RectF& tex_coord_rect,
               bool force_anti_aliasing_off,
               float backdrop_filter_quality,
-              bool intersects_damage_under);
+              bool can_use_backdrop_filter_cache);
 
   CompositorRenderPassId render_pass_id;
 

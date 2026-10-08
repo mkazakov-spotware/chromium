@@ -1,9 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_GAMEPAD_GAMEPAD_DISPATCHER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_GAMEPAD_GAMEPAD_DISPATCHER_H_
+
+#include <memory>
 
 #include "base/memory/scoped_refptr.h"
 #include "device/gamepad/public/mojom/gamepad.mojom-blink.h"
@@ -58,9 +60,10 @@ class GamepadDispatcher final : public GarbageCollected<GamepadDispatcher>,
                                              const device::Gamepad&,
                                              bool connected);
 
-  WeakMember<ExecutionContext> execution_context_;
+  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   Member<GamepadSharedMemoryReader> reader_;
-  HeapMojoRemote<device::mojom::blink::GamepadHapticsManager>
+  HeapMojoRemote<device::mojom::blink::GamepadHapticsManager,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
       gamepad_haptics_manager_remote_;
 };
 

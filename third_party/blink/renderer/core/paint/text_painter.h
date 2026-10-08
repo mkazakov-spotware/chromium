@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 namespace blink {
 
-class TextDecorationOffsetBase;
 class TextRun;
 struct TextRunPaintInfo;
 class LayoutTextCombine;
@@ -31,56 +30,42 @@ class CORE_EXPORT TextPainter : public TextPainterBase {
                         font,
                         text_origin,
                         text_frame_rect,
-                        /* inline_context */ nullptr,
                         horizontal),
-        run_(run) {}
+        run_(run),
+        combined_text_(nullptr) {}
   ~TextPainter() = default;
 
   void SetCombinedText(LayoutTextCombine* combined_text) {
     combined_text_ = combined_text;
+    has_combined_text_ = combined_text_ ? true : false;
   }
 
+  void ClipDecorationsStripe(float upper,
+                             float stripe_width,
+                             float dilation) override;
   void Paint(unsigned start_offset,
              unsigned end_offset,
              unsigned length,
              const TextPaintStyle&,
-             DOMNodeId node_id,
-             const AutoDarkMode& auto_dark_mode);
-
-  void PaintDecorationsExceptLineThrough(const TextDecorationOffsetBase&,
-                                         TextDecorationInfo&,
-                                         const PaintInfo&,
-                                         const Vector<AppliedTextDecoration>&,
-                                         const TextPaintStyle& text_style);
-  void PaintDecorationsOnlyLineThrough(TextDecorationInfo&,
-                                       const PaintInfo&,
-                                       const Vector<AppliedTextDecoration>&,
-                                       const TextPaintStyle&);
+             DOMNodeId node_id);
 
  private:
   template <PaintInternalStep step>
   void PaintInternalRun(TextRunPaintInfo&,
                         unsigned from,
                         unsigned to,
-                        DOMNodeId node_id,
-                        const AutoDarkMode& auto_dark_mode);
+                        DOMNodeId node_id);
 
   template <PaintInternalStep step>
   void PaintInternal(unsigned start_offset,
                      unsigned end_offset,
                      unsigned truncation_point,
-                     DOMNodeId node_id,
-                     const AutoDarkMode& auto_dark_mode);
+                     DOMNodeId node_id);
 
-  void ClipDecorationsStripe(float upper, float stripe_width, float dilation);
-
-  void PaintDecorationUnderOrOverLine(GraphicsContext& context,
-                                      TextDecorationInfo& decoration_info,
-                                      TextDecorationLine line,
-                                      const cc::PaintFlags* flags = nullptr);
+  void PaintEmphasisMarkForCombinedText();
 
   const TextRun& run_;
-  LayoutTextCombine* combined_text_ = nullptr;
+  LayoutTextCombine* combined_text_;
 };
 
 }  // namespace blink

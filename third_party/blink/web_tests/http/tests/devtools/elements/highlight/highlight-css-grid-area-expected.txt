@@ -92,7 +92,7 @@ grid-with-areas{
     "isKeyboardFocusable": false,
     "accessibleName": "",
     "accessibleRole": "generic",
-    "layoutObjectName": "LayoutNGGrid",
+    "layoutObjectName": "LayoutGrid",
     "showAccessibilityInfo": true
   },
   "gridInfo": [
@@ -312,70 +312,8 @@ grid-with-areas{
           "Z"
         ]
       },
-      "rowLineNameOffsets": [
-        {
-          "x": 0,
-          "y": 0,
-          "name": "header-start"
-        },
-        {
-          "x": 0,
-          "y": 601,
-          "name": "sidebar-end"
-        },
-        {
-          "x": 0,
-          "y": 300.5,
-          "name": "header-end"
-        },
-        {
-          "x": 0,
-          "y": 601,
-          "name": "main-end"
-        },
-        {
-          "x": 0,
-          "y": 300.5,
-          "name": "main-start"
-        },
-        {
-          "x": 0,
-          "y": 300.5,
-          "name": "sidebar-start"
-        }
-      ],
-      "columnLineNameOffsets": [
-        {
-          "x": 0,
-          "y": 0,
-          "name": "header-start"
-        },
-        {
-          "x": 200.5,
-          "y": 0,
-          "name": "sidebar-end"
-        },
-        {
-          "x": 401,
-          "y": 0,
-          "name": "header-end"
-        },
-        {
-          "x": 401,
-          "y": 0,
-          "name": "main-end"
-        },
-        {
-          "x": 200.5,
-          "y": 0,
-          "name": "main-start"
-        },
-        {
-          "x": 0,
-          "y": 0,
-          "name": "sidebar-start"
-        }
-      ],
+      "rowLineNameOffsets": [],
+      "columnLineNameOffsets": [],
       "gridBorder": [
         "M",
         0,

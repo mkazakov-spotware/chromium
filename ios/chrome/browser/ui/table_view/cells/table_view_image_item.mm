@@ -1,15 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/table_view/cells/table_view_image_item.h"
 
-#import "base/i18n/rtl.h"
-#import "base/mac/foundation_util.h"
+#include "base/i18n/rtl.h"
+#include "base/mac/foundation_util.h"
+#import "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -50,12 +50,12 @@
   } else if (styler.cellTitleColor) {
     cell.textLabel.textColor = styler.cellTitleColor;
   } else {
-    cell.textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
+    cell.textLabel.textColor = UIColor.cr_labelColor;
   }
   if (self.detailTextColor) {
     cell.detailTextLabel.textColor = self.detailTextColor;
   } else {
-    cell.detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+    cell.detailTextLabel.textColor = UIColor.cr_secondaryLabelColor;
   }
 
   cell.userInteractionEnabled = self.enabled;
@@ -86,7 +86,6 @@
     _textLabel = [[UILabel alloc] init];
     _textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     _textLabel.adjustsFontForContentSizeCategory = YES;
-    _textLabel.numberOfLines = 2;
     [_textLabel
         setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
                                         forAxis:
@@ -138,8 +137,23 @@
                                    constant:-kTableViewVerticalSpacing],
       heightConstraint,
     ]];
+
+    [self configureTextLabelForAccessibility:
+              UIContentSizeCategoryIsAccessibilityCategory(
+                  self.traitCollection.preferredContentSizeCategory)];
   }
   return self;
+}
+
+#pragma mark - Private
+
+// Configures -TableViewImageCell.textLabel for accessibility or not.
+- (void)configureTextLabelForAccessibility:(BOOL)accessibility {
+  if (accessibility) {
+    self.textLabel.numberOfLines = 2;
+  } else {
+    self.textLabel.numberOfLines = 1;
+  }
 }
 
 #pragma mark - UITableViewCell
@@ -147,6 +161,20 @@
 - (void)prepareForReuse {
   [super prepareForReuse];
   self.userInteractionEnabled = YES;
+}
+
+#pragma mark - UIView
+
+- (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
+  [super traitCollectionDidChange:previousTraitCollection];
+  BOOL isCurrentCategoryAccessibility =
+      UIContentSizeCategoryIsAccessibilityCategory(
+          self.traitCollection.preferredContentSizeCategory);
+  if (isCurrentCategoryAccessibility !=
+      UIContentSizeCategoryIsAccessibilityCategory(
+          previousTraitCollection.preferredContentSizeCategory)) {
+    [self configureTextLabelForAccessibility:isCurrentCategoryAccessibility];
+  }
 }
 
 #pragma mark - UIAccessibility

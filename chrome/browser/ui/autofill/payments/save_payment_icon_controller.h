@@ -1,17 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_SAVE_PAYMENT_ICON_CONTROLLER_H_
 #define CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_SAVE_PAYMENT_ICON_CONTROLLER_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "content/public/browser/web_contents.h"
 
 namespace autofill {
 
-class AutofillBubbleBase;
+class SaveCardBubbleView;
 
 // The controller for SavePaymentIconView.
 class SavePaymentIconController {
@@ -48,10 +47,10 @@ class SavePaymentIconController {
 
   // Returns the currently active save card bubble view. Can be nullptr if no
   // bubble is visible.
-  virtual AutofillBubbleBase* GetSaveBubbleView() const = 0;
+  virtual SaveCardBubbleView* GetSaveBubbleView() const = 0;
 
   // Returns the tooltip message for the save payment icon.
-  virtual std::u16string GetSavePaymentIconTooltipText() const = 0;
+  virtual base::string16 GetSavePaymentIconTooltipText() const = 0;
 };
 
 }  // namespace autofill

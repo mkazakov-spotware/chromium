@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include "ash/shell.h"
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/user_activity/user_activity_detector.h"
@@ -19,7 +19,8 @@ namespace ash {
 namespace {
 
 // The amount of idle time after which recommended values are restored.
-constexpr base::TimeDelta kRestoreDelayInMinutes = base::Minutes(1);
+constexpr base::TimeDelta kRestoreDelayInMinutes =
+    base::TimeDelta::FromMinutes(1);
 
 }  // namespace
 

@@ -1,11 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_TEST_INTEGRATION_MIGRATION_WAITER_H_
 #define CHROME_BROWSER_SYNC_TEST_INTEGRATION_MIGRATION_WAITER_H_
 
-#include "base/memory/raw_ptr.h"
+#include <string>
+
+#include "base/macros.h"
 #include "chrome/browser/sync/test/integration/status_change_checker.h"
 #include "components/sync/base/model_type.h"
 
@@ -22,9 +24,6 @@ class MigrationWaiter : public StatusChangeChecker {
   MigrationWaiter(syncer::ModelTypeSet expected_types,
                   MigrationWatcher* watcher);
 
-  MigrationWaiter(const MigrationWaiter&) = delete;
-  MigrationWaiter& operator=(const MigrationWaiter&) = delete;
-
   ~MigrationWaiter() override;
 
   // StatusChangeChecker implementation .
@@ -35,10 +34,12 @@ class MigrationWaiter : public StatusChangeChecker {
 
  private:
   // The MigrationWatcher we're observering.
-  const raw_ptr<MigrationWatcher> watcher_;
+  MigrationWatcher* const watcher_;
 
   // The set of data types that are expected to eventually undergo migration.
   const syncer::ModelTypeSet expected_types_;
+
+  DISALLOW_COPY_AND_ASSIGN(MigrationWaiter);
 };
 
 #endif  // CHROME_BROWSER_SYNC_TEST_INTEGRATION_MIGRATION_WAITER_H_

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,8 +37,6 @@ class ASH_PUBLIC_EXPORT ShelfModelObserver {
 
   // Invoked after a delegate changes, but before the old one is destroyed.
   // |delegate| is the new value and |old_delegate| is the previous value.
-  // This is not called when the item is first inserted into the shelf. Note
-  // that both |old_delegate| and |delegate| are guaranteed to be non-null.
   virtual void ShelfItemDelegateChanged(const ShelfID& id,
                                         ShelfItemDelegate* old_delegate,
                                         ShelfItemDelegate* delegate) {}
@@ -54,9 +52,6 @@ class ASH_PUBLIC_EXPORT ShelfModelObserver {
   // Invoked after an item that has been dragged off the shelf is dragged back
   // onto the shelf (it is still being dragged).
   virtual void ShelfItemReturnedFromRipOff(int index) {}
-
-  // Invoked when shelf party mode is toggled.
-  virtual void ShelfPartyToggled(bool in_shelf_party) {}
 
  protected:
   virtual ~ShelfModelObserver() {}

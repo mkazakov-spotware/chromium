@@ -1,4 +1,4 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,11 @@
 
 namespace sandbox {
 
+bool SetupNtdllImports();
+
 TEST(PolicyEngineTest, Rules1) {
+  SetupNtdllImports();
+
   // Construct two policy rules that say:
   //
   // #1
@@ -92,11 +96,6 @@ TEST(PolicyEngineTest, Rules1) {
   pr = pol_ev.Evaluate(kShortEval, eval_params, _countof(eval_params));
   EXPECT_EQ(POLICY_MATCH, pr);
   EXPECT_EQ(FAKE_ACCESS_DENIED, pol_ev.GetAction());
-
-  // Cope ok with nullptr string fields.
-  filename = nullptr;
-  pr = pol_ev.Evaluate(kShortEval, eval_params, _countof(eval_params));
-  EXPECT_EQ(NO_POLICY_MATCH, pr);
 
   delete[] reinterpret_cast<char*>(policy);
 }

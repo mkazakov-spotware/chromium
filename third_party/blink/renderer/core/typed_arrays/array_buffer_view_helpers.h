@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 #include <type_traits>
 
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/type_traits.h"
 
 namespace blink {
@@ -54,6 +52,8 @@ class NotShared {
     return *this;
   }
 
+  // |View()| is a legacy API and deprecated.  Use Get() instead.
+  T* View() const { return GetRaw(); }
   T* Get() const { return GetRaw(); }
   void Clear() { typed_array_ = nullptr; }
 
@@ -98,7 +98,7 @@ class MaybeShared {
   explicit MaybeShared(std::nullptr_t) {}
   // [AllowShared] array buffer view may be a view of non-shared array buffer,
   // so we don't check if the buffer is SharedArrayBuffer or not.
-  // https://webidl.spec.whatwg.org/#AllowShared
+  // https://heycam.github.io/webidl/#AllowShared
   explicit MaybeShared(T* typed_array) : typed_array_(typed_array) {}
   template <typename U>
   explicit MaybeShared(const Member<U>& other) : typed_array_(other.Get()) {}
@@ -110,6 +110,8 @@ class MaybeShared {
     return *this;
   }
 
+  // |View()| is a legacy API and deprecated.  Use Get() instead.
+  T* View() const { return GetRaw(); }
   T* Get() const { return GetRaw(); }
   void Clear() { typed_array_ = nullptr; }
 
@@ -129,17 +131,5 @@ class MaybeShared {
 };
 
 }  // namespace blink
-
-namespace WTF {
-
-// NotShared<T> is essentially Member<T> from the perspective of HeapVector.
-template <typename T>
-struct VectorTraits<blink::NotShared<T>> : VectorTraits<blink::Member<T>> {};
-
-// MaybeShared<T> is essentially Member<T> from the perspective of HeapVector.
-template <typename T>
-struct VectorTraits<blink::MaybeShared<T>> : VectorTraits<blink::Member<T>> {};
-
-}  // namespace WTF
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_TYPED_ARRAYS_ARRAY_BUFFER_VIEW_HELPERS_H_

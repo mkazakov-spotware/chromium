@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include "base/check.h"
-#include "base/logging.h"
 
 namespace device {
 
@@ -23,26 +22,27 @@ struct Header {
 }  // namespace
 
 HidReportDescriptorItem::HidReportDescriptorItem(
-    base::span<const uint8_t> bytes,
+    const uint8_t* bytes,
+    size_t size,
     HidReportDescriptorItem* previous)
     : previous_(previous),
       next_(nullptr),
       parent_(nullptr),
       shortData_(0),
       payload_size_(0) {
-  const auto* header = reinterpret_cast<const Header*>(bytes.data());
-  tag_ = static_cast<Tag>(header->tag << 2 | header->type);
+  Header* header = (Header*)&bytes[0];
+  tag_ = (Tag)(header->tag << 2 | header->type);
 
   if (IsLong()) {
     // In a long item, payload size is the second byte.
-    if (bytes.size() >= 2)
+    if (size >= 2)
       payload_size_ = bytes[1];
   } else {
     // As per HID spec, a bSize value of 3 means 4 bytes.
     payload_size_ = header->size == 0x3 ? 4 : header->size;
-    DCHECK_LE(payload_size_, sizeof(shortData_));
-    if (GetHeaderSize() + payload_size() <= bytes.size())
-      memcpy(&shortData_, bytes.data() + GetHeaderSize(), payload_size());
+    DCHECK(payload_size_ <= sizeof(shortData_));
+    if (GetHeaderSize() + payload_size() <= size)
+      memcpy(&shortData_, &bytes[GetHeaderSize()], payload_size());
   }
 
   if (previous) {

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,11 @@
 #include <vector>
 
 #include "base/auto_reset.h"
-#include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
+#include "base/optional.h"
+#include "base/strings/nullable_string16.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/page_state/page_state_serialization.h"
 
 namespace blink {
@@ -43,7 +42,8 @@ class TestFrameAdapter : public UniqueNameHelper::FrameAdapter {
 
   ~TestFrameAdapter() override {
     if (parent_) {
-      parent_->children_.erase(base::ranges::find(parent_->children_, this));
+      parent_->children_.erase(std::find(parent_->children_.begin(),
+                                         parent_->children_.end(), this));
     }
   }
 
@@ -69,7 +69,7 @@ class TestFrameAdapter : public UniqueNameHelper::FrameAdapter {
       bool (*should_stop)(base::StringPiece)) const override {
     EXPECT_EQ(BeginPoint::kParentFrame, begin_point);
     std::vector<std::string> result;
-    for (auto* adapter = parent_.get(); adapter; adapter = adapter->parent_) {
+    for (auto* adapter = parent_; adapter; adapter = adapter->parent_) {
       result.push_back(adapter->GetNameForCurrentMode());
       if (should_stop(result.back()))
         break;
@@ -107,7 +107,7 @@ class TestFrameAdapter : public UniqueNameHelper::FrameAdapter {
   // names to this TestFrameAdapter.
   void VerifyUpdatedFrameState(const ExplodedFrameState& frame_state) const {
     EXPECT_EQ(GetUniqueName(),
-              base::UTF16ToUTF8(frame_state.target.value_or(std::u16string())));
+              base::UTF16ToUTF8(frame_state.target.value_or(base::string16())));
 
     ASSERT_EQ(children_.size(), frame_state.children.size());
     for (size_t i = 0; i < children_.size(); ++i) {
@@ -151,7 +151,7 @@ class TestFrameAdapter : public UniqueNameHelper::FrameAdapter {
     return true;
   }
 
-  const raw_ptr<TestFrameAdapter> parent_;
+  TestFrameAdapter* const parent_;
   std::vector<TestFrameAdapter*> children_;
   const int virtual_index_in_parent_;
   UniqueNameHelper unique_name_helper_;

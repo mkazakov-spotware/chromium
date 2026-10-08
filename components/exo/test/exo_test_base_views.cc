@@ -1,16 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/test/exo_test_base_views.h"
 
-#include "base/callback_helpers.h"
-#include "base/notreached.h"
 #include "components/exo/vsync_timing_manager.h"
 #include "components/exo/wm_helper.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
-#include "ui/aura/client/drag_drop_delegate.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/ime/init/input_method_factory.h"
 #include "ui/display/manager/managed_display_info.h"
 #include "ui/wm/core/wm_core_switches.h"
@@ -24,18 +20,12 @@ class WMHelperTester : public WMHelper, public VSyncTimingManager::Delegate {
  public:
   WMHelperTester(aura::Window* root_window)
       : root_window_(root_window), vsync_timing_manager_(this) {}
-
-  WMHelperTester(const WMHelperTester&) = delete;
-  WMHelperTester& operator=(const WMHelperTester&) = delete;
-
   ~WMHelperTester() override {}
 
   // Overridden from WMHelper
   void AddActivationObserver(wm::ActivationChangeObserver* observer) override {}
   void RemoveActivationObserver(
       wm::ActivationChangeObserver* observer) override {}
-  void AddTooltipObserver(wm::TooltipObserver* observer) override {}
-  void RemoveTooltipObserver(wm::TooltipObserver* observer) override {}
   void AddFocusObserver(aura::client::FocusChangeObserver* observer) override {}
   void RemoveFocusObserver(
       aura::client::FocusChangeObserver* observer) override {}
@@ -72,7 +62,6 @@ class WMHelperTester : public WMHelper, public VSyncTimingManager::Delegate {
     return root_window_;
   }
   aura::client::CursorClient* GetCursorClient() override { return nullptr; }
-  aura::client::DragDropClient* GetDragDropClient() override { return nullptr; }
   void AddPreTargetHandler(ui::EventHandler* handler) override {}
   void PrependPreTargetHandler(ui::EventHandler* handler) override {}
   void RemovePreTargetHandler(ui::EventHandler* handler) override {}
@@ -80,24 +69,19 @@ class WMHelperTester : public WMHelper, public VSyncTimingManager::Delegate {
   void RemovePostTargetHandler(ui::EventHandler* handler) override {}
   bool InTabletMode() const override { return false; }
   double GetDefaultDeviceScaleFactor() const override { return 1.0; }
-  double GetDeviceScaleFactorForWindow(aura::Window* window) const override {
-    return 1.0;
-  }
-  void SetDefaultScaleCancellation(bool default_scale_cancellation) override {}
+  void SetImeBlocked(aura::Window* window, bool ime_blocked) override {}
+  bool IsImeBlocked(aura::Window* window) const override { return false; }
 
   LifetimeManager* GetLifetimeManager() override { return &lifetime_manager_; }
   aura::client::CaptureClient* GetCaptureClient() override { return nullptr; }
 
   // Overridden from aura::client::DragDropDelegate:
   void OnDragEntered(const ui::DropTargetEvent& event) override {}
-  aura::client::DragUpdateInfo OnDragUpdated(
-      const ui::DropTargetEvent& event) override {
-    return aura::client::DragUpdateInfo();
-  }
+  int OnDragUpdated(const ui::DropTargetEvent& event) override { return 0; }
   void OnDragExited() override {}
-  WMHelper::DropCallback GetDropCallback(
-      const ui::DropTargetEvent& event) override {
-    return base::DoNothing();
+  int OnPerformDrop(const ui::DropTargetEvent& event,
+                    std::unique_ptr<ui::OSExchangeData> data) override {
+    return 0;
   }
 
   // Overridden from VSyncTimingManager::Delegate:
@@ -109,6 +93,8 @@ class WMHelperTester : public WMHelper, public VSyncTimingManager::Delegate {
   aura::Window* root_window_;
   LifetimeManager lifetime_manager_;
   VSyncTimingManager vsync_timing_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(WMHelperTester);
 };
 
 }  // namespace

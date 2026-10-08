@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,9 @@
 #define UI_GFX_MOJOM_GPU_EXTRA_INFO_MOJOM_TRAITS_H_
 
 #include "base/component_export.h"
-#include "build/build_config.h"
 #include "ui/gfx/gpu_extra_info.h"
 #include "ui/gfx/mojom/buffer_types_mojom_traits.h"
 #include "ui/gfx/mojom/gpu_extra_info.mojom-shared.h"
-
-#if BUILDFLAG(IS_OZONE)
-#include "ui/ozone/buildflags.h"
-#if BUILDFLAG(OZONE_PLATFORM_X11)
-#define USE_OZONE_PLATFORM_X11
-#endif
-#endif
 
 namespace mojo {
 
@@ -62,7 +54,15 @@ struct COMPONENT_EXPORT(GFX_SHARED_MOJOM_TRAITS)
     return input.angle_features;
   }
 
-#if defined(USE_OZONE_PLATFORM_X11)
+#if defined(USE_OZONE) || defined(USE_X11)
+  static uint64_t system_visual(const gfx::GpuExtraInfo& input) {
+    return input.system_visual;
+  }
+
+  static uint64_t rgba_visual(const gfx::GpuExtraInfo& input) {
+    return input.rgba_visual;
+  }
+
   static const std::vector<gfx::BufferUsageAndFormat>&
   gpu_memory_buffer_support_x11(const gfx::GpuExtraInfo& input) {
     return input.gpu_memory_buffer_support_x11;

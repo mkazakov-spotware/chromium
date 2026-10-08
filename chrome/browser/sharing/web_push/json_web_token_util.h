@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <string>
 
+#include "base/optional.h"
 #include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace crypto {
 class ECPrivateKey;
@@ -22,7 +22,7 @@ class ECPrivateKey;
 // NIST P-256 curve and ECSignatureCreator is hardcoded to SHA256.
 //
 // https://tools.ietf.org/html/rfc7519
-absl::optional<std::string> CreateJSONWebToken(
+base::Optional<std::string> CreateJSONWebToken(
     const base::Value& claims,
     crypto::ECPrivateKey* private_key);
 

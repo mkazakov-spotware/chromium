@@ -1,9 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_AURA_TEST_AURA_TEST_SUITE_H_
 #define UI_AURA_TEST_AURA_TEST_SUITE_H_
+
+#include "base/macros.h"
 
 namespace aura {
 namespace test {
@@ -28,11 +30,10 @@ namespace test {
 class EnvReinstaller {
  public:
   EnvReinstaller();
-
-  EnvReinstaller(const EnvReinstaller&) = delete;
-  EnvReinstaller& operator=(const EnvReinstaller&) = delete;
-
   ~EnvReinstaller();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EnvReinstaller);
 };
 
 }  // namespace test

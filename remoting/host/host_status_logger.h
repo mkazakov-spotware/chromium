@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <map>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "remoting/host/host_status_observer.h"
@@ -25,10 +25,6 @@ class HostStatusLogger : public HostStatusObserver {
  public:
   HostStatusLogger(scoped_refptr<HostStatusMonitor> monitor,
                    LogToServer* log_to_server);
-
-  HostStatusLogger(const HostStatusLogger&) = delete;
-  HostStatusLogger& operator=(const HostStatusLogger&) = delete;
-
   ~HostStatusLogger() override;
 
   // Logs a session state change. Currently, this is either
@@ -43,7 +39,7 @@ class HostStatusLogger : public HostStatusObserver {
                            const protocol::TransportRoute& route) override;
 
  private:
-  raw_ptr<LogToServer> log_to_server_;
+  LogToServer* log_to_server_;
 
   scoped_refptr<HostStatusMonitor> monitor_;
 
@@ -53,6 +49,8 @@ class HostStatusLogger : public HostStatusObserver {
       connection_route_type_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(HostStatusLogger);
 };
 
 }  // namespace remoting

@@ -1,17 +1,21 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/query_tiles/test/test_utils.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
-
 namespace query_tiles {
 namespace test {
+
+namespace {
+
+const char kTimeStr[] = "03/18/20 01:00:00 AM";
+
+}  // namespace
 
 void ResetTestEntry(Tile* entry) {
   entry->id = "guid-1-1";
@@ -35,17 +39,10 @@ void ResetTestEntry(Tile* entry) {
 }
 
 void ResetTestGroup(TileGroup* group) {
-  ResetTestGroup(group, base::Time::Now() - base::Days(7));
-}
-
-void ResetTestGroup(TileGroup* group, base::Time last_updated_ts) {
   group->id = "group_guid";
   group->locale = "en-US";
-  // Convert time due to precision we used in proto message conversion.
-  int64_t milliseconds =
-      last_updated_ts.ToDeltaSinceWindowsEpoch().InMilliseconds();
-  group->last_updated_ts =
-      base::Time::FromDeltaSinceWindowsEpoch(base::Milliseconds(milliseconds));
+  bool success = base::Time::FromString(kTimeStr, &group->last_updated_ts);
+  CHECK(success);
   group->tiles.clear();
   auto test_entry_1 = std::make_unique<Tile>();
   ResetTestEntry(test_entry_1.get());
@@ -91,7 +88,10 @@ bool AreTileGroupsIdentical(const TileGroup& lhs, const TileGroup& rhs) {
 
   for (const auto& it : lhs.tiles) {
     auto* target = it.get();
-    auto found = base::ranges::find(rhs.tiles, target->id, &Tile::id);
+    auto found = std::find_if(rhs.tiles.begin(), rhs.tiles.end(),
+                              [&target](const std::unique_ptr<Tile>& entry) {
+                                return entry->id == target->id;
+                              });
     if (found == rhs.tiles.end() || *target != *found->get())
       return false;
   }
@@ -104,13 +104,19 @@ bool AreTilesIdentical(const Tile& lhs, const Tile& rhs) {
     return false;
 
   for (const auto& it : lhs.image_metadatas) {
-    if (!base::Contains(rhs.image_metadatas, it))
+    auto found =
+        std::find_if(rhs.image_metadatas.begin(), rhs.image_metadatas.end(),
+                     [it](const ImageMetadata& image) { return image == it; });
+    if (found == rhs.image_metadatas.end())
       return false;
   }
 
   for (const auto& it : lhs.sub_tiles) {
     auto* target = it.get();
-    auto found = base::ranges::find(rhs.sub_tiles, target->id, &Tile::id);
+    auto found = std::find_if(rhs.sub_tiles.begin(), rhs.sub_tiles.end(),
+                              [&target](const std::unique_ptr<Tile>& entry) {
+                                return entry->id == target->id;
+                              });
     if (found == rhs.sub_tiles.end() ||
         !AreTilesIdentical(*target, *found->get()))
       return false;

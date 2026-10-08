@@ -1,12 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tab;
 
 import org.chromium.chrome.browser.SwipeRefreshHandler;
-import org.chromium.chrome.browser.accessibility.AccessibilityTabHelper;
-import org.chromium.chrome.browser.autofill_assistant.AutofillAssistantTabHelper;
 import org.chromium.chrome.browser.complex_tasks.TaskTabHelper;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchTabHelper;
 import org.chromium.chrome.browser.crypto.CipherFactory;
@@ -14,9 +12,6 @@ import org.chromium.chrome.browser.dom_distiller.ReaderModeManager;
 import org.chromium.chrome.browser.dom_distiller.TabDistillabilityProvider;
 import org.chromium.chrome.browser.infobar.InfoBarContainer;
 import org.chromium.chrome.browser.media.ui.MediaSessionTabHelper;
-import org.chromium.chrome.browser.password_check.PasswordCheckUkmRecorder;
-import org.chromium.chrome.browser.price_tracking.PriceTrackingFeatures;
-import org.chromium.chrome.browser.tab.state.ShoppingPersistedTabData;
 
 /**
  * Helper class that initializes various tab UserData objects.
@@ -32,23 +27,13 @@ public final class TabHelpers {
     static void initTabHelpers(Tab tab, Tab parentTab) {
         TabUma.createForTab(tab);
         TabDistillabilityProvider.createForTab(tab);
+        TabThemeColorHelper.createForTab(tab);
         InterceptNavigationDelegateTabHelper.createForTab(tab);
         ContextualSearchTabHelper.createForTab(tab);
         MediaSessionTabHelper.createForTab(tab);
         TaskTabHelper.createForTab(tab, parentTab);
         TabBrowserControlsConstraintsHelper.createForTab(tab);
         if (ReaderModeManager.isEnabled()) ReaderModeManager.createForTab(tab);
-        AutofillAssistantTabHelper.createForTab(tab);
-        PasswordCheckUkmRecorder.createForTab(tab);
-        AccessibilityTabHelper.createForTab(tab);
-
-        // The following will start prefetching data for the price drops feature, so
-        // we should only do it if the user is eligible for the feature (e.g. has sync enabled).
-        if (!tab.isIncognito() && !((TabImpl) tab).isCustomTab()
-                && PriceTrackingFeatures.isPriceTrackingEligible()
-                && ShoppingPersistedTabData.isPriceTrackingWithOptimizationGuideEnabled()) {
-            ShoppingPersistedTabData.initialize(tab);
-        }
 
         // TODO(jinsukkim): Do this by having something observe new tab creation.
         if (tab.isIncognito()) CipherFactory.getInstance().triggerKeyGeneration();

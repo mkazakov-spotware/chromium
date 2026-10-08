@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 #include <CoreAudio/HostTime.h>
 
 #include "base/bind.h"
-#include "base/ranges/algorithm.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "media/midi/midi_service.h"
 #include "media/midi/task_service.h"
 
@@ -103,7 +102,7 @@ mojom::PortInfo GetPortInfoFromEndpoint(MIDIEndpointRef endpoint) {
 
 base::TimeTicks MIDITimeStampToTimeTicks(MIDITimeStamp timestamp) {
   UInt64 nanoseconds = AudioConvertHostTimeToNanos(timestamp);
-  return base::TimeTicks() + base::Nanoseconds(nanoseconds);
+  return base::TimeTicks() + base::TimeDelta::FromNanoseconds(nanoseconds);
 }
 
 MIDITimeStamp TimeTicksToMIDITimeStamp(base::TimeTicks ticks) {
@@ -235,7 +234,7 @@ void MidiManagerMac::ReceiveMidiNotify(const MIDINotification* message) {
         static_cast<MIDIEndpointRef>(notification->child);
     if (notification->childType == kMIDIObjectType_Source) {
       // Attaching device is an input device.
-      auto it = base::ranges::find(sources_, endpoint);
+      auto it = std::find(sources_.begin(), sources_.end(), endpoint);
       if (it == sources_.end()) {
         mojom::PortInfo info = GetPortInfoFromEndpoint(endpoint);
         // If the device disappears before finishing queries, mojom::PortInfo
@@ -253,7 +252,7 @@ void MidiManagerMac::ReceiveMidiNotify(const MIDINotification* message) {
       }
     } else if (notification->childType == kMIDIObjectType_Destination) {
       // Attaching device is an output device.
-      auto it = base::ranges::find(destinations_, endpoint);
+      auto it = std::find(destinations_.begin(), destinations_.end(), endpoint);
       if (it == destinations_.end()) {
         mojom::PortInfo info = GetPortInfoFromEndpoint(endpoint);
         // Skip cases that queries are not finished correctly.
@@ -273,12 +272,12 @@ void MidiManagerMac::ReceiveMidiNotify(const MIDINotification* message) {
         static_cast<MIDIEndpointRef>(notification->child);
     if (notification->childType == kMIDIObjectType_Source) {
       // Detaching device is an input device.
-      auto it = base::ranges::find(sources_, endpoint);
+      auto it = std::find(sources_.begin(), sources_.end(), endpoint);
       if (it != sources_.end())
         SetInputPortState(it - sources_.begin(), PortState::DISCONNECTED);
     } else if (notification->childType == kMIDIObjectType_Destination) {
       // Detaching device is an output device.
-      auto it = base::ranges::find(destinations_, endpoint);
+      auto it = std::find(destinations_.begin(), destinations_.end(), endpoint);
       if (it != destinations_.end())
         SetOutputPortState(it - destinations_.begin(), PortState::DISCONNECTED);
     }

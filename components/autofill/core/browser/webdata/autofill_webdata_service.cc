@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/location.h"
-#include "base/observer_list.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "components/autofill/core/browser/data_model/autofill_offer_data.h"
+#include "components/autofill/core/browser/data_model/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/data_model/iban.h"
 #include "components/autofill/core/browser/geo/autofill_country.h"
 #include "components/autofill/core/browser/webdata/autofill_change.h"
 #include "components/autofill/core/browser/webdata/autofill_entry.h"
@@ -82,9 +82,7 @@ void AutofillWebDataService::AddFormFields(
 }
 
 WebDataServiceBase::Handle AutofillWebDataService::GetFormValuesForElementName(
-    const std::u16string& name,
-    const std::u16string& prefix,
-    int limit,
+    const base::string16& name, const base::string16& prefix, int limit,
     WebDataServiceConsumer* consumer) {
   return wdbs_->ScheduleDBTaskWithResult(
       FROM_HERE,
@@ -103,8 +101,7 @@ void AutofillWebDataService::RemoveFormElementsAddedBetween(
 }
 
 void AutofillWebDataService::RemoveFormValueForElementName(
-    const std::u16string& name,
-    const std::u16string& value) {
+    const base::string16& name, const base::string16& value) {
   wdbs_->ScheduleDBTask(
       FROM_HERE,
       base::BindOnce(&AutofillWebDataBackendImpl::RemoveFormValueForElementName,
@@ -132,21 +129,19 @@ void AutofillWebDataService::UpdateAutofillProfile(
 }
 
 void AutofillWebDataService::RemoveAutofillProfile(
-    const std::string& guid,
-    AutofillProfile::Source profile_source) {
+    const std::string& guid) {
   wdbs_->ScheduleDBTask(
       FROM_HERE,
       base::BindOnce(&AutofillWebDataBackendImpl::RemoveAutofillProfile,
-                     autofill_backend_, guid, profile_source));
+                     autofill_backend_, guid));
 }
 
 WebDataServiceBase::Handle AutofillWebDataService::GetAutofillProfiles(
-    AutofillProfile::Source profile_source,
     WebDataServiceConsumer* consumer) {
   return wdbs_->ScheduleDBTaskWithResult(
       FROM_HERE,
       base::BindOnce(&AutofillWebDataBackendImpl::GetAutofillProfiles,
-                     autofill_backend_, profile_source),
+                     autofill_backend_),
       consumer);
 }
 
@@ -215,32 +210,6 @@ void AutofillWebDataService::AddFullServerCreditCard(
                      autofill_backend_, credit_card));
 }
 
-void AutofillWebDataService::AddIBAN(const IBAN& iban) {
-  wdbs_->ScheduleDBTask(FROM_HERE,
-                        base::BindOnce(&AutofillWebDataBackendImpl::AddIBAN,
-                                       autofill_backend_, iban));
-}
-
-WebDataServiceBase::Handle AutofillWebDataService::GetIBANs(
-    WebDataServiceConsumer* consumer) {
-  return wdbs_->ScheduleDBTaskWithResult(
-      FROM_HERE,
-      base::BindOnce(&AutofillWebDataBackendImpl::GetIBANs, autofill_backend_),
-      consumer);
-}
-
-void AutofillWebDataService::UpdateIBAN(const IBAN& iban) {
-  wdbs_->ScheduleDBTask(FROM_HERE,
-                        base::BindOnce(&AutofillWebDataBackendImpl::UpdateIBAN,
-                                       autofill_backend_, iban));
-}
-
-void AutofillWebDataService::RemoveIBAN(const std::string& guid) {
-  wdbs_->ScheduleDBTask(FROM_HERE,
-                        base::BindOnce(&AutofillWebDataBackendImpl::RemoveIBAN,
-                                       autofill_backend_, guid));
-}
-
 WebDataServiceBase::Handle AutofillWebDataService::GetCreditCards(
     WebDataServiceConsumer* consumer) {
   return wdbs_->ScheduleDBTaskWithResult(
@@ -261,7 +230,7 @@ WebDataServiceBase::Handle AutofillWebDataService::GetServerCreditCards(
 
 void AutofillWebDataService::UnmaskServerCreditCard(
     const CreditCard& credit_card,
-    const std::u16string& full_number) {
+    const base::string16& full_number) {
   wdbs_->ScheduleDBTask(
       FROM_HERE,
       base::BindOnce(&AutofillWebDataBackendImpl::UnmaskServerCreditCard,
@@ -308,11 +277,11 @@ WebDataServiceBase::Handle AutofillWebDataService::GetCreditCardCloudTokenData(
       consumer);
 }
 
-WebDataServiceBase::Handle AutofillWebDataService::GetAutofillOffers(
+WebDataServiceBase::Handle AutofillWebDataService::GetCreditCardOffers(
     WebDataServiceConsumer* consumer) {
   return wdbs_->ScheduleDBTaskWithResult(
       FROM_HERE,
-      base::BindOnce(&AutofillWebDataBackendImpl::GetAutofillOffers,
+      base::BindOnce(&AutofillWebDataBackendImpl::GetCreditCardOffers,
                      autofill_backend_),
       consumer);
 }

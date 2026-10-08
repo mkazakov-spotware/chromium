@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2014 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Provides functions to parse and manipulate internationalized
@@ -27,7 +35,6 @@ goog.require('goog.string');
  * @extends {goog.format.EmailAddress}
  */
 goog.format.InternationalizedEmailAddress = function(opt_address, opt_name) {
-  'use strict';
   goog.format.InternationalizedEmailAddress.base(
       this, 'constructor', opt_address, opt_name);
 };
@@ -138,7 +145,6 @@ goog.format.InternationalizedEmailAddress.EAI_EMAIL_ADDRESS_ = new RegExp(
  * @return {boolean} Whether the provided string is a valid local part.
  */
 goog.format.InternationalizedEmailAddress.isValidLocalPartSpec = function(str) {
-  'use strict';
   if (str == null) {
     return false;
   }
@@ -154,7 +160,6 @@ goog.format.InternationalizedEmailAddress.isValidLocalPartSpec = function(str) {
  */
 goog.format.InternationalizedEmailAddress.isValidDomainPartSpec = function(
     str) {
-  'use strict';
   if (str == null) {
     return false;
   }
@@ -164,7 +169,6 @@ goog.format.InternationalizedEmailAddress.isValidDomainPartSpec = function(
 
 /** @override */
 goog.format.InternationalizedEmailAddress.prototype.isValid = function() {
-  'use strict';
   return goog.format.InternationalizedEmailAddress.isValidAddrSpec(
       this.address);
 };
@@ -178,7 +182,6 @@ goog.format.InternationalizedEmailAddress.prototype.isValid = function() {
  * @return {boolean} Whether the provided string is a valid address.
  */
 goog.format.InternationalizedEmailAddress.isValidAddress = function(str) {
-  'use strict';
   if (str == null) {
     return false;
   }
@@ -192,7 +195,6 @@ goog.format.InternationalizedEmailAddress.isValidAddress = function(str) {
  * @return {boolean} Whether the provided string is a valid address spec.
  */
 goog.format.InternationalizedEmailAddress.isValidAddrSpec = function(str) {
-  'use strict';
   if (str == null) {
     return false;
   }
@@ -210,7 +212,6 @@ goog.format.InternationalizedEmailAddress.isValidAddrSpec = function(str) {
  * @return {!Array<!goog.format.EmailAddress>} The parsed emails.
  */
 goog.format.InternationalizedEmailAddress.parseList = function(str) {
-  'use strict';
   return goog.format.EmailAddress.parseListInternal(
       str, goog.format.InternationalizedEmailAddress.parse,
       goog.format.InternationalizedEmailAddress.isAddressSeparator);
@@ -224,7 +225,6 @@ goog.format.InternationalizedEmailAddress.parseList = function(str) {
  * @return {!goog.format.EmailAddress} The parsed address.
  */
 goog.format.InternationalizedEmailAddress.parse = function(addr) {
-  'use strict';
   return goog.format.EmailAddress.parseInternal(
       addr, goog.format.InternationalizedEmailAddress);
 };
@@ -235,7 +235,6 @@ goog.format.InternationalizedEmailAddress.parse = function(addr) {
  * @return {boolean} Whether the provided character is an address separator.
  */
 goog.format.InternationalizedEmailAddress.isAddressSeparator = function(ch) {
-  'use strict';
   return goog.string.contains(
       goog.format.InternationalizedEmailAddress.ADDRESS_SEPARATORS_, ch);
 };
@@ -249,7 +248,6 @@ goog.format.InternationalizedEmailAddress.isAddressSeparator = function(ch) {
  * @override
  */
 goog.format.InternationalizedEmailAddress.prototype.toString = function() {
-  'use strict';
   return this.toStringInternal(
       goog.format.InternationalizedEmailAddress.CHARS_REQUIRE_QUOTES_);
 };

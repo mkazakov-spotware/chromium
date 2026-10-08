@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,13 @@ import android.util.SparseArray;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.build.annotations.MainDex;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.resources.ResourceLoader.ResourceLoaderCallback;
 import org.chromium.ui.resources.dynamics.BitmapDynamicResource;
+import org.chromium.ui.resources.dynamics.DynamicResource;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.ui.resources.statics.StaticResourceLoader;
 import org.chromium.ui.resources.system.SystemResourceLoader;
@@ -79,7 +80,7 @@ public class ResourceManager implements ResourceLoaderCallback {
 
     /**
      * @return A reference to the {@link DynamicResourceLoader} that provides
-     *         {@link Resource} objects to this class.
+     *         {@link DynamicResource} objects to this class.
      */
     public DynamicResourceLoader getDynamicResourceLoader() {
         return (DynamicResourceLoader) mResourceLoaders.get(
@@ -132,13 +133,7 @@ public class ResourceManager implements ResourceLoaderCallback {
     public void onResourceLoaded(@AndroidResourceType int resType, int resId, Resource resource) {
         if (resource == null) return;
         Bitmap bitmap = resource.getBitmap();
-        if (bitmap == null) {
-            if (resource.shouldRemoveResourceOnNullBitmap() && mNativeResourceManagerPtr != 0) {
-                ResourceManagerJni.get().removeResource(
-                        mNativeResourceManagerPtr, ResourceManager.this, resType, resId);
-            }
-            return;
-        }
+        if (bitmap == null) return;
 
         saveMetadataForLoadedResource(resType, resId, resource);
 

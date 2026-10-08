@@ -1,14 +1,17 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_CONTEXTUAL_SEARCH_LAYER_H_
 #define CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_CONTEXTUAL_SEARCH_LAYER_H_
 
+#include <memory>
+
 #include "chrome/browser/android/compositor/layer/overlay_panel_layer.h"
 
 namespace cc {
 class Layer;
+class NinePatchLayer;
 class SolidColorLayer;
 class UIResourceLayer;
 }
@@ -40,26 +43,27 @@ class ContextualSearchLayer : public OverlayPanelLayer {
                      int search_bar_shadow_resource_id,
                      int search_provider_icon_resource_id,
                      int quick_action_icon_resource_id,
+                     int arrow_up_resource_id,
                      int drag_handlebar_resource_id,
                      int open_tab_icon_resource_id,
                      int close_icon_resource_id,
                      int progress_bar_background_resource_id,
-                     int progress_bar_background_tint,
                      int progress_bar_resource_id,
-                     int progress_bar_tint,
                      int search_promo_resource_id,
+                     int bar_banner_ripple_resource_id,
+                     int bar_banner_text_resource_id,
                      float dp_to_px,
                      const scoped_refptr<cc::Layer>& content_layer,
                      bool search_promo_visible,
                      float search_promo_height,
                      float search_promo_opacity,
                      int search_promo_background_color,
-                     // Related Searches
-                     int related_searches_in_bar_resource_id,
-                     bool related_searches_in_bar_visible,
-                     float related_searches_in_bar_height,
-                     float related_searches_in_bar_redundant_padding,
-                     // Panel position etc
+                     bool search_bar_banner_visible,
+                     float search_bar_banner_height,
+                     float search_bar_banner_padding,
+                     float search_bar_banner_ripple_width,
+                     float search_bar_banner_ripple_opacity,
+                     float search_bar_banner_text_opacity,
                      float search_panel_x,
                      float search_panel_y,
                      float search_panel_width,
@@ -81,11 +85,18 @@ class ContextualSearchLayer : public OverlayPanelLayer {
                      int bar_image_size,
                      int icon_color,
                      int drag_handlebar_color,
+                     float arrow_icon_opacity,
+                     float arrow_icon_rotation,
                      float close_icon_opacity,
                      bool progress_bar_visible,
                      float progress_bar_height,
                      float progress_bar_opacity,
                      float progress_bar_completion,
+                     float divider_line_visibility_percentage,
+                     float divider_line_width,
+                     float divider_line_height,
+                     int divider_line_color,
+                     float divider_line_x_offset,
                      bool touch_highlight_visible,
                      float touch_highlight_x_offset,
                      float touch_highlight_width,
@@ -136,11 +147,15 @@ class ContextualSearchLayer : public OverlayPanelLayer {
   scoped_refptr<cc::UIResourceLayer> search_provider_icon_layer_;
   scoped_refptr<cc::UIResourceLayer> thumbnail_layer_;
   scoped_refptr<cc::UIResourceLayer> quick_action_icon_layer_;
+  scoped_refptr<cc::UIResourceLayer> arrow_icon_;
   scoped_refptr<cc::UIResourceLayer> search_promo_;
   scoped_refptr<cc::SolidColorLayer> search_promo_container_;
-  scoped_refptr<cc::UIResourceLayer> related_searches_in_bar_;
+  scoped_refptr<cc::SolidColorLayer> bar_banner_container_;
+  scoped_refptr<cc::NinePatchLayer> bar_banner_ripple_;
+  scoped_refptr<cc::UIResourceLayer> bar_banner_text_;
   scoped_refptr<cc::UIResourceLayer> search_caption_;
   scoped_refptr<cc::UIResourceLayer> text_layer_;
+  scoped_refptr<cc::SolidColorLayer> divider_line_;
   scoped_refptr<cc::SolidColorLayer> touch_highlight_layer_;
 };
 

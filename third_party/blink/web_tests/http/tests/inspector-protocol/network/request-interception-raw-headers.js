@@ -16,7 +16,13 @@
     document.body.appendChild(iframe);
   `);
 
-  await dp.Network.onRequestWillBeSentExtraInfo(event => {
-    testRunner.log(`Connection raw header present: ${!!event.params.headers['Connection'].length}`);
+  await dp.Network.onResponseReceived(event => {
+    const response = event.params.response;
+    const haveRequestHeadersText = response.requestHeadersText;
+    const splitRawHeaders = response.requestHeadersText.split('\r\n');
+    const connectionHeaderPresent = splitRawHeaders.filter(header => header.includes('Connection'));
+
+    testRunner.log(`Response.requestHeadersText present: ${!!haveRequestHeadersText}`);
+    testRunner.log(`Connection raw header present: ${!!connectionHeaderPresent.length}`);
   });
 })

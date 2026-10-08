@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -273,9 +273,7 @@ public abstract class PickerAdapter extends Adapter<RecyclerView.ViewHolder>
                 ContactView itemView = (ContactView) LayoutInflater.from(parent.getContext())
                                                .inflate(R.layout.contact_view, parent, false);
                 itemView.setCategoryView(mCategoryView);
-                return new ContactViewHolder(itemView, mCategoryView, mContentResolver,
-                        mContext.getResources().getDimensionPixelSize(
-                                R.dimen.contact_picker_icon_size));
+                return new ContactViewHolder(itemView, mCategoryView, mContentResolver);
             }
         }
         return null;

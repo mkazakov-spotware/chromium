@@ -1,17 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/hud_display/graph_page_view_base.h"
 
+#include "ash/hud_display/grid.h"
 #include "ash/hud_display/hud_constants.h"
 #include "ash/hud_display/hud_properties.h"
 #include "ash/hud_display/legend.h"
-#include "ash/hud_display/reference_lines.h"
 #include "ash/hud_display/solid_source_background.h"
 #include "base/bind.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/base/models/image_model.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/border.h"
@@ -19,6 +17,7 @@
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 #include "ui/views/window/vector_icons/vector_icons.h"
 
 namespace ash {
@@ -36,7 +35,7 @@ class MinMaxButton : public views::ImageButton {
 
   explicit MinMaxButton(views::Button::PressedCallback callback)
       : views::ImageButton(callback) {
-    SetBorder(views::CreateEmptyBorder(kMinMaxButtonBorder));
+    SetBorder(views::CreateEmptyBorder(gfx::Insets(kMinMaxButtonBorder)));
     SetBackground(std::make_unique<SolidSourceBackground>(kHUDLegendBackground,
                                                           /*radius=*/0));
     SetProperty(kHUDClickHandler, HTCLIENT);
@@ -72,17 +71,17 @@ BEGIN_METADATA(MinMaxButton, views::ImageButton)
 END_METADATA
 
 void SetMinimizeIconToButton(views::ImageButton* button) {
-  button->SetImageModel(
+  button->SetImage(
       views::Button::ButtonState::STATE_NORMAL,
-      ui::ImageModel::FromVectorIcon(views::kWindowControlMinimizeIcon,
-                                     kHUDDefaultColor, kMinMaxButtonIconSize));
+      gfx::CreateVectorIcon(views::kWindowControlMinimizeIcon,
+                            kMinMaxButtonIconSize, kHUDDefaultColor));
 }
 
 void SetRestoreIconToButton(views::ImageButton* button) {
-  button->SetImageModel(
+  button->SetImage(
       views::Button::ButtonState::STATE_NORMAL,
-      ui::ImageModel::FromVectorIcon(views::kWindowControlRestoreIcon,
-                                     kHUDDefaultColor, kMinMaxButtonIconSize));
+      gfx::CreateVectorIcon(views::kWindowControlRestoreIcon,
+                            kMinMaxButtonIconSize, kHUDDefaultColor));
 }
 
 }  // namespace
@@ -93,15 +92,14 @@ END_METADATA
 GraphPageViewBase::GraphPageViewBase() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(ui_sequence_checker_);
 
-  // There are two overlaid children: reference lines and legend container.
+  // There are two overlaid children: grid and container for the legend.
   SetLayoutManager(std::make_unique<views::FillLayout>());
 
-  // |ReferenceLines| object is added after this object is fully initialized,
-  // but it should be located under control elements (or they will never receive
-  // events). This way we need to create a separate container for it.
-  reference_lines_container_ = AddChildView(std::make_unique<views::View>());
-  reference_lines_container_->SetLayoutManager(
-      std::make_unique<views::FillLayout>());
+  // Grid is added after this object is fully initialized, but it should be
+  // located under control elements (or they will never receive events). This
+  // way we need to create a separate container for it.
+  grid_container_ = AddChildView(std::make_unique<views::View>());
+  grid_container_->SetLayoutManager(std::make_unique<views::FillLayout>());
 
   // Legend is floating in its own container. Invisible border of
   // kLegendPositionOffset makes it float on top of the graph.
@@ -111,14 +109,13 @@ GraphPageViewBase::GraphPageViewBase() {
       ->SetLayoutManager(std::make_unique<views::BoxLayout>(
           views::BoxLayout::Orientation::kVertical))
       ->set_cross_axis_alignment(views::BoxLayout::CrossAxisAlignment::kStart);
-  legend_container_->SetBorder(views::CreateEmptyBorder(kLegendPositionOffset));
+  legend_container_->SetBorder(
+      views::CreateEmptyBorder(gfx::Insets(kLegendPositionOffset)));
   legend_container_->SetVisible(false);
 
   legend_min_max_button_ = legend_container_->AddChildView(
       std::make_unique<MinMaxButton>(base::BindRepeating(
           &GraphPageViewBase::OnButtonPressed, base::Unretained(this))));
-
-  legend_min_max_button_->SetTooltipText(u"Trigger graph legend");
   SetMinimizeIconToButton(legend_min_max_button_);
 }
 
@@ -143,21 +140,20 @@ void GraphPageViewBase::CreateLegend(
   legend_container_->SetVisible(true);
 }
 
-ReferenceLines* GraphPageViewBase::CreateReferenceLines(
-    float left,
-    float top,
-    float right,
-    float bottom,
-    const std::u16string& x_unit,
-    const std::u16string& y_unit,
-    int horizontal_points_number,
-    int horizontal_ticks_interval,
-    float vertical_ticks_interval) {
-  DCHECK(reference_lines_container_->children().empty());
-  return reference_lines_container_->AddChildView(
-      std::make_unique<ReferenceLines>(
-          left, top, right, bottom, x_unit, y_unit, horizontal_points_number,
-          horizontal_ticks_interval, vertical_ticks_interval));
+// Put grid in its dedicated container.
+Grid* GraphPageViewBase::CreateGrid(float left,
+                                    float top,
+                                    float right,
+                                    float bottom,
+                                    const base::string16& x_unit,
+                                    const base::string16& y_unit,
+                                    int horizontal_points_number,
+                                    int horizontal_ticks_interval,
+                                    float vertical_ticks_interval) {
+  DCHECK(grid_container_->children().empty());
+  return grid_container_->AddChildView(std::make_unique<Grid>(
+      left, top, right, bottom, x_unit, y_unit, horizontal_points_number,
+      horizontal_ticks_interval, vertical_ticks_interval));
 }
 
 void GraphPageViewBase::RefreshLegendValues() {

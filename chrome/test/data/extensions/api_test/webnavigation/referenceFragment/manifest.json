@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - referenceFragment.",
   "background": {
-    "scripts": ["test_referenceFragment.js"],
-    "persistent": true
+    "page": "test_referenceFragment.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

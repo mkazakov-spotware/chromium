@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 namespace internal {
 
@@ -29,7 +30,8 @@ struct ScopedLaunchDataTraits {
 using ScopedLaunchData =
     ScopedGeneric<launch_data_t, internal::ScopedLaunchDataTraits>;
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #pragma clang diagnostic pop  // -Wdeprecated-declarations
 

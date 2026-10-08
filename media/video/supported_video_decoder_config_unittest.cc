@@ -1,8 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "media/base/supported_video_decoder_config.h"
+#include "media/video/supported_video_decoder_config.h"
 #include "media/base/test_helpers.h"
 #include "media/base/video_codecs.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -13,7 +13,7 @@ class SupportedVideoDecoderConfigTest : public ::testing::Test {
  public:
   SupportedVideoDecoderConfigTest()
       : decoder_config_(
-            TestVideoConfig::NormalCodecProfile(VideoCodec::kH264,
+            TestVideoConfig::NormalCodecProfile(kCodecH264,
                                                 H264PROFILE_EXTENDED)) {
     supported_config_.profile_min = H264PROFILE_MIN;
     supported_config_.profile_max = H264PROFILE_MAX;

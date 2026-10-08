@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/apps/app_service/app_notifications.h"
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 
 namespace apps {
 
@@ -59,14 +59,6 @@ std::set<std::string> AppNotifications::GetAppIdsForNotification(
     return {};
   }
   return it->second;
-}
-
-AppPtr AppNotifications::CreateAppWithHasBadgeStatus(
-    AppType app_type,
-    const std::string& app_id) {
-  auto app = std::make_unique<App>(app_type, app_id);
-  app->has_badge = HasNotification(app_id);
-  return app;
 }
 
 apps::mojom::AppPtr AppNotifications::GetAppWithHasBadgeStatus(

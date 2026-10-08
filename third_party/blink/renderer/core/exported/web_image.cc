@@ -33,20 +33,18 @@
 #include <algorithm>
 #include <memory>
 #include "base/memory/scoped_refptr.h"
-#include "third_party/blink/public/mojom/css/preferred_color_scheme.mojom-blink.h"
 #include "third_party/blink/public/platform/web_data.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/renderer/core/svg/graphics/svg_image.h"
 #include "third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "third_party/skia/include/core/SkImage.h"
-#include "ui/gfx/geometry/size.h"
 
 namespace blink {
 
-SkBitmap WebImage::FromData(const WebData& data,
-                            const gfx::Size& desired_size) {
+SkBitmap WebImage::FromData(const WebData& data, const WebSize& desired_size) {
   const bool data_complete = true;
   std::unique_ptr<ImageDecoder> decoder(ImageDecoder::Create(
       data, data_complete, ImageDecoder::kAlphaPremultiplied,
@@ -57,18 +55,18 @@ SkBitmap WebImage::FromData(const WebData& data,
   // Frames are arranged by decreasing size, then decreasing bit depth.
   // Pick the frame closest to |desiredSize|'s area without being smaller,
   // which has the highest bit depth.
-  const wtf_size_t frame_count = decoder->FrameCount();
-  wtf_size_t index = 0;  // Default to first frame if none are large enough.
-  uint64_t frame_area_at_index = 0;
-  for (wtf_size_t i = 0; i < frame_count; ++i) {
-    const gfx::Size frame_size = decoder->FrameSizeAtIndex(i);
-    if (frame_size == desired_size) {
+  const size_t frame_count = decoder->FrameCount();
+  size_t index = 0;  // Default to first frame if none are large enough.
+  int frame_area_at_index = 0;
+  for (size_t i = 0; i < frame_count; ++i) {
+    const IntSize frame_size = decoder->FrameSizeAtIndex(i);
+    if (WebSize(frame_size) == desired_size) {
       index = i;
       break;  // Perfect match.
     }
 
-    uint64_t frame_area = frame_size.Area64();
-    if (frame_area < desired_size.Area64())
+    const int frame_area = frame_size.Width() * frame_size.Height();
+    if (frame_area < (desired_size.width * desired_size.height))
       break;  // No more frames that are large enough.
 
     if (!i || (frame_area < frame_area_at_index)) {
@@ -80,21 +78,10 @@ SkBitmap WebImage::FromData(const WebData& data,
   ImageFrame* frame = decoder->DecodeFrameBufferAtIndex(index);
   if (!frame || decoder->Failed())
     return {};
-
-  if (decoder->Orientation().Orientation() == ImageOrientationEnum::kDefault)
-    return frame->Bitmap();
-
-  cc::PaintImage paint_image(Image::ResizeAndOrientImage(
-      cc::PaintImage::CreateFromBitmap(frame->Bitmap()),
-      decoder->Orientation()));
-
-  SkBitmap bitmap;
-  paint_image.GetSwSkImage()->asLegacyBitmap(&bitmap);
-  return bitmap;
+  return frame->Bitmap();
 }
 
-SkBitmap WebImage::DecodeSVG(const WebData& data,
-                             const gfx::Size& desired_size) {
+SkBitmap WebImage::DecodeSVG(const WebData& data, const WebSize& desired_size) {
   scoped_refptr<SVGImage> svg_image = SVGImage::Create(nullptr);
   const bool data_complete = true;
   Image::SizeAvailability size_available =
@@ -108,11 +95,9 @@ SkBitmap WebImage::DecodeSVG(const WebData& data,
   // size. This is likely what most (all?) users of this function will
   // expect/want. If the desired size is empty, then use the intrinsic size of
   // image.
-  gfx::SizeF container_size(desired_size);
+  FloatSize container_size(desired_size);
   if (container_size.IsEmpty())
-    container_size = svg_image->ConcreteObjectSize(gfx::SizeF());
-  // TODO(chrishtr): perhaps the downloaded image should be decoded in dark
-  // mode if the preferred color scheme is dark.
+    container_size = svg_image->ConcreteObjectSize(FloatSize());
   scoped_refptr<Image> svg_container =
       SVGImageForContainer::Create(svg_image.get(), container_size, 1, KURL());
   if (PaintImage image = svg_container->PaintImageForCurrentFrame()) {
@@ -125,7 +110,7 @@ SkBitmap WebImage::DecodeSVG(const WebData& data,
 WebVector<SkBitmap> WebImage::FramesFromData(const WebData& data) {
   // This is to protect from malicious images. It should be big enough that it's
   // never hit in practice.
-  const wtf_size_t kMaxFrameCount = 8;
+  const size_t kMaxFrameCount = 8;
 
   const bool data_complete = true;
   std::unique_ptr<ImageDecoder> decoder(ImageDecoder::Create(
@@ -136,12 +121,12 @@ WebVector<SkBitmap> WebImage::FramesFromData(const WebData& data) {
 
   // Frames are arranged by decreasing size, then decreasing bit depth.
   // Keep the first frame at every size, has the highest bit depth.
-  const wtf_size_t frame_count = decoder->FrameCount();
-  gfx::Size last_size;
+  const size_t frame_count = decoder->FrameCount();
+  IntSize last_size;
 
   WebVector<SkBitmap> frames;
-  for (wtf_size_t i = 0; i < std::min(frame_count, kMaxFrameCount); ++i) {
-    const gfx::Size frame_size = decoder->FrameSizeAtIndex(i);
+  for (size_t i = 0; i < std::min(frame_count, kMaxFrameCount); ++i) {
+    const IntSize frame_size = decoder->FrameSizeAtIndex(i);
     if (frame_size == last_size)
       continue;
     last_size = frame_size;
@@ -167,12 +152,12 @@ WebVector<WebImage::AnimationFrame> WebImage::AnimationFromData(
   if (!decoder || !decoder->IsSizeAvailable() || decoder->FrameCount() == 0)
     return {};
 
-  const wtf_size_t frame_count = decoder->FrameCount();
-  gfx::Size last_size = decoder->FrameSizeAtIndex(0);
+  const size_t frame_count = decoder->FrameCount();
+  IntSize last_size = decoder->FrameSizeAtIndex(0);
 
   WebVector<WebImage::AnimationFrame> frames;
   frames.reserve(frame_count);
-  for (wtf_size_t i = 0; i < frame_count; ++i) {
+  for (size_t i = 0; i < frame_count; ++i) {
     // If frame size changes, this is most likely not an animation and is
     // instead an image with multiple versions at different resolutions. If
     // that's the case, return only the first frame (or no frames if we failed

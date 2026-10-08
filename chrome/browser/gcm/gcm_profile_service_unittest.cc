@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,40 +8,36 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/gcm/gcm_product_util.h"
 #include "chrome/browser/gcm/gcm_profile_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/gcm_driver/gcm_profile_service.h"
+#include "content/public/browser/browser_task_traits.h"
+#if defined(OS_CHROMEOS)
+#include "chromeos/dbus/dbus_thread_manager.h"
+#endif
 #include "components/gcm_driver/fake_gcm_app_handler.h"
 #include "components/gcm_driver/fake_gcm_client.h"
 #include "components/gcm_driver/fake_gcm_client_factory.h"
 #include "components/gcm_driver/gcm_client.h"
 #include "components/gcm_driver/gcm_client_factory.h"
 #include "components/gcm_driver/gcm_driver.h"
-#include "components/gcm_driver/gcm_profile_service.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "content/public/browser/browser_context.h"
-#include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_task_environment.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
-#include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/test/test_network_connection_tracker.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/ash/components/dbus/concierge/concierge_client.h"
-#endif
 
 namespace gcm {
 
@@ -57,7 +53,7 @@ void RequestProxyResolvingSocketFactoryOnUIThread(
         receiver) {
   if (!service)
     return;
-  return profile->GetDefaultStoragePartition()
+  return content::BrowserContext::GetDefaultStoragePartition(profile)
       ->GetNetworkContext()
       ->CreateProxyResolvingSocketFactory(std::move(receiver));
 }
@@ -81,7 +77,7 @@ std::unique_ptr<KeyedService> BuildGCMProfileService(
   return std::make_unique<gcm::GCMProfileService>(
       profile->GetPrefs(), profile->GetPath(),
       base::BindRepeating(&RequestProxyResolvingSocketFactory, profile),
-      profile->GetDefaultStoragePartition()
+      content::BrowserContext::GetDefaultStoragePartition(profile)
           ->GetURLLoaderFactoryForBrowserProcess(),
       network::TestNetworkConnectionTracker::GetInstance(),
       chrome::GetChannel(),
@@ -97,10 +93,6 @@ std::unique_ptr<KeyedService> BuildGCMProfileService(
 }  // namespace
 
 class GCMProfileServiceTest : public testing::Test {
- public:
-  GCMProfileServiceTest(const GCMProfileServiceTest&) = delete;
-  GCMProfileServiceTest& operator=(const GCMProfileServiceTest&) = delete;
-
  protected:
   GCMProfileServiceTest();
   ~GCMProfileServiceTest() override;
@@ -138,7 +130,7 @@ class GCMProfileServiceTest : public testing::Test {
  private:
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
-  raw_ptr<GCMProfileService> gcm_profile_service_;
+  GCMProfileService* gcm_profile_service_;
   std::unique_ptr<FakeGCMAppHandler> gcm_app_handler_;
 
   std::string registration_id_;
@@ -146,6 +138,8 @@ class GCMProfileServiceTest : public testing::Test {
   GCMClient::Result unregistration_result_;
   std::string send_message_id_;
   GCMClient::Result send_result_;
+
+  DISALLOW_COPY_AND_ASSIGN(GCMProfileServiceTest);
 };
 
 GCMProfileServiceTest::GCMProfileServiceTest()
@@ -163,8 +157,10 @@ FakeGCMClient* GCMProfileServiceTest::GetGCMClient() const {
 }
 
 void GCMProfileServiceTest::SetUp() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ConciergeClient::InitializeFake(/*fake_cicerone_client=*/nullptr);
+#if defined(OS_CHROMEOS)
+  // Create a DBus thread manager setter for its side effect.
+  // Ignore the return value.
+  chromeos::DBusThreadManager::GetSetterForTesting();
 #endif
   TestingProfile::Builder builder;
   profile_ = builder.Build();
@@ -172,10 +168,6 @@ void GCMProfileServiceTest::SetUp() {
 
 void GCMProfileServiceTest::TearDown() {
   gcm_profile_service_->driver()->RemoveAppHandler(kTestAppID);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  profile_.reset();
-  ash::ConciergeClient::Shutdown();
-#endif
 }
 
 void GCMProfileServiceTest::CreateGCMProfileService() {

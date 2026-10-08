@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Mock implementations of the Closure HTML5 FileSystem wrapper
@@ -14,11 +22,10 @@ goog.setTestOnly('goog.testing.fs');
 goog.provide('goog.testing.fs');
 
 goog.require('goog.Timer');
+goog.require('goog.array');
 goog.require('goog.async.Deferred');
-/** @suppress {extraRequire} used in mocking */
+/** @suppress {extraRequire} */
 goog.require('goog.fs');
-/** @suppress {extraRequire} used in mocking */
-goog.require('goog.fs.url');
 goog.require('goog.testing.PropertyReplacer');
 goog.require('goog.testing.fs.Blob');
 goog.require('goog.testing.fs.FileSystem');
@@ -33,8 +40,7 @@ goog.require('goog.testing.fs.FileSystem');
  *     {@link goog.testing.fs.FileSystem}.
  */
 goog.testing.fs.getTemporary = function(size) {
-  'use strict';
-  const d = new goog.async.Deferred();
+  var d = new goog.async.Deferred();
   goog.Timer.callOnce(
       goog.bind(d.callback, d, new goog.testing.fs.FileSystem()));
   return d;
@@ -50,7 +56,6 @@ goog.testing.fs.getTemporary = function(size) {
  *     {@link goog.testing.fs.FileSystem}.
  */
 goog.testing.fs.getPersistent = function(size) {
-  'use strict';
   return goog.testing.fs.getTemporary(size);
 };
 
@@ -71,8 +76,7 @@ goog.testing.fs.objectUrls_ = {};
  * @return {string} The URL.
  */
 goog.testing.fs.createObjectUrl = function(blob) {
-  'use strict';
-  const url = blob.toDataUrl();
+  var url = blob.toDataUrl();
   goog.testing.fs.objectUrls_[url] = true;
   return url;
 };
@@ -84,7 +88,6 @@ goog.testing.fs.createObjectUrl = function(blob) {
  * @param {string} url The URL to revoke.
  */
 goog.testing.fs.revokeObjectUrl = function(url) {
-  'use strict';
   delete goog.testing.fs.objectUrls_[url];
 };
 
@@ -96,7 +99,6 @@ goog.testing.fs.revokeObjectUrl = function(url) {
  * @return {boolean} Whether a URL has been granted.
  */
 goog.testing.fs.isObjectUrlGranted = function(blob) {
-  'use strict';
   return (blob.toDataUrl()) in goog.testing.fs.objectUrls_;
 };
 
@@ -109,9 +111,7 @@ goog.testing.fs.isObjectUrlGranted = function(blob) {
  * @return {!goog.testing.fs.Blob} The blob.
  */
 goog.testing.fs.getBlob = function(var_args) {
-  'use strict';
-  return new goog.testing.fs.Blob(
-      Array.prototype.map.call(arguments, String).join(''));
+  return new goog.testing.fs.Blob(goog.array.map(arguments, String).join(''));
 };
 
 
@@ -127,8 +127,22 @@ goog.testing.fs.getBlob = function(var_args) {
  * @return {!goog.testing.fs.Blob} The blob.
  */
 goog.testing.fs.getBlobWithProperties = function(parts, opt_type, opt_endings) {
-  'use strict';
-  return new goog.testing.fs.Blob(parts.map(String).join(''), opt_type);
+  return new goog.testing.fs.Blob(
+      goog.array.map(parts, String).join(''), opt_type);
+};
+
+
+/**
+ * Returns the string value of a fake blob.
+ *
+ * @param {!goog.testing.fs.Blob} blob The blob to convert to a string.
+ * @param {string=} opt_encoding Ignored.
+ * @return {!goog.async.Deferred} The deferred string value of the blob.
+ */
+goog.testing.fs.blobToString = function(blob, opt_encoding) {
+  var d = new goog.async.Deferred();
+  goog.Timer.callOnce(goog.bind(d.callback, d, blob.toString()));
+  return d;
 };
 
 
@@ -142,10 +156,9 @@ goog.testing.fs.getBlobWithProperties = function(parts, opt_type, opt_endings) {
  * @param {!goog.testing.fs.Blob} testBlob The blob to slice.
  * @param {number} start Index of the starting byte.
  * @param {number=} opt_end Index of the ending byte.
- * @return {!goog.testing.fs.Blob} The new blob or null if not supported.
+ * @return {goog.testing.fs.Blob} The new blob or null if not supported.
  */
 goog.testing.fs.sliceBlob = function(testBlob, start, opt_end) {
-  'use strict';
   return testBlob.slice(start, opt_end);
 };
 
@@ -158,21 +171,16 @@ goog.testing.fs.sliceBlob = function(testBlob, start, opt_end) {
  *     stubbing out the original goog.fs functions.
  */
 goog.testing.fs.install = function(stubs) {
-  'use strict';
   // Prevent warnings that goog.fs may get optimized away. It's true this is
   // unsafe in compiled code, but it's only meant for tests.
-  const fs = goog.getObjectByName('goog.fs');
-  const fsUrl = goog.getObjectByName('goog.fs.url');
+  var fs = goog.getObjectByName('goog.fs');
   stubs.replace(fs, 'getTemporary', goog.testing.fs.getTemporary);
   stubs.replace(fs, 'getPersistent', goog.testing.fs.getPersistent);
-  stubs.replace(fsUrl, 'createObjectUrl', goog.testing.fs.createObjectUrl);
-  stubs.replace(fsUrl, 'revokeObjectUrl', goog.testing.fs.revokeObjectUrl);
-  stubs.replace(fsUrl, 'browserSupportsObjectUrls', function() {
-    'use strict';
-    return true;
-  });
-  const fsBlob = goog.getObjectByName('goog.fs.blob');
-  stubs.replace(fsBlob, 'getBlob', goog.testing.fs.getBlob);
+  stubs.replace(fs, 'createObjectUrl', goog.testing.fs.createObjectUrl);
+  stubs.replace(fs, 'revokeObjectUrl', goog.testing.fs.revokeObjectUrl);
+  stubs.replace(fs, 'getBlob', goog.testing.fs.getBlob);
   stubs.replace(
-      fsBlob, 'getBlobWithProperties', goog.testing.fs.getBlobWithProperties);
+      fs, 'getBlobWithProperties', goog.testing.fs.getBlobWithProperties);
+  stubs.replace(fs, 'blobToString', goog.testing.fs.blobToString);
+  stubs.replace(fs, 'browserSupportsObjectUrls', function() { return true; });
 };

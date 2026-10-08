@@ -1,15 +1,13 @@
 /*
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 /**
  * Launch PaymentRequest with a show promise and US-only shipping.
- * @param {string} supportedMethods The payment method that is supported by this
- *        request.
  */
-function buyWithMethods(supportedMethods) {
+function buy() { // eslint-disable-line no-unused-vars
   var detailsForUSAddress = {
     shippingOptions: [{
       id: '1',
@@ -23,7 +21,7 @@ function buyWithMethods(supportedMethods) {
 
   try {
     var request = new PaymentRequest(
-        [{supportedMethods}], {
+        [{supportedMethods: 'basic-card'}], {
           total: {
             label: 'PENDING TOTAL',
             amount: {currency: 'USD', value: '99.99'},

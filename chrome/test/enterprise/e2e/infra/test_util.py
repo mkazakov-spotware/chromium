@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Contains utility methods that can be used by python tests on Windows."""
@@ -41,15 +41,6 @@ def shutdown_chrome():
   # wait a little bit for chrome processes to end.
   # TODO: the right way is to wait until there are no chrome.exe processes.
   time.sleep(2)
-
-
-def getElementFromShadowRoot(driver, element, selector):
-  if element is None:
-    return None
-  else:
-    return driver.execute_script(
-        "return arguments[0].shadowRoot.querySelector(arguments[1])", element,
-        selector)
 
 
 def create_chrome_webdriver(chrome_options=None, incognito=False, prefs=None):

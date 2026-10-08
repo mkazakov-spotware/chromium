@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <windows.h>
 #include <wrl/client.h>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/gl/gl_export.h"
 #include "ui/gl/gl_image.h"
 
@@ -23,22 +22,13 @@ class GL_EXPORT GLImageD3D : public GLImage {
   // |internal_format| and |data_type| are passed to ANGLE and used for GL
   // operations.  |internal_format| may be different from the internal format
   // associated with the DXGI_FORMAT of the texture (e.g. RGB instead of
-  // BGRA_EXT for DXGI_FORMAT_B8G8R8A8_UNORM). |data_type| should match the data
-  // type accociated with the DXGI_FORMAT of the texture.  |array_slice| is used
-  // when the |texture| is a D3D11 texture array, and |plane_index| is used for
-  // specifying the plane to bind to for multi-planar YUV textures.
-  // See EGL_ANGLE_d3d_texture_client_buffer spec for format restrictions.
+  // BGRA_EXT for DXGI_FORMAT_B8G8R8A8_UNORM).  |data_type| should match the
+  // data type accociated with the DXGI_FORMAT of the texture.
   GLImageD3D(const gfx::Size& size,
              unsigned internal_format,
              unsigned data_type,
-             const gfx::ColorSpace& color_space,
              Microsoft::WRL::ComPtr<ID3D11Texture2D> texture,
-             size_t array_slice = 0,
-             size_t plane_index = 0,
-             Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain = nullptr);
-
-  GLImageD3D(const GLImageD3D&) = delete;
-  GLImageD3D& operator=(const GLImageD3D&) = delete;
+             Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain);
 
   // Safe downcast. Returns nullptr on failure.
   static GLImageD3D* FromGLImage(GLImage* image);
@@ -47,7 +37,6 @@ class GL_EXPORT GLImageD3D : public GLImage {
 
   // GLImage implementation
   Type GetType() const override;
-  void* GetEGLImage() const override;
   BindOrCopy ShouldBindOrCopy() override;
   gfx::Size GetSize() override;
   unsigned GetInternalFormat() override;
@@ -58,34 +47,37 @@ class GL_EXPORT GLImageD3D : public GLImage {
   bool CopyTexSubImage(unsigned target,
                        const gfx::Point& offset,
                        const gfx::Rect& rect) override;
+  void Flush() override {}
   void OnMemoryDump(base::trace_event::ProcessMemoryDump* pmd,
                     uint64_t process_tracing_id,
                     const std::string& dump_name) override;
+  bool ScheduleOverlayPlane(gfx::AcceleratedWidget widget,
+                            int z_order,
+                            gfx::OverlayTransform transform,
+                            const gfx::Rect& bounds_rect,
+                            const gfx::RectF& crop_rect,
+                            bool enable_blend,
+                            std::unique_ptr<gfx::GpuFence> gpu_fence) override;
 
   const Microsoft::WRL::ComPtr<ID3D11Texture2D>& texture() const {
     return texture_;
   }
+
   const Microsoft::WRL::ComPtr<IDXGISwapChain1>& swap_chain() const {
     return swap_chain_;
   }
-  size_t array_slice() const { return array_slice_; }
-  size_t plane_index() const { return plane_index_; }
-
- protected:
-  const gfx::Size size_;
-  const unsigned internal_format_;  // GLenum
-  const unsigned data_type_;        // GLenum
-
-  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture_;
-  const size_t array_slice_;
-  const size_t plane_index_;
-
-  Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain_;
 
  private:
   ~GLImageD3D() override;
 
-  raw_ptr<void> egl_image_ = nullptr;  // EGLImageKHR
+  const gfx::Size size_;
+  const unsigned internal_format_;  // GLenum
+  const unsigned data_type_;        // GLenum
+  void* egl_image_ = nullptr;       // EGLImageKHR
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture_;
+  Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain_;
+
+  DISALLOW_COPY_AND_ASSIGN(GLImageD3D);
 };
 
 }  // namespace gl

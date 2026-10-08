@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/ui/cocoa/tab_menu_bridge.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
 #include "chrome/test/base/testing_profile.h"
@@ -80,7 +79,7 @@ class TabMenuBridgeTest : public ::testing::Test {
   }
 
   int ModelIndexForTabNamed(const std::string& name) {
-    std::u16string title16 = base::UTF8ToUTF16(name);
+    base::string16 title16 = base::UTF8ToUTF16(name);
     for (int i = 0; i < model()->count(); ++i) {
       if (model()->GetWebContentsAt(i)->GetTitle() == title16)
         return i;
@@ -91,7 +90,7 @@ class TabMenuBridgeTest : public ::testing::Test {
   void RemoveModelTabNamed(const std::string& name) {
     int index = ModelIndexForTabNamed(name);
     DCHECK(index >= 0);
-    model()->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+    model()->CloseWebContentsAt(index, TabStripModel::CLOSE_NONE);
   }
 
   void RenameModelTabNamed(const std::string& old_name,
@@ -149,7 +148,7 @@ class TabMenuBridgeTest : public ::testing::Test {
     // Check the static items too, to make sure none of them are checked.
     for (int i = 0; i < menu().numberOfItems; ++i) {
       NSMenuItem* item = [menu() itemAtIndex:i];
-      if (item.state == NSControlStateValueOn)
+      if (item.state == NSOnState)
         active_items.push_back(base::SysNSStringToUTF8(item.title));
     }
 
@@ -205,23 +204,6 @@ TEST_F(TabMenuBridgeTest, TracksModelUpdates) {
   ReplaceModelTabNamed("Tab 4", "Tab 5");
   ASSERT_NE(GetModelWebContentsAt(0), old_contents);
   ExpectDynamicTabsInMenuAre({"Tab 5", "Tab 3", "Tab 2"});
-}
-
-// Tests that dynamic menu items added by the bridge are removed on
-// bridge destruction.
-TEST_F(TabMenuBridgeTest, RemoveDynamicMenuItemsOnDestruct) {
-  std::unique_ptr<TabMenuBridge> bridge =
-      std::make_unique<TabMenuBridge>(model(), menu_root());
-  bridge->BuildMenu();
-
-  AddModelTabNamed("Tab 1");
-  AddModelTabNamed("Tab 2");
-  AddModelTabNamed("Tab 3");
-  ExpectDynamicTabsInMenuAre({"Tab 1", "Tab 2", "Tab 3"});
-
-  bridge.reset();
-
-  ExpectDynamicTabsInMenuAre({});
 }
 
 TEST_F(TabMenuBridgeTest, ClickingMenuActivatesTab) {

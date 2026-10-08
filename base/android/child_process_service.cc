@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include "base/debug/dump_without_crashing.h"
 #include "base/file_descriptor_store.h"
 #include "base/logging.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/posix/global_descriptors.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 using base::android::JavaIntArrayToIntVector;
 using base::android::JavaParamRef;
@@ -25,11 +26,11 @@ void JNI_ChildProcessService_RegisterFileDescriptors(
     const JavaParamRef<jintArray>& j_fds,
     const JavaParamRef<jlongArray>& j_offsets,
     const JavaParamRef<jlongArray>& j_sizes) {
-  std::vector<absl::optional<std::string>> keys;
+  std::vector<base::Optional<std::string>> keys;
   JavaObjectArrayReader<jstring> keys_array(j_keys);
-  keys.reserve(checked_cast<size_t>(keys_array.size()));
+  keys.reserve(keys_array.size());
   for (auto str : keys_array) {
-    absl::optional<std::string> key;
+    base::Optional<std::string> key;
     if (str) {
       key = base::android::ConvertJavaStringToUTF8(env, str);
     }
@@ -51,10 +52,9 @@ void JNI_ChildProcessService_RegisterFileDescriptors(
   DCHECK_EQ(offsets.size(), sizes.size());
 
   for (size_t i = 0; i < ids.size(); i++) {
-    base::MemoryMappedFile::Region region = {offsets.at(i),
-                                             static_cast<size_t>(sizes.at(i))};
-    const absl::optional<std::string>& key = keys.at(i);
-    const auto id = static_cast<GlobalDescriptors::Key>(ids.at(i));
+    base::MemoryMappedFile::Region region = {offsets.at(i), sizes.at(i)};
+    const base::Optional<std::string>& key = keys.at(i);
+    int id = ids.at(i);
     int fd = fds.at(i);
     if (key) {
       base::FileDescriptorStore::GetInstance().Set(*key, base::ScopedFD(fd),

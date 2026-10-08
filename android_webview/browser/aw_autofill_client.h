@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 
 #include "base/android/jni_weak_ref.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/autofill/core/browser/autofill_client.h"
 #include "components/autofill/core/browser/payments/legal_message_line.h"
 #include "content/public/browser/web_contents_user_data.h"
@@ -19,13 +19,12 @@
 
 namespace autofill {
 class AutocompleteHistoryManager;
-class AutofillDriver;
 class AutofillPopupDelegate;
+class CardUnmaskDelegate;
 class CreditCard;
 class FormStructure;
 class PersonalDataManager;
 class StrikeDatabase;
-struct CardUnmaskPromptOptions;
 }  // namespace autofill
 
 namespace content {
@@ -55,20 +54,16 @@ namespace android_webview {
 class AwAutofillClient : public autofill::AutofillClient,
                          public content::WebContentsUserData<AwAutofillClient> {
  public:
-  AwAutofillClient(const AwAutofillClient&) = delete;
-  AwAutofillClient& operator=(const AwAutofillClient&) = delete;
-
   ~AwAutofillClient() override;
 
   void SetSaveFormData(bool enabled);
-  bool GetSaveFormData() const;
+  bool GetSaveFormData();
 
   // AutofillClient:
   autofill::PersonalDataManager* GetPersonalDataManager() override;
   autofill::AutocompleteHistoryManager* GetAutocompleteHistoryManager()
       override;
   PrefService* GetPrefs() override;
-  const PrefService* GetPrefs() const override;
   syncer::SyncService* GetSyncService() override;
   signin::IdentityManager* GetIdentityManager() override;
   autofill::FormDataImporter* GetFormDataImporter() override;
@@ -77,22 +72,20 @@ class AwAutofillClient : public autofill::AutofillClient,
   ukm::UkmRecorder* GetUkmRecorder() override;
   ukm::SourceId GetUkmSourceId() override;
   autofill::AddressNormalizer* GetAddressNormalizer() override;
-  const GURL& GetLastCommittedPrimaryMainFrameURL() const override;
-  url::Origin GetLastCommittedPrimaryMainFrameOrigin() const override;
+  const GURL& GetLastCommittedURL() override;
   security_state::SecurityLevel GetSecurityLevelForUmaHistograms() override;
   const translate::LanguageState* GetLanguageState() override;
-  translate::TranslateDriver* GetTranslateDriver() override;
   void ShowAutofillSettings(bool show_credit_card_settings) override;
   void ShowUnmaskPrompt(
       const autofill::CreditCard& card,
-      const autofill::CardUnmaskPromptOptions& card_unmask_prompt_options,
+      UnmaskCardReason reason,
       base::WeakPtr<autofill::CardUnmaskDelegate> delegate) override;
   void OnUnmaskVerificationResult(PaymentsRpcResult result) override;
   void ConfirmAccountNameFixFlow(
-      base::OnceCallback<void(const std::u16string&)> callback) override;
+      base::OnceCallback<void(const base::string16&)> callback) override;
   void ConfirmExpirationDateFixFlow(
       const autofill::CreditCard& card,
-      base::OnceCallback<void(const std::u16string&, const std::u16string&)>
+      base::OnceCallback<void(const base::string16&, const base::string16&)>
           callback) override;
   void ConfirmSaveCreditCardLocally(
       const autofill::CreditCard& card,
@@ -106,49 +99,30 @@ class AwAutofillClient : public autofill::AutofillClient,
   void CreditCardUploadCompleted(bool card_saved) override;
   void ConfirmCreditCardFillAssist(const autofill::CreditCard& card,
                                    base::OnceClosure callback) override;
-  void ConfirmSaveAddressProfile(
-      const autofill::AutofillProfile& profile,
-      const autofill::AutofillProfile* original_profile,
-      SaveAddressProfilePromptOptions options,
-      AddressProfileSavePromptCallback callback) override;
   bool HasCreditCardScanFeature() override;
   void ScanCreditCard(CreditCardScanCallback callback) override;
-  bool IsFastCheckoutSupported() override;
-  bool IsFastCheckoutTriggerForm(const autofill::FormData& form,
-                                 const autofill::FormFieldData& field) override;
-  bool ShowFastCheckout(
-      base::WeakPtr<autofill::FastCheckoutDelegate> delegate) override;
-  void HideFastCheckout() override;
-  bool IsTouchToFillCreditCardSupported() override;
-  bool ShowTouchToFillCreditCard(
-      base::WeakPtr<autofill::TouchToFillDelegate> delegate,
-      base::span<const autofill::CreditCard* const> cards_to_suggest) override;
-  void HideTouchToFillCreditCard() override;
   void ShowAutofillPopup(
       const autofill::AutofillClient::PopupOpenArgs& open_args,
       base::WeakPtr<autofill::AutofillPopupDelegate> delegate) override;
   void UpdateAutofillPopupDataListValues(
-      const std::vector<std::u16string>& values,
-      const std::vector<std::u16string>& labels) override;
+      const std::vector<base::string16>& values,
+      const std::vector<base::string16>& labels) override;
   base::span<const autofill::Suggestion> GetPopupSuggestions() const override;
   void PinPopupView() override;
   autofill::AutofillClient::PopupOpenArgs GetReopenPopupArgs() const override;
   void UpdatePopup(const std::vector<autofill::Suggestion>& suggestions,
                    autofill::PopupType popup_type) override;
   void HideAutofillPopup(autofill::PopupHidingReason reason) override;
-  bool IsAutocompleteEnabled() const override;
-  bool IsPasswordManagerEnabled() override;
+  bool IsAutocompleteEnabled() override;
   void PropagateAutofillPredictions(
-      autofill::AutofillDriver* driver,
+      content::RenderFrameHost* rfh,
       const std::vector<autofill::FormStructure*>& forms) override;
-  void DidFillOrPreviewField(const std::u16string& autofilled_value,
-                             const std::u16string& profile_full_name) override;
-  bool IsContextSecure() const override;
+  void DidFillOrPreviewField(const base::string16& autofilled_value,
+                             const base::string16& profile_full_name) override;
+  bool IsContextSecure() override;
   bool ShouldShowSigninPromo() override;
-  bool AreServerCardsSupported() const override;
+  bool AreServerCardsSupported() override;
   void ExecuteCommand(int id) override;
-  void OpenPromoCodeOfferDetailsURL(const GURL& url) override;
-  autofill::FormInteractionsFlowId GetCurrentFormInteractionsFlowId() override;
 
   // RiskDataLoader:
   void LoadRiskData(
@@ -168,8 +142,8 @@ class AwAutofillClient : public autofill::AutofillClient,
       bool is_rtl,
       const std::vector<autofill::Suggestion>& suggestions);
 
-  content::WebContents& GetWebContents() const;
-
+  // The web_contents associated with this delegate.
+  content::WebContents* web_contents_;
   bool save_form_data_ = false;
   JavaObjectWeakGlobalRef java_ref_;
 
@@ -179,7 +153,13 @@ class AwAutofillClient : public autofill::AutofillClient,
   std::vector<autofill::Suggestion> suggestions_;
   base::WeakPtr<autofill::AutofillPopupDelegate> delegate_;
 
+  // Tracks whether the autocomplete enabled metric has already been logged for
+  // this client.
+  bool autocomplete_uma_recorded_ = false;
+
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(AwAutofillClient);
 };
 
 }  // namespace android_webview

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,16 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/callback.h"
-#include "base/strings/utf_string_conversions.h"
-#include "base/trace_event/trace_event.h"
-
 #include "chrome/android/features/keyboard_accessory/jni_headers/AutofillKeyboardAccessoryViewBridge_jni.h"
 #include "chrome/browser/android/resource_mapper.h"
-#include "chrome/browser/autofill/autofill_popup_controller_utils.h"
 #include "chrome/browser/ui/autofill/autofill_popup_controller.h"
+#include "chrome/browser/ui/autofill/autofill_popup_controller_utils.h"
 #include "components/autofill/core/browser/ui/suggestion.h"
-#include "components/autofill/core/common/autofill_payments_features.h"
 #include "ui/android/view_android.h"
 #include "ui/android/window_android.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "url/android/gurl_android.h"
 
 using base::android::ConvertUTF16ToJavaString;
-using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaParamRef;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
@@ -32,7 +26,7 @@ using base::android::ScopedJavaLocalRef;
 namespace autofill {
 
 AutofillKeyboardAccessoryView::AutofillKeyboardAccessoryView(
-    base::WeakPtr<AutofillPopupController> controller)
+    AutofillPopupController* controller)
     : controller_(controller) {
   java_object_.Reset(Java_AutofillKeyboardAccessoryViewBridge_create(
       base::android::AttachCurrentThread()));
@@ -57,13 +51,11 @@ bool AutofillKeyboardAccessoryView::Initialize() {
 }
 
 void AutofillKeyboardAccessoryView::Hide() {
-  TRACE_EVENT0("passwords", "AutofillKeyboardAccessoryView::Hide");
   Java_AutofillKeyboardAccessoryViewBridge_dismiss(
       base::android::AttachCurrentThread(), java_object_);
 }
 
 void AutofillKeyboardAccessoryView::Show() {
-  TRACE_EVENT0("passwords", "AutofillKeyboardAccessoryView::Show");
   JNIEnv* env = base::android::AttachCurrentThread();
   ScopedJavaLocalRef<jobjectArray> data_array =
       Java_AutofillKeyboardAccessoryViewBridge_createAutofillSuggestionArray(
@@ -78,36 +70,20 @@ void AutofillKeyboardAccessoryView::Show() {
           GetIconResourceID(suggestion.icon));
     }
 
-    std::u16string value;
-    std::u16string label;
-    if (controller_->GetSuggestionMinorTextAt(i).empty()) {
-      value = controller_->GetSuggestionMainTextAt(i);
-      std::vector<std::vector<autofill::Suggestion::Text>> suggestion_labels =
-          controller_->GetSuggestionLabelsAt(i);
-      if (!suggestion_labels.empty()) {
-        DCHECK_EQ(suggestion_labels[0].size(), 1U);
-        label = std::move(suggestion_labels[0][0].value);
-      }
-    } else {
-      value = controller_->GetSuggestionMainTextAt(i);
-      label = controller_->GetSuggestionMinorTextAt(i);
-    }
-
     Java_AutofillKeyboardAccessoryViewBridge_addToAutofillSuggestionArray(
-        env, data_array, position++, ConvertUTF16ToJavaString(env, value),
-        ConvertUTF16ToJavaString(env, label), android_icon_id,
-        suggestion.frontend_id,
-        controller_->GetRemovalConfirmationText(i, nullptr, nullptr),
-        ConvertUTF8ToJavaString(env, suggestion.feature_for_iph),
-        url::GURLAndroid::FromNativeGURL(env, suggestion.custom_icon_url));
+        env, data_array, position++,
+        ConvertUTF16ToJavaString(env, controller_->GetSuggestionValueAt(i)),
+        ConvertUTF16ToJavaString(env, controller_->GetSuggestionLabelAt(i)),
+        android_icon_id, suggestion.frontend_id,
+        controller_->GetRemovalConfirmationText(i, nullptr, nullptr));
   }
   Java_AutofillKeyboardAccessoryViewBridge_show(env, java_object_, data_array,
                                                 controller_->IsRTL());
 }
 
 void AutofillKeyboardAccessoryView::ConfirmDeletion(
-    const std::u16string& confirmation_title,
-    const std::u16string& confirmation_body,
+    const base::string16& confirmation_title,
+    const base::string16& confirmation_body,
     base::OnceClosure confirm_deletion) {
   JNIEnv* env = base::android::AttachCurrentThread();
   confirm_deletion_ = std::move(confirm_deletion);

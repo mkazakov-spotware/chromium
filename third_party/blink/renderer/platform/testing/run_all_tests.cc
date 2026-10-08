@@ -31,29 +31,20 @@
 #include <memory>
 #include "base/bind.h"
 #include "base/test/launcher/unit_test_launcher.h"
-#include "base/test/task_environment.h"
 #include "base/test/test_io_thread.h"
 #include "base/test/test_suite.h"
 #include "build/build_config.h"
-#include "gin/array_buffer.h"
-#include "gin/public/isolate_holder.h"
 #include "mojo/core/embedder/embedder.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
-#include "third_party/blink/renderer/platform/heap/thread_state.h"
-#include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
-
-#if BUILDFLAG(IS_FUCHSIA)
 #include "skia/ext/test_fonts.h"
-#endif
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
 
 namespace {
 
 int runTestSuite(base::TestSuite* testSuite) {
   int result = testSuite->Run();
-  {
-    base::test::TaskEnvironment task_environment_;
-    blink::ThreadState::Current()->CollectAllGarbageForTesting();
-  }
+  blink::ThreadState::Current()->CollectAllGarbageForTesting();
   return result;
 }
 
@@ -63,22 +54,21 @@ int main(int argc, char** argv) {
   blink::ScopedUnittestsEnvironmentSetup testEnvironmentSetup(argc, argv);
   int result = 0;
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   // Some unittests depend on specific fonts provided by the system (e.g. some
   // tests load Arial). On Fuchsia the default font set contains only Roboto.
   // Load //third_party/test_fonts to make these tests pass on Fuchsia.
-  skia::InitializeSkFontMgrForTest();
+  skia::ConfigureTestFont();
 #endif
 
   {
     base::TestSuite testSuite(argc, argv);
+
     mojo::core::Init();
     base::TestIOThread testIoThread(base::TestIOThread::kAutoStart);
     mojo::core::ScopedIPCSupport ipcSupport(
         testIoThread.task_runner(),
         mojo::core::ScopedIPCSupport::ShutdownPolicy::CLEAN);
-    gin::IsolateHolder::Initialize(gin::IsolateHolder::kStrictMode,
-                                   gin::ArrayBufferAllocator::SharedInstance());
     result = base::LaunchUnitTests(
         argc, argv, base::BindOnce(runTestSuite, base::Unretained(&testSuite)));
   }

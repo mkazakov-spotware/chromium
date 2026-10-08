@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - forwardBack.",
   "background": {
-    "scripts": ["test_forwardBack.js"],
-    "persistent": true
+    "page": "test_forwardBack.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/test/test_background_sync_manager.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "content/browser/devtools/devtools_background_services_context_impl.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
@@ -39,7 +39,7 @@ void TestBackgroundSyncManager::StoreDataInBackend(
     ServiceWorkerRegistry::StatusCallback callback) {
   EXPECT_FALSE(continuation_);
   if (corrupt_backend_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback),
                        blink::ServiceWorkerStatusCode::kErrorFailed));
@@ -60,7 +60,7 @@ void TestBackgroundSyncManager::GetDataFromBackend(
     ServiceWorkerRegistry::GetUserDataForAllRegistrationsCallback callback) {
   EXPECT_FALSE(continuation_);
   if (corrupt_backend_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback),
                        std::vector<std::pair<int64_t, std::string>>(),
@@ -95,7 +95,7 @@ void TestBackgroundSyncManager::DispatchPeriodicSyncEvent(
 }
 
 void TestBackgroundSyncManager::HasMainFrameWindowClient(
-    const blink::StorageKey& key,
+    const url::Origin& origin,
     BoolCallback callback) {
   std::move(callback).Run(has_main_frame_window_client_);
 }
@@ -106,8 +106,8 @@ void TestBackgroundSyncManager::FireReadyEvents(
     base::OnceClosure callback,
     std::unique_ptr<BackgroundSyncEventKeepAlive> keepalive) {
   if (dont_fire_sync_events_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(callback));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  std::move(callback));
   } else {
     BackgroundSyncManager::FireReadyEvents(
         sync_type, reschedule, std::move(callback), std::move(keepalive));

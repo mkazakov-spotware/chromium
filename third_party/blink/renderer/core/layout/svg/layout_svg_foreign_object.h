@@ -26,6 +26,8 @@
 
 namespace blink {
 
+class SVGForeignObjectElement;
+
 // LayoutSVGForeignObject is the LayoutObject associated with <foreignobject>.
 // http://www.w3.org/TR/SVG/extend.html#ForeignObjectElement
 //
@@ -50,7 +52,7 @@ namespace blink {
 // compatible with the expectations of the getBBox() DOM interface.
 class LayoutSVGForeignObject final : public LayoutSVGBlock {
  public:
-  explicit LayoutSVGForeignObject(Element*);
+  explicit LayoutSVGForeignObject(SVGForeignObjectElement*);
   ~LayoutSVGForeignObject() override;
 
   const char* GetName() const override {
@@ -64,17 +66,17 @@ class LayoutSVGForeignObject final : public LayoutSVGBlock {
 
   void UpdateLayout() override;
 
-  gfx::RectF ObjectBoundingBox() const override {
+  FloatRect ObjectBoundingBox() const override {
     NOT_DESTROYED();
     return viewport_;
   }
-  gfx::RectF StrokeBoundingBox() const override {
+  FloatRect StrokeBoundingBox() const override {
     NOT_DESTROYED();
-    return VisualRectInLocalSVGCoordinates();
+    return ObjectBoundingBox();
   }
-  gfx::RectF VisualRectInLocalSVGCoordinates() const override {
+  FloatRect VisualRectInLocalSVGCoordinates() const override {
     NOT_DESTROYED();
-    return gfx::RectF(FrameRect());
+    return FloatRect(FrameRect());
   }
   bool IsObjectBoundingBoxValid() const {
     NOT_DESTROYED();
@@ -84,7 +86,7 @@ class LayoutSVGForeignObject final : public LayoutSVGBlock {
   bool NodeAtPoint(HitTestResult&,
                    const HitTestLocation&,
                    const PhysicalOffset&,
-                   HitTestPhase) override;
+                   HitTestAction) override;
 
   // A method to call when recursively hit testing from an SVG parent.
   // Since LayoutSVGRoot has a PaintLayer always, this will cause a
@@ -93,7 +95,7 @@ class LayoutSVGForeignObject final : public LayoutSVGBlock {
   bool NodeAtPointFromSVG(HitTestResult&,
                           const HitTestLocation&,
                           const PhysicalOffset&,
-                          HitTestPhase);
+                          HitTestAction);
 
   bool IsOfType(LayoutObjectType type) const override {
     NOT_DESTROYED();
@@ -115,11 +117,12 @@ class LayoutSVGForeignObject final : public LayoutSVGBlock {
   void ComputeLogicalHeight(LayoutUnit logical_height,
                             LayoutUnit logical_top,
                             LogicalExtentComputedValues&) const override;
+  void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
   AffineTransform LocalToSVGParentTransform() const override;
 
   // The resolved viewport in the regular SVG coordinate space (after any
   // 'transform' has been applied but without zoom-adjustment).
-  gfx::RectF viewport_;
+  FloatRect viewport_;
 };
 
 template <>
@@ -131,4 +134,4 @@ struct DowncastTraits<LayoutSVGForeignObject> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_SVG_LAYOUT_SVG_FOREIGN_OBJECT_H_
+#endif

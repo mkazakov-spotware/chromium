@@ -1,13 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_FLAGS_UI_PREF_SERVICE_FLAGS_STORAGE_H_
 #define COMPONENTS_FLAGS_UI_PREF_SERVICE_FLAGS_STORAGE_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/flags_ui/flags_storage.h"
 
 class PrefService;
@@ -24,10 +23,6 @@ namespace flags_ui {
 class PrefServiceFlagsStorage : public FlagsStorage {
  public:
   explicit PrefServiceFlagsStorage(PrefService* prefs);
-
-  PrefServiceFlagsStorage(const PrefServiceFlagsStorage&) = delete;
-  PrefServiceFlagsStorage& operator=(const PrefServiceFlagsStorage&) = delete;
-
   ~PrefServiceFlagsStorage() override;
 
   std::set<std::string> GetFlags() const override;
@@ -40,12 +35,14 @@ class PrefServiceFlagsStorage : public FlagsStorage {
 
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
  private:
-  raw_ptr<PrefService> prefs_;
+  PrefService* prefs_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefServiceFlagsStorage);
 };
 
 }  // namespace flags_ui

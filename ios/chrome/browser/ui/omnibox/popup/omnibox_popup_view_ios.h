@@ -1,12 +1,16 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef IOS_CHROME_BROWSER_UI_OMNIBOX_POPUP_OMNIBOX_POPUP_VIEW_IOS_H_
-#define IOS_CHROME_BROWSER_UI_OMNIBOX_POPUP_OMNIBOX_POPUP_VIEW_IOS_H_
+#ifndef IOS_CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_POPUP_VIEW_IOS_H_
+#define IOS_CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_POPUP_VIEW_IOS_H_
 
 #import <UIKit/UIKit.h>
 
+#include <memory>
+
+#include "base/strings/string16.h"
+#include "components/omnibox/browser/omnibox_popup_model.h"
 #include "components/omnibox/browser/omnibox_popup_view.h"
 #import "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_mediator.h"
 #include "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_provider.h"
@@ -25,8 +29,8 @@ class OmniboxPopupViewIOS : public OmniboxPopupView,
                       OmniboxPopupViewSuggestionsDelegate* delegate);
   ~OmniboxPopupViewIOS() override;
 
-  // Model used for this.
-  OmniboxEditModel* model() const;
+  // Popup model used for this.
+  OmniboxPopupModel* model() const;
 
   // OmniboxPopupView implementation.
   bool IsOpen() const override;
@@ -36,6 +40,8 @@ class OmniboxPopupViewIOS : public OmniboxPopupView,
   void OnMatchIconUpdated(size_t match_index) override {}
   void OnDragCanceled() override {}
 
+  void UpdateEditViewIcon();
+
   // OmniboxPopupProvider implemetation.
   void SetTextAlignment(NSTextAlignment alignment) override;
   void SetSemanticContentAttribute(
@@ -44,7 +50,8 @@ class OmniboxPopupViewIOS : public OmniboxPopupView,
 
   // OmniboxPopupViewControllerDelegate implementation.
   bool IsStarredMatch(const AutocompleteMatch& match) const override;
-  // `disposition` should be CURRENT_TAB is the match should be loaded,
+  void OnMatchHighlighted(size_t row) override;
+  // |disposition| should be CURRENT_TAB is the match should be loaded,
   // SWITCH_TO_TAB if it should switch to this tab.
   void OnMatchSelected(const AutocompleteMatch& match,
                        size_t row,
@@ -56,9 +63,9 @@ class OmniboxPopupViewIOS : public OmniboxPopupView,
   void SetMediator(OmniboxPopupMediator* mediator) { mediator_ = mediator; }
 
  private:
-  OmniboxEditModel* edit_model_;
+  std::unique_ptr<OmniboxPopupModel> model_;
   OmniboxPopupViewSuggestionsDelegate* delegate_;  // weak
   OmniboxPopupMediator* mediator_;
 };
 
-#endif  // IOS_CHROME_BROWSER_UI_OMNIBOX_POPUP_OMNIBOX_POPUP_VIEW_IOS_H_
+#endif  // IOS_CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_POPUP_VIEW_IOS_H_

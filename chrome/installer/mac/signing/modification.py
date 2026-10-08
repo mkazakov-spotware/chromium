@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -12,12 +12,10 @@ import os.path
 
 from . import commands, parts
 
-_CF_BUNDLE_DISPLAY_NAME = 'CFBundleDisplayName'
 _CF_BUNDLE_EXE = 'CFBundleExecutable'
 _CF_BUNDLE_ID = 'CFBundleIdentifier'
 _CF_BUNDLE_NAME = 'CFBundleName'
 _ENT_APP_ID = 'com.apple.application-identifier'
-_ENT_GET_TASK_ALLOW = 'com.apple.security.get-task-allow'
 _KS_BRAND_ID = 'KSBrandID'
 _KS_CHANNEL_ID = 'KSChannelID'
 _KS_PRODUCT_ID = 'KSProductID'
@@ -38,34 +36,19 @@ def _modify_plists(paths, dist, config):
                                   'Info.plist')
     with commands.PlistContext(app_plist_path, rewrite=True) as app_plist:
         if dist.channel_customize:
-            alert_helper_app_path = os.path.join(
-                paths.work, config.framework_dir, 'Helpers',
-                '{} Helper (Alerts).app'.format(config.product))
-            alert_helper_plist_path = os.path.join(alert_helper_app_path,
-                                                   'Contents', 'Info.plist')
+            notification_xpc_plist_path = os.path.join(
+                paths.work, config.framework_dir, 'XPCServices',
+                'AlertNotificationService.xpc', 'Contents', 'Info.plist')
             with commands.PlistContext(
-                    alert_helper_plist_path,
-                    rewrite=True) as alert_helper_plist:
-                alert_helper_plist[_CF_BUNDLE_ID] = \
-                        alert_helper_plist[_CF_BUNDLE_ID].replace(
+                    notification_xpc_plist_path,
+                    rewrite=True) as notification_xpc_plist:
+                notification_xpc_plist[_CF_BUNDLE_ID] = \
+                        notification_xpc_plist[_CF_BUNDLE_ID].replace(
                                 config.base_config.base_bundle_id,
                                 config.base_bundle_id)
 
-            alert_helper_plist_strings_path = os.path.join(
-                alert_helper_app_path, 'Contents', 'Resources', 'base.lproj',
-                'InfoPlist.strings')
-            with commands.PlistContext(
-                    alert_helper_plist_strings_path, rewrite=True,
-                    binary=True) as alert_helper_plist_strings:
-                alert_helper_plist_strings[_CF_BUNDLE_DISPLAY_NAME] = \
-                        '{} {}'.format(
-                            alert_helper_plist_strings[_CF_BUNDLE_DISPLAY_NAME],
-                            dist.app_name_fragment)
-
-            app_plist[_CF_BUNDLE_DISPLAY_NAME] = '{} {}'.format(
-                app_plist[_CF_BUNDLE_DISPLAY_NAME], dist.app_name_fragment)
-            app_plist[_CF_BUNDLE_EXE] = config.app_product
             app_plist[_CF_BUNDLE_ID] = config.base_bundle_id
+            app_plist[_CF_BUNDLE_EXE] = config.app_product
             app_plist[_CF_BUNDLE_NAME] = '{} {}'.format(
                 app_plist[_CF_BUNDLE_NAME], dist.app_name_fragment)
             app_plist[_KS_PRODUCT_ID] += '.' + dist.channel
@@ -125,14 +108,6 @@ def _replace_icons(paths, dist, config):
     commands.copy_files(new_document_icon,
                         os.path.join(resources_dir, 'document.icns'))
 
-    # Also update the icon in the Alert Helper app.
-    alert_helper_resources_dir = os.path.join(
-        paths.work, config.framework_dir, 'Helpers',
-        '{} Helper (Alerts).app'.format(config.product), 'Contents',
-        'Resources')
-    commands.copy_files(new_app_icon,
-                        os.path.join(alert_helper_resources_dir, 'app.icns'))
-
 
 def _rename_enterprise_manifest(paths, dist, config):
     """Modifies and renames the enterprise policy manifest files for channel-
@@ -187,16 +162,14 @@ def _process_entitlements(paths, dist, config):
         commands.copy_files(
             os.path.join(packaging_dir, entitlements_name), entitlements_file)
 
-        if dist.channel_customize or config.inject_get_task_allow_entitlement:
+        if dist.channel_customize:
             with commands.PlistContext(
                     entitlements_file, rewrite=True) as entitlements:
-                if dist.channel_customize and _ENT_APP_ID in entitlements:
+                if _ENT_APP_ID in entitlements:
                     app_id = entitlements[_ENT_APP_ID]
                     entitlements[_ENT_APP_ID] = app_id.replace(
                         config.base_config.base_bundle_id,
                         config.base_bundle_id)
-                if config.inject_get_task_allow_entitlement:
-                    entitlements[_ENT_GET_TASK_ALLOW] = True
 
 
 def customize_distribution(paths, dist, config):

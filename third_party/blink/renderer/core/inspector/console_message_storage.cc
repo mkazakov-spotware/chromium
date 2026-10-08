@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/inspector/console_message_storage.h"
 
-#include "base/trace_event/trace_event.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/traced_value.h"
@@ -27,6 +26,8 @@ const char* MessageSourceToString(mojom::ConsoleMessageSource source) {
       return "ConsoleAPI";
     case mojom::ConsoleMessageSource::kStorage:
       return "Storage";
+    case mojom::ConsoleMessageSource::kAppCache:
+      return "AppCache";
     case mojom::ConsoleMessageSource::kRendering:
       return "Rendering";
     case mojom::ConsoleMessageSource::kSecurity:
@@ -51,7 +52,7 @@ const char* MessageSourceToString(mojom::ConsoleMessageSource source) {
 std::unique_ptr<TracedValue> MessageTracedValue(ConsoleMessage* message) {
   auto value = std::make_unique<TracedValue>();
   value->SetString("content", message->Message());
-  if (!message->Location()->Url().empty()) {
+  if (!message->Location()->Url().IsEmpty()) {
     value->SetString("url", message->Location()->Url());
   }
   return value;

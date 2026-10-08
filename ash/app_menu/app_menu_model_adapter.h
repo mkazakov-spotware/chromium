@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "ash/app_menu/app_menu_export.h"
 #include "base/callback.h"
-#include "base/time/time.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/controls/menu/menu_model_adapter.h"
 #include "ui/views/controls/menu/menu_types.h"
@@ -37,10 +36,6 @@ class APP_MENU_EXPORT AppMenuModelAdapter : public views::MenuModelAdapter {
                       ui::MenuSourceType source_type,
                       base::OnceClosure on_menu_closed_callback,
                       bool is_tablet_mode);
-
-  AppMenuModelAdapter(const AppMenuModelAdapter&) = delete;
-  AppMenuModelAdapter& operator=(const AppMenuModelAdapter&) = delete;
-
   ~AppMenuModelAdapter() override;
 
   // Builds the view tree and shows the menu.
@@ -59,14 +54,9 @@ class APP_MENU_EXPORT AppMenuModelAdapter : public views::MenuModelAdapter {
 
   base::TimeTicks GetClosingEventTime();
 
-  // Gets the widget associated with the submenu. May return nullptr.
-  views::Widget* GetSubmenuWidget();
-
-  // views::MenuModelAdapter:
+  // Overridden from views::MenuModelAdapter:
   void ExecuteCommand(int id, int mouse_event_flags) override;
   void OnMenuClosed(views::MenuItemView* menu) override;
-  bool ShouldExecuteCommandWithoutClosingMenu(int id,
-                                              const ui::Event& event) override;
 
   ui::SimpleMenuModel* model() { return model_.get(); }
   views::MenuItemView* root_for_testing() { return root_; }
@@ -117,7 +107,7 @@ class APP_MENU_EXPORT AppMenuModelAdapter : public views::MenuModelAdapter {
   // Whether tablet mode is active.
   bool is_tablet_mode_;
 
-  base::WeakPtrFactory<AppMenuModelAdapter> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(AppMenuModelAdapter);
 };
 
 }  // namespace ash

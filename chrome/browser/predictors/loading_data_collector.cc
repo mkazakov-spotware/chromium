@@ -1,16 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "chrome/browser/predictors/loading_data_collector.h"
 
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
 
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/browser_features.h"
+#include "chrome/browser/predictors/loading_data_collector.h"
 #include "chrome/browser/predictors/loading_stats_collector.h"
 #include "chrome/browser/predictors/predictors_features.h"
 #include "chrome/browser/predictors/resource_prefetch_predictor.h"
@@ -61,10 +59,11 @@ network::mojom::RequestDestination GetRequestDestinationFromMimeType(
   } else if (net::MatchesMimeType("text/css", mime_type)) {
     return network::mojom::RequestDestination::kStyle;
   } else {
-    bool found = base::ranges::any_of(
-        kFontMimeTypes, [&mime_type](const std::string& mime) {
-          return net::MatchesMimeType(mime, mime_type);
-        });
+    bool found =
+        std::any_of(std::begin(kFontMimeTypes), std::end(kFontMimeTypes),
+                    [&mime_type](const std::string& mime) {
+                      return net::MatchesMimeType(mime, mime_type);
+                    });
     if (found)
       return network::mojom::RequestDestination::kFont;
   }
@@ -93,13 +92,11 @@ OriginRequestSummary::OriginRequestSummary(const OriginRequestSummary& other) =
     default;
 OriginRequestSummary::~OriginRequestSummary() = default;
 
-PageRequestSummary::PageRequestSummary(ukm::SourceId ukm_source_id,
-                                       const GURL& main_frame_url,
-                                       base::TimeTicks creation_time)
-    : ukm_source_id(ukm_source_id),
-      main_frame_url(main_frame_url),
-      initial_url(main_frame_url),
-      navigation_started(creation_time),
+PageRequestSummary::PageRequestSummary(const NavigationID& navigation_id)
+    : ukm_source_id(navigation_id.ukm_source_id),
+      main_frame_url(navigation_id.main_frame_url),
+      initial_url(navigation_id.main_frame_url),
+      navigation_started(navigation_id.creation_time),
       navigation_committed(base::TimeTicks::Max()),
       first_contentful_paint(base::TimeTicks::Max()) {}
 
@@ -170,43 +167,50 @@ LoadingDataCollector::LoadingDataCollector(
 LoadingDataCollector::~LoadingDataCollector() = default;
 
 void LoadingDataCollector::RecordStartNavigation(
-    NavigationId navigation_id,
-    ukm::SourceId ukm_source_id,
-    const GURL& main_frame_url,
-    base::TimeTicks creation_time) {
+    const NavigationID& navigation_id) {
   CleanupAbandonedNavigations(navigation_id);
 
   // New empty navigation entry.
   inflight_navigations_.emplace(
-      navigation_id, std::make_unique<PageRequestSummary>(
-                         ukm_source_id, main_frame_url, creation_time));
+      navigation_id, std::make_unique<PageRequestSummary>(navigation_id));
 }
 
 void LoadingDataCollector::RecordFinishNavigation(
-    NavigationId navigation_id,
-    const GURL& old_main_frame_url,
-    const GURL& new_main_frame_url,
+    const NavigationID& old_navigation_id,
+    const NavigationID& new_navigation_id,
     bool is_error_page) {
   if (is_error_page) {
-    inflight_navigations_.erase(navigation_id);
+    inflight_navigations_.erase(old_navigation_id);
     return;
   }
 
-  auto nav_it = inflight_navigations_.find(navigation_id);
+  // All subsequent events corresponding to this navigation will have
+  // |new_navigation_id|. Find the |old_navigation_id| entry in
+  // |inflight_navigations_| and change its key to the |new_navigation_id|.
+  std::unique_ptr<PageRequestSummary> summary;
+  auto nav_it = inflight_navigations_.find(old_navigation_id);
   if (nav_it != inflight_navigations_.end()) {
-    nav_it->second->main_frame_url = new_main_frame_url;
-    nav_it->second->navigation_committed = base::TimeTicks::Now();
+    summary = std::move(nav_it->second);
+    DCHECK_EQ(summary->main_frame_url, old_navigation_id.main_frame_url);
+    summary->main_frame_url = new_navigation_id.main_frame_url;
+    inflight_navigations_.erase(nav_it);
+  } else {
+    summary = std::make_unique<PageRequestSummary>(new_navigation_id);
+    summary->initial_url = old_navigation_id.main_frame_url;
   }
+  summary->navigation_committed = base::TimeTicks::Now();
+
+  inflight_navigations_.emplace(new_navigation_id, std::move(summary));
 }
 
 void LoadingDataCollector::RecordResourceLoadComplete(
-    NavigationId navigation_id,
+    const NavigationID& navigation_id,
     const blink::mojom::ResourceLoadInfo& resource_load_info) {
   auto nav_it = inflight_navigations_.find(navigation_id);
   if (nav_it == inflight_navigations_.end())
     return;
 
-  if (!ShouldRecordResourceLoad(resource_load_info))
+  if (!ShouldRecordResourceLoad(navigation_id, resource_load_info))
     return;
 
   auto& page_request_summary = *nav_it->second;
@@ -214,7 +218,7 @@ void LoadingDataCollector::RecordResourceLoadComplete(
 }
 
 void LoadingDataCollector::RecordPreconnectInitiated(
-    NavigationId navigation_id,
+    const NavigationID& navigation_id,
     const GURL& preconnect_url) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
@@ -226,8 +230,9 @@ void LoadingDataCollector::RecordPreconnectInitiated(
   page_request_summary.AddPreconnectAttempt(preconnect_url);
 }
 
-void LoadingDataCollector::RecordPrefetchInitiated(NavigationId navigation_id,
-                                                   const GURL& prefetch_url) {
+void LoadingDataCollector::RecordPrefetchInitiated(
+    const NavigationID& navigation_id,
+    const GURL& prefetch_url) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   auto nav_it = inflight_navigations_.find(navigation_id);
@@ -239,8 +244,8 @@ void LoadingDataCollector::RecordPrefetchInitiated(NavigationId navigation_id,
 }
 
 void LoadingDataCollector::RecordMainFrameLoadComplete(
-    NavigationId navigation_id,
-    const absl::optional<OptimizationGuidePrediction>&
+    const NavigationID& navigation_id,
+    const base::Optional<OptimizationGuidePrediction>&
         optimization_guide_prediction) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
@@ -268,8 +273,8 @@ void LoadingDataCollector::RecordMainFrameLoadComplete(
 }
 
 void LoadingDataCollector::RecordFirstContentfulPaint(
-    NavigationId navigation_id,
-    base::TimeTicks first_contentful_paint) {
+    const NavigationID& navigation_id,
+    const base::TimeTicks& first_contentful_paint) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   auto nav_it = inflight_navigations_.find(navigation_id);
@@ -278,6 +283,7 @@ void LoadingDataCollector::RecordFirstContentfulPaint(
 }
 
 bool LoadingDataCollector::ShouldRecordResourceLoad(
+    const NavigationID& navigation_id,
     const blink::mojom::ResourceLoadInfo& resource_load_info) const {
   const GURL& url = resource_load_info.final_url;
   if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS())
@@ -317,18 +323,18 @@ bool LoadingDataCollector::IsHandledResourceType(
 }
 
 void LoadingDataCollector::CleanupAbandonedNavigations(
-    NavigationId navigation_id) {
+    const NavigationID& navigation_id) {
   if (stats_collector_)
     stats_collector_->CleanupAbandonedStats();
 
   static const base::TimeDelta max_navigation_age =
-      base::Seconds(config_.max_navigation_lifetime_seconds);
+      base::TimeDelta::FromSeconds(config_.max_navigation_lifetime_seconds);
 
   base::TimeTicks time_now = base::TimeTicks::Now();
   for (auto it = inflight_navigations_.begin();
        it != inflight_navigations_.end();) {
-    if ((it->first == navigation_id) ||
-        (time_now - it->second->navigation_started > max_navigation_age)) {
+    if ((it->first.tab_id == navigation_id.tab_id) ||
+        (time_now - it->first.creation_time > max_navigation_age)) {
       inflight_navigations_.erase(it++);
     } else {
       ++it;

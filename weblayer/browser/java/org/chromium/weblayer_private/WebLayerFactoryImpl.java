@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ package org.chromium.weblayer_private;
 import android.os.IBinder;
 
 import org.chromium.base.annotations.CalledByNative;
-import org.chromium.build.annotations.UsedByReflection;
+import org.chromium.base.annotations.UsedByReflection;
 import org.chromium.components.version_info.VersionConstants;
 import org.chromium.weblayer_private.interfaces.IWebLayer;
 import org.chromium.weblayer_private.interfaces.IWebLayerFactory;
@@ -50,7 +50,9 @@ public final class WebLayerFactoryImpl extends IWebLayerFactory.Stub {
     @Override
     public boolean isClientSupported() {
         StrictModeWorkaround.apply();
-        if (sClientMajorVersion < WebLayerVersionConstants.MIN_VERSION) {
+        // Client changes were required to support WebLayer in a split.
+        if (ProductConfig.IS_BUNDLE && WebLayerBundleUtils.IS_WEBLAYER_IN_SPLIT
+                && sClientMajorVersion < 86) {
             return false;
         }
         int implMajorVersion = getImplementationMajorVersion();

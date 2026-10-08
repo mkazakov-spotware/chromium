@@ -1,14 +1,15 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "chrome/browser/sync/test/integration/await_match_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/extensions_helper.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/updated_progress_marker_checker.h"
-#include "components/sync/driver/sync_service_impl.h"
-#include "components/sync/test/fake_server.h"
+#include "components/sync/driver/profile_sync_service.h"
+#include "components/sync/test/fake_server/fake_server.h"
 #include "content/public/test/browser_test.h"
 
 namespace {
@@ -64,13 +65,8 @@ IN_PROC_BROWSER_TEST_F(SingleClientExtensionsSyncTest, InstallSomeExtensions) {
 
 // Helper function for waiting to see the extension count in a profile
 // become a specific number.
-static bool ExtensionCountCheck(Profile* profile,
-                                size_t expected_count,
-                                std::ostream* os) {
-  const size_t actual_count = GetInstalledExtensions(profile).size();
-  *os << "Waiting for profile to have " << expected_count
-      << " extensions; actual count " << actual_count;
-  return actual_count == expected_count;
+static bool ExtensionCountCheck(Profile* profile, size_t expected_count) {
+  return GetInstalledExtensions(profile).size() == expected_count;
 }
 
 // Tests the case of an uninstall from the server conflicting with a local
@@ -98,8 +94,9 @@ IN_PROC_BROWSER_TEST_F(SingleClientExtensionsSyncTest, UninstallWinsConflicts) {
   ASSERT_EQ(1u, GetInstalledExtensions(GetProfile(0)).size());
 
   // Expect the extension to get uninstalled locally.
-  AwaitMatchStatusChangeChecker checker(base::BindRepeating(
-      &ExtensionCountCheck, GetProfile(0), /*expected_count=*/0u));
+  AwaitMatchStatusChangeChecker checker(
+      base::BindRepeating(&ExtensionCountCheck, GetProfile(0), 0u),
+      "Waiting for profile to have no extensions");
   EXPECT_TRUE(checker.Wait());
   EXPECT_TRUE(GetInstalledExtensions(GetProfile(0)).empty());
 

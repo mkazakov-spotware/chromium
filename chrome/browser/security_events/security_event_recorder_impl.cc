@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "components/sync/protocol/gaia_password_reuse.pb.h"
-#include "components/sync/protocol/security_event_specifics.pb.h"
+using sync_pb::SecurityEventSpecifics;
 
 SecurityEventRecorderImpl::SecurityEventRecorderImpl(
     std::unique_ptr<SecurityEventSyncBridge> security_event_sync_bridge,

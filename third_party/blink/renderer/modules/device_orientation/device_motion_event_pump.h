@@ -1,13 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_DEVICE_ORIENTATION_DEVICE_MOTION_EVENT_PUMP_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_DEVICE_ORIENTATION_DEVICE_MOTION_EVENT_PUMP_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/modules/device_orientation/device_sensor_event_pump.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -20,10 +21,6 @@ class MODULES_EXPORT DeviceMotionEventPump
       public DeviceSensorEventPump {
  public:
   explicit DeviceMotionEventPump(LocalFrame&);
-
-  DeviceMotionEventPump(const DeviceMotionEventPump&) = delete;
-  DeviceMotionEventPump& operator=(const DeviceMotionEventPump&) = delete;
-
   ~DeviceMotionEventPump() override;
 
   void SetController(PlatformEventController*);
@@ -60,6 +57,8 @@ class MODULES_EXPORT DeviceMotionEventPump
 
   Member<DeviceMotionData> data_;
   Member<PlatformEventController> controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeviceMotionEventPump);
 };
 
 }  // namespace blink

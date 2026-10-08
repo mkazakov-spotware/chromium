@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define ASH_SYSTEM_TRAY_TRAY_BUBBLE_BASE_H_
 
 #include "ash/ash_export.h"
-#include "ui/views/widget/widget_observer.h"
 
 namespace views {
 class Widget;
@@ -18,13 +17,9 @@ class TrayBackgroundView;
 class TrayBubbleView;
 
 // Base class for tray bubbles registered to TrayEventFilter.
-// Note: As this class implements `views::WidgetObserver`, the derived classes
-// are required to add themselves as a `views::WidgetObserver` to the bubble
-// Widgets they make.
-class ASH_EXPORT TrayBubbleBase : public views::WidgetObserver {
+class ASH_EXPORT TrayBubbleBase {
  public:
-  TrayBubbleBase();
-  ~TrayBubbleBase() override;
+  virtual ~TrayBubbleBase() {}
 
   // Returns the tray button instance.
   virtual TrayBackgroundView* GetTray() const = 0;
@@ -34,9 +29,6 @@ class ASH_EXPORT TrayBubbleBase : public views::WidgetObserver {
 
   // Returns the widget of the bubble.
   virtual views::Widget* GetBubbleWidget() const = 0;
-
-  // views::WidgetObserver overrides:
-  void OnWidgetVisibilityChanged(views::Widget* widget, bool visible) override;
 };
 
 }  // namespace ash

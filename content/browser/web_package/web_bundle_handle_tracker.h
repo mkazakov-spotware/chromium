@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,6 @@ class WebBundleHandleTracker {
  public:
   WebBundleHandleTracker(scoped_refptr<WebBundleReader> reader,
                          const GURL& target_inner_url);
-
-  WebBundleHandleTracker(const WebBundleHandleTracker&) = delete;
-  WebBundleHandleTracker& operator=(const WebBundleHandleTracker&) = delete;
-
   ~WebBundleHandleTracker();
 
   // Returns a WebBundleHandle to handle the navigation request to |url|
@@ -35,6 +31,8 @@ class WebBundleHandleTracker {
  private:
   scoped_refptr<WebBundleReader> reader_;
   const GURL target_inner_url_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebBundleHandleTracker);
 };
 
 }  // namespace content

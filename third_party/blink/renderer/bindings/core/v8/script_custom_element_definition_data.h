@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_SCRIPT_CUSTOM_ELEMENT_DEFINITION_DATA_H_
 #define THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_SCRIPT_CUSTOM_ELEMENT_DEFINITION_DATA_H_
 
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
@@ -28,11 +29,6 @@ class ScriptCustomElementDefinitionData {
  public:
   ScriptCustomElementDefinitionData() {}
 
-  ScriptCustomElementDefinitionData(const ScriptCustomElementDefinitionData&) =
-      delete;
-  ScriptCustomElementDefinitionData& operator=(
-      const ScriptCustomElementDefinitionData&) = delete;
-
   ScriptState* script_state_ = nullptr;
   CustomElementRegistry* registry_ = nullptr;
   V8CustomElementConstructor* constructor_ = nullptr;
@@ -49,6 +45,8 @@ class ScriptCustomElementDefinitionData {
   HashSet<AtomicString> observed_attributes_;
   Vector<String> disabled_features_;
   bool is_form_associated_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ScriptCustomElementDefinitionData);
 };
 
 }  // namespace blink

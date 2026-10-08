@@ -33,14 +33,11 @@
 
 #include <vector>
 
-#include "third_party/blink/public/platform/web_common.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_node.h"
 #include "third_party/skia/include/core/SkBitmap.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
 
 namespace gfx {
-class Rect;
 class Size;
 }
 
@@ -48,7 +45,7 @@ namespace blink {
 
 class Element;
 class Image;
-class WebLabelElement;
+struct WebRect;
 
 // Provides access to some properties of a DOM element node.
 class BLINK_EXPORT WebElement : public WebNode {
@@ -71,8 +68,6 @@ class BLINK_EXPORT WebElement : public WebNode {
   bool IsEditable() const;
   // Returns the qualified name, which may contain a prefix and a colon.
   WebString TagName() const;
-  // Returns the id attribute.
-  WebString GetIdAttribute() const;
   // Check if this element has the specified local tag name, and the HTML
   // namespace. Tag name matching is case-insensitive.
   bool HasHTMLTagName(const WebString&) const;
@@ -85,17 +80,12 @@ class BLINK_EXPORT WebElement : public WebNode {
   WebString AttributeValue(unsigned index) const;
   unsigned AttributeCount() const;
 
-  // Returns all <label> elements associated to this element.
-  WebVector<WebLabelElement> Labels() const;
-
-  // Returns true if this is an autonomous custom element.
+  // Returns true if this is an autonomous custom element, regardless of
+  // Custom Elements V0 or V1.
   bool IsAutonomousCustomElement() const;
 
-  // Returns the owning shadow host for this element, if there is one.
-  WebElement OwnerShadowHost() const;
-
   // Returns an author ShadowRoot attached to this element, regardless
-  // of open or closed.  This returns null WebNode if this
+  // of V0, V1 open, or V1 closed.  This returns null WebNode if this
   // element has no ShadowRoot or has a UA ShadowRoot.
   WebNode ShadowRoot() const;
 
@@ -105,7 +95,7 @@ class BLINK_EXPORT WebElement : public WebNode {
   // Returns the bounds of the element in Visual Viewport. The bounds
   // have been adjusted to include any transformations, including page scale.
   // This function will update the layout if required.
-  gfx::Rect BoundsInWidget() const;
+  WebRect BoundsInViewport() const;
 
   // Returns the image contents of this element or a null SkBitmap
   // if there isn't any.
@@ -121,11 +111,7 @@ class BLINK_EXPORT WebElement : public WebNode {
   // Returns the original image size.
   gfx::Size GetImageSize();
 
-  // Returns {clientWidth, clientHeight}.
-  gfx::Size GetClientSize() const;
-
-  // Returns {scrollWidth, scrollHeight}.
-  gfx::Size GetScrollSize() const;
+  void RequestFullscreen();
 
   // ComputedStyle property values. The following exposure is of CSS property
   // values are part of the ComputedStyle set which is usually exposed through
@@ -135,10 +121,6 @@ class BLINK_EXPORT WebElement : public WebNode {
   // strings directly to WebElement and enable public component usage through
   // /public/web interfaces.
   WebString GetComputedValue(const WebString& property_name);
-
-  // TODO(crbug.com/1286950) Remove this once a decision is made on deprecation
-  // of the <param> URL functionality.
-  void UseCountParamUrlUsageIfNeeded(bool is_pdf) const;
 
 #if INSIDE_BLINK
   WebElement(Element*);
@@ -154,4 +136,4 @@ DECLARE_WEB_NODE_TYPE_CASTS(WebElement);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_ELEMENT_H_
+#endif

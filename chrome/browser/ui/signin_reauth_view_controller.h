@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,15 @@
 #define CHROME_BROWSER_UI_SIGNIN_REAUTH_VIEW_CONTROLLER_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/observer_list.h"
 #include "base/observer_list_types.h"
-#include "base/scoped_observation.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
 #include "base/time/time.h"
-#include "chrome/browser/ui/signin_modal_dialog.h"
 #include "chrome/browser/ui/signin_view_controller_delegate.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/sync/protocol/user_consent_types.pb.h"
 #include "google_apis/gaia/core_account_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Browser;
 
@@ -44,9 +41,8 @@ class ReauthTabHelper;
 //
 // The Gaia reauth page is loaded in background and gets shown to the user only
 // after the user confirms the reauth confirmation dialog.
-// TODO(https://crbug.com/1282157): rename to SigninReauthDialog.
 class SigninReauthViewController
-    : public SigninModalDialog,
+    : public SigninViewControllerDelegate,
       public SigninViewControllerDelegate::Observer {
  public:
   enum class GaiaReauthType;
@@ -119,7 +115,6 @@ class SigninReauthViewController
       Browser* browser,
       const CoreAccountId& account_id,
       signin_metrics::ReauthAccessPoint access_point,
-      base::OnceClosure on_close_callback,
       base::OnceCallback<void(signin::ReauthResult)> reauth_callback);
 
   SigninReauthViewController(const SigninReauthViewController&) = delete;
@@ -128,13 +123,14 @@ class SigninReauthViewController
 
   ~SigninReauthViewController() override;
 
-  // SigninModalDialog:
-  void CloseModalDialog() override;
+  // SigninViewControllerDelegate:
+  void CloseModalSignin() override;
   void ResizeNativeView(int height) override;
-  content::WebContents* GetModalDialogWebContentsForTesting() override;
+  content::WebContents* GetWebContents() override;
+  void SetWebContents(content::WebContents* web_contents) override;
 
   // SigninViewControllerDelegate::Observer:
-  void OnModalDialogClosed() override;
+  void OnModalSigninClosed() override;
 
   // Called when the user clicks the confirm button in the reauth confirmation
   // dialog.
@@ -167,6 +163,7 @@ class SigninReauthViewController
   void OnGaiaReauthTypeDetermined(GaiaReauthType reauth_type);
 
   void RecordClickOnce(UserAction click_action);
+  void RecordGaiaNavigationDuration();
 
   signin::ReauthTabHelper* GetReauthTabHelper();
 
@@ -176,7 +173,7 @@ class SigninReauthViewController
   void ShowGaiaReauthPageInNewTab();
 
   // Controller inputs.
-  const raw_ptr<Browser> browser_;
+  Browser* const browser_;
   const CoreAccountId account_id_;
   const signin_metrics::ReauthAccessPoint access_point_;
   base::OnceCallback<void(signin::ReauthResult)> reauth_callback_;
@@ -186,25 +183,27 @@ class SigninReauthViewController
   // Dialog state useful for recording metrics.
   UIState ui_state_ = UIState::kNone;
   bool has_recorded_click_ = false;
+  base::TimeTicks reauth_start_time_{base::TimeTicks::Now()};
+  base::TimeTicks user_confirmed_reauth_time_{base::TimeTicks::Max()};
 
   // Delegate displaying the dialog.
-  raw_ptr<SigninViewControllerDelegate> dialog_delegate_ = nullptr;
-  base::ScopedObservation<SigninViewControllerDelegate,
-                          SigninViewControllerDelegate::Observer>
-      dialog_delegate_observation_{this};
+  SigninViewControllerDelegate* dialog_delegate_ = nullptr;
+  ScopedObserver<SigninViewControllerDelegate,
+                 SigninViewControllerDelegate::Observer>
+      dialog_delegate_observer_{this};
 
   // WebContents of the Gaia reauth page.
   std::unique_ptr<content::WebContents> reauth_web_contents_;
   std::unique_ptr<ReauthWebContentsObserver> reauth_web_contents_observer_;
   // Raw pointer is only set if |reauth_web_contents_| was transferred to a new
   // tab for the SAML flow.
-  raw_ptr<content::WebContents> raw_reauth_web_contents_ = nullptr;
+  content::WebContents* raw_reauth_web_contents_ = nullptr;
 
   // The state of the reauth flow.
   bool user_confirmed_reauth_ = false;
-  absl::optional<sync_pb::UserConsentTypes::AccountPasswordsConsent> consent_;
+  base::Optional<sync_pb::UserConsentTypes::AccountPasswordsConsent> consent_;
   GaiaReauthPageState gaia_reauth_page_state_ = GaiaReauthPageState::kStarted;
-  absl::optional<signin::ReauthResult> gaia_reauth_page_result_;
+  base::Optional<signin::ReauthResult> gaia_reauth_page_result_;
 
   base::ObserverList<Observer, true> observer_list_;
 

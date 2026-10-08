@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.explore_sites;
 
-import android.app.Activity;
 import android.content.Context;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -18,9 +17,11 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.native_page.ContextMenuManager;
 import org.chromium.chrome.browser.native_page.NativePageNavigationDelegate;
 import org.chromium.chrome.browser.native_page.NativePageNavigationDelegateImpl;
@@ -28,7 +29,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
-import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.ui.native_page.BasicNativePage;
 import org.chromium.chrome.browser.ui.native_page.NativePageHost;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
@@ -38,7 +38,6 @@ import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.RecyclerViewAdapter;
-import org.chromium.url.GURL;
 import org.chromium.url.URI;
 
 import java.lang.annotation.Retention;
@@ -170,8 +169,7 @@ public class ExploreSitesPage extends BasicNativePage {
     /**
      * Create a new instance of the explore sites page.
      */
-    public ExploreSitesPage(
-            Activity activity, NativePageHost host, Tab tab, TabModelSelector tabModelSelector) {
+    public ExploreSitesPage(ChromeActivity activity, NativePageHost host, Tab tab) {
         super(host);
 
         mHost = host;
@@ -227,12 +225,14 @@ public class ExploreSitesPage extends BasicNativePage {
             iconRadius = iconSizePx / 2;
         }
 
-        RoundedIconGenerator iconGenerator = new RoundedIconGenerator(iconSizePx, iconSizePx,
-                iconRadius, context.getColor(R.color.default_favicon_background_color),
-                context.getResources().getDimensionPixelSize(textSizeDimensionResource));
+        RoundedIconGenerator iconGenerator =
+                new RoundedIconGenerator(iconSizePx, iconSizePx, iconRadius,
+                        ApiCompatibilityUtils.getColor(
+                                context.getResources(), R.color.default_favicon_background_color),
+                        context.getResources().getDimensionPixelSize(textSizeDimensionResource));
 
         NativePageNavigationDelegateImpl navDelegate = new NativePageNavigationDelegateImpl(
-                activity, mProfile, host, tabModelSelector, mTab);
+                activity, mProfile, host, activity.getTabModelSelector(), mTab);
 
         // ExploreSitePage is recreated upon reparenting. Safe to use |activity|.
         Runnable closeContextMenuCallback = activity::closeContextMenu;
@@ -308,12 +308,16 @@ public class ExploreSitesPage extends BasicNativePage {
             // state, for making "back" work correctly.
             mTabObserver = new EmptyTabObserver() {
                 @Override
-                public void onPageLoadStarted(Tab tab, GURL url) {
-                    if (UrlConstants.CHROME_NATIVE_SCHEME.equals(url.getScheme())
-                            && UrlConstants.EXPLORE_HOST.equals(url.getHost())) {
-                        return;
+                public void onPageLoadStarted(Tab tab, String url) {
+                    try {
+                        URI uri = new URI(url);
+                        if (UrlConstants.CHROME_NATIVE_SCHEME.equals(uri.getScheme())
+                                && UrlConstants.EXPLORE_HOST.equals(uri.getHost())) {
+                            return;
+                        }
+                        savePageState();
+                    } catch (URISyntaxException e) {
                     }
-                    savePageState();
                 }
             };
             mTab.addObserver(mTabObserver);

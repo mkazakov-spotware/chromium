@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utility function for linkifying text.
@@ -31,7 +39,6 @@ goog.require('goog.string');
  */
 goog.string.linkify.linkifyPlainTextAsHtml = function(
     text, opt_attributes, opt_preserveNewlines) {
-  'use strict';
   // This shortcut makes linkifyPlainText ~10x faster if text doesn't contain
   // URLs or email addresses and adds insignificant performance penalty if it
   // does.
@@ -43,8 +50,8 @@ goog.string.linkify.linkifyPlainTextAsHtml = function(
         goog.html.SafeHtml.htmlEscape(text);
   }
 
-  const attributesMap = {};
-  for (let key in opt_attributes) {
+  var attributesMap = {};
+  for (var key in opt_attributes) {
     if (!opt_attributes[key]) {
       // Our API allows '' to omit the attribute, SafeHtml requires null.
       attributesMap[key] = null;
@@ -60,12 +67,11 @@ goog.string.linkify.linkifyPlainTextAsHtml = function(
     attributesMap['target'] = '_blank';
   }
 
-  const output = [];
+  var output = [];
   // Return value is ignored.
   text.replace(
       goog.string.linkify.FIND_LINKS_RE_,
       function(part, before, original, email, protocol) {
-        'use strict';
         output.push(
             opt_preserveNewlines ?
                 goog.html.SafeHtml.htmlEscapePreservingNewlines(before) :
@@ -73,11 +79,11 @@ goog.string.linkify.linkifyPlainTextAsHtml = function(
         if (!original) {
           return '';
         }
-        let href = '';
+        var href = '';
         /** @type {string} */
-        let linkText;
+        var linkText;
         /** @type {string} */
-        let afterLink;
+        var afterLink;
         if (email) {
           href = 'mailto:';
           linkText = email;
@@ -87,33 +93,13 @@ goog.string.linkify.linkifyPlainTextAsHtml = function(
           if (!protocol) {
             href = 'http://';
           }
-          const splitEndingPunctuation =
+          var splitEndingPunctuation =
               original.match(goog.string.linkify.ENDS_WITH_PUNCTUATION_RE_);
           // An open paren in the link will often be matched with a close paren
-          // at the end, so skip cutting off ending punctuation if
-          // opening/closing parens are matched in the link. Same for curly
-          // brackets. For example:
-          // End symbol is linkified:
-          // * http://en.wikipedia.org/wiki/Titanic_(1997_film)
-          // * http://google.com/abc{arg=1}
-          // e.g. needEndingPunctuationForBalance for split
-          // 'http://google.com/abc{arg=', and '} is true.
-          // End symbol is not linkified because there is no open parens to
-          // close in the link itself, as the open parens occurs before the URL:
-          // * (http://google.com/)
-          // e.g. needEndingPunctuationForBalance for split 'http://google.com/
-          // and ')' is false.
-          function needEndingPunctuationForBalance(
-              split, openSymbol, closeSymbol) {
-            return goog.string.contains(split[2], closeSymbol) &&
-                goog.string.countOf(split[1], openSymbol) >
-                goog.string.countOf(split[1], closeSymbol);
-          }
-          if (splitEndingPunctuation &&
-              !needEndingPunctuationForBalance(
-                  splitEndingPunctuation, '(', ')') &&
-              !needEndingPunctuationForBalance(
-                  splitEndingPunctuation, '{', '}')) {
+          // at the end, so skip cutting off ending punctuation if there's an
+          // open paren. For example:
+          // http://en.wikipedia.org/wiki/Titanic_(1997_film)
+          if (splitEndingPunctuation && !goog.string.contains(original, '(')) {
             linkText = splitEndingPunctuation[1];
             afterLink = splitEndingPunctuation[2];
           } else {
@@ -139,8 +125,7 @@ goog.string.linkify.linkifyPlainTextAsHtml = function(
  * @return {string} The first URL, or an empty string if not found.
  */
 goog.string.linkify.findFirstUrl = function(text) {
-  'use strict';
-  const link = text.match(goog.string.linkify.URL_RE_);
+  var link = text.match(goog.string.linkify.URL_RE_);
   return link != null ? link[0] : '';
 };
 
@@ -151,8 +136,7 @@ goog.string.linkify.findFirstUrl = function(text) {
  * @return {string} The first email address, or an empty string if not found.
  */
 goog.string.linkify.findFirstEmail = function(text) {
-  'use strict';
-  const email = text.match(goog.string.linkify.EMAIL_RE_);
+  var email = text.match(goog.string.linkify.EMAIL_RE_);
   return email != null ? email[0] : '';
 };
 

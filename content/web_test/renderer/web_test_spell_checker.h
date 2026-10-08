@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_text_checking_result.h"
@@ -63,7 +64,7 @@ class WebTestSpellChecker {
   bool InitializeIfNeeded();
 
   // A table that consists of misspelled words.
-  std::vector<std::u16string> misspelled_words_;
+  std::vector<base::string16> misspelled_words_;
 
   // A flag representing whether or not this object is initialized.
   bool initialized_ = false;

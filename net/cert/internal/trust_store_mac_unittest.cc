@@ -1,11 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/cert/internal/trust_store_mac.h"
-
-#include <algorithm>
-#include <set>
 
 #include "base/base_paths.h"
 #include "base/files/file_util.h"
@@ -13,21 +10,16 @@
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/synchronization/lock.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "crypto/mac_security_services_lock.h"
-#include "crypto/sha2.h"
+#include "net/cert/internal/cert_errors.h"
+#include "net/cert/internal/test_helpers.h"
 #include "net/cert/pem.h"
-#include "net/cert/pki/cert_errors.h"
-#include "net/cert/pki/parsed_certificate.h"
-#include "net/cert/pki/test_helpers.h"
 #include "net/cert/test_keychain_search_list_mac.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
-#include "net/cert/x509_util_apple.h"
+#include "net/cert/x509_util_mac.h"
 #include "net/test/test_data_directory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -66,6 +58,32 @@ const char kCertificateHeader[] = "CERTIFICATE";
   return ::testing::AssertionSuccess();
 }
 
+// Returns the DER encodings of the SecCertificates in |array|.
+std::vector<std::string> SecCertificateArrayAsDER(CFArrayRef array) {
+  std::vector<std::string> result;
+
+  for (CFIndex i = 0, item_count = CFArrayGetCount(array); i < item_count;
+       ++i) {
+    SecCertificateRef match_cert_handle = reinterpret_cast<SecCertificateRef>(
+        const_cast<void*>(CFArrayGetValueAtIndex(array, i)));
+    if (!match_cert_handle) {
+      ADD_FAILURE() << "null item " << i;
+      continue;
+    }
+    base::ScopedCFTypeRef<CFDataRef> der_data(
+        SecCertificateCopyData(match_cert_handle));
+    if (!der_data) {
+      ADD_FAILURE() << "SecCertificateCopyData error";
+      continue;
+    }
+    result.push_back(std::string(
+        reinterpret_cast<const char*>(CFDataGetBytePtr(der_data.get())),
+        CFDataGetLength(der_data.get())));
+  }
+
+  return result;
+}
+
 // Returns the DER encodings of the ParsedCertificates in |list|.
 std::vector<std::string> ParsedCertificateListAsDER(
     ParsedCertificateList list) {
@@ -75,61 +93,17 @@ std::vector<std::string> ParsedCertificateListAsDER(
   return result;
 }
 
-std::set<std::string> ParseFindCertificateOutputToDerCerts(std::string output) {
-  std::set<std::string> certs;
-  for (const std::string& hash_and_pem_partial : base::SplitStringUsingSubstr(
-           output, "-----END CERTIFICATE-----", base::TRIM_WHITESPACE,
-           base::SPLIT_WANT_NONEMPTY)) {
-    // Re-add the PEM ending mark, since SplitStringUsingSubstr eats it.
-    const std::string hash_and_pem =
-        hash_and_pem_partial + "\n-----END CERTIFICATE-----\n";
-
-    // Parse the PEM encoded text to DER bytes.
-    PEMTokenizer pem_tokenizer(hash_and_pem, {kCertificateHeader});
-    if (!pem_tokenizer.GetNext()) {
-      ADD_FAILURE() << "!pem_tokenizer.GetNext()";
-      continue;
-    }
-    std::string cert_der(pem_tokenizer.data());
-    EXPECT_FALSE(pem_tokenizer.GetNext());
-    certs.insert(cert_der);
-  }
-  return certs;
-}
-
 class DebugData : public base::SupportsUserData {
  public:
   ~DebugData() override = default;
 };
 
-const char* TrustImplTypeToString(TrustStoreMac::TrustImplType t) {
-  switch (t) {
-    case TrustStoreMac::TrustImplType::kSimple:
-      return "Simple";
-    case TrustStoreMac::TrustImplType::kDomainCacheFullCerts:
-      return "DomainCacheFullCerts";
-    case TrustStoreMac::TrustImplType::kKeychainCacheFullCerts:
-      return "KeychainCacheFullCerts";
-    case TrustStoreMac::TrustImplType::kUnknown:
-      return "Unknown";
-  }
-}
-
 }  // namespace
-
-class TrustStoreMacImplTest
-    : public testing::TestWithParam<TrustStoreMac::TrustImplType> {};
-
-// Much of the Keychain API was marked deprecated as of the macOS 13 SDK.
-// Removal of its use is tracked in https://crbug.com/1348251 but deprecation
-// warnings are disabled in the meanwhile.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 // Test the trust store using known test certificates in a keychain.  Tests
 // that issuer searching returns the expected certificates, and that none of
 // the certificates are trusted.
-TEST_P(TrustStoreMacImplTest, MultiRootNotTrusted) {
+TEST(TrustStoreMacTest, MultiRootNotTrusted) {
   std::unique_ptr<TestKeychainSearchList> test_keychain_search_list(
       TestKeychainSearchList::Create());
   ASSERT_TRUE(test_keychain_search_list);
@@ -145,10 +119,7 @@ TEST_P(TrustStoreMacImplTest, MultiRootNotTrusted) {
   ASSERT_TRUE(keychain);
   test_keychain_search_list->AddKeychain(keychain);
 
-#pragma clang diagnostic pop
-
-  const TrustStoreMac::TrustImplType trust_impl = GetParam();
-  TrustStoreMac trust_store(kSecPolicyAppleSSL, trust_impl);
+  TrustStoreMac trust_store(kSecPolicyAppleSSL);
 
   scoped_refptr<ParsedCertificate> a_by_b, b_by_c, b_by_f, c_by_d, c_by_e,
       f_by_e, d_by_d, e_by_e;
@@ -161,45 +132,68 @@ TEST_P(TrustStoreMacImplTest, MultiRootNotTrusted) {
   ASSERT_TRUE(ReadTestCert("multi-root-D-by-D.pem", &d_by_d));
   ASSERT_TRUE(ReadTestCert("multi-root-E-by-E.pem", &e_by_e));
 
-  // Test that the untrusted keychain certs would be found during issuer
-  // searching.
+  base::ScopedCFTypeRef<CFDataRef> normalized_name_b =
+      TrustStoreMac::GetMacNormalizedIssuer(a_by_b.get());
+  ASSERT_TRUE(normalized_name_b);
+  base::ScopedCFTypeRef<CFDataRef> normalized_name_c =
+      TrustStoreMac::GetMacNormalizedIssuer(b_by_c.get());
+  ASSERT_TRUE(normalized_name_c);
+  base::ScopedCFTypeRef<CFDataRef> normalized_name_f =
+      TrustStoreMac::GetMacNormalizedIssuer(b_by_f.get());
+  ASSERT_TRUE(normalized_name_f);
+  base::ScopedCFTypeRef<CFDataRef> normalized_name_d =
+      TrustStoreMac::GetMacNormalizedIssuer(c_by_d.get());
+  ASSERT_TRUE(normalized_name_d);
+  base::ScopedCFTypeRef<CFDataRef> normalized_name_e =
+      TrustStoreMac::GetMacNormalizedIssuer(f_by_e.get());
+  ASSERT_TRUE(normalized_name_e);
+
+  // Test that the matching keychain items are found, even though they aren't
+  // trusted.
+  // TODO(eroman): These tests could be using TrustStore::SyncGetIssuersOf().
   {
-    ParsedCertificateList found_issuers;
-    trust_store.SyncGetIssuersOf(a_by_b.get(), &found_issuers);
-    EXPECT_THAT(ParsedCertificateListAsDER(found_issuers),
+    base::ScopedCFTypeRef<CFArrayRef> scoped_matching_items =
+        TrustStoreMac::FindMatchingCertificatesForMacNormalizedSubject(
+            normalized_name_b.get());
+
+    EXPECT_THAT(SecCertificateArrayAsDER(scoped_matching_items),
                 UnorderedElementsAreArray(
                     ParsedCertificateListAsDER({b_by_c, b_by_f})));
   }
 
   {
-    ParsedCertificateList found_issuers;
-    trust_store.SyncGetIssuersOf(b_by_c.get(), &found_issuers);
-    EXPECT_THAT(ParsedCertificateListAsDER(found_issuers),
+    base::ScopedCFTypeRef<CFArrayRef> scoped_matching_items =
+        TrustStoreMac::FindMatchingCertificatesForMacNormalizedSubject(
+            normalized_name_c.get());
+    EXPECT_THAT(SecCertificateArrayAsDER(scoped_matching_items),
                 UnorderedElementsAreArray(
                     ParsedCertificateListAsDER({c_by_d, c_by_e})));
   }
 
   {
-    ParsedCertificateList found_issuers;
-    trust_store.SyncGetIssuersOf(b_by_f.get(), &found_issuers);
+    base::ScopedCFTypeRef<CFArrayRef> scoped_matching_items =
+        TrustStoreMac::FindMatchingCertificatesForMacNormalizedSubject(
+            normalized_name_f.get());
     EXPECT_THAT(
-        ParsedCertificateListAsDER(found_issuers),
+        SecCertificateArrayAsDER(scoped_matching_items),
         UnorderedElementsAreArray(ParsedCertificateListAsDER({f_by_e})));
   }
 
   {
-    ParsedCertificateList found_issuers;
-    trust_store.SyncGetIssuersOf(c_by_d.get(), &found_issuers);
+    base::ScopedCFTypeRef<CFArrayRef> scoped_matching_items =
+        TrustStoreMac::FindMatchingCertificatesForMacNormalizedSubject(
+            normalized_name_d.get());
     EXPECT_THAT(
-        ParsedCertificateListAsDER(found_issuers),
+        SecCertificateArrayAsDER(scoped_matching_items),
         UnorderedElementsAreArray(ParsedCertificateListAsDER({d_by_d})));
   }
 
   {
-    ParsedCertificateList found_issuers;
-    trust_store.SyncGetIssuersOf(f_by_e.get(), &found_issuers);
+    base::ScopedCFTypeRef<CFArrayRef> scoped_matching_items =
+        TrustStoreMac::FindMatchingCertificatesForMacNormalizedSubject(
+            normalized_name_e.get());
     EXPECT_THAT(
-        ParsedCertificateListAsDER(found_issuers),
+        SecCertificateArrayAsDER(scoped_matching_items),
         UnorderedElementsAreArray(ParsedCertificateListAsDER({e_by_e})));
   }
 
@@ -208,22 +202,18 @@ TEST_P(TrustStoreMacImplTest, MultiRootNotTrusted) {
   // added and trusted the test certs on the machine the test is being run on).
   for (const auto& cert :
        {a_by_b, b_by_c, b_by_f, c_by_d, c_by_e, f_by_e, d_by_d, e_by_e}) {
+    CertificateTrust trust = CertificateTrust::ForTrustAnchor();
     DebugData debug_data;
-    CertificateTrust trust = trust_store.GetTrust(cert.get(), &debug_data);
+    trust_store.GetTrust(cert.get(), &trust, &debug_data);
     EXPECT_EQ(CertificateTrustType::UNSPECIFIED, trust.type);
-    // The combined_trust_debug_info should be 0 since no trust records
-    // should exist for these test certs.
-    const TrustStoreMac::ResultDebugData* trust_debug_data =
-        TrustStoreMac::ResultDebugData::Get(&debug_data);
-    ASSERT_TRUE(trust_debug_data);
-    EXPECT_EQ(0, trust_debug_data->combined_trust_debug_info());
-    EXPECT_EQ(trust_impl, trust_debug_data->trust_impl());
+    // Certs without trust settings should not add debug info to debug_data.
+    EXPECT_FALSE(TrustStoreMac::ResultDebugData::Get(&debug_data));
   }
 }
 
 // Test against all the certificates in the default keychains. Confirms that
-// the computed trust value matches that of SecTrustEvaluateWithError.
-TEST_P(TrustStoreMacImplTest, SystemCerts) {
+// the computed trust value matches that of SecTrustEvaluate.
+TEST(TrustStoreMacTest, SystemCerts) {
   // Get the list of all certificates in the user & system keychains.
   // This may include both trusted and untrusted certificates.
   //
@@ -243,30 +233,40 @@ TEST_P(TrustStoreMacImplTest, SystemCerts) {
        "/System/Library/Keychains/SystemRootCertificates.keychain"},
       &find_certificate_system_roots_output));
 
-  std::set<std::string> find_certificate_default_search_list_certs =
-      ParseFindCertificateOutputToDerCerts(
-          find_certificate_default_search_list_output);
-  std::set<std::string> find_certificate_system_roots_certs =
-      ParseFindCertificateOutputToDerCerts(
-          find_certificate_system_roots_output);
-
-  const TrustStoreMac::TrustImplType trust_impl = GetParam();
-
-  base::HistogramTester histogram_tester;
-  TrustStoreMac trust_store(kSecPolicyAppleX509Basic, trust_impl);
+  TrustStoreMac trust_store(kSecPolicyAppleX509Basic);
 
   base::ScopedCFTypeRef<SecPolicyRef> sec_policy(SecPolicyCreateBasicX509());
   ASSERT_TRUE(sec_policy);
-  std::vector<std::string> all_certs;
-  std::set_union(find_certificate_default_search_list_certs.begin(),
-                 find_certificate_default_search_list_certs.end(),
-                 find_certificate_system_roots_certs.begin(),
-                 find_certificate_system_roots_certs.end(),
-                 std::back_inserter(all_certs));
-  for (const std::string& cert_der : all_certs) {
-    std::string hash = crypto::SHA256HashString(cert_der);
-    std::string hash_text = base::HexEncode(hash.data(), hash.size());
+  for (const std::string& hash_and_pem_partial : base::SplitStringUsingSubstr(
+           find_certificate_system_roots_output +
+               find_certificate_default_search_list_output,
+           "-----END CERTIFICATE-----", base::TRIM_WHITESPACE,
+           base::SPLIT_WANT_NONEMPTY)) {
+    // Re-add the PEM ending mark, since SplitStringUsingSubstr eats it.
+    const std::string hash_and_pem =
+        hash_and_pem_partial + "\n-----END CERTIFICATE-----\n";
+
+    // Use the first hash value found in the text. This might be SHA-256 or
+    // SHA-1, but it's only for debugging purposes so it doesn't matter as long
+    // as one exists.
+    std::string::size_type hash_pos = hash_and_pem.find("hash: ");
+    ASSERT_NE(std::string::npos, hash_pos);
+    hash_pos += 6;
+    std::string::size_type eol_pos = hash_and_pem.find_first_of("\r\n");
+    ASSERT_NE(std::string::npos, eol_pos);
+    // Extract the hash of the certificate. This isn't necessary for the
+    // test, but is a convenient identifier to use in any error messages.
+    std::string hash_text = hash_and_pem.substr(hash_pos, eol_pos - hash_pos);
+
     SCOPED_TRACE(hash_text);
+    // TODO(mattm): The same cert might exist in both lists, could de-dupe
+    // before testing?
+
+    // Parse the PEM encoded text to DER bytes.
+    PEMTokenizer pem_tokenizer(hash_and_pem, {kCertificateHeader});
+    ASSERT_TRUE(pem_tokenizer.GetNext());
+    std::string cert_der(pem_tokenizer.data());
+    ASSERT_FALSE(pem_tokenizer.GetNext());
 
     CertErrors errors;
     // Note: don't actually need to make a ParsedCertificate here, just need
@@ -284,7 +284,13 @@ TEST_P(TrustStoreMacImplTest, SystemCerts) {
                    << errors.ToDebugString();
       continue;
     }
+    // Check if this cert is considered a trust anchor by TrustStoreMac.
+    CertificateTrust cert_trust;
+    DebugData debug_data;
+    trust_store.GetTrust(cert, &cert_trust, &debug_data);
+    bool is_trust_anchor = cert_trust.IsTrustAnchor();
 
+    // Check if this cert is considered a trust anchor by the OS.
     base::ScopedCFTypeRef<SecCertificateRef> cert_handle(
         x509_util::CreateSecCertificateFromBytes(cert->der_cert().UnsafeData(),
                                                  cert->der_cert().Length()));
@@ -292,17 +298,6 @@ TEST_P(TrustStoreMacImplTest, SystemCerts) {
       ADD_FAILURE() << "CreateCertBufferFromBytes " << hash_text;
       continue;
     }
-
-    // Check if this cert is considered a trust anchor by TrustStoreMac.
-    DebugData debug_data;
-    CertificateTrust cert_trust = trust_store.GetTrust(cert.get(), &debug_data);
-    bool is_trust_anchor = cert_trust.IsTrustAnchor();
-    if (is_trust_anchor) {
-      EXPECT_EQ(CertificateTrustType::TRUSTED_ANCHOR_WITH_EXPIRATION,
-                cert_trust.type);
-    }
-
-    // Check if this cert is considered a trust anchor by the OS.
     base::ScopedCFTypeRef<SecTrustRef> trust;
     {
       base::AutoLock lock(crypto::GetMacSecurityServicesLock());
@@ -314,114 +309,24 @@ TEST_P(TrustStoreMacImplTest, SystemCerts) {
                                               kSecTrustOptionAllowExpired |
                                               kSecTrustOptionAllowExpiredRoot));
 
-      if (find_certificate_default_search_list_certs.count(cert_der) &&
-          find_certificate_system_roots_certs.count(cert_der)) {
-        // If the same certificate is present in both the System and User/Admin
-        // domains, and TrustStoreMac is only using trust settings from
-        // User/Admin, then it's not possible for this test to know whether the
-        // result from SecTrustEvaluate should match the TrustStoreMac result.
-        // Just ignore such certificates.
-      } else if (!find_certificate_default_search_list_certs.count(cert_der)) {
-        // Cert is only in the system domain. It should be untrusted.
-        EXPECT_FALSE(is_trust_anchor);
-      } else {
-        bool trusted;
-        if (__builtin_available(macOS 10.14, *)) {
-          trusted = SecTrustEvaluateWithError(trust, nullptr);
-        } else {
-          SecTrustResultType trust_result;
-          ASSERT_EQ(noErr, SecTrustEvaluate(trust, &trust_result));
-          trusted = (trust_result == kSecTrustResultProceed) ||
-                    (trust_result == kSecTrustResultUnspecified);
-        }
-
-        bool expected_trust_anchor =
-            trusted && (SecTrustGetCertificateCount(trust) == 1);
-        EXPECT_EQ(expected_trust_anchor, is_trust_anchor);
-      }
-      auto* trust_debug_data = TrustStoreMac::ResultDebugData::Get(&debug_data);
-      ASSERT_TRUE(trust_debug_data);
-      if (is_trust_anchor &&
-          trust_impl != TrustStoreMac::TrustImplType::kKeychainCacheFullCerts) {
+      SecTrustResultType trust_result;
+      ASSERT_EQ(noErr, SecTrustEvaluate(trust, &trust_result));
+      bool expected_trust_anchor =
+          ((trust_result == kSecTrustResultProceed) ||
+           (trust_result == kSecTrustResultUnspecified)) &&
+          (SecTrustGetCertificateCount(trust) == 1);
+      EXPECT_EQ(expected_trust_anchor, is_trust_anchor);
+      if (is_trust_anchor) {
+        auto* trust_debug_data =
+            TrustStoreMac::ResultDebugData::Get(&debug_data);
+        ASSERT_TRUE(trust_debug_data);
         // Since this test queries the real trust store, can't know exactly
-        // what bits should be set in the trust debug info, but if it's trusted
-        // it should at least have something set.
+        // what bits should be set in the trust debug info, but it should at
+        // least have something set.
         EXPECT_NE(0, trust_debug_data->combined_trust_debug_info());
       }
-      // The impl that was used should be specified in the debug data.
-      EXPECT_EQ(trust_impl, trust_debug_data->trust_impl());
     }
-
-    // Call GetTrust again on the same cert. This should exercise the code
-    // that checks the trust value for a cert which has already been cached.
-    DebugData debug_data2;
-    CertificateTrust cert_trust2 =
-        trust_store.GetTrust(cert.get(), &debug_data2);
-    EXPECT_EQ(cert_trust.type, cert_trust2.type);
-    auto* trust_debug_data = TrustStoreMac::ResultDebugData::Get(&debug_data);
-    ASSERT_TRUE(trust_debug_data);
-    auto* trust_debug_data2 = TrustStoreMac::ResultDebugData::Get(&debug_data2);
-    ASSERT_TRUE(trust_debug_data2);
-    EXPECT_EQ(trust_debug_data->combined_trust_debug_info(),
-              trust_debug_data2->combined_trust_debug_info());
-    EXPECT_EQ(trust_debug_data->trust_impl(), trust_debug_data2->trust_impl());
-  }
-
-  // Since this is testing the actual platform certs and trust settings, we
-  // don't know what values the histograms should be, so just verify that the
-  // histogram is recorded (or not) depending on the requested trust impl.
-
-  {
-    // Histograms only logged by DomainCacheFullCerts impl:
-    const int expected_count =
-        (trust_impl == TrustStoreMac::TrustImplType::kDomainCacheFullCerts) ? 1
-                                                                            : 0;
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacTrustDomainCertCount.User", expected_count);
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacTrustDomainCertCount.Admin", expected_count);
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacTrustDomainCacheInitTime", expected_count);
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacKeychainCerts.IntermediateCacheInitTime",
-        expected_count);
-  }
-
-  {
-    // Histograms only logged by KeychainCacheFullCerts impl:
-    const int expected_count =
-        (trust_impl == TrustStoreMac::TrustImplType::kKeychainCacheFullCerts)
-            ? 1
-            : 0;
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacKeychainCerts.TrustCount", expected_count);
-  }
-
-  {
-    // Histograms logged by both DomainCacheFullCerts and KeychainCacheFullCerts
-    // impls:
-    const int expected_count =
-        (trust_impl == TrustStoreMac::TrustImplType::kDomainCacheFullCerts ||
-         trust_impl == TrustStoreMac::TrustImplType::kKeychainCacheFullCerts)
-            ? 1
-            : 0;
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacKeychainCerts.IntermediateCount", expected_count);
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacKeychainCerts.TotalCount", expected_count);
-    histogram_tester.ExpectTotalCount(
-        "Net.CertVerifier.MacTrustImplCacheInitTime", expected_count);
   }
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    Impl,
-    TrustStoreMacImplTest,
-    testing::Values(TrustStoreMac::TrustImplType::kSimple,
-                    TrustStoreMac::TrustImplType::kDomainCacheFullCerts,
-                    TrustStoreMac::TrustImplType::kKeychainCacheFullCerts),
-    [](const testing::TestParamInfo<TrustStoreMacImplTest::ParamType>& info) {
-      return TrustImplTypeToString(info.param);
-    });
 
 }  // namespace net

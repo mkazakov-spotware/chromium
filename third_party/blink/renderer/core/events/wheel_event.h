@@ -29,8 +29,8 @@
 #include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/events/mouse_event.h"
+#include "third_party/blink/renderer/platform/geometry/float_point.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
-#include "ui/gfx/geometry/point_f.h"
 
 namespace blink {
 
@@ -72,10 +72,10 @@ class CORE_EXPORT WheelEvent final : public MouseEvent {
     return wheelDeltaY() ? wheelDeltaY() : wheelDeltaX();
   }  // Deprecated.
   int wheelDeltaX() const {
-    return wheel_delta_.x();
+    return wheel_delta_.X();
   }  // Deprecated, negative when scrolling right.
   int wheelDeltaY() const {
-    return wheel_delta_.y();
+    return wheel_delta_.Y();
   }  // Deprecated, negative when scrolling down.
   unsigned deltaMode() const { return delta_mode_; }
 
@@ -94,7 +94,7 @@ class CORE_EXPORT WheelEvent final : public MouseEvent {
   void Trace(Visitor*) const override;
 
  private:
-  gfx::Point wheel_delta_;
+  IntPoint wheel_delta_;
   double delta_x_;
   double delta_y_;
   double delta_z_;

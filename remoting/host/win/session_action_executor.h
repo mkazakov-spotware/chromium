@@ -1,12 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef REMOTING_HOST_WIN_SESSION_ACTION_EXECUTOR_H_
 #define REMOTING_HOST_WIN_SESSION_ACTION_EXECUTOR_H_
 
+#include <memory>
+
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "remoting/host/action_executor.h"
 
 namespace base {
@@ -23,10 +26,6 @@ class SessionActionExecutor : public ActionExecutor {
       scoped_refptr<base::SingleThreadTaskRunner> execute_action_task_runner,
       const base::RepeatingClosure& inject_sas,
       const base::RepeatingClosure& lock_workstation);
-
-  SessionActionExecutor(const SessionActionExecutor&) = delete;
-  SessionActionExecutor& operator=(const SessionActionExecutor&) = delete;
-
   ~SessionActionExecutor() override;
 
   // ActionExecutor implementation.
@@ -40,6 +39,8 @@ class SessionActionExecutor : public ActionExecutor {
 
   // Locks the current session.
   base::RepeatingClosure lock_workstation_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionActionExecutor);
 };
 
 }  // namespace remoting

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,13 @@
 #include "base/base64.h"
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/notreached.h"
-#include "base/observer_list.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "components/link_header_util/link_header_util.h"
 #include "content/browser/loader/cross_origin_read_blocking_checker.h"
 #include "content/browser/loader/navigation_loader_interceptor.h"
 #include "content/browser/loader/single_request_url_loader_factory.h"
 #include "content/browser/navigation_subresource_loader_params.h"
-#include "content/browser/renderer_host/frame_tree_node.h"
-#include "content/browser/renderer_host/render_frame_host_impl.h"
-#include "content/browser/storage_partition_impl.h"
 #include "content/browser/web_package/signed_exchange_reporter.h"
 #include "content/browser/web_package/signed_exchange_utils.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -32,21 +28,17 @@
 #include "net/http/http_util.h"
 #include "net/url_request/redirect_util.h"
 #include "services/network/public/cpp/constants.h"
-#include "services/network/public/cpp/corb/corb_api.h"
 #include "services/network/public/cpp/cors/cors.h"
 #include "services/network/public/cpp/features.h"
-#include "services/network/public/cpp/initiator_lock_compatibility.h"
-#include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
-#include "services/network/public/mojom/fetch_api.mojom-shared.h"
-#include "services/network/public/mojom/restricted_cookie_manager.mojom.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "storage/browser/blob/blob_data_handle.h"
 #include "storage/browser/blob/blob_impl.h"
 #include "storage/browser/blob/mojo_blob_reader.h"
+#include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 
 namespace content {
 
@@ -64,45 +56,6 @@ void UpdateRequestResponseStartTime(
   response_head->response_start = now_ticks;
   response_head->load_timing.request_start_time = now;
   response_head->load_timing.request_start = now_ticks;
-}
-
-bool IsValidRequestInitiator(const network::ResourceRequest& request,
-                             const url::Origin& request_initiator_origin_lock) {
-  // TODO(lukasza): Deduplicate the check below by reusing parts of
-  // CorsURLLoaderFactory::IsValidRequest (potentially also reusing the parts
-  // that validate non-initiator-related parts of a ResourceRequest)..
-  network::InitiatorLockCompatibility initiator_lock_compatibility =
-      network::VerifyRequestInitiatorLock(request_initiator_origin_lock,
-                                          request.request_initiator);
-  switch (initiator_lock_compatibility) {
-    case network::InitiatorLockCompatibility::kBrowserProcess:
-      // kBrowserProcess cannot happen outside of NetworkService.
-      NOTREACHED();
-      return false;
-
-    case network::InitiatorLockCompatibility::kNoLock:
-    case network::InitiatorLockCompatibility::kNoInitiator:
-      // Only browser-initiated navigations can specify no initiator and we only
-      // expect subresource requests (i.e. non-navigations) to go through
-      // SubresourceSignedExchangeURLLoaderFactory::CreateLoaderAndStart.
-      NOTREACHED();
-      return false;
-
-    case network::InitiatorLockCompatibility::kCompatibleLock:
-      return true;
-
-    case network::InitiatorLockCompatibility::kIncorrectLock:
-      // This branch indicates that either 1) the CreateLoaderAndStart IPC was
-      // forged by a malicious/compromised renderer process or 2) there are
-      // renderer-side bugs.
-      NOTREACHED();
-      return false;
-  }
-
-  // Failing safely for an unrecognied `network::InitiatorLockCompatibility`
-  // enum value.
-  NOTREACHED();
-  return false;
 }
 
 // A utility subclass of MojoBlobReader::Delegate that calls the passed callback
@@ -146,11 +99,6 @@ class RedirectResponseURLLoader : public network::mojom::URLLoader {
                                    false /* is_fallback_redirect */),
                                std::move(response_head));
   }
-
-  RedirectResponseURLLoader(const RedirectResponseURLLoader&) = delete;
-  RedirectResponseURLLoader& operator=(const RedirectResponseURLLoader&) =
-      delete;
-
   ~RedirectResponseURLLoader() override {}
 
  private:
@@ -159,7 +107,7 @@ class RedirectResponseURLLoader : public network::mojom::URLLoader {
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override {
+      const base::Optional<GURL>& new_url) override {
     NOTREACHED();
   }
   void SetPriority(net::RequestPriority priority,
@@ -176,6 +124,8 @@ class RedirectResponseURLLoader : public network::mojom::URLLoader {
   }
 
   mojo::Remote<network::mojom::URLLoaderClient> client_;
+
+  DISALLOW_COPY_AND_ASSIGN(RedirectResponseURLLoader);
 };
 
 // A URLLoader which returns the inner response of signed exchange.
@@ -184,44 +134,38 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
   InnerResponseURLLoader(
       const network::ResourceRequest& request,
       network::mojom::URLResponseHeadPtr inner_response,
+      const url::Origin& request_initiator_origin_lock,
       std::unique_ptr<const storage::BlobDataHandle> blob_data_handle,
       const network::URLLoaderCompletionStatus& completion_status,
       mojo::PendingRemote<network::mojom::URLLoaderClient> client,
-      bool is_navigation_request,
-      network::corb::PerFactoryState& corb_state)
+      bool is_navigation_request)
       : response_(std::move(inner_response)),
         blob_data_handle_(std::move(blob_data_handle)),
         completion_status_(completion_status),
         client_(std::move(client)) {
     DCHECK(response_->headers);
-
-    // The `request.request_initiator` is assumed to be present and trustworthy
-    // - it comes either from:
-    // 1, The trustworthy navigation stack (via
-    //    PrefetchedNavigationLoaderInterceptor::StartInnerResponse).
-    // or
-    // 2. SubresourceSignedExchangeURLLoaderFactory::CreateLoaderAndStart which
-    //    validates the untrustworthy IPC payload as its very first action.
     DCHECK(request.request_initiator);
 
     // Keep the SSLInfo only when the request is for main frame main resource,
-    // or devtools_request_id is set. Users can inspect the certificate for the
+    // or report_raw_headers is set. Users can inspect the certificate for the
     // main frame using the info bubble in Omnibox, and for the subresources in
     // DevTools' Security panel.
-    if (request.destination != network::mojom::RequestDestination::kDocument &&
-        !request.devtools_request_id) {
-      response_->ssl_info = absl::nullopt;
+    if ((request.resource_type !=
+         static_cast<int>(blink::mojom::ResourceType::kMainFrame)) &&
+        !request.report_raw_headers) {
+      response_->ssl_info = base::nullopt;
     }
     UpdateRequestResponseStartTime(response_.get());
     response_->encoded_data_length = 0;
     if (is_navigation_request) {
+      client_->OnReceiveResponse(std::move(response_));
       SendResponseBody();
       return;
     }
 
     if (network::cors::ShouldCheckCors(request.url, request.request_initiator,
                                        request.mode)) {
-      const auto result = network::cors::CheckAccessAndReportMetrics(
+      const auto error_status = network::cors::CheckAccess(
           request.url,
           GetHeaderString(
               *response_,
@@ -230,32 +174,28 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
               *response_,
               network::cors::header_names::kAccessControlAllowCredentials),
           request.credentials_mode, *request.request_initiator);
-      if (!result.has_value()) {
-        client_->OnComplete(network::URLLoaderCompletionStatus(result.error()));
+      if (error_status) {
+        client_->OnComplete(network::URLLoaderCompletionStatus(*error_status));
         return;
       }
     }
 
     corb_checker_ = std::make_unique<CrossOriginReadBlockingChecker>(
-        request, *response_, *blob_data_handle_, corb_state,
+        request, *response_, request_initiator_origin_lock, *blob_data_handle_,
         base::BindOnce(
             &InnerResponseURLLoader::OnCrossOriginReadBlockingCheckComplete,
             base::Unretained(this)));
   }
-
-  InnerResponseURLLoader(const InnerResponseURLLoader&) = delete;
-  InnerResponseURLLoader& operator=(const InnerResponseURLLoader&) = delete;
-
   ~InnerResponseURLLoader() override {}
 
  private:
-  static absl::optional<std::string> GetHeaderString(
+  static base::Optional<std::string> GetHeaderString(
       const network::mojom::URLResponseHead& response,
       const std::string& header_name) {
     DCHECK(response.headers);
     std::string header_value;
     if (!response.headers->GetNormalizedHeader(header_name, &header_value))
-      return absl::nullopt;
+      return base::nullopt;
     return header_value;
   }
 
@@ -263,6 +203,7 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
       CrossOriginReadBlockingChecker::Result result) {
     switch (result) {
       case CrossOriginReadBlockingChecker::Result::kAllowed:
+        client_->OnReceiveResponse(std::move(response_));
         SendResponseBody();
         return;
       case CrossOriginReadBlockingChecker::Result::kNetError:
@@ -276,20 +217,20 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
     }
 
     // Send sanitized response.
-    network::corb::SanitizeBlockedResponseHeaders(*response_);
+    network::CrossOriginReadBlocking::SanitizeBlockedResponse(response_.get());
+    client_->OnReceiveResponse(std::move(response_));
 
     // Send an empty response's body.
     mojo::ScopedDataPipeProducerHandle pipe_producer_handle;
     mojo::ScopedDataPipeConsumerHandle pipe_consumer_handle;
-    MojoResult rv = mojo::CreateDataPipe(nullptr, pipe_producer_handle,
-                                         pipe_consumer_handle);
+    MojoResult rv = mojo::CreateDataPipe(nullptr, &pipe_producer_handle,
+                                         &pipe_consumer_handle);
     if (rv != MOJO_RESULT_OK) {
       client_->OnComplete(
           network::URLLoaderCompletionStatus(net::ERR_INSUFFICIENT_RESOURCES));
       return;
     }
-    client_->OnReceiveResponse(std::move(response_),
-                               std::move(pipe_consumer_handle), absl::nullopt);
+    client_->OnStartLoadingResponseBody(std::move(pipe_consumer_handle));
 
     // Send a dummy OnComplete message.
     network::URLLoaderCompletionStatus status =
@@ -304,7 +245,7 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override {
+      const base::Optional<GURL>& new_url) override {
     NOTREACHED();
   }
   void SetPriority(net::RequestPriority priority,
@@ -328,10 +269,9 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
     options.struct_size = sizeof(MojoCreateDataPipeOptions);
     options.flags = MOJO_CREATE_DATA_PIPE_FLAG_NONE;
     options.element_num_bytes = 1;
-    options.capacity_num_bytes =
-        network::features::GetDataPipeDefaultAllocationSize();
-    MojoResult rv = mojo::CreateDataPipe(&options, pipe_producer_handle,
-                                         pipe_consumer_handle);
+    options.capacity_num_bytes = network::kDataPipeDefaultAllocationSize;
+    MojoResult rv = mojo::CreateDataPipe(&options, &pipe_producer_handle,
+                                         &pipe_consumer_handle);
     if (rv != MOJO_RESULT_OK) {
       client_->OnComplete(
           network::URLLoaderCompletionStatus(net::ERR_INSUFFICIENT_RESOURCES));
@@ -345,8 +285,7 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
             weak_factory_.GetWeakPtr(), std::move(pipe_producer_handle),
             std::make_unique<storage::BlobDataHandle>(*blob_data_handle_)));
 
-    client_->OnReceiveResponse(std::move(response_),
-                               std::move(pipe_consumer_handle), absl::nullopt);
+    client_->OnStartLoadingResponseBody(std::move(pipe_consumer_handle));
   }
 
   void BlobReaderComplete(net::Error result) {
@@ -389,6 +328,8 @@ class InnerResponseURLLoader : public network::mojom::URLLoader {
   std::unique_ptr<CrossOriginReadBlockingChecker> corb_checker_;
 
   base::WeakPtrFactory<InnerResponseURLLoader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InnerResponseURLLoader);
 };
 
 // A URLLoaderFactory which handles a signed exchange subresource request from
@@ -407,46 +348,27 @@ class SubresourceSignedExchangeURLLoaderFactory
         &SubresourceSignedExchangeURLLoaderFactory::OnMojoDisconnect,
         base::Unretained(this)));
   }
-
-  SubresourceSignedExchangeURLLoaderFactory(
-      const SubresourceSignedExchangeURLLoaderFactory&) = delete;
-  SubresourceSignedExchangeURLLoaderFactory& operator=(
-      const SubresourceSignedExchangeURLLoaderFactory&) = delete;
-
   ~SubresourceSignedExchangeURLLoaderFactory() override {}
 
   // network::mojom::URLLoaderFactory implementation.
   void CreateLoaderAndStart(
       mojo::PendingReceiver<network::mojom::URLLoader> loader,
+      int32_t routing_id,
       int32_t request_id,
       uint32_t options,
       const network::ResourceRequest& request,
       mojo::PendingRemote<network::mojom::URLLoaderClient> client,
       const net::MutableNetworkTrafficAnnotationTag& traffic_annotation)
       override {
-    if (!IsValidRequestInitiator(request, request_initiator_origin_lock_)) {
-      NOTREACHED();
-      network::debug::ScopedResourceRequestCrashKeys request_crash_keys(
-          request);
-      network::debug::ScopedRequestInitiatorOriginLockCrashKey lock_crash_keys(
-          request_initiator_origin_lock_);
-      mojo::ReportBadMessage(
-          "SubresourceSignedExchangeURLLoaderFactory: "
-          "lock VS initiator mismatch");
-      mojo::Remote<network::mojom::URLLoaderClient>(std::move(client))
-          ->OnComplete(
-              network::URLLoaderCompletionStatus(net::ERR_INVALID_ARGUMENT));
-      return;
-    }
-
     DCHECK_EQ(request.url, entry_->inner_url());
     mojo::MakeSelfOwnedReceiver(
         std::make_unique<InnerResponseURLLoader>(
             request, entry_->inner_response().Clone(),
+            request_initiator_origin_lock_,
             std::make_unique<const storage::BlobDataHandle>(
                 *entry_->blob_data_handle()),
             *entry_->completion_status(), std::move(client),
-            false /* is_navigation_request */, corb_state_),
+            false /* is_navigation_request */),
         std::move(loader));
   }
   void Clone(mojo::PendingReceiver<network::mojom::URLLoaderFactory> receiver)
@@ -464,7 +386,8 @@ class SubresourceSignedExchangeURLLoaderFactory
   std::unique_ptr<const PrefetchedSignedExchangeCacheEntry> entry_;
   const url::Origin request_initiator_origin_lock_;
   mojo::ReceiverSet<network::mojom::URLLoaderFactory> receivers_;
-  network::corb::PerFactoryState corb_state_;
+
+  DISALLOW_COPY_AND_ASSIGN(SubresourceSignedExchangeURLLoaderFactory);
 };
 
 // A NavigationLoaderInterceptor which handles a request which matches the
@@ -475,16 +398,8 @@ class PrefetchedNavigationLoaderInterceptor
  public:
   PrefetchedNavigationLoaderInterceptor(
       std::unique_ptr<const PrefetchedSignedExchangeCacheEntry> exchange,
-      std::vector<blink::mojom::PrefetchedSignedExchangeInfoPtr> info_list,
-      mojo::Remote<network::mojom::RestrictedCookieManager> cookie_manager)
-      : exchange_(std::move(exchange)),
-        info_list_(std::move(info_list)),
-        cookie_manager_(std::move(cookie_manager)) {}
-
-  PrefetchedNavigationLoaderInterceptor(
-      const PrefetchedNavigationLoaderInterceptor&) = delete;
-  PrefetchedNavigationLoaderInterceptor& operator=(
-      const PrefetchedNavigationLoaderInterceptor&) = delete;
+      std::vector<mojom::PrefetchedSignedExchangeInfoPtr> info_list)
+      : exchange_(std::move(exchange)), info_list_(std::move(info_list)) {}
 
   ~PrefetchedNavigationLoaderInterceptor() override {}
 
@@ -504,75 +419,32 @@ class PrefetchedNavigationLoaderInterceptor
     }
     if (tentative_resource_request.url == exchange_->inner_url()) {
       DCHECK_EQ(State::kOuterRequestRequested, state_);
-      if (signed_exchange_utils::IsCookielessOnlyExchange(
-              *exchange_->inner_response()->headers)) {
-        DCHECK(cookie_manager_);
-        state_ = State::kCheckingCookies;
-        CheckAbsenceOfCookies(tentative_resource_request, std::move(callback),
-                              std::move(fallback_callback));
-        return;
-      } else {
-        state_ = State::kInnerResponseRequested;
-        std::move(callback).Run(
-            base::MakeRefCounted<SingleRequestURLLoaderFactory>(base::BindOnce(
-                &PrefetchedNavigationLoaderInterceptor::StartInnerResponse,
-                weak_factory_.GetWeakPtr())));
-        return;
-      }
+      state_ = State::kInnerResponseRequested;
+      std::move(callback).Run(
+          base::MakeRefCounted<SingleRequestURLLoaderFactory>(base::BindOnce(
+              &PrefetchedNavigationLoaderInterceptor::StartInnerResponse,
+              weak_factory_.GetWeakPtr())));
+      return;
     }
     NOTREACHED();
   }
 
-  absl::optional<SubresourceLoaderParams> MaybeCreateSubresourceLoaderParams()
+  base::Optional<SubresourceLoaderParams> MaybeCreateSubresourceLoaderParams()
       override {
     if (state_ != State::kInnerResponseRequested)
-      return absl::nullopt;
+      return base::nullopt;
 
     SubresourceLoaderParams params;
     params.prefetched_signed_exchanges = std::move(info_list_);
-    return absl::make_optional(std::move(params));
+    return base::make_optional(std::move(params));
   }
 
  private:
   enum class State {
     kInitial,
     kOuterRequestRequested,
-    kCheckingCookies,
     kInnerResponseRequested
   };
-
-  void CheckAbsenceOfCookies(const network::ResourceRequest& request,
-                             LoaderCallback callback,
-                             FallbackCallback fallback_callback) {
-    auto match_options = network::mojom::CookieManagerGetOptions::New();
-    match_options->name = "";
-    match_options->match_type = network::mojom::CookieMatchType::STARTS_WITH;
-    cookie_manager_->GetAllForUrl(
-        request.url, request.trusted_params->isolation_info.site_for_cookies(),
-        *request.trusted_params->isolation_info.top_frame_origin(),
-        std::move(match_options),
-        base::BindOnce(&PrefetchedNavigationLoaderInterceptor::OnGetCookies,
-                       weak_factory_.GetWeakPtr(), std::move(callback),
-                       std::move(fallback_callback)));
-  }
-
-  void OnGetCookies(LoaderCallback callback,
-                    FallbackCallback fallback_callback,
-                    const std::vector<net::CookieWithAccessResult>& results) {
-    DCHECK_EQ(State::kCheckingCookies, state_);
-    if (!results.empty()) {
-      signed_exchange_utils::RecordLoadResultHistogram(
-          SignedExchangeLoadResult::kHadCookieForCookielessOnlySXG);
-      std::move(fallback_callback)
-          .Run(true /* reset_subresource_loader_params */);
-      return;
-    }
-    state_ = State::kInnerResponseRequested;
-    std::move(callback).Run(
-        base::MakeRefCounted<SingleRequestURLLoaderFactory>(base::BindOnce(
-            &PrefetchedNavigationLoaderInterceptor::StartInnerResponse,
-            weak_factory_.GetWeakPtr())));
-  }
 
   void StartRedirectResponse(
       const network::ResourceRequest& resource_request,
@@ -589,42 +461,25 @@ class PrefetchedNavigationLoaderInterceptor
       const network::ResourceRequest& resource_request,
       mojo::PendingReceiver<network::mojom::URLLoader> receiver,
       mojo::PendingRemote<network::mojom::URLLoaderClient> client) {
-    // `resource_request.request_initiator()` is trustworthy, because:
-    // 1) StartInnerResponse is only used from the navigation stack (via
-    //    MaybeCreateLoader override of NavigationLoaderInterceptor)
-    // 2) navigation initiator is validated in IPCs from the renderer (e.g. see
-    //    VerifyBeginNavigationCommonParams).
-    // Note that `request_initiator_origin_lock` below might be different from
-    // `url::Origin::Create(exchange_->inner_url())` - for example in the
-    // All/SignedExchangeRequestHandlerBrowserTest.Simple/3 testcase.
-    CHECK_EQ(network::mojom::RequestMode::kNavigate, resource_request.mode);
-
-    // PrefetchedNavigationLoaderInterceptor is only created for
-    // renderer-initiated navigations - therefore `request_initiator` is
-    // guaranteed to have a value here.
-    CHECK(resource_request.request_initiator.has_value());
-
-    // Okay to use separate/empty CORB/ORB state for each navigation request.
-    // (Because CORB doesn't apply to navigation requests.)
-    network::corb::PerFactoryState empty_corb_state;
-
     mojo::MakeSelfOwnedReceiver(
         std::make_unique<InnerResponseURLLoader>(
             resource_request, exchange_->inner_response().Clone(),
+            url::Origin::Create(exchange_->inner_url()),
             std::make_unique<const storage::BlobDataHandle>(
                 *exchange_->blob_data_handle()),
             *exchange_->completion_status(), std::move(client),
-            true /* is_navigation_request */, empty_corb_state),
+            true /* is_navigation_request */),
         std::move(receiver));
   }
 
   State state_ = State::kInitial;
-  const std::unique_ptr<const PrefetchedSignedExchangeCacheEntry> exchange_;
-  std::vector<blink::mojom::PrefetchedSignedExchangeInfoPtr> info_list_;
-  mojo::Remote<network::mojom::RestrictedCookieManager> cookie_manager_;
+  std::unique_ptr<const PrefetchedSignedExchangeCacheEntry> exchange_;
+  std::vector<mojom::PrefetchedSignedExchangeInfoPtr> info_list_;
 
   base::WeakPtrFactory<PrefetchedNavigationLoaderInterceptor> weak_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchedNavigationLoaderInterceptor);
 };
 
 bool CanStoreEntry(const PrefetchedSignedExchangeCacheEntry& entry) {
@@ -660,7 +515,7 @@ bool CanUseEntry(const PrefetchedSignedExchangeCacheEntry& entry,
   if (outer_response->headers->GetCurrentAge(outer_response->request_time,
                                              outer_response->response_time,
                                              verification_time) <
-      base::Minutes(net::HttpCache::kPrefetchReuseMins)) {
+      base::TimeDelta::FromMinutes(net::HttpCache::kPrefetchReuseMins)) {
     return true;
   }
   // We use the prefetched entry when we don't need the validation.
@@ -701,7 +556,7 @@ std::map<GURL, net::SHA256HashValue> GetAllowedAltSXG(
 
   for (const auto& value : link_header_util::SplitLinkHeader(link_header)) {
     std::string link_url;
-    std::unordered_map<std::string, absl::optional<std::string>> link_params;
+    std::unordered_map<std::string, base::Optional<std::string>> link_params;
     if (!link_header_util::ParseLinkHeaderValue(value.first, value.second,
                                                 &link_url, &link_params)) {
       continue;
@@ -759,7 +614,7 @@ std::unique_ptr<NavigationLoaderInterceptor>
 PrefetchedSignedExchangeCache::MaybeCreateInterceptor(
     const GURL& outer_url,
     int frame_tree_node_id,
-    const net::IsolationInfo& isolation_info) {
+    const net::NetworkIsolationKey& network_isolation_key) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   const auto it = exchanges_.find(outer_url);
   if (it == exchanges_.end())
@@ -772,35 +627,11 @@ PrefetchedSignedExchangeCache::MaybeCreateInterceptor(
     exchanges_.erase(it);
     return nullptr;
   }
-  auto info_list =
-      GetInfoListForNavigation(*exchange, verification_time, frame_tree_node_id,
-                               isolation_info.network_anonymization_key());
-
-  mojo::Remote<network::mojom::RestrictedCookieManager> cookie_manager;
-  auto* frame = FrameTreeNode::GloballyFindByID(frame_tree_node_id);
-  if (frame) {
-    StoragePartition* storage_partition =
-        frame->current_frame_host()->GetProcess()->GetStoragePartition();
-    url::Origin inner_url_origin = url::Origin::Create(exchange->inner_url());
-    net::IsolationInfo inner_url_isolation_info =
-        isolation_info.CreateForRedirect(inner_url_origin);
-
-    RenderFrameHostImpl* render_frame_host = frame->current_frame_host();
-    static_cast<StoragePartitionImpl*>(storage_partition)
-        ->CreateRestrictedCookieManager(
-            network::mojom::RestrictedCookieManagerRole::NETWORK,
-            inner_url_origin, inner_url_isolation_info,
-            /* is_service_worker = */ false,
-            render_frame_host ? render_frame_host->GetProcess()->GetID() : -1,
-            render_frame_host ? render_frame_host->GetRoutingID()
-                              : MSG_ROUTING_NONE,
-            cookie_manager.BindNewPipeAndPassReceiver(),
-            render_frame_host ? render_frame_host->CreateCookieAccessObserver()
-                              : mojo::NullRemote());
-  }
+  auto info_list = GetInfoListForNavigation(
+      *exchange, verification_time, frame_tree_node_id, network_isolation_key);
 
   return std::make_unique<PrefetchedNavigationLoaderInterceptor>(
-      exchange->Clone(), std::move(info_list), std::move(cookie_manager));
+      exchange->Clone(), std::move(info_list));
 }
 
 const PrefetchedSignedExchangeCache::EntryMap&
@@ -815,14 +646,33 @@ void PrefetchedSignedExchangeCache::RecordHistograms() {
     return;
   UMA_HISTOGRAM_COUNTS_100("PrefetchedSignedExchangeCache.Count",
                            exchanges_.size());
+  int64_t body_size_total = 0u;
+  int64_t headers_size_total = 0u;
+  for (const auto& exchanges_it : exchanges_) {
+    const std::unique_ptr<const PrefetchedSignedExchangeCacheEntry>& exchange =
+        exchanges_it.second;
+    const uint64_t body_size = exchange->blob_data_handle()->size();
+    body_size_total += body_size;
+    UMA_HISTOGRAM_COUNTS_10M("PrefetchedSignedExchangeCache.BodySize",
+                             body_size);
+    DCHECK(exchange->outer_response()->headers);
+    DCHECK(exchange->inner_response()->headers);
+    headers_size_total +=
+        exchange->outer_response()->headers->raw_headers().size() +
+        exchange->inner_response()->headers->raw_headers().size();
+  }
+  UMA_HISTOGRAM_COUNTS_10M("PrefetchedSignedExchangeCache.BodySizeTotal",
+                           body_size_total);
+  UMA_HISTOGRAM_COUNTS_10M("PrefetchedSignedExchangeCache.HeadersSizeTotal",
+                           headers_size_total);
 }
 
-std::vector<blink::mojom::PrefetchedSignedExchangeInfoPtr>
+std::vector<mojom::PrefetchedSignedExchangeInfoPtr>
 PrefetchedSignedExchangeCache::GetInfoListForNavigation(
     const PrefetchedSignedExchangeCacheEntry& main_exchange,
     const base::Time& verification_time,
     int frame_tree_node_id,
-    const net::NetworkAnonymizationKey& network_anonymization_key) {
+    const net::NetworkIsolationKey& network_isolation_key) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   const url::Origin outer_url_origin =
@@ -831,7 +681,7 @@ PrefetchedSignedExchangeCache::GetInfoListForNavigation(
       url::Origin::Create(main_exchange.inner_url());
   const auto inner_url_header_integrity_map = GetAllowedAltSXG(main_exchange);
 
-  std::vector<blink::mojom::PrefetchedSignedExchangeInfoPtr> info_list;
+  std::vector<mojom::PrefetchedSignedExchangeInfoPtr> info_list;
   EntryMap::iterator exchanges_it = exchanges_.begin();
   while (exchanges_it != exchanges_.end()) {
     const std::unique_ptr<const PrefetchedSignedExchangeCacheEntry>& exchange =
@@ -858,7 +708,7 @@ PrefetchedSignedExchangeCache::GetInfoListForNavigation(
       ++exchanges_it;
       auto reporter = SignedExchangeReporter::MaybeCreate(
           exchange->outer_url(), main_exchange.outer_url().spec(),
-          *exchange->outer_response(), network_anonymization_key,
+          *exchange->outer_response(), network_isolation_key,
           frame_tree_node_id);
       if (reporter) {
         reporter->set_cert_server_ip_address(
@@ -875,7 +725,7 @@ PrefetchedSignedExchangeCache::GetInfoListForNavigation(
     new SubresourceSignedExchangeURLLoaderFactory(
         pending_loader_factory.InitWithNewPipeAndPassReceiver(),
         exchange->Clone(), request_initiator_origin_lock);
-    info_list.emplace_back(blink::mojom::PrefetchedSignedExchangeInfo::New(
+    info_list.emplace_back(mojom::PrefetchedSignedExchangeInfo::New(
         exchange->outer_url(), *exchange->header_integrity(),
         exchange->inner_url(), exchange->inner_response().Clone(),
         std::move(pending_loader_factory)));

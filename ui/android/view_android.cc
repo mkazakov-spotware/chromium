@@ -1,17 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/android/view_android.h"
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/containers/adapters.h"
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "cc/layers/layer.h"
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -114,10 +114,10 @@ float ViewAndroid::GetDipScale() {
   return ui::GetScaleFactorForNativeView(this);
 }
 
-absl::optional<gfx::Rect> ViewAndroid::GetDisplayFeature() {
+base::Optional<gfx::Rect> ViewAndroid::GetDisplayFeature() {
   ScopedJavaLocalRef<jobject> delegate(GetViewAndroidDelegate());
   if (delegate.is_null())
-    return absl::nullopt;
+    return base::nullopt;
 
   JNIEnv* env = base::android::AttachCurrentThread();
   base::android::ScopedJavaLocalRef<jintArray> jni_display_feature =
@@ -137,7 +137,7 @@ absl::optional<gfx::Rect> ViewAndroid::GetDisplayFeature() {
     return display_feature;
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 ScopedJavaLocalRef<jobject> ViewAndroid::GetEventForwarder() {
@@ -208,7 +208,7 @@ bool ViewAndroid::SubtreeHasEventForwarder(ViewAndroid* view) {
 
 void ViewAndroid::MoveToFront(ViewAndroid* child) {
   DCHECK(child);
-  auto it = base::ranges::find(children_, child);
+  auto it = std::find(children_.begin(), children_.end(), child);
   DCHECK(it != children_.end());
 
   // Top element is placed at the end of the list.
@@ -218,7 +218,7 @@ void ViewAndroid::MoveToFront(ViewAndroid* child) {
 
 void ViewAndroid::MoveToBack(ViewAndroid* child) {
   DCHECK(child);
-  auto it = base::ranges::find(children_, child);
+  auto it = std::find(children_.begin(), children_.end(), child);
   DCHECK(it != children_.end());
 
   // Bottom element is placed at the beginning of the list.
@@ -313,7 +313,8 @@ void ViewAndroid::RemoveChild(ViewAndroid* child) {
 
   if (GetWindowAndroid())
     child->OnDetachedFromWindow();
-  std::list<ViewAndroid*>::iterator it = base::ranges::find(children_, child);
+  std::list<ViewAndroid*>::iterator it =
+      std::find(children_.begin(), children_.end(), child);
   DCHECK(it != children_.end());
   children_.erase(it);
   child->parent_ = nullptr;
@@ -409,14 +410,14 @@ void ViewAndroid::SetLayer(scoped_refptr<cc::Layer> layer) {
   layer_ = layer;
 }
 
-bool ViewAndroid::StartDragAndDrop(const JavaRef<jobject>& jshadow_image,
-                                   const JavaRef<jobject>& jdrop_data) {
+bool ViewAndroid::StartDragAndDrop(const JavaRef<jstring>& jtext,
+                                   const JavaRef<jobject>& jimage) {
   ScopedJavaLocalRef<jobject> delegate(GetViewAndroidDelegate());
   if (delegate.is_null())
     return false;
   JNIEnv* env = base::android::AttachCurrentThread();
-  return Java_ViewAndroidDelegate_startDragAndDrop(env, delegate, jshadow_image,
-                                                   jdrop_data);
+  return Java_ViewAndroidDelegate_startDragAndDrop(env, delegate, jtext,
+                                                   jimage);
 }
 
 void ViewAndroid::OnCursorChanged(const Cursor& cursor) {
@@ -439,15 +440,6 @@ void ViewAndroid::OnCursorChanged(const Cursor& cursor) {
     Java_ViewAndroidDelegate_onCursorChanged(env, delegate,
                                              static_cast<int>(cursor.type()));
   }
-}
-
-void ViewAndroid::SetHoverActionStylusWritable(bool stylus_writable) {
-  ScopedJavaLocalRef<jobject> delegate(GetViewAndroidDelegate());
-  if (delegate.is_null())
-    return;
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_ViewAndroidDelegate_setHoverActionStylusWritable(env, delegate,
-                                                        stylus_writable);
 }
 
 void ViewAndroid::OnBackgroundColorChanged(unsigned int color) {
@@ -547,7 +539,7 @@ void ViewAndroid::DispatchOnSizeChanged() {
 
 void ViewAndroid::OnPhysicalBackingSizeChanged(
     const gfx::Size& size,
-    absl::optional<base::TimeDelta> deadline_override) {
+    base::Optional<base::TimeDelta> deadline_override) {
   if (physical_size_ == size)
     return;
   physical_size_ = size;
@@ -569,6 +561,10 @@ void ViewAndroid::OnControlsResizeViewChanged(bool controls_resize_view) {
     child->OnControlsResizeViewChanged(controls_resize_view);
 }
 
+bool ViewAndroid::ControlsResizeView() {
+  return controls_resize_view_;
+}
+
 gfx::Size ViewAndroid::GetPhysicalBackingSize() const {
   return physical_size_;
 }
@@ -579,7 +575,7 @@ gfx::Size ViewAndroid::GetSize() const {
 
 bool ViewAndroid::OnDragEvent(const DragEventAndroid& event) {
   return HitTest(base::BindRepeating(&ViewAndroid::SendDragEventToHandler),
-                 event, event.location());
+                 event, event.location_f());
 }
 
 // static
@@ -705,11 +701,11 @@ bool ViewAndroid::HitTest(EventHandlerCallback<E> handler_callback,
                           const gfx::PointF& point) {
   if (event_handler_) {
     if (bounds_.origin().IsOrigin()) {  // (x, y) == (0, 0)
-      if (handler_callback.Run(event_handler_.get(), event))
+      if (handler_callback.Run(event_handler_, event))
         return true;
     } else {
       std::unique_ptr<E> e(event.CreateFor(point));
-      if (handler_callback.Run(event_handler_.get(), *e))
+      if (handler_callback.Run(event_handler_, *e))
         return true;
     }
   }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,9 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/time/time.h"
+#include "base/macros.h"
+#include "base/memory/singleton.h"
+#include "base/observer_list.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/media/router/discovery/dial/dial_service.h"
 #include "services/network/public/cpp/network_connection_tracker.h"
@@ -35,17 +32,17 @@ class NetLog;
 namespace media_router {
 
 // Keeps track of devices that have responded to discovery requests and notifies
-// the client with the current device list. It is indirectly owned by a
-// singleton that is never freed. All APIs should be called on the sequence
-// bound to |task_runner_|.
+// the observer with an updated, complete set of active devices.  The registry's
+// observer (i.e., the Dial API) owns the registry instance.
+// DialRegistry lives on the IO thread.
 class DialRegistry
-    : public DialService::Client,
+    : public DialService::Observer,
       public network::NetworkConnectionTracker::NetworkConnectionObserver {
  public:
   using DeviceList = std::vector<DialDeviceData>;
 
   enum DialErrorCode {
-    DIAL_NO_LISTENERS = 0,  // Deprecated
+    DIAL_NO_LISTENERS = 0,
     DIAL_NO_INTERFACES,
     DIAL_NETWORK_DISCONNECTED,
     DIAL_CELLULAR_NETWORK,
@@ -53,40 +50,41 @@ class DialRegistry
     DIAL_UNKNOWN
   };
 
-  class Client {
+  class Observer {
    public:
-    // Called when the list of DIAL devices has changed.  Will be called
-    // multiple times.
-    virtual void OnDialDeviceList(const DeviceList& devices) = 0;
-    // Called when an error has occurred.
+    // Methods invoked on the IO thread when a new device is discovered, an
+    // update is triggered by dial.discoverNow or an error occured.
+    virtual void OnDialDeviceEvent(const DeviceList& devices) = 0;
     virtual void OnDialError(DialErrorCode type) = 0;
 
    protected:
-    virtual ~Client() = default;
+    virtual ~Observer() {}
   };
 
-  DialRegistry(DialRegistry::Client& client,
-               const scoped_refptr<base::SequencedTaskRunner>& task_runner);
-  DialRegistry(const DialRegistry&) = delete;
-  DialRegistry(DialRegistry&&) = delete;
-  DialRegistry& operator=(const DialRegistry&) = delete;
-  DialRegistry& operator=(DialRegistry&&) = delete;
-  ~DialRegistry() override;
+  static DialRegistry* GetInstance();
 
-  // Sets the NetLog object used for logging. If the registry already has a
-  // NetLog, does nothing. The NetLog should live at least as long as the IO
-  // Thread.
+  // Sets the NetLog object used for logging. Should be called right after
+  // GetInstance(). If the registry already has a NetLog, does nothing. The
+  // NetLog should live at least as long as the IO Thread.
   void SetNetLog(net::NetLog* net_log);
 
-  // Waits for a suitable network interface to be up and then starts periodic
-  // discovery.  Must be called before DiscoverNow() or
-  // StartPeriodicDiscovery().
-  void Start();
+  // Called by the DIAL API when event listeners are added or removed. The dial
+  // service is started after the first listener is added and stopped after the
+  // last listener is removed.
+  virtual void OnListenerAdded();
+  virtual void OnListenerRemoved();
 
-  // Starts a discovery cycle immediately.
+  // pass a reference of |observer| to allow it to notify on DIAL device events.
+  // This class does not take ownership of observer.
+  virtual void RegisterObserver(Observer* observer);
+  virtual void UnregisterObserver(Observer* observer);
+
+  // Called by the DIAL API to try to kickoff a discovery if there is not one
+  // already active.
   bool DiscoverNow();
 
-  // Starts and stops periodic background discovery.
+  // Starts and stops periodic discovery.  Periodic discovery is done when there
+  // are registered event listeners.
   void StartPeriodicDiscovery();
   void StopPeriodicDiscovery();
 
@@ -116,18 +114,29 @@ class DialRegistry
 
   friend class MockDialRegistry;
   friend class TestDialRegistry;
+  friend struct base::DefaultSingletonTraits<DialRegistry>;
+
+  DialRegistry();
+  ~DialRegistry() override;
 
   // Called when we've gotten the NetworkConnectionTracker from the UI thread.
   void SetNetworkConnectionTracker(network::NetworkConnectionTracker* tracker);
 
-  // DialService::Client:
-  void OnDiscoveryRequest() override;
-  void OnDeviceDiscovered(const DialDeviceData& device) override;
-  void OnDiscoveryFinished() override;
-  void OnError(DialService::DialServiceErrorCode code) override;
+  // DialService::Observer:
+  void OnDiscoveryRequest(DialService* service) override;
+  void OnDeviceDiscovered(DialService* service,
+                          const DialDeviceData& device) override;
+  void OnDiscoveryFinished(DialService* service) override;
+  void OnError(DialService* service,
+               const DialService::DialServiceErrorCode& code) override;
 
   // network::NetworkConnectionTracker::NetworkConnectionObserver:
   void OnConnectionChanged(network::mojom::ConnectionType type) override;
+
+  // Notify all observers about DialDeviceEvent or DialError.
+  void OnDialDeviceEvent(const DeviceList& devices);
+  void OnDialError(DialErrorCode type);
+
 
   // Check whether we are in a state ready to discover and dispatch error
   // notifications if not.
@@ -152,17 +161,17 @@ class DialRegistry
   // active set.
   bool IsDeviceExpired(const DialDeviceData& device) const;
 
-  // Notify the client with the current device list if the list has changed.
-  void MaybeSendDeviceList();
+  // Notify listeners with the current device list if the list has changed.
+  void MaybeSendEvent();
+
+  // Notify listeners with the current device list.
+  void SendEvent();
 
   // Returns the next label to use for a newly-seen device.
   std::string NextLabel();
 
-  // Unowned reference to the DialRegistry::Client.
-  const raw_ref<Client> client_;
-
-  // Task runner for the DialRegistry.
-  scoped_refptr<base::SequencedTaskRunner> task_runner_;
+  // The current number of event listeners attached to this registry.
+  int num_listeners_;
 
   // Incremented each time we modify the registry of active devices.
   int registry_generation_;
@@ -186,18 +195,20 @@ class DialRegistry
   // construct the device list sent to API clients.
   DeviceByLabelMap device_by_label_map_;
 
-  // Timer used to manage periodic discovery requests.
+  // Timer used to manage periodic discovery requests. Timer is created and
+  // destroyed on IO thread.
   std::unique_ptr<base::RepeatingTimer> repeating_timer_;
 
-  // Set just after construction.
-  raw_ptr<net::NetLog> net_log_ = nullptr;
+  // Interface from which the DIAL API is notified of DIAL device events. the
+  // DIAL API owns this DIAL registry.
+  base::ObserverList<Observer>::Unchecked observers_;
 
-  raw_ptr<network::NetworkConnectionTracker> network_connection_tracker_ =
-      nullptr;
+  // Set just after construction, only used on the IO thread.
+  net::NetLog* net_log_ = nullptr;
 
-  raw_ptr<base::Clock> clock_;
+  network::NetworkConnectionTracker* network_connection_tracker_ = nullptr;
 
-  SEQUENCE_CHECKER(sequence_checker_);
+  base::Clock* clock_;
 
   friend class DialMediaSinkServiceImplTest;
   friend class DialRegistryTest;
@@ -213,6 +224,7 @@ class DialRegistry
   FRIEND_TEST_ALL_PREFIXES(DialRegistryTest, TestNetworkEventConnectionLost);
   FRIEND_TEST_ALL_PREFIXES(DialRegistryTest,
                            TestNetworkEventConnectionRestored);
+  DISALLOW_COPY_AND_ASSIGN(DialRegistry);
 };
 
 }  // namespace media_router

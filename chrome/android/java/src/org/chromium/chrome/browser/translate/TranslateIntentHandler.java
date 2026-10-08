@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -100,7 +100,7 @@ public class TranslateIntentHandler {
             recordTranslateTabResultUMA(TranslateTabIntentResult.INCOGNITO_TAB);
             return;
         }
-        if (expectedUrl == null || !expectedUrl.equals(tab.getUrl().getSpec())) {
+        if (expectedUrl == null || !expectedUrl.equals(tab.getUrlString())) {
             recordTranslateTabResultUMA(TranslateTabIntentResult.EXPECTED_URL_MISMATCH);
             return;
         }

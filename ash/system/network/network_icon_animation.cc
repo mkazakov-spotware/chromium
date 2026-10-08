@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ namespace network_icon {
 
 NetworkIconAnimation::NetworkIconAnimation() : animation_(this) {
   // Set up the animation throbber.
-  animation_.SetThrobDuration(base::Milliseconds(750));
+  animation_.SetThrobDuration(base::TimeDelta::FromMilliseconds(750));
   animation_.SetTweenType(gfx::Tween::LINEAR);
 }
 
@@ -41,7 +41,7 @@ void NetworkIconAnimation::AddObserver(AnimationObserver* observer) {
 
 void NetworkIconAnimation::RemoveObserver(AnimationObserver* observer) {
   observers_.RemoveObserver(observer);
-  if (observers_.empty())
+  if (!observers_.might_have_observers())
     animation_.Reset();  // Stops the animation and resets the current value.
 }
 

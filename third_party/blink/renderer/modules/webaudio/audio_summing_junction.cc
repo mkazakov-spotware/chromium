@@ -23,16 +23,14 @@
  * DAMAGE.
  */
 
-#include "third_party/blink/renderer/modules/webaudio/audio_summing_junction.h"
-
 #include <algorithm>
-
 #include "third_party/blink/renderer/modules/webaudio/audio_node_output.h"
+#include "third_party/blink/renderer/modules/webaudio/audio_summing_junction.h"
 
 namespace blink {
 
 AudioSummingJunction::AudioSummingJunction(DeferredTaskHandler& handler)
-    : deferred_task_handler_(&handler) {}
+    : deferred_task_handler_(&handler), rendering_state_need_updating_(false) {}
 
 AudioSummingJunction::~AudioSummingJunction() {
   GetDeferredTaskHandler().AssertGraphOwner();
@@ -51,7 +49,7 @@ void AudioSummingJunction::UpdateRenderingState() {
   DCHECK(GetDeferredTaskHandler().IsAudioThread());
   GetDeferredTaskHandler().AssertGraphOwner();
   if (rendering_state_need_updating_) {
-    // Copy from `outputs_` to `rendering_outputs_`.
+    // Copy from m_outputs to m_renderingOutputs.
     rendering_outputs_.resize(outputs_.size());
     unsigned j = 0;
     for (AudioNodeOutput* output : outputs_) {

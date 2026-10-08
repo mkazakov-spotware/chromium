@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -10,25 +10,24 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/task_runner.h"
+#include "base/macros.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task_runner.h"
 #include "base/test/test_pending_task.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_time.h"
+#include "net/third_party/quiche/src/quic/core/quic_time.h"
 
 namespace quic {
 class MockClock;
 }  // namespace quic
-namespace net::test {
+namespace net {
+
+namespace test {
 
 typedef base::TestPendingTask PostedTask;
 
 class TestTaskRunner : public base::SequencedTaskRunner {
  public:
   explicit TestTaskRunner(quic::MockClock* clock);
-
-  TestTaskRunner(const TestTaskRunner&) = delete;
-  TestTaskRunner& operator=(const TestTaskRunner&) = delete;
 
   // base::TaskRunner implementation.
   bool PostDelayedTask(const base::Location& from_here,
@@ -65,10 +64,14 @@ class TestTaskRunner : public base::SequencedTaskRunner {
  private:
   std::vector<PostedTask>::iterator FindNextTask();
 
-  const raw_ptr<quic::MockClock> clock_;
+  quic::MockClock* const clock_;
   std::vector<PostedTask> tasks_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestTaskRunner);
 };
 
-}  // namespace net::test
+}  // namespace test
+
+}  // namespace net
 
 #endif  // NET_QUIC_TEST_TASK_RUNNER_H_

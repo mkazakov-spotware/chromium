@@ -1,13 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_EXTENSIONS_SETTINGS_OVERRIDDEN_DIALOG_CONTROLLER_H_
 #define CHROME_BROWSER_UI_EXTENSIONS_SETTINGS_OVERRIDDEN_DIALOG_CONTROLLER_H_
 
-#include <string>
-
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 
 namespace gfx {
 struct VectorIcon;
@@ -20,13 +18,13 @@ class SettingsOverriddenDialogController {
  public:
   // A struct describing the contents to be displayed in the dialog.
   struct ShowParams {
-    std::u16string dialog_title;
-    std::u16string message;
+    base::string16 dialog_title;
+    base::string16 message;
 
     // The icon to display, if any. If non-null, the VectorIcon should have
     // all its colors fully specified; otherwise a placehold grey color will
     // be used.
-    raw_ptr<const gfx::VectorIcon> icon = nullptr;
+    const gfx::VectorIcon* icon = nullptr;
   };
 
   // The result (i.e., user input) from the dialog being shown.

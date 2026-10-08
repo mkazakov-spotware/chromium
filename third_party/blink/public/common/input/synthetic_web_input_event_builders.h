@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -90,20 +90,14 @@ class BLINK_COMMON_EXPORT SyntheticWebTouchEvent : public blink::WebTouchEvent {
                  float radius_x = 20.f,
                  float radius_y = 20.f,
                  float rotation_angle = 0.f,
-                 float force = 0.5,
-                 float tangential_pressure = 0.f,
-                 int tilt_x = 0,
-                 int tilt_y = 0);
+                 float force = 1.f);
   void MovePoint(int index,
                  float x,
                  float y,
                  float radius_x = 20.f,
                  float radius_y = 20.f,
                  float rotation_angle = 0.f,
-                 float force = 0.5,
-                 float tangential_pressure = 0.f,
-                 int tilt_x = 0,
-                 int tilt_y = 0);
+                 float force = 1.f);
   void ReleasePoint(int index);
   void CancelPoint(int index);
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
-
 #include "base/files/file.h"
-#include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -25,53 +23,56 @@ namespace {
 class HFSIteratorTest : public testing::Test {
  public:
   void GetTargetFiles(bool case_sensitive,
-                      std::set<std::u16string>* files,
-                      std::set<std::u16string>* dirs) {
-    const char16_t* const kBaseFiles[] = {
-        u"first/second/third/fourth/fifth/random",
-        u"first/second/third/fourth/Hello World",
-        u"first/second/third/symlink-random",
-        u"first/second/goat-output.txt",
-        u"first/unicode_name",
-        u"README.txt",
-        u".metadata_never_index",
+                      std::set<base::string16>* files,
+                      std::set<base::string16>* dirs) {
+    const char* kBaseFiles[] = {
+      "first/second/third/fourth/fifth/random",
+      "first/second/third/fourth/Hello World",
+      "first/second/third/symlink-random",
+      "first/second/goat-output.txt",
+      "first/unicode_name",
+      "README.txt",
+      ".metadata_never_index",
     };
 
-    const char16_t* const kBaseDirs[] = {
-        u"first/second/third/fourth/fifth",
-        u"first/second/third/fourth",
-        u"first/second/third",
-        u"first/second",
-        u"first",
-        u".Trashes",
+    const char* kBaseDirs[] = {
+      "first/second/third/fourth/fifth",
+      "first/second/third/fourth",
+      "first/second/third",
+      "first/second",
+      "first",
+      ".Trashes",
     };
 
-    const std::u16string dmg_name = u"SafeBrowsingDMG/";
+    const base::string16 dmg_name = base::ASCIIToUTF16("SafeBrowsingDMG/");
 
-    for (size_t i = 0; i < std::size(kBaseFiles); ++i)
-      files->insert(dmg_name + kBaseFiles[i]);
+    for (size_t i = 0; i < base::size(kBaseFiles); ++i)
+      files->insert(dmg_name + base::ASCIIToUTF16(kBaseFiles[i]));
 
-    files->insert(dmg_name + u"first/second/" + u"Tĕsẗ 🐐 ");
+    files->insert(dmg_name + base::ASCIIToUTF16("first/second/") +
+                  base::UTF8ToUTF16("Te\xCC\x86st\xCC\x88 \xF0\x9F\x90\x90 "));
 
     dirs->insert(dmg_name.substr(0, dmg_name.size() - 1));
-    for (size_t i = 0; i < std::size(kBaseDirs); ++i)
-      dirs->insert(dmg_name + kBaseDirs[i]);
+    for (size_t i = 0; i < base::size(kBaseDirs); ++i)
+      dirs->insert(dmg_name + base::ASCIIToUTF16(kBaseDirs[i]));
 
     if (case_sensitive) {
-      files->insert(u"SafeBrowsingDMG/first/second/third/fourth/hEllo wOrld");
+      files->insert(base::ASCIIToUTF16(
+          "SafeBrowsingDMG/first/second/third/fourth/hEllo wOrld"));
     }
   }
 
   void TestTargetFiles(safe_browsing::dmg::HFSIterator* hfs_reader,
                        bool case_sensitive) {
-    std::set<std::u16string> files, dirs;
+    std::set<base::string16> files, dirs;
     GetTargetFiles(case_sensitive, &files, &dirs);
 
     ASSERT_TRUE(hfs_reader->Open());
     while (hfs_reader->Next()) {
-      std::u16string path = hfs_reader->GetPath();
+      base::string16 path = hfs_reader->GetPath();
       // Skip over .fseventsd files.
-      if (path.find(u"SafeBrowsingDMG/.fseventsd") != std::u16string::npos) {
+      if (path.find(base::ASCIIToUTF16("SafeBrowsingDMG/.fseventsd")) !=
+              base::string16::npos) {
         continue;
       }
       if (hfs_reader->IsDirectory())
@@ -110,14 +111,14 @@ class HFSFileReadTest : public testing::TestWithParam<const char*> {
   void SetUp() override {
     ASSERT_NO_FATAL_FAILURE(test::GetTestFile(GetParam(), &hfs_file_));
 
-    hfs_stream_ = std::make_unique<FileReadStream>(hfs_file_.GetPlatformFile());
-    hfs_reader_ = std::make_unique<HFSIterator>(hfs_stream_.get());
+    hfs_stream_.reset(new FileReadStream(hfs_file_.GetPlatformFile()));
+    hfs_reader_.reset(new HFSIterator(hfs_stream_.get()));
     ASSERT_TRUE(hfs_reader_->Open());
   }
 
-  bool GoToFile(const char16_t* name) {
+  bool GoToFile(const char* name) {
     while (hfs_reader_->Next()) {
-      if (EndsWith(hfs_reader_->GetPath(), name,
+      if (EndsWith(hfs_reader_->GetPath(), base::ASCIIToUTF16(name),
                    base::CompareCase::SENSITIVE)) {
         return true;
       }
@@ -134,7 +135,7 @@ class HFSFileReadTest : public testing::TestWithParam<const char*> {
 };
 
 TEST_P(HFSFileReadTest, ReadReadme) {
-  ASSERT_TRUE(GoToFile(u"README.txt"));
+  ASSERT_TRUE(GoToFile("README.txt"));
 
   std::unique_ptr<ReadStream> stream = hfs_reader()->GetReadStream();
   ASSERT_TRUE(stream.get());
@@ -164,7 +165,7 @@ TEST_P(HFSFileReadTest, ReadReadme) {
 }
 
 TEST_P(HFSFileReadTest, ReadRandom) {
-  ASSERT_TRUE(GoToFile(u"fifth/random"));
+  ASSERT_TRUE(GoToFile("fifth/random"));
 
   std::unique_ptr<ReadStream> stream = hfs_reader()->GetReadStream();
   ASSERT_TRUE(stream.get());
@@ -179,7 +180,7 @@ TEST_P(HFSFileReadTest, ReadRandom) {
 }
 
 TEST_P(HFSFileReadTest, Symlink) {
-  ASSERT_TRUE(GoToFile(u"symlink-random"));
+  ASSERT_TRUE(GoToFile("symlink-random"));
 
   std::unique_ptr<ReadStream> stream = hfs_reader()->GetReadStream();
   ASSERT_TRUE(stream.get());
@@ -197,7 +198,7 @@ TEST_P(HFSFileReadTest, Symlink) {
 }
 
 TEST_P(HFSFileReadTest, HardLink) {
-  ASSERT_TRUE(GoToFile(u"unicode_name"));
+  ASSERT_TRUE(GoToFile("unicode_name"));
 
   EXPECT_FALSE(hfs_reader()->IsSymbolicLink());
   EXPECT_TRUE(hfs_reader()->IsHardLink());
@@ -205,7 +206,7 @@ TEST_P(HFSFileReadTest, HardLink) {
 }
 
 TEST_P(HFSFileReadTest, DecmpfsFile) {
-  ASSERT_TRUE(GoToFile(u"first/second/goat-output.txt"));
+  ASSERT_TRUE(GoToFile("first/second/goat-output.txt"));
 
   std::unique_ptr<ReadStream> stream = hfs_reader()->GetReadStream();
   ASSERT_TRUE(stream.get());

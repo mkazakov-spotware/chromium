@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <string>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/threading/thread_checker.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/v4l2/v4l2_device.h"
@@ -42,7 +42,7 @@ bool V4L2DevicePoller::StartPolling(EventCallback event_callback,
 
   DVLOGF(4) << "Starting polling";
 
-  client_task_runner_ = base::SequencedTaskRunner::GetCurrentDefault();
+  client_task_runner_ = base::SequencedTaskRunnerHandle::Get();
   error_callback_ = error_callback;
 
   if (!poll_thread_.Start()) {

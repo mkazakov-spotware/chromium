@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.FormPostTest');
 goog.setTestOnly();
@@ -43,7 +51,7 @@ function expectUrlAndParameters(url, target, parameters) {
   const inputs = dom.getElementsByTagNameAndClass(TagName.INPUT, null, form);
   const formValues = {};
   for (let i = 0, input = inputs[i]; input = inputs[i]; i++) {
-    if (Array.isArray(formValues[input.name])) {
+    if (goog.isArray(formValues[input.name])) {
       formValues[input.name].push(input.value);
     } else if (input.name in formValues) {
       formValues[input.name] = [formValues[input.name], input.value];
@@ -56,7 +64,7 @@ function expectUrlAndParameters(url, target, parameters) {
 }
 
 function valueToString(value) {
-  if (Array.isArray(value)) {
+  if (goog.isArray(value)) {
     return googArray.map(value, valueToString);
   }
   return String(value);
@@ -70,10 +78,6 @@ testSuite({
     FormPost.prototype.createDom = function() {
       originalCreateDom.apply(this, arguments);
 
-      /**
-       * @suppress {strictMissingProperties} suppression added to enable type
-       * checking
-       */
       this.getElement().submit = () => {
         submits++;
       };

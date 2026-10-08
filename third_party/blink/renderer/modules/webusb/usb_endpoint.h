@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,12 @@
 
 #include "services/device/public/mojom/usb_device.mojom-blink.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
 class ExceptionState;
 class USBAlternateInterface;
-class V8USBDirection;
 
 class USBEndpoint : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
@@ -24,7 +22,7 @@ class USBEndpoint : public ScriptWrappable {
                              wtf_size_t endpoint_index);
   static USBEndpoint* Create(const USBAlternateInterface*,
                              uint8_t endpoint_number,
-                             const V8USBDirection& direction,
+                             const String& direction,
                              ExceptionState&);
 
   USBEndpoint(const USBAlternateInterface*, wtf_size_t endpoint_index);

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
  * Persistent cache storing images in an indexed database on the hard disk.
  * @constructor
  */
-export function ImageCache() {
+function ImageCache() {
   /**
    * IndexedDB database handle.
    * @type {IDBDatabase}
@@ -27,7 +27,7 @@ ImageCache.DB_NAME = 'image-loader';
  * @type {number}
  * @const
  */
-ImageCache.DB_VERSION = 15;
+ImageCache.DB_VERSION = 14;
 
 /**
  * Memory limit for images data in bytes.
@@ -123,7 +123,7 @@ ImageCache.prototype.fetchCacheSize_ = function(
   };
 
   sizeRequest.onerror = function() {
-    console.warn('Failed to fetch size from the database.');
+    console.error('Failed to fetch size from the database.');
     onFailure();
   };
 };
@@ -324,13 +324,13 @@ ImageCache.prototype.loadImage = function(
   };
 
   metadataRequest.onerror = function() {
-    console.warn('Failed to fetch metadata from the database.');
+    console.error('Failed to fetch metadata from the database.');
     metadataReceived = true;
     onPartialSuccess();
   };
 
   dataRequest.onerror = function() {
-    console.warn('Failed to fetch image data from the database.');
+    console.error('Failed to fetch image data from the database.');
     dataReceived = true;
     onPartialSuccess();
   };
@@ -410,7 +410,7 @@ ImageCache.prototype.removeImage = function(
   };
 
   metadataRequest.onerror = function() {
-    console.warn('Failed to remove an image.');
+    console.error('Failed to remove an image.');
     metadataReceived = true;
     onPartialSuccess();
   };

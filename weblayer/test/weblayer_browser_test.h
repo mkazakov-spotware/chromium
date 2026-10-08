@@ -1,11 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_TEST_WEBLAYER_BROWSER_TEST_H_
 #define WEBLAYER_TEST_WEBLAYER_BROWSER_TEST_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/test/scoped_feature_list.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_base.h"
 
@@ -20,10 +21,6 @@ class Shell;
 class WebLayerBrowserTest : public content::BrowserTestBase {
  public:
   WebLayerBrowserTest();
-
-  WebLayerBrowserTest(const WebLayerBrowserTest&) = delete;
-  WebLayerBrowserTest& operator=(const WebLayerBrowserTest&) = delete;
-
   ~WebLayerBrowserTest() override;
 
   // content::BrowserTestBase implementation.
@@ -42,8 +39,12 @@ class WebLayerBrowserTest : public content::BrowserTestBase {
   content::BrowserContext* GetBrowserContext();
 
  private:
-  raw_ptr<Shell> shell_ = nullptr;
+  Shell* shell_ = nullptr;
   bool start_in_incognito_mode_ = false;
+
+  base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebLayerBrowserTest);
 };
 
 }  // namespace weblayer

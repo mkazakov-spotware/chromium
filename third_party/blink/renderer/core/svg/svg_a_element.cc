@@ -45,7 +45,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg_names.h"
 #include "third_party/blink/renderer/core/xlink_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
 
 namespace blink {
@@ -68,18 +68,18 @@ void SVGAElement::Trace(Visitor* visitor) const {
 String SVGAElement::title() const {
   // If the xlink:title is set (non-empty string), use it.
   const AtomicString& title = FastGetAttribute(xlink_names::kTitleAttr);
-  if (!title.empty())
+  if (!title.IsEmpty())
     return title;
 
   // Otherwise, use the title of this element.
   return SVGElement::title();
 }
 
-void SVGAElement::SvgAttributeChanged(const SvgAttributeChangedParams& params) {
+void SVGAElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   // Unlike other SVG*Element classes, SVGAElement only listens to
   // SVGURIReference changes as none of the other properties changes the linking
   // behaviour for our <a> element.
-  if (SVGURIReference::IsKnownAttribute(params.name)) {
+  if (SVGURIReference::IsKnownAttribute(attr_name)) {
     SVGElement::InvalidationGuard invalidation_guard(this);
 
     bool was_link = IsLink();
@@ -94,16 +94,16 @@ void SVGAElement::SvgAttributeChanged(const SvgAttributeChangedParams& params) {
     return;
   }
 
-  SVGGraphicsElement::SvgAttributeChanged(params);
+  SVGGraphicsElement::SvgAttributeChanged(attr_name);
 }
 
 LayoutObject* SVGAElement::CreateLayoutObject(const ComputedStyle&,
                                               LegacyLayout) {
   auto* svg_element = DynamicTo<SVGElement>(parentNode());
   if (svg_element && svg_element->IsTextContent())
-    return MakeGarbageCollected<LayoutSVGInline>(this);
+    return new LayoutSVGInline(this);
 
-  return MakeGarbageCollected<LayoutSVGTransformableContainer>(this);
+  return new LayoutSVGTransformableContainer(this);
 }
 
 void SVGAElement::DefaultEventHandler(Event& event) {
@@ -129,7 +129,7 @@ void SVGAElement::DefaultEventHandler(Event& event) {
       }
 
       AtomicString target(svg_target_->CurrentValue()->Value());
-      if (target.empty() && FastGetAttribute(xlink_names::kShowAttr) == "new")
+      if (target.IsEmpty() && FastGetAttribute(xlink_names::kShowAttr) == "new")
         target = AtomicString("_blank");
       event.SetDefaultHandled();
 
@@ -141,9 +141,8 @@ void SVGAElement::DefaultEventHandler(Event& event) {
           ResourceRequest(GetDocument().CompleteURL(url)));
       frame_request.SetNavigationPolicy(NavigationPolicyFromEvent(&event));
       frame_request.SetTriggeringEventInfo(
-          event.isTrusted()
-              ? mojom::blink::TriggeringEventInfo::kFromTrustedEvent
-              : mojom::blink::TriggeringEventInfo::kFromUntrustedEvent);
+          event.isTrusted() ? TriggeringEventInfo::kFromTrustedEvent
+                            : TriggeringEventInfo::kFromUntrustedEvent);
       frame_request.GetResourceRequest().SetHasUserGesture(
           LocalFrame::HasTransientUserActivation(GetDocument().GetFrame()));
 
@@ -171,7 +170,7 @@ int SVGAElement::DefaultTabIndex() const {
 }
 
 bool SVGAElement::SupportsFocus() const {
-  if (IsEditable(*this))
+  if (HasEditableStyle(*this))
     return SVGGraphicsElement::SupportsFocus();
   // If not a link we should still be able to focus the element if it has
   // tabIndex.
@@ -196,7 +195,7 @@ bool SVGAElement::IsMouseFocusable() const {
 }
 
 bool SVGAElement::IsKeyboardFocusable() const {
-  if (IsBaseElementFocusable() && Element::SupportsFocus())
+  if (IsFocusable() && Element::SupportsFocus())
     return SVGElement::IsKeyboardFocusable();
   if (IsLink() && !GetDocument().GetPage()->GetChromeClient().TabsToLinks())
     return false;
@@ -206,7 +205,7 @@ bool SVGAElement::IsKeyboardFocusable() const {
 bool SVGAElement::CanStartSelection() const {
   if (!IsLink())
     return SVGElement::CanStartSelection();
-  return IsEditable(*this);
+  return HasEditableStyle(*this);
 }
 
 bool SVGAElement::WillRespondToMouseClickEvents() {

@@ -1,21 +1,21 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/chrome_media_router_factory.h"
 
 #include "build/build_config.h"
-#include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/media_router/browser/media_router_dialog_controller.h"
 #include "content/public/browser/browser_context.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/media/android/router/chrome_media_router_client.h"
 #include "components/media_router/browser/android/media_router_android.h"
 #include "components/media_router/browser/android/media_router_dialog_controller_android.h"
 #else
+#include "chrome/browser/media/router/event_page_request_manager_factory.h"
 #include "chrome/browser/media/router/mojo/media_router_desktop.h"
 #endif
 
@@ -37,7 +37,7 @@ ChromeMediaRouterFactory* ChromeMediaRouterFactory::GetInstance() {
 
 // static
 void ChromeMediaRouterFactory::DoPlatformInit() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   InitChromeMediaRouterJavaClient();
 
   // The desktop (Views) version of this is in ChromeBrowserMainExtraPartsViews
@@ -55,7 +55,11 @@ void ChromeMediaRouterFactory::DoPlatformInit() {
 #endif
 }
 
-ChromeMediaRouterFactory::ChromeMediaRouterFactory() = default;
+ChromeMediaRouterFactory::ChromeMediaRouterFactory() {
+#if !defined(OS_ANDROID)
+  DependsOn(EventPageRequestManagerFactory::GetInstance());
+#endif
+}
 
 ChromeMediaRouterFactory::~ChromeMediaRouterFactory() = default;
 
@@ -66,18 +70,27 @@ content::BrowserContext* ChromeMediaRouterFactory::GetBrowserContextToUse(
 
 KeyedService* ChromeMediaRouterFactory::BuildServiceInstanceFor(
     BrowserContext* context) const {
-  if (!MediaRouterEnabled(context)) {
-    NOTREACHED();
-    return nullptr;
-  }
   MediaRouterBase* media_router = nullptr;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   media_router = new MediaRouterAndroid();
 #else
   media_router = new MediaRouterDesktop(context);
 #endif
   media_router->Initialize();
   return media_router;
+}
+
+void ChromeMediaRouterFactory::BrowserContextShutdown(
+    content::BrowserContext* context) {
+  // Notify the MediaRouter (which uses the normal/base proflie) of incognito
+  // profile shutdown.
+  if (context->IsOffTheRecord()) {
+    MediaRouter* router =
+        static_cast<MediaRouter*>(GetServiceForBrowserContext(context, false));
+    if (router)
+      router->OnIncognitoProfileShutdown();
+  }
+  BrowserContextKeyedServiceFactory::BrowserContextShutdown(context);
 }
 
 }  // namespace media_router

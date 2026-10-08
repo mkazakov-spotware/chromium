@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <set>
 
-#include "base/memory/raw_ref.h"
 #include "base/win/windows_types.h"
 
 namespace display {
@@ -38,7 +37,7 @@ class BaseWindowFinderWin {
   virtual bool ShouldStopIterating(HWND window) = 0;
 
  private:
-  const raw_ref<const std::set<HWND>> ignore_;
+  const std::set<HWND>& ignore_;
 };
 
 }  // namespace win

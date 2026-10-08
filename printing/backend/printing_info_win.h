@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,14 @@
 
 #include <memory>
 
-#include "base/component_export.h"
+#include "printing/printing_export.h"
 
 namespace printing {
 
 namespace internal {
 
-COMPONENT_EXPORT(PRINT_BACKEND)
-std::unique_ptr<uint8_t[]> GetDriverInfo(HANDLE printer, int level);
-COMPONENT_EXPORT(PRINT_BACKEND)
-std::unique_ptr<uint8_t[]> GetPrinterInfo(HANDLE printer, int level);
+PRINTING_EXPORT uint8_t* GetDriverInfo(HANDLE printer, int level);
+PRINTING_EXPORT uint8_t* GetPrinterInfo(HANDLE printer, int level);
 
 // This class is designed to work with PRINTER_INFO_X structures
 // and calls GetPrinter internally with correctly allocated buffer.
@@ -28,7 +26,7 @@ template <typename PrinterInfoType, int level>
 class PrinterInfo {
  public:
   bool Init(HANDLE printer) {
-    buffer_ = GetPrinterInfo(printer, level);
+    buffer_.reset(GetPrinterInfo(printer, level));
     return buffer_ != nullptr;
   }
 
@@ -46,7 +44,7 @@ template <typename DriverInfoType, int level>
 class DriverInfo {
  public:
   bool Init(HANDLE printer) {
-    buffer_ = GetDriverInfo(printer, level);
+    buffer_.reset(GetDriverInfo(printer, level));
     return buffer_ != nullptr;
   }
 
@@ -60,10 +58,10 @@ class DriverInfo {
 
 }  // namespace internal
 
-using PrinterInfo2 = internal::PrinterInfo<PRINTER_INFO_2, 2>;
-using PrinterInfo5 = internal::PrinterInfo<PRINTER_INFO_5, 5>;
+typedef internal::PrinterInfo<PRINTER_INFO_2, 2> PrinterInfo2;
+typedef internal::PrinterInfo<PRINTER_INFO_5, 5> PrinterInfo5;
 
-using DriverInfo6 = internal::DriverInfo<DRIVER_INFO_6, 6>;
+typedef internal::DriverInfo<DRIVER_INFO_6, 6> DriverInfo6;
 
 }  // namespace printing
 

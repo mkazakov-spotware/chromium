@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/process/process_handle.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/multiprocess_test.h"
@@ -44,9 +45,6 @@ class ExceptionPointers {
     exception_ptrs_.ContextRecord = &context_;
   }
 
-  ExceptionPointers(const ExceptionPointers&) = delete;
-  ExceptionPointers& operator=(const ExceptionPointers&) = delete;
-
   EXCEPTION_POINTERS* exception_ptrs() { return &exception_ptrs_; }
   std::string AsString() {
     return base::NumberToString(reinterpret_cast<uintptr_t>(exception_ptrs()));
@@ -56,6 +54,8 @@ class ExceptionPointers {
   CONTEXT context_;
   EXCEPTION_RECORD exception_;
   EXCEPTION_POINTERS exception_ptrs_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExceptionPointers);
 };
 
 const char kProduct[] = "SomeProduct";
@@ -100,10 +100,6 @@ class FallbackCrashHandlerWinTest : public testing::Test {
  public:
   FallbackCrashHandlerWinTest() : self_handle_(base::kNullProcessHandle) {}
 
-  FallbackCrashHandlerWinTest(const FallbackCrashHandlerWinTest&) = delete;
-  FallbackCrashHandlerWinTest& operator=(const FallbackCrashHandlerWinTest&) =
-      delete;
-
   void SetUp() override {
     ASSERT_TRUE(database_dir_.CreateUniqueTempDir());
 
@@ -136,6 +132,9 @@ class FallbackCrashHandlerWinTest : public testing::Test {
  protected:
   base::ProcessHandle self_handle_;
   base::ScopedTempDir database_dir_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FallbackCrashHandlerWinTest);
 };
 
 }  // namespace

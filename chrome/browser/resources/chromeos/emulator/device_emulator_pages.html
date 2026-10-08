@@ -21,7 +21,6 @@
       }
 
       cr-toolbar {
-        --cr-focus-outline-color: white;
         --iron-icon-fill-color: white;
         background-color: var(--google-blue-700);
         color: white;
@@ -59,7 +58,7 @@
         show-menu>
     </cr-toolbar>
     <cr-drawer id="drawer" heading="Device Emulator">
-      <div slot="body">
+      <div class="drawer-content">
         <iron-selector selectable="a" class="layout vertical"
             selected="{{selectedPage}}">
           <a>

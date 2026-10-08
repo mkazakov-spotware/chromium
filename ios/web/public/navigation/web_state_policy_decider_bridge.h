@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,24 +9,23 @@
 
 #import "ios/web/public/navigation/web_state_policy_decider.h"
 
-typedef void (^PolicyDecisionHandler)(
-    web::WebStatePolicyDecider::PolicyDecision);
-
 // Objective-C interface for web::WebStatePolicyDecider.
 @protocol CRWWebStatePolicyDecider <NSObject>
 @optional
 
-// Invoked by `WebStatePolicyDeciderBridge::ShouldAllowRequest`.
-- (void)shouldAllowRequest:(NSURLRequest*)request
-               requestInfo:(web::WebStatePolicyDecider::RequestInfo)requestInfo
-           decisionHandler:(PolicyDecisionHandler)decisionHandler;
+// Invoked by |WebStatePolicyDeciderBridge::ShouldAllowRequest|.
+- (web::WebStatePolicyDecider::PolicyDecision)
+    shouldAllowRequest:(NSURLRequest*)request
+           requestInfo:
+               (const web::WebStatePolicyDecider::RequestInfo&)requestInfo;
 
-// Invoked by `WebStatePolicyDeciderBridge::ShouldAllowResponse`.
+// Invoked by |WebStatePolicyDeciderBridge::ShouldAllowResponse|.
 - (void)
     decidePolicyForNavigationResponse:(NSURLResponse*)response
-                         responseInfo:(web::WebStatePolicyDecider::ResponseInfo)
-                                          responseInfo
-                      decisionHandler:(PolicyDecisionHandler)decisionHandler;
+                         forMainFrame:(BOOL)forMainFrame
+                    completionHandler:
+                        (void (^)(web::WebStatePolicyDecider::PolicyDecision))
+                            completionHandler;
 @end
 
 namespace web {
@@ -37,25 +36,22 @@ class WebStatePolicyDeciderBridge : public web::WebStatePolicyDecider {
  public:
   WebStatePolicyDeciderBridge(web::WebState* web_state,
                               id<CRWWebStatePolicyDecider> decider);
-
-  WebStatePolicyDeciderBridge(const WebStatePolicyDeciderBridge&) = delete;
-  WebStatePolicyDeciderBridge& operator=(const WebStatePolicyDeciderBridge&) =
-      delete;
-
   ~WebStatePolicyDeciderBridge() override;
 
   // web::WebStatePolicyDecider methods.
-  void ShouldAllowRequest(NSURLRequest* request,
-                          RequestInfo request_info,
-                          PolicyDecisionCallback callback) override;
+  PolicyDecision ShouldAllowRequest(NSURLRequest* request,
+                                    const RequestInfo& request_info) override;
 
-  void ShouldAllowResponse(NSURLResponse* response,
-                           ResponseInfo response_info,
-                           PolicyDecisionCallback callback) override;
+  void ShouldAllowResponse(
+      NSURLResponse* response,
+      bool for_main_frame,
+      base::OnceCallback<void(PolicyDecision)> callback) override;
 
  private:
   // CRWWebStatePolicyDecider which receives forwarded calls.
   __weak id<CRWWebStatePolicyDecider> decider_ = nil;
+
+  DISALLOW_COPY_AND_ASSIGN(WebStatePolicyDeciderBridge);
 };
 
 }  // web

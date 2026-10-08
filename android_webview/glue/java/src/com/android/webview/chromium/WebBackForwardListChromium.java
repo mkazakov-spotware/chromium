@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,22 +18,14 @@ import java.util.List;
  */
 @SuppressWarnings("NoSynchronizedMethodCheck")
 public class WebBackForwardListChromium extends WebBackForwardList {
-    private final List<WebHistoryItemChromium> mHistoryItemList;
+    private final List<WebHistoryItemChromium> mHistroryItemList;
     private final int mCurrentIndex;
 
     /* package */ WebBackForwardListChromium(NavigationHistory navHistory) {
-        boolean onInitialEntry =
-                (navHistory.getEntryCount() == 1 && navHistory.getEntryAtIndex(0).isInitialEntry());
-        if (onInitialEntry) {
-            // The initial NavigationEntry should not be exposed in the WebBackForwardList.
-            mCurrentIndex = -1;
-            mHistoryItemList = new ArrayList<WebHistoryItemChromium>(0);
-            return;
-        }
         mCurrentIndex = navHistory.getCurrentEntryIndex();
-        mHistoryItemList = new ArrayList<WebHistoryItemChromium>(navHistory.getEntryCount());
+        mHistroryItemList = new ArrayList<WebHistoryItemChromium>(navHistory.getEntryCount());
         for (int i = 0; i < navHistory.getEntryCount(); ++i) {
-            mHistoryItemList.add(new WebHistoryItemChromium(navHistory.getEntryAtIndex(i)));
+            mHistroryItemList.add(new WebHistoryItemChromium(navHistory.getEntryAtIndex(i)));
         }
     }
 
@@ -65,7 +57,7 @@ public class WebBackForwardListChromium extends WebBackForwardList {
         if (index < 0 || index >= getSize()) {
             return null;
         } else {
-            return mHistoryItemList.get(index);
+            return mHistroryItemList.get(index);
         }
     }
 
@@ -74,12 +66,12 @@ public class WebBackForwardListChromium extends WebBackForwardList {
      */
     @Override
     public synchronized int getSize() {
-        return mHistoryItemList.size();
+        return mHistroryItemList.size();
     }
 
     // Clone constructor.
     private WebBackForwardListChromium(List<WebHistoryItemChromium> list, int currentIndex) {
-        mHistoryItemList = list;
+        mHistroryItemList = list;
         mCurrentIndex = currentIndex;
     }
 
@@ -90,7 +82,7 @@ public class WebBackForwardListChromium extends WebBackForwardList {
     protected synchronized WebBackForwardListChromium clone() {
         List<WebHistoryItemChromium> list = new ArrayList<WebHistoryItemChromium>(getSize());
         for (int i = 0; i < getSize(); ++i) {
-            list.add(mHistoryItemList.get(i).clone());
+            list.add(mHistroryItemList.get(i).clone());
         }
         return new WebBackForwardListChromium(list, mCurrentIndex);
     }

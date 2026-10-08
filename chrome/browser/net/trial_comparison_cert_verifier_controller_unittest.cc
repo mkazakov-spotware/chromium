@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,15 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/safe_browsing/certificate_reporting_service_factory.h"
 #include "chrome/browser/safe_browsing/certificate_reporting_service_test_utils.h"
 #include "chrome/browser/safe_browsing/test_safe_browsing_service.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
@@ -28,17 +29,15 @@
 #include "content/public/test/test_utils.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "net/base/features.h"
 #include "net/base/net_errors.h"
 #include "net/cert/cert_verify_result.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
-#include "net/net_buildflags.h"
 #include "net/test/cert_test_util.h"
 #include "net/test/gtest_util.h"
 #include "net/test/test_data_directory.h"
-#include "services/cert_verifier/public/mojom/trial_comparison_cert_verifier.mojom.h"
 #include "services/network/public/cpp/features.h"
+#include "services/network/public/mojom/trial_comparison_cert_verifier.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -57,7 +56,7 @@ namespace {
 MATCHER_P(CertChainMatches, expected_cert, "") {
   net::CertificateList actual_certs =
       net::X509Certificate::CreateCertificateListFromBytes(
-          base::as_bytes(base::make_span(arg)),
+          arg.data(), arg.size(),
           net::X509Certificate::FORMAT_PEM_CERT_SEQUENCE);
   if (actual_certs.empty()) {
     *result_listener << "failed to parse arg";
@@ -83,18 +82,18 @@ MATCHER_P(CertChainMatches, expected_cert, "") {
 }  // namespace
 
 class MockTrialComparisonCertVerifierConfigClient
-    : public cert_verifier::mojom::TrialComparisonCertVerifierConfigClient {
+    : public network::mojom::TrialComparisonCertVerifierConfigClient {
  public:
   MockTrialComparisonCertVerifierConfigClient(
       mojo::PendingReceiver<
-          cert_verifier::mojom::TrialComparisonCertVerifierConfigClient>
+          network::mojom::TrialComparisonCertVerifierConfigClient>
           config_client_receiver)
       : receiver_(this, std::move(config_client_receiver)) {}
 
   MOCK_METHOD1(OnTrialConfigUpdated, void(bool allowed));
 
  private:
-  mojo::Receiver<cert_verifier::mojom::TrialComparisonCertVerifierConfigClient>
+  mojo::Receiver<network::mojom::TrialComparisonCertVerifierConfigClient>
       receiver_;
 };
 
@@ -149,8 +148,7 @@ class TrialComparisonCertVerifierControllerTest : public testing::Test {
   }
 
   void CreateController(Profile* profile) {
-    mojo::PendingRemote<
-        cert_verifier::mojom::TrialComparisonCertVerifierConfigClient>
+    mojo::PendingRemote<network::mojom::TrialComparisonCertVerifierConfigClient>
         config_client;
     auto config_client_receiver =
         config_client.InitWithNewPipeAndPassReceiver();
@@ -190,8 +188,7 @@ class TrialComparisonCertVerifierControllerTest : public testing::Test {
   TrialComparisonCertVerifierController& trial_controller() {
     return *trial_controller_;
   }
-  cert_verifier::mojom::TrialComparisonCertVerifierReportClient*
-  report_client() {
+  network::mojom::TrialComparisonCertVerifierReportClient* report_client() {
     return report_client_.get();
   }
   MockTrialComparisonCertVerifierConfigClient& mock_config_client() {
@@ -219,9 +216,9 @@ class TrialComparisonCertVerifierControllerTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   scoped_refptr<safe_browsing::SafeBrowsingService> sb_service_;
   std::unique_ptr<TestingProfileManager> profile_manager_;
-  raw_ptr<TestingProfile> profile_;
+  TestingProfile* profile_;
 
-  mojo::Remote<cert_verifier::mojom::TrialComparisonCertVerifierReportClient>
+  mojo::Remote<network::mojom::TrialComparisonCertVerifierReportClient>
       report_client_;
   std::unique_ptr<TrialComparisonCertVerifierController> trial_controller_;
   std::unique_ptr<StrictMock<MockTrialComparisonCertVerifierConfigClient>>
@@ -246,7 +243,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest, NothingEnabled) {
   report_client()->SendTrialReport(
       "hostname", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, ok_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
   // Expect no report since the trial is not allowed.
@@ -269,7 +266,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
   report_client()->SendTrialReport(
       "hostname", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, ok_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
 
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
@@ -280,20 +277,9 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
 
 TEST_F(TrialComparisonCertVerifierControllerTest,
        NotOfficialBuildTrialEnabled) {
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-  if (base::FeatureList::IsEnabled(net::features::kChromeRootStoreUsed)) {
-    // If ChromeRootStoreUsed feature is enabled by default,
-    // TrialComparisonCertVerifier will not be allowed. It is not safe to
-    // change the kChromeRootStoreUsed flag in unit_tests since multiple tests
-    // run in the same process, and GetChromeCertVerifierServiceParams will
-    // globally enforce a single configuration for the lifetime of the
-    // process. Therefore just skip this test if CRS is enabled.
-    GTEST_SKIP();
-  }
-#endif
   scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
   scoped_feature_->InitAndEnableFeature(
-      net::features::kCertDualVerificationTrialFeature);
+      features::kCertDualVerificationTrialFeature);
   CreateController();
 
   EXPECT_FALSE(trial_controller().IsAllowed());
@@ -317,7 +303,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
   report_client()->SendTrialReport(
       "hostname", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, ok_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
 
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
@@ -328,21 +314,10 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
 }
 
 TEST_F(TrialComparisonCertVerifierControllerTest, OfficialBuildTrialEnabled) {
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-  if (base::FeatureList::IsEnabled(net::features::kChromeRootStoreUsed)) {
-    // If ChromeRootStoreUsed feature is enabled by default,
-    // TrialComparisonCertVerifier will not be allowed. It is not safe to
-    // change the kChromeRootStoreUsed flag in unit_tests since multiple tests
-    // run in the same process, and GetChromeCertVerifierServiceParams will
-    // globally enforce a single configuration for the lifetime of the
-    // process. Therefore just skip this test if CRS is enabled.
-    GTEST_SKIP();
-  }
-#endif
   TrialComparisonCertVerifierController::SetFakeOfficialBuildForTesting(true);
   scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
   scoped_feature_->InitAndEnableFeature(
-      net::features::kCertDualVerificationTrialFeature);
+      features::kCertDualVerificationTrialFeature);
   CreateController();
 
   EXPECT_FALSE(trial_controller().IsAllowed());
@@ -363,7 +338,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest, OfficialBuildTrialEnabled) {
   report_client()->SendTrialReport(
       "127.0.0.1", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>{4, 5, 6}, std::vector<uint8_t>{7, 8, 9}, ok_result_,
-      bad_result_, cert_verifier::mojom::CertVerifierDebugInfo::New());
+      bad_result_, network::mojom::CertVerifierDebugInfo::New());
 
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
@@ -411,7 +386,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest, OfficialBuildTrialEnabled) {
   report_client()->SendTrialReport(
       "hostname", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, bad_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
   // Expect no report since the trial is not allowed.
@@ -420,28 +395,16 @@ TEST_F(TrialComparisonCertVerifierControllerTest, OfficialBuildTrialEnabled) {
 
 TEST_F(TrialComparisonCertVerifierControllerTest,
        OfficialBuildTrialEnabledTwoClients) {
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-  if (base::FeatureList::IsEnabled(net::features::kChromeRootStoreUsed)) {
-    // If ChromeRootStoreUsed feature is enabled by default,
-    // TrialComparisonCertVerifier will not be allowed. It is not safe to
-    // change the kChromeRootStoreUsed flag in unit_tests since multiple tests
-    // run in the same process, and GetChromeCertVerifierServiceParams will
-    // globally enforce a single configuration for the lifetime of the
-    // process. Therefore just skip this test if CRS is enabled.
-    GTEST_SKIP();
-  }
-#endif
   TrialComparisonCertVerifierController::SetFakeOfficialBuildForTesting(true);
   scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
   scoped_feature_->InitAndEnableFeature(
-      net::features::kCertDualVerificationTrialFeature);
+      features::kCertDualVerificationTrialFeature);
   CreateController();
 
-  mojo::Remote<cert_verifier::mojom::TrialComparisonCertVerifierReportClient>
+  mojo::Remote<network::mojom::TrialComparisonCertVerifierReportClient>
       report_client_2;
 
-  mojo::PendingRemote<
-      cert_verifier::mojom::TrialComparisonCertVerifierConfigClient>
+  mojo::PendingRemote<network::mojom::TrialComparisonCertVerifierConfigClient>
       config_client_2;
   auto config_client_2_receiver =
       config_client_2.InitWithNewPipeAndPassReceiver();
@@ -472,11 +435,11 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
   report_client()->SendTrialReport(
       "127.0.0.1", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, bad_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
   report_client_2->SendTrialReport(
       "127.0.0.2", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, bad_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
 
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
@@ -527,11 +490,11 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
   report_client()->SendTrialReport(
       "hostname", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, bad_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
   report_client_2->SendTrialReport(
       "hostname2", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, bad_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
   // Expect no report since the trial is not allowed.
@@ -540,21 +503,10 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
 
 TEST_F(TrialComparisonCertVerifierControllerTest,
        OfficialBuildTrialEnabledUmaOnly) {
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-  if (base::FeatureList::IsEnabled(net::features::kChromeRootStoreUsed)) {
-    // If ChromeRootStoreUsed feature is enabled by default,
-    // TrialComparisonCertVerifier will not be allowed. It is not safe to
-    // change the kChromeRootStoreUsed flag in unit_tests since multiple tests
-    // run in the same process, and GetChromeCertVerifierServiceParams will
-    // globally enforce a single configuration for the lifetime of the
-    // process. Therefore just skip this test if CRS is enabled.
-    GTEST_SKIP();
-  }
-#endif
   TrialComparisonCertVerifierController::SetFakeOfficialBuildForTesting(true);
   scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
   scoped_feature_->InitAndEnableFeatureWithParameters(
-      net::features::kCertDualVerificationTrialFeature, {{"uma_only", "true"}});
+      features::kCertDualVerificationTrialFeature, {{"uma_only", "true"}});
   CreateController();
 
   EXPECT_FALSE(trial_controller().IsAllowed());
@@ -576,7 +528,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
   report_client()->SendTrialReport(
       "127.0.0.1", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, bad_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
 
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
@@ -587,22 +539,11 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
 
 TEST_F(TrialComparisonCertVerifierControllerTest,
        IncognitoOfficialBuildTrialEnabled) {
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-  if (base::FeatureList::IsEnabled(net::features::kChromeRootStoreUsed)) {
-    // If ChromeRootStoreUsed feature is enabled by default,
-    // TrialComparisonCertVerifier will not be allowed. It is not safe to
-    // change the kChromeRootStoreUsed flag in unit_tests since multiple tests
-    // run in the same process, and GetChromeCertVerifierServiceParams will
-    // globally enforce a single configuration for the lifetime of the
-    // process. Therefore just skip this test if CRS is enabled.
-    GTEST_SKIP();
-  }
-#endif
   TrialComparisonCertVerifierController::SetFakeOfficialBuildForTesting(true);
   scoped_feature_ = std::make_unique<base::test::ScopedFeatureList>();
   scoped_feature_->InitAndEnableFeature(
-      net::features::kCertDualVerificationTrialFeature);
-  CreateController(profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true));
+      features::kCertDualVerificationTrialFeature);
+  CreateController(profile()->GetPrimaryOTRProfile());
 
   EXPECT_FALSE(trial_controller().IsAllowed());
 
@@ -617,7 +558,7 @@ TEST_F(TrialComparisonCertVerifierControllerTest,
   report_client()->SendTrialReport(
       "hostname", leaf_cert_1_, false, false, false, false,
       std::vector<uint8_t>(), std::vector<uint8_t>(), ok_result_, ok_result_,
-      cert_verifier::mojom::CertVerifierDebugInfo::New());
+      network::mojom::CertVerifierDebugInfo::New());
   // Ensure any in-flight mojo calls get run.
   base::RunLoop().RunUntilIdle();
   // Expect no report since the trial is not allowed.

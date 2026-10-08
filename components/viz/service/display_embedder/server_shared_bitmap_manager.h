@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,6 @@ class VIZ_SERVICE_EXPORT ServerSharedBitmapManager
       public base::trace_event::MemoryDumpProvider {
  public:
   ServerSharedBitmapManager();
-
-  ServerSharedBitmapManager(const ServerSharedBitmapManager&) = delete;
-  ServerSharedBitmapManager& operator=(const ServerSharedBitmapManager&) =
-      delete;
-
   ~ServerSharedBitmapManager() override;
 
   // SharedBitmapManager implementation.
@@ -43,8 +38,6 @@ class VIZ_SERVICE_EXPORT ServerSharedBitmapManager
       const SharedBitmapId& id) override;
   base::UnguessableToken GetSharedBitmapTracingGUIDFromId(
       const SharedBitmapId& id) override;
-  bool LocalAllocatedSharedBitmap(SkBitmap bitmap,
-                                  const SharedBitmapId& id) override;
   bool ChildAllocatedSharedBitmap(base::ReadOnlySharedMemoryMapping mapping,
                                   const SharedBitmapId& id) override;
   void ChildDeletedSharedBitmap(const SharedBitmapId& id) override;
@@ -60,6 +53,8 @@ class VIZ_SERVICE_EXPORT ServerSharedBitmapManager
                      scoped_refptr<BitmapData>,
                      SharedBitmapIdHash>
       handle_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServerSharedBitmapManager);
 };
 
 }  // namespace viz

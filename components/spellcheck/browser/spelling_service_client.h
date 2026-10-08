@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,11 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/strings/string16.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/gurl.h"
 
 struct SpellCheckResult;
-
-namespace base {
-class TimeTicks;
-}
 
 namespace content {
 class BrowserContext;
@@ -50,7 +47,7 @@ class SimpleURLLoader;
 //       ...
 //     }
 //
-//     void MyTextCheck(BrowserContext* context, const std::u16string& text) {
+//     void MyTextCheck(BrowserContext* context, const base::string16& text) {
 //        client_.reset(new SpellingServiceClient);
 //        client_->RequestTextCheck(context, 0, text,
 //            base::BindOnce(&MyClient::OnTextCheckComplete,
@@ -86,7 +83,7 @@ class SpellingServiceClient {
   };
   typedef base::OnceCallback<void(
       bool /* success */,
-      const std::u16string& /* text */,
+      const base::string16& /* text */,
       const std::vector<SpellCheckResult>& /* results */)>
       TextCheckCompleteCallback;
 
@@ -99,7 +96,7 @@ class SpellingServiceClient {
   // call |callback| when we receive a text-check response from the service.
   bool RequestTextCheck(content::BrowserContext* context,
                         ServiceType type,
-                        const std::u16string& text,
+                        const base::string16& text,
                         TextCheckCompleteCallback callback);
 
   // Returns whether the specified service is available for the given context.
@@ -124,11 +121,7 @@ class SpellingServiceClient {
     TextCheckCallbackData(
         std::unique_ptr<network::SimpleURLLoader> simple_url_loader,
         TextCheckCompleteCallback callback,
-        std::u16string text);
-
-    TextCheckCallbackData(const TextCheckCallbackData&) = delete;
-    TextCheckCallbackData& operator=(const TextCheckCallbackData&) = delete;
-
+        base::string16 text);
     ~TextCheckCallbackData();
 
     // The URL loader used.
@@ -139,7 +132,10 @@ class SpellingServiceClient {
     TextCheckCompleteCallback callback;
 
     // The text checked by the Spelling service.
-    std::u16string text;
+    base::string16 text;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(TextCheckCallbackData);
   };
 
   using SpellCheckLoaderList =

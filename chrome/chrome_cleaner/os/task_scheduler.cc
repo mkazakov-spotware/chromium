@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -126,9 +126,6 @@ void PinModule(const wchar_t* module_name) {
 // scheduler for Vista+.
 class TaskSchedulerV2 : public TaskScheduler {
  public:
-  TaskSchedulerV2(const TaskSchedulerV2&) = delete;
-  TaskSchedulerV2& operator=(const TaskSchedulerV2&) = delete;
-
   static bool Initialize() {
     DCHECK(!task_service_);
     DCHECK(!root_task_folder_);
@@ -199,7 +196,8 @@ class TaskSchedulerV2 : public TaskScheduler {
     SYSTEMTIME start_system_time = {};
     GetLocalTime(&start_system_time);
 
-    base::Time tomorrow(base::Time::NowFromSystemTime() + base::Days(1));
+    base::Time tomorrow(base::Time::NowFromSystemTime() +
+                        base::TimeDelta::FromDays(1));
     SYSTEMTIME end_system_time = {};
     if (!UTCFileTimeToLocalSystemTime(tomorrow.ToFileTime(), &end_system_time))
       return false;
@@ -594,7 +592,7 @@ class TaskSchedulerV2 : public TaskScheduler {
 
     // None of the triggers should go beyond kNumDaysBeforeExpiry.
     base::Time expiry_date(base::Time::NowFromSystemTime() +
-                           base::Days(kNumDaysBeforeExpiry));
+                           base::TimeDelta::FromDays(kNumDaysBeforeExpiry));
     base::win::ScopedBstr end_boundary(GetTimestampString(expiry_date));
     hr = trigger->put_EndBoundary(end_boundary.Get());
     if (FAILED(hr)) {
@@ -946,6 +944,8 @@ class TaskSchedulerV2 : public TaskScheduler {
 
   static Microsoft::WRL::ComPtr<ITaskService> task_service_;
   static Microsoft::WRL::ComPtr<ITaskFolder> root_task_folder_;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskSchedulerV2);
 };
 
 Microsoft::WRL::ComPtr<ITaskService> TaskSchedulerV2::task_service_;

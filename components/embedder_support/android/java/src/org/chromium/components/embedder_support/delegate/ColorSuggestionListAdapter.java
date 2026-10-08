@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import android.graphics.drawable.LayerDrawable;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
@@ -25,7 +24,6 @@ public class ColorSuggestionListAdapter extends BaseAdapter implements View.OnCl
     private Context mContext;
     private ColorSuggestion[] mSuggestions;
     private OnColorSuggestionClickListener mListener;
-    private int mSelectedColor;
 
     /**
      * The callback used to indicate the user has clicked on a suggestion.
@@ -54,14 +52,6 @@ public class ColorSuggestionListAdapter extends BaseAdapter implements View.OnCl
     }
 
     /**
-     * Sets the currently selected color so the corresponding list item can be labeled.
-     * @param selectedColor The newly selected color.
-     */
-    public void setSelectedColor(int selectedColor) {
-        mSelectedColor = selectedColor;
-    }
-
-    /**
      * Sets up the color button to represent a color suggestion.
      *
      * @param button The button view to set up.
@@ -87,15 +77,6 @@ public class ColorSuggestionListAdapter extends BaseAdapter implements View.OnCl
         }
         button.setContentDescription(description);
         button.setOnClickListener(this);
-        button.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCollectionItemInfo(
-                        AccessibilityNodeInfo.CollectionItemInfo.obtain(index, 1, 1, 1, false));
-                info.setSelected(suggestion.mColor == mSelectedColor);
-            }
-        });
     }
 
     @Override

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,8 +41,7 @@ class SafetyCheckProperties {
 
     @IntDef({PasswordsState.UNCHECKED, PasswordsState.CHECKING, PasswordsState.SAFE,
             PasswordsState.COMPROMISED_EXIST, PasswordsState.OFFLINE, PasswordsState.NO_PASSWORDS,
-            PasswordsState.SIGNED_OUT, PasswordsState.QUOTA_LIMIT, PasswordsState.ERROR,
-            PasswordsState.BACKEND_VERSION_NOT_SUPPORTED})
+            PasswordsState.SIGNED_OUT, PasswordsState.QUOTA_LIMIT, PasswordsState.ERROR})
     @Retention(RetentionPolicy.SOURCE)
     public @interface PasswordsState {
         int UNCHECKED = 0;
@@ -54,7 +53,6 @@ class SafetyCheckProperties {
         int SIGNED_OUT = 6;
         int QUOTA_LIMIT = 7;
         int ERROR = 8;
-        int BACKEND_VERSION_NOT_SUPPORTED = 9;
     }
 
     static @PasswordsState int passwordsStatefromErrorState(@PasswordCheckUIStatus int state) {
@@ -83,11 +81,6 @@ class SafetyCheckProperties {
             case PasswordsState.UNCHECKED:
                 // This is not used.
                 assert false : "PasswordsState.UNCHECKED has no native equivalent.";
-                return PasswordsStatus.ERROR;
-            case PasswordsState.BACKEND_VERSION_NOT_SUPPORTED:
-                // This is not used.
-                assert false
-                    : "PasswordsState.BACKEND_VERSION_NOT_SUPPORTED has no native equivalent.";
                 return PasswordsStatus.ERROR;
             case PasswordsState.CHECKING:
                 return PasswordsStatus.CHECKING;

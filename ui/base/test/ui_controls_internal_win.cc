@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,11 @@
 #include "base/callback.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/thread_checker.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/win/win_util.h"
 #include "ui/base/win/event_creation_utils.h"
 #include "ui/display/win/screen_win.h"
@@ -51,9 +53,6 @@ class InputDispatcher {
   // or if |screen_point| is not over a window owned by the test.
   static void CreateForMouseMove(base::OnceClosure callback,
                                  const gfx::Point& screen_point);
-
-  InputDispatcher(const InputDispatcher&) = delete;
-  InputDispatcher& operator=(const InputDispatcher&) = delete;
 
  private:
   // Generic message
@@ -130,6 +129,8 @@ class InputDispatcher {
   const gfx::Point expected_mouse_location_;
 
   base::WeakPtrFactory<InputDispatcher> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InputDispatcher);
 };
 
 // static
@@ -225,7 +226,7 @@ void InputDispatcher::InstallHook() {
     if (message_waiting_for_ == WM_MOUSEMOVE) {
       // Things don't go well with move events sometimes. Bail out if it takes
       // too long.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&InputDispatcher::OnTimeout,
                          weak_factory_.GetWeakPtr()),
@@ -257,7 +258,7 @@ LRESULT CALLBACK InputDispatcher::KeyHook(int n_code,
                                           LPARAM l_param) {
   if ((n_code == HC_ACTION) && (HIWORD(l_param) & KF_UP)) {
     DCHECK(current_dispatcher_);
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&InputDispatcher::MatchingMessageProcessed,
                        current_dispatcher_->weak_factory_.GetWeakPtr(), false));
@@ -286,7 +287,7 @@ void InputDispatcher::DispatchedMessage(
           << expected_mouse_location_.y()
           << "); check the math in SendMouseMoveImpl.";
     }
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&InputDispatcher::MatchingMessageProcessed,
                        weak_factory_.GetWeakPtr(), definitively_done));
@@ -300,7 +301,7 @@ void InputDispatcher::DispatchedMessage(
                  << "This may result in different event processing behavior. "
                  << "If you need a single click try moving the mouse between "
                  << "down events.";
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&InputDispatcher::MatchingMessageProcessed,
                                   weak_factory_.GetWeakPtr(), false));
   }
@@ -328,7 +329,7 @@ void InputDispatcher::MatchingMessageProcessed(bool definitively_done) {
     // there).
     if (message_waiting_for_ == WM_KEYUP)
       ++num_keyups_awaited_;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&InputDispatcher::MatchingMessageProcessed,
                                   weak_factory_.GetWeakPtr(), false));
     return;
@@ -503,8 +504,7 @@ bool SendMouseMoveImpl(int screen_x, int screen_y, base::OnceClosure task) {
   ::GetCursorPos(&current_pos);
   if (screen_point.x() == current_pos.x && screen_point.y() == current_pos.y) {
     if (task)
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, std::move(task));
+      base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(task));
     return true;
   }
 

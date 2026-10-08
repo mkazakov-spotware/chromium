@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,13 +17,12 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/files/scoped_file.h"
-#include "base/memory/page_size.h"
-#include "base/memory/shared_memory_mapping.h"
-#include "base/memory/unsafe_shared_memory_region.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/task/single_thread_task_runner.h"
-#include "media/base/bind_to_current_loop.h"
+#include "base/process/process_metrics.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/base/bitstream_buffer.h"
+#include "media/base/unaligned_shared_memory.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_types.h"
 #include "media/gpu/chromeos/fourcc.h"
@@ -136,9 +135,6 @@ const uint8_t kDefaultDhtSeg[] = {
 
 class V4L2MjpegDecodeAccelerator::JobRecord {
  public:
-  JobRecord(const JobRecord&) = delete;
-  JobRecord& operator=(const JobRecord&) = delete;
-
   virtual ~JobRecord() = default;
 
   // Task ID passed from Decode() call.
@@ -146,7 +142,7 @@ class V4L2MjpegDecodeAccelerator::JobRecord {
   // Input buffer size.
   virtual size_t size() const = 0;
   // Input buffer offset.
-  virtual uint64_t offset() const = 0;
+  virtual off_t offset() const = 0;
   // Maps input buffer.
   virtual bool map() = 0;
   // Pointer to the input content. Only valid if map() is already called.
@@ -157,6 +153,8 @@ class V4L2MjpegDecodeAccelerator::JobRecord {
 
  protected:
   JobRecord() = default;
+
+  DISALLOW_COPY_AND_ASSIGN(JobRecord);
 };
 
 // Job record when the client uses BitstreamBuffer as input in Decode().
@@ -165,30 +163,27 @@ class JobRecordBitstreamBuffer : public V4L2MjpegDecodeAccelerator::JobRecord {
   JobRecordBitstreamBuffer(BitstreamBuffer bitstream_buffer,
                            scoped_refptr<VideoFrame> video_frame)
       : task_id_(bitstream_buffer.id()),
-        shm_region_(bitstream_buffer.TakeRegion()),
+        shm_(bitstream_buffer.TakeRegion(),
+             bitstream_buffer.size(),
+             false /* read_only */),
         offset_(bitstream_buffer.offset()),
         out_frame_(video_frame) {}
 
-  JobRecordBitstreamBuffer(const JobRecordBitstreamBuffer&) = delete;
-  JobRecordBitstreamBuffer& operator=(const JobRecordBitstreamBuffer&) = delete;
-
   int32_t task_id() const override { return task_id_; }
-  size_t size() const override { return shm_region_.GetSize(); }
-  uint64_t offset() const override { return offset_; }
-  bool map() override {
-    shm_mapping_ = shm_region_.MapAt(offset(), size());
-    return shm_mapping_.IsValid();
-  }
-  const void* memory() const override { return shm_mapping_.memory(); }
+  size_t size() const override { return shm_.size(); }
+  off_t offset() const override { return offset_; }
+  bool map() override { return shm_.MapAt(offset(), size()); }
+  const void* memory() const override { return shm_.memory(); }
 
   const scoped_refptr<VideoFrame>& out_frame() override { return out_frame_; }
 
  private:
   int32_t task_id_;
-  base::UnsafeSharedMemoryRegion shm_region_;
-  uint64_t offset_;
-  base::WritableSharedMemoryMapping shm_mapping_;
+  UnalignedSharedMemory shm_;
+  off_t offset_;
   scoped_refptr<VideoFrame> out_frame_;
+
+  DISALLOW_COPY_AND_ASSIGN(JobRecordBitstreamBuffer);
 };
 
 // Job record when the client uses DMA buffer as input in Decode().
@@ -206,9 +201,6 @@ class JobRecordDmaBuf : public V4L2MjpegDecodeAccelerator::JobRecord {
         mapped_addr_(nullptr),
         out_frame_(std::move(dst_frame)) {}
 
-  JobRecordDmaBuf(const JobRecordDmaBuf&) = delete;
-  JobRecordDmaBuf& operator=(const JobRecordDmaBuf&) = delete;
-
   ~JobRecordDmaBuf() {
     if (mapped_addr_) {
       const int ret = munmap(mapped_addr_, size());
@@ -218,7 +210,7 @@ class JobRecordDmaBuf : public V4L2MjpegDecodeAccelerator::JobRecord {
 
   int32_t task_id() const override { return task_id_; }
   size_t size() const override { return size_; }
-  uint64_t offset() const override { return offset_; }
+  off_t offset() const override { return offset_; }
 
   bool map() override {
     if (mapped_addr_)
@@ -228,7 +220,7 @@ class JobRecordDmaBuf : public V4L2MjpegDecodeAccelerator::JobRecord {
     DCHECK(dmabuf_fd_.is_valid());
     DCHECK_GT(size(), 0u);
     void* addr = mmap(nullptr, size(), PROT_READ, MAP_SHARED, dmabuf_fd_.get(),
-                      base::checked_cast<off_t>(offset()));
+                      offset());
     if (addr == MAP_FAILED)
       return false;
     mapped_addr_ = addr;
@@ -246,9 +238,11 @@ class JobRecordDmaBuf : public V4L2MjpegDecodeAccelerator::JobRecord {
   int32_t task_id_;
   base::ScopedFD dmabuf_fd_;
   size_t size_;
-  uint64_t offset_;
+  off_t offset_;
   void* mapped_addr_;
   scoped_refptr<VideoFrame> out_frame_;
+
+  DISALLOW_COPY_AND_ASSIGN(JobRecordDmaBuf);
 };
 
 V4L2MjpegDecodeAccelerator::BufferRecord::BufferRecord() : at_device(false) {
@@ -263,7 +257,7 @@ V4L2MjpegDecodeAccelerator::V4L2MjpegDecodeAccelerator(
     const scoped_refptr<base::SingleThreadTaskRunner>& io_task_runner)
     : output_buffer_pixelformat_(0),
       output_buffer_num_planes_(0),
-      child_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      child_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       io_task_runner_(io_task_runner),
       client_(nullptr),
       device_(device),
@@ -319,14 +313,13 @@ void V4L2MjpegDecodeAccelerator::PostNotifyError(int32_t task_id, Error error) {
                                 weak_ptr_, task_id, error));
 }
 
-void V4L2MjpegDecodeAccelerator::InitializeOnTaskRunner(
-    chromeos_camera::MjpegDecodeAccelerator::Client* client,
-    chromeos_camera::MjpegDecodeAccelerator::InitCB init_cb) {
+bool V4L2MjpegDecodeAccelerator::Initialize(
+    chromeos_camera::MjpegDecodeAccelerator::Client* client) {
   DCHECK(child_task_runner_->BelongsToCurrentThread());
+
   if (!device_->Open(V4L2Device::Type::kJpegDecoder, V4L2_PIX_FMT_JPEG)) {
     VLOGF(1) << "Failed to open device";
-    std::move(init_cb).Run(false);
-    return;
+    return false;
   }
 
   // Capabilities check.
@@ -335,14 +328,12 @@ void V4L2MjpegDecodeAccelerator::InitializeOnTaskRunner(
   memset(&caps, 0, sizeof(caps));
   if (device_->Ioctl(VIDIOC_QUERYCAP, &caps) != 0) {
     VPLOGF(1) << "ioctl() failed: VIDIOC_QUERYCAP";
-    std::move(init_cb).Run(false);
-    return;
+    return false;
   }
   if ((caps.capabilities & kCapsRequired) != kCapsRequired) {
     VLOGF(1) << "VIDIOC_QUERYCAP, caps check failed: 0x" << std::hex
              << caps.capabilities;
-    std::move(init_cb).Run(false);
-    return;
+    return false;
   }
 
   // Subscribe to the source change event.
@@ -351,14 +342,12 @@ void V4L2MjpegDecodeAccelerator::InitializeOnTaskRunner(
   sub.type = V4L2_EVENT_SOURCE_CHANGE;
   if (device_->Ioctl(VIDIOC_SUBSCRIBE_EVENT, &sub) != 0) {
     VPLOGF(1) << "ioctl() failed: VIDIOC_SUBSCRIBE_EVENT";
-    std::move(init_cb).Run(false);
-    return;
+    return false;
   }
 
   if (!decoder_thread_.Start()) {
     VLOGF(1) << "decoder thread failed to start";
-    std::move(init_cb).Run(false);
-    return;
+    return false;
   }
   client_ = client;
   decoder_task_runner_ = decoder_thread_.task_runner();
@@ -368,21 +357,7 @@ void V4L2MjpegDecodeAccelerator::InitializeOnTaskRunner(
                                 base::Unretained(this)));
 
   VLOGF(2) << "V4L2MjpegDecodeAccelerator initialized.";
-  std::move(init_cb).Run(true);
-}
-
-void V4L2MjpegDecodeAccelerator::InitializeAsync(
-    chromeos_camera::MjpegDecodeAccelerator::Client* client,
-    chromeos_camera::MjpegDecodeAccelerator::InitCB init_cb) {
-  DCHECK(child_task_runner_->BelongsToCurrentThread());
-
-  // To guarantee that the caller receives an asynchronous call after the
-  // return path, we are making use of InitializeOnTaskRunner.
-  child_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&V4L2MjpegDecodeAccelerator::InitializeOnTaskRunner,
-                     weak_factory_.GetWeakPtr(), client,
-                     BindToCurrentLoop(std::move(init_cb))));
+  return true;
 }
 
 void V4L2MjpegDecodeAccelerator::Decode(BitstreamBuffer bitstream_buffer,
@@ -591,7 +566,7 @@ bool V4L2MjpegDecodeAccelerator::CreateInputBuffers() {
     buffer.index = i;
     buffer.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
     buffer.m.planes = planes;
-    buffer.length = std::size(planes);
+    buffer.length = base::size(planes);
     buffer.memory = V4L2_MEMORY_MMAP;
     IOCTL_OR_ERROR_RETURN_FALSE(VIDIOC_QUERYBUF, &buffer);
     if (buffer.length != kMaxInputPlanes) {
@@ -669,7 +644,7 @@ bool V4L2MjpegDecodeAccelerator::CreateOutputBuffers() {
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     buffer.memory = V4L2_MEMORY_MMAP;
     buffer.m.planes = planes;
-    buffer.length = std::size(planes);
+    buffer.length = base::size(planes);
     IOCTL_OR_ERROR_RETURN_FALSE(VIDIOC_QUERYBUF, &buffer);
 
     if (output_buffer_num_planes_ != buffer.length) {
@@ -713,9 +688,9 @@ void V4L2MjpegDecodeAccelerator::DestroyInputBuffers() {
     input_streamon_ = false;
   }
 
-  for (const auto& [address, length, at_device] : input_buffer_map_) {
+  for (const auto& input_record : input_buffer_map_) {
     for (size_t i = 0; i < kMaxInputPlanes; ++i) {
-      device_->Munmap(address[i], length[i]);
+      device_->Munmap(input_record.address[i], input_record.length[i]);
     }
   }
 
@@ -743,9 +718,9 @@ void V4L2MjpegDecodeAccelerator::DestroyOutputBuffers() {
     output_streamon_ = false;
   }
 
-  for (const auto& [address, length, at_device] : output_buffer_map_) {
+  for (const auto& output_record : output_buffer_map_) {
     for (size_t i = 0; i < output_buffer_num_planes_; ++i) {
-      device_->Munmap(address[i], length[i]);
+      device_->Munmap(output_record.address[i], output_record.length[i]);
     }
   }
 
@@ -780,7 +755,7 @@ void V4L2MjpegDecodeAccelerator::DevicePollTask() {
 bool V4L2MjpegDecodeAccelerator::DequeueSourceChangeEvent() {
   DCHECK(decoder_task_runner_->BelongsToCurrentThread());
 
-  if (absl::optional<struct v4l2_event> event = device_->DequeueEvent()) {
+  if (base::Optional<struct v4l2_event> event = device_->DequeueEvent()) {
     if (event->type == V4L2_EVENT_SOURCE_CHANGE) {
       VLOGF(2) << ": got source change event: " << event->u.src_change.changes;
       if (event->u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION) {
@@ -888,8 +863,7 @@ bool V4L2MjpegDecodeAccelerator::ConvertOutputImage(
       VLOGF(1) << "Failed to create video frame mapper";
       return false;
     }
-    dst_frame = frame_mapper->Map(std::move(dst_frame), PROT_READ | PROT_WRITE);
-
+    dst_frame = frame_mapper->Map(std::move(dst_frame));
     if (!dst_frame) {
       VLOGF(1) << "Failed to map DMA-buf video frame";
       return false;
@@ -900,7 +874,7 @@ bool V4L2MjpegDecodeAccelerator::ConvertOutputImage(
   std::array<uint8_t*, VideoFrame::kMaxPlanes> dst_ptrs{};
   std::array<int, VideoFrame::kMaxPlanes> dst_strides{};
   for (size_t i = 0; i < dst_frame->layout().num_planes(); i++) {
-    dst_ptrs[i] = dst_frame->GetWritableVisibleData(i);
+    dst_ptrs[i] = dst_frame->visible_data(i);
     dst_strides[i] = base::checked_cast<int>(dst_frame->stride(i));
   }
 
@@ -1037,7 +1011,7 @@ void V4L2MjpegDecodeAccelerator::Dequeue() {
     memset(planes, 0, sizeof(planes));
     dqbuf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
     dqbuf.memory = V4L2_MEMORY_MMAP;
-    dqbuf.length = std::size(planes);
+    dqbuf.length = base::size(planes);
     dqbuf.m.planes = planes;
     if (device_->Ioctl(VIDIOC_DQBUF, &dqbuf) != 0) {
       if (errno == EAGAIN) {
@@ -1074,7 +1048,7 @@ void V4L2MjpegDecodeAccelerator::Dequeue() {
     // USERPTR. Also, client doesn't need to consider the buffer alignment and
     // MjpegDecodeAccelerator API will be simpler.
     dqbuf.memory = V4L2_MEMORY_MMAP;
-    dqbuf.length = std::size(planes);
+    dqbuf.length = base::size(planes);
     dqbuf.m.planes = planes;
     if (device_->Ioctl(VIDIOC_DQBUF, &dqbuf) != 0) {
       if (errno == EAGAIN) {
@@ -1128,8 +1102,7 @@ static bool AddHuffmanTable(const void* input_ptr,
   DCHECK(output_ptr);
   DCHECK_LE((input_size + sizeof(kDefaultDhtSeg)), output_size);
 
-  base::BigEndianReader reader(static_cast<const uint8_t*>(input_ptr),
-                               input_size);
+  base::BigEndianReader reader(static_cast<const char*>(input_ptr), input_size);
   bool has_marker_dht = false;
   bool has_marker_sos = false;
   uint8_t marker1, marker2;
@@ -1145,7 +1118,7 @@ static bool AddHuffmanTable(const void* input_ptr,
   size_t current_offset = 2;
 
   while (!has_marker_sos && !has_marker_dht) {
-    const uint8_t* start_addr = reader.ptr();
+    const char* start_addr = reader.ptr();
     READ_U8_OR_RETURN_FALSE(reader, &marker1);
     if (marker1 != JPEG_MARKER_PREFIX) {
       DVLOGF(1) << "marker1 != 0xFF";
@@ -1226,7 +1199,7 @@ bool V4L2MjpegDecodeAccelerator::EnqueueInputRecord() {
   qbuf.index = index;
   qbuf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
   qbuf.memory = V4L2_MEMORY_MMAP;
-  qbuf.length = std::size(planes);
+  qbuf.length = base::size(planes);
   // There is only one plane for V4L2_PIX_FMT_JPEG.
   planes[0].bytesused = input_record.length[0];
   qbuf.m.planes = planes;
@@ -1254,7 +1227,7 @@ bool V4L2MjpegDecodeAccelerator::EnqueueOutputRecord() {
   qbuf.index = index;
   qbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
   qbuf.memory = V4L2_MEMORY_MMAP;
-  qbuf.length = std::size(planes);
+  qbuf.length = base::size(planes);
   qbuf.m.planes = planes;
   IOCTL_OR_ERROR_RETURN_FALSE(VIDIOC_QBUF, &qbuf);
   output_record.at_device = true;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -22,14 +21,13 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
-#include "third_party/blink/public/common/switches.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
 #include "ui/events/keycodes/keyboard_code_conversion.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/mac_util.h"
 #endif
 
@@ -45,7 +43,7 @@ constexpr char kFullscreenKeyboardLockHTML[] =
 // On MacOSX command key is used for most of the shortcuts, so replace it with
 // control to reduce the complexity of comparison of the results.
 void NormalizeMetaKeyForMacOS(std::string* output) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   base::ReplaceSubstringsAfterOffset(output, 0, "MetaLeft", "ControlLeft");
 #endif
 }
@@ -137,8 +135,7 @@ void FullscreenKeyboardBrowserTestBase::StartFullscreenLockPage() {
   ASSERT_EQ(0, GetActiveTabIndex());
   ASSERT_EQ(1U, GetBrowserCount());
   // Add a second tab for counting and focus purposes.
-  ASSERT_TRUE(
-      AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_LINK));
+  AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_LINK);
   ASSERT_EQ(2, GetTabCount());
   ASSERT_EQ(1U, GetBrowserCount());
 
@@ -153,7 +150,7 @@ void FullscreenKeyboardBrowserTestBase::StartFullscreenLockPage() {
 
 void FullscreenKeyboardBrowserTestBase::SendShortcut(ui::KeyboardCode key,
                                                      bool shift /* = false */) {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   const bool control_modifier = false;
   const bool command_modifier = true;
 #else
@@ -186,11 +183,11 @@ void FullscreenKeyboardBrowserTestBase::SendFullscreenShortcutAndWait() {
   // for the observer to notice the change of fullscreen state.
   FullscreenNotificationObserver observer(GetActiveBrowser());
 // Enter fullscreen.
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // On MACOSX, Command + Control + F is used.
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(GetActiveBrowser(), ui::VKEY_F,
                                               true, false, false, true));
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
   // A dedicated fullscreen key is used on Chrome OS, so send a fullscreen
   // command directly instead, to avoid constructing the key press.
   ASSERT_TRUE(chrome::ExecuteCommand(GetActiveBrowser(), IDC_FULLSCREEN));
@@ -204,7 +201,7 @@ void FullscreenKeyboardBrowserTestBase::SendFullscreenShortcutAndWait() {
 // fullscreen. For more details, see ScopedFakeNSWindowFullscreen.
 // TODO(crbug.com/837438): Remove this once ScopedFakeNSWindowFullscreen fires
 // OnFullscreenStateChanged.
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   observer.Wait();
 #endif
 }
@@ -433,10 +430,4 @@ std::string FullscreenKeyboardBrowserTestBase::GetFullscreenFramePath() {
 
 void FullscreenKeyboardBrowserTestBase::SetUpOnMainThread() {
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(GetActiveBrowser()));
-}
-
-void FullscreenKeyboardBrowserTestBase::SetUpCommandLine(
-    base::CommandLine* command_line) {
-  BrowserTestBase::SetUpCommandLine(command_line);
-  command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
 }

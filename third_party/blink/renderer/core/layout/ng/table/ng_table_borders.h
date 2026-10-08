@@ -1,15 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_NG_TABLE_BORDERS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_NG_TABLE_BORDERS_H_
 
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/notreached.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/core/style/computed_style_constants.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
@@ -63,13 +59,15 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
  public:
   static scoped_refptr<NGTableBorders> ComputeTableBorders(const NGBlockNode&);
 
-  NGTableBorders(const NGBoxStrut& table_border, const bool is_collapsed);
+  // |table_border_padding| as computed from css values.
+  NGTableBorders(const ComputedStyle& table_style,
+                 const NGBoxStrut& table_border);
 
 #if DCHECK_IS_ON()
   String DumpEdges();
   void ShowEdges();
-  bool operator==(const NGTableBorders& other) const;
 #endif
+
 
   enum class EdgeSource { kNone, kCell, kRow, kSection, kColumn, kTable };
 
@@ -80,7 +78,6 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
   // Edge is defined by a style, and box side. Box side specifies which
   // style border defines the edge.
   struct Edge {
-    DISALLOW_NEW();
     scoped_refptr<const ComputedStyle> style;
     EdgeSide edge_side;
     // Box order is used to compute edge painting precedence.
@@ -140,7 +137,21 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
     return border_style;
   }
 
-  static Color BorderColor(const ComputedStyle* style, EdgeSide edge_side);
+  static Color BorderColor(const ComputedStyle* style, EdgeSide edge_side) {
+    switch (edge_side) {
+      case EdgeSide::kLeft:
+        return style->VisitedDependentColor(GetCSSPropertyBorderLeftColor());
+      case EdgeSide::kRight:
+        return style->VisitedDependentColor(GetCSSPropertyBorderRightColor());
+      case EdgeSide::kTop:
+        return style->VisitedDependentColor(GetCSSPropertyBorderTopColor());
+      case EdgeSide::kBottom:
+        return style->VisitedDependentColor(GetCSSPropertyBorderBottomColor());
+      case EdgeSide::kDoNotFill:
+        NOTREACHED();
+        return style->VisitedDependentColor(GetCSSPropertyBorderBottomColor());
+    }
+  }
 
   static bool HasBorder(const ComputedStyle* style) {
     if (!style)
@@ -177,13 +188,26 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
     wtf_size_t row_count;
   };
 
-  bool IsEmpty() const { return edges_.empty(); }
+  bool IsEmpty() const { return edges_.IsEmpty(); }
 
   bool IsCollapsed() const { return is_collapsed_; }
 
   wtf_size_t EdgesPerRow() const { return edges_per_row_; }
 
-  const NGBoxStrut& TableBorder() const { return table_border_; }
+  const NGBoxStrut& TableBorder() const {
+    DCHECK(cached_table_border_);
+    return *cached_table_border_;
+  }
+
+  // This method is necessary because collapsed table's border rect and
+  // visual overflow rect use different borders.
+  // Border rect uses inline start/end of the first row.
+  // Visual rect uses largest inline start/end of the entire table.
+  std::pair<LayoutUnit, LayoutUnit> GetCollapsedBorderVisualInlineStrut()
+      const {
+    return std::make_pair(collapsed_visual_inline_start_,
+                          collapsed_visual_inline_end_);
+  }
 
   NGBoxStrut CellBorder(const NGBlockNode& cell,
                         wtf_size_t row,
@@ -195,8 +219,8 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
       const ComputedStyle& cell_style,
       WritingDirectionMode table_writing_direction) const;
 
-  void UpdateTableBorder(wtf_size_t table_row_count,
-                         wtf_size_t table_column_count);
+  void ComputeCollapsedTableBorderPadding(wtf_size_t table_row_count,
+                                          wtf_size_t table_column_count);
 
   // |section_index| is only used to clamp rowspan. Only needed for
   // cells with rowspan > 1.
@@ -302,7 +326,15 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
   Edges edges_;
   Vector<Section> sections_;
   wtf_size_t edges_per_row_ = 0;
-  NGBoxStrut table_border_;
+  // Table border/padding are expensive to compute for collapsed tables.
+  // We compute them once, and cache them.
+  base::Optional<NGBoxStrut> cached_table_border_;
+  // Collapsed tables use first border to compute inline start/end.
+  // Visual overflow use enclosing rectangle of all borders
+  // to compute inline start/end.
+  // |collapsed_visual_inline_start/end| are the visual rectangle values.
+  LayoutUnit collapsed_visual_inline_start_;
+  LayoutUnit collapsed_visual_inline_end_;
   // Cells cannot extrude beyond table grid size.
   // Rowspan and colspan sizes must be clamped to enforce this.
   wtf_size_t last_column_index_ = UINT_MAX;
@@ -312,7 +344,5 @@ class NGTableBorders : public RefCounted<NGTableBorders> {
 }  // namespace blink
 
 WTF_ALLOW_MOVE_INIT_AND_COMPARE_WITH_MEM_FUNCTIONS(blink::NGTableBorders::Edge)
-WTF_ALLOW_MOVE_INIT_AND_COMPARE_WITH_MEM_FUNCTIONS(
-    blink::NGTableBorders::Section)
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_NG_TABLE_BORDERS_H_

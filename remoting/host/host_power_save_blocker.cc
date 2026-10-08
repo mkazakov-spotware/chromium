@@ -1,14 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/host_power_save_blocker.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/check.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "remoting/host/host_status_monitor.h"
 #include "services/device/public/mojom/wake_lock.mojom.h"
 
@@ -30,10 +29,10 @@ HostPowerSaveBlocker::~HostPowerSaveBlocker() {
 }
 
 void HostPowerSaveBlocker::OnClientConnected(const std::string& jid) {
-  blocker_ = std::make_unique<device::PowerSaveBlocker>(
+  blocker_.reset(new device::PowerSaveBlocker(
       device::mojom::WakeLockType::kPreventDisplaySleep,
       device::mojom::WakeLockReason::kOther, "Remoting session is active",
-      ui_task_runner_, file_task_runner_);
+      ui_task_runner_, file_task_runner_));
 }
 
 void HostPowerSaveBlocker::OnClientDisconnected(const std::string& jid) {

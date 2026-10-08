@@ -1,20 +1,22 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/test/weblayer_browser_test.h"
 
 #include "base/files/file_path.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "components/network_time/network_time_tracker.h"
 #include "components/security_interstitials/content/insecure_form_blocking_page.h"
 #include "components/security_interstitials/content/ssl_error_assistant.h"
 #include "components/security_interstitials/content/ssl_error_handler.h"
+#include "components/security_interstitials/core/features.h"
 #include "net/ssl/ssl_info.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "weblayer/browser/browser_process.h"
 #include "weblayer/browser/weblayer_security_blocking_page_factory.h"
 #include "weblayer/public/browser.h"
@@ -31,12 +33,12 @@
 namespace weblayer {
 namespace {
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Waits for a new tab to be created, and then load |url|.
 class NewTabWaiter : public BrowserObserver {
  public:
   NewTabWaiter(Browser* browser, const GURL& url) : url_(url) {
-    observation_.Observe(browser);
+    observer_.Add(browser);
   }
 
   void OnTabAdded(Tab* tab) override {
@@ -55,7 +57,7 @@ class NewTabWaiter : public BrowserObserver {
   GURL url_;
   std::unique_ptr<TestNavigationObserver> navigation_observer_;
   base::RunLoop run_loop_;
-  base::ScopedObservation<Browser, BrowserObserver> observation_{this};
+  ScopedObserver<Browser, BrowserObserver> observer_{this};
 };
 #endif
 
@@ -82,10 +84,6 @@ class TestErrorPageDelegate : public ErrorPageDelegate {
 class SSLBrowserTest : public WebLayerBrowserTest {
  public:
   SSLBrowserTest() = default;
-
-  SSLBrowserTest(const SSLBrowserTest&) = delete;
-  SSLBrowserTest& operator=(const SSLBrowserTest&) = delete;
-
   ~SSLBrowserTest() override = default;
 
   // WebLayerBrowserTest:
@@ -193,7 +191,7 @@ class SSLBrowserTest : public WebLayerBrowserTest {
 
   void SendInterstitialNavigationCommandAndWait(
       bool proceed,
-      absl::optional<GURL> previous_url = absl::nullopt) {
+      base::Optional<GURL> previous_url = base::nullopt) {
     GURL expected_url =
         proceed ? mismatched_cert_url() : previous_url.value_or(ok_url());
     ASSERT_TRUE(IsShowingSSLInterstitial(shell()->tab()));
@@ -222,7 +220,7 @@ class SSLBrowserTest : public WebLayerBrowserTest {
     EXPECT_TRUE(IsShowingSSLInterstitial(shell()->tab()));
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void SendInterstitialOpenLoginCommandAndWait() {
     ASSERT_TRUE(IsShowingCaptivePortalInterstitial(shell()->tab()));
 
@@ -256,6 +254,9 @@ class SSLBrowserTest : public WebLayerBrowserTest {
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
   std::unique_ptr<net::EmbeddedTestServer> https_server_mismatched_;
   std::unique_ptr<net::EmbeddedTestServer> https_server_expired_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SSLBrowserTest);
 };
 
 // Tests clicking "take me back" on the interstitial page.
@@ -306,7 +307,7 @@ IN_PROC_BROWSER_TEST_F(SSLBrowserTest, Reload) {
 // across restarts.
 // TODO(crbug.com/654704): Android does not support PRE_ tests. For Android just
 // run only the PRE_ version of this test.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define PRE_Proceed Proceed
 #endif
 IN_PROC_BROWSER_TEST_F(SSLBrowserTest, PRE_Proceed) {
@@ -320,7 +321,7 @@ IN_PROC_BROWSER_TEST_F(SSLBrowserTest, PRE_Proceed) {
   NavigateToPageWithMismatchedCertExpectNotBlocked();
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // The proceed decision is perpetuated across WebLayer sessions, i.e.  WebLayer
 // will not block again when navigating to the same bad page that was previously
 // proceeded through.
@@ -350,7 +351,7 @@ IN_PROC_BROWSER_TEST_F(SSLBrowserTest, OSReportsCaptivePortal) {
   NavigateToPageWithMismatchedCertExpectSSLInterstitial();
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Tests that after reaching a captive portal interstitial, clicking on the
 // connect link will cause a navigation to the login page.
 IN_PROC_BROWSER_TEST_F(SSLBrowserTest, CaptivePortalConnectToLoginPage) {
@@ -370,9 +371,9 @@ IN_PROC_BROWSER_TEST_F(SSLBrowserTest, BadClockInterstitial) {
 
   // Set network time back ten minutes.
   BrowserProcess::GetInstance()->GetNetworkTimeTracker()->UpdateNetworkTime(
-      base::Time::Now() - base::Minutes(10),
-      base::Milliseconds(1),   /* resolution */
-      base::Milliseconds(500), /* latency */
+      base::Time::Now() - base::TimeDelta::FromMinutes(10),
+      base::TimeDelta::FromMilliseconds(1),   /* resolution */
+      base::TimeDelta::FromMilliseconds(500), /* latency */
       base::TimeTicks::Now() /* posting time of this update */);
 
   // Now navigating to a page with an expired cert should cause the bad clock
@@ -410,9 +411,20 @@ IN_PROC_BROWSER_TEST_F(SSLBrowserTest, ErrorPageNotCalledForMismatch) {
   EXPECT_FALSE(error_page_delegate.was_get_error_page_content_called());
 }
 
+class SSLBrowserTestWithInsecureFormsWarningEnabled : public SSLBrowserTest {
+ public:
+  SSLBrowserTestWithInsecureFormsWarningEnabled() {
+    feature_list_.InitAndEnableFeature(
+        security_interstitials::kInsecureFormSubmissionInterstitial);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
 // Visits a page that displays an insecure form, submits the form, and checks an
 // interstitial is shown.
-IN_PROC_BROWSER_TEST_F(SSLBrowserTest,
+IN_PROC_BROWSER_TEST_F(SSLBrowserTestWithInsecureFormsWarningEnabled,
                        TestDisplaysInsecureFormSubmissionWarning) {
   GURL insecure_form_url = https_server_->GetURL("/insecure_form.html");
   GURL form_target_url = GURL("http://does-not-exist.test/form_target.html?");
@@ -427,6 +439,37 @@ IN_PROC_BROWSER_TEST_F(SSLBrowserTest,
 
   // Check the correct interstitial loaded.
   EXPECT_TRUE(IsShowingInsecureFormInterstitial(shell()->tab()));
+}
+
+class SSLBrowserTestWithInsecureFormsWarningDisabled : public SSLBrowserTest {
+ public:
+  SSLBrowserTestWithInsecureFormsWarningDisabled() {
+    feature_list_.InitAndDisableFeature(
+        security_interstitials::kInsecureFormSubmissionInterstitial);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// Visits a page that displays an insecure form, submits the form, and checks no
+// interstitial is displayed with the feature off.
+IN_PROC_BROWSER_TEST_F(SSLBrowserTestWithInsecureFormsWarningDisabled,
+                       TestNoInsecureFormWarning) {
+  GURL insecure_form_url = https_server_->GetURL("/insecure_form.html");
+  GURL form_target_url = GURL("http://does-not-exist.test/form_target.html?");
+  NavigateAndWaitForCompletion(insecure_form_url, shell());
+
+  // Submit the form and wait for the form target to load. We wait for a
+  // failure since the target url is not served.
+  TestNavigationObserver navigation_observer(
+      form_target_url, TestNavigationObserver::NavigationEvent::kFailure,
+      shell());
+  ExecuteScript(shell(), "submitForm();", false /*use_separate_isolate*/);
+  navigation_observer.Wait();
+
+  // Check no interstitial loaded.
+  EXPECT_FALSE(IsShowingSecurityInterstitial(shell()->tab()));
 }
 
 }  // namespace weblayer

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "media/base/media_export.h"
 #include "media/formats/mp4/bitstream_converter.h"
 
@@ -70,9 +71,6 @@ class AVCBitstreamConverter : public BitstreamConverter {
   explicit AVCBitstreamConverter(
       std::unique_ptr<AVCDecoderConfigurationRecord> avc_config);
 
-  AVCBitstreamConverter(const AVCBitstreamConverter&) = delete;
-  AVCBitstreamConverter& operator=(const AVCBitstreamConverter&) = delete;
-
   // BitstreamConverter interface
   bool ConvertAndAnalyzeFrame(std::vector<uint8_t>* frame_buf,
                               bool is_keyframe,
@@ -85,6 +83,8 @@ class AVCBitstreamConverter : public BitstreamConverter {
       std::vector<uint8_t>* frame_buf,
       std::vector<SubsampleEntry>* subsamples) const override;
   std::unique_ptr<AVCDecoderConfigurationRecord> avc_config_;
+
+  DISALLOW_COPY_AND_ASSIGN(AVCBitstreamConverter);
 };
 
 }  // namespace mp4

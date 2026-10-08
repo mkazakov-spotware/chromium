@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,12 @@ void FindBarState::ConfigureWebContents(content::WebContents* web_contents) {
           web_contents->GetBrowserContext()));
 }
 
-void FindBarState::SetLastSearchText(const std::u16string& text) {
+void FindBarState::SetLastSearchText(const base::string16& text) {
   last_prepopulate_text_ = text;
 }
 
-std::u16string FindBarState::GetSearchPrepopulateText() {
-  std::u16string text = last_prepopulate_text_;
+base::string16 FindBarState::GetSearchPrepopulateText() {
+  base::string16 text = last_prepopulate_text_;
 
   // In incognito, if there is no previous search text, fall back to the
   // original profile's search text.

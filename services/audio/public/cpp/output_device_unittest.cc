@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "media/audio/audio_output_device.h"
@@ -22,7 +21,6 @@
 #include "services/audio/sync_reader.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/utility/utility.h"
 
 using testing::_;
 using testing::Invoke;
@@ -36,21 +34,19 @@ namespace audio {
 namespace {
 
 constexpr float kAudioData = 0.618;
-constexpr base::TimeDelta kDelay = base::Microseconds(123);
+constexpr base::TimeDelta kDelay = base::TimeDelta::FromMicroseconds(123);
 constexpr char kDeviceId[] = "testdeviceid";
+constexpr int kFramesSkipped = 456;
 constexpr int kFrames = 789;
 constexpr char kNonDefaultDeviceId[] = "valid-nondefault-device-id";
-constexpr base::TimeDelta kAuthTimeout = base::Milliseconds(10000);
+constexpr base::TimeDelta kAuthTimeout =
+    base::TimeDelta::FromMilliseconds(10000);
 constexpr int kBitstreamFrames = 101;
 constexpr size_t kBitstreamDataSize = 512;
 
 class MockRenderCallback : public media::AudioRendererSink::RenderCallback {
  public:
   MockRenderCallback() = default;
-
-  MockRenderCallback(const MockRenderCallback&) = delete;
-  MockRenderCallback& operator=(const MockRenderCallback&) = delete;
-
   ~MockRenderCallback() override = default;
 
   MOCK_METHOD4(Render,
@@ -58,22 +54,24 @@ class MockRenderCallback : public media::AudioRendererSink::RenderCallback {
                    base::TimeTicks timestamp,
                    int prior_frames_skipped,
                    media::AudioBus* dest));
-  void OnRenderError() override {}
+  void OnRenderError() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockRenderCallback);
 };
 
 class MockStream : public media::mojom::AudioOutputStream {
  public:
   MockStream() = default;
-
-  MockStream(const MockStream&) = delete;
-  MockStream& operator=(const MockStream&) = delete;
-
   ~MockStream() override = default;
 
   MOCK_METHOD0(Play, void());
   MOCK_METHOD0(Pause, void());
   MOCK_METHOD1(SetVolume, void(double));
   MOCK_METHOD0(Flush, void());
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockStream);
 };
 
 class MockAudioOutputIPC : public media::AudioOutputIPC {
@@ -85,9 +83,11 @@ class MockAudioOutputIPC : public media::AudioOutputIPC {
                void(media::AudioOutputIPCDelegate* delegate,
                     const base::UnguessableToken& session_id,
                     const std::string& device_id));
-  MOCK_METHOD2(CreateStream,
-               void(media::AudioOutputIPCDelegate* delegate,
-                    const media::AudioParameters& params));
+  MOCK_METHOD3(
+      CreateStream,
+      void(media::AudioOutputIPCDelegate* delegate,
+           const media::AudioParameters& params,
+           const base::Optional<base::UnguessableToken>& processing_id));
   MOCK_METHOD0(PlayStream, void());
   MOCK_METHOD0(PauseStream, void());
   MOCK_METHOD0(FlushStream, void());
@@ -95,14 +95,10 @@ class MockAudioOutputIPC : public media::AudioOutputIPC {
   MOCK_METHOD1(SetVolume, void(double volume));
 };
 
-class FakeOutputStreamFactory final : public audio::FakeStreamFactory {
+class FakeOutputStreamFactory : public audio::FakeStreamFactory {
  public:
   FakeOutputStreamFactory() : stream_(), stream_receiver_(&stream_) {}
-
-  FakeOutputStreamFactory(const FakeOutputStreamFactory&) = delete;
-  FakeOutputStreamFactory& operator=(const FakeOutputStreamFactory&) = delete;
-
-  ~FakeOutputStreamFactory() override {}
+  ~FakeOutputStreamFactory() final {}
 
   void CreateOutputStream(
       mojo::PendingReceiver<media::mojom::AudioOutputStream> stream_receiver,
@@ -123,8 +119,8 @@ class FakeOutputStreamFactory final : public audio::FakeStreamFactory {
   }
 
   void Bind(mojo::ScopedMessagePipeHandle handle) {
-    receiver_.Bind(mojo::PendingReceiver<media::mojom::AudioStreamFactory>(
-        std::move(handle)));
+    receiver_.Bind(
+        mojo::PendingReceiver<audio::mojom::StreamFactory>(std::move(handle)));
   }
 
   StrictMock<MockStream> stream_;
@@ -132,6 +128,7 @@ class FakeOutputStreamFactory final : public audio::FakeStreamFactory {
 
  private:
   mojo::Receiver<media::mojom::AudioOutputStream> stream_receiver_;
+  DISALLOW_COPY_AND_ASSIGN(FakeOutputStreamFactory);
 };
 
 struct DataFlowTestEnvironment {
@@ -147,11 +144,12 @@ struct DataFlowTestEnvironment {
     CHECK(reader->IsValid());
     time_stamp = base::TimeTicks::Now();
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
     // TODO(https://crbug.com/838367): Fuchsia bots use nested virtualization,
     // which can result in unusually long scheduling delays, so allow a longer
     // timeout.
-    reader->set_max_wait_timeout_for_test(base::Milliseconds(250));
+    reader->set_max_wait_timeout_for_test(
+        base::TimeDelta::FromMilliseconds(250));
 #endif
   }
 
@@ -172,10 +170,6 @@ class AudioServiceOutputDeviceTest : public testing::Test {
     stream_factory_ = std::make_unique<FakeOutputStreamFactory>();
   }
 
-  AudioServiceOutputDeviceTest(const AudioServiceOutputDeviceTest&) = delete;
-  AudioServiceOutputDeviceTest& operator=(const AudioServiceOutputDeviceTest&) =
-      delete;
-
   ~AudioServiceOutputDeviceTest() override {
     if (!stream_factory_->created_callback_)
       return;
@@ -183,12 +177,15 @@ class AudioServiceOutputDeviceTest : public testing::Test {
     task_env_.RunUntilIdle();
   }
 
-  mojo::PendingRemote<media::mojom::AudioStreamFactory> MakeFactoryRemote() {
+  mojo::PendingRemote<audio::mojom::StreamFactory> MakeFactoryRemote() {
     return stream_factory_->receiver_.BindNewPipeAndPassRemote();
   }
 
   base::test::TaskEnvironment task_env_;
   std::unique_ptr<FakeOutputStreamFactory> stream_factory_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AudioServiceOutputDeviceTest);
 };
 
 TEST_F(AudioServiceOutputDeviceTest, CreatePlayPause) {
@@ -207,7 +204,7 @@ TEST_F(AudioServiceOutputDeviceTest, CreatePlayPause) {
 }
 
 // Flaky on Linux Chromium OS ASan LSan (https://crbug.com/889845)
-#if BUILDFLAG(IS_CHROMEOS_ASH) && defined(ADDRESS_SANITIZER)
+#if BUILDFLAG(IS_ASH) && defined(ADDRESS_SANITIZER)
 #define MAYBE_VerifyDataFlow DISABLED_VerifyDataFlow
 #else
 #define MAYBE_VerifyDataFlow VerifyDataFlow
@@ -224,7 +221,7 @@ TEST_F(AudioServiceOutputDeviceTest, MAYBE_VerifyDataFlow) {
   task_env_.RunUntilIdle();
 
   std::move(stream_factory_->created_callback_)
-      .Run({absl::in_place, env.reader->TakeSharedMemoryRegion(),
+      .Run({base::in_place, env.reader->TakeSharedMemoryRegion(),
             mojo::PlatformHandle(env.client_socket.Take())});
   task_env_.RunUntilIdle();
 
@@ -235,7 +232,7 @@ TEST_F(AudioServiceOutputDeviceTest, MAYBE_VerifyDataFlow) {
   for (int i = 0; i < 10; ++i) {
     test_bus->Zero();
     EXPECT_CALL(env.render_callback,
-                Render(kDelay, env.time_stamp, 0, NotNull()))
+                Render(kDelay, env.time_stamp, kFramesSkipped, NotNull()))
         .WillOnce(WithArg<3>(Invoke([](media::AudioBus* client_bus) -> int {
           // Place some test data in the bus so that we can check that it was
           // copied to the audio service side.
@@ -243,13 +240,13 @@ TEST_F(AudioServiceOutputDeviceTest, MAYBE_VerifyDataFlow) {
           std::fill_n(client_bus->channel(1), client_bus->frames(), kAudioData);
           return client_bus->frames();
         })));
-    env.reader->RequestMoreData(kDelay, env.time_stamp, {});
-    env.reader->Read(test_bus.get(), false);
+    env.reader->RequestMoreData(kDelay, env.time_stamp, kFramesSkipped);
+    env.reader->Read(test_bus.get());
 
     Mock::VerifyAndClear(&env.render_callback);
-    for (int frame = 0; frame < kFrames; ++frame) {
-      EXPECT_EQ(kAudioData, test_bus->channel(0)[frame]);
-      EXPECT_EQ(kAudioData, test_bus->channel(1)[frame]);
+    for (int i = 0; i < kFrames; ++i) {
+      EXPECT_EQ(kAudioData, test_bus->channel(0)[i]);
+      EXPECT_EQ(kAudioData, test_bus->channel(1)[i]);
     }
   }
 }
@@ -257,7 +254,7 @@ TEST_F(AudioServiceOutputDeviceTest, MAYBE_VerifyDataFlow) {
 TEST_F(AudioServiceOutputDeviceTest, CreateBitStreamStream) {
   const int kAudioParameterFrames = 4321;
   media::AudioParameters params(media::AudioParameters::AUDIO_BITSTREAM_EAC3,
-                                media::ChannelLayoutConfig::Stereo(), 48000,
+                                media::CHANNEL_LAYOUT_STEREO, 48000,
                                 kAudioParameterFrames);
 
   DataFlowTestEnvironment env(params);
@@ -274,7 +271,7 @@ TEST_F(AudioServiceOutputDeviceTest, CreateBitStreamStream) {
   EXPECT_CALL(*ipc, RequestDeviceAuthorization(audio_device.get(),
                                                base::UnguessableToken(),
                                                kNonDefaultDeviceId));
-  EXPECT_CALL(*ipc, CreateStream(audio_device.get(), _));
+  EXPECT_CALL(*ipc, CreateStream(audio_device.get(), _, _));
   EXPECT_CALL(*ipc, PlayStream());
   task_env_.RunUntilIdle();
   Mock::VerifyAndClear(ipc);
@@ -291,7 +288,7 @@ TEST_F(AudioServiceOutputDeviceTest, CreateBitStreamStream) {
   for (int i = 0; i < 10; ++i) {
     test_bus->Zero();
     EXPECT_CALL(env.render_callback,
-                Render(kDelay, env.time_stamp, 0, NotNull()))
+                Render(kDelay, env.time_stamp, kFramesSkipped, NotNull()))
         .WillOnce(WithArg<3>(Invoke([](media::AudioBus* renderer_bus) -> int {
           EXPECT_TRUE(renderer_bus->is_bitstream_format());
           // Place some test data in the bus so that we can check that it was
@@ -302,18 +299,17 @@ TEST_F(AudioServiceOutputDeviceTest, CreateBitStreamStream) {
           renderer_bus->SetBitstreamDataSize(kBitstreamDataSize);
           return renderer_bus->frames();
         })));
-    env.reader->RequestMoreData(kDelay, env.time_stamp, {});
-    env.reader->Read(test_bus.get(), false);
+    env.reader->RequestMoreData(kDelay, env.time_stamp, kFramesSkipped);
+    env.reader->Read(test_bus.get());
 
     Mock::VerifyAndClear(&env.render_callback);
     EXPECT_TRUE(test_bus->is_bitstream_format());
     EXPECT_EQ(kBitstreamFrames, test_bus->GetBitstreamFrames());
     EXPECT_EQ(kBitstreamDataSize, test_bus->GetBitstreamDataSize());
-    for (size_t datum = 0; datum < kBitstreamDataSize / sizeof(float);
-         ++datum) {
+    for (size_t i = 0; i < kBitstreamDataSize / sizeof(float); ++i) {
       // Note: if all of these fail, the bots will behave strangely due to the
       // large amount of text output. Assert is used to avoid this.
-      ASSERT_EQ(kAudioData, test_bus->channel(0)[datum]);
+      ASSERT_EQ(kAudioData, test_bus->channel(0)[i]);
     }
   }
 
@@ -339,7 +335,7 @@ TEST_F(AudioServiceOutputDeviceTest, CreateNondefaultDevice) {
   EXPECT_CALL(*ipc, RequestDeviceAuthorization(audio_device.get(),
                                                base::UnguessableToken(),
                                                kNonDefaultDeviceId));
-  EXPECT_CALL(*ipc, CreateStream(audio_device.get(), _));
+  EXPECT_CALL(*ipc, CreateStream(audio_device.get(), _, _));
   EXPECT_CALL(*ipc, PlayStream());
   task_env_.RunUntilIdle();
   Mock::VerifyAndClear(ipc);

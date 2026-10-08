@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/views/infobars/infobar_view.h"
 
 class AlternateNavInfoBarDelegate;
@@ -17,10 +17,6 @@ class AlternateNavInfoBarView : public InfoBarView {
  public:
   explicit AlternateNavInfoBarView(
       std::unique_ptr<AlternateNavInfoBarDelegate> delegate);
-
-  AlternateNavInfoBarView(const AlternateNavInfoBarView&) = delete;
-  AlternateNavInfoBarView& operator=(const AlternateNavInfoBarView&) = delete;
-
   ~AlternateNavInfoBarView() override;
 
  private:
@@ -35,17 +31,19 @@ class AlternateNavInfoBarView : public InfoBarView {
 
   // InfoBarView:
   void Layout() override;
-  int GetContentMinimumWidth() const override;
+  int ContentMinimumWidth() const override;
 
   AlternateNavInfoBarDelegate* GetDelegate();
 
-  std::u16string label_1_text_;
-  std::u16string link_text_;
-  std::u16string label_2_text_;
+  base::string16 label_1_text_;
+  base::string16 link_text_;
+  base::string16 label_2_text_;
 
-  raw_ptr<views::Label> label_1_ = nullptr;
-  raw_ptr<views::Link> link_ = nullptr;
-  raw_ptr<views::Label> label_2_ = nullptr;
+  views::Label* label_1_ = nullptr;
+  views::Link* link_ = nullptr;
+  views::Label* label_2_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(AlternateNavInfoBarView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_INFOBARS_ALTERNATE_NAV_INFOBAR_VIEW_H_

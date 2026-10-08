@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define REMOTING_HOST_HOST_STATUS_OBSERVER_H_
 
 #include <string>
-
-#include "remoting/host/mojom/remoting_host.mojom.h"
 
 namespace remoting {
 
@@ -18,34 +16,34 @@ struct TransportRoute;
 // Interface for host status observer. All methods are invoked on the
 // network thread. Observers must not tear-down ChromotingHost state
 // on receipt of these callbacks; they are purely informational.
-class HostStatusObserver : public mojom::HostStatusObserver {
+class HostStatusObserver {
  public:
-  HostStatusObserver() = default;
-  ~HostStatusObserver() override = default;
+  HostStatusObserver() {}
+  virtual ~HostStatusObserver() {}
 
   // Called when an unauthorized user attempts to connect to the host.
-  void OnClientAccessDenied(const std::string& signaling_id) override {}
+  virtual void OnAccessDenied(const std::string& jid) {}
 
-  // Called when a new client is authenticated.
-  void OnClientAuthenticated(const std::string& signaling_id) override {}
+  // A new client is authenticated.
+  virtual void OnClientAuthenticated(const std::string& jid) {}
 
-  // Called when all channels for an authenticated client are connected.
-  void OnClientConnected(const std::string& signaling_id) override {}
+  // All channels for an autheticated client are connected.
+  virtual void OnClientConnected(const std::string& jid) {}
 
-  // Called when an authenticated client is disconnected.
-  void OnClientDisconnected(const std::string& signaling_id) override {}
+  // An authenticated client is disconnected.
+  virtual void OnClientDisconnected(const std::string& jid) {}
 
   // Called on notification of a route change event, when a channel is
   // connected.
-  void OnClientRouteChange(const std::string& signaling_id,
-                           const std::string& channel_name,
-                           const protocol::TransportRoute& route) override {}
+  virtual void OnClientRouteChange(const std::string& jid,
+                                   const std::string& channel_name,
+                                   const protocol::TransportRoute& route) {}
 
-  // Called when the host is started for an account.
-  void OnHostStarted(const std::string& owner_email) override {}
+  // Called when hosting is started for an account.
+  virtual void OnStart(const std::string& host_owner_email) {}
 
   // Called when the host shuts down.
-  void OnHostShutdown() override {}
+  virtual void OnShutdown() {}
 };
 
 }  // namespace remoting

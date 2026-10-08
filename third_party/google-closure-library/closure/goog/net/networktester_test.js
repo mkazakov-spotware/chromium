@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.net.NetworkTesterTest');
 goog.setTestOnly();
@@ -56,7 +64,6 @@ testSuite({
     clock.dispose();
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSuccess() {
     // set up the tster
     const handler = new Handler();
@@ -67,7 +74,6 @@ testSuite({
     assertTrue(tester.isRunning());
 
     // simulate the image load and verify
-    /** @suppress {visibility} suppression added to enable type checking */
     const image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -76,7 +82,6 @@ testSuite({
     assertFalse(tester.isRunning());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testFailure() {
     // set up the tester
     const handler = new Handler();
@@ -87,7 +92,6 @@ testSuite({
     assertTrue(tester.isRunning());
 
     // simulate the image failure and verify
-    /** @suppress {visibility} suppression added to enable type checking */
     const image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -96,7 +100,6 @@ testSuite({
     assertFalse(tester.isRunning());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testAbort() {
     // set up the tester
     const handler = new Handler();
@@ -107,7 +110,6 @@ testSuite({
     assertTrue(tester.isRunning());
 
     // simulate the image abort and verify
-    /** @suppress {visibility} suppression added to enable type checking */
     const image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -116,7 +118,6 @@ testSuite({
     assertFalse(tester.isRunning());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testTimeout() {
     // set up the tester
     const handler = new Handler();
@@ -127,7 +128,6 @@ testSuite({
     assertTrue(tester.isRunning());
 
     // simulate the image timeout and verify
-    /** @suppress {visibility} suppression added to enable type checking */
     const image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -136,7 +136,6 @@ testSuite({
     assertFalse(tester.isRunning());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testRetries() {
     // set up the tester
     const handler = new Handler();
@@ -150,7 +149,6 @@ testSuite({
     assertEquals(tester.getAttemptCount(), 1);
 
     // try number 1 fails
-    /** @suppress {visibility} suppression added to enable type checking */
     let image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -160,7 +158,6 @@ testSuite({
     assertEquals(tester.getAttemptCount(), 2);
 
     // try number 2 succeeds
-    /** @suppress {visibility} suppression added to enable type checking */
     image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -170,10 +167,6 @@ testSuite({
     assertEquals(tester.getAttemptCount(), 2);
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testPauseBetweenRetries() {
     // set up the tester
     const handler = new Handler();
@@ -186,7 +179,6 @@ testSuite({
     assertTrue(tester.isRunning());
 
     // try number 1 fails
-    /** @suppress {visibility} suppression added to enable type checking */
     let image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -199,7 +191,6 @@ testSuite({
     clock.tick(1000);
 
     // try number 2 succeeds
-    /** @suppress {visibility} suppression added to enable type checking */
     image = tester.image_;
     assertUriEquals(tester.getUri(), image.src);
     assertTrue(handler.isEmpty());
@@ -220,9 +211,7 @@ testSuite({
     // set up the tester
     const handler = new Handler();
     const tester = new NetworkTester(handler.callback, handler);
-    /** @suppress {visibility} suppression added to enable type checking */
     const orgGetNavigatorOffline = NetworkTester.getNavigatorOffline_;
-    /** @suppress {visibility} suppression added to enable type checking */
     NetworkTester.getNavigatorOffline_ = () => true;
     try {
       assertFalse(tester.isRunning());
@@ -237,12 +226,10 @@ testSuite({
       assertFalse(tester.isRunning());
     } finally {
       // Clean up!
-      /** @suppress {visibility} suppression added to enable type checking */
       NetworkTester.getNavigatorOffline_ = orgGetNavigatorOffline;
     }
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetAttemptCount() {
     // set up the tester
     const handler = new Handler();

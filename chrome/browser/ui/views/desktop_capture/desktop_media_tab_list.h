@@ -1,13 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_DESKTOP_CAPTURE_DESKTOP_MEDIA_TAB_LIST_H_
 #define CHROME_BROWSER_UI_VIEWS_DESKTOP_CAPTURE_DESKTOP_MEDIA_TAB_LIST_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/desktop_capture/desktop_media_list_controller.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 
 namespace views {
 class TableView;
@@ -30,55 +28,39 @@ class TabListViewObserver;
 //   observes the DesktopMediaList to update the TableModel.
 // * TabListViewObserver, which is a TableViewObserver that notifies the
 //   controller when the user takes an action on the TableView.
+//
+// Since TableView really wants to be the child of a ScrollView, this class's
+// internal view hierarchy actually looks like:
+//   DesktopMediaTabList
+//     ScrollView
+//       [ScrollView internal helper Views]
+//         TableView
 class DesktopMediaTabList : public DesktopMediaListController::ListView {
  public:
-  METADATA_HEADER(DesktopMediaTabList);
   DesktopMediaTabList(DesktopMediaListController* controller,
-                      const std::u16string& accessible_name);
-  DesktopMediaTabList(const DesktopMediaTabList&) = delete;
-  DesktopMediaTabList& operator=(const DesktopMediaTabList&) = delete;
+                      const base::string16& accessible_name);
   ~DesktopMediaTabList() override;
 
   // views::View:
+  const char* GetClassName() const override;
   gfx::Size CalculatePreferredSize() const override;
   int GetHeightForWidth(int width) const override;
-  void OnThemeChanged() override;
 
   // DesktopMediaListController::ListView:
-  absl::optional<content::DesktopMediaID> GetSelection() override;
+  base::Optional<content::DesktopMediaID> GetSelection() override;
   DesktopMediaListController::SourceListListener* GetSourceListListener()
       override;
-  void ClearSelection() override;
-
-  // Called to indicate the preview image of the source indicated by index has
-  // been updated.
-  void OnPreviewUpdated(size_t index);
 
  private:
-  std::unique_ptr<views::View> BuildUI(std::unique_ptr<views::TableView> list);
-  void OnSelectionChanged();
-  void ClearPreview();
-  void ClearPreviewImageIfUnchanged(size_t previous_preview_set_count);
-
   friend class DesktopMediaPickerViewsTestApi;
-  friend class DesktopMediaTabListTest;
 
-  raw_ptr<DesktopMediaListController, DanglingUntriaged> controller_;
+  DesktopMediaTabList(const DesktopMediaTabList&) = delete;
+  DesktopMediaTabList operator=(const DesktopMediaTabList&) = delete;
+
+  DesktopMediaListController* controller_;
   std::unique_ptr<TabListModel> model_;
   std::unique_ptr<TabListViewObserver> view_observer_;
-
-  // These members are owned in the tree of views under this ListView's children
-  // so it's safe to store raw pointers to them.
-  raw_ptr<views::TableView> list_;
-  raw_ptr<views::View> preview_wrapper_;
-  raw_ptr<views::ImageView> preview_;
-  raw_ptr<views::Label> empty_preview_label_;
-  raw_ptr<views::Label> preview_label_;
-
-  // Counts the number of times preview_ has been set to an image.
-  size_t preview_set_count_ = 0;
-
-  base::WeakPtrFactory<DesktopMediaTabList> weak_factory_{this};
+  views::TableView* child_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_DESKTOP_CAPTURE_DESKTOP_MEDIA_TAB_LIST_H_

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,16 +22,32 @@ FuchsiaDecryptor::FuchsiaDecryptor(FuchsiaCdmContext* cdm_context)
 }
 
 FuchsiaDecryptor::~FuchsiaDecryptor() {
+  if (audio_decryptor_) {
+    audio_decryptor_task_runner_->DeleteSoon(FROM_HERE,
+                                             std::move(audio_decryptor_));
+  }
 }
 
 void FuchsiaDecryptor::Decrypt(StreamType stream_type,
                                scoped_refptr<DecoderBuffer> encrypted,
                                DecryptCB decrypt_cb) {
-  std::move(decrypt_cb).Run(Status::kError, nullptr);
+  if (stream_type != StreamType::kAudio) {
+    std::move(decrypt_cb).Run(Status::kError, nullptr);
+    return;
+  }
+
+  if (!audio_decryptor_) {
+    audio_decryptor_task_runner_ = base::ThreadTaskRunnerHandle::Get();
+    audio_decryptor_ = cdm_context_->CreateAudioDecryptor();
+  }
+
+  audio_decryptor_->Decrypt(std::move(encrypted), std::move(decrypt_cb));
 }
 
 void FuchsiaDecryptor::CancelDecrypt(StreamType stream_type) {
-  NOTREACHED();
+  if (stream_type == StreamType::kAudio && audio_decryptor_) {
+    audio_decryptor_->CancelDecrypt();
+  }
 }
 
 void FuchsiaDecryptor::InitializeAudioDecoder(const AudioDecoderConfig& config,
@@ -48,16 +64,16 @@ void FuchsiaDecryptor::InitializeVideoDecoder(const VideoDecoderConfig& config,
 
 void FuchsiaDecryptor::DecryptAndDecodeAudio(
     scoped_refptr<DecoderBuffer> encrypted,
-    AudioDecodeCB audio_decode_cb) {
+    const AudioDecodeCB& audio_decode_cb) {
   NOTREACHED();
-  std::move(audio_decode_cb).Run(Status::kError, AudioFrames());
+  audio_decode_cb.Run(Status::kError, AudioFrames());
 }
 
 void FuchsiaDecryptor::DecryptAndDecodeVideo(
     scoped_refptr<DecoderBuffer> encrypted,
-    VideoDecodeCB video_decode_cb) {
+    const VideoDecodeCB& video_decode_cb) {
   NOTREACHED();
-  std::move(video_decode_cb).Run(Status::kError, nullptr);
+  video_decode_cb.Run(Status::kError, nullptr);
 }
 
 void FuchsiaDecryptor::ResetDecoder(StreamType stream_type) {

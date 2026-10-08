@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,12 +43,6 @@ namespace downgrade {
 // is expected to be used in a PRE_ and a regular test, with IsPreTest used to
 // distinguish these cases at runtime.
 class UserDataDowngradeBrowserTestBase : public InProcessBrowserTest {
- public:
-  UserDataDowngradeBrowserTestBase(const UserDataDowngradeBrowserTestBase&) =
-      delete;
-  UserDataDowngradeBrowserTestBase& operator=(
-      const UserDataDowngradeBrowserTestBase&) = delete;
-
  protected:
   // Returns true if the PRE_ test is running, meaning that the test is in the
   // "before relaunch" stage.
@@ -126,6 +120,8 @@ class UserDataDowngradeBrowserTestBase : public InProcessBrowserTest {
   base::FilePath other_file_;
 
   registry_util::RegistryOverrideManager registry_override_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserDataDowngradeBrowserTestBase);
 };
 
 // A gMock matcher that is satisfied when its argument is a command line
@@ -138,12 +134,6 @@ MATCHER_P(HasSwitch, switch_name, "") {
 // that User Data was moved and then subsequently deleted.
 class UserDataDowngradeBrowserCopyAndCleanTest
     : public UserDataDowngradeBrowserTestBase {
- public:
-  UserDataDowngradeBrowserCopyAndCleanTest(
-      const UserDataDowngradeBrowserCopyAndCleanTest&) = delete;
-  UserDataDowngradeBrowserCopyAndCleanTest& operator=(
-      const UserDataDowngradeBrowserCopyAndCleanTest&) = delete;
-
  protected:
   using ParentClass = UserDataDowngradeBrowserTestBase;
 
@@ -169,13 +159,6 @@ class UserDataDowngradeBrowserCopyAndCleanTest
 
       // Prepare to check histograms during the restart.
       histogram_tester_ = std::make_unique<base::HistogramTester>();
-    } else {
-      // Verify the contents of the renamed user data directory.
-      ASSERT_TRUE(base::DirectoryExists(moved_user_data_dir()));
-      EXPECT_TRUE(base::PathExists(
-          moved_user_data_dir().Append(other_file().BaseName())));
-      EXPECT_EQ(GetNextChromeVersion(),
-                GetLastVersion(moved_user_data_dir())->GetString());
     }
   }
 
@@ -190,9 +173,15 @@ class UserDataDowngradeBrowserCopyAndCleanTest
     }
   }
 
+  // Verify the contents of the renamed user data directory.
   void SetUpOnMainThread() override {
     // This is never reached in the pre test due to the relaunch.
     ASSERT_FALSE(ParentClass::IsPreTest());
+    ASSERT_TRUE(base::DirectoryExists(moved_user_data_dir()));
+    EXPECT_TRUE(base::PathExists(
+        moved_user_data_dir().Append(other_file().BaseName())));
+    EXPECT_EQ(GetNextChromeVersion(),
+              GetLastVersion(moved_user_data_dir())->GetString());
     ParentClass::SetUpOnMainThread();
   }
 
@@ -201,6 +190,9 @@ class UserDataDowngradeBrowserCopyAndCleanTest
       // Verify that the downgrade was detected and that the move took place.
       histogram_tester_->ExpectUniqueSample(
           "Downgrade.Type", 1 /* Type::kAdministrativeWipe */, 1);
+      histogram_tester_->ExpectUniqueSample(
+          "Downgrade.UserDataDirMove.Result",
+          1 /* UserDataMoveResult::kSuccess */, 1);
     } else {
       // Verify the renamed user data directory has been deleted.
       EXPECT_FALSE(base::DirectoryExists(moved_user_data_dir()));
@@ -224,8 +216,8 @@ class UserDataDowngradeBrowserCopyAndCleanTest
     ASSERT_EQ(base::win::RegKey(root_key(),
                                 install_static::GetClientStateKeyPath().c_str(),
                                 KEY_SET_VALUE | KEY_WOW64_32KEY)
-                  .WriteValue(L"DowngradeVersion",
-                              base::ASCIIToWide(downgrade_version).c_str()),
+                  .WriteValue(STRING16_LITERAL("DowngradeVersion"),
+                              base::ASCIIToUTF16(downgrade_version).c_str()),
               ERROR_SUCCESS);
   }
 
@@ -235,6 +227,8 @@ class UserDataDowngradeBrowserCopyAndCleanTest
   std::unique_ptr<upgrade_util::ScopedRelaunchChromeBrowserOverride>
       relaunch_chrome_override_;
   std::unique_ptr<base::HistogramTester> histogram_tester_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserDataDowngradeBrowserCopyAndCleanTest);
 };
 
 // Verify the user data directory has been renamed and created again after
@@ -253,14 +247,11 @@ IN_PROC_BROWSER_TEST_F(UserDataDowngradeBrowserCopyAndCleanTest, Test) {
 // driven downgrade and ensures that User Data is not moved aside and deleted.
 class UserDataDowngradeBrowserNoResetTest
     : public UserDataDowngradeBrowserTestBase {
- public:
-  UserDataDowngradeBrowserNoResetTest(
-      const UserDataDowngradeBrowserNoResetTest&) = delete;
-  UserDataDowngradeBrowserNoResetTest& operator=(
-      const UserDataDowngradeBrowserNoResetTest&) = delete;
-
  protected:
   UserDataDowngradeBrowserNoResetTest() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UserDataDowngradeBrowserNoResetTest);
 };
 
 // Verify the user data directory will not be reset without downgrade.

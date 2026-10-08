@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/bind.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/webui/web_ui_test_handler.h"
@@ -19,7 +18,6 @@
 #include "chrome/test/data/webui/web_ui_test.mojom.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_ui_browser_interface_broker_registry.h"
 #include "content/public/common/content_client.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -44,14 +42,14 @@ class WebUITestPageHandler : public web_ui_test::mojom::TestRunner,
   }
 
   // web_ui_test::mojom::TestRunner:
-  void TestComplete(const absl::optional<std::string>& message) override {
+  void TestComplete(const base::Optional<std::string>& message) override {
     WebUITestHandler::TestComplete(message);
   }
 
   content::WebUI* GetWebUI() override { return web_ui_; }
 
  private:
-  raw_ptr<content::WebUI, DanglingUntriaged> web_ui_;
+  content::WebUI* web_ui_;
   mojo::Receiver<web_ui_test::mojom::TestRunner> receiver_{this};
 };
 
@@ -77,19 +75,6 @@ class MojoWebUIBrowserTest::WebUITestContentBrowserClient
                             base::Unretained(this)));
   }
 
-  void RegisterWebUIInterfaceBrokers(
-      content::WebUIBrowserInterfaceBrokerRegistry& registry) override {
-    ChromeContentBrowserClient::RegisterWebUIInterfaceBrokers(registry);
-
-    registry.AddBinderForTesting(base::BindLambdaForTesting(
-        [&](content::WebUIController* controller,
-            mojo::PendingReceiver<web_ui_test::mojom::TestRunner> receiver) {
-          content::RenderFrameHost* rfh =
-              controller->web_ui()->GetWebContents()->GetPrimaryMainFrame();
-          this->BindWebUITestRunner(rfh, std::move(receiver));
-        }));
-  }
-
   void set_test_page_handler(WebUITestPageHandler* test_page_handler) {
     test_page_handler_ = test_page_handler;
   }
@@ -103,7 +88,7 @@ class MojoWebUIBrowserTest::WebUITestContentBrowserClient
   }
 
  private:
-  raw_ptr<WebUITestPageHandler> test_page_handler_;
+  WebUITestPageHandler* test_page_handler_;
 };
 
 MojoWebUIBrowserTest::MojoWebUIBrowserTest()
@@ -114,6 +99,12 @@ MojoWebUIBrowserTest::~MojoWebUIBrowserTest() = default;
 
 void MojoWebUIBrowserTest::SetUpOnMainThread() {
   BaseWebUIBrowserTest::SetUpOnMainThread();
+
+  base::FilePath pak_path;
+  ASSERT_TRUE(base::PathService::Get(base::DIR_MODULE, &pak_path));
+  pak_path = pak_path.AppendASCII("browser_tests.pak");
+  ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
+      pak_path, ui::SCALE_FACTOR_NONE);
 
   content::SetBrowserClientForTesting(test_content_browser_client_.get());
 }
@@ -137,9 +128,17 @@ void MojoWebUIBrowserTest::BrowsePreload(const GURL& browse_to) {
   if (use_mojo_modules_)
     return;
 
-  std::string test_mojo_lite_js =
-      ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
-          IDR_WEB_UI_TEST_MOJO_LITE_JS);
-  web_contents->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      base::UTF8ToUTF16(test_mojo_lite_js), base::NullCallback());
+  if (use_mojo_lite_bindings_) {
+    std::string test_mojo_lite_js =
+        ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
+            IDR_WEB_UI_TEST_MOJO_LITE_JS);
+    web_contents->GetMainFrame()->ExecuteJavaScriptForTests(
+        base::UTF8ToUTF16(test_mojo_lite_js), base::NullCallback());
+  } else {
+    std::string test_mojo_js =
+        ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
+            IDR_WEB_UI_TEST_MOJO_JS);
+    web_contents->GetMainFrame()->ExecuteJavaScriptForTests(
+        base::UTF8ToUTF16(test_mojo_js), base::NullCallback());
+  }
 }

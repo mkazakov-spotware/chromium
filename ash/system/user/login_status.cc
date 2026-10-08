@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 namespace ash {
 namespace user {
 
-std::u16string GetLocalizedSignOutStringForStatus(LoginStatus status,
+base::string16 GetLocalizedSignOutStringForStatus(LoginStatus status,
                                                   bool multiline) {
   int message_id;
   switch (status) {
@@ -31,14 +31,16 @@ std::u16string GetLocalizedSignOutStringForStatus(LoginStatus status,
               : IDS_ASH_STATUS_TRAY_SIGN_OUT;
       break;
   }
-  std::u16string message =
+  base::string16 message =
       ui::ResourceBundle::GetSharedInstance().GetLocalizedString(message_id);
   // Desirable line breaking points are marked using \n. As the resource
   // framework does not evaluate escape sequences, the \n need to be explicitly
   // handled. Depending on the value of |multiline|, actual line breaks or
   // spaces are substituted.
-  std::u16string newline = multiline ? u"\n" : u" ";
-  base::ReplaceSubstringsAfterOffset(&message, 0, u"\\n", newline);
+  base::string16 newline =
+      multiline ? base::ASCIIToUTF16("\n") : base::ASCIIToUTF16(" ");
+  base::ReplaceSubstringsAfterOffset(&message, 0, base::ASCIIToUTF16("\\n"),
+                                     newline);
   return message;
 }
 

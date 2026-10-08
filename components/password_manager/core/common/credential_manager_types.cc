@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,13 +27,14 @@ std::ostream& operator<<(std::ostream& os, CredentialType value) {
   return os << CredentialTypeToString(value);
 }
 
-CredentialInfo::CredentialInfo() = default;
+CredentialInfo::CredentialInfo() : type(CredentialType::CREDENTIAL_TYPE_EMPTY) {
+}
 
 CredentialInfo::CredentialInfo(CredentialType type,
-                               absl::optional<std::u16string> id,
-                               absl::optional<std::u16string> name,
+                               base::Optional<base::string16> id,
+                               base::Optional<base::string16> name,
                                GURL icon,
-                               absl::optional<std::u16string> password,
+                               base::Optional<base::string16> password,
                                url::Origin federation)
     : type(type),
       id(std::move(id)),
@@ -43,14 +44,14 @@ CredentialInfo::CredentialInfo(CredentialType type,
       federation(std::move(federation)) {
   switch (type) {
     case CredentialType::CREDENTIAL_TYPE_EMPTY:
-      password = std::u16string();
+      password = base::string16();
       federation = url::Origin();
       break;
     case CredentialType::CREDENTIAL_TYPE_PASSWORD:
       federation = url::Origin();
       break;
     case CredentialType::CREDENTIAL_TYPE_FEDERATED:
-      password = std::u16string();
+      password = base::string16();
       break;
   }
 }

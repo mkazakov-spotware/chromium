@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,16 +26,6 @@ bool IsSliderThumb(const Node* node) {
   const AtomicString& shadow_pseudo = element->ShadowPseudoId();
   return shadow_pseudo == shadow_element_names::kPseudoMediaSliderThumb ||
          shadow_pseudo == shadow_element_names::kPseudoSliderThumb;
-}
-
-bool IsTextControlContainer(const Node* node) {
-  const auto* element = DynamicTo<Element>(node);
-  if (!element || !element->IsInUserAgentShadowRoot())
-    return false;
-  if (!IsTextControl(element->OwnerShadowHost()))
-    return false;
-  return element->GetIdAttribute() ==
-         shadow_element_names::kIdTextFieldContainer;
 }
 
 bool IsTextControlPlaceholder(const Node* node) {

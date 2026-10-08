@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,13 +59,9 @@ IN_PROC_BROWSER_TEST_F(UkmBrowserTest, EnabledThenDisable) {
 
   GetProfile()->SetBooleanSetting(SettingType::UKM_ENABLED, true);
   EXPECT_TRUE(ukm_test_helper.IsRecordingEnabled());
-  uint64_t original_client_id = ukm_test_helper.GetClientId();
-  EXPECT_NE(0U, original_client_id);
 
   GetProfile()->SetBooleanSetting(SettingType::UKM_ENABLED, false);
   EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
-  // Client ID should have been reset.
-  EXPECT_NE(original_client_id, ukm_test_helper.GetClientId());
 }
 
 // Make sure that UKM is disabled while an incognito profile is alive.
@@ -77,7 +73,8 @@ IN_PROC_BROWSER_TEST_F(UkmBrowserTest, RegularPlusIncognitoCheck) {
   uint64_t original_client_id = ukm_test_helper.GetClientId();
   EXPECT_NE(0U, original_client_id);
 
-  CreateProfile(std::string(), true);
+  // Incognito profiles have an empty name.
+  CreateProfile(std::string());
   EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
 
   // Creating another regular profile mustn't enable UKM.
@@ -85,15 +82,13 @@ IN_PROC_BROWSER_TEST_F(UkmBrowserTest, RegularPlusIncognitoCheck) {
   profile->SetBooleanSetting(SettingType::UKM_ENABLED, true);
   EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
 
-  // Opening and closing another Incognito browser mustn't enable UKM.
-  CreateProfile("bar", true);
-  DestroyProfile("bar", true);
-  EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
+  // Note WebLayer can only have one incognito profile so we can't test creating
+  // and destroying another one here.
 
   DestroyProfile("foo");
   EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
 
-  DestroyProfile(std::string(), true);
+  DestroyProfile(std::string());
   EXPECT_TRUE(ukm_test_helper.IsRecordingEnabled());
   // Client ID should not have been reset.
   EXPECT_EQ(original_client_id, ukm_test_helper.GetClientId());
@@ -105,14 +100,15 @@ IN_PROC_BROWSER_TEST_F(UkmBrowserTest, IncognitoPlusRegularCheck) {
 
   GetProfile()->SetBooleanSetting(SettingType::UKM_ENABLED, true);
 
-  CreateProfile(std::string(), true);
+  // Incognito profiles have an empty name.
+  CreateProfile(std::string());
   EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
 
   auto* profile = CreateProfile("foo");
   profile->SetBooleanSetting(SettingType::UKM_ENABLED, true);
   EXPECT_FALSE(ukm_test_helper.IsRecordingEnabled());
 
-  DestroyProfile(std::string(), true);
+  DestroyProfile(std::string());
   EXPECT_TRUE(ukm_test_helper.IsRecordingEnabled());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/views/apps/app_info_dialog/app_info_label.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "extensions/common/extension.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/controls/label.h"
@@ -24,7 +22,8 @@ const int kSpacingBetweenKeyAndStartOfValue = 3;
 }
 
 AppInfoPanel::AppInfoPanel(Profile* profile, const extensions::Extension* app)
-    : profile_(profile), app_(app) {}
+    : profile_(profile), app_(app) {
+}
 
 AppInfoPanel::~AppInfoPanel() {
 }
@@ -40,7 +39,7 @@ void AppInfoPanel::OpenLink(const GURL& url) {
 }
 
 std::unique_ptr<views::Label> AppInfoPanel::CreateHeading(
-    const std::u16string& text) const {
+    const base::string16& text) const {
   auto label = std::make_unique<AppInfoLabel>(text);
   label->SetFontList(ui::ResourceBundle::GetSharedInstance().GetFontList(
       ui::ResourceBundle::MediumFont));
@@ -78,6 +77,3 @@ std::unique_ptr<views::View> AppInfoPanel::CreateKeyValueField(
   horizontal_stack->AddChildView(std::move(value));
   return horizontal_stack;
 }
-
-BEGIN_METADATA(AppInfoPanel, views::View)
-END_METADATA

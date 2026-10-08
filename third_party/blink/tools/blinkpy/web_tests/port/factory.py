@@ -31,7 +31,6 @@ import fnmatch
 import optparse
 import re
 import sys
-from copy import deepcopy
 
 from blinkpy.common.path_finder import PathFinder
 
@@ -67,20 +66,19 @@ class PortFactory(object):
         appropriate port on this platform.
         """
         port_name = port_name or self._default_port()
-        port_options = deepcopy(options) or optparse.Values()
 
-        _update_configuration_and_target(self._host.filesystem, port_options)
+        _check_configuration_and_target(self._host.filesystem, options)
 
         port_class, class_name = self.get_port_class(port_name)
         if port_class is None:
             raise NotImplementedError('unsupported platform: "%s"' % port_name)
 
         full_port_name = port_class.determine_full_port_name(
-            self._host, port_options,
+            self._host, options,
             class_name if 'browser_test' in port_name else port_name)
         return port_class(self._host,
                           full_port_name,
-                          options=port_options,
+                          options=options,
                           **kwargs)
 
     @classmethod
@@ -88,26 +86,14 @@ class PortFactory(object):
         """Returns a Port subclass and its name for the given port_name."""
         if 'browser_test' in port_name:
             module_name, class_name = port_name.rsplit('.', 1)
-            try:
-                module = __import__(module_name, globals(), locals(), [], -1)
-            except ValueError:
-                # Python3 doesn't allow the level param to be -1. Setting it to
-                # 1 searches for modules in 1 parent directory.
-                module = __import__(module_name, globals(), locals(), [], 1)
+            module = __import__(module_name, globals(), locals(), [], -1)
             port_class_name = module.get_port_class_name(class_name)
             if port_class_name is not None:
                 return module.__dict__[port_class_name], class_name
         else:
             for port_class in cls.PORT_CLASSES:
                 module_name, class_name = port_class.rsplit('.', 1)
-                try:
-                    module = __import__(module_name, globals(), locals(), [],
-                                        -1)
-                except ValueError:
-                    # Python3 doesn't allow the level param to be -1. Setting it
-                    # to 1 searches for modules in 1 parent directory.
-                    module = __import__(module_name, globals(), locals(), [],
-                                        1)
+                module = __import__(module_name, globals(), locals(), [], -1)
                 port_class = module.__dict__[class_name]
                 if port_name.startswith(port_class.port_name):
                     return port_class, class_name
@@ -216,14 +202,14 @@ def _builder_options(builder_name):
     })
 
 
-def _update_configuration_and_target(host, options):
-    """Updates options.configuration and options.target based on a best guess."""
-    if not getattr(options, 'target', None):
-        options.target = getattr(options, 'configuration', None) or 'Release'
+def _check_configuration_and_target(host, options):
+    """Updates options.configuration based on options.target."""
+    if not options or not getattr(options, 'target', None):
+        return
 
     gn_configuration = _read_configuration_from_gn(host, options)
     if gn_configuration:
-        expected_configuration = getattr(options, 'configuration', None)
+        expected_configuration = getattr(options, 'configuration')
         if expected_configuration not in (None, gn_configuration):
             raise ValueError('Configuration does not match the GN build args. '
                              'Expected "%s" but got "%s".' %

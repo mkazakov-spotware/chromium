@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,19 +17,6 @@ void MockSimpleDownloadManager::NotifyOnDownloadInitialized() {
 void MockSimpleDownloadManager::NotifyOnNewDownloadCreated(DownloadItem* item) {
   for (auto& observer : simple_download_manager_observers_)
     observer.OnDownloadCreated(item);
-}
-
-const DownloadUrlParameters*
-MockSimpleDownloadManager::GetDownloadUrlParameters() {
-  DCHECK(params_.get());
-  return params_.get();
-}
-
-void MockSimpleDownloadManager::DownloadUrl(
-    std::unique_ptr<DownloadUrlParameters> params) {
-  DCHECK(params.get());
-  DownloadUrlMock(params.get());
-  params_ = std::move(params);
 }
 
 }  // namespace download

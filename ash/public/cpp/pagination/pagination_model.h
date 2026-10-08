@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/public/cpp/ash_public_export.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
 #include "ui/views/animation/animation_delegate_views.h"
@@ -34,12 +35,6 @@ class ASH_PUBLIC_EXPORT PaginationModel : public views::AnimationDelegateViews {
       return target_page == rhs.target_page && progress == rhs.progress;
     }
 
-    std::string ToString() const {
-      std::stringstream ss;
-      ss << "Target Page: " << target_page << ", Progess: " << progress;
-      return ss.str();
-    }
-
     // Target page for the transition or -1 if there is no target page. For
     // page switcher, this is the target selected page. For touch scroll,
     // this is usually the previous or next page (or -1 when there is no
@@ -52,10 +47,6 @@ class ASH_PUBLIC_EXPORT PaginationModel : public views::AnimationDelegateViews {
   };
 
   explicit PaginationModel(views::View* owner_view);
-
-  PaginationModel(const PaginationModel&) = delete;
-  PaginationModel& operator=(const PaginationModel&) = delete;
-
   ~PaginationModel() override;
 
   void SetTotalPages(int total_pages);
@@ -145,9 +136,6 @@ class ASH_PUBLIC_EXPORT PaginationModel : public views::AnimationDelegateViews {
 
   Transition transition_;
 
-  // Whether a transition has started, but not yet ended.
-  bool is_transition_started_ = false;
-
   // Pending selected page when SelectedPage is called during a transition. If
   // multiple SelectPage is called while a transition is in progress, only the
   // last target page is remembered here.
@@ -160,6 +148,8 @@ class ASH_PUBLIC_EXPORT PaginationModel : public views::AnimationDelegateViews {
   base::TimeTicks last_overscroll_animation_start_time_;
 
   base::ObserverList<PaginationModelObserver>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaginationModel);
 };
 
 }  // namespace ash

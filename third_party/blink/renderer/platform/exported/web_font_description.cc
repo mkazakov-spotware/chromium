@@ -35,8 +35,7 @@
 namespace blink {
 
 WebFontDescription::WebFontDescription(const FontDescription& desc) {
-  family = desc.Family().FamilyName();
-  family_is_generic = desc.Family().FamilyIsGeneric();
+  family = desc.Family().Family();
   generic_family = static_cast<GenericFamily>(desc.GenericFamily());
   size = desc.SpecifiedSize();
   italic = desc.Style() == ItalicSlopeValue();
@@ -50,9 +49,7 @@ WebFontDescription::WebFontDescription(const FontDescription& desc) {
 
 WebFontDescription::operator FontDescription() const {
   FontFamily font_family;
-  font_family.SetFamily(family, family_is_generic
-                                    ? FontFamily::Type::kGenericFamily
-                                    : FontFamily::Type::kFamilyName);
+  font_family.SetFamily(family);
 
   FontDescription desc;
   desc.SetFamily(font_family);

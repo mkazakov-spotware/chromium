@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,8 +43,8 @@ void ManifestChangeNotifier::DidChangeManifest() {
     report_task_scheduled_ = true;
     window_->GetTaskRunner(TaskType::kInternalLoading)
         ->PostTask(FROM_HERE,
-                   WTF::BindOnce(&ManifestChangeNotifier::ReportManifestChange,
-                                 WrapWeakPersistent(this)));
+                   WTF::Bind(&ManifestChangeNotifier::ReportManifestChange,
+                             WrapWeakPersistent(this)));
     return;
   }
   ReportManifestChange();
@@ -60,7 +60,10 @@ void ManifestChangeNotifier::ReportManifestChange() {
   EnsureManifestChangeObserver();
   DCHECK(manifest_change_observer_.is_bound());
 
-  manifest_change_observer_->ManifestUrlChanged(manifest_url);
+  if (manifest_url.IsNull())
+    manifest_change_observer_->ManifestUrlChanged(base::nullopt);
+  else
+    manifest_change_observer_->ManifestUrlChanged(manifest_url);
 }
 
 void ManifestChangeNotifier::EnsureManifestChangeObserver() {

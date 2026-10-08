@@ -1,12 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/testing/scoped_block_swizzler.h"
-#import "base/mac/foundation_util.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "ios/testing/scoped_block_swizzler.h"
+#include "base/mac/foundation_util.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."

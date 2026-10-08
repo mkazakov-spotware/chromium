@@ -1,15 +1,16 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/cells/status_item.h"
 
 #import <MaterialComponents/MaterialActivityIndicator.h>
+#import <MaterialComponents/MaterialTypography.h>
 
-#import "base/check.h"
+#include "base/check.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/grit/ios_theme_resources.h"
+#include "ios/chrome/grit/ios_theme_resources.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -87,7 +88,7 @@ const CGFloat kHorizontalPadding = 16;
     [verticalCenteringView addSubview:_errorImageView];
 
     _textLabel = [[UILabel alloc] init];
-    _textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
+    _textLabel.font = [[MDCTypography fontLoader] mediumFontOfSize:16];
     _textLabel.numberOfLines = 0;
     _textLabel.lineBreakMode = NSLineBreakByWordWrapping;
     // The label's position will be centered with Auto Layout but this ensures

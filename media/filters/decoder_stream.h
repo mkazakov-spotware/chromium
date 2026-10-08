@@ -1,24 +1,22 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_FILTERS_DECODER_STREAM_H_
 #define MEDIA_FILTERS_DECODER_STREAM_H_
 
+#include <list>
 #include <memory>
 #include <vector>
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
-#include "base/types/pass_key.h"
+#include "base/util/type_safety/pass_key.h"
 #include "media/base/audio_decoder.h"
 #include "media/base/audio_timestamp_helper.h"
-#include "media/base/decoder_status.h"
 #include "media/base/demuxer_stream.h"
 #include "media/base/media_export.h"
 #include "media/base/media_log.h"
@@ -48,6 +46,13 @@ class MEDIA_EXPORT DecoderStream {
   using Output = typename StreamTraits::OutputType;
   using DecoderConfig = typename StreamTraits::DecoderConfigType;
 
+  enum ReadStatus {
+    OK,                    // Everything went as planned.
+    ABORTED,               // Read aborted due to Reset() during pending read.
+    DEMUXER_READ_ABORTED,  // Demuxer returned aborted read.
+    DECODE_ERROR,          // Decoder returned decode error.
+  };
+
   // Callback to create a list of decoders.
   using CreateDecodersCB =
       base::RepeatingCallback<std::vector<std::unique_ptr<Decoder>>()>;
@@ -56,8 +61,7 @@ class MEDIA_EXPORT DecoderStream {
   using InitCB = base::OnceCallback<void(bool success)>;
 
   // Indicates completion of a DecoderStream read.
-  using ReadResult = DecoderStatus::Or<scoped_refptr<Output>>;
-  using ReadCB = base::OnceCallback<void(ReadResult)>;
+  using ReadCB = base::OnceCallback<void(ReadStatus, scoped_refptr<Output>)>;
 
   DecoderStream(std::unique_ptr<DecoderStreamTraits<StreamType>> traits,
                 scoped_refptr<base::SequencedTaskRunner> task_runner,
@@ -127,16 +131,11 @@ class MEDIA_EXPORT DecoderStream {
     config_change_observer_cb_ = config_change_observer;
   }
 
-  // Allow interested folks to keep track the currently selected decoder.  The
-  // provided decoder is valid only during the scope of the callback.
+  // Allows tests to keep track the currently selected decoder.
   using DecoderChangeObserverCB = base::RepeatingCallback<void(Decoder*)>;
-  void set_decoder_change_observer(
+  void set_decoder_change_observer_for_testing(
       DecoderChangeObserverCB decoder_change_observer_cb) {
     decoder_change_observer_cb_ = std::move(decoder_change_observer_cb);
-  }
-
-  void set_fallback_observer(PipelineStatusCB fallback_cb) {
-    fallback_cb_ = std::move(fallback_cb);
   }
 
   int get_pending_buffers_size_for_testing() const {
@@ -150,7 +149,7 @@ class MEDIA_EXPORT DecoderStream {
   bool is_demuxer_read_pending() const { return pending_demuxer_read_; }
 
   DecoderSelector<StreamType>& GetDecoderSelectorForTesting(
-      base::PassKey<class VideoDecoderStreamTest>) {
+      util::PassKey<class VideoDecoderStreamTest>) {
     return decoder_selector_;
   }
 
@@ -177,18 +176,17 @@ class MEDIA_EXPORT DecoderStream {
   // Returns true if one more decode request can be submitted to the decoder.
   bool CanDecodeMore() const;
 
-  void BeginDecoderSelection();
-  void ResumeDecoderSelection(DecoderStatus&& reinit_cause);
+  void SelectDecoder();
 
   // Called when |decoder_selector| selected the |selected_decoder|.
   // |decrypting_demuxer_stream| was also populated if a DecryptingDemuxerStream
   // is created to help decrypt the encrypted stream.
   void OnDecoderSelected(
-      DecoderStatus::Or<std::unique_ptr<Decoder>> decoder_or_error,
+      std::unique_ptr<Decoder> selected_decoder,
       std::unique_ptr<DecryptingDemuxerStream> decrypting_demuxer_stream);
 
-  // Satisfy pending |read_cb_| with |result|.
-  void SatisfyRead(ReadResult result);
+  // Satisfy pending |read_cb_| with |status| and |output|.
+  void SatisfyRead(ReadStatus status, scoped_refptr<Output> output);
 
   // Decodes |buffer| and returns the result via OnDecodeOutputReady().
   // Saves |buffer| into |pending_buffers_| if appropriate.
@@ -205,7 +203,7 @@ class MEDIA_EXPORT DecoderStream {
   void OnDecodeDone(int buffer_size,
                     bool end_of_stream,
                     std::unique_ptr<ScopedDecodeTrace> trace_event,
-                    DecoderStatus status);
+                    media::Status status);
 
   // Output callback passed to Decoder::Initialize().
   void OnDecodeOutputReady(scoped_refptr<Output> output);
@@ -219,7 +217,7 @@ class MEDIA_EXPORT DecoderStream {
 
   void ReinitializeDecoder();
 
-  void CompleteDecoderReinitialization(DecoderStatus status);
+  void CompleteDecoderReinitialization(bool success);
 
   void ResetDecoder();
   void OnDecoderReset();
@@ -229,26 +227,23 @@ class MEDIA_EXPORT DecoderStream {
   void OnPreparedOutputReady(scoped_refptr<Output> frame);
   void CompletePrepare(const Output* output);
 
-  void ReportEncryptionType(const scoped_refptr<DecoderBuffer>& buffer);
-
   std::unique_ptr<DecoderStreamTraits<StreamType>> traits_;
 
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
-  raw_ptr<MediaLog> media_log_;
+  MediaLog* media_log_;
 
   State state_;
 
   StatisticsCB statistics_cb_;
   InitCB init_cb_;
   WaitingCB waiting_cb_;
-  PipelineStatusCB fallback_cb_;
 
   ReadCB read_cb_;
   base::OnceClosure reset_cb_;
 
-  raw_ptr<DemuxerStream> stream_;
+  DemuxerStream* stream_;
 
-  raw_ptr<CdmContext> cdm_context_;
+  CdmContext* cdm_context_;
 
   std::unique_ptr<Decoder> decoder_;
 
@@ -304,10 +299,6 @@ class MEDIA_EXPORT DecoderStream {
 
   // Timestamp after which all outputs need to be prepared.
   base::TimeDelta skip_prepare_until_timestamp_;
-
-  bool encryption_type_reported_ = false;
-
-  int fallback_buffers_being_decoded_ = 0;
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<DecoderStream<StreamType>> weak_factory_{this};

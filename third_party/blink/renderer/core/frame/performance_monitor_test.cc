@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "third_party/blink/renderer/core/frame/location.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
-#include "v8/include/v8.h"
 
 #include <memory>
 
@@ -67,7 +66,7 @@ class PerformanceMonitorTest : public testing::Test {
   int NumUniqueFrameContextsSeen();
 
   static base::TimeTicks SecondsToTimeTicks(double seconds) {
-    return base::TimeTicks() + base::Seconds(seconds);
+    return base::TimeTicks() + base::TimeDelta::FromSecondsD(seconds);
   }
 
   Persistent<PerformanceMonitor> monitor_;
@@ -76,13 +75,12 @@ class PerformanceMonitorTest : public testing::Test {
 };
 
 void PerformanceMonitorTest::SetUp() {
-  page_holder_ = std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
+  page_holder_ = std::make_unique<DummyPageHolder>(IntSize(800, 600));
   page_holder_->GetDocument().SetURL(KURL("https://example.com/foo"));
-  monitor_ = MakeGarbageCollected<PerformanceMonitor>(
-      GetFrame(), GetExecutionContext()->GetIsolate());
+  monitor_ = MakeGarbageCollected<PerformanceMonitor>(GetFrame());
 
   // Create another dummy page holder and pretend this is the iframe.
-  another_page_holder_ = std::make_unique<DummyPageHolder>(gfx::Size(400, 300));
+  another_page_holder_ = std::make_unique<DummyPageHolder>(IntSize(400, 300));
   another_page_holder_->GetDocument().SetURL(KURL("https://iframed.com/bar"));
 }
 

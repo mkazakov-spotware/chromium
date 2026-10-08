@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include "base/callback.h"
 #include "base/logging.h"
 #include "base/values.h"
-#include "components/autofill_assistant/browser/client_status.h"
 #include "components/autofill_assistant/browser/devtools/devtools/domains/types_runtime.h"
 #include "components/autofill_assistant/browser/devtools/devtools_client.h"
-#include "components/autofill_assistant/browser/public/rectf.h"
-#include "components/autofill_assistant/browser/web/element_finder_result.h"
+#include "components/autofill_assistant/browser/rectf.h"
+#include "components/autofill_assistant/browser/web/element_finder.h"
 #include "components/autofill_assistant/browser/web/web_controller_util.h"
 
 namespace autofill_assistant {
@@ -35,24 +34,24 @@ ElementRectGetter::ElementRectGetter(DevtoolsClient* devtools_client)
 
 ElementRectGetter::~ElementRectGetter() = default;
 
-void ElementRectGetter::Start(std::unique_ptr<ElementFinderResult> element,
+void ElementRectGetter::Start(std::unique_ptr<ElementFinder::Result> element,
                               ElementRectCallback callback) {
   GetBoundingClientRect(std::move(element), 0, RectF(), std::move(callback));
 }
 
 void ElementRectGetter::GetBoundingClientRect(
-    std::unique_ptr<ElementFinderResult> element,
+    std::unique_ptr<ElementFinder::Result> element,
     size_t index,
     const RectF& stacked_rect,
     ElementRectCallback callback) {
   std::string object_id;
   std::string node_frame_id;
-  if (index < element->frame_stack().size()) {
-    object_id = element->frame_stack()[index].object_id;
-    node_frame_id = element->frame_stack()[index].node_frame_id;
+  if (index < element->frame_stack.size()) {
+    object_id = element->frame_stack[index].object_id;
+    node_frame_id = element->frame_stack[index].node_frame_id;
   } else {
-    object_id = element->object_id();
-    node_frame_id = element->node_frame_id();
+    object_id = element->object_id;
+    node_frame_id = element->node_frame_id;
   }
 
   std::vector<std::unique_ptr<runtime::CallArgument>> arguments;
@@ -76,7 +75,7 @@ void ElementRectGetter::GetBoundingClientRect(
 
 void ElementRectGetter::OnGetClientRectResult(
     ElementRectCallback callback,
-    std::unique_ptr<ElementFinderResult> element,
+    std::unique_ptr<ElementFinder::Result> element,
     size_t index,
     const RectF& stacked_rect,
     const DevtoolsClient::ReplyStatus& reply_status,
@@ -110,7 +109,7 @@ void ElementRectGetter::OnGetClientRectResult(
     rect.bottom = std::min(stacked_rect.bottom, stacked_rect.top + rect.bottom);
   }
 
-  if (index >= element->frame_stack().size()) {
+  if (index >= element->frame_stack.size()) {
     std::move(callback).Run(OkClientStatus(), rect);
     return;
   }

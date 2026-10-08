@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,29 +12,27 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "third_party/leveldatabase/src/include/leveldb/status.h"
 
 namespace content {
 class LevelDBScopes;
 class LevelDBState;
-class PartitionedLockManager;
+class ScopesLockManager;
 
 struct LevelDBScopesOptions {
   LevelDBScopesOptions();
-
-  LevelDBScopesOptions(const LevelDBScopesOptions&) = delete;
-  LevelDBScopesOptions& operator=(const LevelDBScopesOptions&) = delete;
-
+  ~LevelDBScopesOptions();
   LevelDBScopesOptions(LevelDBScopesOptions&&) noexcept;
   LevelDBScopesOptions& operator=(LevelDBScopesOptions&&) noexcept;
 
-  ~LevelDBScopesOptions();
-
   std::vector<uint8_t> metadata_key_prefix;
   size_t max_write_batch_size = 1 * 1024 * 1024;
-  raw_ptr<PartitionedLockManager> lock_manager = nullptr;
+  ScopesLockManager* lock_manager = nullptr;
   base::RepeatingCallback<void(leveldb::Status)> failure_callback;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LevelDBScopesOptions);
 };
 
 // The user must still call |StartTaskRunners| on the LevelDBScopes object after

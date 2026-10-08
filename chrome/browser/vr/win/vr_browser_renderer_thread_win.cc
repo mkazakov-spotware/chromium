@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,12 +23,11 @@
 #include "gpu/command_buffer/client/gles2_lib.h"
 #include "ui/gfx/geometry/quaternion.h"
 
-// To avoid conflicts with the macro from the Windows SDK...
-#undef DrawState
-
 namespace {
-constexpr base::TimeDelta kWebVrInitialFrameTimeout = base::Seconds(5);
-constexpr base::TimeDelta kWebVrSpinnerTimeout = base::Seconds(2);
+constexpr base::TimeDelta kWebVrInitialFrameTimeout =
+    base::TimeDelta::FromSeconds(5);
+constexpr base::TimeDelta kWebVrSpinnerTimeout =
+    base::TimeDelta::FromSeconds(2);
 
 constexpr float kEpsilon = 0.1f;
 constexpr float kMaxPosition = 1000000;
@@ -49,7 +48,7 @@ VRBrowserRendererThreadWin* VRBrowserRendererThreadWin::instance_for_testing_ =
 VRBrowserRendererThreadWin::VRBrowserRendererThreadWin(
     device::mojom::XRCompositorHost* compositor)
     : compositor_(compositor),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
+      task_runner_(base::ThreadTaskRunnerHandle::Get()) {
   DCHECK(instance_for_testing_ == nullptr);
   instance_for_testing_ = this;
 }
@@ -70,18 +69,11 @@ void VRBrowserRendererThreadWin::StopOverlay() {
   scheduler_ui_ = nullptr;
 }
 
-void VRBrowserRendererThreadWin::SetDefaultXrViews(
-    const std::vector<device::mojom::XRViewPtr>& views) {
-  if (graphics_) {
-    graphics_->SetXrViews(views);
-  }
-
-  for (auto& view : views) {
-    if (view->eye == device::mojom::XREye::kLeft ||
-        view->eye == device::mojom::XREye::kRight) {
-      default_views_.push_back(view.Clone());
-    }
-  }
+void VRBrowserRendererThreadWin::SetVRDisplayInfo(
+    device::mojom::VRDisplayInfoPtr display_info) {
+  display_info_ = std::move(display_info);
+  if (graphics_)
+    graphics_->SetVRDisplayInfo(display_info_.Clone());
 }
 
 void VRBrowserRendererThreadWin::SetLocationInfo(GURL gurl) {
@@ -294,23 +286,24 @@ void VRBrowserRendererThreadWin::StartOverlay() {
     return;
   }
 
-  // We should have received valid views from the ui host before rendering.
-  DCHECK(!default_views_.empty());
-  initializing_graphics_->SetXrViews(default_views_);
-
   initializing_graphics_->InitializeOnGLThread();
   initializing_graphics_->BindContext();
 
   // Create a vr::Ui
+  BrowserRendererBrowserInterface* browser_renderer_interface = nullptr;
   ui_browser_interface_ = std::make_unique<VRUiBrowserInterface>();
+  PlatformInputHandler* input = nullptr;
+  std::unique_ptr<KeyboardDelegate> keyboard_delegate;
+  std::unique_ptr<TextInputDelegate> text_input_delegate;
+  std::unique_ptr<AudioDelegate> audio_delegate;
   UiInitialState ui_initial_state = {};
   ui_initial_state.in_web_vr = true;
   ui_initial_state.browsing_disabled = true;
   ui_initial_state.supports_selection = false;
   std::unique_ptr<Ui> ui = std::make_unique<Ui>(
-      ui_browser_interface_.get(), nullptr /*input*/,
-      nullptr /*keyboard_delegate*/, nullptr /*text_input_delegate*/,
-      nullptr /*audio_delegate*/, ui_initial_state);
+      ui_browser_interface_.get(), input, std::move(keyboard_delegate),
+      std::move(text_input_delegate), std::move(audio_delegate),
+      ui_initial_state);
   static_cast<UiInterface*>(ui.get())->OnGlInitialized(
       kGlTextureLocationLocal,
       0 /* content_texture_id - we don't support content */,
@@ -336,6 +329,7 @@ void VRBrowserRendererThreadWin::StartOverlay() {
       std::make_unique<SchedulerDelegateWin>();
   scheduler_ = scheduler_delegate.get();
   graphics_ = initializing_graphics_.get();
+  graphics_->SetVRDisplayInfo(display_info_.Clone());
   std::unique_ptr<InputDelegateWin> input_delegate =
       std::make_unique<InputDelegateWin>();
   input_ = input_delegate.get();
@@ -344,7 +338,7 @@ void VRBrowserRendererThreadWin::StartOverlay() {
   browser_renderer_ = std::make_unique<BrowserRenderer>(
       std::move(ui), std::move(scheduler_delegate),
       std::move(initializing_graphics_), std::move(input_delegate),
-      nullptr /*browser_renderer_interface*/, kSlidingAverageSize);
+      browser_renderer_interface, kSlidingAverageSize);
 
   graphics_->ClearContext();
 
@@ -367,43 +361,37 @@ void VRBrowserRendererThreadWin::OnWebXRSubmitted() {
 device::mojom::XRRenderInfoPtr ValidateFrameData(
     device::mojom::XRRenderInfoPtr data) {
   device::mojom::XRRenderInfoPtr ret = device::mojom::XRRenderInfo::New();
-  ret->mojo_from_viewer = device::mojom::VRPose::New();
+  ret->pose = device::mojom::VRPose::New();
 
-  if (data->mojo_from_viewer) {
-    if (data->mojo_from_viewer->orientation) {
-      if (abs(data->mojo_from_viewer->orientation->Length() - 1) < kEpsilon) {
-        ret->mojo_from_viewer->orientation =
-            data->mojo_from_viewer->orientation->Normalized();
+  if (data->pose) {
+    if (data->pose->orientation) {
+      if (abs(data->pose->orientation->Length() - 1) < kEpsilon) {
+        ret->pose->orientation = data->pose->orientation->Normalized();
       }
     }
 
-    if (data->mojo_from_viewer->position) {
-      ret->mojo_from_viewer->position = data->mojo_from_viewer->position;
+    if (data->pose->position) {
+      ret->pose->position = data->pose->position;
 
-      bool any_out_of_range = !(InRange(ret->mojo_from_viewer->position->x()) &&
-                                InRange(ret->mojo_from_viewer->position->y()) &&
-                                InRange(ret->mojo_from_viewer->position->z()));
+      bool any_out_of_range = !(InRange(ret->pose->position->x()) &&
+                                InRange(ret->pose->position->y()) &&
+                                InRange(ret->pose->position->z()));
       if (any_out_of_range) {
-        ret->mojo_from_viewer->position = absl::nullopt;
+        ret->pose->position = base::nullopt;
         // If testing with unexpectedly high values, catch on debug builds
         // rather than silently change data.  On release builds its better to
         // be safe and validate.
         DCHECK(false);
       }
     }
-  }  // if (data->mojo_from_viewer)
+  }  // if (data->pose)
 
-  if (!ret->mojo_from_viewer->orientation) {
-    ret->mojo_from_viewer->orientation = gfx::Quaternion();
+  if (!ret->pose->orientation) {
+    ret->pose->orientation = gfx::Quaternion();
   }
 
-  if (!ret->mojo_from_viewer->position) {
-    ret->mojo_from_viewer->position = gfx::Point3F();
-  }
-
-  ret->views.resize(data->views.size());
-  for (size_t i = 0; i < data->views.size(); i++) {
-    ret->views[i] = std::move(data->views[i]);
+  if (!ret->pose->position) {
+    ret->pose->position = gfx::Point3F();
   }
 
   ret->frame_id = data->frame_id;
@@ -427,27 +415,21 @@ void VRBrowserRendererThreadWin::OnPose(int request_id,
     return;
   }
 
-  data = ValidateFrameData(std::move(data));
-
-  // If we're getting poses and should be drawing, StartOverlay() should have
-  // initialized graphics_.
-  DCHECK(graphics_);
-  graphics_->SetXrViews(std::move(data->views));
-
-  if (!PreRender())
+  if (!graphics_->PreRender())
     return;
+
+  data = ValidateFrameData(std::move(data));
 
   // Deliver pose to input and scheduler.
   DCHECK(data);
-  DCHECK(data->mojo_from_viewer);
-  DCHECK(data->mojo_from_viewer->orientation);
-  DCHECK(data->mojo_from_viewer->position);
-  const gfx::Point3F& pos = *data->mojo_from_viewer->position;
+  DCHECK(data->pose);
+  DCHECK(data->pose->orientation);
+  DCHECK(data->pose->position);
+  const gfx::Point3F& pos = *data->pose->position;
 
   // The incoming pose represents where the headset is in "world space".  So
   // we'll need to invert to get the view transform.
-  gfx::Transform head_from_unoriented_head(
-      data->mojo_from_viewer->orientation->inverse());
+  gfx::Transform head_from_unoriented_head(data->pose->orientation->inverse());
 
   // Negating all components will invert the translation.
   gfx::Transform unoriented_head_from_world;
@@ -468,26 +450,12 @@ void VRBrowserRendererThreadWin::OnPose(int request_id,
                      draw_state_.ShouldDrawUI());
 }
 
-bool VRBrowserRendererThreadWin::PreRender() {
-  // GraphicsDelegateWin::PreRender can fail if the context has become lost
-  // due to hybrid adapter switching. Giving up on life means no overlays are
-  // submitted to the XR process, causing it hang, waiting forever. Instead,
-  // we shutdown and restart the overlay system, re-establishing the GPU process
-  // connection and all of the graphics related state in vr::Ui.
-  if (!graphics_->PreRender()) {
-    StopOverlay();
-    StartOverlay();
-    return graphics_->PreRender();
-  }
-  return true;
-}
-
 void VRBrowserRendererThreadWin::SubmitFrame(int16_t frame_id) {
   graphics_->PostRender();
 
   overlay_->SubmitOverlayTexture(
-      frame_id, graphics_->GetTexture(), graphics_->GetSyncToken(),
-      graphics_->GetLeft(), graphics_->GetRight(),
+      frame_id, graphics_->GetTexture(), graphics_->GetLeft(),
+      graphics_->GetRight(),
       base::BindOnce(&VRBrowserRendererThreadWin::SubmitResult,
                      base::Unretained(this)));
 }

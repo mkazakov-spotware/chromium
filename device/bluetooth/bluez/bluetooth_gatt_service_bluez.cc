@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,21 +27,21 @@ std::string BluetoothGattServiceBlueZ::GetIdentifier() const {
 // static
 device::BluetoothGattService::GattErrorCode
 BluetoothGattServiceBlueZ::DBusErrorToServiceError(std::string error_name) {
-  auto code = device::BluetoothGattService::GattErrorCode::kUnknown;
+  device::BluetoothGattService::GattErrorCode code = GATT_ERROR_UNKNOWN;
   if (error_name == bluetooth_gatt_service::kErrorFailed) {
-    code = device::BluetoothGattService::GattErrorCode::kFailed;
+    code = GATT_ERROR_FAILED;
   } else if (error_name == bluetooth_gatt_service::kErrorInProgress) {
-    code = device::BluetoothGattService::GattErrorCode::kInProgress;
+    code = GATT_ERROR_IN_PROGRESS;
   } else if (error_name == bluetooth_gatt_service::kErrorInvalidValueLength) {
-    code = device::BluetoothGattService::GattErrorCode::kInvalidLength;
+    code = GATT_ERROR_INVALID_LENGTH;
   } else if (error_name == bluetooth_gatt_service::kErrorNotPermitted) {
-    code = device::BluetoothGattService::GattErrorCode::kNotPermitted;
+    code = GATT_ERROR_NOT_PERMITTED;
   } else if (error_name == bluetooth_gatt_service::kErrorNotAuthorized) {
-    code = device::BluetoothGattService::GattErrorCode::kNotAuthorized;
+    code = GATT_ERROR_NOT_AUTHORIZED;
   } else if (error_name == bluetooth_gatt_service::kErrorNotPaired) {
-    code = device::BluetoothGattService::GattErrorCode::kNotPaired;
+    code = GATT_ERROR_NOT_PAIRED;
   } else if (error_name == bluetooth_gatt_service::kErrorNotSupported) {
-    code = device::BluetoothGattService::GattErrorCode::kNotSupported;
+    code = GATT_ERROR_NOT_SUPPORTED;
   }
   return code;
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "net/base/ip_endpoint.h"
 #include "remoting/protocol/errors.h"
 
@@ -16,7 +17,8 @@ namespace jingle_xmpp {
 class XmlElement;
 }  // namespace jingle_xmpp
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class Authenticator;
 
@@ -63,6 +65,7 @@ class Transport {
   virtual bool ProcessTransportInfo(jingle_xmpp::XmlElement* transport_info) = 0;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_TRANSPORT_H_

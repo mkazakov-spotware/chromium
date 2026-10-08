@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/cloud_policy_util.h"
 #include "components/policy/core/common/cloud/machine_level_user_cloud_policy_store.h"
+#include "components/policy/core/common/features.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -51,14 +52,19 @@ void MachineLevelUserCloudPolicyManager::Connect(
 
   CreateComponentCloudPolicyService(
       dm_protocol::kChromeMachineLevelExtensionCloudPolicyType,
-      policy_dir_.Append(kComponentPolicyCache), client.get(),
-      schema_registry());
+      policy_dir_.Append(kComponentPolicyCache),
+      // Component cloud policies use the same source of Chrome ones.
+      store()->source(), client.get(), schema_registry());
   core()->Connect(std::move(client));
   core()->StartRefreshScheduler();
   core()->TrackRefreshDelayPref(local_state,
                                 policy_prefs::kUserPolicyRefreshRate);
   if (external_data_manager_)
     external_data_manager_->Connect(std::move(url_loader_factory));
+}
+
+bool MachineLevelUserCloudPolicyManager::IsClientRegistered() {
+  return client() && client()->is_registered();
 }
 
 void MachineLevelUserCloudPolicyManager::AddClientObserver(
@@ -113,6 +119,9 @@ void MachineLevelUserCloudPolicyManager::OnStoreLoaded(
     CloudPolicyStore* cloud_policy_store) {
   DCHECK_EQ(store(), cloud_policy_store);
   CloudPolicyManager::OnStoreLoaded(cloud_policy_store);
+
+  if (!base::FeatureList::IsEnabled(policy::features::kCBCMPolicyInvalidations))
+    return;
 
   // It's possible for |client()| to be null during startup if the store is
   // loaded before Connect is called. In this case, don't do anything and wait

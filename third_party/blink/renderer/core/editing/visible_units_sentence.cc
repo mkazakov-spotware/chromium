@@ -24,7 +24,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -106,17 +106,13 @@ PositionInFlatTree StartOfSentenceInternal(const PositionInFlatTree& position) {
   return TextSegments::FindBoundaryBackward(position, &finder);
 }
 
-PositionInFlatTree EndOfSentenceInternal(
-    const PositionInFlatTree& position,
-    SentenceTrailingSpaceBehavior space_behavior =
-        SentenceTrailingSpaceBehavior::kIncludeSpace) {
+// TODO(yosin) This includes the space after the punctuation that marks the end
+// of the sentence.
+PositionInFlatTree EndOfSentenceInternal(const PositionInFlatTree& position) {
   class Finder final : public TextSegments::Finder {
     STACK_ALLOCATED();
 
    public:
-    explicit Finder(SentenceTrailingSpaceBehavior space_behavior)
-        : space_behavior_(space_behavior) {}
-
     Position Find(const String text, unsigned passed_offset) final {
       DCHECK_LE(passed_offset, text.length());
       TextBreakIterator* iterator = SentenceBreakIterator(text.Span16());
@@ -131,11 +127,6 @@ PositionInFlatTree EndOfSentenceInternal(
         }
         return Position();
       }
-      // If trailing space should be omitted, remove it if present.
-      if (space_behavior_ == SentenceTrailingSpaceBehavior::kOmitSpace &&
-          result != 0 && text[result - 1] == ' ') {
-        return Position::After(result - 2);
-      }
       return result == 0 ? Position::Before(0) : Position::After(result - 1);
     }
 
@@ -148,9 +139,7 @@ PositionInFlatTree EndOfSentenceInternal(
       }
       return text.length();
     }
-
-    const SentenceTrailingSpaceBehavior space_behavior_;
-  } finder(space_behavior);
+  } finder;
   return TextSegments::FindBoundaryForward(position, &finder);
 }
 
@@ -201,36 +190,24 @@ PositionInFlatTree NextSentencePositionInternal(
 
 }  // namespace
 
-PositionInFlatTreeWithAffinity EndOfSentence(
-    const PositionInFlatTree& start,
-    SentenceTrailingSpaceBehavior space_behavior) {
-  if (start.IsNull())
-    return PositionInFlatTreeWithAffinity();
-  const PositionInFlatTree result =
-      EndOfSentenceInternal(start, space_behavior);
+PositionInFlatTreeWithAffinity EndOfSentence(const PositionInFlatTree& start) {
+  const PositionInFlatTree result = EndOfSentenceInternal(start);
   return AdjustForwardPositionToAvoidCrossingEditingBoundaries(
       PositionInFlatTreeWithAffinity(result), start);
 }
 
-PositionWithAffinity EndOfSentence(
-    const Position& start,
-    SentenceTrailingSpaceBehavior space_behavior) {
+PositionWithAffinity EndOfSentence(const Position& start) {
   const PositionInFlatTreeWithAffinity result =
-      EndOfSentence(ToPositionInFlatTree(start), space_behavior);
+      EndOfSentence(ToPositionInFlatTree(start));
   return ToPositionInDOMTreeWithAffinity(result);
 }
 
-VisiblePosition EndOfSentence(const VisiblePosition& c,
-                              SentenceTrailingSpaceBehavior space_behavior) {
-  return CreateVisiblePosition(
-      EndOfSentence(c.DeepEquivalent(), space_behavior));
+VisiblePosition EndOfSentence(const VisiblePosition& c) {
+  return CreateVisiblePosition(EndOfSentence(c.DeepEquivalent()));
 }
 
-VisiblePositionInFlatTree EndOfSentence(
-    const VisiblePositionInFlatTree& c,
-    SentenceTrailingSpaceBehavior space_behavior) {
-  return CreateVisiblePosition(
-      EndOfSentence(c.DeepEquivalent(), space_behavior));
+VisiblePositionInFlatTree EndOfSentence(const VisiblePositionInFlatTree& c) {
+  return CreateVisiblePosition(EndOfSentence(c.DeepEquivalent()));
 }
 
 EphemeralRange ExpandEndToSentenceBoundary(const EphemeralRange& range) {
@@ -263,17 +240,30 @@ EphemeralRange ExpandRangeToSentenceBoundary(const EphemeralRange& range) {
 
 // ----
 
-PositionInFlatTree NextSentencePosition(const PositionInFlatTree& start) {
-  if (start.IsNull())
-    return start;
+PositionInFlatTreeWithAffinity NextSentencePosition(
+    const PositionInFlatTree& start) {
   const PositionInFlatTree result = NextSentencePositionInternal(start);
   return AdjustForwardPositionToAvoidCrossingEditingBoundaries(
-             PositionInFlatTreeWithAffinity(result), start)
-      .GetPosition();
+      PositionInFlatTreeWithAffinity(result), start);
 }
 
-Position NextSentencePosition(const Position& start) {
-  return ToPositionInDOMTree(NextSentencePosition(ToPositionInFlatTree(start)));
+PositionWithAffinity NextSentencePosition(const Position& start) {
+  const PositionInFlatTreeWithAffinity result =
+      NextSentencePosition(ToPositionInFlatTree(start));
+  return ToPositionInDOMTreeWithAffinity(result);
+}
+
+VisiblePosition NextSentencePosition(const VisiblePosition& c) {
+  return CreateVisiblePosition(
+      NextSentencePosition(c.DeepEquivalent()).GetPosition(),
+      TextAffinity::kUpstreamIfPossible);
+}
+
+VisiblePositionInFlatTree NextSentencePosition(
+    const VisiblePositionInFlatTree& c) {
+  return CreateVisiblePosition(
+      NextSentencePosition(c.DeepEquivalent()).GetPosition(),
+      TextAffinity::kUpstreamIfPossible);
 }
 
 // ----
@@ -293,6 +283,10 @@ Position PreviousSentencePosition(const Position& position) {
       PreviousSentencePosition(ToPositionInFlatTree(position)));
 }
 
+VisiblePosition PreviousSentencePosition(const VisiblePosition& c) {
+  return CreateVisiblePosition(PreviousSentencePosition(c.DeepEquivalent()));
+}
+
 // ----
 
 PositionInFlatTree StartOfSentencePosition(const PositionInFlatTree& position) {
@@ -307,6 +301,14 @@ PositionInFlatTree StartOfSentencePosition(const PositionInFlatTree& position) {
 Position StartOfSentencePosition(const Position& position) {
   return ToPositionInDOMTree(
       StartOfSentencePosition(ToPositionInFlatTree(position)));
+}
+
+VisiblePosition StartOfSentence(const VisiblePosition& c) {
+  return CreateVisiblePosition(StartOfSentencePosition(c.DeepEquivalent()));
+}
+
+VisiblePositionInFlatTree StartOfSentence(const VisiblePositionInFlatTree& c) {
+  return CreateVisiblePosition(StartOfSentencePosition(c.DeepEquivalent()));
 }
 
 }  // namespace blink

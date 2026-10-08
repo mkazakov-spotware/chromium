@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/trust_tokens/expiry_inspecting_record_expiry_delegate.h"
 
-#include "base/containers/contains.h"
 #include "components/cbor/reader.h"
 #include "components/cbor/values.h"
 #include "services/network/public/mojom/trust_tokens.mojom.h"
@@ -21,7 +20,6 @@ ExpiryInspectingRecordExpiryDelegate::ExpiryInspectingRecordExpiryDelegate(
 
 bool ExpiryInspectingRecordExpiryDelegate::IsRecordExpired(
     const TrustTokenRedemptionRecord& record,
-    const base::TimeDelta& time_since_last_redemption,
     const SuitableTrustTokenOrigin& issuer) {
   mojom::TrustTokenKeyCommitmentResultPtr key_commitments =
       key_commitment_getter_->GetSync(issuer.origin());
@@ -40,14 +38,10 @@ bool ExpiryInspectingRecordExpiryDelegate::IsRecordExpired(
   // Treat the RR as expired if its associated token-issuance verification key
   // (|token_verification_key|) is no longer present in its issuer's key
   // commitment.
-  if (!base::Contains(key_commitments->keys, record.token_verification_key(),
-                      &mojom::TrustTokenVerificationKey::body)) {
-    return true;
-  }
-
-  if (record.has_lifetime() && !time_since_last_redemption.is_negative() &&
-      static_cast<uint64_t>(time_since_last_redemption.InSeconds()) >=
-          record.lifetime()) {
+  if (!std::any_of(key_commitments->keys.begin(), key_commitments->keys.end(),
+                   [&record](const mojom::TrustTokenVerificationKeyPtr& key) {
+                     return key->body == record.token_verification_key();
+                   })) {
     return true;
   }
 

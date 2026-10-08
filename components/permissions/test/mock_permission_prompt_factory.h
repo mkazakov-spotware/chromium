@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "components/permissions/permission_prompt.h"
 #include "components/permissions/permission_request.h"
 #include "components/permissions/permission_request_manager.h"
@@ -20,7 +19,6 @@ class WebContents;
 
 namespace permissions {
 class MockPermissionPrompt;
-enum class RequestType;
 
 // Provides a skeleton class for both unit and browser testing when trying to
 // test the bubble manager logic. Should not be used for anything that requires
@@ -30,11 +28,6 @@ enum class RequestType;
 class MockPermissionPromptFactory {
  public:
   explicit MockPermissionPromptFactory(PermissionRequestManager* manager);
-
-  MockPermissionPromptFactory(const MockPermissionPromptFactory&) = delete;
-  MockPermissionPromptFactory& operator=(const MockPermissionPromptFactory&) =
-      delete;
-
   ~MockPermissionPromptFactory();
 
   // Create method called by the PBM to show a bubble.
@@ -44,7 +37,7 @@ class MockPermissionPromptFactory {
 
   void ResetCounts();
 
-  void DocumentOnLoadCompletedInPrimaryMainFrame();
+  void DocumentOnLoadCompletedInMainFrame();
 
   void set_response_type(PermissionRequestManager::AutoResponseType type) {
     response_type_ = type;
@@ -63,7 +56,7 @@ class MockPermissionPromptFactory {
   // Number of requests seen.
   int TotalRequestCount();
   // Whether the specified permission was shown in a prompt.
-  bool RequestTypeSeen(RequestType type);
+  bool RequestTypeSeen(PermissionRequestType type);
   // Whether a prompt with the given origin was shown.
   bool RequestOriginSeen(const GURL& origin);
 
@@ -82,16 +75,18 @@ class MockPermissionPromptFactory {
 
   int show_count_;
   int requests_count_;
-  std::vector<RequestType> request_types_seen_;
+  std::vector<PermissionRequestType> request_types_seen_;
   std::vector<GURL> request_origins_seen_;
 
   std::vector<MockPermissionPrompt*> prompts_;
   PermissionRequestManager::AutoResponseType response_type_;
 
-  base::RepeatingClosure show_bubble_quit_closure_;
+  base::Closure show_bubble_quit_closure_;
 
   // The bubble manager that will be associated with this factory.
-  raw_ptr<PermissionRequestManager> manager_;
+  PermissionRequestManager* manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPermissionPromptFactory);
 };
 
 }  // namespace permissions

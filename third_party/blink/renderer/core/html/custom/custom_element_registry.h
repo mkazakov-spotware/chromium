@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_CUSTOM_CUSTOM_ELEMENT_REGISTRY_H_
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_custom_element_constructor.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element_definition.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string_hash.h"
 
@@ -21,6 +19,7 @@ namespace blink {
 
 class CustomElementDefinitionBuilder;
 class CustomElementDescriptor;
+class CustomElementReactionStack;
 class Element;
 class ElementDefinitionOptions;
 class ExceptionState;
@@ -28,16 +27,14 @@ class LocalDOMWindow;
 class ScriptPromiseResolver;
 class ScriptState;
 class ScriptValue;
+class V0CustomElementRegistrationContext;
+class V8CustomElementConstructor;
 
 class CORE_EXPORT CustomElementRegistry final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static CustomElementRegistry* Create(ScriptState*);
-
-  explicit CustomElementRegistry(const LocalDOMWindow*);
-  CustomElementRegistry(const CustomElementRegistry&) = delete;
-  CustomElementRegistry& operator=(const CustomElementRegistry&) = delete;
+  CustomElementRegistry(const LocalDOMWindow*);
   ~CustomElementRegistry() override = default;
 
   CustomElementDefinition* define(ScriptState*,
@@ -49,10 +46,7 @@ class CORE_EXPORT CustomElementRegistry final : public ScriptWrappable {
   ScriptValue get(const AtomicString& name);
   bool NameIsDefined(const AtomicString& name) const;
   CustomElementDefinition* DefinitionForName(const AtomicString& name) const;
-  CustomElementDefinition* DefinitionForConstructor(
-      V8CustomElementConstructor*) const;
-  CustomElementDefinition* DefinitionForConstructor(
-      v8::Local<v8::Object> constructor) const;
+  CustomElementDefinition* DefinitionForId(CustomElementDefinition::Id) const;
 
   // TODO(dominicc): Switch most callers of definitionForName to
   // definitionFor when implementing type extensions.
@@ -66,6 +60,8 @@ class CORE_EXPORT CustomElementRegistry final : public ScriptWrappable {
                             ExceptionState&);
   void upgrade(Node* root);
 
+  void Entangle(V0CustomElementRegistrationContext*);
+
   void Trace(Visitor*) const override;
 
  private:
@@ -75,34 +71,24 @@ class CORE_EXPORT CustomElementRegistry final : public ScriptWrappable {
                                           const ElementDefinitionOptions*,
                                           ExceptionState&);
 
+  bool V0NameIsDefined(const AtomicString& name);
+
   void CollectCandidates(const CustomElementDescriptor&,
                          HeapVector<Member<Element>>*);
 
   bool element_definition_is_running_;
 
-  // Hashes Member<V8CustomElementConstructor> by their v8 callback objects.
-  struct V8CustomElementConstructorHash {
-    STATIC_ONLY(V8CustomElementConstructorHash);
-    static unsigned GetHash(
-        const Member<V8CustomElementConstructor>& constructor) {
-      return constructor->CallbackObject()->GetIdentityHash();
-    }
-    static bool Equal(const Member<V8CustomElementConstructor>& a,
-                      const Member<V8CustomElementConstructor>& b) {
-      return (!a && !b) ||
-             (a && b && a->CallbackObject() == b->CallbackObject());
-    }
-    static const bool safe_to_compare_to_empty_or_deleted = true;
-  };
-  using ConstructorMap = HeapHashMap<Member<V8CustomElementConstructor>,
-                                     Member<CustomElementDefinition>,
-                                     V8CustomElementConstructorHash>;
-  ConstructorMap constructor_map_;
+  using DefinitionList = HeapVector<Member<CustomElementDefinition>>;
+  DefinitionList definitions_;
 
-  using NameMap = HeapHashMap<AtomicString, Member<CustomElementDefinition>>;
-  NameMap name_map_;
+  using NameIdMap = HashMap<AtomicString, CustomElementDefinition::Id>;
+  NameIdMap name_id_map_;
 
   Member<const LocalDOMWindow> owner_;
+
+  using V0RegistrySet =
+      HeapHashSet<WeakMember<V0CustomElementRegistrationContext>>;
+  Member<V0RegistrySet> v0_;
 
   using UpgradeCandidateSet = HeapHashSet<WeakMember<Element>>;
   using UpgradeCandidateMap =
@@ -113,10 +99,14 @@ class CORE_EXPORT CustomElementRegistry final : public ScriptWrappable {
       HeapHashMap<AtomicString, Member<ScriptPromiseResolver>>;
   WhenDefinedPromiseMap when_defined_promise_map_;
 
+  Member<CustomElementReactionStack> reaction_stack_;
+
   FRIEND_TEST_ALL_PREFIXES(
       CustomElementTest,
       CreateElement_TagNameCaseHandlingCreatingCustomElement);
-  friend class CustomElementRegistryTestingScope;
+  friend class CustomElementRegistryTest;
+
+  DISALLOW_COPY_AND_ASSIGN(CustomElementRegistry);
 };
 
 }  // namespace blink

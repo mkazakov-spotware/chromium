@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@ import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
@@ -57,7 +58,7 @@ public class IncognitoToggleButton extends ChromeImageButton {
         if (selector != null) {
             updateButtonResource();
 
-            mTabModelSelectorObserver = new TabModelSelectorObserver() {
+            mTabModelSelectorObserver = new EmptyTabModelSelectorObserver() {
                 @Override
                 public void onTabModelSelected(TabModel newModel, TabModel oldModel) {
                     updateButtonResource();
@@ -75,7 +76,7 @@ public class IncognitoToggleButton extends ChromeImageButton {
         setImageResource(R.drawable.incognito_simple);
         ApiCompatibilityUtils.setImageTintList(this,
                 AppCompatResources.getColorStateList(getContext(),
-                        isIncognitoSelected ? R.color.default_icon_color_white_tint_list
+                        isIncognitoSelected ? R.color.white_mode_tint
                                             : R.color.default_icon_color_tint_list));
     }
 

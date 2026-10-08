@@ -1,14 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_MATH_SUM_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSSOM_CSS_MATH_SUM_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/cssom/css_math_variadic.h"
-#include "third_party/blink/renderer/platform/bindings/exception_state.h"
 
 namespace blink {
 
@@ -19,11 +16,10 @@ class CORE_EXPORT CSSMathSum final : public CSSMathVariadic {
 
  public:
   // The constructor defined in the IDL.
-  static CSSMathSum* Create(const HeapVector<Member<V8CSSNumberish>>& args,
-                            ExceptionState& exception_state);
+  static CSSMathSum* Create(const HeapVector<CSSNumberish>& args,
+                            ExceptionState&);
   // Blink-internal constructor.
-  static CSSMathSum* Create(CSSNumericValueVector,
-                            ExceptionState& = ASSERT_NO_EXCEPTION);
+  static CSSMathSum* Create(CSSNumericValueVector);
 
   CSSMathSum(CSSNumericArray* values, const CSSNumericValueType& type)
       : CSSMathVariadic(values, type) {}
@@ -40,7 +36,7 @@ class CORE_EXPORT CSSMathSum final : public CSSMathVariadic {
  private:
   void BuildCSSText(Nested, ParenLess, StringBuilder&) const final;
 
-  absl::optional<CSSNumericSumValue> SumValue() const final;
+  base::Optional<CSSNumericSumValue> SumValue() const final;
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/notreached.h"
 #include "content/public/browser/service_worker_context_observer.h"
 #include "third_party/blink/public/common/messaging/transferable_message.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 
 namespace content {
 
@@ -28,21 +27,18 @@ void FakeServiceWorkerContext::RemoveObserver(
 }
 void FakeServiceWorkerContext::RegisterServiceWorker(
     const GURL& script_url,
-    const blink::StorageKey& key,
     const blink::mojom::ServiceWorkerRegistrationOptions& options,
-    StatusCodeCallback callback) {
+    ResultCallback callback) {
   NOTREACHED();
 }
 void FakeServiceWorkerContext::UnregisterServiceWorker(
     const GURL& scope,
-    const blink::StorageKey& key,
     ResultCallback callback) {
   NOTREACHED();
 }
 ServiceWorkerExternalRequestResult
 FakeServiceWorkerContext::StartingExternalRequest(
     int64_t service_worker_version_id,
-    ServiceWorkerExternalRequestTimeoutType timeout_type,
     const std::string& request_uuid) {
   NOTREACHED();
   return ServiceWorkerExternalRequestResult::kWorkerNotFound;
@@ -54,39 +50,39 @@ FakeServiceWorkerContext::FinishedExternalRequest(
   NOTREACHED();
   return ServiceWorkerExternalRequestResult::kWorkerNotFound;
 }
-size_t FakeServiceWorkerContext::CountExternalRequestsForTest(
-    const blink::StorageKey& key) {
+void FakeServiceWorkerContext::CountExternalRequestsForTest(
+    const url::Origin& origin,
+    CountExternalRequestsCallback callback) {
   NOTREACHED();
-  return 0u;
 }
-bool FakeServiceWorkerContext::ExecuteScriptForTest(
-    const std::string& script,
-    int64_t version_id,
-    ServiceWorkerScriptExecutionCallback callback) {
+bool FakeServiceWorkerContext::MaybeHasRegistrationForOrigin(
+    const url::Origin& origin) {
+  return registered_origins_.find(origin) != registered_origins_.end();
+}
+void FakeServiceWorkerContext::GetInstalledRegistrationOrigins(
+    base::Optional<std::string> host_filter,
+    GetInstalledRegistrationOriginsCallback callback) {
   NOTREACHED();
-  return false;
-}
-bool FakeServiceWorkerContext::MaybeHasRegistrationForStorageKey(
-    const blink::StorageKey& key) {
-  return registered_storage_keys_.find(key) != registered_storage_keys_.end();
 }
 void FakeServiceWorkerContext::GetAllOriginsInfo(
     GetUsageInfoCallback callback) {
   NOTREACHED();
 }
-void FakeServiceWorkerContext::DeleteForStorageKey(const blink::StorageKey& key,
-                                                   ResultCallback callback) {
+void FakeServiceWorkerContext::DeleteForOrigin(const url::Origin& origin,
+                                               ResultCallback callback) {
+  NOTREACHED();
+}
+void FakeServiceWorkerContext::PerformStorageCleanup(
+    base::OnceClosure callback) {
   NOTREACHED();
 }
 void FakeServiceWorkerContext::CheckHasServiceWorker(
     const GURL& url,
-    const blink::StorageKey& key,
     CheckHasServiceWorkerCallback callback) {
   NOTREACHED();
 }
 void FakeServiceWorkerContext::CheckOfflineCapability(
     const GURL& url,
-    const blink::StorageKey& key,
     const ServiceWorkerContext::CheckOfflineCapabilityCallback callback) {
   NOTREACHED();
 }
@@ -96,46 +92,27 @@ void FakeServiceWorkerContext::ClearAllServiceWorkersForTest(
 }
 void FakeServiceWorkerContext::StartWorkerForScope(
     const GURL& scope,
-    const blink::StorageKey& key,
     ServiceWorkerContext::StartWorkerCallback info_callback,
-    ServiceWorkerContext::StatusCodeCallback failure_callback) {
+    base::OnceClosure failure_callback) {
   NOTREACHED();
 }
-
-bool FakeServiceWorkerContext::IsLiveRunningServiceWorker(
-    int64_t service_worker_version_id) {
-  NOTREACHED();
-  return false;
-}
-
-service_manager::InterfaceProvider&
-FakeServiceWorkerContext::GetRemoteInterfaces(
-    int64_t service_worker_version_id) {
-  NOTREACHED();
-  static service_manager::InterfaceProvider interface_provider(
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-  return interface_provider;
-}
-
 void FakeServiceWorkerContext::StartServiceWorkerForNavigationHint(
     const GURL& document_url,
-    const blink::StorageKey& key,
     StartServiceWorkerForNavigationHintCallback callback) {
   start_service_worker_for_navigation_hint_called_ = true;
 }
 
 void FakeServiceWorkerContext::StartServiceWorkerAndDispatchMessage(
     const GURL& scope,
-    const blink::StorageKey& key,
     blink::TransferableMessage message,
     ResultCallback result_callback) {
   start_service_worker_and_dispatch_message_calls_.push_back(
       std::make_tuple(scope, std::move(message), std::move(result_callback)));
 }
 
-void FakeServiceWorkerContext::StopAllServiceWorkersForStorageKey(
-    const blink::StorageKey& key) {
-  stop_all_service_workers_for_origin_calls_.push_back(key.origin());
+void FakeServiceWorkerContext::StopAllServiceWorkersForOrigin(
+    const url::Origin& origin) {
+  stop_all_service_workers_for_origin_calls_.push_back(origin);
 }
 
 void FakeServiceWorkerContext::StopAllServiceWorkers(base::OnceClosure) {
@@ -172,9 +149,9 @@ void FakeServiceWorkerContext::NotifyObserversOnNoControllees(
     observer.OnNoControllees(version_id, scope);
 }
 
-void FakeServiceWorkerContext::AddRegistrationToRegisteredStorageKeys(
-    const blink::StorageKey& key) {
-  registered_storage_keys_.insert(key);
+void FakeServiceWorkerContext::AddRegistrationToRegisteredOrigins(
+    const url::Origin& origin) {
+  registered_origins_.insert(origin);
 }
 
 }  // namespace content

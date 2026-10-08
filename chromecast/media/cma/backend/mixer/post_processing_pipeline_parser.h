@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,15 @@
 #include <string>
 #include <vector>
 
+#include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
-#include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
+
+namespace base {
+class DictionaryValue;
+class Value;
+}  // namespace base
 
 namespace chromecast {
 namespace media {
@@ -24,23 +30,19 @@ struct StreamPipelineDescriptor {
   //   {"processor": "PATH_TO_SHARED_OBJECT",
   //    "config": "CONFIGURATION_STRING"},
   //    ... ]
-  base::Value prerender_pipeline;
-  base::Value pipeline;
+  const base::Value* pipeline;
   const base::Value* stream_types;
-  absl::optional<int> num_input_channels;
+  const base::Optional<int> num_input_channels;
   const base::Value* volume_limits;
 
-  StreamPipelineDescriptor(base::Value prerender_pipeline_in,
-                           base::Value pipeline_in,
+  StreamPipelineDescriptor(const base::Value* pipeline_in,
                            const base::Value* stream_types_in,
-                           const absl::optional<int> num_input_channels_in,
+                           const base::Optional<int> num_input_channels_in,
                            const base::Value* volume_limits_in);
   ~StreamPipelineDescriptor();
-  StreamPipelineDescriptor(StreamPipelineDescriptor&& other);
-  StreamPipelineDescriptor& operator=(StreamPipelineDescriptor&& other);
-
-  StreamPipelineDescriptor(const StreamPipelineDescriptor&) = delete;
-  StreamPipelineDescriptor& operator=(const StreamPipelineDescriptor&) = delete;
+  StreamPipelineDescriptor(const StreamPipelineDescriptor& other);
+  StreamPipelineDescriptor operator=(const StreamPipelineDescriptor& other) =
+      delete;
 };
 
 // Helper class to parse post-processing pipeline descriptor file.
@@ -49,11 +51,8 @@ class PostProcessingPipelineParser {
   explicit PostProcessingPipelineParser(const base::FilePath& path);
 
   // For testing only:
-  explicit PostProcessingPipelineParser(base::Value config_dict);
-
-  PostProcessingPipelineParser(const PostProcessingPipelineParser&) = delete;
-  PostProcessingPipelineParser& operator=(const PostProcessingPipelineParser&) =
-      delete;
+  explicit PostProcessingPipelineParser(
+      std::unique_ptr<base::DictionaryValue> config_dict);
 
   ~PostProcessingPipelineParser();
 
@@ -71,8 +70,10 @@ class PostProcessingPipelineParser {
   StreamPipelineDescriptor GetPipelineByKey(const std::string& key);
 
   const base::FilePath file_path_;
-  base::Value config_dict_;
-  const base::Value* postprocessor_config_ = nullptr;
+  std::unique_ptr<base::DictionaryValue> config_dict_;
+  const base::DictionaryValue* postprocessor_config_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(PostProcessingPipelineParser);
 };
 
 }  // namespace media

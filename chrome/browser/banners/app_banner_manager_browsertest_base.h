@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
+#include "base/macros.h"
+#include "chrome/browser/web_applications/components/os_integration_manager.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "url/gurl.h"
 
@@ -18,12 +19,6 @@ class Browser;
 class AppBannerManagerBrowserTestBase : public InProcessBrowserTest {
  public:
   AppBannerManagerBrowserTestBase();
-
-  AppBannerManagerBrowserTestBase(const AppBannerManagerBrowserTestBase&) =
-      delete;
-  AppBannerManagerBrowserTestBase& operator=(
-      const AppBannerManagerBrowserTestBase&) = delete;
-
   ~AppBannerManagerBrowserTestBase() override;
   void SetUpOnMainThread() override;
 
@@ -48,7 +43,10 @@ class AppBannerManagerBrowserTestBase : public InProcessBrowserTest {
   GURL GetBannerURLWithManifestAndQuery(const std::string& manifest_url,
                                         const std::string& key,
                                         const std::string& value);
-  web_app::OsIntegrationManager::ScopedSuppressForTesting os_hooks_suppress_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AppBannerManagerBrowserTestBase);
+  web_app::ScopedOsHooksSuppress os_hooks_suppress_;
 };
 
 #endif  // CHROME_BROWSER_BANNERS_APP_BANNER_MANAGER_BROWSERTEST_BASE_H_

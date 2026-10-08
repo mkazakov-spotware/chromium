@@ -36,15 +36,15 @@ static const HTMLTypeMap& GetHTMLTypeMap() {
   return html_type_map;
 }
 
-HTMLElementType HtmlElementTypeForTag(const AtomicString& tag_name, const Document* document) {
+HTMLElementType htmlElementTypeForTag(const AtomicString& tagName, const Document* document) {
   const auto& html_type_map = GetHTMLTypeMap();
-  auto it = html_type_map.find(tag_name);
+  auto it = html_type_map.find(tagName);
   if (it == html_type_map.end())
     return HTMLElementType::kHTMLUnknownElement;
 
   {% for tag in tags|sort(attribute='name') %}
   {% if tag.runtimeEnabled %}
-  if (tag_name == "{{tag.name}}") {
+  if (tagName == "{{tag.name}}") {
     if (!RuntimeEnabledFeatures::{{tag.runtimeEnabled}}Enabled(document->GetExecutionContext())) {
       return HTMLElementType::kHTMLUnknownElement;
     }

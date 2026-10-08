@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SANDBOX_MAC_SEATBELT_EXTENSION_TOKEN_H_
 #define SANDBOX_MAC_SEATBELT_EXTENSION_TOKEN_H_
 
+#include "base/macros.h"
 #include "sandbox/mac/seatbelt_export.h"
 
 #include <memory>
@@ -32,10 +33,6 @@ class SeatbeltExtension;
 class SEATBELT_EXPORT SeatbeltExtensionToken {
  public:
   SeatbeltExtensionToken();
-
-  SeatbeltExtensionToken(const SeatbeltExtensionToken&) = delete;
-  SeatbeltExtensionToken& operator=(const SeatbeltExtensionToken&) = delete;
-
   ~SeatbeltExtensionToken();
 
   // Token objects are move-only types.
@@ -58,6 +55,8 @@ class SEATBELT_EXPORT SeatbeltExtensionToken {
 
  private:
   std::string token_;
+
+  DISALLOW_COPY_AND_ASSIGN(SeatbeltExtensionToken);
 };
 
 }  // namespace sandbox

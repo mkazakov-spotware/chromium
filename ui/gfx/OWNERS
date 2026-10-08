@@ -15,9 +15,6 @@ per-file platform_font*=robliao@chromium.org
 # Color utils.
 per-file color_palette.h=pkasting@chromium.org
 per-file color_utils*=pkasting@chromium.org
-per-file color_conversions*=fserb@chromium.org
-per-file color_conversions*=ccameron@chromium.org
-per-file color_conversions*=juanmihd@chromium.org
 
 # Display and related classes.
 per-file display*=oshima@chromium.org
@@ -26,9 +23,10 @@ per-file screen*=oshima@chromium.org
 # Canvas painting.
 per-file canvas*=danakj@chromium.org
 
-# Overlay states, configurations, etc.
+# Overlay transforms.
+per-file overlay*=alexst@chromium.org
+per-file overlay*=khushalsagar@chromium.org
 per-file overlay*=spang@chromium.org
-per-file overlay*=rjkroege@chromium.org
 
 # Transform, interpolated transform and transform util.
 per-file transform*=danakj@chromium.org

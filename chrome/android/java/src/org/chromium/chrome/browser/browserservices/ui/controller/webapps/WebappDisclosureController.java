@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@ package org.chromium.chrome.browser.browserservices.ui.controller.webapps;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.DisclosureController;
@@ -33,7 +34,8 @@ public class WebappDisclosureController extends DisclosureController {
     private final BrowserServicesIntentDataProvider mIntentDataProvider;
 
     @Inject
-    public WebappDisclosureController(BrowserServicesIntentDataProvider intentDataProvider,
+    public WebappDisclosureController(ChromeActivity<?> activity,
+            BrowserServicesIntentDataProvider intentDataProvider,
             WebappDeferredStartupWithStorageHandler deferredStartupWithStorageHandler,
             TrustedWebActivityModel model, ActivityLifecycleDispatcher lifecycleDispatcher,
             CurrentPageVerifier currentPageVerifier) {
@@ -42,7 +44,7 @@ public class WebappDisclosureController extends DisclosureController {
         mIntentDataProvider = intentDataProvider;
 
         deferredStartupWithStorageHandler.addTask((storage, didCreateStorage) -> {
-            if (lifecycleDispatcher.isActivityFinishingOrDestroyed()) return;
+            if (activity.isActivityFinishingOrDestroyed()) return;
 
             onDeferredStartupWithStorage(storage, didCreateStorage);
         });

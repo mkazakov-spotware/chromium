@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "ash/ash_export.h"
 #include "base/callback_forward.h"
-#include "base/time/time.h"
 
 namespace ash {
 
@@ -20,13 +19,9 @@ class ASH_EXPORT AutotestAmbientApi {
   AutotestAmbientApi& operator=(const AutotestAmbientApi&) = delete;
   ~AutotestAmbientApi();
 
-  // Wait |timeout| for |num_completions| photo transitions to complete. Calls
-  // |on_complete| if successful and |on_timeout| if |timeout| elapses before
-  // enough photo transitions occur.
+  // Wait for the photo transition animation completes |num_completions| times.
   void WaitForPhotoTransitionAnimationCompleted(int num_completions,
-                                                base::TimeDelta timeout,
-                                                base::OnceClosure on_complete,
-                                                base::OnceClosure on_timeout);
+                                                base::OnceClosure on_complete);
 };
 
 }  // namespace ash

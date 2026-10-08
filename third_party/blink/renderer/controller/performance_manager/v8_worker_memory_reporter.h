@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,8 @@
 #include "base/time/time.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/renderer/controller/controller_export.h"
-#include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "v8/include/v8.h"
-
-namespace base {
-class SingleThreadTaskRunner;
-}
 
 namespace blink {
 
@@ -45,12 +40,6 @@ class CONTROLLER_EXPORT V8WorkerMemoryReporter {
   struct WorkerMemoryUsage {
     WorkerToken token;
     size_t bytes;
-    // TODO(906991): Remove this once PlzDedicatedWorker ships. Until then
-    // the browser does not know URLs of dedicated workers, so we pass them
-    // together with the measurement result.
-    // URLs longer than kMaxReportedUrlLength are skipped. In such a case
-    // url.IsNull() returns true.
-    KURL url;
   };
 
   struct Result {
@@ -65,15 +54,14 @@ class CONTROLLER_EXPORT V8WorkerMemoryReporter {
                              v8::MeasureMemoryExecution mode);
 
   // These functions are called by WorkerMeasurementDelegate on a worker thread.
-  static void NotifyMeasurementSuccess(
-      WorkerThread*,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-      base::WeakPtr<V8WorkerMemoryReporter>,
-      std::unique_ptr<WorkerMemoryUsage> memory_usage);
-  static void NotifyMeasurementFailure(
-      WorkerThread*,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-      base::WeakPtr<V8WorkerMemoryReporter>);
+  static void NotifyMeasurementSuccess(WorkerThread*,
+                                       base::WeakPtr<V8WorkerMemoryReporter>,
+                                       WorkerMemoryUsage memory_usage);
+  static void NotifyMeasurementFailure(WorkerThread*,
+                                       base::WeakPtr<V8WorkerMemoryReporter>);
+
+  // Injects the implementation for the performance.measureMemory Web API.
+  static void RegisterWebMemoryReporter();
 
  private:
   // The initial state is kWaiting.
@@ -91,16 +79,14 @@ class CONTROLLER_EXPORT V8WorkerMemoryReporter {
       : callback_(std::move(callback)) {}
 
   // This function runs on a worker thread.
-  static void StartMeasurement(
-      WorkerThread*,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-      base::WeakPtr<V8WorkerMemoryReporter>,
-      v8::MeasureMemoryExecution);
+  static void StartMeasurement(WorkerThread*,
+                               base::WeakPtr<V8WorkerMemoryReporter>,
+                               v8::MeasureMemoryExecution);
 
   // Functions that run on the main thread.
   void OnTimeout();
   void OnMeasurementFailure();
-  void OnMeasurementSuccess(std::unique_ptr<WorkerMemoryUsage> memory_usage);
+  void OnMeasurementSuccess(WorkerMemoryUsage memory_usage);
   void InvokeCallback();
   base::WeakPtr<V8WorkerMemoryReporter> GetWeakPtr() {
     return weak_factory_.GetWeakPtr();

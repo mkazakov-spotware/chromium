@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -100,8 +100,7 @@ std::string KeyToDebugString(base::span<const uint8_t> key_without_prefix) {
         result << "<Invalid Seq Num>";
         break;
       }
-      base::ReadBigEndian(
-          reinterpret_cast<const uint8_t*>(key_after_type.data()), &seq_num);
+      base::ReadBigEndian(key_after_type.data(), &seq_num);
       result << seq_num;
       break;
     }

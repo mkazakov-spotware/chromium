@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -26,11 +27,6 @@ class IOSChromeInstanceIDProfileServiceFactory
 
   static IOSChromeInstanceIDProfileServiceFactory* GetInstance();
 
-  IOSChromeInstanceIDProfileServiceFactory(
-      const IOSChromeInstanceIDProfileServiceFactory&) = delete;
-  IOSChromeInstanceIDProfileServiceFactory& operator=(
-      const IOSChromeInstanceIDProfileServiceFactory&) = delete;
-
  private:
   friend class base::NoDestructor<IOSChromeInstanceIDProfileServiceFactory>;
 
@@ -40,6 +36,8 @@ class IOSChromeInstanceIDProfileServiceFactory
   // BrowserStateKeyedServiceFactory:
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(IOSChromeInstanceIDProfileServiceFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_GCM_INSTANCE_ID_IOS_CHROME_INSTANCE_ID_PROFILE_SERVICE_FACTORY_H_

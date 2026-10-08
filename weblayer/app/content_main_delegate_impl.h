@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "content/public/app/content_main_delegate.h"
 #include "weblayer/public/main.h"
@@ -21,22 +22,16 @@ class ContentUtilityClientImpl;
 class ContentMainDelegateImpl : public content::ContentMainDelegate {
  public:
   explicit ContentMainDelegateImpl(MainParams params);
-
-  ContentMainDelegateImpl(const ContentMainDelegateImpl&) = delete;
-  ContentMainDelegateImpl& operator=(const ContentMainDelegateImpl&) = delete;
-
   ~ContentMainDelegateImpl() override;
 
   // ContentMainDelegate implementation:
-  absl::optional<int> BasicStartupComplete() override;
-  bool ShouldCreateFeatureList(InvokedIn invoked_in) override;
-  bool ShouldInitializeMojo(InvokedIn invoked_in) override;
-  variations::VariationsIdsProvider* CreateVariationsIdsProvider() override;
+  bool BasicStartupComplete(int* exit_code) override;
+  bool ShouldCreateFeatureList() override;
   void PreSandboxStartup() override;
-  absl::optional<int> PostEarlyInitialization(InvokedIn invoked_in) override;
-  absl::variant<int, content::MainFunctionParams> RunProcess(
+  void PostEarlyInitialization(bool is_running_tests) override;
+  int RunProcess(
       const std::string& process_type,
-      content::MainFunctionParams main_function_params) override;
+      const content::MainFunctionParams& main_function_params) override;
   content::ContentClient* CreateContentClient() override;
   content::ContentBrowserClient* CreateContentBrowserClient() override;
   content::ContentRendererClient* CreateContentRendererClient() override;
@@ -50,6 +45,8 @@ class ContentMainDelegateImpl : public content::ContentMainDelegate {
   std::unique_ptr<ContentRendererClientImpl> renderer_client_;
   std::unique_ptr<ContentUtilityClientImpl> utility_client_;
   std::unique_ptr<ContentClientImpl> content_client_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentMainDelegateImpl);
 };
 
 }  // namespace weblayer

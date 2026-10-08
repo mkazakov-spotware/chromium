@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <memory>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
-#include "cc/test/test_task_graph_runner.h"
 #include "content/child/blink_platform_impl.h"
 #include "third_party/blink/public/platform/web_url_loader_mock_factory.h"
 
@@ -39,16 +40,9 @@ class TestBlinkWebUnitTestSupport : public BlinkPlatformImpl {
 
   explicit TestBlinkWebUnitTestSupport(
       SchedulerType scheduler_type = SchedulerType::kMockScheduler);
-
-  TestBlinkWebUnitTestSupport(const TestBlinkWebUnitTestSupport&) = delete;
-  TestBlinkWebUnitTestSupport& operator=(const TestBlinkWebUnitTestSupport&) =
-      delete;
-
   ~TestBlinkWebUnitTestSupport() override;
 
   blink::WebString UserAgent() override;
-  blink::WebString FullUserAgent() override;
-  blink::WebString ReducedUserAgent() override;
   blink::WebString QueryLocalizedString(int resource_id) override;
   blink::WebString QueryLocalizedString(int resource_id,
                                         const blink::WebString& value) override;
@@ -58,6 +52,7 @@ class TestBlinkWebUnitTestSupport : public BlinkPlatformImpl {
       const blink::WebString& value2) override;
   blink::WebString DefaultLocale() override;
   scoped_refptr<base::SingleThreadTaskRunner> GetIOTaskRunner() const override;
+
   bool IsThreadedAnimationEnabled() override;
 
   // May be called when |this| is registered as the active blink Platform
@@ -74,6 +69,8 @@ class TestBlinkWebUnitTestSupport : public BlinkPlatformImpl {
   bool threaded_animation_ = true;
 
   base::WeakPtrFactory<TestBlinkWebUnitTestSupport> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TestBlinkWebUnitTestSupport);
 };
 
 }  // namespace content

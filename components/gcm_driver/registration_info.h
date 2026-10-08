@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -113,6 +113,11 @@ struct InstanceIDTokenInfo final : public RegistrationInfo {
   // Specifies TTL of retrievable token, zero value means unlimited TTL.
   // Not serialized/deserialized.
   base::TimeDelta time_to_live;
+
+  // Allows including a small number of string key/value pairs that will be
+  // associated with the token and may be used in processing the request. These
+  // are not serialized/deserialized.
+  std::map<std::string, std::string> options;
 
  private:
   ~InstanceIDTokenInfo() override;

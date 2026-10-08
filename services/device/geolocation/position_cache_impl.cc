@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/geolocation/position_cache_impl.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/strings/utf_string_conversions.h"
 #include "services/device/geolocation/wifi_data.h"
 #include "services/device/public/mojom/geoposition.mojom.h"
@@ -14,7 +15,8 @@ namespace device {
 // static
 const size_t PositionCacheImpl::kMaximumSize = 10;
 // static
-const base::TimeDelta PositionCacheImpl::kMaximumLifetime = base::Days(1);
+const base::TimeDelta PositionCacheImpl::kMaximumLifetime =
+    base::TimeDelta::FromDays(1);
 
 PositionCacheImpl::CacheEntry::CacheEntry(
     const Hash& hash,
@@ -31,10 +33,10 @@ PositionCacheImpl::CacheEntry& PositionCacheImpl::CacheEntry::operator=(
 // static
 PositionCacheImpl::Hash PositionCacheImpl::MakeKey(const WifiData& wifi_data) {
   // Currently we use only WiFi data and base the key only on the MAC addresses.
-  std::u16string key;
+  base::string16 key;
   const size_t kCharsPerMacAddress = 6 * 3 + 1;  // e.g. "11:22:33:44:55:66|"
   key.reserve(wifi_data.access_point_data.size() * kCharsPerMacAddress);
-  const std::u16string separator(u"|");
+  const base::string16 separator(base::ASCIIToUTF16("|"));
   for (const auto& access_point_data : wifi_data.access_point_data) {
     key += separator;
     key += access_point_data.mac_address;
@@ -75,7 +77,7 @@ void PositionCacheImpl::CachePosition(const WifiData& wifi_data,
 const mojom::Geoposition* PositionCacheImpl::FindPosition(
     const WifiData& wifi_data) const {
   const Hash key = MakeKey(wifi_data);
-  auto it = base::ranges::find(data_, key);
+  auto it = std::find(data_.begin(), data_.end(), key);
   return it == data_.end() ? nullptr : (it->position());
 }
 

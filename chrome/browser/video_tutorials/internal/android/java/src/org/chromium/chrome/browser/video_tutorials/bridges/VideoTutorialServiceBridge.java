@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,14 +54,6 @@ public class VideoTutorialServiceBridge implements VideoTutorialService {
     }
 
     @Override
-    public List<String> getAvailableLanguagesForTutorial(@FeatureType int feature) {
-        if (mNativeVideoTutorialServiceBridge == 0) return null;
-        String[] languages = VideoTutorialServiceBridgeJni.get().getAvailableLanguagesForTutorial(
-                mNativeVideoTutorialServiceBridge, this, feature);
-        return Arrays.asList(languages);
-    }
-
-    @Override
     public String getPreferredLocale() {
         if (mNativeVideoTutorialServiceBridge == 0) return null;
         return VideoTutorialServiceBridgeJni.get().getPreferredLocale(
@@ -88,8 +80,6 @@ public class VideoTutorialServiceBridge implements VideoTutorialService {
                 int feature, Callback<Tutorial> callback);
         String[] getSupportedLanguages(
                 long nativeVideoTutorialServiceBridge, VideoTutorialServiceBridge caller);
-        String[] getAvailableLanguagesForTutorial(long nativeVideoTutorialServiceBridge,
-                VideoTutorialServiceBridge caller, int feature);
         String getPreferredLocale(
                 long nativeVideoTutorialServiceBridge, VideoTutorialServiceBridge caller);
         void setPreferredLocale(long nativeVideoTutorialServiceBridge,

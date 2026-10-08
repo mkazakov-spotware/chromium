@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,10 @@ package org.chromium.chrome.browser.password_check;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuInflater;
 import android.view.MenuItem;
 
 import androidx.fragment.app.DialogFragment;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
-
-import org.chromium.chrome.browser.password_manager.PasswordCheckReferrer;
 
 /**
  * This class is responsible for rendering the check passwords view in the settings menu.
@@ -41,16 +36,6 @@ public class PasswordCheckFragmentView extends PreferenceFragmentCompat {
         getActivity().setTitle(R.string.passwords_check_title);
         setPreferenceScreen(getPreferenceManager().createPreferenceScreen(getStyledContext()));
         mPasswordCheckReferrer = getReferrerFromInstanceStateOrLaunchBundle(savedInstanceState);
-        setHasOptionsMenu(true);
-    }
-
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        menu.clear();
-        MenuItem help =
-                menu.add(Menu.NONE, R.id.menu_id_targeted_help, Menu.NONE, R.string.menu_help);
-        help.setIcon(VectorDrawableCompat.create(
-                getResources(), R.drawable.ic_help_and_feedback, getActivity().getTheme()));
     }
 
     @Override
@@ -85,9 +70,7 @@ public class PasswordCheckFragmentView extends PreferenceFragmentCompat {
         // by the system.
         mComponentDelegate.onDestroyFragment();
         if (getActivity().isFinishing()
-                && (mPasswordCheckReferrer == PasswordCheckReferrer.LEAK_DIALOG
-                        || mPasswordCheckReferrer
-                                == PasswordCheckReferrer.PHISHED_WARNING_DIALOG)) {
+                && mPasswordCheckReferrer == PasswordCheckReferrer.LEAK_DIALOG) {
             mComponentDelegate.destroy();
         }
     }

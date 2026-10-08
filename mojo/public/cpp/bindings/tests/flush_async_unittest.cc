@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,10 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/synchronization/lock.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "mojo/public/cpp/bindings/async_flusher.h"
@@ -24,7 +25,6 @@
 #include "mojo/public/cpp/bindings/tests/bindings_test_base.h"
 #include "mojo/public/cpp/bindings/tests/flush_async_unittest.test-mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace mojo {
 namespace test {
@@ -101,7 +101,7 @@ class KeyValueStoreImpl : public base::RefCountedThreadSafe<KeyValueStoreImpl>,
     }
 
     const scoped_refptr<base::SequencedTaskRunner> task_runner_;
-    const raw_ptr<KeyValueStoreImpl> key_value_store_;
+    KeyValueStoreImpl* const key_value_store_;
     std::unique_ptr<Receiver<mojom::Writer>> receiver_;
   };
 
@@ -261,7 +261,7 @@ TEST_P(FlushAsyncTest, DroppedFlusherCompletesPendingFlush) {
   // corresponding AsyncFlusher. The call should eventually execute.
   base::RunLoop loop;
   base::flat_map<std::string, std::string> snapshot;
-  absl::optional<AsyncFlusher> flusher(absl::in_place);
+  base::Optional<AsyncFlusher> flusher(base::in_place);
   key_value_store().PauseReceiverUntilFlushCompletes(
       PendingFlush(&flusher.value()));
   key_value_store()->GetSnapshot(base::BindLambdaForTesting(
@@ -299,7 +299,7 @@ TEST_P(FlushAsyncTest, PausedInterfaceDoesNotAutoResumeOnFlush) {
   Remote<mojom::Pinger> pinger;
   PingerImpl impl(pinger.BindNewPipeAndPassReceiver());
 
-  absl::optional<AsyncFlusher> flusher(absl::in_place);
+  base::Optional<AsyncFlusher> flusher(base::in_place);
   PendingFlush flush(&flusher.value());
   pinger.PauseReceiverUntilFlushCompletes(std::move(flush));
 
@@ -343,7 +343,7 @@ TEST_P(FlushAsyncTest, ResumeDoesNotInterruptWaitingOnFlush) {
   Remote<mojom::Pinger> pinger;
   PingerImpl impl(pinger.BindNewPipeAndPassReceiver());
 
-  absl::optional<AsyncFlusher> flusher(absl::in_place);
+  base::Optional<AsyncFlusher> flusher(base::in_place);
   PendingFlush flush(&flusher.value());
   pinger.PauseReceiverUntilFlushCompletes(std::move(flush));
 

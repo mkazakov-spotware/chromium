@@ -29,20 +29,19 @@
 #include <memory>
 
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "gin/public/gin_embedders.h"
 #include "gin/public/isolate_holder.h"
 #include "third_party/blink/renderer/platform/bindings/active_script_wrappable_manager.h"
 #include "third_party/blink/renderer/platform/bindings/runtime_call_stats.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
+#include "third_party/blink/renderer/platform/bindings/v8_global_value_map.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
-#include "v8/include/v8-callbacks.h"
-#include "v8/include/v8-forward.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-local-handle.h"
-#include "v8/include/v8-persistent-handle.h"
+#include "v8/include/v8.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -53,7 +52,6 @@ namespace blink {
 class DOMWrapperWorld;
 class ScriptState;
 class StringCache;
-class ThreadDebugger;
 class V8PrivateProperty;
 struct WrapperTypeInfo;
 
@@ -94,6 +92,14 @@ class PLATFORM_EXPORT V8PerIsolateData final {
     const bool original_use_counter_disabled_;
   };
 
+  // Use this class to abstract away types of members that are pointers to core/
+  // objects, which are simply owned and released by V8PerIsolateData (see
+  // m_threadDebugger for an example).
+  class PLATFORM_EXPORT Data {
+   public:
+    virtual ~Data() = default;
+  };
+
   // Pointers to core/ objects that are garbage collected. Receives callback
   // when V8PerIsolateData will be destroyed.
   class PLATFORM_EXPORT GarbageCollectedData
@@ -105,9 +111,7 @@ class PLATFORM_EXPORT V8PerIsolateData final {
   };
 
   static v8::Isolate* Initialize(scoped_refptr<base::SingleThreadTaskRunner>,
-                                 V8ContextSnapshotMode,
-                                 v8::CreateHistogramCallback,
-                                 v8::AddHistogramSampleCallback);
+                                 V8ContextSnapshotMode);
 
   static V8PerIsolateData* From(v8::Isolate* isolate) {
     DCHECK(isolate);
@@ -115,9 +119,6 @@ class PLATFORM_EXPORT V8PerIsolateData final {
     return static_cast<V8PerIsolateData*>(
         isolate->GetData(gin::kEmbedderBlink));
   }
-
-  V8PerIsolateData(const V8PerIsolateData&) = delete;
-  V8PerIsolateData& operator=(const V8PerIsolateData&) = delete;
 
   static void WillBeDestroyed(v8::Isolate*);
   static void Destroy(v8::Isolate*);
@@ -178,16 +179,22 @@ class PLATFORM_EXPORT V8PerIsolateData final {
   v8::Local<v8::Context> EnsureScriptRegexpContext();
   void ClearScriptRegexpContext();
 
-  ThreadDebugger* GetThreadDebugger() const { return thread_debugger_.get(); }
-  void SetThreadDebugger(std::unique_ptr<ThreadDebugger> thread_debugger);
+  // EndOfScopeTasks are run when control is returning
+  // to C++ from script, after executing a script task (e.g. callback,
+  // event) or microtasks (e.g. promise). This is explicitly needed for
+  // Indexed DB transactions per spec, but should in general be avoided.
+  void AddEndOfScopeTask(base::OnceClosure);
+  void RunEndOfScopeTasks();
+  void ClearEndOfScopeTasks();
+
+  void SetThreadDebugger(std::unique_ptr<Data>);
+  Data* ThreadDebugger();
 
   void SetProfilerGroup(V8PerIsolateData::GarbageCollectedData*);
   V8PerIsolateData::GarbageCollectedData* ProfilerGroup();
 
-  void SetCanvasResourceTracker(V8PerIsolateData::GarbageCollectedData*);
-  V8PerIsolateData::GarbageCollectedData* CanvasResourceTracker();
-
   ActiveScriptWrappableManager* GetActiveScriptWrappableManager() const {
+    DCHECK(active_script_wrappable_manager_);
     return active_script_wrappable_manager_;
   }
 
@@ -200,15 +207,10 @@ class PLATFORM_EXPORT V8PerIsolateData final {
                       v8::Isolate::GCCallback prologue_callback,
                       v8::Isolate::GCCallback epilogue_callback);
 
-  void EnterGC() { gc_callback_depth_++; }
-
-  void LeaveGC() { gc_callback_depth_--; }
-
  private:
   V8PerIsolateData(scoped_refptr<base::SingleThreadTaskRunner>,
-                   V8ContextSnapshotMode,
-                   v8::CreateHistogramCallback,
-                   v8::AddHistogramSampleCallback);
+                   V8ContextSnapshotMode);
+  explicit V8PerIsolateData(V8ContextSnapshotMode);
   ~V8PerIsolateData();
 
   // A really simple hash function, which makes lookups faster. The set of
@@ -251,15 +253,14 @@ class PLATFORM_EXPORT V8PerIsolateData final {
   bool constructor_mode_;
   friend class ConstructorMode;
 
-  bool use_counter_disabled_ = false;
+  bool use_counter_disabled_;
   friend class UseCounterDisabledScope;
 
-  bool is_handling_recursion_level_error_ = false;
+  bool is_handling_recursion_level_error_;
 
   Vector<base::OnceClosure> end_of_scope_tasks_;
-  std::unique_ptr<ThreadDebugger> thread_debugger_;
+  std::unique_ptr<Data> thread_debugger_;
   Persistent<GarbageCollectedData> profiler_group_;
-  Persistent<GarbageCollectedData> canvas_resource_tracker_;
 
   Persistent<ActiveScriptWrappableManager> active_script_wrappable_manager_;
 
@@ -267,19 +268,9 @@ class PLATFORM_EXPORT V8PerIsolateData final {
 
   v8::Isolate::GCCallback prologue_callback_;
   v8::Isolate::GCCallback epilogue_callback_;
-  size_t gc_callback_depth_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(V8PerIsolateData);
 };
-
-// Creates a histogram for V8. The returned value is a base::Histogram, but
-// typed to void* for v8.
-PLATFORM_EXPORT void* CreateHistogram(const char* name,
-                                      int min,
-                                      int max,
-                                      size_t buckets);
-
-// Adds an entry to the supplied histogram. `hist` was previously returned from
-// CreateHistogram().
-PLATFORM_EXPORT void AddHistogramSample(void* hist, int sample);
 
 }  // namespace blink
 

@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/web_package/web_bundle_interceptor_for_file.h"
 
-#include "base/ranges/algorithm.h"
 #include "content/browser/loader/single_request_url_loader_factory.h"
 #include "content/browser/web_package/web_bundle_reader.h"
 #include "content/browser/web_package/web_bundle_redirect_url_loader.h"
@@ -84,27 +83,7 @@ void WebBundleInterceptorForFile::OnMetadataReady(
     return;
   }
   DCHECK(reader_);
-  primary_url_ = reader_->GetPrimaryURL().value_or(GURL());
-  if (primary_url_.is_empty()) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kNoPrimaryUrlErrorMessage);
-    return;
-  }
-  if (!web_bundle_utils::IsAllowedExchangeUrl(primary_url_)) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kInvalidPrimaryUrlErrorMessage);
-    return;
-  }
-  if (!base::ranges::all_of(reader_->GetEntries(),
-                            &web_bundle_utils::IsAllowedExchangeUrl)) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kInvalidExchangeUrlErrorMessage);
-    return;
-  }
-
+  primary_url_ = reader_->GetPrimaryURL();
   url_loader_factory_ = std::make_unique<WebBundleURLLoaderFactory>(
       std::move(reader_), frame_tree_node_id_);
 
@@ -123,7 +102,7 @@ void WebBundleInterceptorForFile::StartResponse(
   network::ResourceRequest new_resource_request = resource_request;
   new_resource_request.url = primary_url_;
   url_loader_factory_->CreateLoaderAndStart(
-      std::move(receiver), /*request_id=*/0, /*options=*/0,
+      std::move(receiver), /*routing_id=*/0, /*request_id=*/0, /*options=*/0,
       new_resource_request, std::move(client),
       net::MutableNetworkTrafficAnnotationTag(
           web_bundle_utils::kTrafficAnnotation));

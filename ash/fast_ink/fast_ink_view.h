@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "ash/fast_ink/fast_ink_host.h"
+#include "base/containers/flat_map.h"
 #include "ui/aura/window.h"
 #include "ui/gfx/canvas.h"
 #include "ui/views/view.h"
@@ -49,10 +50,6 @@ class FastInkView : public views::View {
   class ScopedPaint {
    public:
     ScopedPaint(FastInkView* view, const gfx::Rect& damage_rect_in_window);
-
-    ScopedPaint(const ScopedPaint&) = delete;
-    ScopedPaint& operator=(const ScopedPaint&) = delete;
-
     ~ScopedPaint();
 
     gfx::Canvas& canvas() { return canvas_; }
@@ -62,6 +59,8 @@ class FastInkView : public views::View {
     // Damage rect in the buffer coordinates.
     const gfx::Rect damage_rect_;
     gfx::Canvas canvas_;
+
+    DISALLOW_COPY_AND_ASSIGN(ScopedPaint);
   };
 
   FastInkView();

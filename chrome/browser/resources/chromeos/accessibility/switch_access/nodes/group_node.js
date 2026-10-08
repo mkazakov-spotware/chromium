@@ -1,15 +1,6 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {RectUtil} from '../../common/rect_util.js';
-import {Navigator} from '../navigator.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-
-import {BackButtonNode} from './back_button_node.js';
-import {SAChildNode, SARootNode} from './switch_access_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This class handles the grouping of nodes that are not grouped in the
@@ -17,7 +8,7 @@ const AutomationNode = chrome.automation.AutomationNode;
  * Ex: Nodes in the virtual keyboard have no intermediate grouping, but should
  *     be grouped by row.
  */
-export class GroupNode extends SAChildNode {
+class GroupNode extends SAChildNode {
   /**
    * @param {!Array<!SAChildNode>} children The nodes that this group contains.
    *     Should not include the back button.
@@ -125,7 +116,7 @@ export class GroupNode extends SAChildNode {
   /** @override */
   performAction(action) {
     if (action === SwitchAccessMenuAction.SELECT) {
-      Navigator.byItem.enterGroup();
+      NavigationManager.enterGroup();
       return SAConstants.ActionResponse.CLOSE_MENU;
     }
     return SAConstants.ActionResponse.NO_ACTION_TAKEN;

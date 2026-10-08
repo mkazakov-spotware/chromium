@@ -1,34 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef DEVICE_FIDO_CABLE_V2_CONSTANTS_H_
 #define DEVICE_FIDO_CABLE_V2_CONSTANTS_H_
 
-#include "base/types/strong_alias.h"
-
 namespace device {
 namespace cablev2 {
-
-namespace tunnelserver {
-
-// KnownDomainID represents a tunnel server domain ID that maps to a known
-// domain. IDs 0..256 are assigned and IDs 256..64K are hashed. Thus this type
-// only contains values 256..64K or values that are assigned and the assignment
-// is known in the code.
-//
-// Outside of tests, these values should only be created by |eid::ToComponents|
-// or |tunnelserver::ToKnownTunnelID|.
-using KnownDomainID =
-    base::StrongAlias<class TunnelServerDomainIDTag, uint16_t>;
-
-}  // namespace tunnelserver
 
 // kAdvertSize is the number of bytes in an advert. This consists of a 16-byte
 // UUID and a 4-byte UUID.
 constexpr size_t kAdvertSize = 16 + 4;
 // kNonceSize is the number of bytes of nonce in the BLE advert.
-constexpr size_t kNonceSize = 10;
+constexpr size_t kNonceSize = 8;
 // kClientNonceSize is the number of bytes of nonce sent by the client, via the
 // tunnel server, for a pairing-based handshake.
 constexpr size_t kClientNonceSize = 16;
@@ -54,39 +38,6 @@ constexpr size_t kQRKeySize = kQRSeedSize + kQRSecretSize;
 // kCompressedPublicKeySize is the size of a compressed X9.62 public key.
 constexpr size_t kCompressedPublicKeySize =
     /* type byte */ 1 + /* field element */ (256 / 8);
-// kPairingIDSize is the number of bytes in the pairing ID that is shared after
-// scanning a QR code.
-constexpr size_t kPairingIDSize = 8;
-// kTunnelServer is the hardcoded tunnel server that phones will use for network
-// communication. This specifies a Google service and the short domain seed is
-// necessary to fit within a BLE advert.
-constexpr auto kTunnelServer = tunnelserver::KnownDomainID(0);
-// kPostHandshakeMsgPaddingGranularity is the granularity of the padding added
-// to the post-handshake message. This should be sufficiently large to pad away
-// all information about the contents of this message.
-constexpr size_t kPostHandshakeMsgPaddingGranularity = 512;
-// kMaxSyncInfoDaysForConsumer is the maximum age, in days, of sync info that
-// consumers (i.e. desktops) will accept. Information in Sync's DeviceInfo
-// records that is older than this will be ignored. This should be smaller than
-// `kMaxSyncInfoDaysForProducer` so that the phone will always accept a
-// connection.
-constexpr unsigned kMaxSyncInfoDaysForConsumer = 31;
-// kMaxSyncInfoDaysForProducer is the maximum age, in days, of sync info that
-// producers (i.e. phones) will accept. If a desktop tries to connect using
-// information that was published before this time, the request will be
-// rejected. This should be larger than `kMaxSyncInfoDaysForConsumer` so that
-// this doesn't happen with honest clients.
-constexpr unsigned kMaxSyncInfoDaysForProducer =
-    kMaxSyncInfoDaysForConsumer + 7;
-
-// MessageType enumerates the types of caBLEv2 messages on the wire.
-enum class MessageType : uint8_t {
-  kShutdown = 0,
-  kCTAP = 1,
-  kUpdate = 2,
-
-  kMaxValue = 2,
-};
 
 }  // namespace cablev2
 }  // namespace device

@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@
 #include <string>
 #include <utility>
 
+#include "base/macros.h"
+
 namespace base {
 class FilePath;
 }
@@ -22,10 +24,6 @@ namespace upgrade_test {
 class ResourceUpdater {
  public:
   ResourceUpdater();
-
-  ResourceUpdater(const ResourceUpdater&) = delete;
-  ResourceUpdater& operator=(const ResourceUpdater&) = delete;
-
   ~ResourceUpdater();
 
   // Loads |pe_image_path| in preparation for updating its resources.
@@ -43,6 +41,8 @@ class ResourceUpdater {
 
  private:
   HANDLE handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResourceUpdater);
 };  // class ResourceUpdater
 
 }  // namespace upgrade_test

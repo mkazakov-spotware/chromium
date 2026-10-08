@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ class MockPasswordInfobarModalInteractionHandler
     : public PasswordInfobarModalInteractionHandler {
  public:
   MockPasswordInfobarModalInteractionHandler();
-  ~MockPasswordInfobarModalInteractionHandler() override;
+  ~MockPasswordInfobarModalInteractionHandler();
 
   MOCK_METHOD3(UpdateCredentials,
                void(InfoBarIOS* infobar,

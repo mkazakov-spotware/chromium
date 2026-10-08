@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,13 +50,6 @@ class FakeBluetoothDelegate : public BluetoothDelegate {
   std::unique_ptr<BluetoothScanningPrompt> ShowBluetoothScanningPrompt(
       RenderFrameHost* frame,
       const BluetoothScanningPrompt::EventHandler& event_handler) override;
-
-  void ShowDevicePairPrompt(RenderFrameHost* frame,
-                            const std::u16string& device_identifier,
-                            PairPromptCallback callback,
-                            PairingKind pairing_kind,
-                            const absl::optional<std::u16string>& pin) override;
-
   blink::WebBluetoothDeviceId GetWebBluetoothDeviceId(
       RenderFrameHost* frame,
       const std::string& device_address) override;
@@ -72,9 +65,6 @@ class FakeBluetoothDelegate : public BluetoothDelegate {
   bool HasDevicePermission(
       RenderFrameHost* frame,
       const blink::WebBluetoothDeviceId& device_id) override;
-  void RevokeDevicePermissionWebInitiated(
-      RenderFrameHost* frame,
-      const blink::WebBluetoothDeviceId& device_id) override;
   bool IsAllowedToAccessService(RenderFrameHost* frame,
                                 const blink::WebBluetoothDeviceId& device_id,
                                 const device::BluetoothUUID& service) override;
@@ -87,9 +77,6 @@ class FakeBluetoothDelegate : public BluetoothDelegate {
       const uint16_t manufacturer_code) override;
   std::vector<blink::mojom::WebBluetoothDevicePtr> GetPermittedDevices(
       RenderFrameHost* frame) override;
-  void AddFramePermissionObserver(FramePermissionObserver* observer) override;
-  void RemoveFramePermissionObserver(
-      FramePermissionObserver* observer) override;
 
  private:
   using AddressToIdMap =

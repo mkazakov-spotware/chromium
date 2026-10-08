@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include "net/test/gtest_util.h"
 #include "net/test/test_with_task_environment.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "services/network/dhcp_pac_file_fetcher_mojo.h"
 #include "services/network/mock_mojo_dhcp_wpad_url_client.h"
@@ -31,10 +29,9 @@ class DhcpPacFileFetcherMojoTest : public testing::Test {
 
  protected:
   void CreateFetcher(const std::string& pac_url) {
-    auto context_builder = net::CreateTestURLRequestContextBuilder();
-    auto context = context_builder->Build();
+    net::TestURLRequestContext context;
     dhcp_pac_file_fetcher_mojo_ = std::make_unique<DhcpPacFileFetcherMojo>(
-        context.get(),
+        &context,
         network::MockMojoDhcpWpadUrlClient::CreateWithSelfOwnedReceiver(
             pac_url));
     mock_pac_file_fetcher_ = new net::MockPacFileFetcher();
@@ -55,7 +52,7 @@ TEST_F(DhcpPacFileFetcherMojoTest, UsePacSctipt) {
   CreateFetcher(pac_url.spec());
 
   net::TestCompletionCallback callback;
-  std::u16string pac_text;
+  base::string16 pac_text;
   dhcp_pac_file_fetcher_mojo_->Fetch(&pac_text, callback.callback(),
                                      net::NetLogWithSource(),
                                      TRAFFIC_ANNOTATION_FOR_TESTS);
@@ -71,7 +68,7 @@ TEST_F(DhcpPacFileFetcherMojoTest, PacScriptMissing) {
   CreateFetcher(std::string());
 
   net::TestCompletionCallback callback;
-  std::u16string pac_text;
+  base::string16 pac_text;
   dhcp_pac_file_fetcher_mojo_->Fetch(&pac_text, callback.callback(),
                                      net::NetLogWithSource(),
                                      TRAFFIC_ANNOTATION_FOR_TESTS);

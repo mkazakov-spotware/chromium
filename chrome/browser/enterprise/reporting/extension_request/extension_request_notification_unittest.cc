@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ class ExtensionRequestNotificationTest
     return GetParam();
   }
 
-  absl::optional<message_center::Notification> GetNotification() {
+  base::Optional<message_center::Notification> GetNotification() {
     return display_service_tester_->GetNotification(
         kNotificationIds[GetNotifyType()]);
   }
@@ -71,16 +71,19 @@ INSTANTIATE_TEST_SUITE_P(
                       ExtensionRequestNotification::kRejected,
                       ExtensionRequestNotification::kForceInstalled));
 
-#if !DCHECK_IS_ON()
-// EXPECT_DEATH doesn't work well with BrowserWithTestWindowTest. Hence only run
-// the test when DCHECK is off.
 TEST_P(ExtensionRequestNotificationTest, NoExtension) {
   ExtensionRequestNotification request_notification(
       profile(), GetNotifyType(), ExtensionRequestNotification::ExtensionIds());
+#if DCHECK_IS_ON()
+  EXPECT_DEATH_IF_SUPPORTED(
+      request_notification.Show(base::BindOnce(&OnNotificationClosed, false)),
+      "");
+#else
   request_notification.Show(base::BindOnce(&OnNotificationClosed, false));
+#endif
+  task_environment()->RunUntilIdle();
   EXPECT_FALSE(GetNotification().has_value());
 }
-#endif  //! DCHECK_IS_ON()
 
 TEST_P(ExtensionRequestNotificationTest, HasExtensionAndClickedByUser) {
   ExtensionRequestNotification request_notification(
@@ -92,7 +95,7 @@ TEST_P(ExtensionRequestNotificationTest, HasExtensionAndClickedByUser) {
   request_notification.Show(base::BindOnce(&OnNotificationClosed, true));
   show_run_loop.Run();
 
-  absl::optional<message_center::Notification> notification = GetNotification();
+  base::Optional<message_center::Notification> notification = GetNotification();
   ASSERT_TRUE(notification.has_value());
 
   EXPECT_THAT(base::UTF16ToUTF8(notification->title()),
@@ -105,14 +108,14 @@ TEST_P(ExtensionRequestNotificationTest, HasExtensionAndClickedByUser) {
       close_run_loop.QuitClosure());
   display_service_tester_->SimulateClick(
       NotificationHandler::Type::TRANSIENT, kNotificationIds[GetNotifyType()],
-      absl::optional<int>(), absl::optional<std::u16string>());
+      base::Optional<int>(), base::Optional<base::string16>());
   close_run_loop.Run();
 
   EXPECT_FALSE(GetNotification().has_value());
   std::string expected_url =
       std::string(kChromeWebstoreUrl) + std::string(kFakeExtensionId);
   EXPECT_EQ(GURL(expected_url),
-            browser()->tab_strip_model()->GetWebContentsAt(0)->GetVisibleURL());
+            browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL());
 }
 
 TEST_P(ExtensionRequestNotificationTest, HasExtensionAndClosedByBrowser) {
@@ -125,7 +128,7 @@ TEST_P(ExtensionRequestNotificationTest, HasExtensionAndClosedByBrowser) {
   request_notification.Show(base::BindOnce(&OnNotificationClosed, false));
   show_run_loop.Run();
 
-  absl::optional<message_center::Notification> notification = GetNotification();
+  base::Optional<message_center::Notification> notification = GetNotification();
   ASSERT_TRUE(notification.has_value());
 
   base::RunLoop close_run_loop;

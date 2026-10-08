@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 
 #include <comdef.h>
 
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
-#include "services/device/generic_sensor/gravity_fusion_algorithm_using_accelerometer.h"
+#include "base/task_runner_util.h"
 #include "services/device/generic_sensor/linear_acceleration_fusion_algorithm_using_accelerometer.h"
 #include "services/device/generic_sensor/orientation_euler_angles_fusion_algorithm_using_quaternion.h"
 #include "services/device/generic_sensor/platform_sensor_fusion.h"
@@ -51,21 +52,11 @@ void PlatformSensorProviderWinrt::CreateSensorInternal(
           std::move(callback));
       break;
     }
-    case mojom::SensorType::GRAVITY: {
-      auto gravity_fusion_algorithm =
-          std::make_unique<GravityFusionAlgorithmUsingAccelerometer>();
-      // If this PlatformSensorFusion object is successfully initialized,
-      // |callback| will be run with a reference to this object.
-      PlatformSensorFusion::Create(reading_buffer, this,
-                                   std::move(gravity_fusion_algorithm),
-                                   std::move(callback));
-      break;
-    }
 
     // Try to create low-level sensors by default.
     default: {
-      com_sta_task_runner_->PostTaskAndReplyWithResult(
-          FROM_HERE,
+      base::PostTaskAndReplyWithResult(
+          com_sta_task_runner_.get(), FROM_HERE,
           base::BindOnce(&PlatformSensorProviderWinrt::CreateSensorReader,
                          base::Unretained(this), type),
           base::BindOnce(&PlatformSensorProviderWinrt::SensorReaderCreated,

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/media_router/browser/media_sinks_observer.h"
 #include "content/public/browser/presentation_service_delegate.h"
 #include "third_party/blink/public/mojom/presentation/presentation.mojom.h"
@@ -37,12 +37,6 @@ class PresentationMediaSinksObserver : public MediaSinksObserver {
       content::PresentationScreenAvailabilityListener* listener,
       const MediaSource& source,
       const url::Origin& origin);
-
-  PresentationMediaSinksObserver(const PresentationMediaSinksObserver&) =
-      delete;
-  PresentationMediaSinksObserver& operator=(
-      const PresentationMediaSinksObserver&) = delete;
-
   ~PresentationMediaSinksObserver() override;
 
   // MediaSinksObserver implementation.
@@ -53,8 +47,10 @@ class PresentationMediaSinksObserver : public MediaSinksObserver {
   }
 
  private:
-  raw_ptr<content::PresentationScreenAvailabilityListener> listener_;
+  content::PresentationScreenAvailabilityListener* listener_;
   blink::mojom::ScreenAvailability previous_availability_;
+
+  DISALLOW_COPY_AND_ASSIGN(PresentationMediaSinksObserver);
 };
 
 }  // namespace media_router

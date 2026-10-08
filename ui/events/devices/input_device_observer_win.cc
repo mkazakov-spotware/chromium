@@ -1,15 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/devices/input_device_observer_win.h"
 
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/memory/singleton.h"
+#include "base/strings/string16.h"
 
 #include <windows.h>
 

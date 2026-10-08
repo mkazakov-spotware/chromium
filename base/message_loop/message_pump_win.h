@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,18 @@
 #include <windows.h>
 
 #include <atomic>
+#include <list>
 #include <memory>
 
 #include "base/base_export.h"
-#include "base/compiler_specific.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "base/win/message_window.h"
 #include "base/win/scoped_handle.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 
@@ -38,15 +37,13 @@ class BASE_EXPORT MessagePumpWin : public MessagePump {
 
  protected:
   struct RunState {
-    explicit RunState(Delegate* delegate_in) : delegate(delegate_in) {}
-
-    const raw_ptr<Delegate> delegate;
+    Delegate* delegate;
 
     // Used to flag that the current Run() invocation should return ASAP.
-    bool should_quit = false;
+    bool should_quit;
 
-    // Set to true if this Run() is nested within another Run().
-    bool is_nested = false;
+    // Used to count how many Run() invocations are on the stack.
+    int run_depth;
   };
 
   virtual void DoRunLoop() = 0;
@@ -56,10 +53,9 @@ class BASE_EXPORT MessagePumpWin : public MessagePump {
   //     Message queue. i.e. when:
   //      a. The pump is about to wakeup from idle.
   //      b. The pump is about to enter a nested native loop and a
-  //         ScopedAllowApplicationTasksInNativeNestedLoop was instantiated to
-  //         allow application tasks to execute in that nested loop
-  //         (ScopedAllowApplicationTasksInNativeNestedLoop invokes
-  //         ScheduleWork()).
+  //         ScopedNestableTaskAllower was instantiated to allow application
+  //         tasks to execute in that nested loop (ScopedNestableTaskAllower
+  //         invokes ScheduleWork()).
   //      c. While in a native (nested) loop : HandleWorkMessage() =>
   //         ProcessPumpReplacementMessage() invokes ScheduleWork() before
   //         processing a native message to guarantee this pump will get another
@@ -67,7 +63,7 @@ class BASE_EXPORT MessagePumpWin : public MessagePump {
   //         nested loop. This is different from (b.) because we're not yet
   //         processing an application task at the current run level and
   //         therefore are expected to keep pumping application tasks without
-  //         necessitating a ScopedAllowApplicationTasksInNativeNestedLoop.
+  //         necessitating a ScopedNestableTaskAllower.
   //
   //   * MessagePumpforIO: there's a dummy IO completion item with |this| as an
   //     lpCompletionKey in the queue which is about to wakeup
@@ -75,8 +71,8 @@ class BASE_EXPORT MessagePumpWin : public MessagePump {
   //     this is simpler than MessagePumpForUI.
   std::atomic_bool work_scheduled_{false};
 
-  // State for the current invocation of Run(). null if not running.
-  RunState* run_state_ = nullptr;
+  // State for the current invocation of Run.
+  RunState* state_ = nullptr;
 
   THREAD_CHECKER(bound_thread_);
 };
@@ -134,8 +130,10 @@ class BASE_EXPORT MessagePumpForUI : public MessagePumpWin {
 
   // MessagePump methods:
   void ScheduleWork() override;
-  void ScheduleDelayedWork(
-      const Delegate::NextWorkInfo& next_work_info) override;
+  void ScheduleDelayedWork(const TimeTicks& delayed_work_time) override;
+
+  // Make the MessagePumpForUI respond to WM_QUIT messages.
+  void EnableWmQuit();
 
   // An observer interface to give the scheduler an opportunity to log
   // information about MSGs before and after they are dispatched.
@@ -154,8 +152,7 @@ class BASE_EXPORT MessagePumpForUI : public MessagePumpWin {
                        LPARAM lparam,
                        LRESULT* result);
   void DoRunLoop() override;
-  NOINLINE void NOT_TAIL_CALLED
-  WaitForWork(Delegate::NextWorkInfo next_work_info);
+  void WaitForWork(Delegate::NextWorkInfo next_work_info);
   void HandleWorkMessage();
   void HandleTimerMessage();
   void ScheduleNativeTimer(Delegate::NextWorkInfo next_work_info);
@@ -166,10 +163,14 @@ class BASE_EXPORT MessagePumpForUI : public MessagePumpWin {
 
   base::win::MessageWindow message_window_;
 
+  // Whether MessagePumpForUI responds to WM_QUIT messages or not.
+  // TODO(thestig): Remove when the Cloud Print Service goes away.
+  bool enable_wm_quit_ = false;
+
   // Non-nullopt if there's currently a native timer installed. If so, it
   // indicates when the timer is set to fire and can be used to avoid setting
   // redundant timers.
-  absl::optional<TimeTicks> installed_native_timer_;
+  Optional<TimeTicks> installed_native_timer_;
 
   // This will become true when a native loop takes our kMsgHaveWork out of the
   // system queue. It will be reset to false whenever DoRunLoop regains control.
@@ -255,8 +256,7 @@ class BASE_EXPORT MessagePumpForIO : public MessagePumpWin {
 
   // MessagePump methods:
   void ScheduleWork() override;
-  void ScheduleDelayedWork(
-      const Delegate::NextWorkInfo& next_work_info) override;
+  void ScheduleDelayedWork(const TimeTicks& delayed_work_time) override;
 
   // Register the handler to be used when asynchronous IO for the given file
   // completes. The registration persists as long as |file_handle| is valid, so
@@ -269,27 +269,36 @@ class BASE_EXPORT MessagePumpForIO : public MessagePumpWin {
   // succeeded, and false otherwise.
   bool RegisterJobObject(HANDLE job_handle, IOHandler* handler);
 
+  // Waits for the next IO completion that should be processed by |filter|, for
+  // up to |timeout| milliseconds. Return true if any IO operation completed,
+  // regardless of the involved handler, and false if the timeout expired. If
+  // the completion port received any message and the involved IO handler
+  // matches |filter|, the callback is called before returning from this code;
+  // if the handler is not the one that we are looking for, the callback will
+  // be postponed for another time, so reentrancy problems can be avoided.
+  // External use of this method should be reserved for the rare case when the
+  // caller is willing to allow pausing regular task dispatching on this thread.
+  bool WaitForIOCompletion(DWORD timeout, IOHandler* filter);
+
  private:
   struct IOItem {
-    raw_ptr<IOHandler> handler;
-    raw_ptr<IOContext> context;
+    IOHandler* handler;
+    IOContext* context;
     DWORD bytes_transfered;
     DWORD error;
   };
 
   void DoRunLoop() override;
-  NOINLINE void NOT_TAIL_CALLED
-  WaitForWork(Delegate::NextWorkInfo next_work_info);
+  void WaitForWork(Delegate::NextWorkInfo next_work_info);
+  bool MatchCompletedIOItem(IOHandler* filter, IOItem* item);
   bool GetIOItem(DWORD timeout, IOItem* item);
   bool ProcessInternalIOItem(const IOItem& item);
-  // Waits for the next IO completion for up to |timeout| milliseconds.
-  // Return true if any IO operation completed, and false if the timeout
-  // expired. If the completion port received any messages, the associated
-  // handlers will have been invoked before returning from this code.
-  bool WaitForIOCompletion(DWORD timeout);
 
   // The completion port associated with this thread.
   win::ScopedHandle port_;
+  // This list will be empty almost always. It stores IO completions that have
+  // not been delivered yet because somebody was doing cleanup.
+  std::list<IOItem> completed_io_;
 };
 
 }  // namespace base

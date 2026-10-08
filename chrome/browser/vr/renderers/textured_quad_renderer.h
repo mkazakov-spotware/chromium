@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 #define CHROME_BROWSER_VR_RENDERERS_TEXTURED_QUAD_RENDERER_H_
 
 #include "base/containers/queue.h"
+#include "base/macros.h"
 #include "chrome/browser/vr/renderers/base_renderer.h"
 
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size_f.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace vr {
 
@@ -18,10 +19,6 @@ class TexturedQuadRenderer : public BaseRenderer {
  public:
   TexturedQuadRenderer(const char* vertex_src, const char* fragment_src);
   TexturedQuadRenderer();
-
-  TexturedQuadRenderer(const TexturedQuadRenderer&) = delete;
-  TexturedQuadRenderer& operator=(const TexturedQuadRenderer&) = delete;
-
   ~TexturedQuadRenderer() override;
 
   // Enqueues a textured quad for rendering. The GL will ultimately be issued
@@ -75,6 +72,8 @@ class TexturedQuadRenderer : public BaseRenderer {
   GLuint uses_overlay_handle_;
 
   base::queue<QuadData> quad_queue_;
+
+  DISALLOW_COPY_AND_ASSIGN(TexturedQuadRenderer);
 };
 
 }  // namespace vr

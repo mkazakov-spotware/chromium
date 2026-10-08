@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "components/media_router/browser/media_router_metrics.h"
 #include "components/media_router/browser/presentation/start_presentation_context.h"
@@ -60,13 +59,12 @@ class MediaRouterDialogController::InitiatorWebContentsObserver
     dialog_controller_->CloseMediaRouterDialog();
   }
 
-  void PrimaryMainFrameRenderProcessGone(
-      base::TerminationStatus status) override {
+  void RenderProcessGone(base::TerminationStatus status) override {
     // NOTE: |this| is deleted after CloseMediaRouterDialog() returns.
     dialog_controller_->CloseMediaRouterDialog();
   }
 
-  const raw_ptr<MediaRouterDialogController> dialog_controller_;
+  MediaRouterDialogController* const dialog_controller_;
 };
 
 MediaRouterDialogController::MediaRouterDialogController(
@@ -92,12 +90,14 @@ bool MediaRouterDialogController::ShowMediaRouterDialogForPresentation(
   }
 
   start_presentation_context_ = std::move(context);
-  FocusOnMediaRouterDialog(true, MediaRouterDialogActivationLocation::PAGE);
+  MediaRouterMetrics::RecordMediaRouterDialogOrigin(
+      MediaRouterDialogOpenOrigin::PAGE);
+  FocusOnMediaRouterDialog(true, MediaRouterDialogOpenOrigin::PAGE);
   return true;
 }
 
 bool MediaRouterDialogController::ShowMediaRouterDialog(
-    MediaRouterDialogActivationLocation activation_location) {
+    MediaRouterDialogOpenOrigin activation_location) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   bool dialog_needs_creation = !IsShowingMediaRouterDialog();
@@ -113,7 +113,7 @@ void MediaRouterDialogController::HideMediaRouterDialog() {
 
 void MediaRouterDialogController::FocusOnMediaRouterDialog(
     bool dialog_needs_creation,
-    MediaRouterDialogActivationLocation activation_location) {
+    MediaRouterDialogOpenOrigin activation_location) {
   // Show the WebContents requesting a dialog.
   // TODO(takumif): In the case of Views dialog, if the dialog is already shown,
   // activating the WebContents makes the dialog lose focus and disappear. The

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/file_version_info.h"
 #include "base/files/file_path.h"
 #include "base/path_service.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
 #include "build/branding_buildflags.h"
@@ -18,7 +17,6 @@
 #include "chrome/install_static/install_util.h"
 #include "chrome/installer/setup/installer_crash_reporting.h"
 #include "chrome/installer/util/google_update_settings.h"
-#include "components/version_info/channel.h"
 
 InstallerCrashReporterClient::InstallerCrashReporterClient(
     bool is_per_user_install)
@@ -27,41 +25,40 @@ InstallerCrashReporterClient::InstallerCrashReporterClient(
 InstallerCrashReporterClient::~InstallerCrashReporterClient() = default;
 
 bool InstallerCrashReporterClient::ShouldCreatePipeName(
-    const std::wstring& process_type) {
+    const base::string16& process_type) {
   return true;
 }
 
 bool InstallerCrashReporterClient::GetAlternativeCrashDumpLocation(
-    std::wstring* crash_dir) {
+    base::string16* crash_dir) {
   return false;
 }
 
 void InstallerCrashReporterClient::GetProductNameAndVersion(
-    const std::wstring& exe_path,
-    std::wstring* product_name,
-    std::wstring* version,
-    std::wstring* special_build,
-    std::wstring* channel_name) {
+    const base::string16& exe_path,
+    base::string16* product_name,
+    base::string16* version,
+    base::string16* special_build,
+    base::string16* channel_name) {
   // Report crashes under the same product name as the browser. This string
   // MUST match server-side configuration.
-  *product_name = base::ASCIIToWide(PRODUCT_SHORTNAME_STRING);
+  *product_name = base::ASCIIToUTF16(PRODUCT_SHORTNAME_STRING);
 
   std::unique_ptr<FileVersionInfo> version_info(
       FileVersionInfo::CreateFileVersionInfo(base::FilePath(exe_path)));
   if (version_info) {
-    *version = base::AsWString(version_info->product_version());
-    *special_build = base::AsWString(version_info->special_build());
+    *version = version_info->product_version();
+    *special_build = version_info->special_build();
   } else {
     *version = L"0.0.0.0-devel";
   }
 
-  *channel_name =
-      install_static::GetChromeChannelName(/*with_extended_stable=*/true);
+  *channel_name = install_static::GetChromeChannelName();
 }
 
 bool InstallerCrashReporterClient::ShouldShowRestartDialog(
-    std::wstring* title,
-    std::wstring* message,
+    base::string16* title,
+    base::string16* message,
     bool* is_rtl_locale) {
   // There is no UX associated with the installer, so no dialog should be shown.
   return false;
@@ -78,7 +75,7 @@ bool InstallerCrashReporterClient::GetIsPerUserInstall() {
 
 bool InstallerCrashReporterClient::GetShouldDumpLargerDumps() {
   // Use large dumps for all but the stable channel.
-  return install_static::GetChromeChannel() != version_info::Channel::STABLE;
+  return !install_static::GetChromeChannelName().empty();
 }
 
 int InstallerCrashReporterClient::GetResultCodeRespawnFailed() {
@@ -88,7 +85,7 @@ int InstallerCrashReporterClient::GetResultCodeRespawnFailed() {
 }
 
 bool InstallerCrashReporterClient::GetCrashDumpLocation(
-    std::wstring* crash_dir) {
+    base::string16* crash_dir) {
   base::FilePath crash_directory_path;
   bool ret =
       base::PathService::Get(chrome::DIR_CRASH_DUMPS, &crash_directory_path);

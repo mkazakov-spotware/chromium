@@ -1,7 +1,7 @@
 # primary reviewer
-nechaev@chromium.org
-sadym@chromium.org
+shengfa@google.com
 
 # secondary reviewer
-mathias@chromium.org
 johnchen@chromium.org
+
+# COMPONENT: Test>WebDriver

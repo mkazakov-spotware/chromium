@@ -1,5 +1,4 @@
 include_rules = [
-  "+components/cast/message_port",
   "+mojo/public/cpp",
   "+net",
   "+services/network/public/mojom",

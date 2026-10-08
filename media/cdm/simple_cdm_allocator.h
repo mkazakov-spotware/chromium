@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,23 +9,23 @@
 #include <stdint.h>
 #include <memory>
 
+#include "base/macros.h"
 #include "media/cdm/cdm_allocator.h"
 
 namespace media {
 
 // This is a simple CdmAllocator for testing.
-class SimpleCdmAllocator final : public CdmAllocator {
+class SimpleCdmAllocator : public CdmAllocator {
  public:
   SimpleCdmAllocator();
-
-  SimpleCdmAllocator(const SimpleCdmAllocator&) = delete;
-  SimpleCdmAllocator& operator=(const SimpleCdmAllocator&) = delete;
-
-  ~SimpleCdmAllocator() override;
+  ~SimpleCdmAllocator() final;
 
   // CdmAllocator implementation.
-  cdm::Buffer* CreateCdmBuffer(size_t capacity) override;
-  std::unique_ptr<VideoFrameImpl> CreateCdmVideoFrame() override;
+  cdm::Buffer* CreateCdmBuffer(size_t capacity) final;
+  std::unique_ptr<VideoFrameImpl> CreateCdmVideoFrame() final;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SimpleCdmAllocator);
 };
 
 }  // namespace media

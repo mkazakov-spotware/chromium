@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <set>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/memory/unsafe_shared_memory_pool.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread.h"
 #include "gpu/command_buffer/client/gpu_memory_buffer_manager.h"
@@ -35,11 +34,6 @@ class ClientGpuMemoryBufferManager : public gpu::GpuMemoryBufferManager {
  public:
   explicit ClientGpuMemoryBufferManager(
       mojo::PendingRemote<mojom::GpuMemoryBufferFactory> gpu);
-
-  ClientGpuMemoryBufferManager(const ClientGpuMemoryBufferManager&) = delete;
-  ClientGpuMemoryBufferManager& operator=(const ClientGpuMemoryBufferManager&) =
-      delete;
-
   ~ClientGpuMemoryBufferManager() override;
 
  private:
@@ -64,17 +58,9 @@ class ClientGpuMemoryBufferManager : public gpu::GpuMemoryBufferManager {
       const gfx::Size& size,
       gfx::BufferFormat format,
       gfx::BufferUsage usage,
-      gpu::SurfaceHandle surface_handle,
-      base::WaitableEvent* shutdown_event) override;
+      gpu::SurfaceHandle surface_handle) override;
   void SetDestructionSyncToken(gfx::GpuMemoryBuffer* buffer,
                                const gpu::SyncToken& sync_token) override;
-  void CopyGpuMemoryBufferAsync(
-      gfx::GpuMemoryBufferHandle buffer_handle,
-      base::UnsafeSharedMemoryRegion memory_region,
-      base::OnceCallback<void(bool)> callback) override;
-  bool CopyGpuMemoryBufferSync(
-      gfx::GpuMemoryBufferHandle buffer_handle,
-      base::UnsafeSharedMemoryRegion memory_region) override;
 
   int counter_ = 0;
   // TODO(sad): Explore the option of doing this from an existing thread.
@@ -83,10 +69,9 @@ class ClientGpuMemoryBufferManager : public gpu::GpuMemoryBufferManager {
   base::WeakPtr<ClientGpuMemoryBufferManager> weak_ptr_;
   std::set<base::WaitableEvent*> pending_allocation_waiters_;
   std::unique_ptr<gpu::GpuMemoryBufferSupport> gpu_memory_buffer_support_;
-
-  scoped_refptr<base::UnsafeSharedMemoryPool> pool_;
-
   base::WeakPtrFactory<ClientGpuMemoryBufferManager> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ClientGpuMemoryBufferManager);
 };
 
 }  // namespace viz

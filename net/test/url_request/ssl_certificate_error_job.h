@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_TEST_URL_REQUEST_SSL_CERTIFICATE_ERROR_JOB_H_
 #define NET_TEST_URL_REQUEST_SSL_CERTIFICATE_ERROR_JOB_H_
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "net/url_request/url_request_job.h"
 #include "url/gurl.h"
@@ -17,9 +18,6 @@ class URLRequest;
 class SSLCertificateErrorJob : public URLRequestJob {
  public:
   explicit SSLCertificateErrorJob(URLRequest* request);
-
-  SSLCertificateErrorJob(const SSLCertificateErrorJob&) = delete;
-  SSLCertificateErrorJob& operator=(const SSLCertificateErrorJob&) = delete;
 
   ~SSLCertificateErrorJob() override;
 
@@ -35,6 +33,8 @@ class SSLCertificateErrorJob : public URLRequestJob {
   void NotifyError();
 
   base::WeakPtrFactory<SSLCertificateErrorJob> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SSLCertificateErrorJob);
 };
 
 }  // namespace net

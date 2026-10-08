@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,12 +17,13 @@ SynchronousCompositor::Frame::~Frame() {}
 
 SynchronousCompositor::Frame::Frame(Frame&& rhs)
     : layer_tree_frame_sink_id(rhs.layer_tree_frame_sink_id),
-      frame(std::move(rhs.frame)),
-      local_surface_id(rhs.local_surface_id) {}
+      frame(std::move(rhs.frame)) {}
 
-SynchronousCompositor::FrameFuture::FrameFuture()
+SynchronousCompositor::FrameFuture::FrameFuture(
+    viz::LocalSurfaceId local_surface_id)
     : waitable_event_(base::WaitableEvent::ResetPolicy::MANUAL,
-                      base::WaitableEvent::InitialState::NOT_SIGNALED) {}
+                      base::WaitableEvent::InitialState::NOT_SIGNALED),
+      local_surface_id_(local_surface_id) {}
 
 SynchronousCompositor::FrameFuture::~FrameFuture() {}
 
@@ -47,7 +48,6 @@ SynchronousCompositor::FrameFuture::GetFrame() {
 SynchronousCompositor::Frame& SynchronousCompositor::Frame::operator=(
     Frame&& rhs) {
   layer_tree_frame_sink_id = rhs.layer_tree_frame_sink_id;
-  local_surface_id = rhs.local_surface_id;
   frame = std::move(rhs.frame);
   return *this;
 }

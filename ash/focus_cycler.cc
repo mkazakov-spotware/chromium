@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
-#include "base/ranges/algorithm.h"
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/focus/focus_search.h"
 #include "ui/views/widget/widget.h"
@@ -37,13 +36,14 @@ void FocusCycler::AddWidget(views::Widget* widget) {
 }
 
 void FocusCycler::RemoveWidget(views::Widget* widget) {
-  auto iter = base::ranges::find(widgets_, widget);
+  auto iter = std::find(widgets_.begin(), widgets_.end(), widget);
   if (iter != widgets_.end())
     widgets_.erase(iter);
 }
 
 void FocusCycler::RotateFocus(Direction direction) {
-  if (aura::Window* window = window_util::GetActiveWindow(); window) {
+  aura::Window* window = window_util::GetActiveWindow();
+  if (window) {
     views::Widget* widget = views::Widget::GetWidgetForNativeView(window);
     // First try to rotate focus within the active widget. If that succeeds,
     // we're done.

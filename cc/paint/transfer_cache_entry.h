@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ enum class TransferCacheEntryType : uint32_t {
 // into raw bytes that can be sent to the service.
 class CC_PAINT_EXPORT ClientTransferCacheEntry {
  public:
-  virtual ~ClientTransferCacheEntry() = default;
+  virtual ~ClientTransferCacheEntry() {}
 
   // Returns the type of this entry. Combined with id, it should form a unique
   // identifier.
@@ -73,7 +73,7 @@ class CC_PAINT_EXPORT ServiceTransferCacheEntry {
   // Returns true if the entry needs a GrContext during deserialization.
   static bool UsesGrContext(TransferCacheEntryType type);
 
-  virtual ~ServiceTransferCacheEntry() = default;
+  virtual ~ServiceTransferCacheEntry() {}
 
   // Returns the type of this entry.
   virtual TransferCacheEntryType Type() const = 0;

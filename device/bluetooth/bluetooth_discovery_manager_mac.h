@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef DEVICE_BLUETOOTH_BLUETOOTH_DISCOVERY_MANAGER_MAC_H_
 #define DEVICE_BLUETOOTH_BLUETOOTH_DISCOVERY_MANAGER_MAC_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 @class IOBluetoothDevice;
 
@@ -33,10 +33,6 @@ class BluetoothDiscoveryManagerMac {
     virtual ~Observer() {}
   };
 
-  BluetoothDiscoveryManagerMac(const BluetoothDiscoveryManagerMac&) = delete;
-  BluetoothDiscoveryManagerMac& operator=(const BluetoothDiscoveryManagerMac&) =
-      delete;
-
   virtual ~BluetoothDiscoveryManagerMac();
 
   // Returns true, if discovery is currently being performed.
@@ -60,7 +56,10 @@ class BluetoothDiscoveryManagerMac {
   explicit BluetoothDiscoveryManagerMac(Observer* observer);
 
   // Observer interested in notifications from us.
-  raw_ptr<Observer> observer_;
+  Observer* observer_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BluetoothDiscoveryManagerMac);
 };
 
 }  // namespace device

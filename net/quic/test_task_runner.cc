@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,17 @@
 #include <algorithm>
 #include <utility>
 
-#include "base/time/time.h"
-#include "net/third_party/quiche/src/quiche/quic/test_tools/mock_clock.h"
+#include "net/third_party/quiche/src/quic/test_tools/mock_clock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::test {
+namespace net {
+namespace test {
 
 namespace {
 
 base::TimeTicks NowInTicks(const quic::MockClock& clock) {
   base::TimeTicks ticks;
-  return ticks + base::Microseconds(
+  return ticks + base::TimeDelta::FromMicroseconds(
                      (clock.Now() - quic::QuicTime::Zero()).ToMicroseconds());
 }
 
@@ -25,15 +25,15 @@ base::TimeTicks NowInTicks(const quic::MockClock& clock) {
 
 TestTaskRunner::TestTaskRunner(quic::MockClock* clock) : clock_(clock) {}
 
-TestTaskRunner::~TestTaskRunner() = default;
+TestTaskRunner::~TestTaskRunner() {}
 
 bool TestTaskRunner::PostDelayedTask(const base::Location& from_here,
                                      base::OnceClosure task,
                                      base::TimeDelta delay) {
   EXPECT_GE(delay, base::TimeDelta());
-  tasks_.emplace_back(from_here, std::move(task), NowInTicks(*clock_), delay,
-                      base::TestPendingTask::NESTABLE);
-  return true;
+  tasks_.push_back(PostedTask(from_here, std::move(task), NowInTicks(*clock_),
+                              delay, base::TestPendingTask::NESTABLE));
+  return false;
 }
 
 bool TestTaskRunner::PostNonNestableDelayedTask(const base::Location& from_here,
@@ -106,4 +106,5 @@ std::vector<PostedTask>::iterator TestTaskRunner::FindNextTask() {
                           ShouldRunBeforeLessThan());
 }
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net

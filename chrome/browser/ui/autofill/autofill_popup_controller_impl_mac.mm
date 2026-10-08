@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,12 +54,14 @@ AutofillPopupControllerImplMac::~AutofillPopupControllerImplMac() {}
 
 void AutofillPopupControllerImplMac::Show(
     const std::vector<autofill::Suggestion>& suggestions,
-    AutoselectFirstSuggestion autoselect_first_suggestion,
+    bool autoselect_first_suggestion,
     PopupType popup_type) {
   if (!suggestions.empty() && is_credit_card_popup_) {
-    touch_bar_controller_ = [WebTextfieldTouchBarController
-        controllerForWindow:[container_view().GetNativeNSView() window]];
-    [touch_bar_controller_ showCreditCardAutofillWithController:this];
+    if (@available(macOS 10.12.2, *)) {
+      touch_bar_controller_ = [WebTextfieldTouchBarController
+          controllerForWindow:[container_view().GetNativeNSView() window]];
+      [touch_bar_controller_ showCreditCardAutofillWithController:this];
+    }
   }
 
   AutofillPopupControllerImpl::Show(suggestions, autoselect_first_suggestion,
@@ -70,8 +72,8 @@ void AutofillPopupControllerImplMac::Show(
 }
 
 void AutofillPopupControllerImplMac::UpdateDataListValues(
-    const std::vector<std::u16string>& values,
-    const std::vector<std::u16string>& labels) {
+    const std::vector<base::string16>& values,
+    const std::vector<base::string16>& labels) {
   if (touch_bar_controller_)
     [touch_bar_controller_ invalidateTouchBar];
 
@@ -81,15 +83,15 @@ void AutofillPopupControllerImplMac::UpdateDataListValues(
   // |UpdateDataListValues| should be the last line.
 }
 
-void AutofillPopupControllerImplMac::HideViewAndDie() {
+void AutofillPopupControllerImplMac::Hide(PopupHidingReason reason) {
   if (touch_bar_controller_) {
     [touch_bar_controller_ hideCreditCardAutofillTouchBar];
     touch_bar_controller_ = nil;
   }
 
-  AutofillPopupControllerImpl::HideViewAndDie();
+  AutofillPopupControllerImpl::Hide(reason);
   // No code below this line!
-  // |HideViewAndDie()| destroys |this|, so it should be the last line.
+  // |Hide()| destroys |this|, so it should be the last line.
 }
 
 }  // namespace autofill

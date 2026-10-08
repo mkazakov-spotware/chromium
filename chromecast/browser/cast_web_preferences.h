@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_BROWSER_CAST_WEB_PREFERENCES_H_
 #define CHROMECAST_BROWSER_CAST_WEB_PREFERENCES_H_
 
-#include "base/supports_user_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom.h"
+#include <base/optional.h>
+#include <base/supports_user_data.h>
+#include <third_party/blink/public/mojom/webpreferences/web_preferences.mojom.h>
 
 namespace chromecast {
 
@@ -18,10 +18,9 @@ class CastWebPreferences : public base::SupportsUserData::Data {
   struct Preferences {
     Preferences();
 
-    absl::optional<blink::mojom::AutoplayPolicy> autoplay_policy;
-    absl::optional<bool> hide_scrollbars;
-    absl::optional<bool> javascript_enabled;
-    absl::optional<bool> supports_multiple_windows;
+    base::Optional<blink::mojom::AutoplayPolicy> autoplay_policy;
+    base::Optional<bool> hide_scrollbars;
+    base::Optional<bool> javascript_enabled;
   };
 
   // Unique key used to identify CastWebPreferences in WebContents' user data.

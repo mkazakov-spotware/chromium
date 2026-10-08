@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <limits>
 #include <string>
 
+#include "base/stl_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -134,7 +135,7 @@ TEST(CBORWriterTest, TestWriteArray) {
   ASSERT_TRUE(cbor.has_value());
   EXPECT_THAT(cbor.value(),
               testing::ElementsAreArray(kArrayTestCaseCbor,
-                                        std::size(kArrayTestCaseCbor)));
+                                        base::size(kArrayTestCaseCbor)));
 }
 
 TEST(CBORWriterTest, TestWriteMap) {
@@ -257,8 +258,9 @@ TEST(CBORWriterTest, TestWriteMap) {
   map[Value(std::numeric_limits<int64_t>::max())] = Value("j");
   auto cbor = Writer::Write(Value(map));
   ASSERT_TRUE(cbor.has_value());
-  EXPECT_THAT(cbor.value(), testing::ElementsAreArray(
-                                kMapTestCaseCbor, std::size(kMapTestCaseCbor)));
+  EXPECT_THAT(cbor.value(),
+              testing::ElementsAreArray(kMapTestCaseCbor,
+                                        base::size(kMapTestCaseCbor)));
 }
 
 TEST(CBORWriterTest, TestWriteMapWithArray) {
@@ -284,7 +286,7 @@ TEST(CBORWriterTest, TestWriteMapWithArray) {
   ASSERT_TRUE(cbor.has_value());
   EXPECT_THAT(cbor.value(),
               testing::ElementsAreArray(kMapArrayTestCaseCbor,
-                                        std::size(kMapArrayTestCaseCbor)));
+                                        base::size(kMapArrayTestCaseCbor)));
 }
 
 TEST(CBORWriterTest, TestWriteNestedMap) {
@@ -313,7 +315,7 @@ TEST(CBORWriterTest, TestWriteNestedMap) {
   ASSERT_TRUE(cbor.has_value());
   EXPECT_THAT(cbor.value(),
               testing::ElementsAreArray(kNestedMapTestCase,
-                                        std::size(kNestedMapTestCase)));
+                                        base::size(kNestedMapTestCase)));
 }
 
 TEST(CBORWriterTest, TestSignedExchangeExample) {
@@ -360,7 +362,7 @@ TEST(CBORWriterTest, TestSignedExchangeExample) {
   ASSERT_TRUE(cbor.has_value());
   EXPECT_THAT(cbor.value(),
               testing::ElementsAreArray(kSignedExchangeExample,
-                                        std::size(kSignedExchangeExample)));
+                                        base::size(kSignedExchangeExample)));
 }
 
 TEST(CBORWriterTest, TestWriteSimpleValue) {

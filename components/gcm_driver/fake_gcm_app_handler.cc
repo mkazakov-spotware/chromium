@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/gcm_driver/fake_gcm_app_handler.h"
-
-#include <memory>
 
 #include "base/run_loop.h"
 
@@ -15,7 +13,7 @@ FakeGCMAppHandler::FakeGCMAppHandler() : received_event_(NO_EVENT) {}
 FakeGCMAppHandler::~FakeGCMAppHandler() = default;
 
 void FakeGCMAppHandler::WaitForNotification() {
-  run_loop_ = std::make_unique<base::RunLoop>();
+  run_loop_.reset(new base::RunLoop);
   run_loop_->Run();
   run_loop_.reset();
 }

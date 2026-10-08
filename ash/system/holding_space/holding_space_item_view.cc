@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,30 +8,23 @@
 #include "ash/public/cpp/holding_space/holding_space_constants.h"
 #include "ash/public/cpp/holding_space/holding_space_controller.h"
 #include "ash/public/cpp/holding_space/holding_space_item.h"
-#include "ash/public/cpp/holding_space/holding_space_progress.h"
-#include "ash/public/cpp/holding_space/holding_space_util.h"
+#include "ash/public/cpp/holding_space/holding_space_model.h"
 #include "ash/public/cpp/shelf_config.h"
-#include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/style/ash_color_provider.h"
-#include "ash/style/dark_light_mode_controller_impl.h"
-#include "ash/system/holding_space/holding_space_util.h"
-#include "ash/system/holding_space/holding_space_view_delegate.h"
+#include "ash/system/holding_space/holding_space_item_view_delegate.h"
 #include "base/bind.h"
 #include "ui/base/class_property.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/base/models/image_model.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/button/image_button.h"
-#include "ui/views/controls/focus_ring.h"
-#include "ui/views/controls/image_view.h"
-#include "ui/views/layout/fill_layout.h"
+#include "ui/views/controls/highlight_path_generator.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 #include "ui/views/painter.h"
+#include "ui/views/style/platform_style.h"
 #include "ui/views/vector_icons.h"
 #include "ui/views/widget/widget.h"
 
@@ -43,16 +36,6 @@ namespace {
 // `HoldingSpaceItemView`. Class name is not an adequate identifier as it may be
 // overridden by subclasses.
 DEFINE_UI_CLASS_PROPERTY_KEY(bool, kIsHoldingSpaceItemViewProperty, false)
-
-// Appearance.
-constexpr size_t kCheckmarkBackgroundSize = 18;
-
-// Helpers ---------------------------------------------------------------------
-
-// Schedules repaint of `layer`.
-void InvalidateLayer(ui::Layer* layer) {
-  layer->SchedulePaint(gfx::Rect(layer->size()));
-}
 
 // CallbackPainter -------------------------------------------------------------
 
@@ -85,48 +68,14 @@ class CallbackPainter : public views::Painter {
   Callback callback_;
 };
 
-// MinimumSizableView ---------------------------------------------------------
-
-// A view which respects a minimum size restriction.
-class MinimumSizableView : public views::View {
- public:
-  explicit MinimumSizableView(const gfx::Size& min_size)
-      : min_size_(min_size) {}
-
-  MinimumSizableView(const MinimumSizableView&) = delete;
-  MinimumSizableView& operator=(const MinimumSizableView&) = delete;
-  ~MinimumSizableView() override = default;
-
- private:
-  // views::View:
-  gfx::Size CalculatePreferredSize() const override {
-    gfx::Size preferred_size(views::View::CalculatePreferredSize());
-    preferred_size.SetToMax(min_size_);
-    return preferred_size;
-  }
-
-  int GetHeightForWidth(int width) const override {
-    return std::max(views::View::GetHeightForWidth(width), min_size_.height());
-  }
-
-  const gfx::Size min_size_;
-};
-
 }  // namespace
 
 // HoldingSpaceItemView --------------------------------------------------------
 
-HoldingSpaceItemView::HoldingSpaceItemView(HoldingSpaceViewDelegate* delegate,
-                                           const HoldingSpaceItem* item)
-    : delegate_(delegate), item_(item), item_id_(item->id()) {
-  // Subscribe to be notified of `item_` deletion. Note that it is safe to use a
-  // raw pointer here since `this` owns the callback.
-  item_deletion_subscription_ = item_->AddDeletionCallback(base::BindRepeating(
-      [](HoldingSpaceItemView* view) { view->item_ = nullptr; },
-      base::Unretained(this)));
-
-  model_observer_.Observe(HoldingSpaceController::Get()->model());
-
+HoldingSpaceItemView::HoldingSpaceItemView(
+    HoldingSpaceItemViewDelegate* delegate,
+    const HoldingSpaceItem* item)
+    : delegate_(delegate), item_(item) {
   SetProperty(kIsHoldingSpaceItemViewProperty, true);
 
   set_context_menu_controller(delegate_);
@@ -135,16 +84,14 @@ HoldingSpaceItemView::HoldingSpaceItemView(HoldingSpaceViewDelegate* delegate,
   SetNotifyEnterExitOnChild(true);
 
   // Accessibility.
-  GetViewAccessibility().OverrideRole(ax::mojom::Role::kListItem);
-  GetViewAccessibility().OverrideName(item->GetAccessibleName());
+  GetViewAccessibility().OverrideName(item->text());
+  GetViewAccessibility().OverrideRole(ax::mojom::Role::kButton);
 
-  // When the description is not specified, tooltip text will be used.
-  // That text is redundant to the name, but different enough that it is
-  // still exposed to assistive technologies which may then present both.
-  // To avoid that redundant presentation, set the description explicitly
-  // to the empty string. See crrev.com/c/3218112.
-  GetViewAccessibility().OverrideDescription(
-      std::u16string(), ax::mojom::DescriptionFrom::kAttributeExplicitlyEmpty);
+  // Background.
+  SetBackground(views::CreateRoundedRectBackground(
+      AshColorProvider::Get()->GetControlsLayerColor(
+          AshColorProvider::ControlsLayerType::kControlBackgroundColorInactive),
+      kHoldingSpaceCornerRadius));
 
   // Layer.
   SetPaintToLayer();
@@ -152,7 +99,6 @@ HoldingSpaceItemView::HoldingSpaceItemView(HoldingSpaceViewDelegate* delegate,
 
   // Focus.
   SetFocusBehavior(FocusBehavior::ALWAYS);
-  set_suppress_default_focus_handling();
   focused_layer_owner_ =
       CallbackPainter::CreatePaintedLayer(base::BindRepeating(
           &HoldingSpaceItemView::OnPaintFocus, base::Unretained(this)));
@@ -164,163 +110,93 @@ HoldingSpaceItemView::HoldingSpaceItemView(HoldingSpaceViewDelegate* delegate,
           &HoldingSpaceItemView::OnPaintSelect, base::Unretained(this)));
   layer()->Add(selected_layer_owner_->layer());
 
-  // This view's `selected_` state is represented differently depending on
-  // `delegate_`'s selection UI. Register to be notified of changes.
-  selection_ui_changed_subscription_ =
-      delegate_->AddSelectionUiChangedCallback(base::BindRepeating(
-          &HoldingSpaceItemView::OnSelectionUiChanged, base::Unretained(this)));
+  // Ink drop.
+  SetInkDropMode(InkDropMode::ON_NO_GESTURE_HANDLER);
+  SetInkDropVisibleOpacity(
+      AshColorProvider::Get()->GetRippleAttributes().inkdrop_opacity);
+
+  // Ink drop layers should match the corner radius of this view.
+  views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(),
+                                                kHoldingSpaceCornerRadius);
 
   delegate_->OnHoldingSpaceItemViewCreated(this);
 }
 
-HoldingSpaceItemView::~HoldingSpaceItemView() {
-  if (delegate_)
-    delegate_->OnHoldingSpaceItemViewDestroying(this);
-}
+HoldingSpaceItemView::~HoldingSpaceItemView() = default;
 
 // static
 HoldingSpaceItemView* HoldingSpaceItemView::Cast(views::View* view) {
-  return const_cast<HoldingSpaceItemView*>(
-      Cast(const_cast<const views::View*>(view)));
-}
-
-// static
-const HoldingSpaceItemView* HoldingSpaceItemView::Cast(
-    const views::View* view) {
   DCHECK(HoldingSpaceItemView::IsInstance(view));
-  return static_cast<const HoldingSpaceItemView*>(view);
+  return static_cast<HoldingSpaceItemView*>(view);
 }
 
 // static
-bool HoldingSpaceItemView::IsInstance(const views::View* view) {
+bool HoldingSpaceItemView::IsInstance(views::View* view) {
   return view->GetProperty(kIsHoldingSpaceItemViewProperty);
 }
 
-void HoldingSpaceItemView::Reset() {
-  delegate_ = nullptr;
+SkColor HoldingSpaceItemView::GetInkDropBaseColor() const {
+  return AshColorProvider::Get()->GetRippleAttributes().base_color;
 }
 
 bool HoldingSpaceItemView::HandleAccessibleAction(
     const ui::AXActionData& action_data) {
-  return (delegate_ && delegate_->OnHoldingSpaceItemViewAccessibleAction(
-                           this, action_data)) ||
-         views::View::HandleAccessibleAction(action_data);
+  return delegate_->OnHoldingSpaceItemViewAccessibleAction(this, action_data) ||
+         views::InkDropHostView::HandleAccessibleAction(action_data);
 }
 
 void HoldingSpaceItemView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
   gfx::Rect bounds = GetLocalBounds();
-
-  // Selection ring.
   selected_layer_owner_->layer()->SetBounds(bounds);
-  InvalidateLayer(selected_layer_owner_->layer());
+  selected_layer_owner_->layer()->SchedulePaint(
+      selected_layer_owner_->layer()->bounds());
 
-  // Focus ring.
-  // NOTE: The focus ring is painted just outside the bounds for this view.
-  bounds.Inset(gfx::Insets(kHoldingSpaceFocusInsets));
+  // The focus ring is painted just outside the bounds for this view.
+  const float kFocusInsets =
+      -2.f - (views::PlatformStyle::kFocusHaloThickness / 2.f);
+
+  bounds.Inset(gfx::Insets(kFocusInsets));
   focused_layer_owner_->layer()->SetBounds(bounds);
-  InvalidateLayer(focused_layer_owner_->layer());
+  focused_layer_owner_->layer()->SchedulePaint(
+      focused_layer_owner_->layer()->bounds());
 }
 
 void HoldingSpaceItemView::OnFocus() {
-  InvalidateLayer(focused_layer_owner_->layer());
+  focused_layer_owner_->layer()->SchedulePaint(
+      focused_layer_owner_->layer()->bounds());
 }
 
 void HoldingSpaceItemView::OnBlur() {
-  InvalidateLayer(focused_layer_owner_->layer());
+  focused_layer_owner_->layer()->SchedulePaint(
+      focused_layer_owner_->layer()->bounds());
 }
 
 void HoldingSpaceItemView::OnGestureEvent(ui::GestureEvent* event) {
-  if (delegate_ && delegate_->OnHoldingSpaceItemViewGestureEvent(this, *event))
-    event->SetHandled();
+  delegate_->OnHoldingSpaceItemViewGestureEvent(this, *event);
 }
 
 bool HoldingSpaceItemView::OnKeyPressed(const ui::KeyEvent& event) {
-  return delegate_ && delegate_->OnHoldingSpaceItemViewKeyPressed(this, event);
+  return delegate_->OnHoldingSpaceItemViewKeyPressed(this, event);
 }
 
 void HoldingSpaceItemView::OnMouseEvent(ui::MouseEvent* event) {
   switch (event->type()) {
     case ui::ET_MOUSE_ENTERED:
     case ui::ET_MOUSE_EXITED:
-      UpdatePrimaryAction();
+      UpdatePin();
       break;
     default:
       break;
   }
-  views::View::OnMouseEvent(event);
+  views::InkDropHostView::OnMouseEvent(event);
 }
 
 bool HoldingSpaceItemView::OnMousePressed(const ui::MouseEvent& event) {
-  return delegate_ &&
-         delegate_->OnHoldingSpaceItemViewMousePressed(this, event);
+  return delegate_->OnHoldingSpaceItemViewMousePressed(this, event);
 }
 
 void HoldingSpaceItemView::OnMouseReleased(const ui::MouseEvent& event) {
-  if (delegate_)
-    delegate_->OnHoldingSpaceItemViewMouseReleased(this, event);
-}
-
-void HoldingSpaceItemView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-  AshColorProvider* const ash_color_provider = AshColorProvider::Get();
-
-  // Background.
-  SetBackground(views::CreateRoundedRectBackground(
-      ash_color_provider->GetControlsLayerColor(
-          AshColorProvider::ControlsLayerType::kControlBackgroundColorInactive),
-      kHoldingSpaceCornerRadius));
-
-  // Checkmark.
-  checkmark_->SetBackground(holding_space_util::CreateCircleBackground(
-      ash_color_provider->GetControlsLayerColor(
-          AshColorProvider::ControlsLayerType::kFocusRingColor),
-      kCheckmarkBackgroundSize));
-  checkmark_->SetImage(gfx::CreateVectorIcon(
-      kCheckIcon, kHoldingSpaceIconSize,
-      DarkLightModeControllerImpl::Get()->IsDarkModeEnabled()
-          ? gfx::kGoogleGrey900
-          : SK_ColorWHITE));
-
-  // Focused/selected layers.
-  InvalidateLayer(focused_layer_owner_->layer());
-  InvalidateLayer(selected_layer_owner_->layer());
-
-  if (!primary_action_container_)
-    return;
-
-  // Cancel.
-  const SkColor icon_color = AshColorProvider::Get()->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kButtonIconColor);
-  primary_action_cancel_->SetImageModel(
-      views::Button::STATE_NORMAL,
-      ui::ImageModel::FromVectorIcon(kCancelIcon, icon_color,
-                                     kHoldingSpaceIconSize));
-
-  // Pin.
-  const ui::ImageModel unpinned_icon = ui::ImageModel::FromVectorIcon(
-      views::kUnpinIcon, icon_color, kHoldingSpaceIconSize);
-  const ui::ImageModel pinned_icon = ui::ImageModel::FromVectorIcon(
-      views::kPinIcon, icon_color, kHoldingSpaceIconSize);
-  primary_action_pin_->SetImageModel(views::Button::STATE_NORMAL,
-                                     unpinned_icon);
-  primary_action_pin_->SetToggledImageModel(views::Button::STATE_NORMAL,
-                                            pinned_icon);
-}
-
-void HoldingSpaceItemView::OnHoldingSpaceItemUpdated(
-    const HoldingSpaceItem* item,
-    uint32_t updated_fields) {
-  if (item_ != item)
-    return;
-
-  // Accessibility.
-  if (updated_fields & UpdatedField::kAccessibleName) {
-    GetViewAccessibility().OverrideName(item_->GetAccessibleName());
-    NotifyAccessibilityEvent(ax::mojom::Event::kTextChanged, true);
-  }
-
-  // Primary action.
-  UpdatePrimaryAction();
+  delegate_->OnHoldingSpaceItemViewMouseReleased(this, event);
 }
 
 void HoldingSpaceItemView::StartDrag(const ui::LocatedEvent& event,
@@ -349,74 +225,38 @@ void HoldingSpaceItemView::SetSelected(bool selected) {
     return;
 
   selected_ = selected;
-  InvalidateLayer(selected_layer_owner_->layer());
 
-  if (delegate_)
-    delegate_->OnHoldingSpaceItemViewSelectedChanged(this);
-
-  OnSelectionUiChanged();
+  selected_layer_owner_->layer()->SchedulePaint(
+      selected_layer_owner_->layer()->bounds());
 }
 
-views::Builder<views::ImageView>
-HoldingSpaceItemView::CreateCheckmarkBuilder() {
-  DCHECK(!checkmark_);
-  auto checkmark = views::Builder<views::ImageView>();
-  checkmark.CopyAddressTo(&checkmark_)
-      .SetID(kHoldingSpaceItemCheckmarkId)
-      .SetVisible(selected());
-  return checkmark;
-}
+views::ToggleImageButton* HoldingSpaceItemView::AddPin(views::View* parent) {
+  DCHECK(!pin_);
 
-views::Builder<views::View> HoldingSpaceItemView::CreatePrimaryActionBuilder(
-    const gfx::Size& min_size) {
-  DCHECK(!primary_action_container_);
-  DCHECK(!primary_action_cancel_);
-  DCHECK(!primary_action_pin_);
+  pin_ = parent->AddChildView(std::make_unique<views::ToggleImageButton>());
+  pin_->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
+  pin_->SetVisible(false);
 
-  using HorizontalAlignment = views::ImageButton::HorizontalAlignment;
-  using VerticalAlignment = views::ImageButton::VerticalAlignment;
+  const SkColor icon_color = AshColorProvider::Get()->GetContentLayerColor(
+      AshColorProvider::ContentLayerType::kButtonIconColor);
 
-  gfx::Size preferred_size(kHoldingSpaceIconSize, kHoldingSpaceIconSize);
-  preferred_size.SetToMax(min_size);
+  const gfx::ImageSkia unpinned_icon = gfx::CreateVectorIcon(
+      views::kUnpinIcon, kHoldingSpacePinIconSize, icon_color);
+  const gfx::ImageSkia pinned_icon = gfx::CreateVectorIcon(
+      views::kPinIcon, kHoldingSpacePinIconSize, icon_color);
 
-  auto primary_action = views::Builder<views::View>();
-  primary_action.CopyAddressTo(&primary_action_container_)
-      .SetID(kHoldingSpaceItemPrimaryActionContainerId)
-      .SetUseDefaultFillLayout(true)
-      .SetVisible(false)
-      .AddChild(
-          views::Builder<views::ImageButton>()
-              .CopyAddressTo(&primary_action_cancel_)
-              .SetID(kHoldingSpaceItemCancelButtonId)
-              .SetCallback(base::BindRepeating(
-                  &HoldingSpaceItemView::OnPrimaryActionPressed,
-                  base::Unretained(this)))
-              .SetFocusBehavior(views::View::FocusBehavior::NEVER)
-              .SetImageHorizontalAlignment(HorizontalAlignment::ALIGN_CENTER)
-              .SetImageVerticalAlignment(VerticalAlignment::ALIGN_MIDDLE)
-              .SetPreferredSize(preferred_size)
-              .SetVisible(false))
-      .AddChild(
-          views::Builder<views::ToggleImageButton>()
-              .CopyAddressTo(&primary_action_pin_)
-              .SetID(kHoldingSpaceItemPinButtonId)
-              .SetCallback(base::BindRepeating(
-                  &HoldingSpaceItemView::OnPrimaryActionPressed,
-                  base::Unretained(this)))
-              .SetFocusBehavior(views::View::FocusBehavior::NEVER)
-              .SetImageHorizontalAlignment(HorizontalAlignment::ALIGN_CENTER)
-              .SetImageVerticalAlignment(VerticalAlignment::ALIGN_MIDDLE)
-              .SetPreferredSize(preferred_size)
-              .SetVisible(false));
-  return primary_action;
-}
+  pin_->SetImage(views::Button::STATE_NORMAL, unpinned_icon);
+  pin_->SetToggledImage(views::Button::STATE_NORMAL, &pinned_icon);
 
-void HoldingSpaceItemView::OnSelectionUiChanged() {
-  const bool multiselect =
-      delegate_ && delegate_->selection_ui() ==
-                       HoldingSpaceViewDelegate::SelectionUi::kMultiSelect;
+  pin_->SetImageHorizontalAlignment(
+      views::ToggleImageButton::HorizontalAlignment::ALIGN_CENTER);
+  pin_->SetImageVerticalAlignment(
+      views::ToggleImageButton::VerticalAlignment::ALIGN_MIDDLE);
 
-  checkmark_->SetVisible(selected() && multiselect);
+  pin_->SetCallback(base::BindRepeating(&HoldingSpaceItemView::OnPinPressed,
+                                        base::Unretained(this)));
+
+  return pin_;
 }
 
 void HoldingSpaceItemView::OnPaintFocus(gfx::Canvas* canvas, gfx::Size size) {
@@ -427,55 +267,43 @@ void HoldingSpaceItemView::OnPaintFocus(gfx::Canvas* canvas, gfx::Size size) {
   flags.setAntiAlias(true);
   flags.setColor(AshColorProvider::Get()->GetControlsLayerColor(
       AshColorProvider::ControlsLayerType::kFocusRingColor));
-  flags.setStrokeWidth(views::FocusRing::kDefaultHaloThickness);
+  flags.setStrokeWidth(views::PlatformStyle::kFocusHaloThickness);
   flags.setStyle(cc::PaintFlags::kStroke_Style);
 
   gfx::Rect bounds = gfx::Rect(size);
   bounds.Inset(gfx::Insets(flags.getStrokeWidth() / 2));
-  canvas->DrawRoundRect(bounds, kHoldingSpaceFocusCornerRadius, flags);
+  canvas->DrawRoundRect(bounds, kHoldingSpaceCornerRadius, flags);
 }
 
 void HoldingSpaceItemView::OnPaintSelect(gfx::Canvas* canvas, gfx::Size size) {
   if (!selected_)
     return;
 
-  const SkColor color =
-      SkColorSetA(AshColorProvider::Get()->GetControlsLayerColor(
-                      AshColorProvider::ControlsLayerType::kFocusRingColor),
-                  kHoldingSpaceSelectedOverlayOpacity * 0xFF);
+  const SkColor color = AshColorProvider::Get()->GetControlsLayerColor(
+      AshColorProvider::ControlsLayerType::kFocusRingColor);
+
+  const SkColor overlay_color =
+      SkColorSetA(color, kHoldingSpaceSelectedOverlayOpacity * 0xFF);
 
   cc::PaintFlags flags;
   flags.setAntiAlias(true);
-  flags.setColor(color);
+  flags.setColor(overlay_color);
 
-  canvas->DrawRoundRect(gfx::Rect(size), kHoldingSpaceCornerRadius, flags);
+  gfx::Rect bounds = gfx::Rect(size);
+  canvas->DrawRoundRect(bounds, kHoldingSpaceCornerRadius, flags);
+
+  flags.setColor(color);
+  flags.setStrokeWidth(views::PlatformStyle::kFocusHaloThickness);
+  flags.setStyle(cc::PaintFlags::kStroke_Style);
+
+  bounds.Inset(gfx::Insets(flags.getStrokeWidth() / 2));
+  canvas->DrawRoundRect(bounds, kHoldingSpaceCornerRadius, flags);
 }
 
-void HoldingSpaceItemView::OnPrimaryActionPressed() {
-  // If the associated `item()` has been deleted then `this` is in the process
-  // of being destroyed and no action needs to be taken.
-  if (!item())
-    return;
-
-  DCHECK_NE(primary_action_cancel_->GetVisible(),
-            primary_action_pin_->GetVisible());
-
-  if (delegate())
-    delegate()->OnHoldingSpaceItemViewPrimaryActionPressed(this);
-
-  // Cancel.
-  if (primary_action_cancel_->GetVisible()) {
-    if (!holding_space_util::ExecuteInProgressCommand(
-            item(), HoldingSpaceCommandId::kCancelItem)) {
-      NOTREACHED();
-    }
-    return;
-  }
-
-  // Pin.
-  const bool is_item_pinned =
-      HoldingSpaceController::Get()->model()->ContainsItem(
-          HoldingSpaceItem::Type::kPinnedFile, item()->file_path());
+void HoldingSpaceItemView::OnPinPressed() {
+  const bool is_item_pinned = HoldingSpaceController::Get()->model()->GetItem(
+      HoldingSpaceItem::GetFileBackedItemId(HoldingSpaceItem::Type::kPinnedFile,
+                                            item()->file_path()));
 
   // Unpinning `item()` may result in the destruction of this view.
   auto weak_ptr = weak_factory_.GetWeakPtr();
@@ -485,42 +313,24 @@ void HoldingSpaceItemView::OnPrimaryActionPressed() {
     HoldingSpaceController::Get()->client()->PinItems({item()});
 
   if (weak_ptr)
-    UpdatePrimaryAction();
+    UpdatePin();
 }
 
-void HoldingSpaceItemView::UpdatePrimaryAction() {
-  // If the associated `item()` has been deleted then `this` is in the process
-  // of being destroyed and no action needs to be taken.
-  if (!item())
-    return;
-
+void HoldingSpaceItemView::UpdatePin() {
   if (!IsMouseHovered()) {
-    primary_action_container_->SetVisible(false);
-    OnPrimaryActionVisibilityChanged(false);
+    pin_->SetVisible(false);
     return;
   }
 
-  // Cancel.
-  // NOTE: Only in-progress items currently support cancellation.
-  const bool is_item_in_progress = !item()->progress().IsComplete();
-  primary_action_cancel_->SetVisible(
-      is_item_in_progress && holding_space_util::SupportsInProgressCommand(
-                                 item(), HoldingSpaceCommandId::kCancelItem));
+  const bool is_item_pinned = HoldingSpaceController::Get()->model()->GetItem(
+      HoldingSpaceItem::GetFileBackedItemId(HoldingSpaceItem::Type::kPinnedFile,
+                                            item()->file_path()));
 
-  // Pin.
-  const bool is_item_pinned =
-      HoldingSpaceController::Get()->model()->ContainsItem(
-          HoldingSpaceItem::Type::kPinnedFile, item()->file_path());
-  primary_action_pin_->SetToggled(!is_item_pinned);
-  primary_action_pin_->SetVisible(!is_item_in_progress);
-
-  // Container.
-  primary_action_container_->SetVisible(primary_action_cancel_->GetVisible() ||
-                                        primary_action_pin_->GetVisible());
-  OnPrimaryActionVisibilityChanged(primary_action_container_->GetVisible());
+  pin_->SetToggled(!is_item_pinned);
+  pin_->SetVisible(true);
 }
 
-BEGIN_METADATA(HoldingSpaceItemView, views::View)
+BEGIN_METADATA(HoldingSpaceItemView, views::InkDropHostView)
 END_METADATA
 
 }  // namespace ash

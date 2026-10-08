@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 #define UI_VIEWS_WINDOW_DIALOG_CLIENT_VIEW_H_
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/views/input_event_activation_protector.h"
-#include "ui/views/metadata/view_factory.h"
 #include "ui/views/window/client_view.h"
 #include "ui/views/window/dialog_observer.h"
 
@@ -38,10 +38,6 @@ class VIEWS_EXPORT DialogClientView : public ClientView, public DialogObserver {
   METADATA_HEADER(DialogClientView);
 
   DialogClientView(Widget* widget, View* contents_view);
-
-  DialogClientView(const DialogClientView&) = delete;
-  DialogClientView& operator=(const DialogClientView&) = delete;
-
   ~DialogClientView() override;
 
   // Accessors in case the user wishes to adjust these buttons.
@@ -62,10 +58,6 @@ class VIEWS_EXPORT DialogClientView : public ClientView, public DialogObserver {
   void ViewHierarchyChanged(
       const ViewHierarchyChangedDetails& details) override;
   void OnThemeChanged() override;
-
-  // Update the |view_shown_time_stamp_| of input protector. A short time
-  // from this point onward, input event will be ignored.
-  void UpdateInputProtectorTimeStamp();
 
   void set_minimum_size(const gfx::Size& size) { minimum_size_ = size; }
 
@@ -116,11 +108,6 @@ class VIEWS_EXPORT DialogClientView : public ClientView, public DialogObserver {
   // After calling this, no button row Views will be in the view hierarchy.
   void SetupViews();
 
-  // Adds/Removes a filler view depending on whether the corresponding live view
-  // is present.
-  void AddFillerView(size_t view_index);
-  void RemoveFillerView(size_t view_index);
-
   // How much to inset the button row.
   gfx::Insets button_row_insets_;
 
@@ -133,26 +120,20 @@ class VIEWS_EXPORT DialogClientView : public ClientView, public DialogObserver {
   LabelButton* cancel_button_ = nullptr;
 
   // The extra view shown in the row of buttons; may be NULL.
-  raw_ptr<View, DanglingUntriaged> extra_view_ = nullptr;
+  View* extra_view_ = nullptr;
 
   // Container view for the button row.
-  raw_ptr<ButtonRowContainer> button_row_container_ = nullptr;
-
-  // List of "filler" views used to keep columns in sync for TableLayout.
-  std::array<View*, kNumButtons> filler_views_ = {nullptr, nullptr, nullptr};
+  ButtonRowContainer* button_row_container_ = nullptr;
 
   // Used to prevent unnecessary or potentially harmful changes during
   // SetupLayout(). Everything will be manually updated afterwards.
   bool adding_or_removing_views_ = false;
 
   InputEventActivationProtector input_protector_;
+
+  DISALLOW_COPY_AND_ASSIGN(DialogClientView);
 };
 
-BEGIN_VIEW_BUILDER(VIEWS_EXPORT, DialogClientView, ClientView)
-END_VIEW_BUILDER
-
 }  // namespace views
-
-DEFINE_VIEW_BUILDER(VIEWS_EXPORT, DialogClientView)
 
 #endif  // UI_VIEWS_WINDOW_DIALOG_CLIENT_VIEW_H_

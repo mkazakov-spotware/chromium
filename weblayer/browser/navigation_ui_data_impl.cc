@@ -1,14 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/navigation_ui_data_impl.h"
 
-#include "build/build_config.h"
-
 namespace weblayer {
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 NavigationUIDataImpl::ResponseHolder::ResponseHolder(
     std::unique_ptr<embedder_support::WebResourceResponse> response)
     : response_(std::move(response)) {}
@@ -20,7 +18,7 @@ NavigationUIDataImpl::ResponseHolder::TakeResponse() {
   return std::move(response_);
 }
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 NavigationUIDataImpl::NavigationUIDataImpl() = default;
 NavigationUIDataImpl::~NavigationUIDataImpl() = default;
@@ -28,15 +26,13 @@ NavigationUIDataImpl::~NavigationUIDataImpl() = default;
 std::unique_ptr<content::NavigationUIData> NavigationUIDataImpl::Clone() {
   auto rv = std::make_unique<NavigationUIDataImpl>();
   rv->disable_network_error_auto_reload_ = disable_network_error_auto_reload_;
-#if BUILDFLAG(IS_ANDROID)
-  rv->intent_launches_allowed_in_background_ =
-      intent_launches_allowed_in_background_;
+#if defined(OS_ANDROID)
   rv->response_holder_ = response_holder_;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
   return rv;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void NavigationUIDataImpl::SetResponse(
     std::unique_ptr<embedder_support::WebResourceResponse> response) {
   DCHECK(!response_holder_);
@@ -50,6 +46,6 @@ NavigationUIDataImpl::TakeResponse() {
 
   return response_holder_->TakeResponse();
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
 
 }  // namespace weblayer

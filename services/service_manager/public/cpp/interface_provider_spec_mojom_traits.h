@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,13 @@ struct COMPONENT_EXPORT(SERVICE_MANAGER_MOJOM)
     return spec.provides;
   }
   static const std::map<service_manager::Name, service_manager::CapabilitySet>&
-  needs(const service_manager::InterfaceProviderSpec& spec) {
-    return spec.needs;
+  requires(const service_manager::InterfaceProviderSpec& spec) {
+    return spec.requires;
   }
   static bool Read(service_manager::mojom::InterfaceProviderSpecDataView data,
                    service_manager::InterfaceProviderSpec* out) {
-    return data.ReadProvides(&out->provides) && data.ReadNeeds(&out->needs);
+    return data.ReadProvides(&out->provides) &&
+           data.ReadRequires(&out->requires);
   }
 };
 

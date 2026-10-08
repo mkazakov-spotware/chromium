@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "content/browser/media/session/audio_focus_delegate.h"
 
 namespace media_session {
@@ -24,11 +23,6 @@ namespace content {
 class AudioFocusDelegateAndroid : public AudioFocusDelegate {
  public:
   explicit AudioFocusDelegateAndroid(MediaSessionImpl* media_session);
-
-  AudioFocusDelegateAndroid(const AudioFocusDelegateAndroid&) = delete;
-  AudioFocusDelegateAndroid& operator=(const AudioFocusDelegateAndroid&) =
-      delete;
-
   ~AudioFocusDelegateAndroid() override;
 
   void Initialize();
@@ -36,10 +30,9 @@ class AudioFocusDelegateAndroid : public AudioFocusDelegate {
   AudioFocusResult RequestAudioFocus(
       media_session::mojom::AudioFocusType audio_focus_type) override;
   void AbandonAudioFocus() override;
-  absl::optional<media_session::mojom::AudioFocusType> GetCurrentFocusType()
+  base::Optional<media_session::mojom::AudioFocusType> GetCurrentFocusType()
       const override;
   const base::UnguessableToken& request_id() const override;
-  void ReleaseRequestId() override {}
 
   // Called when the Android system requests the MediaSession to be suspended.
   // Called by Java through JNI.
@@ -64,12 +57,13 @@ class AudioFocusDelegateAndroid : public AudioFocusDelegate {
 
   // This is not used by this delegate.
   void MediaSessionInfoChanged(
-      const media_session::mojom::MediaSessionInfoPtr&) override {}
+      media_session::mojom::MediaSessionInfoPtr) override {}
 
  private:
   // Weak pointer because |this| is owned by |media_session_|.
-  raw_ptr<MediaSessionImpl> media_session_;
+  MediaSessionImpl* media_session_;
   base::android::ScopedJavaGlobalRef<jobject> j_media_session_delegate_;
+  DISALLOW_COPY_AND_ASSIGN(AudioFocusDelegateAndroid);
 };
 
 }  // namespace content

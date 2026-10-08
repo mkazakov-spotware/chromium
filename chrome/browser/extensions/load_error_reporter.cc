@@ -1,19 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/load_error_reporter.h"
 
-#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
-#include "base/observer_list.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/grit/generated_resources.h"
@@ -40,8 +39,8 @@ LoadErrorReporter* LoadErrorReporter::GetInstance() {
 
 LoadErrorReporter::LoadErrorReporter(bool enable_noisy_errors)
     : enable_noisy_errors_(enable_noisy_errors) {
-  if (base::SingleThreadTaskRunner::HasCurrentDefault())
-    ui_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  if (base::ThreadTaskRunnerHandle::IsSet())
+    ui_task_runner_ = base::ThreadTaskRunnerHandle::Get();
 }
 
 LoadErrorReporter::~LoadErrorReporter() {}
@@ -51,8 +50,13 @@ void LoadErrorReporter::ReportLoadError(
     const std::string& error,
     content::BrowserContext* browser_context,
     bool be_noisy) {
+  content::NotificationService::current()->Notify(
+      extensions::NOTIFICATION_EXTENSION_LOAD_ERROR,
+      content::Source<Profile>(Profile::FromBrowserContext(browser_context)),
+      content::Details<const std::string>(&error));
+
   std::string path_str = base::UTF16ToUTF8(extension_path.LossyDisplayName());
-  std::u16string message = base::UTF8ToUTF16(base::StringPrintf(
+  base::string16 message = base::UTF8ToUTF16(base::StringPrintf(
       "%s %s. %s",
       l10n_util::GetStringUTF8(IDS_EXTENSIONS_LOAD_ERROR_MESSAGE).c_str(),
       path_str.c_str(), error.c_str()));
@@ -61,7 +65,7 @@ void LoadErrorReporter::ReportLoadError(
     observer.OnLoadFailure(browser_context, extension_path, error);
 }
 
-void LoadErrorReporter::ReportError(const std::u16string& message,
+void LoadErrorReporter::ReportError(const base::string16& message,
                                     bool be_noisy) {
   // NOTE: There won't be a |ui_task_runner_| in the unit test environment.
   CHECK(!ui_task_runner_ || ui_task_runner_->BelongsToCurrentThread())
@@ -75,13 +79,13 @@ void LoadErrorReporter::ReportError(const std::u16string& message,
 
   if (enable_noisy_errors_ && be_noisy) {
     chrome::ShowWarningMessageBox(
-        nullptr,
+        NULL,
         l10n_util::GetStringUTF16(IDS_EXTENSIONS_LOAD_ERROR_ALERT_HEADING),
         message);
   }
 }
 
-const std::vector<std::u16string>* LoadErrorReporter::GetErrors() {
+const std::vector<base::string16>* LoadErrorReporter::GetErrors() {
   return &errors_;
 }
 

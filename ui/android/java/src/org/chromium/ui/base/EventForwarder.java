@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.base;
 
+import android.annotation.TargetApi;
 import android.content.ClipData;
 import android.content.ClipDescription;
 import android.os.Build;
@@ -19,8 +20,6 @@ import org.chromium.base.TraceEvent;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.compat.ApiHelperForM;
-import org.chromium.base.compat.ApiHelperForQ;
 
 /**
  * Class used to forward view, input events down to native.
@@ -36,40 +35,6 @@ public class EventForwarder {
     private float mCurrentTouchOffsetY;
 
     private int mLastMouseButtonState;
-
-    // Track the last tool type of touch sequence.
-    private int mLastToolType;
-
-    // Delegate to call WebContents functionality.
-    private StylusWritingDelegate mStylusWritingDelegate;
-
-    /**
-     * Interface to provide stylus writing functionality.
-     */
-    public interface StylusWritingDelegate {
-        /**
-         * Handle touch events for stylus handwriting.
-         *
-         * @param motionEvent the motion event to be handled.
-         * @return true if the event is consumed.
-         */
-        boolean handleTouchEvent(MotionEvent motionEvent);
-
-        /**
-         * Handle hover events for stylus handwriting.
-         *
-         * @param motionEvent the motion event to be handled.
-         */
-        void handleHoverEvent(MotionEvent motionEvent);
-    }
-
-    public void setStylusWritingDelegate(StylusWritingDelegate stylusWritingDelegate) {
-        mStylusWritingDelegate = stylusWritingDelegate;
-    }
-
-    public int getLastToolType() {
-        return mLastToolType;
-    }
 
     @CalledByNative
     private static EventForwarder create(long nativeEventForwarder, boolean isDragDropEnabled) {
@@ -103,15 +68,6 @@ public class EventForwarder {
      * @see View#onTouchEvent(MotionEvent)
      */
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            mLastToolType = event.getToolType(0);
-        }
-
-        if (mStylusWritingDelegate != null && mStylusWritingDelegate.handleTouchEvent(event)) {
-            // Stylus writing system can consume the touch events once writing is started.
-            return true;
-        }
-
         // TODO(mustaq): Should we include MotionEvent.TOOL_TYPE_STYLUS here?
         // crbug.com/592082
         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) {
@@ -122,9 +78,8 @@ public class EventForwarder {
             final int apiVersion = Build.VERSION.SDK_INT;
             final boolean isTouchpadScroll = event.getButtonState() == 0
                     && (event.getActionMasked() == MotionEvent.ACTION_DOWN
-                            || event.getActionMasked() == MotionEvent.ACTION_MOVE
-                            || event.getActionMasked() == MotionEvent.ACTION_UP
-                            || event.getActionMasked() == MotionEvent.ACTION_CANCEL);
+                               || event.getActionMasked() == MotionEvent.ACTION_MOVE
+                               || event.getActionMasked() == MotionEvent.ACTION_UP);
 
             if (apiVersion >= android.os.Build.VERSION_CODES.M && !isTouchpadScroll) {
                 return onMouseEvent(event);
@@ -190,7 +145,7 @@ public class EventForwarder {
 
             int gestureClassification = 0;
             if (Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                gestureClassification = ApiHelperForQ.getClassification(event);
+                gestureClassification = event.getClassification();
             }
 
             final boolean consumed = EventForwarderJni.get().onTouchEvent(mNativeEventForwarder,
@@ -256,11 +211,6 @@ public class EventForwarder {
      */
     public boolean onHoverEvent(MotionEvent event) {
         TraceEvent.begin("onHoverEvent");
-
-        if (mStylusWritingDelegate != null) {
-            mStylusWritingDelegate.handleHoverEvent(event);
-        }
-
         boolean didOffsetEvent = false;
         try {
             if (hasTouchEventOffset()) {
@@ -321,6 +271,14 @@ public class EventForwarder {
 
         int eventAction = event.getActionMasked();
 
+        // Ignore ACTION_HOVER_ENTER & ACTION_HOVER_EXIT because every mouse-down on Android
+        // follows a hover-exit and is followed by a hover-enter.  https://crbug.com/715114
+        // filed on distinguishing actual hover enter/exit from these bogus ones.
+        if (eventAction == MotionEvent.ACTION_HOVER_ENTER
+                || eventAction == MotionEvent.ACTION_HOVER_EXIT) {
+            return false;
+        }
+
         // For mousedown and mouseup events, we use ACTION_BUTTON_PRESS
         // and ACTION_BUTTON_RELEASE respectively because they provide
         // info about the changed-button.
@@ -354,10 +312,9 @@ public class EventForwarder {
         }
     }
 
+    @TargetApi(Build.VERSION_CODES.M)
     public static int getMouseEventActionButton(MotionEvent event) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return ApiHelperForM.getActionButton(event);
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) return event.getActionButton();
 
         // On <M, the only mice events sent are hover events, which cannot have a button.
         return 0;
@@ -368,6 +325,7 @@ public class EventForwarder {
      * @param event {@link DragEvent} instance.
      * @param containerView A view on which the drag event is taking place.
      */
+    @TargetApi(Build.VERSION_CODES.N)
     public boolean onDragEvent(DragEvent event, View containerView) {
         if (mNativeEventForwarder == 0 || Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
             return false;
@@ -378,13 +336,9 @@ public class EventForwarder {
         // text/* will match text/uri-list, text/html, text/plain.
         String[] mimeTypes =
                 clipDescription == null ? new String[0] : clipDescription.filterMimeTypes("text/*");
-        // mimeTypes is null iff there is no matching text MIME type.
-        // Try if there is any matching image MIME type.
-        if (mimeTypes == null) {
-            mimeTypes = clipDescription.filterMimeTypes("image/*");
-        }
 
         if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+            // TODO(hush): support dragging more than just text.
             return mimeTypes != null && mimeTypes.length > 0 && mIsDragDropEnabled;
         }
 
@@ -404,16 +358,16 @@ public class EventForwarder {
         containerView.getLocationOnScreen(locationOnScreen);
 
         // All coordinates are in device pixel. Conversion to DIP happens in the native.
-        float x = event.getX() + mCurrentTouchOffsetX;
-        float y = event.getY() + mCurrentTouchOffsetY;
-        float screenX = x + locationOnScreen[0];
-        float screenY = y + locationOnScreen[1];
+        int x = (int) (event.getX() + mCurrentTouchOffsetX);
+        int y = (int) (event.getY() + mCurrentTouchOffsetY);
+        int screenX = x + locationOnScreen[0];
+        int screenY = y + locationOnScreen[1];
 
         float scale = getEventSourceScaling();
 
         EventForwarderJni.get().onDragEvent(mNativeEventForwarder, EventForwarder.this,
-                event.getAction(), x / scale, y / scale, screenX / scale, screenY / scale,
-                mimeTypes, content.toString());
+                event.getAction(), (int) (x / scale), (int) (y / scale), (int) (screenX / scale),
+                (int) (screenY / scale), mimeTypes, content.toString());
         return true;
     }
 
@@ -528,8 +482,8 @@ public class EventForwarder {
         void onMouseEvent(long nativeEventForwarder, EventForwarder caller, long timeMs, int action,
                 float x, float y, int pointerId, float pressure, float orientation, float tilt,
                 int changedButton, int buttonState, int metaState, int toolType);
-        void onDragEvent(long nativeEventForwarder, EventForwarder caller, int action, float x,
-                float y, float screenX, float screenY, String[] mimeTypes, String content);
+        void onDragEvent(long nativeEventForwarder, EventForwarder caller, int action, int x, int y,
+                int screenX, int screenY, String[] mimeTypes, String content);
         boolean onGestureEvent(long nativeEventForwarder, EventForwarder caller, int type,
                 long timeMs, float delta);
         boolean onGenericMotionEvent(

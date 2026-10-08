@@ -1,11 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_TOUCH_SELECTION_TOUCH_SELECTION_MENU_RUNNER_H_
 #define UI_TOUCH_SELECTION_TOUCH_SELECTION_MENU_RUNNER_H_
 
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "ui/touch_selection/ui_touch_selection_export.h"
 
@@ -23,8 +23,7 @@ namespace ui {
 // Client interface for TouchSelectionMenuRunner.
 class UI_TOUCH_SELECTION_EXPORT TouchSelectionMenuClient {
  public:
-  TouchSelectionMenuClient();
-  virtual ~TouchSelectionMenuClient();
+  virtual ~TouchSelectionMenuClient() {}
 
   virtual bool IsCommandIdEnabled(int command_id) const = 0;
   virtual void ExecuteCommand(int command_id, int event_flags) = 0;
@@ -39,24 +38,13 @@ class UI_TOUCH_SELECTION_EXPORT TouchSelectionMenuClient {
   virtual bool ShouldShowQuickMenu() = 0;
 
   // Returns the current text selection.
-  virtual std::u16string GetSelectedText() = 0;
-
-  // Returns a WeakPtr to this client. `TouchSelectionMenuRunnerChromeOS`
-  // performs asynchronous work before showing the menu. The client can be
-  // deleted during that time window. See https://crbug.com/1146270
-  base::WeakPtr<TouchSelectionMenuClient> GetWeakPtr();
-
- private:
-  base::WeakPtrFactory<TouchSelectionMenuClient> weak_factory_{this};
+  virtual base::string16 GetSelectedText() = 0;
 };
 
 // An interface for the singleton object responsible for running touch selection
 // quick menu.
 class UI_TOUCH_SELECTION_EXPORT TouchSelectionMenuRunner {
  public:
-  TouchSelectionMenuRunner(const TouchSelectionMenuRunner&) = delete;
-  TouchSelectionMenuRunner& operator=(const TouchSelectionMenuRunner&) = delete;
-
   virtual ~TouchSelectionMenuRunner();
 
   static TouchSelectionMenuRunner* GetInstance();
@@ -67,7 +55,7 @@ class UI_TOUCH_SELECTION_EXPORT TouchSelectionMenuRunner {
 
   // Creates and displays the quick menu, if there is any command available.
   // |anchor_rect| is in screen coordinates.
-  virtual void OpenMenu(base::WeakPtr<TouchSelectionMenuClient> client,
+  virtual void OpenMenu(TouchSelectionMenuClient* client,
                         const gfx::Rect& anchor_rect,
                         const gfx::Size& handle_image_size,
                         aura::Window* context) = 0;
@@ -78,6 +66,9 @@ class UI_TOUCH_SELECTION_EXPORT TouchSelectionMenuRunner {
 
  protected:
   TouchSelectionMenuRunner();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TouchSelectionMenuRunner);
 };
 
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -13,6 +13,7 @@
 #include "base/callback.h"
 #include "base/callback_forward.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "google/protobuf/io/zero_copy_stream.h"
@@ -64,10 +65,6 @@ class GCM_EXPORT SocketInputStream
 
   // |socket| should already be connected.
   explicit SocketInputStream(mojo::ScopedDataPipeConsumerHandle stream);
-
-  SocketInputStream(const SocketInputStream&) = delete;
-  SocketInputStream& operator=(const SocketInputStream&) = delete;
-
   ~SocketInputStream() override;
 
   // ZeroCopyInputStream implementation.
@@ -132,6 +129,8 @@ class GCM_EXPORT SocketInputStream
   net::Error last_error_;
 
   base::WeakPtrFactory<SocketInputStream> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SocketInputStream);
 };
 
 // A helper class for writing to a mojo producer handle with protobuf encoded
@@ -162,10 +161,6 @@ class GCM_EXPORT SocketOutputStream
   };
 
   explicit SocketOutputStream(mojo::ScopedDataPipeProducerHandle stream);
-
-  SocketOutputStream(const SocketOutputStream&) = delete;
-  SocketOutputStream& operator=(const SocketOutputStream&) = delete;
-
   ~SocketOutputStream() override;
 
   // ZeroCopyOutputStream implementation.
@@ -207,6 +202,8 @@ class GCM_EXPORT SocketOutputStream
   net::Error last_error_;
 
   base::WeakPtrFactory<SocketOutputStream> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SocketOutputStream);
 };
 
 }  // namespace gcm

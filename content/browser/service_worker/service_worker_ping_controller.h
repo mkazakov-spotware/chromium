@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_SERVICE_WORKER_SERVICE_WORKER_PING_CONTROLLER_H_
 #define CONTENT_BROWSER_SERVICE_WORKER_SERVICE_WORKER_PING_CONTROLLER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "content/common/content_export.h"
 
@@ -18,11 +18,6 @@ class ServiceWorkerVersion;
 class CONTENT_EXPORT ServiceWorkerPingController final {
  public:
   explicit ServiceWorkerPingController(ServiceWorkerVersion* version);
-
-  ServiceWorkerPingController(const ServiceWorkerPingController&) = delete;
-  ServiceWorkerPingController& operator=(const ServiceWorkerPingController&) =
-      delete;
-
   ~ServiceWorkerPingController();
 
   void Activate();
@@ -46,10 +41,12 @@ class CONTENT_EXPORT ServiceWorkerPingController final {
   void ClearLastPingTime();
 
   enum class PingState { kNotPinging, kPinging, kPingTimedOut };
-  raw_ptr<ServiceWorkerVersion, DanglingUntriaged> version_;  // Owns |this|.
+  ServiceWorkerVersion* version_;  // Owns |this|.
   // The time the most recent ping was sent.
   base::TimeTicks last_ping_time_;
   PingState ping_state_ = PingState::kNotPinging;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerPingController);
 };
 
 }  // namespace content

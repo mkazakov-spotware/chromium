@@ -10,7 +10,24 @@
   "incognito": "split",
 {% endif %}
   "background": {
-    "page": "select_to_speak/background.html"
+    "scripts": [
+      "common/closure_shim.js",
+      "common/constants.js",
+      "common/key_code.js",
+      "common/automation_predicate.js",
+      "common/instance_checker.js",
+      "common/rect_util.js",
+      "common/tree_walker.js",
+      "common/automation_util.js",
+      "select_to_speak/input_handler.js",
+      "select_to_speak/metrics_utils.js",
+      "select_to_speak/node_utils.js",
+      "select_to_speak/paragraph_utils.js",
+      "select_to_speak/prefs_manager.js",
+      "select_to_speak/word_utils.js",
+      "select_to_speak/select_to_speak.js",
+      "select_to_speak/select_to_speak_main.js"
+    ]
   },
   "permissions": [
     "accessibilityPrivate",
@@ -24,14 +41,8 @@
     "https://docs.sandbox.google.com/*",
     "clipboard",
     "clipboardRead",
-    "clipboardWrite",
-    "contextMenus"
+    "clipboardWrite"
   ],
-  "icons": {
-      "128": "select_to_speak/sts-icon-128.png",
-      "16": "select_to_speak/sts-icon-16.png",
-      "48": "select_to_speak/sts-icon-48.png"
-  },
   "automation": {
     "desktop": true
   },
@@ -43,9 +54,8 @@
                    "https://docs.sandbox.google.com/document*" ],
       "all_frames": true,
       "js": [
-        "common/gdocs_script.js"
-      ],
-      "run_at": "document_start"
+        "select_to_speak/select_to_speak_gdocs_script.js"
+      ]
     }
   ]
 }

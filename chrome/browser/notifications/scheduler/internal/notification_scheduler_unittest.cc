@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/notifications/scheduler/internal/notification_entry.h"
@@ -39,7 +38,7 @@ namespace notifications {
 namespace {
 
 const char kGuid[] = "guid";
-const char16_t kTitle[] = u"title";
+const char kTitle[] = "title";
 
 class NotificationSchedulerTest : public testing::Test {
  public:
@@ -145,13 +144,13 @@ class NotificationSchedulerTest : public testing::Test {
 
  private:
   base::test::TaskEnvironment task_environment_;
-  raw_ptr<NotificationSchedulerClientRegistrar> registrar_;
-  raw_ptr<test::MockImpressionHistoryTracker> impression_tracker_;
-  raw_ptr<test::MockScheduledNotificationManager> notification_manager_;
-  raw_ptr<test::MockNotificationSchedulerClient> client_;
-  raw_ptr<test::MockBackgroundTaskCoordinator> task_coordinator_;
-  raw_ptr<test::MockDisplayAgent> display_agent_;
-  raw_ptr<test::MockDisplayDecider> display_decider_;
+  NotificationSchedulerClientRegistrar* registrar_;
+  test::MockImpressionHistoryTracker* impression_tracker_;
+  test::MockScheduledNotificationManager* notification_manager_;
+  test::MockNotificationSchedulerClient* client_;
+  test::MockBackgroundTaskCoordinator* task_coordinator_;
+  test::MockDisplayAgent* display_agent_;
+  test::MockDisplayDecider* display_decider_;
 
   std::unique_ptr<NotificationScheduler> notification_scheduler_;
 };
@@ -294,8 +293,8 @@ TEST_F(NotificationSchedulerTest, BackgroundTaskStartShowNothing) {
   OnStartTask();
 }
 
-MATCHER_P(NotificationDataEq, title, "Verify notification data.") {
-  EXPECT_EQ(arg->title, title);
+MATCHER_P(NotifcationDataEq, title, "Verify notification data.") {
+  EXPECT_EQ(arg->title, base::UTF8ToUTF16(title));
   return true;
 }
 
@@ -314,7 +313,7 @@ TEST_F(NotificationSchedulerTest, BackgroundTaskStartShowNotification) {
       std::make_unique<NotificationEntry>(SchedulerClientType::kTest1, kGuid);
   EXPECT_CALL(
       *display_agent(),
-      ShowNotification(NotificationDataEq(kTitle),
+      ShowNotification(NotifcationDataEq(kTitle),
                        SystemDataEq(SchedulerClientType::kTest1, kGuid)));
   DisplayDecider::Results result({kGuid});
   EXPECT_CALL(*display_decider(), FindNotificationsToShow(_, _, _))
@@ -334,7 +333,7 @@ TEST_F(NotificationSchedulerTest, BackgroundTaskStartShowNotification) {
           [&](std::unique_ptr<NotificationData> notification_data,
               NotificationSchedulerClient::NotificationDataCallback callback) {
             // The client updates the notification data here.
-            notification_data->title = kTitle;
+            notification_data->title = base::UTF8ToUTF16(kTitle);
             std::move(callback).Run(std::move(notification_data));
           }));
 

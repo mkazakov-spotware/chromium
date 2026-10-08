@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 #define ASH_HIGHLIGHTER_HIGHLIGHTER_CONTROLLER_TEST_API_H_
 
 #include "ash/highlighter/highlighter_controller.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace fast_ink {
@@ -21,11 +22,6 @@ namespace ash {
 class HighlighterControllerTestApi : public HighlighterController::Observer {
  public:
   explicit HighlighterControllerTestApi(HighlighterController* instance);
-
-  HighlighterControllerTestApi(const HighlighterControllerTestApi&) = delete;
-  HighlighterControllerTestApi& operator=(const HighlighterControllerTestApi&) =
-      delete;
-
   ~HighlighterControllerTestApi() override;
 
   // Attaches itself as the client to the controller. This method is called
@@ -55,21 +51,22 @@ class HighlighterControllerTestApi : public HighlighterController::Observer {
   const gfx::Rect& selection() const { return selection_; }
 
  private:
-  using ScopedObservation =
-      base::ScopedObservation<HighlighterController,
-                              HighlighterController::Observer>;
+  using ScopedObserver =
+      ScopedObserver<HighlighterController, HighlighterController::Observer>;
 
   // HighlighterSelectionObserver:
   void OnHighlighterSelectionRecognized(const gfx::Rect& rect) override;
   void OnHighlighterEnabledChanged(HighlighterEnabledState state) override;
 
-  std::unique_ptr<ScopedObservation> scoped_observation_;
+  std::unique_ptr<ScopedObserver> scoped_observer_;
   HighlighterController* instance_;
 
   bool handle_selection_called_ = false;
   bool handle_enabled_state_changed_called_ = false;
   gfx::Rect selection_;
   bool enabled_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(HighlighterControllerTestApi);
 };
 
 }  // namespace ash

@@ -1,75 +1,77 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SANITIZER_API_SANITIZER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_SANITIZER_API_SANITIZER_H_
 
-#include "third_party/blink/renderer/bindings/modules/v8/v8_typedefs.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/modules/sanitizer_api/sanitizer_config_impl.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
-class ContainerNode;
 class Document;
 class DocumentFragment;
-class Element;
 class ExceptionState;
-class ExecutionContext;
-class Node;
-class LocalDOMWindow;
 class SanitizerConfig;
 class ScriptState;
+class StringOrDocumentFragmentOrDocument;
+class StringOrTrustedHTMLOrDocumentFragmentOrDocument;
 
 class MODULES_EXPORT Sanitizer final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static Sanitizer* Create(ExecutionContext*,
-                           const SanitizerConfig*,
-                           ExceptionState&);
-  Sanitizer(ExecutionContext*, const SanitizerConfig*);
+  static Sanitizer* Create(const SanitizerConfig*, ExceptionState&);
+  explicit Sanitizer(const SanitizerConfig*);
   ~Sanitizer() override;
 
-  DocumentFragment* sanitize(ScriptState* script_state,
-                             const V8SanitizerInput* input,
-                             ExceptionState& exception_state);
-  Element* sanitizeFor(ScriptState* script_state,
-                       const String& element,
-                       const String& markup,
-                       ExceptionState& exception_state);
-
-  SanitizerConfig* getConfiguration() const;
-  static SanitizerConfig* getDefaultConfiguration();
-
-  // Get a (shared) Sanitizer instance with the default configuration.
-  static Sanitizer* getDefaultInstance();
-
-  // Implementation of ElementSanitizer::SetHTML, so that we have
-  // all the sanitizer logic in one place.
-  void ElementSetHTML(ScriptState* script_state,
-                      Element& element,
-                      const String& markup,
-                      ExceptionState& exception_state);
+  String sanitizeToString(ScriptState*,
+                          StringOrDocumentFragmentOrDocument&,
+                          ExceptionState&);
+  DocumentFragment* sanitize(ScriptState*,
+                             StringOrTrustedHTMLOrDocumentFragmentOrDocument&,
+                             ExceptionState&);
 
   void Trace(Visitor*) const override;
 
  private:
-  Node* DropNode(Node*, ContainerNode*);
-  Node* BlockElement(Element*, ContainerNode*, ExceptionState&);
-  Node* KeepElement(Element*, ContainerNode*, LocalDOMWindow*);
+  void ElementFormatter(HashSet<String>&, const Vector<String>&);
+  void AttrFormatter(HashMap<String, Vector<String>>&,
+                     const Vector<std::pair<String, Vector<String>>>&);
 
-  DocumentFragment* PrepareFragment(LocalDOMWindow* window,
-                                    ScriptState* script_state,
-                                    const V8SanitizerInput* input,
-                                    ExceptionState& exception_state);
-  void DoSanitizing(ContainerNode*, LocalDOMWindow*, ExceptionState&);
+  DocumentFragment* SanitizeImpl(ScriptState*,
+                                 StringOrDocumentFragmentOrDocument&,
+                                 ExceptionState&);
 
-  SanitizerConfigImpl config_;
+  HashSet<String> allow_elements_ = {};
+  HashSet<String> block_elements_ = {};
+  HashSet<String> drop_elements_ = {};
+  HashMap<String, Vector<String>> allow_attributes_ = {};
+  HashMap<String, Vector<String>> drop_attributes_ = {};
+
+  bool has_allow_elements_ = false;
+  bool has_allow_attributes_ = false;
+
+  const HashSet<String> default_block_elements_ = {};
+  const HashSet<String> default_drop_elements_ = {"SCRIPT",    "ANNOTATION-XML",
+                                                  "AUDIO",     "COLGROUP",
+                                                  "DESC",      "FOREIGNOBJECT",
+                                                  "HEAD",      "IFRAME",
+                                                  "MATH",      "MI",
+                                                  "MN",        "MO",
+                                                  "MS",        "MTEXT",
+                                                  "NOEMBED",   "NOFRAMES",
+                                                  "PLAINTEXT", "STYLE",
+                                                  "SVG",       "TEMPLATE",
+                                                  "THEAD",     "TITLE",
+                                                  "VIDEO",     "XMP"};
+  const HashMap<String, Vector<String>> default_drop_attributes_ = {
+      {"onclick", Vector<String>({"*"})},
+      {"onsubmit", Vector<String>({"*"})}};
 };
+
 }  // namespace blink
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_SANITIZER_API_SANITIZER_H_

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,11 +28,6 @@ class GLImageNativePixmapTestDelegate : public GLImageTestDelegateBase {
     client_native_pixmap_factory_ = ui::CreateClientNativePixmapFactoryOzone();
   }
 
-  GLImageNativePixmapTestDelegate(const GLImageNativePixmapTestDelegate&) =
-      delete;
-  GLImageNativePixmapTestDelegate& operator=(
-      const GLImageNativePixmapTestDelegate&) = delete;
-
   ~GLImageNativePixmapTestDelegate() override = default;
 
   scoped_refptr<GLImage> CreateSolidColorImage(const gfx::Size& size,
@@ -45,7 +40,7 @@ class GLImageNativePixmapTestDelegate : public GLImageTestDelegateBase {
     DCHECK(pixmap) << "Offending format: " << gfx::BufferFormatToString(format);
     if (usage == gfx::BufferUsage::GPU_READ_CPU_READ_WRITE ||
         usage == gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE ||
-        usage == gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE) {
+        usage == gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE) {
       auto client_pixmap = client_native_pixmap_factory_->ImportFromHandle(
           pixmap->ExportHandle(), size, format, usage);
       bool mapped = client_pixmap->Map();
@@ -83,6 +78,8 @@ class GLImageNativePixmapTestDelegate : public GLImageTestDelegateBase {
 
  private:
   std::unique_ptr<gfx::ClientNativePixmapFactory> client_native_pixmap_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(GLImageNativePixmapTestDelegate);
 };
 
 using GLImageScanoutType = testing::Types<
@@ -123,14 +120,14 @@ using GLImageBindTestTypes = testing::Types<
     GLImageNativePixmapTestDelegate<gfx::BufferUsage::GPU_READ_CPU_READ_WRITE,
                                     gfx::BufferFormat::YVU_420>,
     GLImageNativePixmapTestDelegate<
-        gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE,
+        gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE,
         gfx::BufferFormat::YVU_420>,
     GLImageNativePixmapTestDelegate<gfx::BufferUsage::GPU_READ_CPU_READ_WRITE,
                                     gfx::BufferFormat::YUV_420_BIPLANAR>,
     GLImageNativePixmapTestDelegate<gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE,
                                     gfx::BufferFormat::YUV_420_BIPLANAR>,
     GLImageNativePixmapTestDelegate<
-        gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE,
+        gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE,
         gfx::BufferFormat::YUV_420_BIPLANAR>,
     GLImageNativePixmapTestDelegate<gfx::BufferUsage::GPU_READ_CPU_READ_WRITE,
                                     gfx::BufferFormat::P010>>;

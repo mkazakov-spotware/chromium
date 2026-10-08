@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #if __OBJC__
 @protocol MTLDevice;
-@protocol MTLSharedEvent;
 #endif
 
 namespace metal {
@@ -19,13 +18,10 @@ namespace metal {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 using MTLDevicePtr = id<MTLDevice>;
-using MTLSharedEventPtr = id<MTLSharedEvent>;
 #pragma clang diagnostic pop
 #else
 class MTLDeviceProtocol;
 using MTLDevicePtr = MTLDeviceProtocol*;
-class MTLSharedEventProtocol;
-using MTLSharedEventPtr = MTLSharedEventProtocol*;
 #endif
 
 }  // namespace metal

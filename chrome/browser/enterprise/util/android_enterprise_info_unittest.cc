@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/enterprise/util/android_enterprise_info.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/test/bind.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class AndroidEnterpriseInfoTest : public ::testing::Test {
  protected:
@@ -18,12 +17,12 @@ class AndroidEnterpriseInfoTest : public ::testing::Test {
     instance_->set_skip_jni_call_for_testing(true);
   }
 
-  raw_ptr<chrome::enterprise_util::AndroidEnterpriseInfo> instance_;
+  chrome::enterprise_util::AndroidEnterpriseInfo* instance_;
 };
 
 class EnterpriseInfoCallbackHelper {
  public:
-  absl::optional<bool> is_profile_owned, is_device_owned;
+  base::Optional<bool> is_profile_owned, is_device_owned;
   int num_times_called = 0;
 
   void OnResult(bool profile_owned, bool device_owned) {

@@ -3,13 +3,16 @@
 <script src="../../resources/testharness.js"></script>
 <script src="../../resources/testharnessreport.js"></script>
 <style>
-#scroller {
+html {
+  scroll-snap-type: y mandatory;
+}
+
+body {
   overflow: scroll;
   height: 300px;
   width: 300px;
   margin: 0;
   padding: 0;
-  scroll-snap-type: y mandatory;
 }
 
 #container {
@@ -38,17 +41,14 @@
 }
 </style>
 
-<div id="scroller">
-  <div id="container">
-    <div id="initial-area"></div>
-    <div id="target-area"></div>
-  </div>
+<div id="container">
+  <div id="initial-area"></div>
+  <div id="target-area"></div>
 </div>
 
 <script>
-const scroller = document.getElementById('scroller');
+const scroller = document.scrollingElement;
 const target_area = document.getElementById('target-area');
-const macPlatform = navigator.platform.indexOf('Mac') == 0;
 
 function cleanup() {
   scroller.scrollTo(0,0);
@@ -56,10 +56,6 @@ function cleanup() {
 
   target_area.style.setProperty('top', '200px');
   assert_equals(scroller.scrollTop, 0);
-}
-
-function scrollTop() {
-  return scroller.scrollTop;
 }
 
 function wheelScroll(delta, x, y, direction) {
@@ -89,12 +85,9 @@ promise_test (async t => {
   t.add_cleanup(cleanup);
 
   await mouseClickOn(10, 10);
-  const scrollPromise = waitForScrollEvent(scroller);
   await wheelScroll(250 /* pixels to scroll */, 50, 50, 'down');
-  await scrollPromise;
-  // Use time based wait since overshooting the snap target position.
-  await waitForAnimationEndTimeBased(scrollTop);
-  assert_equals(scrollTop(), 400);
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_approx_equals(scroller.scrollTop, 400, 1);
 
   target_area.style.setProperty('top', '600px');
   assert_equals(scroller.scrollTop, 800);
@@ -106,30 +99,24 @@ promise_test (async t => {
 
   await mouseClickOn(10, 10);
   await keyPress('ArrowDown');
-  await waitForScrollEnd(scroller, scrollTop, 400);
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_equals(scroller.scrollTop, 400);
 
   target_area.style.setProperty('top', '600px');
   assert_equals(scroller.scrollTop, 800);
 }, "Layout changes should make the scroller resnap to targets set from keyboard"
    + " scrolling");
 
-if (!macPlatform) {
-  // MacOS devices do not have touch screens Test is not relevant.
-  promise_test (async t => {
-    t.add_cleanup(cleanup);
+promise_test (async t => {
+  t.add_cleanup(cleanup);
 
-    await mouseClickOn(10, 10);
-    const scrollPromise = waitForScrollEvent(scroller);
-    await touchScroll(250 /* delta */, 50, 50, 'down');
-    await scrollPromise;
-    // Use time based wait since overshooting the scroll snap position.
-    await waitForAnimationEndTimeBased(scrollTop);
-    assert_equals(scroller.scrollTop, 400);
+  await mouseClickOn(10, 10);
+  await touchScroll(250 /* delta */, 400, 400, 'down');
+  await waitForAnimationEndTimeBased(() => { return scroller.scrollTop; });
+  assert_equals(scroller.scrollTop, 400);
 
-    target_area.style.setProperty('top', '600px');
-    assert_equals(scroller.scrollTop, 800);
-  }, "Layout changes should make the scroller resnap to targets set from gesture"
-     + " scrolling");
-}
-
+  target_area.style.setProperty('top', '600px');
+  assert_equals(scroller.scrollTop, 800);
+}, "Layout changes should make the scroller resnap to targets set from gesture"
+   + " scrolling");
 </script>

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,15 +36,12 @@ import androidx.gridlayout.widget.GridLayout;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ChromeSemanticColorUtils;
 import org.chromium.components.autofill.EditableOption;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.DualControlLayout;
 import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.components.browser_ui.widget.animation.Interpolators;
 import org.chromium.ui.HorizontalListDividerDrawable;
 import org.chromium.ui.UiUtils;
-import org.chromium.ui.base.ViewUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -170,8 +167,10 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
         setGravity(Gravity.CENTER_VERTICAL);
 
         // Set the styling of the view.
-        mUnfocusedBackgroundColor = ChromeSemanticColorUtils.getPaymentRequestBg(context);
-        mFocusedBackgroundColor = getContext().getColor(R.color.payments_section_edit_background);
+        mUnfocusedBackgroundColor =
+                ApiCompatibilityUtils.getColor(getResources(), R.color.payment_request_bg);
+        mFocusedBackgroundColor = ApiCompatibilityUtils.getColor(
+                getResources(), R.color.payments_section_edit_background);
         mLargeSpacing =
                 getResources().getDimensionPixelSize(R.dimen.editor_dialog_section_large_spacing);
         mVerticalSpacing =
@@ -367,8 +366,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
         // The title is always displayed for the row at the top of the main section.
         mTitleView = new TextView(getContext());
         mTitleView.setText(sectionName);
-        ApiCompatibilityUtils.setTextAppearance(
-                mTitleView, R.style.TextAppearance_TextMedium_Accent1);
+        ApiCompatibilityUtils.setTextAppearance(mTitleView, R.style.TextAppearance_TextMedium_Blue);
         mainSectionLayout.addView(
                 mTitleView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
@@ -502,7 +500,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
         if (oldMargin != newMargin) {
             ((ViewGroup.MarginLayoutParams) mTitleView.getLayoutParams()).bottomMargin =
                     newMargin;
-            ViewUtils.requestLayout(this, "PaymentRequestSection.UpdateControlLayout");
+            requestLayout();
         }
     }
 
@@ -610,7 +608,8 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
             LinearLayout.LayoutParams updatedLayoutParams = new LinearLayout.LayoutParams(
                     LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
             mUpdatedView.setTextAlignment(TEXT_ALIGNMENT_TEXT_END);
-            mUpdatedView.setTextColor(context.getColor(R.color.google_green_600));
+            mUpdatedView.setTextColor(ApiCompatibilityUtils.getColor(
+                    context.getResources(), R.color.google_green_600));
             MarginLayoutParamsCompat.setMarginStart(updatedLayoutParams,
                     context.getResources().getDimensionPixelSize(
                             R.dimen.editor_dialog_section_small_spacing));
@@ -935,7 +934,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                         drawableTint = R.color.default_text_color_error;
                     } else {
                         drawableId = R.drawable.plus;
-                        drawableTint = R.color.default_icon_color_accent1_tint_list;
+                        drawableTint = R.color.default_icon_color_blue;
                     }
 
                     TintedDrawable tintedDrawable = TintedDrawable.constructTintedDrawable(
@@ -1268,8 +1267,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                 params.height = LayoutParams.WRAP_CONTENT;
                 params.bottomMargin = getContext().getResources().getDimensionPixelSize(
                         R.dimen.payments_section_checking_spacing);
-                ViewUtils.requestLayout(
-                        mCheckingProgress, "PaymentRequestSection.OptionRow.setSpinnerVisibility");
+                mCheckingProgress.requestLayout();
             } else {
                 if (mCheckingProgress.getParent() == null) return;
 
@@ -1455,8 +1453,8 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                 if (builder.length() > 0) builder.append(labelSeparator);
                 String editMessage = item.getEditMessage();
                 builder.append(editMessage);
-                Object foregroundSpanner = new ForegroundColorSpan(
-                        SemanticColorUtils.getDefaultTextColorLink(getContext()));
+                Object foregroundSpanner = new ForegroundColorSpan(ApiCompatibilityUtils.getColor(
+                        getContext().getResources(), R.color.default_text_color_link));
                 Object sizeSpanner = new AbsoluteSizeSpan(14, true);
                 int startIndex = builder.length() - editMessage.length();
                 builder.setSpan(foregroundSpanner, startIndex, builder.length(), 0);

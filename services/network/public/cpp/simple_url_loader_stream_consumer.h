@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "base/callback_forward.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 
 namespace network {
@@ -18,10 +19,6 @@ namespace network {
 // will be called during SimpleURLLoader destruction.
 class COMPONENT_EXPORT(NETWORK_CPP) SimpleURLLoaderStreamConsumer {
  public:
-  SimpleURLLoaderStreamConsumer(const SimpleURLLoaderStreamConsumer&) = delete;
-  SimpleURLLoaderStreamConsumer& operator=(
-      const SimpleURLLoaderStreamConsumer&) = delete;
-
   // Called as body data is received.
   //
   // More data will not be read until |resume| is called. It's safe to call
@@ -64,6 +61,9 @@ class COMPONENT_EXPORT(NETWORK_CPP) SimpleURLLoaderStreamConsumer {
  protected:
   SimpleURLLoaderStreamConsumer() {}
   virtual ~SimpleURLLoaderStreamConsumer() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SimpleURLLoaderStreamConsumer);
 };
 
 }  // namespace network

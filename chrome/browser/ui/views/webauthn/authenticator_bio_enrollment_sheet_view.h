@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_WEBAUTHN_AUTHENTICATOR_BIO_ENROLLMENT_SHEET_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_WEBAUTHN_AUTHENTICATOR_BIO_ENROLLMENT_SHEET_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/webauthn/authenticator_request_sheet_view.h"
 #include "chrome/browser/ui/webauthn/sheet_models.h"
 
@@ -18,23 +17,21 @@ class AuthenticatorBioEnrollmentSheetView
  public:
   explicit AuthenticatorBioEnrollmentSheetView(
       std::unique_ptr<AuthenticatorBioEnrollmentSheetModel> sheet_model);
-
-  AuthenticatorBioEnrollmentSheetView(
-      const AuthenticatorBioEnrollmentSheetView&) = delete;
-  AuthenticatorBioEnrollmentSheetView& operator=(
-      const AuthenticatorBioEnrollmentSheetView&) = delete;
-
   ~AuthenticatorBioEnrollmentSheetView() override;
+
+  // AuthenticatorRequestSheetView:
+  views::View* GetInitiallyFocusedView() override;
 
  private:
   // AuthenticatorRequestSheetView:
-  std::pair<std::unique_ptr<views::View>, AutoFocus> BuildStepSpecificContent()
-      override;
+  std::unique_ptr<views::View> BuildStepSpecificContent() override;
 
   // views::View:
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
 
-  raw_ptr<RingProgressBar> ring_progress_bar_;
+  RingProgressBar* ring_progress_bar_;
+
+  DISALLOW_COPY_AND_ASSIGN(AuthenticatorBioEnrollmentSheetView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_WEBAUTHN_AUTHENTICATOR_BIO_ENROLLMENT_SHEET_VIEW_H_

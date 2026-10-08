@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,15 +45,15 @@ TEST_F(ApiResourceManagerUnitTest, TwoAppsCannotShareResources) {
   CHECK(resource_two_id);
 
   // Confirm each extension can get its own resource.
-  ASSERT_TRUE(manager->Get(extension_one_id, resource_one_id) != nullptr);
-  ASSERT_TRUE(manager->Get(extension_two_id, resource_two_id) != nullptr);
+  ASSERT_TRUE(manager->Get(extension_one_id, resource_one_id) != NULL);
+  ASSERT_TRUE(manager->Get(extension_two_id, resource_two_id) != NULL);
 
   // Confirm neither extension can get the other's resource.
-  ASSERT_TRUE(manager->Get(extension_one_id, resource_two_id) == nullptr);
-  ASSERT_TRUE(manager->Get(extension_two_id, resource_one_id) == nullptr);
+  ASSERT_TRUE(manager->Get(extension_one_id, resource_two_id) == NULL);
+  ASSERT_TRUE(manager->Get(extension_two_id, resource_one_id) == NULL);
 
   // And make sure we're not susceptible to any Jedi mind tricks.
-  ASSERT_TRUE(manager->Get(std::string(), resource_one_id) == nullptr);
+  ASSERT_TRUE(manager->Get(std::string(), resource_one_id) == NULL);
 }
 
 }  // namespace extensions

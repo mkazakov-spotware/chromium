@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "media/base/media_export.h"
 
 namespace media {
@@ -51,10 +52,6 @@ class MEDIA_EXPORT ContentEncoding {
   };
 
   ContentEncoding();
-
-  ContentEncoding(const ContentEncoding&) = delete;
-  ContentEncoding& operator=(const ContentEncoding&) = delete;
-
   ~ContentEncoding();
 
   int64_t order() const { return order_; }
@@ -84,6 +81,8 @@ class MEDIA_EXPORT ContentEncoding {
   EncryptionAlgo encryption_algo_;
   std::string encryption_key_id_;
   CipherMode cipher_mode_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentEncoding);
 };
 
 }  // namespace media

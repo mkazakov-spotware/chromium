@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,26 +8,13 @@
 
 namespace media {
 
-namespace {
-
-CdmPromise::SystemCode ToSystemCode(CdmPromiseAdapter::ClearReason reason) {
-  switch (reason) {
-    case CdmPromiseAdapter::ClearReason::kDestruction:
-      return CdmPromise::SystemCode::kAborted;
-    case CdmPromiseAdapter::ClearReason::kConnectionError:
-      return CdmPromise::SystemCode::kConnectionError;
-  }
-}
-
-}  // namespace
-
 CdmPromiseAdapter::CdmPromiseAdapter()
     : next_promise_id_(kInvalidPromiseId + 1) {}
 
 CdmPromiseAdapter::~CdmPromiseAdapter() {
   DCHECK(thread_checker_.CalledOnValidThread());
   DLOG_IF(WARNING, !promises_.empty()) << "There are unfulfilled promises";
-  Clear(ClearReason::kDestruction);
+  Clear();
 }
 
 uint32_t CdmPromiseAdapter::SavePromise(std::unique_ptr<CdmPromise> promise) {
@@ -75,12 +62,13 @@ void CdmPromiseAdapter::RejectPromise(uint32_t promise_id,
   promise->reject(exception_code, system_code, error_message);
 }
 
-void CdmPromiseAdapter::Clear(ClearReason reason) {
+void CdmPromiseAdapter::Clear() {
   // Reject all outstanding promises.
   DCHECK(thread_checker_.CalledOnValidThread());
   for (auto& promise : promises_) {
     promise.second->reject(CdmPromise::Exception::INVALID_STATE_ERROR,
-                           ToSystemCode(reason), "Operation aborted.");
+                           CdmPromise::SystemCode::kAborted,
+                           "Operation aborted.");
   }
   promises_.clear();
 }

@@ -34,9 +34,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/core/clipboard/data_object_item.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -66,7 +64,7 @@ class CORE_EXPORT DataObject : public GarbageCollected<DataObject>,
   static DataObject* CreateFromClipboard(SystemClipboard*, PasteMode);
   static DataObject* CreateFromString(const String&);
   static DataObject* Create();
-  static DataObject* Create(const WebDragData&);
+  static DataObject* Create(WebDragData);
 
   DataObject();
   virtual ~DataObject();
@@ -101,24 +99,23 @@ class CORE_EXPORT DataObject : public GarbageCollected<DataObject>,
   void AddFilename(const String& filename,
                    const String& display_name,
                    const String& file_system_id,
-                   scoped_refptr<FileSystemAccessDropData>
-                       file_system_access_entry = nullptr);
+                   scoped_refptr<NativeFileSystemDropData>
+                       native_file_system_entry = nullptr);
 
   // Used for dragging in filesystem from the desktop.
   void SetFilesystemId(const String& file_system_id) {
     filesystem_id_ = file_system_id;
   }
   const String& FilesystemId() const {
-    DCHECK(!filesystem_id_.empty());
+    DCHECK(!filesystem_id_.IsEmpty());
     return filesystem_id_;
   }
 
   // Used to handle files (images) being dragged out.
-  void AddFileSharedBuffer(scoped_refptr<SharedBuffer>,
-                           bool is_accessible_from_start_frame,
-                           const KURL&,
-                           const String& filename_extension,
-                           const AtomicString& content_disposition);
+  void AddSharedBuffer(scoped_refptr<SharedBuffer>,
+                       const KURL&,
+                       const String& filename_extension,
+                       const AtomicString& content_disposition);
 
   int GetModifiers() const { return modifiers_; }
   void SetModifiers(int modifiers) { modifiers_ = modifiers; }
@@ -148,4 +145,4 @@ class CORE_EXPORT DataObject : public GarbageCollected<DataObject>,
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CLIPBOARD_DATA_OBJECT_H_
+#endif

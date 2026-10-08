@@ -1,13 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/capture/video/chromeos/camera_metadata_utils.h"
 
+#include <algorithm>
 #include <unordered_set>
 
 #include "base/containers/span.h"
-#include "base/ranges/algorithm.h"
 
 namespace media {
 
@@ -35,10 +35,6 @@ template <>
 const cros::mojom::EntryType entry_type_of<double>::value =
     cros::mojom::EntryType::TYPE_DOUBLE;
 
-template <>
-const cros::mojom::EntryType entry_type_of<Rational>::value =
-    cros::mojom::EntryType::TYPE_RATIONAL;
-
 // TODO(shik): support TYPE_RATIONAL
 
 cros::mojom::CameraMetadataEntryPtr* GetMetadataEntry(
@@ -48,14 +44,17 @@ cros::mojom::CameraMetadataEntryPtr* GetMetadataEntry(
     return nullptr;
   }
   // We assume the metadata entries are sorted.
-  auto iter = base::ranges::find(camera_metadata->entries.value(), tag,
-                                 &cros::mojom::CameraMetadataEntry::tag);
+  auto iter = std::find_if(camera_metadata->entries.value().begin(),
+                           camera_metadata->entries.value().end(),
+                           [tag](const cros::mojom::CameraMetadataEntryPtr& e) {
+                             return e->tag == tag;
+                           });
   if (iter == camera_metadata->entries.value().end()) {
     return nullptr;
   }
 
   auto* entry_ptr = &(camera_metadata->entries.value()[(*iter)->index]);
-  if ((*entry_ptr)->data.empty()) {
+  if (!(*entry_ptr)->data.data()) {
     // Metadata tag found with no valid data.
     LOG(WARNING) << "Found tag " << static_cast<int>(tag)
                  << " but with invalid data";
@@ -73,6 +72,7 @@ void AddOrUpdateMetadataEntry(cros::mojom::CameraMetadataPtr* to,
     (*e)->count = entry->count;
     (*e)->data = std::move(entry->data);
   } else {
+    entry->index = (*to)->entries->size();
     (*to)->entry_count += 1;
     (*to)->entry_capacity = std::max((*to)->entry_capacity, (*to)->entry_count);
     (*to)->data_count += entry->data.size();
@@ -80,7 +80,6 @@ void AddOrUpdateMetadataEntry(cros::mojom::CameraMetadataPtr* to,
     if (!(*to)->entries) {
       (*to)->entries = std::vector<cros::mojom::CameraMetadataEntryPtr>();
     }
-    entry->index = (*to)->entries->size();
     (*to)->entries->push_back(std::move(entry));
     SortCameraMetadata(to);
   }
@@ -124,7 +123,6 @@ void MergeMetadata(cros::mojom::CameraMetadataPtr* to,
   }
   for (const auto& entry : from->entries.value()) {
     if (tags.find(entry->tag) != tags.end()) {
-      (*to)->entry_count -= 1;
       LOG(ERROR) << "Found duplicated entries for tag " << entry->tag;
       continue;
     }

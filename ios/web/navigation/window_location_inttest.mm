@@ -1,20 +1,20 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/mac/foundation_util.h"
-#import "base/memory/ptr_util.h"
+#include "base/mac/foundation_util.h"
+#include "base/memory/ptr_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/test/web_view_interaction_test_util.h"
 #import "ios/web/public/web_state.h"
-#import "ios/web/public/web_state_observer.h"
+#include "ios/web/public/web_state_observer.h"
 #import "ios/web/test/web_int_test.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/gtest_mac.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -44,9 +44,9 @@ const char kWindowLocationSetToDOMStringID[] = "set-location-to-dom-string";
 
 // JavaScript functions on the window.location test page.
 NSString* const kUpdateURLScriptFormat = @"updateUrlToLoadText('%s')";
-const char kGetURLScript[] = "getUrl()";
-const char kOnLoadCheckScript[] = "isOnLoadTextVisible()";
-const char kNoOpCheckScript[] = "isNoOpTextVisible()";
+NSString* const kGetURLScript = @"getUrl()";
+NSString* const kOnLoadCheckScript = @"isOnLoadTextVisible()";
+NSString* const kNoOpCheckScript = @"isNoOpTextVisible()";
 
 // URL of a sample file-based page.
 const char kSampleFileBasedURL[] = "/chromium_logo_page.html";
@@ -72,7 +72,7 @@ class WindowLocationTest : public web::WebIntTest {
   // The URL of the window.location test page.
   const GURL& window_location_url() { return window_location_url_; }
 
-  // Executes JavaScript on the window.location test page to use `url` as the
+  // Executes JavaScript on the window.location test page to use |url| as the
   // parameter for the window.location calls executed by tapping the buttons on
   // the page.
   void SetWindowLocationUrl(const GURL& url) {
@@ -80,29 +80,27 @@ class WindowLocationTest : public web::WebIntTest {
     std::string url_spec = url.possibly_invalid_spec();
     NSString* set_url_script =
         [NSString stringWithFormat:kUpdateURLScriptFormat, url_spec.c_str()];
-    web::test::ExecuteJavaScript(web_state(),
-                                 base::SysNSStringToUTF8(set_url_script));
-    std::unique_ptr<base::Value> injected_url =
-        web::test::ExecuteJavaScript(web_state(), kGetURLScript);
-    ASSERT_TRUE(injected_url->is_string());
-    ASSERT_EQ(url_spec, injected_url->GetString());
+    ExecuteJavaScript(set_url_script);
+    NSString* injected_url =
+        base::mac::ObjCCastStrict<NSString>(ExecuteJavaScript(kGetURLScript));
+    ASSERT_EQ(url_spec, base::SysNSStringToUTF8(injected_url));
   }
 
   // Executes JavaScript on the window.location test page and returns whether
-  // `kOnLoadText` is visible.
+  // |kOnLoadText| is visible.
   bool IsOnLoadTextVisible() {
-    std::unique_ptr<base::Value> text_visible =
-        web::test::ExecuteJavaScript(web_state(), kOnLoadCheckScript);
-    return text_visible->GetBool();
+    NSNumber* text_visible = base::mac::ObjCCastStrict<NSNumber>(
+        ExecuteJavaScript(kOnLoadCheckScript));
+    return [text_visible boolValue];
   }
 
   // Executes JavaScript on the window.location test page and returns whether
   // the no-op text is visible.  It is displayed 0.5 seconds after a button is
   // tapped, and can be used to verify that a navigation did not occur.
   bool IsNoOpTextVisible() {
-    std::unique_ptr<base::Value> text_visible =
-        web::test::ExecuteJavaScript(web_state(), kNoOpCheckScript);
-    return text_visible->GetBool();
+    NSNumber* text_visible = base::mac::ObjCCastStrict<NSNumber>(
+        ExecuteJavaScript(kNoOpCheckScript));
+    return [text_visible boolValue];
   }
 
   std::unique_ptr<net::EmbeddedTestServer> test_server_;
@@ -112,7 +110,13 @@ class WindowLocationTest : public web::WebIntTest {
 };
 
 // Tests that calling window.location.assign() creates a new NavigationItem.
-TEST_F(WindowLocationTest, Assign) {
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_Assign Assign
+#else
+#define MAYBE_Assign DISABLED_Assign
+#endif
+// TODO(crbug.com/721162): Enable this test on device.
+TEST_F(WindowLocationTest, MAYBE_Assign) {
   // Navigate to about:blank so there is a forward entry to prune.
   GURL about_blank("about:blank");
   ASSERT_TRUE(LoadUrl(about_blank));
@@ -128,20 +132,35 @@ TEST_F(WindowLocationTest, Assign) {
   // button.
   GURL sample_url = test_server_->GetURL(kSampleFileBasedURL);
   SetWindowLocationUrl(sample_url);
-  auto block = ^{
+  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(sample_url, ^{
     ASSERT_TRUE(web::test::TapWebViewElementWithId(web_state(),
                                                    kWindowLocationAssignID));
-  };
-  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(sample_url, block));
+  }));
 
-  // Verify that `sample_url` was loaded and that `about_blank_item` was pruned.
+  // Verify that |sample_url| was loaded and that |about_blank_item| was pruned.
   EXPECT_EQ(sample_url, navigation_manager()->GetLastCommittedItem()->GetURL());
   EXPECT_EQ(NSNotFound, GetIndexOfNavigationItem(about_blank_item));
 }
 
+// Tests that calling window.location.assign() with an unresolvable URL loads
+// about:blank.
+TEST_F(WindowLocationTest, WindowLocationAssignUnresolvable) {
+  // Attempt to call window.location.assign() using an unresolvable URL.
+  GURL unresolvable_url("http:https:not a url");
+  SetWindowLocationUrl(unresolvable_url);
+  ASSERT_TRUE(
+      web::test::TapWebViewElementWithId(web_state(), kWindowLocationAssignID));
+
+  // Wait for the no-op text to appear.
+  base::test::ios::WaitUntilCondition(^bool {
+    return IsNoOpTextVisible();
+  });
+}
+
 // Tests that calling window.location.replace() doesn't create a new
 // NavigationItem.
-TEST_F(WindowLocationTest, Replace) {
+// TODO(crbug.com/307072): Enable test when location.replace is fixed.
+TEST_F(WindowLocationTest, DISABLED_Replace) {
   // Navigate to about:blank so there is a forward entry.
   GURL about_blank("about:blank");
   ASSERT_TRUE(LoadUrl(about_blank));
@@ -157,13 +176,12 @@ TEST_F(WindowLocationTest, Replace) {
   // button.
   GURL sample_url = test_server_->GetURL(kSampleFileBasedURL);
   SetWindowLocationUrl(sample_url);
-  auto block = ^{
+  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(sample_url, ^{
     ASSERT_TRUE(web::test::TapWebViewElementWithId(web_state(),
                                                    kWindowLocationReplaceID));
-  };
-  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(sample_url, block));
+  }));
 
-  // Verify that `sample_url` was loaded and that `about_blank_item` was pruned.
+  // Verify that |sample_url| was loaded and that |about_blank_item| was pruned.
   web::NavigationItem* current_item =
       navigation_manager()->GetLastCommittedItem();
   EXPECT_EQ(sample_url, current_item->GetURL());
@@ -171,23 +189,55 @@ TEST_F(WindowLocationTest, Replace) {
             GetIndexOfNavigationItem(about_blank_item));
 }
 
+// Tests that calling window.location.replace() with an unresolvable URL is a
+// no-op.
+TEST_F(WindowLocationTest, WindowLocationReplaceUnresolvable) {
+  if (@available(iOS 14, *)) {
+    // This is a syntax error in WebKit in iOS14.
+    return;
+  }
+
+  // Attempt to call window.location.assign() using an unresolvable URL.
+  GURL unresolvable_url("http:https:not a url");
+  SetWindowLocationUrl(unresolvable_url);
+  ASSERT_TRUE(web::test::TapWebViewElementWithId(web_state(),
+                                                 kWindowLocationReplaceID));
+
+  // Wait for the no-op text to appear.
+  base::test::ios::WaitUntilCondition(^bool {
+    return IsNoOpTextVisible();
+  });
+}
+
 // Tests that calling window.location.reload() causes an onload event to occur.
-TEST_F(WindowLocationTest, WindowLocationReload) {
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_WindowLocationReload WindowLocationReload
+#else
+#define MAYBE_WindowLocationReload DISABLED_WindowLocationReload
+#endif
+// TODO(crbug.com/721465): Enable this test on device.
+TEST_F(WindowLocationTest, MAYBE_WindowLocationReload) {
   // Tap the window.location.reload() button.
-  auto block = ^{
+  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(window_location_url(), ^{
     ASSERT_TRUE(web::test::TapWebViewElementWithId(web_state(),
                                                    kWindowLocationReloadID));
-  };
-  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(window_location_url(), block));
+  }));
 
-  // Verify that `kOnLoadText` is displayed and that no additional
+  // Verify that |kOnLoadText| is displayed and that no additional
   // NavigationItems are added.
   EXPECT_TRUE(IsOnLoadTextVisible());
   EXPECT_EQ(1, navigation_manager()->GetItemCount());
 }
 
 // Tests that calling window.location.assign() creates a new NavigationItem.
-TEST_F(WindowLocationTest, WindowLocationSetToDOMString) {
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_WindowLocationSetToDOMString WindowLocationSetToDOMString
+#else
+#define MAYBE_WindowLocationSetToDOMString DISABLED_WindowLocationSetToDOMString
+#endif
+// TODO(crbug.com/731740): This test is disabled because it occasionally times
+// out on device.
+TEST_F(WindowLocationTest, MAYBE_WindowLocationSetToDOMString) {
   // Navigate to about:blank so there is a forward entry to prune.
   GURL about_blank("about:blank");
   ASSERT_TRUE(LoadUrl(about_blank));
@@ -203,13 +253,12 @@ TEST_F(WindowLocationTest, WindowLocationSetToDOMString) {
   // button.
   GURL sample_url = test_server_->GetURL(kSampleFileBasedURL);
   SetWindowLocationUrl(sample_url);
-  auto block = ^{
+  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(sample_url, ^{
     ASSERT_TRUE(web::test::TapWebViewElementWithId(
         web_state(), kWindowLocationSetToDOMStringID));
-  };
-  ASSERT_TRUE(ExecuteBlockAndWaitForLoad(sample_url, block));
+  }));
 
-  // Verify that `sample_url` was loaded and that `about_blank_item` was pruned.
+  // Verify that |sample_url| was loaded and that |about_blank_item| was pruned.
   EXPECT_EQ(sample_url, navigation_manager()->GetLastCommittedItem()->GetURL());
   EXPECT_EQ(NSNotFound, GetIndexOfNavigationItem(about_blank_item));
 }

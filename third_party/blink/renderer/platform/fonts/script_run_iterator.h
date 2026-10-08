@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_SCRIPT_RUN_ITERATOR_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_SCRIPT_RUN_ITERATOR_H_
 
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/deque.h"
@@ -28,9 +29,6 @@ class PLATFORM_EXPORT ScriptRunIterator {
   // the process.
   ScriptRunIterator(const UChar* text, wtf_size_t length, const ScriptData*);
 
-  ScriptRunIterator(const ScriptRunIterator&) = delete;
-  ScriptRunIterator& operator=(const ScriptRunIterator&) = delete;
-
   bool Consume(unsigned* limit, UScriptCode*);
 
   static constexpr int kMaxScriptCount = 32;
@@ -45,7 +43,7 @@ class PLATFORM_EXPORT ScriptRunIterator {
   void OpenBracket(UChar32);
   void CloseBracket(UChar32);
   bool MergeSets();
-  void FixupStack(UScriptCode resolved_script, bool exclude_last);
+  void FixupStack(UScriptCode resolved_script);
   bool Fetch(wtf_size_t* pos, UChar32*);
 
   UScriptCode ResolveCurrentScript() const;
@@ -72,6 +70,8 @@ class PLATFORM_EXPORT ScriptRunIterator {
   UScriptCode common_preferred_;
 
   const ScriptData* script_data_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScriptRunIterator);
 };
 
 // ScriptData is a wrapper which returns a set of scripts for a particular
@@ -86,8 +86,6 @@ class PLATFORM_EXPORT ScriptData {
   ScriptData() = default;
 
  public:
-  ScriptData(const ScriptData&) = delete;
-  ScriptData& operator=(const ScriptData&) = delete;
   virtual ~ScriptData();
 
   enum PairedBracketType {
@@ -105,6 +103,9 @@ class PLATFORM_EXPORT ScriptData {
   virtual UChar32 GetPairedBracket(UChar32) const = 0;
 
   virtual PairedBracketType GetPairedBracketType(UChar32) const = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScriptData);
 };
 
 class PLATFORM_EXPORT ICUScriptData : public ScriptData {
@@ -121,4 +122,4 @@ class PLATFORM_EXPORT ICUScriptData : public ScriptData {
 };
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_SCRIPT_RUN_ITERATOR_H_
+#endif

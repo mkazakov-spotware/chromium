@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/json/json_reader.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/user_metrics.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -24,6 +23,7 @@
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_external_agent_proxy.h"
 #include "content/public/browser/devtools_external_agent_proxy_delegate.h"
+#include "net/base/escape.h"
 
 using content::BrowserThread;
 using content::DevToolsAgentHost;
@@ -44,9 +44,9 @@ const char kPageReloadCommand[] = "{'method': 'Page.reload', id: 1}";
 
 const char kWebViewSocketPrefix[] = "webview_devtools_remote";
 
-static void ScheduleTaskDefault(base::OnceClosure task) {
+static void ScheduleTaskDefault(const base::Closure& task) {
   content::GetUIThreadTaskRunner({})->PostDelayedTask(
-      FROM_HERE, std::move(task), base::Milliseconds(kPollingIntervalMs));
+      FROM_HERE, task, base::TimeDelta::FromMilliseconds(kPollingIntervalMs));
 }
 
 // ProtocolCommand ------------------------------------------------------------
@@ -59,9 +59,6 @@ class ProtocolCommand
                   const std::string& target_path,
                   const std::string& command);
 
-  ProtocolCommand(const ProtocolCommand&) = delete;
-  ProtocolCommand& operator=(const ProtocolCommand&) = delete;
-
  private:
   void OnSocketOpened() override;
   void OnFrameRead(const std::string& message) override;
@@ -70,6 +67,8 @@ class ProtocolCommand
 
   const std::string command_;
   std::unique_ptr<AndroidDeviceManager::AndroidWebSocket> web_socket_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProtocolCommand);
 };
 
 ProtocolCommand::ProtocolCommand(
@@ -101,9 +100,6 @@ class WebSocketProxy : public AndroidDeviceManager::AndroidWebSocket::Delegate {
  public:
   explicit WebSocketProxy(content::DevToolsExternalAgentProxy* proxy)
       : socket_opened_(false), proxy_(proxy) {}
-
-  WebSocketProxy(const WebSocketProxy&) = delete;
-  WebSocketProxy& operator=(const WebSocketProxy&) = delete;
 
   void WebSocketCreated(AndroidDeviceManager::AndroidWebSocket* web_socket) {
     web_socket_.reset(web_socket);
@@ -143,6 +139,7 @@ class WebSocketProxy : public AndroidDeviceManager::AndroidWebSocket::Delegate {
   std::vector<std::string> pending_messages_;
   std::unique_ptr<AndroidDeviceManager::AndroidWebSocket> web_socket_;
   content::DevToolsExternalAgentProxy* proxy_;
+  DISALLOW_COPY_AND_ASSIGN(WebSocketProxy);
 };
 
 class AgentHostDelegate : public content::DevToolsExternalAgentProxyDelegate {
@@ -155,10 +152,6 @@ class AgentHostDelegate : public content::DevToolsExternalAgentProxyDelegate {
       const std::string& target_path,
       const std::string& type,
       base::Value* value);
-
-  AgentHostDelegate(const AgentHostDelegate&) = delete;
-  AgentHostDelegate& operator=(const AgentHostDelegate&) = delete;
-
   ~AgentHostDelegate() override;
 
  private:
@@ -200,6 +193,7 @@ class AgentHostDelegate : public content::DevToolsExternalAgentProxyDelegate {
   std::map<content::DevToolsExternalAgentProxy*,
            std::unique_ptr<WebSocketProxy>>
       proxies_;
+  DISALLOW_COPY_AND_ASSIGN(AgentHostDelegate);
 };
 
 static std::string GetStringProperty(const base::Value& value,
@@ -282,7 +276,7 @@ AgentHostDelegate::AgentHostDelegate(
       remote_id_(value ? GetStringProperty(*value, "id") : ""),
       frontend_url_(value ? GetFrontendURLFromValue(*value, browser_version)
                           : ""),
-      title_(value ? base::UTF16ToUTF8(base::UnescapeForHTML(
+      title_(value ? base::UTF16ToUTF8(net::UnescapeForHTML(
                          base::UTF8ToUTF16(GetStringProperty(*value, "title"))))
                    : ""),
       description_(value ? GetStringProperty(*value, "description") : ""),
@@ -376,14 +370,15 @@ class DevToolsDeviceDiscovery::DiscoveryRequest
     : public base::RefCountedThreadSafe<DiscoveryRequest,
                                         BrowserThread::DeleteOnUIThread> {
  public:
-  static void Start(AndroidDeviceManager* device_manager,
-                    base::OnceCallback<void(const CompleteDevices&)> callback);
+  static void Start(
+      AndroidDeviceManager* device_manager,
+      const DevToolsDeviceDiscovery::DeviceListCallback& callback);
 
  private:
   friend struct BrowserThread::DeleteOnThread<BrowserThread::UI>;
   friend class base::DeleteHelper<DiscoveryRequest>;
   explicit DiscoveryRequest(
-      base::OnceCallback<void(const CompleteDevices&)> callback);
+      const DevToolsDeviceDiscovery::DeviceListCallback& callback);
   virtual ~DiscoveryRequest();
 
   void ReceivedDevices(const AndroidDeviceManager::Devices& devices);
@@ -398,30 +393,29 @@ class DevToolsDeviceDiscovery::DiscoveryRequest
                      int result,
                      const std::string& response);
 
-  base::OnceCallback<void(const CompleteDevices&)> callback_;
+  DevToolsDeviceDiscovery::DeviceListCallback callback_;
   DevToolsDeviceDiscovery::CompleteDevices complete_devices_;
 };
 
 // static
 void DevToolsDeviceDiscovery::DiscoveryRequest::Start(
     AndroidDeviceManager* device_manager,
-    base::OnceCallback<void(const CompleteDevices&)> callback) {
+    const DevToolsDeviceDiscovery::DeviceListCallback& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  auto request =
-      base::WrapRefCounted(new DiscoveryRequest(std::move(callback)));
+  auto request = base::WrapRefCounted(new DiscoveryRequest(callback));
   device_manager->QueryDevices(
-      base::BindOnce(&DiscoveryRequest::ReceivedDevices, request));
+      base::Bind(&DiscoveryRequest::ReceivedDevices, request));
 }
 
 DevToolsDeviceDiscovery::DiscoveryRequest::DiscoveryRequest(
-    base::OnceCallback<void(const CompleteDevices&)> callback)
-    : callback_(std::move(callback)) {
+    const DevToolsDeviceDiscovery::DeviceListCallback& callback)
+    : callback_(callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 }
 
 DevToolsDeviceDiscovery::DiscoveryRequest::~DiscoveryRequest() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  std::move(callback_).Run(complete_devices_);
+  callback_.Run(complete_devices_);
 }
 
 void DevToolsDeviceDiscovery::DiscoveryRequest::ReceivedDevices(
@@ -429,7 +423,7 @@ void DevToolsDeviceDiscovery::DiscoveryRequest::ReceivedDevices(
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   for (const auto& device : devices) {
     device->QueryDeviceInfo(
-        base::BindOnce(&DiscoveryRequest::ReceivedDeviceInfo, this, device));
+        base::Bind(&DiscoveryRequest::ReceivedDeviceInfo, this, device));
   }
 }
 
@@ -444,7 +438,7 @@ void DevToolsDeviceDiscovery::DiscoveryRequest::ReceivedDeviceInfo(
        it != remote_device->browsers().end(); ++it) {
     device->SendJsonRequest(
         (*it)->socket(), kVersionRequest,
-        base::BindOnce(&DiscoveryRequest::ReceivedVersion, this, device, *it));
+        base::Bind(&DiscoveryRequest::ReceivedVersion, this, device, *it));
   }
 }
 
@@ -457,12 +451,12 @@ void DevToolsDeviceDiscovery::DiscoveryRequest::ReceivedVersion(
 
   device->SendJsonRequest(
       browser->socket(), kPageListRequest,
-      base::BindOnce(&DiscoveryRequest::ReceivedPages, this, device, browser));
+      base::Bind(&DiscoveryRequest::ReceivedPages, this, device, browser));
 
   if (result < 0)
     return;
   // Parse version, append to package name if available,
-  absl::optional<base::Value> value = base::JSONReader::Read(response);
+  base::Optional<base::Value> value = base::JSONReader::Read(response);
   if (value && value->is_dict()) {
     const std::string* browser_name = value->FindStringKey("Browser");
     if (browser_name) {
@@ -492,7 +486,7 @@ void DevToolsDeviceDiscovery::DiscoveryRequest::ReceivedPages(
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (result < 0)
     return;
-  absl::optional<base::Value> value = base::JSONReader::Read(response);
+  base::Optional<base::Value> value = base::JSONReader::Read(response);
   if (value && value->is_list()) {
     for (base::Value& page_value : value->GetList()) {
       if (page_value.is_dict())
@@ -593,10 +587,10 @@ DevToolsDeviceDiscovery::RemoteDevice::~RemoteDevice() {
 
 DevToolsDeviceDiscovery::DevToolsDeviceDiscovery(
     AndroidDeviceManager* device_manager,
-    DeviceListCallback callback)
+    const DeviceListCallback& callback)
     : device_manager_(device_manager),
-      callback_(std::move(callback)),
-      task_scheduler_(base::BindRepeating(&ScheduleTaskDefault)) {
+      callback_(callback),
+      task_scheduler_(base::Bind(&ScheduleTaskDefault)) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   RequestDeviceList();
 }
@@ -606,9 +600,9 @@ DevToolsDeviceDiscovery::~DevToolsDeviceDiscovery() {
 }
 
 void DevToolsDeviceDiscovery::SetScheduler(
-    base::RepeatingCallback<void(base::OnceClosure)> scheduler) {
+    base::Callback<void(const base::Closure&)> scheduler) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  task_scheduler_ = std::move(scheduler);
+  task_scheduler_ = scheduler;
 }
 
 // static
@@ -625,16 +619,15 @@ DevToolsDeviceDiscovery::CreateBrowserAgentHost(
 void DevToolsDeviceDiscovery::RequestDeviceList() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DiscoveryRequest::Start(
-      device_manager_,
-      base::BindOnce(&DevToolsDeviceDiscovery::ReceivedDeviceList,
-                     weak_factory_.GetWeakPtr()));
+      device_manager_, base::Bind(&DevToolsDeviceDiscovery::ReceivedDeviceList,
+                                  weak_factory_.GetWeakPtr()));
 }
 
 void DevToolsDeviceDiscovery::ReceivedDeviceList(
     const CompleteDevices& complete_devices) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  task_scheduler_.Run(base::BindOnce(
-      &DevToolsDeviceDiscovery::RequestDeviceList, weak_factory_.GetWeakPtr()));
+  task_scheduler_.Run(base::Bind(&DevToolsDeviceDiscovery::RequestDeviceList,
+                                 weak_factory_.GetWeakPtr()));
   // |callback_| should be run last as it may destroy |this|.
   callback_.Run(complete_devices);
 }

@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_WEBSHARE_WIN_SHOW_SHARE_UI_FOR_WINDOW_OPERATION_H_
 #define CHROME_BROWSER_WEBSHARE_WIN_SHOW_SHARE_UI_FOR_WINDOW_OPERATION_H_
 
+#include <EventToken.h>
 #include <wrl/client.h>
 
 #include "base/callback.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/win/core_winrt_util.h"
 
 namespace ABI {
@@ -62,7 +62,8 @@ class ShowShareUIForWindowOperation {
   void Run(DataRequestedCallback data_requested_callback);
 
  private:
-  static constexpr base::TimeDelta kMaxExecutionTime = base::Seconds(30);
+  static constexpr base::TimeDelta kMaxExecutionTime =
+      base::TimeDelta::FromSeconds(30);
 
   void Cancel();
   void OnDataRequested(
@@ -70,10 +71,15 @@ class ShowShareUIForWindowOperation {
           data_transfer_manager,
       ABI::Windows::ApplicationModel::DataTransfer::IDataRequestedEventArgs*
           event_args);
+  void RemoveDataRequestedListener();
 
   DataRequestedCallback data_requested_callback_;
+  EventRegistrationToken data_requested_token_;
+  Microsoft::WRL::ComPtr<
+      ABI::Windows::ApplicationModel::DataTransfer::IDataTransferManager>
+      data_transfer_manager_;
   const HWND hwnd_;
-  base::OnceClosure remove_data_requested_listener_;
+  bool show_share_ui_for_window_call_in_progress_;
   base::WeakPtrFactory<ShowShareUIForWindowOperation> weak_factory_{this};
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -86,8 +86,7 @@ void InputMethodSurface::OnSurfaceCommit() {
   }
 }
 
-void InputMethodSurface::SetWidgetBounds(const gfx::Rect& bounds,
-                                         bool adjusted_by_server) {
+void InputMethodSurface::SetWidgetBounds(const gfx::Rect& bounds) {
   if (bounds == widget_->GetWindowBoundsInScreen())
     return;
 

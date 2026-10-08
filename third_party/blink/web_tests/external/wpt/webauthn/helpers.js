@@ -19,6 +19,7 @@ var createCredentialDefaultArgs = {
             // Relying Party:
             rp: {
                 name: "Acme",
+                icon: "https://www.w3.org/StyleSheets/TR/2016/logos/W3C"
             },
 
             // User:
@@ -26,6 +27,7 @@ var createCredentialDefaultArgs = {
                 id: new Uint8Array(16), // Won't survive the copy, must be rebuilt
                 name: "john.p.smith@example.com",
                 displayName: "John P. Smith",
+                icon: "https://pics.acme.com/00/p/aBjjjpqPb.png"
             },
 
             pubKeyCredParams: [{
@@ -341,7 +343,7 @@ function cloneObject(o) {
 
 function extendObject(dst, src) {
     Object.keys(src).forEach(function(key) {
-        if (isSimpleObject(src[key]) && !isAbortSignal(src[key])) {
+        if (isSimpleObject(src[key])) {
             dst[key] ||= {};
             extendObject(dst[key], src[key]);
         } else {
@@ -354,10 +356,6 @@ function isSimpleObject(o) {
     return (typeof o === "object" &&
         !Array.isArray(o) &&
         !(o instanceof ArrayBuffer));
-}
-
-function isAbortSignal(o) {
-    return (o instanceof AbortSignal);
 }
 
 /**
@@ -496,15 +494,6 @@ class GetCredentialsTest extends TestCase {
 }
 
 /**
- * converts a uint8array to base64 url-safe encoding
- * based on similar function in resources/utils.js
- */
-function base64urlEncode(array) {
-  let string = String.fromCharCode.apply(null, array);
-  let result = btoa(string);
-  return result.replace(/=+$/g, '').replace(/\+/g, "-").replace(/\//g, "_");
-}
-/**
  * runs assertions against a PublicKeyCredential object to ensure it is properly formatted
  */
 function validatePublicKeyCredential(cred) {
@@ -516,8 +505,6 @@ function validatePublicKeyCredential(cred) {
     // rawId
     assert_idl_attribute(cred, "rawId", "should return PublicKeyCredential with rawId attribute");
     assert_readonly(cred, "rawId", "should return PublicKeyCredential with readonly rawId attribute");
-    assert_equals(cred.id, base64urlEncode(new Uint8Array(cred.rawId)), "should return PublicKeyCredential with id attribute set to base64 encoding of rawId attribute");
-
     // type
     assert_idl_attribute(cred, "type", "should return PublicKeyCredential with type attribute");
     assert_equals(cred.type, "public-key", "should return PublicKeyCredential with type 'public-key'");
@@ -563,57 +550,31 @@ function validateAuthenticatorAssertionResponse(assert) {
     // TODO: parseAuthenticatorData() and make sure flags are correct
 }
 
-function defaultAuthenticatorArgs() {
-  return {
-    protocol: 'ctap1/u2f',
-    transport: 'usb',
-    hasResidentKey: false,
-    hasUserVerification: false,
-    isUserVerified: false,
-  };
-}
-
 function standardSetup(cb, options = {}) {
-  // Setup an automated testing environment if available.
-  let authenticatorArgs = Object.assign(defaultAuthenticatorArgs(), options);
-  window.test_driver.add_virtual_authenticator(authenticatorArgs)
-      .then(authenticator => {
+    // Setup an automated testing environment if available.
+    let authenticatorArgs = {
+        protocol: "ctap1/u2f",
+        transport: "usb",
+        hasResidentKey: false,
+        hasUserVerification: false,
+        isUserVerified: false,
+    };
+    extendObject(authenticatorArgs, options);
+    window.test_driver.add_virtual_authenticator(authenticatorArgs).then(authenticator => {
         cb();
         // XXX add a subtest to clean up the virtual authenticator since
         // testharness does not support waiting for promises on cleanup.
-        promise_test(
-            () =>
-                window.test_driver.remove_virtual_authenticator(authenticator),
-            'Clean up the test environment');
-      })
-      .catch(error => {
-        if (error !==
-            'error: Action add_virtual_authenticator not implemented') {
-          throw error;
+        promise_test(() => window.test_driver.remove_virtual_authenticator(authenticator),
+                     "Clean up the test environment");
+    }).catch(error => {
+        if (error !== "error: Action add_virtual_authenticator not implemented") {
+            throw error;
         }
         // The protocol is not available. Continue manually.
         cb();
-      });
+    });
 }
 
-// virtualAuthenticatorPromiseTest runs |testCb| in a promise_test with a
-// virtual authenticator set up before and destroyed after the test, if the
-// virtual testing API is available. In manual tests, setup and teardown is
-// skipped.
-function virtualAuthenticatorPromiseTest(
-    testCb, options = {}, name = 'Virtual Authenticator Test') {
-  let authenticatorArgs = Object.assign(defaultAuthenticatorArgs(), options);
-  promise_test(async t => {
-    try {
-      let authenticator =
-          await window.test_driver.add_virtual_authenticator(authenticatorArgs);
-      t.add_cleanup(
-          () => window.test_driver.remove_virtual_authenticator(authenticator));
-    } catch (error) {
-      if (error !== 'error: Action add_virtual_authenticator not implemented') {
-        throw error;
-      }
-    }
-    return testCb(t);
-  }, name);
-}
+/* JSHINT */
+/* globals promise_rejects_dom, promise_rejects_js, assert_class_string, assert_equals, assert_idl_attribute, assert_readonly, promise_test */
+/* exported standardSetup, CreateCredentialsTest, GetCredentialsTest */

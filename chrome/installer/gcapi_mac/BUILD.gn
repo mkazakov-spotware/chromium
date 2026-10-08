@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,14 +15,12 @@ config("gcapi_config") {
   cflags = [
     "-isysroot",
     rebase_path(sysroot, root_build_dir),
-    "-mmacos-version-min=$min_version",
-    "-stdlib=libc++",  # TODO(thakis): Remove once min_version >= 10.9.
+    "-mmacosx-version-min=$min_version",
   ]
   ldflags = [
     "-isysroot",
     rebase_path(sysroot, root_build_dir),
-    "-mmacos-version-min=$min_version",
-    "-stdlib=libc++",  # TODO(thakis): Remove once min_version >= 10.9.
+    "-mmacosx-version-min=$min_version",
   ]
 }
 
@@ -36,7 +34,7 @@ static_library("gcapi_lib") {
 
   frameworks = [ "Cocoa.framework" ]
 
-  # Don't use runtime_library, to be able to pick a custom mmacos-version-min.
+  # Don't use runtime_library, to be able to pick a custom mmacosx-version-min.
   configs -= [ "//build/config/compiler:runtime_library" ]
   configs += [ ":gcapi_config" ]
 
@@ -48,7 +46,7 @@ executable("gcapi_example") {
 
   deps = [ ":gcapi_lib" ]
 
-  # Don't use runtime_library, to be able to pick a custom mmacos-version-min.
+  # Don't use runtime_library, to be able to pick a custom mmacosx-version-min.
   configs -= [ "//build/config/compiler:runtime_library" ]
   configs += [ ":gcapi_config" ]
 

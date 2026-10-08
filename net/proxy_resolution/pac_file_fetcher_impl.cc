@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
-#include "base/strings/string_piece.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/data_url.h"
 #include "net/base/io_buffer.h"
 #include "net/base/load_flags.h"
@@ -47,17 +47,19 @@ const int kDefaultMaxResponseBytes = 1048576;  // 1 megabyte
 //
 // 30 seconds is a compromise between those competing goals. This value also
 // appears to match Microsoft Edge (based on testing).
-constexpr base::TimeDelta kDefaultMaxDuration = base::Seconds(30);
+constexpr base::TimeDelta kDefaultMaxDuration =
+    base::TimeDelta::FromSeconds(30);
 
 // Returns true if |mime_type| is one of the known PAC mime type.
-constexpr bool IsPacMimeType(base::StringPiece mime_type) {
-  constexpr base::StringPiece kSupportedPacMimeTypes[] = {
-      "application/x-ns-proxy-autoconfig",
-      "application/x-javascript-config",
+bool IsPacMimeType(const std::string& mime_type) {
+  static const char* const kSupportedPacMimeTypes[] = {
+      "application/x-ns-proxy-autoconfig", "application/x-javascript-config",
   };
-  return base::ranges::any_of(kSupportedPacMimeTypes, [&](auto pac_mime_type) {
-    return base::EqualsCaseInsensitiveASCII(pac_mime_type, mime_type);
-  });
+  for (size_t i = 0; i < base::size(kSupportedPacMimeTypes); ++i) {
+    if (base::LowerCaseEqualsASCII(mime_type, kSupportedPacMimeTypes[i]))
+      return true;
+  }
+  return false;
 }
 
 struct BomMapping {
@@ -76,7 +78,7 @@ const BomMapping kBomMappings[] = {
 // If |charset| is empty, then we don't know what it was and guess.
 void ConvertResponseToUTF16(const std::string& charset,
                             const std::string& bytes,
-                            std::u16string* utf16) {
+                            base::string16* utf16) {
   if (charset.empty()) {
     // Guess the charset by looking at the BOM.
     base::StringPiece bytes_str(bytes);
@@ -139,7 +141,7 @@ void PacFileFetcherImpl::OnResponseCompleted(URLRequest* request,
 
 int PacFileFetcherImpl::Fetch(
     const GURL& url,
-    std::u16string* text,
+    base::string16* text,
     CompletionOnceCallback callback,
     const NetworkTrafficAnnotationTag traffic_annotation) {
   // It is invalid to call Fetch() while a request is already in progress.
@@ -173,7 +175,7 @@ int PacFileFetcherImpl::Fetch(
   cur_request_ = url_request_context_->CreateRequest(url, MAXIMUM_PRIORITY,
                                                      this, traffic_annotation);
 
-  cur_request_->set_isolation_info(isolation_info());
+  cur_request_->set_isolation_info(isolation_info_);
 
   // Make sure that the PAC script is downloaded using a direct connection,
   // to avoid circular dependencies (fetching is a part of proxy resolution).
@@ -198,7 +200,7 @@ int PacFileFetcherImpl::Fetch(
   // Post a task to timeout this request if it takes too long.
   cur_request_id_ = ++next_id_;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&PacFileFetcherImpl::OnTimeout, weak_factory_.GetWeakPtr(),
                      cur_request_id_),
@@ -316,15 +318,20 @@ void PacFileFetcherImpl::OnReadCompleted(URLRequest* request, int num_bytes) {
 
 PacFileFetcherImpl::PacFileFetcherImpl(URLRequestContext* url_request_context)
     : url_request_context_(url_request_context),
+      isolation_info_(IsolationInfo::CreateTransient()),
       buf_(base::MakeRefCounted<IOBuffer>(kBufSize)),
+      next_id_(0),
+      cur_request_id_(0),
+      result_code_(OK),
+      result_text_(nullptr),
       max_response_bytes_(kDefaultMaxResponseBytes),
       max_duration_(kDefaultMaxDuration) {
   DCHECK(url_request_context);
 }
 
 bool PacFileFetcherImpl::IsUrlSchemeAllowed(const GURL& url) const {
-  // Always allow http://, https://, and data:.
-  if (url.SchemeIsHTTPOrHTTPS() || url.SchemeIs("data"))
+  // Always allow http://, https://, data:, and ftp://.
+  if (url.SchemeIsHTTPOrHTTPS() || url.SchemeIs("ftp") || url.SchemeIs("data"))
     return true;
 
   // Disallow any other URL scheme.

@@ -3,39 +3,39 @@
 // found in the LICENSE file.
 
 (async function() {
-  TestRunner.addResult('Tests accessibility in IgnoreList view using the axe-core linter.');
+  TestRunner.addResult('Tests accessibility in Blackboxing view using the axe-core linter.');
 
-  await TestRunner.loadTestModule('axe_core_test_runner');
+  await TestRunner.loadModule('axe_core_test_runner');
   await UI.viewManager.showView('blackbox');
-  const ignoreListWidget = await UI.viewManager.view('blackbox').widget();
+  const blackboxWidget = await UI.viewManager.view('blackbox').widget();
 
   async function testAddPattern() {
-    const addPatternButton = ignoreListWidget.defaultFocusedElement;
+    const addPatternButton = blackboxWidget._defaultFocusedElement;
     // Make add pattern editor visible
     addPatternButton.click();
 
-    const ignoreListInputs = ignoreListWidget.list.editor.controls;
-    TestRunner.addResult(`Opened input box: ${Boolean(ignoreListInputs)}`);
+    const blackboxInputs = blackboxWidget._list._editor._controls;
+    TestRunner.addResult(`Opened input box: ${!!blackboxInputs}`);
 
-    await AxeCoreTestRunner.runValidation(ignoreListWidget.contentElement);
+    await AxeCoreTestRunner.runValidation(blackboxWidget.contentElement);
   }
 
   async function testPatternList() {
-    ignoreListWidget.list.appendItem('test*', true);
-    TestRunner.addResult(`Added a pattern in the list: ${ignoreListWidget.list.items}`);
-    await AxeCoreTestRunner.runValidation(ignoreListWidget.contentElement);
+    blackboxWidget._list.appendItem('test*', true);
+    TestRunner.addResult(`Added a pattern in the list: ${blackboxWidget._list._items}`);
+    await AxeCoreTestRunner.runValidation(blackboxWidget.contentElement);
   }
 
   async function testPatternError() {
-    const ignoreListEditor = ignoreListWidget.list.editor;
-    const patternInput = ignoreListEditor.controls[0];
+    const blackboxEditor = blackboxWidget._list._editor;
+    const patternInput = blackboxEditor._controls[0];
     // Blur patternInput to run validator
     patternInput.blur();
 
-    const errorMessage = ignoreListEditor.errorMessageContainer.textContent;
+    const errorMessage = blackboxEditor._errorMessageContainer.textContent;
     TestRunner.addResult(`Error message: ${errorMessage}`);
 
-    await AxeCoreTestRunner.runValidation(ignoreListWidget.contentElement);
+    await AxeCoreTestRunner.runValidation(blackboxWidget.contentElement);
   }
 
   TestRunner.runAsyncTestSuite([testAddPattern, testPatternList, testPatternError]);

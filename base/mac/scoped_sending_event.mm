@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/check.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 ScopedSendingEvent::ScopedSendingEvent()
     : app_(static_cast<NSObject<CrAppControlProtocol>*>(NSApp)) {
@@ -19,4 +20,5 @@ ScopedSendingEvent::~ScopedSendingEvent() {
   [app_ setHandlingSendEvent:handling_];
 }
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

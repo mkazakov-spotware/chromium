@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -81,7 +81,7 @@ bool DeserializeSyncableFileSystemURL(const std::string& serialized_url,
 base::FilePath GetSyncFileSystemDir(const base::FilePath& profile_base_dir);
 
 // Posts |callback| to the current thread.
-void RunSoon(const base::Location& from_here, base::OnceClosure callback);
+void RunSoon(const base::Location& from_here, const base::Closure& callback);
 
 }  // namespace sync_file_system
 

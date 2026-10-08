@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "ash/public/cpp/system_tray.h"
-#include "ash/system/time/calendar_model.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -16,23 +16,17 @@ class ActiveNetworkIcon;
 class ClockModel;
 class EnterpriseDomainModel;
 class LocaleModel;
-struct RelaunchNotificationState;
 class SessionLengthLimitModel;
 class SystemTrayClient;
 class TracingModel;
 class TrayNetworkStateModel;
 class UpdateModel;
 class VirtualKeyboardModel;
-class CalendarModel;
 
 // Top level model of SystemTray.
 class SystemTrayModel : public SystemTray {
  public:
   SystemTrayModel();
-
-  SystemTrayModel(const SystemTrayModel&) = delete;
-  SystemTrayModel& operator=(const SystemTrayModel&) = delete;
-
   ~SystemTrayModel() override;
 
   // SystemTray:
@@ -40,10 +34,8 @@ class SystemTrayModel : public SystemTray {
   void SetPrimaryTrayEnabled(bool enabled) override;
   void SetPrimaryTrayVisible(bool visible) override;
   void SetUse24HourClock(bool use_24_hour) override;
-  void SetDeviceEnterpriseInfo(
-      const DeviceEnterpriseInfo& device_enterprise_info) override;
-  void SetEnterpriseAccountDomainInfo(
-      const std::string& account_domain_manager) override;
+  void SetEnterpriseDomainInfo(const std::string& enterprise_domain_manager,
+                               bool active_directory_managed) override;
   void SetPerformanceTracingIconVisible(bool visible) override;
   void SetLocaleList(std::vector<LocaleInfo> locale_list,
                      const std::string& current_locale_iso_code) override;
@@ -51,15 +43,15 @@ class SystemTrayModel : public SystemTray {
                       bool factory_reset_required,
                       bool rollback,
                       UpdateType update_type) override;
-  void SetRelaunchNotificationState(
-      const RelaunchNotificationState& relaunch_notification_state) override;
-  void ResetUpdateState() override;
-  void SetUpdateDeferred(DeferredUpdateState state) override;
+  void SetUpdateNotificationState(
+      NotificationStyle style,
+      const base::string16& notification_title,
+      const base::string16& notification_body) override;
   void SetUpdateOverCellularAvailableIconVisible(bool visible) override;
   void ShowVolumeSliderBubble() override;
-  void ShowNetworkDetailedViewBubble() override;
+  void ShowNetworkDetailedViewBubble(bool show_by_click) override;
   void SetPhoneHubManager(
-      phonehub::PhoneHubManager* phone_hub_manager) override;
+      chromeos::phonehub::PhoneHubManager* phone_hub_manager) override;
 
   ClockModel* clock() { return clock_.get(); }
   EnterpriseDomainModel* enterprise_domain() {
@@ -79,7 +71,6 @@ class SystemTrayModel : public SystemTray {
     return active_network_icon_.get();
   }
   SystemTrayClient* client() { return client_; }
-  CalendarModel* calendar_model() { return calendar_model_.get(); }
 
  private:
   std::unique_ptr<ClockModel> clock_;
@@ -91,10 +82,14 @@ class SystemTrayModel : public SystemTray {
   std::unique_ptr<VirtualKeyboardModel> virtual_keyboard_;
   std::unique_ptr<TrayNetworkStateModel> network_state_model_;
   std::unique_ptr<ActiveNetworkIcon> active_network_icon_;
-  std::unique_ptr<CalendarModel> calendar_model_;
+
+  // TODO(tetsui): Add following as a sub-model of SystemTrayModel:
+  // * BluetoothModel
 
   // Client interface in chrome browser. May be null in tests.
   SystemTrayClient* client_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemTrayModel);
 };
 
 }  // namespace ash

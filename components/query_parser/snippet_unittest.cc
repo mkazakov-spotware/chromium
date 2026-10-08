@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include <algorithm>
 
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -92,7 +93,7 @@ bool ComparePair1st(const Snippet::MatchPosition& a,
 // For testing, we'll compute the match positions manually instead of using
 // sqlite's FTS matching.  BuildSnippet returns the snippet for matching
 // |query| against |document|.  Matches are surrounded by "**".
-std::u16string BuildSnippet(const std::string& document,
+base::string16 BuildSnippet(const std::string& document,
                             const std::string& query) {
   // This function assumes that |document| does not contain
   // any character for which lowercasing changes its length. Further,
@@ -122,16 +123,16 @@ std::u16string BuildSnippet(const std::string& document,
   snippet.ComputeSnippet(match_positions, document);
 
   // Now "highlight" all matches in the snippet with **.
-  std::u16string star_snippet;
+  base::string16 star_snippet;
   Snippet::MatchPositions::const_iterator match;
   size_t pos = 0;
   for (match = snippet.matches().begin();
        match != snippet.matches().end(); ++match) {
     star_snippet += snippet.text().substr(pos, match->first - pos);
-    star_snippet += u"**";
+    star_snippet += base::UTF8ToUTF16("**");
     star_snippet += snippet.text().substr(match->first,
                                           match->second - match->first);
-    star_snippet += u"**";
+    star_snippet += base::UTF8ToUTF16("**");
     pos = match->second;
   }
   star_snippet += snippet.text().substr(pos);
@@ -241,7 +242,7 @@ TEST(Snippets, ExtractMatchPositions) {
     { "0 0 1 2 0 0 1 1",                    1,     { 1, 3 } },
     { "0 0 1 1 0 0 5 2 0 0 10 1 0 0 3 10",  2,     { 1, 2, 3, 13 } },
   };
-  for (size_t i = 0; i < std::size(data); ++i) {
+  for (size_t i = 0; i < base::size(data); ++i) {
     Snippet::MatchPositions matches;
     Snippet::ExtractMatchPositions(data[i].offsets_string, "0", &matches);
     EXPECT_EQ(data[i].expected_match_count, matches.size());

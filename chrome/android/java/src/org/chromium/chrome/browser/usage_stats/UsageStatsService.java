@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,10 @@ import org.chromium.base.CollectionUtil;
 import org.chromium.base.Log;
 import org.chromium.base.Promise;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.AppHooks;
-import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.components.user_prefs.UserPrefs;
 
 import java.lang.ref.WeakReference;
@@ -63,21 +61,6 @@ public class UsageStatsService {
         return sInstance;
     }
 
-    /**
-     * Creates a UsageStatsService for the given Activity if the feature is enabled.
-     * @param activity The activity in which page view events are occurring.
-     * @param activityTabProvider The provider of the active tab for the activity.
-     * @param tabContentManagerSupplier Supplier of the current {@link TabContentManager}.
-     */
-    public static void createPageViewObserverIfEnabled(Activity activity,
-            ActivityTabProvider activityTabProvider,
-            Supplier<TabContentManager> tabContentManagerSupplier) {
-        if (!isEnabled()) return;
-
-        getInstance().createPageViewObserver(
-                activity, activityTabProvider, tabContentManagerSupplier);
-    }
-
     @VisibleForTesting
     UsageStatsService() {
         mProfile = Profile.getLastUsedRegularProfile();
@@ -101,16 +84,15 @@ public class UsageStatsService {
 
     /**
      * Create a {@link PageViewObserver} for the given tab model selector and activity.
-     * @param activity The activity in which page view events are occurring.
-     * @param activityTabProvider The provider of the active tab for the activity.
-     * @param tabContentManagerSupplier Supplier of the current {@link TabContentManager}.
+     * @param tabModelSelector The tab model selector that should be used to get the current tab
+     *         model.
+     * @param activity The activity in which page view events are occuring.
      */
-    private PageViewObserver createPageViewObserver(Activity activity,
-            ActivityTabProvider activityTabProvider,
-            Supplier<TabContentManager> tabContentManagerSupplier) {
+    public PageViewObserver createPageViewObserver(
+            TabModelSelector tabModelSelector, Activity activity) {
         ThreadUtils.assertOnUiThread();
-        PageViewObserver observer = new PageViewObserver(activity, activityTabProvider,
-                mEventTracker, mTokenTracker, mSuspensionTracker, tabContentManagerSupplier);
+        PageViewObserver observer = new PageViewObserver(
+                activity, tabModelSelector, mEventTracker, mTokenTracker, mSuspensionTracker);
         mPageViewObservers.add(new WeakReference<>(observer));
         return observer;
     }

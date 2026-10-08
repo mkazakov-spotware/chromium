@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,13 @@
 
 #include "components/browsing_data/core/counters/browsing_data_counter.h"
 #include "components/browsing_data/core/counters/sync_tracker.h"
+#include "components/password_manager/core/browser/password_store.h"
 #include "components/password_manager/core/browser/password_store_consumer.h"
 
-namespace password_manager {
-class PasswordStoreInterface;
-}
-
 namespace browsing_data {
+namespace {
 class PasswordStoreFetcher;
+}
 class PasswordsCounter : public browsing_data::BrowsingDataCounter {
  public:
   // A subclass of SyncResult that stores the result value, a boolean
@@ -32,10 +31,6 @@ class PasswordsCounter : public browsing_data::BrowsingDataCounter {
                     bool sync_enabled,
                     std::vector<std::string> domain_examples,
                     std::vector<std::string> account_domain_examples);
-
-    PasswordsResult(const PasswordsResult&) = delete;
-    PasswordsResult& operator=(const PasswordsResult&) = delete;
-
     ~PasswordsResult() override;
 
     ResultInt account_passwords() const { return account_passwords_; }
@@ -52,20 +47,19 @@ class PasswordsCounter : public browsing_data::BrowsingDataCounter {
     ResultInt account_passwords_ = 0;
     std::vector<std::string> domain_examples_;
     std::vector<std::string> account_domain_examples_;
+
+    DISALLOW_COPY_AND_ASSIGN(PasswordsResult);
   };
 
-  PasswordsCounter(
-      scoped_refptr<password_manager::PasswordStoreInterface> profile_store,
-      scoped_refptr<password_manager::PasswordStoreInterface> account_store,
+  explicit PasswordsCounter(
+      scoped_refptr<password_manager::PasswordStore> profile_store,
+      scoped_refptr<password_manager::PasswordStore> account_store,
       syncer::SyncService* sync_service);
   ~PasswordsCounter() override;
 
   const char* GetPrefName() const override;
-
  protected:
-  virtual void OnPasswordsFetchDone();
   virtual std::unique_ptr<PasswordsResult> MakeResult();
-  void Count() override;
 
   bool is_sync_active() { return sync_tracker_.IsSyncActive(); }
   int num_passwords();
@@ -76,6 +70,8 @@ class PasswordsCounter : public browsing_data::BrowsingDataCounter {
  private:
   void OnInitialized() override;
   void OnFetchDone();
+
+  void Count() override;
 
   base::CancelableTaskTracker cancelable_task_tracker_;
   std::unique_ptr<PasswordStoreFetcher> profile_store_fetcher_;

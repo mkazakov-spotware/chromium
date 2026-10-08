@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BOOKMARKS_BROWSER_SCOPED_GROUP_BOOKMARK_ACTIONS_H_
 #define COMPONENTS_BOOKMARKS_BROWSER_SCOPED_GROUP_BOOKMARK_ACTIONS_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace bookmarks {
 
@@ -15,15 +15,12 @@ class BookmarkModel;
 class ScopedGroupBookmarkActions {
  public:
   explicit ScopedGroupBookmarkActions(BookmarkModel* model);
-
-  ScopedGroupBookmarkActions(const ScopedGroupBookmarkActions&) = delete;
-  ScopedGroupBookmarkActions& operator=(const ScopedGroupBookmarkActions&) =
-      delete;
-
   ~ScopedGroupBookmarkActions();
 
  private:
-  raw_ptr<BookmarkModel> model_;
+  BookmarkModel* model_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedGroupBookmarkActions);
 };
 
 }  // namespace bookmarks

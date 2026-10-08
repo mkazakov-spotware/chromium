@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -107,13 +107,7 @@ class BaseMessage(object):
     dup = False
     for other in self.GetPlaceholders():
       if other.presentation == placeholder.presentation:
-        if (other.original != placeholder.original
-            or other.example != placeholder.example):
-          error = ("Conflicting declarations of %s within message. Originals" +
-                   " are [%s], [%s]. Example are [%s], [%s]") % (
-                       placeholder.GetPresentation(), other.original,
-                       placeholder.original, other.example, placeholder.example)
-          raise Exception(error)
+        assert other.original == placeholder.original
         dup = True
 
     if not dup:
@@ -167,10 +161,7 @@ class BaseMessage(object):
           part.presentation.encode('utf-8'),
           part.original.encode('utf-8'),
           part.example.encode('utf-8'))
-        try:
-          msg.AppendPlaceholder(ph)
-        except:
-          raise Exception(self.parts)
+        msg.AppendPlaceholder(ph)
       else:
         msg.AppendText(part.encode('utf-8'))
 

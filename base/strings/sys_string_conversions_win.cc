@@ -1,11 +1,10 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/sys_string_conversions.h"
 
 #include <windows.h>
-
 #include <stdint.h>
 
 #include "base/strings/string_piece.h"
@@ -43,7 +42,7 @@ std::wstring SysMultiByteToWide(StringPiece mb, uint32_t code_page) {
     return std::wstring();
 
   std::wstring wide;
-  wide.resize(static_cast<size_t>(charcount));
+  wide.resize(charcount);
   MultiByteToWideChar(code_page, 0, mb.data(), mb_length, &wide[0], charcount);
 
   return wide;
@@ -62,7 +61,7 @@ std::string SysWideToMultiByte(const std::wstring& wide, uint32_t code_page) {
     return std::string();
 
   std::string mb;
-  mb.resize(static_cast<size_t>(charcount));
+  mb.resize(charcount);
   WideCharToMultiByte(code_page, 0, wide.data(), wide_length,
                       &mb[0], charcount, NULL, NULL);
 

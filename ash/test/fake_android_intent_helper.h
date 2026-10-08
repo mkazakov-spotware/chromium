@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 
 #include "ash/public/cpp/android_intent_helper.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace ash {
 
@@ -28,8 +28,8 @@ class FakeAndroidIntentHelper : public AndroidIntentHelper {
 
   // AndroidIntentHelper overrides:
   void LaunchAndroidIntent(const std::string& intent) override;
-  absl::optional<std::string> GetAndroidAppLaunchIntent(
-      const assistant::AndroidAppInfo& app_info) override;
+  base::Optional<std::string> GetAndroidAppLaunchIntent(
+      const chromeos::assistant::AndroidAppInfo& app_info) override;
 
   // Adds a fake Android app.
   // |intent| will be returned from GetAndroidAppLaunchIntent() if the value of
@@ -37,13 +37,13 @@ class FakeAndroidIntentHelper : public AndroidIntentHelper {
   void AddApp(const LocalizedAppName& name, const Intent& intent);
 
   // Returns the intent of the last Android app that was launched.
-  const absl::optional<Intent>& last_launched_android_intent() const {
+  const base::Optional<Intent>& last_launched_android_intent() const {
     return last_launched_intent_;
   }
 
  private:
   std::map<LocalizedAppName, Intent> apps_;
-  absl::optional<Intent> last_launched_intent_;
+  base::Optional<Intent> last_launched_intent_;
 };
 
 }  // namespace ash

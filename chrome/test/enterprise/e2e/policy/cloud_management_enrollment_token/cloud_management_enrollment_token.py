@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,10 +6,8 @@ from absl import flags
 import os
 
 from infra import ChromeEnterpriseTestCase
-from chrome_ent_test.infra.core import before_all
-from chrome_ent_test.infra.core import category
-from chrome_ent_test.infra.core import environment
-from chrome_ent_test.infra.core import test
+from chrome_ent_test.infra.core import before_all, category, environment, test
+
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -34,7 +32,7 @@ class CloudManagementEnrollmentTokenTest(ChromeEnterpriseTestCase):
     if token == None:
       path = "gs://%s/secrets/enrollToken" % self.gsbucket
       cmd = r'gsutil cat ' + path
-      token = self.RunCommand(self.win_config['dc'], cmd).rstrip().decode()
+      token = self.RunCommand(self.win_config['dc'], cmd).rstrip()
     self.SetPolicy(self.win_config['dc'], r'CloudManagementEnrollmentToken',
                    token, 'String')
     self.RunCommand(self.win_config['client'], 'gpupdate /force')
@@ -46,6 +44,6 @@ class CloudManagementEnrollmentTokenTest(ChromeEnterpriseTestCase):
         os.path.join(local_dir, 'cloud_enrollment_webdriver.py'))
     # Verify CBCM status legend
     self.assertIn('Machine policies', output)
-    self.assertIn('CLIENT2016', output)
+    self.assertIn('CLIENT2019', output)
     self.assertIn(token, output)
     self.assertIn('Policy cache OK', output)

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
@@ -19,7 +18,6 @@
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "remoting/base/fake_oauth_token_getter.h"
 #include "remoting/base/protobuf_http_status.h"
 #include "remoting/signaling/fake_signal_strategy.h"
@@ -51,9 +49,11 @@ constexpr char kFtlId[] = "fake_user@domain.com/chromoting_ftl_abc123";
 constexpr int32_t kGoodIntervalSeconds = 300;
 
 constexpr base::TimeDelta kWaitForAllStrategiesConnectedTimeout =
-    base::Seconds(5.5);
-constexpr base::TimeDelta kOfflineReasonTimeout = base::Seconds(123);
-constexpr base::TimeDelta kTestHeartbeatDelay = base::Seconds(350);
+    base::TimeDelta::FromSecondsD(5.5);
+constexpr base::TimeDelta kOfflineReasonTimeout =
+    base::TimeDelta::FromSeconds(123);
+constexpr base::TimeDelta kTestHeartbeatDelay =
+    base::TimeDelta::FromSeconds(350);
 
 void ValidateHeartbeat(std::unique_ptr<apis::v1::HeartbeatRequest> request,
                        bool expected_is_initial_heartbeat = false,
@@ -73,9 +73,7 @@ void ValidateHeartbeat(std::unique_ptr<apis::v1::HeartbeatRequest> request,
   ASSERT_TRUE(request->has_host_cpu_type());
   ASSERT_EQ(expected_is_initial_heartbeat, request->is_initial_heartbeat());
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_WIN) || (defined(OS_LINUX) && !defined(OS_CHROMEOS))
   ASSERT_EQ(is_googler, request->has_hostname());
 #else
   ASSERT_FALSE(request->has_hostname());
@@ -101,6 +99,7 @@ class MockDelegate : public HeartbeatSender::Delegate {
   MOCK_METHOD0(OnFirstHeartbeatSuccessful, void());
   MOCK_METHOD0(OnHostNotFound, void());
   MOCK_METHOD0(OnAuthFailed, void());
+  MOCK_METHOD0(OnRemoteRestartHost, void());
 };
 
 class MockObserver : public HeartbeatSender::Observer {
@@ -157,7 +156,7 @@ class HeartbeatSenderTest : public testing::Test {
 
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
-  raw_ptr<MockHeartbeatClient> mock_client_;
+  MockHeartbeatClient* mock_client_;
   std::unique_ptr<MockObserver> mock_observer_;
 
   std::unique_ptr<FakeSignalStrategy> signal_strategy_;
@@ -283,42 +282,6 @@ TEST_F(HeartbeatSenderTest, FailedToHeartbeat_Backoff) {
   ASSERT_EQ(0, GetBackoff().failure_count());
 }
 
-TEST_F(HeartbeatSenderTest, HostComesBackOnlineAfterServiceOutage) {
-  // Each call will simulate ~10 minutes of time (at max backoff duration).
-  // We want to simulate a long outage (~3 hours) so run through 20 iterations.
-  int retry_attempts = 20;
-
-  {
-    InSequence sequence;
-
-    EXPECT_CALL(*mock_client_, Heartbeat(_, _))
-        .Times(retry_attempts)
-        .WillRepeatedly([&](std::unique_ptr<apis::v1::HeartbeatRequest> request,
-                            HeartbeatResponseCallback callback) {
-          ValidateHeartbeat(std::move(request), true);
-          std::move(callback).Run(
-              ProtobufHttpStatus(ProtobufHttpStatus::Code::UNAVAILABLE,
-                                 "unavailable"),
-              nullptr);
-        });
-
-    EXPECT_CALL(*mock_client_, Heartbeat(_, _))
-        .WillOnce(DoValidateHeartbeatAndRespondOk(true));
-  }
-
-  EXPECT_CALL(*mock_observer_, OnHeartbeatSent()).WillRepeatedly(Return());
-
-  ASSERT_EQ(0, GetBackoff().failure_count());
-  signal_strategy_->Connect();
-  for (int i = 1; i <= retry_attempts; i++) {
-    ASSERT_EQ(i, GetBackoff().failure_count());
-    task_environment_.FastForwardBy(GetBackoff().GetTimeUntilRelease());
-  }
-
-  // Host successfully back online.
-  ASSERT_EQ(0, GetBackoff().failure_count());
-}
-
 TEST_F(HeartbeatSenderTest, Unauthenticated) {
   int heartbeat_count = 0;
   EXPECT_CALL(*mock_client_, Heartbeat(_, _))
@@ -339,6 +302,22 @@ TEST_F(HeartbeatSenderTest, Unauthenticated) {
 
   // Should retry heartbeating at least once.
   ASSERT_LT(1, heartbeat_count);
+}
+
+TEST_F(HeartbeatSenderTest, RemoteCommand) {
+  EXPECT_CALL(*mock_client_, Heartbeat(_, _))
+      .WillOnce([](std::unique_ptr<apis::v1::HeartbeatRequest> request,
+                   HeartbeatResponseCallback callback) {
+        ValidateHeartbeat(std::move(request), true);
+        auto response = std::make_unique<apis::v1::HeartbeatResponse>();
+        response->set_set_interval_seconds(kGoodIntervalSeconds);
+        response->set_remote_command(apis::v1::HeartbeatResponse::RESTART_HOST);
+        std::move(callback).Run(ProtobufHttpStatus::OK(), std::move(response));
+      });
+  EXPECT_CALL(*mock_observer_, OnHeartbeatSent()).Times(1);
+  EXPECT_CALL(mock_delegate_, OnFirstHeartbeatSuccessful()).Times(1);
+  EXPECT_CALL(mock_delegate_, OnRemoteRestartHost()).Times(1);
+  signal_strategy_->Connect();
 }
 
 TEST_F(HeartbeatSenderTest, GooglerHostname) {

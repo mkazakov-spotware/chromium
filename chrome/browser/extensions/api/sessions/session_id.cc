@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ std::unique_ptr<SessionId> SessionId::Parse(const std::string& session_id) {
   if (!base::StringToInt(
       session_tag.empty() ? session_id : session_id.substr(separator + 1),
       &id)) {
-    return nullptr;
+    return std::unique_ptr<SessionId>();
   }
   return base::WrapUnique(new SessionId(session_tag, id));
 }

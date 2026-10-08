@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/allocator/partition_allocator/partition_alloc.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/process/process_handle.h"
 #include "base/synchronization/waitable_event.h"
@@ -55,10 +56,6 @@ class TestDriver {
   };
 
   TestDriver();
-
-  TestDriver(const TestDriver&) = delete;
-  TestDriver& operator=(const TestDriver&) = delete;
-
   ~TestDriver();
 
   // If this is called on the content::BrowserThread::UI thread, then the
@@ -110,6 +107,7 @@ class TestDriver {
   bool ShouldProfileBrowser();
   bool ShouldProfileRenderer();
   bool ShouldIncludeNativeThreadNames();
+  bool HasPseudoFrames();
   bool HasNativeFrames();
 
   void WaitForProfilingToStartForBrowserUIThread();
@@ -131,7 +129,7 @@ class TestDriver {
   size_t total_variadic_allocations_ = 0;
 
   // Use to make PA allocations, which should also be shimmed.
-  partition_alloc::PartitionAllocator partition_allocator_;
+  base::PartitionAllocator partition_allocator_;
 
   // Contains nothing until |CollectResults| has been called.
   std::string serialized_trace_;
@@ -150,6 +148,8 @@ class TestDriver {
   bool wait_for_profiling_to_start_ = false;
 
   base::WaitableEvent wait_for_ui_thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestDriver);
 };
 
 }  // namespace heap_profiling

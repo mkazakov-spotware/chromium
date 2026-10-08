@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,20 @@ package org.chromium.chrome.browser.firstrun;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo;
+import org.chromium.chrome.browser.policy.EnterpriseInfo;
 import org.chromium.chrome.browser.policy.PolicyServiceFactory;
+import org.chromium.components.browser_ui.widget.LoadingView;
 import org.chromium.components.policy.PolicyService;
-import org.chromium.ui.widget.LoadingView;
 
 /**
  * Another FirstRunFragment that is only used when running with CCT.
@@ -32,13 +28,27 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupport
         extends ToSAndUMAFirstRunFragment implements LoadingView.Observer {
     private static final String TAG = "TosAndUmaFragment";
 
-    private static Runnable sOverridenOnExitFreRunnableForTest;
+    /** FRE page that instantiates this fragment. */
+    public static class Page
+            implements FirstRunPage<TosAndUmaFirstRunFragmentWithEnterpriseSupport> {
+        @Override
+        public boolean shouldSkipPageOnCreate() {
+            // TODO(crbug.com/1111490): Revisit during post-MVP.
+            // There's an edge case where we accept the welcome page in the main app, abort the FRE,
+            // then go through this CCT FRE again.
+            return FirstRunStatus.shouldSkipWelcomePage();
+        }
+
+        @Override
+        public TosAndUmaFirstRunFragmentWithEnterpriseSupport instantiateFragment() {
+            return new TosAndUmaFirstRunFragmentWithEnterpriseSupport();
+        }
+    }
 
     private class CctTosFragmentMetricsNameProvider
             implements SkipTosDialogPolicyListener.HistogramNameProvider {
         @Override
         public String getOnDeviceOwnedDetectedTimeHistogramName() {
-            // Seems to currently be impossible to ever hit the faster case here.
             return mViewCreated ? "MobileFre.CctTos.IsDeviceOwnedCheckSpeed2.SlowerThanInflation"
                                 : "MobileFre.CctTos.IsDeviceOwnedCheckSpeed2.FasterThanInflation";
         }
@@ -52,15 +62,11 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupport
     };
 
     private boolean mViewCreated;
-    private View mBottomGroup;
     private View mLoadingSpinnerContainer;
     private LoadingView mLoadingSpinner;
-    private TextView mPrivacyDisclaimer;
     private SkipTosDialogPolicyListener mSkipTosDialogPolicyListener;
     private final OneshotSupplierImpl<PolicyService> mPolicyServiceProvider =
             new OneshotSupplierImpl<>();
-
-    private Handler mHandler;
 
     /** The {@link SystemClock} timestamp when onViewCreated is called. */
     private long mViewCreatedTimeMs;
@@ -75,11 +81,6 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupport
             mSkipTosDialogPolicyListener.destroy();
             mSkipTosDialogPolicyListener = null;
         }
-        if (mHandler != null) {
-            // Remove all callback associated.
-            mHandler.removeCallbacksAndMessages(null);
-            mHandler = null;
-        }
         super.onDestroy();
     }
 
@@ -88,33 +89,29 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupport
         super.onAttach(context);
 
         // TODO(https://crbug.com/1143593): Replace FirstRunAppRestrictionInfo with a supplier.
-        mSkipTosDialogPolicyListener =
-                new SkipTosDialogPolicyListener(getPageDelegate().getPolicyLoadListener(),
-                        EnterpriseInfo.getInstance(), new CctTosFragmentMetricsNameProvider());
-        mSkipTosDialogPolicyListener.onAvailable((ignored) -> onPolicyLoadListenerAvailable());
+        mSkipTosDialogPolicyListener = new SkipTosDialogPolicyListener(
+                getPageDelegate().getFirstRunAppRestrictionInfo(), mPolicyServiceProvider,
+                EnterpriseInfo.getInstance(), new CctTosFragmentMetricsNameProvider());
+        mSkipTosDialogPolicyListener.onAvailable((b) -> onPolicyLoadListenerAvailable());
     }
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        mBottomGroup = view.findViewById(R.id.fre_bottom_group);
         mLoadingSpinnerContainer = view.findViewById(R.id.loading_view_container);
         mLoadingSpinner = view.findViewById(R.id.progress_spinner_large);
-        mPrivacyDisclaimer = view.findViewById(R.id.privacy_disclaimer);
         mViewCreated = true;
         mViewCreatedTimeMs = SystemClock.elapsedRealtime();
 
         if (mSkipTosDialogPolicyListener.get() == null) {
             mLoadingSpinner.addObserver(this);
             mLoadingSpinner.showLoadingUI();
-            mBottomGroup.setVisibility(View.GONE);
             setTosAndUmaVisible(false);
         } else if (mSkipTosDialogPolicyListener.get()) {
             // Skip the FRE if we know dialog is disabled by policy.
-            mBottomGroup.setVisibility(View.GONE);
             setTosAndUmaVisible(false);
-            exitCctFirstRun(/*shiftA11yFocus*/ false);
+            exitCctFirstRun();
         }
     }
 
@@ -139,19 +136,18 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupport
 
     @Override
     public void onHideLoadingUIComplete() {
-        super.onHideLoadingUIComplete();
         assert mSkipTosDialogPolicyListener.get() != null;
 
         RecordHistogram.recordTimesHistogram("MobileFre.CctTos.LoadingDuration",
                 SystemClock.elapsedRealtime() - mViewCreatedTimeMs);
 
-        boolean hasAccessibilityFocus = mLoadingSpinnerContainer.isAccessibilityFocused();
-        mLoadingSpinnerContainer.setVisibility(View.GONE);
         if (mSkipTosDialogPolicyListener.get()) {
-            exitCctFirstRun(hasAccessibilityFocus);
+            // TODO(crbug.com/1108564): Show the different UI that has the enterprise disclosure.
+            exitCctFirstRun();
         } else {
             // Else, show the UMA as the loading spinner is GONE.
-            mBottomGroup.setVisibility(View.VISIBLE);
+            boolean hasAccessibilityFocus = mLoadingSpinnerContainer.isAccessibilityFocused();
+            mLoadingSpinnerContainer.setVisibility(View.GONE);
             setTosAndUmaVisible(true);
 
             if (hasAccessibilityFocus) {
@@ -164,30 +160,11 @@ public class TosAndUmaFirstRunFragmentWithEnterpriseSupport
         if (mViewCreated) mLoadingSpinner.hideLoadingUI();
     }
 
-    private void exitCctFirstRun(boolean shiftA11yFocus) {
+    private void exitCctFirstRun() {
+        // TODO(crbug.com/1108564): Fire a signal to end this fragment when disclaimer is ready.
+        // TODO(crbug.com/1108582): Save a shared pref indicating Enterprise CCT FRE is complete,
+        //  and skip waiting for future cold starts.
         Log.d(TAG, "TosAndUmaFirstRunFragmentWithEnterpriseSupport finished.");
-        mPrivacyDisclaimer.setVisibility(View.VISIBLE);
-
-        // If the screen reader focus was on the loading spinner, to avoid the focus get lost from
-        // the screen, shift the focus to the disclaimer instead. Otherwise, announce the disclaimer
-        // without shifting the focus as it is not necessary.
-        if (shiftA11yFocus) {
-            mPrivacyDisclaimer.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_FOCUSED);
-        } else {
-            mPrivacyDisclaimer.announceForAccessibility(mPrivacyDisclaimer.getText());
-        }
-
-        // Make sure this function is called at most once by asserting no handler is created yet.
-        assert mHandler == null;
-        Runnable exitFreRunnable = sOverridenOnExitFreRunnableForTest != null
-                ? sOverridenOnExitFreRunnableForTest
-                : () -> getPageDelegate().exitFirstRun();
-        mHandler = new Handler(ThreadUtils.getUiThreadLooper());
-        mHandler.postDelayed(exitFreRunnable, FirstRunUtils.getSkipTosExitDelayMs());
-    }
-
-    @VisibleForTesting
-    static void setOverrideOnExitFreRunnableForTest(Runnable runnable) {
-        sOverridenOnExitFreRunnableForTest = runnable;
+        getPageDelegate().exitFirstRun();
     }
 }

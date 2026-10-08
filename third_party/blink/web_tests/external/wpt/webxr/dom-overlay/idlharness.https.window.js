@@ -6,15 +6,11 @@
 // https://immersive-web.github.io/dom-overlays/
 
 idl_test(
-  ['webxr-dom-overlays'],
-  ['webxr', 'html', 'dom', 'SVG'],
+  ['dom-overlays'],
+  ['webxr', 'html', 'dom'],
   async idl_array => {
-    self.svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     idl_array.add_objects({
-      Document: ['document'],
-      HTMLElement: ['document.body'],
-      SVGElement: ['svgElement'],
-      Window: ['window']
+      // TODO: Add object instances
     });
   }
 );

@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_VR_BASE_GRAPHICS_DELEGATE_H_
 #define CHROME_BROWSER_VR_BASE_GRAPHICS_DELEGATE_H_
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "chrome/browser/vr/graphics_delegate.h"
 
@@ -19,10 +20,6 @@ namespace vr {
 class VR_EXPORT BaseGraphicsDelegate : public GraphicsDelegate {
  public:
   BaseGraphicsDelegate();
-
-  BaseGraphicsDelegate(const BaseGraphicsDelegate&) = delete;
-  BaseGraphicsDelegate& operator=(const BaseGraphicsDelegate&) = delete;
-
   ~BaseGraphicsDelegate() override;
 
   // GraphicsDelegate implementation.
@@ -41,6 +38,8 @@ class VR_EXPORT BaseGraphicsDelegate : public GraphicsDelegate {
   scoped_refptr<gl::GLShareGroup> share_group_;
   scoped_refptr<gl::GLContext> contexts_[kNumContexts];
   ContextId curr_context_id_ = kNone;
+
+  DISALLOW_COPY_AND_ASSIGN(BaseGraphicsDelegate);
 };
 
 }  // namespace vr

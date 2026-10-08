@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,6 @@ namespace content {
 class AudioServiceTestHelper::TestingApi : public audio::mojom::TestingApi {
  public:
   TestingApi() = default;
-
-  TestingApi(const TestingApi&) = delete;
-  TestingApi& operator=(const TestingApi&) = delete;
-
   ~TestingApi() override = default;
 
   // audio::mojom::TestingApi implementation
@@ -40,23 +36,26 @@ class AudioServiceTestHelper::TestingApi : public audio::mojom::TestingApi {
 
  private:
   mojo::ReceiverSet<audio::mojom::TestingApi> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestingApi);
 };
 
 AudioServiceTestHelper::AudioServiceTestHelper()
-    : testing_api_(std::make_unique<TestingApi>()) {
-  audio::Service::SetTestingApiBinderForTesting(base::BindRepeating(
-      &AudioServiceTestHelper::BindTestingApiReceiver, base::Unretained(this)));
+    : testing_api_(new TestingApi) {
+  if (base::FeatureList::IsEnabled(features::kAudioServiceOutOfProcess)) {
+    audio::Service::SetTestingApiBinderForTesting(
+        base::BindRepeating(&AudioServiceTestHelper::BindTestingApiReceiver,
+                            base::Unretained(this)));
+  }
 }
 
 AudioServiceTestHelper::~AudioServiceTestHelper() {
-  audio::Service::SetTestingApiBinderForTesting(base::NullCallback());
+  if (base::FeatureList::IsEnabled(features::kAudioServiceOutOfProcess))
+    audio::Service::SetTestingApiBinderForTesting(base::NullCallback());
 }
 
 void AudioServiceTestHelper::BindTestingApiReceiver(
     mojo::PendingReceiver<audio::mojom::TestingApi> receiver) {
-  CHECK(base::FeatureList::IsEnabled(features::kAudioServiceOutOfProcess))
-      << "Audio Service API binder shouldn't be invoked from this process when "
-         "the AudioServiceOutOfProcess feature is disabled.";
   testing_api_->BindReceiver(std::move(receiver));
 }
 

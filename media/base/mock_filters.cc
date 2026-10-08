@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/mock_filters.h"
 
 #include "base/check_op.h"
-#include "media/base/demuxer.h"
 
 using ::testing::_;
 using ::testing::NiceMock;
@@ -34,11 +33,8 @@ std::string MockDemuxer::GetDisplayName() const {
   return "MockDemuxer";
 }
 
-DemuxerType MockDemuxer::GetDemuxerType() const {
-  return DemuxerType::kMockDemuxer;
-}
-
-MockDemuxerStream::MockDemuxerStream(DemuxerStream::Type type) : type_(type) {}
+MockDemuxerStream::MockDemuxerStream(DemuxerStream::Type type)
+    : type_(type), liveness_(LIVENESS_UNKNOWN) {}
 
 MockDemuxerStream::~MockDemuxerStream() = default;
 
@@ -46,7 +42,7 @@ DemuxerStream::Type MockDemuxerStream::type() const {
   return type_;
 }
 
-StreamLiveness MockDemuxerStream::liveness() const {
+DemuxerStream::Liveness MockDemuxerStream::liveness() const {
   return liveness_;
 }
 
@@ -72,21 +68,21 @@ void MockDemuxerStream::set_video_decoder_config(
   video_decoder_config_ = config;
 }
 
-void MockDemuxerStream::set_liveness(StreamLiveness liveness) {
+void MockDemuxerStream::set_liveness(DemuxerStream::Liveness liveness) {
   liveness_ = liveness;
 }
 
-MockVideoDecoder::MockVideoDecoder() : MockVideoDecoder(0) {}
+MockVideoDecoder::MockVideoDecoder() : MockVideoDecoder("MockVideoDecoder") {}
 
-MockVideoDecoder::MockVideoDecoder(int decoder_id)
-    : MockVideoDecoder(false, false, decoder_id) {}
+MockVideoDecoder::MockVideoDecoder(std::string decoder_name)
+    : MockVideoDecoder(false, false, std::move(decoder_name)) {}
 
 MockVideoDecoder::MockVideoDecoder(bool is_platform_decoder,
                                    bool supports_decryption,
-                                   int decoder_id)
+                                   std::string decoder_name)
     : is_platform_decoder_(is_platform_decoder),
       supports_decryption_(supports_decryption),
-      decoder_id_(decoder_id) {
+      decoder_name_(std::move(decoder_name)) {
   ON_CALL(*this, CanReadWithoutStalling()).WillByDefault(Return(true));
 }
 
@@ -100,9 +96,8 @@ bool MockVideoDecoder::SupportsDecryption() const {
   return supports_decryption_;
 }
 
-MockAudioEncoder::MockAudioEncoder() = default;
-MockAudioEncoder::~MockAudioEncoder() {
-  OnDestruct();
+std::string MockVideoDecoder::GetDisplayName() const {
+  return decoder_name_;
 }
 
 MockVideoEncoder::MockVideoEncoder() = default;
@@ -110,17 +105,17 @@ MockVideoEncoder::~MockVideoEncoder() {
   Dtor();
 }
 
-MockAudioDecoder::MockAudioDecoder() : MockAudioDecoder(0) {}
+MockAudioDecoder::MockAudioDecoder() : MockAudioDecoder("MockAudioDecoder") {}
 
-MockAudioDecoder::MockAudioDecoder(int decoder_id)
-    : MockAudioDecoder(false, false, decoder_id) {}
+MockAudioDecoder::MockAudioDecoder(std::string decoder_name)
+    : MockAudioDecoder(false, false, std::move(decoder_name)) {}
 
 MockAudioDecoder::MockAudioDecoder(bool is_platform_decoder,
                                    bool supports_decryption,
-                                   int decoder_id)
+                                   std::string decoder_name)
     : is_platform_decoder_(is_platform_decoder),
       supports_decryption_(supports_decryption),
-      decoder_id_(decoder_id) {}
+      decoder_name_(decoder_name) {}
 
 MockAudioDecoder::~MockAudioDecoder() = default;
 
@@ -130,6 +125,10 @@ bool MockAudioDecoder::IsPlatformDecoder() const {
 
 bool MockAudioDecoder::SupportsDecryption() const {
   return supports_decryption_;
+}
+
+std::string MockAudioDecoder::GetDisplayName() const {
+  return decoder_name_;
 }
 
 MockRendererClient::MockRendererClient() = default;
@@ -172,12 +171,12 @@ MockCdmContext::MockCdmContext() = default;
 
 MockCdmContext::~MockCdmContext() = default;
 
-absl::optional<base::UnguessableToken> MockCdmContext::GetCdmId() const {
+base::Optional<base::UnguessableToken> MockCdmContext::GetCdmId() const {
   return cdm_id_;
 }
 
-void MockCdmContext::set_cdm_id(const base::UnguessableToken& cdm_id) {
-  cdm_id_ = absl::make_optional(cdm_id);
+void MockCdmContext::set_cdm_id(const base::UnguessableToken* cdm_id) {
+  cdm_id_ = (cdm_id) ? base::make_optional(*cdm_id) : base::nullopt;
 }
 
 MockCdmPromise::MockCdmPromise(bool expect_success) {
@@ -228,32 +227,18 @@ MockCdmKeyStatusPromise::~MockCdmKeyStatusPromise() {
   MarkPromiseSettled();
 }
 
-MockCdm::MockCdm() = default;
-
-MockCdm::MockCdm(
-    const CdmConfig& cdm_config,
-    const SessionMessageCB& session_message_cb,
-    const SessionClosedCB& session_closed_cb,
-    const SessionKeysChangeCB& session_keys_change_cb,
-    const SessionExpirationUpdateCB& session_expiration_update_cb) {
-  Initialize(cdm_config, session_message_cb, session_closed_cb,
-             session_keys_change_cb, session_expiration_update_cb);
-}
+MockCdm::MockCdm(const std::string& key_system,
+                 const SessionMessageCB& session_message_cb,
+                 const SessionClosedCB& session_closed_cb,
+                 const SessionKeysChangeCB& session_keys_change_cb,
+                 const SessionExpirationUpdateCB& session_expiration_update_cb)
+    : key_system_(key_system),
+      session_message_cb_(session_message_cb),
+      session_closed_cb_(session_closed_cb),
+      session_keys_change_cb_(session_keys_change_cb),
+      session_expiration_update_cb_(session_expiration_update_cb) {}
 
 MockCdm::~MockCdm() = default;
-
-void MockCdm::Initialize(
-    const CdmConfig& cdm_config,
-    const SessionMessageCB& session_message_cb,
-    const SessionClosedCB& session_closed_cb,
-    const SessionKeysChangeCB& session_keys_change_cb,
-    const SessionExpirationUpdateCB& session_expiration_update_cb) {
-  key_system_ = cdm_config.key_system;
-  session_message_cb_ = session_message_cb;
-  session_closed_cb_ = session_closed_cb;
-  session_keys_change_cb_ = session_keys_change_cb;
-  session_expiration_update_cb_ = session_expiration_update_cb;
-}
 
 void MockCdm::CallSessionMessageCB(const std::string& session_id,
                                    CdmMessageType message_type,
@@ -261,9 +246,8 @@ void MockCdm::CallSessionMessageCB(const std::string& session_id,
   session_message_cb_.Run(session_id, message_type, message);
 }
 
-void MockCdm::CallSessionClosedCB(const std::string& session_id,
-                                  CdmSessionClosedReason reason) {
-  session_closed_cb_.Run(session_id, reason);
+void MockCdm::CallSessionClosedCB(const std::string& session_id) {
+  session_closed_cb_.Run(session_id);
 }
 
 void MockCdm::CallSessionKeysChangeCB(const std::string& session_id,
@@ -278,20 +262,20 @@ void MockCdm::CallSessionExpirationUpdateCB(const std::string& session_id,
   session_expiration_update_cb_.Run(session_id, new_expiry_time);
 }
 
-MockCdmFactory::MockCdmFactory(scoped_refptr<MockCdm> mock_cdm)
-    : mock_cdm_(mock_cdm) {}
+MockCdmFactory::MockCdmFactory() = default;
 
 MockCdmFactory::~MockCdmFactory() = default;
 
 void MockCdmFactory::Create(
-    const CdmConfig& cdm_config,
+    const std::string& key_system,
+    const CdmConfig& /* cdm_config */,
     const SessionMessageCB& session_message_cb,
     const SessionClosedCB& session_closed_cb,
     const SessionKeysChangeCB& session_keys_change_cb,
     const SessionExpirationUpdateCB& session_expiration_update_cb,
     CdmCreatedCB cdm_created_cb) {
   // If no key system specified, notify that Create() failed.
-  if (cdm_config.key_system.empty()) {
+  if (key_system.empty()) {
     std::move(cdm_created_cb).Run(nullptr, "CDM creation failed");
     return;
   }
@@ -300,9 +284,19 @@ void MockCdmFactory::Create(
   if (before_creation_cb_)
     before_creation_cb_.Run();
 
-  mock_cdm_->Initialize(cdm_config, session_message_cb, session_closed_cb,
-                        session_keys_change_cb, session_expiration_update_cb);
-  std::move(cdm_created_cb).Run(mock_cdm_, "");
+  // Create and return a new MockCdm. Keep a pointer to the created CDM so
+  // that tests can access it. Test cases that expect calls on MockCdm should
+  // get the MockCdm via MockCdmFactory::GetCreatedCdm() and explicitly specify
+  // expectations using EXPECT_CALL.
+  scoped_refptr<MockCdm> cdm = new NiceMock<MockCdm>(
+      key_system, session_message_cb, session_closed_cb, session_keys_change_cb,
+      session_expiration_update_cb);
+  created_cdm_ = cdm.get();
+  std::move(cdm_created_cb).Run(std::move(cdm), "");
+}
+
+MockCdm* MockCdmFactory::GetCreatedCdm() {
+  return created_cdm_.get();
 }
 
 void MockCdmFactory::SetBeforeCreationCB(

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "content/browser/screen_orientation/screen_orientation_provider.h"
-#include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/android/content_jni_headers/ScreenOrientationProviderImpl_jni.h"
+#include "ui/android/window_android.h"
+#include "ui/gfx/native_widget_types.h"
 
 namespace content {
 
@@ -30,14 +31,14 @@ void ScreenOrientationDelegateAndroid::Lock(
   base::android::ScopedJavaLocalRef<jobject> java_instance =
       Java_ScreenOrientationProviderImpl_getInstance(
           base::android::AttachCurrentThread());
-  Java_ScreenOrientationProviderImpl_lockOrientationForWebContents(
+  gfx::NativeWindow window = web_contents->GetTopLevelNativeWindow();
+  Java_ScreenOrientationProviderImpl_lockOrientation(
       base::android::AttachCurrentThread(), java_instance,
-      static_cast<WebContentsImpl*>(web_contents)->GetJavaWebContents(),
+      window ? window->GetJavaObject() : nullptr,
       static_cast<jbyte>(lock_orientation));
 }
 
-bool ScreenOrientationDelegateAndroid::ScreenOrientationProviderSupported(
-    WebContents* web_contentss) {
+bool ScreenOrientationDelegateAndroid::ScreenOrientationProviderSupported() {
   // TODO(MLamouri): Consider moving isOrientationLockEnabled to a separate
   // function, so reported error messages can differentiate between the device
   // never supporting orientation or currently not support orientation.
@@ -52,9 +53,10 @@ void ScreenOrientationDelegateAndroid::Unlock(WebContents* web_contents) {
   base::android::ScopedJavaLocalRef<jobject> java_instance =
       Java_ScreenOrientationProviderImpl_getInstance(
           base::android::AttachCurrentThread());
-  Java_ScreenOrientationProviderImpl_unlockOrientationForWebContents(
+  gfx::NativeWindow window = web_contents->GetTopLevelNativeWindow();
+  Java_ScreenOrientationProviderImpl_unlockOrientation(
       base::android::AttachCurrentThread(), java_instance,
-      static_cast<WebContentsImpl*>(web_contents)->GetJavaWebContents());
+      window ? window->GetJavaObject() : nullptr);
 }
 
 } // namespace content

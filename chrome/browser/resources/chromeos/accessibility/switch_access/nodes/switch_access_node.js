@@ -1,14 +1,6 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {RectUtil} from '../../common/rect_util.js';
-import {FocusRingManager} from '../focus_ring_manager.js';
-import {SwitchAccess} from '../switch_access.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This interface represents some object or group of objects on screen
@@ -20,7 +12,7 @@ const AutomationNode = chrome.automation.AutomationNode;
  *     (calling .equals() returns true).
  * @abstract
  */
-export class SAChildNode {
+class SAChildNode {
   constructor() {
     /** @private {boolean} */
     this.isFocused_ = false;
@@ -181,7 +173,7 @@ export class SAChildNode {
    * @return {boolean}
    */
   isValidAndVisible() {
-    return this.valid_ && Boolean(this.location);
+    return this.valid_ && !!this.location;
   }
 
   /**
@@ -252,26 +244,12 @@ export class SAChildNode {
     this.valid_ = false;
     throw SwitchAccess.error(error, message, true /* shouldRecover */);
   }
-
-  /**
-   * @return {boolean} Whether to ignore when computing the SARootNode's
-   *     location.
-   */
-  ignoreWhenComputingUnionOfBoundingBoxes() {
-    return false;
-  }
-
-
-  /** @return {SARootNode} */
-  get group() {
-    return null;
-  }
 }
 
 /**
  * This class represents the root node of a Switch Access traversal group.
  */
-export class SARootNode {
+class SARootNode {
   /**
    * @param {!AutomationNode} autoNode The automation node that most closely
    *     contains all of this node's children.
@@ -329,9 +307,9 @@ export class SARootNode {
 
   /** @return {!chrome.accessibilityPrivate.ScreenRect} */
   get location() {
-    const children = this.children_.filter(
-        c => !c.ignoreWhenComputingUnionOfBoundingBoxes());
-    const childLocations = children.map(c => c.location);
+    const children =
+        this.children_.filter((c) => !(c instanceof BackButtonNode));
+    const childLocations = children.map((c) => c.location);
     return RectUtil.unionAll(childLocations);
   }
 
@@ -393,18 +371,18 @@ export class SARootNode {
 
   /** @return {boolean} */
   isValidGroup() {
-    // Must have one interesting child whose location is important.
+    // Must have one interesting child that is not the back button.
     return this.children_
                .filter(
-                   child =>
-                       !(child.ignoreWhenComputingUnionOfBoundingBoxes()) &&
+                   (child) => !(child instanceof BackButtonNode) &&
                        child.isValidAndVisible())
                .length >= 1;
   }
 
   /** @return {SAChildNode} */
   firstValidChild() {
-    const children = this.children_.filter(child => child.isValidAndVisible());
+    const children =
+        this.children_.filter((child) => child.isValidAndVisible());
     return children.length > 0 ? children[0] : null;
   }
 
@@ -419,7 +397,7 @@ export class SARootNode {
 
   /** Called when a group should recalculate its children. */
   refreshChildren() {
-    this.children = this.children.filter(child => child.isValidAndVisible());
+    this.children = this.children.filter((child) => child.isValidAndVisible());
   }
 
   /** Called when the group's children may have changed. */

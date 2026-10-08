@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,7 +45,7 @@ OAuthLoginDetector::OAuthLoginDetector()
 
 OAuthLoginDetector::~OAuthLoginDetector() = default;
 
-absl::optional<GURL> OAuthLoginDetector::GetSuccessfulLoginFlowSite(
+base::Optional<GURL> OAuthLoginDetector::GetSuccessfulLoginFlowSite(
     const GURL& prev_navigation_url,
     const std::vector<GURL>& redirect_chain) {
   for (size_t i = 0; i < redirect_chain.size(); i++) {
@@ -53,7 +53,7 @@ absl::optional<GURL> OAuthLoginDetector::GetSuccessfulLoginFlowSite(
     // Allow login flows to be detected only on HTTPS pages.
     if (!navigation_url.SchemeIs(url::kHttpsScheme)) {
       login_flow_info_.reset();
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     // Check for OAuth login completion.
@@ -73,38 +73,35 @@ absl::optional<GURL> OAuthLoginDetector::GetSuccessfulLoginFlowSite(
             OAuthLoginFlowInfo(navigation_url, *popup_opener_navigation_site_);
       } else if (prev_navigation_url.is_valid() &&
                  prev_navigation_url.SchemeIsHTTPOrHTTPS()) {
-        login_flow_info_ = OAuthLoginFlowInfo(
-            navigation_url, prev_navigation_url.DeprecatedGetOriginAsURL());
+        login_flow_info_ =
+            OAuthLoginFlowInfo(navigation_url, prev_navigation_url.GetOrigin());
       } else if (i != 0) {
         // Treat the start of the redirect chain as the previous navigation URL.
         // This allows detecting cases when a new window is opened to perform
         // the OAuth login.
-        login_flow_info_ = OAuthLoginFlowInfo(
-            navigation_url, redirect_chain[0].DeprecatedGetOriginAsURL());
+        login_flow_info_ =
+            OAuthLoginFlowInfo(navigation_url, redirect_chain[0].GetOrigin());
       }
     }
   }
-  if (login_flow_info_)
-    login_flow_info_->count_navigations_since_login_flow_start++;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void OAuthLoginDetector::DidOpenAsPopUp(const GURL& opener_navigation_url) {
   if (opener_navigation_url.is_valid() &&
       opener_navigation_url.SchemeIs(url::kHttpsScheme)) {
-    popup_opener_navigation_site_ =
-        opener_navigation_url.DeprecatedGetOriginAsURL();
+    popup_opener_navigation_site_ = opener_navigation_url.GetOrigin();
   }
 }
 
-absl::optional<GURL> OAuthLoginDetector::GetPopUpLoginFlowSite() const {
+base::Optional<GURL> OAuthLoginDetector::GetPopUpLoginFlowSite() const {
   // OAuth has never started.
   if (!login_flow_info_)
-    return absl::nullopt;
+    return base::nullopt;
 
   // Only consider OAuth completion when this is a popup window.
   if (!popup_opener_navigation_site_)
-    return absl::nullopt;
+    return base::nullopt;
 
   return login_flow_info_->oauth_requestor_site;
 }
@@ -128,6 +125,7 @@ bool OAuthLoginDetector::CheckSuccessfulLoginCompletion(
   // site.
   if (GetSiteNameForURL(navigation_url) ==
       GetSiteNameForURL(login_flow_info_->oauth_provider_site)) {
+    login_flow_info_->count_navigations_since_login_flow_start++;
     return false;
   }
 
@@ -141,9 +139,12 @@ bool OAuthLoginDetector::CheckSuccessfulLoginCompletion(
 
   // PopUp based login completion flow should only navigate within the OAuth
   // provider site.
-  if (popup_opener_navigation_site_)
+  if (popup_opener_navigation_site_) {
     login_flow_info_.reset();
+    return false;
+  }
 
+  login_flow_info_->count_navigations_since_login_flow_start++;
   return false;
 }
 

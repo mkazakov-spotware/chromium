@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ CastWebSocketHandshakeThrottleProvider::CastWebSocketHandshakeThrottleProvider(
   DETACH_FROM_THREAD(thread_checker_);
 }
 
-std::unique_ptr<blink::WebSocketHandshakeThrottleProvider>
+std::unique_ptr<content::WebSocketHandshakeThrottleProvider>
 CastWebSocketHandshakeThrottleProvider::Clone(
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
   return base::WrapUnique(new CastWebSocketHandshakeThrottleProvider(*this));
@@ -41,6 +41,9 @@ CastWebSocketHandshakeThrottleProvider::CreateThrottle(
     int render_frame_id,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
+  if (!base::FeatureList::IsEnabled(network::features::kNetworkService))
+    return nullptr;
 
   auto* activity_url_filter =
       cast_activity_url_filter_manager_->GetActivityUrlFilterForRenderFrameID(

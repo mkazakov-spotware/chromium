@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -141,7 +141,9 @@ public class InfoBarContainerView extends SwipableOverlayView {
     // View implementation.
     @Override
     public void setTranslationY(float translationY) {
-        int contentHeightDelta = 0; // No bottom bar.
+        int contentHeightDelta = mTab != null
+                ? mTab.getBrowser().getViewController().getBottomContentHeightDelta()
+                : 0;
 
         // Push the infobar container up by any delta caused by the bottom toolbar while ensuring
         // that it does not ascend beyond the top of the bottom toolbar nor descend beyond its own

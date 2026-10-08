@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/system/data_pipe.h"
 #include "net/base/io_buffer.h"
 
@@ -29,9 +29,6 @@ namespace network {
 class COMPONENT_EXPORT(NETWORK_CPP) NetToMojoPendingBuffer
     : public base::RefCountedThreadSafe<NetToMojoPendingBuffer> {
  public:
-  NetToMojoPendingBuffer(const NetToMojoPendingBuffer&) = delete;
-  NetToMojoPendingBuffer& operator=(const NetToMojoPendingBuffer&) = delete;
-
   // Begins a two-phase write to the data pipe.
   //
   // On success, MOJO_RESULT_OK will be returned. The ownership of the given
@@ -56,11 +53,8 @@ class COMPONENT_EXPORT(NETWORK_CPP) NetToMojoPendingBuffer
                          void* buffer);
   ~NetToMojoPendingBuffer();
   mojo::ScopedDataPipeProducerHandle handle_;
-
-  // `buffer_` is not a raw_ptr<...> for performance reasons: pointee is never
-  // protected by BackupRefPtr, because the pointer comes either from using
-  // `mmap`, MapViewOfFile or base::AllocPages directly.
-  RAW_PTR_EXCLUSION void* buffer_;
+  void* buffer_;
+  DISALLOW_COPY_AND_ASSIGN(NetToMojoPendingBuffer);
 };
 
 // Net side of a Net -> Mojo copy. The data will be read from the network and
@@ -72,20 +66,16 @@ class COMPONENT_EXPORT(NETWORK_CPP) NetToMojoIOBuffer
   // will be offset by that many bytes.
   NetToMojoIOBuffer(NetToMojoPendingBuffer* pending_buffer, int offset = 0);
 
-  NetToMojoIOBuffer(const NetToMojoIOBuffer&) = delete;
-  NetToMojoIOBuffer& operator=(const NetToMojoIOBuffer&) = delete;
-
  private:
   ~NetToMojoIOBuffer() override;
   scoped_refptr<NetToMojoPendingBuffer> pending_buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetToMojoIOBuffer);
 };
 
 class COMPONENT_EXPORT(NETWORK_CPP) MojoToNetPendingBuffer
     : public base::RefCountedThreadSafe<MojoToNetPendingBuffer> {
  public:
-  MojoToNetPendingBuffer(const MojoToNetPendingBuffer&) = delete;
-  MojoToNetPendingBuffer& operator=(const MojoToNetPendingBuffer&) = delete;
-
   // Starts reading from Mojo.
   //
   // On success, MOJO_RESULT_OK will be returned. The ownership of the given
@@ -122,11 +112,9 @@ class COMPONENT_EXPORT(NETWORK_CPP) MojoToNetPendingBuffer
   ~MojoToNetPendingBuffer();
 
   mojo::ScopedDataPipeConsumerHandle handle_;
+  const void* buffer_;
 
-  // `buffer_` is not a raw_ptr<...> for performance reasons: pointee is never
-  // protected by BackupRefPtr, because the pointer comes either from using
-  // `mmap`, MapViewOfFile or base::AllocPages directly.
-  RAW_PTR_EXCLUSION const void* buffer_;
+  DISALLOW_COPY_AND_ASSIGN(MojoToNetPendingBuffer);
 };
 
 // Net side of a Mojo -> Net copy. The data will already be in the

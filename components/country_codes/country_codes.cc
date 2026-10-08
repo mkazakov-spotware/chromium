@@ -1,27 +1,26 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/country_codes/country_codes.h"
 
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE)
+#if defined(OS_POSIX) && !defined(OS_APPLE)
 #include <locale.h>
 #endif
 
 #include "base/strings/string_util.h"
-#include "components/prefs/pref_registry_simple.h"
+#include "build/build_config.h"
+#include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #undef IN  // On Windows, windef.h defines this, which screws up "India" cases.
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 #include "base/mac/scoped_cftyperef.h"
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/locale_utils.h"
 #endif
 
@@ -50,7 +49,7 @@ int CountryCharsToCountryIDWithUpdate(char c1, char c2) {
   return CountryCharsToCountryID(c1, c2);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 // For reference, a list of GeoIDs can be found at
 // http://msdn.microsoft.com/en-us/library/dd374073.aspx .
@@ -107,7 +106,7 @@ int GeoIDToCountryID(GEOID geo_id) {
   }
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace
 
@@ -134,18 +133,18 @@ int GetCountryIDFromPrefs(PrefService* prefs) {
   return prefs->GetInteger(country_codes::kCountryIDAtInstall);
 }
 
-void RegisterProfilePrefs(PrefRegistrySimple* registry) {
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterIntegerPref(country_codes::kCountryIDAtInstall,
                                 kCountryIDUnknown);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 int GetCurrentCountryID() {
   return GeoIDToCountryID(GetUserGeoID(GEOCLASS_NATION));
 }
 
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 
 int GetCurrentCountryID() {
   base::ScopedCFTypeRef<CFLocaleRef> locale(CFLocaleCopyCurrent());
@@ -162,13 +161,13 @@ int GetCurrentCountryID() {
                                            static_cast<char>(isobuf[1]));
 }
 
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 
 int GetCurrentCountryID() {
   return CountryStringToCountryID(base::android::GetDefaultCountryCode());
 }
 
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 
 int GetCurrentCountryID() {
   const char* locale = setlocale(LC_MESSAGES, nullptr);
@@ -192,28 +191,5 @@ int GetCurrentCountryID() {
 }
 
 #endif  // OS_*
-
-std::string CountryIDToCountryString(int country_id) {
-  // We only use the lowest 16 bits to build two ASCII characters. If there is
-  // more than that, the ID is invalid. The check for positive integers also
-  // handles the |kCountryIDUnknown| case.
-  if ((country_id & 0xFFFF) != country_id || country_id < 0)
-    return kCountryCodeUnknown;
-
-  // Decode the country code string from the provided integer. The first two
-  // bytes of the country ID represent two ASCII chars.
-  std::string country_code = {static_cast<char>(country_id >> 8),
-                              static_cast<char>(country_id)};
-  country_code = base::ToUpperASCII(country_code);
-
-  // Validate the code that was produced by feeding it back into the system.
-  return (CountryStringToCountryID(country_code) == country_id)
-             ? country_code
-             : kCountryCodeUnknown;
-}
-
-std::string GetCurrentCountryCode() {
-  return CountryIDToCountryString(GetCurrentCountryID());
-}
 
 }  // namespace country_codes

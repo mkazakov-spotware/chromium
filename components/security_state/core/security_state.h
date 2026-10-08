@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include <string>
 
 #include "base/feature_list.h"
+#include "base/macros.h"
+#include "components/security_state/core/insecure_input_event_data.h"
 #include "net/base/url_util.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/sct_status_flags.h"
@@ -102,7 +104,6 @@ enum MaliciousContentStatus {
   MALICIOUS_CONTENT_STATUS_SIGNED_IN_NON_SYNC_PASSWORD_REUSE,
   MALICIOUS_CONTENT_STATUS_ENTERPRISE_PASSWORD_REUSE,
   MALICIOUS_CONTENT_STATUS_BILLING,
-  MALICIOUS_CONTENT_STATUS_MANAGED_POLICY,
 };
 
 // Describes whether the page triggers any safety tips or reputation
@@ -132,10 +133,7 @@ enum class SafetyTipStatus {
   // The current page had a lookalike URL, but a Safety Tip was not shown since
   // it had been previously ignored by the user.
   kLookalikeIgnored = 6,
-  // Safety tip UI was ignored because of the lookalike's digital asset link
-  // manifest matched the target's.
-  kDigitalAssetLinkMatch = 7,
-  kMaxValue = kDigitalAssetLinkMatch,
+  kMaxValue = kLookalikeIgnored,
 };
 
 // Information about the last safety tip shown in the UI. This is used in page
@@ -201,12 +199,18 @@ struct VisibleSecurityState {
   bool is_devtools;
   // True if the page is a reader mode page.
   bool is_reader_mode;
+  // True if the page was loaded over a legacy TLS version.
+  bool connection_used_legacy_tls;
+  // True if the page should be excluded from a UI treatment for legacy TLS
+  // (used for control group in an experimental UI rollout).
+  bool should_suppress_legacy_tls_warning;
   // True if mixed forms should be treated as secure from the visible security
   // state perspective (for example, if a different warning is being shown for
   // them).
   bool should_treat_displayed_mixed_forms_as_secure;
-  // True if the page was the result of an HTTPS-Only Mode upgrade.
-  bool is_https_only_mode_upgraded;
+  // Contains information about input events that may impact the security
+  // level of the page.
+  InsecureInputEventData insecure_input_events;
 };
 
 // These security levels describe the treatment given to pages that
@@ -247,7 +251,27 @@ std::string GetSecurityLevelHistogramName(
 std::string GetSafetyTipHistogramName(const std::string& prefix,
                                       SafetyTipStatus safety_tip_status);
 
+// Returns whether the given VisibleSecurityState would trigger a legacy TLS
+// warning (i.e., uses legacy TLS and isn't in the control group), if the user
+// were in the appropriate field trial.
+bool GetLegacyTLSWarningStatus(
+    const VisibleSecurityState& visible_security_state);
+
+// Returns the given prefix suffixed with a dot and the legacy TLS status
+// derived from the VisibleSecurityStatus.
+std::string GetLegacyTLSHistogramName(
+    const std::string& prefix,
+    const VisibleSecurityState& visible_security_state);
+
 bool IsSHA1InChain(const VisibleSecurityState& visible_security_state);
+
+// Returns whether the WARNING state should downgrade the security icon from
+// info to danger triangle as part of an experiment (crbug.com/997972).
+bool ShouldShowDangerTriangleForWarningLevel();
+
+// Returns true if Safety Tip UI should be shown because a relevant field trial
+// is enabled.
+bool IsSafetyTipUIFeatureEnabled();
 
 }  // namespace security_state
 

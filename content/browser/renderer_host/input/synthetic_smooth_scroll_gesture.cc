@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,21 +32,21 @@ void SyntheticSmoothScrollGesture::WaitForTargetAck(
 
 SyntheticSmoothMoveGestureParams::InputType
 SyntheticSmoothScrollGesture::GetInputSourceType(
-    content::mojom::GestureSourceType gesture_source_type) {
-  if (gesture_source_type == content::mojom::GestureSourceType::kMouseInput)
+    SyntheticGestureParams::GestureSourceType gesture_source_type) {
+  if (gesture_source_type == SyntheticGestureParams::MOUSE_INPUT)
     return SyntheticSmoothMoveGestureParams::MOUSE_WHEEL_INPUT;
   else
     return SyntheticSmoothMoveGestureParams::TOUCH_INPUT;
 }
 
 bool SyntheticSmoothScrollGesture::InitializeMoveGesture(
-    content::mojom::GestureSourceType gesture_type,
+    SyntheticGestureParams::GestureSourceType gesture_type,
     SyntheticGestureTarget* target) {
-  if (gesture_type == content::mojom::GestureSourceType::kDefaultInput)
+  if (gesture_type == SyntheticGestureParams::DEFAULT_INPUT)
     gesture_type = target->GetDefaultSyntheticGestureSourceType();
 
-  if (gesture_type == content::mojom::GestureSourceType::kTouchInput ||
-      gesture_type == content::mojom::GestureSourceType::kMouseInput) {
+  if (gesture_type == SyntheticGestureParams::TOUCH_INPUT ||
+      gesture_type == SyntheticGestureParams::MOUSE_INPUT) {
     SyntheticSmoothMoveGestureParams move_params;
     move_params.start_point = params_.anchor;
     move_params.distances = params_.distances;
@@ -58,7 +58,6 @@ bool SyntheticSmoothScrollGesture::InitializeMoveGesture(
     move_params.add_slop = true;
     move_params.granularity = params_.granularity;
     move_params.modifiers = params_.modifiers;
-    move_params.from_devtools_debugger = params_.from_devtools_debugger;
     move_gesture_ = std::make_unique<SyntheticSmoothMoveGesture>(move_params);
     return true;
   }

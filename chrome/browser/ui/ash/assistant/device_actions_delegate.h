@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <string>
 
-#include "chromeos/ash/services/assistant/public/cpp/assistant_service.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 
 class DeviceActionsDelegate {
  public:
   virtual ~DeviceActionsDelegate() = default;
 
-  virtual ash::assistant::AppStatus GetAndroidAppStatus(
+  virtual chromeos::assistant::AppStatus GetAndroidAppStatus(
       const std::string& package_name) = 0;
 };
 

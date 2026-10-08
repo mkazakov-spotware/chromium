@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define UI_OZONE_PUBLIC_SYSTEM_INPUT_INJECTOR_H_
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "ui/events/event.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
 
@@ -19,16 +20,8 @@ namespace ui {
 // native events.
 class COMPONENT_EXPORT(OZONE) SystemInputInjector {
  public:
-  SystemInputInjector() = default;
-
-  SystemInputInjector(const SystemInputInjector&) = delete;
-  SystemInputInjector& operator=(const SystemInputInjector&) = delete;
-
-  virtual ~SystemInputInjector() = default;
-
-  // Set the device id that will be used for all the generated events.
-  // The device id is set to |ui::ED_UNKNOWN_DEVICE| by default.
-  virtual void SetDeviceId(int device_id) = 0;
+  SystemInputInjector() {}
+  virtual ~SystemInputInjector() {}
 
   // Moves the cursor on the screen and generates the corresponding MouseMove or
   // MouseDragged event.  |location| is in physical screen coordinates,
@@ -51,6 +44,9 @@ class COMPONENT_EXPORT(OZONE) SystemInputInjector {
   virtual void InjectKeyEvent(DomCode physical_key,
                               bool down,
                               bool suppress_auto_repeat) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SystemInputInjector);
 };
 
 }  // namespace ui

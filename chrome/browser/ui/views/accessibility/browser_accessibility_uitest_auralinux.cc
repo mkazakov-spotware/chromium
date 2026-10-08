@@ -1,44 +1,36 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <atk/atk.h>
 #include <stddef.h>
 
-#include "build/build_config.h"
+#include "base/macros.h"
 #include "chrome/browser/devtools/devtools_window_testing.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
-#include "ui/accessibility/platform/ax_platform_node_base.h"
-#include "ui/views/accessibility/view_accessibility.h"
+#include "ui/accessibility/platform/ax_platform_node.h"
 
 class AuraLinuxAccessibilityInProcessBrowserTest : public InProcessBrowserTest {
- protected:
-  AuraLinuxAccessibilityInProcessBrowserTest() = default;
-
-  void PreRunTestOnMainThread() override {
-    ax_mode_setter_ =
-        std::make_unique<content::testing::ScopedContentAXModeSetter>(
-            ui::kAXModeComplete);
-    InProcessBrowserTest::PreRunTestOnMainThread();
+ public:
+  void SetUp() override {
+    ui::AXPlatformNode::NotifyAddAXModeFlags(ui::kAXModeComplete);
+    InProcessBrowserTest::SetUp();
   }
 
-  AuraLinuxAccessibilityInProcessBrowserTest(
-      const AuraLinuxAccessibilityInProcessBrowserTest&) = delete;
-  AuraLinuxAccessibilityInProcessBrowserTest& operator=(
-      const AuraLinuxAccessibilityInProcessBrowserTest&) = delete;
+ protected:
+  AuraLinuxAccessibilityInProcessBrowserTest() = default;
 
   void VerifyEmbedRelationships();
 
  private:
-  std::unique_ptr<content::testing::ScopedContentAXModeSetter> ax_mode_setter_;
+  DISALLOW_COPY_AND_ASSIGN(AuraLinuxAccessibilityInProcessBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(AuraLinuxAccessibilityInProcessBrowserTest,
@@ -64,14 +56,12 @@ class TestTabModalConfirmDialogDelegate : public TabModalConfirmDialogDelegate {
  public:
   explicit TestTabModalConfirmDialogDelegate(content::WebContents* contents)
       : TabModalConfirmDialogDelegate(contents) {}
+  base::string16 GetTitle() override {
+    return base::ASCIIToUTF16("Dialog Title");
+  }
+  base::string16 GetDialogMessage() override { return base::string16(); }
 
-  TestTabModalConfirmDialogDelegate(const TestTabModalConfirmDialogDelegate&) =
-      delete;
-  TestTabModalConfirmDialogDelegate& operator=(
-      const TestTabModalConfirmDialogDelegate&) = delete;
-
-  std::u16string GetTitle() override { return u"Dialog Title"; }
-  std::u16string GetDialogMessage() override { return std::u16string(); }
+  DISALLOW_COPY_AND_ASSIGN(TestTabModalConfirmDialogDelegate);
 };
 
 // Open a tab-modal dialog and test IndexInParent with the modal dialog.
@@ -182,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(AuraLinuxAccessibilityInProcessBrowserTest,
                          ->GetNativeViewAccessible());
 
   GURL url(url::kAboutBlankURL);
-  ASSERT_TRUE(AddTabAtIndex(0, url, ui::PAGE_TRANSITION_LINK));
+  AddTabAtIndex(0, url, ui::PAGE_TRANSITION_LINK);
   EXPECT_EQ(2, browser()->tab_strip_model()->count());
   EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
 
@@ -201,15 +191,8 @@ IN_PROC_BROWSER_TEST_F(AuraLinuxAccessibilityInProcessBrowserTest,
 
 // Tests that the embedded relationship is set on the main web contents when
 // the DevTools is opened.
-// This fails on Linux : http://crbug.com/1223047
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_EmbeddedRelationshipWithDevTools \
-  DISABLED_EmbeddedRelationshipWithDevTools
-#else
-#define MAYBE_EmbeddedRelationshipWithDevTools EmbeddedRelationshipWithDevTools
-#endif
 IN_PROC_BROWSER_TEST_F(AuraLinuxAccessibilityInProcessBrowserTest,
-                       MAYBE_EmbeddedRelationshipWithDevTools) {
+                       EmbeddedRelationshipWithDevTools) {
   // Force the creation of the document's native object which sets up the
   // relationship.
   content::WebContents* active_web_contents =
@@ -235,31 +218,4 @@ IN_PROC_BROWSER_TEST_F(AuraLinuxAccessibilityInProcessBrowserTest,
   // Closes the DevTools window.
   DevToolsWindowTesting::CloseDevToolsWindowSync(devtools);
   VerifyEmbedRelationships();
-}
-
-// Tests that it doesn't have DCHECK() error when GetIndexInParent() is called
-// with the WebView.
-IN_PROC_BROWSER_TEST_F(AuraLinuxAccessibilityInProcessBrowserTest,
-                       GetIndexInParent) {
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_NE(nullptr, active_web_contents->GetRenderWidgetHostView()
-                         ->GetNativeViewAccessible());
-  EXPECT_EQ(1, browser()->tab_strip_model()->count());
-  EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
-
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
-  views::WebView* webview = browser_view->contents_web_view();
-  gfx::NativeViewAccessible accessible =
-      webview->GetViewAccessibility().GetNativeObject();
-
-  // Gets the index in its parents for the WebView.
-  absl::optional<int> index =
-      static_cast<ui::AXPlatformNodeBase*>(
-          ui::AXPlatformNode::FromNativeViewAccessible(accessible))
-          ->GetIndexInParent();
-
-  // As the WebView is not exposed in the child list when it has the web
-  // content, it doesn't have the index in its parent.
-  EXPECT_EQ(false, index.has_value());
 }

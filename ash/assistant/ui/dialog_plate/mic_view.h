@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
 #include "base/component_export.h"
-#include "base/scoped_observation.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 
 namespace ash {
 
@@ -24,14 +24,12 @@ class COMPONENT_EXPORT(ASSISTANT_UI) MicView
       public AssistantControllerObserver,
       public AssistantInteractionModelObserver {
  public:
-  METADATA_HEADER(MicView);
-
   MicView(AssistantButtonListener* listener,
           AssistantButtonId button_id);
-  MicView(const MicView&) = delete;
-  MicView& operator=(const MicView&) = delete;
   ~MicView() override;
 
+  // AssistantButton:
+  const char* GetClassName() const override;
   gfx::Size CalculatePreferredSize() const override;
   int GetHeightForWidth(int width) const override;
 
@@ -57,8 +55,10 @@ class COMPONENT_EXPORT(ASSISTANT_UI) MicView
   // kUserSpeaks state.
   bool is_user_speaking_ = false;
 
-  base::ScopedObservation<AssistantController, AssistantControllerObserver>
-      assistant_controller_observation_{this};
+  ScopedObserver<AssistantController, AssistantControllerObserver>
+      assistant_controller_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MicView);
 };
 
 }  // namespace ash

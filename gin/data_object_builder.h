@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #include <utility>
 
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "gin/converter.h"
 #include "gin/gin_export.h"
-#include "v8/include/v8-forward.h"
-#include "v8/include/v8-object.h"
+#include "v8/include/v8.h"
 
 namespace gin {
 
@@ -39,10 +38,6 @@ namespace gin {
 class GIN_EXPORT DataObjectBuilder {
  public:
   explicit DataObjectBuilder(v8::Isolate* isolate);
-  DataObjectBuilder(const DataObjectBuilder&) = delete;
-  DataObjectBuilder& operator=(const DataObjectBuilder&) = delete;
-
-  ~DataObjectBuilder();
 
   template <typename T>
   DataObjectBuilder& Set(base::StringPiece key, T&& value) {
@@ -71,9 +66,11 @@ class GIN_EXPORT DataObjectBuilder {
   }
 
  private:
-  raw_ptr<v8::Isolate> isolate_;
+  v8::Isolate* isolate_;
   v8::Local<v8::Context> context_;
   v8::Local<v8::Object> object_;
+
+  DISALLOW_COPY_AND_ASSIGN(DataObjectBuilder);
 };
 
 }  // namespace gin

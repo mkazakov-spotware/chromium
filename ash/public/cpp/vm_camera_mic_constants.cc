@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 namespace ash {
 
-const char kVmCameraMicNotifierId[] = "ash.vm_camera_mic";
+const char kVmMicNotifierId[] = "ash.vm_camera_mic.mic";
+const char kVmCameraNotifierId[] = "ash.vm_camera_mic.camera";
 
 }  // namespace ash

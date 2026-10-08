@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -84,10 +84,4 @@ public interface PaymentAppFactoryParams extends PaymentRequestParams {
     default String getTwaPackageName() {
         return null;
     }
-
-    /**
-     * @return Whether the merchant WebContents's profile is in off-the-record mode. Return true
-     *         if the tab profile is not accessible from the WebContents.
-     */
-    boolean isOffTheRecord();
 }

@@ -26,9 +26,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_SELECTION_TYPES_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_SELECTION_TYPES_H_
 
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/hash_table_deleted_value_type.h"
 #include "third_party/blink/renderer/platform/wtf/hash_traits.h"
@@ -50,15 +49,15 @@ class PLATFORM_EXPORT FontSelectionValue {
 
   // Explicit because it is lossy.
   explicit FontSelectionValue(int x)
-      : backing_(ClampTo<int16_t>(x * fractionalEntropy)) {}
+      : backing_(clampTo<int16_t>(x * fractionalEntropy)) {}
 
   // Explicit because it is lossy.
   explicit FontSelectionValue(float x)
-      : backing_(ClampTo<int16_t>(x * fractionalEntropy)) {}
+      : backing_(clampTo<int16_t>(x * fractionalEntropy)) {}
 
   // Explicit because it is lossy.
   explicit FontSelectionValue(double x)
-      : backing_(ClampTo<int16_t>(x * fractionalEntropy)) {}
+      : backing_(clampTo<int16_t>(x * fractionalEntropy)) {}
 
   operator float() const {
     // floats have 23 fractional bits, but only 14 fractional bits are
@@ -168,7 +167,7 @@ inline bool FontSelectionValue::operator>=(
 
 static inline const FontSelectionValue& ItalicThreshold() {
   DEFINE_THREAD_SAFE_STATIC_LOCAL(const FontSelectionValue, italicThreshold,
-                                  (14));
+                                  (20));
   return italicThreshold;
 }
 
@@ -189,7 +188,7 @@ static inline const FontSelectionValue& NormalSlopeValue() {
 }
 
 static inline const FontSelectionValue& ItalicSlopeValue() {
-  DEFINE_THREAD_SAFE_STATIC_LOCAL(const FontSelectionValue, italicValue, (14));
+  DEFINE_THREAD_SAFE_STATIC_LOCAL(const FontSelectionValue, italicValue, (20));
   return italicValue;
 }
 
@@ -312,18 +311,11 @@ static inline const FontSelectionValue& UltraExpandedWidthValue() {
 }
 
 struct FontSelectionRange {
-  enum RangeType { kSetFromAuto, kSetExplicitly };
-
-  explicit FontSelectionRange(FontSelectionValue single_value)
+  FontSelectionRange(FontSelectionValue single_value)
       : minimum(single_value), maximum(single_value) {}
 
   FontSelectionRange(FontSelectionValue minimum, FontSelectionValue maximum)
       : minimum(minimum), maximum(maximum) {}
-
-  FontSelectionRange(FontSelectionValue minimum,
-                     FontSelectionValue maximum,
-                     RangeType type)
-      : minimum(minimum), maximum(maximum), type(type) {}
 
   bool operator==(const FontSelectionRange& other) const {
     return minimum == other.minimum && maximum == other.maximum;
@@ -332,8 +324,6 @@ struct FontSelectionRange {
   bool IsValid() const { return minimum <= maximum; }
 
   bool IsRange() const { return maximum > minimum; }
-
-  bool IsRangeSetFromAuto() const { return type == kSetFromAuto; }
 
   void Expand(const FontSelectionRange& other) {
     DCHECK(other.IsValid());
@@ -355,15 +345,11 @@ struct FontSelectionRange {
   }
 
   FontSelectionValue clampToRange(FontSelectionValue selection_value) const {
-    return base::clamp(selection_value, minimum, maximum);
+    return base::ClampToRange(selection_value, minimum, maximum);
   }
 
   FontSelectionValue minimum{FontSelectionValue(1)};
   FontSelectionValue maximum{FontSelectionValue(0)};
-
-  RangeType type = RuntimeEnabledFeatures::CSSFontFaceAutoVariableRangeEnabled()
-                       ? kSetFromAuto
-                       : kSetExplicitly;
 };
 
 struct PLATFORM_EXPORT FontSelectionRequest {
@@ -484,26 +470,30 @@ struct PLATFORM_EXPORT FontSelectionCapabilitiesHash {
 namespace WTF {
 
 template <>
-struct DefaultHash<blink::FontSelectionCapabilities>
-    : blink::FontSelectionCapabilitiesHash {};
+struct DefaultHash<blink::FontSelectionCapabilities> {
+  STATIC_ONLY(DefaultHash);
+  typedef blink::FontSelectionCapabilitiesHash Hash;
+};
 
 template <>
 struct HashTraits<blink::FontSelectionCapabilities>
-    : SimpleClassHashTraits<blink::FontSelectionCapabilities> {};
+    : SimpleClassHashTraits<blink::FontSelectionCapabilities> {
+  STATIC_ONLY(HashTraits);
+};
 
 }  // namespace WTF
 
-// Used for ClampTo for example in StyleBuilderConverter
+// Used for clampTo for example in StyleBuilderConverter
 template <>
 inline blink::FontSelectionValue
-DefaultMinimumForClamp<blink::FontSelectionValue>() {
+defaultMinimumForClamp<blink::FontSelectionValue>() {
   return blink::FontSelectionValue::MinimumValue();
 }
 
 template <>
 inline blink::FontSelectionValue
-DefaultMaximumForClamp<blink::FontSelectionValue>() {
+defaultMaximumForClamp<blink::FontSelectionValue>() {
   return blink::FontSelectionValue::MaximumValue();
 }
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_FONT_SELECTION_TYPES_H_
+#endif

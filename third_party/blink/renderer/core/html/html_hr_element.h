@@ -37,8 +37,6 @@ class HTMLHRElement final : public HTMLElement {
 
   bool CanContainRangeEndPoint() const override { return HasChildren(); }
 
-  bool IsRichlyEditableForAccessibility() const override { return false; }
-
  private:
   HTMLSelectElement* OwnerSelectElement() const;
 

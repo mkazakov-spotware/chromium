@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,8 @@ namespace switches {
 
 // All switches in alphabetical order. The switches should be documented
 // alongside the definition of their values in the .cc file.
-extern const char kDisableChromeTracingComputation[];
-extern const char kUseMemoryTrackingJsonWriter[];
-extern const char kUseHeapProfilingProtoWriter[];
+extern const char kEnableChromeTracingComputation[];
+extern const char kUseMemoryTrackingProtoWriter[];
 
 }  // namespace switches
 }  // namespace memory_instrumentation

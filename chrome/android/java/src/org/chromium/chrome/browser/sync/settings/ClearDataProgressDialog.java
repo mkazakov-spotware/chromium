@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@ import android.os.Bundle;
 import androidx.fragment.app.DialogFragment;
 
 /**
- * A dialog with a spinner shown when the user decides to clear data on sign-out. The dialog closes
- * by itself once the data has been cleared.
+ * This class is used by {@link AccountManagementFragment} to show the clear data progress dialog
+ * during sign out.
  */
 public class ClearDataProgressDialog extends DialogFragment {
     @Override

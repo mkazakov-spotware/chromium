@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "ash/public/cpp/app_menu_constants.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/models/simple_menu_model.h"
 
@@ -38,7 +37,7 @@ class AppContextMenu : public ui::SimpleMenuModel::Delegate {
 
   // ui::SimpleMenuModel::Delegate overrides:
   bool IsItemForCommandIdDynamic(int command_id) const override;
-  std::u16string GetLabelForCommandId(int command_id) const override;
+  base::string16 GetLabelForCommandId(int command_id) const override;
   bool IsCommandIdEnabled(int command_id) const override;
   void ExecuteCommand(int command_id, int event_flags) override;
   ui::ImageModel GetIconForCommandId(int command_id) const override;
@@ -67,10 +66,10 @@ class AppContextMenu : public ui::SimpleMenuModel::Delegate {
   AppListControllerDelegate* controller() const { return controller_; }
 
  private:
-  raw_ptr<AppContextMenuDelegate> delegate_;
-  raw_ptr<Profile> profile_;
+  AppContextMenuDelegate* delegate_;
+  Profile* profile_;
   const std::string app_id_;
-  raw_ptr<AppListControllerDelegate, DanglingUntriaged> controller_;
+  AppListControllerDelegate* controller_;
 };
 
 }  // namespace app_list

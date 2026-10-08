@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,11 @@
 #include <string>
 #include <vector>
 
+#include "base/callback_forward.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/one_shot_event.h"
-#include "base/time/time.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
@@ -54,9 +54,6 @@ class RulesRegistry : public base::RefCountedThreadSafe<RulesRegistry> {
                 content::BrowserThread::ID owner_thread,
                 RulesCacheDelegate* cache_delegate,
                 int id);
-
-  RulesRegistry(const RulesRegistry&) = delete;
-  RulesRegistry& operator=(const RulesRegistry&) = delete;
 
   const base::OneShotEvent& ready() const { return ready_; }
 
@@ -234,7 +231,7 @@ class RulesRegistry : public base::RefCountedThreadSafe<RulesRegistry> {
   // Deserialize the rules from the given Value object and add them to the
   // RulesRegistry.
   void DeserializeAndAddRules(const std::string& extension_id,
-                              absl::optional<base::Value> rules);
+                              std::unique_ptr<base::Value> rules);
 
   // Reports an internal error with the specified params to the extensions
   // client.
@@ -242,7 +239,7 @@ class RulesRegistry : public base::RefCountedThreadSafe<RulesRegistry> {
                            const std::string& error);
 
   // The context to which this rules registry belongs.
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // The ID of the thread on which the rules registry lives.
   const content::BrowserThread::ID owner_thread_;
@@ -303,6 +300,8 @@ class RulesRegistry : public base::RefCountedThreadSafe<RulesRegistry> {
   base::WeakPtr<RulesCacheDelegate> cache_delegate_;
 
   base::WeakPtrFactory<RulesRegistry> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(RulesRegistry);
 };
 
 }  // namespace extensions

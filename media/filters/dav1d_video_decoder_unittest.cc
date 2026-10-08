@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,13 +42,10 @@ class Dav1dVideoDecoderTest : public testing::Test {
       : decoder_(new Dav1dVideoDecoder(&media_log_)),
         i_frame_buffer_(ReadTestDataFile("av1-I-frame-320x240")) {}
 
-  Dav1dVideoDecoderTest(const Dav1dVideoDecoderTest&) = delete;
-  Dav1dVideoDecoderTest& operator=(const Dav1dVideoDecoderTest&) = delete;
-
   ~Dav1dVideoDecoderTest() override { Destroy(); }
 
   void Initialize() {
-    InitializeWithConfig(TestVideoConfig::Normal(VideoCodec::kAV1));
+    InitializeWithConfig(TestVideoConfig::Normal(kCodecAV1));
   }
 
   void InitializeWithConfigWithResult(const VideoDecoderConfig& config,
@@ -57,7 +54,7 @@ class Dav1dVideoDecoderTest : public testing::Test {
         config, true,  // Use low delay so we get 1 frame out for each frame in.
         nullptr,
         base::BindOnce(
-            [](bool success, DecoderStatus status) {
+            [](bool success, Status status) {
               EXPECT_EQ(status.is_ok(), success);
             },
             success),
@@ -72,7 +69,7 @@ class Dav1dVideoDecoderTest : public testing::Test {
   }
 
   void Reinitialize() {
-    InitializeWithConfig(TestVideoConfig::Large(VideoCodec::kAV1));
+    InitializeWithConfig(TestVideoConfig::Large(kCodecAV1));
   }
 
   void Reset() {
@@ -105,26 +102,26 @@ class Dav1dVideoDecoderTest : public testing::Test {
   // Decodes all buffers in |input_buffers| and push all successfully decoded
   // output frames into |output_frames|. Returns the last decode status returned
   // by the decoder.
-  DecoderStatus DecodeMultipleFrames(const InputBuffers& input_buffers) {
+  Status DecodeMultipleFrames(const InputBuffers& input_buffers) {
     for (auto iter = input_buffers.begin(); iter != input_buffers.end();
          ++iter) {
-      DecoderStatus status = Decode(*iter);
+      Status status = Decode(*iter);
       switch (status.code()) {
-        case DecoderStatus::Codes::kOk:
+        case StatusCode::kOk:
           break;
-        case DecoderStatus::Codes::kAborted:
+        case StatusCode::kAborted:
           NOTREACHED();
-          [[fallthrough]];
+          FALLTHROUGH;
         default:
           DCHECK(output_frames_.empty());
           return status;
       }
     }
-    return DecoderStatus::Codes::kOk;
+    return StatusCode::kOk;
   }
 
   // Decodes the single compressed frame in |buffer|.
-  DecoderStatus DecodeSingleFrame(scoped_refptr<DecoderBuffer> buffer) {
+  Status DecodeSingleFrame(scoped_refptr<DecoderBuffer> buffer) {
     InputBuffers input_buffers;
     input_buffers.push_back(std::move(buffer));
     return DecodeMultipleFrames(input_buffers);
@@ -143,7 +140,7 @@ class Dav1dVideoDecoderTest : public testing::Test {
     input_buffers.push_back(buffer);
     input_buffers.push_back(DecoderBuffer::CreateEOSBuffer());
 
-    DecoderStatus status = DecodeMultipleFrames(input_buffers);
+    Status status = DecodeMultipleFrames(input_buffers);
 
     EXPECT_TRUE(status.is_ok());
     ASSERT_EQ(2U, output_frames_.size());
@@ -159,8 +156,8 @@ class Dav1dVideoDecoderTest : public testing::Test {
               output_frames_[1]->visible_rect().size().height());
   }
 
-  DecoderStatus Decode(scoped_refptr<DecoderBuffer> buffer) {
-    DecoderStatus status;
+  Status Decode(scoped_refptr<DecoderBuffer> buffer) {
+    Status status;
     EXPECT_CALL(*this, DecodeDone(_)).WillOnce(testing::SaveArg<0>(&status));
 
     decoder_->Decode(std::move(buffer),
@@ -172,7 +169,7 @@ class Dav1dVideoDecoderTest : public testing::Test {
   }
 
   void FrameReady(scoped_refptr<VideoFrame> frame) {
-    DCHECK(!frame->metadata().end_of_stream);
+    DCHECK(!frame->metadata()->end_of_stream);
     output_frames_.push_back(std::move(frame));
   }
 
@@ -185,7 +182,7 @@ class Dav1dVideoDecoderTest : public testing::Test {
     return base::MD5DigestToBase16(digest);
   }
 
-  MOCK_METHOD1(DecodeDone, void(DecoderStatus));
+  MOCK_METHOD1(DecodeDone, void(Status));
 
   testing::StrictMock<MockMediaLog> media_log_;
 
@@ -194,6 +191,9 @@ class Dav1dVideoDecoderTest : public testing::Test {
 
   scoped_refptr<DecoderBuffer> i_frame_buffer_;
   OutputFrames output_frames_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Dav1dVideoDecoderTest);
 };
 
 TEST_F(Dav1dVideoDecoderTest, Initialize_Normal) {
@@ -333,7 +333,7 @@ TEST_F(Dav1dVideoDecoderTest, FrameValidAfterPoolDestruction) {
 
   // Write to the Y plane. The memory tools should detect a
   // use-after-free if the storage was actually removed by pool destruction.
-  memset(output_frames_.front()->writable_data(VideoFrame::kYPlane), 0xff,
+  memset(output_frames_.front()->data(VideoFrame::kYPlane), 0xff,
          output_frames_.front()->rows(VideoFrame::kYPlane) *
              output_frames_.front()->stride(VideoFrame::kYPlane));
 }

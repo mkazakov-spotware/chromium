@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "chromeos/ash/services/nearby/public/mojom/nearby_share_target_types.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/containers/span.h"
+#include "base/optional.h"
+#include "chromeos/services/nearby/public/mojom/nearby_share_target_types.mojom.h"
 
 namespace sharing {
 
@@ -25,7 +26,7 @@ class Advertisement {
       std::vector<uint8_t> salt,
       std::vector<uint8_t> encrypted_metadata_key,
       nearby_share::mojom::ShareTargetType device_type,
-      absl::optional<std::string> device_name);
+      base::Optional<std::string> device_name);
 
   Advertisement(Advertisement&& other);
   Advertisement(const Advertisement& other) = delete;
@@ -42,7 +43,7 @@ class Advertisement {
   nearby_share::mojom::ShareTargetType device_type() const {
     return device_type_;
   }
-  const absl::optional<std::string>& device_name() const {
+  const base::Optional<std::string>& device_name() const {
     return device_name_;
   }
   bool HasDeviceName() const { return device_name_.has_value(); }
@@ -55,7 +56,7 @@ class Advertisement {
                 std::vector<uint8_t> salt,
                 std::vector<uint8_t> encrypted_metadata_key,
                 nearby_share::mojom::ShareTargetType device_type,
-                absl::optional<std::string> device_name);
+                base::Optional<std::string> device_name);
 
   // The version of the advertisement. Different versions can have different
   // ways of parsing the endpoint id.
@@ -75,7 +76,7 @@ class Advertisement {
   nearby_share::mojom::ShareTargetType device_type_;
 
   // The human readable name of the remote device.
-  absl::optional<std::string> device_name_;
+  base::Optional<std::string> device_name_;
 };
 
 }  // namespace sharing

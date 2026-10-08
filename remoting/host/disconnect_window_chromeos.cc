@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "ash/shell.h"
 #include "ash/system/tray/system_tray_notifier.h"
 #include "base/bind.h"
+#include "base/macros.h"
 #include "remoting/host/client_session_control.h"
 #include "remoting/host/host_window.h"
 
@@ -18,15 +19,14 @@ namespace {
 class DisconnectWindowAura : public HostWindow {
  public:
   DisconnectWindowAura();
-
-  DisconnectWindowAura(const DisconnectWindowAura&) = delete;
-  DisconnectWindowAura& operator=(const DisconnectWindowAura&) = delete;
-
   ~DisconnectWindowAura() override;
 
   // HostWindow interface.
   void Start(const base::WeakPtr<ClientSessionControl>& client_session_control)
       override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisconnectWindowAura);
 };
 
 DisconnectWindowAura::DisconnectWindowAura() = default;
@@ -39,7 +39,7 @@ void DisconnectWindowAura::Start(
     const base::WeakPtr<ClientSessionControl>& client_session_control) {
   // TODO(kelvinp): Clean up the NotifyScreenShareStart interface when we
   // completely retire Hangout Remote Desktop v1.
-  std::u16string helper_name;
+  base::string16 helper_name;
   ash::Shell::Get()->system_tray_notifier()->NotifyScreenShareStart(
       base::BindRepeating(&ClientSessionControl::DisconnectSession,
                           client_session_control, protocol::OK),

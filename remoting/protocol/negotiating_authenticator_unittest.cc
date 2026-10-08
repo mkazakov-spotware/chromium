@@ -1,12 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "net/base/net_errors.h"
 #include "remoting/base/rsa_key_pair.h"
@@ -27,7 +26,8 @@ using testing::_;
 using testing::DeleteArg;
 using testing::SaveArg;
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -53,11 +53,6 @@ const char kTestPinBad[] = "654321";
 class NegotiatingAuthenticatorTest : public AuthenticatorTestBase {
  public:
   NegotiatingAuthenticatorTest() = default;
-
-  NegotiatingAuthenticatorTest(const NegotiatingAuthenticatorTest&) = delete;
-  NegotiatingAuthenticatorTest& operator=(const NegotiatingAuthenticatorTest&) =
-      delete;
-
   ~NegotiatingAuthenticatorTest() override = default;
 
  protected:
@@ -89,14 +84,14 @@ class NegotiatingAuthenticatorTest : public AuthenticatorTestBase {
 
   void DisableMethodOnClient(NegotiatingAuthenticatorBase::Method method) {
     auto* methods = &(client_as_negotiating_authenticator_->methods_);
-    auto iter = base::ranges::find(*methods, method);
+    auto iter = std::find(methods->begin(), methods->end(), method);
     ASSERT_TRUE(iter != methods->end());
     methods->erase(iter);
   }
 
   void DisableMethodOnHost(NegotiatingAuthenticatorBase::Method method) {
     auto* methods = &(host_as_negotiating_authenticator_->methods_);
-    auto iter = base::ranges::find(*methods, method);
+    auto iter = std::find(methods->begin(), methods->end(), method);
     ASSERT_TRUE(iter != methods->end());
     methods->erase(iter);
   }
@@ -158,11 +153,13 @@ class NegotiatingAuthenticatorTest : public AuthenticatorTestBase {
   }
 
   // Use a bare pointer because the storage is managed by the base class.
-  raw_ptr<NegotiatingHostAuthenticator> host_as_negotiating_authenticator_;
-  raw_ptr<NegotiatingClientAuthenticator> client_as_negotiating_authenticator_;
+  NegotiatingHostAuthenticator* host_as_negotiating_authenticator_;
+  NegotiatingClientAuthenticator* client_as_negotiating_authenticator_;
 
  private:
   scoped_refptr<PairingRegistry> pairing_registry_;
+
+  DISALLOW_COPY_AND_ASSIGN(NegotiatingAuthenticatorTest);
 };
 
 struct PairingTestParameters {
@@ -245,7 +242,7 @@ TEST_F(NegotiatingAuthenticatorTest, InvalidSharedSecret) {
                                              kTestPinBad, kTestPin));
   ASSERT_NO_FATAL_FAILURE(RunAuthExchange());
 
-  VerifyRejected(Authenticator::RejectionReason::INVALID_CREDENTIALS);
+  VerifyRejected(Authenticator::INVALID_CREDENTIALS);
 }
 
 TEST_F(NegotiatingAuthenticatorTest, IncompatibleMethods) {
@@ -258,7 +255,7 @@ TEST_F(NegotiatingAuthenticatorTest, IncompatibleMethods) {
 
   ASSERT_NO_FATAL_FAILURE(RunAuthExchange());
 
-  VerifyRejected(Authenticator::RejectionReason::PROTOCOL_ERROR);
+  VerifyRejected(Authenticator::PROTOCOL_ERROR);
 }
 
 TEST_F(NegotiatingAuthenticatorTest, PairingNotSupported) {
@@ -292,7 +289,7 @@ TEST_P(NegotiatingPairingAuthenticatorTest, PairingRevokedPinBad) {
   ASSERT_NO_FATAL_FAILURE(InitAuthenticators(kTestClientId, kTestPairedSecret,
                                              kTestPinBad, kTestPin));
   ASSERT_NO_FATAL_FAILURE(RunAuthExchange());
-  VerifyRejected(Authenticator::RejectionReason::INVALID_CREDENTIALS);
+  VerifyRejected(Authenticator::INVALID_CREDENTIALS);
 }
 
 TEST_P(NegotiatingPairingAuthenticatorTest, PairingSucceeded) {
@@ -317,7 +314,8 @@ TEST_P(NegotiatingPairingAuthenticatorTest, PairingFailedInvalidSecretAndPin) {
   ASSERT_NO_FATAL_FAILURE(InitAuthenticators(
       kTestClientId, kTestPairedSecretBad, kTestPinBad, kTestPin));
   ASSERT_NO_FATAL_FAILURE(RunAuthExchange());
-  VerifyRejected(Authenticator::RejectionReason::INVALID_CREDENTIALS);
+  VerifyRejected(Authenticator::INVALID_CREDENTIALS);
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

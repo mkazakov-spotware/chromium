@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/substring_set_matcher/substring_set_matcher.h"
+#include "base/macros.h"
+#include "components/url_matcher/substring_set_matcher.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_matcher_base.h"
 #include "third_party/re2/src/re2/filtered_re2.h"
 
@@ -21,8 +21,8 @@ struct RegexRuleInfo {
   RegexRuleInfo(const flat::RegexRule* regex_rule, const re2::RE2* regex);
   RegexRuleInfo(const RegexRuleInfo& info);
   RegexRuleInfo& operator=(const RegexRuleInfo& info);
-  raw_ptr<const flat::RegexRule> regex_rule;
-  raw_ptr<const re2::RE2, DanglingUntriaged> regex;
+  const flat::RegexRule* regex_rule;
+  const re2::RE2* regex;
 };
 
 // RegexRulesMatcher deals with matching of regular expression rules. It is an
@@ -55,22 +55,21 @@ class RegexRulesMatcher final : public RulesetMatcherBase {
                     const RegexRulesList* regex_list,
                     const ExtensionMetadataList* metadata_list);
 
-  RegexRulesMatcher(const RegexRulesMatcher&) = delete;
-  RegexRulesMatcher& operator=(const RegexRulesMatcher&) = delete;
-
   // RulesetMatcherBase override:
   ~RegexRulesMatcher() override;
   std::vector<RequestAction> GetModifyHeadersActions(
       const RequestParams& params,
-      absl::optional<uint64_t> min_priority) const override;
-  bool IsExtraHeadersMatcher() const override;
-  size_t GetRulesCount() const override;
+      base::Optional<uint64_t> min_priority) const override;
+  bool IsExtraHeadersMatcher() const override {
+    return is_extra_headers_matcher_;
+  }
+  size_t GetRulesCount() const override { return regex_list_->size(); }
 
  private:
   // RulesetMatcherBase override:
-  absl::optional<RequestAction> GetAllowAllRequestsAction(
+  base::Optional<RequestAction> GetAllowAllRequestsAction(
       const RequestParams& params) const override;
-  absl::optional<RequestAction> GetBeforeRequestActionIgnoringAncestors(
+  base::Optional<RequestAction> GetBeforeRequestActionIgnoringAncestors(
       const RequestParams& params) const override;
 
   // Helper to build the necessary data structures for matching.
@@ -87,14 +86,14 @@ class RegexRulesMatcher final : public RulesetMatcherBase {
       const RequestParams& params) const;
 
   // Returns a RequestAction for the the given regex substitution rule.
-  absl::optional<RequestAction> CreateRegexSubstitutionRedirectAction(
+  base::Optional<RequestAction> CreateRegexSubstitutionRedirectAction(
       const RequestParams& params,
       const RegexRuleInfo& info) const;
 
   // Pointers to flatbuffer indexed data. Guaranteed to be valid through the
   // lifetime of the object.
-  const raw_ptr<const RegexRulesList> regex_list_;
-  const raw_ptr<const ExtensionMetadataList> metadata_list_;
+  const RegexRulesList* const regex_list_;
+  const ExtensionMetadataList* const metadata_list_;
 
   const bool is_extra_headers_matcher_;
 
@@ -113,7 +112,9 @@ class RegexRulesMatcher final : public RulesetMatcherBase {
   // candidate strings, returns the sub-set of candidate strings that are a
   // substring of S. Uses the Aho-Corasick algorithm internally. Will be null
   // iff IsEmpty() returns false.
-  std::unique_ptr<base::SubstringSetMatcher> substring_matcher_;
+  std::unique_ptr<url_matcher::SubstringSetMatcher> substring_matcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegexRulesMatcher);
 };
 
 }  // namespace declarative_net_request

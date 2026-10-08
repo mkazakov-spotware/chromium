@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,10 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/profiles/profile_manager_observer.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/safe_browsing/incident_reporting/download_metadata_manager.h"
@@ -45,9 +47,6 @@ class LastDownloadFinder : public ProfileManagerObserver,
       std::unique_ptr<ClientIncidentReport_DownloadDetails>,
       std::unique_ptr<ClientIncidentReport_NonBinaryDownloadDetails>)>
       LastDownloadCallback;
-
-  LastDownloadFinder(const LastDownloadFinder&) = delete;
-  LastDownloadFinder& operator=(const LastDownloadFinder&) = delete;
 
   ~LastDownloadFinder() override;
 
@@ -135,12 +134,13 @@ class LastDownloadFinder : public ProfileManagerObserver,
   history::DownloadRow most_recent_non_binary_row_;
 
   // HistoryServiceObserver
-  base::ScopedMultiSourceObservation<history::HistoryService,
-                                     history::HistoryServiceObserver>
-      history_service_observations_{this};
+  ScopedObserver<history::HistoryService, history::HistoryServiceObserver>
+      history_service_observer_{this};
 
   // A factory for asynchronous operations on profiles' HistoryService.
   base::WeakPtrFactory<LastDownloadFinder> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LastDownloadFinder);
 };
 
 }  // namespace safe_browsing

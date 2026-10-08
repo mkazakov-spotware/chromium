@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include <map>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "media/midi/usb_midi_export.h"
 #include "media/midi/usb_midi_jack.h"
@@ -42,16 +42,12 @@ class USB_MIDI_EXPORT UsbMidiInputStream {
     bool operator==(const JackUniqueKey& that) const;
     bool operator<(const JackUniqueKey& that) const;
 
-    raw_ptr<UsbMidiDevice> device;
+    UsbMidiDevice* device;
     int endpoint_number;
     int cable_number;
   };
 
   explicit UsbMidiInputStream(Delegate* delegate);
-
-  UsbMidiInputStream(const UsbMidiInputStream&) = delete;
-  UsbMidiInputStream& operator=(const UsbMidiInputStream&) = delete;
-
   ~UsbMidiInputStream();
 
   void Add(const UsbMidiJack& jack);
@@ -82,7 +78,9 @@ class USB_MIDI_EXPORT UsbMidiInputStream {
   std::map<JackUniqueKey, size_t> jack_dictionary_;
 
   // Not owned
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(UsbMidiInputStream);
 };
 
 }  // namespace midi

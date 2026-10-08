@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include <dwmapi.h>
 #include <uxtheme.h>
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/process/process_handle.h"
 #include "base/strings/utf_string_conversions.h"
@@ -21,12 +20,11 @@
 #include "base/task/thread_pool.h"
 #include "base/win/windows_version.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/lifetime/application_lifetime_desktop.h"
+#include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_frame.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_window_property_manager_win.h"
@@ -95,7 +93,7 @@ class VirtualDesktopHelper
   // last we checked. This is used to tell if the window has moved to a
   // different desktop, and notify listeners. It will only be set if
   // we created |virtual_desktop_helper_|.
-  absl::optional<std::string> workspace_;
+  base::Optional<std::string> workspace_;
 
   bool initial_workspace_remembered_ = false;
 
@@ -137,7 +135,7 @@ void VirtualDesktopHelper::UpdateWindowDesktopId(
       base::BindOnce(&VirtualDesktopHelper::GetWindowDesktopIdImpl, hwnd,
                      virtual_desktop_manager_),
       base::BindOnce(&VirtualDesktopHelper::SetWorkspace, this,
-                     std::move(callback)));
+                     base::Passed(std::move(callback))));
 }
 
 bool VirtualDesktopHelper::GetInitialWorkspaceRemembered() const {
@@ -176,7 +174,7 @@ void VirtualDesktopHelper::InitImpl(HWND hwnd,
   }
   GUID guid = GUID_NULL;
   HRESULT hr =
-      CLSIDFromString(base::UTF8ToWide(initial_workspace).c_str(), &guid);
+      CLSIDFromString(base::UTF8ToUTF16(initial_workspace).c_str(), &guid);
   if (SUCCEEDED(hr)) {
     // There are valid reasons MoveWindowToDesktop can fail, e.g.,
     // the desktop was deleted. If it fails, the window will open on the
@@ -219,7 +217,7 @@ BrowserDesktopWindowTreeHostWin::BrowserDesktopWindowTreeHostWin(
       browser_view_(browser_view),
       browser_frame_(browser_frame),
       virtual_desktop_helper_(nullptr) {
-  profile_observation_.Observe(
+  profile_observer_.Add(
       &g_browser_process->profile_manager()->GetProfileAttributesStorage());
 
   // TODO(crbug.com/1051306) Make turning off this policy turn off
@@ -235,8 +233,9 @@ BrowserDesktopWindowTreeHostWin::~BrowserDesktopWindowTreeHostWin() {}
 views::NativeMenuWin* BrowserDesktopWindowTreeHostWin::GetSystemMenu() {
   if (!system_menu_.get()) {
     SystemMenuInsertionDelegateWin insertion_delegate;
-    system_menu_ = std::make_unique<views::NativeMenuWin>(
-        browser_frame_->GetSystemMenuModel(), GetHWND());
+    system_menu_.reset(
+        new views::NativeMenuWin(browser_frame_->GetSystemMenuModel(),
+                                 GetHWND()));
     system_menu_->Rebuild(&insertion_delegate);
   }
   return system_menu_.get();
@@ -288,16 +287,6 @@ void BrowserDesktopWindowTreeHostWin::Show(ui::WindowShowState show_state,
   DesktopWindowTreeHostWin::Show(show_state, restore_bounds);
 }
 
-void BrowserDesktopWindowTreeHostWin::HandleWindowMinimizedOrRestored(
-    bool restored) {
-  // This is necessary since OnWidgetVisibilityChanged() doesn't get called on
-  // Windows when the window is minimized or restored.
-  if (base::FeatureList::IsEnabled(
-          features::kStopLoadingAnimationForHiddenWindow)) {
-    browser_view_->UpdateLoadingAnimations(restored);
-  }
-}
-
 std::string BrowserDesktopWindowTreeHostWin::GetWorkspace() const {
   return virtual_desktop_helper_ ? virtual_desktop_helper_->GetWorkspace()
                                  : std::string();
@@ -320,7 +309,8 @@ bool BrowserDesktopWindowTreeHostWin::GetClientAreaInsets(
 
   // Use default insets for popups and apps, unless we are custom drawing the
   // titlebar.
-  if (!ShouldCustomDrawSystemTitlebar() && !browser_view_->GetIsNormalType())
+  if (!ShouldCustomDrawSystemTitlebar() &&
+      !browser_view_->IsBrowserTypeNormal())
     return false;
 
   if (GetWidget()->IsFullscreen()) {
@@ -328,20 +318,10 @@ bool BrowserDesktopWindowTreeHostWin::GetClientAreaInsets(
     *insets = gfx::Insets();
   } else {
     const int frame_thickness = ui::GetFrameThickness(monitor);
-    // Reduce the non-client border size; UpdateDWMFrame() will instead extend
-    // the border into the window client area. For maximized windows, Windows
-    // outdents the window rect from the screen's client rect by
-    // |frame_thickness| on each edge, meaning |insets| must contain
-    // |frame_thickness| on all sides (including the top) to avoid the client
-    // area extending onto adjacent monitors. For non-maximized windows,
-    // however, the top inset must be zero, since if there is any nonclient
-    // area, Windows will draw a full native titlebar outside the client area.
-    // (This doesn't occur in the maximized case.)
-    int top_thickness = 0;
-    if (ShouldCustomDrawSystemTitlebar() && GetWidget()->IsMaximized())
-      top_thickness = frame_thickness;
-    *insets = gfx::Insets::TLBR(top_thickness, frame_thickness, frame_thickness,
-                                frame_thickness);
+    // Reduce the Windows non-client border size because we extend the border
+    // into our client area in UpdateDWMFrame(). The top inset must be 0 or
+    // else Windows will draw a full native titlebar outside the client area.
+    *insets = gfx::Insets(0, frame_thickness, frame_thickness, frame_thickness);
   }
   return true;
 }
@@ -356,7 +336,7 @@ bool BrowserDesktopWindowTreeHostWin::GetDwmFrameInsetsInPixels(
   // an opaque frame, leading to graphical glitches behind the opaque frame.
   // Instead, we use that function below to tell us whether the frame is
   // currently native or opaque.
-  if (!GetWidget()->client_view() || !browser_view_->GetIsNormalType() ||
+  if (!GetWidget()->client_view() || !browser_view_->IsBrowserTypeNormal() ||
       !DesktopWindowTreeHostWin::ShouldUseNativeFrame())
     return false;
 
@@ -378,8 +358,8 @@ bool BrowserDesktopWindowTreeHostWin::GetDwmFrameInsetsInPixels(
     const int inset = (base::win::GetVersion() < base::win::Version::WIN8)
                           ? kWin7GlassInset
                           : 0;
-    *insets = gfx::Insets::TLBR(tabstrip_region_bounds.bottom() + inset, inset,
-                                inset, inset);
+    *insets = gfx::Insets(tabstrip_region_bounds.bottom() + inset, inset, inset,
+                          inset);
   }
   return true;
 }
@@ -490,7 +470,7 @@ views::FrameMode BrowserDesktopWindowTreeHostWin::GetFrameMode() const {
   // We don't theme popup or app windows, so regardless of whether or not a
   // theme is active for normal browser windows, we don't want to use the custom
   // frame for popups/apps.
-  if (!browser_view_->GetIsNormalType() &&
+  if (!browser_view_->IsBrowserTypeNormal() &&
       DesktopWindowTreeHostWin::GetFrameMode() ==
           views::FrameMode::SYSTEM_DRAWN) {
     return system_frame_mode;
@@ -517,7 +497,7 @@ bool BrowserDesktopWindowTreeHostWin::ShouldUseNativeFrame() const {
   // We don't theme popup or app windows, so regardless of whether or not a
   // theme is active for normal browser windows, we don't want to use the custom
   // frame for popups/apps.
-  if (!browser_view_->GetIsNormalType())
+  if (!browser_view_->IsBrowserTypeNormal())
     return true;
   // Otherwise, we use the native frame when we're told we should by the theme
   // provider (e.g. no custom theme is active).
@@ -557,7 +537,7 @@ void BrowserDesktopWindowTreeHostWin::OnProfileAdded(
 
 void BrowserDesktopWindowTreeHostWin::OnProfileWasRemoved(
     const base::FilePath& profile_path,
-    const std::u16string& profile_name) {
+    const base::string16& profile_name) {
   if (g_browser_process->profile_manager()
           ->GetProfileAttributesStorage()
           .GetNumberOfProfiles() == 1) {
@@ -581,7 +561,7 @@ void BrowserDesktopWindowTreeHostWin::UpdateWorkspace() {
 bool BrowserDesktopWindowTreeHostWin::IsOpaqueHostedAppFrame() const {
   // TODO(https://crbug.com/868239): Support Windows 7 Aero glass for web-app
   // window titlebar controls.
-  return browser_view_->GetIsWebAppType() &&
+  return browser_view_->IsBrowserTypeWebApp() &&
          base::win::GetVersion() < base::win::Version::WIN10;
 }
 
@@ -597,11 +577,11 @@ SkBitmap GetBadgedIconBitmapForProfile(Profile* profile) {
   if (app_icon_bitmap.isNull())
     return SkBitmap();
 
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile->GetPath());
-  if (!entry)
+
+  ProfileAttributesEntry* entry = nullptr;
+  if (!g_browser_process->profile_manager()
+           ->GetProfileAttributesStorage()
+           .GetProfileAttributesWithPath(profile->GetPath(), &entry))
     return SkBitmap();
 
   SkBitmap avatar_bitmap_2x = profiles::GetWin2xAvatarImage(entry);

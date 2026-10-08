@@ -1,15 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/scheduler/responsiveness/jank_monitor_impl.h"
 
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
-#include "base/observer_list.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "ui/base/ui_base_features.h"
@@ -186,7 +183,7 @@ void JankMonitorImpl::StartTimerIfNecessary() {
     return;
 
   static base::TimeDelta monitor_check_interval =
-      base::Milliseconds(kMonitorCheckIntervalMs);
+      base::TimeDelta::FromMilliseconds(kMonitorCheckIntervalMs);
   // RepeatingClosure bound to the timer doesn't hold a ref to |this| because
   // the ref will only be released on timer destruction.
   timer_->Start(FROM_HERE, monitor_check_interval,
@@ -294,23 +291,24 @@ JankMonitorImpl::ThreadExecutionState::ThreadExecutionState() {
 
 JankMonitorImpl::ThreadExecutionState::~ThreadExecutionState() = default;
 
-absl::optional<const void*>
+base::Optional<const void*>
 JankMonitorImpl::ThreadExecutionState::CheckJankiness() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(monitor_sequence_checker_);
 
   base::TimeTicks now = base::TimeTicks::Now();
-  static base::TimeDelta jank_threshold = base::Milliseconds(kJankThresholdMs);
+  static base::TimeDelta jank_threshold =
+      base::TimeDelta::FromMilliseconds(kJankThresholdMs);
 
   base::AutoLock lock(lock_);
   if (LIKELY(task_execution_metadata_.empty() ||
              (now - task_execution_metadata_.back().execution_start_time) <
                  jank_threshold)) {
     // Most tasks are unlikely to be janky.
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Mark that the target thread is janky and notify the monitor thread.
-  return task_execution_metadata_.back().identifier.get();
+  return task_execution_metadata_.back().identifier;
 }
 
 void JankMonitorImpl::ThreadExecutionState::WillRunTaskOrEvent(
@@ -334,8 +332,7 @@ void JankMonitorImpl::ThreadExecutionState::DidRunTaskOrEvent(
     // in context menus, among others). Simply ignore the mismatches for now.
     // See https://crbug.com/929813 for the details of why the mismatch
     // happens.
-#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)) && \
-    BUILDFLAG(IS_OZONE)
+#if !defined(OS_CHROMEOS) && defined(OS_LINUX) && defined(USE_OZONE)
     task_execution_metadata_.clear();
 #endif
     return;

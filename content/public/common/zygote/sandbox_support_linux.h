@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,14 @@
 
 #include <stddef.h>
 
+#include "build/build_config.h"
 #include "content/common/content_export.h"
 
 class NaClListener;
 
 namespace content {
 
+#if !defined(OS_NACL_NONSFI)
 // TODO(crbug.com/982879): Remove this when NaCl is unshipped.
 class CONTENT_EXPORT SharedMemoryIPCSupport {
  private:
@@ -29,6 +31,7 @@ class CONTENT_EXPORT SharedMemoryIPCSupport {
 
   SharedMemoryIPCSupport() = delete;
 };
+#endif
 
 // Gets the well-known file descriptor on which we expect to find the
 // sandbox IPC channel.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Command-line tool to enumerate cycles in Graph structures."""
@@ -7,13 +7,10 @@
 import argparse
 import collections
 
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import serialization
 import graph
-
-
-Cycle = Tuple[graph.Node, ...]
 
 
 def find_cycles_from_node(
@@ -104,7 +101,7 @@ def find_cycles_from_node(
 
 
 def find_cycles(base_graph: graph.Graph,
-                max_cycle_length: int) -> List[List[Cycle]]:
+                max_cycle_length: int) -> List[List[List[graph.Node]]]:
     """Finds all cycles in the graph within a certain length.
 
     The algorithm is as such: Number the nodes arbitrarily. For i from 0 to
@@ -135,13 +132,7 @@ def find_cycles(base_graph: graph.Graph,
                                                   node_to_id)
         for cycle_length, cycle_list in enumerate(start_node_cycles):
             cycles[cycle_length].extend(cycle_list)
-
-    # Convert cycles to be tuples of nodes, so the cycles are hashable and
-    # immutable.
-    immutable_cycles = []
-    for cycle_list in cycles:
-        immutable_cycles.append([tuple(cycle) for cycle in cycle_list])
-    return immutable_cycles
+    return cycles
 
 
 def main():

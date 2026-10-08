@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,13 @@
 #include <utility>
 
 #include "base/check.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "remoting/protocol/session_plugin.h"
 #include "remoting/protocol/video_stream.h"
 #include "remoting/signaling/signaling_address.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 MockAuthenticator::MockAuthenticator() = default;
 MockAuthenticator::~MockAuthenticator() = default;
@@ -50,11 +51,11 @@ MockSessionManager::~MockSessionManager() = default;
 MockPairingRegistryDelegate::MockPairingRegistryDelegate() = default;
 MockPairingRegistryDelegate::~MockPairingRegistryDelegate() = default;
 
-base::Value::List MockPairingRegistryDelegate::LoadAll() {
-  base::Value::List result;
+std::unique_ptr<base::ListValue> MockPairingRegistryDelegate::LoadAll() {
+  std::unique_ptr<base::ListValue> result(new base::ListValue());
   for (Pairings::const_iterator i = pairings_.begin(); i != pairings_.end();
        ++i) {
-    result.Append(i->second.ToValue());
+    result->Append(i->second.ToValue());
   }
   return result;
 }
@@ -87,7 +88,7 @@ bool MockPairingRegistryDelegate::Delete(const std::string& client_id) {
 
 SynchronousPairingRegistry::SynchronousPairingRegistry(
     std::unique_ptr<Delegate> delegate)
-    : PairingRegistry(base::SingleThreadTaskRunner::GetCurrentDefault(),
+    : PairingRegistry(base::ThreadTaskRunnerHandle::Get(),
                       std::move(delegate)) {}
 SynchronousPairingRegistry::~SynchronousPairingRegistry() = default;
 
@@ -99,4 +100,5 @@ void SynchronousPairingRegistry::PostTask(
   std::move(task).Run();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

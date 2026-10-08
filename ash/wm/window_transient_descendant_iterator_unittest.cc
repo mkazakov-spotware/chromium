@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "ash/test/ash_test_base.h"
 #include "ash/wm/window_state.h"
-#include "base/bind.h"
 #include "ui/aura/window.h"
 #include "ui/wm/core/window_util.h"
 
@@ -15,12 +14,6 @@ namespace ash {
 class WindowTransientDescendantIteratorTest : public AshTestBase {
  public:
   WindowTransientDescendantIteratorTest() = default;
-
-  WindowTransientDescendantIteratorTest(
-      const WindowTransientDescendantIteratorTest&) = delete;
-  WindowTransientDescendantIteratorTest& operator=(
-      const WindowTransientDescendantIteratorTest&) = delete;
-
   ~WindowTransientDescendantIteratorTest() override = default;
 
   // Creates a test set of windows parented like a linked list. The result
@@ -78,6 +71,9 @@ class WindowTransientDescendantIteratorTest : public AshTestBase {
     out_result->push_back(std::move(window_e));
     out_result->push_back(std::move(window_f));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WindowTransientDescendantIteratorTest);
 };
 
 // Tests that case that windows a parented transiently like a linked list.

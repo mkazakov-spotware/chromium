@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,15 +17,10 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import androidx.annotation.ColorInt;
-import androidx.annotation.ColorRes;
-import androidx.core.content.ContextCompat;
-import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.widget.TextViewCompat;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.tab_ui.R;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.widget.ChromeImageView;
 
@@ -150,20 +145,6 @@ public class TabGroupUiToolbarView extends FrameLayout {
         mTitleTextView.setText(title);
     }
 
-    void setIsIncognito(boolean isIncognito) {
-        @ColorInt
-        int primaryColor =
-                isIncognito ? getResources().getColor(R.color.dialog_bg_color_dark_baseline)
-                            : SemanticColorUtils.getDialogBgColor(getContext());
-        setPrimaryColor(primaryColor);
-
-        @ColorRes
-        int tintListRes = isIncognito ? R.color.default_icon_color_light_tint_list
-                                      : R.color.default_icon_color_tint_list;
-        ColorStateList tintList = ContextCompat.getColorStateList(getContext(), tintListRes);
-        setTint(tintList);
-    }
-
     void setPrimaryColor(int color) {
         mMainContent.setBackgroundColor(color);
         if (mFadingEdgeStart == null || mFadingEdgeEnd == null) return;
@@ -178,10 +159,6 @@ public class TabGroupUiToolbarView extends FrameLayout {
         if (mMenuButton != null) {
             ApiCompatibilityUtils.setImageTintList(mMenuButton, tint);
         }
-    }
-
-    void setBackgroundColorTint(int color) {
-        DrawableCompat.setTint(getBackground(), color);
     }
 
     /**
@@ -200,17 +177,11 @@ public class TabGroupUiToolbarView extends FrameLayout {
     }
 
     /**
-     * Hide the title widgets related to tab group continuation features.
+     * Hide the UI widgets related to tab group continuation features.
      */
-    void hideTitleWidget() {
+    void hideTabGroupsContinuationWidgets() {
         mTitleTextView.setFocusable(false);
         mTitleTextView.setBackgroundColor(Color.TRANSPARENT);
-    }
-
-    /**
-     * Hide the menu button related to tab group continuation and selection editor features.
-     */
-    void hideMenuButton() {
         mMainContent.removeView(mMenuButton);
     }
 

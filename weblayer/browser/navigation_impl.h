@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,13 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "build/build_config.h"
+#include "content/public/browser/navigation_controller.h"
 #include "weblayer/public/navigation.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/scoped_java_ref.h"
 #endif
 
@@ -28,8 +30,6 @@ namespace weblayer {
 class NavigationImpl : public Navigation {
  public:
   explicit NavigationImpl(content::NavigationHandle* navigation_handle);
-  NavigationImpl(const NavigationImpl&) = delete;
-  NavigationImpl& operator=(const NavigationImpl&) = delete;
   ~NavigationImpl() override;
 
   int navigation_entry_unique_id() const { return navigation_entry_unique_id_; }
@@ -53,12 +53,6 @@ class NavigationImpl : public Navigation {
     safe_to_disable_network_error_auto_reload_ = value;
   }
 
-  void set_safe_to_disable_intent_processing(bool value) {
-    safe_to_disable_intent_processing_ = value;
-  }
-
-  void set_safe_to_get_page() { safe_to_get_page_ = true; }
-
   void set_was_stopped() { was_stopped_ = true; }
 
   bool set_user_agent_string_called() { return set_user_agent_string_called_; }
@@ -67,21 +61,22 @@ class NavigationImpl : public Navigation {
     return disable_network_error_auto_reload_;
   }
 
-  bool disable_intent_processing() { return disable_intent_processing_; }
+  void SetParamsToLoadWhenSafe(
+      std::unique_ptr<content::NavigationController::LoadURLParams> params);
+  std::unique_ptr<content::NavigationController::LoadURLParams>
+  TakeParamsToLoadWhenSafe();
 
-  void set_finished() { finished_ = true; }
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
+  void SetJavaNavigation(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& java_navigation);
   int GetState(JNIEnv* env) { return static_cast<int>(GetState()); }
   base::android::ScopedJavaLocalRef<jstring> GetUri(JNIEnv* env);
   base::android::ScopedJavaLocalRef<jobjectArray> GetRedirectChain(JNIEnv* env);
   int GetHttpStatusCode(JNIEnv* env) { return GetHttpStatusCode(); }
-  base::android::ScopedJavaLocalRef<jobjectArray> GetResponseHeaders(
-      JNIEnv* env);
   bool IsSameDocument(JNIEnv* env) { return IsSameDocument(); }
   bool IsErrorPage(JNIEnv* env) { return IsErrorPage(); }
   bool IsDownload(JNIEnv* env) { return IsDownload(); }
-  bool IsKnownProtocol(JNIEnv* env) { return IsKnownProtocol(); }
   bool WasStopCalled(JNIEnv* env) { return WasStopCalled(); }
   int GetLoadError(JNIEnv* env) { return static_cast<int>(GetLoadError()); }
   jboolean SetRequestHeader(JNIEnv* env,
@@ -92,24 +87,12 @@ class NavigationImpl : public Navigation {
       const base::android::JavaParamRef<jstring>& value);
   jboolean IsPageInitiated(JNIEnv* env) { return IsPageInitiated(); }
   jboolean IsReload(JNIEnv* env) { return IsReload(); }
-  jboolean IsServedFromBackForwardCache(JNIEnv* env) {
-    return IsServedFromBackForwardCache();
-  }
   jboolean DisableNetworkErrorAutoReload(JNIEnv* env);
-  jboolean DisableIntentProcessing(JNIEnv* env);
-  jboolean AreIntentLaunchesAllowedInBackground(JNIEnv* env);
-  jboolean IsFormSubmission(JNIEnv* env) { return IsFormSubmission(); }
-  base::android::ScopedJavaLocalRef<jstring> GetReferrer(JNIEnv* env);
-  jlong GetPage(JNIEnv* env);
-  int GetNavigationEntryOffset(JNIEnv* env);
-  jboolean WasFetchedFromCache(JNIEnv* env);
 
   void SetResponse(
       std::unique_ptr<embedder_support::WebResourceResponse> response);
   std::unique_ptr<embedder_support::WebResourceResponse> TakeResponse();
 
-  void SetJavaNavigation(
-      const base::android::ScopedJavaGlobalRef<jobject>& java_navigation);
   base::android::ScopedJavaGlobalRef<jobject> java_navigation() {
     return java_navigation_;
   }
@@ -120,11 +103,9 @@ class NavigationImpl : public Navigation {
   const std::vector<GURL>& GetRedirectChain() override;
   NavigationState GetState() override;
   int GetHttpStatusCode() override;
-  const net::HttpResponseHeaders* GetResponseHeaders() override;
   bool IsSameDocument() override;
   bool IsErrorPage() override;
   bool IsDownload() override;
-  bool IsKnownProtocol() override;
   bool WasStopCalled() override;
   LoadError GetLoadError() override;
   void SetRequestHeader(const std::string& name,
@@ -133,15 +114,9 @@ class NavigationImpl : public Navigation {
   void DisableNetworkErrorAutoReload() override;
   bool IsPageInitiated() override;
   bool IsReload() override;
-  bool IsServedFromBackForwardCache() override;
-  bool IsFormSubmission() override;
-  GURL GetReferrer() override;
-  Page* GetPage() override;
-  int GetNavigationEntryOffset() override;
-  bool WasFetchedFromCache() override;
 
  private:
-  raw_ptr<content::NavigationHandle> navigation_handle_;
+  content::NavigationHandle* navigation_handle_;
 
   // The NavigationEntry's unique ID for this navigation, or -1 if there isn't
   // one.
@@ -166,23 +141,21 @@ class NavigationImpl : public Navigation {
   // Whether DisableNetworkErrorAutoReload is allowed at this time.
   bool safe_to_disable_network_error_auto_reload_ = false;
 
-  // Whether DisableIntentProcessing is allowed at this time.
-  bool safe_to_disable_intent_processing_ = false;
-
-  // Whether GetPage is allowed at this time.
-  bool safe_to_get_page_ = false;
-
   bool disable_network_error_auto_reload_ = false;
 
-  bool disable_intent_processing_ = false;
-
-  // Whether this navigation has finished.
-  bool finished_ = false;
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   base::android::ScopedJavaGlobalRef<jobject> java_navigation_;
   std::unique_ptr<embedder_support::WebResourceResponse> response_;
 #endif
+
+  // Used to delay loading until safe. In particular, if Navigate() is called
+  // from NavigationStarted(), then the parameters are captured and the
+  // navigation started later on. The delaying is necessary as content is not
+  // reentrant, and this triggers some amount of reentrancy.
+  std::unique_ptr<content::NavigationController::LoadURLParams>
+      scheduled_load_params_;
+
+  DISALLOW_COPY_AND_ASSIGN(NavigationImpl);
 };
 
 }  // namespace weblayer

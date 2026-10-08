@@ -1,21 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/public/test/web_view_interaction_test_util.h"
 
-#import "base/bind.h"
-#import "base/json/string_escape.h"
-#import "base/logging.h"
-#import "base/strings/stringprintf.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/bind.h"
+#include "base/json/string_escape.h"
+#include "base/logging.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "ios/web/js_messaging/java_script_feature_manager.h"
-#import "ios/web/js_messaging/web_frame_impl.h"
-#import "ios/web/js_messaging/web_view_js_utils.h"
-#import "ios/web/public/js_messaging/web_frame.h"
-#import "ios/web/public/js_messaging/web_frame_util.h"
+#import "ios/web/js_messaging/crw_js_injector.h"
 #import "ios/web/public/ui/crw_web_view_scroll_view_proxy.h"
 #import "ios/web/web_state/ui/crw_web_controller.h"
 #import "ios/web/web_state/ui/crw_web_view_proxy_impl.h"
@@ -25,11 +21,10 @@
 #error "This file requires ARC support."
 #endif
 
-using base::test::ios::kWaitForJSCompletionTimeout;
-using base::test::ios::kWaitForUIElementTimeout;
-using base::test::ios::WaitUntilConditionOrTimeout;
 using web::NavigationManager;
-using web::ValueResultFromWKResult;
+using base::test::ios::WaitUntilConditionOrTimeout;
+using base::test::ios::kWaitForUIElementTimeout;
+using base::test::ios::kWaitForJSCompletionTimeout;
 
 namespace web {
 namespace test {
@@ -43,89 +38,19 @@ enum ElementAction {
 
 std::unique_ptr<base::Value> ExecuteJavaScript(web::WebState* web_state,
                                                const std::string& script) {
-  __block id result = nil;
+  __block std::unique_ptr<base::Value> result;
   __block bool did_finish = false;
-  CRWWebController* web_controller =
-      static_cast<WebStateImpl*>(web_state)->GetWebController();
-  [web_controller executeJavaScript:base::SysUTF8ToNSString(script)
-                  completionHandler:^(id handler_result, NSError*) {
-                    result = handler_result;
-                    did_finish = true;
-                  }];
+  web_state->ExecuteJavaScript(base::UTF8ToUTF16(script),
+                               base::BindOnce(^(const base::Value* value) {
+                                 if (value)
+                                   result = value->CreateDeepCopy();
+                                 did_finish = true;
+                               }));
 
   bool completed = WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
     return did_finish;
   });
   if (!completed) {
-    return nullptr;
-  }
-
-  return ValueResultFromWKResult(result);
-}
-
-std::unique_ptr<base::Value> CallJavaScriptFunction(
-    web::WebState* web_state,
-    const std::string& function,
-    const std::vector<base::Value>& parameters) {
-  return CallJavaScriptFunctionForFeature(web_state, function, parameters,
-                                          /*feature=*/nullptr);
-}
-
-std::unique_ptr<base::Value> CallJavaScriptFunctionForFeature(
-    web::WebState* web_state,
-    const std::string& function,
-    const std::vector<base::Value>& parameters,
-    JavaScriptFeature* feature) {
-  if (!web_state) {
-    DLOG(ERROR) << "JavaScript can not be called on a null WebState.";
-    return nullptr;
-  }
-
-  JavaScriptContentWorld* world = nullptr;
-  if (feature) {
-    JavaScriptFeatureManager* feature_manager =
-        JavaScriptFeatureManager::FromBrowserState(
-            web_state->GetBrowserState());
-    world = feature_manager->GetContentWorldForFeature(feature);
-    if (!world) {
-      DLOG(ERROR) << "JavaScript can not be called in a null content world."
-                  << "JavaScriptFeature does not appear to be configured.";
-      return nullptr;
-    }
-  } else {
-    world = JavaScriptFeatureManager::GetPageContentWorldForBrowserState(
-        web_state->GetBrowserState());
-  }
-
-  WebFrameImpl* frame = static_cast<WebFrameImpl*>(GetMainFrame(web_state));
-  if (!frame) {
-    DLOG(ERROR) << "JavaScript can not be called on a null WebFrame.";
-    return nullptr;
-  }
-
-  __block std::unique_ptr<base::Value> result;
-  __block bool did_finish = false;
-  bool function_call_successful = frame->CallJavaScriptFunctionInContentWorld(
-      function, parameters, world, base::BindOnce(^(const base::Value* value) {
-        if (value)
-          result = std::make_unique<base::Value>(value->Clone());
-        did_finish = true;
-      }),
-      kWaitForJSCompletionTimeout);
-
-  if (!function_call_successful) {
-    DLOG(ERROR) << "JavaScript failed to be called on WebFrame.";
-    return nullptr;
-  }
-
-  // Wait twice as long as the completion block above should always be called at
-  // the timeout time per WebFrame API contract.
-  bool completed =
-      WaitUntilConditionOrTimeout(2 * kWaitForJSCompletionTimeout, ^{
-        return did_finish;
-      });
-  if (!completed) {
-    DLOG(ERROR) << "Expected callback was never called.";
     return nullptr;
   }
 
@@ -152,7 +77,7 @@ CGRect GetBoundingRectOfElement(web::WebState* web_state,
   // As of iOS 13.1, devices need additional time to stabalize the page before
   // getting the element location. Without this wait, the element's bounding
   // rect will be incorrect.
-  base::test::ios::SpinRunLoopWithMinDelay(base::Seconds(0.5));
+  base::test::ios::SpinRunLoopWithMinDelay(base::TimeDelta::FromSecondsD(0.5));
 #endif
 
   std::string selector_script =
@@ -187,16 +112,18 @@ CGRect GetBoundingRectOfElement(web::WebState* web_state,
       "    };"
       "})();";
 
-  __block std::unique_ptr<base::Value::Dict> rect;
+  __block base::DictionaryValue const* rect = nullptr;
 
   bool found = WaitUntilConditionOrTimeout(kWaitForUIElementTimeout, ^{
     std::unique_ptr<base::Value> value =
         ExecuteJavaScript(web_state, kGetBoundsScript);
-    if (base::Value::Dict* dictionary = value->GetIfDict()) {
-      if (const std::string* error = dictionary->FindString("error")) {
+    base::DictionaryValue* dictionary = nullptr;
+    if (value && value->GetAsDictionary(&dictionary)) {
+      std::string error;
+      if (dictionary->GetString("error", &error)) {
         DLOG(ERROR) << "Error getting rect: " << error << ", retrying..";
       } else {
-        rect = std::make_unique<base::Value::Dict>(dictionary->Clone());
+        rect = dictionary->DeepCopy();
         return true;
       }
     }
@@ -206,18 +133,17 @@ CGRect GetBoundingRectOfElement(web::WebState* web_state,
   if (!found)
     return CGRectNull;
 
-  absl::optional<double> left = rect->FindDouble("left");
-  absl::optional<double> top = rect->FindDouble("top");
-  absl::optional<double> width = rect->FindDouble("width");
-  absl::optional<double> height = rect->FindDouble("height");
-  if (!(left && top && width && height))
+  double left, top, width, height;
+  if (!(rect->GetDouble("left", &left) && rect->GetDouble("top", &top) &&
+        rect->GetDouble("width", &width) &&
+        rect->GetDouble("height", &height))) {
     return CGRectNull;
+  }
 
   CGFloat scale = [[web_state->GetWebViewProxy() scrollViewProxy] zoomScale];
 
   CGRect elementFrame =
-      CGRectMake(left.value() * scale, top.value() * scale,
-                 width.value() * scale, height.value() * scale);
+      CGRectMake(left * scale, top * scale, width * scale, height * scale);
   UIEdgeInsets contentInset =
       web_state->GetWebViewProxy().scrollViewProxy.contentInset;
   elementFrame =
@@ -226,9 +152,9 @@ CGRect GetBoundingRectOfElement(web::WebState* web_state,
   return elementFrame;
 }
 
-// Returns whether the Javascript action specified by `action` ran on the
-// element retrieved by the Javascript snippet `element_script` in the passed
-// `web_state`. `error` can be nil, and will return any error from executing
+// Returns whether the Javascript action specified by |action| ran on the
+// element retrieved by the Javascript snippet |element_script| in the passed
+// |web_state|. |error| can be nil, and will return any error from executing
 // JavaScript.
 bool RunActionOnWebViewElementWithScript(web::WebState* web_state,
                                          const std::string& element_script,
@@ -265,15 +191,15 @@ bool RunActionOnWebViewElementWithScript(web::WebState* web_state,
   __block bool element_found = false;
   __block NSError* block_error = nil;
 
-  // `executeUserJavaScript:completionHandler:` is no-op for app-specific URLs,
+  // |executeUserJavaScript:completionHandler:| is no-op for app-specific URLs,
   // so simulate a user gesture by calling TouchTracking method.
   [web_controller touched:YES];
-  [web_controller executeJavaScript:script
-                  completionHandler:^(id result, NSError* innerError) {
-                    did_complete = true;
-                    element_found = [result boolValue];
-                    block_error = [innerError copy];
-                  }];
+  [web_controller.jsInjector executeJavaScript:script
+                             completionHandler:^(id result, NSError* error) {
+                               did_complete = true;
+                               element_found = [result boolValue];
+                               block_error = [error copy];
+                             }];
 
   bool js_finished = WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
     return did_complete;
@@ -286,8 +212,8 @@ bool RunActionOnWebViewElementWithScript(web::WebState* web_state,
   return js_finished && element_found;
 }
 
-// Returns whether the Javascript action specified by `action` ran on
-// `element_id` in the passed `web_state`. `error` can be nil, and will return
+// Returns whether the Javascript action specified by |action| ran on
+// |element_id| in the passed |web_state|. |error| can be nil, and will return
 // any error from executing JavaScript.
 bool RunActionOnWebViewElementWithId(web::WebState* web_state,
                                      const std::string& element_id,

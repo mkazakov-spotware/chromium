@@ -1,26 +1,20 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/policy/chrome_browser_cloud_management_controller_ios.h"
+#include "ios/chrome/browser/policy/chrome_browser_cloud_management_controller_ios.h"
 
-#import <utility>
-
-#import "base/bind.h"
-#import "base/task/task_traits.h"
-#import "components/enterprise/browser/reporting/report_generator.h"
-#import "components/enterprise/browser/reporting/report_scheduler.h"
-#import "components/policy/core/common/cloud/machine_level_user_cloud_policy_manager.h"
-#import "components/policy/core/common/features.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/paths/paths.h"
-#import "ios/chrome/browser/policy/browser_dm_token_storage_ios.h"
-#import "ios/chrome/browser/policy/browser_policy_connector_ios.h"
-#import "ios/chrome/browser/policy/client_data_delegate_ios.h"
-#import "ios/chrome/browser/policy/reporting/reporting_delegate_factory_ios.h"
-#import "ios/web/public/thread/web_task_traits.h"
-#import "ios/web/public/thread/web_thread.h"
-#import "services/network/public/cpp/shared_url_loader_factory.h"
+#include "base/bind.h"
+#include "components/enterprise/browser/reporting/report_generator.h"
+#include "components/enterprise/browser/reporting/report_scheduler.h"
+#include "components/policy/core/common/cloud/machine_level_user_cloud_policy_manager.h"
+#include "components/policy/core/common/features.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/chrome_paths.h"
+#include "ios/chrome/browser/policy/browser_dm_token_storage_ios.h"
+#include "ios/chrome/browser/policy/browser_policy_connector_ios.h"
+#include "ios/chrome/browser/policy/policy_features.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -43,7 +37,7 @@ int ChromeBrowserCloudManagementControllerIOS::GetUserDataDirKey() {
 }
 
 base::FilePath
-ChromeBrowserCloudManagementControllerIOS::GetExternalPolicyDir() {
+ChromeBrowserCloudManagementControllerIOS::GetExternalPolicyPath() {
   // External policies are not supported on iOS.
   return base::FilePath();
 }
@@ -108,33 +102,18 @@ ChromeBrowserCloudManagementControllerIOS::GetSharedURLLoaderFactory() {
   return GetApplicationContext()->GetSharedURLLoaderFactory();
 }
 
-scoped_refptr<base::SingleThreadTaskRunner>
-ChromeBrowserCloudManagementControllerIOS::GetBestEffortTaskRunner() {
-  DCHECK_CURRENTLY_ON(web::WebThread::UI);
-  return web::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT});
-}
-
-std::unique_ptr<enterprise_reporting::ReportingDelegateFactory>
-ChromeBrowserCloudManagementControllerIOS::GetReportingDelegateFactory() {
-  return std::make_unique<enterprise_reporting::ReportingDelegateFactoryIOS>();
+std::unique_ptr<enterprise_reporting::ReportScheduler>
+ChromeBrowserCloudManagementControllerIOS::CreateReportScheduler(
+    CloudPolicyClient* client) {
+  auto generator = std::make_unique<enterprise_reporting::ReportGenerator>(
+      &reporting_delegate_factory_);
+  return std::make_unique<enterprise_reporting::ReportScheduler>(
+      client, std::move(generator), &reporting_delegate_factory_);
 }
 
 void ChromeBrowserCloudManagementControllerIOS::SetGaiaURLLoaderFactory(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
   // Policy invalidations aren't currently supported on iOS.
-}
-
-bool ChromeBrowserCloudManagementControllerIOS::ReadyToCreatePolicyManager() {
-  return true;
-}
-
-bool ChromeBrowserCloudManagementControllerIOS::ReadyToInit() {
-  return true;
-}
-
-std::unique_ptr<ClientDataDelegate>
-ChromeBrowserCloudManagementControllerIOS::CreateClientDataDelegate() {
-  return std::make_unique<ClientDataDelegateIos>();
 }
 
 }  // namespace policy

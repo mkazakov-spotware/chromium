@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,10 @@ JavaScriptTabModalDialogManagerDelegateAndroid::
 base::WeakPtr<javascript_dialogs::TabModalDialogView>
 JavaScriptTabModalDialogManagerDelegateAndroid::CreateNewDialog(
     content::WebContents* alerting_web_contents,
-    const std::u16string& title,
+    const base::string16& title,
     content::JavaScriptDialogType dialog_type,
-    const std::u16string& message_text,
-    const std::u16string& default_prompt_text,
+    const base::string16& message_text,
+    const base::string16& default_prompt_text,
     content::JavaScriptDialogManager::DialogClosedCallback
         callback_on_button_clicked,
     base::OnceClosure callback_on_cancelled) {

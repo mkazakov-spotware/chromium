@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,9 +22,6 @@ class WaylandInputDelegate {
     virtual ~Observer() = default;
   };
 
-  WaylandInputDelegate(const WaylandInputDelegate&) = delete;
-  WaylandInputDelegate& operator=(const WaylandInputDelegate&) = delete;
-
   void AddObserver(Observer* observer);
 
   void RemoveObserver(Observer* observer);
@@ -37,6 +34,8 @@ class WaylandInputDelegate {
 
  private:
   base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandInputDelegate);
 };
 
 }  // namespace wayland

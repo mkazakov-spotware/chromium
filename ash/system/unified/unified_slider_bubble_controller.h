@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "ash/system/tray/tray_bubble_view.h"
 #include "ash/system/unified/unified_system_tray_model.h"
 #include "base/timer/timer.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
+#include "chromeos/audio/cras_audio_handler.h"
 
 namespace ash {
 
@@ -22,7 +22,7 @@ class UnifiedSliderListener;
 // brightness slider that can be triggered from hardware buttons.
 class ASH_EXPORT UnifiedSliderBubbleController
     : public TrayBubbleView::Delegate,
-      public CrasAudioHandler::AudioObserver,
+      public chromeos::CrasAudioHandler::AudioObserver,
       public UnifiedSystemTrayModel::Observer,
       public UnifiedVolumeSliderController::Delegate,
       public ShelfObserver {
@@ -30,17 +30,10 @@ class ASH_EXPORT UnifiedSliderBubbleController
   enum SliderType {
     SLIDER_TYPE_VOLUME = 0,
     SLIDER_TYPE_DISPLAY_BRIGHTNESS,
-    SLIDER_TYPE_KEYBOARD_BACKLIGHT_TOGGLE,
-    SLIDER_TYPE_KEYBOARD_BRIGHTNESS,
-    SLIDER_TYPE_MIC
+    SLIDER_TYPE_KEYBOARD_BRIGHTNESS
   };
 
   explicit UnifiedSliderBubbleController(UnifiedSystemTray* tray);
-
-  UnifiedSliderBubbleController(const UnifiedSliderBubbleController&) = delete;
-  UnifiedSliderBubbleController& operator=(
-      const UnifiedSliderBubbleController&) = delete;
-
   ~UnifiedSliderBubbleController() override;
 
   // Show a slider of |slider_type|. If the slider of same type is already
@@ -57,21 +50,13 @@ class ASH_EXPORT UnifiedSliderBubbleController
   void OnMouseEnteredView() override;
   void OnMouseExitedView() override;
 
-  // Displays the microphone mute toast.
-  void DisplayMicrophoneMuteToast();
-
-  // CrasAudioHandler::AudioObserver:
-  void OnInputMuteChanged(
-      bool mute_on,
-      CrasAudioHandler::InputMuteChangeMethod method) override;
-  void OnInputMutedByMicrophoneMuteSwitchChanged(bool muted) override;
+  // chromeos::CrasAudioHandler::AudioObserver:
   void OnOutputNodeVolumeChanged(uint64_t node_id, int volume) override;
   void OnOutputMuteChanged(bool mute_on) override;
 
   // UnifiedSystemTrayModel::Observer:
   void OnDisplayBrightnessChanged(bool by_user) override;
-  void OnKeyboardBrightnessChanged(
-      power_manager::BacklightBrightnessChange_Cause cause) override;
+  void OnKeyboardBrightnessChanged(bool by_user) override;
 
   // UnifiedVolumeSliderController::Delegate:
   void OnAudioSettingsButtonClicked() override;
@@ -105,6 +90,8 @@ class ASH_EXPORT UnifiedSliderBubbleController
   // Controller of the current slider view. If a slider is not shown, it's null.
   // Owned.
   std::unique_ptr<UnifiedSliderListener> slider_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnifiedSliderBubbleController);
 };
 
 }  // namespace ash

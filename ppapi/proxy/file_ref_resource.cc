@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -138,8 +138,9 @@ int32_t FileRefResource::MakeDirectory(
     int32_t make_directory_flags,
     scoped_refptr<TrackedCallback> callback) {
   Call<PpapiPluginMsg_FileRef_MakeDirectoryReply>(
-      BROWSER, PpapiHostMsg_FileRef_MakeDirectory(make_directory_flags),
-      base::BindOnce(&FileRefResource::RunTrackedCallback, this, callback));
+      BROWSER,
+      PpapiHostMsg_FileRef_MakeDirectory(make_directory_flags),
+      base::Bind(&FileRefResource::RunTrackedCallback, this, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -147,23 +148,27 @@ int32_t FileRefResource::Touch(PP_Time last_access_time,
                                PP_Time last_modified_time,
                                scoped_refptr<TrackedCallback> callback) {
   Call<PpapiPluginMsg_FileRef_TouchReply>(
-      BROWSER, PpapiHostMsg_FileRef_Touch(last_access_time, last_modified_time),
-      base::BindOnce(&FileRefResource::RunTrackedCallback, this, callback));
+      BROWSER,
+      PpapiHostMsg_FileRef_Touch(last_access_time,
+                                 last_modified_time),
+      base::Bind(&FileRefResource::RunTrackedCallback, this, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 
 int32_t FileRefResource::Delete(scoped_refptr<TrackedCallback> callback) {
   Call<PpapiPluginMsg_FileRef_DeleteReply>(
-      BROWSER, PpapiHostMsg_FileRef_Delete(),
-      base::BindOnce(&FileRefResource::RunTrackedCallback, this, callback));
+      BROWSER,
+      PpapiHostMsg_FileRef_Delete(),
+      base::Bind(&FileRefResource::RunTrackedCallback, this, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 
 int32_t FileRefResource::Rename(PP_Resource new_file_ref,
                                 scoped_refptr<TrackedCallback> callback) {
   Call<PpapiPluginMsg_FileRef_RenameReply>(
-      BROWSER, PpapiHostMsg_FileRef_Rename(new_file_ref),
-      base::BindOnce(&FileRefResource::RunTrackedCallback, this, callback));
+      BROWSER,
+      PpapiHostMsg_FileRef_Rename(new_file_ref),
+      base::Bind(&FileRefResource::RunTrackedCallback, this, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -173,8 +178,9 @@ int32_t FileRefResource::Query(PP_FileInfo* info,
     return PP_ERROR_BADARGUMENT;
 
   Call<PpapiPluginMsg_FileRef_QueryReply>(
-      BROWSER, PpapiHostMsg_FileRef_Query(),
-      base::BindOnce(&FileRefResource::OnQueryReply, this, info, callback));
+      BROWSER,
+      PpapiHostMsg_FileRef_Query(),
+      base::Bind(&FileRefResource::OnQueryReply, this, info, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -182,9 +188,10 @@ int32_t FileRefResource::ReadDirectoryEntries(
     const PP_ArrayOutput& output,
     scoped_refptr<TrackedCallback> callback) {
   Call<PpapiPluginMsg_FileRef_ReadDirectoryEntriesReply>(
-      BROWSER, PpapiHostMsg_FileRef_ReadDirectoryEntries(),
-      base::BindOnce(&FileRefResource::OnDirectoryEntriesReply, this, output,
-                     callback));
+      BROWSER,
+      PpapiHostMsg_FileRef_ReadDirectoryEntries(),
+      base::Bind(&FileRefResource::OnDirectoryEntriesReply,
+                 this, output, callback));
   return PP_OK_COMPLETIONPENDING;
 }
 

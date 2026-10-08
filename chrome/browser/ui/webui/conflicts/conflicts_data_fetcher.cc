@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,16 @@
 #include <string>
 #include <utility>
 
-#include "base/strings/string_util.h"
+#include "base/values.h"
 #include "base/win/windows_version.h"
-#include "build/branding_buildflags.h"
 #include "chrome/browser/win/conflicts/module_database.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
 #include "base/win/win_util.h"
 #include "chrome/browser/win/conflicts/incompatible_applications_updater.h"
-#include "chrome/browser/win/conflicts/module_blocklist_cache_updater.h"
+#include "chrome/browser/win/conflicts/module_blacklist_cache_updater.h"
 #endif
 
 namespace {
@@ -42,7 +41,7 @@ std::string GetProcessTypesString(const ModuleInfoData& module_data) {
   return result;
 }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
 
 // Strings used twice.
 constexpr char kNotLoaded[] = "Not loaded";
@@ -74,7 +73,7 @@ void AppendString(base::StringPiece input, std::string* output) {
 // Returns a string describing the current module blocking status: loaded or
 // not, blocked or not, was in blocklist cache or not, bypassed blocking or not.
 std::string GetBlockingStatusString(
-    const ModuleBlocklistCacheUpdater::ModuleBlockingState& blocking_state) {
+    const ModuleBlacklistCacheUpdater::ModuleBlockingState& blocking_state) {
   std::string status;
 
   // Output status regarding the blocklist cache, current blocking, and
@@ -83,9 +82,9 @@ std::string GetBlockingStatusString(
     status = "Blocked";
   if (!blocking_state.was_loaded)
     AppendString(kNotLoaded, &status);
-  else if (blocking_state.was_in_blocklist_cache)
+  else if (blocking_state.was_in_blacklist_cache)
     AppendString("Bypassed blocking", &status);
-  if (blocking_state.was_in_blocklist_cache)
+  if (blocking_state.was_in_blacklist_cache)
     AppendString("In blocklist cache", &status);
 
   return status;
@@ -95,9 +94,9 @@ std::string GetBlockingStatusString(
 // returns the empty string to indicate that the warning decision description
 // should be used instead.
 std::string GetBlockingDecisionString(
-    const ModuleBlocklistCacheUpdater::ModuleBlockingState& blocking_state,
+    const ModuleBlacklistCacheUpdater::ModuleBlockingState& blocking_state,
     IncompatibleApplicationsUpdater* incompatible_applications_updater) {
-  using BlockingDecision = ModuleBlocklistCacheUpdater::ModuleBlockingDecision;
+  using BlockingDecision = ModuleBlacklistCacheUpdater::ModuleBlockingDecision;
 
   // Append status regarding the logic that will be applied during the next
   // startup.
@@ -164,7 +163,7 @@ std::string GetModuleWarningDecisionString(
       return kAllowedSameDirectory;
     case WarningDecision::kAllowedMicrosoft:
       return kAllowedMicrosoftModule;
-    case WarningDecision::kAllowedAllowlisted:
+    case WarningDecision::kAllowedWhitelisted:
       return kAllowedAllowlisted;
     case WarningDecision::kNotAnalyzed:
       return kNotAnalyzed;
@@ -172,7 +171,7 @@ std::string GetModuleWarningDecisionString(
       return "Tolerated - Could not tie to an installed application";
     case WarningDecision::kIncompatible:
       return "Incompatible";
-    case WarningDecision::kAddedToBlocklist:
+    case WarningDecision::kAddedToBlacklist:
     case WarningDecision::kUnknown:
       NOTREACHED();
       break;
@@ -184,7 +183,7 @@ std::string GetModuleWarningDecisionString(
 std::string GetModuleStatusString(
     const ModuleInfoKey& module_key,
     IncompatibleApplicationsUpdater* incompatible_applications_updater,
-    ModuleBlocklistCacheUpdater* module_blocklist_cache_updater) {
+    ModuleBlacklistCacheUpdater* module_blocklist_cache_updater) {
   if (!incompatible_applications_updater && !module_blocklist_cache_updater)
     return std::string();
 
@@ -192,7 +191,7 @@ std::string GetModuleStatusString(
 
   // The blocking status is shown over the warning status.
   if (module_blocklist_cache_updater) {
-    const ModuleBlocklistCacheUpdater::ModuleBlockingState& blocking_state =
+    const ModuleBlacklistCacheUpdater::ModuleBlockingState& blocking_state =
         module_blocklist_cache_updater->GetModuleBlockingState(module_key);
 
     status = GetBlockingStatusString(blocking_state);
@@ -216,7 +215,7 @@ std::string GetModuleStatusString(
 
   return status;
 }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#endif  // defined(GOOGLE_CHROME_BUILD)
 
 enum ThirdPartyFeaturesStatus {
   // The third-party features are not available in non-Google Chrome builds.
@@ -241,9 +240,9 @@ enum ThirdPartyFeaturesStatus {
   kWarningAndBlockingInitialized,
 };
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
 ThirdPartyFeaturesStatus GetThirdPartyFeaturesStatus(
-    absl::optional<ThirdPartyConflictsManager::State>
+    base::Optional<ThirdPartyConflictsManager::State>
         third_party_conflicts_manager_state) {
   // The ThirdPartyConflictsManager instance exists if we have its state.
   if (third_party_conflicts_manager_state.has_value()) {
@@ -273,7 +272,7 @@ ThirdPartyFeaturesStatus GetThirdPartyFeaturesStatus(
     return kPolicyDisabled;
 
   if (!IncompatibleApplicationsUpdater::IsWarningEnabled() &&
-      !ModuleBlocklistCacheUpdater::IsBlockingEnabled()) {
+      !ModuleBlacklistCacheUpdater::IsBlockingEnabled()) {
     return kFeatureDisabled;
   }
 
@@ -328,35 +327,36 @@ std::string GetThirdPartyFeaturesStatusString(ThirdPartyFeaturesStatus status) {
 void OnConflictsDataFetched(
     ConflictsDataFetcher::OnConflictsDataFetchedCallback
         on_conflicts_data_fetched_callback,
-    base::Value::Dict results,
+    base::DictionaryValue results,
     ThirdPartyFeaturesStatus third_party_features_status) {
   // Third-party conflicts status.
-  results.Set("thirdPartyFeatureEnabled",
-              IsThirdPartyFeatureEnabled(third_party_features_status));
-  results.Set("thirdPartyFeatureStatus",
-              GetThirdPartyFeaturesStatusString(third_party_features_status));
+  results.SetBoolean("thirdPartyFeatureEnabled",
+                     IsThirdPartyFeatureEnabled(third_party_features_status));
+  results.SetString(
+      "thirdPartyFeatureStatus",
+      GetThirdPartyFeaturesStatusString(third_party_features_status));
 
   std::move(on_conflicts_data_fetched_callback).Run(std::move(results));
 }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
 void OnModuleDataFetched(ConflictsDataFetcher::OnConflictsDataFetchedCallback
                              on_conflicts_data_fetched_callback,
-                         base::Value::Dict results,
-                         absl::optional<ThirdPartyConflictsManager::State>
+                         base::DictionaryValue results,
+                         base::Optional<ThirdPartyConflictsManager::State>
                              third_party_conflicts_manager_state) {
   OnConflictsDataFetched(
       std::move(on_conflicts_data_fetched_callback), std::move(results),
       GetThirdPartyFeaturesStatus(third_party_conflicts_manager_state));
 }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#endif  // defined(GOOGLE_CHROME_BUILD)
 
 }  // namespace
 
 ConflictsDataFetcher::~ConflictsDataFetcher() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (module_list_.has_value())
+  if (module_list_)
     ModuleDatabase::GetInstance()->RemoveObserver(this);
 }
 
@@ -372,7 +372,7 @@ ConflictsDataFetcher::ConflictsDataFetcher(
     OnConflictsDataFetchedCallback on_conflicts_data_fetched_callback)
     : on_conflicts_data_fetched_callback_(
           std::move(on_conflicts_data_fetched_callback))
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
       ,
       weak_ptr_factory_(this)
 #endif
@@ -387,7 +387,7 @@ ConflictsDataFetcher::ConflictsDataFetcher(
 }
 
 void ConflictsDataFetcher::InitializeOnModuleDatabaseTaskRunner() {
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
   // If the ThirdPartyConflictsManager instance exists, wait until it is fully
   // initialized before retrieving the list of modules.
   auto* third_party_conflicts_manager =
@@ -403,7 +403,7 @@ void ConflictsDataFetcher::InitializeOnModuleDatabaseTaskRunner() {
   GetListOfModules();
 }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
 void ConflictsDataFetcher::OnManagerInitializationComplete(
     ThirdPartyConflictsManager::State state) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -412,17 +412,17 @@ void ConflictsDataFetcher::OnManagerInitializationComplete(
 
   GetListOfModules();
 }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#endif  // defined(GOOGLE_CHROME_BUILD)
 
 void ConflictsDataFetcher::GetListOfModules() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   // The request is handled asynchronously, filling up the |module_list_|,
   // and will callback via OnModuleDatabaseIdle() on completion.
-  module_list_ = base::Value::List();
+  module_list_ = std::make_unique<base::ListValue>();
 
   auto* module_database = ModuleDatabase::GetInstance();
-  module_database->ForceStartInspection();
+  module_database->IncreaseInspectionPriority();
   module_database->AddObserver(this);
 }
 
@@ -431,10 +431,10 @@ void ConflictsDataFetcher::OnNewModuleFound(const ModuleInfoKey& module_key,
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(module_list_);
 
-  base::Value::Dict data;
+  auto data = std::make_unique<base::DictionaryValue>();
 
-  data.Set("third_party_module_status", std::string());
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  data->SetString("third_party_module_status", std::string());
+#if defined(GOOGLE_CHROME_BUILD)
   if (ModuleDatabase::GetInstance()->third_party_conflicts_manager()) {
     auto* incompatible_applications_updater =
         ModuleDatabase::GetInstance()
@@ -443,29 +443,29 @@ void ConflictsDataFetcher::OnNewModuleFound(const ModuleInfoKey& module_key,
     auto* module_blocklist_cache_updater =
         ModuleDatabase::GetInstance()
             ->third_party_conflicts_manager()
-            ->module_blocklist_cache_updater();
+            ->module_blacklist_cache_updater();
 
-    data.Set(
+    data->SetString(
         "third_party_module_status",
         GetModuleStatusString(module_key, incompatible_applications_updater,
                               module_blocklist_cache_updater));
   }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#endif  // defined(GOOGLE_CHROME_BUILD)
 
   std::string type_string;
   if (module_data.module_properties & ModuleInfoData::kPropertyShellExtension)
     type_string = "Shell extension";
-  data.Set("type_description", type_string);
+  data->SetString("type_description", type_string);
 
   const auto& inspection_result = *module_data.inspection_result;
-  data.Set("location", inspection_result.location);
-  data.Set("name", inspection_result.basename);
-  data.Set("product_name", inspection_result.product_name);
-  data.Set("description", inspection_result.description);
-  data.Set("version", inspection_result.version);
-  data.Set("digital_signer", inspection_result.certificate_info.subject);
-  data.Set("code_id", GenerateCodeId(module_key));
-  data.Set("process_types", GetProcessTypesString(module_data));
+  data->SetString("location", inspection_result.location);
+  data->SetString("name", inspection_result.basename);
+  data->SetString("product_name", inspection_result.product_name);
+  data->SetString("description", inspection_result.description);
+  data->SetString("version", inspection_result.version);
+  data->SetString("digital_signer", inspection_result.certificate_info.subject);
+  data->SetString("code_id", GenerateCodeId(module_key));
+  data->SetString("process_types", GetProcessTypesString(module_data));
 
   module_list_->Append(std::move(data));
 }
@@ -476,12 +476,11 @@ void ConflictsDataFetcher::OnModuleDatabaseIdle() {
 
   ModuleDatabase::GetInstance()->RemoveObserver(this);
 
-  base::Value::Dict results;
-  results.Set("moduleCount", int(module_list_->size()));
-  results.Set("moduleList", std::move(*module_list_));
-  module_list_ = absl::nullopt;
+  base::DictionaryValue results;
+  results.SetInteger("moduleCount", module_list_->GetSize());
+  results.Set("moduleList", std::move(module_list_));
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(GOOGLE_CHROME_BUILD)
   // The state of third-party features must be determined on the UI thread.
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,

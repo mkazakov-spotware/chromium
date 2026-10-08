@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/callback_helpers.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "components/navigation_interception/navigation_params.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/web_contents.h"
@@ -23,10 +24,8 @@
 
 using content::NavigationThrottle;
 using testing::_;
-using testing::AllOf;
 using testing::Eq;
 using testing::Ne;
-using testing::Not;
 using testing::Property;
 using testing::Return;
 
@@ -42,12 +41,8 @@ const char kTestUrl[] = "http://www.test.com/";
 // It is possible to suppress the error by specifying the types directly but
 // that results in very ugly syntax, which is why these custom matchers are
 // used instead.
-MATCHER(NavigationHandleUrlIsTest, "") {
-  return arg->GetURL() == kTestUrl;
-}
-
-MATCHER(IsPost, "") {
-  return arg->IsPost();
+MATCHER(NavigationParamsUrlIsTest, "") {
+  return arg.url() == kTestUrl;
 }
 
 }  // namespace
@@ -56,7 +51,9 @@ MATCHER(IsPost, "") {
 
 class MockInterceptCallbackReceiver {
  public:
-  MOCK_METHOD1(ShouldIgnoreNavigation, bool(content::NavigationHandle* handle));
+  MOCK_METHOD2(ShouldIgnoreNavigation,
+               bool(content::WebContents* source,
+                    const NavigationParams& navigation_params));
 };
 
 // InterceptNavigationThrottleTest ------------------------------------
@@ -68,9 +65,11 @@ class InterceptNavigationThrottleTest
   InterceptNavigationThrottleTest()
       : mock_callback_receiver_(new MockInterceptCallbackReceiver()) {
     if (GetParam()) {
-      scoped_feature_.InitAndEnableFeature(kAsyncCheck);
+      scoped_feature_.InitAndEnableFeature(
+          InterceptNavigationThrottle::kAsyncCheck);
     } else {
-      scoped_feature_.InitAndDisableFeature(kAsyncCheck);
+      scoped_feature_.InitAndDisableFeature(
+          InterceptNavigationThrottle::kAsyncCheck);
     }
   }
 
@@ -110,8 +109,8 @@ class InterceptNavigationThrottleTest
     simulator->Start();
     if (failed(simulator.get()))
       return simulator->GetLastThrottleCheckResult();
-    for (const GURL& redirect_url : redirect_chain) {
-      simulator->Redirect(redirect_url);
+    for (const GURL& url : redirect_chain) {
+      simulator->Redirect(url);
       if (failed(simulator.get()))
         return simulator->GetLastThrottleCheckResult();
     }
@@ -125,7 +124,7 @@ class InterceptNavigationThrottleTest
 
 // TODO(https://crbug.com/1009359): Fix flakes on win10_chromium_x64_rel_ng and
 // re-enable this test.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_RequestCompletesIfNavigationNotIgnored \
   DISABLED_RequestCompletesIfNavigationNotIgnored
 #else
@@ -134,10 +133,11 @@ class InterceptNavigationThrottleTest
 #endif
 TEST_P(InterceptNavigationThrottleTest,
        MAYBE_RequestCompletesIfNavigationNotIgnored) {
-  ON_CALL(*mock_callback_receiver_, ShouldIgnoreNavigation(_))
+  ON_CALL(*mock_callback_receiver_, ShouldIgnoreNavigation(_, _))
       .WillByDefault(Return(false));
-  EXPECT_CALL(*mock_callback_receiver_,
-              ShouldIgnoreNavigation(NavigationHandleUrlIsTest()));
+  EXPECT_CALL(
+      *mock_callback_receiver_,
+      ShouldIgnoreNavigation(web_contents(), NavigationParamsUrlIsTest()));
   NavigationThrottle::ThrottleCheckResult result =
       SimulateNavigation(GURL(kTestUrl), {}, false);
 
@@ -146,7 +146,7 @@ TEST_P(InterceptNavigationThrottleTest,
 
 // TODO(https://crbug.com/1010187): Fix flakes on win10_chromium_x64_rel_ng and
 // re-enable this test.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_RequestCancelledIfNavigationIgnored \
   DISABLED_RequestCancelledIfNavigationIgnored
 #else
@@ -155,10 +155,11 @@ TEST_P(InterceptNavigationThrottleTest,
 #endif
 TEST_P(InterceptNavigationThrottleTest,
        MAYBE_RequestCancelledIfNavigationIgnored) {
-  ON_CALL(*mock_callback_receiver_, ShouldIgnoreNavigation(_))
+  ON_CALL(*mock_callback_receiver_, ShouldIgnoreNavigation(_, _))
       .WillByDefault(Return(true));
-  EXPECT_CALL(*mock_callback_receiver_,
-              ShouldIgnoreNavigation(NavigationHandleUrlIsTest()));
+  EXPECT_CALL(
+      *mock_callback_receiver_,
+      ShouldIgnoreNavigation(web_contents(), NavigationParamsUrlIsTest()));
   NavigationThrottle::ThrottleCheckResult result =
       SimulateNavigation(GURL(kTestUrl), {}, false);
 
@@ -166,9 +167,10 @@ TEST_P(InterceptNavigationThrottleTest,
 }
 
 TEST_P(InterceptNavigationThrottleTest, CallbackIsPostFalseForGet) {
-  EXPECT_CALL(
-      *mock_callback_receiver_,
-      ShouldIgnoreNavigation(AllOf(NavigationHandleUrlIsTest(), Not(IsPost()))))
+  EXPECT_CALL(*mock_callback_receiver_,
+              ShouldIgnoreNavigation(
+                  _, AllOf(NavigationParamsUrlIsTest(),
+                           Property(&NavigationParams::is_post, Eq(false)))))
       .WillOnce(Return(false));
 
   NavigationThrottle::ThrottleCheckResult result =
@@ -178,9 +180,10 @@ TEST_P(InterceptNavigationThrottleTest, CallbackIsPostFalseForGet) {
 }
 
 TEST_P(InterceptNavigationThrottleTest, CallbackIsPostTrueForPost) {
-  EXPECT_CALL(
-      *mock_callback_receiver_,
-      ShouldIgnoreNavigation(AllOf(NavigationHandleUrlIsTest(), IsPost())))
+  EXPECT_CALL(*mock_callback_receiver_,
+              ShouldIgnoreNavigation(
+                  _, AllOf(NavigationParamsUrlIsTest(),
+                           Property(&NavigationParams::is_post, Eq(true)))))
       .WillOnce(Return(false));
   NavigationThrottle::ThrottleCheckResult result =
       SimulateNavigation(GURL(kTestUrl), {}, true);
@@ -190,13 +193,15 @@ TEST_P(InterceptNavigationThrottleTest, CallbackIsPostTrueForPost) {
 
 TEST_P(InterceptNavigationThrottleTest,
        CallbackIsPostFalseForPostConvertedToGetBy302) {
-  EXPECT_CALL(
-      *mock_callback_receiver_,
-      ShouldIgnoreNavigation(AllOf(NavigationHandleUrlIsTest(), IsPost())))
+  EXPECT_CALL(*mock_callback_receiver_,
+              ShouldIgnoreNavigation(
+                  _, AllOf(NavigationParamsUrlIsTest(),
+                           Property(&NavigationParams::is_post, Eq(true)))))
       .WillOnce(Return(false));
-  EXPECT_CALL(
-      *mock_callback_receiver_,
-      ShouldIgnoreNavigation(AllOf(NavigationHandleUrlIsTest(), Not(IsPost()))))
+  EXPECT_CALL(*mock_callback_receiver_,
+              ShouldIgnoreNavigation(
+                  _, AllOf(NavigationParamsUrlIsTest(),
+                           Property(&NavigationParams::is_post, Eq(false)))))
       .WillOnce(Return(false));
 
   NavigationThrottle::ThrottleCheckResult result =
@@ -206,7 +211,7 @@ TEST_P(InterceptNavigationThrottleTest,
 
 // Ensure POST navigations are cancelled before the start.
 TEST_P(InterceptNavigationThrottleTest, PostNavigationCancelledAtStart) {
-  ON_CALL(*mock_callback_receiver_, ShouldIgnoreNavigation(_))
+  ON_CALL(*mock_callback_receiver_, ShouldIgnoreNavigation(_, _))
       .WillByDefault(Return(true));
   auto throttle_inserter = CreateThrottleInserter();
   std::unique_ptr<content::NavigationSimulator> simulator =
@@ -229,8 +234,9 @@ TEST_P(InterceptNavigationThrottleTest, PostNavigationCancelledAtStart) {
 TEST_P(InterceptNavigationThrottleTest, IgnoreCallbackDeletesNavigation) {
   NavigateAndCommit(GURL("about:blank"));
 
-  auto ignore_callback = [](content::NavigationHandle* handle) {
-    handle->GetWebContents()->GetController().GoToIndex(0);
+  auto ignore_callback = [](content::WebContents* contents,
+                            const NavigationParams& params) {
+    contents->GetController().GoToIndex(0);
     return true;
   };
   auto inserter = std::make_unique<content::TestNavigationThrottleInserter>(

@@ -8,6 +8,7 @@ lineNumber: 9
 columnNumber: 34
 scriptId is valid: true
 functionName: firstLineFunction
+scopeChain #0: Global; <global object properties omitted>
 
 Running: testGetNonFirstLineFunctionDetails
 notFirstLineFunction type = function
@@ -16,6 +17,7 @@ lineNumber: 14
 columnNumber: 37
 scriptId is valid: true
 functionName: notFirstLineFunction
+scopeChain #0: Global; <global object properties omitted>
 
 Running: testGetDetailsOfFunctionWithInferredName
 obj.m type = function
@@ -24,6 +26,7 @@ lineNumber: 20
 columnNumber: 23
 scriptId is valid: true
 functionName: m
+scopeChain #0: Global; <global object properties omitted>
 
 Running: testGetDetailsOfFunctionWithDisplayName
 functionWithDisplayName type = function
@@ -32,6 +35,7 @@ lineNumber: 23
 columnNumber: 40
 scriptId is valid: true
 functionName: user-friendly name
+scopeChain #0: Global; <global object properties omitted>
 
 Running: testGetDetailsOfFunctionWithDisplayNameGetter
 functionWithDisplayNameGetter type = function
@@ -40,6 +44,7 @@ lineNumber: 26
 columnNumber: 46
 scriptId is valid: true
 functionName: functionWithDisplayNameGetter
+scopeChain #0: Global; <global object properties omitted>
 
 Running: testSmallClosure
 smallClosure type = function
@@ -48,6 +53,8 @@ lineNumber: 29
 columnNumber: 57
 scriptId is valid: true
 functionName: 
+scopeChain #0: Closure; p: "Capybara"
+scopeChain #1: Global; <global object properties omitted>
 
 Running: testBigClosure
 bigClosure type = function
@@ -56,6 +63,10 @@ lineNumber: 42
 columnNumber: 35
 scriptId is valid: true
 functionName: 
+scopeChain #0: Catch; ex: <no string representation>
+scopeChain #1: With Block; __proto__: <no string representation>,e: 7,f: 5,u: <no value>,v: <no value>
+scopeChain #2: Closure; p: <no string representation>
+scopeChain #3: Global; <global object properties omitted>
 
 Running: testGenFunction
 gen type = function
@@ -65,4 +76,5 @@ columnNumber: 21
 scriptId is valid: true
 functionName: gen
 isGenerator: true
+scopeChain #0: Global; <global object properties omitted>
 

@@ -1,30 +1,30 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_WM_OVERVIEW_OVERVIEW_WALLPAPER_CONTROLLER_H_
 #define ASH_WM_OVERVIEW_OVERVIEW_WALLPAPER_CONTROLLER_H_
 
+#include <vector>
+
 #include "ash/ash_export.h"
 #include "ash/public/cpp/tablet_mode_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
 
 namespace ash {
 
 // Class that controls when and how to apply blur and dimming wallpaper upon
 // entering and exiting overview mode. Blurs the wallpaper automatically if the
 // wallpaper is not visible prior to entering overview mode (covered by a
-// window), otherwise animates the blur.
+// window), otherwise animates the blur and dim.
 class ASH_EXPORT OverviewWallpaperController : public TabletModeObserver {
  public:
   OverviewWallpaperController();
-  OverviewWallpaperController(const OverviewWallpaperController&) = delete;
-  OverviewWallpaperController& operator=(const OverviewWallpaperController&) =
-      delete;
   ~OverviewWallpaperController() override;
 
-  // There may not be a need to blur or dim the wallpaper for tests.
-  static void SetDisableChangeWallpaperForTest(bool disable);
+  // There is no need to blur or dim the wallpaper for tests.
+  static void SetDoNotChangeWallpaperForTests();
 
   void Blur(bool animate);
   void Unblur();
@@ -32,18 +32,19 @@ class ASH_EXPORT OverviewWallpaperController : public TabletModeObserver {
   // TabletModeObserver:
   void OnTabletModeStarted() override;
   void OnTabletModeEnded() override;
-  void OnTabletControllerDestroyed() override;
 
  private:
   // Called when the wallpaper is to be changed and updates all root windows.
-  // Based on the `animate` parameter, several things can happen:
+  // Based on the |animate| paramter, several things can happen:
   //   - nullopt: Apply the blur immediately.
   //   - true/false: Animates and applies the blur only if this value matches
   //     whether animations are allowed based on each root window.
-  void UpdateWallpaper(bool should_blur, absl::optional<bool> animate);
+  void UpdateWallpaper(bool should_blur, base::Optional<bool> animate);
 
-  // Tracks if the wallpaper blur is applied.
+  // Tracks if the wallpaper blur should be applied.
   bool wallpaper_blurred_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(OverviewWallpaperController);
 };
 
 }  // namespace ash

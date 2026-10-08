@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,40 +12,23 @@
 #import "ios/chrome/browser/ui/orchestrator/edit_view_animatee.h"
 #import "ios/chrome/browser/ui/orchestrator/location_bar_offset_provider.h"
 
-@protocol OmniboxKeyboardDelegate;
-@protocol OmniboxReturnDelegate;
+@protocol BrowserCommands;
+@protocol LoadQueryCommands;
+@protocol OmniboxCommands;
 @class OmniboxViewController;
 class OmniboxTextChangeDelegate;
 
-// Delegate for text input changes in OmniboxViewController.
-@protocol OmniboxViewControllerTextInputDelegate
+@protocol OmniboxViewControllerDelegate
 
 // Called after the text input mode changes in the OmniboxViewController. This
 // means that the active keyboard has changed.
 - (void)omniboxViewControllerTextInputModeDidChange:
     (OmniboxViewController*)omniboxViewController;
-
 @end
 
-// Delegate for paste actions in OmniboxViewController.
-@protocol OmniboxViewControllerPasteDelegate
-
-// User tapped on the keyboard accessory's paste button.
-- (void)didTapPasteToSearchButton:(NSArray<NSItemProvider*>*)itemProviders;
-// User tapped on the Search Copied Text from the omnibox menu.
-- (void)didTapSearchCopiedText;
-// User tapped on the Search Copied Image from the omnibox menu.
-- (void)didTapSearchCopiedImage;
-// User tapped on the Lens Image from the omnibox menu.
-- (void)didTapLensCopiedImage;
-// User tapped on the Visit Copied Link from the omnibox menu.
-- (void)didTapVisitCopiedLink;
-
-@end
-
-@interface OmniboxViewController : UIViewController <EditViewAnimatee,
-                                                     LocationBarOffsetProvider,
-                                                     OmniboxConsumer>
+@interface OmniboxViewController : UIViewController<EditViewAnimatee,
+                                                    LocationBarOffsetProvider,
+                                                    OmniboxConsumer>
 
 // The textfield used by this view controller.
 @property(nonatomic, readonly, strong) OmniboxTextFieldIOS* textField;
@@ -62,12 +45,13 @@ class OmniboxTextChangeDelegate;
 @property(nonatomic, assign)
     UISemanticContentAttribute semanticContentAttribute;
 
+// The dispatcher for the paste and go action.
+@property(nonatomic, weak)
+    id<BrowserCommands, LoadQueryCommands, OmniboxCommands>
+        dispatcher;
+
 // The delegate for this object.
-@property(nonatomic, weak) id<OmniboxViewControllerTextInputDelegate>
-    textInputDelegate;
-@property(nonatomic, weak) id<OmniboxViewControllerPasteDelegate> pasteDelegate;
-@property(nonatomic, weak) id<OmniboxReturnDelegate> returnKeyDelegate;
-@property(nonatomic, weak) id<OmniboxKeyboardDelegate> popupKeyboardDelegate;
+@property(nonatomic, weak) id<OmniboxViewControllerDelegate> delegate;
 
 // Designated initializer.
 - (instancetype)initWithIncognito:(BOOL)isIncognito;

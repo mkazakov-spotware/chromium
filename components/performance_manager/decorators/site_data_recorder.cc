@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/performance_manager/public/decorators/site_data_recorder.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "components/performance_manager/graph/node_attached_data_impl.h"
 #include "components/performance_manager/graph/page_node_impl.h"
@@ -20,36 +19,24 @@ namespace performance_manager {
 // use some of these features without this being an attempt to communicate
 // with the user (e.g. the page is just really finishing to load).
 constexpr base::TimeDelta kTitleOrFaviconChangePostLoadGracePeriod =
-    base::Seconds(20);
+    base::TimeDelta::FromSeconds(20);
 
 // The period of time during which audio usage gets ignored after a page gets
 // backgrounded. It's necessary because there might be a delay between a media
 // request gets initiated and the time the audio actually starts.
 constexpr base::TimeDelta kFeatureUsagePostBackgroundGracePeriod =
-    base::Seconds(10);
+    base::TimeDelta::FromSeconds(10);
 
 // Provides SiteData machinery access to some internals of a PageNodeImpl.
 class SiteDataAccess {
  public:
   static std::unique_ptr<NodeAttachedData>* GetUniquePtrStorage(
       PageNodeImpl* page_node) {
-    return &page_node->GetSiteData(base::PassKey<SiteDataAccess>());
+    return &page_node->site_data_;
   }
 };
 
 namespace {
-
-bool IsLoadedIdle(PageNode::LoadingState loading_state) {
-  switch (loading_state) {
-    case PageNode::LoadingState::kLoadingNotStarted:
-    case PageNode::LoadingState::kLoadedBusy:
-    case PageNode::LoadingState::kLoading:
-    case PageNode::LoadingState::kLoadingTimedOut:
-      return false;
-    case PageNode::LoadingState::kLoadedIdle:
-      return true;
-  }
-}
 
 // NodeAttachedData used to adorn every page node with a SiteDataWriter.
 class SiteDataNodeData : public NodeAttachedDataImpl<SiteDataNodeData>,
@@ -59,10 +46,6 @@ class SiteDataNodeData : public NodeAttachedDataImpl<SiteDataNodeData>,
 
   explicit SiteDataNodeData(const PageNodeImpl* page_node)
       : page_node_(page_node) {}
-
-  SiteDataNodeData(const SiteDataNodeData&) = delete;
-  SiteDataNodeData& operator=(const SiteDataNodeData&) = delete;
-
   ~SiteDataNodeData() override = default;
 
   // NodeAttachedData:
@@ -73,14 +56,13 @@ class SiteDataNodeData : public NodeAttachedDataImpl<SiteDataNodeData>,
 
   // Set the SiteDataCache that should be used to create the writer.
   void set_data_cache(SiteDataCache* data_cache) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     DCHECK(data_cache);
     data_cache_ = data_cache;
   }
 
   // Functions called whenever one of the tracked properties changes.
   void OnMainFrameUrlChanged(const GURL& url, bool page_is_visible);
-  void OnIsLoadedIdleChanged(bool is_loaded_idle);
+  void OnIsLoadingChanged(bool is_loading);
   void OnIsVisibleChanged(bool is_visible);
   void OnIsAudibleChanged(bool audible);
   void OnTitleUpdated();
@@ -118,28 +100,27 @@ class SiteDataNodeData : public NodeAttachedDataImpl<SiteDataNodeData>,
                                          FeatureType feature_type);
 
   TabVisibility GetPageNodeVisibility() {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     return page_node_->is_visible() ? TabVisibility::kForeground
                                     : TabVisibility::kBackground;
   }
 
   // The SiteDataCache used to serve writers for the PageNode owned by this
   // object.
-  raw_ptr<SiteDataCache> data_cache_ GUARDED_BY_CONTEXT(sequence_checker_) =
-      nullptr;
+  SiteDataCache* data_cache_ = nullptr;
 
   // The PageNode that owns this object.
-  raw_ptr<const PageNodeImpl> page_node_ GUARDED_BY_CONTEXT(sequence_checker_) =
-      nullptr;
+  const PageNodeImpl* page_node_ = nullptr;
 
-  // The time at which this tab switched to LoadingState::kLoadedIdle, null if
-  // this tab is not currently in that state.
-  base::TimeTicks loaded_idle_time_ GUARDED_BY_CONTEXT(sequence_checker_);
+  // The time at which this tab switched to the loaded state, null if this tab
+  // is not currently loaded.
+  base::TimeTicks loaded_time_;
 
-  std::unique_ptr<SiteDataWriter> writer_ GUARDED_BY_CONTEXT(sequence_checker_);
-  std::unique_ptr<SiteDataReader> reader_ GUARDED_BY_CONTEXT(sequence_checker_);
+  std::unique_ptr<SiteDataWriter> writer_;
+  std::unique_ptr<SiteDataReader> reader_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(SiteDataNodeData);
 };
 
 void SiteDataNodeData::OnMainFrameUrlChanged(const GURL& url,
@@ -159,26 +140,22 @@ void SiteDataNodeData::OnMainFrameUrlChanged(const GURL& url,
   writer_ = data_cache_->GetWriterForOrigin(origin);
   reader_ = data_cache_->GetReaderForOrigin(origin);
 
-  // The writer is assumed not to be LoadingState::kLoadedIdle at this point.
-  // Make adjustments if it is LoadingState::kLoadedIdle.
-  if (IsLoadedIdle(page_node_->loading_state()))
-    OnIsLoadedIdleChanged(true);
-
-  DCHECK_EQ(IsLoadedIdle(page_node_->loading_state()),
-            !loaded_idle_time_.is_null());
+  // The writer is assumed to be in an unloaded state by default, set the proper
+  // loading state if necessary.
+  if (!page_node_->is_loading())
+    OnIsLoadingChanged(false);
 }
 
-void SiteDataNodeData::OnIsLoadedIdleChanged(bool is_loaded_idle) {
+void SiteDataNodeData::OnIsLoadingChanged(bool is_loading) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!writer_)
     return;
-
-  if (!is_loaded_idle && !loaded_idle_time_.is_null()) {
+  if (is_loading && !loaded_time_.is_null()) {
     writer_->NotifySiteUnloaded(GetPageNodeVisibility());
-    loaded_idle_time_ = base::TimeTicks();
-  } else if (is_loaded_idle) {
+    loaded_time_ = base::TimeTicks();
+  } else if (!is_loading) {
     writer_->NotifySiteLoaded(GetPageNodeVisibility());
-    loaded_idle_time_ = base::TimeTicks::Now();
+    loaded_time_ = base::TimeTicks::Now();
   }
 }
 
@@ -187,9 +164,9 @@ void SiteDataNodeData::OnIsVisibleChanged(bool is_visible) {
   if (!writer_)
     return;
   if (is_visible) {
-    writer_->NotifySiteForegrounded(IsLoadedIdle(page_node_->loading_state()));
+    writer_->NotifySiteForegrounded(!page_node_->is_loading());
   } else {
-    writer_->NotifySiteBackgrounded(IsLoadedIdle(page_node_->loading_state()));
+    writer_->NotifySiteBackgrounded(!page_node_->is_loading());
   }
 }
 
@@ -219,10 +196,9 @@ void SiteDataNodeData::OnFaviconUpdated() {
 
 void SiteDataNodeData::Reset() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (writer_ && !loaded_idle_time_.is_null() &&
-      IsLoadedIdle(page_node_->loading_state())) {
+  if (writer_ && !loaded_time_.is_null() && !page_node_->is_loading()) {
     writer_->NotifySiteUnloaded(GetPageNodeVisibility());
-    loaded_idle_time_ = base::TimeTicks();
+    loaded_time_ = base::TimeTicks();
   }
   writer_.reset();
   reader_.reset();
@@ -235,7 +211,7 @@ bool SiteDataNodeData::ShouldIgnoreFeatureUsageEvent(FeatureType feature_type) {
     return true;
 
   // Ignore all features happening before the website gets fully loaded.
-  if (!IsLoadedIdle(page_node_->loading_state()))
+  if (page_node_->is_loading())
     return true;
 
   // Ignore events if the tab is not in background.
@@ -244,8 +220,8 @@ bool SiteDataNodeData::ShouldIgnoreFeatureUsageEvent(FeatureType feature_type) {
 
   if (feature_type == FeatureType::kTitleChange ||
       feature_type == FeatureType::kFaviconChange) {
-    DCHECK(!loaded_idle_time_.is_null());
-    if (base::TimeTicks::Now() - loaded_idle_time_ <
+    DCHECK(!loaded_time_.is_null());
+    if (base::TimeTicks::Now() - loaded_time_ <
         kTitleOrFaviconChangePostLoadGracePeriod) {
       return true;
     }
@@ -316,12 +292,10 @@ void SiteDataRecorder::OnMainFrameUrlChanged(const PageNode* page_node) {
                               page_node->IsVisible());
 }
 
-void SiteDataRecorder::OnLoadingStateChanged(
-    const PageNode* page_node,
-    PageNode::LoadingState previous_state) {
+void SiteDataRecorder::OnIsLoadingChanged(const PageNode* page_node) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto* data = GetSiteDataNodeDataFromPageNode(page_node);
-  data->OnIsLoadedIdleChanged(IsLoadedIdle(page_node->GetLoadingState()));
+  data->OnIsLoadingChanged(page_node->IsLoading());
 }
 
 void SiteDataRecorder::OnIsVisibleChanged(const PageNode* page_node) {

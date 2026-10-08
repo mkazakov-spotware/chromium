@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,12 @@
 #include "base/callback.h"
 #include "base/files/file.h"
 #include "base/files/file_util.h"
-#include "base/strings/string_util.h"
-#include "base/threading/hang_watcher.h"
 #include "base/win/com_init_util.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_co_mem.h"
 #include "base/win/shortcut.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/shell_dialogs/base_shell_dialog_win.h"
-#include "ui/shell_dialogs/select_file_utils_win.h"
 #include "ui/strings/grit/ui_strings.h"
 
 namespace ui {
@@ -30,6 +27,12 @@ bool IsDirectory(const base::FilePath& path) {
   base::File::Info file_info;
   return base::GetFileInfo(path, &file_info) ? file_info.is_directory
                                              : path.EndsWithSeparator();
+}
+
+// Given |extension|, if it's not empty, then remove the leading dot.
+base::string16 GetExtensionWithoutLeadingDot(const base::string16& extension) {
+  DCHECK(extension.empty() || extension[0] == L'.');
+  return extension.empty() ? extension : extension.substr(1);
 }
 
 // Sets which path is going to be open when the dialog will be shown. If
@@ -46,9 +49,7 @@ bool SetDefaultPath(IFileDialog* file_dialog,
     default_folder = default_path;
   } else {
     default_folder = default_path.DirName();
-    std::wstring sanitized = RemoveEnvVarFromFileName<wchar_t>(
-        default_path.BaseName().value(), std::wstring(L"%"));
-    default_file_name = base::FilePath(sanitized);
+    default_file_name = default_path.BaseName();
   }
 
   // Do not fail the file dialog operation if the specified folder is invalid.
@@ -75,8 +76,8 @@ bool SetFilters(IFileDialog* file_dialog,
   std::vector<COMDLG_FILTERSPEC> comdlg_filterspec(filter.size());
 
   for (size_t i = 0; i < filter.size(); ++i) {
-    comdlg_filterspec[i].pszName = base::as_wcstr(filter[i].description);
-    comdlg_filterspec[i].pszSpec = base::as_wcstr(filter[i].extension_spec);
+    comdlg_filterspec[i].pszName = filter[i].description.c_str();
+    comdlg_filterspec[i].pszSpec = filter[i].extension_spec.c_str();
   }
 
   return SUCCEEDED(file_dialog->SetFileTypes(comdlg_filterspec.size(),
@@ -99,20 +100,20 @@ bool SetOptions(IFileDialog* file_dialog, DWORD dialog_options) {
 
 // Configures a |file_dialog| object given the specified parameters.
 bool ConfigureDialog(IFileDialog* file_dialog,
-                     const std::u16string& title,
-                     const std::u16string& ok_button_label,
+                     const base::string16& title,
+                     const base::string16& ok_button_label,
                      const base::FilePath& default_path,
                      const std::vector<FileFilterSpec>& filter,
                      int filter_index,
                      DWORD dialog_options) {
   // Set title.
   if (!title.empty()) {
-    if (FAILED(file_dialog->SetTitle(base::as_wcstr(title))))
+    if (FAILED(file_dialog->SetTitle(title.c_str())))
       return false;
   }
 
   if (!ok_button_label.empty()) {
-    if (FAILED(file_dialog->SetOkButtonLabel(base::as_wcstr(ok_button_label))))
+    if (FAILED(file_dialog->SetOkButtonLabel(ok_button_label.c_str())))
       return false;
   }
 
@@ -132,11 +133,11 @@ bool ConfigureDialog(IFileDialog* file_dialog,
 // and extension of the user selected file name. |def_ext| is the default
 // extension to give to the file if the user did not enter an extension.
 bool RunSaveFileDialog(HWND owner,
-                       const std::u16string& title,
+                       const base::string16& title,
                        const base::FilePath& default_path,
                        const std::vector<FileFilterSpec>& filter,
                        DWORD dialog_options,
-                       const std::wstring& def_ext,
+                       const base::string16& def_ext,
                        int* filter_index,
                        base::FilePath* path) {
   Microsoft::WRL::ComPtr<IFileSaveDialog> file_save_dialog;
@@ -146,17 +147,12 @@ bool RunSaveFileDialog(HWND owner,
     return false;
   }
 
-  if (!ConfigureDialog(file_save_dialog.Get(), title, std::u16string(),
+  if (!ConfigureDialog(file_save_dialog.Get(), title, base::string16(),
                        default_path, filter, *filter_index, dialog_options)) {
     return false;
   }
 
   file_save_dialog->SetDefaultExtension(def_ext.c_str());
-
-  // Never consider the current scope as hung. The hang watching deadline (if
-  // any) is not valid since the user can take unbounded time to choose the
-  // file.
-  base::HangWatcher::InvalidateActiveExpectations();
 
   HRESULT hr = file_save_dialog->Show(owner);
   BaseShellDialogImpl::DisableOwner(owner);
@@ -186,8 +182,8 @@ bool RunSaveFileDialog(HWND owner,
 // Runs an Open file dialog box, with similar semantics for input parameters as
 // RunSaveFileDialog.
 bool RunOpenFileDialog(HWND owner,
-                       const std::u16string& title,
-                       const std::u16string& ok_button_label,
+                       const base::string16& title,
+                       const base::string16& ok_button_label,
                        const base::FilePath& default_path,
                        const std::vector<FileFilterSpec>& filter,
                        DWORD dialog_options,
@@ -210,11 +206,6 @@ bool RunOpenFileDialog(HWND owner,
                        default_path, filter, *filter_index, dialog_options)) {
     return false;
   }
-
-  // Never consider the current scope as hung. The hang watching deadline (if
-  // any) is not valid since the user can take unbounded time to choose the
-  // file.
-  base::HangWatcher::InvalidateActiveExpectations();
 
   HRESULT hr = file_open_dialog->Show(owner);
   BaseShellDialogImpl::DisableOwner(owner);
@@ -263,12 +254,12 @@ bool RunOpenFileDialog(HWND owner,
 // thread.
 bool ExecuteSelectFolder(HWND owner,
                          SelectFileDialog::Type type,
-                         const std::u16string& title,
+                         const base::string16& title,
                          const base::FilePath& default_path,
                          std::vector<base::FilePath>* paths) {
   DCHECK(paths);
 
-  std::u16string new_title = title;
+  base::string16 new_title = title;
   if (new_title.empty() && type == SelectFileDialog::SELECT_UPLOAD_FOLDER) {
     // If it's for uploading don't use default dialog title to
     // make sure we clearly tell it's for uploading.
@@ -276,7 +267,7 @@ bool ExecuteSelectFolder(HWND owner,
         l10n_util::GetStringUTF16(IDS_SELECT_UPLOAD_FOLDER_DIALOG_TITLE);
   }
 
-  std::u16string ok_button_label;
+  base::string16 ok_button_label;
   if (type == SelectFileDialog::SELECT_UPLOAD_FOLDER) {
     ok_button_label = l10n_util::GetStringUTF16(
         IDS_SELECT_UPLOAD_FOLDER_DIALOG_UPLOAD_BUTTON);
@@ -292,19 +283,19 @@ bool ExecuteSelectFolder(HWND owner,
 }
 
 bool ExecuteSelectSingleFile(HWND owner,
-                             const std::u16string& title,
+                             const base::string16& title,
                              const base::FilePath& default_path,
                              const std::vector<FileFilterSpec>& filter,
                              int* filter_index,
                              std::vector<base::FilePath>* paths) {
   // Note: The title is not passed down for historical reasons.
   // TODO(pmonette): Figure out if it's a worthwhile improvement.
-  return RunOpenFileDialog(owner, std::u16string(), std::u16string(),
+  return RunOpenFileDialog(owner, base::string16(), base::string16(),
                            default_path, filter, 0, filter_index, paths);
 }
 
 bool ExecuteSelectMultipleFile(HWND owner,
-                               const std::u16string& title,
+                               const base::string16& title,
                                const base::FilePath& default_path,
                                const std::vector<FileFilterSpec>& filter,
                                int* filter_index,
@@ -313,7 +304,7 @@ bool ExecuteSelectMultipleFile(HWND owner,
 
   // Note: The title is not passed down for historical reasons.
   // TODO(pmonette): Figure out if it's a worthwhile improvement.
-  return RunOpenFileDialog(owner, std::u16string(), std::u16string(),
+  return RunOpenFileDialog(owner, base::string16(), base::string16(),
                            default_path, filter, dialog_options, filter_index,
                            paths);
 }
@@ -321,7 +312,7 @@ bool ExecuteSelectMultipleFile(HWND owner,
 bool ExecuteSaveFile(HWND owner,
                      const base::FilePath& default_path,
                      const std::vector<FileFilterSpec>& filter,
-                     const std::wstring& def_ext,
+                     const base::string16& def_ext,
                      int* filter_index,
                      base::FilePath* path) {
   DCHECK(path);
@@ -333,19 +324,59 @@ bool ExecuteSaveFile(HWND owner,
 
   // Note: The title is not passed down for historical reasons.
   // TODO(pmonette): Figure out if it's a worthwhile improvement.
-  return RunSaveFileDialog(owner, std::u16string(), default_path, filter,
+  return RunSaveFileDialog(owner, base::string16(), default_path, filter,
                            dialog_options, def_ext, filter_index, path);
 }
 
 }  // namespace
 
+// This function takes the output of a SaveAs dialog: a filename, a filter and
+// the extension originally suggested to the user (shown in the dialog box) and
+// returns back the filename with the appropriate extension appended. If the
+// user requests an unknown extension and is not using the 'All files' filter,
+// the suggested extension will be appended, otherwise we will leave the
+// filename unmodified. |filename| should contain the filename selected in the
+// SaveAs dialog box and may include the path, |filter_selected| should be
+// '*.something', for example '*.*' or it can be blank (which is treated as
+// *.*). |suggested_ext| should contain the extension without the dot (.) in
+// front, for example 'jpg'.
+base::string16 AppendExtensionIfNeeded(const base::string16& filename,
+                                       const base::string16& filter_selected,
+                                       const base::string16& suggested_ext) {
+  DCHECK(!filename.empty());
+  base::string16 return_value = filename;
+
+  // If we wanted a specific extension, but the user's filename deleted it or
+  // changed it to something that the system doesn't understand, re-append.
+  // Careful: Checking net::GetMimeTypeFromExtension() will only find
+  // extensions with a known MIME type, which many "known" extensions on Windows
+  // don't have.  So we check directly for the "known extension" registry key.
+  base::string16 file_extension(
+      GetExtensionWithoutLeadingDot(base::FilePath(filename).Extension()));
+  base::string16 key(L"." + file_extension);
+  if (!(filter_selected.empty() || filter_selected == L"*.*") &&
+      !base::win::RegKey(HKEY_CLASSES_ROOT, key.c_str(), KEY_READ).Valid() &&
+      file_extension != suggested_ext) {
+    if (return_value.back() != L'.')
+      return_value.append(L".");
+    return_value.append(suggested_ext);
+  }
+
+  // Strip any trailing dots, which Windows doesn't allow.
+  size_t index = return_value.find_last_not_of(L'.');
+  if (index < return_value.size() - 1)
+    return_value.resize(index + 1);
+
+  return return_value;
+}
+
 void ExecuteSelectFile(
     SelectFileDialog::Type type,
-    const std::u16string& title,
+    const base::string16& title,
     const base::FilePath& default_path,
     const std::vector<FileFilterSpec>& filter,
     int file_type_index,
-    const std::wstring& default_extension,
+    const base::string16& default_extension,
     HWND owner,
     OnSelectFileExecutedCallback on_select_file_executed_callback) {
   base::win::AssertComInitialized();

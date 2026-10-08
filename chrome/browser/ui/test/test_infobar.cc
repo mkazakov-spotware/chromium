@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 #include <algorithm>
 #include <iterator>
 
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/infobars/infobar_observer.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/ui/browser.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar.h"
 
 TestInfoBar::TestInfoBar() = default;
@@ -22,17 +21,18 @@ void TestInfoBar::PreShow() {
 }
 
 bool TestInfoBar::VerifyUi() {
-  absl::optional<InfoBars> infobars = GetNewInfoBars();
+  base::Optional<InfoBars> infobars = GetNewInfoBars();
   if (!infobars || infobars->empty()) {
     ADD_FAILURE() << "No new infobars were displayed.";
     return false;
   }
 
   bool expected_infobars_found =
-      base::ranges::equal(*infobars, expected_identifiers_, std::equal_to<>(),
-                          [](infobars::InfoBar* infobar) {
-                            return infobar->delegate()->GetIdentifier();
-                          });
+      std::equal(infobars->begin(), infobars->end(),
+                 expected_identifiers_.begin(), expected_identifiers_.end(),
+                 [](infobars::InfoBar* infobar, InfoBarDelegateIdentifier id) {
+                   return infobar->delegate()->GetIdentifier() == id;
+                 });
   if (!expected_infobars_found)
     ADD_FAILURE() << "Found unexpected infobars.";
 
@@ -41,7 +41,7 @@ bool TestInfoBar::VerifyUi() {
 
 void TestInfoBar::WaitForUserDismissal() {
   while (!GetNewInfoBars().value_or(InfoBars()).empty()) {
-    InfoBarObserver observer(GetInfoBarManager(),
+    InfoBarObserver observer(GetInfoBarService(),
                              InfoBarObserver::Type::kInfoBarRemoved);
     observer.Wait();
   }
@@ -60,28 +60,26 @@ const content::WebContents* TestInfoBar::GetWebContents() const {
   return browser()->tab_strip_model()->GetActiveWebContents();
 }
 
-infobars::ContentInfoBarManager* TestInfoBar::GetInfoBarManager() {
-  return const_cast<infobars::ContentInfoBarManager*>(
-      static_cast<const TestInfoBar*>(this)->GetInfoBarManager());
+InfoBarService* TestInfoBar::GetInfoBarService() {
+  return const_cast<InfoBarService*>(
+      static_cast<const TestInfoBar*>(this)->GetInfoBarService());
 }
 
-const infobars::ContentInfoBarManager* TestInfoBar::GetInfoBarManager() const {
+const InfoBarService* TestInfoBar::GetInfoBarService() const {
   // There may be no web contents if the browser window is closing.
   const content::WebContents* web_contents = GetWebContents();
-  return web_contents
-             ? infobars::ContentInfoBarManager::FromWebContents(web_contents)
-             : nullptr;
+  return web_contents ? InfoBarService::FromWebContents(web_contents) : nullptr;
 }
 
-absl::optional<TestInfoBar::InfoBars> TestInfoBar::GetNewInfoBars() const {
-  const infobars::ContentInfoBarManager* infobar_manager = GetInfoBarManager();
-  if (!infobar_manager)
-    return absl::nullopt;
-  const InfoBars& infobars = infobar_manager->infobars_;
+base::Optional<TestInfoBar::InfoBars> TestInfoBar::GetNewInfoBars() const {
+  const InfoBarService* infobar_service = GetInfoBarService();
+  if (!infobar_service)
+    return base::nullopt;
+  const InfoBars& infobars = infobar_service->infobars_;
   if ((infobars.size() < starting_infobars_.size()) ||
       !std::equal(starting_infobars_.begin(), starting_infobars_.end(),
                   infobars.begin()))
-    return absl::nullopt;
+    return base::nullopt;
   return InfoBars(std::next(infobars.begin(), starting_infobars_.size()),
                   infobars.end());
 }

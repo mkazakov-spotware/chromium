@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2012 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -80,10 +80,7 @@ class GritNodeUnittest(unittest.TestCase):
         {
           'SHARED_INTERMEDIATE_DIR': '/outside/src_dir',
         })
-    # Windows adds a c:// prefix, which is why this is needed here.
-    abs_path = os.path.abspath(
-        '/outside/src_dir/devtools/devtools.grd').replace('\\', '/')
-    self.assertEqual({}, id_dict.get(abs_path, None))
+    self.assertEqual({}, id_dict.get('devtools.grd', None))
 
   # Verifies that GetInputFiles() returns the correct list of files
   # corresponding to ChromeScaledImage nodes when assets are missing.

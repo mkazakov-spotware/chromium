@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,10 +22,6 @@ void CastWebPreferences::Update(blink::web_pref::WebPreferences* prefs) {
 
   if (preferences_.javascript_enabled)
     prefs->javascript_enabled = preferences_.javascript_enabled.value();
-
-  if (preferences_.supports_multiple_windows) {
-    prefs->supports_multiple_windows = preferences_.supports_multiple_windows.value();
-  }
 }
 
 }  // namespace chromecast

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,12 +15,8 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
 #include "net/proxy_resolution/proxy_config_service.h"
-#include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom-forward.h"
-#include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/public/mojom/proxy_config.mojom.h"
-#include "services/network/public/mojom/proxy_config_with_annotation.mojom.h"
-#include "services/network/public/mojom/url_loader_factory.mojom.h"
 
 class PrefProxyConfigTracker;
 
@@ -53,10 +49,6 @@ class CastNetworkContexts : public net::ProxyConfigService::Observer,
  public:
   explicit CastNetworkContexts(
       std::vector<std::string> cors_exempt_headers_list);
-
-  CastNetworkContexts(const CastNetworkContexts&) = delete;
-  CastNetworkContexts& operator=(const CastNetworkContexts&) = delete;
-
   ~CastNetworkContexts() override;
 
   // Returns the System NetworkContext. Does any initialization of the
@@ -75,10 +67,6 @@ class CastNetworkContexts : public net::ProxyConfigService::Observer,
   scoped_refptr<network::SharedURLLoaderFactory>
   GetSystemSharedURLLoaderFactory();
 
-  // Sets a list of domains which will be allowed to persist cookies.
-  void SetAllowedDomainsForPersistentCookies(
-      std::vector<std::string> allowed_domains_list);
-
   // Called when content creates a NetworkService. Creates the
   // system NetworkContext, if the network service is enabled.
   void OnNetworkServiceCreated(network::mojom::NetworkService* network_service);
@@ -88,7 +76,7 @@ class CastNetworkContexts : public net::ProxyConfigService::Observer,
       bool in_memory,
       const base::FilePath& relative_partition_path,
       network::mojom::NetworkContextParams* network_context_params,
-      cert_verifier::mojom::CertVerifierCreationParams*
+      network::mojom::CertVerifierCreationParams*
           cert_verifier_creation_params);
 
   // Called when the locale has changed.
@@ -109,9 +97,6 @@ class CastNetworkContexts : public net::ProxyConfigService::Observer,
   // since it initializes some class members.
   network::mojom::NetworkContextParamsPtr CreateSystemNetworkContextParams();
 
-  // Creates parameters for CookieManager of all NetworkContexts.
-  network::mojom::CookieManagerParamsPtr CreateCookieManagerParams();
-
   // Populates proxy-related fields of |network_context_params|. Updated
   // ProxyConfigs will be sent to a NetworkContext created with those params
   // whenever the configuration changes. Can be called more than once to inform
@@ -128,7 +113,6 @@ class CastNetworkContexts : public net::ProxyConfigService::Observer,
   void OnLazyProxyConfigPoll() override;
 
   const std::vector<std::string> cors_exempt_headers_list_;
-  std::vector<std::string> allowed_domains_for_persistent_cookies_;
 
   // The system NetworkContext.
   mojo::Remote<network::mojom::NetworkContext> system_network_context_;
@@ -146,6 +130,8 @@ class CastNetworkContexts : public net::ProxyConfigService::Observer,
   mojo::ReceiverSet<network::mojom::ProxyConfigPollerClient>
       poller_receiver_set_;
   mojo::RemoteSet<network::mojom::ProxyConfigClient> proxy_config_client_set_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastNetworkContexts);
 };
 
 }  // namespace shell

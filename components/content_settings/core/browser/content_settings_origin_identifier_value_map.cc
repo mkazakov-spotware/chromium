@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,14 +23,16 @@ namespace {
 // |resource_identifier| in the precedence order of the rules.
 class RuleIteratorImpl : public RuleIterator {
  public:
+  // |RuleIteratorImpl| takes the ownership of |auto_lock|.
   RuleIteratorImpl(
       const OriginIdentifierValueMap::Rules::const_iterator& current_rule,
       const OriginIdentifierValueMap::Rules::const_iterator& rule_end,
-      std::unique_ptr<base::AutoLock> auto_lock)
+      base::AutoLock* auto_lock)
       : current_rule_(current_rule),
         rule_end_(rule_end),
-        auto_lock_(std::move(auto_lock)) {}
-  ~RuleIteratorImpl() override = default;
+        auto_lock_(auto_lock) {
+  }
+  ~RuleIteratorImpl() override {}
 
   bool HasNext() const override { return (current_rule_ != rule_end_); }
 
@@ -39,7 +41,8 @@ class RuleIteratorImpl : public RuleIterator {
     Rule to_return(current_rule_->first.primary_pattern,
                    current_rule_->first.secondary_pattern,
                    current_rule_->second.value.Clone(),
-                   current_rule_->second.metadata);
+                   current_rule_->second.expiration,
+                   current_rule_->second.session_model);
     ++current_rule_;
     return to_return;
   }
@@ -68,9 +71,9 @@ bool OriginIdentifierValueMap::PatternPair::operator<(
          std::tie(other.primary_pattern, other.secondary_pattern);
 }
 
-OriginIdentifierValueMap::ValueEntry::ValueEntry() = default;
+OriginIdentifierValueMap::ValueEntry::ValueEntry() {}
 
-OriginIdentifierValueMap::ValueEntry::~ValueEntry() = default;
+OriginIdentifierValueMap::ValueEntry::~ValueEntry() {}
 
 std::unique_ptr<RuleIterator> OriginIdentifierValueMap::GetRuleIterator(
     ContentSettingsType content_type,
@@ -85,8 +88,8 @@ std::unique_ptr<RuleIterator> OriginIdentifierValueMap::GetRuleIterator(
   auto it = entries_.find(content_type);
   if (it == entries_.end())
     return nullptr;
-  return std::make_unique<RuleIteratorImpl>(
-      it->second.begin(), it->second.end(), std::move(auto_lock));
+  return std::unique_ptr<RuleIterator>(new RuleIteratorImpl(
+      it->second.begin(), it->second.end(), auto_lock.release()));
 }
 
 size_t OriginIdentifierValueMap::size() const {
@@ -96,9 +99,9 @@ size_t OriginIdentifierValueMap::size() const {
   return size;
 }
 
-OriginIdentifierValueMap::OriginIdentifierValueMap() = default;
+OriginIdentifierValueMap::OriginIdentifierValueMap() {}
 
-OriginIdentifierValueMap::~OriginIdentifierValueMap() = default;
+OriginIdentifierValueMap::~OriginIdentifierValueMap() {}
 
 const base::Value* OriginIdentifierValueMap::GetValue(
     const GURL& primary_url,
@@ -120,12 +123,30 @@ const base::Value* OriginIdentifierValueMap::GetValue(
   return nullptr;
 }
 
+base::Time OriginIdentifierValueMap::GetLastModified(
+    const ContentSettingsPattern& primary_pattern,
+    const ContentSettingsPattern& secondary_pattern,
+    ContentSettingsType content_type) const {
+  DCHECK(primary_pattern.IsValid());
+  DCHECK(secondary_pattern.IsValid());
+
+  PatternPair patterns(primary_pattern, secondary_pattern);
+  auto it = entries_.find(content_type);
+  if (it == entries_.end())
+    return base::Time();
+  auto r = it->second.find(patterns);
+  if (r == it->second.end())
+    return base::Time();
+  return r->second.last_modified;
+}
+
 void OriginIdentifierValueMap::SetValue(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type,
+    base::Time last_modified,
     base::Value value,
-    const RuleMetaData& metadata) {
+    const ContentSettingConstraints& constraints) {
   DCHECK(primary_pattern.IsValid());
   DCHECK(secondary_pattern.IsValid());
   // TODO(raymes): Remove this after we track down the cause of
@@ -134,7 +155,9 @@ void OriginIdentifierValueMap::SetValue(
   PatternPair patterns(primary_pattern, secondary_pattern);
   ValueEntry* entry = &entries_[content_type][patterns];
   entry->value = std::move(value);
-  entry->metadata = metadata;
+  entry->last_modified = last_modified;
+  entry->expiration = constraints.expiration;
+  entry->session_model = constraints.session_model;
 }
 
 void OriginIdentifierValueMap::DeleteValue(

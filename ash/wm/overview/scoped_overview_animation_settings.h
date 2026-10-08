@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 
 #include "ash/wm/overview/overview_types.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "ui/compositor/animation_throughput_reporter.h"
 
 namespace aura {
@@ -32,12 +33,6 @@ class ScopedOverviewAnimationSettings {
                                   aura::Window* window);
   ScopedOverviewAnimationSettings(OverviewAnimationType animation_type,
                                   ui::LayerAnimator* animator);
-
-  ScopedOverviewAnimationSettings(const ScopedOverviewAnimationSettings&) =
-      delete;
-  ScopedOverviewAnimationSettings& operator=(
-      const ScopedOverviewAnimationSettings&) = delete;
-
   ~ScopedOverviewAnimationSettings();
   void AddObserver(ui::ImplicitAnimationObserver* observer);
   void CacheRenderSurface();
@@ -50,7 +45,9 @@ class ScopedOverviewAnimationSettings {
   std::unique_ptr<ui::ScopedLayerAnimationSettings> animation_settings_;
 
   // Report smoothness of close animation.
-  absl::optional<ui::AnimationThroughputReporter> close_reporter_;
+  base::Optional<ui::AnimationThroughputReporter> close_reporter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedOverviewAnimationSettings);
 };
 
 }  // namespace ash

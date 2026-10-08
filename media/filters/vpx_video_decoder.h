@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,12 @@
 #define MEDIA_FILTERS_VPX_VIDEO_DECODER_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
-#include "media/base/supported_video_decoder_config.h"
 #include "media/base/video_decoder.h"
 #include "media/base/video_decoder_config.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_frame_pool.h"
-#include "media/filters/frame_buffer_pool.h"
 #include "media/filters/offloading_video_decoder.h"
 
 struct vpx_codec_ctx;
@@ -30,17 +29,11 @@ class FrameBufferPool;
 // [1] http://wiki.webmproject.org/alpha-channel
 class MEDIA_EXPORT VpxVideoDecoder : public OffloadableVideoDecoder {
  public:
-  static SupportedVideoDecoderConfigs SupportedConfigs();
-
   explicit VpxVideoDecoder(OffloadState offload_state = OffloadState::kNormal);
-
-  VpxVideoDecoder(const VpxVideoDecoder&) = delete;
-  VpxVideoDecoder& operator=(const VpxVideoDecoder&) = delete;
-
   ~VpxVideoDecoder() override;
 
   // VideoDecoder implementation.
-  VideoDecoderType GetDecoderType() const override;
+  std::string GetDisplayName() const override;
   void Initialize(const VideoDecoderConfig& config,
                   bool low_delay,
                   CdmContext* cdm_context,
@@ -53,12 +46,14 @@ class MEDIA_EXPORT VpxVideoDecoder : public OffloadableVideoDecoder {
   // OffloadableVideoDecoder implementation.
   void Detach() override;
 
-  void force_allocation_error_for_testing() {
-    memory_pool_->force_allocation_error_for_testing();
-  }
-
  private:
-  enum class DecoderState { kUninitialized, kNormal, kDecodeFinished, kError };
+  enum DecoderState {
+    kUninitialized,
+    kNormal,
+    kFlushCodec,
+    kDecodeFinished,
+    kError
+  };
 
   // Return values for decoding alpha plane.
   enum AlphaDecodeStatus {
@@ -96,7 +91,7 @@ class MEDIA_EXPORT VpxVideoDecoder : public OffloadableVideoDecoder {
 
   // |state_| must only be read and written to on |offload_task_runner_| if it
   // is non-null and there are outstanding tasks on the offload thread.
-  DecoderState state_ = DecoderState::kUninitialized;
+  DecoderState state_ = kUninitialized;
 
   OutputCB output_cb_;
 
@@ -109,6 +104,8 @@ class MEDIA_EXPORT VpxVideoDecoder : public OffloadableVideoDecoder {
   // with no alpha. |frame_pool_| is used for all other cases.
   scoped_refptr<FrameBufferPool> memory_pool_;
   VideoFramePool frame_pool_;
+
+  DISALLOW_COPY_AND_ASSIGN(VpxVideoDecoder);
 };
 
 // Helper class for creating a VpxVideoDecoder which will offload > 720p VP9
@@ -118,7 +115,7 @@ class OffloadingVpxVideoDecoder : public OffloadingVideoDecoder {
   OffloadingVpxVideoDecoder()
       : OffloadingVideoDecoder(
             1024,
-            std::vector<VideoCodec>(1, VideoCodec::kVP9),
+            std::vector<VideoCodec>(1, kCodecVP9),
             std::make_unique<VpxVideoDecoder>(
                 OffloadableVideoDecoder::OffloadState::kOffloaded)) {}
 };

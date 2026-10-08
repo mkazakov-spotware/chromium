@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -114,9 +114,8 @@ std::string DeltaFileEntryWithData::Url() const {
   return entry_.url();
 }
 
-std::u16string DeltaFileEntryWithData::Title() const {
-  if (!Valid())
-    return u"";
+base::string16 DeltaFileEntryWithData::Title() const {
+  if (!Valid()) return base::UTF8ToUTF16("");
   if (is_bookmark_ && !bookmark_title_.empty()) return bookmark_title_;
   if (data_.title().empty()) return base::UTF8ToUTF16(data_.url().host_piece());
   return data_.title();

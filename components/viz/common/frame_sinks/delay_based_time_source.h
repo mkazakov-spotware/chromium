@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <string>
 
 #include "base/cancelable_callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
-#include "base/timer/timer.h"
+#include "base/macros.h"
+#include "base/memory/weak_ptr.h"
+#include "base/values.h"
 #include "components/viz/common/viz_common_export.h"
 
 namespace base {
@@ -27,7 +27,7 @@ class VIZ_COMMON_EXPORT DelayBasedTimeSourceClient {
   virtual void OnTimerTick() = 0;
 
  protected:
-  virtual ~DelayBasedTimeSourceClient() = default;
+  virtual ~DelayBasedTimeSourceClient() {}
 };
 
 // This timer implements a time source that achieves the specified interval
@@ -36,10 +36,6 @@ class VIZ_COMMON_EXPORT DelayBasedTimeSourceClient {
 class VIZ_COMMON_EXPORT DelayBasedTimeSource {
  public:
   explicit DelayBasedTimeSource(base::SingleThreadTaskRunner* task_runner);
-
-  DelayBasedTimeSource(const DelayBasedTimeSource&) = delete;
-  DelayBasedTimeSource& operator=(const DelayBasedTimeSource&) = delete;
-
   virtual ~DelayBasedTimeSource();
 
   void SetClient(DelayBasedTimeSourceClient* client);
@@ -70,7 +66,7 @@ class VIZ_COMMON_EXPORT DelayBasedTimeSource {
 
   void OnTimerTick();
 
-  raw_ptr<DelayBasedTimeSourceClient> client_;
+  DelayBasedTimeSourceClient* client_;
 
   bool active_;
 
@@ -80,10 +76,13 @@ class VIZ_COMMON_EXPORT DelayBasedTimeSource {
   base::TimeTicks last_tick_time_;
   base::TimeTicks next_tick_time_;
 
-  raw_ptr<base::SingleThreadTaskRunner> task_runner_;
+  base::CancelableOnceClosure tick_closure_;
 
-  base::RepeatingClosure tick_closure_;
-  base::DeadlineTimer timer_;
+  base::SingleThreadTaskRunner* task_runner_;
+
+  base::WeakPtrFactory<DelayBasedTimeSource> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DelayBasedTimeSource);
 };
 
 }  // namespace viz

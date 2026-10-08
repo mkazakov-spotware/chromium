@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,16 +15,13 @@ ClientDataHeaderWebContentsObserver::~ClientDataHeaderWebContentsObserver() =
 
 ClientDataHeaderWebContentsObserver::ClientDataHeaderWebContentsObserver(
     content::WebContents* web_contents)
-    : WebContentsObserver(web_contents),
-      content::WebContentsUserData<ClientDataHeaderWebContentsObserver>(
-          *web_contents) {}
+    : WebContentsObserver(web_contents) {}
 
 void ClientDataHeaderWebContentsObserver::SetHeader(const std::string& header) {
   header_ = header;
-  web_contents()->ForEachRenderFrameHost(
-      [this](content::RenderFrameHost* render_frame_host) {
-        UpdateFrameCCTHeader(render_frame_host);
-      });
+  auto frames = web_contents()->GetAllFrames();
+  for (auto* frame : frames)
+    UpdateFrameCCTHeader(frame);
 }
 
 void ClientDataHeaderWebContentsObserver::RenderFrameCreated(
@@ -34,13 +31,11 @@ void ClientDataHeaderWebContentsObserver::RenderFrameCreated(
 
 void ClientDataHeaderWebContentsObserver::UpdateFrameCCTHeader(
     content::RenderFrameHost* render_frame_host) {
-  if (!render_frame_host->IsRenderFrameLive())
-    return;
   mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> client;
   render_frame_host->GetRemoteAssociatedInterfaces()->GetInterface(&client);
   client->SetCCTClientHeader(header_);
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(ClientDataHeaderWebContentsObserver);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(ClientDataHeaderWebContentsObserver)
 
 }  // namespace customtabs

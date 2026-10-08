@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "services/device/serial/buffer.h"
 #include "services/device/serial/serial_io_handler.h"
 
 namespace device {
@@ -88,7 +89,7 @@ void SerialPortImpl::PortOpened(OpenCallback callback, bool success) {
 
 void SerialPortImpl::StartWriting(mojo::ScopedDataPipeConsumerHandle consumer) {
   if (in_stream_) {
-    receiver_.ReportBadMessage("Data pipe consumer still open.");
+    mojo::ReportBadMessage("Data pipe consumer still open.");
     return;
   }
 
@@ -105,7 +106,7 @@ void SerialPortImpl::StartWriting(mojo::ScopedDataPipeConsumerHandle consumer) {
 
 void SerialPortImpl::StartReading(mojo::ScopedDataPipeProducerHandle producer) {
   if (out_stream_) {
-    receiver_.ReportBadMessage("Data pipe producer still open.");
+    mojo::ReportBadMessage("Data pipe producer still open.");
     return;
   }
 
@@ -199,11 +200,7 @@ void SerialPortImpl::GetPortInfo(GetPortInfoCallback callback) {
   std::move(callback).Run(io_handler_->GetPortInfo());
 }
 
-void SerialPortImpl::Close(bool flush, CloseCallback callback) {
-  if (flush) {
-    io_handler_->Flush(mojom::SerialPortFlushMode::kReceiveAndTransmit);
-  }
-
+void SerialPortImpl::Close(CloseCallback callback) {
   io_handler_->Close(base::BindOnce(&SerialPortImpl::PortClosed,
                                     weak_factory_.GetWeakPtr(),
                                     std::move(callback)));
@@ -220,10 +217,10 @@ void SerialPortImpl::WriteToPort(MojoResult result,
                                        MOJO_WRITE_DATA_FLAG_NONE);
   }
   if (result == MOJO_RESULT_OK) {
-    io_handler_->Write(
-        base::make_span(reinterpret_cast<const uint8_t*>(buffer), num_bytes),
+    io_handler_->Write(std::make_unique<SendBuffer>(
+        static_cast<const uint8_t*>(buffer), num_bytes,
         base::BindOnce(&SerialPortImpl::OnWriteToPortCompleted,
-                       weak_factory_.GetWeakPtr(), num_bytes));
+                       weak_factory_.GetWeakPtr(), num_bytes)));
     return;
   }
   if (result == MOJO_RESULT_SHOULD_WAIT) {
@@ -276,10 +273,10 @@ void SerialPortImpl::ReadFromPortAndWriteOut(
                                          MOJO_WRITE_DATA_FLAG_NONE);
   }
   if (result == MOJO_RESULT_OK) {
-    io_handler_->Read(
-        base::make_span(reinterpret_cast<uint8_t*>(buffer), num_bytes),
+    io_handler_->Read(std::make_unique<ReceiveBuffer>(
+        static_cast<char*>(buffer), num_bytes,
         base::BindOnce(&SerialPortImpl::WriteToOutStream,
-                       weak_factory_.GetWeakPtr()));
+                       weak_factory_.GetWeakPtr())));
     return;
   }
   if (result == MOJO_RESULT_SHOULD_WAIT) {

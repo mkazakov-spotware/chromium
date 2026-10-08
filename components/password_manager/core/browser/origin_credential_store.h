@@ -1,16 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_ORIGIN_CREDENTIAL_STORE_H_
 #define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_ORIGIN_CREDENTIAL_STORE_H_
 
-#include <string>
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/time/time.h"
-#include "base/types/strong_alias.h"
+#include "base/strings/string16.h"
+#include "base/util/type_safety/strong_alias.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -22,17 +21,16 @@ struct PasswordForm;
 class UiCredential {
  public:
   using IsPublicSuffixMatch =
-      base::StrongAlias<class IsPublicSuffixMatchTag, bool>;
+      util::StrongAlias<class IsPublicSuffixMatchTag, bool>;
 
   using IsAffiliationBasedMatch =
-      base::StrongAlias<class IsAffiliationBasedMatchTag, bool>;
+      util::StrongAlias<class IsAffiliationBasedMatchTag, bool>;
 
-  UiCredential(std::u16string username,
-               std::u16string password,
+  UiCredential(base::string16 username,
+               base::string16 password,
                url::Origin origin,
                IsPublicSuffixMatch is_public_suffix_match,
-               IsAffiliationBasedMatch is_affiliation_based_match,
-               base::Time last_used);
+               IsAffiliationBasedMatch is_affiliation_based_match);
   UiCredential(const PasswordForm& form, const url::Origin& affiliated_origin);
   UiCredential(UiCredential&&);
   UiCredential(const UiCredential&);
@@ -40,9 +38,9 @@ class UiCredential {
   UiCredential& operator=(const UiCredential&);
   ~UiCredential();
 
-  const std::u16string& username() const { return username_; }
+  const base::string16& username() const { return username_; }
 
-  const std::u16string& password() const { return password_; }
+  const base::string16& password() const { return password_; }
 
   const url::Origin& origin() const { return origin_; }
 
@@ -54,15 +52,12 @@ class UiCredential {
     return is_affiliation_based_match_;
   }
 
-  base::Time last_used() const { return last_used_; }
-
  private:
-  std::u16string username_;
-  std::u16string password_;
+  base::string16 username_;
+  base::string16 password_;
   url::Origin origin_;
   IsPublicSuffixMatch is_public_suffix_match_{false};
   IsAffiliationBasedMatch is_affiliation_based_match_{false};
-  base::Time last_used_;
 };
 
 bool operator==(const UiCredential& lhs, const UiCredential& rhs);
@@ -74,14 +69,14 @@ std::ostream& operator<<(std::ostream& os, const UiCredential& credential);
 // credentials without creating unnecessary copies.
 class OriginCredentialStore {
  public:
-  enum class BlocklistedStatus {
-    // The origin was not blocklisted at the moment this store was initialized.
-    kNeverBlocklisted,
-    // The origin was blocklisted when the store was initialized, but it isn't
-    // currently blocklisted.
-    kWasBlocklisted,
-    // The origin is currently blocklisted.
-    kIsBlocklisted
+  enum class BlacklistedStatus {
+    // The origin was not blacklisted at the moment this store was initialized.
+    kNeverBlacklisted,
+    // The origin was blacklisted when the store was initialized, but it isn't
+    // currently blacklisted.
+    kWasBlacklisted,
+    // The origin is currently blacklisted.
+    kIsBlacklisted
   };
 
   explicit OriginCredentialStore(url::Origin origin);
@@ -95,15 +90,15 @@ class OriginCredentialStore {
   // Returns references to the held credentials (or an empty set if aren't any).
   base::span<const UiCredential> GetCredentials() const;
 
-  // Sets the blocklisted status. The possible transitions are:
-  // (*, is_blocklisted = true) -> kIsBlocklisted
-  // ((kIsBlocklisted|kWasBlocklisted), is_blocklisted = false)
-  //      -> kWasBlocklisted
-  // (kNeverBlocklisted, is_blocklisted = false) -> kNeverBlocklisted
-  void SetBlocklistedStatus(bool is_blocklisted);
+  // Sets the blacklisted status. The possible transitions are:
+  // (*, is_blacklisted = true) -> kIsBlacklisted
+  // ((kIsBlacklisted|kWasBlacklisted), is_blacklisted = false)
+  //      -> kWasBlacklisted
+  // (kNeverBlacklisted, is_blacklisted = false) -> kNeverBlacklisted
+  void SetBlacklistedStatus(bool is_blacklisted);
 
   // Returns the blacklsited status for |origin_|.
-  BlocklistedStatus GetBlocklistedStatus() const;
+  BlacklistedStatus GetBlacklistedStatus() const;
 
   // Removes all credentials from the store.
   void ClearCredentials();
@@ -115,10 +110,10 @@ class OriginCredentialStore {
   // Contains all previously stored of credentials.
   std::vector<UiCredential> credentials_;
 
-  // The blocklisted status for |origin_|.
-  // Used to know whether unblocklisting UI needs to be displayed and what
+  // The blacklisted status for |origin_|.
+  // Used to know whether unblacklisting UI needs to be displayed and what
   // state it should display;
-  BlocklistedStatus blocklisted_status_ = BlocklistedStatus::kNeverBlocklisted;
+  BlacklistedStatus blacklisted_status_ = BlacklistedStatus::kNeverBlacklisted;
 
   // The origin which all stored passwords are related to.
   const url::Origin origin_;

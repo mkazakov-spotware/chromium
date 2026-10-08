@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ namespace ash {
 class LoginKeyboardTestBase : public LoginTestBase {
  public:
   LoginKeyboardTestBase();
-
-  LoginKeyboardTestBase(const LoginKeyboardTestBase&) = delete;
-  LoginKeyboardTestBase& operator=(const LoginKeyboardTestBase&) = delete;
-
   ~LoginKeyboardTestBase() override;
 
   // Shows keyboard with the height of half of the window height. Asserts that
@@ -40,6 +36,8 @@ class LoginKeyboardTestBase : public LoginTestBase {
 
  private:
   std::vector<LoginUserInfo> users_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoginKeyboardTestBase);
 };
 
 }  // namespace ash

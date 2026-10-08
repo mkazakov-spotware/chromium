@@ -1,26 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-
-import {FileType} from '../../common/js/file_type.js';
-import {TrashEntry} from '../../common/js/trash.js';
-import {util} from '../../common/js/util.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
-import {FilesQuickView} from '../elements/files_quick_view.js';
-
-import {MetadataItem} from './metadata/metadata_item.js';
-import {MetadataModel} from './metadata/metadata_model.js';
-import {PathComponent} from './path_component.js';
-import {QuickViewModel} from './quick_view_model.js';
-import {FileMetadataFormatter} from './ui/file_metadata_formatter.js';
 
 /**
  * Controller of metadata box.
  * This should be initialized with |init| method.
  */
-export class MetadataBoxController {
+class MetadataBoxController {
   /**
    * @param {!MetadataModel} metadataModel
    * @param {!QuickViewModel} quickViewModel
@@ -42,7 +28,7 @@ export class MetadataBoxController {
     this.quickViewModel_ = quickViewModel;
 
     /**
-     * @type {FilesMetadataBoxElement} metadataBox
+     * @type {FilesMetadataBox} metadataBox
      * @private
      */
     this.metadataBox_ = null;
@@ -87,6 +73,9 @@ export class MetadataBoxController {
   /**
    * Initialize the controller with quick view which will be lazily loaded.
    *
+   * TODO(oka): store quickViewModel_.metadataBoxActive state to persistent
+   * storage using FilesApp window.appState?
+   *
    * @param{!FilesQuickView} quickView
    */
   init(quickView) {
@@ -104,7 +93,9 @@ export class MetadataBoxController {
     this.metadataBox_ = this.quickView_.getFilesMetadataBox();
     this.metadataBox_.clear(false);
 
-    this.metadataBox_.setAttribute('files-ng', '');
+    if (util.isFilesNg()) {
+      this.metadataBox_.setAttribute('files-ng', '');
+    }
   }
 
   /**
@@ -164,12 +155,6 @@ export class MetadataBoxController {
       this.metadataBox_.size =
           this.fileMetadataFormatter_.formatSize(item.size, item.hosted, true);
       this.metadataBox_.metadataRendered('size');
-    }
-
-    if (entry.restoreEntry) {
-      this.metadataBox_.originalLocation =
-          this.getFileLocationLabel_(entry.restoreEntry);
-      this.metadataBox_.metadataRendered('originalLocation');
     }
 
     this.updateModificationTime_(entry, items);
@@ -248,8 +233,12 @@ export class MetadataBoxController {
   updateModificationTime_(entry, items) {
     const item = items[0];
 
-    this.metadataBox_.modificationTime =
-        this.fileMetadataFormatter_.formatModDate(item.modificationTime);
+    if (item.modificationTime) {
+      this.metadataBox_.modificationTime =
+          this.fileMetadataFormatter_.formatModDate(item.modificationTime);
+    } else {
+      this.metadataBox_.modificationTime = '';
+    }
   }
 
   /**
@@ -305,7 +294,7 @@ export class MetadataBoxController {
       }
 
       if (chrome.runtime.lastError) {
-        console.warn(chrome.runtime.lastError);
+        console.error(chrome.runtime.lastError);
         size = undefined;
       }
 

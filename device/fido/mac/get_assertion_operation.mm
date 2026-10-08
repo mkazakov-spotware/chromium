@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <set>
 #include <string>
-#include "device/fido/fido_transport_protocol.h"
 
 #import <Foundation/Foundation.h>
 
@@ -14,6 +13,7 @@
 #include "base/mac/foundation_util.h"
 #include "base/mac/mac_logging.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/device_event_log/device_event_log.h"
@@ -53,7 +53,7 @@ void GetAssertionOperation::Run() {
 void GetAssertionOperation::PromptTouchIdDone(bool success) {
   if (!success) {
     std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrOperationDenied,
-                             absl::nullopt);
+                             base::nullopt);
     return;
   }
 
@@ -64,7 +64,7 @@ void GetAssertionOperation::PromptTouchIdDone(bool success) {
       touch_id_context_->authentication_context());
 
   const bool empty_allow_list = request_.allow_list.empty();
-  absl::optional<std::list<Credential>> credentials =
+  base::Optional<std::list<Credential>> credentials =
       empty_allow_list
           ? credential_store_->FindResidentCredentials(request_.rp_id)
           : credential_store_->FindCredentialsFromCredentialDescriptorList(
@@ -73,7 +73,7 @@ void GetAssertionOperation::PromptTouchIdDone(bool success) {
   if (!credentials) {
     FIDO_LOG(ERROR) << "FindCredentialsFromCredentialDescriptorList() failed";
     std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                             absl::nullopt);
+                             base::nullopt);
     return;
   }
 
@@ -82,20 +82,20 @@ void GetAssertionOperation::PromptTouchIdDone(bool success) {
     // invoked first to ensure this doesn't occur.
     NOTREACHED();
     std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrNoCredentials,
-                             absl::nullopt);
+                             base::nullopt);
     return;
   }
 
-  absl::optional<AuthenticatorGetAssertionResponse> response =
+  base::Optional<AuthenticatorGetAssertionResponse> response =
       ResponseForCredential(credentials->front());
   if (!response) {
     std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrNoCredentials,
-                             absl::nullopt);
+                             base::nullopt);
     return;
   }
 
   if (empty_allow_list) {
-    response->num_credentials = credentials->size();
+    response->SetNumCredentials(credentials->size());
     credentials->pop_front();
     matching_credentials_ = std::move(*credentials);
   }
@@ -112,30 +112,38 @@ void GetAssertionOperation::GetNextAssertion(Callback callback) {
   if (!response) {
     NOTREACHED();
     std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                            absl::nullopt);
+                            base::nullopt);
     return;
   }
   std::move(callback).Run(CtapDeviceResponseCode::kSuccess,
                           std::move(*response));
 }
 
-absl::optional<AuthenticatorGetAssertionResponse>
+base::Optional<AuthenticatorGetAssertionResponse>
 GetAssertionOperation::ResponseForCredential(const Credential& credential) {
+  base::Optional<CredentialMetadata> metadata =
+      credential_store_->UnsealMetadata(request_.rp_id, credential);
+  if (!metadata) {
+    // The keychain query already filtered for the RP ID encoded under this
+    // operation's metadata secret, so the credential id really should have
+    // been decryptable.
+    FIDO_LOG(ERROR) << "UnsealMetadata failed";
+    return base::nullopt;
+  }
+
   AuthenticatorData authenticator_data = MakeAuthenticatorData(
-      credential.metadata.sign_counter_type, request_.rp_id,
-      /*attested_credential_data=*/absl::nullopt);
-  absl::optional<std::vector<uint8_t>> signature = GenerateSignature(
+      request_.rp_id, /*attested_credential_data=*/base::nullopt);
+  base::Optional<std::vector<uint8_t>> signature = GenerateSignature(
       authenticator_data, request_.client_data_hash, credential.private_key);
   if (!signature) {
     FIDO_LOG(ERROR) << "GenerateSignature failed";
-    return absl::nullopt;
+    return base::nullopt;
   }
   AuthenticatorGetAssertionResponse response(std::move(authenticator_data),
                                              std::move(*signature));
-  response.transport_used = FidoTransportProtocol::kInternal;
-  response.credential = PublicKeyCredentialDescriptor(
-      CredentialType::kPublicKey, credential.credential_id);
-  response.user_entity = credential.metadata.ToPublicKeyCredentialUserEntity();
+  response.SetCredential(PublicKeyCredentialDescriptor(
+      CredentialType::kPublicKey, credential.credential_id));
+  response.SetUserEntity(metadata->ToPublicKeyCredentialUserEntity());
   return response;
 }
 

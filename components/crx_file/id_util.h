@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@ namespace base {
 class FilePath;
 }
 
-namespace crx_file::id_util {
+namespace crx_file {
+namespace id_util {
 
 // The number of bytes in a legal id.
 extern const size_t kIdSize;
@@ -46,8 +47,9 @@ base::FilePath MaybeNormalizePath(const base::FilePath& path);
 
 // Checks if |id| is a valid extension-id. Extension-ids are used for anything
 // that comes in a CRX file, including apps, extensions, and components.
-bool IdIsValid(base::StringPiece id);
+bool IdIsValid(const std::string& id);
 
-}  // namespace crx_file::id_util
+}  // namespace id_util
+}  // namespace crx_file
 
 #endif  // COMPONENTS_CRX_FILE_ID_UTIL_H_

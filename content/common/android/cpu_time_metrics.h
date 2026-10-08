@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,11 @@ namespace content {
 // power consumption / efficiency of the app. Currently only supports Android,
 // where the sandbox allows isolated processes to read from /proc/self/stats.
 CONTENT_EXPORT void SetupCpuTimeMetrics();
+
+// Sample and report the CPU time UMA metrics immediately on the current thread.
+// Beware: Should only be used for testing and never in combination with
+// SetupCpuTimeMetrics().
+CONTENT_EXPORT void SampleCpuTimeMetricsForTesting();
 
 }  // namespace content
 

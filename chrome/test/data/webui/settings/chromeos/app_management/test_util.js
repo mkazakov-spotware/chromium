@@ -1,11 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 'use strict';
-
-import {BrowserProxy, FakePageHandler, AppManagementComponentBrowserProxy} from 'chrome://os-settings/chromeos/os_settings.js';
-import {TestAppManagementStore} from './test_store.js';
 
 /**
  * Create an app for testing purpose.
@@ -13,32 +10,28 @@ import {TestAppManagementStore} from './test_store.js';
  * @param {Object=} optConfig
  * @return {!App}
  */
-export function createApp(id, config) {
-  return FakePageHandler.createApp(id, config);
+function createApp(id, config) {
+  return app_management.FakePageHandler.createApp(id, config);
 }
 
 /**
- * @return {FakePageHandler}
+ * @return {app_management.FakePageHandler}
  */
-export function setupFakeHandler() {
-  const browserProxy = BrowserProxy.getInstance();
-  const fakeHandler = new FakePageHandler(
+function setupFakeHandler() {
+  const browserProxy = app_management.BrowserProxy.getInstance();
+  const fakeHandler = new app_management.FakePageHandler(
       browserProxy.callbackRouter.$.bindNewPipeAndPassRemote());
   browserProxy.handler = fakeHandler.getRemote();
 
-  const componentBrowserProxy =
-      AppManagementComponentBrowserProxy.getInstance();
-  componentBrowserProxy.handler = fakeHandler;
   return fakeHandler;
 }
 
 /**
- * Replace the app management store instance with a new, empty
- * TestAppManagementStore.
- * @return {TestAppManagementStore}
+ * Replace the app management store instance with a new, empty TestStore.
+ * @return {app_management.TestStore}
  */
-export function replaceStore() {
-  const store = new TestAppManagementStore();
+function replaceStore() {
+  const store = new app_management.TestStore();
   store.setReducersEnabled(true);
   store.replaceSingleton();
   return store;
@@ -48,7 +41,7 @@ export function replaceStore() {
  * @param {Element} element
  * @return {bool}
  */
-export function isHidden(element) {
+function isHidden(element) {
   const rect = element.getBoundingClientRect();
   return rect.height === 0 && rect.width === 0;
 }
@@ -57,7 +50,7 @@ export function isHidden(element) {
  * Replace the current body of the test with a new element.
  * @param {Element} element
  */
-export function replaceBody(element) {
+function replaceBody(element) {
   PolymerTest.clearBody();
 
   window.history.replaceState({}, '', '/');
@@ -74,7 +67,7 @@ function getCurrentUrlSuffix() {
 async function navigateTo(route) {
   window.history.replaceState({}, '', route);
   window.dispatchEvent(new CustomEvent('location-changed'));
-  await flushTasks();
+  await test_util.flushTasks();
 }
 
 /**
@@ -82,7 +75,7 @@ async function navigateTo(route) {
  * @param {Object} permissionType
  * @return {Element}
  */
-export function getPermissionItemByType(view, permissionType) {
+function getPermissionItemByType(view, permissionType) {
   return view.root.querySelector('[permission-type=' + permissionType + ']');
 }
 
@@ -91,9 +84,9 @@ export function getPermissionItemByType(view, permissionType) {
  * @param {Object} permissionType
  * @return {Element}
  */
-export function getPermissionToggleByType(view, permissionType) {
+function getPermissionToggleByType(view, permissionType) {
   return getPermissionItemByType(view, permissionType)
-      .shadowRoot.querySelector('app-management-toggle-row');
+      .$$('app-management-toggle-row');
 }
 
 /**
@@ -101,16 +94,15 @@ export function getPermissionToggleByType(view, permissionType) {
  * @param {Object} permissionType
  * @return {Element}
  */
-export function getPermissionCrToggleByType(view, permissionType) {
-  return getPermissionToggleByType(view, permissionType)
-      .shadowRoot.querySelector('cr-toggle');
+function getPermissionCrToggleByType(view, permissionType) {
+  return getPermissionToggleByType(view, permissionType).$$('cr-toggle');
 }
 
 /**
  * @param {Element} element
  * @return {boolean}
  */
-export function isHiddenByDomIf(element) {
+function isHiddenByDomIf(element) {
   // Happens when the dom-if is false and the element is not rendered.
   if (!element) {
     return true;

@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2013 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -418,6 +418,7 @@ _LANGUAGE_MAP = {
   'neutral' : [ 1200, 'LANG_NEUTRAL', 'SUBLANG_NEUTRAL' ],
   # LANG_USER_DEFAULT LCID, unicode(1200) code page.
   'userdefault' : [ 1200, 'LANG_NEUTRAL', 'SUBLANG_DEFAULT' ],
+  'fake-bidi' : [ 1255, 'LANG_HEBREW', 'SUBLANG_NEUTRAL' ],
   'af' : [ 1252, 'LANG_AFRIKAANS', 'SUBLANG_DEFAULT' ],
   'am' : [ 1200, 'LANG_AMHARIC', 'SUBLANG_DEFAULT' ],
   'ar' : [ 1256, 'LANG_ARABIC', 'SUBLANG_DEFAULT' ],
@@ -585,7 +586,7 @@ def ReadMessagesFromFile(file_name):
 
   values = {}
   for key in messages.keys():
-    values[key] = messages[key]['message'];
+    values[key] = unicode(messages[key]['message']);
   return values
 
 
@@ -688,8 +689,7 @@ def Localize(source, locales, options):
       jinja2_path = os.path.normpath(
           os.path.join(os.path.abspath(__file__),
                        '../../../../third_party/jinja2'))
-    # Insert after main module and before system modules.
-    sys.path.insert(1, os.path.dirname(jinja2_path))
+    sys.path.append(os.path.split(jinja2_path)[0])
     from jinja2 import Environment, FileSystemLoader
 
     # Create jinja2 environment.

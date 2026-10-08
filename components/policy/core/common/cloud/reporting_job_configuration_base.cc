@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 
 #include "base/callback.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/path_service.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
@@ -22,9 +23,6 @@
 #include "components/version_info/version_info.h"
 #include "google_apis/google_api_keys.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "url/gurl.h"
 
 namespace policy {
 
@@ -46,16 +44,16 @@ const char ReportingJobConfigurationBase::DeviceDictionaryBuilder::kName[] =
     "name";
 
 // static
-base::Value::Dict
+base::Value
 ReportingJobConfigurationBase::DeviceDictionaryBuilder::BuildDeviceDictionary(
     const std::string& dm_token,
     const std::string& client_id) {
-  base::Value::Dict device_dictionary;
-  device_dictionary.Set(kDMToken, dm_token);
-  device_dictionary.Set(kClientId, client_id);
-  device_dictionary.Set(kOSVersion, GetOSVersion());
-  device_dictionary.Set(kOSPlatform, GetOSPlatform());
-  device_dictionary.Set(kName, GetDeviceName());
+  base::Value device_dictionary{base::Value::Type::DICTIONARY};
+  device_dictionary.SetStringKey(kDMToken, dm_token);
+  device_dictionary.SetStringKey(kClientId, client_id);
+  device_dictionary.SetStringKey(kOSVersion, GetOSVersion());
+  device_dictionary.SetStringKey(kOSPlatform, GetOSPlatform());
+  device_dictionary.SetStringKey(kName, GetDeviceName());
   return device_dictionary;
 }
 
@@ -114,19 +112,16 @@ const char
         "chromeVersion";
 
 // static
-base::Value
-ReportingJobConfigurationBase::BrowserDictionaryBuilder::BuildBrowserDictionary(
-    bool include_device_info) {
+base::Value ReportingJobConfigurationBase::BrowserDictionaryBuilder::
+    BuildBrowserDictionary() {
   base::Value browser_dictionary{base::Value::Type::DICTIONARY};
 
   base::FilePath browser_id;
   if (base::PathService::Get(base::DIR_EXE, &browser_id)) {
-    browser_dictionary.SetStringKey(kBrowserId, browser_id.AsUTF8Unsafe());
+    browser_dictionary.SetStringKey(kBrowserId, browser_id.value());
   }
 
-  if (include_device_info)
-    browser_dictionary.SetStringKey(kMachineUser, GetOSUsername());
-
+  browser_dictionary.SetStringKey(kMachineUser, GetOSUsername());
   browser_dictionary.SetStringKey(kChromeVersion,
                                   version_info::GetVersionNumber());
   return browser_dictionary;
@@ -166,13 +161,9 @@ ReportingJobConfigurationBase::BrowserDictionaryBuilder::GetStringPath(
 std::string ReportingJobConfigurationBase::GetPayload() {
   // Move context keys to the payload.
   if (context_.has_value()) {
-    payload_.Merge(std::move(*context_));
+    payload_.MergeDictionary(&context_.value());
     context_.reset();
   }
-
-  // Allow children to mutate the payload if need be.
-  UpdatePayloadBeforeGetInternal();
-
   std::string payload_string;
   base::JSONWriter::Write(payload_, &payload_string);
   return payload_string;
@@ -211,45 +202,41 @@ void ReportingJobConfigurationBase::OnURLLoadComplete(
     int net_error,
     int response_code,
     const std::string& response_body) {
-  absl::optional<base::Value> response = base::JSONReader::Read(response_body);
+  base::Optional<base::Value> response = base::JSONReader::Read(response_body);
 
   // Parse the response even if |response_code| is not a success since the
   // response data may contain an error message.
   // Map the net_error/response_code to a DeviceManagementStatus.
-  DeviceManagementStatus status;
+  DeviceManagementStatus code;
   if (net_error != net::OK) {
-    status = DM_STATUS_REQUEST_FAILED;
+    code = DM_STATUS_REQUEST_FAILED;
   } else {
     switch (response_code) {
       case DeviceManagementService::kSuccess:
-        status = DM_STATUS_SUCCESS;
+        code = DM_STATUS_SUCCESS;
         break;
       case DeviceManagementService::kInvalidArgument:
-        status = DM_STATUS_REQUEST_INVALID;
+        code = DM_STATUS_REQUEST_INVALID;
         break;
       case DeviceManagementService::kInvalidAuthCookieOrDMToken:
-        status = DM_STATUS_SERVICE_MANAGEMENT_TOKEN_INVALID;
+        code = DM_STATUS_SERVICE_MANAGEMENT_TOKEN_INVALID;
         break;
       case DeviceManagementService::kDeviceManagementNotAllowed:
-        status = DM_STATUS_SERVICE_MANAGEMENT_NOT_SUPPORTED;
+        code = DM_STATUS_SERVICE_MANAGEMENT_NOT_SUPPORTED;
         break;
       default:
         // Handle all unknown 5xx HTTP error codes as temporary and any other
         // unknown error as one that needs more time to recover.
         if (response_code >= 500 && response_code <= 599)
-          status = DM_STATUS_TEMPORARY_UNAVAILABLE;
+          code = DM_STATUS_TEMPORARY_UNAVAILABLE;
         else
-          status = DM_STATUS_HTTP_STATUS_ERROR;
+          code = DM_STATUS_HTTP_STATUS_ERROR;
         break;
     }
   }
 
-  auto response_dict =
-      response && response->is_dict()
-          ? absl::make_optional(std::move(*response).TakeDict())
-          : absl::nullopt;
-  std::move(callback_).Run(job, status, response_code,
-                           std::move(response_dict));
+  base::Value response_value = response ? std::move(*response) : base::Value();
+  std::move(callback_).Run(job, code, net_error, response_value);
 }
 
 DeviceManagementService::Job::RetryMethod
@@ -263,8 +250,6 @@ void ReportingJobConfigurationBase::OnBeforeRetryInternal(
     int response_code,
     const std::string& response_body) {}
 
-void ReportingJobConfigurationBase::UpdatePayloadBeforeGetInternal() {}
-
 GURL ReportingJobConfigurationBase::GetURL(int last_error) const {
   return GURL(server_url_);
 }
@@ -274,33 +259,29 @@ ReportingJobConfigurationBase::ReportingJobConfigurationBase(
     scoped_refptr<network::SharedURLLoaderFactory> factory,
     CloudPolicyClient* client,
     const std::string& server_url,
-    bool include_device_info,
     UploadCompleteCallback callback)
     : JobConfigurationBase(type,
                            DMAuth::FromDMToken(client->dm_token()),
-                           /*oauth_token=*/absl::nullopt,
+                           /*oauth_token=*/base::nullopt,
                            factory),
+      payload_(base::Value::Type::DICTIONARY),
       callback_(std::move(callback)),
       server_url_(server_url) {
   DCHECK(GetAuth().has_dm_token());
-  InitializePayload(client, include_device_info);
+  InitializePayload(client);
 }
 
 ReportingJobConfigurationBase::~ReportingJobConfigurationBase() = default;
 
 void ReportingJobConfigurationBase::InitializePayload(
-    CloudPolicyClient* client,
-    bool include_device_info) {
+    CloudPolicyClient* client) {
   AddParameter("key", google_apis::GetAPIKey());
 
-  if (include_device_info) {
-    payload_.Set(DeviceDictionaryBuilder::kDeviceKey,
-                 DeviceDictionaryBuilder::BuildDeviceDictionary(
-                     client->dm_token(), client->client_id()));
-  }
-  payload_.Set(
-      BrowserDictionaryBuilder::kBrowserKey,
-      BrowserDictionaryBuilder::BuildBrowserDictionary(include_device_info));
+  payload_.SetKey(DeviceDictionaryBuilder::kDeviceKey,
+                  DeviceDictionaryBuilder::BuildDeviceDictionary(
+                      client->dm_token(), client->client_id()));
+  payload_.SetKey(BrowserDictionaryBuilder::kBrowserKey,
+                  BrowserDictionaryBuilder::BuildBrowserDictionary());
 }
 
 }  // namespace policy

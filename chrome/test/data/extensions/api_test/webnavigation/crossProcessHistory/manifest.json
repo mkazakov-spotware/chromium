@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - crossProcessHistory.",
   "background": {
-    "scripts": ["test_crossProcessHistory.js"],
-    "persistent": true
+    "page": "test_crossProcessHistory.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

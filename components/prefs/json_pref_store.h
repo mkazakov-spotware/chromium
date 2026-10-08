@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,12 +16,12 @@
 #include "base/files/file_path.h"
 #include "base/files/important_file_writer.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
-#include "base/strings/string_piece.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
-#include "base/values.h"
 #include "components/prefs/persistent_pref_store.h"
 #include "components/prefs/pref_filter.h"
 #include "components/prefs/prefs_export.h"
@@ -29,18 +29,19 @@
 class PrefFilter;
 
 namespace base {
+class DictionaryValue;
 class FilePath;
 class JsonPrefStoreCallbackTest;
 class JsonPrefStoreLossyWriteTest;
 class SequencedTaskRunner;
 class WriteCallbacksObserver;
-}  // namespace base
+class Value;
+}
 
 // A writable PrefStore implementation that is used for user preferences.
 class COMPONENTS_PREFS_EXPORT JsonPrefStore
     : public PersistentPrefStore,
       public base::ImportantFileWriter::DataSerializer,
-      public base::ImportantFileWriter::BackgroundDataSerializer,
       public base::SupportsWeakPtr<JsonPrefStore> {
  public:
   struct ReadResult;
@@ -69,16 +70,12 @@ class COMPONENTS_PREFS_EXPORT JsonPrefStore
                 scoped_refptr<base::SequencedTaskRunner> file_task_runner =
                     base::ThreadPool::CreateSequencedTaskRunner(
                         {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
-                         base::TaskShutdownBehavior::BLOCK_SHUTDOWN}),
-                bool read_only = false);
-
-  JsonPrefStore(const JsonPrefStore&) = delete;
-  JsonPrefStore& operator=(const JsonPrefStore&) = delete;
+                         base::TaskShutdownBehavior::BLOCK_SHUTDOWN}));
 
   // PrefStore overrides:
-  bool GetValue(base::StringPiece key,
+  bool GetValue(const std::string& key,
                 const base::Value** result) const override;
-  base::Value::Dict GetValues() const override;
+  std::unique_ptr<base::DictionaryValue> GetValues() const override;
   void AddObserver(PrefStore::Observer* observer) override;
   void RemoveObserver(PrefStore::Observer* observer) override;
   bool HasObservers() const override;
@@ -87,10 +84,10 @@ class COMPONENTS_PREFS_EXPORT JsonPrefStore
   // PersistentPrefStore overrides:
   bool GetMutableValue(const std::string& key, base::Value** result) override;
   void SetValue(const std::string& key,
-                base::Value value,
+                std::unique_ptr<base::Value> value,
                 uint32_t flags) override;
   void SetValueSilently(const std::string& key,
-                        base::Value value,
+                        std::unique_ptr<base::Value> value,
                         uint32_t flags) override;
   void RemoveValue(const std::string& key, uint32_t flags) override;
   bool ReadOnly() const override;
@@ -121,11 +118,9 @@ class COMPONENTS_PREFS_EXPORT JsonPrefStore
   void RegisterOnNextSuccessfulWriteReply(
       base::OnceClosure on_next_successful_write_reply);
 
-  void OnStoreDeletionFromDisk() override;
+  void ClearMutableValues() override;
 
-#if defined(UNIT_TEST)
-  base::ImportantFileWriter& get_writer() { return writer_; }
-#endif
+  void OnStoreDeletionFromDisk() override;
 
  private:
   friend class base::JsonPrefStoreCallbackTest;
@@ -133,10 +128,6 @@ class COMPONENTS_PREFS_EXPORT JsonPrefStore
   friend class base::WriteCallbacksObserver;
 
   ~JsonPrefStore() override;
-
-  // Perform pre-serialization bookkeeping common to either serialization flow
-  // (main thread or background thread).
-  void PerformPreserializationTasks();
 
   // If |write_success| is true, runs |on_next_successful_write_|.
   // Otherwise, re-registers |on_next_successful_write_|.
@@ -166,9 +157,6 @@ class COMPONENTS_PREFS_EXPORT JsonPrefStore
 
   // ImportantFileWriter::DataSerializer overrides:
   bool SerializeData(std::string* output) override;
-  // ImportantFileWriter::BackgroundDataSerializer implementation.
-  base::ImportantFileWriter::BackgroundDataProducerCallback
-  GetSerializedDataProducerForBackgroundSequence() override;
 
   // This method is called after the JSON file has been read and the result has
   // potentially been intercepted and modified by |pref_filter_|.
@@ -211,6 +199,8 @@ class COMPONENTS_PREFS_EXPORT JsonPrefStore
   base::OnceClosure on_next_successful_write_reply_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(JsonPrefStore);
 };
 
 #endif  // COMPONENTS_PREFS_JSON_PREF_STORE_H_

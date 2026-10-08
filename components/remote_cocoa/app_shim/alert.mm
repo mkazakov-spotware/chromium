@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -72,7 +72,7 @@ const int kMessageTextMaxSlots = 2000;
     else
       slots_count++;
     if (slots_count > kMessageTextMaxSlots) {
-      std::u16string info_text = base::SysNSStringToUTF16(informative_text);
+      base::string16 info_text = base::SysNSStringToUTF16(informative_text);
       informative_text = base::SysUTF16ToNSString(
           gfx::TruncateString(info_text, index, gfx::WORD_BREAK));
       break;
@@ -146,7 +146,7 @@ const int kMessageTextMaxSlots = 2000;
   if (message_has_rtl && message_text_field) {
     base::scoped_nsobject<NSMutableParagraphStyle> alignment(
         [[NSParagraphStyle defaultParagraphStyle] mutableCopy]);
-    [alignment setAlignment:NSTextAlignmentRight];
+    [alignment setAlignment:NSRightTextAlignment];
 
     NSDictionary* alignment_attributes =
         @{NSParagraphStyleAttributeName : alignment};
@@ -164,8 +164,8 @@ const int kMessageTextMaxSlots = 2000;
     base::scoped_nsobject<NSMutableParagraphStyle> alignment(
         [[NSParagraphStyle defaultParagraphStyle] mutableCopy]);
     [alignment setAlignment:(direction == base::i18n::RIGHT_TO_LEFT)
-                                ? NSTextAlignmentRight
-                                : NSTextAlignmentLeft];
+                                ? NSRightTextAlignment
+                                : NSLeftTextAlignment];
 
     NSDictionary* alignment_attributes =
         @{NSParagraphStyleAttributeName : alignment};
@@ -240,15 +240,15 @@ const int kMessageTextMaxSlots = 2000;
   [NSApp endSheet:[[self alert] window]];
 }
 
-- (std::u16string)input {
+- (base::string16)input {
   if (_textField)
     return base::SysNSStringToUTF16([_textField stringValue]);
-  return std::u16string();
+  return base::string16();
 }
 
 - (bool)shouldSuppress {
   if ([[self alert] showsSuppressionButton])
-    return [[[self alert] suppressionButton] state] == NSControlStateValueOn;
+    return [[[self alert] suppressionButton] state] == NSOnState;
   return false;
 }
 
@@ -262,12 +262,10 @@ namespace remote_cocoa {
 AlertBridge::AlertBridge(
     mojo::PendingReceiver<mojom::AlertBridge> bridge_receiver)
     : weak_factory_(this) {
-  if (bridge_receiver.is_valid()) {
-    mojo_receiver_.Bind(std::move(bridge_receiver),
-                        ui::WindowResizeHelperMac::Get()->task_runner());
-    mojo_receiver_.set_disconnect_handler(base::BindOnce(
-        &AlertBridge::OnMojoDisconnect, weak_factory_.GetWeakPtr()));
-  }
+  mojo_receiver_.Bind(std::move(bridge_receiver),
+                      ui::WindowResizeHelperMac::Get()->task_runner());
+  mojo_receiver_.set_disconnect_handler(base::BindOnce(
+      &AlertBridge::OnMojoDisconnect, weak_factory_.GetWeakPtr()));
 }
 
 AlertBridge::~AlertBridge() {

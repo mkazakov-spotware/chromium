@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_timeouts.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "chrome/browser/devtools/devtools_file_watcher.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -44,10 +44,9 @@ class DevToolsFileWatcherTest : public testing::Test {
 
 TEST_F(DevToolsFileWatcherTest, BasicUsage) {
   std::unique_ptr<DevToolsFileWatcher, DevToolsFileWatcher::Deleter> watcher(
-      new DevToolsFileWatcher(
-          base::BindRepeating(&DevToolsFileWatcherTest::Callback,
-                              base::Unretained(this)),
-          base::SequencedTaskRunner::GetCurrentDefault()));
+      new DevToolsFileWatcher(base::Bind(&DevToolsFileWatcherTest::Callback,
+                                         base::Unretained(this)),
+                              base::SequencedTaskRunnerHandle::Get()));
 
   base::FilePath changed_path = base_path_.Append(FILE_PATH_LITERAL("file1"));
   base::WriteFile(changed_path, "test");

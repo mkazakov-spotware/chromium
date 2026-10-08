@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include "ash/public/cpp/ash_public_export.h"
 #include "ash/public/cpp/keyboard/arc/arc_input_method_bounds_tracker.h"
+#include "base/macros.h"
+#include "base/observer_list.h"
 #include "components/exo/input_method_surface_manager.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -17,11 +19,6 @@ class ASH_PUBLIC_EXPORT ArcInputMethodSurfaceManager
       public ArcInputMethodBoundsTracker {
  public:
   ArcInputMethodSurfaceManager();
-
-  ArcInputMethodSurfaceManager(const ArcInputMethodSurfaceManager&) = delete;
-  ArcInputMethodSurfaceManager& operator=(const ArcInputMethodSurfaceManager&) =
-      delete;
-
   ~ArcInputMethodSurfaceManager() override;
 
   // exo::InputMethodSurfaceManager:
@@ -32,6 +29,8 @@ class ASH_PUBLIC_EXPORT ArcInputMethodSurfaceManager
 
  private:
   exo::InputMethodSurface* input_method_surface_ = nullptr;  // Not owned
+
+  DISALLOW_COPY_AND_ASSIGN(ArcInputMethodSurfaceManager);
 };
 
 }  // namespace ash

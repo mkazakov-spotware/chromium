@@ -31,7 +31,6 @@
 #include "third_party/blink/renderer/modules/event_target_modules.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_track.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_descriptor.h"
 #include "third_party/blink/renderer/platform/timer.h"
 
@@ -40,7 +39,6 @@ namespace blink {
 class ExceptionState;
 class ExecutionContext;
 class ScriptState;
-class TransferredMediaStreamTrack;
 
 class MODULES_EXPORT MediaStreamObserver : public GarbageCollectedMixin {
  public:
@@ -69,14 +67,10 @@ class MODULES_EXPORT MediaStream final
   // are created for any MediaStreamComponents attached to the descriptor.
   static MediaStream* Create(ExecutionContext*, MediaStreamDescriptor*);
   // Creates a MediaStream matching the MediaStreamDescriptor. MediaStreamTracks
-  // are created for any MediaStreamComponents attached to the descriptor. If
-  // TransferredMediaStreamTrack != nullptr, exactly one track is expected in
-  // the MediaStreamDescriptor, and the created track will be used as the
-  // underlying implementation of this track. The stream is returned via
-  // callback.
+  // are created for any MediaStreamComponents attached to the descriptor. It
+  // returns the stream via callback.
   static void Create(ExecutionContext*,
                      MediaStreamDescriptor*,
-                     TransferredMediaStreamTrack*,
                      base::OnceCallback<void(MediaStream*)> callback);
   // Creates a MediaStream with the specified MediaStreamDescriptor and
   // MediaStreamTracks. The tracks must match the MediaStreamComponents attached
@@ -94,7 +88,6 @@ class MODULES_EXPORT MediaStream final
 
   MediaStream(ExecutionContext*,
               MediaStreamDescriptor*,
-              TransferredMediaStreamTrack*,
               base::OnceCallback<void(MediaStream*)> callback);
   MediaStream(ExecutionContext*,
               MediaStreamDescriptor*,
@@ -131,9 +124,8 @@ class MODULES_EXPORT MediaStream final
   void RegisterObserver(MediaStreamObserver*);
   void UnregisterObserver(MediaStreamObserver*);
 
-  void StreamEnded();
-
   // MediaStreamDescriptorClient implementation
+  void StreamEnded() override;
   void AddTrackByComponentAndFireEvents(MediaStreamComponent*,
                                         DispatchEventTiming) override;
   void RemoveTrackByComponentAndFireEvents(MediaStreamComponent*,
@@ -185,7 +177,7 @@ class MODULES_EXPORT MediaStream final
   // including image capture for video tracks.
   base::OnceCallback<void(MediaStream*)> media_stream_initialized_callback_;
 
-  HeapTaskRunnerTimer<MediaStream> scheduled_event_timer_;
+  TaskRunnerTimer<MediaStream> scheduled_event_timer_;
   HeapVector<Member<Event>> scheduled_events_;
 
   uint32_t number_of_video_tracks_initialized_ = 0;

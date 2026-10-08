@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,12 @@ PendingTask::PendingTask() = default;
 
 PendingTask::PendingTask(const Location& posted_from,
                          OnceClosure task,
-                         TimeTicks queue_time,
                          TimeTicks delayed_run_time,
-                         TimeDelta leeway,
-                         subtle::DelayPolicy delay_policy)
+                         Nestable nestable)
     : task(std::move(task)),
       posted_from(posted_from),
-      queue_time(queue_time),
       delayed_run_time(delayed_run_time),
-      leeway(leeway),
-      delay_policy(delay_policy) {}
+      nestable(nestable) {}
 
 PendingTask::PendingTask(PendingTask&& other) = default;
 
@@ -28,24 +24,20 @@ PendingTask::~PendingTask() = default;
 
 PendingTask& PendingTask::operator=(PendingTask&& other) = default;
 
-TimeTicks PendingTask::GetDesiredExecutionTime() const {
-  if (!delayed_run_time.is_null())
-    return delayed_run_time;
-  return queue_time;
-}
+bool PendingTask::operator<(const PendingTask& other) const {
+  // Since the top of a priority queue is defined as the "greatest" element, we
+  // need to invert the comparison here.  We want the smaller time to be at the
+  // top of the heap.
 
-TimeTicks PendingTask::earliest_delayed_run_time() const {
-  DCHECK(!delayed_run_time.is_null());
-  if (delay_policy == subtle::DelayPolicy::kFlexiblePreferEarly)
-    return delayed_run_time - leeway;
-  return delayed_run_time;
-}
+  if (delayed_run_time < other.delayed_run_time)
+    return false;
 
-TimeTicks PendingTask::latest_delayed_run_time() const {
-  DCHECK(!delayed_run_time.is_null());
-  if (delay_policy == subtle::DelayPolicy::kFlexibleNoSooner)
-    return delayed_run_time + leeway;
-  return delayed_run_time;
+  if (delayed_run_time > other.delayed_run_time)
+    return true;
+
+  // If the times happen to match, then we use the sequence number to decide.
+  // Compare the difference to support integer roll-over.
+  return (sequence_num - other.sequence_num) > 0;
 }
 
 }  // namespace base

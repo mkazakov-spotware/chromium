@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 
 #include "base/check.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 ScopedNSAutoreleasePool::ScopedNSAutoreleasePool()
     : autorelease_pool_([[NSAutoreleasePool alloc] init]) {
@@ -27,4 +28,5 @@ void ScopedNSAutoreleasePool::Recycle() {
   DCHECK(autorelease_pool_);
 }
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

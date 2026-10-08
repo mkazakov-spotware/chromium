@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "base/check_op.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/trace_event/trace_event.h"
 #include "base/win/core_winrt_util.h"
 #include "base/win/windows_version.h"
 #include "skia/ext/skia_utils_win.h"
@@ -171,8 +170,7 @@ std::string GetCssColorWithAlpha(CC::ClosedCaptionColor caption_color,
   return color_utils::SkColorToRgbaString(SkColorSetA(color, opacity));
 }
 
-absl::optional<CaptionStyle> InitializeFromSystemSettings() {
-  TRACE_EVENT0("ui", "InitializeFromSystemSettings");
+base::Optional<CaptionStyle> InitializeFromSystemSettings() {
   DCHECK_GE(base::win::GetVersion(), base::win::Version::WIN10);
   DCHECK(base::FeatureList::IsEnabled(features::kSystemCaptionStyle));
 
@@ -182,7 +180,7 @@ absl::optional<CaptionStyle> InitializeFromSystemSettings() {
       base::win::ScopedHString::ResolveCoreWinRTStringDelayload();
 
   if (!can_use_scoped_hstring)
-    return absl::nullopt;
+    return base::nullopt;
 
   base::win::ScopedHString closed_caption_properties_string =
       base::win::ScopedHString::Create(
@@ -193,55 +191,55 @@ absl::optional<CaptionStyle> InitializeFromSystemSettings() {
       closed_caption_properties_string.get(),
       IID_PPV_ARGS(&closed_caption_properties_statics));
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionSize font_size = CC::ClosedCaptionSize_Default;
   hr = closed_caption_properties_statics->get_FontSize(&font_size);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionEdgeEffect edge_effect = CC::ClosedCaptionEdgeEffect_Default;
   hr = closed_caption_properties_statics->get_FontEffect(&edge_effect);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionStyle font_family = CC::ClosedCaptionStyle_Default;
   hr = closed_caption_properties_statics->get_FontStyle(&font_family);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionColor font_color = CC::ClosedCaptionColor_Default;
   hr = closed_caption_properties_statics->get_FontColor(&font_color);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionOpacity font_opacity = CC::ClosedCaptionOpacity_Default;
   hr = closed_caption_properties_statics->get_FontOpacity(&font_opacity);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionColor background_color = CC::ClosedCaptionColor_Default;
   hr =
       closed_caption_properties_statics->get_BackgroundColor(&background_color);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionOpacity background_opacity =
       CC::ClosedCaptionOpacity_Default;
   hr = closed_caption_properties_statics->get_BackgroundOpacity(
       &background_opacity);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionColor region_color = CC::ClosedCaptionColor_Default;
   hr = closed_caption_properties_statics->get_RegionColor(&region_color);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CC::ClosedCaptionOpacity region_opacity = CC::ClosedCaptionOpacity_Default;
   hr = closed_caption_properties_statics->get_RegionOpacity(&region_opacity);
   if (FAILED(hr))
-    return absl::nullopt;
+    return base::nullopt;
 
   CaptionStyle caption_style;
   if (font_family != CC::ClosedCaptionStyle_Default) {
@@ -279,14 +277,14 @@ absl::optional<CaptionStyle> InitializeFromSystemSettings() {
 
 }  // namespace
 
-absl::optional<CaptionStyle> CaptionStyle::FromSystemSettings() {
+base::Optional<CaptionStyle> CaptionStyle::FromSystemSettings() {
   if (base::win::GetVersion() >= base::win::Version::WIN10 &&
       base::FeatureList::IsEnabled(features::kSystemCaptionStyle)) {
     return InitializeFromSystemSettings();
   }
   // Return default CaptionStyle for pre Win10 versions since system settings
   // don't allow caption styling.
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace ui

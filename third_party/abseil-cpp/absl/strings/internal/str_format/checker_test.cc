@@ -39,16 +39,16 @@ std::string ConvToString(FormatConversionCharSet conv) {
 
 TEST(StrFormatChecker, ArgumentToConv) {
   FormatConversionCharSet conv = ArgumentToConv<std::string>();
-  EXPECT_EQ(ConvToString(conv), "sv");
+  EXPECT_EQ(ConvToString(conv), "s");
 
   conv = ArgumentToConv<const char*>();
   EXPECT_EQ(ConvToString(conv), "sp");
 
   conv = ArgumentToConv<double>();
-  EXPECT_EQ(ConvToString(conv), "fFeEgGaAv");
+  EXPECT_EQ(ConvToString(conv), "fFeEgGaA");
 
   conv = ArgumentToConv<int>();
-  EXPECT_EQ(ConvToString(conv), "cdiouxXfFeEgGaAv*");
+  EXPECT_EQ(ConvToString(conv), "cdiouxXfFeEgGaA*");
 
   conv = ArgumentToConv<std::string*>();
   EXPECT_EQ(ConvToString(conv), "p");

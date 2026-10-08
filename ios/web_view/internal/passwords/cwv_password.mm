@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,33 +34,22 @@
 
 #pragma mark - Public
 
-- (BOOL)isBlocked {
-  return _passwordForm.blocked_by_user;
-}
-
 - (NSString*)username {
-  if (self.blocked) {
+  if (self.blacklisted) {
     return nil;
   }
   return base::SysUTF16ToNSString(_passwordForm.username_value);
 }
 
 - (NSString*)password {
-  if (self.blocked) {
+  if (self.blacklisted) {
     return nil;
   }
   return base::SysUTF16ToNSString(_passwordForm.password_value);
 }
 
-- (NSString*)keychainIdentifier {
-  if (self.blocked) {
-    return nil;
-  }
-  // On iOS, the LoginDatabase uses Keychain API to store passwords. The
-  // "encrypted" version of the password is a unique ID (UUID) that is
-  // stored as an attribute along with the password in the keychain.
-  // See login_database_ios.cc for more info.
-  return base::SysUTF8ToNSString(_passwordForm.encrypted_password);
+- (BOOL)isBlacklisted {
+  return _passwordForm.blocked_by_user;
 }
 
 #pragma mark - NSObject

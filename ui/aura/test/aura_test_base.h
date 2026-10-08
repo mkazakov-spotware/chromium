@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <memory>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -14,7 +16,7 @@
 #include "ui/aura/test/aura_test_helper.h"
 #include "ui/aura/window_tree_host.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -33,10 +35,6 @@ namespace test {
 class AuraTestBase : public testing::Test {
  public:
   AuraTestBase();
-
-  AuraTestBase(const AuraTestBase&) = delete;
-  AuraTestBase& operator=(const AuraTestBase&) = delete;
-
   ~AuraTestBase() override;
 
   // testing::Test:
@@ -58,20 +56,22 @@ class AuraTestBase : public testing::Test {
 
   Window* root_window() { return helper_->GetContext(); }
   WindowTreeHost* host() { return helper_->GetHost(); }
-  ui::EventSink* GetEventSink() { return host()->GetEventSink(); }
+  ui::EventSink* event_sink() { return host()->event_sink(); }
   TestScreen* test_screen() { return helper_->GetTestScreen(); }
   client::FocusClient* focus_client() { return helper_->GetFocusClient(); }
 
  private:
   base::test::TaskEnvironment task_environment_;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::win::ScopedCOMInitializer com_initializer_;
 #endif
 
   bool setup_called_ = false;
   bool teardown_called_ = false;
   std::unique_ptr<AuraTestHelper> helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(AuraTestBase);
 };
 
 }  // namespace test

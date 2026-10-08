@@ -1,11 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromeos/system/fake_statistics_provider.h"
-#include "base/task/sequenced_task_runner.h"
 
 #include <utility>
+
+#include "base/threading/sequenced_task_runner_handle.h"
 
 namespace chromeos {
 namespace system {
@@ -21,45 +22,42 @@ void FakeStatisticsProvider::StartLoadingMachineStatistics(
 void FakeStatisticsProvider::ScheduleOnMachineStatisticsLoaded(
     base::OnceClosure callback) {
   // No load is required for FakeStatisticsProvider.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                           std::move(callback));
+  base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                   std::move(callback));
 }
 
-absl::optional<base::StringPiece> FakeStatisticsProvider::GetMachineStatistic(
-    base::StringPiece name) {
-  const auto match = machine_statistics_.find(name);
-  if (match == machine_statistics_.end())
-    return absl::nullopt;
-
-  return base::StringPiece(match->second);
+bool FakeStatisticsProvider::GetMachineStatistic(const std::string& name,
+                                                 std::string* result) {
+  std::map<std::string, std::string>::const_iterator match =
+      machine_statistics_.find(name);
+  if (match != machine_statistics_.end() && result)
+    *result = match->second;
+  return match != machine_statistics_.end();
 }
 
-FakeStatisticsProvider::FlagValue FakeStatisticsProvider::GetMachineFlag(
-    base::StringPiece name) {
-  const auto match = machine_flags_.find(name);
-  if (match == machine_flags_.end())
-    return FlagValue::kUnset;
-
-  return match->second ? FlagValue::kTrue : FlagValue::kFalse;
+bool FakeStatisticsProvider::GetMachineFlag(const std::string& name,
+                                            bool* result) {
+  std::map<std::string, bool>::const_iterator match = machine_flags_.find(name);
+  if (match != machine_flags_.end() && result)
+    *result = match->second;
+  return match != machine_flags_.end();
 }
 
 void FakeStatisticsProvider::Shutdown() {
 }
 
 bool FakeStatisticsProvider::IsRunningOnVm() {
-  return GetMachineStatistic(kIsVmKey) == kIsVmValueTrue;
+  std::string is_vm;
+  return GetMachineStatistic(kIsVmKey, &is_vm) && is_vm == kIsVmValueTrue;
 }
 
-StatisticsProvider::VpdStatus FakeStatisticsProvider::GetVpdStatus() const {
-  return vpd_status_;
-}
 
 void FakeStatisticsProvider::SetMachineStatistic(const std::string& key,
                                                  const std::string& value) {
   machine_statistics_[key] = value;
 }
 
-void FakeStatisticsProvider::ClearMachineStatistic(base::StringPiece key) {
+void FakeStatisticsProvider::ClearMachineStatistic(const std::string& key) {
   machine_statistics_.erase(key);
 }
 
@@ -68,12 +66,8 @@ void FakeStatisticsProvider::SetMachineFlag(const std::string& key,
   machine_flags_[key] = value;
 }
 
-void FakeStatisticsProvider::ClearMachineFlag(base::StringPiece key) {
+void FakeStatisticsProvider::ClearMachineFlag(const std::string& key) {
   machine_flags_.erase(key);
-}
-
-void FakeStatisticsProvider::SetVpdStatus(VpdStatus new_status) {
-  vpd_status_ = new_status;
 }
 
 ScopedFakeStatisticsProvider::ScopedFakeStatisticsProvider() {
@@ -81,7 +75,7 @@ ScopedFakeStatisticsProvider::ScopedFakeStatisticsProvider() {
 }
 
 ScopedFakeStatisticsProvider::~ScopedFakeStatisticsProvider() {
-  StatisticsProvider::SetTestProvider(nullptr);
+  StatisticsProvider::SetTestProvider(NULL);
 }
 
 }  // namespace system

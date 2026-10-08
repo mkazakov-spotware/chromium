@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,11 +28,11 @@ void VrTestSuite::Initialize() {
   mojo::core::Init();
 
   base::FilePath pak_path;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   ui::RegisterPathProvider();
   base::PathService::Get(ui::DIR_RESOURCE_PAKS_ANDROID, &pak_path);
 #else
-  base::PathService::Get(base::DIR_ASSETS, &pak_path);
+  base::PathService::Get(base::DIR_MODULE, &pak_path);
 #endif
   ui::ResourceBundle::InitSharedInstanceWithPakPath(
       pak_path.AppendASCII("vr_test.pak"));

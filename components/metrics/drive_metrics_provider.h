@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include "base/callback_forward.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "components/metrics/metrics_provider.h"
@@ -23,13 +25,9 @@ namespace metrics {
 class DriveMetricsProvider : public metrics::MetricsProvider {
  public:
   explicit DriveMetricsProvider(int local_state_path_key);
-
-  DriveMetricsProvider(const DriveMetricsProvider&) = delete;
-  DriveMetricsProvider& operator=(const DriveMetricsProvider&) = delete;
-
   ~DriveMetricsProvider() override;
 
-  // metrics::MetricsProvider:
+  // metrics::MetricsDataProvider:
   void AsyncInit(base::OnceClosure done_callback) override;
   void ProvideSystemProfileMetrics(
       metrics::SystemProfileProto* system_profile_proto) override;
@@ -83,6 +81,8 @@ class DriveMetricsProvider : public metrics::MetricsProvider {
 
   SEQUENCE_CHECKER(sequence_checker_);
   base::WeakPtrFactory<DriveMetricsProvider> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DriveMetricsProvider);
 };
 
 }  // namespace metrics

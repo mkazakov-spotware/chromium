@@ -1,15 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/gpu/browser_exposed_gpu_interfaces.h"
 
-#include "build/build_config.h"
 #include "content/public/common/content_client.h"
 #include "content/public/gpu/content_gpu_client.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
+#include "ui/base/ui_base_features.h"
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
@@ -24,8 +24,9 @@ void ExposeGpuInterfacesToBrowser(
         gpu_preferences, gpu_workarounds, binders);
   }
 
-#if BUILDFLAG(IS_OZONE)
-  ui::OzonePlatform::GetInstance()->AddInterfaces(binders);
+#if defined(USE_OZONE)
+  if (features::IsUsingOzonePlatform())
+    ui::OzonePlatform::GetInstance()->AddInterfaces(binders);
 #endif
 }
 

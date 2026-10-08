@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,16 +13,16 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.ObserverList;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.homepage.settings.HomepageMetricsEnums.HomepageLocationType;
 import org.chromium.chrome.browser.homepage.settings.HomepageSettings;
 import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomizations;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.url.GURL;
 
 /**
  * Provides information regarding homepage enabled states and URI.
@@ -85,7 +85,12 @@ public class HomepageManager implements HomepagePolicyManager.HomepagePolicyStat
      * @param context {@link Context} used for launching a settings activity.
      */
     public void onMenuClick(Context context) {
-        mSettingsLauncher.launchSettingsActivity(context, HomepageSettings.class);
+        assert ChromeFeatureList.isInitialized();
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.HOMEPAGE_SETTINGS_UI_CONVERSION)) {
+            mSettingsLauncher.launchSettingsActivity(context, HomepageSettings.class);
+        } else {
+            setPrefHomepageEnabled(false);
+        }
     }
 
     /**
@@ -148,22 +153,8 @@ public class HomepageManager implements HomepagePolicyManager.HomepagePolicyStat
      */
     public static String getDefaultHomepageUri() {
         if (PartnerBrowserCustomizations.getInstance().isHomepageProviderAvailableAndEnabled()) {
-            return PartnerBrowserCustomizations.getInstance().getHomePageUrl().getSpec();
+            return PartnerBrowserCustomizations.getInstance().getHomePageUrl();
         }
-
-        String homepagePartnerDefaultUri;
-        String homepagePartnerDefaultGurlSerialized =
-                SharedPreferencesManager.getInstance().readString(
-                        ChromePreferenceKeys.HOMEPAGE_PARTNER_CUSTOMIZED_DEFAULT_GURL, "");
-        if (!homepagePartnerDefaultGurlSerialized.equals("")) {
-            homepagePartnerDefaultUri =
-                    GURL.deserialize(homepagePartnerDefaultGurlSerialized).getSpec();
-        } else {
-            homepagePartnerDefaultUri = SharedPreferencesManager.getInstance().readString(
-                    ChromePreferenceKeys.HOMEPAGE_PARTNER_CUSTOMIZED_DEFAULT_URI, "");
-        }
-        if (!homepagePartnerDefaultUri.equals("")) return homepagePartnerDefaultUri;
-
         return UrlConstants.NTP_NON_NATIVE_URL;
     }
 
@@ -180,25 +171,14 @@ public class HomepageManager implements HomepagePolicyManager.HomepagePolicyStat
     }
 
     /**
-     * Determines whether the homepage is set to something other than the NTP or empty/null. This is
-     * the same as {@link #isHomepageNonNtp()}, but uses {@link UrlUtilities#isCanonicalizedNTPUrl}
-     * instead of {@link UrlUtilities#isNTPUrl} to make it possible to use before native is loaded.
-     * Prefer {@link #isHomepageNonNtp()} if possible.
-     * @return Whether the current homepage is something other than the NTP.
-     */
-    public static boolean isHomepageNonNtpPreNative() {
-        String currentHomepage = getHomepageUri();
-        return !TextUtils.isEmpty(currentHomepage)
-                && !UrlUtilities.isCanonicalizedNTPUrl(currentHomepage);
-    }
-
-    /**
      * Get homepage URI without checking if the homepage is enabled.
      * @return Homepage URI based on policy and shared preference settings.
      */
-    private @NonNull String getHomepageUriIgnoringEnabledState() {
+    public @NonNull String getHomepageUriIgnoringEnabledState() {
+        // TODO(wenyufu): Move this function back to #getHomepageUri after
+        //  ChromeFeatureList#HOMEPAGE_SETTINGS_UI_CONVERSION 100% release
         if (HomepagePolicyManager.isHomepageManagedByPolicy()) {
-            return HomepagePolicyManager.getHomepageUrl().getSpec();
+            return HomepagePolicyManager.getHomepageUrl();
         }
         if (getPrefHomepageUseChromeNTP()) {
             return UrlConstants.NTP_NON_NATIVE_URL;

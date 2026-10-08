@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_HIT_TEST_RESULT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_HIT_TEST_RESULT_H_
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_private_ptr.h"
 #include "ui/gfx/geometry/point_f.h"
 
@@ -41,39 +40,39 @@ class WebURL;
 // Properties of a hit test result, i.e. properties of the nodes at a given
 // point (the hit point) on the page. Both urls may be populated at the same
 // time, for example in the instance of an <img> inside an <a>.
-class BLINK_EXPORT WebHitTestResult {
+class WebHitTestResult {
  public:
   WebHitTestResult() = default;
   WebHitTestResult(const WebHitTestResult& info) { Assign(info); }
   ~WebHitTestResult() { Reset(); }
 
-  void Assign(const WebHitTestResult&);
-  void Reset();
-  bool IsNull() const;
+  BLINK_EXPORT void Assign(const WebHitTestResult&);
+  BLINK_EXPORT void Reset();
+  BLINK_EXPORT bool IsNull() const;
 
   // The node that was hit (only one for point-based tests).
-  WebNode GetNode() const;
+  BLINK_EXPORT WebNode GetNode() const;
 
   // If a link (eg. anchor or area tag) is hit, return the element.
   // Return null otheriwse.
-  WebElement UrlElement() const;
+  BLINK_EXPORT WebElement UrlElement() const;
 
   // If an image is hit, return the image source. Return empty otherwise.
-  WebURL AbsoluteImageURL() const;
+  BLINK_EXPORT WebURL AbsoluteImageURL() const;
 
   // If an link is hit, return the link url source. Return empty otherwise.
-  WebURL AbsoluteLinkURL() const;
+  BLINK_EXPORT WebURL AbsoluteLinkURL() const;
 
   // Return whether an editable input element was hit.
-  bool IsContentEditable() const;
+  BLINK_EXPORT bool IsContentEditable() const;
 
   // Return the ElementId of the first scrollable containing block ancestor
   // of the target, including the target itself if it is scrollable
-  uint64_t GetScrollableContainerId() const;
+  BLINK_EXPORT uint64_t GetScrollableContainerId() const;
 
 #if INSIDE_BLINK
-  WebHitTestResult(const HitTestResult&);
-  WebHitTestResult& operator=(const HitTestResult&);
+  BLINK_EXPORT WebHitTestResult(const HitTestResult&);
+  BLINK_EXPORT WebHitTestResult& operator=(const HitTestResult&);
 #endif
 
  protected:
@@ -82,4 +81,4 @@ class BLINK_EXPORT WebHitTestResult {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_HIT_TEST_RESULT_H_
+#endif

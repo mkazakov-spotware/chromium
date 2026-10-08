@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/win/process_subrange_reader.h"
 #include "util/misc/initialization_state_dcheck.h"
 #include "util/win/address_types.h"
@@ -33,10 +34,6 @@ namespace crashpad {
 class PEImageResourceReader {
  public:
   PEImageResourceReader();
-
-  PEImageResourceReader(const PEImageResourceReader&) = delete;
-  PEImageResourceReader& operator=(const PEImageResourceReader&) = delete;
-
   ~PEImageResourceReader();
 
   //! \brief Initializes the resource reader.
@@ -173,6 +170,8 @@ class PEImageResourceReader {
   ProcessSubrangeReader resources_subrange_reader_;
   WinVMAddress module_base_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(PEImageResourceReader);
 };
 
 }  // namespace crashpad

@@ -1,14 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/http/http_basic_state.h"
 
-#include <set>
 #include <utility>
 
 #include "base/check_op.h"
-#include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "net/base/io_buffer.h"
 #include "net/http/http_request_info.h"
 #include "net/http/http_response_body_drainer.h"
@@ -54,7 +53,7 @@ void HttpBasicState::DeleteParser() { parser_.reset(); }
 
 std::string HttpBasicState::GenerateRequestLine() const {
   static const char kSuffix[] = " HTTP/1.1\r\n";
-  const size_t kSuffixLen = std::size(kSuffix) - 1;
+  const size_t kSuffixLen = base::size(kSuffix) - 1;
   const std::string path =
       using_proxy_ ? HttpUtil::SpecForRequest(url_) : url_.PathForRequest();
   // Don't use StringPrintf for concatenation because it is very inefficient.
@@ -73,13 +72,6 @@ std::string HttpBasicState::GenerateRequestLine() const {
 bool HttpBasicState::IsConnectionReused() const {
   return connection_->is_reused() ||
          connection_->reuse_type() == ClientSocketHandle::UNUSED_IDLE;
-}
-
-const std::set<std::string>& HttpBasicState::GetDnsAliases() const {
-  static const base::NoDestructor<std::set<std::string>> emptyset_result;
-  return (connection_ && connection_->socket())
-             ? connection_->socket()->GetDnsAliases()
-             : *emptyset_result;
 }
 
 }  // namespace net

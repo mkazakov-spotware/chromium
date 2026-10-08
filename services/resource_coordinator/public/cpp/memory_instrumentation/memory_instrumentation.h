@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "base/callback_forward.h"
 #include "base/component_export.h"
+#include "base/memory/ref_counted.h"
 #include "base/trace_event/memory_dump_request_args.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
 #include "services/resource_coordinator/public/cpp/memory_instrumentation/global_memory_dump.h"
@@ -33,12 +34,8 @@ class COMPONENT_EXPORT(RESOURCE_COORDINATOR_PUBLIC_MEMORY_INSTRUMENTATION)
 
   static void CreateInstance(
       mojo::PendingRemote<memory_instrumentation::mojom::Coordinator>
-          coordinator,
-      bool is_browser_process);
+          coordinator);
   static MemoryInstrumentation* GetInstance();
-
-  MemoryInstrumentation(const MemoryInstrumentation&) = delete;
-  MemoryInstrumentation& operator=(const MemoryInstrumentation&) = delete;
 
   // Retrieves a Coordinator interface to communicate with the service. This is
   // safe to call from any thread.
@@ -103,15 +100,13 @@ class COMPONENT_EXPORT(RESOURCE_COORDINATOR_PUBLIC_MEMORY_INSTRUMENTATION)
  private:
   explicit MemoryInstrumentation(
       mojo::PendingRemote<memory_instrumentation::mojom::Coordinator>
-          coordinator,
-      bool is_browser_process);
+          coordinator);
   ~MemoryInstrumentation();
 
   const mojo::SharedRemote<memory_instrumentation::mojom::Coordinator>
       coordinator_;
 
-  // Only browser process is allowed to request memory dumps.
-  const bool is_browser_process_;
+  DISALLOW_COPY_AND_ASSIGN(MemoryInstrumentation);
 };
 
 }  // namespace memory_instrumentation

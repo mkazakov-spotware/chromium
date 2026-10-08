@@ -1,20 +1,19 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_DRAWING_RECORDER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_DRAWING_RECORDER_H_
 
+#include "third_party/blink/renderer/platform/platform_export.h"
+
 #include "base/auto_reset.h"
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "third_party/blink/renderer/platform/geometry/int_rect.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 #include "third_party/blink/renderer/platform/graphics/paint/drawing_display_item.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
-#include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
-#include "ui/gfx/geometry/rect.h"
 
 namespace blink {
 
@@ -41,12 +40,12 @@ class PLATFORM_EXPORT DrawingRecorder {
   DrawingRecorder(GraphicsContext&,
                   const DisplayItemClient&,
                   DisplayItem::Type,
-                  const gfx::Rect& visual_rect);
+                  const IntRect& visual_rect);
 
   DrawingRecorder(GraphicsContext& context,
                   const DisplayItemClient& client,
                   PaintPhase phase,
-                  const gfx::Rect& visual_rect)
+                  const IntRect& visual_rect)
       : DrawingRecorder(context,
                         client,
                         DisplayItem::PaintPhaseToDrawingType(phase),
@@ -58,7 +57,7 @@ class PLATFORM_EXPORT DrawingRecorder {
   DrawingRecorder(GraphicsContext& context,
                   const DisplayItemClient& client,
                   DisplayItem::Type type)
-      : DrawingRecorder(context, client, type, gfx::Rect()) {
+      : DrawingRecorder(context, client, type, IntRect()) {
 #if DCHECK_IS_ON()
     DCHECK_EQ(PaintController::kTransient,
               context.GetPaintController().GetUsage());
@@ -71,21 +70,21 @@ class PLATFORM_EXPORT DrawingRecorder {
                         client,
                         DisplayItem::PaintPhaseToDrawingType(phase)) {}
 
-  DrawingRecorder(const DrawingRecorder&) = delete;
-  DrawingRecorder& operator=(const DrawingRecorder&) = delete;
   ~DrawingRecorder();
 
   // Sometimes we don't the the exact visual rect when we create a
   // DrawingRecorder. This method allows visual rect to be added during
   // painting.
-  void UniteVisualRect(const gfx::Rect& rect) { visual_rect_.Union(rect); }
+  void UniteVisualRect(const IntRect& rect) { visual_rect_.Unite(rect); }
 
  private:
   GraphicsContext& context_;
   const DisplayItemClient& client_;
   const DisplayItem::Type type_;
-  gfx::Rect visual_rect_;
-  absl::optional<DOMNodeId> dom_node_id_to_restore_;
+  IntRect visual_rect_;
+  base::Optional<DOMNodeId> dom_node_id_to_restore_;
+
+  DISALLOW_COPY_AND_ASSIGN(DrawingRecorder);
 };
 
 #if DCHECK_IS_ON()
@@ -94,12 +93,11 @@ class DisableListModificationCheck {
 
  public:
   DisableListModificationCheck();
-  DisableListModificationCheck(const DisableListModificationCheck&) = delete;
-  DisableListModificationCheck& operator=(const DisableListModificationCheck&) =
-      delete;
 
  private:
   base::AutoReset<bool> disabler_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisableListModificationCheck);
 };
 #endif  // DCHECK_IS_ON()
 

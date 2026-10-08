@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,20 +14,20 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/path_service.h"
-#include "base/run_loop.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
-#include "base/test/bind.h"
-#include "base/test/values_test_util.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/testing_profile.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
+#include "content/public/browser/notification_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/content_verifier.h"
-#include "extensions/common/extension_builder.h"
+#include "extensions/common/host_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 using extensions::URLPatternSet;
 
@@ -37,114 +37,58 @@ static void AddPattern(URLPatternSet* extent, const std::string& pattern) {
   int schemes = URLPattern::SCHEME_ALL;
   extent->AddPattern(URLPattern(schemes, pattern));
 }
-}  // namespace
+}
 
 namespace extensions {
 
 // Test bringing up a script loader on a specific directory, putting a script
 // in there, etc.
-class ExtensionUserScriptLoaderTest : public testing::Test {
+class ExtensionUserScriptLoaderTest : public testing::Test,
+                                      public content::NotificationObserver {
  public:
-  ExtensionUserScriptLoaderTest() = default;
-
-  ExtensionUserScriptLoaderTest(const ExtensionUserScriptLoaderTest&) = delete;
-  ExtensionUserScriptLoaderTest& operator=(
-      const ExtensionUserScriptLoaderTest&) = delete;
+  ExtensionUserScriptLoaderTest() : shared_memory_(nullptr) {}
 
   void SetUp() override {
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
+
+    // Register for all user script notifications.
+    registrar_.Add(this,
+                   extensions::NOTIFICATION_USER_SCRIPTS_UPDATED,
+                   content::NotificationService::AllSources());
+  }
+
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override {
+    DCHECK(type == extensions::NOTIFICATION_USER_SCRIPTS_UPDATED);
+
+    shared_memory_ =
+        content::Details<base::ReadOnlySharedMemoryRegion>(details).ptr();
   }
 
   // Directory containing user scripts.
   base::ScopedTempDir temp_dir_;
 
+  // Updated to the script shared memory when we get notified.
+  base::ReadOnlySharedMemoryRegion* shared_memory_;
+
  private:
   content::BrowserTaskEnvironment task_environment_;
+  content::NotificationRegistrar registrar_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionUserScriptLoaderTest);
 };
 
-// Test that a callback passed in will get called once scripts are loaded.
-TEST_F(ExtensionUserScriptLoaderTest, NoScriptsWithCallbackAfterLoad) {
+// Test that we get notified even when there are no scripts.
+TEST_F(ExtensionUserScriptLoaderTest, NoScripts) {
   TestingProfile profile;
-  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
-  ExtensionUserScriptLoader loader(&profile, *extension,
-                                   /*state_store=*/nullptr,
+  ExtensionUserScriptLoader loader(&profile, HostID(),
                                    /*listen_for_extension_system_loaded=*/true,
                                    /*content_verifier=*/nullptr);
-  base::RunLoop run_loop;
-  auto on_load_complete = [&run_loop](
-                              UserScriptLoader* loader,
-                              const absl::optional<std::string>& error) {
-    EXPECT_FALSE(error.has_value()) << *error;
-    run_loop.Quit();
-  };
+  loader.StartLoad();
+  content::RunAllTasksUntilIdle();
 
-  loader.StartLoadForTesting(base::BindLambdaForTesting(on_load_complete));
-  run_loop.Run();
-}
-
-// Verifies that adding an empty set of scripts will trigger a callback
-// immediately but will not trigger a load.
-TEST_F(ExtensionUserScriptLoaderTest, NoScriptsAddedWithCallback) {
-  TestingProfile profile;
-  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
-  ExtensionUserScriptLoader loader(&profile, *extension,
-                                   /*state_store=*/nullptr,
-                                   /*listen_for_extension_system_loaded=*/true,
-                                   /*content_verifier=*/nullptr);
-
-  // Use a flag instead of a RunLoop to verify that the callback was called
-  // synchronously.
-  bool callback_called = false;
-  auto callback = [&callback_called](UserScriptLoader* loader,
-                                     const absl::optional<std::string>& error) {
-    // Check that there is at least an error message.
-    EXPECT_TRUE(error.has_value());
-    EXPECT_THAT(*error, testing::HasSubstr("No changes to loaded scripts"));
-    callback_called = true;
-  };
-
-  loader.AddScripts(std::make_unique<UserScriptList>(),
-                    base::BindLambdaForTesting(callback));
-  EXPECT_TRUE(callback_called);
-}
-
-// Test that all callbacks will be called when a load completes and no other
-// load is queued.
-TEST_F(ExtensionUserScriptLoaderTest, QueuedLoadWithCallback) {
-  TestingProfile profile;
-  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
-  ExtensionUserScriptLoader loader(&profile, *extension,
-                                   /*state_store=*/nullptr,
-                                   /*listen_for_extension_system_loaded=*/true,
-                                   /*content_verifier=*/nullptr);
-  base::RunLoop run_loop;
-
-  // Record if one callback has already been called. The test succeeds if two
-  // callbacks are called.
-  bool first_callback_fired = false;
-
-  // Creates a callback which:
-  // 1) Checks that the loader has completed its initial load.
-  // 2) Sets |first_callback_fired| to true if no callback has been called yet,
-  // otherwise completes the test.
-  auto on_load_complete = [&run_loop, &first_callback_fired](
-                              UserScriptLoader* loader,
-                              const absl::optional<std::string>& error) {
-    EXPECT_FALSE(error.has_value()) << *error;
-    EXPECT_TRUE(loader->initial_load_complete());
-    if (first_callback_fired)
-      run_loop.Quit();
-    else
-      first_callback_fired = true;
-  };
-
-  loader.StartLoadForTesting(base::BindLambdaForTesting(on_load_complete));
-
-  // The next load request should be queued, but both `on_load_complete`
-  // callbacks should be released at the same time as the queued load will merge
-  // with the current load.
-  loader.StartLoadForTesting(base::BindLambdaForTesting(on_load_complete));
-  run_loop.Run();
+  ASSERT_TRUE(shared_memory_ != nullptr && shared_memory_->IsValid());
 }
 
 TEST_F(ExtensionUserScriptLoaderTest, Parse1) {
@@ -285,15 +229,13 @@ TEST_F(ExtensionUserScriptLoaderTest, SkipBOMAtTheBeginning) {
   user_scripts->push_back(std::move(user_script));
 
   TestingProfile profile;
-  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
-  ExtensionUserScriptLoader loader(&profile, *extension,
-                                   /*state_store=*/nullptr,
+  ExtensionUserScriptLoader loader(&profile, HostID(),
                                    /*listen_for_extension_system_loaded=*/true,
                                    /*content_verifier=*/nullptr);
   user_scripts = loader.LoadScriptsForTest(std::move(user_scripts));
 
   EXPECT_EQ(content.substr(3),
-            std::string((*user_scripts)[0]->js_scripts()[0]->GetContent()));
+            (*user_scripts)[0]->js_scripts()[0]->GetContent().as_string());
 }
 
 TEST_F(ExtensionUserScriptLoaderTest, LeaveBOMNotAtTheBeginning) {
@@ -310,15 +252,13 @@ TEST_F(ExtensionUserScriptLoaderTest, LeaveBOMNotAtTheBeginning) {
   user_scripts->push_back(std::move(user_script));
 
   TestingProfile profile;
-  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
-  ExtensionUserScriptLoader loader(&profile, *extension,
-                                   /*state_store=*/nullptr,
+  ExtensionUserScriptLoader loader(&profile, HostID(),
                                    /*listen_for_extension_system_loaded=*/true,
                                    /*content_verifier=*/nullptr);
   user_scripts = loader.LoadScriptsForTest(std::move(user_scripts));
 
   EXPECT_EQ(content,
-            std::string((*user_scripts)[0]->js_scripts()[0]->GetContent()));
+            (*user_scripts)[0]->js_scripts()[0]->GetContent().as_string());
 }
 
 TEST_F(ExtensionUserScriptLoaderTest, ComponentExtensionContentScriptIsLoaded) {
@@ -326,7 +266,8 @@ TEST_F(ExtensionUserScriptLoaderTest, ComponentExtensionContentScriptIsLoaded) {
   ASSERT_TRUE(base::PathService::Get(chrome::DIR_RESOURCES, &resources_dir));
 
   const base::FilePath extension_path = resources_dir.AppendASCII("pdf");
-  const base::FilePath resource_path(FILE_PATH_LITERAL("main.js"));
+  const base::FilePath resource_path(
+      FILE_PATH_LITERAL("elements/shared-vars.js"));
 
   auto user_script = std::make_unique<UserScript>();
   user_script->js_scripts().push_back(std::make_unique<UserScript::File>(
@@ -336,9 +277,7 @@ TEST_F(ExtensionUserScriptLoaderTest, ComponentExtensionContentScriptIsLoaded) {
   user_scripts->push_back(std::move(user_script));
 
   TestingProfile profile;
-  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
-  ExtensionUserScriptLoader loader(&profile, *extension,
-                                   /*state_store=*/nullptr,
+  ExtensionUserScriptLoader loader(&profile, HostID(),
                                    /*listen_for_extension_system_loaded=*/true,
                                    /*content_verifier=*/nullptr);
   user_scripts = loader.LoadScriptsForTest(std::move(user_scripts));

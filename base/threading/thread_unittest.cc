@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,14 @@
 #include "base/bind.h"
 #include "base/debug/leak_annotations.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/current_thread.h"
+#include "base/task/post_task.h"
 #include "base/task/sequence_manager/sequence_manager_impl.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/task_executor.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
@@ -51,20 +52,18 @@ class SleepInsideInitThread : public Thread {
     ANNOTATE_BENIGN_RACE(
         this, "Benign test-only data race on vptr - http://crbug.com/98219");
   }
-
-  SleepInsideInitThread(const SleepInsideInitThread&) = delete;
-  SleepInsideInitThread& operator=(const SleepInsideInitThread&) = delete;
-
   ~SleepInsideInitThread() override { Stop(); }
 
   void Init() override {
-    base::PlatformThread::Sleep(base::Milliseconds(500));
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(500));
     init_called_ = true;
   }
   bool InitCalled() { return init_called_; }
 
  private:
   bool init_called_;
+
+  DISALLOW_COPY_AND_ASSIGN(SleepInsideInitThread);
 };
 
 enum ThreadEvent {
@@ -93,9 +92,6 @@ class CaptureToEventList : public Thread {
         event_list_(event_list) {
   }
 
-  CaptureToEventList(const CaptureToEventList&) = delete;
-  CaptureToEventList& operator=(const CaptureToEventList&) = delete;
-
   ~CaptureToEventList() override { Stop(); }
 
   void Init() override { event_list_->push_back(THREAD_EVENT_INIT); }
@@ -103,7 +99,9 @@ class CaptureToEventList : public Thread {
   void CleanUp() override { event_list_->push_back(THREAD_EVENT_CLEANUP); }
 
  private:
-  raw_ptr<EventList> event_list_;
+  EventList* event_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(CaptureToEventList);
 };
 
 // Observer that writes a value into |event_list| when a message loop has been
@@ -116,10 +114,6 @@ class CapturingDestructionObserver
       : event_list_(event_list) {
   }
 
-  CapturingDestructionObserver(const CapturingDestructionObserver&) = delete;
-  CapturingDestructionObserver& operator=(const CapturingDestructionObserver&) =
-      delete;
-
   // DestructionObserver implementation:
   void WillDestroyCurrentMessageLoop() override {
     event_list_->push_back(THREAD_EVENT_MESSAGE_LOOP_DESTROYED);
@@ -127,7 +121,9 @@ class CapturingDestructionObserver
   }
 
  private:
-  raw_ptr<EventList> event_list_;
+  EventList* event_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(CapturingDestructionObserver);
 };
 
 // Task that adds a destruction observer to the current message loop.
@@ -161,7 +157,7 @@ TEST_F(ThreadTest, StartWithOptions_StackSize) {
 #else
   options.stack_size = 3072 * sizeof(uintptr_t);
 #endif
-  EXPECT_TRUE(a.StartWithOptions(std::move(options)));
+  EXPECT_TRUE(a.StartWithOptions(options));
   EXPECT_TRUE(a.task_runner());
   EXPECT_TRUE(a.IsRunning());
 
@@ -184,7 +180,7 @@ TEST_F(ThreadTest, StartWithOptions_NonJoinable) {
 
   Thread::Options options;
   options.joinable = false;
-  EXPECT_TRUE(a->StartWithOptions(std::move(options)));
+  EXPECT_TRUE(a->StartWithOptions(options));
   EXPECT_TRUE(a->task_runner());
   EXPECT_TRUE(a->IsRunning());
 
@@ -210,7 +206,7 @@ TEST_F(ThreadTest, StartWithOptions_NonJoinable) {
 
   // Unblock the task and give a bit of extra time to unwind QuitWhenIdle().
   block_event.Signal();
-  base::PlatformThread::Sleep(base::Milliseconds(20));
+  base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(20));
 
   // The thread should now have stopped on its own.
   EXPECT_FALSE(a->IsRunning());
@@ -230,7 +226,7 @@ TEST_F(ThreadTest, TwoTasksOnJoinableThread) {
     a.task_runner()->PostTask(
         FROM_HERE, base::BindOnce(static_cast<void (*)(base::TimeDelta)>(
                                       &base::PlatformThread::Sleep),
-                                  base::Milliseconds(20)));
+                                  base::TimeDelta::FromMilliseconds(20)));
     a.task_runner()->PostTask(FROM_HERE,
                               base::BindOnce(&ToggleValue, &was_invoked));
   }
@@ -250,13 +246,13 @@ TEST_F(ThreadTest, DISABLED_DestroyWhileRunningNonJoinableIsSafe) {
     Thread a("DestroyWhileRunningNonJoinableIsSafe");
     Thread::Options options;
     options.joinable = false;
-    EXPECT_TRUE(a.StartWithOptions(std::move(options)));
+    EXPECT_TRUE(a.StartWithOptions(options));
     EXPECT_TRUE(a.WaitUntilThreadStarted());
   }
 
   // Attempt to catch use-after-frees from the non-joinable thread in the
   // scope of this test if any.
-  base::PlatformThread::Sleep(base::Milliseconds(20));
+  base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(20));
 }
 
 TEST_F(ThreadTest, StopSoon) {
@@ -296,15 +292,13 @@ TEST_F(ThreadTest, DISABLED_StopOnNonOwningThreadIsDeath) {
 
   Thread b("NonOwningThread");
   b.Start();
-  EXPECT_DCHECK_DEATH_WITH(
-      {
-        // Stopping |a| on |b| isn't allowed.
-        b.task_runner()->PostTask(
-            FROM_HERE, base::BindOnce(&Thread::Stop, base::Unretained(&a)));
-        // Block here so the DCHECK on |b| always happens in this scope.
-        base::PlatformThread::Sleep(base::TimeDelta::Max());
-      },
-      "owning_sequence_checker_.CalledOnValidSequence()");
+  EXPECT_DCHECK_DEATH({
+    // Stopping |a| on |b| isn't allowed.
+    b.task_runner()->PostTask(
+        FROM_HERE, base::BindOnce(&Thread::Stop, base::Unretained(&a)));
+    // Block here so the DCHECK on |b| always happens in this scope.
+    base::PlatformThread::Sleep(base::TimeDelta::Max());
+  });
 }
 
 TEST_F(ThreadTest, TransferOwnershipAndStop) {
@@ -368,7 +362,7 @@ TEST_F(ThreadTest, StartTwiceNonJoinableNotAllowed) {
 
   Thread::Options options;
   options.joinable = false;
-  EXPECT_TRUE(a->StartWithOptions(std::move(options)));
+  EXPECT_TRUE(a->StartWithOptions(options));
   EXPECT_TRUE(a->task_runner());
   EXPECT_TRUE(a->IsRunning());
 
@@ -386,7 +380,7 @@ TEST_F(ThreadTest, StartTwiceNonJoinableNotAllowed) {
   a->StopSoon();
   base::PlatformThread::YieldCurrentThread();
   last_task_event.Wait();
-  base::PlatformThread::Sleep(base::Milliseconds(20));
+  base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(20));
 
   // This test assumes that the above was sufficient to let the thread fully
   // stop.
@@ -512,7 +506,8 @@ TEST_F(ThreadTest, FlushForTesting) {
   // Flushing a thread with no tasks shouldn't block.
   a.FlushForTesting();
 
-  constexpr base::TimeDelta kSleepPerTestTask = base::Milliseconds(50);
+  constexpr base::TimeDelta kSleepPerTestTask =
+      base::TimeDelta::FromMilliseconds(50);
   constexpr size_t kNumSleepTasks = 5;
 
   const base::TimeTicks ticks_before_post = base::TimeTicks::Now();
@@ -552,21 +547,17 @@ TEST_F(ThreadTest, GetTaskExecutorForCurrentThread) {
 
 namespace {
 
-using TaskQueue = base::sequence_manager::TaskQueue;
-
 class SequenceManagerThreadDelegate : public Thread::Delegate {
  public:
   SequenceManagerThreadDelegate()
       : sequence_manager_(
             base::sequence_manager::CreateUnboundSequenceManager()),
-        task_queue_(sequence_manager_->CreateTaskQueueWithType<TaskQueue>(
-            TaskQueue::Spec(base::sequence_manager::QueueName::DEFAULT_TQ))) {
+        task_queue_(
+            sequence_manager_
+                ->CreateTaskQueueWithType<base::sequence_manager::TaskQueue>(
+                    base::sequence_manager::TaskQueue::Spec("default_tq"))) {
     sequence_manager_->SetDefaultTaskRunner(GetDefaultTaskRunner());
   }
-
-  SequenceManagerThreadDelegate(const SequenceManagerThreadDelegate&) = delete;
-  SequenceManagerThreadDelegate& operator=(
-      const SequenceManagerThreadDelegate&) = delete;
 
   ~SequenceManagerThreadDelegate() override {}
 
@@ -584,7 +575,9 @@ class SequenceManagerThreadDelegate : public Thread::Delegate {
 
  private:
   std::unique_ptr<base::sequence_manager::SequenceManager> sequence_manager_;
-  scoped_refptr<TaskQueue> task_queue_;
+  scoped_refptr<base::sequence_manager::TaskQueue> task_queue_;
+
+  DISALLOW_COPY_AND_ASSIGN(SequenceManagerThreadDelegate);
 };
 
 }  // namespace
@@ -592,15 +585,14 @@ class SequenceManagerThreadDelegate : public Thread::Delegate {
 TEST_F(ThreadTest, ProvidedThreadDelegate) {
   Thread thread("ThreadDelegate");
   base::Thread::Options options;
-  options.delegate = std::make_unique<SequenceManagerThreadDelegate>();
-
-  scoped_refptr<base::SingleThreadTaskRunner> task_runner =
-      options.delegate->GetDefaultTaskRunner();
-  thread.StartWithOptions(std::move(options));
+  options.delegate = new SequenceManagerThreadDelegate();
+  thread.StartWithOptions(options);
 
   base::WaitableEvent event;
-  task_runner->PostTask(FROM_HERE, base::BindOnce(&base::WaitableEvent::Signal,
-                                                  base::Unretained(&event)));
+
+  options.delegate->GetDefaultTaskRunner()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&base::WaitableEvent::Signal, base::Unretained(&event)));
   event.Wait();
 
   thread.Stop();

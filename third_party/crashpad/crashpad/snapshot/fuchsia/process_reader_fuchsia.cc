@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,12 +46,6 @@ void GetStackRegions(
 #error Port
 #endif
 
-  // TODO(fxbug.dev/74897): make this work for stack overflows, e.g., by looking
-  // up using the initial stack pointer (sp) when the thread was created. Right
-  // now, it gets the stack by getting the mapping that contains the current sp.
-  // But in the case of stack overflows, the current sp is by definition outside
-  // of the stack so the mapping returned is not the stack and fails the type
-  // check, at least on arm64.
   zx_info_maps_t range_with_sp;
   if (!memory_map.FindMappingForAddress(sp, &range_with_sp)) {
     LOG(ERROR) << "stack pointer not found in mapping";
@@ -60,7 +54,7 @@ void GetStackRegions(
 
   if (range_with_sp.type != ZX_INFO_MAPS_TYPE_MAPPING) {
     LOG(ERROR) << "stack range has unexpected type " << range_with_sp.type
-               << ", stack overflow? Aborting";
+               << ", aborting";
     return;
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@ package org.chromium.base.memory;
 import android.app.ActivityManager;
 import android.content.ComponentCallbacks2;
 import android.content.res.Configuration;
+import android.os.Build;
+import android.os.SystemClock;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -14,8 +16,11 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.MemoryPressureLevel;
 import org.chromium.base.MemoryPressureListener;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.annotations.MainDex;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.Supplier;
-import org.chromium.build.annotations.MainDex;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class monitors memory pressure and reports it to the native side.
@@ -238,17 +243,39 @@ public class MemoryPressureMonitor {
      * Returns null if the pressure couldn't be determined.
      */
     private static @MemoryPressureLevel Integer getCurrentMemoryPressure() {
-        // We used to have a histogram here to measure the duration of each successful 
-        // ActivityManager.getMyMemoryState() call called 
-        // Android.MemoryPressureMonitor.GetMyMemoryState.Succeeded.Time. 50th percentile was 0.8ms.
+        long startNanos = elapsedRealtimeNanos();
         try {
             ActivityManager.RunningAppProcessInfo processInfo =
                     new ActivityManager.RunningAppProcessInfo();
             ActivityManager.getMyMemoryState(processInfo);
+            // ActivityManager.getMyMemoryState() time histograms, recorded by
+            // getCurrentMemoryPressure(). Using recordCustomCountHistogram because
+            // recordTimesHistogram doesn't support microsecond precision.
+            RecordHistogram.recordCustomCountHistogram(
+                    "Android.MemoryPressureMonitor.GetMyMemoryState.Succeeded.Time",
+                    elapsedDurationSample(startNanos), 1, 1_000_000, 50);
             return memoryPressureFromTrimLevel(processInfo.lastTrimLevel);
         } catch (Exception e) {
             // Defensively catch all exceptions, just in case.
+            RecordHistogram.recordCustomCountHistogram(
+                    "Android.MemoryPressureMonitor.GetMyMemoryState.Failed.Time",
+                    elapsedDurationSample(startNanos), 1, 1_000_000, 50);
             return null;
+        }
+    }
+
+    private static int elapsedDurationSample(long startNanos) {
+        // We're using Count1MHistogram, so we need to calculate duration in microseconds
+        long durationUs = TimeUnit.NANOSECONDS.toMicros(elapsedRealtimeNanos() - startNanos);
+        // record() takes int, so we need to clamp.
+        return (int) Math.min(durationUs, Integer.MAX_VALUE);
+    }
+
+    private static long elapsedRealtimeNanos() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            return SystemClock.elapsedRealtimeNanos();
+        } else {
+            return SystemClock.elapsedRealtime() * 1000000;
         }
     }
 

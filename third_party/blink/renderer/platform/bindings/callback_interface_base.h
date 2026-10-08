@@ -1,15 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_CALLBACK_INTERFACE_BASE_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_CALLBACK_INTERFACE_BASE_H_
 
-#include "third_party/blink/public/common/scheduler/task_attribution_id.h"
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -27,13 +26,13 @@ class PLATFORM_EXPORT CallbackInterfaceBase
  public:
   // Whether the callback interface is a "single operation callback interface"
   // or not.
-  // https://webidl.spec.whatwg.org/#dfn-single-operation-callback-interface
+  // https://heycam.github.io/webidl/#dfn-single-operation-callback-interface
   enum SingleOperationOrNot {
     kNotSingleOperation,
     kSingleOperation,
   };
 
-  ~CallbackInterfaceBase() override = default;
+  virtual ~CallbackInterfaceBase() = default;
 
   virtual void Trace(Visitor*) const;
 
@@ -45,7 +44,7 @@ class PLATFORM_EXPORT CallbackInterfaceBase
   }
 
   v8::Local<v8::Object> CallbackObject() {
-    return callback_object_.Get(GetIsolate());
+    return callback_object_.NewLocal(GetIsolate());
   }
 
   // Returns true iff the callback interface is a single operation callback
@@ -57,7 +56,7 @@ class PLATFORM_EXPORT CallbackInterfaceBase
   // Returns the ScriptState of the relevant realm of the callback object.
   //
   // NOTE: This function must be used only when it's pretty sure that the
-  // callback object is the same origin-domain. Otherwise,
+  // callcack object is the same origin-domain. Otherwise,
   // |CallbackRelevantScriptStateOrReportError| or
   // |CallbackRelevantScriptStateOrThrowException| must be used instead.
   ScriptState* CallbackRelevantScriptState() {
@@ -83,10 +82,6 @@ class PLATFORM_EXPORT CallbackInterfaceBase
 
   DOMWrapperWorld& GetWorld() const { return incumbent_script_state_->World(); }
 
-  absl::optional<scheduler::TaskAttributionId> GetParentTaskId() const {
-    return absl::nullopt;
-  }
-
  protected:
   explicit CallbackInterfaceBase(v8::Local<v8::Object> callback_object,
                                  SingleOperationOrNot);
@@ -101,7 +96,7 @@ class PLATFORM_EXPORT CallbackInterfaceBase
   Member<ScriptState> callback_relevant_script_state_;
   // The callback context, i.e. the incumbent Realm when an ECMAScript value is
   // converted to an IDL value.
-  // https://webidl.spec.whatwg.org/#dfn-callback-context
+  // https://heycam.github.io/webidl/#dfn-callback-context
   Member<ScriptState> incumbent_script_state_;
 };
 

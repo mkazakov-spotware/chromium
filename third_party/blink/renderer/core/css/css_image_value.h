@@ -35,6 +35,7 @@ namespace blink {
 class Document;
 class KURL;
 class StyleImage;
+class ComputedStyle;
 
 class CORE_EXPORT CSSImageValue : public CSSValue {
  public:
@@ -51,9 +52,6 @@ class CORE_EXPORT CSSImageValue : public CSSValue {
     DCHECK(!IsCachePending());
     return cached_image_.Get();
   }
-  FetchParameters PrepareFetch(const Document&,
-                               FetchParameters::ImageRequestBehavior,
-                               CrossOriginAttributeValue) const;
   StyleImage* CacheImage(
       const Document&,
       FetchParameters::ImageRequestBehavior,
@@ -62,6 +60,9 @@ class CORE_EXPORT CSSImageValue : public CSSValue {
   const String& Url() const { return absolute_url_; }
   const String& RelativeUrl() const { return relative_url_; }
 
+  const Referrer& GetReferrer() const { return referrer_; }
+  bool GetIsAdRelated() const { return is_ad_related_; }
+
   void ReResolveURL(const Document&) const;
 
   String CustomCSSText() const;
@@ -69,6 +70,8 @@ class CORE_EXPORT CSSImageValue : public CSSValue {
   bool HasFailedOrCanceledSubresources() const;
 
   bool Equals(const CSSImageValue&) const;
+
+  bool KnownToBeOpaque(const Document&, const ComputedStyle&) const;
 
   CSSImageValue* ValueWithURLMadeAbsolute() const {
     return MakeGarbageCollected<CSSImageValue>(
@@ -102,11 +105,6 @@ class CORE_EXPORT CSSImageValue : public CSSValue {
 
   // Whether this was created by an ad-related CSSParserContext.
   const bool is_ad_related_;
-
-  // The url passed into the constructor had the PotentiallyDanglingMarkup flag
-  // set. That information needs to be passed on to the fetch code to block such
-  // resources from loading.
-  const bool potentially_dangling_markup_;
 };
 
 template <>

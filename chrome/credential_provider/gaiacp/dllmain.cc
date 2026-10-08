@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,8 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/json/json_reader.h"
+#include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "base/win/current_module.h"
@@ -64,8 +66,6 @@ STDAPI DllCanUnloadNow(void) {
 
 // Returns a class factory to create an object of the requested type.
 STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID* ppv) {
-  LOGFN(VERBOSE);
-
   // This is performed in here to avoid from doing substantial work in DLLMain.
   _AtlModule.LogProcessDetails();
 
@@ -197,7 +197,7 @@ void CALLBACK PerformPostSigninActionsW(HWND /*hwnd*/,
   // Don't log |buffer| since it contains sensitive info like password.
 
   HRESULT hr = S_OK;
-  absl::optional<base::Value> properties =
+  base::Optional<base::Value> properties =
       base::JSONReader::Read(buffer.data(), base::JSON_ALLOW_TRAILING_COMMAS);
 
   credential_provider::SecurelyClearBuffer(buffer.data(), buffer.size());
@@ -212,7 +212,7 @@ void CALLBACK PerformPostSigninActionsW(HWND /*hwnd*/,
   base::win::ScopedCOMInitializer com_initializer(
       base::win::ScopedCOMInitializer::kMTA);
   if (!com_initializer.Succeeded()) {
-    hr = HRESULT_FROM_WIN32(::GetLastError());
+    HRESULT hr = HRESULT_FROM_WIN32(::GetLastError());
     LOGFN(ERROR) << "ScopedCOMInitializer failed hr=" << putHR(hr);
   }
 
@@ -223,10 +223,6 @@ void CALLBACK PerformPostSigninActionsW(HWND /*hwnd*/,
 
   credential_provider::SecurelyClearDictionaryValue(&properties);
 
-  // Clear the sentinel when it's clear that the user has successfully logged
-  // in. This is done to catch edge cases where existing sentinel deletion might
-  // not be called.
-  credential_provider::DeleteStartupSentinel();
   LOGFN(VERBOSE) << "Done";
 }
 
@@ -241,7 +237,7 @@ void CALLBACK RunAsCrashpadHandlerW(HWND /*hwnd*/,
   DCHECK_EQ(cmd_line->GetSwitchValueASCII(switches::kProcessType),
             crash_reporter::switches::kCrashpadHandler);
 
-  std::wstring entrypoint_arg;
+  base::string16 entrypoint_arg;
   credential_provider::GetEntryPointArgumentForRunDll(
       CURRENT_MODULE(), credential_provider::kRunAsCrashpadHandlerEntryPoint,
       &entrypoint_arg);

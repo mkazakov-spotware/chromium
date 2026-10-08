@@ -4,14 +4,8 @@ testStorages(function(storageString) {
         var storage = window[storageString];
         t.add_cleanup(function() { storage.clear() });
 
-        clearStorage(storageString, t.step_func(loadiframe));
+        clearStorage(storageString, t.step_func(step1));
         assert_equals(storage.length, 0, "storage.length");
-
-        function loadiframe(msg)
-        {
-            iframe.onload = t.step_func(step1);
-            iframe.src = "resources/event_basic.html";
-        }
 
         function step1(msg)
         {

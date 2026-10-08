@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/common/extensions/api/sessions.h"
-#include "chrome/common/extensions/api/tab_groups.h"
 #include "chrome/common/extensions/api/tabs.h"
 #include "chrome/common/extensions/api/windows.h"
 #include "components/sessions/core/tab_restore_service.h"
@@ -39,11 +38,9 @@ class SessionsGetRecentlyClosedFunction : public ExtensionFunction {
  private:
   api::tabs::Tab CreateTabModel(const sessions::TabRestoreService::Tab& tab,
                                 bool active);
-  api::windows::Window CreateWindowModel(
+  std::unique_ptr<api::windows::Window> CreateWindowModel(
       const sessions::TabRestoreService::Window& window);
-  api::tab_groups::TabGroup CreateGroupModel(
-      const sessions::TabRestoreService::Group& group);
-  api::sessions::Session CreateSessionModel(
+  std::unique_ptr<api::sessions::Session> CreateSessionModel(
       const sessions::TabRestoreService::Entry& entry);
 };
 
@@ -58,10 +55,10 @@ class SessionsGetDevicesFunction : public ExtensionFunction {
                                 const sessions::SessionTab& tab,
                                 int tab_index,
                                 bool active);
-  absl::optional<api::windows::Window> CreateWindowModel(
+  std::unique_ptr<api::windows::Window> CreateWindowModel(
       const sessions::SessionWindow& window,
       const std::string& session_tag);
-  absl::optional<api::sessions::Session> CreateSessionModel(
+  std::unique_ptr<api::sessions::Session> CreateSessionModel(
       const sessions::SessionWindow& window,
       const std::string& session_tag);
   api::sessions::Device CreateDeviceModel(
@@ -87,10 +84,6 @@ class SessionsRestoreFunction : public ExtensionFunction {
 class SessionsEventRouter : public sessions::TabRestoreServiceObserver {
  public:
   explicit SessionsEventRouter(Profile* profile);
-
-  SessionsEventRouter(const SessionsEventRouter&) = delete;
-  SessionsEventRouter& operator=(const SessionsEventRouter&) = delete;
-
   ~SessionsEventRouter() override;
 
   // Observer callback for TabRestoreServiceObserver. Sends data on
@@ -104,20 +97,18 @@ class SessionsEventRouter : public sessions::TabRestoreServiceObserver {
       sessions::TabRestoreService* service) override;
 
  private:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // TabRestoreService that we are observing.
-  raw_ptr<sessions::TabRestoreService> tab_restore_service_;
+  sessions::TabRestoreService* tab_restore_service_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionsEventRouter);
 };
 
 class SessionsAPI : public BrowserContextKeyedAPI,
                     public extensions::EventRouter::Observer {
  public:
   explicit SessionsAPI(content::BrowserContext* context);
-
-  SessionsAPI(const SessionsAPI&) = delete;
-  SessionsAPI& operator=(const SessionsAPI&) = delete;
-
   ~SessionsAPI() override;
 
   // BrowserContextKeyedService implementation.
@@ -132,7 +123,7 @@ class SessionsAPI : public BrowserContextKeyedAPI,
  private:
   friend class BrowserContextKeyedAPIFactory<SessionsAPI>;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   // BrowserContextKeyedAPI implementation.
   static const char* service_name() {
@@ -142,6 +133,8 @@ class SessionsAPI : public BrowserContextKeyedAPI,
 
   // Created lazily upon OnListenerAdded.
   std::unique_ptr<SessionsEventRouter> sessions_event_router_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionsAPI);
 };
 
 }  // namespace extensions

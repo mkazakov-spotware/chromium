@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,7 +79,7 @@ bool RetrieveChromeExePathFromCommandLine(base::FilePath* chrome_exe_path) {
   return true;
 }
 
-void ListChromeExeDirectories(std::set<base::FilePath>* paths) {
+void ListChromeExePaths(std::set<base::FilePath>* paths) {
   DCHECK(paths);
 
   static const unsigned int install_paths[] = {
@@ -106,10 +106,10 @@ void ListChromeExeDirectories(std::set<base::FilePath>* paths) {
 void ListChromeInstallationPaths(std::set<base::FilePath>* paths) {
   DCHECK(paths);
 
-  std::set<base::FilePath> chrome_exe_directories;
-  ListChromeExeDirectories(&chrome_exe_directories);
+  std::set<base::FilePath> exe_paths;
+  ListChromeExePaths(&exe_paths);
 
-  for (const base::FilePath& exe_path : chrome_exe_directories) {
+  for (const base::FilePath& exe_path : exe_paths) {
     base::FilePath pattern = exe_path.Append(L"??.*.*.*");
     std::vector<base::FilePath> matches;
     CollectMatchingPaths(pattern, &matches);

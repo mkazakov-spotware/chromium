@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,6 @@ import com.google.vr.ndk.base.GvrUiLayout;
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.base.PackageUtils;
 import org.chromium.base.ThreadUtils;
@@ -44,15 +43,11 @@ import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
-import org.chromium.base.supplier.Supplier;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ApplicationLifetime;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -129,7 +124,6 @@ public class VrShellDelegate
     private static boolean sRegisteredDaydreamHook;
     private static boolean sRegisteredVrAssetsComponent;
     private static boolean sTestVrShellDelegateOnStartup;
-    private static ObservableSupplierImpl<Boolean> sVrModeEnabledSupplier;
 
     private ChromeActivity mActivity;
 
@@ -217,7 +211,6 @@ public class VrShellDelegate
 
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (!IntentUtils.isTrustedIntentFromSelf(intent)) return;
             ChromeActivity activity = mTargetActivity.get();
             if (activity == null) return;
             getInstance(activity);
@@ -250,10 +243,8 @@ public class VrShellDelegate
                     launchIntent = VrModuleProvider.getIntentDelegate().setupVrIntent(launchIntent);
                     sInstance.mInternalIntentUsedToStartVr = true;
                     sInstance.setExpectingIntent(true);
-                    getVrDaydreamApi().launchInVr(
-                            PendingIntent.getActivity(activity, 0, launchIntent,
-                                    PendingIntent.FLAG_UPDATE_CURRENT
-                                            | IntentUtils.getPendingIntentMutabilityFlag(false)));
+                    getVrDaydreamApi().launchInVr(PendingIntent.getActivity(
+                            activity, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT));
                 } else {
                     // We start the Activity with a custom animation that keeps it hidden while
                     // starting up to avoid Android showing stale 2D screenshots when the user is in
@@ -373,7 +364,7 @@ public class VrShellDelegate
      * If VR Shell is enabled, and the activity is supported, register with the Daydream
      * platform that this app would like to be launched in VR when the device enters VR.
      */
-    public static void maybeRegisterVrEntryHook(final Activity activity) {
+    public static void maybeRegisterVrEntryHook(final ChromeActivity activity) {
         // Daydream is not supported on pre-N devices.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
         if (sInstance != null) return; // Will be handled in onResume.
@@ -484,16 +475,16 @@ public class VrShellDelegate
     }
 
     /**
-     * Called when the {@link Activity} becomes visible.
+     * Called when the {@link ChromeActivity} becomes visible.
      */
-    public static void onActivityShown(Activity activity) {
+    public static void onActivityShown(ChromeActivity activity) {
         if (sInstance != null && sInstance.mActivity == activity) sInstance.onActivityShown();
     }
 
     /**
-     * Called when the {@link Activity} is hidden.
+     * Called when the {@link ChromeActivity} is hidden.
      */
-    public static void onActivityHidden(Activity activity) {
+    public static void onActivityHidden(ChromeActivity activity) {
         if (sInstance != null && sInstance.mActivity == activity) sInstance.onActivityHidden();
     }
 
@@ -531,11 +522,11 @@ public class VrShellDelegate
     /**
      * This is called every time ChromeActivity gets a new intent.
      */
-    public static void onNewIntentWithNative(Activity activity, Intent intent) {
+    public static void onNewIntentWithNative(ChromeActivity activity, Intent intent) {
         if (activity.isFinishing()) return;
         if (!VrModuleProvider.getIntentDelegate().isLaunchingIntoVr(activity, intent)) return;
 
-        VrShellDelegate instance = getInstance((ChromeActivity) activity);
+        VrShellDelegate instance = getInstance(activity);
         if (instance == null) return;
         instance.onNewVrIntent();
     }
@@ -543,7 +534,7 @@ public class VrShellDelegate
     /**
      * This is called when ChromeTabbedActivity gets a new intent before native is initialized.
      */
-    public static void maybeHandleVrIntentPreNative(Activity activity, Intent intent) {
+    public static void maybeHandleVrIntentPreNative(ChromeActivity activity, Intent intent) {
         boolean launchingIntoVr =
                 VrModuleProvider.getIntentDelegate().isLaunchingIntoVr(activity, intent);
 
@@ -561,7 +552,7 @@ public class VrShellDelegate
         }
 
         if (sInstance != null && !sInstance.mInternalIntentUsedToStartVr) {
-            sInstance.swapHostActivity((ChromeActivity) activity, false /* disableVrMode */);
+            sInstance.swapHostActivity(activity, false /* disableVrMode */);
             // If the user has launched Chrome from the launcher, rather than resuming from the
             // dashboard, we don't want to launch into presentation.
             sInstance.exitWebVRAndClearState();
@@ -594,24 +585,21 @@ public class VrShellDelegate
      */
     public static void setVrModeEnabled(Activity activity, boolean enabled) {
         ensureLifecycleObserverInitialized();
-        if (sVrModeEnabledSupplier == null) sVrModeEnabledSupplier = new ObservableSupplierImpl<>();
         if (enabled) {
             if (sVrModeEnabledActivitys.contains(activity)) return;
             AndroidCompat.setVrModeEnabled(activity, true);
             sVrModeEnabledActivitys.add(activity);
-            sVrModeEnabledSupplier.set(true);
         } else {
             if (!sVrModeEnabledActivitys.contains(activity)) return;
             AndroidCompat.setVrModeEnabled(activity, false);
             sVrModeEnabledActivitys.remove(activity);
-            sVrModeEnabledSupplier.set(false);
         }
     }
 
     /**
      * Performs pre-inflation VR-related startup.
      */
-    public static void doPreInflationStartup(Activity activity, Bundle savedInstanceState) {
+    public static void doPreInflationStartup(ChromeActivity activity, Bundle savedInstanceState) {
         // We need to explicitly enable VR mode here so that the system doesn't kick us out of VR,
         // or drop us into the 2D-in-VR rendering mode, while we prepare for VR rendering.
         if (VrModuleProvider.getIntentDelegate().isLaunchingIntoVr(
@@ -698,21 +686,19 @@ public class VrShellDelegate
     // are not a singleInstance activity, so they cannot be resumed through Activity PendingIntents,
     // which is the typical way Daydream resumes your Activity. Instead, we use a broadcast intent
     // and then use the broadcast to bring ourselves back to the foreground.
-    /* package */ static PendingIntent getEnterVrPendingIntent(Activity activity) {
+    /* package */ static PendingIntent getEnterVrPendingIntent(ChromeActivity activity) {
         if (sVrBroadcastReceiver != null) sVrBroadcastReceiver.unregister();
         IntentFilter filter = new IntentFilter(VR_ENTRY_RESULT_ACTION);
-        VrBroadcastReceiver receiver = new VrBroadcastReceiver((ChromeActivity) activity);
+        VrBroadcastReceiver receiver = new VrBroadcastReceiver(activity);
         // If we set sVrBroadcastReceiver then use it in registerReceiver, findBugs considers this
         // a thread-safety issue since it thinks the receiver isn't fully initialized before being
         // exposed to other threads. This isn't actually an issue in this case, but we need to set
         // sVrBroadcastReceiver after we're done using it here to fix the compile error.
-        ContextUtils.registerNonExportedBroadcastReceiver(activity, receiver, filter);
+        activity.registerReceiver(receiver, filter);
         sVrBroadcastReceiver = receiver;
         Intent vrIntent = new Intent(VR_ENTRY_RESULT_ACTION);
         vrIntent.setPackage(activity.getPackageName());
-        IntentUtils.addTrustedIntentExtras(vrIntent);
-        return PendingIntent.getBroadcast(activity, 0, vrIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getBroadcast(activity, 0, vrIntent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     private static boolean isVrBrowsingSupported(ChromeActivity activity) {
@@ -742,7 +728,7 @@ public class VrShellDelegate
         // TODO(ymalik): This call will connect to the Google Services api which can be slow. Can we
         // connect to it beforehand when we know that we'll be prompting for feedback?
         HelpAndFeedbackLauncherImpl.getInstance().showFeedback(TabUtils.getActivity(tab),
-                Profile.fromWebContents(tab.getWebContents()), tab.getUrl().getSpec(),
+                Profile.fromWebContents(tab.getWebContents()), tab.getUrlString(),
                 ContextUtils.getApplicationContext().getPackageName() + "." + FEEDBACK_REPORT_TYPE);
     }
 
@@ -868,7 +854,8 @@ public class VrShellDelegate
     }
 
     private int getGvrKeyboardPackageVersion() {
-        return PackageUtils.getPackageVersion(GVR_KEYBOARD_PACKAGE_ID);
+        return PackageUtils.getPackageVersion(
+                ContextUtils.getApplicationContext(), GVR_KEYBOARD_PACKAGE_ID);
     }
 
     protected boolean isVrBrowsingEnabled() {
@@ -1047,11 +1034,6 @@ public class VrShellDelegate
                 android.Manifest.permission.RECORD_AUDIO);
     }
 
-    public static ObservableSupplier<Boolean> getVrModeEnabledSupplier() {
-        if (sVrModeEnabledSupplier == null) sVrModeEnabledSupplier = new ObservableSupplierImpl<>();
-        return sVrModeEnabledSupplier;
-    }
-
     private boolean isWindowModeCorrectForVr() {
         int flags = mActivity.getWindow().getDecorView().getSystemUiVisibility();
         int orientation = mActivity.getResources().getConfiguration().orientation;
@@ -1064,10 +1046,8 @@ public class VrShellDelegate
         // Decouple the compositor size from the view size, or we'll get an unnecessary resize due
         // to the orientation change when entering VR, then another resize once VR has settled on
         // the content size.
-        Supplier<CompositorViewHolder> compositorViewHolderSupplier =
-                mActivity.getCompositorViewHolderSupplier();
-        if (compositorViewHolderSupplier.hasValue()) {
-            compositorViewHolderSupplier.get().onEnterVr();
+        if (mActivity.getCompositorViewHolder() != null) {
+            mActivity.getCompositorViewHolder().onEnterVr();
         }
         ScreenOrientationProvider.getInstance().setOrientationDelegate(this);
 
@@ -1101,10 +1081,8 @@ public class VrShellDelegate
                     flags & ~VrDelegate.VR_SYSTEM_UI_FLAGS);
         }
         mRestoreSystemUiVisibility = false;
-        Supplier<CompositorViewHolder> compositorViewHolderSupplier =
-                mActivity.getCompositorViewHolderSupplier();
-        if (compositorViewHolderSupplier.hasValue()) {
-            compositorViewHolderSupplier.get().onExitVr();
+        if (mActivity.getCompositorViewHolder() != null) {
+            mActivity.getCompositorViewHolder().onExitVr();
         }
 
         mActivity.getWindow().getAttributes().rotationAnimation =
@@ -1588,17 +1566,11 @@ public class VrShellDelegate
     @VisibleForTesting
     protected boolean createVrShell() {
         assert mVrShell == null;
-        if (!mActivity.getCompositorViewHolderSupplier().hasValue()) return false;
+        if (mActivity.getCompositorViewHolder() == null) return false;
         TabModelSelector tabModelSelector = mActivity.getTabModelSelector();
         if (tabModelSelector == null) return false;
         try {
-            mVrShell = new VrShell(mActivity, this, tabModelSelector, mActivity.getToolbarManager(),
-                    mActivity.getModalDialogManagerSupplier(),
-                    mActivity.getCompositorViewHolderSupplier(), mActivity.getActivityTabProvider(),
-                    mActivity.getBrowserControlsManager(), /* tabCreatorManager= */ mActivity,
-                    mActivity.getWindowAndroid(), mActivity::isActivityFinishingOrDestroyed,
-                    mActivity.getFullscreenManager(), mActivity::backShouldCloseTab,
-                    mActivity::isInOverviewMode, /* menuOrKeyboardActionController= */ mActivity);
+            mVrShell = new VrShell(mActivity, this, tabModelSelector);
         } catch (VrUnsupportedException e) {
             return false;
         } finally {

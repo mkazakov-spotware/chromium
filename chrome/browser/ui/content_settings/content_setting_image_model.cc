@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <utility>
 
 #include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/metrics/user_metrics.h"
-#include "base/metrics/user_metrics_action.h"
+#include "base/metrics/histogram_macros.h"
 #include "build/build_config.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/browser_process.h"
@@ -22,13 +22,9 @@
 #include "chrome/browser/permissions/quiet_notification_permission_ui_state.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/blocked_content/framebust_block_tab_helper.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/content_settings/content_setting_image_model_states.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
@@ -36,15 +32,13 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/features.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
-#include "components/permissions/features.h"
+#include "components/no_state_prefetch/browser/prerender_manager.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
 #include "services/device/public/cpp/device_features.h"
-#include "services/device/public/cpp/geolocation/location_system_permission_status.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/gfx/color_palette.h"
@@ -53,10 +47,10 @@
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "chrome/browser/browser_process_platform_part.h"
+#include "chrome/browser/geolocation/geolocation_system_permission_mac.h"
 #include "chrome/browser/media/webrtc/system_media_capture_permissions_mac.h"
-#include "services/device/public/cpp/geolocation/geolocation_manager.h"
 #endif
 
 using content::WebContents;
@@ -77,52 +71,45 @@ using content_settings::PageSpecificContentSettings;
 //   ContentSettingMediaImageModel              - media
 //   ContentSettingFramebustBlockImageModel     - blocked framebust
 
-constexpr bool kNotifyAccessibility = true;
-
 class ContentSettingBlockedImageModel : public ContentSettingSimpleImageModel {
  public:
   ContentSettingBlockedImageModel(ImageType image_type,
                                   ContentSettingsType content_type);
 
-  ContentSettingBlockedImageModel(const ContentSettingBlockedImageModel&) =
-      delete;
-  ContentSettingBlockedImageModel& operator=(
-      const ContentSettingBlockedImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingBlockedImageModel);
 };
 
 class ContentSettingGeolocationImageModel : public ContentSettingImageModel {
  public:
   ContentSettingGeolocationImageModel();
 
-  ContentSettingGeolocationImageModel(
-      const ContentSettingGeolocationImageModel&) = delete;
-  ContentSettingGeolocationImageModel& operator=(
-      const ContentSettingGeolocationImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
 
   bool IsGeolocationAccessed();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   bool IsGeolocationAllowedOnASystemLevel();
   bool IsGeolocationPermissionDetermined();
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
       WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingGeolocationImageModel);
 };
 
 class ContentSettingRPHImageModel : public ContentSettingSimpleImageModel {
  public:
   ContentSettingRPHImageModel();
 
-  ContentSettingRPHImageModel(const ContentSettingRPHImageModel&) = delete;
-  ContentSettingRPHImageModel& operator=(const ContentSettingRPHImageModel&) =
-      delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingRPHImageModel);
 };
 
 class ContentSettingMIDISysExImageModel
@@ -130,12 +117,10 @@ class ContentSettingMIDISysExImageModel
  public:
   ContentSettingMIDISysExImageModel();
 
-  ContentSettingMIDISysExImageModel(const ContentSettingMIDISysExImageModel&) =
-      delete;
-  ContentSettingMIDISysExImageModel& operator=(
-      const ContentSettingMIDISysExImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingMIDISysExImageModel);
 };
 
 class ContentSettingDownloadsImageModel
@@ -143,12 +128,10 @@ class ContentSettingDownloadsImageModel
  public:
   ContentSettingDownloadsImageModel();
 
-  ContentSettingDownloadsImageModel(const ContentSettingDownloadsImageModel&) =
-      delete;
-  ContentSettingDownloadsImageModel& operator=(
-      const ContentSettingDownloadsImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingDownloadsImageModel);
 };
 
 class ContentSettingClipboardReadWriteImageModel
@@ -156,12 +139,10 @@ class ContentSettingClipboardReadWriteImageModel
  public:
   ContentSettingClipboardReadWriteImageModel();
 
-  ContentSettingClipboardReadWriteImageModel(
-      const ContentSettingClipboardReadWriteImageModel&) = delete;
-  ContentSettingClipboardReadWriteImageModel& operator=(
-      const ContentSettingClipboardReadWriteImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingClipboardReadWriteImageModel);
 };
 
 // Image model for displaying media icons in the location bar.
@@ -169,21 +150,17 @@ class ContentSettingMediaImageModel : public ContentSettingImageModel {
  public:
   ContentSettingMediaImageModel();
 
-  ContentSettingMediaImageModel(const ContentSettingMediaImageModel&) = delete;
-  ContentSettingMediaImageModel& operator=(
-      const ContentSettingMediaImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
   bool IsMicAccessed();
   bool IsCamAccessed();
   bool IsMicBlockedOnSiteLevel();
   bool IsCameraBlockedOnSiteLevel();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   bool DidCameraAccessFailBecauseOfSystemLevelBlock();
   bool DidMicAccessFailBecauseOfSystemLevelBlock();
   bool IsCameraAccessPendingOnSystemLevelPrompt();
   bool IsMicAccessPendingOnSystemLevelPrompt();
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
@@ -191,18 +168,18 @@ class ContentSettingMediaImageModel : public ContentSettingImageModel {
 
  private:
   PageSpecificContentSettings::MicrophoneCameraState state_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingMediaImageModel);
 };
 
 class ContentSettingSensorsImageModel : public ContentSettingSimpleImageModel {
  public:
   ContentSettingSensorsImageModel();
 
-  ContentSettingSensorsImageModel(const ContentSettingSensorsImageModel&) =
-      delete;
-  ContentSettingSensorsImageModel& operator=(
-      const ContentSettingSensorsImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingSensorsImageModel);
 };
 
 // The image model for an icon that acts as a quiet permission request prompt
@@ -215,31 +192,40 @@ class ContentSettingNotificationsImageModel
  public:
   ContentSettingNotificationsImageModel();
 
-  ContentSettingNotificationsImageModel(
-      const ContentSettingNotificationsImageModel&) = delete;
-  ContentSettingNotificationsImageModel& operator=(
-      const ContentSettingNotificationsImageModel&) = delete;
-
   // ContentSettingSimpleImageModel:
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
   void SetPromoWasShown(content::WebContents* contents) override;
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
       WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingNotificationsImageModel);
 };
 
 class ContentSettingPopupImageModel : public ContentSettingSimpleImageModel {
  public:
   ContentSettingPopupImageModel();
 
-  ContentSettingPopupImageModel(const ContentSettingPopupImageModel&) = delete;
-  ContentSettingPopupImageModel& operator=(
-      const ContentSettingPopupImageModel&) = delete;
-
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContentSettingPopupImageModel);
 };
 
 namespace {
+
+bool ShouldShowPluginExplanation(content::WebContents* web_contents,
+                                 HostContentSettingsMap* map) {
+  const GURL& url = web_contents->GetURL();
+  ContentSetting setting =
+      map->GetContentSetting(url, url, ContentSettingsType::PLUGINS);
+
+  // For plugins, show the animated explanation in these cases:
+  //  - The plugin is blocked despite the user having content setting ALLOW.
+  //  - The user has disabled Flash using BLOCK.
+  return setting == CONTENT_SETTING_ALLOW || setting == CONTENT_SETTING_BLOCK;
+}
 
 struct ContentSettingsImageDetails {
   ContentSettingsType content_type;
@@ -256,8 +242,12 @@ const ContentSettingsImageDetails kImageDetails[] = {
      IDS_BLOCKED_IMAGES_MESSAGE, 0, 0},
     {ContentSettingsType::JAVASCRIPT, vector_icons::kCodeIcon,
      IDS_BLOCKED_JAVASCRIPT_MESSAGE, 0, 0},
+    {ContentSettingsType::PLUGINS, vector_icons::kExtensionIcon,
+     IDS_BLOCKED_PLUGINS_MESSAGE, IDS_BLOCKED_PLUGIN_EXPLANATORY_TEXT, 0},
     {ContentSettingsType::MIXEDSCRIPT, kMixedContentIcon,
      IDS_BLOCKED_DISPLAYING_INSECURE_CONTENT, 0, 0},
+    {ContentSettingsType::PPAPI_BROKER, vector_icons::kExtensionIcon,
+     IDS_BLOCKED_PPAPI_BROKER_MESSAGE, 0, IDS_ALLOWED_PPAPI_BROKER_MESSAGE},
     {ContentSettingsType::SOUND, kTabAudioIcon, IDS_BLOCKED_SOUND_TITLE, 0, 0},
     {ContentSettingsType::ADS, vector_icons::kAdsIcon,
      IDS_BLOCKED_ADS_PROMPT_TOOLTIP, IDS_BLOCKED_ADS_PROMPT_TITLE, 0},
@@ -304,6 +294,12 @@ ContentSettingImageModel::CreateForContentType(ImageType image_type) {
     case ImageType::JAVASCRIPT:
       return std::make_unique<ContentSettingBlockedImageModel>(
           ImageType::JAVASCRIPT, ContentSettingsType::JAVASCRIPT);
+    case ImageType::PPAPI_BROKER:
+      return std::make_unique<ContentSettingBlockedImageModel>(
+          ImageType::PPAPI_BROKER, ContentSettingsType::PPAPI_BROKER);
+    case ImageType::PLUGINS:
+      return std::make_unique<ContentSettingBlockedImageModel>(
+          ImageType::PLUGINS, ContentSettingsType::PLUGINS);
     case ImageType::POPUPS:
       return std::make_unique<ContentSettingPopupImageModel>();
     case ImageType::GEOLOCATION:
@@ -377,8 +373,7 @@ void ContentSettingImageModel::SetAnimationHasRun(
 
 bool ContentSettingImageModel::ShouldNotifyAccessibility(
     content::WebContents* contents) const {
-  return image_type_should_notify_accessibility_ &&
-         AccessibilityAnnouncementStringId() &&
+  return image_type_should_notify_accessibility_ && explanatory_string_id_ &&
          !ContentSettingImageModelStates::Get(contents)
               ->GetAccessibilityNotified(image_type());
 }
@@ -403,21 +398,6 @@ void ContentSettingImageModel::SetPromoWasShown(
                                                                   true);
 }
 
-bool ContentSettingImageModel::
-    IsMacRestoreLocationPermissionExperimentActive() {
-#if BUILDFLAG(IS_MAC)
-  return base::FeatureList::IsEnabled(
-             features::kLocationPermissionsExperiment) &&
-         g_browser_process->local_state()->GetInteger(
-             prefs::kMacRestoreLocationPermissionsExperimentCount) <
-             (features::GetLocationPermissionsExperimentBubblePromptLimit() +
-              features::GetLocationPermissionsExperimentLabelPromptLimit()) &&
-         explanatory_string_id() == IDS_GEOLOCATION_TURNED_OFF;
-#else
-  return false;
-#endif
-}
-
 bool ContentSettingImageModel::ShouldAutoOpenBubble(
     content::WebContents* contents) {
   return should_auto_open_bubble_ &&
@@ -427,13 +407,6 @@ bool ContentSettingImageModel::ShouldAutoOpenBubble(
 
 void ContentSettingImageModel::SetBubbleWasAutoOpened(
     content::WebContents* contents) {
-  // Do nothing if this is part of the Mac restore location permission
-  // experiment. In that case we do not want to restrict showing the bubble
-  // again.
-  if (image_type() == ImageType::GEOLOCATION &&
-      IsMacRestoreLocationPermissionExperimentActive()) {
-    return;
-  }
   ContentSettingImageModelStates::Get(contents)->SetBubbleWasAutoOpened(
       image_type(), true);
 }
@@ -458,8 +431,7 @@ bool ContentSettingBlockedImageModel::UpdateAndGetVisibility(
   // If a content type is blocked by default and was accessed, display the
   // content blocked page action.
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   if (!content_settings)
     return false;
 
@@ -491,8 +463,15 @@ bool ContentSettingBlockedImageModel::UpdateAndGetVisibility(
     explanation_id = 0;
   }
 
+  if (type == ContentSettingsType::PLUGINS &&
+      !ShouldShowPluginExplanation(web_contents, map)) {
+    explanation_id = 0;
+  }
+
   const gfx::VectorIcon* badge_id = &gfx::kNoneIcon;
-  if (content_settings->IsContentBlocked(type))
+  if (type == ContentSettingsType::PPAPI_BROKER)
+    badge_id = &kWarningBadgeIcon;
+  else if (content_settings->IsContentBlocked(type))
     badge_id = &vector_icons::kBlockedBadgeIcon;
 
   const gfx::VectorIcon* icon = &image_details->icon;
@@ -511,13 +490,12 @@ bool ContentSettingBlockedImageModel::UpdateAndGetVisibility(
 // Geolocation -----------------------------------------------------------------
 
 ContentSettingGeolocationImageModel::ContentSettingGeolocationImageModel()
-    : ContentSettingImageModel(ImageType::GEOLOCATION, kNotifyAccessibility) {}
+    : ContentSettingImageModel(ImageType::GEOLOCATION) {}
 
 bool ContentSettingGeolocationImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   set_should_auto_open_bubble(false);
   if (!content_settings)
     return false;
@@ -530,86 +508,56 @@ bool ContentSettingGeolocationImageModel::UpdateAndGetVisibility(
   if (!is_allowed && !is_blocked)
     return false;
 
-#if BUILDFLAG(IS_MAC)
-  set_explanatory_string_id(0);
-  if (is_allowed) {
-    if (!IsGeolocationAllowedOnASystemLevel()) {
-      set_icon(vector_icons::kLocationOnIcon, vector_icons::kBlockedBadgeIcon);
-      base::RecordAction(base::UserMetricsAction(
-          "ContentSettings.Geolocation.BlockedIconShown"));
-      set_tooltip(l10n_util::GetStringUTF16(IDS_BLOCKED_GEOLOCATION_MESSAGE));
-      if (content_settings->geolocation_was_just_granted_on_site_level())
-        set_should_auto_open_bubble(true);
-      // At this point macOS may not have told us whether location permission
-      // has been allowed or blocked. Wait until the permission state is
-      // determined before displaying this message since it triggers an
-      // animation that cannot be cancelled
-      if (IsGeolocationPermissionDetermined()) {
-        if (base::FeatureList::IsEnabled(
-                features::kLocationPermissionsExperiment)) {
-          PrefService* prefs = g_browser_process->local_state();
-          int count = prefs->GetInteger(
-              prefs::kMacRestoreLocationPermissionsExperimentCount);
-          if (count <
-              features::GetLocationPermissionsExperimentBubblePromptLimit()) {
-            // Show the bubble when the location is denied.
-            set_should_auto_open_bubble(true);
-            prefs->SetInteger(
-                prefs::kMacRestoreLocationPermissionsExperimentCount, ++count);
-            prefs->CommitPendingWrite();
-          } else if (
-              count <
-              (features::GetLocationPermissionsExperimentBubblePromptLimit() +
-               features::GetLocationPermissionsExperimentLabelPromptLimit())) {
-            // Show a persistent label without a bubble when the location is
-            // denied.
-            set_explanatory_string_id(IDS_GEOLOCATION_TURNED_OFF);
-            prefs->SetInteger(
-                prefs::kMacRestoreLocationPermissionsExperimentCount, ++count);
-            prefs->CommitPendingWrite();
-          } else {
-            // Return to normal behavior.
-            set_explanatory_string_id(IDS_GEOLOCATION_TURNED_OFF);
-          }
-        } else {
+#if defined(OS_MAC)
+
+  if (base::FeatureList::IsEnabled(
+          ::features::kMacCoreLocationImplementation)) {
+    set_explanatory_string_id(0);
+    if (is_allowed) {
+      if (!IsGeolocationAllowedOnASystemLevel()) {
+        set_icon(vector_icons::kLocationOnIcon,
+                 vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_BLOCKED_GEOLOCATION_MESSAGE));
+        if (content_settings->geolocation_was_just_granted_on_site_level())
+          set_should_auto_open_bubble(true);
+        // At this point macOS may not have told us whether location permission
+        // has been allowed or blocked. Wait until the permission state is
+        // determined before displaying this message since it triggers an
+        // animation that cannot be cancelled
+        if (IsGeolocationPermissionDetermined())
           set_explanatory_string_id(IDS_GEOLOCATION_TURNED_OFF);
-        }
+        return true;
       }
-      return true;
     }
   }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
   set_icon(vector_icons::kLocationOnIcon,
            is_allowed ? gfx::kNoneIcon : vector_icons::kBlockedBadgeIcon);
-  auto message_id = is_allowed ? IDS_ALLOWED_GEOLOCATION_MESSAGE
-                               : IDS_BLOCKED_GEOLOCATION_MESSAGE;
-  set_tooltip(l10n_util::GetStringUTF16(message_id));
-  set_accessibility_string_id(message_id);
-
+  set_tooltip(l10n_util::GetStringUTF16(is_allowed
+                                            ? IDS_ALLOWED_GEOLOCATION_MESSAGE
+                                            : IDS_BLOCKED_GEOLOCATION_MESSAGE));
   return true;
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 bool ContentSettingGeolocationImageModel::IsGeolocationAllowedOnASystemLevel() {
-  device::GeolocationManager* geolocation_manager =
-      g_browser_process->platform_part()->geolocation_manager();
-  device::LocationSystemPermissionStatus permission =
-      geolocation_manager->GetSystemPermission();
+  GeolocationSystemPermissionManager* permission_manager =
+      g_browser_process->platform_part()->location_permission_manager();
+  SystemPermissionStatus permission = permission_manager->GetSystemPermission();
 
-  return permission == device::LocationSystemPermissionStatus::kAllowed;
+  return permission == SystemPermissionStatus::kAllowed;
 }
 
 bool ContentSettingGeolocationImageModel::IsGeolocationPermissionDetermined() {
-  device::GeolocationManager* geolocation_manager =
-      g_browser_process->platform_part()->geolocation_manager();
-  device::LocationSystemPermissionStatus permission =
-      geolocation_manager->GetSystemPermission();
+  GeolocationSystemPermissionManager* permission_manager =
+      g_browser_process->platform_part()->location_permission_manager();
+  SystemPermissionStatus permission = permission_manager->GetSystemPermission();
 
-  return permission != device::LocationSystemPermissionStatus::kNotDetermined;
+  return permission != SystemPermissionStatus::kNotDetermined;
 }
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingGeolocationImageModel::CreateBubbleModelImpl(
@@ -650,8 +598,7 @@ ContentSettingMIDISysExImageModel::ContentSettingMIDISysExImageModel()
 bool ContentSettingMIDISysExImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   if (!content_settings)
     return false;
 
@@ -716,8 +663,7 @@ ContentSettingClipboardReadWriteImageModel::
 bool ContentSettingClipboardReadWriteImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   if (!content_settings)
     return false;
   ContentSettingsType content_type = ContentSettingsType::CLIPBOARD_READ_WRITE;
@@ -736,14 +682,13 @@ bool ContentSettingClipboardReadWriteImageModel::UpdateAndGetVisibility(
 // Media -----------------------------------------------------------------------
 
 ContentSettingMediaImageModel::ContentSettingMediaImageModel()
-    : ContentSettingImageModel(ImageType::MEDIASTREAM, kNotifyAccessibility) {}
+    : ContentSettingImageModel(ImageType::MEDIASTREAM) {}
 
 bool ContentSettingMediaImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
   set_should_auto_open_bubble(false);
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   if (!content_settings)
     return false;
   state_ = content_settings->GetMicrophoneCameraState();
@@ -753,86 +698,81 @@ bool ContentSettingMediaImageModel::UpdateAndGetVisibility(
   if (state_ == PageSpecificContentSettings::MICROPHONE_CAMERA_NOT_ACCESSED)
     return false;
 
-#if BUILDFLAG(IS_MAC)
-  // Don't show an icon when the user has not made a decision yet for
-  // the site level media permissions.
-  if (IsCameraAccessPendingOnSystemLevelPrompt() ||
-      IsMicAccessPendingOnSystemLevelPrompt()) {
-    return false;
-  }
-
-  set_explanatory_string_id(0);
-
-  if (IsCamAccessed() && IsMicAccessed()) {
-    if (IsCameraBlockedOnSiteLevel() || IsMicBlockedOnSiteLevel()) {
-      set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_CAMERA_BLOCKED));
-      set_accessibility_string_id(IDS_MICROPHONE_CAMERA_BLOCKED);
-    } else if (DidCameraAccessFailBecauseOfSystemLevelBlock() ||
-               DidMicAccessFailBecauseOfSystemLevelBlock()) {
-      set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_CAMERA_BLOCKED));
-      set_accessibility_string_id(IDS_MICROPHONE_CAMERA_BLOCKED);
-      if (content_settings->camera_was_just_granted_on_site_level() ||
-          content_settings->mic_was_just_granted_on_site_level()) {
-        // Automatically trigger the new bubble, if the camera
-        // and/or mic was just granted on a site level, but blocked on a
-        // system level.
-        set_should_auto_open_bubble(true);
-      } else {
-        set_explanatory_string_id(IDS_CAMERA_TURNED_OFF);
-      }
-    } else {
-      set_icon(vector_icons::kVideocamIcon, gfx::kNoneIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_CAMERA_ALLOWED));
+#if defined(OS_MAC)
+  if (base::FeatureList::IsEnabled(
+          ::features::kMacSystemMediaPermissionsInfoUi)) {
+    // Don't show an icon when the user has not made a decision yet for
+    // the site level media permissions.
+    if (IsCameraAccessPendingOnSystemLevelPrompt() ||
+        IsMicAccessPendingOnSystemLevelPrompt()) {
+      return false;
     }
-    return true;
-  }
 
-  if (IsCamAccessed()) {
-    if (IsCameraBlockedOnSiteLevel()) {
-      set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_CAMERA_BLOCKED));
-      set_accessibility_string_id(IDS_CAMERA_BLOCKED);
-    } else if (DidCameraAccessFailBecauseOfSystemLevelBlock()) {
-      set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_CAMERA_BLOCKED));
-      set_accessibility_string_id(IDS_CAMERA_BLOCKED);
-      if (content_settings->camera_was_just_granted_on_site_level()) {
-        set_should_auto_open_bubble(true);
-      } else {
-        set_explanatory_string_id(IDS_CAMERA_TURNED_OFF);
-      }
-    } else {
-      set_icon(vector_icons::kVideocamIcon, gfx::kNoneIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_CAMERA_ACCESSED));
-      set_accessibility_string_id(IDS_CAMERA_ACCESSED);
-    }
-    return true;
-  }
+    set_explanatory_string_id(0);
 
-  if (IsMicAccessed()) {
-    if (IsMicBlockedOnSiteLevel()) {
-      set_icon(vector_icons::kMicIcon, vector_icons::kBlockedBadgeIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_BLOCKED));
-      set_accessibility_string_id(IDS_MICROPHONE_BLOCKED);
-    } else if (DidMicAccessFailBecauseOfSystemLevelBlock()) {
-      set_icon(vector_icons::kMicIcon, vector_icons::kBlockedBadgeIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_BLOCKED));
-      set_accessibility_string_id(IDS_MICROPHONE_BLOCKED);
-      if (content_settings->mic_was_just_granted_on_site_level()) {
-        set_should_auto_open_bubble(true);
+    if (IsCamAccessed() && IsMicAccessed()) {
+      if (IsCameraBlockedOnSiteLevel() || IsMicBlockedOnSiteLevel()) {
+        set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_CAMERA_BLOCKED));
+      } else if (DidCameraAccessFailBecauseOfSystemLevelBlock() ||
+                 DidMicAccessFailBecauseOfSystemLevelBlock()) {
+        set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_CAMERA_BLOCKED));
+        if (content_settings->camera_was_just_granted_on_site_level() ||
+            content_settings->mic_was_just_granted_on_site_level()) {
+          // Automatically trigger the new bubble, if the camera
+          // and/or mic was just granted on a site level, but blocked on a
+          // system level.
+          set_should_auto_open_bubble(true);
+        } else {
+          set_explanatory_string_id(IDS_CAMERA_TURNED_OFF);
+        }
       } else {
-        set_explanatory_string_id(IDS_MIC_TURNED_OFF);
+        set_icon(vector_icons::kVideocamIcon, gfx::kNoneIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_CAMERA_ALLOWED));
       }
-    } else {
-      set_icon(vector_icons::kMicIcon, gfx::kNoneIcon);
-      set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_ACCESSED));
-      set_accessibility_string_id(IDS_MICROPHONE_ACCESSED);
+      return true;
     }
-    return true;
+
+    if (IsCamAccessed()) {
+      if (IsCameraBlockedOnSiteLevel()) {
+        set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_CAMERA_BLOCKED));
+      } else if (DidCameraAccessFailBecauseOfSystemLevelBlock()) {
+        set_icon(vector_icons::kVideocamIcon, vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_CAMERA_BLOCKED));
+        if (content_settings->camera_was_just_granted_on_site_level()) {
+          set_should_auto_open_bubble(true);
+        } else {
+          set_explanatory_string_id(IDS_CAMERA_TURNED_OFF);
+        }
+      } else {
+        set_icon(vector_icons::kVideocamIcon, gfx::kNoneIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_CAMERA_ACCESSED));
+      }
+      return true;
+    }
+
+    if (IsMicAccessed()) {
+      if (IsMicBlockedOnSiteLevel()) {
+        set_icon(vector_icons::kMicIcon, vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_BLOCKED));
+      } else if (DidMicAccessFailBecauseOfSystemLevelBlock()) {
+        set_icon(vector_icons::kMicIcon, vector_icons::kBlockedBadgeIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_BLOCKED));
+        if (content_settings->mic_was_just_granted_on_site_level()) {
+          set_should_auto_open_bubble(true);
+        } else {
+          set_explanatory_string_id(IDS_MIC_TURNED_OFF);
+        }
+      } else {
+        set_icon(vector_icons::kMicIcon, gfx::kNoneIcon);
+        set_tooltip(l10n_util::GetStringUTF16(IDS_MICROPHONE_ACCESSED));
+      }
+      return true;
+    }
   }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
   DCHECK(IsMicAccessed() || IsCamAccessed());
 
@@ -850,7 +790,6 @@ bool ContentSettingMediaImageModel::UpdateAndGetVisibility(
                            : IDS_MICROPHONE_ACCESSED;
   }
   set_tooltip(l10n_util::GetStringUTF16(id));
-  set_accessibility_string_id(id);
 
   return true;
 }
@@ -871,7 +810,7 @@ bool ContentSettingMediaImageModel::IsCameraBlockedOnSiteLevel() {
   return ((state_ & PageSpecificContentSettings::CAMERA_BLOCKED) != 0);
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 bool ContentSettingMediaImageModel::
     DidCameraAccessFailBecauseOfSystemLevelBlock() {
   return (IsCamAccessed() && !IsCameraBlockedOnSiteLevel() &&
@@ -898,7 +837,7 @@ bool ContentSettingMediaImageModel::IsMicAccessPendingOnSystemLevelPrompt() {
           IsMicAccessed() && !IsMicBlockedOnSiteLevel());
 }
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingMediaImageModel::CreateBubbleModelImpl(
@@ -940,8 +879,8 @@ ContentSettingSensorsImageModel::ContentSettingSensorsImageModel()
 
 bool ContentSettingSensorsImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
-  auto* content_settings = PageSpecificContentSettings::GetForFrame(
-      web_contents->GetPrimaryMainFrame());
+  auto* content_settings =
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   if (!content_settings)
     return false;
 
@@ -983,8 +922,7 @@ ContentSettingPopupImageModel::ContentSettingPopupImageModel()
 bool ContentSettingPopupImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(
-          web_contents->GetPrimaryMainFrame());
+      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
   if (!content_settings || !content_settings->IsContentBlocked(content_type()))
     return false;
   set_icon(kWebIcon, vector_icons::kBlockedBadgeIcon);
@@ -1012,28 +950,14 @@ bool ContentSettingNotificationsImageModel::UpdateAndGetVisibility(
   auto* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
 
-  // If `kPermissionQuietUIChip` is enabled, we shouldn't show the icon unless
-  // we're a PWA.
-  // TODO(crbug.com/1221189): Allow PermissionRequestManager to identify the
-  // correct UI style of a permission prompt.
-  const bool quiet_icon_allowed =
-      web_app::AppBrowserController::IsWebApp(
-          chrome::FindBrowserWithWebContents(web_contents)) ||
-      !base::FeatureList::IsEnabled(
-          permissions::features::kPermissionQuietChip);
-
-  if (!quiet_icon_allowed || !manager ||
-      !manager->ShouldCurrentRequestUseQuietUI()) {
+  if (!manager || !manager->ShouldCurrentRequestUseQuietUI())
     return false;
-  }
-
   // |manager| may be null in tests.
   // Show promo the first time a quiet prompt is shown to the user.
   set_should_show_promo(
       QuietNotificationPermissionUiState::ShouldShowPromo(profile));
-  if (permissions::PermissionUiSelector::ShouldSuppressAnimation(
+  if (permissions::NotificationPermissionUiSelector::ShouldSuppressAnimation(
           manager->ReasonForUsingQuietUi())) {
-    set_accessibility_string_id(IDS_NOTIFICATIONS_OFF_EXPLANATORY_TEXT);
     set_explanatory_string_id(0);
   } else {
     set_explanatory_string_id(IDS_NOTIFICATIONS_OFF_EXPLANATORY_TEXT);
@@ -1054,8 +978,8 @@ std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingNotificationsImageModel::CreateBubbleModelImpl(
     ContentSettingBubbleModel::Delegate* delegate,
     WebContents* web_contents) {
-  return std::make_unique<ContentSettingQuietRequestBubbleModel>(delegate,
-                                                                 web_contents);
+  return std::make_unique<ContentSettingNotificationsBubbleModel>(delegate,
+                                                                  web_contents);
 }
 
 // Base class ------------------------------------------------------------------
@@ -1064,11 +988,6 @@ gfx::Image ContentSettingImageModel::GetIcon(SkColor icon_color) const {
   int icon_size = GetLayoutConstant(LOCATION_BAR_ICON_SIZE);
   return gfx::Image(gfx::CreateVectorIconWithBadge(*icon_, icon_size,
                                                    icon_color, *icon_badge_));
-}
-
-int ContentSettingImageModel::AccessibilityAnnouncementStringId() const {
-  return explanatory_string_id_ ? explanatory_string_id_
-                                : accessibility_string_id_;
 }
 
 ContentSettingImageModel::ContentSettingImageModel(
@@ -1085,6 +1004,9 @@ ContentSettingImageModel::CreateBubbleModel(
     ContentSettingBubbleModel::Delegate* delegate,
     content::WebContents* web_contents) {
   DCHECK(web_contents);
+  UMA_HISTOGRAM_ENUMERATION(
+      "ContentSettings.ImagePressed", image_type(),
+      ContentSettingImageModel::ImageType::NUM_IMAGE_TYPES);
   return CreateBubbleModelImpl(delegate, web_contents);
 }
 
@@ -1097,6 +1019,8 @@ ContentSettingImageModel::GenerateContentSettingImageModels() {
       ImageType::COOKIES,
       ImageType::IMAGES,
       ImageType::JAVASCRIPT,
+      ImageType::PPAPI_BROKER,
+      ImageType::PLUGINS,
       ImageType::POPUPS,
       ImageType::GEOLOCATION,
       ImageType::MIXEDSCRIPT,

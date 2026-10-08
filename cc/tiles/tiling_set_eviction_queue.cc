@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/notreached.h"
 #include "cc/tiles/tiling_set_eviction_queue.h"
 
 namespace cc {
@@ -235,8 +234,8 @@ bool TilingSetEvictionQueue::EvictionRectIterator::GetFirstTileAndCheckIfValid(
     if (tiling->pending_visible_rect().Intersects(tile_rect))
       return false;
   }
-  prioritized_tile_ = tiling->MakePrioritizedTile(tile, priority_rect_type_,
-                                                  tiling->IsTileOccluded(tile));
+  prioritized_tile_ = (*tilings_)[tiling_index_]->MakePrioritizedTile(
+      tile, priority_rect_type_);
   // In other cases, the tile we got is a viable candidate, return true.
   return true;
 }

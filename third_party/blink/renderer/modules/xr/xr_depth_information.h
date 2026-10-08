@@ -1,55 +1,48 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_DEPTH_INFORMATION_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_DEPTH_INFORMATION_H_
 
+#include "device/vr/public/mojom/vr_service.mojom-blink-forward.h"
+#include "third_party/blink/renderer/core/typed_arrays/dom_typed_array.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
-#include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
+#include "third_party/blink/renderer/platform/wtf/forward.h"
+#include "ui/gfx/transform.h"
 
 namespace blink {
 
 class ExceptionState;
-class XRFrame;
 class XRRigidTransform;
 
-class XRDepthInformation : public ScriptWrappable {
+class XRDepthInformation final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
- protected:
-  explicit XRDepthInformation(
-      const XRFrame* xr_frame,
-      const gfx::Size& size,
-      const gfx::Transform& norm_depth_buffer_from_norm_view,
-      float raw_value_to_meters);
-
-  // Helper to validate whether a frame is in a correct state. Should be invoked
-  // before every member access. If the validation returns `false`, it means the
-  // validation failed & an exception is going to be thrown and the rest of the
-  // member access code should not run.
-  bool ValidateFrame(ExceptionState& exception_state) const;
-
  public:
+  explicit XRDepthInformation(
+      const device::mojom::blink::XRDepthDataUpdated& depth_data);
+
+  DOMUint16Array* data() const;
+
   uint32_t width() const;
 
   uint32_t height() const;
 
-  XRRigidTransform* normDepthBufferFromNormView() const;
+  XRRigidTransform* normTextureFromNormView() const;
 
-  float rawValueToMeters() const;
+  float getDepth(uint32_t column,
+                 uint32_t row,
+                 ExceptionState& exception_state) const;
 
   void Trace(Visitor* visitor) const override;
 
- protected:
-  const Member<const XRFrame> xr_frame_;
+ private:
+  uint32_t width_;
+  uint32_t height_;
 
-  const gfx::Size size_;
-
-  const gfx::Transform norm_depth_buffer_from_norm_view_;
-  const float raw_value_to_meters_;
+  Member<DOMUint16Array> data_;
+  gfx::Transform norm_texture_from_norm_view_;
 };
 
 }  // namespace blink

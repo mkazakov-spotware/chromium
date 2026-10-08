@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include <utility>
 
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
-#include "components/webapps/browser/installable/installable_data.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "chrome/browser/installable/installable_logging.h"
 #include "content/public/browser/web_contents.h"
 
-namespace webapps {
+namespace banners {
 
 TestAppBannerManagerDesktop::TestAppBannerManagerDesktop(
     content::WebContents* web_contents)
@@ -59,13 +59,7 @@ bool TestAppBannerManagerDesktop::WaitForInstallableCheck() {
     installable_quit_closure_ = run_loop.QuitClosure();
     run_loop.Run();
   }
-  // Only wait for worker check if it has started after the installable check.
-  if (waiting_for_worker_) {
-    base::RunLoop run_loop;
-    promotable_quit_closure_ = run_loop.QuitClosure();
-    run_loop.Run();
-  }
-  return *installable_ && promotable_;
+  return *installable_;
 }
 
 void TestAppBannerManagerDesktop::PrepareDone(base::OnceClosure on_done) {
@@ -89,31 +83,18 @@ void TestAppBannerManagerDesktop::OnDidGetManifest(
   // AppBannerManagerDesktop does not call |OnDidPerformInstallableCheck| to
   // complete the installability check in this case, instead it early exits
   // with failure.
-  if (!result.NoBlockingErrors())
+  if (!result.errors.empty())
     SetInstallable(false);
 }
 void TestAppBannerManagerDesktop::OnDidPerformInstallableWebAppCheck(
     const InstallableData& result) {
   AppBannerManagerDesktop::OnDidPerformInstallableWebAppCheck(result);
-  SetInstallable(result.NoBlockingErrors());
-}
-
-void TestAppBannerManagerDesktop::PerformServiceWorkerCheck() {
-  waiting_for_worker_ = true;
-  AppBannerManagerDesktop::PerformServiceWorkerCheck();
-}
-
-void TestAppBannerManagerDesktop::OnDidPerformWorkerCheck(
-    const InstallableData& result) {
-  AppBannerManagerDesktop::OnDidPerformWorkerCheck(result);
-  SetPromotable(result.NoBlockingErrors());
+  SetInstallable(result.errors.empty());
 }
 
 void TestAppBannerManagerDesktop::ResetCurrentPageData() {
   AppBannerManagerDesktop::ResetCurrentPageData();
   installable_.reset();
-  promotable_ = false;
-  waiting_for_worker_ = false;
   if (tear_down_quit_closure_)
     std::move(tear_down_quit_closure_).Run();
 }
@@ -131,53 +112,33 @@ void TestAppBannerManagerDesktop::OnInstall(blink::mojom::DisplayMode display) {
 
 void TestAppBannerManagerDesktop::DidFinishCreatingWebApp(
     const web_app::AppId& app_id,
-    webapps::InstallResultCode code) {
+    web_app::InstallResultCode code) {
   AppBannerManagerDesktop::DidFinishCreatingWebApp(app_id, code);
   OnFinished();
-}
-
-void TestAppBannerManagerDesktop::DidFinishLoad(
-    content::RenderFrameHost* render_frame_host,
-    const GURL& validated_url) {
-  if (ShouldIgnore(render_frame_host, validated_url)) {
-    SetInstallable(false);
-    return;
-  }
-
-  AppBannerManagerDesktop::DidFinishLoad(render_frame_host, validated_url);
 }
 
 void TestAppBannerManagerDesktop::UpdateState(AppBannerManager::State state) {
   AppBannerManager::UpdateState(state);
 
   if (state == AppBannerManager::State::PENDING_ENGAGEMENT ||
-      state == AppBannerManager::State::PENDING_PROMPT_CANCELED ||
-      state == AppBannerManager::State::PENDING_PROMPT_NOT_CANCELED ||
+      state == AppBannerManager::State::PENDING_PROMPT ||
       state == AppBannerManager::State::COMPLETE) {
     OnFinished();
   }
 }
 
 void TestAppBannerManagerDesktop::SetInstallable(bool installable) {
-  DCHECK(!installable_.has_value() || installable_ == installable);
+  DCHECK(!installable_.has_value());
   installable_ = installable;
   if (installable_quit_closure_)
     std::move(installable_quit_closure_).Run();
 }
 
-void TestAppBannerManagerDesktop::SetPromotable(bool promotable) {
-  DCHECK(waiting_for_worker_);
-  waiting_for_worker_ = false;
-  promotable_ = promotable;
-  if (promotable_quit_closure_)
-    std::move(promotable_quit_closure_).Run();
-}
-
 void TestAppBannerManagerDesktop::OnFinished() {
   if (on_done_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(on_done_));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  std::move(on_done_));
   }
 }
 
-}  // namespace webapps
+}  // namespace banners

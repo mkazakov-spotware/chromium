@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.Spy;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
 
 import org.chromium.IsReadyToPayService;
 import org.chromium.IsReadyToPayServiceCallback;
@@ -47,19 +43,10 @@ import org.chromium.components.payments.intent.IsReadyToPayServiceHelper;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class IsReadyToPayServiceHelperTest {
     @Rule
-    public final ChromeTabbedActivityTestRule mActivityTestRule =
-            new ChromeTabbedActivityTestRule();
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     @Rule
-    public final ExpectedException mExpectedExceptionRule = ExpectedException.none();
-
-    @Rule
-    public final MockitoRule mMockitoRule = MockitoJUnit.rule();
-
-    @Mock
-    private IBinder mBinderMock;
-    @Spy
-    private IsReadyToPayService.Default mServiceSpy;
+    public ExpectedException thrown = ExpectedException.none();
 
     private boolean mErrorReceived;
     private boolean mResponseReceived;
@@ -71,6 +58,14 @@ public class IsReadyToPayServiceHelperTest {
 
     @After
     public void tearDown() throws Throwable {}
+
+    // Mock the 1-to-1 relationship for the service and the binder.
+    private IsReadyToPayService mockIsReadyToPayServiceForBinder(IBinder binder) {
+        IsReadyToPayService.Default dummyService = new IsReadyToPayService.Default();
+        IsReadyToPayService service = Mockito.spy(dummyService);
+        Mockito.when(binder.queryLocalInterface(Mockito.any())).thenReturn(service);
+        return service;
+    }
 
     private interface ServiceCallbackHandler { void handle(IsReadyToPayServiceCallback callback); }
 
@@ -95,12 +90,12 @@ public class IsReadyToPayServiceHelperTest {
 
     private IBinder createService(ServiceCallbackHandler serviceCallbackHandler) {
         IBinder binder = Mockito.mock(IBinder.class);
-        Mockito.when(binder.queryLocalInterface(Mockito.any())).thenReturn(mServiceSpy);
+        IsReadyToPayService service = mockIsReadyToPayServiceForBinder(binder);
 
         try {
             Mockito.doAnswer(answerVoid((IsReadyToPayServiceCallback callback)
                                                 -> serviceCallbackHandler.handle(callback)))
-                    .when(mServiceSpy)
+                    .when(service)
                     .isReadyToPay(Mockito.any(IsReadyToPayServiceHelper.class));
 
         } catch (Throwable e) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 (async function(testRunner) {
@@ -46,10 +46,11 @@
 
   await dp.Runtime.enable();
   await dp.Emulation.setVirtualTimePolicy({policy: 'pause'});
-  await dp.Page.navigate({url: 'http://test.com/'});
-  dp.Emulation.setVirtualTimePolicy({
-    policy: 'pauseIfNetworkFetchesPending', budget: 5000});
+  await dp.Emulation.setVirtualTimePolicy({
+      policy: 'pauseIfNetworkFetchesPending', budget: 5000,
+      waitForNavigation: true});
+  dp.Page.navigate({url: 'http://test.com/'});
   const {params} = await dp.Runtime.onceConsoleAPICalled();
-    testRunner.log(`PAGE: ${params.args[0].value}`);
-    testRunner.completeTest();
+  testRunner.log(`PAGE: ${params.args[0].value}`);
+  testRunner.completeTest();
 })

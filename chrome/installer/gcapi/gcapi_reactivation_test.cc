@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::Time;
+using base::TimeDelta;
 using base::win::RegKey;
 
 class GCAPIReactivationTest : public ::testing::Test {
@@ -43,11 +44,11 @@ class GCAPIReactivationTest : public ::testing::Test {
   }
 
   bool SetLastRunTime(HKEY hive, int64_t last_run_time) {
-    return SetLastRunTimeString(hive, base::NumberToWString(last_run_time));
+    return SetLastRunTimeString(hive, base::NumberToString16(last_run_time));
   }
 
   bool SetLastRunTimeString(HKEY hive,
-                            const std::wstring& last_run_time_string) {
+                            const base::string16& last_run_time_string) {
     const wchar_t* base_path = (hive == HKEY_LOCAL_MACHINE)
                                    ? google_update::kRegPathClientStateMedium
                                    : google_update::kRegPathClientState;
@@ -63,7 +64,7 @@ class GCAPIReactivationTest : public ::testing::Test {
   }
 
   bool HasExperimentLabels(HKEY hive) {
-    std::wstring client_state_path(google_update::kRegPathClientState);
+    base::string16 client_state_path(google_update::kRegPathClientState);
     client_state_path.push_back(L'\\');
     client_state_path.append(google_update::kChromeUpgradeCode);
 
@@ -117,7 +118,7 @@ TEST_F(GCAPIReactivationTest, CanOfferReactivation_Basic) {
       CanOfferReactivation(L"GAGA", GCAPI_INVOKED_STANDARD_SHELL, &error));
 
   // Now set a recent last_run value. CanOfferReactivation should fail again.
-  Time hkcu_last_run = Time::NowFromSystemTime() - base::Days(20);
+  Time hkcu_last_run = Time::NowFromSystemTime() - TimeDelta::FromDays(20);
   EXPECT_TRUE(
       SetLastRunTime(HKEY_CURRENT_USER, hkcu_last_run.ToInternalValue()));
   EXPECT_FALSE(
@@ -125,8 +126,8 @@ TEST_F(GCAPIReactivationTest, CanOfferReactivation_Basic) {
   EXPECT_EQ(static_cast<DWORD>(REACTIVATE_ERROR_NOTDORMANT), error);
 
   // Now set a last_run value that exceeds the threshold.
-  hkcu_last_run =
-      Time::NowFromSystemTime() - base::Days(kReactivationMinDaysDormant);
+  hkcu_last_run = Time::NowFromSystemTime() -
+                  TimeDelta::FromDays(kReactivationMinDaysDormant);
   EXPECT_TRUE(
       SetLastRunTime(HKEY_CURRENT_USER, hkcu_last_run.ToInternalValue()));
   EXPECT_TRUE(
@@ -155,8 +156,8 @@ TEST_F(GCAPIReactivationTest, Reactivation_Flow) {
   // Set us up as a candidate for reactivation.
   EXPECT_TRUE(SetChromeInstallMarker(HKEY_CURRENT_USER));
 
-  Time hkcu_last_run =
-      Time::NowFromSystemTime() - base::Days(kReactivationMinDaysDormant);
+  Time hkcu_last_run = Time::NowFromSystemTime() -
+                       TimeDelta::FromDays(kReactivationMinDaysDormant);
   EXPECT_TRUE(
       SetLastRunTime(HKEY_CURRENT_USER, hkcu_last_run.ToInternalValue()));
 
@@ -183,8 +184,8 @@ TEST_F(GCAPIReactivationTest, ExperimentLabelCheck) {
   // Set us up as a candidate for reactivation.
   EXPECT_TRUE(SetChromeInstallMarker(HKEY_CURRENT_USER));
 
-  Time hkcu_last_run =
-      Time::NowFromSystemTime() - base::Days(kReactivationMinDaysDormant);
+  Time hkcu_last_run = Time::NowFromSystemTime() -
+                       TimeDelta::FromDays(kReactivationMinDaysDormant);
   EXPECT_TRUE(
       SetLastRunTime(HKEY_CURRENT_USER, hkcu_last_run.ToInternalValue()));
 

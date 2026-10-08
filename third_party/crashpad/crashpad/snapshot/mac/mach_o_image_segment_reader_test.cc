@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,7 @@
 
 #include <mach-o/loader.h>
 
-#include <iterator>
-
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "gtest/gtest.h"
 
@@ -64,7 +63,7 @@ TEST(MachOImageSegmentReader, SegmentNameString) {
       SEG_IMPORT,
   };
 
-  for (size_t index = 0; index < std::size(kSegmentTestData); ++index) {
+  for (size_t index = 0; index < base::size(kSegmentTestData); ++index) {
     EXPECT_EQ(
         MachOImageSegmentReader::SegmentNameString(kSegmentTestData[index]),
         kSegmentTestData[index])
@@ -107,7 +106,7 @@ TEST(MachOImageSegmentReader, SectionNameString) {
       SECT_ICON_TIFF,
   };
 
-  for (size_t index = 0; index < std::size(kSectionTestData); ++index) {
+  for (size_t index = 0; index < base::size(kSectionTestData); ++index) {
     EXPECT_EQ(
         MachOImageSegmentReader::SectionNameString(kSectionTestData[index]),
         kSectionTestData[index])
@@ -170,7 +169,7 @@ TEST(MachOImageSegmentReader, SegmentAndSectionNameString) {
       {SEG_IMPORT, "", "__IMPORT,"},
   };
 
-  for (size_t index = 0; index < std::size(kSegmentAndSectionTestData);
+  for (size_t index = 0; index < base::size(kSegmentAndSectionTestData);
        ++index) {
     const auto& test = kSegmentAndSectionTestData[index];
     EXPECT_EQ(MachOImageSegmentReader::SegmentAndSectionNameString(

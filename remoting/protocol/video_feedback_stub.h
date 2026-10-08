@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,9 @@
 #define REMOTING_PROTOCOL_VIDEO_FEEDBACK_STUB_H_
 
 #include <memory>
+
+#include "base/callback_forward.h"
+#include "base/macros.h"
 
 namespace remoting {
 
@@ -15,14 +18,14 @@ namespace protocol {
 
 class VideoFeedbackStub {
  public:
-  VideoFeedbackStub(const VideoFeedbackStub&) = delete;
-  VideoFeedbackStub& operator=(const VideoFeedbackStub&) = delete;
-
   virtual void ProcessVideoAck(std::unique_ptr<VideoAck> video_ack) = 0;
 
  protected:
-  VideoFeedbackStub() = default;
-  virtual ~VideoFeedbackStub() = default;
+  VideoFeedbackStub() {}
+  virtual ~VideoFeedbackStub() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VideoFeedbackStub);
 };
 
 }  // namespace protocol

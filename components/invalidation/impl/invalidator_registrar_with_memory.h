@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 #include <set>
 #include <string>
 
-#include "base/feature_list.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
-#include "base/values.h"
 #include "components/invalidation/public/invalidation_export.h"
 #include "components/invalidation/public/invalidation_handler.h"
 #include "components/invalidation/public/topic_data.h"
@@ -24,9 +22,7 @@
 class PrefRegistrySimple;
 class PrefService;
 
-namespace invalidation {
-
-BASE_DECLARE_FEATURE(kRestoreInterestingTopicsFeature);
+namespace syncer {
 
 // A helper class for FCMInvalidationService.  It helps keep track of registered
 // handlers and which topic registrations are associated with each handler.
@@ -35,10 +31,7 @@ class INVALIDATION_EXPORT InvalidatorRegistrarWithMemory {
   InvalidatorRegistrarWithMemory(PrefService* prefs,
                                  const std::string& sender_id,
                                  bool migrate_old_prefs);
-  InvalidatorRegistrarWithMemory(const InvalidatorRegistrarWithMemory& other) =
-      delete;
-  InvalidatorRegistrarWithMemory& operator=(
-      const InvalidatorRegistrarWithMemory& other) = delete;
+
   // It is an error to have registered handlers on destruction.
   ~InvalidatorRegistrarWithMemory();
 
@@ -51,8 +44,6 @@ class INVALIDATION_EXPORT InvalidatorRegistrarWithMemory {
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
-  static void ClearTopicsWithObsoleteOwnerNames(PrefService* prefs);
-
   // Starts sending notifications to |handler|.  |handler| must not be nullptr,
   // and it must not already be registered.
   void RegisterHandler(InvalidationHandler* handler);
@@ -62,21 +53,15 @@ class INVALIDATION_EXPORT InvalidatorRegistrarWithMemory {
   // topics associated with |handler| from the server.
   void UnregisterHandler(InvalidationHandler* handler);
 
-  // Updates the set of topics associated with |handler|. |handler| must not be
-  // nullptr, and must already be registered. A topic must be registered for at
-  // most one handler. If any of the |topics| is already registered to a
-  // different handler, returns false. Note that this also updates the
-  // *subscribed* topics - assuming that whoever called this will also send
-  // (un)subscription requests to the server. However, this method does *not*
-  // unsubscribe from the topics which were not registered since browser
-  // startup.
-  [[nodiscard]] bool UpdateRegisteredTopics(InvalidationHandler* handler,
-                                            const std::set<TopicData>& topics);
-
-  // Unsubscribes from all topics which are associated with |handler| but were
-  // not added using UpdateRegisteredTopics(). It's useful to unsubscribe from
-  // all topics even if they were added before browser restart.
-  void RemoveUnregisteredTopics(InvalidationHandler* handler);
+  // Updates the set of topics associated with |handler|.  |handler| must
+  // not be nullptr, and must already be registered.  A topic must be registered
+  // for at most one handler. If any of the |topics| is already registered
+  // to a different handler, returns false.
+  // Note that this also updates the *subscribed* topics - assuming that whoever
+  // called this will also send (un)subscription requests to the server.
+  bool UpdateRegisteredTopics(InvalidationHandler* handler,
+                              const std::set<invalidation::TopicData>& topics)
+      WARN_UNUSED_RESULT;
 
   // Returns all topics currently registered to |handler|.
   Topics GetRegisteredTopics(InvalidationHandler* handler) const;
@@ -115,19 +100,18 @@ class INVALIDATION_EXPORT InvalidatorRegistrarWithMemory {
   std::map<std::string, Topics> GetHandlerNameToTopicsMap();
 
   void RequestDetailedStatus(
-      base::RepeatingCallback<void(base::Value::Dict)> callback) const;
+      base::RepeatingCallback<void(const base::DictionaryValue&)> callback)
+      const;
 
  private:
   // Checks if any of the |topics| is already registered for a *different*
   // handler than the given one.
-  bool HasDuplicateTopicRegistration(InvalidationHandler* handler,
-                                     const std::set<TopicData>& topics) const;
+  bool HasDuplicateTopicRegistration(
+      InvalidationHandler* handler,
+      const std::set<invalidation::TopicData>& topics) const;
 
   // Generate a Dictionary with all the debugging information.
-  base::Value::Dict CollectDebugData() const;
-
-  void RemoveSubscribedTopics(const InvalidationHandler* handler,
-                              const std::set<TopicData>& topics_to_unsubscribe);
+  base::DictionaryValue CollectDebugData() const;
 
   SEQUENCE_CHECKER(sequence_checker_);
 
@@ -135,21 +119,23 @@ class INVALIDATION_EXPORT InvalidatorRegistrarWithMemory {
   // Note: When a handler is unregistered, its entry is removed from
   // |registered_handler_to_topics_map_| but NOT from
   // |handler_name_to_subscribed_topics_map_|.
-  std::map<InvalidationHandler*, std::set<TopicData>>
+  std::map<InvalidationHandler*, std::set<invalidation::TopicData>>
       registered_handler_to_topics_map_;
-  std::map<std::string, std::set<TopicData>>
+  std::map<std::string, std::set<invalidation::TopicData>>
       handler_name_to_subscribed_topics_map_;
 
   InvalidatorState state_;
 
   // This can be either a regular (Profile-attached) PrefService or the local
   // state PrefService.
-  const raw_ptr<PrefService> prefs_;
+  PrefService* const prefs_;
 
   // The FCM sender ID.
   const std::string sender_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvalidatorRegistrarWithMemory);
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_IMPL_INVALIDATOR_REGISTRAR_WITH_MEMORY_H_

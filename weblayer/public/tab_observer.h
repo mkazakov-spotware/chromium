@@ -1,12 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_PUBLIC_TAB_OBSERVER_H_
 #define WEBLAYER_PUBLIC_TAB_OBSERVER_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 
 class GURL;
 
@@ -23,7 +22,7 @@ class TabObserver {
 
   // Called when the title of this tab changes. Note before the page sets a
   // title, the title may be a portion of the Uri.
-  virtual void OnTitleUpdated(const std::u16string& title) {}
+  virtual void OnTitleUpdated(const base::string16& title) {}
 
  protected:
   virtual ~TabObserver() {}

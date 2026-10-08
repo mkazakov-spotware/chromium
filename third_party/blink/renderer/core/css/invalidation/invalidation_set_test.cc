@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -263,8 +263,7 @@ TEST(InvalidationSetTest, Backing_GetHashSet) {
 }
 
 TEST(InvalidationSetTest, ClassInvalidatesElement) {
-  auto dummy_page_holder =
-      std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
+  auto dummy_page_holder = std::make_unique<DummyPageHolder>(IntSize(800, 600));
   auto& document = dummy_page_holder->GetDocument();
   document.body()->setInnerHTML("<div id=test class='a b'>");
   document.View()->UpdateAllLifecyclePhasesForTest();
@@ -289,8 +288,7 @@ TEST(InvalidationSetTest, ClassInvalidatesElement) {
 }
 
 TEST(InvalidationSetTest, AttributeInvalidatesElement) {
-  auto dummy_page_holder =
-      std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
+  auto dummy_page_holder = std::make_unique<DummyPageHolder>(IntSize(800, 600));
   auto& document = dummy_page_holder->GetDocument();
   document.body()->setInnerHTML("<div id=test a b>");
   document.View()->UpdateAllLifecyclePhasesForTest();
@@ -386,6 +384,13 @@ TEST(InvalidationSetTest, SelfInvalidationSet_Combine) {
   set->Combine(*self_set);
   EXPECT_TRUE(set->InvalidatesSelf());
 }
+
+#ifndef NDEBUG
+TEST(InvalidationSetTest, ShowDebug) {
+  scoped_refptr<InvalidationSet> set = DescendantInvalidationSet::Create();
+  set->Show();
+}
+#endif  // NDEBUG
 
 }  // namespace
 }  // namespace blink

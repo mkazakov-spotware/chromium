@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,12 @@
 #include <string>
 #include <utility>
 
-#include "ash/constants/app_types.h"
+#include "ash/public/cpp/app_types.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/session/test_session_controller_client.h"
-#include "ash/test/pixel/ash_pixel_test_init_params.h"
 #include "ash/wm/desks/desks_util.h"
-#include "ash/wm/overview/overview_types.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
 #include "base/traits_bag.h"
@@ -28,7 +27,6 @@
 #include "ui/aura/client/window_types.h"
 #include "ui/aura/env.h"
 #include "ui/display/display.h"
-#include "ui/events/event_constants.h"
 #include "ui/events/test/event_generator.h"
 
 namespace aura {
@@ -69,19 +67,14 @@ namespace ash {
 
 class AmbientAshTestHelper;
 class AppListTestHelper;
-class AshPixelDiffer;
 class AshTestHelper;
 class Shelf;
-class TestAppListClient;
+class TestScreenshotDelegate;
 class TestShellDelegate;
 class TestSystemTrayClient;
 class UnifiedSystemTray;
 class WorkAreaInsets;
 
-// Base class for most tests in //ash. Constructs ash::Shell and all its
-// dependencies. Provides a user login session (use NoSessionAshTestBase for
-// tests that start at the login screen or need unusual user types). Sets
-// animation durations to zero via AshTestHelper/AuraTestHelper.
 class AshTestBase : public testing::Test {
  public:
   // Constructs an AshTestBase with |traits| being forwarded to its
@@ -96,9 +89,6 @@ class AshTestBase : public testing::Test {
   // Alternatively a subclass may pass a TaskEnvironment directly.
   explicit AshTestBase(
       std::unique_ptr<base::test::TaskEnvironment> task_environment);
-
-  AshTestBase(const AshTestBase&) = delete;
-  AshTestBase& operator=(const AshTestBase&) = delete;
 
   ~AshTestBase() override;
 
@@ -133,9 +123,6 @@ class AshTestBase : public testing::Test {
       const gfx::Rect& bounds = gfx::Rect(),
       bool show = true);
 
-  // Creates a frameless widget for testing.
-  static std::unique_ptr<views::Widget> CreateFramelessTestWidget();
-
   // Creates a widget with a visible WINDOW_TYPE_NORMAL window with the given
   // |app_type|. If |app_type| is AppType::NON_APP, this window is considered a
   // non-app window.
@@ -143,13 +130,10 @@ class AshTestBase : public testing::Test {
   // window, otherwise the window is added to the display matching
   // |bounds_in_screen|. |shell_window_id| is the shell window id to give to
   // the new window.
-  // If |delegate| is empty, a new |TestWidgetDelegate| instance will be set as
-  // this widget's delegate.
   std::unique_ptr<aura::Window> CreateAppWindow(
       const gfx::Rect& bounds_in_screen = gfx::Rect(),
       AppType app_type = AppType::SYSTEM_APP,
-      int shell_window_id = kShellWindowId_Invalid,
-      views::WidgetDelegate* delegate = nullptr);
+      int shell_window_id = kShellWindowId_Invalid);
 
   // Creates a visible window in the appropriate container. If
   // |bounds_in_screen| is empty the window is added to the primary root
@@ -172,6 +156,17 @@ class AshTestBase : public testing::Test {
   // StackingController instead of taking a parent.
   aura::Window* CreateTestWindowInShellWithId(int id);
   aura::Window* CreateTestWindowInShellWithBounds(const gfx::Rect& bounds);
+  aura::Window* CreateTestWindowInShell(SkColor color,
+                                        int id,
+                                        const gfx::Rect& bounds);
+
+  // Creates a visible window parented to |parent| with the specified bounds and
+  // id.
+  std::unique_ptr<aura::Window> CreateChildWindow(
+      aura::Window* parent,
+      const gfx::Rect& bounds = gfx::Rect(),
+      int shell_window_id = kShellWindowId_Invalid);
+
   aura::Window* CreateTestWindowInShellWithDelegate(
       aura::WindowDelegate* delegate,
       int id,
@@ -184,14 +179,6 @@ class AshTestBase : public testing::Test {
 
   // Attach |window| to the current shell's root window.
   void ParentWindowInPrimaryRootWindow(aura::Window* window);
-
-  // Returns the raw pointer carried by `pixel_differ_`.
-  AshPixelDiffer* GetPixelDiffer();
-
-  // Stabilizes the variable UI components (such as the battery view). It should
-  // be called after the active user changes since some UI components are
-  // associated with the active account.
-  void StabilizeUIForPixelTest();
 
   // Returns the EventGenerator that uses screen coordinates and works
   // across multiple displays. It creates a new generator if it
@@ -209,25 +196,10 @@ class AshTestBase : public testing::Test {
   bool TestIfMouseWarpsAt(ui::test::EventGenerator* event_generator,
                           const gfx::Point& point_in_screen);
 
-  // Presses and releases a key to simulate typing one character.
-  void PressAndReleaseKey(ui::KeyboardCode key_code, int flags = ui::EF_NONE);
-
-  // Moves the mouse to the center of the view and generates a left mouse button
-  // click event.
-  void LeftClickOn(const views::View* view);
-
-  // Moves the mouse to the center of the view and generates a right mouse
-  // button click event.
-  void RightClickOn(const views::View* view);
-
-  // Generates a tap event on the center of `view`.
-  void GestureTapOn(const views::View* view);
-
-  // Enters/Exits overview mode with the given animation type `type`.
-  bool EnterOverview(
-      OverviewEnterExitType type = OverviewEnterExitType::kNormal);
-  bool ExitOverview(
-      OverviewEnterExitType type = OverviewEnterExitType::kNormal);
+  // Moves the mouse to the center of the view and generates a left button click
+  // event.
+  void SimulateMouseClickAt(ui::test::EventGenerator* event_generator,
+                            const views::View* target_view);
 
  protected:
   enum UserSessionBlockReason {
@@ -244,12 +216,6 @@ class AshTestBase : public testing::Test {
   // Returns the rotation currently active for the internal display.
   static display::Display::Rotation GetCurrentInternalDisplayRotation();
 
-  // Creates init params to set up a pixel test. If the test is not pixel
-  // related, returns `absl::nullopt`. This function should be overridden by ash
-  // pixel tests.
-  virtual absl::optional<pixel_test::InitParams> CreatePixelTestInitParams()
-      const;
-
   void set_start_session(bool start_session) { start_session_ = start_session; }
 
   base::test::TaskEnvironment* task_environment() {
@@ -262,13 +228,13 @@ class AshTestBase : public testing::Test {
                    const std::string& path,
                    const base::Value& value);
 
+  TestScreenshotDelegate* GetScreenshotDelegate();
+
   TestSessionControllerClient* GetSessionControllerClient();
 
   TestSystemTrayClient* GetSystemTrayClient();
 
   AppListTestHelper* GetAppListTestHelper();
-
-  TestAppListClient* GetTestAppListClient();
 
   AmbientAshTestHelper* GetAmbientAshTestHelper();
 
@@ -278,38 +244,17 @@ class AshTestBase : public testing::Test {
 
   // Simulates a user sign-in. It creates a new user session, adds it to
   // existing user sessions and makes it the active user session.
-  //
-  // For convenience |user_email| is used to create an |AccountId|. For testing
-  // behavior where |AccountId|s are compared, prefer the method of the same
-  // name that takes an |AccountId| created with a valid storage key instead.
-  // See the documentation for|AccountId::GetUserEmail| for discussion.
-  // NOTE: call `StabilizeUIForPixelTest()` after using this function in a pixel
-  // test.
   void SimulateUserLogin(
       const std::string& user_email,
       user_manager::UserType user_type = user_manager::USER_TYPE_REGULAR);
 
-  // Simulates a user sign-in. It creates a new user session, adds it to
-  // existing user sessions and makes it the active user session.
-  // NOTE: call `StabilizeUIForPixelTest()` after using this function in a pixel
-  // test.
-  void SimulateUserLogin(
-      const AccountId& account_id,
-      user_manager::UserType user_type = user_manager::USER_TYPE_REGULAR);
-
   // Simular to SimulateUserLogin but for a newly created user first ever login.
-  // NOTE: call `StabilizeUIForPixelTest()` after using this function in a pixel
-  // test.
   void SimulateNewUserFirstLogin(const std::string& user_email);
 
   // Similar to SimulateUserLogin but for a guest user.
-  // NOTE: call `StabilizeUIForPixelTest()` after using this function in a pixel
-  // test.
   void SimulateGuestLogin();
 
   // Simulates kiosk mode. |user_type| must correlate to a kiosk type user.
-  // NOTE: call `StabilizeUIForPixelTest()` after using this function in a pixel
-  // test.
   void SimulateKioskMode(user_manager::UserType user_type);
 
   // Simulates setting height of the accessibility panel.
@@ -348,10 +293,6 @@ class AshTestBase : public testing::Test {
  private:
   void CreateWindowTreeIfNecessary();
 
-  // Prepares for pixel tests by enabling related flags and building
-  // `ash_test_helper_`.
-  void PrepareForPixelDiffTest();
-
   bool setup_called_ = false;
   bool teardown_called_ = false;
 
@@ -365,26 +306,21 @@ class AshTestBase : public testing::Test {
   // A pref service used for local state.
   TestingPrefServiceSimple local_state_;
 
-  // A helper class to take screen shots then compare with benchmarks. Set by
-  // `PrepareForPixelDiffTest()`.
-  std::unique_ptr<AshPixelDiffer> pixel_differ_;
-
   // Must be constructed after |task_environment_|.
   std::unique_ptr<AshTestHelper> ash_test_helper_;
 
   std::unique_ptr<ui::test::EventGenerator> event_generator_;
+
+  DISALLOW_COPY_AND_ASSIGN(AshTestBase);
 };
 
 class NoSessionAshTestBase : public AshTestBase {
  public:
-  NoSessionAshTestBase();
-  explicit NoSessionAshTestBase(
-      base::test::TaskEnvironment::TimeSource time_source);
+  NoSessionAshTestBase() { set_start_session(false); }
+  ~NoSessionAshTestBase() override {}
 
-  NoSessionAshTestBase(const NoSessionAshTestBase&) = delete;
-  NoSessionAshTestBase& operator=(const NoSessionAshTestBase&) = delete;
-
-  ~NoSessionAshTestBase() override;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NoSessionAshTestBase);
 };
 
 }  // namespace ash

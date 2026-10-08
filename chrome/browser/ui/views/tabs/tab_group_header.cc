@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@
 #include <utility>
 
 #include "base/feature_list.h"
-#include "base/memory/raw_ptr.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/views/tabs/tab_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_group_editor_bubble_view.h"
 #include "chrome/browser/ui/views/tabs/tab_group_underline.h"
-#include "chrome/browser/ui/views/tabs/tab_slot_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
@@ -31,20 +29,15 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPath.h"
-#include "ui/accessibility/ax_node_data.h"
-#include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/insets.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/flex_layout_types.h"
@@ -79,25 +72,22 @@ class TabGroupHighlightPathGenerator : public views::HighlightPathGenerator {
   }
 
  private:
-  const raw_ptr<const views::View, DanglingUntriaged> chip_;
-  const raw_ptr<const views::View, DanglingUntriaged> title_;
+  const views::View* const chip_;
+  const views::View* const title_;
 };
 
 }  // namespace
 
-TabGroupHeader::TabGroupHeader(TabSlotController& tab_slot_controller,
+TabGroupHeader::TabGroupHeader(TabStrip* tab_strip,
                                const tab_groups::TabGroupId& group)
-    : tab_slot_controller_(tab_slot_controller),
-      editor_bubble_tracker_(tab_slot_controller) {
+    : tab_strip_(tab_strip) {
+  DCHECK(tab_strip);
+
   set_group(group);
   set_context_menu_controller(this);
 
   // The size and color of the chip are set in VisualsChanged().
   title_chip_ = AddChildView(std::make_unique<views::View>());
-
-  // Disable events processing (like tooltip handling)
-  // for children of TabGroupHeader.
-  title_chip_->SetCanProcessEventsWithinSubtree(false);
 
   // The text and color of the title are set in VisualsChanged().
   title_ = title_chip_->AddChildView(std::make_unique<views::Label>());
@@ -108,40 +98,47 @@ TabGroupHeader::TabGroupHeader(TabSlotController& tab_slot_controller,
 
   // Enable keyboard focus.
   SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
-  views::FocusRing::Install(this);
+  focus_ring_ = views::FocusRing::Install(this);
   views::HighlightPathGenerator::Install(
       this,
       std::make_unique<TabGroupHighlightPathGenerator>(title_chip_, title_));
-  // The tab group gets painted with a solid color that may not contrast well
-  // with the focus indicator, so draw an outline around the focus ring for it
-  // to contrast with the solid color.
-  SetProperty(views::kDrawFocusRingBackgroundOutline, true);
-
-  SetProperty(views::kElementIdentifierKey, kTabGroupHeaderElementId);
 
   SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
 
-  is_collapsed_ = tab_slot_controller_->IsGroupCollapsed(group);
+  last_modified_expansion_ = base::TimeTicks::Now();
 }
 
-TabGroupHeader::~TabGroupHeader() = default;
+TabGroupHeader::~TabGroupHeader() {
+  LogCollapseTime();
+}
 
 bool TabGroupHeader::OnKeyPressed(const ui::KeyEvent& event) {
   if ((event.key_code() == ui::VKEY_SPACE ||
        event.key_code() == ui::VKEY_RETURN) &&
       !editor_bubble_tracker_.is_open()) {
-    tab_slot_controller_->ToggleTabGroupCollapsedState(
-        group().value(), ToggleTabGroupCollapsedStateOrigin::kKeyboard);
-#if BUILDFLAG(IS_WIN)
-    NotifyAccessibilityEvent(ax::mojom::Event::kSelection, true);
+    if (base::FeatureList::IsEnabled(features::kTabGroupsCollapse)) {
+      // The collapse feature changes the behavior from showing the
+      // editor bubble to toggling the collapsed state of the group.
+      bool successful_toggle =
+          tab_strip_->controller()->ToggleTabGroupCollapsedState(
+              group().value(), ToggleTabGroupCollapsedStateOrigin::kKeyboard);
+      if (successful_toggle) {
+#if defined(OS_WIN)
+        NotifyAccessibilityEvent(ax::mojom::Event::kSelection, true);
 #else
-    NotifyAccessibilityEvent(ax::mojom::Event::kAlert, true);
+        NotifyAccessibilityEvent(ax::mojom::Event::kAlert, true);
 #endif
+        LogCollapseTime();
+      }
+    } else {
+      editor_bubble_tracker_.Opened(TabGroupEditorBubbleView::Show(
+          tab_strip_->controller()->GetBrowser(), group().value(), this));
+    }
     return true;
   }
 
   constexpr int kModifiedFlag =
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
       ui::EF_COMMAND_DOWN;
 #else
       ui::EF_CONTROL_DOWN;
@@ -149,11 +146,11 @@ bool TabGroupHeader::OnKeyPressed(const ui::KeyEvent& event) {
 
   if (event.type() == ui::ET_KEY_PRESSED && (event.flags() & kModifiedFlag)) {
     if (event.key_code() == ui::VKEY_RIGHT) {
-      tab_slot_controller_->ShiftGroupRight(group().value());
+      tab_strip_->ShiftGroupRight(group().value());
       return true;
     }
     if (event.key_code() == ui::VKEY_LEFT) {
-      tab_slot_controller_->ShiftGroupLeft(group().value());
+      tab_strip_->ShiftGroupLeft(group().value());
       return true;
     }
   }
@@ -172,43 +169,43 @@ bool TabGroupHeader::OnMousePressed(const ui::MouseEvent& event) {
   if (editor_bubble_tracker_.is_open())
     return false;
 
-  // Allow a right click from touch to drag, which corresponds to a long click.
-  if (event.IsOnlyLeftMouseButton() ||
-      (event.IsOnlyRightMouseButton() && event.flags() & ui::EF_FROM_TOUCH)) {
-    tab_slot_controller_->MaybeStartDrag(
-        this, event, tab_slot_controller_->GetSelectionModel());
+  tab_strip_->MaybeStartDrag(this, event, tab_strip_->GetSelectionModel());
 
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 bool TabGroupHeader::OnMouseDragged(const ui::MouseEvent& event) {
-  tab_slot_controller_->ContinueDrag(this, event);
+  tab_strip_->ContinueDrag(this, event);
   return true;
 }
 
 void TabGroupHeader::OnMouseReleased(const ui::MouseEvent& event) {
-  if (!dragging()) {
-    if (event.IsLeftMouseButton()) {
-      tab_slot_controller_->ToggleTabGroupCollapsedState(
-          group().value(), ToggleTabGroupCollapsedStateOrigin::kMouse);
-    } else if (event.IsRightMouseButton() &&
-               !editor_bubble_tracker_.is_open()) {
-      editor_bubble_tracker_.Opened(TabGroupEditorBubbleView::Show(
-          tab_slot_controller_->GetBrowser(), group().value(), this));
+  if (base::FeatureList::IsEnabled(features::kTabGroupsCollapse)) {
+    // The collapse feature changes the left click behavior from showing the
+    // editor bubble to toggling the collapsed state of the group.
+    if (event.IsLeftMouseButton() && !dragging()) {
+      bool successful_toggle =
+          tab_strip_->controller()->ToggleTabGroupCollapsedState(
+              group().value(), ToggleTabGroupCollapsedStateOrigin::kMouse);
+      if (successful_toggle)
+        LogCollapseTime();
     }
+
+  } else if (!dragging() && !editor_bubble_tracker_.is_open()) {
+    // (TODO): Delete this else statement once collapse launches since
+    // ShowContextMenuForViewImpl() will handle spawning the bubble on right
+    // clicks.
+    editor_bubble_tracker_.Opened(TabGroupEditorBubbleView::Show(
+        tab_strip_->controller()->GetBrowser(), group().value(), this));
   }
 
-  tab_slot_controller_->EndDrag(END_DRAG_COMPLETE);
+  tab_strip_->EndDrag(END_DRAG_COMPLETE);
 }
 
 void TabGroupHeader::OnMouseEntered(const ui::MouseEvent& event) {
   // Hide the hover card, since there currently isn't anything to display
   // for a group.
-  tab_slot_controller_->UpdateHoverCard(
-      nullptr, TabSlotController::HoverCardUpdateType::kHover);
+  tab_strip_->UpdateHoverCard(nullptr);
 }
 
 void TabGroupHeader::OnThemeChanged() {
@@ -217,23 +214,34 @@ void TabGroupHeader::OnThemeChanged() {
 }
 
 void TabGroupHeader::OnGestureEvent(ui::GestureEvent* event) {
-  tab_slot_controller_->UpdateHoverCard(
-      nullptr, TabSlotController::HoverCardUpdateType::kEvent);
+  tab_strip_->UpdateHoverCard(nullptr);
   switch (event->type()) {
-    case ui::ET_GESTURE_TAP:
-      tab_slot_controller_->ToggleTabGroupCollapsedState(
-          group().value(), ToggleTabGroupCollapsedStateOrigin::kGesture);
+    case ui::ET_GESTURE_TAP: {
+      if (base::FeatureList::IsEnabled(features::kTabGroupsCollapse)) {
+        // The collapse feature changes the behavior from showing the
+        // editor bubble to toggling the collapsed state of the group.
+        bool successful_toggle =
+            tab_strip_->controller()->ToggleTabGroupCollapsedState(
+                group().value(), ToggleTabGroupCollapsedStateOrigin::kGesture);
+        if (successful_toggle)
+          LogCollapseTime();
+      } else {
+        editor_bubble_tracker_.Opened(TabGroupEditorBubbleView::Show(
+            tab_strip_->controller()->GetBrowser(), group().value(), this));
+      }
       break;
+    }
+
     case ui::ET_GESTURE_LONG_TAP: {
       editor_bubble_tracker_.Opened(TabGroupEditorBubbleView::Show(
-          tab_slot_controller_->GetBrowser(), group().value(), this));
+          tab_strip_->controller()->GetBrowser(), group().value(), this));
       break;
     }
     case ui::ET_GESTURE_SCROLL_BEGIN: {
-      tab_slot_controller_->MaybeStartDrag(
-          this, *event, tab_slot_controller_->GetSelectionModel());
+      tab_strip_->MaybeStartDrag(this, *event, tab_strip_->GetSelectionModel());
       break;
     }
+
     default:
       break;
   }
@@ -242,14 +250,14 @@ void TabGroupHeader::OnGestureEvent(ui::GestureEvent* event) {
 
 void TabGroupHeader::OnFocus() {
   View::OnFocus();
-  tab_slot_controller_->UpdateHoverCard(
-      nullptr, TabSlotController::HoverCardUpdateType::kFocus);
+  tab_strip_->UpdateHoverCard(nullptr);
 }
 
 void TabGroupHeader::GetAccessibleNodeData(ui::AXNodeData* node_data) {
   node_data->role = ax::mojom::Role::kTabList;
   node_data->AddState(ax::mojom::State::kEditable);
-  bool is_collapsed = tab_slot_controller_->IsGroupCollapsed(group().value());
+  bool is_collapsed =
+      tab_strip_->controller()->IsGroupCollapsed(group().value());
   if (is_collapsed) {
     node_data->AddState(ax::mojom::State::kCollapsed);
     node_data->RemoveState(ax::mojom::State::kExpanded);
@@ -258,52 +266,30 @@ void TabGroupHeader::GetAccessibleNodeData(ui::AXNodeData* node_data) {
     node_data->RemoveState(ax::mojom::State::kCollapsed);
   }
 
-  std::u16string title = tab_slot_controller_->GetGroupTitle(group().value());
-  std::u16string contents =
-      tab_slot_controller_->GetGroupContentString(group().value());
-  std::u16string collapsed_state = std::u16string();
+  base::string16 title =
+      tab_strip_->controller()->GetGroupTitle(group().value());
+  base::string16 contents =
+      tab_strip_->controller()->GetGroupContentString(group().value());
+  base::string16 collapsed_state = base::string16();
 
 // Windows screen reader properly announces the state set above in |node_data|
 // and will read out the state change when the header's collapsed state is
 // toggled. The state is added into the title for other platforms and the title
 // will be reread with the updated state when the header's collapsed state is
 // toggled.
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   collapsed_state =
       is_collapsed ? l10n_util::GetStringUTF16(IDS_GROUP_AX_LABEL_COLLAPSED)
                    : l10n_util::GetStringUTF16(IDS_GROUP_AX_LABEL_EXPANDED);
 #endif
   if (title.empty()) {
-    node_data->SetNameChecked(l10n_util::GetStringFUTF16(
+    node_data->SetName(l10n_util::GetStringFUTF16(
         IDS_GROUP_AX_LABEL_UNNAMED_GROUP_FORMAT, contents, collapsed_state));
   } else {
-    node_data->SetNameChecked(
+    node_data->SetName(
         l10n_util::GetStringFUTF16(IDS_GROUP_AX_LABEL_NAMED_GROUP_FORMAT, title,
                                    contents, collapsed_state));
   }
-}
-
-std::u16string TabGroupHeader::GetTooltipText(const gfx::Point& p) const {
-  if (!title_->GetText().empty()) {
-    return l10n_util::GetStringFUTF16(
-        IDS_TAB_GROUPS_NAMED_GROUP_TOOLTIP, title_->GetText(),
-        tab_slot_controller_->GetGroupContentString(group().value()));
-  } else {
-    return l10n_util::GetStringFUTF16(
-        IDS_TAB_GROUPS_UNNAMED_GROUP_TOOLTIP,
-        tab_slot_controller_->GetGroupContentString(group().value()));
-  }
-}
-
-gfx::Rect TabGroupHeader::GetAnchorBoundsInScreen() const {
-  // Skip the insetting in TabSlotView::GetAnchorBoundsInScreen(). In this
-  // context insetting makes the anchored bubble partially cut into the tab
-  // outline.
-  // TODO(crbug.com/1268481): See if the layout of TabGroupHeader can be unified
-  // with tabs so that bounds do not need to be calculated differently between
-  // tabs and headers. As of writing this, hover cards to not cut into the tab
-  // outline but without this change TabGroupEditorBubbleView does.
-  return View::GetAnchorBoundsInScreen();
 }
 
 TabSlotView::ViewType TabGroupHeader::GetTabSlotViewType() const {
@@ -313,7 +299,7 @@ TabSlotView::ViewType TabGroupHeader::GetTabSlotViewType() const {
 TabSizeInfo TabGroupHeader::GetTabSizeInfo() const {
   TabSizeInfo size_info;
   // Group headers have a fixed width based on |title_|'s width.
-  const int width = GetDesiredWidth();
+  const int width = CalculateWidth();
   size_info.pinned_tab_width = width;
   size_info.min_active_width = width;
   size_info.min_inactive_width = width;
@@ -349,15 +335,15 @@ void TabGroupHeader::ShowContextMenuForViewImpl(
   // reached this function via mouse if and only if the current OS is Mac.
   // Therefore, we don't stop the menu propagation in that case.
   constexpr bool kStopContextMenuPropagation =
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
       false;
 #else
       true;
 #endif
 
   editor_bubble_tracker_.Opened(TabGroupEditorBubbleView::Show(
-      tab_slot_controller_->GetBrowser(), group().value(), this, absl::nullopt,
-      nullptr, kStopContextMenuPropagation));
+      tab_strip_->controller()->GetBrowser(), group().value(), this,
+      base::nullopt, nullptr, kStopContextMenuPropagation));
 }
 
 bool TabGroupHeader::DoesIntersectRect(const views::View* target,
@@ -367,16 +353,16 @@ bool TabGroupHeader::DoesIntersectRect(const views::View* target,
   // The distance from the endge of the view to the tab separator is half of the
   // overlap distance. We should only accept events between the separators.
   gfx::Rect contents_rect = GetLocalBounds();
-  contents_rect.Inset(gfx::Insets::VH(0, TabStyle::GetTabOverlap() / 2));
+  contents_rect.Inset(TabStyle::GetTabOverlap() / 2, 0);
   return contents_rect.Intersects(rect);
 }
 
-int TabGroupHeader::GetDesiredWidth() const {
+int TabGroupHeader::CalculateWidth() const {
   // If the tab group is collapsed, we want the right margin of the title to
   // match the left margin. The left margin is always the group stroke inset.
   // Using these values also guarantees the chip aligns with the collapsed
   // stroke.
-  if (tab_slot_controller_->IsGroupCollapsed(group().value()))
+  if (tab_strip_->controller()->IsGroupCollapsed(group().value()))
     return title_chip_->width() + 2 * TabGroupUnderline::GetStrokeInset();
 
   // We don't want tabs to visually overlap group headers, so we add that space
@@ -390,24 +376,36 @@ int TabGroupHeader::GetDesiredWidth() const {
   // both should look nestled against the group stroke of the tab to the right.
   // This requires a +/- 2px adjustment to the width, which causes the tab to
   // the right to be positioned in the right spot.
-  const std::u16string title =
-      tab_slot_controller_->GetGroupTitle(group().value());
+  const base::string16 title =
+      tab_strip_->controller()->GetGroupTitle(group().value());
   const int right_adjust = title.empty() ? 2 : -2;
 
   return overlap_margin + title_chip_->width() + right_adjust;
 }
 
-void TabGroupHeader::VisualsChanged() {
-  const std::u16string title =
-      tab_slot_controller_->GetGroupTitle(group().value());
-  const tab_groups::TabGroupColorId color_id =
-      tab_slot_controller_->GetGroupColorId(group().value());
-  const SkColor color = tab_slot_controller_->GetPaintedGroupColor(color_id);
+void TabGroupHeader::LogCollapseTime() {
+  base::TimeTicks current_time = base::TimeTicks::Now();
+  if (tab_strip_->controller()->IsGroupCollapsed(group().value())) {
+    UMA_HISTOGRAM_LONG_TIMES_100("TabGroups.TimeSpentExpanded",
+                                 current_time - last_modified_expansion_);
+  } else {
+    UMA_HISTOGRAM_LONG_TIMES_100("TabGroups.TimeSpentCollapsed",
+                                 current_time - last_modified_expansion_);
+  }
+  last_modified_expansion_ = current_time;
+}
 
-  title_->SetText(title);
+void TabGroupHeader::VisualsChanged() {
+  const base::string16 title =
+      tab_strip_->controller()->GetGroupTitle(group().value());
+  const tab_groups::TabGroupColorId color_id =
+      tab_strip_->controller()->GetGroupColorId(group().value());
+  const SkColor color = tab_strip_->GetPaintedGroupColor(color_id);
 
   if (title.empty()) {
     // If the title is empty, the chip is just a circle.
+    title_->SetVisible(false);
+
     const int y = (GetLayoutConstant(TAB_HEIGHT) - kEmptyChipSize) / 2;
 
     title_chip_->SetBounds(TabGroupUnderline::GetStrokeInset(), y,
@@ -417,7 +415,9 @@ void TabGroupHeader::VisualsChanged() {
   } else {
     // If the title is set, the chip is a rounded rect that matches the active
     // tab shape, particularly the tab's corner radius.
+    title_->SetVisible(true);
     title_->SetEnabledColor(color_utils::GetColorWithMaxContrast(color));
+    title_->SetText(title);
 
     // Set the radius such that the chip nestles snugly against the tab corner
     // radius, taking into account the group underline stroke.
@@ -446,47 +446,18 @@ void TabGroupHeader::VisualsChanged() {
                       text_height);
   }
 
-  if (views::FocusRing::Get(this))
-    views::FocusRing::Get(this)->Layout();
-
-  const bool collapsed_state =
-      tab_slot_controller_->IsGroupCollapsed(group().value());
-  if (is_collapsed_ != collapsed_state) {
-    const ui::ElementIdentifier element_id =
-        GetProperty(views::kElementIdentifierKey);
-    if (element_id) {
-      views::ElementTrackerViews::GetInstance()->NotifyViewActivated(element_id,
-                                                                     this);
-      is_collapsed_ = collapsed_state;
-    }
-  }
-}
-
-int TabGroupHeader::GetCollapsedHeaderWidth() const {
-  const int empty_group_title_adjustment = title_->GetText().empty() ? 2 : -2;
-  const int title_chip_width = GetTabSizeInfo().standard_width -
-                               2 * TabStyle::GetTabOverlap() -
-                               empty_group_title_adjustment;
-  return title_chip_width + 2 * TabGroupUnderline::GetStrokeInset();
+  if (focus_ring_)
+    focus_ring_->Layout();
 }
 
 void TabGroupHeader::RemoveObserverFromWidget(views::Widget* widget) {
   widget->RemoveObserver(&editor_bubble_tracker_);
 }
 
-BEGIN_METADATA(TabGroupHeader, TabSlotView)
-ADD_READONLY_PROPERTY_METADATA(int, DesiredWidth)
-END_METADATA
-
-TabGroupHeader::EditorBubbleTracker::EditorBubbleTracker(
-    TabSlotController& tab_slot_controller)
-    : tab_slot_controller_(tab_slot_controller) {}
-
 TabGroupHeader::EditorBubbleTracker::~EditorBubbleTracker() {
   if (is_open_) {
     widget_->RemoveObserver(this);
     widget_->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
-    OnWidgetDestroyed(widget_);
   }
   CHECK(!IsInObserverList());
 }
@@ -497,11 +468,9 @@ void TabGroupHeader::EditorBubbleTracker::Opened(views::Widget* bubble_widget) {
   widget_ = bubble_widget;
   is_open_ = true;
   bubble_widget->AddObserver(this);
-  tab_slot_controller_->NotifyTabGroupEditorBubbleOpened();
 }
 
 void TabGroupHeader::EditorBubbleTracker::OnWidgetDestroyed(
     views::Widget* widget) {
   is_open_ = false;
-  tab_slot_controller_->NotifyTabGroupEditorBubbleClosed();
 }

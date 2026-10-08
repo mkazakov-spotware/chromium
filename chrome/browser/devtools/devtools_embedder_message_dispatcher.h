@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,14 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/values.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
-struct RegisterOptions;
+namespace base {
+class ListValue;
+class Value;
+}
 
 /**
  * Dispatcher for messages sent from the DevTools frontend running in an
@@ -27,9 +29,9 @@ class DevToolsEmbedderMessageDispatcher {
  public:
   class Delegate {
    public:
-    using DispatchCallback = base::OnceCallback<void(const base::Value*)>;
+    using DispatchCallback = base::Callback<void(const base::Value*)>;
 
-    virtual ~Delegate() = default;
+    virtual ~Delegate() {}
 
     virtual void ActivateWindow() = 0;
     virtual void CloseWindow() = 0;
@@ -37,7 +39,8 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void SetInspectedPageBounds(const gfx::Rect& rect) = 0;
     virtual void InspectElementCompleted() = 0;
     virtual void InspectedURLChanged(const std::string& url) = 0;
-    virtual void SetIsDocked(DispatchCallback callback, bool is_docked) = 0;
+    virtual void SetIsDocked(const DispatchCallback& callback,
+                             bool is_docked) = 0;
     virtual void OpenInNewTab(const std::string& url) = 0;
     virtual void ShowItemInFolder(const std::string& file_system_path) = 0;
     virtual void SaveToFile(const std::string& url,
@@ -54,7 +57,7 @@ class DevToolsEmbedderMessageDispatcher {
                            const std::string& file_system_path,
                            const std::string& excluded_folders) = 0;
     virtual void StopIndexing(int index_request_id) = 0;
-    virtual void LoadNetworkResource(DispatchCallback callback,
+    virtual void LoadNetworkResource(const DispatchCallback& callback,
                                      const std::string& url,
                                      const std::string& headers,
                                      int stream_id) = 0;
@@ -79,16 +82,11 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void OpenRemotePage(const std::string& browser_id,
                                 const std::string& url) = 0;
     virtual void OpenNodeFrontend() = 0;
-    virtual void RegisterPreference(const std::string& name,
-                                    const RegisterOptions& options) = 0;
-    virtual void GetPreferences(DispatchCallback callback) = 0;
-    virtual void GetPreference(DispatchCallback callback,
-                               const std::string& name) = 0;
+    virtual void GetPreferences(const DispatchCallback& callback) = 0;
     virtual void SetPreference(const std::string& name,
                                const std::string& value) = 0;
     virtual void RemovePreference(const std::string& name) = 0;
     virtual void ClearPreferences() = 0;
-    virtual void GetSyncInformation(DispatchCallback callback) = 0;
     virtual void DispatchProtocolMessageFromDevToolsFrontend(
         const std::string& message) = 0;
     virtual void RecordEnumeratedHistogram(const std::string& name,
@@ -97,27 +95,27 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void RecordPerformanceHistogram(const std::string& name,
                                             double duration) = 0;
     virtual void RecordUserMetricsAction(const std::string& name) = 0;
-    virtual void SendJsonRequest(DispatchCallback callback,
+    virtual void SendJsonRequest(const DispatchCallback& callback,
                                  const std::string& browser_id,
                                  const std::string& url) = 0;
-    virtual void Reattach(DispatchCallback callback) = 0;
+    virtual void Reattach(const DispatchCallback& callback) = 0;
     virtual void ReadyForTest() = 0;
     virtual void ConnectionReady() = 0;
     virtual void SetOpenNewWindowForPopups(bool value) = 0;
     virtual void RegisterExtensionsAPI(const std::string& origin,
                                        const std::string& script) = 0;
-    virtual void ShowSurvey(DispatchCallback callback,
+    virtual void ShowSurvey(const DispatchCallback& callback,
                             const std::string& trigger) = 0;
-    virtual void CanShowSurvey(DispatchCallback callback,
+    virtual void CanShowSurvey(const DispatchCallback& callback,
                                const std::string& trigger) = 0;
   };
 
   using DispatchCallback = Delegate::DispatchCallback;
 
-  virtual ~DevToolsEmbedderMessageDispatcher() = default;
-  virtual bool Dispatch(DispatchCallback callback,
+  virtual ~DevToolsEmbedderMessageDispatcher() {}
+  virtual bool Dispatch(const DispatchCallback& callback,
                         const std::string& method,
-                        const base::Value::List& params) = 0;
+                        const base::ListValue* params) = 0;
 
   static std::unique_ptr<DevToolsEmbedderMessageDispatcher>
   CreateForDevToolsFrontend(Delegate* delegate);

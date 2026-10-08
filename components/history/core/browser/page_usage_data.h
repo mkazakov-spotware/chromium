@@ -1,12 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_HISTORY_CORE_BROWSER_PAGE_USAGE_DATA_H__
 #define COMPONENTS_HISTORY_CORE_BROWSER_PAGE_USAGE_DATA_H__
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "components/history/core/browser/history_types.h"
 #include "url/gurl.h"
 
@@ -39,9 +38,13 @@ class PageUsageData {
     return url_;
   }
 
-  void SetTitle(const std::u16string& s) { title_ = s; }
+  void SetTitle(const base::string16& s) {
+    title_ = s;
+  }
 
-  const std::u16string& GetTitle() const { return title_; }
+  const base::string16& GetTitle() const {
+    return title_;
+  }
 
   void SetScore(double v) {
     score_ = v;
@@ -54,7 +57,7 @@ class PageUsageData {
  private:
   SegmentID id_;
   GURL url_;
-  std::u16string title_;
+  base::string16 title_;
 
   double score_;
 };

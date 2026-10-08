@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 
 #include <algorithm>
 
-#include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/i18n/base_i18n_switches.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
@@ -24,7 +24,7 @@
 #include "third_party/icu/source/common/unicode/uscript.h"
 #include "third_party/icu/source/i18n/unicode/coll.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include "base/debug/crash_logging.h"
 #include "base/ios/ios_util.h"
 #endif
@@ -37,15 +37,9 @@ std::string GetLocaleString(const icu::Locale& locale) {
   const char* language = locale.getLanguage();
   const char* country = locale.getCountry();
   const char* variant = locale.getVariant();
-  const char* script = locale.getScript();
 
   std::string result =
       (language != nullptr && *language != '\0') ? language : "und";
-
-  if (script != nullptr && *script != '\0') {
-    result += '-';
-    result += script;
-  }
 
   if (country != nullptr && *country != '\0') {
     result += '-';
@@ -115,20 +109,20 @@ std::string ICULocaleName(const std::string& locale_string) {
   if (locale_string.substr(0, 2) != "es")
     return locale_string;
   // Expand es to es-ES.
-  if (EqualsCaseInsensitiveASCII(locale_string, "es"))
+  if (LowerCaseEqualsASCII(locale_string, "es"))
     return "es-ES";
   // Map es-419 (Latin American Spanish) to es-FOO depending on the system
   // locale.  If it's es-RR other than es-ES, map to es-RR. Otherwise, map
   // to es-MX (the most populous in Spanish-speaking Latin America).
-  if (EqualsCaseInsensitiveASCII(locale_string, "es-419")) {
+  if (LowerCaseEqualsASCII(locale_string, "es-419")) {
     const icu::Locale& locale = icu::Locale::getDefault();
     std::string language = locale.getLanguage();
     const char* country = locale.getCountry();
-    if (EqualsCaseInsensitiveASCII(language, "es") &&
-        !EqualsCaseInsensitiveASCII(country, "es")) {
-      language += '-';
-      language += country;
-      return language;
+    if (LowerCaseEqualsASCII(language, "es") &&
+      !LowerCaseEqualsASCII(country, "es")) {
+        language += '-';
+        language += country;
+        return language;
     }
     return "es-MX";
   }
@@ -138,7 +132,7 @@ std::string ICULocaleName(const std::string& locale_string) {
 }
 
 void SetICUDefaultLocale(const std::string& locale_string) {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   static base::debug::CrashKeyString* crash_key_locale =
       base::debug::AllocateCrashKeyString("icu_locale_input",
                                           base::debug::CrashKeySize::Size256);
@@ -176,7 +170,7 @@ bool ICUIsRTL() {
 
 TextDirection GetForcedTextDirection() {
 // On iOS, check for RTL forcing.
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   if (base::ios::IsInForcedRTL())
     return base::i18n::RIGHT_TO_LEFT;
 #endif
@@ -209,7 +203,7 @@ TextDirection GetTextDirectionForLocaleInStartUp(const char* locale_name) {
       SplitStringPiece(locale_name, "-_", KEEP_WHITESPACE, SPLIT_WANT_ALL);
   const StringPiece& language_code = locale_split[0];
   if (std::binary_search(kRTLLanguageCodes,
-                         kRTLLanguageCodes + std::size(kRTLLanguageCodes),
+                         kRTLLanguageCodes + base::size(kRTLLanguageCodes),
                          language_code))
     return RIGHT_TO_LEFT;
   return LEFT_TO_RIGHT;
@@ -228,8 +222,8 @@ TextDirection GetTextDirectionForLocale(const char* locale_name) {
   return (layout_dir != ULOC_LAYOUT_RTL) ? LEFT_TO_RIGHT : RIGHT_TO_LEFT;
 }
 
-TextDirection GetFirstStrongCharacterDirection(const std::u16string& text) {
-  const char16_t* string = text.c_str();
+TextDirection GetFirstStrongCharacterDirection(const string16& text) {
+  const UChar* string = text.c_str();
   size_t length = text.length();
   size_t position = 0;
   while (position < length) {
@@ -244,8 +238,8 @@ TextDirection GetFirstStrongCharacterDirection(const std::u16string& text) {
   return LEFT_TO_RIGHT;
 }
 
-TextDirection GetLastStrongCharacterDirection(const std::u16string& text) {
-  const char16_t* string = text.c_str();
+TextDirection GetLastStrongCharacterDirection(const string16& text) {
+  const UChar* string = text.c_str();
   size_t position = text.length();
   while (position > 0) {
     UChar32 character;
@@ -259,8 +253,8 @@ TextDirection GetLastStrongCharacterDirection(const std::u16string& text) {
   return LEFT_TO_RIGHT;
 }
 
-TextDirection GetStringDirection(const std::u16string& text) {
-  const char16_t* string = text.c_str();
+TextDirection GetStringDirection(const string16& text) {
+  const UChar* string = text.c_str();
   size_t length = text.length();
   size_t position = 0;
 
@@ -286,8 +280,8 @@ TextDirection GetStringDirection(const std::u16string& text) {
   return result;
 }
 
-#if BUILDFLAG(IS_WIN)
-bool AdjustStringForLocaleDirection(std::u16string* text) {
+#if defined(OS_WIN)
+bool AdjustStringForLocaleDirection(string16* text) {
   if (!IsRTL() || text->empty())
     return false;
 
@@ -302,7 +296,7 @@ bool AdjustStringForLocaleDirection(std::u16string* text) {
   return true;
 }
 
-bool UnadjustStringForLocaleDirection(std::u16string* text) {
+bool UnadjustStringForLocaleDirection(string16* text) {
   if (!IsRTL() || text->empty())
     return false;
 
@@ -310,7 +304,7 @@ bool UnadjustStringForLocaleDirection(std::u16string* text) {
   return true;
 }
 #else
-bool AdjustStringForLocaleDirection(std::u16string* text) {
+bool AdjustStringForLocaleDirection(string16* text) {
   // On OS X & GTK the directionality of a label is determined by the first
   // strongly directional character.
   // However, we want to make sure that in an LTR-language-UI all strings are
@@ -364,33 +358,33 @@ bool AdjustStringForLocaleDirection(std::u16string* text) {
   return true;
 }
 
-bool UnadjustStringForLocaleDirection(std::u16string* text) {
+bool UnadjustStringForLocaleDirection(string16* text) {
   if (text->empty())
     return false;
 
   size_t begin_index = 0;
-  char16_t begin = text->at(begin_index);
+  char16 begin = text->at(begin_index);
   if (begin == kLeftToRightMark ||
       begin == kRightToLeftMark) {
     ++begin_index;
   }
 
   size_t end_index = text->length() - 1;
-  char16_t end = text->at(end_index);
+  char16 end = text->at(end_index);
   if (end == kLeftToRightMark ||
       end == kRightToLeftMark) {
     --end_index;
   }
 
-  std::u16string unmarked_text =
+  string16 unmarked_text =
       text->substr(begin_index, end_index - begin_index + 1);
   *text = StripWrappingBidiControlCharacters(unmarked_text);
   return true;
 }
 
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !OS_WIN
 
-void EnsureTerminatedDirectionalFormatting(std::u16string* text) {
+void EnsureTerminatedDirectionalFormatting(string16* text) {
   int count = 0;
   for (auto c : *text) {
     if (c == kLeftToRightEmbeddingMark || c == kRightToLeftEmbeddingMark ||
@@ -404,13 +398,13 @@ void EnsureTerminatedDirectionalFormatting(std::u16string* text) {
     text->push_back(kPopDirectionalFormatting);
 }
 
-void SanitizeUserSuppliedString(std::u16string* text) {
+void SanitizeUserSuppliedString(string16* text) {
   EnsureTerminatedDirectionalFormatting(text);
   AdjustStringForLocaleDirection(text);
 }
 
-bool StringContainsStrongRTLChars(const std::u16string& text) {
-  const char16_t* string = text.c_str();
+bool StringContainsStrongRTLChars(const string16& text) {
+  const UChar* string = text.c_str();
   size_t length = text.length();
   size_t position = 0;
   while (position < length) {
@@ -430,7 +424,7 @@ bool StringContainsStrongRTLChars(const std::u16string& text) {
   return false;
 }
 
-void WrapStringWithLTRFormatting(std::u16string* text) {
+void WrapStringWithLTRFormatting(string16* text) {
   if (text->empty())
     return;
 
@@ -442,7 +436,7 @@ void WrapStringWithLTRFormatting(std::u16string* text) {
   text->push_back(kPopDirectionalFormatting);
 }
 
-void WrapStringWithRTLFormatting(std::u16string* text) {
+void WrapStringWithRTLFormatting(string16* text) {
   if (text->empty())
     return;
 
@@ -455,16 +449,16 @@ void WrapStringWithRTLFormatting(std::u16string* text) {
 }
 
 void WrapPathWithLTRFormatting(const FilePath& path,
-                               std::u16string* rtl_safe_path) {
+                               string16* rtl_safe_path) {
   // Wrap the overall path with LRE-PDF pair which essentialy marks the
   // string as a Left-To-Right string.
   // Inserting an LRE (Left-To-Right Embedding) mark as the first character.
   rtl_safe_path->push_back(kLeftToRightEmbeddingMark);
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   rtl_safe_path->append(UTF8ToUTF16(path.value()));
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   rtl_safe_path->append(AsString16(path.value()));
-#else  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE)
+#else  // defined(OS_POSIX) && !defined(OS_APPLE)
   std::wstring wide_path = base::SysNativeMBToWide(path.value());
   rtl_safe_path->append(WideToUTF16(wide_path));
 #endif
@@ -472,22 +466,22 @@ void WrapPathWithLTRFormatting(const FilePath& path,
   rtl_safe_path->push_back(kPopDirectionalFormatting);
 }
 
-std::u16string GetDisplayStringInLTRDirectionality(const std::u16string& text) {
+string16 GetDisplayStringInLTRDirectionality(const string16& text) {
   // Always wrap the string in RTL UI (it may be appended to RTL string).
   // Also wrap strings with an RTL first strong character direction in LTR UI.
   if (IsRTL() || GetFirstStrongCharacterDirection(text) == RIGHT_TO_LEFT) {
-    std::u16string text_mutable(text);
+    string16 text_mutable(text);
     WrapStringWithLTRFormatting(&text_mutable);
     return text_mutable;
   }
   return text;
 }
 
-std::u16string StripWrappingBidiControlCharacters(const std::u16string& text) {
+string16 StripWrappingBidiControlCharacters(const string16& text) {
   if (text.empty())
     return text;
   size_t begin_index = 0;
-  char16_t begin = text[begin_index];
+  char16 begin = text[begin_index];
   if (begin == kLeftToRightEmbeddingMark ||
       begin == kRightToLeftEmbeddingMark ||
       begin == kLeftToRightOverride ||

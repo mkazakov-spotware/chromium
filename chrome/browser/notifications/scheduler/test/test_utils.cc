@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <sstream>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/notifications/scheduler/internal/notification_entry.h"
 #include "chrome/browser/notifications/scheduler/public/notification_data.h"
@@ -20,10 +20,10 @@ ImpressionTestData::ImpressionTestData(
     SchedulerClientType type,
     size_t current_max_daily_show,
     std::vector<Impression> impressions,
-    absl::optional<SuppressionInfo> suppression_info,
+    base::Optional<SuppressionInfo> suppression_info,
     size_t negative_events_count,
-    absl::optional<base::Time> last_negative_event_ts,
-    absl::optional<base::Time> last_shown_ts)
+    base::Optional<base::Time> last_negative_event_ts,
+    base::Optional<base::Time> last_shown_ts)
     : type(type),
       current_max_daily_show(current_max_daily_show),
       impressions(std::move(impressions)),
@@ -52,10 +52,10 @@ void AddImpressionTestData(const ImpressionTestData& data,
 }
 
 void AddImpressionTestData(
-    const std::vector<ImpressionTestData>& test_data_vec,
+    const std::vector<ImpressionTestData>& test_data,
     ImpressionHistoryTracker::ClientStates* client_states) {
   DCHECK(client_states);
-  for (const auto& test_data : test_data_vec) {
+  for (const auto& test_data : test_data) {
     auto client_state = std::make_unique<ClientState>();
     AddImpressionTestData(test_data, client_state.get());
     client_states->emplace(test_data.type, std::move(client_state));
@@ -63,10 +63,10 @@ void AddImpressionTestData(
 }
 
 void AddImpressionTestData(
-    const std::vector<ImpressionTestData>& test_data_vec,
+    const std::vector<ImpressionTestData>& test_data,
     std::vector<std::unique_ptr<ClientState>>* client_states) {
   DCHECK(client_states);
-  for (const auto& test_data : test_data_vec) {
+  for (const auto& test_data : test_data) {
     auto client_state = std::make_unique<ClientState>();
     AddImpressionTestData(test_data, client_state.get());
     client_states->emplace_back(std::move(client_state));

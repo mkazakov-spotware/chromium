@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/internal_app/internal_app_metadata.h"
 
 #include <memory>
-#include <string>
 
 #include "ash/public/cpp/app_list/internal_app_id_constants.h"
 #include "ash/public/cpp/keyboard_shortcut_viewer.h"
@@ -14,21 +13,25 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/time/time.h"
-#include "chrome/browser/apps/app_service/metrics/app_service_metrics.h"
-#include "chrome/browser/ash/plugin_vm/plugin_vm_util.h"
-#include "chrome/browser/ash/release_notes/release_notes_storage.h"
+#include "chrome/browser/apps/app_service/app_service_metrics.h"
+#include "chrome/browser/chromeos/plugin_vm/plugin_vm_util.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
+#include "chrome/browser/chromeos/release_notes/release_notes_storage.h"
+#include "chrome/browser/chromeos/web_applications/default_web_app_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/session_sync_service_factory.h"
 #include "chrome/browser/ui/app_list/app_list_client_impl.h"
 #include "chrome/browser/ui/app_list/extension_app_utils.h"
-#include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
+#include "chrome/browser/ui/ash/launcher/chrome_launcher_controller.h"
 #include "chrome/browser/ui/extensions/app_launch_params.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/grit/chrome_unscaled_resources.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/constants/chromeos_switches.h"
 #include "components/crx_file/id_util.h"
 #include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/sync/driver/sync_service.h"
@@ -67,7 +70,24 @@ const std::vector<InternalApp>& GetInternalAppListImpl(bool get_all,
             /*searchable=*/false,
             /*show_in_launcher=*/false, apps::BuiltInAppName::kContinueReading,
             /*searchable_string_resource_id=*/0}});
-  return *internal_app_list_static;
+
+  static base::NoDestructor<std::vector<InternalApp>> internal_app_list;
+  internal_app_list->clear();
+  internal_app_list->insert(internal_app_list->begin(),
+                            internal_app_list_static->begin(),
+                            internal_app_list_static->end());
+
+  if (chrome::SettingsWindowManager::UseDeprecatedSettingsWindow(profile)) {
+    internal_app_list->push_back(
+        {ash::kInternalAppIdSettings, IDS_INTERNAL_APP_SETTINGS,
+         IDR_SETTINGS_LOGO_192,
+         /*recommendable=*/true,
+         /*searchable=*/true,
+         /*show_in_launcher=*/true, apps::BuiltInAppName::kSettings,
+         /*searchable_string_resource_id=*/0});
+  }
+
+  return *internal_app_list;
 }
 
 }  // namespace
@@ -77,8 +97,7 @@ const std::vector<InternalApp>& GetInternalAppList(const Profile* profile) {
 }
 
 bool IsSuggestionChip(const std::string& app_id) {
-  return base::EqualsCaseInsensitiveASCII(app_id,
-                                          ash::kInternalAppIdContinueReading);
+  return base::LowerCaseEqualsASCII(app_id, ash::kInternalAppIdContinueReading);
 }
 
 const InternalApp* FindInternalApp(const std::string& app_id) {
@@ -95,7 +114,7 @@ bool IsInternalApp(const std::string& app_id) {
 
 bool HasRecommendableForeignTab(
     Profile* profile,
-    std::u16string* title,
+    base::string16* title,
     GURL* url,
     sync_sessions::OpenTabsUIDelegate* test_delegate) {
   sync_sessions::SessionSyncService* service =
@@ -113,9 +132,9 @@ bool HasRecommendableForeignTab(
     if (latest_timestamp > session->modified_time)
       continue;
 
-    auto device_form_factor = session->GetDeviceFormFactor();
-    if (device_form_factor != syncer::DeviceInfo::FormFactor::kPhone &&
-        device_form_factor != syncer::DeviceInfo::FormFactor::kTablet) {
+    auto device_type = session->device_type;
+    if (device_type != sync_pb::SyncEnums::TYPE_PHONE &&
+        device_type != sync_pb::SyncEnums::TYPE_TABLET) {
       continue;
     }
 
@@ -135,7 +154,7 @@ bool HasRecommendableForeignTab(
 
         // Only show pages recently opened.
         const base::TimeDelta tab_age = base::Time::Now() - tab->timestamp;
-        if (tab_age > base::Minutes(kMaxForeignTabAgeInMinutes))
+        if (tab_age > base::TimeDelta::FromMinutes(kMaxForeignTabAgeInMinutes))
           continue;
 
         if (latest_timestamp < tab->timestamp) {

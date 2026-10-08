@@ -1,16 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/app/startup/sandbox_dump.h"
+#include "ios/chrome/app/startup/sandbox_dump.h"
 
 #import <Foundation/Foundation.h>
 
-#import "base/bind.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/app/startup/ios_enable_sandbox_dump_buildflags.h"
-#import "ios/chrome/common/app_group/app_group_constants.h"
-#import "third_party/zlib/google/zip.h"
+#include "base/bind.h"
+#include "base/strings/sys_string_conversions.h"
+#include "ios/chrome/app/startup/ios_enable_sandbox_dump_buildflags.h"
+#include "ios/chrome/common/app_group/app_group_constants.h"
+#include "third_party/zlib/google/zip.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."

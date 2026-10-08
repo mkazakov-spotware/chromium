@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,22 @@
 #include <utility>
 #include <vector>
 
-#include "base/functional/callback.h"
+#include "base/callback.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
-#include "content/browser/devtools/protocol/web_authn.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/webauth/authenticator_environment_impl.h"
 #include "content/browser/webauth/virtual_authenticator.h"
-#include "content/browser/webauth/virtual_authenticator_manager_impl.h"
+#include "content/browser/webauth/virtual_fido_discovery_factory.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_transport_protocol.h"
 #include "device/fido/virtual_fido_device.h"
 #include "device/fido/virtual_u2f_device.h"
 
-namespace content::protocol {
+namespace content {
+namespace protocol {
 
 namespace {
 static constexpr char kAuthenticatorNotFound[] =
@@ -51,8 +51,8 @@ static constexpr char kInvalidUserHandle[] =
     "The User Handle must have a maximum size of ";
 static constexpr char kLargeBlobRequiresResidentKey[] =
     "Large blob requires resident key support";
-static constexpr char kRequiresCtap2_1[] =
-    "Specified options require a CTAP 2.1 authenticator";
+static constexpr char kLargeBlobRequiresCtap2_1[] =
+    "Large blob requires a CTAP 2.1 authenticator";
 static constexpr char kResidentCredentialNotSupported[] =
     "The Authenticator does not support Resident Credentials.";
 static constexpr char kRpIdRequired[] =
@@ -75,7 +75,7 @@ class GetCredentialCallbackAggregator
       const GetCredentialCallbackAggregator&) = delete;
 
   void OnLargeBlob(std::unique_ptr<WebAuthn::Credential> credential,
-                   const absl::optional<std::vector<uint8_t>>& blob) {
+                   const base::Optional<std::vector<uint8_t>>& blob) {
     if (blob) {
       credential->SetLargeBlob(Binary::fromVector(*blob));
     }
@@ -101,13 +101,13 @@ device::ProtocolVersion ConvertToProtocolVersion(base::StringPiece protocol) {
   return device::ProtocolVersion::kUnknown;
 }
 
-absl::optional<device::Ctap2Version> ConvertToCtap2Version(
+base::Optional<device::Ctap2Version> ConvertToCtap2Version(
     base::StringPiece version) {
   if (version == WebAuthn::Ctap2VersionEnum::Ctap2_0)
     return device::Ctap2Version::kCtap2_0;
   if (version == WebAuthn::Ctap2VersionEnum::Ctap2_1)
     return device::Ctap2Version::kCtap2_1;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 std::vector<uint8_t> CopyBinaryToVector(const Binary& binary) {
@@ -115,20 +115,22 @@ std::vector<uint8_t> CopyBinaryToVector(const Binary& binary) {
 }
 
 std::unique_ptr<WebAuthn::Credential> BuildCredentialFromRegistration(
-    base::span<const uint8_t> id,
-    const device::VirtualFidoDevice::RegistrationData* registration) {
-  auto credential = WebAuthn::Credential::Create()
-                        .SetCredentialId(Binary::fromSpan(id.data(), id.size()))
-                        .SetPrivateKey(Binary::fromVector(
-                            registration->private_key->GetPKCS8PrivateKey()))
-                        .SetSignCount(registration->counter)
-                        .SetIsResidentCredential(registration->is_resident)
-                        .Build();
+    const std::pair<const std::vector<uint8_t>,
+                    device::VirtualFidoDevice::RegistrationData>&
+        registration) {
+  auto credential =
+      WebAuthn::Credential::Create()
+          .SetCredentialId(Binary::fromVector(registration.first))
+          .SetPrivateKey(Binary::fromVector(
+              registration.second.private_key->GetPKCS8PrivateKey()))
+          .SetSignCount(registration.second.counter)
+          .SetIsResidentCredential(registration.second.is_resident)
+          .Build();
 
-  if (registration->rp)
-    credential->SetRpId(registration->rp->id);
-  if (registration->user) {
-    credential->SetUserHandle(Binary::fromVector(registration->user->id));
+  if (registration.second.rp)
+    credential->SetRpId(registration.second.rp->id);
+  if (registration.second.user) {
+    credential->SetUserHandle(Binary::fromVector(registration.second.user->id));
   }
 
   return credential;
@@ -150,17 +152,15 @@ void WebAuthnHandler::SetRenderer(int process_host_id,
 }
 
 void WebAuthnHandler::Wire(UberDispatcher* dispatcher) {
-  frontend_ = std::make_unique<WebAuthn::Frontend>(dispatcher->channel());
   WebAuthn::Dispatcher::wire(dispatcher, this);
 }
 
-Response WebAuthnHandler::Enable(Maybe<bool> enable_ui) {
+Response WebAuthnHandler::Enable() {
   if (!frame_host_)
     return Response::ServerError(kDevToolsNotAttached);
 
   AuthenticatorEnvironmentImpl::GetInstance()->EnableVirtualAuthenticatorFor(
-      frame_host_->frame_tree_node(),
-      enable_ui.fromMaybe(/*default_value=*/false));
+      frame_host_->frame_tree_node());
   return Response::Success();
 }
 
@@ -200,59 +200,40 @@ Response WebAuthnHandler::AddVirtualAuthenticator(
   if (!ctap2_version)
     return Response::InvalidParams(kInvalidCtapVersion);
 
-  bool has_large_blob = options->GetHasLargeBlob(/*defaultValue=*/false);
-  bool has_cred_blob = options->GetHasCredBlob(/*defaultValue=*/false);
-  bool has_min_pin_length = options->GetHasMinPinLength(/*defaultValue=*/false);
-  bool has_resident_key = options->GetHasResidentKey(/*defaultValue=*/false);
-
+  bool has_large_blob = options->GetHasLargeBlob(/*default=*/false);
+  bool has_resident_key = options->GetHasResidentKey(/*default=*/false);
   if (has_large_blob && !has_resident_key)
     return Response::InvalidParams(kLargeBlobRequiresResidentKey);
-
-  if ((protocol != device::ProtocolVersion::kCtap2 ||
-       ctap2_version < device::Ctap2Version::kCtap2_1) &&
-      (has_large_blob || has_cred_blob || has_min_pin_length)) {
-    return Response::InvalidParams(kRequiresCtap2_1);
+  if (has_large_blob && (protocol != device::ProtocolVersion::kCtap2 ||
+                         ctap2_version < device::Ctap2Version::kCtap2_1)) {
+    return Response::InvalidParams(kLargeBlobRequiresCtap2_1);
   }
 
-  auto virt_auth_options =
-      blink::test::mojom::VirtualAuthenticatorOptions::New();
-  virt_auth_options->protocol = protocol;
-  virt_auth_options->transport = *transport;
-
+  VirtualAuthenticator* authenticator = nullptr;
   switch (protocol) {
     case device::ProtocolVersion::kU2f:
-      virt_auth_options->attachment =
-          device::AuthenticatorAttachment::kCrossPlatform;
+      authenticator = authenticator_manager->CreateU2FAuthenticator(*transport);
       break;
     case device::ProtocolVersion::kCtap2:
-      virt_auth_options->ctap2_version = *ctap2_version;
-      virt_auth_options->attachment =
+      authenticator = authenticator_manager->CreateCTAP2Authenticator(
+          *ctap2_version, *transport,
           transport == device::FidoTransportProtocol::kInternal
               ? device::AuthenticatorAttachment::kPlatform
-              : device::AuthenticatorAttachment::kCrossPlatform;
-      virt_auth_options->has_resident_key = has_resident_key;
-      virt_auth_options->has_user_verification =
-          options->GetHasUserVerification(/*defaultValue=*/false);
-      virt_auth_options->has_large_blob = has_large_blob;
-      virt_auth_options->has_cred_blob = has_cred_blob;
-      virt_auth_options->has_min_pin_length = has_min_pin_length;
+              : device::AuthenticatorAttachment::kCrossPlatform,
+          has_resident_key, options->GetHasUserVerification(/*default=*/false),
+          has_large_blob);
       break;
     case device::ProtocolVersion::kUnknown:
       NOTREACHED();
       break;
   }
-
-  VirtualAuthenticator* const authenticator =
-      authenticator_manager->AddAuthenticatorAndReturnNonOwningPointer(
-          *virt_auth_options);
   if (!authenticator)
     return Response::ServerError(kErrorCreatingAuthenticator);
 
   authenticator->SetUserPresence(
-      options->GetAutomaticPresenceSimulation(/*defaultValue=*/true));
+      options->GetAutomaticPresenceSimulation(true /* default */));
   authenticator->set_user_verified(
-      options->GetIsUserVerified(/*defaultValue=*/false));
-  observations_.AddObservation(authenticator);
+      options->GetIsUserVerified(/*default=*/false));
 
   *out_authenticator_id = authenticator->unique_id();
   return Response::Success();
@@ -269,29 +250,6 @@ Response WebAuthnHandler::RemoveVirtualAuthenticator(
   if (!authenticator_manager->RemoveAuthenticator(authenticator_id))
     return Response::InvalidParams(kAuthenticatorNotFound);
 
-  return Response::Success();
-}
-
-Response WebAuthnHandler::SetResponseOverrideBits(
-    const String& authenticator_id,
-    Maybe<bool> is_bogus_signature,
-    Maybe<bool> is_bad_uv,
-    Maybe<bool> is_bad_up) {
-  VirtualAuthenticatorManagerImpl* authenticator_manager =
-      AuthenticatorEnvironmentImpl::GetInstance()
-          ->MaybeGetVirtualAuthenticatorManager(frame_host_->frame_tree_node());
-  if (!authenticator_manager)
-    return Response::ServerError(kVirtualEnvironmentNotEnabled);
-
-  VirtualAuthenticator* authenticator;
-  Response response = FindAuthenticator(authenticator_id, &authenticator);
-  if (!response.IsSuccess())
-    return Response::InvalidParams(kAuthenticatorNotFound);
-
-  authenticator->set_bogus_signature(
-      is_bogus_signature.fromMaybe(/*default_value=*/false));
-  authenticator->set_bad_uv_bit(is_bad_uv.fromMaybe(/*default_value=*/false));
-  authenticator->set_bad_up_bit(is_bad_up.fromMaybe(/*default_value=*/false));
   return Response::Success();
 }
 
@@ -397,15 +355,13 @@ void WebAuthnHandler::GetCredential(
       base::BindOnce(
           [](std::unique_ptr<WebAuthn::Credential> registration,
              std::unique_ptr<GetCredentialCallback> callback,
-             const absl::optional<std::vector<uint8_t>>& blob) {
+             const base::Optional<std::vector<uint8_t>>& blob) {
             if (blob) {
               registration->SetLargeBlob(Binary::fromVector(*blob));
             }
             callback->sendSuccess(std::move(registration));
           },
-          BuildCredentialFromRegistration(base::make_span(registration->first),
-                                          &registration->second),
-          std::move(callback)));
+          BuildCredentialFromRegistration(*registration), std::move(callback)));
 }
 
 void WebAuthnHandler::GetCredentials(
@@ -423,10 +379,9 @@ void WebAuthnHandler::GetCredentials(
   for (const auto& registration : authenticator->registrations()) {
     authenticator->GetLargeBlob(
         registration.first,
-        base::BindOnce(
-            &GetCredentialCallbackAggregator::OnLargeBlob, aggregator,
-            BuildCredentialFromRegistration(base::make_span(registration.first),
-                                            &registration.second)));
+        base::BindOnce(&GetCredentialCallbackAggregator::OnLargeBlob,
+                       aggregator,
+                       BuildCredentialFromRegistration(registration)));
   }
 }
 
@@ -493,25 +448,5 @@ Response WebAuthnHandler::FindAuthenticator(
   return Response::Success();
 }
 
-void WebAuthnHandler::OnCredentialCreated(
-    VirtualAuthenticator* authenticator,
-    const device::VirtualFidoDevice::Credential& credential) {
-  frontend_->CredentialAdded(
-      authenticator->unique_id(),
-      BuildCredentialFromRegistration(credential.first, credential.second));
-}
-
-void WebAuthnHandler::OnAssertion(
-    VirtualAuthenticator* authenticator,
-    const device::VirtualFidoDevice::Credential& credential) {
-  frontend_->CredentialAsserted(
-      authenticator->unique_id(),
-      BuildCredentialFromRegistration(credential.first, credential.second));
-}
-
-void WebAuthnHandler::OnAuthenticatorWillBeDestroyed(
-    VirtualAuthenticator* authenticator) {
-  observations_.RemoveObservation(authenticator);
-}
-
-}  // namespace content::protocol
+}  // namespace protocol
+}  // namespace content

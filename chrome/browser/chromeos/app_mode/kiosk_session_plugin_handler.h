@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,8 @@
 #include <set>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/timer/timer.h"
+#include "base/macros.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ppapi/buildflags/buildflags.h"
-
-#if !BUILDFLAG(ENABLE_PLUGINS)
-#error "Plugins should be enabled"
-#endif
 
 namespace base {
 class FilePath;
@@ -54,16 +48,13 @@ class KioskSessionPluginHandler {
                                  bool is_hung) override;
     void WebContentsDestroyed() override;
 
-    const raw_ptr<KioskSessionPluginHandler> owner_;
+    KioskSessionPluginHandler* const owner_;
     std::set<int> hung_plugins_;
     base::OneShotTimer hung_wait_timer_;
   };
 
   explicit KioskSessionPluginHandler(
       KioskSessionPluginHandlerDelegate* delegate);
-  KioskSessionPluginHandler(const KioskSessionPluginHandler&) = delete;
-  KioskSessionPluginHandler& operator=(const KioskSessionPluginHandler&) =
-      delete;
   ~KioskSessionPluginHandler();
 
   void Observe(content::WebContents* contents);
@@ -75,8 +66,10 @@ class KioskSessionPluginHandler {
   void OnPluginHung(const std::set<int>& hung_plugins);
   void OnWebContentsDestroyed(Observer* observer);
 
-  const raw_ptr<KioskSessionPluginHandlerDelegate> delegate_;
+  KioskSessionPluginHandlerDelegate* const delegate_;
   std::vector<std::unique_ptr<Observer>> watchers_;
+
+  DISALLOW_COPY_AND_ASSIGN(KioskSessionPluginHandler);
 };
 
 }  // namespace chromeos

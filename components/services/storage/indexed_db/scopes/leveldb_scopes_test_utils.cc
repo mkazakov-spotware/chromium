@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,12 @@
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
 #include "base/run_loop.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event_watcher.h"
 #include "base/system/sys_info.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "components/services/storage/indexed_db/leveldb/leveldb_factory.h"
 #include "third_party/leveldatabase/env_chromium.h"
 #include "third_party/leveldatabase/leveldb_chrome.h"
@@ -75,7 +76,7 @@ void LevelDBScopesTestBase::CloseScopesAndDestroyLevelDBState() {
     event_watcher.StartWatching(
         leveldb_close_event_ptr,
         base::BindLambdaForTesting([&](base::WaitableEvent*) { loop.Quit(); }),
-        base::SequencedTaskRunner::GetCurrentDefault());
+        base::SequencedTaskRunnerHandle::Get());
     leveldb_.reset();
     loop.Run();
     // There is a possible race in |leveldb_close_event| where the signaling
@@ -100,7 +101,9 @@ void LevelDBScopesTestBase::SetUpBreakableDB(
     TearDown();
   ASSERT_TRUE(temp_directory_.CreateUniqueTempDir());
 
-  auto [temp_real_db, status] =
+  leveldb::Status status;
+  std::unique_ptr<leveldb::DB> temp_real_db;
+  std::tie(temp_real_db, status) =
       leveldb_factory_->OpenDB(temp_directory_.GetPath().AsUTF8Unsafe(),
                                /*create_if_missing=*/true, kWriteBufferSize);
   ASSERT_TRUE(status.ok());
@@ -121,8 +124,10 @@ void LevelDBScopesTestBase::SetUpFlakyDB(
   if (leveldb_)
     TearDown();
   ASSERT_TRUE(temp_directory_.CreateUniqueTempDir());
+  leveldb::Status status;
 
-  auto [temp_db, status] =
+  std::unique_ptr<leveldb::DB> temp_db;
+  std::tie(temp_db, status) =
       leveldb_factory_->OpenDB(temp_directory_.GetPath().AsUTF8Unsafe(),
                                /*create_if_missing=*/true, kWriteBufferSize);
   ASSERT_TRUE(status.ok());
@@ -225,27 +230,34 @@ bool LevelDBScopesTestBase::ScopeDataExistsOnDisk() {
              scopes_encoder_.TasksKeyPrefix(metadata_prefix_));
 }
 
-PartitionedLockManager::PartitionedLockRequest
+ScopesLockManager::ScopeLockRequest
 LevelDBScopesTestBase::CreateSimpleSharedLock() {
-  return {{0, simple_lock_begin_}, PartitionedLockManager::LockType::kShared};
+  return {0,
+          {simple_lock_begin_, simple_lock_end_},
+          ScopesLockManager::LockType::kShared};
 }
 
-PartitionedLockManager::PartitionedLockRequest
+ScopesLockManager::ScopeLockRequest
 LevelDBScopesTestBase::CreateSimpleExclusiveLock() {
-  return {{0, simple_lock_begin_},
-          PartitionedLockManager::LockType::kExclusive};
+  return {0,
+          {simple_lock_begin_, simple_lock_end_},
+          ScopesLockManager::LockType::kExclusive};
 }
 
-PartitionedLockManager::PartitionedLockRequest
-LevelDBScopesTestBase::CreateSharedLock(int i) {
-  return {{0, base::StringPrintf("%010d", i * 2)},
-          PartitionedLockManager::LockType::kShared};
+ScopesLockManager::ScopeLockRequest LevelDBScopesTestBase::CreateSharedLock(
+    int i) {
+  return {0,
+          {base::StringPrintf("%010d", i * 2),
+           base::StringPrintf("%010d", i * 2 + 1)},
+          ScopesLockManager::LockType::kShared};
 }
 
-PartitionedLockManager::PartitionedLockRequest
-LevelDBScopesTestBase::CreateExclusiveLock(int i) {
-  return {{0, base::StringPrintf("%010d", i * 2)},
-          PartitionedLockManager::LockType::kExclusive};
+ScopesLockManager::ScopeLockRequest LevelDBScopesTestBase::CreateExclusiveLock(
+    int i) {
+  return {0,
+          {base::StringPrintf("%010d", i * 2),
+           base::StringPrintf("%010d", i * 2 + 1)},
+          ScopesLockManager::LockType::kExclusive};
 }
 
 const base::FilePath& LevelDBScopesTestBase::DatabaseDirFilePath() {

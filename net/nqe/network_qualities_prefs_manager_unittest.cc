@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_number_conversions.h"
@@ -27,28 +28,28 @@ namespace {
 
 class TestPrefDelegate : public NetworkQualitiesPrefsManager::PrefDelegate {
  public:
-  TestPrefDelegate() = default;
-
-  TestPrefDelegate(const TestPrefDelegate&) = delete;
-  TestPrefDelegate& operator=(const TestPrefDelegate&) = delete;
+  TestPrefDelegate()
+      : write_count_(0), read_count_(0), value_(new base::DictionaryValue) {}
 
   ~TestPrefDelegate() override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    value_->Clear();
+    EXPECT_EQ(0U, value_->size());
   }
 
-  void SetDictionaryValue(const base::Value::Dict& dict) override {
+  void SetDictionaryValue(const base::DictionaryValue& value) override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     write_count_++;
-    value_ = dict.Clone();
-    ASSERT_EQ(dict.size(), value_.size());
+    value_.reset(value.DeepCopy());
+    ASSERT_EQ(value.size(), value_->size());
   }
 
-  base::Value::Dict GetDictionaryValue() override {
+  std::unique_ptr<base::DictionaryValue> GetDictionaryValue() override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     read_count_++;
-    return value_.Clone();
+    return value_->CreateDeepCopy();
   }
 
   size_t write_count() const {
@@ -63,13 +64,15 @@ class TestPrefDelegate : public NetworkQualitiesPrefsManager::PrefDelegate {
 
  private:
   // Number of times prefs were written and read, respectively..
-  size_t write_count_ = 0;
-  size_t read_count_ = 0;
+  size_t write_count_;
+  size_t read_count_;
 
   // Current value of the prefs.
-  base::Value::Dict value_;
+  std::unique_ptr<base::DictionaryValue> value_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(TestPrefDelegate);
 };
 
 using NetworkQualitiesPrefManager = TestWithTaskEnvironment;
@@ -82,7 +85,7 @@ TEST_F(NetworkQualitiesPrefManager, Write) {
   variation_params["force_effective_connection_type"] = "Slow-2G";
   TestNetworkQualityEstimator estimator(variation_params);
 
-  auto prefs_delegate = std::make_unique<TestPrefDelegate>();
+  std::unique_ptr<TestPrefDelegate> prefs_delegate(new TestPrefDelegate());
   TestPrefDelegate* prefs_delegate_ptr = prefs_delegate.get();
 
   NetworkQualitiesPrefsManager manager(std::move(prefs_delegate));
@@ -127,7 +130,7 @@ TEST_F(NetworkQualitiesPrefManager, WriteWhenMatchingExpectedECT) {
   variation_params["force_effective_connection_type"] = "Slow-2G";
   TestNetworkQualityEstimator estimator(variation_params);
 
-  auto prefs_delegate = std::make_unique<TestPrefDelegate>();
+  std::unique_ptr<TestPrefDelegate> prefs_delegate(new TestPrefDelegate());
   TestPrefDelegate* prefs_delegate_ptr = prefs_delegate.get();
 
   NetworkQualitiesPrefsManager manager(std::move(prefs_delegate));
@@ -192,7 +195,7 @@ TEST_F(NetworkQualitiesPrefManager, WriteAndReadWithMultipleNetworkIDs) {
   variation_params["force_effective_connection_type"] = "Slow-2G";
   TestNetworkQualityEstimator estimator(variation_params);
 
-  auto prefs_delegate = std::make_unique<TestPrefDelegate>();
+  std::unique_ptr<TestPrefDelegate> prefs_delegate(new TestPrefDelegate());
 
   NetworkQualitiesPrefsManager manager(std::move(prefs_delegate));
   manager.InitializeOnNetworkThread(&estimator);
@@ -267,7 +270,7 @@ TEST_F(NetworkQualitiesPrefManager, ClearPrefs) {
   variation_params["force_effective_connection_type"] = "Slow-2G";
   TestNetworkQualityEstimator estimator(variation_params);
 
-  auto prefs_delegate = std::make_unique<TestPrefDelegate>();
+  std::unique_ptr<TestPrefDelegate> prefs_delegate(new TestPrefDelegate());
 
   NetworkQualitiesPrefsManager manager(std::move(prefs_delegate));
   manager.InitializeOnNetworkThread(&estimator);

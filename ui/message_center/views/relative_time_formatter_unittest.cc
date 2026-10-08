@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,24 +9,25 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/strings/grit/ui_strings.h"
 
+using base::TimeDelta;
 
 namespace message_center {
 
 namespace {
 
 // In Android, DateUtils.YEAR_IN_MILLIS is 364 days (52 weeks * 7 days).
-constexpr base::TimeDelta kYearTimeDelta = base::Days(364);
+constexpr TimeDelta kYearTimeDelta = TimeDelta::FromDays(364);
 
-std::u16string GetRelativeTime(base::TimeDelta delta) {
-  std::u16string relative_time;
-  base::TimeDelta next_update;
+base::string16 GetRelativeTime(TimeDelta delta) {
+  base::string16 relative_time;
+  TimeDelta next_update;
   GetRelativeTimeStringAndNextUpdateTime(delta, &relative_time, &next_update);
   return relative_time;
 }
 
-base::TimeDelta GetNextUpdate(base::TimeDelta delta) {
-  std::u16string relative_time;
-  base::TimeDelta next_update;
+TimeDelta GetNextUpdate(TimeDelta delta) {
+  base::string16 relative_time;
+  TimeDelta next_update;
   GetRelativeTimeStringAndNextUpdateTime(delta, &relative_time, &next_update);
   return next_update;
 }
@@ -34,168 +35,168 @@ base::TimeDelta GetNextUpdate(base::TimeDelta delta) {
 }  // namespace
 
 TEST(RelativeTimeFormatterTest, Format_Future_30Sec) {
-  std::u16string relative_time = GetRelativeTime(base::Seconds(30));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromSeconds(30));
   EXPECT_EQ(
       l10n_util::GetStringUTF16(IDS_MESSAGE_NOTIFICATION_NOW_STRING_SHORTEST),
       relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_30Sec) {
-  std::u16string relative_time = GetRelativeTime(base::Seconds(-30));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromSeconds(-30));
   EXPECT_EQ(
       l10n_util::GetStringUTF16(IDS_MESSAGE_NOTIFICATION_NOW_STRING_SHORTEST),
       relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_60Sec) {
-  std::u16string relative_time = GetRelativeTime(base::Minutes(1));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromMinutes(1));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_MINUTES_SHORTEST_FUTURE, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_60Sec) {
-  std::u16string relative_time = GetRelativeTime(base::Minutes(-1));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromMinutes(-1));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_MINUTES_SHORTEST, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_5Min) {
-  std::u16string relative_time = GetRelativeTime(base::Minutes(5));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromMinutes(5));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_MINUTES_SHORTEST_FUTURE, 5),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_5Min) {
-  std::u16string relative_time = GetRelativeTime(base::Minutes(-5));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromMinutes(-5));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_MINUTES_SHORTEST, 5),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_60Min) {
-  std::u16string relative_time = GetRelativeTime(base::Hours(1));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromHours(1));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_HOURS_SHORTEST_FUTURE, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_60Min) {
-  std::u16string relative_time = GetRelativeTime(base::Hours(-1));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromHours(-1));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_HOURS_SHORTEST, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_10Hrs) {
-  std::u16string relative_time = GetRelativeTime(base::Hours(10));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromHours(10));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_HOURS_SHORTEST_FUTURE, 10),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_10Hrs) {
-  std::u16string relative_time = GetRelativeTime(base::Hours(-10));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromHours(-10));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_HOURS_SHORTEST, 10),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_24Hrs) {
-  std::u16string relative_time = GetRelativeTime(base::Days(1));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromDays(1));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_DAYS_SHORTEST_FUTURE, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_24Hrs) {
-  std::u16string relative_time = GetRelativeTime(base::Days(-1));
+  base::string16 relative_time = GetRelativeTime(TimeDelta::FromDays(-1));
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_DAYS_SHORTEST, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_1Year) {
-  std::u16string relative_time = GetRelativeTime(kYearTimeDelta);
+  base::string16 relative_time = GetRelativeTime(kYearTimeDelta);
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_YEARS_SHORTEST_FUTURE, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_1Year) {
-  std::u16string relative_time = GetRelativeTime(-kYearTimeDelta);
+  base::string16 relative_time = GetRelativeTime(-kYearTimeDelta);
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_YEARS_SHORTEST, 1),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Future_10Years) {
-  std::u16string relative_time = GetRelativeTime(kYearTimeDelta * 10);
+  base::string16 relative_time = GetRelativeTime(kYearTimeDelta * 10);
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_YEARS_SHORTEST_FUTURE, 10),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Format_Past_10Years) {
-  std::u16string relative_time = GetRelativeTime(-kYearTimeDelta * 10);
+  base::string16 relative_time = GetRelativeTime(-kYearTimeDelta * 10);
   EXPECT_EQ(l10n_util::GetPluralStringFUTF16(
                 IDS_MESSAGE_NOTIFICATION_DURATION_YEARS_SHORTEST, 10),
             relative_time);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Future_Year) {
-  base::TimeDelta next_update =
-      GetNextUpdate(kYearTimeDelta * 2 - base::Milliseconds(1));
+  TimeDelta next_update =
+      GetNextUpdate(kYearTimeDelta * 2 - TimeDelta::FromMilliseconds(1));
   EXPECT_EQ(kYearTimeDelta, next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Future_Day) {
-  base::TimeDelta next_update =
-      GetNextUpdate(base::Days(2) - base::Milliseconds(1));
-  EXPECT_EQ(base::Days(1), next_update);
+  TimeDelta next_update =
+      GetNextUpdate(TimeDelta::FromDays(2) - TimeDelta::FromMilliseconds(1));
+  EXPECT_EQ(TimeDelta::FromDays(1), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Future_Hour) {
-  base::TimeDelta next_update =
-      GetNextUpdate(base::Hours(2) - base::Milliseconds(1));
-  EXPECT_EQ(base::Hours(1), next_update);
+  TimeDelta next_update =
+      GetNextUpdate(TimeDelta::FromHours(2) - TimeDelta::FromMilliseconds(1));
+  EXPECT_EQ(TimeDelta::FromHours(1), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Future_Minute) {
-  base::TimeDelta next_update =
-      GetNextUpdate(base::Minutes(2) - base::Milliseconds(1));
-  EXPECT_EQ(base::Minutes(1), next_update);
+  TimeDelta next_update =
+      GetNextUpdate(TimeDelta::FromMinutes(2) - TimeDelta::FromMilliseconds(1));
+  EXPECT_EQ(TimeDelta::FromMinutes(1), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Future_Now) {
-  base::TimeDelta next_update = GetNextUpdate(base::Seconds(30));
-  EXPECT_EQ(base::Seconds(90), next_update);
+  TimeDelta next_update = GetNextUpdate(TimeDelta::FromSeconds(30));
+  EXPECT_EQ(TimeDelta::FromSeconds(90), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Past_Now) {
-  base::TimeDelta next_update = GetNextUpdate(base::Seconds(-30));
-  EXPECT_EQ(base::Seconds(30), next_update);
+  TimeDelta next_update = GetNextUpdate(TimeDelta::FromSeconds(-30));
+  EXPECT_EQ(TimeDelta::FromSeconds(30), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Past_Minute) {
-  base::TimeDelta next_update = GetNextUpdate(base::Minutes(-1));
-  EXPECT_EQ(base::Minutes(1), next_update);
+  TimeDelta next_update = GetNextUpdate(TimeDelta::FromMinutes(-1));
+  EXPECT_EQ(TimeDelta::FromMinutes(1), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Past_Hour) {
-  base::TimeDelta next_update = GetNextUpdate(base::Hours(-1));
-  EXPECT_EQ(base::Hours(1), next_update);
+  TimeDelta next_update = GetNextUpdate(TimeDelta::FromHours(-1));
+  EXPECT_EQ(TimeDelta::FromHours(1), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Past_Day) {
-  base::TimeDelta next_update = GetNextUpdate(base::Days(-1));
-  EXPECT_EQ(base::Days(1), next_update);
+  TimeDelta next_update = GetNextUpdate(TimeDelta::FromDays(-1));
+  EXPECT_EQ(TimeDelta::FromDays(1), next_update);
 }
 
 TEST(RelativeTimeFormatterTest, Update_Past_Year) {
-  base::TimeDelta next_update = GetNextUpdate(-kYearTimeDelta);
+  TimeDelta next_update = GetNextUpdate(-kYearTimeDelta);
   EXPECT_EQ(kYearTimeDelta, next_update);
 }
 

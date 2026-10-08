@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <set>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/download/download_danger_prompt.h"
 #include "chrome/browser/ui/webui/downloads/downloads.mojom-forward.h"
@@ -41,15 +41,10 @@ class DownloadsDOMHandler : public content::WebContentsObserver,
       mojo::PendingRemote<downloads::mojom::Page> page,
       content::DownloadManager* download_manager,
       content::WebUI* web_ui);
-
-  DownloadsDOMHandler(const DownloadsDOMHandler&) = delete;
-  DownloadsDOMHandler& operator=(const DownloadsDOMHandler&) = delete;
-
   ~DownloadsDOMHandler() override;
 
   // WebContentsObserver implementation.
-  void PrimaryMainFrameRenderProcessGone(
-      base::TerminationStatus status) override;
+  void RenderProcessGone(base::TerminationStatus status) override;
 
   // downloads::mojom::PageHandler:
   void GetDownloads(const std::vector<std::string>& search_terms) override;
@@ -67,7 +62,6 @@ class DownloadsDOMHandler : public content::WebContentsObserver,
   void ClearAll() override;
   void OpenDownloadsFolderRequiringGesture() override;
   void OpenDuringScanningRequiringGesture(const std::string& id) override;
-  void ReviewDangerousRequiringGesture(const std::string& id) override;
 
  protected:
   // These methods are for mocking so that most of this class does not actually
@@ -131,11 +125,13 @@ class DownloadsDOMHandler : public content::WebContentsObserver,
   // Whether the render process has gone.
   bool render_process_gone_ = false;
 
-  raw_ptr<content::WebUI> web_ui_;
+  content::WebUI* web_ui_;
 
   mojo::Receiver<downloads::mojom::PageHandler> receiver_;
 
   base::WeakPtrFactory<DownloadsDOMHandler> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadsDOMHandler);
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_DOWNLOADS_DOWNLOADS_DOM_HANDLER_H_

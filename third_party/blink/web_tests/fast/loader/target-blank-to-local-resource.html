@@ -2,7 +2,8 @@
 <script>
 if (window.testRunner) {
   testRunner.dumpAsText();
-  testRunner.setPopupBlockingEnabled(false);
+  testRunner.setCanOpenWindows(true);
+  testRunner.dumpCreateView();
 }
 // The navigation should be blocked before a new window is opened.
 a.click();

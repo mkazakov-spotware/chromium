@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,9 @@
 #include "third_party/boringssl/src/include/openssl/evp.h"
 #include "third_party/boringssl/src/include/openssl/pem.h"
 
-namespace net::key_util {
+namespace net {
+
+namespace key_util {
 
 bssl::UniquePtr<EVP_PKEY> LoadEVP_PKEYFromPEM(const base::FilePath& filepath) {
   std::string data;
@@ -46,4 +48,6 @@ scoped_refptr<SSLPrivateKey> LoadPrivateKeyOpenSSL(
   return WrapOpenSSLPrivateKey(std::move(key));
 }
 
-}  // namespace net::key_util
+}  // namespace key_util
+
+}  // namespace net

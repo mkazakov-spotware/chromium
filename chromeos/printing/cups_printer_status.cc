@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,11 +52,6 @@ void CupsPrinterStatus::AddStatusReason(
     const CupsPrinterStatusReason::Reason& reason,
     const CupsPrinterStatusReason::Severity& severity) {
   status_reasons_.emplace(CupsPrinterStatusReason(reason, severity));
-}
-
-void CupsPrinterStatus::SetAuthenticationInfo(
-    const PrinterAuthenticationInfo& auth_info) {
-  auth_info_ = auth_info;
 }
 
 }  // namespace chromeos

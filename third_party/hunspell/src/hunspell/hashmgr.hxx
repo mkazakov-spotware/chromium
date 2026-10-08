@@ -85,6 +85,7 @@
 #ifdef HUNSPELL_CHROME_CLIENT
 #include <map>
 
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "third_party/hunspell/google/bdict_reader.h"
 #endif

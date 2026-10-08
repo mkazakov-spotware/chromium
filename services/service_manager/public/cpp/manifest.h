@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/component_export.h"
 #include "base/files/file_path.h"
+#include "base/strings/string16.h"
 
 namespace service_manager {
 
@@ -92,7 +93,7 @@ struct COMPONENT_EXPORT(SERVICE_MANAGER_CPP) Manifest {
     // binary (for example Chromium, or any Content embedder), and the embedder
     // handles requests for new instances of the service via
     // ServiceProcess::Delegate::RunService(). The service will always run in
-    // a child process sandboxed according to sandbox::mojom::Sandbox (see
+    // a child process sandboxed according to sandbox::policy::SandboxType (see
     // Options below).
     kOutOfProcessBuiltin,
 
@@ -102,7 +103,7 @@ struct COMPONENT_EXPORT(SERVICE_MANAGER_CPP) Manifest {
     // "${service_name}.service.exe" on Windows).
     //
     // Proper sandboxing is currently not supported for standalone service
-    // executables, so sandbox::mojom::Sandbox (see Options below) is
+    // executables, so sandbox::policy::SandboxType (see Options below) is
     // ignored. This renders
     // standalone service executables generally unsuitable for production
     // environments.
@@ -153,7 +154,7 @@ struct COMPONENT_EXPORT(SERVICE_MANAGER_CPP) Manifest {
     // |kStandaloneExecutable|.
     //
     // TODO(https://crbug.com/915806): Make this field a
-    // sandbox::mojom::Sandbox enum.
+    // sandbox::policy::SandboxType enum.
     std::string sandbox_type{"utility"};
   };
 
@@ -251,7 +252,7 @@ struct COMPONENT_EXPORT(SERVICE_MANAGER_CPP) Manifest {
   // |Service::CreatePackagedServiceInstance()|.
   //
   // See
-  // https://chromium.googlesource.com/chromium/src/+/main/services/service_manager/README.md#Packaging
+  // https://chromium.googlesource.com/chromium/src/+/master/services/service_manager/README.md#Packaging
   // for more information.
   std::vector<Manifest> packaged_services;
   std::vector<PreloadedFileInfo> preloaded_files;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,12 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.flags.MutableFlagWithSafeDefault;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.navigation_interception.InterceptNavigationDelegate;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.url.GURL;
 
 /**
  * A helper class for using the DOM Distiller.
@@ -28,11 +26,6 @@ public class DomDistillerTabUtils {
 
     /** Used to specify whether mobile friendly is enabled for testing purposes. */
     private static Boolean sExcludeMobileFriendlyForTesting;
-    private static MutableFlagWithSafeDefault sReaderModeCctFlag =
-            new MutableFlagWithSafeDefault(ChromeFeatureList.READER_MODE_IN_CCT, false);
-
-    @DistillerHeuristicsType
-    private static Integer sHeuristicsForTesting;
 
     private DomDistillerTabUtils() {
     }
@@ -77,7 +70,7 @@ public class DomDistillerTabUtils {
      * @param url The original URL.
      * @return the formatted URL of the original page.
      */
-    public static String getFormattedUrlFromOriginalDistillerUrl(GURL url) {
+    public static String getFormattedUrlFromOriginalDistillerUrl(String url) {
         return DomDistillerTabUtilsJni.get().getFormattedUrlFromOriginalDistillerUrl(url);
     }
 
@@ -121,21 +114,9 @@ public class DomDistillerTabUtils {
     }
 
     /**
-     * Set a test value of DistillerHeuristicsType.
-     */
-    @VisibleForTesting
-    public static void setDistillerHeuristicsForTesting(
-            @DistillerHeuristicsType Integer distillerHeuristicsType) {
-        sHeuristicsForTesting = distillerHeuristicsType;
-    }
-
-    /**
      * Cached version of DomDistillerTabUtilsJni.get().getDistillerHeuristics().
      */
     public static @DistillerHeuristicsType int getDistillerHeuristics() {
-        if (sHeuristicsForTesting != null) {
-            return sHeuristicsForTesting;
-        }
         if (sHeuristics == null) {
             sHeuristics = DomDistillerTabUtilsJni.get().getDistillerHeuristics();
         }
@@ -148,15 +129,8 @@ public class DomDistillerTabUtils {
      * @return True if it should.
      */
     public static boolean isCctMode() {
-        return sReaderModeCctFlag.isEnabled();
-    }
-
-    /**
-     * Returns true if reader mode prompt should be displayed as a message. Otherwise it will be
-     * displayed as an infobar.
-     */
-    public static boolean useMessagesForReaderModePrompt() {
-        return ChromeFeatureList.isEnabled(ChromeFeatureList.MESSAGES_FOR_ANDROID_READER_MODE);
+        if (!ChromeFeatureList.isInitialized()) return false;
+        return ChromeFeatureList.isEnabled(ChromeFeatureList.READER_MODE_IN_CCT);
     }
 
     /**
@@ -174,7 +148,7 @@ public class DomDistillerTabUtils {
         void distillCurrentPageAndView(WebContents webContents);
         void distillCurrentPage(WebContents webContents);
         void distillAndView(WebContents sourceWebContents, WebContents destinationWebContents);
-        String getFormattedUrlFromOriginalDistillerUrl(GURL url);
+        String getFormattedUrlFromOriginalDistillerUrl(String url);
         int getDistillerHeuristics();
         void setInterceptNavigationDelegate(
                 InterceptNavigationDelegate delegate, WebContents webContents);

@@ -25,8 +25,6 @@
 
 #include "third_party/blink/renderer/modules/webgl/ext_frag_depth.h"
 
-#include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
-
 namespace blink {
 
 EXTFragDepth::EXTFragDepth(WebGLRenderingContextBase* context)

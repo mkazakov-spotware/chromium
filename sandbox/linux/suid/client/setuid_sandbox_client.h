@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/environment.h"
+#include "base/macros.h"
 #include "sandbox/sandbox_export.h"
 
 namespace sandbox {
@@ -34,12 +35,8 @@ namespace sandbox {
 //    requests other sandboxing status via the status functions.
 class SANDBOX_EXPORT SetuidSandboxClient {
  public:
-  // All instantiation should go through this factory method.
-  static std::unique_ptr<SetuidSandboxClient> Create();
-
-  SetuidSandboxClient(const SetuidSandboxClient&) = delete;
-  SetuidSandboxClient& operator=(const SetuidSandboxClient&) = delete;
-
+  // All instantation should go through this factory method.
+  static SetuidSandboxClient* Create();
   ~SetuidSandboxClient();
 
   // Close the dummy file descriptor leftover from the sandbox ABI.
@@ -64,8 +61,10 @@ class SANDBOX_EXPORT SetuidSandboxClient {
   explicit SetuidSandboxClient(std::unique_ptr<base::Environment> env);
 
   // Holds the environment. Will never be NULL.
-  const std::unique_ptr<base::Environment> env_;
-  bool sandboxed_ = false;
+  std::unique_ptr<base::Environment> env_;
+  bool sandboxed_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetuidSandboxClient);
 };
 
 }  // namespace sandbox

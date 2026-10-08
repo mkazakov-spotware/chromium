@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 namespace apps {
 
 IntentPickerAppInfo::IntentPickerAppInfo(PickerEntryType type,
-                                         const ui::ImageModel& icon_model,
+                                         const gfx::Image& icon,
                                          const std::string& launch_name,
                                          const std::string& display_name)
     : type(type),
-      icon_model(icon_model),
+      icon(icon),
       launch_name(launch_name),
       display_name(display_name) {}
 

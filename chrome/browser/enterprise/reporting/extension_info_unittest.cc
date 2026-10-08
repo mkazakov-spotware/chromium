@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/value_builder.h"
-
-using extensions::mojom::ManifestLocation;
 
 namespace em = enterprise_management;
 
@@ -28,7 +26,6 @@ const char kPermission1[] = "alarms";
 const char kPermission2[] = "idle";
 const char kPermission3[] = "*://*.example.com/*";
 const char kAppLaunchUrl[] = "https://www.example.com/";
-const int kManifestVersion = 2;
 
 }  // namespace
 
@@ -42,7 +39,7 @@ class ExtensionInfoTest : public extensions::ExtensionServiceTestBase {
 
   scoped_refptr<const extensions::Extension> BuildExtension(
       const std::string& id = kId,
-      ManifestLocation location = ManifestLocation::kUnpacked,
+      extensions::Manifest::Location location = extensions::Manifest::UNPACKED,
       bool is_app = false,
       bool from_webstore = false) {
     extensions::ExtensionBuilder extensionBuilder(
@@ -50,7 +47,6 @@ class ExtensionInfoTest : public extensions::ExtensionServiceTestBase {
                        : extensions::ExtensionBuilder::Type::EXTENSION));
     extensionBuilder.SetID(id)
         .SetVersion(kVersion)
-        .SetManifestVersion(kManifestVersion)
         .SetManifestKey(extensions::manifest_keys::kDescription, kDescription)
         .SetManifestKey(extensions::manifest_keys::kHomepageURL, kHomepage)
         .SetLocation(location)
@@ -58,7 +54,8 @@ class ExtensionInfoTest : public extensions::ExtensionServiceTestBase {
         .AddPermission(kPermission2)
         .AddPermission(kPermission3);
     if (is_app) {
-      extensionBuilder.SetManifestPath("app.launch.web_url", kAppLaunchUrl);
+      extensionBuilder.SetManifestPath({"app", "launch", "web_url"},
+                                       kAppLaunchUrl);
     }
     if (from_webstore) {
       extensionBuilder.AddFlags(extensions::Extension::FROM_WEBSTORE);
@@ -82,7 +79,6 @@ TEST_F(ExtensionInfoTest, ExtensionReport) {
   EXPECT_EQ(kName, actual_extension_report.name());
   EXPECT_EQ(kVersion, actual_extension_report.version());
   EXPECT_EQ(kDescription, actual_extension_report.description());
-  EXPECT_EQ(kManifestVersion, actual_extension_report.manifest_version());
 
   EXPECT_EQ(em::Extension_ExtensionType_TYPE_EXTENSION,
             actual_extension_report.app_type());
@@ -148,7 +144,7 @@ TEST_F(ExtensionInfoTest, ExtensionBlocked) {
   EXPECT_EQ(0, info.extensions_size());
 }
 
-TEST_F(ExtensionInfoTest, ExtensionBlocklisted) {
+TEST_F(ExtensionInfoTest, ExtensionBlacklisted) {
   auto extension = BuildExtension();
   service()->BlocklistExtensionForTest(kId);
 
@@ -159,8 +155,9 @@ TEST_F(ExtensionInfoTest, ExtensionBlocklisted) {
 }
 
 TEST_F(ExtensionInfoTest, ComponentExtension) {
-  auto extension1 = BuildExtension(kId, ManifestLocation::kComponent);
-  auto extension2 = BuildExtension(kId2, ManifestLocation::kExternalComponent);
+  auto extension1 = BuildExtension(kId, extensions::Manifest::COMPONENT);
+  auto extension2 =
+      BuildExtension(kId2, extensions::Manifest::EXTERNAL_COMPONENT);
 
   em::ChromeUserProfileInfo info;
   AppendExtensionInfoIntoProfileReport(profile(), &info);
@@ -169,9 +166,9 @@ TEST_F(ExtensionInfoTest, ComponentExtension) {
 }
 
 TEST_F(ExtensionInfoTest, FromWebstoreFlag) {
-  auto extension1 = BuildExtension(kId, ManifestLocation::kUnpacked,
+  auto extension1 = BuildExtension(kId, extensions::Manifest::UNPACKED,
                                    /*is_app=*/false, /*from_webstore=*/false);
-  auto extension2 = BuildExtension(kId2, ManifestLocation::kUnpacked,
+  auto extension2 = BuildExtension(kId2, extensions::Manifest::UNPACKED,
                                    /*is_app=*/false, /*from_webstore=*/true);
 
   em::ChromeUserProfileInfo info;

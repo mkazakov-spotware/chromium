@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,18 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/extensions/extension_popup.h"
-#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_view_host.h"
+#include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "extensions/common/mojom/view_type.mojom.h"
-#include "ui/base/cursor/cursor.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
+#include "extensions/common/view_type.h"
 #include "ui/events/event.h"
 #include "ui/views/controls/native/native_view_host.h"
 #include "ui/views/widget/widget.h"
+
+#if defined(USE_AURA)
+#include "ui/base/cursor/cursor.h"
+#endif
 
 ExtensionViewViews::ExtensionViewViews(extensions::ExtensionViewHost* host)
     : views::WebView(host->browser() ? host->browser()->profile() : nullptr),
@@ -35,8 +38,7 @@ ExtensionViewViews::~ExtensionViewViews() {
 }
 
 void ExtensionViewViews::Init() {
-  if (host_->extension_host_type() ==
-      extensions::mojom::ViewType::kExtensionPopup) {
+  if (host_->extension_host_type() == extensions::VIEW_TYPE_EXTENSION_POPUP) {
     DCHECK(container_);
 
     // This will set the max popup bounds for the duration of the popup's
@@ -57,7 +59,7 @@ void ExtensionViewViews::VisibilityChanged(View* starting_from,
     // is not part of the View hierarchy and does not know about the change
     // unless we tell it.
     content::RenderWidgetHostView* host_view =
-        host_->main_frame_host()->GetView();
+        host_->render_view_host()->GetWidget()->GetView();
     if (host_view) {
       if (is_visible)
         host_view->Show();
@@ -65,28 +67,6 @@ void ExtensionViewViews::VisibilityChanged(View* starting_from,
         host_view->Hide();
     }
   }
-}
-
-gfx::Size ExtensionViewViews::GetMinimumSize() const {
-  return minimum_size_.value_or(GetPreferredSize());
-}
-
-void ExtensionViewViews::SetMinimumSize(const gfx::Size& minimum_size) {
-  if (minimum_size_ && minimum_size_.value() == minimum_size)
-    return;
-  minimum_size_ = minimum_size;
-  OnPropertyChanged(&minimum_size_,
-                    views::kPropertyEffectsPreferredSizeChanged);
-}
-
-void ExtensionViewViews::SetContainer(
-    ExtensionViewViews::Container* container) {
-  container_ = container;
-  OnPropertyChanged(&container_, views::kPropertyEffectsPreferredSizeChanged);
-}
-
-ExtensionViewViews::Container* ExtensionViewViews::GetContainer() const {
-  return container_;
 }
 
 gfx::NativeView ExtensionViewViews::GetNativeView() {
@@ -106,9 +86,9 @@ void ExtensionViewViews::ResizeDueToAutoResize(
   WebView::ResizeDueToAutoResize(web_contents, new_size);
 }
 
-void ExtensionViewViews::RenderFrameCreated(
-    content::RenderFrameHost* frame_host) {
-  WebView::RenderFrameCreated(frame_host);
+void ExtensionViewViews::RenderViewCreated(
+    content::RenderViewHost* render_view_host) {
+  WebView::RenderViewCreated(render_view_host);
 }
 
 bool ExtensionViewViews::HandleKeyboardEvent(
@@ -130,8 +110,12 @@ void ExtensionViewViews::OnLoaded() {
   ResizeDueToAutoResize(web_contents(), pending_preferred_size_);
 }
 
-ui::Cursor ExtensionViewViews::GetCursor(const ui::MouseEvent& event) {
-  return ui::Cursor();
+gfx::NativeCursor ExtensionViewViews::GetCursor(const ui::MouseEvent& event) {
+  return gfx::kNullCursor;
+}
+
+gfx::Size ExtensionViewViews::GetMinimumSize() const {
+  return minimum_size_.value_or(GetPreferredSize());
 }
 
 void ExtensionViewViews::PreferredSizeChanged() {
@@ -141,11 +125,6 @@ void ExtensionViewViews::PreferredSizeChanged() {
 }
 
 void ExtensionViewViews::OnWebContentsAttached() {
-  host_->CreateRendererSoon();
+  host_->CreateRenderViewSoon();
   SetVisible(false);
 }
-
-BEGIN_METADATA(ExtensionViewViews, views::WebView)
-ADD_PROPERTY_METADATA(gfx::Size, MinimumSize)
-ADD_PROPERTY_METADATA(ExtensionViewViews::Container*, Container)
-END_METADATA

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/no_destructor.h"
-#include "content/public/browser/page.h"
-#include "content/public/browser/render_frame_host.h"
-#include "net/http/http_response_headers.h"
+#include "content/public/browser/navigation_handle.h"
 #include "url/gurl.h"
 
 namespace embedder_support {
@@ -54,21 +52,20 @@ bool IsTrustedCDN(const GURL& url) {
 
 }  // namespace
 
-BASE_FEATURE(kShowTrustedPublisherURL,
-             "ShowTrustedPublisherURL",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kShowTrustedPublisherURL{"ShowTrustedPublisherURL",
+                                             base::FEATURE_ENABLED_BY_DEFAULT};
 
-GURL GetPublisherURL(content::Page& page) {
-  content::RenderFrameHost& rfh = page.GetMainDocument();
-  if (!IsTrustedCDN(rfh.GetLastCommittedURL()))
+GURL GetPublisherURL(content::NavigationHandle* navigation_handle) {
+  if (!IsTrustedCDN(navigation_handle->GetURL()))
     return GURL();
 
-  const net::HttpResponseHeaders* headers = rfh.GetLastResponseHeaders();
+  const net::HttpResponseHeaders* headers =
+      navigation_handle->GetResponseHeaders();
   if (!headers) {
     // TODO(https://crbug.com/829323): In some cases other than offline pages
     // we don't have headers.
     LOG(WARNING) << "No headers for navigation to "
-                 << rfh.GetLastCommittedURL();
+                 << navigation_handle->GetURL();
     return GURL();
   }
 

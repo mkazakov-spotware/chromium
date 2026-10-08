@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <iterator>
-
 #include "base/numerics/safe_conversions.h"
 #include "base/rand_util.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "gtest/gtest.h"
 #include "test/gtest_death.h"
@@ -60,9 +59,6 @@ class TestCookie {
   // SetUp() called on it.
   explicit TestCookie() : address_(&cookie_), cookie_(0) {}
 
-  TestCookie(const TestCookie&) = delete;
-  TestCookie& operator=(const TestCookie&) = delete;
-
   ~TestCookie() {}
 
   void SetUp(uint64_t* address) {
@@ -82,6 +78,8 @@ class TestCookie {
  private:
   uint64_t* address_;
   uint64_t cookie_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestCookie);
 };
 
 TEST(ScopedMmap, Mmap) {
@@ -153,7 +151,7 @@ TEST(ScopedMmapDeathTest, ResetAddrLen_Shrink) {
   EXPECT_EQ(mapping.len(), 3 * kPageSize);
 
   TestCookie cookies[3];
-  for (size_t index = 0; index < std::size(cookies); ++index) {
+  for (size_t index = 0; index < base::size(cookies); ++index) {
     cookies[index].SetUp(reinterpret_cast<uint64_t*>(
         mapping.addr_as<uintptr_t>() + index * kPageSize));
   }
@@ -188,7 +186,7 @@ TEST(ScopedMmap, ResetAddrLen_Grow) {
   EXPECT_EQ(mapping.len(), kPageSize);
 
   TestCookie cookies[3];
-  for (size_t index = 0; index < std::size(cookies); ++index) {
+  for (size_t index = 0; index < base::size(cookies); ++index) {
     cookies[index].SetUp(reinterpret_cast<uint64_t*>(
         reinterpret_cast<uintptr_t>(pages) + index * kPageSize));
   }
@@ -199,7 +197,7 @@ TEST(ScopedMmap, ResetAddrLen_Grow) {
   EXPECT_EQ(mapping.addr(), pages);
   EXPECT_EQ(mapping.len(), 3 * kPageSize);
 
-  for (size_t index = 0; index < std::size(cookies); ++index) {
+  for (size_t index = 0; index < base::size(cookies); ++index) {
     SCOPED_TRACE(base::StringPrintf("index %zu", index));
     EXPECT_EQ(cookies[index].Observed(), cookies[index].Expected());
   }
@@ -220,7 +218,7 @@ TEST(ScopedMmapDeathTest, ResetAddrLen_MoveDownAndGrow) {
   EXPECT_EQ(mapping.len(), kPageSize);
 
   TestCookie cookies[3];
-  for (size_t index = 0; index < std::size(cookies); ++index) {
+  for (size_t index = 0; index < base::size(cookies); ++index) {
     cookies[index].SetUp(reinterpret_cast<uint64_t*>(
         reinterpret_cast<uintptr_t>(pages) + index * kPageSize));
   }
@@ -251,7 +249,7 @@ TEST(ScopedMmapDeathTest, ResetAddrLen_MoveUpAndShrink) {
   EXPECT_EQ(mapping.len(), 2 * kPageSize);
 
   TestCookie cookies[3];
-  for (size_t index = 0; index < std::size(cookies); ++index) {
+  for (size_t index = 0; index < base::size(cookies); ++index) {
     cookies[index].SetUp(reinterpret_cast<uint64_t*>(
         reinterpret_cast<uintptr_t>(pages) + index * kPageSize));
   }
@@ -349,7 +347,7 @@ TEST(ScopedMmapDeathTest, NotIntegralNumberOfPages) {
   EXPECT_EQ(mapping.len(), 2 * kPageSize);
 
   TestCookie two_cookies[2];
-  for (size_t index = 0; index < std::size(two_cookies); ++index) {
+  for (size_t index = 0; index < base::size(two_cookies); ++index) {
     two_cookies[index].SetUp(reinterpret_cast<uint64_t*>(
         mapping.addr_as<uintptr_t>() + index * kPageSize));
   }
@@ -369,7 +367,7 @@ TEST(ScopedMmapDeathTest, NotIntegralNumberOfPages) {
   EXPECT_NE(mapping.addr(), MAP_FAILED);
   EXPECT_EQ(mapping.len(), 2 * kPageSize);
 
-  for (size_t index = 0; index < std::size(two_cookies); ++index) {
+  for (size_t index = 0; index < base::size(two_cookies); ++index) {
     two_cookies[index].SetUp(reinterpret_cast<uint64_t*>(
         mapping.addr_as<uintptr_t>() + index * kPageSize));
   }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ TEST(PrintSettingsTest, GetColorModelForModel) {
   }
 }
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_MAC) || BUILDFLAG(IS_ASH)
 TEST(PrintSettingsTest, GetIppColorModelForModel) {
   for (int model = static_cast<int>(mojom::ColorModel::kUnknownColorModel);
        model <= static_cast<int>(mojom::ColorModel::kColorModelLast); ++model) {
@@ -64,7 +64,7 @@ TEST(PrintSettingsTest, GetIppColorModelForModel) {
                      .empty());
   }
 }
-#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_MAC) || BUILDFLAG(IS_ASH)
 #endif  // defined(USE_CUPS)
 
 }  // namespace printing

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,15 +25,13 @@ class WebauthnDialogBrowserTest : public DialogBrowserTest {
  public:
   WebauthnDialogBrowserTest() = default;
 
-  WebauthnDialogBrowserTest(const WebauthnDialogBrowserTest&) = delete;
-  WebauthnDialogBrowserTest& operator=(const WebauthnDialogBrowserTest&) =
-      delete;
-
   // DialogBrowserTest:
   void ShowUi(const std::string& name) override {
+    content::WebContents* web_contents =
+        browser()->tab_strip_model()->GetActiveWebContents();
+
     // Do lazy initialization of WebauthnDialogControllerImpl.
-    WebauthnDialogControllerImpl::CreateForPage(
-        web_contents()->GetPrimaryPage());
+    WebauthnDialogControllerImpl::CreateForWebContents(web_contents);
 
     if (name == kOfferDialogName) {
       controller()->ShowOfferDialog(base::DoNothing());
@@ -58,13 +56,12 @@ class WebauthnDialogBrowserTest : public DialogBrowserTest {
         !browser()->tab_strip_model()->GetActiveWebContents())
       return nullptr;
 
-    return WebauthnDialogControllerImpl::GetForPage(
-        web_contents()->GetPrimaryPage());
+    return WebauthnDialogControllerImpl::FromWebContents(
+        browser()->tab_strip_model()->GetActiveWebContents());
   }
 
-  content::WebContents* web_contents() {
-    return browser()->tab_strip_model()->GetActiveWebContents();
-  }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WebauthnDialogBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(WebauthnDialogBrowserTest, InvokeUi_Offer) {
@@ -77,7 +74,7 @@ IN_PROC_BROWSER_TEST_F(WebauthnDialogBrowserTest,
                        OfferDialog_CanCloseTabWhileDialogShowing) {
   ShowUi(kOfferDialogName);
   VerifyUi();
-  web_contents()->Close();
+  browser()->tab_strip_model()->GetActiveWebContents()->Close();
   base::RunLoop().RunUntilIdle();
 }
 
@@ -107,7 +104,7 @@ IN_PROC_BROWSER_TEST_F(WebauthnDialogBrowserTest,
                        VerifyPendingDialog_CanCloseTabWhileDialogShowing) {
   ShowUi(kVerifyDialogName);
   VerifyUi();
-  web_contents()->Close();
+  browser()->tab_strip_model()->GetActiveWebContents()->Close();
   base::RunLoop().RunUntilIdle();
 }
 

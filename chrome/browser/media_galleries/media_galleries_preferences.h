@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,10 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/storage_monitor/removable_storage_observer.h"
@@ -47,7 +48,7 @@ struct MediaGalleryPrefInfo {
   enum Type {
     kUserAdded,     // Explicitly added by the user.
     kAutoDetected,  // Auto added to the list of galleries.
-    kBlockListed,   // Auto added but then removed by the user.
+    kBlackListed,   // Auto added but then removed by the user.
     kScanResult,    // Discovered by a disk scan.
     kRemovedScan,   // Discovered by a disk scan but then removed by the user.
     kInvalidType,
@@ -68,14 +69,14 @@ struct MediaGalleryPrefInfo {
   base::FilePath AbsolutePath() const;
 
   // True if the gallery should not be displayed to the user
-  // i.e. kBlockListed || kRemovedScan.
-  bool IsBlockListedType() const;
+  // i.e. kBlackListed || kRemovedScan.
+  bool IsBlackListedType() const;
 
   // The ID that identifies this gallery in this Profile.
   MediaGalleryPrefId pref_id;
 
   // The user-visible name of this gallery.
-  std::u16string display_name;
+  base::string16 display_name;
 
   // A string which uniquely and persistently identifies the device that the
   // gallery lives on.
@@ -89,15 +90,15 @@ struct MediaGalleryPrefInfo {
 
   // The volume label of the volume/device on which the gallery
   // resides. Empty if there is no such label or it is unknown.
-  std::u16string volume_label;
+  base::string16 volume_label;
 
   // Vendor name for the volume/device on which the gallery is located.
   // Will be empty if unknown.
-  std::u16string vendor_name;
+  base::string16 vendor_name;
 
   // Model name for the volume/device on which the gallery is located.
   // Will be empty if unknown.
-  std::u16string model_name;
+  base::string16 model_name;
 
   // The capacity in bytes of the volume/device on which the gallery is
   // located. Will be zero if unknown.
@@ -132,9 +133,9 @@ struct MediaGalleryPrefInfo {
   int prefs_version;
 
   // Called by views to provide details for the gallery permission entries.
-  std::u16string GetGalleryDisplayName() const;
-  std::u16string GetGalleryTooltip() const;
-  std::u16string GetGalleryAdditionalDetails() const;
+  base::string16 GetGalleryDisplayName() const;
+  base::string16 GetGalleryTooltip() const;
+  base::string16 GetGalleryAdditionalDetails() const;
 
   // Returns true if the gallery is currently a removable device gallery which
   // is now attached, or a fixed storage gallery.
@@ -177,11 +178,6 @@ class MediaGalleriesPreferences
   };
 
   explicit MediaGalleriesPreferences(Profile* profile);
-
-  MediaGalleriesPreferences(const MediaGalleriesPreferences&) = delete;
-  MediaGalleriesPreferences& operator=(const MediaGalleriesPreferences&) =
-      delete;
-
   ~MediaGalleriesPreferences() override;
 
   // Ensures that the preferences is initialized. The provided callback, if
@@ -224,14 +220,14 @@ class MediaGalleriesPreferences
       bool include_unpermitted_galleries);
 
   // Teaches the registry about a new gallery. If the gallery is in a
-  // blocklisted state, it is unblocklisted. |type| should not be a blocklisted
+  // blacklisted state, it is unblacklisted. |type| should not be a blacklisted
   // type. Returns the gallery's pref id.
   MediaGalleryPrefId AddGallery(const std::string& device_id,
                                 const base::FilePath& relative_path,
                                 MediaGalleryPrefInfo::Type type,
-                                const std::u16string& volume_label,
-                                const std::u16string& vendor_name,
-                                const std::u16string& model_name,
+                                const base::string16& volume_label,
+                                const base::string16& vendor_name,
+                                const base::string16& model_name,
                                 uint64_t total_size_in_bytes,
                                 base::Time last_attach_time,
                                 int audio_count,
@@ -239,14 +235,14 @@ class MediaGalleriesPreferences
                                 int video_count);
 
   // Teach the registry about a gallery simply from the path. If the gallery is
-  // in a blocklisted state, it is unblocklisted. |type| should not be a
-  // blocklisted type. Returns the gallery's pref id.
+  // in a blacklisted state, it is unblacklisted. |type| should not be a
+  // blacklisted type. Returns the gallery's pref id.
   MediaGalleryPrefId AddGalleryByPath(const base::FilePath& path,
                                       MediaGalleryPrefInfo::Type type);
 
   // Logically removes the gallery identified by |id| from the store. For
   // auto added or scan result galleries, this means moving them into a
-  // blocklisted state, otherwise they may come back when they are detected
+  // blacklisted state, otherwise they may come back when they are detected
   // again.
   void ForgetGalleryById(MediaGalleryPrefId id);
 
@@ -300,12 +296,12 @@ class MediaGalleriesPreferences
   // TODO(orenb): Simplify this and reduce the number of parameters.
   MediaGalleryPrefId AddOrUpdateGalleryInternal(
       const std::string& device_id,
-      const std::u16string& display_name,
+      const base::string16& display_name,
       const base::FilePath& relative_path,
       MediaGalleryPrefInfo::Type type,
-      const std::u16string& volume_label,
-      const std::u16string& vendor_name,
-      const std::u16string& model_name,
+      const base::string16& volume_label,
+      const base::string16& vendor_name,
+      const base::string16& model_name,
       uint64_t total_size_in_bytes,
       base::Time last_attach_time,
       bool volume_metadata_valid,
@@ -315,7 +311,7 @@ class MediaGalleriesPreferences
       int prefs_version,
       MediaGalleryPrefInfo::DefaultGalleryType default_gallery_type);
 
-  void EraseOrBlocklistGalleryById(MediaGalleryPrefId id, bool erase);
+  void EraseOrBlacklistGalleryById(MediaGalleryPrefId id, bool erase);
 
   // Updates the default galleries: finds the previously default galleries
   // and updates their device IDs (i.e., their paths) inplace if they have
@@ -355,12 +351,12 @@ class MediaGalleriesPreferences
   std::vector<base::OnceClosure> on_initialize_callbacks_;
 
   // The profile that owns |this|.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // The ExtensionPrefs used in a testing environment, where KeyedServices
   // aren't used. This will be nullptr unless it is set with
   // SetExtensionPrefsForTesting().
-  raw_ptr<extensions::ExtensionPrefs> extension_prefs_for_testing_;
+  extensions::ExtensionPrefs* extension_prefs_for_testing_;
 
   // An in-memory cache of known galleries.
   MediaGalleriesPrefInfoMap known_galleries_;
@@ -373,6 +369,8 @@ class MediaGalleriesPreferences
       gallery_change_observers_;
 
   base::WeakPtrFactory<MediaGalleriesPreferences> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MediaGalleriesPreferences);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_MEDIA_GALLERIES_PREFERENCES_H_

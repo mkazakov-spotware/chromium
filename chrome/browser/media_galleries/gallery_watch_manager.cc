@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
+#include "base/stl_util.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -42,11 +43,6 @@ class GalleryWatchManagerShutdownNotifierFactory
     return base::Singleton<GalleryWatchManagerShutdownNotifierFactory>::get();
   }
 
-  GalleryWatchManagerShutdownNotifierFactory(
-      const GalleryWatchManagerShutdownNotifierFactory&) = delete;
-  GalleryWatchManagerShutdownNotifierFactory& operator=(
-      const GalleryWatchManagerShutdownNotifierFactory&) = delete;
-
  private:
   friend struct base::DefaultSingletonTraits<
       GalleryWatchManagerShutdownNotifierFactory>;
@@ -57,6 +53,8 @@ class GalleryWatchManagerShutdownNotifierFactory
     DependsOn(MediaGalleriesPreferencesFactory::GetInstance());
   }
   ~GalleryWatchManagerShutdownNotifierFactory() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(GalleryWatchManagerShutdownNotifierFactory);
 };
 
 }  // namespace.
@@ -75,10 +73,6 @@ const char GalleryWatchManager::kCouldNotWatchGalleryError[] =
 class GalleryWatchManager::FileWatchManager {
  public:
   explicit FileWatchManager(const base::FilePathWatcher::Callback& callback);
-
-  FileWatchManager(const FileWatchManager&) = delete;
-  FileWatchManager& operator=(const FileWatchManager&) = delete;
-
   ~FileWatchManager();
 
   // Posts success or failure via |callback| to the UI thread.
@@ -102,6 +96,8 @@ class GalleryWatchManager::FileWatchManager {
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<FileWatchManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FileWatchManager);
 };
 
 GalleryWatchManager::FileWatchManager::FileWatchManager(
@@ -131,10 +127,10 @@ void GalleryWatchManager::FileWatchManager::AddFileWatch(
   }
 
   auto watcher = std::make_unique<base::FilePathWatcher>();
-  bool success =
-      watcher->Watch(path, base::FilePathWatcher::Type::kRecursive,
-                     base::BindRepeating(&FileWatchManager::OnFilePathChanged,
-                                         weak_factory_.GetWeakPtr()));
+  bool success = watcher->Watch(path,
+                                true /*recursive*/,
+                                base::Bind(&FileWatchManager::OnFilePathChanged,
+                                           weak_factory_.GetWeakPtr()));
 
   if (success)
     watchers_[path] = std::move(watcher);
@@ -195,8 +191,8 @@ GalleryWatchManager::GalleryWatchManager()
       watch_manager_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(), base::TaskPriority::BEST_EFFORT})) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  watch_manager_ = std::make_unique<FileWatchManager>(base::BindRepeating(
-      &GalleryWatchManager::OnFilePathChanged, weak_factory_.GetWeakPtr()));
+  watch_manager_.reset(new FileWatchManager(base::Bind(
+      &GalleryWatchManager::OnFilePathChanged, weak_factory_.GetWeakPtr())));
 }
 
 GalleryWatchManager::~GalleryWatchManager() {
@@ -366,9 +362,8 @@ void GalleryWatchManager::EnsureBrowserContextSubscription(
     browser_context_subscription_map_[browser_context] =
         GalleryWatchManagerShutdownNotifierFactory::GetInstance()
             ->Get(browser_context)
-            ->Subscribe(base::BindRepeating(
-                &GalleryWatchManager::ShutdownBrowserContext,
-                base::Unretained(this), browser_context));
+            ->Subscribe(base::Bind(&GalleryWatchManager::ShutdownBrowserContext,
+                                   base::Unretained(this), browser_context));
   }
 }
 
@@ -426,12 +421,14 @@ void GalleryWatchManager::OnFilePathChanged(const base::FilePath& path,
 
   base::TimeDelta time_since_last_notify =
       base::Time::Now() - notification_info->second.last_notify_time;
-  if (time_since_last_notify < base::Seconds(kMinNotificationDelayInSeconds)) {
+  if (time_since_last_notify <
+      base::TimeDelta::FromSeconds(kMinNotificationDelayInSeconds)) {
     if (!notification_info->second.delayed_notification_pending) {
       notification_info->second.delayed_notification_pending = true;
       base::TimeDelta delay_to_next_valid_time =
           notification_info->second.last_notify_time +
-          base::Seconds(kMinNotificationDelayInSeconds) - base::Time::Now();
+          base::TimeDelta::FromSeconds(kMinNotificationDelayInSeconds) -
+          base::Time::Now();
       content::GetUIThreadTaskRunner({})->PostDelayedTask(
           FROM_HERE,
           base::BindOnce(&GalleryWatchManager::OnFilePathChanged,

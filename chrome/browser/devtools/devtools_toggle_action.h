@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <stddef.h>
 
 #include <memory>
-#include <string>
 
+#include "base/strings/string16.h"
 
 struct DevToolsToggleAction {
  public:
@@ -25,12 +25,12 @@ struct DevToolsToggleAction {
   };
 
   struct RevealParams {
-    RevealParams(const std::u16string& url,
+    RevealParams(const base::string16& url,
                  size_t line_number,
                  size_t column_number);
     ~RevealParams();
 
-    std::u16string url;
+    base::string16 url;
     size_t line_number;
     size_t column_number;
   };
@@ -45,7 +45,7 @@ struct DevToolsToggleAction {
   static DevToolsToggleAction PauseInDebugger();
   static DevToolsToggleAction Inspect();
   static DevToolsToggleAction Toggle();
-  static DevToolsToggleAction Reveal(const std::u16string& url,
+  static DevToolsToggleAction Reveal(const base::string16& url,
                                      size_t line_number,
                                      size_t column_number);
   static DevToolsToggleAction NoOp();

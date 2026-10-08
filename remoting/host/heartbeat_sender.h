@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include "base/callback.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/timer/timer.h"
 #include "net/base/backoff_entry.h"
@@ -46,7 +46,8 @@ class ProtobufHttpStatus;
 // so that the signaling connector will try to reconnect signaling.
 //
 // The server sends a HeartbeatResponse in response to each successful
-// heartbeat.
+// heartbeat, which may contain a remote command to be executed on the host,
+// e.g. restarting the host process upon reception of the response.
 class HeartbeatSender final : public SignalStrategy::Listener {
  public:
   class Delegate {
@@ -62,6 +63,9 @@ class HeartbeatSender final : public SignalStrategy::Listener {
     // Invoked when the heartbeat sender permanently fails to authenticate the
     // requests.
     virtual void OnAuthFailed() = 0;
+
+    // Invoked when the host has been asked to restart.
+    virtual void OnRemoteRestartHost() = 0;
 
    protected:
     Delegate() = default;
@@ -88,10 +92,6 @@ class HeartbeatSender final : public SignalStrategy::Listener {
       Observer* observer,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       bool is_googler);
-
-  HeartbeatSender(const HeartbeatSender&) = delete;
-  HeartbeatSender& operator=(const HeartbeatSender&) = delete;
-
   ~HeartbeatSender() override;
 
   // Sets host offline reason for future heartbeat, and initiates sending a
@@ -138,15 +138,18 @@ class HeartbeatSender final : public SignalStrategy::Listener {
   void OnHostOfflineReasonTimeout();
   void OnHostOfflineReasonAck();
 
+  void OnRemoteCommand(
+      apis::v1::HeartbeatResponse::RemoteCommand remote_command);
+
   // Helper methods used by DoSendStanza() to generate heartbeat stanzas.
   std::unique_ptr<apis::v1::HeartbeatRequest> CreateHeartbeatRequest();
 
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
   std::string host_id_;
-  const raw_ptr<SignalStrategy> signal_strategy_;
+  SignalStrategy* const signal_strategy_;
   std::unique_ptr<HeartbeatClient> client_;
-  const raw_ptr<OAuthTokenGetter> oauth_token_getter_;
-  raw_ptr<Observer> observer_;
+  OAuthTokenGetter* const oauth_token_getter_;
+  Observer* observer_;
 
   base::OneShotTimer heartbeat_timer_;
 
@@ -162,6 +165,8 @@ class HeartbeatSender final : public SignalStrategy::Listener {
   base::OneShotTimer host_offline_reason_timeout_timer_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(HeartbeatSender);
 };
 
 }  // namespace remoting

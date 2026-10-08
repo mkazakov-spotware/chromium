@@ -1,27 +1,21 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // Include test fixture.
 GEN_INCLUDE([
-  '../select_to_speak/select_to_speak_e2e_test_base.js',
+  '../chromevox/testing/chromevox_next_e2e_test_base.js',
 ]);
 
 /** Test fixture for array_util.js. */
-EventGeneratorTest = class extends SelectToSpeakE2ETest {
-  /** @override */
-  async setUpDeferred() {
-    await super.setUpDeferred();
-    await importModule('EventGenerator', '/common/event_generator.js');
-  }
-};
+EventGeneratorTest = class extends ChromeVoxNextE2ETest {};
 
 // Fails on ChromeOS - https://crbug.com/1136991
 TEST_F(
     'EventGeneratorTest', 'DISABLED_MouseEventsProcessedSequentially',
     function() {
       const mouseEventLog = [];
-      chrome.accessibilityPrivate.sendSyntheticMouseEvent = event =>
+      chrome.accessibilityPrivate.sendSyntheticMouseEvent = (event) =>
           mouseEventLog.push(event);
 
       // Set a 1ms delay so that a timeout is set between the press and release.

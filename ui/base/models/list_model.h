@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "ui/base/models/list_model_observer.h"
 
@@ -26,10 +27,6 @@ class ListModel {
   using ItemList = std::vector<std::unique_ptr<ItemType>>;
 
   ListModel() {}
-
-  ListModel(const ListModel&) = delete;
-  ListModel& operator=(const ListModel&) = delete;
-
   ~ListModel() {}
 
   // Adds |item| at the |index| into |items_|. Returns a raw pointer.
@@ -141,6 +138,8 @@ class ListModel {
  private:
   ItemList items_;
   base::ObserverList<ListModelObserver>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ListModel<ItemType>);
 };
 
 }  // namespace ui

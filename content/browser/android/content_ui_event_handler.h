@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace ui {
 class KeyEventAndroid;
@@ -27,9 +27,6 @@ class ContentUiEventHandler {
   ContentUiEventHandler(JNIEnv* env,
                         const base::android::JavaRef<jobject>& obj,
                         WebContentsImpl* web_contents);
-
-  ContentUiEventHandler(const ContentUiEventHandler&) = delete;
-  ContentUiEventHandler& operator=(const ContentUiEventHandler&) = delete;
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
@@ -75,7 +72,9 @@ class ContentUiEventHandler {
   // A weak reference to the Java ContentUiEventHandler object.
   JavaObjectWeakGlobalRef java_ref_;
 
-  const raw_ptr<WebContentsImpl> web_contents_;
+  WebContentsImpl* const web_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(ContentUiEventHandler);
 };
 
 }  // namespace content

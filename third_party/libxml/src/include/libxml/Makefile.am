@@ -26,6 +26,8 @@ xmlinc_HEADERS = \
 		uri.h \
 		valid.h \
 		xlink.h \
+		xmlversion.h \
+		DOCBparser.h \
 		catalog.h \
 		threads.h \
 		globals.h \
@@ -48,7 +50,5 @@ xmlinc_HEADERS = \
 		pattern.h \
 		xmlsave.h \
 		schematron.h
-
-nodist_xmlinc_HEADERS = xmlversion.h
 
 EXTRA_DIST = xmlversion.h.in

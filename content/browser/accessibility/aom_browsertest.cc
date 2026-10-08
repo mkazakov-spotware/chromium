@@ -1,9 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/check.h"
-#include "base/command_line.h"
 #include "content/browser/accessibility/browser_accessibility.h"
 #include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -38,7 +37,7 @@ class AccessibilityObjectModelBrowserTest : public ContentBrowserTest {
  protected:
   BrowserAccessibility* FindNode(ax::mojom::Role role,
                                  const std::string& name) {
-    BrowserAccessibility* root = GetManager()->GetBrowserAccessibilityRoot();
+    BrowserAccessibility* root = GetManager()->GetRoot();
     CHECK(root);
     return FindNodeInSubtree(*root, role, name);
   }
@@ -68,9 +67,8 @@ class AccessibilityObjectModelBrowserTest : public ContentBrowserTest {
 
 }  // namespace
 
-// TODO(http://crbug.com/1212324): Flaky on various builders.
 IN_PROC_BROWSER_TEST_F(AccessibilityObjectModelBrowserTest,
-                       DISABLED_EventListenerOnVirtualNode) {
+                       EventListenerOnVirtualNode) {
   ASSERT_TRUE(embedded_test_server()->Start());
   EXPECT_TRUE(NavigateToURL(shell(), GURL(url::kAboutBlankURL)));
 
@@ -80,7 +78,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityObjectModelBrowserTest,
   GURL url(embedded_test_server()->GetURL(
       "/accessibility/aom/event-listener-on-virtual-node.html"));
   EXPECT_TRUE(NavigateToURL(shell(), url));
-  ASSERT_TRUE(waiter.WaitForNotification());
+  waiter.WaitForNotification();
 
   BrowserAccessibility* button = FindNode(ax::mojom::Role::kButton, "FocusMe");
   ASSERT_NE(nullptr, button);
@@ -91,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityObjectModelBrowserTest,
   AccessibilityNotificationWaiter waiter2(
       shell()->web_contents(), ui::kAXModeComplete, ax::mojom::Event::kFocus);
   GetManager()->DoDefaultAction(*link);
-  ASSERT_TRUE(waiter2.WaitForNotification());
+  waiter2.WaitForNotification();
 
   BrowserAccessibility* focus = GetManager()->GetFocus();
   ASSERT_NE(nullptr, focus);

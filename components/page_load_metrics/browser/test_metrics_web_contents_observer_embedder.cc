@@ -1,15 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
 #include "components/page_load_metrics/browser/test_metrics_web_contents_observer_embedder.h"
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "components/page_load_metrics/browser/page_load_metrics_observer.h"
 #include "components/page_load_metrics/browser/page_load_tracker.h"
-#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 
 namespace page_load_metrics {
@@ -18,10 +15,9 @@ namespace {
 
 // Simple PageLoadMetricsObserver that copies observed PageLoadTimings into the
 // provided std::vector, so they can be analyzed by unit tests.
-class TimingLoggingPageLoadMetricsObserver final
-    : public PageLoadMetricsObserver {
+class TestPageLoadMetricsObserver : public PageLoadMetricsObserver {
  public:
-  TimingLoggingPageLoadMetricsObserver(
+  TestPageLoadMetricsObserver(
       std::vector<mojom::PageLoadTimingPtr>* updated_timings,
       std::vector<mojom::PageLoadTimingPtr>* updated_subframe_timings,
       std::vector<mojom::PageLoadTimingPtr>* complete_timings,
@@ -29,8 +25,8 @@ class TimingLoggingPageLoadMetricsObserver final
       std::vector<ExtraRequestCompleteInfo>* loaded_resources,
       std::vector<GURL>* observed_committed_urls,
       std::vector<GURL>* observed_aborted_urls,
-      std::vector<blink::UseCounterFeature>* observed_features,
-      absl::optional<bool>* is_first_navigation_in_web_contents,
+      std::vector<mojom::PageLoadFeatures>* observed_features,
+      base::Optional<bool>* is_first_navigation_in_web_contents,
       int* count_on_enter_back_forward_cache)
       : updated_timings_(updated_timings),
         updated_subframe_timings_(updated_subframe_timings),
@@ -44,11 +40,6 @@ class TimingLoggingPageLoadMetricsObserver final
             is_first_navigation_in_web_contents),
         count_on_enter_back_forward_cache_(count_on_enter_back_forward_cache) {}
 
-  const char* GetObserverName() const override {
-    static const char kName[] = "TimingLoggingPageLoadMetricsObserver";
-    return kName;
-  }
-
   ObservePolicy OnStart(content::NavigationHandle* navigation_handle,
                         const GURL& currently_committed_url,
                         bool started_in_foreground) override {
@@ -56,12 +47,6 @@ class TimingLoggingPageLoadMetricsObserver final
     *is_first_navigation_in_web_contents_ =
         GetDelegate().IsFirstNavigationInWebContents();
     return CONTINUE_OBSERVING;
-  }
-
-  ObservePolicy OnFencedFramesStart(
-      content::NavigationHandle* navigation_handle,
-      const GURL& currently_committed_url) override {
-    return FORWARD_OBSERVING;
   }
 
   void OnTimingUpdate(content::RenderFrameHost* subframe_rfh,
@@ -95,9 +80,8 @@ class TimingLoggingPageLoadMetricsObserver final
 
   void OnFeaturesUsageObserved(
       content::RenderFrameHost* rfh,
-      const std::vector<blink::UseCounterFeature>& features) override {
-    observed_features_->insert(observed_features_->end(), features.begin(),
-                               features.end());
+      const mojom::PageLoadFeatures& features) override {
+    observed_features_->push_back(features);
   }
 
   void OnDidInternalNavigationAbort(
@@ -112,31 +96,25 @@ class TimingLoggingPageLoadMetricsObserver final
   }
 
  private:
-  const raw_ptr<std::vector<mojom::PageLoadTimingPtr>> updated_timings_;
-  const raw_ptr<std::vector<mojom::PageLoadTimingPtr>>
-      updated_subframe_timings_;
-  const raw_ptr<std::vector<mojom::PageLoadTimingPtr>> complete_timings_;
-  const raw_ptr<std::vector<mojom::CpuTimingPtr>> updated_cpu_timings_;
-  const raw_ptr<std::vector<ExtraRequestCompleteInfo>> loaded_resources_;
-  const raw_ptr<std::vector<blink::UseCounterFeature>> observed_features_;
-  const raw_ptr<std::vector<GURL>> observed_committed_urls_;
-  const raw_ptr<std::vector<GURL>> observed_aborted_urls_;
-  raw_ptr<absl::optional<bool>> is_first_navigation_in_web_contents_;
-  const raw_ptr<int> count_on_enter_back_forward_cache_;
+  std::vector<mojom::PageLoadTimingPtr>* const updated_timings_;
+  std::vector<mojom::PageLoadTimingPtr>* const updated_subframe_timings_;
+  std::vector<mojom::PageLoadTimingPtr>* const complete_timings_;
+  std::vector<mojom::CpuTimingPtr>* const updated_cpu_timings_;
+  std::vector<ExtraRequestCompleteInfo>* const loaded_resources_;
+  std::vector<mojom::PageLoadFeatures>* const observed_features_;
+  std::vector<GURL>* const observed_committed_urls_;
+  std::vector<GURL>* const observed_aborted_urls_;
+  base::Optional<bool>* is_first_navigation_in_web_contents_;
+  int* const count_on_enter_back_forward_cache_;
 };
 
 // Test PageLoadMetricsObserver that stops observing page loads with certain
 // substrings in the URL.
-class FilteringPageLoadMetricsObserver final : public PageLoadMetricsObserver {
+class FilteringPageLoadMetricsObserver : public PageLoadMetricsObserver {
  public:
   explicit FilteringPageLoadMetricsObserver(
       std::vector<GURL>* completed_filtered_urls)
       : completed_filtered_urls_(completed_filtered_urls) {}
-
-  const char* GetObserverName() const override {
-    static const char kName[] = "FilteringPageLoadMetricsObserver";
-    return kName;
-  }
 
   ObservePolicy OnStart(content::NavigationHandle* handle,
                         const GURL& currently_committed_url,
@@ -146,20 +124,8 @@ class FilteringPageLoadMetricsObserver final : public PageLoadMetricsObserver {
     return should_ignore ? STOP_OBSERVING : CONTINUE_OBSERVING;
   }
 
-  ObservePolicy OnFencedFramesStart(
-      content::NavigationHandle* navigation_handle,
-      const GURL& currently_committed_url) override {
-    return FORWARD_OBSERVING;
-  }
-
-  ObservePolicy OnPrerenderStart(content::NavigationHandle* navigation_handle,
-                                 const GURL& currently_committed_url) override {
-    const bool should_ignore = navigation_handle->GetURL().spec().find(
-                                   "ignore-on-start") != std::string::npos;
-    return should_ignore ? STOP_OBSERVING : CONTINUE_OBSERVING;
-  }
-
-  ObservePolicy OnCommit(content::NavigationHandle* handle) override {
+  ObservePolicy OnCommit(content::NavigationHandle* handle,
+                         ukm::SourceId source_id) override {
     const bool should_ignore =
         handle->GetURL().spec().find("ignore-on-commit") != std::string::npos;
     return should_ignore ? STOP_OBSERVING : CONTINUE_OBSERVING;
@@ -170,7 +136,7 @@ class FilteringPageLoadMetricsObserver final : public PageLoadMetricsObserver {
   }
 
  private:
-  const raw_ptr<std::vector<GURL>> completed_filtered_urls_;
+  std::vector<GURL>* const completed_filtered_urls_;
 };
 
 }  // namespace
@@ -187,7 +153,7 @@ bool TestMetricsWebContentsObserverEmbedder::IsNewTabPageUrl(const GURL& url) {
 
 void TestMetricsWebContentsObserverEmbedder::RegisterObservers(
     PageLoadTracker* tracker) {
-  tracker->AddObserver(std::make_unique<TimingLoggingPageLoadMetricsObserver>(
+  tracker->AddObserver(std::make_unique<TestPageLoadMetricsObserver>(
       &updated_timings_, &updated_subframe_timings_, &complete_timings_,
       &updated_cpu_timings_, &loaded_resources_, &observed_committed_urls_,
       &observed_aborted_urls_, &observed_features_,
@@ -204,24 +170,13 @@ TestMetricsWebContentsObserverEmbedder::CreateTimer() {
   return std::move(timer);
 }
 
-bool TestMetricsWebContentsObserverEmbedder::IsNoStatePrefetch(
+bool TestMetricsWebContentsObserverEmbedder::IsPrerender(
     content::WebContents* web_contents) {
   return false;
 }
 
 bool TestMetricsWebContentsObserverEmbedder::IsExtensionUrl(const GURL& url) {
   return false;
-}
-
-bool TestMetricsWebContentsObserverEmbedder::IsSidePanel(
-    content::WebContents* web_contents) {
-  return false;
-}
-
-PageLoadMetricsMemoryTracker*
-TestMetricsWebContentsObserverEmbedder::GetMemoryTrackerForBrowserContext(
-    content::BrowserContext* browser_context) {
-  return nullptr;
 }
 
 }  // namespace page_load_metrics

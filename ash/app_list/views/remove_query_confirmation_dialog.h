@@ -1,27 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_APP_LIST_VIEWS_REMOVE_QUERY_CONFIRMATION_DIALOG_H_
 #define ASH_APP_LIST_VIEWS_REMOVE_QUERY_CONFIRMATION_DIALOG_H_
 
-#include <memory>
-
 #include "base/callback.h"
-#include "ui/views/widget/widget_delegate.h"
-
-namespace views {
-class Button;
-class Label;
-}  // namespace views
+#include "ui/views/window/dialog_delegate.h"
 
 namespace ash {
 
-class ViewShadow;
-
 // RemoveQueryConfirmationDialog displays the confirmation dialog for removing
 // a recent query suggestion.
-class RemoveQueryConfirmationDialog : public views::WidgetDelegateView {
+class RemoveQueryConfirmationDialog : public views::DialogDelegateView {
  public:
   // Callback to notify user's confirmation for removing the zero state
   // suggestion query. Invoked with true if user confirms removing query
@@ -30,32 +21,18 @@ class RemoveQueryConfirmationDialog : public views::WidgetDelegateView {
   // associated result.
   using RemovalConfirmationCallback = base::OnceCallback<void(bool)>;
 
-  RemoveQueryConfirmationDialog(RemovalConfirmationCallback callback,
-                                const std::u16string& result_title);
-
-  RemoveQueryConfirmationDialog(const RemoveQueryConfirmationDialog&) = delete;
-  RemoveQueryConfirmationDialog& operator=(
-      const RemoveQueryConfirmationDialog&) = delete;
-
+  RemoveQueryConfirmationDialog(const base::string16& query,
+                                RemovalConfirmationCallback callback);
   ~RemoveQueryConfirmationDialog() override;
 
   // views::View:
   const char* GetClassName() const override;
   gfx::Size CalculatePreferredSize() const override;
-  void OnThemeChanged() override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-
-  views::Button* cancel_button_for_test() { return cancel_button_; }
-  views::Button* accept_button_for_test() { return accept_button_; }
 
  private:
   RemovalConfirmationCallback confirm_callback_;
-  std::unique_ptr<ViewShadow> view_shadow_;
 
-  views::Label* title_ = nullptr;
-  views::Label* body_ = nullptr;
-  views::Button* cancel_button_ = nullptr;
-  views::Button* accept_button_ = nullptr;
+  DISALLOW_COPY_AND_ASSIGN(RemoveQueryConfirmationDialog);
 };
 
 }  // namespace ash

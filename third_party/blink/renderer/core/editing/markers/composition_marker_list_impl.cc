@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ DocumentMarker::MarkerType CompositionMarkerListImpl::MarkerType() const {
 }
 
 bool CompositionMarkerListImpl::IsEmpty() const {
-  return markers_.empty();
+  return markers_.IsEmpty();
 }
 
 void CompositionMarkerListImpl::Add(DocumentMarker* marker) {

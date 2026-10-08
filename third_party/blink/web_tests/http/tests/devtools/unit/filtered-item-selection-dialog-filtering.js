@@ -1,5 +1,5 @@
 (async function() {
-    await TestRunner.loadLegacyModule('quick_open');
+    await TestRunner.loadModule("quick_open");
     TestRunner.addResult("Check to see that FilteredItemSelectionDialog uses proper regex to filter results.");
 
     var overridenInput = [];
@@ -25,16 +25,16 @@
 
         var filteredSelectionDialog = new QuickOpen.FilteredListWidget(provider, history);
         filteredSelectionDialog.showAsDialog();
-        var promise = TestRunner.addSnifferPromise(filteredSelectionDialog, "itemsFilteredForTest").then(accept);
+        var promise = TestRunner.addSnifferPromise(filteredSelectionDialog, "_itemsFilteredForTest").then(accept);
         filteredSelectionDialog.setQuery(query);
-        filteredSelectionDialog.updateAfterItemsLoaded();
+        filteredSelectionDialog._updateAfterItemsLoaded();
         return promise;
 
         function dump()
         {
-            TestRunner.addResult("Query:" + JSON.stringify(filteredSelectionDialog.cleanValue()));
+            TestRunner.addResult("Query:" + JSON.stringify(filteredSelectionDialog._value()));
             var output = [];
-            for (var item of filteredSelectionDialog.items)
+            for (var item of filteredSelectionDialog._items)
                 output.push(provider.itemKeyAt(item));
             TestRunner.addResult("Output:" + JSON.stringify(output));
         }
@@ -42,7 +42,7 @@
         function accept()
         {
             dump();
-            filteredSelectionDialog.onEnter(TestRunner.createKeyEvent("Enter"));
+            filteredSelectionDialog._onEnter(TestRunner.createKeyEvent("Enter"));
             TestRunner.addResult("History:" + JSON.stringify(history));
         }
     }

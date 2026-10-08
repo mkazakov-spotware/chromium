@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 #include <memory>
 #include <utility>
 
+#include "base/memory/ptr_util.h"
 #include "third_party/blink/renderer/core/animation/interpolable_transform_list.h"
 #include "third_party/blink/renderer/core/animation/length_units_checker.h"
 #include "third_party/blink/renderer/core/css/css_function_value.h"
 #include "third_party/blink/renderer/core/css/css_primitive_value.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/css/resolver/transform_builder.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
@@ -23,7 +23,7 @@ namespace blink {
 namespace {
 InterpolationValue ConvertTransform(TransformOperations&& transform) {
   return InterpolationValue(
-      std::make_unique<InterpolableTransformList>(std::move(transform)));
+      InterpolableTransformList::Create(std::move(transform)));
 }
 
 InterpolationValue ConvertTransform(const TransformOperations& transform) {
@@ -62,10 +62,9 @@ InterpolationValue CSSTransformInterpolationType::MaybeConvertNeutral(
 }
 
 InterpolationValue CSSTransformInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers&) const {
-  return ConvertTransform(
-      state.GetDocument().GetStyleResolver().InitialStyle().Transform());
+  return ConvertTransform(ComputedStyle::InitialStyle().Transform());
 }
 
 InterpolationValue CSSTransformInterpolationType::MaybeConvertInherit(
@@ -93,20 +92,12 @@ InterpolationValue CSSTransformInterpolationType::MaybeConvertValue(
         continue;
       }
       for (const CSSValue* argument : transform_function) {
-        // perspective(none) is an identifier value rather than a
-        // primitive value, but since it represents infinity and
-        // perspective() interpolates by reciprocals, it interpolates as
-        // 0.
-        const auto* primitive_value = DynamicTo<CSSPrimitiveValue>(argument);
-        DCHECK(primitive_value ||
-               (transform_function.FunctionType() == CSSValueID::kPerspective &&
-                argument->IsIdentifierValue()));
-        if (!primitive_value ||
-            (!primitive_value->IsLength() &&
-             !primitive_value->IsCalculatedPercentageWithLength())) {
+        const auto& primitive_value = To<CSSPrimitiveValue>(*argument);
+        if (!primitive_value.IsLength() &&
+            !primitive_value.IsCalculatedPercentageWithLength()) {
           continue;
         }
-        primitive_value->AccumulateLengthUnitTypes(types);
+        primitive_value.AccumulateLengthUnitTypes(types);
       }
     }
     std::unique_ptr<InterpolationType::ConversionChecker> length_units_checker =
@@ -181,7 +172,7 @@ void CSSTransformInterpolationType::ApplyStandardPropertyValue(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue* untyped_non_interpolable_value,
     StyleResolverState& state) const {
-  state.StyleBuilder().SetTransform(
+  state.Style()->SetTransform(
       To<InterpolableTransformList>(interpolable_value).operations());
 }
 

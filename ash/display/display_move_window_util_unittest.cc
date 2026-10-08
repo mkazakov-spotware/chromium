@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,12 @@
 #include "ash/screen_util.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
-#include "ash/test/test_window_builder.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "ash/wm/wm_event.h"
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "ui/aura/test/test_windows.h"
 #include "ui/display/display.h"
 #include "ui/display/display_layout.h"
@@ -131,7 +131,7 @@ TEST_F(DisplayMoveWindowUtilTest, WindowState) {
 
   // Set window to left snapped state.
   PerformMoveWindowAccel();
-  const WindowSnapWMEvent snap_left(WM_EVENT_SNAP_PRIMARY);
+  const WMEvent snap_left(WM_EVENT_SNAP_LEFT);
   window_state->OnWMEvent(&snap_left);
   EXPECT_EQ(display_manager()->GetDisplayAt(0).id(),
             screen->GetDisplayNearestWindow(window).id());
@@ -139,7 +139,7 @@ TEST_F(DisplayMoveWindowUtilTest, WindowState) {
   EXPECT_EQ(GetDefaultLeftSnappedBoundsInDisplay(
                 screen->GetDisplayNearestWindow(window)),
             window->GetBoundsInScreen());
-  EXPECT_EQ(0.5f, *window_state->snap_ratio());
+  EXPECT_EQ(0.5f, *window_state->snapped_width_ratio());
   PerformMoveWindowAccel();
   EXPECT_EQ(display_manager()->GetDisplayAt(1).id(),
             screen->GetDisplayNearestWindow(window).id());
@@ -148,7 +148,7 @@ TEST_F(DisplayMoveWindowUtilTest, WindowState) {
   EXPECT_EQ(GetDefaultLeftSnappedBoundsInDisplay(
                 screen->GetDisplayNearestWindow(window)),
             window->GetBoundsInScreen());
-  EXPECT_EQ(0.5f, *window_state->snap_ratio());
+  EXPECT_EQ(0.5f, *window_state->snapped_width_ratio());
 }
 
 // Tests that movement follows cycling through sorted display id list.
@@ -216,12 +216,9 @@ TEST_F(DisplayMoveWindowUtilTest, NoMovementIfNotInCycleWindowList) {
   UpdateDisplay("400x300,400x300");
   // Create a window in app list container, which would be excluded in cycle
   // window list.
-  std::unique_ptr<aura::Window> window =
-      ChildTestWindowBuilder(Shell::GetPrimaryRootWindow(),
-                             gfx::Rect(10, 20, 200, 100),
-                             kShellWindowId_AppListContainer)
-          .Build();
-
+  std::unique_ptr<aura::Window> window = CreateChildWindow(
+      Shell::GetPrimaryRootWindow(), gfx::Rect(10, 20, 200, 100),
+      kShellWindowId_AppListContainer);
   wm::ActivateWindow(window.get());
   display::Screen* screen = display::Screen::GetScreen();
   EXPECT_EQ(display_manager()->GetDisplayAt(0).id(),
@@ -336,7 +333,7 @@ TEST_F(DisplayMoveWindowUtilTest, WindowWithTransientChild) {
 
   // Create a |child| window and make it a transient child of |window|.
   std::unique_ptr<aura::Window> child =
-      ChildTestWindowBuilder(window, gfx::Rect(20, 30, 40, 50)).Build();
+      CreateChildWindow(window, gfx::Rect(20, 30, 40, 50));
   ::wm::AddTransientChild(window, child.get());
   display::Screen* screen = display::Screen::GetScreen();
   EXPECT_EQ(display_manager()->GetDisplayAt(0).id(),
@@ -400,10 +397,8 @@ TEST_F(DisplayMoveWindowUtilTest, TransientParentNotInCycleWindowList) {
   aura::Window* setting_bubble_container =
       Shell::GetPrimaryRootWindowController()->GetContainer(
           kShellWindowId_SettingBubbleContainer);
-  std::unique_ptr<aura::Window> w2 =
-      ChildTestWindowBuilder(setting_bubble_container,
-                             gfx::Rect(10, 20, 200, 100))
-          .Build();
+  std::unique_ptr<aura::Window> w2 = CreateChildWindow(
+      setting_bubble_container, gfx::Rect(10, 20, 200, 100), -1);
   wm::ActivateWindow(w2.get());
 
   // Create a |child| transient widget of |w2|. When |child| is shown, it is

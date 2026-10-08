@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2016 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -48,8 +48,8 @@ def CMakeTargetEscape(a):
   def Escape(c):
     if c in string.ascii_letters or c in string.digits or c in '_.+-':
       return c
-    return '__'
-
+    else:
+      return '__'
   return ''.join([Escape(c) for c in a])
 
 
@@ -65,11 +65,9 @@ def SetVariable(out, variable_name, value):
 def SetVariableList(out, variable_name, values):
   """Sets a CMake variable to a list."""
   if not values:
-    SetVariable(out, variable_name, "")
-    return
+    return SetVariable(out, variable_name, "")
   if len(values) == 1:
-    SetVariable(out, variable_name, values[0])
-    return
+    return SetVariable(out, variable_name, values[0])
   out.write('list(APPEND "')
   out.write(CMakeStringEscape(variable_name))
   out.write('"\n  "')
@@ -123,7 +121,7 @@ source_file_types = {
 }
 
 
-class CMakeTargetType:
+class CMakeTargetType(object):
   def __init__(self, command, modifier, property_modifier, is_linkable):
     self.command = command
     self.modifier = modifier
@@ -186,7 +184,7 @@ def GetCMakeTargetName(gn_target_name):
   return CMakeTargetEscape(cmake_target_name)
 
 
-class Project:
+class Project(object):
   def __init__(self, project_json):
     self.targets = project_json['targets']
     build_settings = project_json['build_settings']
@@ -198,7 +196,8 @@ class Project:
   def GetAbsolutePath(self, path):
     if path.startswith("//"):
       return self.root_path + "/" + path[2:]
-    return path
+    else:
+      return path
 
   def GetObjectSourceDependencies(self, gn_target_name, object_dependencies):
     """All OBJECT libraries whose sources have not been absorbed."""
@@ -226,7 +225,7 @@ class Project:
         self.GetObjectLibraryDependencies(dependency, object_dependencies)
 
 
-class Target:
+class Target(object):
   def __init__(self, gn_target_name, project):
     self.gn_name = gn_target_name
     self.properties = project.targets[self.gn_name]
@@ -676,7 +675,7 @@ def WriteProject(project):
 def main():
   if len(sys.argv) != 2:
     print('Usage: ' + sys.argv[0] + ' <json_file_name>')
-    sys.exit(1)
+    exit(1)
 
   json_path = sys.argv[1]
   project = None

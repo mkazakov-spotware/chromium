@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,15 @@ class TestRegionDataLoader : public RegionDataLoader {
   ~TestRegionDataLoader() override;
 
   // RegionDataLoader.
-  void LoadRegionData(const std::string& country_code,
-                      RegionDataLoader::RegionDataLoaded callback) override;
+  void LoadRegionData(
+      const std::string& country_code,
+      autofill::RegionDataLoader::RegionDataLoaded callback) override;
   void ClearCallback() override;
 
   std::string country_code() { return country_code_; }
-  const RegionDataLoader::RegionDataLoaded& callback() { return callback_; }
+  const autofill::RegionDataLoader::RegionDataLoaded& callback() {
+    return callback_;
+  }
   void set_synchronous_callback(bool synchronous_callback) {
     synchronous_callback_ = synchronous_callback;
   }
@@ -41,11 +44,11 @@ class TestRegionDataLoader : public RegionDataLoader {
  private:
   void SendRegionData(
       const std::vector<std::pair<std::string, std::string>>& regions,
-      RegionDataLoader::RegionDataLoaded callback);
+      autofill::RegionDataLoader::RegionDataLoaded callback);
 
   std::vector<std::pair<std::string, std::string>> regions_;
   std::string country_code_;
-  RegionDataLoader::RegionDataLoaded callback_;
+  autofill::RegionDataLoader::RegionDataLoaded callback_;
   bool synchronous_callback_{false};
 };
 

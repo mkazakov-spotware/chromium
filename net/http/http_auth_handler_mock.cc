@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/net_errors.h"
 #include "net/dns/host_resolver.h"
 #include "net/http/http_auth_challenge_tokenizer.h"
@@ -40,7 +41,15 @@ void PrintTo(const HttpAuthHandlerMock::State& state, ::std::ostream* os) {
   }
 }
 
-HttpAuthHandlerMock::HttpAuthHandlerMock() = default;
+HttpAuthHandlerMock::HttpAuthHandlerMock()
+    : state_(State::WAIT_FOR_INIT),
+      generate_async_(false),
+      generate_rv_(OK),
+      auth_token_(nullptr),
+      first_round_(true),
+      connection_based_(false),
+      allows_default_credentials_(false),
+      allows_explicit_credentials_(true) {}
 
 HttpAuthHandlerMock::~HttpAuthHandlerMock() = default;
 
@@ -64,7 +73,7 @@ bool HttpAuthHandlerMock::AllowsExplicitCredentials() {
 bool HttpAuthHandlerMock::Init(
     HttpAuthChallengeTokenizer* challenge,
     const SSLInfo& ssl_info,
-    const NetworkAnonymizationKey& network_anonymization_key) {
+    const NetworkIsolationKey& network_isolation_key) {
   EXPECT_EQ(State::WAIT_FOR_INIT, state_);
   state_ = State::WAIT_FOR_GENERATE_AUTH_TOKEN;
   auth_scheme_ = HttpAuth::AUTH_SCHEME_MOCK;
@@ -86,7 +95,7 @@ int HttpAuthHandlerMock::GenerateAuthTokenImpl(
     EXPECT_TRUE(auth_token_ == nullptr);
     callback_ = std::move(callback);
     auth_token_ = auth_token;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&HttpAuthHandlerMock::OnGenerateAuthToken,
                                   weak_factory_.GetWeakPtr()));
     state_ = State::TOKEN_PENDING;
@@ -138,24 +147,24 @@ void HttpAuthHandlerMock::OnGenerateAuthToken() {
   std::move(callback_).Run(generate_rv_);
 }
 
-HttpAuthHandlerMock::Factory::Factory() {
+HttpAuthHandlerMock::Factory::Factory()
+    : do_init_from_challenge_(false) {
   // TODO(cbentzel): Default do_init_from_challenge_ to true.
 }
 
 HttpAuthHandlerMock::Factory::~Factory() = default;
 
 void HttpAuthHandlerMock::Factory::AddMockHandler(
-    std::unique_ptr<HttpAuthHandler> handler,
-    HttpAuth::Target target) {
-  handlers_[target].push_back(std::move(handler));
+    HttpAuthHandler* handler, HttpAuth::Target target) {
+  handlers_[target].push_back(base::WrapUnique(handler));
 }
 
 int HttpAuthHandlerMock::Factory::CreateAuthHandler(
     HttpAuthChallengeTokenizer* challenge,
     HttpAuth::Target target,
     const SSLInfo& ssl_info,
-    const NetworkAnonymizationKey& network_anonymization_key,
-    const url::SchemeHostPort& scheme_host_port,
+    const NetworkIsolationKey& network_isolation_key,
+    const GURL& origin,
     CreateReason reason,
     int nonce_count,
     const NetLogWithSource& net_log,
@@ -169,8 +178,7 @@ int HttpAuthHandlerMock::Factory::CreateAuthHandler(
   handlers.erase(handlers.begin());
   if (do_init_from_challenge_ &&
       !tmp_handler->InitFromChallenge(challenge, target, ssl_info,
-                                      network_anonymization_key,
-                                      scheme_host_port, net_log)) {
+                                      network_isolation_key, origin, net_log)) {
     return ERR_INVALID_RESPONSE;
   }
   handler->swap(tmp_handler);

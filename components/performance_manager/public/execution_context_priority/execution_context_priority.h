@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,10 +55,11 @@ class PriorityAndReason {
 
 using Vote = voting::
     Vote<ExecutionContext, base::TaskPriority, base::TaskPriority::LOWEST>;
-using VoterId = voting::VoterId<Vote>;
-using VoteObserver = voting::VoteObserver<Vote>;
+using VoteReceipt = voting::VoteReceipt<Vote>;
 using VotingChannel = voting::VotingChannel<Vote>;
 using VotingChannelFactory = voting::VotingChannelFactory<Vote>;
+using VoteConsumer = voting::VoteConsumer<Vote>;
+using AcceptedVote = voting::AcceptedVote<Vote>;
 
 }  // namespace execution_context_priority
 }  // namespace performance_manager

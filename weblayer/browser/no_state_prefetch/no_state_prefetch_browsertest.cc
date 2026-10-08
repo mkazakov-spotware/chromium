@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,16 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
 #include "components/no_state_prefetch/browser/prerender_histograms.h"
+#include "components/no_state_prefetch/browser/prerender_manager.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/url_loader_monitor.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 #include "services/network/public/cpp/resource_request.h"
-#include "weblayer/browser/no_state_prefetch/no_state_prefetch_link_manager_factory.h"
-#include "weblayer/browser/no_state_prefetch/no_state_prefetch_manager_factory.h"
+#include "weblayer/browser/no_state_prefetch/prerender_link_manager_factory.h"
+#include "weblayer/browser/no_state_prefetch/prerender_manager_factory.h"
 #include "weblayer/browser/profile_impl.h"
 #include "weblayer/browser/tab_impl.h"
 #include "weblayer/public/prerender_controller.h"
@@ -26,7 +26,7 @@
 #include "weblayer/test/weblayer_browser_test.h"
 #include "weblayer/test/weblayer_browser_test_utils.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "components/ukm/test_ukm_recorder.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "weblayer/browser/android/metrics/metrics_test_helper.h"
@@ -36,7 +36,7 @@ namespace weblayer {
 
 class NoStatePrefetchBrowserTest : public WebLayerBrowserTest {
  public:
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void SetUp() override {
     InstallTestGmsBridge(ConsentType::kConsent);
 
@@ -61,7 +61,7 @@ class NoStatePrefetchBrowserTest : public WebLayerBrowserTest {
         base::FilePath(FILE_PATH_LITERAL("weblayer/test/data")));
     ASSERT_TRUE(https_server_->Start());
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     ukm_recorder_ = std::make_unique<ukm::TestAutoSetUkmRecorder>();
 #endif
   }
@@ -88,7 +88,7 @@ class NoStatePrefetchBrowserTest : public WebLayerBrowserTest {
   }
 
   void NavigateToPageAndWaitForTitleChange(const GURL& navigate_to,
-                                           std::u16string expected_title) {
+                                           base::string16 expected_title) {
     content::TitleWatcher title_watcher(
         static_cast<TabImpl*>(shell()->tab())->web_contents(), expected_title);
     NavigateAndWaitForCompletion(navigate_to, shell());
@@ -109,24 +109,21 @@ class NoStatePrefetchBrowserTest : public WebLayerBrowserTest {
   bool script_executed_ = false;
   std::string purpose_header_value_;
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::unique_ptr<ukm::TestAutoSetUkmRecorder> ukm_recorder_;
 #endif
 };
 
-IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
-                       CreateNoStatePrefetchManager) {
-  auto* no_state_prefetch_manager =
-      NoStatePrefetchManagerFactory::GetForBrowserContext(GetBrowserContext());
-  EXPECT_TRUE(no_state_prefetch_manager);
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, CreatePrerenderManager) {
+  auto* prerender_manager =
+      PrerenderManagerFactory::GetForBrowserContext(GetBrowserContext());
+  EXPECT_TRUE(prerender_manager);
 }
 
-IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
-                       CreateNoStatePrefetchLinkManager) {
-  auto* no_state_prefetch_link_manager =
-      NoStatePrefetchLinkManagerFactory::GetForBrowserContext(
-          GetBrowserContext());
-  EXPECT_TRUE(no_state_prefetch_link_manager);
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, CreatePrerenderLinkManager) {
+  auto* prerender_link_manager =
+      PrerenderLinkManagerFactory::GetForBrowserContext(GetBrowserContext());
+  EXPECT_TRUE(prerender_link_manager);
 }
 
 // Test that adding a link-rel prerender tag causes a fetch.
@@ -138,15 +135,8 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
 }
 
 // Test that only render blocking resources are loaded during NoStatePrefetch.
-// TODO(https://crbug.com/1144282): Fix failures on Asan.
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_NSPLoadsRenderBlockingResource \
-  DISABLED_NSPLoadsRenderBlockingResource
-#else
-#define MAYBE_NSPLoadsRenderBlockingResource NSPLoadsRenderBlockingResource
-#endif
 IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
-                       MAYBE_NSPLoadsRenderBlockingResource) {
+                       NSPLoadsRenderBlockingResource) {
   NavigateAndWaitForCompletion(GURL(https_server_->GetURL("/parent_page.html")),
                                shell());
   script_resource_fetched_->Run();
@@ -156,14 +146,7 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
 
 // Test that navigating to a no-state-prefetched page executes JS and reuses
 // prerendered resources.
-// TODO(https://crbug.com/1144282): Fix failures on Asan.
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_NavigateToPrerenderedPage DISABLED_NavigateToPrerenderedPage
-#else
-#define MAYBE_NavigateToPrerenderedPage NavigateToPrerenderedPage
-#endif
-IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
-                       MAYBE_NavigateToPrerenderedPage) {
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, NavigateToPrerenderedPage) {
   NavigateAndWaitForCompletion(GURL(https_server_->GetURL("/parent_page.html")),
                                shell());
   script_resource_fetched_->Run();
@@ -171,23 +154,24 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
   // Navigate to the prerendered page and wait for its title to change.
   script_fetched_ = false;
   NavigateToPageAndWaitForTitleChange(
-      GURL(https_server_->GetURL("/prerendered_page.html")), u"Prefetch Page");
+      GURL(https_server_->GetURL("/prerendered_page.html")),
+      base::ASCIIToUTF16("Prefetch Page"));
 
   EXPECT_FALSE(script_fetched_);
   EXPECT_TRUE(script_executed_);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Test that no-state-prefetch results in UKM getting recorded.
-// TODO(https://crbug.com/1292252): Flaky failures.
-IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, DISABLED_UKMRecorded) {
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, UKMRecorded) {
   GetProfile()->SetBooleanSetting(SettingType::UKM_ENABLED, true);
   NavigateAndWaitForCompletion(GURL(https_server_->GetURL("/parent_page.html")),
                                shell());
   script_resource_fetched_->Run();
 
   NavigateToPageAndWaitForTitleChange(
-      GURL(https_server_->GetURL("/prerendered_page.html")), u"Prefetch Page");
+      GURL(https_server_->GetURL("/prerendered_page.html")),
+      base::ASCIIToUTF16("Prefetch Page"));
 
   auto entries = ukm_recorder_->GetEntriesByName(
       ukm::builders::NoStatePrefetch::kEntryName);
@@ -238,7 +222,8 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, MAYBE_ExternalPrerender) {
   // Navigate to the prerendered page and wait for its title to change.
   script_fetched_ = false;
   NavigateToPageAndWaitForTitleChange(
-      GURL(https_server_->GetURL("/prerendered_page.html")), u"Prefetch Page");
+      GURL(https_server_->GetURL("/prerendered_page.html")),
+      base::ASCIIToUTF16("Prefetch Page"));
   EXPECT_FALSE(script_fetched_);
 }
 

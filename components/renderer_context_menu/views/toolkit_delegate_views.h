@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/renderer_context_menu/render_view_context_menu_base.h"
 #include "ui/base/ui_base_types.h"
 
@@ -29,10 +29,6 @@ class SimpleMenuModel;
 class ToolkitDelegateViews : public RenderViewContextMenuBase::ToolkitDelegate {
  public:
   ToolkitDelegateViews();
-
-  ToolkitDelegateViews(const ToolkitDelegateViews&) = delete;
-  ToolkitDelegateViews& operator=(const ToolkitDelegateViews&) = delete;
-
   ~ToolkitDelegateViews() override;
 
   void RunMenuAt(views::Widget* parent,
@@ -53,7 +49,9 @@ class ToolkitDelegateViews : public RenderViewContextMenuBase::ToolkitDelegate {
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
   // Weak. Owned by menu_runner_;
-  raw_ptr<views::MenuItemView> menu_view_;
+  views::MenuItemView* menu_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(ToolkitDelegateViews);
 };
 
 #endif  // COMPONENTS_RENDERER_CONTEXT_MENU_VIEWS_TOOLKIT_DELEGATE_VIEWS_H_

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "chrome/installer/util/work_item.h"
 #include "chrome/installer/util/work_item_list.h"
 
-RegistryEntry::RegistryEntry(const std::wstring& key_path,
-                             const std::wstring& value)
+RegistryEntry::RegistryEntry(const base::string16& key_path,
+                             const base::string16& value)
     : key_path_(key_path),
       name_(),
       is_string_(true),
@@ -20,9 +20,9 @@ RegistryEntry::RegistryEntry(const std::wstring& key_path,
       int_value_(0),
       removal_flag_(RemovalFlag::NONE) {}
 
-RegistryEntry::RegistryEntry(const std::wstring& key_path,
-                             const std::wstring& name,
-                             const std::wstring& value)
+RegistryEntry::RegistryEntry(const base::string16& key_path,
+                             const base::string16& name,
+                             const base::string16& value)
     : key_path_(key_path),
       name_(name),
       is_string_(true),
@@ -30,8 +30,8 @@ RegistryEntry::RegistryEntry(const std::wstring& key_path,
       int_value_(0),
       removal_flag_(RemovalFlag::NONE) {}
 
-RegistryEntry::RegistryEntry(const std::wstring& key_path,
-                             const std::wstring& name,
+RegistryEntry::RegistryEntry(const base::string16& key_path,
+                             const base::string16& name,
                              DWORD value)
     : key_path_(key_path),
       name_(name),
@@ -87,7 +87,7 @@ RegistryEntry::RegistryStatus RegistryEntry::StatusInRegistryUnderRoot(
   bool found = false;
   bool correct_value = false;
   if (is_string_) {
-    std::wstring read_value;
+    base::string16 read_value;
     found = key.ReadValue(name_.c_str(), &read_value) == ERROR_SUCCESS;
     if (found) {
       correct_value =

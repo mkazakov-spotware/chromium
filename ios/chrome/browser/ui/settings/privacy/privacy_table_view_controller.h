@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ class Browser;
 extern NSString* const kPrivacyTableViewId;
 
 @protocol PrivacyNavigationCommands;
-@protocol ReauthenticationProtocol;
 
 // Delegate for presentation events related to
 // PrivacyTableViewController.
@@ -34,9 +33,8 @@ extern NSString* const kPrivacyTableViewId;
 @property(nonatomic, weak) id<PrivacyTableViewControllerPresentationDelegate>
     presentationDelegate;
 
-// `browserState` cannot be nil
+// |browserState| cannot be nil
 - (instancetype)initWithBrowser:(Browser*)browser
-         reauthenticationModule:(id<ReauthenticationProtocol>)reauthModule
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;

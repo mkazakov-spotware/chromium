@@ -1,12 +1,14 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_EXTENSIONS_EXTENSION_ACTION_ICON_FACTORY_H_
 #define CHROME_BROWSER_EXTENSIONS_EXTENSION_ACTION_ICON_FACTORY_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include <memory>
+
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "extensions/browser/extension_icon_image.h"
 
 class Profile;
@@ -35,11 +37,6 @@ class ExtensionActionIconFactory : public extensions::IconImage::Observer {
                              const extensions::Extension* extension,
                              extensions::ExtensionAction* action,
                              Observer* observer);
-
-  ExtensionActionIconFactory(const ExtensionActionIconFactory&) = delete;
-  ExtensionActionIconFactory& operator=(const ExtensionActionIconFactory&) =
-      delete;
-
   ~ExtensionActionIconFactory() override;
 
   // Controls whether invisible icons will be returned by GetIcon().
@@ -60,15 +57,16 @@ class ExtensionActionIconFactory : public extensions::IconImage::Observer {
   gfx::Image GetIcon(int tab_id);
 
  private:
-  raw_ptr<Profile, DanglingUntriaged> profile_;
-  raw_ptr<const extensions::ExtensionAction, DanglingUntriaged> action_;
-  raw_ptr<Observer, DanglingUntriaged> observer_;
+  Profile* profile_;
+  const extensions::ExtensionAction* action_;
+  Observer* observer_;
   const bool should_check_icons_;
   gfx::Image cached_default_icon_image_;
 
-  base::ScopedObservation<extensions::IconImage,
-                          extensions::IconImage::Observer>
-      icon_image_observation_{this};
+  ScopedObserver<extensions::IconImage, extensions::IconImage::Observer>
+      icon_image_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionActionIconFactory);
 };
 
 #endif  // CHROME_BROWSER_EXTENSIONS_EXTENSION_ACTION_ICON_FACTORY_H_

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Test the set of visible records is correctly update when category filter changes\n`);
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
   await TestRunner.showPanel('timeline');
 
   const sessionId = '4.20';
@@ -78,7 +78,7 @@
       'tid': mainThread,
       'pid': pid,
       'cat': 'disabled-by-default-devtools.timeline',
-      'args': {'endData': {'layoutRoots': [{'nodeId': 1, 'depth': 1, 'quads': [[0, 0, 1570, 0, 1570, 243, 0, 243]]}]}}
+      'args': {'endData': {'root': [0, 0, 1570, 0, 1570, 243, 0, 243], 'rootNode': 1}}
     },
     {
       'name': 'FunctionCall',
@@ -92,30 +92,30 @@
     {'name': 'foooooo', 'ts': 1099999, 'ph': 'E', 'tid': mainThread, 'pid': pid, 'cat': 'toplevel', 'args': {}}
   ];
 
-  const model = await PerformanceTestRunner.createPerformanceModelWithEvents(testData);
+  const model = PerformanceTestRunner.createPerformanceModelWithEvents(testData);
   const view = new Timeline.EventsTimelineTreeView(null);
   view.setModel(model, PerformanceTestRunner.mainTrack());
   view.updateContents(Timeline.TimelineSelection.fromRange(
       model.timelineModel().minimumRecordTime(), model.timelineModel().maximumRecordTime()));
-  const filtersControl = view.filtersControl;
+  const filtersControl = view._filtersControl;
 
   TestRunner.addResult('Original records');
-  filtersControl.notifyFiltersChanged();
+  filtersControl._notifyFiltersChanged();
   await dumpVisibleRecords();
 
   TestRunner.addResult(`Visible records when 'loading' is disabled`);
   Timeline.TimelineUIUtils.categories().loading.hidden = true;
-  filtersControl.notifyFiltersChanged();
+  filtersControl._notifyFiltersChanged();
   await dumpVisibleRecords();
 
   TestRunner.addResult(`Visible records when 'scripting' is disabled`);
   Timeline.TimelineUIUtils.categories().scripting.hidden = true;
-  filtersControl.notifyFiltersChanged();
+  filtersControl._notifyFiltersChanged();
   await dumpVisibleRecords();
 
   TestRunner.completeTest();
 
   async function dumpVisibleRecords() {
-    await PerformanceTestRunner.walkTimelineEventTreeUnderNode(event => TestRunner.addResult(event.name), view.currentTree);
+    await PerformanceTestRunner.walkTimelineEventTreeUnderNode(event => TestRunner.addResult(event.name), view._currentTree);
   }
 })();

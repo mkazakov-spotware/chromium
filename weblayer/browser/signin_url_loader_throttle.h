@@ -1,20 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_BROWSER_SIGNIN_URL_LOADER_THROTTLE_H_
 #define WEBLAYER_BROWSER_SIGNIN_URL_LOADER_THROTTLE_H_
 
-#include "base/memory/raw_ptr.h"
 #include "components/signin/core/browser/signin_header_helper.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "net/http/http_request_headers.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
-
-namespace net {
-class HttpResponseHeaders;
-}
 
 namespace weblayer {
 
@@ -53,7 +48,7 @@ class SigninURLLoaderThrottle : public blink::URLLoaderThrottle {
                       net::HttpRequestHeaders* modified_headers);
   void ProcessResponse(const net::HttpResponseHeaders* headers);
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
   content::WebContents::Getter web_contents_getter_;
   net::HttpRequestHeaders request_headers_;
   GURL request_url_;

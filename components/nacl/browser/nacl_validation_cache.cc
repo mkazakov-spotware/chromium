@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/nacl/browser/nacl_validation_cache.h"
 
-#include "base/containers/adapters.h"
 #include "base/pickle.h"
 #include "base/rand_util.h"
 
@@ -62,8 +61,10 @@ void NaClValidationCache::Serialize(base::Pickle* pickle) const {
   // Serialize the cache in reverse order so that deserializing it can easily
   // preserve the MRU order.  (Last item deserialized => most recently used.)
   ValidationCacheType::const_reverse_iterator iter;
-  for (const auto& [signature, value] : base::Reversed(validation_cache_)) {
-    pickle->WriteString(signature);
+  for (iter = validation_cache_.rbegin();
+       iter != validation_cache_.rend();
+       ++iter) {
+    pickle->WriteString(iter->first);
   }
 
   // Mark the end of the data stream.
@@ -124,4 +125,5 @@ bool NaClValidationCache::DeserializeImpl(const base::Pickle* pickle) {
   return true;
 }
 
-}  // namespace nacl
+} // namespace nacl
+

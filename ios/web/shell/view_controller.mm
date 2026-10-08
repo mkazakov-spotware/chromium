@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,20 @@
 
 #import <MobileCoreServices/MobileCoreServices.h>
 
-#import <stdint.h>
+#include <stdint.h>
 
-#import <memory>
-#import <utility>
+#include <memory>
+#include <utility>
 
-#import "base/strings/sys_string_conversions.h"
+#include "base/strings/sys_string_conversions.h"
 #import "ios/web/public/navigation/navigation_manager.h"
-#import "ios/web/public/navigation/referrer.h"
+#include "ios/web/public/navigation/referrer.h"
 #import "ios/web/public/ui/context_menu_params.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/web_state_delegate_bridge.h"
 #import "ios/web/public/web_state_observer_bridge.h"
 #import "net/base/mac/url_conversions.h"
-#import "ui/base/page_transition_types.h"
+#include "ui/base/page_transition_types.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -268,48 +268,38 @@ using web::NavigationManager;
 // -----------------------------------------------------------------------
 // WebStateDelegate implementation.
 
-- (void)webState:(web::WebState*)webView
-    contextMenuConfigurationForParams:(const web::ContextMenuParams&)params
-                    completionHandler:(void (^)(UIContextMenuConfiguration*))
-                                          completionHandler {
+- (void)webState:(web::WebState*)webState
+    handleContextMenu:(const web::ContextMenuParams&)params {
   GURL link = params.link_url;
-  void (^copyHandler)(UIAction*) = ^(UIAction* action) {
+  if (!link.is_valid()) {
+    return;
+  }
+
+  UIAlertController* alert = [UIAlertController
+      alertControllerWithTitle:params.menu_title
+                       message:nil
+                preferredStyle:UIAlertControllerStyleActionSheet];
+  alert.popoverPresentationController.sourceView = params.view;
+  alert.popoverPresentationController.sourceRect =
+      CGRectMake(params.location.x, params.location.y, 1.0, 1.0);
+
+  void (^handler)(UIAlertAction*) = ^(UIAlertAction*) {
     NSDictionary* item = @{
-      (NSString*)(kUTTypeURL) : net::NSURLWithGURL(link),
-      (NSString*)(kUTTypeUTF8PlainText) : [base::SysUTF8ToNSString(link.spec())
-          dataUsingEncoding:NSUTF8StringEncoding],
+      static_cast<NSString*>(kUTTypeURL) : net::NSURLWithGURL(link),
+      static_cast<NSString*>(kUTTypeUTF8PlainText) : [base::SysUTF8ToNSString(
+          link.spec()) dataUsingEncoding:NSUTF8StringEncoding],
     };
     [[UIPasteboard generalPasteboard] setItems:@[ item ]];
   };
+  [alert addAction:[UIAlertAction actionWithTitle:@"Copy Link"
+                                            style:UIAlertActionStyleDefault
+                                          handler:handler]];
 
-  UIContextMenuConfiguration* configuration = [UIContextMenuConfiguration
-      configurationWithIdentifier:nil
-      previewProvider:^{
-        UIViewController* controller = [[UIViewController alloc] init];
-        CGRect frame = CGRectMake(10, 200, 200, 21);
-        UILabel* label = [[UILabel alloc] initWithFrame:frame];
-        label.text = @"iOS13 Preview Page";
-        [controller.view addSubview:label];
-        return controller;
-      }
-      actionProvider:^(id _) {
-        NSArray* actions = @[
-          [UIAction actionWithTitle:@"Copy Link"
-                              image:nil
-                         identifier:nil
-                            handler:copyHandler],
-          [UIAction actionWithTitle:@"Cancel"
-                              image:nil
-                         identifier:nil
-                            handler:^(id ignored){
-                            }]
-        ];
-        NSString* menuTitle = [NSString
-            stringWithFormat:@"iOS13 Context Menu: %s", link.spec().c_str()];
-        return [UIMenu menuWithTitle:menuTitle children:actions];
-      }];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
+                                            style:UIAlertActionStyleCancel
+                                          handler:nil]];
 
-  completionHandler(configuration);
+  [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)webStateDestroyed:(web::WebState*)webState {

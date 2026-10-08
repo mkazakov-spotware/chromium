@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Verify that automapping is able to map ambiguous resources based on the selected project folder.\n`);
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
 
   var automappingTest = new BindingsTestRunner.AutomappingTest(new Workspace.Workspace());
 
@@ -20,7 +20,7 @@
     'http://example.com/logo.png': logo2
   });
 
-  var fs = new BindingsTestRunner.TestFileSystem('/var/www');
+  var fs = new BindingsTestRunner.TestFileSystem('file:///var/www');
   BindingsTestRunner.addFiles(fs, {
     'code/proj1/.git/HEAD': {content: 'ref: refs/heads/master', time: new Date('May 12, 2007')},
     'code/proj1/reset.css': reset_css,

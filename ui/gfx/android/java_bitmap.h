@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "base/android/scoped_java_ref.h"
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/gfx_export.h"
@@ -33,10 +34,6 @@ enum BitmapFormat {
 class GFX_EXPORT JavaBitmap {
  public:
   explicit JavaBitmap(const base::android::JavaRef<jobject>& bitmap);
-
-  JavaBitmap(const JavaBitmap&) = delete;
-  JavaBitmap& operator=(const JavaBitmap&) = delete;
-
   ~JavaBitmap();
 
   inline void* pixels() { return pixels_; }
@@ -53,6 +50,8 @@ class GFX_EXPORT JavaBitmap {
   BitmapFormat format_;
   uint32_t bytes_per_row_;
   int byte_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(JavaBitmap);
 };
 
 enum class OomBehavior {

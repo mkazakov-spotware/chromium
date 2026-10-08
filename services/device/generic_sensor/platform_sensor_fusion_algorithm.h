@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "services/device/public/cpp/generic_sensor/sensor_reading.h"
 
 namespace device {
@@ -17,14 +18,9 @@ class PlatformSensorFusion;
 // Base class for platform sensor fusion algorithm.
 class PlatformSensorFusionAlgorithm {
  public:
-  PlatformSensorFusionAlgorithm(const PlatformSensorFusionAlgorithm&) = delete;
-  PlatformSensorFusionAlgorithm& operator=(
-      const PlatformSensorFusionAlgorithm&) = delete;
-
   virtual ~PlatformSensorFusionAlgorithm();
 
   void set_threshold(double threshold) { threshold_ = threshold; }
-  double threshold() const { return threshold_; }
 
   void set_fusion_sensor(PlatformSensorFusion* fusion_sensor) {
     fusion_sensor_ = fusion_sensor;
@@ -35,6 +31,9 @@ class PlatformSensorFusionAlgorithm {
   }
 
   mojom::SensorType fused_type() const { return fused_type_; }
+
+  bool IsReadingSignificantlyDifferent(const SensorReading& reading1,
+                                       const SensorReading& reading2);
 
   bool GetFusedData(mojom::SensorType which_sensor_changed,
                     SensorReading* fused_reading);
@@ -57,7 +56,7 @@ class PlatformSensorFusionAlgorithm {
                                     SensorReading* fused_reading) = 0;
 
   // This raw pointer is safe because |fusion_sensor_| owns this object.
-  raw_ptr<PlatformSensorFusion> fusion_sensor_ = nullptr;
+  PlatformSensorFusion* fusion_sensor_ = nullptr;
 
  private:
   // Default threshold for comparing SensorReading values. If a
@@ -67,6 +66,8 @@ class PlatformSensorFusionAlgorithm {
 
   mojom::SensorType fused_type_;
   std::vector<mojom::SensorType> source_types_;
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformSensorFusionAlgorithm);
 };
 
 }  // namespace device

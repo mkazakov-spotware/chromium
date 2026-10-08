@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/metrics/incognito_usage_app_state_agent.h"
 
-#import "base/metrics/histogram_functions.h"
-#import "base/time/time.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/time/time.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/browser/ui/main/scene_state.h"
 
@@ -15,7 +15,7 @@
 
 namespace {
 // Minimum amount of time for a normal/incognito transition to be considered.
-constexpr base::TimeDelta kMinimumDelay = base::Seconds(10);
+const int kMinimumDelayInSeconds = 10;
 }
 
 @interface IncognitoUsageAppStateAgent () <AppStateObserver, SceneStateObserver>
@@ -58,12 +58,12 @@ constexpr base::TimeDelta kMinimumDelay = base::Seconds(10);
   DCHECK(!self.incognitoUsageStart.is_null());
   DCHECK(!self.incognitoUsageEnd.is_null());
   base::TimeDelta duration = self.incognitoUsageEnd - self.incognitoUsageStart;
-  if (duration < kMinimumDelay) {
+  if (duration.InSecondsF() < kMinimumDelayInSeconds) {
     return;
   }
-  base::UmaHistogramCustomTimes("IOS.Incognito.TimeSpent", duration,
-                                base::Seconds(1),
-                                base::Seconds(86400 /* secs per day */), 50);
+  base::UmaHistogramCustomTimes(
+      "IOS.Incognito.TimeSpent", duration, base::TimeDelta::FromSeconds(1),
+      base::TimeDelta::FromSeconds(86400 /* secs per day */), 50);
   self.incognitoUsageStart = base::TimeTicks();
   self.incognitoUsageEnd = base::TimeTicks();
 }
@@ -78,15 +78,15 @@ constexpr base::TimeDelta kMinimumDelay = base::Seconds(10);
   if (incognitoContentVisible) {
     base::TimeTicks now = base::TimeTicks::Now();
     if (!self.incognitoUsageEnd.is_null() &&
-        (now - self.incognitoUsageEnd) < kMinimumDelay) {
+        (now - self.incognitoUsageEnd).InSecondsF() < kMinimumDelayInSeconds) {
       // The pausing of incognito is too short, resume session.
       self.incognitoUsageEnd = base::TimeTicks();
     } else {
       // Incognito has been paused for a long time. This is a new session.
       if (!self.incognitoUsageEnd.is_null() &&
           !self.incognitoUsageStart.is_null() &&
-          (self.incognitoUsageEnd - self.incognitoUsageStart) >=
-              kMinimumDelay) {
+          (self.incognitoUsageEnd - self.incognitoUsageStart).InSecondsF() >=
+              kMinimumDelayInSeconds) {
         // There was a previous session to report.
         [self reportIncognitoUsageTime];
       }
@@ -95,7 +95,8 @@ constexpr base::TimeDelta kMinimumDelay = base::Seconds(10);
   } else {
     base::TimeTicks now = base::TimeTicks::Now();
     if (!self.incognitoUsageStart.is_null() &&
-        (now - self.incognitoUsageStart) >= kMinimumDelay) {
+        (now - self.incognitoUsageStart).InSecondsF() >=
+            kMinimumDelayInSeconds) {
       self.incognitoUsageEnd = now;
     } else {
       // This incognito session was too short.
@@ -110,7 +111,8 @@ constexpr base::TimeDelta kMinimumDelay = base::Seconds(10);
   }
   if (!self.incognitoUsageEnd.is_null() &&
       !self.incognitoUsageStart.is_null() &&
-      (self.incognitoUsageEnd - self.incognitoUsageStart) >= kMinimumDelay) {
+      (self.incognitoUsageEnd - self.incognitoUsageStart).InSecondsF() >=
+          kMinimumDelayInSeconds) {
     [self reportIncognitoUsageTime];
   }
 }
@@ -123,11 +125,6 @@ constexpr base::TimeDelta kMinimumDelay = base::Seconds(10);
 
   _appState = appState;
   [appState addObserver:self];
-
-  for (SceneState* scene in appState.connectedScenes) {
-    [scene addObserver:self];
-  }
-  [self updateIncognitoContentVisible];
 }
 
 #pragma mark - AppStateObserver

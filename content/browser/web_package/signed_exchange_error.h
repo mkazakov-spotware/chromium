@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <string>
 #include <utility>
 
+#include "base/optional.h"
 #include "content/browser/web_package/signed_exchange_signature_verifier.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
 
@@ -51,12 +51,7 @@ enum class SignedExchangeLoadResult {
   kVariantMismatch,
   // Certificate's validity period is too long.
   kCertValidityPeriodTooLong,
-  // SXG had "Vary: Cookie" inner header but we had a cookie for the URL.
-  kHadCookieForCookielessOnlySXG,
-  // The certificate didn't match the built-in public key pins for the host
-  // name.
-  kPKPViolationError,
-  kMaxValue = kPKPViolationError
+  kMaxValue = kCertValidityPeriodTooLong
 };
 
 struct SignedExchangeError {
@@ -74,11 +69,11 @@ struct SignedExchangeError {
   // a signed exchange header to indicate which signature is causing the error.
   using FieldIndexPair = std::pair<int /* signature_index */, Field>;
 
-  static absl::optional<Field> GetFieldFromSignatureVerifierResult(
+  static base::Optional<Field> GetFieldFromSignatureVerifierResult(
       SignedExchangeSignatureVerifier::Result verify_result);
 
   SignedExchangeError(const std::string& message,
-                      absl::optional<FieldIndexPair> field);
+                      base::Optional<FieldIndexPair> field);
 
   // Copy constructor.
   SignedExchangeError(const SignedExchangeError& other);
@@ -88,7 +83,7 @@ struct SignedExchangeError {
   ~SignedExchangeError();
 
   std::string message;
-  absl::optional<FieldIndexPair> field;
+  base::Optional<FieldIndexPair> field;
 };
 
 }  // namespace content

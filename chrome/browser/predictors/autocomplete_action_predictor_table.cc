@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,11 @@
 #include "base/check_op.h"
 #include "base/guid.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "content/public/browser/browser_thread.h"
 #include "sql/statement.h"
-#include "sql/transaction.h"
 
 namespace {
 
@@ -60,7 +59,7 @@ AutocompleteActionPredictorTable::Row::Row()
 }
 
 AutocompleteActionPredictorTable::Row::Row(const Row::Id& id,
-                                           const std::u16string& user_text,
+                                           const base::string16& user_text,
                                            const GURL& url,
                                            int number_of_hits,
                                            int number_of_misses)
@@ -68,7 +67,8 @@ AutocompleteActionPredictorTable::Row::Row(const Row::Id& id,
       user_text(user_text),
       url(url),
       number_of_hits(number_of_hits),
-      number_of_misses(number_of_misses) {}
+      number_of_misses(number_of_misses) {
+}
 
 AutocompleteActionPredictorTable::Row::Row(const Row& row)
     : id(row.id),
@@ -137,8 +137,7 @@ void AutocompleteActionPredictorTable::AddAndUpdateRows(
   if (CantAccessDatabase())
     return;
 
-  sql::Transaction transaction(DB());
-  if (!transaction.Begin())
+  if (!DB()->BeginTransaction())
     return;
   for (auto it = rows_to_add.begin(); it != rows_to_add.end(); ++it) {
     sql::Statement statement(DB()->GetCachedStatement(SQL_FROM_HERE,
@@ -146,12 +145,16 @@ void AutocompleteActionPredictorTable::AddAndUpdateRows(
             "INSERT INTO %s "
             "(id, user_text, url, number_of_hits, number_of_misses) "
             "VALUES (?,?,?,?,?)", kAutocompletePredictorTableName).c_str()));
-    if (!statement.is_valid())
+    if (!statement.is_valid()) {
+      DB()->RollbackTransaction();
       return;
+    }
 
     BindRowToStatement(*it, &statement);
-    if (!statement.Run())
+    if (!statement.Run()) {
+      DB()->RollbackTransaction();
       return;
+    }
   }
   for (auto it = rows_to_update.begin(); it != rows_to_update.end(); ++it) {
     sql::Statement statement(DB()->GetCachedStatement(SQL_FROM_HERE,
@@ -159,15 +162,19 @@ void AutocompleteActionPredictorTable::AddAndUpdateRows(
             "UPDATE %s "
             "SET id=?, user_text=?, url=?, number_of_hits=?, number_of_misses=?"
             " WHERE id=?1", kAutocompletePredictorTableName).c_str()));
-    if (!statement.is_valid())
+    if (!statement.is_valid()) {
+      DB()->RollbackTransaction();
       return;
+    }
 
     BindRowToStatement(*it, &statement);
-    if (!statement.Run())
+    if (!statement.Run()) {
+      DB()->RollbackTransaction();
       return;
+    }
     DCHECK_GT(DB()->GetLastChangeCount(), 0);
   }
-  transaction.Commit();
+  DB()->CommitTransaction();
 }
 
 void AutocompleteActionPredictorTable::DeleteRows(
@@ -176,22 +183,25 @@ void AutocompleteActionPredictorTable::DeleteRows(
   if (CantAccessDatabase())
     return;
 
-  sql::Transaction transaction(DB());
-  if (!transaction.Begin())
+  if (!DB()->BeginTransaction())
     return;
   for (auto it = id_list.begin(); it != id_list.end(); ++it) {
     sql::Statement statement(DB()->GetCachedStatement(SQL_FROM_HERE,
         base::StringPrintf(
             "DELETE FROM %s WHERE id=?",
             kAutocompletePredictorTableName).c_str()));
-    if (!statement.is_valid())
+    if (!statement.is_valid()) {
+      DB()->RollbackTransaction();
       return;
+    }
 
     statement.BindString(0, *it);
-    if (!statement.Run())
+    if (!statement.Run()) {
+      DB()->RollbackTransaction();
       return;
+    }
   }
-  transaction.Commit();
+  DB()->CommitTransaction();
 }
 
 void AutocompleteActionPredictorTable::DeleteAllRows() {
@@ -214,7 +224,7 @@ AutocompleteActionPredictorTable::AutocompleteActionPredictorTable(
 
 AutocompleteActionPredictorTable::~AutocompleteActionPredictorTable() = default;
 
-void AutocompleteActionPredictorTable::CreateOrClearTablesIfNecessary() {
+void AutocompleteActionPredictorTable::CreateTablesIfNonExistent() {
   DCHECK(GetTaskRunner()->RunsTasksInCurrentSequence());
   if (CantAccessDatabase())
     return;

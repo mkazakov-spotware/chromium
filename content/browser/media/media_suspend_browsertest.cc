@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/browser/media/media_browsertest.h"
-#include "content/browser/media/media_web_contents_observer.h"
-#include "content/browser/web_contents/web_contents_impl.h"
+#include "content/common/media/media_player_delegate_messages.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -17,6 +16,11 @@
 #include "media/base/test_data_util.h"
 
 namespace content {
+
+static void SuspendAllMediaPlayersInRenderFrame(RenderFrameHost* rfh) {
+  rfh->Send(
+      new MediaPlayerDelegateMsg_SuspendAllMediaPlayers(rfh->GetRoutingID()));
+}
 
 // This browser test ensures the force suspend IPC messages are working properly
 // and that players suspended in this way can be resumed. Note: This does not
@@ -32,11 +36,11 @@ class MediaSuspendTest : public MediaBrowserTest {
         media::GetTestDataFilePath("media_suspend_test.html"),
         media::GetURLQueryString(query_params));
 
-    const std::u16string kError = base::ASCIIToUTF16(media::kErrorTitle);
+    const base::string16 kError = base::ASCIIToUTF16(media::kError);
 
     {
       VLOG(0) << "Waiting for test URL: " << gurl << ", to load.";
-      const std::u16string kLoaded = u"LOADED";
+      const base::string16 kLoaded = base::ASCIIToUTF16("LOADED");
       TitleWatcher title_watcher(shell()->web_contents(), kLoaded);
       title_watcher.AlsoWaitForTitle(kError);
       EXPECT_TRUE(NavigateToURL(shell(), gurl));
@@ -45,12 +49,11 @@ class MediaSuspendTest : public MediaBrowserTest {
 
     {
       VLOG(0) << "Suspending and waiting for suspend to occur.";
-      const std::u16string kSuspended = u"SUSPENDED";
+      const base::string16 kSuspended = base::ASCIIToUTF16("SUSPENDED");
       TitleWatcher title_watcher(shell()->web_contents(), kSuspended);
       title_watcher.AlsoWaitForTitle(kError);
-      static_cast<WebContentsImpl*>(shell()->web_contents())
-          ->media_web_contents_observer()
-          ->SuspendAllMediaPlayers();
+      shell()->web_contents()->ForEachFrame(
+          base::BindRepeating(&SuspendAllMediaPlayersInRenderFrame));
       ASSERT_EQ(kSuspended, title_watcher.WaitAndGetTitle());
     }
 
@@ -61,10 +64,10 @@ class MediaSuspendTest : public MediaBrowserTest {
 
     {
       VLOG(0) << "Waiting for playback to resume.";
-      const std::u16string kEnded = base::ASCIIToUTF16(media::kEndedTitle);
+      const base::string16 kEnded = base::ASCIIToUTF16(media::kEnded);
       TitleWatcher title_watcher(shell()->web_contents(), kEnded);
       title_watcher.AlsoWaitForTitle(kError);
-      ASSERT_TRUE(ExecJs(shell(), "video.play();"));
+      ASSERT_TRUE(ExecuteScript(shell(), "video.play();"));
       ASSERT_EQ(kEnded, title_watcher.WaitAndGetTitle());
     }
 

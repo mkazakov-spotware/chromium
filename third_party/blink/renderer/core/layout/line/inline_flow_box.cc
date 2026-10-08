@@ -36,10 +36,8 @@
 #include "third_party/blink/renderer/core/layout/line/inline_text_box.h"
 #include "third_party/blink/renderer/core/layout/line/line_orientation_utils.h"
 #include "third_party/blink/renderer/core/layout/line/root_inline_box.h"
-#include "third_party/blink/renderer/core/layout/ng/ng_ink_overflow.h"
 #include "third_party/blink/renderer/core/paint/box_painter.h"
 #include "third_party/blink/renderer/core/paint/inline_flow_box_painter.h"
-#include "third_party/blink/renderer/core/paint/outline_painter.h"
 #include "third_party/blink/renderer/core/paint/rounded_border_geometry.h"
 #include "third_party/blink/renderer/core/style/shadow_list.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
@@ -48,24 +46,17 @@
 namespace blink {
 
 struct SameSizeAsInlineFlowBox : public InlineBox {
-  void* pointers[1];
-  Member<void*> members[4];
+  void* pointers[5];
   uint32_t bitfields : 23;
 };
 
 ASSERT_SIZE(InlineFlowBox, SameSizeAsInlineFlowBox);
 
-void InlineFlowBox::Trace(Visitor* visitor) const {
-  visitor->Trace(first_child_);
-  visitor->Trace(last_child_);
-  visitor->Trace(prev_line_box_);
-  visitor->Trace(next_line_box_);
-  InlineBox::Trace(visitor);
-}
-
 #if DCHECK_IS_ON()
-void InlineFlowBox::Destroy() {
-  InlineBox::Destroy();
+InlineFlowBox::~InlineFlowBox() {
+  if (!has_bad_child_list_)
+    for (InlineBox* child = FirstChild(); child; child = child->NextOnLine())
+      child->SetHasBadParent();
 }
 #endif
 
@@ -212,11 +203,6 @@ void InlineFlowBox::AddToLine(InlineBox* child) {
         child->ClearKnownToHaveNoOverflow();
     } else if (child->GetLineLayoutItem().IsAtomicInlineLevel()) {
       LineLayoutBox box = LineLayoutBox(child->GetLineLayoutItem());
-#if DCHECK_IS_ON()
-      // We're reading the previous overflow state. Read as no overflow if it
-      // was not computed yet.
-      NGInkOverflow::ReadUnsetAsNoneScope read_unset_as_none;
-#endif
       if (box.HasLayoutOverflow() || box.HasVisualOverflow() ||
           box.HasSelfPaintingLayer())
         child->ClearKnownToHaveNoOverflow();
@@ -564,7 +550,7 @@ FontBaseline InlineFlowBox::DominantBaseline() const {
                              .Style(IsFirstLineStyle())
                              ->GetFontDescription()
                              .IsVerticalAnyUpright())
-    return kCentralBaseline;
+    return kIdeographicBaseline;
   return kAlphabeticBaseline;
 }
 
@@ -975,7 +961,7 @@ LayoutUnit InlineFlowBox::FarthestPositionForUnderline(
     // If the text decoration isn't in effect on the child, it must be outside
     // of |decorationObject|.
     if (!EnumHasFlags(curr->LineStyleRef().TextDecorationsInEffect(),
-                      TextDecorationLine::kUnderline))
+                      TextDecoration::kUnderline))
       continue;
 
     if (decorating_box && decorating_box.IsLayoutInline() &&
@@ -1030,8 +1016,7 @@ inline void InlineFlowBox::AddBoxShadowVisualOverflow(
   if (!box_shadow)
     return;
 
-  LayoutRectOutsets outsets =
-      EnclosingLayoutRectOutsets(box_shadow->RectOutsetsIncludingOriginal());
+  LayoutRectOutsets outsets(box_shadow->RectOutsetsIncludingOriginal());
   // Similar to how glyph overflow works, if our lines are flipped, then it's
   // actually the opposite shadow that applies, since the line is "upside down"
   // in terms of block coordinates.
@@ -1083,8 +1068,7 @@ inline void InlineFlowBox::AddOutlineVisualOverflow(
   if (!style.HasOutline())
     return;
 
-  logical_visual_overflow.Inflate(OutlinePainter::OutlineOutsetExtent(
-      style, LayoutObject::OutlineInfo::GetFromStyle(style)));
+  logical_visual_overflow.Inflate(style.OutlineOutsetExtent());
 }
 
 inline void InlineFlowBox::AddTextBoxVisualOverflow(
@@ -1103,14 +1087,11 @@ inline void InlineFlowBox::AddTextBoxVisualOverflow(
   if (it != text_box_data_map.end()) {
     const GlyphOverflow& glyph_overflow = it->value.second;
     bool is_flipped_line = style.IsFlippedLinesWritingMode();
-    visual_rect_outsets = EnclosingLayoutRectOutsets(
-        gfx::OutsetsF()
-            .set_left(glyph_overflow.left)
-            .set_right(glyph_overflow.right)
-            .set_top(is_flipped_line ? glyph_overflow.bottom
-                                     : glyph_overflow.top)
-            .set_bottom(is_flipped_line ? glyph_overflow.top
-                                        : glyph_overflow.bottom));
+    visual_rect_outsets = EnclosingLayoutRectOutsets(FloatRectOutsets(
+        is_flipped_line ? glyph_overflow.bottom : glyph_overflow.top,
+        glyph_overflow.right,
+        is_flipped_line ? glyph_overflow.top : glyph_overflow.bottom,
+        glyph_overflow.left));
   }
 
   if (float stroke_width = style.TextStrokeWidth()) {
@@ -1134,8 +1115,7 @@ inline void InlineFlowBox::AddTextBoxVisualOverflow(
   if (ShadowList* text_shadow = style.TextShadow()) {
     LayoutRectOutsets text_shadow_logical_outsets =
         LineOrientationLayoutRectOutsets(
-            EnclosingLayoutRectOutsets(
-                text_shadow->RectOutsetsIncludingOriginal()),
+            LayoutRectOutsets(text_shadow->RectOutsetsIncludingOriginal()),
             style.GetWritingMode());
     text_shadow_logical_outsets.ClampNegativeToZero();
     visual_rect_outsets += text_shadow_logical_outsets;
@@ -1143,7 +1123,7 @@ inline void InlineFlowBox::AddTextBoxVisualOverflow(
 
   LayoutRect frame_rect = text_box->LogicalFrameRect();
   frame_rect.Expand(visual_rect_outsets);
-  frame_rect = LayoutRect(ToEnclosingRect(frame_rect));
+  frame_rect = LayoutRect(EnclosingIntRect(frame_rect));
   logical_visual_overflow.Unite(frame_rect);
 
   if (logical_visual_overflow != text_box->LogicalFrameRect())
@@ -1218,21 +1198,21 @@ static void ComputeGlyphOverflow(
     const LineLayoutText& layout_text,
     GlyphOverflowAndFallbackFontsMap& text_box_data_map) {
   HashSet<const SimpleFontData*> fallback_fonts;
-  gfx::RectF glyph_bounds;
+  FloatRect glyph_bounds;
   GlyphOverflow glyph_overflow;
   float measured_width = layout_text.Width(
       text->Start(), text->Len(), LayoutUnit(), text->Direction(), false,
       &fallback_fonts, &glyph_bounds);
   const Font& font = layout_text.StyleRef().GetFont();
   glyph_overflow.SetFromBounds(glyph_bounds, font, measured_width);
-  if (!fallback_fonts.empty()) {
+  if (!fallback_fonts.IsEmpty()) {
     GlyphOverflowAndFallbackFontsMap::ValueType* it =
         text_box_data_map
             .insert(text, std::make_pair(Vector<const SimpleFontData*>(),
                                          GlyphOverflow()))
             .stored_value;
-    DCHECK(it->value.first.empty());
-    it->value.first.assign(fallback_fonts);
+    DCHECK(it->value.first.IsEmpty());
+    CopyToVector(fallback_fonts, it->value.first);
   }
   if (!glyph_overflow.IsApproximatelyZero()) {
     GlyphOverflowAndFallbackFontsMap::ValueType* it =
@@ -1279,7 +1259,7 @@ void InlineFlowBox::ComputeOverflow(
         text_box_overflow.SetWidth(
             LayoutUnit(text_box_overflow.Width() + text->NewlineSpaceWidth()));
       } else {
-        if (text_box_data_map.empty()) {
+        if (text_box_data_map.IsEmpty()) {
           // An empty glyph map means that we're computing overflow without
           // a layout, so calculate the glyph overflow on the fly.
           GlyphOverflowAndFallbackFontsMap glyph_overflow_for_text;
@@ -1466,7 +1446,7 @@ bool InlineFlowBox::NodeAtPoint(HitTestResult& result,
   rect.Move(accumulated_offset);
 
   // Pixel snap hit testing.
-  rect = PhysicalRect(ToPixelSnappedRect(rect));
+  rect = PhysicalRect(PixelSnappedIntRect(rect));
   if (VisibleToHitTestRequest(result.GetHitTestRequest()) &&
       hit_test_location.Intersects(rect)) {
     // Don't add in m_topLeft here, we want coords in the containing block's

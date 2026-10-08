@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/i18n/message_formatter.h"
 
-#include "base/check.h"
 #include "base/i18n/unicodestring.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
@@ -37,7 +36,7 @@ MessageArg::MessageArg(StringPiece s)
 MessageArg::MessageArg(const std::string& s)
     : formattable(new icu::Formattable(UnicodeString::fromUTF8(s))) {}
 
-MessageArg::MessageArg(const std::u16string& s)
+MessageArg::MessageArg(const string16& s)
     : formattable(new icu::Formattable(UnicodeString(s.data(), s.size()))) {}
 
 MessageArg::MessageArg(int i) : formattable(new icu::Formattable(i)) {}
@@ -62,7 +61,7 @@ bool MessageArg::has_value(int *count) const {
 
 }  // namespace internal
 
-std::u16string MessageFormatter::FormatWithNumberedArgs(
+string16 MessageFormatter::FormatWithNumberedArgs(
     StringPiece16 msg,
     const internal::MessageArg& arg0,
     const internal::MessageArg& arg1,
@@ -91,27 +90,20 @@ std::u16string MessageFormatter::FormatWithNumberedArgs(
   if (U_FAILURE(error)) {
     LOG(ERROR) << "MessageFormat(" << msg << ") failed with "
                << u_errorName(error);
-    return std::u16string();
+    return string16();
   }
   return i18n::UnicodeStringToString16(formatted);
 }
 
-std::u16string MessageFormatter::FormatWithNamedArgs(
+string16 MessageFormatter::FormatWithNamedArgs(
     StringPiece16 msg,
-    StringPiece name0,
-    const internal::MessageArg& arg0,
-    StringPiece name1,
-    const internal::MessageArg& arg1,
-    StringPiece name2,
-    const internal::MessageArg& arg2,
-    StringPiece name3,
-    const internal::MessageArg& arg3,
-    StringPiece name4,
-    const internal::MessageArg& arg4,
-    StringPiece name5,
-    const internal::MessageArg& arg5,
-    StringPiece name6,
-    const internal::MessageArg& arg6) {
+    StringPiece name0, const internal::MessageArg& arg0,
+    StringPiece name1, const internal::MessageArg& arg1,
+    StringPiece name2, const internal::MessageArg& arg2,
+    StringPiece name3, const internal::MessageArg& arg3,
+    StringPiece name4, const internal::MessageArg& arg4,
+    StringPiece name5, const internal::MessageArg& arg5,
+    StringPiece name6, const internal::MessageArg& arg6) {
   icu::UnicodeString names[] = {
       UnicodeStringFromStringPiece(name0),
       UnicodeStringFromStringPiece(name1),
@@ -141,7 +133,7 @@ std::u16string MessageFormatter::FormatWithNamedArgs(
   if (U_FAILURE(error)) {
     LOG(ERROR) << "MessageFormat(" << msg << ") failed with "
                << u_errorName(error);
-    return std::u16string();
+    return string16();
   }
   return i18n::UnicodeStringToString16(formatted);
 }

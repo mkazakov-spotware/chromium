@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,6 @@
  *
  */
 
-import 'chrome://resources/ash/common/quick_unlock/setup_pin_keyboard.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
-import 'chrome://resources/js/assert.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import '../../settings_shared.css.js';
-
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
 // Maximum length supported by auto submit
 const AutosubmitMaxLength = 12;
 
@@ -29,114 +19,93 @@ const AutoSubmitErrorStringsName = {
   PinTooLong: 'pinAutoSubmitLongPinError',
 };
 
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {I18nBehaviorInterface}
- */
-const SettingsPinAutosubmitDialogElementBase =
-    mixinBehaviors([I18nBehavior], PolymerElement);
+Polymer({
+  is: 'settings-pin-autosubmit-dialog',
 
-/** @polymer */
-class SettingsPinAutosubmitDialogElement extends
-    SettingsPinAutosubmitDialogElementBase {
-  static get is() {
-    return 'settings-pin-autosubmit-dialog';
-  }
+  behaviors: [I18nBehavior],
 
-  static get template() {
-    return html`{__html_template__}`;
-  }
+  properties: {
+    /**
+     * The current PIN keyboard value.
+     * @private
+     */
+    pinValue_: {
+      type: String,
+    },
 
-  static get properties() {
-    return {
-      /**
-       * The current PIN keyboard value.
-       * @private
-       */
-      pinValue_: {
-        type: String,
-      },
+    /**
+     * Possible errors that might occur. Null when there are no errors to show.
+     * @private {?string}
+     */
+    error_: {
+      type: String,
+      value: null,
+    },
 
-      /**
-       * Possible errors that might occur. Null when there are no errors to
-       * show.
-       * @private {?string}
-       */
-      error_: {
-        type: String,
-        value: null,
-      },
+    /**
+     * Whether there is a request in process already. Disables the
+     * buttons, but leaves the cancel button actionable.
+     * @private
+     */
+    requestInProcess_: {
+      type: Boolean,
+      value: false,
+    },
 
-      /**
-       * Whether there is a request in process already. Disables the
-       * buttons, but leaves the cancel button actionable.
-       * @private
-       */
-      requestInProcess_: {
-        type: Boolean,
-        value: false,
-      },
+    /**
+     * Whether the confirm button should be disabled.
+     * @private
+     */
+    confirmButtonDisabled_: {
+      type: Boolean,
+      value: true,
+    },
 
-      /**
-       * Whether the confirm button should be disabled.
-       * @private
-       */
-      confirmButtonDisabled_: {
-        type: Boolean,
-        value: true,
-      },
+    /**
+     * Authentication token provided by lock-screen-password-prompt-dialog.
+     * @type {!chrome.quickUnlockPrivate.TokenInfo|undefined}
+     */
+    authToken: {
+      type: Object,
+      notify: true,
+    },
 
-      /**
-       * Authentication token provided by lock-screen-password-prompt-dialog.
-       * @type {!chrome.quickUnlockPrivate.TokenInfo|undefined}
-       */
-      authToken: {
-        type: Object,
-        notify: true,
-      },
+    /**
+     * Interface for chrome.quickUnlockPrivate calls. May be overridden by
+     * tests.
+     * @private
+     */
+    quickUnlockPrivate: {type: Object, value: chrome.quickUnlockPrivate},
+  },
 
-      /**
-       * Interface for chrome.quickUnlockPrivate calls. May be overridden by
-       * tests.
-       * @private
-       */
-      quickUnlockPrivate: {type: Object, value: chrome.quickUnlockPrivate},
-    };
-  }
-
-  static get observers() {
-    return [
-      'updateButtonState_(error_, requestInProcess_, pinValue_)',
-    ];
-  }
+  observers: [
+    'updateButtonState_(error_, requestInProcess_, pinValue_)',
+  ],
 
   /** @override */
-  connectedCallback() {
-    super.connectedCallback();
-
+  attached() {
     this.resetState();
     this.$.dialog.showModal();
     this.$.pinKeyboard.focusInput();
-  }
+  },
 
   close() {
     if (this.$.dialog.open) {
       this.$.dialog.close();
     }
     this.resetState();
-  }
+  },
 
   resetState() {
     this.requestInProcess_ = false;
     this.pinValue_ = '';
     this.error_ = null;
-  }
+  },
 
   /** @private */
   onCancelTap_() {
     this.close();
-  }
+  },
 
   /**
    * Update error notice when more digits are inserted.
@@ -154,7 +123,7 @@ class SettingsPinAutosubmitDialogElement extends
     }
 
     this.error_ = null;
-  }
+  },
 
   /**
    * Make a request to the quick unlock API to enable PIN auto-submit.
@@ -172,7 +141,7 @@ class SettingsPinAutosubmitDialogElement extends
     this.quickUnlockPrivate.setPinAutosubmitEnabled(
         this.authToken.token, this.pinValue_ /* PIN */, true /*enabled*/,
         this.onPinSubmitResponse_.bind(this));
-  }
+  },
 
   /**
    * Response from the quick unlock API.
@@ -192,7 +161,7 @@ class SettingsPinAutosubmitDialogElement extends
     // Check if it is still possible to authenticate with pin.
     this.quickUnlockPrivate.canAuthenticatePin(
         this.onCanAuthenticateResponse_.bind(this));
-  }
+  },
 
   /**
    * Response from the quick unlock API on whether PIN authentication
@@ -201,9 +170,7 @@ class SettingsPinAutosubmitDialogElement extends
    */
   onCanAuthenticateResponse_(can_authenticate) {
     if (!can_authenticate) {
-      const event = new CustomEvent(
-          'invalidate-auth-token-requested', {bubbles: true, composed: true});
-      this.dispatchEvent(event);
+      this.fire('invalidate-auth-token-requested');
       this.close();
       return;
     }
@@ -212,13 +179,13 @@ class SettingsPinAutosubmitDialogElement extends
     this.requestInProcess_ = false;
     this.error_ = AutoSubmitErrorStringsName.PinIncorrect;
     this.$.pinKeyboard.focusInput();
-  }
+  },
 
   /** @private */
   updateButtonState_() {
     this.confirmButtonDisabled_ =
         this.requestInProcess_ || !!this.error_ || !this.pinValue_;
-  }
+  },
 
   /**
    * Error message to be shown on the dialog when the PIN is
@@ -228,8 +195,5 @@ class SettingsPinAutosubmitDialogElement extends
    */
   getErrorMessageString_(error) {
     return error ? this.i18n(error) : '';
-  }
-}
-
-customElements.define(
-    SettingsPinAutosubmitDialogElement.is, SettingsPinAutosubmitDialogElement);
+  },
+});

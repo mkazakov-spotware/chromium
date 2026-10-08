@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // Used on the host side to track timestamps for input events.
 struct InputEventTimestamps {
@@ -19,7 +20,7 @@ struct InputEventTimestamps {
   // Time when the event was processed by the host.
   base::TimeTicks host_timestamp;
 
-  bool is_null() const { return client_timestamp.is_null(); }
+  bool is_null() { return client_timestamp.is_null(); }
 };
 
 // InputEventTimestampsSource is used by VideoStream implementations to get
@@ -28,7 +29,7 @@ struct InputEventTimestamps {
 class InputEventTimestampsSource
     : public base::RefCountedThreadSafe<InputEventTimestampsSource> {
  public:
-  InputEventTimestampsSource() = default;
+  InputEventTimestampsSource() {}
 
   // Returns event timestamps for the input event that was received since the
   // previous call. Null InputEventTimestamps value is returned if no input
@@ -38,7 +39,7 @@ class InputEventTimestampsSource
 
  protected:
   friend base::RefCountedThreadSafe<InputEventTimestampsSource>;
-  virtual ~InputEventTimestampsSource() = default;
+  virtual ~InputEventTimestampsSource() {}
 };
 
 // Simple implementations of InputEventTimestampsSource that just stores the
@@ -59,6 +60,7 @@ class InputEventTimestampsSourceImpl : public InputEventTimestampsSource {
   InputEventTimestamps last_timestamps_;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_INPUT_EVENT_TIMESTAMPS_H_

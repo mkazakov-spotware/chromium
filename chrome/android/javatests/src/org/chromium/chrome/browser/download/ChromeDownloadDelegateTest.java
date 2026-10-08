@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.url.GURL;
 
 import java.util.concurrent.Callable;
 
@@ -62,17 +61,12 @@ public class ChromeDownloadDelegateTest {
         mActivityTestRule.loadUrl("about:blank");
         ChromeDownloadDelegate delegate = TestThreadUtils.runOnUiThreadBlockingNoException(
                 (Callable<ChromeDownloadDelegate>) () -> new MockChromeDownloadDelegate(tab));
-        Assert.assertFalse(
-                delegate.shouldInterceptContextMenuDownload(new GURL("file://test/test.html")));
-        Assert.assertFalse(
-                delegate.shouldInterceptContextMenuDownload(new GURL("http://test/test.html")));
-        Assert.assertFalse(
-                delegate.shouldInterceptContextMenuDownload(new GURL("ftp://test/test.dm")));
-        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload(new GURL("data://test.dd")));
-        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload(new GURL("http://test.dd")));
-        Assert.assertFalse(
-                delegate.shouldInterceptContextMenuDownload(new GURL("http://test/test.dd")));
-        Assert.assertTrue(
-                delegate.shouldInterceptContextMenuDownload(new GURL("https://test/test.dm")));
+        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload("file://test/test.html"));
+        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload("http://test/test.html"));
+        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload("ftp://test/test.dm"));
+        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload("data://test.dd"));
+        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload("http://test.dd"));
+        Assert.assertFalse(delegate.shouldInterceptContextMenuDownload("http://test/test.dd"));
+        Assert.assertTrue(delegate.shouldInterceptContextMenuDownload("https://test/test.dm"));
     }
 }

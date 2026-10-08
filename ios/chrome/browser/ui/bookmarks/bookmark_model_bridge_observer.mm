@@ -1,14 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/ui/bookmarks/bookmark_model_bridge_observer.h"
+#include "ios/chrome/browser/ui/bookmarks/bookmark_model_bridge_observer.h"
 
 #import <Foundation/Foundation.h>
 
-#import "base/check.h"
-#import "base/notreached.h"
-#import "components/bookmarks/browser/bookmark_model.h"
+#include "base/check.h"
+#include "base/notreached.h"
+#include "components/bookmarks/browser/bookmark_model.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -26,9 +26,8 @@ BookmarkModelBridge::BookmarkModelBridge(
 }
 
 BookmarkModelBridge::~BookmarkModelBridge() {
-  if (model_) {
-    model_->RemoveObserver(this);
-  }
+  DCHECK(model_);
+  model_->RemoveObserver(this);
 }
 
 void BookmarkModelBridge::BookmarkModelLoaded(BookmarkModel* model,
@@ -37,9 +36,9 @@ void BookmarkModelBridge::BookmarkModelLoaded(BookmarkModel* model,
 }
 
 void BookmarkModelBridge::BookmarkModelBeingDeleted(BookmarkModel* model) {
-  DCHECK(model_);
-  model_->RemoveObserver(this);
-  model_ = nullptr;
+  // This is an inconsistent state in the application lifecycle. The bookmark
+  // model shouldn't disappear.
+  NOTREACHED();
 }
 
 void BookmarkModelBridge::BookmarkNodeMoved(BookmarkModel* model,
@@ -53,8 +52,7 @@ void BookmarkModelBridge::BookmarkNodeMoved(BookmarkModel* model,
 
 void BookmarkModelBridge::BookmarkNodeAdded(BookmarkModel* model,
                                             const BookmarkNode* parent,
-                                            size_t index,
-                                            bool added_by_user) {
+                                            size_t index) {
   [observer_ bookmarkNodeChildrenChanged:parent];
 }
 
@@ -64,12 +62,8 @@ void BookmarkModelBridge::BookmarkNodeRemoved(
     size_t old_index,
     const BookmarkNode* node,
     const std::set<GURL>& removed_urls) {
-  // Hold a non-weak reference to `observer_`, in case the first event below
-  // destroys `this`.
-  id<BookmarkModelBridgeObserver> observer = observer_;
-
-  [observer bookmarkNodeDeleted:node fromFolder:parent];
-  [observer bookmarkNodeChildrenChanged:parent];
+  [observer_ bookmarkNodeDeleted:node fromFolder:parent];
+  [observer_ bookmarkNodeChildrenChanged:parent];
 }
 
 void BookmarkModelBridge::BookmarkNodeChanged(BookmarkModel* model,

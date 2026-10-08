@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,9 +26,6 @@ class FakeSerialPort : public mojom::SerialPort {
     watcher_.set_disconnect_handler(base::BindOnce(
         [](FakeSerialPort* self) { delete self; }, base::Unretained(this)));
   }
-
-  FakeSerialPort(const FakeSerialPort&) = delete;
-  FakeSerialPort& operator=(const FakeSerialPort&) = delete;
 
   ~FakeSerialPort() override = default;
 
@@ -71,9 +68,7 @@ class FakeSerialPort : public mojom::SerialPort {
 
   void GetPortInfo(GetPortInfoCallback callback) override { NOTREACHED(); }
 
-  void Close(bool flush, CloseCallback callback) override {
-    std::move(callback).Run();
-  }
+  void Close(CloseCallback callback) override { std::move(callback).Run(); }
 
  private:
   mojo::Receiver<mojom::SerialPort> receiver_{this};
@@ -83,6 +78,8 @@ class FakeSerialPort : public mojom::SerialPort {
   mojo::ScopedDataPipeConsumerHandle in_stream_;
   mojo::ScopedDataPipeProducerHandle out_stream_;
   mojo::Remote<mojom::SerialPortClient> client_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeSerialPort);
 };
 
 }  // namespace

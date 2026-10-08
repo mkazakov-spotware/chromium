@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
-import {addSingletonGetter} from 'chrome://resources/ash/common/cr_deprecated.js';
+import {addSingletonGetter, sendWithPromise} from 'chrome://resources/js/cr.m.js';
 
-import {AuthCompletedCredentials} from '../../gaia_auth_host/authenticator.js';
+import {AuthCompletedCredentials} from '../../gaia_auth_host/authenticator.m.js';
 
 /** TODO(yilkal): Improve the naming of methods in the proxy. */
 
@@ -64,11 +63,6 @@ export class EduCoexistenceBrowserProxy {
    * @param {Array<string>} msg Error messages.
    */
   onError(msg) {}
-
-  /**
-   * @return {?string} JSON-encoded dialog arguments.
-   */
-  getDialogArguments() {}
 }
 
 /**
@@ -120,11 +114,6 @@ export class EduCoexistenceBrowserProxyImpl {
   /** @override */
   onError(msg) {
     chrome.send('error', msg);
-  }
-
-  /** @override */
-  getDialogArguments() {
-    return chrome.getVariableValue('dialogArguments');
   }
 }
 

@@ -31,6 +31,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_EXPORTED_WRAPPED_RESOURCE_RESPONSE_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_EXPORTED_WRAPPED_RESOURCE_RESPONSE_H_
 
+#include "base/macros.h"
 #include "third_party/blink/public/platform/web_url_response.h"
 
 namespace blink {
@@ -39,8 +40,6 @@ namespace blink {
 // but just holds a pointer to it. It is not copyable.
 class WrappedResourceResponse : public WebURLResponse {
  public:
-  WrappedResourceResponse(const WrappedResourceResponse&) = delete;
-  WrappedResourceResponse& operator=(const WrappedResourceResponse&) = delete;
   ~WrappedResourceResponse() = default;
 
   explicit WrappedResourceResponse(ResourceResponse& resource_response)
@@ -49,8 +48,11 @@ class WrappedResourceResponse : public WebURLResponse {
   explicit WrappedResourceResponse(const ResourceResponse& resource_response)
       : WrappedResourceResponse(
             const_cast<ResourceResponse&>(resource_response)) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WrappedResourceResponse);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_EXPORTED_WRAPPED_RESOURCE_RESPONSE_H_
+#endif

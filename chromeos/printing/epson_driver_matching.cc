@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromeos/printing/epson_driver_matching.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/strings/string_util.h"
 #include "chromeos/printing/ppd_provider.h"
 
@@ -23,9 +24,11 @@ bool CanUseEpsonGenericPPD(const PrinterSearchData& sd) {
 
   // Fail if this isn't an Epson printer.
   // Note: Assumes make and model strings are already lowercase.
-  if (base::ranges::none_of(sd.make_and_model, [](base::StringPiece emm) {
-        return emm.find("epson") != base::StringPiece::npos;
-      })) {
+  auto it = std::find_if(sd.make_and_model.begin(), sd.make_and_model.end(),
+                         [](base::StringPiece emm) {
+                           return emm.find("epson") != base::StringPiece::npos;
+                         });
+  if (it == sd.make_and_model.end()) {
     return false;
   }
 

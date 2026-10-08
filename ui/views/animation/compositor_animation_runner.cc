@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,8 @@ namespace views {
 // CompositorAnimationRunner
 //
 
-CompositorAnimationRunner::CompositorAnimationRunner(
-    Widget* widget,
-    const base::Location& location)
-    : ui::CompositorAnimationObserver(location), widget_(widget) {
+CompositorAnimationRunner::CompositorAnimationRunner(Widget* widget)
+    : widget_(widget) {
   widget_->AddObserver(this);
 }
 

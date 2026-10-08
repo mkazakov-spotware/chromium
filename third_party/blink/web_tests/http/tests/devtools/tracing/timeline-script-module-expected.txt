@@ -5,15 +5,15 @@ v8.compileModule Properties:
     data : {
         columnNumber : 1
         lineNumber : 1
-        notStreamedReason : "already disabled streaming"
+        notStreamedReason : "module script"
         streamed : <boolean>
-        url : 
+        url : .../devtools/resources/inspected-page.html
     }
     endTime : <number>
     startTime : <number>
     type : "v8.compileModule"
 }
-Text details for v8.compileModule: 
+Text details for v8.compileModule: inspected-page.html
 v8.evaluateModule Properties:
 {
     data : {

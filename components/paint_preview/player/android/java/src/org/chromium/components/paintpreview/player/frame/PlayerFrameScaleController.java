@@ -1,16 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.paintpreview.player.frame;
 
 import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.util.Size;
 
 import androidx.annotation.Nullable;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.Supplier;
 
 /**
  * Handles scaling of the top level frame for the paint preview player.
@@ -26,20 +26,17 @@ public class PlayerFrameScaleController {
     private final Matrix mBitmapScaleMatrix;
     /** Interface for calling shared methods on the mediator. */
     private final PlayerFrameMediatorDelegate mMediatorDelegate;
-    private Supplier<Boolean> mIsAccessibilityEnabled;
     private final Callback<Boolean> mOnScaleListener;
     private boolean mAcceptUserInput;
 
     PlayerFrameScaleController(Matrix bitmapScaleMatrix,
             PlayerFrameMediatorDelegate mediatorDelegate,
-            @Nullable Supplier<Boolean> isAccessibilityEnabled,
             @Nullable Callback<Boolean> onScaleListener) {
         mUncommittedScaleFactor = 0f;
         mViewport = mediatorDelegate.getViewport();
         mContentSize = mediatorDelegate.getContentSize();
         mBitmapScaleMatrix = bitmapScaleMatrix;
         mMediatorDelegate = mediatorDelegate;
-        mIsAccessibilityEnabled = isAccessibilityEnabled;
         mOnScaleListener = onScaleListener;
         mAcceptUserInput = true;
     }
@@ -77,8 +74,6 @@ public class PlayerFrameScaleController {
     boolean scaleBy(float scaleFactor, float focalPointX, float focalPointY) {
         if (!mAcceptUserInput) return false;
 
-        if (mIsAccessibilityEnabled != null && mIsAccessibilityEnabled.get()) return false;
-
         // This is filtered to only apply to the top level view upstream.
         if (mUncommittedScaleFactor == 0f) {
             mUncommittedScaleFactor = mViewport.getScale();
@@ -86,7 +81,7 @@ public class PlayerFrameScaleController {
         }
         // Don't scale outside of the acceptable range. The value is still accumulated such that the
         // continuous gesture feels smooth.
-        final float initialScaleFactor = mMediatorDelegate.getMinScaleFactor();
+        final float initialScaleFactor = mMediatorDelegate.getInitialScaleFactor();
         final float lastUncommittedScaleFactor = mUncommittedScaleFactor;
         mUncommittedScaleFactor *= scaleFactor;
         // Compute a corrected and bounded scale factor when close to the max/min scale.
@@ -128,6 +123,12 @@ public class PlayerFrameScaleController {
                 Math.min(uncorrectedY,
                         mContentSize.getHeight() * correctedAggregateScaleFactor
                                 - mViewport.getHeight()));
+        final int correctedXRounded = Math.abs(Math.round(correctedX));
+        final int correctedYRounded = Math.abs(Math.round(correctedY));
+        mMediatorDelegate.updateSubframes(new Rect(correctedXRounded, correctedYRounded,
+                                                  correctedXRounded + mViewport.getWidth(),
+                                                  correctedYRounded + mViewport.getHeight()),
+                mUncommittedScaleFactor);
 
         if (uncorrectedX != correctedX || uncorrectedY != correctedY) {
             // This is the delta required to force the viewport to be inside the bounds of the
@@ -145,7 +146,6 @@ public class PlayerFrameScaleController {
             bitmapScaleMatrixValues[Matrix.MTRANS_Y] += deltaY;
             mBitmapScaleMatrix.setValues(bitmapScaleMatrixValues);
         }
-        mMediatorDelegate.updateSubframes(mViewport.asRect(), mViewport.getScale());
         mMediatorDelegate.setBitmapScaleMatrix(mBitmapScaleMatrix, correctedAggregateScaleFactor);
         if (mOnScaleListener != null) mOnScaleListener.onResult(false);
         return true;

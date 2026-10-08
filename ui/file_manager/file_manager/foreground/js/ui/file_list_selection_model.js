@@ -1,11 +1,8 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ListSelectionModel} from './list_selection_model.js';
-import {ListSingleSelectionModel} from './list_single_selection_model.js';
-
-export class FileListSelectionModel extends ListSelectionModel {
+class FileListSelectionModel extends cr.ui.ListSelectionModel {
   /** @param {number=} opt_length The number items in the selection. */
   constructor(opt_length) {
     super(opt_length);
@@ -95,7 +92,7 @@ export class FileListSelectionModel extends ListSelectionModel {
   }
 }
 
-export class FileListSingleSelectionModel extends ListSingleSelectionModel {
+class FileListSingleSelectionModel extends cr.ui.ListSingleSelectionModel {
   /**
    * Updates the check-select mode.
    * @param {boolean} enabled True if check-select mode should be enabled.

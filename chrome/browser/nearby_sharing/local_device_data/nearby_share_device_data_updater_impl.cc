@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -100,11 +100,11 @@ void NearbyShareDeviceDataUpdaterImpl::OnRpcFailure(
   timer_.Stop();
   client_.reset();
   RecordResultMetrics(NearbyShareHttpErrorToResult(error));
-  FinishAttempt(/*response=*/absl::nullopt);
+  FinishAttempt(/*response=*/base::nullopt);
 }
 
 void NearbyShareDeviceDataUpdaterImpl::OnTimeout() {
   client_.reset();
   RecordResultMetrics(NearbyShareHttpResult::kTimeout);
-  FinishAttempt(/*response=*/absl::nullopt);
+  FinishAttempt(/*response=*/base::nullopt);
 }

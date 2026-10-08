@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,69 +6,34 @@
 
 #include "base/bit_cast.h"
 #include "base/rand_util.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 #include <cmath>
 
 namespace blink {
 
-namespace {
-const int64_t kTenLowerDigitsMod = 10000000000;
-}  // namespace
-
 TimeClamper::TimeClamper() : secret_(base::RandUint64()) {}
 
-// This is using int64 for timestamps, because https://bit.ly/doubles-are-bad
-base::TimeDelta TimeClamper::ClampTimeResolution(
-    base::TimeDelta time,
-    bool cross_origin_isolated_capability) const {
-  int64_t time_microseconds = time.InMicroseconds();
+double TimeClamper::ClampTimeResolution(double time_seconds) const {
   bool was_negative = false;
-
-  // If the input time is negative, turn it to a positive one and keep track of
-  // that.
-  if (time_microseconds < 0) {
+  if (time_seconds < 0) {
     was_negative = true;
-    time_microseconds = -time_microseconds;
+    time_seconds = -time_seconds;
   }
+  double interval = floor(time_seconds / kResolutionSeconds);
+  double clamped_time = interval * kResolutionSeconds;
+  double tick_threshold = ThresholdFor(clamped_time);
 
-  // Split the time_microseconds to lower and upper digits to prevent uniformity
-  // distortion in large numbers. We will clamp the lower digits portion and
-  // later add on the upper digits portion.
-  int64_t time_lower_digits = time_microseconds % kTenLowerDigitsMod;
-  int64_t time_upper_digits = time_microseconds - time_lower_digits;
-
-  // Determine resolution based on the context's cross-origin isolation
-  // capability. https://w3c.github.io/hr-time/#dfn-coarsen-time
-  int resolution = cross_origin_isolated_capability
-                       ? kFineResolutionMicroseconds
-                       : kCoarseResolutionMicroseconds;
-
-  // Clamped the time based on the resolution.
-  int64_t clamped_time = time_lower_digits - time_lower_digits % resolution;
-
-  // Determine if the clamped number should be clamped up, rather than down.
-  // The threshold to determine that is a random number smaller than resolution,
-  // such that the probability of clamped time being clamped up rather than
-  // down is proportional to its distance from the clamped_down time.
-  // As such it remains a double, in order to guarantee that distribution,
-  // and the clamping's uniformity.
-  double tick_threshold = ThresholdFor(clamped_time, resolution);
-  if (time_lower_digits >= tick_threshold)
-    clamped_time += resolution;
-
-  // Add back the upper digits portion.
-  clamped_time += time_upper_digits;
-
-  // Flip the number back to being negative if it started that way.
+  if (time_seconds >= tick_threshold)
+    clamped_time = (interval + 1) * kResolutionSeconds;
   if (was_negative)
     clamped_time = -clamped_time;
-  return base::Microseconds(clamped_time);
+  return clamped_time;
 }
 
-inline double TimeClamper::ThresholdFor(int64_t clamped_time,
-                                        int resolution) const {
-  uint64_t time_hash = MurmurHash3(clamped_time ^ secret_);
-  return clamped_time + resolution * ToDouble(time_hash);
+inline double TimeClamper::ThresholdFor(double clamped_time) const {
+  uint64_t time_hash = MurmurHash3(bit_cast<int64_t>(clamped_time) ^ secret_);
+  return clamped_time + kResolutionSeconds * ToDouble(time_hash);
 }
 
 // static
@@ -77,7 +42,7 @@ inline double TimeClamper::ToDouble(uint64_t value) {
   static const uint64_t kExponentBits = uint64_t{0x3FF0000000000000};
   static const uint64_t kMantissaMask = uint64_t{0x000FFFFFFFFFFFFF};
   uint64_t random = (value & kMantissaMask) | kExponentBits;
-  return base::bit_cast<double>(random) - 1;
+  return bit_cast<double>(random) - 1;
 }
 
 // static

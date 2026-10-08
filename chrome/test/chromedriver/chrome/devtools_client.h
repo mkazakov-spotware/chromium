@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,10 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/values.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 class DevToolsEventListener;
 class Timeout;
@@ -26,59 +29,44 @@ class DevToolsClient {
 
   virtual const std::string& GetId() = 0;
 
-  // Session id used to annotate the CDP commands.
-  virtual const std::string& SessionId() const = 0;
-
-  // Session id used for CDP traffic tunneling
-  virtual const std::string& TunnelSessionId() const = 0;
-
-  // Set the session id used for CDP traffic tunneling
-  virtual Status SetTunnelSessionId(std::string session_id) = 0;
-
-  // Start a BiDi Server in the connected target
-  // Precondition: IsMainPage()
-  // Precondition: IsConnected()
-  // Precondition: BiDi tunnel for CDP traffic is not set.
-  virtual Status StartBidiServer(std::string bidi_mapper_script) = 0;
-
   virtual bool WasCrashed() = 0;
-
-  virtual bool IsNull() const = 0;
 
   // Connect to DevTools if the DevToolsClient is disconnected.
   virtual Status ConnectIfNecessary() = 0;
 
-  virtual Status PostBidiCommand(base::Value::Dict command) = 0;
+  virtual Status SetUpDevTools() = 0;
 
-  virtual Status SendCommand(const std::string& method,
-                             const base::Value::Dict& params) = 0;
+  virtual Status SendCommand(
+      const std::string& method,
+      const base::DictionaryValue& params) = 0;
 
   virtual Status SendCommandFromWebSocket(const std::string& method,
-                                          const base::Value::Dict& params,
+                                          const base::DictionaryValue& params,
                                           const int client_command_id) = 0;
 
-  virtual Status SendCommandWithTimeout(const std::string& method,
-                                        const base::Value::Dict& params,
-                                        const Timeout* timeout) = 0;
+  virtual Status SendCommandWithTimeout(
+      const std::string& method,
+      const base::DictionaryValue& params,
+      const Timeout* timeout) = 0;
 
-  virtual Status SendAsyncCommand(const std::string& method,
-                                  const base::Value::Dict& params) = 0;
+  virtual Status SendAsyncCommand(
+      const std::string& method,
+      const base::DictionaryValue& params) = 0;
 
-  // A base::Value(base::Value::Type::DICTIONARY) gets assigned to |result|.
-  virtual Status SendCommandAndGetResult(const std::string& method,
-                                         const base::Value::Dict& params,
-                                         base::Value* result) = 0;
+  virtual Status SendCommandAndGetResult(
+      const std::string& method,
+      const base::DictionaryValue& params,
+      std::unique_ptr<base::DictionaryValue>* result) = 0;
 
-  // A base::Value(base::Value::Type::DICTIONARY) gets assigned to |result|.
   virtual Status SendCommandAndGetResultWithTimeout(
       const std::string& method,
-      const base::Value::Dict& params,
+      const base::DictionaryValue& params,
       const Timeout* timeout,
-      base::Value* result) = 0;
+      std::unique_ptr<base::DictionaryValue>* result) = 0;
 
   virtual Status SendCommandAndIgnoreResponse(
       const std::string& method,
-      const base::Value::Dict& params) = 0;
+      const base::DictionaryValue& params) = 0;
 
   // Adds a listener. This must only be done when the client is disconnected.
   virtual void AddListener(DevToolsEventListener* listener) = 0;
@@ -100,13 +88,9 @@ class DevToolsClient {
   // Set the owning WebViewImpl, if any.
   virtual void SetOwner(WebViewImpl* owner) = 0;
 
-  virtual WebViewImpl* GetOwner() const = 0;
-
   virtual DevToolsClient* GetRootClient() = 0;
 
-  virtual DevToolsClient* GetParentClient() const = 0;
-
-  virtual bool IsMainPage() const = 0;
+  virtual bool IsMainPage();
 };
 
 #endif  // CHROME_TEST_CHROMEDRIVER_CHROME_DEVTOOLS_CLIENT_H_

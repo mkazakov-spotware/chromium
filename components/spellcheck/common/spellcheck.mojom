@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -74,6 +74,12 @@ interface SpellCheckHost {
   [EnableIf=USE_BROWSER_SPELLCHECKER, Sync]
   FillSuggestionList(mojo_base.mojom.String16 word) =>
       (array<mojo_base.mojom.String16> suggestions);
+
+  // Returns a list of suggestions for each spellcheck language for a given word
+  // with a platform-specific spell checker.
+  [EnableIf=is_win, Sync]
+  GetPerLanguageSuggestions(mojo_base.mojom.String16 word) =>
+      (array<array<mojo_base.mojom.String16>> suggestions);
 
   // Completes initialization of the spellcheck service by loading dictionaries.
   [EnableIf=is_win]

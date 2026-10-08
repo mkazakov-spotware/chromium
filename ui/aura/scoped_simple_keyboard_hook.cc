@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include <utility>
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 
 namespace aura {
 
 ScopedSimpleKeyboardHook::ScopedSimpleKeyboardHook(
-    absl::optional<base::flat_set<ui::DomCode>> dom_codes)
+    base::Optional<base::flat_set<ui::DomCode>> dom_codes)
     : dom_codes_(std::move(dom_codes)) {}
 
 ScopedSimpleKeyboardHook::~ScopedSimpleKeyboardHook() = default;

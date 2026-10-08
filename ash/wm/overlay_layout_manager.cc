@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,12 @@ namespace ash {
 OverlayLayoutManager::OverlayLayoutManager(aura::Window* overlay_container)
     : overlay_container_(overlay_container) {
   DCHECK(overlay_container_);
+  Screen::GetScreen()->AddObserver(this);
 }
 
-OverlayLayoutManager::~OverlayLayoutManager() = default;
+OverlayLayoutManager::~OverlayLayoutManager() {
+  Screen::GetScreen()->RemoveObserver(this);
+}
 
 void OverlayLayoutManager::OnDisplayMetricsChanged(
     const display::Display& display,

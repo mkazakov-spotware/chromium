@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,6 +55,10 @@ class VideoPlayerView {
 
     void showLoadingAnimation(boolean show) {
         mLoadingView.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
+    void showMediaControls(boolean show) {
+        mControls.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     void showLanguagePicker(boolean show) {

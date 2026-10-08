@@ -1,34 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-
-import {FakeEntryImpl} from '../../common/js/files_app_entry_types.js';
-import {str, strf} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {Crostini} from '../../externs/background/crostini.js';
-
-import {constants} from './constants.js';
-import {DirectoryModel} from './directory_model.js';
-import {CommandHandler} from './file_manager_commands.js';
-import {NavigationModelFakeItem, NavigationModelItemType} from './navigation_list_model.js';
-import {DirectoryTree} from './ui/directory_tree.js';
 
 /**
  * CrostiniController handles the foreground UI relating to crostini.
  */
-export class CrostiniController {
+class CrostiniController {
   /**
    * @param {!Crostini} crostini Crostini background object.
+   * @param {!FilesMessage} filesMessage FilesMessage.
    * @param {!DirectoryModel} directoryModel DirectoryModel.
    * @param {!DirectoryTree} directoryTree DirectoryTree.
-   * @param {boolean} disabled Whether the Crostini item should be disabled.
-   *     Defaults to false.
    */
-  constructor(crostini, directoryModel, directoryTree, disabled = false) {
+  constructor(crostini, filesMessage, directoryModel, directoryTree) {
     /** @private @const */
     this.crostini_ = crostini;
+
+    /** @private @const */
+    this.filesMessage_ = filesMessage;
 
     /** @private @const */
     this.directoryModel_ = directoryModel;
@@ -42,10 +31,8 @@ export class CrostiniController {
     /** @private */
     this.entrySharedWithPluginVm_ = false;
 
-    /**
-     * @private @const {boolean}
-     */
-    this.disabled_ = disabled;
+    directoryModel.addEventListener(
+        'directory-changed', () => this.maybeShowSharedMessage());
   }
 
   /**
@@ -53,18 +40,14 @@ export class CrostiniController {
    */
   async redraw() {
     // Setup Linux files fake root.
-    let crostiniNavigationModelItem;
-    if (this.crostini_.isEnabled(constants.DEFAULT_CROSTINI_VM)) {
-      crostiniNavigationModelItem = new NavigationModelFakeItem(
-          str('LINUX_FILES_ROOT_LABEL'), NavigationModelItemType.CROSTINI,
-          new FakeEntryImpl(
-              str('LINUX_FILES_ROOT_LABEL'),
-              VolumeManagerCommon.RootType.CROSTINI));
-      crostiniNavigationModelItem.disabled = this.disabled_;
-    } else {
-      crostiniNavigationModelItem = null;
-    }
-    this.directoryTree_.dataModel.linuxFilesItem = crostiniNavigationModelItem;
+    this.directoryTree_.dataModel.linuxFilesItem =
+        this.crostini_.isEnabled(constants.DEFAULT_CROSTINI_VM) ?
+        new NavigationModelFakeItem(
+            str('LINUX_FILES_ROOT_LABEL'), NavigationModelItemType.CROSTINI,
+            new FakeEntryImpl(
+                str('LINUX_FILES_ROOT_LABEL'),
+                VolumeManagerCommon.RootType.CROSTINI)) :
+        null;
     // Redraw the tree to ensure 'Linux files' is added/removed.
     this.directoryTree_.redraw(false);
   }
@@ -105,35 +88,70 @@ export class CrostiniController {
         callback: () => {
           chrome.fileManagerPrivate.openSettingsSubpage(subPage);
           CommandHandler.recordMenuItemSelected(umaItem);
-        },
+        }
       });
     };
 
-    const [crostiniShareCount, pluginVmShareCount, bruschettaVmShareCount] =
-        await Promise.all([
-          getSharedPaths(constants.DEFAULT_CROSTINI_VM),
-          getSharedPaths(constants.PLUGIN_VM),
-          getSharedPaths(constants.DEFAULT_BRUSCHETTA_VM),
-        ]);
+    const [crostiniShareCount, pluginVmShareCount] = await Promise.all([
+      getSharedPaths(constants.DEFAULT_CROSTINI_VM),
+      getSharedPaths(constants.PLUGIN_VM)
+    ]);
 
-    // Toasts are queued and shown one-at-a-time if multiple apply.
-    // TODO(b/260521400): Or at least, they will once this bug is fixed.
     toast(
         crostiniShareCount, 'FOLDER_SHARED_WITH_CROSTINI',
         'FOLDER_SHARED_WITH_CROSTINI_PLURAL', 'MANAGE_TOAST_BUTTON_LABEL',
         'crostini/sharedPaths',
         CommandHandler.MenuCommandsForUMA.MANAGE_LINUX_SHARING_TOAST_STARTUP);
+    // TODO(crbug.com/949356): UX to provide guidance for what to do
+    // when we have shared paths with both Linux and Plugin VM.
     toast(
         pluginVmShareCount, 'FOLDER_SHARED_WITH_PLUGIN_VM',
         'FOLDER_SHARED_WITH_PLUGIN_VM_PLURAL', 'MANAGE_TOAST_BUTTON_LABEL',
         'app-management/pluginVm/sharedPaths',
         CommandHandler.MenuCommandsForUMA
             .MANAGE_PLUGIN_VM_SHARING_TOAST_STARTUP);
-    toast(
-        bruschettaVmShareCount, 'FOLDER_SHARED_WITH_BRUSCHETTA',
-        'FOLDER_SHARED_WITH_BRUSCHETTA_PLURAL', 'MANAGE_TOAST_BUTTON_LABEL',
-        'bruschetta/sharedPaths',
-        CommandHandler.MenuCommandsForUMA
-            .MANAGE_BRUSCHETTA_SHARING_TOAST_STARTUP);
+  }
+
+  maybeShowSharedMessage() {
+    const entry =
+        /** @type {Entry} */ (this.directoryModel_.getCurrentDirEntry());
+    if (!entry) {
+      return;
+    }
+    const sharedWithCrostini = this.crostini_.isPathShared('termina', entry);
+    const sharedWithPluginVm = this.crostini_.isPathShared('PvmDefault', entry);
+    if (sharedWithCrostini == this.entrySharedWithCrostini_ &&
+        sharedWithPluginVm == this.entrySharedWithPluginVm_) {
+      return;
+    }
+    this.entrySharedWithCrostini_ = sharedWithCrostini;
+    this.entrySharedWithPluginVm_ = sharedWithPluginVm;
+
+    let msg = '';
+    let subpage = '';
+    if (sharedWithCrostini && sharedWithPluginVm) {
+      msg = 'MESSAGE_FOLDER_SHARED_WITH_CROSTINI_AND_PLUGIN_VM';
+      subpage = 'app-management/pluginVm/sharedPaths';
+    } else if (sharedWithCrostini) {
+      msg = 'MESSAGE_FOLDER_SHARED_WITH_CROSTINI';
+      subpage = 'crostini/sharedPaths';
+    } else if (sharedWithPluginVm) {
+      msg = 'MESSAGE_FOLDER_SHARED_WITH_PLUGIN_VM';
+      subpage = 'app-management/pluginVm/sharedPaths';
+    } else {
+      this.filesMessage_.hidden = true;
+      return;
+    }
+
+    this.filesMessage_.setContent({
+      message: str(msg),
+      action: str('MANAGE_TOAST_BUTTON_LABEL'),
+      hidden: false,
+    });
+    this.filesMessage_.setSignalCallback((signal) => {
+      if (signal === 'action') {
+        chrome.fileManagerPrivate.openSettingsSubpage(subpage);
+      }
+    });
   }
 }

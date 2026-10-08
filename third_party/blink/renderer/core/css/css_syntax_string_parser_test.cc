@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,20 +11,20 @@ namespace blink {
 
 class CSSSyntaxStringParserTest : public testing::Test {
  public:
-  absl::optional<CSSSyntaxComponent> ParseSingleComponent(
+  base::Optional<CSSSyntaxComponent> ParseSingleComponent(
       const String& syntax) {
     auto definition = CSSSyntaxStringParser(syntax).Parse();
     if (!definition)
-      return absl::nullopt;
+      return base::nullopt;
     if (definition->Components().size() != 1)
-      return absl::nullopt;
+      return base::nullopt;
     return definition->Components()[0];
   }
 
-  absl::optional<CSSSyntaxType> ParseSingleType(const String& syntax) {
+  base::Optional<CSSSyntaxType> ParseSingleType(const String& syntax) {
     auto component = ParseSingleComponent(syntax);
-    return component ? absl::make_optional(component->GetType())
-                     : absl::nullopt;
+    return component ? base::make_optional(component->GetType())
+                     : base::nullopt;
   }
 
   String ParseSingleIdent(const String& syntax) {

@@ -1,10 +1,6 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {str, util} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {FakeEntry, FilesAppEntry} from '../../externs/files_app_entry_interfaces.js';
 
 /**
  * File path component.
@@ -15,7 +11,7 @@ import {FakeEntry, FilesAppEntry} from '../../externs/files_app_entry_interfaces
  * PathComponent.computeComponentsFromEntry computes an array of PathComponent
  * of the given entry.
  */
-export class PathComponent {
+class PathComponent {
   /**
    * @param {string} name Name.
    * @param {string} url Url.
@@ -87,17 +83,14 @@ export class PathComponent {
       components.push(new PathComponent(
           prefixEntry.name, prefixEntry.toURL(), prefixEntry));
     }
-    if (locationInfo.rootType ===
-        VolumeManagerCommon.RootType.DRIVE_SHARED_WITH_ME) {
-      // DriveFS shared items are in either of:
-      // <drivefs>/.files-by-id/<id>/<item>
-      // <drivefs>/.shortcut-targets-by-id/<id>/<item>
-      const match =
-          entry.fullPath.match(/^\/\.(files|shortcut-targets)-by-id\/.+?\//);
+    if (locationInfo.rootType === VolumeManagerCommon.RootType.DRIVE_OTHER) {
+      // When target path is a shared directory, volume should be shared with
+      // me.
+      const match = entry.fullPath.match(/\/\.files-by-id\/\d+\//);
       if (match) {
         displayRootFullPath = match[0];
       } else {
-        console.warn('Unexpected shared DriveFS path: ', entry.fullPath);
+        displayRootFullPath = '/other';
       }
       displayRootUrl = replaceRootName(displayRootUrl, displayRootFullPath);
       const sharedWithMeFakeEntry =
@@ -159,7 +152,7 @@ export class PathComponent {
         if (path === 'PvmDefault') {
           path = str('PLUGIN_VM_DIRECTORY_LABEL');
         }
-        if (path === 'Camera') {
+        if (util.isFilesCameraFolderEnabled() && path === 'Camera') {
           path = str('CAMERA_DIRECTORY_LABEL');
         }
       }

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 #include <utility>
 
 #include "base/memory/ref_counted.h"
-#include "components/version_info/channel.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/features/feature_channel.h"
 #include "extensions/common/features/feature_session_type.h"
-#include "extensions/common/mojom/feature_session_type.mojom.h"
 #include "extensions/common/permissions/usb_device_permission.h"
 #include "extensions/common/permissions/usb_device_permission_data.h"
 #include "extensions/common/value_builder.h"
@@ -204,9 +202,8 @@ TEST(USBDevicePermissionTest, InterfaceClass) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     std::unique_ptr<UsbDevicePermission::CheckParam> param =
@@ -245,9 +242,8 @@ TEST(USBDevicePermissionTest, InterfaceClassWithVendorId) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     std::unique_ptr<UsbDevicePermission::CheckParam> param =
@@ -259,9 +255,8 @@ TEST(USBDevicePermissionTest, InterfaceClassWithVendorId) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     std::unique_ptr<UsbDevicePermission::CheckParam> param =
@@ -294,9 +289,8 @@ TEST(USBDevicePermissionTest, CheckHidUsbAgainstInterfaceClass) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     std::unique_ptr<UsbDevicePermission::CheckParam> param =
@@ -307,9 +301,8 @@ TEST(USBDevicePermissionTest, CheckHidUsbAgainstInterfaceClass) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     std::unique_ptr<UsbDevicePermission::CheckParam> param =
@@ -402,9 +395,8 @@ TEST(USBDevicePermissionTest, CheckDeviceAgainstDeviceClass) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =
@@ -416,9 +408,8 @@ TEST(USBDevicePermissionTest, CheckDeviceAgainstDeviceClass) {
     EXPECT_TRUE(permission_data.Check(param.get()));
   }
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =
@@ -441,9 +432,8 @@ TEST(USBDevicePermissionTest, IgnoreNullDeviceClass) {
       CreateTestApp(std::move(permission_data_value));
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =
@@ -478,9 +468,8 @@ TEST(USBDevicePermissionTest, CheckDeviceAgainstInterfaceClass) {
   {
     // Interface should match inactive configuration when none of configurations
     // is active.
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =
@@ -493,9 +482,8 @@ TEST(USBDevicePermissionTest, CheckDeviceAgainstInterfaceClass) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =
@@ -511,9 +499,8 @@ TEST(USBDevicePermissionTest, CheckDeviceAgainstInterfaceClass) {
   {
     // Interface should match inactive configuration when another configuration
     // is active.
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =
@@ -527,9 +514,8 @@ TEST(USBDevicePermissionTest, CheckDeviceAgainstInterfaceClass) {
   }
 
   {
-    std::unique_ptr<base::AutoReset<mojom::FeatureSessionType>>
-        scoped_session_type(
-            ScopedCurrentFeatureSessionType(mojom::FeatureSessionType::kKiosk));
+    std::unique_ptr<base::AutoReset<FeatureSessionType>> scoped_session_type(
+        ScopedCurrentFeatureSessionType(FeatureSessionType::KIOSK));
     ScopedCurrentChannel channel(version_info::Channel::DEV);
 
     scoped_refptr<device::FakeUsbDeviceInfo> device =

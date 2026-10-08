@@ -1,24 +1,23 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_H_
 #define COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_H_
 
-#include <string>
-
-#include "base/callback.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
-#include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/permissions/permission_request_enums.h"
-#include "components/permissions/request_type.h"
-#include "content/public/browser/global_routing_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
+namespace gfx {
+struct VectorIcon;
+}
+
 namespace permissions {
-enum class RequestType;
 
 // Describes the interface a feature making permission requests should
 // implement. A class of this type is registered with the permission request
@@ -30,94 +29,62 @@ enum class RequestType;
 // requests, or depending on the situation, not shown at all.
 class PermissionRequest {
  public:
-  // If `result` is CONTENT_SETTING_ALLOW, the permission was granted by the
-  // user. If it's CONTENT_SETTING_BLOCK, the permission was blocked by the
-  // user. If it's CONTENT_SETTING_DEFAULT, the permission was ignored or
-  // dismissed without an explicit decision. No other ContentSetting value will
-  // be passed into this callback.
-  // If `is_one_time` is true, the decision will last until all tabs of
-  // `requesting_origin_` are closed or navigated away from.
-  using PermissionDecidedCallback =
-      base::RepeatingCallback<void(ContentSetting /*result*/,
-                                   bool /*is_one_time*/,
-                                   bool /*is_final_decision*/)>;
-
-  // `permission_decided_callback` is called when the permission request is
-  // resolved by the user (see comment on PermissionDecidedCallback above).
-  // `delete_callback` is called when the permission request is no longer needed
-  // by the permission system. Therefore, it is safe to delete `this` inside
-  // `delete_callback`. It will always be called eventually by the permission
-  // system.
-  // `delete_callback` may be called before `permission_decided_callback`, for
-  // example if the tab is closed without user interaction. In this case, the
-  // javascript promise from the requesting origin will not be resolved.
-  PermissionRequest(const GURL& requesting_origin,
-                    RequestType request_type,
-                    bool has_gesture,
-                    PermissionDecidedCallback permission_decided_callback,
-                    base::OnceClosure delete_callback);
-
-  PermissionRequest(const PermissionRequest&) = delete;
-  PermissionRequest& operator=(const PermissionRequest&) = delete;
-
-  enum ChipTextType {
-    LOUD_REQUEST,
-    QUIET_REQUEST,
-    ALLOW_CONFIRMATION,
-    BLOCKED_CONFIRMATION,
-    ACCESSIBILITY_ALLOWED_CONFIRMATION,
-    ACCESSIBILITY_BLOCKED_CONFIRMATION
-  };
-
-  virtual ~PermissionRequest();
-
-  GURL requesting_origin() const { return requesting_origin_; }
-  RequestType request_type() const { return request_type_; }
-
-  // Whether |this| and |other_request| are duplicates and therefore don't both
-  // need to be shown in the UI.
-  virtual bool IsDuplicateOf(PermissionRequest* other_request) const;
-
-#if BUILDFLAG(IS_ANDROID)
-  // Returns prompt text appropriate for displaying in an Android dialog.
-  virtual std::u16string GetDialogMessageText() const;
+#if defined(OS_ANDROID)
+  // On Android, icons are represented with an IDR_ identifier.
+  typedef int IconId;
+#else
+  // On desktop, we use a vector icon.
+  typedef const gfx::VectorIcon& IconId;
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
-  // Returns whether displaying a confirmation chip for the request is
-  // supported.
-  bool IsConfirmationChipSupported();
+  PermissionRequest();
+  virtual ~PermissionRequest() {}
 
-  // Returns prompt icon appropriate for displaying on the chip button in the
-  // location bar.
-  IconId GetIconForChip();
+  // The icon to use next to the message text fragment in the permission bubble.
+  virtual IconId GetIconId() const = 0;
 
-  // Returns prompt icon appropriate for displaying on the quiet chip button in
-  // the location bar.
-  IconId GetBlockedIconForChip();
+#if defined(OS_ANDROID)
+  // Returns the full prompt text for this permission. This is currently only
+  // used on Android.
+  virtual base::string16 GetMessageText() const = 0;
 
-  // Returns prompt text appropriate for displaying on the chip button in the
-  // location bar.
-  absl::optional<std::u16string> GetRequestChipText(ChipTextType type) const;
+  // Returns the title of this permission as text when the permission request is
+  // displayed as a quiet prompt. Only used on Android. By default it returns
+  // the same value as |GetTitleText| unless overridden.
+  virtual base::string16 GetQuietTitleText() const;
 
-  // Returns prompt text appropriate for displaying under the dialog title
-  // "[domain] wants to:".
-  virtual std::u16string GetMessageTextFragment() const;
+  // Returns the full prompt text for this permission as text when the
+  // permission request is displayed as a quiet prompt. Only used on Android. By
+  // default it returns the same value as |GetMessageText| unless overridden.
+  virtual base::string16 GetQuietMessageText() const;
 #endif
+
+#if !defined(OS_ANDROID)
+  // Returns the short text for the chip button related to this permission.
+  virtual base::Optional<base::string16> GetChipText() const;
+#endif
+
+  // Returns the shortened prompt text for this permission. The permission
+  // bubble may coalesce different requests, and if it does, this text will
+  // be displayed next to an image and indicate the user grants the permission.
+  virtual base::string16 GetMessageTextFragment() const = 0;
+
+  // Get the origin on whose behalf this permission request is being made.
+  virtual GURL GetOrigin() const = 0;
 
   // Called when the user has granted the requested permission.
-  // If |is_one_time| is true the permission will last until all tabs of
-  // |origin| are closed or navigated away from, and then the permission will
+  // If is_one_time is true the permission will last until all tabs of a given
+  // |origin| are closed or navigated away from. The permission will
   // automatically expire after 1 day.
-  void PermissionGranted(bool is_one_time);
+  virtual void PermissionGranted(bool is_one_time) = 0;
 
   // Called when the user has denied the requested permission.
-  void PermissionDenied();
+  virtual void PermissionDenied() = 0;
 
   // Called when the user has cancelled the permission request. This
   // corresponds to a denial, but is segregated in case the context needs to
   // be able to distinguish between an active refusal or an implicit refusal.
-  void Cancelled(bool is_final_decision = true);
+  virtual void Cancelled() = 0;
 
   // The UI this request was associated with was answered by the user.
   // It is safe for the request to be deleted at this point -- it will receive
@@ -126,43 +93,22 @@ class PermissionRequest {
   // It is ok to call this method without actually resolving the request via
   // PermissionGranted(), PermissionDenied() or Canceled(). However, it will not
   // resolve the javascript promise from the requesting origin.
-  void RequestFinished();
+  virtual void RequestFinished() = 0;
+
+  // Used to record UMA metrics for permission requests.
+  virtual PermissionRequestType GetPermissionRequestType() const = 0;
 
   // Used to record UMA for whether requests are associated with a user gesture.
   // To keep things simple this metric is only recorded for the most popular
   // request types.
-  PermissionRequestGestureType GetGestureType() const;
+  virtual PermissionRequestGestureType GetGestureType() const;
 
   // Used on Android to determine what Android OS permissions are needed for
   // this permission request.
-  ContentSettingsType GetContentSettingsType() const;
-
-  void set_requesting_frame_id(content::GlobalRenderFrameHostId id) {
-    request_frame_id_ = id;
-  }
-
-  content::GlobalRenderFrameHostId& get_requesting_frame_id() {
-    return request_frame_id_;
-  }
+  virtual ContentSettingsType GetContentSettingsType() const;
 
  private:
-  content::GlobalRenderFrameHostId request_frame_id_;
-
-  // The origin on whose behalf this permission request is being made.
-  GURL requesting_origin_;
-
-  // The type of this request.
-  RequestType request_type_;
-
-  // Whether the request was associated with a user gesture.
-  bool has_gesture_;
-
-  // Called once a decision is made about the permission.
-  PermissionDecidedCallback permission_decided_callback_;
-
-  // Called when the request is no longer in use so it can be deleted by the
-  // caller.
-  base::OnceClosure delete_callback_;
+  DISALLOW_COPY_AND_ASSIGN(PermissionRequest);
 };
 
 }  // namespace permissions

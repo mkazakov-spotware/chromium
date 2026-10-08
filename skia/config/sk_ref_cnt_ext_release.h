@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SKIA_CONFIG_SK_REF_CNT_EXT_RELEASE_H_
-#define SKIA_CONFIG_SK_REF_CNT_EXT_RELEASE_H_
+#ifndef SK_REF_CNT_EXT_RELEASE_H_
+#define SK_REF_CNT_EXT_RELEASE_H_
 
-#ifdef SKIA_CONFIG_SK_REF_CNT_EXT_DEBUG_H_
+#ifdef SK_REF_CNT_EXT_DEBUG_H_
 #error Only one SkRefCnt should be used.
 #endif
 
@@ -23,4 +23,5 @@ inline void RequireAdoption(const SkRefCnt* object) {}
 using WTF::Adopted;
 using WTF::RequireAdoption;
 
-#endif  // SKIA_CONFIG_SK_REF_CNT_EXT_RELEASE_H_
+#endif
+

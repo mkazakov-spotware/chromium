@@ -1,8 +1,7 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
 #include <vector>
 
 #include "base/bind.h"
@@ -10,15 +9,13 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/chrome_zipfile_installer.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/load_error_reporter.h"
@@ -37,9 +34,9 @@
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/users/scoped_test_user_manager.h"
-#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#include "chrome/browser/chromeos/settings/scoped_cros_settings_test_helper.h"
 #endif
 
 namespace extensions {
@@ -58,11 +55,12 @@ struct MockExtensionRegistryObserver : public ExtensionRegistryObserver {
       // timing-out.
       // TODO(jcivelli): make LoadErrorReporter::Observer report installation
       // failures for packaged extensions so we don't have to poll.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(100));
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+          FROM_HERE, run_loop.QuitClosure(),
+          base::TimeDelta::FromMilliseconds(100));
       quit_closure = run_loop.QuitClosure();
       run_loop.Run();
-      const std::vector<std::u16string>* errors = error_reporter->GetErrors();
+      const std::vector<base::string16>* errors = error_reporter->GetErrors();
       if (!errors->empty()) {
         if (!expect_error) {
           FAIL() << "Error(s) happened when unzipping extension: "
@@ -82,11 +80,11 @@ struct MockExtensionRegistryObserver : public ExtensionRegistryObserver {
                             const Extension* extension,
                             bool is_update) override {
     last_extension_installed = extension->id();
-    std::move(quit_closure).Run();
+    quit_closure.Run();
   }
 
   std::string last_extension_installed;
-  base::OnceClosure quit_closure;
+  base::Closure quit_closure;
 };
 
 struct UnzipFileFilterTestCase {
@@ -104,13 +102,13 @@ class ZipFileInstallerTest : public testing::Test {
   void SetUp() override {
     extensions::LoadErrorReporter::Init(/*enable_noisy_errors=*/false);
 
-    in_process_utility_thread_helper_ =
-        std::make_unique<content::InProcessUtilityThreadHelper>();
+    in_process_utility_thread_helper_.reset(
+        new content::InProcessUtilityThreadHelper);
     unzip::SetUnzipperLaunchOverrideForTesting(
         base::BindRepeating(&unzip::LaunchInProcessUnzipper));
 
     // Create profile for extension service.
-    profile_ = std::make_unique<TestingProfile>();
+    profile_.reset(new TestingProfile());
     TestExtensionSystem* system =
         static_cast<TestExtensionSystem*>(ExtensionSystem::Get(profile_.get()));
     extension_service_ = system->CreateExtensionService(
@@ -141,7 +139,7 @@ class ZipFileInstallerTest : public testing::Test {
         GetExtensionFileTaskRunner(),
         MakeRegisterInExtensionServiceCallback(extension_service_));
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&ZipFileInstaller::LoadFromZipFile,
                                   zipfile_installer_, original_path));
     observer_.WaitForInstall(expect_error);
@@ -162,17 +160,17 @@ class ZipFileInstallerTest : public testing::Test {
   scoped_refptr<ZipFileInstaller> zipfile_installer_;
 
   std::unique_ptr<TestingProfile> profile_;
-  raw_ptr<ExtensionService> extension_service_;
+  ExtensionService* extension_service_;
 
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<content::InProcessUtilityThreadHelper>
       in_process_utility_thread_helper_;
   MockExtensionRegistryObserver observer_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
+#if defined(OS_CHROMEOS)
+  chromeos::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
   // ChromeOS needs a user manager to instantiate an extension service.
-  ash::ScopedTestUserManager test_user_manager_;
+  chromeos::ScopedTestUserManager test_user_manager_;
 #endif
 
  private:

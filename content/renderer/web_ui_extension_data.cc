@@ -1,31 +1,27 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/renderer/web_ui_extension_data.h"
 
-#include <utility>
-
-#include "base/memory/ptr_util.h"
+#include "content/common/frame_messages.h"
 #include "content/public/renderer/render_frame.h"
-#include "mojo/public/cpp/bindings/self_owned_associated_receiver.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 
 namespace content {
 
-// static
-void WebUIExtensionData::Create(
-    RenderFrame* render_frame,
-    mojo::PendingAssociatedReceiver<mojom::WebUI> receiver,
-    mojo::PendingAssociatedRemote<mojom::WebUIHost> remote) {
-  mojo::MakeSelfOwnedAssociatedReceiver(
-      base::WrapUnique(new WebUIExtensionData(render_frame, std::move(remote))),
+void WebUIExtensionData::Create(RenderFrame* render_frame,
+                                mojo::PendingReceiver<mojom::WebUI> receiver,
+                                mojo::PendingRemote<mojom::WebUIHost> remote) {
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<WebUIExtensionData>(render_frame, std::move(remote)),
       std::move(receiver));
 }
 
 WebUIExtensionData::WebUIExtensionData(
     RenderFrame* render_frame,
-    mojo::PendingAssociatedRemote<mojom::WebUIHost> remote)
+    mojo::PendingRemote<mojom::WebUIHost> remote)
     : RenderFrameObserver(render_frame),
       RenderFrameObserverTracker<WebUIExtensionData>(render_frame),
       remote_(std::move(remote)) {}
@@ -40,15 +36,13 @@ std::string WebUIExtensionData::GetValue(const std::string& key) const {
 }
 
 void WebUIExtensionData::SendMessage(const std::string& message,
-                                     base::Value::List args) {
-  remote_->Send(message, std::move(args));
+                                     std::unique_ptr<base::ListValue> args) {
+  remote_->Send(message, std::move(*args));
 }
 
 void WebUIExtensionData::SetProperty(const std::string& name,
                                      const std::string& value) {
   variable_map_[name] = value;
 }
-
-void WebUIExtensionData::OnDestruct() {}
 
 }  // namespace content

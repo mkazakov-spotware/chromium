@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/process/kill.h"
 #include "base/process/process_handle.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "components/sessions/core/session_id.h"
 #include "third_party/blink/public/common/web_cache/web_cache_resource_type_stats.h"
@@ -55,24 +57,19 @@ class Task {
     DEDICATED_WORKER, /* A dedicated worker running on the renderer process. */
     SHARED_WORKER,    /* A shared worker running on the renderer process. */
     SERVICE_WORKER,   /* A service worker running on the renderer process. */
-
-    /* Lacros task. */
-    LACROS, /* A task from lacros-chrome */
   };
 
   // Create a task with the given |title| and the given favicon |icon|. This
   // task runs on a process whose handle is |handle|.
   // If |process_id| is not supplied, it will be determined by |handle|.
-  Task(const std::u16string& title,
+  Task(const base::string16& title,
        const gfx::ImageSkia* icon,
        base::ProcessHandle handle,
        base::ProcessId process_id = base::kNullProcessId);
-  Task(const Task&) = delete;
-  Task& operator=(const Task&) = delete;
   virtual ~Task();
 
   // Gets the name of the given |profile| from the ProfileAttributesStorage.
-  static std::u16string GetProfileNameFromProfile(Profile* profile);
+  static base::string16 GetProfileNameFromProfile(Profile* profile);
 
   // Activates this TaskManager's task by bringing its container to the front
   // (if possible).
@@ -124,7 +121,7 @@ class Task {
                                     int* out_error_code) const;
 
   // The name of the profile owning this task.
-  virtual std::u16string GetProfileName() const;
+  virtual base::string16 GetProfileName() const;
 
   // Returns the unique ID of the tab if this task represents a renderer
   // WebContents used for a tab. Returns SessionID::InvalidValue() if this task
@@ -159,18 +156,23 @@ class Task {
   // Returns true if the task is running inside a VM.
   virtual bool IsRunningInVM() const;
 
+  int64_t task_id() const { return task_id_; }
+
   // Returns the instantaneous rate, in bytes per second, of network usage
   // (sent and received), as measured over the last refresh cycle.
-  virtual int64_t GetNetworkUsageRate() const;
+  int64_t network_usage_rate() const {
+    return network_sent_rate_ + network_read_rate_;
+  }
 
   // Returns the cumulative number of bytes of network use (sent and received)
   // over the tasks lifetime. It is calculated independently of refreshes and
   // is based on the current |cumulative_bytes_read_| and
   // |cumulative_bytes_sent_|.
-  virtual int64_t GetCumulativeNetworkUsage() const;
+  int64_t cumulative_network_usage() const {
+    return cumulative_bytes_sent_ + cumulative_bytes_read_;
+  }
 
-  int64_t task_id() const { return task_id_; }
-  const std::u16string& title() const { return title_; }
+  const base::string16& title() const { return title_; }
   const gfx::ImageSkia& icon() const { return icon_; }
   const base::ProcessHandle& process_handle() const { return process_handle_; }
   const base::ProcessId& process_id() const { return process_id_; }
@@ -180,7 +182,7 @@ class Task {
   // |id| from the resource database and put in |*result_image|.
   // Returns |*result_image|.
   static gfx::ImageSkia* FetchIcon(int id, gfx::ImageSkia** result_image);
-  void set_title(const std::u16string& new_title) { title_ = new_title; }
+  void set_title(const base::string16& new_title) { title_ = new_title; }
   void set_icon(const gfx::ImageSkia& new_icon) { icon_ = new_icon; }
 
  private:
@@ -214,7 +216,7 @@ class Task {
   int64_t network_read_rate_;
 
   // The title of the task.
-  std::u16string title_;
+  base::string16 title_;
 
   // The favicon.
   gfx::ImageSkia icon_;
@@ -224,6 +226,8 @@ class Task {
 
   // The PID of the process on which this task is running.
   base::ProcessId process_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(Task);
 };
 
 }  // namespace task_manager

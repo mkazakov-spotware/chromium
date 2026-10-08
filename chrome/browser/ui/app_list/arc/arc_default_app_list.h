@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@
 #include "base/callback.h"
 #include "base/files/file_path.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/browser/ash/arc/session/arc_session_manager_observer.h"
+#include "chrome/browser/chromeos/arc/session/arc_session_manager_observer.h"
 
 class Profile;
 
@@ -79,6 +79,8 @@ class ArcDefaultAppList : public arc::ArcSessionManagerObserver {
   bool HasHiddenPackage(const std::string& package_name) const;
   // Marks default app |app_id| as hidden in case |hidden| is true.
   void SetAppHidden(const std::string& app_id, bool hidden);
+  // Marks all default apps from the package |package_name| as hidden.
+  void SetAppsHiddenForPackage(const std::string& package_name);
 
   // Returns map of apps that are visible and not filtered.
   std::map<std::string, const AppInfo*> GetActiveApps() const;

@@ -1,15 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_DEVICE_ORIENTATION_DEVICE_SENSOR_EVENT_PUMP_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_DEVICE_ORIENTATION_DEVICE_SENSOR_EVENT_PUMP_H_
 
-#include "base/time/time.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/device/public/mojom/sensor_provider.mojom-blink.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
 #include "third_party/blink/renderer/platform/timer.h"
@@ -26,11 +25,11 @@ class MODULES_EXPORT DeviceSensorEventPump : public GarbageCollectedMixin {
       base::Time::kMicrosecondsPerSecond / kDefaultPumpFrequencyHz;
 
   // The pump is a tri-state automaton with allowed transitions as follows:
-  // kStopped -> kPendingStart
-  // kPendingStart -> kRunning
-  // kPendingStart -> kStopped
-  // kRunning -> kStopped
-  enum class PumpState { kStopped, kRunning, kPendingStart };
+  // STOPPED -> PENDING_START
+  // PENDING_START -> RUNNING
+  // PENDING_START -> STOPPED
+  // RUNNING -> STOPPED
+  enum class PumpState { STOPPED, RUNNING, PENDING_START };
 
   void HandleSensorProviderError();
 
@@ -67,7 +66,9 @@ class MODULES_EXPORT DeviceSensorEventPump : public GarbageCollectedMixin {
 
   virtual void DidStartIfPossible();
 
-  HeapMojoRemote<device::mojom::blink::SensorProvider> sensor_provider_;
+  HeapMojoRemote<device::mojom::blink::SensorProvider,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
+      sensor_provider_;
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
@@ -75,7 +76,7 @@ class MODULES_EXPORT DeviceSensorEventPump : public GarbageCollectedMixin {
   virtual bool SensorsReadyOrErrored() const = 0;
 
   PumpState state_;
-  HeapTaskRunnerTimer<DeviceSensorEventPump> timer_;
+  TaskRunnerTimer<DeviceSensorEventPump> timer_;
 };
 
 }  // namespace blink

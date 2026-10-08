@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/translate/translate_ranker_factory.h"
 
-#include "base/files/file_path.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/translate/core/browser/translate_ranker_impl.h"
 #include "content/public/browser/browser_context.h"
@@ -25,9 +26,9 @@ translate::TranslateRanker* TranslateRankerFactory::GetForBrowserContext(
 }
 
 TranslateRankerFactory::TranslateRankerFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "TranslateRanker",
-          ProfileSelections::BuildRedirectedInIncognito()) {}
+          BrowserContextDependencyManager::GetInstance()) {}
 
 TranslateRankerFactory::~TranslateRankerFactory() {}
 
@@ -36,6 +37,11 @@ KeyedService* TranslateRankerFactory::BuildServiceInstanceFor(
   return new TranslateRankerImpl(
       TranslateRankerImpl::GetModelPath(browser_context->GetPath()),
       TranslateRankerImpl::GetModelURL(), ukm::UkmRecorder::Get());
+}
+
+content::BrowserContext* TranslateRankerFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextRedirectedInIncognito(context);
 }
 
 }  // namespace translate

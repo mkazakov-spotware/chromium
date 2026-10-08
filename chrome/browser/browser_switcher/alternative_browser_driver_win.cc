@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include <wininet.h>
 
 #include "base/files/file_path.h"
-#include "base/logging.h"
 #include "base/process/launch.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
@@ -125,7 +124,7 @@ std::wstring GetBrowserLocation(const wchar_t* regkey_name) {
   return location;
 }
 
-const BrowserVarMapping* FindBrowserMapping(base::WStringPiece path,
+const BrowserVarMapping* FindBrowserMapping(base::StringPiece16 path,
                                             bool compare_typical_executable) {
   // If |compare_typical_executable| is true: also look at executable filenames,
   // to reduce false-negatives when the path is specified explicitly by the
@@ -195,7 +194,7 @@ bool IsInternetExplorer(base::StringPiece path) {
   // We don't treat IExplore.exe as Internet Explorer here. This way, admins can
   // set |AlternativeBrowserPath| to IExplore.exe to disable DDE, if it's
   // causing issues or slowness.
-  return path.empty() || base::EqualsASCII(base::as_u16cstr(kIEVarName), path);
+  return (path.empty() || base::EqualsASCII(kIExploreKey, path));
 }
 
 bool TryLaunchWithDde(const GURL& url, const std::string& path) {
@@ -205,10 +204,8 @@ bool TryLaunchWithDde(const GURL& url, const std::string& path) {
     return false;
 
   DWORD dde_instance = 0;
-  UINT dml_error =
-      DdeInitialize(&dde_instance, DdeCallback, CBF_FAIL_ALLSVRXACTIONS, 0);
-  if (dml_error != DMLERR_NO_ERROR) {
-    VLOG(1) << "DdeInitialize() failed: " << dml_error;
+  if (DdeInitialize(&dde_instance, DdeCallback, CBF_FAIL_ALLSVRXACTIONS, 0) !=
+      DMLERR_NO_ERROR) {
     return false;
   }
 
@@ -256,9 +253,6 @@ bool TryLaunchWithDde(const GURL& url, const std::string& path) {
       DdeDisconnect(activate_service_instance);
     }
   }
-  dml_error = ::DdeGetLastError(dde_instance);
-  if (dml_error != DMLERR_NO_ERROR)
-    VLOG(1) << "DDE error: " << dml_error;
   DdeUninitialize(dde_instance);
   return success;
 }

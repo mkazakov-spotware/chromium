@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,10 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
-#include "base/strings/string_piece.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/memory/ref_counted.h"
 
-namespace chromeos::system {
+namespace chromeos {
+namespace system {
 
 // Activation date key.
 COMPONENT_EXPORT(CHROMEOS_SYSTEM) extern const char kActivateDateKey[];
@@ -116,8 +116,6 @@ COMPONENT_EXPORT(CHROMEOS_SYSTEM) extern const char kRegionKey[];
 COMPONENT_EXPORT(CHROMEOS_SYSTEM) extern const char kInitialLocaleKey[];
 COMPONENT_EXPORT(CHROMEOS_SYSTEM) extern const char kInitialTimezoneKey[];
 COMPONENT_EXPORT(CHROMEOS_SYSTEM) extern const char kKeyboardLayoutKey[];
-COMPONENT_EXPORT(CHROMEOS_SYSTEM)
-extern const char kKeyboardMechanicalLayoutKey[];
 
 // The key that will be present in RO VPD to indicate what identifier is used
 // for attestation-based registration of a device.
@@ -131,65 +129,36 @@ COMPONENT_EXPORT(CHROMEOS_SYSTEM) extern const char kSerialNumberKeyForTest[];
 // This interface provides access to Chrome OS statistics.
 class COMPONENT_EXPORT(CHROMEOS_SYSTEM) StatisticsProvider {
  public:
-  // Represents the status of the VPD statistics source.
-  enum class VpdStatus {
-    kUnknown = 0,
-    kValid = 1,
-    kRoInvalid = 2,
-    kRwInvalid = 3,
-    kInvalid = 4
-  };
-
-  enum class FlagValue {
-    kUnset,
-    kTrue,
-    kFalse,
-  };
-
-  // Converts `value` to bool. Returns corresponding true or false, or
-  // `default_value` if unset.
-  static bool FlagValueToBool(FlagValue value, bool default_value);
-
   // Starts loading the machine statistics.
   virtual void StartLoadingMachineStatistics(bool load_oem_manifest) = 0;
 
-  // Schedules `callback` on the current sequence when machine statistics are
+  // Schedules |callback| on the current sequence when machine statistics are
   // loaded. That can be immediately if machine statistics are already loaded.
   virtual void ScheduleOnMachineStatisticsLoaded(
       base::OnceClosure callback) = 0;
 
-  // `GetMachineStatistic`, `GetMachineFlag` and `GetMachineID` will block if
-  // called before statistics have been loaded. To avoid this, call from a
-  // callback passed to ScheduleOnMachineStatisticsLoaded(). These methods are
-  // safe to call on any sequence. `StartLoadingMachineStatistics` must be
-  // called before these methods.
+  // GetMachineStatistic(), GetMachineFlag() and GetEnterpriseMachineId() will
+  // block if called before statistics have been loaded. To avoid this, call
+  // from a callback passed to ScheduleOnMachineStatisticsLoaded(). These
+  // methods are safe to call on any sequence. StartLoadingMachineStatistics()
+  // must be called before these methods.
 
-  // Returns statistic value if the named machine statistic (e.g.
-  // "hardware_class") is found. Returns nullopt otherwise.
-  // Once statistics are loaded, returned base::StringPiece will never become
-  // dangling as statistics are loaded only once and `StatisticsProvider` is
-  // a singleton.
-  virtual absl::optional<base::StringPiece> GetMachineStatistic(
-      base::StringPiece name) = 0;
+  // Returns true if the named machine statistic (e.g. "hardware_class") is
+  // found and stores it in |result| (if provided). Probing for the existence of
+  // a statistic by setting |result| to nullptr supresses the usual warning in
+  // case the statistic is not found.
+  virtual bool GetMachineStatistic(const std::string& name,
+                                   std::string* result) = 0;
 
-  // Similar to `GetMachineStatistic` for boolean flags. As optional and bool do
-  // not work safely together, returns custom tribool value.
-  virtual FlagValue GetMachineFlag(base::StringPiece name) = 0;
-
-  // Old versions of machine statistic getters. Sets output
-  // to `result` if provided. Return false if statistic is not found.
-  // TODO(b/213325251): Remove old getters once migration is completed.
-  bool GetMachineStatistic(const std::string& name, std::string* result);
-  bool GetMachineFlag(const std::string& name, bool* result);
+  // Similar to GetMachineStatistic for boolean flags.
+  virtual bool GetMachineFlag(const std::string& name, bool* result) = 0;
 
   // Returns the machine serial number after examining a set of well-known
-  // keys. In case no serial is found nullopt is returned.
+  // keys. In case no serial is found an empty string is returned.
   // Caveat: On older Samsung devices, the last letter is omitted from the
   // serial number for historical reasons. This is fine.
-  absl::optional<base::StringPiece> GetMachineID();
-  // Old version of `GetMachineID`. Returns an empty string if no serial is
-  // found. Soon to be removed.
-  // TODO(b/213325251): Remove old getters once migration is completed.
+  // TODO(tnagel): Drop "Enterprise" from the method name and remove Samsung
+  // special casing after kevin EOL.
   std::string GetEnterpriseMachineID();
 
   // Cancels any pending file operations.
@@ -198,9 +167,6 @@ class COMPONENT_EXPORT(CHROMEOS_SYSTEM) StatisticsProvider {
   // Returns true if the machine is a VM.
   virtual bool IsRunningOnVm() = 0;
 
-  // Returns the status of RO_VPD and RW_VPD partitions.
-  virtual VpdStatus GetVpdStatus() const = 0;
-
   // Get the Singleton instance.
   static StatisticsProvider* GetInstance();
 
@@ -208,28 +174,10 @@ class COMPONENT_EXPORT(CHROMEOS_SYSTEM) StatisticsProvider {
   static void SetTestProvider(StatisticsProvider* test_provider);
 
  protected:
-  virtual ~StatisticsProvider() = default;
+  virtual ~StatisticsProvider() {}
 };
 
-}  // namespace chromeos::system
-
-// TODO(https://crbug.com/1164001): remove after the //chrome/browser/chromeos
-// source migration is finished.
-namespace ash {
-namespace system {
-using ::chromeos::system::kActivateDateKey;
-using ::chromeos::system::kBlockDevModeKey;
-using ::chromeos::system::kCheckEnrollmentKey;
-using ::chromeos::system::kEnterpriseManagementEmbargoEndDateKey;
-using ::chromeos::system::kHardwareClassKey;
-using ::chromeos::system::kIsVmKey;
-using ::chromeos::system::kIsVmValueFalse;
-using ::chromeos::system::kIsVmValueTrue;
-using ::chromeos::system::kOemKeyboardDrivenOobeKey;
-using ::chromeos::system::kRlzBrandCodeKey;
-using ::chromeos::system::kSerialNumberKeyForTest;
-using ::chromeos::system::StatisticsProvider;
 }  // namespace system
-}  // namespace ash
+}  // namespace chromeos
 
 #endif  // CHROMEOS_SYSTEM_STATISTICS_PROVIDER_H_

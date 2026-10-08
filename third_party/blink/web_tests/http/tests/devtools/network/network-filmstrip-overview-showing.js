@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests to make sure film strip and overview pane show if the other does not exist. http://crbug.com/723659\n`);
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   NetworkTestRunner.recordNetwork();
@@ -52,14 +52,14 @@
   TestRunner.completeTest();
 
   function isOverviewShowing() {
-    if (!networkPanel.overviewPane)
+    if (!networkPanel._overviewPane)
       return false;
-    return networkPanel.overviewPane.isShowing();
+    return networkPanel._overviewPane.isShowing();
   }
 
   function isFilmstripShowing() {
-    if (!networkPanel.filmStripView)
+    if (!networkPanel._filmStripView)
       return false;
-    return networkPanel.filmStripView.isShowing();
+    return networkPanel._filmStripView.isShowing();
   }
 })();

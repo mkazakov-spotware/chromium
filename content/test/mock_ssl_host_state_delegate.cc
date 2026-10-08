@@ -1,11 +1,9 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "content/test/mock_ssl_host_state_delegate.h"
-
 #include "base/callback.h"
-#include "base/containers/contains.h"
+#include "content/test/mock_ssl_host_state_delegate.h"
 
 namespace content {
 
@@ -16,7 +14,7 @@ MockSSLHostStateDelegate::~MockSSLHostStateDelegate() {}
 void MockSSLHostStateDelegate::AllowCert(const std::string& host,
                                          const net::X509Certificate& cert,
                                          int error,
-                                         StoragePartition* storage_partition) {
+                                         WebContents* web_contents) {
   exceptions_.insert(host);
 }
 
@@ -40,7 +38,7 @@ SSLHostStateDelegate::CertJudgment MockSSLHostStateDelegate::QueryPolicy(
     const std::string& host,
     const net::X509Certificate& cert,
     int error,
-    StoragePartition* storage_partition) {
+    WebContents* web_contents) {
   if (exceptions_.find(host) == exceptions_.end())
     return SSLHostStateDelegate::DENIED;
 
@@ -50,28 +48,13 @@ SSLHostStateDelegate::CertJudgment MockSSLHostStateDelegate::QueryPolicy(
 void MockSSLHostStateDelegate::HostRanInsecureContent(
     const std::string& host,
     int child_id,
-    InsecureContentType content_type) {
-  hosts_ran_insecure_content_.insert(host);
-}
+    InsecureContentType content_type) {}
 
 bool MockSSLHostStateDelegate::DidHostRunInsecureContent(
     const std::string& host,
     int child_id,
     InsecureContentType content_type) {
-  return hosts_ran_insecure_content_.find(host) !=
-         hosts_ran_insecure_content_.end();
-}
-
-void MockSSLHostStateDelegate::AllowHttpForHost(
-    const std::string& host,
-    StoragePartition* storage_partition) {
-  allow_http_hosts_.insert(host);
-}
-
-bool MockSSLHostStateDelegate::IsHttpAllowedForHost(
-    const std::string& host,
-    StoragePartition* storage_partition) {
-  return base::Contains(allow_http_hosts_, host);
+  return false;
 }
 
 void MockSSLHostStateDelegate::RevokeUserAllowExceptions(
@@ -79,9 +62,8 @@ void MockSSLHostStateDelegate::RevokeUserAllowExceptions(
   exceptions_.erase(exceptions_.find(host));
 }
 
-bool MockSSLHostStateDelegate::HasAllowException(
-    const std::string& host,
-    StoragePartition* storage_partition) {
+bool MockSSLHostStateDelegate::HasAllowException(const std::string& host,
+                                                 WebContents* web_contents) {
   return exceptions_.find(host) != exceptions_.end();
 }
 

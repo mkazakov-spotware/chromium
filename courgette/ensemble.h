@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "courgette/courgette.h"
 #include "courgette/region.h"
 #include "courgette/streams.h"
@@ -41,9 +41,6 @@ class Element {
           Ensemble* ensemble,
           const Region& region);
 
-  Element(const Element&) = delete;
-  Element& operator=(const Element&) = delete;
-
   virtual ~Element();
 
   ExecutableType kind() const { return kind_; }
@@ -58,8 +55,10 @@ class Element {
 
  private:
   ExecutableType kind_;
-  raw_ptr<Ensemble> ensemble_;
+  Ensemble* ensemble_;
   Region region_;
+
+  DISALLOW_COPY_AND_ASSIGN(Element);
 };
 
 
@@ -67,10 +66,6 @@ class Ensemble {
  public:
   Ensemble(const Region& region, const char* name)
       : region_(region), name_(name) {}
-
-  Ensemble(const Ensemble&) = delete;
-  Ensemble& operator=(const Ensemble&) = delete;
-
   ~Ensemble();
 
   const Region& region() const { return region_; }
@@ -90,6 +85,8 @@ class Ensemble {
 
   std::vector<Element*> elements_;        // Embedded elements discovered.
   std::vector<Element*> owned_elements_;  // For deallocation.
+
+  DISALLOW_COPY_AND_ASSIGN(Ensemble);
 };
 
 inline size_t Element::offset_in_ensemble() const {
@@ -244,9 +241,9 @@ class TransformationPatchGenerator {
                         SinkStream* reformed_element);
 
  protected:
-  raw_ptr<Element> old_element_;
-  raw_ptr<Element> new_element_;
-  raw_ptr<TransformationPatcher> patcher_;
+  Element* old_element_;
+  Element* new_element_;
+  TransformationPatcher* patcher_;
 };
 
 }  // namespace

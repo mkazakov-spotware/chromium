@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import org.chromium.testing.local.LocalRobolectricTestRunner;
+import org.junit.runners.BlockJUnit4ClassRunner;
 
 /**
  * junit tests for {@link LogcatExtractor}.
  */
-@RunWith(LocalRobolectricTestRunner.class)
+@RunWith(BlockJUnit4ClassRunner.class)
 public class LogcatElisionUnitTest {
     private static final int MAX_LINES = 5;
 

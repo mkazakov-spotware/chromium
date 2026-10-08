@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,14 @@
 #include "base/json/string_escape.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_tokenizer.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/current_thread.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/test/chromedriver/chrome/status.h"
 #include "chrome/test/chromedriver/constants/version.h"
@@ -205,7 +204,8 @@ Status AdbImpl::SetCommandLineFile(const std::string& device_serial,
       FROM_HERE,
       base::BindOnce(&SendFileOnIOThread, device_serial, command_line_file,
                      command, response_buffer, port_));
-  Status status = response_buffer->GetResponse(&response, base::Seconds(30));
+  Status status =
+      response_buffer->GetResponse(&response, base::TimeDelta::FromSeconds(30));
   return status;
 }
 
@@ -246,17 +246,10 @@ Status AdbImpl::Launch(
     const std::string& device_serial, const std::string& package,
     const std::string& activity) {
   std::string response;
-  ExecuteHostShellCommand(device_serial, "getprop ro.build.version.release",
-                          &response);
-  int android_version = stoi(response);
-  if (android_version >= 13) {
-    ExecuteHostShellCommand(
-        device_serial,
-        "pm grant " + package + " android.permission.POST_NOTIFICATIONS",
-        &response);
-  }
   Status status = ExecuteHostShellCommand(
-      device_serial, "am start -W -n " + package + "/" + activity, &response);
+      device_serial,
+      "am start -W -n " + package + "/" + activity + " -d data:,",
+      &response);
   if (!status.IsOk())
     return status;
   if (response.find("Complete") == std::string::npos)
@@ -278,10 +271,6 @@ Status AdbImpl::GetPidByName(const std::string& device_serial,
                              int* pid) {
   std::string response;
   // on Android O `ps` returns only user processes, so also try with `-A` flag.
-  // With ps && ps -A, we actually get both the result concatenated together.
-  // Any additional argument (i.e. -A) is not supported until android
-  // version 8.0 (API level 26). And we would see output such as "bad pid '-A'"
-  // which is of three tokens.
   Status status =
       ExecuteHostShellCommand(device_serial, "ps && ps -A", &response);
 
@@ -293,7 +282,7 @@ Status AdbImpl::GetPidByName(const std::string& device_serial,
     std::vector<base::StringPiece> tokens = base::SplitStringPiece(
         line, base::kWhitespaceASCII,
         base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-    if (tokens.size() < 8 || tokens.size() > 10)
+    if (tokens.size() != 8 && tokens.size() != 9)
       continue;
     // The ps command on Android M+ does not always output a value for WCHAN,
     // so the process name might appear in the 8th or 9th column. Use the
@@ -329,7 +318,7 @@ Status AdbImpl::GetSocketByPattern(const std::string& device_serial,
         base::SPLIT_WANT_NONEMPTY);
     if (tokens.size() != 8)
       continue;
-    *socket_name = std::string(tokens[7]);
+    *socket_name = tokens[7].as_string();
     return Status(kOk);
   }
 
@@ -344,7 +333,8 @@ Status AdbImpl::ExecuteCommand(
   io_task_runner_->PostTask(FROM_HERE,
                             base::BindOnce(&ExecuteCommandOnIOThread, command,
                                            response_buffer, port_));
-  Status status = response_buffer->GetResponse(response, base::Seconds(30));
+  Status status = response_buffer->GetResponse(
+      response, base::TimeDelta::FromSeconds(30));
   if (status.IsOk()) {
     VLOG(1) << "Received adb response: " << *response;
   }

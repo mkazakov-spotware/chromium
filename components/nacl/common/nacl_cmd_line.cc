@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/base_switches.h"
 #include "base/command_line.h"
+#include "base/stl_util.h"
 #include "build/build_config.h"
 #include "components/nacl/common/nacl_switches.h"
 #include "content/public/common/content_switches.h"
@@ -25,18 +26,17 @@ void CopyNaClCommandLineArguments(base::CommandLine* cmd_line) {
     switches::kEnableLogging,
     switches::kDisableLogging,
     switches::kLoggingLevel,
-    switches::kVerboseLoggingInNacl,
     switches::kNoErrorDialogs,
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     sandbox::policy::switches::kEnableSandboxLogging,
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     switches::kDisableHighResTimer,
     switches::kRaiseTimerFrequency,
 #endif
   };
   cmd_line->CopySwitchesFrom(browser_command_line, kSwitchNames,
-                             std::size(kSwitchNames));
+                             base::size(kSwitchNames));
 }
 
 }  // namespace nacl

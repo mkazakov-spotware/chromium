@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,8 @@
 #include "third_party/blink/renderer/modules/filesystem/directory_entry.h"
 #include "third_party/blink/renderer/modules/filesystem/dom_file_system.h"
 #include "third_party/blink/renderer/modules/filesystem/entry.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
@@ -27,7 +28,7 @@ class AsyncCallbackHelper {
     if (!success_callback)
       return base::OnceCallback<void(CallbackParam*)>();
 
-    auto success_callback_wrapper = WTF::BindOnce(
+    auto success_callback_wrapper = WTF::Bind(
         [](V8Callback* persistent_callback, CallbackParam* param) {
           persistent_callback->InvokeAndReportException(nullptr, param);
         },
@@ -40,7 +41,7 @@ class AsyncCallbackHelper {
     if (!error_callback)
       return base::OnceCallback<void(base::File::Error)>();
 
-    return WTF::BindOnce(
+    return WTF::Bind(
         [](V8ErrorCallback* persistent_callback, base::File::Error error) {
           persistent_callback->InvokeAndReportException(
               nullptr, file_error::CreateDOMException(error));
@@ -55,7 +56,7 @@ class AsyncCallbackHelper {
     if (!success_callback)
       return VoidCallbacks::SuccessCallback();
 
-    auto success_callback_wrapper = WTF::BindOnce(
+    auto success_callback_wrapper = WTF::Bind(
         [](V8VoidCallback* persistent_callback) {
           persistent_callback->InvokeAndReportException(nullptr);
         },

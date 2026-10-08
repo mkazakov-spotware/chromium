@@ -1,8 +1,4 @@
 <!DOCTYPE html>
-<script>
-if (window.internals)
-  internals.runtimeFlags.implicitRootScrollerEnabled = true;
-</script>
 <style>
   ::-webkit-scrollbar {
     width: 0px;
@@ -37,7 +33,7 @@ if (window.internals)
   .spacer {
     margin: 50px;
     width: 20px;
-    height: 150%;
+    height: 50%;
     background-color: blue;
   }
 </style>
@@ -56,10 +52,8 @@ root scroller's parent. It passes if the output is entirely sepia colored.-->
     var parent = document.querySelector('#parent');
     var rootscroller = document.querySelector('#rootscroller');
 
-    if (window.internals && rootscroller == internals.effectiveRootScroller(document)) {
-      parent.style.filter = "sepia(100)";
-    } else {
-      parent.innerHTML = "FAIL: #rootscroller is expected to be the effective rootScroller";
-    }
+    document.rootScroller = rootscroller;
+    parent.style.filter = "sepia(100)";
   }
+
 </script>

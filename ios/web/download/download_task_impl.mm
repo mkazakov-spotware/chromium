@@ -1,121 +1,184 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/download/download_task_impl.h"
 
+#import <Foundation/Foundation.h>
 #import <WebKit/WebKit.h>
 
-#import <limits>
-
-#import "base/bind.h"
-#import "base/files/file.h"
-#import "base/files/file_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/task/bind_post_task.h"
-#import "base/task/sequenced_task_runner.h"
-#import "base/threading/sequenced_task_runner_handle.h"
-#import "ios/web/download/download_result.h"
+#include "base/bind.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/task/post_task.h"
+#import "ios/net/cookies/system_cookie_util.h"
+#import "ios/web/net/cookies/wk_cookie_util.h"
+#include "ios/web/public/browser_state.h"
 #import "ios/web/public/download/download_task_observer.h"
+#include "ios/web/public/thread/web_task_traits.h"
+#include "ios/web/public/thread/web_thread.h"
 #import "ios/web/public/web_state.h"
-#import "net/base/filename_util.h"
-#import "net/base/net_errors.h"
+#import "ios/web/web_view/error_translation_util.h"
+#include "net/base/completion_once_callback.h"
+#include "net/base/data_url.h"
+#include "net/base/filename_util.h"
+#include "net/base/io_buffer.h"
+#import "net/base/mac/url_conversions.h"
+#include "net/base/net_errors.h"
+#include "net/cookies/cookie_store.h"
+#include "net/url_request/url_fetcher_response_writer.h"
+#include "net/url_request/url_request_context.h"
+#include "net/url_request/url_request_context_getter.h"
+#include "url/url_constants.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-namespace web {
-namespace download {
-namespace internal {
-
-// Helper struct that store the error code and the opened file object (in case
-// of success).
-struct CreateFileResult {
-  int net_error_code = net::OK;
-  base::FilePath file_path;
-
-  explicit CreateFileResult(int error_code) : net_error_code(error_code) {
-    DCHECK_NE(net_error_code, net::OK);
-  }
-
-  explicit CreateFileResult(base::FilePath path) : file_path(std::move(path)) {
-    DCHECK(!file_path.empty());
-  }
-
-  CreateFileResult(CreateFileResult&& other) = default;
-  CreateFileResult& operator=(CreateFileResult&& other) = default;
-
-  ~CreateFileResult() = default;
-};
+using web::WebThread;
 
 namespace {
 
-CreateFileResult CreateFileForDownload(base::FilePath path) {
-  if (path.empty()) {
-    if (!base::CreateTemporaryFile(&path)) {
-      return CreateFileResult(
-          net::MapSystemError(logging::GetLastSystemErrorCode()));
+// Updates DownloadTaskImpl properties. |terminal_callback| is true if this is
+// the last update for this DownloadTaskImpl.
+using PropertiesBlock = void (^)(NSURLSessionTask*,
+                                 NSError*,
+                                 bool terminal_callback);
+// Writes buffer and calls |completionHandler| when done.
+using DataBlock = void (^)(scoped_refptr<net::IOBufferWithSize> buffer,
+                           void (^completionHandler)());
+
+// Translates an CFNetwork error code to a net error code. Returns 0 if |error|
+// is nil.
+int GetNetErrorCodeFromNSError(NSError* error, NSURL* url) {
+  int error_code = 0;
+  if (error) {
+    if (!web::GetNetErrorFromIOSErrorCode(error.code, &error_code, url)) {
+      error_code = net::ERR_FAILED;
     }
-    DCHECK(!path.empty());
-  } else {
-    base::File::Error error;
-    if (!base::CreateDirectoryAndGetError(path.DirName(), &error)) {
-      return CreateFileResult(net::FileErrorToNetError(error));
-    }
   }
-
-  // If `path` exists and is a directory, fail with an error as we don't
-  // want the download task to delete an existing directory.
-  if (base::DirectoryExists(path)) {
-    return CreateFileResult(net::ERR_ACCESS_DENIED);
-  }
-
-  // Try to delete any existing file at `path` (deleting a non-existent
-  // file is not an error for `base::DeleteFile(...)`). This is needed
-  // as some sub-classes of DownloadTaskImpl fail if the destination
-  // file already exists.
-  if (!base::DeleteFile(path)) {
-    return CreateFileResult(
-        net::MapSystemError(logging::GetLastSystemErrorCode()));
-  }
-
-  return CreateFileResult(std::move(path));
+  return error_code;
 }
 
-NSData* ReadDataFromFile(base::FilePath path, int64_t bytes) {
-  // base::ReadFile uses int for the count value, so it will fail if we
-  // try to read more than INT_MAX bytes. Given that this is already 2GB
-  // and we can't allocate that much memory, there is no point trying to
-  // read the data in 2GB chunks, instead just fail.
-  if (bytes < 0 || std::numeric_limits<int>::max() < bytes) {
-    return nil;
-  }
-
-  const int bytes_to_read = static_cast<int>(bytes);
-  NSMutableData* data = [NSMutableData dataWithLength:bytes];
-  char* buffer = static_cast<char*>(data.mutableBytes);
-
-  if (base::ReadFile(path, buffer, bytes_to_read) != bytes_to_read) {
-    return nil;
-  }
-
-  return [data copy];
+// Creates a new buffer from raw |data| and |size|.
+scoped_refptr<net::IOBufferWithSize> GetBuffer(const void* data, size_t size) {
+  auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(size);
+  memcpy(buffer->data(), data, size);
+  return buffer;
 }
 
-}  // anonymous namespace
-}  // namespace internal
-}  // namespace download
+// Percent complete for the given NSURLSessionTask within [0..100] range.
+int GetTaskPercentComplete(NSURLSessionTask* task) {
+  DCHECK(task);
+  if (!task.countOfBytesExpectedToReceive) {
+    return 100;
+  }
+  if (task.countOfBytesExpectedToReceive == -1) {
+    return -1;
+  }
+  DCHECK_GE(task.countOfBytesExpectedToReceive, task.countOfBytesReceived);
+  return 100.0 * task.countOfBytesReceived / task.countOfBytesExpectedToReceive;
+}
 
-DownloadTaskImpl::DownloadTaskImpl(
-    WebState* web_state,
-    const GURL& original_url,
-    NSString* http_method,
-    const std::string& content_disposition,
-    int64_t total_bytes,
-    const std::string& mime_type,
-    NSString* identifier,
-    const scoped_refptr<base::SequencedTaskRunner>& task_runner)
+}  // namespace
+
+// NSURLSessionDataDelegate that forwards data and properties task updates to
+// the client. Client of this delegate can pass blocks to receive the updates.
+@interface CRWURLSessionDelegate : NSObject<NSURLSessionDataDelegate>
+
+// Called when DownloadTaskImpl should update its properties (is_done,
+// error_code, total_bytes, and percent_complete) and call OnDownloadUpdated
+// callback.
+@property(nonatomic, readonly) PropertiesBlock propertiesBlock;
+
+// Called when DownloadTaskImpl should write a chunk of downloaded data.
+@property(nonatomic, readonly) DataBlock dataBlock;
+
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)initWithPropertiesBlock:(PropertiesBlock)propertiesBlock
+                              dataBlock:(DataBlock)dataBlock
+    NS_DESIGNATED_INITIALIZER;
+@end
+
+@implementation CRWURLSessionDelegate
+
+@synthesize propertiesBlock = _propertiesBlock;
+@synthesize dataBlock = _dataBlock;
+
+- (instancetype)initWithPropertiesBlock:(PropertiesBlock)propertiesBlock
+                              dataBlock:(DataBlock)dataBlock {
+  DCHECK(propertiesBlock);
+  DCHECK(dataBlock);
+  if ((self = [super init])) {
+    _propertiesBlock = propertiesBlock;
+    _dataBlock = dataBlock;
+  }
+  return self;
+}
+
+- (void)URLSession:(NSURLSession*)session
+                    task:(NSURLSessionTask*)task
+    didCompleteWithError:(nullable NSError*)error {
+  __weak CRWURLSessionDelegate* weakSelf = self;
+  base::PostTask(FROM_HERE, {WebThread::UI}, base::BindOnce(^{
+                   CRWURLSessionDelegate* strongSelf = weakSelf;
+                   if (strongSelf.propertiesBlock)
+                     strongSelf.propertiesBlock(task, error,
+                                                /*terminal_callback=*/true);
+                 }));
+}
+
+- (void)URLSession:(NSURLSession*)session
+          dataTask:(NSURLSessionDataTask*)task
+    didReceiveData:(NSData*)data {
+  // Block this background queue until the the data is written.
+  dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+  __weak CRWURLSessionDelegate* weakSelf = self;
+  using Bytes = const void* _Nonnull;
+  [data enumerateByteRangesUsingBlock:^(Bytes bytes, NSRange range, BOOL*) {
+    auto buffer = GetBuffer(bytes, range.length);
+    base::PostTask(FROM_HERE, {WebThread::UI}, base::BindOnce(^{
+                     CRWURLSessionDelegate* strongSelf = weakSelf;
+                     if (!strongSelf.dataBlock) {
+                       dispatch_semaphore_signal(semaphore);
+                       return;
+                     }
+                     strongSelf.dataBlock(std::move(buffer), ^{
+                       // Data was written to disk, unblock queue to
+                       // read the next chunk of downloaded data.
+                       dispatch_semaphore_signal(semaphore);
+                     });
+                   }));
+    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+  }];
+  base::PostTask(FROM_HERE, {WebThread::UI}, base::BindOnce(^{
+                   CRWURLSessionDelegate* strongSelf = weakSelf;
+                   if (strongSelf.propertiesBlock)
+                     weakSelf.propertiesBlock(task, nil,
+                                              /*terminal_callback=*/false);
+                 }));
+}
+
+- (void)URLSession:(NSURLSession*)session
+    didReceiveChallenge:(NSURLAuthenticationChallenge*)challenge
+      completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition,
+                                  NSURLCredential* _Nullable))handler {
+  // TODO(crbug.com/780911): use CRWCertVerificationController to get
+  // CertAcceptPolicy for this |challenge|.
+  handler(NSURLSessionAuthChallengeRejectProtectionSpace, nil);
+}
+
+@end
+
+namespace web {
+
+DownloadTaskImpl::DownloadTaskImpl(WebState* web_state,
+                                   const GURL& original_url,
+                                   NSString* http_method,
+                                   const std::string& content_disposition,
+                                   int64_t total_bytes,
+                                   const std::string& mime_type,
+                                   NSString* identifier,
+                                   Delegate* delegate)
     : original_url_(original_url),
       http_method_(http_method),
       total_bytes_(total_bytes),
@@ -124,223 +187,322 @@ DownloadTaskImpl::DownloadTaskImpl(
       mime_type_(mime_type),
       identifier_([identifier copy]),
       web_state_(web_state),
-      task_runner_(task_runner) {
+      delegate_(delegate),
+      weak_factory_(this) {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   DCHECK(web_state_);
-  DCHECK(task_runner_);
+  DCHECK(delegate_);
 
-  base::RepeatingClosure closure = base::BindPostTask(
-      base::SequencedTaskRunnerHandle::Get(),
-      base::BindRepeating(&DownloadTaskImpl::OnAppWillResignActive,
-                          weak_factory_.GetWeakPtr()));
-
-  base::WeakPtr<DownloadTaskImpl> weak_Task = weak_factory_.GetWeakPtr();
   observer_ = [NSNotificationCenter.defaultCenter
       addObserverForName:UIApplicationWillResignActiveNotification
                   object:nil
                    queue:nil
               usingBlock:^(NSNotification* _Nonnull) {
-                closure.Run();
+                if (state_ == State::kInProgress) {
+                  has_performed_background_download_ = true;
+                }
               }];
 }
 
 DownloadTaskImpl::~DownloadTaskImpl() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   [NSNotificationCenter.defaultCenter removeObserver:observer_];
   for (auto& observer : observers_)
     observer.OnDownloadDestroyed(this);
 
-  // Delete the downloaded file if it was a temporary file or if the download
-  // failed (it is not an error to delete a non-existent file).
-  if (owns_file_ || state_ != State::kComplete) {
-    task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(base::IgnoreResult(&base::DeleteFile), path_));
+  if (delegate_) {
+    delegate_->OnTaskDestroyed(this);
   }
+  ShutDown();
+}
+
+void DownloadTaskImpl::ShutDown() {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  [session_task_ cancel];
+  session_task_ = nil;
+  delegate_ = nullptr;
 }
 
 WebState* DownloadTaskImpl::GetWebState() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return web_state_;
 }
 
 DownloadTask::State DownloadTaskImpl::GetState() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return state_;
 }
 
-void DownloadTaskImpl::Start(const base::FilePath& path) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+void DownloadTaskImpl::Start(
+    std::unique_ptr<net::URLFetcherResponseWriter> writer) {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   DCHECK_NE(state_, State::kInProgress);
-
-  state_ = State::kInProgress;
+  writer_ = std::move(writer);
   percent_complete_ = 0;
   received_bytes_ = 0;
-  owns_file_ = path.empty();
+  state_ = State::kInProgress;
 
-  using download::internal::CreateFileForDownload;
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&CreateFileForDownload, path),
-      base::BindOnce(&DownloadTaskImpl::OnDownloadFileCreated,
-                     weak_factory_.GetWeakPtr()));
+  if (original_url_.SchemeIs(url::kDataScheme)) {
+    StartDataUrlParsing();
+  } else {
+    GetCookies(base::BindRepeating(&DownloadTaskImpl::StartWithCookies,
+                                   weak_factory_.GetWeakPtr()));
+  }
 }
 
 void DownloadTaskImpl::Cancel() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  [session_task_ cancel];
+  session_task_ = nil;
   state_ = State::kCancelled;
-  CancelInternal();
   OnDownloadUpdated();
 }
 
-NSString* DownloadTaskImpl::GetIdentifier() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+net::URLFetcherResponseWriter* DownloadTaskImpl::GetResponseWriter() const {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  return writer_.get();
+}
+
+NSString* DownloadTaskImpl::GetIndentifier() const {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return identifier_;
 }
 
 const GURL& DownloadTaskImpl::GetOriginalUrl() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return original_url_;
 }
 
 NSString* DownloadTaskImpl::GetHttpMethod() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return http_method_;
 }
 
 bool DownloadTaskImpl::IsDone() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  switch (state_) {
-    case State::kNotStarted:
-    case State::kInProgress:
-      return false;
-    case State::kCancelled:
-    case State::kComplete:
-    case State::kFailed:
-    case State::kFailedNotResumable:
-      return true;
-  }
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  return state_ == State::kComplete || state_ == State::kCancelled;
 }
 
 int DownloadTaskImpl::GetErrorCode() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return download_result_.error_code();
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  return error_code_;
 }
 
 int DownloadTaskImpl::GetHttpCode() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return http_code_;
 }
 
 int64_t DownloadTaskImpl::GetTotalBytes() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return total_bytes_;
 }
 
 int64_t DownloadTaskImpl::GetReceivedBytes() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return received_bytes_;
 }
 
 int DownloadTaskImpl::GetPercentComplete() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return percent_complete_;
 }
 
 std::string DownloadTaskImpl::GetContentDisposition() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return content_disposition_;
 }
 
 std::string DownloadTaskImpl::GetOriginalMimeType() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return original_mime_type_;
 }
 
 std::string DownloadTaskImpl::GetMimeType() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
   return mime_type_;
 }
 
-base::FilePath DownloadTaskImpl::GenerateFileName() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return net::GenerateFileName(original_url_, content_disposition_,
-                               /*referrer_charset=*/std::string(),
-                               /*suggested_name=*/GetSuggestedName(),
-                               /*mime_type=*/std::string(),
-                               /*default_name=*/"document");
+base::string16 DownloadTaskImpl::GetSuggestedFilename() const {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  return net::GetSuggestedFilename(GetOriginalUrl(), GetContentDisposition(),
+                                   /*referrer_charset=*/std::string(),
+                                   /*suggested_name=*/std::string(),
+                                   /*mime_type=*/std::string(),
+                                   /*default_name=*/"document");
 }
 
 bool DownloadTaskImpl::HasPerformedBackgroundDownload() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return has_performed_background_download_;
 }
 
 void DownloadTaskImpl::AddObserver(DownloadTaskObserver* observer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  DCHECK(!observers_.HasObserver(observer));
   observers_.AddObserver(observer);
 }
 
 void DownloadTaskImpl::RemoveObserver(DownloadTaskObserver* observer) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  DCHECK(observers_.HasObserver(observer));
   observers_.RemoveObserver(observer);
 }
 
-void DownloadTaskImpl::GetResponseData(
-    ResponseDataReadCallback callback) const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(IsDone());
-  using download::internal::ReadDataFromFile;
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&ReadDataFromFile, path_, received_bytes_),
-      std::move(callback));
+NSURLSession* DownloadTaskImpl::CreateSession(NSString* identifier,
+                                              NSArray<NSHTTPCookie*>* cookies) {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  DCHECK(identifier.length);
+  base::WeakPtr<DownloadTaskImpl> weak_this = weak_factory_.GetWeakPtr();
+  id<NSURLSessionDataDelegate> session_delegate = [[CRWURLSessionDelegate alloc]
+      initWithPropertiesBlock:^(NSURLSessionTask* task, NSError* error,
+                                bool terminal_callback) {
+        if (!weak_this.get()) {
+          return;
+        }
+
+        error_code_ =
+            GetNetErrorCodeFromNSError(error, task.currentRequest.URL);
+        percent_complete_ = GetTaskPercentComplete(task);
+        received_bytes_ = task.countOfBytesReceived;
+        if (total_bytes_ == -1 || task.countOfBytesExpectedToReceive) {
+          // countOfBytesExpectedToReceive can be 0 if the device is offline.
+          // In that case total_bytes_ should remain unchanged if the total
+          // bytes count is already known.
+          total_bytes_ = task.countOfBytesExpectedToReceive;
+        }
+        if (task.response.MIMEType) {
+          mime_type_ = base::SysNSStringToUTF8(task.response.MIMEType);
+        }
+        if ([task.response isKindOfClass:[NSHTTPURLResponse class]]) {
+          http_code_ =
+              static_cast<NSHTTPURLResponse*>(task.response).statusCode;
+        }
+
+        if (!terminal_callback) {
+          OnDownloadUpdated();
+          // Download is still in progress, nothing to do here.
+          return;
+        }
+
+        // Download has finished, so finalize the writer and signal completion.
+        auto callback = base::BindOnce(&DownloadTaskImpl::OnDownloadFinished,
+                                       weak_factory_.GetWeakPtr());
+        if (writer_->Finish(error_code_, std::move(callback)) !=
+            net::ERR_IO_PENDING) {
+          OnDownloadFinished(error_code_);
+        }
+      }
+      dataBlock:^(scoped_refptr<net::IOBufferWithSize> buffer,
+                  void (^completion_handler)()) {
+        if (weak_this.get()) {
+          net::CompletionOnceCallback callback = base::BindOnce(^(int) {
+            completion_handler();
+          });
+          if (writer_->Write(buffer.get(), buffer->size(),
+                             std::move(callback)) == net::ERR_IO_PENDING) {
+            return;
+          }
+        }
+        completion_handler();
+      }];
+  return delegate_->CreateSession(identifier, cookies, session_delegate,
+                                  /*queue=*/nil);
 }
 
-const base::FilePath& DownloadTaskImpl::GetResponsePath() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(IsDone());
-  static const base::FilePath kEmptyPath;
-  return owns_file_ ? kEmptyPath : path_;
+void DownloadTaskImpl::GetCookies(
+    base::OnceCallback<void(NSArray<NSHTTPCookie*>*)> callback) {
+  DCHECK_CURRENTLY_ON(WebThread::UI);
+  scoped_refptr<net::URLRequestContextGetter> context_getter(
+      web_state_->GetBrowserState()->GetRequestContext());
+
+  // net::URLRequestContextGetter must be used in the IO thread.
+  base::PostTask(FROM_HERE, {WebThread::IO},
+                 base::BindOnce(&DownloadTaskImpl::GetCookiesFromContextGetter,
+                                context_getter, std::move(callback)));
 }
 
-std::string DownloadTaskImpl::GetSuggestedName() const {
-  return std::string();
+void DownloadTaskImpl::GetCookiesFromContextGetter(
+    scoped_refptr<net::URLRequestContextGetter> context_getter,
+    base::OnceCallback<void(NSArray<NSHTTPCookie*>*)> callback) {
+  DCHECK_CURRENTLY_ON(WebThread::IO);
+  context_getter->GetURLRequestContext()->cookie_store()->GetAllCookiesAsync(
+      base::BindOnce(
+          [](base::OnceCallback<void(NSArray<NSHTTPCookie*>*)> callback,
+             const net::CookieList& cookie_list) {
+            NSArray<NSHTTPCookie*>* cookies =
+                SystemCookiesFromCanonicalCookieList(cookie_list);
+            base::PostTask(FROM_HERE, {WebThread::UI},
+                           base::BindOnce(std::move(callback), cookies));
+          },
+          std::move(callback)));
 }
 
-void DownloadTaskImpl::OnAppWillResignActive() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (GetState() == DownloadTask::State::kInProgress) {
-    has_performed_background_download_ = YES;
+void DownloadTaskImpl::StartWithCookies(NSArray<NSHTTPCookie*>* cookies) {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  DCHECK(writer_);
+
+  if (!session_) {
+    session_ = CreateSession(identifier_, cookies);
+    DCHECK(session_);
   }
-}
 
-void DownloadTaskImpl::OnDownloadFileCreated(
-    download::internal::CreateFileResult result) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (result.net_error_code == net::OK) {
-    path_ = std::move(result.file_path);
-    StartInternal(path_);
-    return;
-  }
+  has_performed_background_download_ =
+      UIApplication.sharedApplication.applicationState !=
+      UIApplicationStateActive;
 
-  OnDownloadFinished(DownloadResult(result.net_error_code));
-}
-
-void DownloadTaskImpl::OnDownloadFinished(DownloadResult download_result) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  download_result_ = download_result;
-  if (download_result_.error_code()) {
-    state_ = download_result_.can_retry() ? State::kFailed
-                                          : State::kFailedNotResumable;
-  } else {
-    state_ = State::kComplete;
-  }
-
+  NSURL* url = net::NSURLWithGURL(GetOriginalUrl());
+  NSMutableURLRequest* request = [[NSMutableURLRequest alloc] initWithURL:url];
+  request.HTTPMethod = GetHttpMethod();
+  session_task_ = [session_ dataTaskWithRequest:request];
+  [session_task_ resume];
   OnDownloadUpdated();
 }
 
+void DownloadTaskImpl::StartDataUrlParsing() {
+  mime_type_.clear();
+  std::string charset;
+  std::string data;
+  if (!net::DataURL::Parse(original_url_, &mime_type_, &charset, &data)) {
+    OnDownloadFinished(net::ERR_INVALID_URL);
+    return;
+  }
+  auto callback = base::BindOnce(&DownloadTaskImpl::OnDataUrlWritten,
+                                 weak_factory_.GetWeakPtr());
+  auto buffer = base::MakeRefCounted<net::IOBuffer>(data.size());
+  memcpy(buffer->data(), data.c_str(), data.size());
+  int written = writer_->Write(buffer.get(), data.size(), std::move(callback));
+  if (written != net::ERR_IO_PENDING) {
+    OnDataUrlWritten(written);
+  }
+}
+
 void DownloadTaskImpl::OnDownloadUpdated() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   for (auto& observer : observers_)
     observer.OnDownloadUpdated(this);
+}
+
+void DownloadTaskImpl::OnDownloadFinished(int error_code) {
+  // If downloads manager's flag is enabled, keeps the downloaded file. The
+  // writer deletes it if it owns it, that's why it shouldn't owns it anymore
+  // when the current download is finished.
+  // Check if writer_->AsFileWriter() is necessary because in some cases the
+  // writer isn't a fileWriter as for Passkit downloads for example.
+  if (writer_->AsFileWriter())
+    writer_->AsFileWriter()->DisownFile();
+  error_code_ = error_code;
+  state_ = State::kComplete;
+  session_task_ = nil;
+  OnDownloadUpdated();
+}
+
+void DownloadTaskImpl::OnDataUrlWritten(int bytes_written) {
+  percent_complete_ = 100;
+  total_bytes_ = bytes_written;
+  received_bytes_ = total_bytes_;
+  auto callback = base::BindOnce(&DownloadTaskImpl::OnDownloadFinished,
+                                 weak_factory_.GetWeakPtr());
+  if (writer_->Finish(net::OK, std::move(callback)) != net::ERR_IO_PENDING) {
+    OnDownloadFinished(net::OK);
+  }
 }
 
 }  // namespace web

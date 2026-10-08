@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult('Tests that console logging dumps proper messages.\n');
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
   await TestRunner.evaluateInPagePromise(`
@@ -21,9 +21,8 @@
         console.dirxml([document, fragment, document.createElement("span")]);
     }
   `);
-  await TestRunner.showPanel('elements');
 
-  TestRunner.loadLegacyModule('elements').then(function() {
+  runtime.loadModulePromise('elements').then(function() {
     TestRunner.evaluateInPage('logToConsole()', onLoggedToConsole);
   });
 

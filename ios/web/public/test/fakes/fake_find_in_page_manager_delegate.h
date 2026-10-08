@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,6 @@ class WebState;
 class FakeFindInPageManagerDelegate : public FindInPageManagerDelegate {
  public:
   FakeFindInPageManagerDelegate();
-
-  FakeFindInPageManagerDelegate(const FakeFindInPageManagerDelegate&) = delete;
-  FakeFindInPageManagerDelegate& operator=(
-      const FakeFindInPageManagerDelegate&) = delete;
-
   ~FakeFindInPageManagerDelegate() override;
 
   // FindInPageManagerDelegate override
@@ -52,6 +47,7 @@ class FakeFindInPageManagerDelegate : public FindInPageManagerDelegate {
 
  private:
   std::unique_ptr<State> delegate_state_;
+  DISALLOW_COPY_AND_ASSIGN(FakeFindInPageManagerDelegate);
 };
 
 }  // namespace web

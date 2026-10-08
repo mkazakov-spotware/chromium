@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests Summary view of detailed heap snapshots. Expanded nodes must be preserved after sorting.\n`);
-  await TestRunner.loadTestModule('heap_profiler_test_runner');
+  await TestRunner.loadModule('heap_profiler_test_runner');
   await TestRunner.showPanel('heap_profiler');
 
   var instanceCount = 25;
@@ -45,7 +45,7 @@
       HeapProfilerTestRunner.expandRow(bInstanceRow, expandA);
       function expandA(row) {
         function propertyMatcher(data) {
-          return data.referenceName === 'a' && data.name.charAt(0) === 'A';
+          return data._referenceName === 'a' && data._name.charAt(0) === 'A';
         }
         var aRow = HeapProfilerTestRunner.findMatchingRow(propertyMatcher, row);
         TestRunner.assertEquals(true, !!aRow, '"a: A" row');

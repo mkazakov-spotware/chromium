@@ -1,7 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -11,18 +12,16 @@
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/test/test_file_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/profile_picker.h"
+#include "chrome/browser/ui/user_manager.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -32,28 +31,58 @@
 
 namespace {
 
-void OnCloseAllBrowsersSucceeded(base::OnceClosure quit_closure,
+void UnblockOnProfileCreation(Profile::CreateStatus expected_final_status,
+                              const base::Closure& quit_closure,
+                              Profile* profile,
+                              Profile::CreateStatus status) {
+  // If the status is CREATE_STATUS_CREATED, then the function will be called
+  // again with CREATE_STATUS_INITIALIZED.
+  if (status == Profile::CREATE_STATUS_CREATED)
+    return;
+
+  EXPECT_EQ(expected_final_status, status);
+  quit_closure.Run();
+}
+
+void UnblockOnProfileInitialized(const base::Closure& quit_closure,
+                                 Profile* profile,
+                                 Profile::CreateStatus status) {
+  UnblockOnProfileCreation(Profile::CREATE_STATUS_INITIALIZED, quit_closure,
+                           profile, status);
+}
+
+void OnCloseAllBrowsersSucceeded(const base::Closure& quit_closure,
                                  const base::FilePath& path) {
-  std::move(quit_closure).Run();
+  quit_closure.Run();
 }
 
 void CreateAndSwitchToProfile(const std::string& basepath) {
   ProfileManager* profile_manager = g_browser_process->profile_manager();
   ASSERT_TRUE(profile_manager);
-  base::FilePath path = profile_manager->user_data_dir().AppendASCII(basepath);
-  profiles::testing::CreateProfileSync(profile_manager, path);
 
-  profiles::SwitchToProfile(path, false);
+  base::FilePath path = profile_manager->user_data_dir().AppendASCII(basepath);
+  base::RunLoop run_loop;
+  profile_manager->CreateProfileAsync(
+      path,
+      base::BindRepeating(&UnblockOnProfileInitialized, run_loop.QuitClosure()),
+      base::string16(), std::string());
+  // Run the message loop to allow profile creation to take place; the loop is
+  // terminated by UnblockOnProfileCreation when the profile is created.
+  run_loop.Run();
+
+  profiles::SwitchToProfile(path, false, ProfileManager::CreateCallback());
 }
 
 void CheckBrowserWindows(const std::vector<std::string>& expected_basepaths) {
   std::vector<std::string> actual_basepaths;
   for (const Browser* browser : *BrowserList::GetInstance()) {
     actual_basepaths.push_back(
-        browser->profile()->GetBaseName().AsUTF8Unsafe());
+        browser->profile()->GetPath().BaseName().AsUTF8Unsafe());
   }
 
-  if (!base::ranges::is_permutation(actual_basepaths, expected_basepaths)) {
+  if (actual_basepaths.size() != expected_basepaths.size() ||
+      !std::is_permutation(actual_basepaths.cbegin(), actual_basepaths.cend(),
+                           expected_basepaths.cbegin())) {
     ADD_FAILURE()
         << "Expected profile paths are different from actual profile paths."
            "\n  Actual profile paths: "
@@ -65,16 +94,16 @@ void CheckBrowserWindows(const std::vector<std::string>& expected_basepaths) {
 
 void ExpectUserManagerToShow() {
   // If the user manager is not shown yet, wait for the user manager to appear.
-  if (!ProfilePicker::IsOpen()) {
+  if (!UserManager::IsShowing()) {
     base::RunLoop run_loop;
-    ProfilePicker::AddOnProfilePickerOpenedCallbackForTesting(
+    UserManager::AddOnUserManagerShownCallbackForTesting(
         run_loop.QuitClosure());
     run_loop.Run();
   }
-  ASSERT_TRUE(ProfilePicker::IsOpen());
+  ASSERT_TRUE(UserManager::IsShowing());
 
   // We must hide the user manager before the test ends.
-  ProfilePicker::Hide();
+  UserManager::Hide();
 }
 
 }  // namespace
@@ -132,8 +161,7 @@ class StartupBrowserCreatorCorruptProfileTest : public InProcessBrowserTest {
     base::RunLoop run_loop;
     BrowserList::GetInstance()->CloseAllBrowsersWithProfile(
         profile,
-        base::BindRepeating(&OnCloseAllBrowsersSucceeded,
-                            run_loop.QuitClosure()),
+        base::Bind(&OnCloseAllBrowsersSucceeded, run_loop.QuitClosure()),
         BrowserList::CloseCallback(), false);
   }
 
@@ -145,11 +173,11 @@ class StartupBrowserCreatorCorruptProfileTest : public InProcessBrowserTest {
   // In this test fixture, SetUpUserDataDirectory must be handled for all
   // non-PRE_ tests.
   bool SetUpUserDataDirectory() override {
-#define SET_UP_USER_DATA_DIRECTORY_FOR(testname)                       \
-  if (testing::UnitTest::GetInstance()->current_test_info()->name() == \
-      std::string(#testname)) {                                        \
-    return this->SetUpUserDataDirectoryFor##testname();                \
-  }
+#define SET_UP_USER_DATA_DIRECTORY_FOR(testname) \
+if (testing::UnitTest::GetInstance()->current_test_info()->name() == \
+    std::string(#testname)) {\
+  return this->SetUpUserDataDirectoryFor ## testname(); \
+}
 
     SET_UP_USER_DATA_DIRECTORY_FOR(LastOpenedProfileMissing);
     SET_UP_USER_DATA_DIRECTORY_FOR(LastUsedProfileFallbackToLastOpenedProfiles);
@@ -179,7 +207,6 @@ class StartupBrowserCreatorCorruptProfileTest : public InProcessBrowserTest {
   void TearDown() override {
     EXPECT_EQ(expect_test_body_to_run_, test_body_has_run_);
     InProcessBrowserTest::TearDown();
-    signin_util::ResetForceSigninForTesting();
   }
 
  private:
@@ -266,6 +293,7 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorCorruptProfileTest,
   ExpectUserManagerToShow();
 }
 
+
 // CannotCreateSystemProfile : If the system profile cannot be created, the user
 // manager should not be shown. Fallback to any other profile.
 IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorCorruptProfileTest,
@@ -325,6 +353,18 @@ bool StartupBrowserCreatorCorruptProfileTest::
 IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorCorruptProfileTest,
                        LastUsedProfileFallbackFail) {
   ADD_FAILURE() << "Test body is not expected to run.";
+}
+
+// DoNotStartLockedProfile : Profiles that are locked should never be
+// initialized. Since there are no unlocked profiles, the browser should not
+// start.
+IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorCorruptProfileTest,
+                       PRE_DoNotStartLockedProfile) {
+  // Lock the default profile. The user manager is shown after the profile is
+  // locked.
+  signin_util::SetForceSigninForTesting(true);
+  profiles::LockProfile(browser()->profile());
+  ExpectUserManagerToShow();
 }
 
 bool StartupBrowserCreatorCorruptProfileTest::

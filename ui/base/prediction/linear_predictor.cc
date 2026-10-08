@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -81,8 +81,7 @@ bool LinearPredictor::HasPrediction() const {
 }
 
 std::unique_ptr<InputPredictor::InputData> LinearPredictor::GeneratePrediction(
-    base::TimeTicks predict_time,
-    base::TimeDelta frame_interval) {
+    base::TimeTicks predict_time) const {
   if (!HasPrediction())
     return nullptr;
 

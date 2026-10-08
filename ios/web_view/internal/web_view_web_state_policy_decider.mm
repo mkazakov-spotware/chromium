@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,10 @@ WebViewWebStatePolicyDecider::WebViewWebStatePolicyDecider(
     CWVWebView* web_view)
     : web::WebStatePolicyDecider(web_state), web_view_(web_view) {}
 
-void WebViewWebStatePolicyDecider::ShouldAllowRequest(
+web::WebStatePolicyDecider::PolicyDecision
+WebViewWebStatePolicyDecider::ShouldAllowRequest(
     NSURLRequest* request,
-    web::WebStatePolicyDecider::RequestInfo request_info,
-    web::WebStatePolicyDecider::PolicyDecisionCallback callback) {
+    const web::WebStatePolicyDecider::RequestInfo& request_info) {
   id<CWVNavigationDelegate> delegate = web_view_.navigationDelegate;
   if ([delegate respondsToSelector:@selector
                 (webView:shouldStartLoadWithRequest:navigationType:)]) {
@@ -36,29 +36,28 @@ void WebViewWebStatePolicyDecider::ShouldAllowRequest(
         shouldStartLoadWithRequest:request
                     navigationType:navigation_type];
     if (!allow) {
-      return std::move(callback).Run(
-          web::WebStatePolicyDecider::PolicyDecision::Cancel());
+      return WebStatePolicyDecider::PolicyDecision::Cancel();
     }
   }
-  std::move(callback).Run(web::WebStatePolicyDecider::PolicyDecision::Allow());
+  return WebStatePolicyDecider::PolicyDecision::Allow();
 }
 
 void WebViewWebStatePolicyDecider::ShouldAllowResponse(
     NSURLResponse* response,
-    web::WebStatePolicyDecider::ResponseInfo response_info,
-    web::WebStatePolicyDecider::PolicyDecisionCallback callback) {
+    bool for_main_frame,
+    base::OnceCallback<void(WebStatePolicyDecider::PolicyDecision)> callback) {
   id<CWVNavigationDelegate> delegate = web_view_.navigationDelegate;
   if ([delegate respondsToSelector:@selector
                 (webView:shouldContinueLoadWithResponse:forMainFrame:)]) {
     BOOL allow = [delegate webView:web_view_
         shouldContinueLoadWithResponse:response
-                          forMainFrame:response_info.for_main_frame];
+                          forMainFrame:for_main_frame];
     if (!allow) {
-      return std::move(callback).Run(
-          web::WebStatePolicyDecider::PolicyDecision::Cancel());
+      std::move(callback).Run(WebStatePolicyDecider::PolicyDecision::Cancel());
+      return;
     };
   }
-  std::move(callback).Run(web::WebStatePolicyDecider::PolicyDecision::Allow());
+  std::move(callback).Run(WebStatePolicyDecider::PolicyDecision::Allow());
 }
 
 }  // namespace ios_web_view

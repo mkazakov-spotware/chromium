@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 #include "sandbox/win/src/sandbox.h"
 #include "sandbox/win/src/signed_interception.h"
 #include "sandbox/win/src/signed_policy.h"
-#include "sandbox/win/src/win_utils.h"
 
 namespace sandbox {
 
@@ -48,10 +47,10 @@ bool SignedDispatcher::CreateSection(IPCInfo* ipc, HANDLE file_handle) {
   }
 
   base::win::ScopedHandle local_handle(local_file_handle);
-  auto path = GetPathFromHandle(local_handle.Get());
-  if (!path)
+  std::wstring path;
+  if (!GetPathFromHandle(local_handle.Get(), &path))
     return false;
-  const wchar_t* module_name = path->c_str();
+  const wchar_t* module_name = path.c_str();
   CountedParameterSet<NameBased> params;
   params[NameBased::NAME] = ParamPickerMake(module_name);
 

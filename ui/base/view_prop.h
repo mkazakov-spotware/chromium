@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 #define UI_BASE_VIEW_PROP_H_
 
 #include "base/component_export.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "ui/gfx/native_widget_types.h"
 
-#if !BUILDFLAG(IS_WIN) && !defined(USE_AURA)
+#if !defined(OS_WIN) && !defined(USE_AURA)
 #error view_prop.h is only for windows and aura builds.
 #endif
 
@@ -28,10 +29,6 @@ class COMPONENT_EXPORT(UI_BASE) ViewProp {
   // ViewProp does *not* make a copy of the char*, the pointer is used for
   // sorting.
   ViewProp(gfx::AcceleratedWidget view, const char* key, void* data);
-
-  ViewProp(const ViewProp&) = delete;
-  ViewProp& operator=(const ViewProp&) = delete;
-
   ~ViewProp();
 
   // Returns the value associated with the view/key pair, or NULL if there is
@@ -46,6 +43,8 @@ class COMPONENT_EXPORT(UI_BASE) ViewProp {
 
   // Stores the actual data.
   scoped_refptr<Data> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewProp);
 };
 
 }  // namespace ui

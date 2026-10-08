@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser;
-
-import android.webkit.JavascriptInterface;
 
 import org.junit.Assert;
 import org.junit.runner.Description;
@@ -130,8 +128,7 @@ public class JavaBridgeActivityTestRule extends ContentShellActivityTestRule {
     }
 
     public void injectObjectAndReload(Object object, String name) {
-        Class<? extends Annotation> requiredAnnotation = JavascriptInterface.class;
-        injectObjectAndReload(object, name, requiredAnnotation);
+        injectObjectAndReload(object, name, null);
     }
 
     public void injectObjectAndReload(
@@ -182,14 +179,10 @@ public class JavaBridgeActivityTestRule extends ContentShellActivityTestRule {
         onPageFinishedHelper.waitForCallback(currentCallCount);
     }
 
+
     @Override
     public Statement apply(Statement base, Description desc) {
-        return super.apply(new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                setUpContentView();
-                base.evaluate();
-            }
-        }, desc);
+        setUpContentView();
+        return super.apply(base, desc);
     }
 }

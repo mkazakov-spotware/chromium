@@ -1,10 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/password_manager/core/browser/android_affiliation/lookup_affiliation_response_parser.h"
-
-#include "base/containers/flat_set.h"
 
 namespace password_manager {
 
@@ -14,102 +12,59 @@ namespace {
 // > affiliation_pb::Affiliation
 // > affiliation_pb::FacetGroup
 template <typename MessageT>
-std::vector<Facet> ParseFacets(const MessageT& response) {
-  std::vector<Facet> facets;
-  facets.reserve(response.facet().size());
-  for (const auto& facet : response.facet()) {
-    const std::string& uri_spec(facet.id());
-    FacetURI uri = FacetURI::FromPotentiallyInvalidSpec(uri_spec);
-    // Ignore potential future kinds of facet URIs (e.g. for new platforms).
-    if (!uri.is_valid())
-      continue;
-    Facet new_facet = {uri};
-    if (facet.has_branding_info()) {
-      new_facet.branding_info = FacetBrandingInfo{
-          facet.branding_info().name(), GURL(facet.branding_info().icon_url())};
-    }
-    if (facet.has_change_password_info()) {
-      new_facet.change_password_url =
-          GURL(facet.change_password_info().change_password_url());
-    }
-    facets.push_back(std::move(new_facet));
-  }
-  return facets;
-}
-
-AffiliatedFacets ParseEqClass(const affiliation_pb::Affiliation& affiliation) {
-  return ParseFacets(affiliation);
-}
-
-GroupedFacets ParseEqClass(const affiliation_pb::FacetGroup& grouping) {
-  GroupedFacets group;
-  group.facets = ParseFacets(grouping);
-  if (grouping.has_group_branding_info()) {
-    group.branding_info =
-        FacetBrandingInfo{grouping.group_branding_info().name(),
-                          GURL(grouping.group_branding_info().icon_url())};
-  }
-  return group;
-}
-
-void AddSingleFacet(std::vector<AffiliatedFacets>& affiliations, Facet facet) {
-  affiliations.push_back({facet});
-}
-
-void AddSingleFacet(std::vector<GroupedFacets>& groups, Facet facet) {
-  GroupedFacets group;
-  group.facets = {facet};
-  groups.push_back(std::move(group));
-}
-
-// Template for the affiliation_pb message:
-// > affiliation_pb::Affiliation
-// > affiliation_pb::FacetGroup
-template <typename MessageT, typename ResultT>
-bool ParseResponse(const std::vector<FacetURI>& requested_facet_uris,
-                   const MessageT& response,
-                   ResultT& result) {
-  std::map<std::string, size_t> facet_uri_to_class_index;
-  base::flat_set<std::string> requested_facets = base::MakeFlatSet<std::string>(
-      requested_facet_uris, /*comp=*/{}, &FacetURI::potentially_invalid_spec);
-
-  // Validate and de-duplicate data.
+bool ParseFacets(const std::vector<FacetURI>& requested_facet_uris,
+                 const MessageT& response,
+                 std::vector<std::vector<Facet>>& result) {
+  std::map<FacetURI, size_t> facet_uri_to_class_index;
   for (const auto& equivalence_class : response) {
+    std::vector<Facet> facets;
+    facets.reserve(equivalence_class.facet().size());
+    for (const auto& facet : equivalence_class.facet()) {
+      const std::string& uri_spec(facet.id());
+      FacetURI uri = FacetURI::FromPotentiallyInvalidSpec(uri_spec);
+      // Ignore potential future kinds of facet URIs (e.g. for new platforms).
+      if (!uri.is_valid())
+        continue;
+      Facet new_facet = {uri};
+      if (facet.has_branding_info()) {
+        new_facet.branding_info =
+            FacetBrandingInfo{facet.branding_info().name(),
+                              GURL(facet.branding_info().icon_url())};
+      }
+      if (facet.has_change_password_info()) {
+        new_facet.change_password_url =
+            GURL(facet.change_password_info().change_password_url());
+      }
+      facets.push_back(std::move(new_facet));
+    }
+
     // Be lenient and ignore empty (after filtering) equivalence classes.
-    if (equivalence_class.facet().empty())
+    if (facets.empty())
       continue;
 
     // Ignore equivalence classes that are duplicates of earlier ones. However,
     // fail in the case of a partial overlap, which violates the invariant that
-    // affiliations must form an equivalence relation. Also check, if the class
-    // was requested.
-    bool is_class_requested = false;
-    for (const auto& facet : equivalence_class.facet()) {
-      if (requested_facets.count(facet.id()))
-        is_class_requested = true;
-
-      if (!facet_uri_to_class_index.count(facet.id()))
-        facet_uri_to_class_index[facet.id()] = result.size();
-
-      if (facet_uri_to_class_index[facet.id()] !=
-          facet_uri_to_class_index[equivalence_class.facet()[0].id()]) {
+    // affiliations must form an equivalence relation.
+    for (const Facet& facet : facets) {
+      if (!facet_uri_to_class_index.count(facet.uri))
+        facet_uri_to_class_index[facet.uri] = result.size();
+      if (facet_uri_to_class_index[facet.uri] !=
+          facet_uri_to_class_index[facets[0].uri]) {
         return false;
       }
     }
 
-    // Filter out duplicate or unrequested equivalence classes in the response.
-    if (is_class_requested &&
-        facet_uri_to_class_index[equivalence_class.facet()[0].id()] ==
-            result.size()) {
-      result.push_back(ParseEqClass(equivalence_class));
+    // Filter out duplicate equivalence classes in the response.
+    if (facet_uri_to_class_index[facets[0].uri] == result.size()) {
+      result.push_back(std::move(facets));
     }
   }
 
   // Synthesize an equivalence class (of size one) for each facet that did not
   // appear in the server response due to not being affiliated with any others.
   for (const FacetURI& uri : requested_facet_uris) {
-    if (!facet_uri_to_class_index.count(uri.potentially_invalid_spec()))
-      AddSingleFacet(result, {uri});
+    if (!facet_uri_to_class_index.count(uri))
+      result.push_back({{uri}});
   }
 
   return true;
@@ -119,12 +74,11 @@ bool ParseResponse(const std::vector<FacetURI>& requested_facet_uris,
 
 bool ParseLookupAffiliationResponse(
     const std::vector<FacetURI>& requested_facet_uris,
-    const affiliation_pb::LookupAffiliationByHashPrefixResponse& response,
+    const affiliation_pb::LookupAffiliationResponse& response,
     AffiliationFetcherDelegate::Result* result) {
-  return ParseResponse(requested_facet_uris, response.affiliations(),
-                       result->affiliations) &&
-         ParseResponse(requested_facet_uris, response.groups(),
-                       result->groupings);
+  return ParseFacets(requested_facet_uris, response.affiliation(),
+                     result->affiliations) &&
+         ParseFacets(requested_facet_uris, response.group(), result->groupings);
 }
 
 }  // namespace password_manager

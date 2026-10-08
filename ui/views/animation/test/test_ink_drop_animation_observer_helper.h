@@ -1,18 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
 #ifndef UI_VIEWS_ANIMATION_TEST_TEST_INK_DROP_ANIMATION_OBSERVER_HELPER_H_
 #define UI_VIEWS_ANIMATION_TEST_TEST_INK_DROP_ANIMATION_OBSERVER_HELPER_H_
 
 #include <algorithm>
 #include <vector>
 
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/views/animation/ink_drop_animation_ended_reason.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 // Context tracking helper that can be used with test implementations of
 // ink drop animation observers.
@@ -23,11 +23,6 @@ class TestInkDropAnimationObserverHelper {
       : last_animation_started_context_(),
 
         last_animation_ended_context_() {}
-
-  TestInkDropAnimationObserverHelper(
-      const TestInkDropAnimationObserverHelper&) = delete;
-  TestInkDropAnimationObserverHelper& operator=(
-      const TestInkDropAnimationObserverHelper&) = delete;
 
   virtual ~TestInkDropAnimationObserverHelper() = default;
 
@@ -136,7 +131,10 @@ class TestInkDropAnimationObserverHelper {
   testing::AssertionResult ContextsMatch(
       const std::vector<ContextType>& expected_contexts,
       const std::vector<ContextType>& actual_contexts) {
-    const bool match = base::ranges::equal(expected_contexts, actual_contexts);
+    const bool match =
+        expected_contexts.size() == actual_contexts.size() &&
+        std::equal(expected_contexts.begin(), expected_contexts.end(),
+                   actual_contexts.begin());
     testing::AssertionResult result =
         match ? (testing::AssertionSuccess() << "Expected == Actual: {")
               : (testing::AssertionFailure() << "Expected != Actual: {");
@@ -186,8 +184,11 @@ class TestInkDropAnimationObserverHelper {
 
   InkDropAnimationEndedReason last_animation_ended_reason_ =
       InkDropAnimationEndedReason::SUCCESS;
+
+  DISALLOW_COPY_AND_ASSIGN(TestInkDropAnimationObserverHelper);
 };
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views
 
 #endif  // UI_VIEWS_ANIMATION_TEST_TEST_INK_DROP_ANIMATION_OBSERVER_HELPER_H_

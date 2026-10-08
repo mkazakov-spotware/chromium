@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,12 @@
 #define IPC_IPC_MESSAGE_PROTOBUF_UTILS_H_
 
 #include "build/build_config.h"
+
+#if defined(OS_NACL_NONSFI)
+static_assert(false,
+              "ipc_message_protobuf_utils is not able to work with "
+              "nacl_nonsfi configuration.");
+#endif
 
 #include "base/pickle.h"
 #include "ipc/ipc_param_traits.h"
@@ -25,14 +31,15 @@ struct RepeatedFieldParamTraits {
   static bool Read(const base::Pickle* m,
                    base::PickleIterator* iter,
                    param_type* r) {
-    size_t size;
+    int size;
+    // ReadLength() checks for < 0 itself.
     if (!iter->ReadLength(&size))
       return false;
     // Avoid integer overflow / assertion failure in Reserve() function.
-    if (size > INT_MAX / sizeof(StorageType))
+    if (INT_MAX / sizeof(StorageType) <= static_cast<size_t>(size))
       return false;
     r->Reserve(size);
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
       if (!ReadParam(m, iter, r->Add()))
         return false;
     }

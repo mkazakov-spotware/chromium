@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,7 @@ void TextInputTestLocalFrame::GetStringForRange(
             // Updates the string from the range and calls |callback|.
             frame->SetStringFromRange(
                 base::UTF16ToUTF8(attributed_string ? attributed_string->string
-                                                    : std::u16string()));
+                                                    : base::string16()));
             std::move(callback).Run(std::move(attributed_string), gfx::Point());
 
             // Calls |quit_closure_|.

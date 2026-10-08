@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,12 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_custom_element_form_disabled_callback.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_custom_element_form_state_restore_callback.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_void_function.h"
-#include "third_party/blink/renderer/core/html/custom/custom_element_registry.h"
 #include "third_party/blink/renderer/platform/bindings/callback_method_retriever.h"
 #include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
+#include "third_party/blink/renderer/platform/bindings/v8_binding_macros.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -46,7 +48,8 @@ bool ScriptCustomElementDefinitionBuilder::CheckConstructorIntrinsics() {
 }
 
 bool ScriptCustomElementDefinitionBuilder::CheckConstructorNotRegistered() {
-  if (!data_.registry_->DefinitionForConstructor(Constructor()))
+  if (!ScriptCustomElementDefinition::ForConstructor(
+          GetScriptState(), data_.registry_, Constructor()->CallbackObject()))
     return true;
 
   // Constructor is already registered.
@@ -217,8 +220,10 @@ bool ScriptCustomElementDefinitionBuilder::RememberOriginalProperties() {
 }
 
 CustomElementDefinition* ScriptCustomElementDefinitionBuilder::Build(
-    const CustomElementDescriptor& descriptor) {
-  return MakeGarbageCollected<ScriptCustomElementDefinition>(data_, descriptor);
+    const CustomElementDescriptor& descriptor,
+    CustomElementDefinition::Id id) {
+  return MakeGarbageCollected<ScriptCustomElementDefinition>(data_, descriptor,
+                                                             id);
 }
 
 v8::Isolate* ScriptCustomElementDefinitionBuilder::Isolate() {

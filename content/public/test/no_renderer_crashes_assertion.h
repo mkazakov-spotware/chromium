@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <map>
 
 #include "base/gtest_prod_util.h"
-#include "base/no_destructor.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
@@ -35,10 +35,6 @@ class ScopedAllowRendererCrashes {
   // Ignores crashes of the process associated with the given |frame|.
   explicit ScopedAllowRendererCrashes(const ToRenderFrameHost& frame);
 
-  ScopedAllowRendererCrashes(const ScopedAllowRendererCrashes&) = delete;
-  ScopedAllowRendererCrashes& operator=(const ScopedAllowRendererCrashes&) =
-      delete;
-
   ~ScopedAllowRendererCrashes();
 
  private:
@@ -48,6 +44,8 @@ class ScopedAllowRendererCrashes {
   // The special |ChildProcessHost::kInvalidUniqueID| value means that crashes
   // of *any* process are allowed.
   int process_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedAllowRendererCrashes);
 };
 
 // Helper that BrowserTestBase can use to start monitoring for renderer crashes
@@ -59,11 +57,6 @@ class ScopedAllowRendererCrashes {
 class NoRendererCrashesAssertion : public NotificationObserver {
  public:
   NoRendererCrashesAssertion();
-
-  NoRendererCrashesAssertion(const NoRendererCrashesAssertion&) = delete;
-  NoRendererCrashesAssertion& operator=(const NoRendererCrashesAssertion&) =
-      delete;
-
   ~NoRendererCrashesAssertion() override;
 
  private:
@@ -79,10 +72,6 @@ class NoRendererCrashesAssertion : public NotificationObserver {
    public:
     static Suspensions& GetInstance();
     Suspensions();
-
-    Suspensions(const Suspensions&) = delete;
-    Suspensions& operator=(const Suspensions&) = delete;
-
     ~Suspensions();
 
     // Methods for adding or removing a suspension.
@@ -100,6 +89,8 @@ class NoRendererCrashesAssertion : public NotificationObserver {
 
     std::map<int, int> process_id_to_suspension_count_;
     SEQUENCE_CHECKER(sequence_checker_);
+
+    DISALLOW_COPY_AND_ASSIGN(Suspensions);
   };
   friend ScopedAllowRendererCrashes;
   FRIEND_TEST_ALL_PREFIXES(NoRendererCrashesAssertionSuspensions,
@@ -109,6 +100,8 @@ class NoRendererCrashesAssertion : public NotificationObserver {
                            SingleProcessNesting);
   FRIEND_TEST_ALL_PREFIXES(NoRendererCrashesAssertionSuspensions,
                            AllProcessesNesting);
+
+  DISALLOW_COPY_AND_ASSIGN(NoRendererCrashesAssertion);
 };
 
 }  // namespace content

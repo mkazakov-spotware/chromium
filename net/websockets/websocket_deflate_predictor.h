@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ class NET_EXPORT_PRIVATE WebSocketDeflatePredictor {
     TRY_DEFLATE,
   };
 
-  virtual ~WebSocketDeflatePredictor() = default;
+  virtual ~WebSocketDeflatePredictor() {}
 
   // Predicts and returns whether the deflater should deflate the message
   // which begins with |frames[frame_index]| or not.

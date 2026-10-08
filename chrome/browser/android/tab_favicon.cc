@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,6 @@
 #include "ui/gfx/android/java_bitmap.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/image/image_skia.h"
-#include "ui/gfx/image/image_skia_rep.h"
-#include "url/android/gurl_android.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
@@ -86,10 +84,8 @@ void TabFavicon::OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
     return;
 
   JNIEnv* env = base::android::AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> j_icon_url =
-      url::GURLAndroid::FromNativeGURL(env, icon_url);
-  Java_TabFavicon_onFaviconAvailable(
-      env, jobj_, gfx::ConvertToJavaBitmap(favicon), j_icon_url);
+  Java_TabFavicon_onFaviconAvailable(env, jobj_,
+                                     gfx::ConvertToJavaBitmap(favicon));
 }
 
 static jlong JNI_TabFavicon_Init(JNIEnv* env,

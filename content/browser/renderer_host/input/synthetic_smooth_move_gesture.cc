@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,16 +66,14 @@ SyntheticGesture::Result SyntheticSmoothMoveGesture::ForwardInputEvents(
   switch (params_.input_type) {
     case SyntheticSmoothMoveGestureParams::TOUCH_INPUT:
       if (!synthetic_pointer_driver_)
-        synthetic_pointer_driver_ = SyntheticPointerDriver::Create(
-            content::mojom::GestureSourceType::kTouchInput,
-            params_.from_devtools_debugger);
+        synthetic_pointer_driver_ =
+            SyntheticPointerDriver::Create(SyntheticGestureParams::TOUCH_INPUT);
       ForwardTouchInputEvents(timestamp, target);
       break;
     case SyntheticSmoothMoveGestureParams::MOUSE_DRAG_INPUT:
       if (!synthetic_pointer_driver_)
-        synthetic_pointer_driver_ = SyntheticPointerDriver::Create(
-            content::mojom::GestureSourceType::kMouseInput,
-            params_.from_devtools_debugger);
+        synthetic_pointer_driver_ =
+            SyntheticPointerDriver::Create(SyntheticGestureParams::MOUSE_INPUT);
       ForwardMouseClickInputEvents(timestamp, target);
       break;
     case SyntheticSmoothMoveGestureParams::MOUSE_WHEEL_INPUT:
@@ -260,9 +258,6 @@ void SyntheticSmoothMoveGesture::ForwardMouseWheelEvent(
     const blink::WebMouseWheelEvent::Phase phase,
     const base::TimeTicks& timestamp,
     int modifiers) const {
-  if (params_.from_devtools_debugger) {
-    modifiers |= blink::WebInputEvent::kFromDebugger;
-  }
   blink::WebMouseWheelEvent mouse_wheel_event =
       blink::SyntheticWebMouseWheelEventBuilder::Build(
           0, 0, delta.x(), delta.y(), modifiers, params_.granularity);
@@ -361,8 +356,9 @@ void SyntheticSmoothMoveGesture::ComputeNextMoveSegment() {
                params_.speed_in_pixels_s));
     DCHECK_GT(total_duration_in_us, 0);
     current_move_segment_start_time_ = current_move_segment_stop_time_;
-    current_move_segment_stop_time_ = current_move_segment_start_time_ +
-                                      base::Microseconds(total_duration_in_us);
+    current_move_segment_stop_time_ =
+        current_move_segment_start_time_ +
+        base::TimeDelta::FromMicroseconds(total_duration_in_us);
   }
 }
 

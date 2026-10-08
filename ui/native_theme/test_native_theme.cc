@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,11 @@ namespace ui {
 TestNativeTheme::TestNativeTheme() : NativeTheme(false) {}
 TestNativeTheme::~TestNativeTheme() = default;
 
+SkColor TestNativeTheme::GetSystemColor(ColorId color_id,
+                                        ColorScheme color_scheme) const {
+  return SK_ColorRED;
+}
+
 gfx::Size TestNativeTheme::GetPartSize(Part part,
                                        State state,
                                        const ExtraParams& extra) const {
@@ -16,14 +21,11 @@ gfx::Size TestNativeTheme::GetPartSize(Part part,
 }
 
 void TestNativeTheme::Paint(cc::PaintCanvas* canvas,
-                            const ui::ColorProvider* color_provider,
                             Part part,
                             State state,
                             const gfx::Rect& rect,
                             const ExtraParams& extra,
-                            ColorScheme color_scheme,
-                            const absl::optional<SkColor>& accent_color) const {
-}
+                            ColorScheme color_scheme) const {}
 
 bool TestNativeTheme::SupportsNinePatch(Part part) const {
   return false;
@@ -37,8 +39,8 @@ gfx::Rect TestNativeTheme::GetNinePatchAperture(Part part) const {
   return gfx::Rect();
 }
 
-bool TestNativeTheme::UserHasContrastPreference() const {
-  return contrast_preference_;
+bool TestNativeTheme::UsesHighContrastColors() const {
+  return high_contrast_;
 }
 
 bool TestNativeTheme::ShouldUseDarkColors() const {

@@ -1,15 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/certificate_manager_model.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/test_future.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/test/browser_task_environment.h"
 #include "crypto/scoped_test_nss_db.h"
 #include "net/cert/nss_cert_database.h"
@@ -21,11 +18,11 @@
 #include "net/test/test_data_directory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/certificate_provider/certificate_provider.h"
-#include "chromeos/ash/components/network/policy_certificate_provider.h"
-#include "chromeos/components/onc/certificate_scope.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/certificate_provider/certificate_provider.h"
+#include "chromeos/network/onc/certificate_scope.h"
+#include "chromeos/network/policy_certificate_provider.h"
+#endif
 
 namespace {
 
@@ -67,10 +64,6 @@ class CertificateManagerModelTest : public testing::Test {
  public:
   CertificateManagerModelTest() {}
 
-  CertificateManagerModelTest(const CertificateManagerModelTest&) = delete;
-  CertificateManagerModelTest& operator=(const CertificateManagerModelTest&) =
-      delete;
-
  protected:
   void SetUp() override {
     ASSERT_TRUE(test_nssdb_.is_open());
@@ -84,7 +77,8 @@ class CertificateManagerModelTest : public testing::Test {
     fake_observer_ = std::make_unique<FakeObserver>();
     certificate_manager_model_ = std::make_unique<CertificateManagerModel>(
         GetCertificateManagerModelParams(), fake_observer_.get(),
-        nss_cert_db_.get());
+        nss_cert_db_.get(), true /* is_user_db_available */,
+        true /* bool is_tpm_available */);
   }
 
   void TearDown() override {
@@ -100,14 +94,11 @@ class CertificateManagerModelTest : public testing::Test {
   }
 
  protected:
-  // Invoke an explicit Refresh if the refresh is triggered and wait until the
-  // observer has been notified.
-  void WaitForRefresh(bool trigger_refresh) {
+  // Invoke an explicit Refresh and wait until the observer has been notified.
+  void RefreshAndWait() {
     base::RunLoop run_loop;
     fake_observer_->RunOnNextRefresh(run_loop.QuitClosure());
-    if (trigger_refresh) {
-      certificate_manager_model_->Refresh();
-    }
+    certificate_manager_model_->Refresh();
     run_loop.Run();
   }
 
@@ -116,6 +107,9 @@ class CertificateManagerModelTest : public testing::Test {
   std::unique_ptr<net::NSSCertDatabase> nss_cert_db_;
   std::unique_ptr<FakeObserver> fake_observer_;
   std::unique_ptr<CertificateManagerModel> certificate_manager_model_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CertificateManagerModelTest);
 };
 
 // CertificateManagerModel correctly lists CA certificates from the platform NSS
@@ -137,7 +131,7 @@ TEST_F(CertificateManagerModelTest, ListsCertsFromPlatform) {
   ASSERT_EQ(SECSuccess,
             PK11_ImportCert(test_nssdb_.slot(), cert.get(), CK_INVALID_HANDLE,
                             "cert", PR_FALSE /* includeTrust (unused) */));
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   {
     CertificateManagerModel::OrgGroupingMap org_grouping_map;
@@ -161,9 +155,7 @@ TEST_F(CertificateManagerModelTest, ListsCertsFromPlatform) {
 
   certificate_manager_model_->SetCertTrust(cert.get(), net::CertType::CA_CERT,
                                            net::NSSCertDatabase::TRUSTED_SSL);
-  // Wait for refresh without triggering because observer should be notified by
-  // net::CertDatabase and refresh automatically.
-  WaitForRefresh(false /*tigger_for_refresh*/);
+  RefreshAndWait();
   {
     CertificateManagerModel::OrgGroupingMap org_grouping_map;
     certificate_manager_model_->FilterAndBuildOrgGroupingMap(
@@ -185,7 +177,7 @@ TEST_F(CertificateManagerModelTest, ListsClientCertsFromPlatform) {
       net::GetTestCertsDirectory(), "client_1.pem", "client_1.pk8",
       test_nssdb_.slot(), &platform_client_cert);
 
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   CertificateManagerModel::OrgGroupingMap org_grouping_map;
   certificate_manager_model_->FilterAndBuildOrgGroupingMap(
@@ -196,7 +188,7 @@ TEST_F(CertificateManagerModelTest, ListsClientCertsFromPlatform) {
   ASSERT_TRUE(platform_cert_info);
 
   EXPECT_EQ(net::CertType::USER_CERT, platform_cert_info->type());
-  EXPECT_EQ(u"Client Cert A", platform_cert_info->name());
+  EXPECT_EQ(base::UTF8ToUTF16("Client Cert A"), platform_cert_info->name());
   EXPECT_TRUE(platform_cert_info->can_be_deleted());
   EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPlatform,
             platform_cert_info->source());
@@ -204,10 +196,11 @@ TEST_F(CertificateManagerModelTest, ListsClientCertsFromPlatform) {
   EXPECT_FALSE(platform_cert_info->hardware_backed());
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 namespace {
 
-class FakePolicyCertificateProvider : public ash::PolicyCertificateProvider {
+class FakePolicyCertificateProvider
+    : public chromeos::PolicyCertificateProvider {
  public:
   void AddPolicyProvidedCertsObserver(Observer* observer) override {
     observer_list_.AddObserver(observer);
@@ -298,11 +291,11 @@ class FakeExtensionCertificateProvider : public chromeos::CertificateProvider {
   }
 
  private:
-  raw_ptr<const net::CertificateList> extension_client_certificates_;
+  const net::CertificateList* extension_client_certificates_;
 
   // If *|extensions_hang| is true, the |FakeExtensionCertificateProvider| hangs
   // - it never calls the callbacks passed to |GetCertificates|.
-  raw_ptr<const bool> extensions_hang_;
+  const bool* extensions_hang_;
 };
 
 // Looks up a |CertInfo| in |org_grouping_map| corresponding to |cert|. Returns
@@ -369,7 +362,7 @@ TEST_F(CertificateManagerModelChromeOSTest, ListsWebTrustedCertsFromPolicy) {
   ASSERT_TRUE(cert_info);
 
   EXPECT_EQ(net::CertType::CA_CERT, cert_info->type());
-  EXPECT_EQ(u"pywebsocket", cert_info->name());
+  EXPECT_EQ(base::UTF8ToUTF16("pywebsocket"), cert_info->name());
   EXPECT_FALSE(cert_info->can_be_deleted());
   EXPECT_FALSE(cert_info->untrusted());
   EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPolicy,
@@ -396,7 +389,7 @@ TEST_F(CertificateManagerModelChromeOSTest, ListsNotWebTrustedCertsFromPolicy) {
   ASSERT_TRUE(cert_info);
 
   EXPECT_EQ(net::CertType::CA_CERT, cert_info->type());
-  EXPECT_EQ(u"pywebsocket", cert_info->name());
+  EXPECT_EQ(base::UTF8ToUTF16("pywebsocket"), cert_info->name());
   EXPECT_FALSE(cert_info->can_be_deleted());
   EXPECT_FALSE(cert_info->untrusted());
   EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPolicy,
@@ -424,7 +417,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
   ASSERT_TRUE(policy_cert.get());
   policy_certs_provider_.SetPolicyProvidedCertificates({policy_cert}, {});
 
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   {
     CertificateManagerModel::OrgGroupingMap org_grouping_map;
@@ -440,7 +433,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
     EXPECT_EQ(platform_cert_info, policy_cert_info);
 
     EXPECT_EQ(net::CertType::CA_CERT, policy_cert_info->type());
-    EXPECT_EQ(u"pywebsocket", policy_cert_info->name());
+    EXPECT_EQ(base::UTF8ToUTF16("pywebsocket"), policy_cert_info->name());
     EXPECT_FALSE(policy_cert_info->can_be_deleted());
     EXPECT_FALSE(policy_cert_info->untrusted());
     EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPolicy,
@@ -463,7 +456,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
     ASSERT_TRUE(platform_cert_info);
 
     EXPECT_EQ(net::CertType::CA_CERT, platform_cert_info->type());
-    EXPECT_EQ(u"pywebsocket", platform_cert_info->name());
+    EXPECT_EQ(base::UTF8ToUTF16("pywebsocket"), platform_cert_info->name());
     EXPECT_TRUE(platform_cert_info->can_be_deleted());
     EXPECT_TRUE(platform_cert_info->untrusted());
     EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPlatform,
@@ -492,7 +485,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
   ASSERT_TRUE(policy_cert.get());
   policy_certs_provider_.SetPolicyProvidedCertificates({}, {policy_cert});
 
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   {
     CertificateManagerModel::OrgGroupingMap org_grouping_map;
@@ -508,7 +501,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
     EXPECT_EQ(platform_cert_info, policy_cert_info);
 
     EXPECT_EQ(net::CertType::CA_CERT, platform_cert_info->type());
-    EXPECT_EQ(u"pywebsocket", platform_cert_info->name());
+    EXPECT_EQ(base::UTF8ToUTF16("pywebsocket"), platform_cert_info->name());
     EXPECT_TRUE(platform_cert_info->can_be_deleted());
     EXPECT_TRUE(platform_cert_info->untrusted());
     EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPlatform,
@@ -521,11 +514,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
   // certificate should be visible afterwards.
   base::RunLoop run_loop;
   fake_observer_->RunOnNextRefresh(run_loop.QuitClosure());
-  base::test::TestFuture<bool> remove_result;
-  certificate_manager_model_->RemoveFromDatabase(
-      net::x509_util::DupCERTCertificate(platform_cert),
-      remove_result.GetCallback());
-  EXPECT_TRUE(remove_result.Get());
+  certificate_manager_model_->Delete(platform_cert);
   run_loop.Run();
 
   {
@@ -537,7 +526,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
     ASSERT_TRUE(policy_cert_info);
 
     EXPECT_EQ(net::CertType::CA_CERT, policy_cert_info->type());
-    EXPECT_EQ(u"pywebsocket", policy_cert_info->name());
+    EXPECT_EQ(base::UTF8ToUTF16("pywebsocket"), policy_cert_info->name());
     EXPECT_FALSE(policy_cert_info->can_be_deleted());
     EXPECT_FALSE(policy_cert_info->untrusted());
     EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPolicy,
@@ -567,7 +556,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
   ASSERT_TRUE(policy_cert.get());
   policy_certs_provider_.SetPolicyProvidedCertificates({policy_cert}, {});
 
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   CertificateManagerModel::OrgGroupingMap org_grouping_map;
   certificate_manager_model_->FilterAndBuildOrgGroupingMap(
@@ -589,7 +578,7 @@ TEST_F(CertificateManagerModelChromeOSTest, ListsExtensionCerts) {
   ASSERT_TRUE(extension_cert.get());
   extension_client_certs_.push_back(extension_cert);
 
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   CertificateManagerModel::OrgGroupingMap org_grouping_map;
   certificate_manager_model_->FilterAndBuildOrgGroupingMap(
@@ -599,7 +588,8 @@ TEST_F(CertificateManagerModelChromeOSTest, ListsExtensionCerts) {
   ASSERT_TRUE(extension_cert_info);
 
   EXPECT_EQ(net::CertType::USER_CERT, extension_cert_info->type());
-  EXPECT_EQ(u"Client Cert A (extension provided)", extension_cert_info->name());
+  EXPECT_EQ(base::UTF8ToUTF16("Client Cert A (extension provided)"),
+            extension_cert_info->name());
   EXPECT_FALSE(extension_cert_info->can_be_deleted());
   EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kExtension,
             extension_cert_info->source());
@@ -619,7 +609,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
   ASSERT_TRUE(extension_cert.get());
   extension_client_certs_.push_back(extension_cert);
 
-  WaitForRefresh(true /*tigger_for_refresh*/);
+  RefreshAndWait();
 
   {
     CertificateManagerModel::OrgGroupingMap org_grouping_map;
@@ -636,7 +626,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
     EXPECT_EQ(platform_cert_info, extension_cert_info);
 
     EXPECT_EQ(net::CertType::USER_CERT, platform_cert_info->type());
-    EXPECT_EQ(u"Client Cert A", platform_cert_info->name());
+    EXPECT_EQ(base::UTF8ToUTF16("Client Cert A"), platform_cert_info->name());
     EXPECT_TRUE(platform_cert_info->can_be_deleted());
     EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kPlatform,
               platform_cert_info->source());
@@ -648,10 +638,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
   // certificate should be visible afterwards.
   base::RunLoop run_loop;
   fake_observer_->RunOnNextRefresh(run_loop.QuitClosure());
-  base::test::TestFuture<bool> remove_result;
-  certificate_manager_model_->RemoveFromDatabase(
-      std::move(platform_client_cert), remove_result.GetCallback());
-  EXPECT_TRUE(remove_result.Get());
+  certificate_manager_model_->Delete(platform_client_cert.get());
   run_loop.Run();
 
   {
@@ -663,7 +650,7 @@ TEST_F(CertificateManagerModelChromeOSTest,
     ASSERT_TRUE(extension_cert_info);
 
     EXPECT_EQ(net::CertType::USER_CERT, extension_cert_info->type());
-    EXPECT_EQ(u"Client Cert A (extension provided)",
+    EXPECT_EQ(base::UTF8ToUTF16("Client Cert A (extension provided)"),
               extension_cert_info->name());
     EXPECT_FALSE(extension_cert_info->can_be_deleted());
     EXPECT_EQ(CertificateManagerModel::CertInfo::Source::kExtension,
@@ -673,4 +660,4 @@ TEST_F(CertificateManagerModelChromeOSTest,
   }
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)

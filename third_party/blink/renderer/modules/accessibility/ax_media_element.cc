@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ AXObject* AccessibilityMediaElement::Create(
     LayoutObject* layout_object,
     AXObjectCacheImpl& ax_object_cache) {
   DCHECK(layout_object->GetNode());
-  DCHECK(IsA<HTMLMediaElement>(layout_object->GetNode()));
   return MakeGarbageCollected<AccessibilityMediaElement>(layout_object,
                                                          ax_object_cache);
 }
@@ -27,30 +26,28 @@ AccessibilityMediaElement::AccessibilityMediaElement(
 
 String AccessibilityMediaElement::TextAlternative(
     bool recursive,
-    const AXObject* aria_label_or_description_root,
+    bool in_aria_labelled_by_traversal,
     AXObjectSet& visited,
     ax::mojom::NameFrom& name_from,
     AXRelatedObjectVector* related_objects,
     NameSources* name_sources) const {
-  if (IsDetached())
-    return String();
-
   if (IsUnplayable()) {
-    auto* element = To<HTMLMediaElement>(layout_object_->GetNode());
+    HTMLMediaElement* element =
+        static_cast<HTMLMediaElement*>(layout_object_->GetNode());
     return element->GetLocale().QueryString(IDS_MEDIA_PLAYBACK_ERROR);
   }
   return AXLayoutObject::TextAlternative(
-      recursive, aria_label_or_description_root, visited, name_from,
+      recursive, in_aria_labelled_by_traversal, visited, name_from,
       related_objects, name_sources);
 }
 
 bool AccessibilityMediaElement::CanHaveChildren() const {
-  return true;
+  return HasControls();
 }
 
 bool AccessibilityMediaElement::ComputeAccessibilityIsIgnored(
     IgnoredReasons* ignored_reasons) const {
-  return false;
+  return !HasControls() && HasEmptySource();
 }
 
 AXRestriction AccessibilityMediaElement::Restriction() const {
@@ -60,10 +57,18 @@ AXRestriction AccessibilityMediaElement::Restriction() const {
   return AXNodeObject::Restriction();
 }
 
+bool AccessibilityMediaElement::HasControls() const {
+  return To<HTMLMediaElement>(GetNode())->ShouldShowControls();
+}
+
+bool AccessibilityMediaElement::HasEmptySource() const {
+  return To<HTMLMediaElement>(GetNode())->getNetworkState() ==
+         HTMLMediaElement::kNetworkEmpty;
+}
+
 bool AccessibilityMediaElement::IsUnplayable() const {
-  if (IsDetached())
-    return true;
-  auto* element = To<HTMLMediaElement>(layout_object_->GetNode());
+  HTMLMediaElement* element =
+      static_cast<HTMLMediaElement*>(layout_object_->GetNode());
   HTMLMediaElement::NetworkState network_state = element->getNetworkState();
   return (element->error() ||
           network_state == HTMLMediaElement::kNetworkEmpty ||

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Chromium Authors
+ * Copyright 2020 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -11,7 +11,7 @@ var timeoutID2;
  * Prints the given error message.
  * @param {string} msg - The error message to print.
  */
-function error(msg) {
+function error(msg) { // eslint-disable-line no-unused-vars
   if (timeoutID1) {
     window.clearTimeout(timeoutID1);
   }
@@ -50,7 +50,7 @@ function info(msg) {
  * @param {PaymentAddress} addr - The address to convert.
  * @return {object} The resulting dictionary.
  */
-function toDictionary(addr) {
+function toDictionary(addr) { // eslint-disable-line no-unused-vars
   let dict = {};
   if (addr) {
     if (addr.toJSON) {
@@ -76,7 +76,7 @@ function toDictionary(addr) {
  * @param {string} message - The human readable message to display.
  * @param {PaymentResponse} resp - The payment response.
  */
-function done(message, resp) {
+function done(message, resp) { // eslint-disable-line no-unused-vars
   let element = document.getElementById('contents');
   element.innerHTML = message;
 
@@ -112,6 +112,6 @@ function done(message, resp) {
 /**
  * Clears all messages.
  */
-function clearAllMessages() {
+function clearAllMessages() { // eslint-disable-line no-unused-vars
   document.getElementById('msg').innerHTML = '';
 }

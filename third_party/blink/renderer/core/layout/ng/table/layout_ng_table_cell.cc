@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "third_party/blink/renderer/core/html/html_table_cell_element.h"
 #include "third_party/blink/renderer/core/html/table_constants.h"
+#include "third_party/blink/renderer/core/layout/layout_analyzer.h"
 #include "third_party/blink/renderer/core/layout/layout_object_factory.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_block_node.h"
@@ -14,7 +15,6 @@
 #include "third_party/blink/renderer/core/layout/ng/ng_physical_box_fragment.h"
 #include "third_party/blink/renderer/core/layout/ng/table/layout_ng_table.h"
 #include "third_party/blink/renderer/core/layout/ng/table/layout_ng_table_row.h"
-#include "third_party/blink/renderer/core/paint/ng/ng_table_cell_paint_invalidator.h"
 
 namespace blink {
 
@@ -37,13 +37,8 @@ void LayoutNGTableCell::InvalidateLayoutResultCacheAfterMeasure() const {
 
 LayoutRectOutsets LayoutNGTableCell::BorderBoxOutsets() const {
   NOT_DESTROYED();
-  // TODO(1061423) This function should not be called before layout.
-  // ScrollAnchor::Examine does. Example trigger:
-  // ScrollTimelineTest.TimelineInvalidationWhenScrollerDisplayPropertyChanges
-  // DCHECK_GE(PhysicalFragmentCount(), 0u);
-  if (PhysicalFragmentCount() > 0)
-    return GetPhysicalFragment(0)->Borders().ToLayoutRectOutsets();
-  return LayoutNGBlockFlowMixin<LayoutBlockFlow>::BorderBoxOutsets();
+  DCHECK_GE(PhysicalFragmentCount(), 0u);
+  return GetPhysicalFragment(0)->Borders().ToLayoutRectOutsets();
 }
 
 LayoutUnit LayoutNGTableCell::BorderTop() const {
@@ -98,6 +93,7 @@ LayoutNGTable* LayoutNGTableCell::Table() const {
 
 void LayoutNGTableCell::UpdateBlockLayout(bool relayout_children) {
   NOT_DESTROYED();
+  LayoutAnalyzer::BlockScope analyzer(*this);
 
   if (IsOutOfFlowPositioned()) {
     UpdateOutOfFlowBlockLayout();
@@ -111,46 +107,26 @@ void LayoutNGTableCell::StyleDidChange(StyleDifference diff,
   NOT_DESTROYED();
   if (LayoutNGTable* table = Table()) {
     if ((old_style && !old_style->BorderVisuallyEqual(StyleRef())) ||
-        (old_style && old_style->GetWritingDirection() !=
-                          StyleRef().GetWritingDirection())) {
+        (diff.TextDecorationOrColorChanged() &&
+         StyleRef().HasBorderColorReferencingCurrentColor())) {
       table->GridBordersChanged();
     }
   }
   LayoutNGBlockFlowMixin<LayoutBlockFlow>::StyleDidChange(diff, old_style);
 }
 
-void LayoutNGTableCell::WillBeRemovedFromTree() {
-  NOT_DESTROYED();
-  if (LayoutNGTable* table = Table())
-    table->TableGridStructureChanged();
-  LayoutNGMixin<LayoutBlockFlow>::WillBeRemovedFromTree();
-}
-
 void LayoutNGTableCell::ColSpanOrRowSpanChanged() {
   NOT_DESTROYED();
+  // TODO(atotic) Invalidate layout?
   UpdateColAndRowSpanFlags();
-  if (LayoutNGTable* table = Table()) {
-    table->SetNeedsLayoutAndIntrinsicWidthsRecalc(
-        layout_invalidation_reason::kTableChanged);
+  if (LayoutNGTable* table = Table())
     table->TableGridStructureChanged();
-  }
 }
 
 LayoutBox* LayoutNGTableCell::CreateAnonymousBoxWithSameTypeAs(
     const LayoutObject* parent) const {
   NOT_DESTROYED();
   return LayoutObjectFactory::CreateAnonymousTableCellWithParent(*parent);
-}
-
-LayoutBlock* LayoutNGTableCell::StickyContainer() const {
-  NOT_DESTROYED();
-  return Table();
-}
-
-void LayoutNGTableCell::InvalidatePaint(
-    const PaintInvalidatorContext& context) const {
-  NOT_DESTROYED();
-  NGTableCellPaintInvalidator(*this, context).InvalidatePaint();
 }
 
 bool LayoutNGTableCell::BackgroundIsKnownToBeOpaqueInRect(
@@ -163,6 +139,12 @@ bool LayoutNGTableCell::BackgroundIsKnownToBeOpaqueInRect(
     return false;
   return LayoutNGBlockFlowMixin<
       LayoutBlockFlow>::BackgroundIsKnownToBeOpaqueInRect(local_rect);
+}
+
+Length LayoutNGTableCell::StyleOrColLogicalWidth() const {
+  NOT_DESTROYED();
+  // TODO(atotic) TablesNG cannot easily get col width before layout.
+  return StyleRef().LogicalWidth();
 }
 
 // TODO(crbug.com/1079133): Used by AXLayoutObject::RowIndex,

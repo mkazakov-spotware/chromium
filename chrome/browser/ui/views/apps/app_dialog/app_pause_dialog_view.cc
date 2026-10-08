@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ AppPauseDialogView* g_app_pause_dialog_view = nullptr;
 
 // static
 void apps::AppServiceProxy::CreatePauseDialog(
-    apps::AppType app_type,
+    apps::mojom::AppType app_type,
     const std::string& app_name,
     const gfx::ImageSkia& image,
     const apps::PauseData& pause_data,
@@ -33,26 +33,28 @@ void apps::AppServiceProxy::CreatePauseDialog(
 }
 
 AppPauseDialogView::AppPauseDialogView(
-    apps::AppType app_type,
+    apps::mojom::AppType app_type,
     const std::string& app_name,
     const gfx::ImageSkia& image,
     const apps::PauseData& pause_data,
     apps::AppServiceProxy::OnPauseDialogClosedCallback closed_callback)
-    : AppDialogView(ui::ImageModel::FromImageSkia(image)) {
+    : AppDialogView(image) {
   SetTitle(l10n_util::GetStringFUTF16(IDS_APP_PAUSE_PROMPT_TITLE,
                                       base::UTF8ToUTF16(app_name)));
 
   closed_callback_ = std::move(closed_callback);
 
   const int cutoff = pause_data.minutes == 0 || pause_data.hours == 0 ? 0 : -1;
-  std::u16string heading_text = l10n_util::GetStringFUTF16(
-      (app_type == apps::AppType::kWeb) ? IDS_APP_PAUSE_HEADING_FOR_WEB_APPS
-                                        : IDS_APP_PAUSE_HEADING,
+  base::string16 heading_text = l10n_util::GetStringFUTF16(
+      (app_type == apps::mojom::AppType::kWeb)
+          ? IDS_APP_PAUSE_HEADING_FOR_WEB_APPS
+          : IDS_APP_PAUSE_HEADING,
       base::UTF8ToUTF16(app_name),
       ui::TimeFormat::Detailed(
           ui::TimeFormat::Format::FORMAT_DURATION,
           ui::TimeFormat::Length::LENGTH_LONG, cutoff,
-          base::Hours(pause_data.hours) + base::Minutes(pause_data.minutes)));
+          base::TimeDelta::FromHours(pause_data.hours) +
+              base::TimeDelta::FromMinutes(pause_data.minutes)));
 
   InitializeView(heading_text);
 

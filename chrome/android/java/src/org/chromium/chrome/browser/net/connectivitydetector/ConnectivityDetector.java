@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.net.connectivitydetector;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -14,19 +15,16 @@ import android.os.SystemClock;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.chrome.browser.content.ContentUtils;
-import org.chromium.net.ChromiumNetworkAdapter;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.net.ConnectionType;
 import org.chromium.net.NetworkChangeNotifier;
-import org.chromium.net.NetworkTrafficAnnotationTag;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
@@ -66,16 +64,14 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
         // The network is connected to Internet and validated. If the connected network imposes
         // capitive portal, the user has already signed into it.
         int VALIDATED = 4;
-        // Count.
-        int RESULT_COUNT = 5;
     }
 
     // Denotes how the connectivity check is done.
-    @IntDef({ConnectivityCheckingStage.NOT_STARTED, ConnectivityCheckingStage.FROM_SYSTEM,
-            ConnectivityCheckingStage.PROBE_DEFAULT_URL,
-            ConnectivityCheckingStage.PROBE_FALLBACK_URL})
+    @IntDef({ConnectivityCheckingState.NOT_STARTED, ConnectivityCheckingState.FROM_SYSTEM,
+            ConnectivityCheckingState.PROBE_DEFAULT_URL,
+            ConnectivityCheckingState.PROBE_FALLBACK_URL})
     @Retention(RetentionPolicy.SOURCE)
-    private @interface ConnectivityCheckingStage {
+    private @interface ConnectivityCheckingState {
         // Not started.
         int NOT_STARTED = 0;
         // Retrieved from the Android system.
@@ -84,8 +80,6 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
         int PROBE_DEFAULT_URL = 2;
         // By probing the fallback URL.
         int PROBE_FALLBACK_URL = 3;
-        // Count.
-        int RESULT_COUNT = 4;
     }
 
     // The result of the HTTP probing. Defined in tools/metrics/histograms/enums.xml.
@@ -141,9 +135,16 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
      * Implementation that talks with the Android connectivity manager service.
      */
     public class DelegateImpl implements Delegate {
-        @RequiresApi(Build.VERSION_CODES.M)
+        @TargetApi(Build.VERSION_CODES.M)
         @Override
         public @ConnectionState int inferConnectionStateFromSystem() {
+            // Skip the system check below in order to force the HTTP probes. This is used for
+            // manual testing purposes.
+            if (ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.OFFLINE_INDICATOR_ALWAYS_HTTP_PROBE)) {
+                return ConnectionState.NONE;
+            }
+
             // NET_CAPABILITY_VALIDATED and NET_CAPABILITY_CAPTIVE_PORTAL are only available on
             // Marshmallow and later versions.
             ConnectivityManager connectivityManager = null;
@@ -207,16 +208,13 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
     private Observer mObserver;
     private Delegate mDelegate;
 
-    // Name of the client used for recording histograms.
-    private final String mClientName;
-
     private @ConnectionType int mConnectionType = ConnectionType.CONNECTION_UNKNOWN;
     private @ConnectionState int mConnectionState = ConnectionState.NONE;
 
     private String mUserAgentString;
     private boolean mIsCheckingConnectivity;
-    private @ConnectivityCheckingStage int mConnectivityCheckingStage =
-            ConnectivityCheckingStage.NOT_STARTED;
+    private @ConnectivityCheckingState int mConnectivityCheckingState =
+            ConnectivityCheckingState.NOT_STARTED;
     // The delay time, in milliseconds, before we can send next http probe request.
     private int mConnectivityCheckDelayMs;
     // The starting time, in milliseconds since boot, when we start to do http probes to validate
@@ -225,9 +223,8 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
     private Handler mHandler;
     private Runnable mRunnable;
 
-    public ConnectivityDetector(Observer observer, String clientName) {
+    public ConnectivityDetector(Observer observer) {
         mObserver = observer;
-        mClientName = clientName;
         mDelegate = sOveriddenDelegate != null ? sOveriddenDelegate : new DelegateImpl();
         mHandler = new Handler();
         NetworkChangeNotifier.addConnectionTypeObserver(this);
@@ -270,7 +267,7 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
         // If there is no change to connection and connectivity checking is still in progress,
         // don't restart it.
         if (!hasConnectionTypeChange
-                && mConnectivityCheckingStage != ConnectivityCheckingStage.NOT_STARTED) {
+                && mConnectivityCheckingState != ConnectivityCheckingState.NOT_STARTED) {
             return;
         }
 
@@ -279,7 +276,7 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
     }
 
     private void performConnectivityCheck() {
-        mConnectivityCheckingStage = ConnectivityCheckingStage.FROM_SYSTEM;
+        mConnectivityCheckingState = ConnectivityCheckingState.FROM_SYSTEM;
         mConnectivityCheckDelayMs = 0;
         mConnectivityCheckStartTimeMs = SystemClock.elapsedRealtime();
 
@@ -297,12 +294,12 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
         if (mUserAgentString == null) {
             mUserAgentString = ContentUtils.getBrowserUserAgent();
         }
-        mConnectivityCheckingStage = ConnectivityCheckingStage.PROBE_DEFAULT_URL;
+        mConnectivityCheckingState = ConnectivityCheckingState.PROBE_DEFAULT_URL;
         checkConnectivityViaHttpProbe();
     }
 
     private void stopConnectivityCheck() {
-        if (mConnectivityCheckingStage == ConnectivityCheckingStage.NOT_STARTED) return;
+        if (mConnectivityCheckingState == ConnectivityCheckingState.NOT_STARTED) return;
 
         // Cancel any backoff scheduling. The currently running probe should hit an exception and
         // bail out.
@@ -311,43 +308,25 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
             mRunnable = null;
         }
 
-        mConnectivityCheckingStage = ConnectivityCheckingStage.NOT_STARTED;
+        mConnectivityCheckingState = ConnectivityCheckingState.NOT_STARTED;
     }
 
     @VisibleForTesting
     void checkConnectivityViaHttpProbe() {
-        assert mConnectivityCheckingStage == ConnectivityCheckingStage.PROBE_DEFAULT_URL
-                || mConnectivityCheckingStage == ConnectivityCheckingStage.PROBE_FALLBACK_URL;
+        assert mConnectivityCheckingState == ConnectivityCheckingState.PROBE_DEFAULT_URL
+                || mConnectivityCheckingState == ConnectivityCheckingState.PROBE_FALLBACK_URL;
 
         if (mDelegate.shouldSkipHttpProbes()) {
             // Just assume to be validated which is what the testing code wants.
             setConnectionState(ConnectionState.VALIDATED);
             processConnectivityCheckResult();
         } else {
-            sendHttpProbe(mConnectivityCheckingStage == ConnectivityCheckingStage.PROBE_DEFAULT_URL,
+            sendHttpProbe(mConnectivityCheckingState == ConnectivityCheckingState.PROBE_DEFAULT_URL,
                     SOCKET_TIMEOUT_MS, (result) -> {
-                        Log.i(TAG,
-                                "sendHttpProbe returned with result=" + result
-                                        + " and mConnectivityCheckingStage="
-                                        + mConnectivityCheckingStage);
-                        if (mConnectivityCheckingStage
-                                == ConnectivityCheckingStage.PROBE_DEFAULT_URL) {
-                            RecordHistogram.recordEnumeratedHistogram(
-                                    "ConnectivityDetector.DefaultHttpProbeResult." + mClientName,
-                                    result, ProbeResult.RESULT_COUNT);
-                        } else {
-                            RecordHistogram.recordEnumeratedHistogram(
-                                    "ConnectivityDetector.FallbackHttpProbeResult." + mClientName,
-                                    result, ProbeResult.RESULT_COUNT);
-                        }
-
                         // If we just lose the connection, bail out.
                         if (mConnectionType == ConnectionType.CONNECTION_NONE) return;
 
                         updateConnectionStatePerProbeResult(result);
-                        RecordHistogram.recordEnumeratedHistogram(
-                                "ConnectivityDetector.ConnectionState." + mClientName,
-                                mConnectionState, ConnectionState.RESULT_COUNT);
                         processConnectivityCheckResult();
                     });
         }
@@ -355,28 +334,25 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
 
     private void processConnectivityCheckResult() {
         // If the connection is validated, we're done.
-        Log.i(TAG,
-                "processConnectivityCheckResult mConnectionState=" + mConnectionState
-                        + " mConnectivityCheckingStage=" + mConnectivityCheckingStage);
         if (mConnectionState == ConnectionState.VALIDATED) {
             stopConnectivityCheck();
             return;
         }
 
-        switch (mConnectivityCheckingStage) {
-            case ConnectivityCheckingStage.FROM_SYSTEM:
+        switch (mConnectivityCheckingState) {
+            case ConnectivityCheckingState.FROM_SYSTEM:
                 // Wait some time and ask the system again.
                 scheduleNextConnectivityCheck();
                 break;
-            case ConnectivityCheckingStage.PROBE_DEFAULT_URL:
+            case ConnectivityCheckingState.PROBE_DEFAULT_URL:
                 // Probe again with the fallback URL. The captive portal may react differently
                 // for a different url.
-                mConnectivityCheckingStage = ConnectivityCheckingStage.PROBE_FALLBACK_URL;
+                mConnectivityCheckingState = ConnectivityCheckingState.PROBE_FALLBACK_URL;
                 checkConnectivityViaHttpProbe();
                 break;
-            case ConnectivityCheckingStage.PROBE_FALLBACK_URL:
+            case ConnectivityCheckingState.PROBE_FALLBACK_URL:
                 // Wait some time and retry probing again.
-                mConnectivityCheckingStage = ConnectivityCheckingStage.PROBE_DEFAULT_URL;
+                mConnectivityCheckingState = ConnectivityCheckingState.PROBE_DEFAULT_URL;
                 scheduleNextConnectivityCheck();
                 break;
         }
@@ -396,13 +372,8 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
             protected Integer doInBackground() {
                 HttpURLConnection urlConnection = null;
                 try {
-                    RecordHistogram.recordCount1MHistogram(
-                            "ConnectivityDetector.SentHttpProbe." + mClientName, 1);
-                    Log.i(TAG, "Sending HTTP Probe now to url:" + urlString);
-
                     URL url = new URL(urlString);
-                    urlConnection = (HttpURLConnection) ChromiumNetworkAdapter.openConnection(
-                            url, NetworkTrafficAnnotationTag.MISSING_TRAFFIC_ANNOTATION);
+                    urlConnection = (HttpURLConnection) url.openConnection();
                     urlConnection.setInstanceFollowRedirects(false);
                     urlConnection.setRequestMethod(sProbeMethod);
                     urlConnection.setConnectTimeout(timeoutMs);
@@ -461,8 +432,6 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
     }
 
     private void scheduleNextConnectivityCheck() {
-        Log.i(TAG, "scheduleNextConnectivityCheck");
-        assert mConnectivityCheckDelayMs >= 0;
         if (mConnectivityCheckDelayMs == 0) {
             mConnectivityCheckDelayMs = sConnectivityCheckInitialDelayMs;
         } else {
@@ -471,8 +440,6 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
 
         // Give up after exceeding the maximum delay.
         if (mConnectivityCheckDelayMs >= CONNECTIVITY_CHECK_MAX_DELAY_MS) {
-            // Prevent overflow of the delay value.
-            mConnectivityCheckDelayMs = CONNECTIVITY_CHECK_MAX_DELAY_MS;
             Log.i(TAG, "No more retry after exceeding " + CONNECTIVITY_CHECK_MAX_DELAY_MS + "ms");
             if (mConnectionState == ConnectionState.NONE) {
                 setConnectionState(ConnectionState.NO_INTERNET);
@@ -494,7 +461,6 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
     private void updateConnectionStatePerProbeResult(@ProbeResult int result) {
         @ConnectionState
         int newConnectionState = mConnectionState;
-        Log.i(TAG, "updateConnectionStatePerProbeResult result=" + result);
         switch (result) {
             case ProbeResult.VALIDATED_WITH_NO_CONTENT:
             case ProbeResult.VALIDATED_WITH_OK_BUT_ZERO_CONTENT_LENGTH:
@@ -517,7 +483,6 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     public void setConnectionState(@ConnectionState int connectionState) {
-        Log.i(TAG, "setConnectionState connectionState=" + connectionState);
         if (mConnectionState == connectionState) return;
         mConnectionState = connectionState;
         if (mObserver != null) mObserver.onConnectionStateChanged(mConnectionState);
@@ -534,28 +499,13 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
     }
 
     @VisibleForTesting
-    static void resetDefaultProbeUrlForTesting() {
-        sDefaultProbeUrl = DEFAULT_PROBE_URL;
-    }
-
-    @VisibleForTesting
     static void overrideFallbackProbeUrlForTesting(String url) {
         sFallbackProbeUrl = url;
     }
 
     @VisibleForTesting
-    static void resetFallbackProbeUrlForTesting() {
-        sFallbackProbeUrl = FALLBACK_PROBE_URL;
-    }
-
-    @VisibleForTesting
     static void overrideProbeMethodForTesting(String method) {
         sProbeMethod = method;
-    }
-
-    @VisibleForTesting
-    static void resetProbeMethodForTesting() {
-        sProbeMethod = PROBE_METHOD;
     }
 
     @VisibleForTesting
@@ -575,7 +525,7 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
 
     @VisibleForTesting
     void setUseDefaultUrlForTesting(boolean useDefaultUrl) {
-        mConnectivityCheckingStage = useDefaultUrl ? ConnectivityCheckingStage.PROBE_DEFAULT_URL
-                                                   : ConnectivityCheckingStage.PROBE_FALLBACK_URL;
+        mConnectivityCheckingState = useDefaultUrl ? ConnectivityCheckingState.PROBE_DEFAULT_URL
+                                                   : ConnectivityCheckingState.PROBE_FALLBACK_URL;
     }
 }

@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/event_utils.h"
-
-#include <windows.h>
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/win/window_impl.h"
@@ -16,10 +14,6 @@ namespace {
 class TestWindow : public gfx::WindowImpl {
  public:
   TestWindow() {}
-
-  TestWindow(const TestWindow&) = delete;
-  TestWindow& operator=(const TestWindow&) = delete;
-
   ~TestWindow() override {}
 
   BOOL ProcessWindowMessage(HWND window,
@@ -33,10 +27,13 @@ class TestWindow : public gfx::WindowImpl {
     // screen coordinate transform.
     return message == WM_NCCALCSIZE;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestWindow);
 };
 
-CHROME_MSG CreateEvent(UINT type, WORD x, WORD y, HWND hwnd) {
-  CHROME_MSG event;
+MSG CreateEvent(UINT type, WORD x, WORD y, HWND hwnd) {
+  MSG event;
   event.message = type;
   event.hwnd = hwnd;
   event.lParam = MAKELPARAM(x, y);
@@ -54,7 +51,7 @@ TEST(EventWinTest, EventSystemLocationFromNative) {
   EXPECT_TRUE(test_window.hwnd() != nullptr);
 
   {
-    CHROME_MSG event =
+    MSG event =
         CreateEvent(WM_MOUSEWHEEL, x_coord, y_coord, test_window.hwnd());
     // Mouse wheel events already have screen coordinates so they should not be
     // converted.
@@ -62,8 +59,7 @@ TEST(EventWinTest, EventSystemLocationFromNative) {
               EventSystemLocationFromNative(event));
   }
 
-  CHROME_MSG event =
-      CreateEvent(WM_LBUTTONDOWN, x_coord, y_coord, test_window.hwnd());
+  MSG event = CreateEvent(WM_LBUTTONDOWN, x_coord, y_coord, test_window.hwnd());
   EXPECT_EQ(gfx::Point(x_coord + x_window_offset, y_coord + y_window_offset),
             EventSystemLocationFromNative(event));
 }

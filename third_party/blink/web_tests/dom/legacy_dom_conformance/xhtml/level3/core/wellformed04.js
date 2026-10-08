@@ -99,7 +99,7 @@ doc = domImpl.createDocument("http://www.w3.org/1999/xhtml","html",nullDoctype);
     {
         success = false;
         try {
-            attr = doc.createAttributeNS(nullNS,"LegalName}");
+            attr = doc.createAttributeNS(nullNS,"LegalNameࢎ");
         }
         catch(ex) {
       success = (typeof(ex.code) != 'undefined' && ex.code == 5);
@@ -122,7 +122,7 @@ doc = domImpl.createDocument("http://www.w3.org/1999/xhtml","html",nullDoctype);
        throw ex;
         }
          }
-        docElem.setAttributeNS(nullNS,"LegalName}","foo");
+        docElem.setAttributeNS(nullNS,"LegalNameࢎ","foo");
       doc.xmlVersion = "1.0";
 
       domConfig = doc.domConfig;

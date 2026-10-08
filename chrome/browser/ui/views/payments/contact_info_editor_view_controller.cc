@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,10 +79,10 @@ ContactInfoEditorViewController::GetFieldDefinitions() {
   return fields;
 }
 
-std::u16string ContactInfoEditorViewController::GetInitialValueForType(
+base::string16 ContactInfoEditorViewController::GetInitialValueForType(
     autofill::ServerFieldType type) {
   if (!profile_to_edit_)
-    return std::u16string();
+    return base::string16();
   return GetValueForType(*profile_to_edit_, type);
 }
 
@@ -125,7 +125,7 @@ ContactInfoEditorViewController::GetComboboxModelForType(
   return nullptr;
 }
 
-std::u16string ContactInfoEditorViewController::GetSheetTitle() {
+base::string16 ContactInfoEditorViewController::GetSheetTitle() {
   // TODO(crbug.com/712074): Title should reflect the missing information, if
   // applicable.
   return profile_to_edit_ ? l10n_util::GetStringUTF16(
@@ -150,7 +150,7 @@ bool ContactInfoEditorViewController::GetSheetId(DialogViewID* sheet_id) {
   return true;
 }
 
-std::u16string ContactInfoEditorViewController::GetValueForType(
+base::string16 ContactInfoEditorViewController::GetValueForType(
     const autofill::AutofillProfile& profile,
     autofill::ServerFieldType type) {
   if (type == autofill::PHONE_HOME_WHOLE_NUMBER) {
@@ -175,17 +175,17 @@ bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
   return field_.type == autofill::PHONE_HOME_WHOLE_NUMBER;
 }
 
-std::u16string
+base::string16
 ContactInfoEditorViewController::ContactInfoValidationDelegate::Format(
-    const std::u16string& text) {
+    const base::string16& text) {
   return base::UTF8ToUTF16(autofill::i18n::FormatPhoneForDisplay(
       base::UTF16ToUTF8(text),
-      autofill::AutofillCountry::CountryCodeForLocale(*locale_)));
+      autofill::AutofillCountry::CountryCodeForLocale(locale_)));
 }
 
 bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
     IsValidTextfield(views::Textfield* textfield,
-                     std::u16string* error_message) {
+                     base::string16* error_message) {
   return ValidateTextfield(textfield, error_message);
 }
 
@@ -194,7 +194,7 @@ bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
   if (!was_blurred)
     return true;
 
-  std::u16string error_message;
+  base::string16 error_message;
   bool is_valid = ValidateTextfield(textfield, &error_message);
   controller_->DisplayErrorMessageForField(field_.type, error_message);
   return is_valid;
@@ -202,7 +202,7 @@ bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
 
 bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
     ValidateTextfield(views::Textfield* textfield,
-                      std::u16string* error_message) {
+                      base::string16* error_message) {
   if (!controller_->spec())
     return false;
 
@@ -228,7 +228,7 @@ bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
     switch (field_.type) {
       case autofill::PHONE_HOME_WHOLE_NUMBER: {
         const std::string default_region_code =
-            autofill::AutofillCountry::CountryCodeForLocale(*locale_);
+            autofill::AutofillCountry::CountryCodeForLocale(locale_);
         if (!autofill::IsPossiblePhoneNumber(textfield->GetText(),
                                              default_region_code)) {
           is_valid = false;
@@ -269,7 +269,7 @@ bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
 
 bool ContactInfoEditorViewController::ContactInfoValidationDelegate::
     IsValidCombobox(ValidatingCombobox* combobox,
-                    std::u16string* error_message) {
+                    base::string16* error_message) {
   // This UI doesn't contain any comboboxes.
   NOTREACHED();
   return true;

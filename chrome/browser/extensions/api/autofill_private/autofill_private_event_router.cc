@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,8 +57,10 @@ void AutofillPrivateEventRouter::OnPersonalDataChanged() {
   autofill_util::CreditCardEntryList creditCardList =
       extensions::autofill_util::GenerateCreditCardList(*personal_data_);
 
-  auto args(api::autofill_private::OnPersonalDataChanged::Create(
-      addressList, creditCardList));
+  std::unique_ptr<base::ListValue> args(
+      api::autofill_private::OnPersonalDataChanged::Create(addressList,
+                                                           creditCardList)
+          .release());
 
   std::unique_ptr<Event> extension_event(
       new Event(events::AUTOFILL_PRIVATE_ON_PERSONAL_DATA_CHANGED,

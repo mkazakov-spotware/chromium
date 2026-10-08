@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_TEST_IMAGE_LOADER_H_
 #define EXTENSIONS_BROWSER_TEST_IMAGE_LOADER_H_
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "ui/gfx/image/image.h"
 
@@ -16,10 +17,6 @@ class Extension;
 class TestImageLoader {
  public:
   TestImageLoader();
-
-  TestImageLoader(const TestImageLoader&) = delete;
-  TestImageLoader& operator=(const TestImageLoader&) = delete;
-
   ~TestImageLoader();
 
   // Loads an image to be used in test from |extension|.
@@ -36,9 +33,11 @@ class TestImageLoader {
                             int size);
 
   gfx::Image image_;
-  base::OnceClosure loader_message_loop_quit_;
-  bool waiting_ = false;
-  bool image_loaded_ = false;
+  base::Closure loader_message_loop_quit_;
+  bool waiting_;
+  bool image_loaded_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestImageLoader);
 };
 
 }  // namespace extensions

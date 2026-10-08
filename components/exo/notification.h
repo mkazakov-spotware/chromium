@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace exo {
 
@@ -23,17 +23,16 @@ class Notification {
                const std::string& notifier_id,
                const std::vector<std::string>& buttons,
                const base::RepeatingCallback<void(bool)>& close_callback,
-               const base::RepeatingCallback<void(const absl::optional<int>&)>&
+               const base::RepeatingCallback<void(const base::Optional<int>&)>&
                    click_callback);
-
-  Notification(const Notification&) = delete;
-  Notification& operator=(const Notification&) = delete;
 
   // Closes this notification.
   void Close();
 
  private:
   const std::string notification_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(Notification);
 };
 
 }  // namespace exo

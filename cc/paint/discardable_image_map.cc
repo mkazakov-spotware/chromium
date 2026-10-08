@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,15 @@
 
 #include "base/auto_reset.h"
 #include "base/containers/adapters.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
 #include "base/trace_event/trace_event.h"
-#include "cc/paint/image_provider.h"
 #include "cc/paint/paint_filter.h"
 #include "cc/paint/paint_op_buffer.h"
-#include "cc/paint/skottie_wrapper.h"
 #include "third_party/skia/include/utils/SkNoDrawCanvas.h"
 #include "ui/gfx/display_color_spaces.h"
 #include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 namespace {
@@ -74,12 +71,12 @@ class DiscardableImageGenerator {
     ScopedResult GetRasterContent(const DrawImage& draw_image) override {
       generator_->AddImage(draw_image.paint_image(), false,
                            SkRect::Make(draw_image.src_rect()), op_rect_,
-                           SkM44(), draw_image.filter_quality());
+                           SkMatrix::I(), draw_image.filter_quality());
       return ScopedResult();
     }
 
    private:
-    raw_ptr<DiscardableImageGenerator> generator_;
+    DiscardableImageGenerator* generator_;
     gfx::Rect op_rect_;
   };
 
@@ -99,20 +96,20 @@ class DiscardableImageGenerator {
     // Prevent PaintOpBuffers from having side effects back into the canvas.
     SkAutoCanvasRestore save_restore(canvas, true);
 
-    PlaybackParams params(nullptr, canvas->getLocalToDevice());
+    PlaybackParams params(nullptr, canvas->getTotalMatrix());
     // TODO(khushalsagar): Optimize out save/restore blocks if there are no
     // images in the draw ops between them.
-    for (const PaintOp& op : PaintOpBuffer::Iterator(buffer)) {
+    for (auto* op : PaintOpBuffer::Iterator(buffer)) {
       // We need to play non-draw ops on the SkCanvas since they can affect the
       // transform/clip state.
-      if (!op.IsDrawOp())
-        op.Raster(canvas, params);
+      if (!op->IsDrawOp())
+        op->Raster(canvas, params);
 
       if (!PaintOp::OpHasDiscardableImages(op))
         continue;
 
       gfx::Rect op_rect;
-      absl::optional<gfx::Rect> local_op_rect;
+      base::Optional<gfx::Rect> local_op_rect;
 
       if (top_level_op_rect) {
         op_rect = *top_level_op_rect;
@@ -127,67 +124,31 @@ class DiscardableImageGenerator {
         op_rect = local_op_rect.value();
       }
 
-      const SkM44& ctm = canvas->getLocalToDevice();
-      if (op.IsPaintOpWithFlags()) {
+      const SkMatrix& ctm = canvas->getTotalMatrix();
+      if (op->IsPaintOpWithFlags()) {
         AddImageFromFlags(op_rect,
-                          static_cast<const PaintOpWithFlags&>(op).flags, ctm);
+                          static_cast<const PaintOpWithFlags*>(op)->flags, ctm);
       }
 
-      PaintOpType op_type = static_cast<PaintOpType>(op.type);
+      PaintOpType op_type = static_cast<PaintOpType>(op->type);
       if (op_type == PaintOpType::DrawImage) {
-        const auto& image_op = static_cast<const DrawImageOp&>(op);
+        auto* image_op = static_cast<DrawImageOp*>(op);
         AddImage(
-            image_op.image, image_op.flags.useDarkModeForImage(),
-            SkRect::MakeIWH(image_op.image.width(), image_op.image.height()),
-            op_rect, ctm, image_op.flags.getFilterQuality());
+            image_op->image, image_op->flags.useDarkModeForImage(),
+            SkRect::MakeIWH(image_op->image.width(), image_op->image.height()),
+            op_rect, ctm, image_op->flags.getFilterQuality());
       } else if (op_type == PaintOpType::DrawImageRect) {
-        const auto& image_rect_op = static_cast<const DrawImageRectOp&>(op);
-        // TODO(crbug.com/1155544): Make a RectToRect method that uses SkM44s
-        // in MathUtil.
-        SkM44 matrix = ctm * SkM44(SkMatrix::RectToRect(image_rect_op.src,
-                                                        image_rect_op.dst));
-        AddImage(image_rect_op.image, image_rect_op.flags.useDarkModeForImage(),
-                 image_rect_op.src, op_rect, matrix,
-                 image_rect_op.flags.getFilterQuality());
-      } else if (op_type == PaintOpType::DrawSkottie) {
-        const auto& skottie_op = static_cast<const DrawSkottieOp&>(op);
-        for (const auto& image_pair : skottie_op.images) {
-          const SkottieFrameData& frame_data = image_pair.second;
-          // Add the whole image (no cropping).
-          SkRect image_src_rect = SkRect::MakeIWH(frame_data.image.width(),
-                                                  frame_data.image.height());
-          // It is too difficult to tell which specific portion of the animation
-          // frame this image will ultimately occupy. So just assume it occupies
-          // the whole animation frame for the purposes of finding which images
-          // overlap with a given rectangle on the screen.
-          gfx::Rect dst_rect = op_rect;
-          // Skottie ultimately takes care of scaling and positioning the image
-          // internally within the animation frame. However, the image that gets
-          // cached in the ImageDecodeCache should have dimensions that at least
-          // roughly reflect the ultimate output both for cache space
-          // consumption reasons and to make Skottie's scaling job easier
-          // (performance). For this reason, the DrawImage submitted to the
-          // cache is scaled by the same amount that the entire animation frame
-          // itself is scaled. This should get the image dimensions in the right
-          // ballpark in the event that the animation's native size and the
-          // destination's size differ drastically.
-          //
-          // Do not allow stretching the image in 1 dimension when scaling. This
-          // matches Skottie's scaling behavior.
-          static constexpr SkMatrix::ScaleToFit kScalingMode =
-              SkMatrix::kCenter_ScaleToFit;
-          SkRect skottie_frame_native_size =
-              SkRect::MakeSize(skottie_op.skottie->size());
-          SkM44 matrix = ctm * SkM44(SkMatrix::RectToRect(
-                                   skottie_frame_native_size,
-                                   gfx::RectToSkRect(dst_rect), kScalingMode));
-          AddImage(frame_data.image, /*use_dark_mode=*/false,
-                   std::move(image_src_rect), std::move(dst_rect), matrix,
-                   frame_data.quality);
-        }
+        auto* image_rect_op = static_cast<DrawImageRectOp*>(op);
+        SkMatrix matrix = ctm;
+        matrix.postConcat(SkMatrix::MakeRectToRect(image_rect_op->src,
+                                                   image_rect_op->dst,
+                                                   SkMatrix::kFill_ScaleToFit));
+        AddImage(image_rect_op->image,
+                 image_rect_op->flags.useDarkModeForImage(), image_rect_op->src,
+                 op_rect, matrix, image_rect_op->flags.getFilterQuality());
       } else if (op_type == PaintOpType::DrawRecord) {
         GatherDiscardableImages(
-            static_cast<const DrawRecordOp&>(op).record.get(),
+            static_cast<const DrawRecordOp*>(op)->record.get(),
             top_level_op_rect, canvas);
       }
     }
@@ -195,7 +156,7 @@ class DiscardableImageGenerator {
 
   void AddImageFromFlags(const gfx::Rect& op_rect,
                          const PaintFlags& flags,
-                         const SkM44& ctm) {
+                         const SkMatrix& ctm) {
     // TODO(prashant.n): Add dark mode support for images from shaders/filters.
     AddImageFromShader(op_rect, flags.getShader(), ctm,
                        flags.getFilterQuality());
@@ -204,14 +165,15 @@ class DiscardableImageGenerator {
 
   void AddImageFromShader(const gfx::Rect& op_rect,
                           const PaintShader* shader,
-                          const SkM44& ctm,
-                          PaintFlags::FilterQuality filter_quality) {
+                          const SkMatrix& ctm,
+                          SkFilterQuality filter_quality) {
     if (!shader || !shader->has_discardable_images())
       return;
 
     if (shader->shader_type() == PaintShader::Type::kImage) {
       const PaintImage& paint_image = shader->paint_image();
-      SkM44 matrix = ctm * SkM44(shader->GetLocalMatrix());
+      SkMatrix matrix = ctm;
+      matrix.postConcat(shader->GetLocalMatrix());
       // TODO(prashant.n): Add dark mode support for images from shader.
       AddImage(paint_image, false,
                SkRect::MakeWH(paint_image.width(), paint_image.height()),
@@ -228,13 +190,14 @@ class DiscardableImageGenerator {
       }
 
       SkRect scaled_tile_rect;
-      if (!shader->GetRasterizationTileRect(ctm.asM33(), &scaled_tile_rect)) {
+      if (!shader->GetRasterizationTileRect(ctm, &scaled_tile_rect)) {
         return;
       }
 
       SkNoDrawCanvas canvas(scaled_tile_rect.width(),
                             scaled_tile_rect.height());
-      canvas.setMatrix(SkMatrix::RectToRect(shader->tile(), scaled_tile_rect));
+      canvas.setMatrix(SkMatrix::MakeRectToRect(
+          shader->tile(), scaled_tile_rect, SkMatrix::kFill_ScaleToFit));
       base::AutoReset<bool> auto_reset(&only_gather_animated_images_, true);
       size_t prev_image_set_size = image_set_.size();
       GatherDiscardableImages(shader->paint_record().get(), &op_rect, &canvas);
@@ -274,8 +237,8 @@ class DiscardableImageGenerator {
                 bool use_dark_mode,
                 const SkRect& src_rect,
                 const gfx::Rect& image_rect,
-                const SkM44& matrix,
-                PaintFlags::FilterQuality filter_quality) {
+                const SkMatrix& matrix,
+                SkFilterQuality filter_quality) {
     if (paint_image.IsTextureBacked())
       return;
 

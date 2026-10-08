@@ -35,7 +35,6 @@ iframe {
 </head>
 <body>
 <iframe id="f"></iframe>
-<script src="../resources/gesture-util.js"></script>
 <script>
 
 var frame = document.getElementById("f").contentWindow;
@@ -49,10 +48,8 @@ frame.addEventListener('scroll', function() {
         frameBody.style.width = "600px";
 });
 
-async function runTest() {
+function runTest() {
     testRunner.waitUntilDone();
-
-    await waitForCompositorCommit();
 
     // Tell eventSender not to batch mouse move events.
     eventSender.dragMode = false;

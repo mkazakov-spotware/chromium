@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Functions for managing full screen status of the DOM.
@@ -20,7 +28,6 @@ goog.require('goog.dom');
 goog.dom.fullscreen.EventType = {
   /** Dispatched by the Document when the fullscreen status changes. */
   CHANGE: (function() {
-    'use strict';
     var el = goog.dom.getDomHelper().getDocument().documentElement;
     if (el.requestFullscreen) {
       return 'fullscreenchange';
@@ -69,11 +76,10 @@ goog.dom.fullscreen.FullscreenOptions.prototype.navigationUI;
  * @return {boolean} True iff full screen is supported.
  */
 goog.dom.fullscreen.isSupported = function(opt_domHelper) {
-  'use strict';
   var doc = goog.dom.fullscreen.getDocument_(opt_domHelper);
   var body = doc.body;
   return !!(
-      (body.webkitRequestFullscreen && doc.webkitFullscreenEnabled) ||
+      body.webkitRequestFullscreen ||
       (body.mozRequestFullScreen && doc.mozFullScreenEnabled) ||
       (body.msRequestFullscreen && doc.msFullscreenEnabled) ||
       (body.requestFullscreen && doc.fullscreenEnabled));
@@ -85,19 +91,16 @@ goog.dom.fullscreen.isSupported = function(opt_domHelper) {
  * @param {!Element} element The element to put full screen.
  * @param {!goog.dom.fullscreen.FullscreenOptions=} opt_options Options for full
  *     screen. This field will be ignored on older browsers.
-   @return {!Promise<undefined>|undefined} A promise in later versions of Chrome
-       and undefined otherwise.
  */
 goog.dom.fullscreen.requestFullScreen = function(element, opt_options) {
-  'use strict';
   if (element.requestFullscreen) {
-    return element.requestFullscreen(opt_options);
+    element.requestFullscreen(opt_options);
   } else if (element.webkitRequestFullscreen) {
-    return element.webkitRequestFullscreen();
+    element.webkitRequestFullscreen();
   } else if (element.mozRequestFullScreen) {
-    return element.mozRequestFullScreen();
+    element.mozRequestFullScreen();
   } else if (element.msRequestFullscreen) {
-    return element.msRequestFullscreen();
+    element.msRequestFullscreen();
   }
 };
 
@@ -105,17 +108,12 @@ goog.dom.fullscreen.requestFullScreen = function(element, opt_options) {
 /**
  * Requests putting the element in full screen with full keyboard access.
  * @param {!Element} element The element to put full screen.
- * @param {!goog.dom.fullscreen.FullscreenOptions=} opt_options Options for full
- *     screen. This field will be ignored on older browsers.
-   @return {!Promise<undefined>|undefined} A promise in later versions of Chrome
-       and undefined otherwise.
  */
-goog.dom.fullscreen.requestFullScreenWithKeys = function(element, opt_options) {
-  'use strict';
+goog.dom.fullscreen.requestFullScreenWithKeys = function(element) {
   if (element.mozRequestFullScreenWithKeys) {
-    return element.mozRequestFullScreenWithKeys();
+    element.mozRequestFullScreenWithKeys();
   } else {
-    return goog.dom.fullscreen.requestFullScreen(element, opt_options);
+    goog.dom.fullscreen.requestFullScreen(element);
   }
 };
 
@@ -126,7 +124,6 @@ goog.dom.fullscreen.requestFullScreenWithKeys = function(element, opt_options) {
  *     queried. If not provided, use the current DOM.
  */
 goog.dom.fullscreen.exitFullScreen = function(opt_domHelper) {
-  'use strict';
   var doc = goog.dom.fullscreen.getDocument_(opt_domHelper);
   if (doc.exitFullscreen) {
     doc.exitFullscreen();
@@ -147,7 +144,6 @@ goog.dom.fullscreen.exitFullScreen = function(opt_domHelper) {
  * @return {boolean} Whether the document is full screen.
  */
 goog.dom.fullscreen.isFullScreen = function(opt_domHelper) {
-  'use strict';
   var doc = goog.dom.fullscreen.getDocument_(opt_domHelper);
   // IE 11 doesn't have similar boolean property, so check whether
   // document.msFullscreenElement is null instead.
@@ -164,7 +160,6 @@ goog.dom.fullscreen.isFullScreen = function(opt_domHelper) {
  * @return {?Element} The root element in full screen mode.
  */
 goog.dom.fullscreen.getFullScreenElement = function(opt_domHelper) {
-  'use strict';
   var doc = goog.dom.fullscreen.getDocument_(opt_domHelper);
   var element_list = [
     doc.fullscreenElement, doc.webkitFullscreenElement,
@@ -187,7 +182,6 @@ goog.dom.fullscreen.getFullScreenElement = function(opt_domHelper) {
  * @private
  */
 goog.dom.fullscreen.getDocument_ = function(opt_domHelper) {
-  'use strict';
   return opt_domHelper ? opt_domHelper.getDocument() :
                          goog.dom.getDomHelper().getDocument();
 };

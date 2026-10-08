@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,11 +30,6 @@ class PasswordManagerDriver;
 class PasswordGenerationController {
  public:
   PasswordGenerationController() = default;
-
-  PasswordGenerationController(const PasswordGenerationController&) = delete;
-  PasswordGenerationController& operator=(const PasswordGenerationController&) =
-      delete;
-
   virtual ~PasswordGenerationController() = default;
 
   // Returns true if the generation controller may exist for |web_contents|.
@@ -99,7 +94,7 @@ class PasswordGenerationController {
   // |type| what type of generation led to the accepted password
   // (automatic or manual).
   virtual void GeneratedPasswordAccepted(
-      const std::u16string& password,
+      const base::string16& password,
       base::WeakPtr<password_manager::PasswordManagerDriver> driver,
       autofill::password_generation::PasswordGenerationType type) = 0;
 
@@ -113,9 +108,10 @@ class PasswordGenerationController {
   // Member accessors:
   // -----------------
 
-  virtual gfx::NativeWindow top_level_native_window() = 0;
+  virtual gfx::NativeWindow top_level_native_window() const = 0;
 
-  virtual content::WebContents* web_contents() = 0;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PasswordGenerationController);
 };
 
 #endif  // CHROME_BROWSER_PASSWORD_MANAGER_ANDROID_PASSWORD_GENERATION_CONTROLLER_H_

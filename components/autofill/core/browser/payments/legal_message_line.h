@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/gfx/range/range.h"
 #include "url/gurl.h"
 
@@ -73,7 +75,7 @@ class LegalMessageLine {
                     LegalMessageLines* out,
                     bool escape_apostrophes = false);
 
-  const std::u16string& text() const { return text_; }
+  const base::string16& text() const { return text_; }
   const Links& links() const { return links_; }
 
  private:
@@ -81,7 +83,7 @@ class LegalMessageLine {
 
   bool ParseLine(const base::Value& line, bool escape_apostrophes);
 
-  std::u16string text_;
+  base::string16 text_;
   Links links_;
 };
 

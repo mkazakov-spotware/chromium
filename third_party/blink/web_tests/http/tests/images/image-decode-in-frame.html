@@ -5,13 +5,7 @@ function receiveMessage(e) {
   if (e.data !== "pass") {
     document.getElementById("error").innerHTML = "iframe decode failed.";
   }
-  // Though the image has been decoded, it has not painted. Wait for a frame
-  // before informing the parent.
-  requestAnimationFrame(function() {
-    requestAnimationFrame(function() {
-      testRunner.notifyDone();
-    });
-  });
+  testRunner.notifyDone();
 }
 
 if (window.testRunner) {

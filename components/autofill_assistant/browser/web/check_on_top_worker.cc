@@ -1,14 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill_assistant/browser/web/check_on_top_worker.h"
 
-#include <vector>
-
 #include "base/logging.h"
-#include "components/autofill_assistant/browser/web/element_finder_result.h"
-#include "components/autofill_assistant/browser/web/js_snippets.h"
 #include "components/autofill_assistant/browser/web/web_controller_util.h"
 
 namespace autofill_assistant {
@@ -18,7 +14,7 @@ CheckOnTopWorker::CheckOnTopWorker(DevtoolsClient* devtools_client)
 
 CheckOnTopWorker::~CheckOnTopWorker() {}
 
-void CheckOnTopWorker::Start(const ElementFinderResult& element,
+void CheckOnTopWorker::Start(const ElementFinder::Result& element,
                              Callback callback) {
   callback_ = std::move(callback);
 
@@ -35,11 +31,11 @@ void CheckOnTopWorker::Start(const ElementFinderResult& element,
   js_snippet.AddLine("}");
   std::string function = js_snippet.ToString();
 
-  pending_result_count_ = element.frame_stack().size() + 1;
-  for (const auto& frame : element.frame_stack()) {
+  pending_result_count_ = element.frame_stack.size() + 1;
+  for (const auto& frame : element.frame_stack) {
     CallFunctionOn(function, frame.node_frame_id, frame.object_id);
   }
-  CallFunctionOn(function, element.node_frame_id(), element.object_id());
+  CallFunctionOn(function, element.node_frame_id, element.object_id);
 }
 
 void CheckOnTopWorker::CallFunctionOn(const std::string& function,

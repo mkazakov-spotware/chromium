@@ -1,11 +1,8 @@
 /*
- *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
+ * Copyright 2017 The Chromium Authors. All rights reserved.
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
  */
-
 /* jshint esversion: 6 */
 
 'use strict';
@@ -20,7 +17,7 @@ var cpuOveruseDetectionCheckbox = $('cpuoveruse-detection');
 startTestButton.onclick = startTest;
 
 function logError(err) {
-  console.err(err);
+  console.error(err);
 }
 
 function addNewVideoElement() {

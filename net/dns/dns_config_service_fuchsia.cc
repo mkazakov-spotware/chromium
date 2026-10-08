@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,16 @@
 
 #include <memory>
 
-#include "base/files/file_path.h"
 #include "net/dns/dns_config.h"
 #include "net/dns/dns_hosts.h"
 
 namespace net {
 namespace internal {
 
-DnsConfigServiceFuchsia::DnsConfigServiceFuchsia()
-    : DnsConfigService(
-          base::FilePath::StringPieceType() /* hosts_file_path */) {}
+DnsConfigServiceFuchsia::DnsConfigServiceFuchsia() = default;
 DnsConfigServiceFuchsia::~DnsConfigServiceFuchsia() = default;
 
-void DnsConfigServiceFuchsia::ReadConfigNow() {
-  // TODO(crbug.com/950717): Implement this method.
-}
-
-void DnsConfigServiceFuchsia::ReadHostsNow() {
+void DnsConfigServiceFuchsia::ReadNow() {
   // TODO(crbug.com/950717): Implement this method.
 }
 

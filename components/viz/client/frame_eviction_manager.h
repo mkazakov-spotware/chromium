@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,19 +9,12 @@
 
 #include <list>
 #include <map>
-#include <memory>
-#include <utility>
 
-#include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/memory_pressure_listener.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/time/default_tick_clock.h"
-#include "base/time/tick_clock.h"
-#include "base/timer/timer.h"
+#include "base/optional.h"
 #include "components/viz/client/viz_client_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace viz {
 
@@ -43,17 +36,13 @@ class VIZ_CLIENT_EXPORT FrameEvictionManager {
   class VIZ_CLIENT_EXPORT ScopedPause {
    public:
     ScopedPause();
-
-    ScopedPause(const ScopedPause&) = delete;
-    ScopedPause& operator=(const ScopedPause&) = delete;
-
     ~ScopedPause();
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ScopedPause);
   };
 
   static FrameEvictionManager* GetInstance();
-
-  FrameEvictionManager(const FrameEvictionManager&) = delete;
-  FrameEvictionManager& operator=(const FrameEvictionManager&) = delete;
 
   void AddFrame(FrameEvictionManagerClient*, bool locked);
   void RemoveFrame(FrameEvictionManagerClient*);
@@ -75,17 +64,13 @@ class VIZ_CLIENT_EXPORT FrameEvictionManager {
   // Purges all unlocked frames, allowing us to reclaim resources.
   void PurgeAllUnlockedFrames();
 
-  static constexpr base::TimeDelta kPeriodicCullingDelay = base::Minutes(5);
-
  private:
   friend struct base::DefaultSingletonTraits<FrameEvictionManager>;
-  FRIEND_TEST_ALL_PREFIXES(FrameEvictionManagerTest, PeriodicCulling);
 
   FrameEvictionManager();
   ~FrameEvictionManager();
 
   void CullUnlockedFrames(size_t saved_frame_limit);
-  void CullOldUnlockedFrames();
 
   void PurgeMemory(int percentage);
 
@@ -93,32 +78,21 @@ class VIZ_CLIENT_EXPORT FrameEvictionManager {
   void Pause();
   void Unpause();
 
-  void RegisterUnlockedFrame(FrameEvictionManagerClient* frame);
-
-  // Inject mock versions for testing.
-  void SetOverridesForTesting(
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-      const base::TickClock* clock);
-
   // Listens for system under pressure notifications and adjusts number of
   // cached frames accordingly.
   std::unique_ptr<base::MemoryPressureListener> memory_pressure_listener_;
 
   std::map<FrameEvictionManagerClient*, size_t> locked_frames_;
-  // {FrameEvictionManagerClient, Last Unlock() time}, ordered with the most
-  // recent first.
-  std::list<std::pair<FrameEvictionManagerClient*, base::TimeTicks>>
-      unlocked_frames_;
+  std::list<FrameEvictionManagerClient*> unlocked_frames_;
   size_t max_number_of_saved_frames_;
 
   // Counter of the outstanding pauses.
   int pause_count_ = 0;
 
   // Argument of the last CullUnlockedFrames call while paused.
-  absl::optional<size_t> pending_unlocked_frame_limit_;
+  base::Optional<size_t> pending_unlocked_frame_limit_;
 
-  base::RepeatingTimer idle_frames_culling_timer_;
-  raw_ptr<const base::TickClock> clock_ = base::DefaultTickClock::GetInstance();
+  DISALLOW_COPY_AND_ASSIGN(FrameEvictionManager);
 };
 
 }  // namespace viz

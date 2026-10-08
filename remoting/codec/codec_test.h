@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define REMOTING_CODEC_CODEC_TEST_H_
 
 #include <list>
+
+#include "base/memory/ref_counted.h"
 
 namespace webrtc {
 class DesktopFrame;

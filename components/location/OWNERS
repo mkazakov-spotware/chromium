@@ -1,1 +1,3 @@
-file://content/browser/geolocation/OWNERS
+jyasskin@chromium.org
+tedchoc@chromium.org
+# COMPONENT: Blink>Location

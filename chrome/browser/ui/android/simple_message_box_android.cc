@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,25 +11,24 @@
 
 namespace chrome {
 
-MessageBoxResult ShowWarningMessageBox(gfx::NativeWindow parent,
-                                       const std::u16string& title,
-                                       const std::u16string& message) {
+void ShowWarningMessageBox(gfx::NativeWindow parent,
+                           const base::string16& title,
+                           const base::string16& message) {
   NOTIMPLEMENTED();
-  return MESSAGE_BOX_RESULT_NO;
 }
 
 MessageBoxResult ShowQuestionMessageBox(gfx::NativeWindow parent,
-                                        const std::u16string& title,
-                                        const std::u16string& message) {
+                                        const base::string16& title,
+                                        const base::string16& message) {
   NOTIMPLEMENTED();
   return MESSAGE_BOX_RESULT_NO;
 }
 
 void ShowWarningMessageBoxWithCheckbox(
     gfx::NativeWindow parent,
-    const std::u16string& title,
-    const std::u16string& message,
-    const std::u16string& checkbox_text,
+    const base::string16& title,
+    const base::string16& message,
+    const base::string16& checkbox_text,
     base::OnceCallback<void(bool checked)> callback) {
   NOTIMPLEMENTED();
   std::move(callback).Run(false);

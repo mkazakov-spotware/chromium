@@ -42,8 +42,6 @@ async_test((t) => {
   const axTextBox = accessibilityController.accessibleElementById('textbox');
   assert_not_equals(undefined, axTextBox);
 
-  const axRoot = accessibilityController.rootElement;
-
   // The &nbsp; on line one is found in the first text child of the first span.
   const axLine1 = accessibilityController.accessibleElementById('line1').childAtIndex(0);
   assert_not_equals(undefined, axLine1);
@@ -63,8 +61,8 @@ async_test((t) => {
   const expectedIntents = [];
   const testSteps = [];
 
-  axRoot.setNotificationListener(t.step_func((notification, intents) => {
-    if (notification == "DocumentSelectionChanged") {
+  axTextBox.setNotificationListener(t.step_func((notification, intents) => {
+    if (notification == "SelectedTextChanged") {
       verifySelection(expectedSelection[selectedTextChangedCount].anchorObject,
           expectedSelection[selectedTextChangedCount].anchorOffset,
           expectedSelection[selectedTextChangedCount].focusObject,
@@ -106,10 +104,7 @@ async_test((t) => {
       anchorObject: axLine1,
       anchorOffset: 0,
       focusObject: axLine3,
-      // The `focusOffset` should be 1 because Shift+Down selects to the
-      // position after the list bullet.
-      // This is how Blink editing code currently works.
-      focusOffset: 1,
+      focusOffset: 0,
       selectedText: '\xA0\nApple\n\n'});
     expectedIntents.push('AXEventIntent(extendSelection,none,lineStart,forward)');
 

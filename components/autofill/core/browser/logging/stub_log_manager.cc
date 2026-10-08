@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,16 @@ void StubLogManager::OnLogRouterAvailabilityChanged(bool router_can_be_used) {}
 
 void StubLogManager::SetSuspended(bool suspended) {}
 
+void StubLogManager::LogTextMessage(const std::string& text) const {}
+
+void StubLogManager::LogEntry(base::Value&& entry) const {}
+
 bool StubLogManager::IsLoggingActive() const {
-  return true;
+  return false;
 }
 
 LogBufferSubmitter StubLogManager::Log() {
-  return LogBufferSubmitter(this);
+  return LogBufferSubmitter(nullptr, false);
 }
-
-void StubLogManager::ProcessLog(base::Value::Dict node,
-                                base::PassKey<LogBufferSubmitter>) {}
 
 }  // namespace autofill

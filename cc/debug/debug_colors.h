@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,121 +16,121 @@ class CC_DEBUG_EXPORT DebugColors {
  public:
   DebugColors() = delete;
 
-  static SkColor4f TiledContentLayerBorderColor();
+  static SkColor TiledContentLayerBorderColor();
   static int TiledContentLayerBorderWidth(float device_scale_factor);
 
-  static SkColor4f ImageLayerBorderColor();
+  static SkColor ImageLayerBorderColor();
   static int ImageLayerBorderWidth(float device_scale_factor);
 
-  static SkColor4f ContentLayerBorderColor();
+  static SkColor ContentLayerBorderColor();
   static int ContentLayerBorderWidth(float device_scale_factor);
 
-  static SkColor4f ContainerLayerBorderColor();
+  static SkColor ContainerLayerBorderColor();
   static int ContainerLayerBorderWidth(float device_scale_factor);
 
-  static SkColor4f SurfaceLayerBorderColor();
+  static SkColor SurfaceLayerBorderColor();
   static int SurfaceLayerBorderWidth(float device_scale_factor);
 
-  static SkColor4f SurfaceBorderColor();
+  static SkColor SurfaceBorderColor();
   static int SurfaceBorderWidth(float device_scale_factor);
 
-  static SkColor4f HighResTileBorderColor();
+  static SkColor HighResTileBorderColor();
   static int HighResTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f LowResTileBorderColor();
+  static SkColor LowResTileBorderColor();
   static int LowResTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f ExtraHighResTileBorderColor();
+  static SkColor ExtraHighResTileBorderColor();
   static int ExtraHighResTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f ExtraLowResTileBorderColor();
+  static SkColor ExtraLowResTileBorderColor();
   static int ExtraLowResTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f MissingTileBorderColor();
+  static SkColor MissingTileBorderColor();
   static int MissingTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f SolidColorTileBorderColor();
+  static SkColor SolidColorTileBorderColor();
   static int SolidColorTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f OOMTileBorderColor();
+  static SkColor OOMTileBorderColor();
   static int OOMTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f DirectPictureBorderColor();
+  static SkColor DirectPictureBorderColor();
   static int DirectPictureBorderWidth(float device_scale_factor);
 
-  static SkColor4f CompressedTileBorderColor();
+  static SkColor CompressedTileBorderColor();
   static int CompressedTileBorderWidth(float device_scale_factor);
 
-  static SkColor4f DefaultCheckerboardColor();
-  static SkColor4f EvictedTileCheckerboardColor();
-  static SkColor4f InvalidatedTileCheckerboardColor();
+  static SkColor DefaultCheckerboardColor();
+  static SkColor EvictedTileCheckerboardColor();
+  static SkColor InvalidatedTileCheckerboardColor();
 
   static const int kFadeSteps = 50;
-  static SkColor4f PaintRectBorderColor(int step);
+  static SkColor PaintRectBorderColor(int step);
   static int PaintRectBorderWidth();
-  static SkColor4f PaintRectFillColor(int step);
+  static SkColor PaintRectFillColor(int step);
 
-  static SkColor4f LayoutShiftRectBorderColor();
+  static SkColor LayoutShiftRectBorderColor();
   static int LayoutShiftRectBorderWidth();
-  static SkColor4f LayoutShiftRectFillColor(int step);
+  static SkColor LayoutShiftRectFillColor(int step);
 
-  static SkColor4f PropertyChangedRectBorderColor();
+  static SkColor PropertyChangedRectBorderColor();
   static int PropertyChangedRectBorderWidth();
-  static SkColor4f PropertyChangedRectFillColor();
+  static SkColor PropertyChangedRectFillColor();
 
-  static SkColor4f SurfaceDamageRectBorderColor();
+  static SkColor SurfaceDamageRectBorderColor();
   static int SurfaceDamageRectBorderWidth();
-  static SkColor4f SurfaceDamageRectFillColor();
+  static SkColor SurfaceDamageRectFillColor();
 
-  static SkColor4f ScreenSpaceLayerRectBorderColor();
+  static SkColor ScreenSpaceLayerRectBorderColor();
   static int ScreenSpaceLayerRectBorderWidth();
-  static SkColor4f ScreenSpaceLayerRectFillColor();
+  static SkColor ScreenSpaceLayerRectFillColor();
 
-  static SkColor4f TouchEventHandlerRectBorderColor();
+  static SkColor TouchEventHandlerRectBorderColor();
   static int TouchEventHandlerRectBorderWidth();
-  static SkColor4f TouchEventHandlerRectFillColor();
+  static SkColor TouchEventHandlerRectFillColor();
 
-  static SkColor4f WheelEventHandlerRectBorderColor();
+  static SkColor WheelEventHandlerRectBorderColor();
   static int WheelEventHandlerRectBorderWidth();
-  static SkColor4f WheelEventHandlerRectFillColor();
+  static SkColor WheelEventHandlerRectFillColor();
 
-  static SkColor4f ScrollEventHandlerRectBorderColor();
+  static SkColor ScrollEventHandlerRectBorderColor();
   static int ScrollEventHandlerRectBorderWidth();
-  static SkColor4f ScrollEventHandlerRectFillColor();
+  static SkColor ScrollEventHandlerRectFillColor();
 
-  static SkColor4f NonFastScrollableRectBorderColor();
+  static SkColor NonFastScrollableRectBorderColor();
   static int NonFastScrollableRectBorderWidth();
-  static SkColor4f NonFastScrollableRectFillColor();
+  static SkColor NonFastScrollableRectFillColor();
 
-  static SkColor4f MainThreadScrollingReasonRectBorderColor();
+  static SkColor MainThreadScrollingReasonRectBorderColor();
   static int MainThreadScrollingReasonRectBorderWidth();
-  static SkColor4f MainThreadScrollingReasonRectFillColor();
+  static SkColor MainThreadScrollingReasonRectFillColor();
 
-  static SkColor4f LayerAnimationBoundsBorderColor();
+  static SkColor LayerAnimationBoundsBorderColor();
   static int LayerAnimationBoundsBorderWidth();
-  static SkColor4f LayerAnimationBoundsFillColor();
+  static SkColor LayerAnimationBoundsFillColor();
 
-  static SkColor4f NonPaintedFillColor();
-  static SkColor4f MissingPictureFillColor();
-  static SkColor4f MissingResizeInvalidations();
-  static SkColor4f PictureBorderColor();
+  static SkColor NonPaintedFillColor();
+  static SkColor MissingPictureFillColor();
+  static SkColor MissingResizeInvalidations();
+  static SkColor PictureBorderColor();
 
   static base::span<const float> TintCompositedContentColorTransformMatrix();
 
-  static SkColor4f HUDBackgroundColor();
-  static SkColor4f HUDSeparatorLineColor();
-  static SkColor4f HUDIndicatorLineColor();
-  static SkColor4f HUDTitleColor();
+  static SkColor HUDBackgroundColor();
+  static SkColor HUDSeparatorLineColor();
+  static SkColor HUDIndicatorLineColor();
+  static SkColor HUDTitleColor();
 
-  static SkColor4f PlatformLayerTreeTextColor();
-  static SkColor4f FPSDisplayTextAndGraphColor();
-  static SkColor4f FPSDisplayDroppedFrame();
-  static SkColor4f FPSDisplayMissedFrame();
-  static SkColor4f FPSDisplaySuccessfulFrame();
-  static SkColor4f MemoryDisplayTextColor();
-  static SkColor4f PaintTimeDisplayTextAndGraphColor();
+  static SkColor PlatformLayerTreeTextColor();
+  static SkColor FPSDisplayTextAndGraphColor();
+  static SkColor FPSDisplayDroppedFrame();
+  static SkColor FPSDisplayMissedFrame();
+  static SkColor FPSDisplaySuccessfulFrame();
+  static SkColor MemoryDisplayTextColor();
+  static SkColor PaintTimeDisplayTextAndGraphColor();
 
-  static SkColor4f NonLCDTextHighlightColor(LCDTextDisallowedReason);
+  static SkColor NonLCDTextHighlightColor(LCDTextDisallowedReason);
 };
 
 }  // namespace cc

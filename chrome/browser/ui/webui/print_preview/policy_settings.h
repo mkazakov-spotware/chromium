@@ -1,9 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_PRINT_PREVIEW_POLICY_SETTINGS_H_
 #define CHROME_BROWSER_UI_WEBUI_PRINT_PREVIEW_POLICY_SETTINGS_H_
+
+#include "base/macros.h"
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -16,11 +18,9 @@ namespace printing {
 // the user.
 class PolicySettings {
  public:
-  PolicySettings() = delete;
-  PolicySettings(const PolicySettings&) = delete;
-  PolicySettings& operator=(const PolicySettings&) = delete;
-
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PolicySettings);
 };
 
 }  // namespace printing

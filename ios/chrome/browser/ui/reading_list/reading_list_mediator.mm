@@ -1,19 +1,19 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/reading_list/reading_list_mediator.h"
 
-#import <algorithm>
+#include <algorithm>
 
 #import "base/mac/foundation_util.h"
-#import "base/metrics/histogram_macros.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/reading_list/core/reading_list_model.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/reading_list/core/reading_list_model.h"
 #import "components/reading_list/ios/reading_list_model_bridge_observer.h"
-#import "components/url_formatter/url_formatter.h"
+#include "components/url_formatter/url_formatter.h"
 #import "ios/chrome/browser/favicon/favicon_loader.h"
-#import "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_data_sink.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_item.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_item_factory.h"
@@ -21,7 +21,6 @@
 #import "ios/chrome/browser/ui/reading_list/reading_list_table_view_item.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_utils.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/common/ui/favicon/favicon_constants.h"
 #import "ios/chrome/common/ui/favicon/favicon_view.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -33,6 +32,11 @@ namespace {
 bool EntrySorter(const ReadingListEntry* rhs, const ReadingListEntry* lhs) {
   return rhs->UpdateTime() > lhs->UpdateTime();
 }
+// Desired width and height of favicon.
+const CGFloat kFaviconWidthHeight = 24;
+// Minimum favicon size to retrieve.
+const CGFloat kFaviconMinWidthHeight = 16;
+
 }  // namespace
 
 @interface ReadingListMediator ()<ReadingListModelBridgeObserver> {
@@ -165,7 +169,7 @@ bool EntrySorter(const ReadingListEntry* rhs, const ReadingListEntry* lhs) {
         [strongSelf.dataSink itemHasChangedAfterDelay:strongItem];
       };
   self.faviconLoader->FaviconForPageUrl(
-      item.faviconPageURL, kDesiredSmallFaviconSizePt, kMinFaviconSizePt,
+      item.faviconPageURL, kFaviconWidthHeight, kFaviconMinWidthHeight,
       /*fallback_to_google_server=*/false, completionBlock);
 }
 
@@ -247,9 +251,9 @@ bool EntrySorter(const ReadingListEntry* rhs, const ReadingListEntry* lhs) {
 }
 
 // Returns whether there is a difference between the elements contained in the
-// `sectionIdentifier` and those in the `array`. The comparison is done with the
-// URL of the elements. If an element exist in both, the one in `currentSection`
-// will be overwriten with the informations contained in the one from `array`.
+// |sectionIdentifier| and those in the |array|. The comparison is done with the
+// URL of the elements. If an element exist in both, the one in |currentSection|
+// will be overwriten with the informations contained in the one from|array|.
 - (BOOL)currentSection:(NSArray<id<ReadingListListItem>>*)currentSection
     isDifferentOfArray:(NSArray<id<ReadingListListItem>>*)array {
   if (currentSection.count != array.count)
@@ -284,7 +288,7 @@ bool EntrySorter(const ReadingListEntry* rhs, const ReadingListEntry* lhs) {
   return NO;
 }
 
-// Logs the deletions histograms for the entry associated with `item`.
+// Logs the deletions histograms for the entry associated with |item|.
 - (void)logDeletionOfItem:(id<ReadingListListItem>)item {
   const ReadingListEntry* entry = [self entryFromItem:item];
 

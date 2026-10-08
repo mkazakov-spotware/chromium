@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@ class MockAssistantState : public ash::AssistantState {
   MockAssistantState& operator=(const MockAssistantState&) = delete;
   ~MockAssistantState() override;
 
-  void SetAllowedState(assistant::AssistantAllowedState allowed_state);
+  void SetAllowedState(
+      chromeos::assistant::AssistantAllowedState allowed_state);
 
   void SetSettingsEnabled(bool enabled);
 };

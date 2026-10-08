@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,8 +27,8 @@ IN_PROC_BROWSER_TEST_F(DeferredMediaBrowserTest, BackgroundMediaIsDeferred) {
   ASSERT_EQ(2, browser()->tab_strip_model()->count());
   content::WebContents* background_contents =
       browser()->tab_strip_model()->GetWebContentsAt(1);
-  EXPECT_TRUE(content::WaitForRenderFrameReady(
-      background_contents->GetPrimaryMainFrame()));
+  EXPECT_TRUE(
+      content::WaitForRenderFrameReady(background_contents->GetMainFrame()));
   EXPECT_NE(background_contents,
             browser()->tab_strip_model()->GetActiveWebContents());
 
@@ -51,8 +51,8 @@ IN_PROC_BROWSER_TEST_F(DeferredMediaBrowserTest, BackgroundMediaIsDeferred) {
             browser()->tab_strip_model()->GetActiveWebContents());
 
   // If everything worked, we should see "playing" and not "ended".
-  const std::u16string playing_str = u"playing";
-  const std::u16string ended_str = u"ended";
+  const base::string16 playing_str = base::ASCIIToUTF16("playing");
+  const base::string16 ended_str = base::ASCIIToUTF16("ended");
   content::TitleWatcher watcher(background_contents, playing_str);
   watcher.AlsoWaitForTitle(ended_str);
   EXPECT_EQ(playing_str, watcher.WaitAndGetTitle());

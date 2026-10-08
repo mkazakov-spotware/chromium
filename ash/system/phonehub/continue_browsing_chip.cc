@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,14 @@
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/root_window_controller.h"
 #include "ash/shell.h"
-#include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
 #include "ash/system/phonehub/phone_hub_metrics.h"
 #include "ash/system/phonehub/phone_hub_tray.h"
 #include "ash/system/status_area_widget.h"
-#include "base/bind.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chromeos/ash/components/multidevice/logging/logging.h"
-#include "chromeos/ash/components/phonehub/user_action_recorder.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "ui/color/color_id.h"
+#include "chromeos/components/multidevice/logging/logging.h"
+#include "chromeos/components/phonehub/user_action_recorder.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -32,7 +26,7 @@ namespace ash {
 namespace {
 
 // Appearance in dip.
-constexpr gfx::Insets kContinueBrowsingChipInsets(8);
+constexpr gfx::Insets kContinueBrowsingChipInsets(8, 8);
 constexpr int kContinueBrowsingChipSpacing = 8;
 constexpr int kContinueBrowsingChipFaviconSpacing = 8;
 constexpr gfx::Size kContinueBrowsingChipFaviconSize(16, 16);
@@ -42,19 +36,18 @@ constexpr int kTitleMaxLines = 2;
 }  // namespace
 
 ContinueBrowsingChip::ContinueBrowsingChip(
-    const phonehub::BrowserTabsModel::BrowserTabMetadata& metadata,
+    const chromeos::phonehub::BrowserTabsModel::BrowserTabMetadata& metadata,
     int index,
-    size_t total_count,
-    phonehub::UserActionRecorder* user_action_recorder)
+    chromeos::phonehub::UserActionRecorder* user_action_recorder)
     : views::Button(base::BindRepeating(&ContinueBrowsingChip::ButtonPressed,
                                         base::Unretained(this))),
       url_(metadata.url),
       index_(index),
-      total_count_(total_count),
       user_action_recorder_(user_action_recorder) {
   auto* color_provider = AshColorProvider::Get();
   SetFocusBehavior(FocusBehavior::ALWAYS);
-  views::FocusRing::Get(this)->SetColorId(ui::kColorAshFocusRing);
+  focus_ring()->SetColor(color_provider->GetControlsLayerColor(
+      AshColorProvider::ControlsLayerType::kFocusRingColor));
 
   // Install this highlight path generator to set the desired shape for
   // our focus ring.
@@ -112,12 +105,7 @@ ContinueBrowsingChip::ContinueBrowsingChip(
   title_label->SetFontList(
       title_label->font_list().DeriveWithWeight(gfx::Font::Weight::BOLD));
 
-  const std::u16string card_label = l10n_util::GetStringFUTF16(
-      IDS_ASH_PHONE_HUB_CONTINUE_BROWSING_TAB_LABEL,
-      base::NumberToString16(index_ + 1), base::NumberToString16(total_count_),
-      metadata.title, base::UTF8ToUTF16(url_.spec()));
-  SetTooltipText(card_label);
-  SetAccessibleName(card_label);
+  SetTooltipText(metadata.title);
 }
 
 void ContinueBrowsingChip::OnPaintBackground(gfx::Canvas* canvas) {
@@ -141,9 +129,8 @@ void ContinueBrowsingChip::ButtonPressed() {
   phone_hub_metrics::LogTabContinuationChipClicked(index_);
   user_action_recorder_->RecordBrowserTabOpened();
 
-  NewWindowDelegate::GetPrimary()->OpenUrl(
-      url_, NewWindowDelegate::OpenUrlFrom::kUserInteraction,
-      NewWindowDelegate::Disposition::kNewForegroundTab);
+  NewWindowDelegate::GetInstance()->NewTabWithUrl(
+      url_, /*from_user_interaction=*/true);
 
   // Close Phone Hub bubble in current display.
   views::Widget* const widget = GetWidget();

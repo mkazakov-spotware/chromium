@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,12 +25,12 @@ const char kTestHKCUOverrideEnvironmentVariable[] =
 // Reads the environment variable set by a previous call to
 // SetTestRegistryOverride() into |key| if it exists and |key| is not NULL.
 // Returns true if the variable was successfully read.
-bool GetTestKeyFromEnvironment(std::wstring* key) {
+bool GetTestKeyFromEnvironment(base::string16* key) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   std::string value;
   bool result = env->GetVar(kTestHKCUOverrideEnvironmentVariable, &value);
   if (result)
-    *key = base::UTF8ToWide(value);
+    *key = base::UTF8ToUTF16(value);
   return result;
 }
 
@@ -41,12 +41,12 @@ bool GetTestKeyFromEnvironment(std::wstring* key) {
 
 ImporterTestRegistryOverrider::ImporterTestRegistryOverrider()
     : temporary_key_(kTestHKCUOverrideKeyPrefix +
-                     base::UTF8ToWide(base::GenerateGUID())) {
+                     base::UTF8ToUTF16(base::GenerateGUID())) {
   DCHECK(!GetTestKeyFromEnvironment(NULL));
 
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   bool success = env->SetVar(kTestHKCUOverrideEnvironmentVariable,
-                             base::WideToUTF8(temporary_key_));
+                             base::UTF16ToUTF8(temporary_key_));
   DCHECK(success);
 }
 
@@ -62,8 +62,9 @@ ImporterTestRegistryOverrider::~ImporterTestRegistryOverrider() {
 }
 
 // static
-std::wstring ImporterTestRegistryOverrider::GetTestRegistryOverride() {
-  std::wstring key;
-  GetTestKeyFromEnvironment(&key);
+base::string16 ImporterTestRegistryOverrider::GetTestRegistryOverride() {
+  base::string16 key;
+  if (!GetTestKeyFromEnvironment(&key))
+    return base::string16();
   return key;
 }

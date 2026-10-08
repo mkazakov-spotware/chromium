@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <memory>
 
+#include "chrome/browser/chromeos/extensions/wallpaper_function_base.h"
 #include "chrome/common/extensions/api/wallpaper.h"
 #include "components/account_id/account_id.h"
-#include "extensions/browser/extension_function.h"
 
 // Implementation of chrome.wallpaper.setWallpaper API.
 // After this API being called, a jpeg encoded wallpaper will be saved to
@@ -19,7 +19,7 @@
 // Note: For security reason, the original encoded wallpaper image is not saved
 // directly. It is decoded and re-encoded to jpeg format before saved to file
 // system.
-class WallpaperSetWallpaperFunction : public ExtensionFunction {
+class WallpaperSetWallpaperFunction : public WallpaperFunctionBase {
  public:
   DECLARE_EXTENSION_FUNCTION("wallpaper.setWallpaper",
                              WALLPAPER_SETWALLPAPER)
@@ -33,12 +33,10 @@ class WallpaperSetWallpaperFunction : public ExtensionFunction {
   ResponseAction Run() override;
 
  private:
+  void OnWallpaperDecoded(const gfx::ImageSkia& image) override;
+
   // Called by OnURLFetchComplete().
   void OnWallpaperFetched(bool success, const std::string& response);
-
-  void OnWallpaperSetOnAsh(const std::vector<uint8_t>& thumbnail);
-
-  void SetWallpaperOnAsh();
 
   std::unique_ptr<extensions::api::wallpaper::SetWallpaper::Params> params_;
 
@@ -47,6 +45,9 @@ class WallpaperSetWallpaperFunction : public ExtensionFunction {
 
   // User id of the user who initiate this API call.
   AccountId account_id_ = EmptyAccountId();
+
+  // Id used to identify user wallpaper files on hard drive.
+  std::string wallpaper_files_id_;
 };
 
 #endif  // CHROME_BROWSER_CHROMEOS_EXTENSIONS_WALLPAPER_API_H_

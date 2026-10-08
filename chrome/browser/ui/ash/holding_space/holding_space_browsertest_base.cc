@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,25 +6,23 @@
 
 #include <string>
 
+#include "ash/public/cpp/ash_features.h"
 #include "ash/public/cpp/holding_space/holding_space_controller.h"
 #include "ash/public/cpp/holding_space/holding_space_image.h"
+#include "ash/public/cpp/holding_space/holding_space_item.h"
 #include "ash/public/cpp/holding_space/holding_space_model.h"
 #include "ash/public/cpp/holding_space/holding_space_test_api.h"
-#include "ash/public/cpp/holding_space/holding_space_util.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_util.h"
-#include "base/scoped_observation.h"
-#include "base/strings/stringprintf.h"
-#include "base/test/bind.h"
+#include "base/scoped_observer.h"
 #include "base/unguessable_token.h"
-#include "chrome/browser/ash/file_manager/path_util.h"
-#include "chrome/browser/ash/login/test/session_manager_state_waiter.h"
+#include "chrome/browser/chromeos/file_manager/path_util.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_keyed_service.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_keyed_service_factory.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_util.h"
-#include "chromeos/ash/components/dbus/session_manager/session_manager_client.h"
+#include "chromeos/dbus/session_manager/session_manager_client.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/session_manager/core/session_manager_observer.h"
 #include "storage/browser/file_system/external_mount_points.h"
@@ -81,11 +79,53 @@ base::FilePath CreateImageFile(Profile* profile) {
   return CreateFile(profile, "png");
 }
 
+// SessionStateWaiter ----------------------------------------------------------
+
+// Utility class which allows waiting for a `session_manager::SessionState`.
+class SessionStateWaiter : public session_manager::SessionManagerObserver {
+ public:
+  SessionStateWaiter() {
+    session_manager_observer_.Add(session_manager::SessionManager::Get());
+  }
+
+  void WaitFor(session_manager::SessionState state) {
+    if (session_state() == state)
+      return;
+
+    state_ = state;
+
+    wait_loop_ = std::make_unique<base::RunLoop>();
+    wait_loop_->Run();
+    wait_loop_.reset();
+  }
+
+ private:
+  // session_manager::SessionManagerObserver:
+  void OnSessionStateChanged() override {
+    if (wait_loop_ && session_state() == state_)
+      wait_loop_->Quit();
+  }
+
+  session_manager::SessionState session_state() const {
+    return session_manager::SessionManager::Get()->session_state();
+  }
+
+  session_manager::SessionState state_ = session_manager::SessionState::UNKNOWN;
+  std::unique_ptr<base::RunLoop> wait_loop_;
+
+  ScopedObserver<session_manager::SessionManager,
+                 session_manager::SessionManagerObserver>
+      session_manager_observer_{this};
+};
+
 }  // namespace
 
 // HoldingSpaceBrowserTestBase -------------------------------------------------
 
-HoldingSpaceBrowserTestBase::HoldingSpaceBrowserTestBase() = default;
+HoldingSpaceBrowserTestBase::HoldingSpaceBrowserTestBase() {
+  scoped_feature_list_.InitAndEnableFeature(features::kTemporaryHoldingSpace);
+}
+
 HoldingSpaceBrowserTestBase::~HoldingSpaceBrowserTestBase() = default;
 
 void HoldingSpaceBrowserTestBase::SetUpInProcessBrowserTestFixture() {
@@ -105,6 +145,22 @@ aura::Window* HoldingSpaceBrowserTestBase::GetRootWindowForNewWindows() {
 
 Profile* HoldingSpaceBrowserTestBase::GetProfile() {
   return ProfileManager::GetActiveUserProfile();
+}
+
+void HoldingSpaceBrowserTestBase::Show() {
+  test_api_->Show();
+}
+
+void HoldingSpaceBrowserTestBase::Close() {
+  test_api_->Close();
+}
+
+bool HoldingSpaceBrowserTestBase::IsShowing() {
+  return test_api_->IsShowing();
+}
+
+bool HoldingSpaceBrowserTestBase::IsShowingInShelf() {
+  return test_api_->IsShowingInShelf();
 }
 
 HoldingSpaceItem* HoldingSpaceBrowserTestBase::AddDownloadFile() {
@@ -135,17 +191,14 @@ HoldingSpaceItem* HoldingSpaceBrowserTestBase::AddScreenRecordingFile() {
 HoldingSpaceItem* HoldingSpaceBrowserTestBase::AddItem(
     Profile* profile,
     HoldingSpaceItem::Type type,
-    const base::FilePath& file_path,
-    const HoldingSpaceProgress& progress) {
+    const base::FilePath& file_path) {
   auto item = HoldingSpaceItem::CreateFileBackedItem(
       type, file_path,
-      holding_space_util::ResolveFileSystemUrl(profile, file_path), progress,
-      base::BindLambdaForTesting(
-          [&](HoldingSpaceItem::Type type, const base::FilePath& path) {
-            return std::make_unique<HoldingSpaceImage>(
-                holding_space_util::GetMaxImageSizeForType(type), path,
-                /*async_bitmap_resolver=*/base::DoNothing());
-          }));
+      holding_space_util::ResolveFileSystemUrl(profile, file_path),
+      /*image=*/
+      std::make_unique<HoldingSpaceImage>(
+          /*placeholder=*/gfx::ImageSkia(),
+          /*async_bitmap_resolver=*/base::DoNothing()));
 
   auto* item_ptr = item.get();
 
@@ -163,17 +216,28 @@ void HoldingSpaceBrowserTestBase::RemoveItem(const HoldingSpaceItem* item) {
   HoldingSpaceController::Get()->model()->RemoveItem(item->id());
 }
 
-base::FilePath HoldingSpaceBrowserTestBase::CreateFile(
-    const absl::optional<std::string>& extension) {
-  return ::ash::CreateFile(GetProfile(), extension.value_or("txt"));
+std::vector<views::View*> HoldingSpaceBrowserTestBase::GetDownloadChips() {
+  return test_api_->GetDownloadChips();
+}
+
+std::vector<views::View*> HoldingSpaceBrowserTestBase::GetPinnedFileChips() {
+  return test_api_->GetPinnedFileChips();
+}
+
+std::vector<views::View*> HoldingSpaceBrowserTestBase::GetScreenCaptureViews() {
+  return test_api_->GetScreenCaptureViews();
+}
+
+views::View* HoldingSpaceBrowserTestBase::GetTrayIcon() {
+  return test_api_->GetTrayIcon();
 }
 
 void HoldingSpaceBrowserTestBase::RequestAndAwaitLockScreen() {
   if (session_manager::SessionManager::Get()->IsScreenLocked())
     return;
 
-  SessionManagerClient::Get()->RequestLockScreen();
-  SessionStateWaiter(session_manager::SessionState::LOCKED).Wait();
+  chromeos::SessionManagerClient::Get()->RequestLockScreen();
+  SessionStateWaiter().WaitFor(session_manager::SessionState::LOCKED);
 }
 
 }  // namespace ash

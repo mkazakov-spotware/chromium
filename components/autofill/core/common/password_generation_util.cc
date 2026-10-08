@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,16 +15,14 @@ namespace password_generation {
 PasswordGenerationUIData::PasswordGenerationUIData(
     const gfx::RectF& bounds,
     int max_length,
-    const std::u16string& generation_element,
-    const std::u16string& user_typed_password,
+    const base::string16& generation_element,
     FieldRendererId generation_element_id,
     bool is_generation_element_password_type,
     base::i18n::TextDirection text_direction,
-    const FormData& form_data)
+    const autofill::FormData& form_data)
     : bounds(bounds),
       max_length(max_length),
       generation_element(generation_element),
-      user_typed_password(user_typed_password),
       generation_element_id(generation_element_id),
       is_generation_element_password_type(is_generation_element_password_type),
       text_direction(text_direction),

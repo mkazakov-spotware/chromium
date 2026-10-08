@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,10 @@
 #import <objc/runtime.h>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 // Within a given scope, swaps method implementations of a class interface, or
 // between two class interfaces. The argument and return types must match.
@@ -23,9 +25,6 @@ class BASE_EXPORT ScopedObjCClassSwizzler {
   // inheritance or categories), swap the implementations of methods |original|
   // and |alternate|.
   ScopedObjCClassSwizzler(Class target, SEL original, SEL alternate);
-
-  ScopedObjCClassSwizzler(const ScopedObjCClassSwizzler&) = delete;
-  ScopedObjCClassSwizzler& operator=(const ScopedObjCClassSwizzler&) = delete;
 
   ~ScopedObjCClassSwizzler();
 
@@ -50,8 +49,11 @@ class BASE_EXPORT ScopedObjCClassSwizzler {
 
   Method old_selector_impl_;
   Method new_selector_impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedObjCClassSwizzler);
 };
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #endif  // BASE_MAC_SCOPED_OBJC_CLASS_SWIZZLER_H_

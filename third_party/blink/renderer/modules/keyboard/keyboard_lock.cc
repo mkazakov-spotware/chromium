@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
@@ -31,7 +30,7 @@ constexpr char kKeyboardLockNoValidKeyCodesErrorMsg[] =
     "No valid key codes passed into lock().";
 
 constexpr char kKeyboardLockChildFrameErrorMsg[] =
-    "lock() must be called from a primary top-level browsing context.";
+    "lock() must be called from a top-level browsing context.";
 
 constexpr char kKeyboardLockRequestFailedErrorMsg[] =
     "lock() request could not be registered.";
@@ -70,8 +69,8 @@ ScriptPromise KeyboardLock::lock(ScriptState* state,
       MakeGarbageCollected<ScriptPromiseResolver>(state);
   service_->RequestKeyboardLock(
       keycodes,
-      request_keylock_resolver_->WrapCallbackInScriptScope(WTF::BindOnce(
-          &KeyboardLock::LockRequestFinished, WrapPersistent(this))));
+      WTF::Bind(&KeyboardLock::LockRequestFinished, WrapPersistent(this),
+                WrapPersistent(request_keylock_resolver_.Get())));
   return request_keylock_resolver_->Promise();
 }
 
@@ -107,9 +106,8 @@ bool KeyboardLock::EnsureServiceConnected() {
 
 bool KeyboardLock::CalledFromSupportedContext(ExecutionContext* context) {
   DCHECK(context);
-  // This API is only accessible from an outermost main frame, secure browsing
-  // context.
-  return DomWindow() && DomWindow()->GetFrame()->IsOutermostMainFrame() &&
+  // This API is only accessible from a top level, secure browsing context.
+  return DomWindow() && DomWindow()->GetFrame()->IsMainFrame() &&
          context->IsSecureContext();
 }
 
@@ -120,37 +118,32 @@ void KeyboardLock::LockRequestFinished(
 
   // If |resolver| is not the current promise, then reject the promise.
   if (resolver != request_keylock_resolver_) {
-    resolver->Reject(V8ThrowDOMException::CreateOrDie(
-        resolver->GetScriptState()->GetIsolate(), DOMExceptionCode::kAbortError,
-        kKeyboardLockPromisePreemptedErrorMsg));
+    resolver->Reject(MakeGarbageCollected<DOMException>(
+        DOMExceptionCode::kAbortError, kKeyboardLockPromisePreemptedErrorMsg));
     return;
   }
 
   switch (result) {
-    case mojom::blink::KeyboardLockRequestResult::kSuccess:
-      resolver->Resolve();
+    case mojom::KeyboardLockRequestResult::kSuccess:
+      request_keylock_resolver_->Resolve();
       break;
-    case mojom::blink::KeyboardLockRequestResult::kFrameDetachedError:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+    case mojom::KeyboardLockRequestResult::kFrameDetachedError:
+      request_keylock_resolver_->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kInvalidStateError,
           kKeyboardLockFrameDetachedErrorMsg));
       break;
-    case mojom::blink::KeyboardLockRequestResult::kNoValidKeyCodesError:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+    case mojom::KeyboardLockRequestResult::kNoValidKeyCodesError:
+      request_keylock_resolver_->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kInvalidAccessError,
           kKeyboardLockNoValidKeyCodesErrorMsg));
       break;
-    case mojom::blink::KeyboardLockRequestResult::kChildFrameError:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+    case mojom::KeyboardLockRequestResult::kChildFrameError:
+      request_keylock_resolver_->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kInvalidStateError,
           kKeyboardLockChildFrameErrorMsg));
       break;
-    case mojom::blink::KeyboardLockRequestResult::kRequestFailedError:
-      resolver->Reject(V8ThrowDOMException::CreateOrDie(
-          resolver->GetScriptState()->GetIsolate(),
+    case mojom::KeyboardLockRequestResult::kRequestFailedError:
+      request_keylock_resolver_->Reject(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kInvalidStateError,
           kKeyboardLockRequestFailedErrorMsg));
       break;

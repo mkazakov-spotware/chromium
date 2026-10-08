@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,11 +22,15 @@ void CastWebUIMessageHandler::OnJavascriptDisallowed() {
 }
 
 void CastWebUIMessageHandler::CallJavascriptFunction(
-    base::StringPiece function,
-    base::span<const base::ValueView> args) {
+    const std::string& function,
+    std::vector<base::Value> args) {
   AllowJavascript();
   javascript_called_ = true;
-  WebUIMessageHandler::CallJavascriptFunction(function, args);
+  std::vector<const base::Value*> args_copy;
+  for (const auto& arg : args) {
+    args_copy.push_back(&arg);
+  }
+  WebUIMessageHandler::CallJavascriptFunction(function, args_copy);
 }
 
 }  // namespace chromecast

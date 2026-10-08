@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,12 @@ namespace autofill {
 
 class AutofillSaveCardInfoBarDelegateMobile;
 
-// Creates an Infobar for saving a credit card on a mobile device.
+// Creates an Infobar for saving a credit card on a mobile device. If
+// AccountInfo contains the user's data, an account indication footer will be
+// shown at the bottom of the Infobar.
 std::unique_ptr<infobars::InfoBar> CreateSaveCardInfoBarMobile(
-    std::unique_ptr<AutofillSaveCardInfoBarDelegateMobile> delegate);
+    std::unique_ptr<AutofillSaveCardInfoBarDelegateMobile> delegate,
+    base::Optional<AccountInfo> accountInfo);
 
 }  // namespace autofill
 

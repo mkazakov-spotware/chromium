@@ -1,16 +1,16 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_NET_SERVICE_PROVIDERS_WIN_H_
 #define CHROME_BROWSER_NET_SERVICE_PROVIDERS_WIN_H_
 
-#include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 
 struct WinsockNamespaceProvider {
-  std::wstring name;
+  base::string16 name;
   int version;
   bool active;
   int type;
@@ -22,8 +22,8 @@ struct WinsockLayeredServiceProvider {
   WinsockLayeredServiceProvider(const WinsockLayeredServiceProvider& other);
   ~WinsockLayeredServiceProvider();
 
-  std::wstring name;
-  std::wstring path;
+  base::string16 name;
+  base::string16 path;
   int version;
   int chain_length;
   int socket_type;

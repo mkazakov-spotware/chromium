@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,13 @@ FakeTask::FakeTask(TaskType task_type)
     : Task(internal::PostedTask(nullptr,
                                 OnceClosure(),
                                 FROM_HERE,
-                                base::TimeDelta(),
+                                TimeDelta(),
                                 Nestable::kNestable,
                                 task_type),
-           EnqueueOrder(),
-           EnqueueOrder(),
            TimeTicks(),
-           WakeUpResolution::kLow) {}
+           EnqueueOrder(),
+           EnqueueOrder(),
+           internal::WakeUpResolution::kLow) {}
 
 FakeTaskTiming::FakeTaskTiming()
     : TaskTiming(false /* has_wall_time */, false /* has_thread_time */) {}

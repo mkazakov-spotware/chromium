@@ -23,13 +23,13 @@
 
 #include "third_party/blink/renderer/platform/text/text_break_iterator.h"
 
-#include <unicode/uchar.h>
-#include <unicode/uvernum.h>
-
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/ascii_ctype.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
-#include "third_party/blink/renderer/platform/wtf/text/unicode.h"
+
+#include <unicode/uchar.h>
+#include <unicode/uvernum.h>
 
 namespace blink {
 
@@ -223,11 +223,11 @@ static const unsigned char kBreakAllLineBreakClassTable[][BA_LB_COUNT / 8 + 1] =
 #undef DI
 #undef AL
 
-static_assert(std::size(kAsciiLineBreakTable) ==
+static_assert(base::size(kAsciiLineBreakTable) ==
                   kAsciiLineBreakTableLastChar - kAsciiLineBreakTableFirstChar +
                       1,
               "asciiLineBreakTable should be consistent");
-static_assert(std::size(kBreakAllLineBreakClassTable) == BA_LB_COUNT,
+static_assert(base::size(kBreakAllLineBreakClassTable) == BA_LB_COUNT,
               "breakAllLineBreakClassTable should be consistent");
 
 static inline bool ShouldBreakAfter(UChar last_ch, UChar ch, UChar next_ch) {
@@ -340,11 +340,10 @@ inline int LazyLineBreakIterator::NextBreakablePosition(
           return i;
         break;
       case BreakSpaceType::kAfterEverySpace:
-        if (is_last_space || IsOtherSpaceSeparator<CharacterType>(last_ch))
+        if (is_last_space)
           return i;
-        if ((is_space || IsOtherSpaceSeparator<CharacterType>(ch)) &&
-            i + 1 < len)
-          return i + 1;
+        if (is_space)
+          continue;
         break;
     }
 

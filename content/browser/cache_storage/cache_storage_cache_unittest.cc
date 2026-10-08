@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,28 +14,25 @@
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/test_future.h"
-#include "base/time/time.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "components/services/storage/public/cpp/buckets/constants.h"
-#include "components/services/storage/public/mojom/cache_storage_control.mojom.h"
 #include "content/browser/blob_storage/chrome_blob_storage_context.h"
-#include "content/browser/cache_storage/cache_storage.h"
 #include "content/browser/cache_storage/cache_storage_cache.h"
 #include "content/browser/cache_storage/cache_storage_cache_handle.h"
 #include "content/browser/cache_storage/cache_storage_histogram_utils.h"
 #include "content/browser/cache_storage/cache_storage_manager.h"
+#include "content/browser/cache_storage/legacy/legacy_cache_storage.h"
+#include "content/browser/cache_storage/legacy/legacy_cache_storage_cache.h"
 #include "content/common/background_fetch/background_fetch_types.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/test/browser_task_environment.h"
@@ -55,7 +52,6 @@
 #include "storage/browser/test/fake_blob.h"
 #include "storage/browser/test/mock_quota_manager_proxy.h"
 #include "storage/browser/test/mock_special_storage_policy.h"
-#include "storage/common/quota/padding_key.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom.h"
 #include "url/origin.h"
@@ -165,6 +161,13 @@ class DelayableBackend : public disk_cache::Backend {
     return backend_->OnExternalCacheHit(key);
   }
 
+  size_t DumpMemoryStats(
+      base::trace_event::ProcessMemoryDump* pmd,
+      const std::string& parent_absolute_name) const override {
+    NOTREACHED();
+    return 0u;
+  }
+
   int64_t MaxFileSize() const override { return backend_->MaxFileSize(); }
 
   // Call to continue a delayed call to OpenEntry.
@@ -185,11 +188,12 @@ class DelayableBackend : public disk_cache::Backend {
  private:
   void OpenEntryDelayedImpl(const std::string& key,
                             EntryResultCallback callback) {
-    auto split_callback = base::SplitOnceCallback(std::move(callback));
+    auto copyable_callback =
+        base::AdaptCallbackForRepeating(std::move(callback));
     EntryResult result =
-        backend_->OpenEntry(key, net::HIGHEST, std::move(split_callback.first));
+        backend_->OpenEntry(key, net::HIGHEST, copyable_callback);
     if (result.net_error() != net::ERR_IO_PENDING)
-      std::move(split_callback.second).Run(std::move(result));
+      copyable_callback.Run(std::move(result));
   }
 
   std::unique_ptr<disk_cache::Backend> backend_;
@@ -240,11 +244,11 @@ class FailableCacheEntry : public disk_cache::Entry {
                       CompletionOnceCallback callback) override {
     return entry_->WriteSparseData(offset, buf, buf_len, std::move(callback));
   }
-  disk_cache::RangeResult GetAvailableRange(
-      int64_t offset,
-      int len,
-      disk_cache::RangeResultCallback callback) override {
-    return entry_->GetAvailableRange(offset, len, std::move(callback));
+  int GetAvailableRange(int64_t offset,
+                        int len,
+                        int64_t* start,
+                        CompletionOnceCallback callback) override {
+    return entry_->GetAvailableRange(offset, len, start, std::move(callback));
   }
   bool CouldBeSparse() const override { return entry_->CouldBeSparse(); }
   void CancelSparseIO() override { entry_->CancelSparseIO(); }
@@ -256,7 +260,7 @@ class FailableCacheEntry : public disk_cache::Entry {
   }
 
  private:
-  const raw_ptr<disk_cache::Entry> entry_;
+  disk_cache::Entry* const entry_;
 };
 
 class FailableBackend : public disk_cache::Backend {
@@ -338,6 +342,12 @@ class FailableBackend : public disk_cache::Backend {
   void OnExternalCacheHit(const std::string& key) override {
     return backend_->OnExternalCacheHit(key);
   }
+  size_t DumpMemoryStats(
+      base::trace_event::ProcessMemoryDump* pmd,
+      const std::string& parent_absolute_name) const override {
+    NOTREACHED();
+    return 0u;
+  }
   int64_t MaxFileSize() const override { return backend_->MaxFileSize(); }
 
  private:
@@ -349,7 +359,7 @@ std::string CopySideData(blink::mojom::Blob* actual_blob) {
   std::string output;
   base::RunLoop loop;
   actual_blob->ReadSideData(base::BindLambdaForTesting(
-      [&](const absl::optional<mojo_base::BigBuffer> data) {
+      [&](const base::Optional<mojo_base::BigBuffer> data) {
         if (data)
           output.append(data->data(), data->data() + data->size());
         loop.Quit();
@@ -414,34 +424,37 @@ blink::mojom::FetchAPIResponsePtr SetCacheName(
   return response;
 }
 
+std::unique_ptr<crypto::SymmetricKey> CreateTestPaddingKey() {
+  return crypto::SymmetricKey::Import(crypto::SymmetricKey::HMAC_SHA1,
+                                      "abc123");
+}
+
 void OnBadMessage(std::string* result) {
   *result = "CSDH_UNEXPECTED_OPERATION";
 }
 
 // A CacheStorageCache that can optionally delay during backend creation.
-class TestCacheStorageCache : public CacheStorageCache {
+class TestCacheStorageCache : public LegacyCacheStorageCache {
  public:
   TestCacheStorageCache(
-      const storage::BucketLocator& bucket_locator,
+      const url::Origin& origin,
       const std::string& cache_name,
       const base::FilePath& path,
-      CacheStorage* cache_storage,
+      LegacyCacheStorage* cache_storage,
       const scoped_refptr<storage::QuotaManagerProxy>& quota_manager_proxy,
       scoped_refptr<BlobStorageContextWrapper> blob_storage_context)
-      : CacheStorageCache(bucket_locator,
-                          storage::mojom::CacheStorageOwner::kCacheAPI,
-                          cache_name,
-                          path,
-                          cache_storage,
-                          base::SingleThreadTaskRunner::GetCurrentDefault(),
-                          quota_manager_proxy,
-                          std::move(blob_storage_context),
-                          0 /* cache_size */,
-                          0 /* cache_padding */),
+      : LegacyCacheStorageCache(origin,
+                                CacheStorageOwner::kCacheAPI,
+                                cache_name,
+                                path,
+                                cache_storage,
+                                base::ThreadTaskRunnerHandle::Get(),
+                                quota_manager_proxy,
+                                std::move(blob_storage_context),
+                                0 /* cache_size */,
+                                0 /* cache_padding */,
+                                CreateTestPaddingKey()),
         delay_backend_creation_(false) {}
-
-  TestCacheStorageCache(const TestCacheStorageCache&) = delete;
-  TestCacheStorageCache& operator=(const TestCacheStorageCache&) = delete;
 
   ~TestCacheStorageCache() override { base::RunLoop().RunUntilIdle(); }
 
@@ -453,7 +466,8 @@ class TestCacheStorageCache : public CacheStorageCache {
   }
 
   void ContinueCreateBackend() {
-    CacheStorageCache::CreateBackend(std::move(backend_creation_callback_));
+    LegacyCacheStorageCache::CreateBackend(
+        std::move(backend_creation_callback_));
   }
 
   void set_delay_backend_creation(bool delay) {
@@ -492,32 +506,34 @@ class TestCacheStorageCache : public CacheStorageCache {
  private:
   bool delay_backend_creation_;
   ErrorCallback backend_creation_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestCacheStorageCache);
 };
 
-class MockCacheStorage : public CacheStorage {
+class MockLegacyCacheStorage : public LegacyCacheStorage {
  public:
-  MockCacheStorage(
+  MockLegacyCacheStorage(
       const base::FilePath& origin_path,
       bool memory_only,
       base::SequencedTaskRunner* cache_task_runner,
       scoped_refptr<base::SequencedTaskRunner> scheduler_task_runner,
       scoped_refptr<storage::QuotaManagerProxy> quota_manager_proxy,
       scoped_refptr<BlobStorageContextWrapper> blob_storage_context,
-      CacheStorageManager* cache_storage_manager,
-      const storage::BucketLocator& bucket_locator,
-      storage::mojom::CacheStorageOwner owner)
-      : CacheStorage(origin_path,
-                     memory_only,
-                     cache_task_runner,
-                     std::move(scheduler_task_runner),
-                     std::move(quota_manager_proxy),
-                     std::move(blob_storage_context),
-                     cache_storage_manager,
-                     bucket_locator,
-                     owner) {}
+      LegacyCacheStorageManager* cache_storage_manager,
+      const url::Origin& origin,
+      CacheStorageOwner owner)
+      : LegacyCacheStorage(origin_path,
+                           memory_only,
+                           cache_task_runner,
+                           std::move(scheduler_task_runner),
+                           std::move(quota_manager_proxy),
+                           std::move(blob_storage_context),
+                           cache_storage_manager,
+                           std::move(origin),
+                           owner) {}
 
-  void CacheUnreferenced(CacheStorageCache* cache) override {
-    // Normally the CacheStorage will attempt to delete the cache
+  void CacheUnreferenced(LegacyCacheStorageCache* cache) override {
+    // Normally the LegacyCacheStorage will attempt to delete the cache
     // from its map when the cache has become unreferenced.  Since we are
     // using detached cache objects we instead override to do nothing here.
   }
@@ -548,13 +564,12 @@ class CacheStorageCacheTest : public testing::Test {
 
     quota_policy_ = base::MakeRefCounted<storage::MockSpecialStoragePolicy>();
     mock_quota_manager_ = base::MakeRefCounted<storage::MockQuotaManager>(
-        is_incognito, temp_dir_path_,
-        base::SingleThreadTaskRunner::GetCurrentDefault(), quota_policy_);
+        is_incognito, temp_dir_path_, base::ThreadTaskRunnerHandle::Get().get(),
+        quota_policy_.get());
     SetQuota(1024 * 1024 * 100);
 
     quota_manager_proxy_ = base::MakeRefCounted<storage::MockQuotaManagerProxy>(
-        mock_quota_manager_.get(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        mock_quota_manager_.get(), base::ThreadTaskRunnerHandle::Get().get());
 
     CreateRequests(blob_storage_context);
 
@@ -567,35 +582,22 @@ class CacheStorageCacheTest : public testing::Test {
         std::vector<uint8_t>(expected_blob_data_.begin(),
                              expected_blob_data_.end()));
 
-    auto bucket_locator = GetOrCreateBucket(kTestUrl);
-    // Use a mock CacheStorage object so we can use real
-    // CacheStorageCacheHandle reference counting.  A CacheStorage
+    // Use a mock LegacyCacheStorage object so we can use real
+    // CacheStorageCacheHandle reference counting.  A LegacyCacheStorage
     // must be present to be notified when a cache becomes unreferenced.
-    mock_cache_storage_ = std::make_unique<MockCacheStorage>(
-        temp_dir_path_, MemoryOnly(),
-        base::SingleThreadTaskRunner::GetCurrentDefault().get(),
-        base::SingleThreadTaskRunner::GetCurrentDefault(), quota_manager_proxy_,
+    mock_cache_storage_ = std::make_unique<MockLegacyCacheStorage>(
+        temp_dir_path_, MemoryOnly(), base::ThreadTaskRunnerHandle::Get().get(),
+        base::ThreadTaskRunnerHandle::Get(), quota_manager_proxy_,
         blob_storage_context_, /* cache_storage_manager = */ nullptr,
-        bucket_locator, storage::mojom::CacheStorageOwner::kCacheAPI);
+        url::Origin::Create(kTestUrl), CacheStorageOwner::kCacheAPI);
 
-    InitCache(mock_cache_storage_.get(), bucket_locator);
+    InitCache(mock_cache_storage_.get());
   }
 
   void TearDown() override {
+    quota_manager_proxy_->SimulateQuotaManagerDestroyed();
     disk_cache::FlushCacheThreadForTesting();
     content::RunAllTasksUntilIdle();
-  }
-
-  storage::BucketLocator GetOrCreateBucket(const GURL& url) {
-    auto storage_key = blink::StorageKey(url::Origin::Create(url));
-    base::test::TestFuture<storage::QuotaErrorOr<storage::BucketInfo>> future;
-    quota_manager_proxy_->UpdateOrCreateBucket(
-        storage::BucketInitParams(storage_key, storage::kDefaultBucketName),
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        future.GetCallback());
-    auto bucket = future.Take();
-    EXPECT_TRUE(bucket.ok());
-    return bucket->ToBucketLocator();
   }
 
   GURL BodyUrl() const {
@@ -608,21 +610,16 @@ class CacheStorageCacheTest : public testing::Test {
     return net::AppendQueryParameter(BodyUrl(), "query", "test");
   }
 
-  GURL BodyUrlWithRef(std::string ref = "ref") const {
-    return net::AppendOrReplaceRef(BodyUrl(), ref);
-  }
-
   GURL NoBodyUrl() const {
     GURL::Replacements replacements;
     replacements.SetPathStr("/no_body.html");
     return kTestUrl.ReplaceComponents(replacements);
   }
 
-  void InitCache(CacheStorage* cache_storage,
-                 const storage::BucketLocator& bucket_locator) {
+  void InitCache(LegacyCacheStorage* cache_storage) {
     cache_ = std::make_unique<TestCacheStorageCache>(
-        bucket_locator, kCacheName, temp_dir_path_, cache_storage,
-        quota_manager_proxy_, blob_storage_context_);
+        url::Origin::Create(kTestUrl), kCacheName, temp_dir_path_,
+        cache_storage, quota_manager_proxy_, blob_storage_context_);
     cache_->Init();
   }
 
@@ -631,12 +628,6 @@ class CacheStorageCacheTest : public testing::Test {
                                           blink::mojom::Referrer::New(), false);
     body_request_with_query_ =
         CreateFetchAPIRequest(BodyUrlWithQuery(), "GET", kHeaders,
-                              blink::mojom::Referrer::New(), false);
-    body_request_with_fragment_ =
-        CreateFetchAPIRequest(BodyUrlWithRef(), "GET", kHeaders,
-                              blink::mojom::Referrer::New(), false);
-    body_request_with_different_fragment_ =
-        CreateFetchAPIRequest(BodyUrlWithRef("ref2"), "GET", kHeaders,
                               blink::mojom::Referrer::New(), false);
     no_body_request_ = CreateFetchAPIRequest(
         NoBodyUrl(), "GET", kHeaders, blink::mojom::Referrer::New(), false);
@@ -657,18 +648,6 @@ class CacheStorageCacheTest : public testing::Test {
     return response;
   }
 
-  blink::mojom::FetchAPIResponsePtr CreateOpaqueResponse() {
-    auto response = CreateBlobBodyResponse();
-    response->response_type = network::mojom::FetchResponseType::kOpaque;
-    response->response_time = base::Time::Now();
-
-    // CacheStorage depends on fetch to provide the opaque response padding
-    // value now.  We prepolute a padding value here to simulate that.
-    response->padding = 10;
-
-    return response;
-  }
-
   blink::mojom::FetchAPIResponsePtr CreateBlobBodyResponseWithQuery() {
     blink::mojom::FetchAPIResponsePtr response = CreateBlobBodyResponse();
     response->url_list = {BodyUrlWithQuery()};
@@ -679,22 +658,21 @@ class CacheStorageCacheTest : public testing::Test {
   blink::mojom::FetchAPIResponsePtr CreateNoBodyResponse() {
     return blink::mojom::FetchAPIResponse::New(
         std::vector<GURL>({NoBodyUrl()}), 200, "OK",
-        network::mojom::FetchResponseType::kDefault, /*padding=*/0,
+        network::mojom::FetchResponseType::kDefault,
         network::mojom::FetchResponseSource::kUnspecified,
         base::flat_map<std::string, std::string>(kHeaders.cbegin(),
                                                  kHeaders.cend()),
-        /*mime_type=*/absl::nullopt, net::HttpRequestHeaders::kGetMethod,
-        /*blob=*/nullptr, blink::mojom::ServiceWorkerResponseError::kUnknown,
-        response_time_, /*cache_storage_cache_name=*/std::string(),
-        /*cors_exposed_header_names=*/std::vector<std::string>(),
-        /*side_data_blob=*/nullptr,
-        /*side_data_blob_cache_put=*/nullptr,
+        base::nullopt /* mime_type */, net::HttpRequestHeaders::kGetMethod,
+        nullptr /* blob */, blink::mojom::ServiceWorkerResponseError::kUnknown,
+        response_time_, std::string() /* cache_storage_cache_name */,
+        std::vector<std::string>() /* cors_exposed_header_names */,
+        nullptr /* side_data_blob */,
+        nullptr /* side_data_blob_for_cache_put */,
         network::mojom::ParsedHeaders::New(),
         net::HttpResponseInfo::CONNECTION_INFO_UNKNOWN,
-        /*alpn_negotiated_protocol=*/"unknown",
-        /*was_fetched_via_spdy=*/false, /*has_range_requested=*/false,
-        /*auth_challenge_info=*/absl::nullopt,
-        /*request_include_credentials=*/true);
+        "unknown" /* alpn_negotiated_protocol */,
+        false /* loaded_with_credentials */, false /* was_fetched_via_spdy */,
+        false /* has_range_requested */);
   }
 
   void CopySideDataToResponse(const std::string& uuid,
@@ -791,7 +769,7 @@ class CacheStorageCacheTest : public testing::Test {
   }
 
   bool GetAllMatchedEntries(
-      std::vector<blink::mojom::CacheEntryPtr>* cache_entries) {
+      std::vector<CacheStorageCache::CacheEntry>* cache_entries) {
     base::RunLoop loop;
     cache_->GetAllMatchedEntries(
         nullptr /* request */, nullptr /* options */,
@@ -922,7 +900,7 @@ class CacheStorageCacheTest : public testing::Test {
   }
 
   void ErrorTypeCallback(base::RunLoop* run_loop, CacheStorageError error) {
-    callback_message_ = absl::nullopt;
+    callback_message_ = base::nullopt;
     callback_error_ = error;
     if (run_loop)
       run_loop->Quit();
@@ -960,9 +938,9 @@ class CacheStorageCacheTest : public testing::Test {
 
   void CacheEntriesAndErrorCallback(
       base::OnceClosure quit_closure,
-      std::vector<blink::mojom::CacheEntryPtr>* cache_entries_out,
+      std::vector<CacheStorageCache::CacheEntry>* cache_entries_out,
       CacheStorageError error,
-      std::vector<blink::mojom::CacheEntryPtr> cache_entries) {
+      std::vector<CacheStorageCache::CacheEntry> cache_entries) {
     callback_error_ = error;
     *cache_entries_out = std::move(cache_entries);
     std::move(quit_closure).Run();
@@ -978,8 +956,6 @@ class CacheStorageCacheTest : public testing::Test {
   bool TestResponseType(network::mojom::FetchResponseType response_type) {
     blink::mojom::FetchAPIResponsePtr body_response = CreateBlobBodyResponse();
     body_response->response_type = response_type;
-    if (storage::ShouldPadResponseType(response_type))
-      body_response->padding = 10;
     EXPECT_TRUE(Put(body_request_, std::move(body_response)));
     EXPECT_TRUE(Match(body_request_));
     EXPECT_TRUE(Delete(body_request_));
@@ -996,9 +972,8 @@ class CacheStorageCacheTest : public testing::Test {
   virtual bool MemoryOnly() { return false; }
 
   void SetQuota(uint64_t quota) {
-    mock_quota_manager_->SetQuota(
-        blink::StorageKey(url::Origin::Create(kTestUrl)),
-        blink::mojom::StorageType::kTemporary, quota);
+    mock_quota_manager_->SetQuota(url::Origin::Create(kTestUrl),
+                                  blink::mojom::StorageType::kTemporary, quota);
   }
 
   void SetMaxQuerySizeBytes(size_t max_bytes) {
@@ -1007,7 +982,7 @@ class CacheStorageCacheTest : public testing::Test {
 
   size_t EstimatedResponseSizeWithoutBlob(
       const blink::mojom::FetchAPIResponse& response) {
-    return CacheStorageCache::EstimatedResponseSizeWithoutBlob(response);
+    return LegacyCacheStorageCache::EstimatedResponseSizeWithoutBlob(response);
   }
 
  protected:
@@ -1018,15 +993,13 @@ class CacheStorageCacheTest : public testing::Test {
   scoped_refptr<storage::MockQuotaManager> mock_quota_manager_;
   scoped_refptr<storage::MockQuotaManagerProxy> quota_manager_proxy_;
   scoped_refptr<BlobStorageContextWrapper> blob_storage_context_;
-  std::unique_ptr<MockCacheStorage> mock_cache_storage_;
+  std::unique_ptr<MockLegacyCacheStorage> mock_cache_storage_;
 
   base::FilePath temp_dir_path_;
   std::unique_ptr<TestCacheStorageCache> cache_;
 
   blink::mojom::FetchAPIRequestPtr body_request_;
   blink::mojom::FetchAPIRequestPtr body_request_with_query_;
-  blink::mojom::FetchAPIRequestPtr body_request_with_fragment_;
-  blink::mojom::FetchAPIRequestPtr body_request_with_different_fragment_;
   blink::mojom::FetchAPIRequestPtr no_body_request_;
   blink::mojom::FetchAPIRequestPtr body_head_request_;
   std::string expected_blob_uuid_ = "blob-id:myblob";
@@ -1036,12 +1009,13 @@ class CacheStorageCacheTest : public testing::Test {
   std::string expected_blob_data_;
 
   CacheStorageError callback_error_ = CacheStorageError::kSuccess;
-  absl::optional<std::string> callback_message_ = absl::nullopt;
+  base::Optional<std::string> callback_message_ = base::nullopt;
   blink::mojom::FetchAPIResponsePtr callback_response_;
   std::vector<std::string> callback_strings_;
   std::string bad_message_reason_;
   bool callback_closed_ = false;
 
+ private:
   const GURL kTestUrl{"http://example.com"};
 };
 
@@ -1108,8 +1082,9 @@ TEST_P(CacheStorageCacheTestP, MatchLimit) {
   EXPECT_TRUE(Put(no_body_request_, CreateNoBodyResponse()));
   EXPECT_TRUE(Match(no_body_request_));
 
-  size_t max_size = CacheStorageCache::EstimatedStructSize(no_body_request_) +
-                    EstimatedResponseSizeWithoutBlob(*callback_response_);
+  size_t max_size =
+      LegacyCacheStorageCache::EstimatedStructSize(no_body_request_) +
+      EstimatedResponseSizeWithoutBlob(*callback_response_);
   SetMaxQuerySizeBytes(max_size);
   EXPECT_TRUE(Match(no_body_request_));
 
@@ -1124,10 +1099,10 @@ TEST_P(CacheStorageCacheTestP, MatchAllLimit) {
   EXPECT_TRUE(Match(body_request_));
 
   size_t body_request_size =
-      CacheStorageCache::EstimatedStructSize(body_request_) +
+      LegacyCacheStorageCache::EstimatedStructSize(body_request_) +
       EstimatedResponseSizeWithoutBlob(*callback_response_);
   size_t query_request_size =
-      CacheStorageCache::EstimatedStructSize(body_request_with_query_) +
+      LegacyCacheStorageCache::EstimatedStructSize(body_request_with_query_) +
       EstimatedResponseSizeWithoutBlob(*callback_response_);
 
   std::vector<blink::mojom::FetchAPIResponsePtr> responses;
@@ -1154,25 +1129,18 @@ TEST_P(CacheStorageCacheTestP, MatchAllLimit) {
   EXPECT_EQ(CacheStorageError::kErrorQueryTooLarge, callback_error_);
 }
 
-TEST_P(CacheStorageCacheTestP, MatchWithFragment) {
-  // When putting in the cache a request with body and fragment, it
-  // must be retrievable using a different fragment or without any fragment.
-  EXPECT_TRUE(Put(body_request_with_fragment_, CreateNoBodyResponse()));
-  EXPECT_TRUE(Match(body_request_with_different_fragment_));
-  EXPECT_TRUE(Match(body_request_));
-}
-
 TEST_P(CacheStorageCacheTestP, KeysLimit) {
   EXPECT_TRUE(Put(no_body_request_, CreateNoBodyResponse()));
   EXPECT_TRUE(Put(body_request_, CreateBlobBodyResponse()));
 
-  size_t max_size = CacheStorageCache::EstimatedStructSize(no_body_request_) +
-                    CacheStorageCache::EstimatedStructSize(body_request_);
+  size_t max_size =
+      LegacyCacheStorageCache::EstimatedStructSize(no_body_request_) +
+      LegacyCacheStorageCache::EstimatedStructSize(body_request_);
   SetMaxQuerySizeBytes(max_size);
   EXPECT_TRUE(Keys());
 
   SetMaxQuerySizeBytes(
-      CacheStorageCache::EstimatedStructSize(no_body_request_));
+      LegacyCacheStorageCache::EstimatedStructSize(no_body_request_));
   EXPECT_FALSE(Keys());
   EXPECT_EQ(CacheStorageError::kErrorQueryTooLarge, callback_error_);
 }
@@ -1430,16 +1398,16 @@ TEST_P(CacheStorageCacheTestP, Match_IgnoreVary) {
 TEST_P(CacheStorageCacheTestP, GetAllMatchedEntries_RequestsIncluded) {
   EXPECT_TRUE(Put(body_request_, CreateBlobBodyResponse()));
 
-  std::vector<blink::mojom::CacheEntryPtr> cache_entries;
+  std::vector<LegacyCacheStorageCache::CacheEntry> cache_entries;
   EXPECT_TRUE(GetAllMatchedEntries(&cache_entries));
 
   ASSERT_EQ(1u, cache_entries.size());
-  const auto& request = cache_entries[0]->request;
+  const auto& request = cache_entries[0].first;
   EXPECT_EQ(request->url, body_request_->url);
   EXPECT_EQ(request->headers, body_request_->headers);
   EXPECT_EQ(request->method, body_request_->method);
 
-  auto& response = cache_entries[0]->response;
+  auto& response = cache_entries[0].second;
   EXPECT_TRUE(ResponseMetadataEqual(*SetCacheName(CreateBlobBodyResponse()),
                                     *response));
   mojo::Remote<blink::mojom::Blob> blob(std::move(response->blob->blob));
@@ -1979,12 +1947,12 @@ TEST_P(CacheStorageCacheTestP, WriteSideData_QuotaManagerModified) {
   base::Time response_time(base::Time::Now());
   blink::mojom::FetchAPIResponsePtr response(CreateNoBodyResponse());
   response->response_time = response_time;
-  EXPECT_EQ(0, quota_manager_proxy_->notify_bucket_modified_count());
+  EXPECT_EQ(0, quota_manager_proxy_->notify_storage_modified_count());
   EXPECT_TRUE(Put(no_body_request_, std::move(response)));
   // Storage notification happens after the operation returns, so continue the
   // event loop.
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(1, quota_manager_proxy_->notify_bucket_modified_count());
+  EXPECT_EQ(1, quota_manager_proxy_->notify_storage_modified_count());
 
   const size_t kSize = 10;
   scoped_refptr<net::IOBuffer> buffer =
@@ -1993,7 +1961,7 @@ TEST_P(CacheStorageCacheTestP, WriteSideData_QuotaManagerModified) {
   EXPECT_TRUE(
       WriteSideData(no_body_request_->url, response_time, buffer, kSize));
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(2, quota_manager_proxy_->notify_bucket_modified_count());
+  EXPECT_EQ(2, quota_manager_proxy_->notify_storage_modified_count());
   ASSERT_TRUE(Delete(no_body_request_));
 }
 
@@ -2008,7 +1976,8 @@ TEST_P(CacheStorageCacheTestP, WriteSideData_DifferentTimeStamp) {
       base::MakeRefCounted<net::IOBuffer>(kSize);
   memset(buffer->data(), 0, kSize);
   EXPECT_FALSE(WriteSideData(no_body_request_->url,
-                             response_time + base::Seconds(1), buffer, kSize));
+                             response_time + base::TimeDelta::FromSeconds(1),
+                             buffer, kSize));
   EXPECT_EQ(CacheStorageError::kErrorNotFound, callback_error_);
   ASSERT_TRUE(Delete(no_body_request_));
 }
@@ -2038,31 +2007,31 @@ TEST_F(CacheStorageCacheTest, CaselessServiceWorkerFetchRequestHeaders) {
 }
 
 TEST_P(CacheStorageCacheTestP, QuotaManagerModified) {
-  EXPECT_EQ(0, quota_manager_proxy_->notify_bucket_modified_count());
+  EXPECT_EQ(0, quota_manager_proxy_->notify_storage_modified_count());
 
   EXPECT_TRUE(Put(no_body_request_, CreateNoBodyResponse()));
   // Storage notification happens after the operation returns, so continue the
   // event loop.
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(1, quota_manager_proxy_->notify_bucket_modified_count());
-  EXPECT_LT(0, quota_manager_proxy_->last_notified_bucket_delta());
-  int64_t sum_delta = quota_manager_proxy_->last_notified_bucket_delta();
+  EXPECT_EQ(1, quota_manager_proxy_->notify_storage_modified_count());
+  EXPECT_LT(0, quota_manager_proxy_->last_notified_delta());
+  int64_t sum_delta = quota_manager_proxy_->last_notified_delta();
 
   EXPECT_TRUE(Put(body_request_, CreateBlobBodyResponse()));
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(2, quota_manager_proxy_->notify_bucket_modified_count());
-  EXPECT_LT(sum_delta, quota_manager_proxy_->last_notified_bucket_delta());
-  sum_delta += quota_manager_proxy_->last_notified_bucket_delta();
+  EXPECT_EQ(2, quota_manager_proxy_->notify_storage_modified_count());
+  EXPECT_LT(sum_delta, quota_manager_proxy_->last_notified_delta());
+  sum_delta += quota_manager_proxy_->last_notified_delta();
 
   EXPECT_TRUE(Delete(body_request_));
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(3, quota_manager_proxy_->notify_bucket_modified_count());
-  sum_delta += quota_manager_proxy_->last_notified_bucket_delta();
+  EXPECT_EQ(3, quota_manager_proxy_->notify_storage_modified_count());
+  sum_delta += quota_manager_proxy_->last_notified_delta();
 
   EXPECT_TRUE(Delete(no_body_request_));
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(4, quota_manager_proxy_->notify_bucket_modified_count());
-  sum_delta += quota_manager_proxy_->last_notified_bucket_delta();
+  EXPECT_EQ(4, quota_manager_proxy_->notify_storage_modified_count());
+  sum_delta += quota_manager_proxy_->last_notified_delta();
 
   EXPECT_EQ(0, sum_delta);
 }
@@ -2233,6 +2202,9 @@ TEST_F(CacheStorageCacheTest, VerifyOpaqueSizePadding) {
   blink::mojom::FetchAPIResponsePtr non_opaque_response =
       CreateBlobBodyResponse();
   non_opaque_response->response_time = response_time;
+  EXPECT_EQ(0, LegacyCacheStorageCache::CalculateResponsePadding(
+                   *non_opaque_response, CreateTestPaddingKey().get(),
+                   0 /* side_data_size */));
   EXPECT_TRUE(Put(non_opaque_request, std::move(non_opaque_response)));
   int64_t unpadded_no_data_cache_size = Size();
 
@@ -2250,6 +2222,9 @@ TEST_F(CacheStorageCacheTest, VerifyOpaqueSizePadding) {
   blink::mojom::FetchAPIResponsePtr non_opaque_response_clone =
       CreateBlobBodyResponse();
   non_opaque_response_clone->response_time = response_time;
+  EXPECT_EQ(0, LegacyCacheStorageCache::CalculateResponsePadding(
+                   *non_opaque_response_clone, CreateTestPaddingKey().get(),
+                   unpadded_side_data_size));
 
   // Now write an identically sized opaque response.
   blink::mojom::FetchAPIRequestPtr opaque_request =
@@ -2258,10 +2233,14 @@ TEST_F(CacheStorageCacheTest, VerifyOpaqueSizePadding) {
   // Same URL length means same cache sizes (ignoring padding).
   EXPECT_EQ(opaque_request->url.spec().length(),
             non_opaque_request->url.spec().length());
-  blink::mojom::FetchAPIResponsePtr opaque_response(CreateOpaqueResponse());
+  blink::mojom::FetchAPIResponsePtr opaque_response(CreateBlobBodyResponse());
+  opaque_response->response_type = network::mojom::FetchResponseType::kOpaque;
   opaque_response->response_time = response_time;
 
   EXPECT_TRUE(Put(opaque_request, std::move(opaque_response)));
+  // This test is fragile. Right now it deterministically adds non-zero padding.
+  // But if the url, padding key, or padding algorithm change it might become
+  // zero.
   int64_t size_after_opaque_put = Size();
   int64_t opaque_padding = size_after_opaque_put -
                            2 * unpadded_no_data_cache_size -
@@ -2285,15 +2264,39 @@ TEST_F(CacheStorageCacheTest, VerifyOpaqueSizePadding) {
   // And delete the opaque response entirely.
   EXPECT_TRUE(Delete(opaque_request));
   EXPECT_EQ(unpadded_total_resource_size, Size());
+
+  // Now write an identically sized opaque response with the
+  // loaded_with_credentials flag set.
+  blink::mojom::FetchAPIRequestPtr credentialed_opaque_request =
+      BackgroundFetchSettledFetch::CloneRequest(non_opaque_request);
+  credentialed_opaque_request->url = GURL("http://example.com/opaque.html");
+  // Same URL length means same cache sizes (ignoring padding).
+  EXPECT_EQ(credentialed_opaque_request->url.spec().length(),
+            non_opaque_request->url.spec().length());
+  blink::mojom::FetchAPIResponsePtr credentialed_opaque_response(
+      CreateBlobBodyResponse());
+  credentialed_opaque_response->response_type =
+      network::mojom::FetchResponseType::kOpaque;
+  credentialed_opaque_response->response_time = response_time;
+  credentialed_opaque_response->loaded_with_credentials = true;
+
+  EXPECT_TRUE(Put(credentialed_opaque_request,
+                  std::move(credentialed_opaque_response)));
+
+  int64_t size_after_credentialed_opaque_put = Size();
+  int64_t credentialed_opaque_padding = size_after_credentialed_opaque_put -
+                                        2 * unpadded_no_data_cache_size -
+                                        unpadded_side_data_size;
+  ASSERT_NE(credentialed_opaque_padding, opaque_padding);
 }
 
 TEST_F(CacheStorageCacheTest, TestDifferentOpaqueSideDataSizes) {
   blink::mojom::FetchAPIRequestPtr request =
       BackgroundFetchSettledFetch::CloneRequest(body_request_);
-  blink::mojom::FetchAPIResponsePtr response(CreateOpaqueResponse());
-
-  auto response_time = response->response_time;
-
+  blink::mojom::FetchAPIResponsePtr response(CreateBlobBodyResponse());
+  response->response_type = network::mojom::FetchResponseType::kOpaque;
+  base::Time response_time(base::Time::Now());
+  response->response_time = response_time;
   EXPECT_TRUE(Put(request, std::move(response)));
   int64_t opaque_cache_size_no_side_data = Size();
 
@@ -2305,7 +2308,8 @@ TEST_F(CacheStorageCacheTest, TestDifferentOpaqueSideDataSizes) {
   int64_t opaque_cache_size_with_side_data = Size();
   EXPECT_NE(opaque_cache_size_with_side_data, opaque_cache_size_no_side_data);
 
-  // Write side data of a different size. The padding should change.
+  // Write side data of a different size. The size should not affect the padding
+  // at all.
   const std::string large_side_data(2048, 'X');
   EXPECT_NE(large_side_data.length(), small_side_data.length());
   scoped_refptr<net::IOBuffer> buffer2 =
@@ -2313,7 +2317,7 @@ TEST_F(CacheStorageCacheTest, TestDifferentOpaqueSideDataSizes) {
   EXPECT_TRUE(WriteSideData(request->url, response_time, buffer2,
                             large_side_data.length()));
   int side_data_delta = large_side_data.length() - small_side_data.length();
-  EXPECT_NE(opaque_cache_size_with_side_data + side_data_delta, Size());
+  EXPECT_EQ(opaque_cache_size_with_side_data + side_data_delta, Size());
 }
 
 TEST_F(CacheStorageCacheTest, TestDoubleOpaquePut) {
@@ -2322,14 +2326,16 @@ TEST_F(CacheStorageCacheTest, TestDoubleOpaquePut) {
 
   base::Time response_time(base::Time::Now());
 
-  blink::mojom::FetchAPIResponsePtr response(CreateOpaqueResponse());
+  blink::mojom::FetchAPIResponsePtr response(CreateBlobBodyResponse());
+  response->response_type = network::mojom::FetchResponseType::kOpaque;
   response->response_time = response_time;
   EXPECT_TRUE(Put(request, std::move(response)));
   int64_t size_after_first_put = Size();
 
   blink::mojom::FetchAPIRequestPtr request2 =
       BackgroundFetchSettledFetch::CloneRequest(body_request_);
-  blink::mojom::FetchAPIResponsePtr response2(CreateOpaqueResponse());
+  blink::mojom::FetchAPIResponsePtr response2(CreateBlobBodyResponse());
+  response2->response_type = network::mojom::FetchResponseType::kOpaque;
   response2->response_time = response_time;
   EXPECT_TRUE(Put(request2, std::move(response2)));
 
@@ -2397,7 +2403,7 @@ TEST_P(CacheStorageCacheTestP, UnfinishedPutsShouldNotBeReusable) {
   base::RunLoop().RunUntilIdle();
 
   // Create a new Cache in the same space.
-  InitCache(nullptr, GetOrCreateBucket(kTestUrl));
+  InitCache(nullptr);
 
   // Now attempt to read the same response from the cache. It should fail.
   EXPECT_FALSE(Match(body_request_));
@@ -2491,7 +2497,7 @@ TEST_P(CacheStorageCacheTestP, VerifySerialScheduling) {
   EXPECT_EQ(2, sequence_out);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // TODO(crbug.com/936129): Flaky on Windows.
 #define MAYBE_KeysWithManyCacheEntries DISABLED_KeysWithManyCacheEntries
 #else

@@ -5,9 +5,9 @@
  * See the COPYING file for details.
  */
 
-/* Styles for goog.ui.TableSorter. */
+/* Author: robbyw@google.com (Robby Walker) */
 
-@provide 'goog.css.tablesorter';
+/* Styles for goog.ui.TableSorter. */
 
 .goog-tablesorter-header {
   cursor: pointer

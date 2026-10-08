@@ -3,10 +3,9 @@
 <meta name=timeout content=long>
 <script src=/resources/testharness.js></script>
 <script src=/resources/testharnessreport.js></script>
-<script src=constants.sub.js></script>
+<script src=constants.js?pipe=sub></script>
 <meta name="variant" content="">
 <meta name="variant" content="?wss">
-<meta name="variant" content="?wpt_flags=h2">
 <div id=log></div>
 <script>
 async_test(function(t){
@@ -21,7 +20,6 @@ async_test(function(t){
         assert_equals(e.data, data);
         t.done();
     });
-    ws.onclose = t.unreached_func('close event should not fire');
 }, "Application data is 125 byte which means any 'Extended payload length' field isn't used at all.");
 
 async_test(function(t){
@@ -36,7 +34,6 @@ async_test(function(t){
         assert_equals(e.data, data);
         t.done();
     });
-    ws.onclose = t.unreached_func('close event should not fire');
 }, "Application data is 126 byte which starts to use the 16 bit 'Extended payload length' field.");
 
 async_test(function(t){
@@ -51,7 +48,6 @@ async_test(function(t){
         assert_equals(e.data, data);
         t.done();
     });
-    ws.onclose = t.unreached_func('close event should not fire');
 }, "Application data is 0xFFFF byte which means the upper bound of the 16 bit 'Extended payload length' field.");
 
 async_test(function(t){
@@ -66,7 +62,6 @@ async_test(function(t){
         assert_equals(e.data, data);
         t.done();
     });
-    ws.onclose = t.unreached_func('close event should not fire');
 }, "Application data is (0xFFFF + 1) byte which starts to use the 64 bit 'Extended payload length' field");
 
 </script>

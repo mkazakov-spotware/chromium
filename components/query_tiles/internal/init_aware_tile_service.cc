@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace query_tiles {
 
@@ -37,7 +37,7 @@ void InitAwareTileService::GetQueryTiles(GetTilesCallback callback) {
   }
 
   if (IsFailed()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), TileList()));
     return;
   }
@@ -55,8 +55,8 @@ void InitAwareTileService::GetTile(const std::string& tile_id,
   }
 
   if (IsFailed()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), absl::nullopt));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback), base::nullopt));
     return;
   }
 
@@ -75,7 +75,7 @@ void InitAwareTileService::StartFetchForTiles(
   }
 
   if (IsFailed()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback), false /*need_reschedule*/));
     return;
@@ -123,8 +123,8 @@ void InitAwareTileService::OnTileClicked(const std::string& tile_id) {
 }
 
 void InitAwareTileService::OnQuerySelected(
-    const absl::optional<std::string>& parent_tile_id,
-    const std::u16string& query_text) {
+    const base::Optional<std::string>& parent_tile_id,
+    const base::string16& query_text) {
   if (IsReady()) {
     tile_service_->OnQuerySelected(std::move(parent_tile_id), query_text);
   } else if (!IsFailed()) {

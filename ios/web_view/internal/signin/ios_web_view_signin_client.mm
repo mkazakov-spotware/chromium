@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ios/web_view/internal/signin/ios_web_view_signin_client.h"
 
+#include "base/macros.h"
 #include "components/signin/core/browser/cookie_settings_util.h"
 #include "ios/web_view/internal/signin/web_view_gaia_auth_fetcher.h"
 #include "ios/web_view/internal/web_view_browser_state.h"
@@ -64,7 +65,7 @@ void IOSWebViewSigninClient::RemoveContentSettingsObserver(
 void IOSWebViewSigninClient::PreSignOut(
     base::OnceCallback<void(SignoutDecision)> on_signout_decision_reached,
     signin_metrics::ProfileSignout signout_source_metric) {
-  std::move(on_signout_decision_reached).Run(SignoutDecision::ALLOW);
+  std::move(on_signout_decision_reached).Run(SignoutDecision::ALLOW_SIGNOUT);
 }
 
 void IOSWebViewSigninClient::DelayNetworkCall(base::OnceClosure callback) {

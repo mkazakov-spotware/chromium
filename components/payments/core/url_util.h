@@ -1,9 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PAYMENTS_CORE_URL_UTIL_H_
 #define COMPONENTS_PAYMENTS_CORE_URL_UTIL_H_
+
+#include "base/macros.h"
 
 class GURL;
 
@@ -17,10 +19,6 @@ namespace payments {
 //  base::CommandLine::Init(0, nullptr);
 class UrlUtil {
  public:
-  UrlUtil() = delete;
-  UrlUtil(const UrlUtil&) = delete;
-  UrlUtil& operator=(const UrlUtil&) = delete;
-
   // Validation according to https://w3c.github.io/payment-method-id/#validation
   // with exceptions for local development.
   //
@@ -95,6 +93,9 @@ class UrlUtil {
   //
   // For example: "http://localhost:8080".
   static bool IsLocalDevelopmentUrl(const GURL& url);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(UrlUtil);
 };
 
 }  // namespace payments

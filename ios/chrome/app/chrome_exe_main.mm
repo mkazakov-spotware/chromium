@@ -1,21 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <UIKit/UIKit.h>
 
-#import "base/at_exit.h"
-#import "base/debug/crash_logging.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/component_updater/component_updater_paths.h"
-#import "ios/chrome/app/startup/ios_chrome_main.h"
-#import "ios/chrome/app/startup/ios_enable_sandbox_dump_buildflags.h"
-#import "ios/chrome/browser/crash_report/crash_helper.h"
-#import "ios/chrome/browser/paths/paths.h"
-#import "ios/public/provider/chrome/browser/primes/primes_api.h"
+#include "base/at_exit.h"
+#include "base/debug/crash_logging.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/crash/core/common/crash_keys.h"
+#include "ios/chrome/app/startup/ios_chrome_main.h"
+#include "ios/chrome/app/startup/ios_enable_sandbox_dump_buildflags.h"
+#include "ios/chrome/browser/crash_report/breakpad_helper.h"
+#include "ios/chrome/common/channel_info.h"
+#include "ios/testing/perf/startupLoggers.h"
 
 #if BUILDFLAG(IOS_ENABLE_SANDBOX_DUMP)
-#import "ios/chrome/app/startup/sandbox_dump.h"  // nogncheck
+#include "ios/chrome/app/startup/sandbox_dump.h"  // nogncheck
 #endif  // BUILDFLAG(IOS_ENABLE_SANDBOX_DUMP)
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -28,7 +28,10 @@ NSString* const kUIApplicationDelegateInfoKey = @"UIApplicationDelegate";
 
 void StartCrashController() {
   @autoreleasepool {
-    crash_helper::Start();
+    std::string channel_string = GetChannelString();
+    breakpad_helper::AddReportParameter(
+        @"channel", base::SysUTF8ToNSString(channel_string), false);
+    breakpad_helper::Start(channel_string);
   }
 }
 
@@ -69,21 +72,11 @@ int RunUIApplicationMain(int argc, char* argv[]) {
   }
 }
 
-void RegisterPathProviders() {
-  @autoreleasepool {
-    ios::RegisterPathProvider();
-
-    // Bundled components are not supported on ios, so DIR_USER_DATA is passed
-    // for all three arguments.
-    component_updater::RegisterPathProvider(
-        ios::DIR_USER_DATA, ios::DIR_USER_DATA, ios::DIR_USER_DATA);
-  }
-}
-
 }  // namespace
 
 int main(int argc, char* argv[]) {
   IOSChromeMain::InitStartTime();
+  startup_loggers::RegisterAppStartTime();
 
 #if BUILDFLAG(IOS_ENABLE_SANDBOX_DUMP)
   // Dumps the sandbox if needed. This must be called as soon as possible,
@@ -101,11 +94,6 @@ int main(int argc, char* argv[]) {
   // Create this here since it's needed to start the crash handler.
   base::AtExitManager at_exit;
 
-  // Start Primes logging if it's supported.
-  if (ios::provider::IsPrimesSupported()) {
-    ios::provider::PrimesStartLogging();
-  }
-
   // The Crash Controller is started here even if the user opted out since we
   // don't have yet preferences. Later on it is stopped if the user opted out.
   // In any case reports are not sent if the user opted out.
@@ -113,9 +101,6 @@ int main(int argc, char* argv[]) {
 
   // Always ignore SIGPIPE.  We check the return value of write().
   CHECK_NE(SIG_ERR, signal(SIGPIPE, SIG_IGN));
-
-  // Register Chrome path providers.
-  RegisterPathProviders();
 
   return RunUIApplicationMain(argc, argv);
 }

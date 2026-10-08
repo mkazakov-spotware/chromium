@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,12 +16,6 @@ namespace media {
 class MockAndroidVideoSurfaceChooser : public AndroidVideoSurfaceChooser {
  public:
   MockAndroidVideoSurfaceChooser();
-
-  MockAndroidVideoSurfaceChooser(const MockAndroidVideoSurfaceChooser&) =
-      delete;
-  MockAndroidVideoSurfaceChooser& operator=(
-      const MockAndroidVideoSurfaceChooser&) = delete;
-
   ~MockAndroidVideoSurfaceChooser() override;
 
   // Mocks that are called by the fakes below.
@@ -34,7 +28,7 @@ class MockAndroidVideoSurfaceChooser : public AndroidVideoSurfaceChooser {
 
   void SetClientCallbacks(UseOverlayCB use_overlay_cb,
                           UseTextureOwnerCB use_texture_owner_cb) override;
-  void UpdateState(absl::optional<AndroidOverlayFactoryCB> factory,
+  void UpdateState(base::Optional<AndroidOverlayFactoryCB> factory,
                    const State& new_state) override;
 
   // Calls the corresponding callback to choose the surface.
@@ -45,6 +39,9 @@ class MockAndroidVideoSurfaceChooser : public AndroidVideoSurfaceChooser {
   UseTextureOwnerCB use_texture_owner_cb_;
   AndroidOverlayFactoryCB factory_;
   State current_state_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockAndroidVideoSurfaceChooser);
 };
 
 }  // namespace media

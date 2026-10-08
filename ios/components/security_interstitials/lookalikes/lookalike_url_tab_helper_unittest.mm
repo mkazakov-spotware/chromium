@@ -1,19 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/components/security_interstitials/lookalikes/lookalike_url_tab_helper.h"
 
-#import "base/test/metrics/histogram_tester.h"
-#import "base/test/scoped_feature_list.h"
-#import "components/lookalikes/core/features.h"
-#import "components/reputation/core/safety_tip_test_utils.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_container.h"
-#import "ios/components/security_interstitials/lookalikes/lookalike_url_tab_allow_list.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/lookalikes/core/features.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_container.h"
+#include "ios/components/security_interstitials/lookalikes/lookalike_url_tab_allow_list.h"
 #import "ios/web/public/navigation/web_state_policy_decider.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
 #import "net/base/mac/url_conversions.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -29,7 +28,7 @@ class LookalikeUrlTabHelperTest : public PlatformTest {
   }
 
   // Helper function that calls into WebState::ShouldAllowResponse with the
-  // given `url` and `for_main_frame`, waits for the callback with the decision
+  // given |url| and |for_main_frame|, waits for the callback with the decision
   // to be called, and returns the decision.
   web::WebStatePolicyDecider::PolicyDecision ShouldAllowResponseUrl(
       const GURL& url,
@@ -47,8 +46,7 @@ class LookalikeUrlTabHelperTest : public PlatformTest {
           policy_decision = decision;
           callback_called = true;
         });
-    web::WebStatePolicyDecider::ResponseInfo response_info(for_main_frame);
-    web_state_.ShouldAllowResponse(response, response_info,
+    web_state_.ShouldAllowResponse(response, for_main_frame,
                                    std::move(callback));
     EXPECT_TRUE(callback_called);
     return policy_decision;
@@ -57,9 +55,9 @@ class LookalikeUrlTabHelperTest : public PlatformTest {
   LookalikeUrlTabAllowList* allow_list() { return allow_list_; }
 
   base::HistogramTester histogram_tester_;
-  web::FakeWebState web_state_;
 
  private:
+  web::TestWebState web_state_;
   LookalikeUrlTabAllowList* allow_list_;
 };
 
@@ -69,7 +67,6 @@ class LookalikeUrlTabHelperTest : public PlatformTest {
 // Also tests that UMA records correctly.
 TEST_F(LookalikeUrlTabHelperTest, ShouldAllowResponse) {
   GURL lookalike_url("https://xn--googl-fsa.com/");
-  reputation::InitializeSafetyTipConfig();
 
   // Lookalike IDNs should be blocked.
   EXPECT_FALSE(ShouldAllowResponseUrl(lookalike_url, /*main_frame=*/true)
@@ -97,27 +94,20 @@ TEST_F(LookalikeUrlTabHelperTest, ShouldAllowResponse) {
   histogram_tester_.ExpectTotalCount(lookalikes::kHistogramName, 1);
 }
 
-// Tests that ShouldAllowResponse properly allows lookalike navigations
-// when the domain has been allowlisted by the Safety Tips component.
-TEST_F(LookalikeUrlTabHelperTest, ShouldAllowResponseForAllowlistedDomains) {
-  GURL lookalike_url("https://xn--googl-fsa.com/");
-  reputation::InitializeSafetyTipConfig();
-  reputation::SetSafetyTipAllowlistPatterns({"xn--googl-fsa.com/"}, {}, {});
-
-  EXPECT_TRUE(ShouldAllowResponseUrl(lookalike_url, /*main_frame=*/true)
-                  .ShouldAllowNavigation());
-}
-
 // Tests that ShouldAllowResponse properly blocks lookalike navigations
-// to IDNs.
+// to IDNs when the feature is enabled.
 TEST_F(LookalikeUrlTabHelperTest, ShouldAllowResponseForPunycode) {
   GURL lookalike_url("https://ɴoτ-τoρ-ďoᛖaiɴ.com/");
-  reputation::InitializeSafetyTipConfig();
 
+  base::test::ScopedFeatureList feature_list_disabled;
+  feature_list_disabled.InitAndDisableFeature(
+      lookalikes::features::kLookalikeInterstitialForPunycode);
+  EXPECT_TRUE(ShouldAllowResponseUrl(lookalike_url, /*main_frame=*/true)
+                  .ShouldAllowNavigation());
+
+  base::test::ScopedFeatureList feature_list_enabled;
+  feature_list_enabled.InitAndEnableFeature(
+      lookalikes::features::kLookalikeInterstitialForPunycode);
   EXPECT_FALSE(ShouldAllowResponseUrl(lookalike_url, /*main_frame=*/true)
                    .ShouldAllowNavigation());
-  std::unique_ptr<LookalikeUrlContainer::LookalikeUrlInfo> lookalike_url_info =
-      LookalikeUrlContainer::FromWebState(&web_state_)
-          ->ReleaseLookalikeUrlInfo();
-  EXPECT_TRUE(lookalike_url_info.get());
 }

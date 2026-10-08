@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,19 +27,6 @@ enum class SupervisedAction {
   kAddUser,
   // Re-authentication flow.
   kReauth,
-};
-
-// The result of parent access code validation.
-enum class ParentCodeValidationResult {
-  // Parent code is valid.
-  kValid,
-  // Parent code is invalid. Can also happen if the configuration on the device
-  // is outdated.
-  kInvalid,
-  // No matching parent access code configuration available on the device.
-  kNoConfig,
-  // Internal error of the system processing parent access code.
-  kInternalError,
 };
 
 // ParentAccessController serves as a single point of access for PIN requests

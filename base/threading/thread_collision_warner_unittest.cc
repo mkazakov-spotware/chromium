@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/simple_thread.h"
@@ -128,9 +128,6 @@ TEST(ThreadCollisionTest, MTBookCriticalSectionTest) {
         : push_pop_(asserter) {
     }
 
-    NonThreadSafeQueue(const NonThreadSafeQueue&) = delete;
-    NonThreadSafeQueue& operator=(const NonThreadSafeQueue&) = delete;
-
     void push(int value) {
       DFAKE_SCOPED_LOCK_THREAD_LOCKED(push_pop_);
     }
@@ -142,6 +139,8 @@ TEST(ThreadCollisionTest, MTBookCriticalSectionTest) {
 
    private:
     DFAKE_MUTEX(push_pop_);
+
+    DISALLOW_COPY_AND_ASSIGN(NonThreadSafeQueue);
   };
 
   class QueueUser : public base::DelegateSimpleThread::Delegate {
@@ -154,7 +153,7 @@ TEST(ThreadCollisionTest, MTBookCriticalSectionTest) {
     }
 
    private:
-    raw_ptr<NonThreadSafeQueue> queue_;
+    NonThreadSafeQueue* queue_;
   };
 
   AssertReporter* local_reporter = new AssertReporter();
@@ -185,12 +184,9 @@ TEST(ThreadCollisionTest, MTScopedBookCriticalSectionTest) {
         : push_pop_(asserter) {
     }
 
-    NonThreadSafeQueue(const NonThreadSafeQueue&) = delete;
-    NonThreadSafeQueue& operator=(const NonThreadSafeQueue&) = delete;
-
     void push(int value) {
       DFAKE_SCOPED_LOCK(push_pop_);
-      base::PlatformThread::Sleep(base::Seconds(5));
+      base::PlatformThread::Sleep(base::TimeDelta::FromSeconds(5));
     }
 
     int pop() {
@@ -200,6 +196,8 @@ TEST(ThreadCollisionTest, MTScopedBookCriticalSectionTest) {
 
    private:
     DFAKE_MUTEX(push_pop_);
+
+    DISALLOW_COPY_AND_ASSIGN(NonThreadSafeQueue);
   };
 
   class QueueUser : public base::DelegateSimpleThread::Delegate {
@@ -212,7 +210,7 @@ TEST(ThreadCollisionTest, MTScopedBookCriticalSectionTest) {
     }
 
    private:
-    raw_ptr<NonThreadSafeQueue> queue_;
+    NonThreadSafeQueue* queue_;
   };
 
   AssertReporter* local_reporter = new AssertReporter();
@@ -243,12 +241,9 @@ TEST(ThreadCollisionTest, MTSynchedScopedBookCriticalSectionTest) {
         : push_pop_(asserter) {
     }
 
-    NonThreadSafeQueue(const NonThreadSafeQueue&) = delete;
-    NonThreadSafeQueue& operator=(const NonThreadSafeQueue&) = delete;
-
     void push(int value) {
       DFAKE_SCOPED_LOCK(push_pop_);
-      base::PlatformThread::Sleep(base::Seconds(2));
+      base::PlatformThread::Sleep(base::TimeDelta::FromSeconds(2));
     }
 
     int pop() {
@@ -258,6 +253,8 @@ TEST(ThreadCollisionTest, MTSynchedScopedBookCriticalSectionTest) {
 
    private:
     DFAKE_MUTEX(push_pop_);
+
+    DISALLOW_COPY_AND_ASSIGN(NonThreadSafeQueue);
   };
 
   // This time the QueueUser class protects the non thread safe queue with
@@ -278,8 +275,8 @@ TEST(ThreadCollisionTest, MTSynchedScopedBookCriticalSectionTest) {
       }
     }
    private:
-    raw_ptr<NonThreadSafeQueue> queue_;
-    raw_ptr<base::Lock> lock_;
+    NonThreadSafeQueue* queue_;
+    base::Lock* lock_;
   };
 
   AssertReporter* local_reporter = new AssertReporter();
@@ -312,13 +309,10 @@ TEST(ThreadCollisionTest, MTSynchedScopedRecursiveBookCriticalSectionTest) {
         : push_pop_(asserter) {
     }
 
-    NonThreadSafeQueue(const NonThreadSafeQueue&) = delete;
-    NonThreadSafeQueue& operator=(const NonThreadSafeQueue&) = delete;
-
     void push(int) {
       DFAKE_SCOPED_RECURSIVE_LOCK(push_pop_);
       bar();
-      base::PlatformThread::Sleep(base::Seconds(2));
+      base::PlatformThread::Sleep(base::TimeDelta::FromSeconds(2));
     }
 
     int pop() {
@@ -332,6 +326,8 @@ TEST(ThreadCollisionTest, MTSynchedScopedRecursiveBookCriticalSectionTest) {
 
    private:
     DFAKE_MUTEX(push_pop_);
+
+    DISALLOW_COPY_AND_ASSIGN(NonThreadSafeQueue);
   };
 
   // This time the QueueUser class protects the non thread safe queue with
@@ -356,8 +352,8 @@ TEST(ThreadCollisionTest, MTSynchedScopedRecursiveBookCriticalSectionTest) {
       }
     }
    private:
-    raw_ptr<NonThreadSafeQueue> queue_;
-    raw_ptr<base::Lock> lock_;
+    NonThreadSafeQueue* queue_;
+    base::Lock* lock_;
   };
 
   AssertReporter* local_reporter = new AssertReporter();

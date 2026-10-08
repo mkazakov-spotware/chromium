@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,17 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
 #include "base/scoped_observation.h"
+#include "base/sequenced_task_runner.h"
+#include "base/strings/string16.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_service_observer.h"
 #include "components/keyed_service/core/refcounted_keyed_service.h"
@@ -44,7 +46,7 @@ class ShortcutsDatabase;
 class ShortcutsBackend : public RefcountedKeyedService,
                          public history::HistoryServiceObserver {
  public:
-  typedef std::multimap<std::u16string, const ShortcutsDatabase::Shortcut>
+  typedef std::multimap<base::string16, const ShortcutsDatabase::Shortcut>
       ShortcutMap;
 
   // For unit testing, set |suppress_db| to true to prevent creation
@@ -91,7 +93,7 @@ class ShortcutsBackend : public RefcountedKeyedService,
 
   // Looks for an existing shortcut to match.destination_url that starts with
   // |text|.  Updates that shortcut if found, otherwise adds a new shortcut.
-  void AddOrUpdateShortcut(const std::u16string& text,
+  void AddOrUpdateShortcut(const base::string16& text,
                            const AutocompleteMatch& match);
 
  private:
@@ -151,7 +153,7 @@ class ShortcutsBackend : public RefcountedKeyedService,
   // Deletes all of the shortcuts.
   bool DeleteAllShortcuts();
 
-  raw_ptr<TemplateURLService, DanglingUntriaged> template_url_service_;
+  TemplateURLService* template_url_service_;
   std::unique_ptr<SearchTermsData> search_terms_data_;
 
   CurrentState current_state_;

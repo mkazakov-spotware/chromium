@@ -28,10 +28,10 @@
 
 #include <memory>
 
-#include "third_party/blink/renderer/core/core_export.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/html/parser/preload_request.h"
 #include "third_party/blink/renderer/core/html/parser/resource_preloader.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_position.h"
 
 namespace blink {
@@ -45,8 +45,6 @@ class CORE_EXPORT HTMLResourcePreloader
 
  public:
   explicit HTMLResourcePreloader(Document&);
-  HTMLResourcePreloader(const HTMLResourcePreloader&) = delete;
-  HTMLResourcePreloader& operator=(const HTMLResourcePreloader&) = delete;
 
   void Trace(Visitor*) const;
 
@@ -59,8 +57,10 @@ class CORE_EXPORT HTMLResourcePreloader
   bool AllowPreloadRequest(PreloadRequest* preload) const;
 
   Member<Document> document_;
+
+  DISALLOW_COPY_AND_ASSIGN(HTMLResourcePreloader);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_HTML_PARSER_HTML_RESOURCE_PRELOADER_H_
+#endif

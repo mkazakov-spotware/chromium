@@ -1,10 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/device/bluetooth/le/le_scan_result.h"
-
-#include <algorithm>
 
 #include "base/logging.h"
 #include "chromecast/device/bluetooth/bluetooth_util.h"
@@ -15,19 +13,19 @@ namespace bluetooth {
 namespace {
 
 template <typename T, bluetooth_v2_shlib::Uuid (*converter)(T)>
-absl::optional<LeScanResult::UuidList> GetUuidsFromShort(
+base::Optional<LeScanResult::UuidList> GetUuidsFromShort(
     const std::map<uint8_t, std::vector<std::vector<uint8_t>>>& type_to_data,
     uint8_t type) {
   auto it = type_to_data.find(type);
   if (it == type_to_data.end()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   LeScanResult::UuidList ret;
   for (const auto& field : it->second) {
     if (field.size() % sizeof(T)) {
       LOG(ERROR) << "Invalid length, expected multiple of " << sizeof(T);
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     for (size_t i = 0; i < field.size(); i += sizeof(T)) {
@@ -45,12 +43,12 @@ absl::optional<LeScanResult::UuidList> GetUuidsFromShort(
   return ret;
 }
 
-absl::optional<LeScanResult::UuidList> GetUuidsAsUuid(
+base::Optional<LeScanResult::UuidList> GetUuidsAsUuid(
     const std::map<uint8_t, std::vector<std::vector<uint8_t>>>& type_to_data,
     uint8_t type) {
   auto it = type_to_data.find(type);
   if (it == type_to_data.end()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   LeScanResult::UuidList ret;
@@ -58,7 +56,7 @@ absl::optional<LeScanResult::UuidList> GetUuidsAsUuid(
     if (field.size() % sizeof(bluetooth_v2_shlib::Uuid)) {
       LOG(ERROR) << "Invalid length, expected multiple of "
                  << sizeof(bluetooth_v2_shlib::Uuid);
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     for (size_t i = 0; i < field.size();
@@ -117,7 +115,7 @@ bool LeScanResult::SetAdvData(base::span<const uint8_t> advertisement_data) {
   return true;
 }
 
-absl::optional<std::string> LeScanResult::Name() const {
+base::Optional<std::string> LeScanResult::Name() const {
   auto it = type_to_data.find(kGapCompleteName);
   if (it != type_to_data.end()) {
     DCHECK_GE(it->second.size(), 1u);
@@ -132,28 +130,28 @@ absl::optional<std::string> LeScanResult::Name() const {
                        it->second[0].size());
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<uint8_t> LeScanResult::Flags() const {
+base::Optional<uint8_t> LeScanResult::Flags() const {
   auto it = type_to_data.find(kGapFlags);
   if (it == type_to_data.end()) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   DCHECK_GE(it->second.size(), 1u);
   if (it->second[0].size() != 1) {
     LOG(ERROR) << "Invalid length for flags";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return it->second[0][0];
 }
 
-absl::optional<LeScanResult::UuidList> LeScanResult::AllServiceUuids() const {
+base::Optional<LeScanResult::UuidList> LeScanResult::AllServiceUuids() const {
   bool any_exist = false;
   UuidList ret;
-  auto insert_if_exists = [&ret, &any_exist](absl::optional<UuidList> list) {
+  auto insert_if_exists = [&ret, &any_exist](base::Optional<UuidList> list) {
     if (list) {
       any_exist = true;
       ret.insert(ret.end(), list->begin(), list->end());
@@ -168,42 +166,42 @@ absl::optional<LeScanResult::UuidList> LeScanResult::AllServiceUuids() const {
   insert_if_exists(CompleteListOf128BitServiceUuids());
 
   if (!any_exist) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return ret;
 }
 
-absl::optional<LeScanResult::UuidList>
+base::Optional<LeScanResult::UuidList>
 LeScanResult::IncompleteListOf16BitServiceUuids() const {
   return GetUuidsFromShort<uint16_t, util::UuidFromInt16>(
       type_to_data, kGapIncomplete16BitServiceUuids);
 }
 
-absl::optional<LeScanResult::UuidList>
+base::Optional<LeScanResult::UuidList>
 LeScanResult::CompleteListOf16BitServiceUuids() const {
   return GetUuidsFromShort<uint16_t, util::UuidFromInt16>(
       type_to_data, kGapComplete16BitServiceUuids);
 }
 
-absl::optional<LeScanResult::UuidList>
+base::Optional<LeScanResult::UuidList>
 LeScanResult::IncompleteListOf32BitServiceUuids() const {
   return GetUuidsFromShort<uint32_t, util::UuidFromInt32>(
       type_to_data, kGapIncomplete32BitServiceUuids);
 }
 
-absl::optional<LeScanResult::UuidList>
+base::Optional<LeScanResult::UuidList>
 LeScanResult::CompleteListOf32BitServiceUuids() const {
   return GetUuidsFromShort<uint32_t, util::UuidFromInt32>(
       type_to_data, kGapComplete32BitServiceUuids);
 }
 
-absl::optional<LeScanResult::UuidList>
+base::Optional<LeScanResult::UuidList>
 LeScanResult::IncompleteListOf128BitServiceUuids() const {
   return GetUuidsAsUuid(type_to_data, kGapIncomplete128BitServiceUuids);
 }
 
-absl::optional<LeScanResult::UuidList>
+base::Optional<LeScanResult::UuidList>
 LeScanResult::CompleteListOf128BitServiceUuids() const {
   return GetUuidsAsUuid(type_to_data, kGapComplete128BitServiceUuids);
 }

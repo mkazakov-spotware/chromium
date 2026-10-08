@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,10 +30,6 @@ DWORD UninstallGCPWExtension();
 
 // Returns true if installation of GCPW extension is enabled.
 bool IsGCPWExtensionEnabled();
-
-// Returns the registry name from the provided |task_name| which is provided
-// when registering the task with GCPW extension.
-std::wstring GetLastSyncRegNameForTask(const std::wstring& task_name);
 
 }  // namespace extension
 }  // namespace credential_provider

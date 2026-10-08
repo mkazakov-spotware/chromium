@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
-#include "chromeos/ash/components/dbus/dbus_thread_manager.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
 #include "dbus/bus.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 
@@ -22,7 +21,7 @@ MtpDeviceManager* g_mtp_device_manager = nullptr;
 }  // namespace
 
 MtpDeviceManager::MtpDeviceManager()
-    : bus_(ash::DBusThreadManager::Get()->GetSystemBus()) {
+    : bus_(chromeos::DBusThreadManager::Get()->GetSystemBus()) {
   // Listen for future mtpd service owner changes, in case it is not
   // available right now. There is no guarantee that mtpd is running already.
   dbus::Bus::ServiceOwnerChangeCallback mtpd_owner_changed_callback =
@@ -266,7 +265,7 @@ void MtpDeviceManager::OnStorageAttached(const std::string& storage_name) {
       storage_name,
       base::BindOnce(&MtpDeviceManager::OnGetStorageInfo,
                      weak_ptr_factory_.GetWeakPtr()),
-      base::DoNothing());
+      base::DoNothing::Once());
 }
 
 void MtpDeviceManager::OnStorageDetached(const std::string& storage_name) {
@@ -513,7 +512,7 @@ void MtpDeviceManager::FinishSetupOnOriginThread(
   mtp_client_->EnumerateStorages(
       base::BindOnce(&MtpDeviceManager::OnEnumerateStorages,
                      weak_ptr_factory_.GetWeakPtr()),
-      base::DoNothing());
+      base::DoNothing::Once());
 }
 
 // static

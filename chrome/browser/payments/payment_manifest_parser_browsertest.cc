@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback.h"
 #include "base/json/json_writer.h"
 #include "base/run_loop.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -50,11 +49,6 @@ std::string CreatePaymentMethodManifestJson(
 class PaymentManifestParserTest : public InProcessBrowserTest {
  public:
   PaymentManifestParserTest() : parser_(std::make_unique<ErrorLogger>()) {}
-
-  PaymentManifestParserTest(const PaymentManifestParserTest&) = delete;
-  PaymentManifestParserTest& operator=(const PaymentManifestParserTest&) =
-      delete;
-
   ~PaymentManifestParserTest() override = default;
 
   // Sends the |content| to the utility process to parse as a web app manifest
@@ -97,28 +91,30 @@ class PaymentManifestParserTest : public InProcessBrowserTest {
  private:
   // Called after the utility process has parsed the web app manifest.
   void OnWebAppManifestParsed(
-      base::OnceClosure resume_test,
+      const base::Closure& resume_test,
       const std::vector<WebAppManifestSection>& web_app_manifest) {
     web_app_manifest_ = std::move(web_app_manifest);
     DCHECK(!resume_test.is_null());
-    std::move(resume_test).Run();
+    resume_test.Run();
   }
 
   // Called after the utility process has parsed the payment method manifest.
   void OnPaymentMethodManifestParsed(
-      base::OnceClosure resume_test,
+      const base::Closure& resume_test,
       const std::vector<GURL>& web_app_manifest_urls,
       const std::vector<url::Origin>& supported_origins) {
     web_app_manifest_urls_ = web_app_manifest_urls;
     supported_origins_ = supported_origins;
     DCHECK(!resume_test.is_null());
-    std::move(resume_test).Run();
+    resume_test.Run();
   }
 
   PaymentManifestParser parser_;
   std::vector<WebAppManifestSection> web_app_manifest_;
   std::vector<GURL> web_app_manifest_urls_;
   std::vector<url::Origin> supported_origins_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentManifestParserTest);
 };
 
 // Handles a a manifest with 100 web app URLs.

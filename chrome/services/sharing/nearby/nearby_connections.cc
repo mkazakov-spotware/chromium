@@ -1,27 +1,113 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/sharing/nearby/nearby_connections.h"
 
-#include <algorithm>
-
-#include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/time/time.h"
+#include "base/task/post_task.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/nearby_sharing/logging/logging.h"
 #include "chrome/services/sharing/nearby/nearby_connections_conversions.h"
 #include "chrome/services/sharing/nearby/platform/input_file.h"
-#include "chromeos/ash/services/nearby/public/mojom/nearby_connections_types.mojom.h"
-#include "chromeos/ash/services/nearby/public/mojom/webrtc.mojom.h"
-#include "services/network/public/mojom/p2p.mojom.h"
-#include "third_party/nearby/src/connections/core.h"
+#include "chromeos/services/nearby/public/mojom/nearby_connections_types.mojom.h"
+#include "third_party/nearby/src/cpp/core/core.h"
+#include "third_party/nearby/src/cpp/core/internal/offline_service_controller.h"
 
-namespace location::nearby::connections {
+namespace location {
+namespace nearby {
+namespace connections {
 
 namespace {
+
+// Delegates all ServiceController calls to the ServiceController instance
+// passed to its constructor. This proxy class is required because although we
+// share one ServiceController among multiple Cores, each Core takes ownership
+// of the pointer that it is provided. Using this proxy allows each Core to
+// delete the pointer it is provided without deleting the shared instance.
+class ServiceControllerProxy : public ServiceController {
+ public:
+  explicit ServiceControllerProxy(ServiceController* inner_service_controller)
+      : inner_service_controller_(inner_service_controller) {}
+  ~ServiceControllerProxy() override = default;
+
+  // ServiceController:
+  Status StartAdvertising(ClientProxy* client,
+                          const std::string& service_id,
+                          const ConnectionOptions& options,
+                          const ConnectionRequestInfo& info) override {
+    return inner_service_controller_->StartAdvertising(client, service_id,
+                                                       options, info);
+  }
+
+  void StopAdvertising(ClientProxy* client) override {
+    inner_service_controller_->StopAdvertising(client);
+  }
+
+  Status StartDiscovery(ClientProxy* client,
+                        const std::string& service_id,
+                        const ConnectionOptions& options,
+                        const DiscoveryListener& listener) override {
+    return inner_service_controller_->StartDiscovery(client, service_id,
+                                                     options, listener);
+  }
+
+  void StopDiscovery(ClientProxy* client) override {
+    inner_service_controller_->StopDiscovery(client);
+  }
+
+  void InjectEndpoint(ClientProxy* client,
+                      const std::string& service_id,
+                      const OutOfBandConnectionMetadata& metadata) override {
+    inner_service_controller_->InjectEndpoint(client, service_id, metadata);
+  }
+
+  Status RequestConnection(ClientProxy* client,
+                           const std::string& endpoint_id,
+                           const ConnectionRequestInfo& info,
+                           const ConnectionOptions& options) override {
+    return inner_service_controller_->RequestConnection(client, endpoint_id,
+                                                        info, options);
+  }
+
+  Status AcceptConnection(ClientProxy* client,
+                          const std::string& endpoint_id,
+                          const PayloadListener& listener) override {
+    return inner_service_controller_->AcceptConnection(client, endpoint_id,
+                                                       listener);
+  }
+
+  Status RejectConnection(ClientProxy* client,
+                          const std::string& endpoint_id) override {
+    return inner_service_controller_->RejectConnection(client, endpoint_id);
+  }
+
+  void InitiateBandwidthUpgrade(ClientProxy* client,
+                                const std::string& endpoint_id) override {
+    inner_service_controller_->InitiateBandwidthUpgrade(client, endpoint_id);
+  }
+
+  void SendPayload(ClientProxy* client,
+                   const std::vector<std::string>& endpoint_ids,
+                   Payload payload) override {
+    inner_service_controller_->SendPayload(client, endpoint_ids,
+                                           std::move(payload));
+  }
+
+  Status CancelPayload(ClientProxy* client, Payload::Id payload_id) override {
+    return inner_service_controller_->CancelPayload(client,
+                                                    std::move(payload_id));
+  }
+
+  void DisconnectFromEndpoint(ClientProxy* client,
+                              const std::string& endpoint_id) override {
+    inner_service_controller_->DisconnectFromEndpoint(client, endpoint_id);
+  }
+
+ private:
+  ServiceController* inner_service_controller_ = nullptr;
+};
 
 ConnectionRequestInfo CreateConnectionRequestInfo(
     const std::vector<uint8_t>& endpoint_info,
@@ -91,33 +177,82 @@ NearbyConnections& NearbyConnections::GetInstance() {
 
 NearbyConnections::NearbyConnections(
     mojo::PendingReceiver<mojom::NearbyConnections> nearby_connections,
-    location::nearby::api::LogMessage::Severity min_log_severity,
-    base::OnceClosure on_disconnect)
+    mojom::NearbyConnectionsDependenciesPtr dependencies,
+    scoped_refptr<base::SequencedTaskRunner> io_task_runner,
+    base::OnceClosure on_disconnect,
+    std::unique_ptr<ServiceController> service_controller)
     : nearby_connections_(this, std::move(nearby_connections)),
-      thread_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
-  location::nearby::api::LogMessage::SetMinLogSeverity(min_log_severity);
+      on_disconnect_(std::move(on_disconnect)),
+      service_controller_(std::move(service_controller)),
+      thread_task_runner_(base::ThreadTaskRunnerHandle::Get()) {
+  nearby_connections_.set_disconnect_handler(base::BindOnce(
+      &NearbyConnections::OnDisconnect, weak_ptr_factory_.GetWeakPtr()));
 
-  nearby_connections_.set_disconnect_handler(std::move(on_disconnect));
+  if (dependencies->bluetooth_adapter) {
+    bluetooth_adapter_.Bind(std::move(dependencies->bluetooth_adapter),
+                            io_task_runner);
+    bluetooth_adapter_.set_disconnect_handler(
+        base::BindOnce(&NearbyConnections::OnDisconnect,
+                       weak_ptr_factory_.GetWeakPtr()),
+        base::SequencedTaskRunnerHandle::Get());
+  }
+
+  socket_manager_.Bind(
+      std::move(dependencies->webrtc_dependencies->socket_manager),
+      io_task_runner);
+  socket_manager_.set_disconnect_handler(
+      base::BindOnce(&NearbyConnections::OnDisconnect,
+                     weak_ptr_factory_.GetWeakPtr()),
+      base::SequencedTaskRunnerHandle::Get());
+
+  mdns_responder_.Bind(
+      std::move(dependencies->webrtc_dependencies->mdns_responder),
+      io_task_runner);
+  mdns_responder_.set_disconnect_handler(
+      base::BindOnce(&NearbyConnections::OnDisconnect,
+                     weak_ptr_factory_.GetWeakPtr()),
+      base::SequencedTaskRunnerHandle::Get());
+
+  ice_config_fetcher_.Bind(
+      std::move(dependencies->webrtc_dependencies->ice_config_fetcher),
+      io_task_runner);
+  ice_config_fetcher_.set_disconnect_handler(
+      base::BindOnce(&NearbyConnections::OnDisconnect,
+                     weak_ptr_factory_.GetWeakPtr()),
+      base::SequencedTaskRunnerHandle::Get());
+
+  webrtc_signaling_messenger_.Bind(
+      std::move(dependencies->webrtc_dependencies->messenger), io_task_runner);
+  webrtc_signaling_messenger_.set_disconnect_handler(
+      base::BindOnce(&NearbyConnections::OnDisconnect,
+                     weak_ptr_factory_.GetWeakPtr()),
+      base::SequencedTaskRunnerHandle::Get());
 
   // There should only be one instance of NearbyConnections in a process.
   DCHECK(!g_instance);
   g_instance = this;
+
+  // Note: Some tests pass a value for |service_controller_|, but this value is
+  // expected to be null during normal operation.
+  if (!service_controller_) {
+    // OfflineServiceController indirectly invokes
+    // NearbyConnections::GetInstance(), so it must be initialized after
+    // |g_instance| is set.
+    service_controller_ = std::make_unique<OfflineServiceController>();
+  }
 }
 
 NearbyConnections::~NearbyConnections() {
   // Note that deleting active Core objects invokes their shutdown flows. This
-  // is required to ensure that Nearby cleans itself up. We must bring down the
-  // Cores before destroying their shared ServiceControllerRouter.
-  VLOG(1) << "Nearby Connections: cleaning up Core objects";
+  // is required to ensure that Nearby cleans itself up.
   service_id_to_core_map_.clear();
-
-  VLOG(1) << "Nearby Connections: shutting down the shared service controller "
-          << "router after taking down Core objects";
-  service_controller_router_.reset();
-
   g_instance = nullptr;
+}
 
-  VLOG(1) << "Nearby Connections: shutdown complete";
+void NearbyConnections::OnDisconnect() {
+  if (on_disconnect_)
+    std::move(on_disconnect_).Run();
+  // Note: |this| might be destroyed here.
 }
 
 void NearbyConnections::StartAdvertising(
@@ -126,21 +261,18 @@ void NearbyConnections::StartAdvertising(
     mojom::AdvertisingOptionsPtr options,
     mojo::PendingRemote<mojom::ConnectionLifecycleListener> listener,
     StartAdvertisingCallback callback) {
-  AdvertisingOptions advertising_options{
+  ConnectionOptions connection_options{
+      .strategy = StrategyFromMojom(options->strategy),
+      .allowed = MediumSelectorFromMojom(options->allowed_mediums.get()),
       .auto_upgrade_bandwidth = options->auto_upgrade_bandwidth,
       .enforce_topology_constraints = options->enforce_topology_constraints,
       .enable_bluetooth_listening = options->enable_bluetooth_listening,
-      .enable_webrtc_listening = options->enable_webrtc_listening,
       .fast_advertisement_service_uuid =
           options->fast_advertisement_service_uuid.canonical_value()};
 
-  advertising_options.strategy = StrategyFromMojom(options->strategy);
-  advertising_options.allowed =
-      MediumSelectorFromMojom(options->allowed_mediums.get());
-
   GetCore(service_id)
       ->StartAdvertising(
-          service_id, std::move(advertising_options),
+          service_id, std::move(connection_options),
           CreateConnectionRequestInfo(endpoint_info, std::move(listener)),
           ResultCallbackFromMojom(std::move(callback)));
 }
@@ -163,12 +295,11 @@ void NearbyConnections::StartDiscovery(
         options->fast_advertisement_service_uuid->canonical_value();
   }
 
-  DiscoveryOptions discovery_options{
+  ConnectionOptions connection_options{
+      .strategy = StrategyFromMojom(options->strategy),
+      .allowed = MediumSelectorFromMojom(options->allowed_mediums.get()),
       .is_out_of_band_connection = options->is_out_of_band_connection,
       .fast_advertisement_service_uuid = fast_advertisement_service_uuid};
-  discovery_options.strategy = StrategyFromMojom(options->strategy);
-  discovery_options.allowed =
-      MediumSelectorFromMojom(options->allowed_mediums.get());
   mojo::SharedRemote<mojom::EndpointDiscoveryListener> remote(
       std::move(listener), thread_task_runner_);
   DiscoveryListener discovery_listener{
@@ -209,7 +340,7 @@ void NearbyConnections::StartDiscovery(
   ResultCallback result_callback = ResultCallbackFromMojom(std::move(callback));
 
   GetCore(service_id)
-      ->StartDiscovery(service_id, std::move(discovery_options),
+      ->StartDiscovery(service_id, std::move(connection_options),
                        std::move(discovery_listener),
                        std::move(result_callback));
 }
@@ -244,21 +375,8 @@ void NearbyConnections::RequestConnection(
     mojom::ConnectionOptionsPtr options,
     mojo::PendingRemote<mojom::ConnectionLifecycleListener> listener,
     RequestConnectionCallback callback) {
-  int keep_alive_interval_millis =
-      options->keep_alive_interval
-          ? options->keep_alive_interval->InMilliseconds()
-          : 0;
-  int keep_alive_timeout_millis =
-      options->keep_alive_timeout
-          ? options->keep_alive_timeout->InMilliseconds()
-          : 0;
-
   ConnectionOptions connection_options{
-      .keep_alive_interval_millis = std::max(keep_alive_interval_millis, 0),
-      .keep_alive_timeout_millis = std::max(keep_alive_timeout_millis, 0)};
-  connection_options.allowed =
-      MediumSelectorFromMojom(options->allowed_mediums.get());
-
+      .allowed = MediumSelectorFromMojom(options->allowed_mediums.get())};
   if (options->remote_bluetooth_mac_address) {
     connection_options.remote_bluetooth_mac_address =
         ByteArrayFromMojom(*options->remote_bluetooth_mac_address);
@@ -295,7 +413,7 @@ void NearbyConnections::AcceptConnection(
               return;
 
             switch (payload.GetType()) {
-              case PayloadType::kBytes: {
+              case Payload::Type::kBytes: {
                 mojom::BytesPayloadPtr bytes_payload = mojom::BytesPayload::New(
                     ByteArrayToMojom(payload.AsBytes()));
                 remote->OnPayloadReceived(
@@ -305,7 +423,7 @@ void NearbyConnections::AcceptConnection(
                                             std::move(bytes_payload))));
                 break;
               }
-              case PayloadType::kFile: {
+              case Payload::Type::kFile: {
                 DCHECK(payload.AsFile());
                 // InputFile is created by Chrome, so it's safe to downcast.
                 chrome::InputFile& input_file = static_cast<chrome::InputFile&>(
@@ -325,10 +443,10 @@ void NearbyConnections::AcceptConnection(
                                             std::move(file_payload))));
                 break;
               }
-              case PayloadType::kStream:
+              case Payload::Type::kStream:
                 buffer_manager_.StartTrackingPayload(std::move(payload));
                 break;
-              case PayloadType::kUnknown:
+              case Payload::Type::kUnknown:
                 core->CancelPayload(payload.GetId(), /*callback=*/{});
                 return;
             }
@@ -339,8 +457,7 @@ void NearbyConnections::AcceptConnection(
             if (!remote)
               return;
 
-            // TODO(crbug.com/1237525): Investigate if OnPayloadTransferUpdate()
-            // should not be called if |info.total_bytes| is negative.
+            DCHECK_GE(info.total_bytes, 0);
             DCHECK_GE(info.bytes_transferred, 0);
             remote->OnPayloadTransferUpdate(
                 endpoint_id,
@@ -353,7 +470,7 @@ void NearbyConnections::AcceptConnection(
 
             switch (info.status) {
               case PayloadProgressInfo::Status::kFailure:
-                [[fallthrough]];
+                FALLTHROUGH;
               case PayloadProgressInfo::Status::kCanceled:
                 buffer_manager_.StopTrackingFailedPayload(info.payload_id);
                 break;
@@ -404,12 +521,12 @@ void NearbyConnections::SendPayload(
     SendPayloadCallback callback) {
   Payload core_payload;
   switch (payload->content->which()) {
-    case mojom::PayloadContent::Tag::kBytes:
+    case mojom::PayloadContent::Tag::BYTES:
       core_payload =
           Payload(payload->id,
                   ByteArrayFromMojom(payload->content->get_bytes()->bytes));
       break;
-    case mojom::PayloadContent::Tag::kFile:
+    case mojom::PayloadContent::Tag::FILE:
       int64_t file_size = payload->content->get_file()->file.GetLength();
       {
         base::AutoLock al(input_file_lock_);
@@ -502,22 +619,17 @@ Core* NearbyConnections::GetCore(const std::string& service_id) {
   std::unique_ptr<Core>& core = service_id_to_core_map_[service_id];
 
   if (!core) {
-    // Note: Some tests will use SetServiceControllerRouterForTesting to set a
-    // |service_controller_router| instance, but this value is expected to be
-    // null for the first GetCore() call during normal operation.
-    if (!service_controller_router_) {
-      service_controller_router_ = std::make_unique<ServiceControllerRouter>();
-    }
-
-    core = std::make_unique<Core>(service_controller_router_.get());
+    core = std::make_unique<Core>([&]() {
+      // Core expects to take ownership of the pointer provided, but since we
+      // share a single ServiceController among all Core objects created, we
+      // provide a delegate which calls into our shared instance.
+      return new ServiceControllerProxy(service_controller_.get());
+    });
   }
 
   return core.get();
 }
 
-void NearbyConnections::SetServiceControllerRouterForTesting(
-    std::unique_ptr<ServiceControllerRouter> service_controller_router) {
-  service_controller_router_ = std::move(service_controller_router);
-}
-
-}  // namespace location::nearby::connections
+}  // namespace connections
+}  // namespace nearby
+}  // namespace location

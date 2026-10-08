@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
-import org.chromium.chrome.browser.night_mode.AutoDarkFeedbackSource;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,29 +36,26 @@ public class ChromeFeedbackCollector
 
     public ChromeFeedbackCollector(Activity activity, @Nullable String categoryTag,
             @Nullable String description, @Nullable ScreenshotSource screenshotSource,
-            InitParams initParams, Callback<FeedbackCollector> callback, Profile profile) {
+            InitParams initParams, Callback<FeedbackCollector> callback) {
         super(categoryTag, description, callback);
-        init(activity, screenshotSource, initParams, profile);
+        init(activity, screenshotSource, initParams);
     }
 
     @VisibleForTesting
     @Override
-    protected List<FeedbackSource> buildSynchronousFeedbackSources(
-            Activity activity, InitParams initParams) {
+    protected List<FeedbackSource> buildSynchronousFeedbackSources(InitParams initParams) {
         List<FeedbackSource> sources = new ArrayList<>();
 
         // This is the list of all synchronous sources of feedback.  Please add new synchronous
         // entries here.
-        sources.add(new DeviceInfoFeedbackSource());
         sources.add(new UrlFeedbackSource(initParams.url));
         sources.add(new VariationsFeedbackSource(initParams.profile));
+        sources.add(new DataReductionProxyFeedbackSource(initParams.profile));
         sources.add(new HistogramFeedbackSource(initParams.profile));
         sources.add(new LowEndDeviceFeedbackSource());
         sources.add(new IMEFeedbackSource());
         sources.add(new PermissionFeedbackSource());
         sources.add(new FeedbackContextFeedbackSource(initParams.feedbackContext));
-        sources.add(
-                new AutoDarkFeedbackSource(initParams.profile, activity, new GURL(initParams.url)));
 
         return sources;
     }
@@ -76,17 +71,6 @@ public class ChromeFeedbackCollector
         sources.add(new SystemInfoFeedbackSource());
         sources.add(new ProcessIdFeedbackSource());
 
-        // FamilyInfoFeedbackSource relies on IdentityManager which is not available for the
-        // incognito profile.
-        if (!initParams.profile.isOffTheRecord()) {
-            sources.add(new FamilyInfoFeedbackSource(initParams.profile));
-        }
-
         return sources;
-    }
-
-    @VisibleForTesting
-    List<AsyncFeedbackSource> getAsyncFeedbackSourcesForTesting() {
-        return mAsynchronousSources;
     }
 }

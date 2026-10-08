@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/feature_list.h"
-#include "base/observer_list.h"
-#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/push_messaging/push_messaging_app_identifier.h"
 #include "chrome/browser/push_messaging/push_messaging_constants.h"
 #include "chrome/browser/push_messaging/push_messaging_service_impl.h"
@@ -50,7 +48,7 @@ void PushMessagingRefresher::OnSubscriptionUpdated(
     return;
 
   // Schedule a unsubscription event for the old subscription
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&PushMessagingRefresher::NotifyOnOldSubscriptionExpired,
                      weak_factory_.GetWeakPtr(),
@@ -96,9 +94,9 @@ void PushMessagingRefresher::GotMessageFrom(const std::string& app_id) {
   }
 }
 
-absl::optional<PushMessagingAppIdentifier>
+base::Optional<PushMessagingAppIdentifier>
 PushMessagingRefresher::FindActiveAppIdentifier(const std::string& app_id) {
-  absl::optional<PushMessagingAppIdentifier> app_identifier;
+  base::Optional<PushMessagingAppIdentifier> app_identifier;
   RefreshMap::iterator refresh_map_it = refresh_map_.find(app_id);
   if (refresh_map_it != refresh_map_.end()) {
     RefreshInfo::iterator result =

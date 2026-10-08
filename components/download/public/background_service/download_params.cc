@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,18 +21,14 @@ bool SchedulingParams::operator==(const SchedulingParams& rhs) const {
 }
 
 RequestParams::RequestParams()
-    : method("GET"),
-      fetch_error_body(false),
-      require_safety_checks(true),
-      credentials_mode(::network::mojom::CredentialsMode::kInclude) {}
+    : method("GET"), fetch_error_body(false), require_safety_checks(true) {}
 
 RequestParams::RequestParams(const RequestParams& other) = default;
-RequestParams::~RequestParams() = default;
 
 DownloadParams::DownloadParams() : client(DownloadClient::INVALID) {}
-DownloadParams::~DownloadParams() = default;
 
-DownloadParams::DownloadParams(DownloadParams&& other) = default;
-DownloadParams& DownloadParams::operator=(DownloadParams&& other) = default;
+DownloadParams::DownloadParams(const DownloadParams& other) = default;
+
+DownloadParams::~DownloadParams() = default;
 
 }  // namespace download

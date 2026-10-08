@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,21 +55,17 @@ gfx::Transform ComputeTransform(EdgeEffect::Edge edge,
   // Transforms assume the edge layers are anchored to their *top center point*.
   switch (edge) {
     case EdgeEffect::EDGE_TOP:
-      return gfx::Transform::MakeTranslation(0, offset);
+      return gfx::Transform(1, 0, 0, 1, 0, offset);
     case EdgeEffect::EDGE_LEFT:
-      return gfx::Transform::MakeTranslation(
-                 -viewport_size.height() / 2.f + offset,
-                 viewport_size.height() / 2.f) *
-             gfx::Transform::Make270degRotation();
+      return gfx::Transform(0, 1, -1, 0, -viewport_size.height() / 2.f + offset,
+                            viewport_size.height() / 2.f);
     case EdgeEffect::EDGE_BOTTOM:
-      return gfx::Transform::MakeTranslation(0,
-                                             viewport_size.height() + offset) *
-             gfx::Transform::Make180degRotation();
+      return gfx::Transform(-1, 0, 0, -1, 0, viewport_size.height() + offset);
     case EdgeEffect::EDGE_RIGHT:
-      return gfx::Transform::MakeTranslation(
-                 -viewport_size.height() / 2.f + viewport_size.width() + offset,
-                 viewport_size.height() / 2.f) *
-             gfx::Transform::Make90degRotation();
+      return gfx::Transform(
+          0, -1, 1, 0,
+          -viewport_size.height() / 2.f + viewport_size.width() + offset,
+          viewport_size.height() / 2.f);
     default:
       NOTREACHED() << "Invalid edge: " << edge;
       return gfx::Transform();
@@ -140,7 +136,7 @@ void EdgeEffect::Pull(base::TimeTicks current_time,
   state_ = STATE_PULL;
 
   start_time_ = current_time;
-  duration_ = base::Milliseconds(kPullTimeMs);
+  duration_ = base::TimeDelta::FromMilliseconds(kPullTimeMs);
 
   float abs_delta_distance = std::abs(delta_distance);
   pull_distance_ += delta_distance;
@@ -176,7 +172,7 @@ void EdgeEffect::Release(base::TimeTicks current_time) {
   glow_scale_y_finish_ = 0.f;
 
   start_time_ = current_time;
-  duration_ = base::Milliseconds(kRecedeTimeMs);
+  duration_ = base::TimeDelta::FromMilliseconds(kRecedeTimeMs);
 }
 
 void EdgeEffect::Absorb(base::TimeTicks current_time, float velocity) {
@@ -186,7 +182,7 @@ void EdgeEffect::Absorb(base::TimeTicks current_time, float velocity) {
 
   start_time_ = current_time;
   // This should never be less than 1 millisecond.
-  duration_ = base::Milliseconds(0.15f + (velocity * 0.02f));
+  duration_ = base::TimeDelta::FromMilliseconds(0.15f + (velocity * 0.02f));
 
   // The glow depends more on the velocity, and therefore starts out
   // nearly invisible.
@@ -220,7 +216,7 @@ bool EdgeEffect::Update(base::TimeTicks current_time) {
       case STATE_ABSORB:
         state_ = STATE_RECEDE;
         start_time_ = current_time;
-        duration_ = base::Milliseconds(kRecedeTimeMs);
+        duration_ = base::TimeDelta::FromMilliseconds(kRecedeTimeMs);
 
         glow_alpha_start_ = glow_alpha_;
         glow_scale_y_start_ = glow_scale_y_;
@@ -231,7 +227,7 @@ bool EdgeEffect::Update(base::TimeTicks current_time) {
       case STATE_PULL:
         state_ = STATE_PULL_DECAY;
         start_time_ = current_time;
-        duration_ = base::Milliseconds(kPullDecayTimeMs);
+        duration_ = base::TimeDelta::FromMilliseconds(kPullDecayTimeMs);
 
         glow_alpha_start_ = glow_alpha_;
         glow_scale_y_start_ = glow_scale_y_;

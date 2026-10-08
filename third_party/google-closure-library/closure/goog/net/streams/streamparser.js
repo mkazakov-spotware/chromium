@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2015 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview the private interface for implementing parsers responsible
@@ -32,13 +40,8 @@ goog.net.streams.StreamParser = function() {};
  *
  * @return {boolean} true if the input is still valid.
  */
-goog.net.streams.StreamParser.prototype.isInputValid = function() {};
+goog.net.streams.StreamParser.prototype.isInputValid = goog.abstractMethod;
 
-/**
- * @return {boolean} True if this parser should parse binary(Array or
- *     ArrayBuffer) input, otherwise only string input will be accepted.
- */
-goog.net.streams.StreamParser.prototype.acceptsBinaryInput = function() {};
 
 /**
  * Checks the error message.
@@ -46,7 +49,7 @@ goog.net.streams.StreamParser.prototype.acceptsBinaryInput = function() {};
  * @return {?string} any debug info on the first invalid input, or null if
  *    the input is still valid.
  */
-goog.net.streams.StreamParser.prototype.getErrorMessage = function() {};
+goog.net.streams.StreamParser.prototype.getErrorMessage = goog.abstractMethod;
 
 
 /**
@@ -60,4 +63,4 @@ goog.net.streams.StreamParser.prototype.getErrorMessage = function() {};
  * @return {?Array<string|!Object>} any parsed objects (atomic messages)
  *    in an array, or null if more data needs be read to parse any new object.
  */
-goog.net.streams.StreamParser.prototype.parse = function(input) {};
+goog.net.streams.StreamParser.prototype.parse = goog.abstractMethod;

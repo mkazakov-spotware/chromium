@@ -1,37 +1,45 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview ChromeVox options page.
+ *
  */
-import {constants} from '../../common/constants.js';
-import {LocalStorage} from '../../common/local_storage.js';
-import {BackgroundBridge} from '../common/background_bridge.js';
-import {BrailleTable} from '../common/braille/braille_table.js';
-import {Msgs} from '../common/msgs.js';
-import {PanelCommand, PanelCommandType} from '../common/panel_command.js';
-import {PunctuationEchoes, TtsSettings} from '../common/tts_types.js';
 
-import {BluetoothBrailleDisplayUI} from './bluetooth_braille_display_ui.js';
+goog.provide('OptionsPage');
 
-/** @const {string} */
-const GOOGLE_TTS_EXTENSION_ID = 'gjjabgpgjpampikjhjpfhneeoapjbjaf';
-
-/** @const {string} */
-const ESPEAK_TTS_EXTENSION_ID = 'dakbfdmgjiabojdgbiljlhgjbokobjpg';
+goog.require('AbstractTts');
+goog.require('BluetoothBrailleDisplayUI');
+goog.require('ConsoleTts');
+goog.require('Msgs');
+goog.require('PanelCommand');
+goog.require('TtsBackground');
+goog.require('BrailleTable');
+goog.require('BrailleTranslatorManager');
+goog.require('ChromeVox');
+goog.require('ChromeVoxKbHandler');
+goog.require('ChromeVoxPrefs');
+goog.require('ExtensionBridge');
 
 /**
  * Class to manage the options page.
  */
-export class OptionsPage {
+OptionsPage = class {
+  constructor() {}
+
   /**
    * Initialize the options page by setting the current value of all prefs, and
    * adding event listeners.
+   * @suppress {missingProperties} Property prefs never defined on Window
    * @this {OptionsPage}
    */
-  static async init() {
-    await LocalStorage.init();
+  static init() {
+    OptionsPage.prefs = chrome.extension.getBackgroundPage().prefs;
+    OptionsPage.consoleTts =
+        chrome.extension.getBackgroundPage().ConsoleTts.getInstance();
+    OptionsPage.backgroundTts =
+        chrome.extension.getBackgroundPage().ChromeVoxState.backgroundTts;
     OptionsPage.populateVoicesSelect();
     BrailleTable.getAll(function(tables) {
       /** @type {!Array<BrailleTable.Table>} */
@@ -59,11 +67,12 @@ export class OptionsPage {
     const currentlyDisplayingSideBySide =
         Msgs.getMsg('options_current_display_style_side_by_side');
     $('changeDisplayStyle').textContent =
-        LocalStorage.get('brailleSideBySide') ? changeToInterleave :
-                                                changeToSideBySide;
+        localStorage['brailleSideBySide'] === 'true' ? changeToInterleave :
+                                                       changeToSideBySide;
     $('currentDisplayStyle').textContent =
-        LocalStorage.get('brailleSideBySide') ? currentlyDisplayingSideBySide :
-                                                currentlyDisplayingInterleave;
+        localStorage['brailleSideBySide'] === 'true' ?
+        currentlyDisplayingSideBySide :
+        currentlyDisplayingInterleave;
 
     const showEventStreamFilters =
         Msgs.getMsg('options_show_event_stream_filters');
@@ -71,34 +80,35 @@ export class OptionsPage {
         Msgs.getMsg('options_hide_event_stream_filters');
     $('toggleEventStreamFilters').textContent = showEventStreamFilters;
     OptionsPage.disableEventStreamFilterCheckBoxes(
-        LocalStorage.get('enableEventStreamLogging') === false);
+        localStorage['enableEventStreamLogging'] === 'false');
 
-    if (LocalStorage.get('audioStrategy')) {
+    if (localStorage['audioStrategy']) {
       for (let i = 0, opt; opt = $('audioStrategy').options[i]; i++) {
-        if (opt.id === LocalStorage.get('audioStrategy')) {
+        if (opt.id === localStorage['audioStrategy']) {
           opt.setAttribute('selected', '');
         }
       }
     }
-    if (LocalStorage.get('capitalStrategy')) {
+    if (localStorage['capitalStrategy']) {
       for (let i = 0, opt; opt = $('capitalStrategy').options[i]; ++i) {
-        if (opt.id === LocalStorage.get('capitalStrategy')) {
+        if (opt.id === localStorage['capitalStrategy']) {
           opt.setAttribute('selected', '');
         }
       }
     }
 
-    if (LocalStorage.get('numberReadingStyle')) {
+    if (localStorage['numberReadingStyle']) {
       for (let i = 0, opt; opt = $('numberReadingStyle').options[i]; ++i) {
-        if (opt.id === LocalStorage.get('numberReadingStyle')) {
+        if (opt.id === localStorage['numberReadingStyle']) {
           opt.setAttribute('selected', '');
         }
       }
     }
 
-    if (LocalStorage.get(TtsSettings.PUNCTUATION_ECHO)) {
+    if (localStorage[AbstractTts.PUNCTUATION_ECHO]) {
       const currentPunctuationEcho =
-          PunctuationEchoes[LocalStorage.get(TtsSettings.PUNCTUATION_ECHO)];
+          AbstractTts
+              .PUNCTUATION_ECHOES[localStorage[AbstractTts.PUNCTUATION_ECHO]];
       for (let i = 0, opt; opt = $('punctuationEcho').options[i]; ++i) {
         if (opt.id === currentPunctuationEcho.name) {
           opt.setAttribute('selected', '');
@@ -116,7 +126,7 @@ export class OptionsPage {
       }
     });
 
-    $('openTtsSettings').addEventListener('click', evt => {
+    $('openTtsSettings').addEventListener('click', (evt) => {
       chrome.accessibilityPrivate.openSettingsSubpage(
           'manageAccessibility/tts');
     });
@@ -129,7 +139,7 @@ export class OptionsPage {
     });
 
     $('chromeVoxDeveloperOptions').addEventListener('expanded-changed', () => {
-      const hidden = !$('chromeVoxDeveloperOptions')['expanded'];
+      const hidden = !$('chromeVoxDeveloperOptions').expanded;
       $('developerSpeechLogging').hidden = hidden;
       $('developerEarconLogging').hidden = hidden;
       $('developerBrailleLogging').hidden = hidden;
@@ -138,23 +148,29 @@ export class OptionsPage {
     });
 
     $('openDeveloperLog').addEventListener('click', function(evt) {
-      const logPage = {url: 'chromevox/log_page/log.html'};
+      const logPage = {url: 'chromevox/background/logging/log.html'};
       chrome.tabs.create(logPage);
     });
 
     Msgs.addTranslatedMessagesToDom(document);
     OptionsPage.hidePlatformSpecifics();
 
-    await OptionsPage.update();
+    OptionsPage.update();
 
     document.addEventListener('change', OptionsPage.eventListener, false);
     document.addEventListener('click', OptionsPage.eventListener, false);
     document.addEventListener('keydown', OptionsPage.eventListener, false);
 
-    window.addEventListener('storage', event => {
+    window.addEventListener('storage', (event) => {
       if (event.key === 'speakTextUnderMouse') {
-        chrome.accessibilityPrivate.enableMouseEvents(
+        chrome.accessibilityPrivate.enableChromeVoxMouseEvents(
             event.newValue === String(true));
+      }
+    });
+
+    ExtensionBridge.addMessageListener(function(message) {
+      if (message['prefs']) {
+        OptionsPage.update();
       }
     });
 
@@ -170,8 +186,8 @@ export class OptionsPage {
     };
 
     $('changeDisplayStyle').addEventListener('click', function(evt) {
-      LocalStorage.toggle('brailleSideBySide');
-      const sideBySide = LocalStorage.get('brailleSideBySide');
+      const sideBySide = localStorage['brailleSideBySide'] !== 'true';
+      localStorage['brailleSideBySide'] = sideBySide;
       $('changeDisplayStyle').textContent =
           sideBySide ? changeToInterleave : changeToSideBySide;
       $('currentDisplayStyle').textContent = sideBySide ?
@@ -193,7 +209,7 @@ export class OptionsPage {
       OptionsPage.bluetoothBrailleDisplayUI.attach(bluetoothBraille);
     }
 
-    $('usePitchChanges').addEventListener('click', evt => {
+    $('usePitchChanges').addEventListener('click', (evt) => {
       // The capitalStrategy pref depends on the value of usePitchChanges.
       // When usePitchChanges is toggled, we should update the preference value
       // and options for capitalStrategy.
@@ -202,21 +218,18 @@ export class OptionsPage {
         $('announceCapitals').selected = true;
         $('increasePitch').selected = false;
         $('increasePitch').disabled = true;
-        LocalStorage.set(
-            'capitalStrategyBackup', LocalStorage.get('capitalStrategy'));
-        BackgroundBridge.ChromeVoxPrefs.setPref(
-            'capitalStrategy', 'announceCapitals');
+        localStorage['capitalStrategyBackup'] = localStorage['capitalStrategy'];
+        OptionsPage.prefs.setPref('capitalStrategy', 'announceCapitals');
       } else {
         $('increasePitch').disabled = false;
-        const capitalStrategyBackup = LocalStorage.get('capitalStrategyBackup');
+        const capitalStrategyBackup = localStorage['capitalStrategyBackup'];
         if (capitalStrategyBackup) {
           // Restore original capitalStrategy setting.
           $('announceCapitals').selected =
               (capitalStrategyBackup === 'announceCapitals');
           $('increasePitch').selected =
               (capitalStrategyBackup === 'increasePitch');
-          BackgroundBridge.ChromeVoxPrefs.setPref(
-              'capitalStrategy', capitalStrategyBackup);
+          OptionsPage.prefs.setPref('capitalStrategy', capitalStrategyBackup);
         }
       }
     });
@@ -227,8 +240,8 @@ export class OptionsPage {
    * This happens if the user presses a key in a tab that changes a
    * pref.
    */
-  static async update() {
-    const prefs = await BackgroundBridge.ChromeVoxPrefs.getPrefs();
+  static update() {
+    const prefs = OptionsPage.prefs.getPrefs();
     for (const key in prefs) {
       // TODO(rshearer): 'active' is a pref, but there's no place in the
       // options page to specify whether you want ChromeVox active.
@@ -242,12 +255,12 @@ export class OptionsPage {
   /**
    * Populates the voices select with options.
    */
-  static async populateVoicesSelect() {
+  static populateVoicesSelect() {
     const select = $('voices');
 
-    async function setVoiceList() {
+    function setVoiceList() {
       const selectedVoice =
-          await BackgroundBridge.TtsBackground.getCurrentVoice();
+          chrome.extension.getBackgroundPage()['getCurrentVoice']();
       const addVoiceOption = (visibleVoiceName, voiceName) => {
         const option = document.createElement('option');
         option.voiceName = voiceName;
@@ -261,35 +274,21 @@ export class OptionsPage {
         select.innerHTML = '';
         // TODO(plundblad): voiceName can actually be omitted in the TTS engine.
         // We should generate a name in that case.
-        voices.forEach(voice => voice.voiceName = voice.voiceName || '');
+        voices.forEach(function(voice) {
+          voice.voiceName = voice.voiceName || '';
+        });
         voices.sort(function(a, b) {
-          // Prefer Google tts voices over all others.
-          if (a.extensionId === GOOGLE_TTS_EXTENSION_ID &&
-              b.extensionId !== GOOGLE_TTS_EXTENSION_ID) {
-            return -1;
-          }
-
-          // Next, prefer Espeak tts voices.
-          if (a.extensionId === ESPEAK_TTS_EXTENSION_ID &&
-              b.extensionId !== ESPEAK_TTS_EXTENSION_ID) {
-            return -1;
-          }
-
-          // Finally, prefer local over remote voices.
-          if (!a['remote'] && b['remote']) {
-            return -1;
-          }
-
-          return 0;
+          return a.voiceName.localeCompare(b.voiceName);
         });
         addVoiceOption(Msgs.getMsg('system_voice'), constants.SYSTEM_VOICE);
-        voices.forEach(
-            voice => addVoiceOption(voice.voiceName, voice.voiceName));
+        voices.forEach((voice) => {
+          addVoiceOption(voice.voiceName, voice.voiceName);
+        });
       });
     }
 
     window.speechSynthesis.onvoiceschanged = setVoiceList;
-    await setVoiceList();
+    setVoiceList();
 
     select.addEventListener('change', function(evt) {
       const selIndex = select.selectedIndex;
@@ -304,23 +303,17 @@ export class OptionsPage {
   static populateBrailleTablesSelect() {
     const tables = OptionsPage.brailleTables;
     const populateSelect = function(node, dots) {
-      const activeTable =
-          LocalStorage.get(node.id) || LocalStorage.get('brailleTable');
+      const activeTable = localStorage[node.id] || localStorage['brailleTable'];
       // Gather the display names and sort them according to locale.
       const items = [];
       for (let i = 0, table; table = tables[i]; i++) {
         if (table.dots !== dots) {
           continue;
         }
-        const displayName = BrailleTable.getDisplayName(table);
-
-        // Ignore tables that don't have a display name.
-        if (displayName) {
-          items.push({id: table.id, name: displayName});
-        }
+        items.push({id: table.id, name: BrailleTable.getDisplayName(table)});
       }
       items.sort(function(a, b) {
-        return a.id.localeCompare(b.id);
+        return a.name.localeCompare(b.name);
       });
       for (let i = 0, item; item = items[i]; ++i) {
         const elem = document.createElement('option');
@@ -341,10 +334,10 @@ export class OptionsPage {
       return function(evt) {
         const selIndex = node.selectedIndex;
         const sel = node.options[selIndex];
-        LocalStorage.set('brailleTable', sel.id);
-        LocalStorage.set(node.id, sel.id);
-        BackgroundBridge.BrailleBackground.refreshBrailleTable(
-            LocalStorage.get('brailleTable'));
+        localStorage['brailleTable'] = sel.id;
+        localStorage[node.id] = sel.id;
+        OptionsPage.getBrailleTranslatorManager().refresh(
+            localStorage['brailleTable']);
       };
     };
 
@@ -354,15 +347,15 @@ export class OptionsPage {
     const tableTypeButton = $('brailleTableType');
     const updateTableType = function(setFocus) {
       const currentTableType =
-          LocalStorage.get('brailleTableType') || 'brailleTable6';
+          localStorage['brailleTableType'] || 'brailleTable6';
       if (currentTableType === 'brailleTable6') {
         select6.parentElement.style.display = 'block';
         select8.parentElement.style.display = 'none';
         if (setFocus) {
           select6.focus();
         }
-        LocalStorage.set('brailleTable', LocalStorage.get('brailleTable6'));
-        LocalStorage.set('brailleTableType', 'brailleTable6');
+        localStorage['brailleTable'] = localStorage['brailleTable6'];
+        localStorage['brailleTableType'] = 'brailleTable6';
         tableTypeButton.textContent =
             Msgs.getMsg('options_braille_table_type_6');
       } else {
@@ -371,21 +364,20 @@ export class OptionsPage {
         if (setFocus) {
           select8.focus();
         }
-        LocalStorage.set('brailleTable', LocalStorage.get('brailleTable8'));
-        LocalStorage.set('brailleTableType', 'brailleTable8');
+        localStorage['brailleTable'] = localStorage['brailleTable8'];
+        localStorage['brailleTableType'] = 'brailleTable8';
         tableTypeButton.textContent =
             Msgs.getMsg('options_braille_table_type_8');
       }
-      BackgroundBridge.BrailleBackground.refreshBrailleTable(
-          LocalStorage.get('brailleTable'));
+      OptionsPage.getBrailleTranslatorManager().refresh(
+          localStorage['brailleTable']);
     };
     updateTableType(false);
 
     tableTypeButton.addEventListener('click', function(evt) {
-      const oldTableType = LocalStorage.get('brailleTableType');
-      LocalStorage.set(
-          'brailleTableType',
-          oldTableType === 'brailleTable6' ? 'brailleTable8' : 'brailleTable6');
+      const oldTableType = localStorage['brailleTableType'];
+      localStorage['brailleTableType'] =
+          oldTableType === 'brailleTable6' ? 'brailleTable8' : 'brailleTable6';
       updateTableType(true);
     }, true);
   }
@@ -436,11 +428,10 @@ export class OptionsPage {
    * @param {boolean} enabled
    */
   static setEventStreamFilter(name, enabled) {
-    BackgroundBridge.ChromeVoxPrefs.setPref(name, enabled);
-
-    // TODO(accessibility): the below cast needs to be validated.
-    BackgroundBridge.EventStreamLogger.notifyEventStreamFilterChanged(
-        /** @type {chrome.automation.EventType} */ (name), enabled);
+    OptionsPage.prefs.setPref(name, enabled);
+    chrome.extension.getBackgroundPage()
+        .EventStreamLogger.instance.notifyEventStreamFilterChanged(
+            name, enabled);
   }
 
   /**
@@ -450,13 +441,12 @@ export class OptionsPage {
    * @return {boolean} True if the default action should occur.
    */
   static eventListener(event) {
-    setTimeout(function() {
+    window.setTimeout(function() {
       const target = event.target;
       if (target.id === 'brailleWordWrap') {
         chrome.storage.local.set({brailleWordWrap: target.checked});
       } else if (target.className.indexOf('logging') !== -1) {
-        BackgroundBridge.ChromeVoxPrefs.setLoggingPrefs(
-            target.name, target.checked);
+        OptionsPage.prefs.setLoggingPrefs(target.name, target.checked);
         if (target.name === 'enableEventStreamLogging') {
           OptionsPage.disableEventStreamFilterCheckBoxes(!target.checked);
         }
@@ -464,26 +454,25 @@ export class OptionsPage {
         OptionsPage.setEventStreamFilter(target.name, target.checked);
       } else if (target.id === 'punctuationEcho') {
         const selectedPunctuationEcho = target.options[target.selectedIndex].id;
-        const punctuationEcho = PunctuationEchoes.findIndex(
+        const punctuationEcho = AbstractTts.PUNCTUATION_ECHOES.findIndex(
             echo => echo.name === selectedPunctuationEcho);
-        BackgroundBridge.TtsBackground.updatePunctuationEcho(punctuationEcho);
+        OptionsPage.backgroundTts.updatePunctuationEcho(punctuationEcho);
       } else if (target.classList.contains('pref')) {
         if (target.tagName === 'INPUT' && target.type === 'checkbox') {
-          BackgroundBridge.ChromeVoxPrefs.setPref(target.name, target.checked);
+          OptionsPage.prefs.setPref(target.name, target.checked);
         } else if (target.tagName === 'INPUT' && target.type === 'radio') {
           const key = target.name;
           const elements = document.querySelectorAll('*[name="' + key + '"]');
           for (let i = 0; i < elements.length; i++) {
             if (elements[i].checked) {
-              BackgroundBridge.ChromeVoxPrefs.setPref(
-                  target.name, elements[i].value);
+              OptionsPage.prefs.setPref(target.name, elements[i].value);
             }
           }
         } else if (target.tagName === 'SELECT') {
           const selIndex = target.selectedIndex;
           const sel = target.options[selIndex];
           const value = sel ? sel.id : 'audioNormal';
-          BackgroundBridge.ChromeVoxPrefs.setPref(target.id, value);
+          OptionsPage.prefs.setPref(target.id, value);
         }
       }
     }, 0);
@@ -494,13 +483,38 @@ export class OptionsPage {
    * Hides all elements not matching the current platform.
    */
   static hidePlatformSpecifics() {}
-}
+
+  /**
+   * @return {BrailleTranslatorManager}
+   */
+  static getBrailleTranslatorManager() {
+    return chrome.extension.getBackgroundPage()['braille_translator_manager'];
+  }
+};
+
+/**
+ * The ChromeVoxPrefs object.
+ * @type {ChromeVoxPrefs}
+ */
+OptionsPage.prefs;
+
+/**
+ * The ConsoleTts object.
+ * @type {ConsoleTts}
+ */
+OptionsPage.consoleTts;
+
+/**
+ * The TtsBackground object.
+ * @type {TtsBackground}
+ */
+OptionsPage.backgroundTts;
 
 /**
  * Adds event listeners to input boxes to update local storage values and
  * make sure that the input is a positive nonempty number between 1 and 99.
  * @param {string} id Id of the input box.
- * @param {string} pref Preference key in LocalStorage to access and modify.
+ * @param {string} pref Preference key in localStorage to access and modify.
  */
 const handleNumericalInputPref = function(id, pref) {
   $(id).addEventListener('input', function(evt) {
@@ -527,19 +541,11 @@ const handleNumericalInputPref = function(id, pref) {
   }, true);
 };
 
-document.addEventListener('DOMContentLoaded', async function() {
-  await OptionsPage.init();
+
+document.addEventListener('DOMContentLoaded', function() {
+  OptionsPage.init();
 }, false);
 
 window.addEventListener('beforeunload', function(e) {
   OptionsPage.bluetoothBrailleDisplayUI.detach();
 });
-
-/**
- * Shortcut for document.getElementById.
- * @param {string} id of the element.
- * @return {Element} with the id.
- */
-function $(id) {
-  return document.getElementById(id);
-}

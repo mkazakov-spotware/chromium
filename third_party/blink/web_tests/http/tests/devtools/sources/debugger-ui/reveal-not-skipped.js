@@ -1,14 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
-  Root.Runtime.experiments.setEnabled('sourcesPrettyPrint', false);
-
   TestRunner.addResult(
       `Tests that certain user actions in scripts panel reveal execution line.\n`);
-  await TestRunner.loadLegacyModule('sources');
-  await TestRunner.loadTestModule('sources_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
   await TestRunner.showPanel('sources');
   await TestRunner.navigatePromise('resources/reveal-not-skipped.html');
 
@@ -24,7 +21,7 @@
       function step2() {
         TestRunner.addResult(
             'Script source was shown for \'' +
-            panel.visibleView.uiSourceCode().name() + '\'.');
+            panel.visibleView._uiSourceCode.name() + '\'.');
         TestRunner.addResult('Throwing exception...');
         TestRunner.evaluateInPage('setTimeout(throwAnException, 0)');
         TestRunner.addSniffer(
@@ -34,7 +31,7 @@
       function step3() {
         TestRunner.addResult(
             'Script source was shown for \'' +
-            panel.visibleView.uiSourceCode().name() + '\'.');
+            panel.visibleView._uiSourceCode.name() + '\'.');
         TestRunner.addResult('Reloading page...');
         TestRunner.reloadPage(step4);
       }
@@ -47,7 +44,7 @@
       function step5() {
         TestRunner.addResult(
             'Script source was shown for \'' +
-            panel.visibleView.uiSourceCode().name() + '\'.');
+            panel.visibleView._uiSourceCode.name() + '\'.');
         TestRunner.addResult('Throwing exception...');
         TestRunner.evaluateInPage('setTimeout(throwAnException, 0)');
         TestRunner.addSniffer(
@@ -57,7 +54,7 @@
       function step6() {
         TestRunner.addResult(
             'Script source was shown for \'' +
-            panel.visibleView.uiSourceCode().name() + '\'.');
+            panel.visibleView._uiSourceCode.name() + '\'.');
         next();
       }
     },
@@ -73,11 +70,11 @@
       function step3() {
         TestRunner.addResult(
             'Script source was shown for \'' +
-            panel.visibleView.uiSourceCode().name() + '\'.');
+            panel.visibleView._uiSourceCode.name() + '\'.');
         TestRunner.addResult('Formatting...');
         SourcesTestRunner.scriptFormatter().then(function(scriptFormatter) {
           TestRunner.addSniffer(
-              Sources.ScriptFormatterEditorAction.prototype, 'updateButton',
+              Sources.ScriptFormatterEditorAction.prototype, '_updateButton',
               uiSourceCodeScriptFormatted);
           scriptFormatter.toggleFormatScriptSource();
         });
@@ -86,7 +83,7 @@
       function uiSourceCodeScriptFormatted() {
         TestRunner.addResult(
             'Script source was shown for \'' +
-            panel.visibleView.uiSourceCode().name() + '\'.');
+            panel.visibleView._uiSourceCode.name() + '\'.');
         next();
       }
     }

@@ -1,166 +1,263 @@
-// Copyright 2022 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/browser_process_platform_part_chromeos.h"
 
-#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
-#include "chrome/browser/prefs/session_startup_pref.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_io_data.h"
-#include "chrome/browser/sessions/session_restore.h"
-#include "chrome/browser/sessions/session_service_utils.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
-#include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/startup/startup_browser_creator.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "components/custom_handlers/protocol_handler_registry.h"
-#include "ui/base/page_transition_types.h"
-#include "ui/base/window_open_disposition.h"
+#include <utility>
 
-BrowserProcessPlatformPartChromeOS::BrowserProcessPlatformPartChromeOS()
-    : browser_restore_observer_(this) {}
+#include "base/bind.h"
+#include "base/check_op.h"
+#include "base/memory/singleton.h"
+#include "base/time/default_tick_clock.h"
+#include "base/time/tick_clock.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/login/saml/in_session_password_change_manager.h"
+#include "chrome/browser/chromeos/login/session/chrome_session_manager.h"
+#include "chrome/browser/chromeos/login/users/chrome_user_manager_impl.h"
+#include "chrome/browser/chromeos/net/delay_network_call.h"
+#include "chrome/browser/chromeos/policy/browser_policy_connector_chromeos.h"
+#include "chrome/browser/chromeos/policy/system_proxy_manager.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
+#include "chrome/browser/chromeos/scheduler_configuration_manager.h"
+#include "chrome/browser/chromeos/settings/cros_settings.h"
+#include "chrome/browser/chromeos/system/automatic_reboot_manager.h"
+#include "chrome/browser/chromeos/system/device_disabling_manager.h"
+#include "chrome/browser/chromeos/system/device_disabling_manager_default_delegate.h"
+#include "chrome/browser/chromeos/system/system_clock.h"
+#include "chrome/browser/chromeos/system/timezone_resolver_manager.h"
+#include "chrome/browser/chromeos/system/timezone_util.h"
+#include "chrome/browser/component_updater/metadata_table_chromeos.h"
+#include "chrome/common/chrome_switches.h"
+#include "chromeos/components/account_manager/account_manager_factory.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
+#include "chromeos/geolocation/simple_geolocation_provider.h"
+#include "chromeos/timezone/timezone_resolver.h"
+#include "components/keep_alive_registry/keep_alive_types.h"
+#include "components/keep_alive_registry/scoped_keep_alive.h"
+#include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
+#include "components/session_manager/core/session_manager.h"
+#include "components/user_manager/user_manager.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
+#include "services/preferences/public/mojom/preferences.mojom.h"
+#include "services/service_manager/public/cpp/binder_registry.h"
+#include "services/service_manager/public/cpp/interface_provider.h"
+#include "services/service_manager/public/cpp/service.h"
 
-BrowserProcessPlatformPartChromeOS::~BrowserProcessPlatformPartChromeOS() =
-    default;
+namespace {
 
-bool BrowserProcessPlatformPartChromeOS::CanRestoreUrlsForProfile(
-    const Profile* profile) const {
-  return profile->IsRegularProfile();
+class PrimaryProfileServicesShutdownNotifierFactory
+    : public BrowserContextKeyedServiceShutdownNotifierFactory {
+ public:
+  static PrimaryProfileServicesShutdownNotifierFactory* GetInstance() {
+    return base::Singleton<
+        PrimaryProfileServicesShutdownNotifierFactory>::get();
+  }
+
+ private:
+  friend struct base::DefaultSingletonTraits<
+      PrimaryProfileServicesShutdownNotifierFactory>;
+
+  PrimaryProfileServicesShutdownNotifierFactory()
+      : BrowserContextKeyedServiceShutdownNotifierFactory(
+            "PrimaryProfileServices") {}
+  ~PrimaryProfileServicesShutdownNotifierFactory() override {}
+
+  DISALLOW_COPY_AND_ASSIGN(PrimaryProfileServicesShutdownNotifierFactory);
+};
+
+}  // namespace
+
+BrowserProcessPlatformPart::BrowserProcessPlatformPart()
+    : created_profile_helper_(false),
+      account_manager_factory_(
+          std::make_unique<chromeos::AccountManagerFactory>()) {}
+
+BrowserProcessPlatformPart::~BrowserProcessPlatformPart() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
 
-BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::
-    BrowserRestoreObserver(
-        const BrowserProcessPlatformPartChromeOS* browser_process_platform_part)
-    : browser_process_platform_part_(browser_process_platform_part) {
-  BrowserList::AddObserver(this);
+void BrowserProcessPlatformPart::InitializeAutomaticRebootManager() {
+  DCHECK(!automatic_reboot_manager_);
+
+  automatic_reboot_manager_.reset(new chromeos::system::AutomaticRebootManager(
+      base::DefaultTickClock::GetInstance()));
 }
 
-BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::
-    ~BrowserRestoreObserver() {
-  BrowserList::RemoveObserver(this);
+void BrowserProcessPlatformPart::ShutdownAutomaticRebootManager() {
+  automatic_reboot_manager_.reset();
 }
 
-void BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::OnBrowserAdded(
-    Browser* browser) {
-  // If |browser| is the only browser, restores urls based on the on startup
-  // setting.
-  if (chrome::GetBrowserCount(browser->profile()) == 1 &&
-      ShouldRestoreUrls(browser)) {
-    if (ShouldOpenUrlsInNewBrowser(browser)) {
-      // Delay creating a new browser until |browser| is activated.
-      on_session_restored_callback_subscription_ =
-          SessionRestore::RegisterOnSessionRestoredCallback(base::BindRepeating(
-              &BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::
-                  OnSessionRestoreDone,
+void BrowserProcessPlatformPart::InitializeChromeUserManager() {
+  DCHECK(!chrome_user_manager_);
+  chrome_user_manager_ =
+      chromeos::ChromeUserManagerImpl::CreateChromeUserManager();
+  chrome_user_manager_->Initialize();
+}
+
+void BrowserProcessPlatformPart::DestroyChromeUserManager() {
+  chrome_user_manager_->Destroy();
+  chrome_user_manager_.reset();
+}
+
+void BrowserProcessPlatformPart::InitializeDeviceDisablingManager() {
+  DCHECK(!device_disabling_manager_);
+
+  device_disabling_manager_delegate_.reset(
+      new chromeos::system::DeviceDisablingManagerDefaultDelegate);
+  device_disabling_manager_.reset(new chromeos::system::DeviceDisablingManager(
+      device_disabling_manager_delegate_.get(), chromeos::CrosSettings::Get(),
+      user_manager::UserManager::Get()));
+  device_disabling_manager_->Init();
+}
+
+void BrowserProcessPlatformPart::ShutdownDeviceDisablingManager() {
+  device_disabling_manager_.reset();
+  device_disabling_manager_delegate_.reset();
+}
+
+void BrowserProcessPlatformPart::InitializeSessionManager() {
+  DCHECK(!session_manager_);
+  session_manager_ = std::make_unique<chromeos::ChromeSessionManager>();
+}
+
+void BrowserProcessPlatformPart::ShutdownSessionManager() {
+  session_manager_.reset();
+}
+
+void BrowserProcessPlatformPart::InitializeCrosComponentManager() {
+  if (using_testing_cros_component_manager_)
+    return;
+
+  DCHECK(!cros_component_manager_);
+  cros_component_manager_ =
+      base::MakeRefCounted<component_updater::CrOSComponentInstaller>(
+          std::make_unique<component_updater::MetadataTable>(
+              g_browser_process->local_state()),
+          g_browser_process->component_updater());
+
+  // Register all installed components for regular update.
+  cros_component_manager_->RegisterInstalled();
+}
+
+void BrowserProcessPlatformPart::ShutdownCrosComponentManager() {
+  if (using_testing_cros_component_manager_)
+    return;
+
+  cros_component_manager_.reset();
+}
+
+void BrowserProcessPlatformPart::InitializeSchedulerConfigurationManager() {
+  DCHECK(!scheduler_configuration_manager_);
+  scheduler_configuration_manager_ =
+      std::make_unique<chromeos::SchedulerConfigurationManager>(
+          chromeos::DBusThreadManager::Get()->GetDebugDaemonClient(),
+          g_browser_process->local_state());
+}
+
+void BrowserProcessPlatformPart::ShutdownSchedulerConfigurationManager() {
+  scheduler_configuration_manager_.reset();
+}
+
+void BrowserProcessPlatformPart::InitializePrimaryProfileServices(
+    Profile* primary_profile) {
+  DCHECK(primary_profile);
+
+  DCHECK(!in_session_password_change_manager_);
+  in_session_password_change_manager_ =
+      chromeos::InSessionPasswordChangeManager::CreateIfEnabled(
+          primary_profile);
+
+  primary_profile_shutdown_subscription_ =
+      PrimaryProfileServicesShutdownNotifierFactory::GetInstance()
+          ->Get(primary_profile)
+          ->Subscribe(base::BindRepeating(
+              &BrowserProcessPlatformPart::ShutdownPrimaryProfileServices,
               base::Unretained(this)));
-    } else {
-      RestoreUrls(browser);
-    }
-  }
-
-  // If the startup urls from LAST_AND_URLS pref are already opened in a new
-  // browser, skip opening the same browser.
-  if (browser->creation_source() ==
-      Browser::CreationSource::kLastAndUrlsStartupPref) {
-    DCHECK(on_session_restored_callback_subscription_);
-    on_session_restored_callback_subscription_ = {};
-  }
+  browser_policy_connector_chromeos()
+      ->GetSystemProxyManager()
+      ->StartObservingPrimaryProfilePrefs(primary_profile);
 }
 
-void BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::
-    OnSessionRestoreDone(Profile* profile, int num_tabs_restored) {
-  // Ensure this callback to be called exactly once.
-  on_session_restored_callback_subscription_ = {};
-
-  // All browser windows are created. Open startup urls in a new browser.
-  auto create_params = Browser::CreateParams(profile, /*user_gesture*/ false);
-  Browser* browser = Browser::Create(create_params);
-  RestoreUrls(browser);
-  browser->window()->Show();
-  browser->window()->Activate();
+void BrowserProcessPlatformPart::ShutdownPrimaryProfileServices() {
+  browser_policy_connector_chromeos()
+      ->GetSystemProxyManager()
+      ->StopObservingPrimaryProfilePrefs();
+  in_session_password_change_manager_.reset();
 }
 
-bool BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::
-    ShouldRestoreUrls(Browser* browser) const {
-  Profile* profile = browser->profile();
-
-  // Only open urls for regular sign in users.
-  DCHECK(profile);
-  if (!browser_process_platform_part_->CanRestoreUrlsForProfile(profile))
-    return false;
-
-  // If during the restore process, or restore from a crash, don't launch urls.
-  // However, in case of LAST_AND_URLS startup setting, urls should be opened
-  // even when the restore session is in progress.
-  SessionStartupPref pref =
-      SessionStartupPref::GetStartupPref(browser->profile()->GetPrefs());
-  if ((SessionRestore::IsRestoring(profile) &&
-       pref.type != SessionStartupPref::LAST_AND_URLS) ||
-      HasPendingUncleanExit(profile)) {
-    return false;
-  }
-
-  // App windows should not be restored.
-  auto window_type = WindowTypeForBrowserType(browser->type());
-  if (window_type == sessions::SessionWindow::TYPE_APP ||
-      window_type == sessions::SessionWindow::TYPE_APP_POPUP) {
-    return false;
-  }
-
-  // If the browser is created by StartupBrowserCreator,
-  // StartupBrowserCreatorImpl::OpenTabsInBrowser can open tabs, so don't
-  // restore urls here.
-  if (browser->creation_source() == Browser::CreationSource::kStartupCreator)
-    return false;
-
-  // If the startup setting is not open urls, don't launch urls.
-  if (!pref.ShouldOpenUrls() || pref.urls.empty())
-    return false;
-
-  return true;
+void BrowserProcessPlatformPart::RegisterKeepAlive() {
+  DCHECK(!keep_alive_);
+  keep_alive_.reset(
+      new ScopedKeepAlive(KeepAliveOrigin::BROWSER_PROCESS_CHROMEOS,
+                          KeepAliveRestartOption::DISABLED));
 }
 
-// If the startup setting is both the restore last session and the open urls,
-// those should be opened in a new browser.
-bool BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::
-    ShouldOpenUrlsInNewBrowser(Browser* browser) const {
-  SessionStartupPref pref =
-      SessionStartupPref::GetStartupPref(browser->profile()->GetPrefs());
-  return pref.type == SessionStartupPref::LAST_AND_URLS;
+void BrowserProcessPlatformPart::UnregisterKeepAlive() {
+  keep_alive_.reset();
 }
 
-void BrowserProcessPlatformPartChromeOS::BrowserRestoreObserver::RestoreUrls(
-    Browser* browser) {
-  DCHECK(browser);
+chromeos::ProfileHelper* BrowserProcessPlatformPart::profile_helper() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (!created_profile_helper_)
+    CreateProfileHelper();
+  return profile_helper_.get();
+}
 
-  SessionStartupPref pref =
-      SessionStartupPref::GetStartupPref(browser->profile()->GetPrefs());
-  std::vector<GURL> urls;
-  for (const auto& url : pref.urls)
-    urls.push_back(url);
+policy::BrowserPolicyConnectorChromeOS*
+BrowserProcessPlatformPart::browser_policy_connector_chromeos() {
+  return static_cast<policy::BrowserPolicyConnectorChromeOS*>(
+      g_browser_process->browser_policy_connector());
+}
 
-  custom_handlers::ProtocolHandlerRegistry* registry =
-      ProtocolHandlerRegistryFactory::GetForBrowserContext(browser->profile());
-  for (const GURL& url : urls) {
-    // We skip URLs that we'd have to launch an external protocol handler for.
-    // This avoids us getting into an infinite loop asking ourselves to open
-    // a URL, should the handler be (incorrectly) configured to be us. Anyone
-    // asking us to open such a URL should really ask the handler directly.
-    bool handled_by_chrome =
-        ProfileIOData::IsHandledURL(url) ||
-        (registry && registry->IsHandledProtocol(url.scheme()));
-    if (!handled_by_chrome)
-      continue;
-
-    int add_types = AddTabTypes::ADD_NONE | AddTabTypes::ADD_FORCE_INDEX;
-    NavigateParams params(browser, url, ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
-    params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
-    params.tabstrip_add_types = add_types;
-    Navigate(&params);
+chromeos::system::TimeZoneResolverManager*
+BrowserProcessPlatformPart::GetTimezoneResolverManager() {
+  if (!timezone_resolver_manager_.get()) {
+    timezone_resolver_manager_.reset(
+        new chromeos::system::TimeZoneResolverManager());
   }
+  return timezone_resolver_manager_.get();
+}
+
+chromeos::TimeZoneResolver* BrowserProcessPlatformPart::GetTimezoneResolver() {
+  if (!timezone_resolver_.get()) {
+    timezone_resolver_.reset(new chromeos::TimeZoneResolver(
+        GetTimezoneResolverManager(),
+        g_browser_process->shared_url_loader_factory(),
+        chromeos::SimpleGeolocationProvider::DefaultGeolocationProviderURL(),
+        base::BindRepeating(&chromeos::system::ApplyTimeZone),
+        base::BindRepeating(&chromeos::DelayNetworkCall,
+                            base::TimeDelta::FromMilliseconds(
+                                chromeos::kDefaultNetworkRetryDelayMS)),
+        g_browser_process->local_state()));
+  }
+  return timezone_resolver_.get();
+}
+
+void BrowserProcessPlatformPart::StartTearDown() {
+  // interactive_ui_tests check for memory leaks before this object is
+  // destroyed.  So we need to destroy |timezone_resolver_| here.
+  timezone_resolver_.reset();
+  profile_helper_.reset();
+}
+
+chromeos::system::SystemClock* BrowserProcessPlatformPart::GetSystemClock() {
+  if (!system_clock_.get())
+    system_clock_.reset(new chromeos::system::SystemClock());
+  return system_clock_.get();
+}
+
+void BrowserProcessPlatformPart::DestroySystemClock() {
+  system_clock_.reset();
+}
+
+void BrowserProcessPlatformPart::CreateProfileHelper() {
+  DCHECK(!created_profile_helper_ && !profile_helper_);
+  created_profile_helper_ = true;
+  profile_helper_ = chromeos::ProfileHelper::CreateInstance();
+}
+
+chromeos::AccountManagerFactory*
+BrowserProcessPlatformPart::GetAccountManagerFactory() {
+  return account_manager_factory_.get();
 }

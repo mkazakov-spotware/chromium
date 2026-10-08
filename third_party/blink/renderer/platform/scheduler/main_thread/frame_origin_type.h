@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@ enum class FrameOriginType {
   kMainFrame = 0,
   kSameOriginToMainFrame = 1,
   kCrossOriginToMainFrame = 2,
-  kMaxValue = kCrossOriginToMainFrame,
+  // TODO(dcheng): Get rid of this and use the kMaxValue idiom.
+  kCount = 3,
 };
 
 FrameOriginType GetFrameOriginType(FrameScheduler* frame_scheduler);

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,25 +9,19 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "cc/cc_export.h"
 #include "cc/layers/draw_mode.h"
 #include "cc/layers/layer_collections.h"
 #include "cc/trees/occlusion.h"
 #include "cc/trees/property_tree.h"
-#include "cc/view_transition/view_transition_shared_element_id.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
 #include "components/viz/common/quads/shared_quad_state.h"
-#include "components/viz/common/surfaces/subtree_capture_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/gfx/geometry/mask_filter_info.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/mask_filter_info.h"
+#include "ui/gfx/transform.h"
 
 namespace cc {
 
@@ -38,19 +32,6 @@ class Occlusion;
 class LayerImpl;
 class LayerTreeImpl;
 class PictureLayerImpl;
-
-struct RenderSurfacePropertyChangedFlags {
- public:
-  RenderSurfacePropertyChangedFlags() = default;
-  RenderSurfacePropertyChangedFlags(bool self_changed, bool ancestor_changed)
-      : self_changed_(self_changed), ancestor_changed_(ancestor_changed) {}
-  bool self_changed() const { return self_changed_; }
-  bool ancestor_changed() const { return ancestor_changed_; }
-
- private:
-  bool self_changed_ = false;
-  bool ancestor_changed_ = false;
-};
 
 class CC_EXPORT RenderSurfaceImpl {
  public:
@@ -90,7 +71,7 @@ class CC_EXPORT RenderSurfaceImpl {
     return nearest_occlusion_immune_ancestor_;
   }
 
-  SkColor4f GetDebugBorderColor() const;
+  SkColor GetDebugBorderColor() const;
   float GetDebugBorderWidth() const;
 
   void SetDrawTransform(const gfx::Transform& draw_transform) {
@@ -141,10 +122,14 @@ class CC_EXPORT RenderSurfaceImpl {
     return is_render_surface_list_member_;
   }
 
-  void set_intersects_damage_under(bool intersects_damage_under) {
-    intersects_damage_under_ = intersects_damage_under;
+  void set_can_use_cached_backdrop_filtered_result(
+      bool can_use_cached_backdrop_filtered_result) {
+    can_use_cached_backdrop_filtered_result_ =
+        can_use_cached_backdrop_filtered_result;
   }
-  bool intersects_damage_under() const { return intersects_damage_under_; }
+  bool can_use_cached_backdrop_filtered_result() const {
+    return can_use_cached_backdrop_filtered_result_;
+  }
 
   void CalculateContentRectFromAccumulatedContentRect(int max_texture_size);
   void SetContentRectToViewport();
@@ -185,7 +170,7 @@ class CC_EXPORT RenderSurfaceImpl {
 
   const FilterOperations& Filters() const;
   const FilterOperations& BackdropFilters() const;
-  absl::optional<gfx::RRectF> BackdropFilterBounds() const;
+  base::Optional<gfx::RRectF> BackdropFilterBounds() const;
   LayerImpl* BackdropMaskLayer() const;
   gfx::Transform SurfaceScale() const;
 
@@ -193,26 +178,7 @@ class CC_EXPORT RenderSurfaceImpl {
 
   bool HasCopyRequest() const;
 
-  // The capture identifier for this render surface and its originating effect
-  // node. If empty, this surface has not been selected as a subtree capture and
-  // is either a root surface or will not be rendered separately.
-  viz::SubtreeCaptureId SubtreeCaptureId() const;
-
-  // The size of this surface that should be used for cropping capture. If
-  // empty, the entire size of this surface should be used for capture.
-  gfx::Size SubtreeSize() const;
-
   bool ShouldCacheRenderSurface() const;
-
-  // Returns true if it's required to copy the output of this surface (i.e. when
-  // it has copy requests, should be cached, or has a valid subtree capture ID),
-  // and should be e.g. immune from occlusion, etc. Returns false otherise.
-  bool CopyOfOutputRequired() const;
-
-  // These are to enable commit, where we need to snapshot these flags from the
-  // main thread property trees, and then apply them to the sync tree.
-  RenderSurfacePropertyChangedFlags GetPropertyChangeFlags() const;
-  void ApplyPropertyChangeFlags(const RenderSurfacePropertyChangedFlags& flags);
 
   void ResetPropertyChangedFlags();
   bool SurfacePropertyChanged() const;
@@ -240,8 +206,6 @@ class CC_EXPORT RenderSurfaceImpl {
 
   const EffectNode* OwningEffectNode() const;
 
-  const ViewTransitionElementId& GetViewTransitionElementId() const;
-
  private:
   void SetContentRect(const gfx::Rect& content_rect);
   gfx::Rect CalculateClippedAccumulatedContentRect();
@@ -251,7 +215,7 @@ class CC_EXPORT RenderSurfaceImpl {
                      viz::SharedQuadState* shared_quad_state,
                      const gfx::Rect& unoccluded_content_rect);
 
-  raw_ptr<LayerTreeImpl> layer_tree_impl_;
+  LayerTreeImpl* layer_tree_impl_;
   uint64_t stable_id_;
   int effect_tree_index_;
 
@@ -296,14 +260,13 @@ class CC_EXPORT RenderSurfaceImpl {
 
   bool contributes_to_drawn_surface_ : 1;
   bool is_render_surface_list_member_ : 1;
-  bool intersects_damage_under_ : 1;
+  bool can_use_cached_backdrop_filtered_result_ : 1;
 
   Occlusion occlusion_in_content_space_;
 
   // The nearest ancestor target surface that will contain the contents of this
   // surface, and that ignores outside occlusion. This can point to itself.
-  raw_ptr<const RenderSurfaceImpl, DanglingUntriaged>
-      nearest_occlusion_immune_ancestor_;
+  const RenderSurfaceImpl* nearest_occlusion_immune_ancestor_;
 
   std::unique_ptr<DamageTracker> damage_tracker_;
 };

@@ -1,12 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_POLICY_POLICY_PATH_PARSER_H_
 #define CHROME_BROWSER_POLICY_POLICY_PATH_PARSER_H_
 
+#include <string>
+
 #include "base/files/file_path.h"
-#include "build/build_config.h"
 
 namespace policy {
 
@@ -52,7 +53,6 @@ namespace path_parser {
 base::FilePath::StringType ExpandPathVariables(
     const base::FilePath::StringType& untranslated_string);
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 // A helper function used to read the UserDataDir path policy without relying on
 // any policy infrastructure. This is required because this policy is needed
 // much earlier before the PrefService is initialized.
@@ -63,7 +63,6 @@ base::FilePath::StringType ExpandPathVariables(
 // profile path is not read from the PathService which already takes this into
 // account.
 void CheckUserDataDirPolicy(base::FilePath* user_data_dir);
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 
 }  // namespace path_parser
 

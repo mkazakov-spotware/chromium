@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,14 @@
 #define NET_TOOLS_TRANSPORT_SECURITY_STATE_GENERATOR_SPKI_HASH_H_
 
 #include <stdint.h>
+#include <string>
+#include <vector>
 
 #include "base/strings/string_piece.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 
 class SPKIHash {
  public:
@@ -40,6 +44,8 @@ class SPKIHash {
   uint8_t data_[kLength];
 };
 
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net
 
 #endif  // NET_TOOLS_TRANSPORT_SECURITY_STATE_GENERATOR_SPKI_HASH_H_

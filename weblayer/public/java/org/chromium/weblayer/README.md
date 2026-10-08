@@ -1,8 +1,8 @@
-# WebEngine's Service Java API
+# WebLayer's public Java API
 
 See comments in [weblayer/public/README.md](../../../../README.md) for
-general comments on WebEngine's public API and architecture. This document
-provides guidance on writing WebEngine's public Java API.
+general comments on WebLayer's public API and architecture. This document
+provides guidance on writing WebLayer's public Java API.
 
 ## Typical method
 
@@ -62,7 +62,7 @@ be done using `WebLayerFactoryImpl.getClientMajorVersion()`.
 
 Parcelable does not support versioning. Additionally, as all function arguments
 are written to the same Parcel, it would be very challenging to layer versioning
-on top of Parcelable. For these reasons, WebEngine's public API avoids using
+on top of Parcelable. For these reasons, WebLayer's public API avoids using
 Parcelable.
 
 For methods that would have a significant number of arguments, use an Object.

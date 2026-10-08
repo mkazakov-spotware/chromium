@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,7 +71,7 @@ TEST_F(DecoratorsUtilsTest, SetPropertyForWebContentsPageNode) {
 
   // Set up and create a dummy PageNode.
   base::WeakPtr<PageNode> node =
-      PerformanceManager::GetPrimaryPageNodeForWebContents(web_contents());
+      PerformanceManager::GetPageNodeForWebContents(web_contents());
   auto quit_closure = run_loop.QuitClosure();
   auto call_on_graph_cb = base::BindLambdaForTesting([&]() {
     EXPECT_TRUE(node);

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "media/base/callback_registry.h"
@@ -41,9 +42,6 @@ class MEDIA_EXPORT AesDecryptor : public ContentDecryptionModule,
                const SessionClosedCB& session_closed_cb,
                const SessionKeysChangeCB& session_keys_change_cb,
                const SessionExpirationUpdateCB& session_expiration_update_cb);
-
-  AesDecryptor(const AesDecryptor&) = delete;
-  AesDecryptor& operator=(const AesDecryptor&) = delete;
 
   // ContentDecryptionModule implementation.
   void SetServerCertificate(const std::vector<uint8_t>& certificate,
@@ -80,9 +78,9 @@ class MEDIA_EXPORT AesDecryptor : public ContentDecryptionModule,
   void InitializeVideoDecoder(const VideoDecoderConfig& config,
                               DecoderInitCB init_cb) override;
   void DecryptAndDecodeAudio(scoped_refptr<DecoderBuffer> encrypted,
-                             AudioDecodeCB audio_decode_cb) override;
+                             const AudioDecodeCB& audio_decode_cb) override;
   void DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
-                             VideoDecodeCB video_decode_cb) override;
+                             const VideoDecodeCB& video_decode_cb) override;
   void ResetDecoder(StreamType stream_type) override;
   void DeinitializeDecoder(StreamType stream_type) override;
   bool CanAlwaysDecrypt() override;
@@ -127,10 +125,6 @@ class MEDIA_EXPORT AesDecryptor : public ContentDecryptionModule,
   class DecryptionKey {
    public:
     explicit DecryptionKey(const std::string& secret);
-
-    DecryptionKey(const DecryptionKey&) = delete;
-    DecryptionKey& operator=(const DecryptionKey&) = delete;
-
     ~DecryptionKey();
 
     // Creates the encryption key.
@@ -145,6 +139,8 @@ class MEDIA_EXPORT AesDecryptor : public ContentDecryptionModule,
 
     // The key used to decrypt the data.
     std::unique_ptr<crypto::SymmetricKey> decryption_key_;
+
+    DISALLOW_COPY_AND_ASSIGN(DecryptionKey);
   };
 
   // Keep track of the keys for a key ID. If multiple sessions specify keys
@@ -180,6 +176,14 @@ class MEDIA_EXPORT AesDecryptor : public ContentDecryptionModule,
   CdmKeysInfo GenerateKeysInfoList(const std::string& session_id,
                                    CdmKeyInformation::KeyStatus status);
 
+  // Gets the record of key usage for persistent-usage-record session. Used
+  // by ClearKeyPersistentSessionCdm.
+  // Returns false if the session type is not Persistent-Usage-Record.
+  bool GetRecordOfKeyUsage(const std::string& session_id,
+                           KeyIdList& key_ids,
+                           base::Time& first_decryption_time,
+                           base::Time& latest_decryption_time);
+
   // Callbacks for firing session events. No SessionExpirationUpdateCB since
   // the keys never expire.
   SessionMessageCB session_message_cb_;
@@ -199,6 +203,12 @@ class MEDIA_EXPORT AesDecryptor : public ContentDecryptionModule,
   std::map<std::string, CdmSessionType> open_sessions_;
 
   CallbackRegistry<EventCB::RunType> event_callbacks_;
+
+  // First and latest decryption time for persistent-usage-record
+  base::Time first_decryption_time_ GUARDED_BY(key_map_lock_);
+  base::Time latest_decryption_time_ GUARDED_BY(key_map_lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(AesDecryptor);
 };
 
 }  // namespace media

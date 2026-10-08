@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,37 +11,12 @@
  * labelling since it contains two links, one to the Chrome Sync dependency
  * and the other to a Learn More page for Wifi Sync.
  */
+Polymer({
+  is: 'settings-multidevice-wifi-sync-disabled-link',
 
-import '../../settings_shared.css.js';
-
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/ash/common/i18n_behavior.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {Router} from '../../router.js';
-import {routes} from '../os_route.js';
-
-import {MultiDeviceFeatureBehavior, MultiDeviceFeatureBehaviorInterface} from './multidevice_feature_behavior.js';
-
-/**
- * @constructor
- * @extends {PolymerElement}
- * @implements {MultiDeviceFeatureBehaviorInterface}
- * @implements {I18nBehaviorInterface}
- */
-const SettingsMultideviceWifiSyncDisabledLinkElementBase =
-    mixinBehaviors([MultiDeviceFeatureBehavior, I18nBehavior], PolymerElement);
-
-/** @polymer */
-class SettingsMultideviceWifiSyncDisabledLinkElement extends
-    SettingsMultideviceWifiSyncDisabledLinkElementBase {
-  static get is() {
-    return 'settings-multidevice-wifi-sync-disabled-link';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
+  behaviors: [
+    MultiDeviceFeatureBehavior,
+  ],
 
   getAriaLabelledContent_() {
     const tempEl = document.createElement('div');
@@ -70,18 +45,16 @@ class SettingsMultideviceWifiSyncDisabledLinkElement extends
     chromeSyncLink.href = '#';
 
     return tempEl.innerHTML;
-  }
+  },
 
   /** @override */
-  connectedCallback() {
-    super.connectedCallback();
-
-    const chromeSyncLink = this.shadowRoot.querySelector('#chromeSyncLink');
+  attached() {
+    const chromeSyncLink = this.$$('#chromeSyncLink');
     if (chromeSyncLink) {
       chromeSyncLink.addEventListener(
           'click', this.onChromeSyncLinkClick_.bind(this));
     }
-  }
+  },
 
   /**
    * @param {!Event} event
@@ -89,10 +62,10 @@ class SettingsMultideviceWifiSyncDisabledLinkElement extends
    */
   onChromeSyncLinkClick_(event) {
     event.preventDefault();
-    Router.getInstance().navigateTo(routes.OS_SYNC);
-  }
-}
-
-customElements.define(
-    SettingsMultideviceWifiSyncDisabledLinkElement.is,
-    SettingsMultideviceWifiSyncDisabledLinkElement);
+    if (loadTimeData.getBoolean('splitSettingsSyncEnabled')) {
+      settings.Router.getInstance().navigateTo(settings.routes.OS_SYNC);
+    } else {
+      settings.Router.getInstance().navigateTo(settings.routes.SYNC_ADVANCED);
+    }
+  },
+});

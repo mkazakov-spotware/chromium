@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,44 +7,27 @@
 
 namespace autofill {
 
-FormType FieldTypeGroupToFormType(FieldTypeGroup field_type_group) {
+// static
+FormType FormTypes::FieldTypeGroupToFormType(FieldTypeGroup field_type_group) {
   switch (field_type_group) {
-    case FieldTypeGroup::kName:
-    case FieldTypeGroup::kNameBilling:
-    case FieldTypeGroup::kEmail:
-    case FieldTypeGroup::kCompany:
-    case FieldTypeGroup::kAddressHome:
-    case FieldTypeGroup::kAddressBilling:
-    case FieldTypeGroup::kPhoneHome:
-    case FieldTypeGroup::kPhoneBilling:
-    case FieldTypeGroup::kBirthdateField:
-      return FormType::kAddressForm;
-    case FieldTypeGroup::kCreditCard:
-      return FormType::kCreditCardForm;
-    case FieldTypeGroup::kUsernameField:
-    case FieldTypeGroup::kPasswordField:
-      return FormType::kPasswordForm;
-    case FieldTypeGroup::kNoGroup:
-    case FieldTypeGroup::kTransaction:
-    case FieldTypeGroup::kUnfillable:
-      return FormType::kUnknownFormType;
+    case NAME:
+    case NAME_BILLING:
+    case EMAIL:
+    case COMPANY:
+    case ADDRESS_HOME:
+    case ADDRESS_BILLING:
+    case PHONE_HOME:
+    case PHONE_BILLING:
+      return ADDRESS_FORM;
+    case CREDIT_CARD:
+      return CREDIT_CARD_FORM;
+    case USERNAME_FIELD:
+    case PASSWORD_FIELD:
+      return PASSWORD_FORM;
+    case NO_GROUP:
+    case TRANSACTION:
+    case UNFILLABLE:
+      return UNKNOWN_FORM_TYPE;
   }
 }
-
-base::StringPiece FormTypeToStringPiece(FormType form_type) {
-  switch (form_type) {
-    case FormType::kAddressForm:
-      return "Address";
-    case FormType::kCreditCardForm:
-      return "CreditCard";
-    case FormType::kPasswordForm:
-      return "Password";
-    case FormType::kUnknownFormType:
-      return "Unknown";
-  }
-
-  NOTREACHED();
-  return "UnknownFormType";
-}
-
 }  // namespace autofill

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,11 @@ extern const char kSharingFCMAppID[];
 // Sender ID for Sharing.
 extern const char kSharingSenderID[];
 
-// Time until we hide devices based on their last active timestamp.
-extern const base::TimeDelta kSharingDeviceExpiration;
+// Amount of time before FCM registration should happen again.
+extern const base::TimeDelta kRegistrationExpiration;
 
-// Default time-to-live for sharing messages.
-extern const base::TimeDelta kSharingMessageTTL;
-
-// Default time-to-live for sharing ack messages.
-extern const base::TimeDelta kSharingAckMessageTTL;
+// Time until we treat a WebRTC connection as timed out and force close it.
+extern const base::TimeDelta kSharingWebRtcTimeout;
 
 // Backoff policy for registration retry.
 extern const net::BackoffEntry::Policy kRetryBackoffPolicy;
@@ -40,8 +37,7 @@ enum class SharingFeatureName {
   kUnknown,
   kClickToCall,
   kSharedClipboard,
-  kSmsRemoteFetcher,
-  kMaxValue = kSmsRemoteFetcher,
+  kMaxValue = kSharedClipboard,
 };
 
 // The device platform that the user is sharing from/with.

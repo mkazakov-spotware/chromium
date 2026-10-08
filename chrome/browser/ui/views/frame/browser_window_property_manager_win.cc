@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,8 @@
 #include "chrome/browser/profiles/profile_shortcut_manager_win.h"
 #include "chrome/browser/shell_integration_win.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/web_applications/components/web_app_helpers.h"
 #include "chrome/browser/web_applications/extensions/web_app_extension_shortcut.h"
-#include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "extensions/browser/extension_registry.h"
@@ -36,9 +36,8 @@ BrowserWindowPropertyManager::BrowserWindowPropertyManager(
   // relaunch icon when the version changes (e.g on initial icon creation).
   profile_pref_registrar_.Add(
       prefs::kProfileIconVersion,
-      base::BindRepeating(
-          &BrowserWindowPropertyManager::OnProfileIconVersionChange,
-          base::Unretained(this)));
+      base::Bind(&BrowserWindowPropertyManager::OnProfileIconVersionChange,
+                 base::Unretained(this)));
 }
 
 BrowserWindowPropertyManager::~BrowserWindowPropertyManager() {
@@ -51,7 +50,7 @@ void BrowserWindowPropertyManager::UpdateWindowProperties() {
 
   // Set the app user model id for this application to that of the application
   // name. See http://crbug.com/7028.
-  std::wstring app_id =
+  base::string16 app_id =
       browser->is_type_app() || browser->is_type_app_popup() ||
               browser->is_type_devtools()
           ? shell_integration::win::GetAppUserModelIdForApp(
@@ -77,8 +76,8 @@ void BrowserWindowPropertyManager::UpdateWindowProperties() {
   // The profile manager may be null in testing.
 
   base::FilePath icon_path;
-  std::wstring command_line_string;
-  std::wstring pinned_name;
+  base::string16 command_line_string;
+  base::string16 pinned_name;
   if ((browser->is_type_normal() || browser->is_type_popup()) &&
       shortcut_manager &&
       profile->GetPrefs()->HasPrefPath(prefs::kProfileIconVersion)) {

@@ -2,10 +2,9 @@
 
 include_rules = [
   "-ui/views",
-  "+ui/views/buildflags.h",
   "+ui/views/corewm",
   "+ui/views/views_export.h",
-  "+ui/views/views_features.h"
+  "+ui/views/buildflags.h",
 ]
 
 # TODO: temporary, don't add more.
@@ -15,8 +14,6 @@ specific_include_rules = {
   ],
 
   "tooltip_aura.cc": [
-    "+ui/base/metadata/metadata_header_macros.h",
-    "+ui/base/metadata/metadata_impl_macros.h",
     "+ui/views/background.h",
     "+ui/views/border.h",
     "+ui/views/painter.h",

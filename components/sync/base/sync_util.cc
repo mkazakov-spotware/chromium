@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include "base/logging.h"
 #include "base/strings/stringize_macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "components/sync/base/command_line_switches.h"
+#include "components/sync/base/sync_base_switches.h"
 #include "google_apis/gaia/gaia_config.h"
 #include "ui/base/device_form_factor.h"
 #include "url/gurl.h"
@@ -19,29 +18,29 @@ namespace {
 // Returns string that represents system in UserAgent.
 std::string GetSystemString() {
   std::string system;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   system = "CROS ";
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
     system = "ANDROID-TABLET ";
   } else {
     system = "ANDROID-PHONE ";
   }
-#elif BUILDFLAG(IS_IOS)
+#elif defined(OS_IOS)
   if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
     system = "IOS-TABLET ";
   } else {
     system = "IOS-PHONE ";
   }
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   system = "WIN ";
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX)
   system = "LINUX ";
-#elif BUILDFLAG(IS_FREEBSD)
+#elif defined(OS_FREEBSD)
   system = "FREEBSD ";
-#elif BUILDFLAG(IS_OPENBSD)
+#elif defined(OS_OPENBSD)
   system = "OPENBSD ";
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
   system = "MAC ";
 #endif
   return system;
@@ -51,6 +50,11 @@ std::string GetSystemString() {
 
 namespace syncer {
 namespace internal {
+
+const char* const kSyncServerUrl = "https://clients4.google.com/chrome-sync";
+
+const char* const kSyncDevServerUrl =
+    "https://clients4.google.com/chrome-sync/dev";
 
 std::string FormatUserAgentForSync(const std::string& system,
                                    version_info::Channel channel) {
@@ -79,8 +83,9 @@ GURL GetSyncServiceURL(const base::CommandLine& command_line,
 
   // 1. Get the sync server URL from the --sync-url command-line param, if
   // specified.
-  if (command_line.HasSwitch(kSyncServiceURL)) {
-    std::string value(command_line.GetSwitchValueASCII(kSyncServiceURL));
+  if (command_line.HasSwitch(switches::kSyncServiceURL)) {
+    std::string value(
+        command_line.GetSwitchValueASCII(switches::kSyncServiceURL));
     if (!value.empty()) {
       GURL custom_sync_url(value);
       if (custom_sync_url.is_valid()) {

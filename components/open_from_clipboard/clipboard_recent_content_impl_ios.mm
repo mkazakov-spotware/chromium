@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,6 @@ NSString* const kPasteboardChangeCountKey = @"PasteboardChangeCount";
 // Key used to store the last date at which it was detected that the pasteboard
 // changed. It is used to evaluate the age of the pasteboard's content.
 NSString* const kPasteboardChangeDateKey = @"PasteboardChangeDate";
-// Default Scheme to use for urls with no scheme.
-NSString* const kDefaultScheme = @"https";
 
 }  // namespace
 
@@ -56,8 +54,6 @@ NSString* const kDefaultScheme = @"https";
 // A cached version of an already-retrieved image. This prevents subsequent
 // image requests from triggering the iOS 14 pasteboard notification.
 @property(nonatomic, strong) UIImage* cachedImage;
-// A cached set of the content types currently being used for the clipboard.
-@property(nonatomic, strong) NSSet<ContentType>* cachedContentTypes;
 
 // If the content of the pasteboard has changed, updates the change count
 // and change date.
@@ -100,6 +96,13 @@ NSString* const kDefaultScheme = @"https";
 
 @implementation ClipboardRecentContentImplIOS
 
+@synthesize lastPasteboardChangeCount = _lastPasteboardChangeCount;
+@synthesize lastPasteboardChangeDate = _lastPasteboardChangeDate;
+@synthesize sharedUserDefaults = _sharedUserDefaults;
+@synthesize authorizedSchemes = _authorizedSchemes;
+@synthesize delegate = _delegate;
+@synthesize maximumAgeOfClipboard = _maximumAgeOfClipboard;
+
 - (instancetype)initWithMaxAge:(NSTimeInterval)maxAge
              authorizedSchemes:(NSSet<NSString*>*)authorizedSchemes
                   userDefaults:(NSUserDefaults*)groupUserDefaults
@@ -114,7 +117,6 @@ NSString* const kDefaultScheme = @"https";
     _lastPasteboardChangeCount = NSIntegerMax;
     [self loadFromUserDefaults];
     [self updateIfNeeded];
-    [self updateCachedClipboardState];
 
     // Makes sure |last_pasteboard_change_count_| was properly initialized.
     DCHECK_NE(_lastPasteboardChangeCount, NSIntegerMax);
@@ -122,11 +124,6 @@ NSString* const kDefaultScheme = @"https";
         addObserver:self
            selector:@selector(didBecomeActive:)
                name:UIApplicationDidBecomeActiveNotification
-             object:nil];
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(pasteboardDidChange:)
-               name:UIPasteboardChangedNotification
              object:nil];
   }
   return self;
@@ -139,16 +136,11 @@ NSString* const kDefaultScheme = @"https";
 - (void)didBecomeActive:(NSNotification*)notification {
   [self loadFromUserDefaults];
   [self updateIfNeeded];
-  [self updateCachedClipboardState];
 }
 
 - (BOOL)hasPasteboardChanged {
   return UIPasteboard.generalPasteboard.changeCount !=
          self.lastPasteboardChangeCount;
-}
-
-- (void)pasteboardDidChange:(NSNotification*)notification {
-  [self updateCachedClipboardState];
 }
 
 - (NSURL*)recentURLFromClipboard {
@@ -201,24 +193,6 @@ NSString* const kDefaultScheme = @"https";
   }
 
   return self.cachedImage;
-}
-
-- (void)updateCachedClipboardState {
-  self.cachedContentTypes = nil;
-
-  NSSet<ContentType>* desiredContentTypes = [NSSet
-      setWithArray:@[ ContentTypeImage, ContentTypeURL, ContentTypeText ]];
-  __weak __typeof(self) weakSelf = self;
-  [self hasContentMatchingTypes:desiredContentTypes
-              completionHandler:^(NSSet<ContentType>* results) {
-                weakSelf.cachedContentTypes = results;
-              }];
-}
-
-- (NSSet<ContentType>*)cachedClipboardContentTypes {
-  if (![self shouldReturnValueOfClipboard])
-    return nil;
-  return self.cachedContentTypes;
 }
 
 - (void)hasContentMatchingTypes:(NSSet<ContentType>*)types
@@ -388,25 +362,11 @@ NSString* const kDefaultScheme = @"https";
               completionHandler:^(
                   NSDictionary<UIPasteboardDetectionPattern, id>* values,
                   NSError* error) {
-                // On iOS 16, users can deny access to the clipboard.
-                if (error) {
-                  weakSelf.cachedURL = nil;
-                  callback(nil);
-                  return;
-                }
+                DCHECK(!error) << error.debugDescription;
+
                 NSURL* url = [NSURL
                     URLWithString:
                         values[UIPasteboardDetectionPatternProbableWebURL]];
-
-                // |detectValuesForPatterns:| will return a url even if the url
-                // is missing a scheme. In this case, default to https.
-                if (url && url.scheme == nil) {
-                  NSURLComponents* components =
-                      [[NSURLComponents alloc] initWithURL:url
-                                   resolvingAgainstBaseURL:NO];
-                  components.scheme = kDefaultScheme;
-                  url = components.URL;
-                }
 
                 if (![self.authorizedSchemes containsObject:url.scheme]) {
                   weakSelf.cachedURL = nil;

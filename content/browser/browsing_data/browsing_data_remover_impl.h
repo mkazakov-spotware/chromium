@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/cancelable_callback.h"
 #include "base/containers/queue.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
@@ -34,10 +34,6 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
       public base::SupportsUserData::Data {
  public:
   explicit BrowsingDataRemoverImpl(BrowserContext* browser_context);
-
-  BrowsingDataRemoverImpl(const BrowsingDataRemoverImpl&) = delete;
-  BrowsingDataRemoverImpl& operator=(const BrowsingDataRemoverImpl&) = delete;
-
   ~BrowsingDataRemoverImpl() override;
 
   // Is the BrowsingDataRemoverImpl currently in the process of removing data?
@@ -54,12 +50,6 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
               const base::Time& delete_end,
               uint64_t remove_mask,
               uint64_t origin_type_mask) override;
-  void RemoveWithFilter(
-      const base::Time& delete_begin,
-      const base::Time& delete_end,
-      uint64_t remove_mask,
-      uint64_t origin_type_mask,
-      std::unique_ptr<BrowsingDataFilterBuilder> filter_builder) override;
   void RemoveAndReply(const base::Time& delete_begin,
                       const base::Time& delete_end,
                       uint64_t remove_mask,
@@ -104,9 +94,7 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
 
   // For debugging purposes. Please add new deletion tasks at the end.
   // This enum is recorded in a histogram, so don't change or reuse ids.
-  // Entries must also be added to BrowsingDataRemoverTasks in enums.xml and
-  // History.ClearBrowsingData.Duration.Task.{Task} in
-  // histograms/metadata/history/histograms.xml.
+  // Entries must also be added to BrowsingDataRemoverTasks in enums.xml.
   enum class TracingDataType {
     kSynchronous = 1,
     kEmbedderData = 2,
@@ -124,10 +112,6 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
     kDeferredCookies = 14,
     kMaxValue = kDeferredCookies,
   };
-
-  // Returns the suffix for the History.ClearBrowsingData.Duration.Task.{Task}
-  // histogram
-  const char* GetHistogramSuffix(TracingDataType task);
 
   // Represents a single removal task. Contains all parameters needed to execute
   // it and a pointer to the observer that added it. CONTENT_EXPORTed to be
@@ -152,7 +136,7 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
     uint64_t origin_type_mask;
     std::unique_ptr<BrowsingDataFilterBuilder> filter_builder;
     std::vector<Observer*> observers;
-    base::TimeTicks task_started;
+    base::Time task_started;
   };
 
   // Setter for |is_removing_|; DCHECKs that we can only start removing if we're
@@ -185,7 +169,7 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
 
   // Called by the closures returned by CreateTaskCompletionClosure().
   // Checks if all tasks have completed, and if so, calls Notify().
-  void OnTaskComplete(TracingDataType data_type, base::TimeTicks started);
+  void OnTaskComplete(TracingDataType data_type);
 
   // Increments the number of pending tasks by one, and returns a OnceClosure
   // that calls OnTaskComplete(). The Remover is complete once all the closures
@@ -208,10 +192,10 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
   base::WeakPtr<BrowsingDataRemoverImpl> GetWeakPtr();
 
   // The browser context we're to remove from.
-  raw_ptr<BrowserContext> browser_context_;
+  BrowserContext* browser_context_;
 
   // A delegate to delete the embedder-specific data. Owned by the embedder.
-  raw_ptr<BrowsingDataRemoverDelegate, DanglingUntriaged> embedder_delegate_;
+  BrowsingDataRemoverDelegate* embedder_delegate_;
 
   // Start time to delete from.
   base::Time delete_begin_;
@@ -246,15 +230,17 @@ class CONTENT_EXPORT BrowsingDataRemoverImpl
 
   // Fires after some time to track slow tasks. Cancelled when all tasks
   // are finished.
-  base::CancelableOnceClosure slow_pending_tasks_closure_;
+  base::CancelableClosure slow_pending_tasks_closure_;
 
   // Observers of the global state and individual tasks.
   base::ObserverList<Observer, true>::Unchecked observer_list_;
 
   // We do not own this.
-  raw_ptr<StoragePartition> storage_partition_for_testing_;
+  StoragePartition* storage_partition_for_testing_;
 
   base::WeakPtrFactory<BrowsingDataRemoverImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BrowsingDataRemoverImpl);
 };
 
 }  // namespace content

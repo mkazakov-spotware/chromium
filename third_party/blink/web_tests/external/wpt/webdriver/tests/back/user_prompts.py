@@ -3,6 +3,7 @@
 import pytest
 
 from tests.support.asserts import assert_dialog_handled, assert_error, assert_success
+from tests.support.inline import inline
 
 
 def back(session):
@@ -11,7 +12,7 @@ def back(session):
 
 
 @pytest.fixture
-def pages(session, inline):
+def pages(session):
     pages = [
         inline("<p id=1>"),
         inline("<p id=2>"),

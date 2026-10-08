@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ void TableCellPaintInvalidator::InvalidateContainerForCellGeometryChange(
   // so we should invalidate the container immediately here instead of setting
   // paint invalidation flags.
   container_context.painting_layer->SetNeedsRepaint();
-  container.InvalidateDisplayItemClients(PaintInvalidationReason::kLayout);
+  container.InvalidateDisplayItemClients(PaintInvalidationReason::kGeometry);
 }
 
 void TableCellPaintInvalidator::InvalidatePaint() {

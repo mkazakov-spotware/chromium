@@ -1,16 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/favicon/favicon_util.h"
 
-#import <CoreFoundation/CoreFoundation.h>
+#include <CoreFoundation/CoreFoundation.h>
 #import <WebKit/WebKit.h>
 
-#import "base/logging.h"
-#import "base/strings/string_number_conversions.h"
-#import "base/strings/string_split.h"
-#import "base/strings/string_util.h"
+#include "base/logging.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
+#include "base/strings/string_util.h"
+#include "base/values.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -18,32 +19,39 @@
 
 namespace web {
 
-bool ExtractFaviconURL(const base::Value::List& favicons,
+bool ExtractFaviconURL(const base::DictionaryValue* favicon_url_message,
                        const GURL& page_origin,
                        std::vector<web::FaviconURL>* urls) {
+  const base::Value* favicons_value = favicon_url_message->FindKey("favicons");
+  if (!favicons_value || !favicons_value->is_list()) {
+    DLOG(WARNING) << "JS message parameter not found: favicons";
+    return false;
+  }
   BOOL has_favicon = NO;
-  for (const base::Value& favicon : favicons) {
+  for (const base::Value& favicon : favicons_value->GetList()) {
     if (!favicon.is_dict())
       return false;
 
-    const base::Value::Dict& favicon_dict = favicon.GetDict();
-    const std::string* href_value = favicon_dict.FindString("href");
+    const base::Value* href_value =
+        favicon.FindKeyOfType("href", base::Value::Type::STRING);
     if (!href_value) {
       DLOG(WARNING) << "JS message parameter not found: href";
       return false;
     }
-    auto href = *href_value;
+    auto href = href_value->GetString();
 
-    const std::string* rel_value = favicon_dict.FindString("rel");
+    const base::Value* rel_value =
+        favicon.FindKeyOfType("rel", base::Value::Type::STRING);
     if (!rel_value) {
       DLOG(WARNING) << "JS message parameter not found: rel";
       return false;
     }
-    auto rel = *rel_value;
+    auto rel = rel_value->GetString();
 
     std::vector<gfx::Size> sizes;
-    if (const std::string* size_value = favicon_dict.FindString("sizes")) {
-      auto sizes_string = *size_value;
+    if (const base::Value* size_value =
+            favicon.FindKeyOfType("sizes", base::Value::Type::STRING)) {
+      auto sizes_string = size_value->GetString();
       // Parse the sizes attribute. It should consist of one or multiple
       // elements of the form "76x76", separated by a whitespace. So "76x76" or
       // "120x120 192x192" are legit.

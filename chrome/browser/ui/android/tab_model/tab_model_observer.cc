@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,7 @@ void TabModelObserver::DidSelectTab(TabAndroid* tab,
 
 void TabModelObserver::WillCloseTab(TabAndroid* tab, bool animate) {}
 
-void TabModelObserver::OnFinishingTabClosure(int tab_id, bool incognito) {}
-
-void TabModelObserver::OnFinishingMultipleTabClosure(
-    const std::vector<TabAndroid*>& tabs) {}
+void TabModelObserver::DidCloseTab(int tab_id, bool incognito) {}
 
 void TabModelObserver::WillAddTab(TabAndroid* tab,
                                   TabModel::TabLaunchType type) {}

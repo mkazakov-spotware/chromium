@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_CSS_LENGTH_INTERPOLATION_TYPE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_CSS_LENGTH_INTERPOLATION_TYPE_H_
 
+#include <memory>
 #include "third_party/blink/renderer/core/animation/css_interpolation_type.h"
 #include "third_party/blink/renderer/core/animation/length_property_functions.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -25,9 +26,7 @@ class CORE_EXPORT CSSLengthInterpolationType : public CSSInterpolationType {
                                   StyleResolverState&) const final;
 
  private:
-  float EffectiveZoom(float effective_zoom) const {
-    return is_zoomed_length_ ? effective_zoom : 1;
-  }
+  float EffectiveZoom(const ComputedStyle&) const;
 
   InterpolationValue MaybeConvertNeutral(const InterpolationValue& underlying,
                                          ConversionCheckers&) const final;
@@ -47,8 +46,7 @@ class CORE_EXPORT CSSLengthInterpolationType : public CSSInterpolationType {
                                  const NonInterpolableValue*,
                                  const StyleResolverState&) const final;
 
-  const Length::ValueRange value_range_;
-  bool is_zoomed_length_;
+  const ValueRange value_range_;
 };
 
 }  // namespace blink

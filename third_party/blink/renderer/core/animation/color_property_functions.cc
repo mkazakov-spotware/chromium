@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,20 +9,14 @@
 namespace blink {
 
 OptionalStyleColor ColorPropertyFunctions::GetInitialColor(
-    const CSSProperty& property,
-    const ComputedStyle& initial_style) {
-  return GetUnvisitedColor(property, initial_style);
+    const CSSProperty& property) {
+  return GetUnvisitedColor(property, ComputedStyle::InitialStyle());
 }
 
-template <typename ComputedStyleOrBuilder>
 OptionalStyleColor ColorPropertyFunctions::GetUnvisitedColor(
     const CSSProperty& property,
-    const ComputedStyleOrBuilder& style) {
+    const ComputedStyle& style) {
   switch (property.PropertyID()) {
-    case CSSPropertyID::kAccentColor:
-      if (style.AccentColor().IsAutoColor())
-        return nullptr;
-      return style.AccentColor().ToStyleColor();
     case CSSPropertyID::kBackgroundColor:
       return style.BackgroundColor();
     case CSSPropertyID::kBorderLeftColor:
@@ -38,12 +32,12 @@ OptionalStyleColor ColorPropertyFunctions::GetUnvisitedColor(
         return nullptr;
       return style.CaretColor().ToStyleColor();
     case CSSPropertyID::kColor:
-      return style.Color();
+      return style.GetColor();
     case CSSPropertyID::kOutlineColor:
       return style.OutlineColor();
     case CSSPropertyID::kColumnRuleColor:
       return style.ColumnRuleColor();
-    case CSSPropertyID::kTextEmphasisColor:
+    case CSSPropertyID::kWebkitTextEmphasisColor:
       return style.TextEmphasisColor();
     case CSSPropertyID::kWebkitTextFillColor:
       return style.TextFillColor();
@@ -65,19 +59,10 @@ OptionalStyleColor ColorPropertyFunctions::GetUnvisitedColor(
   }
 }
 
-template OptionalStyleColor
-ColorPropertyFunctions::GetUnvisitedColor<ComputedStyle>(const CSSProperty&,
-                                                         const ComputedStyle&);
-template OptionalStyleColor ColorPropertyFunctions::GetUnvisitedColor<
-    ComputedStyleBuilder>(const CSSProperty&, const ComputedStyleBuilder&);
-
-template <typename ComputedStyleOrBuilder>
 OptionalStyleColor ColorPropertyFunctions::GetVisitedColor(
     const CSSProperty& property,
-    const ComputedStyleOrBuilder& style) {
+    const ComputedStyle& style) {
   switch (property.PropertyID()) {
-    case CSSPropertyID::kAccentColor:
-      return style.AccentColor();
     case CSSPropertyID::kBackgroundColor:
       return style.InternalVisitedBackgroundColor();
     case CSSPropertyID::kBorderLeftColor:
@@ -100,7 +85,7 @@ OptionalStyleColor ColorPropertyFunctions::GetVisitedColor(
       return style.InternalVisitedOutlineColor();
     case CSSPropertyID::kColumnRuleColor:
       return style.InternalVisitedColumnRuleColor();
-    case CSSPropertyID::kTextEmphasisColor:
+    case CSSPropertyID::kWebkitTextEmphasisColor:
       return style.InternalVisitedTextEmphasisColor();
     case CSSPropertyID::kWebkitTextFillColor:
       return style.InternalVisitedTextFillColor();
@@ -122,64 +107,52 @@ OptionalStyleColor ColorPropertyFunctions::GetVisitedColor(
   }
 }
 
-template OptionalStyleColor
-ColorPropertyFunctions::GetVisitedColor<ComputedStyle>(const CSSProperty&,
-                                                       const ComputedStyle&);
-template OptionalStyleColor ColorPropertyFunctions::GetVisitedColor<
-    ComputedStyleBuilder>(const CSSProperty&, const ComputedStyleBuilder&);
-
 void ColorPropertyFunctions::SetUnvisitedColor(const CSSProperty& property,
-                                               ComputedStyleBuilder& builder,
+                                               ComputedStyle& style,
                                                const Color& color) {
   StyleColor style_color(color);
   switch (property.PropertyID()) {
-    case CSSPropertyID::kAccentColor:
-      builder.SetAccentColor(StyleAutoColor(color));
-      return;
     case CSSPropertyID::kBackgroundColor:
-      builder.SetBackgroundColor(style_color);
+      style.SetBackgroundColor(style_color);
       return;
     case CSSPropertyID::kBorderBottomColor:
-      builder.SetBorderBottomColor(style_color);
+      style.SetBorderBottomColor(style_color);
       return;
     case CSSPropertyID::kBorderLeftColor:
-      builder.SetBorderLeftColor(style_color);
+      style.SetBorderLeftColor(style_color);
       return;
     case CSSPropertyID::kBorderRightColor:
-      builder.SetBorderRightColor(style_color);
+      style.SetBorderRightColor(style_color);
       return;
     case CSSPropertyID::kBorderTopColor:
-      builder.SetBorderTopColor(style_color);
+      style.SetBorderTopColor(style_color);
       return;
     case CSSPropertyID::kCaretColor:
-      builder.SetCaretColor(StyleAutoColor(color));
+      style.SetCaretColor(StyleAutoColor(color));
       return;
     case CSSPropertyID::kColor:
-      builder.SetColor(style_color);
+      style.SetColor(style_color);
       return;
     case CSSPropertyID::kFloodColor:
-      builder.SetFloodColor(style_color);
+      style.SetFloodColor(style_color);
       return;
     case CSSPropertyID::kLightingColor:
-      builder.SetLightingColor(style_color);
+      style.SetLightingColor(style_color);
       return;
     case CSSPropertyID::kOutlineColor:
-      builder.SetOutlineColor(style_color);
+      style.SetOutlineColor(style_color);
       return;
     case CSSPropertyID::kStopColor:
-      builder.SetStopColor(style_color);
+      style.SetStopColor(style_color);
       return;
     case CSSPropertyID::kTextDecorationColor:
-      builder.SetTextDecorationColor(style_color);
-      return;
-    case CSSPropertyID::kTextEmphasisColor:
-      builder.SetTextEmphasisColor(style_color);
+      style.SetTextDecorationColor(style_color);
       return;
     case CSSPropertyID::kColumnRuleColor:
-      builder.SetColumnRuleColor(style_color);
+      style.SetColumnRuleColor(style_color);
       return;
     case CSSPropertyID::kWebkitTextStrokeColor:
-      builder.SetTextStrokeColor(style_color);
+      style.SetTextStrokeColor(style_color);
       return;
     default:
       NOTREACHED();
@@ -188,57 +161,51 @@ void ColorPropertyFunctions::SetUnvisitedColor(const CSSProperty& property,
 }
 
 void ColorPropertyFunctions::SetVisitedColor(const CSSProperty& property,
-                                             ComputedStyleBuilder& builder,
+                                             ComputedStyle& style,
                                              const Color& color) {
   StyleColor style_color(color);
   switch (property.PropertyID()) {
-    case CSSPropertyID::kAccentColor:
-      // The accent-color property is not valid for :visited.
-      return;
     case CSSPropertyID::kBackgroundColor:
-      builder.SetInternalVisitedBackgroundColor(style_color);
+      style.SetInternalVisitedBackgroundColor(style_color);
       return;
     case CSSPropertyID::kBorderBottomColor:
-      builder.SetInternalVisitedBorderBottomColor(style_color);
+      style.SetInternalVisitedBorderBottomColor(style_color);
       return;
     case CSSPropertyID::kBorderLeftColor:
-      builder.SetInternalVisitedBorderLeftColor(style_color);
+      style.SetInternalVisitedBorderLeftColor(style_color);
       return;
     case CSSPropertyID::kBorderRightColor:
-      builder.SetInternalVisitedBorderRightColor(style_color);
+      style.SetInternalVisitedBorderRightColor(style_color);
       return;
     case CSSPropertyID::kBorderTopColor:
-      builder.SetInternalVisitedBorderTopColor(style_color);
+      style.SetInternalVisitedBorderTopColor(style_color);
       return;
     case CSSPropertyID::kCaretColor:
-      builder.SetInternalVisitedCaretColor(StyleAutoColor(color));
+      style.SetInternalVisitedCaretColor(StyleAutoColor(color));
       return;
     case CSSPropertyID::kColor:
-      builder.SetInternalVisitedColor(style_color);
+      style.SetInternalVisitedColor(style_color);
       return;
     case CSSPropertyID::kFloodColor:
-      builder.SetFloodColor(style_color);
+      style.SetFloodColor(style_color);
       return;
     case CSSPropertyID::kLightingColor:
-      builder.SetLightingColor(style_color);
+      style.SetLightingColor(style_color);
       return;
     case CSSPropertyID::kOutlineColor:
-      builder.SetInternalVisitedOutlineColor(style_color);
+      style.SetInternalVisitedOutlineColor(style_color);
       return;
     case CSSPropertyID::kStopColor:
-      builder.SetStopColor(style_color);
+      style.SetStopColor(style_color);
       return;
     case CSSPropertyID::kTextDecorationColor:
-      builder.SetInternalVisitedTextDecorationColor(style_color);
-      return;
-    case CSSPropertyID::kTextEmphasisColor:
-      builder.SetInternalVisitedTextEmphasisColor(style_color);
+      style.SetInternalVisitedTextDecorationColor(style_color);
       return;
     case CSSPropertyID::kColumnRuleColor:
-      builder.SetInternalVisitedColumnRuleColor(style_color);
+      style.SetInternalVisitedColumnRuleColor(style_color);
       return;
     case CSSPropertyID::kWebkitTextStrokeColor:
-      builder.SetInternalVisitedTextStrokeColor(style_color);
+      style.SetInternalVisitedTextStrokeColor(style_color);
       return;
     default:
       NOTREACHED();

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,18 +41,19 @@ NativelyConnectableHandler::NativelyConnectableHandler() = default;
 NativelyConnectableHandler::~NativelyConnectableHandler() = default;
 
 bool NativelyConnectableHandler::Parse(Extension* extension,
-                                       std::u16string* error) {
+                                       base::string16* error) {
   const base::Value* natively_connectable_hosts = nullptr;
   if (!extension->manifest()->GetList(manifest_keys::kNativelyConnectable,
                                       &natively_connectable_hosts)) {
-    *error = manifest_errors::kInvalidNativelyConnectable;
+    *error = base::ASCIIToUTF16(manifest_errors::kInvalidNativelyConnectable);
     return false;
   }
 
   auto hosts = std::make_unique<NativelyConnectableHosts>();
   for (const auto& host : natively_connectable_hosts->GetList()) {
     if (!host.is_string() || host.GetString().empty()) {
-      *error = manifest_errors::kInvalidNativelyConnectableValue16;
+      *error =
+          base::ASCIIToUTF16(manifest_errors::kInvalidNativelyConnectableValue);
       return false;
     }
     hosts->hosts.insert(host.GetString());

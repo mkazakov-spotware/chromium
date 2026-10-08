@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,13 @@
 #define CHROME_BROWSER_WIN_CONFLICTS_INSTALLED_APPLICATIONS_H_
 
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/win/windows_types.h"
 
 class MsiUtil;
@@ -51,11 +52,11 @@ class MsiUtil;
 class InstalledApplications {
  public:
   struct ApplicationInfo {
-    std::wstring name;
+    base::string16 name;
 
     // Holds the path to the uninstall entry in the registry.
     HKEY registry_root;
-    std::wstring registry_key_path;
+    base::string16 registry_key_path;
     REGSAM registry_wow64_access;
   };
 
@@ -63,9 +64,6 @@ class InstalledApplications {
   // the constructor must be called in a sequence that allows blocking, its
   // public method can be used without such restrictions.
   InstalledApplications();
-
-  InstalledApplications(const InstalledApplications&) = delete;
-  InstalledApplications& operator=(const InstalledApplications&) = delete;
 
   virtual ~InstalledApplications();
 
@@ -87,11 +85,11 @@ class InstalledApplications {
   // adds an entry to |applications_| with its list of files or installation
   // directory to their associated vector.
   void CheckRegistryKeyForInstalledApplication(HKEY hkey,
-                                               const std::wstring& key_path,
+                                               const base::string16& key_path,
                                                REGSAM wow64access,
-                                               const std::wstring& key_name,
+                                               const base::string16& key_name,
                                                const MsiUtil& msi_util,
-                                               const std::wstring& user_sid);
+                                               const base::string16& user_sid);
 
   bool GetApplicationsFromInstalledFiles(
       const base::FilePath& file,
@@ -114,6 +112,8 @@ class InstalledApplications {
   // parent of the other as equal.
   // The second part of the pair is the index into |applications|.
   std::vector<std::pair<base::FilePath, size_t>> install_directories_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstalledApplications);
 };
 
 bool operator<(const InstalledApplications::ApplicationInfo& lhs,

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "components/spellcheck/renderer/spellcheck_language.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
@@ -33,7 +33,7 @@ base::FilePath GetHunspellDirectory() {
   return hunspell_directory;
 }
 }  // namespace
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 FakeTextCheckingResult::FakeTextCheckingResult() = default;
 FakeTextCheckingResult::~FakeTextCheckingResult() = default;
@@ -66,7 +66,7 @@ void FakeSpellCheck::SetFakeLanguageCounts(size_t language_count,
   enabled_language_count_ = enabled_count;
 }
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 void FakeSpellCheck::InitializeSpellCheckForLocale(const std::string& language,
                                                    bool use_hunspell) {
   // Non-Hunspell case is passed invalid file to SpellcheckLanguage::Init.
@@ -90,7 +90,7 @@ void FakeSpellCheck::InitializeSpellCheckForLocale(const std::string& language,
       std::make_unique<HunspellEngine>(embedder_provider_);
   SpellCheck::languages_.back()->Init(std::move(file), language);
 }
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 size_t FakeSpellCheck::LanguageCount() {
   return use_fake_counts_ ? language_count_ : SpellCheck::LanguageCount();
@@ -120,7 +120,7 @@ TestingSpellCheckProvider::~TestingSpellCheckProvider() {
 }
 
 void TestingSpellCheckProvider::RequestTextChecking(
-    const std::u16string& text,
+    const base::string16& text,
     std::unique_ptr<blink::WebTextCheckingCompletion> completion) {
   if (!receiver_.is_bound())
     SetSpellCheckHostForTesting(receiver_.BindNewPipeAndPassRemote());
@@ -130,19 +130,19 @@ void TestingSpellCheckProvider::RequestTextChecking(
 
 void TestingSpellCheckProvider::RequestDictionary() {}
 
-void TestingSpellCheckProvider::NotifyChecked(const std::u16string& word,
+void TestingSpellCheckProvider::NotifyChecked(const base::string16& word,
                                               bool misspelled) {}
 
 #if BUILDFLAG(USE_RENDERER_SPELLCHECKER)
 void TestingSpellCheckProvider::CallSpellingService(
-    const std::u16string& text,
+    const base::string16& text,
     CallSpellingServiceCallback callback) {
   OnCallSpellingService(text);
   std::move(callback).Run(true, std::vector<SpellCheckResult>());
 }
 
 void TestingSpellCheckProvider::OnCallSpellingService(
-    const std::u16string& text) {
+    const base::string16& text) {
   ++spelling_service_call_count_;
   if (!text_check_completions_.Lookup(last_identifier_)) {
     ResetResult();
@@ -168,24 +168,30 @@ void TestingSpellCheckProvider::ResetResult() {
 
 #if BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 void TestingSpellCheckProvider::RequestTextCheck(
-    const std::u16string& text,
+    const base::string16& text,
     int,
     RequestTextCheckCallback callback) {
   text_check_requests_.push_back(std::make_pair(text, std::move(callback)));
 }
 
-void TestingSpellCheckProvider::CheckSpelling(const std::u16string&,
+void TestingSpellCheckProvider::CheckSpelling(const base::string16&,
                                               int,
                                               CheckSpellingCallback) {
   NOTREACHED();
 }
 
-void TestingSpellCheckProvider::FillSuggestionList(const std::u16string&,
+void TestingSpellCheckProvider::FillSuggestionList(const base::string16&,
                                                    FillSuggestionListCallback) {
   NOTREACHED();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
+void TestingSpellCheckProvider::GetPerLanguageSuggestions(
+    const base::string16& word,
+    GetPerLanguageSuggestionsCallback callback) {
+  NOTREACHED();
+}
+
 void TestingSpellCheckProvider::InitializeDictionaries(
     InitializeDictionariesCallback callback) {
   if (base::FeatureList::IsEnabled(
@@ -197,29 +203,29 @@ void TestingSpellCheckProvider::InitializeDictionaries(
 
   NOTREACHED();
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 #endif  // BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void TestingSpellCheckProvider::DisconnectSessionBridge() {
   NOTREACHED();
 }
 #endif
 
 void TestingSpellCheckProvider::SetLastResults(
-    const std::u16string last_request,
+    const base::string16 last_request,
     blink::WebVector<blink::WebTextCheckingResult>& last_results) {
   last_request_ = last_request;
   last_results_ = last_results;
 }
 
 bool TestingSpellCheckProvider::SatisfyRequestFromCache(
-    const std::u16string& text,
+    const base::string16& text,
     blink::WebTextCheckingCompletion* completion) {
   return SpellCheckProvider::SatisfyRequestFromCache(text, completion);
 }
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 int TestingSpellCheckProvider::AddCompletionForTest(
     std::unique_ptr<FakeTextCheckingCompletion> completion,
     SpellCheckProvider::HybridSpellCheckRequestInfo request_info) {
@@ -231,12 +237,12 @@ int TestingSpellCheckProvider::AddCompletionForTest(
 
 void TestingSpellCheckProvider::OnRespondTextCheck(
     int identifier,
-    const std::u16string& line,
+    const base::string16& line,
     const std::vector<SpellCheckResult>& results) {
   SpellCheckProvider::OnRespondTextCheck(identifier, line, results);
   base::RunLoop().RunUntilIdle();
 }
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 SpellCheckProviderTest::SpellCheckProviderTest()
     : provider_(&embedder_provider_) {}

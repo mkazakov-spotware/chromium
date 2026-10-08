@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include <set>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/extensions/blocklist.h"
 #include "chrome/browser/extensions/blocklist_state_fetcher.h"
 #include "chrome/browser/extensions/fake_safe_browsing_database_manager.h"
@@ -29,15 +29,15 @@ BlocklistStateFetcherMock::BlocklistStateFetcherMock() : request_count_(0) {}
 BlocklistStateFetcherMock::~BlocklistStateFetcherMock() {}
 
 void BlocklistStateFetcherMock::Request(const std::string& id,
-                                        RequestCallback callback) {
+                                        const RequestCallback& callback) {
   ++request_count_;
 
   BlocklistState result = NOT_BLOCKLISTED;
   if (base::Contains(states_, id))
     result = states_[id];
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), result));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::BindOnce(callback, result));
 }
 
 void BlocklistStateFetcherMock::SetState(const std::string& id,
@@ -114,7 +114,7 @@ BlocklistState TestBlocklist::GetBlocklistState(
     const std::string& extension_id) {
   BlocklistState blocklist_state;
   blocklist_->IsBlocklisted(extension_id,
-                            base::BindOnce(&Assign, &blocklist_state));
+                            base::Bind(&Assign, &blocklist_state));
   base::RunLoop().RunUntilIdle();
   return blocklist_state;
 }

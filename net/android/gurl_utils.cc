@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,15 @@ ScopedJavaLocalRef<jstring> JNI_GURLUtils_GetOrigin(
     const JavaParamRef<jstring>& url) {
   GURL host(base::android::ConvertJavaStringToUTF16(env, url));
 
-  return base::android::ConvertUTF8ToJavaString(
-      env, host.DeprecatedGetOriginAsURL().spec());
+  return base::android::ConvertUTF8ToJavaString(env, host.GetOrigin().spec());
+}
+
+ScopedJavaLocalRef<jstring> JNI_GURLUtils_GetScheme(
+    JNIEnv* env,
+    const JavaParamRef<jstring>& url) {
+  GURL host(base::android::ConvertJavaStringToUTF16(env, url));
+
+  return base::android::ConvertUTF8ToJavaString(env, host.scheme());
 }
 
 }  // namespace net

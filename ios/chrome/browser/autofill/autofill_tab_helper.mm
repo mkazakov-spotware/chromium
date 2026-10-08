@@ -1,16 +1,16 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/autofill/autofill_tab_helper.h"
 
-#import "base/check.h"
-#import "base/memory/ptr_util.h"
+#include "base/check.h"
+#include "base/memory/ptr_util.h"
 #import "components/autofill/ios/browser/autofill_agent.h"
-#import "components/autofill/ios/browser/autofill_driver_ios.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/infobars/infobar_manager_impl.h"
+#include "components/autofill/ios/browser/autofill_driver_ios.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/infobars/infobar_manager_impl.h"
 #import "ios/chrome/browser/ui/autofill/chrome_autofill_client_ios.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -18,6 +18,18 @@
 #endif
 
 AutofillTabHelper::~AutofillTabHelper() = default;
+
+// static
+void AutofillTabHelper::CreateForWebState(
+    web::WebState* web_state,
+    password_manager::PasswordManager* password_manager) {
+  DCHECK(web_state);
+  if (!FromWebState(web_state)) {
+    web_state->SetUserData(
+        UserDataKey(),
+        base::WrapUnique(new AutofillTabHelper(web_state, password_manager)));
+  }
+}
 
 void AutofillTabHelper::SetBaseViewController(
     UIViewController* base_view_controller) {
@@ -48,7 +60,7 @@ AutofillTabHelper::AutofillTabHelper(
   autofill::AutofillDriverIOS::PrepareForWebStateWebFrameAndDelegate(
       web_state, autofill_client_.get(), autofill_agent_,
       GetApplicationContext()->GetApplicationLocale(),
-      autofill::AutofillManager::EnableDownloadManager(true));
+      autofill::AutofillManager::ENABLE_AUTOFILL_DOWNLOAD_MANAGER);
 }
 
 void AutofillTabHelper::WebStateDestroyed(web::WebState* web_state) {

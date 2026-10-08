@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,9 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.ObserverList;
 import org.chromium.base.TraceEvent;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.browserservices.trustedwebactivityui.TwaFinishHandler;
-import org.chromium.chrome.browser.compositor.CompositorViewHolder;
+import org.chromium.chrome.browser.compositor.CompositorView;
 import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
 import org.chromium.chrome.browser.customtabs.CustomTabOrientationController;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
@@ -29,12 +30,12 @@ import org.chromium.chrome.browser.customtabs.content.TabCreationMode;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar.CustomTabTabObserver;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
+import org.chromium.chrome.browser.flags.CachedFeatureFlags;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.chrome.browser.lifecycle.InflationObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.url.GURL;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -42,12 +43,10 @@ import java.lang.reflect.Method;
 
 import javax.inject.Inject;
 
-import dagger.Lazy;
-
 /** Shows and hides splash screen for Webapps, WebAPKs and TWAs. */
 @ActivityScope
 public class SplashController
-        extends CustomTabTabObserver implements InflationObserver, DestroyObserver {
+        extends CustomTabTabObserver implements InflationObserver, Destroyable {
     private static class SingleShotOnDrawListener implements ViewTreeObserver.OnDrawListener {
         private final View mView;
         private final Runnable mAction;
@@ -84,12 +83,11 @@ public class SplashController
 
     private static final String TAG = "SplashController";
 
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
     private final TabObserverRegistrar mTabObserverRegistrar;
     private final TwaFinishHandler mFinishHandler;
     private final CustomTabActivityTabProvider mTabProvider;
-    private final Lazy<CompositorViewHolder> mCompositorViewHolder;
 
     private SplashDelegate mDelegate;
 
@@ -122,11 +120,11 @@ public class SplashController
     private ObserverList<SplashscreenObserver> mObservers;
 
     @Inject
-    public SplashController(Activity activity, ActivityLifecycleDispatcher lifecycleDispatcher,
+    public SplashController(ChromeActivity<?> activity,
+            ActivityLifecycleDispatcher lifecycleDispatcher,
             TabObserverRegistrar tabObserverRegistrar,
             CustomTabOrientationController orientationController, TwaFinishHandler finishHandler,
-            CustomTabActivityTabProvider tabProvider,
-            Lazy<CompositorViewHolder> compositorViewHolder) {
+            CustomTabActivityTabProvider tabProvider) {
         mActivity = activity;
         mLifecycleDispatcher = lifecycleDispatcher;
         mTabObserverRegistrar = tabObserverRegistrar;
@@ -134,7 +132,6 @@ public class SplashController
         mTranslucencyRemovalStrategy = TranslucencyRemoval.NONE;
         mFinishHandler = finishHandler;
         mTabProvider = tabProvider;
-        mCompositorViewHolder = compositorViewHolder;
 
         boolean isWindowInitiallyTranslucent =
                 BaseCustomTabActivity.isWindowInitiallyTranslucent(activity);
@@ -196,7 +193,7 @@ public class SplashController
     }
 
     @Override
-    public void onDestroy() {
+    public void destroy() {
         if (mFadeOutAnimator != null) {
             mFadeOutAnimator.cancel();
         }
@@ -210,7 +207,7 @@ public class SplashController
     }
 
     @Override
-    public void onPageLoadFinished(Tab tab, GURL url) {
+    public void onPageLoadFinished(Tab tab, String url) {
         if (canHideSplashScreen()) {
             hideSplash(tab, false /* loadFailed */);
         }
@@ -284,7 +281,8 @@ public class SplashController
         // - closing activity (example: https://crbug.com/856544#c41)
         // - send activity to the background (example: https://crbug.com/856544#c30)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
-                && ChromeFeatureList.sSwapPixelFormatToFixConvertFromTranslucent.isEnabled()) {
+                && CachedFeatureFlags.isEnabled(
+                        ChromeFeatureList.SWAP_PIXEL_FORMAT_TO_FIX_CONVERT_FROM_TRANSLUCENT)) {
             return TranslucencyRemoval.ON_SPLASH_HIDDEN;
         }
         return TranslucencyRemoval.ON_SPLASH_SHOWN;
@@ -296,7 +294,7 @@ public class SplashController
 
     /** Hides the splash screen. */
     private void hideSplash(final Tab tab, boolean loadFailed) {
-        if (mLifecycleDispatcher.isActivityFinishingOrDestroyed()) {
+        if (mActivity.isActivityFinishingOrDestroyed()) {
             return;
         }
 
@@ -322,8 +320,8 @@ public class SplashController
         // Delay hiding the splash screen till the compositor has finished drawing the next frame.
         // Without this callback we were seeing a short flash of white between the splash screen and
         // the web content (crbug.com/734500).
-        mCompositorViewHolder.get().getCompositorView().surfaceRedrawNeededAsync(
-                () -> { animateHideSplash(tab); });
+        CompositorView compositorView = mActivity.getCompositorViewHolder().getCompositorView();
+        compositorView.surfaceRedrawNeededAsync(() -> { animateHideSplash(tab); });
     }
 
     private void removeTranslucency() {

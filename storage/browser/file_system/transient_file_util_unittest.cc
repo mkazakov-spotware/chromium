@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "storage/browser/blob/scoped_file.h"
@@ -15,27 +16,21 @@
 #include "storage/browser/file_system/file_system_operation_context.h"
 #include "storage/browser/file_system/isolated_context.h"
 #include "storage/browser/file_system/transient_file_util.h"
-#include "storage/browser/quota/quota_manager_proxy.h"
 #include "storage/browser/test/test_file_system_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace storage {
 
 class TransientFileUtilTest : public testing::Test {
  public:
   TransientFileUtilTest() = default;
-
-  TransientFileUtilTest(const TransientFileUtilTest&) = delete;
-  TransientFileUtilTest& operator=(const TransientFileUtilTest&) = delete;
-
   ~TransientFileUtilTest() override = default;
 
   void SetUp() override {
     file_system_context_ = CreateFileSystemContextForTesting(
-        /*quota_manager_proxy=*/nullptr,
-        base::FilePath(FILE_PATH_LITERAL("dummy")));
+        nullptr, base::FilePath(FILE_PATH_LITERAL("dummy")));
     transient_file_util_ = std::make_unique<TransientFileUtil>();
 
     ASSERT_TRUE(data_dir_.CreateUniqueTempDir());
@@ -60,8 +55,8 @@ class TransientFileUtilTest : public testing::Test {
         isolated_context->CreateVirtualRootPath(filesystem->id())
             .AppendASCII(name);
     *file_url = file_system_context_->CreateCrackedFileSystemURL(
-        blink::StorageKey::CreateFromStringForTesting("http://foo"),
-        kFileSystemTypeIsolated, virtual_path);
+        url::Origin::Create(GURL("http://foo")), kFileSystemTypeIsolated,
+        virtual_path);
   }
 
   std::unique_ptr<FileSystemOperationContext> NewOperationContext() {
@@ -76,6 +71,8 @@ class TransientFileUtilTest : public testing::Test {
   base::ScopedTempDir data_dir_;
   scoped_refptr<FileSystemContext> file_system_context_;
   std::unique_ptr<TransientFileUtil> transient_file_util_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransientFileUtilTest);
 };
 
 TEST_F(TransientFileUtilTest, TransientFile) {

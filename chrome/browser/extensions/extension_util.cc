@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/metrics/field_trial.h"
+#include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/banners/app_banner_manager.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_sync_service.h"
 #include "chrome/browser/extensions/launch_util.h"
@@ -26,7 +27,6 @@
 #include "chrome/common/extensions/api/url_handlers/url_handlers_parser.h"
 #include "chrome/common/extensions/sync_helper.h"
 #include "components/variations/variations_associated_data.h"
-#include "components/webapps/browser/banners/app_banner_manager.h"
 #include "content/public/browser/site_instance.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_prefs.h"
@@ -35,7 +35,6 @@
 #include "extensions/browser/extension_util.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_icon_set.h"
-#include "extensions/common/extension_urls.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_handlers/app_isolation_info.h"
 #include "extensions/common/manifest_handlers/incognito_info.h"
@@ -45,16 +44,15 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/file_manager/app_id.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/file_manager/app_id.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
 #endif
 
 namespace extensions {
 namespace util {
 
 namespace {
-
 // Returns |extension_id|. See note below.
 std::string ReloadExtensionIfEnabled(const std::string& extension_id,
                                      content::BrowserContext* context) {
@@ -77,31 +75,33 @@ std::string ReloadExtensionIfEnabled(const std::string& extension_id,
 
 }  // namespace
 
+bool IsExtensionSiteWithIsolatedStorage(const GURL& site_url,
+                                        content::BrowserContext* context) {
+  if (!site_url.SchemeIs(extensions::kExtensionScheme))
+    return false;
+
+  // The host in an extension site URL is the extension_id.
+  DCHECK(site_url.has_host());
+  return HasIsolatedStorage(site_url.host(), context);
+}
+
 bool HasIsolatedStorage(const std::string& extension_id,
                         content::BrowserContext* context) {
   const Extension* extension =
       ExtensionRegistry::Get(context)->enabled_extensions().GetByID(
           extension_id);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   const bool is_policy_extension =
       extension && Manifest::IsPolicyLocation(extension->location());
   Profile* profile = Profile::FromBrowserContext(context);
-  if (profile && ash::ProfileHelper::IsSigninProfile(profile) &&
+  if (profile && chromeos::ProfileHelper::IsSigninProfile(profile) &&
       is_policy_extension) {
     return true;
   }
 #endif
 
   return extension && AppIsolationInfo::HasIsolatedStorage(extension);
-}
-
-bool IsChromeApp(const std::string& extension_id,
-                 content::BrowserContext* context) {
-  const Extension* extension =
-      ExtensionRegistry::Get(context)->enabled_extensions().GetByID(
-          extension_id);
-  return extension->is_platform_app();
 }
 
 void SetIsIncognitoEnabled(const std::string& extension_id,
@@ -116,13 +116,13 @@ void SetIsIncognitoEnabled(const std::string& extension_id,
       return;
 
     // TODO(treib,kalman): Should this be Manifest::IsComponentLocation(..)?
-    // (which also checks for kExternalComponent).
-    if (extension->location() == mojom::ManifestLocation::kComponent) {
+    // (which also checks for EXTERNAL_COMPONENT).
+    if (extension->location() == Manifest::COMPONENT) {
       // This shouldn't be called for component extensions unless it is called
       // by sync, for syncable component extensions.
       // See http://crbug.com/112290 and associated CLs for the sordid history.
       bool syncable = sync_helper::IsSyncableComponentExtension(extension);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
       // For some users, the file manager app somehow ended up being synced even
       // though it's supposed to be unsyncable; see crbug.com/576964. If the bad
       // data ever gets cleaned up, this hack should be removed.
@@ -197,22 +197,11 @@ bool IsAppLaunchable(const std::string& extension_id,
 bool IsAppLaunchableWithoutEnabling(const std::string& extension_id,
                                     content::BrowserContext* context) {
   return ExtensionRegistry::Get(context)->GetExtensionById(
-             extension_id, ExtensionRegistry::ENABLED) != nullptr;
+      extension_id, ExtensionRegistry::ENABLED) != NULL;
 }
 
 bool ShouldSync(const Extension* extension,
                 content::BrowserContext* context) {
-  ExtensionManagement* extension_management =
-      ExtensionManagementFactory::GetForBrowserContext(context);
-  // Update URL is overridden only for non webstore extensions and offstore
-  // extensions should not be synced.
-  if (extension_management->IsUpdateUrlOverridden(extension->id())) {
-    const GURL update_url =
-        extension_management->GetEffectiveUpdateURL(*extension);
-    DCHECK(!extension_urls::IsWebstoreUpdateUrl(update_url))
-        << "Update URL cannot be overridden to be the webstore URL!";
-    return false;
-  }
   return sync_helper::IsSyncable(extension) &&
          !ExtensionPrefs::Get(context)->DoNotSync(extension->id());
 }
@@ -261,18 +250,19 @@ bool IsExtensionIdle(const std::string& extension_id,
   return true;
 }
 
-base::Value::Dict GetExtensionInfo(const Extension* extension) {
+std::unique_ptr<base::DictionaryValue> GetExtensionInfo(
+    const Extension* extension) {
   DCHECK(extension);
-  base::Value::Dict dict;
+  std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
 
-  dict.Set("id", extension->id());
-  dict.Set("name", extension->name());
+  dict->SetString("id", extension->id());
+  dict->SetString("name", extension->name());
 
   GURL icon = extensions::ExtensionIconSource::GetIconURL(
       extension, extension_misc::EXTENSION_ICON_SMALLISH,
       ExtensionIconSet::MATCH_BIGGER,
       false);  // Not grayscale.
-  dict.Set("icon", icon.spec());
+  dict->SetString("icon", icon.spec());
 
   return dict;
 }
@@ -306,29 +296,6 @@ std::unique_ptr<const PermissionSet> GetInstallPromptPermissionSetForExtension(
                                                         optional_permissions);
   }
   return permissions_to_display;
-}
-
-std::vector<content::BrowserContext*> GetAllRelatedProfiles(
-    Profile* profile,
-    const Extension& extension) {
-  std::vector<content::BrowserContext*> related_contexts;
-  related_contexts.push_back(profile->GetOriginalProfile());
-
-  // The returned `related_contexts` should include all the related incognito
-  // profiles if the extension is globally allowed in incognito (this is a
-  // global, rather than per-profile toggle - this is why we it can be checked
-  // globally here, rather than once for every incognito profile looped over
-  // below).
-  if (IsIncognitoEnabled(extension.id(), profile)) {
-    std::vector<Profile*> off_the_record_profiles =
-        profile->GetAllOffTheRecordProfiles();
-    related_contexts.reserve(related_contexts.size() +
-                             off_the_record_profiles.size());
-    for (Profile* off_the_record_profile : off_the_record_profiles)
-      related_contexts.push_back(off_the_record_profile);
-  }
-
-  return related_contexts;
 }
 
 }  // namespace util

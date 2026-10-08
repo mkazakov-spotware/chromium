@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/test/scoped_path_override.h"
 #include "build/build_config.h"
 #include "components/nacl/browser/nacl_browser.h"
@@ -35,18 +35,13 @@ class FileHostTestNaClBrowserDelegate : public TestNaClBrowserDelegate {
 };
 
 class NaClFileHostTest : public testing::Test {
- public:
-  NaClFileHostTest(const NaClFileHostTest&) = delete;
-  NaClFileHostTest& operator=(const NaClFileHostTest&) = delete;
-
  protected:
   NaClFileHostTest();
   ~NaClFileHostTest() override;
 
   void SetUp() override {
     nacl_browser_delegate_ = new FileHostTestNaClBrowserDelegate;
-    nacl::NaClBrowser::SetDelegate(
-        base::WrapUnique(nacl_browser_delegate_.get()));
+    nacl::NaClBrowser::SetDelegate(base::WrapUnique(nacl_browser_delegate_));
   }
 
   void TearDown() override {
@@ -59,7 +54,8 @@ class NaClFileHostTest : public testing::Test {
   }
 
  private:
-  raw_ptr<FileHostTestNaClBrowserDelegate> nacl_browser_delegate_;
+  FileHostTestNaClBrowserDelegate* nacl_browser_delegate_;
+  DISALLOW_COPY_AND_ASSIGN(NaClFileHostTest);
 };
 
 NaClFileHostTest::NaClFileHostTest() : nacl_browser_delegate_(nullptr) {}
@@ -112,7 +108,7 @@ TEST_F(NaClFileHostTest, TestFilenamesWithPnaclPath) {
   EXPECT_FALSE(PnaclCanOpenFile(std::string(), &out_path));
   EXPECT_FALSE(PnaclCanOpenFile(".", &out_path));
   EXPECT_FALSE(PnaclCanOpenFile("..", &out_path));
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   EXPECT_FALSE(PnaclCanOpenFile("..\\llc", &out_path));
   EXPECT_FALSE(PnaclCanOpenFile("%SystemRoot%", &out_path));
   EXPECT_FALSE(PnaclCanOpenFile("%SystemRoot%\\explorer.exe", &out_path));

@@ -1,17 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/streams/readable_stream_default_reader.h"
 
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/streams/readable_stream.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_default_controller.h"
 #include "third_party/blink/renderer/core/streams/stream_promise_resolver.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
-#include "third_party/blink/renderer/platform/bindings/v8_throw_exception.h"
 
 namespace blink {
 
@@ -30,8 +28,7 @@ ReadableStreamDefaultReader* ReadableStreamDefaultReader::Create(
 ReadableStreamDefaultReader::ReadableStreamDefaultReader(
     ScriptState* script_state,
     ReadableStream* stream,
-    ExceptionState& exception_state)
-    : ExecutionContextClient(ExecutionContext::From(script_state)) {
+    ExceptionState& exception_state) {
   // https://streams.spec.whatwg.org/#default-reader-constructor
   // 1. Perform ? SetUpReadableStreamDefaultReader(this, stream).
   SetUpDefaultReader(script_state, this, stream, exception_state);
@@ -95,45 +92,24 @@ StreamPromiseResolver* ReadableStreamDefaultReader::Read(
   }
 }
 
-void ReadableStreamDefaultReader::ErrorReadRequests(
-    ScriptState* script_state,
-    ReadableStreamDefaultReader* reader,
-    v8::Local<v8::Value> e) {
-  // https://streams.spec.whatwg.org/#abstract-opdef-readablestreamdefaultreadererrorreadrequests
-  // 1. Let readRequests be reader.[[readRequests]].
-  // 2. Set reader.[[readRequests]] to a new empty list.
-  // 3. For each readRequest of readRequests,
-  for (StreamPromiseResolver* promise : reader->read_requests_) {
-    //   a. Perform readRequest’s error steps, given e.
-    promise->Reject(script_state, e);
-  }
-  reader->read_requests_.clear();
-}
-
-void ReadableStreamDefaultReader::Release(ScriptState* script_state,
-                                          ReadableStreamDefaultReader* reader) {
-  // https://streams.spec.whatwg.org/#abstract-opdef-readablestreamdefaultreaderrelease
-  // 1. Perform ! ReadableStreamReaderGenericRelease(reader).
-  ReadableStreamGenericReader::GenericRelease(script_state, reader);
-
-  // 2. Let e be a new TypeError exception.
-  v8::Local<v8::Value> e = V8ThrowException::CreateTypeError(
-      script_state->GetIsolate(), "Releasing Default reader");
-
-  // 3. Perform ! ReadableStreamDefaultReaderErrorReadRequests(reader, e).
-  ErrorReadRequests(script_state, reader, e);
-}
-
 void ReadableStreamDefaultReader::releaseLock(ScriptState* script_state,
                                               ExceptionState& exception_state) {
   // https://streams.spec.whatwg.org/#default-reader-release-lock
-  // 1. If this.[[stream]] is undefined, return.
+  // 2. If this.[[ownerReadableStream]] is undefined, return.
   if (!owner_readable_stream_) {
     return;
   }
 
-  // 2. Perform ! ReadableStreamDefaultReaderRelease(this).
-  Release(script_state, this);
+  // 3. If this.[[readRequests]] is not empty, throw a TypeError exception.
+  if (read_requests_.size() > 0) {
+    exception_state.ThrowTypeError(
+        "Cannot release a readable stream reader when it still has outstanding "
+        "read() calls that have not yet settled");
+    return;
+  }
+
+  // 4. Perform ! ReadableStreamReaderGenericRelease(this).
+  GenericRelease(script_state, this);
 }
 
 void ReadableStreamDefaultReader::SetUpDefaultReader(
@@ -164,11 +140,6 @@ void ReadableStreamDefaultReader::SetUpDefaultReader(
 void ReadableStreamDefaultReader::Trace(Visitor* visitor) const {
   visitor->Trace(read_requests_);
   ReadableStreamGenericReader::Trace(visitor);
-  ExecutionContextClient::Trace(visitor);
-}
-
-bool ReadableStreamDefaultReader::HasPendingActivity() const {
-  return !read_requests_.empty();
 }
 
 }  // namespace blink

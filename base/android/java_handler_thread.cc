@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,13 +26,13 @@ namespace base {
 namespace android {
 
 JavaHandlerThread::JavaHandlerThread(const char* name,
-                                     base::ThreadType thread_type)
+                                     base::ThreadPriority priority)
     : JavaHandlerThread(
           name,
           Java_JavaHandlerThread_create(
               AttachCurrentThread(),
               ConvertUTF8ToJavaString(AttachCurrentThread(), name),
-              base::internal::ThreadTypeToNiceValue(thread_type))) {}
+              base::internal::ThreadPriorityToNiceValue(priority))) {}
 
 JavaHandlerThread::JavaHandlerThread(
     const char* name,
@@ -90,11 +90,7 @@ void JavaHandlerThread::InitializeThread(JNIEnv* env,
   if (name_)
     PlatformThread::SetName(name_);
 
-  thread_id_ = base::PlatformThread::CurrentId();
   state_ = std::make_unique<State>();
-#if DCHECK_IS_ON()
-  initialized_ = true;
-#endif
   Init();
   reinterpret_cast<base::WaitableEvent*>(event)->Signal();
 }
@@ -134,13 +130,6 @@ ScopedJavaLocalRef<jthrowable> JavaHandlerThread::GetUncaughtExceptionIfAny() {
   return Java_JavaHandlerThread_getUncaughtExceptionIfAny(env, java_thread_);
 }
 
-PlatformThreadId JavaHandlerThread::GetThreadId() const {
-#if DCHECK_IS_ON()
-  DCHECK(initialized_);
-#endif
-  return thread_id_;
-}
-
 void JavaHandlerThread::StopOnThread() {
   DCHECK(task_runner()->BelongsToCurrentThread());
   DCHECK(state_);
@@ -160,9 +149,8 @@ JavaHandlerThread::State::State()
           sequence_manager::SequenceManager::Settings::Builder()
               .SetMessagePumpType(base::MessagePumpType::JAVA)
               .Build())),
-      default_task_queue(
-          sequence_manager->CreateTaskQueue(sequence_manager::TaskQueue::Spec(
-              sequence_manager::QueueName::DEFAULT_TQ))) {
+      default_task_queue(sequence_manager->CreateTaskQueue(
+          sequence_manager::TaskQueue::Spec("default_tq"))) {
   // TYPE_JAVA to get the Android java style message loop.
   std::unique_ptr<MessagePump> message_pump =
       MessagePump::Create(base::MessagePumpType::JAVA);

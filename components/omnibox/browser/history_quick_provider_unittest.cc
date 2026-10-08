@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,27 +13,30 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
+#include "base/format_macros.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/bookmarks/test/bookmark_test_helpers.h"
 #include "components/bookmarks/test/test_bookmark_client.h"
 #include "components/history/core/browser/history_backend.h"
 #include "components/history/core/browser/history_database.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_service_observer.h"
+#include "components/history/core/browser/url_database.h"
 #include "components/history/core/test/history_service_test_util.h"
 #include "components/omnibox/browser/autocomplete_match.h"
+#include "components/omnibox/browser/autocomplete_result.h"
 #include "components/omnibox/browser/fake_autocomplete_provider_client.h"
 #include "components/omnibox/browser/history_test_util.h"
 #include "components/omnibox/browser/history_url_provider.h"
-#include "components/omnibox/common/omnibox_features.h"
-#include "components/search_engines/template_url_starter_pack_data.h"
+#include "components/omnibox/browser/in_memory_url_index_test_util.h"
+#include "components/prefs/pref_service.h"
+#include "components/search_engines/omnibox_focus_type.h"
+#include "components/search_engines/search_terms_data.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/metrics_proto/omnibox_focus_type.pb.h"
 
 using base::ASCIIToUTF16;
 
@@ -54,13 +57,15 @@ class WaitForURLsDeletedObserver : public history::HistoryServiceObserver {
                      const history::DeletionInfo& deletion_info) override;
 
   // Weak. Owned by our owner.
-  raw_ptr<base::RunLoop> runner_;
+  base::RunLoop* runner_;
 };
 
 WaitForURLsDeletedObserver::WaitForURLsDeletedObserver(base::RunLoop* runner)
-    : runner_(runner) {}
+    : runner_(runner) {
+}
 
-WaitForURLsDeletedObserver::~WaitForURLsDeletedObserver() = default;
+WaitForURLsDeletedObserver::~WaitForURLsDeletedObserver() {
+}
 
 void WaitForURLsDeletedObserver::OnURLsDeleted(
     history::HistoryService* service,
@@ -83,7 +88,9 @@ void WaitForURLsDeletedNotification(history::HistoryService* history_service) {
 class GetURLTask : public history::HistoryDBTask {
  public:
   GetURLTask(const GURL& url, bool* result_storage)
-      : result_storage_(result_storage), url_(url) {}
+      : result_storage_(result_storage),
+        url_(url) {
+  }
   GetURLTask(const GetURLTask&) = delete;
   GetURLTask& operator=(const GetURLTask&) = delete;
 
@@ -98,9 +105,9 @@ class GetURLTask : public history::HistoryDBTask {
   }
 
  private:
-  ~GetURLTask() override = default;
+  ~GetURLTask() override {}
 
-  raw_ptr<bool> result_storage_;
+  bool* result_storage_;
   const GURL url_;
 };
 
@@ -144,21 +151,21 @@ class HistoryQuickProviderTest : public testing::Test {
   // Runs an autocomplete query on |text| and checks to see that the returned
   // results' destination URLs match those provided. |expected_urls| does not
   // need to be in sorted order.
-  void RunTest(const std::u16string& text,
+  void RunTest(const base::string16& text,
                bool prevent_inline_autocomplete,
                const std::vector<std::string>& expected_urls,
                bool expected_can_inline_top_result,
-               const std::u16string& expected_fill_into_edit,
-               const std::u16string& autocompletion);
+               const base::string16& expected_fill_into_edit,
+               const base::string16& autocompletion);
 
   // As above, simply with a cursor position specified.
-  void RunTestWithCursor(const std::u16string& text,
+  void RunTestWithCursor(const base::string16& text,
                          const size_t cursor_position,
                          bool prevent_inline_autocomplete,
                          const std::vector<std::string>& expected_urls,
                          bool expected_can_inline_top_result,
-                         const std::u16string& expected_fill_into_edit,
-                         const std::u16string& autocompletion,
+                         const base::string16& expected_fill_into_edit,
+                         const base::string16& autocompletion,
                          bool duplicates_ok = false);
 
   // TODO(shess): From history_service.h in reference to history_backend:
@@ -178,16 +185,8 @@ class HistoryQuickProviderTest : public testing::Test {
   ACMatches& ac_matches() { return ac_matches_; }
   HistoryQuickProvider& provider() { return *provider_; }
 
-  AutocompleteMatch QuickMatchToACMatch(const ScoredHistoryMatch& history_match,
-                                        int score) {
-    return provider_->QuickMatchToACMatch(history_match, score);
-  }
-
  private:
-  base::test::ScopedFeatureList feature_list_{omnibox::kDomainSuggestions};
-
   base::test::TaskEnvironment task_environment_;
-  base::ScopedTempDir history_dir_;
   std::unique_ptr<FakeAutocompleteProviderClient> client_;
 
   ACMatches ac_matches_;  // The resulting matches after running RunTest.
@@ -197,27 +196,20 @@ class HistoryQuickProviderTest : public testing::Test {
 
 void HistoryQuickProviderTest::SetUp() {
   client_ = std::make_unique<FakeAutocompleteProviderClient>();
-  CHECK(history_dir_.CreateUniqueTempDir());
-
-  // Initialize the history service with our test data.
-  client_->set_history_service(
-      history::CreateHistoryService(history_dir_.GetPath(), true));
-  ASSERT_NE(client_->GetHistoryService(), nullptr);
+  ASSERT_TRUE(client_->GetHistoryService());
   ASSERT_NO_FATAL_FAILURE(FillData());
 
-  client_->set_bookmark_model(bookmarks::TestBookmarkClient::CreateModel());
-  client_->set_template_url_service(
-      std::make_unique<TemplateURLService>(nullptr, 0));
+  // FillData() must be called before RebuildFromHistory(). This will
+  // ensure that the index is properly populated with data from the database.
+  InMemoryURLIndex* url_index = client_->GetInMemoryURLIndex();
+  url_index->RebuildFromHistory(
+      client_->GetHistoryService()->history_backend_->db());
+  BlockUntilInMemoryURLIndexIsRefreshed(url_index);
 
-  client_->set_in_memory_url_index(std::make_unique<InMemoryURLIndex>(
-      client_->GetBookmarkModel(), client_->GetHistoryService(), nullptr,
-      history_dir_.GetPath(), SchemeSet()));
-  client_->GetInMemoryURLIndex()->Init();
-
-  // Block until History has processed InMemoryURLIndex initialization.
+  // History index refresh creates rebuilt tasks to run on history thread.
+  // Block here to make sure that all of them are complete.
   history::BlockUntilHistoryProcessesPendingRequests(
       client_->GetHistoryService());
-  ASSERT_TRUE(client_->GetInMemoryURLIndex()->restored());
 
   provider_ = new HistoryQuickProvider(client_.get());
 }
@@ -287,14 +279,6 @@ HistoryQuickProviderTest::GetTestData() {
        "'pre suf' should score higher than 'presuf'", 3, 3, 2},
       {"https://suffix.com/prefixsuffix3",
        "'pre suf' should score higher than 'presuf'", 3, 3, 3},
-      {"http://somedomain.com/a", "a", 1, 1, 1},
-      {"http://somedomain.com/b", "b", 1, 1, 1},
-      {"http://somedomain.com/c", "c", 1, 1, 1},
-      {"http://somedomain.com/d", "d", 1, 1, 1},
-      {"http://somedomain.com/e", "e", 1, 1, 1},
-      {"http://somedomain.com/f", "f", 1, 1, 1},
-      {"http://somedomain.com/g", "g", 1, 1, 1},
-      {"http://somedomain.com/h", "h", 1, 1, 1},
   };
 }
 
@@ -305,7 +289,8 @@ void HistoryQuickProviderTest::FillData() {
     row.set_title(base::UTF8ToUTF16(info.title));
     row.set_visit_count(info.visit_count);
     row.set_typed_count(info.typed_count);
-    row.set_last_visit(base::Time::Now() - base::Days(info.days_from_now));
+    row.set_last_visit(base::Time::Now() -
+                       base::TimeDelta::FromDays(info.days_from_now));
 
     AddFakeURLToHistoryDB(history_backend()->db(), row);
   }
@@ -313,8 +298,8 @@ void HistoryQuickProviderTest::FillData() {
 
 HistoryQuickProviderTest::SetShouldContain::SetShouldContain(
     const ACMatches& matched_urls) {
-  for (const auto& matched_url : matched_urls)
-    matches_.insert(matched_url.destination_url.spec());
+  for (auto iter = matched_urls.begin(); iter != matched_urls.end(); ++iter)
+    matches_.insert(iter->destination_url.spec());
 }
 
 void HistoryQuickProviderTest::SetShouldContain::operator()(
@@ -324,25 +309,25 @@ void HistoryQuickProviderTest::SetShouldContain::operator()(
 }
 
 void HistoryQuickProviderTest::RunTest(
-    const std::u16string& text,
+    const base::string16& text,
     bool prevent_inline_autocomplete,
     const std::vector<std::string>& expected_urls,
     bool expected_can_inline_top_result,
-    const std::u16string& expected_fill_into_edit,
-    const std::u16string& expected_autocompletion) {
-  RunTestWithCursor(text, std::u16string::npos, prevent_inline_autocomplete,
+    const base::string16& expected_fill_into_edit,
+    const base::string16& expected_autocompletion) {
+  RunTestWithCursor(text, base::string16::npos, prevent_inline_autocomplete,
                     expected_urls, expected_can_inline_top_result,
                     expected_fill_into_edit, expected_autocompletion);
 }
 
 void HistoryQuickProviderTest::RunTestWithCursor(
-    const std::u16string& text,
+    const base::string16& text,
     const size_t cursor_position,
     bool prevent_inline_autocomplete,
     const std::vector<std::string>& expected_urls,
     bool expected_can_inline_top_result,
-    const std::u16string& expected_fill_into_edit,
-    const std::u16string& expected_autocompletion,
+    const base::string16& expected_fill_into_edit,
+    const base::string16& expected_autocompletion,
     bool duplicates_ok) {
   SCOPED_TRACE(text);  // Minimal hint to query being run.
   base::RunLoop().RunUntilIdle();
@@ -382,8 +367,8 @@ void HistoryQuickProviderTest::RunTestWithCursor(
                     .LeftOvers();
   }
   EXPECT_EQ(0U, leftovers.size()) << "There were " << leftovers.size()
-                                  << " unexpected results, one of which was: '"
-                                  << *(leftovers.begin()) << "'.";
+      << " unexpected results, one of which was: '"
+      << *(leftovers.begin()) << "'.";
 
   if (expected_urls.empty())
     return;
@@ -400,8 +385,8 @@ void HistoryQuickProviderTest::RunTestWithCursor(
         << "For result #" << i << " we got '" << actual->destination_url.spec()
         << "' but expected '" << *expected << "'.";
     EXPECT_LT(actual->relevance, best_score)
-        << "At result #" << i << " (url=" << actual->destination_url.spec()
-        << "), we noticed scores are not monotonically decreasing.";
+      << "At result #" << i << " (url=" << actual->destination_url.spec()
+      << "), we noticed scores are not monotonically decreasing.";
     best_score = actual->relevance;
   }
 
@@ -428,8 +413,9 @@ bool HistoryQuickProviderTest::GetURLProxy(const GURL& url) {
 TEST_F(HistoryQuickProviderTest, SimpleSingleMatch) {
   std::vector<std::string> expected_urls;
   expected_urls.push_back("http://slashdot.org/favorite_page.html");
-  RunTest(u"slashdot", false, expected_urls, true,
-          u"slashdot.org/favorite_page.html", u".org/favorite_page.html");
+  RunTest(ASCIIToUTF16("slashdot"), false, expected_urls, true,
+          ASCIIToUTF16("slashdot.org/favorite_page.html"),
+                  ASCIIToUTF16(".org/favorite_page.html"));
 }
 
 TEST_F(HistoryQuickProviderTest, SingleMatchWithCursor) {
@@ -437,8 +423,10 @@ TEST_F(HistoryQuickProviderTest, SingleMatchWithCursor) {
   expected_urls.push_back("http://slashdot.org/favorite_page.html");
   // With cursor after "slash", we should retrieve the desired result but it
   // should not be allowed to be the default match.
-  RunTestWithCursor(u"slashfavorite_page.html", 5, false, expected_urls, false,
-                    u"slashdot.org/favorite_page.html", std::u16string());
+  RunTestWithCursor(ASCIIToUTF16("slashfavorite_page.html"), 5, false,
+                    expected_urls, false,
+                    ASCIIToUTF16("slashdot.org/favorite_page.html"),
+                    base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest, MatchWithAndWithoutCursorWordBreak) {
@@ -447,21 +435,22 @@ TEST_F(HistoryQuickProviderTest, MatchWithAndWithoutCursorWordBreak) {
   // the default match.
   std::vector<std::string> expected_urls;
   expected_urls.push_back("https://twitter.com/fungoodtimes");
-  RunTestWithCursor(u"twitter.com/fungootime", 18, true, expected_urls, false,
-                    u"https://twitter.com/fungoodtimes", std::u16string());
+  RunTestWithCursor(
+      ASCIIToUTF16("twitter.com/fungootime"), 18, true, expected_urls, false,
+      ASCIIToUTF16("https://twitter.com/fungoodtimes"), base::string16());
 
   // The input 'twitter.com/fungood|times' matches both with and without a
   // cursor word break. We should retrieve both suggestions but neither should
   // be allowed to be the default match.
-  RunTestWithCursor(u"twitter.com/fungoodtime", 19, true, expected_urls, false,
-                    u"https://twitter.com/fungoodtimes", std::u16string(),
-                    true);
+  RunTestWithCursor(
+      ASCIIToUTF16("twitter.com/fungoodtime"), 19, true, expected_urls, false,
+      ASCIIToUTF16("https://twitter.com/fungoodtimes"), base::string16(), true);
 
   // A suggestion with a cursor not at the input end can only be default if
   // the input matches suggestion exactly.
-  RunTestWithCursor(u"twitter.com/fungoodtimes", 19, true, expected_urls, true,
-                    u"https://twitter.com/fungoodtimes", std::u16string(),
-                    true);
+  RunTestWithCursor(
+      ASCIIToUTF16("twitter.com/fungoodtimes"), 19, true, expected_urls, true,
+      ASCIIToUTF16("https://twitter.com/fungoodtimes"), base::string16(), true);
 }
 
 TEST_F(HistoryQuickProviderTest, MatchWithAndWithoutCursorWordBreak_Dedupe) {
@@ -472,9 +461,9 @@ TEST_F(HistoryQuickProviderTest, MatchWithAndWithoutCursorWordBreak_Dedupe) {
   // as long as it's not at the start or the end.
   expected_urls.push_back("https://deduping-test.com/high-scoring");
   expected_urls.push_back("https://deduping-test.com/med-scoring");
-  RunTestWithCursor(u"deduping-test", 1, true, expected_urls, false,
-                    u"https://deduping-test.com/high-scoring",
-                    std::u16string());
+  RunTestWithCursor(
+      ASCIIToUTF16("deduping-test"), 1, true, expected_urls, false,
+      ASCIIToUTF16("https://deduping-test.com/high-scoring"), base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest,
@@ -489,18 +478,20 @@ TEST_F(HistoryQuickProviderTest,
   expected_urls.push_back("https://suffix.com/prefixsuffix3");
 
   // Get scores for 'prefixsuffix'
-  RunTestWithCursor(u"prefixsuffix", std::string::npos, false, expected_urls,
-                    false, u"https://suffix.com/prefixsuffix1",
-                    std::u16string());
+  RunTestWithCursor(ASCIIToUTF16("prefixsuffix"), std::string::npos, false,
+                    expected_urls, false,
+                    ASCIIToUTF16("https://suffix.com/prefixsuffix1"),
+                    base::string16());
   std::vector<int> unbroken_scores(3);
   std::transform(ac_matches().begin(), ac_matches().end(),
                  unbroken_scores.begin(),
                  [](const auto& match) { return match.relevance; });
 
   // Get scores for 'prefix suffix'
-  RunTestWithCursor(u"prefix suffix", std::string::npos, false, expected_urls,
-                    false, u"https://suffix.com/prefixsuffix1",
-                    std::u16string());
+  RunTestWithCursor(ASCIIToUTF16("prefix suffix"), std::string::npos, false,
+                    expected_urls, false,
+                    ASCIIToUTF16("https://suffix.com/prefixsuffix1"),
+                    base::string16());
   std::vector<int> broken_scores(3);
   std::transform(ac_matches().begin(), ac_matches().end(),
                  broken_scores.begin(),
@@ -511,8 +502,9 @@ TEST_F(HistoryQuickProviderTest,
 
   // Get scores for 'prefix|suffix', which will create duplicate
   // ScoredHistoryMatches.
-  RunTestWithCursor(u"prefixsuffix", 6, true, expected_urls, false,
-                    u"https://suffix.com/prefixsuffix1", std::u16string());
+  RunTestWithCursor(ASCIIToUTF16("prefixsuffix"), 6, true, expected_urls, false,
+                    ASCIIToUTF16("https://suffix.com/prefixsuffix1"),
+                    base::string16());
   // Ensure the higher scored ScoredHistoryMatches are promoted to suggestions
   // during deduping.
   for (size_t i = 0; i < 3; ++i)
@@ -522,24 +514,26 @@ TEST_F(HistoryQuickProviderTest,
 TEST_F(HistoryQuickProviderTest, WordBoundariesWithPunctuationMatch) {
   std::vector<std::string> expected_urls;
   expected_urls.push_back("http://popularsitewithpathonly.com/moo");
-  RunTest(u"/moo", false, expected_urls, false,
-          u"popularsitewithpathonly.com/moo", std::u16string());
+  RunTest(ASCIIToUTF16("/moo"), false, expected_urls, false,
+          ASCIIToUTF16("popularsitewithpathonly.com/moo"), base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest, MultiTermTitleMatch) {
   std::vector<std::string> expected_urls;
   expected_urls.push_back(
       "http://cda.com/Dogs%20Cats%20Gorillas%20Sea%20Slugs%20and%20Mice");
-  RunTest(u"mice other animals", false, expected_urls, false,
-          u"cda.com/Dogs Cats Gorillas Sea Slugs and Mice", std::u16string());
+  RunTest(ASCIIToUTF16("mice other animals"), false, expected_urls, false,
+          ASCIIToUTF16("cda.com/Dogs Cats Gorillas Sea Slugs and Mice"),
+          base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest, NonWordLastCharacterMatch) {
   std::string expected_url("http://slashdot.org/favorite_page.html");
   std::vector<std::string> expected_urls;
   expected_urls.push_back(expected_url);
-  RunTest(u"slashdot.org/", false, expected_urls, true,
-          u"slashdot.org/favorite_page.html", u"favorite_page.html");
+  RunTest(ASCIIToUTF16("slashdot.org/"), false, expected_urls, true,
+          ASCIIToUTF16("slashdot.org/favorite_page.html"),
+                       ASCIIToUTF16("favorite_page.html"));
 }
 
 TEST_F(HistoryQuickProviderTest, MultiMatch) {
@@ -550,21 +544,24 @@ TEST_F(HistoryQuickProviderTest, MultiMatch) {
   expected_urls.push_back("http://foo.com/dir/another/");
   // Scores high because of high visit count.
   expected_urls.push_back("http://foo.com/dir/another/again/");
-  RunTest(u"foo", false, expected_urls, true, u"foo.com", u".com");
+  RunTest(ASCIIToUTF16("foo"), false, expected_urls, true,
+          ASCIIToUTF16("foo.com"), ASCIIToUTF16(".com"));
 }
 
 TEST_F(HistoryQuickProviderTest, StartRelativeMatch) {
   std::vector<std::string> expected_urls;
   expected_urls.push_back("http://xyzabcdefghijklmnopqrstuvw.com/a");
-  RunTest(u"xyza", false, expected_urls, true,
-          u"xyzabcdefghijklmnopqrstuvw.com/a", u"bcdefghijklmnopqrstuvw.com/a");
+  RunTest(ASCIIToUTF16("xyza"), false, expected_urls, true,
+          ASCIIToUTF16("xyzabcdefghijklmnopqrstuvw.com/a"),
+              ASCIIToUTF16("bcdefghijklmnopqrstuvw.com/a"));
 }
 
 TEST_F(HistoryQuickProviderTest, EncodingMatch) {
   std::vector<std::string> expected_urls;
   expected_urls.push_back("http://spaces.com/path%20with%20spaces/foo.html");
-  RunTest(u"path with spaces", false, expected_urls, false,
-          u"spaces.com/path with spaces/foo.html", std::u16string());
+  RunTest(ASCIIToUTF16("path with spaces"), false, expected_urls, false,
+          ASCIIToUTF16("spaces.com/path with spaces/foo.html"),
+          base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest, ContentsClass) {
@@ -573,19 +570,19 @@ TEST_F(HistoryQuickProviderTest, ContentsClass) {
       "http://ja.wikipedia.org/wiki/%E7%AC%AC%E4%BA%8C%E6%AC%A1%E4%B8%96%E7"
       "%95%8C%E5%A4%A7%E6%88%A6#.E3.83.B4.E3.82.A7.E3.83.AB.E3.82.B5.E3.82."
       "A4.E3.83.A6.E4.BD.93.E5.88.B6");
-  RunTest(u"第二 e3", false, expected_urls, false,
-          u"ja.wikipedia.org/wiki/第二次世界大戦#.E3.83.B4.E3."
-          u"82.A7.E3.83.AB.E3.82.B5.E3.82.A4.E3.83.A6.E4.BD."
-          u"93.E5.88.B6",
-          std::u16string());
+  RunTest(base::UTF8ToUTF16("第二 e3"), false, expected_urls, false,
+          base::UTF8ToUTF16("ja.wikipedia.org/wiki/第二次世界大戦#.E3.83.B4.E3."
+                            "82.A7.E3.83.AB.E3.82.B5.E3.82.A4.E3.83.A6.E4.BD."
+                            "93.E5.88.B6"),
+          base::string16());
 #if DCHECK_IS_ON()
   ac_matches()[0].Validate();
 #endif  // DCHECK_IS_ON();
   // Verify that contents_class divides the string in the right places.
   // [22, 24) is the "第二".  All the other pairs are the "e3".
   ACMatchClassifications contents_class(ac_matches()[0].contents_class);
-  size_t expected_offsets[] = {0,  22, 24, 31, 33, 40, 42, 49,
-                               51, 58, 60, 67, 69, 76, 78};
+  size_t expected_offsets[] = { 0, 22, 24, 31, 33, 40, 42, 49, 51, 58, 60, 67,
+                                69, 76, 78 };
   // ScoredHistoryMatch may not highlight all the occurrences of these terms
   // because it only highlights terms at word breaks, and it only stores word
   // breaks up to some specified number of characters (50 at the time of this
@@ -593,7 +590,7 @@ TEST_F(HistoryQuickProviderTest, ContentsClass) {
   // increase that number in the future.  Regardless, we require the first
   // five offsets to be correct--in this example these cover at least one
   // occurrence of each term.
-  EXPECT_LE(contents_class.size(), std::size(expected_offsets));
+  EXPECT_LE(contents_class.size(), base::size(expected_offsets));
   EXPECT_GE(contents_class.size(), 5u);
   for (size_t i = 0; i < contents_class.size(); ++i)
     EXPECT_EQ(expected_offsets[i], contents_class[i].offset);
@@ -604,8 +601,9 @@ TEST_F(HistoryQuickProviderTest, VisitCountMatches) {
   expected_urls.push_back("http://visitedest.com/y/a");
   expected_urls.push_back("http://visitedest.com/y/b");
   expected_urls.push_back("http://visitedest.com/x/c");
-  RunTest(u"visitedest", false, expected_urls, true, u"visitedest.com/y/a",
-          u".com/y/a");
+  RunTest(ASCIIToUTF16("visitedest"), false, expected_urls, true,
+          ASCIIToUTF16("visitedest.com/y/a"),
+                    ASCIIToUTF16(".com/y/a"));
 }
 
 TEST_F(HistoryQuickProviderTest, TypedCountMatches) {
@@ -613,8 +611,9 @@ TEST_F(HistoryQuickProviderTest, TypedCountMatches) {
   expected_urls.push_back("http://typeredest.com/y/a");
   expected_urls.push_back("http://typeredest.com/y/b");
   expected_urls.push_back("http://typeredest.com/x/c");
-  RunTest(u"typeredest", false, expected_urls, true, u"typeredest.com/y/a",
-          u".com/y/a");
+  RunTest(ASCIIToUTF16("typeredest"), false, expected_urls, true,
+          ASCIIToUTF16("typeredest.com/y/a"),
+                    ASCIIToUTF16(".com/y/a"));
 }
 
 TEST_F(HistoryQuickProviderTest, DaysAgoMatches) {
@@ -622,8 +621,9 @@ TEST_F(HistoryQuickProviderTest, DaysAgoMatches) {
   expected_urls.push_back("http://daysagoest.com/y/a");
   expected_urls.push_back("http://daysagoest.com/y/b");
   expected_urls.push_back("http://daysagoest.com/x/c");
-  RunTest(u"daysagoest", false, expected_urls, true, u"daysagoest.com/y/a",
-          u".com/y/a");
+  RunTest(ASCIIToUTF16("daysagoest"), false, expected_urls, true,
+          ASCIIToUTF16("daysagoest.com/y/a"),
+                    ASCIIToUTF16(".com/y/a"));
 }
 
 TEST_F(HistoryQuickProviderTest, EncodingLimitMatch) {
@@ -631,13 +631,15 @@ TEST_F(HistoryQuickProviderTest, EncodingLimitMatch) {
   std::string url(
       "http://cda.com/Dogs%20Cats%20Gorillas%20Sea%20Slugs%20and%20Mice");
   // First check that a mid-word match yield no results.
-  RunTest(u"ice", false, expected_urls, false,
-          u"cda.com/Dogs Cats Gorillas Sea Slugs and Mice", std::u16string());
+  RunTest(ASCIIToUTF16("ice"), false, expected_urls, false,
+          ASCIIToUTF16("cda.com/Dogs Cats Gorillas Sea Slugs and Mice"),
+          base::string16());
   // Then check that we get results when the match is at a word start
   // that is present because of an encoded separate (%20 = space).
   expected_urls.push_back(url);
-  RunTest(u"Mice", false, expected_urls, false,
-          u"cda.com/Dogs Cats Gorillas Sea Slugs and Mice", std::u16string());
+  RunTest(ASCIIToUTF16("Mice"), false, expected_urls, false,
+          ASCIIToUTF16("cda.com/Dogs Cats Gorillas Sea Slugs and Mice"),
+          base::string16());
   // Verify that the matches' ACMatchClassifications offsets are in range.
   ACMatchClassifications content(ac_matches()[0].contents_class);
   // The max offset accounts for 6 occurrences of '%20' plus the 'http://'.
@@ -708,8 +710,9 @@ TEST_F(HistoryQuickProviderTest, DeleteMatch) {
   std::vector<std::string> expected_urls;
   expected_urls.push_back(test_url.spec());
   // Fill up ac_matches_; we don't really care about the test yet.
-  RunTest(u"slashdot", false, expected_urls, true,
-          u"slashdot.org/favorite_page.html", u".org/favorite_page.html");
+  RunTest(ASCIIToUTF16("slashdot"), false, expected_urls, true,
+          ASCIIToUTF16("slashdot.org/favorite_page.html"),
+                  ASCIIToUTF16(".org/favorite_page.html"));
   EXPECT_EQ(1U, ac_matches().size());
   EXPECT_TRUE(GetURLProxy(test_url));
   provider().DeleteMatch(ac_matches()[0]);
@@ -726,8 +729,8 @@ TEST_F(HistoryQuickProviderTest, DeleteMatch) {
   // Just to be on the safe side, explicitly verify that we have deleted enough
   // data so that we will not be serving the same result again.
   expected_urls.clear();
-  RunTest(u"slashdot", false, expected_urls, true, u"NONE EXPECTED",
-          std::u16string());
+  RunTest(ASCIIToUTF16("slashdot"), false, expected_urls, true,
+          ASCIIToUTF16("NONE EXPECTED"), base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest, PreventBeatingURLWhatYouTypedMatch) {
@@ -739,15 +742,16 @@ TEST_F(HistoryQuickProviderTest, PreventBeatingURLWhatYouTypedMatch) {
   // before, we should make sure that all HistoryQuickProvider results
   // have scores less than what HistoryURLProvider will assign the
   // URL-what-you-typed match.
-  RunTest(u"popularsitewithroot.com", false, expected_urls, true,
-          u"popularsitewithroot.com", std::u16string());
+  RunTest(ASCIIToUTF16("popularsitewithroot.com"), false, expected_urls, true,
+          ASCIIToUTF16("popularsitewithroot.com"), base::string16());
   EXPECT_LT(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForBestInlineableResult);
 
   // Check that if the user didn't quite enter the full hostname, this
   // hostname would've normally scored above the URL-what-you-typed match.
-  RunTest(u"popularsitewithroot.c", false, expected_urls, true,
-          u"popularsitewithroot.com", u"om");
+  RunTest(ASCIIToUTF16("popularsitewithroot.c"), false, expected_urls, true,
+          ASCIIToUTF16("popularsitewithroot.com"),
+                               ASCIIToUTF16("om"));
   EXPECT_GE(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForWhatYouTypedResult);
 
@@ -757,30 +761,36 @@ TEST_F(HistoryQuickProviderTest, PreventBeatingURLWhatYouTypedMatch) {
   // but never visited the root page of, we should make sure that all
   // HistoryQuickProvider results have scores less than what the
   // HistoryURLProvider will assign the URL-what-you-typed match.
-  RunTest(u"popularsitewithpathonly.com", false, expected_urls, true,
-          u"popularsitewithpathonly.com/moo", u"/moo");
+  RunTest(ASCIIToUTF16("popularsitewithpathonly.com"), false, expected_urls,
+          true,
+          ASCIIToUTF16("popularsitewithpathonly.com/moo"),
+                                     ASCIIToUTF16("/moo"));
   EXPECT_LT(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForUnvisitedIntranetResult);
 
   // Verify the same thing happens if the user adds a / to end of the
   // hostname.
-  RunTest(u"popularsitewithpathonly.com/", false, expected_urls, true,
-          u"popularsitewithpathonly.com/moo", u"moo");
+  RunTest(ASCIIToUTF16("popularsitewithpathonly.com/"), false, expected_urls,
+          true, ASCIIToUTF16("popularsitewithpathonly.com/moo"),
+                                            ASCIIToUTF16("moo"));
   EXPECT_LT(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForUnvisitedIntranetResult);
 
   // Check that if the user didn't quite enter the full hostname, this
   // page would've normally scored above the URL-what-you-typed match.
-  RunTest(u"popularsitewithpathonly.co", false, expected_urls, true,
-          u"popularsitewithpathonly.com/moo", u"m/moo");
+  RunTest(ASCIIToUTF16("popularsitewithpathonly.co"), false, expected_urls,
+          true, ASCIIToUTF16("popularsitewithpathonly.com/moo"),
+                                          ASCIIToUTF16("m/moo"));
   EXPECT_GE(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForWhatYouTypedResult);
 
   // If the user enters a hostname + path that they have not visited
   // before (but visited other things on the host), we can allow
   // inline autocompletions.
-  RunTest(u"popularsitewithpathonly.com/mo", false, expected_urls, true,
-          u"popularsitewithpathonly.com/moo", u"o");
+  RunTest(ASCIIToUTF16("popularsitewithpathonly.com/mo"), false, expected_urls,
+          true,
+          ASCIIToUTF16("popularsitewithpathonly.com/moo"),
+                                        ASCIIToUTF16("o"));
   EXPECT_GE(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForWhatYouTypedResult);
 
@@ -788,8 +798,9 @@ TEST_F(HistoryQuickProviderTest, PreventBeatingURLWhatYouTypedMatch) {
   // before, we should make sure that all HistoryQuickProvider results
   // have scores less than what the HistoryURLProvider will assign
   // the URL-what-you-typed match.
-  RunTest(u"popularsitewithpathonly.com/moo", false, expected_urls, true,
-          u"popularsitewithpathonly.com/moo", std::u16string());
+  RunTest(ASCIIToUTF16("popularsitewithpathonly.com/moo"), false,
+          expected_urls, true,
+          ASCIIToUTF16("popularsitewithpathonly.com/moo"), base::string16());
   EXPECT_LT(ac_matches()[0].relevance,
             HistoryURLProvider::kScoreForBestInlineableResult);
 }
@@ -800,312 +811,127 @@ TEST_F(HistoryQuickProviderTest, PreventInlineAutocomplete) {
 
   // Check that the desired URL is normally allowed to be the default match
   // against input that is a prefex of the URL.
-  RunTest(u"popularsitewithr", false, expected_urls, true,
-          u"popularsitewithroot.com", u"oot.com");
+  RunTest(ASCIIToUTF16("popularsitewithr"), false, expected_urls, true,
+          ASCIIToUTF16("popularsitewithroot.com"),
+                          ASCIIToUTF16("oot.com"));
 
   // Check that it's not allowed to be the default match if
   // prevent_inline_autocomplete is true.
-  RunTest(u"popularsitewithr", true, expected_urls, false,
-          u"popularsitewithroot.com", u"oot.com");
+  RunTest(ASCIIToUTF16("popularsitewithr"), true, expected_urls, false,
+          ASCIIToUTF16("popularsitewithroot.com"),
+                          ASCIIToUTF16("oot.com"));
 
   // But the exact hostname can still match even if prevent inline autocomplete
   // is true.  i.e., there's no autocompletion necessary; this is effectively
   // URL-what-you-typed.
-  RunTest(u"popularsitewithroot.com", true, expected_urls, true,
-          u"popularsitewithroot.com", std::u16string());
+  RunTest(ASCIIToUTF16("popularsitewithroot.com"), true, expected_urls, true,
+          ASCIIToUTF16("popularsitewithroot.com"), base::string16());
 
   // The above still holds even with an extra trailing slash.
-  RunTest(u"popularsitewithroot.com/", true, expected_urls, true,
-          u"popularsitewithroot.com", std::u16string());
+  RunTest(ASCIIToUTF16("popularsitewithroot.com/"), true, expected_urls, true,
+          ASCIIToUTF16("popularsitewithroot.com"), base::string16());
 }
 
 TEST_F(HistoryQuickProviderTest, DoesNotProvideMatchesOnFocus) {
-  AutocompleteInput input(u"popularsite", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(ASCIIToUTF16("popularsite"),
+                          metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  input.set_focus_type(OmniboxFocusType::ON_FOCUS);
   provider().Start(input, false);
   EXPECT_TRUE(provider().matches().empty());
 }
 
 ScoredHistoryMatch BuildScoredHistoryMatch(const std::string& url_text,
-                                           const std::u16string& input_term) {
+                                           const std::string& input_term) {
   return ScoredHistoryMatch(history::URLRow(GURL(url_text)), VisitInfoVector(),
-                            input_term, String16Vector(1, input_term),
-                            WordStarts(1, 0), RowWordStarts(), false, 0, false,
+                            base::UTF8ToUTF16(input_term),
+                            String16Vector(1, base::UTF8ToUTF16(input_term)),
+                            WordStarts(1, 0), RowWordStarts(), false, 0,
                             base::Time());
 }
 
 // Trim the http:// scheme from the contents in the general case.
 TEST_F(HistoryQuickProviderTest, DoTrimHttpScheme) {
-  AutocompleteInput input(u"face", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(ASCIIToUTF16("face"),
+                          metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
   provider().Start(input, false);
   ScoredHistoryMatch history_match =
-      BuildScoredHistoryMatch("http://www.facebook.com", u"face");
+      BuildScoredHistoryMatch("http://www.facebook.com", "face");
 
-  AutocompleteMatch match = QuickMatchToACMatch(history_match, 100);
-  EXPECT_EQ(u"facebook.com", match.contents);
+  AutocompleteMatch match = provider().QuickMatchToACMatch(history_match, 100);
+  EXPECT_EQ(ASCIIToUTF16("facebook.com"), match.contents);
 }
 
 // Don't trim the http:// scheme from the match contents if
 // the user input included a scheme.
 TEST_F(HistoryQuickProviderTest, DontTrimHttpSchemeIfInputHasScheme) {
-  AutocompleteInput input(u"http://face", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(ASCIIToUTF16("http://face"),
+                          metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
   provider().Start(input, false);
   ScoredHistoryMatch history_match =
-      BuildScoredHistoryMatch("http://www.facebook.com", u"http://face");
+      BuildScoredHistoryMatch("http://www.facebook.com", "http://face");
 
-  AutocompleteMatch match = QuickMatchToACMatch(history_match, 100);
-  EXPECT_EQ(u"http://facebook.com", match.contents);
+  AutocompleteMatch match = provider().QuickMatchToACMatch(history_match, 100);
+  EXPECT_EQ(ASCIIToUTF16("http://facebook.com"), match.contents);
 }
 
 // Don't trim the http:// scheme from the match contents if
 // the user input matched it.
 TEST_F(HistoryQuickProviderTest, DontTrimHttpSchemeIfInputMatches) {
-  AutocompleteInput input(u"ht", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(ASCIIToUTF16("ht"), metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
   provider().Start(input, false);
   ScoredHistoryMatch history_match =
-      BuildScoredHistoryMatch("http://www.facebook.com", u"ht");
+      BuildScoredHistoryMatch("http://www.facebook.com", "ht");
   history_match.match_in_scheme = true;
 
-  AutocompleteMatch match = QuickMatchToACMatch(history_match, 100);
-  EXPECT_EQ(u"http://facebook.com", match.contents);
+  AutocompleteMatch match = provider().QuickMatchToACMatch(history_match, 100);
+  EXPECT_EQ(ASCIIToUTF16("http://facebook.com"), match.contents);
 }
 
 // Don't trim the https:// scheme from the match contents if the user input
 // included a scheme.
 TEST_F(HistoryQuickProviderTest, DontTrimHttpsSchemeIfInputHasScheme) {
-  AutocompleteInput input(u"https://face", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(ASCIIToUTF16("https://face"),
+                          metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
   provider().Start(input, false);
   ScoredHistoryMatch history_match =
-      BuildScoredHistoryMatch("https://www.facebook.com", u"https://face");
+      BuildScoredHistoryMatch("https://www.facebook.com", "https://face");
 
-  AutocompleteMatch match = QuickMatchToACMatch(history_match, 100);
-  EXPECT_EQ(u"https://facebook.com", match.contents);
+  AutocompleteMatch match = provider().QuickMatchToACMatch(history_match, 100);
+  EXPECT_EQ(ASCIIToUTF16("https://facebook.com"), match.contents);
 }
 
 // Trim the https:// scheme from the match contents if nothing prevents it.
 TEST_F(HistoryQuickProviderTest, DoTrimHttpsScheme) {
-  AutocompleteInput input(u"face", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(ASCIIToUTF16("face"),
+                          metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
   provider().Start(input, false);
   ScoredHistoryMatch history_match =
-      BuildScoredHistoryMatch("https://www.facebook.com", u"face");
+      BuildScoredHistoryMatch("https://www.facebook.com", "face");
 
-  AutocompleteMatch match = QuickMatchToACMatch(history_match, 100);
-  EXPECT_EQ(u"facebook.com", match.contents);
+  AutocompleteMatch match = provider().QuickMatchToACMatch(history_match, 100);
+  EXPECT_EQ(ASCIIToUTF16("facebook.com"), match.contents);
 }
 
 TEST_F(HistoryQuickProviderTest, CorrectAutocompleteWithTrailingSlash) {
-  AutocompleteInput input(u"cr/", metrics::OmniboxEventProto::OTHER,
-                          TestSchemeClassifier());
-  provider().Start(input, false);
+  provider().autocomplete_input_ = AutocompleteInput(
+      base::ASCIIToUTF16("cr/"), metrics::OmniboxEventProto::OTHER,
+      TestSchemeClassifier());
   RowWordStarts word_starts;
   word_starts.url_word_starts_ = {0};
   ScoredHistoryMatch sh_match(history::URLRow(GURL("http://cr/")),
-                              VisitInfoVector(), u"cr/", {u"cr"}, {0},
-                              word_starts, false, 0, false, base::Time());
-  AutocompleteMatch ac_match(QuickMatchToACMatch(sh_match, 0));
-  EXPECT_EQ(u"cr/", ac_match.fill_into_edit);
-  EXPECT_EQ(u"", ac_match.inline_autocompletion);
+                              VisitInfoVector(), ASCIIToUTF16("cr/"),
+                              {ASCIIToUTF16("cr")}, {0}, word_starts, false, 0,
+                              base::Time());
+  AutocompleteMatch ac_match(provider().QuickMatchToACMatch(sh_match, 0));
+  EXPECT_EQ(base::ASCIIToUTF16("cr/"), ac_match.fill_into_edit);
+  EXPECT_EQ(base::ASCIIToUTF16(""), ac_match.inline_autocompletion);
   EXPECT_TRUE(ac_match.allowed_to_be_default_match);
-}
-
-TEST_F(HistoryQuickProviderTest, KeywordModeExtractUserInput) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(omnibox::kSiteSearchStarterPack);
-
-  // Populate template URL with starter pack entries
-  std::vector<std::unique_ptr<TemplateURLData>> turls =
-      TemplateURLStarterPackData::GetStarterPackEngines();
-  for (auto& turl : turls) {
-    client().GetTemplateURLService()->Add(
-        std::make_unique<TemplateURL>(std::move(*turl)));
-  }
-  // Test result for user text "google", we should get back a result for google.
-  AutocompleteInput input(u"google", metrics::OmniboxEventProto::OTHER,
-                          TestSchemeClassifier());
-  provider().Start(input, false);
-  if (!provider().done())
-    base::RunLoop().Run();
-
-  ACMatches matches = provider().matches();
-  ASSERT_GT(matches.size(), 0u);
-  EXPECT_EQ(GURL("http://www.google.com/"), matches[0].destination_url);
-
-  // Test result for "@history google" while NOT in keyword mode, we should not
-  // get a result for google since we're searching for the whole input text
-  // including "@history".
-  AutocompleteInput input2(u"@history google",
-                           metrics::OmniboxEventProto::OTHER,
-                           TestSchemeClassifier());
-  provider().Start(input2, false);
-  if (!provider().done())
-    base::RunLoop().Run();
-
-  matches = provider().matches();
-  ASSERT_EQ(matches.size(), 0u);
-
-  // Turn on keyword mode, test result again, we should get back the result for
-  // google.com since we're searching only for the user text after the keyword.
-  input2.set_prefer_keyword(true);
-  input2.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
-  provider().Start(input2, false);
-  if (!provider().done())
-    base::RunLoop().Run();
-
-  matches = provider().matches();
-  ASSERT_GT(matches.size(), 0u);
-  EXPECT_EQ(GURL("http://www.google.com/"), matches[0].destination_url);
-  EXPECT_TRUE(matches[0].from_keyword);
-
-  // Ensure keyword and transition are set properly to keep user in keyword
-  // mode.
-  EXPECT_EQ(matches[0].keyword, u"@history");
-  EXPECT_TRUE(PageTransitionCoreTypeIs(matches[0].transition,
-                                       ui::PAGE_TRANSITION_KEYWORD));
-}
-
-TEST_F(HistoryQuickProviderTest,
-       QuickMatchToACMatch_HideUrlForDocumentSuggestion) {
-  AutocompleteInput input(u"face", metrics::OmniboxEventProto::OTHER,
-                          TestSchemeClassifier());
-  provider().Start(input, false);
-  ScoredHistoryMatch history_match = BuildScoredHistoryMatch(
-      "https://docs.google.com/a/google.com/document/d/tH3_d0C-1d/edit",
-      u"doc");
-
-  AutocompleteMatch match = QuickMatchToACMatch(history_match, 100);
-  EXPECT_TRUE(match.contents.empty());
-}
-
-TEST_F(HistoryQuickProviderTest, MaxMatches) {
-  // Keyword mode is off. We should only get provider_max_matches_ matches.
-  AutocompleteInput input(u"somedomain.com", metrics::OmniboxEventProto::OTHER,
-                          TestSchemeClassifier());
-  provider().Start(input, false);
-
-  ACMatches matches = provider().matches();
-  EXPECT_EQ(matches.size(), provider().provider_max_matches());
-
-  // Turn keyword mode on. we should be able to get more matches now.
-  input.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
-  input.set_prefer_keyword(true);
-  provider().Start(input, false);
-
-  matches = provider().matches();
-  EXPECT_EQ(matches.size(), provider().provider_max_matches_in_keyword_mode());
-}
-
-class HQPDomainSuggestionsTest : public HistoryQuickProviderTest {
- protected:
-  std::vector<TestURLInfo> GetTestData() override {
-    return {
-        // Popular domain spread across 4 2-typed and 3 1-typed visits.
-        {"http://www.Dilijan.com/1", "Dilijan 1", 100, 2, 101},
-        {"http://www.Dilijan.com/2", "Dilijan 2", 100, 2, 102},
-        {"http://www.Dilijan.com/3", "Dilijan 3", 100, 2, 103},
-        {"http://www.Dilijan.com/4", "Dilijan 4", 100, 2, 104},
-        {"http://www.Dilijan.com/5", "Dilijan 5", 100, 1, 105},
-        {"http://www.Dilijan.com/6", "Dilijan 6", 100, 1, 106},
-        {"http://www.Dilijan.com/7", "Dilijan 7", 100, 1, 107},
-        // Popular domain spread across 2 3-typed and 5 1-typed visits.
-        {"http://www.Geghard.com/1", "Geghard 1", 100, 3, 101},
-        {"http://www.Geghard.com/2", "Geghard 2", 100, 3, 102},
-        {"http://www.Geghard.com/3", "Geghard 3", 100, 1, 103},
-        {"http://www.Geghard.com/4", "Geghard 4", 100, 1, 104},
-        {"http://www.Geghard.com/5", "Geghard 5", 100, 1, 105},
-        {"http://www.Geghard.com/6", "Geghard 6", 100, 1, 106},
-        {"http://www.Geghard.com/7", "Geghard 7", 100, 1, 107},
-        // Unpopular domain despite a 100-typed and 6 1-typed visits. Popular
-        // domains require at least 4 capped & offset typed visits, where each
-        // URL's typed visits are offset by 1 and capped at 2.
-        {"http://www.Tatev.com/1", "Tatev 1", 100, 100, 101},
-        {"http://www.Tatev.com/2", "Tatev 2", 100, 1, 102},
-        {"http://www.Tatev.com/3", "Tatev 3", 100, 1, 103},
-        {"http://www.Tatev.com/4", "Tatev 4", 100, 1, 104},
-        {"http://www.Tatev.com/5", "Tatev 5", 100, 1, 105},
-        {"http://www.Tatev.com/6", "Tatev 6", 100, 1, 106},
-        {"http://www.Tatev.com/7", "Tatev 7", 100, 1, 107},
-        // Unpopular domain despite a 6 100-typed and 1 0-typed visits. Popular
-        // domains require at least 7 1-typed visits.
-        {"http://www.Gyumri.com/1", "Gyumri 1", 100, 100, 101},
-        {"http://www.Gyumri.com/2", "Gyumri 2", 100, 100, 102},
-        {"http://www.Gyumri.com/3", "Gyumri 3", 100, 100, 103},
-        {"http://www.Gyumri.com/4", "Gyumri 4", 100, 100, 104},
-        {"http://www.Gyumri.com/5", "Gyumri 5", 100, 100, 105},
-        {"http://www.Gyumri.com/6", "Gyumri 6", 100, 100, 106},
-        {"http://www.Gyumri.com/7", "Gyumri 7", 100, 0, 107},
-    };
-  }
-};
-
-TEST_F(HQPDomainSuggestionsTest, DomainSuggestions) {
-  const auto test = [&](const std::u16string& input_text, bool input_keyword,
-                        std::vector<std::u16string> expected_matches) {
-    AutocompleteInput input(input_text, metrics::OmniboxEventProto::OTHER,
-                            TestSchemeClassifier());
-    input.set_keyword_mode_entry_method(
-        input_keyword
-            ? metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB
-            : metrics::OmniboxEventProto_KeywordModeEntryMethod_INVALID);
-    input.set_prefer_keyword(input_keyword);
-
-    provider().Start(input, false);
-    auto matches = provider().matches();
-    std::vector<std::u16string> match_titles;
-    base::ranges::transform(
-        matches, std::back_inserter(match_titles),
-        [](const auto& match) { return match.description; });
-    EXPECT_THAT(match_titles, testing::ElementsAreArray(expected_matches))
-        << "input_text: " << input_text << ", input_keyword: " << input_keyword;
-  };
-
-  // When matching a popular domain, its top 3 suggestions should be suggested
-  // twice: 1st from the overall pass, 2nd from domain pass. They should each be
-  // limited to individually, 3 matches for the 1st, 2 matches for the latter.
-  // Duplicates aren't necessary behavior, just a harmless side effect. The
-  // domain algorithm may change in the future to not add duplicates.
-  test(u"Dilijan", false,
-       {u"Dilijan 1", u"Dilijan 2", u"Dilijan 3", u"Dilijan 1", u"Dilijan 2"});
-
-  // Like above, but when only some of its suggestions match, only those should
-  // be suggested by both the overall and domain passes.
-  test(u"Dilijan 1", false, {u"Dilijan 1", u"Dilijan 1"});
-
-  // Domains with more than 4 typed visits should be considered popular.
-  test(u"Geghard", false,
-       {u"Geghard 1", u"Geghard 2", u"Geghard 3", u"Geghard 1", u"Geghard 2"});
-
-  // Domains with more than 4 typed visits but less than 4 capped typed visits
-  // should not be considered popular.
-  test(u"Tatev", false, {u"Tatev 1", u"Tatev 2", u"Tatev 3"});
-
-  // Domains with more than 7 visits, but less than 7 1-typed visits should not
-  // be considered popular.
-  test(u"Gyumri", false, {u"Gyumri 1", u"Gyumri 2", u"Gyumri 3"});
-
-  // When matching multiple domains, the overall pass should suggest the top
-  // suggestion, even if some of them aren't from a popular domain, then each
-  // domain's suggestions should be appended, each individually limited to 2.
-  test(u"www.", false,
-       {u"Gyumri 1", u"Tatev 1", u"Gyumri 2", u"Geghard 1", u"Geghard 2",
-        u"Dilijan 1", u"Dilijan 2"});
-
-  // Short inputs should not have domain suggestions.
-  test(u"Dil", false, {u"Dilijan 1", u"Dilijan 2", u"Dilijan 3"});
-
-  // Keyword inputs should not have domain suggestions, so we shouldn't see
-  // duplicates. But keyword inputs have a higher provider limit, so we should
-  // see all 7 matching suggestions.
-  test(u"Dilijan", true,
-       {u"Dilijan 1", u"Dilijan 2", u"Dilijan 3", u"Dilijan 4", u"Dilijan 5",
-        u"Dilijan 6", u"Dilijan 7"});
 }
 
 // HQPOrderingTest -------------------------------------------------------------
@@ -1168,7 +994,9 @@ TEST_F(HQPOrderingTest, TEMatch) {
   expected_urls.push_back("http://techmeme.com/");
   expected_urls.push_back("http://www.teamliquid.net/");
   expected_urls.push_back("http://www.teamliquid.net/tlpd");
-  RunTest(u"te", false, expected_urls, true, u"techmeme.com", u"chmeme.com");
+  RunTest(ASCIIToUTF16("te"), false, expected_urls, true,
+          ASCIIToUTF16("techmeme.com"),
+            ASCIIToUTF16("chmeme.com"));
 }
 
 TEST_F(HQPOrderingTest, TEAMatch) {
@@ -1176,6 +1004,7 @@ TEST_F(HQPOrderingTest, TEAMatch) {
   expected_urls.push_back("http://www.teamliquid.net/");
   expected_urls.push_back("http://www.teamliquid.net/tlpd");
   expected_urls.push_back("http://teamliquid.net/");
-  RunTest(u"tea", false, expected_urls, true, u"www.teamliquid.net",
-          u"mliquid.net");
+  RunTest(ASCIIToUTF16("tea"), false, expected_urls, true,
+          ASCIIToUTF16("www.teamliquid.net"),
+                 ASCIIToUTF16("mliquid.net"));
 }

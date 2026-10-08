@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -28,11 +29,6 @@ class WebViewGCMProfileServiceFactory : public BrowserStateKeyedServiceFactory {
 
   static WebViewGCMProfileServiceFactory* GetInstance();
 
-  WebViewGCMProfileServiceFactory(const WebViewGCMProfileServiceFactory&) =
-      delete;
-  WebViewGCMProfileServiceFactory& operator=(
-      const WebViewGCMProfileServiceFactory&) = delete;
-
   // Returns a string like "org.chromium.chromewebview" that should be used as
   // the GCM category when an app_id is sent as a subtype instead of as a
   // category. This string must never change during the lifetime of an install,
@@ -49,6 +45,8 @@ class WebViewGCMProfileServiceFactory : public BrowserStateKeyedServiceFactory {
   // BrowserStateKeyedServiceFactory:
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(WebViewGCMProfileServiceFactory);
 };
 
 }  // namespace ios_web_view

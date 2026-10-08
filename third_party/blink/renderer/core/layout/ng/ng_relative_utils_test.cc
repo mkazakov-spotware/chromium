@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,26 +22,24 @@ const LayoutUnit kZero{0};
 class NGRelativeUtilsTest : public testing::Test {
  protected:
   void SetUp() override {
-    initial_style_ = ComputedStyle::CreateInitialStyleSingleton();
+    style_ = ComputedStyle::Create();
+    style_->SetPosition(EPosition::kRelative);
   }
 
-  scoped_refptr<const ComputedStyle> CreateStyle(LayoutUnit top,
-                                                 LayoutUnit right,
-                                                 LayoutUnit bottom,
-                                                 LayoutUnit left) {
-    ComputedStyleBuilder builder(*initial_style_);
-    builder.SetPosition(EPosition::kRelative);
-    builder.SetTop(top == kAuto ? Length::Auto() : Length::Fixed(top.ToInt()));
-    builder.SetRight(right == kAuto ? Length::Auto()
+  void SetTRBL(LayoutUnit top,
+               LayoutUnit right,
+               LayoutUnit bottom,
+               LayoutUnit left) {
+    style_->SetTop(top == kAuto ? Length::Auto() : Length::Fixed(top.ToInt()));
+    style_->SetRight(right == kAuto ? Length::Auto()
                                     : Length::Fixed(right.ToInt()));
-    builder.SetBottom(bottom == kAuto ? Length::Auto()
+    style_->SetBottom(bottom == kAuto ? Length::Auto()
                                       : Length::Fixed(bottom.ToInt()));
-    builder.SetLeft(left == kAuto ? Length::Auto()
+    style_->SetLeft(left == kAuto ? Length::Auto()
                                   : Length::Fixed(left.ToInt()));
-    return builder.TakeStyle();
   }
 
-  scoped_refptr<const ComputedStyle> initial_style_;
+  scoped_refptr<ComputedStyle> style_;
   LogicalSize container_size_;
 };
 
@@ -49,35 +47,34 @@ TEST_F(NGRelativeUtilsTest, HorizontalTB) {
   LogicalOffset offset;
 
   // Everything auto defaults to kZero,kZero
-  scoped_refptr<const ComputedStyle> style =
-      CreateStyle(kAuto, kAuto, kAuto, kAuto);
+  SetTRBL(kAuto, kAuto, kAuto, kAuto);
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kHorizontalTb, TextDirection::kLtr},
+      *style_, {WritingMode::kHorizontalTb, TextDirection::kLtr},
       container_size_);
   EXPECT_EQ(offset.inline_offset, kZero);
   EXPECT_EQ(offset.block_offset, kZero);
 
   // Set all sides
-  style = CreateStyle(kTop, kRight, kBottom, kLeft);
+  SetTRBL(kTop, kRight, kBottom, kLeft);
 
   // kLtr
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kHorizontalTb, TextDirection::kLtr},
+      *style_, {WritingMode::kHorizontalTb, TextDirection::kLtr},
       container_size_);
   EXPECT_EQ(offset.inline_offset, kLeft);
   EXPECT_EQ(offset.block_offset, kTop);
 
   // kRtl
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kHorizontalTb, TextDirection::kRtl},
+      *style_, {WritingMode::kHorizontalTb, TextDirection::kRtl},
       container_size_);
   EXPECT_EQ(offset.inline_offset, kRight);
   EXPECT_EQ(offset.block_offset, kTop);
 
   // Set only non-default sides
-  style = CreateStyle(kAuto, kRight, kBottom, kAuto);
+  SetTRBL(kAuto, kRight, kBottom, kAuto);
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kHorizontalTb, TextDirection::kLtr},
+      *style_, {WritingMode::kHorizontalTb, TextDirection::kLtr},
       container_size_);
   EXPECT_EQ(offset.inline_offset, -kRight);
   EXPECT_EQ(offset.block_offset, -kBottom);
@@ -87,25 +84,27 @@ TEST_F(NGRelativeUtilsTest, VerticalRightLeft) {
   LogicalOffset offset;
 
   // Set all sides
-  scoped_refptr<const ComputedStyle> style =
-      CreateStyle(kTop, kRight, kBottom, kLeft);
+  SetTRBL(kTop, kRight, kBottom, kLeft);
 
   // kLtr
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kVerticalRl, TextDirection::kLtr}, container_size_);
+      *style_, {WritingMode::kVerticalRl, TextDirection::kLtr},
+      container_size_);
   EXPECT_EQ(offset.inline_offset, kTop);
   EXPECT_EQ(offset.block_offset, kRight);
 
   // kRtl
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kVerticalRl, TextDirection::kRtl}, container_size_);
+      *style_, {WritingMode::kVerticalRl, TextDirection::kRtl},
+      container_size_);
   EXPECT_EQ(offset.inline_offset, kBottom);
   EXPECT_EQ(offset.block_offset, kRight);
 
   // Set only non-default sides
-  style = CreateStyle(kAuto, kAuto, kBottom, kLeft);
+  SetTRBL(kAuto, kAuto, kBottom, kLeft);
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kVerticalRl, TextDirection::kLtr}, container_size_);
+      *style_, {WritingMode::kVerticalRl, TextDirection::kLtr},
+      container_size_);
   EXPECT_EQ(offset.inline_offset, -kBottom);
   EXPECT_EQ(offset.block_offset, -kLeft);
 }
@@ -114,25 +113,27 @@ TEST_F(NGRelativeUtilsTest, VerticalLeftRight) {
   LogicalOffset offset;
 
   // Set all sides
-  scoped_refptr<const ComputedStyle> style =
-      CreateStyle(kTop, kRight, kBottom, kLeft);
+  SetTRBL(kTop, kRight, kBottom, kLeft);
 
   // kLtr
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kVerticalLr, TextDirection::kLtr}, container_size_);
+      *style_, {WritingMode::kVerticalLr, TextDirection::kLtr},
+      container_size_);
   EXPECT_EQ(offset.inline_offset, kTop);
   EXPECT_EQ(offset.block_offset, kLeft);
 
   // kRtl
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kVerticalLr, TextDirection::kRtl}, container_size_);
+      *style_, {WritingMode::kVerticalLr, TextDirection::kRtl},
+      container_size_);
   EXPECT_EQ(offset.inline_offset, kBottom);
   EXPECT_EQ(offset.block_offset, kLeft);
 
   // Set only non-default sides
-  style = CreateStyle(kAuto, kRight, kBottom, kAuto);
+  SetTRBL(kAuto, kRight, kBottom, kAuto);
   offset = ComputeRelativeOffset(
-      *style, {WritingMode::kVerticalLr, TextDirection::kLtr}, container_size_);
+      *style_, {WritingMode::kVerticalLr, TextDirection::kLtr},
+      container_size_);
   EXPECT_EQ(offset.inline_offset, -kBottom);
   EXPECT_EQ(offset.block_offset, -kRight);
 }

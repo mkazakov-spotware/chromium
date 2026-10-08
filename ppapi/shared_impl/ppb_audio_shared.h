@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/sync_socket.h"
 #include "base/threading/simple_thread.h"
@@ -51,10 +52,6 @@ class PPAPI_SHARED_EXPORT PPB_Audio_Shared
       public base::DelegateSimpleThread::Delegate {
  public:
   PPB_Audio_Shared();
-
-  PPB_Audio_Shared(const PPB_Audio_Shared&) = delete;
-  PPB_Audio_Shared& operator=(const PPB_Audio_Shared&) = delete;
-
   virtual ~PPB_Audio_Shared();
 
   bool playing() const { return playing_; }
@@ -149,6 +146,8 @@ class PPAPI_SHARED_EXPORT PPB_Audio_Shared
 
   // Buffer index used to coordinate with the browser side audio receiver.
   uint32_t buffer_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(PPB_Audio_Shared);
 };
 
 }  // namespace ppapi

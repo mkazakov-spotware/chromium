@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,16 @@
 
 #include <string>
 
+#include "base/optional.h"
 #include "chrome/browser/nearby_sharing/attachment.h"
-#include "chromeos/ash/services/nearby/public/mojom/nearby_decoder_types.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "chromeos/services/nearby/public/mojom/nearby_decoder_types.mojom.h"
 
 // Represents a text attachment.
 class TextAttachment : public Attachment {
  public:
   using Type = sharing::mojom::TextMetadata::Type;
 
-  TextAttachment(Type type,
-                 std::string text_body,
-                 absl::optional<std::string> text_title,
-                 absl::optional<std::string> mime_type);
+  TextAttachment(Type type, std::string text_body);
   TextAttachment(int64_t id, Type type, std::string text_title, int64_t size);
   TextAttachment(const TextAttachment&);
   TextAttachment(TextAttachment&&);
@@ -34,7 +31,6 @@ class TextAttachment : public Attachment {
   // Attachment:
   void MoveToShareTarget(ShareTarget& share_target) override;
   const std::string& GetDescription() const override;
-  nearby_share::mojom::ShareType GetShareType() const override;
 
   void set_text_body(std::string text_body);
 
@@ -42,7 +38,6 @@ class TextAttachment : public Attachment {
   Type type_;
   std::string text_title_;
   std::string text_body_;
-  std::string mime_type_;
 };
 
 #endif  // CHROME_BROWSER_NEARBY_SHARING_TEXT_ATTACHMENT_H_

@@ -1,16 +1,17 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include "chrome/test/chromedriver/keycode_text_conversion.h"
 
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
 #include <algorithm>
 
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/test/chromedriver/chrome/ui_events.h"
-#include "chrome/test/chromedriver/keycode_text_conversion.h"
 #include "ui/base/x/x11_util.h"
 #include "ui/events/keycodes/keyboard_code_conversion_x.h"
 #include "ui/gfx/x/connection.h"
@@ -89,9 +90,9 @@ int KeyboardCodeToXKeyCode(ui::KeyboardCode key_code) {
   KeyCodeAndXKeyCode find;
   find.key_code = key_code;
   const KeyCodeAndXKeyCode* found = std::lower_bound(
-      kKeyCodeToXKeyCode, kKeyCodeToXKeyCode + std::size(kKeyCodeToXKeyCode),
+      kKeyCodeToXKeyCode, kKeyCodeToXKeyCode + base::size(kKeyCodeToXKeyCode),
       find);
-  if (found >= kKeyCodeToXKeyCode + std::size(kKeyCodeToXKeyCode) ||
+  if (found >= kKeyCodeToXKeyCode + base::size(kKeyCodeToXKeyCode) ||
       found->key_code != key_code)
     return -1;
   return found->x_key_code;
@@ -103,25 +104,28 @@ int KeyboardCodeToXKeyCode(ui::KeyboardCode key_code) {
 bool GetXModifierMask(x11::Connection* connection,
                       int modifier,
                       x11::KeyButMask* x_modifier) {
-  auto mod_map = connection->GetModifierMapping().Sync();
-  if (!mod_map) {
+  auto mod_map = connection->GetModifierMapping({}).Sync();
+  if (!mod_map)
     return false;
-  }
   bool found = false;
-  size_t key_idx = 0;
-  for (; !found && key_idx < mod_map->keycodes.size(); ++key_idx) {
-    auto key = mod_map->keycodes[key_idx];
-    auto keysym = x11::Connection::Get()->KeycodeToKeysym(key, 0);
-    found = (modifier == kAltKeyModifierMask &&
-             (keysym == XK_Alt_L || keysym == XK_Alt_R)) ||
-            (modifier == kMetaKeyModifierMask &&
-             (keysym == XK_Meta_L || keysym == XK_Meta_R)) ||
-            (modifier == kNumLockKeyModifierMask && keysym == XK_Num_Lock);
-  }
-  if (found) {
-    int max_mod_keys = mod_map->keycodes_per_modifier;
-    int mod_index = key_idx / max_mod_keys;
-    *x_modifier = static_cast<x11::KeyButMask>(1 << mod_index);
+  int max_mod_keys = mod_map->keycodes_per_modifier;
+  for (int mod_index = 0; mod_index <= 8; ++mod_index) {
+    for (int key_index = 0; key_index < max_mod_keys; ++key_index) {
+      auto key = mod_map->keycodes[mod_index * max_mod_keys + key_index];
+      auto keysym = x11::Connection::Get()->KeycodeToKeysym(key, 0);
+      if (modifier == kAltKeyModifierMask)
+        found = keysym == XK_Alt_L || keysym == XK_Alt_R;
+      else if (modifier == kMetaKeyModifierMask)
+        found = keysym == XK_Meta_L || keysym == XK_Meta_R;
+      else if (modifier == kNumLockKeyModifierMask)
+        found = keysym == XK_Num_Lock;
+      if (found) {
+        *x_modifier = static_cast<x11::KeyButMask>(1 << mod_index);
+        break;
+      }
+    }
+    if (found)
+      break;
   }
   return found;
 }
@@ -168,17 +172,17 @@ bool ConvertKeyCodeToText(ui::KeyboardCode key_code,
   }
   key_event.state = state;
   key_event.opcode = x11::KeyEvent::Press;
-  x11::Event event(false, std::move(key_event));
+  x11::Event event(std::move(key_event));
   uint16_t character = ui::GetCharacterFromXEvent(event);
-  if (character) {
-    *text = base::UTF16ToUTF8(std::u16string(1, character));
-  } else {
+
+  if (!character)
     *text = std::string();
-  }
+  else
+    *text = base::UTF16ToUTF8(base::string16(1, character));
   return true;
 }
 
-bool ConvertCharToKeyCode(char16_t key,
+bool ConvertCharToKeyCode(base::char16 key,
                           ui::KeyboardCode* key_code,
                           int* necessary_modifiers,
                           std::string* error_msg) {
@@ -187,7 +191,7 @@ bool ConvertCharToKeyCode(char16_t key,
                                      error_msg);
   }
 
-  std::string key_string(base::UTF16ToUTF8(std::u16string(1, key)));
+  std::string key_string(base::UTF16ToUTF8(base::string16(1, key)));
   bool found = false;
   ui::KeyboardCode test_code;
   int test_modifiers;

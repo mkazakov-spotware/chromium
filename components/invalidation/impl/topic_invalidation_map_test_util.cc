@@ -1,13 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/invalidation/impl/topic_invalidation_map_test_util.h"
 
-#include <base/containers/contains.h>
 #include <algorithm>
 
-namespace invalidation {
+#include "base/macros.h"
+
+namespace syncer {
 
 using ::testing::MakeMatcher;
 using ::testing::Matcher;
@@ -21,7 +22,6 @@ class TopicInvalidationMapEqMatcher
     : public MatcherInterface<const TopicInvalidationMap&> {
  public:
   explicit TopicInvalidationMapEqMatcher(const TopicInvalidationMap& expected);
-  ~TopicInvalidationMapEqMatcher() override = default;
 
   bool MatchAndExplain(const TopicInvalidationMap& lhs,
                        MatchResultListener* listener) const override;
@@ -30,32 +30,47 @@ class TopicInvalidationMapEqMatcher
 
  private:
   const TopicInvalidationMap expected_;
+
+  DISALLOW_COPY_AND_ASSIGN(TopicInvalidationMapEqMatcher);
 };
 
 TopicInvalidationMapEqMatcher::TopicInvalidationMapEqMatcher(
     const TopicInvalidationMap& expected)
     : expected_(expected) {}
 
+struct InvalidationEqPredicate {
+  explicit InvalidationEqPredicate(const Invalidation& inv1) : inv1_(inv1) {}
+
+  bool operator()(const Invalidation& inv2) { return inv1_.Equals(inv2); }
+
+  const Invalidation& inv1_;
+};
+
 bool TopicInvalidationMapEqMatcher::MatchAndExplain(
     const TopicInvalidationMap& actual,
     MatchResultListener* listener) const {
-  std::vector<Invalidation> expected_invalidations;
-  std::vector<Invalidation> actual_invalidations;
+  std::vector<syncer::Invalidation> expected_invalidations;
+  std::vector<syncer::Invalidation> actual_invalidations;
 
   expected_.GetAllInvalidations(&expected_invalidations);
   actual.GetAllInvalidations(&actual_invalidations);
 
-  std::vector<Invalidation> expected_only;
-  std::vector<Invalidation> actual_only;
+  std::vector<syncer::Invalidation> expected_only;
+  std::vector<syncer::Invalidation> actual_only;
 
   for (const auto& expected_invalidation : expected_invalidations) {
-    if (!base::Contains(actual_invalidations, expected_invalidation)) {
+    if (std::find_if(actual_invalidations.begin(), actual_invalidations.end(),
+                     InvalidationEqPredicate(expected_invalidation)) ==
+        actual_invalidations.end()) {
       expected_only.push_back(expected_invalidation);
     }
   }
 
   for (const auto& actual_invalidation : actual_invalidations) {
-    if (!base::Contains(expected_invalidations, actual_invalidation)) {
+    if (std::find_if(expected_invalidations.begin(),
+                     expected_invalidations.end(),
+                     InvalidationEqPredicate(actual_invalidation)) ==
+        expected_invalidations.end()) {
       actual_only.push_back(actual_invalidation);
     }
   }
@@ -98,4 +113,4 @@ Matcher<const TopicInvalidationMap&> Eq(const TopicInvalidationMap& expected) {
   return MakeMatcher(new TopicInvalidationMapEqMatcher(expected));
 }
 
-}  // namespace invalidation
+}  // namespace syncer

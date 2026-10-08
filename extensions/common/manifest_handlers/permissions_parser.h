@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 #define EXTENSIONS_COMMON_MANIFEST_HANDLERS_PERMISSIONS_PARSER_H_
 
 #include <memory>
-#include <string>
 
-#include "extensions/common/mojom/api_permission_id.mojom-shared.h"
+#include "base/strings/string16.h"
 #include "extensions/common/permissions/api_permission.h"
 #include "extensions/common/permissions/permission_set.h"
 
@@ -28,7 +27,7 @@ class PermissionsParser {
   ~PermissionsParser();
 
   // Parse the manifest-specified permissions.
-  bool Parse(Extension* extension, std::u16string* error);
+  bool Parse(Extension* extension, base::string16* error);
 
   // Finalize the permissions, setting the related manifest data on the
   // extension.
@@ -37,10 +36,10 @@ class PermissionsParser {
   // Modify the manifest permissions. These methods should only be used
   // during initialization and will DCHECK() for safety.
   static void AddAPIPermission(Extension* extension,
-                               mojom::APIPermissionID permission);
+                               APIPermission::ID permission);
   static void AddAPIPermission(Extension* extension, APIPermission* permission);
   static bool HasAPIPermission(const Extension* extension,
-                               mojom::APIPermissionID permission);
+                               APIPermission::ID permission);
   static void SetScriptableHosts(Extension* extension,
                                  const URLPatternSet& scriptable_hosts);
 

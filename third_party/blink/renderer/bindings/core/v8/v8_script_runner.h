@@ -26,7 +26,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_V8_SCRIPT_RUNNER_H_
 #define THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_V8_SCRIPT_RUNNER_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/public/mojom/v8_cache_options.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/sanitize_script_errors.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -40,18 +40,15 @@ class TextPosition;
 
 namespace blink {
 
-class ClassicScript;
-class ExecutionContext;
-class ModuleScript;
-class ModuleScriptCreationParams;
-class ReferrerScriptInfo;
 class ScriptEvaluationResult;
+class ExecutionContext;
+class KURL;
+class ModuleScript;
+class ReferrerScriptInfo;
+class ScriptFetchOptions;
+class ScriptSourceCode;
 class ScriptState;
-
-enum class ExecuteScriptPolicy {
-  kExecuteScriptWhenScriptsDisabled,
-  kDoNotExecuteScriptWhenScriptsDisabled
-};
+class SingleCachedMetadataHandler;
 
 class CORE_EXPORT V8ScriptRunner final {
   STATIC_ONLY(V8ScriptRunner);
@@ -74,7 +71,7 @@ class CORE_EXPORT V8ScriptRunner final {
 
     // Rethrow errors flag is false.
     static RethrowErrorsOption DoNotRethrow() {
-      return RethrowErrorsOption(absl::nullopt);
+      return RethrowErrorsOption(base::nullopt);
     }
 
     // Rethrow errors flag is true.
@@ -99,32 +96,45 @@ class CORE_EXPORT V8ScriptRunner final {
     String Message() const { return *message_; }
 
    private:
-    explicit RethrowErrorsOption(absl::optional<String> message)
+    explicit RethrowErrorsOption(base::Optional<String> message)
         : message_(std::move(message)) {}
 
     // `nullopt` <=> rethrow errors is false.
-    absl::optional<String> message_;
+    base::Optional<String> message_;
   };
 
   // For the following methods, the caller sites have to hold
   // a HandleScope and a ContextScope.
   static v8::MaybeLocal<v8::Script> CompileScript(
       ScriptState*,
-      const ClassicScript&,
-      v8::ScriptOrigin,
+      const ScriptSourceCode&,
+      SanitizeScriptErrors,
       v8::ScriptCompiler::CompileOptions,
-      v8::ScriptCompiler::NoCacheReason);
+      v8::ScriptCompiler::NoCacheReason,
+      const ReferrerScriptInfo&);
   static v8::MaybeLocal<v8::Module> CompileModule(
       v8::Isolate*,
-      const ModuleScriptCreationParams&,
+      const String& source,
+      SingleCachedMetadataHandler*,
+      const String& file_name,
       const WTF::TextPosition&,
       v8::ScriptCompiler::CompileOptions,
       v8::ScriptCompiler::NoCacheReason,
       const ReferrerScriptInfo&);
-  static ScriptEvaluationResult CompileAndRunScript(ScriptState*,
-                                                    ClassicScript*,
-                                                    ExecuteScriptPolicy,
-                                                    RethrowErrorsOption);
+  static ScriptEvaluationResult CompileAndRunScript(
+      v8::Isolate*,
+      ScriptState*,
+      ExecutionContext*,
+      const ScriptSourceCode&,
+      const KURL&,
+      SanitizeScriptErrors,
+      const ScriptFetchOptions&,
+      mojom::blink::V8CacheOptions,
+      RethrowErrorsOption);
+  static v8::MaybeLocal<v8::Value> CompileAndRunInternalScript(
+      v8::Isolate*,
+      ScriptState*,
+      const ScriptSourceCode&);
   static v8::MaybeLocal<v8::Value> CallAsConstructor(
       v8::Isolate*,
       v8::Local<v8::Object>,
@@ -135,7 +145,7 @@ class CORE_EXPORT V8ScriptRunner final {
                                                 ExecutionContext*,
                                                 v8::Local<v8::Value> receiver,
                                                 int argc,
-                                                v8::Local<v8::Value> argv[],
+                                                v8::Local<v8::Value> info[],
                                                 v8::Isolate*);
 
   // https://html.spec.whatwg.org/C/#run-a-module-script
@@ -159,11 +169,9 @@ class CORE_EXPORT V8ScriptRunner final {
   static void ReportException(v8::Isolate*, v8::Local<v8::Value> exception);
 
  private:
-  static v8::MaybeLocal<v8::Value> RunCompiledScript(
-      v8::Isolate*,
-      v8::Local<v8::Script>,
-      v8::Local<v8::Data> host_defined_options,
-      ExecutionContext*);
+  static v8::MaybeLocal<v8::Value> RunCompiledScript(v8::Isolate*,
+                                                     v8::Local<v8::Script>,
+                                                     ExecutionContext*);
 };
 
 }  // namespace blink

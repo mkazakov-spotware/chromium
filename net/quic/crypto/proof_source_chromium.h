@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 
 #include "base/compiler_specific.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "crypto/rsa_private_key.h"
 #include "net/base/net_export.h"
 #include "net/cert/x509_certificate.h"
-#include "net/third_party/quiche/src/quiche/quic/core/crypto/proof_source.h"
+#include "net/third_party/quiche/src/quic/core/crypto/proof_source.h"
 
 namespace net {
 
@@ -22,10 +23,6 @@ namespace net {
 class NET_EXPORT_PRIVATE ProofSourceChromium : public quic::ProofSource {
  public:
   ProofSourceChromium();
-
-  ProofSourceChromium(const ProofSourceChromium&) = delete;
-  ProofSourceChromium& operator=(const ProofSourceChromium&) = delete;
-
   ~ProofSourceChromium() override;
 
   // Initializes this object based on the certificate chain in |cert_path|,
@@ -44,11 +41,10 @@ class NET_EXPORT_PRIVATE ProofSourceChromium : public quic::ProofSource {
                 absl::string_view chlo_hash,
                 std::unique_ptr<Callback> callback) override;
 
-  quiche::QuicheReferenceCountedPointer<Chain> GetCertChain(
+  quic::QuicReferenceCountedPointer<Chain> GetCertChain(
       const quic::QuicSocketAddress& server_address,
       const quic::QuicSocketAddress& client_address,
-      const std::string& hostname,
-      bool* cert_matched_sni) override;
+      const std::string& hostname) override;
 
   void ComputeTlsSignature(
       const quic::QuicSocketAddress& server_address,
@@ -57,9 +53,6 @@ class NET_EXPORT_PRIVATE ProofSourceChromium : public quic::ProofSource {
       uint16_t signature_algorithm,
       absl::string_view in,
       std::unique_ptr<SignatureCallback> callback) override;
-
-  absl::InlinedVector<uint16_t, 8> SupportedTlsSignatureAlgorithms()
-      const override;
 
   TicketCrypter* GetTicketCrypter() override;
   void SetTicketCrypter(std::unique_ptr<TicketCrypter> ticket_crypter);
@@ -71,15 +64,15 @@ class NET_EXPORT_PRIVATE ProofSourceChromium : public quic::ProofSource {
       const std::string& server_config,
       quic::QuicTransportVersion quic_version,
       absl::string_view chlo_hash,
-      quiche::QuicheReferenceCountedPointer<quic::ProofSource::Chain>*
-          out_chain,
+      quic::QuicReferenceCountedPointer<quic::ProofSource::Chain>* out_chain,
       quic::QuicCryptoProof* proof);
 
   std::unique_ptr<crypto::RSAPrivateKey> private_key_;
-  CertificateList certs_in_file_;
-  quiche::QuicheReferenceCountedPointer<quic::ProofSource::Chain> chain_;
+  quic::QuicReferenceCountedPointer<quic::ProofSource::Chain> chain_;
   std::string signed_certificate_timestamp_;
   std::unique_ptr<TicketCrypter> ticket_crypter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProofSourceChromium);
 };
 
 }  // namespace net

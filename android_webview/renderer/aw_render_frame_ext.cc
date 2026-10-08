@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <map>
 #include <memory>
 
-#include "android_webview/common/aw_features.h"
-#include "android_webview/common/mojom/frame.mojom.h"
+#include "android_webview/common/aw_hit_test_data.h"
+#include "android_webview/common/render_view_messages.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -17,8 +17,9 @@
 #include "components/content_capture/common/content_capture_features.h"
 #include "components/content_capture/renderer/content_capture_sender.h"
 #include "content/public/renderer/render_frame.h"
-#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+#include "content/public/renderer/render_view.h"
 #include "third_party/blink/public/platform/web_security_origin.h"
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_element_collection.h"
 #include "third_party/blink/public/web/web_frame_widget.h"
@@ -41,12 +42,12 @@ const char kEmailPrefix[] = "mailto:";
 const char kPhoneNumberPrefix[] = "tel:";
 
 GURL GetAbsoluteUrl(const blink::WebNode& node,
-                    const std::u16string& url_fragment) {
+                    const base::string16& url_fragment) {
   return GURL(node.GetDocument().CompleteURL(
       blink::WebString::FromUTF16(url_fragment)));
 }
 
-std::u16string GetHref(const blink::WebElement& element) {
+base::string16 GetHref(const blink::WebElement& element) {
   // Get the actual 'href' attribute, which might relative if valid or can
   // possibly contain garbage otherwise, so not using absoluteLinkURL here.
   return element.GetAttribute("href").Utf16();
@@ -91,19 +92,18 @@ bool RemovePrefixAndAssignIfMatches(const base::StringPiece& prefix,
   return false;
 }
 
-void DistinguishAndAssignSrcLinkType(const GURL& url,
-                                     mojom::HitTestData* data) {
+void DistinguishAndAssignSrcLinkType(const GURL& url, AwHitTestData* data) {
   if (RemovePrefixAndAssignIfMatches(kAddressPrefix, url,
                                      &data->extra_data_for_type)) {
-    data->type = mojom::HitTestDataType::kGeo;
+    data->type = AwHitTestData::GEO_TYPE;
   } else if (RemovePrefixAndAssignIfMatches(kPhoneNumberPrefix, url,
                                             &data->extra_data_for_type)) {
-    data->type = mojom::HitTestDataType::kPhone;
+    data->type = AwHitTestData::PHONE_TYPE;
   } else if (RemovePrefixAndAssignIfMatches(kEmailPrefix, url,
                                             &data->extra_data_for_type)) {
-    data->type = mojom::HitTestDataType::kEmail;
+    data->type = AwHitTestData::EMAIL_TYPE;
   } else {
-    data->type = mojom::HitTestDataType::kSrcLink;
+    data->type = AwHitTestData::SRC_LINK_TYPE;
     data->extra_data_for_type = url.possibly_invalid_spec();
     if (!data->extra_data_for_type.empty())
       data->href = base::UTF8ToUTF16(data->extra_data_for_type);
@@ -113,7 +113,7 @@ void DistinguishAndAssignSrcLinkType(const GURL& url,
 void PopulateHitTestData(const GURL& absolute_link_url,
                          const GURL& absolute_image_url,
                          bool is_editable,
-                         mojom::HitTestData* data) {
+                         AwHitTestData* data) {
   // Note: Using GURL::is_empty instead of GURL:is_valid due to the
   // WebViewClassic allowing any kind of protocol which GURL::is_valid
   // disallows. Similar reasons for using GURL::possibly_invalid_spec instead of
@@ -129,15 +129,15 @@ void PopulateHitTestData(const GURL& absolute_link_url,
   if (has_link_url && !has_image_url && !is_javascript_scheme) {
     DistinguishAndAssignSrcLinkType(absolute_link_url, data);
   } else if (has_link_url && has_image_url && !is_javascript_scheme) {
-    data->type = mojom::HitTestDataType::kSrcImageLink;
+    data->type = AwHitTestData::SRC_IMAGE_LINK_TYPE;
     data->extra_data_for_type = data->img_src.possibly_invalid_spec();
     if (absolute_link_url.is_valid())
       data->href = base::UTF8ToUTF16(absolute_link_url.possibly_invalid_spec());
   } else if (!has_link_url && has_image_url) {
-    data->type = mojom::HitTestDataType::kImage;
+    data->type = AwHitTestData::IMAGE_TYPE;
     data->extra_data_for_type = data->img_src.possibly_invalid_spec();
   } else if (is_editable) {
-    data->type = mojom::HitTestDataType::kEditText;
+    data->type = AwHitTestData::EDIT_TEXT_TYPE;
     DCHECK_EQ(0u, data->extra_data_for_type.length());
   }
 }
@@ -164,7 +164,7 @@ AwRenderFrameExt::AwRenderFrameExt(content::RenderFrame* render_frame)
 
   // If we are the main frame register an additional mojo interface.
   if (render_frame->IsMainFrame()) {
-    registry_.AddInterface<mojom::LocalMainFrame>(base::BindRepeating(
+    registry_.AddInterface(base::BindRepeating(
         &AwRenderFrameExt::BindLocalMainFrame, base::Unretained(this)));
   }
 
@@ -200,30 +200,10 @@ AwRenderFrameExt* AwRenderFrameExt::FromRenderFrame(
   return render_frame_ext;
 }
 
-const mojo::AssociatedRemote<mojom::FrameHost>&
-AwRenderFrameExt::GetFrameHost() {
-  if (!frame_host_remote_) {
-    render_frame()->GetRemoteAssociatedInterfaces()->GetInterface(
-        &frame_host_remote_);
-  }
-
-  return frame_host_remote_;
-}
-
 bool AwRenderFrameExt::OnAssociatedInterfaceRequestForFrame(
     const std::string& interface_name,
     mojo::ScopedInterfaceEndpointHandle* handle) {
   return registry_.TryBindInterface(interface_name, handle);
-}
-
-void AwRenderFrameExt::DidCreateDocumentElement() {
-  if (!base::FeatureList::IsEnabled(
-          features::kWebViewHitTestInBlinkOnTouchStart)) {
-    return;
-  }
-  render_frame()->GetWebFrame()->AddHitTestOnTouchStartCallback(
-      base::BindRepeating(&AwRenderFrameExt::HandleHitTestResult,
-                          base::Unretained(this)));
 }
 
 void AwRenderFrameExt::DidCommitProvisionalLoad(
@@ -245,50 +225,73 @@ void AwRenderFrameExt::DidCommitProvisionalLoad(
   }
 }
 
+bool AwRenderFrameExt::OnMessageReceived(const IPC::Message& message) {
+  bool handled = true;
+  IPC_BEGIN_MESSAGE_MAP(AwRenderFrameExt, message)
+    IPC_MESSAGE_HANDLER(AwViewMsg_DocumentHasImages, OnDocumentHasImagesRequest)
+    IPC_MESSAGE_HANDLER(AwViewMsg_DoHitTest, OnDoHitTest)
+    IPC_MESSAGE_HANDLER(AwViewMsg_SetTextZoomFactor, OnSetTextZoomFactor)
+    IPC_MESSAGE_HANDLER(AwViewMsg_ResetScrollAndScaleState,
+                        OnResetScrollAndScaleState)
+    IPC_MESSAGE_HANDLER(AwViewMsg_SetInitialPageScale, OnSetInitialPageScale)
+    IPC_MESSAGE_HANDLER(AwViewMsg_SmoothScroll, OnSmoothScroll)
+    IPC_MESSAGE_UNHANDLED(handled = false)
+  IPC_END_MESSAGE_MAP()
+  return handled;
+}
+
+void AwRenderFrameExt::OnDocumentHasImagesRequest(uint32_t id) {
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+
+  // AwViewMsg_DocumentHasImages should only be sent to the main frame.
+  DCHECK(frame);
+  DCHECK(!frame->Parent());
+
+  const blink::WebElement child_img = GetImgChild(frame->GetDocument());
+  bool has_images = !child_img.IsNull();
+
+  Send(new AwViewHostMsg_DocumentHasImagesResponse(routing_id(), id,
+                                                   has_images));
+}
+
 void AwRenderFrameExt::FocusedElementChanged(const blink::WebElement& element) {
-  if (element.IsNull() || !render_frame())
+  if (element.IsNull() || !render_frame() || !render_frame()->GetRenderView())
     return;
 
-  auto data = mojom::HitTestData::New();
+  AwHitTestData data;
 
-  data->href = GetHref(element);
-  data->anchor_text = element.TextContent().Utf16();
+  data.href = GetHref(element);
+  data.anchor_text = element.TextContent().Utf16();
 
   GURL absolute_link_url;
   if (element.IsLink())
-    absolute_link_url = GetAbsoluteUrl(element, data->href);
+    absolute_link_url = GetAbsoluteUrl(element, data.href);
 
   GURL absolute_image_url = GetChildImageUrlFromElement(element);
 
   PopulateHitTestData(absolute_link_url, absolute_image_url,
-                      element.IsEditable(), data.get());
-
-  GetFrameHost()->UpdateHitTestData(std::move(data));
+                      element.IsEditable(), &data);
+  Send(new AwViewHostMsg_UpdateHitTestData(routing_id(), data));
 }
 
 // Only main frame needs to *receive* the hit test request, because all we need
 // is to get the blink::webView object and invoke a the hitTestResultForTap API
 // from it.
-void AwRenderFrameExt::HitTest(const gfx::PointF& touch_center,
-                               const gfx::SizeF& touch_area) {
+void AwRenderFrameExt::OnDoHitTest(const gfx::PointF& touch_center,
+                                   const gfx::SizeF& touch_area) {
   blink::WebView* webview = GetWebView();
   if (!webview)
     return;
 
   const blink::WebHitTestResult result = webview->HitTestResultForTap(
       gfx::Point(touch_center.x(), touch_center.y()),
-      gfx::Size(touch_area.width(), touch_area.height()));
-  HandleHitTestResult(result);
-}
-
-void AwRenderFrameExt::HandleHitTestResult(
-    const blink::WebHitTestResult& result) {
-  auto data = mojom::HitTestData::New();
+      blink::WebSize(touch_area.width(), touch_area.height()));
+  AwHitTestData data;
 
   GURL absolute_image_url = result.AbsoluteImageURL();
   if (!result.UrlElement().IsNull()) {
-    data->anchor_text = result.UrlElement().TextContent().Utf16();
-    data->href = GetHref(result.UrlElement());
+    data.anchor_text = result.UrlElement().TextContent().Utf16();
+    data.href = GetHref(result.UrlElement());
     // If we hit an image that failed to load, Blink won't give us its URL.
     // Fall back to walking the DOM in this case.
     if (absolute_image_url.is_empty())
@@ -296,20 +299,11 @@ void AwRenderFrameExt::HandleHitTestResult(
   }
 
   PopulateHitTestData(result.AbsoluteLinkURL(), absolute_image_url,
-                      result.IsContentEditable(), data.get());
-
-  GetFrameHost()->UpdateHitTestData(std::move(data));
+                      result.IsContentEditable(), &data);
+  Send(new AwViewHostMsg_UpdateHitTestData(routing_id(), data));
 }
 
-void AwRenderFrameExt::SetInitialPageScale(double page_scale_factor) {
-  blink::WebView* webview = GetWebView();
-  if (!webview)
-    return;
-
-  webview->SetInitialPageScaleOverride(page_scale_factor);
-}
-
-void AwRenderFrameExt::SetTextZoomFactor(float zoom_factor) {
+void AwRenderFrameExt::OnSetTextZoomFactor(float zoom_factor) {
   // TODO(crbug.com/1085428): This will need to be set on every local root
   // when site isolation is used in android webview.
   DCHECK(render_frame()->IsMainFrame());
@@ -324,31 +318,7 @@ void AwRenderFrameExt::SetTextZoomFactor(float zoom_factor) {
   render_frame()->GetWebFrame()->FrameWidget()->SetTextZoomFactor(zoom_factor);
 }
 
-void AwRenderFrameExt::DocumentHasImage(DocumentHasImageCallback callback) {
-  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
-
-  // DocumentHasImages Mojo message should only be sent to the outermost main
-  // frame.
-  DCHECK(frame);
-  DCHECK(frame->IsOutermostMainFrame());
-
-  const blink::WebElement child_img = GetImgChild(frame->GetDocument());
-  bool has_images = !child_img.IsNull();
-
-  std::move(callback).Run(has_images);
-}
-
-void AwRenderFrameExt::SmoothScroll(int32_t target_x,
-                                    int32_t target_y,
-                                    base::TimeDelta duration) {
-  blink::WebView* webview = GetWebView();
-  if (!webview)
-    return;
-
-  webview->SmoothScroll(target_x, target_y, duration);
-}
-
-void AwRenderFrameExt::ResetScrollAndScaleState() {
+void AwRenderFrameExt::OnResetScrollAndScaleState() {
   blink::WebView* webview = GetWebView();
   if (!webview)
     return;
@@ -356,11 +326,38 @@ void AwRenderFrameExt::ResetScrollAndScaleState() {
   webview->ResetScrollAndScaleState();
 }
 
+void AwRenderFrameExt::OnSetInitialPageScale(double page_scale_factor) {
+  blink::WebView* webview = GetWebView();
+  if (!webview)
+    return;
+
+  webview->SetInitialPageScaleOverride(page_scale_factor);
+}
+
+void AwRenderFrameExt::SetBackgroundColor(SkColor c) {
+  blink::WebView* webview = GetWebView();
+  if (!webview)
+    return;
+
+  webview->SetBaseBackgroundColor(c);
+}
+
+void AwRenderFrameExt::OnSmoothScroll(int target_x,
+                                      int target_y,
+                                      base::TimeDelta duration) {
+  blink::WebView* webview = GetWebView();
+  if (!webview)
+    return;
+
+  webview->SmoothScroll(target_x, target_y, duration);
+}
+
 blink::WebView* AwRenderFrameExt::GetWebView() {
-  if (!render_frame())
+  if (!render_frame() || !render_frame()->GetRenderView() ||
+      !render_frame()->GetRenderView()->GetWebView())
     return nullptr;
 
-  return render_frame()->GetWebView();
+  return render_frame()->GetRenderView()->GetWebView();
 }
 
 blink::WebFrameWidget* AwRenderFrameExt::GetWebFrameWidget() {
@@ -375,9 +372,6 @@ void AwRenderFrameExt::OnDestruct() {
 
 void AwRenderFrameExt::BindLocalMainFrame(
     mojo::PendingAssociatedReceiver<mojom::LocalMainFrame> pending_receiver) {
-  // When bfcache is enabled, this bind can occur multiple times.
-  // receiver should be reset before.
-  local_main_frame_receiver_.reset();
   local_main_frame_receiver_.Bind(std::move(pending_receiver));
 }
 

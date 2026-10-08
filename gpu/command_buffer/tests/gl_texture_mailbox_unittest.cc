@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "build/build_config.h"
 #include "gpu/command_buffer/client/gles2_implementation.h"
 #include "gpu/command_buffer/client/gles2_lib.h"
 #include "gpu/command_buffer/common/mailbox.h"
@@ -558,7 +557,7 @@ TEST_F(GLTextureMailboxTest, FrontBufferSamplerParameters) {
 }
 
 // http://crbug.com/281565
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 TEST_F(GLTextureMailboxTest, TakeFrontBufferMultipleContexts) {
   SetUpContexts();
   Mailbox mailbox[2];

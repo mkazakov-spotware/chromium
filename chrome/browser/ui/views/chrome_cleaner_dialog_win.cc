@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/chrome_cleaner_dialog_win.h"
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "chrome/browser/safe_browsing/chrome_cleaner/chrome_cleaner_dialog_controller_win.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_dialogs.h"
@@ -15,7 +14,6 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/insets.h"
@@ -60,7 +58,6 @@ ChromeCleanerDialog::ChromeCleanerDialog(
   DCHECK(dialog_controller_);
   DCHECK(cleaner_controller_);
 
-  SetTitle(IDS_CHROME_CLEANUP_PROMPT_TITLE);
   SetButtonLabel(
       ui::DIALOG_BUTTON_OK,
       l10n_util::GetStringUTF16(IDS_CHROME_CLEANUP_PROMPT_REMOVE_BUTTON_LABEL));
@@ -80,14 +77,9 @@ ChromeCleanerDialog::ChromeCleanerDialog(
                                   base::Unretained(this),
                                   DialogInteractionResult::kClose));
 
-  SetModalType(ui::MODAL_TYPE_WINDOW);
-  SetShowCloseButton(false);
-  set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
-      views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH));
-
   ChromeLayoutProvider* layout_provider = ChromeLayoutProvider::Get();
-  set_margins(layout_provider->GetDialogInsetsForContentType(
-      views::DialogContentType::kText, views::DialogContentType::kText));
+  set_margins(
+      layout_provider->GetDialogInsetsForContentType(views::TEXT, views::TEXT));
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical, gfx::Insets(),
       layout_provider->GetDistanceMetric(
@@ -106,7 +98,7 @@ ChromeCleanerDialog::ChromeCleanerDialog(
     logs_permission_checkbox_->SetState(views::Checkbox::STATE_DISABLED);
 
   AddChildView(label);
-  AddChildView(logs_permission_checkbox_.get());
+  AddChildView(logs_permission_checkbox_);
 }
 
 ChromeCleanerDialog::~ChromeCleanerDialog() {
@@ -141,11 +133,35 @@ void ChromeCleanerDialog::Show(Browser* browser) {
   cleaner_controller_->AddObserver(this);
 }
 
+// WidgetDelegate overrides.
+
+ui::ModalType ChromeCleanerDialog::GetModalType() const {
+  return ui::MODAL_TYPE_WINDOW;
+}
+
+base::string16 ChromeCleanerDialog::GetWindowTitle() const {
+  DCHECK(dialog_controller_);
+  return l10n_util::GetStringUTF16(IDS_CHROME_CLEANUP_PROMPT_TITLE);
+}
+
 views::View* ChromeCleanerDialog::GetInitiallyFocusedView() {
   // Set focus away from the Remove/OK button to prevent accidental prompt
   // acceptance if the user is typing as the dialog appears.
   DCHECK(details_button_);
   return details_button_;
+}
+
+bool ChromeCleanerDialog::ShouldShowCloseButton() const {
+  return false;
+}
+
+// View overrides.
+
+gfx::Size ChromeCleanerDialog::CalculatePreferredSize() const {
+  const int dialog_width = ChromeLayoutProvider::Get()->GetDistanceMetric(
+                               views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH) -
+                           margins().width();
+  return gfx::Size(dialog_width, GetHeightForWidth(dialog_width));
 }
 
 // safe_browsing::ChromeCleanerController::Observer overrides
@@ -216,6 +232,3 @@ void ChromeCleanerDialog::LogsPermissionCheckboxPressed() {
   if (dialog_controller_)
     dialog_controller_->SetLogsEnabled(logs_permission_checkbox_->GetChecked());
 }
-
-BEGIN_METADATA(ChromeCleanerDialog, views::DialogDelegateView)
-END_METADATA

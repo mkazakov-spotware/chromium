@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/autocomplete/shortcuts_backend_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/history/core/browser/history_service.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar.h"
 #include "components/omnibox/browser/shortcuts_backend.h"
 #include "content/public/browser/web_contents.h"
@@ -25,22 +25,22 @@ AlternateNavInfoBarDelegate::~AlternateNavInfoBarDelegate() {
 // static
 void AlternateNavInfoBarDelegate::CreateForOmniboxNavigation(
     content::WebContents* web_contents,
-    const std::u16string& text,
+    const base::string16& text,
     const AutocompleteMatch& match,
     const GURL& search_url) {
-  infobars::ContentInfoBarManager* infobar_manager =
-      infobars::ContentInfoBarManager::FromWebContents(web_contents);
-  infobar_manager->AddInfoBar(AlternateNavInfoBarDelegate::CreateInfoBar(
+  InfoBarService* infobar_service =
+      InfoBarService::FromWebContents(web_contents);
+  infobar_service->AddInfoBar(AlternateNavInfoBarDelegate::CreateInfoBar(
       base::WrapUnique(new AlternateNavInfoBarDelegate(
           Profile::FromBrowserContext(web_contents->GetBrowserContext()), text,
           std::make_unique<AutocompleteMatch>(match), match.destination_url,
           search_url))));
 }
 
-std::u16string AlternateNavInfoBarDelegate::GetMessageTextWithOffset(
+base::string16 AlternateNavInfoBarDelegate::GetMessageTextWithOffset(
     size_t* link_offset) const {
-  const std::u16string label = l10n_util::GetStringFUTF16(
-      IDS_ALTERNATE_NAV_URL_VIEW_LABEL, std::u16string(), link_offset);
+  const base::string16 label = l10n_util::GetStringFUTF16(
+      IDS_ALTERNATE_NAV_URL_VIEW_LABEL, base::string16(), link_offset);
   return label;
 }
 
@@ -53,7 +53,7 @@ const gfx::VectorIcon& AlternateNavInfoBarDelegate::GetVectorIcon() const {
   return kGlobeIcon;
 }
 
-std::u16string AlternateNavInfoBarDelegate::GetLinkText() const {
+base::string16 AlternateNavInfoBarDelegate::GetLinkText() const {
   return base::UTF8ToUTF16(destination_url_.spec());
 }
 
@@ -83,7 +83,7 @@ bool AlternateNavInfoBarDelegate::LinkClicked(
 
   // Pretend the user typed this URL, so that navigating to it will be the
   // default action when it's typed again in the future.
-  infobars::ContentInfoBarManager::WebContentsFromInfoBar(infobar())->OpenURL(
+  InfoBarService::WebContentsFromInfoBar(infobar())->OpenURL(
       content::OpenURLParams(destination_url_, content::Referrer(), disposition,
                              ui::PAGE_TRANSITION_TYPED, false));
 
@@ -94,7 +94,7 @@ bool AlternateNavInfoBarDelegate::LinkClicked(
 
 AlternateNavInfoBarDelegate::AlternateNavInfoBarDelegate(
     Profile* profile,
-    const std::u16string& text,
+    const base::string16& text,
     std::unique_ptr<AutocompleteMatch> match,
     const GURL& destination_url,
     const GURL& original_url)

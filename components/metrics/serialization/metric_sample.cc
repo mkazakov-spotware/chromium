@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/check_op.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 
@@ -130,7 +129,7 @@ std::unique_ptr<MetricSample> MetricSample::ParseHistogram(
     return nullptr;
   }
 
-  return HistogramSample(std::string(parts[0]), sample, min, max, bucket_count);
+  return HistogramSample(parts[0].as_string(), sample, min, max, bucket_count);
 }
 
 // static
@@ -152,7 +151,7 @@ std::unique_ptr<MetricSample> MetricSample::ParseSparseHistogram(
   if (parts[0].empty() || !base::StringToInt(parts[1], &sample))
     return nullptr;
 
-  return SparseHistogramSample(std::string(parts[0]), sample);
+  return SparseHistogramSample(parts[0].as_string(), sample);
 }
 
 // static
@@ -177,7 +176,7 @@ std::unique_ptr<MetricSample> MetricSample::ParseLinearHistogram(
     return nullptr;
   }
 
-  return LinearHistogramSample(std::string(parts[0]), sample, max);
+  return LinearHistogramSample(parts[0].as_string(), sample, max);
 }
 
 // static

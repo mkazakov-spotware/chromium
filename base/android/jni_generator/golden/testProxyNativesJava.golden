@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@ public class GEN_JNI {
     public static final boolean REQUIRE_MOCK = false;
 
 
-      // Hashed name: Java_J_N_MfuvK7$r
-      public static native void org_chromium_example_SampleProxyJni_foo(long nativePtr);
-      // Hashed name: Java_J_N_MB1mTV9a
-      public static native int org_chromium_example_SampleProxyJni_bar(int x, int y);
-      // Hashed name: Java_J_N_Me7X4JzV
-      public static native String org_chromium_example_SampleProxyJni_foobar(String x, String y);
+    public static native void org_chromium_example_SampleProxyJni_foo(long nativePtr);
+
+    public static native int org_chromium_example_SampleProxyJni_bar(int x, int y);
+
+    public static native String org_chromium_example_SampleProxyJni_foobar(String x, String y);
 }

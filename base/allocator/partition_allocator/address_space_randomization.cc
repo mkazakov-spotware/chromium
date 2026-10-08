@@ -1,32 +1,33 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/allocator/partition_allocator/address_space_randomization.h"
 
+#include "base/allocator/partition_allocator/page_allocator.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
-#include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/random.h"
+#include "base/check_op.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>  // Must be in front of other Windows header files.
 
-#include <versionhelpers.h>
+#include <VersionHelpers.h>
 #endif
 
-namespace partition_alloc {
+namespace base {
 
-uintptr_t GetRandomPageBase() {
-  uintptr_t random = static_cast<uintptr_t>(internal::RandomValue());
+void* GetRandomPageBase() {
+  uintptr_t random = static_cast<uintptr_t>(RandomValue());
 
-#if defined(PA_HAS_64_BITS_POINTERS)
+#if defined(ARCH_CPU_64_BITS)
   random <<= 32ULL;
-  random |= static_cast<uintptr_t>(internal::RandomValue());
+  random |= static_cast<uintptr_t>(RandomValue());
 
 // The ASLRMask() and ASLROffset() constants will be suitable for the
 // OS and build configuration.
-#if BUILDFLAG(IS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
+#if defined(OS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
   // Windows >= 8.1 has the full 47 bits. Use them where available.
   static bool windows_81 = false;
   static bool windows_81_initialized = false;
@@ -43,9 +44,9 @@ uintptr_t GetRandomPageBase() {
 #else
   random &= internal::ASLRMask();
   random += internal::ASLROffset();
-#endif  // BUILDFLAG(IS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
-#else   // defined(PA_HAS_64_BITS_POINTERS)
-#if BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN) && !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
+#else   // defined(ARCH_CPU_32_BITS)
+#if defined(OS_WIN)
   // On win32 host systems the randomization plus huge alignment causes
   // excessive fragmentation. Plus most of these systems lack ASLR, so the
   // randomization isn't buying anything. In that case we just skip it.
@@ -54,14 +55,14 @@ uintptr_t GetRandomPageBase() {
   if (is_wow64 == -1 && !IsWow64Process(GetCurrentProcess(), &is_wow64))
     is_wow64 = FALSE;
   if (!is_wow64)
-    return 0;
-#endif  // BUILDFLAG(IS_WIN)
+    return nullptr;
+#endif  // defined(OS_WIN)
   random &= internal::ASLRMask();
   random += internal::ASLROffset();
-#endif  // defined(PA_HAS_64_BITS_POINTERS)
+#endif  // defined(ARCH_CPU_32_BITS)
 
-  PA_DCHECK(!(random & internal::PageAllocationGranularityOffsetMask()));
-  return random;
+  PA_DCHECK(!(random & PageAllocationGranularityOffsetMask()));
+  return reinterpret_cast<void*>(random);
 }
 
-}  // namespace partition_alloc
+}  // namespace base

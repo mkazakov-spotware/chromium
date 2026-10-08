@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_checker.h"
 #include "media/audio/audio_thread.h"
@@ -18,10 +18,6 @@ class TestAudioThread final : public AudioThread {
  public:
   TestAudioThread();
   explicit TestAudioThread(bool use_real_thread);
-
-  TestAudioThread(const TestAudioThread&) = delete;
-  TestAudioThread& operator=(const TestAudioThread&) = delete;
-
   ~TestAudioThread() final;
 
   // AudioThread implementation.
@@ -35,6 +31,7 @@ class TestAudioThread final : public AudioThread {
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
   THREAD_CHECKER(thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(TestAudioThread);
 };
 
 }  // namespace media

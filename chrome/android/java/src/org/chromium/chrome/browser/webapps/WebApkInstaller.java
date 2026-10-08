@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,14 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ContextUtils;
 import org.chromium.base.PackageUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.chrome.browser.AppHooks;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappIntentUtils;
-import org.chromium.chrome.browser.browserservices.metrics.WebApkUmaRecorder;
-import org.chromium.components.webapps.WebApkInstallResult;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.metrics.WebApkUma;
 
 /**
  * Java counterpart to webapk_installer.h
@@ -71,9 +70,9 @@ public class WebApkInstaller {
         }
 
         if (mInstallDelegate == null) {
-            notify(WebApkInstallResult.NO_INSTALLER);
-            WebApkUmaRecorder.recordGooglePlayInstallResult(
-                    WebApkUmaRecorder.GooglePlayInstallResult.FAILED_NO_DELEGATE);
+            notify(WebApkInstallResult.FAILURE);
+            WebApkUma.recordGooglePlayInstallResult(
+                    WebApkUma.GooglePlayInstallResult.FAILED_NO_DELEGATE);
             return;
         }
 
@@ -124,7 +123,7 @@ public class WebApkInstaller {
     private void updateAsync(
             String packageName, int version, String title, String token) {
         if (mInstallDelegate == null) {
-            notify(WebApkInstallResult.NO_INSTALLER);
+            notify(WebApkInstallResult.FAILURE);
             return;
         }
 
@@ -142,12 +141,11 @@ public class WebApkInstaller {
         new AsyncTask<Integer>() {
             @Override
             protected Integer doInBackground() {
-                long availableSpaceInBytes =
-                        WebApkUmaRecorder.getAvailableSpaceAboveLowSpaceLimit();
+                long availableSpaceInBytes = WebApkUma.getAvailableSpaceAboveLowSpaceLimit();
 
                 if (availableSpaceInBytes > 0) return SpaceStatus.ENOUGH_SPACE;
 
-                long cacheSizeInBytes = WebApkUmaRecorder.getCacheDirSize();
+                long cacheSizeInBytes = WebApkUma.getCacheDirSize();
                 if (cacheSizeInBytes + availableSpaceInBytes > 0) {
                     return SpaceStatus.ENOUGH_SPACE_AFTER_FREE_UP_CACHE;
                 }
@@ -169,7 +167,7 @@ public class WebApkInstaller {
     }
 
     private boolean isWebApkInstalled(String packageName) {
-        return PackageUtils.isPackageInstalled(packageName);
+        return PackageUtils.isPackageInstalled(ContextUtils.getApplicationContext(), packageName);
     }
 
     @NativeMethods

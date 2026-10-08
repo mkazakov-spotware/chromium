@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,15 @@
 
 #include <memory>
 
-#include "base/android/build_info.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/test/task_environment.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/threading/thread.h"
 #include "base/time/tick_clock.h"
-#include "base/time/time.h"
 #include "media/base/android/mock_media_codec_bridge.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -35,15 +32,12 @@ class CodecAllocatorTest : public testing::Test {
  public:
   CodecAllocatorTest() : allocator_thread_("AllocatorThread") {
     // Don't start the clock at null.
-    tick_clock_.Advance(base::Seconds(1));
+    tick_clock_.Advance(base::TimeDelta::FromSeconds(1));
     allocator_ = new CodecAllocator(
         base::BindRepeating(&MockMediaCodecBridge::CreateVideoDecoder),
-        base::SequencedTaskRunner::GetCurrentDefault());
+        base::SequencedTaskRunnerHandle::Get());
     allocator_->tick_clock_ = &tick_clock_;
   }
-
-  CodecAllocatorTest(const CodecAllocatorTest&) = delete;
-  CodecAllocatorTest& operator=(const CodecAllocatorTest&) = delete;
 
   ~CodecAllocatorTest() override {
     if (allocator_thread_.IsRunning()) {
@@ -114,16 +108,6 @@ class CodecAllocatorTest : public testing::Test {
   MOCK_METHOD1(OnCodecCreated, void(CodecType));
   MOCK_METHOD0(OnCodecReleased, void());
 
-  // Allocate and return a config that allows any codec, and is suitable for
-  // hardware decode.
-  std::unique_ptr<VideoCodecConfig> CreateConfig() {
-    auto config = std::make_unique<VideoCodecConfig>();
-    config->codec_type = CodecType::kAny;
-    config->initial_expected_coded_size =
-        CodecAllocator::kMinHardwareResolution;
-    return config;
-  }
-
  protected:
   // So that we can get the thread's task runner.
   base::test::TaskEnvironment task_environment_;
@@ -135,15 +119,19 @@ class CodecAllocatorTest : public testing::Test {
 
   // Allocators that we own. They are not unique_ptrs because the destructor is
   // private and they need to be destructed on the right thread.
-  raw_ptr<CodecAllocator> allocator_ = nullptr;
+  CodecAllocator* allocator_ = nullptr;
 
   std::unique_ptr<MockMediaCodecBridge> last_created_codec_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CodecAllocatorTest);
 };
 
 TEST_F(CodecAllocatorTest, NormalCreation) {
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
 
-  auto config = CreateConfig();
+  auto config = std::make_unique<VideoCodecConfig>();
+  config->codec_type = CodecType::kAny;
 
   base::RunLoop run_loop;
   allocator_->CreateMediaCodecAsync(
@@ -159,7 +147,7 @@ TEST_F(CodecAllocatorTest, NormalCreation) {
 TEST_F(CodecAllocatorTest, NormalSecureCreation) {
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
 
-  auto config = CreateConfig();
+  auto config = std::make_unique<VideoCodecConfig>();
   config->codec_type = CodecType::kSecure;
 
   base::RunLoop run_loop;
@@ -176,20 +164,21 @@ TEST_F(CodecAllocatorTest, NormalSecureCreation) {
 TEST_F(CodecAllocatorTest, MultipleCreation) {
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
 
-  auto config = CreateConfig();
+  auto config = std::make_unique<VideoCodecConfig>();
+  config->codec_type = CodecType::kAny;
 
   base::RunLoop run_loop;
   allocator_->CreateMediaCodecAsync(
       base::BindOnce(&CodecAllocatorTest::OnCodecCreatedInternal,
-                     base::Unretained(this), base::DoNothing()),
+                     base::Unretained(this), base::DoNothing::Once()),
       std::move(config));
 
   // Advance some time, but not enough to trigger hang detection.
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
-  tick_clock_.Advance(base::Milliseconds(400));
+  tick_clock_.Advance(base::TimeDelta::FromMilliseconds(400));
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
 
-  auto config_secure = CreateConfig();
+  auto config_secure = std::make_unique<VideoCodecConfig>();
   config_secure->codec_type = CodecType::kSecure;
 
   allocator_->CreateMediaCodecAsync(
@@ -211,11 +200,11 @@ TEST_F(CodecAllocatorTest, MultipleRelease) {
   allocator_->ReleaseMediaCodec(
       std::make_unique<MockMediaCodecBridge>(),
       base::BindOnce(&CodecAllocatorTest::OnCodecReleasedInternal,
-                     base::Unretained(this), base::DoNothing()));
+                     base::Unretained(this), base::DoNothing::Once()));
 
   // Advance some time, but not enough to trigger hang detection.
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
-  tick_clock_.Advance(base::Milliseconds(400));
+  tick_clock_.Advance(base::TimeDelta::FromMilliseconds(400));
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
 
   allocator_->ReleaseMediaCodec(
@@ -235,7 +224,7 @@ TEST_F(CodecAllocatorTest, StalledReleaseCountsAsHung) {
   // Release null codec, but don't pump message loop.
   allocator_->ReleaseMediaCodec(std::make_unique<MockMediaCodecBridge>(),
                                 base::DoNothing());
-  tick_clock_.Advance(base::Seconds(1));
+  tick_clock_.Advance(base::TimeDelta::FromSeconds(1));
   ASSERT_TRUE(IsPrimaryTaskRunnerLikelyHung());
 }
 
@@ -243,10 +232,10 @@ TEST_F(CodecAllocatorTest, StalledCreateCountsAsHung) {
   ASSERT_FALSE(IsPrimaryTaskRunnerLikelyHung());
 
   // Create codec, but don't pump message loop.
-  auto config = CreateConfig();
+  auto config = std::make_unique<VideoCodecConfig>();
   config->codec_type = CodecType::kSecure;
   allocator_->CreateMediaCodecAsync(base::DoNothing(), std::move(config));
-  tick_clock_.Advance(base::Seconds(1));
+  tick_clock_.Advance(base::TimeDelta::FromSeconds(1));
   ASSERT_TRUE(IsPrimaryTaskRunnerLikelyHung());
 }
 
@@ -256,11 +245,11 @@ TEST_F(CodecAllocatorTest, SecureCreationFailsWhenHung) {
   // Release null codec, but don't pump message loop.
   allocator_->ReleaseMediaCodec(std::make_unique<MockMediaCodecBridge>(),
                                 base::DoNothing());
-  tick_clock_.Advance(base::Seconds(1));
+  tick_clock_.Advance(base::TimeDelta::FromSeconds(1));
   ASSERT_TRUE(IsPrimaryTaskRunnerLikelyHung());
 
   // Secure creation should fail since we're now using software codecs.
-  auto config = CreateConfig();
+  auto config = std::make_unique<VideoCodecConfig>();
   config->codec_type = CodecType::kSecure;
   base::RunLoop run_loop;
   allocator_->CreateMediaCodecAsync(
@@ -288,11 +277,12 @@ TEST_F(CodecAllocatorTest, SoftwareCodecUsedWhenHung) {
   // Release null codec, but don't pump message loop.
   allocator_->ReleaseMediaCodec(std::make_unique<MockMediaCodecBridge>(),
                                 base::DoNothing());
-  tick_clock_.Advance(base::Seconds(1));
+  tick_clock_.Advance(base::TimeDelta::FromSeconds(1));
   ASSERT_TRUE(IsPrimaryTaskRunnerLikelyHung());
 
-  // Creation should fall back to software.
-  auto config = CreateConfig();
+  // Secure creation should fail since we're now using software codecs.
+  auto config = std::make_unique<VideoCodecConfig>();
+  config->codec_type = CodecType::kAny;
   base::RunLoop run_loop;
   allocator_->CreateMediaCodecAsync(
       base::BindOnce(&CodecAllocatorTest::OnCodecCreatedInternal,
@@ -318,11 +308,11 @@ TEST_F(CodecAllocatorTest, CodecReleasedOnRightTaskRunnerWhenHung) {
   // Release null codec, but don't pump message loop.
   allocator_->ReleaseMediaCodec(std::make_unique<MockMediaCodecBridge>(),
                                 base::DoNothing());
-  tick_clock_.Advance(base::Seconds(1));
+  tick_clock_.Advance(base::TimeDelta::FromSeconds(1));
   ASSERT_TRUE(IsPrimaryTaskRunnerLikelyHung());
 
   // Release software codec, ensure it runs on secondary task runner.
-  auto config = CreateConfig();
+  auto config = std::make_unique<VideoCodecConfig>();
   config->codec_type = CodecType::kSoftware;
   auto sw_codec = MockMediaCodecBridge::CreateVideoDecoder(*config);
   reinterpret_cast<MockMediaCodecBridge*>(sw_codec.get())
@@ -364,7 +354,8 @@ TEST_F(CodecAllocatorTest, AllocateAndDestroyCodecOnAllocatorThread) {
 
   {
     base::RunLoop run_loop;
-    auto config = CreateConfig();
+    auto config = std::make_unique<VideoCodecConfig>();
+    config->codec_type = CodecType::kAny;
 
     allocator_->CreateMediaCodecAsync(
         base::BindOnce(&CodecAllocatorTest::OnCodecCreatedInternal,
@@ -383,20 +374,6 @@ TEST_F(CodecAllocatorTest, AllocateAndDestroyCodecOnAllocatorThread) {
     EXPECT_CALL(*this, OnCodecReleased());
     run_loop.Run();
   }
-}
-
-TEST_F(CodecAllocatorTest, LowResolutionGetsSoftware) {
-  auto config = CreateConfig();
-  config->initial_expected_coded_size =
-      CodecAllocator::kMinHardwareResolution - gfx::Size(1, 1);
-  base::RunLoop run_loop;
-  allocator_->CreateMediaCodecAsync(
-      base::BindOnce(&CodecAllocatorTest::OnCodecCreatedInternal,
-                     base::Unretained(this), run_loop.QuitClosure()),
-      std::move(config));
-
-  EXPECT_CALL(*this, OnCodecCreated(CodecType::kSoftware));
-  run_loop.Run();
 }
 
 }  // namespace media

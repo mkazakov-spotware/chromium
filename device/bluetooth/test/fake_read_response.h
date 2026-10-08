@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef DEVICE_BLUETOOTH_TEST_FAKE_READ_RESPONSE_H_
@@ -6,7 +6,8 @@
 
 #include <vector>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
 
 namespace bluetooth {
 
@@ -16,19 +17,17 @@ namespace bluetooth {
 class FakeReadResponse {
  public:
   FakeReadResponse(uint16_t gatt_code,
-                   const absl::optional<std::vector<uint8_t>>& value);
-
-  FakeReadResponse(const FakeReadResponse&) = delete;
-  FakeReadResponse& operator=(const FakeReadResponse&) = delete;
-
+                   const base::Optional<std::vector<uint8_t>>& value);
   ~FakeReadResponse();
 
   uint16_t gatt_code() { return gatt_code_; }
-  const absl::optional<std::vector<uint8_t>>& value() { return value_; }
+  const base::Optional<std::vector<uint8_t>>& value() { return value_; }
 
  private:
   uint16_t gatt_code_;
-  absl::optional<std::vector<uint8_t>> value_;
+  base::Optional<std::vector<uint8_t>> value_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeReadResponse);
 };
 
 }  // namespace bluetooth

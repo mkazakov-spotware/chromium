@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,6 +57,8 @@ public class AccountChooserDialog
     private final String mOrigin;
     private final String mSigninButtonText;
     private ArrayAdapter<Credential> mAdapter;
+    private boolean mIsDestroyed;
+    private boolean mWasDismissedByNative;
 
     /**
      * Holds the reference to the credentials which were chosen by the user.
@@ -115,11 +117,6 @@ public class AccountChooserDialog
                     convertView =
                             inflater.inflate(R.layout.account_chooser_dialog_item, parent, false);
                 }
-                convertView.setSelected(false);
-                convertView.setOnClickListener(view -> {
-                    mCredential = mCredentials[position];
-                    if (mDialog != null) mDialog.dismiss();
-                });
                 convertView.setTag(position);
 
                 Credential credential = getItem(position);
@@ -182,10 +179,8 @@ public class AccountChooserDialog
             spanableTitle.setSpan(new ClickableSpan() {
                 @Override
                 public void onClick(View view) {
-                    if (mNativeAccountChooserDialog != 0) {
-                        AccountChooserDialogJni.get().onLinkClicked(
-                                mNativeAccountChooserDialog, AccountChooserDialog.this);
-                    }
+                    AccountChooserDialogJni.get().onLinkClicked(
+                            mNativeAccountChooserDialog, AccountChooserDialog.this);
                     mDialog.dismiss();
                 }
             }, mTitleLinkStart, mTitleLinkEnd, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
@@ -196,7 +191,7 @@ public class AccountChooserDialog
         }
         mAdapter = generateAccountsArrayAdapter(mContext, mCredentials);
         final AlertDialog.Builder builder =
-                new AlertDialog.Builder(mContext, R.style.ThemeOverlay_BrowserUI_AlertDialog)
+                new AlertDialog.Builder(mContext, R.style.Theme_Chromium_AlertDialog)
                         .setCustomTitle(titleView)
                         .setNegativeButton(R.string.cancel, this)
                         .setAdapter(mAdapter, new DialogInterface.OnClickListener() {
@@ -213,8 +208,6 @@ public class AccountChooserDialog
         mDialog.show();
     }
 
-    // status_bar_height is not a public framework resource, so we have to getIdentifier()
-    @SuppressWarnings("DiscouragedApi")
     private void showTooltip(View view, String message, int layoutId) {
         Context context = view.getContext();
         Resources resources = context.getResources();
@@ -270,7 +263,7 @@ public class AccountChooserDialog
 
     @CalledByNative
     private void imageFetchComplete(int index, Bitmap avatarBitmap) {
-        if (mNativeAccountChooserDialog == 0) return;
+        if (mIsDestroyed) return;
         assert index >= 0 && index < mCredentials.length;
         assert mCredentials[index] != null;
         Drawable avatar = AvatarGenerator.makeRoundAvatar(
@@ -286,10 +279,21 @@ public class AccountChooserDialog
         }
     }
 
-    @CalledByNative
-    private void notifyNativeDestroyed() {
+    private void destroy() {
+        assert mNativeAccountChooserDialog != 0;
+        assert !mIsDestroyed;
+        mIsDestroyed = true;
+        AccountChooserDialogJni.get().destroy(
+                mNativeAccountChooserDialog, AccountChooserDialog.this);
         mNativeAccountChooserDialog = 0;
-        if (mDialog != null) mDialog.dismiss();
+        mDialog = null;
+    }
+
+    @CalledByNative
+    private void dismissDialog() {
+        assert !mWasDismissedByNative;
+        mWasDismissedByNative = true;
+        mDialog.dismiss();
     }
 
     @Override
@@ -302,15 +306,16 @@ public class AccountChooserDialog
 
     @Override
     public void onDismiss(DialogInterface dialog) {
-        mDialog = null;
-        if (mNativeAccountChooserDialog == 0) return;
-        if (mCredential != null) {
-            AccountChooserDialogJni.get().onCredentialClicked(mNativeAccountChooserDialog,
-                    AccountChooserDialog.this, mCredential.getIndex(), mSigninButtonClicked);
-        } else {
-            AccountChooserDialogJni.get().cancelDialog(
-                    mNativeAccountChooserDialog, AccountChooserDialog.this);
+        if (!mWasDismissedByNative) {
+            if (mCredential != null) {
+                AccountChooserDialogJni.get().onCredentialClicked(mNativeAccountChooserDialog,
+                        AccountChooserDialog.this, mCredential.getIndex(), mSigninButtonClicked);
+            } else {
+                AccountChooserDialogJni.get().cancelDialog(
+                        mNativeAccountChooserDialog, AccountChooserDialog.this);
+            }
         }
+        destroy();
     }
 
     @NativeMethods
@@ -318,6 +323,7 @@ public class AccountChooserDialog
         void onCredentialClicked(long nativeAccountChooserDialogAndroid,
                 AccountChooserDialog caller, int credentialId, boolean signinButtonClicked);
         void cancelDialog(long nativeAccountChooserDialogAndroid, AccountChooserDialog caller);
+        void destroy(long nativeAccountChooserDialogAndroid, AccountChooserDialog caller);
         void onLinkClicked(long nativeAccountChooserDialogAndroid, AccountChooserDialog caller);
     }
 }

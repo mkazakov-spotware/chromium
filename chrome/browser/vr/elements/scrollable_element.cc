@@ -1,13 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/elements/scrollable_element.h"
 
-#include "base/cxx17_backports.h"
 #include "base/numerics/ranges.h"
 #include "chrome/browser/vr/input_event.h"
-#include "ui/gfx/animation/keyframe/transition.h"
 
 namespace vr {
 
@@ -102,8 +100,8 @@ void ScrollableElement::AddScrollingChild(std::unique_ptr<UiElement> child) {
 
 void ScrollableElement::OnScrollBegin(std::unique_ptr<InputEvent> gesture,
                                       const gfx::PointF& position) {
-  cached_transition_ = animator().transition();
-  animator().set_transition(gfx::Transition());
+  cached_transition_ = animation().transition();
+  animation().set_transition(Transition());
 }
 
 void ScrollableElement::OnScrollUpdate(std::unique_ptr<InputEvent> gesture,
@@ -115,12 +113,12 @@ void ScrollableElement::OnScrollUpdate(std::unique_ptr<InputEvent> gesture,
     scroll_offset_ -= gesture->scroll_data.delta_y * kScrollScaleFactor;
   }
   scroll_offset_ =
-      base::clamp(scroll_offset_, -half_scroll_span, half_scroll_span);
+      base::ClampToRange(scroll_offset_, -half_scroll_span, half_scroll_span);
 }
 
 void ScrollableElement::OnScrollEnd(std::unique_ptr<InputEvent> gesture,
                                     const gfx::PointF& position) {
-  animator().set_transition(cached_transition_);
+  animation().set_transition(cached_transition_);
 }
 
 }  // namespace vr

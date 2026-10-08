@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,23 +12,31 @@ namespace ui {
 
 ScopedTargetHandler::ScopedTargetHandler(EventTarget* target,
                                          EventHandler* handler)
-    : target_(target), new_handler_(handler) {
+    : destroyed_flag_(nullptr), target_(target), new_handler_(handler) {
   original_handler_ = target_->SetTargetHandler(this);
 }
 
 ScopedTargetHandler::~ScopedTargetHandler() {
   EventHandler* handler = target_->SetTargetHandler(original_handler_);
   DCHECK_EQ(this, handler);
+  if (destroyed_flag_)
+    *destroyed_flag_ = true;
 }
 
 void ScopedTargetHandler::OnEvent(Event* event) {
   if (original_handler_) {
-    auto weak_this = weak_factory_.GetWeakPtr();
+    bool destroyed = false;
+    bool* old_destroyed_flag = destroyed_flag_;
+    destroyed_flag_ = &destroyed;
 
     original_handler_->OnEvent(event);
 
-    if (!weak_this)
+    if (destroyed) {
+      if (old_destroyed_flag)
+        *old_destroyed_flag = true;
       return;
+    }
+    destroyed_flag_ = old_destroyed_flag;
   }
 
   // This check is needed due to nested event loops when starting DragDrop.
@@ -36,10 +44,6 @@ void ScopedTargetHandler::OnEvent(Event* event) {
     return;
 
   new_handler_->OnEvent(event);
-}
-
-base::StringPiece ScopedTargetHandler::GetLogContext() const {
-  return "ScopedTargetHandler";
 }
 
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,11 @@ RunningSamples::RunningSamples(int window_size)
 }
 
 RunningSamples::~RunningSamples() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 }
 
 void RunningSamples::Record(int64_t value) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   data_points_.push_back(value);
   sum_ += value;
@@ -32,7 +32,7 @@ void RunningSamples::Record(int64_t value) {
 }
 
 double RunningSamples::Average() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   if (data_points_.empty())
     return 0;
@@ -40,7 +40,7 @@ double RunningSamples::Average() const {
 }
 
 int64_t RunningSamples::Max() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   if (data_points_.empty())
     return 0;
@@ -49,8 +49,6 @@ int64_t RunningSamples::Max() const {
 }
 
 bool RunningSamples::IsEmpty() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
   return data_points_.empty();
 }
 

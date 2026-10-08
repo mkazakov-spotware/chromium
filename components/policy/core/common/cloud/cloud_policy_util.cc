@@ -1,15 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/policy/core/common/cloud/cloud_policy_util.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
-#include "components/policy/proto/device_management_backend.pb.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <Windows.h>  // For GetComputerNameW()
 // SECURITY_WIN32 must be defined in order to get
 // EXTENDED_NAME_FORMAT enumeration.
@@ -19,61 +17,57 @@
 #include <wincred.h>
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS) || \
-    BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS) || defined(OS_APPLE)
 #include <pwd.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <stddef.h>
 #include <sys/sysctl.h>
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #import <SystemConfiguration/SCDynamicStoreCopySpecific.h>
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 #include <limits.h>  // For HOST_NAME_MAX
 #endif
 
 #include <utility>
 
 #include "base/check.h"
-#include "base/cxx17_backports.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/system/sys_info.h"
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/wmi.h"
 #endif
 #include "components/version_info/version_info.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chromeos/system/statistics_provider.h"
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/startup/browser_params_proxy.h"
-#endif
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/windows_version.h"
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "base/mac/scoped_cftyperef.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/system/sys_info.h"
 #endif
 
-#if BUILDFLAG(IS_IOS)
-#include "base/ios/device_util.h"
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+#include "base/system/sys_info.h"
 #endif
 
 namespace policy {
@@ -81,16 +75,22 @@ namespace policy {
 namespace em = enterprise_management;
 
 std::string GetMachineName() {
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS) || \
-    BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
   char hostname[HOST_NAME_MAX];
   if (gethostname(hostname, HOST_NAME_MAX) == 0)  // Success.
     return hostname;
   return std::string();
-#elif BUILDFLAG(IS_IOS)
-  // Use the Vendor ID as the machine name.
-  return ios::device_util::GetVendorId();
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
+
+#if defined(OS_IOS)
+  // The user-entered device name (e.g. "Foo's iPhone") should not be used, as
+  // there are privacy considerations (crbug.com/1123949). The Apple internal
+  // device name (e.g. "iPad6,11") is used instead.
+  std::string ios_model_name = base::SysInfo::HardwareModelName();
+  if (!ios_model_name.empty()) {
+    return ios_model_name;
+  }
+#else
   // Do not use NSHost currentHost, as it's very slow. http://crbug.com/138570
   SCDynamicStoreContext context = {0, NULL, NULL, NULL};
   base::ScopedCFTypeRef<SCDynamicStoreRef> store(SCDynamicStoreCreate(
@@ -105,6 +105,7 @@ std::string GetMachineName() {
       SCDynamicStoreCopyComputerName(store.get(), NULL));
   if (computer_name.get())
     return base::SysCFStringRefToUTF8(computer_name.get());
+#endif  // defined(OS_IOS)
 
   // If all else fails, return to using a slightly nicer version of the
   // hardware model.
@@ -118,9 +119,9 @@ std::string GetMachineName() {
     return std::string(modelBuffer, 0, length);
   }
   return std::string();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   wchar_t computer_name[MAX_COMPUTERNAME_LENGTH + 1] = {0};
-  DWORD size = std::size(computer_name);
+  DWORD size = base::size(computer_name);
   if (::GetComputerNameW(computer_name, &size)) {
     std::string result;
     bool conversion_successful = base::WideToUTF8(computer_name, size, &result);
@@ -128,24 +129,19 @@ std::string GetMachineName() {
     return result;
   }
   return std::string();
-#elif BUILDFLAG(IS_ANDROID)
-  return std::string();
-#elif BUILDFLAG(IS_CHROMEOS)
+#else
   NOTREACHED();
   return std::string();
-#else
-#error Unsupported platform
 #endif
 }
 
 std::string GetOSVersion() {
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_APPLE) || \
-    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_APPLE)
   return base::SysInfo::OperatingSystemVersion();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   base::win::OSInfo::VersionNumber version_number =
       base::win::OSInfo::GetInstance()->version_number();
-  return base::StringPrintf("%u.%u.%u.%u", version_number.major,
+  return base::StringPrintf("%d.%d.%d.%d", version_number.major,
                             version_number.minor, version_number.build,
                             version_number.patch);
 #else
@@ -163,13 +159,13 @@ std::string GetOSArchitecture() {
 }
 
 std::string GetOSUsername() {
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_APPLE)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS) || defined(OS_APPLE)
   struct passwd* creds = getpwuid(getuid());
   if (!creds || !creds->pw_name)
     return std::string();
 
   return creds->pw_name;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   WCHAR username[CREDUI_MAX_USERNAME_LENGTH + 1] = {};
   DWORD username_length = sizeof(username);
 
@@ -182,29 +178,13 @@ std::string GetOSUsername() {
   }
 
   return base::WideToUTF8(username);
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
   if (!user_manager::UserManager::IsInitialized())
     return std::string();
   auto* user = user_manager::UserManager::Get()->GetPrimaryUser();
   if (!user)
     return std::string();
   return user->GetAccountId().GetUserEmail();
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  const chromeos::BrowserParamsProxy* init_params =
-      chromeos::BrowserParamsProxy::Get();
-  if (init_params->DeviceAccount()) {
-    return init_params->DeviceAccount()->raw_email;
-  }
-  // Fallback if init params are missing.
-  struct passwd* creds = getpwuid(getuid());
-  if (!creds || !creds->pw_name)
-    return std::string();
-
-  return creds->pw_name;
-#elif BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
-  // TODO(crbug.com/1257674): This should be fully implemented when there is
-  // support in fuchsia.
-  return std::string();
 #else
   NOTREACHED();
   return std::string();
@@ -227,18 +207,9 @@ em::Channel ConvertToProtoChannel(version_info::Channel channel) {
 }
 
 std::string GetDeviceName() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  return std::string(chromeos::system::StatisticsProvider::GetInstance()
-                         ->GetMachineID()
-                         .value_or(""));
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  const chromeos::BrowserParamsProxy* init_params =
-      chromeos::BrowserParamsProxy::Get();
-  if (init_params->DeviceProperties() &&
-      init_params->DeviceProperties()->serial_number.has_value()) {
-    return init_params->DeviceProperties()->serial_number.value();
-  }
-  return GetMachineName();
+#if defined(OS_CHROMEOS)
+  return chromeos::system::StatisticsProvider::GetInstance()
+      ->GetEnterpriseMachineID();
 #else
   return GetMachineName();
 #endif
@@ -248,8 +219,8 @@ std::unique_ptr<em::BrowserDeviceIdentifier> GetBrowserDeviceIdentifier() {
   std::unique_ptr<em::BrowserDeviceIdentifier> device_identifier =
       std::make_unique<em::BrowserDeviceIdentifier>();
   device_identifier->set_computer_name(GetMachineName());
-#if BUILDFLAG(IS_WIN)
-  device_identifier->set_serial_number(base::WideToUTF8(
+#if defined(OS_WIN)
+  device_identifier->set_serial_number(base::UTF16ToUTF8(
       base::win::WmiComputerSystemInfo::Get().serial_number()));
 #else
   device_identifier->set_serial_number("");
@@ -262,10 +233,8 @@ bool IsMachineLevelUserCloudPolicyType(const std::string& type) {
 }
 
 std::string GetMachineLevelUserCloudPolicyTypeForCurrentOS() {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   return dm_protocol::kChromeMachineLevelUserCloudPolicyIOSType;
-#elif BUILDFLAG(IS_ANDROID)
-  return dm_protocol::kChromeMachineLevelUserCloudPolicyAndroidType;
 #else
   return dm_protocol::kChromeMachineLevelUserCloudPolicyType;
 #endif

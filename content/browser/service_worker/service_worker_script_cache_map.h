@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,10 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/services/storage/public/mojom/service_worker_storage_control.mojom.h"
+#include "content/browser/service_worker/service_worker_database.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/completion_once_callback.h"
@@ -32,10 +32,6 @@ class ServiceWorkerVersion;
 // for a particular version's implicit script resources.
 class CONTENT_EXPORT ServiceWorkerScriptCacheMap {
  public:
-  ServiceWorkerScriptCacheMap(const ServiceWorkerScriptCacheMap&) = delete;
-  ServiceWorkerScriptCacheMap& operator=(const ServiceWorkerScriptCacheMap&) =
-      delete;
-
   int64_t LookupResourceId(const GURL& url);
 
   // Used during the initial run of a new version to build the map
@@ -87,24 +83,25 @@ class CONTENT_EXPORT ServiceWorkerScriptCacheMap {
       base::WeakPtr<ServiceWorkerContextCore> context);
   ~ServiceWorkerScriptCacheMap();
 
-  void OnWriterDisconnected(uint64_t callback_id);
+  void OnWriterDisconnected(int64_t resource_id);
   void OnMetadataWritten(
       mojo::Remote<storage::mojom::ServiceWorkerResourceMetadataWriter>,
-      uint64_t callback_id,
+      int64_t resource_id,
       int result);
 
-  void RunCallback(uint64_t callback_id, int result);
+  void RunCallback(int64_t resource_id, int result);
 
-  raw_ptr<ServiceWorkerVersion> owner_;
+  ServiceWorkerVersion* owner_;
   base::WeakPtr<ServiceWorkerContextCore> context_;
   ResourceMap resource_map_;
   int main_script_net_error_ = net::OK;
   std::string main_script_status_message_;
-  uint64_t next_callback_id_ = 0;
-  base::flat_map</*callback_id=*/uint64_t, net::CompletionOnceCallback>
+  base::flat_map</*resource_id=*/int64_t, net::CompletionOnceCallback>
       callbacks_;
 
   base::WeakPtrFactory<ServiceWorkerScriptCacheMap> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerScriptCacheMap);
 };
 
 }  // namespace content

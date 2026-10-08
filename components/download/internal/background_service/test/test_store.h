@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "components/download/internal/background_service/store.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace download {
 
@@ -21,10 +22,6 @@ namespace test {
 class TestStore : public Store {
  public:
   TestStore();
-
-  TestStore(const TestStore&) = delete;
-  TestStore& operator=(const TestStore&) = delete;
-
   ~TestStore() override;
 
   // Store implementation.
@@ -58,11 +55,13 @@ class TestStore : public Store {
   std::vector<Entry> updated_entries_;
   std::vector<std::string> removed_entries_;
 
-  absl::optional<bool> automatic_callback_response_;
+  base::Optional<bool> automatic_callback_response_;
   InitCallback init_callback_;
   StoreCallback hard_recover_callback_;
   StoreCallback update_callback_;
   StoreCallback remove_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestStore);
 };
 
 }  // namespace test

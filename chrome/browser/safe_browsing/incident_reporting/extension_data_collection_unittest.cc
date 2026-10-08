@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/install_signer.h"
 #include "chrome/browser/extensions/test_extension_system.h"
@@ -22,8 +20,8 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
@@ -36,9 +34,9 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/users/scoped_test_user_manager.h"
-#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#include "chrome/browser/chromeos/settings/scoped_cros_settings_test_helper.h"
 #endif
 
 using ::testing::StrictMock;
@@ -60,9 +58,9 @@ class ExtensionTestingProfile : public TestingProfile {
   void SetInstallSignature(extensions::InstallSignature signature);
 
  private:
-  raw_ptr<TestingProfile> profile_;
-  raw_ptr<extensions::ExtensionService> extension_service_;
-  raw_ptr<extensions::ExtensionPrefs> extension_prefs_;
+  TestingProfile* profile_;
+  extensions::ExtensionService* extension_service_;
+  extensions::ExtensionPrefs* extension_prefs_;
 };
 
 ExtensionTestingProfile::ExtensionTestingProfile(TestingProfile* profile)
@@ -101,7 +99,7 @@ void ExtensionTestingProfile::AddExtension(std::string extension_id,
   extension_service_->AddExtension(extension.get());
 
   extension_prefs_->UpdateExtensionPref(
-      extension_id, "last_update_time",
+      extension_id, "install_time",
       std::make_unique<base::Value>(
           base::NumberToString(install_time.ToInternalValue())));
   extension_prefs_->UpdateExtensionPref(
@@ -110,7 +108,8 @@ void ExtensionTestingProfile::AddExtension(std::string extension_id,
 
 void ExtensionTestingProfile::SetInstallSignature(
     extensions::InstallSignature signature) {
-  base::Value::Dict signature_dict = signature.ToDict();
+  base::DictionaryValue signature_dict;
+  signature.ToValue(&signature_dict);
   extension_prefs_->SetInstallSignature(&signature_dict);
 }
 
@@ -129,20 +128,20 @@ class ExtensionDataCollectionTest : public testing::Test {
     SAFE_BROWSING_AND_EXTENDED_REPORTING,
   };
 
-  ExtensionDataCollectionTest() = default;
+  ExtensionDataCollectionTest() : profile_number_() {}
 
   void SetUp() override {
     testing::Test::SetUp();
-    profile_manager_ = std::make_unique<TestingProfileManager>(
-        TestingBrowserProcess::GetGlobal());
+    profile_manager_.reset(
+        new TestingProfileManager(TestingBrowserProcess::GetGlobal()));
     ASSERT_TRUE(profile_manager_->SetUp());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    test_user_manager_ = std::make_unique<ash::ScopedTestUserManager>();
+#if defined OS_CHROMEOS
+    test_user_manager_.reset(new chromeos::ScopedTestUserManager());
 #endif
   }
 
   void TearDown() override {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined OS_CHROMEOS
     // UserManager should be destroyed before TestingBrowserProcess as it
     // uses it in destructor.
     test_user_manager_.reset();
@@ -175,6 +174,7 @@ class ExtensionDataCollectionTest : public testing::Test {
         profile_name, std::move(prefs),
         base::UTF8ToUTF16(profile_name),  // user_name
         0,                                // avatar_id
+        std::string(),                    // supervised_user_id
         TestingProfile::TestingFactories());
 
     auto testing_profile = std::make_unique<ExtensionTestingProfile>(profile);
@@ -187,11 +187,11 @@ class ExtensionDataCollectionTest : public testing::Test {
   std::unique_ptr<TestingProfileManager> profile_manager_;
 
  private:
-  int profile_number_ = 0;
+  int profile_number_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
-  std::unique_ptr<ash::ScopedTestUserManager> test_user_manager_;
+#if defined OS_CHROMEOS
+  chromeos::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
+  std::unique_ptr<chromeos::ScopedTestUserManager> test_user_manager_;
 #endif
 };
 
@@ -275,15 +275,15 @@ TEST_F(ExtensionDataCollectionTest, CollectExtensionDataWithExtension) {
 TEST_F(ExtensionDataCollectionTest, CollectsLastInstalledExtension) {
   std::string extension_id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   std::string extension_name = "extension_2";
-  base::Time install_time = base::Time::Now() - base::Minutes(3);
+  base::Time install_time = base::Time::Now() - base::TimeDelta::FromMinutes(3);
 
   std::unique_ptr<ExtensionTestingProfile> profile =
       CreateProfile(SAFE_BROWSING_AND_EXTENDED_REPORTING);
   profile->AddExtension("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "extension_1",
-                        base::Time::Now() - base::Days(2));
+                        base::Time::Now() - base::TimeDelta::FromDays(2));
   profile->AddExtension(extension_id, extension_name, install_time);
   profile->AddExtension("cccccccccccccccccccccccccccccccc", "extension_3",
-                        base::Time::Now() - base::Hours(4));
+                        base::Time::Now() - base::TimeDelta::FromHours(4));
 
   ClientIncidentReport_ExtensionData data;
   CollectExtensionData(&data);
@@ -305,13 +305,13 @@ TEST_F(ExtensionDataCollectionTest, IgnoresExtensionsIfNoExtendedSafeBrowsing) {
       CreateProfile(SAFE_BROWSING_AND_EXTENDED_REPORTING);
 
   profile->AddExtension(extension_id, extension_name,
-                        base::Time::Now() - base::Days(3));
+                        base::Time::Now() - base::TimeDelta::FromDays(3));
 
   std::unique_ptr<ExtensionTestingProfile> profile_without_safe_browsing =
       CreateProfile(SAFE_BROWSING_ONLY);
   profile_without_safe_browsing->AddExtension(
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "extension_1",
-      base::Time::Now() - base::Days(2));
+      base::Time::Now() - base::TimeDelta::FromDays(2));
 
   ClientIncidentReport_ExtensionData data;
   CollectExtensionData(&data);

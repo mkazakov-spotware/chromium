@@ -1,8 +1,6 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-const inServiceWorker = 'ServiceWorkerGlobalScope' in self;
 
 chrome.test.runTests([
   function stringID() {
@@ -18,7 +16,7 @@ chrome.test.runTests([
     chrome.contextMenus.create({"id": "id1", "title": "title1"}, function() {
       chrome.test.assertNoLastError();
       chrome.contextMenus.create(
-          {"id": "id2", "title": "title2", "parentId": "id1"}, function() {
+          {"title": "title2", "parentId": "id1"}, function() {
         chrome.test.assertNoLastError();
         chrome.contextMenus.create(
             {"id": "id3", "title": "title3"}, function() {
@@ -38,13 +36,6 @@ chrome.test.runTests([
   },
 
   function idNonCollision() {
-    // This test is not valid for SW-based extensions and will be removed
-    // soon when integer IDs are no longer supported for context menus.
-    // See crbug.com/1044784.
-    if (inServiceWorker) {
-      chrome.test.succeed();
-      return;
-    }
     var intId = chrome.contextMenus.create({"title": "int17"}, function() {
       chrome.test.assertNoLastError();
       var stringId = String(intId);

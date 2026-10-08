@@ -1,9 +1,9 @@
-/* Copyright 2015 The Chromium Authors
+/* Copyright 2015 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
-#ifndef LIBRARIES_PPAPI_SIMPLE_PS_INSTANCE_H_
-#define LIBRARIES_PPAPI_SIMPLE_PS_INSTANCE_H_
+#ifndef PPAPI_SIMPLE_PS_INSTANCE_H_
+#define PPAPI_SIMPLE_PS_INSTANCE_H_
 
 #include <stdarg.h>
 
@@ -31,4 +31,4 @@ void PSInstanceError(const char *fmt, ...);
 
 EXTERN_C_END
 
-#endif  // LIBRARIES_PPAPI_SIMPLE_PS_INSTANCE_H_
+#endif  /* PPAPI_SIMPLE_PS_INSTANCE_H_ */

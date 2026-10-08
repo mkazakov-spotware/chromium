@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,6 @@ public interface ManagedMessageDispatcher
     /**
      * Dismiss all the enqueued messages. The currently being displayed message will be
      * hidden at once without animations.
-     * @param dismissReason The reason why messages are dismissed.
      */
-    void dismissAllMessages(@DismissReason int dismissReason);
+    void dismissAllMessages();
 }

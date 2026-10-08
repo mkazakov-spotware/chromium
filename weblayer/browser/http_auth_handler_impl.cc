@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/auth.h"
-#include "url/android/gurl_android.h"
 #include "weblayer/browser/java/jni/HttpAuthHandlerImpl_jni.h"
 #include "weblayer/browser/tab_impl.h"
 
@@ -20,7 +19,7 @@ HttpAuthHandlerImpl::HttpAuthHandlerImpl(
     content::WebContents* web_contents,
     bool first_auth_attempt,
     LoginAuthRequiredCallback callback)
-    : callback_(std::move(callback)) {
+    : WebContentsObserver(web_contents), callback_(std::move(callback)) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   url_ = auth_info.challenger.GetURL().Resolve(auth_info.path);
@@ -29,7 +28,8 @@ HttpAuthHandlerImpl::HttpAuthHandlerImpl(
   JNIEnv* env = base::android::AttachCurrentThread();
   java_impl_ = Java_HttpAuthHandlerImpl_create(
       env, reinterpret_cast<intptr_t>(this), tab->GetJavaTab(),
-      url::GURLAndroid::FromNativeGURL(env, url_));
+      base::android::ConvertUTF8ToJavaString(env, url_.host()),
+      base::android::ConvertUTF8ToJavaString(env, url_.spec()));
 }
 
 HttpAuthHandlerImpl::~HttpAuthHandlerImpl() {
@@ -67,7 +67,7 @@ void HttpAuthHandlerImpl::Proceed(
 void HttpAuthHandlerImpl::Cancel(JNIEnv* env) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (callback_)
-    std::move(callback_).Run(absl::nullopt);
+    std::move(callback_).Run(base::nullopt);
 
   CloseDialog();
 }

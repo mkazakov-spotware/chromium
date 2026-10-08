@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,17 @@ namespace views {
 AXWidgetObjWrapper::AXWidgetObjWrapper(AXAuraObjCache* aura_obj_cache,
                                        Widget* widget)
     : AXAuraObjWrapper(aura_obj_cache), widget_(widget) {
-  DCHECK(widget->GetNativeView());
-  widget_observation_.Observe(widget);
+  widget_observer_.Add(widget);
+  widget->AddRemovalsObserver(this);
 }
 
-AXWidgetObjWrapper::~AXWidgetObjWrapper() = default;
+AXWidgetObjWrapper::~AXWidgetObjWrapper() {
+  widget_->RemoveRemovalsObserver(this);
+}
+
+bool AXWidgetObjWrapper::IsIgnored() {
+  return false;
+}
 
 AXAuraObjWrapper* AXWidgetObjWrapper::GetParent() {
   return aura_obj_cache_->GetOrCreate(widget_->GetNativeView());
@@ -52,7 +58,7 @@ void AXWidgetObjWrapper::Serialize(ui::AXNodeData* out_node_data) {
   out_node_data->state = 0;
 }
 
-ui::AXNodeID AXWidgetObjWrapper::GetUniqueId() const {
+int32_t AXWidgetObjWrapper::GetUniqueId() const {
   return unique_id_.Get();
 }
 
@@ -71,6 +77,20 @@ void AXWidgetObjWrapper::OnWidgetDestroyed(Widget* widget) {
   // situation and ensures the destroyed widget is removed from cache.
   // See https://crbug.com/1091545
   aura_obj_cache_->Remove(widget);
+}
+
+void AXWidgetObjWrapper::OnWidgetClosing(Widget* widget) {
+  aura_obj_cache_->Remove(widget);
+}
+
+void AXWidgetObjWrapper::OnWidgetVisibilityChanged(Widget*, bool) {
+  // If a widget changes visibility it may affect what's focused, in particular
+  // when a widget that contains the focused view gets hidden.
+  aura_obj_cache_->OnFocusedViewChanged();
+}
+
+void AXWidgetObjWrapper::OnWillRemoveView(Widget* widget, View* view) {
+  aura_obj_cache_->RemoveViewSubtree(view);
 }
 
 }  // namespace views

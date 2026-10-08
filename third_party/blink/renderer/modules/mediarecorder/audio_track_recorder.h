@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,11 @@
 
 #include <memory>
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "third_party/blink/public/platform/modules/mediastream/web_media_stream_audio_sink.h"
 #include "third_party/blink/renderer/modules/mediarecorder/track_recorder.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/scheduler/public/non_main_thread.h"
 
 namespace media {
 class AudioBus;
@@ -23,7 +22,7 @@ namespace blink {
 
 class AudioTrackEncoder;
 class MediaStreamComponent;
-class NonMainThread;
+class Thread;
 
 // AudioTrackRecorder is a MediaStreamAudioSink that encodes the audio buses
 // received from a Stream Audio Track. The class is constructed on a
@@ -36,14 +35,11 @@ class MODULES_EXPORT AudioTrackRecorder
     : public TrackRecorder<WebMediaStreamAudioSink> {
  public:
   enum class CodecId {
-    // Do not change the order of codecs. Add new ones right before kLast.
-    kOpus,
-    kPcm,  // 32-bit little-endian float.
-    kAac,
-    kLast
+    // Do not change the order of codecs. Add new ones right before LAST.
+    OPUS,
+    PCM,  // 32-bit little-endian float.
+    LAST
   };
-
-  enum class BitrateMode { kConstant, kVariable };
 
   using OnEncodedAudioCB =
       base::RepeatingCallback<void(const media::AudioParameters& params,
@@ -56,15 +52,7 @@ class MODULES_EXPORT AudioTrackRecorder
                      MediaStreamComponent* track,
                      OnEncodedAudioCB on_encoded_audio_cb,
                      base::OnceClosure on_track_source_ended_cb,
-                     uint32_t bits_per_second,
-                     BitrateMode bitrate_mode,
-                     std::unique_ptr<NonMainThread> encoder_thread =
-                         NonMainThread::CreateThread(ThreadCreationParams(
-                             ThreadType::kAudioEncoderThread)));
-
-  AudioTrackRecorder(const AudioTrackRecorder&) = delete;
-  AudioTrackRecorder& operator=(const AudioTrackRecorder&) = delete;
-
+                     int32_t bits_per_second);
   ~AudioTrackRecorder() override;
 
   // Implement MediaStreamAudioSink.
@@ -81,19 +69,21 @@ class MODULES_EXPORT AudioTrackRecorder
   static scoped_refptr<AudioTrackEncoder> CreateAudioEncoder(
       CodecId codec,
       OnEncodedAudioCB on_encoded_audio_cb,
-      uint32_t bits_per_second,
-      BitrateMode bitrate_mode);
+      int32_t bits_per_second);
 
   void ConnectToTrack();
   void DisconnectFromTrack();
-  void ShutdownEncoder();
 
   void Prefinalize();
+
+  // Used to check that MediaStreamAudioSink's methods are called on the
+  // capture audio thread.
+  THREAD_CHECKER(capture_thread_checker_);
 
   // We need to hold on to the Blink track to remove ourselves on destruction.
   Persistent<MediaStreamComponent> track_;
 
-  // Thin wrapper around the chosen encoder.
+  // Thin wrapper around OpusEncoder.
   // |encoder_| should be initialized before |encoder_thread_| such that
   // |encoder_thread_| is destructed first. This, combined with all
   // AudioTrackEncoder work (aside from construction and destruction) happening
@@ -102,19 +92,11 @@ class MODULES_EXPORT AudioTrackRecorder
   const scoped_refptr<AudioTrackEncoder> encoder_;
 
   // The thread on which |encoder_| works.
-  std::unique_ptr<NonMainThread> encoder_thread_;
+  std::unique_ptr<Thread> encoder_thread_;
 
   scoped_refptr<base::SingleThreadTaskRunner> encoder_task_runner_;
 
-  // Number of frames per chunked buffer passed to the encoder.
-  int frames_per_chunk_ = 0;
-
-  // Integer used for checking OnSetFormat/OnData against races. We can use
-  // neither ThreadChecker (due to SilentSinkSuspender), nor SequenceChecker.
-  // See crbug.com/1377367.
-#if DCHECK_IS_ON()
-  std::atomic<int> race_checker_{0};
-#endif
+  DISALLOW_COPY_AND_ASSIGN(AudioTrackRecorder);
 };
 
 }  // namespace blink

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Class for representing matrices and static helper functions.
@@ -47,7 +55,6 @@ goog.require('goog.string');
  * @final
  */
 goog.math.Matrix = function(m, opt_n) {
-  'use strict';
   if (m instanceof goog.math.Matrix) {
     this.array_ = m.toArray();
   } else if (
@@ -81,7 +88,6 @@ goog.math.Matrix = function(m, opt_n) {
  * @return {!goog.math.Matrix} Identity matrix of width and height `n`.
  */
 goog.math.Matrix.createIdentityMatrix = function(n) {
-  'use strict';
   var rv = [];
   for (var i = 0; i < n; i++) {
     rv[i] = [];
@@ -105,7 +111,6 @@ goog.math.Matrix.createIdentityMatrix = function(n) {
  * @template T
  */
 goog.math.Matrix.forEach = function(matrix, fn, opt_obj) {
-  'use strict';
   for (var i = 0; i < matrix.getSize().height; i++) {
     for (var j = 0; j < matrix.getSize().width; j++) {
       fn.call(opt_obj, matrix.array_[i][j], i, j, matrix);
@@ -121,7 +126,6 @@ goog.math.Matrix.forEach = function(matrix, fn, opt_obj) {
  * @return {boolean} Whether the array is a valid matrix.
  */
 goog.math.Matrix.isValidArray = function(arr) {
-  'use strict';
   var len = 0;
   for (var i = 0; i < arr.length; i++) {
     if (!goog.isArrayLike(arr[i]) || len > 0 && arr[i].length != len) {
@@ -154,10 +158,8 @@ goog.math.Matrix.isValidArray = function(arr) {
  * @template T
  */
 goog.math.Matrix.map = function(matrix, fn, opt_obj) {
-  'use strict';
   var m = new goog.math.Matrix(matrix.getSize());
   goog.math.Matrix.forEach(matrix, function(value, i, j) {
-    'use strict';
     m.array_[i][j] = fn.call(opt_obj, value, i, j, matrix);
   });
   return m;
@@ -172,7 +174,6 @@ goog.math.Matrix.map = function(matrix, fn, opt_obj) {
  * @private
  */
 goog.math.Matrix.createZeroPaddedArray_ = function(m, n) {
-  'use strict';
   var rv = [];
   for (var i = 0; i < m; i++) {
     rv[i] = [];
@@ -206,15 +207,12 @@ goog.math.Matrix.prototype.size_;
  * @return {!goog.math.Matrix} Resultant sum.
  */
 goog.math.Matrix.prototype.add = function(m) {
-  'use strict';
   if (!goog.math.Size.equals(this.size_, m.getSize())) {
     throw new Error(
         'Matrix summation is only supported on arrays of equal size');
   }
-  return goog.math.Matrix.map(this, function(val, i, j) {
-    'use strict';
-    return val + m.array_[i][j];
-  });
+  return goog.math.Matrix.map(
+      this, function(val, i, j) { return val + m.array_[i][j]; });
 };
 
 
@@ -225,7 +223,6 @@ goog.math.Matrix.prototype.add = function(m) {
  *     right.
  */
 goog.math.Matrix.prototype.appendColumns = function(m) {
-  'use strict';
   if (this.size_.height != m.getSize().height) {
     throw new Error(
         'The given matrix has height ' + m.size_.height + ', but ' +
@@ -233,12 +230,9 @@ goog.math.Matrix.prototype.appendColumns = function(m) {
   }
   var result =
       new goog.math.Matrix(this.size_.height, this.size_.width + m.size_.width);
-  goog.math.Matrix.forEach(this, function(value, i, j) {
-    'use strict';
-    result.array_[i][j] = value;
-  });
+  goog.math.Matrix.forEach(
+      this, function(value, i, j) { result.array_[i][j] = value; });
   goog.math.Matrix.forEach(m, function(value, i, j) {
-    'use strict';
     result.array_[i][this.size_.width + j] = value;
   }, this);
   return result;
@@ -251,7 +245,6 @@ goog.math.Matrix.prototype.appendColumns = function(m) {
  * @return {!goog.math.Matrix} A new matrix with added columns on the bottom.
  */
 goog.math.Matrix.prototype.appendRows = function(m) {
-  'use strict';
   if (this.size_.width != m.getSize().width) {
     throw new Error(
         'The given matrix has width ' + m.size_.width + ', but ' +
@@ -259,12 +252,9 @@ goog.math.Matrix.prototype.appendRows = function(m) {
   }
   var result = new goog.math.Matrix(
       this.size_.height + m.size_.height, this.size_.width);
-  goog.math.Matrix.forEach(this, function(value, i, j) {
-    'use strict';
-    result.array_[i][j] = value;
-  });
+  goog.math.Matrix.forEach(
+      this, function(value, i, j) { result.array_[i][j] = value; });
   goog.math.Matrix.forEach(m, function(value, i, j) {
-    'use strict';
     result.array_[this.size_.height + i][j] = value;
   }, this);
   return result;
@@ -278,7 +268,6 @@ goog.math.Matrix.prototype.appendRows = function(m) {
  * @return {boolean} Whether the given matrix equals this matrix.
  */
 goog.math.Matrix.prototype.equals = function(m, opt_tolerance) {
-  'use strict';
   if (this.size_.width != m.size_.width) {
     return false;
   }
@@ -306,7 +295,6 @@ goog.math.Matrix.prototype.equals = function(m, opt_tolerance) {
  * @return {number} The determinant of this matrix.
  */
 goog.math.Matrix.prototype.getDeterminant = function() {
-  'use strict';
   if (!this.isSquare()) {
     throw new Error('A determinant can only be take on a square matrix');
   }
@@ -321,7 +309,6 @@ goog.math.Matrix.prototype.getDeterminant = function() {
  * @return {goog.math.Matrix} A new matrix which is the inverse of this matrix.
  */
 goog.math.Matrix.prototype.getInverse = function() {
-  'use strict';
   if (!this.isSquare()) {
     throw new Error('An inverse can only be taken on a square matrix.');
   }
@@ -345,7 +332,6 @@ goog.math.Matrix.prototype.getInverse = function() {
  * @return {!goog.math.Matrix} A new matrix reduced row echelon form.
  */
 goog.math.Matrix.prototype.getReducedRowEchelonForm = function() {
-  'use strict';
   var result = new goog.math.Matrix(this);
   var col = 0;
   // Each iteration puts one row in reduced row echelon form
@@ -396,7 +382,6 @@ goog.math.Matrix.prototype.getReducedRowEchelonForm = function() {
  * @return {!goog.math.Size} The dimensions of the matrix.
  */
 goog.math.Matrix.prototype.getSize = function() {
-  'use strict';
   return this.size_;
 };
 
@@ -408,12 +393,9 @@ goog.math.Matrix.prototype.getSize = function() {
  * @return {!goog.math.Matrix} A new matrix A^T.
  */
 goog.math.Matrix.prototype.getTranspose = function() {
-  'use strict';
   var m = new goog.math.Matrix(this.size_.width, this.size_.height);
-  goog.math.Matrix.forEach(this, function(value, i, j) {
-    'use strict';
-    m.array_[j][i] = value;
-  });
+  goog.math.Matrix.forEach(
+      this, function(value, i, j) { m.array_[j][i] = value; });
   return m;
 };
 
@@ -426,7 +408,6 @@ goog.math.Matrix.prototype.getTranspose = function() {
  * @return {?number} The value at the specified coordinate.
  */
 goog.math.Matrix.prototype.getValueAt = function(i, j) {
-  'use strict';
   if (!this.isInBounds_(i, j)) {
     return null;
   }
@@ -439,7 +420,6 @@ goog.math.Matrix.prototype.getValueAt = function(i, j) {
  *     matrix are the same.
  */
 goog.math.Matrix.prototype.isSquare = function() {
-  'use strict';
   return this.size_.width == this.size_.height;
 };
 
@@ -452,7 +432,6 @@ goog.math.Matrix.prototype.isSquare = function() {
  * @param {number} value The new value for the coordinate.
  */
 goog.math.Matrix.prototype.setValueAt = function(i, j, value) {
-  'use strict';
   if (!this.isInBounds_(i, j)) {
     throw new Error(
         'Index out of bounds when setting matrix value, (' + i + ',' + j +
@@ -478,7 +457,6 @@ goog.math.Matrix.prototype.setValueAt = function(i, j, value) {
  * @return {!goog.math.Matrix} Resultant product.
  */
 goog.math.Matrix.prototype.multiply = function(m) {
-  'use strict';
   if (m instanceof goog.math.Matrix) {
     if (this.size_.width != m.getSize().height) {
       throw new Error(
@@ -502,15 +480,12 @@ goog.math.Matrix.prototype.multiply = function(m) {
  * @return {!goog.math.Matrix} Resultant difference.
  */
 goog.math.Matrix.prototype.subtract = function(m) {
-  'use strict';
   if (!goog.math.Size.equals(this.size_, m.getSize())) {
     throw new Error(
         'Matrix subtraction is only supported on arrays of equal size.');
   }
-  return goog.math.Matrix.map(this, function(val, i, j) {
-    'use strict';
-    return val - m.array_[i][j];
-  });
+  return goog.math.Matrix.map(
+      this, function(val, i, j) { return val - m.array_[i][j]; });
 };
 
 
@@ -519,7 +494,6 @@ goog.math.Matrix.prototype.subtract = function(m) {
  *     matrix.  Not a clone.
  */
 goog.math.Matrix.prototype.toArray = function() {
-  'use strict';
   return this.array_;
 };
 
@@ -537,11 +511,9 @@ if (goog.DEBUG) {
    * @override
    */
   goog.math.Matrix.prototype.toString = function() {
-    'use strict';
     // Calculate correct padding for optimum display of matrix
     var maxLen = 0;
     goog.math.Matrix.forEach(this, function(val) {
-      'use strict';
       var len = String(val).length;
       if (len > maxLen) {
         maxLen = len;
@@ -551,10 +523,8 @@ if (goog.DEBUG) {
     // Build the string
     var sb = [];
     goog.array.forEach(this.array_, function(row, x) {
-      'use strict';
       sb.push('[ ');
-      row.forEach(function(val, y) {
-        'use strict';
+      goog.array.forEach(row, function(val, y) {
         var strval = String(val);
         sb.push(goog.string.repeat(' ', maxLen - strval.length) + strval + ' ');
       });
@@ -574,7 +544,6 @@ if (goog.DEBUG) {
  * @private
  */
 goog.math.Matrix.prototype.getCofactor_ = function(i, j) {
-  'use strict';
   return (i + j % 2 == 0 ? 1 : -1) * this.getMinor_(i, j);
 };
 
@@ -587,7 +556,6 @@ goog.math.Matrix.prototype.getCofactor_ = function(i, j) {
  * @private
  */
 goog.math.Matrix.prototype.getDeterminant_ = function() {
-  'use strict';
   if (this.getSize().area() == 1) {
     return this.array_[0][0];
   }
@@ -611,7 +579,6 @@ goog.math.Matrix.prototype.getDeterminant_ = function() {
  * @private
  */
 goog.math.Matrix.prototype.getMinor_ = function(i, j) {
-  'use strict';
   return this.getSubmatrixByDeletion_(i, j).getDeterminant_();
 };
 
@@ -627,12 +594,10 @@ goog.math.Matrix.prototype.getMinor_ = function(i, j) {
  */
 goog.math.Matrix.prototype.getSubmatrixByCoordinates_ = function(
     i1, j1, opt_i2, opt_j2) {
-  'use strict';
   var i2 = opt_i2 ? opt_i2 : this.size_.height - 1;
   var j2 = opt_j2 ? opt_j2 : this.size_.width - 1;
   var result = new goog.math.Matrix(i2 - i1 + 1, j2 - j1 + 1);
   goog.math.Matrix.forEach(result, function(value, i, j) {
-    'use strict';
     result.array_[i][j] = this.array_[i1 + i][j1 + j];
   }, this);
   return result;
@@ -647,10 +612,8 @@ goog.math.Matrix.prototype.getSubmatrixByCoordinates_ = function(
  * @private
  */
 goog.math.Matrix.prototype.getSubmatrixByDeletion_ = function(i, j) {
-  'use strict';
   var m = new goog.math.Matrix(this.size_.width - 1, this.size_.height - 1);
   goog.math.Matrix.forEach(m, function(value, x, y) {
-    'use strict';
     m.setValueAt(x, y, this.array_[x >= i ? x + 1 : x][y >= j ? y + 1 : y]);
   }, this);
   return m;
@@ -666,7 +629,6 @@ goog.math.Matrix.prototype.getSubmatrixByDeletion_ = function(i, j) {
  * @private
  */
 goog.math.Matrix.prototype.isInBounds_ = function(i, j) {
-  'use strict';
   return i >= 0 && i < this.size_.height && j >= 0 && j < this.size_.width;
 };
 
@@ -682,10 +644,8 @@ goog.math.Matrix.prototype.isInBounds_ = function(i, j) {
  * @private
  */
 goog.math.Matrix.prototype.matrixMultiply_ = function(m) {
-  'use strict';
   var resultMatrix = new goog.math.Matrix(this.size_.height, m.getSize().width);
   goog.math.Matrix.forEach(resultMatrix, function(val, x, y) {
-    'use strict';
     var newVal = 0;
     for (var i = 0; i < this.size_.width; i++) {
       newVal += goog.asserts.assertNumber(this.getValueAt(x, i)) *
@@ -706,11 +666,7 @@ goog.math.Matrix.prototype.matrixMultiply_ = function(m) {
  * @private
  */
 goog.math.Matrix.prototype.scalarMultiply_ = function(m) {
-  'use strict';
-  return goog.math.Matrix.map(this, function(val, x, y) {
-    'use strict';
-    return val * m;
-  });
+  return goog.math.Matrix.map(this, function(val, x, y) { return val * m; });
 };
 
 
@@ -721,7 +677,6 @@ goog.math.Matrix.prototype.scalarMultiply_ = function(m) {
  * @private
  */
 goog.math.Matrix.prototype.swapRows_ = function(i1, i2) {
-  'use strict';
   var tmp = this.array_[i1];
   this.array_[i1] = this.array_[i2];
   this.array_[i2] = tmp;

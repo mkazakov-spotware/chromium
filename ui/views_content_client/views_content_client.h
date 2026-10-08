@@ -1,14 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_CONTENT_CLIENT_VIEWS_CONTENT_CLIENT_H_
 #define UI_VIEWS_CONTENT_CLIENT_VIEWS_CONTENT_CLIENT_H_
 
-#include <utility>
-
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views_content_client/views_content_client_export.h"
@@ -32,7 +30,7 @@ namespace ui {
 //   // Create desired windows and views here. Runs on the UI thread.
 // }
 //
-// #if BUILDFLAG(IS_WIN)
+// #if defined(OS_WIN)
 // int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
 //   sandbox::SandboxInterfaceInfo sandbox_info = {nullptr};
 //   content::InitializeSandboxInfo(&sandbox_info);
@@ -52,15 +50,12 @@ class VIEWS_CONTENT_CLIENT_EXPORT ViewsContentClient {
       base::OnceCallback<void(content::BrowserContext* browser_context,
                               gfx::NativeWindow window_context)>;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   ViewsContentClient(HINSTANCE instance,
                      sandbox::SandboxInterfaceInfo* sandbox_info);
 #else
   ViewsContentClient(int argc, const char** argv);
 #endif
-
-  ViewsContentClient(const ViewsContentClient&) = delete;
-  ViewsContentClient& operator=(const ViewsContentClient&) = delete;
 
   ~ViewsContentClient();
 
@@ -95,16 +90,18 @@ class VIEWS_CONTENT_CLIENT_EXPORT ViewsContentClient {
   base::OnceClosure& quit_closure() { return quit_closure_; }
 
  private:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   HINSTANCE instance_;
-  raw_ptr<sandbox::SandboxInterfaceInfo> sandbox_info_;
+  sandbox::SandboxInterfaceInfo* sandbox_info_;
 #else
   int argc_;
-  raw_ptr<const char*> argv_;
+  const char** argv_;
 #endif
   OnPreMainMessageLoopRunCallback on_pre_main_message_loop_run_callback_;
   base::OnceClosure on_resources_loaded_callback_;
   base::OnceClosure quit_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewsContentClient);
 };
 
 }  // namespace ui

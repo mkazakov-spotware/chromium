@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/scoped_hdc.h"
@@ -28,17 +27,19 @@ namespace printing {
 class PrintingContextTest : public PrintingTest<testing::Test>,
                             public PrintingContext::Delegate {
  public:
-  void PrintSettingsCallback(mojom::ResultCode result) { result_ = result; }
+  void PrintSettingsCallback(PrintingContext::Result result) {
+    result_ = result;
+  }
 
   // PrintingContext::Delegate methods.
   gfx::NativeView GetParentView() override { return nullptr; }
   std::string GetAppLocale() override { return std::string(); }
 
  protected:
-  mojom::ResultCode result() const { return result_; }
+  PrintingContext::Result result() const { return result_; }
 
  private:
-  mojom::ResultCode result_;
+  PrintingContext::Result result_;
 };
 
 namespace {
@@ -63,7 +64,7 @@ class MockPrintingContextWin : public PrintingContextSystemDialogWin {
 
  protected:
   // This is a fake PrintDlgEx implementation that sets the right fields in
-  // `lppd` to trigger a bug in older revisions of PrintingContext.
+  // |lppd| to trigger a bug in older revisions of PrintingContext.
   HRESULT ShowPrintDialog(PRINTDLGEX* lppd) override {
     // The interesting bits:
     // Pretend the user hit print
@@ -75,7 +76,7 @@ class MockPrintingContextWin : public PrintingContextSystemDialogWin {
     lppd->lpPageRanges[0].nFromPage = 1;
     lppd->lpPageRanges[0].nToPage = 5;
 
-    std::wstring printer_name = PrintingContextTest::GetDefaultPrinter();
+    base::string16 printer_name = PrintingContextTest::GetDefaultPrinter();
     ScopedPrinterHandle printer;
     if (!printer.OpenPrinterWithName(printer_name.c_str()))
       return E_FAIL;
@@ -143,8 +144,7 @@ class MockPrintingContextWin : public PrintingContextSystemDialogWin {
   }
 };
 
-// Disabled - see crbug.com/1231528 for context.
-TEST_F(PrintingContextTest, DISABLED_PrintAll) {
+TEST_F(PrintingContextTest, PrintAll) {
   if (IsTestCaseDisabled())
     return;
 
@@ -154,13 +154,12 @@ TEST_F(PrintingContextTest, DISABLED_PrintAll) {
       123, false, false,
       base::BindOnce(&PrintingContextTest::PrintSettingsCallback,
                      base::Unretained(this)));
-  EXPECT_EQ(mojom::ResultCode::kSuccess, result());
+  EXPECT_EQ(PrintingContext::OK, result());
   const PrintSettings& settings = context.settings();
   EXPECT_EQ(0u, settings.ranges().size());
 }
 
-// Disabled - see crbug.com/1231528 for context.
-TEST_F(PrintingContextTest, DISABLED_Color) {
+TEST_F(PrintingContextTest, Color) {
   if (IsTestCaseDisabled())
     return;
 
@@ -170,21 +169,20 @@ TEST_F(PrintingContextTest, DISABLED_Color) {
       123, false, false,
       base::BindOnce(&PrintingContextTest::PrintSettingsCallback,
                      base::Unretained(this)));
-  EXPECT_EQ(mojom::ResultCode::kSuccess, result());
+  EXPECT_EQ(PrintingContext::OK, result());
   const PrintSettings& settings = context.settings();
   EXPECT_NE(settings.color(), mojom::ColorModel::kUnknownColorModel);
 }
 
-// Disabled - see crbug.com/1231528 for context.
-TEST_F(PrintingContextTest, DISABLED_Base) {
+TEST_F(PrintingContextTest, Base) {
   if (IsTestCaseDisabled())
     return;
 
   auto settings = std::make_unique<PrintSettings>();
-  settings->set_device_name(base::WideToUTF16(GetDefaultPrinter()));
+  settings->set_device_name(GetDefaultPrinter());
   // Initialize it.
   PrintingContextWin context(this);
-  EXPECT_EQ(mojom::ResultCode::kSuccess,
+  EXPECT_EQ(PrintingContext::OK,
             context.InitWithSettingsForTest(std::move(settings)));
 
   // The print may lie to use and may not support world transformation.

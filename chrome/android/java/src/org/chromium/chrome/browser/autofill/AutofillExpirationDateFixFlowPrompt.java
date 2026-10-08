@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,16 @@ package org.chromium.chrome.browser.autofill;
 import android.content.Context;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.autofill.AutofillUiUtils.ErrorType;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
+import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
 import org.chromium.ui.modelutil.PropertyModel;
 
@@ -23,44 +26,36 @@ import org.chromium.ui.modelutil.PropertyModel;
  * - Confirm if the month and year needs to be pre-populated in case partial data is available.
  */
 public class AutofillExpirationDateFixFlowPrompt
-        extends AutofillSaveCardPromptBase implements TextWatcher {
+        implements TextWatcher, ModalDialogProperties.Controller {
     /**
      * An interface to handle the interaction with an AutofillExpirationDateFixFlowPrompt object.
      */
-    public interface AutofillExpirationDateFixFlowPromptDelegate
-            extends AutofillSaveCardPromptBaseDelegate {
+    public interface AutofillExpirationDateFixFlowPromptDelegate {
+        /**
+         * Called when dialog is dismissed.
+         */
+        void onPromptDismissed();
+
         /**
          * Called when user accepted/confirmed the prompt.
          *
          * @param month expiration date month.
          * @param year expiration date year.
          */
-        void onUserAcceptExpirationDate(String month, String year);
-    }
-
-    /**
-     * Create a prompt dialog for the use of infobar. This dialog does not include legal lines.
-     *
-     * @param context The current context.
-     * @param delegate A {@link AutofillExpirationDateFixFlowPromptDelegate} to handle events.
-     * @param title Title of the dialog prompt.
-     * @param drawableId Drawable id on the title.
-     * @param cardLabel Label representing a card which will be saved.
-     * @param confirmButtonLabel Label for the confirm button.
-     * @return The prompt to confirm expiration data.
-     */
-    public static AutofillExpirationDateFixFlowPrompt createAsInfobarFixFlowPrompt(Context context,
-            AutofillExpirationDateFixFlowPromptDelegate delegate, String title, int drawableId,
-            String cardLabel, String confirmButtonLabel) {
-        return new AutofillExpirationDateFixFlowPrompt(
-                context, delegate, title, drawableId, cardLabel, confirmButtonLabel, false);
+        void onUserAccept(String month, String year);
     }
 
     private final AutofillExpirationDateFixFlowPromptDelegate mDelegate;
+    private final PropertyModel mDialogModel;
 
+    private final View mDialogView;
     private final EditText mMonthInput;
     private final EditText mYearInput;
     private final TextView mErrorMessage;
+    private final TextView mCardDetailsMasked;
+
+    private ModalDialogManager mModalDialogManager;
+    private Context mContext;
 
     private boolean mDidFocusOnMonth;
     private boolean mDidFocusOnYear;
@@ -68,18 +63,15 @@ public class AutofillExpirationDateFixFlowPrompt
     /**
      * Fix flow prompt to confirm expiration date before saving the card to Google.
      */
-    private AutofillExpirationDateFixFlowPrompt(Context context,
-            AutofillExpirationDateFixFlowPromptDelegate delegate, String title, int drawableId,
-            String cardLabel, String confirmButtonLabel, boolean filledConfirmButton) {
-        super(context, delegate, R.layout.autofill_expiration_date_fix_flow, title, drawableId,
-                confirmButtonLabel, filledConfirmButton);
+    public AutofillExpirationDateFixFlowPrompt(Context context,
+            AutofillExpirationDateFixFlowPromptDelegate delegate, String title,
+            String confirmButtonLabel, int drawableId, String cardLabel) {
         mDelegate = delegate;
+        LayoutInflater inflater = LayoutInflater.from(context);
+        mDialogView = inflater.inflate(R.layout.autofill_expiration_date_fix_flow, null);
         mErrorMessage = (TextView) mDialogView.findViewById(R.id.error_message);
-        // Infobar: show masked card number only.
-        TextView cardDetailsMasked = (TextView) mDialogView.findViewById(R.id.cc_details_masked);
-        cardDetailsMasked.setText(cardLabel);
-        mDialogView.findViewById(R.id.message_divider).setVisibility(View.GONE);
-        mDialogView.findViewById(R.id.google_pay_logo).setVisibility(View.GONE);
+        mCardDetailsMasked = (TextView) mDialogView.findViewById(R.id.cc_details_masked);
+        mCardDetailsMasked.setText(cardLabel);
 
         mMonthInput = (EditText) mDialogView.findViewById(R.id.cc_month_edit);
         mMonthInput.addTextChangedListener(this);
@@ -92,6 +84,38 @@ public class AutofillExpirationDateFixFlowPrompt
         mYearInput.setOnFocusChangeListener((view, hasFocus) -> {
             mDidFocusOnYear |= hasFocus;
         });
+
+        PropertyModel.Builder builder =
+                new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
+                        .with(ModalDialogProperties.CONTROLLER, this)
+                        .with(ModalDialogProperties.TITLE, title)
+                        .with(ModalDialogProperties.CUSTOM_VIEW, mDialogView)
+                        .with(ModalDialogProperties.POSITIVE_BUTTON_TEXT, confirmButtonLabel)
+                        .with(ModalDialogProperties.NEGATIVE_BUTTON_TEXT, context.getResources(),
+                                R.string.cancel)
+                        .with(ModalDialogProperties.CANCEL_ON_TOUCH_OUTSIDE, false)
+                        .with(ModalDialogProperties.POSITIVE_BUTTON_DISABLED, true);
+        if (drawableId != 0) {
+            builder.with(ModalDialogProperties.TITLE_ICON, context, drawableId);
+        }
+        mDialogModel = builder.build();
+    }
+
+    /**
+     * Show the dialog. If activity is null this method will not do anything.
+     */
+    public void show(ChromeActivity activity) {
+        if (activity == null) {
+            return;
+        }
+
+        mContext = activity;
+        mModalDialogManager = activity.getModalDialogManager();
+        mModalDialogManager.showDialog(mDialogModel, ModalDialogManager.ModalDialogType.APP);
+    }
+
+    protected void dismiss(@DialogDismissalCause int dismissalCause) {
+        mModalDialogManager.dismissDialog(mDialogModel, dismissalCause);
     }
 
     @Override
@@ -110,7 +134,7 @@ public class AutofillExpirationDateFixFlowPrompt
         if (buttonType == ModalDialogProperties.ButtonType.POSITIVE) {
             String monthString = mMonthInput.getText().toString().trim();
             String yearString = mYearInput.getText().toString().trim();
-            mDelegate.onUserAcceptExpirationDate(monthString, yearString);
+            mDelegate.onUserAccept(monthString, yearString);
             mModalDialogManager.dismissDialog(model, DialogDismissalCause.POSITIVE_BUTTON_CLICKED);
         } else if (buttonType == ModalDialogProperties.ButtonType.NEGATIVE) {
             mModalDialogManager.dismissDialog(model, DialogDismissalCause.NEGATIVE_BUTTON_CLICKED);
@@ -119,13 +143,12 @@ public class AutofillExpirationDateFixFlowPrompt
 
     @Override
     public void onDismiss(PropertyModel model, int dismissalCause) {
-        // Do not call onUserDismiss if dialog was dismissed either because the user
+        // Do not call dismissed on the delegate if dialog was dismissed either because the user
         // accepted to save the card or was dismissed by native code.
-        if (dismissalCause == DialogDismissalCause.NEGATIVE_BUTTON_CLICKED) {
-            mDelegate.onUserDismiss();
+        if (dismissalCause != DialogDismissalCause.POSITIVE_BUTTON_CLICKED
+                && dismissalCause != DialogDismissalCause.DISMISSED_BY_NATIVE) {
+            mDelegate.onPromptDismissed();
         }
-        // Call whenever the dialog is dismissed.
-        mDelegate.onPromptDismissed();
     }
 
     /**

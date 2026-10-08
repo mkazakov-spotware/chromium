@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_simple_task_runner.h"
@@ -143,7 +142,7 @@ class ResourcePrefetchPredictorTest : public testing::Test {
   scoped_refptr<base::TestSimpleTaskRunner> db_task_runner_;
 
   std::unique_ptr<LoadingPredictor> loading_predictor_;
-  raw_ptr<ResourcePrefetchPredictor> predictor_;
+  ResourcePrefetchPredictor* predictor_;
   scoped_refptr<StrictMock<MockResourcePrefetchPredictorTables>> mock_tables_;
 
   RedirectDataMap test_host_redirect_data_;
@@ -153,7 +152,8 @@ class ResourcePrefetchPredictorTest : public testing::Test {
 };
 
 ResourcePrefetchPredictorTest::ResourcePrefetchPredictorTest()
-    : db_task_runner_(base::MakeRefCounted<base::TestSimpleTaskRunner>()),
+    : profile_(std::make_unique<TestingProfile>()),
+      db_task_runner_(base::MakeRefCounted<base::TestSimpleTaskRunner>()),
       mock_tables_(
           base::MakeRefCounted<StrictMock<MockResourcePrefetchPredictorTables>>(
               db_task_runner_)) {}
@@ -163,11 +163,7 @@ ResourcePrefetchPredictorTest::~ResourcePrefetchPredictorTest() = default;
 void ResourcePrefetchPredictorTest::SetUp() {
   InitializeSampleData();
 
-  TestingProfile::Builder profile_builder;
-  profile_builder.AddTestingFactory(HistoryServiceFactory::GetInstance(),
-                                    HistoryServiceFactory::GetDefaultFactory());
-  profile_ = profile_builder.Build();
-
+  CHECK(profile_->CreateHistoryService());
   profile_->BlockUntilHistoryProcessesPendingRequests();
   CHECK(HistoryServiceFactory::GetForProfile(
       profile_.get(), ServiceAccessType::EXPLICIT_ACCESS));
@@ -533,8 +529,8 @@ TEST_F(ResourcePrefetchPredictorTest,
        i <= static_cast<int>(predictor_->config_.max_origins_per_entry) - 1;
        ++i) {
     InitializeOriginStat(origin_data.add_origins(),
-                         GURL(gen(i)).DeprecatedGetOriginAsURL().spec(), 1, 0,
-                         0, i + 1, false, true);
+                         GURL(gen(i)).GetOrigin().spec(), 1, 0, 0, i + 1, false,
+                         true);
   }
   EXPECT_EQ(mock_tables_->origin_table_.data_,
             OriginDataMap({{origin_data.host(), origin_data}}));
@@ -844,14 +840,12 @@ TEST_P(ResourcePrefetchPredictorPreconnectToRedirectTargetTest,
   }
 
   const GURL main_frame_url("http://google.com/?query=cats");
-  const net::SchemefulSite site = net::SchemefulSite(main_frame_url);
-  const net::NetworkAnonymizationKey network_anonymization_key(site, site);
+  const url::Origin origin = url::Origin::Create(main_frame_url);
+  const net::NetworkIsolationKey network_isolation_key(origin, origin);
   const url::Origin www_google_origin =
       url::Origin::Create(GURL("https://www.google.com"));
-  const net::SchemefulSite www_google_site =
-      net::SchemefulSite(www_google_origin);
-  const net::NetworkAnonymizationKey www_google_network_anonymization_key(
-      www_google_site, www_google_site);
+  const net::NetworkIsolationKey www_google_network_isolation_key(
+      www_google_origin, www_google_origin);
   auto prediction = std::make_unique<PreconnectPrediction>();
   // No prefetch data.
   EXPECT_FALSE(predictor_->IsUrlPreconnectable(main_frame_url));
@@ -877,12 +871,13 @@ TEST_P(ResourcePrefetchPredictorPreconnectToRedirectTargetTest,
   EXPECT_TRUE(predictor_->IsUrlPreconnectable(main_frame_url));
   EXPECT_TRUE(
       predictor_->PredictPreconnectOrigins(main_frame_url, prediction.get()));
-  EXPECT_EQ(*prediction, CreatePreconnectPrediction(
-                             "google.com", false,
-                             {{url::Origin::Create(GURL(gen_origin(1))), 1,
-                               network_anonymization_key},
-                              {url::Origin::Create(GURL(gen_origin(2))), 0,
-                               network_anonymization_key}}));
+  EXPECT_EQ(
+      *prediction,
+      CreatePreconnectPrediction(
+          "google.com", false,
+          {{url::Origin::Create(GURL(gen_origin(1))), 1, network_isolation_key},
+           {url::Origin::Create(GURL(gen_origin(2))), 0,
+            network_isolation_key}}));
 
   // Add a redirect.
   RedirectData redirect = CreateRedirectData("google.com", 3);
@@ -899,9 +894,9 @@ TEST_P(ResourcePrefetchPredictorPreconnectToRedirectTargetTest,
       enable_preconnect_to_redirect_target_experiment,
       predictor_->PredictPreconnectOrigins(main_frame_url, prediction.get()));
   auto expected_prediction_1 = CreatePreconnectPrediction(
-      "google.com", false,
+      "google.com", 0,
       {{url::Origin::Create(GURL("https://www.google.com/")), 1,
-        www_google_network_anonymization_key}});
+        www_google_network_isolation_key}});
   if (enable_preconnect_to_redirect_target_experiment) {
     EXPECT_EQ(expected_prediction_1, *prediction);
   } else {
@@ -924,14 +919,14 @@ TEST_P(ResourcePrefetchPredictorPreconnectToRedirectTargetTest,
   auto expected_prediction_2 =
       CreatePreconnectPrediction("www.google.com", true,
                                  {{url::Origin::Create(GURL(gen_origin(4))), 1,
-                                   www_google_network_anonymization_key}});
+                                   www_google_network_isolation_key}});
   if (enable_preconnect_to_redirect_target_experiment) {
     // Getting the prediction for google.com should include the redirect
     // target as well. The redirect target should be present in the front.
     expected_prediction_2.requests.emplace(
         expected_prediction_2.requests.begin(),
         url::Origin::Create(GURL("https://www.google.com")), 1,
-        www_google_network_anonymization_key);
+        www_google_network_isolation_key);
   }
   EXPECT_EQ(expected_prediction_2, *prediction);
 }
@@ -947,8 +942,8 @@ TEST_F(ResourcePrefetchPredictorTest,
       {});
 
   const GURL main_frame_url("http://google.com/?query=cats");
-  const net::SchemefulSite site = net::SchemefulSite(main_frame_url);
-  const net::NetworkAnonymizationKey network_anonymization_key(site, site);
+  const url::Origin origin = url::Origin::Create(main_frame_url);
+  const net::NetworkIsolationKey network_isolation_key(origin, origin);
   auto prediction = std::make_unique<PreconnectPrediction>();
   // No prefetch data.
   EXPECT_FALSE(predictor_->IsUrlPreconnectable(main_frame_url));
@@ -974,12 +969,13 @@ TEST_F(ResourcePrefetchPredictorTest,
   EXPECT_TRUE(predictor_->IsUrlPreconnectable(main_frame_url));
   EXPECT_TRUE(
       predictor_->PredictPreconnectOrigins(main_frame_url, prediction.get()));
-  EXPECT_EQ(*prediction, CreatePreconnectPrediction(
-                             "google.com", false,
-                             {{url::Origin::Create(GURL(gen_origin(1))), 1,
-                               network_anonymization_key},
-                              {url::Origin::Create(GURL(gen_origin(2))), 0,
-                               network_anonymization_key}}));
+  EXPECT_EQ(
+      *prediction,
+      CreatePreconnectPrediction(
+          "google.com", false,
+          {{url::Origin::Create(GURL(gen_origin(1))), 1, network_isolation_key},
+           {url::Origin::Create(GURL(gen_origin(2))), 0,
+            network_isolation_key}}));
 
   // Add a redirect.
   RedirectData redirect = CreateRedirectData("google.com", 3);
@@ -995,15 +991,14 @@ TEST_F(ResourcePrefetchPredictorTest,
   EXPECT_TRUE(
       predictor_->PredictPreconnectOrigins(main_frame_url, prediction.get()));
 
-  const net::NetworkAnonymizationKey
-      www_google_redirected_to_network_anonymization_key(
-          net::SchemefulSite(GURL("https://www.google-redirected-to.com")),
-          net::SchemefulSite(GURL("https://www.google-redirected-to.com")));
+  const net::NetworkIsolationKey www_google_redirected_to_network_isolation_key(
+      url::Origin::Create(GURL("https://www.google-redirected-to.com")),
+      url::Origin::Create(GURL("https://www.google-redirected-to.com")));
 
   const auto expected_prediction = CreatePreconnectPrediction(
-      "google.com", false,
+      "google.com", 0,
       {{url::Origin::Create(GURL("https://www.google-redirected-to.com/")), 1,
-        www_google_redirected_to_network_anonymization_key}});
+        www_google_redirected_to_network_isolation_key}});
   EXPECT_EQ(expected_prediction, *prediction);
 
   // Add a resource associated with the redirect endpoint.
@@ -1030,9 +1025,9 @@ TEST_F(ResourcePrefetchPredictorTest,
       "www.google-redirected-to.com", true,
       {
           {url::Origin::Create(GURL("https://www.google-redirected-to.com")), 1,
-           www_google_redirected_to_network_anonymization_key},
+           www_google_redirected_to_network_isolation_key},
           {url::Origin::Create(GURL(gen_origin(4))), 1,
-           www_google_redirected_to_network_anonymization_key},
+           www_google_redirected_to_network_isolation_key},
       });
   EXPECT_EQ(expected_prediction_redirected_to, *prediction);
 }

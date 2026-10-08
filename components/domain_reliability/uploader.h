@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 #include <memory>
 
 #include "base/callback_forward.h"
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "components/domain_reliability/domain_reliability_export.h"
 #include "url/gurl.h"
 
 namespace net {
-class NetworkAnonymizationKey;
 class URLRequest;
 class URLRequestContext;
 }  // namespace net
@@ -55,12 +55,10 @@ class DOMAIN_RELIABILITY_EXPORT DomainReliabilityUploader {
 
   // Uploads |report_json| to |upload_url| and calls |callback| when the upload
   // has either completed or failed.
-  virtual void UploadReport(
-      const std::string& report_json,
-      int max_beacon_depth,
-      const GURL& upload_url,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
-      UploadCallback callback) = 0;
+  virtual void UploadReport(const std::string& report_json,
+                            int max_beacon_depth,
+                            const GURL& upload_url,
+                            UploadCallback callback) = 0;
 
   // Shuts down the uploader prior to destruction. Currently, terminates pending
   // uploads and prevents the uploader from starting new ones to avoid hairy

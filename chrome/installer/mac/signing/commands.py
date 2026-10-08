@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -70,12 +70,6 @@ def read_file(path):
         return f.read()
 
 
-def zip(out, path):
-    shutil.move(
-        shutil.make_archive('{}.zip.tmp'.format(os.path.basename(out)), 'zip',
-                            path), out)
-
-
 def set_executable(path):
     """Makes the file at the specified path executable.
 
@@ -95,19 +89,6 @@ def run_command(args, **kwargs):
 def run_command_output(args, **kwargs):
     logger.info('Running command: %s', args)
     return subprocess.check_output(args, **kwargs)
-
-
-def run_password_command_output(args, password, **kwargs):
-    """Runs a command that expects a password on stdin. This function feeds
-    |password| to that command and returns the output like
-    run_command_output().
-    """
-    assert 'stdin' not in kwargs
-    return run_command_output(
-        args,
-        start_new_session=True,
-        input=(password + '\n').encode('utf8'),
-        **kwargs)
 
 
 def lenient_run_command_output(args, **kwargs):
@@ -140,57 +121,29 @@ def macos_version():
     return [int(x) for x in platform.mac_ver()[0].split('.')]
 
 
-def read_plist(path):
-    """Loads Plist at |path| and returns it as a dictionary."""
-    with open(path, 'rb') as f:
-        return plistlib.load(f)
-
-
-def write_plist(data, path, format):
-    """Saves |data| as a Plist to |path| in the specified |format|."""
-    # The below does not replace the destination file but update it in place,
-    # so if more than one hardlink points to destination all of them will be
-    # modified. This is not what is expected, so delete destination file if
-    # it does exist.
-    if os.path.exists(path):
-        os.unlink(path)
-    with open(path, 'wb') as f:
-        plist_format = {
-            'binary1': plistlib.FMT_BINARY,
-            'xml1': plistlib.FMT_XML
-        }
-        plistlib.dump(data, f, fmt=plist_format[format])
-
-
 class PlistContext(object):
     """
     PlistContext is a context manager that reads a plist on entry, providing
     the contents as a dictionary. If |rewrite| is True, then the same dictionary
     is re-serialized on exit. If |create_new| is True, then the file is not read
-    but rather an empty dictionary is created. If |binary| is True, then both
-    input and output will be in binary instead of the default XML format.
+    but rather an empty dictionary is created.
     """
 
-    def __init__(self,
-                 plist_path,
-                 rewrite=False,
-                 create_new=False,
-                 binary=False):
+    def __init__(self, plist_path, rewrite=False, create_new=False):
         self._path = plist_path
         self._rewrite = rewrite
         self._create_new = create_new
-        self._format = 'binary1' if binary else 'xml1'
 
     def __enter__(self):
         if self._create_new:
             self._plist = {}
         else:
-            self._plist = read_plist(self._path)
+            self._plist = plistlib.readPlist(self._path)
         return self._plist
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         if self._rewrite and not exc_type:
-            write_plist(self._plist, self._path, self._format)
+            plistlib.writePlist(self._plist, self._path)
         self._plist = None
 
 

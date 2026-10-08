@@ -31,13 +31,15 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CONTROLLER_DEV_TOOLS_FRONTEND_IMPL_H_
 #define THIRD_PARTY_BLINK_RENDERER_CONTROLLER_DEV_TOOLS_FRONTEND_IMPL_H_
 
-#include "base/values.h"
+#include "base/macros.h"
 #include "third_party/blink/public/mojom/devtools/devtools_frontend.mojom-blink.h"
 #include "third_party/blink/renderer/core/inspector/inspector_frontend_client.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_remote.h"
+#include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -63,10 +65,6 @@ class DevToolsFrontendImpl final
   DevToolsFrontendImpl(
       LocalFrame&,
       mojo::PendingAssociatedReceiver<mojom::blink::DevToolsFrontend>);
-
-  DevToolsFrontendImpl(const DevToolsFrontendImpl&) = delete;
-  DevToolsFrontendImpl& operator=(const DevToolsFrontendImpl&) = delete;
-
   ~DevToolsFrontendImpl() override;
   void DidClearWindowObject();
   void Trace(Visitor*) const override;
@@ -82,20 +80,21 @@ class DevToolsFrontendImpl final
   void SetupDevToolsExtensionAPI(const String& extension_api) override;
 
   // InspectorFrontendClient implementation.
-  void SendMessageToEmbedder(base::Value::Dict) override;
+  void SendMessageToEmbedder(const String&) override;
 
   Member<DevToolsHost> devtools_host_;
   String api_script_;
-  // The host_ must outlive the ExecutionContext of LocalFrame, so it should not
-  // be associated with the ExecutionContext of LocalFrame.
-  HeapMojoAssociatedRemote<mojom::blink::DevToolsFrontendHost> host_{nullptr};
-  // The receiver_ must outlive the ExecutionContext of LocalFrame, so it should
-  // not be associated with the ExecutionContext of LocalFrame.
+  HeapMojoAssociatedRemote<mojom::blink::DevToolsFrontendHost,
+                           HeapMojoWrapperMode::kForceWithoutContextObserver>
+      host_;
   HeapMojoAssociatedReceiver<mojom::blink::DevToolsFrontend,
-                             DevToolsFrontendImpl>
-      receiver_{this, nullptr};
+                             DevToolsFrontendImpl,
+                             HeapMojoWrapperMode::kForceWithoutContextObserver>
+      receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(DevToolsFrontendImpl);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CONTROLLER_DEV_TOOLS_FRONTEND_IMPL_H_
+#endif

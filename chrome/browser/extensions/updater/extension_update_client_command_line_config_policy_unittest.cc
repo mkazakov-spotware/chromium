@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/updater/extension_update_client_command_line_config_policy.h"
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -17,7 +18,7 @@ TEST(ExtensionUpdateClientCommandLineConfigPolicyTest, CommandLine) {
   {
     const ExtensionUpdateClientCommandLineConfigPolicy config_policy(&cmdline);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     EXPECT_TRUE(config_policy.BackgroundDownloadsEnabled());
 #else
     EXPECT_FALSE(config_policy.BackgroundDownloadsEnabled());

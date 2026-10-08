@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,7 +61,7 @@ WebViewProfileInvalidationProviderFactory::
 }
 
 WebViewProfileInvalidationProviderFactory::
-    ~WebViewProfileInvalidationProviderFactory() = default;
+    ~WebViewProfileInvalidationProviderFactory() {}
 
 std::unique_ptr<KeyedService>
 WebViewProfileInvalidationProviderFactory::BuildServiceInstanceFor(
@@ -76,16 +76,15 @@ WebViewProfileInvalidationProviderFactory::BuildServiceInstanceFor(
   auto service = std::make_unique<invalidation::FCMInvalidationService>(
       identity_provider.get(),
       base::BindRepeating(
-          &invalidation::FCMNetworkHandler::Create,
+          &syncer::FCMNetworkHandler::Create,
           WebViewGCMProfileServiceFactory::GetForBrowserState(browser_state)
               ->driver(),
           WebViewInstanceIDProfileServiceFactory::GetForBrowserState(
               browser_state)
               ->driver()),
-      base::BindRepeating(
-          &invalidation::PerUserTopicSubscriptionManager::Create,
-          identity_provider.get(), browser_state->GetPrefs(),
-          browser_state->GetURLLoaderFactory()),
+      base::BindRepeating(&syncer::PerUserTopicSubscriptionManager::Create,
+                          identity_provider.get(), browser_state->GetPrefs(),
+                          browser_state->GetURLLoaderFactory()),
       WebViewInstanceIDProfileServiceFactory::GetForBrowserState(browser_state)
           ->driver(),
       browser_state->GetPrefs());
@@ -98,8 +97,8 @@ WebViewProfileInvalidationProviderFactory::BuildServiceInstanceFor(
 void WebViewProfileInvalidationProviderFactory::RegisterBrowserStatePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
   ProfileInvalidationProvider::RegisterProfilePrefs(registry);
-  invalidation::InvalidatorRegistrarWithMemory::RegisterProfilePrefs(registry);
-  invalidation::PerUserTopicSubscriptionManager::RegisterProfilePrefs(registry);
+  syncer::InvalidatorRegistrarWithMemory::RegisterProfilePrefs(registry);
+  syncer::PerUserTopicSubscriptionManager::RegisterProfilePrefs(registry);
 }
 
 }  // namespace ios_web_view

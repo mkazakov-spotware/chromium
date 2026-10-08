@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,10 @@ class MODULES_EXPORT AbortPaymentRespondWithObserver final
   void OnResponseRejected(mojom::ServiceWorkerResponseError) override;
   void OnResponseFulfilled(ScriptState*,
                            const ScriptValue&,
-                           const ExceptionContext&) override;
-  void OnNoResponse(ScriptState*) override;
+                           ExceptionState::ContextType,
+                           const char* interface_name,
+                           const char* property_name) override;
+  void OnNoResponse() override;
 
   void Trace(Visitor*) const override;
 };

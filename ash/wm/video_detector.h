@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,10 @@
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/shell_observer.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "services/viz/public/mojom/compositing/video_detector_observer.mojom.h"
@@ -55,10 +57,6 @@ class ASH_EXPORT VideoDetector : public aura::EnvObserver,
   };
 
   VideoDetector();
-
-  VideoDetector(const VideoDetector&) = delete;
-  VideoDetector& operator=(const VideoDetector&) = delete;
-
   ~VideoDetector() override;
 
   State state() const { return state_; }
@@ -106,8 +104,8 @@ class ASH_EXPORT VideoDetector : public aura::EnvObserver,
 
   base::ObserverList<Observer>::Unchecked observers_;
 
-  base::ScopedMultiSourceObservation<aura::Window, aura::WindowObserver>
-      window_observations_manager_{this};
+  ScopedObserver<aura::Window, aura::WindowObserver> window_observer_manager_{
+      this};
   ScopedSessionObserver scoped_session_observer_{this};
 
   bool is_shutting_down_;
@@ -115,6 +113,8 @@ class ASH_EXPORT VideoDetector : public aura::EnvObserver,
   mojo::Receiver<viz::mojom::VideoDetectorObserver> receiver_{this};
 
   base::WeakPtrFactory<VideoDetector> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VideoDetector);
 };
 
 }  // namespace ash

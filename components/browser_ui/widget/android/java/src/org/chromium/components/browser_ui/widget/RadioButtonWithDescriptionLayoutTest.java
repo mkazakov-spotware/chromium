@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;
 import android.text.TextUtils;
-import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup.MarginLayoutParams;
@@ -28,7 +27,6 @@ import org.mockito.Mockito;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.UiThreadTest;
-import org.chromium.base.test.util.Batch;
 import org.chromium.components.browser_ui.widget.test.R;
 
 import java.util.Arrays;
@@ -38,7 +36,6 @@ import java.util.List;
  * Tests for {@link RadioButtonLayout}.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
 public class RadioButtonWithDescriptionLayoutTest {
     private static final String ZERO_MARGIN_ASSERT_MESSAGE =
             "The last item should have a zero margin";
@@ -60,8 +57,7 @@ public class RadioButtonWithDescriptionLayoutTest {
 
     @Before
     public void setUp() {
-        mContext = new ContextThemeWrapper(
-                InstrumentationRegistry.getTargetContext(), R.style.Theme_BrowserUI_DayNight);
+        mContext = InstrumentationRegistry.getTargetContext();
     }
 
     @Test

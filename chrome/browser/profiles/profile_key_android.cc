@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,11 +42,6 @@ ProfileKey* ProfileKeyAndroid::FromProfileKeyAndroid(
 }
 
 // static
-ScopedJavaLocalRef<jobject> JNI_ProfileKey_GetLastUsedRegularProfileKey(
-    JNIEnv* env) {
-  return ProfileKeyAndroid::GetLastUsedRegularProfileKey(env);
-}
-
 ScopedJavaLocalRef<jobject> ProfileKeyAndroid::GetLastUsedRegularProfileKey(
     JNIEnv* env) {
   ProfileKey* key = ::android::GetLastUsedRegularProfileKey();
@@ -64,19 +59,24 @@ ScopedJavaLocalRef<jobject> ProfileKeyAndroid::GetLastUsedRegularProfileKey(
   return ScopedJavaLocalRef<jobject>(profile_key_android->obj_);
 }
 
-ScopedJavaLocalRef<jobject> ProfileKeyAndroid::GetOriginalKey(JNIEnv* env) {
+ScopedJavaLocalRef<jobject> ProfileKeyAndroid::GetOriginalKey(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& obj) {
   ProfileKeyAndroid* original_key =
       key_->GetOriginalKey()->GetProfileKeyAndroid();
   DCHECK(original_key);
   return original_key->GetJavaObject();
 }
 
-jboolean ProfileKeyAndroid::IsOffTheRecord(JNIEnv* env) {
+jboolean ProfileKeyAndroid::IsOffTheRecord(JNIEnv* env,
+                                           const JavaParamRef<jobject>& obj) {
   return key_->IsOffTheRecord();
 }
 
-jlong ProfileKeyAndroid::GetSimpleFactoryKeyPointer(JNIEnv* env) {
-  return reinterpret_cast<jlong>(static_cast<SimpleFactoryKey*>(key_));
+// static
+ScopedJavaLocalRef<jobject> JNI_ProfileKey_GetLastUsedRegularProfileKey(
+    JNIEnv* env) {
+  return ProfileKeyAndroid::GetLastUsedRegularProfileKey(env);
 }
 
 ScopedJavaLocalRef<jobject> ProfileKeyAndroid::GetJavaObject() {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define UI_BASE_COCOA_ACCESSIBILITY_FOCUS_OVERRIDER_H_
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
 
 namespace ui {
 
@@ -61,7 +60,7 @@ class COMPONENT_EXPORT(UI_BASE) AccessibilityFocusOverrider {
   bool app_is_remote_ = false;
   bool window_is_key_ = false;
   bool view_is_first_responder_ = false;
-  const raw_ptr<Client> client_;
+  Client* const client_;
 };
 
 }  // namespace ui

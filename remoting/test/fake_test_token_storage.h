@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "remoting/test/test_token_storage.h"
 
 namespace remoting {
@@ -17,10 +18,6 @@ namespace test {
 class FakeTestTokenStorage : public TestTokenStorage {
  public:
   FakeTestTokenStorage();
-
-  FakeTestTokenStorage(const FakeTestTokenStorage&) = delete;
-  FakeTestTokenStorage& operator=(const FakeTestTokenStorage&) = delete;
-
   ~FakeTestTokenStorage() override;
 
   // TestTokenStorage interface.
@@ -57,6 +54,8 @@ class FakeTestTokenStorage : public TestTokenStorage {
   // Verification members to observe the value of the data being written.
   bool refresh_token_write_attempted_;
   std::string stored_refresh_token_value_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeTestTokenStorage);
 };
 
 }  // namespace test

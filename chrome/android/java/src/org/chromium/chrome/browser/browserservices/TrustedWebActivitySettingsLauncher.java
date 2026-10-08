@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@ import android.os.Bundle;
 
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.webapps.ChromeWebApkHost;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.site_settings.AllSiteSettings;
 import org.chromium.components.browser_ui.site_settings.SettingsNavigationSource;
 import org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings;
@@ -38,7 +38,7 @@ public class TrustedWebActivitySettingsLauncher {
         Integer applicationUid = getApplicationUid(context, packageName);
         if (applicationUid == null) return;
 
-        InstalledWebappDataRegister register = new InstalledWebappDataRegister();
+        ClientAppDataRegister register = new ClientAppDataRegister();
         Collection<String> domains = register.getDomainsForRegisteredUid(applicationUid);
         Collection<String> origins = register.getOriginsForRegisteredUid(applicationUid);
         if (domains.isEmpty() || origins.isEmpty()) {
@@ -53,14 +53,14 @@ public class TrustedWebActivitySettingsLauncher {
      */
     public static void launchForWebApkPackageName(
             Context context, String packageName, String webApkUrl) {
-        // Handle the case when settings are selected but Chrome was not running.
-        ChromeWebApkHost.init();
         if (!WebApkValidator.canWebApkHandleUrl(context, packageName, webApkUrl)) {
             Log.d(TAG, "WebApk " + packageName + " can't handle url " + webApkUrl);
             return;
         }
         if (getApplicationUid(context, packageName) == null) return;
 
+        // Handle the case when settings are selected but Chrome was not running.
+        ChromeWebApkHost.init();
         openSingleWebsitePrefs(context, webApkUrl);
     }
 

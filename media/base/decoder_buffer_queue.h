@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <stddef.h>
 
 #include "base/containers/circular_deque.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "media/base/media_export.h"
 
@@ -26,10 +27,6 @@ class DecoderBuffer;
 class MEDIA_EXPORT DecoderBufferQueue {
  public:
   DecoderBufferQueue();
-
-  DecoderBufferQueue(const DecoderBufferQueue&) = delete;
-  DecoderBufferQueue& operator=(const DecoderBufferQueue&) = delete;
-
   ~DecoderBufferQueue();
 
   // Push |buffer| to the end of the queue. If |buffer| is queued out of order
@@ -72,6 +69,8 @@ class MEDIA_EXPORT DecoderBufferQueue {
 
   // Total size in bytes of buffers in the queue.
   size_t data_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(DecoderBufferQueue);
 };
 
 }  // namespace media

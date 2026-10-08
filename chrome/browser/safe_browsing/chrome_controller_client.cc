@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/chrome_controller_client.h"
 
 #include "base/feature_list.h"
-#include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/features.h"
 #include "components/security_interstitials/content/settings_page_helper.h"
 #include "components/security_interstitials/core/metrics_helper.h"
 #include "extensions/buildflags/buildflags.h"
@@ -38,10 +38,10 @@ ChromeControllerClient::~ChromeControllerClient() {}
 void ChromeControllerClient::Proceed() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Hosted Apps should not be allowed to run if Safe Browsing considers them
-  // dangerous. So, when users click proceed on an interstitial, move the tab
+  // dangeours. So, when users click proceed on an interstitial, move the tab
   // to a regular Chrome window and proceed as usual there.
   Browser* browser = chrome::FindBrowserWithWebContents(web_contents_);
-  if (web_app::AppBrowserController::IsWebApp(browser))
+  if (web_app::AppBrowserController::IsForWebAppBrowser(browser))
     chrome::OpenInChrome(browser);
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
   safe_browsing::SafeBrowsingControllerClient::Proceed();

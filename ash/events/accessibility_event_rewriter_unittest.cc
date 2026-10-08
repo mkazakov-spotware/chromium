@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <vector>
 
 #include "ash/accessibility/accessibility_controller_impl.h"
-#include "ash/constants/ash_constants.h"
 #include "ash/public/cpp/accessibility_event_rewriter_delegate.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
+#include "base/macros.h"
 #include "ui/aura/env.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
-#include "ui/base/ime/ash/fake_ime_keyboard.h"
 #include "ui/chromeos/events/event_rewriter_chromeos.h"
 #include "ui/chromeos/events/modifier_key.h"
 #include "ui/chromeos/events/pref_names.h"
@@ -24,7 +23,6 @@
 #include "ui/events/event_constants.h"
 #include "ui/events/event_handler.h"
 #include "ui/events/event_rewriter.h"
-#include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/events/test/test_event_rewriter.h"
@@ -49,11 +47,6 @@ class ChromeVoxTestDelegate : public AccessibilityEventRewriterDelegate {
   // Count of captured events sent to the delegate.
   size_t chromevox_captured_event_count_ = 0;
 
-  // Last key event sent to ChromeVox.
-  ui::Event* GetLastChromeVoxKeyEvent() {
-    return last_chromevox_key_event_.get();
-  }
-
  private:
   // AccessibilityEventRewriterDelegate:
   void DispatchKeyEventToChromeVox(std::unique_ptr<ui::Event> event,
@@ -61,27 +54,22 @@ class ChromeVoxTestDelegate : public AccessibilityEventRewriterDelegate {
     chromevox_recorded_event_count_++;
     if (capture)
       chromevox_captured_event_count_++;
-    last_chromevox_key_event_ = std::move(event);
   }
-  void DispatchMouseEvent(std::unique_ptr<ui::Event> event) override {
+  void DispatchMouseEventToChromeVox(
+      std::unique_ptr<ui::Event> event) override {
     chromevox_recorded_event_count_++;
   }
   void SendSwitchAccessCommand(SwitchAccessCommand command) override {}
   void SendPointScanPoint(const gfx::PointF& point) override {}
-  void SendMagnifierCommand(MagnifierCommand command) override {}
-
-  std::unique_ptr<ui::Event> last_chromevox_key_event_;
 };
-
-}  // namespace
 
 class ChromeVoxAccessibilityEventRewriterTest
     : public ash::AshTestBase,
       public ui::EventRewriterChromeOS::Delegate {
  public:
   ChromeVoxAccessibilityEventRewriterTest() {
-    event_rewriter_chromeos_ = std::make_unique<ui::EventRewriterChromeOS>(
-        this, nullptr, false, &fake_ime_keyboard_);
+    event_rewriter_chromeos_ =
+        std::make_unique<ui::EventRewriterChromeOS>(this, nullptr, false);
   }
   ChromeVoxAccessibilityEventRewriterTest(
       const ChromeVoxAccessibilityEventRewriterTest&) = delete;
@@ -138,22 +126,14 @@ class ChromeVoxAccessibilityEventRewriterTest
     modifier_remapping_[pref_name] = static_cast<int>(value);
   }
 
-  bool RewriteEventForChromeVox(
-      const ui::Event& event,
-      const AccessibilityEventRewriter::Continuation continuation) {
-    return accessibility_event_rewriter_->RewriteEventForChromeVox(
-        event, continuation);
+  std::set<int> GetSwitchAccessKeyCodesToCapture() {
+    return accessibility_event_rewriter_
+        ->switch_access_key_codes_to_capture_for_test();
   }
 
-  ui::KeyEvent* GetLastChromeVoxKeyEvent() {
-    if (delegate_.GetLastChromeVoxKeyEvent())
-      return delegate_.GetLastChromeVoxKeyEvent()->AsKeyEvent();
-    return nullptr;
-  }
-
-  void SetRemapPositionalKeys(bool value) {
-    accessibility_event_rewriter_
-        ->try_rewriting_positional_keys_for_chromevox_ = value;
+  std::map<int, SwitchAccessCommand> GetSwitchAccessCommandForKeyCodeMap() {
+    return accessibility_event_rewriter_
+        ->key_code_to_switch_access_command_map_for_test();
   }
 
  protected:
@@ -166,13 +146,11 @@ class ChromeVoxAccessibilityEventRewriterTest
 
   std::unique_ptr<AccessibilityEventRewriter> accessibility_event_rewriter_;
 
-  input_method::FakeImeKeyboard fake_ime_keyboard_;
   std::unique_ptr<ui::EventRewriterChromeOS> event_rewriter_chromeos_;
 
  private:
   // ui::EventRewriterChromeOS::Delegate:
   bool RewriteModifierKeys() override { return true; }
-  void SuppressModifierKeyRewrites(bool should_suppress) override {}
 
   bool GetKeyboardRemappedPrefValue(const std::string& pref_name,
                                     int* value) const override {
@@ -192,11 +170,6 @@ class ChromeVoxAccessibilityEventRewriterTest
   }
 
   bool IsSearchKeyAcceleratorReserved() const override { return false; }
-
-  bool NotifyDeprecatedRightClickRewrite() override { return false; }
-  bool NotifyDeprecatedSixPackKeyRewrite(ui::KeyboardCode key_code) override {
-    return false;
-  }
 
   std::map<std::string, int> modifier_remapping_;
 };
@@ -404,45 +377,10 @@ TEST_F(ChromeVoxAccessibilityEventRewriterTest,
   ExpectCounts(++recorded_count, ++delegate_count, captured_count);
 }
 
-TEST_F(ChromeVoxAccessibilityEventRewriterTest,
-       PositionalInputMethodKeysMightBeRewritten) {
-  AccessibilityControllerImpl* controller =
-      Shell::Get()->accessibility_controller();
-  controller->SetSpokenFeedbackEnabled(true, A11Y_NOTIFICATION_NONE);
-  EXPECT_TRUE(controller->spoken_feedback().enabled());
-
-  // Ensure remapping of positional keys (back to their absolute key codes) is
-  // in effect.
-  SetRemapPositionalKeys(true);
-
-  // Bracket right is a dom code which always causes an absolute key code to be
-  // sent to ChromeVox. The key code below is irrelevant.
-  ui::KeyEvent key_event(ui::ET_KEY_PRESSED, ui::VKEY_A,
-                         ui::DomCode::BRACKET_RIGHT, ui::EF_NONE);
-  AccessibilityEventRewriter::Continuation continuation;
-  RewriteEventForChromeVox(key_event, continuation);
-  auto* last_key_event = GetLastChromeVoxKeyEvent();
-  ASSERT_TRUE(last_key_event);
-
-  // This is key cap label "]" in a English input method.
-  EXPECT_EQ(ui::VKEY_OEM_6, last_key_event->key_code());
-
-  // Sanity check the flag, when off, using the same key event.
-  SetRemapPositionalKeys(false);
-  RewriteEventForChromeVox(key_event, continuation);
-  last_key_event = GetLastChromeVoxKeyEvent();
-  ASSERT_TRUE(last_key_event);
-
-  // Unmodified.
-  EXPECT_EQ(ui::VKEY_A, last_key_event->key_code());
-}
-
 // Records all key events for testing.
 class EventCapturer : public ui::EventHandler {
  public:
   EventCapturer() = default;
-  EventCapturer(const EventCapturer&) = delete;
-  EventCapturer& operator=(const EventCapturer&) = delete;
   ~EventCapturer() override = default;
 
   void Reset() { last_key_event_.reset(); }
@@ -455,40 +393,37 @@ class EventCapturer : public ui::EventHandler {
   }
 
   std::unique_ptr<ui::KeyEvent> last_key_event_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventCapturer);
 };
 
 class SwitchAccessTestDelegate : public AccessibilityEventRewriterDelegate {
  public:
   SwitchAccessTestDelegate() = default;
-  SwitchAccessTestDelegate(const SwitchAccessTestDelegate&) = delete;
-  SwitchAccessTestDelegate& operator=(const SwitchAccessTestDelegate&) = delete;
   ~SwitchAccessTestDelegate() override = default;
 
   SwitchAccessCommand last_command() { return commands_.back(); }
   int command_count() { return commands_.size(); }
-
-  void ClearCommands() { commands_.clear(); }
 
   // AccessibilityEventRewriterDelegate:
   void SendSwitchAccessCommand(SwitchAccessCommand command) override {
     commands_.push_back(command);
   }
   void SendPointScanPoint(const gfx::PointF& point) override {}
-  void SendMagnifierCommand(MagnifierCommand command) override {}
   void DispatchKeyEventToChromeVox(std::unique_ptr<ui::Event>, bool) override {}
-  void DispatchMouseEvent(std::unique_ptr<ui::Event>) override {}
+  void DispatchMouseEventToChromeVox(std::unique_ptr<ui::Event>) override {}
 
  private:
   std::vector<SwitchAccessCommand> commands_;
+
+  DISALLOW_COPY_AND_ASSIGN(SwitchAccessTestDelegate);
 };
 
-class SwitchAccessAccessibilityEventRewriterTest
-    : public AshTestBase,
-      public ui::EventRewriterChromeOS::Delegate {
+class SwitchAccessAccessibilityEventRewriterTest : public AshTestBase {
  public:
   SwitchAccessAccessibilityEventRewriterTest() {
-    event_rewriter_chromeos_ = std::make_unique<ui::EventRewriterChromeOS>(
-        this, nullptr, false, &fake_ime_keyboard_);
+    event_rewriter_chromeos_ =
+        std::make_unique<ui::EventRewriterChromeOS>(nullptr, nullptr, false);
   }
   ~SwitchAccessAccessibilityEventRewriterTest() override = default;
 
@@ -514,14 +449,6 @@ class SwitchAccessAccessibilityEventRewriterTest
     controller_->SetAccessibilityEventRewriter(
         accessibility_event_rewriter_.get());
     controller_->switch_access().SetEnabled(true);
-
-    std::vector<ui::InputDevice> keyboards;
-    ui::DeviceDataManagerTestApi device_data_test_api;
-    keyboards.push_back(ui::InputDevice(1, ui::INPUT_DEVICE_INTERNAL, ""));
-    keyboards.push_back(ui::InputDevice(2, ui::INPUT_DEVICE_USB, ""));
-    keyboards.push_back(ui::InputDevice(3, ui::INPUT_DEVICE_BLUETOOTH, ""));
-    keyboards.push_back(ui::InputDevice(4, ui::INPUT_DEVICE_UNKNOWN, ""));
-    device_data_test_api.SetKeyboardDevices(keyboards);
   }
 
   void TearDown() override {
@@ -532,25 +459,19 @@ class SwitchAccessAccessibilityEventRewriterTest
     AshTestBase::TearDown();
   }
 
-  void SetKeyCodesForSwitchAccessCommand(
-      std::map<int, std::set<std::string>> key_codes,
-      SwitchAccessCommand command) {
+  void SetKeyCodesForSwitchAccessCommand(std::set<int> key_codes,
+                                         SwitchAccessCommand command) {
     AccessibilityEventRewriter* rewriter =
         controller_->GetAccessibilityEventRewriterForTest();
     rewriter->SetKeyCodesForSwitchAccessCommand(key_codes, command);
   }
 
-  void SetModifierRemapping(const std::string& pref_name,
-                            ui::chromeos::ModifierKey value) {
-    modifier_remapping_[pref_name] = static_cast<int>(value);
-  }
-
-  const std::map<int, std::set<ui::InputDeviceType>> GetKeyCodesToCapture() {
+  const std::set<int> GetKeyCodesToCapture() {
     AccessibilityEventRewriter* rewriter =
         controller_->GetAccessibilityEventRewriterForTest();
     if (rewriter)
       return rewriter->switch_access_key_codes_to_capture_for_test();
-    return std::map<int, std::set<ui::InputDeviceType>>();
+    return std::set<int>();
   }
 
   const std::map<int, SwitchAccessCommand> GetCommandForKeyCodeMap() {
@@ -561,122 +482,69 @@ class SwitchAccessAccessibilityEventRewriterTest
     return std::map<int, SwitchAccessCommand>();
   }
 
- private:
-  // ui::EventRewriterChromeOS::Delegate:
-  bool RewriteModifierKeys() override { return true; }
-  void SuppressModifierKeyRewrites(bool should_suppress) override {}
-
-  bool GetKeyboardRemappedPrefValue(const std::string& pref_name,
-                                    int* value) const override {
-    auto it = modifier_remapping_.find(pref_name);
-    if (it == modifier_remapping_.end())
-      return false;
-
-    *value = it->second;
-    return true;
-  }
-
-  bool TopRowKeysAreFunctionKeys() const override { return false; }
-
-  bool IsExtensionCommandRegistered(ui::KeyboardCode key_code,
-                                    int flags) const override {
-    return false;
-  }
-
-  bool IsSearchKeyAcceleratorReserved() const override { return false; }
-
-  bool NotifyDeprecatedRightClickRewrite() override { return false; }
-  bool NotifyDeprecatedSixPackKeyRewrite(ui::KeyboardCode key_code) override {
-    return false;
-  }
-
-  std::map<std::string, int> modifier_remapping_;
-
  protected:
   ui::test::EventGenerator* generator_ = nullptr;
   EventCapturer event_capturer_;
   AccessibilityControllerImpl* controller_ = nullptr;
   std::unique_ptr<SwitchAccessTestDelegate> delegate_;
-  input_method::FakeImeKeyboard fake_ime_keyboard_;
   std::unique_ptr<AccessibilityEventRewriter> accessibility_event_rewriter_;
   std::unique_ptr<ui::EventRewriterChromeOS> event_rewriter_chromeos_;
 };
 
 TEST_F(SwitchAccessAccessibilityEventRewriterTest, CaptureSpecifiedKeys) {
   // Set keys for Switch Access to capture.
-  SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_1, {kSwitchAccessInternalDevice}},
-       {ui::VKEY_2, {kSwitchAccessUsbDevice}}},
-      SwitchAccessCommand::kSelect);
+  SetKeyCodesForSwitchAccessCommand({ui::VKEY_1, ui::VKEY_2},
+                                    SwitchAccessCommand::kSelect);
 
   EXPECT_FALSE(event_capturer_.last_key_event());
 
-  // Press 1 from the internal keyboard.
-  generator_->PressKey(ui::VKEY_1, ui::EF_NONE, 1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE, 1 /* keyboard id */);
+  generator_->PressKey(ui::VKEY_1, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE);
 
   // The event was captured by AccessibilityEventRewriter.
   EXPECT_FALSE(event_capturer_.last_key_event());
   EXPECT_EQ(SwitchAccessCommand::kSelect, delegate_->last_command());
-
-  delegate_->ClearCommands();
-
-  // Press 1 from the bluetooth keyboard.
-  generator_->PressKey(ui::VKEY_1, ui::EF_NONE, 3 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE, 3 /* keyboard id */);
-
-  // The event was not captured by AccessibilityEventRewriter.
-  EXPECT_TRUE(event_capturer_.last_key_event());
-  EXPECT_EQ(0, delegate_->command_count());
 
   // Press the "2" key.
-  generator_->PressKey(ui::VKEY_2, ui::EF_NONE, 2 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_2, ui::EF_NONE, 2 /* keyboard id */);
+  generator_->PressKey(ui::VKEY_2, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_2, ui::EF_NONE);
+
+  // We received a new event.
+
+  // The event was captured by AccessibilityEventRewriter.
+  EXPECT_FALSE(event_capturer_.last_key_event());
+
+  // Press the "3" key.
+  generator_->PressKey(ui::VKEY_3, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_3, ui::EF_NONE);
 
   // The event was captured by AccessibilityEventRewriter.
   EXPECT_TRUE(event_capturer_.last_key_event());
-  EXPECT_EQ(SwitchAccessCommand::kSelect, delegate_->last_command());
-
-  delegate_->ClearCommands();
-
-  // Press the "3" key.
-  generator_->PressKey(ui::VKEY_3, ui::EF_NONE, 1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_3, ui::EF_NONE, 1 /* keyboard id */);
-
-  // The event was not captured by AccessibilityEventRewriter.
-  EXPECT_TRUE(event_capturer_.last_key_event());
-  EXPECT_EQ(0, delegate_->command_count());
 }
 
 TEST_F(SwitchAccessAccessibilityEventRewriterTest,
        KeysNoLongerCaptureAfterUpdate) {
   // Set Switch Access to capture the keys {1, 2, 3}.
-  SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_1, {kSwitchAccessInternalDevice}},
-       {ui::VKEY_2, {kSwitchAccessInternalDevice}},
-       {ui::VKEY_3, {kSwitchAccessInternalDevice}}},
-      SwitchAccessCommand::kSelect);
+  SetKeyCodesForSwitchAccessCommand({ui::VKEY_1, ui::VKEY_2, ui::VKEY_3},
+                                    SwitchAccessCommand::kSelect);
 
   EXPECT_FALSE(event_capturer_.last_key_event());
 
   // Press the "1" key.
-  generator_->PressKey(ui::VKEY_1, ui::EF_NONE, 1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE, 1 /* keyboard id */);
+  generator_->PressKey(ui::VKEY_1, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE);
 
   // The event was captured by AccessibilityEventRewriter.
   EXPECT_FALSE(event_capturer_.last_key_event());
   EXPECT_EQ(SwitchAccessCommand::kSelect, delegate_->last_command());
 
   // Update the Switch Access keys to capture {2, 3, 4}.
-  SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_2, {kSwitchAccessInternalDevice}},
-       {ui::VKEY_3, {kSwitchAccessInternalDevice}},
-       {ui::VKEY_4, {kSwitchAccessInternalDevice}}},
-      SwitchAccessCommand::kSelect);
+  SetKeyCodesForSwitchAccessCommand({ui::VKEY_2, ui::VKEY_3, ui::VKEY_4},
+                                    SwitchAccessCommand::kSelect);
 
   // Press the "1" key.
-  generator_->PressKey(ui::VKEY_1, ui::EF_NONE, 1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE, 1 /* keyboard id */);
+  generator_->PressKey(ui::VKEY_1, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE);
 
   // We received a new event.
 
@@ -685,13 +553,10 @@ TEST_F(SwitchAccessAccessibilityEventRewriterTest,
   EXPECT_FALSE(event_capturer_.last_key_event()->handled());
 
   // Press the "4" key.
-  event_capturer_.Reset();
-  generator_->PressKey(ui::VKEY_4, ui::EF_NONE, 1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_4, ui::EF_NONE, 1 /* keyboard id */);
+  generator_->PressKey(ui::VKEY_4, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_4, ui::EF_NONE);
 
   // The event was captured by AccessibilityEventRewriter.
-  EXPECT_FALSE(event_capturer_.last_key_event());
-  EXPECT_EQ(SwitchAccessCommand::kSelect, delegate_->last_command());
 }
 
 TEST_F(SwitchAccessAccessibilityEventRewriterTest,
@@ -705,15 +570,14 @@ TEST_F(SwitchAccessAccessibilityEventRewriterTest,
   EXPECT_EQ(0u, GetCommandForKeyCodeMap().size());
 
   // Set key codes for Select command.
-  std::map<int, std::set<std::string>> new_key_codes;
-  new_key_codes[48 /* '0' */] = {kSwitchAccessInternalDevice};
-  new_key_codes[83 /* 's' */] = {kSwitchAccessInternalDevice};
+  std::set<int> new_key_codes;
+  new_key_codes.insert(48 /* '0' */);
+  new_key_codes.insert(83 /* 's' */);
   rewriter->SetKeyCodesForSwitchAccessCommand(new_key_codes,
                                               SwitchAccessCommand::kSelect);
 
   // Check that values are added to both data structures.
-  std::map<int, std::set<ui::InputDeviceType>> kc_to_capture =
-      GetKeyCodesToCapture();
+  std::set<int> kc_to_capture = GetKeyCodesToCapture();
   EXPECT_EQ(2u, kc_to_capture.size());
   EXPECT_EQ(1u, kc_to_capture.count(48));
   EXPECT_EQ(1u, kc_to_capture.count(83));
@@ -725,8 +589,8 @@ TEST_F(SwitchAccessAccessibilityEventRewriterTest,
 
   // Set key codes for the Next command.
   new_key_codes.clear();
-  new_key_codes[49 /* '1' */] = {kSwitchAccessInternalDevice};
-  new_key_codes[78 /* 'n' */] = {kSwitchAccessInternalDevice};
+  new_key_codes.insert(49 /* '1' */);
+  new_key_codes.insert(78 /* 'n' */);
   rewriter->SetKeyCodesForSwitchAccessCommand(new_key_codes,
                                               SwitchAccessCommand::kNext);
 
@@ -743,8 +607,8 @@ TEST_F(SwitchAccessAccessibilityEventRewriterTest,
 
   // Set key codes for the Previous command. Re-use a key code from above.
   new_key_codes.clear();
-  new_key_codes[49 /* '1' */] = {kSwitchAccessInternalDevice};
-  new_key_codes[80 /* 'p' */] = {kSwitchAccessInternalDevice};
+  new_key_codes.insert(49 /* '1' */);
+  new_key_codes.insert(80 /* 'p' */);
   rewriter->SetKeyCodesForSwitchAccessCommand(new_key_codes,
                                               SwitchAccessCommand::kPrevious);
 
@@ -762,8 +626,8 @@ TEST_F(SwitchAccessAccessibilityEventRewriterTest,
 
   // Set a new key code for the Select command.
   new_key_codes.clear();
-  new_key_codes[51 /* '3' */] = {kSwitchAccessInternalDevice};
-  new_key_codes[83 /* 's' */] = {kSwitchAccessInternalDevice};
+  new_key_codes.insert(51 /* '3' */);
+  new_key_codes.insert(83 /* 's' */);
   rewriter->SetKeyCodesForSwitchAccessCommand(new_key_codes,
                                               SwitchAccessCommand::kSelect);
 
@@ -781,173 +645,85 @@ TEST_F(SwitchAccessAccessibilityEventRewriterTest,
   EXPECT_EQ(command_map.end(), command_map.find(48));
 }
 
-TEST_F(SwitchAccessAccessibilityEventRewriterTest, RespectsModifierRemappings) {
-  // Set Control to be Switch Access' next button.
-  SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_CONTROL, {kSwitchAccessInternalDevice}}},
-      SwitchAccessCommand::kNext);
+TEST_F(SwitchAccessAccessibilityEventRewriterTest, SetKeyboardInputTypes) {
+  AccessibilityEventRewriter* rewriter =
+      controller_->GetAccessibilityEventRewriterForTest();
+  EXPECT_NE(nullptr, rewriter);
 
-  // Set Alt to be Switch Access' select button.
+  // Set Switch Access to capture these keys as the select command.
   SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_MENU /* Alt key */, {kSwitchAccessInternalDevice}}},
+      {ui::VKEY_1, ui::VKEY_2, ui::VKEY_3, ui::VKEY_4},
       SwitchAccessCommand::kSelect);
 
-  // Map Control key to Alt.
-  SetModifierRemapping(prefs::kLanguageRemapControlKeyTo,
-                       ui::chromeos::ModifierKey::kAltKey);
+  std::vector<ui::InputDevice> keyboards;
+  ui::DeviceDataManagerTestApi device_data_test_api;
+  keyboards.emplace_back(ui::InputDevice(1, ui::INPUT_DEVICE_INTERNAL, ""));
+  keyboards.emplace_back(ui::InputDevice(2, ui::INPUT_DEVICE_USB, ""));
+  keyboards.emplace_back(ui::InputDevice(3, ui::INPUT_DEVICE_BLUETOOTH, ""));
+  keyboards.emplace_back(ui::InputDevice(4, ui::INPUT_DEVICE_UNKNOWN, ""));
+  device_data_test_api.SetKeyboardDevices(keyboards);
 
-  // Send a key event for Control.
-  generator_->PressKey(ui::VKEY_CONTROL, ui::EF_CONTROL_DOWN,
-                       1 /* keyboard id */);
-  // EventRewriterChromeOS actually omits the modifier flag on release.
-  generator_->ReleaseKey(ui::VKEY_CONTROL, ui::EF_NONE, 1 /* keyboard id */);
+  // Press the "1" key with no source device id.
+  generator_->PressKey(ui::VKEY_1, ui::EF_NONE);
+  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE);
 
-  // Verify Switch Access treated it like Alt.
-  EXPECT_EQ(1, delegate_->command_count());
+  // The event was captured by AccessibilityEventRewriter.
+  EXPECT_FALSE(event_capturer_.last_key_event());
   EXPECT_EQ(SwitchAccessCommand::kSelect, delegate_->last_command());
 
-  // Send a key event for Alt.
-  generator_->PressKey(ui::VKEY_MENU, ui::EF_ALT_DOWN, 1 /* keyboard id */);
-  // EventRewriterChromeOS actually omits the modifier flag on release.
-  generator_->ReleaseKey(ui::VKEY_MENU, ui::EF_NONE, 1 /* keyboard id */);
-
-  // Verify Switch Access also treats that like Alt.
-  EXPECT_EQ(2, delegate_->command_count());
-  EXPECT_EQ(SwitchAccessCommand::kSelect, delegate_->last_command());
-}
-
-TEST_F(SwitchAccessAccessibilityEventRewriterTest, UseFunctionKeyRemappings) {
-  // Set BrowserForward to be Switch Access' next button.
-  SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_BROWSER_FORWARD, {kSwitchAccessInternalDevice}}},
-      SwitchAccessCommand::kNext);
-
-  // Set F2 (the underlying value for BrowserForward) to be Switch Access'
-  // select button.
-  SetKeyCodesForSwitchAccessCommand(
-      {{ui::VKEY_F2, {kSwitchAccessInternalDevice}}},
-      SwitchAccessCommand::kSelect);
-
-  // Send a key event for F2.
-  generator_->PressKey(ui::VKEY_F2, ui::EF_NONE, 1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_F2, ui::EF_NONE, 1 /* keyboard id */);
-
-  // Verify Switch Access treated it like BrowserForward.
-  EXPECT_EQ(1, delegate_->command_count());
-  EXPECT_EQ(SwitchAccessCommand::kNext, delegate_->last_command());
-
-  // Send a key event for BrowserForward.
-  generator_->PressKey(ui::VKEY_BROWSER_FORWARD, ui::EF_NONE,
-                       1 /* keyboard id */);
-  generator_->ReleaseKey(ui::VKEY_BROWSER_FORWARD, ui::EF_NONE,
-                         1 /* keyboard id */);
-
-  // Verify Switch Access also treats that like BrowserForward.
-  EXPECT_EQ(2, delegate_->command_count());
-  EXPECT_EQ(SwitchAccessCommand::kNext, delegate_->last_command());
-}
-
-class MagnifierTestDelegate : public AccessibilityEventRewriterDelegate {
- public:
-  MagnifierTestDelegate() = default;
-  MagnifierTestDelegate(const MagnifierTestDelegate&) = delete;
-  MagnifierTestDelegate& operator=(const MagnifierTestDelegate&) = delete;
-  ~MagnifierTestDelegate() override = default;
-
-  MagnifierCommand last_command() { return commands_.back(); }
-  int command_count() { return commands_.size(); }
-
-  // AccessibilityEventRewriterDelegate:
-  void SendSwitchAccessCommand(SwitchAccessCommand command) override {}
-  void SendPointScanPoint(const gfx::PointF& point) override {}
-  void SendMagnifierCommand(MagnifierCommand command) override {
-    commands_.push_back(command);
-  }
-  void DispatchKeyEventToChromeVox(std::unique_ptr<ui::Event>, bool) override {}
-  void DispatchMouseEvent(std::unique_ptr<ui::Event>) override {}
-
- private:
-  std::vector<MagnifierCommand> commands_;
-};
-
-class MagnifierAccessibilityEventRewriterTest : public AshTestBase {
- public:
-  MagnifierAccessibilityEventRewriterTest() {
-    event_rewriter_chromeos_ = std::make_unique<ui::EventRewriterChromeOS>(
-        nullptr, nullptr, false, &fake_ime_keyboard_);
-  }
-  ~MagnifierAccessibilityEventRewriterTest() override = default;
-
-  void SetUp() override {
-    AshTestBase::SetUp();
-
-    // This test triggers a resize of WindowTreeHost, which will end up
-    // throttling events. set_throttle_input_on_resize_for_testing() disables
-    // this.
-    aura::Env::GetInstance()->set_throttle_input_on_resize_for_testing(false);
-
-    delegate_ = std::make_unique<MagnifierTestDelegate>();
-    accessibility_event_rewriter_ =
-        std::make_unique<AccessibilityEventRewriter>(
-            event_rewriter_chromeos_.get(), delegate_.get());
-    generator_ = AshTestBase::GetEventGenerator();
-    GetContext()->AddPreTargetHandler(&event_capturer_);
-
-    GetContext()->GetHost()->GetEventSource()->AddEventRewriter(
-        accessibility_event_rewriter_.get());
-
-    controller_ = Shell::Get()->accessibility_controller();
-    controller_->SetAccessibilityEventRewriter(
-        accessibility_event_rewriter_.get());
-    controller_->fullscreen_magnifier().SetEnabled(true);
-  }
-
-  void TearDown() override {
-    GetContext()->RemovePreTargetHandler(&event_capturer_);
-    generator_ = nullptr;
-    controller_ = nullptr;
-    accessibility_event_rewriter_.reset();
-    AshTestBase::TearDown();
-  }
-
- protected:
-  ui::test::EventGenerator* generator_ = nullptr;
-  EventCapturer event_capturer_;
-  AccessibilityControllerImpl* controller_ = nullptr;
-  std::unique_ptr<MagnifierTestDelegate> delegate_;
-  input_method::FakeImeKeyboard fake_ime_keyboard_;
-  std::unique_ptr<AccessibilityEventRewriter> accessibility_event_rewriter_;
-  std::unique_ptr<ui::EventRewriterChromeOS> event_rewriter_chromeos_;
-};
-
-TEST_F(MagnifierAccessibilityEventRewriterTest, CaptureKeys) {
-  // Press and release Ctrl+Alt+Up.
-  // Verify that the events are captured by AccessibilityEventRewriter.
-  generator_->PressKey(ui::VKEY_UP, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN);
+  // Press the "1" key from the internal keyboard which is captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_1, ui::EF_NONE, 1);
+  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE, 1);
   EXPECT_FALSE(event_capturer_.last_key_event());
-  EXPECT_EQ(MagnifierCommand::kMoveUp, delegate_->last_command());
 
-  generator_->ReleaseKey(ui::VKEY_UP, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN);
+  // Press the "2" key from the usb keyboard which is captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_2, ui::EF_NONE, 2);
+  generator_->ReleaseKey(ui::VKEY_2, ui::EF_NONE, 2);
   EXPECT_FALSE(event_capturer_.last_key_event());
-  EXPECT_EQ(MagnifierCommand::kMoveStop, delegate_->last_command());
 
-  // Press and release Ctrl+Alt+Down.
-  // Verify that the events are captured by AccessibilityEventRewriter.
-  generator_->PressKey(ui::VKEY_DOWN, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN);
+  // Press the "3" key from the bluetooth keyboard which is captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_3, ui::EF_NONE, 3);
+  generator_->ReleaseKey(ui::VKEY_3, ui::EF_NONE, 3);
   EXPECT_FALSE(event_capturer_.last_key_event());
-  EXPECT_EQ(MagnifierCommand::kMoveDown, delegate_->last_command());
 
-  generator_->ReleaseKey(ui::VKEY_DOWN, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN);
+  // Press the "4" key from the unknown keyboard which is captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_4, ui::EF_NONE, 4);
+  generator_->ReleaseKey(ui::VKEY_4, ui::EF_NONE, 2);
   EXPECT_FALSE(event_capturer_.last_key_event());
-  EXPECT_EQ(MagnifierCommand::kMoveStop, delegate_->last_command());
 
-  // Press and release the "3" key.
-  // Verify that the events are not captured by AccessibilityEventRewriter.
-  generator_->PressKey(ui::VKEY_3, ui::EF_NONE);
+  // Now, exclude some device types.
+  rewriter->SetKeyboardInputDeviceTypes(
+      {ui::INPUT_DEVICE_USB, ui::INPUT_DEVICE_BLUETOOTH});
+
+  // Press the "1" key from the internal keyboard which is not captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_1, ui::EF_NONE, 1);
+  generator_->ReleaseKey(ui::VKEY_1, ui::EF_NONE, 1);
   EXPECT_TRUE(event_capturer_.last_key_event());
+  event_capturer_.Reset();
 
-  generator_->ReleaseKey(ui::VKEY_3, ui::EF_NONE);
+  // Press the "2" key from the usb keyboard which is captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_2, ui::EF_NONE, 2);
+  generator_->ReleaseKey(ui::VKEY_2, ui::EF_NONE, 2);
+  EXPECT_FALSE(event_capturer_.last_key_event());
+
+  // Press the "3" key from the bluetooth keyboard which is captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_3, ui::EF_NONE, 3);
+  generator_->ReleaseKey(ui::VKEY_3, ui::EF_NONE, 3);
+  EXPECT_FALSE(event_capturer_.last_key_event());
+
+  // Press the "4" key from the unknown keyboard which is not captured by
+  // AccessibilityEventRewriter.
+  generator_->PressKey(ui::VKEY_4, ui::EF_NONE, 4);
+  generator_->ReleaseKey(ui::VKEY_4, ui::EF_NONE, 2);
   EXPECT_TRUE(event_capturer_.last_key_event());
 }
 
+}  // namespace
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/common/resource_usage_reporter_type_converters.h"
 
 ProcessResourceUsage::ProcessResourceUsage(
@@ -26,7 +27,7 @@ ProcessResourceUsage::~ProcessResourceUsage() {
 
 void ProcessResourceUsage::RunPendingRefreshCallbacks() {
   DCHECK(thread_checker_.CalledOnValidThread());
-  auto task_runner = base::SingleThreadTaskRunner::GetCurrentDefault();
+  auto task_runner = base::ThreadTaskRunnerHandle::Get();
   base::circular_deque<base::OnceClosure> callbacks;
   std::swap(callbacks, refresh_callbacks_);
   for (auto& callback : callbacks)
@@ -37,8 +38,8 @@ void ProcessResourceUsage::Refresh(base::OnceClosure callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (!service_ || !service_.is_connected()) {
     if (!callback.is_null())
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, std::move(callback));
+      base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                    std::move(callback));
     return;
   }
 

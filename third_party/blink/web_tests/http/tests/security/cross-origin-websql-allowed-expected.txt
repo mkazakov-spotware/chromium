@@ -5,7 +5,7 @@ This iframe should not return any errors:
 --------
 Frame: '<!--framePath //<!--frame0-->-->'
 --------
-SecurityError
+No exception
 
 --------
 Frame: '<!--framePath //<!--frame1-->-->'

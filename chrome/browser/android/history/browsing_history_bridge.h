@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/history/profile_based_browsing_history_driver.h"
 
 using base::android::JavaParamRef;
@@ -23,34 +23,23 @@ class BrowsingHistoryBridge : public ProfileBasedBrowsingHistoryDriver {
   explicit BrowsingHistoryBridge(JNIEnv* env,
                                  const JavaParamRef<jobject>& obj,
                                  const JavaParamRef<jobject>& j_profile);
-
-  BrowsingHistoryBridge(const BrowsingHistoryBridge&) = delete;
-  BrowsingHistoryBridge& operator=(const BrowsingHistoryBridge&) = delete;
-
   void Destroy(JNIEnv*, const JavaParamRef<jobject>&);
 
   void QueryHistory(JNIEnv* env,
                     const JavaParamRef<jobject>& obj,
                     const JavaParamRef<jobject>& j_result_obj,
-                    jstring j_query,
-                    jboolean j_host_only);
+                    jstring j_query);
 
   void QueryHistoryContinuation(JNIEnv* env,
                                 const JavaParamRef<jobject>& obj,
                                 const JavaParamRef<jobject>& j_result_obj);
-
-  void GetLastVisitToHostBeforeRecentNavigations(
-      JNIEnv* env,
-      const JavaParamRef<jobject>& obj,
-      jstring j_host_name,
-      const JavaParamRef<jobject>& jcallback_);
 
   // Adds a HistoryEntry with the |j_url| and |j_native_timestamps| to the list
   // of items being removed. The removal will not be committed until
   // ::removeItems() is called.
   void MarkItemForRemoval(JNIEnv* env,
                           const JavaParamRef<jobject>& obj,
-                          const JavaParamRef<jobject>& j_url,
+                          jstring j_url,
                           const JavaParamRef<jlongArray>& j_native_timestamps);
 
   // Removes all items that have been marked for removal through
@@ -82,9 +71,11 @@ class BrowsingHistoryBridge : public ProfileBasedBrowsingHistoryDriver {
 
   std::vector<history::BrowsingHistoryService::HistoryEntry> items_to_remove_;
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   base::OnceClosure query_history_continuation_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowsingHistoryBridge);
 };
 
 #endif  // CHROME_BROWSER_ANDROID_HISTORY_BROWSING_HISTORY_BRIDGE_H_

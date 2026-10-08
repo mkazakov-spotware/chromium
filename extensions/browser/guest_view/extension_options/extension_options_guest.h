@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "components/guest_view/browser/guest_view.h"
 #include "extensions/browser/guest_view/extension_options/extension_options_guest_delegate.h"
 #include "url/gurl.h"
@@ -19,22 +20,17 @@ class ExtensionOptionsGuest
     : public guest_view::GuestView<ExtensionOptionsGuest> {
  public:
   static const char Type[];
-
-  ~ExtensionOptionsGuest() override;
-  ExtensionOptionsGuest(const ExtensionOptionsGuest&) = delete;
-  ExtensionOptionsGuest& operator=(const ExtensionOptionsGuest&) = delete;
-
-  static std::unique_ptr<GuestViewBase> Create(
+  static guest_view::GuestViewBase* Create(
       content::WebContents* owner_web_contents);
 
  private:
   explicit ExtensionOptionsGuest(content::WebContents* owner_web_contents);
+  ~ExtensionOptionsGuest() override;
 
   // GuestViewBase implementation.
-  void CreateWebContents(std::unique_ptr<GuestViewBase> owned_this,
-                         const base::Value::Dict& create_params,
+  void CreateWebContents(const base::DictionaryValue& create_params,
                          WebContentsCreatedCallback callback) final;
-  void DidInitialize(const base::Value::Dict& create_params) final;
+  void DidInitialize(const base::DictionaryValue& create_params) final;
   void GuestViewDidStopLoading() final;
   const char* GetAPINamespace() const final;
   int GetTaskPrefix() const final;
@@ -46,14 +42,14 @@ class ExtensionOptionsGuest
                       std::unique_ptr<content::WebContents> new_contents,
                       const GURL& target_url,
                       WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
+                      const gfx::Rect& initial_rect,
                       bool user_gesture,
                       bool* was_blocked) final;
   content::WebContents* OpenURLFromTab(
       content::WebContents* source,
       const content::OpenURLParams& params) final;
   void CloseContents(content::WebContents* source) final;
-  bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
+  bool HandleContextMenu(content::RenderFrameHost* render_frame_host,
                          const content::ContextMenuParams& params) final;
   bool IsWebContentsCreationOverridden(
       content::SiteInstance* source_site_instance,
@@ -68,7 +64,7 @@ class ExtensionOptionsGuest
       const GURL& opener_url,
       const std::string& frame_name,
       const GURL& target_url,
-      const content::StoragePartitionConfig& partition_config,
+      const std::string& partition_id,
       content::SessionStorageNamespace* session_storage_namespace) final;
 
   // content::WebContentsObserver implementation.
@@ -77,6 +73,8 @@ class ExtensionOptionsGuest
   std::unique_ptr<extensions::ExtensionOptionsGuestDelegate>
       extension_options_guest_delegate_;
   GURL options_page_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionOptionsGuest);
 };
 
 }  // namespace extensions

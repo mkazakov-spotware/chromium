@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,15 @@ import androidx.preference.Preference;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
 import org.chromium.chrome.browser.safe_browsing.metrics.SettingsAccessPoint;
 import org.chromium.chrome.browser.safe_browsing.metrics.UserAction;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.settings.FragmentSettingsLauncher;
+import org.chromium.chrome.browser.settings.FragmentSettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.settings.SettingsFeatureList;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.settings.TextMessagePreference;
 
 /**
@@ -32,9 +32,7 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
                    RadioButtonGroupSafeBrowsingPreference.OnSafeBrowsingModeDetailsRequested,
                    Preference.OnPreferenceChangeListener {
     @VisibleForTesting
-    static final String PREF_MANAGED_DISCLAIMER_TEXT = "managed_disclaimer_text";
-    @VisibleForTesting
-    static final String PREF_TEXT_MANAGED_LEGACY = "text_managed_legacy";
+    static final String PREF_TEXT_MANAGED = "text_managed";
     @VisibleForTesting
     static final String PREF_SAFE_BROWSING = "safe_browsing_radio_button_group";
     public static final String ACCESS_POINT = "SafeBrowsingSettingsFragment.AccessPoint";
@@ -84,25 +82,17 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
 
         mSafeBrowsingPreference = findPreference(PREF_SAFE_BROWSING);
         mSafeBrowsingPreference.init(SafeBrowsingBridge.getSafeBrowsingState(),
+                ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.SAFE_BROWSING_ENHANCED_PROTECTION_ENABLED),
                 mAccessPoint);
         mSafeBrowsingPreference.setSafeBrowsingModeDetailsRequestedListener(this);
         mSafeBrowsingPreference.setManagedPreferenceDelegate(managedPreferenceDelegate);
         mSafeBrowsingPreference.setOnPreferenceChangeListener(this);
 
-        Preference managedDisclaimerText = findPreference(PREF_MANAGED_DISCLAIMER_TEXT);
-        TextMessagePreference textManagedLegacy = findPreference(PREF_TEXT_MANAGED_LEGACY);
-        boolean managedTextVisible = managedPreferenceDelegate.isPreferenceClickDisabledByPolicy(
-                mSafeBrowsingPreference);
-
-        if (SettingsFeatureList.isEnabled(
-                    SettingsFeatureList.HIGHLIGHT_MANAGED_PREF_DISCLAIMER_ANDROID)) {
-            textManagedLegacy.setVisible(false);
-            managedDisclaimerText.setVisible(managedTextVisible);
-        } else {
-            textManagedLegacy.setManagedPreferenceDelegate(managedPreferenceDelegate);
-            textManagedLegacy.setVisible(managedTextVisible);
-            managedDisclaimerText.setVisible(false);
-        }
+        TextMessagePreference textManaged = findPreference(PREF_TEXT_MANAGED);
+        textManaged.setManagedPreferenceDelegate(managedPreferenceDelegate);
+        textManaged.setVisible(managedPreferenceDelegate.isPreferenceClickDisabledByPolicy(
+                mSafeBrowsingPreference));
 
         recordUserActionHistogram(UserAction.SHOWED);
     }
@@ -134,8 +124,7 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
     private ChromeManagedPreferenceDelegate createManagedPreferenceDelegate() {
         return preference -> {
             String key = preference.getKey();
-            if (PREF_MANAGED_DISCLAIMER_TEXT.equals(key) || PREF_TEXT_MANAGED_LEGACY.equals(key)
-                    || PREF_SAFE_BROWSING.equals(key)) {
+            if (PREF_TEXT_MANAGED.equals(key) || PREF_SAFE_BROWSING.equals(key)) {
                 return SafeBrowsingBridge.isSafeBrowsingManaged();
             } else {
                 assert false : "Should not be reached.";
@@ -228,29 +217,16 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
         // The metricsSuffix string shouldn't be changed. When adding a new access point, please
         // also update the "SafeBrowsing.Settings.AccessPoint" histogram suffix in the
         // histograms.xml file.
-        switch (mAccessPoint) {
-            case SettingsAccessPoint.DEFAULT:
-                metricsSuffix = "Default";
-                break;
-            case SettingsAccessPoint.PARENT_SETTINGS:
-                metricsSuffix = "ParentSettings";
-                break;
-            case SettingsAccessPoint.SAFETY_CHECK:
-                metricsSuffix = "SafetyCheck";
-                break;
-            case SettingsAccessPoint.SURFACE_EXPLORER_PROMO_SLINGER:
-                metricsSuffix = "SurfaceExplorerPromoSlinger";
-                break;
-            case SettingsAccessPoint.SECURITY_INTERSTITIAL:
-                metricsSuffix = "SecurityInterstitial";
-                break;
-            case SettingsAccessPoint.TAILORED_SECURITY:
-                metricsSuffix = "TailoredSecurity";
-                break;
-            default:
-                assert false : "Should not be reached.";
-                metricsSuffix = "";
-                break;
+        if (mAccessPoint == SettingsAccessPoint.PARENT_SETTINGS) {
+            metricsSuffix = "ParentSettings";
+        } else if (mAccessPoint == SettingsAccessPoint.SAFETY_CHECK) {
+            metricsSuffix = "SafetyCheck";
+        } else if (mAccessPoint == SettingsAccessPoint.SURFACE_EXPLORER_PROMO_SLINGER) {
+            metricsSuffix = "SurfaceExplorerPromoSlinger";
+        } else if (mAccessPoint == SettingsAccessPoint.SECURITY_INTERSTITIAL) {
+            metricsSuffix = "SecurityInterstitial";
+        } else {
+            metricsSuffix = "Default";
         }
         RecordHistogram.recordEnumeratedHistogram(
                 "SafeBrowsing.Settings.UserAction." + metricsSuffix, userAction,

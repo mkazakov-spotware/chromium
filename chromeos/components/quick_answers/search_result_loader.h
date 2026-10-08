@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,22 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
 #include "chromeos/components/quick_answers/result_loader.h"
 #include "chromeos/components/quick_answers/search_result_parsers/search_response_parser.h"
 
 namespace network {
-class SharedURLLoaderFactory;
+namespace mojom {
+class URLLoaderFactory;
+}  // namespace mojom
 }  // namespace network
 
+namespace chromeos {
 namespace quick_answers {
 
 class SearchResultLoader : public ResultLoader {
  public:
-  SearchResultLoader(
-      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-      ResultLoaderDelegate* delegate);
+  SearchResultLoader(network::mojom::URLLoaderFactory* url_loader_factory,
+                     ResultLoaderDelegate* delegate);
 
   SearchResultLoader(const SearchResultLoader&) = delete;
   SearchResultLoader& operator=(const SearchResultLoader&) = delete;
@@ -41,5 +42,6 @@ class SearchResultLoader : public ResultLoader {
 };
 
 }  // namespace quick_answers
+}  // namespace chromeos
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_SEARCH_RESULT_LOADER_H_

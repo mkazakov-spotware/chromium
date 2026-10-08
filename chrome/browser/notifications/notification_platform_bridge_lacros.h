@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/notifications/notification_platform_bridge.h"
 #include "chromeos/crosapi/mojom/message_center.mojom.h"
@@ -49,11 +48,10 @@ class NotificationPlatformBridgeLacros : public NotificationPlatformBridge {
   // Cleans up after a remote notification is closed.
   void OnRemoteNotificationClosed(const std::string& id);
 
-  const raw_ptr<NotificationPlatformBridgeDelegate> bridge_delegate_;
+  NotificationPlatformBridgeDelegate* const bridge_delegate_;
 
   // May be nullptr if the message center is unavailable.
-  const raw_ptr<mojo::Remote<crosapi::mojom::MessageCenter>>
-      message_center_remote_;
+  mojo::Remote<crosapi::mojom::MessageCenter>* const message_center_remote_;
 
   // Map key is notification ID.
   std::map<std::string, std::unique_ptr<RemoteNotificationDelegate>>

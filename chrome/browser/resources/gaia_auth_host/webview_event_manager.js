@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,17 @@
  * Provides WebviewEventManager which can register and keep track of listeners
  * on EventTargets and WebRequests, and unregister all listeners later.
  */
+'use strict';
 
 /**
  * Creates a new WebviewEventManager.
+ * @constructor
  */
-export class WebviewEventManager {
-  constructor() {
-    this.unbindWebviewCleanupFunctions_ = [];
-  }
+/* #export */ function WebviewEventManager() {
+  this.unbindWebviewCleanupFunctions_ = [];
+}
 
+WebviewEventManager.prototype = {
   /**
    * Adds a EventListener to |eventTarget| and adds a clean-up function so we
    * can remove the listener in unbindFromWebview.
@@ -27,7 +29,7 @@ export class WebviewEventManager {
     eventTarget.addEventListener(type, listener);
     this.unbindWebviewCleanupFunctions_.push(
         eventTarget.removeEventListener.bind(eventTarget, type, listener));
-  }
+  },
 
   /**
    * Adds a listener to |webRequestEvent| and adds a clean-up function so we can
@@ -43,7 +45,7 @@ export class WebviewEventManager {
     webRequestEvent.addListener(listener, filter, extraInfoSpec);
     this.unbindWebviewCleanupFunctions_.push(
         webRequestEvent.removeListener.bind(webRequestEvent, listener));
-  }
+  },
 
   /**
    * Unbinds this Authenticator from the currently bound webview.
@@ -54,4 +56,12 @@ export class WebviewEventManager {
     }
     this.unbindWebviewCleanupFunctions_ = [];
   }
-}
+};
+
+/**
+ * Class factory.
+ * @return {WebviewEventManager}
+ */
+WebviewEventManager.create = function() {
+  return new WebviewEventManager();
+};

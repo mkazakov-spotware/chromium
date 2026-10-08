@@ -1,12 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 'use strict';
-
-import {BrowserProxy} from 'chrome://os-settings/chromeos/os_settings.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
-import {setupFakeHandler, replaceStore, replaceBody, isHiddenByDomIf} from './test_util.js';
 
 suite('AppManagementPageTests', () => {
   let appManagementPage;
@@ -15,9 +11,7 @@ suite('AppManagementPageTests', () => {
 
   /** @return {Element} */
   function getAppList() {
-    return appManagementPage.shadowRoot
-        .querySelector('app-management-main-view')
-        .$['app-list'];
+    return appManagementPage.$$('app-management-main-view').$['app-list'];
   }
 
   /** @return {number} */
@@ -28,9 +22,8 @@ suite('AppManagementPageTests', () => {
 
   /** @return {Element} */
   function getNoAppsFoundLabel() {
-    return appManagementPage.shadowRoot
-        .querySelector('app-management-main-view')
-        .shadowRoot.querySelector('#no-apps-label');
+    return appManagementPage.$$('app-management-main-view')
+        .$$('#no-apps-label');
   }
 
   setup(async () => {
@@ -44,51 +37,51 @@ suite('AppManagementPageTests', () => {
   test('loads', async () => {
     // Check that the browser responds to the getApps() message.
     const {apps: initialApps} =
-        await BrowserProxy.getInstance().handler.getApps();
+        await app_management.BrowserProxy.getInstance().handler.getApps();
   });
 
   test('App list renders on page change', async () => {
     await fakeHandler.addApp();
-    assertEquals(1, getAppListChildren());
+    expectEquals(1, getAppListChildren());
     await fakeHandler.addApp();
-    assertEquals(2, getAppListChildren());
+    expectEquals(2, getAppListChildren());
   });
 
   test('No Apps Found Label', async () => {
-    assertEquals(0, getAppListChildren());
-    assertFalse(isHiddenByDomIf(getNoAppsFoundLabel()));
+    expectEquals(0, getAppListChildren());
+    expectFalse(isHiddenByDomIf(getNoAppsFoundLabel()));
 
     const app = await fakeHandler.addApp();
-    assertEquals(1, getAppListChildren());
-    assertTrue(isHiddenByDomIf(getNoAppsFoundLabel()));
+    expectEquals(1, getAppListChildren());
+    expectTrue(isHiddenByDomIf(getNoAppsFoundLabel()));
 
     fakeHandler.uninstall(app.id);
-    await flushTasks();
-    assertEquals(0, getAppListChildren());
-    assertFalse(isHiddenByDomIf(getNoAppsFoundLabel()));
+    await test_util.flushTasks();
+    expectEquals(0, getAppListChildren());
+    expectFalse(isHiddenByDomIf(getNoAppsFoundLabel()));
   });
 
   test('App list filters when searching', async () => {
     await fakeHandler.addApp(null, {title: 'slides'});
     await fakeHandler.addApp(null, {title: 'calculator'});
     const sheets = await fakeHandler.addApp(null, {title: 'sheets'});
-    assertEquals(3, getAppListChildren());
+    expectEquals(3, getAppListChildren());
 
     appManagementPage.searchTerm = 's';
-    await flushTasks();
-    assertEquals(2, getAppListChildren());
+    await test_util.flushTasks();
+    expectEquals(2, getAppListChildren());
 
     fakeHandler.uninstall(sheets.id);
-    await flushTasks();
-    assertEquals(1, getAppListChildren());
+    await test_util.flushTasks();
+    expectEquals(1, getAppListChildren());
 
     appManagementPage.searchTerm = 'ss';
-    await flushTasks();
-    assertEquals(0, getAppListChildren());
-    assertFalse(isHiddenByDomIf(getNoAppsFoundLabel()));
+    await test_util.flushTasks();
+    expectEquals(0, getAppListChildren());
+    expectFalse(isHiddenByDomIf(getNoAppsFoundLabel()));
 
     appManagementPage.searchTerm = '';
-    await flushTasks();
-    assertEquals(2, getAppListChildren());
+    await test_util.flushTasks();
+    expectEquals(2, getAppListChildren());
   });
 });

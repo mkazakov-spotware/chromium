@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/scoped_native_library.h"
-#include "media/base/cdm_config.h"
 
 namespace media {
 
@@ -18,17 +18,9 @@ namespace media {
 class ExternalClearKeyTestHelper {
  public:
   ExternalClearKeyTestHelper();
-
-  ExternalClearKeyTestHelper(const ExternalClearKeyTestHelper&) = delete;
-  ExternalClearKeyTestHelper& operator=(const ExternalClearKeyTestHelper&) =
-      delete;
-
   ~ExternalClearKeyTestHelper();
 
-  media::CdmConfig CdmConfig() {
-    return {"org.chromium.externalclearkey", false, false, false};
-  }
-
+  std::string KeySystemName() { return "org.chromium.externalclearkey"; }
   base::FilePath LibraryPath() { return library_path_; }
 
  private:
@@ -40,6 +32,8 @@ class ExternalClearKeyTestHelper {
   // Keep a reference to the loaded library.
   base::FilePath library_path_;
   base::ScopedNativeLibrary library_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExternalClearKeyTestHelper);
 };
 
 }  // namespace media

@@ -1,9 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CHROME_CLEANER_LOGGING_DETAILED_INFO_SAMPLER_H_
 #define CHROME_CHROME_CLEANER_LOGGING_DETAILED_INFO_SAMPLER_H_
+
+#include <memory>
 
 #include "chrome/chrome_cleaner/logging/info_sampler.h"
 #include "chrome/chrome_cleaner/os/file_path_set.h"

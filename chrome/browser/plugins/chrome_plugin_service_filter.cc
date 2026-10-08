@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
-#include "chrome/browser/plugins/plugin_prefs.h"
+#include "chrome/browser/plugins/flash_temporary_permission_tracker.h"
+#include "chrome/browser/plugins/plugin_finder.h"
+#include "chrome/browser/plugins/plugin_metadata.h"
 #include "chrome/browser/plugins/plugin_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
@@ -33,22 +34,26 @@ using content::PluginService;
 struct ChromePluginServiceFilter::ContextInfo {
   ContextInfo(scoped_refptr<PluginPrefs> pp,
               scoped_refptr<HostContentSettingsMap> hcsm,
+              scoped_refptr<FlashTemporaryPermissionTracker> ftpm,
               Profile* profile);
-
-  ContextInfo(const ContextInfo&) = delete;
-  ContextInfo& operator=(const ContextInfo&) = delete;
-
   ~ContextInfo();
 
   scoped_refptr<PluginPrefs> plugin_prefs;
   scoped_refptr<HostContentSettingsMap> host_content_settings_map;
+  scoped_refptr<FlashTemporaryPermissionTracker> permission_tracker;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContextInfo);
 };
 
 ChromePluginServiceFilter::ContextInfo::ContextInfo(
     scoped_refptr<PluginPrefs> pp,
     scoped_refptr<HostContentSettingsMap> hcsm,
+    scoped_refptr<FlashTemporaryPermissionTracker> ftpm,
     Profile* profile)
-    : plugin_prefs(std::move(pp)), host_content_settings_map(std::move(hcsm)) {}
+    : plugin_prefs(std::move(pp)),
+      host_content_settings_map(std::move(hcsm)),
+      permission_tracker(std::move(ftpm)) {}
 
 ChromePluginServiceFilter::ContextInfo::~ContextInfo() = default;
 
@@ -71,12 +76,22 @@ void ChromePluginServiceFilter::RegisterProfile(Profile* profile) {
   base::AutoLock lock(lock_);
   browser_context_map_[profile] = std::make_unique<ContextInfo>(
       PluginPrefs::GetForProfile(profile),
-      HostContentSettingsMapFactory::GetForProfile(profile), profile);
+      HostContentSettingsMapFactory::GetForProfile(profile),
+      FlashTemporaryPermissionTracker::Get(profile), profile);
 }
 
 void ChromePluginServiceFilter::UnregisterProfile(Profile* profile) {
   base::AutoLock lock(lock_);
   browser_context_map_.erase(profile);
+}
+
+void ChromePluginServiceFilter::OverridePluginForFrame(
+    int render_process_id,
+    int render_frame_id,
+    const content::WebPluginInfo& plugin) {
+  base::AutoLock auto_lock(lock_);
+  ProcessDetails* details = GetOrRegisterProcess(render_process_id);
+  details->overridden_plugins.push_back({render_frame_id, plugin});
 }
 
 void ChromePluginServiceFilter::AuthorizePlugin(
@@ -93,34 +108,54 @@ void ChromePluginServiceFilter::AuthorizeAllPlugins(
     const std::string& identifier) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  // Authorize all plugins is intended for the granting access to only
-  // the currently active page, so we iterate on the main frame.
-  web_contents->GetPrimaryMainFrame()->ForEachRenderFrameHost(
-      [](content::RenderFrameHost* render_frame_host) {
+  web_contents->ForEachFrame(
+      base::BindRepeating([](content::RenderFrameHost* render_frame_host) {
         ChromePluginServiceFilter::GetInstance()->AuthorizePlugin(
             render_frame_host->GetProcess()->GetID(), base::FilePath());
-      });
+      }));
 
   if (load_blocked) {
-    web_contents->GetPrimaryMainFrame()
-        ->ForEachRenderFrameHost(
-            [&identifier](content::RenderFrameHost* render_frame_host) {
-              mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame>
-                  chrome_render_frame;
-              render_frame_host->GetRemoteAssociatedInterfaces()->GetInterface(
-                  &chrome_render_frame);
-              chrome_render_frame->LoadBlockedPlugins(identifier);
-            });
+    web_contents->ForEachFrame(base::BindRepeating(
+        [](const std::string& identifier,
+           content::RenderFrameHost* render_frame_host) {
+          mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame>
+              chrome_render_frame;
+          render_frame_host->GetRemoteAssociatedInterfaces()->GetInterface(
+              &chrome_render_frame);
+          chrome_render_frame->LoadBlockedPlugins(identifier);
+        },
+        identifier));
   }
 }
 
 bool ChromePluginServiceFilter::IsPluginAvailable(
-    content::BrowserContext* browser_context,
-    const content::WebPluginInfo& plugin) {
+    int render_process_id,
+    int render_frame_id,
+    const GURL& plugin_content_url,
+    const url::Origin& main_frame_origin,
+    content::WebPluginInfo* plugin) {
   base::AutoLock auto_lock(lock_);
+  const ProcessDetails* details = GetProcess(render_process_id);
+
+  // Check whether the plugin is overridden.
+  if (details) {
+    for (const auto& plugin_override : details->overridden_plugins) {
+      if (plugin_override.render_frame_id == render_frame_id) {
+        bool use = plugin_override.plugin.path == plugin->path;
+        if (use)
+          *plugin = plugin_override.plugin;
+        return use;
+      }
+    }
+  }
+
+  content::RenderProcessHost* rph =
+      content::RenderProcessHost::FromID(render_process_id);
+  if (!rph)
+    return false;
 
   // Check whether the plugin is disabled.
-  auto context_info_it = browser_context_map_.find(browser_context);
+  auto context_info_it = browser_context_map_.find(rph->GetBrowserContext());
   // The context might not be found because RenderFrameMessageFilter might
   // outlive the Profile (the context is unregistered during the Profile
   // destructor).
@@ -128,8 +163,37 @@ bool ChromePluginServiceFilter::IsPluginAvailable(
     return false;
 
   const ContextInfo* context_info = context_info_it->second.get();
-  if (!context_info->plugin_prefs.get()->IsPluginEnabled(plugin))
+  if (!context_info->plugin_prefs.get()->IsPluginEnabled(*plugin))
     return false;
+
+  // Do additional checks for Flash.
+  if (plugin->name == base::ASCIIToUTF16(content::kFlashPluginName)) {
+    // Check the content setting first, and always respect the ALLOW or BLOCK
+    // state. When IsPluginAvailable() is called to check whether a plugin
+    // should be advertised, |url| has the same origin as |main_frame_origin|.
+    // The intended behavior is that Flash is advertised only if a Flash embed
+    // hosted on the same origin as the main frame origin is allowed to run.
+    bool is_managed = false;
+    HostContentSettingsMap* settings_map =
+        context_info_it->second->host_content_settings_map.get();
+    ContentSetting flash_setting = PluginUtils::GetFlashPluginContentSetting(
+        settings_map, main_frame_origin, plugin_content_url, &is_managed);
+
+    if (flash_setting == CONTENT_SETTING_ALLOW)
+      return true;
+
+    if (flash_setting == CONTENT_SETTING_BLOCK)
+      return false;
+
+    // If the content setting is being managed by enterprise policy and is an
+    // ASK setting, we check to see if it has been temporarily granted.
+    if (is_managed) {
+      return context_info_it->second->permission_tracker->IsFlashEnabled(
+          main_frame_origin.GetURL());
+    }
+
+    return false;
+  }
 
   return true;
 }
@@ -182,6 +246,6 @@ ChromePluginServiceFilter::GetProcess(
     int render_process_id) const {
   auto it = plugin_details_.find(render_process_id);
   if (it == plugin_details_.end())
-    return nullptr;
+    return NULL;
   return &it->second;
 }

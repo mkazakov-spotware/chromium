@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/auto_reset.h"
 #include "base/base64.h"
 #include "base/bind.h"
-#include "base/strings/string_number_conversions.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -28,15 +28,15 @@
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/url_database.h"
-#include "components/omnibox/browser/actions/omnibox_pedal.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/omnibox_controller_emitter.h"
+#include "components/omnibox/browser/omnibox_pedal.h"
+#include "components/search_engines/omnibox_focus_type.h"
 #include "components/search_engines/template_url.h"
 #include "content/public/browser/web_ui.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
-#include "third_party/metrics_proto/omnibox_focus_type.pb.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/image/image.h"
 
@@ -163,17 +163,7 @@ struct TypeConverter<mojom::AutocompleteMatchPtr, AutocompleteMatch> {
     result->allowed_to_be_default_match = input.allowed_to_be_default_match;
     result->type = AutocompleteMatchType::ToString(input.type);
     result->is_search_type = AutocompleteMatch::IsSearchType(input.type);
-    auto subtypes = input.subtypes;
-    omnibox::SuggestType type = omnibox::TYPE_NATIVE_CHROME;
-    AutocompleteController::GetMatchTypeAndExtendSubtypes(input, &type,
-                                                          &subtypes);
-    std::vector<std::string> subtypes_str;
-    subtypes_str.push_back(base::NumberToString(type));
-    std::transform(subtypes.begin(), subtypes.end(),
-                   std::back_inserter(subtypes_str),
-                   static_cast<std::string (*)(int)>(base::NumberToString));
-    result->aqs_type_subtypes = base::JoinString(subtypes_str, ",");
-    result->has_tab_match = input.has_tab_match.value_or(false);
+    result->has_tab_match = input.has_tab_match;
     if (input.associated_keyword.get()) {
       result->associated_keyword =
           base::UTF16ToUTF8(input.associated_keyword->keyword);
@@ -181,7 +171,8 @@ struct TypeConverter<mojom::AutocompleteMatchPtr, AutocompleteMatch> {
     result->keyword = base::UTF16ToUTF8(input.keyword);
     result->duplicates = static_cast<int32_t>(input.duplicate_matches.size());
     result->from_previous = input.from_previous;
-    result->pedal_id = input.action ? input.action->GetID() : 0;
+    result->pedal_id =
+        input.pedal ? static_cast<int32_t>(input.pedal->id()) : 0;
     result->additional_info =
         mojo::ConvertTo<std::vector<mojom::AutocompleteAdditionalInfoPtr>>(
             input.additional_info);
@@ -209,9 +200,10 @@ struct TypeConverter<mojom::AutocompleteResultsForProviderPtr,
 OmniboxPageHandler::OmniboxPageHandler(
     Profile* profile,
     mojo::PendingReceiver<mojom::OmniboxPageHandler> receiver)
-    : profile_(profile), receiver_(this, std::move(receiver)) {
-  observation_.Observe(
-      OmniboxControllerEmitter::GetForBrowserContext(profile_));
+    : profile_(profile),
+      receiver_(this, std::move(receiver)),
+      observer_(this) {
+  observer_.Add(OmniboxControllerEmitter::GetForBrowserContext(profile_));
   ResetController();
 }
 
@@ -233,7 +225,7 @@ void OmniboxPageHandler::OnResultChanged(AutocompleteController* controller,
       (base::Time::Now() - time_omnibox_started_).InMilliseconds();
   response->done = controller->done();
   response->type = AutocompleteInput::TypeToString(input_.type());
-  const std::u16string host =
+  const base::string16 host =
       input_.text().substr(input_.parts().host.begin, input_.parts().host.len);
   response->host = base::UTF16ToUTF8(host);
   bool is_typed_host;
@@ -310,7 +302,7 @@ void OmniboxPageHandler::OnBitmapFetched(const std::string& image_url,
   page_->HandleAnswerImageData(image_url, data_url);
 }
 
-bool OmniboxPageHandler::LookupIsTypedHost(const std::u16string& host,
+bool OmniboxPageHandler::LookupIsTypedHost(const base::string16& host,
                                            bool* is_typed_host) const {
   history::HistoryService* const history_service =
       HistoryServiceFactory::GetForProfile(profile_,
@@ -358,9 +350,8 @@ void OmniboxPageHandler::StartOmniboxQuery(const std::string& input_string,
   input.set_prefer_keyword(prefer_keyword);
   if (prefer_keyword)
     input.set_keyword_mode_entry_method(metrics::OmniboxEventProto::TAB);
-  input.set_focus_type(zero_suggest
-                           ? metrics::OmniboxFocusType::INTERACTION_FOCUS
-                           : metrics::OmniboxFocusType::INTERACTION_DEFAULT);
+  input.set_focus_type(zero_suggest ? OmniboxFocusType::ON_FOCUS
+                                    : OmniboxFocusType::DEFAULT);
 
   controller_->Start(input);
 }

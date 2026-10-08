@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -51,8 +51,6 @@ if (is_android) {
     deps = [
       "//base:base_java",
       "//base:jni_java",
-      "//build/android:build_java",
-      "//third_party/androidx:androidx_annotation_annotation_java",
     ]
     annotation_processor_deps = [ "//base/android/jni_generator:jni_processor" ]
 
@@ -160,7 +158,10 @@ component("midi") {
   }
 
   if (use_alsa && use_udev) {
-    deps += [ "//crypto" ]
+    deps += [
+      "//crypto",
+      "//crypto:platform",
+    ]
     libs += [ "asound" ]
     sources += [
       "midi_manager_alsa.cc",
@@ -219,7 +220,7 @@ test("midi_unittests") {
 
   # On LaCrOS, tests use ash-chrome as a window manager, thus the dependency.
   # On other platforms, this target should not require the Chrome to run.
-  if (!is_chromeos_lacros) {
+  if (!is_lacros) {
     assert_no_deps = [ "//chrome" ]
   }
 }

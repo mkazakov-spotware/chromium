@@ -1,26 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/win/event_trace_data.h"
 
 #include "base/check.h"
-#include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/logging_win.h"
 #include "base/notreached.h"
-#include "base/strings/utf_string_conversions.h"
 
 namespace remoting {
 
 namespace {
-
-constexpr char kInfoSeverity[] = "INFO";
-constexpr char kWarningSeverity[] = "WARNING";
-constexpr char kErrorSeverity[] = "ERROR";
-constexpr char kFatalSeverity[] = "FATAL";
-constexpr char kVerboseSeverity[] = "VERBOSE";
-constexpr char kUnknownSeverity[] = "UNKNOWN";
 
 logging::LogSeverity EventTraceLevelToSeverity(uint8_t level) {
   switch (level) {
@@ -51,7 +42,6 @@ EventTraceData& EventTraceData::operator=(EventTraceData&&) = default;
 
 EventTraceData::~EventTraceData() = default;
 
-// static
 EventTraceData EventTraceData::Create(EVENT_TRACE* event) {
   EventTraceData data;
 
@@ -89,8 +79,7 @@ EventTraceData EventTraceData::Create(EVENT_TRACE* event) {
     // Read the file info and move the cursor.
     const char* file_info = reinterpret_cast<const char*>(mof_data + offset);
     size_t str_len = strnlen_s(file_info, event->MofLength - offset);
-    base::FilePath file_path(base::UTF8ToWide(file_info));
-    data.file_name = base::WideToUTF8(file_path.BaseName().value());
+    data.file.assign(file_info);
     offset += (str_len + 1);
 
     // Read the message and move the cursor.
@@ -105,26 +94,6 @@ EventTraceData EventTraceData::Create(EVENT_TRACE* event) {
   }
 
   return data;
-}
-
-// static
-std::string EventTraceData::SeverityToString(logging::LogSeverity severity) {
-  switch (severity) {
-    case logging::LOG_INFO:
-      return kInfoSeverity;
-    case logging::LOG_WARNING:
-      return kWarningSeverity;
-    case logging::LOG_ERROR:
-      return kErrorSeverity;
-    case logging::LOG_FATAL:
-      return kFatalSeverity;
-    default:
-      if (severity < 0) {
-        return kVerboseSeverity;
-      }
-      NOTREACHED();
-      return kUnknownSeverity;
-  }
 }
 
 }  // namespace remoting

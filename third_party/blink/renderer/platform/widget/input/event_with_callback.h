@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 
 #include <list>
 
-#include "base/time/time.h"
 #include "third_party/blink/public/common/input/web_coalesced_input_event.h"
-#include "third_party/blink/public/mojom/input/input_handler.mojom-blink-forward.h"
+#include "third_party/blink/public/platform/input/input_handler_proxy.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
-#include "third_party/blink/renderer/platform/widget/input/input_handler_proxy.h"
 #include "ui/latency/latency_info.h"
 
 namespace cc {
@@ -49,14 +47,13 @@ class PLATFORM_EXPORT EventWithCallback {
                     OriginalEventList original_events);
   ~EventWithCallback();
 
-  [[nodiscard]] bool CanCoalesceWith(const EventWithCallback& other) const;
+  bool CanCoalesceWith(const EventWithCallback& other) const WARN_UNUSED_RESULT;
   void CoalesceWith(EventWithCallback* other, base::TimeTicks timestamp_now);
 
   void RunCallbacks(InputHandlerProxy::EventDisposition,
                     const ui::LatencyInfo& latency,
                     std::unique_ptr<InputHandlerProxy::DidOverscrollParams>,
-                    const WebInputEventAttribution&,
-                    mojom::blink::ScrollResultDataPtr scroll_result_data);
+                    const WebInputEventAttribution&);
 
   const WebInputEvent& event() const { return event_->Event(); }
   WebInputEvent* event_pointer() { return event_->EventPointer(); }
@@ -80,7 +77,7 @@ class PLATFORM_EXPORT EventWithCallback {
   }
   void SetScrollbarManipulationHandledOnCompositorThread();
 
-  cc::EventMetrics* metrics() const {
+  const cc::EventMetrics* metrics() const {
     return original_events_.empty() ? nullptr
                                     : original_events_.front().metrics_.get();
   }
@@ -88,12 +85,6 @@ class PLATFORM_EXPORT EventWithCallback {
   // Removes metrics objects from all original events and returns the first one
   // for latency reporting purposes.
   std::unique_ptr<cc::EventMetrics> TakeMetrics();
-
-  // Called when the compositor thread starts/finishes processing the event so
-  // that the metrics can be updated with the appropriate timestamp. These are
-  // only called if the event has metrics.
-  void WillStartProcessingForMetrics();
-  void DidCompleteProcessingForMetrics();
 
  private:
   friend class test::InputHandlerProxyEventQueueTest;

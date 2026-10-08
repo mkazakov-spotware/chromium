@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CONTENT_BROWSER_CONTACTS_CONTACTS_PROVIDER_H_
 
 #include "content/public/browser/contacts_picker_properties_requested.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/contacts/contacts_manager.mojom.h"
 
 namespace content {
@@ -14,7 +13,7 @@ namespace content {
 class ContactsProvider {
  public:
   using ContactsSelectedCallback = base::OnceCallback<void(
-      absl::optional<std::vector<blink::mojom::ContactInfoPtr>> contacts,
+      base::Optional<std::vector<blink::mojom::ContactInfoPtr>> contacts,
       int percentage_shared,
       ContactsPickerPropertiesRequested properties_requested)>;
 
@@ -35,4 +34,4 @@ class ContactsProvider {
 
 }  // namespace content
 
-#endif  // CONTENT_BROWSER_CONTACTS_CONTACTS_PROVIDER_H_
+#endif  // CONTENT_BROWSER_CONTACTS_CONTACTS_PROVIDER_ANDROID_H_

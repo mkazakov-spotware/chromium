@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/popup_menu/cells/popup_menu_tools_item.h"
 
-#import <stdlib.h>
+#include <stdlib.h>
 
-#import "ios/chrome/browser/ntp/features.h"
 #import "ios/chrome/browser/ui/popup_menu/public/popup_menu_ui_constants.h"
 #import "ios/chrome/browser/ui/reading_list/number_badge_view.h"
 #import "ios/chrome/browser/ui/reading_list/text_badge_view.h"
@@ -110,11 +109,7 @@ NSString* const kToolsMenuTextBadgeAccessibilityIdentifier =
     self.selectedBackgroundView = selectedBackgroundView;
 
     _titleLabel = [[UILabel alloc] init];
-    if (IsWebChannelsEnabled()) {
-      _titleLabel.numberOfLines = 2;
-    } else {
-      _titleLabel.numberOfLines = 0;
-    }
+    _titleLabel.numberOfLines = 0;
     _titleLabel.font = [self titleFont];
     [_titleLabel
         setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
@@ -275,7 +270,9 @@ NSString* const kToolsMenuTextBadgeAccessibilityIdentifier =
   CGFloat parentWidth = CGRectGetWidth(self.contentView.bounds);
 
   CGFloat trailingMargin = kMargin;
-  if (!self.textBadgeView.hidden) {
+  if (!self.numberBadgeView.hidden) {
+    trailingMargin += self.numberBadgeView.bounds.size.width + kInnerMargin;
+  } else if (!self.textBadgeView.hidden) {
     trailingMargin += self.textBadgeView.bounds.size.width + kInnerMargin;
   }
   CGFloat leadingMargin = kMargin + kImageLength + kInnerMargin;

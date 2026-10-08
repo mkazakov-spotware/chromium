@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ package org.chromium.components.browser_ui.site_settings;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.components.content_settings.ContentSettingsType;
-import org.chromium.content_public.browser.BrowserContextHandle;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 
 import java.io.Serializable;
 
@@ -18,15 +18,17 @@ import java.io.Serializable;
 public class ChosenObjectInfo implements Serializable {
     private final @ContentSettingsType int mContentSettingsType;
     private final String mOrigin;
+    private final String mEmbedder;
     private final String mName;
     private final String mObject;
     private final boolean mIsManaged;
 
     @VisibleForTesting
     public ChosenObjectInfo(@ContentSettingsType int contentSettingsType, String origin,
-            String name, String object, boolean isManaged) {
+            String embedder, String name, String object, boolean isManaged) {
         mContentSettingsType = contentSettingsType;
         mOrigin = origin;
+        mEmbedder = embedder;
         mName = name;
         mObject = object;
         mIsManaged = isManaged;
@@ -44,6 +46,13 @@ public class ChosenObjectInfo implements Serializable {
      */
     public String getOrigin() {
         return mOrigin;
+    }
+
+    /**
+     * Returns the origin that the requester was embedded in.
+     */
+    public String getEmbedder() {
+        return mEmbedder;
     }
 
     /**
@@ -73,7 +82,7 @@ public class ChosenObjectInfo implements Serializable {
     public void revoke(BrowserContextHandle browserContextHandle) {
         if (!mIsManaged) {
             WebsitePreferenceBridgeJni.get().revokeObjectPermission(
-                    browserContextHandle, mContentSettingsType, mOrigin, mObject);
+                    browserContextHandle, mContentSettingsType, mOrigin, mEmbedder, mObject);
         }
     }
 }

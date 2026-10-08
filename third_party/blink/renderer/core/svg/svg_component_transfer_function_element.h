@@ -24,7 +24,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_enumeration.h"
 #include "third_party/blink/renderer/core/svg/svg_element.h"
 #include "third_party/blink/renderer/platform/graphics/filters/fe_component_transfer.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -52,7 +52,7 @@ class SVGComponentTransferFunctionElement : public SVGElement {
  protected:
   SVGComponentTransferFunctionElement(const QualifiedName&, Document&);
 
-  void SvgAttributeChanged(const SvgAttributeChangedParams&) final;
+  void SvgAttributeChanged(const QualifiedName&) final;
 
   bool LayoutObjectIsNeeded(const ComputedStyle& style) const final {
     return false;

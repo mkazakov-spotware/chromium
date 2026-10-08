@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include "base/bind.h"
 #include "base/location.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_dialogs.h"
@@ -29,12 +30,12 @@ MockTabModalConfirmDialogDelegate::MockTabModalConfirmDialogDelegate(
 
 MockTabModalConfirmDialogDelegate::~MockTabModalConfirmDialogDelegate() {}
 
-std::u16string MockTabModalConfirmDialogDelegate::GetTitle() {
-  return std::u16string();
+base::string16 MockTabModalConfirmDialogDelegate::GetTitle() {
+  return base::string16();
 }
 
-std::u16string MockTabModalConfirmDialogDelegate::GetDialogMessage() {
-  return std::u16string();
+base::string16 MockTabModalConfirmDialogDelegate::GetDialogMessage() {
+  return base::string16();
 }
 
 void MockTabModalConfirmDialogDelegate::OnAccepted() {
@@ -132,7 +133,7 @@ IN_PROC_BROWSER_TEST_F(TabModalConfirmDialogTest, Navigate) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabModalConfirmDialogTest, Quit) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&chrome::AttemptExit));
   RunUntilBrowserProcessQuits();
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 
 struct skcms_ICCProfile;
 
-namespace display {
-struct ScreenInfo;
-}
-
 namespace blink {
+
+struct ScreenInfo;
 
 enum class ColorSpaceGamut {
   // Values synced with 'Gamut' in src/tools/metrics/histograms/histograms.xml
@@ -33,7 +31,7 @@ enum class ColorSpaceGamut {
 
 namespace color_space_utilities {
 
-PLATFORM_EXPORT ColorSpaceGamut GetColorSpaceGamut(const display::ScreenInfo&);
+PLATFORM_EXPORT ColorSpaceGamut GetColorSpaceGamut(const ScreenInfo&);
 ColorSpaceGamut GetColorSpaceGamut(const skcms_ICCProfile*);
 
 }  // namespace color_space_utilities

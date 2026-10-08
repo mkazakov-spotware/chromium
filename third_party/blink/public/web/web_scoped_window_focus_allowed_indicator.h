@@ -39,10 +39,11 @@ namespace blink {
 class ScopedWindowFocusAllowedIndicator;
 class WebDocument;
 
-class BLINK_EXPORT WebScopedWindowFocusAllowedIndicator {
+class WebScopedWindowFocusAllowedIndicator {
  public:
-  explicit WebScopedWindowFocusAllowedIndicator(WebDocument* document);
-  ~WebScopedWindowFocusAllowedIndicator();
+  BLINK_EXPORT explicit WebScopedWindowFocusAllowedIndicator(
+      WebDocument* document);
+  BLINK_EXPORT ~WebScopedWindowFocusAllowedIndicator();
 
  private:
   std::unique_ptr<ScopedWindowFocusAllowedIndicator> private_;

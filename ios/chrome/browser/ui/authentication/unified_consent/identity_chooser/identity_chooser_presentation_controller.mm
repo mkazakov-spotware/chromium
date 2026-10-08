@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,10 +59,6 @@ const CGFloat kContainerCornerRadius = 13.0;
 }
 
 - (void)presentationTransitionWillBegin {
-  // Set the identity chooser view as modal, so controls beneath it are
-  // non-selectable.
-  self.containerView.accessibilityViewIsModal = YES;
-
   self.closeButton =
       [AccessibilityCloseMenuButton buttonWithType:UIButtonTypeCustom];
   [self.closeButton addTarget:self

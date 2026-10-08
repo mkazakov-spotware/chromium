@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,14 @@
 #define COMPONENTS_SECURITY_INTERSTITIALS_CONTENT_SECURITY_INTERSTITIAL_PAGE_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "url/gurl.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace content {
 class WebContents;
@@ -31,10 +34,6 @@ class SecurityInterstitialPage {
       content::WebContents* web_contents,
       const GURL& request_url,
       std::unique_ptr<SecurityInterstitialControllerClient> controller);
-
-  SecurityInterstitialPage(const SecurityInterstitialPage&) = delete;
-  SecurityInterstitialPage& operator=(const SecurityInterstitialPage&) = delete;
-
   virtual ~SecurityInterstitialPage();
 
   // Prevents creating the actual interstitial view for testing.
@@ -60,12 +59,12 @@ class SecurityInterstitialPage {
  protected:
   // Populates the strings used to generate the HTML from the template.
   virtual void PopulateInterstitialStrings(
-      base::Value::Dict& load_time_data) = 0;
+      base::DictionaryValue* load_time_data) = 0;
 
   virtual int GetHTMLTemplateId();
 
   // Returns the formatted host name for the request url.
-  std::u16string GetFormattedHostName() const;
+  base::string16 GetFormattedHostName() const;
 
   content::WebContents* web_contents() const;
   GURL request_url() const;
@@ -81,7 +80,7 @@ class SecurityInterstitialPage {
   // The WebContents with which this interstitial page is
   // associated. Not available in ~SecurityInterstitialPage, since it
   // can be destroyed before this class is destroyed.
-  raw_ptr<content::WebContents> web_contents_;
+  content::WebContents* web_contents_;
   const GURL request_url_;
   // Whether the interstitial should create a view.
   bool create_view_;
@@ -92,6 +91,8 @@ class SecurityInterstitialPage {
 
   // For subclasses that don't have their own ControllerClients yet.
   std::unique_ptr<SecurityInterstitialControllerClient> controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(SecurityInterstitialPage);
 };
 
 }  // security_interstitials

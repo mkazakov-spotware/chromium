@@ -66,7 +66,7 @@
   };
 
   function pressKey(key) {
-    var element = Platform.DOMUtilities.deepActiveElement(document);
+    var element = document.deepActiveElement();
     if (!element)
       return;
     TestRunner.addResult(key);

@@ -1,31 +1,30 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.content_capture;
 
+import android.annotation.TargetApi;
 import android.content.LocusId;
 import android.os.Build;
-import android.os.Bundle;
 import android.view.ViewStructure;
 import android.view.autofill.AutofillId;
 import android.view.contentcapture.ContentCaptureContext;
 import android.view.contentcapture.ContentCaptureSession;
 
-import androidx.annotation.RequiresApi;
+import org.chromium.base.annotations.VerifiesOnQ;
 
 /**
  * The implementation of PlatformAPIWrapper.
  */
-@RequiresApi(Build.VERSION_CODES.Q)
+@VerifiesOnQ
+@TargetApi(Build.VERSION_CODES.Q)
 public class PlatformAPIWrapperImpl extends PlatformAPIWrapper {
     @Override
     public ContentCaptureSession createContentCaptureSession(
-            ContentCaptureSession parent, String url, String favicon) {
-        Bundle bundle = new Bundle();
-        if (favicon != null) bundle.putCharSequence("favicon", favicon);
+            ContentCaptureSession parent, String url) {
         return parent.createContentCaptureSession(
-                new ContentCaptureContext.Builder(new LocusId(url)).setExtras(bundle).build());
+                new ContentCaptureContext.Builder(new LocusId(url)).build());
     }
 
     @Override
@@ -65,15 +64,5 @@ public class PlatformAPIWrapperImpl extends PlatformAPIWrapper {
     public void notifyViewTextChanged(
             ContentCaptureSession session, AutofillId autofillId, String newContent) {
         session.notifyViewTextChanged(autofillId, newContent);
-    }
-
-    @Override
-    public void notifyFaviconUpdated(ContentCaptureSession session, String favicon) {
-        Bundle bundle = new Bundle();
-        if (favicon != null) bundle.putCharSequence("favicon", favicon);
-        session.setContentCaptureContext(
-                new ContentCaptureContext.Builder(session.getContentCaptureContext().getLocusId())
-                        .setExtras(bundle)
-                        .build());
     }
 }

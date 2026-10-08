@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define NET_SSL_CLIENT_CERT_STORE_NSS_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "net/base/net_export.h"
 #include "net/ssl/client_cert_store.h"
 
@@ -22,17 +23,14 @@ class SSLCertRequestInfo;
 
 class NET_EXPORT ClientCertStoreNSS : public ClientCertStore {
  public:
-  using PasswordDelegateFactory =
-      base::RepeatingCallback<crypto::CryptoModuleBlockingPasswordDelegate*(
-          const HostPortPair& /* server */)>;
+  typedef base::RepeatingCallback<crypto::CryptoModuleBlockingPasswordDelegate*(
+      const HostPortPair& /* server */)>
+      PasswordDelegateFactory;
+
   using CertFilter = base::RepeatingCallback<bool(CERTCertificate*)>;
 
   explicit ClientCertStoreNSS(
       const PasswordDelegateFactory& password_delegate_factory);
-
-  ClientCertStoreNSS(const ClientCertStoreNSS&) = delete;
-  ClientCertStoreNSS& operator=(const ClientCertStoreNSS&) = delete;
-
   ~ClientCertStoreNSS() override;
 
   // ClientCertStore:
@@ -66,6 +64,8 @@ class NET_EXPORT ClientCertStoreNSS : public ClientCertStore {
   // The factory for creating the delegate for requesting a password to a
   // PKCS#11 token. May be null.
   PasswordDelegateFactory password_delegate_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClientCertStoreNSS);
 };
 
 }  // namespace net

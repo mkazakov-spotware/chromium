@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,7 @@ TEST_F(UsbServiceTest, GetDevices) {
   }
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_WIN)
 TEST_F(UsbServiceTest, GetDevicesNewBackend) {
   base::test::ScopedFeatureList features;
   features.InitAndEnableFeature(device::kNewUsbBackend);
@@ -66,7 +66,7 @@ TEST_F(UsbServiceTest, GetDevicesNewBackend) {
     loop.Run();
   }
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_WIN)
 
 TEST_F(UsbServiceTest, ClaimGadget) {
   if (!UsbTestGadget::IsTestEnabled() || !usb_service_)

@@ -1,14 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_WEBAUTHN_DIALOG_CONTROLLER_IMPL_H_
 #define CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_WEBAUTHN_DIALOG_CONTROLLER_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_controller.h"
 #include "components/autofill/core/browser/autofill_client.h"
-#include "content/public/browser/page_user_data.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "content/public/browser/web_contents_user_data.h"
 
 namespace autofill {
 
@@ -16,15 +17,13 @@ class WebauthnDialogModel;
 class WebauthnDialogView;
 enum class WebauthnDialogState;
 
-// Implementation of the per-outermost primary page controller to control the
+// Implementation of the per-tab controller to control the
 // WebauthnDialogView. Lazily initialized when used.
 class WebauthnDialogControllerImpl
     : public WebauthnDialogController,
-      public content::PageUserData<WebauthnDialogControllerImpl> {
+      public content::WebContentsObserver,
+      public content::WebContentsUserData<WebauthnDialogControllerImpl> {
  public:
-  WebauthnDialogControllerImpl(const WebauthnDialogControllerImpl&) = delete;
-  WebauthnDialogControllerImpl& operator=(const WebauthnDialogControllerImpl&) =
-      delete;
   ~WebauthnDialogControllerImpl() override;
 
   void ShowOfferDialog(
@@ -43,10 +42,10 @@ class WebauthnDialogControllerImpl
   WebauthnDialogView* dialog_view() { return dialog_view_; }
 
  protected:
-  explicit WebauthnDialogControllerImpl(content::Page& page);
+  explicit WebauthnDialogControllerImpl(content::WebContents* web_contents);
 
  private:
-  friend class content::PageUserData<WebauthnDialogControllerImpl>;
+  friend class content::WebContentsUserData<WebauthnDialogControllerImpl>;
 
   // Clicking either the OK button or the cancel button in the dialog
   // will invoke this repeating callback. Note this repeating callback can
@@ -54,10 +53,12 @@ class WebauthnDialogControllerImpl
   // clicked, the dialog stays and the cancel button is still clickable.
   AutofillClient::WebauthnDialogCallback callback_;
 
-  raw_ptr<WebauthnDialogModel> dialog_model_ = nullptr;
-  raw_ptr<WebauthnDialogView> dialog_view_ = nullptr;
+  WebauthnDialogModel* dialog_model_ = nullptr;
+  WebauthnDialogView* dialog_view_ = nullptr;
 
-  PAGE_USER_DATA_KEY_DECL();
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(WebauthnDialogControllerImpl);
 };
 
 }  // namespace autofill

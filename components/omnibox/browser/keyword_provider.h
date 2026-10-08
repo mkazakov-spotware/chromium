@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,10 +15,8 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/keyword_extensions_delegate.h"
@@ -64,17 +62,17 @@ class KeywordProvider : public AutocompleteProvider {
   // the first intervening whitespace).
   // If |trim_leading_whitespace| is true then leading whitespace in
   // |*remaining_input| will be trimmed.
-  static std::u16string SplitKeywordFromInput(const std::u16string& input,
+  static base::string16 SplitKeywordFromInput(const base::string16& input,
                                               bool trim_leading_whitespace,
-                                              std::u16string* remaining_input);
+                                              base::string16* remaining_input);
 
   // Returns the replacement string from the user input. The replacement
   // string is the portion of the input that does not contain the keyword.
   // For example, the replacement string for "b blah" is blah.
   // If |trim_leading_whitespace| is true then leading whitespace in
   // replacement string will be trimmed.
-  static std::u16string SplitReplacementStringFromInput(
-      const std::u16string& input,
+  static base::string16 SplitReplacementStringFromInput(
+      const base::string16& input,
       bool trim_leading_whitespace);
 
   // Returns the matching substituting keyword for |input|, or NULL if there
@@ -85,22 +83,14 @@ class KeywordProvider : public AutocompleteProvider {
       TemplateURLService* model,
       AutocompleteInput* input);
 
-  // If the keyword mode for a starter pack engine, returns `input` with the
-  // keyword stripped and the starter pack's `TemplateURL`. E.g. for "@History
-  // text", the input 'text' and the history `TemplateURL` are
-  // returned. Otherwise, returns `input` untouched and `nullptr`.
-  static std::pair<AutocompleteInput, const TemplateURL*>
-  AdjustInputForStarterPackEngines(const AutocompleteInput& input,
-                                   TemplateURLService* model);
-
   // If |text| corresponds (in the sense of
   // TemplateURLModel::CleanUserInputKeyword()) to an enabled, substituting
   // keyword, returns that keyword; returns the empty string otherwise.
-  std::u16string GetKeywordForText(const std::u16string& text) const;
+  base::string16 GetKeywordForText(const base::string16& text) const;
 
   // Creates a fully marked-up AutocompleteMatch for a specific keyword.
-  AutocompleteMatch CreateVerbatimMatch(const std::u16string& text,
-                                        const std::u16string& keyword,
+  AutocompleteMatch CreateVerbatimMatch(const base::string16& text,
+                                        const base::string16& keyword,
                                         const AutocompleteInput& input);
 
   // AutocompleteProvider:
@@ -126,8 +116,8 @@ class KeywordProvider : public AutocompleteProvider {
   static bool ExtractKeywordFromInput(
       const AutocompleteInput& input,
       const TemplateURLService* template_url_service,
-      std::u16string* keyword,
-      std::u16string* remaining_input);
+      base::string16* keyword,
+      base::string16* remaining_input);
 
   // Determines the relevance for some input, given its type, whether the user
   // typed the complete keyword (or close to it), and whether the user is in
@@ -148,14 +138,14 @@ class KeywordProvider : public AutocompleteProvider {
       const size_t meaningful_keyword_length,
       const AutocompleteInput& input,
       size_t prefix_length,
-      const std::u16string& remaining_input,
+      const base::string16& remaining_input,
       bool allowed_to_be_default_match,
       int relevance,
       bool deletable);
 
   // Fills in the "destination_url" and "contents" fields of |match| with the
   // provided user input and keyword data.
-  void FillInURLAndContents(const std::u16string& remaining_input,
+  void FillInURLAndContents(const base::string16& remaining_input,
                             const TemplateURL* element,
                             AutocompleteMatch* match) const;
 
@@ -169,21 +159,21 @@ class KeywordProvider : public AutocompleteProvider {
   // registered keyword at any point before finishing those transformations,
   // it'll return that keyword.
   // |template_url_service| must be non-null.
-  static std::u16string CleanUserInputKeyword(
+  static base::string16 CleanUserInputKeyword(
       const TemplateURLService* template_url_service,
-      const std::u16string& keyword);
+      const base::string16& keyword);
+
+  AutocompleteProviderListener* listener_;
 
   // Input when searching against the keyword provider.
   AutocompleteInput keyword_input_;
 
   // Model for the keywords.
-  raw_ptr<TemplateURLService> model_;
+  TemplateURLService* model_;
 
   // Delegate to handle the extensions-only logic for KeywordProvider.
   // NULL when extensions are not enabled. May be NULL for tests.
   std::unique_ptr<KeywordExtensionsDelegate> extensions_delegate_;
-
-  raw_ptr<AutocompleteProviderClient> client_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_KEYWORD_PROVIDER_H_

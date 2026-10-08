@@ -1,19 +1,17 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
 This script runs Chrome and automatically navigates through the given list of
 URLs the specified number of times.
 
-Usage: vpython3 auto-nav.py <chrome dir> <number of navigations> <url> <url> ...
+Usage: vpython auto-nav.py <chrome dir> <number of navigations> <url> <url> ...
 
 Optional flags:
 * --interval <seconds>, -i <seconds>: specify a number of seconds to wait
                                       between navigations, e.g., -i=5
-* --start_prompt, -s: start Chrome, then wait for the user to press Enter before
-                      starting auto-navigation
-* --exit-prompt, -e: after auto-navigation, wait for the user to press Enter
-                     before shutting down chrome.exe
+* --wait, -w: start Chrome, then wait for the user to press any key before
+              starting auto-navigation
 * --idlewakeups_dir: Windows only; specify the directory containing
                      idlewakeups.exe to print measurements taken by IdleWakeups,
                      e.g., --idlewakeups_dir=tools/win/IdleWakeups/x64/Debug
@@ -26,7 +24,7 @@ script, which would cause an unrecognized-argument error.
 """
 
 # [VPYTHON:BEGIN]
-# python_version: "3.8"
+# python_version: "2.7"
 # wheel: <
 #   name: "infra/python/wheels/selenium-py2_py3"
 #   version: "version:3.14.0"
@@ -37,7 +35,7 @@ script, which would cause an unrecognized-argument error.
 # >
 # wheel: <
 #   name: "infra/python/wheels/psutil/${vpython_platform}"
-#   version: "version:5.7.2"
+#   version: "version:5.6.2"
 # >
 # [VPYTHON:END]
 
@@ -46,18 +44,16 @@ import os
 import subprocess
 import sys
 import time
-import urllib
 
 try:
   import psutil
   from selenium import webdriver
 except ImportError:
-  print('Error importing required modules. Run with vpython3 instead of '
-        'python.')
+  print('Error importing required modules. Run with vpython instead of python.')
   sys.exit(1)
 
 DEFAULT_INTERVAL = 1
-EXIT_CODE_ERROR = 1
+
 
 # Splits list |positional_args| into two lists: |urls| and |chrome_args|, where
 # arguments starting with '-' are treated as chrome args, and the rest as URLs.
@@ -75,8 +71,8 @@ def ParsePositionalArgs(positional_args):
 # line.
 def ParseArgs():
   # Customize usage and help to include options to be passed to chrome.exe.
-  usage_text = '''%(prog)s [-h] [--interval INTERVAL] [--start_prompt]
-                   [--exit_prompt] [--idlewakeups_dir IDLEWAKEUPS_DIR]
+  usage_text = '''%(prog)s [-h] [--interval INTERVAL] [--wait]
+                   [--idlewakeups_dir IDLEWAKEUPS_DIR]
                    chrome_dir num_navigations url [url ...]
                    [-- --chrome_option ...]'''
   additional_help_text = '''optional arguments to chrome.exe, example:
@@ -96,14 +92,10 @@ def ParseArgs():
                       '-i',
                       type=int,
                       help='Seconds to wait between navigations; default is 1')
-  parser.add_argument('--start_prompt',
-                      '-s',
+  parser.add_argument('--wait',
+                      '-w',
                       action='store_true',
-                      help='Wait for confirmation before starting navigation')
-  parser.add_argument('--exit_prompt',
-                      '-e',
-                      action='store_true',
-                      help='Wait for confirmation before exiting chrome.exe')
+                      help='Wait for confirmation before beginning navigation')
   parser.add_argument(
       '--idlewakeups_dir',
       help='Windows only; directory containing idlewakeups.exe, if using')
@@ -117,12 +109,7 @@ def ParseArgs():
   if not args.url:
     parser.print_usage()
     print(os.path.basename(__file__) + ': error: missing URL argument')
-    exit(EXIT_CODE_ERROR)
-  for url in args.url:
-    if not urllib.parse.urlparse(url).scheme:
-      print(os.path.basename(__file__) +
-            ': error: URL is missing required scheme (e.g., "https://"): ' + url)
-      exit(EXIT_CODE_ERROR)
+    exit(1)
   return [args, chrome_args]
 
 
@@ -133,7 +120,7 @@ def ExitIfNotFound(path, error_message=None):
     print('File not found: {}.'.format(path))
     if error_message:
       print(error_message)
-    exit(EXIT_CODE_ERROR)
+    exit()
 
 
 def main():
@@ -157,9 +144,9 @@ def main():
   driver = webdriver.Chrome(os.path.abspath(chromedriver_exe),
                             options=chrome_options)
 
-  if args.start_prompt:
+  if args.wait:
     driver.get(args.url[0])
-    input('Press Enter to begin navigation...')
+    raw_input('Press Enter to begin navigation...')
 
   # Start IdleWakeups, if using, passing the browser process's ID as its target.
   # IdleWakeups will monitor the browser process and its children. Other running
@@ -184,9 +171,6 @@ def main():
     for url in args.url:
       driver.get(url)
       time.sleep(interval)
-
-  if args.exit_prompt:
-    input('Press Enter to exit...')
   driver.quit()
 
   # Print IdleWakeups' output, if using.

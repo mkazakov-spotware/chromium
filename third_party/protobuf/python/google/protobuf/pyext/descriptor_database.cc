@@ -33,8 +33,6 @@
 
 #include <google/protobuf/pyext/descriptor_database.h>
 
-#include <cstdint>
-
 #include <google/protobuf/stubs/logging.h>
 #include <google/protobuf/stubs/common.h>
 #include <google/protobuf/descriptor.pb.h>
@@ -56,7 +54,7 @@ PyDescriptorDatabase::~PyDescriptorDatabase() { Py_DECREF(py_database_); }
 // Handles all kinds of Python errors, which are simply logged.
 static bool GetFileDescriptorProto(PyObject* py_descriptor,
                                    FileDescriptorProto* output) {
-  if (py_descriptor == nullptr) {
+  if (py_descriptor == NULL) {
     if (PyErr_ExceptionMatches(PyExc_KeyError)) {
       // Expected error: item was simply not found.
       PyErr_Clear();
@@ -83,8 +81,8 @@ static bool GetFileDescriptorProto(PyObject* py_descriptor,
     // Slow path: serialize the message. This allows to use databases which
     // use a different implementation of FileDescriptorProto.
     ScopedPyObjectPtr serialized_pb(
-        PyObject_CallMethod(py_descriptor, "SerializeToString", nullptr));
-    if (serialized_pb == nullptr) {
+        PyObject_CallMethod(py_descriptor, "SerializeToString", NULL));
+    if (serialized_pb == NULL) {
       GOOGLE_LOG(ERROR)
           << "DescriptorDatabase method did not return a FileDescriptorProto";
       PyErr_Print();
@@ -110,7 +108,7 @@ static bool GetFileDescriptorProto(PyObject* py_descriptor,
 }
 
 // Find a file by file name.
-bool PyDescriptorDatabase::FindFileByName(const std::string& filename,
+bool PyDescriptorDatabase::FindFileByName(const string& filename,
                                           FileDescriptorProto* output) {
   ScopedPyObjectPtr py_descriptor(PyObject_CallMethod(
       py_database_, "FindFileByName", "s#", filename.c_str(), filename.size()));
@@ -119,7 +117,7 @@ bool PyDescriptorDatabase::FindFileByName(const std::string& filename,
 
 // Find the file that declares the given fully-qualified symbol name.
 bool PyDescriptorDatabase::FindFileContainingSymbol(
-    const std::string& symbol_name, FileDescriptorProto* output) {
+    const string& symbol_name, FileDescriptorProto* output) {
   ScopedPyObjectPtr py_descriptor(
       PyObject_CallMethod(py_database_, "FindFileContainingSymbol", "s#",
                           symbol_name.c_str(), symbol_name.size()));
@@ -130,11 +128,11 @@ bool PyDescriptorDatabase::FindFileContainingSymbol(
 // with the given field number.
 // Python DescriptorDatabases are not required to implement this method.
 bool PyDescriptorDatabase::FindFileContainingExtension(
-    const std::string& containing_type, int field_number,
+    const string& containing_type, int field_number,
     FileDescriptorProto* output) {
   ScopedPyObjectPtr py_method(
       PyObject_GetAttrString(py_database_, "FindFileContainingExtension"));
-  if (py_method == nullptr) {
+  if (py_method == NULL) {
     // This method is not implemented, returns without error.
     PyErr_Clear();
     return false;
@@ -150,10 +148,10 @@ bool PyDescriptorDatabase::FindFileContainingExtension(
 // order.
 // Python DescriptorDatabases are not required to implement this method.
 bool PyDescriptorDatabase::FindAllExtensionNumbers(
-    const std::string& containing_type, std::vector<int>* output) {
+    const string& containing_type, std::vector<int>* output) {
   ScopedPyObjectPtr py_method(
       PyObject_GetAttrString(py_database_, "FindAllExtensionNumbers"));
-  if (py_method == nullptr) {
+  if (py_method == NULL) {
     // This method is not implemented, returns without error.
     PyErr_Clear();
     return false;
@@ -161,12 +159,12 @@ bool PyDescriptorDatabase::FindAllExtensionNumbers(
   ScopedPyObjectPtr py_list(
       PyObject_CallFunction(py_method.get(), "s#", containing_type.c_str(),
                             containing_type.size()));
-  if (py_list == nullptr) {
+  if (py_list == NULL) {
     PyErr_Print();
     return false;
   }
   Py_ssize_t size = PyList_Size(py_list.get());
-  int64_t item_value;
+  int64 item_value;
   for (Py_ssize_t i = 0 ; i < size; ++i) {
     ScopedPyObjectPtr item(PySequence_GetItem(py_list.get(), i));
     item_value = PyLong_AsLong(item.get());

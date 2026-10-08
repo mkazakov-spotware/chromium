@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,9 @@
 
 namespace content {
 
-class PluginAXTreeSource : public ui::AXTreeSource<const ui::AXNode*> {
+class PluginAXTreeSource : public ui::AXTreeSource<const ui::AXNode*,
+                                                   ui::AXNodeData,
+                                                   ui::AXTreeData> {
  public:
   virtual std::unique_ptr<ui::AXActionTarget> CreateActionTarget(
       const ui::AXNode& target_node) = 0;

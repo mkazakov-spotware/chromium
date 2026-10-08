@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ namespace video_tutorials {
 namespace features {
 
 // Main feature flag for the video tutorials feature.
-BASE_DECLARE_FEATURE(kVideoTutorials);
+extern const base::Feature kVideoTutorials;
 
 }  // namespace features
 

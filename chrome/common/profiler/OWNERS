@@ -1,1 +1,4 @@
-file://base/profiler/OWNERS
+# COMPONENT: Internals>Metrics>SamplingProfiler
+
+charliea@chromium.org
+wittman@chromium.org

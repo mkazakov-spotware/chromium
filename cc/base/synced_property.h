@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,25 +24,26 @@ namespace cc {
 template <typename T>
 class SyncedProperty : public base::RefCounted<SyncedProperty<T>> {
  public:
-  using BaseT = typename T::BaseType;
-  using DeltaT = typename T::DeltaType;
+  SyncedProperty() : clobber_active_value_(false) {}
 
   // Returns the canonical value for the specified tree, including the sum of
   // all deltas.  The pending tree should use this for activation purposes and
   // the active tree should use this for drawing.
-  BaseT Current(bool is_active_tree) const {
+  typename T::ValueType Current(bool is_active_tree) const {
     if (is_active_tree)
-      return T::ApplyDelta(active_base_, active_delta_);
-    return T::ApplyDelta(pending_base_, PendingDelta());
+      return active_base_.Combine(active_delta_).get();
+    else
+      return pending_base_.Combine(PendingDelta()).get();
   }
 
   // Sets the value on the impl thread, due to an impl-thread-originating
   // action.  Returns true if this had any effect.  This will remain
   // impl-thread-only information at first, and will get pulled back to the main
-  // thread on the next call of PullDeltaForMainThread.
-  bool SetCurrent(BaseT current) {
-    DeltaT delta = T::DeltaBetweenBases(current, active_base_);
-    if (active_delta_ == delta)
+  // thread on the next call of PullDeltaToMainThread (which happens right
+  // before the commit).
+  bool SetCurrent(typename T::ValueType current) {
+    T delta = T(current).InverseCombine(active_base_);
+    if (active_delta_.get() == delta.get())
       return false;
 
     active_delta_ = delta;
@@ -51,26 +52,22 @@ class SyncedProperty : public base::RefCounted<SyncedProperty<T>> {
 
   // Returns the difference between the last value that was committed and
   // activated from the main thread, and the current total value.
-  DeltaT Delta() const { return active_delta_; }
+  typename T::ValueType Delta() const { return active_delta_.get(); }
 
   // Returns the latest active tree delta and also makes a note that this value
   // was sent to the main thread.
-  DeltaT PullDeltaForMainThread(bool next_bmf) {
-    DeltaT& target = next_bmf ? next_reflected_delta_in_main_tree_
-                              : reflected_delta_in_main_tree_;
-    DCHECK_EQ(target, T::IdentityDelta());
-    target = UnsentDelta();
-    return target;
+  typename T::ValueType PullDeltaForMainThread() {
+    reflected_delta_in_main_tree_ = PendingDelta();
+    return reflected_delta_in_main_tree_.get();
   }
 
   // Push the latest value from the main thread onto pending tree-associated
   // state. Returns true if pushing the value results in different values
   // between the main layer tree and the pending tree.
-  bool PushMainToPending(BaseT main_thread_value) {
+  bool PushMainToPending(typename T::ValueType main_thread_value) {
     reflected_delta_in_pending_tree_ = reflected_delta_in_main_tree_;
-    reflected_delta_in_main_tree_ = next_reflected_delta_in_main_tree_;
-    next_reflected_delta_in_main_tree_ = T::IdentityDelta();
-    pending_base_ = main_thread_value;
+    reflected_delta_in_main_tree_ = T::Identity();
+    pending_base_ = T(main_thread_value);
 
     return Current(false) != main_thread_value;
   }
@@ -87,134 +84,113 @@ class SyncedProperty : public base::RefCounted<SyncedProperty<T>> {
   // active tree computes state using this value which is not computed on the
   // pending tree and not pushed during activation (aka scrollbar geometries).
   bool PushPendingToActive() {
-    BaseT pending_value_before_push = Current(false);
-    BaseT active_value_before_push = Current(true);
+    typename T::ValueType pending_value_before_push = Current(false);
+    typename T::ValueType active_value_before_push = Current(true);
 
     active_base_ = pending_base_;
     active_delta_ = PendingDelta();
-    reflected_delta_in_pending_tree_ = T::IdentityDelta();
+    reflected_delta_in_pending_tree_ = T::Identity();
     clobber_active_value_ = false;
 
-    BaseT current_active_value = Current(true);
+    typename T::ValueType current_active_value = Current(true);
     return pending_value_before_push != current_active_value ||
            active_value_before_push != current_active_value;
   }
 
-  void AbortCommit(bool next_bmf, bool main_frame_applied_deltas) {
-    // Finish processing the delta that was sent to the main thread, and reset
-    // the corresponding the delta_in_main_tree_ variable. If
-    // main_frame_applied_deltas is true, we send the delta on to the active
-    // tree just as would happen for a successful commit. Otherwise, we treat
-    // the delta as never having been sent to the main thread and just drop it.
-    if (next_bmf) {
-      // The previous main frame has not yet run commit; the aborted main frame
-      // corresponds to the delta in the "next" slot (if any).  In this case, if
-      // the main thread processed the delta from this aborted commit we can
-      // simply add the delta to reflected_delta_in_main_tree_.
-      if (main_frame_applied_deltas) {
-        reflected_delta_in_main_tree_ = T::CombineDeltas(
-            reflected_delta_in_main_tree_, next_reflected_delta_in_main_tree_);
-      }
-      next_reflected_delta_in_main_tree_ = T::IdentityDelta();
-    } else {
-      // There is no "next" main frame, this abort was for the primary.
-      if (main_frame_applied_deltas) {
-        DeltaT delta = reflected_delta_in_main_tree_;
-        // This simulates the consequences of the sent value getting committed
-        // and activated.
-        pending_base_ = T::ApplyDelta(pending_base_, delta);
-        active_base_ = T::ApplyDelta(active_base_, delta);
-        active_delta_ = T::DeltaBetweenDeltas(active_delta_, delta);
-      }
-      reflected_delta_in_main_tree_ = T::IdentityDelta();
-    }
+  // This simulates the consequences of the sent value getting committed and
+  // activated.
+  void AbortCommit() {
+    pending_base_ = pending_base_.Combine(reflected_delta_in_main_tree_);
+    active_base_ = active_base_.Combine(reflected_delta_in_main_tree_);
+    active_delta_ = active_delta_.InverseCombine(reflected_delta_in_main_tree_);
+    reflected_delta_in_main_tree_ = T::Identity();
   }
 
-  // Values sent to the main thread and not yet resolved in the pending or
-  // active tree.
-  DeltaT reflected_delta_in_main_tree() const {
-    return reflected_delta_in_main_tree_;
-  }
-  DeltaT next_reflected_delta_in_main_tree() const {
-    return next_reflected_delta_in_main_tree_;
-  }
   // Values as last pushed to the pending or active tree respectively, with no
   // impl-thread delta applied.
-  BaseT PendingBase() const { return pending_base_; }
-  BaseT ActiveBase() const { return active_base_; }
+  typename T::ValueType PendingBase() const { return pending_base_.get(); }
+  typename T::ValueType ActiveBase() const { return active_base_.get(); }
 
   // The new delta we would use if we decide to activate now.  This delta
   // excludes the amount that we know is reflected in the pending tree.
-  DeltaT PendingDelta() const {
+  T PendingDelta() const {
     if (clobber_active_value_)
-      return T::IdentityDelta();
-
-    return T::DeltaBetweenDeltas(active_delta_,
-                                 reflected_delta_in_pending_tree_);
-  }
-
-  DeltaT UnsentDelta() const {
-    return T::DeltaBetweenDeltas(PendingDelta(), reflected_delta_in_main_tree_);
+      return T::Identity();
+    return active_delta_.InverseCombine(reflected_delta_in_pending_tree_);
   }
 
   void set_clobber_active_value() { clobber_active_value_ = true; }
 
  private:
-  friend class base::RefCounted<SyncedProperty<T>>;
-  ~SyncedProperty() = default;
-
   // Value last committed to the pending tree.
-  BaseT pending_base_ = T::IdentityBase();
+  T pending_base_;
   // Value last committed to the active tree on the last activation.
-  BaseT active_base_ = T::IdentityBase();
+  T active_base_;
   // The difference between |active_base_| and the user-perceived value.
-  DeltaT active_delta_ = T::IdentityDelta();
-  // A value sent to the main thread on a BeginMainFrame, but not yet applied to
-  // the resulting pending tree.
-  DeltaT reflected_delta_in_main_tree_ = T::IdentityDelta();
-  // A value sent to the main thread on a BeginMainFrame at a time when
-  // the previous BeginMainFrame is in the ready-to-commit state.
-  DeltaT next_reflected_delta_in_main_tree_ = T::IdentityDelta();
+  T active_delta_;
+  // The value sent to the main thread on the last BeginMainFrame.  This is
+  // always identity outside of the BeginMainFrame to (aborted)commit interval.
+  T reflected_delta_in_main_tree_;
   // The value that was sent to the main thread for BeginMainFrame for the
-  // current pending tree. This is always identity outside of the
+  // current pending tree.  This is always identity outside of the
   // BeginMainFrame to activation interval.
-  DeltaT reflected_delta_in_pending_tree_ = T::IdentityDelta();
+  T reflected_delta_in_pending_tree_;
   // When true the pending delta is always identity so that it does not change
   // and will clobber the active value on push.
-  bool clobber_active_value_ = false;
+  bool clobber_active_value_;
+
+  friend class base::RefCounted<SyncedProperty<T>>;
+  ~SyncedProperty() {}
 };
 
 // SyncedProperty's delta-based conflict resolution logic makes sense for any
 // mathematical group.  In practice, there are two that are useful:
-// 1. Numbers/classes with addition and subtraction operations, and
-//    identity = constructor() (like gfx::Vector2dF for scroll offset and
-//    scroll delta)
-// 2. Real numbers with multiplication and division operations, and
-//    identity = 1 (like page scale)
+// 1. Numbers/vectors with addition and identity = 0 (like scroll offsets)
+// 2. Real numbers with multiplication and identity = 1 (like page scale)
 
-template <typename BaseT, typename DeltaT = BaseT>
+template <class V>
 class AdditionGroup {
  public:
-  using BaseType = BaseT;
-  using DeltaType = DeltaT;
-  static constexpr BaseT IdentityBase() { return BaseT(); }
-  static constexpr DeltaT IdentityDelta() { return DeltaT(); }
-  static BaseT ApplyDelta(BaseT v, DeltaT delta) { return v + delta; }
-  static DeltaT DeltaBetweenBases(BaseT v1, BaseT v2) { return v1 - v2; }
-  static DeltaT DeltaBetweenDeltas(DeltaT d1, DeltaT d2) { return d1 - d2; }
-  static DeltaT CombineDeltas(DeltaT d1, DeltaT d2) { return d1 + d2; }
+  typedef V ValueType;
+
+  AdditionGroup() : value_(Identity().get()) {}
+  explicit AdditionGroup(V value) : value_(value) {}
+
+  V& get() { return value_; }
+  const V& get() const { return value_; }
+
+  static AdditionGroup<V> Identity() { return AdditionGroup(V()); }  // zero
+  AdditionGroup<V> Combine(AdditionGroup<V> p) const {
+    return AdditionGroup<V>(value_ + p.value_);
+  }
+  AdditionGroup<V> InverseCombine(AdditionGroup<V> p) const {
+    return AdditionGroup<V>(value_ - p.value_);
+  }
+
+ private:
+  V value_;
 };
 
 class ScaleGroup {
  public:
-  using BaseType = float;
-  using DeltaType = float;
-  static constexpr float IdentityBase() { return 1.f; }
-  static constexpr float IdentityDelta() { return 1.f; }
-  static float ApplyDelta(float v, float delta) { return v * delta; }
-  static float DeltaBetweenBases(float v1, float v2) { return v1 / v2; }
-  static float DeltaBetweenDeltas(float d1, float d2) { return d1 / d2; }
-  static float CombineDeltas(float d1, float d2) { return d1 * d2; }
+  typedef float ValueType;
+
+  ScaleGroup() : value_(Identity().get()) {}
+  explicit ScaleGroup(float value) : value_(value) {}
+
+  float& get() { return value_; }
+  const float& get() const { return value_; }
+
+  static ScaleGroup Identity() { return ScaleGroup(1.f); }
+  ScaleGroup Combine(ScaleGroup p) const {
+    return ScaleGroup(value_ * p.value_);
+  }
+  ScaleGroup InverseCombine(ScaleGroup p) const {
+    return ScaleGroup(value_ / p.value_);
+  }
+
+ private:
+  float value_;
 };
 
 }  // namespace cc

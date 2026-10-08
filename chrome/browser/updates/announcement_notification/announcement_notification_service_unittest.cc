@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,11 @@
 
 #include "base/files/file_path.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/browser/profiles/profile_attributes_init_params.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -41,24 +37,17 @@ const char kRemoteUrl[] = "www.example.com";
 class MockDelegate : public AnnouncementNotificationService::Delegate {
  public:
   MockDelegate() = default;
-
-  MockDelegate(const MockDelegate&) = delete;
-  MockDelegate& operator=(const MockDelegate&) = delete;
-
   ~MockDelegate() override = default;
   MOCK_METHOD0(ShowNotification, void());
   MOCK_METHOD0(IsFirstRun, bool());
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockDelegate);
 };
 
 class AnnouncementNotificationServiceTest : public testing::Test {
  public:
   AnnouncementNotificationServiceTest() = default;
-
-  AnnouncementNotificationServiceTest(
-      const AnnouncementNotificationServiceTest&) = delete;
-  AnnouncementNotificationServiceTest& operator=(
-      const AnnouncementNotificationServiceTest&) = delete;
-
   ~AnnouncementNotificationServiceTest() override = default;
 
  protected:
@@ -101,20 +90,17 @@ class AnnouncementNotificationServiceTest : public testing::Test {
             bool sign_in,
             int current_version,
             bool new_profile,
-            bool guest_profile = false) {
-    std::vector<base::test::FeatureRefAndParams> enabled_features;
-    std::vector<base::test::FeatureRef> disabled_features;
-    if (enable_feature)
-      enabled_features.emplace_back(kAnnouncementNotification, parameters);
-    else
-      disabled_features.push_back(kAnnouncementNotification);
-
-    scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
-                                                       disabled_features);
+            bool guest_session = false) {
+    if (enable_feature) {
+      scoped_feature_list_.InitAndEnableFeatureWithParameters(
+          kAnnouncementNotification, parameters);
+    } else {
+      scoped_feature_list_.InitAndDisableFeature(kAnnouncementNotification);
+    }
 
     // Setup sign in status.
-    test_profile_manager_ = std::make_unique<TestingProfileManager>(
-        TestingBrowserProcess::GetGlobal());
+    test_profile_manager_.reset(
+        new TestingProfileManager(TestingBrowserProcess::GetGlobal()));
     ASSERT_TRUE(test_profile_manager_->SetUp());
 
     // Build the testing profile.
@@ -124,22 +110,20 @@ class AnnouncementNotificationServiceTest : public testing::Test {
     builder.SetPrefService(
         std::unique_ptr<sync_preferences::PrefServiceSyncable>());
     builder.SetProfileName(kProfileId);
-    builder.SetIsNewProfile(new_profile);
-    if (guest_profile)
+    builder.OverrideIsNewProfile(new_profile);
+    if (guest_session)
       builder.SetGuestSession();
     test_profile_ = builder.Build();
 
     // Mock the sign in profile data.
     DCHECK_EQ(test_profile_->GetPath(),
               test_profile_manager_->profiles_dir().AppendASCII(kProfileId));
-    ProfileAttributesInitParams params;
-    params.profile_path =
-        test_profile_manager_->profiles_dir().AppendASCII(kProfileId);
-    params.profile_name = u"dummy_name";
-    params.gaia_id = sign_in ? "dummy_gaia_id" : std::string();
-    params.is_consented_primary_account = sign_in;
+    std::string gaia_id = sign_in ? "dummy_gaia_id" : std::string();
     test_profile_manager_->profile_attributes_storage()->AddProfile(
-        std::move(params));
+        test_profile_manager_->profiles_dir().AppendASCII(kProfileId),
+        base::ASCIIToUTF16("dummy_name"), gaia_id, base::string16(),
+        sign_in /*is_consented_primary_account*/, 0, std::string(),
+        EmptyAccountId());
 
     // Register pref.
     pref_service_ = std::make_unique<TestingPrefServiceSimple>();
@@ -164,7 +148,8 @@ class AnnouncementNotificationServiceTest : public testing::Test {
   std::unique_ptr<AnnouncementNotificationService> service_;
   std::unique_ptr<TestingPrefServiceSimple> pref_service_;
   std::unique_ptr<TestingProfile> test_profile_;
-  raw_ptr<MockDelegate> delegate_ = nullptr;
+  MockDelegate* delegate_ = nullptr;
+  DISALLOW_COPY_AND_ASSIGN(AnnouncementNotificationServiceTest);
 };
 
 TEST_F(AnnouncementNotificationServiceTest, RequireSignOut) {
@@ -322,13 +307,10 @@ class AnnouncementNotificationServiceVersionTest
       public ::testing::WithParamInterface<VersionTestParam> {
  public:
   AnnouncementNotificationServiceVersionTest() = default;
-
-  AnnouncementNotificationServiceVersionTest(
-      const AnnouncementNotificationServiceVersionTest&) = delete;
-  AnnouncementNotificationServiceVersionTest& operator=(
-      const AnnouncementNotificationServiceVersionTest&) = delete;
-
   ~AnnouncementNotificationServiceVersionTest() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AnnouncementNotificationServiceVersionTest);
 };
 
 const VersionTestParam kVersionTestParams[] = {

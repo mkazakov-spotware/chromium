@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,20 @@
 #define MEDIA_GPU_CHROMEOS_GPU_BUFFER_LAYOUT_H_
 
 #include <ostream>
+#include <string>
 #include <vector>
 
+#include "base/optional.h"
 #include "media/base/color_plane_layout.h"
 #include "media/gpu/chromeos/fourcc.h"
 #include "media/gpu/media_gpu_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace media {
 
 class MEDIA_GPU_EXPORT GpuBufferLayout {
  public:
-  static absl::optional<GpuBufferLayout> Create(
+  static base::Optional<GpuBufferLayout> Create(
       const Fourcc& fourcc,
       const gfx::Size& size,
       const std::vector<ColorPlaneLayout>& planes,

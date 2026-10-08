@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,23 +9,14 @@
 #include <utility>
 
 #include "base/check.h"
-#include "chromecast/media/audio/mixer_service/mixer_service_transport.pb.h"
-#include "chromecast/media/audio/net/common.pb.h"
-#include "chromecast/media/audio/net/conversions.h"
+#include "chromecast/media/audio/mixer_service/conversions.h"
+#include "chromecast/media/audio/mixer_service/mixer_service.pb.h"
 #include "chromecast/net/io_buffer_pool.h"
 #include "net/socket/stream_socket.h"
 
 namespace chromecast {
 namespace media {
 namespace mixer_service {
-
-namespace {
-
-enum MessageTypes : int {
-  kRequest = 1,
-};
-
-}
 
 LoopbackConnection::LoopbackConnection(Delegate* delegate)
     : LoopbackConnection(delegate, nullptr) {}
@@ -57,7 +48,7 @@ void LoopbackConnection::OnConnected(std::unique_ptr<MixerSocket> socket) {
 
   Generic message;
   message.mutable_loopback_request();
-  socket_->SendProto(kRequest, message);
+  socket_->SendProto(message);
 }
 
 void LoopbackConnection::OnConnectionError() {
@@ -68,8 +59,7 @@ void LoopbackConnection::OnConnectionError() {
 
 bool LoopbackConnection::HandleMetadata(const Generic& message) {
   if (message.has_stream_config()) {
-    format_ = audio_service::ConvertSampleFormat(
-        message.stream_config().sample_format());
+    format_ = ConvertSampleFormat(message.stream_config().sample_format());
     sample_rate_ = message.stream_config().sample_rate();
     num_channels_ = message.stream_config().num_channels();
   }

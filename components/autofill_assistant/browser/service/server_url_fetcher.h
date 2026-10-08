@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,25 +18,12 @@ class ServerUrlFetcher {
   // if applicable, the one provided via command-line argument.
   static GURL GetDefaultServerUrl();
 
-  // Returns whether this instance points to the prod endpoint or not.
-  virtual bool IsProdEndpoint() const;
-
   // Returns the endpoint to send the SupportsScript RPC to.
-  virtual GURL GetSupportsScriptEndpoint() const;
+  virtual GURL GetSupportsScriptEndpoint();
   // Returns the endpoint to send the GetNextActions RPC to.
-  virtual GURL GetNextActionsEndpoint() const;
+  virtual GURL GetNextActionsEndpoint();
   // Returns the endpoint to send the GetTriggerScripts RPC to.
-  virtual GURL GetTriggerScriptsEndpoint() const;
-  // Returns the endpoint to send the GetTriggerScriptsByHashPrefix RPC to.
-  virtual GURL GetTriggerScriptsByHashPrefixEndpoint() const;
-  // Returns the endpoint to send the GetCapabilitiesByHashPrefix RPC to.
-  virtual GURL GetCapabilitiesByHashEndpoint() const;
-  // Returns the endpoint to send the GetUserData RPC to.
-  virtual GURL GetUserDataEndpoint() const;
-  // Returns the endpoint to send the GetNoroundtripScriptsByHash RPC to.
-  virtual GURL GetNoRoundTripScriptsByHashEndpoint() const;
-  // Returns the endpoint to send the ReportProgress RPC to.
-  virtual GURL GetReportProgressEndpoint() const;
+  virtual GURL GetTriggerScriptsEndpoint();
 
  private:
   GURL server_url_;

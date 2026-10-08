@@ -1,13 +1,10 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-
 import logging
-import typing
 
 import gold_inexact_matching.base_parameter_optimizer as base_optimizer
-from gold_inexact_matching import common_typing as ct
 from gold_inexact_matching import parameter_set
 
 
@@ -22,12 +19,12 @@ class BinarySearchParameterOptimizer(base_optimizer.BaseParameterOptimizer):
   UNLOCKED_PARAM_DELTA_THRESHOLD = 2
   UNLOCKED_PARAM_EDGE_THRESHOLD = 3
 
-  def __init__(self, args: ct.ParsedCmdArgs, test_name: str):
+  def __init__(self, args, test_name):
     self._unlocked_parameter = None
-    super().__init__(args, test_name)
+    super(BinarySearchParameterOptimizer, self).__init__(args, test_name)
 
-  def _VerifyArgs(self) -> None:
-    super()._VerifyArgs()
+  def _VerifyArgs(self):
+    super(BinarySearchParameterOptimizer, self)._VerifyArgs()
 
     max_diff_locked = self._args.max_max_diff == self._args.min_max_diff
     delta_threshold_locked = (
@@ -48,10 +45,10 @@ class BinarySearchParameterOptimizer(base_optimizer.BaseParameterOptimizer):
     else:
       self._unlocked_parameter = self.UNLOCKED_PARAM_EDGE_THRESHOLD
 
-  def _RunOptimizationImpl(self) -> None:
+  def _RunOptimizationImpl(self):
     known_good, known_bad = self._GetStartingValues()
     while (abs(known_good - known_bad)) > 1:
-      midpoint = (known_good + known_bad) // 2
+      midpoint = (known_good + known_bad) / 2
       parameters = self._CreateParameterSet(midpoint)
       success, _, _ = self._RunComparisonForParameters(parameters)
       if success:
@@ -60,9 +57,9 @@ class BinarySearchParameterOptimizer(base_optimizer.BaseParameterOptimizer):
       else:
         logging.info('Found bad parameters %s', parameters)
         known_bad = midpoint
-    print('Found optimal parameters: %s' % parameters)
+    print 'Found optimal parameters: %s' % parameters
 
-  def _GetStartingValues(self) -> typing.Tuple[int, int]:
+  def _GetStartingValues(self):
     """Gets the initial good/bad values for the binary search.
 
     Returns:
@@ -73,11 +70,12 @@ class BinarySearchParameterOptimizer(base_optimizer.BaseParameterOptimizer):
     """
     if self._unlocked_parameter == self.UNLOCKED_PARAM_MAX_DIFF:
       return self._args.max_max_diff, self._args.min_max_diff
-    if self._unlocked_parameter == self.UNLOCKED_PARAM_DELTA_THRESHOLD:
+    elif self._unlocked_parameter == self.UNLOCKED_PARAM_DELTA_THRESHOLD:
       return self._args.max_delta_threshold, self._args.min_delta_threshold
-    return self._args.min_edge_threshold, self._args.max_edge_threshold
+    else:
+      return self._args.min_edge_threshold, self._args.max_edge_threshold
 
-  def _CreateParameterSet(self, value: int) -> parameter_set.ParameterSet:
+  def _CreateParameterSet(self, value):
     """Creates a parameter_set.ParameterSet to test.
 
     Args:
@@ -90,8 +88,9 @@ class BinarySearchParameterOptimizer(base_optimizer.BaseParameterOptimizer):
     if self._unlocked_parameter == self.UNLOCKED_PARAM_MAX_DIFF:
       return parameter_set.ParameterSet(value, self._args.min_delta_threshold,
                                         self._args.min_edge_threshold)
-    if self._unlocked_parameter == self.UNLOCKED_PARAM_DELTA_THRESHOLD:
+    elif self._unlocked_parameter == self.UNLOCKED_PARAM_DELTA_THRESHOLD:
       return parameter_set.ParameterSet(self._args.min_max_diff, value,
                                         self._args.min_edge_threshold)
-    return parameter_set.ParameterSet(self._args.min_max_diff,
-                                      self._args.min_delta_threshold, value)
+    else:
+      return parameter_set.ParameterSet(self._args.min_max_diff,
+                                        self._args.min_delta_threshold, value)

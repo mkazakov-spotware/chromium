@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "ash/login/ui/non_accessible_view.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "ui/views/view.h"
 
 namespace base {
@@ -102,9 +103,6 @@ class ASH_EXPORT LoginPinView : public NonAccessibleView {
                const OnPinBackspace& on_backspace,
                const OnPinSubmit& on_submit = base::NullCallback());
 
-  LoginPinView(const LoginPinView&) = delete;
-  LoginPinView& operator=(const LoginPinView&) = delete;
-
   ~LoginPinView() override;
 
   // Notify accessibility that location of rows and LoginPinView changed.
@@ -113,11 +111,8 @@ class ASH_EXPORT LoginPinView : public NonAccessibleView {
   // Called when the password field text changed.
   void OnPasswordTextChanged(bool is_empty);
 
-  void UpdatePalette(const LoginPalette& palette);
-
  private:
   class BackspacePinButton;
-  class DigitPinButton;
   class SubmitPinButton;
 
   // Builds and returns a new view which contains a row of the PIN keyboard.
@@ -129,8 +124,9 @@ class ASH_EXPORT LoginPinView : public NonAccessibleView {
   // The submit button does not exist when no |on_submit| callback is passed.
   SubmitPinButton* submit_button_ = nullptr;
 
-  std::vector<NonAccessibleView*> rows_;
-  std::vector<DigitPinButton*> digit_buttons_;
+  std::vector<NonAccessibleView*> rows;
+
+  DISALLOW_COPY_AND_ASSIGN(LoginPinView);
 };
 
 }  // namespace ash

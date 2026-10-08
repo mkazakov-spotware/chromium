@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,13 @@
 
 namespace content {
 
+// First parameter of the tuple = device scale factor
+// Second parameter = whether use-zoom-for-dsf is enabled
+using AccessibilityZoomTestParam = std::tuple<double, bool>;
+
 class AccessibilityHitTestingBrowserTest
     : public AccessibilityContentBrowserTest,
-      public ::testing::WithParamInterface<double> {
+      public ::testing::WithParamInterface<AccessibilityZoomTestParam> {
  public:
   AccessibilityHitTestingBrowserTest();
   ~AccessibilityHitTestingBrowserTest() override;
@@ -20,7 +24,8 @@ class AccessibilityHitTestingBrowserTest
   void SetUpCommandLine(base::CommandLine* command_line) override;
 
   struct TestPassToString {
-    std::string operator()(const ::testing::TestParamInfo<double>& info) const;
+    std::string operator()(
+        const ::testing::TestParamInfo<AccessibilityZoomTestParam>& info) const;
   };
 
  protected:
@@ -30,7 +35,6 @@ class AccessibilityHitTestingBrowserTest
   gfx::Rect GetViewBoundsInScreenCoordinates();
   gfx::Point CSSToFramePoint(gfx::Point css_point);
   gfx::Point CSSToPhysicalPixelPoint(gfx::Point css_point);
-  gfx::Point FrameToCSSPoint(gfx::Point css_point);
 
   // Test the hit test action that fires an event.
   BrowserAccessibility* HitTestAndWaitForResultWithEvent(
@@ -51,7 +55,7 @@ class AccessibilityHitTestingBrowserTest
   void SimulatePinchZoom(float desired_page_scale);
 
   float page_scale_ = 1.0f;
-  gfx::Point scroll_offset_;
+  gfx::Vector2d scroll_offset_;
 };
 
 }  // namespace content

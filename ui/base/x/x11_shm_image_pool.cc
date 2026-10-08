@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,13 +18,12 @@
 #include "base/strings/string_util.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "net/base/url_util.h"
 #include "ui/events/platform/platform_event_dispatcher.h"
 #include "ui/events/platform/platform_event_source.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/switches.h"
 #include "ui/gfx/x/extension_manager.h"
+#include "ui/gfx/x/x11_switches.h"
 
 namespace ui {
 
@@ -57,7 +56,7 @@ std::size_t MaxShmSegmentSize() {
   return max_size;
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 bool IsRemoteHost(const std::string& name) {
   if (name.empty())
     return false;
@@ -85,7 +84,7 @@ bool ShouldUseMitShm(x11::Connection* connection) {
   std::string j2d_use_mitshm;
   if (env->GetVar("J2D_USE_MITSHM", &j2d_use_mitshm) &&
       (j2d_use_mitshm == "0" ||
-       base::EqualsCaseInsensitiveASCII(j2d_use_mitshm, "false"))) {
+       base::LowerCaseEqualsASCII(j2d_use_mitshm, "false"))) {
     return false;
   }
 
@@ -120,13 +119,13 @@ XShmImagePool::XShmImagePool(x11::Connection* connection,
       enable_multibuffering_(enable_multibuffering),
       frame_states_(frames_pending) {
   if (enable_multibuffering_)
-    connection_->AddEventObserver(this);
+    X11EventSource::GetInstance()->AddXEventDispatcher(this);
 }
 
 XShmImagePool::~XShmImagePool() {
   Cleanup();
   if (enable_multibuffering_)
-    connection_->RemoveEventObserver(this);
+    X11EventSource::GetInstance()->RemoveXEventDispatcher(this);
 }
 
 bool XShmImagePool::Resize(const gfx::Size& pixel_size) {
@@ -139,7 +138,7 @@ bool XShmImagePool::Resize(const gfx::Size& pixel_size) {
   std::unique_ptr<XShmImagePool, decltype(cleanup_fn)> cleanup{this,
                                                                cleanup_fn};
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
   if (!ShouldUseMitShm(connection_))
     return false;
 #endif
@@ -184,7 +183,7 @@ bool XShmImagePool::Resize(const gfx::Size& pixel_size) {
         shmctl(state.shmid, IPC_RMID, nullptr);
         return false;
       }
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
       // On Linux, a shmid can still be attached after IPC_RMID if otherwise
       // kept alive.  Detach before XShmAttach to prevent a memory leak in case
       // the process dies.
@@ -194,7 +193,7 @@ bool XShmImagePool::Resize(const gfx::Size& pixel_size) {
       auto shmseg = connection_->GenerateId<x11::Shm::Seg>();
       auto req = connection_->shm().Attach({
           .shmseg = shmseg,
-          .shmid = static_cast<uint32_t>(state.shmid),
+          .shmid = state.shmid,
           // If this class ever needs to use XShmGetImage(), this needs to be
           // changed to read-write.
           .read_only = true,
@@ -203,7 +202,7 @@ bool XShmImagePool::Resize(const gfx::Size& pixel_size) {
         return false;
       state.shmseg = shmseg;
       state.shmem_attached_to_server = true;
-#if !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_LINUX) && !defined(OS_CHROMEOS)
       // The Linux-specific shmctl behavior above may not be portable, so we're
       // forced to do IPC_RMID after the server has attached to the segment.
       shmctl(state.shmid, IPC_RMID, nullptr);
@@ -211,15 +210,12 @@ bool XShmImagePool::Resize(const gfx::Size& pixel_size) {
     }
   }
 
-  const auto* visual_info = connection_->GetVisualInfoFromId(visual_);
-  if (!visual_info)
-    return false;
-  size_t row_bytes = RowBytesForVisualWidth(*visual_info, pixel_size.width());
-
   for (FrameState& state : frame_states_) {
     state.bitmap = SkBitmap();
-    if (!state.bitmap.installPixels(image_info, state.shmaddr, row_bytes))
+    if (!state.bitmap.installPixels(image_info, state.shmaddr,
+                                    image_info.minRowBytes())) {
       return false;
+    }
     state.canvas = std::make_unique<SkCanvas>(state.bitmap);
   }
 
@@ -280,13 +276,16 @@ void XShmImagePool::DispatchShmCompletionEvent(
   }
 }
 
-void XShmImagePool::OnEvent(const x11::Event& xev) {
+bool XShmImagePool::DispatchXEvent(x11::Event* xev) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(enable_multibuffering_);
 
-  auto* completion = xev.As<x11::Shm::CompletionEvent>();
-  if (completion && completion->drawable.value == drawable_.value)
-    DispatchShmCompletionEvent(*completion);
+  auto* completion = xev->As<x11::Shm::CompletionEvent>();
+  if (!completion || completion->drawable.value != drawable_.value)
+    return false;
+
+  DispatchShmCompletionEvent(*completion);
+  return true;
 }
 
 void XShmImagePool::Cleanup() {

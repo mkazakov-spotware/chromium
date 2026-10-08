@@ -1,35 +1,63 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/base/network_activity_monitor.h"
 
-#include <atomic>
-#include <type_traits>
-
-#include "third_party/abseil-cpp/absl/base/attributes.h"
-
-namespace net::activity_monitor {
+namespace net {
 
 namespace {
 
-ABSL_CONST_INIT std::atomic<uint64_t> g_bytes_received = 0;
+base::LazyInstance<NetworkActivityMonitor>::Leaky g_network_activity_monitor =
+    LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
-void IncrementBytesReceived(uint64_t bytes_received) {
-  // std::memory_order_relaxed is used because no other operation on
-  // |bytes_received_| depends on memory operations that happened before this
-  // increment.
-  g_bytes_received.fetch_add(bytes_received, std::memory_order_relaxed);
+NetworkActivityMonitor::NetworkActivityMonitor()
+    : bytes_received_(0), bytes_sent_(0) {
 }
 
-uint64_t GetBytesReceived() {
-  return g_bytes_received.load(std::memory_order_relaxed);
+NetworkActivityMonitor::~NetworkActivityMonitor() = default;
+
+// static
+NetworkActivityMonitor* NetworkActivityMonitor::GetInstance() {
+  return g_network_activity_monitor.Pointer();
 }
 
-void ResetBytesReceivedForTesting() {
-  g_bytes_received = 0;
+void NetworkActivityMonitor::IncrementBytesReceived(uint64_t bytes_received) {
+  base::TimeTicks now = base::TimeTicks::Now();
+  base::AutoLock lock(lock_);
+  bytes_received_ += bytes_received;
+  last_received_ticks_ = now;
 }
 
-}  // namespace net::activity_monitor
+void NetworkActivityMonitor::IncrementBytesSent(uint64_t bytes_sent) {
+  base::TimeTicks now = base::TimeTicks::Now();
+  base::AutoLock lock(lock_);
+  bytes_sent_ += bytes_sent;
+  last_sent_ticks_ = now;
+}
+
+uint64_t NetworkActivityMonitor::GetBytesReceived() const {
+  base::AutoLock lock(lock_);
+  return bytes_received_;
+}
+
+uint64_t NetworkActivityMonitor::GetBytesSent() const {
+  base::AutoLock lock(lock_);
+  return bytes_sent_;
+}
+
+base::TimeDelta NetworkActivityMonitor::GetTimeSinceLastReceived() const {
+  base::TimeTicks now = base::TimeTicks::Now();
+  base::AutoLock lock(lock_);
+  return now - last_received_ticks_;
+}
+
+base::TimeDelta NetworkActivityMonitor::GetTimeSinceLastSent() const {
+  base::TimeTicks now = base::TimeTicks::Now();
+  base::AutoLock lock(lock_);
+  return now - last_sent_ticks_;
+}
+
+}  // namespace net

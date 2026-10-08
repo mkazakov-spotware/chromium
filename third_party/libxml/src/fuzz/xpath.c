@@ -23,9 +23,6 @@ LLVMFuzzerTestOneInput(const char *data, size_t size) {
     const char *expr, *xml;
     size_t exprSize, xmlSize;
 
-    if (size > 10000)
-        return(0);
-
     xmlFuzzDataInit(data, size);
 
     expr = xmlFuzzReadString(&exprSize);
@@ -45,7 +42,6 @@ LLVMFuzzerTestOneInput(const char *data, size_t size) {
     xmlFreeDoc(doc);
 
     xmlFuzzDataCleanup();
-    xmlResetLastError();
 
     return(0);
 }

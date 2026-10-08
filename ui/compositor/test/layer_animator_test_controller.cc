@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,7 @@ LayerAnimationSequence* LayerAnimatorTestController::GetRunningSequence(
     return NULL;
 }
 
-void LayerAnimatorTestController::StartThreadedAnimationsIfNeeded(
-    base::TimeTicks started_time) {
+void LayerAnimatorTestController::StartThreadedAnimationsIfNeeded() {
   std::vector<cc::TargetProperty::Type> threaded_properties;
   threaded_properties.push_back(cc::TargetProperty::OPACITY);
   threaded_properties.push_back(cc::TargetProperty::TRANSFORM);
@@ -49,7 +48,8 @@ void LayerAnimatorTestController::StartThreadedAnimationsIfNeeded(
         element->effective_start_time() != base::TimeTicks())
       continue;
 
-    animator_->OnThreadedAnimationStarted(started_time, threaded_properties[i],
+    animator_->OnThreadedAnimationStarted(base::TimeTicks::Now(),
+                                          threaded_properties[i],
                                           element->animation_group_id());
   }
 }

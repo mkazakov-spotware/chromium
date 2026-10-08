@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,12 @@
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_state.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_view.h"
 #include "components/autofill/core/browser/payments/webauthn_callback_types.h"
-#include "content/public/browser/web_contents.h"
 
 namespace autofill {
 
-WebauthnDialogControllerImpl::WebauthnDialogControllerImpl(content::Page& page)
-    : content::PageUserData<WebauthnDialogControllerImpl>(page) {
-  // WebauthnDialogControllerImpl is only for the outermost primary page.
-  DCHECK(page.IsPrimary());
-}
+WebauthnDialogControllerImpl::WebauthnDialogControllerImpl(
+    content::WebContents* web_contents)
+    : content::WebContentsObserver(web_contents) {}
 
 WebauthnDialogControllerImpl::~WebauthnDialogControllerImpl() {
   // This part of code is executed only if browser window is closed when the
@@ -73,7 +70,7 @@ void WebauthnDialogControllerImpl::OnDialogClosed() {
 }
 
 content::WebContents* WebauthnDialogControllerImpl::GetWebContents() {
-  return content::WebContents::FromRenderFrameHost(&page().GetMainDocument());
+  return web_contents();
 }
 
 void WebauthnDialogControllerImpl::OnOkButtonClicked() {
@@ -103,6 +100,6 @@ void WebauthnDialogControllerImpl::OnCancelButtonClicked() {
   }
 }
 
-PAGE_USER_DATA_KEY_IMPL(WebauthnDialogControllerImpl);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(WebauthnDialogControllerImpl)
 
 }  // namespace autofill

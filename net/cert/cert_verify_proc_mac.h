@@ -1,11 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_CERT_CERT_VERIFY_PROC_MAC_H_
 #define NET_CERT_CERT_VERIFY_PROC_MAC_H_
-
-#include <vector>
 
 #include "base/supports_user_data.h"
 #include "net/base/net_export.h"
@@ -15,11 +13,11 @@ namespace net {
 
 // Performs certificate path construction and validation using OS X's
 // Security.framework.
-class NET_EXPORT CertVerifyProcMac : public CertVerifyProc {
+class NET_EXPORT_PRIVATE CertVerifyProcMac : public CertVerifyProc {
  public:
-  class NET_EXPORT ResultDebugData : public base::SupportsUserData::Data {
+  class ResultDebugData : public base::SupportsUserData::Data {
    public:
-    struct NET_EXPORT CertEvidenceInfo {
+    struct CertEvidenceInfo {
       CertEvidenceInfo();
       ~CertEvidenceInfo();
       CertEvidenceInfo(const CertEvidenceInfo&);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service.h"
 #include "components/enterprise/common/proto/connectors.pb.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 class Profile;
@@ -48,12 +47,6 @@ enum class DeepScanAccessPoint {
 
   // A deep scan was initiated from pasting text.
   PASTE,
-
-  // A deep scan was initiated from printing a page.
-  PRINT,
-
-  // A deep scan was initiated from transferring 1+ file(s) within ChromeOS.
-  FILE_TRANSFER,
 };
 std::string DeepScanAccessPointToString(DeepScanAccessPoint access_point);
 
@@ -84,8 +77,6 @@ enum class EventResult {
 void MaybeReportDeepScanningVerdict(
     Profile* profile,
     const GURL& url,
-    const std::string& source,
-    const std::string& destination,
     const std::string& file_name,
     const std::string& download_digest_sha256,
     const std::string& mime_type,
@@ -103,37 +94,38 @@ void MaybeReportDeepScanningVerdict(
 void ReportAnalysisConnectorWarningBypass(
     Profile* profile,
     const GURL& url,
-    const std::string& source,
-    const std::string& destination,
     const std::string& file_name,
     const std::string& download_digest_sha256,
     const std::string& mime_type,
     const std::string& trigger,
     DeepScanAccessPoint access_point,
     const int64_t content_size,
-    const enterprise_connectors::ContentAnalysisResponse& response,
-    absl::optional<std::u16string> user_justification);
+    const enterprise_connectors::ContentAnalysisResponse& response);
 
 // Helper functions to record DeepScanning UMA metrics for the duration of the
 // request split by its result and bytes/sec for successful requests.
 void RecordDeepScanMetrics(
-    bool is_cloud,
     DeepScanAccessPoint access_point,
     base::TimeDelta duration,
     int64_t total_bytes,
     const BinaryUploadService::Result& result,
     const enterprise_connectors::ContentAnalysisResponse& response);
-void RecordDeepScanMetrics(bool is_cloud,
-                           DeepScanAccessPoint access_point,
+void RecordDeepScanMetrics(DeepScanAccessPoint access_point,
                            base::TimeDelta duration,
                            int64_t total_bytes,
                            const std::string& result,
                            bool success);
 
+// Returns an array of the file types supported for DLP scanning.
+std::array<const base::FilePath::CharType*, 24> SupportedDlpFileTypes();
+
+// Returns true if the given file type is supported for DLP scanning.
+bool FileTypeSupportedForDlp(const base::FilePath& path);
+
 // Helper function to make ContentAnalysisResponses for tests.
 enterprise_connectors::ContentAnalysisResponse
-SimpleContentAnalysisResponseForTesting(absl::optional<bool> dlp_success,
-                                        absl::optional<bool> malware_success);
+SimpleContentAnalysisResponseForTesting(base::Optional<bool> dlp_success,
+                                        base::Optional<bool> malware_success);
 
 // Helper function to convert a EventResult to a string that.  The format of
 // string returned is processed by the sever.
@@ -150,21 +142,6 @@ std::string BinaryUploadServiceResultToString(
 // |identity_manager| is null then the empty string is returned.
 std::string GetProfileEmail(Profile* profile);
 std::string GetProfileEmail(signin::IdentityManager* identity_manager);
-
-// Helper enum and function to manipulate crash keys relevant to scanning.
-// If a key would be set to 0, it is unset.
-enum class ScanningCrashKey {
-  PENDING_FILE_UPLOADS,
-  PENDING_TEXT_UPLOADS,
-  PENDING_FILE_DOWNLOADS,
-  PENDING_PRINTS,
-  TOTAL_FILE_UPLOADS,
-  TOTAL_TEXT_UPLOADS,
-  TOTAL_FILE_DOWNLOADS,
-  TOTAL_PRINTS
-};
-void IncrementCrashKey(ScanningCrashKey key, int delta = 1);
-void DecrementCrashKey(ScanningCrashKey key, int delta = 1);
 
 }  // namespace safe_browsing
 

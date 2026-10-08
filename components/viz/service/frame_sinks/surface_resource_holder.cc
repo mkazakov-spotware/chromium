@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,9 @@ SurfaceResourceHolder::SurfaceResourceHolder(
     : client_(client) {}
 
 SurfaceResourceHolder::~SurfaceResourceHolder() = default;
+
+SurfaceResourceHolder::ResourceRefs::ResourceRefs()
+    : refs_received_from_child(0), refs_holding_resource_alive(0) {}
 
 void SurfaceResourceHolder::Reset() {
   resource_id_info_map_.clear();
@@ -31,26 +34,17 @@ void SurfaceResourceHolder::ReceiveFromChild(
 void SurfaceResourceHolder::RefResources(
     const std::vector<TransferableResource>& resources) {
   for (const auto& resource : resources) {
-    // We don't handle reserved resources here.
-    if (resource.id >= kVizReservedRangeStartId)
-      continue;
-
     auto count_it = resource_id_info_map_.find(resource.id);
-    DCHECK(count_it != resource_id_info_map_.end())
-        << "ResourceId: " << resource.id;
+    DCHECK(count_it != resource_id_info_map_.end());
     count_it->second.refs_holding_resource_alive++;
   }
 }
 
 void SurfaceResourceHolder::UnrefResources(
-    std::vector<ReturnedResource> resources) {
+    const std::vector<ReturnedResource>& resources) {
   std::vector<ReturnedResource> resources_available_to_return;
 
-  for (auto& resource : resources) {
-    // We don't handle reserved resources here.
-    if (resource.id >= kVizReservedRangeStartId)
-      continue;
-
+  for (const auto& resource : resources) {
     auto count_it = resource_id_info_map_.find(resource.id);
     if (count_it == resource_id_info_map_.end())
       continue;
@@ -61,14 +55,15 @@ void SurfaceResourceHolder::UnrefResources(
     if (resource.sync_token.HasData())
       ref.sync_token = resource.sync_token;
     if (ref.refs_holding_resource_alive == 0) {
-      resource.sync_token = ref.sync_token;
-      resource.count = ref.refs_received_from_child;
-      resources_available_to_return.push_back(std::move(resource));
+      ReturnedResource returned = resource;
+      returned.sync_token = ref.sync_token;
+      returned.count = ref.refs_received_from_child;
+      resources_available_to_return.push_back(returned);
       resource_id_info_map_.erase(count_it);
     }
   }
 
-  client_->ReturnResources(std::move(resources_available_to_return));
+  client_->ReturnResources(resources_available_to_return);
 }
 
 }  // namespace viz

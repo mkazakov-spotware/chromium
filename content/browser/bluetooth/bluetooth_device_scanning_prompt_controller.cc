@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,10 @@ namespace content {
 BluetoothDeviceScanningPromptController::
     BluetoothDeviceScanningPromptController(
         WebBluetoothServiceImpl* web_bluetooth_service,
-        RenderFrameHost& render_frame_host)
+        RenderFrameHost* render_frame_host)
     : web_bluetooth_service_(web_bluetooth_service),
-      render_frame_host_(render_frame_host) {}
+      render_frame_host_(render_frame_host),
+      web_contents_(WebContents::FromRenderFrameHost(render_frame_host_)) {}
 
 BluetoothDeviceScanningPromptController::
     ~BluetoothDeviceScanningPromptController() {
@@ -35,11 +36,8 @@ void BluetoothDeviceScanningPromptController::ShowPermissionPrompt() {
                           weak_ptr_factory_.GetWeakPtr());
 
   if (auto* delegate = GetContentClient()->browser()->GetBluetoothDelegate()) {
-    // non-active RFHs can't show UI elements like prompts to the user.
-    if (!render_frame_host_->IsActive())
-      return;
     prompt_ = delegate->ShowBluetoothScanningPrompt(
-        &*render_frame_host_, std::move(prompt_event_handler));
+        render_frame_host_, std::move(prompt_event_handler));
   }
 }
 
@@ -57,7 +55,7 @@ void BluetoothDeviceScanningPromptController::OnBluetoothScanningPromptEvent(
 void BluetoothDeviceScanningPromptController::AddFilteredDevice(
     const std::string& device_id,
     bool should_update_name,
-    const std::u16string& device_name) {
+    const base::string16& device_name) {
   if (prompt_)
     prompt_->AddOrUpdateDevice(device_id, should_update_name, device_name);
 }

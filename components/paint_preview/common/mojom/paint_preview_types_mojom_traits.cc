@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,13 +52,13 @@ UnionTraits<paint_preview::mojom::SerializedRecordingDataView,
     GetTag(const paint_preview::SerializedRecording& serialized_recording) {
   switch (serialized_recording.persistence_) {
     case paint_preview::RecordingPersistence::kFileSystem:
-      return paint_preview::mojom::SerializedRecordingDataView::Tag::kFile;
+      return paint_preview::mojom::SerializedRecordingDataView::Tag::FILE;
     case paint_preview::RecordingPersistence::kMemoryBuffer:
-      return paint_preview::mojom::SerializedRecordingDataView::Tag::kBuffer;
+      return paint_preview::mojom::SerializedRecordingDataView::Tag::BUFFER;
   }
 
   NOTREACHED();
-  return paint_preview::mojom::SerializedRecordingDataView::Tag::kFile;
+  return paint_preview::mojom::SerializedRecordingDataView::Tag::FILE;
 }
 
 }  // namespace mojo

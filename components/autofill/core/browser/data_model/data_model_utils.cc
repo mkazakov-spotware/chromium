@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,14 @@
 
 #include "base/i18n/string_search.h"
 #include "base/i18n/unicodestring.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "components/autofill/core/browser/autofill_regex_constants.h"
+#include "components/autofill/core/browser/autofill_regexes.h"
 #include "components/autofill/core/common/autofill_clock.h"
-#include "components/autofill/core/common/autofill_regex_constants.h"
-#include "components/autofill/core/common/autofill_regexes.h"
 #include "third_party/icu/source/common/unicode/uloc.h"
 #include "third_party/icu/source/i18n/unicode/dtfmtsym.h"
 
@@ -19,41 +21,41 @@ namespace autofill {
 
 namespace data_util {
 
-std::u16string Expiration2DigitMonthAsString(int expiration_month) {
+base::string16 Expiration2DigitMonthAsString(int expiration_month) {
   if (expiration_month < 1 || expiration_month > 12)
-    return std::u16string();
+    return base::string16();
 
-  std::u16string month = base::NumberToString16(expiration_month);
+  base::string16 month = base::NumberToString16(expiration_month);
   if (expiration_month >= 10)
     return month;
 
-  std::u16string zero = u"0";
+  base::string16 zero = base::ASCIIToUTF16("0");
   return zero.append(month);
 }
 
-std::u16string Expiration2DigitYearAsString(int expiration_year) {
+base::string16 Expiration2DigitYearAsString(int expiration_year) {
   if (expiration_year == 0)
-    return std::u16string();
+    return base::string16();
 
-  std::u16string year = base::NumberToString16(expiration_year % 100);
+  base::string16 year = base::NumberToString16(expiration_year % 100);
   if (expiration_year >= 10)
     return year;
 
-  std::u16string zero = u"0";
+  base::string16 zero = base::ASCIIToUTF16("0");
   return zero.append(year);
 }
 
-std::u16string Expiration4DigitYearAsString(int expiration_year) {
+base::string16 Expiration4DigitYearAsString(int expiration_year) {
   if (expiration_year == 0)
-    return std::u16string();
+    return base::string16();
 
   return base::NumberToString16(expiration_year);
 }
 
-bool ParseExpirationMonth(const std::u16string& text,
+bool ParseExpirationMonth(const base::string16& text,
                           const std::string& app_locale,
                           int* expiration_month) {
-  std::u16string trimmed;
+  base::string16 trimmed;
   base::TrimWhitespace(text, base::TRIM_ALL, &trimmed);
 
   if (trimmed.empty())
@@ -78,7 +80,7 @@ bool ParseExpirationMonth(const std::u16string& text,
   int32_t num_months;
   const icu::UnicodeString* months = date_format_symbols.getMonths(num_months);
   for (int32_t i = 0; i < num_months; ++i) {
-    const std::u16string icu_month(
+    const base::string16 icu_month(
         base::i18n::UnicodeStringToString16(months[i]));
     // We look for the ICU-defined month in |trimmed|.
     if (base::i18n::StringSearchIgnoringCaseAndAccents(icu_month, trimmed,
@@ -90,10 +92,10 @@ bool ParseExpirationMonth(const std::u16string& text,
   // Abbreviated months (jan., janv., fév.) Some abbreviations have . at the end
   // (e.g., "janv." in French). The period is removed.
   months = date_format_symbols.getShortMonths(num_months);
-  base::TrimString(trimmed, u".", &trimmed);
+  base::TrimString(trimmed, base::ASCIIToUTF16("."), &trimmed);
   for (int32_t i = 0; i < num_months; ++i) {
-    std::u16string icu_month(base::i18n::UnicodeStringToString16(months[i]));
-    base::TrimString(icu_month, u".", &icu_month);
+    base::string16 icu_month(base::i18n::UnicodeStringToString16(months[i]));
+    base::TrimString(icu_month, base::ASCIIToUTF16("."), &icu_month);
     // We look for the ICU-defined month in |trimmed_month|.
     if (base::i18n::StringSearchIgnoringCaseAndAccents(icu_month, trimmed,
                                                        nullptr, nullptr)) {
@@ -105,8 +107,8 @@ bool ParseExpirationMonth(const std::u16string& text,
   return false;
 }
 
-bool ParseExpirationYear(const std::u16string& text, int* expiration_year) {
-  std::u16string trimmed;
+bool ParseExpirationYear(const base::string16& text, int* expiration_year) {
+  base::string16 trimmed;
   base::TrimWhitespace(text, base::TRIM_ALL, &trimmed);
 
   int year = 0;
@@ -141,15 +143,16 @@ bool SetExpirationYear(int value, int* expiration_year) {
   return true;
 }
 
-std::u16string FindPossiblePhoneCountryCode(const std::u16string& text) {
-  if (text.find(u"00") != std::u16string::npos ||
-      text.find('+') != std::u16string::npos) {
-    std::vector<std::u16string> captures;
-    if (MatchesRegex<kAugmentedPhoneCountryCodeRe>(text, &captures))
-      return captures[1];
+base::string16 FindPossiblePhoneCountryCode(const base::string16& text) {
+  base::string16 candidate;
+  if (text.find(base::ASCIIToUTF16("00")) != base::string16::npos ||
+      text.find('+') != base::string16::npos) {
+    if (MatchesPattern(text, base::ASCIIToUTF16(kAugmentedPhoneCountryCodeRe),
+                       &candidate, 1))
+      return candidate;
   }
 
-  return std::u16string();
+  return base::string16();
 }
 
 }  // namespace data_util

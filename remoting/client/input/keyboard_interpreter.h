@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <memory>
 #include <string>
+
+#include "base/macros.h"
 
 namespace remoting {
 
@@ -20,10 +22,6 @@ struct KeypressInfo;
 class KeyboardInterpreter {
  public:
   explicit KeyboardInterpreter();
-
-  KeyboardInterpreter(const KeyboardInterpreter&) = delete;
-  KeyboardInterpreter& operator=(const KeyboardInterpreter&) = delete;
-
   ~KeyboardInterpreter();
 
   // If |input_injector| is nullptr, all methods below will have no effect.
@@ -45,6 +43,8 @@ class KeyboardInterpreter {
 
  private:
   std::unique_ptr<KeyboardInputStrategy> input_strategy_;
+
+  DISALLOW_COPY_AND_ASSIGN(KeyboardInterpreter);
 };
 
 }  // namespace remoting

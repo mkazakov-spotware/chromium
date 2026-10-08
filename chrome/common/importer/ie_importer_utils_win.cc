@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,19 @@
 
 namespace {
 
-const wchar_t kIEFavoritesOrderKey[] =
-    L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MenuOrder\\"
-    L"Favorites";
+const base::char16 kIEFavoritesOrderKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\"
+    L"MenuOrder\\Favorites";
 
-const wchar_t kIEStorage2Key[] =
-    L"Software\\Microsoft\\Internet Explorer\\IntelliForms\\Storage2";
+const base::char16 kIEStorage2Key[] =
+  L"Software\\Microsoft\\Internet Explorer\\IntelliForms\\Storage2";
 
-const wchar_t kIESettingsMainKey[] =
-    L"Software\\Microsoft\\Internet Explorer\\Main";
+const base::char16 kIESettingsMainKey[] =
+  L"Software\\Microsoft\\Internet Explorer\\Main";
 
-std::wstring GetPotentiallyOverridenIEKey(
-    const std::wstring& desired_key_path) {
-  std::wstring test_reg_override(
+base::string16 GetPotentiallyOverridenIEKey(
+    const base::string16& desired_key_path) {
+  base::string16 test_reg_override(
       ImporterTestRegistryOverrider::GetTestRegistryOverride());
   return test_reg_override.empty() ? desired_key_path : test_reg_override;
 }
@@ -29,17 +29,17 @@ std::wstring GetPotentiallyOverridenIEKey(
 
 namespace importer {
 
-std::wstring GetIEFavoritesOrderKey() {
+base::string16 GetIEFavoritesOrderKey() {
   // Return kIEFavoritesOrderKey unless an override has been set for tests.
   return GetPotentiallyOverridenIEKey(kIEFavoritesOrderKey);
 }
 
-std::wstring GetIE7PasswordsKey() {
+base::string16 GetIE7PasswordsKey() {
   // Return kIEStorage2Key unless an override has been set for tests.
   return GetPotentiallyOverridenIEKey(kIEStorage2Key);
 }
 
-std::wstring GetIESettingsKey() {
+base::string16 GetIESettingsKey() {
   // Return kIESettingsMainKey unless an override has been set for tests.
   return GetPotentiallyOverridenIEKey(kIESettingsMainKey);
 }

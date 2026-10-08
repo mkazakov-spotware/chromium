@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,7 +7,6 @@ from __future__ import print_function
 import pipes
 import subprocess
 import sys
-from six.moves import input  # pylint: disable=redefined-builtin
 
 
 COLOR_ANSI_CODE_MAP = {
@@ -108,7 +107,7 @@ def Ask(question, answers=None, default=None):
   # 'neg' would be accepted.
   inputs = {}
   common_prefixes = set()
-  for ans, retval in answers.items():
+  for ans, retval in answers.iteritems():
     for i in range(len(ans)):
       inp = ans[:i+1]
       if inp in inputs:
@@ -127,22 +126,21 @@ def Ask(question, answers=None, default=None):
 
   while True:
     print(Colored(question + prompt, 'cyan'), end=' ')
-    choice = input().strip()
+    choice = raw_input().strip().lower()
     if default is not None and choice == '':
       return inputs[default]
-    if choice in inputs:
+    elif choice in inputs:
       return inputs[choice]
-    if choice.lower() in inputs:
-      return inputs[choice.lower()]
-    choices = sorted(['"%s"' % a for a in sorted(answers.keys())])
-    Error('Please respond with %s or %s.' %
-          (', '.join(choices[:-1]), choices[-1]))
+    else:
+      choices = sorted(['"%s"' % a for a in sorted(answers.keys())])
+      Error('Please respond with %s or %s.' % (
+        ', '.join(choices[:-1]), choices[-1]))
 
 
 def Prompt(question, accept_empty=False):
   while True:
     print(Colored(question, color='cyan'))
-    answer = input().strip()
+    answer = raw_input().strip()
     if answer or accept_empty:
       return answer
     Error('Please enter non-empty answer')
@@ -186,4 +184,5 @@ def Run(command, ok_fail=False, **kwargs):
   except subprocess.CalledProcessError as cpe:
     if not ok_fail:
       raise
-    return cpe.returncode
+    else:
+      return cpe.returncode

@@ -1,1 +1,5 @@
-mixins: "//chrome/browser/flags/COMMON_METADATA"
+monorail {
+  component: "Internals>Flags"
+}
+team_email: "clank-modularization@chromium.org"
+os: ANDROID

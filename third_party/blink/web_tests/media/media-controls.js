@@ -138,23 +138,6 @@ function textTrackListHeader(video)
   return element;
 }
 
-function playbackSpeedMenu(video)
-{
-  var controlID = '-internal-media-controls-playback-speed-list';
-  var element = mediaControlsElement(internals.shadowRoot(video).firstChild, controlID);
-  if (!element)
-    throw 'Failed to find the playback speed menu';
-  return element;
-}
-
-function playbackSpeedListHeader(video)
-{
-  var element = playbackSpeedMenu(video).childNodes[0];
-  if (!element)
-    throw 'Failed to find the playback speed header'
-  return element;
-}
-
 function overflowMenu(video)
 {
   var controlID = '-internal-media-controls-overflow-menu-list';
@@ -181,10 +164,6 @@ function muteOverflowItem(video) {
 
 function captionsOverflowItem(video) {
   return overflowItem(video, '-webkit-media-controls-toggle-closed-captions-button');
-}
-
-function playbackSpeedOverflowItem(video) {
-  return overflowItem(video, '-internal-media-controls-playback-speed-button');
 }
 
 function castOverflowItem(video) {
@@ -310,11 +289,6 @@ function isClosedCaptionsButtonEnabled(video) {
   return !button.disabled && button.style.display != "none";
 }
 
-function isPlaybackSpeedButtonEnabled(video) {
-  var button = playbackSpeedOverflowItem(video);
-  return !button.disabled && button.style.display != "none";
-}
-
 function isDownloadsButtonEnabled(video) {
   var button = downloadsOverflowItem(video);
   return !button.disabled && button.style.display != "none";
@@ -343,14 +317,6 @@ function isClosedCaptionsButtonVisible(currentMediaElement)
 
 function toggleClosedCaptionsButton(videoElement) {
     return mediaControlsButton(videoElement, 'toggle-closed-captions-button');
-}
-
-function playbackSpeedButton(videoElement) {
-  var controlID = '-internal-media-controls-playback-speed-button';
-  var button = mediaControlsElement(internals.shadowRoot(videoElement).firstChild, controlID);
-  if (!button)
-    throw 'Failed to find playback speed button';
-  return button;
 }
 
 function playButton(videoElement) {
@@ -480,45 +446,6 @@ function checkCaptionsHidden(video)
     assert_equals(textTrackDisplayElement(video), null);
 }
 
-function playbackSpeedListItemAtPlaybackRate(video, playbackRate) {
-  var playbackSpeedItems = playbackSpeedMenu(video).childNodes;
-  for (var i = 0; i < playbackSpeedItems.length; i++) {
-      var playbackSpeedItem = playbackSpeedItems[i];
-      var innerCheckbox = playbackSpeedListItemInnerCheckbox(playbackSpeedItem);
-      if (innerCheckbox && innerCheckbox.getAttribute("data-playback-rate") == playbackRate)
-          return playbackSpeedItem;
-  }
-}
-
-function clickPlaybackSpeedButton(video, callback) {
-  openOverflowAndClickButton(video, playbackSpeedOverflowItem(video), function() {
-    var playbackSpeed = playbackSpeedListItemAtPlaybackRate(video, video.playbackRate);
-    var playbackSpeedsList = playbackSpeedMenu(video);
-    assert_between_inclusive(playbackSpeedsList.scrollTop,
-        playbackSpeed.offsetTop + playbackSpeed.offsetHeight - playbackSpeedsList.offsetHeight,
-        playbackSpeed.offsetTop);
-    callback();
-  });
-}
-
-function clickPlaybackSpeedAtPlaybackRate(video, playbackRate, callback) {
-  clickPlaybackSpeedButton(video, function () {
-    var playbackSpeed = playbackSpeedListItemAtPlaybackRate(video, playbackRate);
-    playbackSpeed.scrollIntoView();
-    singleTapOnControl(playbackSpeed, callback);
-  });
-}
-
-function playbackSpeedListItemInnerCheckbox(playbackSpeedListItem) {
-  const children = playbackSpeedListItem.children;
-  for (var i = 0; i < children.length; i++) {
-    const child = children[i];
-    if (internals.shadowPseudoId(child) == "-internal-media-controls-playback-speed-list-item-input")
-      return child;
-  }
-  return null;
-}
-
 function runAfterHideMediaControlsTimerFired(func, mediaElement)
 {
     if (mediaElement.paused)
@@ -554,7 +481,7 @@ function waitForHoverEffectUpdate(func) {
 
 function hoverMuteButton(video, func) {
   // Wait for hover timer fires
-  const delayedCallback = function() { setTimeout(func, 1); };
+  const delayedCallback = function() { setTimeout(func); };
   const muteBtn = muteButton(video);
   hoverOverControl(muteBtn, delayedCallback);
 }

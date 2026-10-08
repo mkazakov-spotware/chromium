@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "chrome/browser/ui/views/frame/dbus_appmenu.h"
 #include "components/dbus/thread_linux/dbus_thread_linux.h"
 #include "dbus/bus.h"
@@ -27,8 +26,7 @@ const char kAppMenuRegistrarInterface[] = "com.canonical.AppMenu.Registrar";
 
 // static
 DbusAppmenuRegistrar* DbusAppmenuRegistrar::GetInstance() {
-  static base::NoDestructor<DbusAppmenuRegistrar> instance;
-  return instance.get();
+  return base::Singleton<DbusAppmenuRegistrar>::get();
 }
 
 void DbusAppmenuRegistrar::OnMenuBarCreated(DbusAppmenu* menu) {
@@ -70,6 +68,12 @@ DbusAppmenuRegistrar::DbusAppmenuRegistrar() {
                           weak_ptr_factory_.GetWeakPtr());
   bus_->ListenForServiceOwnerChange(kAppMenuRegistrarName, callback);
   bus_->GetServiceOwner(kAppMenuRegistrarName, callback);
+}
+
+DbusAppmenuRegistrar::~DbusAppmenuRegistrar() {
+  DCHECK(menus_.empty());
+  bus_->GetDBusTaskRunner()->PostTask(
+      FROM_HERE, base::BindOnce(&dbus::Bus::ShutdownAndBlock, bus_));
 }
 
 void DbusAppmenuRegistrar::InitializeMenu(DbusAppmenu* menu) {

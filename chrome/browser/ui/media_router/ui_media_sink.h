@@ -1,17 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_MEDIA_ROUTER_UI_MEDIA_SINK_H_
 #define CHROME_BROWSER_UI_MEDIA_ROUTER_UI_MEDIA_SINK_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/media_router/media_cast_mode.h"
 #include "components/media_router/common/issue.h"
 #include "components/media_router/common/media_route_provider_helper.h"
 #include "components/media_router/common/media_sink.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace media_router {
@@ -34,7 +32,7 @@ enum class UIMediaSinkState {
 
 struct UIMediaSink {
  public:
-  explicit UIMediaSink(mojom::MediaRouteProviderId provider);
+  UIMediaSink();
   UIMediaSink(const UIMediaSink& other);
   ~UIMediaSink();
 
@@ -42,11 +40,11 @@ struct UIMediaSink {
   std::string id;
 
   // Name that can be used by the user to identify the sink.
-  std::u16string friendly_name;
+  base::string16 friendly_name;
 
   // Normally the sink status text is set from |state|. This field allows it
   // to be overridden for error states or to show route descriptions.
-  std::u16string status_text;
+  base::string16 status_text;
 
   // Presentation URL to use when initiating a new casting activity for this
   // sink. For sites that integrate with the Presentation API, this is the
@@ -55,20 +53,20 @@ struct UIMediaSink {
   GURL presentation_url;
 
   // Active route associated with the sink.
-  absl::optional<MediaRoute> route;
+  base::Optional<MediaRoute> route;
 
   // The icon to use for the sink.
   SinkIconType icon_type = SinkIconType::GENERIC;
 
   // The provider of the sink.
-  mojom::MediaRouteProviderId provider;
+  MediaRouteProviderId provider = MediaRouteProviderId::UNKNOWN;
 
   // The current state of the media sink.
   UIMediaSinkState state = UIMediaSinkState::AVAILABLE;
 
   // An issue the sink is having. This is a nullopt when there are no issues
   // with the sink.
-  absl::optional<Issue> issue;
+  base::Optional<Issue> issue;
 
   // Set of Cast Modes (e.g. presentation, desktop mirroring) supported by the
   // sink.

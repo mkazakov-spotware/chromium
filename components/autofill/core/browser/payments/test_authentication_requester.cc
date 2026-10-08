@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill/core/browser/payments/test_authentication_requester.h"
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "build/build_config.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
 
@@ -23,13 +22,13 @@ TestAuthenticationRequester::GetWeakPtr() {
 void TestAuthenticationRequester::OnCVCAuthenticationComplete(
     const CreditCardCVCAuthenticator::CVCAuthenticationResponse& response) {
   did_succeed_ = response.did_succeed;
-  if (*did_succeed_) {
+  if (did_succeed_) {
     DCHECK(response.card);
     number_ = response.card->number();
   }
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 bool TestAuthenticationRequester::ShouldOfferFidoAuth() const {
   return false;
 }
@@ -40,15 +39,16 @@ bool TestAuthenticationRequester::UserOptedInToFidoFromSettingsPageOnMobile()
 }
 #endif
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 void TestAuthenticationRequester::OnFIDOAuthenticationComplete(
-    const CreditCardFIDOAuthenticator::FidoAuthenticationResponse& response) {
-  did_succeed_ = response.did_succeed;
-  if (*did_succeed_) {
-    DCHECK(response.card);
-    number_ = response.card->number();
+    bool did_succeed,
+    const CreditCard* card,
+    const base::string16& cvc) {
+  did_succeed_ = did_succeed;
+  if (did_succeed_) {
+    DCHECK(card);
+    number_ = card->number();
   }
-  failure_type_ = response.failure_type;
 }
 
 void TestAuthenticationRequester::OnFidoAuthorizationComplete(
@@ -61,16 +61,5 @@ void TestAuthenticationRequester::IsUserVerifiableCallback(
   is_user_verifiable_ = is_user_verifiable;
 }
 #endif
-
-void TestAuthenticationRequester::OnOtpAuthenticationComplete(
-    const CreditCardOtpAuthenticator::OtpAuthenticationResponse& response) {
-  did_succeed_ =
-      response.result ==
-      CreditCardOtpAuthenticator::OtpAuthenticationResponse::Result::kSuccess;
-  if (*did_succeed_) {
-    DCHECK(response.card);
-    number_ = response.card->number();
-  }
-}
 
 }  // namespace autofill

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,21 +8,26 @@
 #error "This file requires ARC support."
 #endif
 
+NSString* const kUserSigninAttemptedNotification = @"kUserSigninAttempted";
 NSString* const kSkipSigninAccessibilityIdentifier =
-    @"SkipSigninAccessibilityIdentifier";
+    @"kSkipSigninAccessibilityIdentifier";
 NSString* const kAddAccountAccessibilityIdentifier =
-    @"AddAccountAccessibilityIdentifier";
+    @"kAddAccountAccessibilityIdentifier";
 NSString* const kConfirmationAccessibilityIdentifier =
-    @"ConfirmationAccessibilityIdentifier";
-NSString* const kMoreAccessibilityIdentifier = @"MoreAccessibilityIdentifier";
-NSString* const kWebSigninAccessibilityIdentifier =
-    @"WebSigninAccessibilityIdentifier";
-NSString* const kWebSigninContinueAsButtonAccessibilityIdentifier =
-    @"WebSigninContinueAsButtonAccessibilityIdentifier";
-NSString* const kWebSigninSkipButtonAccessibilityIdentifier =
-    @"WebSigninSkipButtonAccessibilityIdentifier";
+    @"kConfirmationAccessibilityIdentifier";
+NSString* const kMoreAccessibilityIdentifier = @"kMoreAccessibilityIdentifier";
 
-const char* kWebSigninConsistencyConsecutiveActiveDismissalLimitParam =
-    "consecutive_active_dismissal_limit";
+@implementation SigninCompletionInfo
 
-const int kDefaultWebSignInDismissalCount = 3;
+- (instancetype)initWithIdentity:(ChromeIdentity*)identity
+          signinCompletionAction:
+              (SigninCompletionAction)signinCompletionAction {
+  self = [super init];
+  if (self) {
+    _identity = identity;
+    _signinCompletionAction = signinCompletionAction;
+  }
+  return self;
+}
+
+@end

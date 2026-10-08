@@ -1,12 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "mojo/public/cpp/bindings/lib/binding_state.h"
-
-#include <memory>
-
-#include "base/task/sequenced_task_runner.h"
 #include "mojo/public/cpp/bindings/lib/task_runner_helper.h"
 #include "mojo/public/cpp/bindings/mojo_buildflags.h"
 
@@ -66,7 +62,7 @@ void BindingStateBase::Close() {
 }
 
 void BindingStateBase::CloseWithReason(uint32_t custom_reason,
-                                       base::StringPiece description) {
+                                       const std::string& description) {
   if (endpoint_client_)
     endpoint_client_->CloseWithReason(custom_reason, description);
 
@@ -76,7 +72,7 @@ void BindingStateBase::CloseWithReason(uint32_t custom_reason,
 ReportBadMessageCallback BindingStateBase::GetBadMessageCallback() {
   return base::BindOnce(
       [](ReportBadMessageCallback inner_callback,
-         base::WeakPtr<BindingStateBase> binding, base::StringPiece error) {
+         base::WeakPtr<BindingStateBase> binding, const std::string& error) {
         std::move(inner_callback).Run(error);
         if (binding)
           binding->Close();
@@ -108,11 +104,9 @@ void BindingStateBase::BindInternal(
     const char* interface_name,
     std::unique_ptr<MessageReceiver> request_validator,
     bool passes_associated_kinds,
-    base::span<const uint32_t> sync_method_ordinals,
+    bool has_sync_methods,
     MessageReceiverWithResponderStatus* stub,
-    uint32_t interface_version,
-    MessageToMethodInfoCallback method_info_callback,
-    MessageToMethodNameCallback method_name_callback) {
+    uint32_t interface_version) {
   DCHECK(!is_bound()) << "Attempting to bind interface that is already bound: "
                       << interface_name;
 
@@ -122,24 +116,22 @@ void BindingStateBase::BindInternal(
   MultiplexRouter::Config config =
       passes_associated_kinds
           ? MultiplexRouter::MULTI_INTERFACE
-          : (!sync_method_ordinals.empty()
+          : (has_sync_methods
                  ? MultiplexRouter::SINGLE_INTERFACE_WITH_SYNC_METHODS
                  : MultiplexRouter::SINGLE_INTERFACE);
-  router_ = MultiplexRouter::CreateAndStartReceiving(
-      std::move(receiver_state->pipe), config, false, sequenced_runner,
-      interface_name);
+  router_ = new MultiplexRouter(std::move(receiver_state->pipe), config, false,
+                                sequenced_runner, interface_name);
   router_->SetConnectionGroup(std::move(receiver_state->connection_group));
 
-  endpoint_client_ = std::make_unique<InterfaceEndpointClient>(
+  endpoint_client_.reset(new InterfaceEndpointClient(
       router_->CreateLocalEndpointHandle(kPrimaryInterfaceId), stub,
-      std::move(request_validator), sync_method_ordinals,
-      std::move(sequenced_runner), interface_version, interface_name,
-      method_info_callback, method_name_callback);
+      std::move(request_validator), has_sync_methods,
+      std::move(sequenced_runner), interface_version, interface_name));
   endpoint_client_->SetIdleTrackingEnabledCallback(
       base::BindOnce(&MultiplexRouter::SetConnectionGroup, router_));
 
 #if BUILDFLAG(MOJO_RANDOM_DELAYS_ENABLED)
-  MakeBindingRandomlyPaused(base::SequencedTaskRunner::GetCurrentDefault(),
+  MakeBindingRandomlyPaused(base::SequencedTaskRunnerHandle::Get(),
                             weak_ptr_factory_.GetWeakPtr());
 #endif
 }

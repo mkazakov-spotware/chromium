@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "device/gamepad/dualshock4_controller.h"
 #include "device/gamepad/gamepad_data_fetcher.h"
@@ -34,7 +35,6 @@ const uint16_t kPowerUsageNumber = 0x30;
 const uint16_t kSearchUsageNumber = 0x0221;
 const uint16_t kHomeUsageNumber = 0x0223;
 const uint16_t kBackUsageNumber = 0x0224;
-const uint16_t kRecordUsageNumber = 0xb2;
 
 const int kRumbleMagnitudeMax = 10000;
 
@@ -52,9 +52,8 @@ struct SpecialUsages {
     // Back.
     {kConsumerUsagePage, kHomeUsageNumber},
     {kConsumerUsagePage, kBackUsageNumber},
-    {kConsumerUsagePage, kRecordUsageNumber},
 };
-const size_t kSpecialUsagesLen = std::size(kSpecialUsages);
+const size_t kSpecialUsagesLen = base::size(kSpecialUsages);
 
 float NormalizeAxis(CFIndex value, CFIndex min, CFIndex max) {
   return (2.f * (value - min) / static_cast<float>(max - min)) - 1.f;
@@ -429,19 +428,20 @@ bool GamepadDeviceMac::SupportsVibration() {
   return dualshock4_ || xbox_hid_ || hid_haptics_ || ff_device_ref_;
 }
 
-void GamepadDeviceMac::SetVibration(mojom::GamepadEffectParametersPtr params) {
+void GamepadDeviceMac::SetVibration(double strong_magnitude,
+                                    double weak_magnitude) {
   if (dualshock4_) {
-    dualshock4_->SetVibration(std::move(params));
+    dualshock4_->SetVibration(strong_magnitude, weak_magnitude);
     return;
   }
 
   if (xbox_hid_) {
-    xbox_hid_->SetVibration(std::move(params));
+    xbox_hid_->SetVibration(strong_magnitude, weak_magnitude);
     return;
   }
 
   if (hid_haptics_) {
-    hid_haptics_->SetVibration(std::move(params));
+    hid_haptics_->SetVibration(strong_magnitude, weak_magnitude);
     return;
   }
 
@@ -452,9 +452,9 @@ void GamepadDeviceMac::SetVibration(mojom::GamepadEffectParametersPtr params) {
     DCHECK(ff_custom_force->rglForceData);
 
     ff_custom_force->rglForceData[0] =
-        static_cast<LONG>(params->strong_magnitude * kRumbleMagnitudeMax);
+        static_cast<LONG>(strong_magnitude * kRumbleMagnitudeMax);
     ff_custom_force->rglForceData[1] =
-        static_cast<LONG>(params->weak_magnitude * kRumbleMagnitudeMax);
+        static_cast<LONG>(weak_magnitude * kRumbleMagnitudeMax);
 
     // Download the effect to the device and start the effect.
     HRESULT res = FFEffectSetParameters(

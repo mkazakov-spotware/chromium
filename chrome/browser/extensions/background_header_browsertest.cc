@@ -1,9 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/json/json_reader.h"
-#include "base/strings/stringprintf.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/net/profile_network_context_service.h"
 #include "chrome/browser/net/profile_network_context_service_factory.h"
@@ -63,35 +62,27 @@ class BackgroundHeaderTest : public ExtensionBrowserTest {
   }
 
   std::string ExecuteFetch(const Extension* extension, const GURL& url) {
-    ExtensionHost* host =
-        ProcessManager::Get(profile())->GetBackgroundHostForExtension(
-            extension->id());
-    if (!host) {
-      ADD_FAILURE() << "No background page found.";
-      return "";
-    }
-    content::DOMMessageQueue message_queue(host->host_contents());
-
+    content::DOMMessageQueue message_queue;
     browsertest_util::ExecuteScriptInBackgroundPageNoWait(
         profile(), extension->id(),
         content::JsReplace("executeFetch($1);", url));
     std::string json;
     EXPECT_TRUE(message_queue.WaitForMessage(&json));
-    absl::optional<base::Value> value =
+    base::Optional<base::Value> value =
         base::JSONReader::Read(json, base::JSON_ALLOW_TRAILING_COMMAS);
+    std::string result;
     if (!value) {
       ADD_FAILURE() << "Received invalid response: " << json;
       return std::string();
     }
-    EXPECT_TRUE(value->is_string());
+    EXPECT_TRUE(value->GetAsString(&result));
     std::string trimmed_result;
-    base::TrimWhitespaceASCII(value->GetString(), base::TRIM_ALL,
-                              &trimmed_result);
+    base::TrimWhitespaceASCII(result, base::TRIM_ALL, &trimmed_result);
     return trimmed_result;
   }
 
   const Extension* LoadFetchExtension(const std::string& host) {
-    ExtensionTestMessageListener listener("ready");
+    ExtensionTestMessageListener listener("ready", false);
     TestExtensionDir test_dir;
     constexpr char kManifestTemplate[] = R"(
     {

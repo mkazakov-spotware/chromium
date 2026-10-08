@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "dbus/bus.h"
 #include "dbus/message.h"
@@ -38,8 +39,7 @@ mojom::MtpStorageInfo GetMojoMtpStorageInfoFromProtobuf(
       protobuf.storage_type(), protobuf.filesystem_type(),
       protobuf.access_capability(), protobuf.max_capacity(),
       protobuf.free_space_in_bytes(), protobuf.free_space_in_objects(),
-      protobuf.storage_description(), protobuf.volume_identifier(),
-      protobuf.serial_number());
+      protobuf.storage_description(), protobuf.volume_identifier());
 }
 
 // The MediaTransferProtocolDaemonClient implementation.
@@ -50,11 +50,6 @@ class MediaTransferProtocolDaemonClientImpl
       : proxy_(bus->GetObjectProxy(mtpd::kMtpdServiceName,
                                    dbus::ObjectPath(mtpd::kMtpdServicePath))),
         listen_for_changes_called_(false) {}
-
-  MediaTransferProtocolDaemonClientImpl(
-      const MediaTransferProtocolDaemonClientImpl&) = delete;
-  MediaTransferProtocolDaemonClientImpl& operator=(
-      const MediaTransferProtocolDaemonClientImpl&) = delete;
 
   // MediaTransferProtocolDaemonClient override.
   void EnumerateStorages(EnumerateStoragesCallback callback,
@@ -511,6 +506,8 @@ class MediaTransferProtocolDaemonClientImpl
   // invalidate its weak pointers before any other members are destroyed.
   base::WeakPtrFactory<MediaTransferProtocolDaemonClientImpl> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(MediaTransferProtocolDaemonClientImpl);
 };
 
 }  // namespace

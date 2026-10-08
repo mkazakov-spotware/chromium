@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,37 +12,27 @@
 #include <utility>
 #include <vector>
 
-#include "base/containers/flat_map.h"
-#include "base/observer_list_types.h"
-#include "base/time/time.h"
-#include "chrome/browser/ui/app_list/search/ranking/launch_data.h"
-#include "chrome/browser/ui/app_list/search/types.h"
+#include "base/callback.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
+#include "chrome/browser/ui/app_list/search/mixer.h"
+#include "chrome/browser/ui/app_list/search/search_result_ranker/app_launch_data.h"
 
+class AppListControllerDelegate;
+class AppListModelUpdater;
 class ChromeSearchResult;
+class Profile;
 
 namespace ash {
+class AppListNotifier;
 enum class AppListSearchResultType;
-}
-
-namespace base {
-class Time;
-class TimeDelta;
 }
 
 namespace app_list {
 
-class AppSearchDataSource;
+class SearchMetricsObserver;
 class SearchProvider;
-
-// Common types used throughout result ranking.
-//
-// TODO(crbug.com/1383002): Ideally these would be grouped with other common
-// type aliases in types.h, but this creates a circular dependency issue with
-// ChromeSearchResult. Try to iron this out, and group these type aliases with
-// the others.
-
-using Results = std::vector<std::unique_ptr<ChromeSearchResult>>;
-using ResultsMap = base::flat_map<ProviderType, Results>;
+enum class RankingItemType;
 
 // Controller that collects query from given SearchBoxModel, dispatches it
 // to all search providers, then invokes the mixer to mix and to publish the
@@ -52,79 +42,81 @@ class SearchController {
   using ResultsChangedCallback =
       base::RepeatingCallback<void(ash::AppListSearchResultType)>;
 
-  class Observer : public base::CheckedObserver {
-   public:
-    // Called whenever results are added to the launcher, as a result of
-    // zero-state or from a user query. This will be called multiple times per
-    // query because launcher results arrive incrementally.
-    //
-    // Observers should not store the ChromeSearchResult* pointers or post them
-    // to another sequence because they may be invalidated.
-    virtual void OnResultsAdded(
-        const std::u16string& query,
-        const std::vector<const ChromeSearchResult*>& results) {}
-  };
+  SearchController(AppListModelUpdater* model_updater,
+                   AppListControllerDelegate* list_controller,
+                   ash::AppListNotifier* notifier,
+                   Profile* profile);
+  virtual ~SearchController();
 
-  virtual ~SearchController() = default;
+  void InitializeRankers();
 
-  virtual void StartSearch(const std::u16string& query) = 0;
-  virtual void ClearSearch() = 0;
-  virtual void StartZeroState(base::OnceClosure on_done,
-                              base::TimeDelta timeout) = 0;
+  void Start(const base::string16& query);
+  void ViewClosing();
 
-  virtual void AppListClosing() = 0;
+  void OpenResult(ChromeSearchResult* result, int event_flags);
+  void InvokeResultAction(ChromeSearchResult* result, int action_index);
 
-  virtual void OpenResult(ChromeSearchResult* result, int event_flags) = 0;
-  virtual void InvokeResultAction(ChromeSearchResult* result,
-                                  ash::SearchResultActionType action) = 0;
+  // Adds a new mixer group. See Mixer::AddGroup.
+  size_t AddGroup(size_t max_results);
 
-  // Returns AppSearchDataSource instance that should be used with app search
-  // providers.
-  virtual AppSearchDataSource* GetAppSearchDataSource() = 0;
+  // Takes ownership of |provider| and associates it with given mixer group.
+  void AddProvider(size_t group_id, std::unique_ptr<SearchProvider> provider);
 
-  // Takes ownership of |provider|.
-  virtual void AddProvider(std::unique_ptr<SearchProvider> provider) = 0;
-
-  // Removes, and deletes registered search providers that provide results for
-  // `result_type` and adds a new "test" provider.
-  // No-op if no providers for `result_type` were previously registered.
-  // Expects that `provider` provides results for `result_type`.
-  // Returns number of providers removed from the provider list.
-  virtual size_t ReplaceProvidersForResultTypeForTest(
-      ash::AppListSearchResultType result_type,
-      std::unique_ptr<SearchProvider> provider) = 0;
-
-  // Update the controller with the given results. Used only if the categorical
-  // search feature flag is enabled.
-  virtual void SetResults(const SearchProvider* provider, Results results) = 0;
-  // Publishes results to ash.
-  virtual void Publish() = 0;
-
-  virtual ChromeSearchResult* FindSearchResult(
-      const std::string& result_id) = 0;
-  virtual ChromeSearchResult* GetResultByTitleForTest(
-      const std::string& title) = 0;
+  virtual ChromeSearchResult* FindSearchResult(const std::string& result_id);
+  ChromeSearchResult* GetResultByTitleForTest(const std::string& title);
 
   // Sends training signal to each |providers_|
-  virtual void Train(LaunchData&& launch_data) = 0;
+  void Train(AppLaunchData&& app_launch_data);
 
-  virtual void AddObserver(Observer* observer) = 0;
-  virtual void RemoveObserver(Observer* observer) = 0;
+  // Invoked when the app list is shown.
+  void AppListShown();
 
-  virtual std::u16string get_query() = 0;
+  // Gets the length of the most recent query.
+  int GetLastQueryLength() const;
 
-  virtual base::Time session_start() = 0;
+  // Called when items in the results list have been on screen for some amount
+  // of time, or the user clicked a search result.
+  // TODO(959679): Rename this function to better reflect its nature.
+  void OnSearchResultsDisplayed(
+      const base::string16& trimmed_query,
+      const ash::SearchResultIdWithPositionIndices& results,
+      int launched_index);
 
-  virtual void set_results_changed_callback_for_test(
-      ResultsChangedCallback callback) = 0;
+  void set_results_changed_callback_for_test(ResultsChangedCallback callback) {
+    results_changed_callback_ = std::move(callback);
+  }
 
-  virtual void disable_ranking_for_test() = 0;
+ private:
+  // Invoked when the search results are changed. Providers should use the one
+  // argument version, and pass the primary type of result produced by the
+  // invoking search provider.
+  void OnResultsChanged();
+  void OnResultsChangedWithType(ash::AppListSearchResultType result_type);
 
-  // Registers a callback to be run when zero state search returns (eiher due to
-  // all zero state providers returning results, or a timeout). The callback
-  // will run immediately if there is no pending zero state search callback.
-  virtual void WaitForZeroStateCompletionForTest(
-      base::OnceClosure callback) = 0;
+  Profile* profile_;
+
+  bool dispatching_query_ = false;
+
+  // If true, the search results are shown on the launcher start page.
+  bool query_for_recommendation_ = false;
+
+  // The query associated with the most recent search.
+  base::string16 last_query_;
+
+  // The ID of the most recently launched app. This is used for app list launch
+  // recording.
+  std::string last_launched_app_id_;
+
+  // If set, called when OnResultsChanged is invoked.
+  ResultsChangedCallback results_changed_callback_;
+
+  std::unique_ptr<Mixer> mixer_;
+  std::unique_ptr<SearchMetricsObserver> metrics_observer_;
+  using Providers = std::vector<std::unique_ptr<SearchProvider>>;
+  Providers providers_;
+  AppListControllerDelegate* list_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(SearchController);
 };
 
 }  // namespace app_list

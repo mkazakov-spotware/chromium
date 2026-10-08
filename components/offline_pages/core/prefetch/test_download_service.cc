@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include "base/files/file_util.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
-#include "base/time/time.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/download/public/background_service/download_metadata.h"
 #include "components/download/public/background_service/service_config.h"
 #include "components/offline_pages/core/prefetch/test_download_client.h"
@@ -25,10 +24,6 @@ namespace {
 class TestServiceConfig : public download::ServiceConfig {
  public:
   TestServiceConfig() = default;
-
-  TestServiceConfig(const TestServiceConfig&) = delete;
-  TestServiceConfig& operator=(const TestServiceConfig&) = delete;
-
   ~TestServiceConfig() override = default;
 
   // ServiceConfig implementation.
@@ -40,6 +35,8 @@ class TestServiceConfig : public download::ServiceConfig {
 
  private:
   base::TimeDelta time_delta_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestServiceConfig);
 };
 
 }  // namespace
@@ -54,14 +51,14 @@ const download::ServiceConfig& TestDownloadService::GetConfig() {
 }
 
 void TestDownloadService::StartDownload(
-    download::DownloadParams download_params) {
+    const download::DownloadParams& download_params) {
   if (!download_dir_.IsValid())
     CHECK(download_dir_.CreateUniqueTempDir());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
-      base::BindOnce(std::move(download_params.callback), download_params.guid,
-                     download::DownloadParams::ACCEPTED));
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::BindRepeating(download_params.callback, download_params.guid,
+                          download::DownloadParams::ACCEPTED));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&TestDownloadService::FinishDownload,
                                 base::Unretained(this), download_params.guid));
 }
@@ -90,10 +87,9 @@ bool TestDownloadService::OnStopScheduledTask(
   NOTIMPLEMENTED();
   return false;
 }
-download::BackgroundDownloadService::ServiceStatus
-TestDownloadService::GetStatus() {
+download::DownloadService::ServiceStatus TestDownloadService::GetStatus() {
   NOTIMPLEMENTED();
-  return BackgroundDownloadService::ServiceStatus();
+  return DownloadService::ServiceStatus();
 }
 void TestDownloadService::PauseDownload(const std::string& guid) {
   NOTIMPLEMENTED();

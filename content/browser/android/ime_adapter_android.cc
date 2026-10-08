@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,12 +19,12 @@
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_android.h"
-#include "content/browser/web_contents/web_contents_impl.h"
+#include "content/common/frame_messages.h"
 #include "content/public/android/content_jni_headers/ImeAdapterImpl_jni.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/native_web_keyboard_event.h"
+#include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
-#include "third_party/blink/public/mojom/input/stylus_writing_gesture.mojom.h"
 #include "third_party/blink/public/platform/web_text_input_type.h"
 #include "ui/base/ime/ime_text_span.h"
 
@@ -55,8 +55,8 @@ NativeWebKeyboardEvent NativeWebKeyboardEventFromKeyEvent(
     int unicode_char) {
   return NativeWebKeyboardEvent(
       env, java_key_event, static_cast<blink::WebInputEvent::Type>(type),
-      modifiers, base::TimeTicks() + base::Milliseconds(time_ms), key_code,
-      scan_code, unicode_char, is_system_key);
+      modifiers, base::TimeTicks() + base::TimeDelta::FromMilliseconds(time_ms),
+      key_code, scan_code, unicode_char, is_system_key);
 }
 
 }  // anonymous namespace
@@ -183,7 +183,7 @@ void ImeAdapterAndroid::UpdateState(const ui::mojom::TextInputState& state) {
     return;
 
   ScopedJavaLocalRef<jstring> jstring_text =
-      ConvertUTF16ToJavaString(env, state.value.value_or(std::u16string()));
+      ConvertUTF16ToJavaString(env, state.value.value_or(base::string16()));
   Java_ImeAdapterImpl_updateState(
       env, obj, static_cast<int>(state.type), state.flags, state.mode,
       static_cast<int>(state.action), state.show_ime_if_needed,
@@ -193,7 +193,7 @@ void ImeAdapterAndroid::UpdateState(const ui::mojom::TextInputState& state) {
       state.composition ? state.composition.value().end() : -1,
       state.reply_to_request,
       static_cast<int>(state.last_vk_visibility_request),
-      static_cast<int>(state.vk_policy));
+      static_cast<int>(state.vk_policy), ShouldVirtualKeyboardOverlayContent());
 }
 
 void ImeAdapterAndroid::UpdateOnTouchDown() {
@@ -278,7 +278,7 @@ void ImeAdapterAndroid::SetComposingText(JNIEnv* env,
   if (!rwhi)
     return;
 
-  std::u16string text16 = ConvertJavaStringToUTF16(env, text_str);
+  base::string16 text16 = ConvertJavaStringToUTF16(env, text_str);
 
   std::vector<ui::ImeTextSpan> ime_text_spans =
       GetImeTextSpansFromJava(env, obj, text, text16);
@@ -311,7 +311,7 @@ void ImeAdapterAndroid::CommitText(JNIEnv* env,
   if (!rwhi)
     return;
 
-  std::u16string text16 = ConvertJavaStringToUTF16(env, text_str);
+  base::string16 text16 = ConvertJavaStringToUTF16(env, text_str);
 
   std::vector<ui::ImeTextSpan> ime_text_spans =
       GetImeTextSpansFromJava(env, obj, text, text16);
@@ -344,63 +344,15 @@ void ImeAdapterAndroid::CancelComposition() {
     Java_ImeAdapterImpl_cancelComposition(env, obj);
 }
 
-void ImeAdapterAndroid::FocusedNodeChanged(
-    bool is_editable_node,
-    const gfx::Rect& node_bounds_in_screen) {
+void ImeAdapterAndroid::FocusedNodeChanged(bool is_editable_node) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> obj = java_ime_adapter_.get(env);
   if (!obj.is_null()) {
-    Java_ImeAdapterImpl_focusedNodeChanged(
-        env, obj, is_editable_node, node_bounds_in_screen.x(),
-        node_bounds_in_screen.y(), node_bounds_in_screen.right(),
-        node_bounds_in_screen.bottom());
+    Java_ImeAdapterImpl_focusedNodeChanged(env, obj, is_editable_node);
   }
 }
 
-bool ImeAdapterAndroid::RequestStartStylusWriting() {
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = java_ime_adapter_.get(env);
-  if (!obj.is_null()) {
-    return Java_ImeAdapterImpl_requestStartStylusWriting(env, obj);
-  }
-  return false;
-}
-
-void ImeAdapterAndroid::OnEditElementFocusedForStylusWriting(
-    const gfx::Rect& focused_edit_bounds,
-    const gfx::Rect& caret_bounds) {
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = java_ime_adapter_.get(env);
-  if (!obj.is_null()) {
-    gfx::Point caret_center = caret_bounds.CenterPoint();
-    Java_ImeAdapterImpl_onEditElementFocusedForStylusWriting(
-        env, obj, focused_edit_bounds.x(), focused_edit_bounds.y(),
-        focused_edit_bounds.right(), focused_edit_bounds.bottom(),
-        caret_center.x(), caret_center.y());
-  }
-}
-
-void ImeAdapterAndroid::HandleStylusWritingGestureAction(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobject>&,
-    const base::android::JavaParamRef<jobject>& jgesture_data_byte_buffer) {
-  auto* input_handler = GetFocusedFrameWidgetInputHandler();
-  if (!input_handler)
-    return;
-  blink::mojom::StylusWritingGestureDataPtr gesture_data;
-  if (!blink::mojom::StylusWritingGestureData::Deserialize(
-          static_cast<jbyte*>(
-              env->GetDirectBufferAddress(jgesture_data_byte_buffer.obj())),
-          env->GetDirectBufferCapacity(jgesture_data_byte_buffer.obj()),
-          &gesture_data)) {
-    NOTREACHED();
-    return;
-  }
-
-  input_handler->HandleStylusWritingGestureAction(std::move(gesture_data));
-}
-
-void ImeAdapterAndroid::AdvanceFocusForIME(JNIEnv* env,
+void ImeAdapterAndroid::AdvanceFocusInForm(JNIEnv* env,
                                            const JavaParamRef<jobject>& obj,
                                            jint focus_type) {
   RenderFrameHostImpl* rfh =
@@ -408,7 +360,7 @@ void ImeAdapterAndroid::AdvanceFocusForIME(JNIEnv* env,
   if (!rfh)
     return;
 
-  rfh->GetAssociatedLocalFrame()->AdvanceFocusForIME(
+  rfh->GetAssociatedLocalFrame()->AdvanceFocusInForm(
       static_cast<blink::mojom::FocusType>(focus_type));
 }
 
@@ -522,7 +474,10 @@ RenderFrameHost* ImeAdapterAndroid::GetFocusedFrame() {
     return nullptr;
   RenderWidgetHostImpl* rwh =
       RenderWidgetHostImpl::From(rwhva_->GetRenderWidgetHost());
-  if (auto* contents = WebContentsImpl::FromRenderWidgetHostImpl(rwh))
+  if (!rwh || !rwh->delegate())
+    return nullptr;
+
+  if (auto* contents = rwh->delegate()->GetAsWebContents())
     return contents->GetFocusedFrame();
 
   return nullptr;
@@ -536,11 +491,17 @@ ImeAdapterAndroid::GetFocusedFrameWidgetInputHandler() {
   return rwhi->GetFrameWidgetInputHandler();
 }
 
+bool ImeAdapterAndroid::ShouldVirtualKeyboardOverlayContent() {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+
+  return rwhva_ && rwhva_->ShouldVirtualKeyboardOverlayContent();
+}
+
 std::vector<ui::ImeTextSpan> ImeAdapterAndroid::GetImeTextSpansFromJava(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& obj,
     const base::android::JavaParamRef<jobject>& text,
-    const std::u16string& text16) {
+    const base::string16& text16) {
   std::vector<ui::ImeTextSpan> ime_text_spans;
   // Iterate over spans in |text|, dispatch those that we care about (e.g.,
   // BackgroundColorSpan) to a matching callback (e.g.,

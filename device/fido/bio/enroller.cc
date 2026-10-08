@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ BioEnroller::BioEnroller(Delegate* delegate,
                          pin::TokenResponse token)
     : delegate_(delegate), authenticator_(authenticator), token_(token) {
   authenticator_->BioEnrollFingerprint(
-      token_, /*template_id=*/absl::nullopt,
+      token_, /*template_id=*/base::nullopt,
       base::BindOnce(&BioEnroller::OnEnrollResponse,
                      weak_factory_.GetWeakPtr()));
 }
@@ -37,14 +37,14 @@ void BioEnroller::FinishWithError(CtapDeviceResponseCode status) {
 }
 
 void BioEnroller::FinishSuccessfully(
-    absl::optional<std::vector<uint8_t>> template_id) {
+    base::Optional<std::vector<uint8_t>> template_id) {
   state_ = State::kDone;
   delegate_->OnEnrollmentDone(std::move(template_id));
 }
 
 void BioEnroller::OnEnrollResponse(
     CtapDeviceResponseCode status,
-    absl::optional<BioEnrollmentResponse> response) {
+    base::Optional<BioEnrollmentResponse> response) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(my_sequence_checker_);
 
   if (state_ == State::kCancelled) {
@@ -103,9 +103,9 @@ void BioEnroller::OnEnrollResponse(
 
 void BioEnroller::OnEnrollCancelled(
     CtapDeviceResponseCode status,
-    absl::optional<BioEnrollmentResponse> response) {
+    base::Optional<BioEnrollmentResponse> response) {
   DCHECK_EQ(state_, State::kCancelled);
-  FinishSuccessfully(/*template_id=*/absl::nullopt);
+  FinishSuccessfully(/*template_id=*/base::nullopt);
 }
 
 }  // namespace device

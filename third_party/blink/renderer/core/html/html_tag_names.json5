@@ -7,7 +7,6 @@
     export: "CORE_EXPORT",
   },
 
-  // If you add any tag names here, remember to update html_tree_builder_test.cc.
   data: [
     {
       name: "a",
@@ -114,6 +113,10 @@
       interfaceName: "HTMLUnknownElement",
     },
     {
+      name: "content",
+      interfaceName: "HTMLContentElement",
+    },
+    {
       name: "data",
       interfaceName: "HTMLDataElement",
     },
@@ -156,15 +159,6 @@
     {
       name: "embed",
       constructorNeedsCreateElementFlags: true,
-    },
-    {
-      name: "fencedframe",
-      interfaceName: "HTMLFencedFrameElement",
-      interfaceHeaderDir: "third_party/blink/renderer/core/html/fenced_frame",
-      runtimeEnabled: "FencedFrames",
-      // This element could be enabled in some documents but not others (due to
-      // origin trials), so we need custom type helpers.
-      noTypeHelpers: true,
     },
     {
       name: "fieldset",
@@ -300,10 +294,7 @@
     },
     "marquee",
     "menu",
-    {
-      name: "meta",
-      constructorNeedsCreateElementFlags: true,
-    },
+    "meta",
     {
       name: "meter",
       interfaceName: "HTMLMeterElement",
@@ -349,6 +340,10 @@
     {
       name: "output",
       interfaceHeaderDir: "third_party/blink/renderer/core/html/forms",
+    },
+    {
+      name: "shadow",
+      interfaceName: "HTMLShadowElement",
     },
     {
       name: "p",
@@ -421,12 +416,6 @@
     },
     {
       name: "select",
-      interfaceHeaderDir: "third_party/blink/renderer/core/html/forms",
-    },
-    {
-      name: "selectmenu",
-      interfaceName: "HTMLSelectMenuElement",
-      runtimeEnabled: "HTMLSelectMenuElement",
       interfaceHeaderDir: "third_party/blink/renderer/core/html/forms",
     },
     {

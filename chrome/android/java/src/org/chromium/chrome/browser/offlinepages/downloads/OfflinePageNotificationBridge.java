@@ -1,18 +1,27 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.offlinepages.downloads;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.download.DownloadInfo;
 import org.chromium.chrome.browser.download.DownloadManagerService;
 import org.chromium.chrome.browser.download.DownloadNotifier;
+import org.chromium.chrome.browser.download.DownloadSharedPreferenceEntry;
+import org.chromium.chrome.browser.download.DownloadSharedPreferenceHelper;
 import org.chromium.chrome.browser.download.items.OfflineContentAggregatorFactory;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.offlinepages.OfflinePageOrigin;
+import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.FailState;
 import org.chromium.components.offline_items_collection.LegacyHelpers;
 import org.chromium.components.offline_items_collection.OfflineContentProvider;
 import org.chromium.components.offline_items_collection.PendingState;
+import org.chromium.ui.widget.Toast;
 
 /**
  * Class for dispatching offline page/request related notifications to the
@@ -38,7 +47,7 @@ public class OfflinePageNotificationBridge {
                                             .setDownloadGuid(guid)
                                             .setFileName(displayName)
                                             .setIsResumable(false)
-                                            .setOTRProfileId(null)
+                                            .setIsOffTheRecord(false)
                                             .setBytesTotalSize(networkBytesUsed)
                                             .build();
 
@@ -85,7 +94,7 @@ public class OfflinePageNotificationBridge {
                                             .setFileName(displayName)
                                             .setFilePath(url)
                                             .setBytesReceived(bytesReceived)
-                                            .setOTRProfileId(null)
+                                            .setIsOffTheRecord(false)
                                             .setIsResumable(true)
                                             .setTimeRemainingInMillis(0)
                                             .build();
@@ -146,14 +155,68 @@ public class OfflinePageNotificationBridge {
     }
 
     /**
+     * Aborts the notification.
+     *
+     * @param guid GUID of a request to download a page related to the notification.
+     */
+    private static void suppressNotification(String guid) {
+        DownloadNotifier notifier = getDownloadNotifier();
+        if (notifier == null) return;
+
+        ContentId id = LegacyHelpers.buildLegacyContentId(true, guid);
+
+        DownloadSharedPreferenceEntry entry =
+                DownloadSharedPreferenceHelper.getInstance().getDownloadSharedPreferenceEntry(id);
+
+        if (entry == null) return;
+
+        DownloadInfo downloadInfo = new DownloadInfo.Builder().setContentId(id).build();
+
+        notifier.removeDownloadNotification(entry.notificationId, downloadInfo);
+    }
+
+    /**
+     * Returns whether we should suppress download complete notification based
+     * on the origin app of the download.
+     * @param originString the qualified string form of an OfflinePageOrigin
+     */
+    private static boolean shouldSuppressCompletedNotification(String originString) {
+        OfflinePageOrigin origin = new OfflinePageOrigin(originString);
+        return AppHooks.get().getOfflinePagesSuppressNotificationPackages().contains(
+                origin.getAppName());
+    }
+
+    /**
+     * Returns whether the notification is suppressed. Suppression is determined
+     * based on the origin app of the download.
+     *
+     * @param originString the qualified string form of an OfflinePageOrigin
+     * @param guid GUID of a request to download a page related to the notification.
+     */
+    @CalledByNative
+    private static boolean maybeSuppressNotification(String originString, String guid) {
+        if (shouldSuppressCompletedNotification(originString)) {
+            suppressNotification(guid);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Shows a "Downloading ..." toast for the requested items already scheduled for download.
      */
     @CalledByNative
     public static void showDownloadingToast() {
-        intializeOfflineItemsCollection();
-        DownloadManagerService.getDownloadManagerService()
-                .getMessageUiController(/*otrProfileID=*/null)
-                .onDownloadStarted();
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.DOWNLOAD_PROGRESS_INFOBAR)) {
+            intializeOfflineItemsCollection();
+            DownloadManagerService.getDownloadManagerService()
+                    .getInfoBarController(false)
+                    .onDownloadStarted();
+        } else {
+            Toast.makeText(ContextUtils.getApplicationContext(), R.string.download_started,
+                         Toast.LENGTH_SHORT)
+                    .show();
+        }
     }
 
     /**

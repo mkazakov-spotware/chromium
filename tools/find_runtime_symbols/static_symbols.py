@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -20,7 +20,7 @@ class ParsingException(Exception):
     return repr(self.args[0])
 
 
-class AddressMapping:
+class AddressMapping(object):
   def __init__(self):
     self._symbol_map = {}
 
@@ -33,7 +33,7 @@ class AddressMapping:
 
 class RangeAddressMapping(AddressMapping):
   def __init__(self):
-    super().__init__()
+    super(RangeAddressMapping, self).__init__()
     self._sorted_start_list = []
     self._is_sorted = True
 
@@ -57,7 +57,7 @@ class RangeAddressMapping(AddressMapping):
     return self._symbol_map[found_start_address]
 
 
-class Procedure:
+class Procedure(object):
   """A class for a procedure symbol and an address range for the symbol."""
 
   def __init__(self, start, end, name):
@@ -77,7 +77,7 @@ class Procedure:
     return '%x-%x: %s' % (self.start, self.end, self.name)
 
 
-class ElfSection:
+class ElfSection(object):
   """A class for an elf section header."""
 
   def __init__(
@@ -114,7 +114,7 @@ class ElfSection:
     return '%x+%x(%x) %s' % (self.address, self.size, self.offset, self.name)
 
 
-class StaticSymbolsInFile:
+class StaticSymbolsInFile(object):
   """Represents static symbol information in a binary file."""
 
   def __init__(self, my_name):
@@ -169,7 +169,7 @@ class StaticSymbolsInFile:
         found_header = True
         break
     if not found_header:
-      return
+      return None
 
     for line in f:
       line = line.rstrip()
@@ -201,7 +201,7 @@ class StaticSymbolsInFile:
   def _parse_nm_bsd_line(line):
     if line[8] == ' ':
       return line[0:8], line[9], line[11:]
-    if line[16] == ' ':
+    elif line[16] == ' ':
       return line[0:16], line[17], line[19:]
     raise ParsingException('Invalid nm output.')
 
@@ -249,11 +249,11 @@ class StaticSymbolsInFile:
       # that is, a line with type 'T'.  If we never see a 'T' entry,
       # we'll just go ahead and process the first entry (which never
       # got touched in the queue), and ignore the others.
-      if start_val == last_start and sym_type in ('t', 'T'):
+      if start_val == last_start and (sym_type == 't' or sym_type == 'T'):
         # We are the 'T' symbol at this address, replace previous symbol.
         routine = sym_name
         continue
-      if start_val == last_start:
+      elif start_val == last_start:
         # We're not the 'T' symbol at this address, so ignore us.
         continue
 

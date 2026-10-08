@@ -1,9 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/scoped_refptr.h"
@@ -79,7 +78,6 @@ TEST_F(LnkParserSandboxSetupTest, ParseCorrectShortcutSandboxedTest) {
 
   base::win::ShortcutProperties shortcut_properties;
   shortcut_properties.set_target(not_lnk_file_path_);
-  shortcut_properties.set_working_dir(temp_dir_.GetPath());
   const int32_t icon_index = 0;
   shortcut_properties.set_icon(not_lnk_file_path_, icon_index);
   const std::wstring lnk_arguments = L"argument1 -f -t -a -o";
@@ -100,8 +98,8 @@ TEST_F(LnkParserSandboxSetupTest, ParseCorrectShortcutSandboxedTest) {
 
   ASSERT_EQ(test_result_code_, mojom::LnkParsingResult::SUCCESS);
   EXPECT_TRUE(CheckParsedShortcut(test_parsed_shortcut_, not_lnk_file_path_,
-                                  temp_dir_.GetPath(), lnk_arguments,
-                                  not_lnk_file_path_, icon_index));
+                                  lnk_arguments, not_lnk_file_path_,
+                                  icon_index));
 }
 
 TEST_F(LnkParserSandboxSetupTest, ParseIncorrectShortcutSandboxedTest) {
@@ -123,7 +121,7 @@ TEST_F(LnkParserSandboxSetupTest, ParseIncorrectShortcutSandboxedTest) {
 
   ASSERT_NE(test_result_code_, mojom::LnkParsingResult::SUCCESS);
   EXPECT_TRUE(CheckParsedShortcut(test_parsed_shortcut_, base::FilePath(L""),
-                                  base::FilePath(L""), L"", base::FilePath(L""),
+                                  L"", base::FilePath(L""),
                                   /*icon_index=*/-1));
 }
 

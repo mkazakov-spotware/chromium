@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,28 +26,19 @@ class MockHatsService : public HatsService {
               LaunchSurvey,
               (const std::string& trigger,
                base::OnceClosure success_callback,
-               base::OnceClosure failure_callback,
-               (const SurveyBitsData&)survey_specific_bits_data,
-               (const SurveyStringData&)survey_specific_string_data),
+               base::OnceClosure failure_callback),
               (override));
   MOCK_METHOD(bool,
               LaunchDelayedSurvey,
-              (const std::string& trigger,
-               int timeout_ms,
-               (const SurveyBitsData&)survey_specific_bits_data,
-               (const SurveyStringData&)survey_specific_string_data),
+              (const std::string& trigger, int timeout_ms),
               (override));
   MOCK_METHOD(bool,
               LaunchDelayedSurveyForWebContents,
               (const std::string& trigger,
                content::WebContents* web_contents,
-               int timeout_ms,
-               (const SurveyBitsData&)survey_specific_bits_data,
-               (const SurveyStringData&)survey_specific_string_data,
-               bool require_same_origin),
+               int timeout_ms),
               (override));
   MOCK_METHOD(void, HatsNextDialogClosed, (), (override));
-  MOCK_METHOD(bool, CanShowAnySurvey, (bool user_prompted), (const override));
 };
 
 std::unique_ptr<KeyedService> BuildMockHatsService(

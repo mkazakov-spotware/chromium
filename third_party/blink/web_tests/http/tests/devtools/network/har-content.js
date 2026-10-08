@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests conversion of Inspector's resource representation into HAR format.\n`);
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   await TestRunner.NetworkAgent.setCacheDisabled(true);
@@ -18,8 +18,7 @@
   async function makeHAR() {
     var stream = new TestRunner.StringOutputStream(onSaved);
     var progress = new Common.Progress();
-    await NetworkTestRunner.writeHARLog(
-        stream, NetworkTestRunner.networkRequests(), progress);
+    await Network.HARWriter.write(stream, NetworkTestRunner.networkRequests(), progress);
     progress.done();
     stream.close();
   }

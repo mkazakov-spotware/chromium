@@ -26,8 +26,6 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "third_party/blink/renderer/modules/webaudio/periodic_wave.h"
-
 #include <algorithm>
 #include <memory>
 
@@ -35,33 +33,27 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_periodic_wave_options.h"
 #include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
 #include "third_party/blink/renderer/modules/webaudio/oscillator_node.h"
+#include "third_party/blink/renderer/modules/webaudio/periodic_wave.h"
 #include "third_party/blink/renderer/platform/audio/fft_frame.h"
 #include "third_party/blink/renderer/platform/audio/vector_math.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 
-#if defined(ARCH_CPU_X86_FAMILY)
-#include <xmmintrin.h>
-#elif defined(CPU_ARM_NEON)
+#if defined(CPU_ARM_NEON)
 #include <arm_neon.h>
 #endif
 
 namespace blink {
 
-namespace {
-
 // The number of bands per octave.  Each octave will have this many entries in
 // the wave tables.
-constexpr unsigned kNumberOfOctaveBands = 3;
+const unsigned kNumberOfOctaveBands = 3;
 
 // The max length of a periodic wave. This must be a power of two greater than
 // or equal to 2048 and must be supported by the FFT routines.
-constexpr unsigned kMaxPeriodicWaveSize = 16384;
+const unsigned kMaxPeriodicWaveSize = 16384;
 
-constexpr float kCentsPerRange = 1200 / kNumberOfOctaveBands;
-
-}  // namespace
+const float kCentsPerRange = 1200 / kNumberOfOctaveBands;
 
 PeriodicWave* PeriodicWave::Create(BaseAudioContext& context,
                                    const Vector<float>& real,
@@ -97,8 +89,8 @@ PeriodicWave* PeriodicWave::Create(BaseAudioContext& context,
 
   PeriodicWave* periodic_wave =
       MakeGarbageCollected<PeriodicWave>(context.sampleRate());
-  periodic_wave->impl()->CreateBandLimitedTables(
-      real.data(), imag.data(), real.size(), disable_normalization);
+  periodic_wave->CreateBandLimitedTables(real.data(), imag.data(), real.size(),
+                                         disable_normalization);
   return periodic_wave;
 }
 
@@ -112,17 +104,16 @@ PeriodicWave* PeriodicWave::Create(BaseAudioContext* context,
 
   if (options->hasReal()) {
     real_coef = options->real();
-    if (options->hasImag()) {
+    if (options->hasImag())
       imag_coef = options->imag();
-    } else {
+    else
       imag_coef.resize(real_coef.size());
-    }
   } else if (options->hasImag()) {
-    // `real()` not given, but we have `imag()`.
+    // |real| not given, but we have |imag|.
     imag_coef = options->imag();
     real_coef.resize(imag_coef.size());
   } else {
-    // Neither `real()` nor `imag()` given.  Return an object that would
+    // Neither |real| nor |imag| given.  Return an object that would
     // generate a sine wave, which means real = [0,0], and imag = [0, 1]
     real_coef.resize(2);
     imag_coef.resize(2);
@@ -134,39 +125,32 @@ PeriodicWave* PeriodicWave::Create(BaseAudioContext* context,
 
 PeriodicWave* PeriodicWave::CreateSine(float sample_rate) {
   PeriodicWave* periodic_wave = MakeGarbageCollected<PeriodicWave>(sample_rate);
-  periodic_wave->impl()->GenerateBasicWaveform(OscillatorHandler::SINE);
+  periodic_wave->GenerateBasicWaveform(OscillatorHandler::SINE);
   return periodic_wave;
 }
 
 PeriodicWave* PeriodicWave::CreateSquare(float sample_rate) {
   PeriodicWave* periodic_wave = MakeGarbageCollected<PeriodicWave>(sample_rate);
-  periodic_wave->impl()->GenerateBasicWaveform(OscillatorHandler::SQUARE);
+  periodic_wave->GenerateBasicWaveform(OscillatorHandler::SQUARE);
   return periodic_wave;
 }
 
 PeriodicWave* PeriodicWave::CreateSawtooth(float sample_rate) {
   PeriodicWave* periodic_wave = MakeGarbageCollected<PeriodicWave>(sample_rate);
-  periodic_wave->impl()->GenerateBasicWaveform(OscillatorHandler::SAWTOOTH);
+  periodic_wave->GenerateBasicWaveform(OscillatorHandler::SAWTOOTH);
   return periodic_wave;
 }
 
 PeriodicWave* PeriodicWave::CreateTriangle(float sample_rate) {
   PeriodicWave* periodic_wave = MakeGarbageCollected<PeriodicWave>(sample_rate);
-  periodic_wave->impl()->GenerateBasicWaveform(OscillatorHandler::TRIANGLE);
+  periodic_wave->GenerateBasicWaveform(OscillatorHandler::TRIANGLE);
   return periodic_wave;
 }
 
 PeriodicWave::PeriodicWave(float sample_rate)
-    : periodic_wave_impl_(MakeGarbageCollected<PeriodicWaveImpl>(sample_rate)) {
-}
-
-void PeriodicWave::Trace(Visitor* visitor) const {
-  visitor->Trace(periodic_wave_impl_);
-  ScriptWrappable::Trace(visitor);
-}
-
-PeriodicWaveImpl::PeriodicWaveImpl(float sample_rate)
-    : sample_rate_(sample_rate), cents_per_range_(kCentsPerRange) {
+    : v8_external_memory_(0),
+      sample_rate_(sample_rate),
+      cents_per_range_(kCentsPerRange) {
   float nyquist = 0.5 * sample_rate_;
   lowest_fundamental_frequency_ = nyquist / MaxNumberOfPartials();
   rate_scale_ = PeriodicWaveSize() / sample_rate_;
@@ -175,11 +159,11 @@ PeriodicWaveImpl::PeriodicWaveImpl(float sample_rate)
   number_of_ranges_ = 0.5 + kNumberOfOctaveBands * log2f(PeriodicWaveSize());
 }
 
-PeriodicWaveImpl::~PeriodicWaveImpl() {
+PeriodicWave::~PeriodicWave() {
   AdjustV8ExternalMemory(-static_cast<int64_t>(v8_external_memory_));
 }
 
-unsigned PeriodicWaveImpl::PeriodicWaveSize() const {
+unsigned PeriodicWave::PeriodicWaveSize() const {
   // Choose an appropriate wave size for the given sample rate.  This allows us
   // to use shorter FFTs when possible to limit the complexity.  The breakpoints
   // here are somewhat arbitrary, but we want sample rates around 44.1 kHz or so
@@ -195,11 +179,11 @@ unsigned PeriodicWaveImpl::PeriodicWaveSize() const {
   return kMaxPeriodicWaveSize;
 }
 
-unsigned PeriodicWaveImpl::MaxNumberOfPartials() const {
+unsigned PeriodicWave::MaxNumberOfPartials() const {
   return PeriodicWaveSize() / 2;
 }
 
-void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
+void PeriodicWave::WaveDataForFundamentalFrequency(
     float fundamental_frequency,
     float*& lower_wave_data,
     float*& higher_wave_data,
@@ -237,7 +221,7 @@ void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
 }
 
 #if defined(ARCH_CPU_X86_FAMILY)
-void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
+void PeriodicWave::WaveDataForFundamentalFrequency(
     const float fundamental_frequency[4],
     float* lower_wave_data[4],
     float* higher_wave_data[4],
@@ -308,7 +292,7 @@ void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
   }
 }
 #elif defined(CPU_ARM_NEON)
-void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
+void PeriodicWave::WaveDataForFundamentalFrequency(
     const float fundamental_frequency[4],
     float* lower_wave_data[4],
     float* higher_wave_data[4],
@@ -366,7 +350,7 @@ void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
   }
 }
 #else
-void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
+void PeriodicWave::WaveDataForFundamentalFrequency(
     const float fundamental_frequency[4],
     float* lower_wave_data[4],
     float* higher_wave_data[4],
@@ -379,8 +363,7 @@ void PeriodicWaveImpl::WaveDataForFundamentalFrequency(
 }
 #endif
 
-unsigned PeriodicWaveImpl::NumberOfPartialsForRange(
-    unsigned range_index) const {
+unsigned PeriodicWave::NumberOfPartialsForRange(unsigned range_index) const {
   // Number of cents below nyquist where we cull partials.
   float cents_to_cull = range_index * cents_per_range_;
 
@@ -395,7 +378,7 @@ unsigned PeriodicWaveImpl::NumberOfPartialsForRange(
 
 // Tell V8 about the memory we're using so it can properly schedule garbage
 // collects.
-void PeriodicWaveImpl::AdjustV8ExternalMemory(int64_t delta) {
+void PeriodicWave::AdjustV8ExternalMemory(int64_t delta) {
   v8::Isolate::GetCurrent()->AdjustAmountOfExternalAllocatedMemory(delta);
   v8_external_memory_ += delta;
 }
@@ -403,10 +386,10 @@ void PeriodicWaveImpl::AdjustV8ExternalMemory(int64_t delta) {
 // Convert into time-domain wave buffers.  One table is created for each range
 // for non-aliasing playback at different playback rates.  Thus, higher ranges
 // have more high-frequency partials culled out.
-void PeriodicWaveImpl::CreateBandLimitedTables(const float* real_data,
-                                               const float* imag_data,
-                                               unsigned number_of_components,
-                                               bool disable_normalization) {
+void PeriodicWave::CreateBandLimitedTables(const float* real_data,
+                                           const float* imag_data,
+                                           unsigned number_of_components,
+                                           bool disable_normalization) {
   // TODO(rtoy): Figure out why this needs to be 0.5 when normalization is
   // disabled.
   float normalization_scale = 0.5;
@@ -417,7 +400,7 @@ void PeriodicWaveImpl::CreateBandLimitedTables(const float* real_data,
 
   number_of_components = std::min(number_of_components, half_size);
 
-  band_limited_tables_.reserve(NumberOfRanges());
+  band_limited_tables_.ReserveCapacity(NumberOfRanges());
 
   FFTFrame frame(fft_size);
   for (unsigned range_index = 0; range_index < NumberOfRanges();
@@ -472,9 +455,8 @@ void PeriodicWaveImpl::CreateBandLimitedTables(const float* real_data,
         float max_value;
         vector_math::Vmaxmgv(data, 1, &max_value, fft_size);
 
-        if (max_value) {
+        if (max_value)
           normalization_scale = 1.0f / max_value;
-        }
       }
     }
 
@@ -483,7 +465,7 @@ void PeriodicWaveImpl::CreateBandLimitedTables(const float* real_data,
   }
 }
 
-void PeriodicWaveImpl::GenerateBasicWaveform(int shape) {
+void PeriodicWave::GenerateBasicWaveform(int shape) {
   unsigned fft_size = PeriodicWaveSize();
   unsigned half_size = fft_size / 2;
 

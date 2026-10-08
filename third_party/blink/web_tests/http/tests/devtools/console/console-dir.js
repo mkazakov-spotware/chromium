@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that console logging dumps proper messages.\n`);
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
 
   await TestRunner.evaluateInPagePromise(`
@@ -38,7 +38,7 @@
 
     // Test big typed array: should be no crash or timeout.
     var bigTypedArray = new Uint8Array(new ArrayBuffer(400 * 1000 * 1000));
-    bigTypedArray.PASS = "Non-element properties should be displayed.";
+    bigTypedArray["FAIL"] = "FAIL: Object.getOwnPropertyNames() should not have been run";
     console.dir(bigTypedArray);
 
     // document.createEvent("Event") has a special property "isTrusted" flagged "LegacyUnforgeable".

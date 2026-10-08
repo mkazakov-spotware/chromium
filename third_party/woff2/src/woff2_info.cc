@@ -29,16 +29,18 @@ std::string PrintTag(int tag) {
 }
 
 int main(int argc, char **argv) {
+  using std::string;
+
   if (argc != 2) {
     fprintf(stderr, "One argument, the input filename, must be provided.\n");
     return 1;
   }
 
-  std::string filename(argv[1]);
-  std::string outfilename = filename.substr(0, filename.find_last_of(".")) + ".woff2";
+  string filename(argv[1]);
+  string outfilename = filename.substr(0, filename.find_last_of(".")) + ".woff2";
   fprintf(stdout, "Processing %s => %s\n",
     filename.c_str(), outfilename.c_str());
-  std::string input = woff2::GetFileContent(filename);
+  string input = woff2::GetFileContent(filename);
 
   woff2::Buffer file(reinterpret_cast<const uint8_t*>(input.data()),
     input.size());

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,8 +9,7 @@
 
 #include <shlobj.h>
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "chrome/installer/util/util_constants.h"
 
 namespace base {
@@ -43,7 +42,7 @@ DeleteResult DeleteChromeDirectoriesIfEmpty(
 // suffix for default browser entry name in the registry (optional).
 bool DeleteChromeRegistrationKeys(const InstallerState& installer_state,
                                   HKEY root,
-                                  const std::wstring& browser_entry_suffix,
+                                  const base::string16& browser_entry_suffix,
                                   InstallStatus* exit_code);
 
 // Removes any legacy registry keys from earlier versions of Chrome that are no

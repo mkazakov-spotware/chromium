@@ -1,16 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/js_injection/renderer/js_binding.h"
 
-#include <string>
 #include <vector>
 
-#include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
-#include "components/js_injection/common/interfaces.mojom-forward.h"
 #include "components/js_injection/renderer/js_communication.h"
 #include "content/public/renderer/render_frame.h"
 #include "gin/data_object_builder.h"
@@ -37,10 +33,10 @@ namespace js_injection {
 gin::WrapperInfo JsBinding::kWrapperInfo = {gin::kEmbedderNativeGin};
 
 // static
-base::WeakPtr<JsBinding> JsBinding::Install(
+std::unique_ptr<JsBinding> JsBinding::Install(
     content::RenderFrame* render_frame,
-    const std::u16string& js_object_name,
-    base::WeakPtr<JsCommunication> js_communication) {
+    const base::string16& js_object_name,
+    JsCommunication* js_java_configurator) {
   CHECK(!js_object_name.empty())
       << "JavaScript wrapper name shouldn't be empty";
 
@@ -52,15 +48,12 @@ base::WeakPtr<JsBinding> JsBinding::Install(
     return nullptr;
 
   v8::Context::Scope context_scope(context);
-  // The call to CreateHandle() takes ownership of `js_binding` (but only on
-  // success).
-  JsBinding* js_binding =
-      new JsBinding(render_frame, js_object_name, js_communication);
-  gin::Handle<JsBinding> bindings = gin::CreateHandle(isolate, js_binding);
-  if (bindings.IsEmpty()) {
-    delete js_binding;
+  std::unique_ptr<JsBinding> js_binding(
+      new JsBinding(render_frame, js_object_name, js_java_configurator));
+  gin::Handle<JsBinding> bindings =
+      gin::CreateHandle(isolate, js_binding.get());
+  if (bindings.IsEmpty())
     return nullptr;
-  }
 
   v8::Local<v8::Object> global = context->Global();
   global
@@ -69,17 +62,17 @@ base::WeakPtr<JsBinding> JsBinding::Install(
                            bindings.ToV8())
       .Check();
 
-  return js_binding->weak_ptr_factory_.GetWeakPtr();
+  return js_binding;
 }
 
 JsBinding::JsBinding(content::RenderFrame* render_frame,
-                     const std::u16string& js_object_name,
-                     base::WeakPtr<JsCommunication> js_communication)
+                     const base::string16& js_object_name,
+                     JsCommunication* js_java_configurator)
     : render_frame_(render_frame),
       js_object_name_(js_object_name),
-      js_communication_(js_communication) {
+      js_java_configurator_(js_java_configurator) {
   mojom::JsToBrowserMessaging* js_to_java_messaging =
-      js_communication_->GetJsToJavaMessage(js_object_name_);
+      js_java_configurator_->GetJsToJavaMessage(js_object_name_);
   if (js_to_java_messaging) {
     js_to_java_messaging->SetBrowserToJsMessaging(
         receiver_.BindNewEndpointAndPassRemote());
@@ -88,11 +81,7 @@ JsBinding::JsBinding(content::RenderFrame* render_frame,
 
 JsBinding::~JsBinding() = default;
 
-void JsBinding::OnPostMessage(mojom::JsWebMessagePtr message) {
-  // If `js_communication_` is null, this object will soon be destroyed.
-  if (!js_communication_)
-    return;
-
+void JsBinding::OnPostMessage(const base::string16& message) {
   v8::Isolate* isolate = blink::MainThreadIsolate();
   v8::HandleScope handle_scope(isolate);
 
@@ -113,29 +102,19 @@ void JsBinding::OnPostMessage(mojom::JsWebMessagePtr message) {
   // Simulate MessageEvent's data property. See
   // https://html.spec.whatwg.org/multipage/comms.html#messageevent
   v8::Local<v8::Object> event =
-      gin::DataObjectBuilder(isolate)
-          .Set("data", std::move(message->get_string_value()))
-          .Build();
+      gin::DataObjectBuilder(isolate).Set("data", message).Build();
   v8::Local<v8::Value> argv[] = {event};
 
   v8::Local<v8::Object> self = GetWrapper(isolate).ToLocalChecked();
   v8::Local<v8::Function> on_message = GetOnMessage(isolate);
   if (!on_message.IsEmpty()) {
-    web_frame->RequestExecuteV8Function(context, on_message, self, 1, argv, {});
+    web_frame->RequestExecuteV8Function(context, on_message, self, 1, argv,
+                                        nullptr);
   }
 
-  // Copy the listeners so that if the listener modifies the list in some way
-  // there isn't a UAF.
-  std::vector<v8::Local<v8::Function>> listeners_copy;
-  listeners_copy.reserve(listeners_.size());
   for (const auto& listener : listeners_) {
-    listeners_copy.push_back(listener.Get(isolate));
-  }
-  for (const auto& listener : listeners_copy) {
-    // Ensure the listener is still registered.
-    if (base::Contains(listeners_, listener)) {
-      web_frame->RequestExecuteV8Function(context, listener, self, 1, argv, {});
-    }
+    web_frame->RequestExecuteV8Function(context, listener.Get(isolate), self, 1,
+                                        argv, nullptr);
   }
 }
 
@@ -155,7 +134,7 @@ gin::ObjectTemplateBuilder JsBinding::GetObjectTemplateBuilder(
 }
 
 void JsBinding::PostMessage(gin::Arguments* args) {
-  std::u16string message;
+  base::string16 message;
   if (!args->GetNext(&message)) {
     args->ThrowError();
     return;
@@ -171,7 +150,7 @@ void JsBinding::PostMessage(gin::Arguments* args) {
   }
 
   for (auto& obj : objs) {
-    absl::optional<blink::MessagePortChannel> port =
+    base::Optional<blink::MessagePortChannel> port =
         blink::WebMessagePortConverter::DisentangleAndExtractMessagePortChannel(
             args->isolate(), obj);
     // If the port is null we should throw an exception.
@@ -183,12 +162,10 @@ void JsBinding::PostMessage(gin::Arguments* args) {
   }
 
   mojom::JsToBrowserMessaging* js_to_java_messaging =
-      js_communication_ ? js_communication_->GetJsToJavaMessage(js_object_name_)
-                        : nullptr;
+      js_java_configurator_->GetJsToJavaMessage(js_object_name_);
   if (js_to_java_messaging) {
     js_to_java_messaging->PostMessage(
-        mojom::JsWebMessage::NewStringValue(std::move(message)),
-        blink::MessagePortChannel::ReleaseHandles(ports));
+        message, blink::MessagePortChannel::ReleaseHandles(ports));
   }
 }
 
@@ -248,7 +225,7 @@ void JsBinding::RemoveEventListener(gin::Arguments* args) {
     return;
   }
 
-  auto iter = base::ranges::find(listeners_, listener);
+  auto iter = std::find(listeners_.begin(), listeners_.end(), listener);
   if (iter == listeners_.end())
     return;
 

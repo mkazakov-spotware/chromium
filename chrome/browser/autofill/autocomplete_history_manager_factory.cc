@@ -1,14 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/autofill/autocomplete_history_manager_factory.h"
 
 #include "base/memory/singleton.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_data_service_factory.h"
 #include "components/autofill/core/browser/autocomplete_history_manager.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 namespace autofill {
 
@@ -26,9 +28,9 @@ AutocompleteHistoryManagerFactory::GetInstance() {
 }
 
 AutocompleteHistoryManagerFactory::AutocompleteHistoryManagerFactory()
-    : ProfileKeyedServiceFactory(
+    : BrowserContextKeyedServiceFactory(
           "AutocompleteHistoryManager",
-          ProfileSelections::BuildForRegularAndIncognito()) {
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(WebDataServiceFactory::GetInstance());
 }
 
@@ -45,6 +47,12 @@ KeyedService* AutocompleteHistoryManagerFactory::BuildServiceInstanceFor(
   service->Init(local_storage, profile->GetPrefs(), profile->IsOffTheRecord());
 
   return service;
+}
+
+content::BrowserContext*
+AutocompleteHistoryManagerFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
 }
 
 }  // namespace autofill

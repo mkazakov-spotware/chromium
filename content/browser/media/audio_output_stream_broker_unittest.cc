@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sync_socket.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
@@ -25,7 +25,6 @@
 #include "services/audio/public/cpp/fake_stream_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/utility/utility.h"
 
 using ::testing::Test;
 using ::testing::Mock;
@@ -53,12 +52,6 @@ class MockAudioOutputStreamProviderClient
     : public media::mojom::AudioOutputStreamProviderClient {
  public:
   MockAudioOutputStreamProviderClient() = default;
-
-  MockAudioOutputStreamProviderClient(
-      const MockAudioOutputStreamProviderClient&) = delete;
-  MockAudioOutputStreamProviderClient& operator=(
-      const MockAudioOutputStreamProviderClient&) = delete;
-
   ~MockAudioOutputStreamProviderClient() override {}
 
   void Created(mojo::PendingRemote<media::mojom::AudioOutputStream>,
@@ -85,16 +78,13 @@ class MockAudioOutputStreamProviderClient
 
  private:
   mojo::Receiver<media::mojom::AudioOutputStreamProviderClient> receiver_{this};
+  DISALLOW_COPY_AND_ASSIGN(MockAudioOutputStreamProviderClient);
 };
 
-class MockStreamFactory final : public audio::FakeStreamFactory {
+class MockStreamFactory : public audio::FakeStreamFactory {
  public:
-  MockStreamFactory() = default;
-
-  MockStreamFactory(const MockStreamFactory&) = delete;
-  MockStreamFactory& operator=(const MockStreamFactory&) = delete;
-
-  ~MockStreamFactory() override = default;
+  MockStreamFactory() {}
+  ~MockStreamFactory() final {}
 
   // State of an expected stream creation. |output_device_id|, |params|,
   // and |groups_id| are set ahead of time and verified during request.
@@ -144,7 +134,8 @@ class MockStreamFactory final : public audio::FakeStreamFactory {
     stream_request_data_->created_callback = std::move(created_callback);
   }
 
-  raw_ptr<StreamRequestData> stream_request_data_;
+  StreamRequestData* stream_request_data_;
+  DISALLOW_COPY_AND_ASSIGN(MockStreamFactory);
 };
 
 // This struct collects test state we need without doing anything fancy.
@@ -169,7 +160,7 @@ struct TestEnvironment {
   StrictMock<MockAudioOutputStreamProviderClient> provider_client;
   std::unique_ptr<AudioOutputStreamBroker> broker;
   MockStreamFactory stream_factory;
-  mojo::Remote<media::mojom::AudioStreamFactory> factory_ptr{
+  mojo::Remote<audio::mojom::StreamFactory> factory_ptr{
       stream_factory.MakeRemote()};
 };
 
@@ -213,7 +204,7 @@ TEST(AudioOutputStreamBrokerTest, StreamCreationSuccess_Propagates) {
   base::SyncSocket socket1, socket2;
   base::SyncSocket::CreatePair(&socket1, &socket2);
   std::move(stream_request_data.created_callback)
-      .Run({absl::in_place, base::UnsafeSharedMemoryRegion::Create(kShMemSize),
+      .Run({base::in_place, base::UnsafeSharedMemoryRegion::Create(kShMemSize),
             mojo::PlatformHandle(socket1.Take())});
 
   EXPECT_CALL(env.provider_client, OnCreated());

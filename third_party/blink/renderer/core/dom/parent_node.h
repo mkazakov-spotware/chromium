@@ -34,8 +34,7 @@
 #include "third_party/blink/renderer/core/dom/container_node.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
 #include "third_party/blink/renderer/core/html/html_collection.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -64,23 +63,21 @@ class ParentNode {
     return count;
   }
 
-  static void prepend(
-      Node& node,
-      const HeapVector<Member<V8UnionNodeOrStringOrTrustedScript>>& nodes,
-      ExceptionState& exception_state) {
+  static void prepend(Node& node,
+                      const HeapVector<NodeOrStringOrTrustedScript>& nodes,
+                      ExceptionState& exception_state) {
     return node.Prepend(nodes, exception_state);
   }
 
-  static void append(
-      Node& node,
-      const HeapVector<Member<V8UnionNodeOrStringOrTrustedScript>>& nodes,
-      ExceptionState& exception_state) {
+  static void append(Node& node,
+                     const HeapVector<NodeOrStringOrTrustedScript>& nodes,
+                     ExceptionState& exception_state) {
     return node.Append(nodes, exception_state);
   }
 
   static void replaceChildren(
       Node& node,
-      const HeapVector<Member<V8UnionNodeOrStringOrTrustedScript>>& nodes,
+      const HeapVector<NodeOrStringOrTrustedScript>& nodes,
       ExceptionState& exception_state) {
     return node.ReplaceChildren(nodes, exception_state);
   }

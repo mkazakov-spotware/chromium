@@ -1,2 +1,6 @@
-file://components/webxr/OWNERS
+alcooper@chromium.org
+bialpio@chromium.org
 tiborg@chromium.org
+
+# TEAM: xr-dev@chromium.org
+# COMPONENT: UI>Browser>VR

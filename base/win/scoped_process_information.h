@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/win/scoped_handle.h"
 
 namespace base {
@@ -19,10 +20,6 @@ class BASE_EXPORT ScopedProcessInformation {
  public:
   ScopedProcessInformation();
   explicit ScopedProcessInformation(const PROCESS_INFORMATION& process_info);
-
-  ScopedProcessInformation(const ScopedProcessInformation&) = delete;
-  ScopedProcessInformation& operator=(const ScopedProcessInformation&) = delete;
-
   ~ScopedProcessInformation();
 
   // Returns true iff this instance is holding a thread and/or process handle.
@@ -52,10 +49,10 @@ class BASE_EXPORT ScopedProcessInformation {
   HANDLE TakeThreadHandle();
 
   // Returns the held process handle, if any, while retaining ownership.
-  HANDLE process_handle() const { return process_handle_.get(); }
+  HANDLE process_handle() const { return process_handle_.Get(); }
 
   // Returns the held thread handle, if any, while retaining ownership.
-  HANDLE thread_handle() const { return thread_handle_.get(); }
+  HANDLE thread_handle() const { return thread_handle_.Get(); }
 
   // Returns the held process id, if any.
   DWORD process_id() const { return process_id_; }
@@ -68,6 +65,8 @@ class BASE_EXPORT ScopedProcessInformation {
   ScopedHandle thread_handle_;
   DWORD process_id_ = 0;
   DWORD thread_id_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedProcessInformation);
 };
 
 }  // namespace win

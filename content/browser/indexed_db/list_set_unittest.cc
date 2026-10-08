@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/memory/ref_counted.h"
-#include "base/memory/scoped_refptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace content {
@@ -112,41 +111,39 @@ TEST(ListSetTest, ListSetPrimitive) {
   }
 }
 
-namespace {
-
-class WrappedInt {
+template <typename T>
+class Wrapped {
  public:
-  explicit WrappedInt(int value) : value_(value) {}
-
-  WrappedInt(const WrappedInt&) = default;
-  WrappedInt& operator=(const WrappedInt&) = default;
-
+  explicit Wrapped(const T& value) : value_(value) {}
+  explicit Wrapped(const Wrapped<T>& other) : value_(other.value_) {}
+  Wrapped& operator=(const Wrapped<T>& rhs) {
+    value_ = rhs.value_;
+    return *this;
+  }
   int value() const { return value_; }
-  bool operator<(const WrappedInt& rhs) const { return value_ < rhs.value_; }
-  bool operator==(const WrappedInt& rhs) const { return value_ == rhs.value_; }
+  bool operator<(const Wrapped<T>& rhs) const { return value_ < rhs.value_; }
+  bool operator==(const Wrapped<T>& rhs) const { return value_ == rhs.value_; }
 
  private:
-  int value_;
+  T value_;
 };
 
-}  // namespace
-
 TEST(ListSetTest, ListSetObject) {
-  list_set<WrappedInt> set;
+  list_set<Wrapped<int> > set;
   EXPECT_EQ(0u, set.size());
   {
-    list_set<WrappedInt>::iterator it = set.begin();
+    list_set<Wrapped<int> >::iterator it = set.begin();
     EXPECT_EQ(set.end(), it);
   }
 
-  set.insert(WrappedInt(0));
-  set.insert(WrappedInt(1));
-  set.insert(WrappedInt(2));
+  set.insert(Wrapped<int>(0));
+  set.insert(Wrapped<int>(1));
+  set.insert(Wrapped<int>(2));
 
   EXPECT_EQ(3u, set.size());
 
   {
-    list_set<WrappedInt>::iterator it = set.begin();
+    list_set<Wrapped<int> >::iterator it = set.begin();
     EXPECT_EQ(0, it->value());
     ++it;
     EXPECT_EQ(1, it->value());
@@ -156,26 +153,26 @@ TEST(ListSetTest, ListSetObject) {
     EXPECT_EQ(set.end(), it);
   }
 
-  set.erase(WrappedInt(0));
-  set.erase(WrappedInt(1));
-  set.erase(WrappedInt(2));
+  set.erase(Wrapped<int>(0));
+  set.erase(Wrapped<int>(1));
+  set.erase(Wrapped<int>(2));
 
   EXPECT_EQ(0u, set.size());
   {
-    list_set<WrappedInt>::iterator it = set.begin();
+    list_set<Wrapped<int> >::iterator it = set.begin();
     EXPECT_EQ(set.end(), it);
   }
 }
 
 TEST(ListSetTest, ListSetPointer) {
-  std::unique_ptr<WrappedInt> w0 = std::make_unique<WrappedInt>(0);
-  std::unique_ptr<WrappedInt> w1 = std::make_unique<WrappedInt>(1);
-  std::unique_ptr<WrappedInt> w2 = std::make_unique<WrappedInt>(2);
+  std::unique_ptr<Wrapped<int>> w0 = std::make_unique<Wrapped<int>>(0);
+  std::unique_ptr<Wrapped<int>> w1 = std::make_unique<Wrapped<int>>(1);
+  std::unique_ptr<Wrapped<int>> w2 = std::make_unique<Wrapped<int>>(2);
 
-  list_set<WrappedInt*> set;
+  list_set<Wrapped<int>*> set;
   EXPECT_EQ(0u, set.size());
   {
-    list_set<WrappedInt*>::iterator it = set.begin();
+    list_set<Wrapped<int>*>::iterator it = set.begin();
     EXPECT_EQ(set.end(), it);
   }
 
@@ -186,7 +183,7 @@ TEST(ListSetTest, ListSetPointer) {
   EXPECT_EQ(3u, set.size());
 
   {
-    list_set<WrappedInt*>::iterator it = set.begin();
+    list_set<Wrapped<int>*>::iterator it = set.begin();
     EXPECT_EQ(0, (*it)->value());
     ++it;
     EXPECT_EQ(1, (*it)->value());
@@ -202,39 +199,34 @@ TEST(ListSetTest, ListSetPointer) {
 
   EXPECT_EQ(0u, set.size());
   {
-    list_set<WrappedInt*>::iterator it = set.begin();
+    list_set<Wrapped<int>*>::iterator it = set.begin();
     EXPECT_EQ(set.end(), it);
   }
 }
 
-namespace {
-
-class RefCountedInt : public base::RefCounted<RefCountedInt> {
+template <typename T>
+class RefCounted : public base::RefCounted<RefCounted<T> > {
  public:
-  explicit RefCountedInt(int value) : value_(value) {}
-  int value() { return value_; }
+  explicit RefCounted(const T& value) : value_(value) {}
+  T value() { return value_; }
 
  private:
-  friend class base::RefCounted<RefCountedInt>;
-
-  ~RefCountedInt() = default;
-
-  int value_;
+  virtual ~RefCounted() {}
+  friend class base::RefCounted<RefCounted<T> >;
+  T value_;
 };
 
-}  // namespace
-
 TEST(ListSetTest, ListSetRefCounted) {
-  list_set<scoped_refptr<RefCountedInt>> set;
+  list_set<scoped_refptr<RefCounted<int> > > set;
   EXPECT_EQ(0u, set.size());
   {
-    list_set<scoped_refptr<RefCountedInt>>::iterator it = set.begin();
+    list_set<scoped_refptr<RefCounted<int> > >::iterator it = set.begin();
     EXPECT_EQ(set.end(), it);
   }
 
-  auto r0 = base::MakeRefCounted<RefCountedInt>(0);
-  auto r1 = base::MakeRefCounted<RefCountedInt>(1);
-  auto r2 = base::MakeRefCounted<RefCountedInt>(2);
+  scoped_refptr<RefCounted<int> > r0(new RefCounted<int>(0));
+  scoped_refptr<RefCounted<int> > r1(new RefCounted<int>(1));
+  scoped_refptr<RefCounted<int> > r2(new RefCounted<int>(2));
 
   set.insert(r0);
   set.insert(r1);
@@ -243,7 +235,7 @@ TEST(ListSetTest, ListSetRefCounted) {
   EXPECT_EQ(3u, set.size());
 
   {
-    list_set<scoped_refptr<RefCountedInt>>::iterator it = set.begin();
+    list_set<scoped_refptr<RefCounted<int> > >::iterator it = set.begin();
     EXPECT_EQ(0, (*it)->value());
     ++it;
     EXPECT_EQ(1, (*it)->value());
@@ -259,7 +251,7 @@ TEST(ListSetTest, ListSetRefCounted) {
 
   EXPECT_EQ(0u, set.size());
   {
-    list_set<scoped_refptr<RefCountedInt>>::iterator it = set.begin();
+    list_set<scoped_refptr<RefCounted<int> > >::iterator it = set.begin();
     EXPECT_EQ(set.end(), it);
   }
 }

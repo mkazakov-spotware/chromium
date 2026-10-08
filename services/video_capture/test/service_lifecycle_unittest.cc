@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,12 +33,6 @@ using testing::InvokeWithoutArgs;
 class VideoCaptureServiceLifecycleTest : public ::testing::Test {
  public:
   VideoCaptureServiceLifecycleTest() = default;
-
-  VideoCaptureServiceLifecycleTest(const VideoCaptureServiceLifecycleTest&) =
-      delete;
-  VideoCaptureServiceLifecycleTest& operator=(
-      const VideoCaptureServiceLifecycleTest&) = delete;
-
   ~VideoCaptureServiceLifecycleTest() override = default;
 
   void SetUp() override {
@@ -63,6 +57,8 @@ class VideoCaptureServiceLifecycleTest : public ::testing::Test {
 
  private:
   void OnServiceIdle() { service_idle_wait_loop_.Quit(); }
+
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureServiceLifecycleTest);
 };
 
 // Tests that the service quits when the only client disconnects after not
@@ -172,8 +168,8 @@ TEST_F(VideoCaptureServiceLifecycleTest,
   factory->CreateDevice(
       std::move(fake_device_info.descriptor.device_id),
       fake_device.BindNewPipeAndPassReceiver(),
-      base::BindOnce([](media::VideoCaptureError result_code) {
-        ASSERT_EQ(media::VideoCaptureError::kNone, result_code);
+      base::BindOnce([](mojom::DeviceAccessResultCode result_code) {
+        ASSERT_EQ(mojom::DeviceAccessResultCode::SUCCESS, result_code);
       }));
   media::VideoCaptureParams requestable_settings;
   requestable_settings.requested_format = fake_device_info.supported_formats[0];

@@ -1,17 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/common/switches.h"
 
-#include <algorithm>
-#include <string>
-
 #include "base/command_line.h"
-#include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/viz/common/constants.h"
 
 namespace switches {
@@ -41,7 +35,14 @@ const char kEnableDeJelly[] = "enable-de-jelly";
 // fullscreen overlay and use it as main framebuffer where possible.
 const char kEnableHardwareOverlays[] = "enable-hardware-overlays";
 
-#if BUILDFLAG(IS_CHROMEOS)
+// Enables inspecting Viz Display Compositor objects. Default port is 9229.
+// For local inspection use chrome://inspect#other
+const char kEnableVizDevTools[] = "enable-viz-devtools";
+
+// Enables hit-test debug logging.
+const char kEnableVizHitTestDebug[] = "enable-viz-hit-test-debug";
+
+#if BUILDFLAG(IS_ASH)
 // ChromeOS uses one of two VideoDecoder implementations based on SoC/board
 // specific configurations that are signalled via this command line flag.
 // TODO(b/159825227): remove when the "old" video decoder is fully launched.
@@ -60,22 +61,15 @@ const char kRunAllCompositorStagesBeforeDraw[] =
 // real damage rect, which could hide damage rect problems.
 const char kShowAggregatedDamage[] = "show-aggregated-damage";
 
-// Modulates the debug compositor tint color so that damage and page flip
-// updates are made clearly visible. This feature was useful in determining the
-// root cause of https://b.corp.google.com/issues/183260320 . The tinting flag
-// "tint-composited-content" must also be enabled for this flag to used.
-const char kTintCompositedContentModulate[] =
-    "tint-composited-content-modulate";
-
 // Show debug borders for DC layers - red for overlays and blue for underlays.
 // The debug borders are offset from the layer rect by a few pixels for clarity.
 const char kShowDCLayerDebugBorders[] = "show-dc-layer-debug-borders";
 
-absl::optional<uint32_t> GetDeadlineToSynchronizeSurfaces() {
+base::Optional<uint32_t> GetDeadlineToSynchronizeSurfaces() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kRunAllCompositorStagesBeforeDraw)) {
     // In full-pipeline mode, surface deadlines should always be unlimited.
-    return absl::nullopt;
+    return base::nullopt;
   }
   std::string deadline_to_synchronize_surfaces_string =
       command_line->GetSwitchValueASCII(
@@ -86,7 +80,7 @@ absl::optional<uint32_t> GetDeadlineToSynchronizeSurfaces() {
   uint32_t activation_deadline_in_frames;
   if (!base::StringToUint(deadline_to_synchronize_surfaces_string,
                           &activation_deadline_in_frames)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   return activation_deadline_in_frames;
 }

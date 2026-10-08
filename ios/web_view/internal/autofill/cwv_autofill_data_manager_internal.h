@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@ class PersonalDataManager;
 }  // namespace autofill;
 
 namespace password_manager {
-class PasswordStoreInterface;
+class PasswordStore;
 }  // password_manager
 
 NS_ASSUME_NONNULL_BEGIN
@@ -24,13 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
 // It should outlive this instance.
 - (instancetype)initWithPersonalDataManager:
                     (autofill::PersonalDataManager*)personalDataManager
-                              passwordStore:
-                                  (password_manager::PasswordStoreInterface*)
-                                      passwordStore NS_DESIGNATED_INITIALIZER;
-
-// This is called by the associated CWVWebViewConfiguration in order to shut
-// down cleanly. See `-[CWVWebViewConfiguration shutDown]` method for more info.
-- (void)shutDown;
+                              passwordStore:(password_manager::PasswordStore*)
+                                                passwordStore
+    NS_DESIGNATED_INITIALIZER;
 
 @end
 

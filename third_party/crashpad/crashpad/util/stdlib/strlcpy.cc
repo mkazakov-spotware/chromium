@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,19 +14,42 @@
 
 #include "util/stdlib/strlcpy.h"
 
-#include <string>
+#include "base/check.h"
+#include "build/build_config.h"
+
+#if defined(OS_WIN) && defined(WCHAR_T_IS_UTF16)
+#include <strsafe.h>
+#endif
 
 namespace crashpad {
 
-size_t c16lcpy(char16_t* destination, const char16_t* source, size_t length) {
-  size_t source_length = std::char_traits<char16_t>::length(source);
+#if defined(OS_WIN) && defined(WCHAR_T_IS_UTF16)
+
+size_t c16lcpy(base::char16* destination,
+               const base::char16* source,
+               size_t length) {
+  const wchar_t* wsource = reinterpret_cast<const wchar_t*>(source);
+  HRESULT result =
+      StringCchCopyW(reinterpret_cast<wchar_t*>(destination), length, wsource);
+  CHECK(result == S_OK || result == STRSAFE_E_INSUFFICIENT_BUFFER);
+  return wcslen(wsource);
+}
+
+#elif defined(WCHAR_T_IS_UTF32)
+
+size_t c16lcpy(base::char16* destination,
+               const base::char16* source,
+               size_t length) {
+  size_t source_length = base::c16len(source);
   if (source_length < length) {
-    std::char_traits<char16_t>::copy(destination, source, source_length + 1);
+    base::c16memcpy(destination, source, source_length + 1);
   } else if (length != 0) {
-    std::char_traits<char16_t>::copy(destination, source, length - 1);
+    base::c16memcpy(destination, source, length - 1);
     destination[length - 1] = '\0';
   }
   return source_length;
 }
+
+#endif  // WCHAR_T_IS_UTF32
 
 }  // namespace crashpad

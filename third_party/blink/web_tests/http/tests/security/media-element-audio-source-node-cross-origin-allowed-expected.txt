@@ -1,4 +1,3 @@
-CONSOLE WARNING: The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)
 MediaElementAudioSourceNode with cross-origin source
 
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".

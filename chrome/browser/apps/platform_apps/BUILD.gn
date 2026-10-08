@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -50,14 +50,11 @@ source_set("platform_apps") {
   ]
 
   deps = [
-    "//build:chromeos_buildflags",
     "//chrome/app:command_ids",
-    "//chrome/browser:browser_process",
     "//chrome/browser/extensions",
     "//chrome/browser/media/router/discovery",
-    "//chrome/browser/profiles:profile",
     "//chrome/browser/sharing/proto:proto",
-    "//chrome/browser/web_applications",
+    "//chrome/browser/web_applications/components:components",
     "//chrome/browser/web_applications/extensions",
     "//chrome/common",
     "//components/crx_file",
@@ -65,8 +62,6 @@ source_set("platform_apps") {
     "//components/navigation_interception",
     "//components/no_state_prefetch/browser",
     "//components/pref_registry",
-    "//components/services/app_service/public/cpp:app_types",
-    "//components/services/app_service/public/mojom",
     "//content/public/browser",
     "//content/public/common",
     "//extensions/browser",

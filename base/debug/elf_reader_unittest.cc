@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 extern char __executable_start;
 
@@ -128,9 +127,8 @@ TEST_P(ElfReaderTest, ReadElfLibraryName) {
                            .AddSoName("mysoname")
                            .Build();
 
-  absl::optional<StringPiece> library_name =
-      ReadElfLibraryName(image.elf_start());
-  ASSERT_NE(absl::nullopt, library_name);
+  Optional<StringPiece> library_name = ReadElfLibraryName(image.elf_start());
+  ASSERT_NE(nullopt, library_name);
   EXPECT_EQ("mysoname", *library_name);
 }
 
@@ -139,9 +137,8 @@ TEST_P(ElfReaderTest, ReadElfLibraryNameNoSoName) {
                            .AddLoadSegment(PF_R | PF_X, /* size = */ 2000)
                            .Build();
 
-  absl::optional<StringPiece> library_name =
-      ReadElfLibraryName(image.elf_start());
-  EXPECT_EQ(absl::nullopt, library_name);
+  Optional<StringPiece> library_name = ReadElfLibraryName(image.elf_start());
+  EXPECT_EQ(nullopt, library_name);
 }
 
 TEST_P(ElfReaderTest, GetRelocationOffset) {
@@ -195,7 +192,7 @@ TEST(ElfReaderTestWithCurrentElfImage, ReadElfBuildId) {
 }
 
 TEST(ElfReaderTestWithCurrentImage, ReadElfBuildId) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // On Android the library loader memory maps the full so file.
   const char kLibraryName[] = "libbase_unittests__library";
   const void* addr = &__executable_start;
@@ -225,7 +222,7 @@ TEST(ElfReaderTestWithCurrentImage, ReadElfBuildId) {
       << "Library name " << *name << " doesn't contain expected "
       << kLibraryName;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   UnloadNativeLibrary(library);
 #endif
 }

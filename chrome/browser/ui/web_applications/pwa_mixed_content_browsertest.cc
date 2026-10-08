@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -32,9 +31,8 @@ constexpr const char kImagePath[] = "/ssl/google_files/logo.gif";
 // "REPLACE_WITH_HOST_AND_PORT" string replaced with |host_port_pair|.
 // The page at |original_path| should contain the string
 // "REPLACE_WITH_HOST_AND_PORT".
-std::string GetPathWithHostAndPortReplaced(
-    const std::string& original_path,
-    const net::HostPortPair& host_port_pair) {
+std::string GetPathWithHostAndPortReplaced(const std::string& original_path,
+                                           net::HostPortPair host_port_pair) {
   base::StringPairs replacement_text = {
       {"REPLACE_WITH_HOST_AND_PORT", host_port_pair.ToString()}};
   LOG(ERROR) << "host_port_pair.ToString() " << host_port_pair.ToString();
@@ -75,8 +73,6 @@ class PWAMixedContentBrowserTest : public WebAppControllerBrowserTest {
                                   "/ssl/page_displays_insecure_content.html");
   }
 
-  // This URL is on app.com, and the page contains a secure iframe that points
-  // to foo.com/simple.html.
   GURL GetSecureIFrameAppURL() {
     net::HostPortPair host_port_pair = net::HostPortPair::FromURL(
         https_server()->GetURL("foo.com", "/simple.html"));
@@ -143,7 +139,7 @@ IN_PROC_BROWSER_TEST_F(PWAMixedContentBrowserTestWithAutoupgradesDisabled,
                                          ->GetActiveWebContents()
                                          ->GetLastCommittedURL());
 
-  // The WebContents is just reparented, so mixed content is still loaded.
+  // The WebContents is just reparented, so mixed content is still not loaded.
   CheckMixedContentLoaded(browser());
   EXPECT_EQ(GetAppMenuCommandState(IDC_OPEN_IN_PWA_WINDOW, browser()),
             kEnabled);
@@ -226,10 +222,8 @@ IN_PROC_BROWSER_TEST_F(
       browser()->tab_strip_model()->GetActiveWebContents(), app_id);
   CheckMixedContentFailedToLoad(app_browser);
 
-  // Change the mixed content to be acceptable.
-  content::RenderFrameHost* main_frame = app_browser->tab_strip_model()
-                                             ->GetActiveWebContents()
-                                             ->GetPrimaryMainFrame();
+  content::RenderFrameHost* main_frame =
+      app_browser->tab_strip_model()->GetActiveWebContents()->GetMainFrame();
   content::RenderFrameHost* iframe = content::ChildFrameAt(main_frame, 0);
   EXPECT_TRUE(TryToLoadImage(
       iframe, embedded_test_server()->GetURL("foo.com", kImagePath)));
@@ -240,8 +234,7 @@ IN_PROC_BROWSER_TEST_F(
 // Tests that iframes can't dynamically load mixed content in a regular browser
 // tab, when the iframe was created in a PWA window.
 // https://crbug.com/1087382: Flaky on Windows, CrOS and ASAN
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS_ASH) || \
-    defined(ADDRESS_SANITIZER)
+#if defined(OS_WIN) || defined(OS_CHROMEOS) || defined(ADDRESS_SANITIZER)
 #define MAYBE_IFrameDynamicMixedContentInPWAOpenInChrome \
   DISABLED_IFrameDynamicMixedContentInPWAOpenInChrome
 #else
@@ -258,10 +251,8 @@ IN_PROC_BROWSER_TEST_F(PWAMixedContentBrowserTestWithAutoupgradesDisabled,
 
   chrome::OpenInChrome(app_browser);
 
-  content::RenderFrameHost* main_frame = browser()
-                                             ->tab_strip_model()
-                                             ->GetActiveWebContents()
-                                             ->GetPrimaryMainFrame();
+  content::RenderFrameHost* main_frame =
+      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame();
   content::RenderFrameHost* iframe = content::ChildFrameAt(main_frame, 0);
 
   EXPECT_TRUE(TryToLoadImage(

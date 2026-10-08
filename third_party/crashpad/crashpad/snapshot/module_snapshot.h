@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,9 +40,6 @@ class UserMinidumpStream {
   UserMinidumpStream(uint32_t stream_type, MemorySnapshot* memory)
       : memory_(memory), stream_type_(stream_type) {}
 
-  UserMinidumpStream(const UserMinidumpStream&) = delete;
-  UserMinidumpStream& operator=(const UserMinidumpStream&) = delete;
-
   const MemorySnapshot* memory() const { return memory_.get(); }
   uint32_t stream_type() const { return stream_type_; }
 
@@ -52,6 +49,8 @@ class UserMinidumpStream {
 
   //! \brief The stream type that the minidump stream will be tagged with.
   uint32_t stream_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserMinidumpStream);
 };
 
 //! \brief An abstract interface to a snapshot representing a code module

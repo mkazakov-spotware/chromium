@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.BuildInfo;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.annotations.CalledByNative;
@@ -37,8 +38,16 @@ public class ClickToCallMessageHandler {
      * @param phoneNumber The phone number to show in the dialer.
      */
     private static void openDialer(String phoneNumber) {
+        final Intent dialIntent;
+        if (!TextUtils.isEmpty(phoneNumber)) {
+            dialIntent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phoneNumber));
+        } else {
+            dialIntent = new Intent(Intent.ACTION_DIAL);
+        }
+        dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
         try {
-            ContextUtils.getApplicationContext().startActivity(getDialIntent(phoneNumber));
+            ContextUtils.getApplicationContext().startActivity(dialIntent);
             ClickToCallUma.recordDialerPresent(true);
         } catch (ActivityNotFoundException activityNotFound) {
             // Notify the user that no dialer app was available.
@@ -58,13 +67,12 @@ public class ClickToCallMessageHandler {
                 NotificationUmaTracker.SystemNotificationType.CLICK_TO_CALL,
                 NotificationConstants.GROUP_CLICK_TO_CALL,
                 NotificationConstants.NOTIFICATION_ID_CLICK_TO_CALL_ERROR, /*contentIntent=*/null,
-                /*deleteIntent=*/null, /*confirmIntent=*/null, /*cancelIntent=*/null,
                 context.getResources().getString(
                         R.string.click_to_call_dialer_absent_notification_title),
                 context.getResources().getString(
                         R.string.click_to_call_dialer_absent_notification_text),
                 R.drawable.ic_error_outline_red_24dp, R.drawable.ic_dialer_not_found_red_40dp,
-                R.color.google_red_600, /*startsActivity=*/false);
+                R.color.google_red_600);
     }
 
     /**
@@ -102,40 +110,17 @@ public class ClickToCallMessageHandler {
      */
     private static void displayNotification(String phoneNumber) {
         Context context = ContextUtils.getApplicationContext();
-        String contentTitle = Uri.decode(phoneNumber);
-        SharingNotificationUtil.showNotification(
-                NotificationUmaTracker.SystemNotificationType.CLICK_TO_CALL,
-                NotificationConstants.GROUP_CLICK_TO_CALL,
-                NotificationConstants.NOTIFICATION_ID_CLICK_TO_CALL,
-                getContentIntentProvider(phoneNumber), /*deleteIntent=*/null,
-                /*confirmIntent=*/null, /*cancelIntent=*/null, contentTitle,
-                context.getResources().getString(R.string.click_to_call_notification_text),
-                R.drawable.ic_devices_16dp, R.drawable.ic_dialer_icon_blue_40dp,
-                R.color.default_icon_color_accent1_baseline, /*startsActivity=*/true);
-    }
-
-    private static Intent getDialIntent(String phoneNumber) {
-        Intent dialIntent = TextUtils.isEmpty(phoneNumber)
-                ? new Intent(Intent.ACTION_DIAL)
-                : new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phoneNumber));
-        dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        return dialIntent;
-    }
-
-    private static PendingIntentProvider getContentIntentProvider(String phoneNumber) {
-        Context context = ContextUtils.getApplicationContext();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // We can't use the TapReceiver broadcast to start the dialer Activity starting in
-            // Android S. Use the dial intent directly instead.
-            return PendingIntentProvider.getActivity(context, /*requestCode=*/0,
-                    getDialIntent(phoneNumber), PendingIntent.FLAG_UPDATE_CURRENT);
-        }
-
-        return PendingIntentProvider.getBroadcast(context,
+        PendingIntentProvider contentIntent = PendingIntentProvider.getBroadcast(context,
                 /*requestCode=*/0,
                 new Intent(context, TapReceiver.class).putExtra(EXTRA_PHONE_NUMBER, phoneNumber),
                 PendingIntent.FLAG_UPDATE_CURRENT);
+        SharingNotificationUtil.showNotification(
+                NotificationUmaTracker.SystemNotificationType.CLICK_TO_CALL,
+                NotificationConstants.GROUP_CLICK_TO_CALL,
+                NotificationConstants.NOTIFICATION_ID_CLICK_TO_CALL, contentIntent, phoneNumber,
+                context.getResources().getString(R.string.click_to_call_notification_text),
+                R.drawable.ic_devices_16dp, R.drawable.ic_dialer_icon_blue_40dp,
+                R.color.default_icon_color_blue);
     }
 
     /**
@@ -143,7 +128,7 @@ public class ClickToCallMessageHandler {
      */
     private static boolean shouldOpenDialer() {
         // On Android Q and above, we never open the dialer directly.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (BuildInfo.isAtLeastQ()) {
             return false;
         }
 
@@ -166,7 +151,7 @@ public class ClickToCallMessageHandler {
     private static boolean shouldShowNotification() {
         // Always show the notification for Android Q and above. For pre-Q, only show notification
         // if device is locked.
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        return BuildInfo.isAtLeastQ()
                 || !DeviceConditions.isCurrentlyScreenOnAndUnlocked(
                         ContextUtils.getApplicationContext());
     }

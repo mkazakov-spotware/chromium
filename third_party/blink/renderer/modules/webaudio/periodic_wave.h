@@ -30,12 +30,10 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_PERIODIC_WAVE_H_
 
 #include <memory>
-
 #include "third_party/blink/renderer/core/typed_arrays/array_buffer_view_helpers.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_typed_array.h"
 #include "third_party/blink/renderer/platform/audio/audio_array.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -43,7 +41,6 @@ namespace blink {
 
 class BaseAudioContext;
 class ExceptionState;
-class PeriodicWaveImpl;
 class PeriodicWaveOptions;
 
 class PeriodicWave final : public ScriptWrappable {
@@ -68,26 +65,7 @@ class PeriodicWave final : public ScriptWrappable {
                               ExceptionState&);
 
   explicit PeriodicWave(float sample_rate);
-  ~PeriodicWave() final = default;
-
-  void Trace(Visitor*) const final;
-
-  PeriodicWaveImpl* impl() { return periodic_wave_impl_; }
-
- private:
-  const Member<PeriodicWaveImpl> periodic_wave_impl_;
-};
-
-// PeriodicWaveImpl is not scriptable and thus can never have back references
-// to an AudioNode. This allows it to be held strongly from the audio thread
-// which avoids converting weak to strong references which is prone to
-// GC interference.
-class PeriodicWaveImpl final : public GarbageCollected<PeriodicWaveImpl> {
- public:
-  explicit PeriodicWaveImpl(float sample_rate);
-  ~PeriodicWaveImpl();
-
-  void Trace(Visitor*) const {}
+  ~PeriodicWave() override;
 
   // Returns pointers to the lower and higher wave data for the pitch range
   // containing the given fundamental frequency. These two tables are in
@@ -124,7 +102,7 @@ class PeriodicWaveImpl final : public GarbageCollected<PeriodicWaveImpl> {
  private:
   void GenerateBasicWaveform(int);
 
-  size_t v8_external_memory_ = 0;
+  size_t v8_external_memory_;
 
   float sample_rate_;
   unsigned number_of_ranges_;
@@ -150,8 +128,6 @@ class PeriodicWaveImpl final : public GarbageCollected<PeriodicWaveImpl> {
                                unsigned number_of_components,
                                bool disable_normalization);
   Vector<std::unique_ptr<AudioFloatArray>> band_limited_tables_;
-
-  friend class PeriodicWave;
 };
 
 }  // namespace blink

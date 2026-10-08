@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/views/examples/views_examples_export.h"
 
 namespace views {
@@ -19,28 +19,25 @@ namespace examples {
 
 class VIEWS_EXAMPLES_EXPORT ExampleBase {
  public:
-  ExampleBase(const ExampleBase&) = delete;
-  ExampleBase& operator=(const ExampleBase&) = delete;
-
   virtual ~ExampleBase();
 
   // Sub-classes should creates and add the views to the given parent.
   virtual void CreateExampleView(View* parent) = 0;
 
   const std::string& example_title() const { return example_title_; }
-  raw_ptr<View> example_view() { return container_; }
-  void SetContainer(View* container) { container_ = container; }
+  View* example_view() { return container_.get(); }
 
  protected:
   explicit ExampleBase(const char* title);
 
  private:
-  // Name of the example - used as title in the side panel.
+  // Name of the example - used as title in the combobox list.
   std::string example_title_;
 
   // The view that contains the views example.
-  // The tab of the respective view in the tabbed pane owns the view.
-  raw_ptr<View> container_;
+  std::unique_ptr<View> container_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExampleBase);
 };
 
 using ExampleVector = std::vector<std::unique_ptr<ExampleBase>>;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 namespace net {
 
 namespace {
-quiche::QuicheBufferAllocator* GetBufferAllocator() {
-  static base::NoDestructor<quiche::SimpleBufferAllocator> allocator;
+quic::QuicBufferAllocator* GetBufferAllocator() {
+  static base::NoDestructor<quic::SimpleBufferAllocator> allocator;
   return &*allocator;
 }
 }  // namespace
@@ -19,7 +19,7 @@ QuicChromiumConnectionHelper::QuicChromiumConnectionHelper(
     quic::QuicRandom* random_generator)
     : clock_(clock), random_generator_(random_generator) {}
 
-QuicChromiumConnectionHelper::~QuicChromiumConnectionHelper() = default;
+QuicChromiumConnectionHelper::~QuicChromiumConnectionHelper() {}
 
 const quic::QuicClock* QuicChromiumConnectionHelper::GetClock() const {
   return clock_;
@@ -29,7 +29,7 @@ quic::QuicRandom* QuicChromiumConnectionHelper::GetRandomGenerator() {
   return random_generator_;
 }
 
-quiche::QuicheBufferAllocator*
+quic::QuicBufferAllocator*
 QuicChromiumConnectionHelper::GetStreamSendBufferAllocator() {
   return GetBufferAllocator();
 }

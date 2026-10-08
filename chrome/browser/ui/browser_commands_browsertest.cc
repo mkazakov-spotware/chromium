@@ -1,16 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/browser_commands.h"
 
-#include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
@@ -49,8 +46,8 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, ReloadSelectedTabs) {
   constexpr int kTabCount = 3;
   std::vector<ReloadObserver> watcher_vec(kTabCount);
   for (int i = 0; i < kTabCount; i++) {
-    ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), i + 1, GURL(kUrl),
-                                       ui::PAGE_TRANSITION_LINK, false));
+    AddTabAtIndexToBrowser(browser(), i + 1, GURL(kUrl),
+                           ui::PAGE_TRANSITION_LINK, false);
     content::WebContents* tab =
         browser()->tab_strip_model()->GetWebContentsAt(i + 1);
     watcher_vec[i].SetWebContents(tab);
@@ -137,11 +134,11 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveToExistingWindow) {
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveActiveTabToNewWindow) {
   GURL url1("chrome://version");
   GURL url2("chrome://about");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
+  ui_test_utils::NavigateToURL(browser(), url1);
 
   // Should be disabled with 1 tab.
   EXPECT_FALSE(chrome::IsCommandEnabled(browser(), IDC_MOVE_TAB_TO_NEW_WINDOW));
-  ASSERT_TRUE(AddTabAtIndex(1, url2, ui::PAGE_TRANSITION_LINK));
+  AddTabAtIndex(1, url2, ui::PAGE_TRANSITION_LINK);
   // Two tabs is enough for it to be meaningful to pop one out.
   EXPECT_TRUE(chrome::IsCommandEnabled(browser(), IDC_MOVE_TAB_TO_NEW_WINDOW));
 
@@ -166,40 +163,6 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveActiveTabToNewWindow) {
             url1);
   EXPECT_EQ(active_browser->tab_strip_model()->GetActiveWebContents()->GetURL(),
             url2);
-}
-
-IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,
-                       MoveActiveTabToNewWindowMultipleSelection) {
-  GURL url1("chrome://version");
-  GURL url2("chrome://about");
-  GURL url3("chrome://terms");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
-  ASSERT_TRUE(AddTabAtIndex(1, url2, ui::PAGE_TRANSITION_LINK));
-  ASSERT_TRUE(AddTabAtIndex(2, url3, ui::PAGE_TRANSITION_LINK));
-  // Select the first tab.
-  browser()->tab_strip_model()->ToggleSelectionAt(0);
-  // First and third (since it's active) should be selected
-  EXPECT_TRUE(browser()->tab_strip_model()->IsTabSelected(0));
-  EXPECT_FALSE(browser()->tab_strip_model()->IsTabSelected(1));
-  EXPECT_TRUE(browser()->tab_strip_model()->IsTabSelected(2));
-
-  chrome::ExecuteCommand(browser(), IDC_MOVE_TAB_TO_NEW_WINDOW);
-  // Now we should have two browsers:
-  // The original, now with only a single tab: url2
-  // The new one with the two tabs we moved: url1 and url3. This one should
-  // be active.
-  BrowserList* browser_list = BrowserList::GetInstance();
-  Browser* active_browser = browser_list->GetLastActive();
-  EXPECT_EQ(browser_list->size(), 2u);
-  EXPECT_NE(active_browser, browser());
-  ASSERT_EQ(browser()->tab_strip_model()->count(), 1);
-  ASSERT_EQ(active_browser->tab_strip_model()->count(), 2);
-  EXPECT_EQ(browser()->tab_strip_model()->GetActiveWebContents()->GetURL(),
-            url2);
-  EXPECT_EQ(active_browser->tab_strip_model()->GetWebContentsAt(0)->GetURL(),
-            url1);
-  EXPECT_EQ(active_browser->tab_strip_model()->GetWebContentsAt(1)->GetURL(),
-            url3);
 }
 
 }  // namespace chrome

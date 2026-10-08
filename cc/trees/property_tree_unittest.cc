@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,34 +7,21 @@
 #include <utility>
 
 #include "cc/input/main_thread_scrolling_reason.h"
-#include "cc/test/fake_impl_task_runner_provider.h"
-#include "cc/test/fake_layer_tree_host_impl.h"
-#include "cc/test/test_task_graph_runner.h"
+#include "cc/test/geometry_test_utils.h"
 #include "cc/trees/clip_node.h"
 #include "cc/trees/draw_property_utils.h"
 #include "cc/trees/effect_node.h"
-#include "cc/trees/layer_tree_impl.h"
 #include "cc/trees/scroll_node.h"
 #include "cc/trees/transform_node.h"
-#include "cc/trees/viewport_property_ids.h"
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/gfx/geometry/test/geometry_util.h"
 
 namespace cc {
 namespace {
 
-class FakeProtectedSequenceSynchronizer : public ProtectedSequenceSynchronizer {
- public:
-  bool IsOwnerThread() const override { return true; }
-  bool InProtectedSequence() const override { return false; }
-  void WaitForProtectedSequenceCompletion() const override {}
-};
-
 TEST(PropertyTreeTest, ComputeTransformRoot) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Translate(2, 2);
   contents_root.id = tree.Insert(contents_root, 0);
@@ -44,20 +31,19 @@ TEST(PropertyTreeTest, ComputeTransformRoot) {
   gfx::Transform transform;
   expected.Translate(2, 2);
   tree.CombineTransformsBetween(1, 0, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   transform.MakeIdentity();
   expected.MakeIdentity();
   expected.Translate(-2, -2);
   bool success = tree.CombineInversesBetween(0, 1, &transform);
   EXPECT_TRUE(success);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 }
 
 TEST(PropertyTreeTest, SetNeedsUpdate) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.id = tree.Insert(contents_root, 0);
 
@@ -70,9 +56,8 @@ TEST(PropertyTreeTest, SetNeedsUpdate) {
 }
 
 TEST(PropertyTreeTest, ComputeTransformChild) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Translate(2, 2);
   contents_root.id = tree.Insert(contents_root, 0);
@@ -89,33 +74,32 @@ TEST(PropertyTreeTest, ComputeTransformChild) {
 
   expected.Translate(3, 3);
   tree.CombineTransformsBetween(2, 1, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   transform.MakeIdentity();
   expected.MakeIdentity();
   expected.Translate(-3, -3);
   bool success = tree.CombineInversesBetween(1, 2, &transform);
   EXPECT_TRUE(success);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   transform.MakeIdentity();
   expected.MakeIdentity();
   expected.Translate(5, 5);
   tree.CombineTransformsBetween(2, 0, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   transform.MakeIdentity();
   expected.MakeIdentity();
   expected.Translate(-5, -5);
   success = tree.CombineInversesBetween(0, 2, &transform);
   EXPECT_TRUE(success);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 }
 
 TEST(PropertyTreeTest, ComputeTransformSibling) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Translate(2, 2);
   contents_root.id = tree.Insert(contents_root, 0);
@@ -137,14 +121,14 @@ TEST(PropertyTreeTest, ComputeTransformSibling) {
 
   expected.Translate(4, 4);
   tree.CombineTransformsBetween(3, 2, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   transform.MakeIdentity();
   expected.MakeIdentity();
   expected.Translate(-4, -4);
   bool success = tree.CombineInversesBetween(2, 3, &transform);
   EXPECT_TRUE(success);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 }
 
 TEST(PropertyTreeTest, ComputeTransformSiblingSingularAncestor) {
@@ -157,16 +141,15 @@ TEST(PropertyTreeTest, ComputeTransformSiblingSingularAncestor) {
   // transform, we cannot use screen space transforms to compute change of
   // basis
   // transforms between these nodes.
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Translate(2, 2);
   contents_root.id = tree.Insert(contents_root, 0);
   tree.UpdateTransforms(1);
 
   TransformNode singular;
-  singular.local.set_rc(2, 2, 0.0);
+  singular.local.matrix().set(2, 2, 0.0);
   singular.id = tree.Insert(singular, 1);
 
   TransformNode child;
@@ -186,68 +169,20 @@ TEST(PropertyTreeTest, ComputeTransformSiblingSingularAncestor) {
 
   expected.Translate(4, 4);
   tree.CombineTransformsBetween(4, 3, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   transform.MakeIdentity();
   expected.MakeIdentity();
   expected.Translate(-4, -4);
   bool success = tree.CombineInversesBetween(3, 4, &transform);
   EXPECT_TRUE(success);
-  EXPECT_TRANSFORM_EQ(expected, transform);
-}
-
-// Tests that the transform for fixed elements is translated based on the
-// overscroll nodes scroll_offset and that the clip node has an outset based on
-// the overscroll distance.
-TEST(PropertyTreeTest, UndoOverscroll) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-
-  ViewportPropertyIds viewport_property_ids;
-  ClipTree& clip_tree = property_trees.clip_tree_mutable();
-  const gfx::RectF clip_rect(0, 0, 100, 100);
-  ClipNode clip_node;
-  clip_node.id = 1;
-  clip_node.parent_id = 0;
-  clip_node.clip = clip_rect;
-  clip_tree.Insert(clip_node, 0);
-  viewport_property_ids.outer_clip = clip_node.id;
-
-  TransformTree& transform_tree = property_trees.transform_tree_mutable();
-  TransformNode contents_root;
-  contents_root.local.Translate(2, 2);
-  contents_root.id = transform_tree.Insert(contents_root, 0);
-  transform_tree.UpdateTransforms(1, &viewport_property_ids);
-
-  const gfx::PointF overscroll_offset(0, 10);
-  TransformNode overscroll_node;
-  overscroll_node.scroll_offset = overscroll_offset;
-  overscroll_node.id = transform_tree.Insert(overscroll_node, 1);
-  viewport_property_ids.overscroll_elasticity_transform = overscroll_node.id;
-
-  TransformNode fixed_node;
-  fixed_node.should_undo_overscroll = true;
-  fixed_node.id = transform_tree.Insert(fixed_node, 2);
-
-  transform_tree.UpdateTransforms(2,
-                                  &viewport_property_ids);  // overscroll_node
-  transform_tree.UpdateTransforms(3, &viewport_property_ids);  // fixed_node
-
-  gfx::Transform expected;
-  expected.Translate(overscroll_offset.OffsetFromOrigin());
-  EXPECT_TRANSFORM_EQ(expected, transform_tree.Node(fixed_node.id)->to_parent);
-
-  gfx::RectF expected_clip_rect(clip_rect);
-  expected_clip_rect.set_height(clip_rect.height() + overscroll_offset.y());
-  EXPECT_EQ(clip_tree.Node(viewport_property_ids.outer_clip)->clip,
-            expected_clip_rect);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 }
 
 TEST(PropertyTreeTest, TransformsWithFlattening) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
-  EffectTree& effect_tree = property_trees.effect_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
+  EffectTree& effect_tree = property_trees.effect_tree;
 
   int grand_parent = tree.Insert(TransformNode(), 0);
   int effect_grand_parent = effect_tree.Insert(EffectNode(), 0);
@@ -278,51 +213,53 @@ TEST(PropertyTreeTest, TransformsWithFlattening) {
   tree.Node(grand_child)->local = rotation_about_x;
 
   tree.set_needs_update(true);
-  draw_property_utils::ComputeTransforms(&tree, ViewportPropertyIds());
+  draw_property_utils::ComputeTransforms(&tree);
   property_trees.ResetCachedData();
 
   gfx::Transform flattened_rotation_about_x = rotation_about_x;
-  flattened_rotation_about_x.Flatten();
+  flattened_rotation_about_x.FlattenTo2d();
 
   gfx::Transform to_target;
   property_trees.GetToTarget(child, effect_parent, &to_target);
-  EXPECT_TRANSFORM_EQ(rotation_about_x, to_target);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(rotation_about_x, to_target);
 
-  EXPECT_TRANSFORM_EQ(flattened_rotation_about_x * rotation_about_x,
-                      tree.ToScreen(child));
+  EXPECT_TRANSFORMATION_MATRIX_EQ(flattened_rotation_about_x * rotation_about_x,
+                                  tree.ToScreen(child));
 
   property_trees.GetToTarget(grand_child, effect_parent, &to_target);
-  EXPECT_TRANSFORM_EQ(flattened_rotation_about_x * rotation_about_x, to_target);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(flattened_rotation_about_x * rotation_about_x,
+                                  to_target);
 
-  EXPECT_TRANSFORM_EQ(flattened_rotation_about_x * flattened_rotation_about_x *
-                          rotation_about_x,
-                      tree.ToScreen(grand_child));
+  EXPECT_TRANSFORMATION_MATRIX_EQ(flattened_rotation_about_x *
+                                      flattened_rotation_about_x *
+                                      rotation_about_x,
+                                  tree.ToScreen(grand_child));
 
   gfx::Transform grand_child_to_child;
   tree.CombineTransformsBetween(grand_child, child, &grand_child_to_child);
-  EXPECT_TRANSFORM_EQ(rotation_about_x, grand_child_to_child);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(rotation_about_x, grand_child_to_child);
 
   // Remove flattening at grand_child, and recompute transforms.
   tree.Node(grand_child)->flattens_inherited_transform = false;
   tree.set_needs_update(true);
-  draw_property_utils::ComputeTransforms(&tree, ViewportPropertyIds());
+  draw_property_utils::ComputeTransforms(&tree);
 
   property_trees.GetToTarget(grand_child, effect_parent, &to_target);
-  EXPECT_TRANSFORM_EQ(rotation_about_x * rotation_about_x, to_target);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(rotation_about_x * rotation_about_x,
+                                  to_target);
 
-  EXPECT_TRANSFORM_EQ(
+  EXPECT_TRANSFORMATION_MATRIX_EQ(
       flattened_rotation_about_x * rotation_about_x * rotation_about_x,
       tree.ToScreen(grand_child));
 
   grand_child_to_child.MakeIdentity();
   tree.CombineTransformsBetween(grand_child, child, &grand_child_to_child);
-  EXPECT_TRANSFORM_EQ(rotation_about_x, grand_child_to_child);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(rotation_about_x, grand_child_to_child);
 }
 
 TEST(PropertyTreeTest, MultiplicationOrder) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Translate(2, 2);
   contents_root.id = tree.Insert(contents_root, 0);
@@ -342,20 +279,19 @@ TEST(PropertyTreeTest, MultiplicationOrder) {
   gfx::Transform inverse;
 
   tree.CombineTransformsBetween(2, 0, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   bool success = tree.CombineInversesBetween(0, 2, &inverse);
   EXPECT_TRUE(success);
 
   transform = transform * inverse;
   expected.MakeIdentity();
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 }
 
 TEST(PropertyTreeTest, ComputeTransformWithUninvertibleTransform) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.id = tree.Insert(contents_root, 0);
   tree.UpdateTransforms(1);
@@ -373,7 +309,7 @@ TEST(PropertyTreeTest, ComputeTransformWithUninvertibleTransform) {
   gfx::Transform inverse;
 
   tree.CombineTransformsBetween(2, 1, &transform);
-  EXPECT_TRANSFORM_EQ(expected, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected, transform);
 
   // To compute this would require inverting the 0 matrix, so we cannot
   // succeed.
@@ -382,9 +318,8 @@ TEST(PropertyTreeTest, ComputeTransformWithUninvertibleTransform) {
 }
 
 TEST(PropertyTreeTest, ComputeTransformToTargetWithZeroSurfaceContentsScale) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.id = tree.Insert(contents_root, 0);
   tree.UpdateTransforms(1);
@@ -409,38 +344,37 @@ TEST(PropertyTreeTest, ComputeTransformToTargetWithZeroSurfaceContentsScale) {
 
   gfx::Transform transform;
   tree.CombineTransformsBetween(child_id, grand_parent_id, &transform);
-  EXPECT_TRANSFORM_EQ(expected_transform, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected_transform, transform);
 
   tree.Node(grand_parent_id)->local.MakeIdentity();
   tree.Node(grand_parent_id)->local.Scale(0.f, 2.f);
   tree.Node(grand_parent_id)->needs_local_transform_update = true;
   tree.set_needs_update(true);
 
-  draw_property_utils::ComputeTransforms(&tree, ViewportPropertyIds());
+  draw_property_utils::ComputeTransforms(&tree);
 
   transform.MakeIdentity();
   tree.CombineTransformsBetween(child_id, grand_parent_id, &transform);
-  EXPECT_TRANSFORM_EQ(expected_transform, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected_transform, transform);
 
   tree.Node(grand_parent_id)->local.MakeIdentity();
   tree.Node(grand_parent_id)->local.Scale(0.f, 0.f);
   tree.Node(grand_parent_id)->needs_local_transform_update = true;
   tree.set_needs_update(true);
 
-  draw_property_utils::ComputeTransforms(&tree, ViewportPropertyIds());
+  draw_property_utils::ComputeTransforms(&tree);
 
   transform.MakeIdentity();
   tree.CombineTransformsBetween(child_id, grand_parent_id, &transform);
-  EXPECT_TRANSFORM_EQ(expected_transform, transform);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(expected_transform, transform);
 }
 
 TEST(PropertyTreeTest, FlatteningWhenDestinationHasOnlyFlatAncestors) {
   // This tests that flattening is performed correctly when
   // destination and its ancestors are flat, but there are 3d transforms
   // and flattening between the source and destination.
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
 
   int parent = tree.Insert(TransformNode(), 0);
   tree.Node(parent)->local.Translate(2, 2);
@@ -455,22 +389,22 @@ TEST(PropertyTreeTest, FlatteningWhenDestinationHasOnlyFlatAncestors) {
   tree.Node(grand_child)->flattens_inherited_transform = true;
 
   tree.set_needs_update(true);
-  draw_property_utils::ComputeTransforms(&tree, ViewportPropertyIds());
+  draw_property_utils::ComputeTransforms(&tree);
 
   gfx::Transform flattened_rotation_about_x = rotation_about_x;
-  flattened_rotation_about_x.Flatten();
+  flattened_rotation_about_x.FlattenTo2d();
 
   gfx::Transform grand_child_to_parent;
   tree.CombineTransformsBetween(grand_child, parent, &grand_child_to_parent);
-  EXPECT_TRANSFORM_EQ(flattened_rotation_about_x, grand_child_to_parent);
+  EXPECT_TRANSFORMATION_MATRIX_EQ(flattened_rotation_about_x,
+                                  grand_child_to_parent);
 }
 
 TEST(PropertyTreeTest, ScreenSpaceOpacityUpdateTest) {
   // This tests that screen space opacity is updated for the subtree when
   // opacity of a node changes.
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  EffectTree& tree = property_trees.effect_tree_mutable();
+  PropertyTrees property_trees;
+  EffectTree& tree = property_trees.effect_tree;
 
   int parent = tree.Insert(EffectNode(), 0);
   int child = tree.Insert(EffectNode(), parent);
@@ -490,10 +424,9 @@ TEST(PropertyTreeTest, ScreenSpaceOpacityUpdateTest) {
 TEST(PropertyTreeTest, SingularTransformSnapTest) {
   // This tests that to_target transform is not snapped when it has a singular
   // transform.
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  TransformTree& tree = property_trees.transform_tree_mutable();
-  EffectTree& effect_tree = property_trees.effect_tree_mutable();
+  PropertyTrees property_trees;
+  TransformTree& tree = property_trees.transform_tree;
+  EffectTree& effect_tree = property_trees.effect_tree;
 
   int parent = tree.Insert(TransformNode(), 0);
   int effect_parent = effect_tree.Insert(EffectNode(), 0);
@@ -510,7 +443,7 @@ TEST(PropertyTreeTest, SingularTransformSnapTest) {
   child_node->local.Translate(1.3f, 1.3f);
   tree.set_needs_update(true);
 
-  draw_property_utils::ComputeTransforms(&tree, ViewportPropertyIds());
+  draw_property_utils::ComputeTransforms(&tree);
   property_trees.ResetCachedData();
 
   gfx::Transform from_target;
@@ -528,7 +461,7 @@ TEST(PropertyTreeTest, SingularTransformSnapTest) {
 
   gfx::Transform rounded;
   property_trees.GetToTarget(child, effect_parent, &rounded);
-  rounded.Round2dTranslationComponents();
+  rounded.RoundTranslationComponents();
   property_trees.GetToTarget(child, effect_parent, &to_target);
   EXPECT_NE(to_target, rounded);
 }
@@ -539,16 +472,15 @@ TEST(PropertyTreeTest, SingularTransformSnapTest) {
 TEST(EffectTreeTest, CopyOutputRequestsAreTransformed) {
   using viz::CopyOutputRequest;
 
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
+  PropertyTrees property_trees;
 
-  TransformTree& transform_tree = property_trees.transform_tree_mutable();
+  TransformTree& transform_tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Scale(2, 2);
   contents_root.id = transform_tree.Insert(contents_root, 0);
   transform_tree.UpdateTransforms(contents_root.id);
 
-  EffectTree& effect_tree = property_trees.effect_tree_mutable();
+  EffectTree& effect_tree = property_trees.effect_tree;
   EffectNode effect_node;
   effect_node.render_surface_reason = RenderSurfaceReason::kTest;
   effect_node.has_copy_request = true;
@@ -638,16 +570,15 @@ TEST(EffectTreeTest, CopyOutputRequestsAreTransformed) {
 TEST(EffectTreeTest, CopyOutputRequestsThatBecomeIllegalAreDropped) {
   using viz::CopyOutputRequest;
 
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
+  PropertyTrees property_trees;
 
-  TransformTree& transform_tree = property_trees.transform_tree_mutable();
+  TransformTree& transform_tree = property_trees.transform_tree;
   TransformNode contents_root;
   contents_root.local.Scale(1.0f / 1.0e9f, 1.0f / 1.0e9f);
   contents_root.id = transform_tree.Insert(contents_root, 0);
   transform_tree.UpdateTransforms(contents_root.id);
 
-  EffectTree& effect_tree = property_trees.effect_tree_mutable();
+  EffectTree& effect_tree = property_trees.effect_tree;
   EffectNode effect_node;
   effect_node.render_surface_reason = RenderSurfaceReason::kTest;
   effect_node.has_copy_request = true;
@@ -672,10 +603,9 @@ TEST(EffectTreeTest, CopyOutputRequestsThatBecomeIllegalAreDropped) {
 // scroll offset is near zero that can naively lead to a negative offset being
 // returned which is not desirable.
 TEST(ScrollTreeTest, GetPixelSnappedScrollOffsetNegativeOffset) {
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  ScrollTree& scroll_tree = property_trees.scroll_tree_mutable();
-  TransformTree& transform_tree = property_trees.transform_tree_mutable();
+  PropertyTrees property_trees;
+  ScrollTree& scroll_tree = property_trees.scroll_tree;
+  TransformTree& transform_tree = property_trees.transform_tree;
 
   ElementId element_id(5);
   int transform_node_id = transform_tree.Insert(TransformNode(), 0);
@@ -684,86 +614,19 @@ TEST(ScrollTreeTest, GetPixelSnappedScrollOffsetNegativeOffset) {
   scroll_tree.Node(scroll_node_id)->element_id = element_id;
 
   // Set a scroll value close to 0.
-  scroll_tree.SetScrollOffset(element_id, gfx::PointF(0, 0.1));
+  scroll_tree.SetScrollOffset(element_id, gfx::ScrollOffset(0, 0.1));
   transform_tree.Node(transform_node_id)->scrolls = true;
-  transform_tree.Node(transform_node_id)->scroll_offset = gfx::PointF(0, 0.1);
+  transform_tree.Node(transform_node_id)->scroll_offset =
+      gfx::ScrollOffset(0, 0.1);
 
   // Pretend that the snap amount was slightly larger than 0.1.
   transform_tree.Node(transform_node_id)->snap_amount = gfx::Vector2dF(0, 0.2);
   transform_tree.Node(transform_node_id)->needs_local_transform_update = false;
 
   // The returned offset should be clamped at a minimum of 0.
-  gfx::PointF offset = scroll_tree.GetPixelSnappedScrollOffset(scroll_node_id);
+  gfx::ScrollOffset offset =
+      scroll_tree.GetPixelSnappedScrollOffset(scroll_node_id);
   EXPECT_EQ(offset.y(), 0);
-}
-
-// Verify that when fractional scroll delta is turned off, that the remaining
-// fractional delta does not cause additional property changes.
-TEST(ScrollTreeTest, PushScrollUpdatesFromMainThreadIntegerDelta) {
-  const bool use_fractional_deltas = false;
-
-  // Set up main property trees.
-  FakeProtectedSequenceSynchronizer synchronizer;
-  PropertyTrees property_trees(synchronizer);
-  ScrollTree& main_scroll_tree = property_trees.scroll_tree_mutable();
-  TransformTree& transform_tree = property_trees.transform_tree_mutable();
-  ElementId element_id(5);
-  int transform_node_id = transform_tree.Insert(TransformNode(), 0);
-  int scroll_node_id = main_scroll_tree.Insert(ScrollNode(), 0);
-  main_scroll_tree.Node(scroll_node_id)->transform_id = transform_node_id;
-  main_scroll_tree.Node(scroll_node_id)->element_id = element_id;
-  main_scroll_tree.Node(scroll_node_id)->is_composited = true;
-
-  // Set up FakeLayerTreeHostImpl.
-  TestTaskGraphRunner task_graph_runner;
-  FakeImplTaskRunnerProvider impl_task_runner_provider;
-  FakeLayerTreeHostImpl host_impl(
-      LayerTreeSettings(), &impl_task_runner_provider, &task_graph_runner);
-  host_impl.CreatePendingTree();
-
-  // Set up pending property trees.
-  PropertyTrees* pending_property_trees =
-      host_impl.pending_tree()->property_trees();
-  EXPECT_TRUE(pending_property_trees);
-  ScrollTree& pending_scroll_tree =
-      pending_property_trees->scroll_tree_mutable();
-  TransformTree& pending_transform_tree =
-      pending_property_trees->transform_tree_mutable();
-  transform_node_id = pending_transform_tree.Insert(TransformNode(), 0);
-  scroll_node_id = pending_scroll_tree.Insert(ScrollNode(), 0);
-  pending_scroll_tree.Node(scroll_node_id)->transform_id = transform_node_id;
-  pending_scroll_tree.Node(scroll_node_id)->element_id = element_id;
-  pending_scroll_tree.Node(scroll_node_id)->is_composited = true;
-  pending_property_trees->scroll_tree_mutable().SetElementIdForNodeId(
-      scroll_node_id, element_id);
-
-  // Push main scroll to pending.
-  main_scroll_tree.SetScrollOffset(element_id, gfx::PointF(0, 1));
-  pending_scroll_tree.PushScrollUpdatesFromMainThread(
-      property_trees, host_impl.pending_tree(), use_fractional_deltas);
-  const SyncedScrollOffset* scroll_offset =
-      pending_scroll_tree.GetSyncedScrollOffset(element_id);
-  EXPECT_TRUE(scroll_offset);
-
-  // Set a fractional delta and check it is not pulled with fractional delta
-  // turned off.
-  pending_scroll_tree.SetScrollOffsetDeltaForTesting(element_id,
-                                                     gfx::Vector2dF(0, 0.25));
-  main_scroll_tree.CollectScrollDeltasForTesting(use_fractional_deltas);
-  EXPECT_EQ(gfx::PointF(0, 1),
-            main_scroll_tree.current_scroll_offset(element_id));
-
-  // Rounding logic turned on should not cause property change on push.
-  host_impl.pending_tree()->property_trees()->set_changed(false);
-  pending_scroll_tree.PushScrollUpdatesFromMainThread(
-      property_trees, host_impl.pending_tree(), use_fractional_deltas);
-  EXPECT_FALSE(host_impl.pending_tree()->property_trees()->changed());
-
-  // Rounding logic turned off should cause property change on push.
-  host_impl.pending_tree()->property_trees()->set_changed(false);
-  pending_scroll_tree.PushScrollUpdatesFromMainThread(
-      property_trees, host_impl.pending_tree(), true);
-  EXPECT_TRUE(host_impl.pending_tree()->property_trees()->changed());
 }
 
 }  // namespace

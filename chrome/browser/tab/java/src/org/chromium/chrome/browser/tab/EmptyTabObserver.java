@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,15 @@ package org.chromium.chrome.browser.tab;
 
 import android.graphics.Bitmap;
 
+import androidx.annotation.Nullable;
+
 import org.chromium.components.find_in_page.FindMatchRectsDetails;
 import org.chromium.components.find_in_page.FindNotificationDetails;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationHandle;
+import org.chromium.content_public.browser.WebContents;
 import org.chromium.net.NetError;
-import org.chromium.ui.mojom.VirtualKeyboardMode;
-import org.chromium.url.GURL;
+import org.chromium.ui.base.WindowAndroid;
 
 /**
  * An implementation of the {@link TabObserver} which has empty implementations of all methods.
@@ -22,7 +24,7 @@ import org.chromium.url.GURL;
  */
 public class EmptyTabObserver implements TabObserver {
     @Override
-    public void onInitialized(Tab tab, String appId) {}
+    public void onInitialized(Tab tab, String appId, Boolean hasThemeColor, int themeColor) {}
 
     @Override
     public void onShown(Tab tab, @TabSelectionType int type) {}
@@ -43,10 +45,10 @@ public class EmptyTabObserver implements TabObserver {
     public void onLoadUrl(Tab tab, LoadUrlParams params, int loadType) {}
 
     @Override
-    public void onPageLoadStarted(Tab tab, GURL url) {}
+    public void onPageLoadStarted(Tab tab, String url) {}
 
     @Override
-    public void onPageLoadFinished(Tab tab, GURL url) {}
+    public void onPageLoadFinished(Tab tab, String url) {}
 
     @Override
     public void onPageLoadFailed(Tab tab, @NetError int errorCode) {}
@@ -58,7 +60,7 @@ public class EmptyTabObserver implements TabObserver {
     public void onRestoreFailed(Tab tab) {}
 
     @Override
-    public void onFaviconUpdated(Tab tab, Bitmap icon, GURL iconUrl) {}
+    public void onFaviconUpdated(Tab tab, Bitmap icon) {}
 
     @Override
     public void onTitleUpdated(Tab tab) {}
@@ -94,24 +96,19 @@ public class EmptyTabObserver implements TabObserver {
     public void onLoadProgressChanged(Tab tab, float progress) {}
 
     @Override
-    public void onUpdateUrl(Tab tab, GURL url) {}
+    public void onUpdateUrl(Tab tab, String url) {}
 
     @Override
-    public void onDidStartNavigationInPrimaryMainFrame(Tab tab, NavigationHandle navigationHandle) {
-    }
+    public void onDidFailLoad(Tab tab, boolean isMainFrame, int errorCode, String failingUrl) {}
 
     @Override
-    public void onDidStartNavigationNoop(Tab tab, NavigationHandle navigationHandle) {}
+    public void onDidStartNavigation(Tab tab, NavigationHandle navigationHandle) {}
 
     @Override
     public void onDidRedirectNavigation(Tab tab, NavigationHandle navigationHandle) {}
 
     @Override
-    public void onDidFinishNavigationInPrimaryMainFrame(
-            Tab tab, NavigationHandle navigationHandle) {}
-
-    @Override
-    public void onDidFinishNavigationNoop(Tab tab, NavigationHandle navigationHandle) {}
+    public void onDidFinishNavigation(Tab tab, NavigationHandle navigationHandle) {}
 
     @Override
     public void didFirstVisuallyNonEmptyPaint(Tab tab) {}
@@ -123,7 +120,12 @@ public class EmptyTabObserver implements TabObserver {
     public void onBackgroundColorChanged(Tab tab, int color) {}
 
     @Override
-    public void onVirtualKeyboardModeChanged(Tab tab, @VirtualKeyboardMode.EnumType int mode) {}
+    public void webContentsCreated(Tab tab, WebContents sourceWebContents,
+            long openerRenderProcessId, long openerRenderFrameId, String frameName,
+            String targetUrl, WebContents newWebContents) {}
+
+    @Override
+    public void onActivityAttachmentChanged(Tab tab, @Nullable WindowAndroid window) {}
 
     @Override
     public void onInteractabilityChanged(Tab tab, boolean isInteractable) {}

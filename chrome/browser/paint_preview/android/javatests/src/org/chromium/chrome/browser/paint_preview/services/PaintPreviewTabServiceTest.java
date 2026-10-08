@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.ScalableTimeout;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModel;
@@ -29,14 +30,15 @@ import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
+import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 
 /** Tests for the Paint Preview Tab Manager. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class PaintPreviewTabServiceTest {
-    private static final long TIMEOUT_MS = 5000;
-    private static final long POLLING_INTERVAL_MS = 500;
+    private static final long TIMEOUT_MS = ScalableTimeout.scaleTimeout(5000);
+    private static final long POLLING_INTERVAL_MS = ScalableTimeout.scaleTimeout(500);
 
     @Rule
     public final ChromeTabbedActivityTestRule mActivityTestRule =
@@ -64,12 +66,13 @@ public class PaintPreviewTabServiceTest {
     @Test
     @MediumTest
     @Feature({"PaintPreview"})
-    public void testCapturedAndDelete() throws Exception {
+    public void testCapturedOnStopped() throws Exception {
         EmbeddedTestServer testServer = mActivityTestRule.getTestServer();
         final String url = testServer.getURL("/chrome/test/data/android/about.html");
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
+            mPaintPreviewTabService.onRestoreCompleted(mTabModelSelector, true, false);
             mTab.loadUrl(new LoadUrlParams(url));
         });
         // Give the tab time to complete layout before hiding.
@@ -96,8 +99,6 @@ public class PaintPreviewTabServiceTest {
         activity.getWindow().setLocalFocus(true, true);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             InstrumentationRegistry.getInstrumentation().callActivityOnRestart(activity);
-            InstrumentationRegistry.getInstrumentation().callActivityOnStart(activity);
-            InstrumentationRegistry.getInstrumentation().callActivityOnResume(activity);
         });
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
@@ -105,6 +106,41 @@ public class PaintPreviewTabServiceTest {
             mTab = mTabModelSelector.getTabById(tabId);
             mTabModel = mTabModelSelector.getModel(/*incognito*/ false);
         });
+
+        TestThreadUtils.runOnUiThreadBlocking(() -> { mTabModel.closeTab(mTab); });
+
+        CriteriaHelper.pollUiThread(() -> {
+            return !mPaintPreviewTabService.hasCaptureForTab(tabId);
+        }, "Paint Preview didn't get deleted.", TIMEOUT_MS, POLLING_INTERVAL_MS);
+    }
+
+    /**
+     * Verifies that a Tab's contents are captured when the tab is switched and subsequently deleted
+     * when the tab is closed.
+     */
+    @Test
+    @MediumTest
+    @Feature({"PaintPreview"})
+    public void testCapturedAndDeleted() throws Exception {
+        EmbeddedTestServer testServer = mActivityTestRule.getTestServer();
+        final String url = testServer.getURL("/chrome/test/data/android/about.html");
+
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
+            mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
+            // Use capture on switch mode.
+            mPaintPreviewTabService.onRestoreCompleted(mTabModelSelector, true, true);
+            mTab.loadUrl(new LoadUrlParams(url));
+        });
+        // Give the tab time to complete layout before hiding.
+        TimeUnit.SECONDS.sleep(1);
+
+        // This will hide mTab so that a capture occurs.
+        mActivityTestRule.loadUrlInNewTab(url);
+
+        int tabId = mTab.getId();
+        CriteriaHelper.pollUiThread(() -> {
+            return mPaintPreviewTabService.hasCaptureForTab(tabId);
+        }, "Paint Preview didn't get captured.", TIMEOUT_MS, POLLING_INTERVAL_MS);
 
         TestThreadUtils.runOnUiThreadBlocking(() -> { mTabModel.closeTab(mTab); });
 
@@ -125,38 +161,26 @@ public class PaintPreviewTabServiceTest {
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
+            // Use capture on switch mode.
+            mPaintPreviewTabService.onRestoreCompleted(mTabModelSelector, true, true);
             mTab.loadUrl(new LoadUrlParams(url));
         });
         // Give the tab time to complete layout before hiding.
         TimeUnit.SECONDS.sleep(1);
+
+        // This will hide mTab so that a capture occurs.
+        mActivityTestRule.loadUrlInNewTab(url);
+
         int tabId = mTab.getId();
-
-        // Simulate closing the app.
-        Activity activity = mActivityTestRule.getActivity();
-        activity.getWindow().setLocalFocus(false, false);
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            InstrumentationRegistry.getInstrumentation().callActivityOnPause(activity);
-        });
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            InstrumentationRegistry.getInstrumentation().callActivityOnStop(activity);
-        });
-
-        // Allow time to capture.
         CriteriaHelper.pollUiThread(() -> {
-            mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
             return mPaintPreviewTabService.hasCaptureForTab(tabId);
         }, "Paint Preview didn't get captured.", TIMEOUT_MS, POLLING_INTERVAL_MS);
 
-        // Simulate unpausing the app (for cleanup).
-        activity.getWindow().setLocalFocus(true, true);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            InstrumentationRegistry.getInstrumentation().callActivityOnRestart(activity);
-            InstrumentationRegistry.getInstrumentation().callActivityOnStart(activity);
-            InstrumentationRegistry.getInstrumentation().callActivityOnResume(activity);
+            // Use the incognito tab model as the normal tab model will still have the tab ids
+            // active.
+            mPaintPreviewTabService.auditOnStart(mTabModelSelector.getModel(/*incognito=*/true));
         });
-
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> { mPaintPreviewTabService.auditArtifacts(new int[0]); });
 
         CriteriaHelper.pollUiThread(() -> {
             return !mPaintPreviewTabService.hasCaptureForTab(tabId);
@@ -164,27 +188,28 @@ public class PaintPreviewTabServiceTest {
     }
 
     /**
-     * Verifies the pre-native preview exists check works.
+     * Verifies the early cache is created correctly.
      */
     @Test
     @MediumTest
     @Feature({"PaintPreview"})
-    public void testPreNativePreviewExists() throws Exception {
+    public void testEarlyCache() throws Exception {
+        mTemporaryFolder.newFolder("1");
         mTemporaryFolder.newFile("2.zip");
-        mTemporaryFolder.newFile("3.zip");
-        mTemporaryFolder.newFile("6");
+        mTemporaryFolder.newFile("6.zip");
         mTemporaryFolder.newFolder("10");
+
+        HashSet<Integer> expectedFiles = new HashSet<>();
+        expectedFiles.add(1);
+        expectedFiles.add(2);
+        expectedFiles.add(6);
+        expectedFiles.add(10);
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
-            Assert.assertTrue(mPaintPreviewTabService.previewExistsPreNative(
-                    mTemporaryFolder.getRoot().getPath(), 2));
-            Assert.assertTrue(mPaintPreviewTabService.previewExistsPreNative(
-                    mTemporaryFolder.getRoot().getPath(), 3));
-            Assert.assertFalse(mPaintPreviewTabService.previewExistsPreNative(
-                    mTemporaryFolder.getRoot().getPath(), 6));
-            Assert.assertFalse(mPaintPreviewTabService.previewExistsPreNative(
-                    mTemporaryFolder.getRoot().getPath(), 10));
+            mPaintPreviewTabService.createPreNativeCache(mTemporaryFolder.getRoot().getPath());
         });
+
+        Assert.assertEquals(expectedFiles, mPaintPreviewTabService.mPreNativeCache);
     }
 }

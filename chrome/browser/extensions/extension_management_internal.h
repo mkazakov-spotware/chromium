@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef CHROME_BROWSER_EXTENSIONS_EXTENSION_MANAGEMENT_INTERNAL_H_
@@ -8,10 +8,10 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/permissions/api_permission_set.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class DictionaryValue;
@@ -50,10 +50,6 @@ struct IndividualSettings {
 
   IndividualSettings();
   explicit IndividualSettings(const IndividualSettings* default_settings);
-
-  IndividualSettings(const IndividualSettings&) = delete;
-  IndividualSettings& operator=(const IndividualSettings&) = delete;
-
   ~IndividualSettings();
 
   void Reset();
@@ -80,11 +76,6 @@ struct IndividualSettings {
   // per-update-url settings.
   ExtensionManagement::InstallationMode installation_mode;
   std::string update_url;
-
-  // Boolean to indicate whether the update URL of the extension/app is
-  // overridden by the policy or not. It can be true only for extensions/apps
-  // which are marked as |force_installed|.
-  bool override_update_url{false};
 
   // Permissions block list for extensions. This setting won't grant permissions
   // to extensions automatically. Instead, this setting will provide a list of
@@ -148,35 +139,30 @@ struct IndividualSettings {
   // all times.
   ExtensionManagement::ToolbarPinMode toolbar_pin =
       ExtensionManagement::ToolbarPinMode::kDefaultUnpinned;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(IndividualSettings);
 };
 
 // Global extension management settings, applicable to all extensions.
 struct GlobalSettings {
-  enum class ManifestV2Setting {
-    kDefault = 0,
-    kDisabled,
-    kEnabled,
-    kEnabledForForceInstalled,
-  };
   GlobalSettings();
-
-  GlobalSettings(const GlobalSettings&) = delete;
-  GlobalSettings& operator=(const GlobalSettings&) = delete;
-
   ~GlobalSettings();
 
   void Reset();
 
   // Settings specifying which URLs are allowed to install extensions, will be
   // enforced only if |has_restricted_install_sources| is set to true.
-  absl::optional<URLPatternSet> install_sources;
+  URLPatternSet install_sources;
+  bool has_restricted_install_sources;
 
   // Settings specifying all allowed app/extension types, will be enforced
   // only of |has_restricted_allowed_types| is set to true.
-  absl::optional<std::vector<Manifest::Type>> allowed_types;
+  std::vector<Manifest::Type> allowed_types;
+  bool has_restricted_allowed_types;
 
-  // An enum setting indicates if manifest v2 is allowed.
-  ManifestV2Setting manifest_v2_setting = ManifestV2Setting::kDefault;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GlobalSettings);
 };
 
 }  // namespace internal

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,8 @@
 
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "chrome/browser/media_galleries/media_galleries_preferences.h"
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "components/storage_monitor/removable_storage_observer.h"
@@ -38,7 +40,7 @@ class Extension;
 // client, including metadata like the name and ID, and API handles like the
 // fsid (filesystem ID) used to hook up the API objects.
 struct MediaFileSystemInfo {
-  MediaFileSystemInfo(const std::u16string& fs_name,
+  MediaFileSystemInfo(const base::string16& fs_name,
                       const base::FilePath& fs_path,
                       const std::string& filesystem_id,
                       MediaGalleryPrefId pref_id,
@@ -49,7 +51,7 @@ struct MediaFileSystemInfo {
   MediaFileSystemInfo(const MediaFileSystemInfo& other);
   ~MediaFileSystemInfo();
 
-  std::u16string name;
+  base::string16 name;
   base::FilePath path;
   std::string fsid;
   MediaGalleryPrefId pref_id;
@@ -68,10 +70,6 @@ class MediaFileSystemRegistry
       public MediaGalleriesPreferences::GalleryChangeObserver {
  public:
   MediaFileSystemRegistry();
-
-  MediaFileSystemRegistry(const MediaFileSystemRegistry&) = delete;
-  MediaFileSystemRegistry& operator=(const MediaFileSystemRegistry&) = delete;
-
   ~MediaFileSystemRegistry() override;
 
   // Passes to |callback| the list of media filesystem IDs and paths for a
@@ -108,12 +106,12 @@ class MediaFileSystemRegistry
 
   // Map an extension to the ExtensionGalleriesHost.
   typedef std::map<std::string /*extension_id*/,
-                   std::unique_ptr<ExtensionGalleriesHost>>
-      ExtensionHostMap;
+                   scoped_refptr<ExtensionGalleriesHost>> ExtensionHostMap;
   // Map a profile and extension to the ExtensionGalleriesHost.
   typedef std::map<Profile*, ExtensionHostMap> ExtensionGalleriesHostMap;
   // Map a profile to a shutdown notification subscription.
-  typedef std::map<Profile*, base::CallbackListSubscription>
+  typedef std::map<Profile*,
+                   std::unique_ptr<KeyedServiceShutdownNotifier::Subscription>>
       ProfileSubscriptionMap;
 
   void OnPermissionRemoved(MediaGalleriesPreferences* pref,
@@ -143,6 +141,8 @@ class MediaFileSystemRegistry
   std::unique_ptr<MediaFileSystemContext> file_system_context_;
 
   std::unique_ptr<GalleryWatchManager> gallery_watch_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaFileSystemRegistry);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_MEDIA_FILE_SYSTEM_REGISTRY_H_

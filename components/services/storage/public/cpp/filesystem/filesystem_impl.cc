@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,16 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/files/important_file_writer.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/synchronization/lock.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
-
-#if BUILDFLAG(IS_WIN)
-#include <windows.h>
-#endif
 
 namespace storage {
 
@@ -81,7 +77,7 @@ class FileLockImpl : public mojom::FileLock {
       return;
     }
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
     std::move(callback).Run(base::File::FILE_OK);
 #else
     std::move(callback).Run(file_.Unlock());
@@ -115,20 +111,21 @@ void FilesystemImpl::GetEntries(const base::FilePath& path,
                                 mojom::GetEntriesMode mode,
                                 GetEntriesCallback callback) {
   const base::FilePath full_path = MakeAbsolute(path);
-  base::FileErrorOr<std::vector<base::FilePath>> result =
+  FileErrorOr<std::vector<base::FilePath>> result =
       GetDirectoryEntries(full_path, mode);
-  if (!result.has_value()) {
+  if (result.is_error()) {
     std::move(callback).Run(result.error(), std::vector<base::FilePath>());
     return;
   }
 
   // Fix up the absolute paths to be relative to |path|.
   std::vector<base::FilePath> entries;
-  std::vector<base::FilePath::StringType> root_components =
-      full_path.GetComponents();
+  std::vector<base::FilePath::StringType> root_components;
+  full_path.GetComponents(&root_components);
   const size_t num_components_to_strip = root_components.size();
   for (const auto& entry : result.value()) {
-    std::vector<base::FilePath::StringType> components = entry.GetComponents();
+    std::vector<base::FilePath::StringType> components;
+    entry.GetComponents(&components);
     base::FilePath relative_path;
     for (size_t i = num_components_to_strip; i < components.size(); ++i)
       relative_path = relative_path.Append(components[i]);
@@ -228,7 +225,7 @@ void FilesystemImpl::GetFileInfo(const base::FilePath& path,
   if (base::GetFileInfo(MakeAbsolute(path), &info))
     std::move(callback).Run(std::move(info));
   else
-    std::move(callback).Run(absl::nullopt);
+    std::move(callback).Run(base::nullopt);
 }
 
 void FilesystemImpl::GetPathAccess(const base::FilePath& path,
@@ -254,8 +251,8 @@ void FilesystemImpl::RenameFile(const base::FilePath& old_path,
 
 void FilesystemImpl::LockFile(const base::FilePath& path,
                               LockFileCallback callback) {
-  base::FileErrorOr<base::File> result = LockFileLocal(MakeAbsolute(path));
-  if (!result.has_value()) {
+  FileErrorOr<base::File> result = LockFileLocal(MakeAbsolute(path));
+  if (result.is_error()) {
     std::move(callback).Run(result.error(), mojo::NullRemote());
     return;
   }
@@ -276,21 +273,21 @@ void FilesystemImpl::SetOpenedFileLength(base::File file,
 }
 
 // static
-base::FileErrorOr<base::File> FilesystemImpl::LockFileLocal(
+FileErrorOr<base::File> FilesystemImpl::LockFileLocal(
     const base::FilePath& path) {
   DCHECK(path.IsAbsolute());
   base::File file(path, base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
                             base::File::FLAG_WRITE);
   if (!file.IsValid())
-    return base::unexpected(file.error_details());
+    return file.error_details();
 
   if (!GetLockTable().AddLock(path))
-    return base::unexpected(base::File::FILE_ERROR_IN_USE);
+    return base::File::FILE_ERROR_IN_USE;
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
   base::File::Error error = file.Lock(base::File::LockMode::kExclusive);
   if (error != base::File::FILE_OK)
-    return base::unexpected(error);
+    return error;
 #endif
 
   return file;
@@ -305,7 +302,7 @@ void FilesystemImpl::UnlockFileLocal(const base::FilePath& path) {
 mojom::PathAccessInfoPtr FilesystemImpl::GetPathAccessLocal(
     const base::FilePath& path) {
   mojom::PathAccessInfoPtr info;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   uint32_t attributes = ::GetFileAttributes(path.value().c_str());
   if (attributes != INVALID_FILE_ATTRIBUTES) {
     info = mojom::PathAccessInfo::New();
@@ -313,7 +310,7 @@ mojom::PathAccessInfoPtr FilesystemImpl::GetPathAccessLocal(
     if ((attributes & FILE_ATTRIBUTE_READONLY) == 0)
       info->can_write = true;
   }
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   const char* const c_path = path.value().c_str();
   if (!access(c_path, F_OK)) {
     info = mojom::PathAccessInfo::New();
@@ -325,9 +322,9 @@ mojom::PathAccessInfoPtr FilesystemImpl::GetPathAccessLocal(
 }
 
 // static
-base::FileErrorOr<std::vector<base::FilePath>>
-FilesystemImpl::GetDirectoryEntries(const base::FilePath& path,
-                                    mojom::GetEntriesMode mode) {
+FileErrorOr<std::vector<base::FilePath>> FilesystemImpl::GetDirectoryEntries(
+    const base::FilePath& path,
+    mojom::GetEntriesMode mode) {
   DCHECK(path.IsAbsolute());
   int file_types = base::FileEnumerator::FILES;
   if (mode == mojom::GetEntriesMode::kFilesAndDirectories)
@@ -338,12 +335,12 @@ FilesystemImpl::GetDirectoryEntries(const base::FilePath& path,
       base::FileEnumerator::FolderSearchPolicy::ALL,
       base::FileEnumerator::ErrorPolicy::STOP_ENUMERATION);
   std::vector<base::FilePath> entries;
-  for (base::FilePath entry = enumerator.Next(); !entry.empty();
-       entry = enumerator.Next()) {
-    entries.push_back(entry);
+  for (base::FilePath path = enumerator.Next(); !path.empty();
+       path = enumerator.Next()) {
+    entries.push_back(path);
   }
   if (enumerator.GetError() != base::File::FILE_OK)
-    return base::unexpected(enumerator.GetError());
+    return enumerator.GetError();
   return entries;
 }
 

@@ -1,90 +1,82 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Fake implementation of ContactManagerInterface for testing.
  */
-/**
- * Fake implementation of nearbyShare.mojom.ContactManagerInterface
- *
- * @implements {nearbyShare.mojom.ContactManagerInterface}
- */
-export class FakeContactManager {
-  constructor() {
-    /** @type {?Array<!nearbyShare.mojom.ContactRecord>} */
-    this.contactRecords = null;
-    /** @type {!Array<!string>} */
-    this.allowedContacts = [];
-    /** @private {number} */
-    this.numUnreachable_ = 3;
-    /** @private {?nearbyShare.mojom.DownloadContactsObserverInterface} */
-    this.observer_;
-    /** @private {Object} */
-    this.$ = {
-      close() {},
-    };
-    /** @type {boolean} */
-    this.downloadContactsCalled = false;
-  }
-
+cr.define('nearby_share', function() {
   /**
-   * @param {!nearbyShare.mojom.DownloadContactsObserverInterface} observer
+   * Fake implementation of nearbyShare.mojom.ContactManagerInterface
+   *
+   * @implements {nearbyShare.mojom.ContactManagerInterface}
    */
-  addDownloadContactsObserver(observer) {
-    // Just support a single observer for testing.
-    this.observer_ = observer;
-  }
+  /* #export */ class FakeContactManager {
+    constructor() {
+      /** @type {?Array<!nearbyShare.mojom.ContactRecord>} */
+      this.contactRecords = null;
+      /** @private {!Array<!string>} */
+      this.allowedContacts_ = [];
+      /** @private {?nearbyShare.mojom.DownloadContactsObserverInterface} */
+      this.observer_;
+      /** @private {Object} */
+      this.$ = {
+        close() {},
+      };
+    }
 
-  downloadContacts() {
-    // This does nothing intentionally, call failDownload() or
-    // completeDownload() to simulate a response.
-    this.downloadContactsCalled = true;
-  }
+    /**
+     * @param {!nearbyShare.mojom.DownloadContactsObserverInterface} observer
+     */
+    addDownloadContactsObserver(observer) {
+      // Just support a single observer for testing.
+      this.observer_ = observer;
+    }
 
-  /**
-   * @param {!Array<!string>} allowedContacts
-   */
-  setAllowedContacts(allowedContacts) {
-    this.allowedContacts = allowedContacts;
-  }
+    downloadContacts() {
+      // This does nothing intentionally, call failDownload() or
+      // completeDownload() to simulate a response.
+    }
 
-  /**
-   * @param {number} numUnreachable
-   */
-  setNumUnreachable(numUnreachable) {
-    this.numUnreachable_ = numUnreachable;
-  }
+    /**
+     * @param {!Array<!string>} allowedContacts
+     */
+    setAllowedContacts(allowedContacts) {
+      this.allowedContacts_ = allowedContacts;
+    }
 
-  setupContactRecords() {
-    this.contactRecords = [
-      {
-        id: '1',
-        personName: 'Jane Doe',
-        identifiers: [
-          {accountName: 'jane@gmail.com'},
-          {phoneNumber: '555-1212'},
-        ],
-      },
-      {
-        id: '2',
-        personName: 'John Smith',
-        identifiers: [
-          {phoneNumber: '555-5555'},
-          {accountName: 'smith@google.com'},
-        ],
-      },
-    ];
-    this.allowedContacts = ['1'];
-  }
+    setupContactRecords() {
+      this.contactRecords = [
+        {
+          id: '1',
+          personName: 'Jane Doe',
+          identifiers: [
+            {accountName: 'jane@gmail.com'},
+            {phoneNumber: '555-1212'},
+          ]
+        },
+        {
+          id: '2',
+          personName: 'John Smith',
+          identifiers: [
+            {phoneNumber: '555-5555'},
+            {accountName: 'smith@google.com'},
+          ]
+        }
+      ];
+      this.allowedContacts_ = ['1'];
+    }
 
-  failDownload() {
-    this.observer_.onContactsDownloadFailed();
-  }
+    failDownload() {
+      this.observer_.onContactsDownloadFailed();
+    }
 
-  completeDownload() {
-    this.observer_.onContactsDownloaded(
-        this.allowedContacts, this.contactRecords || [],
-        /*num_unreachable_contacts_filtered_out=*/ this.numUnreachable_);
+    completeDownload() {
+      this.observer_.onContactsDownloaded(
+          this.allowedContacts_, this.contactRecords || [],
+          /*num_unreachable_contacts_filtered_out=*/ 3);
+    }
   }
-}
+  // #cr_define_end
+  return {FakeContactManager: FakeContactManager};
+});

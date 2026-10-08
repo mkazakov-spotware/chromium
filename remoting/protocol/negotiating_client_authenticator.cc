@@ -1,17 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/protocol/negotiating_client_authenticator.h"
 
-#include <memory>
+#include <algorithm>
 #include <sstream>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "base/strings/string_split.h"
@@ -22,7 +21,8 @@
 #include "remoting/protocol/v2_authenticator.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 NegotiatingClientAuthenticator::NegotiatingClientAuthenticator(
     const std::string& local_id,
@@ -62,9 +62,9 @@ void NegotiatingClientAuthenticator::ProcessMessage(
     // The host must pick a method that is valid and supported by the client,
     // and it must not change methods after it has picked one.
     if (method_set_by_host_ || method == Method::INVALID ||
-        !base::Contains(methods_, method)) {
+        std::find(methods_.begin(), methods_.end(), method) == methods_.end()) {
       state_ = REJECTED;
-      rejection_reason_ = RejectionReason::PROTOCOL_ERROR;
+      rejection_reason_ = PROTOCOL_ERROR;
       std::move(resume_callback).Run();
       return;
     }
@@ -134,17 +134,17 @@ void NegotiatingClientAuthenticator::CreateAuthenticatorForCurrentMethod(
       break;
 
     case Method::THIRD_PARTY_SPAKE2_P224:
-      current_authenticator_ = std::make_unique<ThirdPartyClientAuthenticator>(
+      current_authenticator_.reset(new ThirdPartyClientAuthenticator(
           base::BindRepeating(&V2Authenticator::CreateForClient),
-          config_.fetch_third_party_token_callback);
+          config_.fetch_third_party_token_callback));
       std::move(resume_callback).Run();
       break;
 
     case Method::THIRD_PARTY_SPAKE2_CURVE25519:
-      current_authenticator_ = std::make_unique<ThirdPartyClientAuthenticator>(
+      current_authenticator_.reset(new ThirdPartyClientAuthenticator(
           base::BindRepeating(&Spake2Authenticator::CreateForClient, local_id_,
                               remote_id_),
-          config_.fetch_third_party_token_callback);
+          config_.fetch_third_party_token_callback));
       std::move(resume_callback).Run();
       break;
 
@@ -184,7 +184,9 @@ void NegotiatingClientAuthenticator::CreateAuthenticatorForCurrentMethod(
 }
 
 void NegotiatingClientAuthenticator::CreatePreferredAuthenticator() {
-  if (is_paired() && base::Contains(methods_, Method::PAIRED_SPAKE2_P224)) {
+  if (is_paired() &&
+      std::find(methods_.begin(), methods_.end(), Method::PAIRED_SPAKE2_P224) !=
+          methods_.end()) {
     PairingClientAuthenticator* pairing_authenticator =
         new PairingClientAuthenticator(
             config_, base::BindRepeating(&V2Authenticator::CreateForClient));
@@ -217,4 +219,5 @@ bool NegotiatingClientAuthenticator::is_paired() {
   return !config_.pairing_client_id.empty() && !config_.pairing_secret.empty();
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

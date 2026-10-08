@@ -1,25 +1,25 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill_assistant/browser/selector.h"
 
-#include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "components/autofill_assistant/browser/service.pb.h"
 #include "testing/gmock/include/gmock/gmock.h"
+
+using ::testing::UnorderedElementsAre;
 
 namespace autofill_assistant {
 namespace {
 
-using ::testing::UnorderedElementsAre;
-
-TEST(SelectorTest, ConstructorSimple) {
+TEST(SelectorTest, Constructor_Simple) {
   Selector selector({"#test"});
   ASSERT_EQ(1, selector.proto.filters().size());
   EXPECT_EQ("#test", selector.proto.filters(0).css_selector());
 }
 
-TEST(SelectorTest, ConstructorWithIframe) {
+TEST(SelectorTest, Constructor_WithIframe) {
   Selector selector({"#frame", "#test"});
   ASSERT_EQ(4, selector.proto.filters().size());
   EXPECT_EQ("#frame", selector.proto.filters(0).css_selector());
@@ -38,11 +38,6 @@ TEST(SelectorTest, FromProto) {
   EXPECT_EQ(Selector({"#test"}), Selector(proto));
 }
 
-TEST(SelectorTest, ValidateCssSelector) {
-  EXPECT_TRUE(Selector().empty());
-  EXPECT_FALSE(Selector({"#test"}).empty());
-}
-
 TEST(SelectorTest, Comparison) {
   // Note that comparison tests cover < indirectly through ==, since a == b is
   // defined as !(a < b) && !(b < a). This makes sense, as what matters is that
@@ -53,7 +48,7 @@ TEST(SelectorTest, Comparison) {
 }
 
 TEST(SelectorTest, SelectorInSet) {
-  base::flat_set<Selector> selectors;
+  std::set<Selector> selectors;
   selectors.insert(Selector({"a"}));
   selectors.insert(Selector({"a"}));
   selectors.insert(Selector({"b"}));
@@ -62,7 +57,7 @@ TEST(SelectorTest, SelectorInSet) {
                                               Selector({"c"})));
 }
 
-TEST(SelectorTest, ComparisonPseudoType) {
+TEST(SelectorTest, Comparison_PseudoType) {
   EXPECT_FALSE(Selector({"a"}).SetPseudoType(PseudoType::BEFORE) ==
                Selector({"a"}).SetPseudoType(PseudoType::AFTER));
   EXPECT_FALSE(Selector({"a"}).SetPseudoType(PseudoType::BEFORE) ==
@@ -75,13 +70,13 @@ TEST(SelectorTest, ComparisonPseudoType) {
               Selector({"a"}).SetPseudoType(PseudoType::BEFORE));
 }
 
-TEST(SelectorTest, ComparisonVisibility) {
+TEST(SelectorTest, Comparison_Visibility) {
   EXPECT_FALSE(Selector({"a"}) == Selector({"a"}).MustBeVisible());
   EXPECT_TRUE(Selector({"a"}).MustBeVisible() ==
               Selector({"a"}).MustBeVisible());
 }
 
-TEST(SelectorTest, ComparisonNonEmptyBoundingBox) {
+TEST(SelectorTest, Comparison_NonEmptyBoundingBox) {
   Selector has_bounding_box_default = Selector({"a"});
   has_bounding_box_default.proto.add_filters()->mutable_bounding_box();
 
@@ -100,7 +95,7 @@ TEST(SelectorTest, ComparisonNonEmptyBoundingBox) {
   EXPECT_TRUE(has_bounding_box_default == has_bounding_box_explicit);
 }
 
-TEST(SelectorTest, ComparisonInnerText) {
+TEST(SelectorTest, Comparison_InnerText) {
   EXPECT_FALSE(Selector({"a"}).MatchingInnerText("a") ==
                Selector({"a"}).MatchingInnerText("b"));
   EXPECT_TRUE(Selector({"a"}).MatchingInnerText("a") ==
@@ -112,7 +107,7 @@ TEST(SelectorTest, ComparisonInnerText) {
               Selector({"a"}).MatchingInnerText("a", true));
 }
 
-TEST(SelectorTest, ComparisonValue) {
+TEST(SelectorTest, Comparison_Value) {
   EXPECT_FALSE(Selector({"a"}).MatchingValue("a") ==
                Selector({"a"}).MatchingValue("b"));
   EXPECT_TRUE(Selector({"a"}).MatchingValue("a") ==
@@ -124,7 +119,46 @@ TEST(SelectorTest, ComparisonValue) {
               Selector({"a"}).MatchingValue("a", true));
 }
 
-TEST(SelectorTest, ComparisonMatchCssSelector) {
+TEST(SelectorTest, Comparison_Proximity) {
+  SelectorProto selector;
+  selector.add_filters()->set_css_selector("button");
+  auto* closest_to_button = selector.add_filters()->mutable_closest();
+  closest_to_button->mutable_target()->Add()->set_css_selector("#label1");
+
+  EXPECT_TRUE(Selector(selector) == Selector(selector));
+
+  // Different relative positions
+  SelectorProto left = selector;
+  left.mutable_filters(0)->mutable_closest()->set_relative_position(
+      SelectorProto::ProximityFilter::LEFT);
+
+  SelectorProto right = selector;
+  right.mutable_filters(0)->mutable_closest()->set_relative_position(
+      SelectorProto::ProximityFilter::RIGHT);
+
+  EXPECT_TRUE(Selector(right) == Selector(right));
+  EXPECT_TRUE(Selector(left) == Selector(left));
+  EXPECT_FALSE(Selector(left) == Selector(right));
+
+  // Different alignment
+  SelectorProto aligned = selector;
+  selector.mutable_filters(0)->mutable_closest()->set_in_alignment(true);
+  EXPECT_TRUE(Selector(aligned) == Selector(aligned));
+  EXPECT_FALSE(Selector(selector) == Selector(aligned));
+
+  // Different targets
+  SelectorProto label2 = selector;
+  label2.mutable_filters(0)
+      ->mutable_closest()
+      ->mutable_target()
+      ->Add()
+      ->set_css_selector("#label2");
+
+  EXPECT_TRUE(Selector(label2) == Selector(label2));
+  EXPECT_FALSE(Selector(selector) == Selector(label2));
+}
+
+TEST(SelectorTest, Comparison_MatchCssSelector) {
   Selector a = Selector({"button"});
   a.proto.add_filters()->set_match_css_selector(".class1");
   Selector b = Selector({"button"});
@@ -134,7 +168,7 @@ TEST(SelectorTest, ComparisonMatchCssSelector) {
   EXPECT_TRUE(a == a);
 }
 
-TEST(SelectorTest, ComparisonOnTop) {
+TEST(SelectorTest, Comparison_OnTop) {
   Selector a = Selector({"button"});
   a.proto.add_filters()->mutable_on_top();
   Selector b = Selector({"button"});
@@ -143,7 +177,7 @@ TEST(SelectorTest, ComparisonOnTop) {
   EXPECT_TRUE(a == a);
 }
 
-TEST(SelectorTest, ComparisonFrames) {
+TEST(SelectorTest, Comparison_Frames) {
   Selector ab({"a", "b"});
   EXPECT_EQ(ab, ab);
 
@@ -156,7 +190,7 @@ TEST(SelectorTest, ComparisonFrames) {
   EXPECT_FALSE(ab == b);
 }
 
-TEST(SelectorTest, ComparisonMultipleFilters) {
+TEST(SelectorTest, Comparison_MultipleFilters) {
   Selector abcdef;
   abcdef.proto.add_filters()->set_css_selector("abc");
   abcdef.proto.add_filters()->set_css_selector("def");
@@ -176,92 +210,6 @@ TEST(SelectorTest, ComparisonMultipleFilters) {
   abc.proto.add_filters()->set_css_selector("abc");
   EXPECT_TRUE(abc == abc);
   EXPECT_FALSE(abcdef == abc);
-}
-
-TEST(SelectorTest, ComparisonPropertyFilterTextFilter) {
-  Selector text_filter;
-  auto* filter = text_filter.proto.add_filters();
-  filter->mutable_property()->set_property("innerText");
-  filter->mutable_property()->mutable_text_filter()->set_case_sensitive(true);
-  filter->mutable_property()->mutable_text_filter()->set_re2(".*");
-
-  Selector text_filter_copy(text_filter.proto);
-  EXPECT_TRUE(text_filter == text_filter_copy);
-
-  Selector text_filter_property = text_filter;
-  text_filter_property.proto.mutable_filters(0)
-      ->mutable_property()
-      ->set_property("value");
-  EXPECT_FALSE(text_filter == text_filter_property);
-
-  Selector text_filter_case = text_filter;
-  text_filter_case.proto.mutable_filters(0)
-      ->mutable_property()
-      ->mutable_text_filter()
-      ->set_case_sensitive(false);
-  EXPECT_FALSE(text_filter == text_filter_case);
-
-  Selector text_filter_re2 = text_filter;
-  text_filter_re2.proto.mutable_filters(0)
-      ->mutable_property()
-      ->mutable_text_filter()
-      ->set_re2("^$");
-  EXPECT_FALSE(text_filter == text_filter_re2);
-}
-
-TEST(SelectorTest, ComparisonPropertyFilterAutofillValueRegexp) {
-  Selector autofill_filter;
-  auto* filter = autofill_filter.proto.add_filters();
-  filter->mutable_property()->set_property("innerText");
-  filter->mutable_property()
-      ->mutable_autofill_value_regexp()
-      ->mutable_profile()
-      ->set_identifier("profile");
-  filter->mutable_property()
-      ->mutable_autofill_value_regexp()
-      ->mutable_value_expression_re2()
-      ->set_case_sensitive(true);
-  filter->mutable_property()
-      ->mutable_autofill_value_regexp()
-      ->mutable_value_expression_re2()
-      ->mutable_value_expression()
-      ->add_chunk()
-      ->set_text("chunk");
-
-  Selector autofill_filter_copy(autofill_filter.proto);
-  EXPECT_TRUE(autofill_filter == autofill_filter_copy);
-
-  Selector autofill_filter_property = autofill_filter;
-  autofill_filter_property.proto.mutable_filters(0)
-      ->mutable_property()
-      ->set_property("value");
-  EXPECT_FALSE(autofill_filter == autofill_filter_property);
-
-  Selector autofill_filter_profile = autofill_filter;
-  autofill_filter_profile.proto.mutable_filters(0)
-      ->mutable_property()
-      ->mutable_autofill_value_regexp()
-      ->mutable_profile()
-      ->set_identifier("other");
-  EXPECT_FALSE(autofill_filter == autofill_filter_profile);
-
-  Selector autofill_filter_case = autofill_filter;
-  autofill_filter_case.proto.mutable_filters(0)
-      ->mutable_property()
-      ->mutable_autofill_value_regexp()
-      ->mutable_value_expression_re2()
-      ->set_case_sensitive(false);
-  EXPECT_FALSE(autofill_filter == autofill_filter_case);
-
-  Selector autofill_filter_chunk = autofill_filter;
-  autofill_filter_chunk.proto.mutable_filters(0)
-      ->mutable_property()
-      ->mutable_autofill_value_regexp()
-      ->mutable_value_expression_re2()
-      ->mutable_value_expression()
-      ->mutable_chunk(0)
-      ->set_text("text");
-  EXPECT_FALSE(autofill_filter == autofill_filter_chunk);
 }
 
 }  // namespace

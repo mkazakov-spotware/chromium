@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_COMPONENT_UPDATER_TIMER_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -15,10 +16,6 @@ namespace component_updater {
 class Timer {
  public:
   Timer();
-
-  Timer(const Timer&) = delete;
-  Timer& operator=(const Timer&) = delete;
-
   ~Timer();
 
   void Start(base::TimeDelta initial_delay,
@@ -36,6 +33,8 @@ class Timer {
 
   base::TimeDelta delay_;
   base::RepeatingClosure user_task_;
+
+  DISALLOW_COPY_AND_ASSIGN(Timer);
 };
 
 }  // namespace component_updater

@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,13 +10,8 @@ class Jetstream2Story(press_story.PressStory):
   URL = 'http://browserbench.org/JetStream/'
   NAME = 'JetStream2'
 
-  def __init__(self, page_set, test_list):
-    super(Jetstream2Story, self).__init__(page_set)
-    if test_list is not None:
-      assert not self.script_to_evaluate_on_commit
-      self.script_to_evaluate_on_commit = """
-          window.testList = "%s"
-      """ % (test_list)
+  def __init__(self, ps):
+    super(Jetstream2Story, self).__init__(ps)
 
   def ExecuteTest(self, action_runner):
     action_runner.tab.WaitForDocumentReadyStateToBeComplete()
@@ -63,7 +58,7 @@ class Jetstream2Story(press_story.PressStory):
     )
 
     self.AddMeasurement('Score', 'score', score)
-    for k, v in result.items():
+    for k, v in result.iteritems():
       # Replace '.' in the benchmark name, because '.' is interpreted
       # as a sub-category of the metric
       benchmark = str(k).replace('.', '_')
@@ -73,14 +68,14 @@ class Jetstream2Story(press_story.PressStory):
       self.AddMeasurement(
           '%s.Iterations' % benchmark, 'count', v['Iterations'],
           description='Total number of iterations')
-      for sub_k, sub_v in v['SubResults'].items():
+      for sub_k, sub_v in v['SubResults'].iteritems():
         self.AddMeasurement('%s.%s' % (benchmark, sub_k), 'score', sub_v)
 
 
 class Jetstream2StorySet(story.StorySet):
-  def __init__(self, test_list=None):
+  def __init__(self):
     super(Jetstream2StorySet, self).__init__(
         archive_data_file='data/jetstream2.json',
         cloud_storage_bucket=story.INTERNAL_BUCKET)
 
-    self.AddStory(Jetstream2Story(self, test_list))
+    self.AddStory(Jetstream2Story(self))

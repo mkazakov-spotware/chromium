@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FRAME_REQUEST_BLOCKER_H_
 
 #include "base/atomic_ref_count.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list_threadsafe.h"
 #include "third_party/blink/public/platform/web_frame_request_blocker.h"
@@ -17,8 +18,6 @@ namespace blink {
 class FrameRequestBlocker final : public WebFrameRequestBlocker {
  public:
   FrameRequestBlocker();
-  FrameRequestBlocker(const FrameRequestBlocker&) = delete;
-  FrameRequestBlocker& operator=(const FrameRequestBlocker&) = delete;
 
   // Block any new subresource requests.
   void Block() override;
@@ -45,6 +44,8 @@ class FrameRequestBlocker final : public WebFrameRequestBlocker {
   scoped_refptr<base::ObserverListThreadSafe<Client>> clients_;
 
   base::AtomicRefCount blocked_;
+
+  DISALLOW_COPY_AND_ASSIGN(FrameRequestBlocker);
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,11 +29,6 @@ class CONTENT_EXPORT FlingingRendererClientFactory
       std::unique_ptr<media::MojoRendererFactory> mojo_renderer_factory,
       std::unique_ptr<media::RemotePlaybackClientWrapper>
           remote_playback_client);
-
-  FlingingRendererClientFactory(const FlingingRendererClientFactory&) = delete;
-  FlingingRendererClientFactory& operator=(
-      const FlingingRendererClientFactory&) = delete;
-
   ~FlingingRendererClientFactory() override;
 
   // Sets a callback that renderers created by |this| will use to propagate
@@ -42,7 +37,7 @@ class CONTENT_EXPORT FlingingRendererClientFactory
   void SetRemotePlayStateChangeCB(media::RemotePlayStateChangeCB callback);
 
   std::unique_ptr<media::Renderer> CreateRenderer(
-      const scoped_refptr<base::SequencedTaskRunner>& media_task_runner,
+      const scoped_refptr<base::SingleThreadTaskRunner>& media_task_runner,
       const scoped_refptr<base::TaskRunner>& worker_task_runner,
       media::AudioRendererSink* audio_renderer_sink,
       media::VideoRendererSink* video_renderer_sink,
@@ -61,6 +56,8 @@ class CONTENT_EXPORT FlingingRendererClientFactory
   std::unique_ptr<media::RemotePlaybackClientWrapper> remote_playback_client_;
 
   media::RemotePlayStateChangeCB remote_play_state_change_cb_;
+
+  DISALLOW_COPY_AND_ASSIGN(FlingingRendererClientFactory);
 };
 
 }  // namespace content

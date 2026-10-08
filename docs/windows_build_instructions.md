@@ -17,15 +17,14 @@ Are you a Google employee? See
 * At least 100GB of free disk space on an NTFS-formatted hard drive. FAT32
   will not work, as some of the Git packfiles are larger than 4GB.
 * An appropriate version of Visual Studio, as described below.
-* Windows 10 or newer.
+* Windows 7 or newer.
 
 ## Setting up Windows
 
 ### Visual Studio
 
-Chromium requires [Visual Studio 2019](https://docs.microsoft.com/en-us/visualstudio/releases/2019/release-notes) (>=16.0.0)
-to build, but [Visual Studio 2022](https://learn.microsoft.com/en-us/visualstudio/releases/2022/release-notes) (>=17.0.0)
-is preferred. Visual Studio can also be used to debug Chromium, and version 2022 is
+Chromium requires Visual Studio 2017 (>=15.7.2) to build, but VS2019 (>=16.0.0)
+is preferred. Visual Studio can also be used to debug Chromium, and VS2019 is
 preferred for this as it handles Chromium's large debug information much better.
 The clang-cl compiler is used but Visual Studio's header files, libraries, and
 some tools are required. Visual Studio Community Edition should work if its
@@ -51,9 +50,9 @@ $ PATH_TO_INSTALLER.EXE ^
 --includeRecommended
 ```
 
--You must have the version 10.0.20348.0 [Windows 10 SDK](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/)
-installed. This can be installed separately or by checking the appropriate box
-in the Visual Studio Installer.
+You must have the version 10.0.19041 or higher Windows 10 SDK installed. This
+can be installed separately or by checking the appropriate box in the Visual
+Studio Installer.
 
 The SDK Debugging Tools must also be installed. If the Windows 10 SDK was
 installed via the Visual Studio installer, then they can be installed by going
@@ -65,7 +64,7 @@ to install the Debugging Tools.
 ## Install `depot_tools`
 
 Download the [depot_tools bundle](https://storage.googleapis.com/chrome-infra/depot_tools.zip)
-and extract it somewhere (eg: C:\src\depot_tools).
+and extract it somewhere.
 
 *** note
 **Warning:** **DO NOT** use drag-n-drop or copy-n-paste extract from Explorer,
@@ -75,9 +74,7 @@ context menu though.
 ***
 
 Add depot_tools to the start of your PATH (must be ahead of any installs of
-Python. Note that environment variable names are case insensitive).
-
-Assuming you unzipped the bundle to C:\src\depot_tools, open:
+Python). Assuming you unzipped the bundle to C:\src\depot_tools, open:
 
 Control Panel → System and Security → System → Advanced system settings
 
@@ -86,50 +83,32 @@ put `C:\src\depot_tools` at the front (or at least in front of any directory
 that might already have a copy of Python or Git).
 
 If you don't have Administrator access, you can add a user-level PATH
-environment variable by opening:
+environment variable and put `C:\src\depot_tools` at the front, but
+if your system PATH has a Python in it, you will be out of luck.
 
-Control Panel → System and Security → System → Search for "Edit environment variables for your account"
-
-Add `C:\src\depot_tools` at the front. Note: If your system PATH has a Python in it, you will be out of luck.
-
-Also, add a DEPOT_TOOLS_WIN_TOOLCHAIN environment variable in the same way, and set
+Also, add a DEPOT_TOOLS_WIN_TOOLCHAIN system variable in the same way, and set
 it to 0. This tells depot_tools to use your locally installed version of Visual
 Studio (by default, depot_tools will try to use a google-internal version).
 
-You may also have to set variable `vs2017_install` or `vs2019_install` or
-`vs2022_install` to your installation path of Visual Studio 2017 or 19 or 22, like
+You may also have to set variable `vs2017_install` or `vs2019_install` to your
+installation path of Visual Studio 2017 or 19, like
 `set vs2019_install=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional`
-for Visual Studio 2019, or
-`set vs2022_install=C:\Program Files\Microsoft Visual Studio\2022\Professional`
-for Visual Studio 2022.
+for Visual Studio 2019.
 
-From a cmd.exe shell, run:
-
-```shell
-$ gclient
-```
-
-On first run, gclient will install all the Windows-specific bits needed to work
-with the code, including msysgit and python.
+From a cmd.exe shell, run the command gclient (without arguments). On first
+run, gclient will install all the Windows-specific bits needed to work with
+the code, including msysgit and python.
 
 * If you run gclient from a non-cmd shell (e.g., cygwin, PowerShell),
   it may appear to run properly, but msysgit, python, and other tools
   may not get installed correctly.
 * If you see strange errors with the file system on the first run of gclient,
-  you may want to [disable Windows Indexing](https://tortoisesvn.net/faq.html#cantmove2).
-
-## Check python install
+  you may want to [disable Windows Indexing](http://tortoisesvn.tigris.org/faq.html#cantmove2).
 
 After running gclient open a command prompt and type `where python` and
 confirm that the depot_tools `python.bat` comes ahead of any copies of
 python.exe. Failing to ensure this can lead to overbuilding when
 using gn - see [crbug.com/611087](https://crbug.com/611087).
-
-[App Execution Aliases](https://docs.microsoft.com/en-us/windows/apps/desktop/modernize/desktop-to-uwp-extensions#alias)
-can conflict with other installations of python on the system so disable
-these for 'python.exe' and 'python3.exe' by opening 'App execution aliases'
-section of Control Panel and unticking the boxes next to both of these
-that point to 'App Installer'.
 
 ## Get the code
 
@@ -161,15 +140,8 @@ $ fetch chromium
 If you don't want the full repo history, you can save a lot of time by
 adding the `--no-history` flag to `fetch`.
 
-Expect the command to take over an hour on even a fast connection, and many
-hours on slower ones. You should configure your PC so that it doesn't sleep
-or hibernate during the fetch or else errors may occur. If errors occur while
-fetching sub-repos then you can start over, or you may be able to correct them
-by going to the chromium/src directory and running this command:
-
-```shell
-$ gclient sync
-```
+Expect the command to take 30 minutes on even a fast connection, and many
+hours on slower ones.
 
 When `fetch` completes, it will have created a hidden `.gclient` file and a
 directory called `src` in the working directory. The remaining instructions
@@ -187,7 +159,7 @@ development and testing purposes.
 ## Setting up the build
 
 Chromium uses [Ninja](https://ninja-build.org) as its main build tool along with
-a tool called [GN](https://gn.googlesource.com/gn/+/main/docs/quick_start.md)
+a tool called [GN](https://gn.googlesource.com/gn/+/master/docs/quick_start.md)
 to generate `.ninja` files. You can create any number of *build directories*
 with different configurations. To create a build directory:
 
@@ -205,8 +177,7 @@ $ gn gen out/Default
   The default will be a debug component build matching the current host
   operating system and CPU.
 * For more info on GN, run `gn help` on the command line or read the [quick
-  start guide](https://gn.googlesource.com/gn/+/main/docs/quick_start.md).
-
+  start guide](https://gn.googlesource.com/gn/+/master/docs/quick_start.md).
 ### Faster builds
 
 * Reduce file system overhead by excluding build directories from
@@ -220,17 +191,15 @@ in the editor that appears when you create your output directory
 (`gn args out/Default`) or on the gn gen command line
 (`gn gen out/Default --args="is_component_build = true is_debug = true"`).
 Some helpful settings to consider using include:
-* `is_component_build = true` - this uses more, smaller DLLs, and may avoid
-having to relink chrome.dll after every change.
+* `is_component_build = true` - this uses more, smaller DLLs, and incremental
+linking.
 * `enable_nacl = false` - this disables Native Client which is usually not
 needed for local builds.
-* `target_cpu = "x86"` - x86 builds may be slightly faster than x64 builds. Note
-that if you set this but don't set `enable_nacl = false` then build times may
-get worse.
+* `target_cpu = "x86"` - x86 builds are slightly faster than x64 builds and
+support incremental linking for more targets. Note that if you set this but
+don't' set enable_nacl = false then build times may get worse.
 * `blink_symbol_level = 0` - turn off source-level debugging for
 blink to reduce build times, appropriate if you don't plan to debug blink.
-* `v8_symbol_level = 0` - turn off source-level debugging for v8 to reduce
-build times, appropriate if you don't plan to debug v8.
 
 In order to speed up linking you can set `symbol_level = 1` or
 `symbol_level = 0` - these options reduce the work the compiler and linker have
@@ -256,14 +225,6 @@ When invoking ninja specify 'chrome' as the target to avoid building all test
 binaries as well.
 
 Still, builds will take many hours on many machines.
-
-#### Use SCCACHE
-
-You might be able to use [sccache](https://github.com/mozilla/sccache) for the
-build process by enabling the following arguments:
-
-* `cc_wrapper = "sccache"` - assuming the `sccache` binary is in your `%PATH%`
-* `chrome_pgo_phase = 0`
 
 ### Why is my build slow?
 
@@ -338,6 +299,7 @@ an excluded directory:
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
 $ autoninja -C out\Default base
+"c:\src\depot_tools\ninja.exe" -C out\Default base -j 10 -d stats
 metric                  count   avg (us)        total (ms)
 .ninja parse            3555    1539.4          5472.6
 canonicalize str        1383032 0.0             12.7
@@ -354,7 +316,7 @@ CLParser::Parse         45      1889.1          85.0
 
 You can also get a visual report of the build performance with
 [ninjatracing](https://github.com/nico/ninjatracing). This converts the
-.ninja_log file into a .json file which can be loaded into [chrome://tracing](chrome://tracing):
+.ninja_log file into a .json file which can be loaded into chrome://tracing:
 
 ```shell
 $ python ninjatracing out\Default\.ninja_log >build.json
@@ -408,9 +370,9 @@ $ gclient sync -D
 ```
 
 The first command updates the primary Chromium source repository and rebases
-any of your local branches on top of tip-of-tree (aka the Git branch
-`origin/main`). If you don't want to use this script, you can also just use
-`git pull` or other common Git commands to update the repo.
+any of your local branches on top of tip-of-tree (aka the Git branch `origin/master`).
+If you don't want to use this script, you can also just use `git pull` or
+other common Git commands to update the repo.
 
 The second command syncs the subrepositories to the appropriate versions,
 deleting those that are no longer needed, and re-runs the hooks as needed.

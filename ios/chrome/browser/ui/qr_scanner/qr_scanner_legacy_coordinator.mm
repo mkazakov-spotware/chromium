@@ -1,18 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/qr_scanner/qr_scanner_legacy_coordinator.h"
 
-#import <ostream>
-
-#import "base/check_op.h"
+#include "base/check_op.h"
 #import "ios/chrome/browser/main/browser.h"
+#import "ios/chrome/browser/ui/commands/browser_commands.h"
 #import "ios/chrome/browser/ui/commands/command_dispatcher.h"
 #import "ios/chrome/browser/ui/commands/omnibox_commands.h"
-#import "ios/chrome/browser/ui/commands/qr_scanner_commands.h"
-#import "ios/chrome/browser/ui/main/scene_state.h"
-#import "ios/chrome/browser/ui/main/scene_state_browser_agent.h"
 #import "ios/chrome/browser/ui/qr_scanner/qr_scanner_view_controller.h"
 #import "ios/chrome/browser/ui/scanner/scanner_presenting.h"
 
@@ -27,14 +23,7 @@
 @end
 
 @implementation QRScannerLegacyCoordinator
-
 @synthesize viewController = _viewController;
-@synthesize baseViewController = _baseViewController;
-
-- (instancetype)initWithBrowser:(Browser*)browser {
-  DCHECK(browser);
-  return [super initWithBaseViewController:nil browser:browser];
-}
 
 #pragma mark - ChromeCoordinator
 
@@ -42,7 +31,7 @@
   DCHECK(self.browser);
   [self.browser->GetCommandDispatcher()
       startDispatchingToTarget:self
-                   forProtocol:@protocol(QRScannerCommands)];
+                   forSelector:@selector(showQRScanner)];
 }
 
 - (void)stop {
@@ -67,16 +56,10 @@
                                        self.browser->GetCommandDispatcher())];
   self.viewController.modalPresentationStyle = UIModalPresentationFullScreen;
 
-  SceneState* sceneState =
-      SceneStateBrowserAgent::FromBrowser(self.browser)->GetSceneState();
-  DCHECK(sceneState);
-
   [self.baseViewController
       presentViewController:[self.viewController viewControllerToPresent]
                    animated:YES
-                 completion:^{
-                   sceneState.QRScannerVisible = YES;
-                 }];
+                 completion:nil];
 }
 
 #pragma mark - QRScannerPresenting
@@ -85,16 +68,8 @@
                           completion:(void (^)(void))completion {
   DCHECK_EQ(self.viewController,
             self.baseViewController.presentedViewController);
-  SceneState* sceneState =
-      SceneStateBrowserAgent::FromBrowser(self.browser)->GetSceneState();
-  DCHECK(sceneState);
   [self.baseViewController dismissViewControllerAnimated:YES
-                                              completion:^{
-                                                sceneState.QRScannerVisible =
-                                                    NO;
-                                                if (completion)
-                                                  completion();
-                                              }];
+                                              completion:completion];
   self.viewController = nil;
 }
 

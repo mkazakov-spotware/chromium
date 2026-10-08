@@ -33,8 +33,7 @@
 #include "base/auto_reset.h"
 #include "base/timer/elapsed_timer.h"
 #include "third_party/blink/public/platform/task_type.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybuffer_string.h"
-#include "third_party/blink/renderer/core/event_target_names.h"
+#include "third_party/blink/renderer/bindings/core/v8/string_or_array_buffer.h"
 #include "third_party/blink/renderer/core/events/progress_event.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/fileapi/file.h"
@@ -68,7 +67,7 @@ const std::string Utf8FilePath(Blob* blob) {
 // requests (the value is arbitrarily chosen).
 static const size_t kMaxOutstandingRequestsPerThread = 100;
 static const base::TimeDelta kProgressNotificationInterval =
-    base::Milliseconds(50);
+    base::TimeDelta::FromMilliseconds(50);
 
 class FileReader::ThrottlingController final
     : public GarbageCollected<FileReader::ThrottlingController>,
@@ -96,7 +95,7 @@ class FileReader::ThrottlingController final
     if (!controller)
       return;
 
-    reader->async_task_context()->Schedule(context, "FileReader");
+    probe::AsyncTaskScheduled(context, "FileReader", reader->async_task_id());
     controller->PushReader(reader);
   }
 
@@ -117,7 +116,7 @@ class FileReader::ThrottlingController final
       return;
 
     controller->FinishReader(reader, next_step);
-    reader->async_task_context()->Cancel();
+    probe::AsyncTaskCanceled(context, reader->async_task_id());
   }
 
   explicit ThrottlingController(ExecutionContext& context)
@@ -132,7 +131,7 @@ class FileReader::ThrottlingController final
 
  private:
   void PushReader(FileReader* reader) {
-    if (pending_readers_.empty() &&
+    if (pending_readers_.IsEmpty() &&
         running_readers_.size() < max_running_readers_) {
       reader->ExecutePendingRead();
       DCHECK(!running_readers_.Contains(reader));
@@ -171,7 +170,7 @@ class FileReader::ThrottlingController final
     if (GetSupplementable()->IsContextDestroyed())
       return;
     while (running_readers_.size() < max_running_readers_) {
-      if (pending_readers_.empty())
+      if (pending_readers_.IsEmpty())
         return;
       FileReader* reader = pending_readers_.TakeFirst();
       reader->ExecutePendingRead();
@@ -336,10 +335,7 @@ void FileReader::abort() {
   loading_state_ = kLoadingStateAborted;
 
   DCHECK_NE(kDone, state_);
-  // Synchronously cancel the loader before dispatching events. This way we make
-  // sure the FileReader internal state stays consistent even if another load
-  // is started from one of the event handlers, or right after abort returns.
-  Terminate();
+  state_ = kDone;
 
   base::AutoReset<bool> firing_events(&still_firing_events_, true);
 
@@ -351,31 +347,32 @@ void FileReader::abort() {
       ThrottlingController::RemoveReader(GetExecutionContext(), this);
 
   FireEvent(event_type_names::kAbort);
-  // TODO(https://crbug.com/1204139): Only fire loadend event if no new load was
-  // started from the abort event handler.
   FireEvent(event_type_names::kLoadend);
 
   // All possible events have fired and we're done, no more pending activity.
   ThrottlingController::FinishReader(GetExecutionContext(), this, final_step);
+
+  // Also synchronously cancel the loader, as script might initiate a new load
+  // right after this method returns, in which case an async termination would
+  // terminate the wrong loader.
+  Terminate();
 }
 
-V8UnionArrayBufferOrString* FileReader::result() const {
+void FileReader::result(StringOrArrayBuffer& result_attribute) const {
   if (error_ || !loader_)
-    return nullptr;
+    return;
 
   // Only set the result after |loader_| has finished loading which means that
   // FileReader::DidFinishLoading() has also been called. This ensures that the
   // result is not available until just before the kLoad event is fired.
   if (!loader_->HasFinishedLoading() || state_ != ReadyState::kDone) {
-    return nullptr;
+    return;
   }
 
-  if (read_type_ == FileReaderLoader::kReadAsArrayBuffer) {
-    return MakeGarbageCollected<V8UnionArrayBufferOrString>(
-        loader_->ArrayBufferResult());
-  }
-  return MakeGarbageCollected<V8UnionArrayBufferOrString>(
-      loader_->StringResult());
+  if (read_type_ == FileReaderLoader::kReadAsArrayBuffer)
+    result_attribute.SetArrayBuffer(loader_->ArrayBufferResult());
+  else
+    result_attribute.SetString(loader_->StringResult());
 }
 
 void FileReader::Terminate() {
@@ -409,7 +406,7 @@ void FileReader::DidFinishLoading() {
     return;
   DCHECK_EQ(loading_state_, kLoadingStateLoading);
 
-  // When we set m_state to DONE below, we still need to fire
+  // TODO(jochen): When we set m_state to DONE below, we still need to fire
   // the load and loadend events. To avoid GC to collect this FileReader, we
   // use this separate variable to keep the wrapper of this FileReader alive.
   // An alternative would be to keep any ActiveScriptWrappables alive that is on
@@ -431,8 +428,6 @@ void FileReader::DidFinishLoading() {
       ThrottlingController::RemoveReader(GetExecutionContext(), this);
 
   FireEvent(event_type_names::kLoad);
-  // TODO(https://crbug.com/1204139): Only fire loadend event if no new load was
-  // started from the abort event handler.
   FireEvent(event_type_names::kLoadend);
 
   // All possible events have fired and we're done, no more pending activity.
@@ -465,8 +460,7 @@ void FileReader::DidFail(FileErrorCode error_code) {
 }
 
 void FileReader::FireEvent(const AtomicString& type) {
-  probe::AsyncTask async_task(GetExecutionContext(), async_task_context(),
-                              "event");
+  probe::AsyncTask async_task(GetExecutionContext(), async_task_id(), "event");
   if (!loader_) {
     DispatchEvent(*ProgressEvent::Create(type, false, 0, 0));
     return;

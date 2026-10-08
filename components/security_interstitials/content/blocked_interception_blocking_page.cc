@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,6 @@ BlockedInterceptionBlockingPage::BlockedInterceptionBlockingPage(
     int cert_error,
     const GURL& request_url,
     std::unique_ptr<SSLCertReporter> ssl_cert_reporter,
-    bool can_show_enhanced_protection_message,
     const net::SSLInfo& ssl_info,
     std::unique_ptr<
         security_interstitials::SecurityInterstitialControllerClient>
@@ -49,7 +48,6 @@ BlockedInterceptionBlockingPage::BlockedInterceptionBlockingPage(
           std::move(ssl_cert_reporter),
           true /* overridable */,
           base::Time::Now(),
-          can_show_enhanced_protection_message,
           std::move(controller_client)),
       ssl_info_(ssl_info),
       blocked_interception_ui_(
@@ -66,7 +64,7 @@ BlockedInterceptionBlockingPage::GetTypeForTesting() {
 }
 
 void BlockedInterceptionBlockingPage::PopulateInterstitialStrings(
-    base::Value::Dict& load_time_data) {
+    base::DictionaryValue* load_time_data) {
   blocked_interception_ui_->PopulateStringsForHTML(load_time_data);
   cert_report_helper()->PopulateExtendedReportingOption(load_time_data);
   cert_report_helper()->PopulateEnhancedProtectionMessage(load_time_data);

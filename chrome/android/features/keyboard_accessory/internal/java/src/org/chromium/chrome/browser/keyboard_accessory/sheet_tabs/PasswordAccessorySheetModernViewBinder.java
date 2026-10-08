@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.keyboard_accessory.sheet_tabs;
 
 import static org.chromium.components.embedder_support.util.UrlUtilities.stripScheme;
 
-import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
@@ -20,9 +19,8 @@ import org.chromium.chrome.browser.keyboard_accessory.data.UserInfoField;
 import org.chromium.chrome.browser.keyboard_accessory.helper.FaviconHelper;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabModel.AccessorySheetDataPiece;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabViewBinder.ElementViewHolder;
-import org.chromium.chrome.browser.keyboard_accessory.utils.InsecureFillingDialogUtils;
-import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.ui.modelutil.ListModel;
+import org.chromium.ui.widget.ChipView;
 
 /**
  * This stateless class provides methods to bind a {@link ListModel<AccessorySheetDataPiece>}
@@ -57,16 +55,16 @@ class PasswordAccessorySheetModernViewBinder {
 
         @Override
         protected void bind(KeyboardAccessoryData.UserInfo info, PasswordAccessoryInfoView view) {
-            bindChipView(view.getUsername(), info.getFields().get(0), view.getContext());
-            bindChipView(view.getPassword(), info.getFields().get(1), view.getContext());
+            bindChipView(view.getUsername(), info.getFields().get(0));
+            bindChipView(view.getPassword(), info.getFields().get(1));
 
-            view.getTitle().setVisibility(info.isExactMatch() ? View.GONE : View.VISIBLE);
+            view.getTitle().setVisibility(info.isPslMatch() ? View.VISIBLE : View.GONE);
             // Strip the trailing slash (for aesthetic reasons):
             view.getTitle().setText(stripScheme(info.getOrigin()).replaceFirst("/$", ""));
 
             // Set the default icon, then try to get a better one.
             mFaviconRequestOrigin = info.getOrigin(); // Save the origin for returning callback.
-            FaviconHelper faviconHelper = FaviconHelper.create(view.getContext());
+            FaviconHelper faviconHelper = new FaviconHelper(view.getContext());
             view.setIconForBitmap(faviconHelper.getDefaultIcon(info.getOrigin()));
             faviconHelper.fetchFavicon(info.getOrigin(), d -> setIcon(view, info.getOrigin(), d));
         }
@@ -78,20 +76,14 @@ class PasswordAccessorySheetModernViewBinder {
             if (requestOrigin.equals(mFaviconRequestOrigin)) view.setIconForBitmap(drawable);
         }
 
-        void bindChipView(ChipView chip, UserInfoField field, Context context) {
+        void bindChipView(ChipView chip, UserInfoField field) {
             chip.getPrimaryTextView().setTransformationMethod(
                     field.isObfuscated() ? new PasswordTransformationMethod() : null);
             chip.getPrimaryTextView().setText(field.getDisplayText());
             chip.getPrimaryTextView().setContentDescription(field.getA11yDescription());
-            View.OnClickListener listener = null;
-            if (field.isSelectable()) {
-                listener = src -> field.triggerSelection();
-            } else if (field.isObfuscated()) {
-                listener = src -> InsecureFillingDialogUtils.showWarningDialog(context);
-            }
-            chip.setOnClickListener(listener);
-            chip.setClickable(listener != null);
-            chip.setEnabled(listener != null);
+            chip.setOnClickListener(!field.isSelectable() ? null : src -> field.triggerSelection());
+            chip.setClickable(field.isSelectable());
+            chip.setEnabled(field.isSelectable());
         }
     }
 

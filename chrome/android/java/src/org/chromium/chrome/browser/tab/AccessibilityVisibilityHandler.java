@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,13 @@ package org.chromium.chrome.browser.tab;
 
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
+import org.chromium.chrome.browser.ui.TabObscuringHandler;
 
 /**
  * Handles the visibility update of the activity tab.
  */
-public class AccessibilityVisibilityHandler implements DestroyObserver {
+public class AccessibilityVisibilityHandler implements Destroyable {
     private final ActivityTabProvider.ActivityTabTabObserver mActivityTabObserver;
     private TabImpl mTab;
 
@@ -30,17 +31,16 @@ public class AccessibilityVisibilityHandler implements DestroyObserver {
 
             @Override
             public void onContentChanged(Tab tab) {
-                mTab.updateObscured(tabObscuringHandler.isTabContentObscured(),
-                        tabObscuringHandler.isToolbarObscured());
+                mTab.updateObscured(tabObscuringHandler.areAllTabsObscured());
             }
         };
         lifecycleDispatcher.register(this);
     }
 
-    // DestroyObserver
+    // Destroyable
 
     @Override
-    public void onDestroy() {
+    public void destroy() {
         mActivityTabObserver.destroy();
         mTab = null;
     }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/phonehub/phone_hub_metrics.h"
 #include "ash/system/phonehub/quick_action_item.h"
-#include "base/bind.h"
 #include "base/timer/timer.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -21,12 +20,13 @@ using phone_hub_metrics::QuickAction;
 
 // Time to wait until we check the state of the phone to prevent showing wrong
 // state
-constexpr base::TimeDelta kWaitForRequestTimeout = base::Seconds(10);
+constexpr base::TimeDelta kWaitForRequestTimeout =
+    base::TimeDelta::FromSeconds(10);
 
 }  // namespace
 
 SilencePhoneQuickActionController::SilencePhoneQuickActionController(
-    phonehub::DoNotDisturbController* dnd_controller)
+    chromeos::phonehub::DoNotDisturbController* dnd_controller)
     : dnd_controller_(dnd_controller) {
   DCHECK(dnd_controller_);
   dnd_controller_->AddObserver(this);
@@ -36,6 +36,14 @@ SilencePhoneQuickActionController::~SilencePhoneQuickActionController() {
   dnd_controller_->RemoveObserver(this);
 }
 
+void SilencePhoneQuickActionController::AddObserver(Observer* observer) {
+  observer_list_.AddObserver(observer);
+}
+
+void SilencePhoneQuickActionController::RemoveObserver(Observer* observer) {
+  observer_list_.RemoveObserver(observer);
+}
+
 bool SilencePhoneQuickActionController::IsItemEnabled() {
   return item_->IsToggled();
 }
@@ -43,10 +51,8 @@ bool SilencePhoneQuickActionController::IsItemEnabled() {
 QuickActionItem* SilencePhoneQuickActionController::CreateItem() {
   DCHECK(!item_);
   item_ = new QuickActionItem(this, IDS_ASH_PHONE_HUB_SILENCE_PHONE_TITLE,
-                              kPhoneHubSilencePhoneIcon);
-  item_->icon_button()->set_button_behavior(
-      FeaturePodIconButton::DisabledButtonBehavior::
-          kCanDisplayDisabledToggleValue);
+                              kPhoneHubSilencePhoneOnIcon,
+                              kPhoneHubSilencePhoneOffIcon);
   OnDndStateChanged();
   return item_;
 }
@@ -108,6 +114,7 @@ void SilencePhoneQuickActionController::SetItemState(ActionState state) {
       sub_label_text = IDS_ASH_PHONE_HUB_QUICK_ACTIONS_ON_STATE;
       break;
     case ActionState::kDisabled:
+      // TODO(1155784): Update disabled view with matching toggle-state colors.
       icon_enabled = dnd_controller_->IsDndEnabled();
       button_enabled = false;
       state_text_id = IDS_ASH_PHONE_HUB_SILENCE_BUTTON_NOT_AVAILABLE_TOOLTIP;
@@ -118,14 +125,16 @@ void SilencePhoneQuickActionController::SetItemState(ActionState state) {
   item_->SetToggled(icon_enabled);
   item_->SetSubLabel(l10n_util::GetStringUTF16(sub_label_text));
   if (state == ActionState::kDisabled) {
-    item_->SetTooltip(l10n_util::GetStringUTF16(state_text_id));
+    item_->SetIconTooltip(l10n_util::GetStringUTF16(state_text_id));
   } else {
-    std::u16string tooltip_state =
+    base::string16 tooltip_state =
         l10n_util::GetStringFUTF16(state_text_id, item_->GetItemLabel());
-    item_->SetTooltip(l10n_util::GetStringFUTF16(
+    item_->SetIconTooltip(l10n_util::GetStringFUTF16(
         IDS_ASH_PHONE_HUB_QUICK_ACTIONS_TOGGLE_TOOLTIP, item_->GetItemLabel(),
         tooltip_state));
   }
+  for (auto& observer : observer_list_)
+    observer.OnSilencePhoneItemStateChanged();
 }
 
 void SilencePhoneQuickActionController::CheckRequestedState() {

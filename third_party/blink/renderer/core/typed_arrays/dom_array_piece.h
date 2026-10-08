@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 
 namespace blink {
 
+class ArrayBufferOrArrayBufferView;
 class DOMArrayBufferView;
-class V8UnionArrayBufferOrArrayBufferView;
 
 // This class is for passing around un-owned bytes as a pointer + length.
 // It supports implicit conversion from several other data types.
@@ -27,13 +27,9 @@ class CORE_EXPORT DOMArrayPiece {
 
  public:
   DOMArrayPiece();
-  // NOLINTNEXTLINE(google-explicit-constructor)
   DOMArrayPiece(DOMArrayBuffer* buffer);
-  // NOLINTNEXTLINE(google-explicit-constructor)
   DOMArrayPiece(DOMArrayBufferView* view);
-  // NOLINTNEXTLINE(google-explicit-constructor)
-  DOMArrayPiece(
-      const V8UnionArrayBufferOrArrayBufferView* array_buffer_or_view);
+  DOMArrayPiece(const ArrayBufferOrArrayBufferView&);
 
   bool operator==(const DOMArrayBuffer& other) const {
     return ByteLength() == other.ByteLength() &&

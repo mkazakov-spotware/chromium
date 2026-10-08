@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "components/remote_cocoa/app_shim/remote_cocoa_app_shim_export.h"
 #import "ui/base/cocoa/tool_tip_base_view.h"
 #import "ui/base/cocoa/tracking_area.h"
@@ -48,7 +47,7 @@ REMOTE_COCOA_APP_SHIM_EXPORT
   BOOL _wantsKeyHandledForInsert;
 
   // The last tooltip text, used to limit updates.
-  std::u16string _lastTooltipText;
+  base::string16 _lastTooltipText;
 }
 
 @property(readonly, nonatomic) remote_cocoa::NativeWidgetNSWindowBridge* bridge;
@@ -75,11 +74,6 @@ REMOTE_COCOA_APP_SHIM_EXPORT
 // or not.
 - (void)updateFullKeyboardAccess;
 
-// Update the cursor tracking area in response to the parent window's level
-// changing.
-// https://crbug.com/1214013
-- (void)updateCursorTrackingArea;
-
 // The TextInputClient of the currently focused views::View.
 // TODO(ccameron): This cannot be relied on across processes.
 - (ui::TextInputClient*)textInputClient;
@@ -87,9 +81,6 @@ REMOTE_COCOA_APP_SHIM_EXPORT
 // Returns true if it is needed to call -[NSApp updateWindows] while updating
 // the text input client.
 - (bool)needsUpdateWindows;
-
-// Action for Cmd-E
-- (void)copyToFindPboard:(id)sender;
 
 @end
 

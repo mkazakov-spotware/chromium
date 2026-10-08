@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
+#include "base/stl_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace remoting {
@@ -34,12 +36,13 @@ TEST(GetKeySymsForUnicode, Map) {
     { 0x4444, { 0x01004444, 0 } },
   };
 
-  for (size_t i = 0; i < std::size(kTests); ++i) {
+  for (size_t i = 0; i < base::size(kTests); ++i) {
     std::vector<uint32_t> keysyms = GetKeySymsForUnicode(kTests[i].code_point);
 
     std::vector<uint32_t> expected(
         kTests[i].expected_keysyms,
-        base::ranges::find(kTests[i].expected_keysyms, 0u));
+        std::find(
+            kTests[i].expected_keysyms, kTests[i].expected_keysyms + 4, 0));
     EXPECT_EQ(expected, keysyms);
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/window_user_data.h"
 #include "ash/wm/window_dimmer.h"
-#include "base/ranges/algorithm.h"
 #include "ui/aura/test/test_windows.h"
 #include "ui/compositor/layer.h"
 
@@ -20,10 +19,6 @@ namespace ash {
 class ScreenDimmerTest : public AshTestBase {
  public:
   ScreenDimmerTest() = default;
-
-  ScreenDimmerTest(const ScreenDimmerTest&) = delete;
-  ScreenDimmerTest& operator=(const ScreenDimmerTest&) = delete;
-
   ~ScreenDimmerTest() override = default;
 
   void SetUp() override {
@@ -49,6 +44,9 @@ class ScreenDimmerTest : public AshTestBase {
 
  protected:
   std::unique_ptr<ScreenDimmer> dimmer_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScreenDimmerTest);
 };
 
 TEST_F(ScreenDimmerTest, DimAndUndim) {
@@ -94,7 +92,8 @@ TEST_F(ScreenDimmerTest, DimAtBottom) {
       aura::test::CreateTestWindowWithId(1, root_window));
   dimmer_->SetDimming(true);
   std::vector<aura::Window*>::const_iterator dim_iter =
-      base::ranges::find(root_window->children(), GetDimWindow());
+      std::find(root_window->children().begin(), root_window->children().end(),
+                GetDimWindow());
   ASSERT_TRUE(dim_iter != root_window->children().end());
   // Dim layer is at top.
   EXPECT_EQ(*dim_iter, *root_window->children().rbegin());
@@ -103,7 +102,8 @@ TEST_F(ScreenDimmerTest, DimAtBottom) {
   dimmer_->set_at_bottom(true);
   dimmer_->SetDimming(true);
 
-  dim_iter = base::ranges::find(root_window->children(), GetDimWindow());
+  dim_iter = std::find(root_window->children().begin(),
+                       root_window->children().end(), GetDimWindow());
   ASSERT_TRUE(dim_iter != root_window->children().end());
   // Dom layer is at the bottom.
   EXPECT_EQ(*dim_iter, *root_window->children().begin());
@@ -113,12 +113,6 @@ TEST_F(ScreenDimmerTest, DimAtBottom) {
 class ScreenDimmerShellDestructionTest : public AshTestBase {
  public:
   ScreenDimmerShellDestructionTest() = default;
-
-  ScreenDimmerShellDestructionTest(const ScreenDimmerShellDestructionTest&) =
-      delete;
-  ScreenDimmerShellDestructionTest& operator=(
-      const ScreenDimmerShellDestructionTest&) = delete;
-
   ~ScreenDimmerShellDestructionTest() override = default;
 
   void TearDown() override {
@@ -126,6 +120,9 @@ class ScreenDimmerShellDestructionTest : public AshTestBase {
     AshTestBase::TearDown();
     // ScreenDimmer is destroyed *after* the shell.
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScreenDimmerShellDestructionTest);
 };
 
 // This test verifies ScreenDimmer can be destroyed after the shell. The

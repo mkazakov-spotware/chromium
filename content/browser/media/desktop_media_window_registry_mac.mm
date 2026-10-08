@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 namespace content {
 
-class DesktopMediaWindowRegistryMac final : public DesktopMediaWindowRegistry {
+class DesktopMediaWindowRegistryMac : public DesktopMediaWindowRegistry {
  public:
   static DesktopMediaWindowRegistryMac* GetInstance() {
     static base::NoDestructor<DesktopMediaWindowRegistryMac> instance;
@@ -18,25 +18,21 @@ class DesktopMediaWindowRegistryMac final : public DesktopMediaWindowRegistry {
 
   DesktopMediaWindowRegistryMac() = default;
 
-  DesktopMediaWindowRegistryMac(const DesktopMediaWindowRegistryMac&) = delete;
-  DesktopMediaWindowRegistryMac& operator=(
-      const DesktopMediaWindowRegistryMac&) = delete;
-
-  // Note that DesktopMediaPickerViews in //chrome depends on the fact that
-  // the Id returned from this function is the NSWindow's windowNumber, but
-  // that invariant is *not* part of the general contract for DesktopMediaID.
-  DesktopMediaID::Id RegisterWindow(gfx::NativeWindow window) override {
-    // Ensure that we don't inadvertently crop IDs.
-    static_assert(sizeof(NSInteger) == sizeof(DesktopMediaID::Id));
+  Id RegisterWindow(gfx::NativeWindow window) final {
+    // Note that DesktopMediaPickerViews in //chrome depends on the fact that
+    // the Id returned from this function is the NSWindow's windowNumber, but
+    // that invariant is *not* part of the general contract for DesktopMediaID.
     return window.GetNativeNSWindow().windowNumber;
   }
 
-  gfx::NativeWindow GetWindowById(DesktopMediaID::Id id) override {
+  gfx::NativeWindow GetWindowById(Id id) final {
     return gfx::NativeWindow([NSApp windowWithWindowNumber:id]);
   }
 
  private:
-  ~DesktopMediaWindowRegistryMac() override = default;
+  ~DesktopMediaWindowRegistryMac() final = default;
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopMediaWindowRegistryMac);
 };
 
 // static

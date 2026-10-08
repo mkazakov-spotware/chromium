@@ -35,15 +35,14 @@
 
 namespace blink {
 
-void AudioChannel::ResizeSmaller(uint32_t new_length) {
+void AudioChannel::ResizeSmaller(size_t new_length) {
   DCHECK_LE(new_length, length_);
   length_ = new_length;
 }
 
 void AudioChannel::Scale(float scale) {
-  if (IsSilent()) {
+  if (IsSilent())
     return;
-  }
 
   vector_math::Vsmul(Data(), 1, &scale, MutableData(), 1, length());
 }
@@ -68,9 +67,8 @@ void AudioChannel::CopyFromRange(const AudioChannel* source_channel,
   DCHECK_LT(start_frame, end_frame);
   DCHECK_LE(end_frame, source_channel->length());
 
-  if (source_channel->IsSilent() && IsSilent()) {
+  if (source_channel->IsSilent() && IsSilent())
     return;
-  }
 
   // Check that this channel has enough space.
   size_t range_length = end_frame - start_frame;
@@ -82,11 +80,10 @@ void AudioChannel::CopyFromRange(const AudioChannel* source_channel,
   const size_t safe_length =
       base::CheckMul(sizeof(float), range_length).ValueOrDie();
   if (source_channel->IsSilent()) {
-    if (range_length == length()) {
+    if (range_length == length())
       Zero();
-    } else {
+    else
       memset(destination, 0, safe_length);
-    }
   } else {
     memcpy(destination, source + start_frame, safe_length);
   }
@@ -96,9 +93,8 @@ void AudioChannel::SumFrom(const AudioChannel* source_channel) {
   DCHECK(source_channel);
   DCHECK_GE(source_channel->length(), length());
 
-  if (source_channel->IsSilent()) {
+  if (source_channel->IsSilent())
     return;
-  }
 
   if (IsSilent()) {
     CopyFrom(source_channel);
@@ -109,9 +105,8 @@ void AudioChannel::SumFrom(const AudioChannel* source_channel) {
 }
 
 float AudioChannel::MaxAbsValue() const {
-  if (IsSilent()) {
+  if (IsSilent())
     return 0;
-  }
 
   float max = 0;
 

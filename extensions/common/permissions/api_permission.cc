@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ namespace {
 
 using extensions::APIPermission;
 using extensions::APIPermissionInfo;
-using extensions::mojom::APIPermissionID;
 
 class SimpleAPIPermission : public APIPermission {
  public:
@@ -44,10 +43,12 @@ class SimpleAPIPermission : public APIPermission {
   bool FromValue(const base::Value* value,
                  std::string* /*error*/,
                  std::vector<std::string>* /*unhandled_permissions*/) override {
-    return (value == nullptr);
+    return (value == NULL);
   }
 
-  std::unique_ptr<base::Value> ToValue() const override { return nullptr; }
+  std::unique_ptr<base::Value> ToValue() const override {
+    return std::unique_ptr<base::Value>();
+  }
 
   std::unique_ptr<APIPermission> Clone() const override {
     return std::make_unique<SimpleAPIPermission>(info());
@@ -70,6 +71,13 @@ class SimpleAPIPermission : public APIPermission {
     return std::make_unique<SimpleAPIPermission>(info());
   }
 
+  void Write(base::Pickle* m) const override {}
+
+  bool Read(const base::Pickle* m, base::PickleIterator* iter) override {
+    return true;
+  }
+
+  void Log(std::string* log) const override {}
 };
 
 }  // namespace
@@ -83,7 +91,7 @@ APIPermission::APIPermission(const APIPermissionInfo* info)
 
 APIPermission::~APIPermission() { }
 
-mojom::APIPermissionID APIPermission::id() const {
+APIPermission::ID APIPermission::id() const {
   return info()->id();
 }
 

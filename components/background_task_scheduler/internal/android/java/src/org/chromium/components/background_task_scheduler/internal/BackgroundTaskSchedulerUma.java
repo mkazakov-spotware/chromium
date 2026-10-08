@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.background_task_scheduler.internal;
 
 import android.content.SharedPreferences;
-import android.text.format.DateUtils;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -156,23 +155,16 @@ public class BackgroundTaskSchedulerUma extends BackgroundTaskSchedulerExternalU
         cacheEvent("Android.BackgroundTaskScheduler.TaskStopped", toUmaEnumValueFromTaskId(taskId));
     }
 
-    /** Reports metrics for finishing a task. */
-    public void reportTaskFinished(int taskId, long taskDurationMs) {
-        RecordHistogram.recordCustomTimesHistogram("Android.BackgroundTaskScheduler.TaskFinished."
-                        + getHistogramPatternForTaskId(taskId),
-                taskDurationMs, 1, DateUtils.DAY_IN_MILLIS, 50);
-    }
-
     /** Reports metrics for rescheduling a task. */
     public void reportTaskRescheduled() {
         cacheEvent("Android.BackgroundTaskScheduler.TaskRescheduled", 0);
     }
 
     @Override
-    public void reportTaskStartedNative(int taskId, boolean minimalBrowserMode) {
+    public void reportTaskStartedNative(int taskId, boolean serviceManagerOnlyMode) {
         int umaEnumValue = toUmaEnumValueFromTaskId(taskId);
         cacheEvent("Android.BackgroundTaskScheduler.TaskLoadedNative", umaEnumValue);
-        if (minimalBrowserMode) {
+        if (serviceManagerOnlyMode) {
             cacheEvent(
                     "Android.BackgroundTaskScheduler.TaskLoadedNative.ReducedMode", umaEnumValue);
         } else {
@@ -182,10 +174,10 @@ public class BackgroundTaskSchedulerUma extends BackgroundTaskSchedulerExternalU
     }
 
     @Override
-    public void reportNativeTaskStarted(int taskId, boolean minimalBrowserMode) {
+    public void reportNativeTaskStarted(int taskId, boolean serviceManagerOnlyMode) {
         int umaEnumValue = toUmaEnumValueFromTaskId(taskId);
         cacheEvent("Android.NativeBackgroundTask.TaskStarted", umaEnumValue);
-        if (minimalBrowserMode) {
+        if (serviceManagerOnlyMode) {
             cacheEvent("Android.NativeBackgroundTask.TaskStarted.ReducedMode", umaEnumValue);
         } else {
             cacheEvent("Android.NativeBackgroundTask.TaskStarted.FullBrowser", umaEnumValue);
@@ -193,10 +185,10 @@ public class BackgroundTaskSchedulerUma extends BackgroundTaskSchedulerExternalU
     }
 
     @Override
-    public void reportNativeTaskFinished(int taskId, boolean minimalBrowserMode) {
+    public void reportNativeTaskFinished(int taskId, boolean serviceManagerOnlyMode) {
         int umaEnumValue = toUmaEnumValueFromTaskId(taskId);
         cacheEvent("Android.NativeBackgroundTask.TaskFinished", umaEnumValue);
-        if (minimalBrowserMode) {
+        if (serviceManagerOnlyMode) {
             cacheEvent("Android.NativeBackgroundTask.TaskFinished.ReducedMode", umaEnumValue);
         } else {
             cacheEvent("Android.NativeBackgroundTask.TaskFinished.FullBrowser", umaEnumValue);

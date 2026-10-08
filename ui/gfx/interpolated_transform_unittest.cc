@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,19 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/test/geometry_util.h"
+
+namespace {
+
+void CheckApproximatelyEqual(const gfx::Transform& lhs,
+                             const gfx::Transform& rhs) {
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      EXPECT_FLOAT_EQ(lhs.matrix().get(i, j), rhs.matrix().get(i, j));
+    }
+  }
+}
+
+} // namespace
 
 TEST(InterpolatedTransformTest, InterpolatedRotation) {
   ui::InterpolatedRotation interpolated_rotation(0, 100);
@@ -17,9 +29,9 @@ TEST(InterpolatedTransformTest, InterpolatedRotation) {
     gfx::Transform rotation;
     rotation.Rotate(i);
     gfx::Transform interpolated = interpolated_rotation.Interpolate(i / 100.0f);
-    EXPECT_TRANSFORM_EQ(rotation, interpolated);
+    CheckApproximatelyEqual(rotation, interpolated);
     interpolated = interpolated_rotation_diff_start_end.Interpolate(i + 100);
-    EXPECT_TRANSFORM_EQ(rotation, interpolated);
+    CheckApproximatelyEqual(rotation, interpolated);
   }
 }
 
@@ -33,9 +45,9 @@ TEST(InterpolatedTransformTest, InterpolatedScale) {
     gfx::Transform scale;
     scale.Scale3d(i, i, i);
     gfx::Transform interpolated = interpolated_scale.Interpolate(i / 100.0f);
-    EXPECT_TRANSFORM_EQ(scale, interpolated);
+    CheckApproximatelyEqual(scale, interpolated);
     interpolated = interpolated_scale_diff_start_end.Interpolate(i + 100);
-    EXPECT_TRANSFORM_EQ(scale, interpolated);
+    CheckApproximatelyEqual(scale, interpolated);
   }
 }
 
@@ -50,9 +62,9 @@ TEST(InterpolatedTransformTest, InterpolatedTranslate) {
     gfx::Transform xform;
     xform.Translate(i, i);
     gfx::Transform interpolated = interpolated_xform.Interpolate(i / 100.0f);
-    EXPECT_TRANSFORM_EQ(xform, interpolated);
+    CheckApproximatelyEqual(xform, interpolated);
     interpolated = interpolated_xform_diff_start_end.Interpolate(i + 100);
-    EXPECT_TRANSFORM_EQ(xform, interpolated);
+    CheckApproximatelyEqual(xform, interpolated);
   }
 }
 
@@ -67,9 +79,9 @@ TEST(InterpolatedTransformTest, InterpolatedTranslate3d) {
     gfx::Transform xform;
     xform.Translate3d(i, i, i);
     gfx::Transform interpolated = interpolated_xform.Interpolate(i / 100.0f);
-    EXPECT_TRANSFORM_EQ(xform, interpolated);
+    CheckApproximatelyEqual(xform, interpolated);
     interpolated = interpolated_xform_diff_start_end.Interpolate(i + 100);
-    EXPECT_TRANSFORM_EQ(xform, interpolated);
+    CheckApproximatelyEqual(xform, interpolated);
   }
 }
 
@@ -80,13 +92,13 @@ TEST(InterpolatedTransformTest, InterpolatedRotationAboutPivot) {
   ui::InterpolatedTransformAboutPivot interpolated_xform(
       pivot, std::make_unique<ui::InterpolatedRotation>(0, 90));
   gfx::Transform result = interpolated_xform.Interpolate(0.0f);
-  EXPECT_TRANSFORM_EQ(gfx::Transform(), result);
+  CheckApproximatelyEqual(gfx::Transform(), result);
   result = interpolated_xform.Interpolate(1.0f);
   gfx::Point expected_result = pivot;
-  pivot = result.MapPoint(pivot);
+  result.TransformPoint(&pivot);
   EXPECT_EQ(expected_result, pivot);
   expected_result = gfx::Point(0, 100);
-  above_pivot = result.MapPoint(above_pivot);
+  result.TransformPoint(&above_pivot);
   EXPECT_EQ(expected_result, above_pivot);
 }
 
@@ -97,13 +109,13 @@ TEST(InterpolatedTransformTest, InterpolatedScaleAboutPivot) {
       pivot, std::make_unique<ui::InterpolatedScale>(gfx::Point3F(1, 1, 1),
                                                      gfx::Point3F(2, 2, 2)));
   gfx::Transform result = interpolated_xform.Interpolate(0.0f);
-  EXPECT_TRANSFORM_EQ(gfx::Transform(), result);
+  CheckApproximatelyEqual(gfx::Transform(), result);
   result = interpolated_xform.Interpolate(1.0f);
   gfx::Point expected_result = pivot;
-  pivot = result.MapPoint(pivot);
+  result.TransformPoint(&pivot);
   EXPECT_EQ(expected_result, pivot);
   expected_result = gfx::Point(100, 300);
-  above_pivot = result.MapPoint(above_pivot);
+  result.TransformPoint(&above_pivot);
   EXPECT_EQ(expected_result, above_pivot);
 }
 
@@ -164,10 +176,11 @@ TEST(InterpolatedTransformTest, ScreenRotationEndsCleanly) {
       std::unique_ptr<ui::InterpolatedTransform> screen_rotation(
           GetScreenRotation(degrees, reversed));
       gfx::Transform interpolated = screen_rotation->Interpolate(1.0f);
+      SkMatrix44& m = interpolated.matrix();
       // Upper-left 3x3 matrix should all be 0, 1 or -1.
       for (int row = 0; row < 3; ++row) {
         for (int col = 0; col < 3; ++col) {
-          float entry = interpolated.rc(row, col);
+          float entry = m.get(row, col);
           EXPECT_TRUE(entry == 0 || entry == 1 || entry == -1);
         }
       }
@@ -213,10 +226,11 @@ ui::InterpolatedTransform* GetMaximize() {
 TEST(InterpolatedTransformTest, MaximizeEndsCleanly) {
   std::unique_ptr<ui::InterpolatedTransform> maximize(GetMaximize());
   gfx::Transform interpolated = maximize->Interpolate(1.0f);
+  SkMatrix44& m = interpolated.matrix();
   // Upper-left 3x3 matrix should all be 0, 1 or -1.
   for (int row = 0; row < 3; ++row) {
     for (int col = 0; col < 3; ++col) {
-      float entry = interpolated.rc(row, col);
+      float entry = m.get(row, col);
       EXPECT_TRUE(entry == 0 || entry == 1 || entry == -1);
     }
   }

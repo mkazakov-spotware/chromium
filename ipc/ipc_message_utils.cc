@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,38 +11,37 @@
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/notreached.h"
+#include "base/strings/nullable_string16.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel_handle.h"
-#include "ipc/ipc_message.h"
 #include "ipc/ipc_message_attachment.h"
 #include "ipc/ipc_message_attachment_set.h"
 #include "ipc/ipc_mojo_param_traits.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_MAC)
 #include "ipc/mach_port_mac.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <tchar.h>
 #include "ipc/handle_win.h"
 #include "ipc/ipc_platform_file.h"
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include "base/file_descriptor_posix.h"
 #include "ipc/ipc_platform_file_attachment_posix.h"
 #endif
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include "base/fuchsia/fuchsia_logging.h"
 #include "ipc/handle_attachment_fuchsia.h"
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/scoped_hardware_buffer_handle.h"
 #include "ipc/ipc_mojo_handle_attachment.h"
 #include "mojo/public/cpp/system/message_pipe.h"
@@ -57,11 +56,11 @@ const int kMaxRecursionDepth = 200;
 
 template<typename CharType>
 void LogBytes(const std::vector<CharType>& data, std::string* out) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Windows has a GUI for logging, which can handle arbitrary binary data.
   for (size_t i = 0; i < data.size(); ++i)
     out->push_back(data[i]);
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   // On POSIX, we log to stdout, which we assume can display ASCII.
   static const size_t kMaxBytesToLog = 100;
   for (size_t i = 0; i < std::min(data.size(), kMaxBytesToLog); ++i) {
@@ -79,140 +78,140 @@ void LogBytes(const std::vector<CharType>& data, std::string* out) {
 #endif
 }
 
-void WriteValue(const base::Value& value, int recursion, base::Pickle* pickle);
+bool ReadValue(const base::Pickle* m,
+               base::PickleIterator* iter,
+               base::Value* value,
+               int recursion);
 
-void WriteDictValue(const base::Value::Dict& value,
-                    int recursion,
-                    base::Pickle* pickle) {
-  WriteParam(pickle, base::checked_cast<int>(value.size()));
-  for (const auto entry : value) {
-    WriteParam(pickle, entry.first);
-    WriteValue(entry.second, recursion + 1, pickle);
-  }
-}
-
-void WriteListValue(const base::Value::List& value,
-                    int recursion,
-                    base::Pickle* pickle) {
-  WriteParam(pickle, base::checked_cast<int>(value.size()));
-  for (const auto& entry : value) {
-    WriteValue(entry, recursion + 1, pickle);
-  }
-}
-
-void WriteValue(const base::Value& value, int recursion, base::Pickle* pickle) {
+void WriteValue(base::Pickle* m, const base::Value* value, int recursion) {
   bool result;
   if (recursion > kMaxRecursionDepth) {
     LOG(ERROR) << "Max recursion depth hit in WriteValue.";
     return;
   }
 
-  pickle->WriteInt(static_cast<int>(value.type()));
+  m->WriteInt(static_cast<int>(value->type()));
 
-  switch (value.type()) {
+  switch (value->type()) {
     case base::Value::Type::NONE:
       break;
     case base::Value::Type::BOOLEAN: {
-      WriteParam(pickle, value.GetBool());
+      bool val;
+      result = value->GetAsBoolean(&val);
+      DCHECK(result);
+      WriteParam(m, val);
       break;
     }
     case base::Value::Type::INTEGER: {
-      DCHECK(value.is_int());
-      WriteParam(pickle, value.GetInt());
+      int val;
+      result = value->GetAsInteger(&val);
+      DCHECK(result);
+      WriteParam(m, val);
       break;
     }
     case base::Value::Type::DOUBLE: {
-      DCHECK(value.is_int() || value.is_double());
-      WriteParam(pickle, value.GetDouble());
+      double val;
+      result = value->GetAsDouble(&val);
+      DCHECK(result);
+      WriteParam(m, val);
       break;
     }
     case base::Value::Type::STRING: {
-      const std::string* val = value.GetIfString();
-      result = !!val;
+      std::string val;
+      result = value->GetAsString(&val);
       DCHECK(result);
-      WriteParam(pickle, *val);
+      WriteParam(m, val);
       break;
     }
     case base::Value::Type::BINARY: {
-      pickle->WriteData(reinterpret_cast<const char*>(value.GetBlob().data()),
-                        value.GetBlob().size());
+      m->WriteData(reinterpret_cast<const char*>(value->GetBlob().data()),
+                   base::checked_cast<int>(value->GetBlob().size()));
       break;
     }
-    case base::Value::Type::DICT: {
-      DCHECK(value.is_dict());
-      WriteDictValue(value.GetDict(), recursion, pickle);
+    case base::Value::Type::DICTIONARY: {
+      const base::DictionaryValue* dict =
+          static_cast<const base::DictionaryValue*>(value);
+
+      WriteParam(m, base::checked_cast<int>(dict->size()));
+
+      for (base::DictionaryValue::Iterator it(*dict); !it.IsAtEnd();
+           it.Advance()) {
+        WriteParam(m, it.key());
+        WriteValue(m, &it.value(), recursion + 1);
+      }
       break;
     }
     case base::Value::Type::LIST: {
-      DCHECK(value.is_list());
-      WriteListValue(value.GetList(), recursion, pickle);
+      const base::ListValue* list = static_cast<const base::ListValue*>(value);
+      WriteParam(m, base::checked_cast<int>(list->GetSize()));
+      for (const auto& entry : *list) {
+        WriteValue(m, &entry, recursion + 1);
+      }
       break;
     }
+
+    // TODO(crbug.com/859477): Remove after root cause is found.
+    default:
+      CHECK(false);
+      break;
   }
 }
 
-bool ReadValue(const base::Pickle* pickle,
-               base::PickleIterator* iter,
-               int recursion,
-               base::Value* value);
-
-// Helper for ReadValue that reads a Value::Dict into a pre-allocated object.
-bool ReadDictValue(const base::Pickle* pickle,
-                   base::PickleIterator* iter,
-                   int recursion,
-                   base::Value::Dict* value) {
+// Helper for ReadValue that reads a DictionaryValue into a pre-allocated
+// object.
+bool ReadDictionaryValue(const base::Pickle* m,
+                         base::PickleIterator* iter,
+                         base::DictionaryValue* value,
+                         int recursion) {
   int size;
-  if (!ReadParam(pickle, iter, &size))
+  if (!ReadParam(m, iter, &size))
     return false;
 
-  for (int i = 0; i < size; i++) {
-    std::string key;
-    base::Value subvalue;
-    if (!ReadParam(pickle, iter, &key) ||
-        !ReadValue(pickle, iter, recursion + 1, &subvalue)) {
+  std::vector<base::Value::LegacyDictStorage::value_type> entries;
+  entries.resize(size);
+  for (auto& entry : entries) {
+    entry.second = std::make_unique<base::Value>();
+    if (!ReadParam(m, iter, &entry.first) ||
+        !ReadValue(m, iter, entry.second.get(), recursion + 1))
       return false;
-    }
-    value->Set(key, std::move(subvalue));
   }
 
+  *value =
+      base::DictionaryValue(base::Value::LegacyDictStorage(std::move(entries)));
   return true;
 }
 
-// Helper for ReadValue that reads a Value::List into a pre-allocated object.
-bool ReadListValue(const base::Pickle* pickle,
+// Helper for ReadValue that reads a ReadListValue into a pre-allocated
+// object.
+bool ReadListValue(const base::Pickle* m,
                    base::PickleIterator* iter,
-                   int recursion,
-                   base::Value::List* value) {
+                   base::ListValue* value,
+                   int recursion) {
   int size;
-  if (!ReadParam(pickle, iter, &size))
+  if (!ReadParam(m, iter, &size))
     return false;
 
-  value->reserve(size);
-  for (int i = 0; i < size; i++) {
-    base::Value subval;
-    if (!ReadValue(pickle, iter, recursion + 1, &subval))
+  base::Value::ListStorage list_storage;
+  list_storage.resize(size);
+  for (base::Value& subval : list_storage) {
+    if (!ReadValue(m, iter, &subval, recursion + 1))
       return false;
-    value->Append(std::move(subval));
   }
+  *value = base::ListValue(std::move(list_storage));
   return true;
 }
 
-bool ReadValue(const base::Pickle* pickle,
+bool ReadValue(const base::Pickle* m,
                base::PickleIterator* iter,
-               int recursion,
-               base::Value* value) {
+               base::Value* value,
+               int recursion) {
   if (recursion > kMaxRecursionDepth) {
     LOG(ERROR) << "Max recursion depth hit in ReadValue.";
     return false;
   }
 
   int type;
-  if (!ReadParam(pickle, iter, &type))
-    return false;
-
-  constexpr int kMinValueType = static_cast<int>(base::Value::Type::NONE);
-  constexpr int kMaxValueType = static_cast<int>(base::Value::Type::LIST);
-  if (type > kMaxValueType || type < kMinValueType)
+  if (!ReadParam(m, iter, &type))
     return false;
 
   switch (static_cast<base::Value::Type>(type)) {
@@ -221,28 +220,28 @@ bool ReadValue(const base::Pickle* pickle,
       break;
     case base::Value::Type::BOOLEAN: {
       bool val;
-      if (!ReadParam(pickle, iter, &val))
+      if (!ReadParam(m, iter, &val))
         return false;
       *value = base::Value(val);
       break;
     }
     case base::Value::Type::INTEGER: {
       int val;
-      if (!ReadParam(pickle, iter, &val))
+      if (!ReadParam(m, iter, &val))
         return false;
       *value = base::Value(val);
       break;
     }
     case base::Value::Type::DOUBLE: {
       double val;
-      if (!ReadParam(pickle, iter, &val))
+      if (!ReadParam(m, iter, &val))
         return false;
       *value = base::Value(val);
       break;
     }
     case base::Value::Type::STRING: {
       std::string val;
-      if (!ReadParam(pickle, iter, &val))
+      if (!ReadParam(m, iter, &val))
         return false;
       *value = base::Value(std::move(val));
       break;
@@ -255,17 +254,17 @@ bool ReadValue(const base::Pickle* pickle,
       break;
     }
     case base::Value::Type::DICTIONARY: {
-      base::Value::Dict val;
-      if (!ReadDictValue(pickle, iter, recursion, &val))
+      base::DictionaryValue val;
+      if (!ReadDictionaryValue(m, iter, &val, recursion))
         return false;
-      *value = base::Value(std::move(val));
+      *value = std::move(val);
       break;
     }
     case base::Value::Type::LIST: {
-      base::Value::List val;
-      if (!ReadListValue(pickle, iter, recursion, &val))
+      base::ListValue val;
+      if (!ReadListValue(m, iter, &val, recursion))
         return false;
-      *value = base::Value(std::move(val));
+      *value = std::move(val);
       break;
     }
     default:
@@ -358,9 +357,8 @@ void ParamTraits<unsigned int>::Log(const param_type& p, std::string* l) {
   l->append(base::NumberToString(p));
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_FUCHSIA) ||                                              \
-    (BUILDFLAG(IS_ANDROID) && defined(ARCH_CPU_64_BITS))
+#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS) || \
+    defined(OS_FUCHSIA) || (defined(OS_ANDROID) && defined(ARCH_CPU_64_BITS))
 void ParamTraits<long>::Log(const param_type& p, std::string* l) {
   l->append(base::NumberToString(p));
 }
@@ -407,33 +405,16 @@ void ParamTraits<std::string>::Log(const param_type& p, std::string* l) {
   l->append(p);
 }
 
-void ParamTraits<std::u16string>::Log(const param_type& p, std::string* l) {
+void ParamTraits<base::string16>::Log(const param_type& p, std::string* l) {
   l->append(base::UTF16ToUTF8(p));
 }
-
-#if BUILDFLAG(IS_WIN)
-bool ParamTraits<std::wstring>::Read(const base::Pickle* m,
-                                     base::PickleIterator* iter,
-                                     param_type* r) {
-  base::StringPiece16 piece16;
-  if (!iter->ReadStringPiece16(&piece16))
-    return false;
-
-  *r = base::AsWString(piece16);
-  return true;
-}
-
-void ParamTraits<std::wstring>::Log(const param_type& p, std::string* l) {
-  l->append(base::WideToUTF8(p));
-}
-#endif
 
 void ParamTraits<std::vector<char>>::Write(base::Pickle* m,
                                            const param_type& p) {
   if (p.empty()) {
     m->WriteData(NULL, 0);
   } else {
-    m->WriteData(&p.front(), p.size());
+    m->WriteData(&p.front(), base::checked_cast<int>(p.size()));
   }
 }
 
@@ -441,8 +422,8 @@ bool ParamTraits<std::vector<char>>::Read(const base::Pickle* m,
                                           base::PickleIterator* iter,
                                           param_type* r) {
   const char *data;
-  size_t data_size = 0;
-  if (!iter->ReadData(&data, &data_size))
+  int data_size = 0;
+  if (!iter->ReadData(&data, &data_size) || data_size < 0)
     return false;
   r->resize(data_size);
   if (data_size)
@@ -459,7 +440,8 @@ void ParamTraits<std::vector<unsigned char>>::Write(base::Pickle* m,
   if (p.empty()) {
     m->WriteData(NULL, 0);
   } else {
-    m->WriteData(reinterpret_cast<const char*>(&p.front()), p.size());
+    m->WriteData(reinterpret_cast<const char*>(&p.front()),
+                 base::checked_cast<int>(p.size()));
   }
 }
 
@@ -467,8 +449,8 @@ bool ParamTraits<std::vector<unsigned char>>::Read(const base::Pickle* m,
                                                    base::PickleIterator* iter,
                                                    param_type* r) {
   const char *data;
-  size_t data_size = 0;
-  if (!iter->ReadData(&data, &data_size))
+  int data_size = 0;
+  if (!iter->ReadData(&data, &data_size) || data_size < 0)
     return false;
   r->resize(data_size);
   if (data_size)
@@ -494,11 +476,12 @@ void ParamTraits<std::vector<bool>>::Write(base::Pickle* m,
 bool ParamTraits<std::vector<bool>>::Read(const base::Pickle* m,
                                           base::PickleIterator* iter,
                                           param_type* r) {
-  size_t size;
+  int size;
+  // ReadLength() checks for < 0 itself.
   if (!iter->ReadLength(&size))
     return false;
   r->resize(size);
-  for (size_t i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++) {
     bool value;
     if (!ReadParam(m, iter, &value))
       return false;
@@ -517,13 +500,18 @@ void ParamTraits<std::vector<bool> >::Log(const param_type& p, std::string* l) {
 
 void ParamTraits<base::DictionaryValue>::Write(base::Pickle* m,
                                                const param_type& p) {
-  WriteDictValue(p.GetDict(), 0, m);
+  WriteValue(m, &p, 0);
 }
 
 bool ParamTraits<base::DictionaryValue>::Read(const base::Pickle* m,
                                               base::PickleIterator* iter,
                                               param_type* r) {
-  return ReadDictValue(m, iter, 0, &(r->GetDict()));
+  int type;
+  if (!ReadParam(m, iter, &type) ||
+      type != static_cast<int>(base::Value::Type::DICTIONARY))
+    return false;
+
+  return ReadDictionaryValue(m, iter, r, 0);
 }
 
 void ParamTraits<base::DictionaryValue>::Log(const param_type& p,
@@ -533,24 +521,7 @@ void ParamTraits<base::DictionaryValue>::Log(const param_type& p,
   l->append(json);
 }
 
-void ParamTraits<base::Value::Dict>::Write(base::Pickle* m,
-                                           const param_type& p) {
-  WriteDictValue(p, 0, m);
-}
-
-bool ParamTraits<base::Value::Dict>::Read(const base::Pickle* m,
-                                          base::PickleIterator* iter,
-                                          param_type* r) {
-  return ReadDictValue(m, iter, 0, r);
-}
-
-void ParamTraits<base::Value::Dict>::Log(const param_type& p, std::string* l) {
-  std::string json;
-  base::JSONWriter::Write(p, &json);
-  l->append(json);
-}
-
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 void ParamTraits<base::FileDescriptor>::Write(base::Pickle* m,
                                               const param_type& p) {
   // This serialization must be kept in sync with
@@ -653,9 +624,9 @@ bool ParamTraits<base::ScopedFD>::Read(const base::Pickle* m,
 void ParamTraits<base::ScopedFD>::Log(const param_type& p, std::string* l) {
   l->append(base::StringPrintf("ScopedFD(%d)", p.get()));
 }
-#endif  // BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_POSIX) || defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void ParamTraits<base::win::ScopedHandle>::Write(base::Pickle* m,
                                                  const param_type& p) {
   const bool valid = p.IsValid();
@@ -690,9 +661,9 @@ void ParamTraits<base::win::ScopedHandle>::Log(const param_type& p,
                                                std::string* l) {
   l->append(base::StringPrintf("ScopedHandle(%p)", p.Get()));
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 void ParamTraits<zx::vmo>::Write(base::Pickle* m, const param_type& p) {
   // This serialization must be kept in sync with
   // nacl_message_scanner.cc:WriteHandle().
@@ -783,9 +754,9 @@ bool ParamTraits<zx::channel>::Read(const base::Pickle* m,
 void ParamTraits<zx::channel>::Log(const param_type& p, std::string* l) {
   l->append("ZirconChannel");
 }
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void ParamTraits<base::android::ScopedHardwareBufferHandle>::Write(
     base::Pickle* m,
     const param_type& p) {
@@ -856,7 +827,7 @@ void ParamTraits<base::android::ScopedHardwareBufferHandle>::Log(
   l->append(base::StringPrintf("base::android::ScopedHardwareBufferHandle(%p)",
                                p.get()));
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 void ParamTraits<base::ReadOnlySharedMemoryRegion>::Write(base::Pickle* m,
                                                           const param_type& p) {
@@ -954,22 +925,22 @@ void ParamTraits<base::subtle::PlatformSharedMemoryRegion>::Write(
   WriteParam(m, static_cast<uint64_t>(p.GetSize()));
   WriteParam(m, p.GetGUID());
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::win::ScopedHandle h = const_cast<param_type&>(p).PassPlatformHandle();
   HandleWin handle_win(h.Get());
   WriteParam(m, handle_win);
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   zx::vmo vmo = const_cast<param_type&>(p).PassPlatformHandle();
   WriteParam(m, vmo);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   base::mac::ScopedMachSendRight h =
       const_cast<param_type&>(p).PassPlatformHandle();
   MachPortMac mach_port_mac(h.get());
   WriteParam(m, mach_port_mac);
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   m->WriteAttachment(new internal::PlatformFileAttachment(
       base::ScopedFD(const_cast<param_type&>(p).PassPlatformHandle())));
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   base::subtle::ScopedFDPair h =
       const_cast<param_type&>(p).PassPlatformHandle();
   m->WriteAttachment(new internal::PlatformFileAttachment(std::move(h.fd)));
@@ -1003,26 +974,26 @@ bool ParamTraits<base::subtle::PlatformSharedMemoryRegion>::Read(
   }
   size_t size = static_cast<size_t>(shm_size);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   HandleWin handle_win;
   if (!ReadParam(m, iter, &handle_win))
     return false;
   *r = base::subtle::PlatformSharedMemoryRegion::Take(
       base::win::ScopedHandle(handle_win.get_handle()), mode, size, guid);
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   zx::vmo vmo;
   if (!ReadParam(m, iter, &vmo))
     return false;
   *r = base::subtle::PlatformSharedMemoryRegion::Take(std::move(vmo), mode,
                                                       size, guid);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   MachPortMac mach_port_mac;
   if (!ReadParam(m, iter, &mach_port_mac))
     return false;
   *r = base::subtle::PlatformSharedMemoryRegion::Take(
       base::mac::ScopedMachSendRight(mach_port_mac.get_mach_port()), mode, size,
       guid);
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   scoped_refptr<base::Pickle::Attachment> attachment;
   if (!m->ReadAttachment(iter, &attachment))
     return false;
@@ -1031,7 +1002,7 @@ bool ParamTraits<base::subtle::PlatformSharedMemoryRegion>::Read(
     return false;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   *r = base::subtle::PlatformSharedMemoryRegion::Take(
       base::ScopedFD(
           static_cast<internal::PlatformFileAttachment*>(attachment.get())
@@ -1059,7 +1030,7 @@ bool ParamTraits<base::subtle::PlatformSharedMemoryRegion>::Read(
                                    ->TakePlatformFile())
               : base::ScopedFD()),
       mode, size, guid);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 #endif
 
@@ -1069,19 +1040,19 @@ bool ParamTraits<base::subtle::PlatformSharedMemoryRegion>::Read(
 void ParamTraits<base::subtle::PlatformSharedMemoryRegion>::Log(
     const param_type& p,
     std::string* l) {
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   l->append("Handle: ");
   LogParam(p.GetPlatformHandle()->get(), l);
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   l->append("Handle: ");
   LogParam(p.GetPlatformHandle(), l);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   l->append("Mach port: ");
   LogParam(p.GetPlatformHandle(), l);
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   l->append("FD: ");
   LogParam(p.GetPlatformHandle(), l);
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   base::subtle::FDPair h = p.GetPlatformHandle();
   l->append("FD: ");
   LogParam(h.fd, l);
@@ -1126,7 +1097,7 @@ void ParamTraits<base::subtle::PlatformSharedMemoryRegion::Mode>::Log(
   LogParam(static_cast<int>(p), l);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void ParamTraits<PlatformFileForTransit>::Write(base::Pickle* m,
                                                 const param_type& p) {
   m->WriteBool(p.IsValid());
@@ -1159,7 +1130,7 @@ void ParamTraits<PlatformFileForTransit>::Log(const param_type& p,
                                               std::string* l) {
   LogParam(p.GetHandle(), l);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 void ParamTraits<base::FilePath>::Write(base::Pickle* m, const param_type& p) {
   p.WriteToPickle(m);
@@ -1175,37 +1146,53 @@ void ParamTraits<base::FilePath>::Log(const param_type& p, std::string* l) {
   ParamTraits<base::FilePath::StringType>::Log(p.value(), l);
 }
 
-void ParamTraits<base::Value::List>::Write(base::Pickle* m,
-                                           const param_type& p) {
-  WriteListValue(p, 0, m);
+void ParamTraits<base::ListValue>::Write(base::Pickle* m, const param_type& p) {
+  WriteValue(m, &p, 0);
 }
 
-bool ParamTraits<base::Value::List>::Read(const base::Pickle* m,
-                                          base::PickleIterator* iter,
-                                          param_type* r) {
-  return ReadListValue(m, iter, 0, r);
+bool ParamTraits<base::ListValue>::Read(const base::Pickle* m,
+                                        base::PickleIterator* iter,
+                                        param_type* r) {
+  int type;
+  if (!ReadParam(m, iter, &type) ||
+      type != static_cast<int>(base::Value::Type::LIST))
+    return false;
+
+  return ReadListValue(m, iter, r, 0);
 }
 
-void ParamTraits<base::Value::List>::Log(const param_type& p, std::string* l) {
+void ParamTraits<base::ListValue>::Log(const param_type& p, std::string* l) {
   std::string json;
   base::JSONWriter::Write(p, &json);
   l->append(json);
 }
 
-void ParamTraits<base::Value>::Write(base::Pickle* m, const param_type& p) {
-  WriteValue(p, 0, m);
+void ParamTraits<base::NullableString16>::Write(base::Pickle* m,
+                                                const param_type& p) {
+  WriteParam(m, p.string());
+  WriteParam(m, p.is_null());
 }
 
-bool ParamTraits<base::Value>::Read(const base::Pickle* m,
-                                    base::PickleIterator* iter,
-                                    param_type* r) {
-  return ReadValue(m, iter, 0, r);
+bool ParamTraits<base::NullableString16>::Read(const base::Pickle* m,
+                                               base::PickleIterator* iter,
+                                               param_type* r) {
+  base::string16 string;
+  if (!ReadParam(m, iter, &string))
+    return false;
+  bool is_null;
+  if (!ReadParam(m, iter, &is_null))
+    return false;
+  *r = base::NullableString16(string, is_null);
+  return true;
 }
 
-void ParamTraits<base::Value>::Log(const param_type& p, std::string* l) {
-  std::string json;
-  base::JSONWriter::Write(p, &json);
-  l->append(json);
+void ParamTraits<base::NullableString16>::Log(const param_type& p,
+                                              std::string* l) {
+  l->append("(");
+  LogParam(p.string(), l);
+  l->append(", ");
+  LogParam(p.is_null(), l);
+  l->append(")");
 }
 
 void ParamTraits<base::File::Info>::Write(base::Pickle* m,
@@ -1340,7 +1327,7 @@ void ParamTraits<base::UnguessableToken>::Log(const param_type& p,
 
 void ParamTraits<IPC::ChannelHandle>::Write(base::Pickle* m,
                                             const param_type& p) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
   WriteParam(m, p.socket);
 #else
   WriteParam(m, p.mojo_handle);
@@ -1350,7 +1337,7 @@ void ParamTraits<IPC::ChannelHandle>::Write(base::Pickle* m,
 bool ParamTraits<IPC::ChannelHandle>::Read(const base::Pickle* m,
                                            base::PickleIterator* iter,
                                            param_type* r) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
   return ReadParam(m, iter, &r->socket);
 #else
   return ReadParam(m, iter, &r->mojo_handle);
@@ -1360,7 +1347,7 @@ bool ParamTraits<IPC::ChannelHandle>::Read(const base::Pickle* m,
 void ParamTraits<IPC::ChannelHandle>::Log(const param_type& p,
                                           std::string* l) {
   l->append("ChannelHandle(");
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
   ParamTraits<base::FileDescriptor>::Log(p.socket, l);
 #else
   LogParam(p.mojo_handle, l);
@@ -1400,7 +1387,7 @@ void ParamTraits<LogData>::Log(const param_type& p, std::string* l) {
 }
 
 void ParamTraits<Message>::Write(base::Pickle* m, const Message& p) {
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   // We don't serialize the file descriptors in the nested message, so there
   // better not be any.
   DCHECK(!p.HasAttachments());
@@ -1419,7 +1406,7 @@ void ParamTraits<Message>::Write(base::Pickle* m, const Message& p) {
   m->WriteUInt32(static_cast<uint32_t>(p.routing_id()));
   m->WriteUInt32(p.type());
   m->WriteUInt32(p.flags());
-  m->WriteData(p.payload(), p.payload_size());
+  m->WriteData(p.payload(), static_cast<uint32_t>(p.payload_size()));
 }
 
 bool ParamTraits<Message>::Read(const base::Pickle* m,
@@ -1431,7 +1418,7 @@ bool ParamTraits<Message>::Read(const base::Pickle* m,
       !iter->ReadUInt32(&flags))
     return false;
 
-  size_t payload_size;
+  int payload_size;
   const char* payload;
   if (!iter->ReadData(&payload, &payload_size))
     return false;
@@ -1445,7 +1432,7 @@ void ParamTraits<Message>::Log(const Message& p, std::string* l) {
   l->append("<IPC::Message>");
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Note that HWNDs/HANDLE/HCURSOR/HACCEL etc are always 32 bits, even on 64
 // bit systems. That's why we use the Windows macros to convert to 32 bits.
 void ParamTraits<HANDLE>::Write(base::Pickle* m, const param_type& p) {
@@ -1474,7 +1461,7 @@ bool ParamTraits<MSG>::Read(const base::Pickle* m,
                             base::PickleIterator* iter,
                             param_type* r) {
   const char *data;
-  size_t data_size = 0;
+  int data_size = 0;
   bool result = iter->ReadData(&data, &data_size);
   if (result && data_size == sizeof(MSG)) {
     memcpy(r, data, sizeof(MSG));
@@ -1490,6 +1477,6 @@ void ParamTraits<MSG>::Log(const param_type& p, std::string* l) {
   l->append("<MSG>");
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 }  // namespace IPC

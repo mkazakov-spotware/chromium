@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -78,7 +78,7 @@ class TextPerfTest : public testing::Test {
 
 TEST_F(TextPerfTest, RenderLoremIpsum100Chars) {
   SetupReporter("TextPerfTest", "render_lorem_ipsum_100_chars");
-  std::u16string text = base::UTF8ToUTF16(kLoremIpsum100Chars);
+  base::string16 text = base::UTF8ToUTF16(kLoremIpsum100Chars);
   timer_.Reset();
   for (size_t i = 0; i < kNumberOfRuns; i++) {
     text[0] = 'a' + (i % 26);
@@ -89,7 +89,7 @@ TEST_F(TextPerfTest, RenderLoremIpsum100Chars) {
 
 TEST_F(TextPerfTest, RenderLoremIpsum700Chars) {
   SetupReporter("TextPerfTest", "render_lorem_ipsum_700_chars");
-  std::u16string text = base::UTF8ToUTF16(kLoremIpsum700Chars);
+  base::string16 text = base::UTF8ToUTF16(kLoremIpsum700Chars);
   timer_.Reset();
   for (size_t i = 0; i < kNumberOfRuns; i++) {
     text[0] = 'a' + (i % 26);

@@ -45,6 +45,8 @@ function callback() {
 }
 
 if (window.chrome && chrome.gpuBenchmarking && window.testRunner) {
+  testRunner.setCanOpenWindows();
+  testRunner.setPopupBlockingEnabled(true);
   var pointerActions =
     [
     {source: "touch",

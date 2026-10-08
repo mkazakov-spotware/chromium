@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -24,13 +24,13 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 namespace {
 
 const char kAppInZipHistogramName[] =
     "SBClientDownload.ZipFileContainsAppDirectory";
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 class SandboxedZipAnalyzerTest : public ::testing::Test {
  protected:
@@ -54,9 +54,6 @@ class SandboxedZipAnalyzerTest : public ::testing::Test {
       results->success = false;
     }
 
-    ResultsGetter(const ResultsGetter&) = delete;
-    ResultsGetter& operator=(const ResultsGetter&) = delete;
-
     SandboxedZipAnalyzer::ResultCallback GetCallback() {
       return base::BindOnce(&ResultsGetter::OnZipAnalyzerResults,
                             base::Unretained(this));
@@ -70,7 +67,9 @@ class SandboxedZipAnalyzerTest : public ::testing::Test {
     }
 
     base::OnceClosure quit_closure_;
-    raw_ptr<safe_browsing::ArchiveAnalyzerResults> results_;
+    safe_browsing::ArchiveAnalyzerResults* results_;
+
+    DISALLOW_COPY_AND_ASSIGN(ResultsGetter);
   };
 
   SandboxedZipAnalyzerTest()
@@ -96,7 +95,7 @@ class SandboxedZipAnalyzerTest : public ::testing::Test {
     run_loop.Run();
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   void ExpectPEHeaders(
       const BinaryData& data,
       const safe_browsing::ClientDownloadRequest_ArchivedBinary& binary) {
@@ -114,7 +113,7 @@ class SandboxedZipAnalyzerTest : public ::testing::Test {
   }
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   void ExpectMachOHeaders(
       const BinaryData& data,
       const safe_browsing::ClientDownloadRequest_ArchivedBinary& binary) {
@@ -146,22 +145,22 @@ class SandboxedZipAnalyzerTest : public ::testing::Test {
     EXPECT_FALSE(binary.digests().has_md5());
     ASSERT_TRUE(binary.has_length());
     EXPECT_EQ(data.length, binary.length());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // ExtractImageFeatures for Windows, which only works on PE
     // files.
     if (binary.file_basename().find(".exe") != std::string::npos) {
       ExpectPEHeaders(data, binary);
       return;
     }
-#endif  // BUILDFLAG(IS_WIN)
-#if BUILDFLAG(IS_MAC)
+#endif  // OS_WIN
+#if defined(OS_MAC)
     // ExtractImageFeatures for Mac, which only works on MachO
     // files.
     if (binary.file_basename().find("executablefat") != std::string::npos) {
       ExpectMachOHeaders(data, binary);
       return;
     }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
     // No signature/image headers should be extracted on the wrong platform
     // (e.g. analyzing .exe on Mac).
     ASSERT_FALSE(binary.has_signature());
@@ -175,12 +174,12 @@ class SandboxedZipAnalyzerTest : public ::testing::Test {
   static const BinaryData kSignedExe;
   static const BinaryData kJSEFile;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   static const uint8_t kUnsignedMachODigest[];
   static const uint8_t kSignedMachODigest[];
   static const BinaryData kUnsignedMachO;
   static const BinaryData kSignedMachO;
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
   base::FilePath dir_test_data_;
   content::BrowserTaskEnvironment task_environment_;
@@ -224,7 +223,7 @@ const SandboxedZipAnalyzerTest::BinaryData SandboxedZipAnalyzerTest::kJSEFile =
         false,  // is_signed
 };
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 const uint8_t SandboxedZipAnalyzerTest::kUnsignedMachODigest[] = {
     0xe4, 0x62, 0xff, 0x75, 0x2f, 0xf9, 0xd8, 0x4e, 0x34, 0xd8, 0x43,
     0xe5, 0xd4, 0x6e, 0x20, 0x12, 0xad, 0xcb, 0xd4, 0x85, 0x40, 0xa8,
@@ -249,7 +248,7 @@ const SandboxedZipAnalyzerTest::BinaryData
         34176,
         true,  // !is_signed
 };
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 TEST_F(SandboxedZipAnalyzerTest, NoBinaries) {
   safe_browsing::ArchiveAnalyzerResults results;
@@ -371,7 +370,7 @@ TEST_F(SandboxedZipAnalyzerTest, ZippedJSEFile) {
   EXPECT_TRUE(results.archived_archive_filenames.empty());
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 TEST_F(SandboxedZipAnalyzerTest, ZippedAppWithUnsignedAndSignedExecutable) {
   base::HistogramTester histograms;
   histograms.ExpectTotalCount(kAppInZipHistogramName, 0);
@@ -404,4 +403,4 @@ TEST_F(SandboxedZipAnalyzerTest, ZippedAppWithUnsignedAndSignedExecutable) {
   EXPECT_TRUE(found_unsigned);
   EXPECT_TRUE(found_signed);
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC

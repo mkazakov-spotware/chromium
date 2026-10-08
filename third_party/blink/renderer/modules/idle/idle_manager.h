@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "third_party/blink/public/mojom/idle/idle_manager.mojom-blink.h"
 #include "third_party/blink/public/mojom/permissions/permission.mojom-blink.h"
-#include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
@@ -20,8 +19,8 @@ class ScriptPromise;
 class ScriptPromiseResolver;
 class ScriptState;
 
-class MODULES_EXPORT IdleManager final : public GarbageCollected<IdleManager>,
-                                         public Supplement<ExecutionContext> {
+class IdleManager final : public GarbageCollected<IdleManager>,
+                          public Supplement<ExecutionContext> {
  public:
   static const char kSupplementName[];
 
@@ -31,20 +30,22 @@ class MODULES_EXPORT IdleManager final : public GarbageCollected<IdleManager>,
   ~IdleManager();
 
   ScriptPromise RequestPermission(ScriptState*, ExceptionState&);
-  void AddMonitor(mojo::PendingRemote<mojom::blink::IdleMonitor>,
+  void AddMonitor(base::TimeDelta threshold,
+                  mojo::PendingRemote<mojom::blink::IdleMonitor>,
                   mojom::blink::IdleManager::AddMonitorCallback);
 
   void Trace(Visitor*) const override;
-
-  void InitForTesting(
-      mojo::PendingRemote<mojom::blink::IdleManager> idle_service);
 
  private:
   void OnPermissionRequestComplete(ScriptPromiseResolver*,
                                    mojom::blink::PermissionStatus);
 
-  HeapMojoRemote<mojom::blink::IdleManager> idle_service_;
-  HeapMojoRemote<mojom::blink::PermissionService> permission_service_;
+  HeapMojoRemote<mojom::blink::IdleManager,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
+      idle_service_;
+  HeapMojoRemote<mojom::blink::PermissionService,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
+      permission_service_;
 };
 
 }  // namespace blink

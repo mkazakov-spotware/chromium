@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "ash/public/cpp/ash_public_export.h"
 #include "base/callback.h"
-#include "ui/base/ime/ash/ime_keyset.h"
+#include "ui/base/ime/chromeos/ime_keyset.h"
 
 namespace ash {
 
@@ -26,7 +26,7 @@ class ASH_PUBLIC_EXPORT ImeControllerClient {
 
   // Switches to an input method by |id|. Does nothing if the input method is
   // not installed. The ID is usually the output of a call like
-  // extension_ime_util::GetInputMethodIDByEngineID("xkb:jp::jpn"),
+  // chromeos::extension_ime_util::GetInputMethodIDByEngineID("xkb:jp::jpn"),
   // see that function for details. Shows a bubble with the input method short
   // name when |show_message| is true.
   virtual void SwitchImeById(const std::string& id, bool show_message) = 0;
@@ -44,12 +44,20 @@ class ASH_PUBLIC_EXPORT ImeControllerClient {
   // caps lock.
   virtual void SetCapsLockEnabled(bool enabled) = 0;
 
+  // Notifies the mirroring state change to the client where IME lives (e.g.
+  // Chrome), so that the IME can behave according to the state.
+  virtual void UpdateMirroringState(bool enabled) = 0;
+
+  // Notifies the casting state change to the client where IME lives (e.g.
+  // Chrome), so that the IME can behave according to the state.
+  virtual void UpdateCastingState(bool enabled) = 0;
+
   // Overrides the keyboard keyset (emoji, handwriting or voice). If keyset is
   // 'kNone', we switch to the default keyset. Because this is asynchronous,
   // any code that needs the keyset to be updated first must use the callback.
   using OverrideKeyboardKeysetCallback = base::OnceCallback<void()>;
   virtual void OverrideKeyboardKeyset(
-      input_method::ImeKeyset keyset,
+      chromeos::input_method::ImeKeyset keyset,
       OverrideKeyboardKeysetCallback callback) = 0;
 
   // Show the current mode.

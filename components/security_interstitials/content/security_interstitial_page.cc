@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -68,8 +68,8 @@ SecurityInterstitialPage::TypeID SecurityInterstitialPage::GetTypeForTesting() {
 }
 
 std::string SecurityInterstitialPage::GetHTMLContents() {
-  base::Value::Dict load_time_data;
-  PopulateInterstitialStrings(load_time_data);
+  base::DictionaryValue load_time_data;
+  PopulateInterstitialStrings(&load_time_data);
   webui::SetLoadTimeDataDefaults(controller()->GetApplicationLocale(),
                                  &load_time_data);
   std::string html =
@@ -77,7 +77,7 @@ std::string SecurityInterstitialPage::GetHTMLContents() {
           GetHTMLTemplateId());
 
   webui::AppendWebUiCssTextDefaults(&html);
-  return webui::GetI18nTemplateHtml(html, load_time_data);
+  return webui::GetI18nTemplateHtml(html, &load_time_data);
 }
 
 SecurityInterstitialControllerClient* SecurityInterstitialPage::controller()
@@ -97,7 +97,7 @@ void SecurityInterstitialPage::SetUpMetrics() {
   }
 }
 
-std::u16string SecurityInterstitialPage::GetFormattedHostName() const {
+base::string16 SecurityInterstitialPage::GetFormattedHostName() const {
   return security_interstitials::common_string_util::GetFormattedHostName(
       request_url_);
 }

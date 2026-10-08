@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "util/file/file_reader.h"
 
 namespace crashpad {
@@ -50,10 +51,6 @@ class DelimitedFileReader {
   };
 
   explicit DelimitedFileReader(FileReaderInterface* file_reader);
-
-  DelimitedFileReader(const DelimitedFileReader&) = delete;
-  DelimitedFileReader& operator=(const DelimitedFileReader&) = delete;
-
   ~DelimitedFileReader();
 
   //! \brief Reads a single field from the file.
@@ -87,6 +84,8 @@ class DelimitedFileReader {
   uint16_t buf_pos_;  // Index into buf_ of the start of the next field.
   uint16_t buf_len_;  // The size of buf_ that’s been filled.
   bool eof_;  // Caches the EOF signal when detected following a partial field.
+
+  DISALLOW_COPY_AND_ASSIGN(DelimitedFileReader);
 };
 
 }  // namespace crashpad

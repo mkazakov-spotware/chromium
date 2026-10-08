@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ enum class AOMRelationListProperty;
 class ExceptionState;
 
 // Accessibility Object Model node list
-// Explainer: https://github.com/WICG/aom/blob/gh-pages/explainer.md
+// Explainer: https://github.com/WICG/aom/blob/master/explainer.md
 // Spec: https://wicg.github.io/aom/spec/
 class CORE_EXPORT AccessibleNodeList : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,14 @@
 #import <Foundation/Foundation.h>
 
 #include "base/memory/ref_counted_memory.h"
-#include "components/autofill/core/common/unique_ids.h"
+#include "components/autofill/core/common/renderer_id.h"
 #import "components/autofill/ios/form_util/form_activity_observer_bridge.h"
 #import "ios/web/public/web_state_observer_bridge.h"
 #include "url/gurl.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class JsPasswordManager;
 @class PasswordFormHelper;
 
 namespace autofill {
@@ -32,7 +33,6 @@ bool GetPageURLAndCheckTrustLevel(web::WebState* web_state,
 }  // namespace password_manager
 
 namespace web {
-class WebFrame;
 class WebState;
 }  // namespace web
 
@@ -41,7 +41,7 @@ class WebState;
 // Called when the password form is submitted.
 - (void)formHelper:(PasswordFormHelper*)formHelper
      didSubmitForm:(const autofill::FormData&)form
-           inFrame:(web::WebFrame*)frame;
+       inMainFrame:(BOOL)inMainFrame;
 @end
 
 // Handles common form processing logic of password controller for both
@@ -50,6 +50,9 @@ class WebState;
 // SharedPasswordController.
 @interface PasswordFormHelper
     : NSObject<FormActivityObserver, CRWWebStateObserver>
+
+// The JsPasswordManager processing password form via javascript.
+@property(nonatomic, readonly) JsPasswordManager* jsPasswordManager;
 
 // Last committed URL of current web state.
 // Returns empty URL if current web state is not available.
@@ -70,37 +73,37 @@ class WebState;
 // Uses JavaScript to find password forms. Calls |completionHandler| with the
 // extracted information used for matching and saving passwords. Calls
 // |completionHandler| with an empty vector if no password forms are found.
-- (void)findPasswordFormsInFrame:(web::WebFrame*)frame
-               completionHandler:
-                   (nullable void (^)(const std::vector<autofill::FormData>&,
-                                      uint32_t))completionHandler;
+- (void)findPasswordFormsWithCompletionHandler:
+    (nullable void (^)(const std::vector<autofill::FormData>&,
+                       uint32_t))completionHandler;
+
+// Autofills credentials into the page. Credentials and input fields are
+// specified by |formData|. Invokes |completionHandler| when finished with YES
+// if successful and NO otherwise.
+- (void)fillPasswordForm:(const autofill::PasswordFormFillData&)formData
+       completionHandler:(nullable void (^)(BOOL))completionHandler;
 
 // Fills new password field for (optional as @"") |newPasswordIdentifier| and
 // for (optional as @"") confirm password field |confirmPasswordIdentifier| in
 // the form identified by |formData|. Invokes |completionHandler| with true if
 // any fields were filled, false otherwise.
 - (void)fillPasswordForm:(autofill::FormRendererId)formIdentifier
-                      inFrame:(web::WebFrame*)frame
         newPasswordIdentifier:(autofill::FieldRendererId)newPasswordIdentifier
     confirmPasswordIdentifier:
         (autofill::FieldRendererId)confirmPasswordIdentifier
             generatedPassword:(NSString*)generatedPassword
             completionHandler:(nullable void (^)(BOOL))completionHandler;
 
-// Autofills credentials into the page on credential suggestion selection.
-// Credentials and input fields are specified by |fillData|. |uniqueFieldID|
-// specifies the unput on which the suggestion was accepted. Invokes
-// |completionHandler| when finished with YES if successful and NO otherwise.
+// Autofills credentials into the page. Credentials and input fields are
+// specified by |fillData|. Invokes |completionHandler| when finished with YES
+// if successful and NO otherwise.
 - (void)fillPasswordFormWithFillData:(const password_manager::FillData&)fillData
-                             inFrame:(web::WebFrame*)frame
-                    triggeredOnField:(autofill::FieldRendererId)uniqueFieldID
                    completionHandler:(nullable void (^)(BOOL))completionHandler;
 
 // Finds the password form with unique ID |formIdentifier| and calls
 // |completionHandler| with the populated |FormData| data structure. |found| is
 // YES if the current form was found successfully, NO otherwise.
 - (void)extractPasswordFormData:(autofill::FormRendererId)formIdentifier
-                        inFrame:(web::WebFrame*)frame
               completionHandler:
                   (void (^)(BOOL found,
                             const autofill::FormData& form))completionHandler;

@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_PAYMENTS_PAYMENT_HANDLER_WEB_FLOW_VIEW_CONTROLLER_H_
 #define CHROME_BROWSER_UI_VIEWS_PAYMENTS_PAYMENT_HANDLER_WEB_FLOW_VIEW_CONTROLLER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/payments/payment_handler_modal_dialog_manager_delegate.h"
 #include "chrome/browser/ui/views/payments/payment_request_sheet_controller.h"
 #include "components/payments/content/developer_console_logger.h"
@@ -14,7 +13,6 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
 #include "url/gurl.h"
 
 class Profile;
@@ -60,7 +58,7 @@ class PaymentHandlerWebFlowViewController
 
  private:
   // PaymentRequestSheetController:
-  std::u16string GetSheetTitle() override;
+  base::string16 GetSheetTitle() override;
   void FillContentView(views::View* content_view) override;
   bool ShouldShowPrimaryButton() override;
   bool ShouldShowSecondaryButton() override;
@@ -77,14 +75,13 @@ class PaymentHandlerWebFlowViewController
                       std::unique_ptr<content::WebContents> new_contents,
                       const GURL& target_url,
                       WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
+                      const gfx::Rect& initial_rect,
                       bool user_gesture,
                       bool* was_blocked) override;
-  bool HandleKeyboardEvent(
-      content::WebContents* source,
-      const content::NativeWebKeyboardEvent& event) override;
 
   // content::WebContentsObserver:
+  void DidStartNavigation(
+      content::NavigationHandle* navigation_handle) override;
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
   void LoadProgressChanged(double progress) override;
@@ -93,17 +90,14 @@ class PaymentHandlerWebFlowViewController
   void AbortPayment();
 
   DeveloperConsoleLogger log_;
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   GURL target_;
-  raw_ptr<views::ProgressBar, DanglingUntriaged> progress_bar_ = nullptr;
-  raw_ptr<views::View, DanglingUntriaged> separator_ = nullptr;
+  views::ProgressBar* progress_bar_ = nullptr;
+  views::View* separator_ = nullptr;
   PaymentHandlerOpenWindowCallback first_navigation_complete_callback_;
   // Used to present modal dialog triggered from the payment handler web view,
   // e.g. an authenticator dialog.
   PaymentHandlerModalDialogManagerDelegate dialog_manager_delegate_;
-  // A handler to handle unhandled keyboard messages coming back from the
-  // renderer process.
-  views::UnhandledKeyboardEventHandler unhandled_keyboard_event_handler_;
 };
 
 }  // namespace payments

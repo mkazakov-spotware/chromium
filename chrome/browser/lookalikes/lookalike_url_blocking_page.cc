@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,6 @@ LookalikeUrlBlockingPage::LookalikeUrlBlockingPage(
     ukm::SourceId source_id,
     LookalikeUrlMatchType match_type,
     bool is_signed_exchange,
-    bool triggered_by_initial_url,
     std::unique_ptr<
         security_interstitials::SecurityInterstitialControllerClient>
         controller_client)
@@ -42,8 +41,7 @@ LookalikeUrlBlockingPage::LookalikeUrlBlockingPage(
       safe_url_(safe_url),
       source_id_(source_id),
       match_type_(match_type),
-      is_signed_exchange_(is_signed_exchange),
-      triggered_by_initial_url_(triggered_by_initial_url) {
+      is_signed_exchange_(is_signed_exchange) {
   controller()->metrics_helper()->RecordUserDecision(MetricsHelper::SHOW);
   controller()->metrics_helper()->RecordUserInteraction(
       MetricsHelper::TOTAL_VISITS);
@@ -57,15 +55,17 @@ LookalikeUrlBlockingPage::GetTypeForTesting() {
 }
 
 void LookalikeUrlBlockingPage::PopulateInterstitialStrings(
-    base::Value::Dict& load_time_data) {
+    base::DictionaryValue* load_time_data) {
+  CHECK(load_time_data);
+
   PopulateLookalikeUrlBlockingPageStrings(load_time_data, safe_url_,
                                           request_url());
 }
 
 void LookalikeUrlBlockingPage::OnInterstitialClosing() {
   ReportUkmForLookalikeUrlBlockingPageIfNeeded(
-      source_id_, match_type_, LookalikeUrlBlockingPageUserAction::kCloseOrBack,
-      triggered_by_initial_url_);
+      source_id_, match_type_,
+      LookalikeUrlBlockingPageUserAction::kCloseOrBack);
 }
 
 bool LookalikeUrlBlockingPage::ShouldDisplayURL() const {
@@ -90,8 +90,7 @@ void LookalikeUrlBlockingPage::CommandReceived(const std::string& command) {
           MetricsHelper::DONT_PROCEED);
       ReportUkmForLookalikeUrlBlockingPageIfNeeded(
           source_id_, match_type_,
-          LookalikeUrlBlockingPageUserAction::kAcceptSuggestion,
-          triggered_by_initial_url_);
+          LookalikeUrlBlockingPageUserAction::kAcceptSuggestion);
       // If the interstitial doesn't have a suggested URL (e.g. punycode
       // interstitial), simply open the new tab page.
       if (!safe_url_.is_valid()) {
@@ -105,8 +104,7 @@ void LookalikeUrlBlockingPage::CommandReceived(const std::string& command) {
           MetricsHelper::PROCEED);
       ReportUkmForLookalikeUrlBlockingPageIfNeeded(
           source_id_, match_type_,
-          LookalikeUrlBlockingPageUserAction::kClickThrough,
-          triggered_by_initial_url_);
+          LookalikeUrlBlockingPageUserAction::kClickThrough);
       controller()->Proceed();
       break;
     case security_interstitials::CMD_DO_REPORT:

@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/xr/xr_space.h"
 
+#include "base/stl_util.h"
 #include "third_party/blink/renderer/modules/event_target_modules.h"
 #include "third_party/blink/renderer/modules/xr/xr_input_source.h"
 #include "third_party/blink/renderer/modules/xr/xr_pose.h"
@@ -16,71 +17,71 @@ XRSpace::XRSpace(XRSession* session) : session_(session) {}
 
 XRSpace::~XRSpace() = default;
 
-absl::optional<gfx::Transform> XRSpace::NativeFromViewer(
-    const absl::optional<gfx::Transform>& mojo_from_viewer) const {
+base::Optional<TransformationMatrix> XRSpace::NativeFromViewer(
+    const base::Optional<TransformationMatrix>& mojo_from_viewer) {
   if (!mojo_from_viewer)
-    return absl::nullopt;
+    return base::nullopt;
 
-  absl::optional<gfx::Transform> native_from_mojo = NativeFromMojo();
+  base::Optional<TransformationMatrix> native_from_mojo = NativeFromMojo();
   if (!native_from_mojo)
-    return absl::nullopt;
+    return base::nullopt;
 
-  native_from_mojo->PreConcat(*mojo_from_viewer);
+  native_from_mojo->Multiply(*mojo_from_viewer);
 
   // This is now native_from_viewer
   return native_from_mojo;
 }
 
-gfx::Transform XRSpace::NativeFromOffsetMatrix() const {
-  gfx::Transform identity;
+TransformationMatrix XRSpace::NativeFromOffsetMatrix() {
+  TransformationMatrix identity;
   return identity;
 }
 
-gfx::Transform XRSpace::OffsetFromNativeMatrix() const {
-  gfx::Transform identity;
+TransformationMatrix XRSpace::OffsetFromNativeMatrix() {
+  TransformationMatrix identity;
   return identity;
 }
 
-absl::optional<gfx::Transform> XRSpace::MojoFromOffsetMatrix() const {
+base::Optional<TransformationMatrix> XRSpace::MojoFromOffsetMatrix() {
   auto maybe_mojo_from_native = MojoFromNative();
   if (!maybe_mojo_from_native) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   // Modifies maybe_mojo_from_native - it becomes mojo_from_offset_matrix.
   // Saves a heap allocation since there is no need to create a new unique_ptr.
-  maybe_mojo_from_native->PreConcat(NativeFromOffsetMatrix());
+  maybe_mojo_from_native->Multiply(NativeFromOffsetMatrix());
   return maybe_mojo_from_native;
 }
 
-absl::optional<gfx::Transform> XRSpace::NativeFromMojo() const {
-  absl::optional<gfx::Transform> mojo_from_native = MojoFromNative();
+base::Optional<TransformationMatrix> XRSpace::NativeFromMojo() {
+  base::Optional<TransformationMatrix> mojo_from_native = MojoFromNative();
   if (!mojo_from_native)
-    return absl::nullopt;
+    return base::nullopt;
 
-  return mojo_from_native->GetCheckedInverse();
+  DCHECK(mojo_from_native->IsInvertible());
+  return mojo_from_native->Inverse();
 }
 
 bool XRSpace::EmulatedPosition() const {
   return session()->EmulatedPosition();
 }
 
-XRPose* XRSpace::getPose(const XRSpace* other_space) const {
-  DVLOG(2) << __func__ << ": ToString()=" << ToString()
-           << ", other_space->ToString()=" << other_space->ToString();
+XRPose* XRSpace::getPose(XRSpace* other_space) {
+  DVLOG(2) << __func__;
 
   // Named mojo_from_offset because that is what we will leave it as, though it
   // starts mojo_from_native.
-  absl::optional<gfx::Transform> mojo_from_offset = MojoFromNative();
+  base::Optional<TransformationMatrix> mojo_from_offset = MojoFromNative();
   if (!mojo_from_offset) {
     DVLOG(2) << __func__ << ": MojoFromNative() is not set";
     return nullptr;
   }
 
   // Add any origin offset now.
-  mojo_from_offset->PreConcat(NativeFromOffsetMatrix());
+  mojo_from_offset->Multiply(NativeFromOffsetMatrix());
 
-  absl::optional<gfx::Transform> other_from_mojo =
+  base::Optional<TransformationMatrix> other_from_mojo =
       other_space->NativeFromMojo();
   if (!other_from_mojo) {
     DVLOG(2) << __func__ << ": other_space->NativeFromMojo() is not set";
@@ -88,29 +89,29 @@ XRPose* XRSpace::getPose(const XRSpace* other_space) const {
   }
 
   // Add any origin offset from the other space now.
-  gfx::Transform other_offset_from_mojo =
-      other_space->OffsetFromNativeMatrix() * other_from_mojo.value();
+  TransformationMatrix other_offset_from_mojo =
+      other_space->OffsetFromNativeMatrix().Multiply(*other_from_mojo);
 
   // TODO(crbug.com/969133): Update how EmulatedPosition is determined here once
   // spec issue https://github.com/immersive-web/webxr/issues/534 has been
   // resolved.
-  gfx::Transform other_offset_from_offset =
-      other_offset_from_mojo * mojo_from_offset.value();
+  TransformationMatrix other_offset_from_offset =
+      other_offset_from_mojo.Multiply(*mojo_from_offset);
   return MakeGarbageCollected<XRPose>(
       other_offset_from_offset,
       EmulatedPosition() || other_space->EmulatedPosition());
 }
 
-absl::optional<gfx::Transform> XRSpace::OffsetFromViewer() const {
-  absl::optional<gfx::Transform> native_from_viewer =
+base::Optional<TransformationMatrix> XRSpace::OffsetFromViewer() {
+  base::Optional<TransformationMatrix> native_from_viewer =
       NativeFromViewer(session()->GetMojoFrom(
           device::mojom::blink::XRReferenceSpaceType::kViewer));
 
   if (!native_from_viewer) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  return OffsetFromNativeMatrix() * *native_from_viewer;
+  return OffsetFromNativeMatrix().Multiply(*native_from_viewer);
 }
 
 ExecutionContext* XRSpace::GetExecutionContext() const {

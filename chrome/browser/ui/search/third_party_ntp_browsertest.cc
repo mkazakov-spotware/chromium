@@ -1,8 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "chrome/browser/search/instant_service.h"
 #include "chrome/browser/search/instant_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -27,9 +28,6 @@ class ThirdPartyNTPBrowserTest : public InProcessBrowserTest,
  public:
   ThirdPartyNTPBrowserTest() = default;
 
-  ThirdPartyNTPBrowserTest(const ThirdPartyNTPBrowserTest&) = delete;
-  ThirdPartyNTPBrowserTest& operator=(const ThirdPartyNTPBrowserTest&) = delete;
-
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
   }
@@ -39,6 +37,9 @@ class ThirdPartyNTPBrowserTest : public InProcessBrowserTest,
     host_resolver()->AddRule("*", "127.0.0.1");
     ASSERT_TRUE(https_test_server().Start());
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ThirdPartyNTPBrowserTest);
 };
 
 // Verifies that a third party NTP can successfully embed the most visited
@@ -52,13 +53,13 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, EmbeddedMostVisitedIframe) {
 
   // Navigate to the NTP URL and verify that the resulting process is marked as
   // an Instant process.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), ntp_url));
+  ui_test_utils::NavigateToURL(browser(), ntp_url);
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   InstantService* instant_service =
       InstantServiceFactory::GetForProfile(browser()->profile());
   EXPECT_TRUE(instant_service->IsInstantProcess(
-      contents->GetPrimaryMainFrame()->GetProcess()->GetID()));
+      contents->GetMainFrame()->GetProcess()->GetID()));
 
   // Add a chrome-search://most-visited/title.html?rid=1&fs=0 subframe and
   // verify that navigation completes successfully, with no kills.
@@ -72,8 +73,8 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, EmbeddedMostVisitedIframe) {
   nav_observer.WaitForNavigationFinished();
 
   // Verify that the subframe exists and has the expected origin.
-  content::RenderFrameHost* subframe = ChildFrameAt(contents, 0);
-  ASSERT_TRUE(subframe);
+  ASSERT_EQ(2u, contents->GetAllFrames().size());
+  content::RenderFrameHost* subframe = contents->GetAllFrames()[1];
   std::string subframe_origin;
   ASSERT_TRUE(content::ExecuteScriptAndExtractString(
       subframe, "domAutomationController.send(window.origin)",
@@ -101,15 +102,17 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, ProcessPerSite) {
     content::WebContentsAddedObserver tab1_observer;
 
     // Try to simulate as closely as possible what would have happened in the
-    // real user interaction.
+    // real user interaction.  In particular, do *not* use
+    // local_ntp_test_utils::OpenNewTab, which requires the caller to specify
+    // the URL of the new tab.
     chrome::NewTab(browser());
 
     // Wait for the new tab.
     tab1 = tab1_observer.GetWebContents();
     ASSERT_TRUE(WaitForLoadStop(tab1));
 
-    // Sanity check: the NTP should be provided by |ntp_url| and not by
-    // chrome://new-tab-page [1P WebUI NTP] or chrome://newtab [incognito].
+    // Sanity check: the NTP should be provided by |ntp_url| (and not by
+    // chrome-search://local-ntp [1st-party NTP] or chrome://ntp [incognito]).
     EXPECT_EQ(ntp_url, content::EvalJs(tab1, "window.location.href"));
   }
 
@@ -124,8 +127,8 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, ProcessPerSite) {
   }
 
   // Verify that |tab1| and |tab2| share a process.
-  EXPECT_EQ(tab1->GetPrimaryMainFrame()->GetProcess(),
-            tab2->GetPrimaryMainFrame()->GetProcess());
+  EXPECT_EQ(tab1->GetMainFrame()->GetProcess(),
+            tab2->GetMainFrame()->GetProcess());
 }
 
 // Verify that a third-party NTP commits in a remote NTP SiteInstance.
@@ -136,16 +139,16 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, VerifySiteInstance) {
   GURL ntp_url =
       https_test_server().GetURL("ntp.com", "/instant_extended_ntp.html");
   SetupInstant(browser()->profile(), base_url, ntp_url);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), ntp_url));
+  ui_test_utils::NavigateToURL(browser(), ntp_url);
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
 
-  // Sanity check: the NTP should be provided by |ntp_url| and not by
-  // chrome://new-tab-page [1P WebUI NTP] or chrome://newtab [incognito].
+  // Sanity check: the NTP should be provided by |ntp_url| (and not by
+  // chrome-search://local-ntp [deprecated], chrome://new-tab-page [1st-party
+  // NTP] or chrome://ntp [incognito]).
   EXPECT_EQ(ntp_url, content::EvalJs(web_contents, "window.location.href"));
 
   // Verify that NTP committed in remote NTP SiteInstance.
-  EXPECT_EQ(
-      GURL("chrome-search://remote-ntp/"),
-      web_contents->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL());
+  EXPECT_EQ(GURL("chrome-search://remote-ntp/"),
+            web_contents->GetMainFrame()->GetSiteInstance()->GetSiteURL());
 }

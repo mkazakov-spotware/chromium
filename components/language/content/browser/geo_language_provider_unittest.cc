@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_mock_time_task_runner.h"
@@ -63,22 +64,19 @@ class GeoLanguageProviderTest : public testing::Test {
     geo_language_provider_.SetGeoLanguages(languages);
   }
 
-  void SetUpCachedLanguages(const std::vector<std::string>& languages,
-                            const double update_time) {
+  void SetUpCachedLanguages(const std::vector<std::string>& languages) {
     base::ListValue cache_list;
-    for (const std::string& language : languages) {
-      cache_list.Append(language);
+    for (size_t i = 0; i < languages.size(); ++i) {
+      cache_list.Set(i, std::make_unique<base::Value>(languages[i]));
     }
     local_state_.Set(GeoLanguageProvider::kCachedGeoLanguagesPref, cache_list);
-    local_state_.SetDouble(
-        GeoLanguageProvider::kTimeOfLastGeoLanguagesUpdatePref, update_time);
   }
 
   const std::vector<std::string> GetCachedLanguages() {
     std::vector<std::string> languages;
-    const base::Value::List& cached_languages_list =
+    const base::ListValue* const cached_languages_list =
         local_state_.GetList(GeoLanguageProvider::kCachedGeoLanguagesPref);
-    for (const auto& language_value : cached_languages_list) {
+    for (const auto& language_value : *cached_languages_list) {
       languages.push_back(language_value.GetString());
     }
     return languages;
@@ -126,7 +124,7 @@ TEST_F(GeoLanguageProviderTest, NoFrequentCalls) {
   std::vector<std::string> expected_langs = {"hi", "en"};
   EXPECT_EQ(expected_langs, result);
 
-  task_environment_.FastForwardBy(base::Hours(12));
+  task_environment_.FastForwardBy(base::TimeDelta::FromHours(12));
   EXPECT_EQ(1, GetQueryNextPositionCalledTimes());
   EXPECT_EQ(expected_langs, GetCachedLanguages());
 }
@@ -144,7 +142,7 @@ TEST_F(GeoLanguageProviderTest, ButDoCallInTheNextDay) {
 
   // Move to another random place in Karnataka, India.
   MoveToLocation(23.0, 85.7);
-  task_environment_.FastForwardBy(base::Hours(25));
+  task_environment_.FastForwardBy(base::TimeDelta::FromHours(25));
   EXPECT_EQ(2, GetQueryNextPositionCalledTimes());
 
   result = GetCurrentGeoLanguages();
@@ -153,9 +151,8 @@ TEST_F(GeoLanguageProviderTest, ButDoCallInTheNextDay) {
   EXPECT_EQ(expected_langs_2, GetCachedLanguages());
 }
 
-TEST_F(GeoLanguageProviderTest, CachedLanguagesUpdatedOnStartup) {
-  SetUpCachedLanguages({"en", "fr"},
-                       (base::Time::Now() - base::Hours(25)).ToDoubleT());
+TEST_F(GeoLanguageProviderTest, CachedLanguagesPresent) {
+  SetUpCachedLanguages({"en", "fr"});
   MoveToLocation(23.0, 80.0);
   StartGeoLanguageProvider();
 
@@ -165,20 +162,6 @@ TEST_F(GeoLanguageProviderTest, CachedLanguagesUpdatedOnStartup) {
   task_environment_.RunUntilIdle();
 
   expected_langs = {"hi", "en"};
-  EXPECT_EQ(expected_langs, GetCurrentGeoLanguages());
-  EXPECT_EQ(expected_langs, GetCachedLanguages());
-}
-
-TEST_F(GeoLanguageProviderTest, CachedLanguagesNotUpdatedOnStartup) {
-  SetUpCachedLanguages({"en", "fr"}, base::Time::Now().ToDoubleT());
-  MoveToLocation(23.0, 80.0);
-  StartGeoLanguageProvider();
-
-  std::vector<std::string> expected_langs = {"en", "fr"};
-  EXPECT_EQ(expected_langs, GetCurrentGeoLanguages());
-
-  task_environment_.RunUntilIdle();
-
   EXPECT_EQ(expected_langs, GetCurrentGeoLanguages());
   EXPECT_EQ(expected_langs, GetCachedLanguages());
 }

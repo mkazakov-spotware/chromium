@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include "base/run_loop.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
-#include "components/sync/test/data_type_manager_mock.h"
-#include "components/sync/test/model_type_test_util.h"
+#include "components/sync/base/model_type_test_util.h"
+#include "components/sync/driver/data_type_manager_mock.h"
+#include "components/sync/protocol/sync.pb.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -24,8 +25,8 @@ namespace syncer {
 
 class SyncBackendMigratorTest : public testing::Test {
  public:
-  SyncBackendMigratorTest() = default;
-  ~SyncBackendMigratorTest() override = default;
+  SyncBackendMigratorTest() {}
+  ~SyncBackendMigratorTest() override {}
 
   void SetUp() override {
     Mock::VerifyAndClear(manager());
@@ -39,7 +40,9 @@ class SyncBackendMigratorTest : public testing::Test {
     SetUnsyncedTypes(ModelTypeSet());
   }
 
-  void TearDown() override { migrator_.reset(); }
+  void TearDown() override {
+    migrator_.reset();
+  }
 
   // Marks all types in |unsynced_types| as unsynced  and all other
   // types as synced.
@@ -82,7 +85,7 @@ class SyncBackendMigratorTest : public testing::Test {
 
 class MockMigrationObserver : public MigrationObserver {
  public:
-  ~MockMigrationObserver() override = default;
+  ~MockMigrationObserver() override {}
 
   MOCK_METHOD(void, OnMigrationStateChange, ());
 };
@@ -103,7 +106,7 @@ TEST_F(SyncBackendMigratorTest, Sanity) {
 
   EXPECT_CALL(*manager(), state())
       .WillOnce(Return(DataTypeManager::CONFIGURED));
-  EXPECT_CALL(*manager(), PurgeForMigration);
+  EXPECT_CALL(*manager(), PurgeForMigration(_));
   EXPECT_CALL(*reconfigure_callback(), Run());
 
   migrator()->MigrateTypes(to_migrate);
@@ -134,7 +137,7 @@ TEST_F(SyncBackendMigratorTest, MigrateNigori) {
   EXPECT_CALL(*manager(), state())
       .WillOnce(Return(DataTypeManager::CONFIGURED));
 
-  EXPECT_CALL(*manager(), PurgeForMigration);
+  EXPECT_CALL(*manager(), PurgeForMigration(_));
 
   migrator()->MigrateTypes(to_migrate);
   EXPECT_EQ(BackendMigrator::DISABLING_TYPES, migrator()->state());
@@ -165,7 +168,7 @@ TEST_F(SyncBackendMigratorTest, WaitToStart) {
   Mock::VerifyAndClearExpectations(manager());
   EXPECT_CALL(*manager(), state())
       .WillOnce(Return(DataTypeManager::CONFIGURED));
-  EXPECT_CALL(*manager(), PurgeForMigration);
+  EXPECT_CALL(*manager(), PurgeForMigration(_));
   SetUnsyncedTypes(ModelTypeSet());
   SendConfigureDone(DataTypeManager::OK, ModelTypeSet());
 
@@ -184,7 +187,7 @@ TEST_F(SyncBackendMigratorTest, RestartMigration) {
 
   EXPECT_CALL(*manager(), state())
       .WillOnce(Return(DataTypeManager::CONFIGURED));
-  EXPECT_CALL(*manager(), PurgeForMigration).Times(2);
+  EXPECT_CALL(*manager(), PurgeForMigration(_)).Times(2);
   migrator()->MigrateTypes(to_migrate1);
 
   EXPECT_EQ(BackendMigrator::DISABLING_TYPES, migrator()->state());
@@ -193,7 +196,7 @@ TEST_F(SyncBackendMigratorTest, RestartMigration) {
   const ModelTypeSet difference1 = Difference(preferred_types(), to_migrate1);
 
   Mock::VerifyAndClearExpectations(manager());
-  EXPECT_CALL(*manager(), PurgeForMigration);
+  EXPECT_CALL(*manager(), PurgeForMigration(_));
   EXPECT_CALL(*reconfigure_callback(), Run());
   SetUnsyncedTypes(to_migrate1);
   SendConfigureDone(DataTypeManager::OK, difference1);
@@ -238,7 +241,7 @@ TEST_F(SyncBackendMigratorTest, WaitingForPurge) {
 
   EXPECT_CALL(*manager(), state())
       .WillOnce(Return(DataTypeManager::CONFIGURED));
-  EXPECT_CALL(*manager(), PurgeForMigration);
+  EXPECT_CALL(*manager(), PurgeForMigration(_));
   EXPECT_CALL(*reconfigure_callback(), Run());
 
   migrator()->MigrateTypes(to_migrate);
@@ -264,7 +267,7 @@ TEST_F(SyncBackendMigratorTest, ConfigureFailure) {
 
   EXPECT_CALL(*manager(), state())
       .WillOnce(Return(DataTypeManager::CONFIGURED));
-  EXPECT_CALL(*manager(), PurgeForMigration);
+  EXPECT_CALL(*manager(), PurgeForMigration(_));
   migrator()->MigrateTypes(to_migrate);
   SetUnsyncedTypes(ModelTypeSet());
   SendConfigureDone(DataTypeManager::ABORTED, ModelTypeSet());

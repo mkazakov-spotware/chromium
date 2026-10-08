@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,6 +32,7 @@ constexpr int kInputSampleRate = 48000;
 constexpr int kInputFrames = NUM_SAMPLES / 2;
 
 constexpr AudioContentType kDefaultContentType = AudioContentType::kMedia;
+constexpr int kDefaultPlayoutChannel = -1;
 
 class MockPostProcessingPipeline : public PostProcessingPipeline {
  public:
@@ -45,22 +46,17 @@ class MockPostProcessingPipeline : public PostProcessingPipeline {
             testing::Invoke(this, &MockPostProcessingPipeline::StorePtr));
   }
 
-  MockPostProcessingPipeline(const MockPostProcessingPipeline&) = delete;
-  MockPostProcessingPipeline& operator=(const MockPostProcessingPipeline&) =
-      delete;
-
   ~MockPostProcessingPipeline() override {}
   MOCK_METHOD5(ProcessFrames,
-               void(float* data,
-                    int num_frames,
-                    float current_volume,
-                    float target_volume,
-                    bool is_silence));
+               double(float* data,
+                      int num_frames,
+                      float current_volume,
+                      float target_volume,
+                      bool is_silence));
   MOCK_METHOD2(SetPostProcessorConfig,
                void(const std::string& name, const std::string& config));
   MOCK_METHOD1(SetContentType, void(AudioContentType));
   MOCK_METHOD1(UpdatePlayoutChannel, void(int));
-  MOCK_METHOD0(GetDelaySeconds, double());
 
  protected:
   bool SetOutputConfig(const AudioPostProcessor2::Config& config) override {
@@ -73,17 +69,66 @@ class MockPostProcessingPipeline : public PostProcessingPipeline {
   int NumOutputChannels() const override { return num_output_channels_; }
   int delay() { return 0; }
   std::string name() const { return "mock"; }
-  void StorePtr(float* data,
-                int num_frames,
-                float current_volume,
-                float target_volume,
-                bool is_silence) {
+  double StorePtr(float* data,
+                  int num_frames,
+                  float current_volume,
+                  float target_volume,
+                  bool is_silence) {
     output_buffer_ = data;
+    return 0;
   }
 
   float* output_buffer_;
   const int num_output_channels_;
   int sample_rate_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPostProcessingPipeline);
+};
+
+// PostProcessor that inverts one channel.
+class InvertChannelPostProcessor : public MockPostProcessingPipeline {
+ public:
+  explicit InvertChannelPostProcessor(int channels, int channel_to_invert)
+      : MockPostProcessingPipeline(channels),
+        channel_to_invert_(channel_to_invert) {
+    ON_CALL(*this, ProcessFrames(_, _, _, _, _))
+        .WillByDefault(testing::Invoke(
+            this, &InvertChannelPostProcessor::DoInvertChannel));
+  }
+
+  ~InvertChannelPostProcessor() override {}
+
+  MOCK_METHOD5(ProcessFrames,
+               double(float* data,
+                      int num_frames,
+                      float current_volume,
+                      float target_volume,
+                      bool is_silence));
+  MOCK_METHOD2(SetPostProcessorConfig,
+               void(const std::string& name, const std::string& config));
+
+ private:
+  int DoInvertChannel(float* data,
+                      int num_frames,
+                      float current_volume,
+                      float target_volume,
+                      bool is_silence) {
+    output_buffer_ = data;
+    for (int fr = 0; fr < num_frames; ++fr) {
+      for (int ch = 0; ch < num_output_channels_; ++ch) {
+        if (ch == channel_to_invert_) {
+          data[fr * num_output_channels_ + ch] *= -1;
+        }
+      }
+    }
+    return 0;
+  }
+
+  std::string name() const { return "invert"; }
+
+  int channel_to_invert_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvertChannelPostProcessor);
 };
 
 }  // namespace
@@ -116,12 +161,7 @@ std::unique_ptr<::media::AudioBus> GetTestData() {
   return data;
 }
 
-class FilterGroupTest : public testing::Test,
-                        public PostProcessingPipelineFactory {
- public:
-  FilterGroupTest(const FilterGroupTest&) = delete;
-  FilterGroupTest& operator=(const FilterGroupTest&) = delete;
-
+class FilterGroupTest : public testing::Test {
  protected:
   using RenderingDelay = MixerInput::RenderingDelay;
   FilterGroupTest() : source_(kInputSampleRate) {
@@ -130,34 +170,21 @@ class FilterGroupTest : public testing::Test,
 
   ~FilterGroupTest() override {}
 
-  void MakeFilterGroup(int num_channels = kNumInputChannels) {
+  void MakeFilterGroup(
+      std::unique_ptr<MockPostProcessingPipeline> post_processor) {
+    post_processor_ = post_processor.get();
+    EXPECT_CALL(*post_processor_, SetContentType(kDefaultContentType));
+    EXPECT_CALL(*post_processor_, UpdatePlayoutChannel(kDefaultPlayoutChannel));
     filter_group_ = std::make_unique<FilterGroup>(
-        kNumInputChannels, "test_filter", base::Value(base::Value::Type::LIST),
-        nullptr, this, nullptr);
+        kNumInputChannels, "test_filter", std::move(post_processor), nullptr);
+    input_ = std::make_unique<MixerInput>(&source_, filter_group_.get());
     AudioPostProcessor2::Config config;
     config.output_sample_rate = kInputSampleRate;
     config.system_output_sample_rate = kInputSampleRate;
     config.output_frames_per_write = kInputFrames;
     filter_group_->Initialize(config);
-    input_ = std::make_unique<MixerInput>(&source_, filter_group_.get());
-    input_->Initialize();
-  }
-
-  // PostProcessingPipelineFactory implementation:
-  std::unique_ptr<PostProcessingPipeline> CreatePipeline(
-      const std::string& name,
-      const base::Value* filter_description_list,
-      int num_channels) override {
-    if (name.compare(0, 10, "prerender_") != 0) {
-      num_channels = post_processor_channels_;
-    }
-    auto pipeline =
-        std::make_unique<NiceMock<MockPostProcessingPipeline>>(num_channels);
-    if (!post_processor_) {
-      post_processor_ = pipeline.get();
-      EXPECT_CALL(*post_processor_, SetContentType(kDefaultContentType));
-    }
-    return pipeline;
+    filter_group_->AddInput(input_.get());
+    filter_group_->UpdatePlayoutChannel(kChannelAll);
   }
 
   float Input(int channel, int frame) {
@@ -184,19 +211,43 @@ class FilterGroupTest : public testing::Test,
   std::unique_ptr<FilterGroup> filter_group_;
   std::unique_ptr<MixerInput> input_;
   MockPostProcessingPipeline* post_processor_ = nullptr;
-  int post_processor_channels_ = kNumInputChannels;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FilterGroupTest);
 };
 
 TEST_F(FilterGroupTest, Passthrough) {
-  MakeFilterGroup();
+  MakeFilterGroup(std::make_unique<NiceMock<MockPostProcessingPipeline>>());
   EXPECT_CALL(*post_processor_, ProcessFrames(_, kInputFrames, _, _, false));
 
   filter_group_->MixAndFilter(kInputFrames, RenderingDelay());
   AssertPassthrough();
 }
 
+TEST_F(FilterGroupTest, SelectsOutputChannel) {
+  MakeFilterGroup(std::make_unique<NiceMock<MockPostProcessingPipeline>>());
+
+  EXPECT_CALL(*post_processor_, UpdatePlayoutChannel(0));
+  filter_group_->UpdatePlayoutChannel(0);
+  filter_group_->MixAndFilter(kInputFrames, RenderingDelay());
+
+  testing::Mock::VerifyAndClearExpectations(post_processor_);
+  source_.SetData(GetTestData());
+
+  EXPECT_CALL(*post_processor_, UpdatePlayoutChannel(1));
+  filter_group_->UpdatePlayoutChannel(1);
+  filter_group_->MixAndFilter(kInputFrames, RenderingDelay());
+
+  testing::Mock::VerifyAndClearExpectations(post_processor_);
+  source_.SetData(GetTestData());
+
+  EXPECT_CALL(*post_processor_, UpdatePlayoutChannel(-1));
+  filter_group_->UpdatePlayoutChannel(-1);
+  filter_group_->MixAndFilter(kInputFrames, RenderingDelay());
+}
+
 TEST_F(FilterGroupTest, ChecksContentType) {
-  MakeFilterGroup();
+  MakeFilterGroup(std::make_unique<NiceMock<MockPostProcessingPipeline>>());
 
   NiceMock<MockMixerSource> tts_source(kInputSampleRate);
   tts_source.set_content_type(AudioContentType::kCommunication);
@@ -207,14 +258,14 @@ TEST_F(FilterGroupTest, ChecksContentType) {
   MixerInput alarm_input(&alarm_source, filter_group_.get());
 
   // Media input stream + tts input stream -> tts content type.
-  tts_input.Initialize();
+  filter_group_->AddInput(&tts_input);
   EXPECT_CALL(*post_processor_,
               SetContentType(AudioContentType::kCommunication));
   tts_source.SetData(GetTestData());
   filter_group_->MixAndFilter(kInputFrames, RenderingDelay());
 
   // Media input + tts input + alarm input -> tts content type (no update).
-  alarm_input.Initialize();
+  filter_group_->AddInput(&alarm_input);
   EXPECT_CALL(*post_processor_,
               SetContentType(AudioContentType::kCommunication))
       .Times(0);
@@ -238,10 +289,11 @@ TEST_F(FilterGroupTest, ChecksContentType) {
 }
 
 TEST_F(FilterGroupTest, ReportsOutputChannels) {
-  post_processor_channels_ = 4;
-  MakeFilterGroup();
+  const int num_output_channels = 4;
+  MakeFilterGroup(std::make_unique<NiceMock<MockPostProcessingPipeline>>(
+      num_output_channels));
 
-  EXPECT_EQ(4, filter_group_->GetOutputChannelCount());
+  EXPECT_EQ(num_output_channels, filter_group_->GetOutputChannelCount());
 }
 
 }  // namespace media

@@ -1,8 +1,6 @@
-<!--
-Copyright 2014 The Chromium Authors
-Use of this source code is governed by a BSD-style license that can be
-found in the LICENSE file.
--->
+<!-- Copyright 2014 The Chromium Authors. All rights reserved.
+     Use of this source code is governed by a BSD-style license that can be
+     found in the LICENSE file. -->
 <html>
 
 <head>
@@ -14,13 +12,11 @@ found in the LICENSE file.
 <script type="text/javascript" src="options_loader.js"></script>
 <script type="text/javascript" src="../chromeVoxChromeOptionsScript.js">
 </script>
-<script type="module" src="options.js"></script>
-
 <script type="module"
-    src="chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js">
+    src="chrome://resources/cr_elements/cr_expand_button/cr_expand_button.m.js">
 </script>
 <script type="module"
-    src="chrome://resources/cr_elements/cr_link_row/cr_link_row.js"></script>
+    src="chrome://resources/cr_elements/cr_link_row/cr_link_row.m.js"></script>
 </head>
 
 <body>
@@ -61,8 +57,10 @@ found in the LICENSE file.
 
   <div class="option" id="usePitchChangesOption">
     <label id="usePitchChangesLabel" class="i18n"
-          msgid="options_use_pitch_changes_checkbox_label">
-          Change pitch when speaking element types and formatted text
+          msgid="options_use_pitch_changes_checkbox_label" hidden>
+    </label>
+    <label>
+      Use pitch changes
     </label>
     <input id="usePitchChanges" type="checkbox"
              class="checkbox pref" name="usePitchChanges"

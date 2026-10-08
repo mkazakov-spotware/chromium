@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,13 @@
 #include "remoting/proto/audio.pb.h"
 #include "remoting/protocol/audio_stub.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 WebrtcAudioSinkAdapter::WebrtcAudioSinkAdapter(
-    rtc::scoped_refptr<webrtc::MediaStreamInterface> stream,
+    scoped_refptr<webrtc::MediaStreamInterface> stream,
     base::WeakPtr<AudioStub> audio_stub)
-    : task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : task_runner_(base::ThreadTaskRunnerHandle::Get()),
       audio_stub_(audio_stub),
       media_stream_(std::move(stream)) {
   webrtc::AudioTrackVector audio_tracks = media_stream_->GetAudioTracks();
@@ -75,4 +76,5 @@ void WebrtcAudioSinkAdapter::OnData(const void* audio_data,
                                 std::move(audio_packet), base::OnceClosure()));
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

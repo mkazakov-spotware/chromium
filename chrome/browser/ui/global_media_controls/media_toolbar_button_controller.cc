@@ -1,26 +1,26 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/global_media_controls/media_toolbar_button_controller.h"
 
+#include "chrome/browser/ui/global_media_controls/media_notification_service.h"
 #include "chrome/browser/ui/global_media_controls/media_toolbar_button_controller_delegate.h"
-#include "components/global_media_controls/public/media_item_manager.h"
 
 MediaToolbarButtonController::MediaToolbarButtonController(
     MediaToolbarButtonControllerDelegate* delegate,
-    global_media_controls::MediaItemManager* item_manager)
-    : delegate_(delegate), item_manager_(item_manager) {
+    MediaNotificationService* service)
+    : delegate_(delegate), service_(service) {
   DCHECK(delegate_);
-  item_manager_->AddObserver(this);
+  service_->AddObserver(this);
   UpdateToolbarButtonState();
 }
 
 MediaToolbarButtonController::~MediaToolbarButtonController() {
-  item_manager_->RemoveObserver(this);
+  service_->RemoveObserver(this);
 }
 
-void MediaToolbarButtonController::OnItemListChanged() {
+void MediaToolbarButtonController::OnNotificationListChanged() {
   UpdateToolbarButtonState();
 }
 
@@ -30,31 +30,26 @@ void MediaToolbarButtonController::OnMediaDialogOpened() {
 
 void MediaToolbarButtonController::OnMediaDialogClosed() {
   UpdateToolbarButtonState();
-  delegate_->MaybeShowStopCastingPromo();
-}
-
-void MediaToolbarButtonController::ShowToolbarButton() {
-  if (delegate_display_state_ != DisplayState::kShown) {
-    delegate_->Enable();
-    delegate_->Show();
-    delegate_display_state_ = DisplayState::kShown;
-  }
 }
 
 void MediaToolbarButtonController::UpdateToolbarButtonState() {
-  if (item_manager_->HasActiveItems() || item_manager_->HasOpenDialog()) {
-    ShowToolbarButton();
+  if (service_->HasActiveNotifications()) {
+    if (delegate_display_state_ != DisplayState::kShown) {
+      delegate_->Enable();
+      delegate_->Show();
+    }
+    delegate_display_state_ = DisplayState::kShown;
     return;
   }
 
-  if (!item_manager_->HasFrozenItems()) {
+  if (!service_->HasFrozenNotifications()) {
     if (delegate_display_state_ != DisplayState::kHidden)
       delegate_->Hide();
     delegate_display_state_ = DisplayState::kHidden;
     return;
   }
 
-  if (!item_manager_->HasOpenDialog()) {
+  if (!service_->HasOpenDialog()) {
     if (delegate_display_state_ != DisplayState::kDisabled)
       delegate_->Disable();
     delegate_display_state_ = DisplayState::kDisabled;

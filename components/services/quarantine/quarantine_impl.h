@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,9 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 namespace quarantine {
 
@@ -22,10 +22,6 @@ class QuarantineImpl : public mojom::Quarantine {
  public:
   QuarantineImpl();
   explicit QuarantineImpl(mojo::PendingReceiver<mojom::Quarantine> receiver);
-
-  QuarantineImpl(const QuarantineImpl&) = delete;
-  QuarantineImpl& operator=(const QuarantineImpl&) = delete;
-
   ~QuarantineImpl() override;
 
   // mojom::Quarantine:
@@ -39,10 +35,12 @@ class QuarantineImpl : public mojom::Quarantine {
  private:
   mojo::Receiver<mojom::Quarantine> receiver_{this};
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::win::ScopedCOMInitializer com_initializer_{
       base::win::ScopedCOMInitializer::Uninitialization::kBlockPremature};
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
+
+  DISALLOW_COPY_AND_ASSIGN(QuarantineImpl);
 };
 
 }  // namespace quarantine

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/json/json_reader.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/process/process_handle.h"
 #include "base/system/sys_info.h"
@@ -31,12 +32,27 @@ const char kConfigModeReactive[] = "REACTIVE_TRACING_MODE";
 const char kConfigModeSystem[] = "SYSTEM_TRACING_MODE";
 
 const char kConfigScenarioName[] = "scenario_name";
+const char kConfigTraceBrowserProcessOnly[] = "trace_browser_process_only";
 const char kEnabledDataSourcesKey[] = "enabled_data_sources";
 
 const char kConfigCategoryKey[] = "category";
 const char kConfigCustomCategoriesKey[] = "custom_categories";
 const char kConfigTraceConfigKey[] = "trace_config";
+const char kConfigCategoryBenchmark[] = "BENCHMARK";
+const char kConfigCategoryBenchmarkDeep[] = "BENCHMARK_DEEP";
+const char kConfigCategoryBenchmarkGPU[] = "BENCHMARK_GPU";
+const char kConfigCategoryBenchmarkIPC[] = "BENCHMARK_IPC";
 const char kConfigCategoryBenchmarkStartup[] = "BENCHMARK_STARTUP";
+const char kConfigCategoryBenchmarkBlinkGC[] = "BENCHMARK_BLINK_GC";
+const char kConfigCategoryBenchmarkMemoryHeavy[] = "BENCHMARK_MEMORY_HEAVY";
+const char kConfigCategoryBenchmarkMemoryLight[] = "BENCHMARK_MEMORY_LIGHT";
+const char kConfigCategoryBenchmarkExecutionMetric[] =
+    "BENCHMARK_EXECUTION_METRIC";
+const char kConfigCategoryBenchmarkNavigation[] = "BENCHMARK_NAVIGATION";
+const char kConfigCategoryBenchmarkRenderers[] = "BENCHMARK_RENDERERS";
+const char kConfigCategoryBenchmarkServiceworker[] = "BENCHMARK_SERVICEWORKER";
+const char kConfigCategoryBenchmarkPower[] = "BENCHMARK_POWER";
+const char kConfigCategoryBlinkStyle[] = "BLINK_STYLE";
 const char kConfigCategoryCustom[] = "CUSTOM";
 const char kConfigCustomConfig[] = "CUSTOM_CONFIG";
 
@@ -53,7 +69,7 @@ const char kConfigInterningResetIntervalMs[] = "interning_reset_interval_ms";
 BackgroundTracingConfigImpl::BackgroundTracingConfigImpl(
     TracingMode tracing_mode)
     : BackgroundTracingConfig(tracing_mode),
-      category_preset_(BackgroundTracingConfigImpl::BENCHMARK_STARTUP) {}
+      category_preset_(BackgroundTracingConfigImpl::BENCHMARK) {}
 
 BackgroundTracingConfigImpl::~BackgroundTracingConfigImpl() {}
 
@@ -61,84 +77,172 @@ BackgroundTracingConfigImpl::~BackgroundTracingConfigImpl() {}
 std::string BackgroundTracingConfigImpl::CategoryPresetToString(
     BackgroundTracingConfigImpl::CategoryPreset category_preset) {
   switch (category_preset) {
+    case BackgroundTracingConfigImpl::BENCHMARK:
+      return kConfigCategoryBenchmark;
+    case BackgroundTracingConfigImpl::BENCHMARK_DEEP:
+      return kConfigCategoryBenchmarkDeep;
+    case BackgroundTracingConfigImpl::BENCHMARK_GPU:
+      return kConfigCategoryBenchmarkGPU;
+    case BackgroundTracingConfigImpl::BENCHMARK_IPC:
+      return kConfigCategoryBenchmarkIPC;
     case BackgroundTracingConfigImpl::BENCHMARK_STARTUP:
       return kConfigCategoryBenchmarkStartup;
+    case BackgroundTracingConfigImpl::BENCHMARK_BLINK_GC:
+      return kConfigCategoryBenchmarkBlinkGC;
+    case BackgroundTracingConfigImpl::BENCHMARK_MEMORY_HEAVY:
+      return kConfigCategoryBenchmarkMemoryHeavy;
+    case BackgroundTracingConfigImpl::BENCHMARK_MEMORY_LIGHT:
+      return kConfigCategoryBenchmarkMemoryLight;
+    case BackgroundTracingConfigImpl::BENCHMARK_EXECUTION_METRIC:
+      return kConfigCategoryBenchmarkExecutionMetric;
+    case BackgroundTracingConfigImpl::BENCHMARK_NAVIGATION:
+      return kConfigCategoryBenchmarkNavigation;
+    case BackgroundTracingConfigImpl::BENCHMARK_RENDERERS:
+      return kConfigCategoryBenchmarkRenderers;
+    case BackgroundTracingConfigImpl::BENCHMARK_SERVICEWORKER:
+      return kConfigCategoryBenchmarkServiceworker;
+    case BackgroundTracingConfigImpl::BENCHMARK_POWER:
+      return kConfigCategoryBenchmarkPower;
+    case BackgroundTracingConfigImpl::BLINK_STYLE:
+      return kConfigCategoryBlinkStyle;
     case BackgroundTracingConfigImpl::CUSTOM_CATEGORY_PRESET:
       return kConfigCategoryCustom;
     case BackgroundTracingConfigImpl::CUSTOM_TRACE_CONFIG:
       return kConfigCustomConfig;
     case BackgroundTracingConfigImpl::CATEGORY_PRESET_UNSET:
       NOTREACHED();
-      return "";
   }
+  NOTREACHED();
+  return "";
 }
 
 // static
 bool BackgroundTracingConfigImpl::StringToCategoryPreset(
     const std::string& category_preset_string,
     BackgroundTracingConfigImpl::CategoryPreset* category_preset) {
+  if (category_preset_string == kConfigCategoryBenchmark) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkDeep) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_DEEP;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkGPU) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_GPU;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkIPC) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_IPC;
+    return true;
+  }
+
   if (category_preset_string == kConfigCategoryBenchmarkStartup) {
     *category_preset = BackgroundTracingConfigImpl::BENCHMARK_STARTUP;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkBlinkGC) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_BLINK_GC;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkMemoryHeavy) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_MEMORY_HEAVY;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkMemoryLight) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_MEMORY_LIGHT;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkExecutionMetric) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_EXECUTION_METRIC;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkNavigation) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_NAVIGATION;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkRenderers) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_RENDERERS;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkServiceworker) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_SERVICEWORKER;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBenchmarkPower) {
+    *category_preset = BackgroundTracingConfigImpl::BENCHMARK_POWER;
+    return true;
+  }
+
+  if (category_preset_string == kConfigCategoryBlinkStyle) {
+    *category_preset = BackgroundTracingConfigImpl::BLINK_STYLE;
     return true;
   }
 
   return false;
 }
 
-base::Value::Dict BackgroundTracingConfigImpl::ToDict() {
-  base::Value::Dict dict;
-
+void BackgroundTracingConfigImpl::IntoDict(base::DictionaryValue* dict) {
   if (category_preset_ == CUSTOM_CATEGORY_PRESET) {
-    dict.Set(kConfigCustomCategoriesKey, custom_categories_);
+    dict->SetString(kConfigCustomCategoriesKey, custom_categories_);
   } else if (category_preset_ == CUSTOM_TRACE_CONFIG) {
-    absl::optional<base::Value> trace_config =
+    base::Optional<base::Value> trace_config =
         base::JSONReader::Read(trace_config_.ToString());
     if (trace_config) {
-      dict.Set(kConfigTraceConfigKey, std::move(*trace_config));
+      dict->SetKey(kConfigTraceConfigKey, std::move(*trace_config));
     }
   }
   if (!enabled_data_sources_.empty()) {
-    dict.Set(kEnabledDataSourcesKey, enabled_data_sources_);
+    dict->SetString(kEnabledDataSourcesKey, enabled_data_sources_);
   }
 
   switch (tracing_mode()) {
     case BackgroundTracingConfigImpl::PREEMPTIVE:
-      dict.Set(kConfigModeKey, kConfigModePreemptive);
-      dict.Set(kConfigCategoryKey, CategoryPresetToString(category_preset_));
+      dict->SetString(kConfigModeKey, kConfigModePreemptive);
+      dict->SetString(kConfigCategoryKey,
+                      CategoryPresetToString(category_preset_));
       break;
     case BackgroundTracingConfigImpl::REACTIVE:
-      dict.Set(kConfigModeKey, kConfigModeReactive);
+      dict->SetString(kConfigModeKey, kConfigModeReactive);
       break;
     case BackgroundTracingConfigImpl::SYSTEM:
-      dict.Set(kConfigModeKey, kConfigModeSystem);
+      dict->SetString(kConfigModeKey, kConfigModeSystem);
       break;
   }
 
-  base::Value::List configs_list;
+  std::unique_ptr<base::ListValue> configs_list(new base::ListValue());
   for (const auto& rule : rules_) {
+    std::unique_ptr<base::DictionaryValue> config_dict(
+        new base::DictionaryValue());
     DCHECK(rule);
-    configs_list.Append(rule->ToDict());
+    rule->IntoDict(config_dict.get());
+    configs_list->Append(std::move(config_dict));
   }
 
-  dict.Set(kConfigsKey, std::move(configs_list));
+  dict->Set(kConfigsKey, std::move(configs_list));
 
   if (!scenario_name_.empty())
-    dict.Set(kConfigScenarioName, scenario_name_);
-
-  return dict;
-}
-
-void BackgroundTracingConfigImpl::SetPackageNameFilteringEnabled(bool enabled) {
-  trace_config_.SetEventPackageNameFilterEnabled(enabled);
+    dict->SetString(kConfigScenarioName, scenario_name_);
 }
 
 void BackgroundTracingConfigImpl::AddPreemptiveRule(
-    const base::Value::Dict& dict) {
+    const base::DictionaryValue* dict) {
   AddRule(dict);
 }
 
 void BackgroundTracingConfigImpl::AddReactiveRule(
-    const base::Value::Dict& dict,
+    const base::DictionaryValue* dict,
     BackgroundTracingConfigImpl::CategoryPreset category_preset) {
   BackgroundTracingRule* rule = AddRule(dict);
   if (rule) {
@@ -146,7 +250,8 @@ void BackgroundTracingConfigImpl::AddReactiveRule(
   }
 }
 
-void BackgroundTracingConfigImpl::AddSystemRule(const base::Value::Dict& dict) {
+void BackgroundTracingConfigImpl::AddSystemRule(
+    const base::DictionaryValue* dict) {
   AddRule(dict);
 }
 
@@ -170,11 +275,14 @@ TraceConfig BackgroundTracingConfigImpl::GetTraceConfig() const {
     chrome_config = GetConfigForCategoryPreset(category_preset(), record_mode);
   }
 
-  chrome_config.SetTraceBufferSizeInKb(GetMaximumTraceBufferSizeKb());
-  chrome_config.SetEventPackageNameFilterEnabled(
-      trace_config_.IsEventPackageNameFilterEnabled());
+  if (trace_browser_process_only_) {
+    TraceConfig::ProcessFilterConfig process_config({base::GetCurrentProcId()});
+    chrome_config.SetProcessFilterConfig(process_config);
+  }
 
-#if BUILDFLAG(IS_ANDROID)
+  chrome_config.SetTraceBufferSizeInKb(GetMaximumTraceBufferSizeKb());
+
+#if defined(OS_ANDROID)
   // For legacy tracing backend, set low trace buffer size on Android in order
   // to upload small trace files.
   if (tracing_mode() == BackgroundTracingConfigImpl::PREEMPTIVE) {
@@ -186,7 +294,7 @@ TraceConfig BackgroundTracingConfigImpl::GetTraceConfig() const {
 }
 
 size_t BackgroundTracingConfigImpl::GetTraceUploadLimitKb() const {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   auto type = net::NetworkChangeNotifier::GetConnectionType();
   UMA_HISTOGRAM_ENUMERATION(
       "Tracing.Background.NetworkConnectionTypeWhenUploaded", type,
@@ -200,28 +308,32 @@ size_t BackgroundTracingConfigImpl::GetTraceUploadLimitKb() const {
 
 // static
 std::unique_ptr<BackgroundTracingConfigImpl>
-BackgroundTracingConfigImpl::FromDict(base::Value::Dict&& dict) {
-  const std::string* mode = dict.FindString(kConfigModeKey);
-  if (!mode)
+BackgroundTracingConfigImpl::FromDict(const base::DictionaryValue* dict) {
+  DCHECK(dict);
+
+  std::string mode;
+  if (!dict->GetString(kConfigModeKey, &mode))
     return nullptr;
 
   std::unique_ptr<BackgroundTracingConfigImpl> config;
 
-  if (*mode == kConfigModePreemptive) {
+  if (mode == kConfigModePreemptive) {
     config = PreemptiveFromDict(dict);
-  } else if (*mode == kConfigModeReactive) {
+  } else if (mode == kConfigModeReactive) {
     config = ReactiveFromDict(dict);
-  } else if (*mode == kConfigModeSystem) {
+  } else if (mode == kConfigModeSystem) {
     config = SystemFromDict(dict);
   } else {
     return nullptr;
   }
 
   if (config) {
-    if (const std::string* scenario = dict.FindString(kConfigScenarioName)) {
-      config->scenario_name_ = *scenario;
+    dict->GetString(kConfigScenarioName, &config->scenario_name_);
+    config->SetBufferSizeLimits(dict);
+    bool value = false;
+    if (dict->GetBoolean(kConfigTraceBrowserProcessOnly, &value)) {
+      config->trace_browser_process_only_ = value;
     }
-    config->SetBufferSizeLimits(&dict);
   }
 
   return config;
@@ -229,43 +341,45 @@ BackgroundTracingConfigImpl::FromDict(base::Value::Dict&& dict) {
 
 // static
 std::unique_ptr<BackgroundTracingConfigImpl>
-BackgroundTracingConfigImpl::PreemptiveFromDict(const base::Value::Dict& dict) {
+BackgroundTracingConfigImpl::PreemptiveFromDict(
+    const base::DictionaryValue* dict) {
+  DCHECK(dict);
+
   std::unique_ptr<BackgroundTracingConfigImpl> config(
       new BackgroundTracingConfigImpl(BackgroundTracingConfigImpl::PREEMPTIVE));
 
-  if (const base::Value::Dict* trace_config =
-          dict.FindDict(kConfigTraceConfigKey)) {
-    config->trace_config_ = TraceConfig(base::Value(trace_config->Clone()));
+  const base::DictionaryValue* trace_config = nullptr;
+  if (dict->GetDictionary(kConfigTraceConfigKey, &trace_config)) {
+    config->trace_config_ = TraceConfig(*trace_config);
     config->category_preset_ = CUSTOM_TRACE_CONFIG;
-  } else if (const std::string* categories =
-                 dict.FindString(kConfigCustomCategoriesKey)) {
-    config->custom_categories_ = *categories;
+  } else if (dict->GetString(kConfigCustomCategoriesKey,
+                             &config->custom_categories_)) {
     config->category_preset_ = CUSTOM_CATEGORY_PRESET;
   } else {
-    const std::string* category_preset_string =
-        dict.FindString(kConfigCategoryKey);
-    if (!category_preset_string)
+    std::string category_preset_string;
+    if (!dict->GetString(kConfigCategoryKey, &category_preset_string))
       return nullptr;
 
-    if (!StringToCategoryPreset(*category_preset_string,
+    if (!StringToCategoryPreset(category_preset_string,
                                 &config->category_preset_)) {
       return nullptr;
     }
   }
   if (const std::string* enabled_data_sources =
-          dict.FindString(kEnabledDataSourcesKey)) {
+          dict->FindStringKey(kEnabledDataSourcesKey)) {
     config->enabled_data_sources_ = *enabled_data_sources;
   }
 
-  const base::Value::List* configs_list = dict.FindList(kConfigsKey);
-  if (!configs_list)
+  const base::ListValue* configs_list = nullptr;
+  if (!dict->GetList(kConfigsKey, &configs_list))
     return nullptr;
 
-  for (const auto& config_dict : *configs_list) {
-    if (!config_dict.is_dict())
+  for (const auto& it : *configs_list) {
+    const base::DictionaryValue* config_dict = nullptr;
+    if (!it.GetAsDictionary(&config_dict))
       return nullptr;
 
-    config->AddPreemptiveRule(config_dict.GetDict());
+    config->AddPreemptiveRule(config_dict);
   }
 
   if (config->rules().empty())
@@ -276,24 +390,26 @@ BackgroundTracingConfigImpl::PreemptiveFromDict(const base::Value::Dict& dict) {
 
 // static
 std::unique_ptr<BackgroundTracingConfigImpl>
-BackgroundTracingConfigImpl::ReactiveFromDict(const base::Value::Dict& dict) {
+BackgroundTracingConfigImpl::ReactiveFromDict(
+    const base::DictionaryValue* dict) {
+  DCHECK(dict);
+
   std::unique_ptr<BackgroundTracingConfigImpl> config(
       new BackgroundTracingConfigImpl(BackgroundTracingConfigImpl::REACTIVE));
 
+  std::string category_preset_string;
   bool has_global_categories = false;
-  if (const base::Value::Dict* trace_config =
-          dict.FindDict(kConfigTraceConfigKey)) {
-    config->trace_config_ = TraceConfig(base::Value(trace_config->Clone()));
+  const base::DictionaryValue* trace_config = nullptr;
+  if (dict->GetDictionary(kConfigTraceConfigKey, &trace_config)) {
+    config->trace_config_ = TraceConfig(*trace_config);
     config->category_preset_ = CUSTOM_TRACE_CONFIG;
     has_global_categories = true;
-  } else if (const std::string* categories =
-                 dict.FindString(kConfigCustomCategoriesKey)) {
-    config->custom_categories_ = *categories;
+  } else if (dict->GetString(kConfigCustomCategoriesKey,
+                             &config->custom_categories_)) {
     config->category_preset_ = CUSTOM_CATEGORY_PRESET;
     has_global_categories = true;
-  } else if (const std::string* category_preset_string =
-                 dict.FindString(kConfigCategoryKey)) {
-    if (!StringToCategoryPreset(*category_preset_string,
+  } else if (dict->GetString(kConfigCategoryKey, &category_preset_string)) {
+    if (!StringToCategoryPreset(category_preset_string,
                                 &config->category_preset_)) {
       return nullptr;
     }
@@ -301,31 +417,30 @@ BackgroundTracingConfigImpl::ReactiveFromDict(const base::Value::Dict& dict) {
   }
 
   if (const std::string* enabled_data_sources =
-          dict.FindString(kEnabledDataSourcesKey)) {
+          dict->FindStringKey(kEnabledDataSourcesKey)) {
     config->enabled_data_sources_ = *enabled_data_sources;
   }
 
-  const base::Value::List* configs_list = dict.FindList(kConfigsKey);
-  if (!configs_list)
+  const base::ListValue* configs_list = nullptr;
+  if (!dict->GetList(kConfigsKey, &configs_list))
     return nullptr;
 
-  for (const auto& config_dict : *configs_list) {
-    if (!config_dict.is_dict())
+  for (const auto& it : *configs_list) {
+    const base::DictionaryValue* config_dict = nullptr;
+    if (!it.GetAsDictionary(&config_dict))
       return nullptr;
 
     // TODO(oysteine): Remove the per-rule category preset when configs have
     // been updated to just specify the per-config category preset.
-    if (!has_global_categories) {
-      if (const std::string* category_preset_string =
-              config_dict.GetDict().FindString(kConfigCategoryKey)) {
-        if (!StringToCategoryPreset(*category_preset_string,
-                                    &config->category_preset_)) {
-          return nullptr;
-        }
+    if (!has_global_categories &&
+        config_dict->GetString(kConfigCategoryKey, &category_preset_string)) {
+      if (!StringToCategoryPreset(category_preset_string,
+                                  &config->category_preset_)) {
+        return nullptr;
       }
     }
 
-    config->AddReactiveRule(config_dict.GetDict(), config->category_preset_);
+    config->AddReactiveRule(config_dict, config->category_preset_);
   }
 
   if (config->rules().empty())
@@ -336,19 +451,22 @@ BackgroundTracingConfigImpl::ReactiveFromDict(const base::Value::Dict& dict) {
 
 // static
 std::unique_ptr<BackgroundTracingConfigImpl>
-BackgroundTracingConfigImpl::SystemFromDict(const base::Value::Dict& dict) {
+BackgroundTracingConfigImpl::SystemFromDict(const base::DictionaryValue* dict) {
+  DCHECK(dict);
+
   auto config = std::make_unique<BackgroundTracingConfigImpl>(
       BackgroundTracingConfigImpl::SYSTEM);
 
-  const base::Value::List* configs_list = dict.FindList(kConfigsKey);
-  if (!configs_list)
+  const base::ListValue* configs_list = nullptr;
+  if (!dict->GetList(kConfigsKey, &configs_list))
     return nullptr;
 
-  for (const auto& config_dict : *configs_list) {
-    if (!config_dict.is_dict())
+  for (const auto& it : *configs_list) {
+    const base::DictionaryValue* config_dict = nullptr;
+    if (!it.GetAsDictionary(&config_dict))
       return nullptr;
 
-    config->AddSystemRule(config_dict.GetDict());
+    config->AddSystemRule(config_dict);
   }
 
   if (config->rules().empty())
@@ -362,24 +480,99 @@ TraceConfig BackgroundTracingConfigImpl::GetConfigForCategoryPreset(
     BackgroundTracingConfigImpl::CategoryPreset preset,
     base::trace_event::TraceRecordMode record_mode) {
   switch (preset) {
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK:
+      return TraceConfig("benchmark,toplevel", record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_DEEP:
+      return TraceConfig(
+          "*,disabled-by-default-benchmark.detailed,"
+          "disabled-by-default-v8.cpu_profile,"
+          "disabled-by-default-v8.runtime_stats",
+          record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_GPU:
+      return TraceConfig(
+          "benchmark,toplevel,gpu,base,mojom,ipc,"
+          "disabled-by-default-system_stats,disabled-by-default-cpu_profiler",
+          record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_IPC:
+      return TraceConfig("benchmark,toplevel,ipc", record_mode);
     case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_STARTUP: {
       auto config =
           tracing::TraceStartupConfig::GetDefaultBrowserStartupConfig();
       config.SetTraceRecordMode(record_mode);
       return config;
     }
-    default:
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_BLINK_GC:
+      return TraceConfig("blink_gc,disabled-by-default-blink_gc", record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::
+        BENCHMARK_EXECUTION_METRIC:
+      return TraceConfig("blink.console,v8", record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_NAVIGATION: {
+      auto config = TraceConfig(
+          "benchmark,toplevel,ipc,base,browser,navigation,omnibox,ui,shutdown,"
+          "safe_browsing,Java,EarlyJava,loading,startup,mojom,renderer_host,"
+          "disabled-by-default-system_stats,disabled-by-default-cpu_profiler,"
+          "dwrite,fonts,ServiceWorker,passwords,disabled-by-default-file,sql,"
+          "disabled-by-default-user_action_samples",
+          record_mode);
+      // Filter only browser process events.
+      base::trace_event::TraceConfig::ProcessFilterConfig process_config(
+          {base::GetCurrentProcId()});
+      config.SetProcessFilterConfig(process_config);
+      return config;
+    }
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_RENDERERS:
+      return TraceConfig(
+          "benchmark,toplevel,ipc,base,ui,v8,renderer,blink,blink_gc,mojom,"
+          "latency,latencyInfo,renderer_host,cc,memory,dwrite,fonts,browser,"
+          "ServiceWorker,disabled-by-default-v8.gc,disabled-by-default-file,"
+          "disabled-by-default-blink_gc,disabled-by-default-lifecycles,"
+          "disabled-by-default-renderer.scheduler,"
+          "disabled-by-default-system_stats,disabled-by-default-cpu_profiler,"
+          "passwords,sql,disabled-by-default-user_action_samples",
+          record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_SERVICEWORKER:
+      return TraceConfig(
+          "benchmark,toplevel,ipc,base,ServiceWorker,CacheStorage,Blob,"
+          "IndexedDB,loading,mojom,navigation,renderer,blink,blink_gc,blink."
+          "user_timing,blink.worker,fonts,startup,disabled-by-default-cpu_"
+          "profiler,disabled-by-default-network",
+          record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_POWER:
+      return TraceConfig(
+          "benchmark,toplevel,ipc,base,audio,compositor,gpu,media,memory,midi,"
+          "native,omnibox,renderer,skia,task_scheduler,ui,v8,views,webaudio,"
+          "disabled-by-default-cpu_profiler,disabled-by-default-user_action_"
+          "samples",
+          record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BLINK_STYLE:
+      return TraceConfig("blink_style", record_mode);
+
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_MEMORY_HEAVY:
+      return TraceConfig("-*,disabled-by-default-memory-infra", record_mode);
+    case BackgroundTracingConfigImpl::CategoryPreset::BENCHMARK_MEMORY_LIGHT: {
+      // On memory light mode, the periodic memory dumps are disabled.
+      base::trace_event::TraceConfig::MemoryDumpConfig memory_config;
+      memory_config.allowed_dump_modes =
+          std::set<base::trace_event::MemoryDumpLevelOfDetail>(
+              {base::trace_event::MemoryDumpLevelOfDetail::BACKGROUND});
+      TraceConfig config("-*,disabled-by-default-memory-infra", record_mode);
+      config.ResetMemoryDumpConfig(memory_config);
+      return config;
+    }
+    case BackgroundTracingConfigImpl::CategoryPreset::CATEGORY_PRESET_UNSET:
+    case BackgroundTracingConfigImpl::CategoryPreset::CUSTOM_CATEGORY_PRESET:
+    case BackgroundTracingConfigImpl::CategoryPreset::CUSTOM_TRACE_CONFIG:
       NOTREACHED();
-      return TraceConfig();
   }
+  NOTREACHED();
+  return TraceConfig();
 }
 
 BackgroundTracingRule* BackgroundTracingConfigImpl::AddRule(
-    const base::Value::Dict& dict) {
+    const base::DictionaryValue* dict) {
   std::unique_ptr<BackgroundTracingRule> rule =
       BackgroundTracingRule::CreateRuleFromDict(dict);
   if (rule) {
-    has_crash_scenario_ = rule->is_crash();
     rules_.push_back(std::move(rule));
     return rules_.back().get();
   }
@@ -387,31 +580,28 @@ BackgroundTracingRule* BackgroundTracingConfigImpl::AddRule(
 }
 
 void BackgroundTracingConfigImpl::SetBufferSizeLimits(
-    const base::Value::Dict* dict) {
-  if (auto low_ram_buffer_size_kb = dict->FindInt(kConfigLowRamBufferSizeKb)) {
-    low_ram_buffer_size_kb_ = *low_ram_buffer_size_kb;
+    const base::DictionaryValue* dict) {
+  int value = 0;
+  if (dict->GetInteger(kConfigLowRamBufferSizeKb, &value)) {
+    low_ram_buffer_size_kb_ = value;
   }
-  if (auto medium_ram_buffer_size_kb =
-          dict->FindInt(kConfigMediumRamBufferSizeKb)) {
-    medium_ram_buffer_size_kb_ = *medium_ram_buffer_size_kb;
+  if (dict->GetInteger(kConfigMediumRamBufferSizeKb, &value)) {
+    medium_ram_buffer_size_kb_ = value;
   }
-  if (auto mobile_network_buffer_size_kb =
-          dict->FindInt(kConfigMobileNetworkBuferSizeKb)) {
-    mobile_network_buffer_size_kb_ = *mobile_network_buffer_size_kb;
+  if (dict->GetInteger(kConfigMobileNetworkBuferSizeKb, &value)) {
+    mobile_network_buffer_size_kb_ = value;
   }
-  if (auto max_buffer_size_kb = dict->FindInt(kConfigMaxBufferSizeKb)) {
-    max_buffer_size_kb_ = *max_buffer_size_kb;
+  if (dict->GetInteger(kConfigMaxBufferSizeKb, &value)) {
+    max_buffer_size_kb_ = value;
   }
-  if (auto upload_limit_kb = dict->FindInt(kConfigUploadLimitKb)) {
-    upload_limit_kb_ = *upload_limit_kb;
+  if (dict->GetInteger(kConfigUploadLimitKb, &value)) {
+    upload_limit_kb_ = value;
   }
-  if (auto upload_limit_network_kb =
-          dict->FindInt(kConfigUploadLimitNetworkKb)) {
-    upload_limit_network_kb_ = *upload_limit_network_kb;
+  if (dict->GetInteger(kConfigUploadLimitNetworkKb, &value)) {
+    upload_limit_network_kb_ = value;
   }
-  if (auto interning_reset_interval_ms =
-          dict->FindInt(kConfigInterningResetIntervalMs)) {
-    interning_reset_interval_ms_ = *interning_reset_interval_ms;
+  if (dict->GetInteger(kConfigInterningResetIntervalMs, &value)) {
+    interning_reset_interval_ms_ = value;
   }
 }
 
@@ -420,7 +610,7 @@ int BackgroundTracingConfigImpl::GetMaximumTraceBufferSizeKb() const {
   if (ram_mb > 0 && ram_mb <= 1024) {
     return low_ram_buffer_size_kb_;
   }
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   auto type = net::NetworkChangeNotifier::GetConnectionType();
   UMA_HISTOGRAM_ENUMERATION(
       "Tracing.Background.NetworkConnectionTypeWhenStarted", type,

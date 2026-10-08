@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.dom.ControlRangeTest');
 goog.setTestOnly();
@@ -52,7 +60,6 @@ testSuite({
         DomControlRange.createFromBrowserRange(range));
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testSelect() {
     if (!userAgent.IE || userAgent.isVersionOrHigher('11')) {
       return;
@@ -71,7 +78,6 @@ testSuite({
         document.selection.createRange().item(0));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testControlRangeIterator() {
     if (!userAgent.IE) {
       return;
@@ -95,7 +101,6 @@ testSuite({
     helpTestBounds(DomControlRange.createFromElements(table, logo));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCollapse() {
     if (!userAgent.IE) {
       return;
@@ -123,7 +128,6 @@ testSuite({
         range.getContainer());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSave() {
     if (!userAgent.IE) {
       return;
@@ -148,10 +152,6 @@ testSuite({
     }
 
     const img = dom.createDom(TagName.IMG);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     img.src = logo.src;
 
     const div = dom.getElement('test1');
@@ -165,10 +165,6 @@ testSuite({
     assertTrue('Range is collapsed', range.isCollapsed());
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testReplaceContents() {
     // Test a control range.
     if (!userAgent.IE) {
@@ -231,10 +227,6 @@ testSuite({
         range2.containsRange(range));
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testCloneRange() {
     if (!userAgent.IE) {
       return;

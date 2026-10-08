@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "build/build_config.h"
 
 #if BUILDFLAG(ENABLE_BASE_TRACING)
-#include "third_party/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.h"  // nogncheck
+#include "third_party/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.h"
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 
 namespace base {
@@ -44,8 +44,10 @@ ScopedBlockingCall::ScopedBlockingCall(const Location& from_here,
   internal::AssertBlockingAllowed();
   TRACE_EVENT_BEGIN(
       "base", "ScopedBlockingCall", [&](perfetto::EventContext ctx) {
-        ctx.event()->set_source_location_iid(
-            base::trace_event::InternedSourceLocation::Get(&ctx, from_here));
+        perfetto::protos::pbzero::SourceLocation* source_location_data =
+            ctx.event()->set_source_location();
+        source_location_data->set_file_name(from_here.file_name());
+        source_location_data->set_function_name(from_here.function_name());
       });
 
 #if DCHECK_IS_ON()

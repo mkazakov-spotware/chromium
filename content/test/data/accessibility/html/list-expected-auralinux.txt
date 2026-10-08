@@ -1,13 +1,16 @@
 [document web]
 ++[list]
 ++++[list item]
-++++++[static] name='%E2%80%A2 '
+++++++[panel]
+++++++++[static] name='• '
 ++++++[static] name='tic'
 ++++[list item]
-++++++[static] name='%E2%80%A2 '
+++++++[panel]
+++++++++[static] name='• '
 ++++++[static] name='tac'
 ++++[list item]
-++++++[static] name='%E2%80%A2 '
+++++++[panel]
+++++++++[static] name='• '
 ++++++[static] name='toe'
 ++[list]
 ++++[list item]

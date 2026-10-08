@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,26 +7,18 @@
 
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "third_party/blink/public/mojom/blob/blob.mojom-blink.h"
-#include "third_party/blink/renderer/modules/modules_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/loader/fetch/data_pipe_bytes_consumer.h"
 
 namespace blink {
 
-class ExecutionContext;
-
 // This class holds a list of BlobReaderClient implementations alive until
 // they complete or the entire list is garbage collected.
-class MODULES_EXPORT CacheStorageBlobClientList
+class CacheStorageBlobClientList
     : public GarbageCollected<CacheStorageBlobClientList> {
  public:
   CacheStorageBlobClientList() = default;
-
-  CacheStorageBlobClientList(const CacheStorageBlobClientList&) = delete;
-  CacheStorageBlobClientList& operator=(const CacheStorageBlobClientList&) =
-      delete;
-
   void AddClient(
       ExecutionContext* context,
       mojo::PendingReceiver<mojom::blink::BlobReaderClient>
@@ -40,7 +32,8 @@ class MODULES_EXPORT CacheStorageBlobClientList
 
   void RevokeClient(Client* client);
 
-  HeapVector<Member<Client>> clients_;
+  HeapVector<Member<Client>> clients;
+  DISALLOW_COPY_AND_ASSIGN(CacheStorageBlobClientList);
 };
 
 }  // namespace blink

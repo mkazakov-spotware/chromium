@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/check.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "chrome/chrome_cleaner/proto/shared_pup_enums.pb.h"
 #include "chrome/chrome_cleaner/pup_data/test_uws.h"
@@ -29,10 +30,10 @@ const wchar_t kUserPolicyFolder[] = L"User";
 // static
 const wchar_t PUPData::kCommaDelimiter[] = L",";
 const size_t PUPData::kCommaDelimiterLength =
-    std::size(PUPData::kCommaDelimiter) - 1;
+    base::size(PUPData::kCommaDelimiter) - 1;
 const wchar_t PUPData::kCommonDelimiters[] = L" ,\0";
 const size_t PUPData::kCommonDelimitersLength =
-    std::size(PUPData::kCommonDelimiters) - 1;
+    base::size(PUPData::kCommonDelimiters) - 1;
 
 // The escape character used for registry key name and value is an unused
 // unicode character (see: http://en.wikipedia.org/wiki/Private_Use_Areas).

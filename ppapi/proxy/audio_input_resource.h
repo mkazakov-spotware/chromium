@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/sync_socket.h"
 #include "base/threading/simple_thread.h"
 #include "ppapi/proxy/device_enumeration_resource_helper.h"
@@ -34,10 +35,6 @@ class AudioInputResource : public PluginResource,
                            public base::DelegateSimpleThread::Delegate {
  public:
   AudioInputResource(Connection connection, PP_Instance instance);
-
-  AudioInputResource(const AudioInputResource&) = delete;
-  AudioInputResource& operator=(const AudioInputResource&) = delete;
-
   ~AudioInputResource() override;
 
   // Resource overrides.
@@ -148,6 +145,8 @@ class AudioInputResource : public PluginResource,
   // Internal buffer for client's integer audio data.
   int client_buffer_size_bytes_;
   std::unique_ptr<uint8_t[]> client_buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioInputResource);
 };
 
 }  // namespace proxy

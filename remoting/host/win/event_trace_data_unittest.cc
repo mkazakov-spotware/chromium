@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,7 @@ constexpr int kThreadId = 54321;
 constexpr DWORD kStackDepth = 5;
 constexpr int32_t kLineNumber = 42;
 constexpr char kFilePath[] = "//remoting/host/win/awesome_stuff.cc\0";
-constexpr char kFileName[] = "awesome_stuff.cc\0";
 constexpr char kTestLogMessage[] = "BlerghityBlah!\0";
-constexpr char kWarning[] = "WARNING";
 }  // namespace
 
 class EventTraceDataTest : public ::testing::Test {
@@ -112,7 +110,7 @@ TEST_F(EventTraceDataTest, LogMessage) {
   EXPECT_STREQ(kTestLogMessage, data.message.c_str());
 
   // File and line data should not be filled in for this log message type.
-  EXPECT_EQ(std::string(), data.file_name);
+  EXPECT_EQ(std::string(), data.file);
   EXPECT_EQ(0, data.line);
 }
 
@@ -123,12 +121,11 @@ TEST_F(EventTraceDataTest, LogFullMessage) {
 
   EXPECT_EQ(logging::LOG_MESSAGE_FULL, data.event_type);
   EXPECT_EQ(logging::LOG_WARNING, data.severity);
-  EXPECT_EQ(kWarning, EventTraceData::SeverityToString(data.severity));
   EXPECT_EQ(kProcessId, data.process_id);
   EXPECT_EQ(kThreadId, data.thread_id);
   EXPECT_TRUE(data.time_stamp.HasValidValues());
   EXPECT_EQ(kLineNumber, data.line);
-  EXPECT_STREQ(kFileName, data.file_name.c_str());
+  EXPECT_STREQ(kFilePath, data.file.c_str());
   EXPECT_STREQ(kTestLogMessage, data.message.c_str());
 }
 

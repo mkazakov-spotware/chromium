@@ -12,12 +12,9 @@ ResponseReceivedExtraInfo blocked cookies:[
             name : name
             path : /inspector-protocol/network/resources
             priority : Medium
-            sameParty : false
             secure : true
             session : true
             size : 9
-            sourcePort : 8000
-            sourceScheme : NonSecure
             value : value
         }
         cookieLine : name=value; Secure
@@ -35,12 +32,9 @@ RequestWillBeSentExtraInfo blocked cookies:[
             name : name
             path : /inspector-protocol/network/resources
             priority : Medium
-            sameParty : false
             secure : true
             session : true
             size : 9
-            sourcePort : 8443
-            sourceScheme : Secure
             value : value
         }
     }

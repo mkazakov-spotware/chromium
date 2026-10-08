@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - serverRedirect.",
   "background": {
-    "scripts": ["test_serverRedirect.js"],
-    "persistent": true
+    "page": "test_serverRedirect.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

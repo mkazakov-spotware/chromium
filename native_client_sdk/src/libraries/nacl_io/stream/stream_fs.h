@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef LIBRARIES_NACL_IO_STREAM_STREAM_FS_H_
-#define LIBRARIES_NACL_IO_STREAM_STREAM_FS_H_
+#ifndef LIBRARIES_NACL_IO_STREAM_STREAM_H_
+#define LIBRARIES_NACL_IO_STREAM_STREAM_H_
 
 #include "nacl_io/filesystem.h"
 
@@ -36,9 +36,6 @@ class StreamFs : public Filesystem {
    private:
     StreamFs* filesystem_;
   };
-
-  StreamFs(const StreamFs&) = delete;
-  StreamFs& operator=(const StreamFs&) = delete;
 
  protected:
   StreamFs();
@@ -73,8 +70,9 @@ class StreamFs : public Filesystem {
   sdk_util::SimpleLock message_lock_;
 
   friend class KernelProxy;
+  DISALLOW_COPY_AND_ASSIGN(StreamFs);
 };
 
 }  // namespace nacl_io
 
-#endif  // LIBRARIES_NACL_IO_STREAM_STREAM_FS_H_
+#endif  // LIBRARIES_NACL_IO_STREAM_STREAM_H_

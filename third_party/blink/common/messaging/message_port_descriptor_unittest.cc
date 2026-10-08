@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -127,7 +127,7 @@ TEST(MessagePortDescriptorTest, InstrumentationAndSerializationWorks) {
                                                    created_data.seq0++));
 }
 
-TEST(MessagePortDescriptorTestDeathTest, InvalidUsageInstrumentationDelegate) {
+TEST(MessagePortDescriptorTestDeathTest, InvalidUsage) {
   static MessagePortDescriptor::InstrumentationDelegate* kDummyDelegate1 =
       reinterpret_cast<MessagePortDescriptor::InstrumentationDelegate*>(
           0xBAADF00D);
@@ -145,9 +145,7 @@ TEST(MessagePortDescriptorTestDeathTest, InvalidUsageInstrumentationDelegate) {
   // Unset the dummy delegate we installed so we don't receive notifications in
   // the rest of the test.
   MessagePortDescriptor::SetInstrumentationDelegate(nullptr);
-}
 
-TEST(MessagePortDescriptorTestDeathTest, InvalidUsageForSerialization) {
   // Trying to take properties of a default port descriptor should explode.
   MessagePortDescriptor port0;
   EXPECT_DCHECK_DEATH(port0.TakeHandleForSerialization());
@@ -203,12 +201,6 @@ TEST(MessagePortDescriptorTestDeathTest, InvalidUsageForSerialization) {
     port0.InitializeFromSerializedValues(std::move(handle), id,
                                          sequence_number);
   }
-}
-
-TEST(MessagePortDescriptorTestDeathTest, InvalidUsageForEntangling) {
-  MessagePortDescriptorPair pair;
-  MessagePortDescriptor port0 = pair.TakePort0();
-  MessagePortDescriptor port1 = pair.TakePort1();
 
   // Entangle the port.
   auto handle0 = port0.TakeHandleToEntangleWithEmbedder();

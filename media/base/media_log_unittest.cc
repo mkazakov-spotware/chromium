@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <sstream>
 #include <string>
 
+#include "base/macros.h"
 #include "media/base/media_log.h"
 #include "media/base/mock_media_log.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -46,7 +47,7 @@ TEST_F(MediaLogTest, ClonedLogsInhertParentPlayerId) {
   child_media_log->AddMessage(MediaLogMessageLevel::kERROR, "test");
   auto event = root_log->take_most_recent_event();
   EXPECT_NE(event, nullptr);
-  EXPECT_EQ(event->id, 0);
+  EXPECT_EQ(event->id, root_log->id());
 }
 
 TEST_F(MediaLogTest, DontTruncateShortUrlString) {
@@ -58,13 +59,13 @@ TEST_F(MediaLogTest, DontTruncateShortUrlString) {
   root_log_->AddEvent<MediaLogEvent::kLoad>(short_url);
   auto event = root_log_->take_most_recent_event();
   EXPECT_NE(event, nullptr);
-  EXPECT_EQ(*event->params.FindString("url"), "chromium.org");
+  EXPECT_EQ(*event->params.FindStringPath("url"), "chromium.org");
 
   // Verify that CreatedEvent does not truncate the short URL.
   root_log_->AddEvent<MediaLogEvent::kWebMediaPlayerCreated>(short_url);
   event = root_log_->take_most_recent_event();
   EXPECT_NE(event, nullptr);
-  EXPECT_EQ(*event->params.FindString("origin_url"), "chromium.org");
+  EXPECT_EQ(*event->params.FindStringPath("origin_url"), "chromium.org");
 }
 
 TEST_F(MediaLogTest, TruncateLongUrlStrings) {
@@ -90,13 +91,13 @@ TEST_F(MediaLogTest, TruncateLongUrlStrings) {
   root_log_->AddEvent<MediaLogEvent::kLoad>(long_url);
   auto event = root_log_->take_most_recent_event();
   EXPECT_NE(event, nullptr);
-  EXPECT_EQ(*event->params.FindString("url"), expected_url);
+  EXPECT_EQ(*event->params.FindStringPath("url"), expected_url);
 
   // Verify that CreatedEvent does not truncate the short URL.
   root_log_->AddEvent<MediaLogEvent::kWebMediaPlayerCreated>(long_url);
   event = root_log_->take_most_recent_event();
   EXPECT_NE(event, nullptr);
-  EXPECT_EQ(*event->params.FindString("origin_url"), expected_url);
+  EXPECT_EQ(*event->params.FindStringPath("origin_url"), expected_url);
 }
 
 }  // namespace media

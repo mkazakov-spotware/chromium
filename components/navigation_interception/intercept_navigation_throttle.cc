@@ -1,20 +1,19 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/navigation_interception/intercept_navigation_throttle.h"
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/browser/navigation_handle.h"
 #include "url/gurl.h"
 
 namespace navigation_interception {
 
 // Note: this feature is a no-op on non-Android platforms.
-BASE_FEATURE(kAsyncCheck,
-             "AsyncNavigationIntercept",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature InterceptNavigationThrottle::kAsyncCheck{
+    "AsyncNavigationIntercept", base::FEATURE_ENABLED_BY_DEFAULT};
 
 InterceptNavigationThrottle::InterceptNavigationThrottle(
     content::NavigationHandle* navigation_handle,
@@ -22,7 +21,7 @@ InterceptNavigationThrottle::InterceptNavigationThrottle(
     SynchronyMode async_mode)
     : content::NavigationThrottle(navigation_handle),
       should_ignore_callback_(should_ignore_callback),
-      ui_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      ui_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       mode_(async_mode) {}
 
 InterceptNavigationThrottle::~InterceptNavigationThrottle() = default;
@@ -30,16 +29,14 @@ InterceptNavigationThrottle::~InterceptNavigationThrottle() = default;
 content::NavigationThrottle::ThrottleCheckResult
 InterceptNavigationThrottle::WillStartRequest() {
   DCHECK(!should_ignore_);
-  DCHECK(!navigation_handle()->WasServerRedirect());
-  return CheckIfShouldIgnoreNavigation();
+  return CheckIfShouldIgnoreNavigation(false /* is_redirect */);
 }
 
 content::NavigationThrottle::ThrottleCheckResult
 InterceptNavigationThrottle::WillRedirectRequest() {
   if (should_ignore_)
     return content::NavigationThrottle::CANCEL_AND_IGNORE;
-  DCHECK(navigation_handle()->WasServerRedirect());
-  return CheckIfShouldIgnoreNavigation();
+  return CheckIfShouldIgnoreNavigation(true /* is_redirect */);
 }
 
 content::NavigationThrottle::ThrottleCheckResult
@@ -61,29 +58,33 @@ const char* InterceptNavigationThrottle::GetNameForLogging() {
 }
 
 content::NavigationThrottle::ThrottleCheckResult
-InterceptNavigationThrottle::CheckIfShouldIgnoreNavigation() {
+InterceptNavigationThrottle::CheckIfShouldIgnoreNavigation(bool is_redirect) {
   if (ShouldCheckAsynchronously()) {
     pending_checks_++;
     ui_task_runner_->PostTask(
         FROM_HERE, base::BindOnce(&InterceptNavigationThrottle::RunCheckAsync,
-                                  weak_factory_.GetWeakPtr()));
+                                  weak_factory_.GetWeakPtr(),
+                                  GetNavigationParams(is_redirect)));
     return content::NavigationThrottle::PROCEED;
   }
   // No need to set |should_ignore_| since if it is true, we'll cancel the
   // navigation immediately.
-  return should_ignore_callback_.Run(navigation_handle())
+  return should_ignore_callback_.Run(navigation_handle()->GetWebContents(),
+                                     GetNavigationParams(is_redirect))
              ? content::NavigationThrottle::CANCEL_AND_IGNORE
              : content::NavigationThrottle::PROCEED;
   // Careful, |this| can be deleted at this point.
 }
 
-void InterceptNavigationThrottle::RunCheckAsync() {
+void InterceptNavigationThrottle::RunCheckAsync(
+    const NavigationParams& params) {
   DCHECK(base::FeatureList::IsEnabled(kAsyncCheck));
   DCHECK_GT(pending_checks_, 0);
   pending_checks_--;
   bool final_deferred_check = deferring_ && pending_checks_ == 0;
   auto weak_this = weak_factory_.GetWeakPtr();
-  bool should_ignore = should_ignore_callback_.Run(navigation_handle());
+  bool should_ignore = should_ignore_callback_.Run(
+      navigation_handle()->GetWebContents(), params);
   if (!weak_this)
     return;
 
@@ -110,6 +111,19 @@ bool InterceptNavigationThrottle::ShouldCheckAsynchronously() const {
          !navigation_handle()->IsPost() &&
          navigation_handle()->GetURL().SchemeIsHTTPOrHTTPS() &&
          base::FeatureList::IsEnabled(kAsyncCheck);
+}
+
+NavigationParams InterceptNavigationThrottle::GetNavigationParams(
+    bool is_redirect) const {
+  return NavigationParams(navigation_handle()->GetURL(),
+                          content::Referrer(navigation_handle()->GetReferrer()),
+                          navigation_handle()->HasUserGesture(),
+                          navigation_handle()->IsPost(),
+                          navigation_handle()->GetPageTransition(), is_redirect,
+                          navigation_handle()->IsExternalProtocol(), true,
+                          navigation_handle()->IsRendererInitiated(),
+                          navigation_handle()->GetBaseURLForDataURL(),
+                          navigation_handle()->GetInitiatorOrigin());
 }
 
 }  // namespace navigation_interception

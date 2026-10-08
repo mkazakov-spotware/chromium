@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.task.AsyncTask;
 import org.chromium.device.mojom.BatteryStatus;
 
 /**
@@ -82,8 +81,7 @@ class BatteryStatusManager {
      */
     boolean start() {
         if (!mEnabled
-                && ContextUtils.registerProtectedBroadcastReceiver(
-                           ContextUtils.getApplicationContext(), mReceiver, mFilter)
+                && ContextUtils.getApplicationContext().registerReceiver(mReceiver, mFilter)
                         != null) {
             // success
             mEnabled = true;
@@ -142,22 +140,10 @@ class BatteryStatusManager {
         batteryStatus.level = level;
 
         if (mAndroidBatteryManager != null) {
-            // Doing an AsyncTask since querying the BatteryManager might be slow. In the past, it
-            // has caused ANRs when executed on the main thread - see crbug.com/1163401.
-            new AsyncTask<BatteryStatus>() {
-                @Override
-                protected BatteryStatus doInBackground() {
-                    updateBatteryStatus(batteryStatus);
-                    return batteryStatus;
-                }
-                @Override
-                protected void onPostExecute(BatteryStatus batteryStatus) {
-                    mCallback.onBatteryStatusChanged(batteryStatus);
-                }
-            }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-        } else {
-            mCallback.onBatteryStatusChanged(batteryStatus);
+            updateBatteryStatus(batteryStatus);
         }
+
+        mCallback.onBatteryStatusChanged(batteryStatus);
     }
 
     private void updateBatteryStatus(BatteryStatus batteryStatus) {

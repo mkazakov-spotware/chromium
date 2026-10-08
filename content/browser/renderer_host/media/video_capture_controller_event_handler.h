@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "media/capture/mojom/video_capture_buffer.mojom.h"
+#include "content/common/content_export.h"
 #include "media/capture/mojom/video_capture_types.mojom.h"
 #include "mojo/public/cpp/system/buffer.h"
 #include "ui/gfx/geometry/size.h"
@@ -20,19 +20,6 @@ namespace content {
 
 typedef base::UnguessableToken VideoCaptureControllerID;
 
-// Represents a buffer that is ready for consumption. Mirrors ReadyBuffer in
-// video_capture_types.mojom.
-struct ReadyBuffer {
-  ReadyBuffer(int buffer_id, media::mojom::VideoFrameInfoPtr frame_info);
-  ReadyBuffer(ReadyBuffer&& other);
-  ~ReadyBuffer();
-
-  ReadyBuffer& operator=(ReadyBuffer&& other);
-
-  int buffer_id;
-  media::mojom::VideoFrameInfoPtr frame_info;
-};
-
 // VideoCaptureControllerEventHandler is the interface for
 // VideoCaptureController to notify clients about the events such as
 // BufferReady, FrameInfo, Error, etc.
@@ -42,7 +29,7 @@ struct ReadyBuffer {
 // Other methods can be forwarded synchronously.
 
 // TODO(mcasas): https://crbug.com/654176 merge back into VideoCaptureController
-class VideoCaptureControllerEventHandler {
+class CONTENT_EXPORT VideoCaptureControllerEventHandler {
  public:
   // An Error has occurred in the VideoCaptureDevice.
   virtual void OnError(const VideoCaptureControllerID& id,
@@ -56,20 +43,11 @@ class VideoCaptureControllerEventHandler {
   virtual void OnBufferDestroyed(const VideoCaptureControllerID& id,
                                  int buffer_id) = 0;
 
-  // A buffer (and optionally scaled versions of it) has been filled with a
-  // captured VideoFrame.
+  // A buffer has been filled with a captured VideoFrame.
   virtual void OnBufferReady(
       const VideoCaptureControllerID& id,
-      const ReadyBuffer& buffer,
-      const std::vector<ReadyBuffer>& scaled_buffers) = 0;
-
-  // All subsequent buffers are guaranteed to have a crop version whose value
-  // is at least |crop_version|.
-  virtual void OnNewCropVersion(const VideoCaptureControllerID& id,
-                                uint32_t crop_version) = 0;
-
-  virtual void OnFrameWithEmptyRegionCapture(
-      const VideoCaptureControllerID& id) = 0;
+      int buffer_id,
+      const media::mojom::VideoFrameInfoPtr& frame_info) = 0;
 
   // The capture session has ended and no more frames will be sent.
   virtual void OnEnded(const VideoCaptureControllerID& id) = 0;

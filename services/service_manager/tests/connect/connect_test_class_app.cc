@@ -1,8 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_executor.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -36,9 +37,6 @@ class ConnectTestClassApp : public Service,
         base::BindRepeating(&ConnectTestClassApp::BindClassInterfaceReceiver,
                             base::Unretained(this)));
   }
-
-  ConnectTestClassApp(const ConnectTestClassApp&) = delete;
-  ConnectTestClassApp& operator=(const ConnectTestClassApp&) = delete;
 
   ~ConnectTestClassApp() override = default;
 
@@ -83,6 +81,8 @@ class ConnectTestClassApp : public Service,
   BinderRegistry registry_;
   mojo::ReceiverSet<test::mojom::ConnectTestService> receivers_;
   mojo::ReceiverSet<test::mojom::ClassInterface> class_interface_receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConnectTestClassApp);
 };
 
 }  // namespace service_manager

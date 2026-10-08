@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,7 +11,6 @@ static_library("pref_registry") {
   deps = [
     "//base",
     "//base/third_party/dynamic_annotations",
-    "//build:chromeos_buildflags",
     "//components/prefs",
   ]
 }

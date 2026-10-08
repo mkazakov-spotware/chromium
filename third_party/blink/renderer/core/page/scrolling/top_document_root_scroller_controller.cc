@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/page_scale_constraints_set.h"
 #include "third_party/blink/renderer/core/frame/root_frame_viewport.h"
@@ -17,6 +16,7 @@
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/page/scrolling/overscroll_controller.h"
 #include "third_party/blink/renderer/core/page/scrolling/viewport_scroll_callback.h"
+#include "third_party/blink/renderer/core/paint/compositing/paint_layer_compositor.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
@@ -73,9 +73,9 @@ ScrollableArea* TopDocumentRootScrollerController::RootScrollerArea() const {
   return GetScrollableArea(GlobalRootScroller());
 }
 
-gfx::Size TopDocumentRootScrollerController::RootScrollerVisibleArea() const {
+IntSize TopDocumentRootScrollerController::RootScrollerVisibleArea() const {
   if (!TopDocument() || !TopDocument()->View())
-    return gfx::Size();
+    return IntSize();
 
   float minimum_page_scale =
       page_->GetPageScaleConstraintsSet().FinalConstraints().minimum_scale;
@@ -83,18 +83,12 @@ gfx::Size TopDocumentRootScrollerController::RootScrollerVisibleArea() const {
       ceilf(page_->GetVisualViewport().BrowserControlsAdjustment() /
             minimum_page_scale);
 
-  gfx::Size layout_size = TopDocument()
-                              ->View()
-                              ->LayoutViewport()
-                              ->VisibleContentRect(kExcludeScrollbars)
-                              .size();
-  return gfx::Size(layout_size.width(),
-                   layout_size.height() + browser_controls_adjustment);
-}
-
-void TopDocumentRootScrollerController::Reset() {
-  global_root_scroller_.Clear();
-  viewport_apply_scroll_.Clear();
+  return TopDocument()
+             ->View()
+             ->LayoutViewport()
+             ->VisibleContentRect(kExcludeScrollbars)
+             .Size() +
+         IntSize(0, browser_controls_adjustment);
 }
 
 Node* TopDocumentRootScrollerController::FindGlobalRootScroller() {

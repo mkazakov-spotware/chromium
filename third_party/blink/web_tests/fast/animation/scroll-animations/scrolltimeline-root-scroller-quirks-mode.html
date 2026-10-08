@@ -9,25 +9,28 @@ body {
 
 <script src='../../../resources/testharness.js'></script>
 <script src='../../../resources/testharnessreport.js'></script>
-<script src='resources/testcommon.js'></script>
+<script src='../../../external/wpt/web-animations/testcommon.js'></script>
+
 <body></body>
 
 <script>
 promise_test(async t => {
   const scroller = document.scrollingElement;
-  const maxScroll = scroller.scrollHeight - scroller.clientHeight;
+  // For simplicity, we set the timeRange such that currentTime maps directly to
+  // the value scrolled.
+  const scrollerHeight = scroller.scrollHeight - scroller.clientHeight;
   const scrollTimeline = new ScrollTimeline(
-      { scrollSource: scroller, orientation: 'block' });
+      { scrollSource: scroller, timeRange: scrollerHeight, orientation: 'block' });
 
   // Dirty style.
   document.body.style.background = 'red';
 
   // The following should not crash, as currentTime should clean the style before
   // resolving the scrollingElement.
-  assert_percents_approx_equal(scrollTimeline.currentTime, 0, maxScroll);
+  assert_equals(scrollTimeline.currentTime, 0);
 
   // Now do some scrolling and make sure that the ScrollTimelines update.
-  scroller.scrollTop = 0.2 * maxScroll;
+  scroller.scrollTop = 50;
 
   // Wait for new animation frame  which allows the timeline to compute new
   // current time.
@@ -37,6 +40,6 @@ promise_test(async t => {
   document.body.style.background = '';
 
   // Once again, no crash expected.
-  assert_percents_approx_equal(scrollTimeline.currentTime, 20, maxScroll);
+  assert_equals(scrollTimeline.currentTime, 50);
 }, 'currentTime should clean style (and not crash) in quirks mode');
 </script>

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,14 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/extensions/accelerator_priority.h"
-#include "chrome/browser/ui/extensions/extension_action_view_controller.h"
 #include "chrome/browser/ui/views/extensions/extension_popup.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/toolbar/browser_actions_container.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view_delegate_views.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/common/extensions/command.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/common/api/extension_action/action_info.h"
-#include "extensions/common/command.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_constants.h"
 #include "ui/views/view.h"
@@ -36,7 +36,7 @@ ExtensionActionPlatformDelegate::Create(
 ExtensionActionPlatformDelegateViews::ExtensionActionPlatformDelegateViews(
     ExtensionActionViewController* controller)
     : controller_(controller) {
-  command_service_observation_.Observe(
+  command_service_observer_.Add(
       extensions::CommandService::Get(controller_->browser()->profile()));
 }
 
@@ -76,15 +76,24 @@ void ExtensionActionPlatformDelegateViews::UnregisterCommand() {
 
 void ExtensionActionPlatformDelegateViews::ShowPopup(
     std::unique_ptr<extensions::ExtensionViewHost> host,
-    PopupShowAction show_action,
-    ShowPopupCallback callback) {
+    bool grant_tab_permissions,
+    ExtensionActionViewController::PopupShowAction show_action) {
   // TOP_RIGHT is correct for both RTL and LTR, because the views platform
   // performs the flipping in RTL cases.
   views::BubbleBorder::Arrow arrow = views::BubbleBorder::TOP_RIGHT;
 
+  ExtensionPopup::ShowAction popup_show_action =
+      show_action == ExtensionActionViewController::SHOW_POPUP ?
+          ExtensionPopup::SHOW : ExtensionPopup::SHOW_AND_INSPECT;
   ExtensionPopup::ShowPopup(std::move(host),
                             GetDelegateViews()->GetReferenceButtonForPopup(),
-                            arrow, show_action, std::move(callback));
+                            arrow, popup_show_action);
+}
+
+void ExtensionActionPlatformDelegateViews::ShowContextMenu() {
+  views::View* view = GetDelegateViews()->GetAsView();
+  view->context_menu_controller()->ShowContextMenuForView(
+      view, view->GetKeyboardContextMenuLocation(), ui::MENU_SOURCE_NONE);
 }
 
 void ExtensionActionPlatformDelegateViews::OnExtensionCommandAdded(
@@ -93,8 +102,13 @@ void ExtensionActionPlatformDelegateViews::OnExtensionCommandAdded(
   if (extension_id != controller_->extension()->id())
     return;  // Not this action's extension.
 
-  if (!extensions::Command::IsActionRelatedCommand(command.command_name()))
+  if (command.command_name() !=
+          extensions::manifest_values::kBrowserActionCommandEvent &&
+      command.command_name() !=
+          extensions::manifest_values::kPageActionCommandEvent) {
+    // Not an action-related command.
     return;
+  }
 
   RegisterCommand();
 }
@@ -105,8 +119,11 @@ void ExtensionActionPlatformDelegateViews::OnExtensionCommandRemoved(
   if (extension_id != controller_->extension()->id())
     return;
 
-  if (!extensions::Command::IsActionRelatedCommand(command.command_name()))
-    return;
+  if (command.command_name() !=
+          extensions::manifest_values::kBrowserActionCommandEvent &&
+      command.command_name() !=
+          extensions::manifest_values::kPageActionCommandEvent)
+    return;  // Not an action-related command.
 
   extensions::Command extension_command;
   if (controller_->GetExtensionCommand(&extension_command))
@@ -116,8 +133,7 @@ void ExtensionActionPlatformDelegateViews::OnExtensionCommandRemoved(
 }
 
 void ExtensionActionPlatformDelegateViews::OnCommandServiceDestroying() {
-  DCHECK(command_service_observation_.IsObserving());
-  command_service_observation_.Reset();
+  command_service_observer_.RemoveAll();
 }
 
 bool ExtensionActionPlatformDelegateViews::AcceleratorPressed(
@@ -127,8 +143,8 @@ bool ExtensionActionPlatformDelegateViews::AcceleratorPressed(
   if (controller_->IsShowingPopup()) {
     controller_->HidePopup();
   } else {
-    controller_->ExecuteUserAction(
-        ToolbarActionViewController::InvocationSource::kCommand);
+    controller_->ExecuteAction(
+        true, ToolbarActionViewController::InvocationSource::kCommand);
   }
 
   return true;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ class GamepadDeviceMac final : public AbstractHapticGamepad {
   bool SupportsVibration();
 
   // AbstractHapticGamepad public implementation.
-  void SetVibration(mojom::GamepadEffectParametersPtr params) override;
+  void SetVibration(double strong_magnitude, double weak_magnitude) override;
   void SetZeroVibration() override;
   base::WeakPtr<AbstractHapticGamepad> GetWeakPtr() override;
 

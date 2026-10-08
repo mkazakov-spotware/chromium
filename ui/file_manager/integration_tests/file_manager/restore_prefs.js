@@ -1,11 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ENTRIES, RootPath, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {openNewWindow, remoteCall, setupAndWaitUntilReady} from './background.js';
+'use strict';
 
 /**
  * Tests restoring the sorting order.
@@ -27,8 +24,9 @@ testcase.restoreSortColumn = async () => {
       'fakeMouseClick', appId, ['.table-header-cell:nth-of-type(1)']);
 
   // Check the sorted style of the header.
-  const iconSortedAsc =
-      '.table-header-cell .sorted [iron-icon="files16:arrow_up_small"]';
+  const iconSortedAsc = (await isFilesNg(appId)) ?
+      '.table-header-cell .sorted [iron-icon="files16:arrow_up_small"]' :
+      '.table-header-sort-image-asc';
   await remoteCall.waitForElement(appId, iconSortedAsc);
 
   // Sort by size (in descending order).
@@ -36,8 +34,9 @@ testcase.restoreSortColumn = async () => {
       'fakeMouseClick', appId, ['.table-header-cell:nth-of-type(2)']);
 
   // Check the sorted style of the header.
-  const iconSortedDesc =
-      '.table-header-cell .sorted [iron-icon="files16:arrow_down_small"]';
+  const iconSortedDesc = (await isFilesNg(appId)) ?
+      '.table-header-cell .sorted [iron-icon="files16:arrow_down_small"]' :
+      '.table-header-sort-image-desc';
   await remoteCall.waitForElement(appId, iconSortedDesc);
 
   // Check the sorted files.

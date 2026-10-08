@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,6 @@ const char kServiceName[] = SERVICE_NAME;
 
 const char kHostConfigFileName[] = SERVICE_NAME ".json";
 const char kHostConfigFilePath[] = HELPER_TOOLS_DIR SERVICE_NAME ".json";
-
-// Note: If this path is changed, also update the value set in:
-// //remoting/base/file_host_settings_mac.cc
-const char kHostSettingsFilePath[] =
-    HELPER_TOOLS_DIR SERVICE_NAME ".settings.json";
 
 const char kHostServiceBinaryPath[] = HELPER_TOOLS_DIR HOST_BUNDLE_NAME
     "/Contents/MacOS/remoting_me2me_host_service";

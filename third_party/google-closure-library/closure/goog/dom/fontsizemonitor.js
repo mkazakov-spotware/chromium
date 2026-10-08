@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2005 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A class that can be used to listen to font size changes.
@@ -17,7 +25,6 @@ goog.require('goog.events');
 goog.require('goog.events.EventTarget');
 goog.require('goog.events.EventType');
 goog.require('goog.userAgent');
-goog.requireType('goog.events.BrowserEvent');
 
 
 // TODO(arv): Move this to goog.events instead.
@@ -43,7 +50,6 @@ goog.requireType('goog.events.BrowserEvent');
  * @final
  */
 goog.dom.FontSizeMonitor = function(opt_domHelper) {
-  'use strict';
   goog.events.EventTarget.call(this);
 
   var dom = opt_domHelper || goog.dom.getDomHelper();
@@ -126,7 +132,6 @@ goog.dom.FontSizeMonitor.CHANGE_EVENT =
 
 /** @override */
 goog.dom.FontSizeMonitor.prototype.disposeInternal = function() {
-  'use strict';
   goog.dom.FontSizeMonitor.superClass_.disposeInternal.call(this);
 
   goog.events.unlisten(
@@ -134,7 +139,10 @@ goog.dom.FontSizeMonitor.prototype.disposeInternal = function() {
       false, this);
   this.resizeTarget_ = null;
 
-  goog.dom.removeNode(this.sizeElement_);
+  // Firefox 2 crashes if the iframe is removed during the unload phase.
+  if (!goog.userAgent.GECKO || goog.userAgent.isVersionOrHigher('1.9')) {
+    goog.dom.removeNode(this.sizeElement_);
+  }
   delete this.sizeElement_;
 };
 
@@ -146,7 +154,6 @@ goog.dom.FontSizeMonitor.prototype.disposeInternal = function() {
  * @private
  */
 goog.dom.FontSizeMonitor.prototype.handleResize_ = function(e) {
-  'use strict';
   // Only dispatch the event if the size really changed.  Some newer browsers do
   // not really change the font-size,  instead they zoom the whole page.  This
   // does trigger window resize events on the iframe but the logical pixel size

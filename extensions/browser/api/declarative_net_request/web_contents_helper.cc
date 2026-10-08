@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,7 +53,8 @@ void WebContentsHelper::DidFinishNavigation(
   if (!navigation_handle->HasCommitted())
     return;
 
-  ruleset_manager_->OnDidFinishNavigation(navigation_handle);
+  ruleset_manager_->OnDidFinishNavigation(
+      navigation_handle->GetRenderFrameHost());
 }
 
 }  // namespace declarative_net_request

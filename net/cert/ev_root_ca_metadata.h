@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,12 @@
 #include <string>
 #include <vector>
 
-#include "crypto/crypto_buildflags.h"
+#include "base/macros.h"
 #include "net/base/net_export.h"
 #include "net/cert/x509_certificate.h"
 
-#if BUILDFLAG(USE_NSS_CERTS) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
-    BUILDFLAG(IS_FUCHSIA)
+#if defined(USE_NSS_CERTS) || defined(OS_WIN) || defined(OS_APPLE) || \
+    defined(OS_FUCHSIA)
 // When not defined, the EVRootCAMetadata singleton is a dumb placeholder
 // implementation that will fail all EV lookup operations.
 #define PLATFORM_USES_CHROMIUM_EV_METADATA
@@ -38,7 +38,7 @@ class Input;
 // extended-validation (EV) certificates.
 class NET_EXPORT_PRIVATE EVRootCAMetadata {
  public:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   typedef const char* PolicyOID;
 #else
   // DER-encoded OID value (no tag or length).
@@ -46,9 +46,6 @@ class NET_EXPORT_PRIVATE EVRootCAMetadata {
 #endif
 
   static EVRootCAMetadata* GetInstance();
-
-  EVRootCAMetadata(const EVRootCAMetadata&) = delete;
-  EVRootCAMetadata& operator=(const EVRootCAMetadata&) = delete;
 
   // Returns true if policy_oid is an EV policy OID of some root CA.
   bool IsEVPolicyOID(PolicyOID policy_oid) const;
@@ -87,7 +84,7 @@ class NET_EXPORT_PRIVATE EVRootCAMetadata {
   EVRootCAMetadata();
   ~EVRootCAMetadata();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   using ExtraEVCAMap = std::map<SHA256HashValue, std::string>;
 
   // extra_cas_ contains any EV CA metadata that was added at runtime.
@@ -98,6 +95,8 @@ class NET_EXPORT_PRIVATE EVRootCAMetadata {
   PolicyOIDMap ev_policy_;
   std::set<std::string> policy_oids_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(EVRootCAMetadata);
 };
 
 }  // namespace net

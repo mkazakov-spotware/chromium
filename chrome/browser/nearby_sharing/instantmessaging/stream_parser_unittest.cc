@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/cxx17_backports.h"
 #include "chrome/browser/nearby_sharing/instantmessaging/proto/instantmessaging.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -48,13 +47,30 @@ chrome_browser_nearby_sharing_instantmessaging::StreamBody BuildProto(
 
 class StreamParserTest : public testing::Test {
  public:
-  StreamParserTest() = default;
+  StreamParserTest()
+      : stream_parser_(base::BindRepeating(&StreamParserTest::OnMessageReceived,
+                                           base::Unretained(this)),
+                       base::BindRepeating(&StreamParserTest::OnFastPathReady,
+                                           base::Unretained(this))) {}
   ~StreamParserTest() override = default;
 
   StreamParser& GetStreamParser() { return stream_parser_; }
 
+  int MessagesReceived() { return messages_received_.size(); }
+
+  const std::vector<std::string> GetMessages() { return messages_received_; }
+
+  bool fast_path_ready() { return fast_path_ready_; }
+
  private:
+  void OnMessageReceived(const std::string& message) {
+    messages_received_.push_back(message);
+  }
+  void OnFastPathReady() { fast_path_ready_ = true; }
+
+  bool fast_path_ready_ = false;
   StreamParser stream_parser_;
+  std::vector<std::string> messages_received_;
 };
 
 // The entire message is sent in one response body.
@@ -62,11 +78,10 @@ TEST_F(StreamParserTest, SingleEntireMessageAtOnce) {
   std::vector<std::string> messages = {"random 42"};
   chrome_browser_nearby_sharing_instantmessaging::StreamBody stream_body =
       BuildProto(messages);
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(stream_body.SerializeAsString());
-  EXPECT_EQ(responses.size(), 1u);
-  EXPECT_EQ(responses[0].mutable_inbox_message()->message(), messages[0]);
+  GetStreamParser().Append(stream_body.SerializeAsString());
+
+  EXPECT_EQ(1, MessagesReceived());
+  EXPECT_EQ(messages, GetMessages());
 }
 
 // More than one message is sent in one response body.
@@ -75,14 +90,10 @@ TEST_F(StreamParserTest, MultipleEntireMessagesAtOnce) {
                                        "helloworld 25"};
   chrome_browser_nearby_sharing_instantmessaging::StreamBody stream_body =
       BuildProto(messages);
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(stream_body.SerializeAsString());
+  GetStreamParser().Append(stream_body.SerializeAsString());
 
-  EXPECT_EQ(responses.size(), 3u);
-  EXPECT_EQ(responses[0].mutable_inbox_message()->message(), messages[0]);
-  EXPECT_EQ(responses[1].mutable_inbox_message()->message(), messages[1]);
-  EXPECT_EQ(responses[2].mutable_inbox_message()->message(), messages[2]);
+  EXPECT_EQ(3, MessagesReceived());
+  EXPECT_EQ(messages, GetMessages());
 }
 
 // A single message is sent over multiple response bodies.
@@ -95,14 +106,13 @@ TEST_F(StreamParserTest, SingleMessageSplit) {
   // Randomly chosen.
   int pos = 13;
 
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(serialized_msg.substr(0, pos));
-  EXPECT_EQ(responses.size(), 0u);
+  GetStreamParser().Append(serialized_msg.substr(0, pos));
+  EXPECT_EQ(0, MessagesReceived());
+  EXPECT_EQ(std::vector<std::string>(), GetMessages());
 
-  responses = GetStreamParser().Append(serialized_msg.substr(pos));
-  EXPECT_EQ(responses.size(), 1u);
-  EXPECT_EQ(responses[0].mutable_inbox_message()->message(), messages[0]);
+  GetStreamParser().Append(serialized_msg.substr(pos));
+  EXPECT_EQ(1, MessagesReceived());
+  EXPECT_EQ(messages, GetMessages());
 }
 
 // Multiple messages are sent over multiple response bodies.
@@ -120,68 +130,24 @@ TEST_F(StreamParserTest, MultipleMessagesSplit) {
       serialized_msg_1 + serialized_msg_2.substr(0, pos);
   std::string second_message = serialized_msg_2.substr(pos);
 
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(first_message);
-  EXPECT_EQ(3u, responses.size());
-  EXPECT_EQ(messages_1[0], responses[0].mutable_inbox_message()->message());
-  EXPECT_EQ(messages_1[1], responses[1].mutable_inbox_message()->message());
-  EXPECT_EQ(messages_1[2], responses[2].mutable_inbox_message()->message());
+  GetStreamParser().Append(first_message);
+  EXPECT_EQ(3, MessagesReceived());
+  EXPECT_EQ(messages_1, GetMessages());
 
-  responses = GetStreamParser().Append(second_message);
-  EXPECT_EQ(2u, responses.size());
-  EXPECT_EQ(messages_2[0], responses[0].mutable_inbox_message()->message());
-  EXPECT_EQ(messages_2[1], responses[1].mutable_inbox_message()->message());
+  messages_1.insert(messages_1.end(), messages_2.begin(), messages_2.end());
+  GetStreamParser().Append(second_message);
+  EXPECT_EQ(5, MessagesReceived());
+  EXPECT_EQ(messages_1, GetMessages());
 }
 
-// Check that the buffer resizes properly when a long message is sent at once.
-TEST_F(StreamParserTest, LongMessageAtOnce) {
-  std::vector<std::string> messages = {
-      "This is a long test message to see if the buffer breaks if we send a "
-      "big message: "
-      "111111111111111111111111111111111111111111111111111111111111111111111111"
-      "111111111111111111111111111111111111111111111111111111111111111111111111"
-      "111111111111111111111111111111111111111111111111111111111111111111111111"
-      "111111111111111111111111111111111111111111111111111111111111111111111111"
-      "111111111111111111111111111111111111111111111111111111111111111111111111"
-      "111111111111111111111111111111111111111111111111111111111111111111111111"
-      "111111"};
+// The fast path message triggers callback.
+TEST_F(StreamParserTest, FastPathReadyTriggersCallback) {
+  std::vector<std::string> messages = {"random 42"};
   chrome_browser_nearby_sharing_instantmessaging::StreamBody stream_body =
-      BuildProto(messages);
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(stream_body.SerializeAsString());
-  EXPECT_EQ(1u, responses.size());
-  EXPECT_EQ(messages[0], responses[0].mutable_inbox_message()->message());
-}
+      BuildProto(messages, true);
+  GetStreamParser().Append(stream_body.SerializeAsString());
 
-// Check that when we have a tag failure, no message is received.
-TEST_F(StreamParserTest, TagFailure) {
-  std::string message = "";
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(message);
-  EXPECT_EQ(0u, responses.size());
-
-  char bytes[2] = {0x0f, 0x00};
-  auto bytes_string = base::StringPiece(bytes);
-  EXPECT_EQ(1u, bytes_string.length());
-  responses = GetStreamParser().Append(bytes);
-  EXPECT_EQ(0u, responses.size());
-}
-
-// Check that when we have a ReadBytes failure, no message is received.
-TEST_F(StreamParserTest, ReadBytesFailure) {
-  std::vector<std::string> messages = {"random 42 and random 92"};
-  chrome_browser_nearby_sharing_instantmessaging::StreamBody stream_body =
-      BuildProto(messages);
-  std::string serialized_msg = stream_body.SerializeAsString();
-
-  // Randomly chosen.
-  int pos = 13;
-
-  std::vector<
-      chrome_browser_nearby_sharing_instantmessaging::ReceiveMessagesResponse>
-      responses = GetStreamParser().Append(serialized_msg.substr(0, pos));
-  EXPECT_EQ(responses.size(), 0u);
+  EXPECT_TRUE(fast_path_ready());
+  EXPECT_EQ(1, MessagesReceived());
+  EXPECT_EQ(messages, GetMessages());
 }

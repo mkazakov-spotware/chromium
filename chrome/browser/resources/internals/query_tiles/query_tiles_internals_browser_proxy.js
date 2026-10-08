@@ -1,8 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
+import {addSingletonGetter, sendWithPromise} from 'chrome://resources/js/cr.m.js';
 
 /**
  * @typedef {{
@@ -19,9 +19,6 @@ export let ServiceStatus;
  * }}
  */
 export let TileData;
-
-/** @type {?QueryTilesInternalsBrowserProxy} */
-let instance = null;
 
 /** @interface */
 export class QueryTilesInternalsBrowserProxy {
@@ -84,9 +81,6 @@ export class QueryTilesInternalsBrowserProxyImpl {
   setServerUrl(url) {
     chrome.send('setServerUrl', [url]);
   }
-
-  /** @return {!QueryTilesInternalsBrowserProxy} */
-  static getInstance() {
-    return instance || (instance = new QueryTilesInternalsBrowserProxyImpl());
-  }
 }
+
+addSingletonGetter(QueryTilesInternalsBrowserProxyImpl);

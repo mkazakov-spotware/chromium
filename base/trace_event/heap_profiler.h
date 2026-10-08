@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_TRACE_EVENT_HEAP_PROFILER_H_
-#define BASE_TRACE_EVENT_HEAP_PROFILER_H_
+#ifndef BASE_TRACE_EVENT_HEAP_PROFILER_H
+#define BASE_TRACE_EVENT_HEAP_PROFILER_H
 
-#include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/trace_event/heap_profiler_allocation_context_tracker.h"
 
@@ -25,6 +24,11 @@
 // Scoped tracker for task execution context in the heap profiler.
 #define TRACE_HEAP_PROFILER_API_SCOPED_TASK_EXECUTION \
   trace_event_internal::HeapProfilerScopedTaskExecutionTracker
+
+// Scoped tracker that tracks the given program counter as a native stack frame
+// in the heap profiler.
+#define TRACE_HEAP_PROFILER_API_SCOPED_WITH_PROGRAM_COUNTER \
+  trace_event_internal::HeapProfilerScopedStackFrame
 
 // Returns the current task context (c-string) tracked by heap profiler. This is
 // useful along with TRACE_HEAP_PROFILER_API_SCOPED_TASK_EXECUTION if a async
@@ -72,6 +76,31 @@ class HeapProfilerScopedTaskExecutionTracker {
   const char* context_;
 };
 
+class HeapProfilerScopedStackFrame {
+ public:
+  inline explicit HeapProfilerScopedStackFrame(const void* program_counter)
+      : program_counter_(program_counter) {
+    using base::trace_event::AllocationContextTracker;
+    if (UNLIKELY(AllocationContextTracker::capture_mode() ==
+                 AllocationContextTracker::CaptureMode::MIXED_STACK)) {
+      AllocationContextTracker::GetInstanceForCurrentThread()
+          ->PushNativeStackFrame(program_counter_);
+    }
+  }
+
+  inline ~HeapProfilerScopedStackFrame() {
+    using base::trace_event::AllocationContextTracker;
+    if (UNLIKELY(AllocationContextTracker::capture_mode() ==
+                 AllocationContextTracker::CaptureMode::MIXED_STACK)) {
+      AllocationContextTracker::GetInstanceForCurrentThread()
+          ->PopNativeStackFrame(program_counter_);
+    }
+  }
+
+ private:
+  const void* const program_counter_;
+};
+
 inline const char* HeapProfilerCurrentTaskContext() {
   return base::trace_event::AllocationContextTracker::
       GetInstanceForCurrentThread()
@@ -102,4 +131,4 @@ class BASE_EXPORT HeapProfilerScopedIgnore {
 
 }  // namespace trace_event_internal
 
-#endif  // BASE_TRACE_EVENT_HEAP_PROFILER_H_
+#endif  // BASE_TRACE_EVENT_HEAP_PROFILER_H

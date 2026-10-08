@@ -1,16 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {metrics} from '../../common/js/metrics.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
 
 /**
  * UMA exporter for navigation in the Files app.
  *
  */
-export class NavigationUma {
+class NavigationUma {
   /**
    * @param {!VolumeManager} volumeManager
    *

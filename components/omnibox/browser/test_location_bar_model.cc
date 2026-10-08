@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,14 +20,14 @@ TestLocationBarModel::TestLocationBarModel()
 
 TestLocationBarModel::~TestLocationBarModel() {}
 
-std::u16string TestLocationBarModel::GetFormattedFullURL() const {
+base::string16 TestLocationBarModel::GetFormattedFullURL() const {
   if (!formatted_full_url_)
     return base::UTF8ToUTF16(url_.spec());
 
   return *formatted_full_url_;
 }
 
-std::u16string TestLocationBarModel::GetURLForDisplay() const {
+base::string16 TestLocationBarModel::GetURLForDisplay() const {
   if (!url_for_display_)
     return base::UTF8ToUTF16(url_.spec());
 
@@ -42,13 +42,8 @@ security_state::SecurityLevel TestLocationBarModel::GetSecurityLevel() const {
   return security_level_;
 }
 
-net::CertStatus TestLocationBarModel::GetCertStatus() const {
-  return cert_status_;
-}
-
 metrics::OmniboxEventProto::PageClassification
-TestLocationBarModel::GetPageClassification(OmniboxFocusSource focus_source,
-                                            bool is_prefetch) {
+TestLocationBarModel::GetPageClassification(OmniboxFocusSource focus_source) {
   return metrics::OmniboxEventProto::OTHER;
 }
 
@@ -56,12 +51,12 @@ const gfx::VectorIcon& TestLocationBarModel::GetVectorIcon() const {
   return *icon_;
 }
 
-std::u16string TestLocationBarModel::GetSecureDisplayText() const {
+base::string16 TestLocationBarModel::GetSecureDisplayText() const {
   return secure_display_text_;
 }
 
-std::u16string TestLocationBarModel::GetSecureAccessibilityText() const {
-  return std::u16string();
+base::string16 TestLocationBarModel::GetSecureAccessibilityText() const {
+  return base::string16();
 }
 
 bool TestLocationBarModel::ShouldDisplayURL() const {
@@ -74,9 +69,4 @@ bool TestLocationBarModel::IsOfflinePage() const {
 
 bool TestLocationBarModel::ShouldPreventElision() const {
   return should_prevent_elision_;
-}
-
-bool TestLocationBarModel::ShouldUseUpdatedConnectionSecurityIndicators()
-    const {
-  return false;
 }

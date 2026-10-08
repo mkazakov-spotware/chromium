@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -42,14 +42,14 @@ test("device_unittests") {
     "bluetooth/test/bluetooth_gatt_server_test.h",
     "bluetooth/test/bluetooth_test.cc",
     "bluetooth/test/bluetooth_test.h",
-    "bluetooth/test/mock_pairing_delegate.cc",
-    "bluetooth/test/mock_pairing_delegate.h",
     "bluetooth/test/test_bluetooth_adapter_observer.cc",
     "bluetooth/test/test_bluetooth_adapter_observer.h",
     "bluetooth/test/test_bluetooth_advertisement_observer.cc",
     "bluetooth/test/test_bluetooth_advertisement_observer.h",
     "bluetooth/test/test_bluetooth_local_gatt_service_delegate.cc",
     "bluetooth/test/test_bluetooth_local_gatt_service_delegate.h",
+    "bluetooth/test/test_pairing_delegate.cc",
+    "bluetooth/test/test_pairing_delegate.h",
     "gamepad/abstract_haptic_gamepad_unittest.cc",
     "gamepad/dualshock4_controller_unittest.cc",
     "gamepad/gamepad_blocklist_unittest.cc",
@@ -64,6 +64,7 @@ test("device_unittests") {
 
   if (is_mac) {
     sources += [
+      "bluetooth/bluetooth_adapter_mac_metrics_unittest.mm",
       "bluetooth/bluetooth_adapter_mac_unittest.mm",
       "bluetooth/bluetooth_low_energy_advertisement_manager_mac_unittest.mm",
       "bluetooth/test/bluetooth_test_mac.h",
@@ -98,7 +99,6 @@ test("device_unittests") {
       "bluetooth/bluetooth_task_manager_win_unittest.cc",
       "bluetooth/test/bluetooth_test_win.cc",
       "bluetooth/test/bluetooth_test_win.h",
-      "gamepad/wgi_data_fetcher_win_unittest.cc",
     ]
   }
 
@@ -128,7 +128,6 @@ test("device_unittests") {
     "//device/gamepad",
     "//device/gamepad:test_helpers",
     "//device/gamepad/public/cpp:shared_with_blink",
-    "//device/gamepad/public/cpp:switches",
     "//device/gamepad/public/mojom",
     "//mojo/core/embedder",
     "//mojo/public/cpp/bindings",
@@ -143,7 +142,6 @@ test("device_unittests") {
 
   data_deps = [
     "bluetooth/strings:bluetooth_test_strings",
-    "//testing/buildbot/filters:device_unittests_filters",
     "//ui/resources:ui_test_pak_data",
   ]
 
@@ -170,7 +168,6 @@ test("device_unittests") {
       "fido/fido_device_discovery_unittest.cc",
       "fido/fido_parsing_utils_unittest.cc",
       "fido/fido_request_handler_unittest.cc",
-      "fido/filter_unittest.cc",
       "fido/get_assertion_handler_unittest.cc",
       "fido/get_assertion_task_unittest.cc",
       "fido/hid/fido_hid_message_unittest.cc",
@@ -183,22 +180,16 @@ test("device_unittests") {
       "fido/u2f_register_operation_unittest.cc",
       "fido/u2f_sign_operation_unittest.cc",
       "fido/virtual_ctap2_device_unittest.cc",
-      "fido/virtual_fido_device_authenticator_unittest.cc",
       "fido/virtual_u2f_device_unittest.cc",
     ]
 
     deps += [ "//device/fido:mocks" ]
-
-    if (is_mac) {
-      data_deps += [ "fido/strings:fido_test_strings" ]
-    }
   }
 
   if (is_mac) {
     sources += [
       "fido/mac/browsing_data_deletion_unittest.mm",
       "fido/mac/credential_metadata_unittest.cc",
-      "fido/mac/credential_store_unittest.mm",
       "fido/mac/get_assertion_operation_unittest_mac.mm",
       "fido/mac/make_credential_operation_unittest_mac.mm",
       "fido/mac/util_unittest.cc",
@@ -206,10 +197,7 @@ test("device_unittests") {
   }
 
   if (is_win) {
-    sources += [
-      "fido/win/authenticator_unittest.cc",
-      "fido/win/type_conversions_unittest.cc",
-    ]
+    sources += [ "fido/win/type_conversions_unittest.cc" ]
   }
 
   # FIDO HID:
@@ -222,7 +210,8 @@ test("device_unittests") {
     ]
     deps += [
       "//device/fido:test_support",
-      "//services/device/public/cpp:test_support",
+      "//services/device/public/cpp/hid",
+      "//services/device/public/mojom",
     ]
   }
 
@@ -244,26 +233,15 @@ test("device_unittests") {
     ]
   }
 
-  if (is_chromeos) {
-    sources += [
-      "bluetooth/bluetooth_low_energy_scan_filter_unittest.cc",
-      "bluetooth/chromeos/bluetooth_connection_logger_unittest.cc",
-      "bluetooth/chromeos/bluetooth_utils_unittest.cc",
-    ]
+  if (is_ash) {
+    sources += [ "bluetooth/chromeos/bluetooth_utils_unittest.cc" ]
     deps += [ "//chromeos/constants" ]
-    if (is_chromeos_ash) {
-      deps += [ "//ash/constants" ]
-    }
-    if (is_chromeos_lacros) {
-      deps += [ "//chromeos/lacros:test_support" ]
-    }
   }
 
   if ((is_chromeos || is_linux) && use_dbus) {
     configs += [ "//build/config/linux/dbus" ]
 
     sources += [
-      "bluetooth/bluez/bluetooth_adapter_bluez_unittest.cc",
       "bluetooth/bluez/bluetooth_adapter_profile_bluez_unittest.cc",
       "bluetooth/bluez/bluetooth_advertisement_bluez_unittest.cc",
       "bluetooth/bluez/bluetooth_bluez_unittest.cc",
@@ -272,59 +250,40 @@ test("device_unittests") {
       "bluetooth/bluez/bluetooth_service_record_bluez_unittest.cc",
       "bluetooth/bluez/bluetooth_socket_bluez_unittest.cc",
       "bluetooth/dbus/bluetooth_gatt_application_service_provider_unittest.cc",
-      "bluetooth/dbus/bluetooth_gatt_characteristic_service_provider_unittest.cc",
-      "bluetooth/floss/bluetooth_floss_unittest.cc",
-      "bluetooth/floss/bluetooth_gatt_floss_unittest.cc",
-      "bluetooth/floss/bluetooth_socket_floss_unittest.cc",
-      "bluetooth/floss/exported_callback_manager_unittest.cc",
-      "bluetooth/floss/floss_adapter_client_unittest.cc",
-      "bluetooth/floss/floss_admin_client_unittest.cc",
-      "bluetooth/floss/floss_advertiser_client_unittest.cc",
-      "bluetooth/floss/floss_battery_manager_client_unittest.cc",
-      "bluetooth/floss/floss_dbus_client_unittest.cc",
-      "bluetooth/floss/floss_gatt_client_unittest.cc",
-      "bluetooth/floss/floss_lescan_client_unittest.cc",
-      "bluetooth/floss/floss_manager_client_unittest.cc",
-      "bluetooth/floss/floss_socket_manager_unittest.cc",
       "bluetooth/test/bluetooth_test_bluez.cc",
       "bluetooth/test/bluetooth_test_bluez.h",
     ]
 
-    deps += [
-      "//dbus",
-      "//dbus:test_support",
-    ]
+    deps += [ "//dbus" ]
 
-    if (is_chromeos) {
-      sources += [
-        "bluetooth/dbus/bluetooth_advertisement_monitor_application_service_provider_unittest.cc",
-        "bluetooth/dbus/bluetooth_advertisement_monitor_service_provider_unittest.cc",
-      ]
+    if (is_ash) {
       deps += [ "//services/data_decoder/public/mojom" ]
     }
   }
 
-  if (is_castos) {
-    # Cast does not support GATT server mode.
-    sources -= [
-      "bluetooth/bluetooth_local_gatt_characteristic_unittest.cc",
-      "bluetooth/bluetooth_local_gatt_descriptor_unittest.cc",
-      "bluetooth/bluetooth_local_gatt_service_unittest.cc",
-    ]
+  if (is_linux || is_chromeos) {
+    if (is_chromecast) {
+      # Cast does not support GATT server mode.
+      sources -= [
+        "bluetooth/bluetooth_local_gatt_characteristic_unittest.cc",
+        "bluetooth/bluetooth_local_gatt_descriptor_unittest.cc",
+        "bluetooth/bluetooth_local_gatt_service_unittest.cc",
+      ]
 
-    sources += [
-      "bluetooth/cast/bluetooth_adapter_cast_unittest.cc",
-      "bluetooth/cast/bluetooth_utils_unittest.cc",
-      "bluetooth/test/bluetooth_test_cast.cc",
-      "bluetooth/test/bluetooth_test_cast.h",
-    ]
+      sources += [
+        "bluetooth/cast/bluetooth_adapter_cast_unittest.cc",
+        "bluetooth/cast/bluetooth_utils_unittest.cc",
+        "bluetooth/test/bluetooth_test_cast.cc",
+        "bluetooth/test/bluetooth_test_cast.h",
+      ]
 
-    deps += [
-      "//chromecast/device/bluetooth:util",
-      "//chromecast/device/bluetooth/le",
-      "//chromecast/device/bluetooth/le:test_support",
-      "//chromecast/device/bluetooth/shlib:mock_shlib",
-    ]
+      deps += [
+        "//chromecast/device/bluetooth:util",
+        "//chromecast/device/bluetooth/le",
+        "//chromecast/device/bluetooth/le:test_support",
+        "//chromecast/device/bluetooth/shlib:mock_shlib",
+      ]
+    }
   }
 
   if (is_mac) {
@@ -334,8 +293,6 @@ test("device_unittests") {
       "CoreBluetooth.framework",
       "IOBluetooth.framework",
       "IOKit.framework",
-      "Foundation.framework",
-      "Security.framework",
     ]
   }
 
@@ -415,7 +372,6 @@ test("device_unittests") {
     deps += [
       "//device/vr",
       "//device/vr:vr_fakes",
-      "//device/vr:vr_util",
       "//device/vr/orientation",
       "//device/vr/public/mojom:isolated_xr_service",
       "//services/device/public/cpp/generic_sensor",
@@ -432,12 +388,8 @@ test("device_unittests") {
     deps += [
       "//services/device:test_support",
       "//services/device/hid",
-      "//services/device/public/cpp:test_support",
+      "//services/device/hid:mocks",
     ]
-  }
-
-  if (is_chromeos) {
-    deps += [ "//chromeos/dbus/u2f" ]
   }
 }
 
@@ -457,30 +409,27 @@ if (is_android) {
     sources = bluetooth_java_sources_needing_jni
     deps = [
       "//base:base_java",
-      "//base:jni_java",
       "//components/location/android:location_java",
       "//device/bluetooth:java",
+      "//third_party/android_deps:androidx_annotation_annotation_java",
       "//third_party/android_sdk:android_test_mock_java",
-      "//third_party/androidx:androidx_annotation_annotation_java",
     ]
 
     srcjar_deps = [ ":bluetooth_test_javagen" ]
   }
 
-  robolectric_binary("device_junit_tests") {
-    sources = [
-      "gamepad/android/junit/src/org/chromium/device/gamepad/GamepadDeviceTest.java",
-      "gamepad/android/junit/src/org/chromium/device/gamepad/GamepadMappingsTest.java",
-    ]
+  junit_binary("device_junit_tests") {
+    sources = [ "gamepad/android/junit/src/org/chromium/device/gamepad/GamepadMappingsTest.java" ]
     deps = [
       "$google_play_services_package:google_play_services_base_java",
       "$google_play_services_package:google_play_services_basement_java",
       "$google_play_services_package:google_play_services_location_java",
+      "//base:base_java",
       "//base:base_java_test_support",
       "//base:base_junit_test_support",
       "//device/gamepad:java",
       "//mojo/public/java:bindings_java",
-      "//third_party/androidx:androidx_annotation_annotation_java",
+      "//third_party/android_deps:androidx_annotation_annotation_java",
       "//third_party/hamcrest:hamcrest_java",
     ]
     srcjar_deps = [ "//device/gamepad:java_enums_srcjar" ]

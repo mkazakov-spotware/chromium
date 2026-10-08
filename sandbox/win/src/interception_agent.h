@@ -1,4 +1,4 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 // from the inside of the sandboxed process. For more details see
 // http://dev.chromium.org/developers/design-documents/sandbox .
 
-#ifndef SANDBOX_WIN_SRC_INTERCEPTION_AGENT_H_
-#define SANDBOX_WIN_SRC_INTERCEPTION_AGENT_H_
+#ifndef SANDBOX_SRC_INTERCEPTION_AGENT_H__
+#define SANDBOX_SRC_INTERCEPTION_AGENT_H__
 
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/macros.h"
 #include "sandbox/win/src/nt_internals.h"
 #include "sandbox/win/src/sandbox_types.h"
 
@@ -35,13 +35,8 @@ class ResolverThunk;
 // loader lock.
 class InterceptionAgent {
  public:
-  InterceptionAgent() = delete;
-
   // Returns the single InterceptionAgent object for this process.
   static InterceptionAgent* GetInterceptionAgent();
-
-  InterceptionAgent(const InterceptionAgent&) = delete;
-  InterceptionAgent& operator=(const InterceptionAgent&) = delete;
 
   // This method should be invoked whenever a new dll is loaded to perform the
   // required patches. If the return value is false, this dll should not be
@@ -77,16 +72,16 @@ class InterceptionAgent {
   ResolverThunk* GetResolver(InterceptionType type);
 
   // Shared memory containing the list of functions to intercept.
-  // The field is accessed too early during the process startup to support
-  // raw_ptr<T>.
-  RAW_PTR_EXCLUSION SharedMemory* interceptions_;
+  SharedMemory* interceptions_;
 
   // Array of thunk data buffers for the intercepted dlls. This object singleton
   // is allocated with a placement new with enough space to hold the complete
   // array of pointers, not just the first element.
   DllInterceptionData* dlls_[1];
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(InterceptionAgent);
 };
 
 }  // namespace sandbox
 
-#endif  // SANDBOX_WIN_SRC_INTERCEPTION_AGENT_H_
+#endif  // SANDBOX_SRC_INTERCEPTION_AGENT_H__

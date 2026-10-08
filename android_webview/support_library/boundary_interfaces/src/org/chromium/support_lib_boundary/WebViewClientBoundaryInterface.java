@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.support_lib_boundary;
 
-import android.app.PendingIntent;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -23,6 +22,4 @@ public interface WebViewClientBoundaryInterface extends FeatureFlagHolderBoundar
     void onSafeBrowsingHit(WebView view, WebResourceRequest request, int threatType,
             /* SafeBrowsingResponse */ InvocationHandler callback);
     boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request);
-    boolean onWebAuthnIntent(WebView view, PendingIntent intent,
-            /* WebAuthnCallbackBoundaryInterface */ InvocationHandler callback);
 }

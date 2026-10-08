@@ -37,10 +37,10 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "mojo/public/cpp/bindings/remote.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "services/network/public/mojom/content_security_policy.mojom-blink-forward.h"
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
+#include "services/network/public/mojom/ip_address_space.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/browser_interface_broker.mojom-blink.h"
 #include "third_party/blink/public/mojom/script/script_type.mojom-blink.h"
 #include "third_party/blink/public/mojom/user_agent/user_agent_metadata.mojom-blink.h"
@@ -55,7 +55,6 @@
 
 namespace blink {
 
-class MessagePortChannel;
 class SharedWorkerThread;
 class WebSharedWorkerClient;
 class WebString;
@@ -92,8 +91,10 @@ class CORE_EXPORT WebSharedWorkerImpl final : public WebSharedWorker {
 
   WebSharedWorkerImpl(
       const blink::SharedWorkerToken& token,
+      const base::UnguessableToken& appcache_host_id,
       CrossVariantMojoRemote<mojom::SharedWorkerHostInterfaceBase> host,
-      WebSharedWorkerClient*);
+      WebSharedWorkerClient*,
+      ukm::SourceId ukm_source_id);
 
   void StartWorkerContext(
       const WebURL&,
@@ -101,12 +102,11 @@ class CORE_EXPORT WebSharedWorkerImpl final : public WebSharedWorker {
       network::mojom::CredentialsMode,
       const WebString& name,
       WebSecurityOrigin constructor_origin,
-      bool is_constructor_secure_context,
       const WebString& user_agent,
-      const WebString& full_user_agent,
-      const WebString& reduced_user_agent,
       const blink::UserAgentMetadata& ua_metadata,
-      const WebVector<WebContentSecurityPolicy>& content_security_policies,
+      const WebString& content_security_policy,
+      network::mojom::ContentSecurityPolicyType,
+      network::mojom::IPAddressSpace,
       const WebFetchClientSettingsObject& outside_fetch_client_settings_object,
       const base::UnguessableToken& devtools_worker_token,
       CrossVariantMojoRemote<
@@ -117,9 +117,7 @@ class CORE_EXPORT WebSharedWorkerImpl final : public WebSharedWorker {
       bool pause_worker_context_on_start,
       std::unique_ptr<WorkerMainScriptLoadParameters>
           worker_main_script_load_params,
-      std::unique_ptr<blink::WebPolicyContainer> policy_container,
-      scoped_refptr<WebWorkerFetchContext> web_worker_fetch_context,
-      ukm::SourceId ukm_source_id);
+      scoped_refptr<WebWorkerFetchContext> web_worker_fetch_context);
 
   void DispatchPendingConnections();
   void ConnectToChannel(int connection_request_id,

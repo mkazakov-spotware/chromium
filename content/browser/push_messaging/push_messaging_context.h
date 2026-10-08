@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,10 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/browser/service_worker/service_worker_context_core_observer.h"
 
 class GURL;
-
-namespace blink {
-class StorageKey;
-}  // namespace blink
 
 namespace content {
 
@@ -28,22 +24,19 @@ class PushMessagingContext : public ServiceWorkerContextCoreObserver {
   PushMessagingContext(
       BrowserContext* browser_context,
       const scoped_refptr<ServiceWorkerContextWrapper>& service_worker_context);
-
-  PushMessagingContext(const PushMessagingContext&) = delete;
-  PushMessagingContext& operator=(const PushMessagingContext&) = delete;
-
   ~PushMessagingContext() override;
 
   // ServiceWorkerContextCoreObserver methods
   void OnRegistrationDeleted(int64_t registration_id,
-                             const GURL& pattern,
-                             const blink::StorageKey& key) override;
+                             const GURL& pattern) override;
   void OnStorageWiped() override;
 
  private:
-  raw_ptr<BrowserContext> browser_context_;
+  BrowserContext* browser_context_;
 
   scoped_refptr<ServiceWorkerContextWrapper> service_worker_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(PushMessagingContext);
 };
 
 }  // namespace content

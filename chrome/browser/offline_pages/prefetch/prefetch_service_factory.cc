@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/sequenced_task_runner_handle.h"
-#include "chrome/browser/download/background_download_service_factory.h"
+#include "chrome/browser/chrome_content_browser_client.h"
+#include "chrome/browser/download/download_service_factory.h"
 #include "chrome/browser/image_fetcher/image_fetcher_service_factory.h"
 #include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/offline_pages/offline_page_model_factory.h"
@@ -26,7 +27,6 @@
 #include "chrome/browser/transition_manager/full_browser_transition_manager.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_constants.h"
-#include "components/embedder_support/user_agent_utils.h"
 #include "components/feed/feed_feature_list.h"
 #include "components/image_fetcher/core/cached_image_fetcher.h"
 #include "components/image_fetcher/core/image_fetcher_impl.h"
@@ -91,7 +91,7 @@ void OnProfileCreated(PrefetchServiceImpl* prefetch_service, Profile* profile) {
 PrefetchServiceFactory::PrefetchServiceFactory()
     : SimpleKeyedServiceFactory("OfflinePagePrefetchService",
                                 SimpleDependencyManager::GetInstance()) {
-  DependsOn(BackgroundDownloadServiceFactory::GetInstance());
+  DependsOn(DownloadServiceFactory::GetInstance());
   DependsOn(OfflinePageModelFactory::GetInstance());
   DependsOn(ImageFetcherServiceFactory::GetInstance());
 }
@@ -135,8 +135,8 @@ std::unique_ptr<KeyedService> PrefetchServiceFactory::BuildServiceInstanceFor(
 
   auto prefetch_network_request_factory =
       std::make_unique<PrefetchNetworkRequestFactoryImpl>(
-          url_loader_factory, chrome::GetChannel(),
-          embedder_support::GetUserAgent(), profile_key->GetPrefs());
+          url_loader_factory, chrome::GetChannel(), GetUserAgent(),
+          profile_key->GetPrefs());
 
   scoped_refptr<base::SequencedTaskRunner> background_task_runner =
       base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()});
@@ -149,8 +149,8 @@ std::unique_ptr<KeyedService> PrefetchServiceFactory::BuildServiceInstanceFor(
       profile_key, image_fetcher::ImageFetcherConfig::kReducedMode);
 
   auto prefetch_downloader = std::make_unique<PrefetchDownloaderImpl>(
-      BackgroundDownloadServiceFactory::GetForKey(profile_key),
-      chrome::GetChannel(), profile_key->GetPrefs());
+      DownloadServiceFactory::GetForKey(profile_key), chrome::GetChannel(),
+      profile_key->GetPrefs());
 
   auto prefetch_importer = std::make_unique<PrefetchImporterImpl>(
       prefetch_dispatcher.get(), offline_page_model, background_task_runner);

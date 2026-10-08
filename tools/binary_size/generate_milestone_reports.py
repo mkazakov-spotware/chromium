@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Generate report files to view and/or compare (diff) milestones.
@@ -12,6 +12,11 @@ Desired CPUs, APKs, and milestone versions are set in constants below. If
 specified by the --skip-existing flag, the script checks what HTML report files
 have already been uploaded to the GCS bucket, then works on generating the
 remaining desired files.
+
+Size files are fetched by streaming them from the source bucket, then the
+html_report module handles creating a report file to diff two size files.
+Reports are saved to a local directory, and once all reports are created they
+can be uploaded to the destination bucket.
 
 Reports can be uploaded automatically with the --sync flag. Otherwise, they can
 be uploaded at a later point.
@@ -40,11 +45,7 @@ _GSUTIL = os.path.join(_DIR_SOURCE_ROOT, 'third_party', 'depot_tools',
 _PUSH_URL = 'gs://chrome-supersize/milestones/'
 
 _DESIRED_CPUS = ['arm', 'arm_64']
-_DESIRED_APKS = [
-    'ChromeModern.apk', 'Monochrome.apk', 'AndroidWebview.apk',
-    'TrichromeGoogle'
-]
-
+_DESIRED_APKS = ['Monochrome.apk', 'AndroidWebview.apk']
 # Versions are manually gathered from
 # https://omahaproxy.appspot.com/history?os=android&channel=stable
 _DESIRED_VERSIONS = [
@@ -73,59 +74,28 @@ _DESIRED_VERSIONS = [
     '83.0.4103.60',
     '84.0.4147.89',
     '85.0.4183.81',
-    '86.0.4240.198',
-    '87.0.4280.66',
-    '88.0.4324.93',
-    '89.0.4389.105',
-    '90.0.4430.82',
-    '91.0.4472.120',
-    '92.0.4515.70',
-    '93.0.4577.37',
-    '94.0.4606.6',
-    '94.0.4606.85',
-    '95.0.4638.7',
-    '96.0.4664.6',
-    '97.0.4692.9',
-    '98.0.4758.8',
-    '99.0.4844.7',
-    '100.0.4896.12',
-    '101.0.4951.20',
-    '102.0.5005.37',
-    '103.0.5060.9',
-    '104.0.5112.9',
-    '105.0.5195.7',
-    '106.0.5249.7',
-    '107.0.5304.14',
-    '108.0.5359.12',
-    '109.0.5414.8',
+    '86.0.4240.11',  # Canary
+    '87.0.4280.13',  # Canary
 ]
 
 
-def _VersionMajor(version):
-  return tuple(int(x) for x in version.split('.'))[0]
+def _VersionTuple(version):
+  return tuple(int(x) for x in version.split('.'))
 
 
 def _IsBundle(apk, version):
-  version = _VersionMajor(version)
-  if apk == 'ChromeModern.apk' and version >= 73:
-    return True
-  if apk == 'Monochrome.apk' and version >= 73:
-    return True
-  if apk == 'AndroidWebview.apk' and version >= 89:
-    return True
-  return False
+  return apk == 'Monochrome.apk' and _VersionTuple(version) >= (73,)
 
 
 def _EnumerateReports():
   for cpu, apk in itertools.product(_DESIRED_CPUS, _DESIRED_APKS):
+    # KitKat doesn't support arm64.
+    if cpu == 'arm_64' and apk == 'Chrome.apk':
+      continue
     versions = _DESIRED_VERSIONS
     # Webview .size files do not exist before M71.
     if apk == 'AndroidWebview.apk':
-      versions = [v for v in versions if _VersionMajor(v) >= 71]
-    elif apk == 'TrichromeGoogle':
-      versions = [v for v in versions if _VersionMajor(v) >= 88]
-    elif apk == 'ChromeModern.apk':
-      versions = [v for v in versions if _VersionMajor(v) <= 108]
+      versions = [v for v in versions if _VersionTuple(v) >= (71,)]
 
     for version in versions:
       yield Report(cpu, apk, version)
@@ -133,19 +103,11 @@ def _EnumerateReports():
 
 class Report(collections.namedtuple('Report', 'cpu,apk,version')):
 
-  def GetSizeFileSubpath(self, local):
-    # TrichromeGoogle at older milestones lived in a subdir.
-    if not local and self.apk == 'TrichromeGoogle' and _VersionMajor(
-        self.version) < 91:
-      template = '{version}/{cpu}/for-signing-only/{apk}.size'
-    else:
-      template = '{version}/{cpu}/{apk}.size'
-
-    ret = template.format(**self._asdict())
-
-    if not local and _IsBundle(self.apk, self.version):
+  @property
+  def size_file_subpath(self):
+    ret = '{version}/{cpu}/{apk}.size'.format(**self._asdict())
+    if _IsBundle(self.apk, self.version):
       ret = ret.replace('.apk', '.minimal.apks')
-
     return ret
 
 
@@ -179,7 +141,7 @@ def _DownloadOneSizeFile(arg_tuples):
 def _DownloadSizeFiles(base_url, reports):
   temp_dir = tempfile.mkdtemp()
   try:
-    subpaths = set(x.GetSizeFileSubpath(local=False) for x in reports)
+    subpaths = set(x.size_file_subpath for x in reports)
     arg_tuples = ((p, temp_dir, base_url) for p in subpaths)
     for _ in _Shard(_DownloadOneSizeFile, arg_tuples):
       pass
@@ -206,11 +168,12 @@ def _BuildOneReport(report, output_directory, size_file_directory):
   # Newer Monochrome builds are minimal builds, with names like
   # "Monochrome.minimal.apks.size". Standardize to "Monochrome.apk.size".
   local_size_path = os.path.join(output_directory,
-                                 report.GetSizeFileSubpath(local=True))
+                                 report.size_file_subpath).replace(
+                                     'minimal.apks', 'apk')
+
   _MakeDirectory(os.path.dirname(local_size_path))
 
-  size_file = os.path.join(size_file_directory,
-                           report.GetSizeFileSubpath(local=False))
+  size_file = os.path.join(size_file_directory, report.size_file_subpath)
   shutil.copyfile(size_file, local_size_path)
 
 
@@ -245,7 +208,7 @@ def main():
 
     if args.sync:
       subprocess.check_call(
-          [_GSUTIL, '-m', 'rsync', '-r', staging_dir, _PUSH_URL])
+          [_GSUTIL, '-m', 'rsync', '-J', '-r', staging_dir, _PUSH_URL])
       milestones_json = _PUSH_URL + 'milestones.json'
       # The main index.html page has no authentication code, so make .json file
       # world-readable.

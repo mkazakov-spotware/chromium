@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,6 @@ class REMOTE_COCOA_APP_SHIM_EXPORT ApplicationBridge
   // TODO(https://crbug.com/888290): Move these types from content to
   // remote_cocoa.
   using RenderWidgetHostNSViewCreateCallback = base::RepeatingCallback<void(
-      uint64_t view_id,
       mojo::ScopedInterfaceEndpointHandle host_handle,
       mojo::ScopedInterfaceEndpointHandle view_request_handle)>;
   using WebContentsNSViewCreateCallback = base::RepeatingCallback<void(
@@ -59,7 +58,6 @@ class REMOTE_COCOA_APP_SHIM_EXPORT ApplicationBridge
       mojo::PendingAssociatedRemote<mojom::TextInputHost> text_input_host)
       override;
   void CreateRenderWidgetHostNSView(
-      uint64_t view_id,
       mojo::PendingAssociatedRemote<mojom::StubInterface> host,
       mojo::PendingAssociatedReceiver<mojom::StubInterface> view_receiver)
       override;
@@ -68,8 +66,6 @@ class REMOTE_COCOA_APP_SHIM_EXPORT ApplicationBridge
       mojo::PendingAssociatedRemote<mojom::StubInterface> host,
       mojo::PendingAssociatedReceiver<mojom::StubInterface> view_receiver)
       override;
-  void ForwardCutCopyPaste(mojom::CutCopyPasteCommand command) override;
-  static void ForwardCutCopyPasteToNSApp(mojom::CutCopyPasteCommand command);
 
  private:
   friend class base::NoDestructor<ApplicationBridge>;

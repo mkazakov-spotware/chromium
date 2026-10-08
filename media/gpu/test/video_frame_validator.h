@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_GPU_TEST_VIDEO_FRAME_VALIDATOR_H_
 #define MEDIA_GPU_TEST_VIDEO_FRAME_VALIDATOR_H_
 
-#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -13,6 +12,7 @@
 
 #include "base/callback.h"
 #include "base/files/file.h"
+#include "base/files/file_path.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
@@ -47,9 +47,6 @@ class VideoFrameValidator : public VideoFrameProcessor {
   // Get the model frame from |frame_index|.
   using GetModelFrameCB =
       base::RepeatingCallback<scoped_refptr<const VideoFrame>(size_t)>;
-
-  VideoFrameValidator(const VideoFrameValidator&) = delete;
-  VideoFrameValidator& operator=(const VideoFrameValidator&) = delete;
 
   ~VideoFrameValidator() override;
 
@@ -86,8 +83,6 @@ class VideoFrameValidator : public VideoFrameProcessor {
   SEQUENCE_CHECKER(validator_thread_sequence_checker_);
 
  private:
-  void CleanUpOnValidatorThread();
-
   // Stop the frame validation thread.
   void Destroy();
 
@@ -106,7 +101,7 @@ class VideoFrameValidator : public VideoFrameProcessor {
 
   // An optional video frame processor that all corrupted frames will be
   // forwarded to. This can be used to e.g. write corrupted frames to disk.
-  std::unique_ptr<VideoFrameProcessor> corrupt_frame_processor_;
+  const std::unique_ptr<VideoFrameProcessor> corrupt_frame_processor_;
 
   // The number of frames currently queued for validation.
   size_t num_frames_validating_ GUARDED_BY(frame_validator_lock_);
@@ -120,6 +115,8 @@ class VideoFrameValidator : public VideoFrameProcessor {
   mutable base::ConditionVariable frame_validator_cv_;
 
   SEQUENCE_CHECKER(validator_sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(VideoFrameValidator);
 };
 
 // Validate by converting the frame to be validated to |validation_format| to
@@ -187,7 +184,7 @@ class RawVideoFrameValidator : public VideoFrameValidator {
 };
 
 // Validate by computing PSNR from the frame to be validated and the model frame
-// acquired by |get_model_frame_cb_|. If the PSNR value is equal to or more than
+// acquired by |get_model_frame_cb_|. If the PSNR value is equal to or less than
 // |tolerance_|, the validation on the frame passes.
 class PSNRVideoFrameValidator : public VideoFrameValidator {
  public:
@@ -198,7 +195,7 @@ class PSNRVideoFrameValidator : public VideoFrameValidator {
       std::unique_ptr<VideoFrameProcessor> corrupt_frame_processor = nullptr,
       ValidationMode validation_mode = ValidationMode::kThreshold,
       double tolerance = kDefaultTolerance);
-  const std::map<size_t, double>& GetPSNRValues() const { return psnr_; }
+  const std::map<size_t, double>& GetPSNRValues() { return psnr_; }
   ~PSNRVideoFrameValidator() override;
 
  private:
@@ -223,7 +220,7 @@ class PSNRVideoFrameValidator : public VideoFrameValidator {
 };
 
 // Validate by computing SSIM from the frame to be validated and the model frame
-// acquired by |get_model_frame_cb_|. If the SSIM value is equal to or more than
+// acquired by |get_model_frame_cb_|. If the SSIM value is equal to or less than
 // |tolerance_|, the validation on the frame passes.
 class SSIMVideoFrameValidator : public VideoFrameValidator {
  public:
@@ -234,7 +231,7 @@ class SSIMVideoFrameValidator : public VideoFrameValidator {
       std::unique_ptr<VideoFrameProcessor> corrupt_frame_processor = nullptr,
       ValidationMode validation_mode = ValidationMode::kThreshold,
       double tolerance = kDefaultTolerance);
-  const std::map<size_t, double>& GetSSIMValues() const { return ssim_; }
+  const std::map<size_t, double>& GetSSIMValues() { return ssim_; }
   ~SSIMVideoFrameValidator() override;
 
  private:

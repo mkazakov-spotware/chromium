@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -159,6 +159,16 @@ std::string GetMAWindowColorAsCSSColor() {
                               important);
 }
 
+// If the window is visible (its opacity is greater than 0), give it padding so
+// it surrounds the text track cue. If it is not visible, its padding should be
+// 0. Webkit uses 0.4em padding so we match that here.
+std::string GetMAWindowPaddingAsCSSNumberInEm() {
+  MACaptionAppearanceBehavior behavior;
+  float opacity = MACaptionAppearanceGetWindowOpacity(kUserDomain, &behavior);
+  bool important = behavior == kMACaptionAppearanceBehaviorUseValue;
+  return MaybeAddCSSImportant(opacity > 0 ? "0.4em" : "0em", important);
+}
+
 std::string GetMAWindowRadiusAsCSSNumberInPixels() {
   MACaptionAppearanceBehavior behavior;
   float radius =
@@ -170,9 +180,9 @@ std::string GetMAWindowRadiusAsCSSNumberInPixels() {
 }  // namespace
 
 // static
-absl::optional<CaptionStyle> CaptionStyle::FromSystemSettings() {
+base::Optional<CaptionStyle> CaptionStyle::FromSystemSettings() {
   if (!base::FeatureList::IsEnabled(features::kSystemCaptionStyle))
-    return absl::nullopt;
+    return base::nullopt;
 
   CaptionStyle style;
 
@@ -181,6 +191,7 @@ absl::optional<CaptionStyle> CaptionStyle::FromSystemSettings() {
   style.text_size = GetMATextScaleAsCSSPercent();
   style.text_shadow = GetMATextEdgeStyleAsCSSShadow();
   style.window_color = GetMAWindowColorAsCSSColor();
+  style.window_padding = GetMAWindowPaddingAsCSSNumberInEm();
   style.window_radius = GetMAWindowRadiusAsCSSNumberInPixels();
 
   GetMAFontAsCSSFontSpecifiers(&style.font_family, &style.font_variant);

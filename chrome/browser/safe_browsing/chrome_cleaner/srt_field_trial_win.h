@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,7 @@
 #include <string>
 
 #include "base/feature_list.h"
-#include "base/metrics/field_trial_params.h"
 #include "url/gurl.h"
-
-class PrefService;
 
 namespace safe_browsing {
 
@@ -55,28 +52,41 @@ enum PromptTypeHistogramValue {
   PROMPT_TYPE_MAX,
 };
 
+// Feature to control whether users should be prompted for a cleanup if the
+// software reporter finds bad software on their machine.
+extern const base::Feature kChromeCleanupInBrowserPromptFeature;
+
 // Feature, parameters of which control which software reporter and cleanup tool
 // versions will be downloaded. When not enabled, default versions will be used.
-BASE_DECLARE_FEATURE(kChromeCleanupDistributionFeature);
+extern const base::Feature kChromeCleanupDistributionFeature;
 
-// A "tag" value to be sent with the component update request in
-// SwReporterInstallerPolicy, controlling which version of the reporter
-// component is served.
-extern const base::FeatureParam<std::string> kReporterDistributionTagParam;
+// Extensions cleanup feature. When enabled, Chrome Cleaner will prompt users
+// for, and cleanup, bad extensions.
+extern const base::Feature kChromeCleanupExtensionsFeature;
 
-// A path component corresponding to the tag set by
-// kReporterDistributionTagParam, used to format the download url for the
-// matching version of the cleaner.
-extern const base::FeatureParam<std::string> kCleanerDownloadGroupParam;
+// Reset shortcuts feature. When enabled, Chrome Cleaner will reset all Chrome
+// shortcuts for the current Windows users.
+extern const base::Feature kResetShortcutsFeature;
 
-// Returns the correct SRT download URL, based on the current platform and
-// download group. The download group is taken from
-// `kChromeCleanupDistributionFeature` or from `prefs` if the feature is
-// disabled.
-GURL GetSRTDownloadURL(PrefService* prefs);
+// Returns true if this Chrome is in a field trial group which shows the SRT
+// prompt.
+bool IsSRTPromptFeatureEnabled();
+
+// Returns the correct SRT download URL for the current field trial.
+GURL GetSRTDownloadURL();
+
+// Returns the value of the incoming SRT seed.
+std::string GetIncomingSRTSeed();
+
+// Returns the value of the "Group" parameter associed with the SRTPrompt
+// feature.
+std::string GetSRTPromptGroupName();
 
 // Records a value for the SRT Prompt Histogram.
 void RecordSRTPromptHistogram(SRTPromptHistogramValue value);
+
+// Records a value for SoftwareReporter.PromptShownWithType Histogram
+void RecordPromptShownWithTypeHistogram(PromptTypeHistogramValue value);
 
 // Records a SoftwareReporter.PromptShown histogram with value false and
 // a SoftwareReporter.NoPromptReason histogram with the reason corresponding

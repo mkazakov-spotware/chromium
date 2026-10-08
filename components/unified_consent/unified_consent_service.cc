@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,14 +66,10 @@ void UnifiedConsentService::Shutdown() {
   sync_service_->RemoveObserver(this);
 }
 
-void UnifiedConsentService::OnPrimaryAccountChanged(
-    const signin::PrimaryAccountChangeEvent& event) {
-  if (event.GetEventTypeFor(signin::ConsentLevel::kSync) ==
-      signin::PrimaryAccountChangeEvent::Type::kCleared) {
-    // By design, clearing the primary account disables URL-keyed data
-    // collection.
-    SetUrlKeyedAnonymizedDataCollectionEnabled(false);
-  }
+void UnifiedConsentService::OnPrimaryAccountCleared(
+    const CoreAccountInfo& account_info) {
+  // By design, clearing the primary account disables URL-keyed data collection.
+  SetUrlKeyedAnonymizedDataCollectionEnabled(false);
 }
 
 void UnifiedConsentService::OnStateChanged(syncer::SyncService* sync) {
@@ -133,8 +129,9 @@ void UnifiedConsentService::StopObservingServicePrefChanges() {
 
 void UnifiedConsentService::ServicePrefChanged(const std::string& name) {
   DCHECK(sync_service_->IsSetupInProgress());
-  const base::Value& value = pref_service_->GetValue(name);
-  service_pref_changes_[name] = value.Clone();
+  const base::Value* value = pref_service_->Get(name);
+  DCHECK(value);
+  service_pref_changes_[name] = value->Clone();
 }
 
 MigrationState UnifiedConsentService::GetMigrationState() {
@@ -154,7 +151,7 @@ void UnifiedConsentService::SetMigrationState(MigrationState migration_state) {
 void UnifiedConsentService::MigrateProfileToUnifiedConsent() {
   DCHECK_EQ(GetMigrationState(), MigrationState::kNotInitialized);
 
-  if (!identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
+  if (!identity_manager_->HasPrimaryAccount()) {
     SetMigrationState(MigrationState::kCompleted);
     return;
   }
@@ -174,7 +171,7 @@ void UnifiedConsentService::UpdateSettingsForMigration() {
       sync_service_->IsSyncFeatureEnabled() &&
       sync_service_->GetUserSettings()->GetSelectedTypes().Has(
           syncer::UserSelectableType::kHistory) &&
-      !sync_service_->GetUserSettings()->IsUsingExplicitPassphrase();
+      !sync_service_->GetUserSettings()->IsUsingSecondaryPassphrase();
   SetUrlKeyedAnonymizedDataCollectionEnabled(url_keyed_metrics_enabled);
 }
 

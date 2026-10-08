@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import android.webkit.WebView;
 import org.chromium.android_webview.JsReplyProxy;
 import org.chromium.android_webview.WebMessageListener;
 import org.chromium.base.Log;
-import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 import org.chromium.support_lib_boundary.WebMessageListenerBoundaryInterface;
 import org.chromium.support_lib_boundary.util.BoundaryInterfaceReflectionUtil;
@@ -55,7 +54,7 @@ class SupportLibWebMessageListenerAdapter implements WebMessageListener {
 
         mImpl.onPostMessage(mWebView,
                 BoundaryInterfaceReflectionUtil.createInvocationHandlerFor(
-                        new SupportLibWebMessageAdapter(new MessagePayload(message), ports)),
+                        new SupportLibWebMessageAdapter(message, ports)),
                 sourceOrigin, isMainFrame,
                 BoundaryInterfaceReflectionUtil.createInvocationHandlerFor(
                         new SupportLibJsReplyProxyAdapter(replyProxy)));

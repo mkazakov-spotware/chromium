@@ -28,6 +28,7 @@
 #include "third_party/blink/renderer/core/editing/iterators/text_searcher_icu.h"
 
 #include <unicode/usearch.h>
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/text/character.h"
 #include "third_party/blink/renderer/platform/text/text_boundaries.h"
 #include "third_party/blink/renderer/platform/text/text_break_iterator_internal_icu.h"
@@ -50,7 +51,9 @@ UStringSearch* CreateSearcher() {
   UStringSearch* searcher =
       usearch_open(&kNewlineCharacter, 1, &kNewlineCharacter, 1,
                    search_collator_name.Utf8().c_str(), nullptr, &status);
-  DCHECK(U_SUCCESS(status)) << status;
+  DCHECK(status == U_ZERO_ERROR || status == U_USING_FALLBACK_WARNING ||
+         status == U_USING_DEFAULT_WARNING)
+      << status;
   return searcher;
 }
 
@@ -58,9 +61,6 @@ class ICULockableSearcher {
   STACK_ALLOCATED();
 
  public:
-  ICULockableSearcher(const ICULockableSearcher&) = delete;
-  ICULockableSearcher& operator=(const ICULockableSearcher&) = delete;
-
   static UStringSearch* AcquireSearcher() {
     Instance().lock();
     return Instance().searcher_;
@@ -95,15 +95,17 @@ class ICULockableSearcher {
 #if DCHECK_IS_ON()
   bool locked_ = false;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(ICULockableSearcher);
 };
 
 }  // namespace
 
 static bool IsWholeWordMatch(const UChar* text,
-                             unsigned text_length,
+                             int text_length,
                              MatchResultICU& result) {
   const wtf_size_t result_end = result.start + result.length;
-  DCHECK_LE(result_end, text_length);
+  DCHECK_LE(result_end, static_cast<wtf_size_t>(text_length));
   UChar32 first_character;
   U16_GET(text, 0, result.start, result_end, first_character);
 
@@ -175,7 +177,7 @@ bool TextSearcherICU::NextMatchResult(MatchResultICU& result) {
 bool TextSearcherICU::NextMatchResultInternal(MatchResultICU& result) {
   UErrorCode status = U_ZERO_ERROR;
   const int match_start = usearch_next(searcher_, &status);
-  DCHECK(U_SUCCESS(status));
+  DCHECK_EQ(status, U_ZERO_ERROR);
 
   // TODO(iceman): It is possible to use |usearch_getText| function
   // to retrieve text length and not store it explicitly.
@@ -199,13 +201,12 @@ bool TextSearcherICU::NextMatchResultInternal(MatchResultICU& result) {
 }
 
 bool TextSearcherICU::ShouldSkipCurrentMatch(MatchResultICU& result) const {
-  int32_t text_length_i32;
-  const UChar* text = usearch_getText(searcher_, &text_length_i32);
-  unsigned text_length = text_length_i32;
-  DCHECK_LE(result.start + result.length, text_length);
+  int32_t text_length;
+  const UChar* text = usearch_getText(searcher_, &text_length);
+  DCHECK_LE((int32_t)(result.start + result.length), text_length);
   DCHECK_GT(result.length, 0u);
 
-  if (!normalized_search_text_.empty() && !IsCorrectKanaMatch(text, result))
+  if (!normalized_search_text_.IsEmpty() && !IsCorrectKanaMatch(text, result))
     return true;
 
   if ((options_ & kWholeWord) && !IsWholeWordMatch(text, text_length, result))
@@ -226,7 +227,7 @@ bool TextSearcherICU::IsCorrectKanaMatch(const UChar* text,
 void TextSearcherICU::SetPattern(const UChar* pattern, wtf_size_t length) {
   UErrorCode status = U_ZERO_ERROR;
   usearch_setPattern(searcher_, pattern, length, &status);
-  DCHECK(U_SUCCESS(status));
+  DCHECK_EQ(status, U_ZERO_ERROR);
 }
 
 void TextSearcherICU::SetCaseSensitivity(bool case_sensitive) {

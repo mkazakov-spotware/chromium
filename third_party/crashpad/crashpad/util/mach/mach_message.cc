@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,13 +20,12 @@
 
 #include "base/logging.h"
 #include "base/mac/mach_logging.h"
-#include "build/build_config.h"
 #include "util/misc/clock.h"
 #include "util/misc/implicit_cast.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include <bsm/libbsm.h>
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 namespace crashpad {
 
@@ -254,7 +253,7 @@ bool MachMessageDestroyReceivedPort(mach_port_t port,
   }
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 
 pid_t AuditPIDFromMachMessageTrailer(const mach_msg_trailer_t* trailer) {
   if (trailer->msgh_trailer_type != MACH_MSG_TRAILER_FORMAT_0) {
@@ -288,6 +287,6 @@ pid_t AuditPIDFromMachMessageTrailer(const mach_msg_trailer_t* trailer) {
   return audit_pid;
 }
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 }  // namespace crashpad

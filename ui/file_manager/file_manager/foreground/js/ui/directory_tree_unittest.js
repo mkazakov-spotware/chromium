@@ -1,30 +1,6 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert} from 'chrome://resources/js/assert.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {assertArrayEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {MockVolumeManager} from '../../../background/js/mock_volume_manager.js';
-import {DialogType} from '../../../common/js/dialog_type.js';
-import {EntryList} from '../../../common/js/files_app_entry_types.js';
-import {metrics} from '../../../common/js/metrics.js';
-import {installMockChrome, MockCommandLinePrivate} from '../../../common/js/mock_chrome.js';
-import {MockDirectoryEntry} from '../../../common/js/mock_entry.js';
-import {reportPromise, waitUntil} from '../../../common/js/test_error_reporting.js';
-import {str} from '../../../common/js/util.js';
-import {VolumeManagerCommon} from '../../../common/js/volume_manager_types.js';
-import {FileOperationManager} from '../../../externs/background/file_operation_manager.js';
-import {DirectoryModel} from '../directory_model.js';
-import {createFakeAndroidAppListModel} from '../fake_android_app_list_model.js';
-import {MetadataModel} from '../metadata/metadata_model.js';
-import {createFakeDirectoryModel} from '../mock_directory_model.js';
-import {MockFolderShortcutDataModel} from '../mock_folder_shortcut_data_model.js';
-import {MockNavigationListModel} from '../mock_navigation_list_model.js';
-import {NavigationListModel, NavigationModelFakeItem, NavigationModelItemType, NavigationSection} from '../navigation_list_model.js';
-
-import {DirectoryTree, EntryListItem, SubDirectoryItem} from './directory_tree.js';
 
 /** @type {!MockVolumeManager} */
 let volumeManager;
@@ -48,19 +24,13 @@ let fakeFileSystemURLEntries;
 let driveFileSystem;
 
 /**
- * Mock metrics.recordEnum.
- * @param {string} name
- * @param {*} value
- * @param {Array<*>|number=} opt_validValues
+ * Mock metrics.
+ * @type {!Object}
  */
-metrics.recordEnum = function(name, value, opt_validValues) {};
-
-/**
- * Mock metrics.recordSmallCount.
- * @param {string} name Short metric name.
- * @param {number} value Value to be recorded.
- */
-metrics.recordSmallCount = function(name, value) {};
+window.metrics = {
+  recordSmallCount: function() {},
+  recordEnum: function() {},
+};
 
 /**
  * Mock Chrome APIs
@@ -69,12 +39,10 @@ metrics.recordSmallCount = function(name, value) {};
 let mockChrome;
 
 // Set up test components.
-export function setUp() {
-  loadTimeData.overrideValues({
-    FILES_TRASH_ENABLED: false,
-    UNIFIED_MEDIA_VIEW_ENABLED: false,
-    GUEST_OS: false,
-  });
+function setUp() {
+  // Mock LoadTimeData strings.
+  window.loadTimeData.getString = id => id;
+  window.loadTimeData.data = {};
 
   // Setup mock chrome APIs.
   directoryChangedListeners = [];
@@ -169,7 +137,7 @@ function getDirectoryTreeItemLabels(directoryTree) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testCreateDirectoryTree(callback) {
+function testCreateDirectoryTree(callback) {
   // Populate the directory tree with the mock filesystem.
   let directoryTree = createElements();
   DirectoryTree.decorate(
@@ -218,7 +186,7 @@ export function testCreateDirectoryTree(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testCreateDirectoryTreeWithTeamDrive(callback) {
+function testCreateDirectoryTreeWithTeamDrive(callback) {
   // Setup entries returned by fakeFileSystemURLResults.
   const driveFileSystem = volumeManager.volumeInfoList.item(0).fileSystem;
   fakeFileSystemURLEntries['filesystem:drive/team_drives/a'] =
@@ -268,7 +236,7 @@ export function testCreateDirectoryTreeWithTeamDrive(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testCreateDirectoryTreeWithEmptyTeamDrive(callback) {
+function testCreateDirectoryTreeWithEmptyTeamDrive(callback) {
   // No directories exist under Team Drives
 
   // Populate the directory tree with the mock filesystem.
@@ -318,7 +286,7 @@ export function testCreateDirectoryTreeWithEmptyTeamDrive(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testCreateDirectoryTreeWithComputers(callback) {
+function testCreateDirectoryTreeWithComputers(callback) {
   // Setup entries returned by fakeFileSystemURLResults.
   fakeFileSystemURLEntries['filesystem:drive/Comuters/My Laptop'] =
       MockDirectoryEntry.create(driveFileSystem, '/Computers/My Laptop');
@@ -366,7 +334,7 @@ export function testCreateDirectoryTreeWithComputers(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testCreateDirectoryTreeWithEmptyComputers(callback) {
+function testCreateDirectoryTreeWithEmptyComputers(callback) {
   // No directories exist under Team Drives
 
   // Populate the directory tree with the mock filesystem.
@@ -419,7 +387,7 @@ export function testCreateDirectoryTreeWithEmptyComputers(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testCreateDirectoryTreeWithTeamDrivesAndComputers(callback) {
+function testCreateDirectoryTreeWithTeamDrivesAndComputers(callback) {
   // Setup entries returned by fakeFileSystemURLResults.
   fakeFileSystemURLEntries['filesystem:drive/team_drives/a'] =
       MockDirectoryEntry.create(driveFileSystem, '/team_drives/a');
@@ -470,13 +438,13 @@ export function testCreateDirectoryTreeWithTeamDrivesAndComputers(callback) {
  * 'section-start' attribute is used to display a line divider between
  * "sections" in the directory tree. This is calculated in NavigationListModel.
  */
-export function testUpdateSubElementsFromListSections() {
+function testUpdateSubElementsFromListSections() {
   const recentItem = null;
   const shortcutListModel = new MockFolderShortcutDataModel([]);
   const androidAppListModel = createFakeAndroidAppListModel(['android:app1']);
   const treeModel = new NavigationListModel(
       volumeManager, shortcutListModel.asFolderShortcutsDataModel(), recentItem,
-      directoryModel, androidAppListModel, DialogType.FULL_PAGE);
+      directoryModel, androidAppListModel);
   const myFilesItem = treeModel.item(0);
   const driveItem = treeModel.item(1);
   const androidAppItem = treeModel.item(2);
@@ -522,7 +490,7 @@ export function testUpdateSubElementsFromListSections() {
  * Mounts/unmounts removable and archive volumes, and checks these volumes come
  * up to/disappear from the list correctly.
  */
-export function testUpdateSubElementsFromList() {
+function testUpdateSubElementsFromList() {
   // Populate the directory tree with the mock filesystem.
   let directoryTree = createElements();
   DirectoryTree.decorate(
@@ -617,135 +585,6 @@ export function testUpdateSubElementsFromList() {
 }
 
 /**
- * Test case for updateSubElementsFromList.
- *
- * If some of the volumes under MyFiles are disabled, this should be reflected
- * in the directory model as well: the children shouldn't be loaded, and
- * clicking on the item or the expand icon shouldn't do anything.
- */
-export async function testUpdateSubElementsAndroidDisabled(done) {
-  const recentItem = null;
-  const shortcutListModel = new MockFolderShortcutDataModel([]);
-  const androidAppListModel = createFakeAndroidAppListModel([]);
-
-  // Create Android 'Play files' volume and set as disabled.
-  volumeManager.volumeInfoList.add(MockVolumeManager.createMockVolumeInfo(
-      VolumeManagerCommon.VolumeType.ANDROID_FILES, 'android_files:droid'));
-  volumeManager.isDisabled = (volume) => {
-    return (volume === VolumeManagerCommon.VolumeType.ANDROID_FILES);
-  };
-
-  const treeModel = new NavigationListModel(
-      volumeManager, shortcutListModel.asFolderShortcutsDataModel(), recentItem,
-      directoryModel, androidAppListModel, DialogType.FULL_PAGE);
-
-  // Populate the directory tree with the mock filesystem.
-  let directoryTree = createElements();
-  const mockMetadata = createMockMetadataModel();
-  DirectoryTree.decorate(
-      directoryTree, directoryModel, volumeManager, mockMetadata,
-      fileOperationManager, true);
-  directoryTree.dataModel = treeModel;
-
-  // Coerce to DirectoryTree type and update the tree.
-  directoryTree = /** @type {!DirectoryTree} */ (directoryTree);
-  directoryTree.updateSubElementsFromList(true);
-
-  const myFilesItem = directoryTree.items[0];
-  await waitUntil(() => myFilesItem.items.length === 1);
-  const androidItem = /** @type {!SubDirectoryItem} */ (myFilesItem.items[0]);
-  assertEquals('android_files:droid', androidItem.label);
-  assertTrue(androidItem.disabled);
-  assertFalse(androidItem.hasChildren);
-
-  // Clicking on the item shouldn't select it.
-  androidItem.click();
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  assertFalse(androidItem.selected);
-
-  // The item shouldn't be expanded.
-  let isExpanded = androidItem.getAttribute('aria-expanded') || 'false';
-  assertEquals('false', isExpanded);
-  // Clicking on the expand icon shouldn't expand.
-  androidItem.querySelector('.expand-icon').click();
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  isExpanded = androidItem.getAttribute('aria-expanded') || 'false';
-  assertEquals('false', isExpanded);
-
-  done();
-}
-
-/**
- * Test case for updateSubElementsFromList.
- *
- * If removable volumes are disabled, they should be allowed to mount/unmount,
- * but cannot be selected or expanded.
- */
-export async function testUpdateSubElementsRemovableDisabled(done) {
-  const recentItem = null;
-  const shortcutListModel = new MockFolderShortcutDataModel([]);
-  const androidAppListModel = createFakeAndroidAppListModel([]);
-
-  // Set removable volumes as disabled.
-  volumeManager.isDisabled = (volume) => {
-    return (volume === VolumeManagerCommon.VolumeType.REMOVABLE);
-  };
-
-  const treeModel = new NavigationListModel(
-      volumeManager, shortcutListModel.asFolderShortcutsDataModel(), recentItem,
-      directoryModel, androidAppListModel, DialogType.FULL_PAGE);
-
-  // Populate the directory tree with the mock filesystem.
-  let directoryTree = createElements();
-  const mockMetadata = createMockMetadataModel();
-  DirectoryTree.decorate(
-      directoryTree, directoryModel, volumeManager, mockMetadata,
-      fileOperationManager, true);
-  directoryTree.dataModel = treeModel;
-
-  // Coerce to DirectoryTree type and update the tree.
-  directoryTree = /** @type {!DirectoryTree} */ (directoryTree);
-  directoryTree.updateSubElementsFromList(true);
-
-  // There are 2 volumes at first.
-  assertEquals(2, getDirectoryTreeItemLabels(directoryTree).length);
-
-  // Mount a removable volume.
-  const removableVolume = MockVolumeManager.createMockVolumeInfo(
-      VolumeManagerCommon.VolumeType.REMOVABLE, 'removable',
-      str('REMOVABLE_DIRECTORY_LABEL'));
-  volumeManager.volumeInfoList.add(removableVolume);
-
-  // Asserts that a removable directory is added after the update.
-  directoryTree.updateSubElementsFromList(false);
-  assertEquals(3, getDirectoryTreeItemLabels(directoryTree).length);
-
-  const removableItem = directoryTree.items[2];
-  assertEquals(str('REMOVABLE_DIRECTORY_LABEL'), removableItem.label);
-  assertTrue(removableItem.disabled);
-  assertFalse(removableItem.hasChildren);
-  // Clicking on the item shouldn't select it.
-  removableItem.click();
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  assertFalse(removableItem.selected);
-  // The item shouldn't be expanded.
-  let isExpanded = removableItem.getAttribute('aria-expanded') || 'false';
-  assertEquals('false', isExpanded);
-  // Clicking on the expand icon shouldn't expand.
-  removableItem.querySelector('.expand-icon').click();
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  isExpanded = removableItem.getAttribute('aria-expanded') || 'false';
-  assertEquals('false', isExpanded);
-
-  // Unmount the removable and assert that it's removed from the directory tree.
-  volumeManager.volumeInfoList.remove('removable');
-  directoryTree.updateSubElementsFromList(false);
-  assertEquals(2, getDirectoryTreeItemLabels(directoryTree).length);
-
-  done();
-}
-
-/**
  * Test adding the first team drive for a user.
  * Team Drives subtree should be shown after the change notification is
  * delivered.
@@ -753,7 +592,7 @@ export async function testUpdateSubElementsRemovableDisabled(done) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testAddFirstTeamDrive(callback) {
+function testAddFirstTeamDrive(callback) {
   // No directories exist under Team Drives
 
   // Populate the directory tree with the mock filesystem.
@@ -807,7 +646,7 @@ export function testAddFirstTeamDrive(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testRemoveLastTeamDrive(callback) {
+function testRemoveLastTeamDrive(callback) {
   // Setup entries returned by fakeFileSystemURLResults.
   const driveFileSystem = volumeManager.volumeInfoList.item(0).fileSystem;
   fakeFileSystemURLEntries['filesystem:drive/team_drives/a'] =
@@ -869,7 +708,7 @@ export function testRemoveLastTeamDrive(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testAddFirstComputer(callback) {
+function testAddFirstComputer(callback) {
   // No directories exist under Computers
 
   // Populate the directory tree with the mock filesystem.
@@ -920,13 +759,13 @@ export function testAddFirstComputer(callback) {
 
 /**
  * Test removing the last computer for a user.
- * Computers subtree should be removed after the change notification is
+ * Computerss subtree should be removed after the change notification is
  * delivered.
  *
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testRemoveLastComputer(callback) {
+function testRemoveLastComputer(callback) {
   // Setup entries returned by fakeFileSystemURLResults.
   const driveFileSystem = volumeManager.volumeInfoList.item(0).fileSystem;
   fakeFileSystemURLEntries['filesystem:drive/Computers/a'] =
@@ -989,7 +828,7 @@ export function testRemoveLastComputer(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testInsideMyDriveAndInsideDrive(callback) {
+function testInsideMyDriveAndInsideDrive(callback) {
   // Setup My Drive and Downloads and one folder inside each of them.
   fakeFileSystemURLEntries['filesystem:drive/root/folder1'] =
       MockDirectoryEntry.create(driveFileSystem, '/root/folder1');
@@ -1044,7 +883,7 @@ export function testInsideMyDriveAndInsideDrive(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testAddProviders(callback) {
+function testAddProviders(callback) {
   // Add a volume representing a non-Smb provider to the mock filesystem.
   volumeManager.createVolumeInfo(
       VolumeManagerCommon.VolumeType.PROVIDED, 'not_smb', 'NOT_SMB_LABEL');
@@ -1115,7 +954,7 @@ export function testAddProviders(callback) {
  * @param {!function(boolean)} callback A callback function which is called with
  *     test result.
  */
-export function testSmbNotFetchedUntilClick(callback) {
+function testSmbNotFetchedUntilClick(callback) {
   // Add a volume representing an Smb provider to the mock filesystem.
   volumeManager.createVolumeInfo(
       VolumeManagerCommon.VolumeType.PROVIDED, 'smb', 'SMB_LABEL', '@smb');
@@ -1166,7 +1005,7 @@ export function testSmbNotFetchedUntilClick(callback) {
 }
 
 /** Test EntryListItem.sortEntries doesn't fail sorting empty array. */
-export function testEntryListItemSortEntriesEmpty() {
+function testEntryListItemSortEntriesEmpty() {
   const rootType = VolumeManagerCommon.RootType.MY_FILES;
   const entryList = new EntryList(str('MY_FILES_ROOT_LABEL'), rootType);
   const modelItem = new NavigationModelFakeItem(
@@ -1187,7 +1026,7 @@ export function testEntryListItemSortEntriesEmpty() {
 
 
 /** Test EntryListItem.sortEntries doesn't fail sorting empty array. */
-export function testAriaExpanded(callback) {
+function testAriaExpanded(callback) {
   // Setup My Drive and Downloads and one folder inside each of them.
   fakeFileSystemURLEntries['filesystem:drive/root/folder1'] =
       MockDirectoryEntry.create(driveFileSystem, '/root/folder1');
@@ -1229,59 +1068,4 @@ export function testAriaExpanded(callback) {
             downloadsItem.querySelector('.tree-children').getAttribute('role'));
       }),
       callback);
-}
-
-/**
- * Test a disabled drive volume.
- *
- * If drive is disabled, this should be reflected in the directory model as
- * well: the children shouldn't be loaded, and clicking on the item or the
- * expand icon shouldn't do anything.
- */
-export async function testDriveDisabled(done) {
-  // Setup My Drive and Downloads and one folder inside each of them.
-  fakeFileSystemURLEntries['filesystem:drive/root/folder1'] =
-      MockDirectoryEntry.create(driveFileSystem, '/root/folder1');
-  const downloadsFileSystem = volumeManager.volumeInfoList.item(1).fileSystem;
-  fakeFileSystemURLEntries['filesystem:downloads/folder1'] =
-      MockDirectoryEntry.create(downloadsFileSystem, '/folder1');
-
-  // Populate the directory tree with the mock filesystem.
-  let directoryTree = createElements();
-  directoryTree.metadataModel = createMockMetadataModel();
-  const mockMetadata = createMockMetadataModel();
-  DirectoryTree.decorate(
-      directoryTree, directoryModel, volumeManager, mockMetadata,
-      fileOperationManager, true);
-  directoryTree.dataModel = new MockNavigationListModel(volumeManager);
-
-  // Coerce to DirectoryTree type and draw the tree.
-  directoryTree = /** @type {!DirectoryTree} */ (directoryTree);
-  directoryTree.redraw(true);
-
-  // Set the drive to be disabled. We do it here since it's already added when
-  // the MockVolumeManager is created.
-  const driveItem = directoryTree.items[0];
-  driveItem.disabled = true;
-  directoryTree.redraw(true);
-
-  assertEquals(str('DRIVE_DIRECTORY_LABEL'), driveItem.label);
-  assertTrue(driveItem.disabled);
-  assertFalse(driveItem.hasChildren);
-
-  // Clicking on the item shouldn't select it.
-  driveItem.click();
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  assertFalse(driveItem.selected);
-
-  // The item shouldn't be expanded.
-  let isExpanded = driveItem.getAttribute('aria-expanded') || 'false';
-  assertEquals('false', isExpanded);
-  // Clicking on the expand icon shouldn't expand.
-  driveItem.querySelector('.expand-icon').click();
-  await new Promise(resolve => requestAnimationFrame(resolve));
-  isExpanded = driveItem.getAttribute('aria-expanded') || 'false';
-  assertEquals('false', isExpanded);
-
-  done();
 }

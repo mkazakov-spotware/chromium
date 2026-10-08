@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,11 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
-import android.view.ContextThemeWrapper;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
-import org.chromium.ui.R;
 
 /**
  * Helper class for retrieving resources related to selection handles.
@@ -72,9 +70,10 @@ public class HandleViewResources {
 
     private static Bitmap getHandleBitmap(Context activityContext, final int[] attrs) {
         // TODO(jdduke): Properly derive and apply theme color.
-        final ContextThemeWrapper context = new ContextThemeWrapper(
-                activityContext == null ? ContextUtils.getApplicationContext() : activityContext,
-                R.style.ThemeOverlay_UI_SelectionHandle);
+        Context context = activityContext;
+        if (context == null) {
+            context = ContextUtils.getApplicationContext();
+        }
         TypedArray a = context.getTheme().obtainStyledAttributes(attrs);
         final int resId = a.getResourceId(a.getIndex(0), 0);
         final Resources res = a.getResources();

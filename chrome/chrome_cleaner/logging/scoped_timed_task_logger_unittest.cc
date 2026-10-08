@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/logging.h"
-#include "base/test/bind.h"
 #include "chrome/chrome_cleaner/test/test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -54,9 +53,11 @@ class ScopedTimedTaskLoggerTest : public testing::Test {
     active_logging_messages_ = nullptr;
   }
 
- private:
+  void timer_callback(const base::TimeDelta&) { callback_called_ = true; }
+
   std::vector<std::string> logging_messages_;
   static std::vector<std::string>* active_logging_messages_;
+  bool callback_called_ = false;
 };
 
 std::vector<std::string>* ScopedTimedTaskLoggerTest::active_logging_messages_ =
@@ -65,19 +66,19 @@ std::vector<std::string>* ScopedTimedTaskLoggerTest::active_logging_messages_ =
 }  // namespace
 
 TEST_F(ScopedTimedTaskLoggerTest, CallbackCalled) {
-  bool callback_called = false;
   {
-    ScopedTimedTaskLogger timer(base::BindLambdaForTesting(
-        [&](const base::TimeDelta&) { callback_called = true; }));
+    ScopedTimedTaskLogger timer(base::BindOnce(
+        &ScopedTimedTaskLoggerTest::timer_callback, base::Unretained(this)));
   }
-  EXPECT_TRUE(callback_called);
+  EXPECT_TRUE(callback_called_);
 }
 
 TEST_F(ScopedTimedTaskLoggerTest, NoLog) {
   static const char kNoShow[] = "Should not show up";
   {
-    ScopedTimedTaskLogger no_logs(base::BindOnce(
-        ScopedTimedTaskLogger::LogIfExceedThreshold, kNoShow, base::Days(1)));
+    ScopedTimedTaskLogger no_logs(
+        base::BindOnce(ScopedTimedTaskLogger::LogIfExceedThreshold, kNoShow,
+                       base::TimeDelta::FromDays(1)));
   }
   EXPECT_FALSE(LoggingMessagesContain(kNoShow));
 }
@@ -87,7 +88,7 @@ TEST_F(ScopedTimedTaskLoggerTest, Log) {
   {
     ScopedTimedTaskLogger logs(
         base::BindOnce(ScopedTimedTaskLogger::LogIfExceedThreshold, kShow,
-                       base::Milliseconds(0)));
+                       base::TimeDelta::FromMilliseconds(0)));
     ::Sleep(2);
   }
   EXPECT_TRUE(LoggingMessagesContain(kShow));

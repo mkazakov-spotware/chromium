@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 #define CHROME_BROWSER_REPUTATION_REPUTATION_WEB_CONTENTS_OBSERVER_H_
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
+#include "base/optional.h"
 #include "chrome/browser/reputation/reputation_service.h"
 #include "chrome/browser/reputation/safety_tip_ui.h"
 #include "components/security_state/core/security_state.h"
@@ -16,14 +15,9 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 #include "url/origin.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/reputation/safety_tip_message_delegate_android.h"
-#endif
 
 class Profile;
 
@@ -93,7 +87,7 @@ class ReputationWebContentsObserver
       ReputationCheckResult result,
       ukm::SourceId navigation_source_id);
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Used to cache the last safety tip info (and associated navigation entry ID)
   // so that Page Info can fetch this information without performing a
@@ -105,7 +99,7 @@ class ReputationWebContentsObserver
   // The initiator origin and URL of the most recently committed navigation.
   // Presently, these are used in metrics to differentiate same-origin
   // navigations (i.e. when the user stays on a flagged page).
-  absl::optional<url::Origin> last_committed_initiator_origin_;
+  base::Optional<url::Origin> last_committed_initiator_origin_;
   GURL last_committed_url_;
 
   base::OnceClosure reputation_check_callback_for_testing_;
@@ -113,10 +107,6 @@ class ReputationWebContentsObserver
   bool reputation_check_pending_for_testing_;
 
   base::OnceClosure safety_tip_close_callback_for_testing_;
-
-#if BUILDFLAG(IS_ANDROID)
-  SafetyTipMessageDelegateAndroid delegate_;
-#endif
 
   base::WeakPtrFactory<ReputationWebContentsObserver> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();

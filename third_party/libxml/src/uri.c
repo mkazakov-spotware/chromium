@@ -11,15 +11,12 @@
 #define IN_LIBXML
 #include "libxml.h"
 
-#include <limits.h>
 #include <string.h>
 
 #include <libxml/xmlmemory.h>
 #include <libxml/uri.h>
 #include <libxml/globals.h>
 #include <libxml/xmlerror.h>
-
-#include "private/error.h"
 
 /**
  * MAX_URI_LENGTH:
@@ -332,14 +329,9 @@ xmlParse3986Port(xmlURIPtr uri, const char **str)
 
     if (ISA_DIGIT(cur)) {
 	while (ISA_DIGIT(cur)) {
-            int digit = *cur - '0';
-
-            if (port > INT_MAX / 10)
-                return(1);
-            port *= 10;
-            if (port > INT_MAX - digit)
-                return(1);
-	    port += digit;
+	    port = port * 10 + (*cur - '0');
+            if (port > 99999999)
+                port = 99999999;
 
 	    cur++;
 	}
@@ -1076,7 +1068,7 @@ xmlSaveUri(xmlURIPtr uri) {
 
 
     max = 80;
-    ret = (xmlChar *) xmlMallocAtomic(max + 1);
+    ret = (xmlChar *) xmlMallocAtomic((max + 1) * sizeof(xmlChar));
     if (ret == NULL) {
         xmlURIErrMemory("saving URI\n");
 	return(NULL);
@@ -1640,25 +1632,23 @@ xmlURIUnescapeString(const char *str, int len, char *target) {
     out = ret;
     while(len > 0) {
 	if ((len > 2) && (*in == '%') && (is_hex(in[1])) && (is_hex(in[2]))) {
-            int c = 0;
 	    in++;
 	    if ((*in >= '0') && (*in <= '9'))
-	        c = (*in - '0');
+	        *out = (*in - '0');
 	    else if ((*in >= 'a') && (*in <= 'f'))
-	        c = (*in - 'a') + 10;
+	        *out = (*in - 'a') + 10;
 	    else if ((*in >= 'A') && (*in <= 'F'))
-	        c = (*in - 'A') + 10;
+	        *out = (*in - 'A') + 10;
 	    in++;
 	    if ((*in >= '0') && (*in <= '9'))
-	        c = c * 16 + (*in - '0');
+	        *out = *out * 16 + (*in - '0');
 	    else if ((*in >= 'a') && (*in <= 'f'))
-	        c = c * 16 + (*in - 'a') + 10;
+	        *out = *out * 16 + (*in - 'a') + 10;
 	    else if ((*in >= 'A') && (*in <= 'F'))
-	        c = c * 16 + (*in - 'A') + 10;
+	        *out = *out * 16 + (*in - 'A') + 10;
 	    in++;
 	    len -= 3;
-            /* Explicit sign change */
-	    *out++ = (char) c;
+	    out++;
 	} else {
 	    *out++ = *in++;
 	    len--;
@@ -1758,6 +1748,11 @@ xmlURIEscape(const xmlChar * str)
     xmlURIPtr uri;
     int ret2;
 
+#define NULLCHK(p) if(!p) { \
+         xmlURIErrMemory("escaping URI value\n"); \
+         xmlFreeURI(uri); \
+         return NULL; } \
+
     if (str == NULL)
         return (NULL);
 
@@ -1779,12 +1774,6 @@ xmlURIEscape(const xmlChar * str)
 
     ret = NULL;
 
-#define NULLCHK(p) if(!p) { \
-         xmlURIErrMemory("escaping URI value\n"); \
-         xmlFreeURI(uri); \
-         xmlFree(ret); \
-         return NULL; } \
-
     if (uri->scheme) {
         segment = xmlURIEscapeStr(BAD_CAST uri->scheme, BAD_CAST "+-.");
         NULLCHK(segment)
@@ -1805,7 +1794,7 @@ xmlURIEscape(const xmlChar * str)
     if (uri->user) {
         segment = xmlURIEscapeStr(BAD_CAST uri->user, BAD_CAST ";:&=+$,");
         NULLCHK(segment)
-        ret = xmlStrcat(ret,BAD_CAST "//");
+		ret = xmlStrcat(ret,BAD_CAST "//");
         ret = xmlStrcat(ret, segment);
         ret = xmlStrcat(ret, BAD_CAST "@");
         xmlFree(segment);
@@ -1814,8 +1803,8 @@ xmlURIEscape(const xmlChar * str)
     if (uri->server) {
         segment = xmlURIEscapeStr(BAD_CAST uri->server, BAD_CAST "/?;:@");
         NULLCHK(segment)
-        if (uri->user == NULL)
-            ret = xmlStrcat(ret, BAD_CAST "//");
+		if (uri->user == NULL)
+		ret = xmlStrcat(ret, BAD_CAST "//");
         ret = xmlStrcat(ret, segment);
         xmlFree(segment);
     }
@@ -2386,7 +2375,7 @@ xmlCanonicPath(const xmlChar *path)
  * For Windows implementations, additional work needs to be done to
  * replace backslashes in pathnames with "forward slashes"
  */
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
     int len = 0;
     char *p = NULL;
 #endif
@@ -2458,7 +2447,7 @@ xmlCanonicPath(const xmlChar *path)
 
 path_processing:
 /* For Windows implementations, replace backslashes with 'forward slashes' */
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
     /*
      * Create a URI structure
      */
@@ -2537,7 +2526,7 @@ xmlPathToURI(const xmlChar *path)
     cal = xmlCanonicPath(path);
     if (cal == NULL)
         return(NULL);
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(__CYGWIN__)
     /* xmlCanonicPath can return an URI on Windows (is that the intended behaviour?)
        If 'cal' is a valid URI already then we are done here, as continuing would make
        it invalid. */
@@ -2561,3 +2550,5 @@ xmlPathToURI(const xmlChar *path)
     xmlFree(cal);
     return(ret);
 }
+#define bottom_uri
+#include "elfgcchack.h"

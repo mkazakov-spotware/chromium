@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/display/display_configuration_controller.h"
-
-#include <memory>
 
 #include "ash/display/display_animator.h"
 #include "ash/display/display_util.h"
@@ -64,17 +62,17 @@ class DisplayConfigurationController::DisplayChangeLimiter {
  public:
   DisplayChangeLimiter() : throttle_timeout_(base::Time::Now()) {}
 
-  DisplayChangeLimiter(const DisplayChangeLimiter&) = delete;
-  DisplayChangeLimiter& operator=(const DisplayChangeLimiter&) = delete;
-
   void SetThrottleTimeout(int64_t throttle_ms) {
-    throttle_timeout_ = base::Time::Now() + base::Milliseconds(throttle_ms);
+    throttle_timeout_ =
+        base::Time::Now() + base::TimeDelta::FromMilliseconds(throttle_ms);
   }
 
   bool IsThrottled() const { return base::Time::Now() < throttle_timeout_; }
 
  private:
   base::Time throttle_timeout_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisplayChangeLimiter);
 };
 
 // static
@@ -89,9 +87,9 @@ DisplayConfigurationController::DisplayConfigurationController(
       window_tree_host_manager_(window_tree_host_manager) {
   window_tree_host_manager_->AddObserver(this);
   if (chromeos::IsRunningAsSystemCompositor())
-    limiter_ = std::make_unique<DisplayChangeLimiter>();
+    limiter_.reset(new DisplayChangeLimiter);
   if (!g_disable_animator_for_test)
-    display_animator_ = std::make_unique<DisplayAnimator>();
+    display_animator_.reset(new DisplayAnimator());
 }
 
 DisplayConfigurationController::~DisplayConfigurationController() {
@@ -208,7 +206,7 @@ void DisplayConfigurationController::SetAnimatorForTest(bool enable) {
   if (display_animator_ && !enable)
     display_animator_.reset();
   else if (!display_animator_ && enable)
-    display_animator_ = std::make_unique<DisplayAnimator>();
+    display_animator_.reset(new DisplayAnimator());
 }
 
 // Private
@@ -232,7 +230,7 @@ void DisplayConfigurationController::SetDisplayLayoutImpl(
 void DisplayConfigurationController::SetMirrorModeImpl(bool mirror) {
   display_manager_->SetMirrorMode(
       mirror ? display::MirrorMode::kNormal : display::MirrorMode::kOff,
-      absl::nullopt);
+      base::nullopt);
   if (display_animator_)
     display_animator_->StartFadeInAnimation();
 }

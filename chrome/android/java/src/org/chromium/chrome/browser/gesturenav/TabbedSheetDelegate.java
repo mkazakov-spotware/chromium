@@ -1,17 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.gesturenav;
 
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.base.Consumer;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.NavigationHistory;
-import org.chromium.url.GURL;
-
-import java.util.function.Consumer;
 
 /**
  * Implementation of {@link NavigationSheet#Delegate} that works with
@@ -20,8 +17,6 @@ import java.util.function.Consumer;
 public class TabbedSheetDelegate implements NavigationSheet.Delegate {
     private static final int MAXIMUM_HISTORY_ITEMS = 8;
     private static final int FULL_HISTORY_ENTRY_INDEX = -1;
-    private static final String INCOGNITO_HISTORY_ENTRIES_FLAG =
-            ChromeFeatureList.UPDATE_HISTORY_ENTRY_POINTS_IN_INCOGNITO;
 
     private final Tab mTab;
     private final Consumer<Tab> mShowHistoryManager;
@@ -34,16 +29,12 @@ public class TabbedSheetDelegate implements NavigationSheet.Delegate {
     }
 
     @Override
-    public NavigationHistory getHistory(boolean forward, boolean isOffTheRecord) {
+    public NavigationHistory getHistory(boolean forward) {
         NavigationHistory history =
                 mTab.getWebContents().getNavigationController().getDirectedNavigationHistory(
                         forward, MAXIMUM_HISTORY_ITEMS);
-        if (!isOffTheRecord || !ChromeFeatureList.isEnabled(INCOGNITO_HISTORY_ENTRIES_FLAG)) {
-            history.addEntry(new NavigationEntry(FULL_HISTORY_ENTRY_INDEX,
-                    new GURL(UrlConstants.HISTORY_URL), GURL.emptyGURL(), GURL.emptyGURL(),
-                    mFullHistoryMenu, null, 0, 0,
-                    /* isInitialEntry=*/false));
-        }
+        history.addEntry(new NavigationEntry(FULL_HISTORY_ENTRY_INDEX, UrlConstants.HISTORY_URL,
+                null, null, null, mFullHistoryMenu, null, 0, 0));
         return history;
     }
 

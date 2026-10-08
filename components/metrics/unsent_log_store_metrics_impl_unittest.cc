@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,8 @@ TEST(UnsentLogStoreMetricsImplTest, RecordDroppedLogsNum) {
 
 TEST(UnsentLogStoreMetricsImplTest, RecordLastUnsentLogMetadataMetrics) {
   base::test::ScopedFeatureList feature_override;
-  feature_override.InitAndEnableFeature(kRecordLastUnsentLogMetadataMetrics);
+  feature_override.InitAndEnableFeature(
+      UnsentLogStoreMetrics::kRecordLastUnsentLogMetadataMetrics);
   UnsentLogStoreMetricsImpl impl;
   base::HistogramTester histogram_tester;
 
@@ -57,7 +58,8 @@ TEST(UnsentLogStoreMetricsImplTest, DisableRecordLastUnsentLogMetadataMetrics) {
 
 TEST(UnsentLogStoreMetricsImplTest, BothUnsentAndSentZeroSample) {
   base::test::ScopedFeatureList feature_override;
-  feature_override.InitAndEnableFeature(kRecordLastUnsentLogMetadataMetrics);
+  feature_override.InitAndEnableFeature(
+      UnsentLogStoreMetrics::kRecordLastUnsentLogMetadataMetrics);
   UnsentLogStoreMetricsImpl impl;
   base::HistogramTester histogram_tester;
 
@@ -69,7 +71,8 @@ TEST(UnsentLogStoreMetricsImplTest, BothUnsentAndSentZeroSample) {
 
 TEST(UnsentLogStoreMetricsImplTest, ZeroUnsentSample) {
   base::test::ScopedFeatureList feature_override;
-  feature_override.InitAndEnableFeature(kRecordLastUnsentLogMetadataMetrics);
+  feature_override.InitAndEnableFeature(
+      UnsentLogStoreMetrics::kRecordLastUnsentLogMetadataMetrics);
   UnsentLogStoreMetricsImpl impl;
   base::HistogramTester histogram_tester;
 
@@ -81,7 +84,8 @@ TEST(UnsentLogStoreMetricsImplTest, ZeroUnsentSample) {
 
 TEST(UnsentLogStoreMetricsImplTest, ZeroSentSample) {
   base::test::ScopedFeatureList feature_override;
-  feature_override.InitAndEnableFeature(kRecordLastUnsentLogMetadataMetrics);
+  feature_override.InitAndEnableFeature(
+      UnsentLogStoreMetrics::kRecordLastUnsentLogMetadataMetrics);
   UnsentLogStoreMetricsImpl impl;
   base::HistogramTester histogram_tester;
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/test/values_test_util.h"
 #include "base/values.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -20,12 +21,12 @@ class TestPredicate : public ContentPredicate {
  public:
   TestPredicate() {}
 
-  TestPredicate(const TestPredicate&) = delete;
-  TestPredicate& operator=(const TestPredicate&) = delete;
-
   ContentPredicateEvaluator* GetEvaluator() const override {
     return nullptr;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestPredicate);
 };
 
 class TestPredicateFactoryGeneratingError : public ContentPredicateFactory {
@@ -34,31 +35,23 @@ class TestPredicateFactoryGeneratingError : public ContentPredicateFactory {
       : error_(error) {
   }
 
-  TestPredicateFactoryGeneratingError(
-      const TestPredicateFactoryGeneratingError&) = delete;
-  TestPredicateFactoryGeneratingError& operator=(
-      const TestPredicateFactoryGeneratingError&) = delete;
-
   std::unique_ptr<const ContentPredicate> CreatePredicate(
       const Extension* extension,
       const base::Value& value,
       std::string* error) override {
     *error = error_;
-    return nullptr;
+    return std::unique_ptr<const ContentPredicate>();
   }
 
  private:
   const std::string error_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestPredicateFactoryGeneratingError);
 };
 
 class TestPredicateFactoryGeneratingPredicate : public ContentPredicateFactory {
  public:
   TestPredicateFactoryGeneratingPredicate() {}
-
-  TestPredicateFactoryGeneratingPredicate(
-      const TestPredicateFactoryGeneratingPredicate&) = delete;
-  TestPredicateFactoryGeneratingPredicate& operator=(
-      const TestPredicateFactoryGeneratingPredicate&) = delete;
 
   std::unique_ptr<const ContentPredicate> CreatePredicate(
       const Extension* extension,
@@ -75,6 +68,8 @@ class TestPredicateFactoryGeneratingPredicate : public ContentPredicateFactory {
 
  private:
   std::vector<const ContentPredicate*> created_predicates_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestPredicateFactoryGeneratingPredicate);
 };
 
 }  // namespace

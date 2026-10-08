@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,15 @@
 #include <map>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
+#include "ash/frame/header_view.h"
 #include "ash/frame/non_client_frame_view_ash.h"
 #include "ash/frame/wide_frame_view.h"
-#include "ash/public/cpp/arc_resize_lock_type.h"
-#include "ash/public/cpp/ash_constants.h"
-#include "ash/public/cpp/rounded_corner_utils.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/rounded_corner_decorator.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/public/cpp/window_backdrop.h"
 #include "ash/public/cpp/window_properties.h"
 #include "ash/root_window_controller.h"
-#include "ash/screen_util.h"
 #include "ash/shell.h"
 #include "ash/wm/client_controlled_state.h"
 #include "ash/wm/collision_detection/collision_detection_utils.h"
@@ -42,7 +40,6 @@
 #include "chromeos/ui/base/window_state_type.h"
 #include "chromeos/ui/frame/caption_buttons/caption_button_model.h"
 #include "chromeos/ui/frame/default_frame_header.h"
-#include "chromeos/ui/frame/header_view.h"
 #include "chromeos/ui/frame/immersive/immersive_fullscreen_controller.h"
 #include "components/exo/shell_surface_util.h"
 #include "components/exo/surface.h"
@@ -54,9 +51,7 @@
 #include "ui/aura/window_observer.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/class_property.h"
-#include "ui/compositor/compositor.h"
 #include "ui/compositor/compositor_lock.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/display/tablet_state.h"
@@ -66,12 +61,10 @@
 #include "ui/wm/core/coordinate_conversion.h"
 #include "ui/wm/core/window_util.h"
 
-DEFINE_UI_CLASS_PROPERTY_TYPE(exo::ClientControlledShellSurface*)
-
 namespace exo {
 
 namespace {
-using ::ash::screen_util::GetIdealBoundsForMaximizedOrFullscreenOrPinnedState;
+
 using ::chromeos::WindowStateType;
 
 // Client controlled specific accelerators.
@@ -114,11 +107,6 @@ class ClientControlledStateDelegate
   explicit ClientControlledStateDelegate(
       ClientControlledShellSurface* shell_surface)
       : shell_surface_(shell_surface) {}
-
-  ClientControlledStateDelegate(const ClientControlledStateDelegate&) = delete;
-  ClientControlledStateDelegate& operator=(
-      const ClientControlledStateDelegate&) = delete;
-
   ~ClientControlledStateDelegate() override {}
 
   // Overridden from ash::ClientControlledState::Delegate:
@@ -141,6 +129,8 @@ class ClientControlledStateDelegate
 
  private:
   ClientControlledShellSurface* shell_surface_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClientControlledStateDelegate);
 };
 
 // A WindowStateDelegate that implements ToggleFullscreen behavior for
@@ -151,12 +141,6 @@ class ClientControlledWindowStateDelegate : public ash::WindowStateDelegate {
       ClientControlledShellSurface* shell_surface,
       ash::ClientControlledState::Delegate* delegate)
       : shell_surface_(shell_surface), delegate_(delegate) {}
-
-  ClientControlledWindowStateDelegate(
-      const ClientControlledWindowStateDelegate&) = delete;
-  ClientControlledWindowStateDelegate& operator=(
-      const ClientControlledWindowStateDelegate&) = delete;
-
   ~ClientControlledWindowStateDelegate() override {}
 
   // Overridden from ash::WindowStateDelegate:
@@ -166,13 +150,17 @@ class ClientControlledWindowStateDelegate : public ash::WindowStateDelegate {
     switch (window_state->GetStateType()) {
       case chromeos::WindowStateType::kDefault:
       case chromeos::WindowStateType::kNormal:
+        window->SetProperty(aura::client::kPreFullscreenShowStateKey,
+                            ui::SHOW_STATE_NORMAL);
         next_state = chromeos::WindowStateType::kFullscreen;
         break;
       case chromeos::WindowStateType::kMaximized:
+        window->SetProperty(aura::client::kPreFullscreenShowStateKey,
+                            ui::SHOW_STATE_MAXIMIZED);
         next_state = chromeos::WindowStateType::kFullscreen;
         break;
       case chromeos::WindowStateType::kFullscreen:
-        switch (window->GetProperty(aura::client::kRestoreShowStateKey)) {
+        switch (window->GetProperty(aura::client::kPreFullscreenShowStateKey)) {
           case ui::SHOW_STATE_DEFAULT:
           case ui::SHOW_STATE_NORMAL:
             next_state = chromeos::WindowStateType::kNormal;
@@ -188,11 +176,17 @@ class ClientControlledWindowStateDelegate : public ash::WindowStateDelegate {
           case ui::SHOW_STATE_END:
             NOTREACHED() << " unknown state :"
                          << window->GetProperty(
-                                aura::client::kRestoreShowStateKey);
+                                aura::client::kPreFullscreenShowStateKey);
             return false;
         }
         break;
       case chromeos::WindowStateType::kMinimized: {
+        ui::WindowShowState pre_full_state =
+            window->GetProperty(aura::client::kPreMinimizedShowStateKey);
+        if (pre_full_state != ui::SHOW_STATE_FULLSCREEN) {
+          window->SetProperty(aura::client::kPreFullscreenShowStateKey,
+                              pre_full_state);
+        }
         next_state = chromeos::WindowStateType::kFullscreen;
         break;
       }
@@ -204,15 +198,8 @@ class ClientControlledWindowStateDelegate : public ash::WindowStateDelegate {
     return true;
   }
 
-  void ToggleLockedFullscreen(ash::WindowState*) override {
-    // No special handling for locked ARC windows.
-    return;
-  }
-
-  std::unique_ptr<ash::PresentationTimeRecorder> OnDragStarted(
-      int component) override {
+  void OnDragStarted(int component) override {
     shell_surface_->OnDragStarted(component);
-    return nullptr;
   }
 
   void OnDragFinished(bool canceled, const gfx::PointF& location) override {
@@ -222,6 +209,8 @@ class ClientControlledWindowStateDelegate : public ash::WindowStateDelegate {
  private:
   ClientControlledShellSurface* shell_surface_;
   ash::ClientControlledState::Delegate* delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClientControlledWindowStateDelegate);
 };
 
 bool IsPinned(const ash::WindowState* window_state) {
@@ -233,9 +222,6 @@ class CaptionButtonModel : public chromeos::CaptionButtonModel {
   CaptionButtonModel(uint32_t visible_button_mask, uint32_t enabled_button_mask)
       : visible_button_mask_(visible_button_mask),
         enabled_button_mask_(enabled_button_mask) {}
-
-  CaptionButtonModel(const CaptionButtonModel&) = delete;
-  CaptionButtonModel& operator=(const CaptionButtonModel&) = delete;
 
   // Overridden from ash::CaptionButtonModel:
   bool IsVisible(views::CaptionButtonIcon icon) const override {
@@ -251,6 +237,8 @@ class CaptionButtonModel : public chromeos::CaptionButtonModel {
  private:
   uint32_t visible_button_mask_;
   uint32_t enabled_button_mask_;
+
+  DISALLOW_COPY_AND_ASSIGN(CaptionButtonModel);
 };
 
 // EventTargetingBlocker blocks the event targeting by setting NONE targeting
@@ -259,9 +247,6 @@ class CaptionButtonModel : public chromeos::CaptionButtonModel {
 class EventTargetingBlocker : aura::WindowObserver {
  public:
   EventTargetingBlocker() = default;
-
-  EventTargetingBlocker(const EventTargetingBlocker&) = delete;
-  EventTargetingBlocker& operator=(const EventTargetingBlocker&) = delete;
 
   ~EventTargetingBlocker() override {
     if (window_)
@@ -299,6 +284,8 @@ class EventTargetingBlocker : aura::WindowObserver {
            std::unique_ptr<aura::ScopedWindowEventTargetingBlocker>>
       event_targeting_blocker_map_;
   aura::Window* window_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(EventTargetingBlocker);
 };
 
 }  // namespace
@@ -309,14 +296,12 @@ class ClientControlledShellSurface::ScopedSetBoundsLocally {
       : state_(shell_surface->client_controlled_state_) {
     state_->set_bounds_locally(true);
   }
-
-  ScopedSetBoundsLocally(const ScopedSetBoundsLocally&) = delete;
-  ScopedSetBoundsLocally& operator=(const ScopedSetBoundsLocally&) = delete;
-
   ~ScopedSetBoundsLocally() { state_->set_bounds_locally(false); }
 
  private:
   ash::ClientControlledState* const state_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedSetBoundsLocally);
 };
 
 class ClientControlledShellSurface::ScopedLockedToRoot {
@@ -325,14 +310,12 @@ class ClientControlledShellSurface::ScopedLockedToRoot {
       : window_(widget->GetNativeWindow()) {
     window_->SetProperty(ash::kLockedToRootKey, true);
   }
-
-  ScopedLockedToRoot(const ScopedLockedToRoot&) = delete;
-  ScopedLockedToRoot& operator=(const ScopedLockedToRoot&) = delete;
-
   ~ScopedLockedToRoot() { window_->ClearProperty(ash::kLockedToRootKey); }
 
  private:
   aura::Window* const window_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedLockedToRoot);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -343,10 +326,9 @@ ClientControlledShellSurface::ClientControlledShellSurface(
     bool can_minimize,
     int container,
     bool default_scale_cancellation)
-    : ShellSurfaceBase(surface, gfx::Point(), can_minimize, container),
-      use_default_scale_cancellation_(default_scale_cancellation) {
-  server_side_resize_ = true;
-}
+    : ShellSurfaceBase(surface, gfx::Point(), true, can_minimize, container),
+      current_pin_(chromeos::WindowPinType::kNone),
+      use_default_scale_cancellation_(default_scale_cancellation) {}
 
 ClientControlledShellSurface::~ClientControlledShellSurface() {
   // Reset the window delegate here so that we won't try to do any dragging
@@ -356,6 +338,8 @@ ClientControlledShellSurface::~ClientControlledShellSurface() {
   if (client_controlled_state_)
     client_controlled_state_->ResetDelegate();
   wide_frame_.reset();
+  if (current_pin_ != chromeos::WindowPinType::kNone)
+    SetPinned(chromeos::WindowPinType::kNone);
 }
 
 void ClientControlledShellSurface::SetBounds(int64_t display_id,
@@ -368,34 +352,19 @@ void ClientControlledShellSurface::SetBounds(int64_t display_id,
     return;
   }
 
-  // When use_default_scale_cancellation_ is false, the client is scale-aware
-  // and we expect that the |bounds| has been calculated by the client based
-  // on the device_scale_factor of the display with |display_id|.
-  // If the display has been changed before |SetBounds()| is called, for some
-  // cases(eg. move ARC window between displays with shortcut), |pending_scale_|
-  // may be stale and tied the old pending_display. Therefore, we re-initialize
-  // it to 0.0 here to force an update on the value in |EnsurePendingScale()|.
-  // Also need to note that we only want to commit |pending_scale_| in the cases
-  // where it hasn't been initialized before this method call.
-  bool const commit_immediately = pending_scale_ == 0.0;
-  if (!use_default_scale_cancellation_ && display_id != pending_display_id_)
-    pending_scale_ = 0.0;
-
   SetDisplay(display_id);
-  EnsurePendingScale(commit_immediately);
+  EnsurePendingScale();
 
   const gfx::Rect bounds_dp =
       gfx::ScaleToRoundedRect(bounds, GetClientToDpPendingScale());
   SetGeometry(bounds_dp);
 }
 
-void ClientControlledShellSurface::SetBoundsOrigin(int64_t display_id,
-                                                   const gfx::Point& origin) {
-  TRACE_EVENT2("exo", "ClientControlledShellSurface::SetBoundsOrigin",
-               "display_id", display_id, "origin", origin.ToString());
+void ClientControlledShellSurface::SetBoundsOrigin(const gfx::Point& origin) {
+  TRACE_EVENT1("exo", "ClientControlledShellSurface::SetBoundsOrigin", "origin",
+               origin.ToString());
 
-  SetDisplay(display_id);
-  EnsurePendingScale(/*commit_immediately=*/true);
+  EnsurePendingScale();
   const gfx::Point origin_dp =
       gfx::ScaleToRoundedPoint(origin, GetClientToDpPendingScale());
   pending_geometry_.set_origin(origin_dp);
@@ -410,7 +379,7 @@ void ClientControlledShellSurface::SetBoundsSize(const gfx::Size& size) {
     return;
   }
 
-  EnsurePendingScale(/*commit_immediately=*/true);
+  EnsurePendingScale();
   const gfx::Size size_dp =
       gfx::ScaleToRoundedSize(size, GetClientToDpPendingScale());
   pending_geometry_.set_size(size_dp);
@@ -438,6 +407,21 @@ void ClientControlledShellSurface::SetFullscreen(bool fullscreen) {
                                      : chromeos::WindowStateType::kNormal;
 }
 
+void ClientControlledShellSurface::SetSnappedToLeft() {
+  TRACE_EVENT0("exo", "ClientControlledShellSurface::SetSnappedToLeft");
+  pending_window_state_ = chromeos::WindowStateType::kLeftSnapped;
+}
+
+void ClientControlledShellSurface::SetSnappedToRight() {
+  TRACE_EVENT0("exo", "ClientControlledShellSurface::SetSnappedToRight");
+  pending_window_state_ = chromeos::WindowStateType::kRightSnapped;
+}
+
+void ClientControlledShellSurface::SetPip() {
+  TRACE_EVENT0("exo", "ClientControlledShellSurface::SetPip");
+  pending_window_state_ = chromeos::WindowStateType::kPip;
+}
+
 void ClientControlledShellSurface::SetPinned(chromeos::WindowPinType type) {
   TRACE_EVENT1("exo", "ClientControlledShellSurface::SetPinned", "type",
                static_cast<int>(type));
@@ -445,12 +429,8 @@ void ClientControlledShellSurface::SetPinned(chromeos::WindowPinType type) {
   if (!widget_)
     CreateShellSurfaceWidget(ui::SHOW_STATE_NORMAL);
 
-  if (type == chromeos::WindowPinType::kNone) {
-    ash::WindowState::Get(widget_->GetNativeWindow())->Restore();
-  } else {
-    bool trusted = type == chromeos::WindowPinType::kTrustedPinned;
-    ash::window_util::PinWindow(widget_->GetNativeWindow(), trusted);
-  }
+  widget_->GetNativeWindow()->SetProperty(chromeos::kWindowPinTypeKey, type);
+  current_pin_ = type;
 }
 
 void ClientControlledShellSurface::SetSystemUiVisibility(bool autohide) {
@@ -469,6 +449,17 @@ void ClientControlledShellSurface::SetAlwaysOnTop(bool always_on_top) {
   pending_always_on_top_ = always_on_top;
 }
 
+void ClientControlledShellSurface::SetImeBlocked(bool ime_blocked) {
+  TRACE_EVENT1("exo", "ClientControlledShellSurface::SetImeBlocked",
+               "ime_blocked", ime_blocked);
+
+  if (!widget_)
+    CreateShellSurfaceWidget(ui::SHOW_STATE_NORMAL);
+
+  WMHelper::GetInstance()->SetImeBlocked(widget_->GetNativeWindow(),
+                                         ime_blocked);
+}
+
 void ClientControlledShellSurface::SetOrientation(Orientation orientation) {
   TRACE_EVENT1("exo", "ClientControlledShellSurface::SetOrientation",
                "orientation",
@@ -480,7 +471,7 @@ void ClientControlledShellSurface::SetShadowBounds(const gfx::Rect& bounds) {
   TRACE_EVENT1("exo", "ClientControlledShellSurface::SetShadowBounds", "bounds",
                bounds.ToString());
   auto shadow_bounds =
-      bounds.IsEmpty() ? absl::nullopt : absl::make_optional(bounds);
+      bounds.IsEmpty() ? base::nullopt : base::make_optional(bounds);
   if (shadow_bounds_ != shadow_bounds) {
     shadow_bounds_ = shadow_bounds;
     shadow_bounds_changed_ = true;
@@ -506,7 +497,6 @@ void ClientControlledShellSurface::CommitPendingScale() {
   transform.Scale(1.0 / pending_scale_, 1.0 / pending_scale_);
   host_window()->SetTransform(transform);
   scale_ = pending_scale_;
-  UpdateCornerRadius();
 }
 
 void ClientControlledShellSurface::SetTopInset(int height) {
@@ -516,13 +506,20 @@ void ClientControlledShellSurface::SetTopInset(int height) {
   pending_top_inset_height_ = height;
 }
 
+void ClientControlledShellSurface::SetResizeOutset(int outset) {
+  TRACE_EVENT1("exo", "ClientControlledShellSurface::SetResizeOutset", "outset",
+               outset);
+  // Deprecated.
+  NOTREACHED();
+}
+
 void ClientControlledShellSurface::OnWindowStateChangeEvent(
     chromeos::WindowStateType current_state,
     chromeos::WindowStateType next_state) {
   // Android already knows this state change. Don't send state change to Android
   // that it is about to do anyway.
-  if (delegate_ && pending_window_state_ != next_state)
-    delegate_->OnStateChanged(current_state, next_state);
+  if (state_changed_callback_ && pending_window_state_ != next_state)
+    state_changed_callback_.Run(current_state, next_state);
 }
 
 void ClientControlledShellSurface::StartDrag(int component,
@@ -549,12 +546,7 @@ void ClientControlledShellSurface::AttemptToStartDrag(
   if (toplevel_handler->gesture_target() ||
       (mouse_pressed_handler && target->Contains(mouse_pressed_handler))) {
     gfx::PointF point_in_root(location);
-    if (use_default_scale_cancellation_) {
-      // When default scale cancellation is enabled, the client sends the
-      // location in screen coordinates. Otherwise, the location should already
-      // be in the display's coordinates.
-      wm::ConvertPointFromScreen(target->GetRootWindow(), &point_in_root);
-    }
+    wm::ConvertPointFromScreen(target->GetRootWindow(), &point_in_root);
     toplevel_handler->AttemptToStartDrag(
         target, point_in_root, component,
         ash::ToplevelWindowEventHandler::EndClosure());
@@ -597,7 +589,7 @@ void ClientControlledShellSurface::SetFrameButtons(
 }
 
 void ClientControlledShellSurface::SetExtraTitle(
-    const std::u16string& extra_title) {
+    const base::string16& extra_title) {
   TRACE_EVENT1("exo", "ClientControlledShellSurface::SetExtraTitle",
                "extra_title", base::UTF16ToUTF8(extra_title));
 
@@ -614,6 +606,21 @@ void ClientControlledShellSurface::SetExtraTitle(
   }
 }
 
+void ClientControlledShellSurface::SetOrientationLock(
+    ash::OrientationLockType orientation_lock) {
+  TRACE_EVENT1("exo", "ClientControlledShellSurface::SetOrientationLock",
+               "orientation_lock", static_cast<int>(orientation_lock));
+
+  if (!widget_) {
+    initial_orientation_lock_ = orientation_lock;
+    return;
+  }
+
+  ash::Shell* shell = ash::Shell::Get();
+  shell->screen_orientation_controller()->LockOrientationForWindow(
+      widget_->GetNativeWindow(), orientation_lock);
+}
+
 void ClientControlledShellSurface::SetClientAccessibilityId(
     int32_t accessibility_id) {
   if (accessibility_id >= 0)
@@ -625,15 +632,6 @@ void ClientControlledShellSurface::SetClientAccessibilityId(
     SetShellClientAccessibilityId(widget_->GetNativeWindow(),
                                   client_accessibility_id_);
   }
-}
-
-void ClientControlledShellSurface::RebindRootSurface(
-    Surface* root_surface,
-    bool can_minimize,
-    int container,
-    bool default_scale_cancellation) {
-  use_default_scale_cancellation_ = default_scale_cancellation;
-  ShellSurfaceBase::RebindRootSurface(root_surface, can_minimize, container);
 }
 
 void ClientControlledShellSurface::DidReceiveCompositorFrameAck() {
@@ -661,7 +659,7 @@ void ClientControlledShellSurface::OnBoundsChangeEvent(
   if (geometry().IsEmpty() || window_bounds.IsEmpty() ||
       (widget_->IsMinimized() &&
        requested_state == chromeos::WindowStateType::kMinimized) ||
-      !delegate_) {
+      !bounds_changed_callback_) {
     return;
   }
 
@@ -674,25 +672,17 @@ void ClientControlledShellSurface::OnBoundsChangeEvent(
   bool is_resize = client_bounds.size() != current_size &&
                    !widget_->IsMaximized() && !widget_->IsFullscreen();
 
-  // Make sure to use the up-to-date scale factor. At this point, |scale_| or
-  // |pending_scale_| may not be updated yet.
-  display::Display display;
-  const bool display_exists =
-      display::Screen::GetScreen()->GetDisplayWithDisplayId(display_id,
-                                                            &display);
-  DCHECK(display_exists && display.is_valid());
-  const float scale =
-      use_default_scale_cancellation_ ? 1.f : display.device_scale_factor();
+  const float scale = 1.f / GetClientToDpScale();
   const gfx::Rect scaled_client_bounds =
       gfx::ScaleToRoundedRect(client_bounds, scale);
-  delegate_->OnBoundsChanged(current_state, requested_state, display_id,
-                             scaled_client_bounds, is_resize, bounds_change);
+  bounds_changed_callback_.Run(current_state, requested_state, display_id,
+                               scaled_client_bounds, is_resize, bounds_change);
 
   auto* window_state = GetWindowState();
   if (server_reparent_window_ &&
       window_state->GetDisplay().id() != display_id) {
     ScopedSetBoundsLocally scoped_set_bounds(this);
-    int container_id = window_state->window()->parent()->GetId();
+    int container_id = window_state->window()->parent()->id();
     aura::Window* new_parent =
         ash::Shell::GetRootWindowControllerWithDisplayId(display_id)
             ->GetContainer(container_id);
@@ -701,25 +691,25 @@ void ClientControlledShellSurface::OnBoundsChangeEvent(
 }
 
 void ClientControlledShellSurface::ChangeZoomLevel(ZoomChange change) {
-  if (delegate_)
-    delegate_->OnZoomLevelChanged(change);
+  if (change_zoom_level_callback_)
+    change_zoom_level_callback_.Run(change);
 }
 
 void ClientControlledShellSurface::OnDragStarted(int component) {
   in_drag_ = true;
-  if (delegate_)
-    delegate_->OnDragStarted(component);
+  if (drag_started_callback_)
+    drag_started_callback_.Run(component);
 }
 
 void ClientControlledShellSurface::OnDragFinished(bool canceled,
                                                   const gfx::PointF& location) {
   in_drag_ = false;
-  if (!delegate_)
+  if (!drag_finished_callback_)
     return;
 
   const float scale = 1.f / GetClientToDpScale();
   const gfx::PointF scaled = gfx::ScalePoint(location, scale);
-  delegate_->OnDragFinished(scaled.x(), scaled.y(), canceled);
+  drag_finished_callback_.Run(scaled.x(), scaled.y(), canceled);
 }
 
 float ClientControlledShellSurface::GetClientToDpScale() const {
@@ -728,29 +718,6 @@ float ClientControlledShellSurface::GetClientToDpScale() const {
   if (use_default_scale_cancellation_)
     return 1.f;
   return 1.f / scale_;
-}
-
-void ClientControlledShellSurface::SetResizeLockType(
-    ash::ArcResizeLockType resize_lock_type) {
-  TRACE_EVENT1("exo", "ClientControlledShellSurface::SetResizeLockType",
-               "resize_lock_type", resize_lock_type);
-  pending_resize_lock_type_ = resize_lock_type;
-}
-
-void ClientControlledShellSurface::UpdateResizability() {
-  TRACE_EVENT0("exo", "ClientControlledShellSurface::updateCanResize");
-  widget_->GetNativeWindow()->SetProperty(ash::kArcResizeLockTypeKey,
-                                          pending_resize_lock_type_);
-  // If resize lock is enabled, the window is explicitly marded as unresizable.
-  // Otherwise, the decision is deferred to the parent class.
-  if (pending_resize_lock_type_ ==
-           ash::ArcResizeLockType::RESIZE_DISABLED_TOGGLABLE ||
-       pending_resize_lock_type_ ==
-           ash::ArcResizeLockType::RESIZE_DISABLED_NONTOGGLABLE) {
-    SetCanResize(false);
-    return;
-  }
-  ShellSurfaceBase::UpdateResizability();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -777,30 +744,9 @@ void ClientControlledShellSurface::OnSetFrameColors(SkColor active_color,
   ShellSurfaceBase::OnSetFrameColors(active_color, inactive_color);
   if (wide_frame_) {
     aura::Window* window = wide_frame_->GetWidget()->GetNativeWindow();
-    window->SetProperty(chromeos::kTrackDefaultFrameColors, false);
     window->SetProperty(chromeos::kFrameActiveColorKey, active_color);
     window->SetProperty(chromeos::kFrameInactiveColorKey, inactive_color);
   }
-}
-
-void ClientControlledShellSurface::SetSnappedToPrimary() {
-  TRACE_EVENT0("exo", "ClientControlledShellSurface::SetSnappedToPrimary");
-  pending_window_state_ = chromeos::WindowStateType::kPrimarySnapped;
-}
-
-void ClientControlledShellSurface::SetSnappedToSecondary() {
-  TRACE_EVENT0("exo", "ClientControlledShellSurface::SetSnappedToSecondary");
-  pending_window_state_ = chromeos::WindowStateType::kSecondarySnapped;
-}
-
-void ClientControlledShellSurface::SetPip() {
-  TRACE_EVENT0("exo", "ClientControlledShellSurface::SetPip");
-  pending_window_state_ = chromeos::WindowStateType::kPip;
-}
-
-void ClientControlledShellSurface::UnsetPip() {
-  TRACE_EVENT0("exo", "ClientControlledShellSurface::UnsetPip");
-  SetRestored();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -843,17 +789,14 @@ ClientControlledShellSurface::CreateNonClientFrameView(views::Widget* widget) {
   client_controlled_state_ = state.get();
   window_state->SetStateObject(std::move(state));
   window_state->SetDelegate(std::move(window_delegate));
-  auto frame_view = CreateNonClientFrameViewInternal(widget);
+  auto frame_view =
+      CreateNonClientFrameViewInternal(widget, /*client_controlled=*/true);
   immersive_fullscreen_controller_ =
       std::make_unique<chromeos::ImmersiveFullscreenController>();
   static_cast<ash::NonClientFrameViewAsh*>(frame_view.get())
       ->InitImmersiveFullscreenControllerForView(
           immersive_fullscreen_controller_.get());
   return frame_view;
-}
-
-bool ClientControlledShellSurface::ShouldSaveWindowPlacement() const {
-  return false;
 }
 
 void ClientControlledShellSurface::SaveWindowPlacement(
@@ -962,24 +905,7 @@ void ClientControlledShellSurface::CompositorLockTimedOut() {
 ////////////////////////////////////////////////////////////////////////////////
 // ShellSurfaceBase overrides:
 
-void ClientControlledShellSurface::SetSystemModal(bool system_modal) {
-  // System modal container is used by clients to implement client side
-  // managed system modal dialogs using a single ShellSurface instance.
-  // Hit-test region will be non-empty when at least one dialog exists on
-  // the client side. Here we detect the transition between no client side
-  // dialog and at least one dialog so activatable state is properly
-  // updated.
-  if (container_ != ash::kShellWindowId_SystemModalContainer) {
-    LOG(ERROR)
-        << "Only a window in SystemModalContainer can change the modality";
-    return;
-  }
-
-  ShellSurfaceBase::SetSystemModal(system_modal);
-}
-
-void ClientControlledShellSurface::SetWidgetBounds(const gfx::Rect& bounds,
-                                                   bool adjusted_by_server) {
+void ClientControlledShellSurface::SetWidgetBounds(const gfx::Rect& bounds) {
   const auto* screen = display::Screen::GetScreen();
   aura::Window* window = widget_->GetNativeWindow();
   display::Display current_display = screen->GetDisplayNearestWindow(window);
@@ -1017,14 +943,10 @@ void ClientControlledShellSurface::SetWidgetBounds(const gfx::Rect& bounds,
   }
 
   // Calculate a minimum window visibility required bounds.
-  // TODO(oshima): Move this to ComputeAdjustedBounds.
   gfx::Rect adjusted_bounds = bounds;
   if (!is_display_move_pending) {
-    const gfx::Rect& restriction = GetWindowState()->IsFullscreen()
-                                       ? target_display.bounds()
-                                       : target_display.work_area();
     ash::ClientControlledState::AdjustBoundsForMinimumWindowVisibility(
-        restriction, &adjusted_bounds);
+        target_display.work_area(), &adjusted_bounds);
     // Collision detection to the bounds set by Android should be applied only
     // to initial bounds. Do not adjust new bounds as it can be obsolete or in
     // transit during animation, which results in incorrect resting postiion.
@@ -1084,8 +1006,7 @@ void ClientControlledShellSurface::SetWidgetBounds(const gfx::Rect& bounds,
 gfx::Rect ClientControlledShellSurface::GetShadowBounds() const {
   gfx::Rect shadow_bounds = ShellSurfaceBase::GetShadowBounds();
   const ash::NonClientFrameViewAsh* frame_view = GetFrameView();
-  if (frame_view->GetFrameEnabled() && !shadow_bounds_->IsEmpty() &&
-      !geometry_.IsEmpty()) {
+  if (frame_view->GetVisible()) {
     // The client controlled geometry is only for the client
     // area. When the chrome side frame is enabled, the shadow height
     // has to include the height of the frame, and the total height is
@@ -1100,6 +1021,9 @@ gfx::Rect ClientControlledShellSurface::GetShadowBounds() const {
 
 void ClientControlledShellSurface::InitializeWindowState(
     ash::WindowState* window_state) {
+  // Set the relevant window properties for Arc apps.
+  SetArcAppType(window_state->window());
+
   // Allow the client to request bounds that do not fill the entire work area
   // when maximized, or the entire display when fullscreen.
   window_state->set_allow_set_bounds_direct(true);
@@ -1113,9 +1037,9 @@ void ClientControlledShellSurface::InitializeWindowState(
       frame_visible_button_mask_, frame_enabled_button_mask_));
   UpdateAutoHideFrame();
   UpdateFrameWidth();
-  if (initial_orientation_lock_ != chromeos::OrientationType::kAny)
+  if (initial_orientation_lock_ != ash::OrientationLockType::kAny)
     SetOrientationLock(initial_orientation_lock_);
-  if (initial_extra_title_ != std::u16string())
+  if (initial_extra_title_ != base::string16())
     SetExtraTitle(initial_extra_title_);
 
   // Register Client controlled accelerators.
@@ -1135,18 +1059,17 @@ void ClientControlledShellSurface::InitializeWindowState(
 
   auto* window = widget_->GetNativeWindow();
   SetShellClientAccessibilityId(window, client_accessibility_id_);
-  GrantPermissionToActivateIndefinitely(window);
 }
 
 float ClientControlledShellSurface::GetScale() const {
   return scale_;
 }
 
-absl::optional<gfx::Rect> ClientControlledShellSurface::GetWidgetBounds()
+base::Optional<gfx::Rect> ClientControlledShellSurface::GetWidgetBounds()
     const {
   const ash::NonClientFrameViewAsh* frame_view = GetFrameView();
-  if (frame_view->GetFrameEnabled()) {
-    gfx::Rect visible_bounds = GetVisibleBounds();
+  if (frame_view->GetVisible()) {
+    gfx::Rect visible_bounds = ShellSurfaceBase::GetVisibleBounds();
     if (widget_->IsMaximized() && frame_type_ == SurfaceFrameType::NORMAL) {
       // When the widget is maximized in clamshell mode, client sends
       // |geometry_| without taking caption height into account.
@@ -1188,8 +1111,8 @@ bool ClientControlledShellSurface::OnPreWidgetCommit() {
     // Animate PIP window movement unless it is being dragged.
     client_controlled_state_->set_next_bounds_change_animation_type(
         window_state->IsPip() && !window_state->is_dragged()
-            ? ash::WindowState::BoundsChangeAnimationType::kAnimate
-            : ash::WindowState::BoundsChangeAnimationType::kNone);
+            ? ash::ClientControlledState::kAnimationAnimated
+            : ash::ClientControlledState::kAnimationNone);
     return true;
   }
 
@@ -1198,24 +1121,32 @@ bool ClientControlledShellSurface::OnPreWidgetCommit() {
     return true;
   }
 
-  auto animation_type = ash::WindowState::BoundsChangeAnimationType::kNone;
+  auto animation_type = ash::ClientControlledState::kAnimationNone;
   switch (pending_window_state_) {
     case chromeos::WindowStateType::kNormal:
       if (widget_->IsMaximized() || widget_->IsFullscreen()) {
-        animation_type =
-            ash::WindowState::BoundsChangeAnimationType::kCrossFade;
+        animation_type = ash::ClientControlledState::kAnimationCrossFade;
       }
       break;
 
     case chromeos::WindowStateType::kMaximized:
     case chromeos::WindowStateType::kFullscreen:
       if (!window_state->IsPip())
-        animation_type =
-            ash::WindowState::BoundsChangeAnimationType::kCrossFade;
+        animation_type = ash::ClientControlledState::kAnimationCrossFade;
       break;
 
     default:
       break;
+  }
+
+  if (pending_window_state_ == chromeos::WindowStateType::kPip) {
+    if (ash::features::IsPipRoundedCornersEnabled()) {
+      decorator_ = std::make_unique<ash::RoundedCornerDecorator>(
+          window_state->window(), host_window(), host_window()->layer(),
+          ash::kPipRoundedCornerRadius);
+    }
+  } else {
+    decorator_.reset();  // Remove rounded corners.
   }
 
   bool wasPip = window_state->IsPip();
@@ -1227,7 +1158,6 @@ bool ClientControlledShellSurface::OnPreWidgetCommit() {
                                                pending_window_state_)) {
     client_controlled_state_->set_next_bounds_change_animation_type(
         animation_type);
-    UpdateCornerRadius();
   }
 
   if (wasPip && !window_state->IsMinimized()) {
@@ -1255,13 +1185,13 @@ void ClientControlledShellSurface::OnPostWidgetCommit() {
   UpdateFrame();
   UpdateBackdrop();
 
-  if (delegate_) {
+  if (geometry_changed_callback_) {
     // Since the visible bounds are in screen coordinates, do not scale these
     // bounds with the display's scale before sending them.
     // TODO(b/167286795): Instead of sending bounds in screen coordinates, send
     // the bounds in the display along with the display information, similar to
     // the bounds_changed_callback_.
-    delegate_->OnGeometryChanged(GetVisibleBounds());
+    geometry_changed_callback_.Run(GetVisibleBounds());
   }
 
   // Apply new top inset height.
@@ -1279,8 +1209,6 @@ void ClientControlledShellSurface::OnPostWidgetCommit() {
                                           pending_always_on_top_
                                               ? ui::ZOrderLevel::kFloatingWindow
                                               : ui::ZOrderLevel::kNormal);
-
-  UpdateResizability();
 
   ash::WindowState* window_state = GetWindowState();
   // For PIP, the snap fraction is used to specify the ideal position. Usually
@@ -1311,15 +1239,15 @@ void ClientControlledShellSurface::OnContentSizeChanged(Surface* surface) {
 void ClientControlledShellSurface::UpdateFrame() {
   if (!widget_)
     return;
+  gfx::Rect work_area =
+      display::Screen::GetScreen()
+          ->GetDisplayNearestWindow(widget_->GetNativeWindow())
+          .work_area();
+
   ash::WindowState* window_state = GetWindowState();
-  bool enable_wide_frame = false;
-  if (GetFrameView()->GetFrameEnabled() &&
-      window_state->IsMaximizedOrFullscreenOrPinned()) {
-    gfx::Rect ideal_bounds =
-        GetIdealBoundsForMaximizedOrFullscreenOrPinnedState(
-            widget_->GetNativeWindow());
-    enable_wide_frame = ideal_bounds.width() != geometry().width();
-  }
+  bool enable_wide_frame = GetFrameView()->GetVisible() &&
+                           window_state->IsMaximizedOrFullscreenOrPinned() &&
+                           work_area.width() != geometry().width();
   bool update_frame = state_changed_;
   state_changed_ = false;
   if (enable_wide_frame) {
@@ -1398,7 +1326,7 @@ void ClientControlledShellSurface::UpdateFrameWidth() {
     float dsf_to_default_dsf = device_scale_factor / scale_;
     width = base::ClampRound(shadow_bounds_->width() * dsf_to_default_dsf);
   }
-  static_cast<chromeos::HeaderView*>(GetFrameView()->GetHeaderView())
+  static_cast<ash::HeaderView*>(GetFrameView()->GetHeaderView())
       ->SetWidthInPixels(width);
 }
 
@@ -1427,30 +1355,13 @@ void ClientControlledShellSurface::UpdateFrameType() {
     UpdateSurfaceBounds();
 }
 
-bool ClientControlledShellSurface::GetCanResizeFromSizeConstraints() const {
-  // Both min and max bounds of unresizable, maximized ARC windows are empty
-  // because Ash requires maximizable apps have empty max bounds.
-  // This assumes that ARC sets non-empty min sizes to all resizable apps.
-  //
-  // Example values of size constraints:
-  // ----------------------------------------------------------------------
-  // |           |          resizable           |      non-resizable      |
-  // ----------------------------------------------------------------------
-  // | freeform  | min: (400, 400), max: (0, 0) | min = max = window size |
-  // ----------------------------------------------------------------------
-  // | maximized | min: (400, 400), max: (0, 0) |   min = max = (0, 0)    |
-  // ----------------------------------------------------------------------
-
-  return minimum_size_ != maximum_size_;
-}
-
 void ClientControlledShellSurface::
     EnsureCompositorIsLockedForOrientationChange() {
   if (!orientation_compositor_lock_) {
     ui::Compositor* compositor =
         widget_->GetNativeWindow()->layer()->GetCompositor();
     orientation_compositor_lock_ = compositor->GetCompositorLock(
-        this, base::Milliseconds(kOrientationLockTimeoutMs));
+        this, base::TimeDelta::FromMilliseconds(kOrientationLockTimeoutMs));
   }
 }
 
@@ -1469,17 +1380,16 @@ const ash::NonClientFrameViewAsh* ClientControlledShellSurface::GetFrameView()
       widget_->non_client_view()->frame_view());
 }
 
-void ClientControlledShellSurface::EnsurePendingScale(bool commit_immediately) {
+void ClientControlledShellSurface::EnsurePendingScale() {
   // Handle the case where we receive bounds from the client before the initial
-  // scale has been set or |pending_scale_| is stale due to change of displays.
+  // scale has been set.
   if (pending_scale_ == 0.0) {
     DCHECK(!use_default_scale_cancellation_);
     display::Display display;
     if (display::Screen::GetScreen()->GetDisplayWithDisplayId(
             pending_display_id_, &display)) {
       SetScale(display.device_scale_factor());
-      if (commit_immediately)
-        CommitPendingScale();
+      CommitPendingScale();
     }
   }
 }
@@ -1503,8 +1413,8 @@ ClientControlledShellSurface::GetClientBoundsForWindowBoundsAndWindowState(
   // the window bounds instead for maximixed state.
   // Snapped window states in tablet mode do not include the caption height.
   const bool is_snapped =
-      window_state == chromeos::WindowStateType::kPrimarySnapped ||
-      window_state == chromeos::WindowStateType::kSecondarySnapped;
+      window_state == chromeos::WindowStateType::kLeftSnapped ||
+      window_state == chromeos::WindowStateType::kRightSnapped;
   const bool is_maximized =
       window_state == chromeos::WindowStateType::kMaximized;
   const display::TabletState tablet_state =
@@ -1521,8 +1431,8 @@ ClientControlledShellSurface::GetClientBoundsForWindowBoundsAndWindowState(
     // Until the next commit, the frame view is in immersive mode, and the above
     // GetClientBoundsForWindowBounds doesn't return bounds taking the caption
     // height into account.
-    client_bounds.Inset(gfx::Insets().set_top(
-        GetFrameView()->NonClientTopBorderPreferredHeight()));
+    client_bounds.Inset(0, GetFrameView()->NonClientTopBorderPreferredHeight(),
+                        0, 0);
   }
   return client_bounds;
 }

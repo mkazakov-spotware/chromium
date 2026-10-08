@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/check_op.h"
 #include "base/no_destructor.h"
-#include "chrome/browser/ash/login/demo_mode/demo_session.h"
+#include "chrome/browser/chromeos/login/demo_mode/demo_session.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
 #include "chrome/common/apps/platform_apps/api/arc_apps_private.h"
@@ -37,22 +37,22 @@ ArcAppsPrivateAPI::~ArcAppsPrivateAPI() = default;
 
 void ArcAppsPrivateAPI::Shutdown() {
   extensions::EventRouter::Get(context_)->UnregisterObserver(this);
-  scoped_prefs_observation_.Reset();
+  scoped_prefs_observer_.RemoveAll();
 }
 
 void ArcAppsPrivateAPI::OnListenerAdded(
     const extensions::EventListenerInfo& details) {
   DCHECK_EQ(details.event_name, api::arc_apps_private::OnInstalled::kEventName);
   auto* prefs = ArcAppListPrefs::Get(Profile::FromBrowserContext(context_));
-  if (prefs && !scoped_prefs_observation_.IsObservingSource(prefs))
-    scoped_prefs_observation_.Observe(prefs);
+  if (prefs && !scoped_prefs_observer_.IsObserving(prefs))
+    scoped_prefs_observer_.Add(prefs);
 }
 
 void ArcAppsPrivateAPI::OnListenerRemoved(
     const extensions::EventListenerInfo& details) {
   if (!extensions::EventRouter::Get(context_)->HasEventListener(
           api::arc_apps_private::OnInstalled::kEventName)) {
-    scoped_prefs_observation_.Reset();
+    scoped_prefs_observer_.RemoveAll();
   }
 }
 
@@ -103,7 +103,7 @@ ArcAppsPrivateLaunchAppFunction::~ArcAppsPrivateLaunchAppFunction() = default;
 
 ExtensionFunction::ResponseAction ArcAppsPrivateLaunchAppFunction::Run() {
   std::unique_ptr<api::arc_apps_private::LaunchApp::Params> params(
-      api::arc_apps_private::LaunchApp::Params::Create(args()));
+      api::arc_apps_private::LaunchApp::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
   ArcAppListPrefs* prefs =
       ArcAppListPrefs::Get(Profile::FromBrowserContext(browser_context()));
@@ -120,8 +120,8 @@ ExtensionFunction::ResponseAction ArcAppsPrivateLaunchAppFunction::Run() {
     return RespondNow(Error("Launch failed"));
   }
 
-  ash::DemoSession::RecordAppLaunchSourceIfInDemoMode(
-      ash::DemoSession::AppLaunchSource::kExtensionApi);
+  chromeos::DemoSession::RecordAppLaunchSourceIfInDemoMode(
+      chromeos::DemoSession::AppLaunchSource::kExtensionApi);
 
   return RespondNow(NoArguments());
 }

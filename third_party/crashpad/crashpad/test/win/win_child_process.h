@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/win/scoped_handle.h"
 
@@ -40,10 +41,6 @@ class WinChildProcess {
   };
 
   WinChildProcess();
-
-  WinChildProcess(const WinChildProcess&) = delete;
-  WinChildProcess& operator=(const WinChildProcess&) = delete;
-
   virtual ~WinChildProcess() {}
 
   //! \brief Returns true if the current process is a child process.
@@ -112,6 +109,8 @@ class WinChildProcess {
 
   ScopedFileHANDLE pipe_read_;
   ScopedFileHANDLE pipe_write_;
+
+  DISALLOW_COPY_AND_ASSIGN(WinChildProcess);
 };
 
 }  // namespace test

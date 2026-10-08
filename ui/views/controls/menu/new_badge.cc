@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@
 
 #include "base/i18n/rtl.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/text_constants.h"
 #include "ui/gfx/text_utils.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/strings/grit/ui_strings.h"
 #include "ui/views/view.h"
 
@@ -53,7 +52,7 @@ void NewBadge::DrawNewBadge(gfx::Canvas* canvas,
                             int text_top_y,
                             const gfx::FontList& primary_font) {
   gfx::FontList badge_font = DeriveNewBadgeFont(primary_font);
-  const std::u16string new_text = l10n_util::GetStringUTF16(IDS_NEW_BADGE);
+  const base::string16 new_text = l10n_util::GetStringUTF16(IDS_NEW_BADGE);
 
   // Calculate bounding box for badge text.
   unmirrored_badge_left_x += kNewBadgeInternalPadding;
@@ -65,24 +64,23 @@ void NewBadge::DrawNewBadge(gfx::Canvas* canvas,
 
   // Render the badge itself.
   cc::PaintFlags new_flags;
-  const ui::ColorProvider* color_provider = view->GetColorProvider();
-  const SkColor background_color =
-      color_provider->GetColor(ui::kColorButtonBackgroundProminent);
+  const SkColor background_color = view->GetNativeTheme()->GetSystemColor(
+      ui::NativeTheme::kColorId_ProminentButtonColor);
   new_flags.setColor(background_color);
   canvas->DrawRoundRect(
       GetNewBadgeRectOutsetAroundText(badge_font, badge_text_bounds),
       kNewBadgeCornerRadius, new_flags);
 
   // Render the badge text.
-  const SkColor foreground_color =
-      color_provider->GetColor(ui::kColorButtonForegroundProminent);
+  const SkColor foreground_color = view->GetNativeTheme()->GetSystemColor(
+      ui::NativeTheme::kColorId_TextOnProminentButtonColor);
   canvas->DrawStringRect(new_text, badge_font, foreground_color,
                          badge_text_bounds);
 }
 
 // static
 gfx::Size NewBadge::GetNewBadgeSize(const gfx::FontList& primary_font) {
-  const std::u16string new_text = l10n_util::GetStringUTF16(IDS_NEW_BADGE);
+  const base::string16 new_text = l10n_util::GetStringUTF16(IDS_NEW_BADGE);
   gfx::FontList badge_font = DeriveNewBadgeFont(primary_font);
   const gfx::Size text_size = gfx::GetStringSize(new_text, badge_font);
   return GetNewBadgeRectOutsetAroundText(badge_font, gfx::Rect(text_size))
@@ -90,7 +88,7 @@ gfx::Size NewBadge::GetNewBadgeSize(const gfx::FontList& primary_font) {
 }
 
 // static
-std::u16string NewBadge::GetNewBadgeAccessibleDescription() {
+base::string16 NewBadge::GetNewBadgeAccessibleDescription() {
   return l10n_util::GetStringUTF16(IDS_NEW_BADGE_SCREEN_READER_MESSAGE);
 }
 

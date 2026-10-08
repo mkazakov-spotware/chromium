@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "base/at_exit.h"
@@ -18,6 +17,7 @@
 #include "base/files/file_util.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -83,10 +83,6 @@ class BufferedFileReader : public courgette::BasicBuffer {
     if (!buffer_.Initialize(file_name))
       Problem("Can't read %s file.", kind);
   }
-
-  BufferedFileReader(const BufferedFileReader&) = delete;
-  BufferedFileReader& operator=(const BufferedFileReader&) = delete;
-
   ~BufferedFileReader() override = default;
 
   // courgette::BasicBuffer:
@@ -95,6 +91,8 @@ class BufferedFileReader : public courgette::BasicBuffer {
 
  private:
   base::MemoryMappedFile buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(BufferedFileReader);
 };
 
 /******** Various helpers ********/
@@ -409,7 +407,7 @@ int main(int argc, const char* argv[]) {
     settings.logging_dest = logging::LOG_TO_ALL;
     settings.log_file_path = FILE_PATH_LITERAL("courgette.log");
   }
-  std::ignore = logging::InitLogging(settings);
+  (void)logging::InitLogging(settings);
   logging::SetMinLogLevel(logging::LOG_VERBOSE);
 
   bool cmd_sup = command_line.HasSwitch("supported");

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/callback_helpers.h"
 #include "base/feature_list.h"
 #include "base/memory/scoped_refptr.h"
 #include "components/autofill/core/browser/webdata/mock_autofill_webdata_service.h"
@@ -20,8 +19,8 @@
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/sync/base/model_type.h"
 #include "components/sync/driver/data_type_controller.h"
-#import "components/sync/test/test_model_type_store_service.h"
-#import "components/sync/test/test_sync_service.h"
+#include "components/sync/driver/test_sync_service.h"
+#include "components/sync/test/model/test_model_type_store_service.h"
 #include "components/sync_device_info/fake_device_info_sync_service.h"
 #include "ios/web/public/test/web_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -63,13 +62,9 @@ class WebViewSyncClientTest : public PlatformTest {
         prefs::kSavingBrowserHistoryDisabled, true);
     pref_service_.registry()->RegisterDictionaryPref(
         password_manager::prefs::kAccountStoragePerAccountSettings);
-    pref_service_.registry()->RegisterBooleanPref(
-        password_manager::prefs::kWereOldGoogleLoginsRemoved, false);
-    profile_password_store_->Init(&pref_service_,
-                                  /*affiliated_match_helper=*/nullptr);
+    profile_password_store_->Init(&pref_service_, base::DoNothing());
     if (account_password_store_) {
-      account_password_store_->Init(&pref_service_,
-                                    /*affiliated_match_helper=*/nullptr);
+      account_password_store_->Init(&pref_service_, base::DoNothing());
     }
   }
 

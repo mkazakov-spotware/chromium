@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <map>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/base/models/menu_model_delegate.h"
 #include "ui/views/controls/menu/menu_delegate.h"
 
@@ -31,10 +31,6 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
   explicit MenuModelAdapter(ui::MenuModel* menu_model);
   MenuModelAdapter(ui::MenuModel* menu_model,
                    base::RepeatingClosure on_menu_closed_callback);
-
-  MenuModelAdapter(const MenuModelAdapter&) = delete;
-  MenuModelAdapter& operator=(const MenuModelAdapter&) = delete;
-
   ~MenuModelAdapter() override;
 
   // Populate a MenuItemView menu with the ui::MenuModel items
@@ -53,20 +49,20 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
   // Creates a menu item for the specified entry in the model and adds it as
   // a child to |menu| at the specified |menu_index|.
   static MenuItemView* AddMenuItemFromModelAt(ui::MenuModel* model,
-                                              size_t model_index,
+                                              int model_index,
                                               MenuItemView* menu,
-                                              size_t menu_index,
+                                              int menu_index,
                                               int item_id);
 
   // Creates a menu item for the specified entry in the model and appends it as
   // a child to |menu|.
   static MenuItemView* AppendMenuItemFromModel(ui::MenuModel* model,
-                                               size_t model_index,
+                                               int model_index,
                                                MenuItemView* menu,
                                                int item_id);
 
   // MenuModelDelegate:
-  void OnIconChanged(int command_id) override {}
+  void OnIconChanged(int index) override {}
   void OnMenuStructureChanged() override;
   void OnMenuClearingDelegate() override;
 
@@ -76,15 +72,15 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
   // menu.
   virtual MenuItemView* AppendMenuItem(MenuItemView* menu,
                                        ui::MenuModel* model,
-                                       size_t index);
+                                       int index);
 
   // views::MenuDelegate implementation.
   void ExecuteCommand(int id) override;
   void ExecuteCommand(int id, int mouse_event_flags) override;
   bool IsTriggerableEvent(MenuItemView* source, const ui::Event& e) override;
   bool GetAccelerator(int id, ui::Accelerator* accelerator) const override;
-  std::u16string GetLabel(int id) const override;
-  const gfx::FontList* GetLabelFontList(int id) const override;
+  base::string16 GetLabel(int id) const override;
+  void GetLabelStyle(int id, LabelStyle* style) const override;
   bool IsCommandEnabled(int id) const override;
   bool IsCommandVisible(int id) const override;
   bool IsItemChecked(int id) const override;
@@ -99,11 +95,11 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
   // Container of ui::MenuModel pointers as encountered by preorder
   // traversal.  The first element is always the top-level model
   // passed to the constructor.
-  raw_ptr<ui::MenuModel, DanglingUntriaged> menu_model_;
+  ui::MenuModel* menu_model_;
 
   // Pointer to the MenuItemView created and updated by |this|, but not owned by
   // |this|.
-  raw_ptr<MenuItemView, DanglingUntriaged> menu_;
+  MenuItemView* menu_;
 
   // Mouse event flags which can trigger menu actions.
   int triggerable_event_flags_;
@@ -113,6 +109,8 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
 
   // Optional callback triggered during OnMenuClosed().
   base::RepeatingClosure on_menu_closed_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(MenuModelAdapter);
 };
 
 }  // namespace views

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -309,9 +309,9 @@ public class MediaSessionTest {
 
     // TODO(zqzhang): Investigate why this test fails after switching to .ogg from .mp3
     @Test
+    @DisabledTest
     @SmallTest
     @Feature({"MediaSession"})
-    @DisabledTest(message = "https://crbug.com/1315305")
     public void testShortAudioStopsIfLostFocus() throws Exception {
         Assert.assertEquals(
                 AudioManager.AUDIOFOCUS_LOSS, mAudioFocusChangeListener.getAudioFocusState());
@@ -336,7 +336,6 @@ public class MediaSessionTest {
     @Test
     @SmallTest
     @Feature({"MediaSession"})
-    @DisabledTest(message = "https://crbug.com/1157320")
     public void testShortVideoStopsIfLostFocus() throws Exception {
         Assert.assertEquals(
                 AudioManager.AUDIOFOCUS_LOSS, mAudioFocusChangeListener.getAudioFocusState());
@@ -361,7 +360,6 @@ public class MediaSessionTest {
     @Test
     @MediumTest
     @Feature({"MediaSession"})
-    @DisabledTest(message = "crbug.com/1157494")
     public void testAudioStopsIfLostFocus() throws Exception {
         Assert.assertEquals(
                 AudioManager.AUDIOFOCUS_LOSS, mAudioFocusChangeListener.getAudioFocusState());
@@ -385,7 +383,6 @@ public class MediaSessionTest {
     @Test
     @SmallTest
     @Feature({"MediaSession"})
-    @DisabledTest(message = "crbug.com/1157494")
     public void testVideoStopsIfLostFocus() throws Exception {
         Assert.assertEquals(
                 AudioManager.AUDIOFOCUS_LOSS, mAudioFocusChangeListener.getAudioFocusState());
@@ -451,7 +448,6 @@ public class MediaSessionTest {
     @MediumTest
     @Feature({"MediaSession"})
     @Restriction(Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE) // crbug.com/589176
-    @DisabledTest(message = "https://crbug.com/1157320")
     public void testMediaResumeAfterTransientFocusLoss() throws Exception {
         Assert.assertEquals(
                 AudioManager.AUDIOFOCUS_LOSS, mAudioFocusChangeListener.getAudioFocusState());
@@ -483,7 +479,6 @@ public class MediaSessionTest {
     @Test
     @MediumTest
     @Feature({"MediaSession"})
-    @DisabledTest(message = "crbug.com/1157494")
     public void testSessionSuspendedAfterFocusLossWhenPlaying() throws Exception {
         ArrayList<StateRecord> expectedStates = new ArrayList<StateRecord>();
         expectedStates.add(new StateRecord(true, false));
@@ -515,7 +510,6 @@ public class MediaSessionTest {
     @Feature({"MediaSession"})
     public void testSessionSuspendedAfterFocusLossWhenPaused() throws Exception {
         ArrayList<StateRecord> expectedStates = new ArrayList<StateRecord>();
-        expectedStates.add(new StateRecord(false, true));
         expectedStates.add(new StateRecord(true, false));
         expectedStates.add(new StateRecord(true, true));
 

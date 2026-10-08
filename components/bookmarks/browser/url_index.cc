@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/containers/adapters.h"
 #include "base/guid.h"
 #include "components/bookmarks/browser/url_and_title.h"
-#include "components/bookmarks/common/url_load_stats.h"
 
 namespace bookmarks {
 
@@ -24,7 +23,7 @@ namespace {
 // calling site.
 void AddStatsForBookmarksWithSameUrl(
     std::vector<const BookmarkNode*>* bookmarks_with_same_url,
-    UrlLoadStats* stats) {
+    UrlIndex::Stats* stats) {
   if (bookmarks_with_same_url->size() <= 1)
     return;
 
@@ -85,7 +84,7 @@ std::unique_ptr<BookmarkNode> UrlIndex::Remove(BookmarkNode* node,
   base::AutoLock url_lock(url_lock_);
   RemoveImpl(node, removed_urls);
   BookmarkNode* parent = node->parent();
-  return parent->Remove(parent->GetIndexOf(node).value());
+  return parent->Remove(size_t{parent->GetIndexOf(node)});
 }
 
 void UrlIndex::SetUrl(BookmarkNode* node, const GURL& url) {
@@ -95,7 +94,7 @@ void UrlIndex::SetUrl(BookmarkNode* node, const GURL& url) {
   AddImpl(node);
 }
 
-void UrlIndex::SetTitle(BookmarkNode* node, const std::u16string& title) {
+void UrlIndex::SetTitle(BookmarkNode* node, const base::string16& title) {
   // Acquiring the lock is necessary to avoid races with
   // UrlIndex::GetBookmarks().
   base::AutoLock url_lock(url_lock_);
@@ -114,7 +113,7 @@ void UrlIndex::GetNodesWithIconUrl(const GURL& icon_url,
 void UrlIndex::GetNodesByUrl(const GURL& url,
                              std::vector<const BookmarkNode*>* nodes) {
   base::AutoLock url_lock(url_lock_);
-  BookmarkNode tmp_node(/*id=*/0, base::GUID::GenerateRandomV4(), url);
+  BookmarkNode tmp_node(/*id=*/0, base::GenerateGUID(), url);
   auto i = nodes_ordered_by_url_set_.find(&tmp_node);
   while (i != nodes_ordered_by_url_set_.end() && (*i)->url() == url) {
     nodes->push_back(*i);
@@ -127,9 +126,9 @@ bool UrlIndex::HasBookmarks() const {
   return !nodes_ordered_by_url_set_.empty();
 }
 
-UrlLoadStats UrlIndex::ComputeStats() const {
+UrlIndex::Stats UrlIndex::ComputeStats() const {
   base::AutoLock url_lock(url_lock_);
-  UrlLoadStats stats;
+  UrlIndex::Stats stats;
   stats.total_url_bookmark_count = nodes_ordered_by_url_set_.size();
 
   if (stats.total_url_bookmark_count <= 1)
@@ -144,12 +143,9 @@ UrlLoadStats UrlIndex::ComputeStats() const {
       bookmarks_with_same_url.clear();
     }
 
-    stats.avg_num_days_since_added +=
-        (base::Time::Now() - (*i)->date_added()).InDays();
     bookmarks_with_same_url.push_back(*i);
   }
 
-  stats.avg_num_days_since_added /= nodes_ordered_by_url_set_.size();
   AddStatsForBookmarksWithSameUrl(&bookmarks_with_same_url, &stats);
   return stats;
 }
@@ -180,7 +176,7 @@ UrlIndex::~UrlIndex() = default;
 
 bool UrlIndex::IsBookmarkedNoLock(const GURL& url) {
   url_lock_.AssertAcquired();
-  BookmarkNode tmp_node(/*id=*/0, base::GUID::GenerateRandomV4(), url);
+  BookmarkNode tmp_node(/*id=*/0, base::GenerateGUID(), url);
   return (nodes_ordered_by_url_set_.find(&tmp_node) !=
           nodes_ordered_by_url_set_.end());
 }

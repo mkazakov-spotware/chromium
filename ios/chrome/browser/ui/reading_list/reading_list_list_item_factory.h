@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 class ReadingListEntry;
 @protocol ReadingListListItem;
 @protocol ReadingListListItemAccessibilityDelegate;
-@protocol ReadingListListItemFactoryDelegate;
 
 // Factory object that produces ListItems for Reading List.
 @interface ReadingListListItemFactory : NSObject
@@ -19,9 +18,6 @@ class ReadingListEntry;
 // The accessibility delegate to use for the created items.
 @property(nonatomic, weak) id<ReadingListListItemAccessibilityDelegate>
     accessibilityDelegate;
-
-// Delegate, for the incognito availability.
-@property(nonatomic, weak) id<ReadingListListItemFactoryDelegate> delegate;
 
 // Factory method that provides a ListItem for the reading list.
 - (ListItem<ReadingListListItem>*)cellItemForReadingListEntry:

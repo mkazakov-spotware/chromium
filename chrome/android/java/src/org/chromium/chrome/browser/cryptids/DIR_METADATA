@@ -1,1 +1,5 @@
-mixins: "//chrome/android/java/src/org/chromium/chrome/browser/cryptids/COMMON_METADATA"
+monorail {
+  component: "UI>Browser>Joy"
+}
+team_email: "chrome-creation@google.com"
+os: ANDROID

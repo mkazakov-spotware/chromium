@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "base/check_op.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
@@ -59,7 +60,7 @@ void FindBarController::Show(bool find_next, bool forward_direction) {
   if (has_user_modified_text_)
     return;
 
-  std::u16string selected_text = GetSelectedText();
+  base::string16 selected_text = GetSelectedText();
   auto selected_length = selected_text.length();
   if (selected_length > 0 && selected_length <= 250) {
     find_bar_->SetFindTextAndSelectedRange(
@@ -110,16 +111,17 @@ void FindBarController::ChangeWebContents(WebContents* contents) {
         find_in_page::FindTabHelper::FromWebContents(web_contents_);
     if (find_tab_helper) {
       find_tab_helper->set_selected_range(find_bar_->GetSelectedRange());
-      DCHECK(find_tab_observation_.IsObservingSource(find_tab_helper));
-      find_tab_observation_.Reset();
+      find_tab_observer_.Remove(find_tab_helper);
     }
   }
 
+  web_contents_ = contents;
   find_in_page::FindTabHelper* find_tab_helper =
-      contents ? find_in_page::FindTabHelper::FromWebContents(contents)
-               : nullptr;
+      web_contents_
+          ? find_in_page::FindTabHelper::FromWebContents(web_contents_)
+          : nullptr;
   if (find_tab_helper)
-    find_tab_observation_.Observe(find_tab_helper);
+    find_tab_observer_.Add(find_tab_helper);
 
   // Hide any visible find window from the previous tab if a NULL tab contents
   // is passed in or if the find UI is not active in the new tab.
@@ -127,8 +129,6 @@ void FindBarController::ChangeWebContents(WebContents* contents) {
       (!find_tab_helper || !find_tab_helper->find_ui_active())) {
     find_bar_->Hide(false);
   }
-
-  web_contents_ = contents;
 
   if (!web_contents_)
     return;
@@ -164,7 +164,7 @@ void FindBarController::ChangeWebContents(WebContents* contents) {
   find_bar_->UpdateFindBarForChangedWebContents();
 }
 
-void FindBarController::SetText(std::u16string text) {
+void FindBarController::SetText(base::string16 text) {
   find_bar_->SetFindTextAndSelectedRange(text, find_bar_->GetSelectedRange());
 
   if (!web_contents_)
@@ -180,7 +180,7 @@ void FindBarController::SetText(std::u16string text) {
                                 false /* find_match */);
 }
 
-void FindBarController::OnUserChangedFindText(std::u16string text) {
+void FindBarController::OnUserChangedFindText(base::string16 text) {
   has_user_modified_text_ = !text.empty();
 
   if (find_bar_platform_helper_)
@@ -228,7 +228,7 @@ void FindBarController::OnFindResultAvailable(
       !find_tab_helper->should_find_match())
     return;
 
-  const std::u16string& current_search = find_tab_helper->find_text();
+  const base::string16& current_search = find_tab_helper->find_text();
 
   // If no results were found, play an audible alert (depending upon platform
   // convention). Alert only once per unique search, and don't alert on
@@ -282,7 +282,7 @@ void FindBarController::MaybeSetPrepopulateText() {
   // we use the last search string (from any tab).
   find_in_page::FindTabHelper* find_tab_helper =
       find_in_page::FindTabHelper::FromWebContents(web_contents_);
-  std::u16string find_string = find_tab_helper->find_text();
+  base::string16 find_string = find_tab_helper->find_text();
   if (find_string.empty())
     find_string = find_tab_helper->GetInitialSearchText();
 
@@ -295,12 +295,12 @@ void FindBarController::MaybeSetPrepopulateText() {
                                          find_tab_helper->selected_range());
 }
 
-std::u16string FindBarController::GetSelectedText() {
+base::string16 FindBarController::GetSelectedText() {
   auto* host_view = web_contents_->GetRenderWidgetHostView();
   if (!host_view)
-    return std::u16string();
+    return base::string16();
 
-  std::u16string selected_text = host_view->GetSelectedText();
+  base::string16 selected_text = host_view->GetSelectedText();
   // This should be kept in sync with what TextfieldModel::Paste() does, since
   // that's what would run if the user explicitly pasted this text into the find
   // bar.

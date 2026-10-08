@@ -1,21 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/api/storage/policy_value_store.h"
 
-#include <algorithm>
 #include <utility>
 
 #include "base/logging.h"
 #include "base/values.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_types.h"
-#include "components/value_store/value_store_change.h"
 #include "extensions/browser/api/storage/backend_task_runner.h"
-#include "extensions/browser/api/storage/storage_area_namespace.h"
-
-using value_store::ValueStore;
+#include "extensions/browser/api/storage/settings_namespace.h"
+#include "extensions/browser/value_store/value_store_change.h"
 
 namespace extensions {
 
@@ -30,10 +27,10 @@ ValueStore::Status ReadOnlyError() {
 
 PolicyValueStore::PolicyValueStore(
     const std::string& extension_id,
-    SequenceBoundSettingsChangedCallback observer,
+    scoped_refptr<SettingsObserverList> observers,
     std::unique_ptr<ValueStore> delegate)
     : extension_id_(extension_id),
-      observer_(std::move(observer)),
+      observers_(std::move(observers)),
       delegate_(std::move(delegate)) {}
 
 PolicyValueStore::~PolicyValueStore() {}
@@ -42,10 +39,11 @@ void PolicyValueStore::SetCurrentPolicy(const policy::PolicyMap& policy) {
   DCHECK(IsOnBackendSequence());
   // Convert |policy| to a dictionary value. Only include mandatory policies
   // for now.
-  base::Value::Dict current_policy;
-  for (const auto& it : policy) {
-    if (it.second.level == policy::POLICY_LEVEL_MANDATORY) {
-      current_policy.Set(it.first, it.second.value_unsafe()->Clone());
+  base::DictionaryValue current_policy;
+  for (auto it = policy.begin(); it != policy.end(); ++it) {
+    if (it->second.level == policy::POLICY_LEVEL_MANDATORY) {
+      current_policy.SetWithoutPathExpansion(
+          it->first, it->second.value()->CreateDeepCopy());
     }
   }
 
@@ -53,7 +51,7 @@ void PolicyValueStore::SetCurrentPolicy(const policy::PolicyMap& policy) {
   // TODO(joaodasilva): it'd be better to have a less expensive way of
   // determining which keys are currently stored, or of determining which keys
   // must be removed.
-  base::Value::Dict previous_policy;
+  base::DictionaryValue previous_policy;
   ValueStore::ReadResult read_result = delegate_->Get();
 
   if (!read_result.status().ok()) {
@@ -62,46 +60,40 @@ void PolicyValueStore::SetCurrentPolicy(const policy::PolicyMap& policy) {
     // Leave |previous_policy| empty, so that events are generated for every
     // policy in |current_policy|.
   } else {
-    std::swap(read_result.settings(), previous_policy);
+    read_result.settings().Swap(&previous_policy);
   }
 
   // Now get two lists of changes: changes after setting the current policies,
   // and changes after removing old policies that aren't in |current_policy|
   // anymore.
   std::vector<std::string> removed_keys;
-  for (auto kv : previous_policy) {
-    if (!current_policy.Find(kv.first))
-      removed_keys.push_back(kv.first);
+  for (base::DictionaryValue::Iterator it(previous_policy);
+       !it.IsAtEnd(); it.Advance()) {
+    if (!current_policy.HasKey(it.key()))
+      removed_keys.push_back(it.key());
   }
 
-  value_store::ValueStoreChangeList changes;
+  ValueStoreChangeList changes;
 
-  {
-    WriteResult result = delegate_->Remove(removed_keys);
-    if (result.status().ok()) {
-      auto new_changes = result.PassChanges();
-      changes.insert(changes.end(),
-                     std::make_move_iterator(new_changes.begin()),
-                     std::make_move_iterator(new_changes.end()));
-    }
+  WriteResult result = delegate_->Remove(removed_keys);
+  if (result.status().ok()) {
+    changes.insert(changes.end(), result.changes().begin(),
+                   result.changes().end());
   }
 
-  {
-    // IGNORE_QUOTA because these settings aren't writable by the extension, and
-    // are configured by the domain administrator.
-    ValueStore::WriteOptions options = ValueStore::IGNORE_QUOTA;
-    WriteResult result = delegate_->Set(options, current_policy);
-    if (result.status().ok()) {
-      auto new_changes = result.PassChanges();
-      changes.insert(changes.end(),
-                     std::make_move_iterator(new_changes.begin()),
-                     std::make_move_iterator(new_changes.end()));
-    }
+  // IGNORE_QUOTA because these settings aren't writable by the extension, and
+  // are configured by the domain administrator.
+  ValueStore::WriteOptions options = ValueStore::IGNORE_QUOTA;
+  result = delegate_->Set(options, current_policy);
+  if (result.status().ok()) {
+    changes.insert(changes.end(), result.changes().begin(),
+                   result.changes().end());
   }
 
   if (!changes.empty()) {
-    observer_->Run(extension_id_, StorageAreaNamespace::kManaged,
-                   value_store::ValueStoreChange::ToValue(std::move(changes)));
+    observers_->Notify(FROM_HERE, &SettingsObserver::OnSettingsChanged,
+                       extension_id_, settings_namespace::MANAGED,
+                       ValueStoreChange::ToJson(changes));
   }
 }
 
@@ -149,7 +141,7 @@ ValueStore::WriteResult PolicyValueStore::Set(WriteOptions options,
 
 ValueStore::WriteResult PolicyValueStore::Set(
     WriteOptions options,
-    const base::Value::Dict& settings) {
+    const base::DictionaryValue& settings) {
   return WriteResult(ReadOnlyError());
 }
 

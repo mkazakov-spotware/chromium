@@ -1,25 +1,22 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/ntp_snippets/remote/remote_suggestions_provider_impl.h"
 
+#include <algorithm>
 #include <iterator>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/containers/adapters.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/location.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_clock.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -95,12 +92,13 @@ void AddFetchedCategoriesToRankerBasedOnArticlesCategory(
   // Insert categories which follow "Articles" in the response. Note that we
   // insert them in reversed order, because they are inserted right after
   // "Articles", which reverses the order.
-  for (const FetchedCategory& fetched_category :
-       base::Reversed(fetched_categories)) {
-    if (fetched_category.category == articles_category) {
+  for (auto fetched_category_it = fetched_categories.rbegin();
+       fetched_category_it != fetched_categories.rend();
+       ++fetched_category_it) {
+    if (fetched_category_it->category == articles_category) {
       return;
     }
-    ranker->InsertCategoryAfterIfNecessary(fetched_category.category,
+    ranker->InsertCategoryAfterIfNecessary(fetched_category_it->category,
                                            articles_category);
   }
   NOTREACHED() << "Articles category was not found.";
@@ -168,7 +166,7 @@ const char kTimeoutForLoadingIndicatorSecondsParamName[] =
 const int kDefaultTimeoutForLoadingIndicatorSeconds = 5;
 
 base::TimeDelta GetTimeoutForLoadingIndicator() {
-  return base::Seconds(base::GetFieldTrialParamByFeatureAsInt(
+  return base::TimeDelta::FromSeconds(base::GetFieldTrialParamByFeatureAsInt(
       ntp_snippets::kArticleSuggestionsFeature,
       kTimeoutForLoadingIndicatorSecondsParamName,
       kDefaultTimeoutForLoadingIndicatorSeconds));
@@ -274,12 +272,11 @@ void CallWithEmptyResults(FetchDoneCallback callback, const Status& status) {
 void AddDismissedIdsToRequest(const RemoteSuggestion::PtrVector& dismissed,
                               RequestParams* request_params) {
   // The latest ids are added first, because they are more relevant.
-  for (const std::unique_ptr<RemoteSuggestion>& suggestion :
-       base::Reversed(dismissed)) {
+  for (auto it = dismissed.rbegin(); it != dismissed.rend(); ++it) {
     if (request_params->excluded_ids.size() == kMaxExcludedDismissedIds) {
       break;
     }
-    request_params->excluded_ids.insert(suggestion->id());
+    request_params->excluded_ids.insert((*it)->id());
   }
 }
 
@@ -334,7 +331,7 @@ RemoteSuggestionsProviderImpl::RemoteSuggestionsProviderImpl(
   // TODO(treib): Rethink this.
   category_contents_.insert(
       std::make_pair(articles_category_,
-                     CategoryContent(BuildArticleCategoryInfo(absl::nullopt))));
+                     CategoryContent(BuildArticleCategoryInfo(base::nullopt))));
   // Tell the observer about all the categories.
   for (const auto& entry : category_contents_) {
     observer->OnCategoryStatusChanged(this, entry.first, entry.second.status);
@@ -509,7 +506,7 @@ void RemoteSuggestionsProviderImpl::FetchSuggestions(
 
   // |count_to_fetch| is actually ignored, because the server does not support
   // this functionality.
-  RequestParams params = BuildFetchParams(/*fetched_category=*/absl::nullopt,
+  RequestParams params = BuildFetchParams(/*fetched_category=*/base::nullopt,
                                           /*count_to_fetch=*/10);
   params.interactive_request = interactive_request;
   suggestions_fetcher_->FetchSnippets(
@@ -558,7 +555,7 @@ void RemoteSuggestionsProviderImpl::Fetch(
 
 // Builds default fetcher params.
 RequestParams RemoteSuggestionsProviderImpl::BuildFetchParams(
-    absl::optional<Category> fetched_category,
+    base::Optional<Category> fetched_category,
     int count_to_fetch) const {
   RequestParams result;
   result.language_code = application_language_code_;
@@ -881,7 +878,8 @@ void RemoteSuggestionsProviderImpl::OnFetchFinished(
         if (ShouldForceFetchedSuggestionsNotifications() &&
             IsFetchedSuggestionsNotificationsEnabled()) {
           suggestion->set_should_notify(true);
-          suggestion->set_notification_deadline(clock_->Now() + base::Days(7));
+          suggestion->set_notification_deadline(clock_->Now() +
+                                                base::TimeDelta::FromDays(7));
         }
         if (!IsFetchedSuggestionsNotificationsEnabled()) {
           suggestion->set_should_notify(false);
@@ -1126,8 +1124,13 @@ void RemoteSuggestionsProviderImpl::
 void RemoteSuggestionsProviderImpl::DismissSuggestionFromCategoryContent(
     CategoryContent* content,
     const std::string& id_within_category) {
-  auto it = base::ranges::find(content->suggestions, id_within_category,
-                               &RemoteSuggestion::id);
+  auto id_predicate = [&id_within_category](
+                          const std::unique_ptr<RemoteSuggestion>& suggestion) {
+    return suggestion->id() == id_within_category;
+  };
+
+  auto it = std::find_if(content->suggestions.begin(),
+                         content->suggestions.end(), id_predicate);
   if (it != content->suggestions.end()) {
     (*it)->set_dismissed(true);
     database_->SaveSnippet(**it);
@@ -1135,8 +1138,8 @@ void RemoteSuggestionsProviderImpl::DismissSuggestionFromCategoryContent(
     content->suggestions.erase(it);
   } else {
     // Check the archive.
-    auto archive_it = base::ranges::find(content->archived, id_within_category,
-                                         &RemoteSuggestion::id);
+    auto archive_it = std::find_if(content->archived.begin(),
+                                   content->archived.end(), id_predicate);
     if (archive_it != content->archived.end()) {
       (*archive_it)->set_dismissed(true);
     }
@@ -1285,7 +1288,7 @@ void RemoteSuggestionsProviderImpl::FetchSuggestionImage(
     // As we don't know the corresponding suggestion anymore, we don't expect to
     // find it in the database (and also can't fetch it remotely). Cut the
     // lookup short and return directly.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), gfx::Image()));
     return;
   }
@@ -1302,7 +1305,7 @@ void RemoteSuggestionsProviderImpl::FetchSuggestionImageData(
     // As we don't know the corresponding suggestion anymore, we don't expect to
     // find it in the database (and also can't fetch it remotely). Cut the
     // lookup short and return directly.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), std::string()));
     return;
   }
@@ -1500,22 +1503,34 @@ void RemoteSuggestionsProviderImpl::UpdateAllCategoryStatus(
   }
 }
 
+namespace {
+
+template <typename T>
+typename T::const_iterator FindSuggestionInContainer(
+    const T& container,
+    const std::string& id_within_category) {
+  return std::find_if(container.begin(), container.end(),
+                      [&id_within_category](
+                          const std::unique_ptr<RemoteSuggestion>& suggestion) {
+                        return suggestion->id() == id_within_category;
+                      });
+}
+
+}  // namespace
+
 const RemoteSuggestion*
 RemoteSuggestionsProviderImpl::CategoryContent::FindSuggestion(
     const std::string& id_within_category) const {
   // Search for the suggestion in current and archived suggestions.
-  auto it = base::ranges::find(suggestions, id_within_category,
-                               &RemoteSuggestion::id);
+  auto it = FindSuggestionInContainer(suggestions, id_within_category);
   if (it != suggestions.end()) {
     return it->get();
   }
-  auto archived_it =
-      base::ranges::find(archived, id_within_category, &RemoteSuggestion::id);
+  auto archived_it = FindSuggestionInContainer(archived, id_within_category);
   if (archived_it != archived.end()) {
     return archived_it->get();
   }
-  auto dismissed_it =
-      base::ranges::find(dismissed, id_within_category, &RemoteSuggestion::id);
+  auto dismissed_it = FindSuggestionInContainer(dismissed, id_within_category);
   if (dismissed_it != dismissed.end()) {
     return dismissed_it->get();
   }
@@ -1540,38 +1555,39 @@ void RemoteSuggestionsProviderImpl::RestoreCategoriesFromPrefs() {
   // This must only be called at startup, before there are any categories.
   DCHECK(category_contents_.empty());
 
-  const base::Value::List& list =
+  const base::ListValue* list =
       pref_service_->GetList(prefs::kRemoteSuggestionCategories);
-  for (const base::Value& entry : list) {
-    if (!entry.is_dict()) {
+  for (const base::Value& entry : *list) {
+    const base::DictionaryValue* dict = nullptr;
+    if (!entry.GetAsDictionary(&dict)) {
       DLOG(WARNING) << "Invalid category pref value: " << entry;
       continue;
     }
-    const base::Value::Dict& dict = entry.GetDict();
-    absl::optional<int> id = dict.FindInt(kCategoryContentId);
-    if (!id) {
+    int id = 0;
+    if (!dict->GetInteger(kCategoryContentId, &id)) {
       DLOG(WARNING) << "Invalid category pref value, missing '"
                     << kCategoryContentId << "': " << entry;
       continue;
     }
-    const std::string* title = dict.FindString(kCategoryContentTitle);
-    if (!title) {
+    base::string16 title;
+    if (!dict->GetString(kCategoryContentTitle, &title)) {
       DLOG(WARNING) << "Invalid category pref value, missing '"
                     << kCategoryContentTitle << "': " << entry;
       continue;
     }
-    absl::optional<bool> included_in_last_server_response =
-        dict.FindBool(kCategoryContentProvidedByServer);
-    if (!included_in_last_server_response) {
+    bool included_in_last_server_response = false;
+    if (!dict->GetBoolean(kCategoryContentProvidedByServer,
+                          &included_in_last_server_response)) {
       DLOG(WARNING) << "Invalid category pref value, missing '"
                     << kCategoryContentProvidedByServer << "': " << entry;
       continue;
     }
+    bool allow_fetching_more_results = false;
     // This wasn't always around, so it's okay if it's missing.
-    bool allow_fetching_more_results =
-        dict.FindBool(kCategoryContentAllowFetchingMore).value_or(false);
+    dict->GetBoolean(kCategoryContentAllowFetchingMore,
+                     &allow_fetching_more_results);
 
-    Category category = Category::FromIDValue(*id);
+    Category category = Category::FromIDValue(id);
     // The ranker may not persist the order of remote categories.
     category_ranker_->AppendCategoryIfNecessary(category);
     // TODO(tschumann): The following has a bad smell that category
@@ -1582,12 +1598,11 @@ void RemoteSuggestionsProviderImpl::RestoreCategoriesFromPrefs() {
     // avoid using a title that was calculated for a stale locale.
     CategoryInfo info =
         category == articles_category_
-            ? BuildArticleCategoryInfo(absl::nullopt)
-            : BuildRemoteCategoryInfo(base::UTF8ToUTF16(*title),
-                                      allow_fetching_more_results);
+            ? BuildArticleCategoryInfo(base::nullopt)
+            : BuildRemoteCategoryInfo(title, allow_fetching_more_results);
     CategoryContent* content = UpdateCategoryInfo(category, info);
     content->included_in_last_server_response =
-        included_in_last_server_response.value();
+        included_in_last_server_response;
   }
 }
 
@@ -1604,24 +1619,23 @@ void RemoteSuggestionsProviderImpl::StoreCategoriesToPrefs() {
               return category_ranker_->Compare(left.first, right.first);
             });
   // Convert the relevant info into a base::ListValue for storage.
-  base::Value::List list;
+  base::ListValue list;
   for (const auto& entry : to_store) {
     const Category& category = entry.first;
     const CategoryContent& content = *entry.second;
-    base::Value::Dict dict;
-    dict.Set(kCategoryContentId, category.id());
+    auto dict = std::make_unique<base::DictionaryValue>();
+    dict->SetInteger(kCategoryContentId, category.id());
     // TODO(tschumann): Persist other properties of the CategoryInfo.
-    dict.Set(kCategoryContentTitle, content.info.title());
-    dict.Set(kCategoryContentProvidedByServer,
-             content.included_in_last_server_response);
+    dict->SetString(kCategoryContentTitle, content.info.title());
+    dict->SetBoolean(kCategoryContentProvidedByServer,
+                     content.included_in_last_server_response);
     bool has_fetch_action = content.info.additional_action() ==
                             ContentSuggestionsAdditionalAction::FETCH;
-    dict.Set(kCategoryContentAllowFetchingMore, has_fetch_action);
+    dict->SetBoolean(kCategoryContentAllowFetchingMore, has_fetch_action);
     list.Append(std::move(dict));
   }
   // Finally, store the result in the pref service.
-  pref_service_->Set(prefs::kRemoteSuggestionCategories,
-                     base::Value(std::move(list)));
+  pref_service_->Set(prefs::kRemoteSuggestionCategories, list);
 }
 
 RemoteSuggestionsProviderImpl::CategoryContent::CategoryContent(

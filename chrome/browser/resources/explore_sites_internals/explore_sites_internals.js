@@ -1,12 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {PageHandler} from './explore_sites_internals.mojom-webui.js';
+'use strict';
 
 // Reference to the backend.
 let pageHandler = null;
 
+(function() {
 function delay(ms) {
   return new Promise((resolve, reject) => setTimeout(resolve, ms));
 }
@@ -24,7 +25,7 @@ const FAILED_CSS_CLASS = 'failed';
  */
 function showThrobber(id, promiseToWaitFor) {
   const delayMs = 400;
-  const element = document.body.querySelector(`#${id}`);
+  const element = $(id);
   element.classList.remove(FAILED_CSS_CLASS);
 
   element.removeAttribute('hidden');
@@ -41,7 +42,7 @@ function showThrobber(id, promiseToWaitFor) {
 function updatePageWithProperties() {
   pageHandler.getProperties().then(function(response) {
     for (const [field, value] of Object.entries(response.properties)) {
-      document.body.querySelector(`#${field}`).textContent = value;
+      $(field).textContent = value;
     }
   });
 }
@@ -53,10 +54,7 @@ function updatePageWithProperties() {
 function clearCachedCatalog() {
   const id = 'clear-catalog-throbber';
   showThrobber(id, pageHandler.clearCachedExploreSitesCatalog())
-      .then(success => {
-        document.body.querySelector(`#${id}`).classList.toggle(
-            FAILED_CSS_CLASS, !success);
-      });
+      .then(success => $(id).classList.toggle(FAILED_CSS_CLASS, !success));
 }
 
 /**
@@ -65,12 +63,10 @@ function clearCachedCatalog() {
  */
 function overrideCountryCode() {
   const id = 'country-override-throbber';
-  const newCountryCode =
-      document.body.querySelector('#country-code-input').value;
+  const newCountryCode = $('country-code-input').value;
   showThrobber(id, pageHandler.overrideCountryCode(newCountryCode))
       .then(success => {
-        document.body.querySelector(`#${id}`).classList.toggle(
-            FAILED_CSS_CLASS, !success);
+        $(id).classList.toggle(FAILED_CSS_CLASS, !success);
         updatePageWithProperties();
       });
 }
@@ -82,22 +78,18 @@ function overrideCountryCode() {
  */
 function forceNetworkRequest() {
   const id = 'network-request-throbber';
-  showThrobber(id, pageHandler.forceNetworkRequest()).then(e => {
-    document.body.querySelector(`#${id}`).classList.toggle(
-        FAILED_CSS_CLASS, !e.success);
-  });
+  showThrobber(id, pageHandler.forceNetworkRequest())
+      .then(e => $(id).classList.toggle(FAILED_CSS_CLASS, !e.success));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   // Setup backend mojo.
-  pageHandler = PageHandler.getRemote();
+  pageHandler = exploreSitesInternals.mojom.PageHandler.getRemote();
   updatePageWithProperties();
 
   // Set up event listeners.
-  document.body.querySelector('#clear-cached-catalog').onclick =
-      clearCachedCatalog;
-  document.body.querySelector('#override-country-code').onclick =
-      overrideCountryCode;
-  document.body.querySelector('#force-network-request').onclick =
-      forceNetworkRequest;
+  $('clear-cached-catalog').onclick = clearCachedCatalog;
+  $('override-country-code').onclick = overrideCountryCode;
+  $('force-network-request').onclick = forceNetworkRequest;
 });
+})();

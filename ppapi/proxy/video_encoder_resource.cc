@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -103,9 +103,8 @@ int32_t VideoEncoderResource::GetSupportedProfiles(
   get_supported_profiles_callback_ = callback;
   Call<PpapiPluginMsg_VideoEncoder_GetSupportedProfilesReply>(
       RENDERER, PpapiHostMsg_VideoEncoder_GetSupportedProfiles(),
-      base::BindOnce(
-          &VideoEncoderResource::OnPluginMsgGetSupportedProfilesReply, this,
-          output, false));
+      base::Bind(&VideoEncoderResource::OnPluginMsgGetSupportedProfilesReply,
+                 this, output, false));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -118,9 +117,8 @@ int32_t VideoEncoderResource::GetSupportedProfiles0_1(
   get_supported_profiles_callback_ = callback;
   Call<PpapiPluginMsg_VideoEncoder_GetSupportedProfilesReply>(
       RENDERER, PpapiHostMsg_VideoEncoder_GetSupportedProfiles(),
-      base::BindOnce(
-          &VideoEncoderResource::OnPluginMsgGetSupportedProfilesReply, this,
-          output, true));
+      base::Bind(&VideoEncoderResource::OnPluginMsgGetSupportedProfilesReply,
+                 this, output, true));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -151,11 +149,10 @@ int32_t VideoEncoderResource::Initialize(
 
   initialize_callback_ = callback;
   Call<PpapiPluginMsg_VideoEncoder_InitializeReply>(
-      RENDERER,
-      PpapiHostMsg_VideoEncoder_Initialize(input_format, *input_visible_size,
-                                           output_profile, initial_bitrate,
-                                           acceleration),
-      base::BindOnce(&VideoEncoderResource::OnPluginMsgInitializeReply, this));
+      RENDERER, PpapiHostMsg_VideoEncoder_Initialize(
+                    input_format, *input_visible_size, output_profile,
+                    initial_bitrate, acceleration),
+      base::Bind(&VideoEncoderResource::OnPluginMsgInitializeReply, this));
   return PP_OK_COMPLETIONPENDING;
 }
 
@@ -175,8 +172,8 @@ int32_t VideoEncoderResource::GetVideoFrame(
   if (buffer_manager_.number_of_buffers() == 0) {
     Call<PpapiPluginMsg_VideoEncoder_GetVideoFramesReply>(
         RENDERER, PpapiHostMsg_VideoEncoder_GetVideoFrames(),
-        base::BindOnce(&VideoEncoderResource::OnPluginMsgGetVideoFramesReply,
-                       this));
+        base::Bind(&VideoEncoderResource::OnPluginMsgGetVideoFramesReply,
+                   this));
   } else {
     TryWriteVideoFrame();
   }
@@ -204,8 +201,8 @@ int32_t VideoEncoderResource::Encode(
       RENDERER,
       PpapiHostMsg_VideoEncoder_Encode(frame_resource->GetBufferIndex(),
                                        PP_ToBool(force_keyframe)),
-      base::BindOnce(&VideoEncoderResource::OnPluginMsgEncodeReply, this,
-                     video_frame));
+      base::Bind(&VideoEncoderResource::OnPluginMsgEncodeReply, this,
+                 video_frame));
 
   // Invalidate the frame to prevent the plugin from modifying it.
   it->second->Invalidate();

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "mojo/public/c/system/types.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -25,10 +26,6 @@ class CoreTestBase : public testing::Test {
   using MockHandleInfo = CoreTestBase_MockHandleInfo;
 
   CoreTestBase();
-
-  CoreTestBase(const CoreTestBase&) = delete;
-  CoreTestBase& operator=(const CoreTestBase&) = delete;
-
   ~CoreTestBase() override;
 
  protected:
@@ -36,16 +33,14 @@ class CoreTestBase : public testing::Test {
   MojoHandle CreateMockHandle(MockHandleInfo* info);
 
   Core* core();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CoreTestBase);
 };
 
 class CoreTestBase_MockHandleInfo {
  public:
   CoreTestBase_MockHandleInfo();
-
-  CoreTestBase_MockHandleInfo(const CoreTestBase_MockHandleInfo&) = delete;
-  CoreTestBase_MockHandleInfo& operator=(const CoreTestBase_MockHandleInfo&) =
-      delete;
-
   ~CoreTestBase_MockHandleInfo();
 
   unsigned GetCtorCallCount() const;
@@ -86,6 +81,8 @@ class CoreTestBase_MockHandleInfo {
   unsigned read_data_call_count_;
   unsigned begin_read_data_call_count_;
   unsigned end_read_data_call_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(CoreTestBase_MockHandleInfo);
 };
 
 }  // namespace test

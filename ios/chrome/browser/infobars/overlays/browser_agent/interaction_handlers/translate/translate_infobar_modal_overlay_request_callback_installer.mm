@@ -1,17 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/translate/translate_infobar_modal_overlay_request_callback_installer.h"
 
-#import "base/bind.h"
-#import "ios/chrome/browser/infobars/infobar_ios.h"
-#import "ios/chrome/browser/infobars/infobar_manager_impl.h"
+#include "base/bind.h"
+#include "ios/chrome/browser/infobars/infobar_ios.h"
+#include "ios/chrome/browser/infobars/infobar_manager_impl.h"
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/translate/translate_infobar_modal_interaction_handler.h"
-#import "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
+#include "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/translate_infobar_modal_overlay_request_config.h"
 #import "ios/chrome/browser/overlays/public/infobar_modal/translate_infobar_modal_overlay_responses.h"
-#import "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
+#include "ios/chrome/browser/overlays/public/overlay_callback_manager.h"
 #import "ios/chrome/browser/overlays/public/overlay_response.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -22,7 +22,7 @@ using translate_infobar_overlays::TranslateModalRequestConfig;
 using translate_infobar_modal_responses::RevertTranslation;
 using translate_infobar_modal_responses::ToggleAlwaysTranslate;
 using translate_infobar_modal_responses::ToggleNeverTranslateSourceLanguage;
-using translate_infobar_modal_responses::ToggleNeverPromptSite;
+using translate_infobar_modal_responses::ToggleBlacklistSite;
 using translate_infobar_modal_responses::UpdateLanguageInfo;
 
 namespace translate_infobar_overlay {
@@ -118,7 +118,7 @@ void ModalRequestCallbackInstaller::InstallCallbacksInternal(
       base::BindRepeating(
           &ModalRequestCallbackInstaller::ToggleNeverTranslateSiteCallback,
           weak_factory_.GetWeakPtr(), request),
-      ToggleNeverPromptSite::ResponseSupport()));
+      ToggleBlacklistSite::ResponseSupport()));
   manager->AddDispatchCallback(OverlayDispatchCallback(
       base::BindRepeating(
           &ModalRequestCallbackInstaller::UpdateLanguageCallback,

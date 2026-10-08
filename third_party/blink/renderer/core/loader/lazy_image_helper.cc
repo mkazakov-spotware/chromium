@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,6 +53,15 @@ void StartMonitoringVisibility(HTMLImageElement* html_image) {
   }
 }
 
+bool IsFullyLoadableFirstKImageAndDecrementCount(
+    HTMLImageElement* image_element) {
+  Document* document = GetRootDocumentOrNull(image_element);
+  if (!document)
+    return true;
+  return document->EnsureLazyLoadImageObserver()
+      .IsFullyLoadableFirstKImageAndDecrementCount();
+}
+
 }  // namespace
 
 // static
@@ -67,8 +76,9 @@ void LazyImageHelper::StartMonitoring(blink::Element* element) {
     LoadingAttributeValue effective_loading_attr = GetLoadingAttributeValue(
         html_image->FastGetAttribute(html_names::kLoadingAttr));
     DCHECK_NE(effective_loading_attr, LoadingAttributeValue::kEager);
-    if (effective_loading_attr != LoadingAttributeValue::kAuto &&
-        !IsDimensionAbsoluteLarge(*html_image)) {
+    if (effective_loading_attr == LoadingAttributeValue::kAuto) {
+      deferral_message = DeferralMessage::kLoadEventsDeferred;
+    } else if (!IsDimensionAbsoluteLarge(*html_image)) {
       DCHECK_EQ(effective_loading_attr, LoadingAttributeValue::kLazy);
       deferral_message = DeferralMessage::kMissingDimensionForLazy;
     }
@@ -86,7 +96,7 @@ void LazyImageHelper::StopMonitoring(Element* element) {
 // static
 LazyImageHelper::Eligibility
 LazyImageHelper::DetermineEligibilityAndTrackVisibilityMetrics(
-    LocalFrame& frame,
+    const LocalFrame& frame,
     HTMLImageElement* html_image,
     const KURL& url) {
   if (!url.ProtocolIsInHTTPFamily())
@@ -100,6 +110,8 @@ LazyImageHelper::DetermineEligibilityAndTrackVisibilityMetrics(
   const auto lazy_load_image_setting = frame.GetLazyLoadImageSetting();
   LoadingAttributeValue loading_attr = GetLoadingAttributeValue(
       html_image->FastGetAttribute(html_names::kLoadingAttr));
+  bool is_fully_loadable =
+      IsFullyLoadableFirstKImageAndDecrementCount(html_image);
   if (loading_attr == LoadingAttributeValue::kLazy) {
     StartMonitoringVisibility(html_image);
     UseCounter::Count(frame.GetDocument(),
@@ -144,6 +156,13 @@ LazyImageHelper::DetermineEligibilityAndTrackVisibilityMetrics(
   }
 
   StartMonitoringVisibility(html_image);
+
+  if (!is_fully_loadable &&
+      lazy_load_image_setting ==
+          LocalFrame::LazyLoadImageSetting::kEnabledAutomatic) {
+    // Automatic lazyload
+    return LazyImageHelper::Eligibility::kEnabledFullyDeferred;
+  }
   return LazyImageHelper::Eligibility::kDisabled;
 }
 

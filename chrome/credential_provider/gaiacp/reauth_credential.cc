@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,7 @@ HRESULT CReauthCredential::GetUserGlsCommandline(
 
   // If this is an existing user with an SID, try to get its gaia id and pass
   // it to the GLS for verification.
-  std::wstring gaia_id;
+  base::string16 gaia_id;
   if (GetIdFromSid(OLE2CW(os_user_sid_), &gaia_id) == S_OK &&
       !gaia_id.empty()) {
     command_line->AppendSwitchNative(kGaiaIdSwitch, gaia_id);
@@ -110,9 +110,9 @@ HRESULT CReauthCredential::GetUserGlsCommandline(
   }
 }
 
-HRESULT CReauthCredential::ValidateExistingUser(const std::wstring& username,
-                                                const std::wstring& domain,
-                                                const std::wstring& sid,
+HRESULT CReauthCredential::ValidateExistingUser(const base::string16& username,
+                                                const base::string16& domain,
+                                                const base::string16& sid,
                                                 BSTR* error_text) {
   DCHECK(os_username_.Length());
   DCHECK(os_user_sid_.Length());
@@ -135,21 +135,18 @@ HRESULT CReauthCredential::ValidateExistingUser(const std::wstring& username,
 }
 
 HRESULT CReauthCredential::GetStringValueImpl(DWORD field_id, wchar_t** value) {
-  LOGFN(VERBOSE) << "field_id=" << field_id;
-
   if (field_id == FID_PROVIDER_LABEL) {
-    std::wstring label(
+    base::string16 label(
         GetStringResource(IDS_EXISTING_AUTH_FID_PROVIDER_LABEL_BASE));
-    LOGFN(VERBOSE) << "label=" << label;
     return ::SHStrDupW(label.c_str(), value);
   } else if (field_id == FID_DESCRIPTION) {
     wchar_t* sid_buffer = nullptr;
     HRESULT hr = GetUserSid(&sid_buffer);
     if (FAILED(hr)) {
       LOGFN(ERROR) << "GetUserSid: Empty sid found";
-      return ::SHStrDupW(std::wstring().c_str(), value);
+      return ::SHStrDupW(base::string16().c_str(), value);
     }
-    std::wstring sid = sid_buffer;
+    base::string16 sid = sid_buffer;
     ::CoTaskMemFree(sid_buffer);
 
     int description_label_id;
@@ -192,9 +189,7 @@ HRESULT CReauthCredential::GetStringValueImpl(DWORD field_id, wchar_t** value) {
       }
     }
 
-    std::wstring label(GetStringResource(description_label_id));
-    LOGFN(VERBOSE) << "field_id=" << field_id << " label=" << label;
-
+    base::string16 label(GetStringResource(description_label_id));
     return ::SHStrDupW(label.c_str(), value);
   }
 
@@ -221,7 +216,6 @@ HRESULT CReauthCredential::SetOSUserInfo(BSTR sid, BSTR domain, BSTR username) {
   DCHECK(sid);
   DCHECK(domain);
   DCHECK(username);
-  LOGFN(VERBOSE);
 
   os_user_domain_ = domain;
   os_user_sid_ = sid;
@@ -238,7 +232,6 @@ HRESULT CReauthCredential::SetOSUserInfo(BSTR sid, BSTR domain, BSTR username) {
 
 HRESULT CReauthCredential::SetEmailForReauth(BSTR email) {
   DCHECK(email);
-  LOGFN(VERBOSE) << "email=" << email;
 
   email_for_reauth_ = email;
   return S_OK;

@@ -1,13 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OFFLINE_PAGES_CORE_MODEL_STORE_VISUALS_TASK_H_
 #define COMPONENTS_OFFLINE_PAGES_CORE_MODEL_STORE_VISUALS_TASK_H_
 
-#include "base/memory/raw_ptr.h"
+#include <vector>
+
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "components/offline_pages/core/offline_page_visuals.h"
 #include "components/offline_pages/task/task.h"
 
@@ -25,9 +26,6 @@ class StoreVisualsTask : public Task {
   using CompleteCallback = base::OnceCallback<void(bool, std::string)>;
   using RowUpdatedCallback =
       base::OnceCallback<void(bool, std::string, std::string)>;
-
-  StoreVisualsTask(const StoreVisualsTask&) = delete;
-  StoreVisualsTask& operator=(const StoreVisualsTask&) = delete;
 
   ~StoreVisualsTask() override;
 
@@ -53,13 +51,14 @@ class StoreVisualsTask : public Task {
                    RowUpdatedCallback complete_callback);
   void Complete(bool success);
 
-  raw_ptr<OfflinePageMetadataStore> store_;
+  OfflinePageMetadataStore* store_;
   int64_t offline_id_;
   base::Time expiration_;
   std::string thumbnail_;
   std::string favicon_;
   RowUpdatedCallback complete_callback_;
   base::WeakPtrFactory<StoreVisualsTask> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(StoreVisualsTask);
 };
 
 }  // namespace offline_pages

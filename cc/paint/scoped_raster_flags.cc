@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/paint/scoped_raster_flags.h"
-
-#include <utility>
 
 #include "cc/paint/image_provider.h"
 #include "cc/paint/image_transfer_cache_entry.h"
@@ -12,6 +10,35 @@
 #include "cc/paint/paint_image_builder.h"
 
 namespace cc {
+ScopedRasterFlags::ScopedRasterFlags(const PaintFlags* flags,
+                                     ImageProvider* image_provider,
+                                     const SkMatrix& ctm,
+                                     int max_texture_size,
+                                     uint8_t alpha)
+    : original_flags_(flags) {
+  if (image_provider) {
+    decode_stashing_image_provider_.emplace(image_provider);
+
+    // We skip the op if any images fail to decode.
+    DecodeImageShader(ctm);
+    if (decode_failed_)
+      return;
+    DecodeRecordShader(ctm, max_texture_size);
+    if (decode_failed_)
+      return;
+    DecodeFilter();
+    if (decode_failed_)
+      return;
+  }
+
+  if (alpha != 255) {
+    DCHECK(flags->SupportsFoldingAlpha());
+    MutableFlags()->setAlpha(SkMulDiv255Round(flags->getAlpha(), alpha));
+  }
+
+  AdjustStrokeIfNeeded(ctm);
+}
+
 ScopedRasterFlags::~ScopedRasterFlags() = default;
 
 void ScopedRasterFlags::DecodeImageShader(const SkMatrix& ctm) {
@@ -37,7 +64,7 @@ void ScopedRasterFlags::DecodeImageShader(const SkMatrix& ctm) {
   }
 
   uint32_t transfer_cache_entry_id = kInvalidImageTransferCacheEntryId;
-  PaintFlags::FilterQuality raster_quality = flags()->getFilterQuality();
+  SkFilterQuality raster_quality = flags()->getFilterQuality();
   bool transfer_cache_entry_needs_mips = false;
   gpu::Mailbox mailbox;
   auto decoded_shader = flags()->getShader()->CreateDecodedImage(
@@ -74,8 +101,8 @@ void ScopedRasterFlags::DecodeRecordShader(const SkMatrix& ctm,
   gfx::SizeF raster_scale(1.f, 1.f);
   auto decoded_shader = flags()->getShader()->CreateScaledPaintRecord(
       ctm, max_texture_size, &raster_scale);
-  decoded_shader->ResolveSkObjects(&raster_scale,
-                                   &*decode_stashing_image_provider_);
+  decoded_shader->CreateSkShader(&raster_scale,
+                                 &*decode_stashing_image_provider_);
   MutableFlags()->setShader(std::move(decoded_shader));
 }
 

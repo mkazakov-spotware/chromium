@@ -24,11 +24,16 @@ This test uses data only, and thus does not require fake media devices.
   var gSecondConnection = null;
 
   var onIceCandidateToFirst = test.step_func(function(event) {
-    gSecondConnection.addIceCandidate(event.candidate);
+    // If event.candidate is null = no more candidates.
+    if (event.candidate) {
+      gSecondConnection.addIceCandidate(event.candidate);
+    }
   });
 
   var onIceCandidateToSecond = test.step_func(function(event) {
-    gFirstConnection.addIceCandidate(event.candidate);
+    if (event.candidate) {
+      gFirstConnection.addIceCandidate(event.candidate);
+    }
   });
 
   var onIceConnectionStateChange = test.step_func(function(event) {

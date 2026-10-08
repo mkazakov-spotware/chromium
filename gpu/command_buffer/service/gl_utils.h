@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,11 @@
 
 #include "build/build_config.h"
 #include "gpu/command_buffer/common/constants.h"
-#include "gpu/gpu_gles2_export.h"
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/rrect_f.h"
-#include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/overlay_transform.h"
+#include "ui/gfx/rrect_f.h"
+#include "ui/gfx/transform.h"
 #include "ui/gl/gl_bindings.h"
 
 // Define this for extra GL error debugging (slower).
@@ -79,11 +78,6 @@ void QueryShaderPrecisionFormat(const gl::GLVersionInfo& gl_version_info,
 void PopulateNumericCapabilities(Capabilities* caps,
                                  const FeatureInfo* feature_info);
 
-#if BUILDFLAG(IS_CHROMEOS)
-void PopulateDRMCapabilities(Capabilities* caps,
-                             const FeatureInfo* feature_info);
-#endif
-
 bool CheckUniqueAndNonNullIds(GLsizei n, const GLuint* client_ids);
 
 const char* GetServiceVersionString(const FeatureInfo* feature_info);
@@ -97,9 +91,9 @@ void LogGLDebugMessage(GLenum source,
                        GLsizei length,
                        const GLchar* message,
                        Logger* error_logger);
-GPU_GLES2_EXPORT void InitializeGLDebugLogging(bool log_non_errors,
-                                               GLDEBUGPROC callback,
-                                               const void* user_param);
+void InitializeGLDebugLogging(bool log_non_errors,
+                              GLDEBUGPROC callback,
+                              const void* user_param);
 
 bool ValidContextLostReason(GLenum reason);
 error::ContextLostReason GetContextLostReasonFromResetStatus(
@@ -151,7 +145,8 @@ CopyTextureMethod GetCopyTextureCHROMIUMMethod(const FeatureInfo* feature_info,
                                                GLenum dest_internal_format,
                                                bool flip_y,
                                                bool premultiply_alpha,
-                                               bool unpremultiply_alpha);
+                                               bool unpremultiply_alpha,
+                                               bool dither);
 
 bool ValidateCopyTextureCHROMIUMInternalFormats(const FeatureInfo* feature_info,
                                                 GLenum source_internal_format,
@@ -163,11 +158,10 @@ GLenum GetTextureBindingQuery(GLenum texture_type);
 gfx::OverlayTransform GetGFXOverlayTransform(GLenum plane_transform);
 
 bool GetGFXBufferFormat(GLenum internal_format, gfx::BufferFormat* out_format);
+bool GetGFXBufferUsage(GLenum buffer_usage, gfx::BufferUsage* out_usage);
 
 bool IsASTCFormat(GLenum internal_format);
 bool IsCompressedTextureFormat(GLenum internal_format);
-
-Texture* CreateGLES2TextureWithLightRef(GLuint service_id, GLenum target);
 
 }  // namespace gles2
 }  // namespace gpu

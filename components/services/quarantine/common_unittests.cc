@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,10 +41,6 @@ TEST(QuarantineCommonTest, SanitizeUrlForQuarantine) {
 
       // data URL is dropped.
       {"data:text/plain,hello%20world!", ""},
-
-      // Trailing / added.
-      {"http://www.source.example.com", "http://www.source.example.com/"},
-      {"http://www.referrer.example.com", "http://www.referrer.example.com/"},
 
       // Invalid URL is dropped.
       {"1|\\|\\/4L||>", ""},

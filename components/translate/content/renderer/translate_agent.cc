@@ -1,45 +1,38 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/translate/content/renderer/translate_agent.h"
 
 #include <stddef.h>
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
-#include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/json/string_escape.h"
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/metrics/histogram_macros_local.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
+#include "base/single_thread_task_runner.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "components/translate/content/renderer/isolated_world_util.h"
 #include "components/translate/core/common/translate_constants.h"
 #include "components/translate/core/common/translate_metrics.h"
 #include "components/translate/core/common/translate_util.h"
-#include "components/translate/core/language_detection/language_detection_model.h"
 #include "components/translate/core/language_detection/language_detection_util.h"
 #include "content/public/common/content_constants.h"
-#include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_thread.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
-#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_language_detection_details.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_script_source.h"
 #include "url/gurl.h"
-#include "url/url_constants.h"
 #include "v8/include/v8.h"
 
 using blink::WebDocument;
@@ -65,107 +58,30 @@ const int kTranslateStatusCheckDelayMs = 400;
 
 // Language name passed to the Translate element for it to detect the language.
 const char kAutoDetectionLanguage[] = "auto";
-
-// The current CLD model version.
-constexpr char kCLDModelVersion[] = "CLD3";
-
-// Returns the language detection model that is shared across the RenderFrames
-// in the renderer.
-translate::LanguageDetectionModel& GetLanguageDetectionModel() {
-  static base::NoDestructor<translate::LanguageDetectionModel> instance;
-  return *instance;
-}
-
-// Returns if the language detection should be overridden so that a default
-// result is returned immediately.
-bool ShouldOverrideLanguageDetectionForTesting() {
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(::switches::kOverrideLanguageDetection)) {
-    return true;
-  }
-  return false;
-}
-
 }  // namespace
 
 namespace translate {
 
 ////////////////////////////////////////////////////////////////////////////////
 // TranslateAgent, public:
-TranslateAgent::TranslateAgent(content::RenderFrame* render_frame, int world_id)
+TranslateAgent::TranslateAgent(content::RenderFrame* render_frame,
+                               int world_id,
+                               const std::string& extension_scheme)
     : content::RenderFrameObserver(render_frame),
       world_id_(world_id),
-      waiting_for_first_foreground_(render_frame->IsHidden()) {
+      extension_scheme_(extension_scheme) {
   translate_task_runner_ = this->render_frame()->GetTaskRunner(
       blink::TaskType::kInternalTranslation);
-
-  if (!translate::IsTFLiteLanguageDetectionEnabled()) {
-    return;
-  }
-
-  translate::LanguageDetectionModel& language_detection_model =
-      GetLanguageDetectionModel();
-
-  // If the language detection model is available, we do not
-  // worry about requesting the model.
-  if (language_detection_model.IsAvailable()) {
-    return;
-  }
-
-  UMA_HISTOGRAM_BOOLEAN("LanguageDetection.TFLiteModel.WasModelRequestDeferred",
-                        waiting_for_first_foreground_);
-
-  // Ensure the render frame is visible, otherwise the browser-side
-  // translate driver may not exist yet (https://crbug.com/1199397).
-  if (!waiting_for_first_foreground_) {
-    GetTranslateHandler()->GetLanguageDetectionModel(
-        base::BindOnce(&TranslateAgent::UpdateLanguageDetectionModel,
-                       weak_pointer_factory_.GetWeakPtr()));
-  }
 }
 
 TranslateAgent::~TranslateAgent() {}
-
-void TranslateAgent::WasShown() {
-  // Check if the the render frame was initially hidden and
-  // the model request was delayed until the frame was in
-  // the foreground.
-  if (!waiting_for_first_foreground_) {
-    return;
-  }
-
-  waiting_for_first_foreground_ = false;
-
-  if (!translate::IsTFLiteLanguageDetectionEnabled()) {
-    return;
-  }
-
-  translate::LanguageDetectionModel& language_detection_model =
-      GetLanguageDetectionModel();
-  if (language_detection_model.IsAvailable()) {
-    return;
-  }
-  // The model request was deferred because the frame was hidden
-  // and now the model is visible and the model is still not available.
-  // The browser-side translate driver should always be available at
-  // this point so we should make the request and race to get the
-  // model loaded for when the page content is available.
-  GetTranslateHandler()->GetLanguageDetectionModel(
-      base::BindOnce(&TranslateAgent::UpdateLanguageDetectionModel,
-                     weak_pointer_factory_.GetWeakPtr()));
-}
-
-void TranslateAgent::SeedLanguageDetectionModelForTesting(
-    base::File model_file) {
-  UpdateLanguageDetectionModel(std::move(model_file));
-}
 
 void TranslateAgent::PrepareForUrl(const GURL& url) {
   // Navigated to a new url, reset current page translation.
   ResetPage();
 }
 
-void TranslateAgent::PageCaptured(const std::u16string& contents) {
+void TranslateAgent::PageCaptured(const base::string16& contents) {
   // Get the document language as set by WebKit from the http-equiv
   // meta tag for "content-language".  This may or may not also
   // have a value derived from the actual Content-Language HTTP
@@ -173,95 +89,36 @@ void TranslateAgent::PageCaptured(const std::u16string& contents) {
   // original intent of http-equiv to be an equivalent) with the former
   // being the language of the document and the latter being the
   // language of the intended audience (a distinction really only
-  // relevant for things like language textbooks).  This distinction
+  // relevant for things like langauge textbooks).  This distinction
   // shouldn't affect translation.
   WebLocalFrame* main_frame = render_frame()->GetWebFrame();
   if (!main_frame)
     return;
 
   WebDocument document = main_frame->GetDocument();
-  GURL url = GURL(document.Url());
-  // Limit detection to URLs that only detect the language of the content if the
-  // page is potentially a candidate for translation.  This should be strictly a
-  // subset of the conditions in TranslateService::IsTranslatableURL, however,
-  // due to layering they cannot be identical. Critically, this list should
-  // never filter anything that is eligible for translation. Under filtering is
-  // ok as the translate service will make the final call and only results in a
-  // slight overhead in running the model when unnecessary.
-  if (url.is_empty() || url.SchemeIs(content::kChromeUIScheme) ||
-      url.SchemeIs(content::kChromeDevToolsScheme) || url.IsAboutBlank()) {
-    return;
-  }
-
-  page_contents_length_ = contents.size();
-
   WebLanguageDetectionDetails web_detection_details =
       WebLanguageDetectionDetails::CollectLanguageDetectionDetails(document);
-  WebLanguageDetectionDetails::RecordAcceptLanguageAndXmlHtmlLangMetric(
-      document);
-
   std::string content_language = web_detection_details.content_language.Utf8();
   std::string html_lang = web_detection_details.html_language.Utf8();
-  std::string model_detected_language;
-  bool is_model_reliable = false;
-  std::string detection_model_version;
-  float model_reliability_score = 0.0;
-
-  if (ShouldOverrideLanguageDetectionForTesting()) {
-    std::string language = "fr";
-    LanguageDetectionDetails details;
-    details.adopted_language = language;
-    details.contents = contents;
-    ResetPage();
-    GetTranslateHandler()->RegisterPage(
-        receiver_.BindNewPipeAndPassRemote(
-            main_frame->GetTaskRunner(blink::TaskType::kInternalTranslation)),
-        details, !details.has_notranslate && !language.empty());
-    return;
-  }
-
-  std::string language;
-  if (translate::IsTFLiteLanguageDetectionEnabled()) {
-    translate::LanguageDetectionModel& language_detection_model =
-        GetLanguageDetectionModel();
-    bool is_available = language_detection_model.IsAvailable();
-    language = is_available ? language_detection_model.DeterminePageLanguage(
-                                  content_language, html_lang, contents,
-                                  &model_detected_language, &is_model_reliable,
-                                  model_reliability_score)
-                            : translate::kUnknownLanguageCode;
-    UMA_HISTOGRAM_BOOLEAN(
-        "LanguageDetection.TFLiteModel.WasModelAvailableForDetection",
-        is_available);
-    UMA_HISTOGRAM_BOOLEAN(
-        "LanguageDetection.TFLiteModel.WasModelUnavailableDueToDeferredLoad",
-        !is_available && waiting_for_first_foreground_);
-    detection_model_version = language_detection_model.GetModelVersion();
-  } else {
-    language = DeterminePageLanguage(
-        content_language, html_lang, contents, &model_detected_language,
-        &is_model_reliable, model_reliability_score);
-    detection_model_version = kCLDModelVersion;
-  }
+  std::string cld_language;
+  bool is_cld_reliable;
+  std::string language = DeterminePageLanguage(
+      content_language, html_lang, contents, &cld_language, &is_cld_reliable);
 
   if (language.empty())
     return;
 
   language_determined_time_ = base::TimeTicks::Now();
 
-  // TODO(crbug.com/1157983): Update the language detection details struct to be
-  // model agnostic.
   LanguageDetectionDetails details;
   details.time = base::Time::Now();
   details.url = web_detection_details.url;
   details.content_language = content_language;
-  details.model_detected_language = model_detected_language;
-  details.is_model_reliable = is_model_reliable;
+  details.cld_language = cld_language;
+  details.is_cld_reliable = is_cld_reliable;
   details.has_notranslate = web_detection_details.has_no_translate_meta;
   details.html_root_language = html_lang;
   details.adopted_language = language;
-  details.model_reliability_score = model_reliability_score;
-  details.detection_model_version = detection_model_version;
 
   // TODO(hajimehoshi): If this affects performance, it should be set only if
   // translate-internals tab exists.
@@ -320,14 +177,14 @@ bool TranslateAgent::StartTranslation() {
       BuildTranslationScript(source_lang_, target_lang_), false);
 }
 
-std::string TranslateAgent::GetPageSourceLanguage() {
+std::string TranslateAgent::GetOriginalPageLanguage() {
   return ExecuteScriptAndGetStringResult("cr.googleTranslate.sourceLang");
 }
 
 base::TimeDelta TranslateAgent::AdjustDelay(int delay_in_milliseconds) {
   // Just converts |delay_in_milliseconds| without any modification in practical
   // cases. Tests will override this function to return modified value.
-  return base::Milliseconds(delay_in_milliseconds);
+  return base::TimeDelta::FromMilliseconds(delay_in_milliseconds);
 }
 
 void TranslateAgent::ExecuteScript(const std::string& script) {
@@ -336,8 +193,7 @@ void TranslateAgent::ExecuteScript(const std::string& script) {
     return;
 
   WebScriptSource source = WebScriptSource(WebString::FromASCII(script));
-  main_frame->ExecuteScriptInIsolatedWorld(
-      world_id_, source, blink::BackForwardCacheAware::kAllow);
+  main_frame->ExecuteScriptInIsolatedWorld(world_id_, source);
 }
 
 bool TranslateAgent::ExecuteScriptAndGetBoolResult(const std::string& script,
@@ -346,11 +202,10 @@ bool TranslateAgent::ExecuteScriptAndGetBoolResult(const std::string& script,
   if (!main_frame)
     return fallback;
 
-  v8::HandleScope handle_scope(main_frame->GetAgentGroupScheduler()->Isolate());
+  v8::HandleScope handle_scope(v8::Isolate::GetCurrent());
   WebScriptSource source = WebScriptSource(WebString::FromASCII(script));
   v8::Local<v8::Value> result =
-      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(
-          world_id_, source, blink::BackForwardCacheAware::kAllow);
+      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(world_id_, source);
   if (result.IsEmpty() || !result->IsBoolean()) {
     NOTREACHED();
     return fallback;
@@ -365,12 +220,11 @@ std::string TranslateAgent::ExecuteScriptAndGetStringResult(
   if (!main_frame)
     return std::string();
 
-  v8::Isolate* isolate = main_frame->GetAgentGroupScheduler()->Isolate();
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::HandleScope handle_scope(isolate);
   WebScriptSource source = WebScriptSource(WebString::FromASCII(script));
   v8::Local<v8::Value> result =
-      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(
-          world_id_, source, blink::BackForwardCacheAware::kAllow);
+      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(world_id_, source);
   if (result.IsEmpty() || !result->IsString()) {
     NOTREACHED();
     return std::string();
@@ -392,11 +246,10 @@ double TranslateAgent::ExecuteScriptAndGetDoubleResult(
   if (!main_frame)
     return 0.0;
 
-  v8::HandleScope handle_scope(main_frame->GetAgentGroupScheduler()->Isolate());
+  v8::HandleScope handle_scope(v8::Isolate::GetCurrent());
   WebScriptSource source = WebScriptSource(WebString::FromASCII(script));
   v8::Local<v8::Value> result =
-      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(
-          world_id_, source, blink::BackForwardCacheAware::kAllow);
+      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(world_id_, source);
   if (result.IsEmpty() || !result->IsNumber()) {
     NOTREACHED();
     return 0.0;
@@ -411,11 +264,10 @@ int64_t TranslateAgent::ExecuteScriptAndGetIntegerResult(
   if (!main_frame)
     return 0;
 
-  v8::HandleScope handle_scope(main_frame->GetAgentGroupScheduler()->Isolate());
+  v8::HandleScope handle_scope(v8::Isolate::GetCurrent());
   WebScriptSource source = WebScriptSource(WebString::FromASCII(script));
   v8::Local<v8::Value> result =
-      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(
-          world_id_, source, blink::BackForwardCacheAware::kAllow);
+      main_frame->ExecuteScriptInIsolatedWorldAndReturnValue(world_id_, source);
   if (result.IsEmpty() || !result->IsNumber()) {
     NOTREACHED();
     return 0;
@@ -497,7 +349,7 @@ void TranslateAgent::CheckTranslateStatus() {
   // First check if there was an error.
   if (HasTranslationFailed()) {
     NotifyBrowserTranslationFailed(
-        static_cast<translate::TranslateErrors>(GetErrorCode()));
+        static_cast<translate::TranslateErrors::Type>(GetErrorCode()));
     return;  // There was an error.
   }
 
@@ -506,7 +358,7 @@ void TranslateAgent::CheckTranslateStatus() {
     // Translation was successfull, if it was auto, retrieve the source
     // language the Translate Element detected.
     if (source_lang_ == kAutoDetectionLanguage) {
-      actual_source_lang = GetPageSourceLanguage();
+      actual_source_lang = GetOriginalPageLanguage();
       if (actual_source_lang.empty()) {
         NotifyBrowserTranslationFailed(TranslateErrors::UNKNOWN_LANGUAGE);
         return;
@@ -526,7 +378,6 @@ void TranslateAgent::CheckTranslateStatus() {
     // Check JavaScript performance counters for UMA reports.
     ReportTimeToTranslate(
         ExecuteScriptAndGetDoubleResult("cr.googleTranslate.translationTime"));
-    ReportTranslatedLanguageDetectionContentLength(page_contents_length_);
 
     // Notify the browser we are done.
     std::move(translate_callback_pending_)
@@ -546,8 +397,8 @@ void TranslateAgent::TranslatePageImpl(int count) {
   DCHECK_LT(count, kMaxTranslateInitCheckAttempts);
   if (!IsTranslateLibReady()) {
     // There was an error during initialization of library.
-    TranslateErrors error =
-        static_cast<translate::TranslateErrors>(GetErrorCode());
+    TranslateErrors::Type error =
+        static_cast<translate::TranslateErrors::Type>(GetErrorCode());
     if (error != TranslateErrors::NONE) {
       NotifyBrowserTranslationFailed(error);
       return;
@@ -586,7 +437,8 @@ void TranslateAgent::TranslatePageImpl(int count) {
       AdjustDelay(kTranslateStatusCheckDelayMs));
 }
 
-void TranslateAgent::NotifyBrowserTranslationFailed(TranslateErrors error) {
+void TranslateAgent::NotifyBrowserTranslationFailed(
+    TranslateErrors::Type error) {
   DCHECK(translate_callback_pending_);
   // Notify the browser there was an error.
   std::move(translate_callback_pending_)
@@ -598,18 +450,8 @@ TranslateAgent::GetTranslateHandler() {
   if (!translate_handler_) {
     render_frame()->GetBrowserInterfaceBroker()->GetInterface(
         translate_handler_.BindNewPipeAndPassReceiver());
-    return translate_handler_;
   }
 
-  // The translate handler can become unbound or disconnected in testing
-  // so this catches that case and reconnects so `this` can connect to
-  // the driver in the browser.
-  if (translate_handler_.is_bound() && translate_handler_.is_connected())
-    return translate_handler_;
-
-  translate_handler_.reset();
-  render_frame()->GetBrowserInterfaceBroker()->GetInterface(
-      translate_handler_.BindNewPipeAndPassReceiver());
   return translate_handler_;
 }
 
@@ -630,12 +472,6 @@ std::string TranslateAgent::BuildTranslationScript(
   return "cr.googleTranslate.translate(" +
          base::GetQuotedJSONString(source_lang) + "," +
          base::GetQuotedJSONString(target_lang) + ")";
-}
-
-void TranslateAgent::UpdateLanguageDetectionModel(base::File model_file) {
-  translate::LanguageDetectionModel& language_detection_model =
-      GetLanguageDetectionModel();
-  language_detection_model.UpdateWithFile(std::move(model_file));
 }
 
 }  // namespace translate

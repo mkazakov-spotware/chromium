@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ class MockDevToolsClient : public StubDevToolsClient {
  public:
   MOCK_METHOD2(SendCommand,
                Status(const std::string& method,
-                      const base::Value::Dict& params));
+                      const base::DictionaryValue& params));
   MOCK_METHOD1(AddListener, void(DevToolsEventListener* listener));
 };
 
@@ -49,32 +49,32 @@ class CastTrackerTest : public testing::Test {
 };
 
 TEST_F(CastTrackerTest, OnSinksUpdated) {
-  const base::Value empty_sinks = base::Value(base::Value::List());
-  base::Value::Dict params;
+  const base::Value empty_sinks = base::Value(std::vector<base::Value>());
+  base::DictionaryValue params;
   EXPECT_EQ(0u, cast_tracker_->sinks().GetList().size());
 
-  base::Value::List sinks;
+  base::Value sinks(base::Value::Type::LIST);
   sinks.Append(CreateSink("sink1", "1"));
   sinks.Append(CreateSink("sink2", "2"));
-  params.Set("sinks", base::Value(std::move(sinks)));
+  params.SetKey("sinks", std::move(sinks));
   cast_tracker_->OnEvent(&devtools_client_, "Cast.sinksUpdated", params);
   EXPECT_EQ(2u, cast_tracker_->sinks().GetList().size());
 
-  params.Set("sinks", base::Value(base::Value::Type::LIST));
+  params.SetKey("sinks", base::Value(base::Value::Type::LIST));
   cast_tracker_->OnEvent(&devtools_client_, "Cast.sinksUpdated", params);
   EXPECT_EQ(0u, cast_tracker_->sinks().GetList().size());
 }
 
 TEST_F(CastTrackerTest, OnIssueUpdated) {
   const std::string issue_message = "There was an issue";
-  base::Value::Dict params;
+  base::DictionaryValue params;
   EXPECT_EQ("", cast_tracker_->issue().GetString());
 
-  params.Set("issueMessage", base::Value(issue_message));
+  params.SetKey("issueMessage", base::Value(issue_message));
   cast_tracker_->OnEvent(&devtools_client_, "Cast.issueUpdated", params);
   EXPECT_EQ(issue_message, cast_tracker_->issue().GetString());
 
-  params.Set("issueMessage", base::Value(""));
+  params.SetKey("issueMessage", base::Value(""));
   cast_tracker_->OnEvent(&devtools_client_, "Cast.issueUpdated", params);
   EXPECT_EQ("", cast_tracker_->issue().GetString());
 }

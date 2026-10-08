@@ -33,7 +33,6 @@ class CORE_EXPORT HTMLMeterElement final : public HTMLElement {
 
  public:
   explicit HTMLMeterElement(Document&);
-  ~HTMLMeterElement() override;
 
   enum GaugeRegion {
     kGaugeRegionOptimum,
@@ -67,6 +66,8 @@ class CORE_EXPORT HTMLMeterElement final : public HTMLElement {
   void Trace(Visitor*) const override;
 
  private:
+  ~HTMLMeterElement() override;
+
   bool AreAuthorShadowsAllowed() const override { return false; }
 
   bool IsLabelable() const override { return true; }
@@ -77,8 +78,6 @@ class CORE_EXPORT HTMLMeterElement final : public HTMLElement {
   void DidElementStateChange();
   void UpdateValueAppearance(double percentage);
   void DidAddUserAgentShadowRoot(ShadowRoot&) override;
-  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject(
-      const StyleRecalcContext&) override;
 
   Member<HTMLDivElement> value_;
 };

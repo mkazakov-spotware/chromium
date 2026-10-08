@@ -1,12 +1,10 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/history/core/browser/top_sites_backend.h"
 
 #include <stddef.h>
-
-#include <memory>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
@@ -15,8 +13,9 @@
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/cancelable_task_tracker.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -88,7 +87,10 @@ void TopSitesBackend::ShutdownDBOnDBThread() {
 
 MostVisitedURLList TopSitesBackend::GetMostVisitedSitesOnDBThread() {
   DCHECK(db_task_runner_->RunsTasksInCurrentSequence());
-  return db_ ? db_->GetSites() : MostVisitedURLList();
+  MostVisitedURLList list;
+  if (db_)
+    db_->GetSites(&list);
+  return list;
 }
 
 void TopSitesBackend::UpdateTopSitesOnDBThread(
@@ -112,7 +114,7 @@ void TopSitesBackend::ResetDatabaseOnDBThread(const base::FilePath& file_path) {
   DCHECK(db_task_runner_->RunsTasksInCurrentSequence());
   db_.reset(nullptr);
   sql::Database::Delete(db_path_);
-  db_ = std::make_unique<TopSitesDatabase>();
+  db_.reset(new TopSitesDatabase());
   InitDBOnDBThread(db_path_);
 }
 

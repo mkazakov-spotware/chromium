@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/common/cast_resource_delegate.h"
-
-#include <ostream>
 
 #include "base/files/file_path.h"
 #include "base/notreached.h"
@@ -37,7 +35,7 @@ CastResourceDelegate::~CastResourceDelegate() {
 
 base::FilePath CastResourceDelegate::GetPathForResourcePack(
     const base::FilePath& pack_path,
-    ui::ResourceScaleFactor scale_factor) {
+    ui::ScaleFactor scale_factor) {
   return pack_path;
 }
 
@@ -64,24 +62,23 @@ gfx::Image CastResourceDelegate::GetNativeImageNamed(int resource_id) {
 
 base::RefCountedStaticMemory* CastResourceDelegate::LoadDataResourceBytes(
     int resource_id,
-    ui::ResourceScaleFactor scale_factor) {
+    ui::ScaleFactor scale_factor) {
   return NULL;
 }
 
-absl::optional<std::string> CastResourceDelegate::LoadDataResourceString(
+base::Optional<std::string> CastResourceDelegate::LoadDataResourceString(
     int resource_id) {
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-bool CastResourceDelegate::GetRawDataResource(
-    int resource_id,
-    ui::ResourceScaleFactor scale_factor,
-    base::StringPiece* value) const {
+bool CastResourceDelegate::GetRawDataResource(int resource_id,
+                                              ui::ScaleFactor scale_factor,
+                                              base::StringPiece* value) const {
   return false;
 }
 
 bool CastResourceDelegate::GetLocalizedString(int message_id,
-                                              std::u16string* value) const {
+                                              base::string16* value) const {
   ExtraLocaledStringMap::const_iterator it =
       extra_localized_strings_.find(message_id);
   if (it != extra_localized_strings_.end()) {
@@ -93,7 +90,7 @@ bool CastResourceDelegate::GetLocalizedString(int message_id,
 
 void CastResourceDelegate::AddExtraLocalizedString(
     int resource_id,
-    const std::u16string& localized) {
+    const base::string16& localized) {
   RemoveExtraLocalizedString(resource_id);
   extra_localized_strings_.insert(std::make_pair(resource_id, localized));
 }

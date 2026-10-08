@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,7 +67,7 @@ constexpr int64_t kUpdateFrequencyMs = 200;
   NSImage* appIcon = [[NSWorkspace sharedWorkspace] iconForFile:appPath];
   [appIcon drawInRect:[self bounds]
              fromRect:NSZeroRect
-            operation:NSCompositingOperationSourceOver
+            operation:NSCompositeSourceOver
              fraction:1.0];
 
   if (_downloads == 0)
@@ -129,14 +129,22 @@ constexpr int64_t kUpdateFrequencyMs = 200;
   // Download count
   base::scoped_nsobject<NSNumberFormatter> formatter(
       [[NSNumberFormatter alloc] init]);
-  NSString* countString = [formatter stringFromNumber:@(_downloads)];
+  NSString* countString =
+      [formatter stringFromNumber:[NSNumber numberWithInt:_downloads]];
 
   CGFloat countFontSize = 24;
   NSSize countSize = NSZeroSize;
   base::scoped_nsobject<NSAttributedString> countAttrString;
   while (1) {
-    NSFont* countFont = [NSFont systemFontOfSize:countFontSize
-                                          weight:NSFontWeightMedium];
+    NSFont* countFont;
+    if (@available(macOS 10.11, *)) {
+      countFont =
+          [NSFont systemFontOfSize:countFontSize weight:NSFontWeightMedium];
+    } else {
+      countFont = [[NSFontManager sharedFontManager]
+          convertWeight:YES
+                 ofFont:[NSFont systemFontOfSize:countFontSize]];
+    }
 
     // This will generally be plain Helvetica.
     if (!countFont)
@@ -191,7 +199,7 @@ constexpr int64_t kUpdateFrequencyMs = 200;
 - (void)updateIcon {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   static base::TimeDelta updateFrequency =
-      base::Milliseconds(kUpdateFrequencyMs);
+      base::TimeDelta::FromMilliseconds(kUpdateFrequencyMs);
 
   base::TimeTicks now = base::TimeTicks::Now();
   base::TimeDelta timeSinceLastUpdate = now - _lastUpdate;

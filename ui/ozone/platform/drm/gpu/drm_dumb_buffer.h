@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "ui/ozone/platform/drm/gpu/drm_framebuffer.h"
 
@@ -30,10 +31,6 @@ class DrmDumbBuffer {
   };
 
   DrmDumbBuffer(const scoped_refptr<DrmDevice>& drm);
-
-  DrmDumbBuffer(const DrmDumbBuffer&) = delete;
-  DrmDumbBuffer& operator=(const DrmDumbBuffer&) = delete;
-
   ~DrmDumbBuffer();
 
   // Allocates a new dumb buffer, maps it, and wraps it in an SkSurface.
@@ -72,6 +69,8 @@ class DrmDumbBuffer {
 
   // Wrapper around the native pixel memory.
   sk_sp<SkSurface> surface_;
+
+  DISALLOW_COPY_AND_ASSIGN(DrmDumbBuffer);
 };
 
 }  // namespace ui

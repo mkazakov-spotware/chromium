@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/bind.h"
 #include "base/check_op.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
 #include "base/system/system_monitor.h"
@@ -21,9 +22,9 @@
 #include "media/midi/task_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "media/midi/midi_manager_win.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace midi {
 
@@ -35,9 +36,6 @@ using mojom::Result;
 class FakeMidiManager : public MidiManager {
  public:
   explicit FakeMidiManager(MidiService* service) : MidiManager(service) {}
-
-  FakeMidiManager(const FakeMidiManager&) = delete;
-  FakeMidiManager& operator=(const FakeMidiManager&) = delete;
 
   ~FakeMidiManager() override = default;
 
@@ -70,15 +68,13 @@ class FakeMidiManager : public MidiManager {
   bool initialized_ = false;
 
   base::WeakPtrFactory<FakeMidiManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeMidiManager);
 };
 
 class FakeMidiManagerFactory : public MidiService::ManagerFactory {
  public:
   FakeMidiManagerFactory() {}
-
-  FakeMidiManagerFactory(const FakeMidiManagerFactory&) = delete;
-  FakeMidiManagerFactory& operator=(const FakeMidiManagerFactory&) = delete;
-
   ~FakeMidiManagerFactory() override = default;
 
   std::unique_ptr<MidiManager> Create(MidiService* service) override {
@@ -93,7 +89,7 @@ class FakeMidiManagerFactory : public MidiService::ManagerFactory {
   }
 
   base::WeakPtr<FakeMidiManager> manager() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // To avoid Core MIDI issues, MidiManager won't be destructed on macOS.
     // See https://crbug.com/718140.
     if (!manager_ ||
@@ -107,15 +103,13 @@ class FakeMidiManagerFactory : public MidiService::ManagerFactory {
  private:
   base::WeakPtr<FakeMidiManager> manager_ = nullptr;
   base::WeakPtrFactory<FakeMidiManagerFactory> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FakeMidiManagerFactory);
 };
 
 class FakeMidiManagerClient : public MidiManagerClient {
  public:
   FakeMidiManagerClient() = default;
-
-  FakeMidiManagerClient(const FakeMidiManagerClient&) = delete;
-  FakeMidiManagerClient& operator=(const FakeMidiManagerClient&) = delete;
-
   ~FakeMidiManagerClient() override = default;
 
   // MidiManagerClient implementation.
@@ -148,6 +142,8 @@ class FakeMidiManagerClient : public MidiManagerClient {
  private:
   Result result_ = Result::NOT_SUPPORTED;
   bool wait_for_result_ = true;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeMidiManagerClient);
 };
 
 class MidiManagerTest : public ::testing::Test {
@@ -158,9 +154,6 @@ class MidiManagerTest : public ::testing::Test {
     factory_ = factory->GetWeakPtr();
     service_ = std::make_unique<MidiService>(std::move(factory));
   }
-
-  MidiManagerTest(const MidiManagerTest&) = delete;
-  MidiManagerTest& operator=(const MidiManagerTest&) = delete;
 
   ~MidiManagerTest() override {
     service_->Shutdown();
@@ -231,6 +224,8 @@ class MidiManagerTest : public ::testing::Test {
   base::test::TaskEnvironment env_;
   base::WeakPtr<FakeMidiManagerFactory> factory_;
   std::unique_ptr<MidiService> service_;
+
+  DISALLOW_COPY_AND_ASSIGN(MidiManagerTest);
 };
 
 TEST_F(MidiManagerTest, StartAndEndSession) {
@@ -332,9 +327,6 @@ class PlatformMidiManagerTest : public ::testing::Test {
     //
   }
 
-  PlatformMidiManagerTest(const PlatformMidiManagerTest&) = delete;
-  PlatformMidiManagerTest& operator=(const PlatformMidiManagerTest&) = delete;
-
   ~PlatformMidiManagerTest() override {
     service_->Shutdown();
     base::RunLoop run_loop;
@@ -350,8 +342,8 @@ class PlatformMidiManagerTest : public ::testing::Test {
   // This #ifdef needs to be identical to the one in media/midi/midi_manager.cc.
   // Do not change the condition for disabling this test.
   bool IsSupported() {
-#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_WIN) && \
-    !(defined(USE_ALSA) && defined(USE_UDEV)) && !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_MAC) && !defined(OS_WIN) && \
+    !(defined(USE_ALSA) && defined(USE_UDEV)) && !defined(OS_ANDROID)
     return false;
 #else
     return true;
@@ -366,9 +358,11 @@ class PlatformMidiManagerTest : public ::testing::Test {
 
   std::unique_ptr<FakeMidiManagerClient> client_;
   std::unique_ptr<MidiService> service_;
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformMidiManagerTest);
 };
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // The test sometimes fails on Android. https://crbug.com/844027
 #define MAYBE_CreatePlatformMidiManager DISABLED_CreatePlatformMidiManager
 #else
@@ -388,9 +382,9 @@ TEST_F(PlatformMidiManagerTest, MAYBE_CreatePlatformMidiManager) {
 
 TEST_F(PlatformMidiManagerTest, InstanceIdOverflow) {
   service()->task_service()->OverflowInstanceIdForTesting();
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   MidiManagerWin::OverflowInstanceIdForTesting();
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   StartSession();
   EXPECT_EQ(

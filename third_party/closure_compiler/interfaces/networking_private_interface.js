@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 //   ./tools/json_schema_compiler/compiler.py.
 
 /** @fileoverview Interface for networkingPrivate that can be overriden. */
+
+assertNotReached('Interface file for Closure Compiler should not be executed.');
 
 /** @interface */
 function NetworkingPrivate() {}
@@ -19,7 +21,7 @@ NetworkingPrivate.prototype = {
    *     callback Called with the network properties when received.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getProperties
    */
-  getProperties: function(networkGuid, callback) {},
+  getProperties: assertNotReached,
 
   /**
    * Gets the merged properties of the network with id networkGuid from the
@@ -30,7 +32,7 @@ NetworkingPrivate.prototype = {
    *     callback Called with the managed network properties when received.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getManagedProperties
    */
-  getManagedProperties: function(networkGuid, callback) {},
+  getManagedProperties: assertNotReached,
 
   /**
    * Gets the cached read-only properties of the network with id networkGuid.
@@ -46,7 +48,7 @@ NetworkingPrivate.prototype = {
    *     callback Called immediately with the network state properties.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getState
    */
-  getState: function(networkGuid, callback) {},
+  getState: assertNotReached,
 
   /**
    * Sets the properties of the network with id networkGuid.
@@ -56,7 +58,7 @@ NetworkingPrivate.prototype = {
    * @param {function():void=} callback Called when the operation has completed.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-setProperties
    */
-  setProperties: function(networkGuid, properties, callback) {},
+  setProperties: assertNotReached,
 
   /**
    * Creates a new network configuration from properties. If a matching
@@ -70,7 +72,7 @@ NetworkingPrivate.prototype = {
    *     network configuration once     the network has been created.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-createNetwork
    */
-  createNetwork: function(shared, properties, callback) {},
+  createNetwork: assertNotReached,
 
   /**
    * Forgets a network configuration by clearing any configured properties for
@@ -82,7 +84,7 @@ NetworkingPrivate.prototype = {
    * @param {function():void=} callback Called when the operation has completed.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-forgetNetwork
    */
-  forgetNetwork: function(networkGuid, callback) {},
+  forgetNetwork: assertNotReached,
 
   /**
    * Returns a list of network objects with the same properties provided by
@@ -97,7 +99,7 @@ NetworkingPrivate.prototype = {
    *     properties when received.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getNetworks
    */
-  getNetworks: function(filter, callback) {},
+  getNetworks: assertNotReached,
 
   /**
    * Returns a list of $(ref:networkingPrivate.DeviceStateProperties) objects.
@@ -105,7 +107,7 @@ NetworkingPrivate.prototype = {
    *     callback Called with a list of devices and their state.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getDeviceStates
    */
-  getDeviceStates: function(callback) {},
+  getDeviceStates: assertNotReached,
 
   /**
    * Enables any devices matching the specified network type. Note, the type
@@ -114,7 +116,7 @@ NetworkingPrivate.prototype = {
    *     network to enable.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-enableNetworkType
    */
-  enableNetworkType: function(networkType) {},
+  enableNetworkType: assertNotReached,
 
   /**
    * Disables any devices matching the specified network type. See note for
@@ -123,7 +125,7 @@ NetworkingPrivate.prototype = {
    *     network to disable.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-disableNetworkType
    */
-  disableNetworkType: function(networkType) {},
+  disableNetworkType: assertNotReached,
 
   /**
    * Requests that the networking subsystem scan for new networks and update the
@@ -135,7 +137,7 @@ NetworkingPrivate.prototype = {
    *     scan will be requested if supported.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-requestNetworkScan
    */
-  requestNetworkScan: function(networkType) {},
+  requestNetworkScan: assertNotReached,
 
   /**
    * Starts a connection to the network with networkGuid.
@@ -146,7 +148,7 @@ NetworkingPrivate.prototype = {
    *     changes.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-startConnect
    */
-  startConnect: function(networkGuid, callback) {},
+  startConnect: assertNotReached,
 
   /**
    * Starts a disconnect from the network with networkGuid.
@@ -155,7 +157,7 @@ NetworkingPrivate.prototype = {
    *     been sent. See note     for $(ref:startConnect).
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-startDisconnect
    */
-  startDisconnect: function(networkGuid, callback) {},
+  startDisconnect: assertNotReached,
 
   /**
    * Starts activation of the Cellular network with networkGuid. If called for a
@@ -168,7 +170,7 @@ NetworkingPrivate.prototype = {
    *     been sent. See note     for $(ref:startConnect).
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-startActivate
    */
-  startActivate: function(networkGuid, carrier, callback) {},
+  startActivate: assertNotReached,
 
   /**
    * Returns captive portal status for the network matching 'networkGuid'.
@@ -179,7 +181,7 @@ NetworkingPrivate.prototype = {
    *     network captive portal status.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getCaptivePortalStatus
    */
-  getCaptivePortalStatus: function(networkGuid, callback) {},
+  getCaptivePortalStatus: assertNotReached,
 
   /**
    * Unlocks a Cellular SIM card. * If the SIM is PIN locked, |pin| will be used
@@ -195,7 +197,7 @@ NetworkingPrivate.prototype = {
    * @param {function():void=} callback Called when the operation has completed.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-unlockCellularSim
    */
-  unlockCellularSim: function(networkGuid, pin, puk, callback) {},
+  unlockCellularSim: assertNotReached,
 
   /**
    * Sets whether or not SIM locking is enabled (i.e a PIN will be required when
@@ -212,7 +214,7 @@ NetworkingPrivate.prototype = {
    * @param {function():void=} callback Called when the operation has completed.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-setCellularSimState
    */
-  setCellularSimState: function(networkGuid, simState, callback) {},
+  setCellularSimState: assertNotReached,
 
   /**
    * Selects which Cellular Mobile Network to use. |networkId| must be the
@@ -224,7 +226,7 @@ NetworkingPrivate.prototype = {
    * @param {function():void=} callback Called when the operation has completed.
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-selectCellularMobileNetwork
    */
-  selectCellularMobileNetwork: function(networkGuid, networkId, callback) {},
+  selectCellularMobileNetwork: assertNotReached,
 
   /**
    * Gets the global policy properties. These properties are not expected to
@@ -232,14 +234,14 @@ NetworkingPrivate.prototype = {
    * @param {function(!chrome.networkingPrivate.GlobalPolicy):void} callback
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getGlobalPolicy
    */
-  getGlobalPolicy: function(callback) {},
+  getGlobalPolicy: assertNotReached,
 
   /**
    * Gets the lists of certificates available for network configuration.
    * @param {function(!chrome.networkingPrivate.CertificateLists):void} callback
    * @see https://developer.chrome.com/extensions/networkingPrivate#method-getCertificateLists
    */
-  getCertificateLists: function(callback) {},
+  getCertificateLists: assertNotReached,
 };
 
 /**

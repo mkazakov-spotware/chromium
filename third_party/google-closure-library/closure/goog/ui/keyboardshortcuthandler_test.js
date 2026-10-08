@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.KeyboardShortcutHandlerTest');
 goog.setTestOnly();
@@ -94,7 +102,6 @@ function fireEnterSpaceXF1AltY(target, extraProperties) {
  * @param {Array<string>} shortcuts A list of shortcut identifiers.
  * @param {Array<string>} targets A list of element IDs.
  * @param {function(Element)} fireEvents Function that fires events.
- * @suppress {missingProperties} suppression added to enable type checking
  */
 function expectShortcutsOnTargets(shortcuts, targets, fireEvents) {
   for (let i = 0, ii = targets.length; i < ii; i++) {
@@ -121,10 +128,6 @@ testSuite({
     listener = new StrictMock({shortcutFired: goog.nullFunction});
     events.listen(
         handler, KeyboardShortcutHandler.EventType.SHORTCUT_TRIGGERED,
-        /**
-           @suppress {missingProperties} suppression added to enable type
-           checking
-         */
         (event) => {
           listener.shortcutFired(event.identifier);
         });
@@ -140,7 +143,6 @@ testSuite({
     stubs.reset();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsSingleLetterKeyBindingsSpecifiedAsString() {
     listener.shortcutFired('lettergee');
     listener.$replay();
@@ -151,7 +153,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsSingleLetterKeyBindingsSpecifiedAsStringKeyValue() {
     listener.shortcutFired('lettergee');
     listener.$replay();
@@ -162,7 +163,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsSingleLetterKeyBindingsSpecifiedAsKeyCode() {
     listener.shortcutFired('lettergee');
     listener.$replay();
@@ -183,7 +183,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsControlAndLetterSpecifiedAsAString() {
     listener.shortcutFired('lettergee');
     listener.$replay();
@@ -194,7 +193,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsControlAndLetterSpecifiedAsAStringKeyValue() {
     listener.shortcutFired('lettergee');
     listener.$replay();
@@ -205,7 +203,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsControlAndLetterSpecifiedAsArgSequence() {
     listener.shortcutFired('lettergeectrl');
     listener.$replay();
@@ -216,7 +213,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsControlAndLetterSpecifiedAsArray() {
     listener.shortcutFired('lettergeectrl');
     listener.$replay();
@@ -227,7 +223,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsShift() {
     listener.shortcutFired('lettergeeshift');
     listener.$replay();
@@ -238,7 +233,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsAlt() {
     listener.shortcutFired('lettergeealt');
     listener.$replay();
@@ -249,7 +243,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsMeta() {
     listener.shortcutFired('lettergeemeta');
     listener.$replay();
@@ -260,7 +253,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsMultipleModifiers() {
     listener.shortcutFired('lettergeectrlaltshift');
     listener.$replay();
@@ -274,7 +266,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsMultipleModifiersSpecifiedAsString() {
     listener.shortcutFired('lettergeectrlaltshiftmeta');
     listener.$replay();
@@ -288,7 +279,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testPreventsDefaultOnReturnFalse() {
     listener.shortcutFired('x');
     listener.$replay();
@@ -357,7 +347,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsMultiKeySequenceSpecifiedAsArray() {
     listener.shortcutFired('quitemacs');
     listener.$replay();
@@ -370,7 +359,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsMultiKeySequenceSpecifiedAsArguments() {
     listener.shortcutFired('quitvi');
     listener.$replay();
@@ -403,7 +391,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAllowsMultipleAHandlers() {
     listener.shortcutFired('quitvi');
     listener.shortcutFired('letterex');
@@ -434,7 +421,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testCanRemoveOneHandler() {
     listener.shortcutFired('letterex');
     listener.$replay();
@@ -501,23 +487,6 @@ testSuite({
     assertFalse(handler.isShortcutRegistered('a b c'));
   },
 
-  testRegisterShortcutThrowsIfShortcutsConflict() {
-    handler.registerShortcut('ab', 'a b');
-    assertThrows(
-        'Registering a shortcut that triggers a pre-existing shortcut when' +
-            'its sequence is typed out should throw',
-        () => handler.registerShortcut('abc', 'a b c'));
-    assertTrue(handler.isShortcutRegistered('a b'));
-    assertFalse(handler.isShortcutRegistered('a b c'));
-    // Check that the error message displays the name of the existing shortcut.
-    try {
-      handler.registerShortcut('abc', 'a b c');
-    } catch (e) {
-      assertEquals(
-          'Keyboard shortcut conflicts with existing shortcut: ab', e.message);
-    }
-  },
-
   testUnregister_subsequence() {
     // Unregistering a partial sequence should not orphan shortcuts further in
     // the sequence.
@@ -551,7 +520,6 @@ testSuite({
     assertTrue(fire(KeyCodes.A));
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testIgnoreNonGlobalShortcutsInSelect() {
     const targetSelect = dom.getElement('targetSelect');
 
@@ -565,7 +533,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testIgnoreNonGlobalShortcutsInTextArea() {
     listener.shortcutFired('global');
     listener.shortcutFired('withAlt');
@@ -599,10 +566,6 @@ testSuite({
         ['enter', 'global', 'withAlt'], targets, fireEnterSpaceXF1AltY);
   },
 
-  /**
-     @suppress {strictMissingProperties,missingProperties} suppression added to
-     enable type checking
-   */
   testIgnoreShortcutsInShadowTextInputFields() {
     const shadowDiv = dom.getElement('targetShadow');
     // skip if shadow dom is not supported
@@ -638,11 +601,10 @@ testSuite({
         fireEnterSpaceXF1AltY);
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testIgnoreNonGlobalShortcutsInContentEditable() {
     // Don't set design mode in later IE as javascripts don't run when in
     // that mode.
-    const setDesignMode = !userAgent.IE;
+    const setDesignMode = !userAgent.IE || !userAgent.isVersionOrHigher('9');
     try {
       if (setDesignMode) {
         document.designMode = 'on';
@@ -682,7 +644,6 @@ testSuite({
         ['global'], ['targetTextArea'], fireEnterSpaceXF1AltY);
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAltGraphKeyOnUSLayout() {
     // Windows does not assign printable characters to any ctrl+alt keys of
     // the US layout. This test verifies we fire shortcut events when typing
@@ -712,7 +673,6 @@ testSuite({
     }
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAltGraphKeyOnFrenchLayout() {
     // Windows assigns printable characters to ctrl+alt+[2-5] keys of the
     // French layout. This test verifies we fire shortcut events only when
@@ -762,7 +722,6 @@ testSuite({
     }
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testAltGraphKeyOnPolishLayout_withShift() {
     // Windows assigns printable characters to ctrl+alt+shift+A key in polish
     // layout. This test verifies that we do not fire shortcut events for A, but
@@ -784,7 +743,6 @@ testSuite({
     }
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testNumpadKeyShortcuts() {
     const testCases = [
       ['letterNumpad0', 'num-0', KeyCodes.NUM_ZERO],
@@ -816,7 +774,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testGeckoShortcuts() {
     listener.shortcutFired('1');
     listener.$replay();
@@ -832,7 +789,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testWindows_multiKeyShortcuts() {
     if (userAgent.WINDOWS) {
       listener.shortcutFired('nextComment');
@@ -850,7 +806,6 @@ testSuite({
     }
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testWindows_multikeyShortcuts_repeatedKeyDoesntInterfere() {
     if (userAgent.WINDOWS) {
       listener.shortcutFired('announceCursorLocation');
@@ -905,7 +860,6 @@ testSuite({
         'The second stroke only has a modifier key.', strokes[1].keyCode);
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testOsxGeckoCopyShortcuts() {
     // Ensures that Meta+C still fires a shortcut. In legacy versions of
     // Closure, we had to listen for Meta+C/X/V on keyup instead of keydown due
@@ -920,7 +874,6 @@ testSuite({
     listener.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testHandleEmptyBrowserEvent() {
     const rootDiv = dom.getElement('rootDiv');
     const emptyEvent = new BrowserEvent();

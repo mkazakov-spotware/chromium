@@ -1,15 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_MEDIA_SOURCE_ATTACHMENT_SUPPLEMENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_MEDIA_SOURCE_ATTACHMENT_SUPPLEMENT_H_
 
-#include "base/types/pass_key.h"
+#include "base/util/type_safety/pass_key.h"
 #include "third_party/blink/renderer/core/html/media/media_source_attachment.h"
 #include "third_party/blink/renderer/core/html/media/media_source_tracer.h"
 #include "third_party/blink/renderer/core/html/track/audio_track.h"
 #include "third_party/blink/renderer/core/html/track/video_track.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
@@ -17,7 +18,6 @@ namespace blink {
 
 class AudioTrackList;
 class MediaSource;
-class SourceBuffer;
 class VideoTrackList;
 
 // Modules-specific common extension of the core MediaSourceAttachment
@@ -26,14 +26,8 @@ class VideoTrackList;
 // members common to all concrete attachments.
 class MediaSourceAttachmentSupplement : public MediaSourceAttachment {
  public:
-  using ExclusiveKey = base::PassKey<MediaSourceAttachmentSupplement>;
+  using ExclusiveKey = util::PassKey<MediaSourceAttachmentSupplement>;
   using RunExclusivelyCB = base::OnceCallback<void(ExclusiveKey)>;
-  using SourceBufferPassKey = base::PassKey<SourceBuffer>;
-
-  MediaSourceAttachmentSupplement(const MediaSourceAttachmentSupplement&) =
-      delete;
-  MediaSourceAttachmentSupplement& operator=(
-      const MediaSourceAttachmentSupplement&) = delete;
 
   // Communicates a change in the media resource duration to the attached media
   // element. In a same-thread attachment, communicates this information
@@ -52,7 +46,7 @@ class MediaSourceAttachmentSupplement : public MediaSourceAttachment {
   // (via |tracer| in a same thread implementation) or rely on a "recent"
   // currentTime pumped by the attached element via the MediaSourceAttachment
   // interface (in a cross-thread implementation).
-  virtual base::TimeDelta GetRecentMediaTime(MediaSourceTracer* tracer) = 0;
+  virtual double GetRecentMediaTime(MediaSourceTracer* tracer) = 0;
 
   // Retrieves whether or not the media element currently has an error.
   // Implementations may choose to either directly, synchronously consult the
@@ -117,35 +111,19 @@ class MediaSourceAttachmentSupplement : public MediaSourceAttachment {
   virtual bool RunExclusively(bool abort_if_not_fully_attached,
                               RunExclusivelyCB cb);
 
-  // Simpler than RunExclusively(), the default implementation returns true
-  // always. CrossThreadMediaSourceAttachment implementation should first verify
-  // the lock is already held, then return true iff the media element is still
-  // attached, has not yet signaled that its context's destruction has begun,
-  // and has not yet told the attachment to Close() - these conditions mirror
-  // the cross-thread RunExclusively checks when |abort_if_not_fully_attached|
-  // is true. This helper is expected to only be used by SourceBuffer's
-  // RemovedFromMediaSource(), hence we use the PassKey pattern to help enforce
-  // that.
-  virtual bool FullyAttachedOrSameThread(SourceBufferPassKey) const;
-
   // Default implementation fails DCHECK. See CrossThreadMediaSourceAttachment
   // for override. MediaSource and SourceBuffer use this to help verify they
   // only use underlying demuxer in cross-thread debug case while the
   // cross-thread mutex is held.
   virtual void AssertCrossThreadMutexIsAcquiredForDebugging();
 
-  // No-op for same-thread attachmenets. For cross-thread attachments,
-  // calculates current buffered and seekable on the worker thread, then posts
-  // the results to the main thread to service media element queries of that
-  // information with latency and causality similar to app postMessage() from
-  // worker to main thread.
-  virtual void SendUpdatedInfoToMainThreadCache();
-
  protected:
   MediaSourceAttachmentSupplement();
   ~MediaSourceAttachmentSupplement() override;
 
   ExclusiveKey GetExclusiveKey() const;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaSourceAttachmentSupplement);
 };
 
 }  // namespace blink

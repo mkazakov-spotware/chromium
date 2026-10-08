@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 
 namespace base {
@@ -23,11 +24,6 @@ class MediaEngagementPreloadedList {
   static MediaEngagementPreloadedList* GetInstance();
 
   MediaEngagementPreloadedList();
-
-  MediaEngagementPreloadedList(const MediaEngagementPreloadedList&) = delete;
-  MediaEngagementPreloadedList& operator=(const MediaEngagementPreloadedList&) =
-      delete;
-
   ~MediaEngagementPreloadedList();
 
   // Load the contents from |path|.
@@ -46,6 +42,55 @@ class MediaEngagementPreloadedList {
  protected:
   friend class MediaEngagementPreloadedListTest;
 
+  // The names of the CheckResult and LoadResult histograms.
+  static const char kHistogramCheckResultName[];
+  static const char kHistogramLoadResultName[];
+
+  // The result of the CheckStringIsPresent operation. This enum is used to
+  // record a histogram and should not be renumbered.
+  enum class CheckResult {
+    // The check succeeded and the string was found in the data.
+    kFoundHttpsOnly = 0,
+
+    // The check succeeded but the string was not found in the data.
+    kNotFound,
+
+    // The check failed because the list is empty.
+    kListEmpty,
+
+    // The check failed because the list has not been loaded.
+    kListNotLoaded,
+
+    // The check succeeded, the string was found and it had metadata that it
+    // allows insecure origins.
+    kFoundHttpOrHttps,
+
+    // The check succeeded, the string was found but it was https only and the
+    // origin was insecure.
+    kFoundHttpsOnlyButWasHttp,
+
+    kCount
+  };
+
+  // The result of the LoadFromFile operation. This enum is used to record
+  // a histogram and should not be renumbered.
+  enum class LoadResult {
+    // The list was loaded successfully.
+    kLoaded = 0,
+
+    // The list was not loaded because the file was not found.
+    kFileNotFound,
+
+    // The list was not loaded because the file could not be read.
+    kFileReadFailed,
+
+    // The list was not loaded because the proto stored in the file could not be
+    // parsed.
+    kParseProtoFailed,
+
+    kCount
+  };
+
   enum class DafsaResult {
     // The string was not found.
     kNotFound = -1,
@@ -60,6 +105,12 @@ class MediaEngagementPreloadedList {
   // Checks if |input| is present in the preloaded data.
   DafsaResult CheckStringIsPresent(const std::string& input) const;
 
+  // Records |result| to the LoadResult histogram.
+  void RecordLoadResult(LoadResult result);
+
+  // Records |result| to the CheckResult histogram.
+  void RecordCheckResult(CheckResult result) const;
+
  private:
   // The preloaded data in dafsa format.
   std::vector<unsigned char> dafsa_;
@@ -68,6 +119,8 @@ class MediaEngagementPreloadedList {
   bool is_loaded_ = false;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(MediaEngagementPreloadedList);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_MEDIA_ENGAGEMENT_PRELOADED_LIST_H_

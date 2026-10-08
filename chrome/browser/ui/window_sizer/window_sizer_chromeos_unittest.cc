@@ -1,14 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/window_sizer/window_sizer_chromeos.h"
 
 #include "ash/public/cpp/window_properties.h"
-#include "ash/root_window_controller.h"
-#include "ash/shelf/shelf.h"
 #include "ash/shell.h"
-#include "base/command_line.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/window_sizer/window_sizer_common_unittest.h"
@@ -44,35 +41,18 @@ class WindowSizerChromeOSTest : public ChromeAshTestBase {
 
   // Similar to WindowSizerTestUtil::GetWindowBounds() but takes an existing
   // |display_id| instead of creating a TestScreen and new displays.
-  // TODO(mek): Refactor this to use a builder pattern similar to what
-  // WindowSizerTestUtil does.
-  enum Source { DEFAULT, LAST_ACTIVE, PERSISTED, BOTH };
   void GetWindowBounds(const Browser* browser,
                        const gfx::Rect& passed_in,
                        int64_t display_id,
-                       const gfx::Rect& bounds,
-                       const gfx::Rect& work_area,
-                       Source source,
                        gfx::Rect* out_bounds) {
     auto state_provider = std::make_unique<TestStateProvider>();
-    if (source == PERSISTED) {
-      state_provider->SetPersistentState(bounds, work_area,
-                                         ui::SHOW_STATE_DEFAULT);
-    } else {
-      DCHECK_EQ(source, DEFAULT);
-    }
+    state_provider->SetPersistentState(gfx::Rect(), gfx::Rect(),
+                                       ui::SHOW_STATE_DEFAULT);
     display::Screen::GetScreen()->SetDisplayForNewWindows(display_id);
 
     ui::WindowShowState ignored;
     WindowSizer::GetBrowserWindowBoundsAndShowState(
         std::move(state_provider), passed_in, browser, out_bounds, &ignored);
-  }
-  void GetWindowBounds(const Browser* browser,
-                       const gfx::Rect& passed_in,
-                       int64_t display_id,
-                       gfx::Rect* out_bounds = nullptr) {
-    GetWindowBounds(browser, passed_in, display_id, gfx::Rect(), gfx::Rect(),
-                    PERSISTED, out_bounds);
   }
 
   // Returns browser window |out_bounds| and |out_show_state| for simulated
@@ -143,17 +123,15 @@ std::unique_ptr<Browser> CreateTestBrowser(aura::Window* window,
 
 }  // namespace
 
-// WindowSizerChromeOSNoAshTest are the tests that does not require ash
-// environment, thus it can use WindowSizerTestUtil that create a TestScreen
-// inside.
-
 // Test that the window is sized appropriately for the first run experience
 // where the default window bounds calculation is invoked.
-TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
+TEST_F(WindowSizerChromeOSTest, DefaultSizeCase) {
   {
     // 4:3 monitor case, 1024x768, no taskbar.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil().WithMonitorBounds(p1024x768).GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(p1024x768, p1024x768, gfx::Rect(),
+                                         gfx::Rect(), gfx::Rect(), DEFAULT,
+                                         NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(
         gfx::Rect(kDesktopBorderSize, kDesktopBorderSize,
                   1024 - kDesktopBorderSize * 2, 768 - kDesktopBorderSize),
@@ -162,10 +140,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 4:3 monitor case, 1024x768, taskbar on bottom.
-    gfx::Rect window_bounds = WindowSizerTestUtil()
-                                  .WithMonitorBounds(p1024x768)
-                                  .WithMonitorWorkArea(taskbar_bottom_work_area)
-                                  .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, taskbar_bottom_work_area, gfx::Rect(), gfx::Rect(),
+        gfx::Rect(), DEFAULT, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(kDesktopBorderSize, kDesktopBorderSize,
                         1024 - kDesktopBorderSize * 2,
                         taskbar_bottom_work_area.height() - kDesktopBorderSize),
@@ -174,10 +152,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 4:3 monitor case, 1024x768, taskbar on right.
-    gfx::Rect window_bounds = WindowSizerTestUtil()
-                                  .WithMonitorBounds(p1024x768)
-                                  .WithMonitorWorkArea(taskbar_right_work_area)
-                                  .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, taskbar_right_work_area, gfx::Rect(), gfx::Rect(),
+        gfx::Rect(), DEFAULT, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(
         gfx::Rect(kDesktopBorderSize, kDesktopBorderSize,
                   taskbar_right_work_area.width() - kDesktopBorderSize * 2,
@@ -187,10 +165,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 4:3 monitor case, 1024x768, taskbar on left.
-    gfx::Rect window_bounds = WindowSizerTestUtil()
-                                  .WithMonitorBounds(p1024x768)
-                                  .WithMonitorWorkArea(taskbar_left_work_area)
-                                  .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, taskbar_left_work_area, gfx::Rect(), gfx::Rect(),
+        gfx::Rect(), DEFAULT, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(taskbar_left_work_area.x() + kDesktopBorderSize,
                         kDesktopBorderSize,
                         taskbar_left_work_area.width() - kDesktopBorderSize * 2,
@@ -200,10 +178,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 4:3 monitor case, 1024x768, taskbar on top.
-    gfx::Rect window_bounds = WindowSizerTestUtil()
-                                  .WithMonitorBounds(p1024x768)
-                                  .WithMonitorWorkArea(taskbar_top_work_area)
-                                  .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, taskbar_top_work_area, gfx::Rect(), gfx::Rect(), gfx::Rect(),
+        DEFAULT, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(kDesktopBorderSize,
                         taskbar_top_work_area.y() + kDesktopBorderSize,
                         1024 - kDesktopBorderSize * 2,
@@ -213,8 +191,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 4:3 monitor case, 1280x1024.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil().WithMonitorBounds(p1280x1024).GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(p1280x1024, p1280x1024, gfx::Rect(),
+                                         gfx::Rect(), gfx::Rect(), DEFAULT,
+                                         NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect((1280 - kMaximumWindowWidth) / 2, kDesktopBorderSize,
                         kMaximumWindowWidth, 1024 - kDesktopBorderSize),
               window_bounds);
@@ -222,8 +202,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 4:3 monitor case, 1600x1200.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil().WithMonitorBounds(p1600x1200).GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(p1600x1200, p1600x1200, gfx::Rect(),
+                                         gfx::Rect(), gfx::Rect(), DEFAULT,
+                                         NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect((1600 - kMaximumWindowWidth) / 2, kDesktopBorderSize,
                         kMaximumWindowWidth, 1200 - kDesktopBorderSize),
               window_bounds);
@@ -231,8 +213,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 16:10 monitor case, 1680x1050.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil().WithMonitorBounds(p1680x1050).GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(p1680x1050, p1680x1050, gfx::Rect(),
+                                         gfx::Rect(), gfx::Rect(), DEFAULT,
+                                         NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect((1680 - kMaximumWindowWidth) / 2, kDesktopBorderSize,
                         kMaximumWindowWidth, 1050 - kDesktopBorderSize),
               window_bounds);
@@ -240,8 +224,10 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
   {
     // 16:10 monitor case, 1920x1200.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil().WithMonitorBounds(p1920x1200).GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(p1920x1200, p1920x1200, gfx::Rect(),
+                                         gfx::Rect(), gfx::Rect(), DEFAULT,
+                                         NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect((1920 - kMaximumWindowWidth) / 2, kDesktopBorderSize,
                         kMaximumWindowWidth, 1200 - kDesktopBorderSize),
               window_bounds);
@@ -250,15 +236,14 @@ TEST(WindowSizerChromeOSNoAshTest, DefaultSizeCase) {
 
 // Test that the next opened window is positioned appropriately given the
 // bounds of an existing window of the same type.
-TEST(WindowSizerChromeOS2NoAshTest, LastWindowBoundsCase) {
+TEST_F(WindowSizerChromeOSTest, LastWindowBoundsCase) {
   {
     // Normal, in the middle of the screen somewhere.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(
-                gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400))
-            .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(),
+        gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(kWindowTilePixels + kDesktopBorderSize,
                         kWindowTilePixels + kDesktopBorderSize, 500, 400)
                   .ToString(),
@@ -267,13 +252,11 @@ TEST(WindowSizerChromeOS2NoAshTest, LastWindowBoundsCase) {
 
   {
     // Taskbar on top.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithMonitorWorkArea(taskbar_top_work_area)
-            .WithLastActiveBounds(
-                gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400))
-            .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, taskbar_top_work_area, gfx::Rect(),
+        gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(kWindowTilePixels + kDesktopBorderSize,
                         std::max(kWindowTilePixels + kDesktopBorderSize,
                                  34 /* toolbar height */),
@@ -283,32 +266,42 @@ TEST(WindowSizerChromeOS2NoAshTest, LastWindowBoundsCase) {
   }
 
   {
-    // Too small to satisfy the minimum visibility condition.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(
-                gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 29, 29))
-            .GetWindowBounds();
+    // Too small to satisify the minimum visibility condition.
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(),
+        gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 29, 29), gfx::Rect(),
+        LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(kWindowTilePixels + kDesktopBorderSize,
                         kWindowTilePixels + kDesktopBorderSize, 30 /* not 29 */,
                         30 /* not 29 */)
                   .ToString(),
               window_bounds.ToString());
   }
+
+  {
+    // Normal.
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(),
+        gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
+    EXPECT_EQ(gfx::Rect(kWindowTilePixels + kDesktopBorderSize,
+                        kWindowTilePixels + kDesktopBorderSize, 500, 400)
+                  .ToString(),
+              window_bounds.ToString());
+  }
 }
 
-TEST(WindowSizerChromeOSNoAshTest,
-     LastWindowOffscreenWithNonAggressiveRepositioning) {
+TEST_F(WindowSizerChromeOSTest,
+       LastWindowOffscreenWithNonAggressiveRepositioning) {
   {
     // Taskbar on left.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithMonitorWorkArea(taskbar_left_work_area)
-            .WithLastActiveBounds(
-                gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400))
-            .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, taskbar_left_work_area, gfx::Rect(),
+        gfx::Rect(kDesktopBorderSize, kDesktopBorderSize, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(kWindowTilePixels + kDesktopBorderSize,
                         kWindowTilePixels + kDesktopBorderSize, 500, 400)
                   .ToString(),
@@ -318,23 +311,21 @@ TEST(WindowSizerChromeOSNoAshTest,
   {
     // Offset would put the new window offscreen at the bottom but the minimum
     // visibility condition is barely satisfied without relocation.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(gfx::Rect(10, 728, 500, 400))
-            .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(), gfx::Rect(10, 728, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(10 + kWindowTilePixels, 738, 500, 400).ToString(),
               window_bounds.ToString());
   }
 
   {
     // Offset would put the new window offscreen at the bottom and the minimum
-    // visibility condition is satisfied by relocation.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(gfx::Rect(10, 729, 500, 400))
-            .GetWindowBounds();
+    // visibility condition is satisified by relocation.
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(), gfx::Rect(10, 729, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(10 + kWindowTilePixels, 738 /* not 739 */, 500, 400)
                   .ToString(),
               window_bounds.ToString());
@@ -343,23 +334,21 @@ TEST(WindowSizerChromeOSNoAshTest,
   {
     // Offset would put the new window offscreen at the right but the minimum
     // visibility condition is barely satisfied without relocation.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(gfx::Rect(984, 10, 500, 400))
-            .GetWindowBounds();
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(), gfx::Rect(984, 10, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(994, 10 + kWindowTilePixels, 500, 400).ToString(),
               window_bounds.ToString());
   }
 
   {
     // Offset would put the new window offscreen at the right and the minimum
-    // visibility condition is satisfied by relocation.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(gfx::Rect(985, 10, 500, 400))
-            .GetWindowBounds();
+    // visibility condition is satisified by relocation.
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(), gfx::Rect(985, 10, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(gfx::Rect(994 /* not 995 */, 10 + kWindowTilePixels, 500, 400)
                   .ToString(),
               window_bounds.ToString());
@@ -367,12 +356,11 @@ TEST(WindowSizerChromeOSNoAshTest,
 
   {
     // Offset would put the new window offscreen at the bottom right and the
-    // minimum visibility condition is satisfied by relocation.
-    gfx::Rect window_bounds =
-        WindowSizerTestUtil()
-            .WithMonitorBounds(p1024x768)
-            .WithLastActiveBounds(gfx::Rect(985, 729, 500, 400))
-            .GetWindowBounds();
+    // minimum visibility condition is satisified by relocation.
+    gfx::Rect window_bounds;
+    WindowSizerTestUtil::GetWindowBounds(
+        p1024x768, p1024x768, gfx::Rect(), gfx::Rect(985, 729, 500, 400),
+        gfx::Rect(), LAST_ACTIVE, NULL, gfx::Rect(), &window_bounds);
     EXPECT_EQ(
         gfx::Rect(994 /* not 995 */, 738 /* not 739 */, 500, 400).ToString(),
         window_bounds.ToString());
@@ -381,12 +369,6 @@ TEST(WindowSizerChromeOSNoAshTest,
 
 // Test the placement of newly created windows.
 TEST_F(WindowSizerChromeOSTest, PlaceNewWindows) {
-  UpdateDisplay("1600x1200");
-  auto* shelf = ash::Shell::GetPrimaryRootWindowController()->shelf();
-  shelf->SetAutoHideBehavior(ash::ShelfAutoHideBehavior::kAlways);
-
-  int64_t display_id = display::Screen::GetScreen()->GetPrimaryDisplay().id();
-
   // Create a browser to pass into the WindowSizerTestUtil::GetWindowBounds
   // function.
   Browser::CreateParams native_params(&profile_, true);
@@ -409,13 +391,13 @@ TEST_F(WindowSizerChromeOSTest, PlaceNewWindows) {
 
   // Make sure that popups do not get changed.
   {
-    Browser::CreateParams params_new_popup(Browser::TYPE_POPUP, &profile_,
-                                           true);
-    auto new_popup = CreateWindowlessBrowser(params_new_popup);
+    Browser::CreateParams params_popup(Browser::TYPE_POPUP, &profile_, true);
+    auto new_popup = CreateWindowlessBrowser(params_popup);
     gfx::Rect window_bounds;
-    GetWindowBounds(new_popup.get(), gfx::Rect(), display_id,
-                    gfx::Rect(50, 100, 300, 150), bottom_s1600x1200, PERSISTED,
-                    &window_bounds);
+    WindowSizerTestUtil::GetWindowBounds(
+        p1600x1200, p1600x1200, gfx::Rect(), gfx::Rect(50, 100, 300, 150),
+        bottom_s1600x1200, PERSISTED, new_popup.get(), gfx::Rect(),
+        &window_bounds);
     EXPECT_EQ("50,100 300x150", window_bounds.ToString());
   }
 
@@ -423,17 +405,19 @@ TEST_F(WindowSizerChromeOSTest, PlaceNewWindows) {
   {
     // If a window is there but not shown the persisted default should be used.
     gfx::Rect window_bounds;
-    GetWindowBounds(browser.get(), gfx::Rect(), display_id,
-                    gfx::Rect(50, 100, 300, 150), bottom_s1600x1200, PERSISTED,
-                    &window_bounds);
+    WindowSizerTestUtil::GetWindowBounds(
+        p1600x1200, p1600x1200, gfx::Rect(), gfx::Rect(50, 100, 300, 150),
+        bottom_s1600x1200, PERSISTED, browser.get(), gfx::Rect(),
+        &window_bounds);
     EXPECT_EQ("50,100 300x150", window_bounds.ToString());
   }
 
   {
     // If a window is there but not shown the default should be returned.
     gfx::Rect window_bounds;
-    GetWindowBounds(browser.get(), gfx::Rect(), display_id, gfx::Rect(),
-                    bottom_s1600x1200, DEFAULT, &window_bounds);
+    WindowSizerTestUtil::GetWindowBounds(
+        p1600x1200, p1600x1200, gfx::Rect(), gfx::Rect(), bottom_s1600x1200,
+        DEFAULT, browser.get(), gfx::Rect(), &window_bounds);
     // Note: We need to also take the defaults maximum width into account here
     // since that might get used if the resolution is too big.
     EXPECT_EQ(
@@ -722,7 +706,7 @@ TEST_F(WindowSizerChromeOSTest, DefaultStateBecomesMaximized) {
   gfx::Rect specified_bounds = display_bounds;
 
   // Make a window bigger than the display work area.
-  specified_bounds.Inset(-20);
+  specified_bounds.Inset(-20, -20);
   ui::WindowShowState show_state = ui::SHOW_STATE_DEFAULT;
   gfx::Rect bounds;
   WindowSizer::GetBrowserWindowBoundsAndShowState(
@@ -733,7 +717,7 @@ TEST_F(WindowSizerChromeOSTest, DefaultStateBecomesMaximized) {
   EXPECT_TRUE(display_bounds.Contains(bounds));
 
   // Make a window smaller than the display work area.
-  specified_bounds.Inset(100);
+  specified_bounds.Inset(100, 100);
   show_state = ui::SHOW_STATE_DEFAULT;
   WindowSizer::GetBrowserWindowBoundsAndShowState(
       specified_bounds, browser.get(), &bounds, &show_state);
@@ -749,16 +733,14 @@ TEST_F(WindowSizerChromeOSTest, DefaultStateBecomesMaximized) {
 TEST_F(WindowSizerChromeOSTest, DefaultBoundsInTargetDisplay) {
   UpdateDisplay("500x500,600x600");
 
-  {
-    // By default windows are placed on the primary display.
-    aura::Window* first_root = ash::Shell::GetAllRootWindows()[0];
-    EXPECT_EQ(first_root, ash::Shell::GetRootWindowForNewWindows());
-    gfx::Rect bounds;
-    ui::WindowShowState show_state;
-    WindowSizer::GetBrowserWindowBoundsAndShowState(gfx::Rect(), nullptr,
-                                                    &bounds, &show_state);
-    EXPECT_TRUE(first_root->GetBoundsInScreen().Contains(bounds));
-  }
+  // By default windows are placed on the primary display.
+  aura::Window* first_root = ash::Shell::GetAllRootWindows()[0];
+  EXPECT_EQ(first_root, ash::Shell::GetRootWindowForNewWindows());
+  gfx::Rect bounds;
+  ui::WindowShowState show_state;
+  WindowSizer::GetBrowserWindowBoundsAndShowState(gfx::Rect(), nullptr, &bounds,
+                                                  &show_state);
+  EXPECT_TRUE(first_root->GetBoundsInScreen().Contains(bounds));
 
   {
     // When the second display is active new windows are placed there.

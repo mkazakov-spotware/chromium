@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "gpu/command_buffer/client/gles2_cmd_helper.h"
 #include "gpu/command_buffer/client/gles2_implementation.h"
 #include "gpu/command_buffer/common/gles2_cmd_utils.h"
@@ -137,7 +137,7 @@ class GLES2_IMPL_EXPORT VertexArrayObject {
     GLboolean normalized_;
 
     // The pointer/offset into the buffer.
-    raw_ptr<const GLvoid> pointer_;
+    const GLvoid* pointer_;
 
     // The stride that will be used to access the buffer. This is the bogus GL
     // stride where 0 = compute the stride based on size and type.
@@ -152,9 +152,6 @@ class GLES2_IMPL_EXPORT VertexArrayObject {
   typedef std::vector<VertexAttrib> VertexAttribs;
 
   explicit VertexArrayObject(GLuint max_vertex_attribs);
-
-  VertexArrayObject(const VertexArrayObject&) = delete;
-  VertexArrayObject& operator=(const VertexArrayObject&) = delete;
 
   void UnbindBuffer(GLuint id);
 
@@ -192,6 +189,8 @@ class GLES2_IMPL_EXPORT VertexArrayObject {
   GLuint bound_element_array_buffer_id_;
 
   VertexAttribs vertex_attribs_;
+
+  DISALLOW_COPY_AND_ASSIGN(VertexArrayObject);
 };
 
 VertexArrayObject::VertexArrayObject(GLuint max_vertex_attribs)
@@ -343,12 +342,18 @@ VertexArrayObjectManager::VertexArrayObjectManager(
       element_array_buffer_id_(element_array_buffer_id),
       element_array_buffer_size_(0),
       collection_buffer_size_(0),
-      default_vertex_array_object_(
-          std::make_unique<VertexArrayObject>(max_vertex_attribs)),
-      bound_vertex_array_object_(default_vertex_array_object_.get()),
-      support_client_side_arrays_(support_client_side_arrays) {}
+      default_vertex_array_object_(new VertexArrayObject(max_vertex_attribs)),
+      bound_vertex_array_object_(default_vertex_array_object_),
+      support_client_side_arrays_(support_client_side_arrays) {
+}
 
-VertexArrayObjectManager::~VertexArrayObjectManager() = default;
+VertexArrayObjectManager::~VertexArrayObjectManager() {
+  for (VertexArrayObjectMap::iterator it = vertex_array_objects_.begin();
+       it != vertex_array_objects_.end(); ++it) {
+    delete it->second;
+  }
+  delete default_vertex_array_object_;
+}
 
 bool VertexArrayObjectManager::IsReservedId(GLuint id) const {
   return (id != 0 &&
@@ -373,8 +378,7 @@ void VertexArrayObjectManager::GenVertexArrays(
   for (GLsizei i = 0; i < n; ++i) {
     std::pair<VertexArrayObjectMap::iterator, bool> result =
         vertex_array_objects_.insert(std::make_pair(
-            arrays[i],
-            std::make_unique<VertexArrayObject>(max_vertex_attribs_)));
+            arrays[i], new VertexArrayObject(max_vertex_attribs_)));
     DCHECK(result.second);
   }
 }
@@ -387,9 +391,10 @@ void VertexArrayObjectManager::DeleteVertexArrays(
     if (id) {
       VertexArrayObjectMap::iterator it = vertex_array_objects_.find(id);
       if (it != vertex_array_objects_.end()) {
-        if (bound_vertex_array_object_ == it->second.get()) {
-          bound_vertex_array_object_ = default_vertex_array_object_.get();
+        if (bound_vertex_array_object_ == it->second) {
+          bound_vertex_array_object_ = default_vertex_array_object_;
         }
+        delete it->second;
         vertex_array_objects_.erase(it);
       }
     }
@@ -398,13 +403,13 @@ void VertexArrayObjectManager::DeleteVertexArrays(
 
 bool VertexArrayObjectManager::BindVertexArray(GLuint array, bool* changed) {
   *changed = false;
-  VertexArrayObject* vertex_array_object = default_vertex_array_object_.get();
+  VertexArrayObject* vertex_array_object = default_vertex_array_object_;
   if (array != 0) {
     VertexArrayObjectMap::iterator it = vertex_array_objects_.find(array);
     if (it == vertex_array_objects_.end()) {
       return false;
     }
-    vertex_array_object = it->second.get();
+    vertex_array_object = it->second;
   }
   *changed = vertex_array_object != bound_vertex_array_object_;
   bound_vertex_array_object_ = vertex_array_object;
@@ -474,7 +479,7 @@ GLsizei VertexArrayObjectManager::CollectData(
 }
 
 bool VertexArrayObjectManager::IsDefaultVAOBound() const {
-  return bound_vertex_array_object_ == default_vertex_array_object_.get();
+  return bound_vertex_array_object_ == default_vertex_array_object_;
 }
 
 bool VertexArrayObjectManager::SupportsClientSideBuffers() {

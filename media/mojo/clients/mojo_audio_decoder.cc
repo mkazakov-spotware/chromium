@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "media/base/audio_buffer.h"
@@ -40,18 +40,18 @@ bool MojoAudioDecoder::IsPlatformDecoder() const {
 
 bool MojoAudioDecoder::SupportsDecryption() const {
   // Currently only the android backends support decryption
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return true;
 #else
   return false;
 #endif
 }
 
-AudioDecoderType MojoAudioDecoder::GetDecoderType() const {
-  return decoder_type_;
+std::string MojoAudioDecoder::GetDisplayName() const {
+  return "MojoAudioDecoder";
 }
 
-void MojoAudioDecoder::FailInit(InitCB init_cb, DecoderStatus err) {
+void MojoAudioDecoder::FailInit(InitCB init_cb, Status err) {
   task_runner_->PostTask(FROM_HERE,
                          base::BindOnce(std::move(init_cb), std::move(err)));
 }
@@ -70,19 +70,19 @@ void MojoAudioDecoder::Initialize(const AudioDecoderConfig& config,
   // This could happen during reinitialization.
   if (!remote_decoder_.is_connected()) {
     DVLOG(1) << __func__ << ": Connection error happened.";
-    FailInit(std::move(init_cb), DecoderStatus::Codes::kDisconnected);
+    FailInit(std::move(init_cb), StatusCode::kMojoDecoderNoConnection);
     return;
   }
 
   // Fail immediately if the stream is encrypted but |cdm_context| is invalid.
-  absl::optional<base::UnguessableToken> cdm_id;
+  base::Optional<base::UnguessableToken> cdm_id;
   if (config.is_encrypted() && cdm_context)
     cdm_id = cdm_context->GetCdmId();
 
   if (config.is_encrypted() && !cdm_id) {
     DVLOG(1) << __func__ << ": Invalid CdmContext.";
     FailInit(std::move(init_cb),
-             DecoderStatus::Codes::kUnsupportedEncryptionMode);
+             StatusCode::kDecoderMissingCdmForEncryptedContent);
     return;
   }
 
@@ -103,9 +103,9 @@ void MojoAudioDecoder::Decode(scoped_refptr<DecoderBuffer> media_buffer,
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!remote_decoder_.is_connected()) {
-    task_runner_->PostTask(FROM_HERE,
-                           base::BindOnce(std::move(decode_cb),
-                                          DecoderStatus::Codes::kDisconnected));
+    task_runner_->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(decode_cb), DecodeStatus::DECODE_ERROR));
     return;
   }
 
@@ -114,7 +114,7 @@ void MojoAudioDecoder::Decode(scoped_refptr<DecoderBuffer> media_buffer,
   if (!buffer) {
     task_runner_->PostTask(
         FROM_HERE,
-        base::BindOnce(std::move(decode_cb), DecoderStatus::Codes::kFailed));
+        base::BindOnce(std::move(decode_cb), DecodeStatus::DECODE_ERROR));
     return;
   }
 
@@ -133,8 +133,8 @@ void MojoAudioDecoder::Reset(base::OnceClosure closure) {
   if (!remote_decoder_.is_connected()) {
     if (decode_cb_) {
       task_runner_->PostTask(
-          FROM_HERE, base::BindOnce(std::move(decode_cb_),
-                                    DecoderStatus::Codes::kDisconnected));
+          FROM_HERE,
+          base::BindOnce(std::move(decode_cb_), DecodeStatus::DECODE_ERROR));
     }
 
     task_runner_->PostTask(FROM_HERE, std::move(closure));
@@ -188,24 +188,22 @@ void MojoAudioDecoder::OnConnectionError() {
   DCHECK(!remote_decoder_.is_connected());
 
   if (init_cb_) {
-    FailInit(std::move(init_cb_), DecoderStatus::Codes::kDisconnected);
+    FailInit(std::move(init_cb_), StatusCode::kMojoDecoderNoConnection);
     return;
   }
 
   if (decode_cb_)
-    std::move(decode_cb_).Run(DecoderStatus::Codes::kDisconnected);
+    std::move(decode_cb_).Run(DecodeStatus::DECODE_ERROR);
   if (reset_cb_)
     std::move(reset_cb_).Run();
 }
 
-void MojoAudioDecoder::OnInitialized(const DecoderStatus& status,
-                                     bool needs_bitstream_conversion,
-                                     AudioDecoderType decoder_type) {
+void MojoAudioDecoder::OnInitialized(const Status& status,
+                                     bool needs_bitstream_conversion) {
   DVLOG(1) << __func__ << ": success:" << status.is_ok();
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   needs_bitstream_conversion_ = needs_bitstream_conversion;
-  decoder_type_ = decoder_type;
 
   if (status.is_ok() && !mojo_decoder_buffer_writer_) {
     mojo::ScopedDataPipeConsumerHandle remote_consumer_handle;
@@ -219,8 +217,8 @@ void MojoAudioDecoder::OnInitialized(const DecoderStatus& status,
   std::move(init_cb_).Run(std::move(status));
 }
 
-void MojoAudioDecoder::OnDecodeStatus(const DecoderStatus& status) {
-  DVLOG(1) << __func__ << ": status:" << static_cast<int>(status.code());
+void MojoAudioDecoder::OnDecodeStatus(const Status& status) {
+  DVLOG(1) << __func__ << ": status:" << status.code();
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   DCHECK(decode_cb_);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/devtools/devtools_background_services.pb.h"
 #include "content/browser/devtools/devtools_background_services_context_impl.h"
@@ -28,10 +29,6 @@ class BackgroundServiceHandler
       public DevToolsBackgroundServicesContextImpl::EventObserver {
  public:
   BackgroundServiceHandler();
-
-  BackgroundServiceHandler(const BackgroundServiceHandler&) = delete;
-  BackgroundServiceHandler& operator=(const BackgroundServiceHandler&) = delete;
-
   ~BackgroundServiceHandler() override;
 
   void Wire(UberDispatcher* dispatcher) override;
@@ -67,6 +64,8 @@ class BackgroundServiceHandler
   base::flat_set<devtools::proto::BackgroundService> enabled_services_;
 
   base::WeakPtrFactory<BackgroundServiceHandler> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundServiceHandler);
 };
 
 }  // namespace protocol

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/observer_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/status_icons/status_icon_observer.h"
 
@@ -25,7 +24,7 @@ void StatusIcon::RemoveObserver(StatusIconObserver* observer) {
 }
 
 bool StatusIcon::HasObservers() const {
-  return !observers_.empty();
+  return observers_.might_have_observers();
 }
 
 void StatusIcon::DispatchClickEvent() {
@@ -33,7 +32,7 @@ void StatusIcon::DispatchClickEvent() {
     observer.OnStatusIconClicked();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void StatusIcon::DispatchBalloonClickEvent() {
   for (StatusIconObserver& observer : observers_)
     observer.OnBalloonClicked();

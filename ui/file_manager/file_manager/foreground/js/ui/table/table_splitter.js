@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,10 @@
  * It is column model responsibility to resize other columns accordingly.
  */
 
-import {dispatchSimpleEvent, getPropertyDescriptor} from 'chrome://resources/ash/common/cr_deprecated.js';
-
-import {Splitter} from '../splitter.js';
-
-import {Table} from './table.js';
-
 /**
  * Creates a new table splitter element.
  */
-export class TableSplitter extends Splitter {
+class TableSplitter extends cr.ui.Splitter {
   /**
    * @param {Object=} opt_propertyBag Optional properties.
    */
@@ -28,7 +22,7 @@ export class TableSplitter extends Splitter {
     // cr.ui magic overwrites __proto__, so here we restore it back.
     this.__proto__ = TableSplitter.prototype;
 
-    /** @private {Table} */
+    /** @private {cr.ui.Table} */
     this.table_;
     this.table = (opt_propertyBag && opt_propertyBag.table) || null;
 
@@ -50,12 +44,14 @@ export class TableSplitter extends Splitter {
   decorate() {
     super.decorate();
 
-    const icon = document.createElement('cr-icon-button');
-    icon.setAttribute('iron-icon', 'files32:small-dragger');
-    icon.setAttribute('tabindex', '-1');
-    icon.setAttribute('aria-hidden', 'true');
-    icon.classList.add('splitter-icon');
-    this.appendChild(icon);
+    if (util.isFilesNg()) {
+      const icon = document.createElement('cr-icon-button');
+      icon.setAttribute('iron-icon', 'files32:small-dragger');
+      icon.setAttribute('tabindex', '-1');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.classList.add('splitter-icon');
+      this.appendChild(icon);
+    }
 
     this.classList.add('table-header-splitter');
   }
@@ -80,10 +76,8 @@ export class TableSplitter extends Splitter {
    * @override
    */
   handleSplitterDragMove(deltaX) {
-    if (this.table_.columnModel.setWidthAndKeepTotal) {
-      this.table_.columnModel.setWidthAndKeepTotal(
-          this.columnIndex, this.columnWidth_ + deltaX, true);
-    }
+    this.table_.columnModel.setWidthAndKeepTotal(
+        this.columnIndex, this.columnWidth_ + deltaX, true);
   }
 
   /**
@@ -92,7 +86,7 @@ export class TableSplitter extends Splitter {
    */
   handleSplitterDragEnd() {
     this.ownerDocument.documentElement.classList.remove('col-resize');
-    dispatchSimpleEvent(this, 'column-resize-end', true);
+    cr.dispatchSimpleEvent(this, 'column-resize-end', true);
     this.table_.columnModel.handleSplitterDragEnd();
   }
 }
@@ -101,15 +95,10 @@ export class TableSplitter extends Splitter {
  * The column index.
  * @type {number}
  */
-TableSplitter.prototype.columnIndex;
-Object.defineProperty(
-    TableSplitter.prototype, 'columnIndex',
-    getPropertyDescriptor('columnIndex'));
+cr.defineProperty(TableSplitter, 'columnIndex');
 
 /**
  * The table associated with the splitter.
  * @type {Element}
  */
-TableSplitter.prototype.table;
-Object.defineProperty(
-    TableSplitter.prototype, 'table', getPropertyDescriptor('table'));
+cr.defineProperty(TableSplitter, 'table');

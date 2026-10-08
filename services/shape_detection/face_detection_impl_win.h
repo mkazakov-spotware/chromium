@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "services/shape_detection/public/mojom/facedetection.mojom.h"
@@ -31,10 +32,6 @@ class FaceDetectionImplWin : public mojom::FaceDetection {
           ABI::Windows::Graphics::Imaging::ISoftwareBitmapStatics>
           bitmap_factory,
       ABI::Windows::Graphics::Imaging::BitmapPixelFormat pixel_format);
-
-  FaceDetectionImplWin(const FaceDetectionImplWin&) = delete;
-  FaceDetectionImplWin& operator=(const FaceDetectionImplWin&) = delete;
-
   ~FaceDetectionImplWin() override;
 
   void SetReceiver(mojo::SelfOwnedReceiverRef<mojom::FaceDetection> receiver) {
@@ -68,6 +65,8 @@ class FaceDetectionImplWin : public mojom::FaceDetection {
   mojo::SelfOwnedReceiverRef<mojom::FaceDetection> receiver_;
 
   base::WeakPtrFactory<FaceDetectionImplWin> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FaceDetectionImplWin);
 };
 
 }  // namespace shape_detection

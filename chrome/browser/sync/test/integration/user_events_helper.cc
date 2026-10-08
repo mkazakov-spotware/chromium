@@ -1,12 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync/test/integration/user_events_helper.h"
 
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
-#include "components/sync/test/fake_server.h"
+#include "components/sync/test/fake_server/fake_server.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using fake_server::FakeServer;
@@ -27,7 +26,7 @@ UserEventSpecifics CreateTestEvent(base::Time time) {
 }  // namespace user_events_helper
 
 UserEventEqualityChecker::UserEventEqualityChecker(
-    syncer::SyncServiceImpl* service,
+    syncer::ProfileSyncService* service,
     FakeServer* fake_server,
     std::vector<UserEventSpecifics> expected_specifics)
     : SingleClientStatusChangeChecker(service),
@@ -60,9 +59,13 @@ bool UserEventEqualityChecker::IsExitConditionSatisfied(std::ostream* os) {
     UserEventSpecifics server_specifics = entity.specifics().user_event();
     // Find a matching event in our expectations. Same event time should mean
     // identical events, though there can be duplicates in some cases.
-    auto iter = base::ranges::find(
-        remaining_expected_specifics, server_specifics.event_time_usec(),
-        &sync_pb::UserEventSpecifics::event_time_usec);
+    auto iter = std::find_if(
+        remaining_expected_specifics.begin(),
+        remaining_expected_specifics.end(),
+        [&server_specifics](const sync_pb::UserEventSpecifics& specifics) {
+          return server_specifics.event_time_usec() ==
+                 specifics.event_time_usec();
+        });
     // We don't expect to encounter id matching events with different values,
     // this isn't going to recover so fail the test case now.
     EXPECT_NE(iter, remaining_expected_specifics.end());

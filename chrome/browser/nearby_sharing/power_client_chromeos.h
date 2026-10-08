@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ class PowerClientChromeos : public PowerClient,
  private:
   // chromeos::PowerManagerClient::Observer:
   void SuspendImminent(power_manager::SuspendImminent::Reason reason) override;
-  void SuspendDone(base::TimeDelta sleep_duration) override;
+  void SuspendDone(const base::TimeDelta& sleep_duration) override;
 };
 
 #endif  // CHROME_BROWSER_NEARBY_SHARING_POWER_CLIENT_CHROMEOS_H_

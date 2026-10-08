@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,18 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_PAINT_SCROLL_PAINT_PROPERTY_NODE_H_
 
 #include <algorithm>
-
-#include "base/dcheck_is_on.h"
-#include "base/notreached.h"
+#include "base/optional.h"
 #include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/input/overscroll_behavior.h"
 #include "cc/input/scroll_snap_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/renderer/platform/geometry/float_point.h"
+#include "third_party/blink/renderer/platform/geometry/float_size.h"
+#include "third_party/blink/renderer/platform/geometry/int_rect.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_element_id.h"
-#include "third_party/blink/renderer/platform/graphics/paint/clip_paint_property_node.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_property_node.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
-#include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/geometry/size.h"
 
 namespace blink {
-
-class ClipPaintPropertyNode;
 
 using MainThreadScrollingReasons = uint32_t;
 
@@ -44,13 +39,9 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode
  public:
   // To make it less verbose and more readable to construct and update a node,
   // a struct with default values is used to represent the state.
-  struct PLATFORM_EXPORT State {
-    DISALLOW_NEW();
-
-   public:
-    gfx::Rect container_rect;
-    gfx::Size contents_size;
-    scoped_refptr<const ClipPaintPropertyNode> overflow_clip_node;
+  struct State {
+    IntRect container_rect;
+    IntSize contents_size;
     bool user_scrollable_horizontal = false;
     bool user_scrollable_vertical = false;
 
@@ -70,9 +61,26 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode
     CompositorElementId compositor_element_id;
     cc::OverscrollBehavior overscroll_behavior =
         cc::OverscrollBehavior(cc::OverscrollBehavior::Type::kAuto);
-    absl::optional<cc::SnapContainerData> snap_container_data;
+    base::Optional<cc::SnapContainerData> snap_container_data;
 
-    PaintPropertyChangeType ComputeChange(const State& other) const;
+    PaintPropertyChangeType ComputeChange(const State& other) const {
+      if (container_rect != other.container_rect ||
+          contents_size != other.contents_size ||
+          user_scrollable_horizontal != other.user_scrollable_horizontal ||
+          user_scrollable_vertical != other.user_scrollable_vertical ||
+          prevent_viewport_scrolling_from_inner !=
+              other.prevent_viewport_scrolling_from_inner ||
+          max_scroll_offset_affected_by_page_scale !=
+              other.max_scroll_offset_affected_by_page_scale ||
+          main_thread_scrolling_reasons !=
+              other.main_thread_scrolling_reasons ||
+          compositor_element_id != other.compositor_element_id ||
+          overscroll_behavior != other.overscroll_behavior ||
+          snap_container_data != other.snap_container_data) {
+        return PaintPropertyChangeType::kChangedOnlyValues;
+      }
+      return PaintPropertyChangeType::kUnchanged;
+    }
   };
 
   // This node is really a sentinel, and does not represent a real scroll.
@@ -93,9 +101,7 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode
 
   // The empty AnimationState struct is to meet the requirement of
   // ObjectPaintProperties.
-  struct AnimationState {
-    STACK_ALLOCATED();
-  };
+  struct AnimationState {};
   PaintPropertyChangeType Update(const ScrollPaintPropertyNode& parent,
                                  State&& state,
                                  const AnimationState& = AnimationState()) {
@@ -119,26 +125,18 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode
     return state_.overscroll_behavior.y;
   }
 
-  absl::optional<cc::SnapContainerData> GetSnapContainerData() const {
+  base::Optional<cc::SnapContainerData> GetSnapContainerData() const {
     return state_.snap_container_data;
   }
 
   // Rect of the container area that the contents scrolls in, in the space of
-  // the parent of the associated transform node, i.e. PaintOffsetTranslation
-  // which is the parent of ScrollTranslation. It doesn't include non-overlay
-  // scrollbars. Overlay scrollbars do not affect the rect.
-  const gfx::Rect& ContainerRect() const { return state_.container_rect; }
+  // the parent of the associated transform node (ScrollTranslation).
+  // It doesn't include non-overlay scrollbars. Overlay scrollbars do not affect
+  // the rect.
+  const IntRect& ContainerRect() const { return state_.container_rect; }
 
-  // Rect of the contents that is scrolled within the container rect, in the
-  // space of the associated transform node (ScrollTranslation). It has the
-  // same origin as ContainerRect().
-  gfx::Rect ContentsRect() const {
-    return gfx::Rect(state_.container_rect.origin(), state_.contents_size);
-  }
-
-  const ClipPaintPropertyNode* OverflowClipNode() const {
-    return state_.overflow_clip_node.get();
-  }
+  // Size of the contents that is scrolled within the container rect.
+  const IntSize& ContentsSize() const { return state_.contents_size; }
 
   bool UserScrollableHorizontal() const {
     return state_.user_scrollable_horizontal;

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "content/public/browser/eye_dropper.h"
 #include "content/public/browser/eye_dropper_listener.h"
 #include "content/public/browser/render_frame_host.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/widget/widget_delegate.h"
 
@@ -24,7 +23,6 @@
 class EyeDropperView : public content::EyeDropper,
                        public views::WidgetDelegateView {
  public:
-  METADATA_HEADER(EyeDropperView);
   EyeDropperView(content::RenderFrameHost* frame,
                  content::EyeDropperListener* listener);
   EyeDropperView(const EyeDropperView&) = delete;
@@ -43,7 +41,7 @@ class EyeDropperView : public content::EyeDropper,
 
   class PreEventDispatchHandler : public ui::EventHandler {
    public:
-    PreEventDispatchHandler(EyeDropperView* view, gfx::NativeView parent);
+    explicit PreEventDispatchHandler(EyeDropperView* view);
     PreEventDispatchHandler(const PreEventDispatchHandler&) = delete;
     PreEventDispatchHandler& operator=(const PreEventDispatchHandler&) = delete;
     ~PreEventDispatchHandler() override;
@@ -51,12 +49,8 @@ class EyeDropperView : public content::EyeDropper,
    private:
     void OnMouseEvent(ui::MouseEvent* event) override;
 
-    raw_ptr<EyeDropperView> view_;
-#if defined(USE_AURA)
-    class KeyboardHandler;
-    std::unique_ptr<KeyboardHandler> keyboard_handler_;
-#endif
-#if BUILDFLAG(IS_MAC)
+    EyeDropperView* view_;
+#if defined(OS_MAC)
     id clickEventTap_;
     id notificationObserver_;
 #endif
@@ -67,27 +61,24 @@ class EyeDropperView : public content::EyeDropper,
 
   void MoveViewToFront();
 
-  void CaptureInputIfNeeded();
-
   void HideCursor();
   void ShowCursor();
 
   // Handles color selection and notifies the listener.
   void OnColorSelected();
-  void OnColorSelectionCanceled();
 
-  raw_ptr<content::RenderFrameHost> render_frame_host_;
+  content::RenderFrameHost* render_frame_host_;
 
   gfx::Size GetSize() const;
   float GetDiameter() const;
 
   // Receives the color selection.
-  raw_ptr<content::EyeDropperListener> listener_;
+  content::EyeDropperListener* listener_;
 
   std::unique_ptr<PreEventDispatchHandler> pre_dispatch_handler_;
   std::unique_ptr<ViewPositionHandler> view_position_handler_;
   std::unique_ptr<ScreenCapturer> screen_capturer_;
-  absl::optional<SkColor> selected_color_;
+  base::Optional<SkColor> selected_color_;
   base::TimeTicks ignore_selection_time_;
 };
 

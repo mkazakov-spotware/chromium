@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ JNI_OmniboxUrlEmphasizer_ParseForEmphasizeComponents(
           jautocomplete_scheme_classifier);
   DCHECK(autocomplete_scheme_classifier);
 
-  std::u16string text(base::android::ConvertJavaStringToUTF16(env, jtext));
+  base::string16 text(base::android::ConvertJavaStringToUTF16(env, jtext));
 
   url::Component scheme, host;
   AutocompleteInput::ParseForEmphasizeComponents(

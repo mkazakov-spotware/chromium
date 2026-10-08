@@ -1,13 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_LOGIN_UI_ACCESS_CODE_INPUT_H_
 #define ASH_LOGIN_UI_ACCESS_CODE_INPUT_H_
 
-#include <string>
-
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 
@@ -34,7 +33,7 @@ class AccessCodeInput : public views::View, public views::TextfieldController {
   virtual void InsertDigit(int value) = 0;
 
   // Returns access code as string.
-  virtual absl::optional<std::string> GetCode() const = 0;
+  virtual base::Optional<std::string> GetCode() const = 0;
 
   // Sets the color of the input text.
   virtual void SetInputColor(SkColor color) = 0;
@@ -44,7 +43,6 @@ class AccessCodeInput : public views::View, public views::TextfieldController {
   // Makes the internal fields read only. In contrast to 'SetInputEnabled',
   // the focus remain on the element.
   virtual void SetReadOnly(bool read_only) = 0;
-  virtual bool IsReadOnly() const = 0;
 
   // Clears the input field(s).
   virtual void ClearInput() = 0;
@@ -72,7 +70,7 @@ class FlexCodeInput : public AccessCodeInput {
   FlexCodeInput& operator=(const FlexCodeInput&) = delete;
   ~FlexCodeInput() override;
 
-  void SetAccessibleName(const std::u16string& name);
+  void SetAccessibleName(const base::string16& name);
 
   // Appends |value| to the code
   void InsertDigit(int value) override;
@@ -81,7 +79,7 @@ class FlexCodeInput : public AccessCodeInput {
   void Backspace() override;
 
   // Returns access code as string if field contains input.
-  absl::optional<std::string> GetCode() const override;
+  base::Optional<std::string> GetCode() const override;
 
   // Sets the color of the input text.
   void SetInputColor(SkColor color) override;
@@ -89,7 +87,6 @@ class FlexCodeInput : public AccessCodeInput {
   void SetInputEnabled(bool input_enabled) override;
 
   void SetReadOnly(bool read_only) override;
-  bool IsReadOnly() const override;
 
   // Clears text in input text field.
   void ClearInput() override;
@@ -98,7 +95,7 @@ class FlexCodeInput : public AccessCodeInput {
 
   // views::TextfieldController
   void ContentsChanged(views::Textfield* sender,
-                       const std::u16string& new_contents) override;
+                       const base::string16& new_contents) override;
 
   // views::TextfieldController
   bool HandleKeyEvent(views::Textfield* sender,
@@ -123,17 +120,14 @@ class FlexCodeInput : public AccessCodeInput {
 class AccessibleInputField : public views::Textfield {
  public:
   AccessibleInputField() = default;
-
-  AccessibleInputField(const AccessibleInputField&) = delete;
-  AccessibleInputField& operator=(const AccessibleInputField&) = delete;
-
   ~AccessibleInputField() override = default;
 
-  // views::Textfield:
   bool IsGroupFocusTraversable() const override;
   View* GetSelectedViewForGroup(int group) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AccessibleInputField);
 };
 
 // Digital access code input view for variable length of input codes.
@@ -188,7 +182,7 @@ class FixedLengthCodeInput : public AccessCodeInput {
   void Backspace() override;
 
   // Returns access code as string if all fields contain input.
-  absl::optional<std::string> GetCode() const override;
+  base::Optional<std::string> GetCode() const override;
 
   // Sets the color of the input text.
   void SetInputColor(SkColor color) override;
@@ -223,7 +217,6 @@ class FixedLengthCodeInput : public AccessCodeInput {
   void SetInputEnabled(bool input_enabled) override;
 
   void SetReadOnly(bool read_only) override;
-  bool IsReadOnly() const override;
 
   // Clears the PIN fields.
   void ClearInput() override;
@@ -258,7 +251,7 @@ class FixedLengthCodeInput : public AccessCodeInput {
   AccessibleInputField* ActiveField() const;
 
   // Returns text in the active input field.
-  const std::u16string& ActiveInput() const;
+  const base::string16& ActiveInput() const;
 
   // To be called when access input code changes (digit is inserted, deleted or
   // updated). Passes true when code is complete (all digits have input value)
@@ -279,7 +272,7 @@ class FixedLengthCodeInput : public AccessCodeInput {
   // Value of current input, associate with AX event. The value will be the
   // concat string of input fields. i.e. [1][2][3][|][][], text_value_for_a11y_
   // = "123   ".
-  std::u16string text_value_for_a11y_;
+  base::string16 text_value_for_a11y_;
 
   // Whether the user can navigate the input fields with the arrow keys.
   bool arrow_navigation_allowed_ = true;

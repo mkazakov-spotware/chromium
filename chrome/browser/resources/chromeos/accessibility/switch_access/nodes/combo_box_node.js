@@ -1,18 +1,6 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {AutomationPredicate} from '../../common/automation_predicate.js';
-import {EventGenerator} from '../../common/event_generator.js';
-import {KeyCode} from '../../common/key_code.js';
-import {RepeatedEventHandler} from '../../common/repeated_event_handler.js';
-import {Navigator} from '../navigator.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-
-import {BasicNode} from './basic_node.js';
-import {SAChildNode, SARootNode} from './switch_access_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This class handles interactions with combo boxes.
@@ -79,15 +67,10 @@ class ComboBoxNode extends BasicNode {
 
   onExpandedChanged() {
     // TODO: figure out why a short timeout is needed here.
-    setTimeout(() => {
+    window.setTimeout(() => {
       if (this.isGroup()) {
-        Navigator.byItem.enterGroup();
+        NavigationManager.enterGroup();
       }
     }, 250);
   }
 }
-
-BasicNode.creators.push({
-  predicate: AutomationPredicate.comboBox,
-  creator: (node, parent) => new ComboBoxNode(node, parent),
-});

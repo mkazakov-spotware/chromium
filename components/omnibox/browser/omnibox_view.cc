@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,45 +8,37 @@
 #include "components/omnibox/browser/omnibox_view.h"
 
 #include <algorithm>
-#include <memory>
-#include <string>
 #include <utility>
 
-#include "base/strings/strcat.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "components/bookmarks/browser/bookmark_model.h"
-#include "components/omnibox/browser/autocomplete_controller.h"
-#include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/location_bar_model.h"
 #include "components/omnibox/browser/omnibox_edit_controller.h"
 #include "components/omnibox/browser/omnibox_edit_model.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
 #include "components/omnibox/common/omnibox_features.h"
-#include "extensions/buildflags/buildflags.h"
+#include "extensions/common/constants.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "url/url_constants.h"
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
 
 #include "ui/gfx/paint_vector_icon.h"
 
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// GN doesn't understand conditional includes, so we need nogncheck here.
-#include "extensions/common/constants.h"  // nogncheck
-#endif
-
 namespace {
 
-// Return true if either non-prefix autocompletion is enabled.
-bool RichAutocompletionEitherNonPrefixEnabled() {
-  return OmniboxFieldTrial::kRichAutocompletionAutocompleteNonPrefixAll.Get() ||
+// Return true if either non prefix or split autocompletion is enabled.
+bool RichAutocompletionEitherNonPrefixOrSplitEnabled() {
+  return OmniboxFieldTrial::RichAutocompletionAutocompleteNonPrefixAll() ||
          OmniboxFieldTrial::
-             kRichAutocompletionAutocompleteNonPrefixShortcutProvider.Get();
+             RichAutocompletionAutocompleteNonPrefixShortcutProvider() ||
+         OmniboxFieldTrial::RichAutocompletionSplitTitleCompletion() ||
+         OmniboxFieldTrial::RichAutocompletionSplitUrlCompletion();
 }
 
 }  // namespace
@@ -55,9 +47,9 @@ OmniboxView::State::State() = default;
 OmniboxView::State::State(const State& state) = default;
 
 // static
-std::u16string OmniboxView::StripJavascriptSchemas(const std::u16string& text) {
-  const std::u16string kJsPrefix(
-      base::StrCat({url::kJavaScriptScheme16, u":"}));
+base::string16 OmniboxView::StripJavascriptSchemas(const base::string16& text) {
+  const base::string16 kJsPrefix(
+      base::ASCIIToUTF16(url::kJavaScriptScheme) + base::ASCIIToUTF16(":"));
 
   bool found_JavaScript = false;
   size_t i = 0;
@@ -88,18 +80,18 @@ std::u16string OmniboxView::StripJavascriptSchemas(const std::u16string& text) {
 }
 
 // static
-std::u16string OmniboxView::SanitizeTextForPaste(const std::u16string& text) {
+base::string16 OmniboxView::SanitizeTextForPaste(const base::string16& text) {
   if (text.empty())
-    return std::u16string();  // Nothing to do.
+    return base::string16();  // Nothing to do.
 
   size_t end = text.find_first_not_of(base::kWhitespaceUTF16);
-  if (end == std::u16string::npos)
-    return u" ";  // Convert all-whitespace to single space.
+  if (end == base::string16::npos)
+    return base::ASCIIToUTF16(" ");  // Convert all-whitespace to single space.
   // Because |end| points at the first non-whitespace character, the loop
   // below will skip leading whitespace.
 
   // Reserve space for the sanitized output.
-  std::u16string output;
+  base::string16 output;
   output.reserve(text.size());  // Guaranteed to be large enough.
 
   // Copy all non-whitespace sequences.
@@ -112,10 +104,10 @@ std::u16string OmniboxView::SanitizeTextForPaste(const std::u16string& text) {
   bool seen_non_lf_whitespace = false;
   const auto copy_range = [&text, &output](size_t begin, size_t end) {
     output +=
-        text.substr(begin, (end == std::u16string::npos) ? end : (end - begin));
+        text.substr(begin, (end == base::string16::npos) ? end : (end - begin));
   };
-  constexpr char16_t kNewline[] = {'\n', 0};
-  constexpr char16_t kSpace[] = {' ', 0};
+  constexpr base::char16 kNewline[] = {'\n', 0};
+  constexpr base::char16 kSpace[] = {' ', 0};
   while (true) {
     // Copy this non-whitespace sequence.
     size_t begin = end;
@@ -123,11 +115,11 @@ std::u16string OmniboxView::SanitizeTextForPaste(const std::u16string& text) {
     copy_range(begin, end);
 
     // Now there is either a whitespace sequence, or the end of the string.
-    if (end != std::u16string::npos) {
+    if (end != base::string16::npos) {
       // There is a whitespace sequence; see if it contains CR/LF.
       begin = end;
       end = text.find_first_not_of(base::kWhitespaceNoCrLfUTF16, begin);
-      if ((end != std::u16string::npos) && (text[end] != '\n') &&
+      if ((end != base::string16::npos) && (text[end] != '\n') &&
           (text[end] != '\r')) {
         // Found a non-trailing whitespace sequence without CR/LF.  Copy it.
         seen_non_lf_whitespace = true;
@@ -137,9 +129,9 @@ std::u16string OmniboxView::SanitizeTextForPaste(const std::u16string& text) {
     }
 
     // |end| either points at the end of the string or a CR/LF.
-    if (end != std::u16string::npos)
+    if (end != base::string16::npos)
       end = text.find_first_not_of(base::kWhitespaceUTF16, end + 1);
-    if (end == std::u16string::npos)
+    if (end == base::string16::npos)
       break;  // Ignore any trailing whitespace.
 
     // The preceding whitespace sequence contained CR/LF.  Convert to a single
@@ -152,7 +144,7 @@ std::u16string OmniboxView::SanitizeTextForPaste(const std::u16string& text) {
   // sequences.
   if (output_needs_lf_conversion) {
     base::ReplaceChars(output, kNewline,
-                       seen_non_lf_whitespace ? kSpace : std::u16string(),
+                       seen_non_lf_whitespace ? kSpace : base::string16(),
                        &output);
   }
 
@@ -164,7 +156,7 @@ OmniboxView::~OmniboxView() = default;
 void OmniboxView::OpenMatch(const AutocompleteMatch& match,
                             WindowOpenDisposition disposition,
                             const GURL& alternate_nav_url,
-                            const std::u16string& pasted_text,
+                            const base::string16& pasted_text,
                             size_t selected_line,
                             base::TimeTicks match_selection_timestamp) {
   // Invalid URLs such as chrome://history can end up here.
@@ -188,7 +180,7 @@ bool OmniboxView::IsEditingOrEmpty() const {
 ui::ImageModel OmniboxView::GetIcon(int dip_size,
                                     SkColor color,
                                     IconFetchedCallback on_icon_fetched) const {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if defined(OS_ANDROID) || defined(OS_IOS)
   // This is used on desktop only.
   NOTREACHED();
   return ui::ImageModel();
@@ -236,14 +228,14 @@ ui::ImageModel OmniboxView::GetIcon(int dip_size,
   const gfx::VectorIcon& vector_icon = match.GetVectorIcon(is_bookmarked);
 
   return ui::ImageModel::FromVectorIcon(vector_icon, color, dip_size);
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#endif  // defined(OS_ANDROID) || defined(OS_IOS)
 }
 
-void OmniboxView::SetUserText(const std::u16string& text) {
+void OmniboxView::SetUserText(const base::string16& text) {
   SetUserText(text, true);
 }
 
-void OmniboxView::SetUserText(const std::u16string& text, bool update_popup) {
+void OmniboxView::SetUserText(const base::string16& text, bool update_popup) {
   if (model_)
     model_->SetUserText(text);
   SetWindowTextAndCaretPos(text, text.length(), update_popup, true);
@@ -283,7 +275,7 @@ void OmniboxView::GetState(State* state) {
   state->keyword = model()->keyword();
   state->is_keyword_selected = model()->is_keyword_selected();
   GetSelectionBounds(&state->sel_start, &state->sel_end);
-  if (RichAutocompletionEitherNonPrefixEnabled())
+  if (RichAutocompletionEitherNonPrefixOrSplitEnabled())
     state->all_sel_length = GetAllSelectionsLength();
 }
 
@@ -317,7 +309,7 @@ OmniboxView::StateChanges OmniboxView::GetStateChanges(const State& before,
   state_changes.just_deleted_text =
       before.text.length() > after.text.length() &&
       after.sel_start <= std::min(before.sel_start, before.sel_end);
-  if (RichAutocompletionEitherNonPrefixEnabled()) {
+  if (RichAutocompletionEitherNonPrefixOrSplitEnabled()) {
     state_changes.just_deleted_text =
         state_changes.just_deleted_text &&
         after.sel_start <=
@@ -332,8 +324,7 @@ OmniboxView::OmniboxView(OmniboxEditController* controller,
     : controller_(controller) {
   // |client| can be null in tests.
   if (client) {
-    model_ =
-        std::make_unique<OmniboxEditModel>(this, controller, std::move(client));
+    model_.reset(new OmniboxEditModel(this, controller, std::move(client)));
   }
 }
 
@@ -344,7 +335,7 @@ void OmniboxView::TextChanged() {
 }
 
 void OmniboxView::UpdateTextStyle(
-    const std::u16string& display_text,
+    const base::string16& display_text,
     const bool text_is_url,
     const AutocompleteSchemeClassifier& classifier) {
   if (!text_is_url) {
@@ -363,24 +354,16 @@ void OmniboxView::UpdateTextStyle(
   AutocompleteInput::ParseForEmphasizeComponents(display_text, classifier,
                                                  &scheme, &host);
 
-  const std::u16string url_scheme =
+  const base::string16 url_scheme =
       display_text.substr(scheme.begin, scheme.len);
-
-  const bool is_extension_url =
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-      url_scheme == base::UTF8ToUTF16(extensions::kExtensionScheme);
-#else
-      false;
-#endif
-
   // Extension IDs are not human-readable, so deemphasize everything to draw
   // attention to the human-readable name in the location icon text.
   // Data URLs are rarely human-readable and can be used for spoofing, so draw
   // attention to the scheme to emphasize "this is just a bunch of data".
   // For normal URLs, the host is the best proxy for "identity".
-  if (is_extension_url)
+  if (url_scheme == base::UTF8ToUTF16(extensions::kExtensionScheme))
     deemphasize = EVERYTHING;
-  else if (url_scheme == url::kDataScheme16)
+  else if (url_scheme == base::UTF8ToUTF16(url::kDataScheme))
     deemphasize = ALL_BUT_SCHEME;
   else if (host.is_nonempty())
     deemphasize = ALL_BUT_HOST;

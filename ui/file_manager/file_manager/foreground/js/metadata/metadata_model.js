@@ -1,24 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {util} from '../../../common/js/util.js';
-import {VolumeManager} from '../../../externs/volume_manager.js';
-
-import {ContentMetadataProvider} from './content_metadata_provider.js';
-import {DlpMetadataProvider} from './dlp_metadata_provider.js';
-import {ExternalMetadataProvider} from './external_metadata_provider.js';
-import {FileSystemMetadataProvider} from './file_system_metadata_provider.js';
-import {MetadataCacheSet} from './metadata_cache_set.js';
-import {MetadataItem} from './metadata_item.js';
-import {MetadataProvider} from './metadata_provider.js';
-import {MultiMetadataProvider} from './multi_metadata_provider.js';
 
 /**
  * Stats collected about Metadata handling for tests.
  * @final
  */
-export class MetadataStats {
+class MetadataStats {
   constructor() {
     /** @public {number} Total of entries fulfilled from cache. */
     this.fromCache = 0;
@@ -37,7 +25,7 @@ export class MetadataStats {
   }
 }
 
-export class MetadataModel {
+class MetadataModel {
   /**
    * @param {!MetadataProvider} rawProvider
    */
@@ -45,8 +33,8 @@ export class MetadataModel {
     /** @private @const {!MetadataProvider} */
     this.rawProvider_ = rawProvider;
 
-    /** @private @const {!MetadataCacheSet} */
-    this.cache_ = new MetadataCacheSet();
+    /** @private @const {!MetadataProviderCache} */
+    this.cache_ = new MetadataProviderCache();
 
     /** @private @const {!Array<!MetadataProviderCallbackRequest>} */
     this.callbackRequests_ = [];
@@ -65,8 +53,7 @@ export class MetadataModel {
   static create(volumeManager) {
     return new MetadataModel(new MultiMetadataProvider(
         new FileSystemMetadataProvider(), new ExternalMetadataProvider(),
-        new ContentMetadataProvider(), new DlpMetadataProvider(),
-        volumeManager));
+        new ContentMetadataProvider(), volumeManager));
   }
 
   /**
@@ -233,7 +220,7 @@ class MetadataProviderCallbackRequest {
    * @param {!Array<!Entry>} entries
    * @param {!Array<string>} names
    * @param {!MetadataCacheSet} cache
-   * @param {function(!Array<MetadataItem>):undefined} fulfill
+   * @param {function(!MetadataItem):undefined} fulfill
    */
   constructor(entries, names, cache, fulfill) {
     /**
@@ -255,7 +242,7 @@ class MetadataProviderCallbackRequest {
     this.cache_ = cache;
 
     /**
-     * @private {function(!Array<MetadataItem>):undefined}
+     * @private {function(!MetadataItem):undefined}
      * @const
      */
     this.fulfill_ = fulfill;
@@ -276,5 +263,28 @@ class MetadataProviderCallbackRequest {
       return true;
     }
     return false;
+  }
+}
+
+/**
+ * Helper wrapper for LRUCache.
+ * @final
+ */
+class MetadataProviderCache extends MetadataCacheSet {
+  constructor() {
+    super(new MetadataCacheSetStorageForObject({}));
+
+    /**
+     * @private {number}
+     */
+    this.requestIdCounter_ = 0;
+  }
+
+  /**
+   * Generates a unique request ID every time when it is called.
+   * @return {number}
+   */
+  generateRequestId() {
+    return this.requestIdCounter_++;
   }
 }

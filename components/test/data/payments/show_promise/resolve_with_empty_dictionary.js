@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -7,13 +7,11 @@
 /**
  * Launch PaymentRequest with a show promise that resolves with an empty
  * dictionary.
- * @param {string} supportedMethods The payment method that is supported by this
- *        request.
  */
-function buyWithMethods(supportedMethods) {
+function buy() { // eslint-disable-line no-unused-vars
   try {
     var request = new PaymentRequest(
-        [{supportedMethods}], {
+        [{supportedMethods: 'basic-card'}], {
           total: {
             label: 'Total',
             amount: {currency: 'USD', value: '3.00'},
@@ -23,7 +21,7 @@ function buyWithMethods(supportedMethods) {
             amount: {currency: 'USD', value: '1.00'},
           }],
           modifiers: [{
-            supportedMethods,
+            supportedMethods: 'basic-card',
             additionalDisplayItems: [{
               label: 'Modifier',
               pending: true,

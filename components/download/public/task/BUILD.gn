@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,6 +9,7 @@ if (is_android) {
 
 source_set("public") {
   sources = [
+    "download_task_types.h",
     "empty_task_scheduler.cc",
     "empty_task_scheduler.h",
     "task_manager.cc",
@@ -18,21 +19,17 @@ source_set("public") {
     "task_scheduler.h",
   ]
 
-  public_deps = [
-    ":task_type",
-    "//base",
-  ]
-}
-
-source_set("task_type") {
-  sources = [ "download_task_types.h" ]
+  public_deps = [ "//base" ]
 }
 
 if (is_android) {
   android_library("public_java") {
     srcjar_deps = [ ":jni_enums" ]
 
-    deps = [ "//third_party/androidx:androidx_annotation_annotation_java" ]
+    deps = [
+      "//base:base_java",
+      "//third_party/android_deps:androidx_annotation_annotation_java",
+    ]
   }
 
   java_cpp_enum("jni_enums") {

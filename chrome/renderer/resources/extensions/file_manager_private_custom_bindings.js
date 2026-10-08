@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   var apiFunctions = bindingsAPI.apiFunctions;
 
   apiFunctions.setCustomCallback('searchDrive',
-      function(callback, response) {
+      function(name, request, callback, response) {
     if (response && !response.error && response.entries) {
       response.entries = response.entries.map(function(entry) {
         return GetExternalFileEntry(entry);
@@ -45,7 +45,7 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   });
 
   apiFunctions.setCustomCallback('searchDriveMetadata',
-      function(callback, response) {
+      function(name, request, callback, response) {
     if (response && !response.error) {
       for (var i = 0; i < response.length; i++) {
         response[i].entry =
@@ -71,12 +71,6 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
       callback(entryDescriptions.map(function(description) {
         return GetExternalFileEntry(description);
       }));
-    });
-  });
-
-  apiFunctions.setHandleRequest('getVolumeRoot', function(options, callback) {
-    fileManagerPrivateInternal.getVolumeRoot(options, function(entry) {
-      callback(entry ? GetExternalFileEntry(entry) : undefined);
     });
   });
 
@@ -188,20 +182,20 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   });
 
   apiFunctions.setHandleRequest('executeTask',
-      function(descriptor, entries, callback) {
+      function(taskId, entries, callback) {
         var urls = entries.map(function(entry) {
           return getEntryURL(entry);
         });
-        fileManagerPrivateInternal.executeTask(descriptor, urls, callback);
+        fileManagerPrivateInternal.executeTask(taskId, urls, callback);
       });
 
   apiFunctions.setHandleRequest('setDefaultTask',
-      function(descriptor, entries, mimeTypes, callback) {
+      function(taskId, entries, mimeTypes, callback) {
         var urls = entries.map(function(entry) {
           return getEntryURL(entry);
         });
         fileManagerPrivateInternal.setDefaultTask(
-            descriptor, urls, mimeTypes, callback);
+            taskId, urls, mimeTypes, callback);
       });
 
   apiFunctions.setHandleRequest('getFileTasks', function(entries, callback) {
@@ -216,28 +210,29 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
     fileManagerPrivateInternal.getDownloadUrl(url, callback);
   });
 
-  apiFunctions.setHandleRequest(
-      'getDisallowedTransfers',
-      function(entries, destinationEntry, isMove, callback) {
-        var sourceUrls = entries.map(getEntryURL);
-        var destinationUrl = getEntryURL(destinationEntry);
-        fileManagerPrivateInternal.getDisallowedTransfers(
-            sourceUrls, destinationUrl, isMove, callback);
-      });
+  apiFunctions.setHandleRequest('copyImageToClipboard', function(
+        entry, callback) {
+    var url = getEntryURL(entry);
+    fileManagerPrivateInternal.copyImageToClipboard(url, callback);
+  });
 
-  apiFunctions.setHandleRequest(
-      'getDlpMetadata', function(entries, callback) {
-        var sourceUrls = entries.map(getEntryURL);
-        fileManagerPrivateInternal.getDlpMetadata(
-            sourceUrls, callback);
-      });
+  apiFunctions.setHandleRequest('startCopy', function(
+        entry, parentEntry, newName, callback) {
+    var url = getEntryURL(entry);
+    var parentUrl = getEntryURL(parentEntry);
+    fileManagerPrivateInternal.startCopy(
+        url, parentUrl, newName, callback);
+  });
 
-  apiFunctions.setHandleRequest(
-      'zipSelection',
-      (entries, parentEntry, destName, callback) =>
-          fileManagerPrivateInternal.zipSelection(
-              getEntryURL(parentEntry), entries.map(getEntryURL), destName,
-              callback));
+  apiFunctions.setHandleRequest('zipSelection', function(
+        parentEntry, entries, destName, callback) {
+    var parentUrl = getEntryURL(parentEntry);
+    var urls = entries.map(function(entry) {
+      return getEntryURL(entry);
+    });
+    fileManagerPrivateInternal.zipSelection(
+        parentUrl, urls, destName, callback);
+  });
 
   apiFunctions.setHandleRequest('validatePathNameLength', function(
         entry, name, callback) {
@@ -253,9 +248,9 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   });
 
   apiFunctions.setHandleRequest('getRecentFiles', function(
-        restriction, file_type, invalidate_cache, callback) {
-    fileManagerPrivateInternal.getRecentFiles(restriction, file_type,
-          invalidate_cache, function(entryDescriptions) {
+        restriction, file_type, callback) {
+    fileManagerPrivateInternal.getRecentFiles(restriction, file_type, function(
+          entryDescriptions) {
       callback(entryDescriptions.map(function(description) {
         return GetExternalFileEntry(description);
       }));
@@ -321,7 +316,7 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   });
 
   apiFunctions.setCustomCallback('searchFiles',
-      function(callback, response) {
+      function(name, request, callback, response) {
     if (response && !response.error && response.entries) {
       response.entries = response.entries.map(function(entry) {
         return GetExternalFileEntry(entry);
@@ -352,12 +347,11 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
       });
 
   apiFunctions.setHandleRequest(
-      'invokeSharesheet', function(entries, launchSource, callback) {
+      'invokeSharesheet', function(entries, callback) {
         var urls = entries.map(function(entry) {
           return getEntryURL(entry);
         });
-        fileManagerPrivateInternal.invokeSharesheet(
-            urls, launchSource, callback);
+        fileManagerPrivateInternal.invokeSharesheet(urls, callback);
       });
 
   apiFunctions.setHandleRequest(
@@ -365,39 +359,6 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
         const urls = entries.map(entry => getEntryURL(entry));
         fileManagerPrivateInternal.toggleAddedToHoldingSpace(
             urls, added, callback);
-      });
-
-  apiFunctions.setHandleRequest(
-      'startIOTask', function(type, entries, params, callback) {
-        const urls = entries.map(entry => getEntryURL(entry));
-        let newParams = {};
-        if (params.destinationFolder) {
-          newParams.destinationFolderUrl =
-              getEntryURL(params.destinationFolder);
-        }
-        if (params.password) {
-          newParams.password = params.password;
-        }
-        if (params.showNotification !== undefined) {
-          newParams.showNotification = params.showNotification;
-        }
-        fileManagerPrivateInternal.startIOTask(type, urls, newParams, callback);
-      });
-
-  apiFunctions.setHandleRequest(
-      'parseTrashInfoFiles', function(entries, callback) {
-        const urls = entries.map(entry => getEntryURL(entry));
-        fileManagerPrivateInternal.parseTrashInfoFiles(
-            urls, function(entryDescriptions) {
-              // Convert the restoreEntry to a DirectoryEntry and the deletion
-              // date to a JS Date.
-              callback(entryDescriptions.map(description => {
-                description.restoreEntry =
-                    GetExternalFileEntry(description.restoreEntry);
-                description.deletionDate = new Date(description.deletionDate);
-                return description;
-              }));
-            });
       });
 });
 
@@ -417,35 +378,3 @@ bindingUtil.registerEventArgumentMassager(
   }
   dispatch(args);
 });
-
-bindingUtil.registerEventArgumentMassager(
-    'fileManagerPrivate.onIOTaskProgressStatus', function(args, dispatch) {
-      // Convert outputs arguments into real Entry objects if they exist.
-      const outputs = args[0].outputs;
-      if (outputs) {
-        for (let i = 0; i < outputs.length; i++) {
-          outputs[i] = GetExternalFileEntry(outputs[i]);
-        }
-      }
-      dispatch(args);
-    });
-
-bindingUtil.registerEventArgumentMassager(
-    'fileManagerPrivate.onIndividualFileTransfersUpdated',
-    function(args, dispatch) {
-      // Convert the entry arguments into real Entry objects.
-      args[0].forEach(fileStatus => {
-        fileStatus.entry = GetExternalFileEntry(fileStatus.entry);
-      })
-      dispatch(args);
-    });
-
-bindingUtil.registerEventArgumentMassager(
-    'fileManagerPrivate.onIndividualPinTransfersUpdated',
-    function(args, dispatch) {
-      // Convert the entry arguments into real Entry objects.
-      args[0].forEach(fileStatus => {
-        fileStatus.entry = GetExternalFileEntry(fileStatus.entry);
-      })
-      dispatch(args);
-    });

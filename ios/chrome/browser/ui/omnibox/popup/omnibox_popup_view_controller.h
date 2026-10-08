@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,54 +7,30 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/ui/omnibox/omnibox_keyboard_delegate.h"
-#import "ios/chrome/browser/ui/omnibox/omnibox_text_change_delegate.h"
+#import "ios/chrome/browser/ui/commands/omnibox_suggestion_commands.h"
 #import "ios/chrome/browser/ui/omnibox/popup/autocomplete_result_consumer.h"
-#import "ios/chrome/browser/ui/omnibox/popup/carousel_item.h"
-#import "ios/chrome/browser/ui/omnibox/popup/content_providing.h"
 
-@protocol CarouselItemMenuProvider;
-@protocol FaviconRetriever;
-class LargeIconCache;
-namespace favicon {
-class LargeIconService;
-}
 @protocol ImageRetriever;
-@protocol PopupMatchPreviewDelegate;
+@protocol FaviconRetriever;
 
-/// View controller used to display a list of omnibox autocomplete matches in
-/// the omnibox popup. It implements up/down arrow handling to highlight
-/// autocomplete results. Ideally, that should be implemented as key commands in
-/// this view controller, but UITextField has standard handlers for up/down
-/// arrows, so when the omnibox is the first responder, this view controller
-/// cannot receive these events. Hence the delegation.
+// View controller used to display a list of omnibox autocomplete matches in the
+// omnibox popup.
+// It implements up/down arrow handling to highlight autocomplete results.
+// Ideally, that should be implemented as key commands in this view controller,
+// but UITextField has standard handlers for up/down arrows, so when the omnibox
+// is the first responder, this view controller cannot receive these events.
+// Hence the delegation.
 @interface OmniboxPopupViewController
     : UIViewController <AutocompleteResultConsumer,
-                        CarouselItemConsumer,
-                        ContentProviding,
-                        OmniboxKeyboardDelegate,
-                        OmniboxReturnDelegate,
+                        OmniboxSuggestionCommands,
                         UIScrollViewDelegate>
 
 @property(nonatomic, assign) BOOL incognito;
 @property(nonatomic, weak) id<AutocompleteResultConsumerDelegate> delegate;
-@property(nonatomic, weak) id<AutocompleteResultDataSource> dataSource;
-@property(nonatomic, weak) id<OmniboxReturnDelegate> acceptReturnDelegate;
-@property(nonatomic, weak) id<PopupMatchPreviewDelegate> matchPreviewDelegate;
 @property(nonatomic, weak) id<ImageRetriever> imageRetriever;
 @property(nonatomic, weak) id<FaviconRetriever> faviconRetriever;
-@property(nonatomic, assign) favicon::LargeIconService* largeIconService;
-@property(nonatomic, assign) LargeIconCache* largeIconCache;
-@property(nonatomic, weak) id<CarouselItemMenuProvider> carouselMenuProvider;
 
-/// View controller that displays debug information.
-/// Must only be set when OmniboxDebuggingEnabled flag is set.
-/// When set, this view controller will present `debugInfoViewController` when a
-/// special debug gesture is executed.
-@property(nonatomic, strong) UIViewController* debugInfoViewController;
-
-@property(nonatomic, strong)
-    NSArray<id<AutocompleteSuggestionGroup>>* currentResult;
+@property(nonatomic, strong) NSArray<id<AutocompleteSuggestion>>* currentResult;
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 

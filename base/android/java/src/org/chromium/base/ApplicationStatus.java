@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.build.BuildConfig;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
@@ -29,7 +28,6 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -86,38 +84,32 @@ public class ApplicationStatus {
     // when no activity has been observed.
     private static int sCurrentApplicationState = ApplicationState.UNKNOWN;
 
-    /**
-     * Last activity that was shown (or null if none or it was destroyed).
-     */
+    /** Last activity that was shown (or null if none or it was destroyed). */
     @SuppressLint("StaticFieldLeak")
     private static Activity sActivity;
 
-    /**
-     * A lazily initialized listener that forwards application state changes to native.
-     */
+    /** A lazily initialized listener that forwards application state changes to native. */
     private static ApplicationStateListener sNativeApplicationStateListener;
 
     /**
      * A list of observers to be notified when any {@link Activity} has a state change.
      */
-    private static ObserverList<ActivityStateListener> sGeneralActivityStateListeners;
+    private static final ObserverList<ActivityStateListener> sGeneralActivityStateListeners =
+            new ObserverList<>();
 
     /**
      * A list of observers to be notified when the visibility state of this {@link Application}
      * changes.  See {@link #getStateForApplication()}.
      */
-    private static ObserverList<ApplicationStateListener> sApplicationStateListeners;
+    private static final ObserverList<ApplicationStateListener> sApplicationStateListeners =
+            new ObserverList<>();
 
     /**
      * A list of observers to be notified when the window focus changes.
      * See {@link #registerWindowFocusChangedListener}.
      */
-    private static ObserverList<WindowFocusChangedListener> sWindowFocusListeners;
-
-    /**
-     * A list of observers to be notified when the visibility of any task changes.
-     */
-    private static ObserverList<TaskVisibilityListener> sTaskVisibilityListeners;
+    private static final ObserverList<WindowFocusChangedListener> sWindowFocusListeners =
+            new ObserverList<>();
 
     /**
      * Interface to be implemented by listeners.
@@ -125,7 +117,6 @@ public class ApplicationStatus {
     public interface ApplicationStateListener {
         /**
          * Called when the application's state changes.
-         *
          * @param newState The application state.
          */
         void onApplicationStateChange(@ApplicationState int newState);
@@ -137,7 +128,6 @@ public class ApplicationStatus {
     public interface ActivityStateListener {
         /**
          * Called when the activity's state changes.
-         *
          * @param activity The activity that had a state change.
          * @param newState New activity state.
          */
@@ -150,78 +140,37 @@ public class ApplicationStatus {
     public interface WindowFocusChangedListener {
         /**
          * Called when the window focus changes for {@code activity}.
-         *
          * @param activity The {@link Activity} that has a window focus changed event.
          * @param hasFocus Whether or not {@code activity} gained or lost focus.
          */
         public void onWindowFocusChanged(Activity activity, boolean hasFocus);
     }
 
-    /**
-     * Interface to be implemented by listeners for task visibility changes.
-     */
-    public interface TaskVisibilityListener {
-        /**
-         * Called when the visibility of a task changes.
-         *
-         * @param taskId    The unique Id of the task that changed visibility.
-         * @param isVisible The new visibility state of the task.
-         */
-        void onTaskVisibilityChanged(int taskId, boolean isVisible);
-    }
-
     private ApplicationStatus() {}
 
     /**
      * Registers a listener to receive window focus updates on activities in this application.
-     *
      * @param listener Listener to receive window focus events.
      */
     @MainThread
     public static void registerWindowFocusChangedListener(WindowFocusChangedListener listener) {
         assert isInitialized();
-        if (sWindowFocusListeners == null) sWindowFocusListeners = new ObserverList<>();
         sWindowFocusListeners.addObserver(listener);
     }
 
     /**
      * Unregisters a listener from receiving window focus updates on activities in this application.
-     *
      * @param listener Listener that doesn't want to receive window focus events.
      */
     @MainThread
     public static void unregisterWindowFocusChangedListener(WindowFocusChangedListener listener) {
-        if (sWindowFocusListeners == null) return;
         sWindowFocusListeners.removeObserver(listener);
-    }
-
-    /**
-     * Register a listener to receive task visibility updates.
-     *
-     * @param listener Listener to receive task visibility events.
-     */
-    @MainThread
-    public static void registerTaskVisibilityListener(TaskVisibilityListener listener) {
-        assert isInitialized();
-        if (sTaskVisibilityListeners == null) sTaskVisibilityListeners = new ObserverList<>();
-        sTaskVisibilityListeners.addObserver(listener);
-    }
-
-    /**
-     * Unregisters a listener from receiving task visibility updates.
-     *
-     * @param listener Listener that doesn't want to receive task visibility events.
-     */
-    @MainThread
-    public static void unregisterTaskVisibilityListener(TaskVisibilityListener listener) {
-        if (sTaskVisibilityListeners == null) return;
-        sTaskVisibilityListeners.removeObserver(listener);
     }
 
     /**
      * Intercepts calls to an existing Window.Callback. Most invocations are passed on directly
      * to the composed Window.Callback but enables intercepting/manipulating others.
-     * <p>
+     *
      * This is used to relay window focus changes throughout the app and remedy a bug in the
      * appcompat library.
      */
@@ -262,10 +211,8 @@ public class ApplicationStatus {
         public void onWindowFocusChanged(boolean hasFocus) {
             mCallback.onWindowFocusChanged(hasFocus);
 
-            if (sWindowFocusListeners != null) {
-                for (WindowFocusChangedListener listener : sWindowFocusListeners) {
-                    listener.onWindowFocusChanged(mActivity, hasFocus);
-                }
+            for (WindowFocusChangedListener listener : sWindowFocusListeners) {
+                listener.onWindowFocusChanged(mActivity, hasFocus);
             }
         }
     }
@@ -347,7 +294,7 @@ public class ApplicationStatus {
             }
 
             private void checkCallback(Activity activity) {
-                if (BuildConfig.ENABLE_ASSERTS) {
+                if (BuildConfig.DCHECK_IS_ON) {
                     assert reachesWindowCallback(activity.getWindow().getCallback());
                 }
             }
@@ -420,7 +367,6 @@ public class ApplicationStatus {
         }
 
         int oldApplicationState = getStateForApplication();
-        boolean oldTaskVisibility = isTaskVisible(activity.getTaskId());
         ActivityInfo info;
 
         synchronized (sActivityInfo) {
@@ -449,21 +395,12 @@ public class ApplicationStatus {
 
         // Notify all state observers that are listening globally for all activity state
         // changes.
-        if (sGeneralActivityStateListeners != null) {
-            for (ActivityStateListener listener : sGeneralActivityStateListeners) {
-                listener.onActivityStateChange(activity, newState);
-            }
-        }
-
-        boolean taskVisibility = isTaskVisible(activity.getTaskId());
-        if (taskVisibility != oldTaskVisibility && sTaskVisibilityListeners != null) {
-            for (TaskVisibilityListener listener : sTaskVisibilityListeners) {
-                listener.onTaskVisibilityChanged(activity.getTaskId(), taskVisibility);
-            }
+        for (ActivityStateListener listener : sGeneralActivityStateListeners) {
+            listener.onActivityStateChange(activity, newState);
         }
 
         int applicationState = getStateForApplication();
-        if (applicationState != oldApplicationState && sApplicationStateListeners != null) {
+        if (applicationState != oldApplicationState) {
             for (ApplicationStateListener listener : sApplicationStateListeners) {
                 listener.onApplicationStateChange(applicationState);
             }
@@ -481,7 +418,7 @@ public class ApplicationStatus {
 
     /**
      * @return The most recent focused {@link Activity} tracked by this class.  Being focused means
-     * out of all the activities tracked here, it has most recently gained window focus.
+     *         out of all the activities tracked here, it has most recently gained window focus.
      */
     @MainThread
     public static Activity getLastTrackedFocusedActivity() {
@@ -511,7 +448,7 @@ public class ApplicationStatus {
      * When relying on this method, be familiar with the expected life cycle state
      * transitions:
      * <a href="http://developer.android.com/guide/components/activities.html#Lifecycle">
-     * Activity Lifecycle
+     *   Activity Lifecycle
      * </a>
      *
      * <p>
@@ -567,7 +504,6 @@ public class ApplicationStatus {
      * Checks whether or not any Activity in this Application is visible to the user.  Note that
      * this includes the PAUSED state, which can happen when the Activity is temporarily covered
      * by another Activity's Fragment (e.g.).
-     *
      * @return Whether any Activity under this Application is visible.
      */
     @AnyThread
@@ -581,7 +517,6 @@ public class ApplicationStatus {
 
     /**
      * Checks to see if there are any active Activity instances being watched by ApplicationStatus.
-     *
      * @return True if all Activities have been destroyed.
      */
     @AnyThread
@@ -591,38 +526,12 @@ public class ApplicationStatus {
     }
 
     /**
-     * Returns the visibility of the task with the given taskId. A task is visible if any of its
-     * Activities are in RESUMED or PAUSED state.
-     *
-     * @param taskId The id of the task whose visibility needs to be checked.
-     * @return Whether the task is visible or not.
-     */
-    @AnyThread
-    public static boolean isTaskVisible(int taskId) {
-        assert isInitialized();
-        for (Map.Entry<Activity, ActivityInfo> entry : sActivityInfo.entrySet()) {
-            if (entry.getKey().getTaskId() == taskId) {
-                @ActivityState
-                int state = entry.getValue().getStatus();
-                if (state == ActivityState.RESUMED || state == ActivityState.PAUSED) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
      * Registers the given listener to receive state changes for all activities.
-     *
      * @param listener Listener to receive state changes.
      */
     @MainThread
     public static void registerStateListenerForAllActivities(ActivityStateListener listener) {
         assert isInitialized();
-        if (sGeneralActivityStateListeners == null) {
-            sGeneralActivityStateListeners = new ObserverList<>();
-        }
         sGeneralActivityStateListeners.addObserver(listener);
     }
 
@@ -631,7 +540,6 @@ public class ApplicationStatus {
      * {@link ActivityStateListener#onActivityStateChange(Activity, int)} with
      * {@link ActivityState#DESTROYED} all listeners associated with that particular
      * {@link Activity} are removed.
-     *
      * @param listener Listener to receive state changes.
      * @param activity Activity to track or {@code null} to track all activities.
      */
@@ -649,14 +557,11 @@ public class ApplicationStatus {
 
     /**
      * Unregisters the given listener from receiving activity state changes.
-     *
      * @param listener Listener that doesn't want to receive state changes.
      */
     @MainThread
     public static void unregisterActivityStateListener(ActivityStateListener listener) {
-        if (sGeneralActivityStateListeners != null) {
-            sGeneralActivityStateListeners.removeObserver(listener);
-        }
+        sGeneralActivityStateListeners.removeObserver(listener);
 
         // Loop through all observer lists for all activities and remove the listener.
         synchronized (sActivityInfo) {
@@ -668,25 +573,19 @@ public class ApplicationStatus {
 
     /**
      * Registers the given listener to receive state changes for the application.
-     *
      * @param listener Listener to receive state state changes.
      */
     @MainThread
     public static void registerApplicationStateListener(ApplicationStateListener listener) {
-        if (sApplicationStateListeners == null) {
-            sApplicationStateListeners = new ObserverList<>();
-        }
         sApplicationStateListeners.addObserver(listener);
     }
 
     /**
      * Unregisters the given listener from receiving state changes.
-     *
      * @param listener Listener that doesn't want to receive state changes.
      */
     @MainThread
     public static void unregisterApplicationStateListener(ApplicationStateListener listener) {
-        if (sApplicationStateListeners == null) return;
         sApplicationStateListeners.removeObserver(listener);
     }
 
@@ -698,32 +597,13 @@ public class ApplicationStatus {
     @MainThread
     public static void destroyForJUnitTests() {
         synchronized (sActivityInfo) {
-            if (sApplicationStateListeners != null) sApplicationStateListeners.clear();
-            if (sGeneralActivityStateListeners != null) sGeneralActivityStateListeners.clear();
-            if (sTaskVisibilityListeners != null) sTaskVisibilityListeners.clear();
+            sApplicationStateListeners.clear();
+            sGeneralActivityStateListeners.clear();
             sActivityInfo.clear();
-            if (sWindowFocusListeners != null) sWindowFocusListeners.clear();
+            sWindowFocusListeners.clear();
             sCurrentApplicationState = ApplicationState.UNKNOWN;
             sActivity = null;
             sNativeApplicationStateListener = null;
-        }
-    }
-
-    /**
-     * Mark all Activities as destroyed to avoid side-effects in future test.
-     */
-    @MainThread
-    public static void resetActivitiesForInstrumentationTests() {
-        assert ThreadUtils.runningOnUiThread();
-
-        synchronized (sActivityInfo) {
-            // Copy the set to avoid concurrent modifications to the underlying set.
-            for (Activity activity : new HashSet<>(sActivityInfo.keySet())) {
-                assert activity.getApplication()
-                        == null : "Real activities that are launched should be closed by test code "
-                                  + "and not rely on this cleanup of mocks.";
-                onStateChangeForTesting(activity, ActivityState.DESTROYED);
-            }
         }
     }
 
@@ -755,11 +635,10 @@ public class ApplicationStatus {
      * Determines the current application state as defined by {@link ApplicationState}.  This will
      * loop over all the activities and check their state to determine what the general application
      * state should be.
-     *
      * @return HAS_RUNNING_ACTIVITIES if any activity is not paused, stopped, or destroyed.
-     * HAS_PAUSED_ACTIVITIES if none are running and one is paused.
-     * HAS_STOPPED_ACTIVITIES if none are running/paused and one is stopped.
-     * HAS_DESTROYED_ACTIVITIES if none are running/paused/stopped.
+     *         HAS_PAUSED_ACTIVITIES if none are running and one is paused.
+     *         HAS_STOPPED_ACTIVITIES if none are running/paused and one is stopped.
+     *         HAS_DESTROYED_ACTIVITIES if none are running/paused/stopped.
      */
     @ApplicationState
     @GuardedBy("sActivityInfo")

@@ -1,9 +1,8 @@
-from urllib.parse import unquote
+from six.moves.urllib.parse import unquote
 
 from wptserve.utils import isomorphic_decode, isomorphic_encode
 
-import importlib
-sleep = importlib.import_module("resource-timing.sleep")
+import sleep
 
 def main(request, response):
     index = isomorphic_encode(request.request_path).index(b"?")
@@ -44,6 +43,8 @@ def main(request, response):
                 response.writer.end_headers()
             else:
                 statusSent = True
+        elif arg == b"flush":
+            response.writer.flush()
 
 #        else:
 #            error "  INVALID ARGUMENT %s" % arg

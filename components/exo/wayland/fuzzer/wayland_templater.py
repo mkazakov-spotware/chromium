@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright (c) 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Templatize a file based on wayland specifications.
@@ -65,11 +65,11 @@ def ClangFormat(source, filename):
   clang_format_cmd = [GetClangFormatPath(), '--assume-filename=' + filename]
   proc = subprocess.Popen(
       clang_format_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-  stdout_output, stderr_output = proc.communicate(input=source.encode('utf8'))
+  stdout_output, stderr_output = proc.communicate(input=source)
   retcode = proc.wait()
   if retcode != 0:
       raise CalledProcessError(retcode, 'clang-format error: ' + stderr_output)
-  return stdout_output.decode()
+  return stdout_output
 
 
 def WriteIfChanged(contents, filename):
@@ -79,7 +79,7 @@ def WriteIfChanged(contents, filename):
   the mtime on filename doesn't change.
   """
   if os.path.exists(filename):
-    with open(filename, 'r') as in_fi:
+    with open(filename) as in_fi:
       if in_fi.read() == contents:
         return
   with open(filename, 'w') as out_fi:

@@ -4,7 +4,6 @@
   await dp.Page.enable();
   let result = await dp.Page.navigate({url: testRunner.url('../resources/blank.html')});
   testRunner.log(result);
-  await dp.Page.onceLoadEventFired();
   result = await dp.Page.navigate({url: testRunner.url('../resources/blank.html#fragment')});
   testRunner.log(result);
 

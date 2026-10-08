@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,14 @@
 #define MOJO_PUBLIC_CPP_BINDINGS_PIPE_CONTROL_MESSAGE_PROXY_H_
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "mojo/public/cpp/bindings/async_flusher.h"
 #include "mojo/public/cpp/bindings/disconnect_reason.h"
 #include "mojo/public/cpp/bindings/interface_id.h"
+#include "mojo/public/cpp/bindings/lib/serialization_context.h"
 #include "mojo/public/cpp/bindings/message.h"
 #include "mojo/public/cpp/bindings/pending_flush.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace mojo {
 
@@ -27,21 +28,20 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) PipeControlMessageProxy {
   // be used from multiple sequences, |receiver| must be thread-safe.
   explicit PipeControlMessageProxy(MessageReceiver* receiver);
 
-  PipeControlMessageProxy(const PipeControlMessageProxy&) = delete;
-  PipeControlMessageProxy& operator=(const PipeControlMessageProxy&) = delete;
-
   void NotifyPeerEndpointClosed(InterfaceId id,
-                                const absl::optional<DisconnectReason>& reason);
+                                const base::Optional<DisconnectReason>& reason);
   void PausePeerUntilFlushCompletes(PendingFlush flush);
   void FlushAsync(AsyncFlusher flusher);
 
   static Message ConstructPeerEndpointClosedMessage(
       InterfaceId id,
-      const absl::optional<DisconnectReason>& reason);
+      const base::Optional<DisconnectReason>& reason);
 
  private:
   // Not owned.
-  raw_ptr<MessageReceiver> receiver_;
+  MessageReceiver* receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(PipeControlMessageProxy);
 };
 
 }  // namespace mojo

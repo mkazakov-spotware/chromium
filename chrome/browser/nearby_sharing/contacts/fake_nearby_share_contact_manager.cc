@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,11 @@ FakeNearbyShareContactManager::Factory::CreateInstance(
     PrefService* pref_service,
     NearbyShareClientFactory* http_client_factory,
     NearbyShareLocalDeviceDataManager* local_device_data_manager,
-    NearbyShareProfileInfoProvider* profile_info_provider) {
+    const std::string& profile_user_name) {
   latest_pref_service_ = pref_service;
   latest_http_client_factory_ = http_client_factory;
   latest_local_device_data_manager_ = local_device_data_manager;
-  latest_profile_info_provider_ = profile_info_provider;
+  latest_profile_user_name_ = profile_user_name;
 
   auto instance = std::make_unique<FakeNearbyShareContactManager>();
   instances_.push_back(instance.get());

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_handlers/background_info.h"
 #include "extensions/common/manifest_handlers/incognito_info.h"
-#include "extensions/common/mojom/view_type.mojom.h"
 #include "url/gurl.h"
 
 namespace extensions {
@@ -34,41 +33,37 @@ InspectableViewsFinder::InspectableViewsFinder(Profile* profile)
 InspectableViewsFinder::~InspectableViewsFinder() {
 }
 
-api::developer_private::ViewType ConvertViewType(const mojom::ViewType type) {
+api::developer_private::ViewType ConvertViewType(const ViewType type) {
   api::developer_private::ViewType developer_private_type;
   switch (type) {
-    case mojom::ViewType::kAppWindow:
+    case VIEW_TYPE_APP_WINDOW:
       developer_private_type = api::developer_private::VIEW_TYPE_APP_WINDOW;
       break;
-    case mojom::ViewType::kBackgroundContents:
+    case VIEW_TYPE_BACKGROUND_CONTENTS:
       developer_private_type =
           api::developer_private::VIEW_TYPE_BACKGROUND_CONTENTS;
       break;
-    case mojom::ViewType::kComponent:
+    case VIEW_TYPE_COMPONENT:
       developer_private_type = api::developer_private::VIEW_TYPE_COMPONENT;
       break;
-    case mojom::ViewType::kExtensionBackgroundPage:
+    case VIEW_TYPE_EXTENSION_BACKGROUND_PAGE:
       developer_private_type =
           api::developer_private::VIEW_TYPE_EXTENSION_BACKGROUND_PAGE;
       break;
-    case mojom::ViewType::kExtensionDialog:
+    case VIEW_TYPE_EXTENSION_DIALOG:
       developer_private_type =
           api::developer_private::VIEW_TYPE_EXTENSION_DIALOG;
       break;
-    case mojom::ViewType::kExtensionGuest:
+    case VIEW_TYPE_EXTENSION_GUEST:
       developer_private_type =
           api::developer_private::VIEW_TYPE_EXTENSION_GUEST;
       break;
-    case mojom::ViewType::kExtensionPopup:
+    case VIEW_TYPE_EXTENSION_POPUP:
       developer_private_type =
           api::developer_private::VIEW_TYPE_EXTENSION_POPUP;
       break;
-    case mojom::ViewType::kTabContents:
+    case VIEW_TYPE_TAB_CONTENTS:
       developer_private_type = api::developer_private::VIEW_TYPE_TAB_CONTENTS;
-      break;
-    case mojom::ViewType::kOffscreenDocument:
-      developer_private_type =
-          api::developer_private::VIEW_TYPE_OFFSCREEN_DOCUMENT;
       break;
     default:
       developer_private_type = api::developer_private::VIEW_TYPE_NONE;
@@ -106,9 +101,8 @@ InspectableViewsFinder::ViewList InspectableViewsFinder::GetViewsForExtension(
   GetViewsForExtensionForProfile(
       extension, profile_, is_enabled, false, &result);
   if (profile_->HasPrimaryOTRProfile()) {
-    GetViewsForExtensionForProfile(
-        extension, profile_->GetPrimaryOTRProfile(/*create_if_needed=*/true),
-        is_enabled, true, &result);
+    GetViewsForExtensionForProfile(extension, profile_->GetPrimaryOTRProfile(),
+                                   is_enabled, true, &result);
   }
 
   return result;
@@ -168,11 +162,11 @@ void InspectableViewsFinder::GetViewsForExtensionProcess(
   for (content::RenderFrameHost* host : hosts) {
     content::WebContents* web_contents =
         content::WebContents::FromRenderFrameHost(host);
-    mojom::ViewType host_type = GetViewType(web_contents);
-    if (host_type == mojom::ViewType::kInvalid ||
-        host_type == mojom::ViewType::kExtensionPopup ||
-        host_type == mojom::ViewType::kExtensionDialog ||
-        host_type == mojom::ViewType::kAppWindow) {
+    ViewType host_type = GetViewType(web_contents);
+    if (host_type == VIEW_TYPE_INVALID ||
+        host_type == VIEW_TYPE_EXTENSION_POPUP ||
+        host_type == VIEW_TYPE_EXTENSION_DIALOG ||
+        host_type == VIEW_TYPE_APP_WINDOW) {
       continue;
     }
 
@@ -181,14 +175,15 @@ void InspectableViewsFinder::GetViewsForExtensionProcess(
     // committed (or visible) url yet. In this case, use the initial url.
     if (url.is_empty()) {
       ExtensionHost* extension_host =
-          process_manager->GetBackgroundHostForRenderFrameHost(host);
+          process_manager->GetExtensionHostForRenderFrameHost(host);
       if (extension_host)
         url = extension_host->initial_url();
     }
 
+    bool is_iframe = web_contents->GetMainFrame() != host;
     content::RenderProcessHost* process = host->GetProcess();
     result->push_back(ConstructView(url, process->GetID(), host->GetRoutingID(),
-                                    is_incognito, !host->IsInPrimaryMainFrame(),
+                                    is_incognito, is_iframe,
                                     ConvertViewType(host_type)));
   }
 
@@ -222,7 +217,7 @@ void InspectableViewsFinder::GetAppWindowViewsForExtension(
     if (url.is_empty())
       url = window->initial_url();
 
-    content::RenderFrameHost* main_frame = web_contents->GetPrimaryMainFrame();
+    content::RenderFrameHost* main_frame = web_contents->GetMainFrame();
     result->push_back(ConstructView(
         url, main_frame->GetProcess()->GetID(), main_frame->GetRoutingID(),
         false, false, ConvertViewType(GetViewType(web_contents))));

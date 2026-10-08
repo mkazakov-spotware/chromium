@@ -4,33 +4,38 @@
   <title>Picture-in-Picture Pixel Test</title>
 </head>
 <body>
-  <video controls loop preload=auto src='pixel_test_video.webm'></video>
+  <video controls preload=auto src='pixel_test_video.webm'></video>
 </body>
 <script>
   const video = document.querySelector('video');
 
-  async function enterPictureInPicture() {
-    await _waitForMetadata();
-    await video.requestPictureInPicture();
-    return true;
+  function isInPictureInPicture() {
+    window.domAutomationController.send(document.pictureInPictureElement == video);
   }
 
-  function _waitForMetadata() {
-    return new Promise(resolve => {
-      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-        resolve();
-        return;
-      }
-
-      video.addEventListener('loadedmetadata', () => {
-        resolve();
+  function enterPictureInPicture() {
+    video.requestPictureInPicture()
+    .then(win => {
+      win.addEventListener('resize', () => {
+        document.title = 'resized';
       }, { once: true });
+
+      window.domAutomationController.send(true);
+    })
+    .catch(e => {
+      window.domAutomationController.send(false);
     });
   }
 
-  async function play() {
-    await video.play();
-    return true;
+  function changeVideoSrc() {
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    }
+    video.src = 'pixel_test_video.webm';
+    video.play()
+    .then(_ => { window.domAutomationController.send(true); })
+    .catch(e => { window.domAutomationController.send(false); });
   }
 </script>
 </html>

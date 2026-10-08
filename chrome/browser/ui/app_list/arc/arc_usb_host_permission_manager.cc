@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,14 @@
 
 #include <utility>
 
-#include "ash/components/arc/arc_util.h"
-#include "ash/components/arc/usb/usb_host_bridge.h"
 #include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_dialog.h"
 #include "chrome/browser/ui/app_list/arc/arc_usb_host_permission_manager_factory.h"
+#include "components/arc/arc_util.h"
+#include "components/arc/usb/usb_host_bridge.h"
 #include "extensions/browser/api/device_permissions_manager.h"
 
 namespace arc {
@@ -61,8 +61,8 @@ bool GetUint16FromDict(const base::Value& dict,
 ArcUsbHostPermissionManager::UsbPermissionRequest::UsbPermissionRequest(
     const std::string& package_name,
     bool is_scan_request,
-    absl::optional<UsbDeviceEntry> usb_device_entry,
-    absl::optional<ArcUsbHostUiDelegate::RequestPermissionCallback> callback)
+    base::Optional<UsbDeviceEntry> usb_device_entry,
+    base::Optional<ArcUsbHostUiDelegate::RequestPermissionCallback> callback)
     : package_name_(package_name),
       is_scan_request_(is_scan_request),
       usb_device_entry_(std::move(usb_device_entry)),
@@ -87,8 +87,8 @@ void ArcUsbHostPermissionManager::UsbPermissionRequest::Resolve(bool allowed) {
 // UsbDeviceEntry
 ArcUsbHostPermissionManager::UsbDeviceEntry::UsbDeviceEntry(
     const std::string& guid,
-    const std::u16string& device_name,
-    const std::u16string& serial_number,
+    const base::string16& device_name,
+    const base::string16& serial_number,
     uint16_t vendor_id,
     uint16_t product_id)
     : guid(guid),
@@ -98,10 +98,6 @@ ArcUsbHostPermissionManager::UsbDeviceEntry::UsbDeviceEntry(
       product_id(product_id) {}
 
 ArcUsbHostPermissionManager::UsbDeviceEntry::UsbDeviceEntry(
-    const ArcUsbHostPermissionManager::UsbDeviceEntry& other) = default;
-
-ArcUsbHostPermissionManager::UsbDeviceEntry&
-ArcUsbHostPermissionManager::UsbDeviceEntry::operator=(
     const ArcUsbHostPermissionManager::UsbDeviceEntry& other) = default;
 
 bool ArcUsbHostPermissionManager::UsbDeviceEntry::Matches(
@@ -230,16 +226,16 @@ void ArcUsbHostPermissionManager::RequestUsbScanDeviceListPermission(
   pending_requests_.emplace_back(
       ArcUsbHostPermissionManager::UsbPermissionRequest(
           package_name, true /*is_scan_request*/,
-          absl::nullopt /*usb_device_entry*/, absl::nullopt /*callback*/));
+          base::nullopt /*usb_device_entry*/, base::nullopt /*callback*/));
   MaybeProcessNextPermissionRequest();
 }
 
 void ArcUsbHostPermissionManager::RequestUsbAccessPermission(
     const std::string& package_name,
     const std::string& guid,
-    const std::u16string& serial_number,
-    const std::u16string& manufacturer_string,
-    const std::u16string& product_string,
+    const base::string16& serial_number,
+    const base::string16& manufacturer_string,
+    const base::string16& product_string,
     uint16_t vendor_id,
     uint16_t product_id,
     ArcUsbHostUiDelegate::RequestPermissionCallback callback) {
@@ -270,10 +266,10 @@ void ArcUsbHostPermissionManager::RequestUsbAccessPermission(
 bool ArcUsbHostPermissionManager::HasUsbAccessPermission(
     const std::string& package_name,
     const std::string& guid,
-    const std::u16string& serial_number,
+    const base::string16& serial_number,
     uint16_t vendor_id,
     uint16_t product_id) const {
-  UsbDeviceEntry usb_device_entry(guid, std::u16string() /*device_name*/,
+  UsbDeviceEntry usb_device_entry(guid, base::string16() /*device_name*/,
                                   serial_number, vendor_id, product_id);
   return HasUsbAccessPermission(package_name, usb_device_entry);
 }
@@ -284,8 +280,8 @@ void ArcUsbHostPermissionManager::GrantUsbAccessPermission(
     uint16_t vendor_id,
     uint16_t product_id) {
   // Create non-persistent usb device entry with empty serial_number.
-  UsbDeviceEntry usb_device_entry(guid, std::u16string() /*device_name*/,
-                                  std::u16string() /*serial_number*/, vendor_id,
+  UsbDeviceEntry usb_device_entry(guid, base::string16() /*device_name*/,
+                                  base::string16() /*serial_number*/, vendor_id,
                                   product_id);
   DCHECK(!usb_device_entry.IsPersistent());
   UpdateArcUsbAccessPermission(package_name, usb_device_entry,
@@ -295,7 +291,7 @@ void ArcUsbHostPermissionManager::GrantUsbAccessPermission(
 std::unordered_set<std::string>
 ArcUsbHostPermissionManager::GetEventPackageList(
     const std::string& guid,
-    const std::u16string& serial_number,
+    const base::string16& serial_number,
     uint16_t vendor_id,
     uint16_t product_id) const {
   // Packages with USB device scan permission should receive USB events.
@@ -304,7 +300,7 @@ ArcUsbHostPermissionManager::GetEventPackageList(
 
   // Packages have USB access permission to this device should receive USB
   // events for this USB device.
-  UsbDeviceEntry usb_device_entry(guid, std::u16string() /*device_name*/,
+  UsbDeviceEntry usb_device_entry(guid, base::string16() /*device_name*/,
                                   serial_number, vendor_id, product_id);
   for (const auto& entry : usb_access_permission_dict_) {
     if (entry.second.Matches(usb_device_entry))
@@ -390,10 +386,8 @@ void ArcUsbHostPermissionManager::MaybeProcessNextPermissionRequest() {
                                *current_request.usb_device_entry())) {
       OnUsbPermissionReceived(std::move(current_request), true);
     } else {
-      const std::u16string device_name =
-          current_request.usb_device_entry()->device_name;
       ShowUsbAccessPermissionDialog(
-          profile_, app_id, device_name,
+          profile_, app_id, current_request.usb_device_entry()->device_name,
           base::BindOnce(&ArcUsbHostPermissionManager::OnUsbPermissionReceived,
                          weak_ptr_factory_.GetWeakPtr(),
                          std::move(current_request)));

@@ -1,11 +1,11 @@
-/* Copyright 2014 The Chromium Authors
+/* Copyright 2014 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
 #include_next <sys/time.h>
 
-#ifndef LIBRARIES_NACL_IO_INCLUDE_SYS_TIME_H_
-#define LIBRARIES_NACL_IO_INCLUDE_SYS_TIME_H_
+#ifndef LIBRARIES_NACL_IO_INCLUDE_SYS_TIME_H
+#define LIBRARIES_NACL_IO_INCLUDE_SYS_TIME_H
 
 #include <sys/cdefs.h>
 #include <stdint.h>
@@ -19,4 +19,4 @@ int futimes(int fd, const struct timeval times[2]);
 
 __END_DECLS
 
-#endif  // LIBRARIES_NACL_IO_INCLUDE_SYS_TIME_H_
+#endif  /* LIBRARIES_NACL_IO_INCLUDE_SYS_TIME_H */

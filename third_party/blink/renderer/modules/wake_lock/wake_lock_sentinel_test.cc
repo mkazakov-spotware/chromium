@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,11 @@
 #include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
-#include "third_party/blink/renderer/core/frame/navigator.h"
 #include "third_party/blink/renderer/modules/event_target_modules_names.h"
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock.h"
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock_manager.h"
 #include "third_party/blink/renderer/modules/wake_lock/wake_lock_test_utils.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -26,7 +25,7 @@ namespace {
 
 class SyncEventListener final : public NativeEventListener {
  public:
-  explicit SyncEventListener(base::OnceClosure invocation_callback)
+  SyncEventListener(base::OnceClosure invocation_callback)
       : invocation_callback_(std::move(invocation_callback)) {}
   void Invoke(ExecutionContext*, Event*) override {
     DCHECK(invocation_callback_);
@@ -44,30 +43,28 @@ TEST(WakeLockSentinelTest, SentinelType) {
   WakeLockTestingContext context(&wake_lock_service);
 
   auto* sentinel = MakeGarbageCollected<WakeLockSentinel>(
-      context.GetScriptState(), V8WakeLockType::Enum::kScreen,
-      /*manager=*/nullptr);
-  EXPECT_EQ("screen", sentinel->type().AsString());
+      context.GetScriptState(), WakeLockType::kScreen, /*manager=*/nullptr);
+  EXPECT_EQ("screen", sentinel->type());
 
   sentinel = MakeGarbageCollected<WakeLockSentinel>(
-      context.GetScriptState(), V8WakeLockType::Enum::kSystem,
-      /*manager=*/nullptr);
-  EXPECT_EQ("system", sentinel->type().AsString());
+      context.GetScriptState(), WakeLockType::kSystem, /*manager=*/nullptr);
+  EXPECT_EQ("system", sentinel->type());
 }
 
 TEST(WakeLockSentinelTest, SentinelReleased) {
   MockWakeLockService wake_lock_service;
   WakeLockTestingContext context(&wake_lock_service);
 
-  auto* manager = MakeGarbageCollected<WakeLockManager>(
-      context.DomWindow(), V8WakeLockType::Enum::kScreen);
+  auto* manager = MakeGarbageCollected<WakeLockManager>(context.DomWindow(),
+                                                        WakeLockType::kScreen);
   auto* sentinel = MakeGarbageCollected<WakeLockSentinel>(
-      context.GetScriptState(), V8WakeLockType::Enum::kScreen, manager);
+      context.GetScriptState(), WakeLockType::kScreen, manager);
   EXPECT_FALSE(sentinel->released());
 
-  manager = MakeGarbageCollected<WakeLockManager>(
-      context.DomWindow(), V8WakeLockType::Enum::kSystem);
+  manager = MakeGarbageCollected<WakeLockManager>(context.DomWindow(),
+                                                  WakeLockType::kSystem);
   sentinel = MakeGarbageCollected<WakeLockSentinel>(
-      context.GetScriptState(), V8WakeLockType::Enum::kSystem, manager);
+      context.GetScriptState(), WakeLockType::kSystem, manager);
   EXPECT_FALSE(sentinel->released());
 }
 
@@ -75,8 +72,8 @@ TEST(WakeLockSentinelTest, MultipleReleaseCalls) {
   MockWakeLockService wake_lock_service;
   WakeLockTestingContext context(&wake_lock_service);
 
-  auto* manager = MakeGarbageCollected<WakeLockManager>(
-      context.DomWindow(), V8WakeLockType::Enum::kScreen);
+  auto* manager = MakeGarbageCollected<WakeLockManager>(context.DomWindow(),
+                                                        WakeLockType::kScreen);
   auto* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(context.GetScriptState());
   ScriptPromise promise = resolver->Promise();
@@ -90,17 +87,15 @@ TEST(WakeLockSentinelTest, MultipleReleaseCalls) {
   base::RunLoop run_loop;
   auto* event_listener =
       MakeGarbageCollected<SyncEventListener>(run_loop.QuitClosure());
-  sentinel->addEventListener(event_type_names::kRelease, event_listener,
-                             /*use_capture=*/false);
+  sentinel->addEventListener(event_type_names::kRelease, event_listener);
   sentinel->release(context.GetScriptState());
   run_loop.Run();
-  sentinel->removeEventListener(event_type_names::kRelease, event_listener,
-                                /*use_capture=*/false);
+  sentinel->removeEventListener(event_type_names::kRelease, event_listener);
 
   EXPECT_EQ(nullptr, sentinel->manager_);
   EXPECT_TRUE(sentinel->released());
 
-  event_listener = MakeGarbageCollected<SyncEventListener>(WTF::BindOnce([]() {
+  event_listener = MakeGarbageCollected<SyncEventListener>(WTF::Bind([]() {
     EXPECT_TRUE(false) << "This event handler should not be reached.";
   }));
   sentinel->addEventListener(event_type_names::kRelease, event_listener);
@@ -113,17 +108,17 @@ TEST(WakeLockSentinelTest, ContextDestruction) {
   WakeLockTestingContext context(&wake_lock_service);
 
   context.GetPermissionService().SetPermissionResponse(
-      V8WakeLockType::Enum::kScreen, mojom::blink::PermissionStatus::GRANTED);
+      WakeLockType::kScreen, mojom::blink::PermissionStatus::GRANTED);
 
   auto* screen_resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(context.GetScriptState());
   ScriptPromise screen_promise = screen_resolver->Promise();
 
-  auto* wake_lock = WakeLock::wakeLock(*context.DomWindow()->navigator());
-  wake_lock->DoRequest(V8WakeLockType::Enum::kScreen, screen_resolver);
+  auto* wake_lock = MakeGarbageCollected<WakeLock>(*context.DomWindow());
+  wake_lock->DoRequest(WakeLockType::kScreen, screen_resolver);
 
   WakeLockManager* manager =
-      wake_lock->managers_[static_cast<size_t>(V8WakeLockType::Enum::kScreen)];
+      wake_lock->managers_[static_cast<size_t>(WakeLockType::kScreen)];
   ASSERT_TRUE(manager);
 
   context.WaitForPromiseFulfillment(screen_promise);
@@ -132,7 +127,7 @@ TEST(WakeLockSentinelTest, ContextDestruction) {
   ASSERT_TRUE(sentinel);
 
   auto* event_listener =
-      MakeGarbageCollected<SyncEventListener>(WTF::BindOnce([]() {
+      MakeGarbageCollected<SyncEventListener>(WTF::Bind([]() {
         EXPECT_TRUE(false) << "This event handler should not be reached.";
       }));
   sentinel->addEventListener(event_type_names::kRelease, event_listener);
@@ -148,8 +143,8 @@ TEST(WakeLockSentinelTest, HasPendingActivityConditions) {
   MockWakeLockService wake_lock_service;
   WakeLockTestingContext context(&wake_lock_service);
 
-  auto* manager = MakeGarbageCollected<WakeLockManager>(
-      context.DomWindow(), V8WakeLockType::Enum::kScreen);
+  auto* manager = MakeGarbageCollected<WakeLockManager>(context.DomWindow(),
+                                                        WakeLockType::kScreen);
   auto* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(context.GetScriptState());
   ScriptPromise promise = resolver->Promise();

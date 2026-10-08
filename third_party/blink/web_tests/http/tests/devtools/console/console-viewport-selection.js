@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that console viewport handles selection properly.\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
   await TestRunner.evaluateInPagePromise(`
       function populateConsoleWithMessages(count)
@@ -18,7 +18,7 @@
 
   ConsoleTestRunner.fixConsoleViewportDimensions(600, 200);
   var consoleView = Console.ConsoleView.instance();
-  var viewport = consoleView.viewport;
+  var viewport = consoleView._viewport;
   const minimumViewportMessagesCount = 10;
   const messagesCount = 150;
   const middleMessage = messagesCount / 2;
@@ -71,7 +71,7 @@
     },
 
     function testScrollSelectionAwayDown(next) {
-      consoleView.immediatelyScrollToBottom();
+      consoleView._immediatelyScrollToBottom();
       viewport.refresh();
       dumpSelectionModel();
       next();
@@ -123,7 +123,7 @@
         blueSpan = blueSpan.traverseNextNode();
 
       window.getSelection().setBaseAndExtent(blueSpan, 0, blueSpan, blueSpan.childNodes.length);
-      TestRunner.addResult('Selected text: ' + viewport.selectedText());
+      TestRunner.addResult('Selected text: ' + viewport._selectedText());
       next();
     },
 
@@ -138,7 +138,7 @@
       // Try to select all messages.
       document.execCommand('selectAll');
 
-      var text = viewport.selectedText();
+      var text = viewport._selectedText();
       var count = text ? text.split('\n').length : 0;
       TestRunner.addResult(
           count === messagesCount ? 'Selected all ' + count + ' messages.' :
@@ -155,13 +155,13 @@
       var textNodeExtent = consoleView.itemElement(2).element().traverseNextTextNode();
 
       window.getSelection().setBaseAndExtent(nonTextNodeBase, 0, nonTextNodeExtent, 0);
-      TestRunner.addResult('Selected text: ' + viewport.selectedText());
+      TestRunner.addResult('Selected text: ' + viewport._selectedText());
 
       window.getSelection().setBaseAndExtent(textNodeBase, 0, nonTextNodeExtent, 0);
-      TestRunner.addResult('Selected text: ' + viewport.selectedText());
+      TestRunner.addResult('Selected text: ' + viewport._selectedText());
 
       window.getSelection().setBaseAndExtent(nonTextNodeBase, 0, textNodeExtent, 0);
-      TestRunner.addResult('Selected text: ' + viewport.selectedText());
+      TestRunner.addResult('Selected text: ' + viewport._selectedText());
 
       next();
     }
@@ -185,14 +185,14 @@
   function dumpSelectionModel() {
     viewport.refresh();
     var text = String.sprintf(
-        'anchor = %s, head = %s', dumpSelectionModelElement(viewport.anchorSelection),
-        dumpSelectionModelElement(viewport.headSelection));
+        'anchor = %s, head = %s', dumpSelectionModelElement(viewport._anchorSelection),
+        dumpSelectionModelElement(viewport._headSelection));
     TestRunner.addResult(text);
   }
 
   function dumpSelectionText() {
     viewport.refresh();
-    var text = viewport.selectedText();
+    var text = viewport._selectedText();
     TestRunner.addResult('Selected text:<<<EOL\n' + text + '\nEOL');
   }
 

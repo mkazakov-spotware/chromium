@@ -37,6 +37,7 @@
 #include "third_party/blink/renderer/core/frame/dom_window.h"
 #include "third_party/blink/renderer/core/frame/frame.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_wrapper.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -49,7 +50,6 @@ WindowProxy::~WindowProxy() {
 
 void WindowProxy::Trace(Visitor* visitor) const {
   visitor->Trace(frame_);
-  visitor->Trace(global_proxy_);
 }
 
 WindowProxy::WindowProxy(v8::Isolate* isolate,
@@ -84,7 +84,7 @@ v8::Local<v8::Object> WindowProxy::GlobalProxyIfNotDetached() {
   if (lifecycle_ == Lifecycle::kContextIsInitialized) {
     DLOG_IF(FATAL, !is_global_object_attached_)
         << "Context is initialized but global object is detached!";
-    return global_proxy_.Get(isolate_);
+    return global_proxy_.NewLocal(isolate_);
   }
   return v8::Local<v8::Object>();
 }
@@ -94,12 +94,12 @@ v8::Local<v8::Object> WindowProxy::ReleaseGlobalProxy() {
          lifecycle_ == Lifecycle::kGlobalObjectIsDetached);
 
   // Make sure the global object was detached from the proxy by calling
-  // ClearForSwap().
+  // clearForNavigation().
   DLOG_IF(FATAL, is_global_object_attached_)
-      << "Context not detached by calling ClearForSwap()";
+      << "Context not detached by calling clearForNavigation()";
 
-  v8::Local<v8::Object> global_proxy = global_proxy_.Get(isolate_);
-  global_proxy_.Reset();
+  v8::Local<v8::Object> global_proxy = global_proxy_.NewLocal(isolate_);
+  global_proxy_.Clear();
   return global_proxy;
 }
 
@@ -107,11 +107,7 @@ void WindowProxy::SetGlobalProxy(v8::Local<v8::Object> global_proxy) {
   DCHECK_EQ(lifecycle_, Lifecycle::kContextIsUninitialized);
 
   CHECK(global_proxy_.IsEmpty());
-  global_proxy_.Reset(isolate_, global_proxy);
-  // The global proxy was transferred from a previous WindowProxy, so the state
-  // should be detached, not uninitialized. This ensures that it will be
-  // properly reinitialized when needed, e.g. by `UpdateDocument()`.
-  lifecycle_ = Lifecycle::kGlobalObjectIsDetached;
+  global_proxy_.Set(isolate_, global_proxy);
 }
 
 // Create a new environment and setup the global object.

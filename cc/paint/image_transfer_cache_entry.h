@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,11 @@
 
 #include "base/atomic_sequence_num.h"
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
-#include "cc/paint/target_color_params.h"
+#include "base/optional.h"
 #include "cc/paint/transfer_cache_entry.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/skia/include/core/SkYUVAInfo.h"
+#include "third_party/skia/include/core/SkYUVASizeInfo.h"
 
 class GrDirectContext;
 class SkColorSpace;
@@ -47,18 +45,16 @@ CC_PAINT_EXPORT size_t NumberOfPlanesForYUVDecodeFormat(YUVDecodeFormat format);
 class CC_PAINT_EXPORT ClientImageTransferCacheEntry final
     : public ClientTransferCacheEntryBase<TransferCacheEntryType::kImage> {
  public:
-  ClientImageTransferCacheEntry(
-      const SkPixmap* pixmap,
-      bool needs_mips,
-      absl::optional<TargetColorParams> target_color_params);
-  ClientImageTransferCacheEntry(
-      const SkPixmap yuva_pixmaps[],
-      SkYUVAInfo::PlaneConfig plane_config,
-      SkYUVAInfo::Subsampling subsampling,
+  explicit ClientImageTransferCacheEntry(const SkPixmap* pixmap,
+                                         const SkColorSpace* target_color_space,
+                                         bool needs_mips);
+  explicit ClientImageTransferCacheEntry(
+      const SkPixmap* y_pixmap,
+      const SkPixmap* u_pixmap,
+      const SkPixmap* v_pixmap,
       const SkColorSpace* decoded_color_space,
       SkYUVColorSpace yuv_color_space,
-      bool needs_mips,
-      absl::optional<TargetColorParams> target_color_params);
+      bool needs_mips);
   ~ClientImageTransferCacheEntry() final;
 
   uint32_t Id() const final;
@@ -69,24 +65,24 @@ class CC_PAINT_EXPORT ClientImageTransferCacheEntry final
 
   static uint32_t GetNextId() { return s_next_id_.GetNext(); }
   bool IsYuv() const { return !!yuv_pixmaps_; }
-  bool IsValid() const { return size_ > 0; }
 
  private:
   const bool needs_mips_ = false;
-  absl::optional<TargetColorParams> target_color_params_;
-  SkYUVAInfo::PlaneConfig plane_config_ = SkYUVAInfo::PlaneConfig::kUnknown;
+  const uint32_t num_planes_ = 1;
   uint32_t id_;
   uint32_t size_ = 0;
   static base::AtomicSequenceNumber s_next_id_;
 
   // RGBX-only members.
-  const raw_ptr<const SkPixmap> pixmap_;
+  const SkPixmap* const pixmap_;
+  const SkColorSpace* const
+      target_color_space_;  // Unused for YUV because Skia handles colorspaces
+                            // at raster.
 
   // YUVA-only members.
-  absl::optional<std::array<const SkPixmap*, SkYUVAInfo::kMaxPlanes>>
+  base::Optional<std::array<const SkPixmap*, SkYUVASizeInfo::kMaxCount>>
       yuv_pixmaps_;
-  const raw_ptr<const SkColorSpace> decoded_color_space_;
-  SkYUVAInfo::Subsampling subsampling_ = SkYUVAInfo::Subsampling::kUnknown;
+  const SkColorSpace* const decoded_color_space_;
   SkYUVColorSpace yuv_color_space_;
 
   // DCHECKs that the appropriate data members are set or not set and have
@@ -119,8 +115,7 @@ class CC_PAINT_EXPORT ServiceImageTransferCacheEntry final
   // Returns true if the entry can be built, false otherwise.
   bool BuildFromHardwareDecodedImage(GrDirectContext* context,
                                      std::vector<sk_sp<SkImage>> plane_images,
-                                     SkYUVAInfo::PlaneConfig plane_config,
-                                     SkYUVAInfo::Subsampling subsampling,
+                                     YUVDecodeFormat plane_images_format,
                                      SkYUVColorSpace yuv_color_space,
                                      size_t buffer_byte_size,
                                      bool needs_mips);
@@ -146,24 +141,21 @@ class CC_PAINT_EXPORT ServiceImageTransferCacheEntry final
     return plane_sizes_;
   }
   bool is_yuv() const { return !plane_images_.empty(); }
-  size_t num_planes() const {
-    return is_yuv() ? SkYUVAInfo::NumPlanes(plane_config_) : 1u;
-  }
+  size_t num_planes() const { return is_yuv() ? plane_images_.size() : 1u; }
 
  private:
-  raw_ptr<GrDirectContext> context_ = nullptr;
-  // The individual planes that are used by `image_` when `image_` is a YUVA
-  // image. The planes are kept around for use in EnsureMips(), memory dumps,
-  // and unit tests.
+  sk_sp<SkImage> MakeSkImage(const SkPixmap& pixmap,
+                             uint32_t width,
+                             uint32_t height,
+                             sk_sp<SkColorSpace> target_color_space);
+
+  GrDirectContext* context_ = nullptr;
   std::vector<sk_sp<SkImage>> plane_images_;
-  SkYUVAInfo::PlaneConfig plane_config_ = SkYUVAInfo::PlaneConfig::kUnknown;
+  YUVDecodeFormat plane_images_format_ = YUVDecodeFormat::kUnknown;
   std::vector<size_t> plane_sizes_;
   sk_sp<SkImage> image_;
-  absl::optional<SkYUVAInfo::Subsampling> subsampling_;
-  absl::optional<SkYUVColorSpace> yuv_color_space_;
+  base::Optional<SkYUVColorSpace> yuv_color_space_;
   bool has_mips_ = false;
-  // The value of `size_` is computed during deserialization and never updated
-  // (even if the size of the image changes due to mipmaps being requested).
   size_t size_ = 0;
   bool fits_on_gpu_ = false;
 };

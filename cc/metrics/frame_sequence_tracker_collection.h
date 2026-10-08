@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 
 #include "base/callback.h"
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "cc/cc_export.h"
 #include "cc/metrics/frame_sequence_metrics.h"
 
@@ -55,7 +55,7 @@ class CC_EXPORT FrameSequenceTrackerCollection {
   FrameSequenceTracker* StartSequence(FrameSequenceTrackerType type);
   FrameSequenceTracker* StartScrollSequence(
       FrameSequenceTrackerType type,
-      FrameInfo::SmoothEffectDrivingThread scrolling_thread);
+      FrameSequenceMetrics::ThreadType scrolling_thread);
 
   // Schedules |tracker| for destruction. This is preferred instead of outright
   // desrtruction of the tracker, since this ensures that the actual tracker
@@ -85,8 +85,7 @@ class CC_EXPORT FrameSequenceTrackerCollection {
   void NotifyBeginMainFrame(const viz::BeginFrameArgs& args);
   void NotifyMainFrameProcessed(const viz::BeginFrameArgs& args);
   void NotifyImplFrameCausedNoDamage(const viz::BeginFrameAck& ack);
-  void NotifyMainFrameCausedNoDamage(const viz::BeginFrameArgs& args,
-                                     bool aborted);
+  void NotifyMainFrameCausedNoDamage(const viz::BeginFrameArgs& args);
   void NotifyPauseFrameProduction();
   void NotifySubmitFrame(uint32_t frame_token,
                          bool has_missing_content,
@@ -106,7 +105,7 @@ class CC_EXPORT FrameSequenceTrackerCollection {
   // Return the type of each active frame tracker, encoded into a 16 bit
   // integer with the bit at each position corresponding to the enum value of
   // each type.
-  ActiveFrameSequenceTrackers FrameSequenceTrackerActiveTypes() const;
+  ActiveFrameSequenceTrackers FrameSequenceTrackerActiveTypes();
 
   FrameSequenceTracker* GetRemovalTrackerForTesting(
       FrameSequenceTrackerType type);
@@ -120,15 +119,12 @@ class CC_EXPORT FrameSequenceTrackerCollection {
     custom_tracker_results_added_callback_ = std::move(callback);
   }
 
-  void AddSortedFrame(const viz::BeginFrameArgs& args,
-                      const FrameInfo& frame_info);
-
  private:
   friend class FrameSequenceTrackerTest;
 
   FrameSequenceTracker* StartSequenceInternal(
       FrameSequenceTrackerType type,
-      FrameInfo::SmoothEffectDrivingThread scrolling_thread);
+      FrameSequenceMetrics::ThreadType scrolling_thread);
 
   void RecreateTrackers(const viz::BeginFrameArgs& args);
   // Destroy the trackers that are ready to be terminated.
@@ -156,7 +152,7 @@ class CC_EXPORT FrameSequenceTrackerCollection {
 
   // The callsite can use the type to manipulate the tracker.
   base::flat_map<
-      std::pair<FrameSequenceTrackerType, FrameInfo::SmoothEffectDrivingThread>,
+      std::pair<FrameSequenceTrackerType, FrameSequenceMetrics::ThreadType>,
       std::unique_ptr<FrameSequenceTracker>>
       frame_trackers_;
 
@@ -169,11 +165,11 @@ class CC_EXPORT FrameSequenceTrackerCollection {
   NotifyCustomerTrackerResutlsCallback custom_tracker_results_added_callback_;
 
   std::vector<std::unique_ptr<FrameSequenceTracker>> removal_trackers_;
-  const raw_ptr<CompositorFrameReportingController>
+  CompositorFrameReportingController* const
       compositor_frame_reporting_controller_;
 
   base::flat_map<
-      std::pair<FrameSequenceTrackerType, FrameInfo::SmoothEffectDrivingThread>,
+      std::pair<FrameSequenceTrackerType, FrameSequenceMetrics::ThreadType>,
       std::unique_ptr<FrameSequenceMetrics>>
       accumulated_metrics_;
 

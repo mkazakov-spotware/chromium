@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,18 @@
 #include <limits.h>
 #include <stddef.h>
 
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/format_macros.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 TEST(FoundationUtilTest, CFCast) {
   // Build out the CF types to be tested as empty containers.
@@ -274,12 +277,12 @@ TEST(FoundationUtilTest, GetValueFromDictionary) {
   CFStringRef keys[] = { CFSTR("one"), CFSTR("two"), CFSTR("three") };
   CFNumberRef values[] = { cf_one, cf_two, cf_three };
 
-  static_assert(std::size(keys) == std::size(values),
+  static_assert(base::size(keys) == base::size(values),
                 "keys and values arrays must have the same size");
 
   ScopedCFTypeRef<CFDictionaryRef> test_dict(CFDictionaryCreate(
       kCFAllocatorDefault, reinterpret_cast<const void**>(keys),
-      reinterpret_cast<const void**>(values), std::size(values),
+      reinterpret_cast<const void**>(values), base::size(values),
       &kCFCopyStringDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
 
   // GetValueFromDictionary<>(_, _) should produce the correct
@@ -344,12 +347,12 @@ TEST(StringNumberConversionsTest, FormatNSInteger) {
 #endif  // defined(ARCH_CPU_64_BITS)
 
   NSInteger some_nsinteger;
-  [[maybe_unused]] FormatNSIntegerAsType* pointer_to_some_nsinteger =
-      &some_nsinteger;
+  FormatNSIntegerAsType* pointer_to_some_nsinteger = &some_nsinteger;
+  ALLOW_UNUSED_LOCAL(pointer_to_some_nsinteger);
 
   NSUInteger some_nsuinteger;
-  [[maybe_unused]] FormatNSUIntegerAsType* pointer_to_some_nsuinteger =
-      &some_nsuinteger;
+  FormatNSUIntegerAsType* pointer_to_some_nsuinteger = &some_nsuinteger;
+  ALLOW_UNUSED_LOCAL(pointer_to_some_nsuinteger);
 
   // Check that format specifier works correctly for NSInteger.
   const struct {
@@ -368,7 +371,7 @@ TEST(StringNumberConversionsTest, FormatNSInteger) {
 #endif  // !defined(ARCH_CPU_64_BITS)
   };
 
-  for (size_t i = 0; i < std::size(nsinteger_cases); ++i) {
+  for (size_t i = 0; i < base::size(nsinteger_cases); ++i) {
     EXPECT_EQ(nsinteger_cases[i].expected,
               StringPrintf("%" PRIdNS, nsinteger_cases[i].value));
     EXPECT_EQ(nsinteger_cases[i].expected_hex,
@@ -392,7 +395,7 @@ TEST(StringNumberConversionsTest, FormatNSInteger) {
 #endif  // !defined(ARCH_CPU_64_BITS)
   };
 
-  for (size_t i = 0; i < std::size(nsuinteger_cases); ++i) {
+  for (size_t i = 0; i < base::size(nsuinteger_cases); ++i) {
     EXPECT_EQ(nsuinteger_cases[i].expected,
               StringPrintf("%" PRIuNS, nsuinteger_cases[i].value));
     EXPECT_EQ(nsuinteger_cases[i].expected_hex,
@@ -419,4 +422,5 @@ TEST(FoundationLoggingTest, NSRange) {
   EXPECT_LOG_EQ("{0, 100}", NSMakeRange(0, 100));
 }
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

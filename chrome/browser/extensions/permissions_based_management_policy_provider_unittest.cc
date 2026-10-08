@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_management.h"
@@ -22,11 +22,8 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
-#include "extensions/common/mojom/api_permission_id.mojom-shared.h"
 #include "extensions/common/permissions/api_permission.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-using extensions::mojom::APIPermissionID;
 
 namespace extensions {
 
@@ -48,7 +45,7 @@ class PermissionsBasedManagementPolicyProviderTest : public testing::Test {
 
   // Get API permissions name for |id|, we cannot use arbitrary strings since
   // they will be ignored by ExtensionManagementService.
-  std::string GetAPIPermissionName(APIPermissionID id) {
+  std::string GetAPIPermissionName(APIPermission::ID id) {
     for (const auto& perm : chrome_api_permissions::GetPermissionInfos()) {
       if (perm.id == id)
         return perm.name;
@@ -60,20 +57,20 @@ class PermissionsBasedManagementPolicyProviderTest : public testing::Test {
   // Create an extension with specified |location|, |required_permissions| and
   // |optional_permissions|.
   scoped_refptr<const Extension> CreateExtensionWithPermission(
-      mojom::ManifestLocation location,
+      Manifest::Location location,
       const base::ListValue* required_permissions,
       const base::ListValue* optional_permissions) {
     base::DictionaryValue manifest_dict;
-    manifest_dict.SetStringPath(manifest_keys::kName, "test");
-    manifest_dict.SetStringPath(manifest_keys::kVersion, "0.1");
-    manifest_dict.SetIntPath(manifest_keys::kManifestVersion, 2);
+    manifest_dict.SetString(manifest_keys::kName, "test");
+    manifest_dict.SetString(manifest_keys::kVersion, "0.1");
+    manifest_dict.SetInteger(manifest_keys::kManifestVersion, 2);
     if (required_permissions) {
-      manifest_dict.SetPath(manifest_keys::kPermissions,
-                            required_permissions->Clone());
+      manifest_dict.Set(manifest_keys::kPermissions,
+                        required_permissions->CreateDeepCopy());
     }
     if (optional_permissions) {
-      manifest_dict.SetPath(manifest_keys::kOptionalPermissions,
-                            optional_permissions->Clone());
+      manifest_dict.Set(manifest_keys::kOptionalPermissions,
+                        optional_permissions->CreateDeepCopy());
     }
     std::string error;
     scoped_refptr<const Extension> extension = Extension::Create(
@@ -86,7 +83,7 @@ class PermissionsBasedManagementPolicyProviderTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
 
   std::unique_ptr<TestingProfile> profile_;
-  raw_ptr<sync_preferences::TestingPrefServiceSyncable> pref_service_;
+  sync_preferences::TestingPrefServiceSyncable* pref_service_;
   std::unique_ptr<ExtensionManagement> settings_;
 
   PermissionsBasedManagementPolicyProvider provider_;
@@ -96,17 +93,20 @@ class PermissionsBasedManagementPolicyProviderTest : public testing::Test {
 TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
   // Prepares the extension manifest.
   base::ListValue required_permissions;
-  required_permissions.Append(
-      GetAPIPermissionName(APIPermissionID::kDownloads));
-  required_permissions.Append(GetAPIPermissionName(APIPermissionID::kCookie));
+  required_permissions.AppendString(
+      GetAPIPermissionName(APIPermission::kDownloads));
+  required_permissions.AppendString(
+      GetAPIPermissionName(APIPermission::kCookie));
   base::ListValue optional_permissions;
-  optional_permissions.Append(GetAPIPermissionName(APIPermissionID::kProxy));
+  optional_permissions.AppendString(
+      GetAPIPermissionName(APIPermission::kProxy));
 
-  scoped_refptr<const Extension> extension = CreateExtensionWithPermission(
-      mojom::ManifestLocation::kExternalPolicyDownload, &required_permissions,
-      &optional_permissions);
+  scoped_refptr<const Extension> extension =
+      CreateExtensionWithPermission(Manifest::EXTERNAL_POLICY_DOWNLOAD,
+                                    &required_permissions,
+                                    &optional_permissions);
 
-  std::u16string error16;
+  base::string16 error16;
   // The extension should be allowed to be loaded by default.
   error16.clear();
   EXPECT_TRUE(provider_.UserMayLoad(extension.get(), &error16));
@@ -114,9 +114,9 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
 
   // Blocks kProxy by default. The test extension should still be allowed.
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.AddBlockedPermission("*",
-                              GetAPIPermissionName(APIPermissionID::kProxy));
+                              GetAPIPermissionName(APIPermission::kProxy));
   }
   error16.clear();
   EXPECT_TRUE(provider_.UserMayLoad(extension.get(), &error16));
@@ -124,9 +124,9 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
 
   // Blocks kCookie this time. The test extension should not be allowed now.
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.AddBlockedPermission("*",
-                              GetAPIPermissionName(APIPermissionID::kCookie));
+                              GetAPIPermissionName(APIPermission::kCookie));
   }
   error16.clear();
   EXPECT_FALSE(provider_.UserMayLoad(extension.get(), &error16));
@@ -134,9 +134,9 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
 
   // Explictly allows kCookie for test extension. It should be allowed again.
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.AddAllowedPermission(extension->id(),
-                              GetAPIPermissionName(APIPermissionID::kCookie));
+                              GetAPIPermissionName(APIPermission::kCookie));
   }
   error16.clear();
   EXPECT_TRUE(provider_.UserMayLoad(extension.get(), &error16));
@@ -144,9 +144,9 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
 
   // Explictly blocks kCookie for test extension. It should still be allowed.
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.AddBlockedPermission(extension->id(),
-                              GetAPIPermissionName(APIPermissionID::kCookie));
+                              GetAPIPermissionName(APIPermission::kCookie));
   }
   error16.clear();
   EXPECT_TRUE(provider_.UserMayLoad(extension.get(), &error16));
@@ -154,12 +154,12 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
 
   // Any extension specific definition overrides all defaults, even if blank.
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.UnsetBlockedPermissions(extension->id());
     pref.UnsetAllowedPermissions(extension->id());
     pref.ClearBlockedPermissions("*");
-    pref.AddBlockedPermission(
-        "*", GetAPIPermissionName(APIPermissionID::kDownloads));
+    pref.AddBlockedPermission("*",
+                              GetAPIPermissionName(APIPermission::kDownloads));
   }
   error16.clear();
   EXPECT_TRUE(provider_.UserMayLoad(extension.get(), &error16));
@@ -167,12 +167,12 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
 
   // Blocks kDownloads by default. It should be blocked.
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.UnsetPerExtensionSettings(extension->id());
     pref.UnsetPerExtensionSettings(extension->id());
     pref.ClearBlockedPermissions("*");
-    pref.AddBlockedPermission(
-        "*", GetAPIPermissionName(APIPermissionID::kDownloads));
+    pref.AddBlockedPermission("*",
+                              GetAPIPermissionName(APIPermission::kDownloads));
   }
   error16.clear();
   EXPECT_FALSE(provider_.UserMayLoad(extension.get(), &error16));
@@ -185,13 +185,13 @@ TEST_F(PermissionsBasedManagementPolicyProviderTest, APIPermissions) {
   const std::string blocked_install_message =
       "Visit https://example.com/exception";
   {
-    PrefUpdater pref(pref_service_.get());
+    PrefUpdater pref(pref_service_);
     pref.UnsetPerExtensionSettings(extension->id());
     pref.UnsetPerExtensionSettings(extension->id());
     pref.SetBlockedInstallMessage(extension->id(), blocked_install_message);
     pref.ClearBlockedPermissions("*");
-    pref.AddBlockedPermission(
-        extension->id(), GetAPIPermissionName(APIPermissionID::kDownloads));
+    pref.AddBlockedPermission(extension->id(),
+                              GetAPIPermissionName(APIPermission::kDownloads));
   }
   error16.clear();
   EXPECT_FALSE(provider_.UserMayLoad(extension.get(), &error16));

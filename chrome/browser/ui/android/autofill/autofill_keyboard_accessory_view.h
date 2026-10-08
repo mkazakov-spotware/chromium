@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
-#include "chrome/browser/ui/autofill/autofill_keyboard_accessory_adapter.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "chrome/browser/autofill/autofill_keyboard_accessory_adapter.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view.h"
 
 namespace autofill {
@@ -26,21 +26,15 @@ class AutofillPopupController;
 class AutofillKeyboardAccessoryView
     : public AutofillKeyboardAccessoryAdapter::AccessoryView {
  public:
-  explicit AutofillKeyboardAccessoryView(
-      base::WeakPtr<AutofillPopupController> controller);
-
-  AutofillKeyboardAccessoryView(const AutofillKeyboardAccessoryView&) = delete;
-  AutofillKeyboardAccessoryView& operator=(
-      const AutofillKeyboardAccessoryView&) = delete;
-
+  explicit AutofillKeyboardAccessoryView(AutofillPopupController* controller);
   ~AutofillKeyboardAccessoryView() override;
 
   // Implementation of AutofillKeyboardAccessoryAdapter::AccessoryView.
   bool Initialize() override;
   void Hide() override;
   void Show() override;
-  void ConfirmDeletion(const std::u16string& confirmation_title,
-                       const std::u16string& confirmation_body,
+  void ConfirmDeletion(const base::string16& confirmation_title,
+                       const base::string16& confirmation_body,
                        base::OnceClosure confirm_deletion) override;
 
   // --------------------------------------------------------------------------
@@ -67,13 +61,15 @@ class AutofillKeyboardAccessoryView
 
  private:
   // Weak reference to owner of this class. Always outlives this view.
-  base::WeakPtr<AutofillPopupController> controller_;
+  AutofillPopupController* controller_;
 
   // Call to confirm a requested deletion.
   base::OnceClosure confirm_deletion_;
 
   // The corresponding java object.
   base::android::ScopedJavaGlobalRef<jobject> java_object_;
+
+  DISALLOW_COPY_AND_ASSIGN(AutofillKeyboardAccessoryView);
 };
 
 }  // namespace autofill

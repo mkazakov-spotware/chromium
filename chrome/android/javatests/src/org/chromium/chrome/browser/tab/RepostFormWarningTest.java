@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,13 @@ import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -26,7 +25,6 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
@@ -42,17 +40,11 @@ import java.util.concurrent.TimeoutException;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class RepostFormWarningTest {
     // Active tab.
 
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private Tab mTab;
     // Callback helper that manages waiting for pageloads to finish.
@@ -62,9 +54,16 @@ public class RepostFormWarningTest {
 
     @Before
     public void setUp() throws Exception {
-        mTab = sActivityTestRule.getActivity().getActivityTab();
+        mActivityTestRule.startMainActivityOnBlankPage();
+
+        mTab = mActivityTestRule.getActivity().getActivityTab();
         mCallbackHelper = new TestCallbackHelperContainer(mTab.getWebContents());
-        mTestServer = sActivityTestRule.getTestServer();
+        mTestServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
+    }
+
+    @After
+    public void tearDown() {
+        mTestServer.stopAndDestroyServer();
     }
 
     /** Verifies that the form resubmission warning is not displayed upon first POST navigation. */
@@ -149,8 +148,7 @@ public class RepostFormWarningTest {
         waitForRepostFormWarningDialog();
 
         TestThreadUtils.runOnUiThreadBlocking(
-                (Runnable) ()
-                        -> sActivityTestRule.getActivity().getCurrentTabModel().closeTab(mTab));
+                (Runnable) () -> mActivityTestRule.getActivity().getCurrentTabModel().closeTab(mTab));
 
         waitForNoReportFormWarningDialog();
     }
@@ -158,7 +156,7 @@ public class RepostFormWarningTest {
     private PropertyModel getCurrentModalDialog() {
         return TestThreadUtils.runOnUiThreadBlockingNoException(
                 ()
-                        -> sActivityTestRule.getActivity()
+                        -> mActivityTestRule.getActivity()
                                    .getModalDialogManager()
                                    .getCurrentDialogForTest());
     }
@@ -176,7 +174,7 @@ public class RepostFormWarningTest {
             Criteria.checkThat("No modal dialog shown", dialogModel, Matchers.notNullValue());
             Criteria.checkThat("Modal dialog is not a HTTP post dialog",
                     dialogModel.get(ModalDialogProperties.TITLE),
-                    Matchers.is(sActivityTestRule.getActivity().getString(
+                    Matchers.is(mActivityTestRule.getActivity().getString(
                             R.string.http_post_warning_title)));
         });
         return getCurrentModalDialog();

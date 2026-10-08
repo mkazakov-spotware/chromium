@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/accessibility/autoclick_menu_bubble_controller.h"
 
 #include "ash/accessibility/accessibility_controller_impl.h"
-#include "ash/accessibility/autoclick/autoclick_controller.h"
+#include "ash/autoclick/autoclick_controller.h"
 #include "ash/public/cpp/locale_update_controller.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shell.h"
@@ -42,12 +42,6 @@ ui::GestureEvent CreateTapEvent() {
 class AutoclickMenuBubbleControllerTest : public AshTestBase {
  public:
   AutoclickMenuBubbleControllerTest() = default;
-
-  AutoclickMenuBubbleControllerTest(const AutoclickMenuBubbleControllerTest&) =
-      delete;
-  AutoclickMenuBubbleControllerTest& operator=(
-      const AutoclickMenuBubbleControllerTest&) = delete;
-
   ~AutoclickMenuBubbleControllerTest() override = default;
 
   // testing::Test:
@@ -99,6 +93,9 @@ class AutoclickMenuBubbleControllerTest : public AshTestBase {
                      ->GetBoundsInScreen()
                : gfx::Rect(-kMenuViewBoundsBuffer, -kMenuViewBoundsBuffer);
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AutoclickMenuBubbleControllerTest);
 };
 
 TEST_F(AutoclickMenuBubbleControllerTest, ExistsOnlyWhenAutoclickIsRunning) {

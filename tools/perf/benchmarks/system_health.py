@@ -1,7 +1,6 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-import logging
 
 from benchmarks import loading_metrics_category
 
@@ -17,13 +16,11 @@ import page_sets
 
 
 SYSTEM_HEALTH_BENCHMARK_UMA = [
-    'EventLatency.FirstGestureScrollUpdate.Touchscreen.TotalLatency',
-    'EventLatency.FirstGestureScrollUpdate.Wheel.TotalLatency',
-    'EventLatency.GestureScrollUpdate.Touchscreen.TotalLatency',
-    'EventLatency.GestureScrollUpdate.Wheel.TotalLatency',
-    'Graphics.Smoothness.PercentDroppedFrames3.AllSequences',
-    'Memory.GPU.PeakMemoryUsage2.Scroll',
-    'Memory.GPU.PeakMemoryUsage2.PageLoad',
+    'Event.Latency.ScrollBegin.TimeToScrollUpdateSwapBegin2',
+    'Event.Latency.ScrollUpdate.TimeToScrollUpdateSwapBegin2',
+    'Graphics.Smoothness.PercentDroppedFrames.AllSequences',
+    'Memory.GPU.PeakMemoryUsage.Scroll',
+    'Memory.GPU.PeakMemoryUsage.PageLoad',
 ]
 
 
@@ -40,24 +37,12 @@ class _CommonSystemHealthBenchmark(perf_benchmark.PerfBenchmark):
   https://goo.gl/Jek2NL.
   """
 
-  @classmethod
-  def AddBenchmarkCommandLineArgs(cls, parser):
-    parser.add_option('--allow-software-compositing', action='store_true',
-                      help='If set, allows the benchmark to run with software '
-                           'compositing.')
-
-  @classmethod
-  def ProcessCommandLineArgs(cls, parser, args):
-    cls.allow_software_compositing = args.allow_software_compositing
-
   def CreateCoreTimelineBasedMeasurementOptions(self):
     cat_filter = chrome_trace_category_filter.ChromeTraceCategoryFilter(
         filter_string='rail,toplevel,uma')
     cat_filter.AddIncludedCategory('accessibility')
     # Needed for the metric reported by page.
     cat_filter.AddIncludedCategory('blink.user_timing')
-    # Needed for blinkResourceMetric,
-    cat_filter.AddIncludedCategory('blink.resource')
     # Needed for the console error metric.
     cat_filter.AddIncludedCategory('v8.console')
 
@@ -68,7 +53,6 @@ class _CommonSystemHealthBenchmark(perf_benchmark.PerfBenchmark):
         *SYSTEM_HEALTH_BENCHMARK_UMA)
     options.SetTimelineBasedMetrics([
         'accessibilityMetric',
-        'blinkResourceMetric',
         'consoleErrorMetric',
         'cpuTimeMetric',
         'limitedCpuTimeMetric',
@@ -87,19 +71,8 @@ class _CommonSystemHealthBenchmark(perf_benchmark.PerfBenchmark):
 
   def SetExtraBrowserOptions(self, options):
     # Using the software fallback can skew the rendering related metrics. So
-    # disable that (unless explicitly run with --allow-software-compositing).
-    #
-    # TODO(jonross): Catapult's record_wpr.py calls SetExtraBrowserOptions
-    # before calling ProcessCommandLineArgs. This will crash attempting to
-    # record new system health benchmarks. We do not want to support software
-    # compositing for recording, so for now we will just check for the existence
-    # the flag. We will review updating Catapult at a later point.
-    if (hasattr(self, 'allow_software_compositing')
-        and self.allow_software_compositing) or self.NeedsSoftwareCompositing():
-      logging.warning('Allowing software compositing. Some of the reported '
-                      'metrics will have unreliable values.')
-    else:
-      options.AppendExtraBrowserArgs('--disable-software-compositing-fallback')
+    # disable that.
+    options.AppendExtraBrowserArgs('--disable-software-compositing-fallback')
 
   def CreateStorySet(self, options):
     return page_sets.SystemHealthStorySet(platform=self.PLATFORM)
@@ -126,7 +99,7 @@ class DesktopCommonSystemHealth(_CommonSystemHealthBenchmark):
   def CreateCoreTimelineBasedMeasurementOptions(self):
     options = super(DesktopCommonSystemHealth,
                     self).CreateCoreTimelineBasedMeasurementOptions()
-    options.config.chrome_trace_config.SetTraceBufferSizeInKb(400 * 1024)
+    options.config.chrome_trace_config.SetTraceBufferSizeInKb(300 * 1024)
     return options
 
 
@@ -273,27 +246,28 @@ class WebviewStartupSystemHealthBenchmark(perf_benchmark.PerfBenchmark):
     return 'system_health.webview_startup'
 
 
-@benchmark.Info(emails=['tmrts@chromium.org', 'mlippautz@chromium.org'],
-                component='Blink',
+@benchmark.Info(emails=['cduvall@chromium.org', 'weblayer-team@chromium.org'],
+                component='Internals>WebLayer',
                 documentation_url='https://bit.ly/36XBtpn')
-class PCScanSystemHealthBenchmark(perf_benchmark.PerfBenchmark):
-  """PCScan feature benchmark
+class WebLayerStartupSystemHealthBenchmark(WebviewStartupSystemHealthBenchmark):
+  """WebLayer startup time benchmark
 
-  Benchmark that enables PCScan feature.
+  Benchmark that measures how long WebLayer takes to start up
+  and load a blank page.
   """
-  options = {'pageset_repeat': 20}
-  SUPPORTED_PLATFORM_TAGS = [platforms.DESKTOP, platforms.MOBILE]
-  SUPPORTED_PLATFORMS = [
-      story.expectations.ALL_DESKTOP, story.expectations.ALL_MOBILE
-  ]
+  # TODO(rmhasan): Remove the SUPPORTED_PLATFORMS lists.
+  # SUPPORTED_PLATFORMS is deprecated, please put system specifier tags
+  # from expectations.config in SUPPORTED_PLATFORM_TAGS.
+  # TODO(crbug.com/1137468): Add WEBLAYER to telemetry platforms.
+  SUPPORTED_PLATFORM_TAGS = [platforms.MOBILE]
+  SUPPORTED_PLATFORMS = [story.expectations.ALL_MOBILE]
 
-  def CreateStorySet(self, options):
-    return page_sets.SystemHealthPCScanStorySet()
+  def CreateCoreTimelineBasedMeasurementOptions(self):
+    options = super(WebLayerStartupSystemHealthBenchmark,
+                    self).CreateCoreTimelineBasedMeasurementOptions()
+    options.config.atrace_config.app_name = 'org.chromium.weblayer.shell'
+    return options
 
   @classmethod
   def Name(cls):
-    return 'system_health.pcscan'
-
-  def SetExtraBrowserOptions(self, options):
-    options.AppendExtraBrowserArgs(
-        '--enable-features=PartitionAllocPCScanBrowserOnly')
+    return 'system_health.weblayer_startup'

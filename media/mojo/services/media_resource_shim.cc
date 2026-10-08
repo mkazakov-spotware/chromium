@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,13 @@ namespace media {
 
 MediaResourceShim::MediaResourceShim(
     std::vector<mojo::PendingRemote<mojom::DemuxerStream>> streams,
-    base::OnceClosure demuxer_ready_cb)
-    : demuxer_ready_cb_(std::move(demuxer_ready_cb)), streams_ready_(0) {
+    const base::Closure& demuxer_ready_cb)
+    : demuxer_ready_cb_(demuxer_ready_cb), streams_ready_(0) {
   DCHECK(!streams.empty());
   DCHECK(demuxer_ready_cb_);
 
   for (auto& s : streams) {
-    streams_.emplace_back(std::make_unique<MojoDemuxerStreamAdapter>(
+    streams_.emplace_back(new MojoDemuxerStreamAdapter(
         std::move(s), base::BindOnce(&MediaResourceShim::OnStreamReady,
                                      weak_factory_.GetWeakPtr())));
   }

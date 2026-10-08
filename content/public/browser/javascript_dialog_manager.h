@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/strings/string16.h"
 #include "content/common/content_export.h"
 #include "content/public/common/javascript_dialog_type.h"
 #include "ui/gfx/native_widget_types.h"
@@ -24,15 +25,15 @@ class CONTENT_EXPORT JavaScriptDialogManager {
  public:
   using DialogClosedCallback =
       base::OnceCallback<void(bool /* success */,
-                              const std::u16string& /* user_input */)>;
+                              const base::string16& /* user_input */)>;
 
   // Displays a JavaScript dialog. |did_suppress_message| will not be nil; if
   // |true| is returned in it, the caller will handle faking the reply.
   virtual void RunJavaScriptDialog(WebContents* web_contents,
                                    RenderFrameHost* render_frame_host,
                                    JavaScriptDialogType dialog_type,
-                                   const std::u16string& message_text,
-                                   const std::u16string& default_prompt_text,
+                                   const base::string16& message_text,
+                                   const base::string16& default_prompt_text,
                                    DialogClosedCallback callback,
                                    bool* did_suppress_message) = 0;
 
@@ -48,7 +49,7 @@ class CONTENT_EXPORT JavaScriptDialogManager {
   // dialog was handled.
   virtual bool HandleJavaScriptDialog(WebContents* web_contents,
                                       bool accept,
-                                      const std::u16string* prompt_override);
+                                      const base::string16* prompt_override);
 
   // Cancels all active and pending dialogs for the given WebContents. If
   // |reset_state| is true, resets any saved state tied to |web_contents|.

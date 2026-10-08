@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,16 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/one_shot_event.h"
-#include "build/chromeos_buildflags.h"
 #include "extensions/browser/extension_system.h"
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
 
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#endif
+
 class Profile;
+class TestingValueStore;
 
 namespace base {
 class CommandLine;
@@ -24,18 +27,9 @@ namespace content {
 class BrowserContext;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-namespace user_manager {
-class ScopedUserManager;
-}  // namespace user_manager
-#endif
-
-namespace value_store {
-class TestingValueStore;
-class TestValueStoreFactory;
-}  // namespace value_store
-
 namespace extensions {
+
+class TestValueStoreFactory;
 
 // Test ExtensionSystem, for use with TestingProfile.
 class TestExtensionSystem : public ExtensionSystem {
@@ -57,20 +51,17 @@ class TestExtensionSystem : public ExtensionSystem {
 
   void CreateSocketManager();
 
-  // Creates a UserScriptManager initialized with the testing profile,
-  void CreateUserScriptManager();
-
   void InitForRegularProfile(bool extensions_enabled) override {}
   void SetExtensionService(ExtensionService* service);
   ExtensionService* extension_service() override;
+  RuntimeData* runtime_data() override;
   ManagementPolicy* management_policy() override;
   ServiceWorkerManager* service_worker_manager() override;
-  UserScriptManager* user_script_manager() override;
+  SharedUserScriptManager* shared_user_script_manager() override;
   StateStore* state_store() override;
   StateStore* rules_store() override;
-  StateStore* dynamic_user_scripts_store() override;
-  scoped_refptr<value_store::ValueStoreFactory> store_factory() override;
-  value_store::TestingValueStore* value_store();
+  scoped_refptr<ValueStoreFactory> store_factory() override;
+  TestingValueStore* value_store();
   InfoMap* info_map() override;
   QuotaService* quota_service() override;
   AppSorting* app_sorting() override;
@@ -103,25 +94,24 @@ class TestExtensionSystem : public ExtensionSystem {
   void RecreateAppSorting();
 
  protected:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
  private:
-  scoped_refptr<value_store::TestValueStoreFactory> store_factory_;
-  // This depends on store_factory_.
   std::unique_ptr<StateStore> state_store_;
+  scoped_refptr<TestValueStoreFactory> store_factory_;
   std::unique_ptr<ManagementPolicy> management_policy_;
+  std::unique_ptr<RuntimeData> runtime_data_;
   std::unique_ptr<ExtensionService> extension_service_;
   scoped_refptr<InfoMap> info_map_;
   std::unique_ptr<QuotaService> quota_service_;
   std::unique_ptr<AppSorting> app_sorting_;
-  std::unique_ptr<UserScriptManager> user_script_manager_;
   base::OneShotEvent ready_;
 
   std::unique_ptr<data_decoder::test::InProcessDataDecoder>
       in_process_data_decoder_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_;
+#if defined(OS_CHROMEOS)
+  std::unique_ptr<chromeos::ScopedTestUserManager> test_user_manager_;
 #endif
 };
 

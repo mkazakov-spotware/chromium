@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,8 @@ void SharingNotificationHandler::OnClick(
     Profile* profile,
     const GURL& origin,
     const std::string& notification_id,
-    const absl::optional<int>& action_index,
-    const absl::optional<std::u16string>& reply,
+    const base::Optional<int>& action_index,
+    const base::Optional<base::string16>& reply,
     base::OnceClosure completed_closure) {
   auto handler = SharingServiceFactory::GetForBrowserContext(profile)
                      ->GetNotificationActionHandler(notification_id);
@@ -42,7 +42,7 @@ void SharingNotificationHandler::OnClose(Profile* profile,
   auto handler = SharingServiceFactory::GetForBrowserContext(profile)
                      ->GetNotificationActionHandler(notification_id);
   if (handler)
-    handler.Run(/*button=*/absl::nullopt, /*closed=*/true);
+    handler.Run(/*button=*/base::nullopt, /*closed=*/true);
   std::move(completed_closure).Run();
 }
 

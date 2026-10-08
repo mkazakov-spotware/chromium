@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,6 +8,8 @@ blink_core_sources_events = [
   "animation_event.h",
   "animation_playback_event.cc",
   "animation_playback_event.h",
+  "application_cache_error_event.cc",
+  "application_cache_error_event.h",
   "before_create_policy_event.cc",
   "before_create_policy_event.h",
   "before_print_event.h",
@@ -65,8 +67,6 @@ blink_core_sources_events = [
   "resource_progress_event.h",
   "security_policy_violation_event.cc",
   "security_policy_violation_event.h",
-  "simulated_event_util.cc",
-  "simulated_event_util.h",
   "text_event.cc",
   "text_event.h",
   "text_event_input_type.h",
@@ -88,13 +88,4 @@ blink_core_sources_events = [
   "web_input_event_conversion.h",
   "wheel_event.cc",
   "wheel_event.h",
-]
-
-blink_core_tests_events = [
-  "message_event_test.cc",
-  "mouse_event_test.cc",
-  "pointer_event_factory_test.cc",
-  "pointer_event_util_test.cc",
-  "touch_event_test.cc",
-  "web_input_event_conversion_test.cc",
 ]

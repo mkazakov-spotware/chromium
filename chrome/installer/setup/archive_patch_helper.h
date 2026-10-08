@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CHROME_INSTALLER_SETUP_ARCHIVE_PATCH_HELPER_H_
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "chrome/installer/setup/setup_util.h"
 #include "chrome/installer/util/lzma_util.h"
 
@@ -37,9 +38,6 @@ class ArchivePatchHelper {
                      const base::FilePath& patch_source,
                      const base::FilePath& target,
                      UnPackConsumer consumer);
-
-  ArchivePatchHelper(const ArchivePatchHelper&) = delete;
-  ArchivePatchHelper& operator=(const ArchivePatchHelper&) = delete;
 
   ~ArchivePatchHelper();
 
@@ -103,6 +101,8 @@ class ArchivePatchHelper {
   base::FilePath target_;
   base::FilePath last_uncompressed_file_;
   UnPackConsumer consumer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArchivePatchHelper);
 };
 
 }  // namespace installer

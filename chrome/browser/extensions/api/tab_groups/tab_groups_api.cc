@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_api.h"
 
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "base/strings/pattern.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_constants.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_util.h"
@@ -32,7 +32,6 @@
 #include "components/tab_groups/tab_group_color.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
-#include "ui/gfx/range/range.h"
 
 namespace extensions {
 
@@ -52,9 +51,9 @@ bool IndexSupportsGroupMove(TabStripModel* tab_strip,
     return false;
   }
 
-  absl::optional<tab_groups::TabGroupId> target_group =
+  base::Optional<tab_groups::TabGroupId> target_group =
       tab_strip->GetTabGroupForTab(target_index);
-  absl::optional<tab_groups::TabGroupId> adjacent_group =
+  base::Optional<tab_groups::TabGroupId> adjacent_group =
       tab_strip->GetTabGroupForTab(target_index - 1);
 
   if (target_group.has_value() && target_group == adjacent_group) {
@@ -69,7 +68,7 @@ bool IndexSupportsGroupMove(TabStripModel* tab_strip,
 
 ExtensionFunction::ResponseAction TabGroupsGetFunction::Run() {
   std::unique_ptr<api::tab_groups::Get::Params> params(
-      api::tab_groups::Get::Params::Create(args()));
+      api::tab_groups::Get::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
   int group_id = params->group_id;
 
@@ -85,15 +84,15 @@ ExtensionFunction::ResponseAction TabGroupsGetFunction::Run() {
   DCHECK(!id.is_empty());
 
   return RespondNow(ArgumentList(api::tab_groups::Get::Results::Create(
-      tab_groups_util::CreateTabGroupObject(id, *visual_data))));
+      *tab_groups_util::CreateTabGroupObject(id, *visual_data))));
 }
 
 ExtensionFunction::ResponseAction TabGroupsQueryFunction::Run() {
   std::unique_ptr<api::tab_groups::Query::Params> params(
-      api::tab_groups::Query::Params::Create(args()));
+      api::tab_groups::Query::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  base::Value::List result_list;
+  base::Value result_list(base::Value::Type::LIST);
   Profile* profile = Profile::FromBrowserContext(browser_context());
   Browser* current_browser =
       ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
@@ -112,7 +111,7 @@ ExtensionFunction::ResponseAction TabGroupsQueryFunction::Run() {
       continue;
     }
 
-    if (params->query_info.window_id) {
+    if (params->query_info.window_id.get()) {
       int window_id = *params->query_info.window_id;
       if (window_id >= 0 && window_id != ExtensionTabUtil::GetWindowId(browser))
         continue;
@@ -124,23 +123,17 @@ ExtensionFunction::ResponseAction TabGroupsQueryFunction::Run() {
     }
 
     TabStripModel* tab_strip = browser->tab_strip_model();
-    if (!tab_strip)
-      return RespondNow(Error(tabs_constants::kTabStripNotEditableQueryError));
-    if (!tab_strip->SupportsTabGroups())
-      return RespondNow(
-          Error(tabs_constants::kTabStripDoesNotSupportTabGroupsError));
-
     for (const tab_groups::TabGroupId& id :
          tab_strip->group_model()->ListTabGroups()) {
       const tab_groups::TabGroupVisualData* visual_data =
           tab_strip->group_model()->GetTabGroup(id)->visual_data();
 
-      if (params->query_info.collapsed &&
+      if (params->query_info.collapsed.get() &&
           *params->query_info.collapsed != visual_data->is_collapsed()) {
         continue;
       }
 
-      if (params->query_info.title &&
+      if (params->query_info.title.get() &&
           !base::MatchPattern(visual_data->title(),
                               base::UTF8ToUTF16(*params->query_info.title))) {
         continue;
@@ -152,17 +145,17 @@ ExtensionFunction::ResponseAction TabGroupsQueryFunction::Run() {
         continue;
       }
 
-      result_list.Append(
-          tab_groups_util::CreateTabGroupObject(id, *visual_data).ToValue());
+      result_list.Append(base::Value::FromUniquePtrValue(
+          tab_groups_util::CreateTabGroupObject(id, *visual_data)->ToValue()));
     }
   }
 
-  return RespondNow(WithArguments(std::move(result_list)));
+  return RespondNow(OneArgument(std::move(result_list)));
 }
 
 ExtensionFunction::ResponseAction TabGroupsUpdateFunction::Run() {
   std::unique_ptr<api::tab_groups::Update::Params> params(
-      api::tab_groups::Update::Params::Create(args()));
+      api::tab_groups::Update::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
 
   int group_id = params->group_id;
@@ -179,25 +172,19 @@ ExtensionFunction::ResponseAction TabGroupsUpdateFunction::Run() {
   DCHECK(!id.is_empty());
 
   bool collapsed = visual_data->is_collapsed();
-  if (params->update_properties.collapsed)
+  if (params->update_properties.collapsed.get())
     collapsed = *params->update_properties.collapsed;
 
   tab_groups::TabGroupColorId color = visual_data->color();
   if (params->update_properties.color != api::tab_groups::COLOR_NONE)
     color = tab_groups_util::ColorToColorId(params->update_properties.color);
 
-  std::u16string title = visual_data->title();
-  if (params->update_properties.title)
+  base::string16 title = visual_data->title();
+  if (params->update_properties.title.get())
     title = base::UTF8ToUTF16(*params->update_properties.title);
 
-  TabStripModel* tab_strip_model =
-      ExtensionTabUtil::GetEditableTabStripModel(browser);
-  if (!tab_strip_model)
-    return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
-  if (!tab_strip_model->SupportsTabGroups())
-    return RespondNow(
-        Error(tabs_constants::kTabStripDoesNotSupportTabGroupsError));
-  TabGroup* tab_group = tab_strip_model->group_model()->GetTabGroup(id);
+  TabGroup* tab_group =
+      browser->tab_strip_model()->group_model()->GetTabGroup(id);
 
   tab_groups::TabGroupVisualData new_visual_data(title, color, collapsed);
   tab_group->SetVisualData(std::move(new_visual_data));
@@ -206,18 +193,18 @@ ExtensionFunction::ResponseAction TabGroupsUpdateFunction::Run() {
     return RespondNow(NoArguments());
 
   return RespondNow(ArgumentList(api::tab_groups::Get::Results::Create(
-      tab_groups_util::CreateTabGroupObject(tab_group->id(),
-                                            *tab_group->visual_data()))));
+      *tab_groups_util::CreateTabGroupObject(tab_group->id(),
+                                             *tab_group->visual_data()))));
 }
 
 ExtensionFunction::ResponseAction TabGroupsMoveFunction::Run() {
   std::unique_ptr<api::tab_groups::Move::Params> params(
-      api::tab_groups::Move::Params::Create(args()));
+      api::tab_groups::Move::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
 
   int group_id = params->group_id;
   int new_index = params->move_properties.index;
-  const auto& window_id = params->move_properties.window_id;
+  int* window_id = params->move_properties.window_id.get();
 
   tab_groups::TabGroupId group = tab_groups::TabGroupId::CreateEmpty();
   std::string error;
@@ -233,7 +220,7 @@ ExtensionFunction::ResponseAction TabGroupsMoveFunction::Run() {
 
 bool TabGroupsMoveFunction::MoveGroup(int group_id,
                                       int new_index,
-                                      const absl::optional<int>& window_id,
+                                      int* window_id,
                                       tab_groups::TabGroupId* group,
                                       std::string* error) {
   Browser* source_browser = nullptr;
@@ -244,22 +231,14 @@ bool TabGroupsMoveFunction::MoveGroup(int group_id,
     return false;
   }
 
-  TabStripModel* source_tab_strip =
-      ExtensionTabUtil::GetEditableTabStripModel(source_browser);
-  if (!source_tab_strip) {
+  if (!source_browser->window()->IsTabStripEditable()) {
     *error = tabs_constants::kTabStripNotEditableError;
     return false;
   }
 
-  if (!source_tab_strip->SupportsTabGroups()) {
-    *error = tabs_constants::kTabStripDoesNotSupportTabGroupsError;
-    return false;
-  }
-
-  gfx::Range tabs =
+  TabStripModel* source_tab_strip = source_browser->tab_strip_model();
+  std::vector<int> tabs =
       source_tab_strip->group_model()->GetTabGroup(*group)->ListTabs();
-  if (tabs.length() == 0)
-    return false;
 
   if (window_id) {
     Browser* target_browser = nullptr;
@@ -267,6 +246,11 @@ bool TabGroupsMoveFunction::MoveGroup(int group_id,
     if (!windows_util::GetBrowserFromWindowID(
             this, *window_id, WindowController::GetAllWindowFilter(),
             &target_browser, error)) {
+      return false;
+    }
+
+    if (!target_browser->window()->IsTabStripEditable()) {
+      *error = tabs_constants::kTabStripNotEditableError;
       return false;
     }
 
@@ -283,52 +267,40 @@ bool TabGroupsMoveFunction::MoveGroup(int group_id,
     }
 
     // If windowId is different from the current window, move between windows.
-    if (target_browser == source_browser) {
-      return false;
+    if (target_browser != source_browser) {
+      TabStripModel* target_tab_strip = target_browser->tab_strip_model();
+
+      if (new_index > target_tab_strip->count() || new_index < 0)
+        new_index = target_tab_strip->count();
+
+      if (!IndexSupportsGroupMove(target_tab_strip, new_index, error))
+        return false;
+
+      target_tab_strip->group_model()->AddTabGroup(*group, *visual_data);
+
+      for (size_t i = 0; i < tabs.size(); ++i) {
+        // Detach tabs from the same index each time, since each detached tab is
+        // removed from the model, and groups are always contiguous.
+        std::unique_ptr<content::WebContents> web_contents =
+            source_tab_strip->DetachWebContentsAt(tabs.front());
+
+        // Attach tabs in consecutive indices, to insert them in the same order.
+        target_tab_strip->InsertWebContentsAt(new_index + i,
+                                              std::move(web_contents),
+                                              TabStripModel::ADD_NONE, *group);
+      }
+
+      return true;
     }
-
-    TabStripModel* target_tab_strip =
-        ExtensionTabUtil::GetEditableTabStripModel(target_browser);
-    if (!target_tab_strip) {
-      *error = tabs_constants::kTabStripNotEditableError;
-      return false;
-    }
-
-    if (!target_tab_strip->SupportsTabGroups()) {
-      *error = tabs_constants::kTabStripDoesNotSupportTabGroupsError;
-      return false;
-    }
-
-    if (new_index > target_tab_strip->count() || new_index < 0)
-      new_index = target_tab_strip->count();
-
-    if (!IndexSupportsGroupMove(target_tab_strip, new_index, error))
-      return false;
-
-    target_tab_strip->group_model()->AddTabGroup(*group, *visual_data);
-
-    for (size_t i = 0; i < tabs.length(); ++i) {
-      // Detach tabs from the same index each time, since each detached tab is
-      // removed from the model, and groups are always contiguous.
-      std::unique_ptr<content::WebContents> web_contents =
-          source_tab_strip->DetachWebContentsAtForInsertion(tabs.start());
-
-      // Attach tabs in consecutive indices, to insert them in the same order.
-      target_tab_strip->InsertWebContentsAt(new_index + i,
-                                            std::move(web_contents),
-                                            AddTabTypes::ADD_NONE, *group);
-    }
-
-    return true;
   }
 
   // Perform a move within the same window.
 
   // When moving to the right, adjust the target index for the size of the
   // group, since the group itself may occupy several indices to the right.
-  const int start_index = tabs.start();
+  const int start_index = tabs.front();
   if (new_index > start_index)
-    new_index += tabs.length() - 1;
+    new_index += tabs.size() - 1;
 
   // Unlike when moving between windows, IndexSupportsGroupMove should be called
   // before clamping the index to count()-1 instead of after. Since the current

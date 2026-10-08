@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,16 @@
 #define GPU_COMMAND_BUFFER_SERVICE_SKIA_UTILS_H_
 
 #include "base/callback_forward.h"
+#include "base/optional.h"
 #include "components/viz/common/resources/resource_format.h"
 #include "gpu/config/gpu_preferences.h"
 #include "gpu/gpu_gles2_export.h"
 #include "gpu/ipc/common/vulkan_ycbcr_info.h"
 #include "gpu/vulkan/buildflags.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/gpu/GrContextOptions.h"
 #include "third_party/skia/include/gpu/GrTypes.h"
-
-#if BUILDFLAG(ENABLE_VULKAN)
 #include "third_party/skia/include/gpu/vk/GrVkTypes.h"
-#endif
 
 // Forwardly declare a few GL types to avoid including GL header files.
 typedef int GLint;
@@ -51,30 +48,10 @@ class SharedContextState;
 GPU_GLES2_EXPORT GrContextOptions
 GetDefaultGrContextOptions(GrContextType type);
 
-// Returns internal gl format of texture for Skia for given `resource_format`.
-// NOTE: This is being deprecated. Use below function with gl_storage_format.
-GPU_GLES2_EXPORT GLuint GetGrGLBackendTextureFormat(
-    const gles2::FeatureInfo* feature_info,
-    viz::ResourceFormat resource_format,
-    sk_sp<GrContextThreadSafeProxy> gr_context_thread_safe);
-
-// Returns internal gl format of texture for Skia for given `gl_storage_format`.
-GPU_GLES2_EXPORT GLuint GetGrGLBackendTextureFormat(
-    const gles2::FeatureInfo* feature_info,
-    GLenum gl_storage_format,
-    sk_sp<GrContextThreadSafeProxy> gr_context_thread_safe);
-
-// Creates a GrBackendTexture from a service ID. Skia does not take ownership.
-// Returns true on success.
-// NOTE: This is being deprecated. Use below function with gl_storage_format.
-GPU_GLES2_EXPORT bool GetGrBackendTexture(
-    const gles2::FeatureInfo* feature_info,
-    GLenum target,
-    const gfx::Size& size,
-    GLuint service_id,
-    viz::ResourceFormat resource_format,
-    sk_sp<GrContextThreadSafeProxy> gr_context_thread_safe,
-    GrBackendTexture* gr_texture);
+// Returns internal gl format of texture for Skia
+GPU_GLES2_EXPORT GLuint
+GetGrGLBackendTextureFormat(const gles2::FeatureInfo* feature_info,
+                            viz::ResourceFormat resource_format);
 
 // Creates a GrBackendTexture from a service ID. Skia does not take ownership.
 // Returns true on success.
@@ -83,8 +60,7 @@ GPU_GLES2_EXPORT bool GetGrBackendTexture(
     GLenum target,
     const gfx::Size& size,
     GLuint service_id,
-    GLenum gl_storage_format,
-    sk_sp<GrContextThreadSafeProxy> gr_context_thread_safe,
+    viz::ResourceFormat resource_format,
     GrBackendTexture* gr_texture);
 
 // Adds a task to be executed when the flush in |flush_info| is complete.
@@ -113,7 +89,7 @@ GPU_GLES2_EXPORT GrVkImageInfo CreateGrVkImageInfo(VulkanImage* image);
 GPU_GLES2_EXPORT GrVkYcbcrConversionInfo CreateGrVkYcbcrConversionInfo(
     VkPhysicalDevice physical_device,
     VkImageTiling tiling,
-    const absl::optional<VulkanYCbCrInfo>& ycbcr_info);
+    const base::Optional<VulkanYCbCrInfo>& ycbcr_info);
 #endif  // BUILDFLAG(ENABLE_VULKAN)
 
 // Helper that returns true when Vulkan memory usage is high enough
@@ -121,9 +97,6 @@ GPU_GLES2_EXPORT GrVkYcbcrConversionInfo CreateGrVkYcbcrConversionInfo(
 // to free released memory immediately.
 GPU_GLES2_EXPORT bool ShouldVulkanSyncCpuForSkiaSubmit(
     viz::VulkanContextProvider* context_provider);
-
-GPU_GLES2_EXPORT uint64_t
-GrBackendTextureTracingID(const GrBackendTexture& backend_texture);
 
 }  // namespace gpu
 

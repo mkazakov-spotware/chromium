@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,14 @@
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
-#include "base/trace_event/trace_event.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "cc/paint/paint_canvas.h"
 #include "ui/aura/window.h"
 #include "ui/events/base_event_utils.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/presentation_feedback.h"
+#include "ui/gfx/skia_util.h"
 #include "ui/views/widget/widget.h"
 
 namespace cursor {
@@ -60,14 +60,14 @@ gfx::Vector2dF InterpolateBetween(const gfx::Vector2dF& start,
 CursorView::CursorView(const gfx::Point& initial_location,
                        bool is_motion_blur_enabled)
     : is_motion_blur_enabled_(is_motion_blur_enabled),
-      ui_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      ui_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       paint_task_runner_(base::ThreadPool::CreateSingleThreadTaskRunner(
           {base::TaskPriority::USER_BLOCKING,
            base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN})),
       new_location_(initial_location),
       stationary_timer_(
           FROM_HERE,
-          base::Milliseconds(kStationaryDelayMs),
+          base::TimeDelta::FromMilliseconds(kStationaryDelayMs),
           base::BindRepeating(&CursorView::StationaryOnPaintThread,
                               base::Unretained(this))) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(ui_sequence_checker_);
@@ -82,8 +82,9 @@ CursorView::CursorView(const gfx::Point& initial_location,
 
   // Create transform used to convert cursor controller coordinates to screen
   // coordinates.
-  buffer_to_screen_transform_ =
-      host()->window_to_buffer_transform().GetCheckedInverse();
+  bool inversible = host()->window_to_buffer_transform().GetInverse(
+      &buffer_to_screen_transform_);
+  DCHECK(inversible);
 
   ui::CursorController::GetInstance()->AddCursorObserver(this);
 }
@@ -133,7 +134,8 @@ void CursorView::SetCursorImage(const gfx::ImageSkia& cursor_image,
 // ui::CursorController::CursorObserver overrides:
 
 void CursorView::OnCursorLocationChanged(const gfx::PointF& location) {
-  gfx::PointF new_location_f = buffer_to_screen_transform_.MapPoint(location);
+  gfx::PointF new_location_f = location;
+  buffer_to_screen_transform_.TransformPoint(&new_location_f);
   gfx::Point new_location = gfx::ToRoundedPoint(new_location_f);
 
   {
@@ -203,7 +205,8 @@ void CursorView::OnTimerTick() {
 
     // Create directional blur filter for |sigma|.
     motion_blur_filter_ = sk_make_sp<cc::BlurPaintFilter>(
-        sigma, 0.f, SkTileMode::kDecal, nullptr);
+        sigma, 0.f, SkBlurImageFilter::TileMode::kClampToBlack_TileMode,
+        nullptr);
 
     // Compute blur offset.
     motion_blur_offset_ =
@@ -330,7 +333,7 @@ void CursorView::SetTimebaseAndIntervalOnPaintThread(base::TimeTicks timebase,
 
   DCHECK(time_source_);
   time_source_->SetTimebaseAndInterval(
-      timebase + base::Milliseconds(kVSyncOffsetMs), interval);
+      timebase + base::TimeDelta::FromMilliseconds(kVSyncOffsetMs), interval);
 }
 
 void CursorView::DidPresentCompositorFrame(

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/mac/scoped_nsobject.h"
+#include "base/optional.h"
 #include "base/strings/sys_string_conversions.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -42,18 +42,18 @@ void BluetoothLowEnergyAdvertisementManagerMac::
     return;
   }
 
-  CBManagerState adapter_state = [peripheral_manager_ state];
-  if (adapter_state == CBManagerStateUnknown) {
+  CBPeripheralManagerState adapter_state = GetPeripheralManagerState();
+  if (adapter_state == CBPeripheralManagerStateUnknown) {
     // Wait for the adapter to initialize.
     return;
   }
 
   if (active_advertisement_->is_waiting_for_adapter() &&
-      adapter_state < CBManagerStatePoweredOn) {
+      adapter_state < CBPeripheralManagerStatePoweredOn) {
     DVLOG(1)
         << "Registration failed. Adapter changed to invalid adapter_state.";
     BluetoothAdvertisement::ErrorCode error_code =
-        adapter_state == CBManagerStatePoweredOff
+        adapter_state == CBPeripheralManagerStatePoweredOff
             ? BluetoothAdvertisement::ERROR_ADAPTER_POWERED_OFF
             : BluetoothAdvertisement::ERROR_UNSUPPORTED_PLATFORM;
     active_advertisement_->OnAdvertisementError(ui_task_runner_.get(),
@@ -63,7 +63,7 @@ void BluetoothLowEnergyAdvertisementManagerMac::
   }
 
   if (active_advertisement_->is_advertising() &&
-      adapter_state == CBManagerStateResetting) {
+      adapter_state == CBPeripheralManagerStateResetting) {
     DVLOG(1) << "Adapter resetting. Invalidating advertisement.";
     active_advertisement_->OnAdapterReset();
     active_advertisement_ = nullptr;
@@ -71,7 +71,7 @@ void BluetoothLowEnergyAdvertisementManagerMac::
   }
 
   if (active_advertisement_->is_advertising() &&
-      adapter_state == CBManagerStatePoweredOff) {
+      adapter_state == CBPeripheralManagerStatePoweredOff) {
     DVLOG(1) << "Adapter powered off. Stopping advertisement.";
     // Note: we purposefully don't unregister the active advertisement for
     // consistency with ChromeOS. The caller must manually unregister
@@ -105,9 +105,9 @@ void BluetoothLowEnergyAdvertisementManagerMac::RegisterAdvertisement(
     std::unique_ptr<BluetoothAdvertisement::Data> advertisement_data,
     BluetoothAdapter::CreateAdvertisementCallback callback,
     BluetoothAdapter::AdvertisementErrorCallback error_callback) {
-  absl::optional<BluetoothAdvertisement::ErrorCode> error_code;
+  base::Optional<BluetoothAdvertisement::ErrorCode> error_code;
 
-  const absl::optional<BluetoothAdvertisement::UUIDList>& service_uuids =
+  std::unique_ptr<BluetoothAdvertisement::UUIDList> service_uuids =
       advertisement_data->service_uuids();
   if (!service_uuids || advertisement_data->manufacturer_data() ||
       advertisement_data->solicit_uuids() ||
@@ -149,7 +149,8 @@ void BluetoothLowEnergyAdvertisementManagerMac::UnregisterAdvertisement(
 
   active_advertisement_ = nullptr;
   [peripheral_manager_ stopAdvertising];
-  ui_task_runner_->PostTask(FROM_HERE, std::move(success_callback));
+  ui_task_runner_->PostTask(FROM_HERE,
+                            base::BindOnce(std::move(success_callback)));
 }
 
 void BluetoothLowEnergyAdvertisementManagerMac::DidStartAdvertising(
@@ -172,6 +173,17 @@ void BluetoothLowEnergyAdvertisementManagerMac::DidStartAdvertising(
   }
 
   active_advertisement_->OnAdvertisementSuccess(ui_task_runner_.get());
+}
+
+CBPeripheralManagerState
+BluetoothLowEnergyAdvertisementManagerMac::GetPeripheralManagerState() {
+#if defined(MAC_OS_X_VERSION_10_13)
+  // The state enum of this API changed in SDK 10.13, so for backwards
+  // compatibility, we need to cast the state to a CBPeripheralManagerState.
+  return static_cast<CBPeripheralManagerState>([peripheral_manager_ state]);
+#else
+  return [peripheral_manager_ state];
+#endif
 }
 
 }  // device

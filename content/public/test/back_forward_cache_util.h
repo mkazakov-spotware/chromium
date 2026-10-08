@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #include <memory>
 
-#include "base/feature_list.h"
 #include "base/strings/string_piece.h"
-#include "base/test/scoped_feature_list.h"
 #include "content/public/browser/back_forward_cache.h"
 
 namespace content {
@@ -36,7 +34,7 @@ class BackForwardCacheDisabledTester {
 
   bool IsDisabledForFrameWithReason(int process_id,
                                     int frame_routing_id,
-                                    BackForwardCache::DisabledReason reason);
+                                    base::StringPiece reason);
 
  private:
   // Impl has to inherit from BackForwardCacheImpl, which is
@@ -58,22 +56,6 @@ class BackForwardCacheDisabledTester {
 void DisableBackForwardCacheForTesting(
     WebContents* web_contents,
     BackForwardCache::DisableForTestingReason reason);
-
-// Returns a vector of default parameters to set up the BackForwardCache for
-// testing (enables the cache, sets timeouts, etc.)
-// Optionally, |additional_params| can be passed to specify additional
-// features and parameters that will be in the returned structure.
-std::vector<base::test::FeatureRefAndParams>
-DefaultEnabledBackForwardCacheParametersForTests();
-
-std::vector<base::test::FeatureRefAndParams>
-DefaultEnabledBackForwardCacheParametersForTests(
-    const std::vector<base::test::FeatureRefAndParams>& additional_params);
-
-// Returns a vector of features to disable by default when testing with the
-// BackForwardCache.
-std::vector<base::test::FeatureRef>
-DefaultDisabledBackForwardCacheParametersForTests();
 
 }  // namespace content
 

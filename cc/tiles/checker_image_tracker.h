@@ -1,19 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TILES_CHECKER_IMAGE_TRACKER_H_
 #define CC_TILES_CHECKER_IMAGE_TRACKER_H_
 
-#include <memory>
 #include <unordered_map>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "cc/cc_export.h"
 #include "cc/paint/image_id.h"
 #include "cc/tiles/image_controller.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkImage.h"
 
 namespace cc {
@@ -140,9 +138,9 @@ class CC_EXPORT CheckerImageTracker {
   struct DecodeState {
     DecodePolicy policy = DecodePolicy::SYNC;
     bool use_dark_mode = false;
-    PaintFlags::FilterQuality filter_quality = PaintFlags::FilterQuality::kNone;
+    SkFilterQuality filter_quality = kNone_SkFilterQuality;
     SkSize scale = SkSize::MakeEmpty();
-    TargetColorParams target_color_params;
+    gfx::ColorSpace color_space;
     size_t frame_index = PaintImage::kDefaultFrameIndex;
   };
 
@@ -159,7 +157,7 @@ class CC_EXPORT CheckerImageTracker {
     ScopedDecodeHolder& operator=(const ScopedDecodeHolder&) = delete;
 
    private:
-    raw_ptr<ImageController> controller_;
+    ImageController* controller_;
     ImageController::ImageDecodeRequestId request_id_;
   };
 
@@ -174,8 +172,8 @@ class CC_EXPORT CheckerImageTracker {
                          PaintImage::Id paint_image_id,
                          DecodeState* decode_state);
 
-  raw_ptr<ImageController> image_controller_;
-  raw_ptr<CheckerImageTrackerClient> client_;
+  ImageController* image_controller_;
+  CheckerImageTrackerClient* client_;
   const bool enable_checker_imaging_;
   const size_t min_image_bytes_to_checker_;
 
@@ -200,7 +198,7 @@ class CC_EXPORT CheckerImageTracker {
 
   // The currently outstanding image decode that has been scheduled with the
   // decode service. There can be only one outstanding decode at a time.
-  absl::optional<PaintImage> outstanding_image_decode_;
+  base::Optional<PaintImage> outstanding_image_decode_;
 
   // A map of ImageId to its DecodePolicy.
   std::unordered_map<PaintImage::Id, DecodeState> image_async_decode_state_;

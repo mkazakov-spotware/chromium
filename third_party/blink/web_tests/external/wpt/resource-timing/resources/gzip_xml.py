@@ -1,7 +1,7 @@
 import gzip as gzip_module
 import os
 
-from io import BytesIO
+from six import BytesIO
 
 from wptserve.utils import isomorphic_decode
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include <utility>
 
+#include "chrome/browser/banners/app_banner_settings_helper.h"
 #include "chrome/browser/history/history_utils.h"
 #include "chrome/browser/history/web_history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/browsing_data/core/history_notice_utils.h"
 #include "components/prefs/pref_service.h"
-#include "components/webapps/browser/banners/app_banner_settings_helper.h"
 #include "extensions/buildflags/buildflags.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -34,8 +34,8 @@ void ProfileBasedBrowsingHistoryDriver::OnRemoveVisits(
 #endif
 
   for (const history::ExpireHistoryArgs& expire_entry : expire_list) {
-    webapps::AppBannerSettingsHelper::ClearHistoryForURLs(GetProfile(),
-                                                          expire_entry.urls);
+    AppBannerSettingsHelper::ClearHistoryForURLs(GetProfile(),
+                                                 expire_entry.urls);
   }
 }
 

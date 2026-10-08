@@ -1,13 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/controls/menu/menu_host_root_view.h"
 
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/submenu_view.h"
+#include "ui/views/metadata/metadata_impl_macros.h"
 
 namespace views {
 
@@ -74,11 +74,8 @@ View* MenuHostRootView::ProcessGetTooltipHandlerForPoint(
   return RootView::GetTooltipHandlerForPoint(point);
 }
 
-void MenuHostRootView::OnEventProcessingFinished(
-    ui::Event* event,
-    ui::EventTarget* target,
-    const ui::EventDispatchDetails& details) {
-  RootView::OnEventProcessingFinished(event, target, details);
+void MenuHostRootView::OnEventProcessingFinished(ui::Event* event) {
+  RootView::OnEventProcessingFinished(event);
 
   // Forward unhandled gesture events to our menu controller.
   // TODO(tdanderson): Investigate whether this should be moved into a

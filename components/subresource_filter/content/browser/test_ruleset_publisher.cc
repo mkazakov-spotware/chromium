@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/subresource_filter/content/browser/test_ruleset_publisher.h"
 
-#include "base/callback.h"
 #include "base/hash/hash.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/subresource_filter/content/browser/ruleset_service.h"
@@ -24,10 +22,6 @@ class RulesetDistributionListener {
     service_->SetRulesetPublishedCallbackForTesting(run_loop_.QuitClosure());
   }
 
-  RulesetDistributionListener(const RulesetDistributionListener&) = delete;
-  RulesetDistributionListener& operator=(const RulesetDistributionListener&) =
-      delete;
-
   ~RulesetDistributionListener() {
     service_->SetRulesetPublishedCallbackForTesting(base::OnceClosure());
   }
@@ -35,8 +29,10 @@ class RulesetDistributionListener {
   void AwaitDistribution() { run_loop_.Run(); }
 
  private:
-  raw_ptr<RulesetService> service_;
+  RulesetService* service_;
   base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(RulesetDistributionListener);
 };
 
 }  // namespace

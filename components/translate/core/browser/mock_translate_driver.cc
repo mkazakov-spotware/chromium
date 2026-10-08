@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,15 @@ namespace translate {
 
 namespace testing {
 
+const std::string kHtmlMimeType = "text/html";
+
 MockTranslateDriver::MockTranslateDriver()
     : is_incognito_(false),
       on_is_page_translated_changed_called_(false),
       on_translate_enabled_changed_called_(false),
       translate_page_is_called_(false),
       language_state_(this),
-      last_committed_url_(GURL::EmptyGURL()),
-      visible_url_(GURL::EmptyGURL()) {}
-
-MockTranslateDriver::~MockTranslateDriver() = default;
+      last_committed_url_(GURL::EmptyGURL()) {}
 
 void MockTranslateDriver::TranslatePage(int page_seq_no,
                                         const std::string& translate_script,
@@ -50,7 +49,7 @@ bool MockTranslateDriver::IsIncognito() {
 }
 
 const std::string& MockTranslateDriver::GetContentsMimeType() {
-  return page_mime_type_;
+  return kHtmlMimeType;
 }
 
 const GURL&  MockTranslateDriver::GetLastCommittedURL() {
@@ -58,7 +57,7 @@ const GURL&  MockTranslateDriver::GetLastCommittedURL() {
 }
 
 const GURL& MockTranslateDriver::GetVisibleURL() {
-  return visible_url_;
+  return GURL::EmptyGURL();
 }
 
 ukm::SourceId MockTranslateDriver::GetUkmSourceId() {
@@ -77,15 +76,7 @@ void MockTranslateDriver::SetLastCommittedURL(const GURL& url) {
   last_committed_url_ = url;
 }
 
-void MockTranslateDriver::SetPageMimeType(
-    const std::string& mime_type) {
-  page_mime_type_ = mime_type;
-}
-
-void MockTranslateDriver::SetVisibleURL(const GURL& url) {
-  visible_url_ = url;
-}
-
 }  // namespace testing
 
 }  // namespace translate
+

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "third_party/blink/public/platform/platform.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "components/services/font/public/cpp/font_loader.h"  // nogncheck
 #include "third_party/skia/include/core/SkRefCnt.h"           // nogncheck
 #endif
@@ -26,24 +27,20 @@ namespace content {
 class UtilityBlinkPlatformWithSandboxSupportImpl : public blink::Platform {
  public:
   UtilityBlinkPlatformWithSandboxSupportImpl();
-
-  UtilityBlinkPlatformWithSandboxSupportImpl(
-      const UtilityBlinkPlatformWithSandboxSupportImpl&) = delete;
-  UtilityBlinkPlatformWithSandboxSupportImpl& operator=(
-      const UtilityBlinkPlatformWithSandboxSupportImpl&) = delete;
-
   ~UtilityBlinkPlatformWithSandboxSupportImpl() override;
 
   // BlinkPlatformImpl
   blink::WebSandboxSupport* GetSandboxSupport() override;
 
  private:
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC)
   std::unique_ptr<blink::WebSandboxSupport> sandbox_support_;
 #endif
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   sk_sp<font_service::FontLoader> font_loader_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(UtilityBlinkPlatformWithSandboxSupportImpl);
 };
 
 }  // namespace content

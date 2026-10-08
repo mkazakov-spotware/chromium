@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "content/common/input/gesture_event_stream_validator.h"
 #include "content/common/input/touch_event_stream_validator.h"
 
@@ -21,11 +22,6 @@ namespace content {
 class InputEventStreamValidator {
  public:
   InputEventStreamValidator();
-
-  InputEventStreamValidator(const InputEventStreamValidator&) = delete;
-  InputEventStreamValidator& operator=(const InputEventStreamValidator&) =
-      delete;
-
   ~InputEventStreamValidator();
 
   void Validate(const blink::WebInputEvent&);
@@ -38,6 +34,8 @@ class InputEventStreamValidator {
   TouchEventStreamValidator touch_validator_;
   std::string error_msg_;
   const bool enabled_;
+
+  DISALLOW_COPY_AND_ASSIGN(InputEventStreamValidator);
 };
 
 }  // namespace content

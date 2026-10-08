@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/download/public/background_service/client.h"
 
 class SimpleFactoryKey;
@@ -25,11 +25,6 @@ class PrefetchDownloader;
 class OfflinePrefetchDownloadClient : public download::Client {
  public:
   explicit OfflinePrefetchDownloadClient(SimpleFactoryKey* simple_factory_key);
-
-  OfflinePrefetchDownloadClient(const OfflinePrefetchDownloadClient&) = delete;
-  OfflinePrefetchDownloadClient& operator=(
-      const OfflinePrefetchDownloadClient&) = delete;
-
   ~OfflinePrefetchDownloadClient() override;
 
  private:
@@ -51,7 +46,9 @@ class OfflinePrefetchDownloadClient : public download::Client {
 
   PrefetchDownloader* GetPrefetchDownloader() const;
 
-  raw_ptr<SimpleFactoryKey> simple_factory_key_;
+  SimpleFactoryKey* simple_factory_key_;
+
+  DISALLOW_COPY_AND_ASSIGN(OfflinePrefetchDownloadClient);
 };
 
 }  // namespace offline_pages

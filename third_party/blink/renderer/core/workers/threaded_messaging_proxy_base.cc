@@ -1,23 +1,22 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/workers/threaded_messaging_proxy_base.h"
 
-#include "base/feature_list.h"
 #include "base/synchronization/waitable_event.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/public/platform/web_worker_fetch_context.h"
+#include "third_party/blink/renderer/bindings/core/v8/source_location.h"
 #include "third_party/blink/renderer/core/dom/document.h"
+#include "third_party/blink/renderer/core/frame/deprecation.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/inspector/devtools_agent.h"
 #include "third_party/blink/renderer/core/inspector/worker_devtools_params.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/core/workers/global_scope_creation_params.h"
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
-#include "third_party/blink/renderer/platform/bindings/source_location.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
 
 namespace blink {
@@ -32,17 +31,15 @@ ThreadedMessagingProxyBase::ThreadedMessagingProxyBase(
     ExecutionContext* execution_context)
     : execution_context_(execution_context),
       parent_execution_context_task_runners_(
-          ParentExecutionContextTaskRunners::Create(*execution_context)),
+          ParentExecutionContextTaskRunners::Create(execution_context_.Get())),
       terminate_sync_load_event_(
           base::WaitableEvent::ResetPolicy::MANUAL,
           base::WaitableEvent::InitialState::NOT_SIGNALED),
       feature_handle_for_scheduler_(
-          base::FeatureList::IsEnabled(
-              features::kBackForwardCacheDedicatedWorker)
-              ? FrameOrWorkerScheduler::SchedulingAffectingFeatureHandle()
-              : execution_context->GetScheduler()->RegisterFeature(
-                    SchedulingPolicy::Feature::kDedicatedWorkerOrWorklet,
-                    {SchedulingPolicy::DisableBackForwardCache()})) {
+          execution_context->GetScheduler()->RegisterFeature(
+              SchedulingPolicy::Feature::kDedicatedWorkerOrWorklet,
+              {SchedulingPolicy::RecordMetricsForBackForwardCache()})),
+      keep_alive_(PERSISTENT_FROM_HERE, this) {
   DCHECK(IsParentContextThread());
   g_live_messaging_proxy_count++;
 }
@@ -62,11 +59,11 @@ void ThreadedMessagingProxyBase::Trace(Visitor* visitor) const {
 
 void ThreadedMessagingProxyBase::InitializeWorkerThread(
     std::unique_ptr<GlobalScopeCreationParams> global_scope_creation_params,
-    const absl::optional<WorkerBackingThreadStartupData>& thread_startup_data,
-    const absl::optional<const blink::DedicatedWorkerToken>& token) {
+    const base::Optional<WorkerBackingThreadStartupData>& thread_startup_data,
+    const base::Optional<const blink::DedicatedWorkerToken>& token) {
   DCHECK(IsParentContextThread());
 
-  KURL script_url = global_scope_creation_params->script_url;
+  KURL script_url = global_scope_creation_params->script_url.Copy();
 
   if (global_scope_creation_params->web_worker_fetch_context) {
     global_scope_creation_params->web_worker_fetch_context
@@ -77,7 +74,7 @@ void ThreadedMessagingProxyBase::InitializeWorkerThread(
 
   auto devtools_params = DevToolsAgent::WorkerThreadCreated(
       execution_context_.Get(), worker_thread_.get(), script_url,
-      global_scope_creation_params->global_scope_name, token);
+      global_scope_creation_params->global_scope_name.IsolatedCopy(), token);
 
   worker_thread_->Start(std::move(global_scope_creation_params),
                         thread_startup_data, std::move(devtools_params));

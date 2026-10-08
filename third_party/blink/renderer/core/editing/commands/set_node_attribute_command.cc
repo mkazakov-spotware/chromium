@@ -26,6 +26,7 @@
 #include "third_party/blink/renderer/core/editing/commands/set_node_attribute_command.h"
 
 #include "third_party/blink/renderer/core/dom/element.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 

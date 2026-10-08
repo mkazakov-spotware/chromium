@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ namespace autofill {
 class AutofillProfile;
 
 // A class used to normalize addresses.
-class AddressNormalizer : public LoadRulesListener {
+class AddressNormalizer : public autofill::LoadRulesListener {
  public:
   using NormalizationCallback =
       base::OnceCallback<void(bool /*success*/,

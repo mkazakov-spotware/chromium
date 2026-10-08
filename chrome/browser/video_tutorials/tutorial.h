@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_VIDEO_TUTORIALS_TUTORIAL_H_
 
 #include <string>
-#include "base/logging.h"
 #include "url/gurl.h"
 
 namespace video_tutorials {
@@ -14,7 +13,7 @@ namespace video_tutorials {
 // Please align this enum with
 // chrome/browser/video_tutorials/proto/video_tutorials.proto and variants
 // Feature in
-// tools/metrics/histograms/metadata/video_tutorials/histograms.xml.
+// tools/metrics/histograms/histograms_xml/video_tutorials/histograms.xml.
 // A Java counterpart will be generated for this enum.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.video_tutorials
 enum class FeatureType {

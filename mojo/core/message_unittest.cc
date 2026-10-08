@@ -1,19 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/numerics/safe_math.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "build/build_config.h"
-#include "mojo/core/embedder/embedder.h"
 #include "mojo/core/test/mojo_test_base.h"
 #include "mojo/core/user_message_impl.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
@@ -104,10 +102,6 @@ class NeverSerializedMessage : public TestMessageBase {
   NeverSerializedMessage(
       base::OnceClosure destruction_callback = base::OnceClosure())
       : destruction_callback_(std::move(destruction_callback)) {}
-
-  NeverSerializedMessage(const NeverSerializedMessage&) = delete;
-  NeverSerializedMessage& operator=(const NeverSerializedMessage&) = delete;
-
   ~NeverSerializedMessage() override {
     if (destruction_callback_)
       std::move(destruction_callback_).Run();
@@ -122,6 +116,8 @@ class NeverSerializedMessage : public TestMessageBase {
   void SerializePayload(void* buffer) override { NOTREACHED(); }
 
   base::OnceClosure destruction_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(NeverSerializedMessage);
 };
 
 class SimpleMessage : public TestMessageBase {
@@ -130,9 +126,6 @@ class SimpleMessage : public TestMessageBase {
                 base::OnceClosure destruction_callback = base::OnceClosure())
       : contents_(contents),
         destruction_callback_(std::move(destruction_callback)) {}
-
-  SimpleMessage(const SimpleMessage&) = delete;
-  SimpleMessage& operator=(const SimpleMessage&) = delete;
 
   ~SimpleMessage() override {
     if (destruction_callback_)
@@ -160,12 +153,14 @@ class SimpleMessage : public TestMessageBase {
   }
 
   void SerializePayload(void* buffer) override {
-    base::ranges::copy(contents_, static_cast<char*>(buffer));
+    std::copy(contents_.begin(), contents_.end(), static_cast<char*>(buffer));
   }
 
   const std::string contents_;
   base::OnceClosure destruction_callback_;
   std::vector<mojo::ScopedMessagePipeHandle> handles_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleMessage);
 };
 
 TEST_F(MessageTest, InvalidMessageObjects) {
@@ -229,7 +224,7 @@ TEST_F(MessageTest, DestroyMessageWithContext) {
 
 const char kTestMessageWithContext1[] = "hello laziness";
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 
 const char kTestMessageWithContext2[] = "my old friend";
 const char kTestMessageWithContext3[] = "something something";
@@ -240,7 +235,6 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReceiveMessageNoHandles, MessageTest, h) {
   MojoTestBase::WaitForSignals(h, MOJO_HANDLE_SIGNAL_READABLE);
   auto m = MojoTestBase::ReadMessage(h);
   EXPECT_EQ(kTestMessageWithContext1, m);
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h));
 }
 
 TEST_F(MessageTest, SerializeSimpleMessageNoHandlesWithContext) {
@@ -282,8 +276,6 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReceiveMessageOneHandle, MessageTest, h) {
   EXPECT_EQ(kTestMessageWithContext1, m);
   MojoTestBase::WriteMessage(h1, kTestMessageWithContext2);
   EXPECT_EQ(kTestQuitMessage, MojoTestBase::ReadMessage(h));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h1));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h));
 }
 
 TEST_F(MessageTest, SerializeSimpleMessageOneHandleWithContext) {
@@ -310,11 +302,6 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReceiveMessageWithHandles, MessageTest, h) {
   MojoTestBase::WriteMessage(handles[3], kTestMessageWithContext4);
 
   EXPECT_EQ(kTestQuitMessage, MojoTestBase::ReadMessage(h));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[0]));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[1]));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[2]));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[3]));
 }
 
 TEST_F(MessageTest, SerializeSimpleMessageWithHandlesWithContext) {
@@ -340,7 +327,7 @@ TEST_F(MessageTest, SerializeSimpleMessageWithHandlesWithContext) {
   });
 }
 
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 TEST_F(MessageTest, SendLocalSimpleMessageWithHandlesWithContext) {
   auto message = std::make_unique<SimpleMessage>(kTestMessageWithContext1);
@@ -449,8 +436,6 @@ TEST_F(MessageTest, GetMessageDataWithHandles) {
                                h, &num_handles));
 
   EXPECT_EQ(MOJO_RESULT_OK, MojoDestroyMessage(message_handle));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h[0]));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h[1]));
 }
 
 TEST_F(MessageTest, ReadMessageWithContextAsSerializedMessage) {
@@ -567,7 +552,6 @@ TEST_F(MessageTest, ForceSerializeMessageWithContext) {
   EXPECT_EQ(kTestMessage, MojoTestBase::ReadMessage(extracted_handle));
 
   EXPECT_EQ(MOJO_RESULT_OK, MojoDestroyMessage(message_handle));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(extracted_handle));
 }
 
 TEST_F(MessageTest, DoubleSerialize) {
@@ -828,10 +812,9 @@ TEST_F(MessageTest, CommitInvalidMessageContents) {
                                                   nullptr, nullptr, nullptr));
   UserMessageImpl::FailHandleSerializationForTesting(false);
   EXPECT_EQ(MOJO_RESULT_OK, MojoDestroyMessage(message));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(b));
 }
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 
 TEST_F(MessageTest, ExtendPayloadWithHandlesAttached) {
   // Regression test for https://crbug.com/748996. Verifies that internal
@@ -888,7 +871,6 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReadAndIgnoreMessage, MessageTest, h) {
   MojoTestBase::ReadMessageWithHandles(h, handles, 5);
   for (size_t i = 0; i < 5; ++i)
     EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[i]));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h));
 }
 
 TEST_F(MessageTest, ExtendPayloadWithHandlesAttachedViaExtension) {
@@ -946,10 +928,9 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReadMessageAndCheckPipe, MessageTest, h) {
   EXPECT_EQ(kTestMessage, MojoTestBase::ReadMessage(handles[4]));
   for (size_t i = 0; i < 5; ++i)
     EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[i]));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(h));
 }
 
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 TEST_F(MessageTest, PartiallySerializedMessagesDontLeakHandles) {
   MojoMessageHandle message;
@@ -977,7 +958,6 @@ TEST_F(MessageTest, PartiallySerializedMessagesDontLeakHandles) {
   EXPECT_EQ(MOJO_RESULT_OK, MojoDestroyMessage(message));
   EXPECT_EQ(MOJO_RESULT_OK,
             WaitForSignals(handles[1], MOJO_HANDLE_SIGNAL_PEER_CLOSED));
-  EXPECT_EQ(MOJO_RESULT_OK, MojoClose(handles[1]));
 }
 
 }  // namespace

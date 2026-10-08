@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "chrome/utility/image_writer/error_message_strings.h"
@@ -80,7 +79,7 @@ class VerifyingHandler : public MockHandler {
       verified_ = true;
     }
   }
-  raw_ptr<ImageWriter> image_writer_;
+  ImageWriter* image_writer_;
 
  private:
   bool verified_;

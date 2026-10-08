@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_cftyperef.h"
 #include "base/strings/sys_string_conversions.h"
-#include "net/base/proxy_server.h"
-#include "net/base/proxy_string_util.h"
 #include "net/proxy_resolution/proxy_config_with_annotation.h"
 
 namespace net {
@@ -72,9 +70,11 @@ void GetCurrentProxyConfig(const NetworkTrafficAnnotationTag traffic_annotation,
   if (GetBoolFromDictionary(config_dict.get(),
                             kCFNetworkProxiesHTTPEnable,
                             false)) {
-    ProxyServer proxy_server = ProxyDictionaryToProxyServer(
-        ProxyServer::SCHEME_HTTP, config_dict.get(), kCFNetworkProxiesHTTPProxy,
-        kCFNetworkProxiesHTTPPort);
+    ProxyServer proxy_server =
+        ProxyServer::FromDictionary(ProxyServer::SCHEME_HTTP,
+                                    config_dict.get(),
+                                    kCFNetworkProxiesHTTPProxy,
+                                    kCFNetworkProxiesHTTPPort);
     if (proxy_server.is_valid()) {
       proxy_config.proxy_rules().type =
           ProxyConfig::ProxyRules::Type::PROXY_LIST_PER_SCHEME;
@@ -94,7 +94,6 @@ void GetCurrentProxyConfig(const NetworkTrafficAnnotationTag traffic_annotation,
   // The kCFNetworkProxiesExcludeSimpleHostnames key is not available on iOS.
 
   // Source
-  proxy_config.set_from_system(true);
   *config = ProxyConfigWithAnnotation(proxy_config, traffic_annotation);
 }
 
@@ -102,10 +101,11 @@ void GetCurrentProxyConfig(const NetworkTrafficAnnotationTag traffic_annotation,
 
 ProxyConfigServiceIOS::ProxyConfigServiceIOS(
     const NetworkTrafficAnnotationTag& traffic_annotation)
-    : PollingProxyConfigService(base::Seconds(kPollIntervalSec),
+    : PollingProxyConfigService(base::TimeDelta::FromSeconds(kPollIntervalSec),
                                 GetCurrentProxyConfig,
                                 traffic_annotation) {}
 
-ProxyConfigServiceIOS::~ProxyConfigServiceIOS() = default;
+ProxyConfigServiceIOS::~ProxyConfigServiceIOS() {
+}
 
 }  // namespace net

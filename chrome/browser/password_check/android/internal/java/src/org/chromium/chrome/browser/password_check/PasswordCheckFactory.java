@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@ package org.chromium.chrome.browser.password_check;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 
 /**
  * Use {@link #getOrCreate()} to instantiate a {@link PasswordCheckImpl}
@@ -24,6 +25,7 @@ public class PasswordCheckFactory {
      * @return A {@link PasswordCheckImpl} or null if the feature is disabled.
      */
     public static @Nullable PasswordCheck getOrCreate(SettingsLauncher settingsLauncher) {
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.PASSWORD_CHECK)) return null;
         if (sPasswordCheck == null) {
             sPasswordCheck = new PasswordCheckImpl(settingsLauncher);
         }

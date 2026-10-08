@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "ash/accessibility/sticky_keys/sticky_keys_controller.h"
 #include "ash/display/mirror_window_controller.h"
 #include "ash/display/privacy_screen_controller.h"
 #include "ash/display/window_tree_host_manager.h"
@@ -14,6 +13,7 @@
 #include "ash/events/keyboard_driven_event_rewriter.h"
 #include "ash/public/cpp/accessibility_event_rewriter_delegate.h"
 #include "ash/shell.h"
+#include "ash/sticky_keys/sticky_keys_controller.h"
 #include "base/command_line.h"
 #include "ui/accessibility/accessibility_switches.h"
 #include "ui/aura/env.h"
@@ -56,13 +56,10 @@ void EventRewriterControllerImpl::Initialize(
       Shell::Get()->privacy_screen_controller()->IsSupported()) {
     privacy_screen_supported = true;
   }
-
-  event_rewriter_chromeos_delegate_ = event_rewriter_delegate;
   std::unique_ptr<ui::EventRewriterChromeOS> event_rewriter_chromeos =
       std::make_unique<ui::EventRewriterChromeOS>(
           event_rewriter_delegate, Shell::Get()->sticky_keys_controller(),
           privacy_screen_supported);
-  event_rewriter_chromeos_ = event_rewriter_chromeos.get();
 
   std::unique_ptr<AccessibilityEventRewriter> accessibility_event_rewriter =
       std::make_unique<AccessibilityEventRewriter>(
@@ -111,13 +108,8 @@ void EventRewriterControllerImpl::CaptureAllKeysForSpokenFeedback(
   accessibility_event_rewriter_->set_chromevox_capture_all_keys(capture);
 }
 
-void EventRewriterControllerImpl::SetSendMouseEvents(bool value) {
-  accessibility_event_rewriter_->set_send_mouse_events(value);
-}
-
-void EventRewriterControllerImpl::SetAltDownRemappingEnabled(bool enabled) {
-  if (event_rewriter_chromeos_)
-    event_rewriter_chromeos_->set_alt_down_remapping_enabled(enabled);
+void EventRewriterControllerImpl::SetSendMouseEventsToDelegate(bool value) {
+  accessibility_event_rewriter_->set_chromevox_send_mouse_events(value);
 }
 
 void EventRewriterControllerImpl::OnHostInitialized(

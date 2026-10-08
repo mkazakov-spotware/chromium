@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <jni.h>
 
-#include <string>
-
+#include "base/strings/string16.h"
 
 namespace content {
 class WebContents;
@@ -19,6 +18,6 @@ class WebContents;
 // the user in order to login to the web site, it can be email, telephone number
 // or any string.
 void ShowAutoSigninPrompt(content::WebContents* web_contents,
-                          const std::u16string& username);
+                          const base::string16& username);
 
 #endif  // CHROME_BROWSER_PASSWORD_MANAGER_ANDROID_AUTO_SIGNIN_PROMPT_CONTROLLER_H_

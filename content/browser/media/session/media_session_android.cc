@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,6 +44,7 @@ MediaSessionAndroid::MediaSessionAndroid(MediaSessionImpl* session)
     web_contents_android_ = contents->GetWebContentsAndroid();
     DCHECK(web_contents_android_);
     web_contents_android_->SetMediaSession(j_media_session);
+    web_contents_android_->AddDestructionObserver(this);
   }
 
   session->AddObserver(observer_receiver_.BindNewPipeAndPassRemote());
@@ -58,6 +59,11 @@ MediaSessionAndroid::~MediaSessionAndroid() {
     Java_MediaSessionImpl_mediaSessionDestroyed(env, j_local_session);
 
   j_media_session_.reset();
+
+  if (web_contents_android_) {
+    web_contents_android_->SetMediaSession(nullptr);
+    web_contents_android_->RemoveDestructionObserver(this);
+  }
 }
 
 // static
@@ -100,7 +106,7 @@ void MediaSessionAndroid::MediaSessionInfoChanged(
 }
 
 void MediaSessionAndroid::MediaSessionMetadataChanged(
-    const absl::optional<media_session::MediaMetadata>& metadata) {
+    const base::Optional<media_session::MediaMetadata>& metadata) {
   ScopedJavaLocalRef<jobject> j_local_session = GetJavaObject();
   if (j_local_session.is_null())
     return;
@@ -157,7 +163,7 @@ void MediaSessionAndroid::MediaSessionImagesChanged(
 }
 
 void MediaSessionAndroid::MediaSessionPositionChanged(
-    const absl::optional<media_session::MediaPosition>& position) {
+    const base::Optional<media_session::MediaPosition>& position) {
   ScopedJavaLocalRef<jobject> j_local_session = GetJavaObject();
   if (j_local_session.is_null())
     return;
@@ -171,6 +177,14 @@ void MediaSessionAndroid::MediaSessionPositionChanged(
     Java_MediaSessionImpl_mediaSessionPositionChanged(env, j_local_session,
                                                       nullptr);
   }
+}
+
+// The Java MediaSession is kept alive by the Java WebContents and will be
+// cleared when the WebContents is destroyed, so we destroy the corresponding
+// MediaSessionAndroid to ensure mediaSessionDestroyed is called.
+void MediaSessionAndroid::WebContentsAndroidDestroyed(
+    WebContentsAndroid* web_contents_android) {
+  media_session_->ClearMediaSessionAndroid();  // Deletes |this|.
 }
 
 void MediaSessionAndroid::Resume(
@@ -201,7 +215,7 @@ void MediaSessionAndroid::Seek(
   DCHECK(media_session_);
   DCHECK_NE(millis, 0)
       << "Attempted to seek by a missing number of milliseconds";
-  media_session_->Seek(base::Milliseconds(millis));
+  media_session_->Seek(base::TimeDelta::FromMilliseconds(millis));
 }
 
 void MediaSessionAndroid::SeekTo(
@@ -210,7 +224,7 @@ void MediaSessionAndroid::SeekTo(
     const jlong millis) {
   DCHECK(media_session_);
   DCHECK_GE(millis, 0) << "Attempted to seek to a negative position";
-  media_session_->SeekTo(base::Milliseconds(millis));
+  media_session_->SeekTo(base::TimeDelta::FromMilliseconds(millis));
 }
 
 void MediaSessionAndroid::DidReceiveAction(JNIEnv* env,

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "ui/gfx/x/connection.h"
 #include "ui/gfx/x/x11_atom_cache.h"
 #include "ui/gfx/x/xproto.h"
-#include "ui/gfx/x/xproto_util.h"
 
 namespace ui {
 
@@ -52,8 +51,8 @@ XDragContext::XDragContext(x11::Window local_window,
     bool get_types_from_property = ((event.data.data32[1] & 1) != 0);
 
     if (get_types_from_property) {
-      if (!GetArrayProperty(source_window_, x11::GetAtom(kXdndTypeList),
-                            &unfetched_targets_)) {
+      if (!GetAtomArrayProperty(source_window_, kXdndTypeList,
+                                &unfetched_targets_)) {
         return;
       }
     } else {
@@ -119,8 +118,8 @@ void XDragContext::RequestNextTarget() {
   unfetched_targets_.pop_back();
 
   x11::Connection::Get()->ConvertSelection(
-      {local_window_, x11::GetAtom(kXdndSelection), target,
-       x11::GetAtom(kChromiumDragReciever), position_time_stamp_});
+      {local_window_, gfx::GetAtom(kXdndSelection), target,
+       gfx::GetAtom(kChromiumDragReciever), position_time_stamp_});
 }
 
 void XDragContext::OnSelectionNotify(const x11::SelectionNotifyEvent& event) {
@@ -137,7 +136,7 @@ void XDragContext::OnSelectionNotify(const x11::SelectionNotifyEvent& event) {
   auto target = static_cast<x11::Atom>(event.target);
 
   if (event.property != x11::Atom::None) {
-    DCHECK_EQ(property, x11::GetAtom(kChromiumDragReciever));
+    DCHECK_EQ(property, gfx::GetAtom(kChromiumDragReciever));
 
     scoped_refptr<base::RefCountedMemory> data;
     x11::Atom type = x11::Atom::None;
@@ -165,12 +164,10 @@ void XDragContext::ReadActions() {
       XDragDropClient::GetForWindow(source_window_);
   if (!source_client) {
     std::vector<x11::Atom> atom_array;
-    if (!GetArrayProperty(source_window_, x11::GetAtom(kXdndActionList),
-                          &atom_array)) {
+    if (!GetAtomArrayProperty(source_window_, kXdndActionList, &atom_array))
       actions_.clear();
-    } else {
+    else
       actions_.swap(atom_array);
-    }
   } else {
     // We have a property notify set up for other windows in case they change
     // their action list. Thankfully, the views interface is static and you
@@ -191,17 +188,17 @@ int XDragContext::GetDragOperation() const {
 
 void XDragContext::MaskOperation(x11::Atom xdnd_operation,
                                  int* drag_operation) const {
-  if (xdnd_operation == x11::GetAtom(kXdndActionCopy))
+  if (xdnd_operation == gfx::GetAtom(kXdndActionCopy))
     *drag_operation |= DragDropTypes::DRAG_COPY;
-  else if (xdnd_operation == x11::GetAtom(kXdndActionMove))
+  else if (xdnd_operation == gfx::GetAtom(kXdndActionMove))
     *drag_operation |= DragDropTypes::DRAG_MOVE;
-  else if (xdnd_operation == x11::GetAtom(kXdndActionLink))
+  else if (xdnd_operation == gfx::GetAtom(kXdndActionLink))
     *drag_operation |= DragDropTypes::DRAG_LINK;
 }
 
 bool XDragContext::DispatchPropertyNotifyEvent(
     const x11::PropertyNotifyEvent& prop) {
-  if (prop.atom == x11::GetAtom(kXdndActionList)) {
+  if (prop.atom == gfx::GetAtom(kXdndActionList)) {
     ReadActions();
     return true;
   }

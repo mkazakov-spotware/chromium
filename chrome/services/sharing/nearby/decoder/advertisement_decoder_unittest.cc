@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -87,7 +87,7 @@ TEST(AdvertisementDecoderTest,
   std::unique_ptr<sharing::Advertisement> advertisement =
       sharing::Advertisement::NewInstance(kSalt, kEncryptedMetadataKey,
                                           kDeviceType,
-                                          /* device_name= */ absl::nullopt);
+                                          /* device_name= */ base::nullopt);
   ExpectEquals(*advertisement, *sharing::AdvertisementDecoder::FromEndpointInfo(
                                    advertisement->ToEndpointInfo()));
 }
@@ -128,7 +128,7 @@ TEST(AdvertisementDecoderTest, V1ContactsOnlyAdvertisementEncoding) {
   std::unique_ptr<sharing::Advertisement> advertisement =
       sharing::Advertisement::NewInstance(kSalt, kEncryptedMetadataKey,
                                           kDeviceType,
-                                          /* device_name= */ absl::nullopt);
+                                          /* device_name= */ base::nullopt);
   std::vector<uint8_t> v1EndpointInfo = {18, 0, 0, 0, 0, 0, 0, 0, 0,
                                          0,  0, 0, 0, 0, 0, 0, 0};
   ExpectEquals(*advertisement, *sharing::AdvertisementDecoder::FromEndpointInfo(

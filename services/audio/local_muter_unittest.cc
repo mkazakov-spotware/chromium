@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -93,16 +93,16 @@ TEST(LocalMuter, UnmutesWhenLastBindingIsLost) {
   // stack as the mojo connection error handler, just as would take place in the
   // live build.
   auto muter = std::make_unique<LocalMuter>(&coordinator, group_id);
-  base::MockCallback<base::RepeatingClosure> callback;
+  base::MockCallback<base::OnceClosure> callback;
   EXPECT_CALL(callback, Run()).WillOnce(InvokeWithoutArgs([&muter]() {
     muter.reset();
   }));
   muter->SetAllBindingsLostCallback(callback.Get());
 
   // Create two bindings to the muter.
-  mojo::AssociatedRemote<media::mojom::LocalMuter> remote_muter1;
+  mojo::AssociatedRemote<mojom::LocalMuter> remote_muter1;
   muter->AddReceiver(remote_muter1.BindNewEndpointAndPassReceiver());
-  mojo::AssociatedRemote<media::mojom::LocalMuter> remote_muter2;
+  mojo::AssociatedRemote<mojom::LocalMuter> remote_muter2;
   muter->AddReceiver(remote_muter2.BindNewEndpointAndPassReceiver());
 
   // A member joins the group and should be muted.

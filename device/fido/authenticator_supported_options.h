@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define DEVICE_FIDO_AUTHENTICATOR_SUPPORTED_OPTIONS_H_
 
 #include "base/component_export.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "components/cbor/values.h"
 #include "device/fido/fido_constants.h"
 
@@ -87,6 +89,9 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) AuthenticatorSupportedOptions {
   // Indicates whether the authenticator supports CTAP 2.1 pinUvAuthToken for
   // establishing user verification via client PIN or a built-in sensor.
   bool supports_pin_uv_auth_token = false;
+  // Indicates whether the authenticator supports an extension for passing
+  // information from the collectedClientData structure with a CTAP request.
+  bool supports_android_client_data_ext = false;
   // True iff enterprise attestation is supported and enabled. (In CTAP2 this is
   // a tri-state, but the state that represents "administratively disabled" is
   // uninteresting to Chromium because we do not support the administrative
@@ -100,12 +105,6 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) AuthenticatorSupportedOptions {
   // |always_uv| value of true will make uv=0 get assertion requests return
   // invalid signatures, which is okay for pre-flighting.
   bool always_uv = false;
-  // If true, indicates that the authenticator permits creation of non-resident
-  // credentials without UV.
-  bool make_cred_uv_not_required = false;
-  // If true, indicates that the authenticator supports the minPinLength
-  // extension.
-  bool supports_min_pin_length_extension = false;
 };
 
 COMPONENT_EXPORT(DEVICE_FIDO)

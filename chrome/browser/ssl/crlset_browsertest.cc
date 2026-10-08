@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "build/build_config.h"
 #include "chrome/browser/interstitials/security_interstitial_page_test_utils.h"
@@ -21,6 +22,7 @@
 #include "content/public/browser/ssl_status.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/content_browser_test_utils.h"
 #include "net/base/net_errors.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/cert_verify_result.h"
@@ -30,7 +32,7 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/test_data_directory.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/test/base/android/android_browser_test.h"
 #else
 #include "chrome/test/base/in_process_browser_test.h"
@@ -93,8 +95,7 @@ IN_PROC_BROWSER_TEST_F(CRLSetBrowserTest, TestCRLSetRevoked) {
   ASSERT_EQ(interstitial_expected,
             chrome_browser_interstitials::IsShowingInterstitial(
                 GetActiveWebContents()));
-  ASSERT_TRUE(
-      WaitForRenderFrameReady(GetActiveWebContents()->GetPrimaryMainFrame()));
+  ASSERT_TRUE(WaitForRenderFrameReady(GetActiveWebContents()->GetMainFrame()));
 
   if (interstitial_expected) {
     ASSERT_TRUE(chrome_browser_interstitials::IsShowingSSLInterstitial(
@@ -139,8 +140,7 @@ IN_PROC_BROWSER_TEST_F(CRLSetBrowserTest, TestCRLSetBlockedInterception) {
   ASSERT_EQ(interstitial_expected,
             chrome_browser_interstitials::IsShowingInterstitial(
                 GetActiveWebContents()));
-  ASSERT_TRUE(
-      WaitForRenderFrameReady(GetActiveWebContents()->GetPrimaryMainFrame()));
+  ASSERT_TRUE(WaitForRenderFrameReady(GetActiveWebContents()->GetMainFrame()));
 
   if (interstitial_expected) {
     ASSERT_TRUE(
@@ -246,8 +246,7 @@ IN_PROC_BROWSER_TEST_F(CRLSetInterceptionBrowserTest,
 
   ASSERT_TRUE(chrome_browser_interstitials::IsShowingInterstitial(
       GetActiveWebContents()));
-  ASSERT_TRUE(
-      WaitForRenderFrameReady(GetActiveWebContents()->GetPrimaryMainFrame()));
+  ASSERT_TRUE(WaitForRenderFrameReady(GetActiveWebContents()->GetMainFrame()));
 
   ssl_test_util::CheckSecurityState(
       GetActiveWebContents(),
@@ -260,5 +259,5 @@ IN_PROC_BROWSER_TEST_F(CRLSetInterceptionBrowserTest,
 
   // Expect there to be a proceed link, even for HSTS.
   EXPECT_TRUE(chrome_browser_interstitials::InterstitialHasProceedLink(
-      GetActiveWebContents()->GetPrimaryMainFrame()));
+      GetActiveWebContents()->GetMainFrame()));
 }

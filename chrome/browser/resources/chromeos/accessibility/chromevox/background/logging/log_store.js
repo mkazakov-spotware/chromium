@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,23 @@
  * @fileoverview Store ChromeVox log.
  */
 
-import {BridgeConstants} from '../../common/bridge_constants.js';
-import {BridgeHelper} from '../../common/bridge_helper.js';
-import {BaseLog, LogType, TextLog, TreeLog} from '../../common/log_types.js';
-import {TreeDumper} from '../../common/tree_dumper.js';
+goog.provide('LogStore');
 
-export class LogStore {
+goog.require('TreeDumper');
+goog.require('BaseLog');
+goog.require('EventLog');
+goog.require('SpeechLog');
+goog.require('TextLog');
+goog.require('TreeLog');
+
+LogStore = class {
   constructor() {
     /**
      * Ring buffer of size this.LOG_LIMIT
-     * @private {!Array<BaseLog>}
+     * @type {!Array<BaseLog>}
+     * @private
      */
     this.logs_ = Array(LogStore.LOG_LIMIT);
-
-    /** @private {boolean} */
-    this.shouldSkipOutput_ = false;
 
     /*
      * this.logs_ is implemented as a ring buffer which starts
@@ -36,17 +38,17 @@ export class LogStore {
    * Creates logs of type |type| in order.
    * This is not the best way to create logs fast but
    * getLogsOfType() is not called often.
-   * @param {!LogType} logType
+   * @param {!LogStore.LogType} LogType
    * @return {!Array<BaseLog>}
    */
-  getLogsOfType(logType) {
+  getLogsOfType(LogType) {
     const returnLogs = [];
     for (let i = 0; i < LogStore.LOG_LIMIT; i++) {
       const index = (this.startIndex_ + i) % LogStore.LOG_LIMIT;
       if (!this.logs_[index]) {
         continue;
       }
-      if (this.logs_[index].logType === logType) {
+      if (this.logs_[index].logType === LogType) {
         returnLogs.push(this.logs_[index]);
       }
     }
@@ -75,14 +77,14 @@ export class LogStore {
    * Write a text log to this.logs_.
    * To add a message to logs, this function should be called.
    * @param {string} logContent
-   * @param {!LogType} logType
+   * @param {!LogStore.LogType} LogType
    */
-  writeTextLog(logContent, logType) {
-    if (this.shouldSkipOutput_) {
+  writeTextLog(logContent, LogType) {
+    if (this.shouldSkipOutput_()) {
       return;
     }
 
-    this.writeLog(new TextLog(logContent, logType));
+    this.writeLog(new TextLog(logContent, LogType));
   }
 
   /**
@@ -91,7 +93,7 @@ export class LogStore {
    * @param {!TreeDumper} logContent
    */
   writeTreeLog(logContent) {
-    if (this.shouldSkipOutput_) {
+    if (this.shouldSkipOutput_()) {
       return;
     }
 
@@ -104,7 +106,7 @@ export class LogStore {
    * @param {!BaseLog} log
    */
   writeLog(log) {
-    if (this.shouldSkipOutput_) {
+    if (this.shouldSkipOutput_()) {
       return;
     }
 
@@ -124,24 +126,31 @@ export class LogStore {
     this.startIndex_ = 0;
   }
 
-  /** @param {boolean} newValue */
-  set shouldSkipOutput(newValue) {
-    this.shouldSkipOutput_ = newValue;
+  /** @private @return {boolean} */
+  shouldSkipOutput_() {
+    const ChromeVoxState =
+        chrome.extension.getBackgroundPage()['ChromeVoxState'];
+    if (ChromeVoxState.instance && ChromeVoxState.instance.currentRange &&
+        ChromeVoxState.instance.currentRange.start &&
+        ChromeVoxState.instance.currentRange.start.node &&
+        ChromeVoxState.instance.currentRange.start.node.root) {
+      return ChromeVoxState.instance.currentRange.start.node.root.docUrl
+                 .indexOf(chrome.extension.getURL(
+                     'chromevox/background/logging/log.html')) === 0;
+    }
+    return false;
   }
 
-  static init() {
-    LogStore.instance = new LogStore();
-
-    BridgeHelper.registerHandler(
-        BridgeConstants.LogStore.TARGET,
-        BridgeConstants.LogStore.Action.CLEAR_LOG,
-        () => LogStore.instance.clearLog());
-    BridgeHelper.registerHandler(
-        BridgeConstants.LogStore.TARGET,
-        BridgeConstants.LogStore.Action.GET_LOGS,
-        () => LogStore.instance.getLogs().map(log => log.serialize()));
+  /**
+   * @return {LogStore}
+   */
+  static getInstance() {
+    if (!LogStore.instance) {
+      LogStore.instance = new LogStore();
+    }
+    return LogStore.instance;
   }
-}
+};
 
 /**
  * @const
@@ -149,5 +158,25 @@ export class LogStore {
  */
 LogStore.LOG_LIMIT = 3000;
 
-/** @type {LogStore} */
+/**
+ * List of all LogType.
+ * Note that filter type checkboxes are shown in this order at the log page.
+ * @enum {string}
+ */
+LogStore.LogType = {
+  SPEECH: 'speech',
+  SPEECH_RULE: 'speechRule',
+  BRAILLE: 'braille',
+  BRAILLE_RULE: 'brailleRule',
+  EARCON: 'earcon',
+  EVENT: 'event',
+  TEXT: 'text',
+  TREE: 'tree',
+};
+
+
+/**
+ * Global instance.
+ * @type {LogStore}
+ */
 LogStore.instance;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,26 +8,25 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "net/base/io_buffer.h"
 #include "net/socket/stream_socket.h"
 
 class AdbClientSocket {
  public:
-  using CommandCallback = base::OnceCallback<void(int, const std::string&)>;
-  using SocketCallback =
-      base::OnceCallback<void(int result, std::unique_ptr<net::StreamSocket>)>;
+  typedef base::Callback<void(int, const std::string&)> CommandCallback;
+  typedef base::Callback<void(int result, std::unique_ptr<net::StreamSocket>)>
+      SocketCallback;
 
   static void AdbQuery(int port,
                        const std::string& query,
-                       CommandCallback callback);
+                       const CommandCallback& callback);
+
 
   static void TransportQuery(int port,
                              const std::string& serial,
                              const std::string& socket_name,
-                             SocketCallback callback);
-
-  AdbClientSocket(const AdbClientSocket&) = delete;
-  AdbClientSocket& operator=(const AdbClientSocket&) = delete;
+                             const SocketCallback& callback);
 
  protected:
   explicit AdbClientSocket(int port);
@@ -37,19 +36,19 @@ class AdbClientSocket {
 
   void SendCommand(const std::string& command,
                    bool is_void,
-                   CommandCallback callback);
+                   const CommandCallback& callback);
 
   std::unique_ptr<net::StreamSocket> socket_;
 
  private:
-  void ReadResponse(CommandCallback callback, bool is_void, int result);
+  void ReadResponse(const CommandCallback& callback, bool is_void, int result);
 
-  void OnResponseHeader(CommandCallback callback,
+  void OnResponseHeader(const CommandCallback& callback,
                         bool is_void,
                         scoped_refptr<net::IOBuffer> response_buffer,
                         int result);
 
-  void OnResponseData(CommandCallback callback,
+  void OnResponseData(const CommandCallback& callback,
                       const std::string& response,
                       scoped_refptr<net::IOBuffer> response_buffer,
                       int bytes_left,
@@ -61,6 +60,8 @@ class AdbClientSocket {
 
   std::string host_;
   int port_;
+
+  DISALLOW_COPY_AND_ASSIGN(AdbClientSocket);
 };
 
 #endif  // CHROME_BROWSER_DEVTOOLS_DEVICE_ADB_ADB_CLIENT_SOCKET_H_

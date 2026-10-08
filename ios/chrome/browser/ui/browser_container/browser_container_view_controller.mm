@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -114,7 +114,7 @@
     return;
   if (_contentBlocked) {
     // If the content was previously blocked, remove the blocking view before
-    // resetting to `contentBlocked`.
+    // resetting to |contentBlocked|.
     [self.contentBlockingView removeFromSuperview];
     self.contentBlockingView = nil;
   }
@@ -122,8 +122,12 @@
   if (_contentBlocked) {
     // Install the blocking view.
     self.contentBlockingView = [[UIView alloc] initWithFrame:CGRectZero];
-    self.contentBlockingView.backgroundColor =
-        [UIColor secondarySystemBackgroundColor];
+    if (@available(iOS 13, *)) {
+      self.contentBlockingView.backgroundColor =
+          [UIColor secondarySystemBackgroundColor];
+    } else {
+      self.contentBlockingView.backgroundColor = [UIColor whiteColor];
+    }
     UIView* overlayContainerView =
         self.webContentsOverlayContainerViewController.view;
     if (overlayContainerView) {

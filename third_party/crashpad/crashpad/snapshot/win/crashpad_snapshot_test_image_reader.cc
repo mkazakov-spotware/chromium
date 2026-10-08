@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,8 @@
 
 #include <windows.h>
 
-#include <iterator>
-
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "client/crashpad_info.h"
 #include "util/file/file_io.h"
 #include "util/synchronization/semaphore.h"
@@ -30,7 +29,7 @@ DWORD WINAPI LotsOfReferencesThreadProc(void* param) {
 
   // Allocate a bunch of pointers to things on the stack.
   int* pointers[1000];
-  for (size_t i = 0; i < std::size(pointers); ++i) {
+  for (size_t i = 0; i < base::size(pointers); ++i) {
     pointers[i] = new int[2048];
   }
 
@@ -54,7 +53,7 @@ int wmain(int argc, wchar_t* argv[]) {
   // verify the cap on pointed-to memory.
   crashpad::Semaphore semaphore(0);
   crashpad::ScopedKernelHANDLE threads[100];
-  for (size_t i = 0; i < std::size(threads); ++i) {
+  for (size_t i = 0; i < base::size(threads); ++i) {
     threads[i].reset(CreateThread(nullptr,
                                   0,
                                   &LotsOfReferencesThreadProc,
@@ -67,7 +66,7 @@ int wmain(int argc, wchar_t* argv[]) {
     }
   }
 
-  for (size_t i = 0; i < std::size(threads); ++i) {
+  for (size_t i = 0; i < base::size(threads); ++i) {
     semaphore.Wait();
   }
 

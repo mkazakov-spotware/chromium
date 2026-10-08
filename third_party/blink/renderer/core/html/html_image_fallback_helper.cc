@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/input_type_names.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -28,8 +28,8 @@ static bool ElementRepresentsNothing(const Element& element) {
   // attribute, so consider the element to represent text in those cases as
   // well.
   bool alt_is_set = !html_element.AltText().IsNull();
-  bool alt_is_empty = alt_is_set && html_element.AltText().empty();
-  bool src_is_set = !element.getAttribute(html_names::kSrcAttr).empty();
+  bool alt_is_empty = alt_is_set && html_element.AltText().IsEmpty();
+  bool src_is_set = !element.getAttribute(html_names::kSrcAttr).IsEmpty();
   if (src_is_set && alt_is_empty)
     return true;
   return !src_is_set && (!alt_is_set || alt_is_empty);
@@ -138,9 +138,8 @@ void HTMLImageFallbackHelper::CreateAltTextShadowTree(Element& element) {
   element.EnsureUserAgentShadowRoot().AppendChild(container);
 }
 
-void HTMLImageFallbackHelper::CustomStyleForAltText(
-    Element& element,
-    ComputedStyleBuilder& builder) {
+void HTMLImageFallbackHelper::CustomStyleForAltText(Element& element,
+                                                    ComputedStyle& new_style) {
   // If we have an author shadow root or have not created the UA shadow root
   // yet, bail early. We can't use ensureUserAgentShadowRoot() here because that
   // would alter the DOM tree during style recalc.
@@ -153,7 +152,6 @@ void HTMLImageFallbackHelper::CustomStyleForAltText(
   if (!fallback.HasContentElements())
     return;
 
-  // TODO(crbug.com/953707):
   // This method is called during style recalc, and it is generally not allowed
   // to mark nodes style dirty during recalc. The code below modifies inline
   // style in the UA shadow tree below based on the computed style for the image
@@ -166,22 +164,22 @@ void HTMLImageFallbackHelper::CustomStyleForAltText(
   if (element.GetDocument().InQuirksMode()) {
     // Mimic the behaviour of the image host by setting symmetric dimensions if
     // only one dimension is specified.
-    if (!builder.Width().IsAuto() && builder.Height().IsAuto())
-      builder.SetHeight(builder.Width());
-    else if (!builder.Height().IsAuto() && builder.Width().IsAuto())
-      builder.SetWidth(builder.Height());
+    if (!new_style.Width().IsAuto() && new_style.Height().IsAuto())
+      new_style.SetHeight(new_style.Width());
+    else if (!new_style.Height().IsAuto() && new_style.Width().IsAuto())
+      new_style.SetWidth(new_style.Height());
 
-    if (!builder.Width().IsAuto() && !builder.Height().IsAuto())
+    if (!new_style.Width().IsAuto() && !new_style.Height().IsAuto())
       fallback.AlignToBaseline();
   }
 
   bool has_intrinsic_dimensions =
-      !builder.Width().IsAuto() && !builder.Height().IsAuto();
+      !new_style.Width().IsAuto() && !new_style.Height().IsAuto();
   bool has_dimensions_from_ar =
-      !builder.AspectRatio().IsAuto() &&
-      (!builder.Width().IsAuto() || !builder.Height().IsAuto());
+      !new_style.AspectRatio().IsAuto() &&
+      (!new_style.Width().IsAuto() || !new_style.Height().IsAuto());
   bool has_no_alt_attribute =
-      element.getAttribute(html_names::kAltAttr).empty();
+      element.getAttribute(html_names::kAltAttr).IsEmpty();
   bool treat_as_replaced =
       (has_intrinsic_dimensions || has_dimensions_from_ar) &&
       (element.GetDocument().InQuirksMode() || has_no_alt_attribute);
@@ -194,23 +192,24 @@ void HTMLImageFallbackHelper::CustomStyleForAltText(
     // attribute, or the Document is in quirks mode The user agent is expected
     // to treat the element as a replaced element whose content is the text that
     // the element represents, if any."
-    fallback.ShowAsReplaced(builder.Width(), builder.Height(),
-                            builder.EffectiveZoom());
+    fallback.ShowAsReplaced(new_style.Width(), new_style.Height(),
+                            new_style.EffectiveZoom());
 
     // 16px for the image and 2px for its top/left border/padding offset.
     int pixels_for_alt_image = 18;
-    if (ImageSmallerThanAltImage(pixels_for_alt_image, builder.Width(),
-                                 builder.Height())) {
+    if (ImageSmallerThanAltImage(pixels_for_alt_image, new_style.Width(),
+                                 new_style.Height())) {
       fallback.HideBrokenImageIcon();
     } else {
       fallback.ShowBorder();
-      fallback.ShowBrokenImageIcon(builder.Direction() == TextDirection::kLtr);
+      fallback.ShowBrokenImageIcon(new_style.IsLeftToRightDirection());
     }
   } else {
-    if (builder.Display() == EDisplay::kInline) {
-      builder.SetWidth(Length());
-      builder.SetHeight(Length());
-      builder.SetAspectRatio(ComputedStyleInitialValues::InitialAspectRatio());
+    if (new_style.Display() == EDisplay::kInline) {
+      new_style.SetWidth(Length());
+      new_style.SetHeight(Length());
+      new_style.SetAspectRatio(
+          ComputedStyleInitialValues::InitialAspectRatio());
     }
     if (ElementRepresentsNothing(element)) {
       // "If the element is an img element that represents nothing and the user
@@ -226,7 +225,7 @@ void HTMLImageFallbackHelper::CustomStyleForAltText(
       // the text, optionally with an icon indicating that an image is missing,
       // so that the user can request the image be displayed or investigate why
       // it is not rendering."
-      fallback.ShowBrokenImageIcon(builder.Direction() == TextDirection::kLtr);
+      fallback.ShowBrokenImageIcon(new_style.IsLeftToRightDirection());
     }
   }
 }

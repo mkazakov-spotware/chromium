@@ -1,17 +1,21 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview Installs Autofill management functions on the __gCrWeb object.
- *
- * It scans the DOM, extracting and storing forms and returns a JSON string
- * representing an array of objects, each of which represents an Autofill form
- * with information about a form to be filled and/or submitted and it can be
- * translated to struct FormData
- * (chromium/src/components/autofill/core/common/form_data.h) for further
- * processing.
- */
+  * @fileoverview Installs Autofill management functions on the __gCrWeb object.
+  *
+  * It scans the DOM, extracting and storing forms and returns a JSON string
+  * representing an array of objects, each of which represents an Autofill form
+  * with information about a form to be filled and/or submitted and it can be
+  * translated to struct FormData
+  * (chromium/src/components/autofill/core/common/form_data.h) for further
+  * processing.
+
+  * TODO(crbug.com/647084): Enable checkTypes error for this file.
+  * @suppress {checkTypes}
+  */
+goog.provide('__crWeb.autofill');
 
 /**
  * The autofill data for a form.
@@ -23,6 +27,9 @@
  */
 // eslint-disable-next-line no-var
 var FormData;
+
+/* Beginning of anonymous object. */
+(function() {
 
 /**
  * Namespace for this file. It depends on |__gCrWeb| having already been
@@ -153,12 +160,28 @@ __gCrWeb.autofill['extractForms'] = function(
 };
 
 /**
- * Fills data into the active form field.
+ * Fills data into the active form field. Logic uses string identifiers.
+ *
+ * @param {AutofillFormFieldData} data The data to fill in.
+ * @return {boolean} Whether the field was filled successfully.
+ * TODO(crbug/1131038): Remove once using renderer IDs is launched.
+ */
+__gCrWeb.autofill['fillActiveFormField'] = function(data) {
+  const activeElement = document.activeElement;
+  if (data['identifier'] !== __gCrWeb.form.getFieldIdentifier(activeElement)) {
+    return false;
+  }
+  __gCrWeb.autofill.lastAutoFilledElement = activeElement;
+  return __gCrWeb.autofill.fillFormField(data, activeElement);
+};
+
+/**
+ * Fills data into the active form field. Logic uses unique renderer IDs.
  *
  * @param {AutofillFormFieldData} data The data to fill in.
  * @return {boolean} Whether the field was filled successfully.
  */
-__gCrWeb.autofill['fillActiveFormField'] = function(data) {
+__gCrWeb.autofill['fillActiveFormFieldUsingRendererIDs'] = function(data) {
   const activeElement = document.activeElement;
   const fieldID = data['unique_renderer_id'];
   if (typeof fieldID === 'undefined' ||
@@ -185,11 +208,16 @@ function controlElementInputListener_(evt) {
  * |forceFillFieldName| will always be filled even if non-empty.
  *
  * @param {!FormData} data Autofill data to fill in.
- * @param {number} forceFillFieldID Identified field will always be
- *     filled even if non-empty. May be __gCrWeb.fill.RENDERER_ID_NOT_SET.
+ * @param {string} forceFillFieldStringID Identified field will always be
+ *     filled even if non-empty. May be null.
+ * @param {number} forceFillFieldNumericID Identified field will always be
+ *     filled even if non-empty. May be kNotSetRendererId.
+ * @param {bool} useRendererIDs Whether the logic should use numeric renderer
+ *     IDs for form filling.
  * @return {string} JSON encoded list of renderer IDs of filled elements.
  */
-__gCrWeb.autofill['fillForm'] = function(data, forceFillFieldID) {
+__gCrWeb.autofill['fillForm'] = function(
+    data, forceFillFieldStringID, forceFillFieldNumericID, useRendererIDs) {
   // Inject CSS to style the autofilled elements with a yellow background.
   if (!__gCrWeb.autofill.styleInjected) {
     const style = document.createElement('style');
@@ -203,8 +231,10 @@ __gCrWeb.autofill['fillForm'] = function(data, forceFillFieldID) {
   }
   const filledElements = {};
 
-  const form =
-      __gCrWeb.form.getFormElementFromUniqueFormId(data.formRendererID);
+  const form = useRendererIDs ?
+      __gCrWeb.form.getFormElementFromUniqueFormId(data.formRendererID) :
+      __gCrWeb.form.getFormElementFromIdentifier(data.formName);
+
   const controlElements = form ?
       __gCrWeb.form.getFormControlElements(form) :
       __gCrWeb.fill.getUnownedAutofillableFormFieldElements(
@@ -223,9 +253,10 @@ __gCrWeb.autofill['fillForm'] = function(data, forceFillFieldID) {
     }
 
     // Skip fields for which autofill data is missing.
+    const fieldIdentifier = __gCrWeb.form.getFieldIdentifier(element);
     const fieldRendererID = __gCrWeb.fill.getUniqueID(element);
-    const fieldData = data.fields[fieldRendererID];
-
+    const fieldData = useRendererIDs ? data.fields[fieldRendererID] :
+                                       data.fields[fieldIdentifier];
     if (!fieldData) {
       continue;
     }
@@ -236,7 +267,9 @@ __gCrWeb.autofill['fillForm'] = function(data, forceFillFieldID) {
     //    always autofilled; see AutofillManager::FillOrPreviewDataModelForm().
     // c) The "value" or "placeholder" attributes match the value, if any; or
     // d) The value has not been set by the user.
-    const shouldBeForceFilled = fieldRendererID === forceFillFieldID.toString();
+    const shouldBeForceFilled = useRendererIDs ?
+        fieldRendererID === forceFillFieldNumericID :
+        fieldIdentifier === forceFillFieldStringID;
     if (element.value && __gCrWeb.form.fieldWasEditedByUser(element) &&
         !__gCrWeb.autofill.sanitizedFieldIsEmpty(element.value) &&
         !shouldBeForceFilled && !__gCrWeb.fill.isSelectElement(element) &&
@@ -289,16 +322,19 @@ __gCrWeb.autofill['fillForm'] = function(data, forceFillFieldID) {
  * 'change' events are sent for fields whose contents changed.
  * Based on FormCache::ClearSectionWithElement().
  *
- * @param {string} formUniqueID Unique ID of the form element.
- * @param {string} fieldUniqueID Unique ID of the field initiating the
+ * @param {string} formName Identifier for form element (from
+ *     getFormIdentifier).
+ * @param {string} fieldIdentifier Identifier for form field initiating the
  *     clear action.
  * @return {string} JSON encoded list of renderer IDs of cleared elements.
  */
 __gCrWeb.autofill['clearAutofilledFields'] = function(
-    formUniqueID, fieldUniqueID) {
+    formName, formUniqueID, fieldIdentifier, fieldUniqueID, useRendererIDs) {
   const clearedElements = [];
 
-  const form = __gCrWeb.form.getFormElementFromUniqueFormId(formUniqueID);
+  const form = useRendererIDs ?
+      __gCrWeb.form.getFormElementFromUniqueFormId(formUniqueID) :
+      __gCrWeb.form.getFormElementFromIdentifier(formName);
 
   const controlElements = form ?
       __gCrWeb.form.getFormControlElements(form) :
@@ -308,8 +344,12 @@ __gCrWeb.autofill['clearAutofilledFields'] = function(
 
   let formField = null;
   for (let i = 0; i < controlElements.length; ++i) {
-    if (__gCrWeb.fill.getUniqueID(controlElements[i]) ==
-        fieldUniqueID.toString()) {
+    if ((useRendererIDs &&
+         __gCrWeb.fill.getUniqueID(controlElements[i]) ==
+             fieldUniqueID.toString()) ||
+        (!useRendererIDs &&
+         __gCrWeb.form.getFieldIdentifier(controlElements[i]) ==
+             fieldIdentifier)) {
       formField = controlElements[i];
       break;
     }
@@ -383,7 +423,7 @@ __gCrWeb.autofill.extractNewForms = function(
     minimumRequiredFields, restrictUnownedFieldsToFormlessCheckout) {
   const forms = [];
   // Protect against custom implementation of Array.toJSON in host pages.
-  (function() {
+  /** @suppress {checkTypes} */ (function() {
     forms.toJSON = null;
   })();
 
@@ -404,7 +444,7 @@ __gCrWeb.autofill.extractNewForms = function(
       continue;
     }
 
-    const form = new __gCrWeb['common'].JSONSafeObject();
+    const form = new __gCrWeb['common'].JSONSafeObject;
     if (!__gCrWeb.fill.webFormElementToFormData(
             window, formElement, null, extractMask, form, null /* field */)) {
       continue;
@@ -428,7 +468,7 @@ __gCrWeb.autofill.extractNewForms = function(
   const numEditableUnownedElements =
       scanFormControlElements_(unownedControlElements);
   if (numEditableUnownedElements > 0) {
-    const unownedForm = new __gCrWeb['common'].JSONSafeObject();
+    const unownedForm = new __gCrWeb['common'].JSONSafeObject;
     const hasUnownedForm =
         __gCrWeb.fill.unownedFormElementsAndFieldSetsToFormData(
             window, fieldsets, unownedControlElements, extractMask,
@@ -553,8 +593,8 @@ __gCrWeb.autofill['fillPredictionData'] = function(data) {
       if (!__gCrWeb.fill.isAutofillableElement(element)) {
         continue;
       }
-      const elementID = __gCrWeb.fill.getUniqueID(element);
-      const value = formData[elementID];
+      const elementName = __gCrWeb.form.getFieldIdentifier(element);
+      const value = formData[elementName];
       if (value) {
         element.placeholder = value;
       }
@@ -566,7 +606,7 @@ __gCrWeb.autofill['fillPredictionData'] = function(data) {
  * Returns whether |value| contains only formating characters.
  *
  * It is based on the logic in
- *     void SanitizedFieldIsEmpty(const std::u16string& value);
+ *     void SanitizedFieldIsEmpty(const base::string16& value);
  * in chromium/src/components/autofill/common/autofill_util.h.
  *
  * @param {HTMLFormElement} formElement A form element to be processed.
@@ -578,3 +618,5 @@ __gCrWeb.autofill['sanitizedFieldIsEmpty'] = function(value) {
   // formatting characters.
   return __gCrWeb.common.trim(value.replace(/[-_()/|]/g, '')) === '';
 };
+
+}());  // End of anonymous object

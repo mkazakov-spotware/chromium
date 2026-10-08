@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_BLUETOOTH_DEVICES_OBSERVER_H_
 #define ASH_BLUETOOTH_DEVICES_OBSERVER_H_
 
-#include "ash/ash_export.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 #include "ui/events/devices/input_device.h"
@@ -18,8 +18,7 @@ namespace ash {
 // ui::InputDeviceEventObserver as InputDeviceEventObserver does not have
 // knowledge about bluetooth device status thus does not send notifications of
 // bluetooth device changes.
-class ASH_EXPORT BluetoothDevicesObserver
-    : public device::BluetoothAdapter::Observer {
+class BluetoothDevicesObserver : public device::BluetoothAdapter::Observer {
  public:
   // Note |device| can be nullptr here if only the bluetooth adapter status
   // changes.
@@ -28,10 +27,6 @@ class ASH_EXPORT BluetoothDevicesObserver
 
   explicit BluetoothDevicesObserver(
       const AdapterOrDeviceChangedCallback& device_changed_callback);
-
-  BluetoothDevicesObserver(const BluetoothDevicesObserver&) = delete;
-  BluetoothDevicesObserver& operator=(const BluetoothDevicesObserver&) = delete;
-
   ~BluetoothDevicesObserver() override;
 
   // device::BluetoothAdapter::Observer:
@@ -66,6 +61,8 @@ class ASH_EXPORT BluetoothDevicesObserver
   AdapterOrDeviceChangedCallback adapter_or_device_changed_callback_;
 
   base::WeakPtrFactory<BluetoothDevicesObserver> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothDevicesObserver);
 };
 
 }  // namespace ash

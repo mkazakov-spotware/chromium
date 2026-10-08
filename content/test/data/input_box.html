@@ -17,12 +17,9 @@
       position: absolute;
       top: 4000px;
       left: 3000px;
-      border:0;
-      padding:0;
     }
   </style>
   <script>
-    notifyBrowser = false;
     function notifyWhenLoaded() {
       if (loaded)
         window.domAutomationController.send("LOADED");

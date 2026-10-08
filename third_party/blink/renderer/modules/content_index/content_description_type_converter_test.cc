@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,16 +33,16 @@ const blink::ContentDescription* CreateDescription(const WTF::String& category,
 }
 
 // Migration adapters for operator==(ContentIconDefinition).
-absl::optional<String> GetSizesOrNone(const ContentIconDefinition* cid) {
+base::Optional<String> GetSizesOrNone(const ContentIconDefinition* cid) {
   if (cid->hasSizes())
     return cid->sizes();
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<String> GetTypeOrNone(const ContentIconDefinition* cid) {
+base::Optional<String> GetTypeOrNone(const ContentIconDefinition* cid) {
   if (cid->hasType())
     return cid->type();
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // anonymous namespace

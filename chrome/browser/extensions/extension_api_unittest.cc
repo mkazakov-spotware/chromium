@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/extension_api_unittest.h"
 
+#include "base/values.h"
 #include "chrome/browser/extensions/extension_function_test_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "extensions/browser/extension_function.h"
@@ -28,36 +29,39 @@ std::unique_ptr<base::Value> ExtensionApiUnittest::RunFunctionAndReturnValue(
     ExtensionFunction* function,
     const std::string& args) {
   function->set_extension(extension());
-  return utils::RunFunctionAndReturnSingleResult(function, args, browser());
+  return std::unique_ptr<base::Value>(
+      utils::RunFunctionAndReturnSingleResult(function, args, browser()));
 }
 
-absl::optional<base::Value::Dict>
+std::unique_ptr<base::DictionaryValue>
 ExtensionApiUnittest::RunFunctionAndReturnDictionary(
     ExtensionFunction* function,
     const std::string& args) {
-  std::unique_ptr<base::Value> value =
-      RunFunctionAndReturnValue(function, args);
-  // We expect to either have successfully retrieved a dictionary from the
-  // value or the value to have been nullptr.
-  EXPECT_TRUE(!value || value->is_dict());
+  base::Value* value = RunFunctionAndReturnValue(function, args).release();
+  base::DictionaryValue* dict = NULL;
 
-  if (!value || !value->is_dict())
-    return absl::nullopt;
+  if (value && !value->GetAsDictionary(&dict))
+    delete value;
 
-  return std::move(*value).TakeDict();
+  // We expect to either have successfuly retrieved a dictionary from the value,
+  // or the value to have been NULL.
+  EXPECT_TRUE(dict || !value);
+  return std::unique_ptr<base::DictionaryValue>(dict);
 }
 
-std::unique_ptr<base::Value> ExtensionApiUnittest::RunFunctionAndReturnList(
+std::unique_ptr<base::ListValue> ExtensionApiUnittest::RunFunctionAndReturnList(
     ExtensionFunction* function,
     const std::string& args) {
   base::Value* value = RunFunctionAndReturnValue(function, args).release();
+  base::ListValue* list = NULL;
 
-  if (value && !value->is_list())
+  if (value && !value->GetAsList(&list))
     delete value;
 
-  // We expect to have successfully retrieved a list from the value.
-  EXPECT_TRUE(value && value->is_list());
-  return std::unique_ptr<base::Value>(value);
+  // We expect to either have successfuly retrieved a list from the value,
+  // or the value to have been NULL.
+  EXPECT_TRUE(list);
+  return std::unique_ptr<base::ListValue>(list);
 }
 
 std::string ExtensionApiUnittest::RunFunctionAndReturnError(

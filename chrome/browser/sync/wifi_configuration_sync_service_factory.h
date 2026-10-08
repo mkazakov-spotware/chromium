@@ -1,35 +1,35 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_WIFI_CONFIGURATION_SYNC_SERVICE_FACTORY_H_
 #define CHROME_BROWSER_SYNC_WIFI_CONFIGURATION_SYNC_SERVICE_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include <memory>
+
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
-
-namespace ash::sync_wifi {
-class WifiConfigurationSyncService;
-}
 
 namespace base {
 template <typename T>
 struct DefaultSingletonTraits;
 }  // namespace base
 
-class WifiConfigurationSyncServiceFactory : public ProfileKeyedServiceFactory {
+namespace chromeos {
+namespace sync_wifi {
+class WifiConfigurationSyncService;
+}  // namespace sync_wifi
+}  // namespace chromeos
+
+class WifiConfigurationSyncServiceFactory
+    : public BrowserContextKeyedServiceFactory {
  public:
-  static ash::sync_wifi::WifiConfigurationSyncService* GetForProfile(
+  static chromeos::sync_wifi::WifiConfigurationSyncService* GetForProfile(
       Profile* profile,
       bool create);
   static WifiConfigurationSyncServiceFactory* GetInstance();
-
-  WifiConfigurationSyncServiceFactory(
-      const WifiConfigurationSyncServiceFactory&) = delete;
-  WifiConfigurationSyncServiceFactory& operator=(
-      const WifiConfigurationSyncServiceFactory&) = delete;
-
   static bool ShouldRunInProfile(const Profile* profile);
 
  private:
@@ -44,6 +44,8 @@ class WifiConfigurationSyncServiceFactory : public ProfileKeyedServiceFactory {
       content::BrowserContext* context) const override;
   void RegisterProfilePrefs(
       user_prefs::PrefRegistrySyncable* registry) override;
+
+  DISALLOW_COPY_AND_ASSIGN(WifiConfigurationSyncServiceFactory);
 };
 
 #endif  // CHROME_BROWSER_SYNC_WIFI_CONFIGURATION_SYNC_SERVICE_FACTORY_H_

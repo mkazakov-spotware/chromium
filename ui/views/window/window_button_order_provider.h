@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "ui/views/views_export.h"
 #include "ui/views/window/frame_buttons.h"
 
@@ -21,10 +22,6 @@ namespace views {
 class VIEWS_EXPORT WindowButtonOrderProvider {
  public:
   static WindowButtonOrderProvider* GetInstance();
-
-  WindowButtonOrderProvider(const WindowButtonOrderProvider&) = delete;
-  WindowButtonOrderProvider& operator=(const WindowButtonOrderProvider&) =
-      delete;
 
   const std::vector<views::FrameButton>& leading_buttons() const {
     return leading_buttons_;
@@ -50,6 +47,8 @@ class VIEWS_EXPORT WindowButtonOrderProvider {
   // arrangement of a trailing minimize, maximize, close, will be set.
   std::vector<views::FrameButton> leading_buttons_;
   std::vector<views::FrameButton> trailing_buttons_;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowButtonOrderProvider);
 };
 
 }  // namespace views

@@ -27,7 +27,7 @@
 
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink-forward.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/css/style_recalc_change.h"
+#include "third_party/blink/renderer/core/css/style_recalc.h"
 #include "third_party/blink/renderer/core/dom/node.h"
 #include "third_party/blink/renderer/core/dom/static_node_list.h"
 #include "third_party/blink/renderer/core/html/collection_type.h"
@@ -40,7 +40,6 @@ class Element;
 class ExceptionState;
 class HTMLCollection;
 class RadioNodeList;
-class StyleRecalcContext;
 class WhitespaceAttacher;
 
 using StaticElementList = StaticNodeTypeList<Element>;
@@ -93,7 +92,6 @@ class CORE_EXPORT ContainerNode : public Node {
 
   Node* firstChild() const { return first_child_; }
   Node* lastChild() const { return last_child_; }
-  bool hasChildren() const { return first_child_; }
   bool HasChildren() const { return first_child_; }
 
   bool HasOneChild() const {
@@ -288,10 +286,7 @@ class CORE_EXPORT ContainerNode : public Node {
                                    Element* changed_element,
                                    Node* node_before_change,
                                    Node* node_after_change);
-  void RecalcDescendantStyles(const StyleRecalcChange,
-                              const StyleRecalcContext&);
-  void RecalcSubsequentSiblingStyles(const StyleRecalcChange,
-                                     const StyleRecalcContext&);
+  void RecalcDescendantStyles(const StyleRecalcChange);
   void RebuildChildrenLayoutTrees(WhitespaceAttacher&);
   void RebuildLayoutTreeForChild(Node* child, WhitespaceAttacher&);
 
@@ -323,8 +318,7 @@ class CORE_EXPORT ContainerNode : public Node {
                                &node,
                                unchanged_previous,
                                unchanged_next,
-                               {},
-                               String()};
+                               nullptr};
       return change;
     }
 
@@ -339,8 +333,7 @@ class CORE_EXPORT ContainerNode : public Node {
                                &node,
                                previous_sibling,
                                next_sibling,
-                               {},
-                               String()};
+                               nullptr};
       return change;
     }
 
@@ -374,11 +367,9 @@ class CORE_EXPORT ContainerNode : public Node {
     //  - nextSibling of the last inserted node after multiple node insertion.
     Node* sibling_after_change = nullptr;
     // List of removed nodes for ChildrenChangeType::kAllChildrenRemoved.
-    // Only populated if ChildrenChangedAllChildrenRemovedNeedsList() returns
-    // true.
-    HeapVector<Member<Node>> removed_nodes;
-    // |old_text| is mostly empty, only used for text node changes.
-    const String& old_text;
+    // This is available only if ChildrenChangedAllChildrenRemovedNeedsList()
+    // returns true.
+    HeapVector<Member<Node>>* removed_nodes;
   };
 
   // Notifies the node that it's list of children have changed (either by adding
@@ -399,12 +390,10 @@ class CORE_EXPORT ContainerNode : public Node {
   // a descendant LayoutBox.
   virtual LayoutBox* GetLayoutBoxForScrolling() const;
 
-  Element* GetAutofocusDelegate() const;
-
   void Trace(Visitor*) const override;
 
  protected:
-  ContainerNode(TreeScope*, ConstructionType);
+  ContainerNode(TreeScope*, ConstructionType = kCreateContainer);
 
   // |attr_name| and |owner_element| are only used for element attribute
   // modifications. |ChildrenChange| is either nullptr or points to a

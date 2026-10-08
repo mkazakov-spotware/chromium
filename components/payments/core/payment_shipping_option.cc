@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,31 +54,27 @@ PaymentShippingOption& PaymentShippingOption::operator=(
   return *this;
 }
 
-bool PaymentShippingOption::FromValueDict(const base::Value::Dict& dict) {
-  const std::string* id_in = dict.FindString(kPaymentShippingOptionId);
-  if (!id_in) {
+bool PaymentShippingOption::FromDictionaryValue(
+    const base::DictionaryValue& value) {
+  if (!value.GetString(kPaymentShippingOptionId, &id)) {
     return false;
   }
-  id = *id_in;
 
-  const std::string* label_in = dict.FindString(kPaymentShippingOptionLabel);
-  if (!label_in) {
+  if (!value.GetString(kPaymentShippingOptionLabel, &label)) {
     return false;
   }
-  label = *label_in;
 
-  const base::Value::Dict* amount_dict =
-      dict.FindDict(kPaymentShippingOptionAmount);
-  if (!amount_dict) {
+  const base::DictionaryValue* amount_dict = nullptr;
+  if (!value.GetDictionary(kPaymentShippingOptionAmount, &amount_dict)) {
     return false;
   }
   amount = mojom::PaymentCurrencyAmount::New();
-  if (!PaymentCurrencyAmountFromValueDict(*amount_dict, amount.get())) {
+  if (!PaymentCurrencyAmountFromDictionaryValue(*amount_dict, amount.get())) {
     return false;
   }
 
   // Selected is optional.
-  selected = dict.FindBool(kPaymentShippingOptionSelected).value_or(selected);
+  value.GetBoolean(kPaymentShippingOptionSelected, &selected);
 
   return true;
 }

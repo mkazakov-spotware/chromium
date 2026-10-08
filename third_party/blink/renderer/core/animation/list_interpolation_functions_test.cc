@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,15 @@
 #include "third_party/blink/renderer/core/animation/css_number_interpolation_type.h"
 #include "third_party/blink/renderer/core/animation/interpolation_value.h"
 #include "third_party/blink/renderer/core/animation/underlying_value.h"
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
 namespace {
 
-class TestNonInterpolableValue final : public NonInterpolableValue {
+class TestNonInterpolableValue : public NonInterpolableValue {
  public:
-  ~TestNonInterpolableValue() override = default;
+  ~TestNonInterpolableValue() final = default;
 
   static scoped_refptr<TestNonInterpolableValue> Create(int value) {
     DCHECK_GE(value, 1);
@@ -79,7 +78,7 @@ class TestUnderlyingValue : public UnderlyingValue {
 InterpolationValue CreateInterpolableList(
     const Vector<std::pair<double, int>>& values) {
   return ListInterpolationFunctions::CreateList(
-      values.size(), [&values](wtf_size_t i) {
+      values.size(), [&values](size_t i) {
         return InterpolationValue(
             std::make_unique<InterpolableNumber>(values[i].first),
             TestNonInterpolableValue::Create(values[i].second));
@@ -90,7 +89,7 @@ InterpolationValue CreateInterpolableList(
 // but a non-interpolable list of nullptrs.
 InterpolationValue CreateInterpolableList(const Vector<double>& values) {
   return ListInterpolationFunctions::CreateList(
-      values.size(), [&values](wtf_size_t i) {
+      values.size(), [&values](size_t i) {
         return InterpolationValue(
             std::make_unique<InterpolableNumber>(values[i]), nullptr);
       });
@@ -100,7 +99,7 @@ InterpolationValue CreateInterpolableList(const Vector<double>& values) {
 // values, but an interpolable list of zeroes.
 InterpolationValue CreateNonInterpolableList(const Vector<int>& values) {
   return ListInterpolationFunctions::CreateList(
-      values.size(), [&values](wtf_size_t i) {
+      values.size(), [&values](size_t i) {
         return InterpolationValue(std::make_unique<InterpolableNumber>(0),
                                   TestNonInterpolableValue::Create(values[i]));
       });

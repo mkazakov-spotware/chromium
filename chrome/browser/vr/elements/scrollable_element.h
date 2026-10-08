@@ -1,15 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_VR_ELEMENTS_SCROLLABLE_ELEMENT_H_
 #define CHROME_BROWSER_VR_ELEMENTS_SCROLLABLE_ELEMENT_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/vr_ui_export.h"
-
-#include "ui/gfx/animation/keyframe/transition.h"
 
 namespace vr {
 
@@ -23,10 +20,6 @@ class VR_UI_EXPORT ScrollableElement : public UiElement {
   enum Orientation { kVertical, kHorizontal };
 
   explicit ScrollableElement(Orientation orientation);
-
-  ScrollableElement(const ScrollableElement&) = delete;
-  ScrollableElement& operator=(const ScrollableElement&) = delete;
-
   ~ScrollableElement() override;
 
   // Sets the maximum size the element can have in the axis of orientation.
@@ -63,7 +56,7 @@ class VR_UI_EXPORT ScrollableElement : public UiElement {
   float ComputeScrollSpan() const;
   void SetInitialScroll();
 
-  raw_ptr<UiElement> inner_element_;
+  UiElement* inner_element_;
 
   Orientation orientation_ = kVertical;
   LayoutAlignment scrolling_anchoring_ = NONE;
@@ -72,7 +65,9 @@ class VR_UI_EXPORT ScrollableElement : public UiElement {
 
   float scroll_offset_ = 0.0f;
 
-  gfx::Transition cached_transition_;
+  Transition cached_transition_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScrollableElement);
 };
 
 }  // namespace vr

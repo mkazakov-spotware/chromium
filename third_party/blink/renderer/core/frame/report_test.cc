@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/frame/document_policy_violation_report_body.h"
+#include "third_party/blink/renderer/core/frame/feature_policy_violation_report_body.h"
 #include "third_party/blink/renderer/core/frame/location_report_body.h"
-#include "third_party/blink/renderer/core/frame/permissions_policy_violation_report_body.h"
 
 namespace blink {
 namespace {
@@ -67,8 +67,8 @@ TEST(ReportMatchIdTest, DifferentInputsGenerateDifferentMatchId) {
                    input.resource_url))
             .MatchId());
     match_ids.push_back(
-        Report(ReportType::kPermissionsPolicyViolation, input.url,
-               MakeGarbageCollected<PermissionsPolicyViolationReportBody>(
+        Report(ReportType::kFeaturePolicyViolation, input.url,
+               MakeGarbageCollected<FeaturePolicyViolationReportBody>(
                    input.feature_id, input.message, input.disposition))
             .MatchId());
   }

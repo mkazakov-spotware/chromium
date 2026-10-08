@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,14 @@
 #include "third_party/blink/public/common/media/display_type.h"
 #include "third_party/blink/public/platform/web_fullscreen_video_status.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
-#include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/html/media/html_media_test_helper.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/layout_box_model_object.h"
 #include "third_party/blink/renderer/core/loader/empty_clients.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
-#include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/testing/empty_web_media_player.h"
-#include "third_party/blink/renderer/platform/testing/paint_test_configurations.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 
 using testing::_;
@@ -35,10 +32,10 @@ class HTMLVideoElementMockMediaPlayer : public EmptyWebMediaPlayer {
   MOCK_METHOD1(OnDisplayTypeChanged, void(DisplayType));
   MOCK_CONST_METHOD0(HasAvailableVideoFrame, bool());
 };
+
 }  // namespace
 
-class HTMLVideoElementTest : public PaintTestConfigurations,
-                             public RenderingTest {
+class HTMLVideoElementTest : public PageTestBase {
  public:
   void SetUp() override {
     auto mock_media_player =
@@ -66,9 +63,8 @@ class HTMLVideoElementTest : public PaintTestConfigurations,
   // Owned by HTMLVideoElementFrameClient.
   HTMLVideoElementMockMediaPlayer* media_player_;
 };
-INSTANTIATE_PAINT_TEST_SUITE_P(HTMLVideoElementTest);
 
-TEST_P(HTMLVideoElementTest, PictureInPictureInterstitialAndTextContainer) {
+TEST_F(HTMLVideoElementTest, PictureInPictureInterstitialAndTextContainer) {
   scoped_refptr<cc::Layer> layer = cc::Layer::Create();
   SetFakeCcLayer(layer.get());
 
@@ -95,7 +91,7 @@ TEST_P(HTMLVideoElementTest, PictureInPictureInterstitialAndTextContainer) {
   SetFakeCcLayer(nullptr);
 }
 
-TEST_P(HTMLVideoElementTest, PictureInPictureInterstitial_Reattach) {
+TEST_F(HTMLVideoElementTest, PictureInPictureInterstitial_Reattach) {
   scoped_refptr<cc::Layer> layer = cc::Layer::Create();
   SetFakeCcLayer(layer.get());
 
@@ -120,7 +116,7 @@ TEST_P(HTMLVideoElementTest, PictureInPictureInterstitial_Reattach) {
   GetDocument().body()->removeChild(video());
 }
 
-TEST_P(HTMLVideoElementTest, EffectivelyFullscreen_DisplayType) {
+TEST_F(HTMLVideoElementTest, EffectivelyFullscreen_DisplayType) {
   video()->SetSrc("http://example.com/foo.mp4");
   test::RunPendingTasks();
   UpdateAllLifecyclePhasesForTest();
@@ -153,34 +149,35 @@ TEST_P(HTMLVideoElementTest, EffectivelyFullscreen_DisplayType) {
   }
 }
 
-TEST_P(HTMLVideoElementTest, ChangeLayerNeedsCompositingUpdate) {
+TEST_F(HTMLVideoElementTest, ChangeLayerNeedsCompositingUpdate) {
   video()->SetSrc("http://example.com/foo.mp4");
   test::RunPendingTasks();
   UpdateAllLifecyclePhasesForTest();
 
   auto layer1 = cc::Layer::Create();
   SetFakeCcLayer(layer1.get());
-  auto* painting_layer =
-      To<LayoutBoxModelObject>(video()->GetLayoutObject())->PaintingLayer();
-  EXPECT_TRUE(painting_layer->SelfNeedsRepaint());
+  ASSERT_TRUE(video()->GetLayoutObject()->HasLayer());
+  auto* paint_layer =
+      To<LayoutBoxModelObject>(video()->GetLayoutObject())->Layer();
+  EXPECT_TRUE(paint_layer->NeedsCompositingInputsUpdate());
   UpdateAllLifecyclePhasesForTest();
-  EXPECT_FALSE(painting_layer->SelfNeedsRepaint());
+  EXPECT_FALSE(paint_layer->NeedsCompositingInputsUpdate());
 
   // Change to another cc layer.
   auto layer2 = cc::Layer::Create();
   SetFakeCcLayer(layer2.get());
-  EXPECT_TRUE(painting_layer->SelfNeedsRepaint());
+  EXPECT_TRUE(paint_layer->NeedsCompositingInputsUpdate());
   UpdateAllLifecyclePhasesForTest();
-  EXPECT_FALSE(painting_layer->SelfNeedsRepaint());
+  EXPECT_FALSE(paint_layer->NeedsCompositingInputsUpdate());
 
   // Remove cc layer.
   SetFakeCcLayer(nullptr);
-  EXPECT_TRUE(painting_layer->SelfNeedsRepaint());
+  EXPECT_TRUE(paint_layer->NeedsCompositingInputsUpdate());
   UpdateAllLifecyclePhasesForTest();
-  EXPECT_FALSE(painting_layer->SelfNeedsRepaint());
+  EXPECT_FALSE(paint_layer->NeedsCompositingInputsUpdate());
 }
 
-TEST_P(HTMLVideoElementTest, HasAvailableVideoFrameChecksWMP) {
+TEST_F(HTMLVideoElementTest, HasAvailableVideoFrameChecksWMP) {
   video()->SetSrc("http://example.com/foo.mp4");
   test::RunPendingTasks();
   UpdateAllLifecyclePhasesForTest();
@@ -192,44 +189,17 @@ TEST_P(HTMLVideoElementTest, HasAvailableVideoFrameChecksWMP) {
   EXPECT_TRUE(video()->HasAvailableVideoFrame());
 }
 
-TEST_P(HTMLVideoElementTest, AutoPIPExitPIPTest) {
+TEST_F(HTMLVideoElementTest, AutoPIPExitPIPTest) {
   video()->SetSrc("http://example.com/foo.mp4");
   test::RunPendingTasks();
 
   // Set in auto PIP.
-  video()->SetPersistentState(true);
+  video()->OnBecamePersistentVideo(true);
 
   // Shouldn't get to PictureInPictureController::ExitPictureInPicture
   // and fail the DCHECK.
   EXPECT_NO_FATAL_FAILURE(video()->DidEnterFullscreen());
   test::RunPendingTasks();
-}
-
-// TODO(1190335): Remove this once we no longer support "default poster image"
-// Blink embedders (such as Webview) can set the default poster image for a
-// video using `blink::Settings`. In some cases we still need to distinguish
-// between a "real" poster image and the default poster image.
-TEST_P(HTMLVideoElementTest, DefaultPosterImage) {
-  String const kDefaultPosterImage = "http://www.example.com/foo.jpg";
-
-  // Override the default poster image
-  GetDocument().GetSettings()->SetDefaultVideoPosterURL(kDefaultPosterImage);
-
-  // Need to create a new video element, since
-  // `HTMLVideoElement::default_poster_url_` is set upon construction.
-  auto* video = MakeGarbageCollected<HTMLVideoElement>(GetDocument());
-  GetDocument().body()->appendChild(video);
-
-  // Assert that video element (without an explicitly set poster image url) has
-  // the same poster image URL as what we just set.
-  EXPECT_TRUE(video->IsDefaultPosterImageURL());
-  EXPECT_EQ(kDefaultPosterImage, video->PosterImageURL());
-
-  // Set the poster image of the video to something
-  video->setAttribute(html_names::kPosterAttr,
-                      "http://www.example.com/bar.jpg");
-  EXPECT_FALSE(video->IsDefaultPosterImageURL());
-  EXPECT_NE(kDefaultPosterImage, video->PosterImageURL());
 }
 
 }  // namespace blink

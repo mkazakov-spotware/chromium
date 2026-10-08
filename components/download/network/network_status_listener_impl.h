@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_DOWNLOAD_NETWORK_NETWORK_STATUS_LISTENER_IMPL_H_
 #define COMPONENTS_DOWNLOAD_NETWORK_NETWORK_STATUS_LISTENER_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "components/download/network/network_status_listener.h"
 #include "services/network/public/cpp/network_connection_tracker.h"
 
@@ -20,11 +19,6 @@ class NetworkStatusListenerImpl
  public:
   explicit NetworkStatusListenerImpl(
       network::NetworkConnectionTracker* network_connection_tracker);
-
-  NetworkStatusListenerImpl(const NetworkStatusListenerImpl&) = delete;
-  NetworkStatusListenerImpl& operator=(const NetworkStatusListenerImpl&) =
-      delete;
-
   ~NetworkStatusListenerImpl() override;
 
   // NetworkStatusListener implementation.
@@ -36,11 +30,9 @@ class NetworkStatusListenerImpl
   // network::NetworkConnectionTracker::NetworkConnectionObserver.
   void OnConnectionChanged(network::mojom::ConnectionType type) override;
 
-  void OnNetworkStatusReady(network::mojom::ConnectionType type);
+  network::NetworkConnectionTracker* network_connection_tracker_;
 
-  raw_ptr<network::NetworkConnectionTracker> network_connection_tracker_;
-
-  base::WeakPtrFactory<NetworkStatusListenerImpl> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(NetworkStatusListenerImpl);
 };
 
 }  // namespace download

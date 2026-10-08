@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verifies that filtering in StylesSidebarPane hides sidebar separators.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>
@@ -70,7 +70,7 @@
   ]);
 
   function dumpSidebarSeparators() {
-    var separators = UI.panels.elements.stylesWidget.contentElement.querySelectorAll('.sidebar-separator');
+    var separators = UI.panels.elements._stylesWidget.contentElement.querySelectorAll('.sidebar-separator');
     for (var i = 0; i < separators.length; ++i) {
       var separator = separators[i];
       var hidden = separator.classList.contains('hidden');

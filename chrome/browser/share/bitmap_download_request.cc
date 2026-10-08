@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,14 +22,15 @@ static void JNI_BitmapDownloadRequest_DownloadBitmap(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_filename,
     const JavaParamRef<jobject>& j_bitmap) {
-  std::u16string filename(ConvertJavaStringToUTF16(env, j_filename));
+  base::string16 filename(ConvertJavaStringToUTF16(env, j_filename));
   SkBitmap bitmap =
       gfx::CreateSkBitmapFromJavaBitmap(gfx::JavaBitmap(j_bitmap));
 
   const GURL data_url = GURL(webui::GetBitmapDataUrl(bitmap));
 
   content::DownloadManager* download_manager =
-      ProfileManager::GetLastUsedProfile()->GetDownloadManager();
+      content::BrowserContext::GetDownloadManager(
+          ProfileManager::GetLastUsedProfile());
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation("download_bitmap", R"(
         semantics {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Script which gathers power measurement test results from bots.
@@ -15,24 +15,8 @@ import json
 import logging
 import re
 import sys
-
-import six  # pylint: disable=import-error
-
-# //content/test/gpu is Python 3-only at this point, but
-# //testing/scripts/test_buildbucket_api_gpu_use_cases.py does import this file
-# via Python 2 on bots during the "get compile targets for scripts" step. So,
-# keep this compatibility in for now.
-# pylint: disable=wrong-import-position
-if six.PY3:
-  import urllib.request as ulib_request
-  import urllib.parse as ulib_parse
-  import urllib.error
-  HTTPError = urllib.error.HTTPError
-else:
-  import urllib2 as ulib_request  # pylint: disable=import-error
-  import urllib as ulib_parse  # pylint: disable=ungrouped-imports
-  HTTPError = ulib_request.HTTPError
-# pylint: enable=wrong-import-position
+import urllib
+import urllib2
 
 _TESTS = [
     'Basic', 'Video_720_MP4', 'Video_720_MP4_Fullscreen',
@@ -50,10 +34,10 @@ def GetBuildData(method, request):
   # The Python docs are wrong. It's fine for this payload to be just
   # a JSON string.
   headers = {'content-type': 'application/json', 'accept': 'application/json'}
-  url = ulib_request.Request(
+  url = urllib2.Request(
       'https://cr-buildbucket.appspot.com/prpc/buildbucket.v2.Builds/' + method,
       request, headers)
-  conn = ulib_request.urlopen(url)
+  conn = urllib2.urlopen(url)
   result = conn.read()
   conn.close()
   # Result is a multi-line string the first line of which is
@@ -113,13 +97,13 @@ def GetJsonForLatestNBuilds(bot, build_count):
   builds_json = GetBuildData('SearchBuilds', request)
   builds = builds_json['builds']
   if len(builds) != build_count:
-    logging.warning('Asked %d builds, got %d builds', build_count, len(builds))
+    logging.warn('Asked %d builds, got %d builds', build_count, len(builds))
   return builds
 
 
 def FindStepLogURL(steps, step_name, log_name):
   # The format of this JSON-encoded protobuf is defined here:
-  # https://chromium.googlesource.com/infra/luci/luci-go/+/main/
+  # https://chromium.googlesource.com/infra/luci/luci-go/+/master/
   #   buildbucket/proto/step.proto
   # It's easiest to just use the RPC explorer to fetch one and see
   # what's desired to extract.
@@ -133,18 +117,18 @@ def FindStepLogURL(steps, step_name, log_name):
   return None
 
 
-# pylint: disable=too-many-branches
 def ProcessStepStdout(stdout_url, entry):
+  url = urllib.unquote(stdout_url)
   number = entry['number']
-  logging.debug('[BUILD %d] stdout URL: %s', number,
-                ulib_parse.unquote(stdout_url))
+  logging.debug('[BUILD %d] stdout URL: %s' % (number, url))
 
   # The following fails with Python 2.7.6, but succeeds with Python 2.7.14.
-  conn = ulib_request.urlopen(stdout_url + '?format=raw')
-  lines = conn.read().splitlines()
+  conn = urllib2.urlopen(stdout_url + '?format=raw')
+  data = conn.read()
   conn.close()
 
-  pattern = re.compile(r'^\[(\d+)/(\d+)\]$')
+  lines = data.splitlines()
+  pattern = re.compile('^\[(\d+)/(\d+)\]$')
   results = None
   bot_candidates = []
   for line in lines:
@@ -154,18 +138,16 @@ def ProcessStepStdout(stdout_url, entry):
       # The line after results is [test/total_test] name passed {time}s
       tokens = line.split()
       if len(tokens) != 4:
-        logging.warning('Wrong format for test passed line: %s', line)
+        logging.warn('Wrong format for test passed line: %s' % line)
         continue
       groups = pattern.match(tokens[0]).groups()
       if len(groups) != 2:
-        logging.warning('Wrong format, expected [d+/d+], got %s', tokens[0])
+        logging.warn('Wrong format, expected [d+/d+], got %s' % tokens[0])
         continue
       test_name = tokens[1]
       if tokens[2] != 'passed':
-        logging.warning('Wrong format for test passed line: %s', line)
-      # pylint: disable=unsupported-assignment-operation
+        logging.warn('Wrong format for test passed line: %s' % line)
       my_results['name'] = test_name
-      # pylint: enable=unsupported-assignment-operation
       entry['tests'].append(my_results)
     elif line.startswith('Chrome Env: '):
       chrome_env = ast.literal_eval(line[len('Chrome Env: '):])
@@ -189,27 +171,25 @@ def ProcessStepStdout(stdout_url, entry):
       entry['bot'] = name
       break
   else:
-    logging.warning('[BUILD %d] Fail to locate the bot name', number)
-
-
-# pylint: enable=too-many-branches
+    logging.warn('[BUILD %d] Fail to locate the bot name' % number)
 
 
 def CollectBuildData(build, data_entries):
   if 'number' not in build:
-    logging.warning('Missing build number')
+    logging.warn('Missing build number')
     return False
   if 'bot' not in build:
-    logging.warning('[BUILD %d] Missing bot name', build['number'])
+    logging.warn('[BUILD %d] Missing bot name' % build['number'])
     return False
   if len(build['tests']) != len(_TESTS):
-    logging.warning('[BUILD %d] Measured test count should be %d, got %d',
-                    build['number'], len(_TESTS), len(build['tests']))
+    logging.warn('[BUILD %d] Measured test count should be %d, got %d' %
+                 (build['number'], len(_TESTS), len(build['tests'])))
     return False
   for test in build['tests']:
     if not CollectTestData(test, data_entries):
       return False
-  for ii, data_entry in enumerate(data_entries):
+  for ii in range(len(data_entries)):
+    data_entry = data_entries[ii]
     data_entry['build'] = build['number']
     data_entry['bot'] = build['bot']
     data_entry['iteration'] = ii
@@ -219,12 +199,12 @@ def CollectBuildData(build, data_entries):
 def CollectTestData(test, data_entries):
   test_name = test['name'].split('.')[-1]
   if test_name not in _TESTS:
-    logging.warning('Unexpected test name: %s', test_name)
+    logging.warn('Unexpected test name: %s' % test_name)
     return False
   for measure in _MEASUREMENTS:
     measure_name = measure + ' Power_0'
     if measure_name not in test:
-      logging.warning('Missing measurment: %s', measure_name)
+      logging.warn('Missing measurment: %s' % measure_name)
       return False
     results = test[measure_name]
     assert results
@@ -254,10 +234,10 @@ def SaveResultsAsCSV(results, output_filename):
       w = csv.DictWriter(csv_file, fieldnames=labels)
       w.writeheader()
       w.writerows(csv_data)
-    logging.debug('Data from %d tests saved to %s', len(csv_data),
-                  output_filename)
+    logging.debug(
+        'Data from %d tests saved to %s' % (len(csv_data), output_filename))
   else:
-    logging.warning('No valid data saved to %s', output_filename)
+    logging.warn('No valid data saved to %s' % output_filename)
 
 
 def main():
@@ -307,7 +287,7 @@ def main():
 
   last_build = options.last_build
   if last_build is None and options.build_count <= 100:
-    logging.debug('Start pulling latest %d builds', options.build_count)
+    logging.debug('Start pulling latest %d builds' % options.build_count)
     builds = GetJsonForLatestNBuilds(options.bot, options.build_count)
   else:
     if last_build is None:
@@ -315,29 +295,30 @@ def main():
     first_build = last_build - options.build_count + 1
     builds = []
     for build_id in range(last_build, first_build - 1, -1):
-      logging.debug('Pull data for build %d', build_id)
+      logging.debug('Pull data for build %d' % build_id)
       try:
         build_json = GetJsonForBuildSteps(options.bot, build_id)
         build_json['number'] = build_id
         builds.append(build_json)
-      except HTTPError:
-        logging.warning('HTTPError raised, failed to load data from build %d',
-                        build_id)
+      except urllib2.HTTPError:
+        logging.warn('HTTPError raised, failed to load data from build %d',
+                     build_id)
 
   logging.debug('Start processing stdout data')
   results = {'builds': []}
-  for ii, build in enumerate(builds):
+  for ii in range(len(builds)):
+    build = builds[ii]
     if 'number' not in build:
-      logging.warning('Missing number in build #%d', ii)
+      logging.warn('Missing number in build #%d' % ii)
       continue
     number = build['number']
     if 'steps' not in build:
-      logging.warning('[BUILD %d] Missing steps', number)
+      logging.warn('[BUILD %d] Missing steps' % number)
       continue
     stdout_url = FindStepLogURL(build['steps'], options.step, 'stdout')
     if not stdout_url:
-      logging.warning('[BUILD %d] Unable to find stdout from step %s*', number,
-                      options.step)
+      logging.warn('[BUILD %d] Unable to find stdout from step %s*' %
+                   (number, options.step))
       continue
     results['builds'].append({'number': number, 'tests': []})
     ProcessStepStdout(stdout_url, results['builds'][-1])

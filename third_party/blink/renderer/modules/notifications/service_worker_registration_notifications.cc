@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_security_origin.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_get_notification_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_notification_options.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -20,14 +19,16 @@
 #include "third_party/blink/renderer/modules/notifications/notification_resources_loader.h"
 #include "third_party/blink/renderer/modules/service_worker/service_worker_registration.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 
 namespace blink {
 
 ServiceWorkerRegistrationNotifications::ServiceWorkerRegistrationNotifications(
     ExecutionContext* context,
     ServiceWorkerRegistration* registration)
-    : Supplement(*registration), ExecutionContextLifecycleObserver(context) {}
+    : ExecutionContextLifecycleObserver(context), registration_(registration) {}
 
 ScriptPromise ServiceWorkerRegistrationNotifications::showNotification(
     ScriptState* script_state,
@@ -36,12 +37,6 @@ ScriptPromise ServiceWorkerRegistrationNotifications::showNotification(
     const NotificationOptions* options,
     ExceptionState& exception_state) {
   ExecutionContext* execution_context = ExecutionContext::From(script_state);
-  if (execution_context->IsInFencedFrame()) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotAllowedError,
-        "showNotification() is not allowed in fenced frames.");
-    return ScriptPromise();
-  }
 
   // If context object's active worker is null, reject the promise with a
   // TypeError exception.
@@ -108,6 +103,7 @@ void ServiceWorkerRegistrationNotifications::ContextDestroyed() {
 }
 
 void ServiceWorkerRegistrationNotifications::Trace(Visitor* visitor) const {
+  visitor->Trace(registration_);
   visitor->Trace(loaders_);
   Supplement<ServiceWorkerRegistration>::Trace(visitor);
   ExecutionContextLifecycleObserver::Trace(visitor);
@@ -137,10 +133,10 @@ void ServiceWorkerRegistrationNotifications::PrepareShow(
   scoped_refptr<const SecurityOrigin> origin =
       GetExecutionContext()->GetSecurityOrigin();
   NotificationResourcesLoader* loader =
-      MakeGarbageCollected<NotificationResourcesLoader>(WTF::BindOnce(
-          &ServiceWorkerRegistrationNotifications::DidLoadResources,
-          WrapWeakPersistent(this), std::move(origin), data->Clone(),
-          WrapPersistent(resolver)));
+      MakeGarbageCollected<NotificationResourcesLoader>(
+          WTF::Bind(&ServiceWorkerRegistrationNotifications::DidLoadResources,
+                    WrapWeakPersistent(this), std::move(origin), data->Clone(),
+                    WrapPersistent(resolver)));
   loaders_.insert(loader);
   loader->Start(GetExecutionContext(), *data);
 }
@@ -153,7 +149,7 @@ void ServiceWorkerRegistrationNotifications::DidLoadResources(
   DCHECK(loaders_.Contains(loader));
 
   NotificationManager::From(GetExecutionContext())
-      ->DisplayPersistentNotification(GetSupplementable()->RegistrationId(),
+      ->DisplayPersistentNotification(registration_->RegistrationId(),
                                       std::move(data), loader->GetResources(),
                                       WrapPersistent(resolver));
   loaders_.erase(loader);

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,28 +11,28 @@
 
 namespace {
 
-chromeos::OrientationType ToAshOrientationLockType(
+ash::OrientationLockType ToAshOrientationLockType(
     device::mojom::ScreenOrientationLockType blink_orientation_lock) {
   switch (blink_orientation_lock) {
     case device::mojom::ScreenOrientationLockType::DEFAULT:
     case device::mojom::ScreenOrientationLockType::ANY:
-      return chromeos::OrientationType::kAny;
+      return ash::OrientationLockType::kAny;
     case device::mojom::ScreenOrientationLockType::PORTRAIT:
-      return chromeos::OrientationType::kPortrait;
+      return ash::OrientationLockType::kPortrait;
     case device::mojom::ScreenOrientationLockType::PORTRAIT_PRIMARY:
-      return chromeos::OrientationType::kPortraitPrimary;
+      return ash::OrientationLockType::kPortraitPrimary;
     case device::mojom::ScreenOrientationLockType::PORTRAIT_SECONDARY:
-      return chromeos::OrientationType::kPortraitSecondary;
+      return ash::OrientationLockType::kPortraitSecondary;
     case device::mojom::ScreenOrientationLockType::LANDSCAPE:
-      return chromeos::OrientationType::kLandscape;
+      return ash::OrientationLockType::kLandscape;
     case device::mojom::ScreenOrientationLockType::LANDSCAPE_PRIMARY:
-      return chromeos::OrientationType::kLandscapePrimary;
+      return ash::OrientationLockType::kLandscapePrimary;
     case device::mojom::ScreenOrientationLockType::LANDSCAPE_SECONDARY:
-      return chromeos::OrientationType::kLandscapeSecondary;
+      return ash::OrientationLockType::kLandscapeSecondary;
     case device::mojom::ScreenOrientationLockType::NATURAL:
-      return chromeos::OrientationType::kNatural;
+      return ash::OrientationLockType::kNatural;
   }
-  return chromeos::OrientationType::kAny;
+  return ash::OrientationLockType::kAny;
 }
 
 }  // namespace
@@ -58,9 +58,8 @@ void ScreenOrientationDelegateChromeos::Lock(
       ToAshOrientationLockType(orientation_lock));
 }
 
-bool ScreenOrientationDelegateChromeos::ScreenOrientationProviderSupported(
-    content::WebContents* web_contents) {
-  return ash::TabletMode::IsInTabletMode();
+bool ScreenOrientationDelegateChromeos::ScreenOrientationProviderSupported() {
+  return ash::TabletMode::Get() && ash::TabletMode::Get()->InTabletMode();
 }
 
 void ScreenOrientationDelegateChromeos::Unlock(

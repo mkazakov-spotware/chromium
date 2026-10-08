@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -55,9 +56,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) TCPServerSocket
                   Delegate* delegate,
                   const net::NetworkTrafficAnnotationTag& traffic_annotation);
 
-  TCPServerSocket(const TCPServerSocket&) = delete;
-  TCPServerSocket& operator=(const TCPServerSocket&) = delete;
-
   ~TCPServerSocket() override;
 
   int Listen(const net::IPEndPoint& local_addr,
@@ -85,7 +83,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) TCPServerSocket
   // Process the next Accept() from |pending_accepts_queue_|.
   void ProcessNextAccept();
 
-  const raw_ptr<Delegate> delegate_;
+  Delegate* const delegate_;
   std::unique_ptr<net::ServerSocket> socket_;
   int backlog_;
   std::vector<std::unique_ptr<PendingAccept>> pending_accepts_queue_;
@@ -94,6 +92,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) TCPServerSocket
   net::NetworkTrafficAnnotationTag traffic_annotation_;
 
   base::WeakPtrFactory<TCPServerSocket> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TCPServerSocket);
 };
 
 }  // namespace network

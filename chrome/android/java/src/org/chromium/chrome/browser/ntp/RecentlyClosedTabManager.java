@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@ package org.chromium.chrome.browser.ntp;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.chrome.browser.tabmodel.TabModel;
+import org.chromium.chrome.browser.tab.Tab;
 
 import java.util.List;
 
@@ -15,50 +15,38 @@ import java.util.List;
  */
 public interface RecentlyClosedTabManager {
     /**
-     * Sets the {@link Runnable} to be called whenever the list of recently closed entries changes.
+     * Sets the {@link Runnable} to be called whenever the list of recently closed tabs changes.
      * @param runnable The {@link Runnable} to be called, or null.
      */
-    void setEntriesUpdatedRunnable(@Nullable Runnable runnable);
+    void setTabsUpdatedRunnable(@Nullable Runnable runnable);
 
     /**
-     * @param maxEntryCount The maximum number of recently closed entries to return.
-     * @return A snapshot of the list of recently closed entries, with up to maxEntryCount elements.
+     * @param maxTabCount The maximum number of recently closed tabs to return.
+     * @return A snapshot of the list of recently closed tabs, with up to maxTabCount elements.
      */
-    List<RecentlyClosedEntry> getRecentlyClosedEntries(int maxEntryCount);
+    List<RecentlyClosedTab> getRecentlyClosedTabs(int maxTabCount);
 
     /**
      * Opens a recently closed tab in the current tab or a new tab. If opened in the current tab,
      * the current tab's entire history is replaced.
      *
-     * @param tabModel The {@link TabModel} to open the tab into.
+     * @param tab The current Tab.
      * @param recentTab The RecentlyClosedTab to open.
      * @param windowOpenDisposition The WindowOpenDisposition value specifying whether to open in
-     *         the current tab or a new tab. The current tab is found in native.
+     *         the current tab or a new tab.
      * @return Whether the tab was successfully opened.
      */
-    boolean openRecentlyClosedTab(
-            TabModel tabModel, RecentlyClosedTab recentTab, int windowOpenDisposition);
+    boolean openRecentlyClosedTab(Tab tab, RecentlyClosedTab recentTab, int windowOpenDisposition);
 
     /**
-     * Opens a recently closed entry in new tab(s).
-     *
-     * @param tabModel The {@link TabModel} to open the tab into.
-     * @param recentEntry The RecentlyClosedEntry to open.
-     * @return Whether the tab was successfully opened.
+     * Opens the most recently closed tab in a new tab.
      */
-    boolean openRecentlyClosedEntry(TabModel tabModel, RecentlyClosedEntry recentEntry);
-
-    /**
-     * Opens the most recently closed entry in new tab(s).
-     *
-     * @param tabModel The {@link TabModel} to open the tab(s) into.
-     */
-    void openMostRecentlyClosedEntry(TabModel tabModel);
+    void openRecentlyClosedTab();
 
     /**
      * Clears all recently closed tabs.
      */
-    void clearRecentlyClosedEntries();
+    void clearRecentlyClosedTabs();
 
     /**
      * To be called before this instance is abandoned to the garbage collector so it can do any

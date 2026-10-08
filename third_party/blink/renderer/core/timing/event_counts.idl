@@ -1,4 +1,4 @@
-[Exposed=Window]
+[Exposed=Window, RuntimeEnabled=EventTiming]
 interface EventCounts {
     readonly maplike<DOMString, unsigned long long>;
 };

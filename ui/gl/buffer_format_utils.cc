@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,6 @@ unsigned BufferFormatToGLInternalFormat(gfx::BufferFormat format) {
       return GL_R16_EXT;
     case gfx::BufferFormat::RG_88:
       return GL_RG_EXT;
-    case gfx::BufferFormat::RG_1616:
-      return GL_RG16_EXT;
     case gfx::BufferFormat::BGR_565:
       return GL_RGB;
     case gfx::BufferFormat::RGBA_4444:
@@ -41,8 +39,6 @@ unsigned BufferFormatToGLInternalFormat(gfx::BufferFormat format) {
       return GL_RGB_YCRCB_420_CHROMIUM;
     case gfx::BufferFormat::YUV_420_BIPLANAR:
       return GL_RGB_YCBCR_420V_CHROMIUM;
-    case gfx::BufferFormat::YUVA_420_TRIPLANAR:
-      return GL_NONE;
     case gfx::BufferFormat::P010:
       return GL_RGB_YCBCR_P010_CHROMIUM;
   }
@@ -61,7 +57,6 @@ unsigned BufferFormatToGLDataType(gfx::BufferFormat format) {
     case gfx::BufferFormat::BGRA_8888:
       return GL_UNSIGNED_BYTE;
     case gfx::BufferFormat::R_16:
-    case gfx::BufferFormat::RG_1616:
       return GL_UNSIGNED_SHORT;
     case gfx::BufferFormat::BGR_565:
       return GL_UNSIGNED_SHORT_5_6_5;
@@ -74,7 +69,6 @@ unsigned BufferFormatToGLDataType(gfx::BufferFormat format) {
       return GL_HALF_FLOAT_OES;
     case gfx::BufferFormat::YVU_420:
     case gfx::BufferFormat::YUV_420_BIPLANAR:
-    case gfx::BufferFormat::YUVA_420_TRIPLANAR:
     case gfx::BufferFormat::P010:
       return GL_NONE;
   }

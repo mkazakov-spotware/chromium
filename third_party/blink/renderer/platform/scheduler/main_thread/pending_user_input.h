@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,8 +26,6 @@ class PLATFORM_EXPORT PendingUserInput {
 
    public:
     Monitor() = default;
-    Monitor(const Monitor&) = delete;
-    Monitor& operator=(const Monitor&) = delete;
 
     void OnEnqueue(WebInputEvent::Type, const WebInputEventAttribution&);
     void OnDequeue(WebInputEvent::Type, const WebInputEventAttribution&);
@@ -47,16 +45,18 @@ class PLATFORM_EXPORT PendingUserInput {
 
     // A mapping between attributions to pending events.
     HashMap<AttributionGroup, EventCounter> pending_events_;
+
+    DISALLOW_COPY_AND_ASSIGN(Monitor);
   };
 
   PendingUserInput() = delete;
-  PendingUserInput(const PendingUserInput&) = delete;
-  PendingUserInput& operator=(const PendingUserInput&) = delete;
 
   // Returns true if the given blink event type is considered to be sampled
   // from a continuous source.
   // https://wicg.github.io/is-input-pending/#continuousevents
   static bool IsContinuousEventType(WebInputEvent::Type);
+
+  DISALLOW_COPY_AND_ASSIGN(PendingUserInput);
 };
 
 }  // namespace scheduler

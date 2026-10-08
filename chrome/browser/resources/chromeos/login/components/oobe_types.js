@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
  * This file contains typedefs for chromeOS OOBE properties.
  */
 
-export const OobeTypes = {};
+var OobeTypes = {};
 
 /**
  * ChromeOS OOBE language descriptor.
@@ -59,8 +59,14 @@ OobeTypes.DemoCountryDsc;
 OobeTypes.A11yStatuses;
 
 /**
+ * OOBE screen object (which is created in ui/login/screen.js )
+ * @typedef {!Object}
+ */
+OobeTypes.Screen;
+
+/**
  * Timezone ID.
- * @typedef {!string}
+ * @typedef {!String}
  */
 OobeTypes.Timezone;
 
@@ -68,7 +74,7 @@ OobeTypes.Timezone;
  * ChromeOS timezone descriptor.
  * @typedef {{
  *   value: (OobeTypes.Timezone|undefined),
- *   title: (string|undefined),
+ *   title: (String|undefined),
  *   selected: (boolean|undefined),
  * }}
  */
@@ -76,7 +82,7 @@ OobeTypes.TimezoneDsc;
 
 /**
  * OOBE configuration, allows automation during OOBE.
- * Keys are also listed in chrome/browser/ash/login/configuration_keys.h
+ * Keys are also listed in chrome/browser/chromeos/login/configuration_keys.h
  * @typedef {{
  *   language: (string|undefined),
  *   inputMethod: (string|undefined),
@@ -89,60 +95,45 @@ OobeTypes.TimezoneDsc;
  *   eulaSendStatistics: (boolean|undefined),
  *   networkUseConnected: (boolean|undefined),
  *   arcTosAutoAccept: (boolean|undefined),
- *   networkConfig: (string|undefined),
  * }}
  */
 OobeTypes.OobeConfiguration;
 
 /**
- * Parameters passed to show PIN setup screen
- * @typedef {{
- *   auth_token: string,
- *   is_child_account: boolean,
- * }}
+ * Specifies the type of the information that is requested by the security token
+ * PIN dialog.
+ * Must be kept in sync with chromeos/constants/security_token_pin_types.h.
+ * @enum {number}
  */
-OobeTypes.PinSetupScreenParameters;
+OobeTypes.SecurityTokenPinDialogType = {
+  PIN: 0,
+  PUK: 1,
+};
+
+/**
+ * Specifies the type of the error that is displayed in the security token PIN
+ * dialog.
+ * Must be kept in sync with chromeos/constants/security_token_pin_types.h.
+ * @enum {number}
+ */
+OobeTypes.SecurityTokenPinDialogErrorType = {
+  NONE: 0,
+  UNKNOWN: 1,
+  INVALID_PIN: 2,
+  INVALID_PUK: 3,
+  MAX_ATTEMPTS_EXCEEDED: 4,
+};
 
 /**
  * Configuration of the security token PIN dialog.
  * @typedef {{
+ *   codeType: OobeTypes.SecurityTokenPinDialogType,
  *   enableUserInput: boolean,
+ *   errorLabel: OobeTypes.SecurityTokenPinDialogErrorType,
  *   attemptsLeft: number,
- *   hasError: boolean,
- *   formattedError: string,
- *   formattedAttemptsLeft: string,
  * }}
  */
 OobeTypes.SecurityTokenPinDialogParameters;
-
-/**
- * Data type that is expected for each app that is shown on the RecommendApps screen.
- * @typedef {{
- *   icon: string,
- *   name: string,
- *   package_name: string,
- * }}
- */
-OobeTypes.RecommendedAppsOldExpectedAppData;
-
-/**
- * Data type that is expected for each app that is shown on the RecommendApps
- * screen.
- * @typedef {{
- *   title: string,
- *   icon_url: string,
- *   category: string,
- *   description: string,
- *   content_rating: number,
- *   content_rating_icon: string,
- *   in_app_purchases: boolean,
- *   was_installed: boolean,
- *   contains_ads: boolean,
- *   package_name: string,
- *   optimized_for_chrome: boolean,
- * }}
- */
-OobeTypes.RecommendedAppsExpectedAppData;
 
 /**
  * Event sent from inner webview to enclosing Recommended apps screen.
@@ -154,6 +145,16 @@ OobeTypes.RecommendedAppsExpectedAppData;
 OobeTypes.RecommendedAppsSelectionEventData;
 
 /**
+ * Specifies the mechanism for calculating oobe-dialog inner padding.
+ * @enum {string}
+ */
+OobeTypes.DialogPaddingMode = {
+  AUTO: 'auto',
+  NARROW: 'narrow',
+  WIDE: 'wide',
+};
+
+/**
  * Fatal Error Codes from SignInFatalErrorScreen
  * @enum {number}
  */
@@ -162,61 +163,4 @@ OobeTypes.FatalErrorCode = {
   SCRAPED_PASSWORD_VERIFICATION_FAILURE: 1,
   INSECURE_CONTENT_BLOCKED: 2,
   MISSING_GAIA_INFO: 3,
-  CUSTOM: 4,
 };
-
-/**
- * Screen steps used by EnterpriseEnrollmentElement. Defined here to
- * avoid circular dependencies since it is needed by cr_ui.js
- * @enum {string}
- */
-OobeTypes.EnrollmentStep = {
-  LOADING: 'loading',
-  SIGNIN: 'signin',
-  AD_JOIN: 'ad-join',
-  WORKING: 'working',
-  ATTRIBUTE_PROMPT: 'attribute-prompt',
-  ERROR: 'error',
-  SUCCESS: 'success',
-  CHECKING: 'checking',
-  TPM_CHECKING: 'tpm-checking',
-  KIOSK_ENROLLMENT: 'kiosk-enrollment',
-
-  /* TODO(dzhioev): define this step on C++ side.
-   */
-  ATTRIBUTE_PROMPT_ERROR: 'attribute-prompt-error',
-  ACTIVE_DIRECTORY_JOIN_ERROR: 'active-directory-join-error',
-};
-
-/**
- * Bottom buttons type of GAIA dialog.
- * @enum {string}
- */
-OobeTypes.GaiaDialogButtonsType = {
-  DEFAULT: 'default',
-  ENTERPRISE_PREFERRED: 'enterprise-preferred',
-  KIOSK_PREFERRED: 'kiosk-preferred',
-};
-
-/**
- * Type of license used for enrollment.
- * Numbers for supported licenses should be in sync with
- * `LicenseType` from enrollment_config.h.
- * @enum {number}
- */
-OobeTypes.LicenseType = {
-  /* NONE: 0, not used in js */
-  ENTERPRISE: 1,
-  EDUCATION: 2,
-  KIOSK: 3,
-};
-
-/**
- * Verification figure for the Quick Start screen.
- * @typedef {{
- *   shape: number,
- *   color: number,
- *   digit: number,
- * }}
- */
-OobeTypes.QuickStartScreenFigureData;

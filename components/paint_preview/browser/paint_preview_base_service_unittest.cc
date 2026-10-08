@@ -1,22 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/paint_preview/browser/paint_preview_base_service.h"
 
-#include <memory>
-#include <utility>
-
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
+#include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/paint_preview/browser/paint_preview_base_service_test_factory.h"
-#include "components/paint_preview/browser/paint_preview_file_mixin.h"
 #include "components/paint_preview/common/mojom/paint_preview_recorder.mojom.h"
-#include "components/paint_preview/common/serialized_recording.h"
 #include "components/paint_preview/common/test_utils.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/test/navigation_simulator.h"
@@ -25,10 +20,6 @@
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_test_helper.h"
-#endif
 
 namespace paint_preview {
 
@@ -55,7 +46,7 @@ class RejectionPaintPreviewPolicy : public PaintPreviewPolicy {
 std::unique_ptr<KeyedService> BuildServiceWithRejectionPolicy(
     SimpleFactoryKey* key) {
   return std::make_unique<PaintPreviewBaseService>(
-      std::make_unique<PaintPreviewFileMixin>(key->GetPath(), kTestFeatureDir),
+      key->GetPath(), kTestFeatureDir,
       std::make_unique<RejectionPaintPreviewPolicy>(), key->IsOffTheRecord());
 }
 
@@ -68,7 +59,7 @@ base::FilePath CreateDir(scoped_refptr<FileManager> manager,
       base::BindOnce(&FileManager::CreateOrGetDirectory, manager, key, false),
       base::BindOnce(
           [](base::OnceClosure quit, base::FilePath* out,
-             const absl::optional<base::FilePath>& path) {
+             const base::Optional<base::FilePath>& path) {
             EXPECT_TRUE(path.has_value());
             EXPECT_FALSE(path->empty());
             *out = path.value();
@@ -129,9 +120,7 @@ class MockPaintPreviewRecorder : public mojom::PaintPreviewRecorder {
   mojo::AssociatedReceiver<mojom::PaintPreviewRecorder> binding_{this};
 };
 
-class PaintPreviewBaseServiceTest
-    : public content::RenderViewHostTestHarness,
-      public testing::WithParamInterface<RecordingPersistence> {
+class PaintPreviewBaseServiceTest : public content::RenderViewHostTestHarness {
  public:
   PaintPreviewBaseServiceTest() = default;
   ~PaintPreviewBaseServiceTest() override = default;
@@ -176,60 +165,32 @@ class PaintPreviewBaseServiceTest
         rejection_policy_key_.get());
   }
 
-  PaintPreviewBaseService::CaptureParams CreateCaptureParams(
-      content::WebContents* web_contents,
-      base::FilePath* root_dir,
-      RecordingPersistence persistence,
-      gfx::Rect clip_rect,
-      bool capture_links,
-      size_t max_per_capture_size,
-      uint64_t max_decoded_image_size_bytes) {
-    PaintPreviewBaseService::CaptureParams capture_params;
-    capture_params.web_contents = web_contents;
-    capture_params.root_dir = root_dir;
-    capture_params.persistence = persistence;
-    capture_params.clip_rect = clip_rect;
-    capture_params.capture_links = capture_links;
-    capture_params.max_per_capture_size = max_per_capture_size;
-    capture_params.max_decoded_image_size_bytes = max_decoded_image_size_bytes;
-    return capture_params;
-  }
-
  private:
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Instantiate LacrosService for WakeLock support during capturing.
-  chromeos::ScopedLacrosServiceTestHelper scoped_lacros_service_test_helper_;
-#endif
-  std::unique_ptr<SimpleFactoryKey> key_;
-  std::unique_ptr<SimpleFactoryKey> rejection_policy_key_;
+  std::unique_ptr<SimpleFactoryKey> key_ = nullptr;
+  std::unique_ptr<SimpleFactoryKey> rejection_policy_key_ = nullptr;
 };
 
-TEST_P(PaintPreviewBaseServiceTest, CaptureMainFrame) {
+TEST_F(PaintPreviewBaseServiceTest, CaptureMainFrame) {
   MockPaintPreviewRecorder recorder;
   auto params = mojom::PaintPreviewCaptureParams::New();
   params->clip_rect = gfx::Rect(0, 0, 0, 0);
   params->is_main_frame = true;
   params->max_capture_size = 50;
-  params->max_decoded_image_size_bytes = 1000;
   recorder.SetExpectedParams(std::move(params));
   auto response = mojom::PaintPreviewCaptureResponse::New();
-  response->embedding_token = absl::nullopt;
-  if (GetParam() == RecordingPersistence::kMemoryBuffer) {
-    response->skp.emplace(mojo_base::BigBuffer());
-  }
+  response->embedding_token = base::nullopt;
   recorder.SetResponse(mojom::PaintPreviewStatus::kOk, std::move(response));
   OverrideInterface(&recorder);
 
   auto* service = GetService();
   EXPECT_FALSE(service->IsOffTheRecord());
-  auto manager = service->GetFileMixin()->GetFileManager();
+  auto manager = service->GetFileManager();
   base::FilePath path = CreateDir(
       manager, manager->CreateKey(web_contents()->GetLastCommittedURL()));
 
   base::RunLoop loop;
   service->CapturePaintPreview(
-      CreateCaptureParams(web_contents(), &path, GetParam(),
-                          gfx::Rect(0, 0, 0, 0), true, 50, 1000),
+      web_contents(), path, gfx::Rect(0, 0, 0, 0), true, 50,
       base::BindOnce(
           [](base::OnceClosure quit_closure,
              PaintPreviewBaseService::CaptureStatus expected_status,
@@ -243,31 +204,19 @@ TEST_P(PaintPreviewBaseServiceTest, CaptureMainFrame) {
             auto token = base::UnguessableToken::Deserialize(
                 result->proto.root_frame().embedding_token_high(),
                 result->proto.root_frame().embedding_token_low());
-            switch (GetParam()) {
-              case RecordingPersistence::kFileSystem: {
-#if BUILDFLAG(IS_WIN)
-                base::FilePath path = base::FilePath(
-                    base::UTF8ToWide(result->proto.root_frame().file_path()));
-                base::FilePath name(
-                    base::UTF8ToWide(base::StrCat({token.ToString(), ".skp"})));
+#if defined(OS_WIN)
+            base::FilePath path = base::FilePath(
+                base::UTF8ToUTF16(result->proto.root_frame().file_path()));
+            base::FilePath name(
+                base::UTF8ToUTF16(base::StrCat({token.ToString(), ".skp"})));
 #else
-                base::FilePath path =
-                    base::FilePath(result->proto.root_frame().file_path());
-                base::FilePath name(base::StrCat({token.ToString(), ".skp"}));
+            base::FilePath path =
+                base::FilePath(result->proto.root_frame().file_path());
+            base::FilePath name(base::StrCat({token.ToString(), ".skp"}));
 #endif
-                EXPECT_EQ(path.DirName(), expected_path);
-                EXPECT_EQ(path.BaseName(), name);
-              } break;
-
-              case RecordingPersistence::kMemoryBuffer: {
-                EXPECT_EQ(result->serialized_skps.size(), 1u);
-                EXPECT_TRUE(result->serialized_skps.contains(token));
-              } break;
-
-              default:
-                NOTREACHED();
-                break;
-            }
+            EXPECT_EQ(path.DirName(), expected_path);
+            LOG(ERROR) << expected_path;
+            EXPECT_EQ(path.BaseName(), name);
             std::move(quit_closure).Run();
           },
           loop.QuitClosure(), PaintPreviewBaseService::CaptureStatus::kOk,
@@ -275,7 +224,7 @@ TEST_P(PaintPreviewBaseServiceTest, CaptureMainFrame) {
   loop.Run();
 }
 
-TEST_P(PaintPreviewBaseServiceTest, CaptureFailed) {
+TEST_F(PaintPreviewBaseServiceTest, CaptureFailed) {
   MockPaintPreviewRecorder recorder;
   auto params = mojom::PaintPreviewCaptureParams::New();
   params->clip_rect = gfx::Rect(0, 0, 0, 0);
@@ -283,21 +232,19 @@ TEST_P(PaintPreviewBaseServiceTest, CaptureFailed) {
   params->max_capture_size = 0;
   recorder.SetExpectedParams(std::move(params));
   auto response = mojom::PaintPreviewCaptureResponse::New();
-  response->embedding_token = absl::nullopt;
+  response->embedding_token = base::nullopt;
   recorder.SetResponse(mojom::PaintPreviewStatus::kFailed, std::move(response));
   OverrideInterface(&recorder);
 
   auto* service = GetService();
   EXPECT_FALSE(service->IsOffTheRecord());
-  auto manager = service->GetFileMixin()->GetFileManager();
+  auto manager = service->GetFileManager();
   base::FilePath path = CreateDir(
       manager, manager->CreateKey(web_contents()->GetLastCommittedURL()));
 
   base::RunLoop loop;
   service->CapturePaintPreview(
-      CreateCaptureParams(web_contents(), &path, GetParam(),
-                          gfx::Rect(0, 0, 0, 0), true, 0,
-                          std::numeric_limits<uint64_t>::max()),
+      web_contents(), path, gfx::Rect(0, 0, 0, 0), true, 0,
       base::BindOnce(
           [](base::OnceClosure quit_closure,
              PaintPreviewBaseService::CaptureStatus expected_status,
@@ -312,7 +259,7 @@ TEST_P(PaintPreviewBaseServiceTest, CaptureFailed) {
   loop.Run();
 }
 
-TEST_P(PaintPreviewBaseServiceTest, CaptureDisallowed) {
+TEST_F(PaintPreviewBaseServiceTest, CaptureDisallowed) {
   MockPaintPreviewRecorder recorder;
   auto params = mojom::PaintPreviewCaptureParams::New();
   params->clip_rect = gfx::Rect(0, 0, 0, 0);
@@ -320,21 +267,19 @@ TEST_P(PaintPreviewBaseServiceTest, CaptureDisallowed) {
   params->max_capture_size = 0;
   recorder.SetExpectedParams(std::move(params));
   auto response = mojom::PaintPreviewCaptureResponse::New();
-  response->embedding_token = absl::nullopt;
+  response->embedding_token = base::nullopt;
   recorder.SetResponse(mojom::PaintPreviewStatus::kFailed, std::move(response));
   OverrideInterface(&recorder);
 
   auto* service = GetServiceWithRejectionPolicy();
   EXPECT_FALSE(service->IsOffTheRecord());
-  auto manager = service->GetFileMixin()->GetFileManager();
+  auto manager = service->GetFileManager();
   base::FilePath path = CreateDir(
       manager, manager->CreateKey(web_contents()->GetLastCommittedURL()));
 
   base::RunLoop loop;
   service->CapturePaintPreview(
-      CreateCaptureParams(web_contents(), &path, GetParam(),
-                          gfx::Rect(0, 0, 0, 0), true, 0,
-                          std::numeric_limits<uint64_t>::max()),
+      web_contents(), path, gfx::Rect(0, 0, 0, 0), true, 0,
       base::BindOnce(
           [](base::OnceClosure quit_closure,
              PaintPreviewBaseService::CaptureStatus expected_status,
@@ -348,11 +293,5 @@ TEST_P(PaintPreviewBaseServiceTest, CaptureDisallowed) {
           PaintPreviewBaseService::CaptureStatus::kContentUnsupported));
   loop.Run();
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         PaintPreviewBaseServiceTest,
-                         testing::Values(RecordingPersistence::kFileSystem,
-                                         RecordingPersistence::kMemoryBuffer),
-                         PersistenceParamToString);
 
 }  // namespace paint_preview

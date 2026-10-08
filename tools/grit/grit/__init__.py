@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,6 +11,9 @@ import os
 import sys
 
 
-_HERE_PATH = os.path.dirname(__file__)
-_SRC_PATH = os.path.normpath(os.path.join(_HERE_PATH, '..', '..', '..'))
-sys.path.insert(0, os.path.join(_SRC_PATH, 'third_party', 'six', 'src'))
+_CUR_DIR = os.path.abspath(os.path.dirname(__file__))
+_GRIT_DIR = os.path.dirname(_CUR_DIR)
+_THIRD_PARTY_DIR = os.path.join(_GRIT_DIR, 'third_party')
+
+if _THIRD_PARTY_DIR not in sys.path:
+  sys.path.insert(0, _THIRD_PARTY_DIR)

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "media/video/h264_parser.h"
 
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
-#include "media/video/h265_nalu_parser.h"
+#include "media/video/h265_parser.h"
 #endif  // BUILDFLAG(ENABLE_PLATFORM_HEVC)
 
 namespace media {
@@ -61,14 +61,8 @@ H264NALU::Type H264StringToNALUType(const std::string& name) {
   if (name == "FILL")
     return H264NALU::kFiller;
 
-  if (name == "Prefix")
-    return H264NALU::kPrefix;
-
-  if (name == "SubsetSPS")
-    return H264NALU::kSubsetSPS;
-
-  if (name == "DPS")
-    return H264NALU::kDPS;
+  if (name == "R14")
+    return H264NALU::kReserved14;
 
   CHECK(false) << "Unexpected name: " << name;
   return H264NALU::kUnspecified;

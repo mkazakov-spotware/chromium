@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Support class for spell checker components.
@@ -34,7 +42,6 @@ goog.require('goog.structs.Set');
  * @final
  */
 goog.spell.SpellCheck = function(opt_lookupFunction, opt_language) {
-  'use strict';
   goog.events.EventTarget.call(this);
 
   /**
@@ -198,7 +205,6 @@ goog.spell.SpellCheck.SPLIT_REGEX = new RegExp(
  *     spelling status and optionally an array of suggestions.
  */
 goog.spell.SpellCheck.prototype.setLookupFunction = function(f) {
-  'use strict';
   this.lookupFunction_ = f;
 };
 
@@ -209,7 +215,6 @@ goog.spell.SpellCheck.prototype.setLookupFunction = function(f) {
  * @param {string=} opt_language Content language.
  */
 goog.spell.SpellCheck.prototype.setLanguage = function(opt_language) {
-  'use strict';
   this.language_ = opt_language || '';
 
   if (!goog.spell.SpellCheck.cache_[this.language_]) {
@@ -225,7 +230,6 @@ goog.spell.SpellCheck.prototype.setLanguage = function(opt_language) {
  * @return {string} Content language.
  */
 goog.spell.SpellCheck.prototype.getLanguage = function() {
-  'use strict';
   return this.language_;
 };
 
@@ -236,11 +240,10 @@ goog.spell.SpellCheck.prototype.getLanguage = function() {
  * @param {string} text Block of text to spell check.
  */
 goog.spell.SpellCheck.prototype.checkBlock = function(text) {
-  'use strict';
-  const words = text.split(goog.spell.SpellCheck.WORD_BOUNDARY_REGEX);
+  var words = text.split(goog.spell.SpellCheck.WORD_BOUNDARY_REGEX);
 
-  const len = words.length;
-  for (let word, i = 0; i < len; i++) {
+  var len = words.length;
+  for (var word, i = 0; i < len; i++) {
     word = words[i];
     this.checkWord_(word);
   }
@@ -264,8 +267,7 @@ goog.spell.SpellCheck.prototype.checkBlock = function(text) {
  *     or UNKNOWN if it's not cached.
  */
 goog.spell.SpellCheck.prototype.checkWord = function(word) {
-  'use strict';
-  const status = this.checkWord_(word);
+  var status = this.checkWord_(word);
 
   if (status == goog.spell.SpellCheck.WordStatus.UNKNOWN && !this.queueTimer_ &&
       !this.lookupInProgress_) {
@@ -287,12 +289,11 @@ goog.spell.SpellCheck.prototype.checkWord = function(word) {
  * @private
  */
 goog.spell.SpellCheck.prototype.checkWord_ = function(word) {
-  'use strict';
   if (!word) {
     return goog.spell.SpellCheck.WordStatus.INVALID;
   }
 
-  const cacheEntry = this.cache_[word];
+  var cacheEntry = this.cache_[word];
   if (!cacheEntry) {
     this.unknownWords_.add(word);
     return goog.spell.SpellCheck.WordStatus.UNKNOWN;
@@ -309,7 +310,6 @@ goog.spell.SpellCheck.prototype.checkWord_ = function(word) {
  * @throws {Error}
  */
 goog.spell.SpellCheck.prototype.processPending = function() {
-  'use strict';
   if (this.unknownWords_.getCount()) {
     if (!this.queueTimer_ && !this.lookupInProgress_) {
       this.processPending_();
@@ -327,15 +327,14 @@ goog.spell.SpellCheck.prototype.processPending = function() {
  * @private
  */
 goog.spell.SpellCheck.prototype.processPending_ = function() {
-  'use strict';
   if (!this.lookupFunction_) {
     throw new Error('No lookup function provided for spell checker.');
   }
 
   if (this.unknownWords_.getCount()) {
     this.lookupInProgress_ = true;
-    const func = this.lookupFunction_;
-    func(Array.from(this.unknownWords_.values()), this, this.lookupCallback_);
+    var func = this.lookupFunction_;
+    func(this.unknownWords_.getValues(), this, this.lookupCallback_);
   } else {
     this.dispatchEvent(goog.spell.SpellCheck.EventType.READY);
   }
@@ -359,7 +358,7 @@ goog.spell.SpellCheck.prototype.processPending_ = function() {
  * ]);
  */
 goog.spell.SpellCheck.prototype.lookupCallback_ = function(data) {
-  'use strict';
+
   // Lookup function failed; abort then dispatch error event.
   if (data == null) {
     if (this.queueTimer_) {
@@ -372,7 +371,7 @@ goog.spell.SpellCheck.prototype.lookupCallback_ = function(data) {
     return;
   }
 
-  for (let a, i = 0; a = data[i]; i++) {
+  for (var a, i = 0; a = data[i]; i++) {
     this.setWordStatus_(a[0], a[1], a[2]);
   }
   this.lookupInProgress_ = false;
@@ -402,7 +401,6 @@ goog.spell.SpellCheck.prototype.lookupCallback_ = function(data) {
  */
 goog.spell.SpellCheck.prototype.setWordStatus = function(
     word, status, opt_suggestions) {
-  'use strict';
   this.setWordStatus_(word, status, opt_suggestions);
 };
 
@@ -417,8 +415,7 @@ goog.spell.SpellCheck.prototype.setWordStatus = function(
  */
 goog.spell.SpellCheck.prototype.setWordStatus_ = function(
     word, status, opt_suggestions) {
-  'use strict';
-  const suggestions = opt_suggestions || [];
+  var suggestions = opt_suggestions || [];
   this.cache_[word] = [status, suggestions];
   this.unknownWords_.remove(word);
 
@@ -434,8 +431,7 @@ goog.spell.SpellCheck.prototype.setWordStatus_ = function(
  * @return {Array<string>} An array of suggestions for the given word.
  */
 goog.spell.SpellCheck.prototype.getSuggestions = function(word) {
-  'use strict';
-  const cacheEntry = this.cache_[word];
+  var cacheEntry = this.cache_[word];
 
   if (!cacheEntry) {
     this.checkWord(word);
@@ -462,7 +458,6 @@ goog.spell.SpellCheck.prototype.getSuggestions = function(word) {
  * @final
  */
 goog.spell.SpellCheck.WordChangedEvent = function(target, word, status) {
-  'use strict';
   goog.events.Event.call(
       this, goog.spell.SpellCheck.EventType.WORD_CHANGED, target);
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,8 +43,7 @@ public interface ChromeActivityNativeDelegate {
     void onStopWithNative();
 
     /**
-     * @return Whether the activity linked to the delegate has been destroyed or is finishing. The
-     *         majority of clients should prefer the method in {@link ActivityUtils}.
+     * @return Whether the activity linked to the delegate has been destroyed or is finishing.
      */
     boolean isActivityFinishingOrDestroyed();
 

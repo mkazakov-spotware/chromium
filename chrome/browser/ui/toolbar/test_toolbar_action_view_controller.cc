@@ -1,20 +1,20 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/toolbar/test_toolbar_action_view_controller.h"
 
-#include <string>
-
-#include "chrome/browser/extensions/site_permissions_helper.h"
+#include "base/strings/string16.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_delegate.h"
 #include "ui/gfx/image/image.h"
+#include "ui/gfx/image/image_skia.h"
 
 TestToolbarActionViewController::TestToolbarActionViewController(
     const std::string& id)
     : id_(id) {
   // Needs a non-empty accessible name to pass accessibility checks.
-  SetAccessibleName(u"Default name");
+  SetAccessibleName(base::ASCIIToUTF16("Default name"));
 }
 
 TestToolbarActionViewController::~TestToolbarActionViewController() {
@@ -35,29 +35,18 @@ gfx::Image TestToolbarActionViewController::GetIcon(
   return gfx::Image();
 }
 
-std::u16string TestToolbarActionViewController::GetActionName() const {
+base::string16 TestToolbarActionViewController::GetActionName() const {
   return action_name_;
 }
 
-std::u16string TestToolbarActionViewController::GetAccessibleName(
+base::string16 TestToolbarActionViewController::GetAccessibleName(
     content::WebContents* web_contents) const {
   return accessible_name_;
 }
 
-std::u16string TestToolbarActionViewController::GetTooltip(
+base::string16 TestToolbarActionViewController::GetTooltip(
     content::WebContents* web_contents) const {
   return tooltip_;
-}
-
-ToolbarActionViewController::HoverCardState
-TestToolbarActionViewController::GetHoverCardState(
-    content::WebContents* web_contents) const {
-  ToolbarActionViewController::HoverCardState state;
-  state.site_access = ToolbarActionViewController::HoverCardState::SiteAccess::
-      kExtensionDoesNotWantAccess;
-  state.policy =
-      ToolbarActionViewController::HoverCardState::AdminPolicy::kNone;
-  return state;
 }
 
 bool TestToolbarActionViewController::IsEnabled(
@@ -65,13 +54,13 @@ bool TestToolbarActionViewController::IsEnabled(
   return is_enabled_;
 }
 
-bool TestToolbarActionViewController::IsShowingPopup() const {
-  return popup_showing_;
+bool TestToolbarActionViewController::HasPopup(
+    content::WebContents* web_contents) const {
+  return true;
 }
 
-bool TestToolbarActionViewController::IsRequestingSiteAccess(
-    content::WebContents* web_contents) const {
-  return false;
+bool TestToolbarActionViewController::IsShowingPopup() const {
+  return popup_showing_;
 }
 
 void TestToolbarActionViewController::HidePopup() {
@@ -83,28 +72,28 @@ gfx::NativeView TestToolbarActionViewController::GetPopupNativeView() {
   return nullptr;
 }
 
-ui::MenuModel* TestToolbarActionViewController::GetContextMenu(
-    extensions::ExtensionContextMenuModel::ContextMenuSource
-        context_menu_source) {
+ui::MenuModel* TestToolbarActionViewController::GetContextMenu() {
   return nullptr;
 }
 
-void TestToolbarActionViewController::ExecuteUserAction(
-    InvocationSource source) {
+bool TestToolbarActionViewController::ExecuteAction(bool by_user,
+                                                    InvocationSource source) {
   ++execute_action_count_;
+  return false;
 }
-
-void TestToolbarActionViewController::TriggerPopupForAPI(
-    ShowPopupCallback callback) {}
 
 void TestToolbarActionViewController::UpdateState() {
   UpdateDelegate();
 }
 
-extensions::SitePermissionsHelper::SiteInteraction
-TestToolbarActionViewController::GetSiteInteraction(
+bool TestToolbarActionViewController::DisabledClickOpensMenu() const {
+  return disabled_click_opens_menu_;
+}
+
+ToolbarActionViewController::PageInteractionStatus
+TestToolbarActionViewController::GetPageInteractionStatus(
     content::WebContents* web_contents) const {
-  return extensions::SitePermissionsHelper::SiteInteraction::kNone;
+  return PageInteractionStatus::kNone;
 }
 
 void TestToolbarActionViewController::ShowPopup(bool by_user) {
@@ -113,25 +102,31 @@ void TestToolbarActionViewController::ShowPopup(bool by_user) {
 }
 
 void TestToolbarActionViewController::SetActionName(
-    const std::u16string& name) {
+    const base::string16& name) {
   action_name_ = name;
   UpdateDelegate();
 }
 
 void TestToolbarActionViewController::SetAccessibleName(
-    const std::u16string& name) {
+    const base::string16& name) {
   accessible_name_ = name;
   UpdateDelegate();
 }
 
 void TestToolbarActionViewController::SetTooltip(
-    const std::u16string& tooltip) {
+    const base::string16& tooltip) {
   tooltip_ = tooltip;
   UpdateDelegate();
 }
 
 void TestToolbarActionViewController::SetEnabled(bool is_enabled) {
   is_enabled_ = is_enabled;
+  UpdateDelegate();
+}
+
+void TestToolbarActionViewController::SetDisabledClickOpensMenu(
+    bool disabled_click_opens_menu) {
+  disabled_click_opens_menu_ = disabled_click_opens_menu;
   UpdateDelegate();
 }
 

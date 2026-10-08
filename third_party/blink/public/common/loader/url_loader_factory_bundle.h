@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -50,14 +51,16 @@ class BLINK_COMMON_EXPORT PendingURLLoaderFactoryBundle
       SchemeMap scheme_specific_pending_factories,
       OriginMap isolated_world_pending_factories,
       bool bypass_redirect_checks);
-  PendingURLLoaderFactoryBundle(const PendingURLLoaderFactoryBundle&) = delete;
-  PendingURLLoaderFactoryBundle& operator=(
-      const PendingURLLoaderFactoryBundle&) = delete;
   ~PendingURLLoaderFactoryBundle() override;
 
   mojo::PendingRemote<network::mojom::URLLoaderFactory>&
   pending_default_factory() {
     return pending_default_factory_;
+  }
+
+  mojo::PendingRemote<network::mojom::URLLoaderFactory>&
+  pending_appcache_factory() {
+    return pending_appcache_factory_;
   }
 
   SchemeMap& pending_scheme_specific_factories() {
@@ -72,22 +75,19 @@ class BLINK_COMMON_EXPORT PendingURLLoaderFactoryBundle
     bypass_redirect_checks_ = bypass_redirect_checks;
   }
 
-  virtual bool IsTrackedChildPendingURLLoaderFactoryBundle() const;
-
  protected:
   // PendingSharedURLLoaderFactory implementation.
   scoped_refptr<network::SharedURLLoaderFactory> CreateFactory() override;
 
   mojo::PendingRemote<network::mojom::URLLoaderFactory>
       pending_default_factory_;
+  mojo::PendingRemote<network::mojom::URLLoaderFactory>
+      pending_appcache_factory_;
   SchemeMap pending_scheme_specific_factories_;
-
-  // TODO(https://crbug.com/1098410): Remove the
-  // `pending_isolated_world_factories_` field once Chrome Platform Apps are
-  // gone.
   OriginMap pending_isolated_world_factories_;
-
   bool bypass_redirect_checks_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(PendingURLLoaderFactoryBundle);
 };
 
 // Encapsulates a collection of URLLoaderFactoryPtrs which can be usd to acquire
@@ -103,6 +103,7 @@ class BLINK_COMMON_EXPORT URLLoaderFactoryBundle
   // SharedURLLoaderFactory implementation.
   void CreateLoaderAndStart(
       mojo::PendingReceiver<network::mojom::URLLoader> loader,
+      int32_t routing_id,
       int32_t request_id,
       uint32_t options,
       const network::ResourceRequest& request,
@@ -124,7 +125,7 @@ class BLINK_COMMON_EXPORT URLLoaderFactoryBundle
   ~URLLoaderFactoryBundle() override;
 
   // Returns a factory which can be used to acquire a loader for |request|.
-  network::mojom::URLLoaderFactory* GetFactory(
+  virtual network::mojom::URLLoaderFactory* GetFactory(
       const network::ResourceRequest& request);
 
   template <typename TKey>
@@ -149,6 +150,11 @@ class BLINK_COMMON_EXPORT URLLoaderFactoryBundle
   // context should not be given access to the network.
   mojo::Remote<network::mojom::URLLoaderFactory> default_factory_;
 
+  // |appcache_factory_| is a special loader factory that intercepts
+  // requests when the context has AppCache. See also
+  // AppCacheSubresourceURLFactory.
+  mojo::Remote<network::mojom::URLLoaderFactory> appcache_factory_;
+
   // Map from URL scheme to Remote<URLLoaderFactory> for handling URL requests
   // for schemes not handled by the |default_factory_|.  See also
   // PendingURLLoaderFactoryBundle::SchemeMap and
@@ -160,9 +166,6 @@ class BLINK_COMMON_EXPORT URLLoaderFactoryBundle
   // Map from origin of isolated world to Remote<URLLoaderFactory> for handling
   // this isolated world's requests. See also
   // PendingURLLoaderFactoryBundle::OriginMap.
-  //
-  // TODO(https://crbug.com/1098410): Remove the `isolated_world_factories_`
-  // field once Chrome Platform Apps are gone.
   using OriginMap =
       std::map<url::Origin, mojo::Remote<network::mojom::URLLoaderFactory>>;
   OriginMap isolated_world_factories_;

@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/files/file_path.h"
-#include "chrome/browser/ash/login/test/device_state_mixin.h"
-#include "chrome/browser/ash/login/test/logged_in_user_mixin.h"
+#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/supervised_user/logged_in_user_mixin.h"
+#include "chrome/browser/supervised_user/supervised_user_features.h"
 #include "chrome/browser/supervised_user/supervised_user_service.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
@@ -36,6 +37,8 @@ class SupervisedUserExtensionTest : public ExtensionBrowserTest {
   // We have to essentially replicate what MixinBasedInProcessBrowserTest does
   // here because ExtensionBrowserTest doesn't inherit from that class.
   void SetUp() override {
+    scoped_feature_list_.InitAndEnableFeature(
+        supervised_users::kSupervisedUserInitiatedExtensionInstall);
     mixin_host_.SetUp();
     ExtensionBrowserTest::SetUp();
   }
@@ -108,16 +111,15 @@ class SupervisedUserExtensionTest : public ExtensionBrowserTest {
  private:
   InProcessBrowserTestMixinHost mixin_host_;
 
-  ash::DeviceStateMixin device_state_{
-      &mixin_host_,
-      ash::DeviceStateMixin::State::OOBE_COMPLETED_CONSUMER_OWNED};
   // We want to log in as child user for all of the PRE tests, and regular user
   // otherwise.
-  ash::LoggedInUserMixin logged_in_user_mixin_{
+  chromeos::LoggedInUserMixin logged_in_user_mixin_{
       &mixin_host_,
-      content::IsPreTest() ? ash::LoggedInUserMixin::LogInType::kChild
-                           : ash::LoggedInUserMixin::LogInType::kRegular,
+      content::IsPreTest() ? chromeos::LoggedInUserMixin::LogInType::kChild
+                           : chromeos::LoggedInUserMixin::LogInType::kRegular,
       embedded_test_server(), this};
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 // Removing supervision should also remove associated disable reasons, such as
@@ -130,7 +132,7 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserExtensionTest,
   EXPECT_TRUE(profile()->IsChild());
 
   base::FilePath path = test_data_dir_.AppendASCII("good.crx");
-  EXPECT_FALSE(LoadExtension(path));
+  EXPECT_FALSE(LoadExtensionWithFlags(path, kFlagNone));
   const Extension* extension =
       extension_registry()->GetInstalledExtension(kGoodCrxId);
   EXPECT_TRUE(extension);

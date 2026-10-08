@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <stdint.h>
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "chrome/browser/android/proto/delta_file.pb.h"
 #include "components/history/core/browser/history_types.h"
 
@@ -38,7 +37,7 @@ class DeltaFileEntryWithData {
   std::string Url() const;
 
   // Returns title of delta file entry.
-  std::u16string Title() const;
+  base::string16 Title() const;
 
   // Returns ranking score of url described by delta file entry.
   int32_t Score() const;
@@ -68,7 +67,7 @@ class DeltaFileEntryWithData {
   bool data_set_;
   history::URLRow data_;
   bool is_bookmark_;
-  std::u16string bookmark_title_;
+  base::string16 bookmark_title_;
 };
 
 }  // namespace history_report

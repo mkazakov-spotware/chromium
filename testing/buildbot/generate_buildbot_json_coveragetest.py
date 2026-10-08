@@ -1,15 +1,14 @@
-#!/usr/bin/env vpython3
-# Copyright 2017 The Chromium Authors
+#!/usr/bin/python
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import coverage
-import io
+import cStringIO
 import sys
 import unittest
 
-
-class FakeStream(object):  # pylint: disable=useless-object-inheritance
+class FakeStream(object):
   def write(self, value):
     pass
 
@@ -19,14 +18,12 @@ class FakeStream(object):  # pylint: disable=useless-object-inheritance
 def main():
   cov = coverage.coverage(include='*generate_buildbot_json.py')
   cov.start()
-  # pylint: disable=import-outside-toplevel
   import generate_buildbot_json_unittest
-  # pylint: enable=import-outside-toplevel
   suite = unittest.TestLoader().loadTestsFromModule(
     generate_buildbot_json_unittest)
   unittest.TextTestRunner(stream=FakeStream()).run(suite)
   cov.stop()
-  outf = io.StringIO()
+  outf = cStringIO.StringIO()
   percentage = cov.report(file=outf, show_missing=True)
   if int(percentage) != 100:
     print(outf.getvalue())

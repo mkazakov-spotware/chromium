@@ -34,7 +34,8 @@ namespace blink {
 
 ChangeVersionWrapper::ChangeVersionWrapper(const String& old_version,
                                            const String& new_version)
-    : old_version_(old_version), new_version_(new_version) {}
+    : old_version_(old_version.IsolatedCopy()),
+      new_version_(new_version.IsolatedCopy()) {}
 
 bool ChangeVersionWrapper::PerformPreflight(
     SQLTransactionBackend* transaction) {

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 #include "extensions/browser/management_policy.h"
 
 namespace extensions {
@@ -37,24 +38,24 @@ class TestManagementPolicyProvider : public ManagementPolicy::Provider {
   std::string GetDebugPolicyProviderName() const override;
 
   bool UserMayLoad(const Extension* extension,
-                   std::u16string* error) const override;
+                   base::string16* error) const override;
 
   bool UserMayModifySettings(const Extension* extension,
-                             std::u16string* error) const override;
+                             base::string16* error) const override;
 
   bool ExtensionMayModifySettings(const Extension* source_extension,
                                   const Extension* extension,
-                                  std::u16string* error) const override;
+                                  base::string16* error) const override;
 
   bool MustRemainEnabled(const Extension* extension,
-                         std::u16string* error) const override;
+                         base::string16* error) const override;
 
   bool MustRemainDisabled(const Extension* extension,
                           disable_reason::DisableReason* reason,
-                          std::u16string* error) const override;
+                          base::string16* error) const override;
 
   bool MustRemainInstalled(const Extension* extension,
-                           std::u16string* error) const override;
+                           base::string16* error) const override;
 
  private:
   bool may_load_;
@@ -64,7 +65,7 @@ class TestManagementPolicyProvider : public ManagementPolicy::Provider {
   bool must_remain_installed_;
   disable_reason::DisableReason disable_reason_;
 
-  std::u16string error_message_;
+  base::string16 error_message_;
 };
 
 }  // namespace extensions

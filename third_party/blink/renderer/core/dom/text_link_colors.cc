@@ -29,23 +29,26 @@
 
 #include "third_party/blink/renderer/core/dom/text_link_colors.h"
 
-#include "third_party/blink/renderer/core/css/css_color.h"
-#include "third_party/blink/renderer/core/css/css_color_mix_value.h"
+#include "third_party/blink/public/mojom/frame/color_scheme.mojom-blink.h"
+#include "third_party/blink/renderer/core/css/css_color_value.h"
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
 #include "third_party/blink/renderer/core/css/css_light_dark_value_pair.h"
 #include "third_party/blink/renderer/core/css/style_color.h"
 #include "third_party/blink/renderer/core/layout/layout_theme.h"
-#include "third_party/blink/renderer/platform/graphics/color.h"
-#include "third_party/blink/renderer/platform/wtf/casting.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
-constexpr Color kDefaultLinkColorLight = Color::FromRGB(0, 0, 238);
-constexpr Color kDefaultLinkColorDark = Color::FromRGB(158, 158, 255);
-constexpr Color kDefaultVisitedLinkColorLight = Color::FromRGB(85, 26, 139);
-constexpr Color kDefaultVisitedLinkColorDark = Color::FromRGB(208, 173, 240);
-constexpr Color kDefaultActiveLinkColorLight = Color::FromRGB(255, 0, 0);
-constexpr Color kDefaultActiveLinkColorDark = Color::FromRGB(255, 158, 158);
+constexpr Color kDefaultLinkColorLight = Color::CreateUnchecked(0, 0, 238);
+constexpr Color kDefaultLinkColorDark = Color::CreateUnchecked(158, 158, 255);
+constexpr Color kDefaultVisitedLinkColorLight =
+    Color::CreateUnchecked(85, 26, 139);
+constexpr Color kDefaultVisitedLinkColorDark =
+    Color::CreateUnchecked(208, 173, 240);
+constexpr Color kDefaultActiveLinkColorLight =
+    Color::CreateUnchecked(255, 0, 0);
+constexpr Color kDefaultActiveLinkColorDark =
+    Color::CreateUnchecked(255, 158, 158);
 
 TextLinkColors::TextLinkColors() : text_color_(Color::kBlack) {
   ResetLinkColor();
@@ -59,7 +62,7 @@ void TextLinkColors::SetTextColor(const Color& color) {
 }
 
 Color TextLinkColors::TextColor() const {
-  return TextColor(mojom::blink::ColorScheme::kLight);
+  return TextColor(mojom::ColorScheme::kLight);
 }
 
 Color TextLinkColors::TextColor(mojom::blink::ColorScheme color_scheme) const {
@@ -76,7 +79,7 @@ void TextLinkColors::SetLinkColor(const Color& color) {
 }
 
 const Color& TextLinkColors::LinkColor() const {
-  return LinkColor(mojom::blink::ColorScheme::kLight);
+  return LinkColor(mojom::ColorScheme::kLight);
 }
 
 const Color& TextLinkColors::LinkColor(
@@ -94,7 +97,7 @@ void TextLinkColors::SetVisitedLinkColor(const Color& color) {
 }
 
 const Color& TextLinkColors::VisitedLinkColor() const {
-  return VisitedLinkColor(mojom::blink::ColorScheme::kLight);
+  return VisitedLinkColor(mojom::ColorScheme::kLight);
 }
 
 const Color& TextLinkColors::VisitedLinkColor(
@@ -112,7 +115,7 @@ void TextLinkColors::SetActiveLinkColor(const Color& color) {
 }
 
 const Color& TextLinkColors::ActiveLinkColor() const {
-  return ActiveLinkColor(mojom::blink::ColorScheme::kLight);
+  return ActiveLinkColor(mojom::ColorScheme::kLight);
 }
 
 const Color& TextLinkColors::ActiveLinkColor(
@@ -128,30 +131,8 @@ Color TextLinkColors::ColorFromCSSValue(const CSSValue& value,
                                         Color current_color,
                                         mojom::blink::ColorScheme color_scheme,
                                         bool for_visited_link) const {
-  if (auto* color_value = DynamicTo<cssvalue::CSSColor>(value))
+  if (auto* color_value = DynamicTo<cssvalue::CSSColorValue>(value))
     return color_value->Value();
-
-  if (auto* color_mix_value = DynamicTo<cssvalue::CSSColorMixValue>(value)) {
-    // TODO(crbug.com/1362022): This is not correct for CurrentColor
-    Color c1 = ColorFromCSSValue(color_mix_value->Color1(), current_color,
-                                 color_scheme, for_visited_link);
-    Color c2 = ColorFromCSSValue(color_mix_value->Color2(), current_color,
-                                 color_scheme, for_visited_link);
-
-    double alpha_multiplier;
-    double mix_amount;
-    if (cssvalue::CSSColorMixValue::NormalizePercentages(
-            color_mix_value->Percentage1(), color_mix_value->Percentage2(),
-            mix_amount, alpha_multiplier)) {
-      return Color::FromColorMix(color_mix_value->ColorInterpolationSpace(),
-                                 color_mix_value->HueInterpolationMethod(), c1,
-                                 c2, mix_amount, alpha_multiplier);
-    } else {
-      // TODO(crbug.com/1362022): Not sure what is appropriate to return when
-      // both mix amounts are zero.
-      return Color();
-    }
-  }
 
   if (auto* pair = DynamicTo<CSSLightDarkValuePair>(value)) {
     const CSSValue& color_value =
@@ -174,7 +155,7 @@ Color TextLinkColors::ColorFromCSSValue(const CSSValue& value,
     case CSSValueID::kWebkitActivelink:
       return ActiveLinkColor(color_scheme);
     case CSSValueID::kWebkitFocusRingColor:
-      return LayoutTheme::GetTheme().FocusRingColor(color_scheme);
+      return LayoutTheme::GetTheme().FocusRingColor();
     case CSSValueID::kCurrentcolor:
       return current_color;
     default:

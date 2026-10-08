@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/webgl/oes_draw_buffers_indexed.h"
-
-#include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
 
 namespace blink {
 
@@ -15,7 +13,7 @@ OESDrawBuffersIndexed::OESDrawBuffersIndexed(WebGLRenderingContextBase* context)
 }
 
 WebGLExtensionName OESDrawBuffersIndexed::GetName() const {
-  return kOESDrawBuffersIndexedName;
+  return kOESDrawBuffersIndexed;
 }
 
 bool OESDrawBuffersIndexed::Supported(WebGLRenderingContextBase* context) {
@@ -85,19 +83,14 @@ void OESDrawBuffersIndexed::colorMaskiOES(GLuint buf,
   WebGLExtensionScopedContext scoped(this);
   if (scoped.IsLost())
     return;
+  scoped.Context()->ContextGL()->ColorMaskiOES(buf, r, g, b, a);
+}
 
-  WebGLRenderingContextBase* context = scoped.Context();
-
-  // Used in WebGLRenderingContextBase's
-  // DrawingBufferClientRestoreMaskAndClearValues.
-  if (buf == 0) {
-    context->color_mask_[0] = r;
-    context->color_mask_[1] = g;
-    context->color_mask_[2] = b;
-    context->color_mask_[3] = a;
-  }
-
-  context->ContextGL()->ColorMaskiOES(buf, r, g, b, a);
+GLboolean OESDrawBuffersIndexed::isEnablediOES(GLenum target, GLuint index) {
+  WebGLExtensionScopedContext scoped(this);
+  if (scoped.IsLost())
+    return 0;
+  return scoped.Context()->ContextGL()->IsEnablediOES(target, index);
 }
 
 }  // namespace blink

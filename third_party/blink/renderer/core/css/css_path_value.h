@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ namespace cssvalue {
 
 class CSSPathValue : public CSSValue {
  public:
-  static const CSSPathValue& EmptyPathValue();
+  static CSSPathValue& EmptyPathValue();
 
   explicit CSSPathValue(scoped_refptr<StylePath>,
                         PathSerializationFormat = kNoTransformation);
@@ -41,8 +41,8 @@ class CSSPathValue : public CSSValue {
   }
 
  private:
-  const PathSerializationFormat serialization_format_;
   scoped_refptr<StylePath> style_path_;
+  const PathSerializationFormat serialization_format_;
 };
 
 }  // namespace cssvalue

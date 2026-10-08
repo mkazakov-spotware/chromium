@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,14 @@ package org.chromium.chrome.browser.customtabs.content;
 
 import android.text.TextUtils;
 
-import androidx.annotation.VisibleForTesting;
-
-import org.chromium.base.IntentUtils;
 import org.chromium.chrome.browser.IntentHandler;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabNavigationEventObserver;
 import org.chromium.chrome.browser.customtabs.CustomTabObserver;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
-import org.chromium.chrome.browser.password_manager.PasswordChangeSuccessTrackerBridge;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.url.GURL;
 
 import javax.inject.Inject;
 
@@ -50,64 +45,48 @@ public class DefaultCustomTabIntentHandlingStrategy implements CustomTabIntentHa
     public void handleInitialIntent(BrowserServicesIntentDataProvider intentDataProvider) {
         @TabCreationMode
         int initialTabCreationMode = mTabProvider.getInitialTabCreationMode();
-        if (initialTabCreationMode == TabCreationMode.HIDDEN) {
-            handleInitialLoadForHiddenTab(initialTabCreationMode, intentDataProvider);
+        if (initialTabCreationMode == TabCreationMode.HIDDEN
+                || initialTabCreationMode == TabCreationMode.FROM_STARTUP_TAB_PRELOADER) {
+            handleInitialLoadForHiddedTab(initialTabCreationMode, intentDataProvider);
         } else {
             LoadUrlParams params = new LoadUrlParams(intentDataProvider.getUrlToLoad());
-
-            // If this is the start of a password change flow, notify the password change success
-            // tracker.
-            String passwordChangeUsername =
-                    IntentUtils.safeGetStringExtra(intentDataProvider.getIntent(),
-                            PasswordChangeSuccessTrackerBridge.EXTRA_MANUAL_CHANGE_USERNAME_KEY);
-            if (passwordChangeUsername != null) {
-                IntentUtils.safeRemoveExtra(intentDataProvider.getIntent(),
-                        PasswordChangeSuccessTrackerBridge.EXTRA_MANUAL_CHANGE_USERNAME_KEY);
-                PasswordChangeSuccessTrackerBridge.onManualPasswordChangeStarted(
-                        getGurlForUrl(params.getUrl()), passwordChangeUsername);
-            }
-
             mNavigationController.navigate(params, getTimestamp(intentDataProvider));
         }
     }
 
-    // TODO(yfriedman): Remove & inline once CustomTabs junit tests can be created from a provided
-    // GURL. This depends on switching *IntentDataProvider over to GURL.
-    // https://crbug.com/783819
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public GURL getGurlForUrl(String url) {
-        return new GURL(url);
-    }
-
     // The hidden tab case needs a bit of special treatment.
-    private void handleInitialLoadForHiddenTab(@TabCreationMode int initialTabCreationMode,
+    private void handleInitialLoadForHiddedTab(@TabCreationMode int initialTabCreationMode,
             BrowserServicesIntentDataProvider intentDataProvider) {
         Tab tab = mTabProvider.getTab();
         if (tab == null) {
             throw new IllegalStateException("handleInitialIntent called before Tab created");
         }
         String url = intentDataProvider.getUrlToLoad();
-        GURL gurl = getGurlForUrl(url);
 
         // Manually generating metrics in case the hidden tab has completely finished loading.
         if (!tab.isLoading() && !tab.isShowingErrorPage()) {
-            mCustomTabObserver.get().onPageLoadStarted(tab, gurl);
-            mCustomTabObserver.get().onPageLoadFinished(tab, gurl);
-            mNavigationEventObserver.onPageLoadStarted(tab, gurl);
-            mNavigationEventObserver.onPageLoadFinished(tab, gurl);
+            mCustomTabObserver.get().onPageLoadStarted(tab, url);
+            mCustomTabObserver.get().onPageLoadFinished(tab, url);
+            mNavigationEventObserver.onPageLoadStarted(tab, url);
+            mNavigationEventObserver.onPageLoadFinished(tab, url);
         }
 
         // No actual load to do if the hidden tab already has the exact correct url.
         String speculatedUrl = mTabProvider.getSpeculatedUrl();
-        if (TextUtils.equals(speculatedUrl, url)) {
+        if (TextUtils.equals(speculatedUrl, url)
+                || initialTabCreationMode == TabCreationMode.FROM_STARTUP_TAB_PRELOADER) {
+            // In the TabCreationMode.FROM_STARTUP_TAB_PRELOADER case:
+            // - CustomActivityTabProvider#getSpeculatedUrl() is not set.
+            // - The tab creation mode is only set in CustomTabActivityTabController if the URL
+            // being loaded is the one we want.
+
             if (tab.isLoading()) {
                 // CustomTabObserver and CustomTabActivityNavigationObserver are attached
                 // as observers in CustomTabActivityTabController, not when the navigation is
-                // initiated in HiddenTabHolder.
-                mCustomTabObserver.get().onPageLoadStarted(tab, gurl);
-                mNavigationEventObserver.onPageLoadStarted(tab, gurl);
+                // initiated in HiddenTabHolder or StartupTabPreloader.
+                mCustomTabObserver.get().onPageLoadStarted(tab, url);
+                mNavigationEventObserver.onPageLoadStarted(tab, url);
             }
-
             return;
         }
 

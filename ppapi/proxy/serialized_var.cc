@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -120,7 +120,7 @@ void SerializedVar::Inner::WriteToMessage(base::Pickle* m) const {
       RawVarDataGraph::Create(var_, instance_);
   if (data) {
     m->WriteBool(true);  // Success.
-    data->Write(m, base::BindRepeating(&DefaultHandleWriter));
+    data->Write(m, base::Bind(&DefaultHandleWriter));
   } else {
     m->WriteBool(false);  // Failure.
   }

@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/service_worker/service_worker_main_resource_loader_interceptor.h"
 
-#include "build/chromeos_buildflags.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_browser_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -49,9 +48,6 @@ TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
   EXPECT_FALSE(
       ShouldCreateForNavigation(GURL("http://host/scope/doc"),
                                 network::mojom::RequestDestination::kObject));
-  EXPECT_TRUE(ShouldCreateForNavigation(
-      GURL("http://host/scope/doc"),
-      network::mojom::RequestDestination::kFencedframe));
 }
 
 TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
@@ -65,9 +61,6 @@ TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
   EXPECT_FALSE(
       ShouldCreateForNavigation(GURL("https://host/scope/doc"),
                                 network::mojom::RequestDestination::kObject));
-  EXPECT_TRUE(ShouldCreateForNavigation(
-      GURL("https://host/scope/doc"),
-      network::mojom::RequestDestination::kFencedframe));
 }
 
 TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
@@ -81,17 +74,14 @@ TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
   EXPECT_FALSE(
       ShouldCreateForNavigation(GURL("ftp://host/scope/doc"),
                                 network::mojom::RequestDestination::kObject));
-  EXPECT_FALSE(ShouldCreateForNavigation(
-      GURL("ftp://host/scope/doc"),
-      network::mojom::RequestDestination::kFencedframe));
 }
 
 TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
        ShouldCreateForNavigation_ExternalFileScheme) {
   bool expected_handler_created = false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   expected_handler_created = true;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // OS_CHROMEOS
   EXPECT_EQ(
       expected_handler_created,
       ShouldCreateForNavigation(GURL("externalfile:drive/doc"),
@@ -102,10 +92,6 @@ TEST_F(ServiceWorkerMainResourceLoaderInterceptorTest,
   EXPECT_FALSE(
       ShouldCreateForNavigation(GURL("externalfile:drive/doc"),
                                 network::mojom::RequestDestination::kObject));
-  EXPECT_EQ(expected_handler_created,
-            ShouldCreateForNavigation(
-                GURL("externalfile:drive/doc"),
-                network::mojom::RequestDestination::kFencedframe));
 }
 
 }  // namespace content

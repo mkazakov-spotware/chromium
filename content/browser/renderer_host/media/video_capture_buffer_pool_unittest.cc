@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
@@ -25,25 +26,14 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "ui/gfx/mac/io_surface.h"
 #endif
 
 namespace content {
 
-namespace {
-
-size_t ImageAllocationSize(const media::VideoCaptureFormat& format) {
-  return media::VideoFrame::AllocationSize(format.pixel_format,
-                                           format.frame_size);
-}
-
-}  // namespace
-
 static const media::VideoPixelFormat kCapturePixelFormats[] = {
-    media::PIXEL_FORMAT_I420,
-    media::PIXEL_FORMAT_ARGB,
-    media::PIXEL_FORMAT_Y16,
+    media::PIXEL_FORMAT_I420, media::PIXEL_FORMAT_ARGB, media::PIXEL_FORMAT_Y16,
 };
 
 static const int kTestBufferPoolSize = 3;
@@ -54,11 +44,6 @@ static const int kTestBufferPoolSize = 3;
 // this test must live here and not in media/capture/video.
 class VideoCaptureBufferPoolTest
     : public testing::TestWithParam<media::VideoPixelFormat> {
- public:
-  VideoCaptureBufferPoolTest(const VideoCaptureBufferPoolTest&) = delete;
-  VideoCaptureBufferPoolTest& operator=(const VideoCaptureBufferPoolTest&) =
-      delete;
-
  protected:
   // This is a generic Buffer tracker
   class Buffer {
@@ -102,18 +87,22 @@ class VideoCaptureBufferPoolTest
         &buffer_id, &buffer_id_to_drop);
     if (reserve_result !=
         media::VideoCaptureDevice::Client::ReserveResult::kSucceeded) {
-      return nullptr;
+      return std::unique_ptr<Buffer>();
     }
     EXPECT_EQ(expected_dropped_id_, buffer_id_to_drop);
 
     std::unique_ptr<media::VideoCaptureBufferHandle> buffer_handle =
         pool_->GetHandleForInProcessAccess(buffer_id);
-    return std::make_unique<Buffer>(pool_, std::move(buffer_handle), buffer_id);
+    return std::unique_ptr<Buffer>(
+        new Buffer(pool_, std::move(buffer_handle), buffer_id));
   }
 
   base::test::SingleThreadTaskEnvironment task_environment_;
   int expected_dropped_id_;
   scoped_refptr<media::VideoCaptureBufferPool> pool_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureBufferPoolTest);
 };
 
 TEST_P(VideoCaptureBufferPoolTest, BufferPool) {
@@ -139,9 +128,9 @@ TEST_P(VideoCaptureBufferPoolTest, BufferPool) {
   ASSERT_NE(nullptr, buffer3.get());
   ASSERT_EQ(3.0 / kTestBufferPoolSize, pool_->GetBufferPoolUtilization());
 
-  ASSERT_LE(ImageAllocationSize(format_lo), buffer1->mapped_size());
-  ASSERT_LE(ImageAllocationSize(format_lo), buffer2->mapped_size());
-  ASSERT_LE(ImageAllocationSize(format_lo), buffer3->mapped_size());
+  ASSERT_LE(format_lo.ImageAllocationSize(), buffer1->mapped_size());
+  ASSERT_LE(format_lo.ImageAllocationSize(), buffer2->mapped_size());
+  ASSERT_LE(format_lo.ImageAllocationSize(), buffer3->mapped_size());
 
   ASSERT_NE(nullptr, buffer1->data());
   ASSERT_NE(nullptr, buffer2->data());
@@ -244,7 +233,7 @@ TEST_P(VideoCaptureBufferPoolTest, BufferPool) {
   ASSERT_EQ(2.0 / kTestBufferPoolSize, pool_->GetBufferPoolUtilization());
   buffer2 = ReserveBuffer(size_hi, GetParam());
   ASSERT_NE(nullptr, buffer2.get());
-  ASSERT_LE(ImageAllocationSize(format_hi), buffer2->mapped_size());
+  ASSERT_LE(format_hi.ImageAllocationSize(), buffer2->mapped_size());
   ASSERT_EQ(3, buffer2->id());
   ASSERT_EQ(3.0 / kTestBufferPoolSize, pool_->GetBufferPoolUtilization());
   void* const memory_pointer_hi = buffer2->data();
@@ -257,7 +246,7 @@ TEST_P(VideoCaptureBufferPoolTest, BufferPool) {
       << "Decrease in resolution should not reallocate buffer";
   ASSERT_NE(nullptr, buffer2.get());
   ASSERT_EQ(3, buffer2->id());
-  ASSERT_LE(ImageAllocationSize(format_lo), buffer2->mapped_size());
+  ASSERT_LE(format_lo.ImageAllocationSize(), buffer2->mapped_size());
   ASSERT_EQ(3.0 / kTestBufferPoolSize, pool_->GetBufferPoolUtilization());
   ASSERT_FALSE(ReserveBuffer(size_lo, GetParam())) << "Pool should be empty";
   ASSERT_EQ(1.0, pool_->GetBufferPoolUtilization());
@@ -280,13 +269,13 @@ TEST_P(VideoCaptureBufferPoolTest, BufferPool) {
   buffer4.reset();
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 namespace {
 
 gfx::GpuMemoryBufferHandle CreateIOSurfaceHandle() {
   gfx::GpuMemoryBufferHandle result;
   result.type = gfx::GpuMemoryBufferType::IO_SURFACE_BUFFER;
-  result.id = gfx::GpuMemoryBufferHandle::kInvalidId;
+  result.id.id = -1;
   result.io_surface.reset(
       gfx::CreateIOSurface(gfx::Size(100, 100), gfx::BufferFormat::BGRA_8888));
   return result;
@@ -361,4 +350,4 @@ INSTANTIATE_TEST_SUITE_P(All,
                          VideoCaptureBufferPoolTest,
                          testing::ValuesIn(kCapturePixelFormats));
 
-}  // namespace content
+} // namespace content

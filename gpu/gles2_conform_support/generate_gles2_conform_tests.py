@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2013 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 import os
 import re
 import sys
-import typing
 
-def ReadFileAsLines(filename: str) -> typing.List[str]:
+def ReadFileAsLines(filename):
   """Reads a file, removing blank lines and lines that start with #"""
   with open(filename, "r") as in_file:
     raw_lines = in_file.readlines()
@@ -22,7 +21,7 @@ def ReadFileAsLines(filename: str) -> typing.List[str]:
   return lines
 
 
-def GenerateTests(out_file: typing.IO) -> None:
+def GenerateTests(out_file):
   """Generates gles2_conform_test_autogen.cc"""
 
   tests = ReadFileAsLines(
@@ -31,20 +30,20 @@ def GenerateTests(out_file: typing.IO) -> None:
   out_file.write("""
 #include "gpu/gles2_conform_support/gles2_conform_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
-""".encode("utf8"))
+""")
 
   for test in tests:
-    out_file.write(("""
+    out_file.write("""
 TEST(GLES2ConformTest, %(name)s) {
   EXPECT_TRUE(RunGLES2ConformTest("%(path)s"));
 }
 """ % {
         "name": re.sub(r'[^A-Za-z0-9]', '_', test),
         "path": test,
-      }).encode("utf8"))
+      })
 
 
-def main(argv: typing.List[str]) -> int:
+def main(argv):
   """This is the main function."""
 
   if len(argv) >= 1:

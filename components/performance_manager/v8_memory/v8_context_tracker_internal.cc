@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ bool ExecutionContextData::ShouldDestroy() const {
 }
 
 void ExecutionContextData::SetRemoteFrameData(
-    base::PassKey<RemoteFrameData>,
+    util::PassKey<RemoteFrameData>,
     RemoteFrameData* remote_frame_data) {
   DCHECK(!remote_frame_data_);
   DCHECK(remote_frame_data);
@@ -46,26 +46,26 @@ void ExecutionContextData::SetRemoteFrameData(
 }
 
 bool ExecutionContextData::ClearRemoteFrameData(
-    base::PassKey<RemoteFrameData>) {
+    util::PassKey<RemoteFrameData>) {
   DCHECK(remote_frame_data_);
   remote_frame_data_ = nullptr;
   return ShouldDestroy();
 }
 
 void ExecutionContextData::IncrementV8ContextCount(
-    base::PassKey<V8ContextData>) {
+    util::PassKey<V8ContextData>) {
   ++v8_context_count_;
 }
 
 bool ExecutionContextData::DecrementV8ContextCount(
-    base::PassKey<V8ContextData>) {
+    util::PassKey<V8ContextData>) {
   DCHECK_LT(0u, v8_context_count_);
   DCHECK_LT(main_nondetached_v8_context_count_, v8_context_count_);
   --v8_context_count_;
   return ShouldDestroy();
 }
 
-bool ExecutionContextData::MarkDestroyed(base::PassKey<ProcessData>) {
+bool ExecutionContextData::MarkDestroyed(util::PassKey<ProcessData>) {
   if (destroyed)
     return false;
   destroyed = true;
@@ -73,7 +73,7 @@ bool ExecutionContextData::MarkDestroyed(base::PassKey<ProcessData>) {
 }
 
 bool ExecutionContextData::MarkMainV8ContextCreated(
-    base::PassKey<V8ContextTrackerDataStore>) {
+    util::PassKey<V8ContextTrackerDataStore>) {
   if (main_nondetached_v8_context_count_ >= v8_context_count_)
     return false;
   if (main_nondetached_v8_context_count_ >= 1)
@@ -83,7 +83,7 @@ bool ExecutionContextData::MarkMainV8ContextCreated(
 }
 
 void ExecutionContextData::MarkMainV8ContextDetached(
-    base::PassKey<V8ContextData>) {
+    util::PassKey<V8ContextData>) {
   DCHECK_LT(0u, main_nondetached_v8_context_count_);
   --main_nondetached_v8_context_count_;
 }
@@ -99,6 +99,8 @@ RemoteFrameData::RemoteFrameData(ProcessData* process_data,
       execution_context_data_(execution_context_data) {
   DCHECK(process_data);
   DCHECK(execution_context_data);
+  // This and the ExecutionContext *must* be cross-process.
+  DCHECK_NE(process_data, execution_context_data->process_data());
   execution_context_data->SetRemoteFrameData(PassKey(), this);
 }
 
@@ -110,11 +112,7 @@ RemoteFrameData::~RemoteFrameData() {
   // scope on their own.
   if (execution_context_data_->ClearRemoteFrameData(PassKey()) &&
       execution_context_data_->IsTracked()) {
-    // Reset `execution_context_data_` to nullptr because it will be destroyed
-    // using the token below.
-    blink::ExecutionContextToken token = execution_context_data_->GetToken();
-    execution_context_data_ = nullptr;
-    process_data_->data_store()->Destroy(token);
+    process_data_->data_store()->Destroy(execution_context_data_->GetToken());
   }
 }
 
@@ -135,7 +133,7 @@ V8ContextData::V8ContextData(ProcessData* process_data,
             static_cast<bool>(description.execution_context_token));
   if (execution_context_data) {
     DCHECK_EQ(execution_context_data->GetToken(),
-              *description.execution_context_token);
+              description.execution_context_token.value());
 
     // These must be same process.
     DCHECK_EQ(process_data, execution_context_data->process_data());
@@ -153,15 +151,9 @@ V8ContextData::~V8ContextData() {
   // If this is the last reference keeping alive a tracked ExecutionContextData,
   // then clean it up as well. Untracked ExecutionContextDatas will go out of
   // scope on their own.
-  auto* execution_context_data = GetExecutionContextData();
-  if (execution_context_data &&
-      execution_context_data->DecrementV8ContextCount(PassKey()) &&
-      execution_context_data->IsTracked()) {
-    // Reset the execution_context_state to nullptr because it will be
-    // destroyed using the token below.
-    blink::ExecutionContextToken token = execution_context_data->GetToken();
-    execution_context_state = nullptr;
-    process_data_->data_store()->Destroy(token);
+  if (auto* ecd = GetExecutionContextData()) {
+    if (ecd->DecrementV8ContextCount(PassKey()) && ecd->IsTracked())
+      process_data_->data_store()->Destroy(ecd->GetToken());
   }
 }
 
@@ -173,12 +165,12 @@ ExecutionContextData* V8ContextData::GetExecutionContextData() const {
   return static_cast<ExecutionContextData*>(execution_context_state);
 }
 
-void V8ContextData::SetWasTracked(base::PassKey<V8ContextTrackerDataStore>) {
+void V8ContextData::SetWasTracked(util::PassKey<V8ContextTrackerDataStore>) {
   DCHECK(!was_tracked_);
   was_tracked_ = true;
 }
 
-bool V8ContextData::MarkDetached(base::PassKey<ProcessData>) {
+bool V8ContextData::MarkDetached(util::PassKey<ProcessData>) {
   return MarkDetachedImpl();
 }
 
@@ -261,7 +253,7 @@ void ProcessData::TearDown() {
   DCHECK(v8_context_datas_.empty());
 }
 
-void ProcessData::Add(base::PassKey<V8ContextTrackerDataStore>,
+void ProcessData::Add(util::PassKey<V8ContextTrackerDataStore>,
                       ExecutionContextData* ec_data) {
   DCHECK(ec_data);
   DCHECK_EQ(this, ec_data->process_data());
@@ -271,7 +263,7 @@ void ProcessData::Add(base::PassKey<V8ContextTrackerDataStore>,
   counts_.IncrementExecutionContextDataCount();
 }
 
-void ProcessData::Add(base::PassKey<V8ContextTrackerDataStore>,
+void ProcessData::Add(util::PassKey<V8ContextTrackerDataStore>,
                       RemoteFrameData* rf_data) {
   DCHECK(rf_data);
   DCHECK_EQ(this, rf_data->process_data());
@@ -279,7 +271,7 @@ void ProcessData::Add(base::PassKey<V8ContextTrackerDataStore>,
   remote_frame_datas_.Append(rf_data);
 }
 
-void ProcessData::Add(base::PassKey<V8ContextTrackerDataStore>,
+void ProcessData::Add(util::PassKey<V8ContextTrackerDataStore>,
                       V8ContextData* v8_data) {
   DCHECK(v8_data);
   DCHECK_EQ(this, v8_data->process_data());
@@ -288,7 +280,7 @@ void ProcessData::Add(base::PassKey<V8ContextTrackerDataStore>,
   counts_.IncrementV8ContextDataCount();
 }
 
-void ProcessData::Remove(base::PassKey<V8ContextTrackerDataStore>,
+void ProcessData::Remove(util::PassKey<V8ContextTrackerDataStore>,
                          ExecutionContextData* ec_data) {
   DCHECK(ec_data);
   DCHECK_EQ(this, ec_data->process_data());
@@ -298,7 +290,7 @@ void ProcessData::Remove(base::PassKey<V8ContextTrackerDataStore>,
   ec_data->RemoveFromList();
 }
 
-void ProcessData::Remove(base::PassKey<V8ContextTrackerDataStore>,
+void ProcessData::Remove(util::PassKey<V8ContextTrackerDataStore>,
                          RemoteFrameData* rf_data) {
   DCHECK(rf_data);
   DCHECK_EQ(this, rf_data->process_data());
@@ -306,7 +298,7 @@ void ProcessData::Remove(base::PassKey<V8ContextTrackerDataStore>,
   rf_data->RemoveFromList();
 }
 
-void ProcessData::Remove(base::PassKey<V8ContextTrackerDataStore>,
+void ProcessData::Remove(util::PassKey<V8ContextTrackerDataStore>,
                          V8ContextData* v8_data) {
   DCHECK(v8_data);
   DCHECK_EQ(this, v8_data->process_data());
@@ -315,7 +307,7 @@ void ProcessData::Remove(base::PassKey<V8ContextTrackerDataStore>,
   v8_data->RemoveFromList();
 }
 
-bool ProcessData::MarkDestroyed(base::PassKey<V8ContextTrackerDataStore>,
+bool ProcessData::MarkDestroyed(util::PassKey<V8ContextTrackerDataStore>,
                                 ExecutionContextData* ec_data) {
   bool result = ec_data->MarkDestroyed(PassKey());
   if (result)
@@ -323,7 +315,7 @@ bool ProcessData::MarkDestroyed(base::PassKey<V8ContextTrackerDataStore>,
   return result;
 }
 
-bool ProcessData::MarkDetached(base::PassKey<V8ContextTrackerDataStore>,
+bool ProcessData::MarkDetached(util::PassKey<V8ContextTrackerDataStore>,
                                V8ContextData* v8_data) {
   bool result = v8_data->MarkDetached(PassKey());
   if (result)

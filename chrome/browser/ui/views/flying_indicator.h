@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 #define CHROME_BROWSER_UI_VIEWS_FLYING_INDICATOR_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/multi_animation.h"
 #include "ui/gfx/geometry/point.h"
@@ -70,13 +69,12 @@ class FlyingIndicator : public views::WidgetObserver,
   void OnWidgetDestroyed(views::Widget* widget) override;
 
   const gfx::Point start_;
-  const raw_ptr<const views::View> target_;
+  const views::View* const target_;
   gfx::Size bubble_size_;
   gfx::MultiAnimation animation_;
   base::OnceClosure done_callback_;
-  raw_ptr<views::Widget> widget_ = nullptr;
-  base::ScopedObservation<views::Widget, views::WidgetObserver>
-      scoped_observation_{this};
+  views::Widget* widget_ = nullptr;
+  ScopedObserver<views::Widget, views::WidgetObserver> scoped_observer_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FLYING_INDICATOR_H_

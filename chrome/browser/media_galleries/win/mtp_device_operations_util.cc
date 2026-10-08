@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -73,7 +73,7 @@ Microsoft::WRL::ComPtr<IPortableDeviceContent> GetDeviceContent(
 // |parent_id| specifies the parent object identifier.
 Microsoft::WRL::ComPtr<IEnumPortableDeviceObjectIDs> GetDeviceObjectEnumerator(
     IPortableDevice* device,
-    const std::wstring& parent_id) {
+    const base::string16& parent_id) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
   DCHECK(device);
@@ -111,16 +111,17 @@ bool IsDirectory(IPortableDeviceValues* properties_values) {
 
 // Returns the name of the object from |properties_values|. If the object has
 // no filename, try to use a friendly name instead. e.g. with MTP storage roots.
-std::u16string GetObjectName(IPortableDeviceValues* properties_values) {
+base::string16 GetObjectName(IPortableDeviceValues* properties_values) {
   DCHECK(properties_values);
-  base::win::ScopedCoMem<wchar_t> buffer;
+  base::string16 result;
+  base::win::ScopedCoMem<base::char16> buffer;
   HRESULT hr = properties_values->GetStringValue(WPD_OBJECT_ORIGINAL_FILE_NAME,
                                                  &buffer);
   if (FAILED(hr))
     hr = properties_values->GetStringValue(WPD_OBJECT_NAME, &buffer);
-  if (FAILED(hr))
-    return std::u16string();
-  return base::WideToUTF16(std::wstring(buffer));
+  if (SUCCEEDED(hr))
+    result.assign(buffer);
+  return result;
 }
 
 // Gets the last modified time of the object from the property key values
@@ -139,8 +140,8 @@ void GetLastModifiedTime(IPortableDeviceValues* properties_values,
   // Some PTP devices don't provide an mtime. Try using the ctime instead.
   if (last_modified_date.get().vt != VT_DATE) {
     last_modified_date.Reset();
-    hr = properties_values->GetValue(WPD_OBJECT_DATE_CREATED,
-                                     last_modified_date.Receive());
+    HRESULT hr = properties_values->GetValue(WPD_OBJECT_DATE_CREATED,
+                                             last_modified_date.Receive());
     if (FAILED(hr))
       return;
   }
@@ -172,8 +173,8 @@ int64_t GetObjectSize(IPortableDeviceValues* properties_values) {
 // |is_directory|, |size|. |last_modified_time| will be filled in if possible,
 // but failure to get it doesn't prevent success.
 bool GetObjectDetails(IPortableDevice* device,
-                      const std::wstring object_id,
-                      std::u16string* name,
+                      const base::string16 object_id,
+                      base::string16* name,
                       bool* is_directory,
                       int64_t* size,
                       base::Time* last_modified_time) {
@@ -243,12 +244,12 @@ bool GetObjectDetails(IPortableDevice* device,
 // Creates an MTP device object entry for the given |device| and |object_id|.
 // On success, returns true and fills in |entry|.
 MTPDeviceObjectEntry GetMTPDeviceObjectEntry(IPortableDevice* device,
-                                             const std::wstring& object_id) {
+                                             const base::string16& object_id) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
   DCHECK(device);
   DCHECK(!object_id.empty());
-  std::u16string name;
+  base::string16 name;
   bool is_directory;
   int64_t size;
   base::Time last_modified_time;
@@ -266,8 +267,8 @@ MTPDeviceObjectEntry GetMTPDeviceObjectEntry(IPortableDevice* device,
 // name in |object_name|. Leave |object_name| blank to request all entries. On
 // success returns true and set |object_entries|.
 bool GetMTPDeviceObjectEntries(IPortableDevice* device,
-                               const std::wstring& directory_object_id,
-                               const std::u16string& object_name,
+                               const base::string16& directory_object_id,
+                               const base::string16& object_name,
                                MTPDeviceObjectEntries* object_entries) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
@@ -284,8 +285,8 @@ bool GetMTPDeviceObjectEntries(IPortableDevice* device,
   const bool get_all_entries = object_name.empty();
   for (HRESULT hr = S_OK; hr == S_OK;) {
     DWORD num_objects_fetched = 0;
-    std::unique_ptr<wchar_t*[]> object_ids(
-        new wchar_t*[num_objects_to_request]);
+    std::unique_ptr<base::char16* []> object_ids(
+        new base::char16*[num_objects_to_request]);
     hr = enum_object_ids->Next(num_objects_to_request,
                                object_ids.get(),
                                &num_objects_fetched);
@@ -310,7 +311,7 @@ bool GetMTPDeviceObjectEntries(IPortableDevice* device,
 }  // namespace
 
 Microsoft::WRL::ComPtr<IPortableDevice> OpenDevice(
-    const std::wstring& pnp_device_id) {
+    const base::string16& pnp_device_id) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
   DCHECK(!pnp_device_id.empty());
@@ -331,9 +332,10 @@ Microsoft::WRL::ComPtr<IPortableDevice> OpenDevice(
   return Microsoft::WRL::ComPtr<IPortableDevice>();
 }
 
-base::File::Error GetFileEntryInfo(IPortableDevice* device,
-                                   const std::wstring& object_id,
-                                   base::File::Info* file_entry_info) {
+base::File::Error GetFileEntryInfo(
+    IPortableDevice* device,
+    const base::string16& object_id,
+    base::File::Info* file_entry_info) {
   DCHECK(device);
   DCHECK(!object_id.empty());
   DCHECK(file_entry_info);
@@ -351,14 +353,14 @@ base::File::Error GetFileEntryInfo(IPortableDevice* device,
 }
 
 bool GetDirectoryEntries(IPortableDevice* device,
-                         const std::wstring& directory_object_id,
+                         const base::string16& directory_object_id,
                          MTPDeviceObjectEntries* object_entries) {
   return GetMTPDeviceObjectEntries(device, directory_object_id,
-                                   std::u16string(), object_entries);
+                                   base::string16(), object_entries);
 }
 
 HRESULT GetFileStreamForObject(IPortableDevice* device,
-                               const std::wstring& file_object_id,
+                               const base::string16& file_object_id,
                                IStream** file_stream,
                                DWORD* optimal_transfer_size) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
@@ -399,19 +401,23 @@ DWORD CopyDataChunkToLocalFile(IStream* stream,
   if (FAILED(hr))
     return 0U;
   DCHECK_GT(bytes_read, 0U);
-  CHECK_LE(bytes_read, buffer.size());
-  buffer.resize(bytes_read);
-  return base::AppendToFile(local_path, buffer) ? buffer.size() : 0;
+  CHECK_LE(bytes_read, buffer.length());
+  int data_len =
+      base::checked_cast<int>(
+          std::min(bytes_read,
+                   base::checked_cast<DWORD>(buffer.length())));
+  return base::AppendToFile(local_path, buffer.c_str(), data_len) ? data_len
+                                                                  : 0;
 }
 
-std::wstring GetObjectIdFromName(IPortableDevice* device,
-                                 const std::wstring& parent_id,
-                                 const std::u16string& object_name) {
+base::string16 GetObjectIdFromName(IPortableDevice* device,
+                                   const base::string16& parent_id,
+                                   const base::string16& object_name) {
   MTPDeviceObjectEntries object_entries;
   if (!GetMTPDeviceObjectEntries(device, parent_id, object_name,
                                  &object_entries) ||
       object_entries.empty())
-    return std::wstring();
+    return base::string16();
   // TODO(thestig): This DCHECK can fail. Multiple MTP objects can have
   // the same name. Handle the situation gracefully. Refer to crbug.com/169930
   // for more details.

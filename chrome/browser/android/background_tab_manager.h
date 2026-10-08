@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
 #include "content/public/browser/web_contents_observer.h"
 
@@ -32,18 +31,15 @@ class WebContentsDestroyedObserver : public content::WebContentsObserver {
  public:
   WebContentsDestroyedObserver(BackgroundTabManager* owner,
                                content::WebContents* watched_contents);
-
-  WebContentsDestroyedObserver(const WebContentsDestroyedObserver&) = delete;
-  WebContentsDestroyedObserver& operator=(const WebContentsDestroyedObserver&) =
-      delete;
-
   ~WebContentsDestroyedObserver() override;
 
   // WebContentsObserver:
   void WebContentsDestroyed() override;
 
  private:
-  raw_ptr<BackgroundTabManager> owner_;
+  BackgroundTabManager* owner_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsDestroyedObserver);
 };
 
 // BackgroundTabManager is responsible for storing state for the current
@@ -89,8 +85,8 @@ class BackgroundTabManager {
  private:
   friend struct base::DefaultSingletonTraits<BackgroundTabManager>;
 
-  raw_ptr<content::WebContents> web_contents_;
-  raw_ptr<Profile> profile_;
+  content::WebContents* web_contents_;
+  Profile* profile_;
   std::vector<history::HistoryAddPageArgs> cached_history_;
   std::unique_ptr<WebContentsDestroyedObserver> web_contents_observer_;
 };

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@ package org.chromium.chrome.browser.download;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.database.Cursor;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Environment;
 import android.text.TextUtils;
 
@@ -20,9 +18,7 @@ import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Log;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.chrome.browser.download.items.OfflineContentAggregatorFactory;
-import org.chromium.chrome.browser.profiles.ProfileKey;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.download.DownloadCollectionBridge;
 import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.OfflineContentProvider;
 import org.chromium.components.offline_items_collection.OfflineItem;
@@ -190,7 +186,7 @@ public class DownloadTestRule extends ChromeTabbedActivityTestRule {
 
     public List<DownloadItem> getAllDownloads() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            DownloadManagerService.getDownloadManagerService().getAllDownloads(null);
+            DownloadManagerService.getDownloadManagerService().getAllDownloads(false);
         });
         return mAllDownloads;
     }
@@ -198,7 +194,7 @@ public class DownloadTestRule extends ChromeTabbedActivityTestRule {
     private class TestDownloadManagerServiceObserver
             implements DownloadManagerService.DownloadObserver {
         @Override
-        public void onAllDownloadsRetrieved(final List<DownloadItem> list, ProfileKey profileKey) {
+        public void onAllDownloadsRetrieved(final List<DownloadItem> list, boolean isOffTheRecord) {
             mAllDownloads = list;
         }
 
@@ -206,7 +202,7 @@ public class DownloadTestRule extends ChromeTabbedActivityTestRule {
         public void onDownloadItemCreated(DownloadItem item) {}
 
         @Override
-        public void onDownloadItemRemoved(String guid) {}
+        public void onDownloadItemRemoved(String guid, boolean isOffTheRecord) {}
 
         @Override
         public void onAddOrReplaceDownloadSharedPreferenceEntry(ContentId id) {}
@@ -215,7 +211,7 @@ public class DownloadTestRule extends ChromeTabbedActivityTestRule {
         public void onDownloadItemUpdated(DownloadItem item) {}
 
         @Override
-        public void broadcastDownloadSuccessful(DownloadInfo downloadInfo) {
+        public void broadcastDownloadSuccessfulForTesting(DownloadInfo downloadInfo) {
             mLastDownloadFilePath = downloadInfo.getFilePath();
             mHttpDownloadFinished.notifyCalled();
         }
@@ -275,27 +271,13 @@ public class DownloadTestRule extends ChromeTabbedActivityTestRule {
     }
 
     public void deleteFilesInDownloadDirectory(String... filenames) {
-        for (String filename : filenames) deleteFile(filename);
-    }
-
-    private void deleteFile(String fileName) {
-        // Delete file path on pre Q.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            final File fileToDelete = new File(DOWNLOAD_DIRECTORY, fileName);
+        for (String filename : filenames) {
+            final File fileToDelete = new File(DOWNLOAD_DIRECTORY, filename);
             if (fileToDelete.exists()) {
                 Assert.assertTrue(
                         "Could not delete file that would block this test", fileToDelete.delete());
             }
-            return;
         }
-
-        // Delete content URI starting from Q.
-        Uri uri = DownloadCollectionBridge.getDownloadUriForFileName(fileName);
-        if (uri == null) {
-            Log.e(TAG, "Can't find URI of file for deletion: %s on Android P+.", fileName);
-            return;
-        }
-        DownloadCollectionBridge.deleteIntermediateUri(uri.toString());
     }
 
     /**

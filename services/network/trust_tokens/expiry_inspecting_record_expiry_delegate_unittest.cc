@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,7 +51,7 @@ TEST(ExpiryInspectingRecordExpiryDelegate, ExpiresRecordWhenNoKeys) {
   TrustTokenRedemptionRecord record;
 
   EXPECT_TRUE(delegate.IsRecordExpired(
-      record, base::Minutes(1),
+      record,
       *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
 }
 
@@ -72,54 +72,13 @@ TEST(ExpiryInspectingRecordExpiryDelegate, ExpiresRecordWithNoMatchingKey) {
   record.set_token_verification_key("key");
 
   EXPECT_TRUE(delegate.IsRecordExpired(
-      record, base::Minutes(12345),
-      *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
-}
-
-// Lifetime expired
-TEST(ExpiryInspectingRecordExpiryDelegate, ExpiresRecordOutOfLifetime) {
-  base::test::TaskEnvironment env(
-      base::test::TaskEnvironment::TimeSource::MOCK_TIME);
-
-  auto commitment_result = mojom::TrustTokenKeyCommitmentResult::New();
-  commitment_result->keys.push_back(mojom::TrustTokenVerificationKey::New(
-      "key", /*expiry=*/base::Time::Max()));
-  FixedKeyCommitmentGetter getter(std::move(commitment_result));
-  ExpiryInspectingRecordExpiryDelegate delegate(&getter);
-
-  TrustTokenRedemptionRecord record;
-  record.set_token_verification_key("key");
-  record.set_lifetime(42);
-
-  EXPECT_TRUE(delegate.IsRecordExpired(
-      record, base::Seconds(43),
-      *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
-}
-
-// Zero Lifetime
-TEST(ExpiryInspectingRecordExpiryDelegate, ExpiresRecordWithZeroLifetime) {
-  base::test::TaskEnvironment env(
-      base::test::TaskEnvironment::TimeSource::MOCK_TIME);
-
-  auto commitment_result = mojom::TrustTokenKeyCommitmentResult::New();
-  commitment_result->keys.push_back(mojom::TrustTokenVerificationKey::New(
-      "key", /*expiry=*/base::Time::Max()));
-  FixedKeyCommitmentGetter getter(std::move(commitment_result));
-  ExpiryInspectingRecordExpiryDelegate delegate(&getter);
-
-  TrustTokenRedemptionRecord record;
-  record.set_token_verification_key("key");
-  record.set_lifetime(0);
-
-  EXPECT_TRUE(delegate.IsRecordExpired(
-      record, base::Seconds(0),
+      record,
       *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
 }
 
 // When a record's issuer has the record's key in its current commitment, the
 // record should not be marked as expired.
-TEST(ExpiryInspectingRecordExpiryDelegate,
-     DoesntExpireUnexpiredRecordLifetimeNotSet) {
+TEST(ExpiryInspectingRecordExpiryDelegate, DoesntExpireUnexpiredRecord) {
   base::test::TaskEnvironment env(
       base::test::TaskEnvironment::TimeSource::MOCK_TIME);
 
@@ -133,27 +92,7 @@ TEST(ExpiryInspectingRecordExpiryDelegate,
   record.set_token_verification_key("key");
 
   EXPECT_FALSE(delegate.IsRecordExpired(
-      record, base::Minutes(99999),
-      *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
-}
-
-TEST(ExpiryInspectingRecordExpiryDelegate,
-     DoesntExpireUnexpiredRecordLifetimeSet) {
-  base::test::TaskEnvironment env(
-      base::test::TaskEnvironment::TimeSource::MOCK_TIME);
-
-  auto commitment_result = mojom::TrustTokenKeyCommitmentResult::New();
-  commitment_result->keys.push_back(mojom::TrustTokenVerificationKey::New(
-      "key", /*expiry=*/base::Time::Max()));
-  FixedKeyCommitmentGetter getter(std::move(commitment_result));
-  ExpiryInspectingRecordExpiryDelegate delegate(&getter);
-
-  TrustTokenRedemptionRecord record;
-  record.set_token_verification_key("key");
-  record.set_lifetime(27);
-
-  EXPECT_FALSE(delegate.IsRecordExpired(
-      record, base::Seconds(26),
+      record,
       *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
 }
 

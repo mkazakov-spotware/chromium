@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ SyncError::SyncError(const SyncError& other) {
   Copy(other);
 }
 
-SyncError::~SyncError() = default;
+SyncError::~SyncError() {}
 
 SyncError& SyncError::operator=(const SyncError& other) {
   if (this == &other) {
@@ -101,9 +101,7 @@ SyncError::Severity SyncError::GetSeverity() const {
     case UNREADY_ERROR:
     case DATATYPE_POLICY_ERROR:
       return SYNC_ERROR_SEVERITY_INFO;
-    case UNSET:
-    case DATATYPE_ERROR:
-    case CRYPTO_ERROR:
+    default:
       return SYNC_ERROR_SEVERITY_ERROR;
   }
 }
@@ -134,8 +132,8 @@ std::string SyncError::ToString() const {
   if (!IsSet()) {
     return std::string();
   }
-  return location_->ToString() + ", " + ModelTypeToDebugString(model_type_) +
-         " " + GetMessagePrefix() + message_;
+  return location_->ToString() + ", " + ModelTypeToString(model_type_) + " " +
+         GetMessagePrefix() + message_;
 }
 
 void SyncError::PrintLogError() const {
@@ -147,7 +145,7 @@ void SyncError::PrintLogError() const {
                                   location_->line_number(), logSeverity)
                   .stream(),
               logSeverity >= ::logging::GetMinLogLevel())
-      << ModelTypeToDebugString(model_type_) << " " << GetMessagePrefix()
+      << ModelTypeToString(model_type_) << " " << GetMessagePrefix()
       << message_;
 }
 

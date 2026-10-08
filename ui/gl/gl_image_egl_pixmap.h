@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/x/glx.h"
 #include "ui/gl/gl_export.h"
@@ -21,9 +22,6 @@ class GL_EXPORT GLImageEGLPixmap : public GLImage {
  public:
   GLImageEGLPixmap(const gfx::Size& size, gfx::BufferFormat format);
 
-  GLImageEGLPixmap(const GLImageEGLPixmap&) = delete;
-  GLImageEGLPixmap& operator=(const GLImageEGLPixmap&) = delete;
-
   bool Initialize(x11::Pixmap pixmap);
 
   // Overridden from GLImage:
@@ -33,6 +31,7 @@ class GL_EXPORT GLImageEGLPixmap : public GLImage {
   BindOrCopy ShouldBindOrCopy() override;
   bool BindTexImage(unsigned target) override;
   void ReleaseTexImage(unsigned target) override;
+  void Flush() override {}
   void OnMemoryDump(base::trace_event::ProcessMemoryDump* pmd,
                     uint64_t process_tracing_id,
                     const std::string& dump_name) override;
@@ -47,6 +46,8 @@ class GL_EXPORT GLImageEGLPixmap : public GLImage {
   const gfx::Size size_;
   gfx::BufferFormat format_;
   EGLDisplay display_;
+
+  DISALLOW_COPY_AND_ASSIGN(GLImageEGLPixmap);
 };
 
 }  // namespace gl

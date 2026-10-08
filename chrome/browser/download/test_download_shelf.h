@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,6 @@ class TestDownloadShelf : public DownloadShelf {
   // DownloadShelf:
   bool IsShowing() const override;
   bool IsClosing() const override;
-
-  views::View* GetView() override;
 
   bool did_add_download() const { return did_add_download_; }
 

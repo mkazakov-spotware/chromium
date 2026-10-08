@@ -1,30 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
-import {$} from 'chrome://resources/ash/common/util.js';
-
-import {DialogType, isFolderDialogType} from '../../common/js/dialog_type.js';
-import {metrics} from '../../common/js/metrics.js';
-import {str, UserCanceledError, util} from '../../common/js/util.js';
-import {AllowedPaths, VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
-
-import {FileFilter} from './directory_contents.js';
-import {DirectoryModel} from './directory_model.js';
-import {FileSelectionHandler} from './file_selection.js';
-import {LaunchParam} from './launch_param.js';
-import {MetadataModel} from './metadata/metadata_model.js';
-import {NamingController} from './naming_controller.js';
-import {Command} from './ui/command.js';
-import {DialogFooter} from './ui/dialog_footer.js';
 
 /**
  * Controler for handling behaviors of the Files app opened as a file/folder
  * selection dialog.
  */
-export class DialogActionController {
+class DialogActionController {
   /**
    * @param {!DialogType} dialogType Dialog type.
    * @param {!DialogFooter} dialogFooter Dialog footer.
@@ -99,7 +81,7 @@ export class DialogActionController {
     this.onFileTypeFilterChanged_();
 
     this.newFolderCommand_ =
-        /** @type {Command} */ ($('new-folder'));
+        /** @type {cr.ui.Command} */ ($('new-folder'));
     this.newFolderCommand_.addEventListener(
         'disabledChange', this.updateNewFolderButton_.bind(this));
   }
@@ -107,7 +89,7 @@ export class DialogActionController {
   /**
    * @private
    */
-  async processOKActionForSaveDialog_() {
+  processOKActionForSaveDialog_() {
     const selection = this.fileSelectionHandler_.selection;
 
     // If OK action is clicked when a directory is selected, open the directory.
@@ -125,20 +107,21 @@ export class DialogActionController {
       throw new Error('Missing filename!');
     }
 
-    try {
-      const url =
-          await this.namingController_.validateFileNameForSaving(filename);
-
-      this.selectFilesAndClose_({
-        urls: [url],
-        multiple: false,
-        filterIndex: this.dialogFooter_.selectedFilterIndex,
-      });
-    } catch (error) {
-      if (!(error instanceof UserCanceledError)) {
-        console.warn(error);
-      }
-    }
+    this.namingController_.validateFileNameForSaving(filename)
+        .then(url => {
+          // TODO(mtomasz): Clean this up by avoiding constructing a URL
+          //                via string concatenation.
+          this.selectFilesAndClose_({
+            urls: [url],
+            multiple: false,
+            filterIndex: this.dialogFooter_.selectedFilterIndex
+          });
+        })
+        .catch(error => {
+          if (error instanceof Error) {
+            console.error(error.stack && error);
+          }
+        });
   }
 
   /**
@@ -162,12 +145,13 @@ export class DialogActionController {
     const selectedIndexes =
         this.directoryModel_.getFileListSelection().selectedIndexes;
 
-    if (isFolderDialogType(this.dialogType_) && selectedIndexes.length === 0) {
+    if (DialogType.isFolderDialog(this.dialogType_) &&
+        selectedIndexes.length === 0) {
       const url = this.directoryModel_.getCurrentDirEntry().toURL();
       const singleSelection = {
         urls: [url],
         multiple: false,
-        filterIndex: this.dialogFooter_.selectedFilterIndex,
+        filterIndex: this.dialogFooter_.selectedFilterIndex
       };
       this.selectFilesAndClose_(singleSelection);
       return;
@@ -184,7 +168,7 @@ export class DialogActionController {
     for (let i = 0; i < selectedIndexes.length; i++) {
       const entry = dm.item(selectedIndexes[i]);
       if (!entry) {
-        console.warn('Error locating selected file at index: ' + i);
+        console.error('Error locating selected file at index: ' + i);
         continue;
       }
 
@@ -208,7 +192,7 @@ export class DialogActionController {
 
     const selectedEntry = dm.item(selectedIndexes[0]);
 
-    if (isFolderDialogType(this.dialogType_)) {
+    if (DialogType.isFolderDialog(this.dialogType_)) {
       if (!selectedEntry.isDirectory) {
         throw new Error('Selected entry is not a folder!');
       }
@@ -221,7 +205,7 @@ export class DialogActionController {
     const singleSelection = {
       urls: [files[0]],
       multiple: false,
-      filterIndex: this.dialogFooter_.selectedFilterIndex,
+      filterIndex: this.dialogFooter_.selectedFilterIndex
     };
     this.selectFilesAndClose_(singleSelection);
   }
@@ -397,7 +381,7 @@ export class DialogActionController {
       return;
     }
 
-    if (isFolderDialogType(this.dialogType_)) {
+    if (DialogType.isFolderDialog(this.dialogType_)) {
       // In SELECT_FOLDER mode, we allow to select current directory
       // when nothing is selected.
       this.dialogFooter_.okButton.disabled =
@@ -408,8 +392,7 @@ export class DialogActionController {
     if (this.dialogType_ === DialogType.SELECT_SAVEAS_FILE) {
       if (selection.directoryCount === 1 && selection.fileCount === 0) {
         this.dialogFooter_.okButtonLabel.textContent = str('OPEN_LABEL');
-        this.dialogFooter_.okButton.disabled =
-            this.fileSelectionHandler_.isDlpBlocked();
+        this.dialogFooter_.okButton.disabled = false;
       } else {
         this.dialogFooter_.okButtonLabel.textContent = str('SAVE_LABEL');
         this.dialogFooter_.okButton.disabled =

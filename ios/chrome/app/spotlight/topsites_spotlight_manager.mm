@@ -1,24 +1,26 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/app/spotlight/topsites_spotlight_manager.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/bind.h"
-#import "base/memory/ref_counted.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/bookmarks/browser/bookmark_model.h"
-#import "components/history/core/browser/history_types.h"
-#import "components/history/core/browser/top_sites.h"
-#import "components/history/core/browser/top_sites_observer.h"
-#import "components/sync/driver/sync_service.h"
-#import "ios/chrome/browser/bookmarks/bookmark_model_factory.h"
-#import "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
-#import "ios/chrome/browser/history/top_sites_factory.h"
-#import "ios/chrome/browser/sync/sync_observer_bridge.h"
-#import "ios/chrome/browser/sync/sync_service_factory.h"
+#include "base/bind.h"
+#include "base/memory/ref_counted.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/bookmarks/browser/bookmark_model.h"
+#include "components/history/core/browser/history_types.h"
+#include "components/history/core/browser/top_sites.h"
+#include "components/history/core/browser/top_sites_observer.h"
+#include "components/suggestions/suggestions_service.h"
+#include "components/sync/driver/sync_service.h"
+#include "ios/chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
+#include "ios/chrome/browser/history/top_sites_factory.h"
+#include "ios/chrome/browser/suggestions/suggestions_service_factory.h"
+#include "ios/chrome/browser/sync/profile_sync_service_factory.h"
+#include "ios/chrome/browser/sync/sync_observer_bridge.h"
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_mediator.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -27,6 +29,7 @@
 
 class SpotlightTopSitesBridge;
 class SpotlightTopSitesCallbackBridge;
+class SpotlightSuggestionsBridge;
 
 @interface TopSitesSpotlightManager ()<SyncObserverModelBridge> {
   // Bridge to register for top sites changes. It's important that this instance
@@ -36,9 +39,20 @@ class SpotlightTopSitesCallbackBridge;
   // Bridge to register for top sites callbacks.
   std::unique_ptr<SpotlightTopSitesCallbackBridge> _topSitesCallbackBridge;
 
+  // Bridge to register for sync changes.
+  std::unique_ptr<SyncObserverBridge> _syncObserverBridge;
+
+  // Bridge to register for suggestion changes.
+  std::unique_ptr<SpotlightSuggestionsBridge> _suggestionsBridge;
+
   bookmarks::BookmarkModel* _bookmarkModel;             // weak
+  suggestions::SuggestionsService* _suggestionService;  // weak
+  syncer::SyncService* _syncService;                    // weak
 
   scoped_refptr<history::TopSites> _topSites;
+  std::unique_ptr<
+      suggestions::SuggestionsService::ResponseCallbackList::Subscription>
+      _suggestionsServiceResponseSubscription;
 
   // Indicates if a reindex is pending. Reindexes made by calling the external
   // reindexTopSites method are executed at most every second.
@@ -49,7 +63,10 @@ class SpotlightTopSitesCallbackBridge;
 - (instancetype)
     initWithLargeIconService:(favicon::LargeIconService*)largeIconService
                     topSites:(scoped_refptr<history::TopSites>)topSites
-               bookmarkModel:(bookmarks::BookmarkModel*)bookmarkModel;
+               bookmarkModel:(bookmarks::BookmarkModel*)bookmarkModel
+                 syncService:(syncer::SyncService*)syncService
+          suggestionsService:
+              (suggestions::SuggestionsService*)suggestionsService;
 
 // Updates all indexed top sites from appropriate source, within limit of number
 // of sites shown on NTP.
@@ -62,8 +79,13 @@ class SpotlightTopSitesCallbackBridge;
 - (void)addAllLocalTopSitesItems;
 // Adds all top sites from Suggestions source (server-based), within limit of
 // number of sites shown on NTP.
+- (void)addAllSuggestionsTopSitesItems;
+// Callback for topsites mostvisited, adds sites to spotlight.
 - (void)onMostVisitedURLsAvailable:
     (const history::MostVisitedURLList&)top_sites;
+// Callback for suggestions, adds sites to spotlight.
+- (void)onSuggestionsProfileAvailable:
+    (const suggestions::SuggestionsProfile&)suggestions_profile;
 
 @end
 
@@ -108,6 +130,23 @@ class SpotlightTopSitesBridge : public history::TopSitesObserver {
   history::TopSites* top_sites_;
 };
 
+class SpotlightSuggestionsBridge
+    : public base::SupportsWeakPtr<SpotlightSuggestionsBridge> {
+ public:
+  explicit SpotlightSuggestionsBridge(TopSitesSpotlightManager* owner)
+      : owner_(owner) {}
+
+  ~SpotlightSuggestionsBridge() {}
+
+  void OnSuggestionsProfileAvailable(
+      const suggestions::SuggestionsProfile& suggestions_profile) {
+    [owner_ onSuggestionsProfileAvailable:suggestions_profile];
+  }
+
+ private:
+  __weak TopSitesSpotlightManager* owner_;
+};
+
 @implementation TopSitesSpotlightManager
 @synthesize topSites = _topSites;
 
@@ -119,23 +158,42 @@ class SpotlightTopSitesBridge : public history::TopSitesObserver {
                       topSites:ios::TopSitesFactory::GetForBrowserState(
                                    browserState)
                  bookmarkModel:ios::BookmarkModelFactory::GetForBrowserState(
-                                   browserState)];
+                                   browserState)
+                   syncService:ProfileSyncServiceFactory::GetForBrowserState(
+                                   browserState)
+            suggestionsService:suggestions::SuggestionsServiceFactory::
+                                   GetForBrowserState(browserState)];
 }
 
 - (instancetype)
     initWithLargeIconService:(favicon::LargeIconService*)largeIconService
                     topSites:(scoped_refptr<history::TopSites>)topSites
-               bookmarkModel:(bookmarks::BookmarkModel*)bookmarkModel {
+               bookmarkModel:(bookmarks::BookmarkModel*)bookmarkModel
+                 syncService:(syncer::SyncService*)syncService
+          suggestionsService:
+              (suggestions::SuggestionsService*)suggestionsService {
   self = [super initWithLargeIconService:largeIconService
                                   domain:spotlight::DOMAIN_TOPSITES];
   if (self) {
     DCHECK(topSites);
     DCHECK(bookmarkModel);
+    DCHECK(syncService);
+    DCHECK(suggestionsService);
     _topSites = topSites;
     _topSitesBridge.reset(new SpotlightTopSitesBridge(self, _topSites.get()));
     _topSitesCallbackBridge.reset(new SpotlightTopSitesCallbackBridge(self));
     _bookmarkModel = bookmarkModel;
     _isReindexPending = false;
+    if (syncService && suggestionsService) {
+      _suggestionsBridge.reset(new SpotlightSuggestionsBridge(self));
+      _syncService = syncService;
+      _suggestionService = suggestionsService;
+      _suggestionsServiceResponseSubscription =
+          _suggestionService->AddCallback(base::BindRepeating(
+              &SpotlightSuggestionsBridge::OnSuggestionsProfileAvailable,
+              _suggestionsBridge->AsWeakPtr()));
+      _syncObserverBridge.reset(new SyncObserverBridge(self, syncService));
+    }
   }
   return self;
 }
@@ -153,13 +211,23 @@ class SpotlightTopSitesBridge : public history::TopSitesObserver {
   if (!_topSites)
     return;
 
-  [self addAllLocalTopSitesItems];
+  if (_suggestionService) {
+    [self addAllSuggestionsTopSitesItems];
+  } else {
+    [self addAllLocalTopSitesItems];
+  }
 }
 
 - (void)addAllLocalTopSitesItems {
   _topSites->GetMostVisitedURLs(base::BindOnce(
       &SpotlightTopSitesCallbackBridge::OnMostVisitedURLsAvailable,
       _topSitesCallbackBridge->AsWeakPtr()));
+}
+
+- (void)addAllSuggestionsTopSitesItems {
+  if (!_suggestionService->FetchSuggestionsData()) {
+    [self addAllLocalTopSitesItems];
+  }
 }
 
 - (BOOL)isURLBookmarked:(const GURL&)URL {
@@ -188,6 +256,29 @@ class SpotlightTopSitesBridge : public history::TopSitesObserver {
   }
 }
 
+- (void)onSuggestionsProfileAvailable:
+    (const suggestions::SuggestionsProfile&)suggestionsProfile {
+  size_t size = suggestionsProfile.suggestions_size();
+  if (size) {
+    NSUInteger sitesToIndex =
+        MIN(size, [ContentSuggestionsMediator maxSitesShown]);
+    for (size_t i = 0; i < sitesToIndex; i++) {
+      const suggestions::ChromeSuggestion& suggestion =
+          suggestionsProfile.suggestions(i);
+      GURL URL = GURL(suggestion.url());
+      // Check if the item is bookmarked, in which case it is already indexed.
+      if ([self isURLBookmarked:URL]) {
+        continue;
+      }
+
+      std::string title = suggestion.title();
+      [self refreshItemsWithURL:URL title:base::SysUTF8ToNSString(title)];
+    }
+  } else {
+    [self addAllLocalTopSitesItems];
+  }
+}
+
 - (void)reindexTopSites {
   if (_isReindexPending) {
     return;
@@ -209,9 +300,13 @@ class SpotlightTopSitesBridge : public history::TopSitesObserver {
 - (void)shutdown {
   _topSitesBridge.reset();
   _topSitesCallbackBridge.reset();
+  _syncObserverBridge.reset();
+  _suggestionsBridge.reset();
 
   _topSites = nullptr;
   _bookmarkModel = nullptr;
+  _syncService = nullptr;
+  _suggestionService = nullptr;
 
   [super shutdown];
 }

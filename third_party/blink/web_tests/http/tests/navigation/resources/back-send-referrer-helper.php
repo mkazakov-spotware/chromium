@@ -33,12 +33,8 @@ sessionStorage.name : <span id="name"></span>
         history.back();
       } else {
         // Should be showing b. for the second time.
-        // TODO(https://crbug.com/1311546): Run this with a delay to work around a race when
-        // BFCache is enabled.
-        setTimeout(function() {
-          if (window.testRunner)
-            testRunner.notifyDone();
-        }, 500);
+        if (window.testRunner)
+          testRunner.notifyDone();
       }
     }, 0);
   });

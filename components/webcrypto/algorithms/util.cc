@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/webcrypto/algorithms/util.h"
 
 #include "base/check_op.h"
+#include "components/webcrypto/crypto_data.h"
 #include "components/webcrypto/status.h"
 #include "crypto/openssl_util.h"
 #include "third_party/boringssl/src/include/openssl/aead.h"
@@ -59,12 +60,17 @@ bool ContainsKeyUsages(blink::WebCryptoKeyUsageMask a,
   return (a & b) == b;
 }
 
+BIGNUM* CreateBIGNUM(const std::string& n) {
+  return BN_bin2bn(reinterpret_cast<const uint8_t*>(n.data()), n.size(),
+                   nullptr);
+}
+
 Status AeadEncryptDecrypt(EncryptOrDecrypt mode,
-                          base::span<const uint8_t> raw_key,
-                          base::span<const uint8_t> data,
+                          const std::vector<uint8_t>& raw_key,
+                          const CryptoData& data,
                           unsigned int tag_length_bytes,
-                          base::span<const uint8_t> iv,
-                          base::span<const uint8_t> additional_data,
+                          const CryptoData& iv,
+                          const CryptoData& additional_data,
                           const EVP_AEAD* aead_alg,
                           std::vector<uint8_t>* buffer) {
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
@@ -82,22 +88,24 @@ Status AeadEncryptDecrypt(EncryptOrDecrypt mode,
   int ok;
 
   if (mode == DECRYPT) {
-    if (data.size() < tag_length_bytes)
+    if (data.byte_length() < tag_length_bytes)
       return Status::ErrorDataTooSmall();
 
-    buffer->resize(data.size() - tag_length_bytes);
+    buffer->resize(data.byte_length() - tag_length_bytes);
 
     ok = EVP_AEAD_CTX_open(ctx.get(), buffer->data(), &len, buffer->size(),
-                           iv.data(), iv.size(), data.data(), data.size(),
-                           additional_data.data(), additional_data.size());
+                           iv.bytes(), iv.byte_length(), data.bytes(),
+                           data.byte_length(), additional_data.bytes(),
+                           additional_data.byte_length());
   } else {
     // No need to check for unsigned integer overflow here (seal fails if
     // the output buffer is too small).
-    buffer->resize(data.size() + EVP_AEAD_max_overhead(aead_alg));
+    buffer->resize(data.byte_length() + EVP_AEAD_max_overhead(aead_alg));
 
     ok = EVP_AEAD_CTX_seal(ctx.get(), buffer->data(), &len, buffer->size(),
-                           iv.data(), iv.size(), data.data(), data.size(),
-                           additional_data.data(), additional_data.size());
+                           iv.bytes(), iv.byte_length(), data.bytes(),
+                           data.byte_length(), additional_data.bytes(),
+                           additional_data.byte_length());
   }
 
   if (!ok)

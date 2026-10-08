@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,11 @@ const unsigned kTTLSecs = 1800;  // 30 minutes.
 }  // namespace
 
 CachingCertVerifier::CachingCertVerifier(std::unique_ptr<CertVerifier> verifier)
-    : verifier_(std::move(verifier)), cache_(kMaxCacheEntries) {
+    : verifier_(std::move(verifier)),
+      config_id_(0u),
+      cache_(kMaxCacheEntries),
+      requests_(0u),
+      cache_hits_(0u) {
   CertDatabase::GetInstance()->AddObserver(this);
 }
 
@@ -68,7 +72,7 @@ void CachingCertVerifier::SetConfig(const CertVerifier::Config& config) {
   ClearCache();
 }
 
-CachingCertVerifier::CachedResult::CachedResult() = default;
+CachingCertVerifier::CachedResult::CachedResult() : error(ERR_FAILED) {}
 
 CachingCertVerifier::CachedResult::~CachedResult() = default;
 
@@ -166,7 +170,8 @@ void CachingCertVerifier::AddResultToCache(
   cached_result.result = verify_result;
   cache_.Put(
       params, cached_result, CacheValidityPeriod(start_time),
-      CacheValidityPeriod(start_time, start_time + base::Seconds(kTTLSecs)));
+      CacheValidityPeriod(start_time,
+                          start_time + base::TimeDelta::FromSeconds(kTTLSecs)));
 }
 
 void CachingCertVerifier::OnCertDBChanged() {

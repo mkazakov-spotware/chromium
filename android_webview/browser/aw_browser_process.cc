@@ -1,26 +1,21 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "android_webview/browser/aw_browser_process.h"
 
 #include "android_webview/browser/aw_browser_context.h"
-#include "android_webview/browser/aw_enterprise_authentication_app_link_manager.h"
-#include "android_webview/browser/component_updater/registration.h"
 #include "android_webview/browser/lifecycle/aw_contents_lifecycle_notifier.h"
 #include "android_webview/browser/metrics/visibility_metrics_logger.h"
 #include "android_webview/browser_jni_headers/AwBrowserProcess_jni.h"
 #include "android_webview/common/crash_reporter/crash_keys.h"
-#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/base_paths_posix.h"
 #include "base/path_service.h"
 #include "base/task/thread_pool.h"
-#include "components/component_updater/android/component_loader_policy.h"
 #include "components/crash/core/common/crash_key.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/process_visibility_util.h"
 
 using content::BrowserThread;
 
@@ -34,12 +29,7 @@ const char kAuthAndroidNegotiateAccountType[] =
     "auth.android_negotiate_account_type";
 
 // Allowlist containing servers for which Integrated Authentication is enabled.
-// This pref should match |prefs::kAuthServerAllowlist|.
 const char kAuthServerAllowlist[] = "auth.server_allowlist";
-
-// This pref contains a list of authentication urls, for which when webview is
-// navigated to any of these urls, browse intent will be sent.
-const char kEnterpriseAuthAppLinkPolicy[] = "enterprise_auth_app_link_policy";
 
 }  // namespace prefs
 
@@ -59,9 +49,6 @@ AwBrowserProcess::AwBrowserProcess(
   aw_contents_lifecycle_notifier_ =
       std::make_unique<AwContentsLifecycleNotifier>(base::BindRepeating(
           &AwBrowserProcess::OnLoseForeground, base::Unretained(this)));
-
-  app_link_manager_ =
-      absl::make_unique<EnterpriseAuthenticationAppLinkManager>(local_state());
 }
 
 AwBrowserProcess::~AwBrowserProcess() {
@@ -107,9 +94,12 @@ VisibilityMetricsLogger* AwBrowserProcess::visibility_metrics_logger() {
   if (!visibility_metrics_logger_) {
     visibility_metrics_logger_ = std::make_unique<VisibilityMetricsLogger>();
 
+    // Now that we may become visible, also initialize AndroidBatteryMetrics.
+    battery_metrics_ = std::make_unique<power_metrics::AndroidBatteryMetrics>();
     visibility_metrics_logger_->SetOnVisibilityChangedCallback(
         base::BindRepeating([](bool visible) {
-          content::OnBrowserVisibilityChanged(visible);
+          AwBrowserProcess::GetInstance()
+              ->battery_metrics_->OnAppVisibilityChanged(visible);
         }));
   }
   return visibility_metrics_logger_.get();
@@ -171,6 +161,7 @@ AwBrowserProcess::GetSafeBrowsingTriggerManager() {
     safe_browsing_trigger_manager_ =
         std::make_unique<safe_browsing::TriggerManager>(
             GetSafeBrowsingUIManager(),
+            /*referrer_chain_provider=*/nullptr,
             /*local_state_prefs=*/nullptr);
   }
 
@@ -194,17 +185,11 @@ void AwBrowserProcess::RegisterNetworkContextLocalStatePrefs(
                                     std::string());
 }
 
-void AwBrowserProcess::RegisterEnterpriseAuthenticationAppLinkPolicyPref(
-    PrefRegistrySimple* pref_registry) {
-  pref_registry->RegisterListPref(prefs::kEnterpriseAuthAppLinkPolicy);
-}
-
 network::mojom::HttpAuthDynamicParamsPtr
 AwBrowserProcess::CreateHttpAuthDynamicParams() {
   network::mojom::HttpAuthDynamicParamsPtr auth_dynamic_params =
       network::mojom::HttpAuthDynamicParams::New();
 
-  auth_dynamic_params->allowed_schemes = AwBrowserContext::GetAuthSchemes();
   auth_dynamic_params->server_allowlist =
       local_state()->GetString(prefs::kAuthServerAllowlist);
   auth_dynamic_params->android_negotiate_account_type =
@@ -220,21 +205,10 @@ void AwBrowserProcess::OnAuthPrefsChanged() {
       CreateHttpAuthDynamicParams());
 }
 
-EnterpriseAuthenticationAppLinkManager*
-AwBrowserProcess::GetEnterpriseAuthenticationAppLinkManager() {
-  return app_link_manager_.get();
-}
-
 // static
 void AwBrowserProcess::TriggerMinidumpUploading() {
   Java_AwBrowserProcess_triggerMinidumpUploading(
       base::android::AttachCurrentThread());
-}
-
-// static
-ApkType AwBrowserProcess::GetApkType() {
-  return static_cast<ApkType>(
-      Java_AwBrowserProcess_getApkType(base::android::AttachCurrentThread()));
 }
 
 static void JNI_AwBrowserProcess_SetProcessNameCrashKey(
@@ -243,13 +217,6 @@ static void JNI_AwBrowserProcess_SetProcessNameCrashKey(
   static ::crash_reporter::CrashKeyString<64> crash_key(
       crash_keys::kAppProcessName);
   crash_key.Set(ConvertJavaStringToUTF8(env, processName));
-}
-
-static base::android::ScopedJavaLocalRef<jobjectArray>
-JNI_AwBrowserProcess_GetComponentLoaderPolicies(JNIEnv* env) {
-  return component_updater::AndroidComponentLoaderPolicy::
-      ToJavaArrayOfAndroidComponentLoaderPolicy(env,
-                                                GetComponentLoaderPolicies());
 }
 
 }  // namespace android_webview

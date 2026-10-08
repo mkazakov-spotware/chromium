@@ -32,6 +32,7 @@
 #include "base/time/time.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/hash_traits.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 
@@ -61,18 +62,20 @@ class SMILTime {
 
   static constexpr SMILTime Unresolved() { return base::TimeDelta::Max(); }
   static constexpr SMILTime Indefinite() {
-    return base::TimeDelta::Max() - base::Microseconds(1);
+    return base::TimeDelta::Max() - base::TimeDelta::FromMicroseconds(1);
   }
   static constexpr SMILTime Latest() {
-    return base::TimeDelta::Max() - base::Microseconds(2);
+    return base::TimeDelta::Max() - base::TimeDelta::FromMicroseconds(2);
   }
   static constexpr SMILTime Earliest() { return base::TimeDelta::Min(); }
-  static constexpr SMILTime Epsilon() { return base::Microseconds(1); }
+  static constexpr SMILTime Epsilon() {
+    return base::TimeDelta::FromMicroseconds(1);
+  }
   static constexpr SMILTime FromSecondsD(double seconds) {
-    return std::min(SMILTime(base::Seconds(seconds)), Latest());
+    return std::min(SMILTime(base::TimeDelta::FromSecondsD(seconds)), Latest());
   }
   static constexpr SMILTime FromMicroseconds(int64_t us) {
-    return std::min(SMILTime(base::Microseconds(us)), Latest());
+    return std::min(SMILTime(base::TimeDelta::FromMicroseconds(us)), Latest());
   }
 
   // Used for computing progress. Don't use for anything else.
@@ -121,25 +124,17 @@ class SMILTime {
     return SMILTime(time_ % other.time_);
   }
 
-  constexpr bool operator==(SMILTime other) const {
-    return time_ == other.time_;
-  }
+  bool operator==(SMILTime other) const { return time_ == other.time_; }
   explicit operator bool() const { return IsFinite() && !time_.is_zero(); }
-  constexpr bool operator!=(SMILTime other) const {
-    return time_ != other.time_;
-  }
+  bool operator!=(SMILTime other) const { return time_ != other.time_; }
 
   // Ordering of SMILTimes has to follow: finite < indefinite < unresolved. We
   // set this up by assigning consecutive sentinel values for the two latter
   // (see above).
-  constexpr bool operator>(SMILTime other) const { return time_ > other.time_; }
-  constexpr bool operator<(SMILTime other) const { return time_ < other.time_; }
-  constexpr bool operator>=(SMILTime other) const {
-    return time_ >= other.time_;
-  }
-  constexpr bool operator<=(SMILTime other) const {
-    return time_ <= other.time_;
-  }
+  bool operator>(SMILTime other) const { return time_ > other.time_; }
+  bool operator<(SMILTime other) const { return time_ < other.time_; }
+  bool operator>=(SMILTime other) const { return time_ >= other.time_; }
+  bool operator<=(SMILTime other) const { return time_ <= other.time_; }
 
  private:
   constexpr SMILTime(base::TimeDelta time) : time_(time) {}

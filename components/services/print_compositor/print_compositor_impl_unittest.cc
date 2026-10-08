@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -134,12 +134,6 @@ class PrintCompositorImplTest : public testing::Test {
 class PrintCompositorImplCrashKeyTest : public PrintCompositorImplTest {
  public:
   PrintCompositorImplCrashKeyTest() {}
-
-  PrintCompositorImplCrashKeyTest(const PrintCompositorImplCrashKeyTest&) =
-      delete;
-  PrintCompositorImplCrashKeyTest& operator=(
-      const PrintCompositorImplCrashKeyTest&) = delete;
-
   ~PrintCompositorImplCrashKeyTest() override {}
 
   void SetUp() override {
@@ -148,6 +142,9 @@ class PrintCompositorImplCrashKeyTest : public PrintCompositorImplTest {
   }
 
   void TearDown() override { crash_reporter::ResetCrashKeysForTesting(); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PrintCompositorImplCrashKeyTest);
 };
 
 TEST_F(PrintCompositorImplTest, IsReadyToComposite) {
@@ -365,13 +362,7 @@ TEST_F(PrintCompositorImplTest, NotifyUnavailableSubframe) {
   testing::Mock::VerifyAndClearExpectations(&impl);
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
-// TODO(crbug.com/1186718): Enable this test once CrashKeys are supported.
-#define MAYBE_SetCrashKey DISABLED_SetCrashKey
-#else
-#define MAYBE_SetCrashKey SetCrashKey
-#endif
-TEST_F(PrintCompositorImplCrashKeyTest, MAYBE_SetCrashKey) {
+TEST_F(PrintCompositorImplCrashKeyTest, SetCrashKey) {
   PrintCompositorImpl impl(mojo::NullReceiver(),
                            false /* initialize_environment */,
                            nullptr /* io_task_runner */);

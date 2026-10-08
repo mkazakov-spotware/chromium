@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,30 +17,30 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <mach/mach.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include <ucontext.h>
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include <signal.h>
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 namespace crashpad {
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #if defined(ARCH_CPU_X86_FAMILY)
 using NativeCPUContext = x86_thread_state;
 #elif defined(ARCH_CPU_ARM64)
 using NativeCPUContext = arm_unified_thread_state;
 #endif
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 using NativeCPUContext = CONTEXT;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID) || \
+    defined(OS_FUCHSIA)
 using NativeCPUContext = ucontext_t;
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 //! \brief Saves the CPU context.
 //!

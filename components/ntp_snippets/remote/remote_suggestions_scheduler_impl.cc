@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <random>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "base/bind.h"
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/time/clock.h"
 #include "components/ntp_snippets/features.h"
@@ -112,23 +111,24 @@ const char* kFetchingIntervalParamNameActiveSuggestionsConsumer[] = {
 
 static_assert(
     static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kDefaultFetchingIntervalHoursRareNtpUser) &&
+            base::size(kDefaultFetchingIntervalHoursRareNtpUser) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kDefaultFetchingIntervalHoursActiveNtpUser) &&
+            base::size(kDefaultFetchingIntervalHoursActiveNtpUser) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kDefaultFetchingIntervalHoursActiveSuggestionsConsumer) &&
+            base::size(
+                kDefaultFetchingIntervalHoursActiveSuggestionsConsumer) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kM58FetchingIntervalHoursRareNtpUser) &&
+            base::size(kM58FetchingIntervalHoursRareNtpUser) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kM58FetchingIntervalHoursActiveNtpUser) &&
+            base::size(kM58FetchingIntervalHoursActiveNtpUser) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kM58FetchingIntervalHoursActiveSuggestionsConsumer) &&
+            base::size(kM58FetchingIntervalHoursActiveSuggestionsConsumer) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kFetchingIntervalParamNameRareNtpUser) &&
+            base::size(kFetchingIntervalParamNameRareNtpUser) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kFetchingIntervalParamNameActiveNtpUser) &&
+            base::size(kFetchingIntervalParamNameActiveNtpUser) &&
         static_cast<unsigned int>(FetchingInterval::COUNT) ==
-            std::size(kFetchingIntervalParamNameActiveSuggestionsConsumer),
+            base::size(kFetchingIntervalParamNameActiveSuggestionsConsumer),
     "Fill in all the info for fetching intervals.");
 
 // For backward compatibility "ntp_opened" value is kept and denotes the
@@ -153,7 +153,7 @@ base::TimeDelta GetDesiredFetchingInterval(
     UserClassifier::UserClass user_class) {
   DCHECK(interval != FetchingInterval::COUNT);
   const unsigned int index = static_cast<unsigned int>(interval);
-  DCHECK(index < std::size(kDefaultFetchingIntervalHoursRareNtpUser));
+  DCHECK(index < base::size(kDefaultFetchingIntervalHoursRareNtpUser));
 
   bool emulateM58 = base::FeatureList::IsEnabled(
       kRemoteSuggestionsEmulateM58FetchingSchedule);
@@ -186,7 +186,7 @@ base::TimeDelta GetDesiredFetchingInterval(
       ntp_snippets::kArticleSuggestionsFeature, param_name,
       default_value_hours);
 
-  return base::Seconds(value_hours * 3600.0);
+  return base::TimeDelta::FromSecondsD(value_hours * 3600.0);
 }
 
 void ReportTimeUntilFirstShownTrigger(
@@ -197,21 +197,24 @@ void ReportTimeUntilFirstShownTrigger(
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilFirstShownTrigger."
           "RareNTPUser",
-          time_until_first_shown_trigger, base::Seconds(1), base::Days(7),
+          time_until_first_shown_trigger, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_NTP_USER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilFirstShownTrigger."
           "ActiveNTPUser",
-          time_until_first_shown_trigger, base::Seconds(1), base::Days(7),
+          time_until_first_shown_trigger, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_SUGGESTIONS_CONSUMER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilFirstShownTrigger."
           "ActiveSuggestionsConsumer",
-          time_until_first_shown_trigger, base::Seconds(1), base::Days(7),
+          time_until_first_shown_trigger, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
   }
@@ -225,21 +228,24 @@ void ReportTimeUntilFirstStartupTrigger(
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilFirstStartupTrigger."
           "RareNTPUser",
-          time_until_first_startup_trigger, base::Seconds(1), base::Days(7),
+          time_until_first_startup_trigger, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_NTP_USER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilFirstStartupTrigger."
           "ActiveNTPUser",
-          time_until_first_startup_trigger, base::Seconds(1), base::Days(7),
+          time_until_first_startup_trigger, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_SUGGESTIONS_CONSUMER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilFirstStartupTrigger."
           "ActiveSuggestionsConsumer",
-          time_until_first_startup_trigger, base::Seconds(1), base::Days(7),
+          time_until_first_startup_trigger, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
   }
@@ -252,21 +258,24 @@ void ReportTimeUntilShownFetch(UserClassifier::UserClass user_class,
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilSoftFetch."
           "RareNTPUser",
-          time_until_shown_fetch, base::Seconds(1), base::Days(7),
+          time_until_shown_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_NTP_USER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilSoftFetch."
           "ActiveNTPUser",
-          time_until_shown_fetch, base::Seconds(1), base::Days(7),
+          time_until_shown_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_SUGGESTIONS_CONSUMER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilSoftFetch."
           "ActiveSuggestionsConsumer",
-          time_until_shown_fetch, base::Seconds(1), base::Days(7),
+          time_until_shown_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
   }
@@ -279,21 +288,24 @@ void ReportTimeUntilStartupFetch(UserClassifier::UserClass user_class,
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilStartupFetch."
           "RareNTPUser",
-          time_until_startup_fetch, base::Seconds(1), base::Days(7),
+          time_until_startup_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_NTP_USER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilStartupFetch."
           "ActiveNTPUser",
-          time_until_startup_fetch, base::Seconds(1), base::Days(7),
+          time_until_startup_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_SUGGESTIONS_CONSUMER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilStartupFetch."
           "ActiveSuggestionsConsumer",
-          time_until_startup_fetch, base::Seconds(1), base::Days(7),
+          time_until_startup_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
   }
@@ -307,21 +319,24 @@ void ReportTimeUntilPersistentFetch(
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilPersistentFetch."
           "RareNTPUser",
-          time_until_persistent_fetch, base::Seconds(1), base::Days(7),
+          time_until_persistent_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_NTP_USER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilPersistentFetch."
           "ActiveNTPUser",
-          time_until_persistent_fetch, base::Seconds(1), base::Days(7),
+          time_until_persistent_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
     case UserClassifier::UserClass::ACTIVE_SUGGESTIONS_CONSUMER:
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "NewTabPage.ContentSuggestions.TimeUntilPersistentFetch."
           "ActiveSuggestionsConsumer",
-          time_until_persistent_fetch, base::Seconds(1), base::Days(7),
+          time_until_persistent_fetch, base::TimeDelta::FromSeconds(1),
+          base::TimeDelta::FromDays(7),
           /*bucket_count=*/50);
       break;
   }
@@ -344,8 +359,6 @@ class EulaState final : public web_resource::EulaAcceptedNotifier::Observer {
     eula_notifier_->Init(this);
   }
 
-  EulaState(const EulaState&) = delete;
-  EulaState& operator=(const EulaState&) = delete;
   ~EulaState() override = default;
 
   bool IsEulaAccepted() {
@@ -369,6 +382,8 @@ class EulaState final : public web_resource::EulaAcceptedNotifier::Observer {
  private:
   std::unique_ptr<web_resource::EulaAcceptedNotifier> eula_notifier_;
   base::OnceClosure eula_accepted_;
+
+  DISALLOW_COPY_AND_ASSIGN(EulaState);
 };
 
 // static
@@ -406,7 +421,7 @@ RemoteSuggestionsSchedulerImpl::FetchingSchedule::GetStalenessInterval() const {
   // The default value for staleness is |interval_startup_wifi| which is not
   // constant. It depends on user class and is configurable by field trial
   // params as well.
-  return base::Hours(base::GetFieldTrialParamByFeatureAsInt(
+  return base::TimeDelta::FromHours(base::GetFieldTrialParamByFeatureAsInt(
       ntp_snippets::kArticleSuggestionsFeature,
       kMinAgeForStaleFetchHoursParamName, interval_startup_wifi.InHours()));
 }
@@ -526,8 +541,8 @@ void RemoteSuggestionsSchedulerImpl::OnHistoryCleared() {
   // asks for new suggestions) to give sync the time to propagate the changes in
   // history to the server.
   background_fetches_allowed_after_ =
-      clock_->Now() +
-      base::Minutes(kBlockBackgroundFetchesMinutesAfterClearingHistory);
+      clock_->Now() + base::TimeDelta::FromMinutes(
+                          kBlockBackgroundFetchesMinutesAfterClearingHistory);
   // After that time elapses, we should fetch as soon as possible.
   ClearLastFetchAttemptTime();
 }
@@ -673,6 +688,7 @@ bool RemoteSuggestionsSchedulerImpl::IsLastSuccessfulFetchStale() const {
 }
 
 void RemoteSuggestionsSchedulerImpl::RefetchIfAppropriate(TriggerType trigger) {
+
   if (background_fetch_in_progress_) {
     return;
   }
@@ -844,7 +860,8 @@ void RemoteSuggestionsSchedulerImpl::ClearLastFetchAttemptTime() {
       profile_prefs_->GetTime(prefs::kSnippetLastFetchAttemptTime);
   UMA_HISTOGRAM_CUSTOM_TIMES(
       "ContentSuggestions.Feed.Scheduler.TimeSinceLastFetchOnClear",
-      attempt_age, base::Seconds(1), base::Days(7),
+      attempt_age, base::TimeDelta::FromSeconds(1),
+      base::TimeDelta::FromDays(7),
       /*bucket_count=*/50);
 
   profile_prefs_->ClearPref(prefs::kSnippetLastFetchAttemptTime);
@@ -856,7 +873,7 @@ void RemoteSuggestionsSchedulerImpl::ClearLastFetchAttemptTime() {
 std::set<RemoteSuggestionsSchedulerImpl::TriggerType>
 RemoteSuggestionsSchedulerImpl::GetEnabledTriggerTypes() {
   static_assert(static_cast<unsigned int>(TriggerType::COUNT) ==
-                    std::size(kTriggerTypeNames),
+                    base::size(kTriggerTypeNames),
                 "Fill in names for trigger types.");
 
   std::string param_value = base::GetFieldTrialParamValueByFeature(
@@ -873,7 +890,8 @@ RemoteSuggestionsSchedulerImpl::GetEnabledTriggerTypes() {
 
   std::set<TriggerType> enabled_types;
   for (const auto& token : tokens) {
-    auto* const* it = base::ranges::find(kTriggerTypeNames, token);
+    auto* const* it = std::find(std::begin(kTriggerTypeNames),
+                                std::end(kTriggerTypeNames), token);
     if (it == std::end(kTriggerTypeNames)) {
       DLOG(WARNING) << "Failed to parse variation param "
                     << kTriggerTypesParamName << " with string value "

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,10 @@
 
 namespace media {
 
-const base::TimeDelta FakeAudioConsumer::kMinLeadTime = base::Milliseconds(100);
-const base::TimeDelta FakeAudioConsumer::kMaxLeadTime = base::Milliseconds(500);
+const base::TimeDelta FakeAudioConsumer::kMinLeadTime =
+    base::TimeDelta::FromMilliseconds(100);
+const base::TimeDelta FakeAudioConsumer::kMaxLeadTime =
+    base::TimeDelta::FromMilliseconds(500);
 
 FakeAudioConsumer::FakeAudioConsumer(
     uint64_t session_id,

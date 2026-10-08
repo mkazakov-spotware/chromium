@@ -1,8 +1,17 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// All Rights Reserved.
 
 /**
  * @fileoverview Static functions for writing the contents of an iframe-based
@@ -16,9 +25,7 @@ goog.provide('goog.editor.icontent.FieldFormatInfo');
 goog.provide('goog.editor.icontent.FieldStyleInfo');
 
 goog.require('goog.dom');
-goog.require('goog.dom.safe');
 goog.require('goog.editor.BrowserFeature');
-goog.require('goog.html.legacyconversions');
 goog.require('goog.style');
 goog.require('goog.userAgent');
 
@@ -39,7 +46,6 @@ goog.require('goog.userAgent');
  */
 goog.editor.icontent.FieldFormatInfo = function(
     fieldId, standards, blended, fixedHeight, opt_extraStyles) {
-  'use strict';
   this.fieldId_ = fieldId;
   this.standards_ = standards;
   this.blended_ = blended;
@@ -58,7 +64,6 @@ goog.editor.icontent.FieldFormatInfo = function(
  * @final
  */
 goog.editor.icontent.FieldStyleInfo = function(wrapper, css) {
-  'use strict';
   this.wrapper_ = wrapper;
   this.css_ = css;
 };
@@ -76,7 +81,6 @@ goog.editor.icontent.useStandardsModeIframes_ = false;
  * Sets up goog.editor.icontent to always use standards-mode iframes.
  */
 goog.editor.icontent.forceStandardsModeIframes = function() {
-  'use strict';
   goog.editor.icontent.useStandardsModeIframes_ = true;
 };
 
@@ -93,7 +97,6 @@ goog.editor.icontent.forceStandardsModeIframes = function() {
  */
 goog.editor.icontent.getInitialIframeContent_ = function(
     info, bodyHtml, style) {
-  'use strict';
   var html = [];
 
   if (info.blended_ && info.standards_ ||
@@ -194,6 +197,11 @@ goog.editor.icontent.getInitialIframeContent_ = function(
     }
   }
 
+  // Hide the native focus rect in Opera.
+  if (goog.userAgent.OPERA) {
+    html.push(';outline:hidden');
+  }
+
   for (var key in info.extraStyles_) {
     html.push(';' + key + ':' + info.extraStyles_[key]);
   }
@@ -215,7 +223,6 @@ goog.editor.icontent.getInitialIframeContent_ = function(
  */
 goog.editor.icontent.writeNormalInitialBlendedIframe = function(
     info, bodyHtml, style, iframe) {
-  'use strict';
   // Firefox blended needs to inherit all the css from the original page.
   // Firefox standards mode needs to set extra style for images.
   if (info.blended_) {
@@ -250,14 +257,13 @@ goog.editor.icontent.writeNormalInitialBlendedIframe = function(
  */
 goog.editor.icontent.writeNormalInitialIframe = function(
     info, bodyHtml, style, iframe) {
-  'use strict';
+
   var html =
       goog.editor.icontent.getInitialIframeContent_(info, bodyHtml, style);
 
   var doc = goog.dom.getFrameContentDocument(iframe);
   doc.open();
-  goog.dom.safe.documentWrite(
-      doc, goog.html.legacyconversions.safeHtmlFromString(html));
+  doc.write(html);
   doc.close();
 };
 
@@ -270,7 +276,6 @@ goog.editor.icontent.writeNormalInitialIframe = function(
  * @param {string} bodyHtml The HTML to insert as the iframe body.
  */
 goog.editor.icontent.writeHttpsInitialIframe = function(info, doc, bodyHtml) {
-  'use strict';
   var body = doc.body;
 
   // For HTTPS we already have a document with a doc type and a body element
@@ -285,6 +290,5 @@ goog.editor.icontent.writeHttpsInitialIframe = function(info, doc, bodyHtml) {
   body.id = info.fieldId_;
 
   goog.style.setStyle(body, info.extraStyles_);
-  goog.dom.safe.setInnerHtml(
-      body, goog.html.legacyconversions.safeHtmlFromString(bodyHtml));
+  body.innerHTML = bodyHtml;
 };

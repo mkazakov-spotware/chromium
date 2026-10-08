@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/observer_list.h"
+#include "base/optional.h"
 #include "cc/animation/animation.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/compositor/callback_layer_animation_observer.h"
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
@@ -24,16 +23,6 @@
 
 namespace ui {
 
-// AnimationTracker tracks the layer animations that are created during the
-// lifetime of its owner AnimationThroughputReporter.
-//
-// Lifetime of this tracker class is a bit complicated. If there are animations
-// to track (i.e. HasAnimationsToTrack() returns true) when the owner reporter
-// is going away, it needs to have the same lifetime of the animations to track
-// the performance. In such case, the owner reporter would drop the ownership
-// and set set_should_delete() to let the tracker manages its own lifetime
-// based on LayerAnimationObserver signals. On the other hand, if there are no
-// animations to track, the tracker is released with its owner reporter.
 class AnimationThroughputReporter::AnimationTracker
     : public CallbackLayerAnimationObserver {
  public:
@@ -45,17 +34,12 @@ class AnimationThroughputReporter::AnimationTracker
         report_callback_(std::move(report_callback)) {
     DCHECK(report_callback_);
   }
-
   AnimationTracker(const AnimationTracker& other) = delete;
   AnimationTracker& operator=(const AnimationTracker& other) = delete;
-
   ~AnimationTracker() override = default;
 
-  // Whether there are/will be animations to track and the track is actively
-  // tracking them.
-  bool HasAnimationsToTrack() const {
-    return active() && !attached_sequences().empty();
-  }
+  // Whether there are attached animation sequences to track.
+  bool IsTrackingAnimation() const { return !attached_sequences().empty(); }
 
   void set_should_delete(bool should_delete) { should_delete_ = should_delete; }
 
@@ -106,12 +90,13 @@ class AnimationThroughputReporter::AnimationTracker
 
     // No tracking if |animator_| is not attached to a timeline. Layer animation
     // sequence would not tick without a timeline.
-    if (!AnimationThroughputReporter::IsAnimatorAttachedToTimeline(animator_)) {
+    if (!AnimationThroughputReporter::IsAnimatorAttachedToTimeline(
+            animator_.get())) {
       return;
     }
 
     ui::Compositor* compositor =
-        AnimationThroughputReporter::GetCompositor(animator_);
+        AnimationThroughputReporter::GetCompositor(animator_.get());
     throughput_tracker_ = compositor->RequestNewThroughputTracker();
     throughput_tracker_->Start(report_callback_);
   }
@@ -134,22 +119,22 @@ class AnimationThroughputReporter::AnimationTracker
   // Whether this class should delete itself on animation ended.
   bool should_delete_ = false;
 
-  const raw_ptr<LayerAnimator> animator_;
+  scoped_refptr<LayerAnimator> animator_;
 
-  absl::optional<ThroughputTracker> throughput_tracker_;
+  base::Optional<ThroughputTracker> throughput_tracker_;
 
-  absl::optional<int> first_animation_group_id_;
+  base::Optional<int> first_animation_group_id_;
   bool started_animations_aborted_ = false;
 
   AnimationThroughputReporter::ReportCallback report_callback_;
 };
 
 AnimationThroughputReporter::AnimationThroughputReporter(
-    scoped_refptr<LayerAnimator> animator,
+    LayerAnimator* animator,
     ReportCallback report_callback)
-    : animator_(std::move(animator)),
+    : animator_(animator),
       animation_tracker_(
-          std::make_unique<AnimationTracker>(animator_.get(),
+          std::make_unique<AnimationTracker>(animator_,
                                              std::move(report_callback))) {
   animator_->AddObserver(animation_tracker_.get());
 }
@@ -160,17 +145,8 @@ AnimationThroughputReporter::~AnimationThroughputReporter() {
   // from the scheduled animation sequences.
   animator_->observers_.RemoveObserver(animation_tracker_.get());
 
-  // Drop the animator reference. If this is the last reference, the animator
-  // will be destroyed. When the animator destruction happens, it destroys its
-  // LayerAnimationSequences and detach observers from them. As a result,
-  // AnimationTracker::OnAnimationEnded would be called after all animation
-  // sequences are detached. After this, animator will no longer be accessed
-  // by AnimationTracker and HasAnimationsToTrack() would correctly report
-  // that there are no animations to track.
-  animator_.reset();
-
   // |animation_tracker_| deletes itself when its tracked animations finish.
-  if (animation_tracker_->HasAnimationsToTrack())
+  if (animation_tracker_->IsTrackingAnimation())
     animation_tracker_.release()->set_should_delete(true);
 }
 

@@ -1,22 +1,20 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stdint.h>
 
-#include <memory>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/sync_file_system/file_change.h"
 #include "chrome/browser/sync_file_system/local/canned_syncable_file_system.h"
@@ -45,12 +43,8 @@ using content::BrowserThread;
 using storage::FileSystemURL;
 using ::testing::_;
 using ::testing::AtLeast;
-using ::testing::DoAll;
-using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::StrictMock;
-using ::testing::WithArg;
-using ::testing::WithArgs;
 
 namespace sync_file_system {
 
@@ -59,7 +53,7 @@ namespace {
 const char kOrigin[] = "http://example.com";
 
 void DidPrepareForProcessRemoteChange(const base::Location& where,
-                                      base::OnceClosure oncompleted,
+                                      const base::Closure& oncompleted,
                                       SyncStatusCode expected_status,
                                       const SyncFileMetadata& expected_metadata,
                                       SyncStatusCode status,
@@ -70,11 +64,11 @@ void DidPrepareForProcessRemoteChange(const base::Location& where,
   ASSERT_EQ(expected_metadata.file_type, metadata.file_type);
   ASSERT_EQ(expected_metadata.size, metadata.size);
   ASSERT_TRUE(changes.empty());
-  std::move(oncompleted).Run();
+  oncompleted.Run();
 }
 
 void OnSyncCompleted(const base::Location& where,
-                     base::OnceClosure oncompleted,
+                     const base::Closure& oncompleted,
                      SyncStatusCode expected_status,
                      const FileSystemURL& expected_url,
                      SyncStatusCode status,
@@ -82,11 +76,11 @@ void OnSyncCompleted(const base::Location& where,
   SCOPED_TRACE(testing::Message() << where.ToString());
   ASSERT_EQ(expected_status, status);
   ASSERT_EQ(expected_url, url);
-  std::move(oncompleted).Run();
+  oncompleted.Run();
 }
 
 void OnGetFileMetadata(const base::Location& where,
-                       base::OnceClosure oncompleted,
+                       const base::Closure& oncompleted,
                        SyncStatusCode* status_out,
                        SyncFileMetadata* metadata_out,
                        SyncStatusCode status,
@@ -94,34 +88,19 @@ void OnGetFileMetadata(const base::Location& where,
   SCOPED_TRACE(testing::Message() << where.ToString());
   *status_out = status;
   *metadata_out = metadata;
-  std::move(oncompleted).Run();
+  oncompleted.Run();
 }
 
-struct PostStatusFunctor {
-  explicit PostStatusFunctor(SyncStatusCode status) : status_(status) {}
-  void operator()(SyncStatusCallback callback) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), status_));
-  }
+ACTION_P(MockStatusCallback, status) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                base::BindOnce(arg4, status));
+}
 
- private:
-  SyncStatusCode status_;
-};
-
-struct PostStatusAndRecordChangeFunctor {
-  PostStatusAndRecordChangeFunctor(SyncStatusCode status,
-                                   std::vector<FileChange>* changes)
-      : status_(status), changes_(changes) {}
-  void operator()(FileChange change, SyncStatusCallback callback) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), status_));
-    changes_->push_back(change);
-  }
-
- private:
-  SyncStatusCode status_;
-  raw_ptr<std::vector<FileChange>> changes_;
-};
+ACTION_P2(MockStatusCallbackAndRecordChange, status, changes) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                base::BindOnce(arg4, status));
+  changes->push_back(arg0);
+}
 
 }  // namespace
 
@@ -137,14 +116,14 @@ class LocalFileSyncServiceTest
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
     in_memory_env_ = leveldb_chrome::NewMemEnv("LocalFileSyncServiceTest");
 
-    file_system_ = std::make_unique<CannedSyncableFileSystem>(
+    file_system_.reset(new CannedSyncableFileSystem(
         GURL(kOrigin), in_memory_env_.get(), content::GetIOThreadTaskRunner({}),
-        base::ThreadPool::CreateSingleThreadTaskRunner({base::MayBlock()}));
+        base::ThreadPool::CreateSingleThreadTaskRunner({base::MayBlock()})));
 
     local_service_ = LocalFileSyncService::CreateForTesting(
         &profile_, in_memory_env_.get());
 
-    file_system_->SetUp();
+    file_system_->SetUp(CannedSyncableFileSystem::QUOTA_ENABLED);
 
     base::RunLoop run_loop;
     SyncStatusCode status = SYNC_STATUS_UNKNOWN;
@@ -183,7 +162,7 @@ class LocalFileSyncServiceTest
     base::RunLoop run_loop;
     local_service_->PrepareForProcessRemoteChange(
         url,
-        base::BindOnce(&DidPrepareForProcessRemoteChange,
+        base::Bind(&DidPrepareForProcessRemoteChange,
                    where,
                    run_loop.QuitClosure(),
                    expected_status,
@@ -235,7 +214,7 @@ TEST_F(LocalFileSyncServiceTest, RemoteSyncStepsSimple) {
   const FileSystemURL kFile(file_system_->URL("file"));
   const FileSystemURL kDir(file_system_->URL("dir"));
   const char kTestFileData[] = "0123456789";
-  const int kTestFileDataSize = static_cast<int>(std::size(kTestFileData) - 1);
+  const int kTestFileDataSize = static_cast<int>(base::size(kTestFileData) - 1);
 
   base::FilePath local_path;
   ASSERT_TRUE(base::CreateTemporaryFileInDir(temp_dir_.GetPath(), &local_path));
@@ -295,7 +274,7 @@ TEST_F(LocalFileSyncServiceTest, LocalChangeObserver) {
   const FileSystemURL kFile(file_system_->URL("file"));
   const FileSystemURL kDir(file_system_->URL("dir"));
   const char kTestFileData[] = "0123456789";
-  const int kTestFileDataSize = static_cast<int>(std::size(kTestFileData) - 1);
+  const int kTestFileDataSize = static_cast<int>(base::size(kTestFileData) - 1);
 
   EXPECT_EQ(base::File::FILE_OK, file_system_->CreateFile(kFile));
 
@@ -308,7 +287,7 @@ TEST_F(LocalFileSyncServiceTest, LocalChangeObserver) {
   EXPECT_EQ(2, num_changes_);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Flaky: http://crbug.com/171487
 #define MAYBE_LocalChangeObserverMultipleContexts\
     DISABLED_LocalChangeObserverMultipleContexts
@@ -322,7 +301,7 @@ TEST_F(LocalFileSyncServiceTest, MAYBE_LocalChangeObserverMultipleContexts) {
   CannedSyncableFileSystem file_system2(
       GURL(kOrigin2), in_memory_env_.get(), content::GetIOThreadTaskRunner({}),
       base::ThreadPool::CreateSingleThreadTaskRunner({base::MayBlock()}));
-  file_system2.SetUp();
+  file_system2.SetUp(CannedSyncableFileSystem::QUOTA_ENABLED);
 
   base::RunLoop run_loop;
   SyncStatusCode status = SYNC_STATUS_UNKNOWN;
@@ -353,7 +332,7 @@ TEST_F(LocalFileSyncServiceTest, MAYBE_LocalChangeObserverMultipleContexts) {
 TEST_F(LocalFileSyncServiceTest, ProcessLocalChange_CreateFile) {
   const FileSystemURL kFile(file_system_->URL("foo"));
   const char kTestFileData[] = "0123456789";
-  const int kTestFileDataSize = static_cast<int>(std::size(kTestFileData) - 1);
+  const int kTestFileDataSize = static_cast<int>(base::size(kTestFileData) - 1);
 
   base::RunLoop run_loop;
 
@@ -390,15 +369,14 @@ TEST_F(LocalFileSyncServiceTest, ProcessLocalChange_CreateFile) {
   StrictMock<MockLocalChangeProcessor> local_change_processor;
   const FileChange change(FileChange::FILE_CHANGE_ADD_OR_UPDATE,
                           SYNC_FILE_TYPE_FILE);
-  PostStatusFunctor post_ok_status(SYNC_STATUS_OK);
   EXPECT_CALL(local_change_processor,
               ApplyLocalChange(change, _, metadata, kFile, _))
-      .WillOnce(WithArg<4>(Invoke(post_ok_status)));
+      .WillOnce(MockStatusCallback(SYNC_STATUS_OK));
 
   local_service_->SetLocalChangeProcessor(&local_change_processor);
-  local_service_->ProcessLocalChange(base::BindOnce(&OnSyncCompleted, FROM_HERE,
-                                                    run_loop.QuitClosure(),
-                                                    SYNC_STATUS_OK, kFile));
+  local_service_->ProcessLocalChange(
+      base::Bind(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
+                 SYNC_STATUS_OK, kFile));
 
   run_loop.Run();
 
@@ -427,17 +405,16 @@ TEST_F(LocalFileSyncServiceTest, ProcessLocalChange_CreateAndRemoveFile) {
   // with DELETE change for TYPE_FILE.
   // The file will NOT exist in the remote side and the processor might
   // return SYNC_FILE_ERROR_NOT_FOUND (as mocked).
-  PostStatusFunctor post_not_found_status(SYNC_FILE_ERROR_NOT_FOUND);
   StrictMock<MockLocalChangeProcessor> local_change_processor;
   const FileChange change(FileChange::FILE_CHANGE_DELETE, SYNC_FILE_TYPE_FILE);
   EXPECT_CALL(local_change_processor, ApplyLocalChange(change, _, _, kFile, _))
-      .WillOnce(WithArg<4>(Invoke(post_not_found_status)));
+      .WillOnce(MockStatusCallback(SYNC_FILE_ERROR_NOT_FOUND));
 
   // The sync should succeed anyway.
   local_service_->SetLocalChangeProcessor(&local_change_processor);
-  local_service_->ProcessLocalChange(base::BindOnce(&OnSyncCompleted, FROM_HERE,
-                                                    run_loop.QuitClosure(),
-                                                    SYNC_STATUS_OK, kFile));
+  local_service_->ProcessLocalChange(
+      base::Bind(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
+                 SYNC_STATUS_OK, kFile));
 
   run_loop.Run();
 
@@ -465,8 +442,8 @@ TEST_F(LocalFileSyncServiceTest, ProcessLocalChange_CreateAndRemoveDirectory) {
 
   local_service_->SetLocalChangeProcessor(&local_change_processor);
   local_service_->ProcessLocalChange(
-      base::BindOnce(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
-                     SYNC_STATUS_NO_CHANGE_TO_SYNC, FileSystemURL()));
+      base::Bind(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
+                 SYNC_STATUS_NO_CHANGE_TO_SYNC, FileSystemURL()));
 
   run_loop.Run();
 
@@ -501,23 +478,19 @@ TEST_F(LocalFileSyncServiceTest, ProcessLocalChange_MultipleChanges) {
   // twice for FILE_TYPE and FILE_DIRECTORY.
   StrictMock<MockLocalChangeProcessor> local_change_processor;
   std::vector<FileChange> changes;
-  PostStatusAndRecordChangeFunctor post_ok_and_record_change(SYNC_STATUS_OK,
-                                                             &changes);
-  // auto post_ok_and_record_change =
-  //     DoAll(WithArg<4>(Invoke(post_ok_status)), RecordChange(&changes));
   EXPECT_CALL(local_change_processor, ApplyLocalChange(_, _, _, kPath, _))
       .Times(2)
-      .WillOnce(WithArgs<0, 4>(Invoke(post_ok_and_record_change)))
-      .WillOnce(WithArgs<0, 4>(Invoke(post_ok_and_record_change)));
+      .WillOnce(MockStatusCallbackAndRecordChange(SYNC_STATUS_OK, &changes))
+      .WillOnce(MockStatusCallbackAndRecordChange(SYNC_STATUS_OK, &changes));
   local_service_->SetLocalChangeProcessor(&local_change_processor);
 
   // OnWriteEnabled will be notified on kPath (in multi-threaded this
   // could be delayed, so AtLeast(0)).
   EXPECT_CALL(status_observer, OnWriteEnabled(kPath)).Times(AtLeast(0));
 
-  local_service_->ProcessLocalChange(base::BindOnce(&OnSyncCompleted, FROM_HERE,
-                                                    run_loop.QuitClosure(),
-                                                    SYNC_STATUS_OK, kPath));
+  local_service_->ProcessLocalChange(
+      base::Bind(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
+                 SYNC_STATUS_OK, kPath));
 
   run_loop.Run();
 
@@ -550,8 +523,9 @@ TEST_F(LocalFileSyncServiceTest, ProcessLocalChange_GetLocalMetadata) {
   SyncStatusCode status = SYNC_STATUS_UNKNOWN;
   SyncFileMetadata metadata;
   local_service_->GetLocalFileMetadata(
-      kURL, base::BindOnce(&OnGetFileMetadata, FROM_HERE,
-                           run_loop.QuitClosure(), &status, &metadata));
+      kURL,
+      base::Bind(&OnGetFileMetadata, FROM_HERE, run_loop.QuitClosure(),
+                 &status, &metadata));
 
   run_loop.Run();
 
@@ -594,16 +568,14 @@ TEST_F(LocalFileSyncServiceTest, RecordFakeChange) {
   // Next local sync should pick up the recorded change.
   StrictMock<MockLocalChangeProcessor> local_change_processor;
   std::vector<FileChange> changes;
-  PostStatusAndRecordChangeFunctor post_ok_and_record_change(SYNC_STATUS_OK,
-                                                             &changes);
   EXPECT_CALL(local_change_processor, ApplyLocalChange(_, _, _, kURL, _))
-      .WillOnce(WithArgs<0, 4>(Invoke(post_ok_and_record_change)));
+      .WillOnce(MockStatusCallbackAndRecordChange(SYNC_STATUS_OK, &changes));
   {
     base::RunLoop run_loop;
     local_service_->SetLocalChangeProcessor(&local_change_processor);
     local_service_->ProcessLocalChange(
-        base::BindOnce(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
-                       SYNC_STATUS_OK, kURL));
+        base::Bind(&OnSyncCompleted, FROM_HERE, run_loop.QuitClosure(),
+                   SYNC_STATUS_OK, kURL));
     run_loop.Run();
   }
 
@@ -656,7 +628,7 @@ TEST_F(OriginChangeMapTest, Basic) {
 
   const GURL kOrigins[] = { kOrigin1, kOrigin2, kOrigin3 };
   std::set<GURL> all_origins;
-  all_origins.insert(kOrigins, kOrigins + std::size(kOrigins));
+  all_origins.insert(kOrigins, kOrigins + base::size(kOrigins));
 
   GURL origin;
   while (!all_origins.empty()) {
@@ -693,7 +665,7 @@ TEST_F(OriginChangeMapTest, Basic) {
   SetOriginChangeCount(kOrigin2, 8);
   ASSERT_EQ(1 + 4 + 8, GetTotalChangeCount());
 
-  all_origins.insert(kOrigins, kOrigins + std::size(kOrigins));
+  all_origins.insert(kOrigins, kOrigins + base::size(kOrigins));
   while (!all_origins.empty()) {
     ASSERT_TRUE(NextOriginToProcess(&origin));
     ASSERT_TRUE(base::Contains(all_origins, origin));
@@ -716,7 +688,7 @@ TEST_F(OriginChangeMapTest, WithDisabled) {
   ASSERT_EQ(1 + 2 + 4, GetTotalChangeCount());
 
   std::set<GURL> all_origins;
-  all_origins.insert(kOrigins, kOrigins + std::size(kOrigins));
+  all_origins.insert(kOrigins, kOrigins + base::size(kOrigins));
 
   GURL origin;
   while (!all_origins.empty()) {

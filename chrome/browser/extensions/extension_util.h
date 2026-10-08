@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "base/values.h"
+#include "base/optional.h"
 #include "extensions/common/constants.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace content {
 class BrowserContext;
@@ -23,6 +27,8 @@ namespace gfx {
 class ImageSkia;
 }
 
+class GURL;
+
 class Profile;
 
 namespace extensions {
@@ -31,16 +37,19 @@ class Extension;
 
 namespace util {
 
+// Returns true if the site URL corresponds to an extension or app which
+// has isolated storage. This can be either because it is an app that
+// requested this in its manifest, or because it is a policy-installed app or
+// extension running on the Chrome OS sign-in profile.
+bool IsExtensionSiteWithIsolatedStorage(const GURL& site_url,
+                                        content::BrowserContext* context);
+
 // Returns true if the extension associated with |extension_id| has isolated
 // storage. This can be either because it is an app that requested this in its
 // manifest, or because it is a policy-installed app or extension running on
 // the Chrome OS sign-in profile.
 bool HasIsolatedStorage(const std::string& extension_id,
                         content::BrowserContext* context);
-
-// Returns true if the extension associated with `extension_id` is a Chrome App.
-bool IsChromeApp(const std::string& extension_id,
-                 content::BrowserContext* context);
 
 // Sets whether |extension_id| can run in an incognito window. Reloads the
 // extension if it's enabled since this permission is applied at loading time
@@ -83,7 +92,8 @@ bool IsExtensionIdle(const std::string& extension_id,
 
 // Sets the name, id, and icon resource path of the given extension into the
 // returned dictionary.
-base::Value::Dict GetExtensionInfo(const Extension* extension);
+std::unique_ptr<base::DictionaryValue> GetExtensionInfo(
+    const Extension* extension);
 
 // Returns the default extension/app icon (for extensions or apps that don't
 // have one).
@@ -96,12 +106,6 @@ std::unique_ptr<const PermissionSet> GetInstallPromptPermissionSetForExtension(
     const Extension* extension,
     Profile* profile,
     bool include_optional_permissions);
-
-// Returns all profiles affected by permissions of an extension running in
-// "spanning" (rather than "split) mode.
-std::vector<content::BrowserContext*> GetAllRelatedProfiles(
-    Profile* profile,
-    const Extension& extension);
 
 }  // namespace util
 }  // namespace extensions

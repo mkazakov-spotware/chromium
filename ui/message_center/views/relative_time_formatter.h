@@ -1,12 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_MESSAGE_CENTER_VIEWS_RELATIVE_TIME_FORMATTER_H_
 #define UI_MESSAGE_CENTER_VIEWS_RELATIVE_TIME_FORMATTER_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "ui/message_center/message_center_export.h"
 
@@ -17,7 +16,7 @@ namespace message_center {
 // written to |next_update|.
 MESSAGE_CENTER_EXPORT void GetRelativeTimeStringAndNextUpdateTime(
     base::TimeDelta delta,
-    std::u16string* relative_time,
+    base::string16* relative_time,
     base::TimeDelta* next_update);
 
 }  // namespace message_center

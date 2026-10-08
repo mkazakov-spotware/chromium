@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "base/memory/ref_counted.h"
-#include "third_party/libwebp/src/src/webp/decode.h"
+#include "third_party/libwebp/src/webp/decode.h"
 
 @class NSData;
 
@@ -21,7 +21,9 @@ namespace webp_transcode {
 class WebpDecoder : public base::RefCountedThreadSafe<WebpDecoder> {
  public:
   // Format of the decoded image.
-  enum DecodedImageFormat { JPEG = 1, PNG, TIFF };
+  // This enum is used for UMA reporting, keep it in sync with the histogram
+  // definition.
+  enum DecodedImageFormat { JPEG = 1, PNG, TIFF, DECODED_FORMAT_COUNT };
 
   class Delegate : public base::RefCountedThreadSafe<WebpDecoder::Delegate> {
    public:

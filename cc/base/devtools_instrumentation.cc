@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/base/devtools_instrumentation.h"
-
-#include <string>
 
 namespace cc {
 namespace devtools_instrumentation {
@@ -38,8 +36,6 @@ const char kFrameId[] = "frameId";
 const char kLayerId[] = "layerId";
 const char kLayerTreeId[] = "layerTreeId";
 const char kPixelRefId[] = "pixelRefId";
-const char kFrameSequenceNumber[] = "frameSeqId";
-const char kHasPartialUpdate[] = "hasPartialUpdate";
 
 const char kImageUploadTask[] = "ImageUploadTask";
 const char kImageDecodeTask[] = "ImageDecodeTask";
@@ -73,9 +69,6 @@ ScopedImageUploadTask::~ScopedImageUploadTask() {
   auto duration = base::TimeTicks::Now() - start_time_;
   const char* histogram_name = nullptr;
   switch (image_type_) {
-    case ImageType::kJxl:
-      histogram_name = "Renderer4.ImageUploadTaskDurationUs.Jxl";
-      break;
     case ImageType::kAvif:
       histogram_name = "Renderer4.ImageUploadTaskDurationUs.Avif";
       break;
@@ -125,9 +118,6 @@ ScopedImageDecodeTask::~ScopedImageDecodeTask() {
   auto duration = base::TimeTicks::Now() - start_time_;
   const char* histogram_name = nullptr;
   switch (image_type_) {
-    case ImageType::kJxl:
-      histogram_name = "Renderer4.ImageUploadTaskDurationUs.Jxl";
-      break;
     case ImageType::kAvif:
       histogram_name = "Renderer4.ImageDecodeTaskDurationUs.Avif";
       break;

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,10 @@
 
 #include "base/callback.h"
 #include "content/common/content_export.h"
-#include "third_party/blink/public/platform/web_v8_value_converter.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
 
 namespace base {
 class Value;
-class ValueView;
 }
 
 namespace content {
@@ -27,7 +25,7 @@ namespace content {
 // binary values are supported. For binary values, we convert to WebKit
 // ArrayBuffers, and support converting from an ArrayBuffer or any of the
 // ArrayBufferView subclasses (Uint8Array, etc.).
-class CONTENT_EXPORT V8ValueConverter : public blink::WebV8ValueConverter {
+class CONTENT_EXPORT V8ValueConverter {
  public:
   // Extends the default behaviour of V8ValueConverter.
   class CONTENT_EXPORT Strategy {
@@ -70,21 +68,21 @@ class CONTENT_EXPORT V8ValueConverter : public blink::WebV8ValueConverter {
 
   static std::unique_ptr<V8ValueConverter> Create();
 
-  ~V8ValueConverter() override = default;
+  virtual ~V8ValueConverter() {}
 
   // If true, Date objects are converted into DoubleValues with the number of
   // seconds since Unix epoch.
   //
   // Otherwise they are converted into DictionaryValues with whatever additional
   // properties has been set on them.
-  void SetDateAllowed(bool val) override = 0;
+  virtual void SetDateAllowed(bool val) = 0;
 
   // If true, RegExp objects are converted into StringValues with the regular
   // expression between / and /, for example "/ab?c/".
   //
   // Otherwise they are converted into DictionaryValues with whatever additional
   // properties has been set on them.
-  void SetRegExpAllowed(bool val) override = 0;
+  virtual void SetRegExpAllowed(bool val) = 0;
 
   // If true, Function objects are converted into DictionaryValues with whatever
   // additional properties has been set on them.
@@ -107,8 +105,9 @@ class CONTENT_EXPORT V8ValueConverter : public blink::WebV8ValueConverter {
   // Unsupported types are replaced with null.  If an array or object throws
   // while setting a value, that property or item is skipped, leaving a hole in
   // the case of arrays.
-  v8::Local<v8::Value> ToV8Value(base::ValueView value,
-                                 v8::Local<v8::Context> context) override = 0;
+  // TODO(dcheng): This should just take a const reference.
+  virtual v8::Local<v8::Value> ToV8Value(const base::Value* value,
+                                         v8::Local<v8::Context> context) = 0;
 
   // Converts a v8::Value to base::Value.
   //
@@ -119,9 +118,9 @@ class CONTENT_EXPORT V8ValueConverter : public blink::WebV8ValueConverter {
   // Likewise, if an object throws while converting a property it will not be
   // converted, whereas if an array throws while converting an item it will be
   // converted to Value(Type::NONE).
-  std::unique_ptr<base::Value> FromV8Value(
+  virtual std::unique_ptr<base::Value> FromV8Value(
       v8::Local<v8::Value> value,
-      v8::Local<v8::Context> context) override = 0;
+      v8::Local<v8::Context> context) = 0;
 };
 
 }  // namespace content

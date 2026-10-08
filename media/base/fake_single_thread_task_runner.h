@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,16 @@
 
 #include <map>
 
-#include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/callback.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/simple_test_tick_clock.h"
-#include "base/time/time.h"
 
 namespace media {
 
 class FakeSingleThreadTaskRunner final : public base::SingleThreadTaskRunner {
  public:
   explicit FakeSingleThreadTaskRunner(base::SimpleTestTickClock* clock);
-
-  FakeSingleThreadTaskRunner(const FakeSingleThreadTaskRunner&) = delete;
-  FakeSingleThreadTaskRunner& operator=(const FakeSingleThreadTaskRunner&) =
-      delete;
 
   void RunTasks();
 
@@ -44,7 +39,7 @@ class FakeSingleThreadTaskRunner final : public base::SingleThreadTaskRunner {
   ~FakeSingleThreadTaskRunner() final;
 
  private:
-  const raw_ptr<base::SimpleTestTickClock> clock_;
+  base::SimpleTestTickClock* const clock_;
 
   // A compound key is used to ensure FIFO execution of delayed tasks scheduled
   // for the same point-in-time.  The second part of the key is simply a FIFO
@@ -57,6 +52,8 @@ class FakeSingleThreadTaskRunner final : public base::SingleThreadTaskRunner {
   std::map<TaskKey, base::OnceClosure> tasks_;
 
   bool fail_on_next_task_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeSingleThreadTaskRunner);
 };
 
 }  // namespace media

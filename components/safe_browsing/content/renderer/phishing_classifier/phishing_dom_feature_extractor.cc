@@ -1,22 +1,22 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/safe_browsing/content/renderer/phishing_classifier/phishing_dom_feature_extractor.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
-#include "base/trace_event/trace_event.h"
 #include "components/safe_browsing/content/renderer/phishing_classifier/features.h"
+#include "content/public/renderer/render_view.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/web_element.h"
@@ -107,7 +107,11 @@ PhishingDOMFeatureExtractor::PhishingDOMFeatureExtractor()
 }
 
 PhishingDOMFeatureExtractor::~PhishingDOMFeatureExtractor() {
-  CancelPendingExtraction();
+  // The RenderView should have called CancelPendingExtraction() before
+  // we are destroyed.
+  DCHECK(done_callback_.is_null());
+  DCHECK(!cur_frame_data_.get());
+  DCHECK(cur_document_.IsNull());
 }
 
 void PhishingDOMFeatureExtractor::ExtractFeatures(blink::WebDocument document,
@@ -125,12 +129,10 @@ void PhishingDOMFeatureExtractor::ExtractFeatures(blink::WebDocument document,
   features_ = features;
   done_callback_ = std::move(done_callback);
 
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("safe_browsing", "ExtractDomFeatures",
-                                    this);
   page_feature_state_ = std::make_unique<PageFeatureState>(clock_->NowTicks());
   cur_document_ = document;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&PhishingDOMFeatureExtractor::ExtractFeaturesWithTimeout,
                      weak_factory_.GetWeakPtr()));
@@ -192,14 +194,15 @@ void PhishingDOMFeatureExtractor::ExtractFeaturesWithTimeout() {
         num_elements = 0;
         base::TimeTicks now = clock_->NowTicks();
         if (now - page_feature_state_->start_time >=
-            base::Milliseconds(kMaxTotalTimeMs)) {
+            base::TimeDelta::FromMilliseconds(kMaxTotalTimeMs)) {
           // We expect this to happen infrequently, so record when it does.
           UMA_HISTOGRAM_COUNTS_1M("SBClientPhishing.DOMFeatureTimeout", 1);
           RunCallback(false);
           return;
         }
         base::TimeDelta chunk_elapsed = now - current_chunk_start_time;
-        if (chunk_elapsed >= base::Milliseconds(kMaxTimePerChunkMs)) {
+        if (chunk_elapsed >=
+            base::TimeDelta::FromMilliseconds(kMaxTimePerChunkMs)) {
           // The time limit for the current chunk is up, so post a task to
           // continue extraction.
           //
@@ -208,7 +211,7 @@ void PhishingDOMFeatureExtractor::ExtractFeaturesWithTimeout() {
           // clock granularity.
           UMA_HISTOGRAM_TIMES("SBClientPhishing.DOMFeatureChunkTime",
                               chunk_elapsed);
-          base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          base::ThreadTaskRunnerHandle::Get()->PostTask(
               FROM_HERE,
               base::BindOnce(
                   &PhishingDOMFeatureExtractor::ExtractFeaturesWithTimeout,
@@ -334,7 +337,6 @@ void PhishingDOMFeatureExtractor::RunCallback(bool success) {
                       clock_->NowTicks() - page_feature_state_->start_time);
 
   DCHECK(!done_callback_.is_null());
-  TRACE_EVENT_NESTABLE_ASYNC_END0("safe_browsing", "ExtractDomFeatures", this);
   std::move(done_callback_).Run(success);
   Clear();
 }
@@ -350,7 +352,7 @@ void PhishingDOMFeatureExtractor::ResetFrameData() {
   DCHECK(!cur_document_.IsNull());
   DCHECK(!cur_frame_data_.get());
 
-  cur_frame_data_ = std::make_unique<FrameData>();
+  cur_frame_data_.reset(new FrameData());
   cur_frame_data_->elements = cur_document_.All();
   cur_frame_data_->domain =
       net::registry_controlled_domains::GetDomainAndRegistry(
@@ -370,6 +372,10 @@ blink::WebDocument PhishingDOMFeatureExtractor::GetNextDocument() {
         return frame->ToWebLocalFrame()->GetDocument();
       }
     }
+  } else {
+    // Keep track of how often frame traversal got "stuck" due to the
+    // current subdocument getting removed from the frame tree.
+    UMA_HISTOGRAM_COUNTS_1M("SBClientPhishing.DOMFeatureFrameRemoved", 1);
   }
   return blink::WebDocument();
 }

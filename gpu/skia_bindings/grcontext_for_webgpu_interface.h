@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef GPU_SKIA_BINDINGS_GRCONTEXT_FOR_WEBGPU_INTERFACE_H_
 #define GPU_SKIA_BINDINGS_GRCONTEXT_FOR_WEBGPU_INTERFACE_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/gpu/GrContextOptions.h"
 
@@ -32,10 +32,6 @@ class GrContextForWebGPUInterface
                               size_t max_resource_cache_bytes,
                               size_t max_glyph_cache_texture_bytes);
 
-  GrContextForWebGPUInterface(const GrContextForWebGPUInterface&) = delete;
-  GrContextForWebGPUInterface& operator=(const GrContextForWebGPUInterface&) =
-      delete;
-
   ~GrContextForWebGPUInterface() override;
 
   // GrContextOptions::ShaderErrorHandler implementation
@@ -46,7 +42,9 @@ class GrContextForWebGPUInterface
 
  private:
   sk_sp<class GrDirectContext> gr_context_;
-  raw_ptr<gpu::ContextSupport> context_support_;
+  gpu::ContextSupport* context_support_;
+
+  DISALLOW_COPY_AND_ASSIGN(GrContextForWebGPUInterface);
 };
 
 }  // namespace skia_bindings

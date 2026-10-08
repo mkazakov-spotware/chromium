@@ -1,10 +1,6 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {FileType} from '../../../common/js/file_type.js';
-
-import {MetadataModel} from './metadata_model.js';
 
 /**
  * Metadata containing thumbnail information.
@@ -12,7 +8,7 @@ import {MetadataModel} from './metadata_model.js';
  */
 let ThumbnailMetadataItem;
 
-export class ThumbnailModel {
+class ThumbnailModel {
   /**
    * @param {!MetadataModel} metadataModel
    */
@@ -35,12 +31,8 @@ export class ThumbnailModel {
         .get(
             entries,
             [
-              'modificationTime',
-              'customIconUrl',
-              'contentMimeType',
-              'thumbnailUrl',
-              'croppedThumbnailUrl',
-              'present',
+              'modificationTime', 'customIconUrl', 'contentMimeType',
+              'thumbnailUrl', 'croppedThumbnailUrl', 'present'
             ])
         .then(metadataList => {
           const contentRequestEntries = [];
@@ -51,7 +43,7 @@ export class ThumbnailModel {
             results[url] = {
               filesystem: {
                 modificationTime: metadataList[i].modificationTime,
-                modificationTimeError: metadataList[i].modificationTimeError,
+                modificationTimeError: metadataList[i].modificationTimeError
               },
               external: {
                 thumbnailUrl: metadataList[i].thumbnailUrl,
@@ -62,10 +54,10 @@ export class ThumbnailModel {
                 customIconUrl: metadataList[i].customIconUrl,
                 customIconUrlError: metadataList[i].customIconUrlError,
                 present: metadataList[i].present,
-                presentError: metadataList[i].presentError,
+                presentError: metadataList[i].presentError
               },
               thumbnail: {},
-              media: {},
+              media: {}
             };
             const canUseContentThumbnail = metadataList[i].present &&
                 (FileType.isImage(

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,11 @@
 // compilation with ADVANCED_OPTIMIZATIONS. See http://goo.gl/FwOgy
 //
 // Inserts placeholders into the DOM on top of unsupported plugins.
+
+goog.provide('__crWeb.pluginPlaceholder');
+
+/* Beginning of anonymous object. */
+(function() {
 
 /**
  * Checks whether an <object> node is plugin content (as <object> can also be
@@ -308,7 +313,9 @@ var addPluginPlaceholders = function(message, plugins) {
 // Add placeholders for plugin content.
 var plugins = findPluginNodesWithoutFallback();
 if (plugins.length > 0) {
-  // $(PLUGIN_NOT_SUPPORTED_TEXT) is replaced with the appropriate string prior
-  // to injection.
+  // web::GetDocumentEndScriptForAllFrames replaces
+  // $(PLUGIN_NOT_SUPPORTED_TEXT) with approproate string upon injection.
   addPluginPlaceholders('$(PLUGIN_NOT_SUPPORTED_TEXT)', plugins);
 }
+
+}());  // End of anonymous object

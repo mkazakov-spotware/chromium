@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,21 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/metrics/field_trial.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_main_parts.h"
+#include "content/public/common/main_function_params.h"
 #include "content/shell/browser/shell_browser_context.h"
+#include "ui/base/buildflags.h"
 
 namespace performance_manager {
 class PerformanceManagerLifetime;
 }  // namespace performance_manager
 
-#if BUILDFLAG(IS_ANDROID)
-namespace crash_reporter {
-class ChildExitObserver;
+#if BUILDFLAG(USE_GTK)
+namespace ui {
+class GtkUiDelegate;
 }
 #endif
 
@@ -27,25 +30,19 @@ class ShellPlatformDelegate;
 
 class ShellBrowserMainParts : public BrowserMainParts {
  public:
-  ShellBrowserMainParts();
-
-  ShellBrowserMainParts(const ShellBrowserMainParts&) = delete;
-  ShellBrowserMainParts& operator=(const ShellBrowserMainParts&) = delete;
-
+  explicit ShellBrowserMainParts(const MainFunctionParams& parameters);
   ~ShellBrowserMainParts() override;
 
   // BrowserMainParts overrides.
   int PreEarlyInitialization() override;
   int PreCreateThreads() override;
-#if BUILDFLAG(IS_MAC)
-  void PreCreateMainMessageLoop() override;
-#endif
   void PostCreateThreads() override;
-  void PostCreateMainMessageLoop() override;
+  void PreMainMessageLoopStart() override;
+  void PostMainMessageLoopStart() override;
   void ToolkitInitialized() override;
-  int PreMainMessageLoopRun() override;
-  void WillRunMainMessageLoop(
-      std::unique_ptr<base::RunLoop>& run_loop) override;
+  void PreMainMessageLoopRun() override;
+  bool MainMessageLoopRun(int* result_code) override;
+  void PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) override;
   void PostMainMessageLoopRun() override;
   void PostDestroyThreads() override;
 
@@ -69,14 +66,22 @@ class ShellBrowserMainParts : public BrowserMainParts {
   }
 
  private:
+
   std::unique_ptr<ShellBrowserContext> browser_context_;
   std::unique_ptr<ShellBrowserContext> off_the_record_browser_context_;
 
+  // For running content_browsertests.
+  const MainFunctionParams parameters_;
+  bool run_message_loop_;
+
+#if BUILDFLAG(USE_GTK)
+  std::unique_ptr<ui::GtkUiDelegate> gtk_ui_delegate_;
+#endif
+
   std::unique_ptr<performance_manager::PerformanceManagerLifetime>
       performance_manager_lifetime_;
-#if BUILDFLAG(IS_ANDROID)
-  std::unique_ptr<crash_reporter::ChildExitObserver> child_exit_observer_;
-#endif
+
+  DISALLOW_COPY_AND_ASSIGN(ShellBrowserMainParts);
 };
 
 }  // namespace content

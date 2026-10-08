@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <memory>
 
-#include "base/containers/lru_cache.h"
+#include "base/containers/mru_cache.h"
+#include "base/macros.h"
 #include "components/keyed_service/core/keyed_service.h"
 
 class GURL;
@@ -28,13 +29,9 @@ struct LargeIconResult;
 class LargeIconCache : public KeyedService {
  public:
   LargeIconCache();
-
-  LargeIconCache(const LargeIconCache&) = delete;
-  LargeIconCache& operator=(const LargeIconCache&) = delete;
-
   ~LargeIconCache() override;
 
-  // `LargeIconService` does everything on callbacks, and iOS needs to load the
+  // |LargeIconService| does everything on callbacks, and iOS needs to load the
   // icons immediately on page load. This caches the LargeIconResult so we can
   // immediately load.
   void SetCachedResult(const GURL& url, const favicon_base::LargeIconResult&);
@@ -48,7 +45,9 @@ class LargeIconCache : public KeyedService {
   std::unique_ptr<favicon_base::LargeIconResult> CloneLargeIconResult(
       const favicon_base::LargeIconResult& large_icon_result);
 
-  base::LRUCache<GURL, std::unique_ptr<LargeIconCacheEntry>> cache_;
+  base::MRUCache<GURL, std::unique_ptr<LargeIconCacheEntry>> cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(LargeIconCache);
 };
 
 #endif  // IOS_CHROME_BROWSER_FAVICON_LARGE_ICON_CACHE_H_

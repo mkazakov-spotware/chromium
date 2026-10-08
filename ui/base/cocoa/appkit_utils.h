@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef UI_BASE_COCOA_APPKIT_UTILS_H_
-#define UI_BASE_COCOA_APPKIT_UTILS_H_
+#ifndef UI_BASE_COCOA_APPKIT_UTILS_H
+#define UI_BASE_COCOA_APPKIT_UTILS_H
 
 #import <Cocoa/Cocoa.h>
 
@@ -19,4 +19,4 @@ COMPONENT_EXPORT(UI_BASE) bool IsCGFloatEqual(CGFloat a, CGFloat b);
 
 }  // namespace ui
 
-#endif  // UI_BASE_COCOA_APPKIT_UTILS_H_
+#endif  // UI_BASE_COCOA_APPKIT_UTILS_H

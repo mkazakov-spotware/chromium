@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 
 #include "chrome/browser/invalidation/profile_invalidation_provider_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "components/drive/drive_notification_manager.h"
 #include "components/invalidation/impl/profile_invalidation_provider.h"
-#include "components/sync/base/command_line_switches.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/sync/driver/sync_driver_switches.h"
 
 namespace drive {
 namespace {
@@ -40,12 +41,12 @@ DriveNotificationManagerFactory::FindForBrowserContext(
 DriveNotificationManager*
 DriveNotificationManagerFactory::GetForBrowserContext(
     content::BrowserContext* context) {
-  if (!syncer::IsSyncAllowedByFlag())
-    return nullptr;
+  if (!switches::IsSyncAllowedByFlag())
+    return NULL;
   if (!GetInvalidationService(Profile::FromBrowserContext(context))) {
     // Do not create a DriveNotificationManager for |context|s that do not
     // support invalidation.
-    return nullptr;
+    return NULL;
   }
 
   return static_cast<DriveNotificationManager*>(
@@ -59,8 +60,10 @@ DriveNotificationManagerFactory::GetInstance() {
 }
 
 DriveNotificationManagerFactory::DriveNotificationManagerFactory()
-    : ProfileKeyedServiceFactory("DriveNotificationManager") {
-  DependsOn(SyncServiceFactory::GetInstance());
+    : BrowserContextKeyedServiceFactory(
+        "DriveNotificationManager",
+        BrowserContextDependencyManager::GetInstance()) {
+  DependsOn(ProfileSyncServiceFactory::GetInstance());
   DependsOn(invalidation::ProfileInvalidationProviderFactory::GetInstance());
 }
 

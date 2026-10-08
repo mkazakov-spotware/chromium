@@ -1,16 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/setup/daemon_controller.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "remoting/base/auto_thread.h"
@@ -22,11 +22,11 @@ namespace remoting {
 const char kDaemonControllerThreadName[] = "Daemon Controller thread";
 
 DaemonController::DaemonController(std::unique_ptr<Delegate> delegate)
-    : caller_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : caller_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       delegate_(std::move(delegate)) {
   // Launch the delegate thread.
-  delegate_thread_ = std::make_unique<AutoThread>(kDaemonControllerThreadName);
-#if BUILDFLAG(IS_WIN)
+  delegate_thread_.reset(new AutoThread(kDaemonControllerThreadName));
+#if defined(OS_WIN)
   delegate_thread_->SetComInitType(AutoThread::COM_INIT_STA);
   delegate_task_runner_ =
       delegate_thread_->StartWithType(base::MessagePumpType::UI);
@@ -57,9 +57,10 @@ void DaemonController::CheckPermission(bool it2me, BoolCallback callback) {
   return delegate_->CheckPermission(it2me, std::move(callback));
 }
 
-void DaemonController::SetConfigAndStart(base::Value::Dict config,
-                                         bool consent,
-                                         CompletionCallback done) {
+void DaemonController::SetConfigAndStart(
+    std::unique_ptr<base::DictionaryValue> config,
+    bool consent,
+    CompletionCallback done) {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
 
   CompletionCallback wrapped_done =
@@ -67,20 +68,21 @@ void DaemonController::SetConfigAndStart(base::Value::Dict config,
                      this, std::move(done));
   base::OnceClosure request =
       base::BindOnce(&DaemonController::DoSetConfigAndStart, this,
-                     std::move(config), consent, std::move(wrapped_done));
+                     base::Passed(&config), consent, std::move(wrapped_done));
   ServiceOrQueueRequest(std::move(request));
 }
 
-void DaemonController::UpdateConfig(base::Value::Dict config,
-                                    CompletionCallback done) {
+void DaemonController::UpdateConfig(
+    std::unique_ptr<base::DictionaryValue> config,
+    CompletionCallback done) {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
 
   CompletionCallback wrapped_done =
       base::BindOnce(&DaemonController::InvokeCompletionCallbackAndScheduleNext,
                      this, std::move(done));
   base::OnceClosure request =
-      base::BindOnce(&DaemonController::DoUpdateConfig, this, std::move(config),
-                     std::move(wrapped_done));
+      base::BindOnce(&DaemonController::DoUpdateConfig, this,
+                     base::Passed(&config), std::move(wrapped_done));
   ServiceOrQueueRequest(std::move(request));
 }
 
@@ -118,21 +120,23 @@ DaemonController::~DaemonController() {
 void DaemonController::DoGetConfig(GetConfigCallback done) {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
 
-  absl::optional<base::Value::Dict> config = delegate_->GetConfig();
+  std::unique_ptr<base::DictionaryValue> config = delegate_->GetConfig();
   caller_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(std::move(done), std::move(config)));
 }
 
-void DaemonController::DoSetConfigAndStart(base::Value::Dict config,
-                                           bool consent,
-                                           CompletionCallback done) {
+void DaemonController::DoSetConfigAndStart(
+    std::unique_ptr<base::DictionaryValue> config,
+    bool consent,
+    CompletionCallback done) {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
 
   delegate_->SetConfigAndStart(std::move(config), consent, std::move(done));
 }
 
-void DaemonController::DoUpdateConfig(base::Value::Dict config,
-                                      CompletionCallback done) {
+void DaemonController::DoUpdateConfig(
+    std::unique_ptr<base::DictionaryValue> config,
+    CompletionCallback done) {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
 
   delegate_->UpdateConfig(std::move(config), std::move(done));
@@ -171,7 +175,7 @@ void DaemonController::InvokeCompletionCallbackAndScheduleNext(
 
 void DaemonController::InvokeConfigCallbackAndScheduleNext(
     GetConfigCallback done,
-    absl::optional<base::Value::Dict> config) {
+    std::unique_ptr<base::DictionaryValue> config) {
   DCHECK(caller_task_runner_->BelongsToCurrentThread());
 
   std::move(done).Run(std::move(config));

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,6 @@
 #include "services/network/test/test_url_loader_client.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
-#include "third_party/blink/public/mojom/service_worker/service_worker_registration_options.mojom.h"
-#include "url/origin.h"
 
 namespace content {
 
@@ -41,9 +38,7 @@ class ServiceWorkerScriptLoaderFactoryTest : public testing::Test {
     blink::mojom::ServiceWorkerRegistrationOptions options;
     options.scope = scope_;
     registration_ = base::MakeRefCounted<ServiceWorkerRegistration>(
-        options, blink::StorageKey(url::Origin::Create(scope_)),
-        1L /* registration_id */, context->AsWeakPtr(),
-        blink::mojom::AncestorFrameType::kNormalFrame);
+        options, 1L /* registration_id */, context->AsWeakPtr());
     version_ = CreateNewServiceWorkerVersion(
         context->registry(), registration_.get(), script_url_,
         blink::mojom::ScriptType::kClassic);
@@ -66,9 +61,9 @@ class ServiceWorkerScriptLoaderFactoryTest : public testing::Test {
     resource_request.destination =
         network::mojom::RequestDestination::kServiceWorker;
     factory_->CreateLoaderAndStart(
-        loader.InitWithNewPipeAndPassReceiver(), 0 /* request_id */,
-        network::mojom::kURLLoadOptionNone, resource_request,
-        client->CreateRemote(),
+        loader.InitWithNewPipeAndPassReceiver(), 0 /* routing_id */,
+        0 /* request_id */, network::mojom::kURLLoadOptionNone,
+        resource_request, client->CreateRemote(),
         net::MutableNetworkTrafficAnnotationTag(TRAFFIC_ANNOTATION_FOR_TESTS));
     return loader;
   }
@@ -127,7 +122,8 @@ TEST_F(ServiceWorkerScriptLoaderFactoryTest, ContextDestroyed) {
 }
 
 // This tests copying script and creating resume type
-// ServiceWorkerNewScriptLoaders.
+// ServiceWorkerNewScriptLoaders when ServiceWorkerImportedScriptUpdateCheck
+// is enabled.
 class ServiceWorkerScriptLoaderFactoryCopyResumeTest
     : public ServiceWorkerScriptLoaderFactoryTest {
  public:

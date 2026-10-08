@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@ import android.app.SearchManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Rect;
+import android.os.Build;
 import android.text.TextUtils;
 import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 
 import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.metrics.RecordUserAction;
@@ -25,7 +24,7 @@ import org.chromium.content_public.browser.WebContents;
 /**
  * A class that handles selection action mode for Android WebView.
  */
-public class AwActionModeCallback extends ActionMode.Callback2 {
+public class AwActionModeCallback implements ActionMode.Callback {
     private final Context mContext;
     private final AwContents mAwContents;
     private final ActionModeCallbackHelper mHelper;
@@ -93,13 +92,10 @@ public class AwActionModeCallback extends ActionMode.Callback2 {
         mHelper.onDestroyActionMode();
     }
 
-    @Override
-    public void onGetContentRect(ActionMode mode, View view, Rect outRect) {
-        mHelper.onGetContentRect(mode, view, outRect);
-    }
-
     private void processText(Intent intent) {
         RecordUserAction.record("MobileActionMode.ProcessTextIntent");
+        assert Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+
         String query = ActionModeCallbackHelper.sanitizeQuery(mHelper.getSelectedText(),
                 ActionModeCallbackHelper.MAX_SEARCH_QUERY_LENGTH);
         if (TextUtils.isEmpty(query)) return;

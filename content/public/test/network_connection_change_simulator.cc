@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/common/network_service_util.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -16,8 +15,9 @@
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/public/mojom/network_service_test.mojom.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 #include "net/base/network_change_notifier_posix.h"
+#include "services/network/public/mojom/network_service.mojom.h"
 #endif
 
 namespace content {
@@ -34,7 +34,7 @@ constexpr base::RunLoop::Type kRunLoopType =
 NetworkConnectionChangeSimulator::NetworkConnectionChangeSimulator() = default;
 NetworkConnectionChangeSimulator::~NetworkConnectionChangeSimulator() = default;
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 void NetworkConnectionChangeSimulator::InitializeChromeosConnectionType() {
   // Manually set the connection type since ChromeOS's NetworkChangeNotifier
   // implementation relies on some other class controlling it (normally

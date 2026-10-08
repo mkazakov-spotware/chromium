@@ -1,14 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/api/image_writer_private/write_from_url_operation.h"
 
-#include <utility>
-
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "chrome/browser/extensions/api/image_writer_private/error_constants.h"
+#include "chrome/browser/extensions/api/image_writer_private/error_messages.h"
 #include "chrome/browser/extensions/api/image_writer_private/test_utils.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -59,19 +57,19 @@ class WriteFromUrlOperationForTest : public WriteFromUrlOperation {
   void Start() {
     PostTask(base::BindOnce(&WriteFromUrlOperation::Start, this));
   }
-  void GetDownloadTarget(base::OnceClosure continuation) {
+  void GetDownloadTarget(const base::Closure& continuation) {
     PostTask(base::BindOnce(&WriteFromUrlOperation::GetDownloadTarget, this,
-                            std::move(continuation)));
+                            continuation));
   }
 
-  void Download(base::OnceClosure continuation) {
-    PostTask(base::BindOnce(&WriteFromUrlOperation::Download, this,
-                            std::move(continuation)));
+  void Download(const base::Closure& continuation) {
+    PostTask(
+        base::BindOnce(&WriteFromUrlOperation::Download, this, continuation));
   }
 
-  void VerifyDownload(base::OnceClosure continuation) {
+  void VerifyDownload(const base::Closure& continuation) {
     PostTask(base::BindOnce(&WriteFromUrlOperation::VerifyDownload, this,
-                            std::move(continuation)));
+                            continuation));
   }
 
   void Cancel() {
@@ -86,7 +84,7 @@ class WriteFromUrlOperationForTest : public WriteFromUrlOperation {
   base::FilePath GetImagePath() { return image_path_; }
 
  private:
-  ~WriteFromUrlOperationForTest() override = default;
+  ~WriteFromUrlOperationForTest() override {}
 };
 
 class ImageWriterWriteFromUrlOperationTest : public ImageWriterUnitTestBase {
@@ -118,7 +116,7 @@ class ImageWriterWriteFromUrlOperationTest : public ImageWriterUnitTestBase {
       const std::string& hash) {
     mojo::PendingRemote<network::mojom::URLLoaderFactory>
         url_loader_factory_remote;
-    test_profile_.GetDefaultStoragePartition()
+    content::BrowserContext::GetDefaultStoragePartition(&test_profile_)
         ->GetURLLoaderFactoryForBrowserProcess()
         ->Clone(url_loader_factory_remote.InitWithNewPipeAndPassReceiver());
 
@@ -230,7 +228,7 @@ TEST_F(ImageWriterWriteFromUrlOperationTest, VerifyFile) {
     // The OnProgress tasks are posted with priority USER_VISIBLE priority so
     // post the quit closure with the same priority to ensure it doesn't run too
     // soon.
-    operation->VerifyDownload(base::BindOnce(
+    operation->VerifyDownload(base::Bind(
         [](base::OnceClosure quit_closure) {
           content::GetUIThreadTaskRunner({base::TaskPriority::USER_VISIBLE})
               ->PostTask(FROM_HERE, std::move(quit_closure));

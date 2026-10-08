@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include <memory>
-
 #include "base/bind.h"
-#include "base/callback.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "net/base/io_buffer.h"
@@ -103,13 +100,13 @@ class BufferedSocketWriterTest : public testing::Test {
 
  protected:
   void SetUp() override {
-    socket_ = std::make_unique<net::MockTCPClientSocket>(
-        net::AddressList(), net::NetLog::Get(), &socket_data_provider_);
+    socket_.reset(new net::MockTCPClientSocket(
+        net::AddressList(), net::NetLog::Get(), &socket_data_provider_));
     socket_data_provider_.set_connect_data(
         net::MockConnect(net::SYNCHRONOUS, net::OK));
     EXPECT_EQ(net::OK, socket_->Connect(net::CompletionOnceCallback()));
 
-    writer_ = std::make_unique<BufferedSocketWriter>();
+    writer_.reset(new BufferedSocketWriter());
     test_buffer_ = base::MakeRefCounted<net::IOBufferWithSize>(kTestBufferSize);
     test_buffer_2_ =
         base::MakeRefCounted<net::IOBufferWithSize>(kTestBufferSize);

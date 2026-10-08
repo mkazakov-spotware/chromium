@@ -1,15 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_TEST_INTEGRATION_PRINTERS_HELPER_H_
 #define CHROME_BROWSER_SYNC_TEST_INTEGRATION_PRINTERS_HELPER_H_
 
-#include <iosfwd>
 #include <memory>
 #include <string>
 
-#include "chrome/browser/ash/printing/synced_printers_manager.h"
+#include "chrome/browser/chromeos/printing/synced_printers_manager.h"
 #include "chrome/browser/sync/test/integration/await_match_status_change_checker.h"
 #include "chromeos/printing/printer_configuration.h"
 
@@ -31,15 +30,15 @@ std::unique_ptr<sync_pb::PrinterSpecifics> CreateTestPrinterSpecifics(
     int index);
 
 // Add printer to the supplied store.
-void AddPrinter(ash::SyncedPrintersManager* manager,
+void AddPrinter(chromeos::SyncedPrintersManager* manager,
                 const chromeos::Printer& printer);
 
 // Remove printer |index| from the |manager|.
-void RemovePrinter(ash::SyncedPrintersManager* manager, int index);
+void RemovePrinter(chromeos::SyncedPrintersManager* manager, int index);
 
 // Change the description of the printer at |index| with |description|.  Returns
 // false if the printer is not tracked by the manager.
-bool EditPrinterDescription(ash::SyncedPrintersManager* manager,
+bool EditPrinterDescription(chromeos::SyncedPrintersManager* manager,
                             int index,
                             const std::string& description);
 
@@ -47,10 +46,10 @@ bool EditPrinterDescription(ash::SyncedPrintersManager* manager,
 void WaitForPrinterStoreToLoad(content::BrowserContext* context);
 
 // Returns the verifier store.
-ash::SyncedPrintersManager* GetVerifierPrinterStore();
+chromeos::SyncedPrintersManager* GetVerifierPrinterStore();
 
 // Returns printer store at |index|.
-ash::SyncedPrintersManager* GetPrinterStore(int index);
+chromeos::SyncedPrintersManager* GetPrinterStore(int index);
 
 // Returns the number of printers in the verifier store.
 int GetVerifierPrinterCount();
@@ -59,7 +58,7 @@ int GetVerifierPrinterCount();
 int GetPrinterCount(int index);
 
 // Returns true if all profiles contain the same printers as profile 0.
-bool AllProfilesContainSamePrinters(std::ostream* os = nullptr);
+bool AllProfilesContainSamePrinters();
 
 // Returns true if the verifier store and printer store |index| contain the same
 // data.
@@ -76,11 +75,10 @@ bool ProfileContainsSamePrintersAsVerifier(int index);
 class PrintersMatchChecker : public AwaitMatchStatusChangeChecker {
  public:
   PrintersMatchChecker();
-
-  PrintersMatchChecker(const PrintersMatchChecker&) = delete;
-  PrintersMatchChecker& operator=(const PrintersMatchChecker&) = delete;
-
   ~PrintersMatchChecker() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PrintersMatchChecker);
 };
 
 }  // namespace printers_helper

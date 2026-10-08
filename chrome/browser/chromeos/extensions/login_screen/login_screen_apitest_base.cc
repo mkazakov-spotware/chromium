@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,8 +35,9 @@ LoginScreenApitestBase::~LoginScreenApitestBase() {
 
 void LoginScreenApitestBase::SetUpTestListeners() {
   catcher_ = std::make_unique<extensions::ResultCatcher>();
-  listener_ = std::make_unique<ExtensionTestMessageListener>(
-      listener_message_, ReplyBehavior::kWillReply);
+  listener_ =
+      std::make_unique<ExtensionTestMessageListener>(listener_message_,
+                                                     /*will_reply=*/true);
 }
 
 void LoginScreenApitestBase::ClearTestListeners() {

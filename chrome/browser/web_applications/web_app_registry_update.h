@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/types/pass_key.h"
-#include "chrome/browser/web_applications/web_app_id.h"
+#include "base/util/type_safety/pass_key.h"
+#include "chrome/browser/web_applications/components/web_app_id.h"
 
 namespace web_app {
 
@@ -42,7 +41,7 @@ struct RegistryUpdateData {
 class WebAppRegistryUpdate {
  public:
   WebAppRegistryUpdate(const WebAppRegistrar* registrar,
-                       base::PassKey<WebAppSyncBridge>);
+                       util::PassKey<WebAppSyncBridge>);
   WebAppRegistryUpdate(const WebAppRegistryUpdate&) = delete;
   WebAppRegistryUpdate& operator=(const WebAppRegistryUpdate&) = delete;
   ~WebAppRegistryUpdate();
@@ -59,7 +58,8 @@ class WebAppRegistryUpdate {
 
  private:
   std::unique_ptr<RegistryUpdateData> update_data_;
-  const raw_ptr<const WebAppRegistrar> registrar_;
+  const WebAppRegistrar* const registrar_;
+
 };
 
 // A convenience utility class to use RAII for WebAppSyncBridge::BeginUpdate and
@@ -67,7 +67,6 @@ class WebAppRegistryUpdate {
 class ScopedRegistryUpdate {
  public:
   explicit ScopedRegistryUpdate(WebAppSyncBridge* sync_bridge);
-  ScopedRegistryUpdate(ScopedRegistryUpdate&&);
   ScopedRegistryUpdate(const ScopedRegistryUpdate&) = delete;
   ScopedRegistryUpdate& operator=(const ScopedRegistryUpdate&) = delete;
   ~ScopedRegistryUpdate();
@@ -76,7 +75,8 @@ class ScopedRegistryUpdate {
 
  private:
   std::unique_ptr<WebAppRegistryUpdate> update_;
-  const raw_ptr<WebAppSyncBridge> sync_bridge_;
+  WebAppSyncBridge* const sync_bridge_;
+
 };
 
 }  // namespace web_app

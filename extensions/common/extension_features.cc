@@ -1,126 +1,78 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/common/extension_features.h"
-#include "base/feature_list.h"
 
 namespace extensions_features {
 
-// Controls whether we show an install friction dialog when an Enhanced Safe
-// Browsing user tries to install an extension that is not included in the
-// Safe Browsing CRX allowlist. This feature also controls if we show a warning
-// in 'chrome://extensions' for extensions not included in the allowlist.
-BASE_FEATURE(kSafeBrowsingCrxAllowlistShowWarnings,
-             "SafeBrowsingCrxAllowlistShowWarnings",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+// Controls whether we redirect the NTP to the chrome://extensions page or show
+// a middle slot promo, and which of the the three checkup banner messages
+// (performance focused, privacy focused or neutral) to show.
+const base::Feature kExtensionsCheckup{"ExtensionsCheckup",
+                                       base::FEATURE_DISABLED_BY_DEFAULT};
 
-// Automatically disable extensions not included in the Safe Browsing CRX
-// allowlist if the user has turned on Enhanced Safe Browsing (ESB). The
-// extensions can be disabled at ESB opt-in time or when an extension is moved
-// out of the allowlist.
-BASE_FEATURE(kSafeBrowsingCrxAllowlistAutoDisable,
-             "SafeBrowsingCrxAllowlistAutoDisable",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+// Controls whether we disable extensions for malware.
+const base::Feature kDisableMalwareExtensionsRemotely{
+    "DisableMalwareExtensionsRemotely", base::FEATURE_ENABLED_BY_DEFAULT};
+
+// Parameters for ExtensionsCheckup feature.
+const char kExtensionsCheckupEntryPointParameter[] = "entry_point";
+const char kExtensionsCheckupBannerMessageParameter[] = "banner_message_type";
+
+// Constants for ExtensionsCheckup parameters.
+// Indicates that the user should be shown the chrome://extensions page on
+// startup.
+const char kStartupEntryPoint[] = "startup";
+// Indicates that the user should be shown a promo on the NTP leading to the
+// chrome://extensions page.
+const char kNtpPromoEntryPoint[] = "promo";
+// Indicates the focus of the message shown on chrome://the extensions page
+// banner and the NTP promo.
+const char kPerformanceMessage[] = "0";
+const char kPrivacyMessage[] = "1";
+const char kNeutralMessage[] = "2";
 
 // Forces requests to go through WebRequestProxyingURLLoaderFactory.
-BASE_FEATURE(kForceWebRequestProxyForTest,
-             "ForceWebRequestProxyForTest",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kForceWebRequestProxyForTest{
+    "ForceWebRequestProxyForTest", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Enables the UI in the install prompt which lets a user choose to withhold
 // requested host permissions by default.
-BASE_FEATURE(kAllowWithholdingExtensionPermissionsOnInstall,
-             "AllowWithholdingExtensionPermissionsOnInstall",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kAllowWithholdingExtensionPermissionsOnInstall{
+    "AllowWithholdingExtensionPermissionsOnInstall",
+    base::FEATURE_DISABLED_BY_DEFAULT};
 
 // Enables support for the "match_origin_as_fallback" property in content
 // scripts.
-BASE_FEATURE(kContentScriptsMatchOriginAsFallback,
-             "ContentScriptsMatchOriginAsFallback",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kContentScriptsMatchOriginAsFallback{
+    "ContentScriptsMatchOriginAsFallback", base::FEATURE_DISABLED_BY_DEFAULT};
+
+// Whether Manifest Version 3-based extensions are supported.
+const base::Feature kMv3ExtensionsSupported{"Mv3ExtensionsSupported",
+                                            base::FEATURE_ENABLED_BY_DEFAULT};
 
 // Reports Extensions.WebRequest.KeepaliveRequestFinished when enabled.
-BASE_FEATURE(kReportKeepaliveUkm,
-             "ReportKeepaliveUkm",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::Feature kReportKeepaliveUkm{"ReportKeepaliveUkm",
+                                        base::FEATURE_ENABLED_BY_DEFAULT};
 
-// Whether extension contexts can use SharedArrayBuffers unconditionally (i.e.
-// without requiring cross origin isolation).
-// TODO(crbug.com/1184892): Flip this in M95.
-BASE_FEATURE(kAllowSharedArrayBuffersUnconditionally,
-             "AllowSharedArrayBuffersUnconditionally",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+// Enables callers of the GetAuthToken API to request for the unbundled consent
+// UI and populates the scopes parameter in the GetAuthToken callback function.
+const base::Feature kReturnScopesInGetAuthToken{
+    "ReturnScopesInGetAuthToken", base::FEATURE_ENABLED_BY_DEFAULT};
 
-// When enabled, causes Manifest V3 (and greater) extensions to use structured
-// cloning (instead of JSON serialization) for extension messaging, except when
-// communicating with native messaging hosts.
-BASE_FEATURE(kStructuredCloningForMV3Messaging,
-             "StructuredCloningForMV3Messaging",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+// If enabled, allows the GetAuthToken API to provide the "selected_user_id"
+// parameter to the server, indicating which account to request permissions
+// from.
+const base::Feature kSelectedUserIdInGetAuthToken{
+    "SelectedUserIdInGetAuthToken", base::FEATURE_ENABLED_BY_DEFAULT};
 
-// When enabled, causes extensions to allow access to certain APIs only if the
-// user is in the developer mode.
-BASE_FEATURE(kRestrictDeveloperModeAPIs,
-             "RestrictDeveloperModeAPIs",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// When enabled, then bad_message::ReceivedBadMessage will be called when
-// browser receives an IPC from a content script and the IPC that unexpectedly
-// claims to act on behalf of a given extension id, (i.e. even if the browser
-// process things that renderer process never run content scripts from the
-// extension).
-BASE_FEATURE(kCheckingNoExtensionIdInExtensionIpcs,
-             "EMF_NO_EXTENSION_ID_FOR_EXTENSION_SOURCE",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Controls whether extensions can use the new favicon fetching in Manifest V3.
-BASE_FEATURE(kNewExtensionFaviconHandling,
-             "ExtensionsNewFaviconHandling",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Determine if dynamic extension URLs are handled and redirected.
-BASE_FEATURE(kExtensionDynamicURLRedirection,
-             "kExtensionDynamicURLRedirection",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables enhanced site control for extensions and allowing the user to control
-// site permissions.
-BASE_FEATURE(kExtensionsMenuAccessControl,
-             "ExtensionsMenuAccessControl",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// If enabled, calls RenderFrame::SetAllowsCrossBrowsingInstanceFrameLookup() in
-// DidCreateScriptContext() instead of DidCommitProvisionalLoad() to avoid
-// creating the script context too early which can be bad for performance.
-BASE_FEATURE(kAvoidEarlyExtensionScriptContextCreation,
-             "AvoidEarlyExtensionScriptContextCreation",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// The feature enabling offscreen documents in Manifest V3 extensions.
-BASE_FEATURE(kExtensionsOffscreenDocuments,
-             "ExtensionsOffscreenDocuments",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// If enabled, allows APIs used by the webstore to be exposed on the URL for the
-// new webstore.
-BASE_FEATURE(kNewWebstoreDomain,
-             "NewWebstoreDomain",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Side panel API availability.
-BASE_FEATURE(kExtensionSidePanelIntegration,
-             "ExtensionSidePanelIntegration",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// File Handlers.
-BASE_FEATURE(kFileHandlersMV3,
-             "FileHandlersMV3",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// IsValidSourceUrl enforcement for ExtensionHostMsg_OpenChannelToExtension IPC.
-BASE_FEATURE(kExtensionSourceUrlEnforcement,
-             "ExtensionSourceUrlEnforcement",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+// Feature used mostly for exposing a field-trial-param-based mechanism for
+// adding remaining strugglers to the CORB/CORS allowlist which has been
+// deprecated in Chrome 87.
+const base::Feature kCorbCorsAllowlist{"CorbCorsAllowlist",
+                                       base::FEATURE_DISABLED_BY_DEFAULT};
+const char kCorbCorsAllowlistParamName[] =
+    "CorbCorsAllowlistDeprecationParamName";
 
 }  // namespace extensions_features

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,9 @@ import android.text.TextUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.blink.mojom.DisplayMode;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebApkExtras;
-import org.chromium.chrome.browser.browserservices.intents.WebApkShareTarget;
-import org.chromium.chrome.browser.browserservices.intents.WebappIcon;
-import org.chromium.chrome.browser.browserservices.intents.WebappInfo;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.components.webapps.WebApkDistributor;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.webapk.lib.common.splash.SplashLayout;
 
@@ -73,8 +67,8 @@ public class WebApkUpdateDataFetcher extends EmptyTabObserver {
         mObserver = observer;
 
         mTab.addObserver(this);
-        mNativePointer = WebApkUpdateDataFetcherJni.get().initialize(WebApkUpdateDataFetcher.this,
-                mOldInfo.url(), mOldInfo.scopeUrl(), mOldInfo.manifestUrl(), mOldInfo.manifestId());
+        mNativePointer = WebApkUpdateDataFetcherJni.get().initialize(
+                WebApkUpdateDataFetcher.this, mOldInfo.scopeUrl(), mOldInfo.manifestUrl());
         WebApkUpdateDataFetcherJni.get().start(
                 mNativePointer, WebApkUpdateDataFetcher.this, mTab.getWebContents());
         return true;
@@ -114,14 +108,13 @@ public class WebApkUpdateDataFetcher extends EmptyTabObserver {
      */
     @CalledByNative
     protected void onDataAvailable(String manifestStartUrl, String scopeUrl, String name,
-            String shortName, String manifestId, String primaryIconUrl,
-            String primaryIconMurmur2Hash, Bitmap primaryIconBitmap, boolean isPrimaryIconMaskable,
-            String splashIconUrl, String splashIconMurmur2Hash, Bitmap splashIconBitmap,
-            boolean isSplashIconMaskable, String[] iconUrls, @DisplayMode.EnumType int displayMode,
-            int orientation, long themeColor, long backgroundColor, String shareAction,
-            String shareParamsTitle, String shareParamsText, boolean isShareMethodPost,
-            boolean isShareEncTypeMultipart, String[] shareParamsFileNames,
-            String[][] shareParamsAccepts, String[][] shortcuts, byte[][] shortcutIconData) {
+            String shortName, String primaryIconUrl, String primaryIconMurmur2Hash,
+            Bitmap primaryIconBitmap, boolean isPrimaryIconMaskable, String splashIconUrl,
+            String splashIconMurmur2Hash, Bitmap splashIconBitmap, String[] iconUrls,
+            @WebDisplayMode int displayMode, int orientation, long themeColor, long backgroundColor,
+            String shareAction, String shareParamsTitle, String shareParamsText,
+            boolean isShareMethodPost, boolean isShareEncTypeMultipart,
+            String[] shareParamsFileNames, String[][] shareParamsAccepts, String[][] shortcuts) {
         Context appContext = ContextUtils.getApplicationContext();
 
         HashMap<String, String> iconUrlToMurmur2HashMap = new HashMap<String, String>();
@@ -136,12 +129,11 @@ public class WebApkUpdateDataFetcher extends EmptyTabObserver {
         }
 
         List<WebApkExtras.ShortcutItem> shortcutItems = new ArrayList<>();
-        for (int i = 0; i < shortcuts.length; i++) {
-            String[] shortcutData = shortcuts[i];
+        for (String[] shortcutData : shortcuts) {
             shortcutItems.add(new WebApkExtras.ShortcutItem(shortcutData[0] /* name */,
                     shortcutData[1] /* shortName */, shortcutData[2] /* launchUrl */,
                     shortcutData[3] /* iconUrl */, shortcutData[4] /* iconHash */,
-                    new WebappIcon(shortcutIconData[i])));
+                    new WebappIcon(shortcutData[5], false /* isTrusted */)));
         }
 
         // When share action is empty, we use a default empty share target
@@ -158,19 +150,17 @@ public class WebApkUpdateDataFetcher extends EmptyTabObserver {
                         new WebappIcon(primaryIconBitmap), new WebappIcon(splashIconBitmap), name,
                         shortName, displayMode, orientation, mOldInfo.source(), themeColor,
                         backgroundColor, defaultBackgroundColor, isPrimaryIconMaskable,
-                        isSplashIconMaskable, mOldInfo.webApkPackageName(),
+                        false /* isSplashIconMaskable */, mOldInfo.webApkPackageName(),
                         mOldInfo.shellApkVersion(), mOldInfo.manifestUrl(), manifestStartUrl,
-                        manifestId, mOldInfo.appKey(), WebApkDistributor.BROWSER,
-                        iconUrlToMurmur2HashMap, shareTarget, mOldInfo.shouldForceNavigation(),
-                        mOldInfo.isSplashProvidedByWebApk(), null, shortcutItems,
-                        mOldInfo.webApkVersionCode());
+                        WebApkDistributor.BROWSER, iconUrlToMurmur2HashMap, shareTarget,
+                        mOldInfo.shouldForceNavigation(), mOldInfo.isSplashProvidedByWebApk(), null,
+                        shortcutItems, mOldInfo.webApkVersionCode());
         mObserver.onGotManifestData(intentDataProvider, primaryIconUrl, splashIconUrl);
     }
 
     @NativeMethods
     interface Natives {
-        long initialize(WebApkUpdateDataFetcher caller, String startUrl, String scope,
-                String webManifestUrl, String webManifestId);
+        long initialize(WebApkUpdateDataFetcher caller, String scope, String webManifestUrl);
         void replaceWebContents(long nativeWebApkUpdateDataFetcher, WebApkUpdateDataFetcher caller,
                 WebContents webContents);
         void destroy(long nativeWebApkUpdateDataFetcher, WebApkUpdateDataFetcher caller);

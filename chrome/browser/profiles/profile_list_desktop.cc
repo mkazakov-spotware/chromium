@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,11 @@ ProfileListDesktop::ProfileListDesktop(
 }
 
 ProfileListDesktop::~ProfileListDesktop() {
+}
+
+// static
+ProfileList* ProfileList::Create(ProfileAttributesStorage* profile_storage) {
+  return new ProfileListDesktop(profile_storage);
 }
 
 size_t ProfileListDesktop::GetNumberOfItems() const {
@@ -44,10 +49,13 @@ void ProfileListDesktop::RebuildMenu() {
         new AvatarMenu::Item(items_.size(), entry->GetPath(), icon));
     item->name = entry->GetName();
     item->username = entry->GetUserName();
+    item->legacy_supervised = entry->IsLegacySupervised();
+    item->child_account = entry->IsChild();
     item->signed_in = entry->IsAuthenticated();
     if (entry->GetSigninState() == SigninState::kNotSignedIn) {
-      item->username =
-          l10n_util::GetStringUTF16(IDS_PROFILES_LOCAL_PROFILE_STATE);
+      item->username = l10n_util::GetStringUTF16(
+          item->legacy_supervised ? IDS_LEGACY_SUPERVISED_USER_AVATAR_LABEL :
+                                    IDS_PROFILES_LOCAL_PROFILE_STATE);
     }
     item->active = item->profile_path == active_profile_path_;
     item->signin_required = entry->IsSigninRequired();
@@ -55,8 +63,8 @@ void ProfileListDesktop::RebuildMenu() {
   }
 }
 
-absl::optional<size_t> ProfileListDesktop::MenuIndexFromProfilePath(
-    const base::FilePath& path) const {
+size_t ProfileListDesktop::MenuIndexFromProfilePath(const base::FilePath& path)
+    const {
   const size_t menu_count = GetNumberOfItems();
 
   for (size_t i = 0; i < menu_count; ++i) {
@@ -65,7 +73,9 @@ absl::optional<size_t> ProfileListDesktop::MenuIndexFromProfilePath(
       return i;
   }
 
-  return absl::nullopt;
+  // The desired index was not found; return a fallback value.
+  NOTREACHED();
+  return 0;
 }
 
 void ProfileListDesktop::ActiveProfilePathChanged(

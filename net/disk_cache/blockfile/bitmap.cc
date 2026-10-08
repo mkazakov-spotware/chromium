@@ -1,4 +1,4 @@
-// Copyright 2009 The Chromium Authors
+// Copyright (c) 2009 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,13 +24,11 @@ int FindLSBNonEmpty(uint32_t word, bool value) {
 
 namespace disk_cache {
 
-Bitmap::Bitmap() = default;
-
 Bitmap::Bitmap(int num_bits, bool clear_bits)
     : num_bits_(num_bits),
       array_size_(RequiredArraySize(num_bits)),
-      allocated_map_(std::make_unique<uint32_t[]>(array_size_)) {
-  map_ = allocated_map_.get();
+      alloc_(true) {
+  map_ = new uint32_t[array_size_];
 
   // Initialize all of the bits.
   if (clear_bits)
@@ -38,28 +36,34 @@ Bitmap::Bitmap(int num_bits, bool clear_bits)
 }
 
 Bitmap::Bitmap(uint32_t* map, int num_bits, int num_words)
-    : num_bits_(num_bits),
+    : map_(map),
+      num_bits_(num_bits),
       // If size is larger than necessary, trim because array_size_ is used
       // as a bound by various methods.
       array_size_(std::min(RequiredArraySize(num_bits), num_words)),
-      map_(map) {}
+      alloc_(false) {}
 
-Bitmap::~Bitmap() = default;
+Bitmap::~Bitmap() {
+  if (alloc_)
+    delete [] map_;
+}
 
 void Bitmap::Resize(int num_bits, bool clear_bits) {
-  DCHECK(allocated_map_ || !map_);
+  DCHECK(alloc_ || !map_);
   const int old_maxsize = num_bits_;
   const int old_array_size = array_size_;
   array_size_ = RequiredArraySize(num_bits);
 
   if (array_size_ != old_array_size) {
-    auto new_map = std::make_unique<uint32_t[]>(array_size_);
+    uint32_t* new_map = new uint32_t[array_size_];
     // Always clear the unused bits in the last word.
     new_map[array_size_ - 1] = 0;
-    memcpy(new_map.get(), map_,
+    memcpy(new_map, map_,
            sizeof(*map_) * std::min(array_size_, old_array_size));
-    allocated_map_ = std::move(new_map);
-    map_ = allocated_map_.get();
+    if (alloc_)
+      delete[] map_;  // No need to check for NULL.
+    map_ = new_map;
+    alloc_ = true;
   }
 
   num_bits_ = num_bits;

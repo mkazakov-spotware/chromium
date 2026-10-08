@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,7 @@ namespace switches {
 
 // Specifies the path to a config file containing GAIA urls.
 // See "google_apis/test/data/gaia/all_urls.json" for a format example.
-extern const char kGaiaConfigPath[];
-
-// Specifies a string containing the JSON config for GAIA urls. This is
-// equivalent to pointing to a file with the same content via kGaiaConfigPath.
-// See "google_apis/test/data/gaia/all_urls.json" for a format example.
-extern const char kGaiaConfigContents[];
+extern const char kGaiaConfig[];
 
 // Specifies the domain of the SAPISID cookie. The default value is
 // "http://.google.com".

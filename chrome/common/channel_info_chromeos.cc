@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ void SetChannel(const std::string& channel) {
 
 }  // namespace
 
-std::string GetChannelName(WithExtendedStable with_extended_stable) {
+std::string GetChannelName() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   switch (GetChannel()) {
     case version_info::Channel::STABLE:
@@ -46,9 +46,8 @@ std::string GetChannelName(WithExtendedStable with_extended_stable) {
     default:
       return "unknown";
   }
-#else
-  return std::string();
 #endif
+  return std::string();
 }
 
 version_info::Channel GetChannel() {
@@ -65,10 +64,6 @@ version_info::Channel GetChannel() {
   }
 #endif
   return g_chromeos_channel;
-}
-
-bool IsExtendedStableChannel() {
-  return false;  // Not supported on Chrome OS Ash.
 }
 
 std::string GetChannelSuffixForDataDir() {

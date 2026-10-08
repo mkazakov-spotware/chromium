@@ -1,13 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/touch/touch_devices_controller.h"
 
 #include "ash/accelerators/debug_commands.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/ash_switches.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/public/cpp/ash_prefs.h"
+#include "ash/public/cpp/ash_switches.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/session/test_session_controller_client.h"
 #include "ash/shell.h"
@@ -55,12 +55,6 @@ void SetTapDraggingEnabled(bool enabled) {
 class TouchDevicesControllerSigninTest : public NoSessionAshTestBase {
  public:
   TouchDevicesControllerSigninTest() = default;
-
-  TouchDevicesControllerSigninTest(const TouchDevicesControllerSigninTest&) =
-      delete;
-  TouchDevicesControllerSigninTest& operator=(
-      const TouchDevicesControllerSigninTest&) = delete;
-
   ~TouchDevicesControllerSigninTest() override = default;
 
   // NoSessionAshTestBase:
@@ -86,6 +80,9 @@ class TouchDevicesControllerSigninTest : public NoSessionAshTestBase {
     GetSessionControllerClient()->SwitchActiveUser(
         AccountId::FromUserEmail(email));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TouchDevicesControllerSigninTest);
 };
 
 TEST_F(TouchDevicesControllerSigninTest, PrefsAreRegistered) {

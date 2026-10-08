@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_SMS_TEST_MOCK_USER_CONSENT_HANDLER_H_
 #define CONTENT_BROWSER_SMS_TEST_MOCK_USER_CONSENT_HANDLER_H_
 
+#include "base/macros.h"
 #include "content/browser/sms/user_consent_handler.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -13,7 +14,7 @@ namespace content {
 class MockUserConsentHandler : public UserConsentHandler {
  public:
   MockUserConsentHandler();
-  ~MockUserConsentHandler() override;
+  ~MockUserConsentHandler();
   MOCK_METHOD(void,
               RequestUserConsent,
               (const std::string& one_time_code,

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 
 #include <string>
 
-#include "build/chromeos_buildflags.h"
-
 namespace content {
 
 // static
@@ -22,7 +20,7 @@ TtsPlatform* TtsPlatform::GetInstance() {
     return result;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   // On Chrome OS, the platform TTS definition is provided by the content
   // client.
   //
@@ -37,7 +35,9 @@ TtsPlatform* TtsPlatform::GetInstance() {
 #endif
 }
 
-void TtsPlatformImpl::LoadBuiltInTtsEngine(BrowserContext* browser_context) {}
+bool TtsPlatformImpl::LoadBuiltInTtsEngine(BrowserContext* browser_context) {
+  return false;
+}
 
 void TtsPlatformImpl::WillSpeakUtteranceWithVoice(TtsUtterance* utterance,
                                                   const VoiceData& voice_data) {
@@ -56,11 +56,5 @@ void TtsPlatformImpl::SetError(const std::string& error) {
 }
 
 void TtsPlatformImpl::Shutdown() {}
-
-void TtsPlatformImpl::FinalizeVoiceOrdering(std::vector<VoiceData>& voices) {}
-
-ExternalPlatformDelegate* TtsPlatformImpl::GetExternalPlatformDelegate() {
-  return nullptr;
-}
 
 }  // namespace content

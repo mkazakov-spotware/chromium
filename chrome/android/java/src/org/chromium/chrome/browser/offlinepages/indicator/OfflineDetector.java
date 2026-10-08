@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.offlinepages.indicator;
 
 import android.os.Handler;
 import android.os.SystemClock;
+import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -14,9 +15,11 @@ import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Callback;
 import org.chromium.base.Log;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.net.connectivitydetector.ConnectivityDetector;
 import org.chromium.chrome.browser.net.connectivitydetector.ConnectivityDetector.ConnectionState;
-import org.chromium.components.version_info.VersionInfo;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
+import org.chromium.components.variations.VariationsAssociatedData;
 
 /**
  * Class that detects if the network is offline. Waits for the network to stablize before notifying
@@ -24,7 +27,7 @@ import org.chromium.components.version_info.VersionInfo;
  */
 class OfflineDetector
         implements ConnectivityDetector.Observer, ApplicationStatus.ApplicationStateListener {
-    // If the connection is online, then we report that immediately via |mIsOfflineCallback|.
+    // If the connection is online, then we report that immediately via |mCallback|.
     // |STATUS_INDICATOR_WAIT_ON_OFFLINE_DURATION_MS| and
     // |mStatusIndicatorWaitOnSwitchOnlineToOfflineDurationMs| control the duration before
     // we report the device as offline. It's important to wait a bit before reporting connection as
@@ -36,17 +39,17 @@ class OfflineDetector
     // |STATUS_INDICATOR_WAIT_ON_OFFLINE_DURATION_MS| is the duration before we wait before
     // reporting the connection type as offline if the app has never been on an online connection.
     // In this case, we need to wait a shorter time before
-    // invoking |mIsOfflineCallback| since the actual connection change to offline happened  much
-    // earlier than when the app received the notification. Any delays in app receiving the
-    // notification of connection change are only due to device's CPU constraints.
+    // invoking |mCallback| since the actual connection change to offline happened  much earlier
+    // than when the app received the notification. Any delays in app receiving the notification of
+    // connection change are only due to device's CPU constraints.
     static final long STATUS_INDICATOR_WAIT_ON_OFFLINE_DURATION_MS = 2000;
 
     // |mStatusIndicatorWaitOnSwitchOnlineToOfflineDurationMs| is the duration before we wait before
     // reporting the connection type as offline if the app has been on an online connection before.
-    // In this case, we need to wait a longer time before invoking |mIsOfflineCallback| since the
-    // connection change is ongoing. Any delays in app receiving the notification of connection
-    // change are due to time taken by device in reestablishing the connection as well as device CPU
-    // constraints. Value of |mStatusIndicatorWaitOnSwitchOnlineToOfflineDurationMs| is set to
+    // In this case, we need to wait a longer time before invoking |mCallback| since the connection
+    // change is ongoing. Any delays in app receiving the notification of connection change are due
+    // to time taken by device in reestablishing the connection as well as device CPU constraints.
+    // Value of |mStatusIndicatorWaitOnSwitchOnlineToOfflineDurationMs| is set to
     // |STATUS_INDICATOR_WAIT_ON_SWITCH_ONLINE_TO_OFFLINE_DEFAULT_DURATION_MS| by default, but can
     // be overridden using finch.
     static final long STATUS_INDICATOR_WAIT_ON_SWITCH_ONLINE_TO_OFFLINE_DEFAULT_DURATION_MS = 10000;
@@ -59,24 +62,15 @@ class OfflineDetector
 
     // Maintains if the connection is effectively offline.
     // Effectively offline means that all checks have been passed and the
-    // |mIsOfflineCallback| has been invoked to notify the observers.
+    // |mCallback| has been invoked to notify the observers.
     private boolean mIsEffectivelyOffline;
-    private boolean mIsEffectivelyOfflineInitialized;
 
     // True if the network is offline as detected by the connectivity detector.
     private boolean mIsOfflineLastReportedByConnectivityDetector;
 
     private Handler mHandler;
     private Runnable mUpdateOfflineStatusIndicatorDelayedRunnable;
-
-    // Used to inform the client when the system changes between online and offline. A value of true
-    // is given when the system is offline, and a value of false is given when the system is online.
-    private final Callback<Boolean> mIsOfflineCallback;
-
-    // Used to inform the client when the application changes between foreground and background. A
-    // value of true is given when the application is foregrounded, and a value of false is given
-    // when the application is backgrounded.
-    private final Callback<Boolean> mIsForegroundCallback;
+    private final Callback<Boolean> mCallback;
 
     // Current state of the application.
     private int mApplicationState = ApplicationStatus.getStateForApplication();
@@ -97,8 +91,8 @@ class OfflineDetector
     private long mTimeWhenLastOnline;
 
     // Set to true if adb console logging should be enabled.
-    private static final boolean sLoggingEnabled =
-            VersionInfo.isCanaryBuild() || VersionInfo.isDevBuild() || VersionInfo.isLocalBuild();
+    private static final boolean sLoggingEnabled = ChromeVersionInfo.isCanaryBuild()
+            || ChromeVersionInfo.isDevBuild() || ChromeVersionInfo.isLocalBuild();
 
     private static final String TAG = "OfflineDetector";
 
@@ -107,12 +101,12 @@ class OfflineDetector
      * @param callback The {@link callback} is invoked when the connectivity status is stable and
      *         has changed.
      */
-    OfflineDetector(Callback<Boolean> isOfflineCallback, Callback<Boolean> isForegroundCallback) {
-        mIsOfflineCallback = isOfflineCallback;
-        mIsForegroundCallback = isForegroundCallback;
+    OfflineDetector(Callback<Boolean> callback) {
+        mCallback = callback;
         mHandler = new Handler();
-        mStatusIndicatorWaitOnSwitchOnlineToOfflineDurationMs =
-                STATUS_INDICATOR_WAIT_ON_SWITCH_ONLINE_TO_OFFLINE_DEFAULT_DURATION_MS;
+        mStatusIndicatorWaitOnSwitchOnlineToOfflineDurationMs = getIntParamValueOrDefault(
+                "STATUS_INDICATOR_WAIT_ON_SWITCH_ONLINE_TO_OFFLINE_DEFAULT_DURATION_MS",
+                STATUS_INDICATOR_WAIT_ON_SWITCH_ONLINE_TO_OFFLINE_DEFAULT_DURATION_MS);
 
         mUpdateOfflineStatusIndicatorDelayedRunnable = () -> {
             if (sLoggingEnabled) {
@@ -128,13 +122,11 @@ class OfflineDetector
 
             // Connection state has not changed since |mUpdateOfflineStatusIndicatorDelayedRunnable|
             // was posted.
-            if (mIsEffectivelyOfflineInitialized
-                    && mIsOfflineLastReportedByConnectivityDetector == mIsEffectivelyOffline) {
+            if (mIsOfflineLastReportedByConnectivityDetector == mIsEffectivelyOffline) {
                 return;
             }
             mIsEffectivelyOffline = mIsOfflineLastReportedByConnectivityDetector;
-            mIsEffectivelyOfflineInitialized = true;
-            mIsOfflineCallback.onResult(mIsEffectivelyOffline);
+            mCallback.onResult(mIsEffectivelyOffline);
             if (sLoggingEnabled) {
                 logToAdbConsoleNow("Running mUpdateOfflineStatusIndicatorDelayedRunnable end.");
             }
@@ -149,7 +141,7 @@ class OfflineDetector
         if (sMockConnectivityDetector != null) {
             mConnectivityDetector = sMockConnectivityDetector;
         } else {
-            mConnectivityDetector = new ConnectivityDetector(this, "OfflineDetector");
+            mConnectivityDetector = new ConnectivityDetector(this);
         }
     }
 
@@ -159,9 +151,9 @@ class OfflineDetector
                 mIsOfflineLastReportedByConnectivityDetector;
         mIsOfflineLastReportedByConnectivityDetector =
                 (connectionState != ConnectionState.VALIDATED);
-        if (mConnectivityDetectorInitialized
-                && previousLastReportedStateByOfflineDetector
-                        == mIsOfflineLastReportedByConnectivityDetector) {
+        if (previousLastReportedStateByOfflineDetector
+                == mIsOfflineLastReportedByConnectivityDetector) {
+            mConnectivityDetectorInitialized = true;
             return;
         }
 
@@ -212,10 +204,6 @@ class OfflineDetector
         return mIsEffectivelyOffline;
     }
 
-    boolean isApplicationForeground() {
-        return mApplicationState == ApplicationState.HAS_RUNNING_ACTIVITIES;
-    }
-
     void destroy() {
         ApplicationStatus.unregisterApplicationStateListener(this);
         if (mConnectivityDetector != null) {
@@ -230,8 +218,6 @@ class OfflineDetector
         if (mApplicationState == newState) return;
 
         mApplicationState = newState;
-
-        mIsForegroundCallback.onResult(isApplicationForeground());
 
         if (mApplicationState == ApplicationState.HAS_RUNNING_ACTIVITIES) {
             mTimeWhenLastForegrounded = getElapsedTime();
@@ -311,5 +297,35 @@ class OfflineDetector
         mHandler.postDelayed(mUpdateOfflineStatusIndicatorDelayedRunnable,
                 Math.max(Math.max(timeNeededForForeground, timeNeededForOffline),
                         timeNeededAfterConnectionChangeFromOnlineToOffline));
+    }
+
+    /**
+     * Returns the value for a Finch parameter, or the default value if no parameter
+     * exists in the current configuration.
+     * @param paramName The name of the Finch parameter (or command-line switch) to get a value
+     *                  for.
+     * @param defaultValue The default value to return when there's no param or switch.
+     * @return The value -- either the param or the default.
+     */
+    private static long getIntParamValueOrDefault(String paramName, long defaultValue) {
+        String value;
+
+        // May throw exception in tests.
+        try {
+            value = VariationsAssociatedData.getVariationParamValue(
+                    ChromeFeatureList.OFFLINE_INDICATOR_V2, paramName);
+        } catch (java.lang.UnsupportedOperationException e) {
+            return defaultValue;
+        }
+
+        if (!TextUtils.isEmpty(value)) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+
+        return defaultValue;
     }
 }

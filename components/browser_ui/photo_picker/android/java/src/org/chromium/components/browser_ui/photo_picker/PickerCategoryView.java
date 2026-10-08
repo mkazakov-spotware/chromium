@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,7 +37,6 @@ import org.chromium.components.browser_ui.widget.selectable_list.SelectableListL
 import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate;
 import org.chromium.net.MimeTypeFilter;
 import org.chromium.ui.base.PhotoPickerListener;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 
 import java.util.ArrayList;
@@ -204,7 +203,7 @@ public class PickerCategoryView extends RelativeLayout
         mMultiSelectionAllowed = multiSelectionAllowed;
 
         mDecoderServiceHost = new DecoderServiceHost(this, context);
-        mDecoderServiceHost.bind();
+        mDecoderServiceHost.bind(context);
 
         mSelectionDelegate = new SelectionDelegate<PickerBitmap>();
         mSelectionDelegate.addObserver(this);
@@ -219,7 +218,8 @@ public class PickerCategoryView extends RelativeLayout
         int titleId = multiSelectionAllowed ? R.string.photo_picker_select_images
                                             : R.string.photo_picker_select_image;
         PhotoPickerToolbar toolbar = (PhotoPickerToolbar) mSelectableListLayout.initializeToolbar(
-                R.layout.photo_picker_toolbar, mSelectionDelegate, titleId, 0, 0, null, false);
+                R.layout.photo_picker_toolbar, mSelectionDelegate, titleId, 0, 0, null, false,
+                false);
         toolbar.setNavigationOnClickListener(this);
         toolbar.setDelegate(delegate);
         Button doneButton = (Button) toolbar.findViewById(R.id.done);
@@ -258,7 +258,7 @@ public class PickerCategoryView extends RelativeLayout
         // list becomes ready.
         if (mPickerBitmaps != null) {
             mPickerAdapter.notifyDataSetChanged();
-            ViewUtils.requestLayout(mRecyclerView, "PickerCategoryView.onConfigurationChanged");
+            mRecyclerView.requestLayout();
         }
     }
 
@@ -272,7 +272,7 @@ public class PickerCategoryView extends RelativeLayout
         }
 
         if (mDecoderServiceHost != null) {
-            mDecoderServiceHost.unbind();
+            mDecoderServiceHost.unbind(mWindowAndroid.getContext().get());
             mDecoderServiceHost = null;
         }
 
@@ -285,7 +285,7 @@ public class PickerCategoryView extends RelativeLayout
      */
     public void startVideoPlaybackAsync(Uri uri) {
         if (mDialog == null) return;
-        mVideoPlayer.startVideoPlaybackAsync(uri, mDialog.getWindow());
+        mVideoPlayer.startVideoPlaybackAsync(uri, mDialog.getWindow().getDecorView());
     }
 
     /**
@@ -408,15 +408,10 @@ public class PickerCategoryView extends RelativeLayout
 
         mMagnifyingMode = !mMagnifyingMode;
 
-        Context context = mWindowAndroid.getContext().get();
         if (mMagnifyingMode) {
             mZoom.setImageResource(R.drawable.zoom_out);
-            mZoom.setContentDescription(
-                    context.getString(R.string.photo_picker_accessibility_zoom_out));
         } else {
             mZoom.setImageResource(R.drawable.zoom_in);
-            mZoom.setContentDescription(
-                    context.getString(R.string.photo_picker_accessibility_zoom_in));
         }
 
         calculateGridMetrics();
@@ -454,7 +449,7 @@ public class PickerCategoryView extends RelativeLayout
 
         mLayoutManager.setSpanCount(mColumns);
         mPickerAdapter.notifyDataSetChanged();
-        ViewUtils.requestLayout(mRecyclerView, "PickerCategoryView.flipZoomMode");
+        mRecyclerView.requestLayout();
     }
 
     // Simple accessors:
@@ -658,9 +653,9 @@ public class PickerCategoryView extends RelativeLayout
     private void recordFinalUmaStats(int action) {
         RecordHistogram.recordEnumeratedHistogram(
                 "Android.PhotoPicker.DialogAction", action, ACTION_BOUNDARY);
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Android.PhotoPicker.DecodeRequests", mPickerAdapter.getDecodeRequestCount());
-        RecordHistogram.recordCount1MHistogram(
+        RecordHistogram.recordCountHistogram(
                 "Android.PhotoPicker.CacheHits", mPickerAdapter.getCacheHitCount());
     }
 

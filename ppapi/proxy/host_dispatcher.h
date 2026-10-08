@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/process/process.h"
@@ -55,10 +56,6 @@ class PPAPI_PROXY_EXPORT HostDispatcher : public Dispatcher {
   HostDispatcher(PP_Module module,
                  PP_GetInterface_Func local_get_interface,
                  const PpapiPermissions& permissions);
-
-  HostDispatcher(const HostDispatcher&) = delete;
-  HostDispatcher& operator=(const HostDispatcher&) = delete;
-
   ~HostDispatcher();
 
   // You must call this function before anything else. Returns true on success.
@@ -156,6 +153,8 @@ class PPAPI_PROXY_EXPORT HostDispatcher : public Dispatcher {
   std::vector<IPC::Listener*> filters_;
 
   base::WeakPtrFactory<HostDispatcher> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(HostDispatcher);
 };
 
 // Create this object on the stack to prevent the module (and hence the
@@ -166,14 +165,12 @@ class PPAPI_PROXY_EXPORT HostDispatcher : public Dispatcher {
 class ScopedModuleReference {
  public:
   explicit ScopedModuleReference(Dispatcher* dispatcher);
-
-  ScopedModuleReference(const ScopedModuleReference&) = delete;
-  ScopedModuleReference& operator=(const ScopedModuleReference&) = delete;
-
   ~ScopedModuleReference();
 
  private:
   HostDispatcher* dispatcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedModuleReference);
 };
 
 }  // namespace proxy

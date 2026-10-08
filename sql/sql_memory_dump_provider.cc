@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/process_memory_dump.h"
-#include "sql/sqlite_result_code.h"
-#include "sql/sqlite_result_code_values.h"
 #include "third_party/sqlite/sqlite3.h"
 
 namespace sql {
@@ -28,11 +26,10 @@ bool SqlMemoryDumpProvider::OnMemoryDump(
     base::trace_event::ProcessMemoryDump* pmd) {
   sqlite3_int64 memory_used = 0;
   sqlite3_int64 memory_high_water = 0;
-  auto sqlite_result_code = ToSqliteResultCode(sqlite3_status64(
-      SQLITE_STATUS_MEMORY_USED, &memory_used, &memory_high_water,
-      /*resetFlag=*/1));
-  DCHECK_EQ(sqlite_result_code, SqliteResultCode::kOk)
-      << "sqlite3_status64(SQLITE_STATUS_MEMORY_USED) failed";
+  int status = sqlite3_status64(SQLITE_STATUS_MEMORY_USED, &memory_used,
+                                &memory_high_water, /* resetFlag= */ 1);
+  if (status != SQLITE_OK)
+    return false;
 
   base::trace_event::MemoryAllocatorDump* dump =
       pmd->CreateAllocatorDump("sqlite");
@@ -45,14 +42,13 @@ bool SqlMemoryDumpProvider::OnMemoryDump(
 
   sqlite3_int64 dummy_high_water = -1;
   sqlite3_int64 malloc_count = -1;
-  sqlite_result_code = ToSqliteResultCode(sqlite3_status64(
-      SQLITE_STATUS_MALLOC_COUNT, &malloc_count, &dummy_high_water,
-      /*resetFlag=*/0));
-  DCHECK_EQ(sqlite_result_code, SqliteResultCode::kOk)
-      << "sqlite3_status64(SQLITE_STATUS_MALLOC_COUNT) failed";
-  dump->AddScalar("malloc_count",
-                  base::trace_event::MemoryAllocatorDump::kUnitsObjects,
-                  malloc_count);
+  status = sqlite3_status64(SQLITE_STATUS_MALLOC_COUNT, &malloc_count,
+                            &dummy_high_water, /* resetFlag= */ 0);
+  if (status == SQLITE_OK) {
+    dump->AddScalar("malloc_count",
+                    base::trace_event::MemoryAllocatorDump::kUnitsObjects,
+                    malloc_count);
+  }
 
   const char* system_allocator_name =
       base::trace_event::MemoryDumpManager::GetInstance()

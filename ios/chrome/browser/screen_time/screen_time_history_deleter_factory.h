@@ -1,12 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_SCREEN_TIME_SCREEN_TIME_HISTORY_DELETER_FACTORY_H_
 #define IOS_CHROME_BROWSER_SCREEN_TIME_SCREEN_TIME_HISTORY_DELETER_FACTORY_H_
 
-#include <CoreFoundation/CoreFoundation.h>
-
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -23,11 +22,6 @@ class API_AVAILABLE(ios(14.0)) ScreenTimeHistoryDeleterFactory
 
   static ScreenTimeHistoryDeleterFactory* GetInstance();
 
-  ScreenTimeHistoryDeleterFactory(const ScreenTimeHistoryDeleterFactory&) =
-      delete;
-  ScreenTimeHistoryDeleterFactory& operator=(
-      const ScreenTimeHistoryDeleterFactory&) = delete;
-
  private:
   friend class base::NoDestructor<ScreenTimeHistoryDeleterFactory>;
 
@@ -40,6 +34,8 @@ class API_AVAILABLE(ios(14.0)) ScreenTimeHistoryDeleterFactory
   web::BrowserState* GetBrowserStateToUse(
       web::BrowserState* context) const override;
   bool ServiceIsNULLWhileTesting() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(ScreenTimeHistoryDeleterFactory);
 };
 
 #endif  // IOS_CHROME_BROWSER_SCREEN_TIME_SCREEN_TIME_HISTORY_DELETER_FACTORY_H_

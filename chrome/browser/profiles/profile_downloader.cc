@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,17 +22,15 @@
 #include "chrome/browser/profiles/profile_downloader_delegate.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "components/signin/public/base/avatar_icon_util.h"
-#include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/access_token_fetcher.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
 #include "components/signin/public/identity_manager/account_info.h"
+#include "components/signin/public/identity_manager/consent_level.h"
 #include "components/signin/public/identity_manager/scope_set.h"
 #include "google_apis/gaia/gaia_constants.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_status_code.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "services/network/public/cpp/resource_request.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "skia/ext/image_operations.h"
 #include "url/gurl.h"
 
@@ -44,9 +42,11 @@ constexpr char kAuthorizationHeader[] = "Bearer %s";
 }  // namespace
 
 ProfileDownloader::ProfileDownloader(ProfileDownloaderDelegate* delegate)
-    : delegate_(delegate), identity_manager_(delegate_->GetIdentityManager()) {
+    : delegate_(delegate),
+      identity_manager_(delegate_->GetIdentityManager()),
+      identity_manager_observer_(this) {
   DCHECK(delegate_);
-  identity_manager_observation_.Observe(identity_manager_.get());
+  identity_manager_observer_.Add(identity_manager_);
 }
 
 void ProfileDownloader::Start() {
@@ -66,16 +66,20 @@ void ProfileDownloader::StartForAccount(const CoreAccountId& account_id) {
   }
 
   account_id_ = account_id.empty() ? identity_manager_->GetPrimaryAccountId(
-                                         signin::ConsentLevel::kSignin)
+                                         signin::ConsentLevel::kNotRequired)
                                    : account_id;
   StartFetchingOAuth2AccessToken();
 }
 
-std::u16string ProfileDownloader::GetProfileFullName() const {
+base::string16 ProfileDownloader::GetProfileHostedDomain() const {
+  return base::UTF8ToUTF16(account_info_.hosted_domain);
+}
+
+base::string16 ProfileDownloader::GetProfileFullName() const {
   return base::UTF8ToUTF16(account_info_.full_name);
 }
 
-std::u16string ProfileDownloader::GetProfileGivenName() const {
+base::string16 ProfileDownloader::GetProfileGivenName() const {
   return base::UTF8ToUTF16(account_info_.given_name);
 }
 
@@ -104,10 +108,17 @@ std::string ProfileDownloader::GetProfilePictureURL() const {
 
 void ProfileDownloader::StartFetchingImage() {
   VLOG(1) << "Fetching user entry with token: " << auth_token_;
-  AccountInfo maybe_account_info =
-      identity_manager_->FindExtendedAccountInfoByAccountId(account_id_);
-  if (!maybe_account_info.IsEmpty())
-    account_info_ = maybe_account_info;
+  auto maybe_account_info =
+      identity_manager_
+          ->FindExtendedAccountInfoForAccountWithRefreshTokenByAccountId(
+              account_id_);
+  if (maybe_account_info.has_value())
+    account_info_ = maybe_account_info.value();
+
+#if defined(OS_ANDROID)
+  if (delegate_->IsPreSignin())
+    identity_manager_->ForceRefreshOfExtendedAccountInfo(account_id_);
+#endif
 
   if (account_info_.IsValid()) {
     // FetchImageData might call the delegate's OnProfileDownloadSuccess
@@ -135,8 +146,7 @@ void ProfileDownloader::StartFetchingOAuth2AccessToken() {
 
 ProfileDownloader::~ProfileDownloader() {
   oauth2_access_token_fetcher_.reset();
-  DCHECK(
-      identity_manager_observation_.IsObservingSource(identity_manager_.get()));
+  identity_manager_observer_.Remove(identity_manager_);
 }
 
 void ProfileDownloader::FetchImageData() {
@@ -230,7 +240,7 @@ void ProfileDownloader::OnURLLoaderComplete(
   if (response_body) {
     simple_loader_.reset();
     DVLOG(1) << "Decoding the image...";
-    ImageDecoder::Start(this, std::move(*response_body));
+    ImageDecoder::Start(this, *response_body);
   } else if (response_code == net::HTTP_NOT_FOUND) {
     simple_loader_.reset();
     VLOG(1) << "Got 404, using default picture...";

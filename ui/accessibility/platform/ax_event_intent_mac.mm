@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,9 +23,7 @@ AXTextSelection AXTextSelection::FromDirectionAndGranularity(
     case ax::mojom::TextBoundary::kCharacter:
       granularity = AXTextSelectionGranularity::kCharacter;
       break;
-    case ax::mojom::TextBoundary::kFormatEnd:
-    case ax::mojom::TextBoundary::kFormatStart:
-    case ax::mojom::TextBoundary::kFormatStartOrEnd:
+    case ax::mojom::TextBoundary::kFormat:
       break;  // Not supported on Mac.
     case ax::mojom::TextBoundary::kLineEnd:
       granularity = AXTextSelectionGranularity::kLine;
@@ -53,9 +51,6 @@ AXTextSelection AXTextSelection::FromDirectionAndGranularity(
       granularity = AXTextSelectionGranularity::kParagraph;
       break;
     case ax::mojom::TextBoundary::kParagraphStart:
-      granularity = AXTextSelectionGranularity::kParagraph;
-      break;
-    case ax::mojom::TextBoundary::kParagraphStartSkippingEmptyParagraphs:
       granularity = AXTextSelectionGranularity::kParagraph;
       break;
     case ax::mojom::TextBoundary::kParagraphStartOrEnd:
@@ -177,6 +172,7 @@ AXTextStateChangeIntent FromEventIntent(const AXEventIntent& event_intent) {
         default:
           return AXTextStateChangeIntent(AXTextEditType::kDelete);
       }
+      break;
     case ax::mojom::Command::kDictate:
       return AXTextStateChangeIntent(AXTextEditType::kDictation);
     case ax::mojom::Command::kExtendSelection:
@@ -202,6 +198,7 @@ AXTextStateChangeIntent FromEventIntent(const AXEventIntent& event_intent) {
         default:
           return AXTextStateChangeIntent(AXTextEditType::kInsert);
       }
+      break;
     case ax::mojom::Command::kMarker:
       return AXTextStateChangeIntent();  // Not currently implemented on Mac.
     case ax::mojom::Command::kMoveSelection:

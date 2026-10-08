@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/callback.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/permissions/permission_request_enums.h"
+#include "components/permissions/prediction_service/prediction_request_features.h"
 #include "components/permissions/prediction_service/prediction_service_base.h"
 #include "components/permissions/prediction_service/prediction_service_messages.pb.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -53,7 +54,8 @@ class PredictionService : public PredictionServiceBase {
  private:
   static const GURL GetPredictionServiceUrl(bool recalculate_for_testing);
   std::unique_ptr<network::ResourceRequest> GetResourceRequest();
-
+  std::unique_ptr<GetSuggestionsRequest> GetPredictionRequestProto(
+      const PredictionRequestFeatures& entity);
   void SendRequestInternal(std::unique_ptr<network::ResourceRequest> request,
                            const std::string& request_data,
                            const PredictionRequestFeatures& entity,
@@ -62,7 +64,7 @@ class PredictionService : public PredictionServiceBase {
                            network::SimpleURLLoader* loader,
                            base::TimeTicks request_start_time,
                            std::unique_ptr<std::string> response_body);
-  std::unique_ptr<GeneratePredictionsResponse> CreatePredictionsResponse(
+  std::unique_ptr<GetSuggestionsResponse> CreatePredictionsResponse(
       network::SimpleURLLoader* loader,
       const std::string* response_body);
 

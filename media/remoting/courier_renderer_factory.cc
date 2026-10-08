@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ CourierRendererFactory::CourierRendererFactory(
 CourierRendererFactory::~CourierRendererFactory() = default;
 
 std::unique_ptr<Renderer> CourierRendererFactory::CreateRenderer(
-    const scoped_refptr<base::SequencedTaskRunner>& media_task_runner,
+    const scoped_refptr<base::SingleThreadTaskRunner>& media_task_runner,
     const scoped_refptr<base::TaskRunner>& worker_task_runner,
     AudioRendererSink* audio_renderer_sink,
     VideoRendererSink* video_renderer_sink,
@@ -42,7 +42,7 @@ std::unique_ptr<Renderer> CourierRendererFactory::CreateRenderer(
 }
 
 bool CourierRendererFactory::IsRemotingActive() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return false;  // Media Remoting is not supported on Android for now.
 #else
   return controller_ && controller_->remote_rendering_started();

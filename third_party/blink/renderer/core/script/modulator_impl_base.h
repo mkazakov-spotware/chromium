@@ -1,20 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_MODULATOR_IMPL_BASE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_MODULATOR_IMPL_BASE_H_
 
-#include "base/task/single_thread_task_runner.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
 #include "third_party/blink/renderer/bindings/core/v8/module_record.h"
-#include "third_party/blink/renderer/core/script/import_map_error.h"
 #include "third_party/blink/renderer/core/script/modulator.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -45,7 +42,7 @@ class ModulatorImplBase : public Modulator {
 
   bool IsScriptingDisabled() const override;
 
-  mojom::blink::V8CacheOptions GetV8CacheOptions() const final;
+  bool ImportMapsEnabled() const override;
 
   ModuleRecordResolver* GetModuleRecordResolver() override {
     return module_record_resolver_.Get();
@@ -55,7 +52,6 @@ class ModulatorImplBase : public Modulator {
   }
 
   void FetchTree(const KURL&,
-                 ModuleType,
                  ResourceFetcher* fetch_client_settings_object_fetcher,
                  mojom::blink::RequestContextType context_type,
                  network::mojom::RequestDestination destination,
@@ -73,19 +69,27 @@ class ModulatorImplBase : public Modulator {
                    ModuleGraphLevel,
                    ModuleScriptCustomFetchType,
                    SingleModuleClient*) override;
-  ModuleScript* GetFetchedModuleScript(const KURL&, ModuleType) override;
+  ModuleScript* GetFetchedModuleScript(const KURL&) override;
   bool HasValidContext() override;
   KURL ResolveModuleSpecifier(const String& module_request,
                               const KURL& base_url,
                               String* failure_reason) final;
-  void ResolveDynamically(const ModuleRequest& module_request,
+  void ResolveDynamically(const String& specifier,
+                          const KURL&,
                           const ReferrerScriptInfo&,
                           ScriptPromiseResolver*) override;
+  const ImportMap* GetImportMapForTest() const final { return import_map_; }
 
+  ScriptValue CreateTypeError(const String& message) const override;
+  ScriptValue CreateSyntaxError(const String& message) const override;
+  void RegisterImportMap(const ImportMap*, ScriptValue error_to_rethrow) final;
+  bool IsAcquiringImportMaps() const final { return acquiring_import_maps_; }
+  void ClearIsAcquiringImportMaps() final { acquiring_import_maps_ = false; }
   ModuleImportMeta HostGetImportMetaProperties(
       v8::Local<v8::Module>) const override;
-  ModuleType ModuleTypeFromRequest(
-      const ModuleRequest& module_request) const override;
+  ScriptValue InstantiateModule(v8::Local<v8::Module>, const KURL&) override;
+  Vector<ModuleRequest> ModuleRequestsFromModuleRecord(
+      v8::Local<v8::Module>) override;
 
   // Populates |reason| and returns true if the dynamic import is disallowed on
   // the associated execution context. In that case, a caller of this function
@@ -104,8 +108,15 @@ class ModulatorImplBase : public Modulator {
   Member<ModuleTreeLinkerRegistry> tree_linker_registry_;
   Member<ModuleRecordResolver> module_record_resolver_;
   Member<DynamicModuleResolver> dynamic_module_resolver_;
+
+  Member<const ImportMap> import_map_;
+
+  // https://github.com/WICG/import-maps/blob/master/spec.md#when-import-maps-can-be-encountered
+  // Each realm (environment settings object) has a boolean, acquiring import
+  // maps. It is initially true. [spec text]
+  bool acquiring_import_maps_ = true;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_MODULATOR_IMPL_BASE_H_
+#endif

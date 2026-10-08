@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <stddef.h>
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "components/omnibox/browser/omnibox_edit_model.h"
 #include "components/omnibox/browser/omnibox_view.h"
 #include "ui/gfx/range/range.h"
@@ -27,7 +26,7 @@ class TestOmniboxView : public OmniboxView {
 
   void SetModel(std::unique_ptr<OmniboxEditModel> model);
 
-  const std::u16string& inline_autocompletion() const {
+  const base::string16& inline_autocompletion() const {
     return inline_autocompletion_;
   }
 
@@ -41,35 +40,34 @@ class TestOmniboxView : public OmniboxView {
   void OpenMatch(const AutocompleteMatch& match,
                  WindowOpenDisposition disposition,
                  const GURL& alternate_nav_url,
-                 const std::u16string& pasted_text,
+                 const base::string16& pasted_text,
                  size_t selected_line,
                  base::TimeTicks match_selection_timestamp) override {}
-  std::u16string GetText() const override;
-  void SetWindowTextAndCaretPos(const std::u16string& text,
+  base::string16 GetText() const override;
+  void SetWindowTextAndCaretPos(const base::string16& text,
                                 size_t caret_pos,
                                 bool update_popup,
                                 bool notify_text_changed) override;
   void SetCaretPos(size_t caret_pos) override {}
-  void SetAdditionalText(const std::u16string& text) override {}
+  void SetAdditionalText(const base::string16& text) override {}
   void EnterKeywordModeForDefaultSearchProvider() override {}
   bool IsSelectAll() const override;
   void GetSelectionBounds(size_t* start, size_t* end) const override;
   size_t GetAllSelectionsLength() const override;
   void SelectAll(bool reversed) override;
+  void RevertAll() override {}
   void UpdatePopup() override {}
   void SetFocus(bool is_user_initiated) override {}
   void ApplyCaretVisibility() override {}
-  void OnTemporaryTextMaybeChanged(const std::u16string& display_text,
+  void OnTemporaryTextMaybeChanged(const base::string16& display_text,
                                    const AutocompleteMatch& match,
                                    bool save_original_selection,
                                    bool notify_text_changed) override;
-  void OnInlineAutocompleteTextMaybeChanged(
-      const std::u16string& display_text,
-      std::vector<gfx::Range> selections,
-      const std::u16string& prefix_autocompletion,
-      const std::u16string& inline_autocompletion) override;
+  void OnInlineAutocompleteTextMaybeChanged(const base::string16& display_text,
+                                            std::vector<gfx::Range> selections,
+                                            size_t user_text_length) override;
   void OnInlineAutocompleteTextCleared() override;
-  void OnRevertTemporaryText(const std::u16string& display_text,
+  void OnRevertTemporaryText(const base::string16& display_text,
                              const AutocompleteMatch& match) override;
   void OnBeforePossibleChange() override {}
   bool OnAfterPossibleChange(bool allow_keyword_ui_change) override;
@@ -83,8 +81,8 @@ class TestOmniboxView : public OmniboxView {
   using OmniboxView::GetStateChanges;
 
  private:
-  std::u16string text_;
-  std::u16string inline_autocompletion_;
+  base::string16 text_;
+  base::string16 inline_autocompletion_;
   gfx::Range selection_;
   gfx::Range saved_temporary_selection_;
 };

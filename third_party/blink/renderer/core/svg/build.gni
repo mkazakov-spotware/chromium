@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -113,6 +113,8 @@ blink_core_sources_svg = [
   "svg_enumeration.h",
   "svg_enumeration_map.cc",
   "svg_enumeration_map.h",
+  "svg_external_document_cache.cc",
+  "svg_external_document_cache.h",
   "svg_fe_blend_element.cc",
   "svg_fe_blend_element.h",
   "svg_fe_color_matrix_element.cc",
@@ -280,8 +282,6 @@ blink_core_sources_svg = [
   "svg_resource.cc",
   "svg_resource.h",
   "svg_resource_client.h",
-  "svg_resource_document_content.cc",
-  "svg_resource_document_content.h",
   "svg_script_element.cc",
   "svg_script_element.h",
   "svg_set_element.cc",
@@ -344,19 +344,4 @@ blink_core_sources_svg = [
   "svg_view_spec.h",
   "svg_zoom_and_pan.cc",
   "svg_zoom_and_pan.h",
-]
-
-blink_core_tests_svg = [
-  "animation/priority_queue_test.cc",
-  "animation/smil_time_container_test.cc",
-  "animation/svg_smil_element_test.cc",
-  "graphics/svg_image_test.cc",
-  "svg_element_test.cc",
-  "svg_foreign_object_element_test.cc",
-  "svg_path_parser_test.cc",
-  "svg_path_query_test.cc",
-  "svg_resource_document_content_test.cc",
-  "svg_text_content_element_test.cc",
-  "svg_use_element_test.cc",
-  "unsafe_svg_attribute_sanitization_test.cc",
 ]

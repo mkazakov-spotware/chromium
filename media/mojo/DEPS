@@ -9,7 +9,6 @@ include_rules = [
   # remove this dependency.
   "+sandbox/mac",
 
-  "+services/media_session",
   "+services/metrics",
   "+services/service_manager",
 

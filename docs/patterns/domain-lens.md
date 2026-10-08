@@ -85,8 +85,8 @@ using DownloadProgressCallback =
 
 class DownloadProgressProvider {
  public:
-  base::CallbackListSubscription RegisterDownloadProgressCallback(
-      DownloadProgressCallback callback);
+  base::CallbackList::Subscription
+      RegisterDownloadProgressCallback(DownloadProgressCallback callback);
   DownloadProgress GetCurrentProgress();
 };
 

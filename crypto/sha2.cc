@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "base/stl_util.h"
 #include "crypto/secure_hash.h"
 #include "third_party/boringssl/src/include/openssl/sha.h"
 
@@ -27,7 +28,7 @@ void SHA256HashString(base::StringPiece str, void* output, size_t len) {
 
 std::string SHA256HashString(base::StringPiece str) {
   std::string output(kSHA256Length, 0);
-  SHA256HashString(str, std::data(output), output.size());
+  SHA256HashString(str, base::data(output), output.size());
   return output;
 }
 

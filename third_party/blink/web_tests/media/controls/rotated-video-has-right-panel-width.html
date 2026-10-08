@@ -1,5 +1,9 @@
 <!DOCTYPE html>
 <html>
+<script>
+  internals.settings.setViewportEnabled(true);
+  internals.settings.setViewportMetaEnabled(true);
+</script>
 <head>
 <title>Test that overflow-x: hidden with a large viewport doesn't clip the controls when rotated</title>
 <meta name='viewport' content='width=800'>
@@ -10,7 +14,6 @@
 <style>
   body {
     overflow-x: hidden;
-    margin: 0;
   }
   ::-webkit-scrollbar {
     width: 0px;
@@ -24,7 +27,7 @@
   <video controls width=1200 style="transform:rotate(30deg)"></video>
 </body>
 <script>
-promise_test(async _ => {
+test(_ => {
   const expectedWidth = [
     "400px", // Smaller than viewport so fully visible.
     "800px", // Larger than viewport and horizontal so width=viewport_width.
@@ -37,7 +40,8 @@ promise_test(async _ => {
   for (var i=0; i < videos.length; ++i) {
     videos[i].src = 'content/test.ogv';
   }
-  await new Promise(resolve => {window.onload = resolve;});
+
+  var forceLayout = document.body.offsetHeight;
 
   for (var i=0; i < videos.length; ++i) {
     var controls = mediaControlsButton(videos[i], 'panel');

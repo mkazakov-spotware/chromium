@@ -4,9 +4,6 @@
 # If a source file path contains any of the lines in the filter file below,
 # then such source file will not be rewritten.
 #
-# Lines prefixed with "!" can be used to force include files that matched a file
-# path to be ignored.
-#
 # Note that the rewriter has a hardcoded logic for a handful of path-based
 # exclusions that cannot be expressed as substring matches:
 # - Excluding paths containing "third_party/", but still covering
@@ -16,14 +13,8 @@
 #   (i.e. hopefully just the paths under out/.../gen/... directory)
 #   via the isInGeneratedLocation AST matcher in RewriteRawPtrFields.cpp.
 
-# Exclude to prevent PartitionAlloc<->raw_ptr<T> cyclical dependency.
+# Exclude to prevent PartitionAlloc<->CheckedPtr cyclical dependency.
 base/allocator/
-
-# Exclude dependences of raw_ptr.h
-# TODO(bartekn): Update the list of dependencies.
-base/logging.h
-base/synchronization/lock_impl.h
-base/check.h
 
 # Exclude - deprecated and contains legacy C++ and pre-C++11 code.
 ppapi/
@@ -35,19 +26,6 @@ tools/
 net/tools/
 chrome/chrome_elf/
 chrome/installer/mini_installer/
-
-# DEPS prohibits includes from base/
-chrome/install_static
-net/cert/pki
-
-# Exclude pocdll.dll as it doesn't depend on //base and only used for testing.
-sandbox/win/sandbox_poc/pocdll
-
-# Exclude directories that don't depend on //base, because nothing there uses
-# anything from /base.
-sandbox/linux/system_headers/
-components/history_clusters/core/
-ui/qt/
 
 # The folder holds headers that are duplicated in the Android source and need to
 # provide a stable C ABI. Can't depend on //base.
@@ -62,17 +40,12 @@ android_webview/public/
 # elsewhere - for example "v8/" is excluded in another part of this
 # file.
 #
-# The common/ directories must be included in the rewrite as they contain code
-# that is also used from the browser process.
-#
 # Also, note that isInThirdPartyLocation AST matcher in
 # RewriteRawPtrFields.cpp explicitly includes third_party/blink
 # (because it is in the same git repository as the rest of Chromium),
-# but we go ahead and exclude most of it below (as Renderer-only code).
-/renderer/  # (e.g. //content/renderer/ or //components/visitedlink/renderer/
-            #  or //third_party/blink/renderer)
-third_party/blink/public/web/  # TODO: Consider renaming this directory to
-                               # public/renderer?
+# but we go ahead and exclude it below.
+/renderer/  # (e.g. //content/renderer/ or //components/visitedlink/renderer/).
+third_party/blink/
 
 # Exclude paths in separate repositories - i.e. in directories that
 # 1. Contain a ".git" subdirectory
@@ -92,17 +65,18 @@ chrome/app/theme/default_100_percent/google_chrome/
 chrome/app/theme/default_200_percent/google_chrome/
 chrome/app/theme/google_chrome/
 chrome/app/vector_icons/google_chrome/
-chrome/browser/enterprise/connectors/internal/
 chrome/browser/google/linkdoctor_internal/
 chrome/browser/internal/
 chrome/browser/media/engagement_internal/
+chrome/browser/media/kaleidoscope/internal/
 chrome/browser/resources/chromeos/quickoffice/
+chrome/browser/resources/media_router/extension/src/
 chrome/browser/resources/media_router_internal/
-chrome/browser/resources/preinstalled_web_apps/internal/
 chrome/browser/resources/settings_internal/
 chrome/browser/spellchecker/internal/
 chrome/browser/ui/media_router/internal/
 chrome/installer/mac/internal/
+chrome/services/soda/internal/
 chrome/test/data/firefox3_profile/searchplugins/
 chrome/test/data/firefox3_searchplugins/
 chrome/test/data/gpu/vt/
@@ -116,17 +90,23 @@ chrome/test/media_router/internal/
 chrome/test/python_tests/
 chrome/tools/memory/
 clank/
-components/history_clusters/internal/
 components/ntp_tiles/resources/internal/
-components/optimization_guide/internal/
 components/resources/default_100_percent/google_chrome/
 components/resources/default_200_percent/google_chrome/
 components/resources/default_300_percent/google_chrome/
 components/site_isolation/internal/
 content/test/data/plugin/
-docs/website/
+data/autodiscovery/
+data/dom_perf/
+data/mach_ports/
+data/memory_test/
+data/mozilla_js_tests/
+data/page_cycler/
+data/selenium_core/
+data/tab_switching/
 google_apis/internal/
 media/cdm/api/
+mojo/internal/
 native_client/
 remoting/android/internal/
 remoting/host/installer/linux/internal/
@@ -134,8 +114,10 @@ remoting/internal/
 remoting/test/internal/
 remoting/tools/internal/
 remoting/webapp/app_remoting/internal/
+skia/tools/clusterfuzz-data/
 tools/page_cycler/acid3/
 tools/perf/data/
+tools/swarming_client/
 ui/file_manager/internal/
 v8/
 webkit/data/bmp_decoder/

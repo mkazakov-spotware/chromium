@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,9 +36,9 @@ void AndroidBrowserTest::PreRunTestOnMainThread() {
 }
 
 void AndroidBrowserTest::PostRunTestOnMainThread() {
-  for (TabModel* model : TabModelList::models()) {
-    while (model->GetTabCount())
-      model->CloseTabAt(0);
+  for (size_t i = 0; i < TabModelList::size(); ++i) {
+    while (TabModelList::get(i)->GetTabCount())
+      TabModelList::get(i)->CloseTabAt(0);
   }
 
   // Run any shutdown events from closing tabs.

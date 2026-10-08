@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,9 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
-#include "content/browser/renderer_host/policy_container_host.h"
+#include "content/browser/service_worker/service_worker_database.h"
 #include "content/browser/service_worker/service_worker_single_script_update_checker.h"
 #include "content/browser/service_worker/service_worker_updated_script_loader.h"
-#include "content/common/content_export.h"
 
 namespace network {
 class SharedURLLoaderFactory;
@@ -26,6 +23,8 @@ namespace content {
 class ServiceWorkerContextCore;
 class ServiceWorkerVersion;
 
+// Used only when ServiceWorkerImportedScriptUpdateCheck is enabled.
+//
 // This is responsible for byte-for-byte update checking. Mostly corresponding
 // to step 1-9 in [[Update]] in the spec, but this stops to fetch scripts after
 // any changes found.
@@ -80,8 +79,6 @@ class CONTENT_EXPORT ServiceWorkerUpdateChecker {
       std::unique_ptr<ServiceWorkerSingleScriptUpdateChecker::FailureInfo>
           failure_info)>;
 
-  ServiceWorkerUpdateChecker() = delete;
-
   ServiceWorkerUpdateChecker(
       std::vector<storage::mojom::ServiceWorkerResourceRecordPtr>
           scripts_to_compare,
@@ -90,16 +87,10 @@ class CONTENT_EXPORT ServiceWorkerUpdateChecker {
       scoped_refptr<ServiceWorkerVersion> version_to_update,
       scoped_refptr<network::SharedURLLoaderFactory> loader_factory,
       bool force_bypass_cache,
-      blink::mojom::ScriptType worker_script_type,
       blink::mojom::ServiceWorkerUpdateViaCache update_via_cache,
       base::TimeDelta time_since_last_check,
       ServiceWorkerContextCore* context,
       blink::mojom::FetchClientSettingsObjectPtr fetch_client_settings_object);
-
-  ServiceWorkerUpdateChecker(const ServiceWorkerUpdateChecker&) = delete;
-  ServiceWorkerUpdateChecker& operator=(const ServiceWorkerUpdateChecker&) =
-      delete;
-
   ~ServiceWorkerUpdateChecker();
 
   // |callback| is always triggered when the update check finishes.
@@ -123,15 +114,15 @@ class CONTENT_EXPORT ServiceWorkerUpdateChecker {
   network::CrossOriginEmbedderPolicy cross_origin_embedder_policy() const {
     return cross_origin_embedder_policy_;
   }
-  const scoped_refptr<PolicyContainerHost> policy_container_host() const {
-    return policy_container_host_;
-  }
 
  private:
   void CheckOneScript(const GURL& url, const int64_t resource_id);
   void OnResourceIdAssignedForOneScriptCheck(const GURL& url,
                                              const int64_t resource_id,
                                              const int64_t new_resource_id);
+  void DidSetUpOnUI(net::HttpRequestHeaders header,
+                    ServiceWorkerUpdatedScriptLoader::BrowserContextGetter
+                        browser_context_getter);
 
   const GURL main_script_url_;
   const int64_t main_script_resource_id_;
@@ -155,24 +146,30 @@ class CONTENT_EXPORT ServiceWorkerUpdateChecker {
   scoped_refptr<network::SharedURLLoaderFactory> loader_factory_;
 
   const bool force_bypass_cache_;
-  const blink::mojom::ScriptType worker_script_type_;
   const blink::mojom::ServiceWorkerUpdateViaCache update_via_cache_;
   const base::TimeDelta time_since_last_check_;
+
+  // Headers that need to be added to network requests for update checking.
+  net::HttpRequestHeaders default_headers_;
+
+  ServiceWorkerUpdatedScriptLoader::BrowserContextGetter
+      browser_context_getter_;
 
   // True if any at least one of the scripts is fetched by network.
   bool network_accessed_ = false;
 
   // The Cross-Origin-Embedder-Policy header for the updated main script.
   network::CrossOriginEmbedderPolicy cross_origin_embedder_policy_;
-  scoped_refptr<PolicyContainerHost> policy_container_host_;
 
   // |context_| outlives |this| because it owns |this| through
   // ServiceWorkerJobCoordinator and ServiceWorkerRegisterJob.
-  const raw_ptr<ServiceWorkerContextCore> context_;
+  ServiceWorkerContextCore* const context_;
 
   blink::mojom::FetchClientSettingsObjectPtr fetch_client_settings_object_;
 
   base::WeakPtrFactory<ServiceWorkerUpdateChecker> weak_factory_{this};
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ServiceWorkerUpdateChecker);
 };
 
 }  // namespace content

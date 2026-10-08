@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "components/open_from_clipboard/clipboard_recent_content.h"
 #include "url/gurl.h"
@@ -36,17 +37,11 @@ class ClipboardRecentContentIOS : public ClipboardRecentContent {
   explicit ClipboardRecentContentIOS(
       ClipboardRecentContentImplIOS* implementation);
 
-  ClipboardRecentContentIOS(const ClipboardRecentContentIOS&) = delete;
-  ClipboardRecentContentIOS& operator=(const ClipboardRecentContentIOS&) =
-      delete;
-
   ~ClipboardRecentContentIOS() override;
 
   // ClipboardRecentContent implementation.
-  absl::optional<GURL> GetRecentURLFromClipboard() override;
-  absl::optional<std::u16string> GetRecentTextFromClipboard() override;
-  absl::optional<std::set<ClipboardContentType>>
-  GetCachedClipboardContentTypes() override;
+  base::Optional<GURL> GetRecentURLFromClipboard() override;
+  base::Optional<base::string16> GetRecentTextFromClipboard() override;
   void GetRecentImageFromClipboard(GetRecentImageCallback callback) override;
   bool HasRecentImageFromClipboard() override;
   void HasRecentContentFromClipboard(std::set<ClipboardContentType> types,
@@ -58,12 +53,14 @@ class ClipboardRecentContentIOS : public ClipboardRecentContent {
   void ClearClipboardContent() override;
 
  private:
-  absl::optional<gfx::Image> GetRecentImageFromClipboardInternal();
+  base::Optional<gfx::Image> GetRecentImageFromClipboardInternal();
   void OnGetRecentImageFromClipboard(GetRecentImageCallback callback,
                                      const SkBitmap& sk_bitmap);
 
   // The implementation instance.
   __strong ClipboardRecentContentImplIOS* implementation_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClipboardRecentContentIOS);
 };
 
 #endif  // COMPONENTS_OPEN_FROM_CLIPBOARD_CLIPBOARD_RECENT_CONTENT_IOS_H_

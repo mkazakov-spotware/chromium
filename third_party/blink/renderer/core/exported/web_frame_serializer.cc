@@ -30,6 +30,7 @@
 
 #include "third_party/blink/public/web/web_frame_serializer.h"
 
+#include "base/macros.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/public/platform/web_url_response.h"
@@ -49,6 +50,7 @@
 #include "third_party/blink/renderer/platform/mhtml/mhtml_archive.h"
 #include "third_party/blink/renderer/platform/mhtml/serialized_resource.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/deque.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_concatenate.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -108,7 +110,7 @@ WebThreadSafeData WebFrameSerializer::GenerateMHTMLParts(
                    "resource count", static_cast<uint64_t>(resources.size()));
 
   // There was an error serializing the frame (e.g. of an image resource).
-  if (resources.empty())
+  if (resources.IsEmpty())
     return WebThreadSafeData();
 
   // Encode serialized resources as MHTML.
@@ -121,7 +123,7 @@ WebThreadSafeData WebFrameSerializer::GenerateMHTMLParts(
     MHTMLArchive::GenerateMHTMLPart(
         boundary, FrameSerializerDelegateImpl::GetContentID(frame),
         encoding_policy, resources.TakeFirst(), *output->MutableData());
-    while (!resources.empty()) {
+    while (!resources.IsEmpty()) {
       TRACE_EVENT0("page-serialization",
                    "WebFrameSerializer::generateMHTMLParts encoding");
       MHTMLArchive::GenerateMHTMLPart(boundary, String(), encoding_policy,

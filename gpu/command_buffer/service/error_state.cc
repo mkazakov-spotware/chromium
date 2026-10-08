@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "gpu/command_buffer/common/gles2_cmd_utils.h"
@@ -21,10 +21,6 @@ namespace gles2 {
 class ErrorStateImpl : public ErrorState {
  public:
   explicit ErrorStateImpl(ErrorStateClient* client, Logger* logger);
-
-  ErrorStateImpl(const ErrorStateImpl&) = delete;
-  ErrorStateImpl& operator=(const ErrorStateImpl&) = delete;
-
   ~ErrorStateImpl() override;
 
   uint32_t GetGLError() override;
@@ -72,8 +68,10 @@ class ErrorStateImpl : public ErrorState {
   // Current GL error bits.
   uint32_t error_bits_;
 
-  raw_ptr<ErrorStateClient> client_;
-  raw_ptr<Logger> logger_;
+  ErrorStateClient* client_;
+  Logger* logger_;
+
+  DISALLOW_COPY_AND_ASSIGN(ErrorStateImpl);
 };
 
 ErrorState::ErrorState() = default;
@@ -221,3 +219,4 @@ void ErrorStateImpl::ClearRealGLErrors(
 
 }  // namespace gles2
 }  // namespace gpu
+

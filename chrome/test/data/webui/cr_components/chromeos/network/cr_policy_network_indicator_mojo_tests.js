@@ -1,21 +1,22 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /** @fileoverview Suite of tests for cr_policy-network-indicator-mojo. */
 
-import 'chrome://resources/ash/common/network/cr_policy_network_indicator_mojo.js';
-import 'chrome://test/cr_components/chromeos/network/cr_policy_strings.js';
+// clang-format off
+// #import 'chrome://resources/cr_components/chromeos/network/cr_policy_network_indicator_mojo.m.js';
+// #import 'chrome://test/cr_elements/cr_policy_strings.js';
 
-import {PolicySource} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// #import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// clang-format on
 
 suite('cr-policy-network-indicator-mojo', function() {
   /** @type {!CrPolicyNetworkIndicatorMojoElement|undefined} */
   let indicator;
 
   function flushAsync() {
-    flush();
+    Polymer.dom.flush();
     // Use setTimeout to wait for the next macrotask.
     return new Promise(resolve => setTimeout(resolve));
   }
@@ -25,7 +26,7 @@ suite('cr-policy-network-indicator-mojo', function() {
 
     indicator = document.createElement('cr-policy-network-indicator-mojo');
     document.body.appendChild(indicator);
-    flush();
+    Polymer.dom.flush();
     return new Promise(resolve => setTimeout(resolve));
   });
 
@@ -49,7 +50,8 @@ suite('cr-policy-network-indicator-mojo', function() {
   test('recommended', function() {
     indicator.property = {
       activeValue: 'foo',
-      policySource: PolicySource.kUserPolicyRecommended,
+      policySource:
+          chromeos.networkConfig.mojom.PolicySource.kUserPolicyRecommended,
       policyValue: 'bar',
     };
     return flushAsync()
@@ -75,7 +77,8 @@ suite('cr-policy-network-indicator-mojo', function() {
   test('policy', function() {
     indicator.property = {
       activeValue: 'foo',
-      policySource: PolicySource.kDevicePolicyEnforced,
+      policySource:
+          chromeos.networkConfig.mojom.PolicySource.kDevicePolicyEnforced,
       policyValue: 'foo',
     };
     return flushAsync().then(() => {
@@ -89,7 +92,7 @@ suite('cr-policy-network-indicator-mojo', function() {
   test('extension', function() {
     indicator.property = {
       activeValue: 'foo',
-      policySource: PolicySource.kActiveExtension,
+      policySource: chromeos.networkConfig.mojom.PolicySource.kActiveExtension,
     };
     return flushAsync().then(() => {
       const icon = indicator.$$('cr-tooltip-icon');

@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,jsshell
 // META: script=../resources/rs-utils.js
 'use strict';
 
@@ -153,57 +153,6 @@ promise_test(t => {
   ]);
 
 }, 'closed should be rejected after reader releases its lock (multiple stream locks)');
-
-promise_test(t => {
-
-  let controller;
-  const rs = new ReadableStream({
-    start(c) {
-      controller = c;
-    }
-  });
-
-  const reader = rs.getReader();
-  const promise1 = reader.closed;
-
-  controller.close();
-
-  reader.releaseLock();
-  const promise2 = reader.closed;
-
-  assert_not_equals(promise1, promise2, '.closed should be replaced');
-  return Promise.all([
-    promise1,
-    promise_rejects_js(t, TypeError, promise2, '.closed after releasing lock'),
-  ]);
-
-}, 'closed is replaced when stream closes and reader releases its lock');
-
-promise_test(t => {
-
-  const theError = { name: 'unique error' };
-  let controller;
-  const rs = new ReadableStream({
-    start(c) {
-      controller = c;
-    }
-  });
-
-  const reader = rs.getReader();
-  const promise1 = reader.closed;
-
-  controller.error(theError);
-
-  reader.releaseLock();
-  const promise2 = reader.closed;
-
-  assert_not_equals(promise1, promise2, '.closed should be replaced');
-  return Promise.all([
-    promise_rejects_exactly(t, theError, promise1, '.closed before releasing lock'),
-    promise_rejects_js(t, TypeError, promise2, '.closed after releasing lock')
-  ]);
-
-}, 'closed is replaced when stream errors and reader releases its lock');
 
 promise_test(() => {
 
@@ -512,28 +461,3 @@ promise_test(() => {
     reader.releaseLock();
   });
 }, 'controller.close() should clear the list of pending read requests');
-
-promise_test(t => {
-
-  let controller;
-  const rs = new ReadableStream({
-    start(c) {
-      controller = c;
-    }
-  });
-
-  const reader1 = rs.getReader();
-  const promise1 = promise_rejects_js(t, TypeError, reader1.read(), 'read() from reader1 should reject when reader1 is released');
-  reader1.releaseLock();
-
-  controller.enqueue('a');
-
-  const reader2 = rs.getReader();
-  const promise2 = reader2.read().then(r => {
-    assert_object_equals(r, { value: 'a', done: false }, 'read() from reader2 should resolve with enqueued chunk');
-  })
-  reader2.releaseLock();
-
-  return Promise.all([promise1, promise2]);
-
-}, 'Second reader can read chunks after first reader was released with pending read requests');

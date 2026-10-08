@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/js_injection/common/origin_matcher.h"
 
-#include "base/containers/adapters.h"
 #include "components/js_injection/common/origin_matcher_internal.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
@@ -35,13 +34,6 @@ inline int GetDefaultPortForSchemeIfNoPortInfo(const std::string& scheme,
 }
 
 }  // namespace
-
-OriginMatcher::OriginMatcher() = default;
-// Allow copy and assign.
-OriginMatcher::OriginMatcher(OriginMatcher&&) = default;
-OriginMatcher& OriginMatcher::operator=(OriginMatcher&&) = default;
-
-OriginMatcher::~OriginMatcher() = default;
 
 OriginMatcher::OriginMatcher(const OriginMatcher& rhs) {
   *this = rhs;
@@ -113,9 +105,8 @@ bool OriginMatcher::AddRuleFromString(const std::string& raw_untrimmed) {
 bool OriginMatcher::Matches(const url::Origin& origin) const {
   GURL origin_url = origin.GetURL();
   // Since we only do kInclude vs kNoMatch, the order doesn't actually matter.
-  for (const std::unique_ptr<OriginMatcherRule>& rule :
-       base::Reversed(rules_)) {
-    net::SchemeHostPortMatcherResult result = rule->Evaluate(origin_url);
+  for (auto it = rules_.rbegin(); it != rules_.rend(); ++it) {
+    net::SchemeHostPortMatcherResult result = (*it)->Evaluate(origin_url);
     if (result == net::SchemeHostPortMatcherResult::kInclude)
       return true;
   }

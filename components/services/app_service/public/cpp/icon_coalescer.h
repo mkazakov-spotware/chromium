@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
@@ -46,34 +46,31 @@ namespace apps {
 class IconCoalescer : public IconLoader {
  public:
   explicit IconCoalescer(IconLoader* wrapped_loader);
-
-  IconCoalescer(const IconCoalescer&) = delete;
-  IconCoalescer& operator=(const IconCoalescer&) = delete;
-
   ~IconCoalescer() override;
 
   // IconLoader overrides.
-  absl::optional<IconKey> GetIconKey(const std::string& app_id) override;
-  std::unique_ptr<Releaser> LoadIconFromIconKey(
-      AppType app_type,
+  apps::mojom::IconKeyPtr GetIconKey(const std::string& app_id) override;
+  std::unique_ptr<IconLoader::Releaser> LoadIconFromIconKey(
+      apps::mojom::AppType app_type,
       const std::string& app_id,
-      const IconKey& icon_key,
-      IconType icon_type,
+      apps::mojom::IconKeyPtr icon_key,
+      apps::mojom::IconType icon_type,
       int32_t size_hint_in_dip,
       bool allow_placeholder_icon,
-      apps::LoadIconCallback callback) override;
+      apps::mojom::Publisher::LoadIconCallback callback) override;
 
  private:
   class RefCountedReleaser;
 
   using CallbackAndReleaser =
-      std::pair<apps::LoadIconCallback, scoped_refptr<RefCountedReleaser>>;
+      std::pair<apps::mojom::Publisher::LoadIconCallback,
+                scoped_refptr<RefCountedReleaser>>;
 
-  void OnLoadIcon(IconLoader::Key key,
+  void OnLoadIcon(IconLoader::Key,
                   uint64_t sequence_number,
-                  IconValuePtr icon_value);
+                  apps::mojom::IconValuePtr);
 
-  raw_ptr<IconLoader> wrapped_loader_;
+  IconLoader* wrapped_loader_;
 
   // Every incoming LoadIconFromIconKey call gets its own sequence number.
   uint64_t next_sequence_number_;
@@ -87,7 +84,7 @@ class IconCoalescer : public IconLoader {
   std::set<uint64_t> possibly_immediate_requests_;
 
   // Map from sequence number to the IconValue to give to the LoadIconCallback.
-  std::map<uint64_t, IconValuePtr> immediate_responses_;
+  std::map<uint64_t, apps::mojom::IconValuePtr> immediate_responses_;
 
   // Multimap of pending LoadIconFromIconKey calls: those calls that were not
   // resolved immediately.
@@ -96,6 +93,8 @@ class IconCoalescer : public IconLoader {
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<IconCoalescer> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(IconCoalescer);
 };
 
 }  // namespace apps

@@ -1,66 +1,43 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/search/background/ntp_background_service.h"
 
 #include "base/bind.h"
-#include "base/command_line.h"
-#include "base/observer_list.h"
-#include "base/strings/strcat.h"
+#include "base/strings/stringprintf.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/search/background/ntp_background.pb.h"
 #include "chrome/browser/search/background/ntp_backgrounds.h"
-#include "components/version_info/version_info.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "net/base/load_flags.h"
-#include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 
 namespace {
 
-// Command line param to override the collections base URL, e.g. for testing.
-constexpr char kCollectionsBaseUrlCmdlineSwitch[] = "collections-base-url";
-
-// The default base URL to download collections.
-constexpr char kCollectionsBaseUrl[] = "https://clients3.google.com";
-
 // The MIME type of the POST data sent to the server.
 constexpr char kProtoMimeType[] = "application/x-protobuf";
 
-// The path relative to kCollectionsBaseUrl to download the proto of the
-// complete list of wallpaper collections.
-constexpr char kCollectionsPath[] =
-    "/cast/chromecast/home/wallpaper/collections?rt=b";
-// The path relative to kCollectionsBaseUrl to download the metadata of the
-// images in a collection.
-constexpr char kCollectionImagesPath[] =
-    "/cast/chromecast/home/wallpaper/collection-images?rt=b";
-// The path relative to kCollectionsBaseUrl to download the metadata of the
-// 'next' image in a collection.
-constexpr char kNextCollectionImagePath[] =
-    "/cast/chromecast/home/wallpaper/image?rt=b";
+// The url to download the proto of the complete list of wallpaper collections.
+constexpr char kCollectionsUrl[] =
+    "https://clients3.google.com/cast/chromecast/home/wallpaper/"
+    "collections?rt=b";
+// The url to download the metadata of the images in a collection.
+constexpr char kCollectionImagesUrl[] =
+    "https://clients3.google.com/cast/chromecast/home/wallpaper/"
+    "collection-images?rt=b";
+// The url to download the metadata of the 'next' image in a collection.
+constexpr char kNextCollectionImageUrl[] =
+    "https://clients3.google.com/cast/chromecast/home/wallpaper/"
+    "image?rt=b";
 
 // The options to be added to an image URL, specifying resolution, cropping,
 // etc. Options appear on an image URL after the '=' character.
 // TODO(crbug.com/874339): Set options based on display resolution capability.
 constexpr char kImageOptions[] = "=w3840-h2160-p-k-no-nd-mv";
-
-// Label added to request to filter out unwanted collections.
-constexpr char kFilteringLabel[] = "chrome_desktop_ntp";
-
-// Returns the configured collections base URL with |path| appended.
-GURL GetUrl(base::StringPiece path) {
-  return GURL(base::CommandLine::ForCurrentProcess()->HasSwitch(
-                  kCollectionsBaseUrlCmdlineSwitch)
-                  ? base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-                        kCollectionsBaseUrlCmdlineSwitch)
-                  : kCollectionsBaseUrl)
-      .Resolve(path);
-}
 
 }  // namespace
 
@@ -69,9 +46,9 @@ NtpBackgroundService::NtpBackgroundService(
     : url_loader_factory_(url_loader_factory) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   image_options_ = kImageOptions;
-  collections_api_url_ = GetUrl(kCollectionsPath);
-  collection_images_api_url_ = GetUrl(kCollectionImagesPath);
-  next_image_api_url_ = GetUrl(kNextCollectionImagePath);
+  collections_api_url_ = GURL(kCollectionsUrl);
+  collection_images_api_url_ = GURL(kCollectionImagesUrl);
+  next_image_api_url_ = GURL(kNextCollectionImageUrl);
 }
 
 NtpBackgroundService::~NtpBackgroundService() = default;
@@ -80,7 +57,7 @@ void NtpBackgroundService::Shutdown() {
   for (auto& observer : observers_) {
     observer.OnNtpBackgroundServiceShuttingDown();
   }
-  DCHECK(observers_.empty());
+  DCHECK(!observers_.might_have_observers());
 }
 
 void NtpBackgroundService::FetchCollectionInfo() {
@@ -121,11 +98,6 @@ void NtpBackgroundService::FetchCollectionInfo() {
   ntp::background::GetCollectionsRequest request;
   // The language field may include the country code (e.g. "en-US").
   request.set_language(g_browser_process->GetApplicationLocale());
-  request.add_filtering_label(kFilteringLabel);
-  // Add some extra filtering information in case we need to target a specific
-  // milestone post release.
-  request.add_filtering_label(base::StrCat(
-      {kFilteringLabel, ".M", version_info::GetMajorVersionNumber()}));
   std::string serialized_proto;
   request.SerializeToString(&serialized_proto);
 
@@ -273,7 +245,7 @@ void NtpBackgroundService::OnCollectionImageInfoFetchComplete(
 
 void NtpBackgroundService::FetchNextCollectionImage(
     const std::string& collection_id,
-    const absl::optional<std::string>& resume_token) {
+    const base::Optional<std::string>& resume_token) {
   next_image_error_info_.ClearError();
   if (next_image_loader_ != nullptr)
     return;

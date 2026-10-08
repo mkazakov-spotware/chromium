@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.fx.AnimationTest');
 goog.setTestOnly();
@@ -44,7 +52,6 @@ testSuite({
     assertEquals(nSteps, nFrames);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testPauseOffset() {
     const anim = new Animation([0], [1000], 1000);
     anim.play();
@@ -95,7 +102,6 @@ testSuite({
     assertEquals(Animation.State.STOPPED, anim.getStateInternal());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testClockReset() {
     const anim = new Animation([0], [1000], 1000);
     anim.play();
@@ -104,8 +110,7 @@ testSuite({
     assertRoughlyEquals(0, anim.progress, 1e-4);
 
     // Possible when clock is reset.
-    /** @suppress {visibility} suppression added to enable type checking */
-    clock.nowMillis_ -= 200000;
+    clock.tick(-200000);
     anim.pause();
     anim.play();
 

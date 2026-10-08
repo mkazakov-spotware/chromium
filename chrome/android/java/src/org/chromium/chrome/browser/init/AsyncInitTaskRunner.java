@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,8 @@ import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.browser.ChromeActivitySessionTracker;
 import org.chromium.chrome.browser.flags.CachedFeatureFlags;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 import org.chromium.components.variations.firstrun.VariationsSeedFetcher;
-import org.chromium.components.version_info.VersionInfo;
 import org.chromium.content_public.browser.ChildProcessLauncherHelper;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 
@@ -40,7 +40,7 @@ public abstract class AsyncInitTaskRunner {
 
     @VisibleForTesting
     boolean shouldFetchVariationsSeedDuringFirstRun() {
-        return VersionInfo.isOfficialBuild();
+        return ChromeVersionInfo.isOfficialBuild();
     }
 
     @VisibleForTesting
@@ -55,14 +55,14 @@ public abstract class AsyncInitTaskRunner {
 
         public FetchSeedTask(String restrictMode) {
             mRestrictMode = restrictMode;
-            mMilestone = Integer.toString(VersionInfo.getProductMajorVersion());
+            mMilestone = Integer.toString(ChromeVersionInfo.getProductMajorVersion());
             mChannel = getChannelString();
         }
 
         @Override
         public void run() {
             VariationsSeedFetcher.get().fetchSeed(mRestrictMode, mMilestone, mChannel);
-            PostTask.postTask(UiThreadTaskTraits.DEFAULT, new Runnable() {
+            PostTask.postTask(UiThreadTaskTraits.BOOTSTRAP, new Runnable() {
                 @Override
                 public void run() {
                     tasksPossiblyComplete(null);
@@ -71,16 +71,16 @@ public abstract class AsyncInitTaskRunner {
         }
 
         private String getChannelString() {
-            if (VersionInfo.isCanaryBuild()) {
+            if (ChromeVersionInfo.isCanaryBuild()) {
                 return "canary";
             }
-            if (VersionInfo.isDevBuild()) {
+            if (ChromeVersionInfo.isDevBuild()) {
                 return "dev";
             }
-            if (VersionInfo.isBetaBuild()) {
+            if (ChromeVersionInfo.isBetaBuild()) {
                 return "beta";
             }
-            if (VersionInfo.isStableBuild()) {
+            if (ChromeVersionInfo.isStableBuild()) {
                 return "stable";
             }
             return "";
@@ -135,7 +135,6 @@ public abstract class AsyncInitTaskRunner {
      */
     private ProcessInitException loadNativeLibrary() {
         try {
-            LibraryLoader.getInstance().getMediator().ensureInitializedInMainProcess();
             LibraryLoader.getInstance().ensureInitialized();
             // The prefetch is done after the library load for two reasons:
             // - It is easier to know the library location after it has

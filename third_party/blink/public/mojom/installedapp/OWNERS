@@ -3,3 +3,5 @@ rayankans@chromium.org
 
 per-file *.mojom=set noparent
 per-file *.mojom=file://ipc/SECURITY_OWNERS
+
+# COMPONENT: Platform>Apps>AppLauncher>Install

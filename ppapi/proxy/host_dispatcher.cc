@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/notreached.h"
-#include "base/observer_list.h"
 #include "base/trace_event/trace_event.h"
 #include "ppapi/c/ppb_var.h"
 #include "ppapi/c/private/ppb_proxy_private.h"
@@ -136,9 +135,9 @@ bool HostDispatcher::IsPlugin() const {
 }
 
 bool HostDispatcher::Send(IPC::Message* msg) {
-  TRACE_EVENT2("ppapi_proxy", "HostDispatcher::Send", "Class",
-               IPC_MESSAGE_ID_CLASS(msg->type()), "Line",
-               IPC_MESSAGE_ID_LINE(msg->type()));
+  TRACE_EVENT2("ppapi proxy", "HostDispatcher::Send",
+               "Class", IPC_MESSAGE_ID_CLASS(msg->type()),
+               "Line", IPC_MESSAGE_ID_LINE(msg->type()));
 
   // Normal sync messages are set to unblock, which would normally cause the
   // plugin to be reentered to process them. We only want to do this when we
@@ -180,9 +179,9 @@ bool HostDispatcher::OnMessageReceived(const IPC::Message& msg) {
   // be at the outermost scope so it's released last.
   ScopedModuleReference death_grip(this);
 
-  TRACE_EVENT2("ppapi_proxy", "HostDispatcher::OnMessageReceived", "Class",
-               IPC_MESSAGE_ID_CLASS(msg.type()), "Line",
-               IPC_MESSAGE_ID_LINE(msg.type()));
+  TRACE_EVENT2("ppapi proxy", "HostDispatcher::OnMessageReceived",
+               "Class", IPC_MESSAGE_ID_CLASS(msg.type()),
+               "Line", IPC_MESSAGE_ID_LINE(msg.type()));
 
   // We only want to allow reentrancy when the most recent message from the
   // plugin was a scripting message. We save the old state of the flag on the

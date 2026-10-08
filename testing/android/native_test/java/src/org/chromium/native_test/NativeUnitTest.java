@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,13 @@ import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.PowerMonitor;
 import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.build.NativeLibraries;
+import org.chromium.base.library_loader.NativeLibraries;
 
 /**
  * A helper for running native unit tests (i.e., not browser tests)
  */
 public class NativeUnitTest extends NativeTest {
     private static final String TAG = "NativeTest";
-
-    private static class NativeUnitTestLibraryLoader extends LibraryLoader {
-        static void setLibrariesLoaded() {
-            LibraryLoader.setLibrariesLoadedForNativeTests();
-        }
-    }
 
     @Override
     public void preCreate(Activity activity) {
@@ -56,6 +50,6 @@ public class NativeUnitTest extends NativeTest {
             System.loadLibrary(library);
             Log.i(TAG, "loaded: %s", library);
         }
-        NativeUnitTestLibraryLoader.setLibrariesLoaded();
+        LibraryLoader.getInstance().setLibrariesLoadedForNativeTests();
     }
 }

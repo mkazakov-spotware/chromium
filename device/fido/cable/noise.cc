@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <string.h>
 
-#include "base/check_op.h"
-#include "base/sys_byteorder.h"
 #include "crypto/aead.h"
 #include "crypto/sha2.h"
 #include "device/fido/fido_constants.h"
@@ -101,8 +99,7 @@ void Noise::MixKeyAndHash(base::span<const uint8_t> ikm) {
 std::vector<uint8_t> Noise::EncryptAndHash(
     base::span<const uint8_t> plaintext) {
   uint8_t nonce[12] = {0};
-  const uint32_t counter = base::ByteSwap(symmetric_nonce_);
-  memcpy(nonce, &counter, sizeof(counter));
+  memcpy(nonce, &symmetric_nonce_, sizeof(symmetric_nonce_));
   symmetric_nonce_++;
 
   crypto::Aead aead(crypto::Aead::AES_256_GCM);
@@ -112,11 +109,10 @@ std::vector<uint8_t> Noise::EncryptAndHash(
   return ciphertext;
 }
 
-absl::optional<std::vector<uint8_t>> Noise::DecryptAndHash(
+base::Optional<std::vector<uint8_t>> Noise::DecryptAndHash(
     base::span<const uint8_t> ciphertext) {
   uint8_t nonce[12] = {0};
-  const uint32_t counter = base::ByteSwap(symmetric_nonce_);
-  memcpy(nonce, &counter, sizeof(counter));
+  memcpy(nonce, &symmetric_nonce_, sizeof(symmetric_nonce_));
   symmetric_nonce_++;
 
   crypto::Aead aead(crypto::Aead::AES_256_GCM);

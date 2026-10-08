@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,22 +10,18 @@
 
 #include "base/bind.h"
 #include "base/json/json_reader.h"
-#include "base/strings/strcat.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "net/base/features.h"
-#include "net/base/isolation_info.h"
-#include "net/base/schemeful_site.h"
 #include "net/reporting/mock_persistent_reporting_store.h"
 #include "net/reporting/reporting_cache.h"
 #include "net/reporting/reporting_endpoint.h"
 #include "net/reporting/reporting_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -33,15 +29,19 @@ namespace net {
 namespace {
 
 using CommandType = MockPersistentReportingStore::Command::Type;
-using Dictionary = structured_headers::Dictionary;
 
-constexpr char kReportingHeaderTypeHistogram[] = "Net.Reporting.HeaderType";
-
-class ReportingHeaderParserTestBase
-    : public ReportingTestBase,
-      public ::testing::WithParamInterface<bool> {
+// This test is parametrized on a boolean that represents whether to use a
+// MockPersistentReportingStore.
+class ReportingHeaderParserTest : public ReportingTestBase,
+                                  public ::testing::WithParamInterface<bool> {
  protected:
-  ReportingHeaderParserTestBase() {
+  ReportingHeaderParserTest() {
+    // This is a private API of the reporting service, so no need to test the
+    // case kPartitionNelAndReportingByNetworkIsolationKey is disabled - the
+    // feature is only applied at the entry points of the service.
+    feature_list_.InitAndEnableFeature(
+        features::kPartitionNelAndReportingByNetworkIsolationKey);
+
     ReportingPolicy policy;
     policy.max_endpoints_per_origin = 10;
     policy.max_endpoint_count = 20;
@@ -53,7 +53,8 @@ class ReportingHeaderParserTestBase
       store_ = nullptr;
     UseStore(store_.get());
   }
-  ~ReportingHeaderParserTestBase() override = default;
+
+  ~ReportingHeaderParserTest() override = default;
 
   void SetUp() override {
     // All ReportingCache methods assume that the store has been initialized.
@@ -67,63 +68,11 @@ class ReportingHeaderParserTestBase
 
   MockPersistentReportingStore* mock_store() { return store_.get(); }
 
-  base::test::ScopedFeatureList feature_list_;
-  const GURL kUrl1_ = GURL("https://origin1.test/path");
-  const url::Origin kOrigin1_ = url::Origin::Create(kUrl1_);
-  const GURL kUrl2_ = GURL("https://origin2.test/path");
-  const url::Origin kOrigin2_ = url::Origin::Create(kUrl2_);
-  const NetworkAnonymizationKey kNik_ =
-      NetworkAnonymizationKey(SchemefulSite(kOrigin1_),
-                              SchemefulSite(kOrigin1_));
-  const NetworkAnonymizationKey kOtherNik_ =
-      NetworkAnonymizationKey(SchemefulSite(kOrigin2_),
-                              SchemefulSite(kOrigin2_));
-  const IsolationInfo kIsolationInfo_ =
-      IsolationInfo::Create(IsolationInfo::RequestType::kOther,
-                            kOrigin1_,
-                            kOrigin1_,
-                            SiteForCookies::FromOrigin(kOrigin1_));
-  const GURL kUrlEtld_ = GURL("https://co.uk/foo.html/");
-  const url::Origin kOriginEtld_ = url::Origin::Create(kUrlEtld_);
-  const GURL kEndpoint1_ = GURL("https://endpoint1.test/");
-  const GURL kEndpoint2_ = GURL("https://endpoint2.test/");
-  const GURL kEndpoint3_ = GURL("https://endpoint3.test/");
-  const GURL kEndpointPathAbsolute_ =
-      GURL("https://origin1.test/path-absolute-url");
-  const std::string kGroup1_ = "group1";
-  const std::string kGroup2_ = "group2";
-  // There are 2^3 = 8 of these to test the different combinations of matching
-  // vs mismatching NIK, origin, and group.
-  const ReportingEndpointGroupKey kGroupKey11_ =
-      ReportingEndpointGroupKey(kNik_, kOrigin1_, kGroup1_);
-  const ReportingEndpointGroupKey kGroupKey21_ =
-      ReportingEndpointGroupKey(kNik_, kOrigin2_, kGroup1_);
-  const ReportingEndpointGroupKey kGroupKey12_ =
-      ReportingEndpointGroupKey(kNik_, kOrigin1_, kGroup2_);
-  const ReportingEndpointGroupKey kGroupKey22_ =
-      ReportingEndpointGroupKey(kNik_, kOrigin2_, kGroup2_);
-
- private:
-  std::unique_ptr<MockPersistentReportingStore> store_;
-};
-
-// This test is parametrized on a boolean that represents whether to use a
-// MockPersistentReportingStore.
-class ReportingHeaderParserTest : public ReportingHeaderParserTestBase {
- protected:
-  ReportingHeaderParserTest() {
-    // This is a private API of the reporting service, so no need to test the
-    // case kPartitionNelAndReportingByNetworkIsolationKey is disabled - the
-    // feature is only applied at the entry points of the service.
-    feature_list_.InitAndEnableFeature(
-        features::kPartitionNelAndReportingByNetworkIsolationKey);
-  }
-
   ReportingEndpointGroup MakeEndpointGroup(
       const std::string& name,
       const std::vector<ReportingEndpoint::EndpointInfo>& endpoints,
       OriginSubdomains include_subdomains = OriginSubdomains::DEFAULT,
-      base::TimeDelta ttl = base::Days(1),
+      base::TimeDelta ttl = base::TimeDelta::FromDays(1),
       url::Origin origin = url::Origin()) {
     ReportingEndpointGroupKey group_key(kNik_ /* unused */,
                                         url::Origin() /* unused */, name);
@@ -186,16 +135,48 @@ class ReportingHeaderParserTest : public ReportingHeaderParserTestBase {
     return s.str();
   }
 
-  void ParseHeader(const NetworkAnonymizationKey& network_anonymization_key,
-                   const url::Origin& origin,
+  void ParseHeader(const NetworkIsolationKey& network_isolation_key,
+                   const GURL& url,
                    const std::string& json) {
-    absl::optional<base::Value> value =
-        base::JSONReader::Read("[" + json + "]");
+    std::unique_ptr<base::Value> value =
+        base::JSONReader::ReadDeprecated("[" + json + "]");
     if (value) {
-      ReportingHeaderParser::ParseReportToHeader(
-          context(), network_anonymization_key, origin, value->GetList());
+      ReportingHeaderParser::ParseHeader(context(), network_isolation_key, url,
+                                         std::move(value));
     }
   }
+
+  base::test::ScopedFeatureList feature_list_;
+
+  const GURL kUrl1_ = GURL("https://origin1.test/path");
+  const url::Origin kOrigin1_ = url::Origin::Create(kUrl1_);
+  const GURL kUrl2_ = GURL("https://origin2.test/path");
+  const url::Origin kOrigin2_ = url::Origin::Create(kUrl2_);
+  const NetworkIsolationKey kNik_ = NetworkIsolationKey(kOrigin1_, kOrigin1_);
+  const NetworkIsolationKey kOtherNik_ =
+      NetworkIsolationKey(kOrigin2_, kOrigin2_);
+  const GURL kUrlEtld_ = GURL("https://co.uk/foo.html/");
+  const url::Origin kOriginEtld_ = url::Origin::Create(kUrlEtld_);
+  const GURL kEndpoint1_ = GURL("https://endpoint1.test/");
+  const GURL kEndpoint2_ = GURL("https://endpoint2.test/");
+  const GURL kEndpoint3_ = GURL("https://endpoint3.test/");
+  const GURL kEndpointPathAbsolute_ =
+      GURL("https://origin1.test/path-absolute-url");
+  const std::string kGroup1_ = "group1";
+  const std::string kGroup2_ = "group2";
+  // There are 2^3 = 8 of these to test the different combinations of matching
+  // vs mismatching NIK, origin, and group.
+  const ReportingEndpointGroupKey kGroupKey11_ =
+      ReportingEndpointGroupKey(kNik_, kOrigin1_, kGroup1_);
+  const ReportingEndpointGroupKey kGroupKey21_ =
+      ReportingEndpointGroupKey(kNik_, kOrigin2_, kGroup1_);
+  const ReportingEndpointGroupKey kGroupKey12_ =
+      ReportingEndpointGroupKey(kNik_, kOrigin1_, kGroup2_);
+  const ReportingEndpointGroupKey kGroupKey22_ =
+      ReportingEndpointGroupKey(kNik_, kOrigin2_, kGroup2_);
+
+ private:
+  std::unique_ptr<MockPersistentReportingStore> store_;
 };
 
 // TODO(juliatuttle): Ideally these tests should be expecting that JSON parsing
@@ -247,43 +228,30 @@ TEST_P(ReportingHeaderParserTest, Invalid) {
        "{\"max_age\":1, \"endpoints\": [{\"url\":\"https://b/\"}]}]",
        "wrapped in list"}};
 
-  base::HistogramTester histograms;
-  int invalid_case_count = 0;
-
-  for (const auto& test_case : kInvalidHeaderTestCases) {
-    ParseHeader(kNik_, kOrigin1_, test_case.header_value);
-    invalid_case_count++;
+  for (size_t i = 0; i < base::size(kInvalidHeaderTestCases); ++i) {
+    auto& test_case = kInvalidHeaderTestCases[i];
+    ParseHeader(kNik_, kUrl1_, test_case.header_value);
 
     EXPECT_EQ(0u, cache()->GetEndpointCount())
         << "Invalid Report-To header (" << test_case.description << ": \""
         << test_case.header_value << "\") parsed as valid.";
-    histograms.ExpectBucketCount(
-        kReportingHeaderTypeHistogram,
-        ReportingHeaderParser::ReportingHeaderType::kReportToInvalid,
-        invalid_case_count);
+
     if (mock_store()) {
       mock_store()->Flush();
       EXPECT_EQ(0, mock_store()->StoredEndpointsCount());
       EXPECT_EQ(0, mock_store()->StoredEndpointGroupsCount());
     }
   }
-  histograms.ExpectBucketCount(
-      kReportingHeaderTypeHistogram,
-      ReportingHeaderParser::ReportingHeaderType::kReportTo, 0);
 }
 
 TEST_P(ReportingHeaderParserTest, Basic) {
   std::vector<ReportingEndpoint::EndpointInfo> endpoints = {{kEndpoint1_}};
-  base::HistogramTester histograms;
 
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
 
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
-  histograms.ExpectBucketCount(
-      kReportingHeaderTypeHistogram,
-      ReportingHeaderParser::ReportingHeaderType::kReportTo, 1);
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey11_, OriginSubdomains::DEFAULT));
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
@@ -316,13 +284,9 @@ TEST_P(ReportingHeaderParserTest, PathAbsoluteURLEndpoint) {
   std::string header =
       "{\"group\": \"group1\", \"max_age\":1, \"endpoints\": "
       "[{\"url\":\"/path-absolute-url\"}]}";
-  base::HistogramTester histograms;
 
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
-  histograms.ExpectBucketCount(
-      kReportingHeaderTypeHistogram,
-      ReportingHeaderParser::ReportingHeaderType::kReportTo, 1);
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey11_, OriginSubdomains::DEFAULT));
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
@@ -363,7 +327,7 @@ TEST_P(ReportingHeaderParserTest, OmittedGroupName) {
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(std::string(), endpoints));
 
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(EndpointGroupExistsInCache(kGroupKey, OriginSubdomains::DEFAULT));
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
@@ -397,7 +361,7 @@ TEST_P(ReportingHeaderParserTest, IncludeSubdomainsTrue) {
 
   std::string header = ConstructHeaderGroupString(
       MakeEndpointGroup(kGroup1_, endpoints, OriginSubdomains::INCLUDE));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -425,7 +389,7 @@ TEST_P(ReportingHeaderParserTest, IncludeSubdomainsFalse) {
   std::string header = ConstructHeaderGroupString(
       MakeEndpointGroup(kGroup1_, endpoints, OriginSubdomains::EXCLUDE),
       false /* omit_defaults */);
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -453,7 +417,7 @@ TEST_P(ReportingHeaderParserTest, IncludeSubdomainsEtldRejected) {
 
   std::string header = ConstructHeaderGroupString(
       MakeEndpointGroup(kGroup1_, endpoints, OriginSubdomains::INCLUDE));
-  ParseHeader(kNik_, kOriginEtld_, header);
+  ParseHeader(kNik_, kUrlEtld_, header);
 
   EXPECT_EQ(0u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_FALSE(
@@ -468,7 +432,7 @@ TEST_P(ReportingHeaderParserTest, NonIncludeSubdomainsEtldAccepted) {
 
   std::string header = ConstructHeaderGroupString(
       MakeEndpointGroup(kGroup1_, endpoints, OriginSubdomains::EXCLUDE));
-  ParseHeader(kNik_, kOriginEtld_, header);
+  ParseHeader(kNik_, kUrlEtld_, header);
 
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(EndpointGroupExistsInCache(kGroupKey, OriginSubdomains::EXCLUDE));
@@ -483,7 +447,7 @@ TEST_P(ReportingHeaderParserTest, IncludeSubdomainsNotBoolean) {
       "\"max_age\":86400, \"include_subdomains\": \"NotABoolean\", "
       "\"endpoints\": [{\"url\":\"" +
       kEndpoint1_.spec() + "\"}]}";
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -512,7 +476,7 @@ TEST_P(ReportingHeaderParserTest, NonDefaultPriority) {
 
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -546,7 +510,7 @@ TEST_P(ReportingHeaderParserTest, NonDefaultWeight) {
 
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -574,7 +538,7 @@ TEST_P(ReportingHeaderParserTest, NonDefaultWeight) {
 
 TEST_P(ReportingHeaderParserTest, MaxAge) {
   const int kMaxAgeSecs = 100;
-  base::TimeDelta ttl = base::Seconds(kMaxAgeSecs);
+  base::TimeDelta ttl = base::TimeDelta::FromSeconds(kMaxAgeSecs);
   base::Time expires = clock()->Now() + ttl;
 
   std::vector<ReportingEndpoint::EndpointInfo> endpoints = {{kEndpoint1_}};
@@ -582,7 +546,7 @@ TEST_P(ReportingHeaderParserTest, MaxAge) {
   std::string header = ConstructHeaderGroupString(
       MakeEndpointGroup(kGroup1_, endpoints, OriginSubdomains::DEFAULT, ttl));
 
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(EndpointGroupExistsInCache(kGroupKey11_,
                                          OriginSubdomains::DEFAULT, expires));
@@ -607,7 +571,7 @@ TEST_P(ReportingHeaderParserTest, MultipleEndpointsSameGroup) {
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
 
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey11_, OriginSubdomains::DEFAULT));
@@ -657,7 +621,7 @@ TEST_P(ReportingHeaderParserTest, MultipleEndpointsDifferentGroups) {
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup2_, endpoints2));
 
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
   EXPECT_EQ(2u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey11_, OriginSubdomains::DEFAULT));
@@ -708,7 +672,7 @@ TEST_P(ReportingHeaderParserTest, MultipleHeadersFromDifferentOrigins) {
                                                              {kEndpoint2_}};
   std::string header1 =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints1));
-  ParseHeader(kNik_, kOrigin1_, header1);
+  ParseHeader(kNik_, kUrl1_, header1);
 
   // Second origin has two endpoint groups.
   std::vector<ReportingEndpoint::EndpointInfo> endpoints2 = {{kEndpoint1_}};
@@ -717,7 +681,7 @@ TEST_P(ReportingHeaderParserTest, MultipleHeadersFromDifferentOrigins) {
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints2)) +
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup2_, endpoints3));
-  ParseHeader(kNik_, kOrigin2_, header2);
+  ParseHeader(kNik_, kUrl2_, header2);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin2_));
@@ -787,7 +751,7 @@ TEST_P(ReportingHeaderParserTest, EndpointGroupKey) {
       ReportingEndpointGroupKey(kOtherNik_, kOrigin2_, kGroup2_);
 
   const struct {
-    NetworkAnonymizationKey network_anonymization_key;
+    NetworkIsolationKey network_isolation_key;
     GURL url;
     ReportingEndpointGroupKey group1_key;
     ReportingEndpointGroupKey group2_key;
@@ -815,8 +779,7 @@ TEST_P(ReportingHeaderParserTest, EndpointGroupKey) {
     EXPECT_FALSE(EndpointGroupExistsInCache(source.group2_key,
                                             OriginSubdomains::DEFAULT));
 
-    ParseHeader(source.network_anonymization_key,
-                url::Origin::Create(source.url), header1);
+    ParseHeader(source.network_isolation_key, source.url, header1);
     endpoint_group_count += 2u;
     endpoint_count += 4u;
     EXPECT_EQ(endpoint_group_count, cache()->GetEndpointGroupCountForTesting());
@@ -866,7 +829,7 @@ TEST_P(ReportingHeaderParserTest, EndpointGroupKey) {
     EXPECT_TRUE(EndpointGroupExistsInCache(source.group2_key,
                                            OriginSubdomains::DEFAULT));
     EXPECT_TRUE(cache()->ClientExistsForTesting(
-        source.network_anonymization_key, url::Origin::Create(source.url)));
+        source.network_isolation_key, url::Origin::Create(source.url)));
   }
 
   // Test updating existing configurations
@@ -893,8 +856,7 @@ TEST_P(ReportingHeaderParserTest, EndpointGroupKey) {
               endpoint.info.priority);
     EXPECT_FALSE(FindEndpointInCache(source.group2_key, kEndpoint3_));
 
-    ParseHeader(source.network_anonymization_key,
-                url::Origin::Create(source.url), header2);
+    ParseHeader(source.network_isolation_key, source.url, header2);
     endpoint_group_count--;
     endpoint_count -= 2;
     EXPECT_EQ(endpoint_group_count, cache()->GetEndpointGroupCountForTesting());
@@ -950,7 +912,7 @@ TEST_P(ReportingHeaderParserTest, EndpointGroupKey) {
     EXPECT_TRUE(EndpointGroupExistsInCache(source.group2_key,
                                            OriginSubdomains::INCLUDE));
     EXPECT_TRUE(cache()->ClientExistsForTesting(
-        source.network_anonymization_key, url::Origin::Create(source.url)));
+        source.network_isolation_key, url::Origin::Create(source.url)));
   }
 }
 
@@ -964,7 +926,7 @@ TEST_P(ReportingHeaderParserTest,
   std::string preexisting_header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, preexisting));
 
-  ParseHeader(kNik_, kOrigin1_, preexisting_header);
+  ParseHeader(kNik_, kUrl1_, preexisting_header);
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey11_, OriginSubdomains::DEFAULT));
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
@@ -996,7 +958,7 @@ TEST_P(ReportingHeaderParserTest,
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints2));
 
-  ParseHeader(kNik_, kOrigin1_, duplicate_groups_header);
+  ParseHeader(kNik_, kUrl1_, duplicate_groups_header);
   // Result is as if they set the two groups with the same name as one group.
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey11_, OriginSubdomains::DEFAULT));
@@ -1061,7 +1023,7 @@ TEST_P(ReportingHeaderParserTest,
                                                             {kEndpoint1_}};
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   // We should dedupe the identical endpoint URLs.
   EXPECT_EQ(1u, cache()->GetEndpointCount());
@@ -1080,7 +1042,7 @@ TEST_P(ReportingHeaderParserTest,
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints)) +
       ", " + ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   // We should dedupe the identical endpoint URLs, even when they're in
   // different group.
@@ -1104,7 +1066,7 @@ TEST_P(ReportingHeaderParserTest,
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints1)) +
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints2));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   // We should dedupe the identical endpoint URLs, even when they're in
   // different group.
@@ -1126,7 +1088,7 @@ TEST_P(ReportingHeaderParserTest, OverwriteOldHeader) {
       {kEndpoint1_, 10 /* priority */}, {kEndpoint2_}};
   std::string header1 =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints1));
-  ParseHeader(kNik_, kOrigin1_, header1);
+  ParseHeader(kNik_, kUrl1_, header1);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
@@ -1163,7 +1125,7 @@ TEST_P(ReportingHeaderParserTest, OverwriteOldHeader) {
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints2)) +
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup2_, endpoints3));
-  ParseHeader(kNik_, kOrigin1_, header2);
+  ParseHeader(kNik_, kUrl1_, header2);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
 
@@ -1213,7 +1175,7 @@ TEST_P(ReportingHeaderParserTest, OverwriteOldHeaderWithCompletelyNew) {
       ConstructHeaderGroupString(MakeEndpointGroup("1", endpoints1_1)) + ", " +
       ConstructHeaderGroupString(MakeEndpointGroup("2", endpoints2_1)) + ", " +
       ConstructHeaderGroupString(MakeEndpointGroup("3", endpoints3_1));
-  ParseHeader(kNik_, kOrigin1_, header1);
+  ParseHeader(kNik_, kUrl1_, header1);
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(3u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -1260,7 +1222,7 @@ TEST_P(ReportingHeaderParserTest, OverwriteOldHeaderWithCompletelyNew) {
       ConstructHeaderGroupString(MakeEndpointGroup("1", endpoints1_2)) + ", " +
       ConstructHeaderGroupString(MakeEndpointGroup("2", endpoints2_2)) + ", " +
       ConstructHeaderGroupString(MakeEndpointGroup("3", endpoints3_2));
-  ParseHeader(kNik_, kOrigin1_, header2);
+  ParseHeader(kNik_, kUrl1_, header2);
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(3u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -1318,7 +1280,7 @@ TEST_P(ReportingHeaderParserTest, OverwriteOldHeaderWithCompletelyNew) {
   std::string header3 =
       ConstructHeaderGroupString(MakeEndpointGroup("4", endpoints4_3)) + ", " +
       ConstructHeaderGroupString(MakeEndpointGroup("5", endpoints5_3));
-  ParseHeader(kNik_, kOrigin1_, header3);
+  ParseHeader(kNik_, kUrl1_, header3);
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(2u, cache()->GetEndpointGroupCountForTesting());
   EXPECT_TRUE(
@@ -1371,7 +1333,7 @@ TEST_P(ReportingHeaderParserTest, OverwriteOldHeaderWithCompletelyNew) {
 TEST_P(ReportingHeaderParserTest, ZeroMaxAgeRemovesEndpointGroup) {
   // Without a pre-existing client, max_age: 0 should do nothing.
   ASSERT_EQ(0u, cache()->GetEndpointCount());
-  ParseHeader(kNik_, kOrigin1_,
+  ParseHeader(kNik_, kUrl1_,
               "{\"endpoints\":[{\"url\":\"" + kEndpoint1_.spec() +
                   "\"}],\"max_age\":0}");
   EXPECT_EQ(0u, cache()->GetEndpointCount());
@@ -1390,7 +1352,7 @@ TEST_P(ReportingHeaderParserTest, ZeroMaxAgeRemovesEndpointGroup) {
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints1)) +
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup2_, endpoints2));
-  ParseHeader(kNik_, kOrigin1_, header1);
+  ParseHeader(kNik_, kUrl1_, header1);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(2u, cache()->GetEndpointGroupCountForTesting());
@@ -1419,13 +1381,13 @@ TEST_P(ReportingHeaderParserTest, ZeroMaxAgeRemovesEndpointGroup) {
   }
 
   // Set another header with max_age: 0 to delete one of the groups.
-  std::string header2 =
-      ConstructHeaderGroupString(MakeEndpointGroup(
-          kGroup1_, endpoints1, OriginSubdomains::DEFAULT, base::Seconds(0))) +
-      ", " +
-      ConstructHeaderGroupString(
-          MakeEndpointGroup(kGroup2_, endpoints2));  // Other group stays.
-  ParseHeader(kNik_, kOrigin1_, header2);
+  std::string header2 = ConstructHeaderGroupString(MakeEndpointGroup(
+                            kGroup1_, endpoints1, OriginSubdomains::DEFAULT,
+                            base::TimeDelta::FromSeconds(0))) +
+                        ", " +
+                        ConstructHeaderGroupString(MakeEndpointGroup(
+                            kGroup2_, endpoints2));  // Other group stays.
+  ParseHeader(kNik_, kUrl1_, header2);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
@@ -1460,8 +1422,8 @@ TEST_P(ReportingHeaderParserTest, ZeroMaxAgeRemovesEndpointGroup) {
   // even if the endpoints field is an empty list.)
   std::string header3 = ConstructHeaderGroupString(MakeEndpointGroup(
       kGroup2_, std::vector<ReportingEndpoint::EndpointInfo>(),
-      OriginSubdomains::DEFAULT, base::Seconds(0)));
-  ParseHeader(kNik_, kOrigin1_, header3);
+      OriginSubdomains::DEFAULT, base::TimeDelta::FromSeconds(0)));
+  ParseHeader(kNik_, kUrl1_, header3);
 
   // Deletion of the last remaining group also deletes the client for this
   // origin.
@@ -1497,7 +1459,7 @@ TEST_P(ReportingHeaderParserTest, InvalidAdvertisementRemovesEndpointGroup) {
   // Without a pre-existing client, neither invalid header does anything.
 
   ASSERT_EQ(0u, cache()->GetEndpointCount());
-  ParseHeader(kNik_, kOrigin1_, invalid_non_json_header);
+  ParseHeader(kNik_, kUrl1_, invalid_non_json_header);
   EXPECT_EQ(0u, cache()->GetEndpointCount());
   if (mock_store()) {
     mock_store()->Flush();
@@ -1508,7 +1470,7 @@ TEST_P(ReportingHeaderParserTest, InvalidAdvertisementRemovesEndpointGroup) {
   }
 
   ASSERT_EQ(0u, cache()->GetEndpointCount());
-  ParseHeader(kNik_, kOrigin1_, invalid_json_header);
+  ParseHeader(kNik_, kUrl1_, invalid_json_header);
   EXPECT_EQ(0u, cache()->GetEndpointCount());
   if (mock_store()) {
     mock_store()->Flush();
@@ -1525,7 +1487,7 @@ TEST_P(ReportingHeaderParserTest, InvalidAdvertisementRemovesEndpointGroup) {
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints1)) +
       ", " +
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup2_, endpoints2));
-  ParseHeader(kNik_, kOrigin1_, header1);
+  ParseHeader(kNik_, kUrl1_, header1);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(2u, cache()->GetEndpointGroupCountForTesting());
@@ -1554,13 +1516,13 @@ TEST_P(ReportingHeaderParserTest, InvalidAdvertisementRemovesEndpointGroup) {
   }
 
   // Set another header with max_age: 0 to delete one of the groups.
-  std::string header2 =
-      ConstructHeaderGroupString(MakeEndpointGroup(
-          kGroup1_, endpoints1, OriginSubdomains::DEFAULT, base::Seconds(0))) +
-      ", " +
-      ConstructHeaderGroupString(
-          MakeEndpointGroup(kGroup2_, endpoints2));  // Other group stays.
-  ParseHeader(kNik_, kOrigin1_, header2);
+  std::string header2 = ConstructHeaderGroupString(MakeEndpointGroup(
+                            kGroup1_, endpoints1, OriginSubdomains::DEFAULT,
+                            base::TimeDelta::FromSeconds(0))) +
+                        ", " +
+                        ConstructHeaderGroupString(MakeEndpointGroup(
+                            kGroup2_, endpoints2));  // Other group stays.
+  ParseHeader(kNik_, kUrl1_, header2);
 
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_EQ(1u, cache()->GetEndpointGroupCountForTesting());
@@ -1593,7 +1555,7 @@ TEST_P(ReportingHeaderParserTest, InvalidAdvertisementRemovesEndpointGroup) {
 
   // Invalid header values that are not JSON lists (without the outer brackets)
   // are ignored.
-  ParseHeader(kNik_, kOrigin1_, invalid_non_json_header);
+  ParseHeader(kNik_, kUrl1_, invalid_non_json_header);
   EXPECT_TRUE(ClientExistsInCacheForOrigin(kOrigin1_));
   EXPECT_TRUE(
       EndpointGroupExistsInCache(kGroupKey12_, OriginSubdomains::DEFAULT));
@@ -1619,7 +1581,7 @@ TEST_P(ReportingHeaderParserTest, InvalidAdvertisementRemovesEndpointGroup) {
 
   // Invalid headers that do parse as JSON should delete the corresponding
   // client.
-  ParseHeader(kNik_, kOrigin1_, invalid_json_header);
+  ParseHeader(kNik_, kUrl1_, invalid_json_header);
 
   // Deletion of the last remaining group also deletes the client for this
   // origin.
@@ -1654,7 +1616,7 @@ TEST_P(ReportingHeaderParserTest, EvictEndpointsOverPerOriginLimit1) {
   }
   std::string header =
       ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   // Endpoint count should be at most the limit.
   EXPECT_GE(policy().max_endpoints_per_origin, cache()->GetEndpointCount());
@@ -1681,7 +1643,7 @@ TEST_P(ReportingHeaderParserTest, EvictEndpointsOverPerOriginLimit2) {
     if (i != policy().max_endpoints_per_origin)
       header = header + ", ";
   }
-  ParseHeader(kNik_, kOrigin1_, header);
+  ParseHeader(kNik_, kUrl1_, header);
 
   // Endpoint count should be at most the limit.
   EXPECT_GE(policy().max_endpoints_per_origin, cache()->GetEndpointCount());
@@ -1707,12 +1669,12 @@ TEST_P(ReportingHeaderParserTest, EvictEndpointsOverGlobalLimit) {
     std::vector<ReportingEndpoint::EndpointInfo> endpoints = {{MakeURL(i)}};
     std::string header =
         ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-    ParseHeader(kNik_, url::Origin::Create(MakeURL(i)), header);
+    ParseHeader(kNik_, MakeURL(i), header);
   }
   EXPECT_EQ(policy().max_endpoint_count, cache()->GetEndpointCount());
 
   // Parse one more header to trigger eviction.
-  ParseHeader(kNik_, kOrigin1_,
+  ParseHeader(kNik_, kUrl1_,
               "{\"endpoints\":[{\"url\":\"" + kEndpoint1_.spec() +
                   "\"}],\"max_age\":1}");
 
@@ -1736,223 +1698,6 @@ TEST_P(ReportingHeaderParserTest, EvictEndpointsOverGlobalLimit) {
 
 INSTANTIATE_TEST_SUITE_P(ReportingHeaderParserStoreTest,
                          ReportingHeaderParserTest,
-                         testing::Bool());
-
-// This test is parametrized on a boolean that represents whether to use a
-// MockPersistentReportingStore.
-class ReportingHeaderParserStructuredHeaderTest
-    : public ReportingHeaderParserTestBase {
- protected:
-  ReportingHeaderParserStructuredHeaderTest() {
-    // Enable kDocumentReporting to support new StructuredHeader-based
-    // Reporting-Endpoints header.
-    feature_list_.InitWithFeatures(
-        {features::kPartitionNelAndReportingByNetworkIsolationKey,
-         features::kDocumentReporting},
-        {});
-  }
-
-  ~ReportingHeaderParserStructuredHeaderTest() override = default;
-
-  ReportingEndpointGroup MakeEndpointGroup(
-      const std::string& name,
-      const std::vector<ReportingEndpoint::EndpointInfo>& endpoints,
-      url::Origin origin = url::Origin()) {
-    ReportingEndpointGroupKey group_key(kNik_ /* unused */,
-                                        url::Origin() /* unused */, name);
-    ReportingEndpointGroup group;
-    group.group_key = group_key;
-    group.include_subdomains = OriginSubdomains::EXCLUDE;
-    group.ttl = base::Days(30);
-    group.endpoints = std::move(endpoints);
-    return group;
-  }
-
-  // Constructs a string which would represent a single endpoint in a
-  // Reporting-Endpoints header.
-  std::string ConstructHeaderGroupString(const ReportingEndpointGroup& group) {
-    std::string header = group.group_key.group_name;
-    if (header.empty())
-      return header;
-    base::StrAppend(&header, {"="});
-    if (group.endpoints.empty())
-      return header;
-    base::StrAppend(&header, {"\"", group.endpoints.front().url.spec(), "\""});
-    return header;
-  }
-
-  void ParseHeader(const base::UnguessableToken& reporting_source,
-                   const IsolationInfo& isolation_info,
-                   const url::Origin& origin,
-                   const std::string& header_string) {
-    absl::optional<base::flat_map<std::string, std::string>> header_map =
-        ParseReportingEndpoints(header_string);
-
-    if (header_map) {
-      ReportingHeaderParser::ProcessParsedReportingEndpointsHeader(
-          context(), reporting_source, isolation_info,
-          isolation_info.network_anonymization_key(), origin, *header_map);
-    }
-  }
-  void ProcessParsedHeader(
-      const base::UnguessableToken& reporting_source,
-      const IsolationInfo& isolation_info,
-      const url::Origin& origin,
-      const absl::optional<base::flat_map<std::string, std::string>>&
-          header_map) {
-    ReportingHeaderParser::ProcessParsedReportingEndpointsHeader(
-        context(), reporting_source, isolation_info,
-        isolation_info.network_anonymization_key(), origin, *header_map);
-  }
-
-  const base::UnguessableToken kReportingSource_ =
-      base::UnguessableToken::Create();
-};
-
-TEST_P(ReportingHeaderParserStructuredHeaderTest, ParseInvalid) {
-  static const struct {
-    const char* header_value;
-    const char* description;
-  } kInvalidHeaderTestCases[] = {
-      {"default=", "missing url"},
-      {"default=1", "non-string url"},
-  };
-
-  for (auto& test_case : kInvalidHeaderTestCases) {
-    auto parsed_result = ParseReportingEndpoints(test_case.header_value);
-
-    EXPECT_FALSE(parsed_result.has_value())
-        << "Invalid Reporting-Endpoints header (" << test_case.description
-        << ": \"" << test_case.header_value << "\") parsed as valid.";
-  }
-}
-
-TEST_P(ReportingHeaderParserStructuredHeaderTest, ProcessInvalid) {
-  static const struct {
-    const char* header_value;
-    const char* description;
-  } kInvalidHeaderTestCases[] = {
-      {"default=\"//scheme/relative\"", "scheme-relative url"},
-      {"default=\"relative/path\"", "path relative url"},
-      {"default=\"http://insecure/\"", "insecure url"}};
-
-  base::HistogramTester histograms;
-  int invalid_case_count = 0;
-
-  for (auto& test_case : kInvalidHeaderTestCases) {
-    auto parsed_result = ParseReportingEndpoints(test_case.header_value);
-
-    EXPECT_TRUE(parsed_result.has_value())
-        << "Syntactically valid Reporting-Endpoints header (\""
-        << test_case.description << ": \"" << test_case.header_value
-        << "\") parsed as invalid.";
-    ProcessParsedHeader(kReportingSource_, kIsolationInfo_, kOrigin1_,
-                        parsed_result);
-
-    invalid_case_count++;
-    histograms.ExpectBucketCount(
-        kReportingHeaderTypeHistogram,
-        ReportingHeaderParser::ReportingHeaderType::kReportingEndpointsInvalid,
-        invalid_case_count);
-
-    // The endpoint should not have been set up in the cache.
-    ReportingEndpoint endpoint =
-        cache()->GetV1EndpointForTesting(kReportingSource_, "default");
-    EXPECT_FALSE(endpoint);
-  }
-  histograms.ExpectBucketCount(
-      kReportingHeaderTypeHistogram,
-      ReportingHeaderParser::ReportingHeaderType::kReportingEndpoints, 0);
-}
-
-TEST_P(ReportingHeaderParserStructuredHeaderTest, ParseBasic) {
-  std::vector<ReportingEndpoint::EndpointInfo> endpoints = {{kEndpoint1_}};
-
-  std::string header =
-      ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  auto parsed_result = ParseReportingEndpoints(header);
-
-  EXPECT_TRUE(parsed_result.has_value())
-      << "Valid Reporting-Endpoints header (\"" << header
-      << "\") parsed as invalid.";
-  EXPECT_EQ(1u, parsed_result->size());
-  EXPECT_EQ(parsed_result->at(kGroup1_), kEndpoint1_.spec());
-}
-
-TEST_P(ReportingHeaderParserStructuredHeaderTest, Basic) {
-  base::HistogramTester histograms;
-  std::vector<ReportingEndpoint::EndpointInfo> endpoints = {{kEndpoint1_}};
-
-  std::string header =
-      ConstructHeaderGroupString(MakeEndpointGroup(kGroup1_, endpoints));
-  auto parsed_result = ParseReportingEndpoints(header);
-  ProcessParsedHeader(kReportingSource_, kIsolationInfo_, kOrigin1_,
-                      parsed_result);
-
-  // Ensure that the endpoint was not inserted into the persistent endpoint
-  // groups used for v0 reporting.
-  EXPECT_EQ(0u, cache()->GetEndpointGroupCountForTesting());
-
-  ReportingEndpoint endpoint =
-      cache()->GetV1EndpointForTesting(kReportingSource_, kGroup1_);
-  EXPECT_TRUE(endpoint);
-
-  IsolationInfo isolation_info = cache()->GetIsolationInfoForEndpoint(endpoint);
-  EXPECT_TRUE(isolation_info.IsEqualForTesting(kIsolationInfo_));
-  EXPECT_EQ(kOrigin1_, endpoint.group_key.origin);
-  EXPECT_EQ(kGroup1_, endpoint.group_key.group_name);
-  EXPECT_EQ(kEndpoint1_, endpoint.info.url);
-  EXPECT_EQ(ReportingEndpoint::EndpointInfo::kDefaultPriority,
-            endpoint.info.priority);
-  EXPECT_EQ(ReportingEndpoint::EndpointInfo::kDefaultWeight,
-            endpoint.info.weight);
-  histograms.ExpectBucketCount(
-      kReportingHeaderTypeHistogram,
-      ReportingHeaderParser::ReportingHeaderType::kReportingEndpoints, 1);
-
-  // Ephemeral endpoints should not be persisted in the store
-  if (mock_store()) {
-    mock_store()->Flush();
-    EXPECT_EQ(0, mock_store()->StoredEndpointsCount());
-    EXPECT_EQ(0, mock_store()->StoredEndpointGroupsCount());
-  }
-}
-
-TEST_P(ReportingHeaderParserStructuredHeaderTest, PathAbsoluteURLEndpoint) {
-  base::HistogramTester histograms;
-  std::string header = "group1=\"/path-absolute-url\"";
-  auto parsed_result = ParseReportingEndpoints(header);
-  ProcessParsedHeader(kReportingSource_, kIsolationInfo_, kOrigin1_,
-                      parsed_result);
-
-  // Ensure that the endpoint was not inserted into the persistent endpoint
-  // groups used for v0 reporting.
-  EXPECT_EQ(0u, cache()->GetEndpointGroupCountForTesting());
-
-  ReportingEndpoint endpoint =
-      cache()->GetV1EndpointForTesting(kReportingSource_, kGroup1_);
-  EXPECT_TRUE(endpoint);
-  EXPECT_EQ(kOrigin1_, endpoint.group_key.origin);
-  EXPECT_EQ(kGroup1_, endpoint.group_key.group_name);
-  EXPECT_EQ(kEndpointPathAbsolute_, endpoint.info.url);
-  EXPECT_EQ(ReportingEndpoint::EndpointInfo::kDefaultPriority,
-            endpoint.info.priority);
-  EXPECT_EQ(ReportingEndpoint::EndpointInfo::kDefaultWeight,
-            endpoint.info.weight);
-  histograms.ExpectBucketCount(
-      kReportingHeaderTypeHistogram,
-      ReportingHeaderParser::ReportingHeaderType::kReportingEndpoints, 1);
-
-  // Ephemeral endpoints should not be persisted in the store
-  if (mock_store()) {
-    mock_store()->Flush();
-    EXPECT_EQ(0, mock_store()->StoredEndpointsCount());
-    EXPECT_EQ(0, mock_store()->StoredEndpointGroupsCount());
-  }
-}
-
-INSTANTIATE_TEST_SUITE_P(ReportingHeaderParserStoreTest,
-                         ReportingHeaderParserStructuredHeaderTest,
                          testing::Bool());
 
 }  // namespace

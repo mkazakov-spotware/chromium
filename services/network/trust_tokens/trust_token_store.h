@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/compiler_specific.h"
+#include "base/optional.h"
+#include "base/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/trust_tokens.mojom.h"
@@ -18,7 +20,6 @@
 #include "services/network/trust_tokens/suitable_trust_token_origin.h"
 #include "services/network/trust_tokens/trust_token_persister.h"
 #include "services/network/trust_tokens/types.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace network {
 
@@ -51,12 +52,9 @@ class TrustTokenStore {
     // This is implemented with a delegate to abstract away reading
     // the values of RRs (they're opaque to this store).
     //
-    // |time_since_last_redemption| is time elapsed since last redemption.
     // |issuer| is the issuer that issued the RR.
-    virtual bool IsRecordExpired(
-        const TrustTokenRedemptionRecord& record,
-        const base::TimeDelta& time_since_last_redemption,
-        const SuitableTrustTokenOrigin& issuer) = 0;
+    virtual bool IsRecordExpired(const TrustTokenRedemptionRecord& record,
+                                 const SuitableTrustTokenOrigin& issuer) = 0;
   };
 
   // Creates a TrustTokenStore relying on the given persister for underlying
@@ -87,8 +85,8 @@ class TrustTokenStore {
   // of, for instance, corruption or clock skew).
   //
   // |issuer| must not be opaque.
-  [[nodiscard]] virtual absl::optional<base::TimeDelta> TimeSinceLastIssuance(
-      const SuitableTrustTokenOrigin& issuer);
+  WARN_UNUSED_RESULT virtual base::Optional<base::TimeDelta>
+  TimeSinceLastIssuance(const SuitableTrustTokenOrigin& issuer);
 
   // Updates the given (issuer, top-level) origin pair's last redemption time
   // to now.
@@ -102,12 +100,12 @@ class TrustTokenStore {
   // top-level origin) pair.
   // 2. the time since the last redepmption is negative (because
   // of, for instance, corruption or clock skew).
-  [[nodiscard]] virtual absl::optional<base::TimeDelta> TimeSinceLastRedemption(
-      const SuitableTrustTokenOrigin& issuer,
-      const SuitableTrustTokenOrigin& top_level);
+  WARN_UNUSED_RESULT virtual base::Optional<base::TimeDelta>
+  TimeSinceLastRedemption(const SuitableTrustTokenOrigin& issuer,
+                          const SuitableTrustTokenOrigin& top_level);
 
   // Returns whether |issuer| is associated with |top_level|.
-  [[nodiscard]] virtual bool IsAssociated(
+  WARN_UNUSED_RESULT virtual bool IsAssociated(
       const SuitableTrustTokenOrigin& issuer,
       const SuitableTrustTokenOrigin& top_level);
 
@@ -119,7 +117,7 @@ class TrustTokenStore {
   // issuers, it'd be good to make these associations expire after some
   // reasonably long amount of time, so that top-level origins can change their
   // minds about their associated issuers.
-  [[nodiscard]] virtual bool SetAssociation(
+  WARN_UNUSED_RESULT virtual bool SetAssociation(
       const SuitableTrustTokenOrigin& issuer,
       const SuitableTrustTokenOrigin& top_level);
 
@@ -152,15 +150,12 @@ class TrustTokenStore {
                          base::StringPiece issuing_key);
 
   // Returns the number of tokens stored for |issuer|.
-  [[nodiscard]] virtual int CountTokens(const SuitableTrustTokenOrigin& issuer);
-
-  // Returns the number of stored tokens per issuer.
-  [[nodiscard]] virtual base::flat_map<SuitableTrustTokenOrigin, int>
-  GetStoredTrustTokenCounts();
+  WARN_UNUSED_RESULT virtual int CountTokens(
+      const SuitableTrustTokenOrigin& issuer);
 
   // Returns all signed tokens from |issuer| signed by keys matching
   // the given predicate.
-  [[nodiscard]] virtual std::vector<TrustToken> RetrieveMatchingTokens(
+  WARN_UNUSED_RESULT virtual std::vector<TrustToken> RetrieveMatchingTokens(
       const SuitableTrustTokenOrigin& issuer,
       base::RepeatingCallback<bool(const std::string&)> key_matcher);
 
@@ -181,7 +176,7 @@ class TrustTokenStore {
   // top-level) origins.
   // - If the pair has a current (i.e., non-expired) RR, returns that RR.
   // - Otherwise, returns nullopt.
-  [[nodiscard]] virtual absl::optional<TrustTokenRedemptionRecord>
+  WARN_UNUSED_RESULT virtual base::Optional<TrustTokenRedemptionRecord>
   RetrieveNonstaleRedemptionRecord(const SuitableTrustTokenOrigin& issuer,
                                    const SuitableTrustTokenOrigin& top_level);
 
@@ -202,18 +197,8 @@ class TrustTokenStore {
   // that all data should be cleared.
   //
   // Returns whether any data was deleted.
-  [[nodiscard]] virtual bool ClearDataForFilter(
+  WARN_UNUSED_RESULT virtual bool ClearDataForFilter(
       mojom::ClearDataFilterPtr filter);
-
-  // Deletes all stored tokens issued by |issuer| but leaves other stored
-  // data, including the issuer's Redemption Records (RRs), intact.
-  // Returns whether any data was deleted.
-  [[nodiscard]] virtual bool DeleteStoredTrustTokens(
-      const SuitableTrustTokenOrigin& issuer);
-
-  [[nodiscard]] bool IsRedemptionLimitHit(
-      const SuitableTrustTokenOrigin& issuer,
-      const SuitableTrustTokenOrigin& top_level) const;
 
  private:
   std::unique_ptr<TrustTokenPersister> persister_;

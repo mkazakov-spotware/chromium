@@ -25,8 +25,6 @@
 
 #include "third_party/blink/renderer/modules/webgl/khr_parallel_shader_compile.h"
 
-#include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
-
 #include <thread>
 
 #include "gpu/command_buffer/client/gles2_interface.h"

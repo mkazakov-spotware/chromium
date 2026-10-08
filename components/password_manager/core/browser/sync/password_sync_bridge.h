@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 #define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_SYNC_PASSWORD_SYNC_BRIDGE_H_
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "components/password_manager/core/browser/password_store_change.h"
 #include "components/password_manager/core/browser/password_store_sync.h"
-#include "components/sync/model/metadata_batch.h"
 #include "components/sync/model/model_type_sync_bridge.h"
 
 namespace syncer {
@@ -28,7 +27,7 @@ class PasswordStoreSync;
 // This is achieved by implementing the interface ModelTypeSyncBridge, which
 // ClientTagBasedModelTypeProcessor will use to interact, ultimately, with the
 // sync server. See
-// https://www.chromium.org/developers/design-documents/sync/model-api/#implementing-modeltypesyncbridge
+// https://chromium.googlesource.com/chromium/src/+/HEAD/docs/sync/model_api.md#Implementing-ModelTypeSyncBridge
 // for details.
 class PasswordSyncBridge : public syncer::ModelTypeSyncBridge {
  public:
@@ -37,10 +36,6 @@ class PasswordSyncBridge : public syncer::ModelTypeSyncBridge {
       std::unique_ptr<syncer::ModelTypeChangeProcessor> change_processor,
       PasswordStoreSync* password_store_sync,
       const base::RepeatingClosure& sync_enabled_or_disabled_cb);
-
-  PasswordSyncBridge(const PasswordSyncBridge&) = delete;
-  PasswordSyncBridge& operator=(const PasswordSyncBridge&) = delete;
-
   ~PasswordSyncBridge() override;
 
   // Notifies the bridge of changes to the password database. Callers are
@@ -51,10 +46,10 @@ class PasswordSyncBridge : public syncer::ModelTypeSyncBridge {
   // ModelTypeSyncBridge implementation.
   std::unique_ptr<syncer::MetadataChangeList> CreateMetadataChangeList()
       override;
-  absl::optional<syncer::ModelError> MergeSyncData(
+  base::Optional<syncer::ModelError> MergeSyncData(
       std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
       syncer::EntityChangeList entity_data) override;
-  absl::optional<syncer::ModelError> ApplySyncChanges(
+  base::Optional<syncer::ModelError> ApplySyncChanges(
       std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
       syncer::EntityChangeList entity_changes) override;
   void GetData(StorageKeyList storage_keys, DataCallback callback) override;
@@ -64,35 +59,23 @@ class PasswordSyncBridge : public syncer::ModelTypeSyncBridge {
   bool SupportsGetStorageKey() const override;
   void ApplyStopSyncChanges(std::unique_ptr<syncer::MetadataChangeList>
                                 delete_metadata_change_list) override;
-  sync_pb::EntitySpecifics TrimRemoteSpecificsForCaching(
-      const sync_pb::EntitySpecifics& entity_specifics) const override;
 
   static std::string ComputeClientTagForTesting(
       const sync_pb::PasswordSpecificsData& password_data);
 
  private:
-  // On MacOS or Linux it may happen that some passwords cannot be decrypted due
-  // to modification of encryption key in Keychain or Keyring
-  // (https://crbug.com/730625). This method deletes those logins from the
-  // store. So during merge, the data in sync will be added to the password
-  // store. This should be called during MergeSyncData().
-  absl::optional<syncer::ModelError> CleanupPasswordStore();
+  // On MacOS it may happen that some passwords cannot be decrypted due to
+  // modification of encryption key in Keychain (https://crbug.com/730625). This
+  // method deletes those logins from the store. So during merge, the data in
+  // sync will be added to the password store. This should be called during
+  // MergeSyncData().
+  base::Optional<syncer::ModelError> CleanupPasswordStore();
 
   // Retrieves the storage keys of all unsynced passwords in the store.
-  std::set<FormPrimaryKey> GetUnsyncedPasswordsStorageKeys();
-
-  // If available, returns cached possibly trimmed PasswordSpecificsData for
-  // given |storage_key|. By default, empty PasswordSpecificsData is returned.
-  const sync_pb::PasswordSpecificsData& GetPossiblyTrimmedPasswordSpecificsData(
-      const std::string& storage_key);
-
-  // Checks whether any password entity on `metadata_map` persists specifics
-  // fields in cache that are supported in the current browser version.
-  bool SyncMetadataCacheContainsSupportedFields(
-      const syncer::EntityMetadataMap& metadata_map) const;
+  std::set<int> GetUnsyncedPasswordsStorageKeys();
 
   // Password store responsible for persistence.
-  const raw_ptr<PasswordStoreSync> password_store_sync_;
+  PasswordStoreSync* const password_store_sync_;
 
   base::RepeatingClosure sync_enabled_or_disabled_cb_;
 
@@ -101,6 +84,8 @@ class PasswordSyncBridge : public syncer::ModelTypeSyncBridge {
   bool is_processing_remote_sync_changes_ = false;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(PasswordSyncBridge);
 };
 
 }  // namespace password_manager

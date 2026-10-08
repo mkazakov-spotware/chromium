@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 namespace safe_browsing {
 namespace switches {
 
-extern const char kSbManualDownloadBlocklist[];
+extern const char kSbManualDownloadBlacklist[];
 extern const char kSbEnableEnhancedProtection[];
 
 }  // namespace switches

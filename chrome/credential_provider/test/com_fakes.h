@@ -1,20 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_TEST_COM_FAKES_H_
 #define CHROME_CREDENTIAL_PROVIDER_TEST_COM_FAKES_H_
 
-#include "base/win/atl.h"
-
 #include <atlcomcli.h>
 #include <credentialprovider.h>
 #include <propkey.h>
 
-#include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "chrome/credential_provider/gaiacp/gaia_credential_provider.h"
 #include "chrome/credential_provider/gaiacp/gaia_credential_provider_i.h"
 #include "chrome/credential_provider/test/test_credential_provider.h"
@@ -47,8 +44,8 @@ class FakeCredentialProviderUser : public ICredentialProviderUser {
   HRESULT STDMETHODCALLTYPE GetValue(REFPROPERTYKEY key,
                                      PROPVARIANT* value) override;
 
-  std::wstring sid_;
-  std::wstring username_;
+  base::string16 sid_;
+  base::string16 username_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -151,7 +148,7 @@ class FakeCredentialProviderCredentialEvents
                      std::unordered_map<DWORD, CREDENTIAL_PROVIDER_FIELD_STATE>>
       field_states_;
   std::unordered_map<ICredentialProviderCredential*,
-                     std::unordered_map<DWORD, std::wstring>>
+                     std::unordered_map<DWORD, base::string16>>
       field_string_;
 };
 

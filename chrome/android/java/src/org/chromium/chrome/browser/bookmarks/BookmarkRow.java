@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,8 @@ import androidx.appcompat.content.res.AppCompatResources;
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.bookmarks.BookmarkAddEditFolderActivity;
-import org.chromium.chrome.browser.app.bookmarks.BookmarkFolderSelectActivity;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
 import org.chromium.components.bookmarks.BookmarkId;
-import org.chromium.components.bookmarks.BookmarkItem;
 import org.chromium.components.bookmarks.BookmarkType;
 import org.chromium.components.browser_ui.widget.listmenu.BasicListMenu;
 import org.chromium.components.browser_ui.widget.listmenu.ListMenu;
@@ -31,7 +29,6 @@ import org.chromium.components.browser_ui.widget.listmenu.ListMenuButton.PopupMe
 import org.chromium.components.browser_ui.widget.listmenu.ListMenuButtonDelegate;
 import org.chromium.components.browser_ui.widget.listmenu.ListMenuItemProperties;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectableItemView;
-import org.chromium.components.browser_ui.widget.selectable_list.SelectableListUtils;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 
 import java.lang.annotation.Retention;
@@ -51,7 +48,6 @@ public abstract class BookmarkRow
     private PopupMenuShownListener mPopupListener;
     @Location
     private int mLocation;
-    private boolean mFromFilterView;
 
     @IntDef({Location.TOP, Location.MIDDLE, Location.BOTTOM, Location.SOLO})
     @Retention(RetentionPolicy.SOURCE)
@@ -67,12 +63,6 @@ public abstract class BookmarkRow
      */
     public BookmarkRow(Context context, AttributeSet attrs) {
         super(context, attrs);
-        if (BookmarkFeatures.isBookmarksVisualRefreshEnabled()) {
-            enableVisualRefresh(getResources().getDimensionPixelSize(
-                    BookmarkFeatures.isCompactBookmarksVisualRefreshEnabled()
-                            ? R.dimen.list_item_v2_start_icon_width_compact
-                            : R.dimen.list_item_v2_start_icon_width));
-        }
     }
 
     /**
@@ -81,20 +71,14 @@ public abstract class BookmarkRow
      *
      * @param bookmarkId The BookmarkId that this BookmarkRow now contains.
      * @param location   The location of this BookmarkRow.
-     * @param fromFilterView The Bookmark is being displayed in a filter view, determines if the row
-     *         is selectable.
      * @return The BookmarkItem corresponding to BookmarkId.
      */
-    BookmarkItem setBookmarkId(
-            BookmarkId bookmarkId, @Location int location, boolean fromFilterView) {
+    BookmarkItem setBookmarkId(BookmarkId bookmarkId, @Location int location) {
         mLocation = location;
         mBookmarkId = bookmarkId;
-        mFromFilterView = fromFilterView;
         BookmarkItem bookmarkItem = mDelegate.getModel().getBookmarkById(bookmarkId);
         mMoreIcon.dismiss();
-        SelectableListUtils.setContentDescriptionContext(getContext(), mMoreIcon,
-                bookmarkItem.getTitle(), SelectableListUtils.ContentDescriptionSource.MENU_BUTTON);
-
+        mMoreIcon.setContentDescriptionContext(bookmarkItem.getTitle());
         setChecked(isItemSelected());
         updateVisualState();
 
@@ -124,16 +108,12 @@ public abstract class BookmarkRow
         mMoreIcon.setVisibility(GONE);
 
         if (mDelegate.getDragStateDelegate().getDragActive()) {
-            mDragHandle.setVisibility(
-                    bookmarkItem.isReorderable() && !mFromFilterView ? VISIBLE : GONE);
+            mDragHandle.setVisibility(bookmarkItem.isMovable() ? VISIBLE : GONE);
             mDragHandle.setEnabled(isItemSelected());
         } else {
             mMoreIcon.setVisibility(bookmarkItem.isEditable() ? VISIBLE : GONE);
             mMoreIcon.setClickable(!isSelectionModeActive());
             mMoreIcon.setEnabled(mMoreIcon.isClickable());
-            mMoreIcon.setImportantForAccessibility(mMoreIcon.isClickable()
-                            ? IMPORTANT_FOR_ACCESSIBILITY_YES
-                            : IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
     }
 
@@ -162,32 +142,19 @@ public abstract class BookmarkRow
 
     private ModelList getItems() {
         // Rebuild listItems, cause mLocation may be changed anytime.
-        boolean canReorder = false;
         boolean canMove = false;
         BookmarkItem bookmarkItem = null;
         if (mDelegate != null && mDelegate.getModel() != null) {
             bookmarkItem = mDelegate.getModel().getBookmarkById(mBookmarkId);
-            if (bookmarkItem != null) {
-                // Reading list items can sometimes be movable (for type swapping purposes), but for
-                // UI purposes they shouldn't be movable.
-                canMove = BookmarkUtils.isMovable(bookmarkItem);
-                canReorder = bookmarkItem.isReorderable() && !mFromFilterView;
-            }
+            if (bookmarkItem != null) canMove = bookmarkItem.isMovable();
         }
         ModelList listItems = new ModelList();
         if (mBookmarkId.getType() == BookmarkType.READING_LIST) {
-            if (bookmarkItem != null) {
-                listItems.add(buildMenuListItem(bookmarkItem.isRead()
-                                ? R.string.reading_list_mark_as_unread
-                                : R.string.reading_list_mark_as_read,
-                        0, 0));
+            if (bookmarkItem != null && !bookmarkItem.isRead()) {
+                listItems.add(buildMenuListItem(R.string.reading_list_mark_as_read, 0, 0));
             }
             listItems.add(buildMenuListItem(R.string.bookmark_item_select, 0, 0));
             listItems.add(buildMenuListItem(R.string.bookmark_item_delete, 0, 0));
-            if (ReadingListFeatures.shouldAllowBookmarkTypeSwapping()) {
-                listItems.add(buildMenuListItem(R.string.bookmark_item_edit, 0, 0));
-                listItems.add(buildMenuListItem(R.string.bookmark_item_move, 0, 0));
-            }
         } else {
             listItems.add(buildMenuListItem(R.string.bookmark_item_select, 0, 0));
             listItems.add(buildMenuListItem(R.string.bookmark_item_edit, 0, 0));
@@ -198,7 +165,7 @@ public abstract class BookmarkRow
         if (mDelegate.getCurrentState() == BookmarkUIState.STATE_SEARCHING) {
             listItems.add(buildMenuListItem(R.string.bookmark_show_in_folder, 0, 0));
         } else if (mDelegate.getCurrentState() == BookmarkUIState.STATE_FOLDER
-                && mLocation != Location.SOLO && canReorder) {
+                && mLocation != Location.SOLO && canMove) {
             // Only add move up / move down buttons if there is more than 1 item
             if (mLocation != Location.TOP) {
                 listItems.add(buildMenuListItem(R.string.menu_item_move_up, 0, 0));
@@ -232,13 +199,8 @@ public abstract class BookmarkRow
             } else if (textId == R.string.reading_list_mark_as_read) {
                 BookmarkItem bookmarkItem = mDelegate.getModel().getBookmarkById(mBookmarkId);
                 mDelegate.getModel().setReadStatusForReadingList(
-                        bookmarkItem.getUrl(), /*read=*/true);
+                        bookmarkItem.getUrl(), true /*read*/);
                 RecordUserAction.record("Android.BookmarkPage.ReadingList.MarkAsRead");
-            } else if (textId == R.string.reading_list_mark_as_unread) {
-                BookmarkItem bookmarkItem = mDelegate.getModel().getBookmarkById(mBookmarkId);
-                mDelegate.getModel().setReadStatusForReadingList(
-                        bookmarkItem.getUrl(), /*read=*/false);
-                RecordUserAction.record("Android.BookmarkPage.ReadingList.MarkAsUnread");
             } else if (textId == R.string.bookmark_item_move) {
                 BookmarkFolderSelectActivity.startFolderSelectActivity(getContext(), mBookmarkId);
                 RecordUserAction.record("MobileBookmarkManagerMoveToFolder");
@@ -330,7 +292,8 @@ public abstract class BookmarkRow
         mDragHandle.setOnTouchListener(l);
     }
 
-    public String getTitle() {
+    @VisibleForTesting
+    String getTitle() {
         return String.valueOf(mTitleView.getText());
     }
 
@@ -359,7 +322,7 @@ public abstract class BookmarkRow
     }
 
     @VisibleForTesting
-    public View getDragHandleViewForTests() {
+    View getDragHandleViewForTests() {
         return mDragHandle;
     }
 }

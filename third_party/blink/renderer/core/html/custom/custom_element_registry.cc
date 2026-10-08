@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,10 +25,12 @@
 #include "third_party/blink/renderer/core/html/custom/custom_element_descriptor.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element_reaction_stack.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element_upgrade_sorter.h"
+#include "third_party/blink/renderer/core/html/custom/v0_custom_element_registration_context.h"
 #include "third_party/blink/renderer/core/html_element_type_helpers.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
 
@@ -73,25 +75,25 @@ bool ThrowIfValidName(const AtomicString& name,
 
 }  // namespace
 
-// static
-CustomElementRegistry* CustomElementRegistry::Create(
-    ScriptState* script_state) {
-  DCHECK(RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled());
-  return MakeGarbageCollected<CustomElementRegistry>(
-      LocalDOMWindow::From(script_state));
-}
-
 CustomElementRegistry::CustomElementRegistry(const LocalDOMWindow* owner)
     : element_definition_is_running_(false),
       owner_(owner),
-      upgrade_candidates_(MakeGarbageCollected<UpgradeCandidateMap>()) {}
+      v0_(MakeGarbageCollected<V0RegistrySet>()),
+      upgrade_candidates_(MakeGarbageCollected<UpgradeCandidateMap>()),
+      reaction_stack_(&CustomElementReactionStack::Current()) {
+  Document* document = owner->document();
+  if (V0CustomElementRegistrationContext* v0 =
+          document ? document->RegistrationContext() : nullptr)
+    Entangle(v0);
+}
 
 void CustomElementRegistry::Trace(Visitor* visitor) const {
-  visitor->Trace(constructor_map_);
-  visitor->Trace(name_map_);
+  visitor->Trace(definitions_);
   visitor->Trace(owner_);
+  visitor->Trace(v0_);
   visitor->Trace(upgrade_candidates_);
   visitor->Trace(when_defined_promise_map_);
+  visitor->Trace(reaction_stack_);
   ScriptWrappable::Trace(visitor);
 }
 
@@ -106,7 +108,7 @@ CustomElementDefinition* CustomElementRegistry::define(
   return DefineInternal(script_state, name, builder, options, exception_state);
 }
 
-// https://html.spec.whatwg.org/C/#element-definition
+// http://w3c.github.io/webcomponents/spec/custom/#dfn-element-definition
 CustomElementDefinition* CustomElementRegistry::DefineInternal(
     ScriptState* script_state,
     const AtomicString& name,
@@ -122,7 +124,7 @@ CustomElementDefinition* CustomElementRegistry::DefineInternal(
   if (ThrowIfInvalidName(name, allow_embedder_names, exception_state))
     return nullptr;
 
-  if (NameIsDefined(name)) {
+  if (NameIsDefined(name) || V0NameIsDefined(name)) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotSupportedError,
         "the name \"" + name + "\" has already been used with this registry");
@@ -148,7 +150,7 @@ CustomElementDefinition* CustomElementRegistry::DefineInternal(
     if (ThrowIfValidName(AtomicString(options->extends()), exception_state))
       return nullptr;
     // 7.2. If element interface is undefined element, throw exception
-    if (HtmlElementTypeForTag(extends, owner_->document()) ==
+    if (htmlElementTypeForTag(extends, owner_->document()) ==
         HTMLElementType::kHTMLUnknownElement) {
       exception_state.ThrowDOMException(
           DOMExceptionCode::kNotSupportedError,
@@ -196,18 +198,19 @@ CustomElementDefinition* CustomElementRegistry::DefineInternal(
   }
 
   CustomElementDescriptor descriptor(name, local_name);
-  CustomElementDefinition* definition = builder.Build(descriptor);
+  if (UNLIKELY(definitions_.size() >=
+               std::numeric_limits<CustomElementDefinition::Id>::max()))
+    return nullptr;
+  CustomElementDefinition::Id id = definitions_.size() + 1;
+  CustomElementDefinition* definition = builder.Build(descriptor, id);
   CHECK(!exception_state.HadException());
   CHECK(definition->Descriptor() == descriptor);
-
-  auto name_add_result = name_map_.insert(descriptor.GetName(), definition);
-  // This CHECK follows from the NameIsDefined call above.
-  CHECK(name_add_result.is_new_entry);
-
-  auto constructor_add_result =
-      constructor_map_.insert(builder.Constructor(), definition);
-  // This CHECK follows from the CheckConstructorNotRegistered call above.
-  CHECK(constructor_add_result.is_new_entry);
+  if (RuntimeEnabledFeatures::CustomElementDefaultStyleEnabled() &&
+      options->hasStyles())
+    definition->SetDefaultStyleSheets(options->styles());
+  definitions_.emplace_back(definition);
+  NameIdMap::AddResult result = name_id_map_.insert(descriptor.GetName(), id);
+  CHECK(result.is_new_entry);
 
   if (definition->IsFormAssociated()) {
     if (Document* document = owner_->document())
@@ -222,11 +225,8 @@ CustomElementDefinition* CustomElementRegistry::DefineInternal(
   // 16: when-defined promise processing
   const auto& entry = when_defined_promise_map_.find(name);
   if (entry != when_defined_promise_map_.end()) {
-    ScriptPromiseResolver* resolver = entry->value;
+    entry->value->Resolve();
     when_defined_promise_map_.erase(entry);
-    // Resolve() may run synchronous JavaScript that invalidates iterators of
-    // |when_defined_promise_map_|, so it must be called after erasing |entry|.
-    resolver->Resolve(definition->GetConstructorForScript());
   }
 
   return definition;
@@ -262,41 +262,30 @@ CustomElementDefinition* CustomElementRegistry::DefinitionFor(
 }
 
 bool CustomElementRegistry::NameIsDefined(const AtomicString& name) const {
-  return name_map_.Contains(name);
+  return name_id_map_.Contains(name);
+}
+
+void CustomElementRegistry::Entangle(V0CustomElementRegistrationContext* v0) {
+  v0_->insert(v0);
+  v0->SetV1(this);
+}
+
+bool CustomElementRegistry::V0NameIsDefined(const AtomicString& name) {
+  for (const auto& v0 : *v0_) {
+    if (v0->NameIsDefined(name))
+      return true;
+  }
+  return false;
 }
 
 CustomElementDefinition* CustomElementRegistry::DefinitionForName(
     const AtomicString& name) const {
-  const auto it = name_map_.find(name);
-  if (it == name_map_.end())
-    return nullptr;
-  return it->value;
+  return DefinitionForId(name_id_map_.at(name));
 }
 
-CustomElementDefinition* CustomElementRegistry::DefinitionForConstructor(
-    V8CustomElementConstructor* constructor) const {
-  const auto it = constructor_map_.find(constructor);
-  if (it == constructor_map_.end())
-    return nullptr;
-  return it->value;
-}
-
-CustomElementDefinition* CustomElementRegistry::DefinitionForConstructor(
-    v8::Local<v8::Object> constructor) const {
-  struct HashTranslator {
-    STATIC_ONLY(HashTranslator);
-    static unsigned GetHash(const v8::Local<v8::Object>& constructor) {
-      return constructor->GetIdentityHash();
-    }
-    static bool Equal(const Member<V8CustomElementConstructor>& a,
-                      const v8::Local<v8::Object>& b) {
-      return a && a->CallbackObject() == b;
-    }
-  };
-  const auto it = constructor_map_.Find<HashTranslator>(constructor);
-  if (it == constructor_map_.end())
-    return nullptr;
-  return it->value;
+CustomElementDefinition* CustomElementRegistry::DefinitionForId(
+    CustomElementDefinition::Id id) const {
+  return id ? definitions_[id - 1].Get() : nullptr;
 }
 
 void CustomElementRegistry::AddCandidate(Element& candidate) {
@@ -306,7 +295,7 @@ void CustomElementRegistry::AddCandidate(Element& candidate) {
     if (!is.IsNull())
       name = is;
   }
-  if (NameIsDefined(name))
+  if (NameIsDefined(name) || V0NameIsDefined(name))
     return;
   UpgradeCandidateMap::iterator it = upgrade_candidates_->find(name);
   UpgradeCandidateSet* set;
@@ -328,13 +317,11 @@ ScriptPromise CustomElementRegistry::whenDefined(
   if (ThrowIfInvalidName(name, false, exception_state))
     return ScriptPromise();
   CustomElementDefinition* definition = DefinitionForName(name);
-  if (definition) {
-    return ScriptPromise::Cast(script_state,
-                               definition->GetConstructorForScript());
-  }
-  const auto it = when_defined_promise_map_.find(name);
-  if (it != when_defined_promise_map_.end())
-    return it->value->Promise();
+  if (definition)
+    return ScriptPromise::CastUndefined(script_state);
+  ScriptPromiseResolver* resolver = when_defined_promise_map_.at(name);
+  if (resolver)
+    return resolver->Promise();
   auto* new_resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   when_defined_promise_map_.insert(name, new_resolver);

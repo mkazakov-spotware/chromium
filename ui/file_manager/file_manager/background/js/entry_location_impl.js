@@ -1,11 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {util} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {EntryLocation} from '../../externs/entry_location.js';
-import {VolumeInfo} from '../../externs/volume_info.js';
+// clang-format off
+// #import * as wrappedVolumeManagerCommon from '../../../base/js/volume_manager_types.m.js'; const {VolumeManagerCommon} = wrappedVolumeManagerCommon;
+// #import * as wrappedUtil from '../../common/js/util.m.js'; const {util} = wrappedUtil;
+// #import {EntryLocation} from '../../../externs/entry_location.m.js';
+// #import {VolumeInfo} from '../../../externs/volume_info.m.js';
+// clang-format on
 
 /**
  * Location information which shows where the path points in FileManager's
@@ -13,7 +15,7 @@ import {VolumeInfo} from '../../externs/volume_info.js';
  *
  * @implements {EntryLocation}
  */
-export class EntryLocationImpl {
+/* #export */ class EntryLocationImpl {
   /**
    * @param {VolumeInfo} volumeInfo Volume information.
    * @param {VolumeManagerCommon.RootType} rootType Root type.
@@ -39,6 +41,7 @@ export class EntryLocationImpl {
 
     /** @override */
     this.isDriveBased = this.rootType === VolumeManagerCommon.RootType.DRIVE ||
+        this.rootType === VolumeManagerCommon.RootType.DRIVE_OTHER ||
         this.rootType === VolumeManagerCommon.RootType.DRIVE_SHARED_WITH_ME ||
         this.rootType === VolumeManagerCommon.RootType.DRIVE_RECENT ||
         this.rootType === VolumeManagerCommon.RootType.DRIVE_OFFLINE ||
@@ -55,9 +58,7 @@ export class EntryLocationImpl {
     this.hasFixedLabel = this.isRootEntry &&
         (rootType !== VolumeManagerCommon.RootType.SHARED_DRIVE &&
          rootType !== VolumeManagerCommon.RootType.COMPUTER &&
-         rootType !== VolumeManagerCommon.RootType.REMOVABLE &&
-         rootType !== VolumeManagerCommon.RootType.TRASH &&
-         rootType !== VolumeManagerCommon.RootType.GUEST_OS);
+         rootType !== VolumeManagerCommon.RootType.REMOVABLE);
     Object.freeze(this);
   }
 }

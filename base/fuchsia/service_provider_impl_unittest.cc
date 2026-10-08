@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
+namespace fuchsia {
 
 class ServiceProviderImplTest : public testing::Test {
  public:
@@ -25,9 +26,6 @@ class ServiceProviderImplTest : public testing::Test {
         ServiceProviderImpl::CreateForOutgoingDirectory(&service_directory_);
     provider_impl_->AddBinding(provider_client_.NewRequest());
   }
-
-  ServiceProviderImplTest(const ServiceProviderImplTest&) = delete;
-  ServiceProviderImplTest& operator=(const ServiceProviderImplTest&) = delete;
 
   ~ServiceProviderImplTest() override = default;
 
@@ -64,6 +62,8 @@ class ServiceProviderImplTest : public testing::Test {
   sys::OutgoingDirectory service_directory_;
   std::unique_ptr<ServiceProviderImpl> provider_impl_;
   ::fuchsia::sys::ServiceProviderPtr provider_client_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceProviderImplTest);
 };
 
 // Verifies that we can connect to the service more than once.
@@ -92,4 +92,5 @@ TEST_F(ServiceProviderImplTest, NoService) {
   VerifyTestInterface(&stub, ZX_ERR_PEER_CLOSED);
 }
 
+}  // namespace fuchsia
 }  // namespace base

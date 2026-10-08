@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tabmodel;
 
 import android.app.Activity;
-import android.util.Pair;
 
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
@@ -14,7 +13,7 @@ import org.chromium.ui.base.WindowAndroid;
 /**
  * Manages multiple {@link TabModelSelector} instances, each owned by different {@link Activity}s.
  *
- * Each of the 0 ~ |max-1| {@link WindowAndroid} contains 1 {@link Activity},
+ * Each of the 0-3 {@link WindowAndroid} contains 1 {@link Activity},
  * which contains 1 {@link TabModelSelector}, which contains 2 {@link TabModel}s,
  * each of which contains n {@link Tab}s.
  *
@@ -23,17 +22,8 @@ import org.chromium.ui.base.WindowAndroid;
  * This is the highest level of the hierarchy of Tab containers.
  */
 public interface TabWindowManager {
-    // Maximum number of TabModelSelectors since Android N that supports split screen.
-    public static final int MAX_SELECTORS_LEGACY = 3;
-
-    // Maximum number of TabModelSelectors since Android S that supports multiple instances of
-    // ChromeTabbedActivity.
-    public static final int MAX_SELECTORS_S = 5;
-
-    /**
-     * @return The maximum number of simultaneous TabModelSelector instances in this Application.
-     */
-    int getMaxSimultaneousSelectors();
+    /** The maximum number of simultaneous TabModelSelector instances in this Application. */
+    int MAX_SIMULTANEOUS_SELECTORS = 3;
 
     /**
      * Called to request a {@link TabModelSelector} based on {@code index}. Note that the
@@ -44,13 +34,11 @@ public interface TabWindowManager {
      * @param nextTabPolicySupplier An instance of {@link NextTabPolicySupplier}.
      * @param index The index of the requested {@link TabModelSelector}. Not guaranteed to be the
      *              index of the {@link TabModelSelector} returned.
-     * @return {@link Pair} of the index and the {@link TabModelSelector} assigned to that index, or
-     *         {@code null} if there are too many
+     * @return A {@link TabModelSelector} index, or {@code null} if there are too many
      *         {@link TabModelSelector}s already built.
      */
-    Pair<Integer, TabModelSelector> requestSelector(Activity activity,
-            TabCreatorManager tabCreatorManager, NextTabPolicySupplier nextTabPolicySupplier,
-            int index);
+    TabModelSelector requestSelector(Activity activity, TabCreatorManager tabCreatorManager,
+            NextTabPolicySupplier nextTabPolicySupplier, int index);
 
     /**
      * An index that represents the invalid state (i.e. when the window wasn't found in the list).
@@ -88,11 +76,4 @@ public interface TabWindowManager {
      * @return Specified {@link Tab} or {@code null} if the {@link Tab} is not found.
      */
     Tab getTabById(int tabId);
-
-    /**
-     * Finds the {@link TabModelSelector} bound to an Activity instance of a given index.
-     * @param index The index of {@link TabModelSelector} to get.
-     * @return Specified {@link TabModelSelector} or {@code null} if not found.
-     */
-    TabModelSelector getTabModelSelectorById(int index);
 }

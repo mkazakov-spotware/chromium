@@ -1,24 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/apps/platform_apps/extension_app_shim_manager_delegate_mac.h"
 
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "apps/launcher.h"
-#include "base/containers/adapters.h"
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/browser_app_launcher.h"
 #include "chrome/browser/apps/app_shim/app_shim_termination_manager.h"
 #include "chrome/browser/apps/platform_apps/app_window_registry_util.h"
-#include "chrome/browser/apps/platform_apps/platform_app_launch.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/launch_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -27,8 +19,9 @@
 #include "chrome/browser/ui/extensions/app_launch_params.h"
 #include "chrome/browser/ui/extensions/extension_enable_flow.h"
 #include "chrome/browser/ui/extensions/extension_enable_flow_delegate.h"
+#include "chrome/browser/web_applications/components/web_app_shortcut_mac.h"
 #include "chrome/browser/web_applications/extensions/web_app_extension_shortcut.h"
-#include "chrome/browser/web_applications/os_integration/web_app_shortcut_mac.h"
+#include "chrome/browser/web_applications/extensions/web_app_extension_shortcut_mac.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/extensions/extension_metrics.h"
 #include "chrome/common/extensions/manifest_handlers/app_launch_info.h"
@@ -62,12 +55,9 @@ class EnableViaPrompt : public ExtensionEnableFlowDelegate {
       : profile_(profile),
         extension_id_(extension_id),
         callback_(std::move(callback)) {}
-  EnableViaPrompt(const EnableViaPrompt&) = delete;
-  EnableViaPrompt& operator=(const EnableViaPrompt&) = delete;
 
   void Run() {
-    flow_ =
-        std::make_unique<ExtensionEnableFlow>(profile_, extension_id_, this);
+    flow_.reset(new ExtensionEnableFlow(profile_, extension_id_, this));
     flow_->Start();
   }
 
@@ -78,10 +68,12 @@ class EnableViaPrompt : public ExtensionEnableFlowDelegate {
   void ExtensionEnableFlowFinished() override { delete this; }
   void ExtensionEnableFlowAborted(bool user_initiated) override { delete this; }
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   std::string extension_id_;
   base::OnceCallback<void()> callback_;
   std::unique_ptr<ExtensionEnableFlow> flow_;
+
+  DISALLOW_COPY_AND_ASSIGN(EnableViaPrompt);
 };
 
 const Extension* MaybeGetAppExtension(content::BrowserContext* context,
@@ -108,9 +100,9 @@ bool ExtensionAppShimManagerDelegate::ShowAppWindows(
     const web_app::AppId& app_id) {
   AppWindowList windows =
       AppWindowRegistry::Get(profile)->GetAppWindowsForApp(app_id);
-  for (extensions::AppWindow* window : base::Reversed(windows)) {
-    if (window)
-      window->GetBaseWindow()->Show();
+  for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
+    if (*it)
+      (*it)->GetBaseWindow()->Show();
   }
   return !windows.empty();
 }
@@ -152,7 +144,10 @@ bool ExtensionAppShimManagerDelegate::AppCanCreateHost(
 bool ExtensionAppShimManagerDelegate::AppIsMultiProfile(
     Profile* profile,
     const web_app::AppId& app_id) {
-  return false;
+  const Extension* extension = MaybeGetAppExtension(profile, app_id);
+  if (!profile || !extension)
+    return false;
+  return extension->from_bookmark();
 }
 
 bool ExtensionAppShimManagerDelegate::AppUsesRemoteCocoa(
@@ -164,10 +159,12 @@ bool ExtensionAppShimManagerDelegate::AppUsesRemoteCocoa(
   if (!extension->is_hosted_app())
     return false;
 
+  // The Gmail, Google Drive, and YouTube apps behave like bookmark apps.
   // https://crbug.com/1086824
-  return extension->id() == extension_misc::kYoutubeAppId ||
+  return extension->from_bookmark() ||
+         extension->id() == extension_misc::kYoutubeAppId ||
          extension->id() == extension_misc::kGoogleDriveAppId ||
-         extension->id() == extension_misc::kGmailAppId;
+         extension->id() == extension_misc::kGMailAppId;
 }
 
 void ExtensionAppShimManagerDelegate::EnableExtension(
@@ -184,26 +181,19 @@ void ExtensionAppShimManagerDelegate::EnableExtension(
 void ExtensionAppShimManagerDelegate::LaunchApp(
     Profile* profile,
     const web_app::AppId& app_id,
-    const std::vector<base::FilePath>& files,
-    const std::vector<GURL>& urls,
-    const GURL& override_url,
-    chrome::mojom::AppShimLoginItemRestoreState login_item_restore_state) {
+    const std::vector<base::FilePath>& files) {
   const Extension* extension = MaybeGetAppExtension(profile, app_id);
   DCHECK(extension);
   extensions::RecordAppLaunchType(extension_misc::APP_LAUNCH_CMD_LINE_APP,
                                   extension->GetType());
-
-  if (apps::OpenDeprecatedApplicationPrompt(profile, app_id))
-    return;
-
   if (extension->is_hosted_app()) {
     auto params = CreateAppLaunchParamsUserContainer(
         profile, extension, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-        apps::LaunchSource::kFromCommandLine);
+        apps::mojom::AppLaunchSource::kSourceCommandLine);
     params.launch_files = files;
     apps::AppServiceProxyFactory::GetForProfile(profile)
         ->BrowserAppLauncher()
-        ->LaunchAppWithParams(std::move(params), base::DoNothing());
+        ->LaunchAppWithParams(std::move(params));
     return;
   }
   if (files.empty()) {
@@ -247,13 +237,6 @@ void ExtensionAppShimManagerDelegate::LaunchShim(
 
 bool ExtensionAppShimManagerDelegate::HasNonBookmarkAppWindowsOpen() {
   return AppWindowRegistryUtil::IsAppWindowVisibleInAnyProfile(0);
-}
-
-std::vector<chrome::mojom::ApplicationDockMenuItemPtr>
-ExtensionAppShimManagerDelegate::GetAppShortcutsMenuItemInfos(
-    Profile* profile,
-    const web_app::AppId& app_id) {
-  return std::vector<chrome::mojom::ApplicationDockMenuItemPtr>();
 }
 
 }  // namespace apps

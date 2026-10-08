@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.customtabs;
 
-import android.app.Activity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
@@ -12,6 +11,7 @@ import android.view.ViewStub;
 import androidx.annotation.Nullable;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 
 import javax.inject.Inject;
@@ -21,7 +21,7 @@ import javax.inject.Inject;
  */
 @ActivityScope
 public class CustomTabTopBarDelegate {
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private ViewGroup mTopBarView;
     @Nullable
     private View mTopBarContentView;
@@ -29,7 +29,7 @@ public class CustomTabTopBarDelegate {
     private Integer mTopBarHeight;
 
     @Inject
-    public CustomTabTopBarDelegate(Activity activity) {
+    public CustomTabTopBarDelegate(ChromeActivity<?> activity) {
         mActivity = activity;
     }
 

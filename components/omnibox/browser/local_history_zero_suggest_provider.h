@@ -1,15 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OMNIBOX_BROWSER_LOCAL_HISTORY_ZERO_SUGGEST_PROVIDER_H_
 #define COMPONENTS_OMNIBOX_BROWSER_LOCAL_HISTORY_ZERO_SUGGEST_PROVIDER_H_
 
-#include <string>
-
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 
@@ -51,7 +48,7 @@ class LocalHistoryZeroSuggestProvider : public AutocompleteProvider {
   // Called when the query results from HistoryService::QueryHistory are ready.
   // Deletes URLs in |results| that would generate |suggestion|. |query_time| is
   // the time HistoryService was queried.
-  void OnHistoryQueryResults(const std::u16string& suggestion,
+  void OnHistoryQueryResults(const base::string16& suggestion,
                              const base::TimeTicks& query_time,
                              history::QueryResults results);
 
@@ -59,7 +56,10 @@ class LocalHistoryZeroSuggestProvider : public AutocompleteProvider {
   const size_t max_matches_;
 
   // Client for accessing TemplateUrlService, prefs, etc.
-  const raw_ptr<AutocompleteProviderClient> client_;
+  AutocompleteProviderClient* const client_;
+
+  // Listener to notify when matches are available.
+  AutocompleteProviderListener* const listener_;
 
   // Used for the async tasks querying the HistoryService.
   base::CancelableTaskTracker history_task_tracker_;

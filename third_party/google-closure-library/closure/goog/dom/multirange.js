@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Utilities for working with W3C multi-part ranges.
@@ -10,7 +18,7 @@
 
 
 
-// TODO(user): We're trying to migrate all ES5 subclasses of Closure
+// TODO(b/130421259): We're trying to migrate all ES5 subclasses of Closure
 // Library to ES6. In ES6 this cannot be referenced before super is called. This
 // file has at least one this before a super call (in ES5) and cannot be
 // automatically upgraded to ES6 as a result. Please fix this if you have a
@@ -27,7 +35,6 @@ goog.require('goog.dom.AbstractMultiRange');
 goog.require('goog.dom.AbstractRange');
 goog.require('goog.dom.RangeIterator');
 goog.require('goog.dom.RangeType');
-goog.require('goog.dom.SavedCaretRange');
 goog.require('goog.dom.SavedRange');
 goog.require('goog.dom.TextRange');
 goog.require('goog.iter');
@@ -44,7 +51,6 @@ goog.require('goog.log');
  * @final
  */
 goog.dom.MultiRange = function() {
-  'use strict';
   /**
    * Logging object.
    * @private {goog.log.Logger}
@@ -85,7 +91,6 @@ goog.inherits(goog.dom.MultiRange, goog.dom.AbstractMultiRange);
  * @return {!goog.dom.MultiRange} A range wrapper object.
  */
 goog.dom.MultiRange.createFromBrowserSelection = function(selection) {
-  'use strict';
   var range = new goog.dom.MultiRange();
   for (var i = 0, len = selection.rangeCount; i < len; i++) {
     range.browserRanges_.push(selection.getRangeAt(i));
@@ -101,7 +106,6 @@ goog.dom.MultiRange.createFromBrowserSelection = function(selection) {
  * @return {!goog.dom.MultiRange} A range wrapper object.
  */
 goog.dom.MultiRange.createFromBrowserRanges = function(browserRanges) {
-  'use strict';
   var range = new goog.dom.MultiRange();
   range.browserRanges_ = goog.array.clone(browserRanges);
   return range;
@@ -115,13 +119,10 @@ goog.dom.MultiRange.createFromBrowserRanges = function(browserRanges) {
  * @return {!goog.dom.MultiRange} A range wrapper object.
  */
 goog.dom.MultiRange.createFromTextRanges = function(textRanges) {
-  'use strict';
   var range = new goog.dom.MultiRange();
   range.ranges_ = textRanges;
-  range.browserRanges_ = textRanges.map(function(range) {
-    'use strict';
-    return range.getBrowserRangeObject();
-  });
+  range.browserRanges_ = goog.array.map(
+      textRanges, function(range) { return range.getBrowserRangeObject(); });
   return range;
 };
 
@@ -135,7 +136,6 @@ goog.dom.MultiRange.createFromTextRanges = function(textRanges) {
  * @private
  */
 goog.dom.MultiRange.prototype.clearCachedValues_ = function() {
-  'use strict';
   this.ranges_ = [];
   this.sortedRanges_ = null;
   this.container_ = null;
@@ -147,21 +147,18 @@ goog.dom.MultiRange.prototype.clearCachedValues_ = function() {
  * @override
  */
 goog.dom.MultiRange.prototype.clone = function() {
-  'use strict';
   return goog.dom.MultiRange.createFromBrowserRanges(this.browserRanges_);
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getType = function() {
-  'use strict';
   return goog.dom.RangeType.MULTI;
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getBrowserRangeObject = function() {
-  'use strict';
   // NOTE(robbyw): This method does not make sense for multi-ranges.
   if (this.browserRanges_.length > 1) {
     goog.log.warning(
@@ -174,7 +171,6 @@ goog.dom.MultiRange.prototype.getBrowserRangeObject = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.setBrowserRangeObject = function(nativeRange) {
-  'use strict';
   // TODO(robbyw): Look in to adding setBrowserSelectionObject.
   return false;
 };
@@ -182,14 +178,12 @@ goog.dom.MultiRange.prototype.setBrowserRangeObject = function(nativeRange) {
 
 /** @override */
 goog.dom.MultiRange.prototype.getTextRangeCount = function() {
-  'use strict';
   return this.browserRanges_.length;
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getTextRange = function(i) {
-  'use strict';
   if (!this.ranges_[i]) {
     this.ranges_[i] =
         goog.dom.TextRange.createFromBrowserRange(this.browserRanges_[i]);
@@ -200,7 +194,6 @@ goog.dom.MultiRange.prototype.getTextRange = function(i) {
 
 /** @override */
 goog.dom.MultiRange.prototype.getContainer = function() {
-  'use strict';
   if (!this.container_) {
     var nodes = [];
     for (var i = 0, len = this.getTextRangeCount(); i < len; i++) {
@@ -217,11 +210,9 @@ goog.dom.MultiRange.prototype.getContainer = function() {
  *     point.
  */
 goog.dom.MultiRange.prototype.getSortedRanges = function() {
-  'use strict';
   if (!this.sortedRanges_) {
     this.sortedRanges_ = this.getTextRanges();
     this.sortedRanges_.sort(function(a, b) {
-      'use strict';
       var aStartNode = a.getStartNode();
       var aStartOffset = a.getStartOffset();
       var bStartNode = b.getStartNode();
@@ -235,9 +226,10 @@ goog.dom.MultiRange.prototype.getSortedRanges = function() {
        * @suppress {missingRequire} Cannot depend on goog.dom.Range because
        *     it creates a circular dependency.
        */
-      const isReversed = goog.dom.Range.isReversed(
-          aStartNode, aStartOffset, bStartNode, bStartOffset);
-      return isReversed ? 1 : -1;
+      return goog.dom.Range.isReversed(
+                 aStartNode, aStartOffset, bStartNode, bStartOffset) ?
+          1 :
+          -1;
     });
   }
   return this.sortedRanges_;
@@ -246,21 +238,18 @@ goog.dom.MultiRange.prototype.getSortedRanges = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.getStartNode = function() {
-  'use strict';
   return this.getSortedRanges()[0].getStartNode();
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getStartOffset = function() {
-  'use strict';
   return this.getSortedRanges()[0].getStartOffset();
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getEndNode = function() {
-  'use strict';
   // NOTE(robbyw): This may return the wrong node if any subranges overlap.
   return goog.array.peek(this.getSortedRanges()).getEndNode();
 };
@@ -268,7 +257,6 @@ goog.dom.MultiRange.prototype.getEndNode = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.getEndOffset = function() {
-  'use strict';
   // NOTE(robbyw): This may return the wrong value if any subranges overlap.
   return goog.array.peek(this.getSortedRanges()).getEndOffset();
 };
@@ -276,9 +264,7 @@ goog.dom.MultiRange.prototype.getEndOffset = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.isRangeInDocument = function() {
-  'use strict';
-  return this.getTextRanges().every(function(range) {
-    'use strict';
+  return goog.array.every(this.getTextRanges(), function(range) {
     return range.isRangeInDocument();
   });
 };
@@ -286,7 +272,6 @@ goog.dom.MultiRange.prototype.isRangeInDocument = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.isCollapsed = function() {
-  'use strict';
   return this.browserRanges_.length == 0 ||
       this.browserRanges_.length == 1 && this.getTextRange(0).isCollapsed();
 };
@@ -294,39 +279,31 @@ goog.dom.MultiRange.prototype.isCollapsed = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.getText = function() {
-  'use strict';
-  return this.getTextRanges()
-      .map(function(range) {
-        'use strict';
-        return range.getText();
-      })
+  return goog.array
+      .map(this.getTextRanges(), function(range) { return range.getText(); })
       .join('');
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getHtmlFragment = function() {
-  'use strict';
   return this.getValidHtml();
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getValidHtml = function() {
-  'use strict';
   // NOTE(robbyw): This does not behave well if the sub-ranges overlap.
-  return this.getTextRanges()
-      .map(function(range) {
-        'use strict';
-        return range.getValidHtml();
-      })
+  return goog.array
+      .map(
+          this.getTextRanges(),
+          function(range) { return range.getValidHtml(); })
       .join('');
 };
 
 
 /** @override */
 goog.dom.MultiRange.prototype.getPastableHtml = function() {
-  'use strict';
   // TODO(robbyw): This should probably do something smart like group TR and TD
   // selections in to the same table.
   return this.getValidHtml();
@@ -335,7 +312,6 @@ goog.dom.MultiRange.prototype.getPastableHtml = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.__iterator__ = function(opt_keys) {
-  'use strict';
   return new goog.dom.MultiRangeIterator(this);
 };
 
@@ -345,7 +321,6 @@ goog.dom.MultiRange.prototype.__iterator__ = function(opt_keys) {
 
 /** @override */
 goog.dom.MultiRange.prototype.select = function() {
-  'use strict';
   var selection =
       goog.dom.AbstractRange.getBrowserSelectionForWindow(this.getWindow());
   selection.removeAllRanges();
@@ -357,11 +332,8 @@ goog.dom.MultiRange.prototype.select = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.removeContents = function() {
-  'use strict';
-  this.getTextRanges().forEach(function(range) {
-    'use strict';
-    range.removeContents();
-  });
+  goog.array.forEach(
+      this.getTextRanges(), function(range) { range.removeContents(); });
 };
 
 
@@ -370,17 +342,9 @@ goog.dom.MultiRange.prototype.removeContents = function() {
 
 /** @override */
 goog.dom.MultiRange.prototype.saveUsingDom = function() {
-  'use strict';
   return new goog.dom.DomSavedMultiRange_(this);
 };
 
-/** @override */
-goog.dom.MultiRange.prototype.saveUsingCarets = function() {
-  'use strict';
-  return (this.getStartNode() && this.getEndNode()) ?
-      new goog.dom.SavedCaretRange(this) :
-      null;
-};
 
 // RANGE MODIFICATION
 
@@ -393,7 +357,6 @@ goog.dom.MultiRange.prototype.saveUsingCarets = function() {
  * @override
  */
 goog.dom.MultiRange.prototype.collapse = function(toAnchor) {
-  'use strict';
   if (!this.isCollapsed()) {
     var range = toAnchor ? this.getTextRange(0) :
                            this.getTextRange(this.getTextRangeCount() - 1);
@@ -419,16 +382,13 @@ goog.dom.MultiRange.prototype.collapse = function(toAnchor) {
  * @private
  */
 goog.dom.DomSavedMultiRange_ = function(range) {
-  'use strict';
   /**
    * Array of saved ranges.
    * @type {Array<goog.dom.SavedRange>}
    * @private
    */
-  this.savedRanges_ = range.getTextRanges().map(function(range) {
-    'use strict';
-    return range.saveUsingDom();
-  });
+  this.savedRanges_ = goog.array.map(
+      range.getTextRanges(), function(range) { return range.saveUsingDom(); });
 };
 goog.inherits(goog.dom.DomSavedMultiRange_, goog.dom.SavedRange);
 
@@ -438,24 +398,18 @@ goog.inherits(goog.dom.DomSavedMultiRange_, goog.dom.SavedRange);
  * @override
  */
 goog.dom.DomSavedMultiRange_.prototype.restoreInternal = function() {
-  'use strict';
-  var ranges = this.savedRanges_.map(function(savedRange) {
-    'use strict';
-    return savedRange.restore();
-  });
+  var ranges = goog.array.map(
+      this.savedRanges_, function(savedRange) { return savedRange.restore(); });
   return goog.dom.MultiRange.createFromTextRanges(ranges);
 };
 
 
 /** @override */
 goog.dom.DomSavedMultiRange_.prototype.disposeInternal = function() {
-  'use strict';
   goog.dom.DomSavedMultiRange_.superClass_.disposeInternal.call(this);
 
-  this.savedRanges_.forEach(function(savedRange) {
-    'use strict';
-    savedRange.dispose();
-  });
+  goog.array.forEach(
+      this.savedRanges_, function(savedRange) { savedRange.dispose(); });
   delete this.savedRanges_;
 };
 
@@ -474,7 +428,6 @@ goog.dom.DomSavedMultiRange_.prototype.disposeInternal = function() {
  * @final
  */
 goog.dom.MultiRangeIterator = function(range) {
-  'use strict';
   /**
    * The list of range iterators left to traverse.
    * @private {?Array<?goog.dom.RangeIterator>}
@@ -488,8 +441,7 @@ goog.dom.MultiRangeIterator = function(range) {
   this.currentIdx_ = 0;
 
   if (range) {
-    this.iterators_ = range.getSortedRanges().map(function(r) {
-      'use strict';
+    this.iterators_ = goog.array.map(range.getSortedRanges(), function(r) {
       return goog.iter.toIterator(r);
     });
   }
@@ -502,45 +454,40 @@ goog.inherits(goog.dom.MultiRangeIterator, goog.dom.RangeIterator);
 
 /** @override */
 goog.dom.MultiRangeIterator.prototype.getStartTextOffset = function() {
-  'use strict';
   return this.iterators_[this.currentIdx_].getStartTextOffset();
 };
 
 
 /** @override */
 goog.dom.MultiRangeIterator.prototype.getEndTextOffset = function() {
-  'use strict';
   return this.iterators_[this.currentIdx_].getEndTextOffset();
 };
 
 
 /** @override */
 goog.dom.MultiRangeIterator.prototype.getStartNode = function() {
-  'use strict';
   return this.iterators_[0].getStartNode();
 };
 
 
 /** @override */
 goog.dom.MultiRangeIterator.prototype.getEndNode = function() {
-  'use strict';
   return goog.array.peek(this.iterators_).getEndNode();
 };
 
 
 /** @override */
 goog.dom.MultiRangeIterator.prototype.isLast = function() {
-  'use strict';
   return this.iterators_[this.currentIdx_].isLast();
 };
 
 
 /** @override */
-goog.dom.MultiRangeIterator.prototype.nextValueOrThrow = function() {
-  'use strict';
+goog.dom.MultiRangeIterator.prototype.next = function() {
+
   try {
     var it = this.iterators_[this.currentIdx_];
-    var next = it.nextValueOrThrow();
+    var next = it.next();
     this.setPosition(it.node, it.tagType, it.depth);
     return next;
   } catch (ex) {
@@ -550,16 +497,14 @@ goog.dom.MultiRangeIterator.prototype.nextValueOrThrow = function() {
     } else {
       // In case we got a StopIteration, increment counter and try again.
       this.currentIdx_++;
-      return this.nextValueOrThrow();
+      return this.next();
     }
   }
 };
 
 
-
 /** @override */
 goog.dom.MultiRangeIterator.prototype.copyFrom = function(other) {
-  'use strict';
   this.iterators_ = goog.array.clone(other.iterators_);
   goog.dom.MultiRangeIterator.superClass_.copyFrom.call(this, other);
 };
@@ -570,7 +515,6 @@ goog.dom.MultiRangeIterator.prototype.copyFrom = function(other) {
  * @override
  */
 goog.dom.MultiRangeIterator.prototype.clone = function() {
-  'use strict';
   var copy = new goog.dom.MultiRangeIterator(null);
   copy.copyFrom(this);
   return copy;

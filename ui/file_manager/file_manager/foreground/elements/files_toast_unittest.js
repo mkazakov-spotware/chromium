@@ -1,16 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './files_toast.js';
-
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-export function setUpPage() {
+function setUpPage() {
   document.body.innerHTML += '<files-toast></files-toast>';
 }
 
-export async function testToast(done) {
+async function testToast(done) {
   /** @type {FilesToast|Element} */
   const toast = document.querySelector('files-toast');
   const text = toast.shadowRoot.querySelector('#text');
@@ -36,7 +32,7 @@ export async function testToast(done) {
     text: 'a1',
     callback: () => {
       a1Called = true;
-    },
+    }
   });
   await waitFor(() => getToastOpacity() === 1);
   assertTrue(toast.visible);
@@ -50,7 +46,7 @@ export async function testToast(done) {
     text: 'a2',
     callback: () => {
       a2Called = true;
-    },
+    }
   });
   toast.show('t3');
   assertEquals('t1', text.innerText);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,10 +26,8 @@ const char* BufferUsageToString(BufferUsage usage) {
       return "GPU_READ_CPU_READ_WRITE";
     case BufferUsage::SCANOUT_VEA_CPU_READ:
       return "SCANOUT_VEA_CPU_READ";
-    case BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE:
-      return "VEA_READ_CAMERA_AND_CPU_READ_WRITE";
-    case BufferUsage::SCANOUT_FRONT_RENDERING:
-      return "SCANOUT_FRONT_RENDERING";
+    case BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE:
+      return "SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE";
   }
   return "Invalid Usage";
 }

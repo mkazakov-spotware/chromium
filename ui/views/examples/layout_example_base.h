@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_EXAMPLES_LAYOUT_EXAMPLE_BASE_H_
 #define UI_VIEWS_EXAMPLES_LAYOUT_EXAMPLE_BASE_H_
 
-#include "base/memory/raw_ptr.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/controls/button/checkbox.h"
@@ -27,10 +26,10 @@ class VIEWS_EXAMPLES_EXPORT LayoutExampleBase : public ExampleBase,
  public:
   // Grouping of multiple textfields that provide insets.
   struct InsetTextfields {
-    raw_ptr<Textfield> left = nullptr;
-    raw_ptr<Textfield> top = nullptr;
-    raw_ptr<Textfield> right = nullptr;
-    raw_ptr<Textfield> bottom = nullptr;
+    Textfield* left = nullptr;
+    Textfield* top = nullptr;
+    Textfield* right = nullptr;
+    Textfield* bottom = nullptr;
   };
 
   // This view is created and added to the left-side view in the FullPanel each
@@ -60,13 +59,13 @@ class VIEWS_EXAMPLES_EXPORT LayoutExampleBase : public ExampleBase,
    private:
     // TextfieldController
     void ContentsChanged(Textfield* sender,
-                         const std::u16string& new_contents) override;
+                         const base::string16& new_contents) override;
 
-    Textfield* CreateTextfield(const std::u16string& name);
+    Textfield* CreateTextfield();
 
-    raw_ptr<LayoutExampleBase> example_;
+    LayoutExampleBase* example_;
     bool selected_ = false;
-    raw_ptr<Textfield> flex_;
+    Textfield* flex_;
     InsetTextfields margin_;
     gfx::Size preferred_size_;
   };
@@ -88,23 +87,23 @@ class VIEWS_EXAMPLES_EXPORT LayoutExampleBase : public ExampleBase,
 
   // Creates and adds a Combobox with a label with |label_text| to the left.
   // Sets |combobox_callback| as the callback for the created combobox.
-  Combobox* CreateAndAddCombobox(const std::u16string& label_text,
+  Combobox* CreateAndAddCombobox(const base::string16& label_text,
                                  const char* const* items,
                                  int count,
                                  base::RepeatingClosure combobox_callback);
 
   // Creates and adds a Textfield with a label with |label_text| to the left.
-  Textfield* CreateAndAddTextfield(const std::u16string& label_text);
+  Textfield* CreateAndAddTextfield(const base::string16& label_text);
 
   // Creates a set of labeled Textfields with |label_text|, and four text fields
   // arranged at compass points representing a set of insets. |textfields| is
   // populated with the fields that are created.
-  void CreateMarginsTextFields(const std::u16string& label_text,
+  void CreateMarginsTextFields(const base::string16& label_text,
                                InsetTextfields* textfields);
 
   // Creates and adds a Checkbox with label |label_text|. Sets
   // |checkbox_callback| as the callback for the created checkbox.
-  Checkbox* CreateAndAddCheckbox(const std::u16string& label_text,
+  Checkbox* CreateAndAddCheckbox(const base::string16& label_text,
                                  base::RepeatingClosure checkbox_callback);
 
   // ExampleBase:
@@ -124,11 +123,11 @@ class VIEWS_EXAMPLES_EXPORT LayoutExampleBase : public ExampleBase,
  private:
   void AddButtonPressed();
 
-  raw_ptr<View> layout_panel_ = nullptr;
-  raw_ptr<View> control_panel_ = nullptr;
-  raw_ptr<LabelButton> add_button_ = nullptr;
-  raw_ptr<Textfield> preferred_width_view_ = nullptr;
-  raw_ptr<Textfield> preferred_height_view_ = nullptr;
+  View* layout_panel_ = nullptr;
+  View* control_panel_ = nullptr;
+  LabelButton* add_button_ = nullptr;
+  Textfield* preferred_width_view_ = nullptr;
+  Textfield* preferred_height_view_ = nullptr;
 };
 
 }  // namespace examples

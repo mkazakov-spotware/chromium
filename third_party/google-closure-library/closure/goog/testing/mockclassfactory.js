@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview This file defines a factory that can be used to mock and
@@ -31,6 +39,7 @@ goog.setTestOnly('goog.testing.MockClassFactory');
 goog.provide('goog.testing.MockClassFactory');
 goog.provide('goog.testing.MockClassRecord');
 
+goog.require('goog.array');
 goog.require('goog.object');
 goog.require('goog.testing.LooseMock');
 goog.require('goog.testing.StrictMock');
@@ -52,7 +61,6 @@ goog.require('goog.testing.mockmatchers');
  */
 goog.testing.MockClassRecord = function(
     namespace, className, originalClass, proxy) {
-  'use strict';
   /**
    * A standard closure namespace (e.g. goog.foo.bar) that contains the mock
    * class referenced by this MockClassRecord.
@@ -105,7 +113,6 @@ goog.testing.MockClassRecord.prototype.staticMock_ = null;
  * @return {Object} The namespace.
  */
 goog.testing.MockClassRecord.prototype.getNamespace = function() {
-  'use strict';
   return this.namespace_;
 };
 
@@ -115,7 +122,6 @@ goog.testing.MockClassRecord.prototype.getNamespace = function() {
  * @return {string} The name of the class referenced by this record.
  */
 goog.testing.MockClassRecord.prototype.getClassName = function() {
-  'use strict';
   return this.className_;
 };
 
@@ -125,7 +131,6 @@ goog.testing.MockClassRecord.prototype.getClassName = function() {
  * @return {Function} The original class implementation before mocking.
  */
 goog.testing.MockClassRecord.prototype.getOriginalClass = function() {
-  'use strict';
   return this.originalClass_;
 };
 
@@ -135,7 +140,6 @@ goog.testing.MockClassRecord.prototype.getOriginalClass = function() {
  * @return {Function} The proxy.
  */
 goog.testing.MockClassRecord.prototype.getProxy = function() {
-  'use strict';
   return this.proxy_;
 };
 
@@ -146,7 +150,6 @@ goog.testing.MockClassRecord.prototype.getProxy = function() {
  *     mock associated with this record.
  */
 goog.testing.MockClassRecord.prototype.getStaticMock = function() {
-  'use strict';
   return this.staticMock_;
 };
 
@@ -157,7 +160,6 @@ goog.testing.MockClassRecord.prototype.getStaticMock = function() {
  *     associate with the static functions for the referenced class.
  */
 goog.testing.MockClassRecord.prototype.setStaticMock = function(staticMock) {
-  'use strict';
   this.staticMock_ = staticMock;
 };
 
@@ -170,7 +172,6 @@ goog.testing.MockClassRecord.prototype.setStaticMock = function(staticMock) {
  *     associated with the supplied arguments.
  */
 goog.testing.MockClassRecord.prototype.addMockInstance = function(args, mock) {
-  'use strict';
   this.instancesByArgs_.push({args: args, mock: mock});
 };
 
@@ -183,7 +184,6 @@ goog.testing.MockClassRecord.prototype.addMockInstance = function(args, mock) {
  *     corresponding to a given argument set.
  */
 goog.testing.MockClassRecord.prototype.findMockInstance = function(args) {
-  'use strict';
   for (var i = 0; i < this.instancesByArgs_.length; i++) {
     var instanceArgs = this.instancesByArgs_[i].args;
     if (goog.testing.mockmatchers.flexibleArrayMatcher(instanceArgs, args)) {
@@ -200,7 +200,6 @@ goog.testing.MockClassRecord.prototype.findMockInstance = function(args) {
  * implementation and clearing out the mock instance list.
  */
 goog.testing.MockClassRecord.prototype.reset = function() {
-  'use strict';
   this.namespace_[this.className_] = this.originalClass_;
   this.instancesByArgs_ = [];
 };
@@ -215,7 +214,6 @@ goog.testing.MockClassRecord.prototype.reset = function() {
  * @final
  */
 goog.testing.MockClassFactory = function() {
-  'use strict';
   if (goog.testing.MockClassFactory.instance_) {
     return goog.testing.MockClassFactory.instance_;
   }
@@ -261,7 +259,6 @@ goog.testing.MockClassFactory.PROTOTYPE_FIELDS_ = [
  */
 goog.testing.MockClassFactory.prototype.getClassName_ = function(
     namespace, classToMock) {
-  'use strict';
   var namespaces;
   if (namespace === goog.global) {
     namespaces = goog.testing.TestCase.getGlobals();
@@ -287,7 +284,6 @@ goog.testing.MockClassFactory.prototype.getClassName_ = function(
  * @private
  */
 goog.testing.MockClassFactory.prototype.classHasMock_ = function(className) {
-  'use strict';
   return !!this.mockClassRecords_[className];
 };
 
@@ -304,9 +300,7 @@ goog.testing.MockClassFactory.prototype.classHasMock_ = function(className) {
  */
 goog.testing.MockClassFactory.prototype.getProxyCtor_ = function(
     className, mockFinder) {
-  'use strict';
   return /** @type {function(new:?)} */ (function() {
-    'use strict';
     var self = /** @type {?} */ (this);  // unknown this is expected.
     self.$mock_ = mockFinder(className, arguments);
     if (!self.$mock_) {
@@ -329,9 +323,7 @@ goog.testing.MockClassFactory.prototype.getProxyCtor_ = function(
  * @private
  */
 goog.testing.MockClassFactory.prototype.getProxyFunction_ = function(fnName) {
-  'use strict';
   return /** @type {function(this:?,...?):?} */ (function() {
-    'use strict';
     var self = /** @type {?} */ (this);  // unknown this is expected.
     return self.$mock_[fnName].apply(self.$mock_, arguments);
   });
@@ -348,7 +340,6 @@ goog.testing.MockClassFactory.prototype.getProxyFunction_ = function(fnName) {
  */
 goog.testing.MockClassFactory.prototype.findMockInstance_ = function(
     className, args) {
-  'use strict';
   return this.mockClassRecords_[className].findMockInstance(args);
 };
 
@@ -367,7 +358,6 @@ goog.testing.MockClassFactory.prototype.findMockInstance_ = function(
  */
 goog.testing.MockClassFactory.prototype.createProxy_ = function(
     namespace, classToMock, className) {
-  'use strict';
   var proxy =
       this.getProxyCtor_(className, goog.bind(this.findMockInstance_, this));
   var protoToProxy = classToMock.prototype;
@@ -377,7 +367,7 @@ goog.testing.MockClassFactory.prototype.createProxy_ = function(
   proxy.base = classToMockBase;
 
   for (var prop in protoToProxy) {
-    if (typeof protoToProxy[prop] === 'function') {
+    if (goog.isFunction(protoToProxy[prop])) {
       proxy.prototype[prop] = this.getProxyFunction_(prop);
     }
   }
@@ -389,12 +379,12 @@ goog.testing.MockClassFactory.prototype.createProxy_ = function(
   // extend anything except Object).
   // TODO (arv): Implement goog.object.getIterator and replace this loop.
 
-  goog.testing.MockClassFactory.PROTOTYPE_FIELDS_.forEach(function(field) {
-    'use strict';
-    if (Object.prototype.hasOwnProperty.call(protoToProxy, field)) {
-      proxy.prototype[field] = this.getProxyFunction_(field);
-    }
-  }, this);
+  goog.array.forEach(
+      goog.testing.MockClassFactory.PROTOTYPE_FIELDS_, function(field) {
+        if (Object.prototype.hasOwnProperty.call(protoToProxy, field)) {
+          proxy.prototype[field] = this.getProxyFunction_(field);
+        }
+      }, this);
 
   this.mockClassRecords_[className] = new goog.testing.MockClassRecord(
       namespace, className, classToMock, proxy);
@@ -417,14 +407,13 @@ goog.testing.MockClassFactory.prototype.createProxy_ = function(
  */
 goog.testing.MockClassFactory.prototype.getMockClass_ = function(
     namespace, classToMock, isStrict, ctorArgs) {
-  'use strict';
   var className = this.getClassName_(namespace, classToMock);
 
   // The namespace and classToMock variables should be removed from the
   // passed in argument stack.
-  ctorArgs = Array.prototype.slice.call(ctorArgs, 2);
+  ctorArgs = goog.array.slice(ctorArgs, 2);
 
-  if (typeof classToMock === 'function') {
+  if (goog.isFunction(classToMock)) {
     var mock = isStrict ? new goog.testing.StrictMock(classToMock) :
                           new goog.testing.LooseMock(classToMock);
 
@@ -459,7 +448,6 @@ goog.testing.MockClassFactory.prototype.getMockClass_ = function(
  */
 goog.testing.MockClassFactory.prototype.getStrictMockClass = function(
     namespace, classToMock, var_args) {
-  'use strict';
   return /** @type {!goog.testing.StrictMock} */ (
       this.getMockClass_(namespace, classToMock, true, arguments));
 };
@@ -475,7 +463,6 @@ goog.testing.MockClassFactory.prototype.getStrictMockClass = function(
  */
 goog.testing.MockClassFactory.prototype.getLooseMockClass = function(
     namespace, classToMock, var_args) {
-  'use strict';
   return /** @type {goog.testing.LooseMock} */ (
       this.getMockClass_(namespace, classToMock, false, arguments));
 };
@@ -495,12 +482,11 @@ goog.testing.MockClassFactory.prototype.getLooseMockClass = function(
  */
 goog.testing.MockClassFactory.prototype.createStaticMock_ = function(
     classToMock, className, proxy, isStrict) {
-  'use strict';
   var mock = isStrict ? new goog.testing.StrictMock(classToMock, true) :
                         new goog.testing.LooseMock(classToMock, false, true);
 
   for (var prop in classToMock) {
-    if (typeof classToMock[prop] === 'function') {
+    if (goog.isFunction(classToMock[prop])) {
       proxy[prop] = goog.bind(mock.$mockMethod, mock, prop);
     } else if (classToMock[prop] !== classToMock.prototype) {
       proxy[prop] = classToMock[prop];
@@ -524,10 +510,9 @@ goog.testing.MockClassFactory.prototype.createStaticMock_ = function(
  */
 goog.testing.MockClassFactory.prototype.getStaticMock_ = function(
     namespace, classToMock, isStrict) {
-  'use strict';
   var className = this.getClassName_(namespace, classToMock);
 
-  if (typeof classToMock === 'function') {
+  if (goog.isFunction(classToMock)) {
     if (!this.classHasMock_(className)) {
       var proxy = this.createProxy_(namespace, classToMock, className);
       var mock =
@@ -574,7 +559,6 @@ goog.testing.MockClassFactory.prototype.getStaticMock_ = function(
  */
 goog.testing.MockClassFactory.prototype.getStrictStaticMock = function(
     namespace, classToMock) {
-  'use strict';
   return /** @type {goog.testing.StrictMock} */ (
       this.getStaticMock_(namespace, classToMock, true));
 };
@@ -590,7 +574,6 @@ goog.testing.MockClassFactory.prototype.getStrictStaticMock = function(
  */
 goog.testing.MockClassFactory.prototype.getLooseStaticMock = function(
     namespace, classToMock) {
-  'use strict';
   return /** @type {goog.testing.LooseMock} */ (
       this.getStaticMock_(namespace, classToMock, false));
 };
@@ -601,10 +584,7 @@ goog.testing.MockClassFactory.prototype.getLooseStaticMock = function(
  * implementations and removing all MockClassRecords.
  */
 goog.testing.MockClassFactory.prototype.reset = function() {
-  'use strict';
-  goog.object.forEach(this.mockClassRecords_, function(record) {
-    'use strict';
-    record.reset();
-  });
+  goog.object.forEach(
+      this.mockClassRecords_, function(record) { record.reset(); });
   this.mockClassRecords_ = {};
 };

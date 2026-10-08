@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/main/scene_controller.h"
 
 #import "ios/chrome/browser/ui/main/scene_state.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -32,7 +32,6 @@ class SceneControllerTest : public PlatformTest {
 // Tests that scene controller updates scene state's incognitoContentVisible
 // when the relevant application command is called.
 TEST_F(SceneControllerTest, UpdatesIncognitoContentVisibility) {
-  [scene_controller_ setIncognitoContentVisible:NO];
   EXPECT_FALSE(scene_state_.incognitoContentVisible);
   [scene_controller_ setIncognitoContentVisible:YES];
   EXPECT_TRUE(scene_state_.incognitoContentVisible);

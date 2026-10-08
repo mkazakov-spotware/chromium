@@ -7,8 +7,6 @@
       /* General toolbar layout. */
 
       cr-toolbar {
-        --cr-toolbar-center-basis: var(--cluster-max-width);
-        --cr-toolbar-left-spacer-width: var(--side-bar-width);
         --cr-toolbar-field-margin: var(--side-bar-width);
         flex: 1;
       }
@@ -28,8 +26,7 @@
         opacity: 1;
       }
     </style>
-    <cr-toolbar id="mainToolbar"
-        disable-right-content-grow
+    <cr-toolbar id="main-toolbar"
         has-overlay$="[[itemsSelected_]]"
         page-name="$i18n{title}"
         clear-label="$i18n{clearSearch}"
@@ -38,7 +35,6 @@
         autofocus
         show-menu="[[hasDrawer]]"
         menu-label="$i18n{historyMenuButton}"
-        narrow-threshold="1023"
         on-search-changed="onSearchChanged_">
     </cr-toolbar>
     <cr-toolbar-selection-overlay show="[[itemsSelected_]]"

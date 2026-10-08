@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,28 +17,28 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include <lib/zx/process.h>
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include <sys/types.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 #include <mach/mach.h>
 #endif
 
 namespace crashpad {
 namespace test {
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 using ProcessType = zx::unowned_process;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_ANDROID) || DOXYGEN
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID) || \
+    DOXYGEN
 //! \brief Alias for platform-specific type to represent a process.
 using ProcessType = pid_t;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 using ProcessType = HANDLE;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 using ProcessType = task_t;
 #else
 #error Port.

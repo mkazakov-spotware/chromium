@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,6 @@ namespace ash {
 class NotificationOverflowViewTest : public views::ViewsTestBase {
  public:
   NotificationOverflowViewTest() {}
-
-  NotificationOverflowViewTest(const NotificationOverflowViewTest&) = delete;
-  NotificationOverflowViewTest& operator=(const NotificationOverflowViewTest&) =
-      delete;
-
   ~NotificationOverflowViewTest() override = default;
 
   // views::ViewsTestBase:
@@ -70,6 +65,8 @@ class NotificationOverflowViewTest : public views::ViewsTestBase {
  private:
   int notification_identifier_ = 0;
   std::unique_ptr<NotificationOverflowView> notification_overflow_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(NotificationOverflowViewTest);
 };
 
 // Tests that icons get added and removed when notifications come and go.

@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/vr/android/arcore/ar_renderer.h"
 
+#include "base/stl_util.h"
 #include "device/vr/vr_gl_util.h"
 
 namespace device {
@@ -81,12 +82,12 @@ void ArRenderer::Draw(int texture_handle, const float (&uv_transform)[16]) {
     index_buffer_ = buffers[1];
 
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
-    glBufferData(GL_ARRAY_BUFFER, std::size(kQuadVertices) * sizeof(float),
+    glBufferData(GL_ARRAY_BUFFER, base::size(kQuadVertices) * sizeof(float),
                  kQuadVertices, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 std::size(kQuadIndices) * sizeof(GLushort), kQuadIndices,
+                 base::size(kQuadIndices) * sizeof(GLushort), kQuadIndices,
                  GL_STATIC_DRAW);
   }
 
@@ -114,7 +115,7 @@ void ArRenderer::Draw(int texture_handle, const float (&uv_transform)[16]) {
 
   // Blit texture to buffer
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_);
-  glDrawElements(GL_TRIANGLES, std::size(kQuadIndices), GL_UNSIGNED_SHORT, 0);
+  glDrawElements(GL_TRIANGLES, base::size(kQuadIndices), GL_UNSIGNED_SHORT, 0);
 
   glDisableVertexAttribArray(position_handle_);
 }

@@ -31,20 +31,17 @@
 
 #include <memory>
 #include "base/containers/span.h"
-#include "base/feature_list.h"
 #include "base/gtest_prod_util.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/time/time.h"
+#include "base/single_thread_task_runner.h"
 #include "mojo/public/cpp/base/big_buffer.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink.h"
+#include "third_party/blink/public/mojom/frame/back_forward_cache_controller.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/web_url_loader.h"
 #include "third_party/blink/public/platform/web_url_loader_client.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/data_pipe_bytes_consumer.h"
-#include "third_party/blink/renderer/platform/loader/fetch/loader_freeze_mode.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_scheduler.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_loader_options.h"
@@ -54,27 +51,12 @@
 #include "third_party/blink/renderer/platform/scheduler/public/frame_or_worker_scheduler.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 
-namespace base {
-class UnguessableToken;
-}
-
 namespace blink {
 
 class FetchContext;
 class ResourceError;
 class ResourceFetcher;
 class ResponseBodyLoader;
-
-// Struct for keeping variables used in recording CNAME alias metrics bundled
-// together.
-struct CnameAliasMetricInfo {
-  bool has_aliases = false;
-  bool was_ad_tagged_based_on_alias = false;
-  bool was_blocked_based_on_alias = false;
-  int list_length = 0;
-  int invalid_count = 0;
-  int redundant_count = 0;
-};
 
 // A ResourceLoader is created for each Resource by the ResourceFetcher when it
 // needs to load the specified resource. A ResourceLoader creates a
@@ -103,7 +85,7 @@ class PLATFORM_EXPORT ResourceLoader final
   void ScheduleCancel();
   void Cancel();
 
-  void SetDefersLoading(LoaderFreezeMode);
+  void SetDefersLoading(WebURLLoader::DeferType);
 
   void DidChangePriority(ResourceLoadPriority, int intra_priority_value);
 
@@ -138,9 +120,8 @@ class PLATFORM_EXPORT ResourceLoader final
                           network::mojom::ReferrerPolicy new_referrer_policy,
                           const WebString& new_method,
                           const WebURLResponse& passed_redirect_response,
-                          bool& has_devtools_request_id,
-                          std::vector<std::string>* removed_headers,
-                          bool insecure_scheme_was_upgraded) override;
+                          bool& report_raw_headers,
+                          std::vector<std::string>* removed_headers) override;
   void DidSendData(uint64_t bytes_sent,
                    uint64_t total_bytes_to_be_sent) override;
   void DidReceiveResponse(const WebURLResponse&) override;
@@ -153,26 +134,23 @@ class PLATFORM_EXPORT ResourceLoader final
                         int64_t encoded_data_length,
                         int64_t encoded_body_length,
                         int64_t decoded_body_length,
-                        bool should_report_corb_blocking,
-                        absl::optional<bool> pervasive_payload_requested =
-                            absl::nullopt) override;
+                        bool should_report_corb_blocking) override;
   void DidFail(const WebURLError&,
                base::TimeTicks response_end_time,
                int64_t encoded_data_length,
                int64_t encoded_body_length,
                int64_t decoded_body_length) override;
+  void EvictFromBackForwardCache(mojom::RendererEvictionReason) override;
 
-  mojom::blink::CodeCacheType GetCodeCacheType() const;
+  blink::mojom::CodeCacheType GetCodeCacheType() const;
   void SendCachedCodeToResource(mojo_base::BigBuffer data);
+  void ClearCachedCode();
 
   void HandleError(const ResourceError&);
 
   void DidFinishLoadingFirstPartInMultipart();
 
   scoped_refptr<base::SingleThreadTaskRunner> GetLoadingTaskRunner();
-
-  void CancelIfWebBundleTokenMatches(
-      const base::UnguessableToken& web_bundle_token);
 
  private:
   friend class SubresourceIntegrityTest;
@@ -186,9 +164,6 @@ class PLATFORM_EXPORT ResourceLoader final
 
   // ResponseBodyLoaderClient implementation.
   void DidReceiveData(base::span<const char> data) override;
-  void DidReceiveDecodedData(
-      const String& data,
-      std::unique_ptr<Resource::DecodedDataInfo> info) override;
   void DidFinishLoadingBody() override;
   void DidFailLoadingBody() override;
   void DidCancelLoadingBody() override;
@@ -223,25 +198,12 @@ class PLATFORM_EXPORT ResourceLoader final
   void OnProgress(uint64_t delta) override;
   void FinishedCreatingBlob(const scoped_refptr<BlobDataHandle>&);
 
-  absl::optional<ResourceRequestBlockedReason> CheckResponseNosniff(
+  base::Optional<ResourceRequestBlockedReason> CheckResponseNosniff(
       mojom::blink::RequestContextType,
       const ResourceResponse&);
 
   // Processes Data URL in ResourceLoader instead of using |loader_|.
   void HandleDataUrl();
-
-  // If enabled, performs SubresourceFilter checks for any DNS aliases found for
-  // the requested URL, which may result in ad-tagging the ResourceRequest.
-  // Returns true if the request should be blocked based on these checks.
-  bool ShouldBlockRequestBasedOnSubresourceFilterDnsAliasCheck(
-      const Vector<String>& dns_aliases,
-      const KURL& request_url,
-      const KURL& original_url,
-      ResourceType resource_type,
-      const ResourceRequestHead& initial_request,
-      const ResourceLoaderOptions& options,
-      const ResourceRequest::RedirectInfo redirect_info,
-      CnameAliasMetricInfo* out_metric_info);
 
   std::unique_ptr<WebURLLoader> loader_;
   ResourceLoadScheduler::ClientId scheduler_client_id_;
@@ -277,25 +239,22 @@ class PLATFORM_EXPORT ResourceLoader final
     base::TimeTicks response_end_time;
     bool should_report_corb_blocking;
   };
-  absl::optional<DeferredFinishLoadingInfo> deferred_finish_loading_info_;
+  base::Optional<DeferredFinishLoadingInfo> deferred_finish_loading_info_;
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_for_body_loader_;
 
-  LoaderFreezeMode freeze_mode_ = LoaderFreezeMode::kNone;
+  WebURLLoader::DeferType defers_ = WebURLLoader::DeferType::kNotDeferred;
   // True if the next call of SetDefersLoading(kNotDeferred) needs to invoke
   // HandleDataURL().
   bool defers_handling_data_url_ = false;
 
-  HeapTaskRunnerTimer<ResourceLoader> cancel_timer_;
+  TaskRunnerTimer<ResourceLoader> cancel_timer_;
 
   FrameScheduler::SchedulingAffectingFeatureHandle
       feature_handle_for_scheduler_;
 
   base::TimeTicks response_end_time_for_error_cases_;
-
-  base::TimeTicks request_start_time_;
-  base::TimeTicks code_cache_arrival_time_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_RESOURCE_LOADER_H_
+#endif

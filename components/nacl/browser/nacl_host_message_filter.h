@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/nacl/browser/nacl_browser_delegate.h"
 #include "content/public/browser/browser_message_filter.h"
@@ -32,9 +33,6 @@ class NaClHostMessageFilter : public content::BrowserMessageFilter {
                         bool is_off_the_record,
                         const base::FilePath& profile_directory);
 
-  NaClHostMessageFilter(const NaClHostMessageFilter&) = delete;
-  NaClHostMessageFilter& operator=(const NaClHostMessageFilter&) = delete;
-
   // content::BrowserMessageFilter methods:
   bool OnMessageReceived(const IPC::Message& message) override;
   void OnChannelClosing() override;
@@ -57,27 +55,33 @@ class NaClHostMessageFilter : public content::BrowserMessageFilter {
       const nacl::NaClLaunchParams& launch_params,
       IPC::Message* reply_msg,
       ppapi::PpapiPermissions permissions,
+      bool nonsfi_mode_allowed,
       NaClBrowserDelegate::MapUrlToLocalFilePathCallback map_url_callback);
   void LaunchNaClContinuation(
       const nacl::NaClLaunchParams& launch_params,
       IPC::Message* reply_msg,
+      bool nonsfi_mode_allowed,
       NaClBrowserDelegate::MapUrlToLocalFilePathCallback map_url_callback);
-  void LaunchNaClContinuationOnUIThread(
+  void LaunchNaClContinuationOnIOThread(
       const nacl::NaClLaunchParams& launch_params,
       IPC::Message* reply_msg,
       const std::vector<NaClResourcePrefetchResult>& prefetched_resource_files,
       ppapi::PpapiPermissions permissions,
+      bool nonsfi_mode_allowed,
       NaClBrowserDelegate::MapUrlToLocalFilePathCallback map_url_callback);
   void OnGetReadonlyPnaclFd(const std::string& filename,
                             bool is_executable,
                             IPC::Message* reply_msg);
   void OnNaClCreateTemporaryFile(IPC::Message* reply_msg);
   void OnNaClGetNumProcessors(int* num_processors);
-  void OnGetNexeFd(int pp_instance, const PnaclCacheInfo& cache_info);
+  void OnGetNexeFd(int render_view_id,
+                   int pp_instance,
+                   const PnaclCacheInfo& cache_info);
   void OnTranslationFinished(int instance, bool success);
   void OnMissingArchError(int render_view_id);
-  void OnOpenNaClExecutable(int render_frame_id,
+  void OnOpenNaClExecutable(int render_view_id,
                             const GURL& file_url,
+                            bool enable_validation_caching,
                             IPC::Message* reply_msg);
   void SyncReturnTemporaryFile(IPC::Message* reply_msg,
                                base::File file);
@@ -94,6 +98,8 @@ class NaClHostMessageFilter : public content::BrowserMessageFilter {
   base::FilePath profile_directory_;
 
   base::WeakPtrFactory<NaClHostMessageFilter> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(NaClHostMessageFilter);
 };
 
 }  // namespace nacl

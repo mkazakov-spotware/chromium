@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/metrics/single_sample_metrics_factory_impl.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/dummy_histogram.h"
 #include "base/run_loop.h"
 #include "base/test/gtest_util.h"
@@ -34,11 +33,6 @@ class SingleSampleMetricsFactoryImplTest : public testing::Test {
     factory_ = static_cast<SingleSampleMetricsFactoryImpl*>(
         base::SingleSampleMetricsFactory::Get());
   }
-
-  SingleSampleMetricsFactoryImplTest(
-      const SingleSampleMetricsFactoryImplTest&) = delete;
-  SingleSampleMetricsFactoryImplTest& operator=(
-      const SingleSampleMetricsFactoryImplTest&) = delete;
 
   ~SingleSampleMetricsFactoryImplTest() override {
     factory_->DestroyProviderForTesting();
@@ -84,9 +78,12 @@ class SingleSampleMetricsFactoryImplTest : public testing::Test {
   }
 
   base::test::SingleThreadTaskEnvironment task_environment_;
-  raw_ptr<SingleSampleMetricsFactoryImpl> factory_;
+  SingleSampleMetricsFactoryImpl* factory_;
   base::Thread thread_;
   size_t provider_count_ = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SingleSampleMetricsFactoryImplTest);
 };
 
 }  // namespace
@@ -145,7 +142,7 @@ TEST_F(SingleSampleMetricsFactoryImplTest, DefaultSingleSampleMetricWithValue) {
 
 TEST_F(SingleSampleMetricsFactoryImplTest, MultithreadedMetrics) {
   // Allow EXPECT_DCHECK_DEATH for multiple threads.
-  // https://github.com/google/googletest/blob/main/docs/advanced.md#death-tests-and-threads
+  // https://github.com/google/googletest/blob/master/googletest/docs/advanced.md#death-tests-and-threads
   testing::FLAGS_gtest_death_test_style = "threadsafe";
 
   base::HistogramTester tester;

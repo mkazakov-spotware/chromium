@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,6 @@ class TestMenuItemView : public MenuItemView {
  public:
   TestMenuItemView();
   explicit TestMenuItemView(MenuDelegate* delegate);
-
-  TestMenuItemView(const TestMenuItemView&) = delete;
-  TestMenuItemView& operator=(const TestMenuItemView&) = delete;
-
   ~TestMenuItemView() override;
 
   using MenuItemView::AddEmptyMenus;
@@ -29,9 +25,8 @@ class TestMenuItemView : public MenuItemView {
 
   bool show_mnemonics() { return show_mnemonics_; }
 
-  static ImageView* submenu_arrow_image_view(MenuItemView* view) {
-    return view->submenu_arrow_image_view_;
-  }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestMenuItemView);
 };
 
 }  // namespace views

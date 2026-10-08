@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,9 @@
 #define EXTENSIONS_RENDERER_GC_CALLBACK_H_
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
-#include "v8/include/v8-forward.h"
-#include "v8/include/v8-persistent-handle.h"
+#include "v8/include/v8.h"
 
 namespace extensions {
 
@@ -27,21 +25,18 @@ class GCCallback {
   GCCallback(ScriptContext* context,
              const v8::Local<v8::Object>& object,
              const v8::Local<v8::Function>& callback,
-             base::OnceClosure fallback);
+             const base::Closure& fallback);
   GCCallback(ScriptContext* context,
              const v8::Local<v8::Object>& object,
-             base::OnceClosure callback,
-             base::OnceClosure fallback);
-
-  GCCallback(const GCCallback&) = delete;
-  GCCallback& operator=(const GCCallback&) = delete;
+             const base::Closure& callback,
+             const base::Closure& fallback);
 
  private:
   GCCallback(ScriptContext* context,
              const v8::Local<v8::Object>& object,
              const v8::Local<v8::Function> v8_callback,
-             base::OnceClosure closure_callback,
-             base::OnceClosure fallback);
+             const base::Closure& closure_callback,
+             const base::Closure& fallback);
   ~GCCallback();
 
   static void OnObjectGC(const v8::WeakCallbackInfo<GCCallback>& data);
@@ -51,22 +46,21 @@ class GCCallback {
   // The context which owns |object_|.
   ScriptContext* context_;
 
-  // A task runner associated with the frame for the context.
-  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
-
   // The object this GCCallback is bound to.
   v8::Global<v8::Object> object_;
 
   // The function to run when |object_| is garbage collected. Can be either a
   // JS or native function (only one will be set).
   v8::Global<v8::Function> v8_callback_;
-  base::OnceClosure closure_callback_;
+  base::Closure closure_callback_;
 
   // The function to run if |context_| is invalidated before we have a chance
   // to execute |callback_|.
-  base::OnceClosure fallback_;
+  base::Closure fallback_;
 
   base::WeakPtrFactory<GCCallback> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GCCallback);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,11 @@ function onResize() {
 
   // Check for change in window size.
   if (window.matchMedia(mediaQuery).matches) {
-    const hiddenDetails =
-        document.querySelector('#details').classList.add(HIDDEN_CLASS);
-    document.querySelector('#main-content').classList.remove(HIDDEN_CLASS);
-    document.querySelector('#icon').setAttribute(
-        'aria-label', loadTimeData.getString('heading'));
+    const hiddenDetails = $('details').classList.add(HIDDEN_CLASS);
+    $('main-content').classList.remove(HIDDEN_CLASS);
+    $('icon').setAttribute('aria-label', loadTimeData.getString('heading'));
   } else {
-    document.querySelector('#icon').removeAttribute('aria-label');
+    $('icon').removeAttribute('aria-label');
   }
 }
 
@@ -37,19 +35,15 @@ function initPage() {
 
   preventDefaultOnPoundLinkClicks();
 
-  document.querySelector('#details-link')
-      .addEventListener('click', function(event) {
-        const hiddenDetails =
-            document.querySelector('#details').classList.toggle(HIDDEN_CLASS);
-        document.querySelector('#main-content')
-            .classList.toggle(HIDDEN_CLASS, !hiddenDetails);
-      });
+  $('details-link').addEventListener('click', function(event) {
+    const hiddenDetails = $('details').classList.toggle(HIDDEN_CLASS);
+    $('main-content').classList.toggle(HIDDEN_CLASS, !hiddenDetails);
+  });
 
   if (safebrowsing) {
-    document.querySelector('#proceed-link')
-        .addEventListener('click', function(event) {
-          sendCommand(SecurityInterstitialCommandId.CMD_PROCEED);
-        });
+    $('proceed-link').addEventListener('click', function(event) {
+      sendCommand(SecurityInterstitialCommandId.CMD_PROCEED);
+    });
   }
 
   window.addEventListener('resize', onResize);

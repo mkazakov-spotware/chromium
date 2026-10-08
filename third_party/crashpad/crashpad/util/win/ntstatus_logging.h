@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <windows.h>
 
 #include "base/logging.h"
+#include "base/macros.h"
 
 namespace logging {
 
@@ -31,14 +32,12 @@ class NtstatusLogMessage : public logging::LogMessage {
       int line,
       LogSeverity severity,
       DWORD ntstatus);
-
-  NtstatusLogMessage(const NtstatusLogMessage&) = delete;
-  NtstatusLogMessage& operator=(const NtstatusLogMessage&) = delete;
-
   ~NtstatusLogMessage();
 
  private:
   DWORD ntstatus_;
+
+  DISALLOW_COPY_AND_ASSIGN(NtstatusLogMessage);
 };
 
 }  // namespace logging

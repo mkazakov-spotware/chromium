@@ -63,10 +63,12 @@ void SliderThumbElement::SetPositionFromValue() {
   if (GetLayoutObject()) {
     GetLayoutObject()->SetNeedsLayoutAndFullPaintInvalidation(
         layout_invalidation_reason::kSliderValueChanged);
-    HTMLInputElement* input(HostInput());
-    if (input && input->GetLayoutObject()) {
-      // the slider track selected value needs to be updated.
-      input->GetLayoutObject()->SetShouldDoFullPaintInvalidation();
+    if (features::IsFormControlsRefreshEnabled()) {
+      HTMLInputElement* input(HostInput());
+      if (input && input->GetLayoutObject()) {
+        // the slider track selected value needs to be updated.
+        input->GetLayoutObject()->SetShouldDoFullPaintInvalidation();
+      }
     }
   }
 }
@@ -151,7 +153,7 @@ void SliderThumbElement::SetPositionFromPoint(const LayoutPoint& point) {
   }
 
   String value_string = SerializeForNumberType(value);
-  if (value_string == input->Value())
+  if (value_string == input->value())
     return;
 
   // FIXME: This is no longer being set from renderer. Consider updating the
@@ -236,7 +238,7 @@ void SliderThumbElement::DefaultEventHandler(Event& event) {
   HTMLDivElement::DefaultEventHandler(event);
 }
 
-bool SliderThumbElement::WillRespondToMouseMoveEvents() const {
+bool SliderThumbElement::WillRespondToMouseMoveEvents() {
   const HTMLInputElement* input = HostInput();
   if (input && !input->IsDisabledFormControl() && in_drag_mode_)
     return true;
@@ -285,32 +287,33 @@ const AtomicString& SliderThumbElement::ShadowPseudoId() const {
   }
 }
 
-scoped_refptr<ComputedStyle> SliderThumbElement::CustomStyleForLayoutObject(
-    const StyleRecalcContext& style_recalc_context) {
+scoped_refptr<ComputedStyle> SliderThumbElement::CustomStyleForLayoutObject() {
   Element* host = OwnerShadowHost();
   DCHECK(host);
   const ComputedStyle& host_style = host->ComputedStyleRef();
-  ComputedStyleBuilder builder(
-      *OriginalStyleForLayoutObject(style_recalc_context));
+  scoped_refptr<ComputedStyle> style = OriginalStyleForLayoutObject();
 
   if (host_style.EffectiveAppearance() == kSliderVerticalPart)
-    builder.SetEffectiveAppearance(kSliderThumbVerticalPart);
+    style->SetEffectiveAppearance(kSliderThumbVerticalPart);
   else if (host_style.EffectiveAppearance() == kSliderHorizontalPart)
-    builder.SetEffectiveAppearance(kSliderThumbHorizontalPart);
+    style->SetEffectiveAppearance(kSliderThumbHorizontalPart);
   else if (host_style.EffectiveAppearance() == kMediaSliderPart)
-    builder.SetEffectiveAppearance(kMediaSliderThumbPart);
+    style->SetEffectiveAppearance(kMediaSliderThumbPart);
   else if (host_style.EffectiveAppearance() == kMediaVolumeSliderPart)
-    builder.SetEffectiveAppearance(kMediaVolumeSliderThumbPart);
-  if (builder.HasEffectiveAppearance())
-    LayoutTheme::GetTheme().AdjustSliderThumbSize(builder);
+    style->SetEffectiveAppearance(kMediaVolumeSliderThumbPart);
+  if (style->HasEffectiveAppearance())
+    LayoutTheme::GetTheme().AdjustSliderThumbSize(*style);
 
-  return builder.TakeStyle();
+  return style;
 }
 
 // --------------------------------
 
 SliderContainerElement::SliderContainerElement(Document& document)
-    : HTMLDivElement(document) {
+    : HTMLDivElement(document),
+      has_touch_event_handler_(false),
+      touch_started_(false),
+      sliding_direction_(kNoMove) {
   UpdateTouchEventHandlerRegistry();
   SetHasCustomStyleCallbacks();
 }
@@ -341,7 +344,7 @@ void SliderContainerElement::HandleTouchEvent(TouchEvent* event) {
     // TODO: Also do this for touchcancel?
     input->DispatchFormControlChangeEvent();
     event->SetDefaultHandled();
-    sliding_direction_ = Direction::kNoMove;
+    sliding_direction_ = kNoMove;
     touch_started_ = false;
     return;
   }
@@ -361,13 +364,13 @@ void SliderContainerElement::HandleTouchEvent(TouchEvent* event) {
   if (touches->length() == 1) {
     if (event->type() == event_type_names::kTouchstart) {
       start_point_ = touches->item(0)->AbsoluteLocation();
-      sliding_direction_ = Direction::kNoMove;
+      sliding_direction_ = kNoMove;
       touch_started_ = true;
       thumb->SetPositionFromPoint(touches->item(0)->AbsoluteLocation());
     } else if (touch_started_) {
       LayoutPoint current_point = touches->item(0)->AbsoluteLocation();
-      if (sliding_direction_ == Direction::kNoMove) {
-        // Still needs to update the direction.
+      if (sliding_direction_ ==
+          kNoMove) {  // Still needs to update the direction.
         sliding_direction_ = GetDirection(current_point, start_point_);
       }
 
@@ -385,12 +388,12 @@ SliderContainerElement::Direction SliderContainerElement::GetDirection(
     LayoutPoint& point1,
     LayoutPoint& point2) {
   if (point1 == point2) {
-    return Direction::kNoMove;
+    return kNoMove;
   }
   if ((point1.X() - point2.X()).Abs() >= (point1.Y() - point2.Y()).Abs()) {
-    return Direction::kHorizontal;
+    return kHorizontal;
   }
-  return Direction::kVertical;
+  return kVertical;
 }
 
 bool SliderContainerElement::CanSlide() {
@@ -403,15 +406,14 @@ bool SliderContainerElement::CanSlide() {
   int transform_size = transforms.size();
   if (transform_size > 0) {
     for (int i = 0; i < transform_size; ++i) {
-      if (transforms.at(i)->GetType() == TransformOperation::kRotate ||
-          transforms.at(i)->GetType() == TransformOperation::kRotateZ) {
+      if (transforms.at(i)->GetType() == TransformOperation::kRotate) {
         return true;
       }
     }
   }
   bool is_horizontal = GetComputedStyle()->IsHorizontalWritingMode();
-  if ((sliding_direction_ == Direction::kVertical && is_horizontal) ||
-      (sliding_direction_ == Direction::kHorizontal && !is_horizontal)) {
+  if ((sliding_direction_ == kVertical && is_horizontal) ||
+      (sliding_direction_ == kHorizontal && !is_horizontal)) {
     return false;
   }
   return true;

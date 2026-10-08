@@ -1,24 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {EventHandler} from '../../common/event_handler.js';
-import {RepeatedEventHandler} from '../../common/repeated_event_handler.js';
-import {ActionManager} from '../action_manager.js';
-import {FocusRingManager} from '../focus_ring_manager.js';
-import {MenuManager} from '../menu_manager.js';
-import {Navigator} from '../navigator.js';
-import {SwitchAccess} from '../switch_access.js';
-import {SAConstants, SwitchAccessMenuAction} from '../switch_access_constants.js';
-
-import {SAChildNode, SARootNode} from './switch_access_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This class handles the behavior of the back button.
  */
-export class BackButtonNode extends SAChildNode {
+class BackButtonNode extends SAChildNode {
   /**
    * @param {!SARootNode} group
    */
@@ -46,7 +33,7 @@ export class BackButtonNode extends SAChildNode {
     return BackButtonNode.automationNode_;
   }
 
-  /** @override */
+  /** @return {!SARootNode} */
   get group() {
     return this.group_;
   }
@@ -129,11 +116,6 @@ export class BackButtonNode extends SAChildNode {
     return SAConstants.ActionResponse.NO_ACTION_TAKEN;
   }
 
-  /** @override */
-  ignoreWhenComputingUnionOfBoundingBoxes() {
-    return true;
-  }
-
   // ================= Debug methods =================
 
   /** @override */
@@ -157,7 +139,7 @@ export class BackButtonNode extends SAChildNode {
     SwitchAccess.findNodeMatching(
         {
           role: chrome.automation.RoleType.BUTTON,
-          attributes: {className: 'SwitchAccessBackButtonView'},
+          attributes: {className: 'SwitchAccessBackButtonView'}
         },
         BackButtonNode.saveAutomationNode_);
   }
@@ -171,7 +153,7 @@ export class BackButtonNode extends SAChildNode {
     if (MenuManager.isMenuOpen()) {
       ActionManager.exitCurrentMenu();
     } else {
-      Navigator.byItem.exitGroupUnconditionally();
+      NavigationManager.exitGroupUnconditionally();
     }
   }
 

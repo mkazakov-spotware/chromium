@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include "base/check_op.h"
 #include "base/location.h"
 #include "base/notreached.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/base/auth.h"
 #include "net/base/io_buffer.h"
@@ -37,14 +38,18 @@ SpdyProxyClientSocket::SpdyProxyClientSocket(
     const std::string& user_agent,
     const HostPortPair& endpoint,
     const NetLogWithSource& source_net_log,
-    scoped_refptr<HttpAuthController> auth_controller,
+    HttpAuthController* auth_controller,
     ProxyDelegate* proxy_delegate)
-    : spdy_stream_(spdy_stream),
+    : next_state_(STATE_DISCONNECTED),
+      spdy_stream_(spdy_stream),
       endpoint_(endpoint),
-      auth_(std::move(auth_controller)),
+      auth_(auth_controller),
       proxy_server_(proxy_server),
       proxy_delegate_(proxy_delegate),
       user_agent_(user_agent),
+      user_buffer_len_(0),
+      write_buffer_len_(0),
+      was_ever_used_(false),
       net_log_(NetLogWithSource::Make(spdy_stream->net_log().net_log(),
                                       NetLogSourceType::PROXY_CLIENT_SOCKET)),
       source_dependency_(source_net_log.source()) {
@@ -80,6 +85,14 @@ int SpdyProxyClientSocket::RestartWithAuth(CompletionOnceCallback callback) {
   // created (possibly on top of the same SPDY Session).
   next_state_ = STATE_DISCONNECTED;
   return ERR_UNABLE_TO_REUSE_CONNECTION_FOR_PROXY_AUTH;
+}
+
+bool SpdyProxyClientSocket::IsUsingSpdy() const {
+  return true;
+}
+
+NextProto SpdyProxyClientSocket::GetProxyNegotiatedProtocol() const {
+  return spdy_stream_->GetNegotiatedProtocol();
 }
 
 // Ignore priority changes, just use priority of initial request. Since multiple
@@ -152,24 +165,20 @@ bool SpdyProxyClientSocket::WasEverUsed() const {
 }
 
 bool SpdyProxyClientSocket::WasAlpnNegotiated() const {
-  // Do not delegate to `spdy_stream_`. While `spdy_stream_` negotiated ALPN
-  // with the proxy, this object represents the tunneled TCP connection to the
-  // origin.
   return false;
 }
 
 NextProto SpdyProxyClientSocket::GetNegotiatedProtocol() const {
-  // Do not delegate to `spdy_stream_`. While `spdy_stream_` negotiated ALPN
-  // with the proxy, this object represents the tunneled TCP connection to the
-  // origin.
   return kProtoUnknown;
 }
 
 bool SpdyProxyClientSocket::GetSSLInfo(SSLInfo* ssl_info) {
-  // Do not delegate to `spdy_stream_`. While `spdy_stream_` connected to the
-  // proxy with TLS, this object represents the tunneled TCP connection to the
-  // origin.
-  return false;
+  return spdy_stream_->GetSSLInfo(ssl_info);
+}
+
+void SpdyProxyClientSocket::GetConnectionAttempts(
+    ConnectionAttempts* out) const {
+  out->clear();
 }
 
 int64_t SpdyProxyClientSocket::GetTotalReceivedBytes() const {
@@ -241,8 +250,6 @@ int SpdyProxyClientSocket::Write(
   DCHECK(write_callback_.is_null());
   if (next_state_ != STATE_OPEN)
     return ERR_SOCKET_NOT_CONNECTED;
-  if (end_stream_state_ == EndStreamState::kEndStreamSent)
-    return ERR_CONNECTION_CLOSED;
 
   DCHECK(spdy_stream_.get());
   spdy_stream_->SendData(buf, buf_len, MORE_DATA_TO_SEND);
@@ -277,15 +284,9 @@ int SpdyProxyClientSocket::GetLocalAddress(IPEndPoint* address) const {
   return spdy_stream_->GetLocalAddress(address);
 }
 
-void SpdyProxyClientSocket::RunWriteCallback(CompletionOnceCallback callback,
-                                             int result) const {
+void SpdyProxyClientSocket::RunCallback(CompletionOnceCallback callback,
+                                        int result) const {
   std::move(callback).Run(result);
-
-  if (end_stream_state_ == EndStreamState::kEndStreamReceived) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&SpdyProxyClientSocket::MaybeSendEndStream,
-                                  weak_factory_.GetMutableWeakPtr()));
-  }
 }
 
 void SpdyProxyClientSocket::OnIOComplete(int result) {
@@ -429,7 +430,8 @@ int SpdyProxyClientSocket::DoReadReplyComplete(int result) {
 
     case 407:  // Proxy Authentication Required
       next_state_ = STATE_OPEN;
-      SanitizeProxyAuth(response_);
+      if (!SanitizeProxyAuth(&response_))
+        return ERR_TUNNEL_CONNECTION_FAILED;
       return HandleProxyAuthChallenge(auth_.get(), &response_, net_log_);
 
     default:
@@ -448,9 +450,6 @@ void SpdyProxyClientSocket::OnHeadersSent() {
   OnIOComplete(OK);
 }
 
-void SpdyProxyClientSocket::OnEarlyHintsReceived(
-    const spdy::Http2HeaderBlock& headers) {}
-
 void SpdyProxyClientSocket::OnHeadersReceived(
     const spdy::Http2HeaderBlock& response_headers,
     const spdy::Http2HeaderBlock* pushed_request_headers) {
@@ -461,13 +460,14 @@ void SpdyProxyClientSocket::OnHeadersReceived(
     return;
 
   // Save the response
-  const int rv = SpdyHeadersToHttpResponse(response_headers, &response_);
-  DCHECK_NE(rv, ERR_INCOMPLETE_HTTP2_HEADERS);
+  const bool headers_valid =
+      SpdyHeadersToHttpResponse(response_headers, &response_);
+  DCHECK(headers_valid);
 
   OnIOComplete(OK);
 }
 
-// Called when data is received or on EOF (if `buffer is nullptr).
+// Called when data is received or on EOF (if |buffer| is NULL).
 void SpdyProxyClientSocket::OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) {
   if (buffer) {
     net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_RECEIVED,
@@ -477,14 +477,6 @@ void SpdyProxyClientSocket::OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) {
   } else {
     net_log_.AddByteTransferEvent(NetLogEventType::SOCKET_BYTES_RECEIVED, 0,
                                   nullptr);
-
-    if (end_stream_state_ == EndStreamState::kNone) {
-      // The peer sent END_STREAM. Schedule a DATA frame with END_STREAM.
-      end_stream_state_ = EndStreamState::kEndStreamReceived;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, base::BindOnce(&SpdyProxyClientSocket::MaybeSendEndStream,
-                                    weak_factory_.GetWeakPtr()));
-    }
   }
 
   if (read_callback_) {
@@ -501,12 +493,7 @@ void SpdyProxyClientSocket::OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) {
   }
 }
 
-void SpdyProxyClientSocket::OnDataSent() {
-  if (end_stream_state_ == EndStreamState::kEndStreamSent) {
-    CHECK(write_callback_.is_null());
-    return;
-  }
-
+void SpdyProxyClientSocket::OnDataSent()  {
   DCHECK(!write_callback_.is_null());
 
   int rv = write_buffer_len_;
@@ -514,8 +501,8 @@ void SpdyProxyClientSocket::OnDataSent() {
 
   // Proxy write callbacks result in deep callback chains. Post to allow the
   // stream's write callback chain to unwind (see crbug.com/355511).
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&SpdyProxyClientSocket::RunWriteCallback,
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::BindOnce(&SpdyProxyClientSocket::RunCallback,
                                 write_callback_weak_factory_.GetWeakPtr(),
                                 std::move(write_callback_), rv));
 }
@@ -561,23 +548,6 @@ bool SpdyProxyClientSocket::CanGreaseFrameType() const {
 
 NetLogSource SpdyProxyClientSocket::source_dependency() const {
   return source_dependency_;
-}
-
-void SpdyProxyClientSocket::MaybeSendEndStream() {
-  DCHECK_NE(end_stream_state_, EndStreamState::kNone);
-  if (end_stream_state_ == EndStreamState::kEndStreamSent)
-    return;
-
-  if (!spdy_stream_)
-    return;
-
-  // When there is a pending write, wait until the write completes.
-  if (write_callback_)
-    return;
-
-  auto buffer = base::MakeRefCounted<IOBuffer>(/*buffer_size=*/0);
-  spdy_stream_->SendData(buffer.get(), /*length=*/0, NO_MORE_DATA_TO_SEND);
-  end_stream_state_ = EndStreamState::kEndStreamSent;
 }
 
 }  // namespace net

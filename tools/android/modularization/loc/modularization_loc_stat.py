@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Generates stats on modularization efforts. Stats include:
@@ -15,15 +15,6 @@ import subprocess
 import sys
 from collections import OrderedDict
 from collections import defaultdict
-from typing import List, Tuple
-
-# Output json keys
-KEY_LOC_MODULARIZED = 'loc_modularized'
-KEY_LOC_LEGACY = 'loc_legacy'
-KEY_RANKINGS_MODULARIZED = 'rankings'
-KEY_RANKINGS_LEGACY = 'rankings_legacy'
-KEY_START_DATE = 'start_date'
-KEY_END_DATE = 'end_date'
 
 _M12N_DIRS = [
     'chrome/browser',
@@ -87,8 +78,7 @@ def GenerateLOCStats(start_date,
     print(f'\nSTDOUT: {e.stdout}', file=sys.stderr)
     raise
 
-  author_stat_m12n = defaultdict(int)
-  author_stat_legacy = defaultdict(int)
+  author_stat = defaultdict(int)
   total_m12n = 0
   total_legacy = 0
   prev_msg_len = 0
@@ -113,10 +103,9 @@ def GenerateLOCStats(start_date,
       diff = int(added)
       if _is_m12n_path(path):
         total_m12n += diff
-        author_stat_m12n[author] += diff
+        author_stat[author] += diff
       elif _is_legacy_path(path):
         total_legacy += diff
-        author_stat_legacy[author] += diff
 
     msg = f'\rProcessing {commit_date} by {author}'
     if not quiet: _print_progress(msg, prev_msg_len)
@@ -126,52 +115,38 @@ def GenerateLOCStats(start_date,
     _print_progress('Processing complete', prev_msg_len)
     print('\n')
 
-  rankings_modularized = OrderedDict(
-      sorted(author_stat_m12n.items(), key=lambda x: x[1], reverse=True))
-  rankings_legacy = OrderedDict(
-      sorted(author_stat_legacy.items(), key=lambda x: x[1], reverse=True))
+  rankings = OrderedDict(
+      sorted(author_stat.items(), key=lambda x: x[1], reverse=True))
 
   if json_format:
     return json.dumps({
-        KEY_LOC_MODULARIZED: total_m12n,
-        KEY_LOC_LEGACY: total_legacy,
-        KEY_RANKINGS_MODULARIZED: rankings_modularized,
-        KEY_RANKINGS_LEGACY: rankings_legacy,
-        KEY_START_DATE: start_date,
-        KEY_END_DATE: end_date,
+        'loc_modularized': total_m12n,
+        'loc_legacy': total_legacy,
+        'rankings': rankings,
+        'start_date': start_date,
+        'end_date': end_date,
     })
   else:
     output = []
     total = total_m12n + total_legacy
     percentage = 100.0 * total_m12n / total if total > 0 else 0
     output.append(f'# of lines added in modularized files: {total_m12n}')
-    output.append(f'# of lines added in non-modularized files: {total_legacy}')
+    output.append(f'# of lines added in legacy files: {total_legacy}')
     output.append(f'% of lines landing in modularized files: {percentage:2.2f}')
 
-    # Shows the top 50 contributors in each category.
-    output.extend(
-        _print_ranking(rankings_modularized, total_m12n,
-                       'modules and components'))
-    output.extend(
-        _print_ranking(rankings_legacy, total_legacy, 'legacy and glue'))
-
+    # Shows the top 50 contributors to modularized files.
+    output.append('\nTop contributors:')
+    if rankings:
+      output.append('No  lines    %    author')
+      for rank, author in enumerate(list(rankings.keys())[:50], 1):
+        lines = rankings[author]
+        if lines == 0:
+          break
+        ratio = 100 * lines / total_m12n
+        output.append(f'{rank:2d} {lines:6d} {ratio:5.1f}  {author}')
+    else:
+      output.append('...none found.')
     return '\n'.join(output)
-
-
-def _print_ranking(rankings: OrderedDict, total: int, label: str) -> List[str]:
-  if not rankings:
-    return []
-
-  output = []
-  output.append(f'\nTop contributors ({label}):')
-  output.append('No  lines    %    author')
-  for rank, author in enumerate(list(rankings.keys())[:50], 1):
-    lines = rankings[author]
-    if lines == 0:
-      break
-    ratio = 100 * lines / total
-    output.append(f'{rank:2d} {lines:6d} {ratio:5.1f}  {author}')
-  return output
 
 
 def _is_m12n_path(path):
@@ -194,13 +169,12 @@ def _print_progress(msg, prev_msg_len):
   print(msg, end='\r')
 
 
-def GetDateRange(*, past_days: int) -> Tuple[str, str]:
-  """Returns start and end date for a period of past days.
+def _get_date_range(args):
+  if args.date:
+    return args.date
 
-  Use the results as start_date and end_date of GenerateLOCStats.
-  """
   today = datetime.date.today()
-  delta = datetime.timedelta(days=past_days)
+  delta = datetime.timedelta(days=args.past_days)
   past = datetime.datetime(today.year, today.month, today.day) - delta
   return (past.date().isoformat(), today.isoformat())
 
@@ -241,11 +215,7 @@ if __name__ == "__main__":
   if args.past_days and args.past_days < 0:
     raise parser.error('--past-days must be non-negative.')
 
-  if args.date:
-    start_date, end_date = args.date
-  else:
-    start_date, end_date = GetDateRange(past_days=args.past_days)
-
+  start_date, end_date = _get_date_range(args)
   result = GenerateLOCStats(start_date,
                             end_date,
                             quiet=args.quiet,

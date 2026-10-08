@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include "extensions/renderer/bindings/interaction_provider.h"
 
-#include "v8/include/v8-forward.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "v8/include/v8.h"
 
 namespace extensions {
 
@@ -20,9 +22,6 @@ class ExtensionInteractionProvider : public InteractionProvider {
   // extension token.
   class Token : public InteractionProvider::Token {
    public:
-    Token(const Token&) = delete;
-    Token& operator=(const Token&) = delete;
-
     ~Token() override;
 
     bool is_for_service_worker() const { return is_for_service_worker_; }
@@ -34,14 +33,13 @@ class ExtensionInteractionProvider : public InteractionProvider {
     Token(bool is_for_service_worker);
 
     bool is_for_service_worker_ = false;
+
+    DISALLOW_COPY_AND_ASSIGN(Token);
   };
 
   // Extension system specific implementation of scope.
   class Scope : public InteractionProvider::Scope {
    public:
-    Scope(const Scope&) = delete;
-    Scope& operator=(const Scope&) = delete;
-
     ~Scope() override;
 
     // Creates a Scope for a Service Worker context, without token.
@@ -69,14 +67,11 @@ class ExtensionInteractionProvider : public InteractionProvider {
 
     // Used for Service Worker based extension Contexts.
     std::unique_ptr<ScopedWorkerInteraction> worker_thread_interaction_;
+
+    DISALLOW_COPY_AND_ASSIGN(Scope);
   };
 
   ExtensionInteractionProvider();
-
-  ExtensionInteractionProvider(const ExtensionInteractionProvider&) = delete;
-  ExtensionInteractionProvider& operator=(const ExtensionInteractionProvider&) =
-      delete;
-
   ~ExtensionInteractionProvider() override;
 
   // Returns true if |v8_context| has an active interaction.
@@ -89,6 +84,9 @@ class ExtensionInteractionProvider : public InteractionProvider {
       v8::Local<v8::Context> v8_context,
       std::unique_ptr<InteractionProvider::Token> token) const override;
   bool HasActiveInteraction(v8::Local<v8::Context> v8_context) const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInteractionProvider);
 };
 
 }  // namespace extensions

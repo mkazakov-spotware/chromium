@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "base/memory/weak_ptr.h"
+#include "base/macros.h"
 #include "components/feature_engagement/internal/availability_model.h"
 
 namespace feature_engagement {
@@ -17,17 +17,13 @@ namespace feature_engagement {
 class NeverAvailabilityModel : public AvailabilityModel {
  public:
   NeverAvailabilityModel();
-
-  NeverAvailabilityModel(const NeverAvailabilityModel&) = delete;
-  NeverAvailabilityModel& operator=(const NeverAvailabilityModel&) = delete;
-
   ~NeverAvailabilityModel() override;
 
   // AvailabilityModel implementation.
   void Initialize(AvailabilityModel::OnInitializedCallback callback,
                   uint32_t current_day) override;
   bool IsReady() const override;
-  absl::optional<uint32_t> GetAvailability(
+  base::Optional<uint32_t> GetAvailability(
       const base::Feature& feature) const override;
 
  private:
@@ -37,9 +33,9 @@ class NeverAvailabilityModel : public AvailabilityModel {
   void ForwardedOnInitializedCallback(OnInitializedCallback callback);
 
   // Whether the model has been successfully initialized.
-  bool ready_ = false;
+  bool ready_;
 
-  base::WeakPtrFactory<NeverAvailabilityModel> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(NeverAvailabilityModel);
 };
 
 }  // namespace feature_engagement

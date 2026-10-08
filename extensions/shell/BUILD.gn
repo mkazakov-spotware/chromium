@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -40,18 +40,14 @@ source_set("app_shell_lib") {
     "//base",
     "//build:chromeos_buildflags",
     "//components/feedback",
-    "//components/feedback/content:factory",
     "//components/guest_view/browser",
     "//components/guest_view/renderer",
     "//components/keep_alive_registry",
     "//components/keyed_service/content:content",
     "//components/nacl/common:buildflags",
     "//components/network_session_configurator/common",
-    "//components/origin_trials:browser",
-    "//components/origin_trials:common",
     "//components/pref_registry",
     "//components/prefs",
-    "//components/services/app_service/public/mojom",
     "//components/sessions",
     "//components/storage_monitor",
     "//components/update_client",
@@ -63,17 +59,16 @@ source_set("app_shell_lib") {
     "//extensions:extensions_resources",
     "//extensions:shell_and_test_pak",
     "//extensions/browser",
+    "//extensions/browser:core_api_provider",
     "//extensions/browser/kiosk",
-    "//extensions/browser/updater",
     "//extensions/common",
     "//extensions/common:core_api_provider",
     "//extensions/common/api",
     "//extensions/renderer",
     "//extensions/shell/browser/system_logs",
+    "//extensions/shell/common/api",
     "//extensions/shell/common/api:extensions_features",
-    "//services/network/public/mojom",
     "//third_party/blink/public:blink",
-    "//third_party/blink/public/common",
     "//ui/base",
     "//ui/base/ime/init",
   ]
@@ -81,6 +76,10 @@ source_set("app_shell_lib") {
   # TODO(michaelpg): remove Mac support and always use aura.
   if (use_aura) {
     deps += [ "//ui/aura" ]
+
+    if (use_x11) {
+      deps += [ "//ui/events/devices/x11" ]
+    }
   }
 
   if (toolkit_views) {
@@ -92,6 +91,8 @@ source_set("app_shell_lib") {
     "app/shell_main_delegate.h",
     "browser/api/feedback_private/shell_feedback_private_delegate.cc",
     "browser/api/feedback_private/shell_feedback_private_delegate.h",
+    "browser/api/identity/identity_api.cc",
+    "browser/api/identity/identity_api.h",
     "browser/api/runtime/shell_runtime_api_delegate.cc",
     "browser/api/runtime/shell_runtime_api_delegate.h",
     "browser/default_shell_browser_main_delegate.cc",
@@ -129,6 +130,8 @@ source_set("app_shell_lib") {
     "browser/shell_extension_web_contents_observer.h",
     "browser/shell_extensions_api_client.cc",
     "browser/shell_extensions_api_client.h",
+    "browser/shell_extensions_browser_api_provider.cc",
+    "browser/shell_extensions_browser_api_provider.h",
     "browser/shell_extensions_browser_client.cc",
     "browser/shell_extensions_browser_client.h",
     "browser/shell_keep_alive_requester.cc",
@@ -207,46 +210,40 @@ source_set("app_shell_lib") {
 
   if (is_linux || is_chromeos_lacros) {
     sources += [
+      "app/shell_crash_reporter_client.cc",
+      "app/shell_crash_reporter_client.h",
       "browser/api/file_system/shell_file_system_delegate.cc",
       "browser/api/file_system/shell_file_system_delegate.h",
     ]
     deps += [
       "//build:branding_buildflags",
+      "//components/crash/core/app",
+      "//components/crash/core/common",
+      "//components/upload_list",
       "//components/version_info:generate_version_info",
-    ]
-  }
-
-  if (is_chromeos) {
-    deps += [
-      "//chromeos/dbus/constants",
-      "//chromeos/dbus/power",
     ]
   }
 
   if (is_chromeos_ash) {
     sources += [
+      "browser/api/vpn_provider/vpn_service_factory.cc",
       "browser/shell_screen.cc",
       "browser/shell_screen.h",
     ]
     deps += [
-      "//ash/constants",
-      "//chromeos/ash/components/audio",
-      "//chromeos/ash/components/dbus",
-      "//chromeos/ash/components/dbus/audio",
-      "//chromeos/ash/components/dbus/cros_disks",
-      "//chromeos/ash/components/dbus/hermes",
-      "//chromeos/ash/components/dbus/shill",
-      "//chromeos/ash/components/disks",
-      "//chromeos/ash/components/login/login_state",
-      "//chromeos/ash/components/network",
+      "//chromeos/audio",
+      "//chromeos/constants",
+      "//chromeos/dbus",
+      "//chromeos/dbus/audio",
+      "//chromeos/dbus/power",
+      "//chromeos/disks",
+      "//chromeos/login/login_state",
+      "//chromeos/network",
       "//ui/chromeos",
       "//ui/display/manager",
     ]
   }
 
-  if (is_chromeos_lacros) {
-    deps += [ "//chromeos/lacros/dbus" ]
-  }
   if (enable_nacl) {
     sources += [
       "browser/shell_nacl_browser_delegate.cc",
@@ -256,18 +253,17 @@ source_set("app_shell_lib") {
     deps += [
       "//components/nacl/browser",
       "//components/nacl/common",
+      "//components/nacl/loader",
       "//components/nacl/renderer",
       "//components/nacl/renderer/plugin:nacl_trusted_plugin",
       "//ppapi/shared_impl:shared_impl",
     ]
 
-    # TODO(https://crbug.com/1299021): These dependencies might be
-    # redundant given that we were able to disable them, apparently without
-    # negative consequences, for the ARM32-NaCl-on-ARM64 case.
-    if (target_cpu != "arm64") {
-      deps += [ "//components/nacl/loader" ]
-      if (is_linux || is_chromeos) {
-        deps += [ "//components/nacl/loader:nacl_helper" ]
+    if (is_linux || is_chromeos) {
+      deps += [ "//components/nacl/loader:nacl_helper" ]
+
+      if (enable_nacl_nonsfi) {
+        deps += [ "//components/nacl/loader:helper_nonsfi" ]
       }
     }
   }
@@ -297,6 +293,7 @@ test("app_shell_unittests") {
 
   sources = [
     "../test/extensions_unittests_main.cc",
+    "browser/api/identity/identity_api_unittest.cc",
     "browser/shell_content_browser_client_unittest.cc",
     "browser/shell_extension_loader_unittest.cc",
     "browser/shell_keep_alive_requester_unittest.cc",
@@ -330,7 +327,6 @@ test("app_shell_unittests") {
     "//extensions/common/api",
     "//extensions/shell/browser/system_logs",
     "//testing/gtest",
-    "//ui/display:test_support",
     "//ui/gl:test_support",
     "//ui/platform_window",
   ]
@@ -358,19 +354,17 @@ test("app_shell_unittests") {
     ]
   }
 
-  if (is_chromeos) {
-    deps += [ "//chromeos/dbus/power" ]
-  }
-
   if (is_chromeos_ash) {
     sources += [
       "browser/shell_audio_controller_chromeos_unittest.cc",
       "browser/shell_screen_unittest.cc",
     ]
     deps += [
-      "//chromeos/ash/components/audio",
-      "//chromeos/ash/components/dbus:test_support",
-      "//chromeos/ash/components/dbus/audio",
+      "//chromeos/audio",
+      "//chromeos/constants",
+      "//chromeos/dbus:test_support",
+      "//chromeos/dbus/audio",
+      "//chromeos/dbus/power",
     ]
   }
 
@@ -393,8 +387,6 @@ source_set("browser_tests") {
   sources = [
     "browser/api/runtime/runtime_apitest.cc",
     "browser/shell_browsertest.cc",
-    "test/extensions_render_view_test.cc",
-    "test/extensions_render_view_test.h",
     "test/shell_apitest.cc",
     "test/shell_apitest.h",
     "test/shell_test.cc",
@@ -424,10 +416,6 @@ source_set("browser_tests") {
     "//ui/base",
   ]
 
-  if (is_chromeos_lacros) {
-    deps += [ "//chromeos/lacros" ]
-  }
-
   if (use_aura) {
     sources += [ "browser/shell_desktop_controller_aura_browsertest.cc" ]
     deps += [ "//ui/aura" ]
@@ -446,6 +434,20 @@ source_set("unit_tests") {
   ]
 
   if (is_chromeos_ash) {
-    deps += [ "//components/keyed_service/content" ]
+    deps += [
+      "//chromeos/constants",
+      "//components/keyed_service/content",
+    ]
+  }
+}
+
+if ((is_linux || is_chromeos_lacros) && is_official_build) {
+  extract_symbols("app_shell_linux_symbols") {
+    # testonly because :app_shell is testonly. See :app_shell_lib comment.
+    testonly = true
+
+    binary = "$root_out_dir/app_shell"
+    symbol_file = "$root_out_dir/app_shell.breakpad.$current_cpu"
+    deps = [ ":app_shell" ]
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
-#include "base/debug/debugging_buildflags.h"
 #include "base/immediate_crash.h"
 
 // This header defines the CHECK, DCHECK, and DPCHECK macros.
@@ -45,11 +44,16 @@ namespace logging {
 class VoidifyStream {
  public:
   VoidifyStream() = default;
-  explicit VoidifyStream(bool) {}
+  explicit VoidifyStream(bool ignored) {}
 
   // This operator has lower precedence than << but higher than ?:
   void operator&(std::ostream&) {}
 };
+
+// Helper macro which avoids evaluating the arguents to a stream if the
+// condition is false.
+#define LAZY_CHECK_STREAM(stream, condition) \
+  !(condition) ? (void)0 : ::logging::VoidifyStream() & (stream)
 
 // Macro which uses but does not evaluate expr and any stream parameters.
 #define EAT_CHECK_STREAM_PARAMS(expr) \
@@ -57,17 +61,17 @@ class VoidifyStream {
        : ::logging::VoidifyStream(expr) & (*::logging::g_swallow_stream)
 BASE_EXPORT extern std::ostream* g_swallow_stream;
 
+class CheckOpResult;
 class LogMessage;
 
 // Class used for raising a check error upon destruction.
 class BASE_EXPORT CheckError {
  public:
-  // Used by CheckOp. Takes ownership of `log_message`.
-  explicit CheckError(LogMessage* log_message) : log_message_(log_message) {}
-
   static CheckError Check(const char* file, int line, const char* condition);
+  static CheckError CheckOp(const char* file, int line, CheckOpResult* result);
 
   static CheckError DCheck(const char* file, int line, const char* condition);
+  static CheckError DCheckOp(const char* file, int line, CheckOpResult* result);
 
   static CheckError PCheck(const char* file, int line, const char* condition);
   static CheckError PCheck(const char* file, int line);
@@ -78,52 +82,23 @@ class BASE_EXPORT CheckError {
                                    int line,
                                    const char* function);
 
-  static CheckError NotReached(const char* file, int line);
-
   // Stream for adding optional details to the error message.
   std::ostream& stream();
 
-  NOMERGE NOT_TAIL_CALLED ~CheckError();
+  ~CheckError();
 
-  CheckError(const CheckError&) = delete;
-  CheckError& operator=(const CheckError&) = delete;
-
-  template <typename T>
-  std::ostream& operator<<(T&& streamed_type) {
-    return stream() << streamed_type;
-  }
+  CheckError(const CheckError& other) = delete;
+  CheckError& operator=(const CheckError& other) = delete;
+  CheckError(CheckError&& other) = default;
+  CheckError& operator=(CheckError&& other) = default;
 
  private:
-  LogMessage* const log_message_;
+  explicit CheckError(LogMessage* log_message);
+
+  LogMessage* log_message_;
 };
 
-// The 'switch' is used to prevent the 'else' from being ambiguous when the
-// macro is used in an 'if' clause such as:
-// if (a == 1)
-//   CHECK(Foo());
-//
-// TODO(crbug.com/1380930): Remove the const bool when the blink-gc plugin has
-// been updated to accept `if (LIKELY(!field_))` as well as `if (!field_)`.
-#define CHECK_FUNCTION_IMPL(check_failure_invocation, condition)   \
-  switch (0)                                                       \
-  case 0:                                                          \
-  default:                                                         \
-    if (const bool checky_bool_lol = static_cast<bool>(condition); \
-        LIKELY(ANALYZER_ASSUME_TRUE(checky_bool_lol)))             \
-      ;                                                            \
-    else                                                           \
-      check_failure_invocation
-
-#if defined(OFFICIAL_BUILD) && !defined(NDEBUG)
-#error "Debug builds are not expected to be optimized as official builds."
-#endif  // defined(OFFICIAL_BUILD) && !defined(NDEBUG)
-
-#if defined(OFFICIAL_BUILD) && !DCHECK_IS_ON()
-// Note that this uses IMMEDIATE_CRASH_ALWAYS_INLINE to force-inline in debug
-// mode as well. See LoggingTest.CheckCausesDistinctBreakpoints.
-[[noreturn]] IMMEDIATE_CRASH_ALWAYS_INLINE void CheckFailure() {
-  base::ImmediateCrash();
-}
+#if defined(OFFICIAL_BUILD) && defined(NDEBUG)
 
 // Discard log strings to reduce code bloat.
 //
@@ -131,40 +106,38 @@ class BASE_EXPORT CheckError {
 // calling an out-of-line function instead of a noreturn inline macro prevents
 // compiler optimizations.
 #define CHECK(condition) \
-  UNLIKELY(!(condition)) ? logging::CheckFailure() : EAT_CHECK_STREAM_PARAMS()
+  UNLIKELY(!(condition)) ? IMMEDIATE_CRASH() : EAT_CHECK_STREAM_PARAMS()
 
-#define CHECK_WILL_STREAM() false
-
-// Strip the conditional string from official builds.
-#define PCHECK(condition)                                                \
-  CHECK_FUNCTION_IMPL(::logging::CheckError::PCheck(__FILE__, __LINE__), \
-                      condition)
+#define PCHECK(condition)                                         \
+  LAZY_CHECK_STREAM(                                              \
+      ::logging::CheckError::PCheck(__FILE__, __LINE__).stream(), \
+      UNLIKELY(!(condition)))
 
 #else
 
-#define CHECK_WILL_STREAM() true
+#define CHECK(condition)                                                     \
+  LAZY_CHECK_STREAM(                                                         \
+      ::logging::CheckError::Check(__FILE__, __LINE__, #condition).stream(), \
+      !ANALYZER_ASSUME_TRUE(condition))
 
-#define CHECK(condition) \
-  CHECK_FUNCTION_IMPL(   \
-      ::logging::CheckError::Check(__FILE__, __LINE__, #condition), condition)
-
-#define PCHECK(condition)                                            \
-  CHECK_FUNCTION_IMPL(                                               \
-      ::logging::CheckError::PCheck(__FILE__, __LINE__, #condition), \
-      condition)
+#define PCHECK(condition)                                                     \
+  LAZY_CHECK_STREAM(                                                          \
+      ::logging::CheckError::PCheck(__FILE__, __LINE__, #condition).stream(), \
+      !ANALYZER_ASSUME_TRUE(condition))
 
 #endif
 
 #if DCHECK_IS_ON()
 
-#define DCHECK(condition)                                            \
-  CHECK_FUNCTION_IMPL(                                               \
-      ::logging::CheckError::DCheck(__FILE__, __LINE__, #condition), \
-      condition)
-#define DPCHECK(condition)                                            \
-  CHECK_FUNCTION_IMPL(                                                \
-      ::logging::CheckError::DPCheck(__FILE__, __LINE__, #condition), \
-      condition)
+#define DCHECK(condition)                                                     \
+  LAZY_CHECK_STREAM(                                                          \
+      ::logging::CheckError::DCheck(__FILE__, __LINE__, #condition).stream(), \
+      !ANALYZER_ASSUME_TRUE(condition))
+
+#define DPCHECK(condition)                                                     \
+  LAZY_CHECK_STREAM(                                                           \
+      ::logging::CheckError::DPCheck(__FILE__, __LINE__, #condition).stream(), \
+      !ANALYZER_ASSUME_TRUE(condition))
 
 #else
 
@@ -175,7 +148,6 @@ class BASE_EXPORT CheckError {
 
 // Async signal safe checking mechanism.
 BASE_EXPORT void RawCheck(const char* message);
-BASE_EXPORT void RawError(const char* message);
 #define RAW_CHECK(condition)                                 \
   do {                                                       \
     if (!(condition))                                        \

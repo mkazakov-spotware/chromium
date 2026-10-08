@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <map>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/history/core/browser/history_backend_client.h"
 #include "url/gurl.h"
@@ -20,11 +20,8 @@ class FakeBookmarkDatabase
  public:
   FakeBookmarkDatabase() {}
 
-  FakeBookmarkDatabase(const FakeBookmarkDatabase&) = delete;
-  FakeBookmarkDatabase& operator=(const FakeBookmarkDatabase&) = delete;
-
   void ClearAllBookmarks();
-  void AddBookmarkWithTitle(const GURL& url, const std::u16string& title);
+  void AddBookmarkWithTitle(const GURL& url, const base::string16& title);
   void DelBookmark(const GURL& url);
 
   bool IsBookmarked(const GURL& url);
@@ -36,7 +33,9 @@ class FakeBookmarkDatabase
   ~FakeBookmarkDatabase() {}
 
   base::Lock lock_;
-  std::map<GURL, std::u16string> bookmarks_;
+  std::map<GURL, base::string16> bookmarks_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBookmarkDatabase);
 };
 
 void FakeBookmarkDatabase::ClearAllBookmarks() {
@@ -45,7 +44,7 @@ void FakeBookmarkDatabase::ClearAllBookmarks() {
 }
 
 void FakeBookmarkDatabase::AddBookmarkWithTitle(const GURL& url,
-                                                const std::u16string& title) {
+                                                const base::string16& title) {
   base::AutoLock with_lock(lock_);
   bookmarks_.insert(std::make_pair(url, title));
 }
@@ -78,21 +77,25 @@ class HistoryBackendClientFakeBookmarks : public HistoryBackendClient {
  public:
   explicit HistoryBackendClientFakeBookmarks(
       const scoped_refptr<FakeBookmarkDatabase>& bookmarks);
-
-  HistoryBackendClientFakeBookmarks(const HistoryBackendClientFakeBookmarks&) =
-      delete;
-  HistoryBackendClientFakeBookmarks& operator=(
-      const HistoryBackendClientFakeBookmarks&) = delete;
-
   ~HistoryBackendClientFakeBookmarks() override;
 
   // HistoryBackendClient implementation.
   bool IsPinnedURL(const GURL& url) override;
   std::vector<URLAndTitle> GetPinnedURLs() override;
   bool IsWebSafe(const GURL& url) override;
+#if defined(OS_ANDROID)
+  void OnHistoryBackendInitialized(HistoryBackend* history_backend,
+                                   HistoryDatabase* history_database,
+                                   favicon::FaviconDatabase* favicon_database,
+                                   const base::FilePath& history_dir) override;
+  void OnHistoryBackendDestroyed(HistoryBackend* history_backend,
+                                 const base::FilePath& history_dir) override;
+#endif  // defined(OS_ANDROID)
 
  private:
   scoped_refptr<FakeBookmarkDatabase> bookmarks_;
+
+  DISALLOW_COPY_AND_ASSIGN(HistoryBackendClientFakeBookmarks);
 };
 
 HistoryBackendClientFakeBookmarks::HistoryBackendClientFakeBookmarks(
@@ -115,6 +118,19 @@ bool HistoryBackendClientFakeBookmarks::IsWebSafe(const GURL& url) {
   return true;
 }
 
+#if defined(OS_ANDROID)
+void HistoryBackendClientFakeBookmarks::OnHistoryBackendInitialized(
+    HistoryBackend* history_backend,
+    HistoryDatabase* history_database,
+    favicon::FaviconDatabase* favicon_database,
+    const base::FilePath& history_dir) {}
+
+void HistoryBackendClientFakeBookmarks::OnHistoryBackendDestroyed(
+    HistoryBackend* history_backend,
+    const base::FilePath& history_dir) {
+}
+#endif  // defined(OS_ANDROID)
+
 }  // namespace
 
 HistoryClientFakeBookmarks::HistoryClientFakeBookmarks() {
@@ -129,12 +145,12 @@ void HistoryClientFakeBookmarks::ClearAllBookmarks() {
 }
 
 void HistoryClientFakeBookmarks::AddBookmark(const GURL& url) {
-  bookmarks_->AddBookmarkWithTitle(url, std::u16string());
+  bookmarks_->AddBookmarkWithTitle(url, base::string16());
 }
 
 void HistoryClientFakeBookmarks::AddBookmarkWithTitle(
     const GURL& url,
-    const std::u16string& title) {
+    const base::string16& title) {
   bookmarks_->AddBookmarkWithTitle(url, title);
 }
 
@@ -165,9 +181,5 @@ std::unique_ptr<HistoryBackendClient>
 HistoryClientFakeBookmarks::CreateBackendClient() {
   return std::make_unique<HistoryBackendClientFakeBookmarks>(bookmarks_);
 }
-
-void HistoryClientFakeBookmarks::UpdateBookmarkLastUsedTime(
-    int64_t bookmark_node_id,
-    base::Time time) {}
 
 }  // namespace history

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,12 +21,12 @@ const char* TaskTypeNames::TaskTypeToString(TaskType task_type) {
       return "UserInteraction";
     case TaskType::kNetworking:
       return "Networking";
+    case TaskType::kNetworkingWithURLLoaderAnnotation:
+      return "NetworkingWithURLLoaderAnnotation";
     case TaskType::kNetworkingUnfreezable:
       return "NetworkingUnfreezable";
     case TaskType::kNetworkingControl:
       return "NetworkingControl";
-    case TaskType::kLowPriorityScriptExecution:
-      return "LowPriorityScriptExecution";
     case TaskType::kHistoryTraversal:
       return "HistoryTraversal";
     case TaskType::kEmbed:
@@ -133,28 +133,20 @@ const char* TaskTypeNames::TaskTypeToString(TaskType task_type) {
       return "InternalNavigationAssociated";
     case TaskType::kInternalNavigationAssociatedUnfreezable:
       return "InternalNavigationAssociatedUnfreezable";
-    case TaskType::kInternalNavigationCancellation:
-      return "InternalNavigationCancellation";
     case TaskType::kInternalContinueScriptLoading:
       return "InternalContinueScriptLoading";
-    case TaskType::kWebSchedulingPostedTask:
-      return "WebSchedulingPostedTask";
+    case TaskType::kExperimentalWebScheduling:
+      return "ExperimentalWebScheduling";
     case TaskType::kInternalFrameLifecycleControl:
       return "InternalFrameLifecycleControl";
     case TaskType::kInternalFindInPage:
       return "InternalFindInPage";
     case TaskType::kInternalHighPriorityLocalFrame:
       return "InternalHighPriorityLocalFrame";
-    case TaskType::kInternalInputBlocking:
-      return "InternalInputBlocking";
     case TaskType::kMainThreadTaskQueueIPCTracking:
       return "MainThreadTaskQueueIPCTracking";
-    case TaskType::kWakeLock:
-      return "WakeLock";
-    case TaskType::kWebGPU:
-      return "WebGPU";
-    case TaskType::kInternalPostMessageForwarding:
-      return "InternalPostMessageForwarding";
+    case TaskType::kCount:
+      return "Count";
   }
   // FrameSchedulerImpl should not call this for invalid TaskTypes.
   NOTREACHED();

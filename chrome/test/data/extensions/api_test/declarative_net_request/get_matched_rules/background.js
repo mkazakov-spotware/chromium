@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,16 +24,10 @@ function getServerURL(host) {
 var testData = [
   {host: 'ab.com', rule: {ruleId: 1, rulesetId: 'rules1'}},
   {host: 'abc.com', rule: {ruleId: 2, rulesetId: 'rules1'}},
-  {host: 'abcd.com', rule: {ruleId: 1, rulesetId: 'rules2'}},
-  {
-    host: 'dynamic.com',
+  {host: 'abcd.com', rule: {ruleId: 1, rulesetId: 'rules2'}}, {
+    host: 'def.com',
     rule:
         {ruleId: 1, rulesetId: chrome.declarativeNetRequest.DYNAMIC_RULESET_ID}
-  },
-  {
-    host: 'session.com',
-    rule:
-        {ruleId: 5, rulesetId: chrome.declarativeNetRequest.SESSION_RULESET_ID}
   }
 ];
 
@@ -41,23 +35,10 @@ function addDynamicRule() {
   const rule = {
     id: 1,
     priority: 1,
-    condition: {urlFilter: 'dynamic', resourceTypes: ['main_frame']},
+    condition: {urlFilter: 'def', resourceTypes: ['main_frame']},
     action: {type: 'block'},
   };
   chrome.declarativeNetRequest.updateDynamicRules({addRules: [rule]}, () => {
-    chrome.test.assertNoLastError();
-    chrome.test.succeed();
-  });
-}
-
-function addSessionRule() {
-  const rule = {
-    id: 5,
-    priority: 1,
-    condition: {urlFilter: 'session', resourceTypes: ['main_frame']},
-    action: {type: 'block'},
-  };
-  chrome.declarativeNetRequest.updateSessionRules({addRules: [rule]}, () => {
     chrome.test.assertNoLastError();
     chrome.test.succeed();
   });
@@ -115,10 +96,8 @@ chrome.test.getConfig(function(config) {
   testServerPort = config.testServer.port;
   var tests = [];
 
-  // First add the dynamic and session rule, since it's required by one of the
-  // latter tests.
+  // First add the dynamic rule, since it's required by one of the latter tests.
   tests.push(addDynamicRule);
-  tests.push(addSessionRule);
 
   for (var i = 0; i < testData.length; ++i) {
     var test = createTest(i);

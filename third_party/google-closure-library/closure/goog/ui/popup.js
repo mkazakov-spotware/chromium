@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Definition of the Popup class.
@@ -37,7 +45,6 @@ goog.require('goog.ui.PopupBase');
  * @extends {goog.ui.PopupBase}
  */
 goog.ui.Popup = function(opt_element, opt_position) {
-  'use strict';
   /**
    * Corner of the popup to used in the positioning algorithm.
    *
@@ -55,6 +62,7 @@ goog.ui.Popup = function(opt_element, opt_position) {
   goog.ui.PopupBase.call(this, opt_element);
 };
 goog.inherits(goog.ui.Popup, goog.ui.PopupBase);
+goog.tagUnsealableClass(goog.ui.Popup);
 
 
 /**
@@ -72,7 +80,6 @@ goog.ui.Popup.prototype.margin_;
  * @return {goog.positioning.Corner} The popup corner used for positioning.
  */
 goog.ui.Popup.prototype.getPinnedCorner = function() {
-  'use strict';
   return this.popupCorner_;
 };
 
@@ -84,7 +91,6 @@ goog.ui.Popup.prototype.getPinnedCorner = function() {
  *     positioning.
  */
 goog.ui.Popup.prototype.setPinnedCorner = function(corner) {
-  'use strict';
   this.popupCorner_ = corner;
   if (this.isVisible()) {
     this.reposition();
@@ -97,7 +103,6 @@ goog.ui.Popup.prototype.setPinnedCorner = function(corner) {
  *     associated with the popup.
  */
 goog.ui.Popup.prototype.getPosition = function() {
-  'use strict';
   return this.position_ || null;
 };
 
@@ -108,7 +113,6 @@ goog.ui.Popup.prototype.getPosition = function() {
  * @param {goog.positioning.AbstractPosition} position A position helper object.
  */
 goog.ui.Popup.prototype.setPosition = function(position) {
-  'use strict';
   this.position_ = position || undefined;
   if (this.isVisible()) {
     this.reposition();
@@ -122,7 +126,6 @@ goog.ui.Popup.prototype.setPosition = function(position) {
  * @return {goog.math.Box?} The margin.
  */
 goog.ui.Popup.prototype.getMargin = function() {
-  'use strict';
   return this.margin_ || null;
 };
 
@@ -137,7 +140,6 @@ goog.ui.Popup.prototype.getMargin = function() {
  */
 goog.ui.Popup.prototype.setMargin = function(
     arg1, opt_arg2, opt_arg3, opt_arg4) {
-  'use strict';
   if (arg1 == null || arg1 instanceof goog.math.Box) {
     this.margin_ = arg1;
   } else {
@@ -158,7 +160,6 @@ goog.ui.Popup.prototype.setMargin = function(
  * @override
  */
 goog.ui.Popup.prototype.reposition = function() {
-  'use strict';
   if (!this.position_) {
     return;
   }

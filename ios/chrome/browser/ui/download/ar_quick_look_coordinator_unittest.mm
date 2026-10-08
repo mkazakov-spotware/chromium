@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,25 +8,25 @@
 
 #import <memory>
 
-#import "base/base_paths.h"
-#import "base/files/file_path.h"
-#import "base/path_service.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/base_paths.h"
+#include "base/files/file_path.h"
+#include "base/path_service.h"
+#include "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "base/test/metrics/histogram_tester.h"
-#import "base/test/task_environment.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/task_environment.h"
 #import "ios/chrome/browser/download/ar_quick_look_tab_helper.h"
 #import "ios/chrome/browser/download/ar_quick_look_tab_helper_delegate.h"
-#import "ios/chrome/browser/download/download_test_util.h"
+#include "ios/chrome/browser/download/download_test_util.h"
 #import "ios/chrome/browser/main/test_browser.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
 #import "ios/chrome/test/scoped_key_window.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -49,18 +49,17 @@ base::FilePath GetTestFilePath() {
 
 class ARQuickLookCoordinatorTest : public PlatformTest {
  protected:
-  ARQuickLookCoordinatorTest() {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(browser_state_.get());
-    base_view_controller_ = [[UIViewController alloc] init];
-    coordinator_ = [[ARQuickLookCoordinator alloc]
-        initWithBaseViewController:base_view_controller_
-                           browser:browser_.get()];
+  ARQuickLookCoordinatorTest()
+      : base_view_controller_([[UIViewController alloc] init]),
+        browser_(std::make_unique<TestBrowser>()),
+        coordinator_([[ARQuickLookCoordinator alloc]
+            initWithBaseViewController:base_view_controller_
+                               browser:browser_.get()]) {
     [scoped_key_window_.Get() setRootViewController:base_view_controller_];
 
     // The Coordinator should install itself as delegate for the existing
     // ARQuickLookTabHelper instances once started.
-    auto web_state = std::make_unique<web::FakeWebState>();
+    auto web_state = std::make_unique<web::TestWebState>();
     auto* web_state_ptr = web_state.get();
     ARQuickLookTabHelper::CreateForWebState(web_state_ptr);
     browser_->GetWebStateList()->InsertWebState(0, std::move(web_state),
@@ -71,20 +70,16 @@ class ARQuickLookCoordinatorTest : public PlatformTest {
 
   ~ARQuickLookCoordinatorTest() override { [coordinator_ stop]; }
 
-  web::WebState* web_state() {
-    DCHECK_GE(browser_->GetWebStateList()->count(), 1);
-    return browser_->GetWebStateList()->GetWebStateAt(0);
-  }
-
   ARQuickLookTabHelper* tab_helper() {
-    return ARQuickLookTabHelper::FromWebState(web_state());
+    return ARQuickLookTabHelper::FromWebState(
+        browser_->GetWebStateList()->GetWebStateAt(0));
   }
 
   // Needed for test browser state created by TestBrowser().
   base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  std::unique_ptr<TestBrowser> browser_;
+
   UIViewController* base_view_controller_;
+  std::unique_ptr<Browser> browser_;
   ARQuickLookCoordinator* coordinator_;
   ScopedKeyWindow scoped_key_window_;
   base::HistogramTester histogram_tester_;
@@ -94,7 +89,7 @@ class ARQuickLookCoordinatorTest : public PlatformTest {
 // delegate when ARQuickLookTabHelper instances become available.
 TEST_F(ARQuickLookCoordinatorTest, InstallDelegates) {
   // Coordinator should install itself as delegate for a new web state.
-  auto web_state2 = std::make_unique<web::FakeWebState>();
+  auto web_state2 = std::make_unique<web::TestWebState>();
   auto* web_state_ptr2 = web_state2.get();
   ARQuickLookTabHelper::CreateForWebState(web_state_ptr2);
   EXPECT_FALSE(ARQuickLookTabHelper::FromWebState(web_state_ptr2)->delegate());
@@ -105,7 +100,7 @@ TEST_F(ARQuickLookCoordinatorTest, InstallDelegates) {
 
   // Coordinator should install itself as delegate for a web state replacing an
   // existing one.
-  auto web_state3 = std::make_unique<web::FakeWebState>();
+  auto web_state3 = std::make_unique<web::TestWebState>();
   auto* web_state_ptr3 = web_state3.get();
   ARQuickLookTabHelper::CreateForWebState(web_state_ptr3);
   EXPECT_FALSE(ARQuickLookTabHelper::FromWebState(web_state_ptr3)->delegate());
@@ -119,10 +114,8 @@ TEST_F(ARQuickLookCoordinatorTest, ValidUSDZFile) {
   NSURL* fileURL =
       [NSURL fileURLWithPath:base::SysUTF8ToNSString(path.value())];
 
-  [tab_helper()->delegate() presentUSDZFileWithURL:fileURL
-                                      canonicalURL:nil
-                                          webState:web_state()
-                               allowContentScaling:YES];
+  [tab_helper()->delegate() ARQuickLookTabHelper:tab_helper()
+                  didFinishDowloadingFileWithURL:fileURL];
 
   EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForUIElementTimeout, ^{
     return [base_view_controller_.presentedViewController class] ==
@@ -138,10 +131,8 @@ TEST_F(ARQuickLookCoordinatorTest, ValidUSDZFile) {
 
 // Tests attempting to present an invalid USDZ file.
 TEST_F(ARQuickLookCoordinatorTest, InvalidUSDZFile) {
-  [tab_helper()->delegate() presentUSDZFileWithURL:nil
-                                      canonicalURL:nil
-                                          webState:web_state()
-                               allowContentScaling:YES];
+  [tab_helper()->delegate() ARQuickLookTabHelper:tab_helper()
+                  didFinishDowloadingFileWithURL:nil];
 
   EXPECT_FALSE(WaitUntilConditionOrTimeout(kWaitForUIElementTimeout, ^{
     return [base_view_controller_.presentedViewController class] ==
@@ -160,10 +151,8 @@ TEST_F(ARQuickLookCoordinatorTest, MultipleValidUSDZFiles) {
   base::FilePath path = GetTestFilePath();
   NSURL* fileURL =
       [NSURL fileURLWithPath:base::SysUTF8ToNSString(path.value())];
-  [tab_helper()->delegate() presentUSDZFileWithURL:fileURL
-                                      canonicalURL:nil
-                                          webState:web_state()
-                               allowContentScaling:YES];
+  [tab_helper()->delegate() ARQuickLookTabHelper:tab_helper()
+                  didFinishDowloadingFileWithURL:fileURL];
 
   EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForUIElementTimeout, ^{
     return [base_view_controller_.presentedViewController class] ==
@@ -180,10 +169,8 @@ TEST_F(ARQuickLookCoordinatorTest, MultipleValidUSDZFiles) {
   UIViewController* presented_view_controller =
       base_view_controller_.presentedViewController;
 
-  [tab_helper()->delegate() presentUSDZFileWithURL:fileURL
-                                      canonicalURL:nil
-                                          webState:web_state()
-                               allowContentScaling:YES];
+  [tab_helper()->delegate() ARQuickLookTabHelper:tab_helper()
+                  didFinishDowloadingFileWithURL:fileURL];
 
   // The attempt is ignored.
   EXPECT_EQ(presented_view_controller,
@@ -213,10 +200,8 @@ TEST_F(ARQuickLookCoordinatorTest, AnotherViewControllerIsPresented) {
   base::FilePath path = GetTestFilePath();
   NSURL* fileURL =
       [NSURL fileURLWithPath:base::SysUTF8ToNSString(path.value())];
-  [tab_helper()->delegate() presentUSDZFileWithURL:fileURL
-                                      canonicalURL:nil
-                                          webState:web_state()
-                               allowContentScaling:YES];
+  [tab_helper()->delegate() ARQuickLookTabHelper:tab_helper()
+                  didFinishDowloadingFileWithURL:fileURL];
 
   // The attempt is ignored.
   EXPECT_EQ(presented_view_controller,

@@ -1,13 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_NULL_RESOURCE_FETCHER_PROPERTIES_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_NULL_RESOURCE_FETCHER_PROPERTIES_H_
 
-#include "base/notreached.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher_properties.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 
@@ -29,7 +27,7 @@ class PLATFORM_EXPORT NullResourceFetcherProperties final
       const override {
     return *fetch_client_settings_object_;
   }
-  bool IsOutermostMainFrame() const override { return false; }
+  bool IsMainFrame() const override { return false; }
   ControllerServiceWorkerMode GetControllerServiceWorkerMode() const override {
     return ControllerServiceWorkerMode::kNoController;
   }
@@ -38,10 +36,11 @@ class PLATFORM_EXPORT NullResourceFetcherProperties final
     return 0;
   }
   bool IsPaused() const override { return false; }
-  LoaderFreezeMode FreezeMode() const override {
-    return LoaderFreezeMode::kNone;
+  WebURLLoader::DeferType DeferType() const override {
+    return WebURLLoader::DeferType::kNotDeferred;
   }
   bool IsDetached() const override { return true; }
+  bool IsLoadDeferred() const override { return false; }
   bool IsLoadComplete() const override { return true; }
   bool ShouldBlockLoadingSubResource() const override { return true; }
   bool IsSubframeDeprioritizationEnabled() const override { return false; }

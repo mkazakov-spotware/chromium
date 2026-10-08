@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,7 +71,7 @@ void TestMediaControllerObserver::MediaSessionInfoChanged(
 }
 
 void TestMediaControllerObserver::MediaSessionMetadataChanged(
-    const absl::optional<MediaMetadata>& metadata) {
+    const base::Optional<MediaMetadata>& metadata) {
   session_metadata_ = metadata;
 
   if (expected_metadata_.has_value() && expected_metadata_ == metadata) {
@@ -96,7 +96,7 @@ void TestMediaControllerObserver::MediaSessionActionsChanged(
 }
 
 void TestMediaControllerObserver::MediaSessionChanged(
-    const absl::optional<base::UnguessableToken>& request_id) {
+    const base::Optional<base::UnguessableToken>& request_id) {
   session_request_id_ = request_id;
 
   if (expected_request_id_.has_value() &&
@@ -107,7 +107,7 @@ void TestMediaControllerObserver::MediaSessionChanged(
 }
 
 void TestMediaControllerObserver::MediaSessionPositionChanged(
-    const absl::optional<media_session::MediaPosition>& position) {
+    const base::Optional<media_session::MediaPosition>& position) {
   session_position_ = position;
 
   if (waiting_for_empty_position_ && !position.has_value()) {
@@ -176,7 +176,7 @@ void TestMediaControllerObserver::WaitForExpectedActions(
 }
 
 void TestMediaControllerObserver::WaitForEmptyPosition() {
-  // |session_position_| is doubly wrapped in absl::optional so we must check
+  // |session_position_| is doubly wrapped in base::Optional so we must check
   // both values.
   if (session_position_.has_value() && !session_position_->has_value())
     return;
@@ -194,7 +194,7 @@ void TestMediaControllerObserver::WaitForNonEmptyPosition() {
 }
 
 void TestMediaControllerObserver::WaitForSession(
-    const absl::optional<base::UnguessableToken>& request_id) {
+    const base::Optional<base::UnguessableToken>& request_id) {
   if (session_request_id_.has_value() && session_request_id_ == request_id)
     return;
 
@@ -254,9 +254,9 @@ void TestMediaController::NextTrack() {
 void TestMediaController::Seek(base::TimeDelta seek_time) {
   DCHECK(!seek_time.is_zero());
 
-  if (seek_time.is_positive()) {
+  if (seek_time > base::TimeDelta()) {
     ++seek_forward_count_;
-  } else if (seek_time.is_negative()) {
+  } else if (seek_time < base::TimeDelta()) {
     ++seek_backward_count_;
   }
 }
@@ -274,10 +274,6 @@ void TestMediaController::ExitPictureInPicture() {
   // TODO(crbug.com/1040263): Implement ExitPictureInPicture.
 }
 
-void TestMediaController::RequestMediaRemoting() {
-  ++request_media_remoting_count_;
-}
-
 void TestMediaController::SimulateMediaSessionInfoChanged(
     mojom::MediaSessionInfoPtr session_info) {
   for (auto& observer : observers_)
@@ -288,18 +284,6 @@ void TestMediaController::SimulateMediaSessionActionsChanged(
     const std::vector<mojom::MediaSessionAction>& actions) {
   for (auto& observer : observers_)
     observer->MediaSessionActionsChanged(actions);
-}
-
-void TestMediaController::SimulateMediaSessionChanged(
-    base::UnguessableToken token) {
-  for (auto& observer : observers_)
-    observer->MediaSessionChanged(token);
-}
-
-void TestMediaController::SimulateMediaSessionMetadataChanged(
-    const media_session::MediaMetadata& meta_data) {
-  for (auto& observer : observers_)
-    observer->MediaSessionMetadataChanged(meta_data);
 }
 
 void TestMediaController::Flush() {

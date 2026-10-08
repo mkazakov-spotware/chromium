@@ -17,10 +17,8 @@
  * Boston, MA 02110-1301, USA.
  */
 
-// https://w3c.github.io/gamepad/#extensions-to-the-navigator-interface
-
 [
     ImplementedAs=NavigatorGamepad
 ] partial interface Navigator {
-    [MeasureAs=GetGamepads, RaisesException] sequence<Gamepad?> getGamepads();
+    [MeasureAs=GetGamepads, RaisesException] GamepadList getGamepads();
 };

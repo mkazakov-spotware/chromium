@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,18 +60,35 @@
             "type": "object",
             "name": "createParams",
             "additionalProperties": {"type": "any"}
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "returnParams",
+                "additionalProperties": {"type": "any"}
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "returnParams",
-              "additionalProperties": {"type": "any"}
-            }
-          ]
-        }
+        ]
+      },
+      {
+        "name": "destroyGuest",
+        "type": "function",
+        "parameters": [
+          {
+            "type": "integer",
+            "name": "instanceId"
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [],
+            "optional": true
+          }
+        ]
       },
       {
         "name": "setSize",
@@ -85,13 +102,14 @@
           {
             "$ref": "SizeParams",
             "name": "params"
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [],
+            "optional": true
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [],
-          "optional": true
-        }
+        ]
       }
     ]
   }

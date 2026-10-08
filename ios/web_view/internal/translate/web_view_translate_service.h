@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_WEB_VIEW_INTERNAL_TRANSLATE_WEB_VIEW_TRANSLATE_SERVICE_H_
 #define IOS_WEB_VIEW_INTERNAL_TRANSLATE_WEB_VIEW_TRANSLATE_SERVICE_H_
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
 #include "components/web_resource/resource_request_allowed_notifier.h"
@@ -15,9 +16,6 @@ namespace ios_web_view {
 class WebViewTranslateService {
  public:
   static WebViewTranslateService* GetInstance();
-
-  WebViewTranslateService(const WebViewTranslateService&) = delete;
-  WebViewTranslateService& operator=(const WebViewTranslateService&) = delete;
 
   // Must be called before the Translate feature can be used.
   void Initialize();
@@ -36,12 +34,6 @@ class WebViewTranslateService {
       : public web_resource::ResourceRequestAllowedNotifier::Observer {
    public:
     TranslateRequestsAllowedListener();
-
-    TranslateRequestsAllowedListener(const TranslateRequestsAllowedListener&) =
-        delete;
-    TranslateRequestsAllowedListener& operator=(
-        const TranslateRequestsAllowedListener&) = delete;
-
     ~TranslateRequestsAllowedListener() override;
 
     // ResourceRequestAllowedNotifier::Observer methods.
@@ -51,6 +43,8 @@ class WebViewTranslateService {
     // Notifier class to know if it's allowed to make network resource requests.
     web_resource::ResourceRequestAllowedNotifier
         resource_request_allowed_notifier_;
+
+    DISALLOW_COPY_AND_ASSIGN(TranslateRequestsAllowedListener);
   };
 
   WebViewTranslateService();
@@ -60,6 +54,8 @@ class WebViewTranslateService {
 
   // Listener which manages when translate requests can occur.
   TranslateRequestsAllowedListener translate_requests_allowed_listener_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebViewTranslateService);
 };
 
 }  // namespace ios_web_view

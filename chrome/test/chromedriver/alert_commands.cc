@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/alert_commands.h"
-
-#include <memory>
 
 #include "base/callback.h"
 #include "base/values.h"
@@ -18,9 +16,9 @@
 
 Status ExecuteAlertCommand(const AlertCommand& alert_command,
                            Session* session,
-                           const base::Value::Dict& params,
+                           const base::DictionaryValue& params,
                            std::unique_ptr<base::Value>* value) {
-  WebView* web_view = nullptr;
+  WebView* web_view = NULL;
   Status status = session->GetTargetWindow(&web_view);
   if (status.IsError())
     return status;
@@ -43,32 +41,32 @@ Status ExecuteAlertCommand(const AlertCommand& alert_command,
 
 Status ExecuteGetAlert(Session* session,
                        WebView* web_view,
-                       const base::Value::Dict& params,
+                       const base::DictionaryValue& params,
                        std::unique_ptr<base::Value>* value) {
-  *value = std::make_unique<base::Value>(
-      web_view->GetJavaScriptDialogManager()->IsDialogOpen());
+  value->reset(
+      new base::Value(web_view->GetJavaScriptDialogManager()->IsDialogOpen()));
   return Status(kOk);
 }
 
 Status ExecuteGetAlertText(Session* session,
                            WebView* web_view,
-                           const base::Value::Dict& params,
+                           const base::DictionaryValue& params,
                            std::unique_ptr<base::Value>* value) {
   std::string message;
   Status status =
       web_view->GetJavaScriptDialogManager()->GetDialogMessage(&message);
   if (status.IsError())
     return status;
-  *value = std::make_unique<base::Value>(message);
+  value->reset(new base::Value(message));
   return Status(kOk);
 }
 
 Status ExecuteSetAlertText(Session* session,
                            WebView* web_view,
-                           const base::Value::Dict& params,
+                           const base::DictionaryValue& params,
                            std::unique_ptr<base::Value>* value) {
-  const std::string* text = params.FindString("text");
-  if (!text)
+  std::string text;
+  if (!params.GetString("text", &text))
     return Status(kInvalidArgument, "missing or invalid 'text'");
 
   JavaScriptDialogManager* dialog_manager =
@@ -83,7 +81,7 @@ Status ExecuteSetAlertText(Session* session,
     return status;
 
   if (type == "prompt")
-    session->prompt_text = std::make_unique<std::string>(*text);
+    session->prompt_text.reset(new std::string(text));
   else if (type == "alert" || type == "confirm")
     return Status(kElementNotInteractable,
                   "User dialog does not have a text box input field.");
@@ -95,7 +93,7 @@ Status ExecuteSetAlertText(Session* session,
 
 Status ExecuteAcceptAlert(Session* session,
                           WebView* web_view,
-                          const base::Value::Dict& params,
+                          const base::DictionaryValue& params,
                           std::unique_ptr<base::Value>* value) {
   Status status = web_view->GetJavaScriptDialogManager()
       ->HandleDialog(true, session->prompt_text.get());
@@ -105,7 +103,7 @@ Status ExecuteAcceptAlert(Session* session,
 
 Status ExecuteDismissAlert(Session* session,
                            WebView* web_view,
-                           const base::Value::Dict& params,
+                           const base::DictionaryValue& params,
                            std::unique_ptr<base::Value>* value) {
   Status status = web_view->GetJavaScriptDialogManager()
       ->HandleDialog(false, session->prompt_text.get());

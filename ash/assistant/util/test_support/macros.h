@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 namespace ash {
 
-// TODO(yawano): Migrate usage to gfx::test::AreBitmapsEqual.
 // Asserts |img_a_| and |img_b_| pixel equivalence.
 #define ASSERT_PIXELS_EQ(img_a_, img_b_)            \
   {                                                 \

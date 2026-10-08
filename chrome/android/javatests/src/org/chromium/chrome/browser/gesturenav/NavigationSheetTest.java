@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,18 +26,14 @@ import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.gesturenav.NavigationSheetMediator.ItemProperties;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabbed_mode.TabbedRootUiCoordinator;
 import org.chromium.chrome.browser.ui.RootUiCoordinator;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.NavigationController;
 import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.NavigationHistory;
@@ -45,7 +41,6 @@ import org.chromium.content_public.browser.test.mock.MockNavigationController;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.test.util.UiRestriction;
-import org.chromium.url.GURL;
 
 import java.util.concurrent.ExecutionException;
 
@@ -61,8 +56,6 @@ public class NavigationSheetTest {
     private static final int INVALID_NAVIGATION_INDEX = -1;
     private static final int NAVIGATION_INDEX_1 = 1;
     private static final int NAVIGATION_INDEX_2 = 5;
-    private static final int NAVIGATION_INDEX_3 = 9;
-    private static final int FULL_HISTORY_ENTRY_INDEX = 13;
 
     private BottomSheetController mBottomSheetController;
 
@@ -75,10 +68,10 @@ public class NavigationSheetTest {
     }
 
     private static class TestNavigationEntry extends NavigationEntry {
-        public TestNavigationEntry(int index, GURL url, GURL virtualUrl, GURL originalUrl,
+        public TestNavigationEntry(int index, String url, String virtualUrl, String originalUrl,
                 String title, Bitmap favicon, int transition, long timestamp) {
-            super(index, url, virtualUrl, originalUrl, title, favicon, transition, timestamp,
-                    /* isInitialEntry=*/false);
+            super(index, url, virtualUrl, originalUrl, /*referrerUrl=*/null, title, favicon,
+                    transition, timestamp);
         }
     }
 
@@ -88,14 +81,10 @@ public class NavigationSheetTest {
 
         public TestNavigationController() {
             mHistory = new NavigationHistory();
-            mHistory.addEntry(new TestNavigationEntry(NAVIGATION_INDEX_1, new GURL("about:blank"),
-                    GURL.emptyGURL(), GURL.emptyGURL(), "About Blank", null, 0, 0));
+            mHistory.addEntry(new TestNavigationEntry(
+                    NAVIGATION_INDEX_1, "about:blank", null, null, "About Blank", null, 0, 0));
             mHistory.addEntry(new TestNavigationEntry(NAVIGATION_INDEX_2,
-                    new GURL(UrlUtils.encodeHtmlDataUri("<html>1</html>")), GURL.emptyGURL(),
-                    GURL.emptyGURL(), null, null, 0, 0));
-            mHistory.addEntry(
-                    new TestNavigationEntry(NAVIGATION_INDEX_3, new GURL(UrlConstants.NTP_URL),
-                            GURL.emptyGURL(), GURL.emptyGURL(), null, null, 0, 0));
+                    UrlUtils.encodeHtmlDataUri("<html>1</html>"), null, null, null, null, 0, 0));
         }
 
         @Override
@@ -119,17 +108,9 @@ public class NavigationSheetTest {
         }
 
         @Override
-        public NavigationHistory getHistory(boolean forward, boolean isOffTheRecord) {
-            NavigationHistory history = mNavigationController.getDirectedNavigationHistory(
+        public NavigationHistory getHistory(boolean forward) {
+            return mNavigationController.getDirectedNavigationHistory(
                     forward, MAXIMUM_HISTORY_ITEMS);
-            if (!isOffTheRecord) {
-                history.addEntry(new NavigationEntry(FULL_HISTORY_ENTRY_INDEX,
-                        new GURL(UrlConstants.HISTORY_URL), GURL.emptyGURL(), GURL.emptyGURL(),
-                        mActivityTestRule.getActivity().getResources().getString(
-                                R.string.show_full_history),
-                        null, 0, 0, /* isInitialEntry=*/false));
-            }
-            return history;
         }
 
         @Override
@@ -148,8 +129,7 @@ public class NavigationSheetTest {
     @MediumTest
     public void testFaviconFetching() throws ExecutionException {
         TestNavigationController controller = new TestNavigationController();
-        NavigationSheetCoordinator sheet =
-                (NavigationSheetCoordinator) showPopup(controller, false);
+        NavigationSheetCoordinator sheet = (NavigationSheetCoordinator) showPopup(controller);
         ListView listview = sheet.getContentView().findViewById(R.id.navigation_entries);
 
         CriteriaHelper.pollUiThread(() -> {
@@ -165,8 +145,7 @@ public class NavigationSheetTest {
     @SmallTest
     public void testItemSelection() throws ExecutionException {
         TestNavigationController controller = new TestNavigationController();
-        NavigationSheetCoordinator sheet =
-                (NavigationSheetCoordinator) showPopup(controller, false);
+        NavigationSheetCoordinator sheet = (NavigationSheetCoordinator) showPopup(controller);
         ListView listview = sheet.getContentView().findViewById(R.id.navigation_entries);
 
         CriteriaHelper.pollUiThread(() -> listview.getChildCount() >= 2);
@@ -183,7 +162,10 @@ public class NavigationSheetTest {
     @Test
     @MediumTest
     @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
-    public void testLongPressBackTriggering() {
+    @CommandLineFlags.Add({"enable-features=OverscrollHistoryNavigation<GestureNavigation",
+            "force-fieldtrials=GestureNavigation/Enabled"})
+    public void
+    testLongPressBackTriggering() {
         KeyEvent event = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         TestThreadUtils.runOnUiThreadBlocking(
@@ -195,24 +177,12 @@ public class NavigationSheetTest {
     }
 
     @Test
-    @MediumTest
-    @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
-    public void testLongPressBackAfterActivityDestroy() {
-        KeyEvent event = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
-        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            activity.onKeyDown(KeyEvent.KEYCODE_BACK, event);
-            // Simulate the Activity destruction after a runnable to display navigation
-            // sheet gets delay-posted.
-            activity.getRootUiCoordinatorForTesting().destroyActivityForTesting();
-        });
-        // Test should finish without crash.
-    }
-
-    @Test
     @SmallTest
     @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
-    public void testLongPressBackTriggering_Cancellation() throws ExecutionException {
+    @CommandLineFlags.Add({"enable-features=OverscrollHistoryNavigation<GestureNavigation",
+            "force-fieldtrials=GestureNavigation/Enabled"})
+    public void
+    testLongPressBackTriggering_Cancellation() throws ExecutionException {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             KeyEvent event = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
@@ -229,75 +199,11 @@ public class NavigationSheetTest {
         Assert.assertNull(TestThreadUtils.runOnUiThreadBlocking(this::getNavigationSheet));
     }
 
-    @Test
-    @MediumTest
-    @EnableFeatures({ChromeFeatureList.UPDATE_HISTORY_ENTRY_POINTS_IN_INCOGNITO})
-    public void testFieldsForOffTheRecordProfile() throws ExecutionException {
-        TestNavigationController controller = new TestNavigationController();
-        NavigationSheetCoordinator sheet = (NavigationSheetCoordinator) showPopup(controller, true);
-        ListView listview = sheet.getContentView().findViewById(R.id.navigation_entries);
-
-        CriteriaHelper.pollUiThread(() -> {
-            boolean doesNewIncognitoTabItemPresent = false;
-            boolean doesShowFullHistoryItemPresent = false;
-            for (int i = 0; i < controller.mHistory.getEntryCount(); i++) {
-                ListItem item = (ListItem) listview.getAdapter().getItem(i);
-                String label = item.model.get(ItemProperties.LABEL);
-                String incognitoNTPText = mActivityTestRule.getActivity().getResources().getString(
-                        R.string.menu_new_incognito_tab);
-                String fullHistoryText = mActivityTestRule.getActivity().getResources().getString(
-                        R.string.show_full_history);
-                if (label.equals(incognitoNTPText)) {
-                    doesNewIncognitoTabItemPresent = true;
-                } else if (label.equals(fullHistoryText)) {
-                    doesShowFullHistoryItemPresent = true;
-                }
-            }
-            Assert.assertTrue(doesNewIncognitoTabItemPresent);
-            Assert.assertFalse(doesShowFullHistoryItemPresent);
-        });
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures({ChromeFeatureList.UPDATE_HISTORY_ENTRY_POINTS_IN_INCOGNITO})
-    public void testFieldsForRegularProfile() throws ExecutionException {
-        TestNavigationController controller = new TestNavigationController();
-        NavigationSheetCoordinator sheet =
-                (NavigationSheetCoordinator) showPopup(controller, false);
-        ListView listview = sheet.getContentView().findViewById(R.id.navigation_entries);
-
-        CriteriaHelper.pollUiThread(() -> {
-            boolean doesNewTabItemPresent = false;
-            boolean doesShowFullHisotryItemPresent = false;
-            for (int i = 0; i < controller.mHistory.getEntryCount(); i++) {
-                ListItem item = (ListItem) listview.getAdapter().getItem(i);
-                String label = item.model.get(ItemProperties.LABEL);
-                String regularNTPText = mActivityTestRule.getActivity().getResources().getString(
-                        R.string.menu_new_tab);
-                String fullHistoryText = mActivityTestRule.getActivity().getResources().getString(
-                        R.string.show_full_history);
-                if (label.equals(regularNTPText)) {
-                    doesNewTabItemPresent = true;
-                } else if (label.equals(fullHistoryText)) {
-                    doesShowFullHisotryItemPresent = true;
-                }
-            }
-            Assert.assertTrue(doesNewTabItemPresent);
-            Assert.assertTrue(doesShowFullHisotryItemPresent);
-        });
-    }
-
-    private NavigationSheet showPopup(NavigationController controller, boolean isOffTheRecord)
-            throws ExecutionException {
+    private NavigationSheet showPopup(NavigationController controller) throws ExecutionException {
         return TestThreadUtils.runOnUiThreadBlocking(() -> {
             Tab tab = mActivityTestRule.getActivity().getActivityTabProvider().get();
-            Profile profile = Profile.getLastUsedRegularProfile();
-            if (isOffTheRecord) {
-                profile = profile.getPrimaryOTRProfile(true);
-            }
             NavigationSheet navigationSheet = NavigationSheet.create(tab.getContentView(),
-                    mActivityTestRule.getActivity(), () -> mBottomSheetController, profile);
+                    mActivityTestRule.getActivity(), () -> mBottomSheetController);
             navigationSheet.setDelegate(new TestSheetDelegate(controller));
             navigationSheet.startAndExpand(false, false);
             return navigationSheet;

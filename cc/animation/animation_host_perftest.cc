@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "cc/animation/animation_host.h"
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/lap_timer.h"
 #include "cc/animation/animation.h"
 #include "cc/animation/animation_id_provider.h"
@@ -36,8 +35,7 @@ class AnimationHostPerfTest : public testing::Test {
     layer_tree_host_ = FakeLayerTreeHost::Create(
         &fake_client_, &task_graph_runner_, animation_host_.get(), settings);
     layer_tree_host_->InitializeSingleThreaded(
-        &single_thread_client_,
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        &single_thread_client_, base::ThreadTaskRunnerHandle::Get());
 
     root_layer_ = Layer::Create();
     layer_tree_host_->SetRootLayer(root_layer_);
@@ -121,13 +119,12 @@ class AnimationHostPerfTest : public testing::Test {
   }
 
   void DoTest(const std::string& test_name) {
-    PropertyTrees property_trees(*host());
     timer_.Reset();
     do {
       // Invalidate dirty flags.
       SetAllTimelinesNeedPushProperties();
       SetAllAnimationsNeedPushProperties();
-      host()->PushPropertiesTo(host_impl(), property_trees);
+      host()->PushPropertiesTo(host_impl());
       timer_.NextLap();
     } while (!timer_.HasTimeLimitExpired());
 
@@ -142,7 +139,7 @@ class AnimationHostPerfTest : public testing::Test {
   std::unique_ptr<AnimationHost> animation_host_;
   std::unique_ptr<FakeLayerTreeHost> layer_tree_host_;
   scoped_refptr<Layer> root_layer_;
-  raw_ptr<LayerImpl> root_layer_impl_;
+  LayerImpl* root_layer_impl_;
   scoped_refptr<AnimationTimeline> all_animations_timeline_;
 
   int first_timeline_id_;

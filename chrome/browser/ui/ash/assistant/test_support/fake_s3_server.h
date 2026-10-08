@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,11 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/process/process.h"
 
-namespace ash::assistant {
+namespace chromeos {
+namespace assistant {
 
 class PortSelector;
 
@@ -39,10 +41,6 @@ class FakeS3Server {
   // does not exist, it will automatically looker for an older version of the
   // file.
   explicit FakeS3Server(int data_file_version);
-
-  FakeS3Server(const FakeS3Server&) = delete;
-  FakeS3Server& operator=(const FakeS3Server&) = delete;
-
   ~FakeS3Server();
 
   // Starts the fake S3 server, and tells the Assistant service to use its URI
@@ -74,8 +72,11 @@ class FakeS3Server {
   std::unique_ptr<PortSelector> port_selector_;
 
   base::Process fake_s3_server_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeS3Server);
 };
 
-}  // namespace ash::assistant
+}  // namespace assistant
+}  // namespace chromeos
 
 #endif  // CHROME_BROWSER_UI_ASH_ASSISTANT_TEST_SUPPORT_FAKE_S3_SERVER_H_

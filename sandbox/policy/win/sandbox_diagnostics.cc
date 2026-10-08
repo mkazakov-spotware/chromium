@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,8 +27,8 @@ static void ConvertToValuesAndRespond(
   for (auto&& item : *policies) {
     auto snapshot = base::JSONReader::ReadAndReturnValueWithError(
         item->JsonString(), base::JSON_PARSE_RFC);
-    CHECK(snapshot.has_value());
-    policy_values.Append(std::move(*snapshot));
+    CHECK(snapshot.value);
+    policy_values.Append(std::move(snapshot.value.value()));
   }
   std::move(response).Run(std::move(policy_values));
 }

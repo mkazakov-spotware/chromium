@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,13 +21,13 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <mach/mach_types.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "util/win/address_types.h"
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include "util/linux/address_types.h"
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include <zircon/types.h>
 #else
 #error "Unhandled OS type"
@@ -45,22 +45,22 @@ using VMAddress = uint64_t;
 //!     VMAddress), potentially across bitness.
 using VMSize = uint64_t;
 
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 
 using VMAddress = mach_vm_address_t;
 using VMSize = mach_vm_size_t;
 
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 
 using VMAddress = WinVMAddress;
 using VMSize = WinVMSize;
 
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 
 using VMAddress = LinuxVMAddress;
 using VMSize = LinuxVMSize;
 
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 
 using VMAddress = zx_vaddr_t;
 using VMSize = size_t;

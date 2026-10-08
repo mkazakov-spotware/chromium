@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/android/explore_sites/explore_sites_types.h"
 #include "net/base/backoff_entry.h"
@@ -42,9 +43,6 @@ class ExploreSitesFetcher {
       const std::string& country_code,
       scoped_refptr<network::SharedURLLoaderFactory> loader_factory,
       Callback callback);
-
-  ExploreSitesFetcher(const ExploreSitesFetcher&) = delete;
-  ExploreSitesFetcher& operator=(const ExploreSitesFetcher&) = delete;
 
   ~ExploreSitesFetcher();
 
@@ -109,6 +107,8 @@ class ExploreSitesFetcher {
   std::unique_ptr<network::SimpleURLLoader> url_loader_;
 
   base::WeakPtrFactory<ExploreSitesFetcher> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ExploreSitesFetcher);
 };
 
 }  // namespace explore_sites

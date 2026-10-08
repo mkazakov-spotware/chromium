@@ -1,67 +1,63 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/reading_list/reading_list_coordinator.h"
 
-#import "base/ios/ios_util.h"
-#import "base/metrics/histogram_macros.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/feature_engagement/public/event_constants.h"
-#import "components/feature_engagement/public/tracker.h"
-#import "components/reading_list/core/reading_list_entry.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
-#import "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
-#import "ios/chrome/browser/feature_engagement/tracker_factory.h"
-#import "ios/chrome/browser/main/browser.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/feature_engagement/public/event_constants.h"
+#include "components/feature_engagement/public/tracker.h"
+#include "components/reading_list/core/reading_list_entry.h"
+#include "ios/chrome/browser/chrome_url_constants.h"
+#include "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_large_icon_service_factory.h"
+#include "ios/chrome/browser/feature_engagement/tracker_factory.h"
+#include "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/metrics/new_tab_page_uma.h"
-#import "ios/chrome/browser/policy/policy_util.h"
-#import "ios/chrome/browser/reading_list/offline_page_tab_helper.h"
-#import "ios/chrome/browser/reading_list/offline_url_utils.h"
-#import "ios/chrome/browser/reading_list/reading_list_model_factory.h"
+#include "ios/chrome/browser/reading_list/offline_url_utils.h"
+#include "ios/chrome/browser/reading_list/reading_list_model_factory.h"
 #import "ios/chrome/browser/ui/activity_services/activity_params.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
 #import "ios/chrome/browser/ui/commands/command_dispatcher.h"
-#import "ios/chrome/browser/ui/incognito_reauth/incognito_reauth_scene_agent.h"
-#import "ios/chrome/browser/ui/main/scene_state_browser_agent.h"
-#import "ios/chrome/browser/ui/menu/browser_action_factory.h"
+#import "ios/chrome/browser/ui/menu/action_factory.h"
 #import "ios/chrome/browser/ui/menu/menu_histograms.h"
+#import "ios/chrome/browser/ui/reading_list/context_menu/reading_list_context_menu_coordinator.h"
+#import "ios/chrome/browser/ui/reading_list/context_menu/reading_list_context_menu_delegate.h"
+#import "ios/chrome/browser/ui/reading_list/context_menu/reading_list_context_menu_params.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_item.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_item_factory.h"
-#import "ios/chrome/browser/ui/reading_list/reading_list_list_item_factory_delegate.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_view_controller_audience.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_view_controller_delegate.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_mediator.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_menu_provider.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_table_view_controller.h"
 #import "ios/chrome/browser/ui/sharing/sharing_coordinator.h"
+#import "ios/chrome/browser/ui/table_view/feature_flags.h"
 #import "ios/chrome/browser/ui/table_view/table_view_animator.h"
 #import "ios/chrome/browser/ui/table_view/table_view_navigation_controller.h"
 #import "ios/chrome/browser/ui/table_view/table_view_navigation_controller_constants.h"
 #import "ios/chrome/browser/ui/table_view/table_view_presentation_controller.h"
-#import "ios/chrome/browser/ui/ui_feature_flags.h"
+#import "ios/chrome/browser/ui/util/multi_window_support.h"
 #import "ios/chrome/browser/ui/util/pasteboard_util.h"
-#import "ios/chrome/browser/url/chrome_url_constants.h"
 #import "ios/chrome/browser/url_loading/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/url_loading_params.h"
-#import "ios/chrome/browser/web_state_list/web_state_list.h"
+#include "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/window_activities/window_activity_helpers.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ios/web/common/features.h"
-#import "ios/web/public/navigation/referrer.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "ui/strings/grit/ui_strings.h"
-#import "url/gurl.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ios/web/public/navigation/referrer.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/strings/grit/ui_strings.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-@interface ReadingListCoordinator () <ReadingListMenuProvider,
-                                      ReadingListListItemFactoryDelegate,
+@interface ReadingListCoordinator () <ReadingListContextMenuDelegate,
+                                      ReadingListMenuProvider,
                                       ReadingListListViewControllerAudience,
                                       ReadingListListViewControllerDelegate,
                                       UIViewControllerTransitioningDelegate>
@@ -76,6 +72,9 @@
 // The view controller used to display the reading list.
 @property(nonatomic, strong)
     ReadingListTableViewController* tableViewController;
+// The coordinator used to show the context menu.
+@property(nonatomic, strong)
+    ReadingListContextMenuCoordinator* contextMenuCoordinator;
 
 // Coordinator in charge of handling sharing use cases.
 @property(nonatomic, strong) SharingCoordinator* sharingCoordinator;
@@ -83,6 +82,16 @@
 @end
 
 @implementation ReadingListCoordinator
+
+#pragma mark - Accessors
+
+- (void)setContextMenuCoordinator:
+    (ReadingListContextMenuCoordinator*)contextMenuCoordinator {
+  if (_contextMenuCoordinator == contextMenuCoordinator)
+    return;
+  [_contextMenuCoordinator stop];
+  _contextMenuCoordinator = contextMenuCoordinator;
+}
 
 #pragma mark - ChromeCoordinator
 
@@ -105,18 +114,18 @@
 
   // Create the table.
   self.tableViewController = [[ReadingListTableViewController alloc] init];
-  // Browser needs to be set before dataSource since the latter triggers a
-  // reloadData call.
-  self.tableViewController.browser = self.browser;
   self.tableViewController.delegate = self;
   self.tableViewController.audience = self;
   self.tableViewController.dataSource = self.mediator;
+  self.tableViewController.browser = self.browser;
 
-  self.tableViewController.menuProvider = self;
+  if (@available(iOS 13.0, *)) {
+    self.tableViewController.menuProvider = self;
+  }
 
   itemFactory.accessibilityDelegate = self.tableViewController;
 
-  // Add the "Done" button and hook it up to `stop`.
+  // Add the "Done" button and hook it up to |stop|.
   UIBarButtonItem* dismissButton = [[UIBarButtonItem alloc]
       initWithBarButtonSystemItem:UIBarButtonSystemItemDone
                            target:self
@@ -129,17 +138,23 @@
   self.navigationController = [[TableViewNavigationController alloc]
       initWithTable:self.tableViewController];
 
-  // The initial call to `readingListHasItems:` may have been received before
+  // The initial call to |readingListHasItems:| may have been received before
   // all UI elements were initialized. Call the callback directly to set up
   // everything correctly.
   [self readingListHasItems:self.mediator.hasElements];
 
   BOOL useCustomPresentation = YES;
+  if (IsCollectionsCardPresentationStyleEnabled()) {
+    if (@available(iOS 13, *)) {
+#if defined(__IPHONE_13_0) && (__IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_13_0)
       [self.navigationController
           setModalPresentationStyle:UIModalPresentationFormSheet];
       self.navigationController.presentationController.delegate =
           self.tableViewController;
       useCustomPresentation = NO;
+#endif
+    }
+  }
 
   if (useCustomPresentation) {
     self.navigationController.transitioningDelegate = self;
@@ -169,6 +184,7 @@
 - (void)stop {
   if (!self.started)
     return;
+  self.contextMenuCoordinator = nil;
   [self.tableViewController willBeDismissed];
   [self.navigationController.presentingViewController
       dismissViewControllerAnimated:YES
@@ -189,12 +205,86 @@
   self.navigationController.toolbarHidden = !hasItems;
 }
 
+#pragma mark - ReadingListContextMenuDelegate
+
+- (void)openURLInNewTabForContextMenuWithParams:
+    (ReadingListContextMenuParams*)params {
+  [self loadEntryURL:params.entryURL
+      withOfflineURL:GURL::EmptyGURL()
+            inNewTab:YES
+           incognito:NO];
+}
+
+- (void)openURLInNewIncognitoTabForContextMenuWithParams:
+    (ReadingListContextMenuParams*)params {
+  [self loadEntryURL:params.entryURL
+      withOfflineURL:GURL::EmptyGURL()
+            inNewTab:YES
+           incognito:YES];
+}
+
+- (void)openURLInNewWindowForContextMenuWithParams:
+    (ReadingListContextMenuParams*)params {
+  id<ApplicationCommands> windowOpener = HandlerForProtocol(
+      self.browser->GetCommandDispatcher(), ApplicationCommands);
+  [windowOpener openNewWindowWithActivity:ActivityToLoadURL(
+                                              WindowActivityReadingListOrigin,
+                                              params.entryURL)];
+}
+
+- (void)copyURLForContextMenuWithParams:(ReadingListContextMenuParams*)params {
+  StoreURLInPasteboard(params.entryURL);
+  self.contextMenuCoordinator = nil;
+}
+
+- (void)openOfflineURLInNewTabForContextMenuWithParams:
+    (ReadingListContextMenuParams*)params {
+  [self loadEntryURL:params.entryURL
+      withOfflineURL:params.offlineURL
+            inNewTab:YES
+           incognito:NO];
+}
+
 #pragma mark - ReadingListTableViewControllerDelegate
 
 - (void)dismissReadingListListViewController:(UIViewController*)viewController {
   DCHECK_EQ(self.tableViewController, viewController);
   [self.tableViewController willBeDismissed];
   [self stop];
+}
+
+- (void)readingListListViewController:(UIViewController*)viewController
+            displayContextMenuForItem:(id<ReadingListListItem>)item
+                              atPoint:(CGPoint)menuLocation {
+  DCHECK_EQ(self.tableViewController, viewController);
+  const ReadingListEntry* entry = [self.mediator entryFromItem:item];
+  if (!entry) {
+    [self.tableViewController reloadData];
+    return;
+  }
+
+  const GURL entryURL = entry->URL();
+  GURL offlineURL;
+  if (entry->DistilledState() == ReadingListEntry::PROCESSED) {
+    offlineURL = reading_list::OfflineURLForPath(
+        entry->DistilledPath(), entryURL, entry->DistilledURL());
+  }
+
+  ReadingListContextMenuParams* params =
+      [[ReadingListContextMenuParams alloc] init];
+  params.title = base::SysUTF8ToNSString(entry->Title());
+  params.message = base::SysUTF8ToNSString(entryURL.spec());
+  params.rect = CGRectMake(menuLocation.x, menuLocation.y, 0, 0);
+  params.view = self.tableViewController.tableView;
+  params.entryURL = entryURL;
+  params.offlineURL = offlineURL;
+
+  self.contextMenuCoordinator = [[ReadingListContextMenuCoordinator alloc]
+      initWithBaseViewController:self.navigationController
+                         browser:self.browser
+                          params:params];
+  self.contextMenuCoordinator.delegate = self;
+  [self.contextMenuCoordinator start];
 }
 
 - (void)readingListListViewController:(UIViewController*)viewController
@@ -206,10 +296,9 @@
     return;
   }
   [self loadEntryURL:entry->URL()
-          withOfflineURL:GURL::EmptyGURL()
-      loadOfflineVersion:NO
-                inNewTab:NO
-               incognito:NO];
+      withOfflineURL:GURL::EmptyGURL()
+            inNewTab:NO
+           incognito:NO];
 }
 
 - (void)readingListListViewController:(UIViewController*)viewController
@@ -222,16 +311,27 @@
     return;
   }
   [self loadEntryURL:entry->URL()
-          withOfflineURL:GURL::EmptyGURL()
-      loadOfflineVersion:NO
-                inNewTab:YES
-               incognito:incognito];
+      withOfflineURL:GURL::EmptyGURL()
+            inNewTab:YES
+           incognito:incognito];
 }
 
 - (void)readingListListViewController:(UIViewController*)viewController
               openItemOfflineInNewTab:(id<ReadingListListItem>)item {
   DCHECK_EQ(self.tableViewController, viewController);
-  [self openItemOfflineInNewTab:item];
+  const ReadingListEntry* entry = [self.mediator entryFromItem:item];
+  if (!entry)
+    return;
+
+  if (entry->DistilledState() == ReadingListEntry::PROCESSED) {
+    const GURL entryURL = entry->URL();
+    GURL offlineURL = reading_list::OfflineURLForPath(
+        entry->DistilledPath(), entryURL, entry->DistilledURL());
+    [self loadEntryURL:entry->URL()
+        withOfflineURL:offlineURL
+              inNewTab:YES
+             incognito:NO];
+  }
 }
 
 #pragma mark - UIViewControllerTransitioningDelegate
@@ -277,47 +377,14 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
 
 #pragma mark - URL Loading Helpers
 
-// Loads reading list URLs. If `offlineURL` is valid and `loadOfflineVersion` is
-// true, the item will be loaded offline; otherwise `entryURL` is loaded.
-// `newTab` and `incognito` can be used to optionally open the URL in a new tab
-// or in incognito.  The coordinator is also stopped after the load is
-// requested.
-// NOTE: `loadOfflineVersion` may not be used with `inNewTab`.
-// TODO(crbug.com/1313458):  Remove `inNewTab` and `withOfflineURL` when
-// migration is complete.
+// Loads reading list URLs.  If |offlineURL| is valid, the item will be loaded
+// offline; otherwise |entryURL| is loaded.  |newTab| and |incognito| can be
+// used to optionally open the URL in a new tab or in incognito.  The
+// coordinator is also stopped after the load is requested.
 - (void)loadEntryURL:(const GURL&)entryURL
-        withOfflineURL:(const GURL&)offlineURL
-    loadOfflineVersion:(BOOL)loadOfflineVersion
-              inNewTab:(BOOL)newTab
-             incognito:(BOOL)incognito {
-  // Override incognito opening using enterprise policy.
-  incognito = incognito || self.isIncognitoForced;
-  incognito = incognito && self.isIncognitoAvailable;
-  // Only open a new incognito tab when incognito is authenticated. Prompt for
-  // auth otherwise.
-  if (incognito) {
-    IncognitoReauthSceneAgent* reauthAgent = [IncognitoReauthSceneAgent
-        agentFromScene:SceneStateBrowserAgent::FromBrowser(self.browser)
-                           ->GetSceneState()];
-    __weak ReadingListCoordinator* weakSelf = self;
-    if (reauthAgent.authenticationRequired) {
-      // Copy C++ args to call later from the block.
-      GURL copyEntryURL = GURL(entryURL);
-      GURL copyOfflineURL = GURL(offlineURL);
-      [reauthAgent
-          authenticateIncognitoContentWithCompletionBlock:^(BOOL success) {
-            if (success) {
-              [weakSelf loadEntryURL:copyEntryURL
-                      withOfflineURL:copyOfflineURL
-                  loadOfflineVersion:YES
-                            inNewTab:newTab
-                           incognito:incognito];
-            }
-          }];
-      return;
-    }
-  }
-
+      withOfflineURL:(const GURL&)offlineURL
+            inNewTab:(BOOL)newTab
+           incognito:(BOOL)incognito {
   DCHECK(entryURL.is_valid());
   base::RecordAction(base::UserMetricsAction("MobileReadingListOpen"));
   web::WebState* activeWebState =
@@ -328,7 +395,7 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
 
   // Load the offline URL if available.
   GURL loadURL = entryURL;
-  if (offlineURL.is_valid() && !loadOfflineVersion) {
+  if (offlineURL.is_valid()) {
     loadURL = offlineURL;
     // Offline URLs should always be opened in new tabs.
     newTab = YES;
@@ -339,17 +406,9 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
   // Prepare the table for dismissal.
   [self.tableViewController willBeDismissed];
 
-  if (loadOfflineVersion) {
-    DCHECK(!newTab);
-    OfflinePageTabHelper* offlinePageTabHelper =
-        OfflinePageTabHelper::FromWebState(activeWebState);
-    if (offlinePageTabHelper &&
-        offlinePageTabHelper->CanHandleErrorLoadingURL(entryURL)) {
-      offlinePageTabHelper->LoadOfflinePage(entryURL);
-    }
-    // Use a referrer with a specific URL to signal that this entry should not
-    // be taken into account for the Most Visited tiles.
-  } else if (newTab) {
+  // Use a referrer with a specific URL to signal that this entry should not be
+  // taken into account for the Most Visited tiles.
+  if (newTab) {
     UrlLoadParams params = UrlLoadParams::InNewTab(loadURL, entryURL);
     params.in_incognito = incognito;
     params.web_params.referrer = web::Referrer(GURL(kReadingListReferrerURL),
@@ -366,38 +425,12 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
   [self stop];
 }
 
-- (void)openItemOfflineInNewTab:(id<ReadingListListItem>)item {
-  const ReadingListEntry* entry = [self.mediator entryFromItem:item];
-  if (!entry)
-    return;
-
-  BOOL offTheRecord = self.browser->GetBrowserState()->IsOffTheRecord();
-
-  if (entry->DistilledState() == ReadingListEntry::PROCESSED) {
-    const GURL entryURL = entry->URL();
-    GURL offlineURL = reading_list::OfflineURLForURL(entryURL);
-
-    if (web::features::IsLoadSimulatedRequestAPIEnabled()) {
-      [self loadEntryURL:entryURL
-              withOfflineURL:entryURL
-          loadOfflineVersion:YES
-                    inNewTab:NO
-                   incognito:offTheRecord];
-    } else {
-      [self loadEntryURL:entryURL
-              withOfflineURL:offlineURL
-          loadOfflineVersion:NO
-                    inNewTab:YES
-                   incognito:offTheRecord];
-    }
-  }
-}
-
 #pragma mark - ReadingListMenuProvider
 
 - (UIContextMenuConfiguration*)contextMenuConfigurationForItem:
                                    (id<ReadingListListItem>)item
-                                                      withView:(UIView*)view {
+                                                      withView:(UIView*)view
+    API_AVAILABLE(ios(13.0)) {
   __weak id<ReadingListListItemAccessibilityDelegate> accessibilityDelegate =
       self.tableViewController;
   __weak __typeof(self) weakSelf = self;
@@ -412,62 +445,51 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
         ReadingListCoordinator* strongSelf = weakSelf;
 
         // Record that this context menu was shown to the user.
-        RecordMenuShown(MenuScenarioHistogram::kReadingListEntry);
+        RecordMenuShown(MenuScenario::kReadingListEntry);
 
-        BrowserActionFactory* actionFactory = [[BrowserActionFactory alloc]
+        ActionFactory* actionFactory = [[ActionFactory alloc]
             initWithBrowser:strongSelf.browser
-                   scenario:MenuScenarioHistogram::kReadingListEntry];
+                   scenario:MenuScenario::kReadingListEntry];
 
         NSMutableArray<UIMenuElement*>* menuElements =
             [[NSMutableArray alloc] init];
 
-        UIAction* openInNewTab = [actionFactory actionToOpenInNewTabWithBlock:^{
-          if ([weakSelf isIncognitoForced])
-            return;
+        [menuElements addObject:[actionFactory actionToOpenInNewTabWithBlock:^{
+                        [weakSelf loadEntryURL:item.entryURL
+                                withOfflineURL:GURL::EmptyGURL()
+                                      inNewTab:YES
+                                     incognito:NO];
+                      }]];
 
-          [weakSelf loadEntryURL:item.entryURL
-                  withOfflineURL:GURL::EmptyGURL()
-              loadOfflineVersion:NO
-                        inNewTab:YES
-                       incognito:NO];
-        }];
-        if ([self isIncognitoForced]) {
-          openInNewTab.attributes = UIMenuElementAttributesDisabled;
-        }
-        [menuElements addObject:openInNewTab];
-
-        UIAction* openInNewIncognitoTab =
-            [actionFactory actionToOpenInNewIncognitoTabWithBlock:^{
-              if (![weakSelf isIncognitoAvailable])
-                return;
-
+        [menuElements
+            addObject:[actionFactory actionToOpenInNewIncognitoTabWithBlock:^{
               [weakSelf loadEntryURL:item.entryURL
                       withOfflineURL:GURL::EmptyGURL()
-                  loadOfflineVersion:NO
                             inNewTab:YES
                            incognito:YES];
-            }];
-        if (![self isIncognitoAvailable]) {
-          openInNewIncognitoTab.attributes = UIMenuElementAttributesDisabled;
-        }
-        [menuElements addObject:openInNewIncognitoTab];
+            }]];
 
         const ReadingListEntry* entry = [self.mediator entryFromItem:item];
         if (entry->DistilledState() == ReadingListEntry::PROCESSED) {
+          GURL offlineURL = reading_list::OfflineURLForPath(
+              entry->DistilledPath(), item.entryURL, entry->DistilledURL());
           [menuElements
               addObject:[actionFactory
                             actionToOpenOfflineVersionInNewTabWithBlock:^{
-                              [weakSelf openItemOfflineInNewTab:item];
+                              [weakSelf loadEntryURL:item.entryURL
+                                      withOfflineURL:offlineURL
+                                            inNewTab:YES
+                                           incognito:NO];
                             }]];
         }
 
-        if (base::ios::IsMultipleScenesSupported()) {
+        if (IsMultipleScenesSupported()) {
           [menuElements
-              addObject:
-                  [actionFactory
-                      actionToOpenInNewWindowWithURL:item.entryURL
-                                      activityOrigin:
-                                          WindowActivityReadingListOrigin]];
+              addObject:[actionFactory
+                            actionToOpenInNewWindowWithURL:item.entryURL
+                                            activityOrigin:
+                                                WindowActivityReadingListOrigin
+                                                completion:nil]];
         }
 
         if ([accessibilityDelegate isItemRead:item]) {
@@ -504,8 +526,8 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
 
 #pragma mark - Private
 
-// Triggers the URL sharing flow for the given `URL` and `title`, with the
-// origin `view` representing the UI component for that URL.
+// Triggers the URL sharing flow for the given |URL| and |title|, with the
+// origin |view| representing the UI component for that URL.
 - (void)shareURL:(const GURL&)URL
            title:(NSString*)title
         fromView:(UIView*)view {
@@ -519,16 +541,6 @@ animationControllerForDismissedController:(UIViewController*)dismissed {
                           params:params
                       originView:view];
   [self.sharingCoordinator start];
-}
-
-#pragma mark - ReadingListListItemFactoryDelegate
-
-- (BOOL)isIncognitoForced {
-  return IsIncognitoModeForced(self.browser->GetBrowserState()->GetPrefs());
-}
-
-- (BOOL)isIncognitoAvailable {
-  return !IsIncognitoModeDisabled(self.browser->GetBrowserState()->GetPrefs());
 }
 
 @end

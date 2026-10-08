@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 #define UI_EVENTS_OZONE_EVDEV_EVENT_FACTORY_EVDEV_H_
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
 #include "base/component_export.h"
-#include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
 #include "ui/events/event_modifiers.h"
 #include "ui/events/ozone/device/device_event_observer.h"
 #include "ui/events/ozone/evdev/device_event_dispatcher_evdev.h"
@@ -53,15 +54,7 @@ class COMPONENT_EXPORT(EVDEV) EventFactoryEvdev : public DeviceEventObserver,
   EventFactoryEvdev(CursorDelegateEvdev* cursor,
                     DeviceManager* device_manager,
                     KeyboardLayoutEngine* keyboard_layout_engine);
-
-  EventFactoryEvdev(const EventFactoryEvdev&) = delete;
-  EventFactoryEvdev& operator=(const EventFactoryEvdev&) = delete;
-
   ~EventFactoryEvdev() override;
-
-  // Must be called before Init().
-  void SetUserInputTaskRunner(
-      scoped_refptr<base::SingleThreadTaskRunner> user_input_task_runner);
 
   // Initialize. Must be called with a valid message loop.
   void Init();
@@ -83,28 +76,22 @@ class COMPONENT_EXPORT(EVDEV) EventFactoryEvdev : public DeviceEventObserver,
   void DispatchTouchEvent(const TouchEventParams& params);
 
   // Device lifecycle events.
-  void DispatchKeyboardDevicesUpdated(
-      const std::vector<InputDevice>& devices,
-      base::flat_map<int, std::vector<uint64_t>> key_bits_mapping);
+  void DispatchKeyboardDevicesUpdated(const std::vector<InputDevice>& devices);
   void DispatchTouchscreenDevicesUpdated(
       const std::vector<TouchscreenDevice>& devices);
   void DispatchMouseDevicesUpdated(const std::vector<InputDevice>& devices,
                                    bool has_mouse,
                                    bool has_pointing_stick);
-  void DispatchTouchpadDevicesUpdated(const std::vector<InputDevice>& devices,
-                                      bool has_haptic_touchpad);
+  void DispatchTouchpadDevicesUpdated(const std::vector<InputDevice>& devices);
   void DispatchUncategorizedDevicesUpdated(
       const std::vector<InputDevice>& devices);
   void DispatchDeviceListsComplete();
   void DispatchStylusStateChanged(StylusState stylus_state);
-  void DispatchMicrophoneMuteSwitchValueChanged(bool muted);
 
   // Gamepad event and gamepad device event. These events are dispatched to
   // GamepadObserver through GamepadProviderOzone.
   void DispatchGamepadEvent(const GamepadEvent& event);
-  void DispatchGamepadDevicesUpdated(
-      const std::vector<GamepadDevice>& devices,
-      base::flat_map<int, std::vector<uint64_t>> key_bits_mapping);
+  void DispatchGamepadDevicesUpdated(const std::vector<GamepadDevice>& devices);
 
  protected:
   // DeviceEventObserver overrides:
@@ -132,10 +119,10 @@ class COMPONENT_EXPORT(EVDEV) EventFactoryEvdev : public DeviceEventObserver,
   int last_device_id_ = 0;
 
   // Interface for scanning & monitoring input devices.
-  const raw_ptr<DeviceManager> device_manager_;  // Not owned.
+  DeviceManager* const device_manager_;  // Not owned.
 
   // Gamepad provider to dispatch gamepad events.
-  const raw_ptr<GamepadProviderOzone> gamepad_provider_;
+  GamepadProviderOzone* const gamepad_provider_;
 
   // Proxy for input device factory (manages device I/O objects).
   // The real object lives on a different thread.
@@ -145,16 +132,13 @@ class COMPONENT_EXPORT(EVDEV) EventFactoryEvdev : public DeviceEventObserver,
   EventModifiers modifiers_;
 
   // Mouse button map.
-  MouseButtonMapEvdev mouse_button_map_;
-
-  // Pointing stick (a.k.a. TrackPoint) button map.
-  MouseButtonMapEvdev pointing_stick_button_map_;
+  MouseButtonMapEvdev button_map_;
 
   // Keyboard state.
   KeyboardEvdev keyboard_;
 
   // Cursor movement.
-  const raw_ptr<CursorDelegateEvdev> cursor_;
+  CursorDelegateEvdev* const cursor_;
 
   // Object for controlling input devices.
   InputControllerEvdev input_controller_;
@@ -168,10 +152,10 @@ class COMPONENT_EXPORT(EVDEV) EventFactoryEvdev : public DeviceEventObserver,
   // Touch event id generator.
   SequentialIDGenerator touch_id_generator_;
 
-  scoped_refptr<base::SingleThreadTaskRunner> user_input_task_runner_;
-
   // Support weak pointers for attach & detach callbacks.
   base::WeakPtrFactory<EventFactoryEvdev> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(EventFactoryEvdev);
 };
 
 }  // namespace ui

@@ -1,13 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/bindings/event_emitter.h"
 
 #include <algorithm>
-#include <utility>
 
-#include "extensions/common/mojom/event_dispatcher.mojom.h"
 #include "extensions/renderer/bindings/api_binding_util.h"
 #include "extensions/renderer/bindings/api_event_listeners.h"
 #include "extensions/renderer/bindings/exception_handler.h"
@@ -57,17 +55,17 @@ const char* EventEmitter::GetTypeName() {
 
 void EventEmitter::Fire(v8::Local<v8::Context> context,
                         std::vector<v8::Local<v8::Value>>* args,
-                        mojom::EventFilteringInfoPtr filter,
+                        const EventFilteringInfo* filter,
                         JSRunner::ResultCallback callback) {
-  DispatchAsync(context, args, std::move(filter), std::move(callback));
+  DispatchAsync(context, args, filter, std::move(callback));
 }
 
 v8::Local<v8::Value> EventEmitter::FireSync(
     v8::Local<v8::Context> context,
     std::vector<v8::Local<v8::Value>>* args,
-    mojom::EventFilteringInfoPtr filter) {
+    const EventFilteringInfo* filter) {
   DCHECK(context == context->GetIsolate()->GetCurrentContext());
-  return DispatchSync(context, args, std::move(filter));
+  return DispatchSync(context, args, filter);
 }
 
 void EventEmitter::Invalidate(v8::Local<v8::Context> context) {
@@ -157,10 +155,10 @@ void EventEmitter::Dispatch(gin::Arguments* arguments) {
 v8::Local<v8::Value> EventEmitter::DispatchSync(
     v8::Local<v8::Context> context,
     std::vector<v8::Local<v8::Value>>* args,
-    mojom::EventFilteringInfoPtr filter) {
+    const EventFilteringInfo* filter) {
   // Note that |listeners_| can be modified during handling.
   std::vector<v8::Local<v8::Function>> listeners =
-      listeners_->GetListeners(std::move(filter), context);
+      listeners_->GetListeners(filter, context);
 
   JSRunner* js_runner = JSRunner::Get(context);
   v8::Isolate* isolate = context->GetIsolate();
@@ -223,7 +221,7 @@ v8::Local<v8::Value> EventEmitter::DispatchSync(
 
 void EventEmitter::DispatchAsync(v8::Local<v8::Context> context,
                                  std::vector<v8::Local<v8::Value>>* args,
-                                 mojom::EventFilteringInfoPtr filter,
+                                 const EventFilteringInfo* filter,
                                  JSRunner::ResultCallback callback) {
   v8::Isolate* isolate = context->GetIsolate();
   v8::HandleScope handle_scope(isolate);
@@ -245,7 +243,7 @@ void EventEmitter::DispatchAsync(v8::Local<v8::Context> context,
   int filter_id = kInvalidFilterId;
   if (filter) {
     filter_id = next_filter_id_++;
-    pending_filters_[filter_id] = std::move(filter);
+    pending_filters_.emplace(filter_id, *filter);
   }
 
   v8::Local<v8::Array> args_array = v8::Array::New(isolate, args->size());
@@ -292,7 +290,7 @@ void EventEmitter::DispatchAsyncHelper(
       data->Get(context, gin::StringToSymbol(isolate, kFilterKey))
           .ToLocalChecked();
   int filter_id = filter_id_value.As<v8::Int32>()->Value();
-  mojom::EventFilteringInfoPtr filter;
+  base::Optional<EventFilteringInfo> filter;
   if (filter_id != kInvalidFilterId) {
     auto filter_iter = emitter->pending_filters_.find(filter_id);
     DCHECK(filter_iter != emitter->pending_filters_.end());
@@ -313,8 +311,8 @@ void EventEmitter::DispatchAsyncHelper(
 
   // We know that dispatching synchronously should be safe because this function
   // was triggered by JS execution.
-  info.GetReturnValue().Set(
-      emitter->DispatchSync(context, &arguments, std::move(filter)));
+  info.GetReturnValue().Set(emitter->DispatchSync(
+      context, &arguments, filter ? &filter.value() : nullptr));
 }
 
 }  // namespace extensions

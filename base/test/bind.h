@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,14 +51,11 @@ template <typename Lambda,
           std::enable_if_t<internal::HasConstCallOperator<Lambda>>* = nullptr>
 decltype(auto) BindLambdaForTesting(Lambda&& lambda) {
   using Signature = internal::ExtractCallableRunType<std::decay_t<Lambda>>;
-  // If WTF::BindRepeating is available, and a callback argument is in WTF, then
-  // this call is ambiguous without the full namespace path.
-  return ::base::BindRepeating(
-      &internal::BindLambdaHelper<Lambda, Signature>::Run,
-      std::forward<Lambda>(lambda));
+  return BindRepeating(&internal::BindLambdaHelper<Lambda, Signature>::Run,
+                       std::forward<Lambda>(lambda));
 }
 
-// A variant of BindOnce() that can bind mutable capturing lambdas for
+// A variant of BindRepeating() that can bind mutable capturing lambdas for
 // testing. This doesn't support extra arguments binding as the lambda itself
 // can do. Since a mutable lambda potentially can invalidate its state after
 // being run once, this method returns a OnceCallback instead of a

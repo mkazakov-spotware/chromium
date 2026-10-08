@@ -24,20 +24,19 @@
 
 #include "base/gtest_prod_util.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/core/svg/svg_external_document_cache.h"
 #include "third_party/blink/renderer/core/svg/svg_geometry_element.h"
 #include "third_party/blink/renderer/core/svg/svg_graphics_element.h"
 #include "third_party/blink/renderer/core/svg/svg_uri_reference.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/loader/fetch/resource_client.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
 class SVGAnimatedLength;
-class SVGResourceDocumentContent;
 
 class SVGUseElement final : public SVGGraphicsElement,
                             public SVGURIReference,
-                            public ResourceClient {
+                            public SVGExternalDocumentCache::Client {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -65,7 +64,7 @@ class SVGUseElement final : public SVGGraphicsElement,
   void Trace(Visitor*) const override;
 
  private:
-  gfx::RectF GetBBox() override;
+  FloatRect GetBBox() override;
 
   void CollectStyleForPresentationAttribute(
       const QualifiedName&,
@@ -78,7 +77,7 @@ class SVGUseElement final : public SVGGraphicsElement,
   void RemovedFrom(ContainerNode&) override;
   void DidMoveToNewDocument(Document&) override;
 
-  void SvgAttributeChanged(const SvgAttributeChangedParams&) override;
+  void SvgAttributeChanged(const QualifiedName&) override;
 
   LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
 
@@ -92,8 +91,8 @@ class SVGUseElement final : public SVGGraphicsElement,
   bool SelfHasRelativeLengths() const override;
 
   ShadowRoot& UseShadowRoot() const {
-    CHECK(UserAgentShadowRoot());
-    return *UserAgentShadowRoot();
+    CHECK(ClosedShadowRoot());
+    return *ClosedShadowRoot();
   }
 
   Element* ResolveTargetElement();
@@ -105,11 +104,10 @@ class SVGUseElement final : public SVGGraphicsElement,
   bool HasCycleUseReferencing(const ContainerNode& target_instance,
                               const SVGElement& new_target) const;
 
-  void NotifyFinished(Resource*) override;
-  String DebugName() const override;
+  void NotifyFinished(Document*) override;
   void UpdateTargetReference();
 
-  Member<SVGResourceDocumentContent> document_content_;
+  Member<SVGExternalDocumentCache::Entry> cache_entry_;
 
   Member<SVGAnimatedLength> x_;
   Member<SVGAnimatedLength> y_;

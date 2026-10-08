@@ -1,9 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/signin/internal/identity_manager/profile_oauth2_token_service_delegate_android.h"
-#include "components/signin/public/identity_manager/identity_test_utils.h"
 
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -24,7 +23,8 @@ class OAuth2TokenServiceDelegateAndroidForTest
  public:
   OAuth2TokenServiceDelegateAndroidForTest(
       AccountTrackerService* account_tracker_service)
-      : ProfileOAuth2TokenServiceDelegateAndroid(account_tracker_service) {}
+      : ProfileOAuth2TokenServiceDelegateAndroid(account_tracker_service,
+                                                 nullptr) {}
   MOCK_METHOD1(SetAccounts, void(const std::vector<CoreAccountId>&));
 };
 
@@ -46,7 +46,6 @@ class OAuth2TokenServiceDelegateAndroidTest : public testing::Test {
     testing::Test::SetUp();
     AccountTrackerService::RegisterPrefs(pref_service_.registry());
     account_tracker_service_.Initialize(&pref_service_, base::FilePath());
-    SetUpMockAccountManagerFacade();
     delegate_ = std::make_unique<OAuth2TokenServiceDelegateAndroidForTest>(
         &account_tracker_service_);
     delegate_->AddObserver(&observer_);
@@ -69,6 +68,7 @@ class OAuth2TokenServiceDelegateAndroidTest : public testing::Test {
     account_info.hosted_domain = "example.com";
     account_info.locale = "en";
     account_info.picture_url = "https://example.com";
+    account_info.is_child_account = false;
     account_info.account_id = account_tracker_service_.PickAccountIdForAccount(
         account_info.gaia, account_info.email);
 

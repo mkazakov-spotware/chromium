@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,9 @@
 #include "net/base/net_export.h"
 #include "third_party/boringssl/src/include/openssl/bytestring.h"
 
-namespace net::der {
+namespace net {
+
+namespace der {
 
 // This Tag type represents the identifier for an ASN.1 tag as encoded with
 // DER. It matches the BoringSSL CBS and CBB in-memory representation for a
@@ -36,7 +38,6 @@ const Tag kTeletexString = CBS_ASN1_T61STRING;
 const Tag kIA5String = CBS_ASN1_IA5STRING;
 const Tag kUtcTime = CBS_ASN1_UTCTIME;
 const Tag kGeneralizedTime = CBS_ASN1_GENERALIZEDTIME;
-const Tag kVisibleString = CBS_ASN1_VISIBLESTRING;
 const Tag kUniversalString = CBS_ASN1_UNIVERSALSTRING;
 const Tag kBmpString = CBS_ASN1_BMPSTRING;
 
@@ -72,6 +73,8 @@ NET_EXPORT Tag ContextSpecificPrimitive(uint8_t base);
 
 NET_EXPORT bool IsConstructed(Tag tag);
 
-}  // namespace net::der
+}  // namespace der
+
+}  // namespace net
 
 #endif  // NET_DER_TAG_H_

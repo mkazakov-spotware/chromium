@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,28 +21,27 @@ import android.view.View;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.test.filters.SmallTest;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.MathUtils;
 import org.chromium.base.test.UiThreadTest;
-import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.ViewResourceFrameLayout;
 import org.chromium.components.browser_ui.widget.text.TextViewWithCompoundDrawables;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.DummyUiActivity;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 
 /**
  * Tests for {@link StatusIndicatorViewBinder}.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
-public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
+public class StatusIndicatorViewBinderTest extends DummyUiActivityTestCase {
     private static final String STATUS_TEXT = "Offline";
 
     private ViewResourceFrameLayout mContainer;
@@ -52,12 +51,16 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
     private PropertyModel mModel;
     private PropertyModelChangeProcessor mMCP;
 
+    @BeforeClass
+    public static void setUpBeforeActivityLaunched() {
+        DummyUiActivity.setTestLayout(R.layout.status_indicator_container);
+    }
+
     @Override
     public void setUpTest() throws Exception {
         super.setUpTest();
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            getActivity().setContentView(R.layout.status_indicator_container);
             mContainer = getActivity().findViewById(R.id.status_indicator);
             mStatusTextView = mContainer.findViewById(R.id.status_text);
 
@@ -134,8 +137,8 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
     @SmallTest
     @UiThreadTest
     public void testColorAndTint() {
-        int bgColor = SemanticColorUtils.getDefaultBgColor(getActivity());
-        int textColor = SemanticColorUtils.getDefaultTextColor(getActivity());
+        int bgColor = getActivity().getResources().getColor(R.color.default_bg_color);
+        int textColor = getActivity().getResources().getColor(R.color.default_text_color);
         assertEquals("Wrong initial background color.", bgColor,
                 ((ColorDrawable) mContainer.getBackground()).getColor());
         assertEquals("Wrong initial text color", textColor, mStatusTextView.getCurrentTextColor());

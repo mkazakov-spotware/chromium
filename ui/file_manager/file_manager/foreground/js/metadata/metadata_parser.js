@@ -1,15 +1,16 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {MetadataParserLogger} from '../../../externs/metadata_worker_window.js';
-
-import {ByteReader} from './byte_reader.js';
+// clang-format off
+// #import {ByteReader} from './byte_reader.m.js';
+// #import {MetadataParserLogger} from '../../../../externs/metadata_worker_window.m.js';
+// clang-format on
 
 /**
  * @implements {MetadataParserLogger}
  */
-export class MetadataParser {
+/* #export */ class MetadataParser {
   /**
    * @param {!MetadataParserLogger} parent Parent object.
    * @param {string} type Parser type.
@@ -87,7 +88,7 @@ export class MetadataParser {
 /**
  * Base class for image metadata parsers.
  */
-export class ImageParser extends MetadataParser {
+/* #export */ class ImageParser extends MetadataParser {
   /**
    * @param {!MetadataParserLogger} parent Parent object.
    * @param {string} type Image type.

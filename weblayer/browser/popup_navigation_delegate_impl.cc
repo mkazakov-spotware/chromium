@@ -1,16 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/popup_navigation_delegate_impl.h"
 
-#include "base/callback_helpers.h"
 #include "build/build_config.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "weblayer/browser/host_content_settings_map_factory.h"
+#include "weblayer/browser/infobar_service.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "components/blocked_content/android/popup_blocked_infobar_delegate.h"
 #endif
 
@@ -40,7 +39,7 @@ const GURL& PopupNavigationDelegateImpl::GetURL() {
 blocked_content::PopupNavigationDelegate::NavigateResult
 PopupNavigationDelegateImpl::NavigateWithGesture(
     const blink::mojom::WindowFeatures& window_features,
-    absl::optional<WindowOpenDisposition> updated_disposition) {
+    base::Optional<WindowOpenDisposition> updated_disposition) {
   // It's safe to mutate |params_| here because NavigateWithGesture() will only
   // be called once, and the user gesture value has already been saved in
   // |original_user_gesture_|.
@@ -57,9 +56,9 @@ PopupNavigationDelegateImpl::NavigateWithGesture(
 void PopupNavigationDelegateImpl::OnPopupBlocked(
     content::WebContents* web_contents,
     int total_popups_blocked_on_page) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   blocked_content::PopupBlockedInfoBarDelegate::Create(
-      infobars::ContentInfoBarManager::FromWebContents(web_contents),
+      InfoBarService::FromWebContents(web_contents),
       total_popups_blocked_on_page,
       HostContentSettingsMapFactory::GetForBrowserContext(
           web_contents->GetBrowserContext()),

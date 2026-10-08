@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,14 @@
 #include <wrl/client.h>
 
 #include <memory>
-#include <string>
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
 #include "base/files/file.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/media_galleries/fileapi/mtp_device_async_delegate.h"
 #include "storage/browser/file_system/async_file_util.h"
 
@@ -38,33 +39,30 @@ class MTPDeviceDelegateImplWin : public MTPDeviceAsyncDelegate {
  public:
   // Structure used to represent MTP device storage partition details.
   struct StorageDeviceInfo {
-    StorageDeviceInfo(const std::wstring& pnp_device_id,
-                      const std::wstring& registered_device_path,
-                      const std::wstring& storage_object_id);
+    StorageDeviceInfo(const base::string16& pnp_device_id,
+                      const base::string16& registered_device_path,
+                      const base::string16& storage_object_id);
 
     // The PnP Device Id, used to open the device for communication,
     // e.g. "\\?\usb#vid_04a9&pid_3073#12#{6ac27878-a6fa-4155-ba85-f1d4f33}".
-    const std::wstring pnp_device_id;
+    const base::string16 pnp_device_id;
 
     // The media file system root path, which is obtained during the
     // registration of MTP device storage partition as a file system,
     // e.g. "\\MTP:StorageSerial:SID-{10001,E,9823}:237483".
-    const std::wstring registered_device_path;
+    const base::string16 registered_device_path;
 
     // The MTP device storage partition object identifier, used to enumerate the
     // storage contents, e.g. "s10001".
-    const std::wstring storage_object_id;
+    const base::string16 storage_object_id;
   };
-
-  MTPDeviceDelegateImplWin(const MTPDeviceDelegateImplWin&) = delete;
-  MTPDeviceDelegateImplWin& operator=(const MTPDeviceDelegateImplWin&) = delete;
 
  private:
   friend void OnGetStorageInfoCreateDelegate(
-      const std::wstring& device_location,
-      CreateMTPDeviceAsyncDelegateCallback callback,
-      std::wstring* pnp_device_id,
-      std::wstring* storage_object_id,
+      const base::string16& device_location,
+      const CreateMTPDeviceAsyncDelegateCallback& callback,
+      base::string16* pnp_device_id,
+      base::string16* storage_object_id,
       bool succeeded);
 
   enum InitializationState {
@@ -88,58 +86,64 @@ class MTPDeviceDelegateImplWin : public MTPDeviceAsyncDelegate {
 
   // Defers the device initializations until the first file operation request.
   // Do all the initializations in EnsureInitAndRunTask() function.
-  MTPDeviceDelegateImplWin(const std::wstring& registered_device_path,
-                           const std::wstring& pnp_device_id,
-                           const std::wstring& storage_object_id);
+  MTPDeviceDelegateImplWin(const base::string16& registered_device_path,
+                           const base::string16& pnp_device_id,
+                           const base::string16& storage_object_id);
 
   // Destructed via CancelPendingTasksAndDeleteDelegate().
   ~MTPDeviceDelegateImplWin() override;
 
   // MTPDeviceAsyncDelegate:
   void GetFileInfo(const base::FilePath& file_path,
-                   GetFileInfoSuccessCallback success_callback,
-                   ErrorCallback error_callback) override;
-  void CreateDirectory(const base::FilePath& directory_path,
-                       const bool exclusive,
-                       const bool recursive,
-                       CreateDirectorySuccessCallback success_callback,
-                       ErrorCallback error_callback) override;
-  void ReadDirectory(const base::FilePath& root,
-                     ReadDirectorySuccessCallback success_callback,
-                     ErrorCallback error_callback) override;
-  void CreateSnapshotFile(const base::FilePath& device_file_path,
-                          const base::FilePath& local_path,
-                          CreateSnapshotFileSuccessCallback success_callback,
-                          ErrorCallback error_callback) override;
+                   const GetFileInfoSuccessCallback& success_callback,
+                   const ErrorCallback& error_callback) override;
+  void CreateDirectory(
+      const base::FilePath& directory_path,
+      const bool exclusive,
+      const bool recursive,
+      const CreateDirectorySuccessCallback& success_callback,
+      const ErrorCallback& error_callback) override;
+  void ReadDirectory(
+      const base::FilePath& root,
+      const ReadDirectorySuccessCallback& success_callback,
+      const ErrorCallback& error_callback) override;
+  void CreateSnapshotFile(
+      const base::FilePath& device_file_path,
+      const base::FilePath& local_path,
+      const CreateSnapshotFileSuccessCallback& success_callback,
+      const ErrorCallback& error_callback) override;
   bool IsStreaming() override;
   void ReadBytes(const base::FilePath& device_file_path,
                  const scoped_refptr<net::IOBuffer>& buf,
                  int64_t offset,
                  int buf_len,
-                 ReadBytesSuccessCallback success_callback,
-                 ErrorCallback error_callback) override;
+                 const ReadBytesSuccessCallback& success_callback,
+                 const ErrorCallback& error_callback) override;
   bool IsReadOnly() const override;
-  void CopyFileLocal(const base::FilePath& source_file_path,
-                     const base::FilePath& device_file_path,
-                     CreateTemporaryFileCallback create_temporary_file_callback,
-                     CopyFileProgressCallback progress_callback,
-                     CopyFileLocalSuccessCallback success_callback,
-                     ErrorCallback error_callback) override;
-  void MoveFileLocal(const base::FilePath& source_file_path,
-                     const base::FilePath& device_file_path,
-                     CreateTemporaryFileCallback create_temporary_file_callback,
-                     MoveFileLocalSuccessCallback success_callback,
-                     ErrorCallback error_callback) override;
-  void CopyFileFromLocal(const base::FilePath& source_file_path,
-                         const base::FilePath& device_file_path,
-                         CopyFileFromLocalSuccessCallback success_callback,
-                         ErrorCallback error_callback) override;
+  void CopyFileLocal(
+      const base::FilePath& source_file_path,
+      const base::FilePath& device_file_path,
+      const CreateTemporaryFileCallback& create_temporary_file_callback,
+      const CopyFileProgressCallback& progress_callback,
+      const CopyFileLocalSuccessCallback& success_callback,
+      const ErrorCallback& error_callback) override;
+  void MoveFileLocal(
+      const base::FilePath& source_file_path,
+      const base::FilePath& device_file_path,
+      const CreateTemporaryFileCallback& create_temporary_file_callback,
+      const MoveFileLocalSuccessCallback& success_callback,
+      const ErrorCallback& error_callback) override;
+  void CopyFileFromLocal(
+      const base::FilePath& source_file_path,
+      const base::FilePath& device_file_path,
+      const CopyFileFromLocalSuccessCallback& success_callback,
+      const ErrorCallback& error_callback) override;
   void DeleteFile(const base::FilePath& file_path,
-                  DeleteFileSuccessCallback success_callback,
-                  ErrorCallback error_callback) override;
+                  const DeleteFileSuccessCallback& success_callback,
+                  const ErrorCallback& error_callback) override;
   void DeleteDirectory(const base::FilePath& file_path,
-                       DeleteDirectorySuccessCallback success_callback,
-                       ErrorCallback error_callback) override;
+                       const DeleteDirectorySuccessCallback& success_callback,
+                       const ErrorCallback& error_callback) override;
   void AddWatcher(const GURL& origin,
                   const base::FilePath& file_path,
                   const bool recursive,
@@ -185,8 +189,8 @@ class MTPDeviceDelegateImplWin : public MTPDeviceAsyncDelegate {
   //
   // If the GetFileInfo() fails, |file_info| is not set and |error_callback| is
   // invoked to notify the caller about the platform file |error|.
-  void OnGetFileInfo(GetFileInfoSuccessCallback success_callback,
-                     ErrorCallback error_callback,
+  void OnGetFileInfo(const GetFileInfoSuccessCallback& success_callback,
+                     const ErrorCallback& error_callback,
                      base::File::Info* file_info,
                      base::File::Error error);
 
@@ -198,8 +202,8 @@ class MTPDeviceDelegateImplWin : public MTPDeviceAsyncDelegate {
   //
   // If the ReadDirectory() fails, |file_list| is not set and |error_callback|
   // is invoked to notify the caller about the platform file |error|.
-  void OnDidReadDirectory(ReadDirectorySuccessCallback success_callback,
-                          ErrorCallback error_callback,
+  void OnDidReadDirectory(const ReadDirectorySuccessCallback& success_callback,
+                          const ErrorCallback& error_callback,
                           storage::AsyncFileUtil::EntryList* file_list,
                           base::File::Error error);
 
@@ -256,6 +260,8 @@ class MTPDeviceDelegateImplWin : public MTPDeviceAsyncDelegate {
 
   // For callbacks that may run after destruction.
   base::WeakPtrFactory<MTPDeviceDelegateImplWin> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MTPDeviceDelegateImplWin);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_GALLERIES_WIN_MTP_DEVICE_DELEGATE_IMPL_WIN_H_

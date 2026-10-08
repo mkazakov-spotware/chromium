@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,12 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/files/file_util.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/clock.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/chrome_app_sorting.h"
 #include "chrome/browser/extensions/test_extension_system.h"
@@ -41,7 +41,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using content::BrowserThread;
-using extensions::mojom::ManifestLocation;
 
 namespace extensions {
 
@@ -50,18 +49,17 @@ class TestExtensionPrefs::IncrementalClock : public base::Clock {
  public:
   IncrementalClock() : current_time_(base::Time::Now()) {}
 
-  IncrementalClock(const IncrementalClock&) = delete;
-  IncrementalClock& operator=(const IncrementalClock&) = delete;
-
   ~IncrementalClock() override {}
 
   base::Time Now() const override {
-    current_time_ += base::Seconds(10);
+    current_time_ += base::TimeDelta::FromSeconds(10);
     return current_time_;
   }
 
  private:
   mutable base::Time current_time_;
+
+  DISALLOW_COPY_AND_ASSIGN(IncrementalClock);
 };
 
 TestExtensionPrefs::TestExtensionPrefs(
@@ -117,7 +115,7 @@ void TestExtensionPrefs::RecreateExtensionPrefs() {
     run_loop.Run();
   }
 
-  extension_pref_value_map_ = std::make_unique<ExtensionPrefValueMap>();
+  extension_pref_value_map_.reset(new ExtensionPrefValueMap);
   sync_preferences::PrefServiceMockFactory factory;
   factory.SetUserPrefsFile(preferences_file_, task_runner_.get());
   factory.set_extension_prefs(
@@ -140,47 +138,45 @@ void TestExtensionPrefs::RecreateExtensionPrefs() {
 
 scoped_refptr<Extension> TestExtensionPrefs::AddExtension(
     const std::string& name) {
-  return AddExtensionWithLocation(name, ManifestLocation::kInternal);
+  return AddExtensionWithLocation(name, Manifest::INTERNAL);
 }
 
 scoped_refptr<Extension> TestExtensionPrefs::AddApp(const std::string& name) {
   base::DictionaryValue dictionary;
-  AddDefaultManifestKeys(name, &dictionary);
-  dictionary.SetStringPath(manifest_keys::kApp, "true");
-
-  // TODO(crbug.com/949461): Should use SetStringPath() here, but we currently
-  // depend on the special SetString() behavior that overwrites a previous key
-  // with a new path ("app" or "app.launch" vs "app.launch.web_url").
+  dictionary.SetString(manifest_keys::kName, name);
+  dictionary.SetString(manifest_keys::kVersion, "0.1");
+  dictionary.SetString(manifest_keys::kApp, "true");
   dictionary.SetString(manifest_keys::kLaunchWebURL, "http://example.com");
+  return AddExtensionWithManifest(dictionary, Manifest::INTERNAL);
 
-  return AddExtensionWithManifest(dictionary, ManifestLocation::kInternal);
 }
 
 scoped_refptr<Extension> TestExtensionPrefs::AddExtensionWithLocation(
     const std::string& name,
-    ManifestLocation location) {
+    Manifest::Location location) {
   base::DictionaryValue dictionary;
-  AddDefaultManifestKeys(name, &dictionary);
+  dictionary.SetString(manifest_keys::kName, name);
+  dictionary.SetString(manifest_keys::kVersion, "0.1");
+  dictionary.SetInteger(manifest_keys::kManifestVersion, 2);
   return AddExtensionWithManifest(dictionary, location);
 }
 
 scoped_refptr<Extension> TestExtensionPrefs::AddExtensionWithManifest(
-    const base::DictionaryValue& manifest,
-    ManifestLocation location) {
+    const base::DictionaryValue& manifest, Manifest::Location location) {
   return AddExtensionWithManifestAndFlags(manifest, location,
                                           Extension::NO_FLAGS);
 }
 
 scoped_refptr<Extension> TestExtensionPrefs::AddExtensionWithManifestAndFlags(
     const base::DictionaryValue& manifest,
-    ManifestLocation location,
+    Manifest::Location location,
     int extra_flags) {
-  const std::string* name = manifest.GetDict().FindString(manifest_keys::kName);
-  EXPECT_TRUE(name);
-  base::FilePath path = extensions_dir_.AppendASCII(*name);
+  std::string name;
+  EXPECT_TRUE(manifest.GetString(manifest_keys::kName, &name));
+  base::FilePath path =  extensions_dir_.AppendASCII(name);
   std::string errors;
-  scoped_refptr<Extension> extension =
-      Extension::Create(path, location, manifest, extra_flags, &errors);
+  scoped_refptr<Extension> extension = Extension::Create(
+      path, location, manifest, extra_flags, &errors);
   EXPECT_TRUE(extension.get()) << errors;
   if (!extension.get())
     return nullptr;
@@ -220,14 +216,6 @@ void TestExtensionPrefs::set_extensions_disabled(bool extensions_disabled) {
 ChromeAppSorting* TestExtensionPrefs::app_sorting() {
   return static_cast<ChromeAppSorting*>(
       ExtensionSystem::Get(&profile_)->app_sorting());
-}
-
-void TestExtensionPrefs::AddDefaultManifestKeys(const std::string& name,
-                                                base::DictionaryValue* dict) {
-  DCHECK(dict);
-  dict->SetStringPath(manifest_keys::kName, name);
-  dict->SetStringPath(manifest_keys::kVersion, "0.1");
-  dict->SetIntPath(manifest_keys::kManifestVersion, 2);
 }
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@
 #include "base/format_macros.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -180,7 +181,7 @@ __attribute__((always_inline, no_instrument_function)) void RecordAddress(
     // Only the code in the native library is instrumented. Callees are expected
     // to be within the native library bounds.
     Disable();
-    ImmediateCrash();
+    IMMEDIATE_CRASH();
   }
 
   size_t offset = callee_address - start;
@@ -240,11 +241,11 @@ NO_INSTRUMENT_FUNCTION bool DumpToFile(const base::FilePath& path) {
 
   // This can get very large as it  constructs the whole data structure in
   // memory before dumping it to the file.
-  Value root(Value::Type::DICTIONARY);
+  DictionaryValue root;
   uint32_t total_calls_count = g_calls_count.load(std::memory_order_relaxed);
   root.SetStringKey("total_calls_count",
                     base::StringPrintf("%" PRIu32, total_calls_count));
-  Value call_graph(Value::Type::LIST);
+  ListValue call_graph;
   for (size_t i = 0; i < kMaxElements; i++) {
     auto caller_index =
         callee_map[i].load(std::memory_order_relaxed) * kTotalBuckets;
@@ -252,14 +253,14 @@ NO_INSTRUMENT_FUNCTION bool DumpToFile(const base::FilePath& path) {
       // This callee was never called.
       continue;
 
-    Value callee_element(Value::Type::DICTIONARY);
+    DictionaryValue callee_element;
     uint32_t callee_offset = i * 4;
     callee_element.SetStringKey("index",
                                 base::StringPrintf("%" PRIuS, caller_index));
     callee_element.SetStringKey("callee_offset",
                                 base::StringPrintf("%" PRIu32, callee_offset));
     std::string offset_str;
-    Value callers_list(Value::Type::LIST);
+    ListValue callers_list;
     for (size_t j = 0; j < kTotalBuckets; j++) {
       uint32_t caller_offset =
           g_caller_offset[caller_index + j].load(std::memory_order_relaxed);
@@ -278,7 +279,7 @@ NO_INSTRUMENT_FUNCTION bool DumpToFile(const base::FilePath& path) {
         // No misses.
         continue;
 
-      Value caller_count(Value::Type::DICTIONARY);
+      DictionaryValue caller_count;
       caller_count.SetStringKey("caller_offset",
                                 base::StringPrintf("%" PRIu32, caller_offset));
       caller_count.SetStringKey("count", base::StringPrintf("%" PRIu32, count));

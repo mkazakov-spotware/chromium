@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/notifications/notification_handler.h"
 #include "chrome/browser/send_tab_to_self/receiving_ui_handler.h"
 
@@ -21,18 +21,10 @@ class SendTabToSelfEntry;
 // Handler for desktop notifications shown by SendTabToSelf.
 // Will only be used on desktop platform.
 // Will be created and owned by the NativeNotificationDisplayService.
-//
-// TODO(https://crbug.com/1280681): Remove this class, which is only used in
-// STTSv1.
 class DesktopNotificationHandler : public NotificationHandler,
                                    public ReceivingUiHandler {
  public:
   explicit DesktopNotificationHandler(Profile* profile);
-
-  DesktopNotificationHandler(const DesktopNotificationHandler&) = delete;
-  DesktopNotificationHandler& operator=(const DesktopNotificationHandler&) =
-      delete;
-
   ~DesktopNotificationHandler() override;
 
   // ReceivingUiHandler implementation.
@@ -49,8 +41,8 @@ class DesktopNotificationHandler : public NotificationHandler,
   void OnClick(Profile* profile,
                const GURL& origin,
                const std::string& notification_id,
-               const absl::optional<int>& action_index,
-               const absl::optional<std::u16string>& reply,
+               const base::Optional<int>& action_index,
+               const base::Optional<base::string16>& reply,
                base::OnceClosure completed_closure) override;
 
   // When the user share a tab, a confirmation notification will be shown.
@@ -62,10 +54,11 @@ class DesktopNotificationHandler : public NotificationHandler,
   void DisplayFailureMessage(const GURL& url);
 
   // Retrieves the Profile for which this Handler will manage notifications.
-  const Profile* profile() const override;
+  const Profile* GetProfile() const;
 
  protected:
-  const raw_ptr<Profile> profile_;
+  Profile* const profile_;
+  DISALLOW_COPY_AND_ASSIGN(DesktopNotificationHandler);
 };
 
 }  // namespace send_tab_to_self

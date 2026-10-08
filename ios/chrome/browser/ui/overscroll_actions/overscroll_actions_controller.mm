@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,24 @@
 
 #import <QuartzCore/QuartzCore.h>
 
-#import <algorithm>
-#import <memory>
+#include <algorithm>
+#include <memory>
 
-#import "base/check_op.h"
-#import "base/metrics/histogram_macros.h"
-#import "base/time/time.h"
+#include "base/check_op.h"
+#include "base/metrics/histogram_macros.h"
 #import "ios/chrome/browser/ui/fullscreen/fullscreen_controller.h"
+#import "ios/chrome/browser/ui/fullscreen/fullscreen_features.h"
 #import "ios/chrome/browser/ui/fullscreen/scoped_fullscreen_disabler.h"
 #import "ios/chrome/browser/ui/overscroll_actions/overscroll_actions_gesture_recognizer.h"
 #import "ios/chrome/browser/ui/overscroll_actions/overscroll_actions_view.h"
 #import "ios/chrome/browser/ui/page_info/page_info_constants.h"
 #import "ios/chrome/browser/ui/side_swipe/side_swipe_controller.h"
-#import "ios/chrome/browser/ui/util/rtl_geometry.h"
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#include "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/ui/voice/voice_search_notification_names.h"
-#import "ios/public/provider/chrome/browser/fullscreen/fullscreen_api.h"
-#import "ios/web/common/features.h"
+#include "ios/public/provider/chrome/browser/chrome_browser_provider.h"
+#import "ios/public/provider/chrome/browser/ui/fullscreen_provider.h"
+#include "ios/web/common/features.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -31,7 +32,7 @@
 
 namespace {
 // This enum is used to record the overscroll actions performed by the user on
-// the histogram named `OverscrollActions`.
+// the histogram named |OverscrollActions|.
 enum {
   // Records each time the user selects the new tab action.
   OVERSCROLL_ACTION_NEW_TAB,
@@ -42,7 +43,7 @@ enum {
   // Records each time the user cancels the overscroll action.
   OVERSCROLL_ACTION_CANCELED,
   // NOTE: Add new actions in sources only immediately above this line.
-  // Also, make sure the enum list for histogram `OverscrollActions` in
+  // Also, make sure the enum list for histogram |OverscrollActions| in
   // tools/histogram/histograms.xml is updated with any change in here.
   OVERSCROLL_ACTION_COUNT
 };
@@ -61,11 +62,11 @@ const CGFloat kHorizontalPanDistance = 400.0;
 // if the scrollview is scrolled to top.
 const CGFloat kScrolledToTopToleranceInPoint = 50;
 // The minimum duration between scrolling in order to allow overscroll actions.
-constexpr base::TimeDelta kMinimumDurationBetweenScrolling =
-    base::Milliseconds(150);
+// In seconds.
+const CFTimeInterval kMinimumDurationBetweenScrollingInSeconds = 0.15;
 // The minimum duration that the pull must last in order to trigger an action.
-constexpr base::TimeDelta kMinimumPullDurationToTriggerAction =
-    base::Milliseconds(200);
+// In seconds.
+const CFTimeInterval kMinimumPullDurationToTriggerActionInSeconds = 0.2;
 // Bounce dynamic constants.
 // Since the bounce effect of the scrollview is cancelled by setting the
 // contentInsets to the value of the overscroll contentOffset, the bounce
@@ -110,7 +111,7 @@ CGFloat Clamp(CGFloat value, CGFloat min, CGFloat max) {
   return value;
 }
 
-// Returns `scrollView`.contentInset with an updated `topInset`.
+// Returns |scrollView|.contentInset with an updated |topInset|.
 UIEdgeInsets TopContentInset(UIScrollView* scrollView, CGFloat topInset) {
   UIEdgeInsets insets = scrollView.contentInset;
   insets.top = topInset;
@@ -146,7 +147,7 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   SpringInsetState _bounceState;
   NSInteger _overscrollActionLock;
   // The last time the user started scrolling the view.
-  base::TimeTicks _lastScrollBeginTime;
+  CFTimeInterval _lastScrollBeginTime;
   // Set to YES when the bounce animation must be independent of the scrollview
   // contentOffset change.
   // This is done when an action has been triggered. In that case the webview's
@@ -159,7 +160,7 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   // when playing the bounce back animation if no actions has been triggered.
   BOOL _forceStateUpdate;
   // Instructs the controller to ignore the scroll event resulting from setting
-  // `disablingFullscreen` to YES.
+  // |disablingFullscreen| to YES.
   BOOL _ignoreScrollForDisabledFullscreen;
   // True when the overscroll actions are disabled for loading.
   BOOL _isOverscrollActionsDisabledForLoading;
@@ -205,10 +206,6 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
 // This property is set from the delegate headerInset and cached on first
 // call. The cached value is reset when the webview proxy is set.
 @property(nonatomic, readonly) CGFloat initialContentInset;
-// Initial content offset for the scroll view. This is used to determine how
-// far the view scrolled and where to return the content offset to when
-// bouncing
-@property(nonatomic, readonly) CGFloat initialContentOffset;
 // Initial top inset for the header.
 // This property is set from the delegate headerInset and cached on first
 // call. The cached value is reset when the webview proxy is set.
@@ -236,7 +233,7 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
 // Setup/tearDown methods are used to register values when the delegate is set.
 - (void)tearDown;
 - (void)setup;
-// Resets scroll view's top content inset to `self.initialContentInset`.
+// Resets scroll view's top content inset to |self.initialContentInset|.
 - (void)resetScrollViewTopContentInset;
 // Locking/unlocking methods used to disable/enable the overscroll actions
 // with a reference count.
@@ -405,9 +402,11 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   } else {
     if (contentOffsetFromExpandedHeader < -kHeaderMaxExpansionThreshold) {
       self.overscrollState = OverscrollState::ACTION_READY;
+      [self scrollView].scrollIndicatorInsets = insets;
     } else {
       // Set the contentInset to remove the bounce that would fight with drag.
       [self setScrollViewContentInset:insets];
+      [self scrollView].scrollIndicatorInsets = insets;
       _initialHeaderHeight =
           [[self delegate] headerHeightForOverscrollActionsController:self];
       self.overscrollState = OverscrollState::STARTED_PULLING;
@@ -425,7 +424,7 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   [self.overscrollActionView pullStarted];
   if (!_performingScrollViewIndependentAnimation)
     _allowPullingActions = [self isOverscrollActionsAllowed];
-  _lastScrollBeginTime = base::TimeTicks::Now();
+  _lastScrollBeginTime = CACurrentMediaTime();
 }
 
 - (BOOL)isOverscrollActionsAllowed {
@@ -436,8 +435,8 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
                                kScrolledToTopToleranceInPoint;
   // Check that the user is not quickly scrolling the view repeatedly.
   const BOOL isMinimumTimeBetweenScrollRespected =
-      (base::TimeTicks::Now() - _lastScrollBeginTime) >=
-      kMinimumDurationBetweenScrolling;
+      (CACurrentMediaTime() - _lastScrollBeginTime) >=
+      kMinimumDurationBetweenScrollingInSeconds;
   // Finally check that the delegate allow overscroll actions.
   const BOOL delegateAllowOverscrollActions = [self.delegate
       shouldAllowOverscrollActionsForOverscrollActionsController:self];
@@ -453,12 +452,8 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   self.scrollViewDragged = NO;
   // Content is now hidden behind toolbar, make sure that contentInset is
   // restored to initial value.
-  // If Overscroll actions are triggered and dismissed quickly, it is
-  // possible to be in a state where drag is enough to be in STARTED_PULLING
-  // or ACTION_READY state, but with no selectedAction.
   if (contentOffset.y >= 0 ||
-      self.overscrollState == OverscrollState::NO_PULL_STARTED ||
-      self.overscrollActionView.selectedAction == OverscrollAction::NONE) {
+      self.overscrollState == OverscrollState::NO_PULL_STARTED) {
     [self resetScrollViewTopContentInset];
   }
 
@@ -579,7 +574,9 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
 - (BOOL)viewportAdjustsContentInset {
   if (_webViewProxy.shouldUseViewContentInset)
     return YES;
-  return ios::provider::IsFullscreenSmoothScrollingSupported();
+  return ios::GetChromeBrowserProvider()
+      ->GetFullscreenProvider()
+      ->IsInitialized();
 }
 
 - (void)recordMetricForTriggeredAction:(OverscrollAction)action {
@@ -724,17 +721,15 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   if ([self isOverscrollActionEnabled]) {
     const BOOL isOverscrollStateActionReady =
         self.overscrollState == OverscrollState::ACTION_READY;
-    const OverscrollAction selectedAction =
-        self.overscrollActionView.selectedAction;
     const BOOL isOverscrollActionNone =
-        selectedAction == OverscrollAction::NONE;
+        self.overscrollActionView.selectedAction == OverscrollAction::NONE;
 
     if ((!isOverscrollStateActionReady && _didTransitionToActionReady) ||
         (isOverscrollStateActionReady && isOverscrollActionNone)) {
       [self recordMetricForTriggeredAction:OverscrollAction::NONE];
     } else if (isOverscrollStateActionReady && !isOverscrollActionNone) {
-      if ((base::TimeTicks::Now() - _lastScrollBeginTime) >=
-          kMinimumPullDurationToTriggerAction) {
+      if (CACurrentMediaTime() - _lastScrollBeginTime >=
+          kMinimumPullDurationToTriggerActionInSeconds) {
         _performingScrollViewIndependentAnimation = YES;
         [self setScrollViewContentInset:TopContentInset(
                                             self.scrollView,
@@ -744,10 +739,12 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
         [[self scrollView] setContentOffset:contentOffset animated:YES];
         [self.overscrollActionView displayActionAnimation];
         dispatch_async(dispatch_get_main_queue(), ^{
-          [self recordMetricForTriggeredAction:selectedAction];
+          [self recordMetricForTriggeredAction:self.overscrollActionView
+                                                   .selectedAction];
           TriggerHapticFeedbackForImpact(UIImpactFeedbackStyleMedium);
           [self.delegate overscrollActionsController:self
-                                    didTriggerAction:selectedAction];
+                                    didTriggerAction:self.overscrollActionView
+                                                         .selectedAction];
         });
       }
     }
@@ -764,68 +761,66 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
 
 - (void)onOverscrollStateChangeWithPreviousState:
     (OverscrollState)previousOverscrollState {
-  __weak OverscrollActionsController* weakSelf = self;
-  [UIView animateWithDuration:0.2
-                   animations:^{
-                     [weakSelf
-                         animateOverscrollStateChange:previousOverscrollState];
-                   }
-                   completion:nil];
-}
-
-// Helper to animate onOverscrollStateChangeWithPreviousState
-- (void)animateOverscrollStateChange:(OverscrollState)previousOverscrollState {
-  switch (self.overscrollState) {
-    case OverscrollState::NO_PULL_STARTED: {
-      [self.overscrollActionView removeFromSuperview];
-      CGRect statusBarFrame =
-          [self scrollView].window.windowScene.statusBarManager.statusBarFrame;
-
-      SetViewFrameHeight(self.overscrollActionView,
-                         self.initialContentInset + statusBarFrame.size.height,
-                         0);
-      self.panPointScreenOrigin = CGPointZero;
-      [[NSNotificationCenter defaultCenter]
-          postNotificationName:kOverscrollActionsDidEnd
-                        object:self];
-      [self resetScrollViewTopContentInset];
-      self.disablingFullscreen = NO;
-      if (_shouldInvalidate) {
-        [self invalidate];
-      }
-    } break;
-    case OverscrollState::STARTED_PULLING: {
-      if (!self.overscrollActionView.superview && self.scrollViewDragged) {
-        UIView* headerView =
-            [self.delegate headerViewForOverscrollActionsController:self];
-        DCHECK(headerView);
-        if (previousOverscrollState == OverscrollState::NO_PULL_STARTED) {
-          UIView* view = [self.delegate
-              toolbarSnapshotViewForOverscrollActionsController:self];
-          [self.overscrollActionView addSnapshotView:view];
-          [[NSNotificationCenter defaultCenter]
-              postNotificationName:kOverscrollActionsWillStart
-                            object:self];
-          self.disablingFullscreen = YES;
-        }
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        self.overscrollActionView.backgroundView.alpha = 1;
-        [self.overscrollActionView updateWithVerticalOffset:0];
-        [self.overscrollActionView updateWithHorizontalOffset:0];
-        self.overscrollActionView.frame = headerView.bounds;
-        [headerView addSubview:self.overscrollActionView];
-        [CATransaction commit];
-      }
-    } break;
-    case OverscrollState::ACTION_READY: {
-      _didTransitionToActionReady = YES;
-      if (CGPointEqualToPoint(self.panPointScreenOrigin, CGPointZero)) {
-        CGPoint panPointScreen = [self.panGestureRecognizer locationInView:nil];
-        self.panPointScreenOrigin = panPointScreen;
-      }
-    } break;
-  }
+  [UIView
+      animateWithDuration:0.2
+               animations:^{
+                 switch (self.overscrollState) {
+                   case OverscrollState::NO_PULL_STARTED: {
+                     [self.overscrollActionView removeFromSuperview];
+                     SetViewFrameHeight(self.overscrollActionView,
+                                        self.initialContentInset +
+                                            [UIApplication sharedApplication]
+                                                .statusBarFrame.size.height,
+                                        0);
+                     self.panPointScreenOrigin = CGPointZero;
+                     [[NSNotificationCenter defaultCenter]
+                         postNotificationName:kOverscrollActionsDidEnd
+                                       object:self];
+                     [self resetScrollViewTopContentInset];
+                     self.disablingFullscreen = NO;
+                     if (_shouldInvalidate) {
+                       [self invalidate];
+                     }
+                   } break;
+                   case OverscrollState::STARTED_PULLING: {
+                     if (!self.overscrollActionView.superview &&
+                         self.scrollViewDragged) {
+                       UIView* headerView = [self.delegate
+                           headerViewForOverscrollActionsController:self];
+                       DCHECK(headerView);
+                       if (previousOverscrollState ==
+                           OverscrollState::NO_PULL_STARTED) {
+                         UIView* view = [self.delegate
+                             toolbarSnapshotViewForOverscrollActionsController:
+                                 self];
+                         [self.overscrollActionView addSnapshotView:view];
+                         [[NSNotificationCenter defaultCenter]
+                             postNotificationName:kOverscrollActionsWillStart
+                                           object:self];
+                         self.disablingFullscreen = YES;
+                       }
+                       [CATransaction begin];
+                       [CATransaction setDisableActions:YES];
+                       self.overscrollActionView.backgroundView.alpha = 1;
+                       [self.overscrollActionView updateWithVerticalOffset:0];
+                       [self.overscrollActionView updateWithHorizontalOffset:0];
+                       self.overscrollActionView.frame = headerView.bounds;
+                       [headerView addSubview:self.overscrollActionView];
+                       [CATransaction commit];
+                     }
+                   } break;
+                   case OverscrollState::ACTION_READY: {
+                     _didTransitionToActionReady = YES;
+                     if (CGPointEqualToPoint(self.panPointScreenOrigin,
+                                             CGPointZero)) {
+                       CGPoint panPointScreen =
+                           [self.panGestureRecognizer locationInView:nil];
+                       self.panPointScreenOrigin = panPointScreen;
+                     }
+                   } break;
+                 }
+               }
+               completion:nil];
 }
 
 - (void)setWebViewInteractionEnabled:(BOOL)enabled {
@@ -863,16 +858,11 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
 
 - (CGFloat)initialContentInset {
   // Content inset is not used for displaying header if the web view's
-  // `self.viewportAdjustsContentInset` is NO, instead the whole web view frame
+  // |self.viewportAdjustsContentInset| is NO, instead the whole web view frame
   // is changed.
   if (!_scrollview && !self.viewportAdjustsContentInset)
     return 0;
   return self.initialHeaderInset;
-}
-
-- (CGFloat)initialContentOffset {
-  return
-      [self.delegate initialContentOffsetForOverscrollActionsController:self];
 }
 
 - (CGFloat)initialHeaderInset {
@@ -899,8 +889,8 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
     return;
 
   // Disabling fullscreen will show the toolbars, which may potentially produce
-  // a `-scrollViewDidScroll` event if the browser viewport insets need to be
-  // updated.  `_ignoreScrollForDisabledFullscreen` is set to YES while the
+  // a |-scrollViewDidScroll| event if the browser viewport insets need to be
+  // updated.  |_ignoreScrollForDisabledFullscreen| is set to YES while the
   // viewport insets are being updated for the disabled state so that this
   // scroll event can be ignored.
   _ignoreScrollForDisabledFullscreen = YES;
@@ -922,11 +912,11 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
   _dpLink = dpLink;
   memset(&_bounceState, 0, sizeof(_bounceState));
   if (self.overscrollState == OverscrollState::ACTION_READY) {
-    CGFloat distanceScrolled =
-        [self scrollView].contentOffset.y - self.initialContentOffset;
-    const UIEdgeInsets insets = TopContentInset(
-        self.scrollView, -distanceScrolled + self.initialContentInset);
+    const UIEdgeInsets insets =
+        TopContentInset(self.scrollView, -[self scrollView].contentOffset.y +
+                                             self.initialContentInset);
     [self setScrollViewContentInset:insets];
+    [[self scrollView] setScrollIndicatorInsets:insets];
   }
   _bounceState.yInset = [self scrollView].contentInset.top;
   _bounceState.initialYInset = _bounceState.yInset;
@@ -937,8 +927,8 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
 
   if (fabs(_bounceState.yInset - _bounceState.headerInset) < 0.5) {
     // If no bounce is required, then clear state, as the necessary
-    // `-scrollViewDidScroll` callback will not be triggered to reset
-    // `overscrollState` to NO_PULL_STARTED.
+    // |-scrollViewDidScroll| callback will not be triggered to reset
+    // |overscrollState| to NO_PULL_STARTED.
     [self stopBounce];
     [self clear];
   } else {
@@ -981,6 +971,7 @@ NSString* const kOverscrollActionsDidEnd = @"OverscrollActionsDidStop";
         TopContentInset(self.scrollView, _bounceState.yInset);
     _forceStateUpdate = YES;
     [self setScrollViewContentInset:insets];
+    [self scrollView].scrollIndicatorInsets = insets;
     _forceStateUpdate = NO;
   }
 }

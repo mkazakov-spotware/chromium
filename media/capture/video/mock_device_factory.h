@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ class MockDeviceFactory : public media::VideoCaptureDeviceFactory {
   void RemoveAllDevices();
 
   // media::VideoCaptureDeviceFactory implementation.
-  VideoCaptureErrorOrDevice CreateDevice(
+  std::unique_ptr<media::VideoCaptureDevice> CreateDevice(
       const media::VideoCaptureDeviceDescriptor& device_descriptor) override;
   void GetDevicesInfo(GetDevicesInfoCallback callback) override;
 

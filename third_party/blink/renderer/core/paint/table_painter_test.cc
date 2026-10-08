@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,13 +15,7 @@ using testing::ElementsAre;
 
 namespace blink {
 
-class TablePainterTest : public PaintControllerPaintTest,
-                         private ScopedLayoutNGForTest {
- protected:
-  TablePainterTest() : ScopedLayoutNGForTest(false) {}
-};
-
-// using TablePainterTest = PaintControllerPaintTest;
+using TablePainterTest = PaintControllerPaintTest;
 INSTANTIATE_PAINT_TEST_SUITE_P(TablePainterTest);
 
 TEST_P(TablePainterTest, Background) {
@@ -42,20 +36,20 @@ TEST_P(TablePainterTest, Background) {
 
   InvalidateAll();
   UpdateAllLifecyclePhasesExceptPaint();
-  PaintContents(gfx::Rect(0, 0, 200, 200));
+  PaintContents(IntRect(0, 0, 200, 200));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row1.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row1, DisplayItem::kBoxDecorationBackground)));
 
   UpdateAllLifecyclePhasesExceptPaint();
-  PaintContents(gfx::Rect(0, 300, 200, 1000));
+  PaintContents(IntRect(0, 300, 200, 1000));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row2.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row2, DisplayItem::kBoxDecorationBackground)));
 }
 
 TEST_P(TablePainterTest, BackgroundWithCellSpacing) {
@@ -83,41 +77,43 @@ TEST_P(TablePainterTest, BackgroundWithCellSpacing) {
   InvalidateAll();
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects cell1 and the spacing between cell1 and cell2.
-  PaintContents(gfx::Rect(0, 200, 200, 150));
+  PaintContents(IntRect(0, 200, 200, 150));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row1.Id(), DisplayItem::kBoxDecorationBackground),
-                  IsSameId(cell1.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row1, DisplayItem::kBoxDecorationBackground),
+                  IsSameId(&cell1, DisplayItem::kBoxDecorationBackground)));
 
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects the spacing only.
-  PaintContents(gfx::Rect(0, 250, 100, 100));
+  PaintContents(IntRect(0, 250, 100, 100));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row1.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row1, DisplayItem::kBoxDecorationBackground)));
 
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects cell2 only.
-  PaintContents(gfx::Rect(0, 350, 200, 150));
+  PaintContents(IntRect(0, 350, 200, 150));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row2.Id(), DisplayItem::kBoxDecorationBackground),
-                  IsSameId(cell2.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row2, DisplayItem::kBoxDecorationBackground),
+                  IsSameId(&cell2, DisplayItem::kBoxDecorationBackground)));
 }
 
 TEST_P(TablePainterTest, BackgroundInSelfPaintingRow) {
   SetBodyInnerHTML(R"HTML(
     <style>
       body { margin: 0 }
-      td { width: 200px; height: 200px; border: 0; background-color: green; }
+      td { width: 200px; height: 200px; border: 0; background-color: green;
+    }
       tr { background-color: blue; opacity: 0.5; }
-      table { border: none; border-spacing: 100px; border-collapse: separate; }
+      table { border: none; border-spacing: 100px; border-collapse:
+    separate; }
     </style>
     <table>
       <tr id='row'><td id='cell1'><td id='cell2'></td></tr>
@@ -131,30 +127,30 @@ TEST_P(TablePainterTest, BackgroundInSelfPaintingRow) {
   InvalidateAll();
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects cell1 and the spacing between cell1 and cell2.
-  PaintContents(gfx::Rect(200, 0, 200, 200));
+  PaintContents(IntRect(200, 0, 200, 200));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row.Id(), DisplayItem::kBoxDecorationBackground),
-                  IsSameId(cell1.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row, DisplayItem::kBoxDecorationBackground),
+                  IsSameId(&cell1, DisplayItem::kBoxDecorationBackground)));
 
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects the spacing only.
-  PaintContents(gfx::Rect(300, 0, 100, 100));
+  PaintContents(IntRect(300, 0, 100, 100));
 
   EXPECT_THAT(ContentDisplayItems(),
               ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM));
 
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects cell2 only.
-  PaintContents(gfx::Rect(450, 0, 200, 200));
+  PaintContents(IntRect(450, 0, 200, 200));
 
   EXPECT_THAT(
       ContentDisplayItems(),
       ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                  IsSameId(row.Id(), DisplayItem::kBoxDecorationBackground),
-                  IsSameId(cell2.Id(), DisplayItem::kBoxDecorationBackground)));
+                  IsSameId(&row, DisplayItem::kBoxDecorationBackground),
+                  IsSameId(&cell2, DisplayItem::kBoxDecorationBackground)));
 }
 
 TEST_P(TablePainterTest, CollapsedBorderAndOverflow) {
@@ -176,18 +172,18 @@ TEST_P(TablePainterTest, CollapsedBorderAndOverflow) {
   InvalidateAll();
   UpdateAllLifecyclePhasesExceptPaint();
   // Intersects the overflowing part of cell but not border box.
-  PaintContents(gfx::Rect(0, 0, 100, 100));
+  PaintContents(IntRect(0, 0, 100, 100));
 
   // We should paint all display items of cell.
-  EXPECT_THAT(ContentDisplayItems(),
-              ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                          IsSameId(cell_layout_object->Id(),
-                                   DisplayItem::kBoxDecorationBackground),
-                          IsSameId(cell->RowInterface()->ToLayoutObject()->Id(),
-                                   DisplayItem::kTableCollapsedBorders),
-                          IsSameId(cell_layout_object->Id(),
-                                   DisplayItem::PaintPhaseToDrawingType(
-                                       PaintPhase::kSelfOutlineOnly))));
+  EXPECT_THAT(
+      ContentDisplayItems(),
+      ElementsAre(
+          VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
+          IsSameId(cell_layout_object, DisplayItem::kBoxDecorationBackground),
+          IsSameId(cell->RowInterface()->ToLayoutObject(),
+                   DisplayItem::kTableCollapsedBorders),
+          IsSameId(cell_layout_object, DisplayItem::PaintPhaseToDrawingType(
+                                           PaintPhase::kSelfOutlineOnly))));
 }
 
 TEST_P(TablePainterTest, DontPaintEmptyDecorationBackground) {
@@ -220,9 +216,9 @@ TEST_P(TablePainterTest, DontPaintEmptyDecorationBackground) {
           ->ToLayoutObject();
   EXPECT_THAT(ContentDisplayItems(),
               ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                          IsSameId(table1->Id(), kBackgroundType),
-                          IsSameId(table_1_descendant->Id(), kBackgroundType),
-                          IsSameId(table_2_descendant->Id(),
+                          IsSameId(table1, kBackgroundType),
+                          IsSameId(table_1_descendant, kBackgroundType),
+                          IsSameId(table_2_descendant,
                                    DisplayItem::kTableCollapsedBorders)));
 }
 
@@ -240,7 +236,7 @@ TEST_P(TablePainterTest, TouchActionOnTable) {
   )HTML");
   const auto& paint_chunk = *ContentPaintChunks().begin();
   EXPECT_EQ(paint_chunk.hit_test_data->touch_action_rects[0].rect,
-            gfx::Rect(0, 0, 100, 100));
+            IntRect(0, 0, 100, 100));
 }
 
 TEST_P(TablePainterTest, TouchActionOnTableCell) {
@@ -261,7 +257,7 @@ TEST_P(TablePainterTest, TouchActionOnTableCell) {
   )HTML");
   const auto& paint_chunk = *ContentPaintChunks().begin();
   EXPECT_EQ(paint_chunk.hit_test_data->touch_action_rects[0].rect,
-            gfx::Rect(0, 0, 100, 100));
+            IntRect(0, 0, 100, 100));
 }
 
 }  // namespace blink

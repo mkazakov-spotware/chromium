@@ -1,17 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.webapps;
 
-import android.app.Activity;
-
 import androidx.annotation.NonNull;
 
 import org.chromium.base.StrictModeContext;
 import org.chromium.chrome.browser.ActivityTabProvider;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappInfo;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.browserservices.ui.SharedActivityCoordinator;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier;
 import org.chromium.chrome.browser.browserservices.ui.splashscreen.webapps.WebappSplashController;
@@ -34,7 +32,7 @@ public class WebappActivityCoordinator
         implements InflationObserver, PauseResumeWithNativeObserver, StartStopWithNativeObserver {
     private final BrowserServicesIntentDataProvider mIntentDataProvider;
     private final WebappInfo mWebappInfo;
-    private final Activity mActivity;
+    private final ChromeActivity<?> mActivity;
     private final WebappDeferredStartupWithStorageHandler mDeferredStartupWithStorageHandler;
 
     // Whether the current page is within the webapp's scope.
@@ -42,7 +40,7 @@ public class WebappActivityCoordinator
 
     @Inject
     public WebappActivityCoordinator(SharedActivityCoordinator sharedActivityCoordinator,
-            Activity activity, BrowserServicesIntentDataProvider intentDataProvider,
+            ChromeActivity<?> activity, BrowserServicesIntentDataProvider intentDataProvider,
             ActivityTabProvider activityTabProvider, CurrentPageVerifier currentPageVerifier,
             WebappSplashController splashController,
             WebappDeferredStartupWithStorageHandler deferredStartupWithStorageHandler,
@@ -60,7 +58,7 @@ public class WebappActivityCoordinator
         new WebappActiveTabUmaTracker(activityTabProvider, intentDataProvider, currentPageVerifier);
 
         mDeferredStartupWithStorageHandler.addTask((storage, didCreateStorage) -> {
-            if (lifecycleDispatcher.isActivityFinishingOrDestroyed()) return;
+            if (activity.isActivityFinishingOrDestroyed()) return;
 
             if (storage != null) {
                 updateStorage(storage);
@@ -131,12 +129,5 @@ public class WebappActivityCoordinator
             // WebappDataStorage objects for legacy webapps which haven't been used in a while.
             storage.updateLastUsedTime();
         }
-    }
-
-    /**
-     * @return the {@link WebappInfo} for the WebappActivity.
-     */
-    public WebappInfo getWebappInfo() {
-        return mWebappInfo;
     }
 }

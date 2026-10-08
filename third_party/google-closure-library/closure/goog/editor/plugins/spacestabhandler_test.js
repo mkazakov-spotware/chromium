@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.editor.plugins.SpacesTabHandlerTest');
 goog.setTestOnly();
@@ -24,7 +32,6 @@ let tabHandler;
 let testHelper;
 
 testSuite({
-  /** @suppress {checkTypes} suppression added to enable type checking */
   setUp() {
     field = dom.getElement('field');
     editableField = new FieldMock();
@@ -43,7 +50,6 @@ testSuite({
     tabHandler.dispose();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testSelectedTextIndent() {
     dom.setTextContent(field, 'Test');
 
@@ -51,15 +57,7 @@ testSuite({
     testHelper.select(testText, 0, testText, 4);
 
     const event = new StrictMock(BrowserEvent);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.keyCode = KeyCodes.TAB;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.shiftKey = false;
 
     editableField.stopChangeEvents(true, true);
@@ -83,7 +81,6 @@ testSuite({
     event.$verify();
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testCursorIndent() {
     dom.setTextContent(field, 'Test');
 
@@ -91,15 +88,7 @@ testSuite({
     testHelper.select(testText, 2, testText, 2);
 
     const event = new StrictMock(BrowserEvent);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.keyCode = KeyCodes.TAB;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.shiftKey = false;
 
     editableField.stopChangeEvents(true, true);
@@ -122,10 +111,6 @@ testSuite({
     event.$verify();
   },
 
-  /**
-     @suppress {checkTypes,missingProperties} suppression added to enable type
-     checking
-   */
   testShiftTabNoOp() {
     dom.setTextContent(field, 'Test');
 
@@ -134,15 +119,7 @@ testSuite({
     range.select();
 
     const event = new StrictMock(BrowserEvent);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.keyCode = KeyCodes.TAB;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.shiftKey = true;
 
     event.preventDefault();
@@ -166,15 +143,7 @@ testSuite({
     testHelper.select(testText, 2, testText, 2);
 
     const event = new StrictMock(BrowserEvent);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.keyCode = KeyCodes.TAB;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.shiftKey = false;
 
     editableField.$replay();
@@ -196,15 +165,7 @@ testSuite({
     testHelper.select(field.firstChild, 0, testText, 2);
 
     const event = new StrictMock(BrowserEvent);
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.keyCode = KeyCodes.TAB;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     event.shiftKey = false;
 
     editableField.$replay();

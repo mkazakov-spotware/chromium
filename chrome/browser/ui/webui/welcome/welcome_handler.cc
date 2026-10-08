@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,12 +52,11 @@ bool WelcomeHandler::isValidRedirectUrl() {
 }
 
 // Handles backend events necessary when user clicks "Sign in."
-void WelcomeHandler::HandleActivateSignIn(const base::Value::List& args) {
+void WelcomeHandler::HandleActivateSignIn(const base::ListValue* args) {
   result_ = WelcomeResult::STARTED_SIGN_IN;
   base::RecordAction(base::UserMetricsAction("WelcomePage_SignInClicked"));
 
-  if (IdentityManagerFactory::GetForProfile(profile_)->HasPrimaryAccount(
-          signin::ConsentLevel::kSync)) {
+  if (IdentityManagerFactory::GetForProfile(profile_)->HasPrimaryAccount()) {
     // In general, this page isn't shown to signed-in users; however, if one
     // should arrive here, then opening the sign-in dialog will likely lead
     // to a crash. Thus, we just act like sign-in was "successful" and whisk
@@ -65,8 +64,9 @@ void WelcomeHandler::HandleActivateSignIn(const base::Value::List& args) {
     GoToNewTabPage();
   } else {
     GURL redirect_url = GURL::EmptyGURL();
-    if (args.size() == 1U) {
-      const std::string& url_string = args[0].GetString();
+    if (args->GetSize() == 1U) {
+      std::string url_string;
+      CHECK(args->GetString(0, &url_string));
       redirect_url = GURL(url_string);
       DCHECK(redirect_url.is_valid());
     }
@@ -79,7 +79,7 @@ void WelcomeHandler::HandleActivateSignIn(const base::Value::List& args) {
 }
 
 // Handles backend events necessary when user clicks "Get started."
-void WelcomeHandler::HandleUserDecline(const base::Value::List& args) {
+void WelcomeHandler::HandleUserDecline(const base::ListValue* args) {
   result_ = WelcomeResult::DECLINED_SIGN_IN;
   GoToNewTabPage();
 }

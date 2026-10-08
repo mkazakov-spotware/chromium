@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult('Verifies that HAR exports have correct POST data');
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   await TestRunner.NetworkAgent.setCacheDisabled(true);
@@ -33,7 +33,7 @@
     const stream = new TestRunner.StringOutputStream(resolve);
     const progress = new Common.Progress();
     const networkRequests = NetworkTestRunner.networkRequests();
-    await NetworkTestRunner.writeHARLog(stream, networkRequests, progress);
+    await Network.HARWriter.write(stream, networkRequests, progress);
     progress.done();
     stream.close();
   });

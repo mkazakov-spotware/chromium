@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include "build/build_config.h"
 #include "chrome/browser/downgrade/user_data_downgrade.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include "base/files/file.h"
 #endif
 
@@ -29,13 +29,13 @@ base::FilePath GetTempDirNameForDelete(const base::FilePath& dir,
 
 bool MoveWithoutFallback(const base::FilePath& source,
                          const base::FilePath& target) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // TODO(grt): check whether or not this is sufficiently atomic when |source|
   // is on a network share.
   auto result = ::MoveFileEx(source.value().c_str(), target.value().c_str(), 0);
   PLOG_IF(ERROR, !result) << source << " -> " << target;
   return result;
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX)
   // Windows compatibility: if |target| exists, |source| and |target|
   // must be the same type, either both files, or both directories.
   base::stat_wrapper_t target_info;
@@ -53,21 +53,21 @@ bool MoveWithoutFallback(const base::FilePath& source,
 #endif
 }
 
-bool MoveContents(const base::FilePath& source,
-                  const base::FilePath& target,
-                  ExclusionPredicate exclusion_predicate) {
+base::Optional<int> MoveContents(const base::FilePath& source,
+                                 const base::FilePath& target,
+                                 ExclusionPredicate exclusion_predicate) {
   // Implementation note: moving is better than deleting in this case since it
   // avoids certain failure modes. For example: on Windows, a file that is open
   // with FILE_SHARE_DELETE can be moved or marked for deletion. If it is moved
   // aside, the containing directory may then be eligible for deletion. If, on
   // the other hand, it is marked for deletion, it cannot be moved nor can its
   // containing directory be moved or deleted.
-  bool all_succeeded = base::CreateDirectory(target);
-  if (!all_succeeded) {
+  if (!base::CreateDirectory(target)) {
     PLOG(ERROR) << target;
-    return all_succeeded;
+    return base::nullopt;
   }
 
+  int failure_count = 0;
   base::FileEnumerator enumerator(
       source, false,
       base::FileEnumerator::FILES | base::FileEnumerator::DIRECTORIES);
@@ -90,16 +90,17 @@ bool MoveContents(const base::FilePath& source,
     if (MoveWithoutFallback(path, this_target))
       continue;
     if (!info.IsDirectory()) {
-      all_succeeded = false;
+      ++failure_count;
       continue;
     }
-    MoveContents(path, this_target, ExclusionPredicate());
+    failure_count +=
+        MoveContents(path, this_target, ExclusionPredicate()).value_or(0);
     // If everything within the directory was moved, it may be possible to
     // delete it now.
     if (!base::DeleteFile(path))
-      all_succeeded = false;
+      ++failure_count;
   }
-  return all_succeeded;
+  return failure_count;
 }
 
 }  // namespace downgrade

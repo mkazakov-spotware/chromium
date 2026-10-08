@@ -1,20 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {AndroidAppListModel} from './android_app_list_model.js';
 
 /**
  * @param {!Array<string>} appNames List app names to be added.
  * @returns {!AndroidAppListModel} fake for unittests.
  */
-export function createFakeAndroidAppListModel(appNames) {
+function createFakeAndroidAppListModel(appNames) {
   /**
    * AndroidAppListModel fake.
    */
-  class FakeAndroidAppListModel extends EventTarget {
+  class FakeAndroidAppListModel extends cr.EventTarget {
     /**
      * @param {!Array<string>} appNames List app names to be added.
      */

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,12 +15,10 @@ import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
@@ -30,7 +28,6 @@ import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.ArrayList;
@@ -40,15 +37,9 @@ import java.util.List;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @MinAndroidSdkLevel(Build.VERSION_CODES.N)
-@Batch(Batch.PER_CLASS)
 public class CloseTabDirectActionHandlerTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private TabModelSelector mSelector;
     private CloseTabDirectActionHandler mHandler;
@@ -56,10 +47,11 @@ public class CloseTabDirectActionHandlerTest {
     @Before
     public void setUp() throws Exception {
         // Setup an activity with two blank tabs.
-        sActivityTestRule.loadUrlInNewTab(
+        mActivityTestRule.startMainActivityOnBlankPage();
+        mActivityTestRule.loadUrlInNewTab(
                 "about:blank", false /* incognito */, TabLaunchType.FROM_CHROME_UI);
 
-        mSelector = sActivityTestRule.getActivity().getTabModelSelector();
+        mSelector = mActivityTestRule.getActivity().getTabModelSelector();
         mHandler = new CloseTabDirectActionHandler(mSelector);
     }
 

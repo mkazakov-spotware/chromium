@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 
 namespace sync_file_system {
@@ -22,10 +22,6 @@ namespace internal {
 class AbortHelper {
  public:
   explicit AbortHelper(CallbackTracker* tracker);
-
-  AbortHelper(const AbortHelper&) = delete;
-  AbortHelper& operator=(const AbortHelper&) = delete;
-
   ~AbortHelper();
   base::WeakPtr<AbortHelper> AsWeakPtr();
 
@@ -33,8 +29,10 @@ class AbortHelper {
       const base::WeakPtr<AbortHelper>& abort_helper);
 
  private:
-  raw_ptr<CallbackTracker> tracker_;  // Not owned.
+  CallbackTracker* tracker_;  // Not owned.
   base::WeakPtrFactory<AbortHelper> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AbortHelper);
 };
 
 template <typename>
@@ -43,12 +41,12 @@ struct InvokeAndInvalidateHelper;
 template <typename... Args>
 struct InvokeAndInvalidateHelper<void(Args...)> {
   static void Run(const base::WeakPtr<AbortHelper>& abort_helper,
-                  base::OnceCallback<void(Args...)> callback,
+                  const base::Callback<void(Args...)>& callback,
                   Args... args) {
     std::unique_ptr<AbortHelper> deleter =
         AbortHelper::TakeOwnership(abort_helper);
     if (deleter) {
-      std::move(callback).Run(std::forward<Args>(args)...);
+      callback.Run(std::forward<Args>(args)...);
     }
   }
 };

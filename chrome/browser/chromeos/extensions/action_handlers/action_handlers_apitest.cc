@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ using ActionHandlersBrowserTest = extensions::ExtensionApiTest;
 
 IN_PROC_BROWSER_TEST_F(ActionHandlersBrowserTest, LaunchAppWithNewNote) {
   // Load the app. Make sure to wait until it is done loading.
-  ExtensionTestMessageListener loader("loaded");
+  ExtensionTestMessageListener loader("loaded", false);
   base::FilePath path =
       test_data_dir_.AppendASCII("action_handlers").AppendASCII("new_note");
   const extensions::Extension* app = LoadExtension(path);
@@ -26,9 +26,10 @@ IN_PROC_BROWSER_TEST_F(ActionHandlersBrowserTest, LaunchAppWithNewNote) {
   EXPECT_TRUE(loader.WaitUntilSatisfied());
 
   // Fire a "new_note" action type, assert that app has received it.
-  ExtensionTestMessageListener new_note("hasNewNote = true");
-  app_runtime::ActionData action_data;
-  action_data.action_type = app_runtime::ActionType::ACTION_TYPE_NEW_NOTE;
-  apps::LaunchPlatformAppWithAction(profile(), app, std::move(action_data));
+  ExtensionTestMessageListener new_note("hasNewNote = true", false);
+  auto action_data = std::make_unique<app_runtime::ActionData>();
+  action_data->action_type = app_runtime::ActionType::ACTION_TYPE_NEW_NOTE;
+  apps::LaunchPlatformAppWithAction(profile(), app, std::move(action_data),
+                                    base::FilePath());
   EXPECT_TRUE(new_note.WaitUntilSatisfied());
 }

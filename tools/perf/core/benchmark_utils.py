@@ -1,9 +1,9 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import collections
-import optparse  # pylint: disable=deprecated-module
+import optparse
 
 from telemetry import benchmark as b_module
 from telemetry.internal.browser import browser_options
@@ -57,4 +57,5 @@ def DescribeStory(story):
   description = story.__doc__
   if description:
     return description.strip().splitlines()[0]
-  return ''
+  else:
+    return ''

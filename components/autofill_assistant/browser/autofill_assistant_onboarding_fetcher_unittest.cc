@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill_assistant/browser/autofill_assistant_onboarding_fetcher.h"
 
+#include "base/android/locale_utils.h"
 #include "base/containers/flat_map.h"
 #include "base/test/task_environment.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -70,8 +71,9 @@ TEST_F(AutofillAssistantOnboardingFetcherTest, FetchOnboardingStrings) {
         EXPECT_EQ(map.at("onboarding_text"), "Text");
       });
 
-  fetcher()->FetchOnboardingDefinition("BUY_MOVIE_TICKETS", "en-US", 300,
-                                       std::move(callback));
+  fetcher()->FetchOnboardingDefinition("BUY_MOVIE_TICKETS",
+                                       base::android::GetDefaultLocaleString(),
+                                       300, std::move(callback));
   EXPECT_EQ(1, GetNumberOfPendingRequests());
   SimulateResponse();
   EXPECT_EQ(0, GetNumberOfPendingRequests());

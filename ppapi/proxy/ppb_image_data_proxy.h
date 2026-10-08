@@ -1,17 +1,17 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PPAPI_PROXY_PPB_IMAGE_DATA_PROXY_H_
-#define PPAPI_PROXY_PPB_IMAGE_DATA_PROXY_H_
+#ifndef PPAPI_PPB_IMAGE_DATA_PROXY_H_
+#define PPAPI_PPB_IMAGE_DATA_PROXY_H_
 
 #include <stdint.h>
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "build/build_config.h"
-#include "components/nacl/common/buildflags.h"
 #include "ipc/ipc_platform_file.h"
 #include "ppapi/c/pp_bool.h"
 #include "ppapi/c/pp_completion_callback.h"
@@ -28,9 +28,9 @@
 #include "ppapi/shared_impl/resource.h"
 #include "ppapi/thunk/ppb_image_data_api.h"
 
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
-#include "third_party/skia/include/core/SkRefCnt.h"  //nogncheck
-#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if !defined(OS_NACL)
+#include "third_party/skia/include/core/SkRefCnt.h"
+#endif  // !defined(OS_NACL)
 
 class TransportDIB;
 
@@ -46,9 +46,6 @@ class PPAPI_PROXY_EXPORT ImageData : public ppapi::Resource,
                                      public ppapi::thunk::PPB_ImageData_API,
                                      public ppapi::PPB_ImageData_Shared {
  public:
-  ImageData(const ImageData&) = delete;
-  ImageData& operator=(const ImageData&) = delete;
-
   ~ImageData() override;
 
   // Resource overrides.
@@ -79,21 +76,19 @@ class PPAPI_PROXY_EXPORT ImageData : public ppapi::Resource,
 
   // Set to true when this ImageData is a good candidate for reuse.
   bool is_candidate_for_reuse_;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageData);
 };
 
 // PlatformImageData is a full featured image data resource which can access
 // the underlying platform-specific canvas and |image_region|. This can't be
 // used by NaCl apps.
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if !defined(OS_NACL)
 class PPAPI_PROXY_EXPORT PlatformImageData : public ImageData {
  public:
   PlatformImageData(const ppapi::HostResource& resource,
                     const PP_ImageDataDesc& desc,
                     base::UnsafeSharedMemoryRegion image_region);
-
-  PlatformImageData(const PlatformImageData&) = delete;
-  PlatformImageData& operator=(const PlatformImageData&) = delete;
-
   ~PlatformImageData() override;
 
   // PPB_ImageData API.
@@ -106,8 +101,10 @@ class PPAPI_PROXY_EXPORT PlatformImageData : public ImageData {
 
   // Null when the image isn't mapped.
   std::unique_ptr<SkCanvas> mapped_canvas_;
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformImageData);
 };
-#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#endif  // !defined(OS_NACL)
 
 // SimpleImageData is a simple, platform-independent image data resource which
 // can be used by NaCl. It can also be used by trusted apps when access to the
@@ -117,10 +114,6 @@ class PPAPI_PROXY_EXPORT SimpleImageData : public ImageData {
   SimpleImageData(const ppapi::HostResource& resource,
                   const PP_ImageDataDesc& desc,
                   base::UnsafeSharedMemoryRegion region);
-
-  SimpleImageData(const SimpleImageData&) = delete;
-  SimpleImageData& operator=(const SimpleImageData&) = delete;
-
   ~SimpleImageData() override;
 
   // PPB_ImageData API.
@@ -133,15 +126,13 @@ class PPAPI_PROXY_EXPORT SimpleImageData : public ImageData {
   base::WritableSharedMemoryMapping shm_mapping_;
   uint32_t size_;
   int map_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleImageData);
 };
 
 class PPB_ImageData_Proxy : public InterfaceProxy {
  public:
   PPB_ImageData_Proxy(Dispatcher* dispatcher);
-
-  PPB_ImageData_Proxy(const PPB_ImageData_Proxy&) = delete;
-  PPB_ImageData_Proxy& operator=(const PPB_ImageData_Proxy&) = delete;
-
   ~PPB_ImageData_Proxy() override;
 
   static PP_Resource CreateProxyResource(
@@ -195,9 +186,11 @@ class PPB_ImageData_Proxy : public InterfaceProxy {
 
   // Host->Plugin message handlers.
   void OnPluginMsgNotifyUnusedImageData(const HostResource& old_image_data);
+
+  DISALLOW_COPY_AND_ASSIGN(PPB_ImageData_Proxy);
 };
 
 }  // namespace proxy
 }  // namespace ppapi
 
-#endif  // PPAPI_PROXY_PPB_IMAGE_DATA_PROXY_H_
+#endif  // PPAPI_PPB_IMAGE_DATA_PROXY_H_

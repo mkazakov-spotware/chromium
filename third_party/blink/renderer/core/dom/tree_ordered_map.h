@@ -32,13 +32,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_DOM_TREE_ORDERED_MAP_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_DOM_TREE_ORDERED_MAP_H_
 
-#include "base/dcheck_is_on.h"
-#include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string_hash.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_impl.h"
@@ -49,12 +46,7 @@ class Element;
 class HTMLSlotElement;
 class TreeScope;
 
-// TreeOrderedMap is a map from keys to |Element|s, which allows multiple values
-// per key, maintained in tree order per key. Tree walks are avoided when
-// possible by retaining a cached, ordered array of matching nodes. Adding or
-// removing an element for a given key often clears the cache, forcing a tree
-// walk upon the next access.
-class CORE_EXPORT TreeOrderedMap : public GarbageCollected<TreeOrderedMap> {
+class TreeOrderedMap : public GarbageCollected<TreeOrderedMap> {
  public:
   TreeOrderedMap();
 
@@ -81,7 +73,7 @@ class CORE_EXPORT TreeOrderedMap : public GarbageCollected<TreeOrderedMap> {
   // Rare trees, but ID lookups may legitimately fail across such removals;
   // this scope object informs TreeOrderedMaps about the transitory state of the
   // underlying tree.
-  class CORE_EXPORT RemoveScope {
+  class RemoveScope {
     STACK_ALLOCATED();
 
    public:
@@ -89,7 +81,7 @@ class CORE_EXPORT TreeOrderedMap : public GarbageCollected<TreeOrderedMap> {
     ~RemoveScope();
   };
 #else
-  class CORE_EXPORT RemoveScope {
+  class RemoveScope {
     STACK_ALLOCATED();
 
    public:

@@ -1,12 +1,10 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import os
 import tempfile
 import shutil
-import subprocess
-import sys
 import unittest
 
 from . import commands
@@ -162,15 +160,6 @@ class TestCommands(unittest.TestCase):
         data2_read = commands.read_file(path)
         self.assertEqual(data2, data2_read)
 
-    def test_zip(self):
-        content_path = os.path.join(self.tempdir, 'zipfile', 'file.txt')
-        output_path = os.path.join(self.tempdir, 'out.zip')
-        os.mkdir(os.path.dirname(content_path))
-        commands.write_file(content_path, 'moon')
-        self.assertFalse(commands.file_exists(output_path))
-        commands.zip(output_path, os.path.dirname(content_path))
-        self.assertTrue(commands.file_exists(output_path))
-
     def test_run_command(self):
         path = os.path.join(self.tempdir, 'touch.txt')
         self.assertFalse(commands.file_exists(path))
@@ -179,71 +168,9 @@ class TestCommands(unittest.TestCase):
 
         self.assertTrue(commands.file_exists(path))
 
-    def test_run_command_with_default_stderr(self):
-        r, w = os.pipe()
-        try:
-            commands.run_command([
-                sys.executable, '-c',
-                'import sys; sys.stdout.write("Out."); sys.stdout.flush(); sys.stderr.write("Error."); sys.exit(33)'
-            ],
-                                 stdout=w)
-            self.fail('Should have thrown')
-        except subprocess.CalledProcessError as e:
-            os.close(w)
-            self.assertEqual(33, e.returncode)
-            self.assertEqual(b'Out.', os.read(r, 128))
-        os.close(r)
-
-    def test_run_command_with_stderr(self):
-        ro, wo = os.pipe()
-        re, we = os.pipe()
-        try:
-            commands.run_command([
-                sys.executable, '-c',
-                'import sys; sys.stdout.write("Out."); sys.stderr.write("Error."); sys.exit(19)'
-            ],
-                                 stdout=wo,
-                                 stderr=we)
-            self.fail('Should have thrown')
-        except subprocess.CalledProcessError as e:
-            os.close(wo)
-            os.close(we)
-            self.assertEqual(19, e.returncode)
-            self.assertEqual(b'Out.', os.read(ro, 128))
-            self.assertEqual(b'Error.', os.read(re, 128))
-        os.close(ro)
-        os.close(re)
-
     def test_run_command_output(self):
         output = commands.run_command_output(['echo', 'hello world'])
         self.assertEqual(b'hello world\n', output)
-
-    def test_run_command_output_with_default_stderr(self):
-        try:
-            commands.run_command_output([
-                sys.executable, '-c',
-                'import sys; sys.stdout.write("Out."); sys.stdout.flush(); sys.stderr.write("Error."); sys.exit(10)'
-            ])
-            self.fail('Should have thrown')
-        except subprocess.CalledProcessError as e:
-            self.assertEqual(10, e.returncode)
-            self.assertEqual(b'Out.', e.output)
-
-    def test_run_command_output_with_stderr(self):
-        r, w = os.pipe()
-        try:
-            commands.run_command_output([
-                sys.executable, '-c',
-                'import sys; sys.stdout.write("Out."); sys.stderr.write("Error."); sys.exit(5)'
-            ],
-                                        stderr=w)
-            self.fail('Should have thrown')
-        except subprocess.CalledProcessError as e:
-            os.close(w)
-            self.assertEqual(5, e.returncode)
-            self.assertEqual(b'Out.', e.output)
-            self.assertEqual(b'Error.', os.read(r, 128))
-        os.close(r)
 
     def test_lenient_run_command_output(self):
         # Successful command, output on stdout.
@@ -279,31 +206,3 @@ class TestCommands(unittest.TestCase):
         self.assertGreaterEqual(len(version), 2)
         self.assertGreaterEqual(version, [10, 10])
         self.assertLess(version, [30])
-
-    def test_plist_context_xml(self):
-        path = os.path.join(self.tempdir, 'plist.strings')
-        with commands.PlistContext(
-                path, rewrite=True, create_new=True) as plist:
-            plist['A'] = 'B'
-            plist['C'] = 'D'
-
-        # Verify that the file is an XML file.
-        with open(path, 'rb') as file:
-            self.assertEqual(file.read(5), b'<?xml')
-
-        data = commands.read_plist(path)
-        self.assertEqual(data, {'A': 'B', 'C': 'D'})
-
-    def test_plist_context_binary(self):
-        path = os.path.join(self.tempdir, 'plist.strings')
-        with commands.PlistContext(
-                path, rewrite=True, create_new=True, binary=True) as plist:
-            plist['A'] = 'B'
-            plist['C'] = 'D'
-
-        # Verify that the file is a binary Plist file.
-        with open(path, 'rb') as file:
-            self.assertEqual(file.read(8), b'bplist00')
-
-        data = commands.read_plist(path)
-        self.assertEqual(data, {'A': 'B', 'C': 'D'})

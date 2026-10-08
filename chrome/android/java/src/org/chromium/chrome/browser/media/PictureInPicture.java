@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@ package org.chromium.chrome.browser.media;
 import android.app.AppOpsManager;
 import android.content.Context;
 import android.os.Build;
-
-import org.chromium.base.TraceEvent;
 
 /**
  * Utility for determining if Picture-in-Picture is available and whether the user has disabled
@@ -26,18 +24,15 @@ public abstract class PictureInPicture {
      * @return boolean true if Picture-In-Picture is enabled, otherwise false.
      */
     public static boolean isEnabled(Context context) {
-        // Some versions of Android crash when the activity enters Picture-in-Picture
-        // immediately after it exits Picture-in-Picture. See b/143784148
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return false;
         }
-        try (TraceEvent e = TraceEvent.scoped("PictureInPicture::isEnabled")) {
-            final AppOpsManager appOpsManager =
-                    (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
-            final int status = appOpsManager.checkOpNoThrow(AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
-                    context.getApplicationInfo().uid, context.getPackageName());
 
-            return (status == AppOpsManager.MODE_ALLOWED);
-        }
+        final AppOpsManager appOpsManager =
+                (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+        final int status = appOpsManager.checkOpNoThrow(AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
+                context.getApplicationInfo().uid, context.getPackageName());
+
+        return (status == AppOpsManager.MODE_ALLOWED);
     }
 }

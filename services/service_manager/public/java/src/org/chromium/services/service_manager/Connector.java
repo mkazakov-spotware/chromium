@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ public class Connector implements ConnectionErrorHandler {
     private org.chromium.service_manager.mojom.Connector.Proxy mConnector;
 
     private static class ConnectorBindInterfaceResponseImpl
-            implements org.chromium.service_manager.mojom.Connector.BindInterface_Response {
+            implements org.chromium.service_manager.mojom.Connector.BindInterfaceResponse {
         @Override
         public void call(Integer result, Identity identity) {}
     }
@@ -41,7 +41,7 @@ public class Connector implements ConnectionErrorHandler {
         ServiceFilter filter = new ServiceFilter();
         filter.serviceName = serviceName;
 
-        org.chromium.service_manager.mojom.Connector.BindInterface_Response callback =
+        org.chromium.service_manager.mojom.Connector.BindInterfaceResponse callback =
                 new ConnectorBindInterfaceResponseImpl();
         mConnector.bindInterface(filter, interfaceName, request.passHandle(),
                 org.chromium.service_manager.mojom.BindInterfacePriority.IMPORTANT, callback);

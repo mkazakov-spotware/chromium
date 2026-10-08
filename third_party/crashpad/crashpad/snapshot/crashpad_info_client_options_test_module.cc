@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
 #include "build/build_config.h"
 #include "client/crashpad_info.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #define EXPORT __attribute__((visibility("default")))
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
 #define EXPORT __declspec(dllexport)
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
 extern "C" {
 
@@ -40,8 +40,8 @@ EXPORT crashpad::CrashpadInfo* TestModule_GetCrashpadInfo() {
 
 }  // extern "C"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 BOOL WINAPI DllMain(HINSTANCE hinstance, DWORD reason, LPVOID reserved) {
   return TRUE;
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN

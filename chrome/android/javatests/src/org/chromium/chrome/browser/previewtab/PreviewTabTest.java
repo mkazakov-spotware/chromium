@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,19 +21,20 @@ import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchManager;
 import org.chromium.chrome.browser.firstrun.DisableFirstRun;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabbed_mode.TabbedRootUiCoordinator;
-import org.chromium.chrome.browser.tabmodel.IncognitoTabHostUtils;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.util.browser.contextmenu.ContextMenuUtils;
+import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
+import org.chromium.chrome.test.util.browser.contextmenu.RevampedContextMenuUtils;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServerRule;
-import org.chromium.url.GURL;
 
 /**
  * Tests the Preview Tab, also known as the Ephemeral Tab.  Based on the
@@ -41,6 +42,7 @@ import org.chromium.url.GURL;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Restriction(Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE)
+@EnableFeatures(ChromeFeatureList.EPHEMERAL_TAB_USING_BOTTOM_SHEET)
 public class PreviewTabTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
@@ -69,7 +71,7 @@ public class PreviewTabTest {
                     ((TabbedRootUiCoordinator) mActivityTestRule.getActivity()
                                     .getRootUiCoordinatorForTesting());
             mEphemeralTabCoordinator =
-                    tabbedRootUiCoordinator.getEphemeralTabCoordinatorSupplier().get();
+                    tabbedRootUiCoordinator.getEphemeralTabCoordinatorForTesting();
         });
         mSheetTestSupport = new BottomSheetTestSupport(mActivityTestRule.getActivity()
                                                                .getRootUiCoordinatorForTesting()
@@ -103,7 +105,7 @@ public class PreviewTabTest {
 
         ChromeActivity activity = mActivityTestRule.getActivity();
         Tab tab = activity.getActivityTab();
-        ContextMenuUtils.selectContextMenuItem(InstrumentationRegistry.getInstrumentation(),
+        RevampedContextMenuUtils.selectContextMenuItem(InstrumentationRegistry.getInstrumentation(),
                 activity, tab, PREVIEW_TAB_DOM_ID, R.id.contextmenu_open_in_ephemeral_tab);
         endAnimations();
         Assert.assertTrue("The Preview Tab did not open", mEphemeralTabCoordinator.isOpened());
@@ -136,7 +138,7 @@ public class PreviewTabTest {
         Tab tab = activity.getActivityTab();
         Assert.assertTrue(tab.isIncognito());
 
-        ContextMenuUtils.selectContextMenuItem(InstrumentationRegistry.getInstrumentation(),
+        RevampedContextMenuUtils.selectContextMenuItem(InstrumentationRegistry.getInstrumentation(),
                 activity, tab, PREVIEW_TAB_DOM_ID, R.id.contextmenu_open_in_ephemeral_tab);
         endAnimations();
         BottomSheetController bottomSheet =
@@ -144,7 +146,7 @@ public class PreviewTabTest {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             bottomSheet.expandSheet();
             endAnimations();
-            IncognitoTabHostUtils.closeAllIncognitoTabs();
+            IncognitoUtils.closeAllIncognitoTabs();
             endAnimations();
         });
         Assert.assertEquals(SheetState.HIDDEN, bottomSheet.getSheetState());
@@ -158,15 +160,11 @@ public class PreviewTabTest {
     @Feature({"PreviewTab"})
     public void testSuppressContextualSearch() throws Throwable {
         ChromeActivity activity = mActivityTestRule.getActivity();
-        ContextualSearchManager csManager =
-                (ContextualSearchManager) activity.getContextualSearchManagerSupplier().get();
+        ContextualSearchManager csManager = activity.getContextualSearchManager();
         Assert.assertFalse("Contextual Search should be active", csManager.isSuppressed());
 
-        TestThreadUtils.runOnUiThreadBlocking(
-                ()
-                        -> mEphemeralTabCoordinator.requestOpenSheet(
-                                new GURL(mTestServer.getServer().getURL(PREVIEW_TAB)), "PreviewTab",
-                                false));
+        TestThreadUtils.runOnUiThreadBlocking(() -> mEphemeralTabCoordinator.requestOpenSheet(
+                mTestServer.getServer().getURL(PREVIEW_TAB), "PreviewTab", false));
         endAnimations();
         Assert.assertTrue("The Preview Tab did not open", mEphemeralTabCoordinator.isOpened());
         Assert.assertTrue("Contextual Search should be suppressed", csManager.isSuppressed());

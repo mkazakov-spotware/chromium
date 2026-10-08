@@ -2,5 +2,7 @@ caitkp@chromium.org
 pkasting@chromium.org
 
 # For sqlite stuff:
-asully@chromium.org
-ayui@chromium.org
+pwnall@chromium.org
+
+# COMPONENT: Internals
+# TEAM: chromium-reviews@chromium.org

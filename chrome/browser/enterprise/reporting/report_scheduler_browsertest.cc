@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/branding_buildflags.h"
@@ -21,8 +20,6 @@
 #include "components/enterprise/browser/controller/fake_browser_dm_token_storage.h"
 #include "components/enterprise/browser/enterprise_switches.h"
 #include "components/enterprise/browser/reporting/common_pref_names.h"
-#include "components/enterprise/browser/reporting/report_scheduler.h"
-#include "components/policy/core/common/policy_switches.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 
@@ -33,14 +30,14 @@ class ChromeBrowserExtraSetUp : public ChromeBrowserMainExtraParts {
   explicit ChromeBrowserExtraSetUp(
       policy::ChromeBrowserCloudManagementController::Observer* observer)
       : observer_(observer) {}
-  void PreCreateMainMessageLoop() override {
+  void PreMainMessageLoopStart() override {
     g_browser_process->browser_policy_connector()
         ->chrome_browser_cloud_management_controller()
         ->AddObserver(observer_);
   }
 
  private:
-  raw_ptr<policy::ChromeBrowserCloudManagementController::Observer> observer_;
+  policy::ChromeBrowserCloudManagementController::Observer* observer_;
 };
 
 class ReportSchedulerTest
@@ -49,8 +46,6 @@ class ReportSchedulerTest
  public:
   ReportSchedulerTest() {
     policy::BrowserDMTokenStorage::SetForTesting(&storage_);
-    storage_.SetDMToken("dm-token");
-    storage_.SetClientId("client-id");
   }
   ~ReportSchedulerTest() override = default;
 
@@ -59,7 +54,6 @@ class ReportSchedulerTest
   }
 
   void CreatedBrowserMainParts(content::BrowserMainParts* parts) override {
-    InProcessBrowserTest::CreatedBrowserMainParts(parts);
     static_cast<ChromeBrowserMainParts*>(parts)->AddParts(
         std::make_unique<ChromeBrowserExtraSetUp>(this));
   }
@@ -71,9 +65,8 @@ class ReportSchedulerTest
   }
 
   // policy::ChromeBrowserCloudManagementController::Observer
-  void OnCloudReportingLaunched(ReportScheduler* report_scheduler) override {
+  void OnCloudReportingLaunched() override {
     has_cloud_reporting_launched = true;
-    report_scheduler_ = report_scheduler;
     if (run_loop_)
       run_loop_->Quit();
   }
@@ -85,22 +78,16 @@ class ReportSchedulerTest
     run_loop_->Run();
   }
 
-  ReportScheduler* report_scheduler() { return report_scheduler_; }
-
+#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
   void SetUpDefaultCommandLine(base::CommandLine* command_line) override {
     InProcessBrowserTest::SetUpDefaultCommandLine(command_line);
-#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
     command_line->AppendSwitch(::switches::kEnableChromeBrowserCloudManagement);
-#endif
-    command_line->AppendSwitchASCII(policy::switches::kDeviceManagementUrl,
-                                    "https://localhost/");
   }
-
+#endif
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
   policy::FakeBrowserDMTokenStorage storage_;
   std::unique_ptr<base::RunLoop> run_loop_;
-  raw_ptr<ReportScheduler, DanglingUntriaged> report_scheduler_;
   bool has_cloud_reporting_launched = false;
 };
 
@@ -108,10 +95,6 @@ class ReportSchedulerTest
 // without crash.
 IN_PROC_BROWSER_TEST_F(ReportSchedulerTest, LaunchTest) {
   WaitForCloudReportingLaunching();
-  // The report should be either scheduled or being uploaded.
-  EXPECT_TRUE(report_scheduler()->IsNextReportScheduledForTesting() ||
-              report_scheduler()->GetActiveTriggerForTesting() ==
-                  ReportScheduler::kTriggerTimer);
 }
 
 }  // namespace enterprise_reporting

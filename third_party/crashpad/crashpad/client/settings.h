@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,16 +17,15 @@
 
 #include <time.h>
 
+#include <string>
+
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/scoped_generic.h"
 #include "build/build_config.h"
 #include "util/file/file_io.h"
 #include "util/misc/initialization_state.h"
 #include "util/misc/uuid.h"
-
-#if BUILDFLAG(IS_IOS)
-#include "util/ios/scoped_background_task.h"
-#endif  // BUILDFLAG(IS_IOS)
 
 namespace crashpad {
 
@@ -37,26 +36,6 @@ struct ScopedLockedFileHandleTraits {
   static void Free(FileHandle handle);
 };
 
-enum class FileOpenFunction {
-  kLoggingOpenFileForRead,
-  kLoggingOpenFileForReadAndWrite,
-  kOpenFileForReadAndWrite,
-};
-
-struct MakeScopedLockedFileHandleOptions {
-  FileOpenFunction function_enum;
-  FileWriteMode mode;
-  FilePermissions permissions;
-};
-
-// TODO(mark): The timeout should be configurable by the client.
-#if BUILDFLAG(IS_IOS)
-// iOS background assertions only last 30 seconds, keep the timeout shorter.
-constexpr double kUploadReportTimeoutSeconds = 20;
-#else
-constexpr double kUploadReportTimeoutSeconds = 60;
-#endif
-
 }  // namespace internal
 
 //! \brief An interface for accessing and modifying the settings of a
@@ -66,13 +45,7 @@ constexpr double kUploadReportTimeoutSeconds = 60;
 //! should be retrieved via CrashReportDatabase::GetSettings().
 class Settings {
  public:
-  static inline constexpr char kLockfileExtension[] = ".__lock__";
-
   Settings();
-
-  Settings(const Settings&) = delete;
-  Settings& operator=(const Settings&) = delete;
-
   ~Settings();
 
   //! \brief Initializes the settings data store.
@@ -142,20 +115,6 @@ class Settings {
   //!     error logged.
   bool SetLastUploadAttemptTime(time_t time);
 
-#if !CRASHPAD_FLOCK_ALWAYS_SUPPORTED
-  //! \brief Returns whether the lockfile for a file is expired.
-  //!
-  //! This could be part of ScopedLockedFileHandle, but this needs to be
-  //! public while ScopedLockedFileHandle is private to Settings.
-  //!
-  //! \param[in] file_path The path to the file whose lockfile will be checked.
-  //! \param[in] lockfile_ttl How long the lockfile has to live before expiring.
-  //!
-  //! \return `true` if the lock for the file is expired, otherwise `false`.
-  static bool IsLockExpired(const base::FilePath& file_path,
-                            time_t lockfile_ttl);
-#endif  // !CRASHPAD_FLOCK_ALWAYS_SUPPORTED
-
  private:
   struct Data;
 
@@ -163,7 +122,7 @@ class Settings {
   // and closes the file on destruction. Note that on Fuchsia, this handle DOES
   // NOT offer correct operation, only an attempt to DCHECK if racy behavior is
   // detected.
-#if !CRASHPAD_FLOCK_ALWAYS_SUPPORTED
+#if defined(OS_FUCHSIA)
   struct ScopedLockedFileHandle {
    public:
     ScopedLockedFileHandle();
@@ -171,10 +130,6 @@ class Settings {
                            const base::FilePath& lockfile_path);
     ScopedLockedFileHandle(ScopedLockedFileHandle&& other);
     ScopedLockedFileHandle& operator=(ScopedLockedFileHandle&& other);
-
-    ScopedLockedFileHandle(const ScopedLockedFileHandle&) = delete;
-    ScopedLockedFileHandle& operator=(const ScopedLockedFileHandle&) = delete;
-
     ~ScopedLockedFileHandle();
 
     // These mirror the non-Fuchsia ScopedLockedFileHandle via ScopedGeneric so
@@ -192,38 +147,17 @@ class Settings {
 
     FileHandle handle_;
     base::FilePath lockfile_path_;
+
+    DISALLOW_COPY_AND_ASSIGN(ScopedLockedFileHandle);
   };
-#elif BUILDFLAG(IS_IOS)
-  // iOS needs to use ScopedBackgroundTask anytime a file lock is used.
-  class ScopedLockedFileHandle
-      : public base::ScopedGeneric<FileHandle,
-                                   internal::ScopedLockedFileHandleTraits> {
-   public:
-    using base::ScopedGeneric<
-        FileHandle,
-        internal::ScopedLockedFileHandleTraits>::ScopedGeneric;
-
-    ScopedLockedFileHandle(const FileHandle& value);
-    ScopedLockedFileHandle(ScopedLockedFileHandle&& rvalue);
-    ScopedLockedFileHandle& operator=(ScopedLockedFileHandle&& rvalue);
-
-    ~ScopedLockedFileHandle();
-
-   private:
-    std::unique_ptr<internal::ScopedBackgroundTask> ios_background_task_;
-  };
-#else
+#else  // OS_FUCHSIA
   using ScopedLockedFileHandle =
       base::ScopedGeneric<FileHandle, internal::ScopedLockedFileHandleTraits>;
-#endif  // !CRASHPAD_FLOCK_ALWAYS_SUPPORTED
+#endif  // OS_FUCHSIA
   static ScopedLockedFileHandle MakeScopedLockedFileHandle(
-      const internal::MakeScopedLockedFileHandleOptions& options,
+      FileHandle file,
       FileLocking locking,
       const base::FilePath& file_path);
-
-  static FileHandle GetHandleFromOptions(
-      const base::FilePath& file_path,
-      const internal::MakeScopedLockedFileHandleOptions& options);
 
   // Opens the settings file for reading. On error, logs a message and returns
   // the invalid handle.
@@ -287,6 +221,8 @@ class Settings {
   base::FilePath file_path_;
 
   InitializationState initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(Settings);
 };
 
 }  // namespace crashpad

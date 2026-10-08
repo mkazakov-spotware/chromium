@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ public class HeapProfilingTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1163744")
+    @DisabledTest(message = "http://crbug.com/968043")
     @CommandLineFlags.Add({"memlog=browser", "memlog-stack-mode=native-include-thread-names",
             "memlog-sampling-rate=1"})
     public void
@@ -44,7 +44,7 @@ public class HeapProfilingTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1370781")
+    @DisabledTest(message = "http://crbug.com/1145008")
     public void testModeBrowserDynamicPseudo() {
         HeapProfilingTestShim shim = new HeapProfilingTestShim();
         Assert.assertTrue(shim.runTestForMode("browser", true, "pseudo", false, false));
@@ -52,7 +52,7 @@ public class HeapProfilingTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1173304")
+    @DisabledTest(message = "http://crbug.com/1145008")
     public void testModeBrowserDynamicPseudoSampleEverything() {
         HeapProfilingTestShim shim = new HeapProfilingTestShim();
         Assert.assertTrue(shim.runTestForMode("browser", true, "pseudo", true, true));
@@ -60,7 +60,7 @@ public class HeapProfilingTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1370781")
+    @DisabledTest(message = "http://crbug.com/1145008")
     public void testModeBrowserDynamicPseudoSamplePartial() {
         HeapProfilingTestShim shim = new HeapProfilingTestShim();
         Assert.assertTrue(shim.runTestForMode("browser", true, "pseudo", true, false));

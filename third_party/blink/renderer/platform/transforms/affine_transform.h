@@ -27,59 +27,58 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_TRANSFORMS_AFFINE_TRANSFORM_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_TRANSFORMS_AFFINE_TRANSFORM_H_
 
-#include <string.h>  // for memcpy
-#include "third_party/blink/renderer/platform/platform_export.h"
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
-#include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
-#include "ui/gfx/geometry/double4.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 
-namespace gfx {
-class PointF;
-class QuadF;
-class Rect;
-class RectF;
-class Transform;
-}  // namespace gfx
+#include <string.h>  // for memcpy
+#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
+
+class FloatPoint;
+class FloatQuad;
+class FloatRect;
+class IntPoint;
+class IntRect;
+class TransformationMatrix;
+
+#define IDENTITY_TRANSFORM \
+  { 1, 0, 0, 1, 0, 0 }
 
 class PLATFORM_EXPORT AffineTransform {
   DISALLOW_NEW();
 
  public:
-  constexpr AffineTransform() : transform_{1, 0, 0, 1, 0, 0} {}
-  constexpr AffineTransform(double a,
-                            double b,
-                            double c,
-                            double d,
-                            double e,
-                            double f)
-      : transform_{a, b, c, d, e, f} {}
+  typedef double Transform[6];
 
-  void SetMatrix(double a, double b, double c, double d, double e, double f) {
-    *this = AffineTransform(a, b, c, d, e, f);
+  AffineTransform();
+  AffineTransform(double a, double b, double c, double d, double e, double f);
+  AffineTransform(const Transform transform) { SetMatrix(transform); }
+
+  void SetMatrix(double a, double b, double c, double d, double e, double f);
+
+  void SetTransform(const AffineTransform& other) {
+    SetMatrix(other.transform_);
   }
 
-  [[nodiscard]] gfx::PointF MapPoint(const gfx::PointF&) const;
+  void Map(double x, double y, double& x2, double& y2) const;
+
+  // Rounds the mapped point to the nearest integer value.
+  IntPoint MapPoint(const IntPoint&) const;
+
+  FloatPoint MapPoint(const FloatPoint&) const;
+
+  IntSize MapSize(const IntSize&) const;
+
+  FloatSize MapSize(const FloatSize&) const;
 
   // Rounds the resulting mapped rectangle out. This is helpful for bounding
   // box computations but may not be what is wanted in other contexts.
-  [[nodiscard]] gfx::Rect MapRect(const gfx::Rect&) const;
+  IntRect MapRect(const IntRect&) const;
 
-  [[nodiscard]] gfx::RectF MapRect(const gfx::RectF&) const;
-  [[nodiscard]] gfx::QuadF MapQuad(const gfx::QuadF&) const;
+  FloatRect MapRect(const FloatRect&) const;
+  FloatQuad MapQuad(const FloatQuad&) const;
 
-  bool IsIdentity() const {
-    return gfx::AllTrue(
-        gfx::LoadDouble4(transform_) == gfx::Double4{1, 0, 0, 1} &
-        gfx::LoadDouble4(&transform_[2]) == gfx::Double4{0, 1, 0, 0});
-  }
-
-  bool IsIdentityOrTranslation() const {
-    return gfx::AllTrue(gfx::LoadDouble4(transform_) ==
-                        gfx::Double4{1, 0, 0, 1});
-  }
+  bool IsIdentity() const;
 
   double A() const { return transform_[0]; }
   void SetA(double a) { transform_[0] = a; }
@@ -94,15 +93,13 @@ class PLATFORM_EXPORT AffineTransform {
   double F() const { return transform_[5]; }
   void SetF(double f) { transform_[5] = f; }
 
-  void MakeIdentity() { *this = AffineTransform(); }
+  void MakeIdentity();
 
   // this' = this * other
-  AffineTransform& PreConcat(const AffineTransform& other);
+  AffineTransform& Multiply(const AffineTransform& other);
   // this' = other * this
-  AffineTransform& PostConcat(const AffineTransform& other);
+  AffineTransform& PreMultiply(const AffineTransform& other);
 
-  // The semantics of the following methods are the same as PreConcat(), i.e.
-  // this' = this * operation.
   AffineTransform& Scale(double);
   AffineTransform& Scale(double sx, double sy);
   AffineTransform& ScaleNonUniform(double sx, double sy);
@@ -124,19 +121,32 @@ class PLATFORM_EXPORT AffineTransform {
 
   double Det() const;
   bool IsInvertible() const;
-  [[nodiscard]] AffineTransform Inverse() const;
+  AffineTransform Inverse() const;
 
-  // Creates an AffineTransform by extracting affine components from
-  // gfx::Transform and ignoring other components.
-  [[nodiscard]] static AffineTransform FromTransform(const gfx::Transform&);
+  TransformationMatrix ToTransformationMatrix() const;
 
-  [[nodiscard]] gfx::Transform ToTransform() const;
+  bool IsIdentityOrTranslation() const {
+    return transform_[0] == 1 && transform_[1] == 0 && transform_[2] == 0 &&
+           transform_[3] == 1;
+  }
+
+  bool IsIdentityOrTranslationOrFlipped() const {
+    return transform_[0] == 1 && transform_[1] == 0 && transform_[2] == 0 &&
+           (transform_[3] == 1 || transform_[3] == -1);
+  }
+
+  bool PreservesAxisAlignment() const {
+    return (transform_[1] == 0 && transform_[2] == 0) ||
+           (transform_[0] == 0 && transform_[3] == 0);
+  }
 
   bool operator==(const AffineTransform& m2) const {
-    return gfx::AllTrue(gfx::LoadDouble4(transform_) ==
-                            gfx::LoadDouble4(m2.transform_) &
-                        gfx::LoadDouble4(&transform_[2]) ==
-                            gfx::LoadDouble4(&m2.transform_[2]));
+    return (transform_[0] == m2.transform_[0] &&
+            transform_[1] == m2.transform_[1] &&
+            transform_[2] == m2.transform_[2] &&
+            transform_[3] == m2.transform_[3] &&
+            transform_[4] == m2.transform_[4] &&
+            transform_[5] == m2.transform_[5]);
   }
 
   bool operator!=(const AffineTransform& other) const {
@@ -144,7 +154,7 @@ class PLATFORM_EXPORT AffineTransform {
   }
 
   // *this = *this * t (i.e., a multRight)
-  AffineTransform& operator*=(const AffineTransform& t) { return PreConcat(t); }
+  AffineTransform& operator*=(const AffineTransform& t) { return Multiply(t); }
 
   // result = *this * t (i.e., a multRight)
   AffineTransform operator*(const AffineTransform& t) const {
@@ -153,51 +163,41 @@ class PLATFORM_EXPORT AffineTransform {
     return result;
   }
 
-  [[nodiscard]] static constexpr AffineTransform MakeSkewX(double angle) {
-    return AffineTransform(1, 0, std::tan(Deg2rad(angle)), 1, 0, 0);
-  }
-  [[nodiscard]] static constexpr AffineTransform MakeSkewY(double angle) {
-    return AffineTransform(1, std::tan(Deg2rad(angle)), 0, 1, 0, 0);
-  }
-  [[nodiscard]] static constexpr AffineTransform Translation(double x,
-                                                             double y) {
+  static AffineTransform Translation(double x, double y) {
     return AffineTransform(1, 0, 0, 1, x, y);
   }
-  [[nodiscard]] static constexpr AffineTransform MakeScale(double s) {
-    return MakeScaleNonUniform(s, s);
-  }
-  [[nodiscard]] static constexpr AffineTransform MakeScaleNonUniform(
-      double sx,
-      double sy) {
-    return AffineTransform(sx, 0, 0, sy, 0, 0);
-  }
-  [[nodiscard]] static AffineTransform MakeRotationAroundPoint(double angle,
-                                                               double cx,
-                                                               double cy) {
-    AffineTransform result = Translation(cx, cy);
-    result.Rotate(angle);
-    result.Translate(-cx, -cy);
-    return result;
+
+  // decompose the matrix into its component parts
+  typedef struct {
+    double scale_x, scale_y;
+    double angle;
+    double remainder_a, remainder_b, remainder_c, remainder_d;
+    double translate_x, translate_y;
+  } DecomposedType;
+
+  bool Decompose(DecomposedType&) const;
+  void Recompose(const DecomposedType&);
+
+  void CopyTransformTo(Transform m) {
+    memcpy(m, transform_, sizeof(Transform));
   }
 
-  // The 2d version of gfx::Transform::Zoom().
-  AffineTransform& Zoom(double zoom_factor);
-
-  // If |as_matrix| is true, the transform is returned as a matrix in row-major
+  // If |asMatrix| is true, the transform is returned as a matrix in row-major
   // order. Otherwise, the transform's decomposition is returned which shows
   // the translation, scale, etc.
   String ToString(bool as_matrix = false) const;
 
  private:
-  static float ClampToFloat(double value) {
-    return ClampToWithNaNTo0<float>(value);
+  void SetMatrix(const Transform m) {
+    if (m && m != transform_)
+      memcpy(transform_, m, sizeof(Transform));
   }
 
-  double transform_[6];
+  Transform transform_;
 };
 
 PLATFORM_EXPORT std::ostream& operator<<(std::ostream&, const AffineTransform&);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_TRANSFORMS_AFFINE_TRANSFORM_H_
+#endif

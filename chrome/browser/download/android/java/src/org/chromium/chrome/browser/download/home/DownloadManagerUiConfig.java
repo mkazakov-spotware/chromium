@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@ import static org.chromium.components.browser_ui.util.ConversionUtils.BYTES_PER_
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.SysUtils;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
 import org.chromium.ui.base.DeviceFormFactor;
 
 /** Provides the configuration params required by the download home UI. */
 public class DownloadManagerUiConfig {
-    /** If not null, which off the record items to show in the UI. */
-    public final OTRProfileID otrProfileID;
+    /** Whether or not the UI should include off the record items. */
+    public final boolean isOffTheRecord;
 
     /** Whether or not the UI should be shown as part of a separate activity. */
     public final boolean isSeparateActivity;
@@ -24,6 +23,15 @@ public class DownloadManagerUiConfig {
 
     /** Whether showing full width images should be supported. */
     public final boolean supportFullWidthImages;
+
+    /** Whether or not to use the legacy download path or use the new OfflineContentProvider. */
+    public final boolean useNewDownloadPath;
+
+    /**
+     * Whether or not to use the legacy download thumbnail path or use the new
+     * OfflineContentProvider.
+     */
+    public final boolean useNewDownloadPathThumbnails;
 
     /**
      * The in-memory thumbnail size in bytes.
@@ -53,10 +61,12 @@ public class DownloadManagerUiConfig {
 
     /** Constructor. */
     private DownloadManagerUiConfig(Builder builder) {
-        otrProfileID = builder.mOtrProfileID;
+        isOffTheRecord = builder.mIsOffTheRecord;
         isSeparateActivity = builder.mIsSeparateActivity;
         useGenericViewTypes = builder.mUseGenericViewTypes;
         supportFullWidthImages = builder.mSupportFullWidthImages;
+        useNewDownloadPath = builder.mUseNewDownloadPath;
+        useNewDownloadPathThumbnails = builder.mUseNewDownloadPathThumbnails;
         inMemoryThumbnailCacheSizeBytes = builder.mInMemoryThumbnailCacheSizeBytes;
         maxThumbnailScaleFactor = builder.mMaxThumbnailScaleFactor;
         justNowThresholdSeconds = builder.mJustNowThresholdSeconds;
@@ -74,10 +84,12 @@ public class DownloadManagerUiConfig {
 
         private static final float MAX_THUMBNAIL_SCALE_FACTOR = 1.5f; /* hdpi scale factor. */
 
-        private OTRProfileID mOtrProfileID;
+        private boolean mIsOffTheRecord;
         private boolean mIsSeparateActivity;
         private boolean mUseGenericViewTypes;
         private boolean mSupportFullWidthImages;
+        private boolean mUseNewDownloadPath;
+        private boolean mUseNewDownloadPathThumbnails;
         private int mInMemoryThumbnailCacheSizeBytes = IN_MEMORY_THUMBNAIL_CACHE_SIZE_BYTES;
         private float mMaxThumbnailScaleFactor = MAX_THUMBNAIL_SCALE_FACTOR;
         private long mJustNowThresholdSeconds = JUST_NOW_THRESHOLD_SECONDS;
@@ -91,8 +103,8 @@ public class DownloadManagerUiConfig {
             mUseGenericViewTypes = SysUtils.isLowEndDevice();
         }
 
-        public Builder setOTRProfileID(OTRProfileID otrProfileID) {
-            mOtrProfileID = otrProfileID;
+        public Builder setIsOffTheRecord(boolean isOffTheRecord) {
+            mIsOffTheRecord = isOffTheRecord;
             return this;
         }
 
@@ -108,6 +120,16 @@ public class DownloadManagerUiConfig {
 
         public Builder setSupportFullWidthImages(boolean supportFullWidthImages) {
             mSupportFullWidthImages = supportFullWidthImages;
+            return this;
+        }
+
+        public Builder setUseNewDownloadPath(boolean useNewDownloadPath) {
+            mUseNewDownloadPath = useNewDownloadPath;
+            return this;
+        }
+
+        public Builder setUseNewDownloadPathThumbnails(boolean useNewDownloadPathThumbnails) {
+            mUseNewDownloadPathThumbnails = useNewDownloadPathThumbnails;
             return this;
         }
 

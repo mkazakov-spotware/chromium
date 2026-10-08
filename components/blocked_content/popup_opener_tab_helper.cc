@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "components/blocked_content/popup_tracker.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
+#include "components/ukm/content/source_url_recorder.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "services/metrics/public/cpp/metrics_utils.h"
@@ -21,6 +22,19 @@
 #include "ui/base/scoped_visibility_tracker.h"
 
 namespace blocked_content {
+
+// static
+void PopupOpenerTabHelper::CreateForWebContents(
+    content::WebContents* contents,
+    const base::TickClock* tick_clock,
+    HostContentSettingsMap* settings_map) {
+  DCHECK(contents);
+  if (!FromWebContents(contents)) {
+    contents->SetUserData(UserDataKey(),
+                          base::WrapUnique(new PopupOpenerTabHelper(
+                              contents, tick_clock, settings_map)));
+  }
+}
 
 PopupOpenerTabHelper::~PopupOpenerTabHelper() {
   DCHECK(visibility_tracker_);
@@ -60,7 +74,6 @@ PopupOpenerTabHelper::PopupOpenerTabHelper(content::WebContents* web_contents,
                                            const base::TickClock* tick_clock,
                                            HostContentSettingsMap* settings_map)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<PopupOpenerTabHelper>(*web_contents),
       tick_clock_(tick_clock),
       settings_map_(settings_map) {
   visibility_tracker_ = std::make_unique<ui::ScopedVisibilityTracker>(
@@ -85,14 +98,8 @@ void PopupOpenerTabHelper::DidGetUserInteraction(
 void PopupOpenerTabHelper::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
   // Treat browser-initiated navigations as user interactions.
-  // Note that |HasUserGesture| does not capture browser-initiated navigations.
-  // The negation of |IsRendererInitiated| tells us whether the navigation is
-  // browser-generated.
-  if (navigation_handle->IsInPrimaryMainFrame() &&
-      (navigation_handle->HasUserGesture() ||
-       !navigation_handle->IsRendererInitiated())) {
+  if (!navigation_handle->IsRendererInitiated())
     has_opened_popup_since_last_user_gesture_ = false;
-  }
 }
 
 void PopupOpenerTabHelper::MaybeLogPagePopupContentSettings() {
@@ -102,7 +109,7 @@ void PopupOpenerTabHelper::MaybeLogPagePopupContentSettings() {
     return;
 
   const ukm::SourceId source_id =
-      web_contents()->GetPrimaryMainFrame()->GetPageUkmSourceId();
+      ukm::GetSourceIdForWebContentsDocument(web_contents());
 
   // Do not record duplicate Popup.Page events for popups opened in succession
   // from the same opener.
@@ -117,6 +124,6 @@ void PopupOpenerTabHelper::MaybeLogPagePopupContentSettings() {
   }
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(PopupOpenerTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(PopupOpenerTabHelper)
 
 }  // namespace blocked_content

@@ -24,7 +24,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "base/component_export.h"
+#include "net/base/net_export.h"
 
 using std::string;
 
@@ -45,11 +45,11 @@ namespace uri_template {
  *
  * @return true if the template was parseable. false if it was malformed.
  */
-COMPONENT_EXPORT(URI_TEMPLATE)
-bool Expand(const string& template_uri,
-            const std::unordered_map<string, string>& parameters,
-            string* target,
-            std::set<string>* vars_found = nullptr);
+NET_EXPORT_PRIVATE bool Expand(
+    const string& template_uri,
+    const std::unordered_map<string, string>& parameters,
+    string* target,
+    std::set<string>* vars_found = nullptr);
 
 }  // namespace uri_template
 

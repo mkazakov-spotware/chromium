@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -197,9 +197,26 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
     // desk screenshot is now showing on the screen.
     virtual void OnDeskSwitchAnimationFinished() = 0;
 
+    // Called while doing a continuous gesture to notify when the desk that is
+    // visible to the user has changed. Used for metrics collection.
+    virtual void OnVisibleDeskChanged() = 0;
+
    protected:
     virtual ~Delegate() = default;
   };
+
+  // The space between the starting and ending desks screenshots in dips.
+  static constexpr int kDesksSpacing = 50;
+
+  // The animation layer has extra padding at its two edges. The width in dips
+  // is a ratio of the root window width. This padding is to notify users there
+  // are no more desks on that side by showing a black region as we swipe
+  // continuously.
+  static constexpr float kEdgePaddingRatio = 0.15f;
+
+  // In touchpad units, a touchpad swipe of this length will correspond to a
+  // full desk change.
+  static constexpr int kTouchpadSwipeLengthForDeskChange = 420;
 
   RootWindowDeskSwitchAnimator(aura::Window* root,
                                int starting_desk_index,
@@ -220,7 +237,6 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
     return ending_desk_screenshot_taken_;
   }
   bool animation_finished() const { return animation_finished_; }
-  bool reached_edge() const { return reached_edge_; }
 
   // Begins phase (1) of the animation by taking a screenshot of the starting
   // desk content. Delegate::OnStartingDeskScreenshotTaken() will be called once
@@ -250,9 +266,9 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
   // units and then used to shift the animation layer. If the animation layer is
   // near its boundaries, this will return an index for the desk we should take
   // a screenshot for. If we are not near the boundaries, or if there is no next
-  // adjacent desk in the direction we are heading, return absl::nullopt. The
+  // adjacent desk in the direction we are heading, return base::nullopt. The
   // delegate is responsible for requesting the screenshot.
-  absl::optional<int> UpdateSwipeAnimation(float scroll_delta_x);
+  base::Optional<int> UpdateSwipeAnimation(float scroll_delta_x);
 
   // Maybe called after UpdateSwipeAnimation() if we need a new screenshot.
   // Updates |ending_desk_index_| and resets some other internal state related
@@ -260,15 +276,8 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
   void PrepareForEndingDeskScreenshot(int new_ending_desk_index);
 
   // Called when a user ends a touchpad swipe. This will animate to the most
-  // visible desk, whose index is also returned. If |is_fast_swipe| is true, we
-  // will use a different logic to determine which ending desk index we want to
-  // end at.
-  int EndSwipeAnimation(bool is_fast_swipe);
-
-  // Gets the index of the desk whose screenshot of the animation layer is most
-  // visible to the user. That desk screenshot is the one which aligns the most
-  // with the root window bounds.
-  int GetIndexOfMostVisibleDeskScreenshot() const;
+  // visible desk, whose index is also returned.
+  int EndSwipeAnimation();
 
   // ui::ImplicitAnimationObserver:
   void OnImplicitAnimationsCompleted() override;
@@ -302,6 +311,11 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
   // its parent layer's coordinates (|animation_layer_owner_->root()|).
   int GetXPositionOfScreenshot(int index);
 
+  // Gets the index of the desk whose screenshot of the animation layer is most
+  // visible to the user. That desk screenshot is the one which aligns the most
+  // with the root window bounds.
+  int GetIndexOfMostVisibleDeskScreenshot() const;
+
   // The root window that this animator is associated with.
   aura::Window* const root_window_;
 
@@ -310,6 +324,10 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
 
   // The index of the desk to activate and animate to with this animator.
   int ending_desk_index_;
+
+  // The index of the desk that is most visible to the user based on the
+  // transform of the animation layer.
+  int visible_desk_index_;
 
   Delegate* const delegate_;
 
@@ -363,19 +381,13 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
   // True when phase (3) finishes.
   bool animation_finished_ = false;
 
-  // True if during a continuous swipe, the user went all the way left or right
-  // and swiping in that direction will no longer update the UI.
-  bool reached_edge_ = false;
-
   // True while setting a new transform for chaining. If a animation is active,
   // calling SetTransform will trigger OnImplicitAnimationsCompleted. In these
   // cases we do not want to notify our delegate that the animation is finished.
   bool setting_new_transform_ = false;
 
-  // Callbacks that are run after the screenshots are taken for testing
-  // purposes. Waiting for the ending screenshots means you will implicitly wait
-  // for the starting screenshots too.
-  base::OnceClosure on_starting_screenshot_taken_callback_for_testing_;
+  // Callback that is run after the ending screenshot is taken for testing
+  // purposes.
   base::OnceClosure on_ending_screenshot_taken_callback_for_testing_;
 
   base::WeakPtrFactory<RootWindowDeskSwitchAnimator> weak_ptr_factory_{this};

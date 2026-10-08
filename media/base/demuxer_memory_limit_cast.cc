@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,13 +17,10 @@ size_t GetDemuxerStreamAudioMemoryLimit(
 
   DCHECK(audio_config->IsValidConfig());
   switch (audio_config->codec()) {
-    case AudioCodec::kEAC3:
-    case AudioCodec::kAC3:
-    case AudioCodec::kDTS:
-    case AudioCodec::kDTSXP2:
-    case AudioCodec::kMpegHAudio:
+    case kCodecEAC3:
+    case kCodecAC3:
       return internal::kDemuxerStreamAudioMemoryLimitMedium;
-    case AudioCodec::kAAC:
+    case kCodecAAC:
       if (ChannelLayoutToChannelCount(audio_config->channel_layout()) >= 5) {
         return internal::kDemuxerStreamAudioMemoryLimitMedium;
       }
@@ -45,9 +42,9 @@ size_t GetDemuxerStreamVideoMemoryLimit(
       }
       DCHECK(video_config->IsValidConfig());
       switch (video_config->codec()) {
-        case VideoCodec::kVP9:
-        case VideoCodec::kHEVC:
-        case VideoCodec::kDolbyVision:
+        case kCodecVP9:
+        case kCodecHEVC:
+        case kCodecDolbyVision:
           return internal::kDemuxerStreamVideoMemoryLimitMedium;
         default:
           return internal::kDemuxerStreamVideoMemoryLimitLow;

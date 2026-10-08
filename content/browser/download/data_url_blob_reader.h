@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/callback_forward.h"
 #include "base/sequence_checker.h"
+#include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -23,7 +24,7 @@ class BlobDataHandle;
 namespace content {
 
 // Helper class to read a data url from a BlobDataHandle.
-class DataURLBlobReader : public mojo::DataPipeDrainer::Client {
+class CONTENT_EXPORT DataURLBlobReader : public mojo::DataPipeDrainer::Client {
  public:
   using ReadCompletionCallback = base::OnceCallback<void(GURL)>;
 
@@ -34,9 +35,6 @@ class DataURLBlobReader : public mojo::DataPipeDrainer::Client {
   static void ReadDataURLFromBlob(
       mojo::PendingRemote<blink::mojom::Blob> data_url_blob,
       ReadCompletionCallback read_completion_callback);
-
-  DataURLBlobReader(const DataURLBlobReader&) = delete;
-  DataURLBlobReader& operator=(const DataURLBlobReader&) = delete;
 
   ~DataURLBlobReader() override;
 
@@ -65,6 +63,8 @@ class DataURLBlobReader : public mojo::DataPipeDrainer::Client {
   base::OnceClosure callback_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(DataURLBlobReader);
 };
 
 }  // namespace content

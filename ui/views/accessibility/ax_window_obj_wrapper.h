@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,20 @@
 
 #include <stdint.h>
 
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "ui/accessibility/ax_enums.mojom-forward.h"
 #include "ui/accessibility/platform/ax_unique_id.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
-#include "ui/base/ime/input_method.h"
-#include "ui/base/ime/input_method_observer.h"
 #include "ui/views/accessibility/ax_aura_obj_wrapper.h"
-
-namespace ui {
-class InputMethod;
-}
 
 namespace views {
 class AXAuraObjCache;
 
 // Describes a |Window| for use with other AX classes.
 class AXWindowObjWrapper : public AXAuraObjWrapper,
-                           public ui::InputMethodObserver,
                            public aura::WindowObserver {
  public:
   // |aura_obj_cache| and |window| must outlive this object.
@@ -40,18 +31,12 @@ class AXWindowObjWrapper : public AXAuraObjWrapper,
 
   // AXAuraObjWrapper overrides.
   bool HandleAccessibleAction(const ui::AXActionData& action) override;
+  bool IsIgnored() override;
   AXAuraObjWrapper* GetParent() override;
   void GetChildren(std::vector<AXAuraObjWrapper*>* out_children) override;
   void Serialize(ui::AXNodeData* out_node_data) override;
-  ui::AXNodeID GetUniqueId() const final;
+  int32_t GetUniqueId() const final;
   std::string ToString() const override;
-
-  // InputMethodObserver overrides.
-  void OnFocus() override {}
-  void OnBlur() override {}
-  void OnInputMethodDestroyed(const ui::InputMethod* input_method) override {}
-  void OnTextInputStateChanged(const ui::TextInputClient* client) override {}
-  void OnCaretBoundsChanged(const ui::TextInputClient* client) override;
 
   // WindowObserver overrides.
   void OnWindowDestroyed(aura::Window* window) override;
@@ -73,9 +58,7 @@ class AXWindowObjWrapper : public AXAuraObjWrapper,
   // Fires an accessibility event.
   void FireEvent(ax::mojom::Event event_type);
 
-  gfx::Rect GetCaretBounds(const ui::TextInputClient* client);
-
-  const raw_ptr<aura::Window> window_;
+  aura::Window* const window_;
 
   const bool is_root_window_;
 
@@ -86,11 +69,7 @@ class AXWindowObjWrapper : public AXAuraObjWrapper,
   // pointer could be left in |aura_obj_cache_|. See https://crbug.com/1091545
   bool window_destroying_ = false;
 
-  base::ScopedObservation<aura::Window, aura::WindowObserver> observation_{
-      this};
-
-  base::ScopedObservation<ui::InputMethod, ui::InputMethodObserver>
-      ime_observation_{this};
+  ScopedObserver<aura::Window, aura::WindowObserver> observer_{this};
 };
 
 }  // namespace views

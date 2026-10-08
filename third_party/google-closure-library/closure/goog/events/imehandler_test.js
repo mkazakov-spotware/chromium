@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2010 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.events.ImeHandlerTest');
 goog.setTestOnly();
@@ -13,6 +21,7 @@ const KeyCodes = goog.require('goog.events.KeyCodes');
 const PropertyReplacer = goog.require('goog.testing.PropertyReplacer');
 const dom = goog.require('goog.dom');
 const events = goog.require('goog.events');
+const googArray = goog.require('goog.array');
 const googObject = goog.require('goog.object');
 const googString = goog.require('goog.string');
 const googUserAgent = goog.require('goog.userAgent');
@@ -36,7 +45,7 @@ function initImeHandler() {
 }
 
 function assertEventsFired(var_args) {
-  assertArrayEquals(Array.prototype.slice.call(arguments), eventsFired);
+  assertArrayEquals(googArray.clone(arguments), eventsFired);
 }
 
 function fireInputEvent(type) {
@@ -47,10 +56,6 @@ function fireImeKeySequence() {
   return fireKeySequence(KeyCodes.WIN_IME);
 }
 
-/**
- * @suppress {strictPrimitiveOperators} suppression added to enable type
- * checking
- */
 function fireKeySequence(keyCode) {
   return (
       testingEvents.fireBrowserEvent(
@@ -104,10 +109,6 @@ function setUserAgent(userAgent) {
 
 function setVersion(version) {
   googUserAgent.VERSION = version;
-  /**
-   * @suppress {visibility,checkTypes,constantProperty} suppression added to
-   * enable type checking
-   */
   googUserAgent.isVersionOrHigherCache_ = {};
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/post_task.h"
 #import "base/test/ios/wait_util.h"
 #include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/data_model/credit_card.h"
@@ -48,9 +49,6 @@ class FakeCardUnmaskDelegate : public autofill::CardUnmaskDelegate {
  public:
   FakeCardUnmaskDelegate() : weak_factory_(this) {}
 
-  FakeCardUnmaskDelegate(const FakeCardUnmaskDelegate&) = delete;
-  FakeCardUnmaskDelegate& operator=(const FakeCardUnmaskDelegate&) = delete;
-
   virtual ~FakeCardUnmaskDelegate() {}
 
   // CardUnmaskDelegate implementation.
@@ -58,10 +56,10 @@ class FakeCardUnmaskDelegate : public autofill::CardUnmaskDelegate {
       const UserProvidedUnmaskDetails& unmask_details) override {
     unmask_details_ = unmask_details;
     // Fake the actual verification and just respond with success.
-    web::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(^{
+    base::PostTask(
+        FROM_HERE, {web::WebThread::UI}, base::BindOnce(^{
           autofill::AutofillClient::PaymentsRpcResult result =
-              autofill::AutofillClient::PaymentsRpcResult::kSuccess;
+              autofill::AutofillClient::SUCCESS;
           [credit_card_verifier_ didReceiveUnmaskVerificationResult:result];
         }));
   }
@@ -88,6 +86,8 @@ class FakeCardUnmaskDelegate : public autofill::CardUnmaskDelegate {
   UserProvidedUnmaskDetails unmask_details_;
 
   base::WeakPtrFactory<FakeCardUnmaskDelegate> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeCardUnmaskDelegate);
 };
 
 class CWVCreditCardVerifierTest : public PlatformTest {
@@ -101,19 +101,19 @@ class CWVCreditCardVerifierTest : public PlatformTest {
         ui::ResourceBundle::GetSharedInstance();
 
     // Don't load 100P resource since no @1x devices are supported.
-    if (ui::ResourceBundle::IsScaleFactorSupported(ui::k200Percent)) {
+    if (ui::ResourceBundle::IsScaleFactorSupported(ui::SCALE_FACTOR_200P)) {
       base::FilePath pak_file_200;
       base::PathService::Get(base::DIR_MODULE, &pak_file_200);
       pak_file_200 =
           pak_file_200.Append(FILE_PATH_LITERAL("web_view_200_percent.pak"));
-      resource_bundle.AddDataPackFromPath(pak_file_200, ui::k200Percent);
+      resource_bundle.AddDataPackFromPath(pak_file_200, ui::SCALE_FACTOR_200P);
     }
-    if (ui::ResourceBundle::IsScaleFactorSupported(ui::k300Percent)) {
+    if (ui::ResourceBundle::IsScaleFactorSupported(ui::SCALE_FACTOR_300P)) {
       base::FilePath pak_file_300;
       base::PathService::Get(base::DIR_MODULE, &pak_file_300);
       pak_file_300 =
           pak_file_300.Append(FILE_PATH_LITERAL("web_view_300_percent.pak"));
-      resource_bundle.AddDataPackFromPath(pak_file_300, ui::k300Percent);
+      resource_bundle.AddDataPackFromPath(pak_file_300, ui::SCALE_FACTOR_300P);
     }
 
     pref_service_ = std::make_unique<TestingPrefServiceSimple>();
@@ -124,7 +124,7 @@ class CWVCreditCardVerifierTest : public PlatformTest {
          initWithPrefs:pref_service_.get()
         isOffTheRecord:NO
             creditCard:credit_card
-                reason:autofill::AutofillClient::UnmaskCardReason::kAutofill
+                reason:autofill::AutofillClient::UNMASK_FOR_AUTOFILL
               delegate:card_unmask_delegate_.GetWeakPtr()];
     card_unmask_delegate_.SetCreditCardVerifier(credit_card_verifier_);
   }
@@ -172,15 +172,16 @@ TEST_F(CWVCreditCardVerifierTest, IsExpirationDateValid) {
   EXPECT_FALSE(
       [credit_card_verifier_ isExpirationDateValidForMonth:@"11" year:@"2"]);
   EXPECT_TRUE(
-      [credit_card_verifier_ isExpirationDateValidForMonth:@"1" year:@"26"]);
+      [credit_card_verifier_ isExpirationDateValidForMonth:@"1" year:@"22"]);
   EXPECT_TRUE(
-      [credit_card_verifier_ isExpirationDateValidForMonth:@"11" year:@"2226"]);
+      [credit_card_verifier_ isExpirationDateValidForMonth:@"11" year:@"2222"]);
 }
 
 // Tests CWVCreditCardVerifier's verification method handles success case.
 TEST_F(CWVCreditCardVerifierTest, VerifyCardSucceeded) {
   NSString* cvc = @"123";
-  [credit_card_verifier_ loadRiskData:base::DoNothing()];
+  BOOL store_locally = NO;
+  [credit_card_verifier_ loadRiskData:std::move(base::DoNothing())];
   __block BOOL completionCalled = NO;
   __block NSError* completionError;
   [credit_card_verifier_
@@ -196,10 +197,10 @@ TEST_F(CWVCreditCardVerifierTest, VerifyCardSucceeded) {
   const FakeCardUnmaskDelegate::UserProvidedUnmaskDetails& unmask_details_ =
       card_unmask_delegate_.GetUserProvidedUnmaskDetails();
   EXPECT_NSEQ(cvc, base::SysUTF16ToNSString(unmask_details_.cvc));
+  EXPECT_EQ(store_locally, unmask_details_.should_store_pan);
 
   [credit_card_verifier_
-      didReceiveUnmaskVerificationResult:autofill::AutofillClient::
-                                             PaymentsRpcResult::kSuccess];
+      didReceiveUnmaskVerificationResult:autofill::AutofillClient::SUCCESS];
   EXPECT_TRUE(completionCalled);
   EXPECT_TRUE(completionError == nil);
 }
@@ -207,7 +208,8 @@ TEST_F(CWVCreditCardVerifierTest, VerifyCardSucceeded) {
 // Tests CWVCreditCardVerifier's verification method handles failure case.
 TEST_F(CWVCreditCardVerifierTest, VerifyCardFailed) {
   NSString* cvc = @"123";
-  [credit_card_verifier_ loadRiskData:base::DoNothing()];
+  BOOL store_locally = NO;
+  [credit_card_verifier_ loadRiskData:std::move(base::DoNothing())];
   __block NSError* completionError;
   [credit_card_verifier_
           verifyWithCVC:cvc
@@ -221,10 +223,10 @@ TEST_F(CWVCreditCardVerifierTest, VerifyCardFailed) {
   const FakeCardUnmaskDelegate::UserProvidedUnmaskDetails& unmask_details_ =
       card_unmask_delegate_.GetUserProvidedUnmaskDetails();
   EXPECT_NSEQ(cvc, base::SysUTF16ToNSString(unmask_details_.cvc));
+  EXPECT_EQ(store_locally, unmask_details_.should_store_pan);
 
-  [credit_card_verifier_
-      didReceiveUnmaskVerificationResult:
-          autofill::AutofillClient::PaymentsRpcResult::kTryAgainFailure];
+  [credit_card_verifier_ didReceiveUnmaskVerificationResult:
+                             autofill::AutofillClient::TRY_AGAIN_FAILURE];
   ASSERT_TRUE(completionError != nil);
   EXPECT_EQ(CWVCreditCardVerifierErrorDomain, completionError.domain);
   EXPECT_EQ(CWVCreditCardVerificationErrorTryAgainFailure,

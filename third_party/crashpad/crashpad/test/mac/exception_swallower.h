@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 
 namespace crashpad {
 namespace test {
@@ -55,10 +56,6 @@ namespace test {
 class ExceptionSwallower {
  public:
   ExceptionSwallower();
-
-  ExceptionSwallower(const ExceptionSwallower&) = delete;
-  ExceptionSwallower& operator=(const ExceptionSwallower&) = delete;
-
   ~ExceptionSwallower();
 
   //! \brief In a test child process, arranges to swallow `EXC_CRASH` and
@@ -79,6 +76,8 @@ class ExceptionSwallower {
   class ExceptionSwallowerThread;
 
   std::unique_ptr<ExceptionSwallowerThread> exception_swallower_thread_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExceptionSwallower);
 };
 
 }  // namespace test

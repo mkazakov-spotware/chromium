@@ -26,9 +26,9 @@
 namespace blink {
 namespace {
 TransformOperation::OperationType GetTypeForRotation(const Rotation& rotation) {
-  float x = rotation.axis.x();
-  float y = rotation.axis.y();
-  float z = rotation.axis.z();
+  float x = rotation.axis.X();
+  float y = rotation.axis.Y();
+  float z = rotation.axis.Z();
   if (x && !y && !z)
     return TransformOperation::kRotateX;
   if (y && !x && !z)
@@ -39,8 +39,10 @@ TransformOperation::OperationType GetTypeForRotation(const Rotation& rotation) {
 }
 }  // namespace
 
-bool RotateTransformOperation::IsEqualAssumingSameType(
+bool RotateTransformOperation::operator==(
     const TransformOperation& other) const {
+  if (!IsSameType(other))
+    return false;
   const auto& other_rotation = To<RotateTransformOperation>(other).rotation_;
   return rotation_.axis == other_rotation.axis &&
          rotation_.angle == other_rotation.angle;
@@ -48,7 +50,7 @@ bool RotateTransformOperation::IsEqualAssumingSameType(
 
 bool RotateTransformOperation::GetCommonAxis(const RotateTransformOperation* a,
                                              const RotateTransformOperation* b,
-                                             gfx::Vector3dF& result_axis,
+                                             FloatPoint3D& result_axis,
                                              double& result_angle_a,
                                              double& result_angle_b) {
   return Rotation::GetCommonAxis(a ? a->rotation_ : Rotation(),
@@ -97,21 +99,23 @@ RotateAroundOriginTransformOperation::RotateAroundOriginTransformOperation(
     double angle,
     double origin_x,
     double origin_y)
-    : RotateTransformOperation(Rotation(gfx::Vector3dF(0, 0, 1), angle),
+    : RotateTransformOperation(Rotation(FloatPoint3D(0, 0, 1), angle),
                                kRotateAroundOrigin),
       origin_x_(origin_x),
       origin_y_(origin_y) {}
 
 void RotateAroundOriginTransformOperation::Apply(
-    gfx::Transform& transform,
-    const gfx::SizeF& box_size) const {
+    TransformationMatrix& transform,
+    const FloatSize& box_size) const {
   transform.Translate(origin_x_, origin_y_);
   RotateTransformOperation::Apply(transform, box_size);
   transform.Translate(-origin_x_, -origin_y_);
 }
 
-bool RotateAroundOriginTransformOperation::IsEqualAssumingSameType(
+bool RotateAroundOriginTransformOperation::operator==(
     const TransformOperation& other) const {
+  if (!IsSameType(other))
+    return false;
   const auto& other_rotate = To<RotateAroundOriginTransformOperation>(other);
   const Rotation& other_rotation = other_rotate.rotation_;
   return rotation_.axis == other_rotation.axis &&

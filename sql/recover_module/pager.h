@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 
 #include <cstdint>
 #include <memory>
-#include <ostream>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "base/sequence_checker.h"
 
 struct sqlite3_file;
@@ -47,7 +45,7 @@ class DatabasePageReader {
   // after the database header.
   static constexpr int kMinUsablePageSize = kMinPageSize - kDatabaseHeaderSize;
 
-  // Largest valid page ID in a SQLite database.
+  // Maximum number of pages in a SQLite database.
   //
   // This is the maximum value of SQLITE_MAX_PAGE_COUNT plus 1, because page IDs
   // start at 1. The numerical value, which is the same as
@@ -142,7 +140,7 @@ class DatabasePageReader {
   const std::unique_ptr<uint8_t[]> page_data_;
   // Raw pointer usage is acceptable because this instance's owner is expected
   // to ensure that the VirtualTable outlives this.
-  const raw_ptr<VirtualTable> table_;
+  VirtualTable* const table_;
   int page_size_ = 0;
 
   SEQUENCE_CHECKER(sequence_checker_);

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/timer/timer.h"
 #include "ui/display/fake/fake_display_export.h"
@@ -31,14 +32,14 @@ namespace display {
 //   native_mode[#other_modes][^dpi][/options]
 //
 // native_mode: the native display mode, with format:
-//   WxH[%R]
-//     W: display width in pixels [int]
+//   HxW[%R]
 //     H: display height in pixels [int]
+//     W: display width in pixels [int]
 //     R: display refresh rate [float]
 //
 // other_modes: list of other of display modes, with format:
-//   #WxH[%R][:WxH[%R]]
-//     W,H,R: same meaning as in native_mode.
+//   #HxW[%R][:HxW[%R]]
+//     H,W,R: same meaning as in native_mode.
 //   Note: The first mode is delimited with '#' and any subsequent modes are
 //         delimited with ':'.
 //
@@ -70,10 +71,6 @@ class FAKE_DISPLAY_EXPORT FakeDisplayDelegate : public NativeDisplayDelegate,
                                                 public FakeDisplayController {
  public:
   FakeDisplayDelegate();
-
-  FakeDisplayDelegate(const FakeDisplayDelegate&) = delete;
-  FakeDisplayDelegate& operator=(const FakeDisplayDelegate&) = delete;
-
   ~FakeDisplayDelegate() override;
 
   // FakeDisplayController:
@@ -88,8 +85,7 @@ class FAKE_DISPLAY_EXPORT FakeDisplayDelegate : public NativeDisplayDelegate,
   void GetDisplays(GetDisplaysCallback callback) override;
   void Configure(
       const std::vector<display::DisplayConfigurationParams>& config_requests,
-      ConfigureCallback callback,
-      uint32_t modeset_flag) override;
+      ConfigureCallback callback) override;
   void GetHDCPState(const DisplaySnapshot& output,
                     GetHDCPStateCallback callback) override;
   void SetHDCPState(const DisplaySnapshot& output,
@@ -102,9 +98,7 @@ class FAKE_DISPLAY_EXPORT FakeDisplayDelegate : public NativeDisplayDelegate,
       int64_t display_id,
       const std::vector<display::GammaRampRGBEntry>& degamma_lut,
       const std::vector<display::GammaRampRGBEntry>& gamma_lut) override;
-  void SetPrivacyScreen(int64_t display_id,
-                        bool enabled,
-                        SetPrivacyScreenCallback callback) override;
+  void SetPrivacyScreen(int64_t display_id, bool enabled) override;
   void AddObserver(NativeDisplayObserver* observer) override;
   void RemoveObserver(NativeDisplayObserver* observer) override;
   FakeDisplayController* GetFakeDisplayController() override;
@@ -133,6 +127,8 @@ class FAKE_DISPLAY_EXPORT FakeDisplayDelegate : public NativeDisplayDelegate,
 
   // The next available display id.
   uint8_t next_display_id_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDisplayDelegate);
 };
 
 }  // namespace display

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "base/containers/flat_set.h"
 #include "base/no_destructor.h"
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "content/common/content_export.h"
 
@@ -67,4 +68,4 @@ class CONTENT_EXPORT AXImageStopwords {
 
 }  // namespace content
 
-#endif  // CONTENT_RENDERER_ACCESSIBILITY_AX_IMAGE_STOPWORDS_H_
+#endif  // CONTENT_RENDERER_ACCESSIBILITY_AX_IMAGE_ANNOTATOR_H_

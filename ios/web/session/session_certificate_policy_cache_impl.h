@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,12 +19,6 @@ namespace web {
 class SessionCertificatePolicyCacheImpl : public SessionCertificatePolicyCache {
  public:
   SessionCertificatePolicyCacheImpl(BrowserState* browser_state);
-
-  SessionCertificatePolicyCacheImpl(const SessionCertificatePolicyCacheImpl&) =
-      delete;
-  SessionCertificatePolicyCacheImpl& operator=(
-      const SessionCertificatePolicyCacheImpl&) = delete;
-
   ~SessionCertificatePolicyCacheImpl() override;
 
   // SessionCertificatePolicyCache:
@@ -42,6 +36,8 @@ class SessionCertificatePolicyCacheImpl : public SessionCertificatePolicyCache {
  private:
   // An set of CRWSessionCertificateStorages representing allowed certs.
   NSMutableSet* allowed_certs_;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionCertificatePolicyCacheImpl);
 };
 
 }  // namespace web

@@ -32,9 +32,8 @@
 #include "third_party/blink/renderer/modules/webaudio/audio_param.h"
 #include "third_party/blink/renderer/modules/webaudio/inspector_helper_mixin.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "ui/gfx/geometry/point3_f.h"
-#include "ui/gfx/geometry/vector3d_f.h"
+#include "third_party/blink/renderer/platform/geometry/float_point_3d.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -79,16 +78,16 @@ class AudioListener : public ScriptWrappable, public InspectorHelperMixin {
 
   bool IsListenerDirty() const { return is_listener_dirty_; }
 
-  const gfx::Point3F GetPosition() const {
-    return gfx::Point3F(position_x_->value(), position_y_->value(),
+  const FloatPoint3D GetPosition() const {
+    return FloatPoint3D(position_x_->value(), position_y_->value(),
                         position_z_->value());
   }
-  const gfx::Vector3dF Orientation() const {
-    return gfx::Vector3dF(forward_x_->value(), forward_y_->value(),
-                          forward_z_->value());
+  const FloatPoint3D Orientation() const {
+    return FloatPoint3D(forward_x_->value(), forward_y_->value(),
+                        forward_z_->value());
   }
-  const gfx::Vector3dF UpVector() const {
-    return gfx::Vector3dF(up_x_->value(), up_y_->value(), up_z_->value());
+  const FloatPoint3D UpVector() const {
+    return FloatPoint3D(up_x_->value(), up_y_->value(), up_z_->value());
   }
 
   const float* GetPositionXValues(uint32_t frames_to_process);
@@ -105,7 +104,7 @@ class AudioListener : public ScriptWrappable, public InspectorHelperMixin {
 
   // Position
   void setPosition(float x, float y, float z, ExceptionState& exceptionState) {
-    setPosition(gfx::Point3F(x, y, z), exceptionState);
+    setPosition(FloatPoint3D(x, y, z), exceptionState);
   }
 
   // Orientation and Up-vector
@@ -116,11 +115,11 @@ class AudioListener : public ScriptWrappable, public InspectorHelperMixin {
                       float up_y,
                       float up_z,
                       ExceptionState& exceptionState) {
-    setOrientation(gfx::Vector3dF(x, y, z), exceptionState);
-    SetUpVector(gfx::Vector3dF(up_x, up_y, up_z), exceptionState);
+    setOrientation(FloatPoint3D(x, y, z), exceptionState);
+    SetUpVector(FloatPoint3D(up_x, up_y, up_z), exceptionState);
   }
 
-  base::Lock& ListenerLock() { return listener_lock_; }
+  Mutex& ListenerLock() { return listener_lock_; }
   void AddPanner(PannerHandler&);
   void RemovePanner(PannerHandler&);
 
@@ -140,11 +139,11 @@ class AudioListener : public ScriptWrappable, public InspectorHelperMixin {
   void Trace(Visitor*) const override;
 
  private:
-  void setPosition(const gfx::Point3F&, ExceptionState&);
-  void setOrientation(const gfx::Vector3dF&, ExceptionState&);
-  void SetUpVector(const gfx::Vector3dF&, ExceptionState&);
+  void setPosition(const FloatPoint3D&, ExceptionState&);
+  void setOrientation(const FloatPoint3D&, ExceptionState&);
+  void SetUpVector(const FloatPoint3D&, ExceptionState&);
 
-  void MarkPannersAsDirty(unsigned) EXCLUSIVE_LOCKS_REQUIRED(listener_lock_);
+  void MarkPannersAsDirty(unsigned);
 
   // Location of the listener
   Member<AudioParam> position_x_;
@@ -162,17 +161,17 @@ class AudioListener : public ScriptWrappable, public InspectorHelperMixin {
   Member<AudioParam> up_z_;
 
   // The position, forward, and up vectors from the last rendering quantum.
-  gfx::Point3F last_position_ GUARDED_BY(listener_lock_);
-  gfx::Vector3dF last_forward_ GUARDED_BY(listener_lock_);
-  gfx::Vector3dF last_up_ GUARDED_BY(listener_lock_);
+  FloatPoint3D last_position_;
+  FloatPoint3D last_forward_;
+  FloatPoint3D last_up_;
 
   // Last time that the automations were updated.
-  double last_update_time_ = -1;
+  double last_update_time_;
 
   // Set every rendering quantum if the listener has moved in any way
   // (position, forward, or up).  This should only be read or written to from
   // the audio thread.
-  bool is_listener_dirty_ = false;
+  bool is_listener_dirty_;
 
   void UpdateValuesIfNeeded(uint32_t frames_to_process);
 
@@ -189,7 +188,7 @@ class AudioListener : public ScriptWrappable, public InspectorHelperMixin {
   AudioFloatArray up_z_values_;
 
   // Synchronize a panner's process() with setting of the state of the listener.
-  mutable base::Lock listener_lock_;
+  mutable Mutex listener_lock_;
   // List for pannerNodes in context. This is updated only in the main thread,
   // and can be referred in audio thread.
   // These raw pointers are safe because PannerHandler::uninitialize()

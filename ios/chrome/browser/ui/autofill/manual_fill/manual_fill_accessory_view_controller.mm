@@ -1,16 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/manual_fill/manual_fill_accessory_view_controller.h"
 
-#import "base/metrics/user_metrics.h"
-#import "components/password_manager/core/common/password_manager_features.h"
+#include "base/feature_list.h"
+#include "base/metrics/user_metrics.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/device_form_factor.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -104,16 +105,7 @@ static NSTimeInterval MFAnimationDuration = 0.2;
   }
 }
 
-#pragma mark - Accessors
-
-- (BOOL)allButtonsHidden {
-  BOOL manualFillButtonsHidden = self.addressButtonHidden &&
-                                 self.creditCardButtonHidden &&
-                                 self.passwordButtonHidden;
-  return ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET
-             ? manualFillButtonsHidden
-             : self.keyboardButton.hidden && manualFillButtonsHidden;
-}
+#pragma mark - Setters
 
 - (void)setAddressButtonHidden:(BOOL)addressButtonHidden {
   if (addressButtonHidden == _addressButtonHidden) {
@@ -141,7 +133,7 @@ static NSTimeInterval MFAnimationDuration = 0.2;
 
 #pragma mark - Private
 
-// Helper to create a system button with the passed data and `self` as the
+// Helper to create a system button with the passed data and |self| as the
 // target. Such button has been configured to have some preset properties
 - (UIButton*)manualFillButtonWithAction:(SEL)selector
                              ImageNamed:(NSString*)imageName
@@ -167,7 +159,7 @@ static NSTimeInterval MFAnimationDuration = 0.2;
 
   NSMutableArray<UIView*>* icons = [[NSMutableArray alloc] init];
 
-  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
+  if (!IsIPadIdiom()) {
     self.keyboardButton = [self
         manualFillButtonWithAction:@selector(keyboardButtonPressed)
                         ImageNamed:@"mf_keyboard"
@@ -180,15 +172,9 @@ static NSTimeInterval MFAnimationDuration = 0.2;
     self.keyboardButton.alpha = 0.0;
   }
 
-  NSString* imageName =
-      base::FeatureList::IsEnabled(
-          password_manager::features::kIOSEnablePasswordManagerBrandingUpdate)
-          ? @"password_key"
-          : @"ic_vpn_key";
-
   self.passwordButton = [self
       manualFillButtonWithAction:@selector(passwordButtonPressed:)
-                      ImageNamed:imageName
+                      ImageNamed:@"ic_vpn_key"
          accessibilityIdentifier:manual_fill::
                                      AccessoryPasswordAccessibilityIdentifier
               accessibilityLabel:l10n_util::GetNSString(
@@ -220,22 +206,24 @@ static NSTimeInterval MFAnimationDuration = 0.2;
   self.accountButton.hidden = self.isAddressButtonHidden;
   [icons addObject:self.accountButton];
 
-  for (UIButton* button in icons)
-    button.pointerInteractionEnabled = YES;
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    if (base::FeatureList::IsEnabled(kPointerSupport)) {
+      for (UIButton* button in icons)
+        button.pointerInteractionEnabled = YES;
+    }
+  }
+#endif  // defined(__IPHONE_13_4)
 
   UIStackView* stackView = [[UIStackView alloc] initWithArrangedSubviews:icons];
   stackView.spacing =
-      (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
-          ? ManualFillIconsIPadSpacing
-          : ManualFillIconsSpacing;
+      IsIPadIdiom() ? ManualFillIconsIPadSpacing : ManualFillIconsSpacing;
   stackView.axis = UILayoutConstraintAxisHorizontal;
   stackView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:stackView];
 
-  CGFloat trailingInset =
-      (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
-          ? ManualFillIconsIPadTrailingInset
-          : ManualFillIconsTrailingInset;
+  CGFloat trailingInset = IsIPadIdiom() ? ManualFillIconsIPadTrailingInset
+                                        : ManualFillIconsTrailingInset;
   id<LayoutGuideProvider> safeAreaLayoutGuide = self.view.safeAreaLayoutGuide;
   [NSLayoutConstraint activateConstraints:@[
     // Vertical constraints.
@@ -266,7 +254,7 @@ static NSTimeInterval MFAnimationDuration = 0.2;
 - (void)setKeyboardButtonHidden:(BOOL)hidden animated:(BOOL)animated {
   [UIView animateWithDuration:animated ? MFAnimationDuration : 0
                    animations:^{
-                     // Workaround setting more than once the `hidden` property
+                     // Workaround setting more than once the |hidden| property
                      // in stacked views.
                      if (self.keyboardButton.hidden != hidden) {
                        self.keyboardButton.hidden = hidden;

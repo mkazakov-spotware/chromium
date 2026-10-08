@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/video_capture/device_media_to_mojo_adapter.h"
 
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "build/chromeos_buildflags.h"
@@ -31,17 +30,14 @@ class DeviceMediaToMojoAdapterTest : public ::testing::Test {
         video_frame_handler_.InitWithNewPipeAndPassReceiver());
     auto mock_device = std::make_unique<media::MockDevice>();
     mock_device_ptr_ = mock_device.get();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ASH)
     adapter_ = std::make_unique<DeviceMediaToMojoAdapter>(
         std::move(mock_device), base::DoNothing(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
-#elif BUILDFLAG(IS_WIN)
-    adapter_ = std::make_unique<DeviceMediaToMojoAdapter>(
-        std::move(mock_device), nullptr);
+        base::ThreadTaskRunnerHandle::Get());
 #else
-    adapter_ =
-        std::make_unique<DeviceMediaToMojoAdapter>(std::move(mock_device));
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+    adapter_ = std::make_unique<DeviceMediaToMojoAdapter>(
+        std::move(mock_device));
+#endif  // BUILDFLAG(IS_ASH)
   }
 
   void TearDown() override {
@@ -52,7 +48,7 @@ class DeviceMediaToMojoAdapterTest : public ::testing::Test {
   }
 
  protected:
-  raw_ptr<media::MockDevice> mock_device_ptr_;
+  media::MockDevice* mock_device_ptr_;
   std::unique_ptr<DeviceMediaToMojoAdapter> adapter_;
   std::unique_ptr<MockVideoFrameHandler> mock_video_frame_handler_;
   mojo::PendingRemote<mojom::VideoFrameHandler> video_frame_handler_;

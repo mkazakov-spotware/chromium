@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,10 @@
 
 #include <memory>
 
-#include "base/feature_list.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/live_caption/pref_names.h"
+#include "chrome/common/pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
-#include "components/soda/soda_installer.h"
-#include "media/base/media_switches.h"
 
 class PrefChangeRegistrar;
 
@@ -32,18 +29,10 @@ SpeechRecognitionClientBrowserInterface::
       base::BindRepeating(&SpeechRecognitionClientBrowserInterface::
                               OnSpeechRecognitionAvailabilityChanged,
                           base::Unretained(this)));
-  pref_change_registrar_->Add(
-      prefs::kLiveCaptionLanguageCode,
-      base::BindRepeating(&SpeechRecognitionClientBrowserInterface::
-                              OnSpeechRecognitionLanguageChanged,
-                          base::Unretained(this)));
-  speech::SodaInstaller::GetInstance()->AddObserver(this);
 }
 
 SpeechRecognitionClientBrowserInterface::
-    ~SpeechRecognitionClientBrowserInterface() {
-  speech::SodaInstaller::GetInstance()->RemoveObserver(this);
-}
+    ~SpeechRecognitionClientBrowserInterface() = default;
 
 void SpeechRecognitionClientBrowserInterface::BindReceiver(
     mojo::PendingReceiver<media::mojom::SpeechRecognitionClientBrowserInterface>
@@ -52,22 +41,11 @@ void SpeechRecognitionClientBrowserInterface::BindReceiver(
 }
 
 void SpeechRecognitionClientBrowserInterface::
-    BindSpeechRecognitionBrowserObserver(
-        mojo::PendingRemote<media::mojom::SpeechRecognitionBrowserObserver>
+    BindSpeechRecognitionAvailabilityObserver(
+        mojo::PendingRemote<media::mojom::SpeechRecognitionAvailabilityObserver>
             pending_remote) {
   speech_recognition_availibility_observers_.Add(std::move(pending_remote));
   OnSpeechRecognitionAvailabilityChanged();
-}
-
-void SpeechRecognitionClientBrowserInterface::OnSodaInstalled(
-    speech::LanguageCode language_code) {
-  if (!prefs::IsLanguageCodeForLiveCaption(language_code, profile_prefs_))
-    return;
-  NotifyObservers(profile_prefs_->GetBoolean(prefs::kLiveCaptionEnabled));
-
-  if (base::FeatureList::IsEnabled(media::kLiveCaptionMultiLanguage)) {
-    OnSpeechRecognitionLanguageChanged();
-  }
 }
 
 void SpeechRecognitionClientBrowserInterface::
@@ -76,28 +54,6 @@ void SpeechRecognitionClientBrowserInterface::
     return;
 
   bool enabled = profile_prefs_->GetBoolean(prefs::kLiveCaptionEnabled);
-
-  if (enabled) {
-    const std::string live_caption_locale =
-        prefs::GetLiveCaptionLanguageCode(profile_prefs_);
-    if (speech::SodaInstaller::GetInstance()->IsSodaInstalled(
-            speech::GetLanguageCode(live_caption_locale))) {
-      NotifyObservers(enabled);
-    }
-  } else {
-    NotifyObservers(enabled);
-  }
-}
-
-void SpeechRecognitionClientBrowserInterface::
-    OnSpeechRecognitionLanguageChanged() {
-  for (auto& observer : speech_recognition_availibility_observers_) {
-    observer->SpeechRecognitionLanguageChanged(
-        prefs::GetLiveCaptionLanguageCode(profile_prefs_));
-  }
-}
-
-void SpeechRecognitionClientBrowserInterface::NotifyObservers(bool enabled) {
   for (auto& observer : speech_recognition_availibility_observers_) {
     observer->SpeechRecognitionAvailabilityChanged(enabled);
   }

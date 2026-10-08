@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "ash/public/cpp/ash_public_export.h"
+#include "base/strings/string16.h"
 
 namespace ash {
 
@@ -24,12 +25,15 @@ struct ASH_PUBLIC_EXPORT ImeInfo {
   std::string id;
 
   // Long name of the IME, which is used as the user-visible name.
-  std::u16string name;
+  base::string16 name;
+
+  // Medium name of the IME, which is the same as the short name in most cases.
+  base::string16 medium_name;
 
   // UI indicator for the IME (e.g., "US"). If the IME has no indicator, uses
   // the first two characters in its preferred keyboard layout or language code
   // (e.g., "ko", "ja", "en-US").
-  std::u16string short_name;
+  base::string16 short_name;
 };
 
 // A menu item that sets an IME configuration property.
@@ -46,7 +50,7 @@ struct ASH_PUBLIC_EXPORT ImeMenuItem {
   std::string key;
 
   // The item label, e.g. "Switch to full punctuation mode" or "Hiragana".
-  std::u16string label;
+  base::string16 label;
 };
 
 }  // namespace ash

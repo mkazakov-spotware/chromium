@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,8 +31,8 @@ import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.locale.LocaleManager;
-import org.chromium.chrome.browser.locale.LocaleManagerDelegate;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabImpl;
 import org.chromium.content.R;
 import org.chromium.content_public.browser.ActionModeCallbackHelper;
 import org.chromium.content_public.browser.WebContents;
@@ -50,7 +50,7 @@ import java.util.Random;
 @Config(manifest = Config.NONE)
 public class ChromeActionModeHandlerUnitTest {
     @Mock
-    private Tab mTab;
+    private TabImpl mTab;
     @Mock
     private ActionModeCallbackHelper mActionModeCallbackHelper;
     @Mock
@@ -60,7 +60,7 @@ public class ChromeActionModeHandlerUnitTest {
 
     private class TestChromeActionModeCallback extends ChromeActionModeHandler.ActionModeCallback {
         TestChromeActionModeCallback(Tab tab, ActionModeCallbackHelper helper) {
-            super(tab, null, urlParams -> {}, null);
+            super(tab, null, visible -> {}, urlParams -> {}, null);
         }
 
         @Override
@@ -114,21 +114,20 @@ public class ChromeActionModeHandlerUnitTest {
         Mockito.when(mActionModeCallbackHelper.isActionModeValid()).thenReturn(true);
         Mockito.when(mActionModeCallbackHelper.getSelectedText()).thenReturn("OhHai");
 
-        LocaleManagerDelegate delegate = Mockito.spy(new LocaleManagerDelegate() {
+        LocaleManager localeManager = Mockito.spy(new LocaleManager() {
             @Override
             public void showSearchEnginePromoIfNeeded(
                     Activity activity, Callback<Boolean> onSearchEngineFinalized) {
                 onSearchEngineFinalized.onResult(true);
             }
         });
-
-        LocaleManager.getInstance().setDelegateForTest(delegate);
+        LocaleManager.setInstanceForTest(localeManager);
 
         MenuItem shareItem = Mockito.mock(MenuItem.class);
         Mockito.when(shareItem.getItemId()).thenReturn(R.id.select_action_menu_web_search);
         mActionModeCallback.onActionItemClicked(mActionMode, shareItem);
 
-        Mockito.verify(delegate).showSearchEnginePromoIfNeeded(Mockito.any(), Mockito.any());
+        Mockito.verify(localeManager).showSearchEnginePromoIfNeeded(Mockito.any(), Mockito.any());
     }
 
     @Test
@@ -149,7 +148,8 @@ public class ChromeActionModeHandlerUnitTest {
         }
 
         // Mock intent for querying web browsers.
-        packageManager.addResolveInfoForIntent(PackageManagerUtils.BROWSER_INTENT, browsersList);
+        packageManager.addResolveInfoForIntent(
+                PackageManagerUtils.getQueryInstalledBrowsersIntent(), browsersList);
 
         // Mock intent for querying home launchers.
         packageManager.addResolveInfoForIntent(

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "base/macros.h"
 // Cannot forward declare StringPiece because it is a typedef.
 #include "base/strings/string_piece.h"
 #include "base/values.h"
@@ -28,10 +29,6 @@ class FormDataParser {
   class Result {
    public:
     Result();
-
-    Result(const Result&) = delete;
-    Result& operator=(const Result&) = delete;
-
     ~Result();
 
     const std::string& name() const { return name_; }
@@ -46,10 +43,9 @@ class FormDataParser {
    private:
     std::string name_;
     base::Value value_;
-  };
 
-  FormDataParser(const FormDataParser&) = delete;
-  FormDataParser& operator=(const FormDataParser&) = delete;
+    DISALLOW_COPY_AND_ASSIGN(Result);
+  };
 
   virtual ~FormDataParser();
 
@@ -84,6 +80,9 @@ class FormDataParser {
 
  protected:
   FormDataParser();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FormDataParser);
 };
 
 }  // namespace extensions

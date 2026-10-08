@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "components/javascript_dialogs/tab_modal_dialog_manager.h"
 #include "components/javascript_dialogs/tab_modal_dialog_view.h"
 #include "components/navigation_metrics/navigation_metrics.h"
+#include "components/ukm/content/source_url_recorder.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
@@ -80,7 +81,7 @@ bool JavaScriptTabModalDialogManagerDelegateDesktop::IsWebContentsForemost() {
 
 bool JavaScriptTabModalDialogManagerDelegateDesktop::IsApp() {
   Browser* browser = chrome::FindBrowserWithWebContents(web_contents_);
-  return browser && (browser->is_type_app() || browser->is_type_app_popup());
+  return browser && browser->deprecated_is_app();
 }
 
 void JavaScriptTabModalDialogManagerDelegateDesktop::OnBrowserSetLastActive(

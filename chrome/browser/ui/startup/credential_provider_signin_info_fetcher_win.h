@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,11 +36,10 @@ class CredentialProviderSigninInfoFetcher
   // is finished successfully or with an error.
   // The single argument should always be a dictionary value and will be empty
   // if there was an error during the fetch.
-  using FetchCompletionCallback = base::OnceCallback<void(base::Value::Dict)>;
+  using FetchCompletionCallback = base::OnceCallback<void(base::Value)>;
 
   CredentialProviderSigninInfoFetcher(
       const std::string& refresh_token,
-      const std::string& consumer_name,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
   CredentialProviderSigninInfoFetcher(
       const CredentialProviderSigninInfoFetcher&) = delete;
@@ -54,15 +53,16 @@ class CredentialProviderSigninInfoFetcher
       FetchCompletionCallback completion_callback);
 
   // gaia::GaiaOAuthClient::Delegate:
-  void OnGetTokenInfoResponse(const base::Value::Dict& token_info) override;
-  void OnGetUserInfoResponse(const base::Value::Dict& user_info) override;
+  void OnGetTokenInfoResponse(
+      std::unique_ptr<base::DictionaryValue> token_info) override;
+  void OnGetUserInfoResponse(
+      std::unique_ptr<base::DictionaryValue> user_info) override;
   void OnOAuthError() override;
   void OnNetworkError(int response_code) override;
 
   // OAuth2AccessTokenConsumer:
   void OnGetTokenSuccess(const TokenResponse& token_response) override;
   void OnGetTokenFailure(const GoogleServiceAuthError& error) override;
-  std::string GetConsumerName() const override;
 
  protected:
   void RequestUserInfoFromAccessToken(const std::string& access_token);
@@ -77,7 +77,6 @@ class CredentialProviderSigninInfoFetcher
   std::string picture_url_;
   std::string mdm_id_token_;
   std::string mdm_access_token_;
-  const std::string consumer_name_;
 
   std::unique_ptr<OAuth2AccessTokenFetcher> scoped_access_token_fetcher_;
   std::unique_ptr<gaia::GaiaOAuthClient> user_info_fetcher_;

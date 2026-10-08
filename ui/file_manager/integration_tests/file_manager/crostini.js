@@ -1,11 +1,7 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {ENTRIES, RootPath, sendTestMessage} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {mountCrostini, remoteCall, setupAndWaitUntilReady} from './background.js';
+'use strict';
 
 const FAKE_LINUX_FILES = '#directory-tree [root-type-icon="crostini"]';
 const REAL_LINUX_FILES = '#directory-tree [volume-type-icon="crostini"]';
@@ -45,14 +41,11 @@ testcase.sharePathWithCrostini = async () => {
       '[command="#share-with-linux"]:not([hidden]):not([disabled])';
   const menuNoShareWithLinux = '#file-context-menu:not([hidden]) ' +
       '[command="#share-with-linux"][hidden][disabled="disabled"]';
-  const shareMessageShown =
-      '#banners > shared-with-crostini-pluginvm-banner:not([hidden])';
+  const shareMessageShown = '#files-message:not([hidden])';
+  const shareMessageHidden = '#files-message[hidden]';
 
   const appId =
       await setupAndWaitUntilReady(RootPath.DOWNLOADS, [ENTRIES.photos], []);
-
-  await remoteCall.isolateBannerForTesting(
-      appId, 'shared-with-crostini-pluginvm-banner');
 
   // Ensure fake Linux files root is shown.
   await remoteCall.waitForElement(appId, FAKE_LINUX_FILES);
@@ -81,36 +74,28 @@ testcase.sharePathWithCrostini = async () => {
   await remoteCall.waitForElement(appId, menuNoShareWithLinux);
 
   // Click 'photos' to go in photos directory, ensure share message is shown.
-  await remoteCall.waitForElementLost(
-      appId, '#banners > shared-with-crostini-pluginvm-banner');
+  await remoteCall.waitForElement(appId, shareMessageHidden);
   remoteCall.callRemoteTestUtil('fakeMouseDoubleClick', appId, [photos]);
   await remoteCall.waitForElement(appId, shareMessageShown);
 };
 
 testcase.pluginVmDirectoryNotSharedErrorDialog = async () => {
   const appId = await setupAndWaitUntilReady(RootPath.DOWNLOADS);
-  const pluginVmAppDescriptor = {
-    appId: 'plugin-vm-app-id',
-    taskType: 'pluginvm',
-    actionId: 'open-with',
-  };
 
   // Override the tasks so the "Open with Plugin VM App" button becomes a
   // dropdown option.
   chrome.test.assertTrue(!!await remoteCall.callRemoteTestUtil(
       'overrideTasks', appId, [[
         {
-          descriptor: {
-            appId: 'text-app-id',
-            taskType: 'app',
-            actionId: 'text',
-          },
+          taskId: 'text-app-id|app|text',
           title: 'Text',
+          verb: 'open_with',
         },
         {
-          descriptor: pluginVmAppDescriptor,
+          taskId: 'plugin-vm-app-id|pluginvm|open-with',
           title: 'App (Windows)',
-        },
+          verb: 'open_with',
+        }
       ]]));
 
   // Right click on 'hello.txt' file, and wait for dialog with 'Open with'.
@@ -129,16 +114,16 @@ testcase.pluginVmDirectoryNotSharedErrorDialog = async () => {
   const appOptions = await remoteCall.callRemoteTestUtil(
       'queryAllElements', appId, ['#tasks-menu [tabindex]']);
   chrome.test.assertEq(
-      1, appOptions.filter(el => el.text == 'App (Windows)').length);
+      1, appOptions.filter(el => el.text == 'Open with App (Windows)').length);
 
   // Click on the Plugin VM app, and wait for error dialog.
-  await remoteCall.callRemoteTestUtil(
-      'fakeMouseClick', appId,
-      [`#tasks-menu [tabindex]:nth-of-type(${
-          appOptions.map(el => el.text).indexOf('App (Windows)') + 1})`]);
+  await remoteCall.callRemoteTestUtil('fakeMouseClick', appId, [
+    `#tasks-menu [tabindex]:nth-of-type(${
+        appOptions.map(el => el.text).indexOf('Open with App (Windows)') + 1})`
+  ]);
   await remoteCall.waitUntilTaskExecutes(
-      appId, pluginVmAppDescriptor, ['hello.txt'],
-      ['failed_plugin_vm_directory_not_shared']);
+      appId, 'plugin-vm-app-id|pluginvm|open-with',
+      ['failed_plugin_vm_task_directory_not_shared']);
   await remoteCall.waitForElement(
       appId, '.cr-dialog-frame:not(#default-task-dialog):not([hidden])');
 
@@ -161,30 +146,22 @@ testcase.pluginVmDirectoryNotSharedErrorDialog = async () => {
 };
 
 testcase.pluginVmFileOnExternalDriveErrorDialog = async () => {
-  // Use files outside of MyFiles to show 'copy' rather than 'move'.
-  const appId = await setupAndWaitUntilReady(RootPath.DRIVE);
-  const pluginVmAppDescriptor = {
-    appId: 'plugin-vm-app-id',
-    taskType: 'pluginvm',
-    actionId: 'open-with',
-  };
+  const appId = await setupAndWaitUntilReady(RootPath.DOWNLOADS);
 
   // Override the tasks so the "Open with Plugin VM App" button becomes a
   // dropdown option.
   chrome.test.assertTrue(!!await remoteCall.callRemoteTestUtil(
       'overrideTasks', appId, [[
         {
-          descriptor: {
-            appId: 'text-app-id',
-            taskType: 'app',
-            actionId: 'text',
-          },
+          taskId: 'text-app-id|app|text',
           title: 'Text',
+          verb: 'open_with',
         },
         {
-          descriptor: pluginVmAppDescriptor,
+          taskId: 'plugin-vm-app-id|pluginvm|open-with',
           title: 'App (Windows)',
-        },
+          verb: 'open_with',
+        }
       ]]));
 
   // Right click on 'hello.txt' file, and wait for dialog with 'Open with'.
@@ -203,16 +180,16 @@ testcase.pluginVmFileOnExternalDriveErrorDialog = async () => {
   const appOptions = await remoteCall.callRemoteTestUtil(
       'queryAllElements', appId, ['#tasks-menu [tabindex]']);
   chrome.test.assertEq(
-      1, appOptions.filter(el => el.text == 'App (Windows)').length);
+      1, appOptions.filter(el => el.text == 'Open with App (Windows)').length);
 
   // Click on the Plugin VM app, and wait for error dialog.
-  await remoteCall.callRemoteTestUtil(
-      'fakeMouseClick', appId,
-      [`#tasks-menu [tabindex]:nth-of-type(${
-          appOptions.map(el => el.text).indexOf('App (Windows)') + 1})`]);
+  await remoteCall.callRemoteTestUtil('fakeMouseClick', appId, [
+    `#tasks-menu [tabindex]:nth-of-type(${
+        appOptions.map(el => el.text).indexOf('Open with App (Windows)') + 1})`
+  ]);
   await remoteCall.waitUntilTaskExecutes(
-      appId, pluginVmAppDescriptor, ['hello.txt'],
-      ['failed_plugin_vm_directory_not_shared']);
+      appId, 'plugin-vm-app-id|pluginvm|open-with',
+      ['failed_plugin_vm_task_external_drive']);
   await remoteCall.waitForElement(
       appId, '.cr-dialog-frame:not(#default-task-dialog):not([hidden])');
 
@@ -232,27 +209,4 @@ testcase.pluginVmFileOnExternalDriveErrorDialog = async () => {
 
   // TODO(crbug.com/1049453): Test file is moved. This can only be tested when
   // tests allow creating /MyFiles/PvmDefault.
-};
-
-/**
- * Tests that when drag from Files app and dropping in the Plugin VM a
- * dialog is displayed if the containing folder isn't shared with Plugin VM.
- */
-testcase.pluginVmFileDropFailErrorDialog = async () => {
-  const appId = await setupAndWaitUntilReady(RootPath.DOWNLOADS);
-
-  // Select 'hello.txt' file.
-  await remoteCall.callRemoteTestUtil(
-      'fakeMouseClick', appId, ['[id^="listitem-"][file-name="hello.txt"]']);
-
-  // Send 'dragstart'.
-  chrome.test.assertTrue(await remoteCall.callRemoteTestUtil(
-      'fakeEvent', appId, ['body', 'dragstart', {bubbles: true}]));
-
-  // Send CrostiniEvent 'drop_failed_plugin_vm_directory_not_shared'.
-  await sendTestMessage({name: 'onDropFailedPluginVmDirectoryNotShared'});
-
-  // Wait for error dialog.
-  await remoteCall.waitForElement(
-      appId, '.cr-dialog-frame:not(#default-task-dialog):not([hidden])');
 };

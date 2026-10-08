@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/layout/box_layout.h"
-#include "ui/views/test/views_test_utils.h"
 #include "ui/views/widget/widget.h"
 
 namespace ash {
@@ -19,10 +18,6 @@ namespace ash {
 namespace {
 
 class LoginUserViewUnittest : public LoginTestBase {
- public:
-  LoginUserViewUnittest(const LoginUserViewUnittest&) = delete;
-  LoginUserViewUnittest& operator=(const LoginUserViewUnittest&) = delete;
-
  protected:
   LoginUserViewUnittest() = default;
   ~LoginUserViewUnittest() override = default;
@@ -51,8 +46,7 @@ class LoginUserViewUnittest : public LoginTestBase {
         public_account ? CreatePublicAccountUser(email) : CreateUser(email);
     view->UpdateForUser(user, false /*animate*/);
     container_->AddChildView(view);
-    container_->InvalidateLayout();
-    views::test::RunScheduledLayout(widget());
+    widget()->GetContentsView()->Layout();
     return view;
   }
 
@@ -81,6 +75,8 @@ class LoginUserViewUnittest : public LoginTestBase {
   void OnTapped() { ++tap_count_; }
   void OnRemoveWarningShown() { ++remove_show_warning_count_; }
   void OnRemove() { ++remove_count_; }
+
+  DISALLOW_COPY_AND_ASSIGN(LoginUserViewUnittest);
 };
 
 }  // namespace
@@ -109,8 +105,7 @@ TEST_F(LoginUserViewUnittest, DifferentUsernamesHaveSameWidth) {
     large->UpdateForUser(user, false /*animate*/);
     small->UpdateForUser(user, false /*animate*/);
     extra_small->UpdateForUser(user, false /*animate*/);
-    container_->InvalidateLayout();
-    views::test::RunScheduledLayout(container_);
+    container_->Layout();
 
     EXPECT_EQ(large_width, large->size().width());
     EXPECT_EQ(small_width, small->size().width());
@@ -185,35 +180,6 @@ TEST_F(LoginUserViewUnittest, EntireViewIsTapTarget) {
 
   // Click a location outside of the view bounds.
   EXPECT_FALSE(tap(view->GetBoundsInScreen().bottom_right(), 1, 1));
-}
-
-TEST_F(LoginUserViewUnittest, DropdownClickable) {
-  LoginUserView* view =
-      AddUserView(LoginDisplayStyle::kLarge, true /*show_dropdown*/,
-                  false /*public_account*/);
-  LoginUserView::TestApi view_test(view);
-
-  EXPECT_FALSE(view_test.remove_account_dialog()->GetVisible());
-
-  GetEventGenerator()->MoveMouseTo(
-      view_test.dropdown()->GetBoundsInScreen().CenterPoint());
-  GetEventGenerator()->ClickLeftButton();
-  EXPECT_EQ(0, tap_count_);
-  EXPECT_TRUE(view_test.remove_account_dialog()->GetVisible());
-}
-
-TEST_F(LoginUserViewUnittest, DropdownTappable) {
-  LoginUserView* view =
-      AddUserView(LoginDisplayStyle::kLarge, true /*show_dropdown*/,
-                  false /*public_account*/);
-  LoginUserView::TestApi view_test(view);
-
-  EXPECT_FALSE(view_test.remove_account_dialog()->GetVisible());
-
-  GetEventGenerator()->GestureTapAt(
-      view_test.dropdown()->GetBoundsInScreen().CenterPoint());
-  EXPECT_EQ(0, tap_count_);
-  EXPECT_TRUE(view_test.remove_account_dialog()->GetVisible());
 }
 
 // Verifies the focused user view is opaque. Verifies that a hovered view is
@@ -317,7 +283,7 @@ TEST_F(LoginUserViewUnittest, ElideUserLabel) {
 
   LoginUserInfo user = CreateUser("verylongusernamethatfillsthebox@domain.com");
   view->UpdateForUser(user, false /*animate*/);
-  views::test::RunScheduledLayout(container_);
+  container_->Layout();
 
   EXPECT_TRUE(view->GetVisibleBounds().Contains(
       view_test.user_label()->GetVisibleBounds()));

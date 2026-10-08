@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,8 +31,8 @@ enum UserActivationNotificationType {
   // A media API caused the notification call.
   kMedia,
 
-  // A File System Access API caused the notification call.
-  kFileSystemAccess,
+  // An NFS API caused the notification call.
+  kNativeFileSystem,
 
   // A plugin API caused the notification call.  Deprecated, preserved only for
   // UMA consistency.

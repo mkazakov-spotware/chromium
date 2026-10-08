@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests search query parsing.\n`);
-  await TestRunner.loadLegacyModule('search');
   await TestRunner.showPanel('sources');
 
   function dumpParsedSearchQuery(query, isRegex) {

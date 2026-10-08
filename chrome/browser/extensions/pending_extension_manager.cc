@@ -1,19 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/pending_extension_manager.h"
 
-#include "base/containers/contains.h"
-#include "base/containers/flat_set.h"
-#include "base/feature_list.h"
+#include <algorithm>
+
 #include "base/logging.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
 #include "base/version.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/web_applications/preinstalled_web_apps/preinstalled_web_apps.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/extension_prefs.h"
@@ -23,13 +19,11 @@
 #include "url/gurl.h"
 
 using content::BrowserThread;
-using extensions::mojom::ManifestLocation;
 
 namespace {
 
 // Install predicate used by AddFromExternalUpdateUrl().
-bool AlwaysInstall(const extensions::Extension* extension,
-                   content::BrowserContext* context) {
+bool AlwaysInstall(const extensions::Extension* extension) {
   return true;
 }
 
@@ -49,48 +43,90 @@ PendingExtensionManager::~PendingExtensionManager() {}
 
 const PendingExtensionInfo* PendingExtensionManager::GetById(
     const std::string& id) const {
-  auto it = pending_extensions_.find(id);
-  if (it != pending_extensions_.end())
-    return &it->second;
+  PendingExtensionList::const_iterator iter;
+  for (iter = pending_extension_list_.begin();
+       iter != pending_extension_list_.end();
+       ++iter) {
+    if (id == iter->id())
+      return &(*iter);
+  }
 
-  return nullptr;
+  return NULL;
 }
 
 bool PendingExtensionManager::Remove(const std::string& id) {
-  const bool removed = pending_extensions_.erase(id) > 0;
-  if (removed) {
-    for (Observer& observer : observers_) {
-      observer.OnExtensionRemoved(id);
+  if (base::Contains(expected_policy_reinstalls_, id)) {
+    base::TimeDelta latency =
+        base::TimeTicks::Now() - expected_policy_reinstalls_[id];
+    UMA_HISTOGRAM_LONG_TIMES("Extensions.CorruptPolicyExtensionResolved",
+                             latency);
+    expected_policy_reinstalls_.erase(id);
+  }
+  PendingExtensionList::iterator iter;
+  for (iter = pending_extension_list_.begin();
+       iter != pending_extension_list_.end();
+       ++iter) {
+    if (id == iter->id()) {
+      pending_extension_list_.erase(iter);
+      return true;
     }
   }
-  return removed;
+
+  return false;
 }
 
 bool PendingExtensionManager::IsIdPending(const std::string& id) const {
-  return GetById(id) != nullptr;
+  return GetById(id) != NULL;
 }
 
 bool PendingExtensionManager::HasPendingExtensions() const {
-  return !pending_extensions_.empty();
+  return !pending_extension_list_.empty();
 }
 
 bool PendingExtensionManager::HasPendingExtensionFromSync() const {
-  return base::ranges::any_of(
-      pending_extensions_,
-      [](const std::pair<const std::string, PendingExtensionInfo>& it) {
-        return it.second.is_from_sync();
-      });
+  PendingExtensionList::const_iterator iter;
+  for (iter = pending_extension_list_.begin();
+       iter != pending_extension_list_.end();
+       ++iter) {
+    if (iter->is_from_sync())
+      return true;
+  }
+
+  return false;
 }
 
 bool PendingExtensionManager::HasHighPriorityPendingExtension() const {
-  return base::ranges::any_of(
-      pending_extensions_,
-      [](const std::pair<const std::string, PendingExtensionInfo>& it) {
-        return it.second.install_source() ==
-                   ManifestLocation::kExternalPolicyDownload ||
-               it.second.install_source() ==
-                   ManifestLocation::kExternalComponent;
-      });
+  return std::find_if(
+             pending_extension_list_.begin(), pending_extension_list_.end(),
+             [](const PendingExtensionInfo& info) {
+               return info.install_source() ==
+                          Manifest::EXTERNAL_POLICY_DOWNLOAD ||
+                      info.install_source() == Manifest::EXTERNAL_COMPONENT;
+             }) != pending_extension_list_.end();
+}
+
+void PendingExtensionManager::RecordPolicyReinstallReason(
+    PolicyReinstallReason reason_for_uma) {
+  UMA_HISTOGRAM_ENUMERATION("Extensions.CorruptPolicyExtensionDetected3",
+                            reason_for_uma);
+}
+
+void PendingExtensionManager::ExpectPolicyReinstallForCorruption(
+    const ExtensionId& id,
+    PolicyReinstallReason reason_for_uma) {
+  if (base::Contains(expected_policy_reinstalls_, id))
+    return;
+  expected_policy_reinstalls_[id] = base::TimeTicks::Now();
+  RecordPolicyReinstallReason(reason_for_uma);
+}
+
+bool PendingExtensionManager::IsPolicyReinstallForCorruptionExpected(
+    const ExtensionId& id) const {
+  return base::Contains(expected_policy_reinstalls_, id);
+}
+
+bool PendingExtensionManager::HasAnyPolicyReinstallForCorruption() const {
+  return !expected_policy_reinstalls_.empty();
 }
 
 bool PendingExtensionManager::AddFromSync(
@@ -116,16 +152,8 @@ bool PendingExtensionManager::AddFromSync(
     return false;
   }
 
-  EnsureMigratedDefaultChromeAppIdsCachePopulated();
-  if (migrating_default_chrome_app_ids_cache_->contains(id)) {
-    base::UmaHistogramBoolean("Extensions.SyncBlockedByDefaultWebAppMigration",
-                              true);
-    return false;
-  }
-
   static const bool kIsFromSync = true;
-  static const mojom::ManifestLocation kSyncLocation =
-      mojom::ManifestLocation::kInternal;
+  static const Manifest::Location kSyncLocation = Manifest::INTERNAL;
   static const bool kMarkAcknowledged = false;
 
   return AddExtensionImpl(id,
@@ -154,8 +182,7 @@ bool PendingExtensionManager::AddFromExtensionImport(
   }
 
   static const bool kIsFromSync = false;
-  static const mojom::ManifestLocation kManifestLocation =
-      mojom::ManifestLocation::kInternal;
+  static const Manifest::Location kManifestLocation = Manifest::INTERNAL;
   static const bool kMarkAcknowledged = false;
   static const bool kRemoteInstall = false;
 
@@ -175,7 +202,7 @@ bool PendingExtensionManager::AddFromExternalUpdateUrl(
     const std::string& id,
     const std::string& install_parameter,
     const GURL& update_url,
-    ManifestLocation location,
+    Manifest::Location location,
     int creation_flags,
     bool mark_acknowledged) {
   CHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -204,14 +231,22 @@ bool PendingExtensionManager::AddFromExternalUpdateUrl(
     }
   }
 
-  return AddExtensionImpl(id, install_parameter, update_url, base::Version(),
-                          &AlwaysInstall, kIsFromSync, location, creation_flags,
-                          mark_acknowledged, kRemoteInstall);
+  return AddExtensionImpl(id,
+                          install_parameter,
+                          update_url,
+                          base::Version(),
+                          &AlwaysInstall,
+                          kIsFromSync,
+                          location,
+                          creation_flags,
+                          mark_acknowledged,
+                          kRemoteInstall);
 }
+
 
 bool PendingExtensionManager::AddFromExternalFile(
     const std::string& id,
-    mojom::ManifestLocation install_source,
+    Manifest::Location install_source,
     const base::Version& version,
     int creation_flags,
     bool mark_acknowledged) {
@@ -235,34 +270,25 @@ bool PendingExtensionManager::AddFromExternalFile(
                           kRemoteInstall);
 }
 
-std::list<std::string> PendingExtensionManager::GetPendingIdsForUpdateCheck()
-    const {
-  std::list<std::string> result;
-
-  for (const auto& it : pending_extensions_) {
-    ManifestLocation install_source = it.second.install_source();
+void PendingExtensionManager::GetPendingIdsForUpdateCheck(
+    std::list<std::string>* out_ids_for_update_check) const {
+  PendingExtensionList::const_iterator iter;
+  for (iter = pending_extension_list_.begin();
+       iter != pending_extension_list_.end();
+       ++iter) {
+    Manifest::Location install_source = iter->install_source();
 
     // Some install sources read a CRX from the filesystem.  They can
     // not be fetched from an update URL, so don't include them in the
     // set of ids.
-    if (install_source == ManifestLocation::kExternalPref ||
-        install_source == ManifestLocation::kExternalRegistry ||
-        install_source == ManifestLocation::kExternalPolicy) {
+    if (install_source == Manifest::EXTERNAL_PREF ||
+        install_source == Manifest::EXTERNAL_REGISTRY ||
+        install_source == Manifest::EXTERNAL_POLICY) {
       continue;
     }
 
-    result.push_back(it.first);
+    out_ids_for_update_check->push_back(iter->id());
   }
-
-  return result;
-}
-
-void PendingExtensionManager::AddObserver(Observer* observer) {
-  observers_.AddObserver(observer);
-}
-
-void PendingExtensionManager::RemoveObserver(Observer* observer) {
-  observers_.RemoveObserver(observer);
 }
 
 bool PendingExtensionManager::AddExtensionImpl(
@@ -272,19 +298,24 @@ bool PendingExtensionManager::AddExtensionImpl(
     const base::Version& version,
     PendingExtensionInfo::ShouldAllowInstallPredicate should_allow_install,
     bool is_from_sync,
-    mojom::ManifestLocation install_source,
+    Manifest::Location install_source,
     int creation_flags,
     bool mark_acknowledged,
     bool remote_install) {
   CHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
 
-  PendingExtensionInfo info(id, install_parameter, update_url, version,
-                            should_allow_install, is_from_sync, install_source,
-                            creation_flags, mark_acknowledged, remote_install);
+  PendingExtensionInfo info(id,
+                            install_parameter,
+                            update_url,
+                            version,
+                            should_allow_install,
+                            is_from_sync,
+                            install_source,
+                            creation_flags,
+                            mark_acknowledged,
+                            remote_install);
 
-  auto it = pending_extensions_.find(id);
-  if (it != pending_extensions_.end()) {
-    const PendingExtensionInfo* pending = &(it->second);
+  if (const PendingExtensionInfo* pending = GetById(id)) {
     // Bugs in this code will manifest as sporadic incorrect extension
     // locations in situations where multiple install sources run at the
     // same time. For example, on first login to a chrome os machine, an
@@ -308,43 +339,20 @@ bool PendingExtensionManager::AddExtensionImpl(
 
     VLOG(1) << "Overwrite existing record.";
 
-    it->second = std::move(info);
+    std::replace(pending_extension_list_.begin(),
+                 pending_extension_list_.end(),
+                 *pending,
+                 info);
   } else {
-    AddToMap(id, std::move(info));
+    pending_extension_list_.push_back(info);
   }
 
   return true;
 }
 
-void PendingExtensionManager::
-    EnsureMigratedDefaultChromeAppIdsCachePopulated() {
-  if (migrating_default_chrome_app_ids_cache_)
-    return;
-
-  std::vector<web_app::PreinstalledWebAppMigration> migrations =
-      web_app::GetPreinstalledWebAppMigrations(
-          *Profile::FromBrowserContext(context_.get()));
-
-  std::vector<std::string> chrome_app_ids;
-  chrome_app_ids.reserve(migrations.size());
-  for (const web_app::PreinstalledWebAppMigration& migration : migrations)
-    chrome_app_ids.push_back(migration.old_chrome_app_id);
-
-  migrating_default_chrome_app_ids_cache_.emplace(std::move(chrome_app_ids));
-}
-
 void PendingExtensionManager::AddForTesting(
-    PendingExtensionInfo pending_extension_info) {
-  std::string id = pending_extension_info.id();
-  AddToMap(id, std::move(pending_extension_info));
-}
-
-void PendingExtensionManager::AddToMap(const std::string& id,
-                                       PendingExtensionInfo info) {
-  pending_extensions_.emplace(id, std::move(info));
-  for (Observer& observer : observers_) {
-    observer.OnExtensionAdded(id);
-  }
+    const PendingExtensionInfo& pending_extension_info) {
+  pending_extension_list_.push_back(pending_extension_info);
 }
 
 }  // namespace extensions

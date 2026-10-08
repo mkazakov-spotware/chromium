@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -68,11 +68,11 @@ void MockVideoCaptureClient::OnIncomingCapturedGfxBuffer(
 }
 
 void MockVideoCaptureClient::OnIncomingCapturedExternalBuffer(
-    CapturedExternalVideoBuffer buffer,
-    std::vector<CapturedExternalVideoBuffer> scaled_buffers,
+    gfx::GpuMemoryBufferHandle handle,
+    const VideoCaptureFormat& format,
+    const gfx::ColorSpace& color_space,
     base::TimeTicks reference_time,
-    base::TimeDelta timestamp,
-    gfx::Rect visible_rect) {
+    base::TimeDelta timestamp) {
   if (frame_cb_)
     std::move(frame_cb_).Run();
 }

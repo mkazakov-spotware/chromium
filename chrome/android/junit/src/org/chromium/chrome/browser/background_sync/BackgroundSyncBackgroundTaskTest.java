@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,12 +30,13 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.BaseSwitches;
 import org.chromium.base.Callback;
+import org.chromium.base.CommandLine;
 import org.chromium.base.SysUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.device.ShadowDeviceConditions;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.components.background_task_scheduler.BackgroundTask;
 import org.chromium.components.background_task_scheduler.BackgroundTaskScheduler;
@@ -51,8 +52,12 @@ import org.chromium.net.ConnectionType;
  */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, shadows = {ShadowDeviceConditions.class})
-@CommandLineFlags.Add({BaseSwitches.ENABLE_LOW_END_DEVICE_MODE})
+@Features.EnableFeatures(ChromeFeatureList.BACKGROUND_TASK_SCHEDULER_FOR_BACKGROUND_SYNC)
 public class BackgroundSyncBackgroundTaskTest {
+    private static final String IS_LOW_END_DEVICE_SWITCH =
+            "--" + BaseSwitches.ENABLE_LOW_END_DEVICE_MODE;
+
+
     @Rule
     public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
 
@@ -86,12 +91,16 @@ public class BackgroundSyncBackgroundTaskTest {
 
         ShadowDeviceConditions.setCurrentNetworkConnectionType(ConnectionType.CONNECTION_NONE);
 
+        // Run tests as a low-end device.
+        CommandLine.init(new String[] {"testcommand", IS_LOW_END_DEVICE_SWITCH});
+
         mocker.mock(BackgroundSyncBackgroundTaskJni.TEST_HOOKS, mNativeMock);
     }
 
     @After
     public void tearDown() {
         // Clean up static state for subsequent Robolectric tests.
+        CommandLine.reset();
         SysUtils.resetForTesting();
     }
 

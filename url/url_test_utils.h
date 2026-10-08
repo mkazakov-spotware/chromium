@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/url_canon_internal.h"
@@ -23,11 +24,11 @@ namespace test_utils {
 // in base bacause it passes invalid UTF-16 characters which is important for
 // test purposes. As a result, this is not meant to handle true UTF-32 encoded
 // strings.
-inline std::u16string TruncateWStringToUTF16(const wchar_t* src) {
-  std::u16string str;
+inline base::string16 TruncateWStringToUTF16(const wchar_t* src) {
+  base::string16 str;
   int length = static_cast<int>(wcslen(src));
   for (int i = 0; i < length; ++i) {
-    str.push_back(static_cast<char16_t>(src[i]));
+    str.push_back(static_cast<base::char16>(src[i]));
   }
   return str;
 }

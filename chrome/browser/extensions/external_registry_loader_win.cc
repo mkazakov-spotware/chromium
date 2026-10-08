@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,10 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_file.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -32,19 +32,20 @@ using content::BrowserThread;
 namespace {
 
 // The Registry subkey that contains information about external extensions.
-const wchar_t kRegistryExtensions[] = L"Software\\Google\\Chrome\\Extensions";
+const base::char16 kRegistryExtensions[] =
+    L"Software\\Google\\Chrome\\Extensions";
 
 // Registry value of the key that defines the installation parameter.
-const wchar_t kRegistryExtensionInstallParam[] = L"install_parameter";
+const base::char16 kRegistryExtensionInstallParam[] = L"install_parameter";
 
 // Registry value of the key that defines the path to the .crx file.
-const wchar_t kRegistryExtensionPath[] = L"path";
+const base::char16 kRegistryExtensionPath[] = L"path";
 
 // Registry value of that key that defines the current version of the .crx file.
-const wchar_t kRegistryExtensionVersion[] = L"version";
+const base::char16 kRegistryExtensionVersion[] = L"version";
 
 // Registry value of the key that defines an external update URL.
-const wchar_t kRegistryExtensionUpdateUrl[] = L"update_url";
+const base::char16 kRegistryExtensionUpdateUrl[] = L"update_url";
 
 bool CanOpenFileForReading(const base::FilePath& path) {
   // Note: Because this ScopedFILE is used on the stack and not passed around
@@ -77,11 +78,12 @@ void ExternalRegistryLoader::StartLoading() {
       base::BindOnce(&ExternalRegistryLoader::LoadOnBlockingThread, this));
 }
 
-base::Value::Dict ExternalRegistryLoader::LoadPrefsOnBlockingThread() {
-  base::Value::Dict prefs;
+std::unique_ptr<base::DictionaryValue>
+ExternalRegistryLoader::LoadPrefsOnBlockingThread() {
+  auto prefs = std::make_unique<base::DictionaryValue>();
 
   // A map of IDs, to weed out duplicates between HKCU and HKLM.
-  std::set<std::wstring> keys;
+  std::set<base::string16> keys;
   base::win::RegistryKeyIterator iterator_machine_key(
       HKEY_LOCAL_MACHINE,
       kRegistryExtensions,
@@ -96,9 +98,10 @@ base::Value::Dict ExternalRegistryLoader::LoadPrefsOnBlockingThread() {
   // Iterate over the keys found, first trying HKLM, then HKCU, as per Windows
   // policy conventions. We only fall back to HKCU if the HKLM key cannot be
   // opened, not if the data within the key is invalid, for example.
-  for (auto it = keys.begin(); it != keys.end(); ++it) {
+  for (std::set<base::string16>::const_iterator it = keys.begin();
+       it != keys.end(); ++it) {
     base::win::RegKey key;
-    std::wstring key_path = kRegistryExtensions;
+    base::string16 key_path = kRegistryExtensions;
     key_path.append(L"\\");
     key_path.append(*it);
     if (key.Open(HKEY_LOCAL_MACHINE,
@@ -111,31 +114,32 @@ base::Value::Dict ExternalRegistryLoader::LoadPrefsOnBlockingThread() {
       continue;
     }
 
-    std::string id = base::ToLowerASCII(base::WideToASCII(*it));
+    std::string id = base::ToLowerASCII(base::UTF16ToASCII(*it));
     if (!crx_file::id_util::IdIsValid(id)) {
       LOG(ERROR) << "Invalid id value " << id
                  << " for key " << key_path << ".";
       continue;
     }
 
-    std::wstring extension_dist_id;
+    base::string16 extension_dist_id;
     if (key.ReadValue(kRegistryExtensionInstallParam, &extension_dist_id) ==
         ERROR_SUCCESS) {
-      prefs.Set(MakePrefName(id, ExternalProviderImpl::kInstallParam),
-                base::WideToASCII(extension_dist_id));
+      prefs->SetString(MakePrefName(id, ExternalProviderImpl::kInstallParam),
+                       base::UTF16ToASCII(extension_dist_id));
     }
 
     // If there is an update URL present, copy it to prefs and ignore
     // path and version keys for this entry.
-    std::wstring extension_update_url;
+    base::string16 extension_update_url;
     if (key.ReadValue(kRegistryExtensionUpdateUrl, &extension_update_url)
         == ERROR_SUCCESS) {
-      prefs.Set(MakePrefName(id, ExternalProviderImpl::kExternalUpdateUrl),
-                base::WideToASCII(extension_update_url));
+      prefs->SetString(
+          MakePrefName(id, ExternalProviderImpl::kExternalUpdateUrl),
+          base::UTF16ToASCII(extension_update_url));
       continue;
     }
 
-    std::wstring extension_path_str;
+    base::string16 extension_path_str;
     if (key.ReadValue(kRegistryExtensionPath, &extension_path_str)
         != ERROR_SUCCESS) {
       // TODO(erikkay): find a way to get this into about:extensions
@@ -167,7 +171,7 @@ base::Value::Dict ExternalRegistryLoader::LoadPrefsOnBlockingThread() {
       continue;
     }
 
-    std::wstring extension_version;
+    base::string16 extension_version;
     if (key.ReadValue(kRegistryExtensionVersion, &extension_version)
         != ERROR_SUCCESS) {
       // TODO(erikkay): find a way to get this into about:extensions
@@ -176,18 +180,22 @@ base::Value::Dict ExternalRegistryLoader::LoadPrefsOnBlockingThread() {
       continue;
     }
 
-    base::Version version(base::WideToASCII(extension_version));
+    base::Version version(base::UTF16ToASCII(extension_version));
     if (!version.IsValid()) {
       LOG(ERROR) << "Invalid version value " << extension_version
                  << " for key " << key_path << ".";
       continue;
     }
 
-    prefs.Set(MakePrefName(id, ExternalProviderImpl::kExternalVersion),
-              base::WideToASCII(extension_version));
-    prefs.Set(MakePrefName(id, ExternalProviderImpl::kExternalCrx),
-              base::AsString16(extension_path_str));
-    prefs.Set(MakePrefName(id, ExternalProviderImpl::kMayBeUntrusted), true);
+    prefs->SetString(
+        MakePrefName(id, ExternalProviderImpl::kExternalVersion),
+        base::UTF16ToASCII(extension_version));
+    prefs->SetString(
+        MakePrefName(id, ExternalProviderImpl::kExternalCrx),
+        extension_path_str);
+    prefs->SetBoolean(
+        MakePrefName(id, ExternalProviderImpl::kMayBeUntrusted),
+        true);
   }
 
   return prefs;
@@ -197,7 +205,7 @@ void ExternalRegistryLoader::LoadOnBlockingThread() {
   DCHECK(task_runner_);
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   base::TimeTicks start_time = base::TimeTicks::Now();
-  base::Value::Dict prefs = LoadPrefsOnBlockingThread();
+  std::unique_ptr<base::DictionaryValue> prefs = LoadPrefsOnBlockingThread();
   LOCAL_HISTOGRAM_TIMES("Extensions.ExternalRegistryLoaderWin",
                         base::TimeTicks::Now() - start_time);
   content::GetUIThreadTaskRunner({})->PostTask(
@@ -208,8 +216,9 @@ void ExternalRegistryLoader::LoadOnBlockingThread() {
 }
 
 void ExternalRegistryLoader::CompleteLoadAndStartWatchingRegistry(
-    base::Value::Dict prefs) {
+    std::unique_ptr<base::DictionaryValue> prefs) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK(prefs);
   LoadFinished(std::move(prefs));
 
   // Attempt to watch registry if we haven't already.
@@ -272,7 +281,7 @@ void ExternalRegistryLoader::UpatePrefsOnBlockingThread() {
   DCHECK(task_runner_);
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   base::TimeTicks start_time = base::TimeTicks::Now();
-  base::Value::Dict prefs = LoadPrefsOnBlockingThread();
+  std::unique_ptr<base::DictionaryValue> prefs = LoadPrefsOnBlockingThread();
   LOCAL_HISTOGRAM_TIMES("Extensions.ExternalRegistryLoaderWinUpdate",
                         base::TimeTicks::Now() - start_time);
   content::GetUIThreadTaskRunner({})->PostTask(

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/memory/ptr_util.h"
 #include "base/strings/pattern.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_tokenizer.h"
 #include "base/strings/string_util.h"
@@ -42,11 +41,11 @@ void TraceConfigCategoryFilter::InitializeFromString(
     if (category.front() == '-') {
       // Excluded categories start with '-'.
       // Remove '-' from category string.
-      excluded_categories_.emplace_back(category.substr(1));
+      excluded_categories_.push_back(category.substr(1).as_string());
     } else if (StartsWith(category, TRACE_DISABLED_BY_DEFAULT(""))) {
-      disabled_categories_.emplace_back(category);
+      disabled_categories_.push_back(category.as_string());
     } else {
-      included_categories_.emplace_back(category);
+      included_categories_.push_back(category.as_string());
     }
   }
 }
@@ -160,7 +159,7 @@ void TraceConfigCategoryFilter::Clear() {
   excluded_categories_.clear();
 }
 
-void TraceConfigCategoryFilter::ToDict(Value::Dict& dict) const {
+void TraceConfigCategoryFilter::ToDict(Value* dict) const {
   StringList categories(included_categories_);
   categories.insert(categories.end(), disabled_categories_.begin(),
                     disabled_categories_.end());
@@ -204,14 +203,14 @@ void TraceConfigCategoryFilter::SetCategoriesFromExcludedList(
 void TraceConfigCategoryFilter::AddCategoriesToDict(
     const StringList& categories,
     const char* param,
-    Value::Dict& dict) const {
+    Value* dict) const {
   if (categories.empty())
     return;
 
-  Value::List list;
+  std::vector<base::Value> list;
   for (const std::string& category : categories)
-    list.Append(category);
-  dict.Set(param, std::move(list));
+    list.emplace_back(category);
+  dict->SetKey(param, base::Value(std::move(list)));
 }
 
 void TraceConfigCategoryFilter::WriteCategoryFilterString(

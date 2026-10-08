@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,14 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/phonehub/phone_hub_content_view.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/progress_bar.h"
+#include "ui/views/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
 
-namespace ui {
-class ImageModel;
-}  // namespace ui
-
 namespace views {
-class BoxLayoutView;
 class Button;
 class ImageView;
+class ImageSkia;
 class Label;
 class ProgressBar;
 }  // namespace views
@@ -39,9 +35,9 @@ class ASH_EXPORT PhoneHubInterstitialView : public PhoneHubContentView {
   PhoneHubInterstitialView& operator=(const PhoneHubInterstitialView&) = delete;
   ~PhoneHubInterstitialView() override;
 
-  void SetImage(const ui::ImageModel& image_model);
-  void SetTitle(const std::u16string& title);
-  void SetDescription(const std::u16string& desc);
+  void SetImage(const gfx::ImageSkia& image);
+  void SetTitle(const base::string16& title);
+  void SetDescription(const base::string16& desc);
   void AddButton(std::unique_ptr<views::Button> button);
 
  private:
@@ -51,7 +47,7 @@ class ASH_EXPORT PhoneHubInterstitialView : public PhoneHubContentView {
   views::ImageView* image_ = nullptr;
   views::Label* title_ = nullptr;
   views::Label* description_ = nullptr;
-  views::BoxLayoutView* button_container_ = nullptr;
+  views::View* button_container_ = nullptr;
 };
 
 }  // namespace ash

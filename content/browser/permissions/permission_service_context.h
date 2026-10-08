@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,13 @@
 #include <memory>
 #include <unordered_map>
 
-#include "base/memory/raw_ptr.h"
-#include "content/public/browser/document_user_data.h"
-#include "content/public/browser/permission_controller.h"
-#include "content/public/browser/render_process_host_observer.h"
+#include "content/common/content_export.h"
+#include "content/public/browser/permission_type.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/unique_receiver_set.h"
 #include "third_party/blink/public/mojom/permissions/permission.mojom.h"
-#include "url/gurl.h"
-
-namespace blink {
-enum class PermissionType;
-}
 
 namespace url {
 class Origin;
@@ -28,7 +22,6 @@ class Origin;
 
 namespace content {
 
-class BrowserContext;
 class RenderFrameHost;
 class RenderProcessHost;
 
@@ -37,21 +30,13 @@ class RenderProcessHost;
 // There is one PermissionServiceContext per RenderFrameHost/RenderProcessHost
 // which owns it. It then owns all PermissionServiceImpl associated to their
 // owner.
-//
-// PermissionServiceContext instances associated with a RenderFrameHost must be
-// created via the DocumentUserData static factories, as these
-// instances are deleted when a new document is commited.
-class PermissionServiceContext : public RenderProcessHostObserver {
+class CONTENT_EXPORT PermissionServiceContext : public WebContentsObserver {
  public:
+  explicit PermissionServiceContext(RenderFrameHost* render_frame_host);
   explicit PermissionServiceContext(RenderProcessHost* render_process_host);
   PermissionServiceContext(const PermissionServiceContext&) = delete;
   PermissionServiceContext& operator=(const PermissionServiceContext&) = delete;
   ~PermissionServiceContext() override;
-
-  // Return PermissionServiceContext associated with the current document in the
-  // given RenderFrameHost, lazily creatin gone, if needed.
-  static PermissionServiceContext* GetForCurrentDocument(
-      RenderFrameHost* render_frame_host);
 
   void CreateService(
       mojo::PendingReceiver<blink::mojom::PermissionService> receiver);
@@ -60,15 +45,14 @@ class PermissionServiceContext : public RenderProcessHostObserver {
       mojo::PendingReceiver<blink::mojom::PermissionService> receiver);
 
   void CreateSubscription(
-      blink::PermissionType permission_type,
+      PermissionType permission_type,
       const url::Origin& origin,
       blink::mojom::PermissionStatus current_status,
       blink::mojom::PermissionStatus last_known_status,
       mojo::PendingRemote<blink::mojom::PermissionObserver> observer);
 
   // Called when the connection to a PermissionObserver has an error.
-  void ObserverHadConnectionError(
-      PermissionController::SubscriptionId subscription_id);
+  void ObserverHadConnectionError(int subscription_id);
 
   // May return nullptr during teardown, or when showing an interstitial.
   BrowserContext* GetBrowserContext() const;
@@ -80,29 +64,22 @@ class PermissionServiceContext : public RenderProcessHostObserver {
     return render_process_host_;
   }
 
-  // RenderProcessHostObserver:
-  void RenderProcessHostDestroyed(RenderProcessHost* host) override;
-
-  std::set<blink::PermissionType>& GetOnchangeEventListeners() {
-    return onchange_event_listeners_;
-  }
-
  private:
   class PermissionSubscription;
-  struct DocumentPermissionServiceContextHolder;
 
-  // Use DocumentUserData static methods to create instances attached
-  // to a RenderFrameHost.
-  explicit PermissionServiceContext(RenderFrameHost* render_frame_host);
+  // WebContentsObserver
+  void RenderFrameHostChanged(RenderFrameHost* old_host,
+                              RenderFrameHost* new_host) override;
+  void FrameDeleted(RenderFrameHost* render_frame_host) override;
+  void DidFinishNavigation(NavigationHandle* navigation_handle) override;
 
-  const raw_ptr<RenderFrameHost> render_frame_host_;
-  const raw_ptr<RenderProcessHost> render_process_host_;
+  void CloseBindings(RenderFrameHost* render_frame_host);
+
+  RenderFrameHost* const render_frame_host_;
+  RenderProcessHost* const render_process_host_;
   mojo::UniqueReceiverSet<blink::mojom::PermissionService> services_;
-  std::unordered_map<PermissionController::SubscriptionId,
-                     std::unique_ptr<PermissionSubscription>>
+  std::unordered_map<int, std::unique_ptr<PermissionSubscription>>
       subscriptions_;
-
-  std::set<blink::PermissionType> onchange_event_listeners_;
 };
 
 }  // namespace content

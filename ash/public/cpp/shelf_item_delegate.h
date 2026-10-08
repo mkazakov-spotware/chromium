@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,12 @@
 #include "ash/public/cpp/shelf_types.h"
 #include "base/callback.h"
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "ui/events/event.h"
 #include "ui/gfx/image/image_skia.h"
 
-class AppWindowShelfItemController;
+class AppWindowLauncherItemController;
 
 namespace aura {
 class Window;
@@ -37,10 +38,6 @@ namespace ash {
 class ASH_PUBLIC_EXPORT ShelfItemDelegate {
  public:
   explicit ShelfItemDelegate(const ShelfID& shelf_id);
-
-  ShelfItemDelegate(const ShelfItemDelegate&) = delete;
-  ShelfItemDelegate& operator=(const ShelfItemDelegate&) = delete;
-
   virtual ~ShelfItemDelegate();
 
   const ShelfID& shelf_id() const { return shelf_id_; }
@@ -69,7 +66,7 @@ class ASH_PUBLIC_EXPORT ShelfItemDelegate {
     // called when this item is selected from the menu.
     int command_id;
     // The title and icon shown for this item in the app menu.
-    std::u16string title;
+    base::string16 title;
     gfx::ImageSkia icon;
   };
   using AppMenuItems = std::vector<AppMenuItem>;
@@ -94,8 +91,11 @@ class ASH_PUBLIC_EXPORT ShelfItemDelegate {
   virtual void GetContextMenu(int64_t display_id,
                               GetContextMenuCallback callback);
 
-  // Returns nullptr if class is not AppWindowShelfItemController.
-  virtual AppWindowShelfItemController* AsAppWindowShelfItemController();
+  // Returns nullptr if class is not AppWindowLauncherItemController.
+  virtual AppWindowLauncherItemController* AsAppWindowLauncherItemController();
+
+  // Attempts to execute a context menu command; returns true if it was run.
+  bool ExecuteContextMenuCommand(int64_t command_id, int32_t event_flags);
 
   // Called on invocation of a shelf item's context or application menu command.
   // |from_context_menu| is true if the command came from a context menu, or
@@ -120,7 +120,12 @@ class ASH_PUBLIC_EXPORT ShelfItemDelegate {
   // Set to true if the launcher item image has been set by the controller.
   bool image_set_by_controller_ = false;
 
+  // The context menu model that was last shown for the associated shelf item.
+  std::unique_ptr<ui::SimpleMenuModel> context_menu_;
+
   base::WeakPtrFactory<ShelfItemDelegate> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ShelfItemDelegate);
 };
 
 }  // namespace ash

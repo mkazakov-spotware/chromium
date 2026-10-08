@@ -25,7 +25,6 @@
 
 #include "third_party/blink/renderer/core/layout/layout_multi_column_set.h"
 
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/editing/position_with_affinity.h"
 #include "third_party/blink/renderer/core/layout/layout_multi_column_flow_thread.h"
 #include "third_party/blink/renderer/core/layout/multi_column_fragmentainer_group.h"
@@ -45,19 +44,11 @@ LayoutMultiColumnSet* LayoutMultiColumnSet::CreateAnonymous(
     LayoutFlowThread& flow_thread,
     const ComputedStyle& parent_style) {
   Document& document = flow_thread.GetDocument();
-  LayoutMultiColumnSet* layout_object =
-      MakeGarbageCollected<LayoutMultiColumnSet>(&flow_thread);
+  LayoutMultiColumnSet* layout_object = new LayoutMultiColumnSet(&flow_thread);
   layout_object->SetDocumentForAnonymous(&document);
-  layout_object->SetStyle(
-      document.GetStyleResolver().CreateAnonymousStyleWithDisplay(
-          parent_style, EDisplay::kBlock));
+  layout_object->SetStyle(ComputedStyle::CreateAnonymousStyleWithDisplay(
+      parent_style, EDisplay::kBlock));
   return layout_object;
-}
-
-void LayoutMultiColumnSet::Trace(Visitor* visitor) const {
-  visitor->Trace(fragmentainer_groups_);
-  visitor->Trace(flow_thread_);
-  LayoutBlockFlow::Trace(visitor);
 }
 
 unsigned LayoutMultiColumnSet::FragmentainerGroupIndexAtFlowThreadOffset(
@@ -67,6 +58,7 @@ unsigned LayoutMultiColumnSet::FragmentainerGroupIndexAtFlowThreadOffset(
   DCHECK_GT(fragmentainer_groups_.size(), 0u);
   if (flow_thread_offset <= 0)
     return 0;
+  // TODO(mstensho): Introduce an interval tree or similar to speed up this.
   for (unsigned index = 0; index < fragmentainer_groups_.size(); index++) {
     const auto& row = fragmentainer_groups_[index];
     if (rule == kAssociateWithLatterPage) {
@@ -212,6 +204,8 @@ LayoutUnit LayoutMultiColumnSet::NextLogicalTopForUnbreakableContent(
             content_logical_height);
 
   // There's a likelihood for subsequent rows to be taller than the first one.
+  // TODO(mstensho): if we're doubly nested (e.g. multicol in multicol in
+  // multicol), we need to look beyond the first row here.
   const MultiColumnFragmentainerGroup& first_row = FirstFragmentainerGroup();
   LayoutUnit first_row_logical_bottom_in_flow_thread =
       first_row.LogicalTopInFlowThread() +
@@ -506,8 +500,6 @@ void LayoutMultiColumnSet::ComputeLogicalHeight(
 PositionWithAffinity LayoutMultiColumnSet::PositionForPoint(
     const PhysicalOffset& point) const {
   NOT_DESTROYED();
-  DCHECK_GE(GetDocument().Lifecycle().GetState(),
-            DocumentLifecycle::kPrePaintClean);
   LayoutPoint flipped_point = FlipForWritingMode(point);
   // Convert the visual point to a flow thread point.
   const MultiColumnFragmentainerGroup& row =
@@ -524,7 +516,7 @@ LayoutUnit LayoutMultiColumnSet::ColumnGap() const {
   NOT_DESTROYED();
   LayoutBlockFlow* parent_block = MultiColumnBlockFlow();
 
-  if (const absl::optional<Length>& column_gap =
+  if (const base::Optional<Length>& column_gap =
           parent_block->StyleRef().ColumnGap())
     return ValueForLength(*column_gap, AvailableLogicalWidth());
 
@@ -558,7 +550,7 @@ LayoutRect LayoutMultiColumnSet::FragmentsBoundingBox(
 
 void LayoutMultiColumnSet::ComputeVisualOverflow(bool recompute_floats) {
   NOT_DESTROYED();
-  LayoutRect previous_visual_overflow_rect = VisualOverflowRectAllowingUnset();
+  LayoutRect previous_visual_overflow_rect = VisualOverflowRect();
   ClearVisualOverflow();
   AddVisualOverflowFromChildren();
   AddVisualEffectOverflow();
@@ -736,11 +728,7 @@ void LayoutMultiColumnSet::FinishLayoutFromNG() {
                        /* logical_top */ LayoutUnit(), computed_values);
   SetLogicalHeight(computed_values.extent_);
   ComputeLayoutOverflow(computed_values.extent_);
-}
-
-void LayoutMultiColumnSet::SetIsIgnoredByNG() {
-  NOT_DESTROYED();
-  fragmentainer_groups_.First().SetColumnBlockSizeFromNG(LayoutUnit());
+  initial_height_calculated_ = false;
 }
 
 }  // namespace blink

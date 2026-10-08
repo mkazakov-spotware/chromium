@@ -30,7 +30,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_FONT_RENDER_STYLE_H_
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_FONT_RENDER_STYLE_H_
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/skia/include/core/SkFontStyle.h"
 #include "third_party/skia/include/core/SkFontTypes.h"
@@ -44,7 +43,7 @@ namespace blink {
 
 // WebFontRenderStyle describes the user's preferences for rendering a font at a
 // given size.
-struct BLINK_PLATFORM_EXPORT WebFontRenderStyle {
+struct WebFontRenderStyle {
   enum {
     kNoPreference = 2,
   };
@@ -59,14 +58,14 @@ struct BLINK_PLATFORM_EXPORT WebFontRenderStyle {
            use_subpixel_positioning == a.use_subpixel_positioning;
   }
 
-  static void SetSkiaFontManager(sk_sp<SkFontMgr>);
-  static void SetHinting(SkFontHinting);
-  static void SetAutoHint(bool);
-  static void SetUseBitmaps(bool);
-  static void SetAntiAlias(bool);
-  static void SetSubpixelRendering(bool);
-  static void SetSubpixelPositioning(bool);
-  static void SetSystemFontFamily(const WebString& name);
+  BLINK_PLATFORM_EXPORT static void SetSkiaFontManager(sk_sp<SkFontMgr>);
+  BLINK_PLATFORM_EXPORT static void SetHinting(SkFontHinting);
+  BLINK_PLATFORM_EXPORT static void SetAutoHint(bool);
+  BLINK_PLATFORM_EXPORT static void SetUseBitmaps(bool);
+  BLINK_PLATFORM_EXPORT static void SetAntiAlias(bool);
+  BLINK_PLATFORM_EXPORT static void SetSubpixelRendering(bool);
+  BLINK_PLATFORM_EXPORT static void SetSubpixelPositioning(bool);
+  BLINK_PLATFORM_EXPORT static void SetSystemFontFamily(const WebString& name);
 
   static WebFontRenderStyle GetDefault();
 
@@ -74,7 +73,7 @@ struct BLINK_PLATFORM_EXPORT WebFontRenderStyle {
   // kNoPreference in |other|.
   void OverrideWith(const WebFontRenderStyle& other);
 
-  void ApplyToSkFont(SkFont*, bool should_use_subpixel_positioning) const;
+  void ApplyToSkFont(SkFont*, float device_scale_factor) const;
 
   // Each of the use* members below can take one of three values:
   //   0: off

@@ -1,28 +1,35 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.testing.fs.FileReaderTest');
 goog.setTestOnly();
 
 const EventObserver = goog.require('goog.testing.events.EventObserver');
 const FsError = goog.require('goog.fs.Error');
-const FsFile = goog.requireType('goog.testing.fs.File');
 const FsFileReader = goog.require('goog.fs.FileReader');
 const FsFileSystem = goog.require('goog.testing.fs.FileSystem');
 const GoogPromise = goog.require('goog.Promise');
 const TestingFsFileReader = goog.require('goog.testing.fs.FileReader');
-const dispose = goog.require('goog.dispose');
 const events = goog.require('goog.events');
+const googArray = goog.require('goog.array');
 const googObject = goog.require('goog.object');
 const testSuite = goog.require('goog.testing.testSuite');
 
 const EventType = FsFileReader.EventType;
 const ReadyState = FsFileReader.ReadyState;
 
-/** @type {!FsFile} */
+/** @type {!goog.testing.fs.File} */
 let file;
 
 /** @type {!TestingFsFileReader} */
@@ -32,7 +39,7 @@ let reader;
 let observer;
 
 /** @const */
-const hasArrayBuffer = (globalThis.ArrayBuffer !== undefined);
+const hasArrayBuffer = (goog.global.ArrayBuffer !== undefined);
 
 testSuite({
   setUp() {
@@ -52,7 +59,7 @@ testSuite({
   },
 
   tearDown() {
-    dispose(reader);
+    goog.dispose(reader);
   },
 
   testRead() {
@@ -76,7 +83,7 @@ testSuite({
                 EventType.LOAD,
                 EventType.LOAD_END,
               ],
-              observer.getEvents().map(e => e.type));
+              googArray.map(observer.getEvents(), (e) => e.type));
         });
   },
 
@@ -91,24 +98,20 @@ testSuite({
              reader.readAsArrayBuffer(file);
              assertEquals(ReadyState.LOADING, reader.getReadyState());
            })
-        .then(/**
-                 @suppress {checkTypes} suppression added to enable type
-                 checking
-               */
-              (result) => {
-                assertElementsEquals(file.toArrayBuffer(), reader.getResult());
+        .then((result) => {
+          assertElementsEquals(file.toArrayBuffer(), reader.getResult());
 
-                assertEquals(ReadyState.DONE, reader.getReadyState());
-                assertArrayEquals(
-                    [
-                      EventType.LOAD_START,
-                      EventType.LOAD,
-                      EventType.LOAD,
-                      EventType.LOAD,
-                      EventType.LOAD_END,
-                    ],
-                    observer.getEvents().map(e => e.type));
-              });
+          assertEquals(ReadyState.DONE, reader.getReadyState());
+          assertArrayEquals(
+              [
+                EventType.LOAD_START,
+                EventType.LOAD,
+                EventType.LOAD,
+                EventType.LOAD,
+                EventType.LOAD_END,
+              ],
+              googArray.map(observer.getEvents(), (e) => e.type));
+        });
   },
 
   testReadAsDataUrl() {
@@ -129,7 +132,7 @@ testSuite({
                 EventType.LOAD,
                 EventType.LOAD_END,
               ],
-              observer.getEvents().map(e => e.type));
+              googArray.map(observer.getEvents(), (e) => e.type));
         });
   },
 
@@ -146,14 +149,10 @@ testSuite({
           assertEquals(ReadyState.DONE, reader.getReadyState());
           assertArrayEquals(
               [EventType.ERROR, EventType.ABORT, EventType.LOAD_END],
-              observer.getEvents().map(e => e.type));
+              googArray.map(observer.getEvents(), (e) => e.type));
         });
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testAbortBeforeRead() {
     const err = assertThrows(() => {
       reader.abort();
@@ -161,10 +160,6 @@ testSuite({
     assertEquals(FsError.ErrorCode.INVALID_STATE, err.code);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testReadDuringRead() {
     const err = assertThrows(() => {
       reader.readAsText(file);

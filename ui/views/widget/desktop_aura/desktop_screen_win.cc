@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/widget/desktop_aura/desktop_screen_win.h"
-
-#include <memory>
 
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
@@ -13,13 +11,10 @@
 
 namespace views {
 
-DesktopScreenWin::DesktopScreenWin() {
-  DCHECK(!display::Screen::HasScreen());
-  display::Screen::SetScreenInstance(this);
-}
+DesktopScreenWin::DesktopScreenWin() = default;
 
 DesktopScreenWin::~DesktopScreenWin() {
-  display::Screen::SetScreenInstance(nullptr);
+  display::Screen::SetScreenInstance(old_screen_);
 }
 
 HWND DesktopScreenWin::GetHWNDFromNativeWindow(gfx::NativeWindow window) const {
@@ -33,21 +28,10 @@ gfx::NativeWindow DesktopScreenWin::GetNativeWindowFromHWND(HWND hwnd) const {
              : gfx::kNullNativeWindow;
 }
 
-bool DesktopScreenWin::IsNativeWindowOccluded(gfx::NativeWindow window) const {
-  return window->GetHost()->GetNativeWindowOcclusionState() ==
-         aura::Window::OcclusionState::OCCLUDED;
-}
-
-absl::optional<bool> DesktopScreenWin::IsWindowOnCurrentVirtualDesktop(
-    gfx::NativeWindow window) const {
-  DCHECK(window);
-  return window->GetHost()->on_current_workspace();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<display::Screen> CreateDesktopScreen() {
-  return std::make_unique<DesktopScreenWin>();
+display::Screen* CreateDesktopScreen() {
+  return new DesktopScreenWin;
 }
 
 }  // namespace views

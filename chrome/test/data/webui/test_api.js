@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
  * @fileoverview Library providing basic test framework functionality.
  */
-
-/* eslint-disable no-console */
 
 /**
  * See assert.js for where this is used.
@@ -15,21 +13,24 @@
 this.traceAssertionsForTesting = true;
 
 /** @suppress {globalThis} */
-// eslint-disable-next-line no-var
 var hasWindow = !!this.window;
 
 /**
  * Namespace for |Test|.
  * @type {Object}
  */
-// eslint-disable-next-line no-var
 var testing = {};
 (function(exports) {
+/**
+ * Holds the original version of the |chrome| object.
+ */
+var originalChrome = null;
+
 /**
  * Hold the currentTestCase across between preLoad and run.
  * @type {TestCase}
  */
-let currentTestCase = null;
+var currentTestCase = null;
 
 /**
  * Value set to true by WebUIBrowserTest if test harness should wait for user to
@@ -37,19 +38,19 @@ let currentTestCase = null;
  *
  * @type {boolean}
  */
-let waitUser = false;
+var waitUser = false;
 
 /**
  * The string representation of the currently running test function.
  * @type {?string}
  */
-let currentTestFunction = null;
+var currentTestFunction = null;
 
 /**
  * The arguments of the currently running test.
  * @type {Array}
  */
-let currentTestArguments = [];
+var currentTestArguments = [];
 
 /**
  * This class will be exported as testing.Test, and is provided to hold the
@@ -66,17 +67,17 @@ function Test() {}
  * will break. animationend events should still work.
  */
 Test.disableAnimationsAndTransitions = function() {
-  const all = document.body.querySelectorAll('*');
+  let all = document.body.querySelectorAll('*');
   const ZERO_MS_IMPORTANT = '0ms !important';
   for (let i = 0, l = all.length; i < l; ++i) {
-    const style = all[i].style;
+    let style = all[i].style;
     style.animationDelay = ZERO_MS_IMPORTANT;
     style.animationDuration = ZERO_MS_IMPORTANT;
     style.transitionDelay = ZERO_MS_IMPORTANT;
     style.transitionDuration = ZERO_MS_IMPORTANT;
   }
 
-  const realElementAnimate = Element.prototype.animate;
+  var realElementAnimate = Element.prototype.animate;
   Element.prototype.animate = function(keyframes, opt_options) {
     if (typeof opt_options === 'object') {
       opt_options.duration = 0;
@@ -86,7 +87,7 @@ Test.disableAnimationsAndTransitions = function() {
     return realElementAnimate.call(this, keyframes, opt_options);
   };
   if (document.timeline && document.timeline.play) {
-    const realTimelinePlay = document.timeline.play;
+    var realTimelinePlay = document.timeline.play;
     document.timeline.play = function(a) {
       a.timing.duration = 0;
       return realTimelinePlay.call(document.timeline, a);
@@ -110,6 +111,15 @@ Test.prototype = {
 
   /** @type {?string} */
   webuiHost: null,
+
+  /**
+   * When set to a string value representing an html page in the test
+   * directory, generate BrowsePrintPreload call, which will browse to a url
+   * representing the file, cause print, and call fixture.preLoad of the
+   * currentTestCase.
+   * @type {?string}
+   */
+  browsePrintPreload: null,
 
   /**
    * When set to a function, will be called in the context of the test
@@ -150,6 +160,13 @@ Test.prototype = {
   featuresWithParameters: null,
 
   /**
+   * This should be initialized by the test fixture and can be referenced
+   * during the test run. It holds any mocked handler methods.
+   * @type {?Mock}
+   */
+  mockHandler: null,
+
+  /**
    * Value is passed through call to C++ RunJavascriptF to invoke this test.
    * @type {boolean}
    */
@@ -187,6 +204,30 @@ Test.prototype = {
   closureModuleDeps: [],
 
   /**
+   * Create a new class to handle |messageNames|, assign it to
+   * |this.mockHandler|, register its messages and return it.
+   * @return {Mock} Mock handler class assigned to |this.mockHandler|.
+   */
+  makeAndRegisterMockHandler: function(messageNames) {
+    var MockClass = makeMockClass(messageNames);
+    this.mockHandler = mock(MockClass);
+    registerMockMessageCallbacks(this.mockHandler, MockClass);
+    return this.mockHandler;
+  },
+
+  /**
+   * Create a container of mocked standalone functions to handle
+   * |functionNames|, assign it to |this.mockLocalFunctions| and return it.
+   * @param {!Array<string>} functionNames
+   * @return {Mock} Mock handler class.
+   * @see makeMockFunctions
+   */
+  makeMockLocalFunctions: function(functionNames) {
+    this.mockLocalFunctions = makeMockFunctions(functionNames);
+    return this.mockLocalFunctions;
+  },
+
+  /**
    * Override this method to perform initialization during preload (such as
    * creating mocks and registering handlers).
    * @type {Function}
@@ -200,16 +241,20 @@ Test.prototype = {
   setUp: function() {},
 
   /**
-   * Override this method to perform tasks after running your test.
+   * Override this method to perform tasks after running your test. If you
+   * create a mock class, you must call Mock4JS.verifyAllMocks() in this
+   * phase.
    * @type {Function}
    */
   tearDown: function() {
     if (typeof document !== 'undefined') {
-      const noAnimationStyle = document.getElementById('no-animation');
+      var noAnimationStyle = document.getElementById('no-animation');
       if (noAnimationStyle) {
         noAnimationStyle.parentNode.removeChild(noAnimationStyle);
       }
     }
+
+    Mock4JS.verifyAllMocks();
   },
 
   /**
@@ -231,13 +276,13 @@ Test.prototype = {
    *     which continues the test.
    */
   continueTest: function(whenTestDone, completion, var_args) {
-    const savedArgs = new SaveMockArguments();
-    const completionAction = new CallFunctionAction(
+    var savedArgs = new SaveMockArguments();
+    var completionAction = new CallFunctionAction(
         this, savedArgs, completion, Array.prototype.slice.call(arguments, 2));
     if (whenTestDone === WhenTestDone.DEFAULT) {
       whenTestDone = WhenTestDone.ASSERT;
     }
-    const runAll = new RunAllAction(true, whenTestDone, [completionAction]);
+    var runAll = new RunAllAction(true, whenTestDone, [completionAction]);
     return function() {
       savedArgs.arguments = Array.prototype.slice.call(arguments);
       runAll.invoke();
@@ -379,11 +424,11 @@ TestCase.prototype = {
    */
   deferRunTest: function(whenTestDone, var_args) {
     this.deferred_ = true;
-    const savedArgs = new SaveMockArguments();
-    const completionAction = new CallFunctionAction(
+    var savedArgs = new SaveMockArguments();
+    var completionAction = new CallFunctionAction(
         this, savedArgs, this.runTest,
         Array.prototype.slice.call(arguments, 1));
-    const runAll = new RunAllAction(true, whenTestDone, [completionAction]);
+    var runAll = new RunAllAction(true, whenTestDone, [completionAction]);
     return function() {
       savedArgs.arguments = Array.prototype.slice.call(arguments);
       runAll.invoke();
@@ -393,23 +438,129 @@ TestCase.prototype = {
 };
 
 /**
+ * Registry of javascript-defined callbacks for {@code chrome.send}.
+ * @type {Object}
+ */
+var sendCallbacks = {};
+
+/**
+ * Registers the message, object and callback for {@code chrome.send}
+ * @param {string} name The name of the message to route to this |callback|.
+ * @param {Object} messageHandler Pass as |this| when calling the |callback|.
+ * @param {function(...)} callback Called by {@code chrome.send}.
+ * @see sendCallbacks
+ */
+function registerMessageCallback(name, messageHandler, callback) {
+  sendCallbacks[name] = [messageHandler, callback];
+}
+
+/**
+ * Register all methods of {@code mockClass.prototype} with messages of the
+ * same name as the method, using the proxy of the |mockObject| as the
+ * |messageHandler| when registering.
+ * @param {Mock} mockObject The mock to register callbacks against.
+ * @param {Function} mockClass Constructor for the mocked class.
+ * @see registerMessageCallback
+ * @see overrideChrome
+ */
+function registerMockMessageCallbacks(mockObject, mockClass) {
+  if (!deferGlobalOverrides && !originalChrome) {
+    overrideChrome();
+  }
+  var mockProxy = mockObject.proxy();
+  for (var func in mockClass.prototype) {
+    if (typeof mockClass.prototype[func] === 'function') {
+      registerMessageCallback(func, mockProxy, mockProxy[func]);
+    }
+  }
+}
+
+/**
+ * When preloading JavaScript libraries, this is true until the
+ * DOMContentLoaded event has been received as globals cannot be overridden
+ * until the page has loaded its JavaScript.
+ * @type {boolean}
+ */
+var deferGlobalOverrides = false;
+
+/**
+ * Empty function for use in making mocks.
+ * @const
+ */
+function emptyFunction() {}
+
+/**
+ * Make a mock from the supplied |methodNames| array.
+ * @param {Array<string>} methodNames Array of names of methods to mock.
+ * @return {Function} Constructor with prototype filled in with methods
+ *     matching |methodNames|.
+ */
+function makeMockClass(methodNames) {
+  function MockConstructor() {}
+  for (var i = 0; i < methodNames.length; i++) {
+    MockConstructor.prototype[methodNames[i]] = emptyFunction;
+  }
+  return MockConstructor;
+}
+
+/**
+ * Create a new class to handle |functionNames|, add method 'functions()'
+ * that returns a container of standalone functions based on the mock class
+ * members, and return it.
+ * @return {Mock} Mock handler class.
+ */
+function makeMockFunctions(functionNames) {
+  var MockClass = makeMockClass(functionNames);
+  var mockFunctions = mock(MockClass);
+  var mockProxy = mockFunctions.proxy();
+
+  mockFunctions.functions_ = {};
+
+  for (var func in MockClass.prototype) {
+    if (typeof MockClass.prototype[func] === 'function') {
+      mockFunctions.functions_[func] = mockProxy[func].bind(mockProxy);
+    }
+  }
+
+  mockFunctions.functions = function() {
+    return this.functions_;
+  };
+
+  return mockFunctions;
+}
+
+/**
+ * Overrides {@code chrome.send} for routing messages to javascript
+ * functions. Also falls back to sending with the original chrome object.
+ * @param {string} messageName The message to route.
+ */
+function send(messageName) {
+  var callback = sendCallbacks[messageName];
+  if (callback !== undefined) {
+    callback[1].apply(callback[0], Array.prototype.slice.call(arguments, 1));
+  } else {
+    this.__proto__.send.apply(this.__proto__, arguments);
+  }
+}
+
+/**
  * true when testDone has been called.
  * @type {boolean}
  */
-let testIsDone = false;
+var testIsDone = false;
 
 /**
  * Holds the errors, if any, caught by expects so that the test case can
  * fail. Cleared when results are reported from runTest() or testDone().
  * @type {Array<Error>}
  */
-const errors = [];
+var errors = [];
 
 /**
  * URL to dummy WebUI page for testing framework.
  * @type {string}
  */
-const DUMMY_URL = 'chrome://DummyURL';
+var DUMMY_URL = 'chrome://DummyURL';
 
 /**
  * Resets test state by clearing |errors| and |testIsDone| flags.
@@ -428,7 +579,7 @@ function testDone(result) {
   if (!testIsDone) {
     testIsDone = true;
     if (currentTestCase) {
-      let ok = true;
+      var ok = true;
       ok = createExpect(currentTestCase.tearDown.bind(currentTestCase))
                .call(null) &&
           ok;
@@ -455,7 +606,19 @@ function testDone(result) {
       }
     } else if (hasWindow && window.webUiTest) {
       let testRunner;
-      if (webUiTest.mojom.TestRunnerRemote) {
+      if (webUiTest.mojom.TestRunnerPtr) {
+        // For mojo WebUI tests.
+        testRunner = new webUiTest.mojom.TestRunnerPtr();
+
+        /**
+         * @suppress {missingProperties} for mojo.makeRequest - internal method
+         * declared in mojo/public/js/bindings.js.
+         */
+        const mojoMakeRequest = () => mojo.makeRequest(testRunner);
+
+        Mojo.bindInterface(
+            webUiTest.mojom.TestRunner.name, mojoMakeRequest().handle);
+      } else if (webUiTest.mojom.TestRunnerRemote) {
         // For mojo-lite WebUI tests.
         testRunner = webUiTest.mojom.TestRunner.getRemote();
       } else {
@@ -463,17 +626,17 @@ function testDone(result) {
             'Mojo bindings found, but no valid test interface loaded');
       }
       if (success) {
-        testRunner.testComplete(null);
+        testRunner.testComplete();
       } else {
         testRunner.testComplete(errorMessage);
       }
     } else if (chrome.send) {
       // For WebUI and v8 unit tests.
       chrome.send('testResult', result);
-    } else if (chrome.test.sendScriptResult) {
+    } else if (window.domAutomationController.send) {
       // For extension tests.
       const valueResult = {'result': success, message: errorMessage};
-      chrome.test.sendScriptResult(JSON.stringify(valueResult));
+      window.domAutomationController.send(JSON.stringify(valueResult));
     } else {
       assertNotReached('No test framework available');
     }
@@ -491,13 +654,13 @@ function testDone(result) {
  * @return {string} |opt_message| + messages of all |errors|.
  */
 function errorsToMessage(errors, opt_message) {
-  let message = '';
+  var message = '';
   if (opt_message) {
     message += opt_message + '\n';
   }
 
-  for (let i = 0; i < errors.length; ++i) {
-    const errorMessage = errors[i].stack || errors[i].message;
+  for (var i = 0; i < errors.length; ++i) {
+    var errorMessage = errors[i].stack || errors[i].message;
     // Cast JSON.stringify to Function to avoid formal parameter mismatch.
     message += 'Failed: ' + currentTestFunction + '(' +
         currentTestArguments.map(/** @type{Function} */ (JSON.stringify)) +
@@ -514,7 +677,7 @@ function errorsToMessage(errors, opt_message) {
  * @return {Array}
  */
 function testResult(errorsOk) {
-  let result = [true, ''];
+  var result = [true, ''];
   if (errors.length) {
     result = [!!errorsOk, errorsToMessage(errors)];
   }
@@ -697,8 +860,8 @@ function runTest(isAsync, testFunction, testArguments) {
   // Avoid eval() if at all possible, since it will not work on pages
   // that have enabled content-security-policy.
   /** @type {?Function} */
-  let testBody = this[testFunction];  // global object -- not a method.
-  let testName = testFunction;
+  var testBody = this[testFunction];  // global object -- not a method.
+  var testName = testFunction;
 
   // Depending on how we were called, |this| might not resolve to the global
   // context.
@@ -715,8 +878,7 @@ function runTest(isAsync, testFunction, testArguments) {
   }
 
   // Async allow expect errors, but not assert errors.
-  const result =
-      runTestFunction(testFunction, testBody, testArguments, isAsync);
+  var result = runTestFunction(testFunction, testBody, testArguments, isAsync);
   if (!isAsync || !result[0]) {
     testDone(result);
   }
@@ -744,7 +906,7 @@ function runTestFunction(
     testFunction, testBody, testArguments, onlyAssertFails) {
   currentTestFunction = testFunction;
   currentTestArguments = testArguments;
-  const ok = createExpect(testBody).apply(null, testArguments);
+  var ok = createExpect(testBody).apply(null, testArguments);
   return testResult(onlyAssertFails && ok);
 }
 
@@ -756,16 +918,34 @@ function runTestFunction(
  * @return {TestCase} A newly created TestCase.
  */
 function createTestCase(testFixture, testName) {
-  const fixtureConstructor = this[testFixture];
+  var fixtureConstructor = this[testFixture];
   assertTrue(
       !!fixtureConstructor,
       `The testFixture \'${testFixture}\' was not found.`);
-  const testBody = fixtureConstructor.testCaseBodies[testName];
+  var testBody = fixtureConstructor.testCaseBodies[testName];
   assertTrue(
       !!testBody, `Test \'${testName} was not found in \'${testFixture}\'.`);
-  const fixture = new fixtureConstructor();
+  var fixture = new fixtureConstructor();
   fixture.name = testFixture;
   return new TestCase(testName, fixture, testBody);
+}
+
+/**
+ * Overrides the |chrome| object to enable mocking calls to chrome.send().
+ */
+function overrideChrome() {
+  if (originalChrome) {
+    console.error('chrome object already overridden');
+    return;
+  }
+
+  originalChrome = chrome;
+  /** @suppress {const|checkTypes} */
+  chrome = {
+    __proto__: originalChrome,
+    send: send,
+    originalSend: originalChrome.send.bind(originalChrome),
+  };
 }
 
 /**
@@ -773,11 +953,28 @@ function createTestCase(testFixture, testName) {
  * appropriate time for javascript injection into the current page. This
  * creates a test case and calls its preLoad for any early initialization such
  * as registering handlers before the page's javascript runs it's OnLoad
- * method. This is called before the page is loaded.
+ * method. This is called before the page is loaded, so the |chrome| object is
+ * not yet bound and this DOMContentLoaded listener will be called first to
+ * override |chrome| in order to route messages registered in |sendCallbacks|.
  * @param {string} testFixture The test fixture name.
  * @param {string} testName The test name.
+ * @see sendCallbacks
  */
 function preloadJavascriptLibraries(testFixture, testName) {
+  deferGlobalOverrides = true;
+
+  // The document seems to change from the point of preloading to the point of
+  // events (and doesn't fire), whereas the window does not. Listening to the
+  // capture phase allows this event to fire first.
+  window.addEventListener('DOMContentLoaded', function() {
+    if (chrome.send) {
+      overrideChrome();
+    }
+
+    // Override globals at load time so they will be defined.
+    assertTrue(deferGlobalOverrides);
+    deferGlobalOverrides = false;
+  }, true);
   currentTestCase = createTestCase(testFixture, testName);
   currentTestCase.preLoad();
 }
@@ -805,6 +1002,28 @@ function GEN() {}
 function GEN_INCLUDE() {}
 
 /**
+ * At runtime, register the testName with a test fixture. Since this method
+ * doesn't have a test fixture, create a dummy fixture to hold its |name|
+ * and |testCaseBodies|.
+ * @param {string} testCaseName The name of the test case.
+ * @param {string} testName The name of the test function.
+ * @param {Function} testBody The body to execute when running this test.
+ */
+function TEST(testCaseName, testName, testBody) {
+  var fixtureConstructor = this[testCaseName];
+  if (fixtureConstructor === undefined) {
+    fixtureConstructor = function() {};
+    this[testCaseName] = fixtureConstructor;
+    fixtureConstructor.prototype = {
+      __proto__: Test.prototype,
+      name: testCaseName,
+    };
+    fixtureConstructor.testCaseBodies = {};
+  }
+  fixtureConstructor.testCaseBodies[testName] = testBody;
+}
+
+/**
  * At runtime, register the testName with its fixture. Stuff the |name| into
  * the |testFixture|'s prototype, if needed, and the |testCaseBodies| into its
  * constructor.
@@ -815,11 +1034,11 @@ function GEN_INCLUDE() {}
  * nothing here in the runtime phase.
  */
 function TEST_F(testFixture, testName, testBody, opt_preamble) {
-  const fixtureConstructor = this[testFixture];
+  var fixtureConstructor = this[testFixture];
   if (!fixtureConstructor.prototype.name) {
     fixtureConstructor.prototype.name = testFixture;
   }
-  if (!fixtureConstructor.hasOwnProperty('testCaseBodies')) {
+  if (fixtureConstructor['testCaseBodies'] === undefined) {
     fixtureConstructor.testCaseBodies = {};
   }
   fixtureConstructor.testCaseBodies[testName] = testBody;
@@ -891,7 +1110,7 @@ SaveMockArgumentMatcher.prototype = {
    */
   argumentMatches: function(actualArgument) {
     this.arguments_.push(actualArgument);
-    const match = this.realMatcher_.argumentMatches(actualArgument);
+    var match = this.realMatcher_.argumentMatches(actualArgument);
     if (!match) {
       this.arguments_.splice(0, this.arguments_.length);
     }
@@ -991,7 +1210,7 @@ CallFunctionAction.prototype = {
    *     |savedArgs_| and |args_|.
    */
   invoke: function() {
-    let prependArgs = [];
+    var prependArgs = [];
     if (this.savedArgs_) {
       prependArgs =
           this.savedArgs_.arguments.splice(0, this.savedArgs_.arguments.length);
@@ -1005,8 +1224,19 @@ CallFunctionAction.prototype = {
    */
   describe: function() {
     return 'calls the given function with saved arguments and ' + this.args_;
-  },
+  }
 };
+
+/**
+ * Syntactic sugar for use with will() on a Mock4JS.Mock.
+ * @param {!Function} func The function to call when the method is invoked.
+ * @param {...*} var_args Arguments to pass when calling func.
+ * @return {CallFunctionAction} Action for use in will.
+ */
+function callFunction(func, var_args) {
+  return new CallFunctionAction(
+      null, null, func, Array.prototype.slice.call(arguments, 1));
+}
 
 /**
  * Syntactic sugar for use with will() on a Mock4JS.Mock.
@@ -1025,7 +1255,7 @@ function callFunctionWithSavedArgs(savedArgs, func, var_args) {
  * When to call testDone().
  * @enum {number}
  */
-const WhenTestDone = {
+var WhenTestDone = {
   /**
    * Default for the method called.
    */
@@ -1096,8 +1326,8 @@ RunAllAction.prototype = {
    */
   invoke: function() {
     try {
-      let result;
-      for (let i = 0; i < this.actions_.length; ++i) {
+      var result;
+      for (var i = 0; i < this.actions_.length; ++i) {
         result = this.actions_[i].invoke();
       }
 
@@ -1173,26 +1403,51 @@ function exportChaiAsserts() {
 }
 
 /**
+ * Exports expect methods. 'expect*' methods allow tests to run until the end
+ * even in the presence of failures.
+ */
+function exportExpects() {
+  exports.expectTrue = createExpect(assertTrue);
+  exports.expectFalse = createExpect(assertFalse);
+  exports.expectGE = createExpect(assertGE);
+  exports.expectGT = createExpect(assertGT);
+  exports.expectEquals = createExpect(assertEquals);
+  exports.expectDeepEquals = createExpect(assertDeepEquals);
+  exports.expectLE = createExpect(assertLE);
+  exports.expectLT = createExpect(assertLT);
+  exports.expectNotEquals = createExpect(assertNotEquals);
+  exports.expectNotReached = createExpect(assertNotReached);
+  exports.expectThrows = createExpect(assertThrows);
+}
+
+/**
  * Exports methods related to Mock4JS mocking.
  */
 function exportMock4JsHelpers() {
+  exports.callFunction = callFunction;
   exports.callFunctionWithSavedArgs = callFunctionWithSavedArgs;
   exports.SaveMockArguments = SaveMockArguments;
+
+  // Import the Mock4JS helpers.
+  Mock4JS.addMockSupport(exports);
 }
 
 // Exports.
 testing.Test = Test;
 exports.testDone = testDone;
 exportChaiAsserts();
+exportExpects();
 exportMock4JsHelpers();
 exports.preloadJavascriptLibraries = preloadJavascriptLibraries;
 exports.setWaitUser = setWaitUser;
+exports.registerMessageCallback = registerMessageCallback;
 exports.resetTestState = resetTestState;
 exports.runAllActions = runAllActions;
 exports.runAllActionsAsync = runAllActionsAsync;
 exports.runTest = runTest;
 exports.runTestFunction = runTestFunction;
 exports.DUMMY_URL = DUMMY_URL;
+exports.TEST = TEST;
 exports.TEST_F = TEST_F;
 exports.TEST_F_WITH_PREAMBLE = TEST_F_WITH_PREAMBLE;
 exports.RUNTIME_TEST_F = TEST_F;

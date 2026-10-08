@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -16,7 +17,6 @@
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace location {
 namespace nearby {
@@ -360,7 +360,7 @@ TEST_F(BleMediumTest, TestConnect) {
           std::string, device::BluetoothUUID>());
 
   // Connect() should do nothing and not return a valid api::BleSocket.
-  EXPECT_FALSE(ble_medium_->Connect(ble_peripheral, kServiceId1, nullptr));
+  EXPECT_FALSE(ble_medium_->Connect(ble_peripheral, kServiceId1));
 }
 
 }  // namespace chrome

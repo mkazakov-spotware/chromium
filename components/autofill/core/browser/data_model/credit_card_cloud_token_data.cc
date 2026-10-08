@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,26 +24,26 @@ bool CreditCardCloudTokenData::operator!=(
   return Compare(other_data) != 0;
 }
 
-std::u16string CreditCardCloudTokenData::ExpirationMonthAsString() const {
+base::string16 CreditCardCloudTokenData::ExpirationMonthAsString() const {
   return data_util::Expiration2DigitMonthAsString(exp_month);
 }
 
-std::u16string CreditCardCloudTokenData::Expiration2DigitYearAsString() const {
+base::string16 CreditCardCloudTokenData::Expiration2DigitYearAsString() const {
   return data_util::Expiration2DigitYearAsString(exp_year);
 }
 
-std::u16string CreditCardCloudTokenData::Expiration4DigitYearAsString() const {
+base::string16 CreditCardCloudTokenData::Expiration4DigitYearAsString() const {
   return data_util::Expiration4DigitYearAsString(exp_year);
 }
 
 void CreditCardCloudTokenData::SetExpirationMonthFromString(
-    const std::u16string& month) {
+    const base::string16& month) {
   data_util::ParseExpirationMonth(month, /*app_locale=*/std::string(),
                                   &exp_month);
 }
 
 void CreditCardCloudTokenData::SetExpirationYearFromString(
-    const std::u16string& year) {
+    const base::string16& year) {
   data_util::ParseExpirationYear(year, &exp_year);
 }
 

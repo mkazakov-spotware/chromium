@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <CoreFoundation/CFTimeZone.h>
 
 #include "base/mac/scoped_cftyperef.h"
-#include "base/numerics/safe_conversions.h"
 
 #if __LP64__
 #error Use posix implementation on 64-bit platforms.
@@ -47,7 +46,8 @@ bool Time::FromExploded(bool is_local, const Exploded& exploded, Time* time) {
   // it cannot be suited to int64, then fail to avoid overflows.
   double microseconds =
       (seconds * kMicrosecondsPerSecond) + kTimeTToMicrosecondsOffset;
-  if (!IsValueInRangeForNumericType<int64_t>(microseconds)) {
+  if (microseconds > std::numeric_limits<int64_t>::max() ||
+      microseconds < std::numeric_limits<int64_t>::min()) {
     *time = Time(0);
     return false;
   }

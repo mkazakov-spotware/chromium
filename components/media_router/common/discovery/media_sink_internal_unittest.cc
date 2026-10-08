@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/media_router/common/discovery/media_sink_internal.h"
-
-#include "components/media_router/common/test/test_helper.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
@@ -61,7 +59,7 @@ TEST(MediaSinkInternalTest, TestIsValidSinkId) {
 }
 
 TEST(MediaSinkInternalTest, TestConstructorAndAssignment) {
-  MediaSink sink{CreateCastSink(kSinkId, kSinkName)};
+  MediaSink sink(kSinkId, kSinkName, SinkIconType::CAST);
   DialSinkExtraData dial_extra_data = CreateDialSinkExtraData();
   CastSinkExtraData cast_extra_data = CreateCastSinkExtraData();
 
@@ -98,7 +96,7 @@ TEST(MediaSinkInternalTest, TestConstructorAndAssignment) {
 }
 
 TEST(MediaSinkInternalTest, TestSetExtraData) {
-  MediaSink sink{CreateCastSink(kSinkId, kSinkName)};
+  MediaSink sink(kSinkId, kSinkName, SinkIconType::CAST);
   DialSinkExtraData dial_extra_data = CreateDialSinkExtraData();
   CastSinkExtraData cast_extra_data = CreateCastSinkExtraData();
 

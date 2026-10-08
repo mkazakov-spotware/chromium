@@ -1,2 +1,5 @@
-mixins: "//chrome/browser/video_tutorials/COMMON_METADATA"
+monorail {
+  component: "Upboarding>VideoTutorials"
+}
 team_email: "chrome-upboarding@chromium.org"
+os: ANDROID

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
@@ -23,108 +23,57 @@
 #include "base/trace_event/trace_event.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "chrome/browser/browser_features.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/download/download_item_warning_data.h"
 #include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
-#include "chrome/browser/safe_browsing/chrome_password_protection_service_factory.h"
-#include "chrome/browser/safe_browsing/chrome_ping_manager_factory.h"
-#include "chrome/browser/safe_browsing/chrome_safe_browsing_blocking_page_factory.h"
-#include "chrome/browser/safe_browsing/chrome_ui_manager_delegate.h"
-#include "chrome/browser/safe_browsing/chrome_user_population_helper.h"
-#include "chrome/browser/safe_browsing/chrome_v4_protocol_config_provider.h"
-#include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
-#include "chrome/browser/safe_browsing/download_protection/download_protection_util.h"
-#include "chrome/browser/safe_browsing/network_context_service.h"
-#include "chrome/browser/safe_browsing/network_context_service_factory.h"
+#include "chrome/browser/safe_browsing/safe_browsing_metrics_collector.h"
 #include "chrome/browser/safe_browsing/safe_browsing_metrics_collector_factory.h"
-#include "chrome/browser/safe_browsing/safe_browsing_navigation_observer_manager_factory.h"
+#include "chrome/browser/safe_browsing/safe_browsing_navigation_observer_manager.h"
 #include "chrome/browser/safe_browsing/services_delegate.h"
+#include "chrome/browser/safe_browsing/ui_manager.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/url_constants.h"
-#include "components/download/public/common/download_item.h"
+#include "chrome/common/pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/safe_browsing/buildflags.h"
-#include "components/safe_browsing/content/browser/client_side_phishing_model.h"
-#include "components/safe_browsing/content/browser/safe_browsing_navigation_observer_manager.h"
-#include "components/safe_browsing/content/browser/triggers/trigger_manager.h"
-#include "components/safe_browsing/content/browser/ui_manager.h"
-#include "components/safe_browsing/content/browser/web_ui/safe_browsing_ui.h"
-#include "components/safe_browsing/content/common/file_type_policies.h"
-#include "components/safe_browsing/core/browser/db/database_manager.h"
-#include "components/safe_browsing/core/browser/ping_manager.h"
-#include "components/safe_browsing/core/browser/realtime/policy_engine.h"
-#include "components/safe_browsing/core/browser/referrer_chain_provider.h"
-#include "components/safe_browsing/core/browser/safe_browsing_metrics_collector.h"
-#include "components/safe_browsing/core/common/features.h"
-#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/content/web_ui/safe_browsing_ui.h"
+#include "components/safe_browsing/core/browser/safe_browsing_network_context.h"
 #include "components/safe_browsing/core/common/safebrowsing_constants.h"
-#include "components/unified_consent/pref_names.h"
+#include "components/safe_browsing/core/db/database_manager.h"
+#include "components/safe_browsing/core/features.h"
+#include "components/safe_browsing/core/file_type_policies.h"
+#include "components/safe_browsing/core/ping_manager.h"
+#include "components/safe_browsing/core/realtime/policy_engine.h"
+#include "components/safe_browsing/core/triggers/trigger_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/download_item_utils.h"
 #include "services/network/public/cpp/cross_thread_pending_shared_url_loader_factory.h"
 #include "services/network/public/cpp/features.h"
 #include "services/preferences/public/mojom/tracked_preference_validation_delegate.mojom.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "chrome/install_static/install_util.h"
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/safe_browsing/android/safe_browsing_referring_app_bridge_android.h"
-#endif
-
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
-#include "components/safe_browsing/content/browser/password_protection/password_protection_service.h"
+#include "chrome/browser/safe_browsing/client_side_detection_service.h"
+#include "components/safe_browsing/content/password_protection/password_protection_service.h"
 #endif
 
 #if BUILDFLAG(FULL_SAFE_BROWSING)
+#include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
 #include "chrome/browser/safe_browsing/incident_reporting/binary_integrity_analyzer.h"
+#include "chrome/browser/safe_browsing/incident_reporting/incident_reporting_service.h"
+#include "chrome/browser/safe_browsing/incident_reporting/resource_request_detector.h"
 #endif
 
 using content::BrowserThread;
 using content::NonNestable;
 
 namespace safe_browsing {
-
-namespace {
-
-void OnGotCookies(
-    std::unique_ptr<mojo::Remote<network::mojom::CookieManager>> remote,
-    const std::vector<net::CanonicalCookie>& cookies) {
-  base::UmaHistogramBoolean("SafeBrowsing.HasCookieAtStartup",
-                            !cookies.empty());
-  if (!cookies.empty()) {
-    base::TimeDelta age = base::Time::Now() - cookies[0].CreationDate();
-    // Cookies can be up to 6 months old. Using millisecond precision over such
-    // a long time period overflows numeric limits. Instead, use a counts
-    // histogram and lower granularity.
-    base::UmaHistogramCounts10000("SafeBrowsing.CookieAgeHours", age.InHours());
-  }
-}
-
-#if BUILDFLAG(FULL_SAFE_BROWSING)
-void PopulateDownloadWarningActions(download::DownloadItem* download,
-                                    ClientSafeBrowsingReportRequest* report) {
-  for (auto& event :
-       DownloadItemWarningData::GetWarningActionEvents(download)) {
-    report->mutable_download_warning_actions()->Add(
-        DownloadItemWarningData::ConstructCsbrrDownloadWarningAction(event));
-  }
-  base::UmaHistogramCounts100(
-      "SafeBrowsing.ClientSafeBrowsingReport.DownloadWarningActionSize",
-      report->download_warning_actions_size());
-}
-#endif
-
-}  // namespace
 
 // static
 base::FilePath SafeBrowsingService::GetCookieFilePathForTesting() {
@@ -162,9 +111,17 @@ void SafeBrowsingService::Initialize() {
   bool result = base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
   DCHECK(result);
 
+  network_context_ =
+      std::make_unique<safe_browsing::SafeBrowsingNetworkContext>(
+          user_data_dir,
+          base::BindRepeating(&SafeBrowsingService::CreateNetworkContextParams,
+                              base::Unretained(this)));
+
   WebUIInfoSingleton::GetInstance()->set_safe_browsing_service(this);
 
   ui_manager_ = CreateUIManager();
+
+  navigation_observer_manager_ = new SafeBrowsingNavigationObserverManager();
 
   services_delegate_->Initialize();
 
@@ -190,12 +147,11 @@ void SafeBrowsingService::ShutDown() {
   // Remove Profile creation/destruction observers.
   if (g_browser_process->profile_manager())
     g_browser_process->profile_manager()->RemoveObserver(this);
-  observed_profiles_.RemoveAllObservations();
+  observed_profiles_.RemoveAll();
 
   // Delete the PrefChangeRegistrars, whose dtors also unregister |this| as an
   // observer of the preferences.
   prefs_map_.clear();
-  user_population_prefs_.clear();
 
   Stop(true);
 
@@ -203,40 +159,54 @@ void SafeBrowsingService::ShutDown() {
 
   WebUIInfoSingleton::GetInstance()->set_safe_browsing_service(nullptr);
 
+  network_context_->ServiceShuttingDown();
   proxy_config_monitor_.reset();
+}
+
+network::mojom::NetworkContext* SafeBrowsingService::GetNetworkContext() {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  return network_context_->GetNetworkContext();
+}
+
+scoped_refptr<network::SharedURLLoaderFactory>
+SafeBrowsingService::GetURLLoaderFactory() {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  if (!network_context_)
+    return nullptr;
+  return network_context_->GetURLLoaderFactory();
 }
 
 network::mojom::NetworkContext* SafeBrowsingService::GetNetworkContext(
     content::BrowserContext* browser_context) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  NetworkContextService* service =
-      NetworkContextServiceFactory::GetForBrowserContext(browser_context);
-  if (!service)
-    return nullptr;
+  if (!base::FeatureList::IsEnabled(kSafeBrowsingSeparateNetworkContexts))
+    return GetNetworkContext();
 
-  return service->GetNetworkContext();
+  return services_delegate_
+      ->GetSafeBrowsingNetworkContext(
+          Profile::FromBrowserContext(browser_context))
+      ->GetNetworkContext();
 }
 
 scoped_refptr<network::SharedURLLoaderFactory>
-SafeBrowsingService::GetURLLoaderFactory(
-    content::BrowserContext* browser_context) {
+SafeBrowsingService::GetURLLoaderFactory(Profile* profile) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  NetworkContextService* service =
-      NetworkContextServiceFactory::GetForBrowserContext(browser_context);
-  if (!service)
+  if (!base::FeatureList::IsEnabled(kSafeBrowsingSeparateNetworkContexts))
+    return GetURLLoaderFactory();
+
+  safe_browsing::SafeBrowsingNetworkContext* network_context =
+      services_delegate_->GetSafeBrowsingNetworkContext(profile);
+
+  // |network_context| may be null in tests
+  if (!network_context)
     return nullptr;
 
-  return service->GetURLLoaderFactory();
+  return network_context->GetURLLoaderFactory();
 }
 
-void SafeBrowsingService::FlushNetworkInterfaceForTesting(
-    content::BrowserContext* browser_context) {
-  NetworkContextService* service =
-      NetworkContextServiceFactory::GetForBrowserContext(browser_context);
-  if (!service)
-    return;
-
-  service->FlushNetworkInterfaceForTesting();
+void SafeBrowsingService::FlushNetworkInterfaceForTesting() {
+  if (network_context_)
+    network_context_->FlushForTesting();
 }
 
 const scoped_refptr<SafeBrowsingUIManager>& SafeBrowsingService::ui_manager()
@@ -249,19 +219,15 @@ SafeBrowsingService::database_manager() const {
   return services_delegate_->database_manager();
 }
 
-ReferrerChainProvider*
-SafeBrowsingService::GetReferrerChainProviderFromBrowserContext(
-    content::BrowserContext* browser_context) {
-  return SafeBrowsingNavigationObserverManagerFactory::GetForBrowserContext(
-      browser_context);
+scoped_refptr<SafeBrowsingNavigationObserverManager>
+SafeBrowsingService::navigation_observer_manager() {
+  return navigation_observer_manager_;
 }
 
-#if BUILDFLAG(IS_ANDROID)
-LoginReputationClientRequest::ReferringAppInfo
-SafeBrowsingService::GetReferringAppInfo(content::WebContents* web_contents) {
-  return safe_browsing::GetReferringAppInfo(web_contents);
+PingManager* SafeBrowsingService::ping_manager() const {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  return ping_manager_.get();
 }
-#endif
 
 TriggerManager* SafeBrowsingService::trigger_manager() const {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -271,7 +237,7 @@ TriggerManager* SafeBrowsingService::trigger_manager() const {
 PasswordProtectionService* SafeBrowsingService::GetPasswordProtectionService(
     Profile* profile) const {
   if (IsSafeBrowsingEnabled(*profile->GetPrefs()))
-    return ChromePasswordProtectionServiceFactory::GetForProfile(profile);
+    return services_delegate_->GetPasswordProtectionService(profile);
   return nullptr;
 }
 
@@ -292,10 +258,7 @@ void SafeBrowsingService::AddDownloadManager(
 }
 
 SafeBrowsingUIManager* SafeBrowsingService::CreateUIManager() {
-  return new SafeBrowsingUIManager(
-      std::make_unique<ChromeSafeBrowsingUIManagerDelegate>(),
-      std::make_unique<ChromeSafeBrowsingBlockingPageFactory>(),
-      GURL(chrome::kChromeUINewTabURL));
+  return new SafeBrowsingUIManager(this);
 }
 
 void SafeBrowsingService::RegisterAllDelayedAnalysis() {
@@ -305,7 +268,34 @@ void SafeBrowsingService::RegisterAllDelayedAnalysis() {
 }
 
 V4ProtocolConfig SafeBrowsingService::GetV4ProtocolConfig() const {
-  return safe_browsing::GetV4ProtocolConfig();
+  base::CommandLine* cmdline = base::CommandLine::ForCurrentProcess();
+  return ::safe_browsing::GetV4ProtocolConfig(
+      GetProtocolConfigClientName(),
+      cmdline->HasSwitch(::switches::kDisableBackgroundNetworking));
+}
+
+std::string SafeBrowsingService::GetProtocolConfigClientName() const {
+  std::string client_name;
+  // On Windows, get the safe browsing client name from the browser
+  // distribution classes in installer util. These classes don't yet have
+  // an analog on non-Windows builds so just keep the name specified here.
+#if defined(OS_WIN)
+  client_name = install_static::GetSafeBrowsingName();
+#else
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  client_name = "googlechrome";
+#else
+  client_name = "chromium";
+#endif
+
+  // Mark client string to allow server to differentiate mobile.
+#if defined(OS_ANDROID)
+  client_name.append("-a");
+#endif
+
+#endif  // defined(OS_WIN)
+
+  return client_name;
 }
 
 void SafeBrowsingService::SetDatabaseManagerForTest(
@@ -314,6 +304,8 @@ void SafeBrowsingService::SetDatabaseManagerForTest(
 }
 
 void SafeBrowsingService::StartOnIOThread(
+    std::unique_ptr<network::PendingSharedURLLoaderFactory>
+        sb_url_loader_factory,
     std::unique_ptr<network::PendingSharedURLLoaderFactory>
         browser_url_loader_factory) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
@@ -325,6 +317,7 @@ void SafeBrowsingService::StartOnIOThread(
   V4ProtocolConfig v4_config = GetV4ProtocolConfig();
 
   services_delegate_->StartOnIOThread(
+      network::SharedURLLoaderFactory::Create(std::move(sb_url_loader_factory)),
       network::SharedURLLoaderFactory::Create(
           std::move(browser_url_loader_factory)),
       v4_config);
@@ -341,15 +334,22 @@ void SafeBrowsingService::StopOnIOThread(bool shutdown) {
 void SafeBrowsingService::Start() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
+  if (!ping_manager_) {
+    ping_manager_ = PingManager::Create(GetV4ProtocolConfig());
+  }
+
   content::GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(
           &SafeBrowsingService::StartOnIOThread, this,
           std::make_unique<network::CrossThreadPendingSharedURLLoaderFactory>(
+              GetURLLoaderFactory()),
+          std::make_unique<network::CrossThreadPendingSharedURLLoaderFactory>(
               g_browser_process->shared_url_loader_factory())));
 }
 
 void SafeBrowsingService::Stop(bool shutdown) {
+  ping_manager_.reset();
   ui_manager_->Stop(shutdown);
   content::GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
@@ -357,11 +357,6 @@ void SafeBrowsingService::Stop(bool shutdown) {
 }
 
 void SafeBrowsingService::OnProfileAdded(Profile* profile) {
-  // Some services are disabled by default based on the profile type, e.g. the
-  // System Profile, in which Safe browsing is not needed.
-  if (AreKeyedServicesDisabledForProfileByDefault(profile))
-    return;
-
   // Start following the safe browsing preference on |pref_service|.
   PrefService* pref_service = profile->GetPrefs();
   DCHECK(prefs_map_.find(pref_service) == prefs_map_.end());
@@ -382,23 +377,6 @@ void SafeBrowsingService::OnProfileAdded(Profile* profile) {
   prefs_map_[pref_service] = std::move(registrar);
   RefreshState();
 
-  registrar = std::make_unique<PrefChangeRegistrar>();
-  registrar->Init(pref_service);
-  registrar->Add(prefs::kSafeBrowsingEnabled,
-                 base::BindRepeating(&ClearCachedUserPopulation, profile,
-                                     NoCachedPopulationReason::kChangeSbPref));
-  registrar->Add(prefs::kSafeBrowsingScoutReportingEnabled,
-                 base::BindRepeating(&ClearCachedUserPopulation, profile,
-                                     NoCachedPopulationReason::kChangeSbPref));
-  registrar->Add(prefs::kSafeBrowsingEnhanced,
-                 base::BindRepeating(&ClearCachedUserPopulation, profile,
-                                     NoCachedPopulationReason::kChangeSbPref));
-  registrar->Add(
-      unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled,
-      base::BindRepeating(&ClearCachedUserPopulation, profile,
-                          NoCachedPopulationReason::kChangeMbbPref));
-  user_population_prefs_[pref_service] = std::move(registrar);
-
   // Record the current pref state for standard protection.
   UMA_HISTOGRAM_BOOLEAN(kSafeBrowsingEnabledHistogramName,
                         pref_service->GetBoolean(prefs::kSafeBrowsingEnabled));
@@ -412,8 +390,6 @@ void SafeBrowsingService::OnProfileAdded(Profile* profile) {
 
   SafeBrowsingMetricsCollectorFactory::GetForProfile(profile)->StartLogging();
 
-  RecordCookieMetrics(profile);
-
   CreateServicesForProfile(profile);
 }
 
@@ -423,22 +399,25 @@ void SafeBrowsingService::OnOffTheRecordProfileCreated(
 }
 
 void SafeBrowsingService::OnProfileWillBeDestroyed(Profile* profile) {
-  observed_profiles_.RemoveObservation(profile);
+  observed_profiles_.Remove(profile);
+  services_delegate_->RemovePasswordProtectionService(profile);
   services_delegate_->RemoveTelemetryService(profile);
-  services_delegate_->OnProfileWillBeDestroyed(profile);
+  services_delegate_->RemoveSafeBrowsingNetworkContext(profile);
 
   PrefService* pref_service = profile->GetPrefs();
   DCHECK(pref_service);
   prefs_map_.erase(pref_service);
-  user_population_prefs_.erase(pref_service);
 }
 
 void SafeBrowsingService::CreateServicesForProfile(Profile* profile) {
+  services_delegate_->CreateSafeBrowsingNetworkContext(profile);
+  services_delegate_->CreatePasswordProtectionService(profile);
   services_delegate_->CreateTelemetryService(profile);
-  observed_profiles_.AddObservation(profile);
+  observed_profiles_.Add(profile);
 }
 
-base::CallbackListSubscription SafeBrowsingService::RegisterStateCallback(
+std::unique_ptr<SafeBrowsingService::StateSubscription>
+SafeBrowsingService::RegisterStateCallback(
     const base::RepeatingClosure& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return state_callback_list_.Add(callback);
@@ -446,7 +425,6 @@ base::CallbackListSubscription SafeBrowsingService::RegisterStateCallback(
 
 void SafeBrowsingService::RefreshState() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
   // Check if any profile requires the service to be active.
   enabled_by_prefs_ = false;
   estimated_extended_reporting_by_prefs_ = SBER_LEVEL_OFF;
@@ -472,74 +450,31 @@ void SafeBrowsingService::RefreshState() {
   services_delegate_->RefreshState(enabled_by_prefs_);
 }
 
-#if BUILDFLAG(FULL_SAFE_BROWSING)
-bool SafeBrowsingService::SendDownloadReport(
-    download::DownloadItem* download,
-    ClientSafeBrowsingReportRequest::ReportType report_type,
-    bool did_proceed,
-    absl::optional<bool> show_download_in_folder) {
+void SafeBrowsingService::SendSerializedDownloadReport(
+    Profile* profile,
+    const std::string& report) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  Profile* profile = Profile::FromBrowserContext(
-      content::DownloadItemUtils::GetBrowserContext(download));
-  auto report = std::make_unique<ClientSafeBrowsingReportRequest>();
-  report->set_type(report_type);
-  report->set_download_verdict(
-      DownloadProtectionService::GetDownloadProtectionVerdict(download));
-  report->set_url(download->GetURL().spec());
-  report->set_did_proceed(did_proceed);
-  if (show_download_in_folder) {
-    report->set_show_download_in_folder(show_download_in_folder.value());
-  }
-  std::string token = DownloadProtectionService::GetDownloadPingToken(download);
-  if (!token.empty())
-    report->set_token(token);
-  if (IsExtendedReportingEnabled(*profile->GetPrefs()) &&
-      base::FeatureList::IsEnabled(kSafeBrowsingCsbrrNewDownloadTrigger)) {
-    PopulateDownloadWarningActions(download, report.get());
-  }
-  return ChromePingManagerFactory::GetForBrowserContext(profile)
-             ->ReportThreatDetails(std::move(report)) ==
-         PingManager::ReportThreatDetailsResult::SUCCESS;
+  if (ping_manager())
+    ping_manager()->ReportThreatDetails(GetURLLoaderFactory(profile), report);
 }
-#endif
 
 void SafeBrowsingService::CreateTriggerManager() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   trigger_manager_ = std::make_unique<TriggerManager>(
-      ui_manager_.get(), g_browser_process->local_state());
+      ui_manager_.get(), navigation_observer_manager_.get(),
+      g_browser_process->local_state());
 }
 
 network::mojom::NetworkContextParamsPtr
 SafeBrowsingService::CreateNetworkContextParams() {
   auto params = SystemNetworkContextManager::GetInstance()
                     ->CreateDefaultNetworkContextParams();
-  // |proxy_config_monitor_| should be deleted after shutdown, so don't
-  // re-create it.
-  if (shutdown_) {
-    return params;
-  }
   if (!proxy_config_monitor_) {
     proxy_config_monitor_ =
         std::make_unique<ProxyConfigMonitor>(g_browser_process->local_state());
   }
   proxy_config_monitor_->AddToNetworkContextParams(params.get());
   return params;
-}
-
-void SafeBrowsingService::RecordCookieMetrics(Profile* profile) {
-  network::mojom::NetworkContext* network_context = GetNetworkContext(profile);
-  if (!network_context)
-    return;
-  auto cookie_manager_remote =
-      std::make_unique<mojo::Remote<network::mojom::CookieManager>>();
-  network_context->GetCookieManager(
-      cookie_manager_remote->BindNewPipeAndPassReceiver());
-
-  mojo::Remote<network::mojom::CookieManager>* cookie_manager_raw =
-      cookie_manager_remote.get();
-  (*cookie_manager_raw)
-      ->GetAllCookies(
-          base::BindOnce(&OnGotCookies, std::move(cookie_manager_remote)));
 }
 
 // The default SafeBrowsingServiceFactory.  Global, made a singleton so we
@@ -552,15 +487,12 @@ class SafeBrowsingServiceFactoryImpl : public SafeBrowsingServiceFactory {
     return new SafeBrowsingService();
   }
 
-  SafeBrowsingServiceFactoryImpl(const SafeBrowsingServiceFactoryImpl&) =
-      delete;
-  SafeBrowsingServiceFactoryImpl& operator=(
-      const SafeBrowsingServiceFactoryImpl&) = delete;
-
  private:
   friend class base::NoDestructor<SafeBrowsingServiceFactoryImpl>;
 
   SafeBrowsingServiceFactoryImpl() {}
+
+  DISALLOW_COPY_AND_ASSIGN(SafeBrowsingServiceFactoryImpl);
 };
 
 SafeBrowsingServiceFactory* GetSafeBrowsingServiceFactory() {

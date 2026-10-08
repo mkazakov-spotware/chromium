@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -81,7 +81,7 @@ void GetPropertyCallback(dbus::MethodCall* method_call,
   dbus::MessageWriter array_writer(nullptr);
   writer.AppendBool(is_read_only);
   switch (values->which()) {
-    case ui::ozone::mojom::GesturePropValue::Tag::kInts: {
+    case ui::ozone::mojom::GesturePropValue::Tag::INTS: {
       writer.AppendUint32(values->get_ints().size());
       writer.OpenVariant("ai", &variant_writer);
       variant_writer.AppendArrayOfInt32s(values->get_ints().data(),
@@ -89,7 +89,7 @@ void GetPropertyCallback(dbus::MethodCall* method_call,
       writer.CloseContainer(&variant_writer);
       break;
     }
-    case ui::ozone::mojom::GesturePropValue::Tag::kShorts: {
+    case ui::ozone::mojom::GesturePropValue::Tag::SHORTS: {
       writer.AppendUint32(values->get_shorts().size());
       writer.OpenVariant("an", &variant_writer);
       variant_writer.OpenArray("n", &array_writer);
@@ -100,7 +100,7 @@ void GetPropertyCallback(dbus::MethodCall* method_call,
       writer.CloseContainer(&variant_writer);
       break;
     }
-    case ui::ozone::mojom::GesturePropValue::Tag::kBools: {
+    case ui::ozone::mojom::GesturePropValue::Tag::BOOLS: {
       writer.AppendUint32(values->get_bools().size());
       writer.OpenVariant("ab", &variant_writer);
       variant_writer.OpenArray("b", &array_writer);
@@ -111,12 +111,12 @@ void GetPropertyCallback(dbus::MethodCall* method_call,
       writer.CloseContainer(&variant_writer);
       break;
     }
-    case ui::ozone::mojom::GesturePropValue::Tag::kStr: {
+    case ui::ozone::mojom::GesturePropValue::Tag::STR: {
       writer.AppendUint32(1);
       writer.AppendVariantOfString(values->get_str());
       break;
     }
-    case ui::ozone::mojom::GesturePropValue::Tag::kReals: {
+    case ui::ozone::mojom::GesturePropValue::Tag::REALS: {
       writer.AppendUint32(values->get_reals().size());
       writer.OpenVariant("ad", &variant_writer);
       variant_writer.AppendArrayOfDoubles(values->get_reals().data(),

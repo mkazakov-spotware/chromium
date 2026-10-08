@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,8 @@ const uint16_t kWildcardPortNumber = 0;
 const uint16_t kInvalidPort = 65535;
 
 bool StartsOrEndsWithWhitespace(const std::string& str) {
-  return !str.empty() && (base::IsAsciiWhitespace(str.front()) ||
-                          base::IsAsciiWhitespace(str.back()));
+  return !str.empty() && (base::IsUnicodeWhitespace(str.front()) ||
+                          base::IsUnicodeWhitespace(str.back()));
 }
 
 }  // namespace

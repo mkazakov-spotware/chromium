@@ -1,8 +1,6 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "base/memory/raw_ptr.h"
 
 #import "chrome/browser/ui/cocoa/fullscreen/fullscreen_toolbar_controller.h"
 
@@ -38,10 +36,10 @@
   // The style of the fullscreen toolbar.
   FullscreenToolbarStyle _toolbarStyle;
 
-  raw_ptr<BrowserView> _browserView;  // weak
+  BrowserView* _browserView;  // weak
 }
 
-- (instancetype)initWithBrowserView:(BrowserView*)browserView {
+- (id)initWithBrowserView:(BrowserView*)browserView {
   if ((self = [super init])) {
     _browserView = browserView;
     _animationController =
@@ -56,8 +54,7 @@
 }
 
 - (void)enterFullscreenMode {
-  if (_inFullscreenMode)
-    return;
+  DCHECK(!_inFullscreenMode);
   _inFullscreenMode = YES;
 
   _menubarTracker.reset([[FullscreenMenubarTracker alloc]
@@ -67,8 +64,7 @@
 }
 
 - (void)exitFullscreenMode {
-  if (!_inFullscreenMode)
-    return;
+  DCHECK(_inFullscreenMode);
   _inFullscreenMode = NO;
 
   _animationController->StopAnimationAndTimer();

@@ -1,33 +1,37 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-source_set("test_support") {
-  testonly = true
+import("//media/media_options.gni")
 
-  visibility = [ "//media/cdm:unit_tests" ]
+if (enable_library_cdms) {
+  source_set("test_support") {
+    testonly = true
 
-  sources = [
-    "mock_library_cdm.cc",
-    "mock_library_cdm.h",
-  ]
+    visibility = [ "//media/cdm:unit_tests" ]
 
-  deps = [
-    ":cdm_host_proxy",
-    "//base",
-    "//media/cdm:cdm_api",
-    "//testing/gmock",
-  ]
-}
+    sources = [
+      "mock_library_cdm.cc",
+      "mock_library_cdm.h",
+    ]
 
-source_set("cdm_host_proxy") {
-  sources = [
-    "cdm_host_proxy.h",
-    "cdm_host_proxy_impl.h",
-  ]
+    deps = [
+      ":cdm_host_proxy",
+      "//base",
+      "//media/cdm:cdm_api",
+      "//testing/gmock",
+    ]
+  }
 
-  deps = [
-    "//base",
-    "//media/cdm:cdm_api",
-  ]
+  source_set("cdm_host_proxy") {
+    sources = [
+      "cdm_host_proxy.h",
+      "cdm_host_proxy_impl.h",
+    ]
+
+    deps = [
+      "//base",
+      "//media/cdm:cdm_api",
+    ]
+  }
 }

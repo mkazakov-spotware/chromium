@@ -1,15 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_TRACING_PUBLIC_CPP_TRACE_EVENT_AGENT_H_
 #define SERVICES_TRACING_PUBLIC_CPP_TRACE_EVENT_AGENT_H_
 
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "base/component_export.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -17,7 +19,6 @@
 #include "base/values.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/tracing/public/cpp/base_agent.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace tracing {
 
@@ -25,13 +26,10 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventAgent : public BaseAgent {
  public:
   static TraceEventAgent* GetInstance();
 
-  TraceEventAgent(const TraceEventAgent&) = delete;
-  TraceEventAgent& operator=(const TraceEventAgent&) = delete;
-
   void GetCategories(std::set<std::string>* category_set) override;
 
   using MetadataGeneratorFunction =
-      base::RepeatingCallback<absl::optional<base::Value::Dict>()>;
+      base::RepeatingCallback<std::unique_ptr<base::DictionaryValue>()>;
   void AddMetadataGeneratorFunction(MetadataGeneratorFunction generator);
 
  private:
@@ -46,6 +44,7 @@ class COMPONENT_EXPORT(TRACING_CPP) TraceEventAgent : public BaseAgent {
   std::vector<MetadataGeneratorFunction> metadata_generator_functions_;
 
   THREAD_CHECKER(thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(TraceEventAgent);
 };
 
 }  // namespace tracing

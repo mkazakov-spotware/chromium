@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,9 +59,8 @@ public final class ChildProcessLauncherTestUtils {
             @Override
             public ChildProcessLauncherHelperImpl call() {
                 return ChildProcessLauncherHelperImpl.createAndStartForTesting(commandLine,
-                        filesToBeMapped, sandboxed, false /* reducePriorityOnBackground */,
-                        true /* canUseWarmUpConnection */, null /* binderCallback */,
-                        doSetupConnection);
+                        filesToBeMapped, sandboxed, true /* canUseWarmUpConnection */,
+                        null /* binderCallback */, doSetupConnection);
             }
         });
     }

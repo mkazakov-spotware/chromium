@@ -25,10 +25,12 @@
 
 #include "third_party/blink/renderer/platform/audio/audio_utilities.h"
 #include "base/notreached.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "third_party/fdlibm/ieee754.h"
 
-namespace blink::audio_utilities {
+namespace blink {
+
+namespace audio_utilities {
 
 float DecibelsToLinear(float decibels) {
   return powf(10, 0.05f * decibels);
@@ -62,7 +64,7 @@ double DiscreteTimeConstantForSampleRate(double time_constant,
   // discrete time constant is
   //
   //   1 - exp(-1/(Fs*tau)
-  return 1 - fdlibm::exp(-1 / (sample_rate * time_constant));
+  return 1 - exp(-1 / (sample_rate * time_constant));
 }
 
 size_t TimeToSampleFrame(double time,
@@ -120,9 +122,9 @@ float MinAudioBufferSampleRate() {
 }
 
 float MaxAudioBufferSampleRate() {
-  // <video> tags support sample rates up 768 kHz so audio context
+  // <video> tags support sample rates up 384 kHz so audio context
   // should too.
-  return 768000;
+  return 384000;
 }
 
 bool IsPowerOfTwo(size_t x) {
@@ -132,4 +134,6 @@ bool IsPowerOfTwo(size_t x) {
   return x > 0 && ((x & (x - 1)) == 0);
 }
 
-}  // namespace blink::audio_utilities
+}  // namespace audio_utilities
+
+}  // namespace blink

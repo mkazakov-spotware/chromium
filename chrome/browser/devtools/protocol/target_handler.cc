@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/common/webui_url_constants.h"
 #include "content/public/browser/devtools_agent_host.h"
-#include "content/public/common/url_constants.h"
-#include "content/public/common/url_utils.h"
 
 namespace {
 NavigateParams CreateNavigateParams(Profile* profile,
@@ -38,9 +35,7 @@ NavigateParams CreateNavigateParams(Profile* profile,
 }
 }  // namespace
 
-TargetHandler::TargetHandler(protocol::UberDispatcher* dispatcher,
-                             bool is_trusted)
-    : is_trusted_(is_trusted) {
+TargetHandler::TargetHandler(protocol::UberDispatcher* dispatcher) {
   protocol::Target::Dispatcher::wire(dispatcher, this);
 }
 
@@ -79,7 +74,7 @@ protocol::Response TargetHandler::CreateTarget(
     protocol::Maybe<bool> new_window,
     protocol::Maybe<bool> background,
     std::string* out_target_id) {
-  Profile* profile = nullptr;
+  Profile* profile = ProfileManager::GetActiveUserProfile();
   if (browser_context_id.isJust()) {
     std::string profile_id = browser_context_id.fromJust();
     profile =
@@ -88,11 +83,7 @@ protocol::Response TargetHandler::CreateTarget(
       return protocol::Response::ServerError(
           "Failed to find browser context with id " + profile_id);
     }
-  } else {
-    profile = ProfileManager::GetLastUsedProfile();
-    DCHECK(profile);
   }
-
   bool create_new_window = new_window.fromMaybe(false);
   bool create_in_background = background.fromMaybe(false);
   Browser* target_browser = nullptr;
@@ -117,19 +108,9 @@ protocol::Response TargetHandler::CreateTarget(
         "no browser is open");
   }
 
-  GURL gurl(url);
-  if (gurl.is_empty()) {
-    gurl = GURL(url::kAboutBlankURL);
-  }
-
-  if (!is_trusted_ && gurl.SchemeIs(content::kChromeUIUntrustedScheme)) {
-    return protocol::Response::ServerError(
-        "Refusing to create a target with the specified URL");
-  }
-
   create_new_window = !target_browser;
   NavigateParams params = CreateNavigateParams(
-      profile, gurl, ui::PAGE_TRANSITION_AUTO_TOPLEVEL, create_new_window,
+      profile, GURL(url), ui::PAGE_TRANSITION_AUTO_TOPLEVEL, create_new_window,
       create_in_background, target_browser);
   Navigate(&params);
   if (!params.navigated_or_inserted_contents)

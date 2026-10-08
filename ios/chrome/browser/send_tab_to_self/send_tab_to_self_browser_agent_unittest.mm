@@ -1,18 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/send_tab_to_self/send_tab_to_self_browser_agent.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/bind.h"
-#import "base/strings/utf_string_conversions.h"
-#import "components/keyed_service/ios/browser_state_keyed_service_factory.h"
-#import "components/send_tab_to_self/send_tab_to_self_entry.h"
-#import "components/send_tab_to_self/send_tab_to_self_model.h"
-#import "components/send_tab_to_self/send_tab_to_self_sync_service.h"
-#import "components/send_tab_to_self/test_send_tab_to_self_model.h"
+#include "base/bind.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
+#include "components/send_tab_to_self/send_tab_to_self_entry.h"
+#include "components/send_tab_to_self/send_tab_to_self_model.h"
+#include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
+#include "components/send_tab_to_self/test_send_tab_to_self_model.h"
 #import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/infobars/infobar_manager_impl.h"
 #import "ios/chrome/browser/main/test_browser.h"
@@ -20,8 +20,8 @@
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web_state_list/web_state_opener.h"
 #import "ios/web/public/navigation/navigation_item.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "net/base/mac/url_conversions.h"
 #import "testing/gtest_mac.h"
@@ -45,6 +45,7 @@ class FakeSendTabToSelfModel : public send_tab_to_self::TestSendTabToSelfModel {
   const SendTabToSelfEntry* AddEntry(
       const GURL& url,
       const std::string& title,
+      base::Time navigation_time,
       const std::string& target_device_cache_guid) override {
     last_entry_ = SendTabToSelfEntry::FromRequiredFields(
         "test-guid", url, target_device_cache_guid);
@@ -112,32 +113,33 @@ class SendTabToSelfBrowserAgentTest : public PlatformTest {
             ->GetSendTabToSelfModel());
   }
 
-  web::FakeWebState* AppendNewWebState(const GURL& url) {
+  web::TestWebState* AppendNewWebState(const GURL& url) {
     return AppendNewWebState(url, WebStateList::INSERT_ACTIVATE,
                              /*is_visible=*/true);
   }
 
-  web::FakeWebState* AppendNewWebState(const GURL& url,
+  web::TestWebState* AppendNewWebState(const GURL& url,
                                        WebStateList::InsertionFlags flags,
                                        bool is_visible) {
-    auto fake_web_state = std::make_unique<web::FakeWebState>();
-    fake_web_state->SetCurrentURL(url);
+    auto test_web_state = std::make_unique<web::TestWebState>();
+    test_web_state->SetCurrentURL(url);
     // Create a navigation item to match the URL and give it a title.
     std::unique_ptr<web::NavigationItem> item = web::NavigationItem::Create();
     item->SetURL(url);
-    item->SetTitle(u"Page title");
-    auto navigation_manager = std::make_unique<web::FakeNavigationManager>();
+    item->SetTitle(base::UTF8ToUTF16("Page title"));
+    std::unique_ptr<web::TestNavigationManager> navigation_manager =
+        std::make_unique<web::TestNavigationManager>();
     navigation_manager->SetLastCommittedItem(item.get());
-    // Test nav manager doesn't own its items, so move `item` into the storage
+    // Test nav manager doesn't own its items, so move |item| into the storage
     // vector to define its lifetime.
     navigation_items_.push_back(std::move(item));
-    fake_web_state->SetNavigationManager(std::move(navigation_manager));
+    test_web_state->SetNavigationManager(std::move(navigation_manager));
 
     // Capture a pointer to the created web state to return.
-    web::FakeWebState* inserted_web_state = fake_web_state.get();
+    web::TestWebState* inserted_web_state = test_web_state.get();
     InfoBarManagerImpl::CreateForWebState(inserted_web_state);
     browser_->GetWebStateList()->InsertWebState(WebStateList::kInvalidIndex,
-                                                std::move(fake_web_state),
+                                                std::move(test_web_state),
                                                 flags, WebStateOpener());
 
     if (is_visible) {
@@ -158,6 +160,19 @@ class SendTabToSelfBrowserAgentTest : public PlatformTest {
   // All infobar managers created during tests, for ease of clean-up.
   std::vector<infobars::InfoBarManager*> infobar_managers_;
 };
+
+TEST_F(SendTabToSelfBrowserAgentTest, TestSimpleSendCurrentTab) {
+  AppendNewWebState(GURL("http://www.test.com/test-1"));
+  agent_->SendCurrentTabToDevice(@"device1");
+  EXPECT_EQ(GURL("http://www.test.com/test-1"),
+            model_->GetLastEntry()->GetURL());
+  EXPECT_EQ("device1", model_->GetLastEntry()->GetTargetDeviceSyncCacheGuid());
+}
+
+TEST_F(SendTabToSelfBrowserAgentTest, TestNoActiveWebState) {
+  agent_->SendCurrentTabToDevice(@"device1");
+  EXPECT_EQ(nullptr, model_->GetLastEntry());
+}
 
 TEST_F(SendTabToSelfBrowserAgentTest, TestRemoteAddSimple) {
   web::WebState* web_state = AppendNewWebState(GURL("http://www.blank.com"));

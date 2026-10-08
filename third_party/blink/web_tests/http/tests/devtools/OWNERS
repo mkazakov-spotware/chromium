@@ -1,3 +1,4 @@
+# TEAM: devtools-dev@chromium.org
 
 # Audits owners.
 per-file audits*=cjamcl@google.com

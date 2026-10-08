@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 #define REMOTING_PROTOCOL_INPUT_FILTER_H_
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/protocol/input_stub.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // Forwards input events to |input_stub|, if configured.  Input forwarding may
 // also be disabled independently of the |input_stub| being set.  InputFilters
@@ -18,10 +19,6 @@ class InputFilter : public InputStub {
  public:
   InputFilter();
   explicit InputFilter(InputStub* input_stub);
-
-  InputFilter(const InputFilter&) = delete;
-  InputFilter& operator=(const InputFilter&) = delete;
-
   ~InputFilter() override;
 
   // Set the InputStub that events will be forwarded to.
@@ -44,10 +41,13 @@ class InputFilter : public InputStub {
   void InjectTouchEvent(const TouchEvent& event) override;
 
  private:
-  raw_ptr<InputStub> input_stub_;
+  InputStub* input_stub_;
   bool enabled_;
+
+  DISALLOW_COPY_AND_ASSIGN(InputFilter);
 };
 
-}  // namespace remoting::protocol
+} // namespace protocol
+} // namespace remoting
 
 #endif // REMOTING_PROTOCOL_INPUT_FILTER_H_

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,11 @@ class PolicyData;
 
 }  // namespace enterprise_management
 
-namespace invalidation {
+namespace syncer {
 
 class Invalidation;
 
-}  // namespace invalidation
+}  // namespace syncer
 
 namespace policy {
 
@@ -27,12 +27,14 @@ namespace invalidation_timeouts {
 
 // Time for which unknown version invalidations are ignored after
 // fetching a policy or command.
-constexpr base::TimeDelta kUnknownVersionIgnorePeriod = base::Seconds(30);
+constexpr base::TimeDelta kUnknownVersionIgnorePeriod =
+    base::TimeDelta::FromSeconds(30);
 
 // The max tolerated discrepancy between policy or remote commands
 // timestamps and invalidation timestamps when determining if an invalidation
 // is expired.
-constexpr base::TimeDelta kMaxInvalidationTimeDelta = base::Seconds(300);
+constexpr base::TimeDelta kMaxInvalidationTimeDelta =
+    base::TimeDelta::FromSeconds(300);
 
 }  // namespace invalidation_timeouts
 
@@ -45,22 +47,22 @@ constexpr base::TimeDelta kMaxInvalidationTimeDelta = base::Seconds(300);
 // addressed to topic "DeviceGuestModeEnabled". But if 2 clients with different
 // users subscribe to private topic "BOOKMARK", they will receive different set
 // of messages addressed to pair ("BOOKMARK", GAIA ID) respectievely.
-bool IsPublicInvalidationTopic(const invalidation::Topic& topic);
+bool IsPublicInvalidationTopic(const syncer::Topic& topic);
 
 // Returns true if |policy| has data about policy to invalidate, and saves
 // that data in |topic|, and false otherwise.
 bool GetCloudPolicyTopicFromPolicy(
     const enterprise_management::PolicyData& policy,
-    invalidation::Topic* topic);
+    syncer::Topic* topic);
 
 // The same as GetCloudPolicyTopicFromPolicy but gets the |topic| for
 // remote command.
 bool GetRemoteCommandTopicFromPolicy(
     const enterprise_management::PolicyData& policy,
-    invalidation::Topic* topic);
+    syncer::Topic* topic);
 
 // Determines if an invalidation is expired.
-bool IsInvalidationExpired(const invalidation::Invalidation& invalidation,
+bool IsInvalidationExpired(const syncer::Invalidation& invalidation,
                            const base::Time& last_fetch_time,
                            const base::Time& current_time);
 

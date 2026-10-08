@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -125,10 +125,11 @@ enum LightType {
 };
 
 // Copied from SkVertices.cpp.
-using VerticesConstants = int;
-constexpr VerticesConstants kMode_Mask = 0x0FF;
-constexpr VerticesConstants kHasTexs_Mask = 0x100;
-constexpr VerticesConstants kHasColors_Mask = 0x200;
+enum VerticesConstants {
+  kMode_Mask = 0x0FF,
+  kHasTexs_Mask = 0x100,
+  kHasColors_Mask = 0x200,
+};
 
 // Copied from SerializationOffsets in SkPath.h. Named PathSerializationOffsets
 // to avoid conflicting with PathRefSerializationOffsets. Both enums were named
@@ -1302,7 +1303,7 @@ void Converter::Visit(const PathRef& path_ref) {
           break;
         case ValidVerb::kConic_Verb:
           num_conics += 1;
-          [[fallthrough]];
+          FALLTHROUGH;
         case ValidVerb::kQuad_Verb:
           num_points += 2;
           break;

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "ui/views/view.h"
 
 OmniboxMouseEnterExitHandler::OmniboxMouseEnterExitHandler(
-    base::RepeatingClosure enter_exit_callback)
+    base::Closure enter_exit_callback)
     : enter_exit_callback_(enter_exit_callback) {}
 
 OmniboxMouseEnterExitHandler::~OmniboxMouseEnterExitHandler() {

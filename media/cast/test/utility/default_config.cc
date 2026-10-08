@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,21 @@
 #include "media/cast/constants.h"
 #include "media/cast/net/cast_transport_config.h"
 
+namespace {
+
+void CreateVideoEncodeAccelerator(
+    const media::cast::ReceiveVideoEncodeAcceleratorCallback& callback) {
+  // Do nothing.
+}
+
+void CreateVideoEncodeMemory(
+    size_t size,
+    const media::cast::ReceiveVideoEncodeMemoryCallback& callback) {
+  // Do nothing.
+}
+
+}  // namespace
+
 namespace media {
 namespace cast {
 
@@ -18,7 +33,7 @@ FrameReceiverConfig GetDefaultAudioReceiverConfig() {
   FrameReceiverConfig config;
   config.receiver_ssrc = 2;
   config.sender_ssrc = 1;
-  config.rtp_max_delay_ms = kDefaultTargetPlayoutDelay.InMilliseconds();
+  config.rtp_max_delay_ms = kDefaultRtpMaxDelayMs;
   config.rtp_payload_type = RtpPayloadType::AUDIO_OPUS;
   config.rtp_timebase = 48000;
   config.channels = 2;
@@ -31,7 +46,7 @@ FrameReceiverConfig GetDefaultVideoReceiverConfig() {
   FrameReceiverConfig config;
   config.receiver_ssrc = 12;
   config.sender_ssrc = 11;
-  config.rtp_max_delay_ms = kDefaultTargetPlayoutDelay.InMilliseconds();
+  config.rtp_max_delay_ms = kDefaultRtpMaxDelayMs;
   config.rtp_payload_type = RtpPayloadType::VIDEO_VP8;
   config.rtp_timebase = kVideoFrequency;
   config.channels = 1;
@@ -46,7 +61,7 @@ FrameSenderConfig GetDefaultAudioSenderConfig() {
   config.sender_ssrc = recv_config.sender_ssrc;
   config.receiver_ssrc = recv_config.receiver_ssrc;
   config.rtp_payload_type = recv_config.rtp_payload_type;
-  config.use_hardware_encoder = false;
+  config.use_external_encoder = false;
   config.rtp_timebase = recv_config.rtp_timebase;
   config.channels = recv_config.channels;
   config.max_bitrate = config.min_bitrate = config.start_bitrate =
@@ -62,7 +77,7 @@ FrameSenderConfig GetDefaultVideoSenderConfig() {
   config.sender_ssrc = recv_config.sender_ssrc;
   config.receiver_ssrc = recv_config.receiver_ssrc;
   config.rtp_payload_type = recv_config.rtp_payload_type;
-  config.use_hardware_encoder = false;
+  config.use_external_encoder = false;
   config.rtp_timebase = recv_config.rtp_timebase;
   config.max_bitrate = kDefaultMaxVideoBitrate;
   config.min_bitrate = kDefaultMinVideoBitrate;
@@ -76,6 +91,15 @@ FrameSenderConfig GetDefaultVideoSenderConfig() {
       kDefaultNumberOfVideoBuffers;
   config.video_codec_params.number_of_encode_threads = 2;
   return config;
+}
+
+CreateVideoEncodeAcceleratorCallback
+CreateDefaultVideoEncodeAcceleratorCallback() {
+  return base::Bind(&CreateVideoEncodeAccelerator);
+}
+
+CreateVideoEncodeMemoryCallback CreateDefaultVideoEncodeMemoryCallback() {
+  return base::Bind(&CreateVideoEncodeMemory);
 }
 
 }  // namespace cast

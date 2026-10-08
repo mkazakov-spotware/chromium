@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #include <stddef.h>
 
-#include "base/containers/contains.h"
 #include "base/hash/sha1.h"
 #include "base/metrics/histogram.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "chrome/common/chrome_content_client.h"
@@ -46,12 +46,12 @@ const char* const kPredefinedAllowedUMAOrigins[] = {
     "97B23E01B2AA064E8332EE43A7A85C628AADC3F2",  // see http://crbug.com/521189
 };
 
-const char* const kAllowedHistogramPrefixes[] = {
+const char* const kWhitelistedHistogramPrefixes[] = {
     "22F67DA2061FFC4DC9A4974036348D9C38C22919",  // see http://crbug.com/390221
     "3FEA4650221C5E6C39CF5C5C9F464FF74EAB6CE1",  // see http://crbug.com/521189
 };
 
-const base::FilePath::CharType* const kAllowedPluginBaseNames[] = {
+const base::FilePath::CharType* const kWhitelistedPluginBaseNames[] = {
     ChromeContentClient::kPDFPluginPath,
 };
 
@@ -75,12 +75,12 @@ PepperUMAHost::PepperUMAHost(content::RendererPpapiHost* host,
         host->GetPluginInstance(instance)->GetModulePath().BaseName();
   }
 
-  for (size_t i = 0; i < std::size(kPredefinedAllowedUMAOrigins); ++i)
+  for (size_t i = 0; i < base::size(kPredefinedAllowedUMAOrigins); ++i)
     allowed_origins_.insert(kPredefinedAllowedUMAOrigins[i]);
-  for (size_t i = 0; i < std::size(kAllowedHistogramPrefixes); ++i)
-    allowed_histogram_prefixes_.insert(kAllowedHistogramPrefixes[i]);
-  for (size_t i = 0; i < std::size(kAllowedPluginBaseNames); ++i)
-    allowed_plugin_base_names_.insert(kAllowedPluginBaseNames[i]);
+  for (size_t i = 0; i < base::size(kWhitelistedHistogramPrefixes); ++i)
+    allowed_histogram_prefixes_.insert(kWhitelistedHistogramPrefixes[i]);
+  for (size_t i = 0; i < base::size(kWhitelistedPluginBaseNames); ++i)
+    allowed_plugin_base_names_.insert(kWhitelistedPluginBaseNames[i]);
 }
 
 PepperUMAHost::~PepperUMAHost() {}
@@ -101,9 +101,9 @@ int32_t PepperUMAHost::OnResourceMessageReceived(
   return PP_ERROR_FAILED;
 }
 
-bool PepperUMAHost::IsPluginAllowed() {
+bool PepperUMAHost::IsPluginWhitelisted() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  return ChromeContentRendererClient::IsExtensionOrSharedModuleAllowed(
+  return ChromeContentRendererClient::IsExtensionOrSharedModuleWhitelisted(
       document_url_, allowed_origins_);
 #else
   return false;
@@ -116,7 +116,7 @@ bool PepperUMAHost::IsHistogramAllowed(const std::string& histogram) {
     return true;
   }
 
-  if (IsPluginAllowed() &&
+  if (IsPluginWhitelisted() &&
       base::Contains(allowed_histogram_prefixes_, HashPrefix(histogram))) {
     return true;
   }
@@ -147,12 +147,15 @@ int32_t PepperUMAHost::OnHistogramCustomTimes(
   RETURN_IF_BAD_ARGS(min, max, bucket_count);
 
   base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
-      name, base::Milliseconds(min), base::Milliseconds(max), bucket_count,
+      name,
+      base::TimeDelta::FromMilliseconds(min),
+      base::TimeDelta::FromMilliseconds(max),
+      bucket_count,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   // The histogram can be NULL if it is constructed with bad arguments.  Ignore
   // that data for this API.  An error message will be logged.
   if (counter)
-    counter->AddTime(base::Milliseconds(sample));
+    counter->AddTime(base::TimeDelta::FromMilliseconds(sample));
   return PP_OK;
 }
 
@@ -206,7 +209,7 @@ int32_t PepperUMAHost::OnHistogramEnumeration(
 
 int32_t PepperUMAHost::OnIsCrashReportingEnabled(
     ppapi::host::HostMessageContext* context) {
-  if (!IsPluginAllowed())
+  if (!IsPluginWhitelisted())
     return PP_ERROR_NOACCESS;
   bool enabled = false;
   mojo::Remote<chrome::mojom::MetricsService> metrics_service;

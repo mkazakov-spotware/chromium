@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,6 @@ class COMPONENT_EXPORT(VULKAN_WIN32) VulkanImplementationWin32
     : public VulkanImplementation {
  public:
   explicit VulkanImplementationWin32(bool use_swiftshader);
-
-  VulkanImplementationWin32(const VulkanImplementationWin32&) = delete;
-  VulkanImplementationWin32& operator=(const VulkanImplementationWin32&) =
-      delete;
-
   ~VulkanImplementationWin32() override;
 
   // VulkanImplementation:
@@ -44,17 +39,17 @@ class COMPONENT_EXPORT(VULKAN_WIN32) VulkanImplementationWin32
                                      VkSemaphore vk_semaphore) override;
   VkExternalMemoryHandleTypeFlagBits GetExternalImageHandleType() override;
   bool CanImportGpuMemoryBuffer(
-      VulkanDeviceQueue* device_queue,
       gfx::GpuMemoryBufferType memory_buffer_type) override;
   std::unique_ptr<VulkanImage> CreateImageFromGpuMemoryHandle(
       VulkanDeviceQueue* device_queue,
       gfx::GpuMemoryBufferHandle gmb_handle,
       gfx::Size size,
-      VkFormat vk_format,
-      const gfx::ColorSpace& color_space) override;
+      VkFormat vk_formae) override;
 
  private:
   VulkanInstance vulkan_instance_;
+
+  DISALLOW_COPY_AND_ASSIGN(VulkanImplementationWin32);
 };
 
 }  // namespace gpu

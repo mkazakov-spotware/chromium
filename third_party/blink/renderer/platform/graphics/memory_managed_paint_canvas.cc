@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,22 +6,21 @@
 
 namespace blink {
 
-MemoryManagedPaintCanvas::MemoryManagedPaintCanvas(cc::DisplayItemList* list,
-                                                   const gfx::Size& size,
-                                                   Client* client)
-    : InspectableRecordPaintCanvas(list, size), client_(client) {
-  DCHECK(client);
-}
+MemoryManagedPaintCanvas::MemoryManagedPaintCanvas(
+    cc::DisplayItemList* list,
+    const SkRect& bounds,
+    base::RepeatingClosure set_needs_flush_callback)
+    : RecordPaintCanvas(list, bounds),
+      set_needs_flush_callback_(std::move(set_needs_flush_callback)) {}
 
 MemoryManagedPaintCanvas::~MemoryManagedPaintCanvas() = default;
 
 void MemoryManagedPaintCanvas::drawImage(const cc::PaintImage& image,
                                          SkScalar left,
                                          SkScalar top,
-                                         const SkSamplingOptions& sampling,
                                          const cc::PaintFlags* flags) {
   DCHECK(!image.IsPaintWorklet());
-  InspectableRecordPaintCanvas::drawImage(image, left, top, sampling, flags);
+  RecordPaintCanvas::drawImage(image, left, top, flags);
   UpdateMemoryUsage(image);
 }
 
@@ -29,11 +28,9 @@ void MemoryManagedPaintCanvas::drawImageRect(
     const cc::PaintImage& image,
     const SkRect& src,
     const SkRect& dst,
-    const SkSamplingOptions& sampling,
     const cc::PaintFlags* flags,
     SkCanvas::SrcRectConstraint constraint) {
-  InspectableRecordPaintCanvas::drawImageRect(image, src, dst, sampling, flags,
-                                              constraint);
+  RecordPaintCanvas::drawImageRect(image, src, dst, flags, constraint);
   UpdateMemoryUsage(image);
 }
 
@@ -42,7 +39,10 @@ void MemoryManagedPaintCanvas::UpdateMemoryUsage(const cc::PaintImage& image) {
     return;
 
   cached_image_ids_.insert(image.GetContentIdForFrame(0u));
-  client_->DidPinImage(image.GetSkImageInfo().computeMinByteSize());
+  total_stored_image_memory_ += image.GetSkImageInfo().computeMinByteSize();
+
+  if (total_stored_image_memory_ > kMaxPinnedMemory)
+    set_needs_flush_callback_.Run();
 }
 
 bool MemoryManagedPaintCanvas::IsCachingImage(

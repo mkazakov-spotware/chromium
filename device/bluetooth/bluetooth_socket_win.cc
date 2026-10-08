@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,11 @@
 #include "base/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "device/bluetooth/bluetooth_device_win.h"
 #include "device/bluetooth/bluetooth_init_win.h"
@@ -72,7 +72,7 @@ struct BluetoothSocketWin::ServiceRegData {
   SOCKADDR_BTH address;
   CSADDR_INFO address_info;
   GUID uuid;
-  std::u16string name;
+  base::string16 name;
   WSAQUERYSET service;
 };
 
@@ -298,8 +298,9 @@ void BluetoothSocketWin::DoListen(const BluetoothUUID& uuid,
   reg_data->address_info.iSocketType = SOCK_STREAM;
   reg_data->address_info.iProtocol = BTHPROTO_RFCOMM;
 
-  std::u16string cannonical_uuid =
-      u"{" + base::ASCIIToUTF16(uuid.canonical_value()) + u"}";
+  base::string16 cannonical_uuid = STRING16_LITERAL("{") +
+                                   base::ASCIIToUTF16(uuid.canonical_value()) +
+                                   STRING16_LITERAL("}");
   if (!SUCCEEDED(
           CLSIDFromString(base::as_wcstr(cannonical_uuid), &reg_data->uuid))) {
     LOG(WARNING) << "Failed to start service: "
@@ -333,17 +334,15 @@ void BluetoothSocketWin::DoListen(const BluetoothUUID& uuid,
 void BluetoothSocketWin::DoAccept(AcceptCompletionCallback success_callback,
                                   ErrorCompletionCallback error_callback) {
   DCHECK(socket_thread()->task_runner()->RunsTasksInCurrentSequence());
-  auto split_error_callback =
-      base::SplitOnceCallback(std::move(error_callback));
+  auto copyable_error_callback =
+      base::AdaptCallbackForRepeating(std::move(error_callback));
   int result = tcp_socket()->Accept(
       &accept_socket_, &accept_address_,
       base::BindOnce(&BluetoothSocketWin::OnAcceptOnSocketThread, this,
-                     std::move(success_callback),
-                     std::move(split_error_callback.first)));
+                     std::move(success_callback), copyable_error_callback));
   if (result != net::OK && result != net::ERR_IO_PENDING) {
     LOG(WARNING) << "Failed to accept, net err=" << result;
-    PostErrorCompletion(std::move(split_error_callback.second),
-                        kFailedToAccept);
+    PostErrorCompletion(copyable_error_callback, kFailedToAccept);
   }
 }
 

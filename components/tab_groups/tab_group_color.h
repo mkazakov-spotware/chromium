@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 
 #include <stddef.h>
 #include <map>
-#include <string>
 
 #include "base/component_export.h"
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "third_party/skia/include/core/SkColor.h"
 
 namespace tab_groups {
@@ -19,18 +20,13 @@ namespace tab_groups {
 // These values are written to and read from disk for session and tab restore.
 //
 // Any changes to the tab group color set should be made in the map returned by
-// GetTabGroupColorLabelMap(). The set of valid colors is contained in the keys
-// of that map. Do not add or delete items in this enum without also reflecting
-// that change in the map.
+// GetColorSet(). The set of valid colors is contained in the keys of that map.
+// Do not add or delete items in this enum without also reflecting that change
+// in the map.
 //
 // Any code that reads an enum value from disk should check it against the map
-// from GetTabGroupColorLabelMap(). If the value is not contained in the map's
-// keys, default to kGrey.
-//
-// Additionally, any colors added here will also be used in
-// chrome/browser/resources/tab_search/tab_group_color_helper.ts. As such these
-// colors should be kept in sync. Ex: Adding orange in this file,
-// requires adding orange in the other file.
+// from GetColorSet(). If the value is not contained in the map's keys, default
+// to kGrey.
 enum class TabGroupColorId {
   kGrey = 0,
   kBlue = 1,
@@ -40,11 +36,10 @@ enum class TabGroupColorId {
   kPink = 5,
   kPurple = 6,
   kCyan = 7,
-  kOrange = 8,
-  // Next value: 9
+  // Next value: 8
 };
 
-using ColorLabelMap = base::flat_map<TabGroupColorId, std::u16string>;
+using ColorLabelMap = base::flat_map<TabGroupColorId, base::string16>;
 
 // Returns a map of TabGroupColorIds to their string labels.
 // When reading color IDs from disk, always verify against the keys in this

@@ -1,22 +1,20 @@
 /*
- * Copyright 2017 The Chromium Authors
+ * Copyright 2017 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 /**
- * Launches the PaymentRequest UI with Bob Pay and optionally
- * 'basic-card' as payment methods, and Bob Pay modifier.
- * @param {boolean} useBasicCard - Whether basic-card payment method should be
- * used in PaymentRequest as well.
+ * Launches the PaymentRequest UI with Bob Pay and 'basic-card' as
+ * payment methods, and Bob Pay modifier.
  */
-function buyWithBasicCard(useBasicCard) {
-  let methodData = [{supportedMethods: 'https://bobpay.com'}];
-  if (useBasicCard) {
-    methodData.push({supportedMethods: 'basic-card'});
-  }
+function buy() { // eslint-disable-line no-unused-vars
   try {
-    new PaymentRequest(methodData,
+    new PaymentRequest(
+        [
+          {supportedMethods: 'https://bobpay.com'},
+          {supportedMethods: 'basic-card'},
+        ],
         {
           total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
           modifiers: [{
@@ -53,26 +51,10 @@ function buyWithBasicCard(useBasicCard) {
 }
 
 /**
- * Launches the PaymentRequest UI with Bob Pay and 'basic-card' as
- * payment methods, and Bob Pay modifier.
- */
-function buy() {
-  buyWithBasicCard(true);
-}
-
-/**
- * Launches the PaymentRequest UI with Bob Pay as
- * the payment method and Bob Pay modifier.
- */
-function buyWithBobPay() {
-  buyWithBasicCard(false);
-}
-
-/**
  * Launches the PaymentRequest UI with 'basic-card' payment method and
  * all cards modifier.
  */
-function buyWithAllCardsModifier() {
+function buyWithAllCardsModifier() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest([{supportedMethods: 'basic-card'}], {
       total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
@@ -111,7 +93,7 @@ function buyWithAllCardsModifier() {
  * Launches the PaymentRequest UI with 'basic-card' as payment method and
  * visa card modifier.
  */
-function buyWithVisaModifier() {
+function buyWithVisaModifier() { // eslint-disable-line no-unused-vars
   try {
     new PaymentRequest(
         [{
@@ -160,7 +142,7 @@ function buyWithVisaModifier() {
  * @param {Object} options The list of requested paymentOptions.
  * @return {string} The 'success' or error message.
  */
-function paymentRequestWithOptions(options) {
+function paymentRequestWithOptions(options) { // eslint-disable-line no-unused-vars, max-len
   try {
     const request = new PaymentRequest(
         [
@@ -191,7 +173,7 @@ function paymentRequestWithOptions(options) {
  * Launches the PaymentRequest UI with 'basic-card' and 'bobpay' as payment
  * methods and shipping address requested.
  */
-function buyWithShippingRequested() {
+function buyWithShippingRequested() { // eslint-disable-line no-unused-vars
   paymentRequestWithOptions({requestShipping: true, requestPayerName: false,
       requestPayerEmail: false, requestPayerPhone: false});
 }
@@ -200,7 +182,7 @@ function buyWithShippingRequested() {
  * Launches the PaymentRequest UI with 'basic-card' and 'bobpay' as payment
  * methods and payer's contact details requested.
  */
-function buyWithContactRequested() {
+function buyWithContactRequested() { // eslint-disable-line no-unused-vars
   paymentRequestWithOptions({requestPayerName: true, requestPayerEmail: true,
       requestPayerPhone: true});
 }
@@ -209,7 +191,7 @@ function buyWithContactRequested() {
  * Launches the PaymentRequest UI with 'basic-card' and 'bobpay' as payment
  * methods and both shipping address and payer's contact details requested.
  */
-function buyWithShippingAndContactRequested() {
+function buyWithShippingAndContactRequested() { // eslint-disable-line no-unused-vars, max-len
   paymentRequestWithOptions({requestShipping: true, requestPayerName: true,
       requestPayerEmail: true, requestPayerPhone: true});
 }

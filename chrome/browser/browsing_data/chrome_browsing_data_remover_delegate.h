@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,12 @@
 #include <memory>
 
 #include "base/callback_forward.h"
-#include "base/cancelable_callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/synchronization/waitable_event_watcher.h"
 #include "base/task/cancelable_task_tracker.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/buildflags.h"
 #include "components/browsing_data/core/browsing_data_utils.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -23,19 +21,13 @@
 #include "components/offline_pages/core/offline_page_model.h"
 #include "content/public/browser/browsing_data_remover.h"
 #include "content/public/browser/browsing_data_remover_delegate.h"
-#include "device/fido/platform_credential_store.h"
 #include "extensions/buildflags/buildflags.h"
 #include "media/media_buildflags.h"
 #include "ppapi/buildflags/buildflags.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
 class Profile;
-class ScopedProfileKeepAlive;
 class WebappRegistry;
-
-namespace base {
-class WaitableEvent;
-}
 
 namespace content {
 class BrowserContext;
@@ -49,16 +41,128 @@ class WebRtcEventLogManager;
 // as the embedder.
 class ChromeBrowsingDataRemoverDelegate
     : public content::BrowsingDataRemoverDelegate,
-      public KeyedService {
+      public KeyedService
+{
  public:
+  // This is an extension of content::BrowsingDataRemover::RemoveDataMask which
+  // includes all datatypes therefrom and adds additional Chrome-specific ones.
+  enum DataType : uint64_t {
+    // Embedder can start adding datatypes after the last platform datatype.
+    DATA_TYPE_EMBEDDER_BEGIN =
+        content::BrowsingDataRemover::DATA_TYPE_CONTENT_END << 1,
+
+    // Chrome-specific datatypes.
+    DATA_TYPE_HISTORY = DATA_TYPE_EMBEDDER_BEGIN,
+    DATA_TYPE_FORM_DATA = DATA_TYPE_EMBEDDER_BEGIN << 1,
+    DATA_TYPE_PASSWORDS = DATA_TYPE_EMBEDDER_BEGIN << 2,
+    DATA_TYPE_PLUGIN_DATA = DATA_TYPE_EMBEDDER_BEGIN << 3,
+#if defined(OS_ANDROID)
+    DATA_TYPE_WEB_APP_DATA = DATA_TYPE_EMBEDDER_BEGIN << 4,
+#endif
+    DATA_TYPE_SITE_USAGE_DATA = DATA_TYPE_EMBEDDER_BEGIN << 5,
+    DATA_TYPE_DURABLE_PERMISSION = DATA_TYPE_EMBEDDER_BEGIN << 6,
+    DATA_TYPE_EXTERNAL_PROTOCOL_DATA = DATA_TYPE_EMBEDDER_BEGIN << 7,
+    DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY = DATA_TYPE_EMBEDDER_BEGIN << 8,
+    DATA_TYPE_CONTENT_SETTINGS = DATA_TYPE_EMBEDDER_BEGIN << 9,
+    DATA_TYPE_BOOKMARKS = DATA_TYPE_EMBEDDER_BEGIN << 10,
+    DATA_TYPE_ISOLATED_ORIGINS = DATA_TYPE_EMBEDDER_BEGIN << 11,
+    DATA_TYPE_ACCOUNT_PASSWORDS = DATA_TYPE_EMBEDDER_BEGIN << 12,
+    DATA_TYPE_LOCAL_CUSTOM_DICTIONARY = DATA_TYPE_EMBEDDER_BEGIN << 13,
+
+    // Group datatypes.
+
+    // "Site data" includes storage backend accessible to websites and some
+    // additional metadata kept by the browser (e.g. site usage data).
+    DATA_TYPE_SITE_DATA =
+        content::BrowsingDataRemover::DATA_TYPE_COOKIES |
+        content::BrowsingDataRemover::DATA_TYPE_DOM_STORAGE |
+        content::BrowsingDataRemover::DATA_TYPE_MEDIA_LICENSES |
+        DATA_TYPE_PLUGIN_DATA |
+#if defined(OS_ANDROID)
+        DATA_TYPE_WEB_APP_DATA |
+#endif
+        DATA_TYPE_SITE_USAGE_DATA | DATA_TYPE_DURABLE_PERMISSION |
+        DATA_TYPE_EXTERNAL_PROTOCOL_DATA | DATA_TYPE_ISOLATED_ORIGINS |
+        content::BrowsingDataRemover::DATA_TYPE_TRUST_TOKENS |
+        content::BrowsingDataRemover::DATA_TYPE_CONVERSIONS,
+
+    // Datatypes protected by Important Sites.
+    IMPORTANT_SITES_DATA_TYPES =
+        DATA_TYPE_SITE_DATA | content::BrowsingDataRemover::DATA_TYPE_CACHE,
+
+    // Datatypes that can be deleted partially per URL / origin / domain,
+    // whichever makes sense.
+    FILTERABLE_DATA_TYPES = DATA_TYPE_SITE_DATA |
+                            content::BrowsingDataRemover::DATA_TYPE_CACHE |
+                            content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS,
+
+    // Datatypes with account-scoped data that needs to be removed
+    // before Google cookies are deleted.
+    DEFERRED_COOKIE_DELETION_DATA_TYPES = DATA_TYPE_ACCOUNT_PASSWORDS,
+
+    // Includes all the available remove options. Meant to be used by clients
+    // that wish to wipe as much data as possible from a Profile, to make it
+    // look like a new Profile. Does not delete account-scoped data like
+    // passwords but will remove access to account-scoped data by signing the
+    // user out.
+
+    ALL_DATA_TYPES = DATA_TYPE_SITE_DATA |  //
+                     content::BrowsingDataRemover::DATA_TYPE_CACHE |
+                     content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS |
+                     DATA_TYPE_FORM_DATA |         //
+                     DATA_TYPE_HISTORY |           //
+                     DATA_TYPE_PASSWORDS |         //
+                     DATA_TYPE_CONTENT_SETTINGS |  //
+                     DATA_TYPE_BOOKMARKS |         //
+                     DATA_TYPE_LOCAL_CUSTOM_DICTIONARY,
+
+    // Includes all available remove options. Meant to be used when the Profile
+    // is scheduled to be deleted, and all possible data should be wiped from
+    // disk as soon as possible.
+    WIPE_PROFILE =
+        ALL_DATA_TYPES | content::BrowsingDataRemover::DATA_TYPE_NO_CHECKS,
+  };
+
+  // This is an extension of content::BrowsingDataRemover::OriginType which
+  // includes all origin types therefrom and adds additional Chrome-specific
+  // ones.
+  enum OriginType : uint64_t {
+    // Embedder can start adding origin types after the last
+    // platform origin type.
+    ORIGIN_TYPE_EMBEDDER_BEGIN =
+        content::BrowsingDataRemover::ORIGIN_TYPE_CONTENT_END << 1,
+
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+    // Packaged apps and extensions (chrome-extension://*).
+    ORIGIN_TYPE_EXTENSION = ORIGIN_TYPE_EMBEDDER_BEGIN,
+#endif
+
+    // All origin types.
+    ALL_ORIGIN_TYPES =
+        content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB |
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+        ORIGIN_TYPE_EXTENSION |
+#endif
+        content::BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB,
+  };
+
+  // Important sites protect a small set of sites from the deletion of certain
+  // datatypes. Therefore, those datatypes must be filterable by
+  // url/origin/domain.
+  static_assert((IMPORTANT_SITES_DATA_TYPES & ~FILTERABLE_DATA_TYPES) == 0,
+                "All important sites datatypes must be filterable.");
+
+  static_assert((DEFERRED_COOKIE_DELETION_DATA_TYPES & FILTERABLE_DATA_TYPES) ==
+                    0,
+                "Deferred deletion is currently not implemented for filterable "
+                "data types");
+
+  static_assert((DEFERRED_COOKIE_DELETION_DATA_TYPES & WIPE_PROFILE) == 0,
+                "Account data should not be included in deletions that remove "
+                "all local data");
+
   explicit ChromeBrowsingDataRemoverDelegate(
       content::BrowserContext* browser_context);
-
-  ChromeBrowsingDataRemoverDelegate(const ChromeBrowsingDataRemoverDelegate&) =
-      delete;
-  ChromeBrowsingDataRemoverDelegate& operator=(
-      const ChromeBrowsingDataRemoverDelegate&) = delete;
-
   ~ChromeBrowsingDataRemoverDelegate() override;
 
   // KeyedService:
@@ -78,10 +182,8 @@ class ChromeBrowsingDataRemoverDelegate
       uint64_t origin_type_mask,
       base::OnceCallback<void(/*failed_data_types=*/uint64_t)> callback)
       override;
-  void OnStartRemoving() override;
-  void OnDoneRemoving() override;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void OverrideWebappRegistryForTesting(
       std::unique_ptr<WebappRegistry> webapp_registry);
 #endif
@@ -98,9 +200,7 @@ class ChromeBrowsingDataRemoverDelegate
 
   // For debugging purposes. Please add new deletion tasks at the end.
   // This enum is recorded in a histogram, so don't change or reuse ids.
-  // Entries must also be added to ChromeBrowsingDataRemoverTasks in enums.xml
-  // and History.ClearBrowsingData.Duration.ChromeTask.{Task}
-  // in histograms/metadata/history/histograms.xml.
+  // Entries must also be added to ChromeBrowsingDataRemoverTasks in enums.xml.
   enum class TracingDataType {
     kSynchronous = 1,
     kHistory = 2,
@@ -110,7 +210,7 @@ class ChromeBrowsingDataRemoverDelegate
     kAutofillData = 6,
     kAutofillOrigins = 7,
     kPluginData = 8,
-    // kFlashLsoHelper = 9, deprecated
+    kFlashLsoHelper = 9,  // deprecated
     kDomainReliability = 10,
     kNetworkPredictor = 11,
     kWebrtcLogs = 12,
@@ -125,15 +225,15 @@ class ChromeBrowsingDataRemoverDelegate
     kNetworkErrorLogging = 21,
     kFlashDeauthorization = 22,
     kOfflinePages = 23,
-    // kPrecache = 24, deprecated
+    kPrecache = 24,
     kExploreSites = 25,
     kLegacyStrikes = 26,
     kWebrtcEventLogs = 27,
-    kCdmLicenses = 28,
+    kDrmLicenses = 28,
     kHostCache = 29,
     kTpmAttestationKeys = 30,
     kStrikes = 31,
-    // kLeakedCredentials = 32, deprecated
+    kLeakedCredentials = 32,  // deprecated
     kFieldInfo = 33,
     kCompromisedCredentials = 34,
     kUserDataSnapshot = 35,
@@ -141,21 +241,8 @@ class ChromeBrowsingDataRemoverDelegate
     kAccountPasswords = 37,
     kAccountPasswordsSynced = 38,
     kAccountCompromisedCredentials = 39,
-    kFaviconCacheExpiration = 40,
-    kSecurePaymentConfirmationCredentials = 41,
-    kWebAppHistory = 42,
-    kWebAuthnCredentials = 43,
-    kWebrtcVideoPerfHistory = 44,
-
-    // Please update ChromeBrowsingDataRemoverTasks in enums.xml and
-    // History.ClearBrowsingData.Duration.ChromeTask.{Task}
-    // in histograms/metadata/history/histograms.xml when adding entries!
-    kMaxValue = kWebrtcVideoPerfHistory,
+    kMaxValue = kAccountCompromisedCredentials,
   };
-
-  // Returns the suffix for the
-  // History.ClearBrowsingData.Duration.ChromeTask.{Task} histogram
-  const char* GetHistogramSuffix(TracingDataType task);
 
   // Called by CreateTaskCompletionClosure().
   void OnTaskStarted(TracingDataType data_type);
@@ -164,7 +251,6 @@ class ChromeBrowsingDataRemoverDelegate
   // Checks if all tasks have completed, and if so, calls callback_.
   void OnTaskComplete(TracingDataType data_type,
                       uint64_t data_type_mask,
-                      base::TimeTicks started,
                       bool success);
 
   // Increments the number of pending tasks by one, and returns a OnceClosure
@@ -190,7 +276,7 @@ class ChromeBrowsingDataRemoverDelegate
   // A helper method that checks if time period is for "all time".
   bool IsForAllTime() const;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   void OnClearPlatformKeys(base::OnceClosure done, bool);
 #endif
 
@@ -200,15 +286,8 @@ class ChromeBrowsingDataRemoverDelegate
                                base::WaitableEvent* waitable_event);
 #endif
 
-  std::unique_ptr<device::fido::PlatformCredentialStore> MakeCredentialStore();
-
   // The profile for which the data will be deleted.
-  raw_ptr<Profile> profile_;
-
-  // Prevents |profile_| from getting deleted. Only active between
-  // OnStartRemoving() and OnDoneRemoving(), i.e. while there are tasks in
-  // progress.
-  std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive_;
+  Profile* profile_;
 
   // Start time to delete from.
   base::Time delete_begin_;
@@ -226,14 +305,14 @@ class ChromeBrowsingDataRemoverDelegate
 
   // Fires after some time to track slow tasks. Cancelled when all tasks
   // are finished.
-  base::CancelableOnceClosure slow_pending_tasks_closure_;
+  base::CancelableClosure slow_pending_tasks_closure_;
 
   DomainReliabilityClearer domain_reliability_clearer_;
 
   // Used if we need to clear history.
   base::CancelableTaskTracker history_task_tracker_;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // WebappRegistry makes calls across the JNI. In unit tests, the Java side is
   // not initialised, so the registry must be mocked out.
   std::unique_ptr<WebappRegistry> webapp_registry_;
@@ -241,10 +320,10 @@ class ChromeBrowsingDataRemoverDelegate
 
   bool should_clear_password_account_storage_settings_ = false;
 
-  std::unique_ptr<device::fido::PlatformCredentialStore> credential_store_;
-
   base::WeakPtrFactory<ChromeBrowsingDataRemoverDelegate> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeBrowsingDataRemoverDelegate);
 };
 
 #endif  // CHROME_BROWSER_BROWSING_DATA_CHROME_BROWSING_DATA_REMOVER_DELEGATE_H_

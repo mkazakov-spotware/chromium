@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,19 @@ constexpr char SecureDnsConfig::kModeOff[];
 constexpr char SecureDnsConfig::kModeAutomatic[];
 constexpr char SecureDnsConfig::kModeSecure[];
 
-SecureDnsConfig::SecureDnsConfig(net::SecureDnsMode mode,
-                                 net::DnsOverHttpsConfig doh_servers,
-                                 ManagementMode management_mode)
+SecureDnsConfig::SecureDnsConfig(
+    net::SecureDnsMode mode,
+    std::vector<net::DnsOverHttpsServerConfig> servers,
+    ManagementMode management_mode)
     : mode_(mode),
-      doh_servers_(std::move(doh_servers)),
+      servers_(std::move(servers)),
       management_mode_(management_mode) {}
 SecureDnsConfig::SecureDnsConfig(SecureDnsConfig&& other) = default;
 SecureDnsConfig& SecureDnsConfig::operator=(SecureDnsConfig&& other) = default;
 SecureDnsConfig::~SecureDnsConfig() = default;
 
 // static
-absl::optional<net::SecureDnsMode> SecureDnsConfig::ParseMode(
+base::Optional<net::SecureDnsMode> SecureDnsConfig::ParseMode(
     base::StringPiece name) {
   if (name == kModeSecure) {
     return net::SecureDnsMode::kSecure;
@@ -29,7 +30,7 @@ absl::optional<net::SecureDnsMode> SecureDnsConfig::ParseMode(
   } else if (name == kModeOff) {
     return net::SecureDnsMode::kOff;
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 // static

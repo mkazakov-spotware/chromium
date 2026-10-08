@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_MEDIA_HISTORY_MEDIA_HISTORY_TABLE_BASE_H_
 #define CHROME_BROWSER_MEDIA_HISTORY_MEDIA_HISTORY_TABLE_BASE_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/atomic_flag.h"
 #include "sql/init_status.h"
@@ -33,9 +32,6 @@ namespace media_history {
 class MediaHistoryTableBase
     : public base::RefCountedThreadSafe<MediaHistoryTableBase> {
  public:
-  MediaHistoryTableBase(const MediaHistoryTableBase&) = delete;
-  MediaHistoryTableBase& operator=(const MediaHistoryTableBase&) = delete;
-
   // Deletes any row with the |url| and returns a bool whether it was
   // successful.
   virtual bool DeleteURL(const GURL& url);
@@ -75,7 +71,9 @@ class MediaHistoryTableBase
   base::AtomicFlag cancelled_;
 
   scoped_refptr<base::UpdateableSequencedTaskRunner> db_task_runner_;
-  raw_ptr<sql::Database, DanglingUntriaged> db_;
+  sql::Database* db_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaHistoryTableBase);
 };
 
 }  // namespace media_history

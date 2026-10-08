@@ -1,9 +1,10 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import itertools
 
+from .code_generator_info import CodeGeneratorInfo
 from .composition_parts import WithCodeGeneratorInfo
 from .composition_parts import WithComponent
 from .composition_parts import WithDebugInfo
@@ -20,7 +21,7 @@ from .user_defined_type import UserDefinedType
 class CallbackInterface(UserDefinedType, WithExtendedAttributes,
                         WithCodeGeneratorInfo, WithExposure, WithComponent,
                         WithDebugInfo):
-    """https://webidl.spec.whatwg.org/#idl-interfaces"""
+    """https://heycam.github.io/webidl/#idl-interfaces"""
 
     class IR(IRMap.IR, WithExtendedAttributes, WithCodeGeneratorInfo,
              WithExposure, WithComponent, WithDebugInfo):
@@ -90,13 +91,11 @@ class CallbackInterface(UserDefinedType, WithExtendedAttributes,
             for operation_ir in ir.operations
         ])
         self._operation_groups = tuple([
-            OperationGroup(operation_group_ir,
-                           list(
-                               filter(
-                                   lambda x: x.identifier == operation_group_ir
-                                   .identifier, self._operations)),
-                           owner=self)
-            for operation_group_ir in ir.operation_groups
+            OperationGroup(
+                operation_group_ir,
+                filter(lambda x: x.identifier == operation_group_ir.identifier,
+                       self._operations),
+                owner=self) for operation_group_ir in ir.operation_groups
         ])
 
     @property

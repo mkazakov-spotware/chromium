@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,24 +7,20 @@
 
 #include "base/memory/ref_counted.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/values.h"
-#include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/supervised_user/supervised_user_constants.h"
-#include "chrome/browser/supervised_user/supervised_user_features/supervised_user_features.h"
 #include "chrome/browser/supervised_user/supervised_user_pref_store.h"
 #include "chrome/browser/supervised_user/supervised_user_settings_service.h"
 #include "chrome/common/net/safe_search_util.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/testing_pref_store.h"
 #include "extensions/buildflags/buildflags.h"
-#include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace {
+using base::DictionaryValue;
+using base::Value;
 
-using ::base::Value;
-using ::testing::Optional;
+namespace {
 
 class SupervisedUserPrefStoreFixture : public PrefStore::Observer {
  public:
@@ -32,7 +28,9 @@ class SupervisedUserPrefStoreFixture : public PrefStore::Observer {
       SupervisedUserSettingsService* settings_service);
   ~SupervisedUserPrefStoreFixture() override;
 
-  base::Value::Dict* changed_prefs() { return &changed_prefs_; }
+  base::DictionaryValue* changed_prefs() {
+    return &changed_prefs_;
+  }
 
   bool initialization_completed() const {
     return initialization_completed_;
@@ -44,7 +42,7 @@ class SupervisedUserPrefStoreFixture : public PrefStore::Observer {
 
  private:
   scoped_refptr<SupervisedUserPrefStore> pref_store_;
-  base::Value::Dict changed_prefs_;
+  base::DictionaryValue changed_prefs_;
   bool initialization_completed_;
 };
 
@@ -63,7 +61,7 @@ void SupervisedUserPrefStoreFixture::OnPrefValueChanged(
     const std::string& key) {
   const base::Value* value = nullptr;
   ASSERT_TRUE(pref_store_->GetValue(key, &value));
-  changed_prefs_.SetByDottedPath(key, value->Clone());
+  changed_prefs_.Set(key, std::make_unique<base::Value>(value->Clone()));
 }
 
 void SupervisedUserPrefStoreFixture::OnInitializationCompleted(bool succeeded) {
@@ -95,35 +93,9 @@ void SupervisedUserPrefStoreTest::TearDown() {
   service_.Shutdown();
 }
 
-#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
-TEST_F(SupervisedUserPrefStoreTest,
-       ConfigureSettingsWithHistoryDeletionAllowed) {
-  SupervisedUserPrefStoreFixture fixture(&service_);
-  EXPECT_FALSE(fixture.initialization_completed());
-
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      supervised_users::kAllowHistoryDeletionForChildAccounts);
-
-  pref_store_->SetInitializationCompleted();
-  service_.SetActive(true);
-
-  // kAllowDeletingBrowserHistory is based on the state of the feature
-  // supervised_users::kAllowHistoryDeletionForChildAccounts.
-  // This is enabled in scope.
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kAllowDeletingBrowserHistory),
-              Optional(true));
-}
-#endif
-
 TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
   SupervisedUserPrefStoreFixture fixture(&service_);
   EXPECT_FALSE(fixture.initialization_completed());
-
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(
-      supervised_users::kAllowHistoryDeletionForChildAccounts);
 
   // Prefs should not change yet when the service is ready, but not
   // activated yet.
@@ -133,44 +105,40 @@ TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
 
   service_.SetActive(true);
 
-  // kAllowDeletingBrowserHistory is based on the state of the feature
-  // supervised_users::kAllowHistoryDeletionForChildAccounts.
-  // This is disabled in scope.
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kAllowDeletingBrowserHistory),
-              Optional(false));
-
-  // kIncognitoModeAvailability must be disabled for all supervised users.
-  EXPECT_THAT(
-      fixture.changed_prefs()->FindIntByDottedPath(
-          prefs::kIncognitoModeAvailability),
-      Optional(static_cast<int>(IncognitoModePrefs::Availability::kDisabled)));
+  // kAllowDeletingBrowserHistory is hardcoded to false for supervised users.
+  bool allow_deleting_browser_history = true;
+  EXPECT_TRUE(fixture.changed_prefs()->GetBoolean(
+      prefs::kAllowDeletingBrowserHistory, &allow_deleting_browser_history));
+  EXPECT_FALSE(allow_deleting_browser_history);
 
   // kSupervisedModeManualHosts does not have a hardcoded value.
-  EXPECT_FALSE(fixture.changed_prefs()->FindDictByDottedPath(
-      prefs::kSupervisedUserManualHosts));
+  base::DictionaryValue* manual_hosts = nullptr;
+  EXPECT_FALSE(fixture.changed_prefs()->GetDictionary(
+      prefs::kSupervisedUserManualHosts, &manual_hosts));
 
   // kForceGoogleSafeSearch defaults to true and kForceYouTubeRestrict defaults
   // to Moderate for supervised users.
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kForceGoogleSafeSearch),
-              Optional(true));
-  int force_youtube_restrict =
-      fixture.changed_prefs()
-          ->FindIntByDottedPath(prefs::kForceYouTubeRestrict)
-          .value_or(safe_search_util::YOUTUBE_RESTRICT_OFF);
+  bool force_google_safesearch = false;
+  int force_youtube_restrict = safe_search_util::YOUTUBE_RESTRICT_OFF;
+  EXPECT_TRUE(fixture.changed_prefs()->GetBoolean(prefs::kForceGoogleSafeSearch,
+                                                  &force_google_safesearch));
+  EXPECT_TRUE(fixture.changed_prefs()->GetInteger(prefs::kForceYouTubeRestrict,
+                                                  &force_youtube_restrict));
+  EXPECT_TRUE(force_google_safesearch);
   EXPECT_EQ(force_youtube_restrict,
             safe_search_util::YOUTUBE_RESTRICT_MODERATE);
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Permissions requests default to disallowed.
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kSupervisedUserExtensionsMayRequestPermissions),
-              Optional(false));
+  bool extensions_may_request_permissions = false;
+  EXPECT_TRUE(fixture.changed_prefs()->GetBoolean(
+      prefs::kSupervisedUserExtensionsMayRequestPermissions,
+      &extensions_may_request_permissions));
+  EXPECT_FALSE(extensions_may_request_permissions);
 #endif
 
   // Activating the service again should not change anything.
-  fixture.changed_prefs()->clear();
+  fixture.changed_prefs()->Clear();
   service_.SetActive(true);
   EXPECT_EQ(0u, fixture.changed_prefs()->size());
 
@@ -181,27 +149,21 @@ TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
   service_.SetLocalSetting(supervised_users::kContentPackManualBehaviorHosts,
                            std::make_unique<base::Value>(hosts.Clone()));
   EXPECT_EQ(1u, fixture.changed_prefs()->size());
-
-  base::Value::Dict* manual_hosts =
-      fixture.changed_prefs()->FindDictByDottedPath(
-          prefs::kSupervisedUserManualHosts);
-  ASSERT_TRUE(manual_hosts);
+  ASSERT_TRUE(fixture.changed_prefs()->GetDictionary(
+      prefs::kSupervisedUserManualHosts, &manual_hosts));
   EXPECT_TRUE(*manual_hosts == hosts);
 
   // kForceGoogleSafeSearch and kForceYouTubeRestrict can be configured by the
   // custodian, overriding the hardcoded default.
-  fixture.changed_prefs()->clear();
+  fixture.changed_prefs()->Clear();
   service_.SetLocalSetting(supervised_users::kForceSafeSearch,
                            std::make_unique<base::Value>(false));
   EXPECT_EQ(1u, fixture.changed_prefs()->size());
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kForceGoogleSafeSearch),
-              Optional(false));
-
-  force_youtube_restrict =
-      fixture.changed_prefs()
-          ->FindIntByDottedPath(prefs::kForceYouTubeRestrict)
-          .value_or(safe_search_util::YOUTUBE_RESTRICT_MODERATE);
+  EXPECT_TRUE(fixture.changed_prefs()->GetBoolean(prefs::kForceGoogleSafeSearch,
+                                                  &force_google_safesearch));
+  EXPECT_TRUE(fixture.changed_prefs()->GetInteger(prefs::kForceYouTubeRestrict,
+                                                  &force_youtube_restrict));
+  EXPECT_FALSE(force_google_safesearch);
   EXPECT_EQ(force_youtube_restrict, safe_search_util::YOUTUBE_RESTRICT_OFF);
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -214,26 +176,28 @@ TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
   histogram_tester.ExpectTotalCount(
       "SupervisedUsers.ExtensionsMayRequestPermissions", 0);
 
-  fixture.changed_prefs()->clear();
+  fixture.changed_prefs()->Clear();
   service_.SetLocalSetting(supervised_users::kGeolocationDisabled,
                            std::make_unique<base::Value>(false));
   EXPECT_EQ(1u, fixture.changed_prefs()->size());
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kSupervisedUserExtensionsMayRequestPermissions),
-              Optional(true));
+  EXPECT_TRUE(fixture.changed_prefs()->GetBoolean(
+      prefs::kSupervisedUserExtensionsMayRequestPermissions,
+      &extensions_may_request_permissions));
+  EXPECT_TRUE(extensions_may_request_permissions);
 
   histogram_tester.ExpectUniqueSample(
       "SupervisedUsers.ExtensionsMayRequestPermissions", /*enabled=*/true, 1);
   histogram_tester.ExpectTotalCount(
       "SupervisedUsers.ExtensionsMayRequestPermissions", 1);
 
-  fixture.changed_prefs()->clear();
+  fixture.changed_prefs()->Clear();
   service_.SetLocalSetting(supervised_users::kGeolocationDisabled,
                            std::make_unique<base::Value>(true));
   EXPECT_EQ(1u, fixture.changed_prefs()->size());
-  EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
-                  prefs::kSupervisedUserExtensionsMayRequestPermissions),
-              Optional(false));
+  EXPECT_TRUE(fixture.changed_prefs()->GetBoolean(
+      prefs::kSupervisedUserExtensionsMayRequestPermissions,
+      &extensions_may_request_permissions));
+  EXPECT_FALSE(extensions_may_request_permissions);
 
   histogram_tester.ExpectBucketCount(
       "SupervisedUsers.ExtensionsMayRequestPermissions", /*enabled=*/false, 1);

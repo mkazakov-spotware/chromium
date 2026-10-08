@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -12,9 +20,9 @@
 
 goog.provide('goog.graphics.ext.Group');
 
+goog.forwardDeclare('goog.graphics.GroupElement');
 goog.require('goog.array');
 goog.require('goog.graphics.ext.Element');
-goog.requireType('goog.graphics.GroupElement');
 
 
 
@@ -29,7 +37,6 @@ goog.requireType('goog.graphics.GroupElement');
  * @extends {goog.graphics.ext.Element}
  */
 goog.graphics.ext.Group = function(group, opt_wrapper) {
-  'use strict';
   opt_wrapper = opt_wrapper ||
       group.getGraphicsImplementation().createGroup(group.getWrapper());
   goog.graphics.ext.Element.call(this, group, opt_wrapper);
@@ -52,12 +59,11 @@ goog.inherits(goog.graphics.ext.Group, goog.graphics.ext.Element);
  *     of element additions.
  */
 goog.graphics.ext.Group.prototype.addChild = function(element, opt_chain) {
-  'use strict';
   if (!goog.array.contains(this.children_, element)) {
     this.children_.push(element);
   }
 
-  const transformed = this.growToFit_(element);
+  var transformed = this.growToFit_(element);
 
   if (element.isParentDependent()) {
     element.parentTransform();
@@ -78,7 +84,6 @@ goog.graphics.ext.Group.prototype.addChild = function(element, opt_chain) {
  * @param {goog.graphics.ext.Element} element The element to remove.
  */
 goog.graphics.ext.Group.prototype.removeChild = function(element) {
-  'use strict';
   goog.array.remove(this.children_, element);
 
   // TODO(robbyw): shape.fireEvent('delete')
@@ -97,9 +102,8 @@ goog.graphics.ext.Group.prototype.removeChild = function(element) {
  * @param {Object=} opt_obj Used as the 'this' object in f when called.
  */
 goog.graphics.ext.Group.prototype.forEachChild = function(f, opt_obj) {
-  'use strict';
   if (this.children_) {
-    this.children_.forEach(f, opt_obj);
+    goog.array.forEach(this.children_, f, opt_obj);
   }
 };
 
@@ -116,7 +120,6 @@ goog.graphics.ext.Group.prototype.getWrapper;
  * @override
  */
 goog.graphics.ext.Group.prototype.reset = function() {
-  'use strict';
   goog.graphics.ext.Group.superClass_.reset.call(this);
 
   this.updateChildren();
@@ -130,7 +133,6 @@ goog.graphics.ext.Group.prototype.reset = function() {
  * @override
  */
 goog.graphics.ext.Group.prototype.redraw = function() {
-  'use strict';
   this.getWrapper().setSize(this.getWidth(), this.getHeight());
   this.transformChildren();
 };
@@ -141,9 +143,7 @@ goog.graphics.ext.Group.prototype.redraw = function() {
  * @protected
  */
 goog.graphics.ext.Group.prototype.transformChildren = function() {
-  'use strict';
   this.forEachChild(function(child) {
-    'use strict';
     if (child.isParentDependent()) {
       child.parentTransform();
     }
@@ -155,9 +155,7 @@ goog.graphics.ext.Group.prototype.transformChildren = function() {
  * As part of the reset process, update child elements.
  */
 goog.graphics.ext.Group.prototype.updateChildren = function() {
-  'use strict';
   this.forEachChild(function(child) {
-    'use strict';
     if (child.isParentDependent() || child.isPendingTransform()) {
       child.reset();
     } else if (child.updateChildren) {
@@ -174,16 +172,15 @@ goog.graphics.ext.Group.prototype.updateChildren = function() {
  * @private
  */
 goog.graphics.ext.Group.prototype.growToFit_ = function(element) {
-  'use strict';
-  let transformed = false;
+  var transformed = false;
 
-  const x = element.getMaxX();
+  var x = element.getMaxX();
   if (x > this.getWidth()) {
     this.setMinWidth(x);
     transformed = true;
   }
 
-  const y = element.getMaxY();
+  var y = element.getMaxY();
   if (y > this.getHeight()) {
     this.setMinHeight(y);
     transformed = true;
@@ -197,7 +194,6 @@ goog.graphics.ext.Group.prototype.growToFit_ = function(element) {
  * @return {number} The width of the element's coordinate space.
  */
 goog.graphics.ext.Group.prototype.getCoordinateWidth = function() {
-  'use strict';
   return this.getWidth();
 };
 
@@ -206,7 +202,6 @@ goog.graphics.ext.Group.prototype.getCoordinateWidth = function() {
  * @return {number} The height of the element's coordinate space.
  */
 goog.graphics.ext.Group.prototype.getCoordinateHeight = function() {
-  'use strict';
   return this.getHeight();
 };
 
@@ -215,7 +210,6 @@ goog.graphics.ext.Group.prototype.getCoordinateHeight = function() {
  * Remove all drawing elements from the group.
  */
 goog.graphics.ext.Group.prototype.clear = function() {
-  'use strict';
   while (this.children_.length) {
     this.removeChild(this.children_[0]);
   }

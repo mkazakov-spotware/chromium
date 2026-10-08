@@ -30,8 +30,7 @@ test(function() {
     parseInt(containerStyle.paddingTop) +
     parseInt(containerStyle.paddingBottom));
   assert_equals(container.scrollWidth, target.offsetWidth +
-    parseInt(containerStyle.paddingLeft) +
-    parseInt(containerStyle.paddingRight));
+    parseInt(containerStyle.paddingLeft));
 }, "overflow with padding");
 
 test(function() {
@@ -41,7 +40,6 @@ test(function() {
     parseInt(containerStyle.paddingTop) +
     parseInt(containerStyle.paddingBottom));
   assert_equals(container.scrollWidth, target.offsetWidth +
-    parseInt(containerStyle.paddingLeft) +
-    parseInt(containerStyle.paddingRight));
+    parseInt(containerStyle.paddingLeft));
 }, "overflow with paddding, after resize");
 </script>

@@ -27,10 +27,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import sys
 from collections import defaultdict
 
 import json5_generator
 import template_expander
+import name_utilities
 
 from make_qualified_names import MakeQualifiedNamesWriter
 
@@ -53,7 +55,7 @@ class MakeElementFactoryWriter(MakeQualifiedNamesWriter):
         })
     filters = MakeQualifiedNamesWriter.filters
 
-    def __init__(self, json5_file_paths, output_dir, generate_tag_enum=False):
+    def __init__(self, json5_file_paths, output_dir):
         super(MakeElementFactoryWriter, self).__init__(json5_file_paths,
                                                        output_dir)
 
@@ -94,8 +96,6 @@ class MakeElementFactoryWriter(MakeQualifiedNamesWriter):
             fallback_js_interface,
             'input_files':
             self._input_files,
-            'generate_tag_enum':
-            generate_tag_enum
         })
 
     @template_expander.use_jinja(

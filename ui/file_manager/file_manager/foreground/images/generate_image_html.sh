@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
@@ -60,11 +60,6 @@ for directory in $(find_directories_containing_images); do
   ls ${directory} | grep -e "\.png$" | while read image; do
     output_html_image_element "${directory}/${image}" PNG
   done ; echo "</p>"
-
-  # There are no SVG images in the "2x" sub-directories.
-  if grep -q "/2x" <<< "${directory}"; then
-    continue
-  fi
 
   # generate HTML for the directory SVG images.
   echo "<h4>sub-directory ${directory} SVG images</h4><p>"

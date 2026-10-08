@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -675,7 +675,8 @@ TEST_F(PlatformSensorReaderTestWinrt, SensorTimestampConversion) {
   EXPECT_EQ(lastReportedTimestamp, 0);
 
   auto second_timestamp =
-      base::Seconds(expectedTimestampDeltaSecs).ToWinrtDateTime();
+      base::TimeDelta::FromSeconds(expectedTimestampDeltaSecs)
+          .ToWinrtDateTime();
   reading =
       Microsoft::WRL::Make<FakeLightSensorReadingWinrt>(second_timestamp, 0.0f);
   fake_sensor->TriggerFakeSensorReading(reading);

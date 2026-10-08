@@ -1,20 +1,20 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/media_controls/elements/media_control_elements_helper.h"
 
+#include "third_party/blink/public/platform/web_size.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/events/keyboard_event.h"
 #include "third_party/blink/renderer/core/events/touch_event.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/html/html_div_element.h"
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
-#include "third_party/blink/renderer/core/layout/layout_box.h"
+#include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/modules/media_controls/elements/media_control_div_element.h"
 #include "third_party/blink/renderer/modules/media_controls/elements/media_control_input_element.h"
 #include "third_party/blink/renderer/modules/media_controls/media_controls_impl.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -84,18 +84,22 @@ HTMLDivElement* MediaControlElementsHelper::CreateDiv(const AtomicString& id,
 }
 
 // static
-gfx::Size MediaControlElementsHelper::GetSizeOrDefault(
+WebSize MediaControlElementsHelper::GetSizeOrDefault(
     const Element& element,
-    const gfx::Size& default_size_in_dips) {
-  LayoutBox* box = element.GetLayoutBox();
-  if (!box)
-    return default_size_in_dips;
-
+    const WebSize& default_size) {
   float zoom_factor = 1.0f;
-  if (const LocalFrame* frame = element.GetDocument().GetFrame())
-    zoom_factor = frame->PageZoomFactor();
-  return gfx::Size(round(box->LogicalWidth() / zoom_factor),
-                   round(box->LogicalHeight() / zoom_factor));
+  int width = default_size.width;
+  int height = default_size.height;
+
+  if (LayoutBox* box = element.GetLayoutBox()) {
+    width = box->LogicalWidth().Round();
+    height = box->LogicalHeight().Round();
+  }
+
+  if (element.GetDocument().GetLayoutView())
+    zoom_factor = element.GetDocument().GetLayoutView()->ZoomFactor();
+
+  return WebSize(round(width / zoom_factor), round(height / zoom_factor));
 }
 
 // static

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,13 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/thread_pool.h"
+#include "base/task/post_task.h"
+#include "base/task_runner_util.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/traced_value.h"
@@ -25,6 +27,7 @@
 #include "components/subresource_filter/content/browser/ruleset_publisher.h"
 #include "components/subresource_filter/content/browser/ruleset_publisher_impl.h"
 #include "components/subresource_filter/content/browser/unindexed_ruleset_stream_generator.h"
+#include "components/subresource_filter/content/common/subresource_filter_messages.h"
 #include "components/subresource_filter/core/browser/copying_file_stream.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "components/subresource_filter/core/browser/subresource_filter_features.h"
@@ -73,15 +76,14 @@ class SentinelFile {
   explicit SentinelFile(const base::FilePath& version_directory)
       : path_(IndexedRulesetLocator::GetSentinelFilePath(version_directory)) {}
 
-  SentinelFile(const SentinelFile&) = delete;
-  SentinelFile& operator=(const SentinelFile&) = delete;
-
   bool IsPresent() { return base::PathExists(path_); }
   bool Create() { return base::WriteFile(path_, nullptr, 0) == 0; }
   bool Remove() { return base::DeleteFile(path_); }
 
  private:
   base::FilePath path_;
+
+  DISALLOW_COPY_AND_ASSIGN(SentinelFile);
 };
 
 }  // namespace
@@ -442,8 +444,8 @@ void RulesetService::IndexAndStoreRuleset(
     const UnindexedRulesetInfo& unindexed_ruleset_info,
     WriteRulesetCallback success_callback) {
   DCHECK(!unindexed_ruleset_info.content_version.empty());
-  background_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      background_task_runner_.get(), FROM_HERE,
       base::BindOnce(&RulesetService::IndexAndWriteRuleset,
                      indexed_ruleset_base_dir_, unindexed_ruleset_info),
       base::BindOnce(&RulesetService::OnWrittenRuleset, AsWeakPtr(),
@@ -471,12 +473,12 @@ void RulesetService::OpenAndPublishRuleset(
       base::BindOnce(&RulesetService::OnRulesetSet, AsWeakPtr()));
 }
 
-void RulesetService::OnRulesetSet(RulesetFilePtr file) {
+void RulesetService::OnRulesetSet(base::File file) {
   // The file has just been successfully written, so a failure here is unlikely
   // unless |indexed_ruleset_base_dir_| has been tampered with or there are disk
   // errors. Still, restore the invariant that a valid version in preferences
   // always points to an existing version of disk by invalidating the prefs.
-  if (!file->IsValid()) {
+  if (!file.IsValid()) {
     IndexedRulesetVersion().SaveToPrefs(local_state_);
     return;
   }

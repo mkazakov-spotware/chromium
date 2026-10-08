@@ -1,5 +1,5 @@
+chouinard@chromium.org
 dullweber@chromium.org
 twellington@chromium.org
-andzaytsev@google.com
 
-per-file *IncognitoLockSettings*=file://chrome/browser/incognito/OWNERS
+# COMPONENT: UI>Browser>Mobile>Settings

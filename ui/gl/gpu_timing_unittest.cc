@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gl/gl_context_stub.h"
 #include "ui/gl/gl_implementation.h"
@@ -40,8 +38,8 @@ class GPUTimingTest : public testing::Test {
     context_ = nullptr;
     surface_ = nullptr;
     if (setup_) {
-      MockGLInterface::SetGLInterface(nullptr);
-      GLSurfaceTestSupport::ShutdownGL(display_);
+      MockGLInterface::SetGLInterface(NULL);
+      init::ShutdownGL(false);
     }
     setup_ = false;
     cpu_time_bounded_ = false;
@@ -52,7 +50,7 @@ class GPUTimingTest : public testing::Test {
   void SetupGLContext(const char* gl_version, const char* gl_extensions) {
     ASSERT_FALSE(setup_) << "Cannot setup GL context twice.";
     SetGLGetProcAddressProc(MockGLInterface::GetGLProcAddress);
-    display_ = GLSurfaceTestSupport::InitializeOneOffWithMockBindings();
+    GLSurfaceTestSupport::InitializeOneOffWithMockBindings();
     gl_ = std::make_unique<::testing::StrictMock<MockGLInterface>>();
     MockGLInterface::SetGLInterface(gl_.get());
 
@@ -87,7 +85,6 @@ class GPUTimingTest : public testing::Test {
   scoped_refptr<GLContextStub> context_;
   scoped_refptr<GLSurfaceStub> surface_;
   GPUTimingFake gpu_timing_fake_queries_;
-  raw_ptr<GLDisplay> display_ = nullptr;
 };
 
 TEST_F(GPUTimingTest, FakeTimerTest) {

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,17 +16,18 @@ IntersectionObserverEntry::IntersectionObserverEntry(
     : geometry_(geometry), time_(time), target_(target) {}
 
 DOMRectReadOnly* IntersectionObserverEntry::boundingClientRect() const {
-  return DOMRectReadOnly::FromRectF(gfx::RectF(geometry_.TargetRect()));
+  return DOMRectReadOnly::FromFloatRect(FloatRect(geometry_.TargetRect()));
 }
 
 DOMRectReadOnly* IntersectionObserverEntry::rootBounds() const {
   if (geometry_.ShouldReportRootBounds())
-    return DOMRectReadOnly::FromRectF(gfx::RectF(geometry_.RootRect()));
+    return DOMRectReadOnly::FromFloatRect(FloatRect(geometry_.RootRect()));
   return nullptr;
 }
 
 DOMRectReadOnly* IntersectionObserverEntry::intersectionRect() const {
-  return DOMRectReadOnly::FromRectF(gfx::RectF(geometry_.IntersectionRect()));
+  return DOMRectReadOnly::FromFloatRect(
+      FloatRect(geometry_.IntersectionRect()));
 }
 
 void IntersectionObserverEntry::Trace(Visitor* visitor) const {

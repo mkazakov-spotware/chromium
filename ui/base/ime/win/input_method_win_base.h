@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,11 @@
 
 #include <windows.h>
 
+#include <string>
+
+#include "base/compiler_specific.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "ui/base/ime/input_method_base.h"
 #include "ui/base/ime/win/imm32_manager.h"
 
@@ -17,12 +21,8 @@ namespace ui {
 class COMPONENT_EXPORT(UI_BASE_IME_WIN) InputMethodWinBase
     : public InputMethodBase {
  public:
-  InputMethodWinBase(ImeKeyEventDispatcher* ime_key_event_dispatcher,
-                     HWND attached_window_handle);
-
-  InputMethodWinBase(const InputMethodWinBase&) = delete;
-  InputMethodWinBase& operator=(const InputMethodWinBase&) = delete;
-
+  InputMethodWinBase(internal::InputMethodDelegate* delegate,
+                     HWND toplevel_window_handle);
   ~InputMethodWinBase() override;
 
  protected:
@@ -39,7 +39,7 @@ class COMPONENT_EXPORT(UI_BASE_IME_WIN) InputMethodWinBase
                  UINT message,
                  WPARAM wparam,
                  LPARAM lparam,
-                 const CHROME_MSG& event,
+                 const MSG& event,
                  BOOL* handled);
 
   // Some IMEs rely on WM_IME_REQUEST message even when TSF is enabled. So
@@ -53,19 +53,17 @@ class COMPONENT_EXPORT(UI_BASE_IME_WIN) InputMethodWinBase
   LRESULT OnReconvertString(RECONVERTSTRING* reconv);
   LRESULT OnQueryCharPosition(IMECHARPOSITION* char_positon);
 
-  // Callback function for TextInputMethod::ProcessKeyEvent.
+  // Callback function for IMEEngineHandlerInterface::ProcessKeyEvent.
   void ProcessKeyEventDone(ui::KeyEvent* event,
-                           const std::vector<CHROME_MSG>* char_msgs,
+                           const std::vector<MSG>* char_msgs,
                            bool is_handled);
 
   ui::EventDispatchDetails ProcessUnhandledKeyEvent(
       ui::KeyEvent* event,
-      const std::vector<CHROME_MSG>* char_msgs);
+      const std::vector<MSG>* char_msgs);
 
-  // For standard Chromium browser this should always be the top-level window.
-  // However for embedded Chromium windows this might be the embedder or the
-  // ancestor of the embedder.
-  const HWND attached_window_handle_;
+  // The toplevel window handle.
+  const HWND toplevel_window_handle_;
 
   // Represents if WM_CHAR[wparam=='\r'] should be dispatched to the focused
   // text input client or ignored silently. This flag is introduced as a quick
@@ -81,12 +79,7 @@ class COMPONENT_EXPORT(UI_BASE_IME_WIN) InputMethodWinBase
   // Used for making callbacks.
   base::WeakPtrFactory<InputMethodWinBase> weak_ptr_factory_{this};
 
- private:
-  // Return false if |this| is destroyed during |PeekMessage| call.
-  bool HandlePeekMessage(HWND hwnd,
-                         UINT msg_filter_min,
-                         UINT msg_filter_max,
-                         std::vector<CHROME_MSG>* char_msgs);
+  DISALLOW_COPY_AND_ASSIGN(InputMethodWinBase);
 };
 
 }  // namespace ui

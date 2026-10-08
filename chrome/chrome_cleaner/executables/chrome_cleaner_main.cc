@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,15 +17,16 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_executor.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/sequenced_task_runner_handle.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/version.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_handle.h"
@@ -74,6 +75,7 @@
 #include "chrome/chrome_cleaner/parsers/json_parser/sandboxed_json_parser.h"
 #include "chrome/chrome_cleaner/parsers/shortcut_parser/broker/sandboxed_shortcut_parser.h"
 #include "chrome/chrome_cleaner/parsers/target/sandbox_setup.h"
+#include "chrome/chrome_cleaner/scanner/force_installed_extension_scanner_impl.h"
 #include "chrome/chrome_cleaner/settings/engine_settings.h"
 #include "chrome/chrome_cleaner/settings/matching_options.h"
 #include "chrome/chrome_cleaner/settings/settings.h"
@@ -103,8 +105,8 @@ void LogsUploadCallback(bool* succeeded,
   // Use a task instead of a direct call to QuitWhenIdle, in case we are called
   // synchronously because of an upload error, and the task executor is not
   // running yet.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, std::move(quit_closure));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                std::move(quit_closure));
 }
 
 void AddComponents(chrome_cleaner::MainController* main_controller,
@@ -126,9 +128,11 @@ void AddComponents(chrome_cleaner::MainController* main_controller,
       std::make_unique<chrome_cleaner::SystemReportComponent>(json_parser,
                                                               shortcut_parser));
 
-  main_controller->AddComponent(
-      std::make_unique<chrome_cleaner::ResetShortcutsComponent>(
-          shortcut_parser));
+  if (command_line->HasSwitch(chrome_cleaner::kResetShortcutsSwitch)) {
+    main_controller->AddComponent(
+        std::make_unique<chrome_cleaner::ResetShortcutsComponent>(
+            shortcut_parser));
+  }
 }
 
 void SendLogsToSafeBrowsing(chrome_cleaner::ResultCode exit_code,
@@ -252,9 +256,12 @@ chrome_cleaner::ResultCode RunChromeCleaner(
   if (engine_result != chrome_cleaner::RESULT_CODE_SUCCESS)
     return engine_result;
 
-  shutdown_sequence.engine_facade =
-      std::make_unique<chrome_cleaner::EngineFacade>(
-          shutdown_sequence.engine_client);
+  shutdown_sequence
+      .engine_facade = std::make_unique<chrome_cleaner::EngineFacade>(
+      shutdown_sequence.engine_client, json_parser.get(),
+      main_controller.main_dialog(),
+      std::make_unique<chrome_cleaner::ForceInstalledExtensionScannerImpl>(),
+      chrome_prompt_ipc);
 
   if (settings->execution_mode() == ExecutionMode::kScanning) {
     shutdown_sequence.engine_facade =
@@ -583,8 +590,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
         executable_path, &registry_logger, nullptr);
   }
 
-  rebooter =
-      std::make_unique<chrome_cleaner::Rebooter>(PRODUCT_SHORTNAME_STRING);
+  rebooter.reset(new chrome_cleaner::Rebooter(PRODUCT_SHORTNAME_STRING));
 
   shutdown_sequence.mojo_task_runner = chrome_cleaner::MojoTaskRunner::Create();
 

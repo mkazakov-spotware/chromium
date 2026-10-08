@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,10 @@
 
 #include <stdint.h>
 
-#include <list>
-#include <memory>
 #include <string>
 #include <tuple>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -89,6 +86,10 @@ class FakeSocket : public net::StreamSocket {
   bool WasAlpnNegotiated() const override;
   net::NextProto GetNegotiatedProtocol() const override;
   bool GetSSLInfo(net::SSLInfo* ssl_info) override;
+  void GetConnectionAttempts(net::ConnectionAttempts* out) const override;
+  void ClearConnectionAttempts() override {}
+  void AddConnectionAttempts(const net::ConnectionAttempts& attempts) override {
+  }
   int64_t GetTotalReceivedBytes() const override;
   void ApplySocketTag(const net::SocketTag& tag) override {}
 
@@ -105,7 +106,7 @@ class FakeSocket : public net::StreamSocket {
   std::string input_data_;
   int input_pos_;
 
-  raw_ptr<std::string> written_data_;
+  std::string* written_data_;
   bool async_write_;
   bool write_pending_;
 
@@ -126,23 +127,33 @@ class FakeSocketClient : public mojom::P2PSocketClient {
   MOCK_METHOD2(SocketCreated,
                void(const net::IPEndPoint&, const net::IPEndPoint&));
   MOCK_METHOD1(SendComplete, void(const P2PSendPacketMetrics&));
+  void IncomingTcpConnection(
+      const net::IPEndPoint& endpoint,
+      mojo::PendingRemote<network::mojom::P2PSocket> socket,
+      mojo::PendingReceiver<network::mojom::P2PSocketClient> client_receiver);
   MOCK_METHOD3(DataReceived,
                void(const net::IPEndPoint&,
-                    base::span<const uint8_t>,
+                    const std::vector<int8_t>&,
                     base::TimeTicks));
 
   bool connection_error() { return disconnect_error_; }
+  size_t num_accepted() { return accepted_.size(); }
+  void CloseAccepted();
 
  private:
   mojo::Remote<mojom::P2PSocket> socket_;
   mojo::Receiver<mojom::P2PSocketClient> receiver_;
   bool disconnect_error_ = false;
+
+  std::list<std::pair<mojo::PendingRemote<network::mojom::P2PSocket>,
+                      mojo::PendingReceiver<network::mojom::P2PSocketClient>>>
+      accepted_;
 };
 
-void CreateRandomPacket(std::vector<uint8_t>* packet);
-void CreateStunRequest(std::vector<uint8_t>* packet);
-void CreateStunResponse(std::vector<uint8_t>* packet);
-void CreateStunError(std::vector<uint8_t>* packet);
+void CreateRandomPacket(std::vector<int8_t>* packet);
+void CreateStunRequest(std::vector<int8_t>* packet);
+void CreateStunResponse(std::vector<int8_t>* packet);
+void CreateStunError(std::vector<int8_t>* packet);
 
 net::IPEndPoint ParseAddress(const std::string& ip_str, uint16_t port);
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.content_shell.Shell;
@@ -35,19 +34,18 @@ public class ContentShellShellManagementTest {
     @Test
     @SmallTest
     @Feature({"Main"})
-    @DisabledTest(message = "https://crbug.com/1371971")
     public void testMultipleShellsLaunched() throws ExecutionException {
         final ContentShellActivity activity =
                 mActivityTestRule.launchContentShellWithUrl(TEST_PAGE_1);
         Assert.assertEquals(
-                TEST_PAGE_1, activity.getActiveShell().getWebContents().getVisibleUrl().getSpec());
+                TEST_PAGE_1, activity.getActiveShell().getWebContents().getVisibleUrlString());
 
         Shell previousActiveShell = activity.getActiveShell();
         Assert.assertFalse(previousActiveShell.isDestroyed());
 
         mActivityTestRule.loadNewShell(TEST_PAGE_2);
         Assert.assertEquals(
-                TEST_PAGE_2, activity.getActiveShell().getWebContents().getVisibleUrl().getSpec());
+                TEST_PAGE_2, activity.getActiveShell().getWebContents().getVisibleUrlString());
 
         Assert.assertNotSame(previousActiveShell, activity.getActiveShell());
         Assert.assertNull(previousActiveShell.getWebContents());

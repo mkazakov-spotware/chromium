@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include <algorithm>
-#include <memory>
 #include <utility>
+
+#include <memory>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
@@ -17,8 +17,8 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_file.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 #include "base/rand_util.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/trace_event/trace_event.h"
@@ -30,11 +30,11 @@
 #include "content/public/browser/browser_thread.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <io.h>
 #include <shlobj.h>
 #include <windows.h>
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 using content::BrowserThread;
 
@@ -129,9 +129,6 @@ struct VisitedLinkWriter::LoadFromFileResult
                      int32_t used_count,
                      uint8_t salt[LINK_SALT_LENGTH]);
 
-  LoadFromFileResult(const LoadFromFileResult&) = delete;
-  LoadFromFileResult& operator=(const LoadFromFileResult&) = delete;
-
   base::ScopedFILE file;
   base::MappedReadOnlyRegion hash_table_memory;
   int32_t num_entries;
@@ -141,6 +138,8 @@ struct VisitedLinkWriter::LoadFromFileResult
  private:
   friend class base::RefCountedThreadSafe<LoadFromFileResult>;
   virtual ~LoadFromFileResult();
+
+  DISALLOW_COPY_AND_ASSIGN(LoadFromFileResult);
 };
 
 VisitedLinkWriter::LoadFromFileResult::LoadFromFileResult(
@@ -182,9 +181,6 @@ class VisitedLinkWriter::TableBuilder
  public:
   TableBuilder(VisitedLinkWriter* writer, const uint8_t salt[LINK_SALT_LENGTH]);
 
-  TableBuilder(const TableBuilder&) = delete;
-  TableBuilder& operator=(const TableBuilder&) = delete;
-
   // Called on the main thread when the writer is being destroyed. This will
   // prevent a crash when the query completes and the writer is no longer
   // around. We can not actually do anything but mark this fact, since the
@@ -203,7 +199,7 @@ class VisitedLinkWriter::TableBuilder
   void OnCompleteMainThread();
 
   // Owner of this object. MAY ONLY BE ACCESSED ON THE MAIN THREAD!
-  raw_ptr<VisitedLinkWriter> writer_;
+  VisitedLinkWriter* writer_;
 
   // Indicates whether the operation has failed or not.
   bool success_;
@@ -213,6 +209,8 @@ class VisitedLinkWriter::TableBuilder
 
   // Stores the fingerprints we computed on the background thread.
   VisitedLinkCommon::Fingerprints fingerprints_;
+
+  DISALLOW_COPY_AND_ASSIGN(TableBuilder);
 };
 
 // VisitedLinkWriter ----------------------------------------------------------
@@ -259,7 +257,8 @@ VisitedLinkWriter::~VisitedLinkWriter() {
     // state. On the next start table will be rebuilt.
     base::FilePath filename;
     GetDatabaseFileName(&filename);
-    PostIOTask(FROM_HERE, base::GetDeleteFileCallback(filename));
+    PostIOTask(FROM_HERE,
+               base::BindOnce(base::GetDeleteFileCallback(), filename));
   }
 }
 
@@ -999,7 +998,7 @@ uint32_t VisitedLinkWriter::NewTableSizeForCount(int32_t item_count) const {
   int desired = item_count * 3;
 
   // Find the closest prime.
-  for (size_t i = 0; i < std::size(table_sizes); i++) {
+  for (size_t i = 0; i < base::size(table_sizes); i++) {
     if (table_sizes[i] > desired)
       return table_sizes[i];
   }

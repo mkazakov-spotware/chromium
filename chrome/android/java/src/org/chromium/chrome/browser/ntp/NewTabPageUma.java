@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,13 +16,12 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.IntentHandler;
-import org.chromium.chrome.browser.feed.FeedFeatures;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.embedder_support.util.UrlUtilitiesJni;
 import org.chromium.components.user_prefs.UserPrefs;
@@ -74,8 +73,8 @@ public class NewTabPageUma {
     /** User clicked on the "Refresh" button in the "all dismissed" state. */
     public static final int ACTION_CLICKED_ALL_DISMISSED_REFRESH = 10;
 
-    /** (Obsolete) User opened an explore sites tile. */
-    // public static final int ACTION_OPENED_EXPLORE_SITES_TILE = 11;
+    /** User opened an explore sites tile. */
+    public static final int ACTION_OPENED_EXPLORE_SITES_TILE = 11;
 
     /**
      * User clicked on the "Manage Interests" item in the snippet card menu or in the feed header
@@ -92,11 +91,8 @@ public class NewTabPageUma {
     /** (Obsolete) User clicked on the feed header menu button item in the feed header menu. */
     // public static final int ACTION_CLICKED_FEED_HEADER_MENU = 15;
 
-    /** User clicked to play the full video for a video snippet shown on the NTP. */
-    public static final int ACTION_OPENED_VIDEO = 16;
-
     /** The number of possible actions. */
-    private static final int NUM_ACTIONS = 17;
+    private static final int NUM_ACTIONS = 16;
 
     /** Regular NTP impression (usually when a new tab is opened). */
     public static final int NTP_IMPRESSION_REGULAR = 0;
@@ -147,22 +143,19 @@ public class NewTabPageUma {
     // numeric values should never be reused. This maps directly to
     // the ContentSuggestionsDisplayStatus enum defined in tools/metrics/enums.xml.
     @IntDef({ContentSuggestionsDisplayStatus.VISIBLE, ContentSuggestionsDisplayStatus.COLLAPSED,
-            ContentSuggestionsDisplayStatus.DISABLED_BY_POLICY,
-            ContentSuggestionsDisplayStatus.DISABLED})
+            ContentSuggestionsDisplayStatus.DISABLED_BY_POLICY})
     @Retention(RetentionPolicy.SOURCE)
     private @interface ContentSuggestionsDisplayStatus {
         int VISIBLE = 0;
         int COLLAPSED = 1;
         int DISABLED_BY_POLICY = 2;
-        int DISABLED = 3;
-        int NUM_ENTRIES = 4;
+        int NUM_ENTRIES = 3;
     }
 
     private final TabModelSelector mTabModelSelector;
     private final Supplier<Long> mLastInteractionTime;
     private final boolean mActivityHadWarmStart;
     private final Supplier<Intent> mActivityIntent;
-    private TabCreationRecorder mTabCreationRecorder;
 
     /**
      * Constructor.
@@ -223,8 +216,7 @@ public class NewTabPageUma {
      * users navigate back to already opened NTPs.
      */
     public void monitorNTPCreation() {
-        mTabCreationRecorder = new TabCreationRecorder();
-        mTabModelSelector.addObserver(mTabCreationRecorder);
+        mTabModelSelector.addObserver(new TabCreationRecorder());
     }
 
     /**
@@ -285,8 +277,6 @@ public class NewTabPageUma {
         if (!UserPrefs.get(profile).getBoolean(Pref.ENABLE_SNIPPETS)) {
             // Disabled by policy.
             status = ContentSuggestionsDisplayStatus.DISABLED_BY_POLICY;
-        } else if (!FeedFeatures.isFeedEnabled()) {
-            status = ContentSuggestionsDisplayStatus.DISABLED;
         } else if (!UserPrefs.get(profile).getBoolean(Pref.ARTICLES_LIST_VISIBLE)) {
             // Articles are collapsed.
             status = ContentSuggestionsDisplayStatus.COLLAPSED;
@@ -300,10 +290,10 @@ public class NewTabPageUma {
      * Records the number of new NTPs opened in a new tab. Use through
      * {@link NewTabPageUma#monitorNTPCreation(TabModelSelector)}.
      */
-    private static class TabCreationRecorder implements TabModelSelectorObserver {
+    private static class TabCreationRecorder extends EmptyTabModelSelectorObserver {
         @Override
         public void onNewTabCreated(Tab tab, @TabCreationState int creationState) {
-            if (!UrlUtilities.isNTPUrl(tab.getUrl())) return;
+            if (!UrlUtilities.isNTPUrl(tab.getUrlString())) return;
             RecordUserAction.record("MobileNTPOpenedInNewTab");
         }
     }
@@ -330,10 +320,5 @@ public class NewTabPageUma {
                 return true;
             }
         });
-    }
-
-    /** Destroy and unhook objects at destruction. */
-    public void destroy() {
-        if (mTabCreationRecorder != null) mTabModelSelector.removeObserver(mTabCreationRecorder);
     }
 }

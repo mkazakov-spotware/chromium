@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,8 +39,6 @@ constexpr char kServerLatency[] =
     "ImageAnnotationService.AccessibilityV1.ServerLatencyMs";
 constexpr char kImageRequestIncludesDesc[] =
     "ImageAnnotationService.AccessibilityV1.ImageRequestIncludesDesc";
-constexpr char kImageRequestIncludesIcon[] =
-    "ImageAnnotationService.AccessibilityV1.ImageRequestIncludesIcon";
 constexpr char kServerRequestSize[] =
     "ImageAnnotationService.AccessibilityV1.ServerRequestSizeKB";
 constexpr char kServerResponseSize[] =
@@ -101,11 +99,6 @@ void ReportServerLatency(base::TimeDelta latency);
 // the description engine; requests for images that violate the description
 // engine policy (e.g. are too small) will not.
 void ReportImageRequestIncludesDesc(bool includes_desc);
-
-// Report whether or not a request for image annotation includes parameters for
-// the icon engine; requests for images that violate the description
-// engine policy (e.g. are too large) will not.
-void ReportImageRequestIncludesIcon(bool includes_icon);
 
 // Report the size of the request sent to the image annotation server.
 void ReportServerRequestSizeKB(size_t size_kb);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -66,8 +66,7 @@ void DemoClient::Resize(const gfx::Size& size,
 }
 
 viz::CompositorFrame DemoClient::CreateFrame(const viz::BeginFrameArgs& args) {
-  constexpr SkColor4f colors[] = {SkColors::kRed, SkColors::kGreen,
-                                  SkColors::kYellow};
+  constexpr SkColor colors[] = {SK_ColorRED, SK_ColorGREEN, SK_ColorYELLOW};
   viz::CompositorFrame frame;
 
   frame.metadata.begin_frame_ack = viz::BeginFrameAck(args, true);
@@ -99,14 +98,14 @@ viz::CompositorFrame DemoClient::CreateFrame(const viz::BeginFrameArgs& args) {
 
     viz::SharedQuadState* quad_state =
         render_pass->CreateAndAppendSharedQuadState();
-    quad_state->SetAll(transform,
-                       /*quad_layer_rect=*/child_bounds,
-                       /*visible_layer_rect=*/child_bounds,
-                       /*mask_filter_info=*/gfx::MaskFilterInfo(),
-                       /*clip_rect=*/absl::nullopt,
-                       /*are_contents_opaque=*/false, /*opacity=*/1.f,
-                       /*blend_mode=*/SkBlendMode::kSrcOver,
-                       /*sorting_context_id=*/0);
+    quad_state->SetAll(
+        transform,
+        /*quad_layer_rect=*/child_bounds,
+        /*visible_quad_layer_rect=*/child_bounds,
+        /*mask_filter_info=*/gfx::MaskFilterInfo(),
+        /*clip_rect=*/gfx::Rect(),
+        /*is_clipped=*/false, /*are_contents_opaque=*/false, /*opacity=*/1.f,
+        /*blend_mode=*/SkBlendMode::kSrcOver, /*sorting_context_id=*/0);
 
     viz::SurfaceDrawQuad* embed =
         render_pass->CreateAndAppendDrawQuad<viz::SurfaceDrawQuad>();
@@ -116,7 +115,7 @@ viz::CompositorFrame DemoClient::CreateFrame(const viz::BeginFrameArgs& args) {
     embed->SetNew(quad_state,
                   /*rect=*/gfx::Rect(child_bounds.size()),
                   /*visible_rect=*/gfx::Rect(child_bounds.size()),
-                  viz::SurfaceRange(surface_id), SkColors::kGray,
+                  viz::SurfaceRange(surface_id), SK_ColorGRAY,
                   /*stretch_content_to_fill_bounds=*/false);
   }
 
@@ -124,19 +123,19 @@ viz::CompositorFrame DemoClient::CreateFrame(const viz::BeginFrameArgs& args) {
   // content-area of the client.
   viz::SharedQuadState* quad_state =
       render_pass->CreateAndAppendSharedQuadState();
-  quad_state->SetAll(gfx::Transform(),
-                     /*quad_layer_rect=*/output_rect,
-                     /*visible_layer_rect=*/output_rect,
-                     /*mask_filter_info=*/gfx::MaskFilterInfo(),
-                     /*clip_rect=*/absl::nullopt, /*are_contents_opaque=*/false,
-                     /*opacity=*/1.f,
-                     /*blend_mode=*/SkBlendMode::kSrcOver,
-                     /*sorting_context_id=*/0);
+  quad_state->SetAll(
+      gfx::Transform(),
+      /*quad_layer_rect=*/output_rect,
+      /*visible_quad_layer_rect=*/output_rect,
+      /*mask_filter_info=*/gfx::MaskFilterInfo(),
+      /*clip_rect=*/gfx::Rect(),
+      /*is_clipped=*/false, /*are_contents_opaque=*/false, /*opacity=*/1.f,
+      /*blend_mode=*/SkBlendMode::kSrcOver, /*sorting_context_id=*/0);
 
   viz::SolidColorDrawQuad* color_quad =
       render_pass->CreateAndAppendDrawQuad<viz::SolidColorDrawQuad>();
   color_quad->SetNew(quad_state, output_rect, output_rect,
-                     colors[(++frame_count_ / 60) % std::size(colors)], false);
+                     colors[(++frame_count_ / 60) % base::size(colors)], false);
 
   frame.render_pass_list.push_back(std::move(render_pass));
 
@@ -164,7 +163,7 @@ void DemoClient::InitializeOnThread(
 }
 
 void DemoClient::DidReceiveCompositorFrameAck(
-    std::vector<viz::ReturnedResource> resources) {
+    const std::vector<viz::ReturnedResource>& resources) {
   // See documentation in mojom for how this can be used.
 }
 
@@ -177,11 +176,11 @@ void DemoClient::OnBeginFrame(
   // deadline for the client before it needs to submit the compositor-frame.
   base::AutoLock lock(lock_);
   GetPtr()->SubmitCompositorFrame(local_surface_id_, CreateFrame(args),
-                                  absl::optional<viz::HitTestRegionList>(),
+                                  base::Optional<viz::HitTestRegionList>(),
                                   /*trace_time=*/0);
 }
 void DemoClient::OnBeginFramePausedChanged(bool paused) {}
 void DemoClient::ReclaimResources(
-    std::vector<viz::ReturnedResource> resources) {}
+    const std::vector<viz::ReturnedResource>& resources) {}
 
 }  // namespace demo

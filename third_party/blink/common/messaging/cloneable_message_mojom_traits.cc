@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,11 @@ bool StructTraits<blink::mojom::CloneableMessage::DataView,
     Read(blink::mojom::CloneableMessage::DataView data,
          blink::CloneableMessage* out) {
   mojo_base::BigBufferView message_view;
-  base::UnguessableToken sender_agent_cluster_id;
+  base::Optional<base::UnguessableToken> locked_agent_cluster_id;
   if (!data.ReadEncodedMessage(&message_view) || !data.ReadBlobs(&out->blobs) ||
-      !data.ReadSenderAgentClusterId(&sender_agent_cluster_id) ||
+      !data.ReadLockedAgentClusterId(&locked_agent_cluster_id) ||
       !data.ReadSenderOrigin(&out->sender_origin) ||
-      !data.ReadFileSystemAccessTokens(&out->file_system_access_tokens)) {
+      !data.ReadNativeFileSystemTokens(&out->native_file_system_tokens)) {
     return false;
   }
 
@@ -35,8 +35,7 @@ bool StructTraits<blink::mojom::CloneableMessage::DataView,
   out->stack_trace_debugger_id_first = data.stack_trace_debugger_id_first();
   out->stack_trace_debugger_id_second = data.stack_trace_debugger_id_second();
   out->stack_trace_should_pause = data.stack_trace_should_pause();
-  out->sender_agent_cluster_id = sender_agent_cluster_id;
-  out->locked_to_sender_agent_cluster = data.locked_to_sender_agent_cluster();
+  out->locked_agent_cluster_id = locked_agent_cluster_id;
   return true;
 }
 

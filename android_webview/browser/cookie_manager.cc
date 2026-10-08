@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,40 +11,35 @@
 #include <vector>
 
 #include "android_webview/browser/aw_browser_context.h"
-#include "android_webview/browser/aw_client_hints_controller_delegate.h"
 #include "android_webview/browser/aw_cookie_access_policy.h"
 #include "android_webview/browser_jni_headers/AwCookieManager_jni.h"
-#include "android_webview/common/aw_features.h"
-#include "android_webview/common/aw_switches.h"
 #include "base/android/build_info.h"
 #include "base/android/callback_android.h"
 #include "base/android/jni_string.h"
 #include "base/android/path_utils.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/command_line.h"
 #include "base/containers/circular_deque.h"
-#include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
+#include "base/optional.h"
 #include "base/path_service.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
-#include "base/values.h"
-#include "components/prefs/pref_service.h"
-#include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/cookie_store_factory.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_constants.h"
+#include "net/cookies/cookie_inclusion_status.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/cookies/cookie_options.h"
 #include "net/cookies/cookie_store.h"
@@ -54,7 +49,6 @@
 #include "services/network/cookie_access_delegate_impl.h"
 #include "services/network/network_service.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/url_constants.h"
 
 using base::WaitableEvent;
@@ -100,11 +94,20 @@ enum class SecureCookieAction {
   kMaxValue = kDisallowedAndroidR,
 };
 
-GURL MaybeFixUpSchemeForSecureCookie(const GURL& host,
-                                     const std::string& value,
-                                     bool workaround_http_secure_cookies,
-                                     bool* should_allow_cookie) {
+// Since this function parses the set-cookie line into a ParsedCookie, it is
+// convenient to hook into here to get the SameSite value from the parsed
+// cookie for histogramming.
+GURL MaybeFixUpSchemeForSecureCookieAndGetSameSite(
+    const GURL& host,
+    const std::string& value,
+    bool workaround_http_secure_cookies,
+    net::CookieSameSiteString* samesite_out,
+    bool* should_allow_cookie) {
   net::ParsedCookie parsed_cookie(value);
+
+  // Grab the SameSite value for histogramming.
+  DCHECK(samesite_out);
+  parsed_cookie.SameSite(samesite_out);
 
   *should_allow_cookie = true;
 
@@ -201,8 +204,7 @@ CookieManager::CookieManager()
     : allow_file_scheme_cookies_(kDefaultFileSchemeAllowed),
       cookie_store_created_(false),
       workaround_http_secure_cookies_(
-          base::android::BuildInfo::GetInstance()->target_sdk_version() <
-          base::android::SDK_VERSION_R),
+          !base::android::BuildInfo::GetInstance()->targets_at_least_r()),
       cookie_store_client_thread_("CookieMonsterClient"),
       cookie_store_backend_thread_("CookieMonsterBackend"),
       setting_new_mojo_cookie_manager_(false) {
@@ -320,8 +322,8 @@ net::CookieStore* CookieManager::GetCookieStore() {
 
   if (!cookie_store_) {
     content::CookieStoreConfig cookie_config(
-        cookie_store_path_, /* restore_old_session_cookies= */ true,
-        /* persist_session_cookies= */ true);
+        cookie_store_path_, true /* restore_old_session_cookies */,
+        true /* persist_session_cookies */);
     cookie_config.client_task_runner = cookie_store_task_runner_;
     cookie_config.background_task_runner =
         cookie_store_backend_thread_.task_runner();
@@ -346,14 +348,12 @@ net::CookieStore* CookieManager::GetCookieStore() {
     }
 
     cookie_store_ = content::CreateCookieStore(cookie_config, nullptr);
-    auto cookie_access_delegate_type =
-        base::CommandLine::ForCurrentProcess()->HasSwitch(
-            switches::kWebViewEnableModernCookieSameSite)
-            ? network::mojom::CookieAccessDelegateType::ALWAYS_NONLEGACY
-            : network::mojom::CookieAccessDelegateType::ALWAYS_LEGACY;
+    // Use a CookieAccessDelegate that always returns Legacy mode, for
+    // compatibility reasons.
     cookie_store_->SetCookieAccessDelegate(
         std::make_unique<network::CookieAccessDelegateImpl>(
-            cookie_access_delegate_type, nullptr /* first_party_sets */));
+            network::mojom::CookieAccessDelegateType::ALWAYS_LEGACY,
+            nullptr /* preloaded_first_party_sets */));
   }
 
   return cookie_store_.get();
@@ -399,10 +399,6 @@ void CookieManager::SwapMojoCookieManagerAsync(
   DCHECK(cookie_store_task_runner_->RunsTasksInCurrentSequence());
   mojo_cookie_manager_.Bind(std::move(cookie_manager_remote));
   setting_new_mojo_cookie_manager_ = false;
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(&CookieManager::ClearClientHintsCachedPerOriginMapIfNeeded,
-                     base::Unretained(this)));
   std::move(complete).Run();  // unblock content initialization
   RunPendingCookieTasks();
 }
@@ -470,17 +466,28 @@ void CookieManager::SetCookieHelper(const GURL& host,
                                     base::OnceCallback<void(bool)> callback) {
   DCHECK(cookie_store_task_runner_->RunsTasksInCurrentSequence());
 
+  net::CookieSameSiteString samesite = net::CookieSameSiteString::kUnspecified;
   bool should_allow_cookie = true;
-  const GURL& new_host = MaybeFixUpSchemeForSecureCookie(
-      host, value, workaround_http_secure_cookies_, &should_allow_cookie);
+  const GURL& new_host = MaybeFixUpSchemeForSecureCookieAndGetSameSite(
+      host, value, workaround_http_secure_cookies_, &samesite,
+      &should_allow_cookie);
 
-  std::unique_ptr<net::CanonicalCookie> cc(net::CanonicalCookie::Create(
-      new_host, value, base::Time::Now(), absl::nullopt /* server_time */,
-      absl::nullopt /* cookie_partition_key */));
+  UMA_HISTOGRAM_ENUMERATION(
+      "Android.WebView.CookieManager.SameSiteAttributeValue", samesite);
+
+  net::CookieInclusionStatus status;
+  std::unique_ptr<net::CanonicalCookie> cc(
+      net::CanonicalCookie::Create(new_host, value, base::Time::Now(),
+                                   base::nullopt /* server_time */, &status));
 
   if (!cc || !should_allow_cookie) {
     MaybeRunCookieCallback(std::move(callback), false);
     return;
+  }
+
+  if (cc->SameSite() == net::CookieSameSite::NO_RESTRICTION) {
+    UMA_HISTOGRAM_BOOLEAN("Android.WebView.CookieManager.SameSiteNoneIsSecure",
+                          cc->IsSecure());
   }
 
   // Note: CookieStore and network::CookieManager both accept a
@@ -515,25 +522,6 @@ ScopedJavaLocalRef<jstring> CookieManager::GetCookie(
       env, net::CanonicalCookie::BuildCookieLine(cookie_list));
 }
 
-ScopedJavaLocalRef<jobjectArray> CookieManager::GetCookieInfo(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    const JavaParamRef<jstring>& url) {
-  GURL host(ConvertJavaStringToUTF16(env, url));
-
-  net::CookieList cookie_list;
-  ExecCookieTaskSync(base::BindOnce(&CookieManager::GetCookieListAsyncHelper,
-                                    base::Unretained(this), host,
-                                    &cookie_list));
-  std::vector<std::string> cookie_attributes;
-  for (net::CanonicalCookie cookie : cookie_list) {
-    cookie_attributes.push_back(
-        net::CanonicalCookie::BuildCookieAttributesLine(cookie));
-  }
-  return base::android::ToJavaArrayOfStrings(
-      env, base::span<const std::string>(cookie_attributes));
-}
-
 void CookieManager::GetCookieListAsyncHelper(const GURL& host,
                                              net::CookieList* result,
                                              base::OnceClosure complete) {
@@ -541,12 +529,12 @@ void CookieManager::GetCookieListAsyncHelper(const GURL& host,
 
   if (GetMojoCookieManager()) {
     GetMojoCookieManager()->GetCookieList(
-        host, options, net::CookiePartitionKeyCollection::Todo(),
+        host, options,
         base::BindOnce(&CookieManager::GetCookieListCompleted,
                        base::Unretained(this), std::move(complete), result));
   } else {
     GetCookieStore()->GetCookieListWithOptionsAsync(
-        host, options, net::CookiePartitionKeyCollection::Todo(),
+        host, options,
         base::BindOnce(&CookieManager::GetCookieListCompleted,
                        base::Unretained(this), std::move(complete), result));
   }
@@ -625,14 +613,7 @@ void CookieManager::RemoveAllCookiesSync(JNIEnv* env,
 
 void CookieManager::RemoveAllCookiesHelper(
     base::OnceCallback<void(bool)> callback) {
-  // Clear client hints preferences when all cookies are cleared.
-  should_clear_client_hints_cached_per_origin_map_ = true;
   if (GetMojoCookieManager()) {
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(
-            &CookieManager::ClearClientHintsCachedPerOriginMapIfNeeded,
-            base::Unretained(this)));
     // An empty filter matches all cookies.
     auto match_all_cookies = network::mojom::CookieDeletionFilter::New();
     GetMojoCookieManager()->DeleteCookies(
@@ -640,7 +621,6 @@ void CookieManager::RemoveAllCookiesHelper(
         base::BindOnce(&CookieManager::RemoveCookiesCompleted,
                        base::Unretained(this), std::move(callback)));
   } else {
-    // TODO(crbug.com/921655): Support clearing client hints here as well.
     GetCookieStore()->DeleteAllAsync(
         base::BindOnce(&CookieManager::RemoveCookiesCompleted,
                        base::Unretained(this), std::move(callback)));
@@ -745,21 +725,6 @@ void CookieManager::SetAllowFileSchemeCookiesCompleted(
     allow_file_scheme_cookies_ = allow;
   }
   std::move(complete).Run();
-}
-
-void CookieManager::ClearClientHintsCachedPerOriginMapIfNeeded() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  // If we had a client hint cache clear pending, we should do it as soon as we
-  // next check and see that the browser has been started.
-  if (should_clear_client_hints_cached_per_origin_map_ &&
-      base::FeatureList::IsEnabled(
-          android_webview::features::kWebViewClientHintsControllerDelegate) &&
-      AwBrowserContext::GetDefault() &&
-      AwBrowserContext::GetDefault()->GetPrefService()) {
-    AwBrowserContext::GetDefault()->GetPrefService()->SetDict(
-        prefs::kClientHintsCachedPerOriginMap, base::Value::Dict());
-    should_clear_client_hints_cached_per_origin_map_ = false;
-  }
 }
 
 static jlong JNI_AwCookieManager_GetDefaultCookieManager(JNIEnv* env) {

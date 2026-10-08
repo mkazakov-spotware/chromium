@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,8 +96,7 @@ function expectNormalTabNavigationEvents(url) {
             type: 'script',
             url: scriptUrl,
             frameUrl: url,
-            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost),
-            documentId: 1
+            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost)
           }
         },
         {
@@ -106,8 +105,7 @@ function expectNormalTabNavigationEvents(url) {
           details: {
             type: 'script',
             url: scriptUrl,
-            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost),
-            documentId: 1
+            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost)
           }
         },
         {
@@ -116,8 +114,7 @@ function expectNormalTabNavigationEvents(url) {
           details: {
             type: 'script',
             url: scriptUrl,
-            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost),
-            documentId: 1
+            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost)
           }
         },
         {
@@ -128,8 +125,7 @@ function expectNormalTabNavigationEvents(url) {
             url: scriptUrl,
             statusLine: 'HTTP/1.1 200 OK',
             statusCode: 200,
-            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost),
-            documentId: 1
+            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost)
           }
         },
         {
@@ -142,8 +138,7 @@ function expectNormalTabNavigationEvents(url) {
             ip: '127.0.0.1',
             fromCache: false,
             statusLine: 'HTTP/1.1 200 OK',
-            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost),
-            documentId: 1
+            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost)
           }
         },
         {
@@ -156,8 +151,7 @@ function expectNormalTabNavigationEvents(url) {
             ip: '127.0.0.1',
             fromCache: false,
             statusLine: 'HTTP/1.1 200 OK',
-            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost),
-            documentId: 1
+            initiator: getServerDomain(initiators.WEB_INITIATED, frontendHost)
           }
         },
       ],
@@ -255,8 +249,7 @@ function expectMockedTabNavigationEvents(url) {
             frameUrl: url,
             // Cannot use getServerDomain(initiators.WEB_INITIATED) because it
             // always adds a port, while this request does not have any ports.
-            initiator: frontendOrigin,
-            documentId: 1
+            initiator: frontendOrigin
           }
         },
         {
@@ -265,8 +258,7 @@ function expectMockedTabNavigationEvents(url) {
           details: {
             type: 'script',
             url: scriptUrl,
-            initiator: frontendOrigin,
-            documentId: 1
+            initiator: frontendOrigin
           }
         },
         {
@@ -275,8 +267,7 @@ function expectMockedTabNavigationEvents(url) {
           details: {
             type: 'script',
             url: scriptUrl,
-            initiator: frontendOrigin,
-            documentId: 1
+            initiator: frontendOrigin
           }
         },
         {
@@ -287,8 +278,7 @@ function expectMockedTabNavigationEvents(url) {
             url: scriptUrl,
             statusCode: 200,
             statusLine: 'HTTP/1.0 200 OK',
-            initiator: frontendOrigin,
-            documentId: 1
+            initiator: frontendOrigin
           }
         },
         {
@@ -300,8 +290,7 @@ function expectMockedTabNavigationEvents(url) {
             statusCode: 200,
             fromCache: false,
             statusLine: 'HTTP/1.0 200 OK',
-            initiator: frontendOrigin,
-            documentId: 1
+            initiator: frontendOrigin
           }
         },
         {
@@ -313,8 +302,7 @@ function expectMockedTabNavigationEvents(url) {
             statusCode: 200,
             fromCache: false,
             statusLine: 'HTTP/1.0 200 OK',
-            initiator: frontendOrigin,
-            documentId: 1
+            initiator: frontendOrigin
           }
         },
       ],

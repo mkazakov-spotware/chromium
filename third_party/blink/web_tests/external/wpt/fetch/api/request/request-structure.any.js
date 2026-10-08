@@ -23,12 +23,11 @@ var attributes = ["method",
                   "integrity",
                   "isReloadNavigation",
                   "isHistoryNavigation",
-                  "duplex",
                   //Request implements Body
                   "bodyUsed"
                   ];
 
-function isReadOnly(request, attributeToCheck) {
+function IsreadOnly(request, attributeToCheck) {
   var defaultValue = undefined;
   var newValue = undefined;
   switch (attributeToCheck) {
@@ -47,6 +46,7 @@ function isReadOnly(request, attributeToCheck) {
       request.headers = new Headers ({"name":"value"});
       assert_false(request.headers.has("name"), "Headers attribute is read only");
       return;
+      break;
 
     case "destination":
       defaultValue = "";
@@ -102,11 +102,6 @@ function isReadOnly(request, attributeToCheck) {
       newValue = true;
       break;
 
-    case "duplex":
-      defaultValue = "half";
-      newValue = "full";
-      break;
-
     default:
       return;
   }
@@ -128,6 +123,6 @@ for (var idx in methods) {
 for (var idx in attributes) {
   test(function() {
     assert_true(attributes[idx] in request, "request has " + attributes[idx] + " attribute");
-    isReadOnly(request, attributes[idx]);
+    IsreadOnly(request, attributes[idx]);
   }, "Check " + attributes[idx] + " attribute");
 }

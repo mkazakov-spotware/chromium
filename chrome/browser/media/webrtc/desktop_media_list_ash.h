@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,24 +24,20 @@ class Image;
 // native windows.
 class DesktopMediaListAsh : public DesktopMediaListBase {
  public:
-  explicit DesktopMediaListAsh(DesktopMediaList::Type type);
-
-  DesktopMediaListAsh(const DesktopMediaListAsh&) = delete;
-  DesktopMediaListAsh& operator=(const DesktopMediaListAsh&) = delete;
-
+  explicit DesktopMediaListAsh(content::DesktopMediaID::Type type);
   ~DesktopMediaListAsh() override;
 
  private:
   // Override from DesktopMediaListBase.
-  void Refresh(bool update_thumbnails) override;
+  void Refresh(bool update_thumnails) override;
   void EnumerateWindowsForRoot(
       std::vector<DesktopMediaListAsh::SourceDescription>* windows,
-      bool update_thumbnails,
+      bool update_thumnails,
       aura::Window* root_window,
       int container_id);
   void EnumerateSources(
       std::vector<DesktopMediaListAsh::SourceDescription>* windows,
-      bool update_thumbnails);
+      bool update_thumnails);
   void CaptureThumbnail(content::DesktopMediaID id, aura::Window* window);
   void OnThumbnailCaptured(content::DesktopMediaID id, gfx::Image image);
   void OnRefreshMaybeComplete();
@@ -51,6 +47,8 @@ class DesktopMediaListAsh : public DesktopMediaListBase {
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<DesktopMediaListAsh> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopMediaListAsh);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_WEBRTC_DESKTOP_MEDIA_LIST_ASH_H_

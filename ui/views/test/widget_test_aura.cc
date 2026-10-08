@@ -1,25 +1,29 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/test/widget_test.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/aura/client/focus_client.h"
 #include "ui/aura/test/aura_test_helper.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_delegate.h"
 #include "ui/aura/window_tree_host.h"
-#include "ui/compositor/layer.h"
 #include "ui/views/widget/widget.h"
 #include "ui/wm/core/shadow_controller.h"
 
-#if BUILDFLAG(ENABLE_DESKTOP_AURA)
-#include "ui/views/widget/desktop_aura/desktop_window_tree_host_platform.h"
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && \
+    BUILDFLAG(ENABLE_DESKTOP_AURA)
+#include "ui/views/widget/desktop_aura/desktop_window_tree_host_linux.h"
 #endif
 
-namespace views::test {
+#if defined(USE_X11)
+#include "ui/base/x/x11_util.h"  // nogncheck
+#endif
+
+namespace views {
+namespace test {
 
 namespace {
 
@@ -50,7 +54,7 @@ bool FindLayersInOrder(const std::vector<ui::Layer*>& children,
   return false;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 struct FindAllWindowsData {
   std::vector<aura::Window*>* windows;
@@ -64,22 +68,23 @@ BOOL CALLBACK FindAllWindowsCallback(HWND hwnd, LPARAM param) {
   return TRUE;
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 std::vector<aura::Window*> GetAllTopLevelWindows() {
   std::vector<aura::Window*> roots;
-#if BUILDFLAG(IS_WIN)
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && \
+    BUILDFLAG(ENABLE_DESKTOP_AURA)
+  roots = DesktopWindowTreeHostLinux::GetAllOpenWindows();
+#elif defined(OS_WIN)
   {
     FindAllWindowsData data = {&roots};
     EnumThreadWindows(GetCurrentThreadId(), FindAllWindowsCallback,
                       reinterpret_cast<LPARAM>(&data));
   }
-#elif BUILDFLAG(ENABLE_DESKTOP_AURA)
-  roots = DesktopWindowTreeHostPlatform::GetAllOpenWindows();
 #endif
   aura::test::AuraTestHelper* aura_test_helper =
       aura::test::AuraTestHelper::GetInstance();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Chrome OS browser tests must use ash::Shell::GetAllRootWindows.
   DCHECK(aura_test_helper) << "Can't find all widgets without a test helper";
 #endif
@@ -119,31 +124,41 @@ gfx::Size WidgetTest::GetNativeWidgetMinimumContentSize(Widget* widget) {
   // the window manager is interested in knowing the size constraints. On
   // ChromeOS, it's handled internally. Elsewhere, the size constraints need to
   // be pushed to the window server when they change.
-#if !BUILDFLAG(ENABLE_DESKTOP_AURA) || BUILDFLAG(IS_WIN)
+#if !BUILDFLAG(ENABLE_DESKTOP_AURA) || defined(OS_WIN)
   return widget->GetNativeWindow()->delegate()->GetMinimumSize();
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  return widget->GetNativeWindow()->delegate()->GetMinimumSize();
-#endif
+#elif defined(OS_LINUX) && !defined(OS_CHROMEOS)
+#if defined(USE_OZONE)
+  if (features::IsUsingOzonePlatform())
+    return widget->GetNativeWindow()->delegate()->GetMinimumSize();
+#endif  // USE_OZONE
+#if defined(USE_X11)
+  EXPECT_FALSE(features::IsUsingOzonePlatform());
+  ui::SizeHints hints;
+  ui::GetWmNormalHints(
+      static_cast<x11::Window>(
+          widget->GetNativeWindow()->GetHost()->GetAcceleratedWidget()),
+      &hints);
+  return gfx::Size(hints.min_width, hints.min_height);
+#endif  // USE_X11
+#endif  // OS_LINUX && !OS_CHROMEOS
   NOTREACHED();
   return gfx::Size();
 }
 
 // static
 ui::EventSink* WidgetTest::GetEventSink(Widget* widget) {
-  return widget->GetNativeWindow()->GetHost()->GetEventSink();
+  return widget->GetNativeWindow()->GetHost()->event_sink();
 }
 
 // static
-ui::ImeKeyEventDispatcher* WidgetTest::GetImeKeyEventDispatcherForWidget(
+ui::internal::InputMethodDelegate* WidgetTest::GetInputMethodDelegateForWidget(
     Widget* widget) {
   return widget->GetNativeWindow()->GetRootWindow()->GetHost();
 }
 
 // static
 bool WidgetTest::IsNativeWindowTransparent(gfx::NativeWindow window) {
-  return window->GetTransparent();
+  return window->transparent();
 }
 
 // static
@@ -172,4 +187,5 @@ Widget::Widgets WidgetTest::GetAllWidgets() {
 // static
 void WidgetTest::WaitForSystemAppActivation() {}
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

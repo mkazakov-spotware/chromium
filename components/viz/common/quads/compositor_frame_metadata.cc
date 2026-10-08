@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,11 +42,9 @@ CompositorFrameMetadata::CompositorFrameMetadata(
       min_page_scale_factor(other.min_page_scale_factor),
       top_controls_visible_height(other.top_controls_visible_height),
       preferred_frame_interval(other.preferred_frame_interval),
-      display_transform_hint(other.display_transform_hint),
-      transition_directives(other.transition_directives),
-      has_shared_element_resources(other.has_shared_element_resources) {
+      display_transform_hint(other.display_transform_hint) {
   if (other.delegated_ink_metadata) {
-    delegated_ink_metadata = std::make_unique<gfx::DelegatedInkMetadata>(
+    delegated_ink_metadata = std::make_unique<DelegatedInkMetadata>(
         *other.delegated_ink_metadata.get());
   }
 }

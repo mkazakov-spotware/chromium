@@ -19,11 +19,9 @@ int
 LLVMFuzzerTestOneInput(const char *data, size_t size) {
     xmlRegexpPtr regexp;
     char *str[2] = { NULL, NULL };
+    size_t numStrings;
 
-    if (size > 200)
-        return(0);
-
-    xmlFuzzExtractStrings(data, size, str, 2);
+    numStrings = xmlFuzzExtractStrings(data, size, str, 2);
 
     /* CUR_SCHAR doesn't handle invalid UTF-8 and may cause infinite loops. */
     if (xmlCheckUTF8(BAD_CAST str[0]) != 0) {
@@ -39,7 +37,6 @@ LLVMFuzzerTestOneInput(const char *data, size_t size) {
 
     xmlFree(str[0]);
     xmlFree(str[1]);
-    xmlResetLastError();
 
     return 0;
 }

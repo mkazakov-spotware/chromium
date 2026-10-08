@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <launch.h>
 #include <sys/types.h>
-#include <utility>
 
 #include "base/bind.h"
 #include "base/command_line.h"
@@ -22,7 +21,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/posix/eintr_wrapper.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "remoting/base/string_resources.h"
 #include "remoting/host/host_config.h"
@@ -30,7 +29,6 @@
 #include "remoting/host/mac/permission_checker.h"
 #include "remoting/host/mac/permission_wizard.h"
 #include "remoting/host/resources.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 
@@ -164,14 +162,14 @@ bool RunHelperAsRoot(const std::string& command,
   return false;
 }
 
-void ElevateAndSetConfig(base::Value::Dict config,
+void ElevateAndSetConfig(const base::DictionaryValue& config,
                          DaemonController::CompletionCallback done) {
   // Find out if the host service is running.
   pid_t job_pid = base::mac::PIDForJob(remoting::kServiceName);
   bool service_running = (job_pid > 0);
 
   const char* command = service_running ? "--save-config" : "--enable";
-  std::string input_data = HostConfigToJson(std::move(config));
+  std::string input_data = HostConfigToJson(config);
   if (!RunHelperAsRoot(command, input_data)) {
     LOG(ERROR) << "Failed to run the helper tool.";
     std::move(done).Run(DaemonController::RESULT_FAILED);
@@ -233,24 +231,20 @@ DaemonController::State DaemonControllerDelegateMac::GetState() {
   }
 }
 
-absl::optional<base::Value::Dict> DaemonControllerDelegateMac::GetConfig() {
+std::unique_ptr<base::DictionaryValue>
+DaemonControllerDelegateMac::GetConfig() {
   base::FilePath config_path(kHostConfigFilePath);
-  absl::optional<base::Value::Dict> host_config(
+  std::unique_ptr<base::DictionaryValue> host_config(
       HostConfigFromJsonFile(config_path));
-  if (!host_config.has_value())
-    return absl::nullopt;
+  if (!host_config)
+    return nullptr;
 
-  base::Value::Dict config;
-  std::string* value = host_config->FindString(kHostIdConfigPath);
-  if (value) {
-    config.Set(kHostIdConfigPath, *value);
-  }
-
-  value = host_config->FindString(kXmppLoginConfigPath);
-  if (value) {
-    config.Set(kXmppLoginConfigPath, *value);
-  }
-
+  std::unique_ptr<base::DictionaryValue> config(new base::DictionaryValue);
+  std::string value;
+  if (host_config->GetString(kHostIdConfigPath, &value))
+    config->SetString(kHostIdConfigPath, value);
+  if (host_config->GetString(kXmppLoginConfigPath, &value))
+    config->SetString(kXmppLoginConfigPath, value);
   return config;
 }
 
@@ -262,31 +256,30 @@ void DaemonControllerDelegateMac::CheckPermission(
   permission_wizard_ =
       std::make_unique<mac::PermissionWizard>(std::move(checker));
   permission_wizard_->SetCompletionCallback(std::move(callback));
-  permission_wizard_->Start(base::SingleThreadTaskRunner::GetCurrentDefault());
+  permission_wizard_->Start(base::ThreadTaskRunnerHandle::Get());
 }
 
 void DaemonControllerDelegateMac::SetConfigAndStart(
-    base::Value::Dict config,
+    std::unique_ptr<base::DictionaryValue> config,
     bool consent,
     DaemonController::CompletionCallback done) {
-  config.Set(kUsageStatsConsentConfigPath, consent);
-  ElevateAndSetConfig(std::move(config), std::move(done));
+  config->SetBoolean(kUsageStatsConsentConfigPath, consent);
+  ElevateAndSetConfig(*config, std::move(done));
 }
 
 void DaemonControllerDelegateMac::UpdateConfig(
-    base::Value::Dict config,
+    std::unique_ptr<base::DictionaryValue> config,
     DaemonController::CompletionCallback done) {
   base::FilePath config_file_path(kHostConfigFilePath);
-  absl::optional<base::Value::Dict> host_config(
+  std::unique_ptr<base::DictionaryValue> host_config(
       HostConfigFromJsonFile(config_file_path));
-  if (!host_config.has_value()) {
+  if (!host_config) {
     std::move(done).Run(DaemonController::RESULT_FAILED);
     return;
   }
 
-  host_config->Merge(std::move(config));
-  ElevateAndSetConfig(std::move(host_config.value()),
-                      std::move(done));
+  host_config->MergeDictionary(config.get());
+  ElevateAndSetConfig(*host_config, std::move(done));
 }
 
 void DaemonControllerDelegateMac::Stop(
@@ -303,14 +296,10 @@ DaemonControllerDelegateMac::GetUsageStatsConsent() {
   consent.set_by_policy = false;
 
   base::FilePath config_file_path(kHostConfigFilePath);
-  absl::optional<base::Value::Dict> host_config(
+  std::unique_ptr<base::DictionaryValue> host_config(
       HostConfigFromJsonFile(config_file_path));
-  if (host_config.has_value()) {
-    absl::optional<bool> host_config_value =
-        host_config->FindBool(kUsageStatsConsentConfigPath);
-    if (host_config_value.has_value()) {
-      consent.allowed = host_config_value.value();
-    }
+  if (host_config) {
+    host_config->GetBoolean(kUsageStatsConsentConfigPath, &consent.allowed);
   }
 
   return consent;

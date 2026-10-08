@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,9 @@
 #include <memory>
 #include <string>
 
-namespace remoting::protocol {
+
+namespace remoting {
+namespace protocol {
 
 extern const int kDefaultStreamVersion;
 
@@ -33,7 +35,6 @@ struct ChannelConfig {
     CODEC_H264,
     CODEC_OPUS,
     CODEC_SPEEX,
-    CODEC_AV1,
   };
 
   // Creates a config with transport field set to TRANSPORT_NONE which indicates
@@ -64,10 +65,10 @@ class CandidateSessionConfig;
 class SessionConfig {
  public:
   enum class Protocol {
-    // ICE-based protocol (aka Chromotocol).
+    // Current ICE-based protocol.
     ICE,
 
-    // WebRTC-based protocol.
+    // New WebRTC-based protocol.
     WEBRTC,
   };
 
@@ -81,7 +82,7 @@ class SessionConfig {
 
   // Extracts final protocol configuration. Must be used for the description
   // received in the session-accept stanza. If the selection is ambiguous
-  // (e.g. there is more than one configuration for one of the channels)
+  // (e.g. there is more than one configuration for one of the channel)
   // or undefined (e.g. no configurations for a channel) then nullptr is
   // returned.
   static std::unique_ptr<SessionConfig> GetFinalConfig(
@@ -168,6 +169,23 @@ class CandidateSessionConfig {
     return &audio_configs_;
   }
 
+  // Old clients always list VP9 as supported and preferred even though they
+  // shouldn't have it enabled yet. I.e. the host cannot trust VP9 codec
+  // preference received from the client. To workaround this issue the client
+  // adds a hint in the session-initiate message to indicate that it actually
+  // wants VP9 to be enabled.
+  //
+  // TODO(sergeyu): Remove this kludge as soon as VP9 is enabled by default.
+  bool vp9_experiment_enabled() const { return vp9_experiment_enabled_; }
+  void set_vp9_experiment_enabled(bool value) {
+    vp9_experiment_enabled_ = value;
+  }
+
+  bool h264_experiment_enabled() const { return h264_experiment_enabled_; }
+  void set_h264_experiment_enabled(bool value) {
+    h264_experiment_enabled_ = value;
+  }
+
   // Returns true if |config| is supported.
   bool IsSupported(const SessionConfig& config) const;
 
@@ -189,8 +207,12 @@ class CandidateSessionConfig {
   std::list<ChannelConfig> event_configs_;
   std::list<ChannelConfig> video_configs_;
   std::list<ChannelConfig> audio_configs_;
+
+  bool vp9_experiment_enabled_ = false;
+  bool h264_experiment_enabled_ = false;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_SESSION_CONFIG_H_

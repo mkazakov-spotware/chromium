@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define ASH_DBUS_USER_AUTHENTICATION_SERVICE_PROVIDER_H_
 
 #include "base/memory/weak_ptr.h"
-#include "chromeos/ash/components/dbus/services/cros_dbus_service.h"
+#include "chromeos/dbus/services/cros_dbus_service.h"
 #include "dbus/exported_object.h"
 
 namespace dbus {
@@ -18,7 +18,7 @@ namespace ash {
 // This class exports a D-Bus method that platform daemons call to request Ash
 // to start in-session user authentication flow.
 class UserAuthenticationServiceProvider
-    : public CrosDBusService::ServiceProviderInterface {
+    : public chromeos::CrosDBusService::ServiceProviderInterface {
  public:
   UserAuthenticationServiceProvider();
   UserAuthenticationServiceProvider(const UserAuthenticationServiceProvider&) =
@@ -37,8 +37,7 @@ class UserAuthenticationServiceProvider
                   const std::string& method_name,
                   bool success);
 
-  // Called on UI thread in response to D-Bus requests. This expects the
-  // request_id field to be a string.
+  // Called on UI thread in response to D-Bus requests.
   void ShowAuthDialog(dbus::MethodCall* method_call,
                       dbus::ExportedObject::ResponseSender response_sender);
 
@@ -51,17 +50,6 @@ class UserAuthenticationServiceProvider
   // it's shown.
   void Cancel(dbus::MethodCall* method_call,
               dbus::ExportedObject::ResponseSender response_sender);
-
-  // Called on UI thread in response to D-Bus requests.
-  void IsAuthenticatorAvailable(
-      dbus::MethodCall* method_call,
-      dbus::ExportedObject::ResponseSender response_sender);
-
-  // Called when authenticator availability is checked.
-  void OnAvailabilityChecked(
-      dbus::MethodCall* method_call,
-      dbus::ExportedObject::ResponseSender response_sender,
-      bool available);
 
   // Keep this last so that all weak pointers will be invalidated at the
   // beginning of destruction.

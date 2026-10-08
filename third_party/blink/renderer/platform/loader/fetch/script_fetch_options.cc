@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <utility>
 
-#include "third_party/blink/renderer/platform/loader/attribution_header_constants.h"
-#include "third_party/blink/renderer/platform/network/http_names.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 
@@ -32,7 +30,6 @@ FetchParameters ScriptFetchOptions::CreateFetchParameters(
   FetchParameters params(std::move(resource_request), resource_loader_options);
   params.SetRequestContext(mojom::blink::RequestContextType::SCRIPT);
   params.SetRequestDestination(network::mojom::RequestDestination::kScript);
-  params.SetRenderBlockingBehavior(render_blocking_behavior_);
 
   // Step 1. ... and CORS setting. [spec text]
   if (cross_origin != kCrossOriginAttributeNotSet)
@@ -57,9 +54,10 @@ FetchParameters ScriptFetchOptions::CreateFetchParameters(
   // its parser metadata to options's parser metadata, [spec text]
   params.SetParserDisposition(ParserState());
 
-  // https://wicg.github.io/priority-hints/#script
-  // set request’s priority to option’s fetchpriority
-  params.MutableResourceRequest().SetFetchPriorityHint(fetch_priority_hint_);
+  // Priority Hints is currently non-standard, but we can assume the following
+  // (see https://crbug.com/821464):
+  // its importance to options's importance, [spec text]
+  params.MutableResourceRequest().SetFetchImportanceMode(importance_);
 
   // its referrer policy to options's referrer policy. [spec text]
   params.MutableResourceRequest().SetReferrerPolicy(referrer_policy_);
@@ -71,14 +69,6 @@ FetchParameters ScriptFetchOptions::CreateFetchParameters(
   params.SetDefer(defer);
 
   // Steps 4- are Implemented at ClassicPendingScript::Fetch().
-
-  // TODO(crbug.com/1338976): Add correct spec comments here.
-  if (attribution_reporting_eligibility_ ==
-      AttributionReportingEligibility::kEligible) {
-    params.MutableResourceRequest().SetHttpHeaderField(
-        http_names::kAttributionReportingEligible,
-        kAttributionEligibleEventSourceAndTrigger);
-  }
 
   return params;
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 
 class ExtensionIconSet;
@@ -34,7 +35,7 @@ bool NormalizeAndValidatePath(const std::string& path,
 // Returns success. If load fails, |error| will be set.
 bool LoadIconsFromDictionary(const base::Value* icons_value,
                              ExtensionIconSet* icons,
-                             std::u16string* error);
+                             base::string16* error);
 
 }  // namespace manifest_handler_helpers
 }  // namespace extensions

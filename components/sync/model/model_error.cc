@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,11 +27,11 @@ std::string ModelError::ToString() const {
 
 // TODO(https://crbug.com/1057577): Remove this once ProcessSyncChanges in
 // SyncableService has been refactored.
-absl::optional<ModelError> ConvertToModelError(const SyncError& sync_error) {
+base::Optional<ModelError> ConvertToModelError(const SyncError& sync_error) {
   if (sync_error.IsSet()) {
     return ModelError(sync_error.location(), sync_error.message());
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace syncer

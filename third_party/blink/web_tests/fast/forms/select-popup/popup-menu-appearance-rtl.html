@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
+<html>
+<head>
+<script>
+window.enablePixelTesting = true;
+</script>
+<script src="../../../resources/js-test.js"></script>
 <script src="../resources/picker-common.js"></script>
-
-<select style="margin-left: 100px; direction: rtl; padding-right: 20px; width: 130px; -webkit-appearance: none;">
+</head>
+<body>
+<select id="menu" style="margin-left: 100px; direction: rtl; padding-right: 20px; width: 130px; -webkit-appearance: none;">
   <option>Item 01</option>
   <option>Item 02</option>
   <option>Item 03</option>
@@ -27,7 +32,13 @@
   <option>Item 21</option>
   <option>Item 22</option>
 </select>
-
+<p id="description" style="opacity: 0"></p>
+<div id="console" style="opacity: 0"></div>
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('select'));
+openPicker(menu, finishJSTest, function () {
+    testFailed('picker didn\'t open')
+    finishJSTest();
+});
 </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,10 @@
 #include "remoting/protocol/video_frame_pump.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
-FakeVideoStream::FakeVideoStream() = default;
+FakeVideoStream::FakeVideoStream() {}
 FakeVideoStream::~FakeVideoStream() = default;
 
 void FakeVideoStream::SetEventTimestampsSource(
@@ -31,21 +32,7 @@ void FakeVideoStream::SetObserver(Observer* observer) {
   observer_ = observer;
 }
 
-void FakeVideoStream::SelectSource(webrtc::ScreenId id) {
-  selected_source_ = id;
-}
-
-void FakeVideoStream::SetComposeEnabled(bool enabled) {}
-
-void FakeVideoStream::SetMouseCursor(
-    std::unique_ptr<webrtc::MouseCursor> mouse_cursor) {}
-
-void FakeVideoStream::SetMouseCursorPosition(
-    const webrtc::DesktopVector& position) {}
-
-webrtc::ScreenId FakeVideoStream::selected_source() const {
-  return selected_source_;
-}
+void FakeVideoStream::SelectSource(int id) {}
 
 base::WeakPtr<FakeVideoStream> FakeVideoStream::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
@@ -61,8 +48,7 @@ void FakeConnectionToClient::SetEventHandler(EventHandler* event_handler) {
 }
 
 std::unique_ptr<VideoStream> FakeConnectionToClient::StartVideoStream(
-    const std::string& stream_name,
-    std::unique_ptr<DesktopCapturer> desktop_capturer) {
+    std::unique_ptr<webrtc::DesktopCapturer> desktop_capturer) {
   desktop_capturer_ = std::move(desktop_capturer);
   if (video_stub_ && video_encode_task_runner_) {
     std::unique_ptr<VideoEncoder> video_encoder =
@@ -123,4 +109,5 @@ WebrtcEventLogData* FakeConnectionToClient::rtc_event_log() {
   return nullptr;
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

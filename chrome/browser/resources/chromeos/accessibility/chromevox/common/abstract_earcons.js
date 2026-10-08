@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,17 @@
  * When adding earcons, please add them to getEarconName and getEarconId.
  *
  */
-import {LocalStorage} from '../../common/local_storage.js';
+
+goog.provide('AbstractEarcons');
+goog.provide('Earcon');
+goog.provide('EarconDescription');
+
 
 /**
  * Earcon names.
  * @enum {string}
  */
-export const Earcon = {
+Earcon = {
   ALERT_MODAL: 'alert_modal',
   ALERT_NONMODAL: 'alert_nonmodal',
   BUTTON: 'button',
@@ -55,7 +59,7 @@ export const Earcon = {
  * used to generate tutorial content.
  * @type {Object<string, string>}
  */
-export const EarconDescription = {
+const EarconDescription = {
   alert_modal: 'alert_modal_earcon_description',
   alert_nonmodal: 'alert_nonmodal_earcon_description',
   button: 'button_earcon_description',
@@ -72,12 +76,15 @@ export const EarconDescription = {
 };
 
 
-export class AbstractEarcons {
+AbstractEarcons = class {
+  constructor() {}
+
   /**
    * Plays the specified earcon sound.
    * @param {Earcon} earcon An earcon identifier.
-   * @param {chrome.automation.Rect=} opt_location A location associated with
-   *     the earcon such as a control's bounding rectangle.
+   * @param {Object=} opt_location A location associated with the earcon such as
+   *     a
+   * control's bounding rectangle.
    */
   playEarcon(earcon, opt_location) {}
 
@@ -96,18 +103,19 @@ export class AbstractEarcons {
   }
 
   /**
-   * Whether or not earcons are enabled.
-   * @return {boolean} True if earcons are enabled.
+   * Toggles earcons on or off.
+   * @return {boolean} True if earcons are now enabled; false otherwise.
    */
-  get enabled() {
-    return LocalStorage.get('earcons');
+  toggle() {
+    AbstractEarcons.enabled = !AbstractEarcons.enabled;
+    return AbstractEarcons.enabled;
   }
+};
 
-  /**
-   * Set whether or not earcons are enabled.
-   * @param {boolean} value True turns on earcons, false turns off earcons.
-   */
-  set enabled(value) {
-    LocalStorage.set('earcons', value);
-  }
-}
+
+/**
+ * Public static flag set to enable or disable earcons. Callers should prefer
+ * toggle(); however, this member is public for initialization.
+ * @type {boolean}
+ */
+AbstractEarcons.enabled = true;

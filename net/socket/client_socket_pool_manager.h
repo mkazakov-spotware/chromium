@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,29 +9,43 @@
 #ifndef NET_SOCKET_CLIENT_SOCKET_POOL_MANAGER_H_
 #define NET_SOCKET_CLIENT_SOCKET_POOL_MANAGER_H_
 
-#include "base/values.h"
+#include <string>
+
 #include "net/base/completion_once_callback.h"
 #include "net/base/net_export.h"
 #include "net/base/request_priority.h"
-#include "net/dns/public/secure_dns_policy.h"
 #include "net/http/http_network_session.h"
 #include "net/socket/client_socket_pool.h"
-#include "url/scheme_host_port.h"
+
+namespace base {
+class Value;
+namespace trace_event {
+class ProcessMemoryDump;
+}
+}
 
 namespace net {
 
 class ClientSocketHandle;
+class HostPortPair;
 class NetLogWithSource;
-class NetworkAnonymizationKey;
+class NetworkIsolationKey;
 class ProxyInfo;
 class ProxyServer;
 
 struct SSLConfig;
 
-constexpr int kDefaultMaxSocketsPerProxyServer = 32;
+// This should rather be a simple constant but Windows shared libs doesn't
+// really offer much flexiblity in exporting contants.
+enum DefaultMaxValues { kDefaultMaxSocketsPerProxyServer = 32 };
 
 class NET_EXPORT_PRIVATE ClientSocketPoolManager {
  public:
+  enum SocketGroupType {
+    SSL_GROUP,     // For all TLS sockets.
+    NORMAL_GROUP,  // For normal HTTP sockets.
+  };
+
   ClientSocketPoolManager();
   virtual ~ClientSocketPoolManager();
 
@@ -69,7 +83,13 @@ class NET_EXPORT_PRIVATE ClientSocketPoolManager {
   virtual ClientSocketPool* GetSocketPool(const ProxyServer& proxy_server) = 0;
 
   // Creates a Value summary of the state of the socket pools.
-  virtual base::Value SocketPoolInfoToValue() const = 0;
+  virtual std::unique_ptr<base::Value> SocketPoolInfoToValue() const = 0;
+
+  // Dumps memory allocation stats. |parent_dump_absolute_name| is the name
+  // used by the parent MemoryAllocatorDump in the memory dump hierarchy.
+  virtual void DumpMemoryStats(
+      base::trace_event::ProcessMemoryDump* pmd,
+      const std::string& parent_dump_absolute_name) const = 0;
 };
 
 // A helper method that uses the passed in proxy information to initialize a
@@ -80,7 +100,8 @@ class NET_EXPORT_PRIVATE ClientSocketPoolManager {
 // resolved.  If |resolution_callback| does not return OK, then the
 // connection will be aborted with that value.
 int InitSocketHandleForHttpRequest(
-    url::SchemeHostPort endpoint,
+    ClientSocketPoolManager::SocketGroupType group_type,
+    const HostPortPair& endpoint,
     int request_load_flags,
     RequestPriority request_priority,
     HttpNetworkSession* session,
@@ -88,8 +109,8 @@ int InitSocketHandleForHttpRequest(
     const SSLConfig& ssl_config_for_origin,
     const SSLConfig& ssl_config_for_proxy,
     PrivacyMode privacy_mode,
-    NetworkAnonymizationKey network_anonymization_key,
-    SecureDnsPolicy secure_dns_policy,
+    const NetworkIsolationKey& network_isolation_key,
+    bool disable_secure_dns,
     const SocketTag& socket_tag,
     const NetLogWithSource& net_log,
     ClientSocketHandle* socket_handle,
@@ -106,7 +127,8 @@ int InitSocketHandleForHttpRequest(
 // connection will be aborted with that value.
 // This function uses WEBSOCKET_SOCKET_POOL socket pools.
 int InitSocketHandleForWebSocketRequest(
-    url::SchemeHostPort endpoint,
+    ClientSocketPoolManager::SocketGroupType group_type,
+    const HostPortPair& endpoint,
     int request_load_flags,
     RequestPriority request_priority,
     HttpNetworkSession* session,
@@ -114,7 +136,7 @@ int InitSocketHandleForWebSocketRequest(
     const SSLConfig& ssl_config_for_origin,
     const SSLConfig& ssl_config_for_proxy,
     PrivacyMode privacy_mode,
-    NetworkAnonymizationKey network_anonymization_key,
+    const NetworkIsolationKey& network_isolation_key,
     const NetLogWithSource& net_log,
     ClientSocketHandle* socket_handle,
     CompletionOnceCallback callback,
@@ -123,7 +145,8 @@ int InitSocketHandleForWebSocketRequest(
 // Similar to InitSocketHandleForHttpRequest except that it initiates the
 // desired number of preconnect streams from the relevant socket pool.
 int PreconnectSocketsForHttpRequest(
-    url::SchemeHostPort endpoint,
+    ClientSocketPoolManager::SocketGroupType group_type,
+    const HostPortPair& endpoint,
     int request_load_flags,
     RequestPriority request_priority,
     HttpNetworkSession* session,
@@ -131,11 +154,10 @@ int PreconnectSocketsForHttpRequest(
     const SSLConfig& ssl_config_for_origin,
     const SSLConfig& ssl_config_for_proxy,
     PrivacyMode privacy_mode,
-    NetworkAnonymizationKey network_anonymization_key,
-    SecureDnsPolicy secure_dns_policy,
+    const NetworkIsolationKey& network_isolation_key,
+    bool disable_secure_dns,
     const NetLogWithSource& net_log,
-    int num_preconnect_streams,
-    CompletionOnceCallback callback);
+    int num_preconnect_streams);
 
 }  // namespace net
 

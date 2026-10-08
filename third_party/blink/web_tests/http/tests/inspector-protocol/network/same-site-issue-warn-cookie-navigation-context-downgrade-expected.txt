@@ -2,9 +2,9 @@ Verifies that accessing a SameSite=Strict cookie across schemes triggers a conte
 
 Inspector issue:{
     issue : {
-        code : CookieIssue
+        code : SameSiteCookieIssue
         details : {
-            cookieIssueDetails : {
+            sameSiteCookieIssueDetails : {
                 cookie : {
                     domain : cookie.test
                     name : name

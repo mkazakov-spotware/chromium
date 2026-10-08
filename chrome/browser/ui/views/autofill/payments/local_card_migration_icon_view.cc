@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/animation/ink_drop.h"
 
 namespace autofill {
 
@@ -29,10 +28,14 @@ LocalCardMigrationIconView::LocalCardMigrationIconView(
     : PageActionIconView(command_updater,
                          IDC_MIGRATE_LOCAL_CREDIT_CARD_FOR_PAGE,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "LocalCardMigration") {
+                         page_action_icon_delegate) {
   SetID(VIEW_ID_MIGRATE_LOCAL_CREDIT_CARD_BUTTON);
-  SetUpForInOutAnimation();
+  if (base::FeatureList::IsEnabled(
+          features::kAutofillCreditCardUploadFeedback)) {
+    InstallLoadingIndicator();
+  } else {
+    SetUpForInOutAnimation();
+  }
 }
 
 LocalCardMigrationIconView::~LocalCardMigrationIconView() {}
@@ -83,16 +86,32 @@ void LocalCardMigrationIconView::UpdateImpl() {
         // Disable the credit card icon so it does not update if user clicks
         // on it.
         SetEnabled(false);
-        AnimateIn(IDS_AUTOFILL_LOCAL_CARD_MIGRATION_ANIMATION_LABEL);
+        if (base::FeatureList::IsEnabled(
+                features::kAutofillCreditCardUploadFeedback)) {
+          SetIsLoading(/*is_loading=*/true);
+        } else {
+          AnimateIn(IDS_AUTOFILL_LOCAL_CARD_MIGRATION_ANIMATION_LABEL);
+        }
         break;
       }
       case LocalCardMigrationFlowStep::MIGRATION_FINISHED: {
-        UnpauseAnimation();
+        if (base::FeatureList::IsEnabled(
+                features::kAutofillCreditCardUploadFeedback)) {
+          SetIsLoading(/*is_loading=*/false);
+        } else {
+          UnpauseAnimation();
+        }
         SetEnabled(true);
         break;
       }
       case LocalCardMigrationFlowStep::MIGRATION_FAILED: {
-        UnpauseAnimation();
+        if (base::FeatureList::IsEnabled(
+                features::kAutofillCreditCardUploadFeedback)) {
+          UpdateIconImage();
+          SetIsLoading(/*is_loading=*/false);
+        } else {
+          UnpauseAnimation();
+        }
         SetEnabled(true);
         break;
       }
@@ -103,9 +122,7 @@ void LocalCardMigrationIconView::UpdateImpl() {
     // Fade out inkdrop but only if icon was actually highlighted. Calling
     // SetHighlighted() can result in a spurious fade-out animation and visual
     // glitches.
-    // TODO(pbos): Fix this and remove check. Calling SetHighlighted(false) with
-    // !GetHighighted() should be a no-op.
-    if (views::InkDrop::Get(this)->GetHighlighted())
+    if (this->GetHighlighted())
       SetHighlighted(false);
     // Handle corner cases where users navigate away or close the tab.
     UnpauseAnimation();
@@ -132,7 +149,7 @@ const char* LocalCardMigrationIconView::GetClassName() const {
   return "LocalCardMigrationIconView";
 }
 
-std::u16string LocalCardMigrationIconView::GetTextForTooltipAndAccessibleName()
+base::string16 LocalCardMigrationIconView::GetTextForTooltipAndAccessibleName()
     const {
   return l10n_util::GetStringUTF16(IDS_TOOLTIP_MIGRATE_LOCAL_CARD);
 }

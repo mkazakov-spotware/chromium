@@ -1,12 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/domain_reliability/scheduler.h"
 
 #include <stddef.h>
-
-#include <memory>
 
 #include "base/bind.h"
 #include "base/time/time.h"
@@ -19,6 +17,7 @@
 namespace domain_reliability {
 namespace {
 
+using base::TimeDelta;
 using base::TimeTicks;
 
 class DomainReliabilitySchedulerTest : public testing::Test {
@@ -33,11 +32,11 @@ class DomainReliabilitySchedulerTest : public testing::Test {
     DCHECK(!scheduler_);
 
     num_collectors_ = num_collectors;
-    scheduler_ = std::make_unique<DomainReliabilityScheduler>(
+    scheduler_.reset(new DomainReliabilityScheduler(
         &time_, num_collectors_, params_,
         base::BindRepeating(
             &DomainReliabilitySchedulerTest::ScheduleUploadCallback,
-            base::Unretained(this)));
+            base::Unretained(this))));
     scheduler_->MakeDeterministicForTesting();
   }
 
@@ -72,8 +71,8 @@ class DomainReliabilitySchedulerTest : public testing::Test {
            << callback_max_.InSeconds() << " seconds from now";
   }
 
-  ::testing::AssertionResult CheckPendingUpload(base::TimeDelta expected_min,
-                                                base::TimeDelta expected_max) {
+  ::testing::AssertionResult CheckPendingUpload(TimeDelta expected_min,
+                                                TimeDelta expected_max) {
     DCHECK(scheduler_);
     DCHECK_LE(expected_min.InMicroseconds(), expected_max.InMicroseconds());
 
@@ -110,15 +109,13 @@ class DomainReliabilitySchedulerTest : public testing::Test {
            << ", got upload to collector " << collector;
   }
 
-  base::TimeDelta min_delay() const { return params_.minimum_upload_delay; }
-  base::TimeDelta max_delay() const { return params_.maximum_upload_delay; }
-  base::TimeDelta retry_interval() const {
-    return params_.upload_retry_interval;
-  }
-  base::TimeDelta zero_delta() const { return base::Microseconds(0); }
+  TimeDelta min_delay() const { return params_.minimum_upload_delay; }
+  TimeDelta max_delay() const { return params_.maximum_upload_delay; }
+  TimeDelta retry_interval() const { return params_.upload_retry_interval; }
+  TimeDelta zero_delta() const { return base::TimeDelta::FromMicroseconds(0); }
 
  protected:
-  void ScheduleUploadCallback(base::TimeDelta min, base::TimeDelta max) {
+  void ScheduleUploadCallback(TimeDelta min, TimeDelta max) {
     callback_called_ = true;
     callback_min_ = min;
     callback_max_ = max;
@@ -130,8 +127,8 @@ class DomainReliabilitySchedulerTest : public testing::Test {
   std::unique_ptr<DomainReliabilityScheduler> scheduler_;
 
   bool callback_called_;
-  base::TimeDelta callback_min_;
-  base::TimeDelta callback_max_;
+  TimeDelta callback_min_;
+  TimeDelta callback_max_;
 };
 
 TEST_F(DomainReliabilitySchedulerTest, Create) {
@@ -163,7 +160,7 @@ TEST_F(DomainReliabilitySchedulerTest, SuccessfulUploads) {
 TEST_F(DomainReliabilitySchedulerTest, RetryAfter) {
   CreateScheduler(1);
 
-  base::TimeDelta retry_after_interval = base::Minutes(30);
+  base::TimeDelta retry_after_interval = base::TimeDelta::FromMinutes(30);
 
   scheduler_->OnBeaconAdded();
   ASSERT_TRUE(CheckPendingUpload(min_delay(), max_delay()));

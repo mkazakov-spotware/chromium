@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,20 +16,18 @@ namespace keyboard_shortcut_viewer {
 class KeyboardShortcutItemListView : public views::View {
  public:
   KeyboardShortcutItemListView();
-
-  KeyboardShortcutItemListView(const KeyboardShortcutItemListView&) = delete;
-  KeyboardShortcutItemListView& operator=(const KeyboardShortcutItemListView&) =
-      delete;
-
   ~KeyboardShortcutItemListView() override = default;
 
   // In search result page, a text label is added at the beginning of the group
   // of KeyboardShortcutItemView to indicate the ShortcutCategory.
-  void AddCategoryLabel(const std::u16string& text);
+  void AddCategoryLabel(const base::string16& text);
 
   // Add a horizontal line to separate the KeyboardShortcutItemView. The last
   // item in the list is not followed by the horizontal line.
   void AddHorizontalSeparator();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(KeyboardShortcutItemListView);
 };
 
 }  // namespace keyboard_shortcut_viewer

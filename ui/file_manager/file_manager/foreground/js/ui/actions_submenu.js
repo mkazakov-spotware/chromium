@@ -1,40 +1,32 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {queryDecoratedElement, queryRequiredElement} from '../../../common/js/dom_utils.js';
-import {util} from '../../../common/js/util.js';
-import {ActionsModel} from '../actions_model.js';
-
-import {Command} from './command.js';
-import {Menu} from './menu.js';
-import {MenuItem} from './menu_item.js';
-
-export class ActionsSubmenu {
-  /** @param {!Menu} menu */
+class ActionsSubmenu {
+  /** @param {!cr.ui.Menu} menu */
   constructor(menu) {
     /**
-     * @private {!Menu}
+     * @private {!cr.ui.Menu}
      * @const
      */
     this.menu_ = menu;
 
     /**
-     * @private {!MenuItem}
+     * @private {!cr.ui.MenuItem}
      * @const
      */
-    this.separator_ = /** @type {!MenuItem} */
+    this.separator_ = /** @type {!cr.ui.MenuItem} */
         (queryRequiredElement('#actions-separator', this.menu_));
 
     /**
-     * @private {!Array<!MenuItem>}
+     * @private {!Array<!cr.ui.MenuItem>}
      */
     this.items_ = [];
   }
 
   /**
    * @param {!Object} options
-   * @return {MenuItem}
+   * @return {cr.ui.MenuItem}
    * @private
    */
   addMenuItem_(options) {
@@ -70,7 +62,8 @@ export class ActionsSubmenu {
       menuItem.classList.toggle('hide-on-toolbar', true);
       delete remainingActions[ActionsModel.CommonActionId.SHARE];
     }
-    queryDecoratedElement('#share', Command).canExecuteChange(element);
+    util.queryDecoratedElement('#share', cr.ui.Command)
+        .canExecuteChange(element);
 
     // Then add the Manage in Drive item (if available).
     const manageInDriveAction =
@@ -81,13 +74,14 @@ export class ActionsSubmenu {
       menuItem.classList.toggle('hide-on-toolbar', true);
       delete remainingActions[ActionsModel.InternalActionId.MANAGE_IN_DRIVE];
     }
-    queryDecoratedElement('#manage-in-drive', Command)
+    util.queryDecoratedElement('#manage-in-drive', cr.ui.Command)
         .canExecuteChange(element);
 
     // Removing shortcuts is not rendered in the submenu to keep the previous
     // behavior. Shortcuts can be removed in the left nav using the roots menu.
     // TODO(mtomasz): Consider rendering the menu item here for consistency.
-    queryDecoratedElement('#unpin-folder', Command).canExecuteChange(element);
+    util.queryDecoratedElement('#unpin-folder', cr.ui.Command)
+        .canExecuteChange(element);
 
     // Both save-for-offline and offline-not-necessary are handled by the single
     // #toggle-pinned command.
@@ -107,17 +101,17 @@ export class ActionsSubmenu {
                                     .OFFLINE_NOT_NECESSARY];
       }
     }
-    queryDecoratedElement('#toggle-pinned', Command).canExecuteChange(element);
+    util.queryDecoratedElement('#toggle-pinned', cr.ui.Command)
+        .canExecuteChange(element);
 
     let hasCustomActions = false;
     // Process all the rest as custom actions.
     Object.keys(remainingActions).forEach(key => {
+      // Certain actions (e.g. 'pin-folder' to Directory tree) do not seem to
+      // have a title, and thus don't appear in the menu even though we add it
+      // to the DOM.
       const action = remainingActions[key];
-      // If the action has no title it isn't visible to users, so we skip here.
-      if (!action.getTitle()) {
-        return;
-      }
-      hasCustomActions = true;
+      hasCustomActions = hasCustomActions || !!action.getTitle();
       const options = {label: action.getTitle()};
       const menuItem = this.addMenuItem_(options);
 

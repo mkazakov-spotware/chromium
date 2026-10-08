@@ -1,20 +1,23 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/driver/sync_policy_handler.h"
 
 #include <memory>
-#include <utility>
 
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_types.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_value_map.h"
 #include "components/sync/base/pref_names.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+#if defined(OS_CHROMEOS)
+#include "base/test/scoped_feature_list.h"
+#include "chromeos/constants/chromeos_features.h"
+#endif  // defined(OS_CHROMEOS)
 
 namespace syncer {
 namespace {
@@ -53,36 +56,34 @@ TEST(SyncPolicyHandlerTest, Disabled) {
   const base::Value* value = nullptr;
   EXPECT_TRUE(prefs.GetValue(prefs::kSyncManaged, &value));
   ASSERT_TRUE(value);
-  EXPECT_TRUE(value->GetBool());
+  bool sync_managed = false;
+  bool result = value->GetAsBoolean(&sync_managed);
+  ASSERT_TRUE(result);
+  EXPECT_TRUE(sync_managed);
 }
 
 TEST(SyncPolicyHandlerTest, SyncTypesListDisabled) {
   // Start with prefs enabled so we can sense that they have changed.
   PrefValueMap prefs;
   prefs.SetBoolean(prefs::kSyncBookmarks, true);
-  prefs.SetBoolean(prefs::kSyncReadingList, true);
   prefs.SetBoolean(prefs::kSyncPreferences, true);
   prefs.SetBoolean(prefs::kSyncAutofill, true);
   prefs.SetBoolean(prefs::kSyncThemes, true);
 
   // Create a policy that disables some types.
   policy::PolicyMap policy;
-  base::Value::List disabled_types;
-  disabled_types.Append("bookmarks");
-  disabled_types.Append("readingList");
-  disabled_types.Append("preferences");
+  base::ListValue disabled_types;
+  disabled_types.AppendString("bookmarks");
+  disabled_types.AppendString("preferences");
   policy.Set(policy::key::kSyncTypesListDisabled,
              policy::POLICY_LEVEL_MANDATORY, policy::POLICY_SCOPE_USER,
-             policy::POLICY_SOURCE_CLOUD,
-             base::Value(std::move(disabled_types)), nullptr);
+             policy::POLICY_SOURCE_CLOUD, disabled_types.Clone(), nullptr);
   SyncPolicyHandler handler;
   handler.ApplyPolicySettings(policy, &prefs);
 
   // Prefs in the policy should be disabled.
   bool enabled;
   ASSERT_TRUE(prefs.GetBoolean(prefs::kSyncBookmarks, &enabled));
-  EXPECT_FALSE(enabled);
-  ASSERT_TRUE(prefs.GetBoolean(prefs::kSyncReadingList, &enabled));
   EXPECT_FALSE(enabled);
   ASSERT_TRUE(prefs.GetBoolean(prefs::kSyncPreferences, &enabled));
   EXPECT_FALSE(enabled);
@@ -94,9 +95,17 @@ TEST(SyncPolicyHandlerTest, SyncTypesListDisabled) {
   EXPECT_TRUE(enabled);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+class SyncPolicyHandlerOsTest : public testing::Test {
+ public:
+  SyncPolicyHandlerOsTest() {
+    feature_list_.InitAndEnableFeature(chromeos::features::kSplitSettingsSync);
+  }
 
-TEST(SyncPolicyHandlerOsTest, SyncTypesListDisabled_OsTypes) {
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_F(SyncPolicyHandlerOsTest, SyncTypesListDisabled_OsTypes) {
   // Start with prefs enabled so we can sense that they have changed.
   PrefValueMap prefs;
   prefs.SetBoolean(prefs::kSyncOsApps, true);
@@ -105,14 +114,13 @@ TEST(SyncPolicyHandlerOsTest, SyncTypesListDisabled_OsTypes) {
 
   // Create a policy that disables the types.
   policy::PolicyMap policy;
-  base::Value::List disabled_types;
-  disabled_types.Append("osApps");
-  disabled_types.Append("osPreferences");
-  disabled_types.Append("osWifiConfigurations");
+  base::ListValue disabled_types;
+  disabled_types.AppendString("osApps");
+  disabled_types.AppendString("osPreferences");
+  disabled_types.AppendString("osWifiConfigurations");
   policy.Set(policy::key::kSyncTypesListDisabled,
              policy::POLICY_LEVEL_MANDATORY, policy::POLICY_SCOPE_USER,
-             policy::POLICY_SOURCE_CLOUD,
-             base::Value(std::move(disabled_types)), nullptr);
+             policy::POLICY_SOURCE_CLOUD, disabled_types.Clone(), nullptr);
   SyncPolicyHandler handler;
   handler.ApplyPolicySettings(policy, &prefs);
 
@@ -126,7 +134,7 @@ TEST(SyncPolicyHandlerOsTest, SyncTypesListDisabled_OsTypes) {
   EXPECT_FALSE(enabled);
 }
 
-TEST(SyncPolicyHandlerOsTest, SyncTypesListDisabled_MigratedTypes) {
+TEST_F(SyncPolicyHandlerOsTest, SyncTypesListDisabled_MigratedTypes) {
   // Start with prefs enabled so we can sense that they have changed.
   PrefValueMap prefs;
   prefs.SetBoolean(prefs::kSyncOsApps, true);
@@ -135,14 +143,13 @@ TEST(SyncPolicyHandlerOsTest, SyncTypesListDisabled_MigratedTypes) {
   // Create a policy that disables the types, but using the original browser
   // policy names from before the SplitSettingsSync launch.
   policy::PolicyMap policy;
-  base::Value::List disabled_types;
-  disabled_types.Append("apps");
-  disabled_types.Append("wifiConfigurations");
-  disabled_types.Append("preferences");
+  base::ListValue disabled_types;
+  disabled_types.AppendString("apps");
+  disabled_types.AppendString("wifiConfigurations");
+  disabled_types.AppendString("preferences");
   policy.Set(policy::key::kSyncTypesListDisabled,
              policy::POLICY_LEVEL_MANDATORY, policy::POLICY_SCOPE_USER,
-             policy::POLICY_SOURCE_CLOUD,
-             base::Value(std::move(disabled_types)), nullptr);
+             policy::POLICY_SOURCE_CLOUD, disabled_types.Clone(), nullptr);
   SyncPolicyHandler handler;
   handler.ApplyPolicySettings(policy, &prefs);
 
@@ -155,7 +162,7 @@ TEST(SyncPolicyHandlerOsTest, SyncTypesListDisabled_MigratedTypes) {
   ASSERT_TRUE(prefs.GetBoolean(prefs::kSyncOsPreferences, &enabled));
   EXPECT_FALSE(enabled);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace
 }  // namespace syncer

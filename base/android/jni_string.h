@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,18 +29,16 @@ BASE_EXPORT ScopedJavaLocalRef<jstring> ConvertUTF8ToJavaString(
     JNIEnv* env,
     const base::StringPiece& str);
 
-// Convert a Java string to UTF16. Returns a std::u16string.
+// Convert a Java string to UTF16. Returns a string16.
 BASE_EXPORT void ConvertJavaStringToUTF16(JNIEnv* env,
                                           jstring str,
-                                          std::u16string* result);
-BASE_EXPORT std::u16string ConvertJavaStringToUTF16(JNIEnv* env, jstring str);
-BASE_EXPORT std::u16string ConvertJavaStringToUTF16(
-    const JavaRef<jstring>& str);
-BASE_EXPORT std::u16string ConvertJavaStringToUTF16(
-    JNIEnv* env,
-    const JavaRef<jstring>& str);
+                                          string16* result);
+BASE_EXPORT string16 ConvertJavaStringToUTF16(JNIEnv* env, jstring str);
+BASE_EXPORT string16 ConvertJavaStringToUTF16(const JavaRef<jstring>& str);
+BASE_EXPORT string16 ConvertJavaStringToUTF16(JNIEnv* env,
+                                              const JavaRef<jstring>& str);
 
-// Convert a std::u16string to a Java string.
+// Convert a string16 to a Java string.
 BASE_EXPORT ScopedJavaLocalRef<jstring> ConvertUTF16ToJavaString(
     JNIEnv* env,
     const base::StringPiece16& str);

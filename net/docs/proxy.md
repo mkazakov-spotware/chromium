@@ -110,6 +110,7 @@ about an HTTP proxy.
 
 When using an HTTP proxy in Chrome, name resolution is always deferred to the
 proxy. HTTP proxies can proxy `http://`, `https://`, `ws://` and `wss://` URLs.
+(Chrome's FTP support is deprecated, and HTTP proxies cannot proxy `ftp://` anymore)
 
 Communication to HTTP proxy servers is insecure, meaning proxied `http://`
 requests are sent in the clear. When proxying `https://` requests through an
@@ -522,7 +523,8 @@ localhost
 ```
 
 The complete rules are slightly more complicated. For instance on
-Windows we will also recognize `loopback`.
+Windows we will also recognize `loopback`, and there is special casing of
+`localhost6` and `localhost6.localdomain6` in Chrome's localhost matching.
 
 This concept of implicit proxy bypass rules is consistent with the
 platform-level proxy support on Windows and macOS (albeit with some differences

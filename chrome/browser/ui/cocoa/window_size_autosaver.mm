@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,9 +24,9 @@ const int kMinWindowHeight = 17;
 
 @implementation WindowSizeAutosaver
 
-- (instancetype)initWithWindow:(NSWindow*)window
-                   prefService:(PrefService*)prefs
-                          path:(const char*)path {
+- (id)initWithWindow:(NSWindow*)window
+         prefService:(PrefService*)prefs
+                path:(const char*)path {
   if ((self = [super init])) {
     _window = window;
     _prefService = prefs;
@@ -53,65 +53,60 @@ const int kMinWindowHeight = 17;
 }
 
 - (void)save:(NSNotification*)notification {
-  ScopedDictPrefUpdate update(_prefService, _path);
-  base::Value::Dict& windowPrefs = update.Get();
+  DictionaryPrefUpdate update(_prefService, _path);
+  base::DictionaryValue* windowPrefs = update.Get();
   NSRect frame = [_window frame];
-  if ([_window styleMask] & NSWindowStyleMaskResizable) {
+  if ([_window styleMask] & NSResizableWindowMask) {
     // Save the origin of the window.
-    windowPrefs.Set("left", static_cast<int>(NSMinX(frame)));
-    windowPrefs.Set("right", static_cast<int>(NSMaxX(frame)));
+    windowPrefs->SetInteger("left", NSMinX(frame));
+    windowPrefs->SetInteger("right", NSMaxX(frame));
     // windows's and linux's profiles have top < bottom due to having their
     // screen origin in the upper left, while cocoa's is in the lower left. To
     // keep the top < bottom invariant, store top in bottom and vice versa.
-    windowPrefs.Set("top", static_cast<int>(NSMinY(frame)));
-    windowPrefs.Set("bottom", static_cast<int>(NSMaxY(frame)));
+    windowPrefs->SetInteger("top", NSMinY(frame));
+    windowPrefs->SetInteger("bottom", NSMaxY(frame));
   } else {
     // Save the origin of the window.
-    windowPrefs.Set("x", static_cast<int>(frame.origin.x));
-    windowPrefs.Set("y", static_cast<int>(frame.origin.y));
+    windowPrefs->SetInteger("x", frame.origin.x);
+    windowPrefs->SetInteger("y", frame.origin.y);
   }
 }
 
 - (void)restore {
   // Get the positioning information.
-  const base::Value::Dict& windowPrefs = _prefService->GetDict(_path);
-  if ([_window styleMask] & NSWindowStyleMaskResizable) {
-    absl::optional<int> x1 = windowPrefs.FindInt("left");
-    absl::optional<int> x2 = windowPrefs.FindInt("right");
-    absl::optional<int> y1 = windowPrefs.FindInt("top");
-    absl::optional<int> y2 = windowPrefs.FindInt("bottom");
-    if (!x1.has_value() || !x2.has_value() || !y1.has_value() ||
-        !y2.has_value()) {
+  const base::DictionaryValue* windowPrefs = _prefService->GetDictionary(_path);
+  if ([_window styleMask] & NSResizableWindowMask) {
+    int x1, x2, y1, y2;
+    if (!windowPrefs->GetInteger("left", &x1) ||
+        !windowPrefs->GetInteger("right", &x2) ||
+        !windowPrefs->GetInteger("top", &y1) ||
+        !windowPrefs->GetInteger("bottom", &y2)) {
       return;
     }
-    if (x2.value() - x1.value() < kMinWindowWidth ||
-        y2.value() - y1.value() < kMinWindowHeight) {
+    if (x2 - x1 < kMinWindowWidth || y2 - y1 < kMinWindowHeight) {
       // Windows should never be very small.
-      ScopedDictPrefUpdate update(_prefService, _path);
-      base::Value::Dict& mutableWindowPrefs = update.Get();
-      mutableWindowPrefs.Remove("left");
-      mutableWindowPrefs.Remove("right");
-      mutableWindowPrefs.Remove("top");
-      mutableWindowPrefs.Remove("bottom");
+      DictionaryPrefUpdate update(_prefService, _path);
+      base::DictionaryValue* mutableWindowPrefs = update.Get();
+      mutableWindowPrefs->Remove("left", NULL);
+      mutableWindowPrefs->Remove("right", NULL);
+      mutableWindowPrefs->Remove("top", NULL);
+      mutableWindowPrefs->Remove("bottom", NULL);
     } else {
-      [_window
-          setFrame:NSMakeRect(x1.value(), y1.value(), x2.value() - x1.value(),
-                              y2.value() - y1.value())
-           display:YES];
+      [_window setFrame:NSMakeRect(x1, y1, x2 - x1, y2 - y1) display:YES];
 
       // Make sure the window is on-screen.
       [_window cascadeTopLeftFromPoint:NSZeroPoint];
     }
   } else {
-    absl::optional<int> x = windowPrefs.FindInt("x");
-    absl::optional<int> y = windowPrefs.FindInt("y");
-    if (!x.has_value() || !y.has_value())
-      return;  // Nothing stored.
+    int x, y;
+    if (!windowPrefs->GetInteger("x", &x) ||
+        !windowPrefs->GetInteger("y", &y))
+       return;  // Nothing stored.
     // Turn the origin (lower-left) into an upper-left window point.
-    NSPoint upperLeft =
-        NSMakePoint(x.value(), y.value() + NSHeight([_window frame]));
+    NSPoint upperLeft = NSMakePoint(x, y + NSHeight([_window frame]));
     [_window cascadeTopLeftFromPoint:upperLeft];
   }
 }
 
 @end
+

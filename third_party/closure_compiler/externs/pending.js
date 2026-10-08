@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,34 @@
  * should get added.
  * @externs
  */
+
+/**
+ * TODO(dstockwell): Remove this once it is added to Closure Compiler itself.
+ * @see https://drafts.fxtf.org/geometry/#DOMMatrix
+ */
+class DOMMatrix {
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
+  translateSelf(x, y) {}
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   */
+  rotateSelf(x, y, z) {}
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
+  scaleSelf(x, y) {}
+  /**
+   * @param {{x: number, y: number}} point
+   * @return {{x: number, y: number}}
+   */
+  transformPoint(point) {}
+}
 
 /**
  * TODO(katie): Remove this once length is added to the Closure
@@ -49,17 +77,6 @@ class StylePropertyMap {
 
 /** @type {!StylePropertyMap} */
 HTMLElement.prototype.attributeStyleMap;
-
-/**
- * @see https://drafts.css-houdini.org/css-typed-om/#stylepropertymapreadonly
- */
-class StylePropertyMapReadOnly {
-  /** @param {string} property */
-  get(property) {}
-}
-
-/** @return {!StylePropertyMapReadOnly} */
-HTMLElement.prototype.computedStyleMap = function() {};
 
 /** @return {!AnimationEffectTimingProperties} */
 AnimationEffect.prototype.getTiming = function() {};

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "chrome/grit/generated_resources.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/extension_creator.h"
@@ -36,7 +36,7 @@ PackExtensionJob::~PackExtensionJob() {}
 void PackExtensionJob::Start() {
   if (run_mode_ == RunMode::ASYNCHRONOUS) {
     scoped_refptr<base::SequencedTaskRunner> task_runner =
-        base::SequencedTaskRunner::GetCurrentDefault();
+        base::SequencedTaskRunnerHandle::Get();
     GetExtensionFileTaskRunner()->PostTask(
         FROM_HERE,
         base::BindOnce(&PackExtensionJob::Run,
@@ -109,11 +109,11 @@ void PackExtensionJob::ReportFailureOnClientSequence(
 }
 
 // static
-std::u16string PackExtensionJob::StandardSuccessMessage(
+base::string16 PackExtensionJob::StandardSuccessMessage(
     const base::FilePath& crx_file,
     const base::FilePath& key_file) {
-  std::u16string crx_file_string = crx_file.LossyDisplayName();
-  std::u16string key_file_string = key_file.LossyDisplayName();
+  base::string16 crx_file_string = crx_file.LossyDisplayName();
+  base::string16 key_file_string = key_file.LossyDisplayName();
   if (key_file_string.empty()) {
     return l10n_util::GetStringFUTF16(
         IDS_EXTENSION_PACK_DIALOG_SUCCESS_BODY_UPDATE,

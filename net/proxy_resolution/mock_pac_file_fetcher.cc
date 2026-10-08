@@ -1,27 +1,28 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/proxy_resolution/mock_pac_file_fetcher.h"
 
-#include <string>
 #include <utility>
 
 #include "base/check.h"
 #include "base/run_loop.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "net/base/net_errors.h"
 
 namespace net {
 
-MockPacFileFetcher::MockPacFileFetcher() = default;
+MockPacFileFetcher::MockPacFileFetcher()
+    : pending_request_text_(nullptr), is_shutdown_(false) {}
 
 MockPacFileFetcher::~MockPacFileFetcher() = default;
 
 // PacFileFetcher implementation.
 int MockPacFileFetcher::Fetch(
     const GURL& url,
-    std::u16string* text,
+    base::string16* text,
     CompletionOnceCallback callback,
     const NetworkTrafficAnnotationTag traffic_annotation) {
   DCHECK(!has_pending_request());

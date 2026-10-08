@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_TEST_BASE_PERF_PERFORMANCE_TEST_H_
 #define CHROME_TEST_BASE_PERF_PERFORMANCE_TEST_H_
 
+#include "base/time/time.h"
 #include "chrome/test/base/in_process_browser_test.h"
 
 // PerformanceTest is an interactive-ui-test that can be used to collect traces.
@@ -17,10 +18,6 @@
 class PerformanceTest : public InProcessBrowserTest {
  public:
   PerformanceTest();
-
-  PerformanceTest(const PerformanceTest&) = delete;
-  PerformanceTest& operator=(const PerformanceTest&) = delete;
-
   ~PerformanceTest() override;
 
   virtual std::vector<std::string> GetUMAHistogramNames() const;
@@ -46,6 +43,8 @@ class PerformanceTest : public InProcessBrowserTest {
   // Tracks whether SetUpOnMainThread was called. Ensures subclasses remember to
   // call the base classes SetupOnMainThread.
   bool setup_called_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(PerformanceTest);
 };
 
 // UIPerformanceTest is specifically to be used for measuring ui-related
@@ -53,10 +52,6 @@ class PerformanceTest : public InProcessBrowserTest {
 class UIPerformanceTest : public PerformanceTest {
  public:
   UIPerformanceTest() = default;
-
-  UIPerformanceTest(const UIPerformanceTest&) = delete;
-  UIPerformanceTest& operator=(const UIPerformanceTest&) = delete;
-
   ~UIPerformanceTest() override = default;
 
   // PerformanceTest:
@@ -65,6 +60,9 @@ class UIPerformanceTest : public PerformanceTest {
   const std::string GetTracingCategories() const override;
   // Default is "renderingMetric", "umaMetric".
   std::vector<std::string> GetTimelineBasedMetrics() const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UIPerformanceTest);
 };
 
 #endif  // CHROME_TEST_BASE_PERF_PERFORMANCE_TEST_H_

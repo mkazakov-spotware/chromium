@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/test/task_environment.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
@@ -25,7 +26,6 @@
 #include "device/bluetooth/bluetooth_remote_gatt_descriptor.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
 
@@ -42,8 +42,6 @@ class BluetoothLocalGattDescriptor;
 class BluetoothTestBase : public testing::Test {
  public:
   enum class Call { EXPECTED, NOT_EXPECTED };
-
-  enum class Result { SUCCESS, FAILURE };
 
   // List of devices that can be simulated with
   // SimulateConnectedLowEnergyDevice().
@@ -70,21 +68,19 @@ class BluetoothTestBase : public testing::Test {
   struct LowEnergyDeviceData {
     LowEnergyDeviceData();
     LowEnergyDeviceData(LowEnergyDeviceData&& data);
-
-    LowEnergyDeviceData(const LowEnergyDeviceData&) = delete;
-    LowEnergyDeviceData& operator=(const LowEnergyDeviceData&) = delete;
-
     ~LowEnergyDeviceData();
 
-    absl::optional<std::string> name;
+    base::Optional<std::string> name;
     std::string address;
     int8_t rssi = 0;
-    absl::optional<uint8_t> flags;
+    base::Optional<uint8_t> flags;
     BluetoothDevice::UUIDList advertised_uuids;
-    absl::optional<int8_t> tx_power;
+    base::Optional<int8_t> tx_power;
     BluetoothDevice::ServiceDataMap service_data;
     BluetoothDevice::ManufacturerDataMap manufacturer_data;
     BluetoothTransport transport = BLUETOOTH_TRANSPORT_LE;
+
+    DISALLOW_COPY_AND_ASSIGN(LowEnergyDeviceData);
   };
 
   static const char kTestAdapterName[];
@@ -326,14 +322,14 @@ class BluetoothTestBase : public testing::Test {
   // given, |SimulateGattConnection| is called but the callback argument lets
   // one override that.
   bool ConnectGatt(BluetoothDevice* device,
-                   absl::optional<BluetoothUUID> service_uuid = absl::nullopt,
-                   absl::optional<base::OnceCallback<void(BluetoothDevice*)>> =
-                       absl::nullopt);
+                   base::Optional<BluetoothUUID> service_uuid = base::nullopt,
+                   base::Optional<base::OnceCallback<void(BluetoothDevice*)>> =
+                       base::nullopt);
 
   // GetTargetGattService returns the specific GATT service, if any, that was
   // targeted for discovery, i.e. via the |service_uuid| argument to
   // |CreateGattConnection|.
-  virtual absl::optional<BluetoothUUID> GetTargetGattService(
+  virtual base::Optional<BluetoothUUID> GetTargetGattService(
       BluetoothDevice* device);
 
   // Simulates success of implementation details of CreateGattConnection.
@@ -419,7 +415,7 @@ class BluetoothTestBase : public testing::Test {
   // RememberCCCDescriptorForSubsequentAction.
   virtual void SimulateGattNotifySessionStartError(
       BluetoothRemoteGattCharacteristic* characteristic,
-      BluetoothGattService::GattErrorCode error_code) {}
+      BluetoothRemoteGattService::GattErrorCode error_code) {}
 
   // Simulates a Characteristic Stop Notify completed.
   // If |characteristic| is null, acts upon the characteristic & CCC
@@ -434,7 +430,7 @@ class BluetoothTestBase : public testing::Test {
   // RememberCCCDescriptorForSubsequentAction.
   virtual void SimulateGattNotifySessionStopError(
       BluetoothRemoteGattCharacteristic* characteristic,
-      BluetoothGattService::GattErrorCode error_code) {}
+      BluetoothRemoteGattService::GattErrorCode error_code) {}
 
   // Simulates a Characteristic Set Notify operation failing synchronously once
   // for an unknown reason.
@@ -456,7 +452,7 @@ class BluetoothTestBase : public testing::Test {
   // Simulates a Characteristic Read operation failing with a GattErrorCode.
   virtual void SimulateGattCharacteristicReadError(
       BluetoothRemoteGattCharacteristic* characteristic,
-      BluetoothGattService::GattErrorCode) {}
+      BluetoothRemoteGattService::GattErrorCode) {}
 
   // Simulates a Characteristic Read operation failing synchronously once for an
   // unknown reason.
@@ -472,7 +468,7 @@ class BluetoothTestBase : public testing::Test {
   // Simulates a Characteristic Write operation failing with a GattErrorCode.
   virtual void SimulateGattCharacteristicWriteError(
       BluetoothRemoteGattCharacteristic* characteristic,
-      BluetoothGattService::GattErrorCode) {}
+      BluetoothRemoteGattService::GattErrorCode) {}
 
   // Simulates a Characteristic Write operation failing synchronously once for
   // an unknown reason.
@@ -490,7 +486,8 @@ class BluetoothTestBase : public testing::Test {
   virtual void SimulateLocalGattCharacteristicValueReadRequest(
       BluetoothDevice* from_device,
       BluetoothLocalGattCharacteristic* characteristic,
-      BluetoothLocalGattService::Delegate::ValueCallback value_callback) {}
+      BluetoothLocalGattService::Delegate::ValueCallback value_callback,
+      base::OnceClosure error_callback) {}
 
   // Simulates write a value to a locally hosted GATT characteristic by a
   // remote central device.
@@ -518,7 +515,8 @@ class BluetoothTestBase : public testing::Test {
   virtual void SimulateLocalGattDescriptorValueReadRequest(
       BluetoothDevice* from_device,
       BluetoothLocalGattDescriptor* descriptor,
-      BluetoothLocalGattService::Delegate::ValueCallback value_callback) {}
+      BluetoothLocalGattService::Delegate::ValueCallback value_callback,
+      base::OnceClosure error_callback) {}
 
   // Simulates write a value to a locally hosted GATT descriptor by a
   // remote central device.
@@ -533,7 +531,6 @@ class BluetoothTestBase : public testing::Test {
   // hosted GATT characteristic by a remote device. Returns false if we were
   // not able to start or stop notifications.
   virtual bool SimulateLocalGattCharacteristicNotificationsRequest(
-      BluetoothDevice* from_device,
       BluetoothLocalGattCharacteristic* characteristic,
       bool start);
 
@@ -560,7 +557,7 @@ class BluetoothTestBase : public testing::Test {
   // Simulates a Descriptor Read operation failing with a GattErrorCode.
   virtual void SimulateGattDescriptorReadError(
       BluetoothRemoteGattDescriptor* descriptor,
-      BluetoothGattService::GattErrorCode) {}
+      BluetoothRemoteGattService::GattErrorCode) {}
 
   // Simulates a Descriptor Read operation failing synchronously once for an
   // unknown reason.
@@ -576,12 +573,12 @@ class BluetoothTestBase : public testing::Test {
   // Simulates a Descriptor Write operation failing with a GattErrorCode.
   virtual void SimulateGattDescriptorWriteError(
       BluetoothRemoteGattDescriptor* descriptor,
-      BluetoothGattService::GattErrorCode) {}
+      BluetoothRemoteGattService::GattErrorCode) {}
 
   // Simulates a Descriptor Update operation failing with a GattErrorCode.
   virtual void SimulateGattDescriptorUpdateError(
       BluetoothRemoteGattDescriptor* descriptor,
-      BluetoothGattService::GattErrorCode) {}
+      BluetoothRemoteGattService::GattErrorCode) {}
 
   // Simulates a Descriptor Write operation failing synchronously once for
   // an unknown reason.
@@ -609,11 +606,8 @@ class BluetoothTestBase : public testing::Test {
                                    scoped_refptr<BluetoothAdvertisement>);
   void DiscoverySessionCallback(Call expected,
                                 std::unique_ptr<BluetoothDiscoverySession>);
-  void GattConnectionCallback(
-      Call expected,
-      Result expected_result,
-      std::unique_ptr<BluetoothGattConnection>,
-      absl::optional<BluetoothDevice::ConnectErrorCode>);
+  void GattConnectionCallback(Call expected,
+                              std::unique_ptr<BluetoothGattConnection>);
   void NotifyCallback(Call expected,
                       std::unique_ptr<BluetoothGattNotifySession>);
   void NotifyCheckForPrecedingCalls(
@@ -621,18 +615,14 @@ class BluetoothTestBase : public testing::Test {
       std::unique_ptr<BluetoothGattNotifySession>);
   void StopNotifyCallback(Call expected);
   void StopNotifyCheckForPrecedingCalls(int num_of_preceding_calls);
-  void ReadValueCallback(
-      Call expected,
-      Result expected_result,
-      absl::optional<BluetoothGattService::GattErrorCode> error_code,
-      const std::vector<uint8_t>& value);
+  void ReadValueCallback(Call expected, const std::vector<uint8_t>& value);
   void ErrorCallback(Call expected);
   void AdvertisementErrorCallback(Call expected,
                                   BluetoothAdvertisement::ErrorCode error_code);
-  void OnConnectCallback(Call expected,
-                         Result expected_result,
-                         absl::optional<BluetoothDevice::ConnectErrorCode>);
-  void GattErrorCallback(Call expected, BluetoothGattService::GattErrorCode);
+  void ConnectErrorCallback(Call expected,
+                            enum BluetoothDevice::ConnectErrorCode);
+  void GattErrorCallback(Call expected,
+                         BluetoothRemoteGattService::GattErrorCode);
   void ReentrantStartNotifySessionSuccessCallback(
       Call expected,
       BluetoothRemoteGattCharacteristic* characteristic,
@@ -650,8 +640,7 @@ class BluetoothTestBase : public testing::Test {
   BluetoothAdapter::DiscoverySessionCallback GetDiscoverySessionCallback(
       Call expected);
   BluetoothDevice::GattConnectionCallback GetGattConnectionCallback(
-      Call expected,
-      Result expected_result);
+      Call expected);
   BluetoothRemoteGattCharacteristic::NotifySessionCallback GetNotifyCallback(
       Call expected);
   BluetoothRemoteGattCharacteristic::NotifySessionCallback
@@ -660,12 +649,12 @@ class BluetoothTestBase : public testing::Test {
   base::OnceClosure GetStopNotifyCheckForPrecedingCalls(
       int num_of_preceding_calls);
   BluetoothRemoteGattCharacteristic::ValueCallback GetReadValueCallback(
-      Call expected,
-      Result expected_result);
+      Call expected);
   BluetoothAdapter::ErrorCallback GetErrorCallback(Call expected);
   BluetoothAdapter::AdvertisementErrorCallback GetAdvertisementErrorCallback(
       Call expected);
-  base::OnceCallback<void(BluetoothGattService::GattErrorCode)>
+  BluetoothDevice::ConnectErrorCallback GetConnectErrorCallback(Call expected);
+  base::OnceCallback<void(BluetoothRemoteGattService::GattErrorCode)>
   GetGattErrorCallback(Call expected);
   BluetoothRemoteGattCharacteristic::NotifySessionCallback
   GetReentrantStartNotifySessionSuccessCallback(
@@ -683,19 +672,6 @@ class BluetoothTestBase : public testing::Test {
   void RemoveTimedOutDevices();
 
  protected:
-  // The expected/actual counts for tests.
-  struct EventCounts {
-    int unexpected = 0;
-    int expected = 0;
-    int actual = 0;
-  };
-
-  // Counts for an expected metric being tested.
-  struct ResultCounts {
-    EventCounts success;
-    EventCounts failure;
-  };
-
   // Utility method to simplify creading a low energy device of a given
   // |device_ordinal|.
   LowEnergyDeviceData GetLowEnergyDeviceData(int device_ordinal) const;
@@ -715,8 +691,7 @@ class BluetoothTestBase : public testing::Test {
   std::vector<std::unique_ptr<BluetoothGattNotifySession>> notify_sessions_;
   std::vector<uint8_t> last_read_value_;
   std::vector<uint8_t> last_write_value_;
-  BluetoothGattService::GattErrorCode last_gatt_error_code_ =
-      BluetoothGattService::GattErrorCode::kUnknown;
+  BluetoothRemoteGattService::GattErrorCode last_gatt_error_code_;
 
   int callback_count_ = 0;
   int error_callback_count_ = 0;
@@ -737,9 +712,6 @@ class BluetoothTestBase : public testing::Test {
   int actual_error_callback_calls_ = 0;
   bool unexpected_success_callback_ = false;
   bool unexpected_error_callback_ = false;
-
-  EventCounts read_callback_calls_;
-  ResultCounts read_results_;
 
   base::WeakPtrFactory<BluetoothTestBase> weak_factory_{this};
 };

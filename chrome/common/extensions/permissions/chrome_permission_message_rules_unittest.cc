@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,10 @@ namespace extensions {
 
 namespace {
 
-std::string PermissionIDsToString(const std::set<mojom::APIPermissionID>& ids) {
+std::string PermissionIDsToString(const std::set<APIPermission::ID>& ids) {
   std::vector<std::string> strs;
   for (auto id : ids)
-    strs.push_back(base::NumberToString(static_cast<int>(id)));
+    strs.push_back(base::NumberToString(id));
   return base::JoinString(strs, " ");
 }
 

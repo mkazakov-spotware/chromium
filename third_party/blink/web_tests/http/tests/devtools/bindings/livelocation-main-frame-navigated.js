@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that debugger live location gets updated.\n`);
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
 
   TestRunner.markStep('attachFrame');
   await Promise.all([

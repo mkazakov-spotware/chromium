@@ -1,13 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_COMMON_IN_PROCESS_CHILD_THREAD_PARAMS_H_
 #define CONTENT_COMMON_IN_PROCESS_CHILD_THREAD_PARAMS_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/system/invitation.h"
 
@@ -32,7 +31,7 @@ class CONTENT_EXPORT InProcessChildThreadParams {
 
  private:
   scoped_refptr<base::SingleThreadTaskRunner> io_runner_;
-  const raw_ptr<mojo::OutgoingInvitation> mojo_invitation_;
+  mojo::OutgoingInvitation* const mojo_invitation_;
 };
 
 }  // namespace content

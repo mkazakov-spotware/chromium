@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@
 
 #include "base/bind.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/test/bind.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "cc/test/fake_layer_tree_frame_sink.h"
 #include "cc/test/test_task_graph_runner.h"
@@ -27,9 +26,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/platform/scheduler/test/renderer_scheduler_test_support.h"
 #include "third_party/blink/public/platform/scheduler/test/web_fake_thread_scheduler.h"
-#include "third_party/blink/renderer/platform/scheduler/public/dummy_schedulers.h"
-#include "third_party/blink/renderer/platform/scheduler/public/page_scheduler.h"
-#include "third_party/blink/renderer/platform/scheduler/public/widget_scheduler.h"
 #include "third_party/blink/renderer/platform/widget/compositing/test/stub_layer_tree_view_delegate.h"
 
 using testing::AllOf;
@@ -39,17 +35,14 @@ namespace blink {
 namespace {
 
 enum FailureMode {
-  kNoFailure,
-  kBindContextFailure,
-  kGpuChannelFailure,
+  NO_FAILURE,
+  BIND_CONTEXT_FAILURE,
+  GPU_CHANNEL_FAILURE,
 };
 
 class FakeLayerTreeViewDelegate : public StubLayerTreeViewDelegate {
  public:
   FakeLayerTreeViewDelegate() = default;
-  FakeLayerTreeViewDelegate(const FakeLayerTreeViewDelegate&) = delete;
-  FakeLayerTreeViewDelegate& operator=(const FakeLayerTreeViewDelegate&) =
-      delete;
 
   void RequestNewLayerTreeFrameSink(
       LayerTreeFrameSinkCallback callback) override {
@@ -117,6 +110,8 @@ class FakeLayerTreeViewDelegate : public StubLayerTreeViewDelegate {
   int num_failures_before_success_ = 0;
   int num_failures_since_last_success_ = 0;
   int num_successes_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeLayerTreeViewDelegate);
 };
 
 // Verify that failing to create an output surface will cause the compositor
@@ -126,14 +121,12 @@ class FakeLayerTreeViewDelegate : public StubLayerTreeViewDelegate {
 // the compositor (couldn't bind the output surface) are handled identically.
 class LayerTreeViewWithFrameSinkTracking : public LayerTreeView {
  public:
-  LayerTreeViewWithFrameSinkTracking(FakeLayerTreeViewDelegate* delegate,
-                                     PageScheduler& scheduler)
-      : LayerTreeView(delegate, scheduler.CreateWidgetScheduler()),
-        delegate_(delegate) {}
   LayerTreeViewWithFrameSinkTracking(
-      const LayerTreeViewWithFrameSinkTracking&) = delete;
-  LayerTreeViewWithFrameSinkTracking& operator=(
-      const LayerTreeViewWithFrameSinkTracking&) = delete;
+      FakeLayerTreeViewDelegate* delegate,
+      blink::scheduler::WebThreadScheduler* scheduler)
+      : LayerTreeView(delegate,
+                      scheduler),
+        delegate_(delegate) {}
 
   // Force a new output surface to be created.
   void SynchronousComposite() {
@@ -185,11 +178,11 @@ class LayerTreeViewWithFrameSinkTracking : public LayerTreeView {
     failure_mode_ = failure_mode;
     expected_successes_ = expected_successes;
     switch (failure_mode_) {
-      case kNoFailure:
+      case NO_FAILURE:
         expected_requests_ = expected_successes;
         break;
-      case kBindContextFailure:
-      case kGpuChannelFailure:
+      case BIND_CONTEXT_FAILURE:
+      case GPU_CHANNEL_FAILURE:
         expected_requests_ = num_tries * std::max(1, expected_successes);
         break;
     }
@@ -202,24 +195,24 @@ class LayerTreeViewWithFrameSinkTracking : public LayerTreeView {
   base::RunLoop* run_loop_ = nullptr;
   int expected_successes_ = 0;
   int expected_requests_ = 0;
-  FailureMode failure_mode_ = kNoFailure;
+  FailureMode failure_mode_ = NO_FAILURE;
+
+  DISALLOW_COPY_AND_ASSIGN(LayerTreeViewWithFrameSinkTracking);
 };
 
 class LayerTreeViewWithFrameSinkTrackingTest : public testing::Test {
  public:
   LayerTreeViewWithFrameSinkTrackingTest()
-      : dummy_page_scheduler_(scheduler::CreateDummyPageScheduler()),
-        layer_tree_view_(&layer_tree_view_delegate_, *dummy_page_scheduler_) {
+      : layer_tree_view_(
+            &layer_tree_view_delegate_,
+            &fake_thread_scheduler_) {
     cc::LayerTreeSettings settings;
     settings.single_thread_proxy_scheduler = false;
     layer_tree_view_.Initialize(
         settings, blink::scheduler::GetSingleThreadTaskRunnerForTesting(),
-        /*compositor_thread=*/nullptr, &test_task_graph_runner_);
+        /*compositor_thread=*/nullptr, &test_task_graph_runner_,
+        std::make_unique<cc::TestUkmRecorderFactory>());
   }
-  LayerTreeViewWithFrameSinkTrackingTest(
-      const LayerTreeViewWithFrameSinkTrackingTest&) = delete;
-  LayerTreeViewWithFrameSinkTrackingTest& operator=(
-      const LayerTreeViewWithFrameSinkTrackingTest&) = delete;
 
   void RunTest(int expected_successes, FailureMode failure_mode) {
     layer_tree_view_delegate_.Reset();
@@ -229,16 +222,16 @@ class LayerTreeViewWithFrameSinkTrackingTest : public testing::Test {
     // until the last attempt.
     int tries_before_success = kTries - (expected_successes ? 1 : 0);
     switch (failure_mode) {
-      case kNoFailure:
+      case NO_FAILURE:
         layer_tree_view_delegate_.set_num_failures_before_success(0);
         layer_tree_view_delegate_.set_num_requests_before_success(0);
         break;
-      case kBindContextFailure:
+      case BIND_CONTEXT_FAILURE:
         layer_tree_view_delegate_.set_num_failures_before_success(
             tries_before_success);
         layer_tree_view_delegate_.set_num_requests_before_success(0);
         break;
-      case kGpuChannelFailure:
+      case GPU_CHANNEL_FAILURE:
         layer_tree_view_delegate_.set_num_failures_before_success(0);
         layer_tree_view_delegate_.set_num_requests_before_success(
             tries_before_success);
@@ -258,48 +251,53 @@ class LayerTreeViewWithFrameSinkTrackingTest : public testing::Test {
  protected:
   base::test::TaskEnvironment task_environment_;
   cc::TestTaskGraphRunner test_task_graph_runner_;
-  std::unique_ptr<PageScheduler> dummy_page_scheduler_;
+  blink::scheduler::WebFakeThreadScheduler fake_thread_scheduler_;
   FakeLayerTreeViewDelegate layer_tree_view_delegate_;
   LayerTreeViewWithFrameSinkTracking layer_tree_view_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LayerTreeViewWithFrameSinkTrackingTest);
 };
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, SucceedOnce) {
-  RunTest(1, kNoFailure);
+  RunTest(1, NO_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, SucceedOnce_AfterNullChannel) {
-  RunTest(1, kGpuChannelFailure);
+  RunTest(1, GPU_CHANNEL_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, SucceedOnce_AfterLostContext) {
-  RunTest(1, kBindContextFailure);
+  RunTest(1, BIND_CONTEXT_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, SucceedTwice) {
-  RunTest(2, kNoFailure);
+  RunTest(2, NO_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, SucceedTwice_AfterNullChannel) {
-  RunTest(2, kGpuChannelFailure);
+  RunTest(2, GPU_CHANNEL_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, SucceedTwice_AfterLostContext) {
-  RunTest(2, kBindContextFailure);
+  RunTest(2, BIND_CONTEXT_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, FailWithNullChannel) {
-  RunTest(0, kGpuChannelFailure);
+  RunTest(0, GPU_CHANNEL_FAILURE);
 }
 
 TEST_F(LayerTreeViewWithFrameSinkTrackingTest, FailWithLostContext) {
-  RunTest(0, kBindContextFailure);
+  RunTest(0, BIND_CONTEXT_FAILURE);
 }
 
 class VisibilityTestLayerTreeView : public LayerTreeView {
  public:
-  VisibilityTestLayerTreeView(StubLayerTreeViewDelegate* delegate,
-                              PageScheduler& scheduler)
-      : LayerTreeView(delegate, scheduler.CreateWidgetScheduler()) {}
+  VisibilityTestLayerTreeView(
+      StubLayerTreeViewDelegate* delegate,
+      blink::scheduler::WebThreadScheduler* scheduler)
+      : LayerTreeView(delegate,
+                      scheduler) {}
 
   void RequestNewLayerTreeFrameSink() override {
     LayerTreeView::RequestNewLayerTreeFrameSink();
@@ -323,16 +321,18 @@ TEST(LayerTreeViewTest, VisibilityTest) {
   base::test::TaskEnvironment task_environment;
 
   cc::TestTaskGraphRunner test_task_graph_runner;
-  auto page_scheduler = scheduler::CreateDummyPageScheduler();
+  blink::scheduler::WebFakeThreadScheduler fake_thread_scheduler;
   // Synchronously callback with null FrameSink.
   StubLayerTreeViewDelegate layer_tree_view_delegate;
-  VisibilityTestLayerTreeView layer_tree_view(&layer_tree_view_delegate,
-                                              *page_scheduler);
+  VisibilityTestLayerTreeView layer_tree_view(
+      &layer_tree_view_delegate,
+      &fake_thread_scheduler);
 
   layer_tree_view.Initialize(
       cc::LayerTreeSettings(),
       blink::scheduler::GetSingleThreadTaskRunnerForTesting(),
-      /*compositor_thread=*/nullptr, &test_task_graph_runner);
+      /*compositor_thread=*/nullptr, &test_task_graph_runner,
+      std::make_unique<cc::TestUkmRecorderFactory>());
 
   {
     // Make one request and stop immediately while invisible.
@@ -361,51 +361,6 @@ TEST(LayerTreeViewTest, VisibilityTest) {
     layer_tree_view.set_run_loop(nullptr);
     EXPECT_EQ(2, layer_tree_view.num_requests_sent());
   }
-}
-
-// Tests that presentation callbacks are only called on successful
-// presentations.
-TEST(LayerTreeViewTest, RunPresentationCallbackOnSuccess) {
-  base::test::TaskEnvironment task_environment;
-
-  cc::TestTaskGraphRunner test_task_graph_runner;
-  std::unique_ptr<PageScheduler> dummy_page_scheduler =
-      scheduler::CreateDummyPageScheduler();
-  StubLayerTreeViewDelegate layer_tree_view_delegate;
-  LayerTreeView layer_tree_view(&layer_tree_view_delegate,
-                                dummy_page_scheduler->CreateWidgetScheduler());
-
-  layer_tree_view.Initialize(
-      cc::LayerTreeSettings(),
-      blink::scheduler::GetSingleThreadTaskRunnerForTesting(),
-      /*compositor_thread=*/nullptr, &test_task_graph_runner);
-
-  // Register a callback for frame 1.
-  base::TimeTicks callback_timestamp;
-  layer_tree_view.AddPresentationCallback(
-      1, base::BindLambdaForTesting([&](base::TimeTicks timestamp) {
-        callback_timestamp = timestamp;
-      }));
-
-  // Respond with a failed presentation feedback for frame 1 and verify that the
-  // callback is not called
-  base::TimeTicks fail_timestamp =
-      base::TimeTicks::Now() + base::Microseconds(2);
-  gfx::PresentationFeedback fail_feedback(fail_timestamp, base::TimeDelta(),
-                                          gfx::PresentationFeedback::kFailure);
-  layer_tree_view.DidPresentCompositorFrame(1, fail_feedback);
-  EXPECT_TRUE(callback_timestamp.is_null());
-
-  // Respond with a successful presentation feedback for frame 2 and verify that
-  // the callback for frame 1 is now called with presentation timestamp for
-  // frame 2.
-  base::TimeTicks success_timestamp = fail_timestamp + base::Microseconds(3);
-  gfx::PresentationFeedback success_feedback(success_timestamp,
-                                             base::TimeDelta(), 0);
-  layer_tree_view.DidPresentCompositorFrame(2, success_feedback);
-  EXPECT_FALSE(callback_timestamp.is_null());
-  EXPECT_NE(callback_timestamp, fail_timestamp);
-  EXPECT_EQ(callback_timestamp, success_timestamp);
 }
 
 }  // namespace

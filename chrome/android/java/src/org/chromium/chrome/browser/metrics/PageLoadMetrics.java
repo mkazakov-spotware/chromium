@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,20 +50,6 @@ public class PageLoadMetrics {
                 boolean isFirstNavigationInWebContents) {}
 
         /**
-         * Called when the navigated page is activated.
-         *
-         * @param webContents the WebContents this metrics is related to.
-         * @param prerenderingNavigationId the unique id of a prerendering navigation this
-         *         activation is related to.
-         * @param activatingNavigationId the unique id of a activating navigation.
-         * @param activationStartMicros Absolute activation start time, in microseconds, in
-         *         the same timebase as {@link SystemClock#uptimeMillis()} and
-         *         {@link System#nanoTime()}.
-         */
-        default void onActivation(WebContents webContents, long prerenderingNavigationId,
-                long activatingNavigationId, long activationStartMicros) {}
-
-        /**
          * Called when Network Quality Estimate is available, once per page load, when the
          * load is started. This is guaranteed to be called before any other metric event
          * below. If Chromium has just been started, this will likely be determined from
@@ -86,27 +72,23 @@ public class PageLoadMetrics {
          *
          * @param webContents the WebContents this metrics is related to.
          * @param navigationId the unique id of a navigation this metrics is related to.
-         * @param navigationStartMicros Absolute navigation start time, in microseconds, in
-         *         the same timebase as {@link SystemClock#uptimeMillis()} and
-         *         {@link System#nanoTime()}.
+         * @param navigationStartTick Absolute navigation start time, as TimeTicks.
          * @param firstContentfulPaintMs Time to first contentful paint from navigation start.
          */
         default void onFirstContentfulPaint(WebContents webContents, long navigationId,
-                long navigationStartMicros, long firstContentfulPaintMs) {}
+                long navigationStartTick, long firstContentfulPaintMs) {}
 
         /**
          * Called when the largest contentful paint page load metric is available.
          *
          * @param webContents the WebContents this metrics is related to.
          * @param navigationId the unique id of a navigation this metrics is related to.
-         * @param navigationStartMicros Absolute navigation start time, in microseconds, in
-         *         the same timebase as {@link SystemClock#uptimeMillis()} and
-         *         {@link System#nanoTime()}.
+         * @param navigationStartTick Absolute navigation start time, as TimeTicks.
          * @param largestContentfulPaintMs Time to largest contentful paint from navigation start.
          * @param largestContentfulPaintSize Size of largest contentful paint, in CSS pixels.
          */
         default void onLargestContentfulPaint(WebContents webContents, long navigationId,
-                long navigationStartMicros, long largestContentfulPaintMs,
+                long navigationStartTick, long largestContentfulPaintMs,
                 long largestContentfulPaintSize) {}
 
         /**
@@ -115,13 +97,11 @@ public class PageLoadMetrics {
          *
          * @param webContents the WebContents this metrics is related to.
          * @param navigationId the unique id of a navigation this metrics is related to.
-         * @param navigationStartMicros Absolute navigation start time, in microseconds, in
-         *         the same timebase as {@link SystemClock#uptimeMillis()} and
-         *         {@link System#nanoTime()}.
+         * @param navigationStartTick Absolute navigation start time, as TimeTicks.
          * @param firstMeaningfulPaintMs Time to first meaningful paint from navigation start.
          */
         default void onFirstMeaningfulPaint(WebContents webContents, long navigationId,
-                long navigationStartMicros, long firstMeaningfulPaintMs) {}
+                long navigationStartTick, long firstMeaningfulPaintMs) {}
 
         /**
          * Called when the first input delay page load metric is available.
@@ -138,13 +118,11 @@ public class PageLoadMetrics {
          *
          * @param webContents the WebContents this metrics is related to.
          * @param navigationId the unique id of a navigation this metrics is related to.
-         * @param navigationStartMicros Absolute navigation start time, in microseconds, in
-         *         the same timebase as {@link SystemClock#uptimeMillis()} and
-         *         {@link System#nanoTime()}.
+         * @param navigationStartTick Absolute navigation start time, as TimeTicks.
          * @param loadEventStartMs Time to load event start from navigation start.
          */
         default void onLoadEventStart(WebContents webContents, long navigationId,
-                long navigationStartMicros, long loadEventStartMs) {}
+                long navigationStartTick, long loadEventStartMs) {}
 
         /**
          * Called when the main resource is loaded.
@@ -173,151 +151,116 @@ public class PageLoadMetrics {
                 float layoutShiftScoreBeforeInputOrScroll, float layoutShiftScoreOverall) {}
     }
 
-    private static ObserverList<Observer> sObservers = new ObserverList<>();
-    private static ObserverList<Observer> sPrerenderObservers = new ObserverList<>();
-    private static boolean sIsPrerendering;
+    private static ObserverList<Observer> sObservers;
 
-    /** Checks if the current observer handles an event for prerendered pages. */
-    public static boolean isPrerendering() {
-        return sIsPrerendering;
-    }
-
-    /**
-     * Adds an observer.
-     * supportPrerendering flag is introduced for incremental migration and new code should support
-     * prerendering.
-     * TODO(https://crbug.com/1363952): Deprecate supportPrerendering.
-     *
-     * @param observer the Observer instance to be added.
-     * @param supportPrerendering specifis if the observer recognizes prerendering navigations.
-     */
-    public static Void addObserver(Observer observer, boolean supportPrerendering) {
+    /** Adds an observer. */
+    public static boolean addObserver(Observer observer) {
         ThreadUtils.assertOnUiThread();
-        sObservers.addObserver(observer);
-        if (supportPrerendering) sPrerenderObservers.addObserver(observer);
-        return null;
+        if (sObservers == null) sObservers = new ObserverList<>();
+        return sObservers.addObserver(observer);
     }
 
     /** Removes an observer. */
-    public static Void removeObserver(Observer observer) {
+    public static boolean removeObserver(Observer observer) {
         ThreadUtils.assertOnUiThread();
-        sObservers.removeObserver(observer);
-        sPrerenderObservers.removeObserver(observer);
-        return null;
+        if (sObservers == null) return false;
+        return sObservers.removeObserver(observer);
     }
 
     @CalledByNative
-    static void onNewNavigation(WebContents webContents, long navigationId,
-            boolean isFirstNavigationInWebContents, boolean isPrerendering) {
+    static void onNewNavigation(
+            WebContents webContents, long navigationId, boolean isFirstNavigationInWebContents) {
         ThreadUtils.assertOnUiThread();
-        ObserverList<Observer> observers = isPrerendering ? sPrerenderObservers : sObservers;
-        sIsPrerendering = isPrerendering;
-        for (Observer observer : observers) {
+        if (sObservers == null) return;
+        for (Observer observer : sObservers) {
             observer.onNewNavigation(webContents, navigationId, isFirstNavigationInWebContents);
         }
     }
 
     @CalledByNative
-    private static void onActivation(WebContents webContents, long prerenderingNavigationId,
-            long activatingNavigationId, long activationStartMicros) {
+    static void onNetworkQualityEstimate(WebContents webContents, long navigationId,
+            int effectiveConnectionType, long httpRttMs, long transportRttMs) {
         ThreadUtils.assertOnUiThread();
-        sIsPrerendering = false;
-        for (Observer observer : sPrerenderObservers) {
-            observer.onActivation(webContents, prerenderingNavigationId, activatingNavigationId,
-                    activationStartMicros);
-        }
-    }
-
-    @CalledByNative
-    private static void onNetworkQualityEstimate(WebContents webContents, long navigationId,
-            int effectiveConnectionType, long httpRttMs, long transportRttMs,
-            boolean isPrerendering) {
-        ThreadUtils.assertOnUiThread();
-        ObserverList<Observer> observers = isPrerendering ? sPrerenderObservers : sObservers;
-        sIsPrerendering = isPrerendering;
-        for (Observer observer : observers) {
+        if (sObservers == null) return;
+        for (Observer observer : sObservers) {
             observer.onNetworkQualityEstimate(
                     webContents, navigationId, effectiveConnectionType, httpRttMs, transportRttMs);
         }
     }
 
     @CalledByNative
-    private static void onFirstContentfulPaint(WebContents webContents, long navigationId,
-            long navigationStartMicros, long firstContentfulPaintMs) {
+    static void onFirstContentfulPaint(WebContents webContents, long navigationId,
+            long navigationStartTick, long firstContentfulPaintMs) {
         ThreadUtils.assertOnUiThread();
-        sIsPrerendering = false;
+        if (sObservers == null) return;
         for (Observer observer : sObservers) {
             observer.onFirstContentfulPaint(
-                    webContents, navigationId, navigationStartMicros, firstContentfulPaintMs);
+                    webContents, navigationId, navigationStartTick, firstContentfulPaintMs);
         }
     }
 
     @CalledByNative
-    private static void onLargestContentfulPaint(WebContents webContents, long navigationId,
-            long navigationStartMicros, long largestContentfulPaintMs,
+    static void onLargestContentfulPaint(WebContents webContents, long navigationId,
+            long navigationStartTick, long largestContentfulPaintMs,
             long largestContentfulPaintSize) {
         ThreadUtils.assertOnUiThread();
-        sIsPrerendering = false;
+        if (sObservers == null) return;
         for (Observer observer : sObservers) {
-            observer.onLargestContentfulPaint(webContents, navigationId, navigationStartMicros,
+            observer.onLargestContentfulPaint(webContents, navigationId, navigationStartTick,
                     largestContentfulPaintMs, largestContentfulPaintSize);
         }
     }
 
     @CalledByNative
-    private static void onFirstMeaningfulPaint(WebContents webContents, long navigationId,
-            long navigationStartMicros, long firstMeaningfulPaintMs) {
+    static void onFirstMeaningfulPaint(WebContents webContents, long navigationId,
+            long navigationStartTick, long firstMeaningfulPaintMs) {
         ThreadUtils.assertOnUiThread();
-        sIsPrerendering = false;
+        if (sObservers == null) return;
         for (Observer observer : sObservers) {
             observer.onFirstMeaningfulPaint(
-                    webContents, navigationId, navigationStartMicros, firstMeaningfulPaintMs);
+                    webContents, navigationId, navigationStartTick, firstMeaningfulPaintMs);
         }
     }
 
     @CalledByNative
-    private static void onFirstInputDelay(
+    static void onFirstInputDelay(
             WebContents webContents, long navigationId, long firstInputDelayMs) {
         ThreadUtils.assertOnUiThread();
-        sIsPrerendering = false;
+        if (sObservers == null) return;
         for (Observer observer : sObservers) {
             observer.onFirstInputDelay(webContents, navigationId, firstInputDelayMs);
         }
     }
 
     @CalledByNative
-    private static void onLoadEventStart(WebContents webContents, long navigationId,
-            long navigationStartMicros, long loadEventStartMs, boolean isPrerendering) {
+    static void onLoadEventStart(WebContents webContents, long navigationId,
+            long navigationStartTick, long loadEventStartMs) {
         ThreadUtils.assertOnUiThread();
-        ObserverList<Observer> observers = isPrerendering ? sPrerenderObservers : sObservers;
-        sIsPrerendering = isPrerendering;
-        for (Observer observer : observers) {
+        if (sObservers == null) return;
+        for (Observer observer : sObservers) {
             observer.onLoadEventStart(
-                    webContents, navigationId, navigationStartMicros, loadEventStartMs);
+                    webContents, navigationId, navigationStartTick, loadEventStartMs);
         }
     }
 
     @CalledByNative
-    private static void onLoadedMainResource(WebContents webContents, long navigationId,
-            long dnsStartMs, long dnsEndMs, long connectStartMs, long connectEndMs,
-            long requestStartMs, long sendStartMs, long sendEndMs, boolean isPrerendering) {
+    static void onLoadedMainResource(WebContents webContents, long navigationId, long dnsStartMs,
+            long dnsEndMs, long connectStartMs, long connectEndMs, long requestStartMs,
+            long sendStartMs, long sendEndMs) {
         ThreadUtils.assertOnUiThread();
-        ObserverList<Observer> observers = isPrerendering ? sPrerenderObservers : sObservers;
-        sIsPrerendering = isPrerendering;
-        for (Observer observer : observers) {
+        if (sObservers == null) return;
+        for (Observer observer : sObservers) {
             observer.onLoadedMainResource(webContents, navigationId, dnsStartMs, dnsEndMs,
                     connectStartMs, connectEndMs, requestStartMs, sendStartMs, sendEndMs);
         }
     }
 
     @CalledByNative
-    private static void onLayoutShiftScore(WebContents webContents, long navigationId,
-            float layoutShiftScoreBeforeInputOrScroll, float layoutShiftScoreOverall,
-            boolean isPrerendering) {
+    static void onLayoutShiftScore(WebContents webContents, long navigationId,
+            float layoutShiftScoreBeforeInputOrScroll, float layoutShiftScoreOverall) {
         ThreadUtils.assertOnUiThread();
-        ObserverList<Observer> observers = isPrerendering ? sPrerenderObservers : sObservers;
-        sIsPrerendering = isPrerendering;
-        for (Observer observer : observers) {
+        if (sObservers == null) return;
+        for (Observer observer : sObservers) {
             observer.onLayoutShiftScore(webContents, navigationId,
                     layoutShiftScoreBeforeInputOrScroll, layoutShiftScoreOverall);
         }

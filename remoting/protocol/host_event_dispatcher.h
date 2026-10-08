@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,23 +7,20 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "remoting/protocol/channel_dispatcher_base.h"
 #include "remoting/protocol/input_event_timestamps.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class InputStub;
 
-// HostEventDispatcher dispatches incoming messages on the event channel to
-// InputStub.
+// HostEventDispatcher dispatches incoming messages on the event
+// channel to InputStub.
 class HostEventDispatcher : public ChannelDispatcherBase {
  public:
   HostEventDispatcher();
-
-  HostEventDispatcher(const HostEventDispatcher&) = delete;
-  HostEventDispatcher& operator=(const HostEventDispatcher&) = delete;
-
   ~HostEventDispatcher() override;
 
   // Set InputStub that will be called for each incoming input
@@ -48,9 +45,12 @@ class HostEventDispatcher : public ChannelDispatcherBase {
 
   scoped_refptr<InputEventTimestampsSourceImpl> event_timestamps_source_;
 
-  raw_ptr<InputStub> input_stub_ = nullptr;
+  InputStub* input_stub_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(HostEventDispatcher);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_HOST_EVENT_DISPATCHER_H_

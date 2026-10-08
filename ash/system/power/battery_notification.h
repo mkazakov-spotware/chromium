@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/power/power_notification_controller.h"
+#include "base/macros.h"
 
 namespace message_center {
 class MessageCenter;
@@ -20,13 +21,7 @@ class ASH_EXPORT BatteryNotification {
   BatteryNotification(
       message_center::MessageCenter* message_center,
       PowerNotificationController::NotificationState notification_state);
-
-  BatteryNotification(const BatteryNotification&) = delete;
-  BatteryNotification& operator=(const BatteryNotification&) = delete;
-
   ~BatteryNotification();
-
-  static const char kNotificationId[];
 
   // Updates the notification if it still exists.
   void Update(
@@ -34,6 +29,8 @@ class ASH_EXPORT BatteryNotification {
 
  private:
   message_center::MessageCenter* message_center_;
+
+  DISALLOW_COPY_AND_ASSIGN(BatteryNotification);
 };
 
 }  // namespace ash

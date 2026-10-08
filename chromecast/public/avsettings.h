@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -246,13 +246,6 @@ class AvSettings {
   // measured.
   // This function should only be implemented on HDMI platforms.
   static CHROMECAST_EXPORT int GetHdmiLatencyUs() __attribute__((weak));
-
-  // Gets the EDID ID string.
-  // Returns the valid EDID ID when HDMI is connected.
-  // Returns an empty string when HDMI is not connected or when the EDID info
-  // cannot be correctly parsed.
-  // This function should only be implemented on HDMI platforms.
-  static CHROMECAST_EXPORT std::string GetEdidId() __attribute__((weak));
 
   // Returns true if this is an HDMI platform.
   // This function should only be implemented on HDMI platforms.

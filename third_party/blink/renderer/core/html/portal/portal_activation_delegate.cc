@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,16 +20,19 @@ class PromiseActivationDelegate
       public PortalActivationDelegate {
  public:
   PromiseActivationDelegate(ScriptPromiseResolver* resolver,
-                            const ExceptionContext& exception_context)
-      : resolver_(resolver), exception_context_(exception_context) {}
+                            const ExceptionState& exception_state)
+      : resolver_(resolver),
+        context_(exception_state.Context()),
+        interface_name_(exception_state.InterfaceName()),
+        property_name_(exception_state.PropertyName()) {}
 
   void ActivationDidSucceed() final { resolver_->Resolve(); }
 
   void ActivationDidFail(const String& message) final {
     ScriptState* script_state = resolver_->GetScriptState();
     ScriptState::Scope scope(script_state);
-    ExceptionState exception_state(script_state->GetIsolate(),
-                                   exception_context_);
+    ExceptionState exception_state(script_state->GetIsolate(), context_,
+                                   interface_name_, property_name_);
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       message);
     resolver_->Reject(exception_state);
@@ -44,16 +47,18 @@ class PromiseActivationDelegate
 
   // Needed to reconstruct ExceptionState. Ideally these would be bundled.
   // See https://crbug.com/991544.
-  ExceptionContext exception_context_;
+  ExceptionState::ContextType context_;
+  const char* interface_name_;
+  const char* property_name_;
 };
 
 }  // namespace
 
 PortalActivationDelegate* PortalActivationDelegate::ForPromise(
     ScriptPromiseResolver* resolver,
-    const ExceptionContext& exception_context) {
+    const ExceptionState& exception_state) {
   return MakeGarbageCollected<PromiseActivationDelegate>(resolver,
-                                                         exception_context);
+                                                         exception_state);
 }
 
 namespace {

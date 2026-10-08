@@ -30,8 +30,10 @@
 A FileSystem object can be used to represent dependency on the
 filesystem, and can be replaced with a MockFileSystem in tests.
 """
-from __future__ import unicode_literals
 
+import codecs
+import errno
+import exceptions
 import glob
 import hashlib
 import logging
@@ -42,12 +44,6 @@ import subprocess
 import sys
 import tempfile
 import time
-
-try:
-    import exceptions
-except ImportError:
-    # In py3, exceptions were moved into builtins
-    import builtins as exceptions
 
 _log = logging.getLogger(__name__)
 
@@ -79,7 +75,7 @@ class FileSystem(object):
         """
         if sys.platform == 'win32' and len(path) >= self.WINDOWS_MAX_PATH:
             assert not path.startswith(r'\\'), "must not already be UNC"
-            return r'\\?\%s' % (self.abspath(path), )
+            return ur'\\?\%s' % (self.abspath(path), )
         return path
 
     def abspath(self, path):
@@ -159,7 +155,7 @@ class FileSystem(object):
         return os.getcwd()
 
     def glob(self, path):
-        return glob.iglob(path, recursive=True)
+        return glob.glob(path)
 
     def isabs(self, path):
         return os.path.isabs(path)
@@ -218,9 +214,13 @@ class FileSystem(object):
 
     def maybe_make_directory(self, *path):
         """Creates the specified directory if it doesn't already exist."""
-        # os.makedirs() supports UNC paths:
-        # https://docs.python.org/2/library/os.html#os.makedirs
-        os.makedirs(self._path_for_access(self.join(*path)), exist_ok=True)
+        try:
+            # os.makedirs() supports UNC paths:
+            # https://docs.python.org/2/library/os.html#os.makedirs
+            os.makedirs(self._path_for_access(self.join(*path)))
+        except OSError as error:
+            if error.errno != errno.EEXIST:
+                raise
 
     def move(self, source, destination):
         shutil.move(source, destination)
@@ -241,10 +241,10 @@ class FileSystem(object):
         return f, temp_name
 
     def open_binary_file_for_reading(self, path):
-        return open(self._path_for_access(path), 'rb')
+        return file(self._path_for_access(path), 'rb')
 
     def open_binary_file_for_writing(self, path):
-        return open(self._path_for_access(path), 'wb')
+        return file(self._path_for_access(path), 'wb')
 
     def read_binary_file(self, path):
         """Returns the contents of the file as a byte string."""
@@ -264,26 +264,17 @@ class FileSystem(object):
         # Close the OS fd opened by mkstemp as we will reopen the file with an
         # explict encoding.
         os.close(temp_fd)
-        f = open(temp_name, 'w', encoding='utf8', newline='')
+        f = codecs.open(temp_name, 'w', 'utf8')
         return f, temp_name
 
     def open_text_file_for_reading(self, path):
-        return open(self._path_for_access(path),
-                    'r',
-                    encoding='utf8',
-                    newline='')
+        # Note: There appears to be an issue with the returned file objects not
+        # being seekable. See:
+        # http://stackoverflow.com/questions/1510188/can-seek-and-tell-work-with-utf-8-encoded-documents-in-python
+        return codecs.open(self._path_for_access(path), 'r', 'utf8')
 
     def open_text_file_for_writing(self, path):
-        return open(self._path_for_access(path),
-                    'w',
-                    encoding='utf8',
-                    newline='')
-
-    def open_text_file_for_appending(self, path):
-        return open(self._path_for_access(path),
-                    'a',
-                    encoding='utf8',
-                    newline='')
+        return codecs.open(self._path_for_access(path), 'w', 'utf8')
 
     def read_text_file(self, path):
         """Returns the contents of the file as a Unicode string.
@@ -334,7 +325,7 @@ class FileSystem(object):
             except exceptions.WindowsError:
                 time.sleep(sleep_interval)
                 retry_timeout_sec -= sleep_interval
-                if retry_timeout_sec < 0 or not retry:
+                if retry_timeout_sec < 0 and not retry:
                     raise
 
     def rmtree(self, path, ignore_errors=True, onerror=None):

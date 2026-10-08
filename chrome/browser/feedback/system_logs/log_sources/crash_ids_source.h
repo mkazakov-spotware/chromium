@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,6 @@ namespace system_logs {
 class CrashIdsSource : public SystemLogsSource {
  public:
   CrashIdsSource();
-
-  CrashIdsSource(const CrashIdsSource&) = delete;
-  CrashIdsSource& operator=(const CrashIdsSource&) = delete;
-
   ~CrashIdsSource() override;
 
   // SystemLogsSource:
@@ -50,6 +46,8 @@ class CrashIdsSource : public SystemLogsSource {
   bool pending_crash_list_loading_;
 
   base::WeakPtrFactory<CrashIdsSource> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CrashIdsSource);
 };
 
 }  // namespace system_logs

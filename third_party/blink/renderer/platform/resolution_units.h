@@ -39,4 +39,4 @@ const double kCssPixelsPerPoint = kCssPixelsPerInch / kPointsPerInch;
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_RESOLUTION_UNITS_H_
+#endif

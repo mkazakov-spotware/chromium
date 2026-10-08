@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,9 @@
 #include "net/cert/ct_serialization.h"
 #include "net/cert/x509_certificate.h"
 
-namespace net::ct {
+namespace net {
+
+namespace ct {
 
 MerkleTreeLeaf::MerkleTreeLeaf() = default;
 
@@ -51,4 +53,6 @@ bool GetMerkleTreeLeaf(const X509Certificate* cert,
   return true;
 }
 
-}  // namespace net::ct
+}  // namespace ct
+
+}  // namespace net

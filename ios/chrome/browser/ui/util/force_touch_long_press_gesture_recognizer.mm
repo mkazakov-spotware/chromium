@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/util/force_touch_long_press_gesture_recognizer.h"
 
 #import <UIKit/UIGestureRecognizerSubclass.h>
-#import "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -16,7 +16,7 @@
 @synthesize forceThreshold = _forceThreshold;
 
 - (void)setForceThreshold:(CGFloat)forceThreshold {
-  _forceThreshold = base::clamp<CGFloat>(forceThreshold, 0, 1);
+  _forceThreshold = base::ClampToRange<CGFloat>(forceThreshold, 0, 1);
 }
 
 #pragma mark - UIGestureRecognizerSubclass

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,15 +46,5 @@ function getUrlFromConfig(path, callback) {
     url = ('http://a.com:PORT/' + path)
         .replace(/PORT/, config.testServer.port);
     callback(url)
-  });
-}
-
-function createTabAndWaitUntilLoaded(url, callback) {
-  chrome.tabs.create({'url': url}, function(tab) {
-    chrome.tabs.onUpdated.addListener(function(tabId, changeInfo) {
-      if (tabId == tab.id && changeInfo.status == 'complete') {
-        callback(tab);
-      }
-    });
   });
 }

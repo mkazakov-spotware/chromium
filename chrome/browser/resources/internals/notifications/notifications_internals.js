@@ -1,6 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import {$} from 'chrome://resources/js/util.m.js';
 
 import {NotificationsInternalsBrowserProxy, NotificationsInternalsBrowserProxyImpl} from './notifications_internals_browser_proxy.js';
 
@@ -9,11 +11,11 @@ function initialize() {
   const browserProxy = NotificationsInternalsBrowserProxyImpl.getInstance();
 
   // Register all event listeners.
-  document.body.querySelector('#schedule-notification').onclick = function() {
+  $('schedule-notification').onclick = function() {
     browserProxy.scheduleNotification(
-        document.body.querySelector('#notification-scheduler-url').value,
-        document.body.querySelector('#notification-scheduler-title').value,
-        document.body.querySelector('#notification-scheduler-message').value);
+        $('notification-scheduler-url').value,
+        $('notification-scheduler-title').value,
+        $('notification-scheduler-message').value);
   };
 }
 

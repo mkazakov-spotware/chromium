@@ -25,12 +25,12 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_number_optional_number.h"
 #include "third_party/blink/renderer/core/svg/svg_enumeration_map.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
 template <>
-CORE_EXPORT const SVGEnumerationMap& GetEnumerationMap<SVGStitchOptions>() {
+const SVGEnumerationMap& GetEnumerationMap<SVGStitchOptions>() {
   static const SVGEnumerationMap::Entry enum_items[] = {
       {kSvgStitchtypeStitch, "stitch"}, {kSvgStitchtypeNostitch, "noStitch"},
   };
@@ -39,7 +39,7 @@ CORE_EXPORT const SVGEnumerationMap& GetEnumerationMap<SVGStitchOptions>() {
 }
 
 template <>
-CORE_EXPORT const SVGEnumerationMap& GetEnumerationMap<TurbulenceType>() {
+const SVGEnumerationMap& GetEnumerationMap<TurbulenceType>() {
   static const SVGEnumerationMap::Entry enum_items[] = {
       {FETURBULENCE_TYPE_FRACTALNOISE, "fractalNoise"},
       {FETURBULENCE_TYPE_TURBULENCE, "turbulence"},
@@ -122,8 +122,7 @@ bool SVGFETurbulenceElement::SetFilterEffectAttribute(
 }
 
 void SVGFETurbulenceElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kBaseFrequencyAttr ||
       attr_name == svg_names::kNumOctavesAttr ||
       attr_name == svg_names::kSeedAttr ||
@@ -134,7 +133,7 @@ void SVGFETurbulenceElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFETurbulenceElement::Build(SVGFilterBuilder*, Filter* filter) {

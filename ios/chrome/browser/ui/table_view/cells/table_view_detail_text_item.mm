@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/table_view/cells/table_view_detail_text_item.h"
 
-#import "ios/chrome/browser/ui/icons/symbols.h"
+#import "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -46,49 +46,23 @@
     }
   }
 
-  cell.allowMultilineDetailText = self.allowMultilineDetailText;
-  if (self.allowMultilineDetailText) {
-    cell.detailTextLabel.numberOfLines = 0;
-  }
-
   // Styling.
   if (self.textColor) {
     cell.textLabel.textColor = self.textColor;
   } else if (styler.cellTitleColor) {
     cell.textLabel.textColor = styler.cellTitleColor;
   } else {
-    cell.textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
+    cell.textLabel.textColor = UIColor.cr_labelColor;
   }
   if (self.detailTextColor) {
     cell.detailTextLabel.textColor = self.detailTextColor;
   } else {
-    cell.detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+    cell.detailTextLabel.textColor = UIColor.cr_secondaryLabelColor;
   }
   cell.textLabel.textAlignment =
       self.textAlignment ? self.textAlignment : NSTextAlignmentNatural;
   cell.detailTextLabel.textAlignment =
       self.textAlignment ? self.textAlignment : NSTextAlignmentNatural;
-
-  // Accessory symbol.
-  switch (self.accessorySymbol) {
-    case TableViewDetailTextCellAccessorySymbolChevron:
-      cell.accessoryView = [[UIImageView alloc]
-          initWithImage:DefaultSymbolTemplateWithPointSize(
-                            kChevronForwardSymbol, kSymbolAccessoryPointSize)];
-      break;
-    case TableViewDetailTextCellAccessorySymbolExternalLink:
-      cell.accessoryView = [[UIImageView alloc]
-          initWithImage:DefaultSymbolTemplateWithPointSize(
-                            kExternalLinkSymbol, kSymbolAccessoryPointSize)];
-      break;
-    case TableViewDetailTextCellAccessorySymbolNone:
-      cell.accessoryView = nil;
-      break;
-  }
-  if (cell.accessoryView) {
-    // Hard code color until other use cases arise.
-    cell.accessoryView.tintColor = [UIColor colorNamed:kTextQuaternaryColor];
-  }
 }
 
 @end
@@ -157,7 +131,7 @@
           constraintLessThanOrEqualToAnchor:containerView.bottomAnchor],
     ]];
 
-    // Make sure there are top and bottom margins of at least `margin`.
+    // Make sure there are top and bottom margins of at least |margin|.
     AddOptionalVerticalPadding(self.contentView, containerView,
                                kTableViewTwoLabelsCellVerticalSpacing);
   }
@@ -170,7 +144,6 @@
   [super prepareForReuse];
   self.textLabel.text = nil;
   self.detailTextLabel.text = nil;
-  self.accessoryView = nil;
 }
 
 #pragma mark - UIView
@@ -189,9 +162,6 @@
     } else {
       self.textLabel.numberOfLines = 1;
       self.detailTextLabel.numberOfLines = 1;
-    }
-    if (self.allowMultilineDetailText) {
-      self.detailTextLabel.numberOfLines = 0;
     }
   }
 }

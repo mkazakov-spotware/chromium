@@ -1,11 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 
@@ -23,19 +22,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   const int options = data[size - 1];
 
-  auto json_val =
+  JSONReader::ValueWithError json_val =
       JSONReader::ReadAndReturnValueWithError(input_string, options);
-  if (json_val.has_value()) {
+  if (json_val.value) {
     // Check that the value can be serialized and deserialized back to an
     // equivalent |Value|.
-    const Value& value = *json_val;
+    const Value& value = json_val.value.value();
     std::string serialized;
     CHECK(JSONWriter::Write(value, &serialized));
 
-    absl::optional<Value> deserialized =
-        JSONReader::Read(StringPiece(serialized));
+    Optional<Value> deserialized = JSONReader::Read(StringPiece(serialized));
     CHECK(deserialized);
-    CHECK_EQ(value, deserialized.value());
+    CHECK(value.Equals(&deserialized.value()));
   }
 
   return 0;

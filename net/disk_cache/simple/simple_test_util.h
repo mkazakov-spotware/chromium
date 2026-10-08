@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,8 @@ namespace base {
 class FilePath;
 }
 
-namespace disk_cache::simple_util {
+namespace disk_cache {
+namespace simple_util {
 
 // Immutable array with compile-time bound-checking.
 template <typename T, size_t Size>
@@ -23,8 +24,7 @@ class ImmutableArray {
  public:
   static const size_t size = Size;
 
-  explicit ImmutableArray(
-      const base::RepeatingCallback<T(size_t index)>& initializer) {
+  ImmutableArray(const base::RepeatingCallback<T(size_t index)>& initializer) {
     for (size_t i = 0; i < size; ++i)
       data_[i] = initializer.Run(i);
   }
@@ -55,6 +55,7 @@ bool CorruptKeySHA256FromEntry(const std::string& key,
 bool CorruptStream0LengthFromEntry(const std::string& key,
                                    const base::FilePath& cache_path);
 
-}  // namespace disk_cache::simple_util
+}  // namespace simple_util
+}  // namespace disk_cache
 
 #endif  // NET_DISK_CACHE_SIMPLE_SIMPLE_TEST_UTIL_H_

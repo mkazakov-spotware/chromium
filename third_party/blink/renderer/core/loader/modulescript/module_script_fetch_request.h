@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,6 @@
 
 namespace blink {
 
-enum class ModuleType;
-
 // A ModuleScriptFetchRequest essentially serves as a "parameter object" for
 // Modulator::Fetch{Single,NewSingle}.
 class ModuleScriptFetchRequest final {
@@ -25,31 +23,27 @@ class ModuleScriptFetchRequest final {
   // Referrer is set only for internal module script fetch algorithms triggered
   // from ModuleTreeLinker to fetch descendant module scripts.
   ModuleScriptFetchRequest(const KURL& url,
-                           ModuleType module_type,
                            mojom::blink::RequestContextType context_type,
                            network::mojom::RequestDestination destination,
                            const ScriptFetchOptions& options,
                            const String& referrer_string,
                            const TextPosition& referrer_position)
       : url_(url),
-        expected_module_type_(module_type),
         context_type_(context_type),
         destination_(destination),
         options_(options),
         referrer_string_(referrer_string),
         referrer_position_(referrer_position) {}
 
-  static ModuleScriptFetchRequest CreateForTest(const KURL& url,
-                                                ModuleType module_type) {
+  static ModuleScriptFetchRequest CreateForTest(const KURL& url) {
     return ModuleScriptFetchRequest(
-        url, module_type, mojom::blink::RequestContextType::SCRIPT,
+        url, mojom::blink::RequestContextType::SCRIPT,
         network::mojom::RequestDestination::kScript, ScriptFetchOptions(),
         Referrer::ClientReferrerString(), TextPosition::MinimumPosition());
   }
   ~ModuleScriptFetchRequest() = default;
 
   const KURL& Url() const { return url_; }
-  ModuleType GetExpectedModuleType() const { return expected_module_type_; }
   mojom::blink::RequestContextType ContextType() const { return context_type_; }
   network::mojom::RequestDestination Destination() const {
     return destination_;
@@ -60,7 +54,6 @@ class ModuleScriptFetchRequest final {
 
  private:
   const KURL url_;
-  const ModuleType expected_module_type_;
   const mojom::blink::RequestContextType context_type_;
   const network::mojom::RequestDestination destination_;
   const ScriptFetchOptions options_;
@@ -70,4 +63,4 @@ class ModuleScriptFetchRequest final {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LOADER_MODULESCRIPT_MODULE_SCRIPT_FETCH_REQUEST_H_
+#endif

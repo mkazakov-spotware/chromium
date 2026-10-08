@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,7 +79,7 @@ ProtoMapToArray(
 std::unique_ptr<protocol::BackgroundService::BackgroundServiceEvent>
 ToBackgroundServiceEvent(const devtools::proto::BackgroundServiceEvent& event) {
   base::Time timestamp = base::Time::FromDeltaSinceWindowsEpoch(
-      base::Microseconds(event.timestamp()));
+      base::TimeDelta::FromMicroseconds(event.timestamp()));
   return protocol::BackgroundService::BackgroundServiceEvent::Create()
       .SetTimestamp(timestamp.ToJsTime() / 1'000)  // milliseconds -> seconds
       .SetOrigin(event.origin())
@@ -89,7 +89,6 @@ ToBackgroundServiceEvent(const devtools::proto::BackgroundServiceEvent& event) {
       .SetEventName(event.event_name())
       .SetInstanceId(event.instance_id())
       .SetEventMetadata(ProtoMapToArray(event.event_metadata()))
-      .SetStorageKey(event.storage_key())
       .Build();
 }
 
@@ -129,8 +128,7 @@ void BackgroundServiceHandler::SetRenderer(int process_host_id,
     return;
   }
 
-  devtools_context_ = static_cast<DevToolsBackgroundServicesContextImpl*>(
-      storage_partition->GetDevToolsBackgroundServicesContext());
+  devtools_context_ = storage_partition->GetDevToolsBackgroundServicesContext();
   DCHECK(devtools_context_);
 }
 
@@ -212,6 +210,8 @@ Response BackgroundServiceHandler::SetRecording(bool should_record,
 
   if (should_record) {
     devtools_context_->StartRecording(service_enum);
+    base::UmaHistogramEnumeration("DevTools.BackgroundService.StartRecording",
+                                  service_enum, devtools::proto::COUNT);
   } else {
     devtools_context_->StopRecording(service_enum);
   }

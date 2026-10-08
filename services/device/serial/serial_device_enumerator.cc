@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,15 @@
 
 #include <utility>
 
-#include "base/observer_list.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
 #include "components/device_event_log/device_event_log.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "services/device/serial/serial_device_enumerator_linux.h"
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 #include "services/device/serial/serial_device_enumerator_mac.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "services/device/serial/serial_device_enumerator_win.h"
 #endif
 
@@ -24,11 +23,11 @@ namespace device {
 // static
 std::unique_ptr<SerialDeviceEnumerator> SerialDeviceEnumerator::Create(
     scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner) {
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   return SerialDeviceEnumeratorLinux::Create();
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   return std::make_unique<SerialDeviceEnumeratorMac>();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   return std::make_unique<SerialDeviceEnumeratorWin>(std::move(ui_task_runner));
 #else
 #error "No implementation of SerialDeviceEnumerator on this platform."
@@ -59,16 +58,16 @@ void SerialDeviceEnumerator::RemoveObserver(Observer* observer) {
   observer_list_.RemoveObserver(observer);
 }
 
-absl::optional<base::FilePath> SerialDeviceEnumerator::GetPathFromToken(
+base::Optional<base::FilePath> SerialDeviceEnumerator::GetPathFromToken(
     const base::UnguessableToken& token,
     bool use_alternate_path) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   auto it = ports_.find(token);
   if (it == ports_.end())
-    return absl::nullopt;
+    return base::nullopt;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   if (use_alternate_path)
     return it->second->alternate_path;
 #endif

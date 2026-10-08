@@ -1,20 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_TRANSFORMS_ROTATION_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_TRANSFORMS_ROTATION_H_
 
-#include "third_party/blink/renderer/platform/platform_export.h"
-#include "ui/gfx/geometry/vector3d_f.h"
+#include "third_party/blink/renderer/platform/geometry/float_point_3d.h"
 
 namespace blink {
 
 struct PLATFORM_EXPORT Rotation {
   Rotation() : axis(0, 0, 0), angle(0) {}
 
-  Rotation(const gfx::Vector3dF& axis, double angle)
-      : axis(axis), angle(angle) {}
+  Rotation(const FloatPoint3D& axis, double angle) : axis(axis), angle(angle) {}
 
   // If either rotation is effectively "zero" or both rotations share the same
   // normalized axes this function returns true and the "non-zero" axis is
@@ -22,7 +20,7 @@ struct PLATFORM_EXPORT Rotation {
   // resultAngleA and resultAngleB.  Otherwise false is returned.
   static bool GetCommonAxis(const Rotation& /*a*/,
                             const Rotation& /*b*/,
-                            gfx::Vector3dF& result_axis,
+                            FloatPoint3D& result_axis,
                             double& result_angle_a,
                             double& result_angle_b);
 
@@ -36,7 +34,7 @@ struct PLATFORM_EXPORT Rotation {
   static Rotation Add(const Rotation& /*a*/, const Rotation& /*b*/);
 
   // No restrictions on the axis vector.
-  gfx::Vector3dF axis;
+  FloatPoint3D axis;
 
   // Measured in degrees.
   double angle;

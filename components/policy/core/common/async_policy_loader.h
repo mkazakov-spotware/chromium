@@ -1,20 +1,19 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_POLICY_CORE_COMMON_ASYNC_POLICY_LOADER_H_
 #define COMPONENTS_POLICY_CORE_COMMON_ASYNC_POLICY_LOADER_H_
 
+#include <memory>
+
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
-#include "components/policy/core/common/management/management_service.h"
 #include "components/policy/core/common/schema_map.h"
 #include "components/policy/policy_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class SequencedTaskRunner;
@@ -22,14 +21,12 @@ class SequencedTaskRunner;
 
 namespace policy {
 
-class ManagementService;
 class PolicyBundle;
 
 // Base implementation for platform-specific policy loaders. Together with the
 // AsyncPolicyProvider, this base implementation takes care of the initial load,
-// refreshing policies and object lifetime. Also if the object has
-// |period_updates_| set to true it takes care of periodic reloads and watching
-// file changes.
+// periodic reloads, watching file changes, refreshing policies and object
+// lifetime.
 //
 // All methods are invoked on the background |task_runner_|, including the
 // destructor. The only exceptions are the constructor (which may be called on
@@ -40,14 +37,7 @@ class PolicyBundle;
 class POLICY_EXPORT AsyncPolicyLoader {
  public:
   explicit AsyncPolicyLoader(
-      const scoped_refptr<base::SequencedTaskRunner>& task_runner,
-      bool periodic_updates);
-  explicit AsyncPolicyLoader(
-      const scoped_refptr<base::SequencedTaskRunner>& task_runner,
-      ManagementService* management_service,
-      bool periodic_updates);
-  AsyncPolicyLoader(const AsyncPolicyLoader&) = delete;
-  AsyncPolicyLoader& operator=(const AsyncPolicyLoader&) = delete;
+      const scoped_refptr<base::SequencedTaskRunner>& task_runner);
   virtual ~AsyncPolicyLoader();
 
   // Gets a SequencedTaskRunner backed by the background thread.
@@ -56,7 +46,7 @@ class POLICY_EXPORT AsyncPolicyLoader {
   // Returns the currently configured policies. Load() is always invoked on
   // the background thread, except for the initial Load() at startup which is
   // invoked from the thread that owns the provider.
-  virtual PolicyBundle Load() = 0;
+  virtual std::unique_ptr<PolicyBundle> Load() = 0;
 
   // Allows implementations to finalize their initialization on the background
   // thread (e.g. setup file watchers).
@@ -69,7 +59,8 @@ class POLICY_EXPORT AsyncPolicyLoader {
   // Used by the AsyncPolicyProvider to do the initial Load(). The first load
   // is also used to initialize |last_modification_time_| and
   // |schema_map_|.
-  PolicyBundle InitialLoad(const scoped_refptr<SchemaMap>& schemas);
+  std::unique_ptr<PolicyBundle> InitialLoad(
+      const scoped_refptr<SchemaMap>& schemas);
 
   // Implementations should invoke Reload() when a change is detected. This
   // must be invoked from the background thread and will trigger a Load(),
@@ -78,16 +69,9 @@ class POLICY_EXPORT AsyncPolicyLoader {
   // reschedules the reload until the LastModificationTime() is a couple of
   // seconds in the past. This mitigates the problem of reading files that are
   // currently being written to, and whose contents are incomplete.
-  // When |periodic_updates_| is true a reload is posted periodically, if it
-  // hasn't been triggered recently. This makes sure the policies are reloaded
-  // if the update events aren't triggered.
+  // A reload is posted periodically, if it hasn't been triggered recently. This
+  // makes sure the policies are reloaded if the update events aren't triggered.
   void Reload(bool force);
-
-  // Returns `true` and only if the platform is not managed by a trusted source.
-  bool ShouldFilterSensitivePolicies();
-  void SetPlatformManagementTrustworthinessAndReload(
-      bool force,
-      ManagementAuthorityTrustworthiness trustworthiness);
 
   const scoped_refptr<SchemaMap>& schema_map() const { return schema_map_; }
 
@@ -95,12 +79,12 @@ class POLICY_EXPORT AsyncPolicyLoader {
   // Allow AsyncPolicyProvider to call Init().
   friend class AsyncPolicyProvider;
 
-  using UpdateCallback = base::RepeatingCallback<void(PolicyBundle)>;
+  typedef base::RepeatingCallback<void(std::unique_ptr<PolicyBundle>)>
+      UpdateCallback;
 
   // Used by the AsyncPolicyProvider to install the |update_callback_|.
   // Invoked on the background thread.
-  void Init(scoped_refptr<base::SequencedTaskRunner> ui_thread_task_runner,
-            const UpdateCallback& update_callback);
+  void Init(const UpdateCallback& update_callback);
 
   // Used by the AsyncPolicyProvider to reload with an updated SchemaMap.
   void RefreshPolicies(scoped_refptr<SchemaMap> schema_map);
@@ -116,17 +100,6 @@ class POLICY_EXPORT AsyncPolicyLoader {
 
   // Task runner for running background jobs.
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
-
-  // Task runner for running foregroud jobs.
-  scoped_refptr<base::SequencedTaskRunner> ui_thread_task_runner_;
-
-  absl::optional<ManagementAuthorityTrustworthiness>
-      platform_management_trustworthiness_;
-
-  raw_ptr<ManagementService> management_service_;
-
-  // Whether the loader will schedule periodic updates for policy data.
-  const bool periodic_updates_;
 
   // Callback for updates, passed in Init().
   UpdateCallback update_callback_;
@@ -145,6 +118,8 @@ class POLICY_EXPORT AsyncPolicyLoader {
 
   // Used to get WeakPtrs for the periodic reload task.
   base::WeakPtrFactory<AsyncPolicyLoader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AsyncPolicyLoader);
 };
 
 }  // namespace policy

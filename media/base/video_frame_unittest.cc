@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
 #include <memory>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/format_macros.h"
 #include "base/memory/aligned_memory.h"
-#include "base/memory/read_only_shared_memory_region.h"
+#include "base/memory/unsafe_shared_memory_region.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/common/mailbox_holder.h"
@@ -59,12 +59,14 @@ media::VideoFrameMetadata GetFullVideoFrameMetadata() {
   // gfx::Rects
   metadata.capture_update_rect = gfx::Rect(12, 34, 360, 480);
 
-  // media::VideoTransformation
-  metadata.transformation = media::VIDEO_ROTATION_90;
+  // media::VideoRotations
+  metadata.rotation = media::VideoRotation::VIDEO_ROTATION_90;
+
+  // media::VideoFrameMetadata::CopyMode
+  metadata.copy_mode = media::VideoFrameMetadata::CopyMode::kCopyToNewTexture;
 
   // bools
   metadata.allow_overlay = true;
-  metadata.copy_required = true;
   metadata.end_of_stream = true;
   metadata.texture_owner = true;
   metadata.wants_promotion_hint = true;
@@ -88,17 +90,17 @@ media::VideoFrameMetadata GetFullVideoFrameMetadata() {
 
   // base::TimeTicks
   base::TimeTicks now = base::TimeTicks::Now();
-  metadata.receive_time = now + base::Milliseconds(10);
-  metadata.capture_begin_time = now + base::Milliseconds(20);
-  metadata.capture_end_time = now + base::Milliseconds(30);
-  metadata.decode_begin_time = now + base::Milliseconds(40);
-  metadata.decode_end_time = now + base::Milliseconds(50);
-  metadata.reference_time = now + base::Milliseconds(60);
+  metadata.receive_time = now + base::TimeDelta::FromMilliseconds(10);
+  metadata.capture_begin_time = now + base::TimeDelta::FromMilliseconds(20);
+  metadata.capture_end_time = now + base::TimeDelta::FromMilliseconds(30);
+  metadata.decode_begin_time = now + base::TimeDelta::FromMilliseconds(40);
+  metadata.decode_end_time = now + base::TimeDelta::FromMilliseconds(50);
+  metadata.reference_time = now + base::TimeDelta::FromMilliseconds(60);
 
   // base::TimeDeltas
-  metadata.processing_time = base::Milliseconds(500);
-  metadata.frame_duration = base::Milliseconds(16);
-  metadata.wallclock_frame_duration = base::Milliseconds(17);
+  metadata.processing_time = base::TimeDelta::FromMilliseconds(500);
+  metadata.frame_duration = base::TimeDelta::FromMilliseconds(16);
+  metadata.wallclock_frame_duration = base::TimeDelta::FromMilliseconds(17);
 
   return metadata;
 }
@@ -110,14 +112,14 @@ void VerifyVideoFrameMetadataEquality(const media::VideoFrameMetadata& a,
   EXPECT_EQ(a.capture_end_time, b.capture_end_time);
   EXPECT_EQ(a.capture_counter, b.capture_counter);
   EXPECT_EQ(a.capture_update_rect, b.capture_update_rect);
-  EXPECT_EQ(a.copy_required, b.copy_required);
+  EXPECT_EQ(a.copy_mode, b.copy_mode);
   EXPECT_EQ(a.end_of_stream, b.end_of_stream);
   EXPECT_EQ(a.frame_duration, b.frame_duration);
   EXPECT_EQ(a.frame_rate, b.frame_rate);
   EXPECT_EQ(a.interactive_content, b.interactive_content);
   EXPECT_EQ(a.reference_time, b.reference_time);
   EXPECT_EQ(a.read_lock_fences_enabled, b.read_lock_fences_enabled);
-  EXPECT_EQ(a.transformation, b.transformation);
+  EXPECT_EQ(a.rotation, b.rotation);
   EXPECT_EQ(a.texture_owner, b.texture_owner);
   EXPECT_EQ(a.wants_promotion_hint, b.wants_promotion_hint);
   EXPECT_EQ(a.protected_video, b.protected_video);
@@ -150,14 +152,14 @@ void InitializeYV12Frame(VideoFrame* frame, double white_to_black) {
   EXPECT_EQ(PIXEL_FORMAT_YV12, frame->format());
   const int first_black_row =
       static_cast<int>(frame->coded_size().height() * white_to_black);
-  uint8_t* y_plane = frame->writable_data(VideoFrame::kYPlane);
+  uint8_t* y_plane = frame->data(VideoFrame::kYPlane);
   for (int row = 0; row < frame->coded_size().height(); ++row) {
     int color = (row < first_black_row) ? 0xFF : 0x00;
     memset(y_plane, color, frame->stride(VideoFrame::kYPlane));
     y_plane += frame->stride(VideoFrame::kYPlane);
   }
-  uint8_t* u_plane = frame->writable_data(VideoFrame::kUPlane);
-  uint8_t* v_plane = frame->writable_data(VideoFrame::kVPlane);
+  uint8_t* u_plane = frame->data(VideoFrame::kUPlane);
+  uint8_t* v_plane = frame->data(VideoFrame::kVPlane);
   for (int row = 0; row < frame->coded_size().height(); row += 2) {
     memset(u_plane, 0x80, frame->stride(VideoFrame::kUPlane));
     memset(v_plane, 0x80, frame->stride(VideoFrame::kVPlane));
@@ -168,16 +170,17 @@ void InitializeYV12Frame(VideoFrame* frame, double white_to_black) {
 
 // Given a |yv12_frame| this method converts the YV12 frame to RGBA and
 // makes sure that all the pixels of the RBG frame equal |expect_rgb_color|.
-void ExpectFrameColor(VideoFrame* yv12_frame, uint32_t expect_rgb_color) {
+void ExpectFrameColor(media::VideoFrame* yv12_frame,
+                      uint32_t expect_rgb_color) {
   ASSERT_EQ(PIXEL_FORMAT_YV12, yv12_frame->format());
   ASSERT_EQ(yv12_frame->stride(VideoFrame::kUPlane),
             yv12_frame->stride(VideoFrame::kVPlane));
   ASSERT_EQ(
       yv12_frame->coded_size().width() & (VideoFrame::kFrameSizeAlignment - 1),
-      0u);
+      0);
   ASSERT_EQ(
       yv12_frame->coded_size().height() & (VideoFrame::kFrameSizeAlignment - 1),
-      0u);
+      0);
 
   size_t bytes_per_row = yv12_frame->coded_size().width() * 4u;
   uint8_t* rgb_data = reinterpret_cast<uint8_t*>(
@@ -207,13 +210,13 @@ void ExpectFrameColor(VideoFrame* yv12_frame, uint32_t expect_rgb_color) {
 }
 
 // Fill each plane to its reported extents and verify accessors report non
-// zero values.  Additionally, for the first plane verify the rows, row_bytes,
-// and columns values are correct.
+// zero values.  Additionally, for the first plane verify the rows and
+// row_bytes values are correct.
 void ExpectFrameExtents(VideoPixelFormat format, const char* expected_hash) {
   const unsigned char kFillByte = 0x80;
   const int kWidth = 61;
   const int kHeight = 31;
-  const base::TimeDelta kTimestamp = base::Microseconds(1337);
+  const base::TimeDelta kTimestamp = base::TimeDelta::FromMicroseconds(1337);
 
   gfx::Size size(kWidth, kHeight);
   scoped_refptr<VideoFrame> frame = VideoFrame::CreateFrame(
@@ -227,9 +230,8 @@ void ExpectFrameExtents(VideoPixelFormat format, const char* expected_hash) {
     EXPECT_TRUE(frame->stride(plane));
     EXPECT_TRUE(frame->rows(plane));
     EXPECT_TRUE(frame->row_bytes(plane));
-    EXPECT_TRUE(frame->columns(plane));
 
-    memset(frame->writable_data(plane), kFillByte,
+    memset(frame->data(plane), kFillByte,
            frame->stride(plane) * frame->rows(plane));
   }
 
@@ -244,16 +246,16 @@ void ExpectFrameExtents(VideoPixelFormat format, const char* expected_hash) {
 TEST(VideoFrame, CreateFrame) {
   const int kWidth = 64;
   const int kHeight = 48;
-  const base::TimeDelta kTimestamp = base::Microseconds(1337);
+  const base::TimeDelta kTimestamp = base::TimeDelta::FromMicroseconds(1337);
 
   // Create a YV12 Video Frame.
   gfx::Size size(kWidth, kHeight);
-  scoped_refptr<VideoFrame> frame = VideoFrame::CreateFrame(
-      PIXEL_FORMAT_YV12, size, gfx::Rect(size), size, kTimestamp);
+  scoped_refptr<media::VideoFrame> frame = VideoFrame::CreateFrame(
+      media::PIXEL_FORMAT_YV12, size, gfx::Rect(size), size, kTimestamp);
   ASSERT_TRUE(frame.get());
 
   // Test VideoFrame implementation.
-  EXPECT_EQ(PIXEL_FORMAT_YV12, frame->format());
+  EXPECT_EQ(media::PIXEL_FORMAT_YV12, frame->format());
   {
     SCOPED_TRACE("");
     InitializeYV12Frame(frame.get(), 0.0f);
@@ -276,35 +278,31 @@ TEST(VideoFrame, CreateFrame) {
   EXPECT_EQ(MD5DigestToBase16(digest), "911991d51438ad2e1a40ed5f6fc7c796");
 
   // Test single planar frame.
-  frame = VideoFrame::CreateFrame(PIXEL_FORMAT_ARGB, size, gfx::Rect(size),
-                                  size, kTimestamp);
-  EXPECT_EQ(PIXEL_FORMAT_ARGB, frame->format());
+  frame = VideoFrame::CreateFrame(media::PIXEL_FORMAT_ARGB, size,
+                                  gfx::Rect(size), size, kTimestamp);
+  EXPECT_EQ(media::PIXEL_FORMAT_ARGB, frame->format());
   EXPECT_GE(frame->stride(VideoFrame::kARGBPlane), frame->coded_size().width());
 
   // Test double planar frame.
-  frame = VideoFrame::CreateFrame(PIXEL_FORMAT_NV12, size, gfx::Rect(size),
-                                  size, kTimestamp);
-  EXPECT_EQ(PIXEL_FORMAT_NV12, frame->format());
+  frame = VideoFrame::CreateFrame(media::PIXEL_FORMAT_NV12, size,
+                                  gfx::Rect(size), size, kTimestamp);
+  EXPECT_EQ(media::PIXEL_FORMAT_NV12, frame->format());
 
   // Test an empty frame.
   frame = VideoFrame::CreateEOSFrame();
-  EXPECT_TRUE(frame->metadata().end_of_stream);
-
-  // Test an video hole frame.
-  frame = VideoFrame::CreateVideoHoleFrame(base::UnguessableToken::Create(),
-                                           size, kTimestamp);
-  ASSERT_TRUE(frame);
+  EXPECT_TRUE(frame->metadata()->end_of_stream);
 }
 
 TEST(VideoFrame, CreateZeroInitializedFrame) {
   const int kWidth = 2;
   const int kHeight = 2;
-  const base::TimeDelta kTimestamp = base::Microseconds(1337);
+  const base::TimeDelta kTimestamp = base::TimeDelta::FromMicroseconds(1337);
 
   // Create a YV12 Video Frame.
   gfx::Size size(kWidth, kHeight);
-  scoped_refptr<VideoFrame> frame = VideoFrame::CreateZeroInitializedFrame(
-      PIXEL_FORMAT_YV12, size, gfx::Rect(size), size, kTimestamp);
+  scoped_refptr<media::VideoFrame> frame =
+      VideoFrame::CreateZeroInitializedFrame(media::PIXEL_FORMAT_YV12, size,
+                                             gfx::Rect(size), size, kTimestamp);
   ASSERT_TRUE(frame.get());
   EXPECT_TRUE(frame->IsMappable());
 
@@ -321,14 +319,14 @@ TEST(VideoFrame, CreateBlackFrame) {
   const uint8_t kExpectedYRow[] = {0, 0};
   const uint8_t kExpectedUVRow[] = {128};
 
-  scoped_refptr<VideoFrame> frame =
+  scoped_refptr<media::VideoFrame> frame =
       VideoFrame::CreateBlackFrame(gfx::Size(kWidth, kHeight));
   ASSERT_TRUE(frame.get());
   EXPECT_TRUE(frame->IsMappable());
 
   // Test basic properties.
   EXPECT_EQ(0, frame->timestamp().InMicroseconds());
-  EXPECT_FALSE(frame->metadata().end_of_stream);
+  EXPECT_FALSE(frame->metadata()->end_of_stream);
 
   // Test |frame| properties.
   EXPECT_EQ(PIXEL_FORMAT_I420, frame->format());
@@ -336,17 +334,17 @@ TEST(VideoFrame, CreateBlackFrame) {
   EXPECT_EQ(kHeight, frame->coded_size().height());
 
   // Test frames themselves.
-  uint8_t* y_plane = frame->writable_data(VideoFrame::kYPlane);
+  uint8_t* y_plane = frame->data(VideoFrame::kYPlane);
   for (int y = 0; y < frame->coded_size().height(); ++y) {
-    EXPECT_EQ(0, memcmp(kExpectedYRow, y_plane, std::size(kExpectedYRow)));
+    EXPECT_EQ(0, memcmp(kExpectedYRow, y_plane, base::size(kExpectedYRow)));
     y_plane += frame->stride(VideoFrame::kYPlane);
   }
 
-  uint8_t* u_plane = frame->writable_data(VideoFrame::kUPlane);
-  uint8_t* v_plane = frame->writable_data(VideoFrame::kVPlane);
+  uint8_t* u_plane = frame->data(VideoFrame::kUPlane);
+  uint8_t* v_plane = frame->data(VideoFrame::kVPlane);
   for (int y = 0; y < frame->coded_size().height() / 2; ++y) {
-    EXPECT_EQ(0, memcmp(kExpectedUVRow, u_plane, std::size(kExpectedUVRow)));
-    EXPECT_EQ(0, memcmp(kExpectedUVRow, v_plane, std::size(kExpectedUVRow)));
+    EXPECT_EQ(0, memcmp(kExpectedUVRow, u_plane, base::size(kExpectedUVRow)));
+    EXPECT_EQ(0, memcmp(kExpectedUVRow, v_plane, base::size(kExpectedUVRow)));
     u_plane += frame->stride(VideoFrame::kUPlane);
     v_plane += frame->stride(VideoFrame::kVPlane);
   }
@@ -359,66 +357,43 @@ static void FrameNoLongerNeededCallback(bool* triggered) {
 TEST(VideoFrame, WrapVideoFrame) {
   const int kWidth = 4;
   const int kHeight = 4;
-  const base::TimeDelta kFrameDuration = base::Microseconds(42);
+  const base::TimeDelta kFrameDuration = base::TimeDelta::FromMicroseconds(42);
 
-  scoped_refptr<VideoFrame> frame, frame2;
-  bool base_frame_done_callback_was_run = false;
-  bool wrapped_frame_done_callback_was_run = false;
+  scoped_refptr<media::VideoFrame> frame;
+  bool done_callback_was_run = false;
   {
-    auto base_frame = VideoFrame::CreateBlackFrame(gfx::Size(kWidth, kHeight));
-    ASSERT_TRUE(base_frame);
+    scoped_refptr<media::VideoFrame> wrapped_frame =
+        VideoFrame::CreateBlackFrame(gfx::Size(kWidth, kHeight));
+    ASSERT_TRUE(wrapped_frame.get());
 
-    gfx::Rect visible_rect(0, 0, 2, 2);
+    gfx::Rect visible_rect(1, 1, 1, 1);
     gfx::Size natural_size = visible_rect.size();
-    base_frame->metadata().frame_duration = kFrameDuration;
-    frame = VideoFrame::WrapVideoFrame(base_frame, base_frame->format(),
-                                       visible_rect, natural_size);
-    base_frame->AddDestructionObserver(base::BindOnce(
-        &FrameNoLongerNeededCallback, &base_frame_done_callback_was_run));
-    EXPECT_EQ(base_frame->coded_size(), frame->coded_size());
-    EXPECT_EQ(base_frame->data(VideoFrame::kYPlane),
-              frame->data(VideoFrame::kYPlane));
-    EXPECT_NE(base_frame->visible_rect(), frame->visible_rect());
+    wrapped_frame->metadata()->frame_duration = kFrameDuration;
+    frame = media::VideoFrame::WrapVideoFrame(
+        wrapped_frame, wrapped_frame->format(), visible_rect, natural_size);
+    wrapped_frame->AddDestructionObserver(
+        base::BindOnce(&FrameNoLongerNeededCallback, &done_callback_was_run));
+    EXPECT_EQ(wrapped_frame->coded_size(), frame->coded_size());
+    EXPECT_EQ(wrapped_frame->data(media::VideoFrame::kYPlane),
+              frame->data(media::VideoFrame::kYPlane));
+    EXPECT_NE(wrapped_frame->visible_rect(), frame->visible_rect());
     EXPECT_EQ(visible_rect, frame->visible_rect());
-    EXPECT_NE(base_frame->natural_size(), frame->natural_size());
+    EXPECT_NE(wrapped_frame->natural_size(), frame->natural_size());
     EXPECT_EQ(natural_size, frame->natural_size());
 
     // Verify metadata was copied to the wrapped frame.
-    EXPECT_EQ(*frame->metadata().frame_duration, kFrameDuration);
+    EXPECT_EQ(*frame->metadata()->frame_duration, kFrameDuration);
 
     // Verify the metadata copy was a deep copy.
-    base_frame->clear_metadata();
-    EXPECT_NE(base_frame->metadata().frame_duration.has_value(),
-              frame->metadata().frame_duration.has_value());
-
-    frame->AddDestructionObserver(base::BindOnce(
-        &FrameNoLongerNeededCallback, &wrapped_frame_done_callback_was_run));
-
-    visible_rect = gfx::Rect(0, 0, 1, 1);
-    natural_size = visible_rect.size();
-    frame2 = VideoFrame::WrapVideoFrame(frame, frame->format(), visible_rect,
-                                        natural_size);
-    EXPECT_EQ(base_frame->coded_size(), frame2->coded_size());
-    EXPECT_EQ(base_frame->data(VideoFrame::kYPlane),
-              frame2->data(VideoFrame::kYPlane));
-    EXPECT_NE(base_frame->visible_rect(), frame2->visible_rect());
-    EXPECT_EQ(visible_rect, frame2->visible_rect());
-    EXPECT_NE(base_frame->natural_size(), frame2->natural_size());
-    EXPECT_EQ(natural_size, frame2->natural_size());
+    wrapped_frame->clear_metadata();
+    EXPECT_NE(wrapped_frame->metadata()->frame_duration.has_value(),
+              frame->metadata()->frame_duration.has_value());
   }
 
-  // At this point |base_frame| is held by |frame|, |frame2|.
-  EXPECT_FALSE(base_frame_done_callback_was_run);
-  EXPECT_FALSE(wrapped_frame_done_callback_was_run);
-
-  // At this point |base_frame| is held by |frame2|, which also holds |frame|.
+  // Verify that |wrapped_frame| outlives |frame|.
+  EXPECT_FALSE(done_callback_was_run);
   frame.reset();
-  EXPECT_FALSE(base_frame_done_callback_was_run);
-  EXPECT_FALSE(wrapped_frame_done_callback_was_run);
-
-  // Now all |base_frame| references should be released.
-  frame2.reset();
-  EXPECT_TRUE(base_frame_done_callback_was_run);
+  EXPECT_TRUE(done_callback_was_run);
 }
 
 // Create a frame that wraps unowned memory.
@@ -427,46 +402,45 @@ TEST(VideoFrame, WrapExternalData) {
   gfx::Size coded_size(256, 256);
   gfx::Rect visible_rect(coded_size);
   CreateTestY16Frame(coded_size, visible_rect, memory);
-  auto timestamp = base::Milliseconds(1);
-  auto frame = VideoFrame::WrapExternalData(PIXEL_FORMAT_Y16, coded_size,
+  auto timestamp = base::TimeDelta::FromMilliseconds(1);
+  auto frame = VideoFrame::WrapExternalData(media::PIXEL_FORMAT_Y16, coded_size,
                                             visible_rect, visible_rect.size(),
                                             memory, sizeof(memory), timestamp);
 
   EXPECT_EQ(frame->coded_size(), coded_size);
   EXPECT_EQ(frame->visible_rect(), visible_rect);
   EXPECT_EQ(frame->timestamp(), timestamp);
-  EXPECT_EQ(frame->data(VideoFrame::kYPlane)[0], 0xff);
+  EXPECT_EQ(frame->data(media::VideoFrame::kYPlane)[0], 0xff);
 }
 
 // Create a frame that wraps read-only shared memory.
 TEST(VideoFrame, WrapSharedMemory) {
   const size_t kDataSize = 2 * 256 * 256;
-  base::MappedReadOnlyRegion mapped_region =
-      base::ReadOnlySharedMemoryRegion::Create(kDataSize);
-  ASSERT_TRUE(mapped_region.IsValid());
+  base::UnsafeSharedMemoryRegion region =
+      base::UnsafeSharedMemoryRegion::Create(kDataSize);
+  ASSERT_TRUE(region.IsValid());
+  base::WritableSharedMemoryMapping mapping = region.Map();
+  ASSERT_TRUE(mapping.IsValid());
   gfx::Size coded_size(256, 256);
   gfx::Rect visible_rect(coded_size);
-  CreateTestY16Frame(coded_size, visible_rect, mapped_region.mapping.memory());
-  auto timestamp = base::Milliseconds(1);
+  CreateTestY16Frame(coded_size, visible_rect, mapping.memory());
+  auto timestamp = base::TimeDelta::FromMilliseconds(1);
   auto frame = VideoFrame::WrapExternalData(
-      PIXEL_FORMAT_Y16, coded_size, visible_rect, visible_rect.size(),
-      mapped_region.mapping.GetMemoryAsSpan<uint8_t>().data(), kDataSize,
-      timestamp);
-  EXPECT_EQ(frame->storage_type(), VideoFrame::STORAGE_UNOWNED_MEMORY);
+      media::PIXEL_FORMAT_Y16, coded_size, visible_rect, visible_rect.size(),
+      mapping.GetMemoryAsSpan<uint8_t>().data(), kDataSize, timestamp);
+  frame->BackWithSharedMemory(&region);
 
-  frame->BackWithSharedMemory(&mapped_region.region);
-  EXPECT_EQ(frame->storage_type(), VideoFrame::STORAGE_SHMEM);
   EXPECT_EQ(frame->coded_size(), coded_size);
   EXPECT_EQ(frame->visible_rect(), visible_rect);
   EXPECT_EQ(frame->timestamp(), timestamp);
-  EXPECT_EQ(frame->data(VideoFrame::kYPlane)[0], 0xff);
+  EXPECT_EQ(frame->data(media::VideoFrame::kYPlane)[0], 0xff);
 }
 
 TEST(VideoFrame, WrapExternalGpuMemoryBuffer) {
   gfx::Size coded_size = gfx::Size(256, 256);
   gfx::Rect visible_rect(coded_size);
-  auto timestamp = base::Milliseconds(1);
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+  auto timestamp = base::TimeDelta::FromMilliseconds(1);
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   const uint64_t modifier = 0x001234567890abcdULL;
 #else
   const uint64_t modifier = gfx::NativePixmapHandle::kNoModifier;
@@ -475,12 +449,12 @@ TEST(VideoFrame, WrapExternalGpuMemoryBuffer) {
       std::make_unique<FakeGpuMemoryBuffer>(
           coded_size, gfx::BufferFormat::YUV_420_BIPLANAR, modifier);
   gfx::GpuMemoryBuffer* gmb_raw_ptr = gmb.get();
-  gpu::MailboxHolder mailbox_holders[VideoFrame::kMaxPlanes] = {
+  gpu::MailboxHolder mailbox_holders[media::VideoFrame::kMaxPlanes] = {
       gpu::MailboxHolder(gpu::Mailbox::Generate(), gpu::SyncToken(), 5),
       gpu::MailboxHolder(gpu::Mailbox::Generate(), gpu::SyncToken(), 10)};
   auto frame = VideoFrame::WrapExternalGpuMemoryBuffer(
       visible_rect, coded_size, std::move(gmb), mailbox_holders,
-      base::DoNothing(), timestamp);
+      base::DoNothing::Once<const gpu::SyncToken&>(), timestamp);
 
   EXPECT_EQ(frame->layout().format(), PIXEL_FORMAT_NV12);
   EXPECT_EQ(frame->layout().coded_size(), coded_size);
@@ -502,7 +476,7 @@ TEST(VideoFrame, WrapExternalGpuMemoryBuffer) {
   EXPECT_EQ(frame->mailbox_holder(1).mailbox, mailbox_holders[1].mailbox);
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 TEST(VideoFrame, WrapExternalDmabufs) {
   gfx::Size coded_size = gfx::Size(256, 256);
   gfx::Rect visible_rect(coded_size);
@@ -516,7 +490,7 @@ TEST(VideoFrame, WrapExternalDmabufs) {
     planes[i].offset = offsets[i];
     planes[i].size = sizes[i];
   }
-  auto timestamp = base::Milliseconds(1);
+  auto timestamp = base::TimeDelta::FromMilliseconds(1);
   auto layout =
       VideoFrameLayout::CreateWithPlanes(PIXEL_FORMAT_I420, coded_size, planes);
   ASSERT_TRUE(layout);
@@ -576,7 +550,7 @@ TEST(VideoFrame, TextureNoLongerNeededCallbackIsCalled) {
                                    gpu::CommandBufferId::FromUnsafeValue(1), 1);
 
   {
-    gpu::MailboxHolder holders[VideoFrame::kMaxPlanes] = {
+    gpu::MailboxHolder holders[media::VideoFrame::kMaxPlanes] = {
         gpu::MailboxHolder(gpu::Mailbox::Generate(), gpu::SyncToken(), 5)};
     scoped_refptr<VideoFrame> frame = VideoFrame::WrapNativeTextures(
         PIXEL_FORMAT_ARGB, holders,
@@ -617,7 +591,7 @@ TEST(VideoFrame,
 
   gpu::SyncToken called_sync_token;
   {
-    gpu::MailboxHolder holders[VideoFrame::kMaxPlanes] = {
+    gpu::MailboxHolder holders[media::VideoFrame::kMaxPlanes] = {
         gpu::MailboxHolder(mailbox[VideoFrame::kYPlane], sync_token, target),
         gpu::MailboxHolder(mailbox[VideoFrame::kUPlane], sync_token, target),
         gpu::MailboxHolder(mailbox[VideoFrame::kVPlane], sync_token, target),
@@ -702,14 +676,12 @@ TEST(VideoFrame, AllocationSize_OddSize) {
       case PIXEL_FORMAT_YUV444P9:
       case PIXEL_FORMAT_YUV444P10:
       case PIXEL_FORMAT_YUV444P12:
-      case PIXEL_FORMAT_YUV422AP10:
         EXPECT_EQ(144u, VideoFrame::AllocationSize(format, size))
             << VideoPixelFormatToString(format);
         break;
       case PIXEL_FORMAT_YUV422P9:
       case PIXEL_FORMAT_YUV422P10:
       case PIXEL_FORMAT_YUV422P12:
-      case PIXEL_FORMAT_I444A:
         EXPECT_EQ(96u, VideoFrame::AllocationSize(format, size))
             << VideoPixelFormatToString(format);
         break;
@@ -718,12 +690,7 @@ TEST(VideoFrame, AllocationSize_OddSize) {
       case PIXEL_FORMAT_YUV420P10:
       case PIXEL_FORMAT_YUV420P12:
       case PIXEL_FORMAT_P016LE:
-      case PIXEL_FORMAT_I422A:
         EXPECT_EQ(72u, VideoFrame::AllocationSize(format, size))
-            << VideoPixelFormatToString(format);
-        break;
-      case PIXEL_FORMAT_NV12A:
-        EXPECT_EQ(60u, VideoFrame::AllocationSize(format, size))
             << VideoPixelFormatToString(format);
         break;
       case PIXEL_FORMAT_UYVY:
@@ -758,15 +725,6 @@ TEST(VideoFrame, AllocationSize_OddSize) {
         EXPECT_EQ(30u, VideoFrame::AllocationSize(format, size))
             << VideoPixelFormatToString(format);
         break;
-      case PIXEL_FORMAT_RGBAF16:
-      case PIXEL_FORMAT_YUV420AP10:
-        EXPECT_EQ(120u, VideoFrame::AllocationSize(format, size))
-            << VideoPixelFormatToString(format);
-        break;
-      case PIXEL_FORMAT_YUV444AP10:
-        EXPECT_EQ(192u, VideoFrame::AllocationSize(format, size))
-            << VideoPixelFormatToString(format);
-        break;
       case PIXEL_FORMAT_MJPEG:
       case PIXEL_FORMAT_UNKNOWN:
         continue;
@@ -780,56 +738,35 @@ TEST(VideoFrameMetadata, MergeMetadata) {
   VideoFrameMetadata empty_metadata;
 
   // Merging empty metadata into full metadata should be a no-op.
-  full_metadata.MergeMetadataFrom(empty_metadata);
+  full_metadata.MergeMetadataFrom(&empty_metadata);
   VerifyVideoFrameMetadataEquality(full_metadata, reference_metadata);
 
   // Merging full metadata into empty metadata should fill it up.
-  empty_metadata.MergeMetadataFrom(full_metadata);
+  empty_metadata.MergeMetadataFrom(&full_metadata);
   VerifyVideoFrameMetadataEquality(empty_metadata, reference_metadata);
-}
-
-TEST(VideoFrameMetadata, ClearTextureMetadata) {
-  VideoFrameMetadata reference_md = GetFullVideoFrameMetadata();
-  reference_md.is_webgpu_compatible = true;
-  reference_md.texture_origin_is_top_left = false;
-  reference_md.read_lock_fences_enabled = true;
-
-  VideoFrameMetadata copy_md;
-  copy_md.MergeMetadataFrom(reference_md);
-
-  copy_md.ClearTextureFrameMedatada();
-  EXPECT_FALSE(copy_md.is_webgpu_compatible);
-  EXPECT_TRUE(copy_md.texture_origin_is_top_left);
-  EXPECT_FALSE(copy_md.read_lock_fences_enabled);
-
-  reference_md.is_webgpu_compatible = false;
-  reference_md.texture_origin_is_top_left = true;
-  reference_md.read_lock_fences_enabled = false;
-  VerifyVideoFrameMetadataEquality(copy_md, reference_md);
 }
 
 TEST(VideoFrameMetadata, PartialMergeMetadata) {
   VideoFrameMetadata full_metadata = GetFullVideoFrameMetadata();
 
   const gfx::Rect kTempRect{100, 200, 300, 400};
-  const base::TimeTicks kTempTicks = base::TimeTicks::Now() + base::Seconds(2);
-  const base::TimeDelta kTempDelta = base::Milliseconds(31415);
+  const base::TimeTicks kTempTicks =
+      base::TimeTicks::Now() + base::TimeDelta::FromSeconds(2);
+  const base::TimeDelta kTempDelta = base::TimeDelta::FromMilliseconds(31415);
 
   VideoFrameMetadata partial_metadata;
   partial_metadata.capture_update_rect = kTempRect;
   partial_metadata.reference_time = kTempTicks;
   partial_metadata.processing_time = kTempDelta;
   partial_metadata.allow_overlay = false;
-  partial_metadata.texture_origin_is_top_left = false;
 
   // Merging partial metadata into full metadata partially override it.
-  full_metadata.MergeMetadataFrom(partial_metadata);
+  full_metadata.MergeMetadataFrom(&partial_metadata);
 
   EXPECT_EQ(partial_metadata.capture_update_rect, kTempRect);
   EXPECT_EQ(partial_metadata.reference_time, kTempTicks);
   EXPECT_EQ(partial_metadata.processing_time, kTempDelta);
   EXPECT_EQ(partial_metadata.allow_overlay, false);
-  EXPECT_EQ(partial_metadata.texture_origin_is_top_left, false);
 }
 
 }  // namespace media

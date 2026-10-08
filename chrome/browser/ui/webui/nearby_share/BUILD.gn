@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,18 +6,12 @@ import("//mojo/public/tools/bindings/mojom.gni")
 
 assert(is_chromeos, "Nearby Share is CrOS only")
 
-mojom("share_type") {
-  sources = [ "nearby_share_share_type.mojom" ]
-}
-
 mojom("mojom") {
   sources = [ "nearby_share.mojom" ]
 
   public_deps = [
-    ":share_type",
-    "//chromeos/ash/services/nearby/public/mojom:nearby_share_target_types",
+    "//chromeos/services/nearby/public/mojom:nearby_share_target_types",
     "//mojo/public/mojom/base",
-    "//url/mojom:url_mojom_gurl",
   ]
 
   cpp_typemaps = [

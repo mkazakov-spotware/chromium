@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,14 +16,12 @@ class FindBadConstructsAction : public clang::PluginASTAction {
   FindBadConstructsAction();
 
  protected:
-  std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
+  // Overridden from PluginASTAction:
+  virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance& instance,
-      llvm::StringRef ref) override;
-  PluginASTAction::ActionType getActionType() override {
-    return CmdlineBeforeMainAction;
-  }
-  bool ParseArgs(const clang::CompilerInstance& instance,
-                 const std::vector<std::string>& args) override;
+      llvm::StringRef ref);
+  virtual bool ParseArgs(const clang::CompilerInstance& instance,
+                         const std::vector<std::string>& args);
 
  private:
   Options options_;

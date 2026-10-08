@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,12 @@
 
 #include <jni.h>
 
+#include <utility>
+#include <vector>
+
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_observer.h"
 
@@ -19,10 +23,6 @@ class TabModelObserverJniBridge {
  public:
   TabModelObserverJniBridge(JNIEnv* env,
                             const base::android::JavaRef<jobject>& tab_model);
-
-  TabModelObserverJniBridge(const TabModelObserverJniBridge&) = delete;
-  TabModelObserverJniBridge& operator=(const TabModelObserverJniBridge&) =
-      delete;
 
   ~TabModelObserverJniBridge();
 
@@ -41,15 +41,10 @@ class TabModelObserverJniBridge {
                     const base::android::JavaParamRef<jobject>& jtab,
                     bool animate);
 
-  void OnFinishingTabClosure(JNIEnv* env,
-                             const base::android::JavaParamRef<jobject>& jobj,
-                             int tab_id,
-                             bool incognito);
-
-  void OnFinishingMultipleTabClosure(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& jobj,
-      const base::android::JavaParamRef<jobjectArray>& jtabs);
+  void DidCloseTab(JNIEnv* env,
+                   const base::android::JavaParamRef<jobject>& jobj,
+                   int tab_id,
+                   bool incognito);
 
   void WillAddTab(JNIEnv* env,
                   const base::android::JavaParamRef<jobject>& jobj,
@@ -95,7 +90,9 @@ class TabModelObserverJniBridge {
   void AddObserver(TabModelObserver* observer);
   void RemoveObserver(TabModelObserver* observer);
 
-  bool has_observers() const { return !observers_.empty(); }
+  bool might_have_observers() const {
+    return observers_.might_have_observers();
+  }
 
  private:
   // This object's Java counterpart. This objects controls its lifetime.
@@ -103,6 +100,8 @@ class TabModelObserverJniBridge {
 
   // Observers attached to this bridge.
   base::ObserverList<TabModelObserver>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(TabModelObserverJniBridge);
 };
 
 #endif  // CHROME_BROWSER_UI_ANDROID_TAB_MODEL_TAB_MODEL_OBSERVER_JNI_BRIDGE_H_

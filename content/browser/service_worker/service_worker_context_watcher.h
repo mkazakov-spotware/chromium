@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,7 @@
 #include "content/browser/service_worker/service_worker_context_core_observer.h"
 #include "content/browser/service_worker/service_worker_info.h"
 #include "content/common/content_export.h"
-
-namespace blink {
-class StorageKey;
-}  // namespace blink
+#include "third_party/blink/public/mojom/service_worker/service_worker_container_type.mojom.h"
 
 namespace content {
 
@@ -55,9 +52,11 @@ class CONTENT_EXPORT ServiceWorkerContextWatcher
 
   ~ServiceWorkerContextWatcher() override;
 
-  void OnStoredRegistrations(
+  void GetStoredRegistrationsOnCoreThread();
+  void OnStoredRegistrationsOnCoreThread(
       blink::ServiceWorkerStatusCode status,
       const std::vector<ServiceWorkerRegistrationInfo>& stored_registrations);
+  void StopOnCoreThread();
 
   void StoreRegistrationInfo(
       const ServiceWorkerRegistrationInfo& registration,
@@ -69,7 +68,6 @@ class CONTENT_EXPORT ServiceWorkerContextWatcher
   void SendRegistrationInfo(
       int64_t registration_id,
       const GURL& scope,
-      const blink::StorageKey& key,
       ServiceWorkerRegistrationInfo::DeleteFlag delete_flag);
   void SendVersionInfo(const ServiceWorkerVersionInfo& version);
 
@@ -85,21 +83,18 @@ class CONTENT_EXPORT ServiceWorkerContextWatcher
 
   // ServiceWorkerContextCoreObserver implements
   void OnNewLiveRegistration(int64_t registration_id,
-                             const GURL& scope,
-                             const blink::StorageKey& key) override;
+                             const GURL& scope) override;
   void OnNewLiveVersion(const ServiceWorkerVersionInfo& version_info) override;
   void OnStarting(int64_t version_id) override;
   void OnStarted(int64_t version_id,
                  const GURL& scope,
                  int process_id,
                  const GURL& script_url,
-                 const blink::ServiceWorkerToken& token,
-                 const blink::StorageKey& key) override;
+                 const blink::ServiceWorkerToken& token) override;
   void OnStopping(int64_t version_id) override;
   void OnStopped(int64_t version_id) override;
   void OnVersionStateChanged(int64_t version_id,
                              const GURL& scope,
-                             const blink::StorageKey& key,
                              ServiceWorkerVersion::Status status) override;
   void OnVersionDevToolsRoutingIdChanged(int64_t version_id,
                                          int process_id,
@@ -110,11 +105,9 @@ class CONTENT_EXPORT ServiceWorkerContextWatcher
   void OnErrorReported(
       int64_t version_id,
       const GURL& scope,
-      const blink::StorageKey& key,
       const ServiceWorkerContextObserver::ErrorInfo& info) override;
   void OnReportConsoleMessage(int64_t version_id,
                               const GURL& scope,
-                              const blink::StorageKey& key,
                               const ConsoleMessage& message) override;
   void OnControlleeAdded(int64_t version_id,
                          const std::string& uuid,
@@ -122,11 +115,9 @@ class CONTENT_EXPORT ServiceWorkerContextWatcher
   void OnControlleeRemoved(int64_t version_id,
                            const std::string& uuid) override;
   void OnRegistrationCompleted(int64_t registration_id,
-                               const GURL& scope,
-                               const blink::StorageKey& key) override;
+                               const GURL& scope) override;
   void OnRegistrationDeleted(int64_t registration_id,
-                             const GURL& scope,
-                             const blink::StorageKey& key) override;
+                             const GURL& scope) override;
 
   void OnRunningStateChanged(int64_t version_id,
                              EmbeddedWorkerStatus running_status);
@@ -139,7 +130,7 @@ class CONTENT_EXPORT ServiceWorkerContextWatcher
   WorkerErrorReportedCallback error_callback_;
   // Should be used on UI thread only.
   bool stop_called_ = false;
-  // Should be used on UI thread only.
+  // Should be used on IO thread only.
   bool is_stopped_ = false;
 };
 

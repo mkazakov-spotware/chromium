@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/strings/string16.h"
 #include "net/base/net_export.h"
 
 class GURL;
@@ -16,7 +17,7 @@ namespace base {
 class FilePath;
 }
 
-namespace net {
+namespace  net {
 
 // Given the full path to a file name, creates a file: URL. The returned URL
 // may not be valid if the input is malformed.
@@ -64,7 +65,7 @@ NET_EXPORT bool FileURLToFilePath(const GURL& url, base::FilePath* file_path);
 //
 // Note: |mime_type| should only be specified if this function is called from a
 // thread that allows IO.
-NET_EXPORT std::u16string GetSuggestedFilename(
+NET_EXPORT base::string16 GetSuggestedFilename(
     const GURL& url,
     const std::string& content_disposition,
     const std::string& referrer_charset,

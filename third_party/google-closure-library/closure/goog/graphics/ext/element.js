@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A thicker wrapper around the DOM element returned from
@@ -12,13 +20,13 @@
 
 goog.provide('goog.graphics.ext.Element');
 
+goog.forwardDeclare('goog.graphics.AbstractGraphics');
+goog.forwardDeclare('goog.graphics.Element');
+goog.forwardDeclare('goog.graphics.ext.Graphics');
+goog.forwardDeclare('goog.graphics.ext.Group');
 goog.require('goog.events.EventTarget');
 goog.require('goog.functions');
 goog.require('goog.graphics.ext.coordinates');
-goog.requireType('goog.graphics.AbstractGraphics');
-goog.requireType('goog.graphics.Element');
-goog.requireType('goog.graphics.ext.Graphics');
-goog.requireType('goog.graphics.ext.Group');
 
 
 
@@ -31,7 +39,6 @@ goog.requireType('goog.graphics.ext.Group');
  * @extends {goog.events.EventTarget}
  */
 goog.graphics.ext.Element = function(group, wrapper) {
-  'use strict';
   goog.events.EventTarget.call(this);
   this.wrapper_ = wrapper;
   this.graphics_ = group ? group.getGraphics() : this;
@@ -115,7 +122,6 @@ goog.graphics.ext.Element.prototype.yPosition_;
 
 /** @return {goog.graphics.Element} The underlying thin wrapper. */
 goog.graphics.ext.Element.prototype.getWrapper = function() {
-  'use strict';
   return this.wrapper_;
 };
 
@@ -125,7 +131,6 @@ goog.graphics.ext.Element.prototype.getWrapper = function() {
  *     surface the element is a part of.
  */
 goog.graphics.ext.Element.prototype.getGraphics = function() {
-  'use strict';
   return this.graphics_;
 };
 
@@ -137,7 +142,6 @@ goog.graphics.ext.Element.prototype.getGraphics = function() {
  * @protected
  */
 goog.graphics.ext.Element.prototype.getGraphicsImplementation = function() {
-  'use strict';
   return this.graphics_.getImplementation();
 };
 
@@ -146,7 +150,6 @@ goog.graphics.ext.Element.prototype.getGraphicsImplementation = function() {
  * @return {goog.graphics.ext.Group|undefined} The parent of this element.
  */
 goog.graphics.ext.Element.prototype.getParent = function() {
-  'use strict';
   return this.parent_;
 };
 
@@ -169,7 +172,6 @@ goog.graphics.ext.Element.prototype.getParent = function() {
  */
 goog.graphics.ext.Element.prototype.setPosition_ = function(
     position, value, type, opt_chain) {
-  'use strict';
   position.setPosition(value, type);
   this.computeIsParentDependent_(position);
 
@@ -192,7 +194,6 @@ goog.graphics.ext.Element.prototype.setPosition_ = function(
  */
 goog.graphics.ext.Element.prototype.setSize_ = function(
     position, size, opt_chain) {
-  'use strict';
   if (position.setSize(size)) {
     this.needsTransform_ = true;
 
@@ -215,7 +216,6 @@ goog.graphics.ext.Element.prototype.setSize_ = function(
  * @private
  */
 goog.graphics.ext.Element.prototype.setMinSize_ = function(position, minSize) {
-  'use strict';
   position.setMinSize(minSize);
   this.needsTransform_ = true;
   this.computeIsParentDependent_(position);
@@ -230,7 +230,6 @@ goog.graphics.ext.Element.prototype.setMinSize_ = function(position, minSize) {
  *     edge of its parent, specified in units of the parent's coordinate system.
  */
 goog.graphics.ext.Element.prototype.getLeft = function() {
-  'use strict';
   return this.xPosition_.getStart();
 };
 
@@ -244,7 +243,6 @@ goog.graphics.ext.Element.prototype.getLeft = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setLeft = function(left, opt_chain) {
-  'use strict';
   this.setPosition_(
       this.xPosition_, left, goog.graphics.ext.Element.PositionType_.START,
       opt_chain);
@@ -256,7 +254,6 @@ goog.graphics.ext.Element.prototype.setLeft = function(left, opt_chain) {
  *     parent's coordinate system.
  */
 goog.graphics.ext.Element.prototype.getRight = function() {
-  'use strict';
   return this.xPosition_.getEnd();
 };
 
@@ -270,7 +267,6 @@ goog.graphics.ext.Element.prototype.getRight = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setRight = function(right, opt_chain) {
-  'use strict';
   this.setPosition_(
       this.xPosition_, right, goog.graphics.ext.Element.PositionType_.END,
       opt_chain);
@@ -282,7 +278,6 @@ goog.graphics.ext.Element.prototype.setRight = function(right, opt_chain) {
  * parent's coordinate system.
  */
 goog.graphics.ext.Element.prototype.getCenter = function() {
-  'use strict';
   return this.xPosition_.getMiddle();
 };
 
@@ -296,7 +291,6 @@ goog.graphics.ext.Element.prototype.getCenter = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setCenter = function(center, opt_chain) {
-  'use strict';
   this.setPosition_(
       this.xPosition_, center, goog.graphics.ext.Element.PositionType_.MIDDLE,
       opt_chain);
@@ -311,7 +305,6 @@ goog.graphics.ext.Element.prototype.setCenter = function(center, opt_chain) {
  *     edge of its parent, specified in units of the parent's coordinate system.
  */
 goog.graphics.ext.Element.prototype.getTop = function() {
-  'use strict';
   return this.yPosition_.getStart();
 };
 
@@ -325,7 +318,6 @@ goog.graphics.ext.Element.prototype.getTop = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setTop = function(top, opt_chain) {
-  'use strict';
   this.setPosition_(
       this.yPosition_, top, goog.graphics.ext.Element.PositionType_.START,
       opt_chain);
@@ -337,7 +329,6 @@ goog.graphics.ext.Element.prototype.setTop = function(top, opt_chain) {
  *     parent's coordinate system.
  */
 goog.graphics.ext.Element.prototype.getBottom = function() {
-  'use strict';
   return this.yPosition_.getEnd();
 };
 
@@ -351,7 +342,6 @@ goog.graphics.ext.Element.prototype.getBottom = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setBottom = function(bottom, opt_chain) {
-  'use strict';
   this.setPosition_(
       this.yPosition_, bottom, goog.graphics.ext.Element.PositionType_.END,
       opt_chain);
@@ -363,7 +353,6 @@ goog.graphics.ext.Element.prototype.setBottom = function(bottom, opt_chain) {
  *     parent's coordinate system.
  */
 goog.graphics.ext.Element.prototype.getMiddle = function() {
-  'use strict';
   return this.yPosition_.getMiddle();
 };
 
@@ -377,7 +366,6 @@ goog.graphics.ext.Element.prototype.getMiddle = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setMiddle = function(middle, opt_chain) {
-  'use strict';
   this.setPosition_(
       this.yPosition_, middle, goog.graphics.ext.Element.PositionType_.MIDDLE,
       opt_chain);
@@ -392,7 +380,6 @@ goog.graphics.ext.Element.prototype.setMiddle = function(middle, opt_chain) {
  *     coordinate system.
  */
 goog.graphics.ext.Element.prototype.getWidth = function() {
-  'use strict';
   return this.xPosition_.getSize();
 };
 
@@ -405,7 +392,6 @@ goog.graphics.ext.Element.prototype.getWidth = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setWidth = function(width, opt_chain) {
-  'use strict';
   this.setSize_(this.xPosition_, width, opt_chain);
 };
 
@@ -415,7 +401,6 @@ goog.graphics.ext.Element.prototype.setWidth = function(width, opt_chain) {
  *     coordinate system.
  */
 goog.graphics.ext.Element.prototype.getMinWidth = function() {
-  'use strict';
   return this.xPosition_.getMinSize();
 };
 
@@ -425,7 +410,6 @@ goog.graphics.ext.Element.prototype.getMinWidth = function() {
  * @param {string|number} minWidth The minimum width of the element.
  */
 goog.graphics.ext.Element.prototype.setMinWidth = function(minWidth) {
-  'use strict';
   this.setMinSize_(this.xPosition_, minWidth);
 };
 
@@ -435,7 +419,6 @@ goog.graphics.ext.Element.prototype.setMinWidth = function(minWidth) {
  *     coordinate system.
  */
 goog.graphics.ext.Element.prototype.getHeight = function() {
-  'use strict';
   return this.yPosition_.getSize();
 };
 
@@ -448,7 +431,6 @@ goog.graphics.ext.Element.prototype.getHeight = function() {
  *     pending but not yet performed.
  */
 goog.graphics.ext.Element.prototype.setHeight = function(height, opt_chain) {
-  'use strict';
   this.setSize_(this.yPosition_, height, opt_chain);
 };
 
@@ -458,7 +440,6 @@ goog.graphics.ext.Element.prototype.setHeight = function(height, opt_chain) {
  *     coordinate system.
  */
 goog.graphics.ext.Element.prototype.getMinHeight = function() {
-  'use strict';
   return this.yPosition_.getMinSize();
 };
 
@@ -468,7 +449,6 @@ goog.graphics.ext.Element.prototype.getMinHeight = function() {
  * @param {string|number} minHeight The minimum height of the element.
  */
 goog.graphics.ext.Element.prototype.setMinHeight = function(minHeight) {
-  'use strict';
   this.setMinSize_(this.yPosition_, minHeight);
 };
 
@@ -486,7 +466,6 @@ goog.graphics.ext.Element.prototype.setMinHeight = function(minHeight) {
  */
 goog.graphics.ext.Element.prototype.setPosition = function(
     left, top, opt_chain) {
-  'use strict';
   this.setLeft(left, true);
   this.setTop(top, opt_chain);
 };
@@ -502,7 +481,6 @@ goog.graphics.ext.Element.prototype.setPosition = function(
  */
 goog.graphics.ext.Element.prototype.setSize = function(
     width, height, opt_chain) {
-  'use strict';
   this.setWidth(width, true);
   this.setHeight(height, opt_chain);
 };
@@ -520,7 +498,6 @@ goog.graphics.ext.Element.prototype.setSize = function(
  */
 goog.graphics.ext.Element.prototype.setBounds = function(
     left, top, width, height, opt_chain) {
-  'use strict';
   this.setLeft(left, true);
   this.setTop(top, true);
   this.setWidth(width, true);
@@ -536,7 +513,6 @@ goog.graphics.ext.Element.prototype.setBounds = function(
  *     in a parent of no width.
  */
 goog.graphics.ext.Element.prototype.getMaxX = function() {
-  'use strict';
   return this.xPosition_.getMaxPosition();
 };
 
@@ -546,7 +522,6 @@ goog.graphics.ext.Element.prototype.getMaxX = function() {
  *     in a parent of no height.
  */
 goog.graphics.ext.Element.prototype.getMaxY = function() {
-  'use strict';
   return this.yPosition_.getMaxPosition();
 };
 
@@ -560,7 +535,6 @@ goog.graphics.ext.Element.prototype.getMaxY = function() {
  * rendering
  */
 goog.graphics.ext.Element.prototype.reset = function() {
-  'use strict';
   this.xPosition_.resetCache();
   this.yPosition_.resetCache();
 
@@ -589,7 +563,6 @@ goog.graphics.ext.Element.prototype.redraw = goog.nullFunction;
  */
 goog.graphics.ext.Element.prototype.computeIsParentDependent_ = function(
     position) {
-  'use strict';
   this.parentDependent_ = position.isParentDependent() ||
       this.xPosition_.isParentDependent() ||
       this.yPosition_.isParentDependent() || this.checkParentDependent();
@@ -603,7 +576,6 @@ goog.graphics.ext.Element.prototype.computeIsParentDependent_ = function(
  * @return {boolean} Whether this element's bounds depend on its parents.
  */
 goog.graphics.ext.Element.prototype.isParentDependent = function() {
-  'use strict';
   return this.parentDependent_;
 };
 
@@ -624,7 +596,6 @@ goog.graphics.ext.Element.prototype.checkParentDependent = goog.functions.FALSE;
  * @param {number} angle The angle of rotation, in degrees.
  */
 goog.graphics.ext.Element.prototype.setRotation = function(angle) {
-  'use strict';
   if (this.rotation_ != angle) {
     this.rotation_ = angle;
 
@@ -638,7 +609,6 @@ goog.graphics.ext.Element.prototype.setRotation = function(angle) {
  * @return {number} The angle of rotation of this element, in degrees.
  */
 goog.graphics.ext.Element.prototype.getRotation = function() {
-  'use strict';
   return this.rotation_;
 };
 
@@ -652,7 +622,6 @@ goog.graphics.ext.Element.prototype.getRotation = function() {
  * Should be treated as package scope.
  */
 goog.graphics.ext.Element.prototype.parentTransform = function() {
-  'use strict';
   this.needsTransform_ = this.needsTransform_ || this.parentDependent_;
 };
 
@@ -661,7 +630,6 @@ goog.graphics.ext.Element.prototype.parentTransform = function() {
  * @return {boolean} Whether this element has pending transforms.
  */
 goog.graphics.ext.Element.prototype.isPendingTransform = function() {
-  'use strict';
   return this.needsTransform_;
 };
 
@@ -671,7 +639,6 @@ goog.graphics.ext.Element.prototype.isPendingTransform = function() {
  * @protected
  */
 goog.graphics.ext.Element.prototype.transform = function() {
-  'use strict';
   if (this.isPendingTransform()) {
     this.needsTransform_ = false;
 
@@ -691,7 +658,6 @@ goog.graphics.ext.Element.prototype.transform = function() {
  * @return {number} Returns the number of pixels per unit in the x direction.
  */
 goog.graphics.ext.Element.prototype.getPixelScaleX = function() {
-  'use strict';
   return this.getGraphics().getPixelScaleX();
 };
 
@@ -700,7 +666,6 @@ goog.graphics.ext.Element.prototype.getPixelScaleX = function() {
  * @return {number} Returns the number of pixels per unit in the y direction.
  */
 goog.graphics.ext.Element.prototype.getPixelScaleY = function() {
-  'use strict';
   return this.getGraphics().getPixelScaleY();
 };
 
@@ -710,7 +675,6 @@ goog.graphics.ext.Element.prototype.getPixelScaleY = function() {
 
 /** @override */
 goog.graphics.ext.Element.prototype.disposeInternal = function() {
-  'use strict';
   goog.graphics.ext.Element.superClass_.disposeInternal.call(this);
   this.wrapper_.dispose();
 };
@@ -742,7 +706,6 @@ goog.graphics.ext.Element.PositionType_ = {
  * @private
  */
 goog.graphics.ext.Element.Position_ = function(element, horizontal) {
-  'use strict';
   this.element_ = element;
   this.horizontal_ = horizontal;
 };
@@ -753,7 +716,6 @@ goog.graphics.ext.Element.Position_ = function(element, horizontal) {
  * @private
  */
 goog.graphics.ext.Element.Position_.prototype.getCoordinateCache_ = function() {
-  'use strict';
   return this.coordinateCache_ || (this.coordinateCache_ = {});
 };
 
@@ -763,8 +725,7 @@ goog.graphics.ext.Element.Position_.prototype.getCoordinateCache_ = function() {
  * @private
  */
 goog.graphics.ext.Element.Position_.prototype.getParentSize_ = function() {
-  'use strict';
-  const parent = this.element_.getParent();
+  var parent = this.element_.getParent();
   return this.horizontal_ ? parent.getCoordinateWidth() :
                             parent.getCoordinateHeight();
 };
@@ -774,7 +735,6 @@ goog.graphics.ext.Element.Position_.prototype.getParentSize_ = function() {
  * @return {number} The minimum width/height of the element.
  */
 goog.graphics.ext.Element.Position_.prototype.getMinSize = function() {
-  'use strict';
   return this.getValue_(this.minSize_);
 };
 
@@ -784,7 +744,6 @@ goog.graphics.ext.Element.Position_.prototype.getMinSize = function() {
  * @param {string|number} minSize The minimum width/height of the element.
  */
 goog.graphics.ext.Element.Position_.prototype.setMinSize = function(minSize) {
-  'use strict';
   this.minSize_ = minSize;
   this.resetCache();
 };
@@ -794,7 +753,6 @@ goog.graphics.ext.Element.Position_.prototype.setMinSize = function(minSize) {
  * @return {number} The width/height of the element.
  */
 goog.graphics.ext.Element.Position_.prototype.getSize = function() {
-  'use strict';
   return Math.max(this.getValue_(this.size_), this.getMinSize());
 };
 
@@ -805,7 +763,6 @@ goog.graphics.ext.Element.Position_.prototype.getSize = function() {
  * @return {boolean} Whether the value was changed.
  */
 goog.graphics.ext.Element.Position_.prototype.setSize = function(size) {
-  'use strict';
   if (size != this.size_) {
     this.size_ = size;
     this.resetCache();
@@ -825,21 +782,20 @@ goog.graphics.ext.Element.Position_.prototype.setSize = function(size) {
  */
 goog.graphics.ext.Element.Position_.prototype.getValue_ = function(
     v, opt_forMaximum) {
-  'use strict';
   if (!goog.graphics.ext.coordinates.isSpecial(v)) {
     return parseFloat(String(v));
   }
 
-  const cache = this.getCoordinateCache_();
-  const scale = this.horizontal_ ? this.element_.getPixelScaleX() :
-                                   this.element_.getPixelScaleY();
+  var cache = this.getCoordinateCache_();
+  var scale = this.horizontal_ ? this.element_.getPixelScaleX() :
+                                 this.element_.getPixelScaleY();
 
-  let containerSize;
+  var containerSize;
   if (opt_forMaximum) {
     containerSize =
         goog.graphics.ext.coordinates.computeValue(this.size_ || 0, 0, scale);
   } else {
-    const parent = this.element_.getParent();
+    var parent = this.element_.getParent();
     containerSize = this.horizontal_ ? parent.getWidth() : parent.getHeight();
   }
 
@@ -854,9 +810,8 @@ goog.graphics.ext.Element.Position_.prototype.getValue_ = function(
  *     coordinate system.
  */
 goog.graphics.ext.Element.Position_.prototype.getStart = function() {
-  'use strict';
   if (this.cachedValue_ == null) {
-    const value = this.getValue_(this.distance_);
+    var value = this.getValue_(this.distance_);
     if (this.distanceType_ == goog.graphics.ext.Element.PositionType_.START) {
       this.cachedValue_ = value;
     } else if (
@@ -876,7 +831,6 @@ goog.graphics.ext.Element.Position_.prototype.getStart = function() {
  *     parent's coordinate system.
  */
 goog.graphics.ext.Element.Position_.prototype.getMiddle = function() {
-  'use strict';
   return this.distanceType_ == goog.graphics.ext.Element.PositionType_.MIDDLE ?
       this.getValue_(this.distance_) :
       (this.getParentSize_() - this.getSize()) / 2 - this.getStart();
@@ -888,7 +842,6 @@ goog.graphics.ext.Element.Position_.prototype.getMiddle = function() {
  *     parent's coordinate system.
  */
 goog.graphics.ext.Element.Position_.prototype.getEnd = function() {
-  'use strict';
   return this.distanceType_ == goog.graphics.ext.Element.PositionType_.END ?
       this.getValue_(this.distance_) :
       this.getParentSize_() - this.getStart() - this.getSize();
@@ -904,7 +857,6 @@ goog.graphics.ext.Element.Position_.prototype.getEnd = function() {
  */
 goog.graphics.ext.Element.Position_.prototype.setPosition = function(
     value, type) {
-  'use strict';
   this.distance_ = value;
   this.distanceType_ = type;
 
@@ -918,7 +870,6 @@ goog.graphics.ext.Element.Position_.prototype.setPosition = function(
  *     have in a parent of no width/height.
  */
 goog.graphics.ext.Element.Position_.prototype.getMaxPosition = function() {
-  'use strict';
   // TODO(robbyw): Handle transformed or rotated coordinates
   // TODO(robbyw): Handle pixel based sizes?
 
@@ -932,7 +883,6 @@ goog.graphics.ext.Element.Position_.prototype.getMaxPosition = function() {
  * Resets the caches of position values and coordinate values.
  */
 goog.graphics.ext.Element.Position_.prototype.resetCache = function() {
-  'use strict';
   this.coordinateCache_ = null;
   this.cachedValue_ = null;
 };
@@ -943,7 +893,6 @@ goog.graphics.ext.Element.Position_.prototype.resetCache = function() {
  *     the size of the parent element.
  */
 goog.graphics.ext.Element.Position_.prototype.isParentDependent = function() {
-  'use strict';
   return this.distanceType_ != goog.graphics.ext.Element.PositionType_.START ||
       goog.graphics.ext.coordinates.isSpecial(this.size_) ||
       goog.graphics.ext.coordinates.isSpecial(this.minSize_) ||

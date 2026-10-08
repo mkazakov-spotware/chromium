@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,7 @@ SharedImageVideoProvider::ImageSpec::~ImageSpec() = default;
 
 bool SharedImageVideoProvider::ImageSpec::operator==(
     const ImageSpec& rhs) const {
-  return coded_size == rhs.coded_size && generation_id == rhs.generation_id &&
-         color_space == rhs.color_space;
+  return coded_size == rhs.coded_size && generation_id == rhs.generation_id;
 }
 
 bool SharedImageVideoProvider::ImageSpec::operator!=(

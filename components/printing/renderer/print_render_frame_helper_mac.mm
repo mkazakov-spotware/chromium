@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/mac/scoped_nsautorelease_pool.h"
 #include "base/metrics/histogram.h"
 #include "cc/paint/paint_canvas.h"
+#include "components/printing/common/print_messages.h"
 #include "printing/buildflags/buildflags.h"
 #include "printing/metafile_skia.h"
 #include "printing/mojom/print.mojom.h"
@@ -28,13 +29,14 @@ void PrintRenderFrameHelper::PrintPageInternal(const mojom::PrintParams& params,
                                                gfx::Size* page_size_in_dpi,
                                                gfx::Rect* content_rect_in_dpi) {
   double css_scale_factor = scale_factor;
-  mojom::PageSizeMarginsPtr page_layout_in_points =
-      ComputePageLayoutInPointsForCss(frame, page_number, params,
-                                      ignore_css_margins_, &css_scale_factor);
+  mojom::PageSizeMargins page_layout_in_points;
+  ComputePageLayoutInPointsForCss(frame, page_number, params,
+                                  ignore_css_margins_, &css_scale_factor,
+                                  &page_layout_in_points);
 
   gfx::Size page_size;
   gfx::Rect content_area;
-  GetPageSizeAndContentAreaFromPageLayout(*page_layout_in_points, &page_size,
+  GetPageSizeAndContentAreaFromPageLayout(page_layout_in_points, &page_size,
                                           &content_area);
 
   if (page_size_in_dpi)
@@ -57,7 +59,7 @@ void PrintRenderFrameHelper::PrintPageInternal(const mojom::PrintParams& params,
   canvas->SetPrintingMetafile(metafile);
   if (params.display_header_footer) {
     PrintHeaderAndFooter(canvas, page_number + 1, page_count, *frame,
-                         final_scale_factor, *page_layout_in_points, params);
+                         final_scale_factor, page_layout_in_points, params);
   }
   RenderPageContent(frame, page_number, canvas_area, content_area,
                     final_scale_factor, canvas);

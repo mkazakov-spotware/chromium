@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "base/types/pass_key.h"
+#include "base/util/type_safety/pass_key.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/performance_manager/persistence/site_data/site_data_cache_facade_factory.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
@@ -24,7 +24,7 @@
 namespace performance_manager {
 
 class GraphImpl;
-using PassKey = base::PassKey<SiteDataCacheFacade>;
+using PassKey = util::PassKey<SiteDataCacheFacade>;
 
 SiteDataCacheFacade::SiteDataCacheFacade(
     content::BrowserContext* browser_context)
@@ -32,7 +32,7 @@ SiteDataCacheFacade::SiteDataCacheFacade(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   SiteDataCacheFacadeFactory::GetInstance()->OnBeforeFacadeCreated(PassKey());
 
-  absl::optional<std::string> parent_context_id;
+  base::Optional<std::string> parent_context_id;
   if (browser_context->IsOffTheRecord()) {
     content::BrowserContext* parent_context =
         chrome::GetBrowserContextRedirectedInIncognito(browser_context);
@@ -68,6 +68,7 @@ void SiteDataCacheFacade::IsDataCacheRecordingForTesting(
   SiteDataCacheFacadeFactory::GetInstance()
       ->cache_factory()
       ->PostTaskWithThisObject(
+          FROM_HERE,
           base::BindOnce(
               [](base::OnceCallback<void(bool)> cb,
                  const std::string& browser_context_id,
@@ -83,19 +84,21 @@ void SiteDataCacheFacade::WaitUntilCacheInitializedForTesting() {
   base::RunLoop run_loop;
   SiteDataCacheFacadeFactory::GetInstance()
       ->cache_factory()
-      ->PostTaskWithThisObject(base::BindOnce(
-          [](base::OnceClosure quit_closure,
-             const std::string& browser_context_id,
-             SiteDataCacheFactory* cache_factory) {
-            auto* cache = cache_factory->GetDataCacheForBrowserContext(
-                browser_context_id);
-            if (cache->IsRecording()) {
-              static_cast<SiteDataCacheImpl*>(cache)
-                  ->SetInitializationCallbackForTesting(
-                      std::move(quit_closure));
-            }
-          },
-          run_loop.QuitClosure(), browser_context_->UniqueId()));
+      ->PostTaskWithThisObject(
+          FROM_HERE, base::BindOnce(
+                         [](base::OnceClosure quit_closure,
+                            const std::string& browser_context_id,
+                            SiteDataCacheFactory* cache_factory) {
+                           auto* cache =
+                               cache_factory->GetDataCacheForBrowserContext(
+                                   browser_context_id);
+                           if (cache->IsRecording()) {
+                             static_cast<SiteDataCacheImpl*>(cache)
+                                 ->SetInitializationCallbackForTesting(
+                                     std::move(quit_closure));
+                           }
+                         },
+                         run_loop.QuitClosure(), browser_context_->UniqueId()));
   run_loop.Run();
 }
 
@@ -114,7 +117,7 @@ void SiteDataCacheFacade::OnURLsDeleted(
         browser_context_->UniqueId());
     SiteDataCacheFacadeFactory::GetInstance()
         ->cache_factory()
-        ->PostTaskWithThisObject(std::move(clear_all_site_data_cb));
+        ->PostTaskWithThisObject(FROM_HERE, std::move(clear_all_site_data_cb));
   } else {
     std::vector<url::Origin> origins_to_remove;
 
@@ -145,14 +148,14 @@ void SiteDataCacheFacade::OnURLsDeleted(
         browser_context_->UniqueId(), std::move(origins_to_remove));
     SiteDataCacheFacadeFactory::GetInstance()
         ->cache_factory()
-        ->PostTaskWithThisObject(std::move(clear_site_data_cb));
+        ->PostTaskWithThisObject(FROM_HERE, std::move(clear_site_data_cb));
   }
 }
 
 void SiteDataCacheFacade::HistoryServiceBeingDeleted(
     history::HistoryService* history_service) {
   DCHECK(history_observation_.IsObservingSource(history_service));
-  history_observation_.Reset();
+  history_observation_.RemoveObservation();
 }
 
 }  // namespace performance_manager

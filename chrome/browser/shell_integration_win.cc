@@ -1,13 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/shell_integration_win.h"
 
-#include <shobjidl.h>
 #include <windows.h>
-
 #include <objbase.h>
+#include <shobjidl.h>
 #include <propkey.h>  // Needs to come after shobjidl.h.
 #include <stddef.h>
 #include <stdint.h>
@@ -20,7 +19,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/command_line.h"
-#include "base/feature_list.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/memory/weak_ptr.h"
@@ -29,9 +27,11 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/scoped_blocking_call.h"
@@ -44,8 +44,8 @@
 #include "base/win/windows_version.h"
 #include "chrome/browser/policy/policy_path_parser.h"
 #include "chrome/browser/shell_integration.h"
-#include "chrome/browser/web_applications/os_integration/web_app_shortcut_win.h"
-#include "chrome/browser/web_applications/web_app_helpers.h"
+#include "chrome/browser/web_applications/components/web_app_helpers.h"
+#include "chrome/browser/web_applications/components/web_app_shortcut_win.h"
 #include "chrome/browser/win/settings_app_monitor.h"
 #include "chrome/browser/win/util_win_service.h"
 #include "chrome/common/chrome_constants.h"
@@ -63,22 +63,13 @@ namespace shell_integration {
 
 namespace {
 
-BASE_FEATURE(kWin10UnattendedDefault,
-             "Win10UnattendedDefault",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool CanSetAsDefaultDirectly() {
-  return base::win::GetVersion() >= base::win::Version::WIN10 &&
-         base::FeatureList::IsEnabled(kWin10UnattendedDefault);
-}
-
 // Helper function for GetAppId to generates profile id
 // from profile path. "profile_id" is composed of sanitized basenames of
 // user data dir and profile dir joined by a ".".
-std::wstring GetProfileIdFromPath(const base::FilePath& profile_path) {
+base::string16 GetProfileIdFromPath(const base::FilePath& profile_path) {
   // Return empty string if profile_path is empty
   if (profile_path.empty())
-    return std::wstring();
+    return base::string16();
 
   base::FilePath default_user_data_dir;
   // Return empty string if profile_path is in default user data
@@ -86,15 +77,15 @@ std::wstring GetProfileIdFromPath(const base::FilePath& profile_path) {
   if (chrome::GetDefaultUserDataDirectory(&default_user_data_dir) &&
       profile_path.DirName() == default_user_data_dir &&
       profile_path.BaseName().value() ==
-          base::ASCIIToWide(chrome::kInitialProfile)) {
-    return std::wstring();
+          base::ASCIIToUTF16(chrome::kInitialProfile)) {
+    return base::string16();
   }
 
   // Get joined basenames of user data dir and profile.
-  std::wstring basenames = profile_path.DirName().BaseName().value() + L"." +
-                           profile_path.BaseName().value();
+  base::string16 basenames = profile_path.DirName().BaseName().value() +
+      L"." + profile_path.BaseName().value();
 
-  std::wstring profile_id;
+  base::string16 profile_id;
   profile_id.reserve(basenames.size());
 
   // Generate profile_id from sanitized basenames.
@@ -108,14 +99,14 @@ std::wstring GetProfileIdFromPath(const base::FilePath& profile_path) {
   return profile_id;
 }
 
-std::wstring GetAppUserModelIdImpl(const std::wstring& prefix,
-                                   const std::wstring& app_name,
-                                   const base::FilePath& profile_path) {
-  std::vector<std::wstring> components;
+base::string16 GetAppUserModelIdImpl(const base::string16& prefix,
+                                     const base::string16& app_name,
+                                     const base::FilePath& profile_path) {
+  std::vector<base::string16> components;
   if (!prefix.empty())
     components.push_back(prefix);
   components.push_back(app_name);
-  const std::wstring profile_id(GetProfileIdFromPath(profile_path));
+  const base::string16 profile_id(GetProfileIdFromPath(profile_path));
   if (!profile_id.empty())
     components.push_back(profile_id);
   return ShellUtil::BuildAppUserModelId(components);
@@ -123,8 +114,8 @@ std::wstring GetAppUserModelIdImpl(const std::wstring& prefix,
 
 // Gets expected app id for given Chrome (based on |command_line| and
 // |is_per_user_install|).
-std::wstring GetExpectedAppId(const base::CommandLine& command_line,
-                              bool is_per_user_install) {
+base::string16 GetExpectedAppId(const base::CommandLine& command_line,
+                                bool is_per_user_install) {
   base::FilePath user_data_dir;
   if (command_line.HasSwitch(switches::kUserDataDir))
     user_data_dir = command_line.GetSwitchValuePath(switches::kUserDataDir);
@@ -139,19 +130,20 @@ std::wstring GetExpectedAppId(const base::CommandLine& command_line,
     profile_subdir =
         command_line.GetSwitchValuePath(switches::kProfileDirectory);
   } else {
-    profile_subdir = base::FilePath(base::ASCIIToWide(chrome::kInitialProfile));
+    profile_subdir =
+        base::FilePath(base::ASCIIToUTF16(chrome::kInitialProfile));
   }
   DCHECK(!profile_subdir.empty());
 
   base::FilePath profile_path = user_data_dir.Append(profile_subdir);
-  std::wstring prefix;
-  std::wstring app_name;
+  base::string16 prefix;
+  base::string16 app_name;
   if (command_line.HasSwitch(switches::kApp)) {
-    app_name = base::UTF8ToWide(web_app::GenerateApplicationNameFromURL(
+    app_name = base::UTF8ToUTF16(web_app::GenerateApplicationNameFromURL(
         GURL(command_line.GetSwitchValueASCII(switches::kApp))));
     prefix = install_static::GetBaseAppId();
   } else if (command_line.HasSwitch(switches::kAppId)) {
-    app_name = base::UTF8ToWide(web_app::GenerateApplicationNameFromAppId(
+    app_name = base::UTF8ToUTF16(web_app::GenerateApplicationNameFromAppId(
         command_line.GetSwitchValueASCII(switches::kAppId)));
     prefix = install_static::GetBaseAppId();
   } else {
@@ -165,7 +157,7 @@ std::wstring GetExpectedAppId(const base::CommandLine& command_line,
 // Windows treats a given scheme as an Internet scheme only if its registry
 // entry has a "URL Protocol" key. Check this, otherwise we allow ProgIDs to be
 // used as custom protocols which leads to security bugs.
-bool IsValidCustomProtocol(const std::wstring& scheme) {
+bool IsValidCustomProtocol(const base::string16& scheme) {
   if (scheme.empty())
     return false;
   base::win::RegKey cmd_key(HKEY_CLASSES_ROOT, scheme.c_str(), KEY_QUERY_VALUE);
@@ -175,53 +167,53 @@ bool IsValidCustomProtocol(const std::wstring& scheme) {
 // Windows 8 introduced a new protocol->executable binding system which cannot
 // be retrieved in the HKCR registry subkey method implemented below. We call
 // AssocQueryString with the new Win8-only flag ASSOCF_IS_PROTOCOL instead.
-std::u16string GetAppForProtocolUsingAssocQuery(const GURL& url) {
-  const std::wstring url_scheme = base::ASCIIToWide(url.scheme());
+base::string16 GetAppForProtocolUsingAssocQuery(const GURL& url) {
+  const base::string16 url_scheme = base::ASCIIToUTF16(url.scheme());
   if (!IsValidCustomProtocol(url_scheme))
-    return std::u16string();
+    return base::string16();
 
   // Query AssocQueryString for a human-readable description of the program
   // that will be invoked given the provided URL spec. This is used only to
   // populate the external protocol dialog box the user sees when invoking
   // an unknown external protocol.
   wchar_t out_buffer[1024];
-  DWORD buffer_size = std::size(out_buffer);
+  DWORD buffer_size = base::size(out_buffer);
   HRESULT hr =
       AssocQueryString(ASSOCF_IS_PROTOCOL, ASSOCSTR_FRIENDLYAPPNAME,
                        url_scheme.c_str(), NULL, out_buffer, &buffer_size);
   if (FAILED(hr)) {
     DLOG(WARNING) << "AssocQueryString failed!";
-    return std::u16string();
+    return base::string16();
   }
-  return base::AsString16(std::wstring(out_buffer));
+  return base::string16(out_buffer);
 }
 
-std::u16string GetAppForProtocolUsingRegistry(const GURL& url) {
-  const std::wstring url_scheme = base::ASCIIToWide(url.scheme());
+base::string16 GetAppForProtocolUsingRegistry(const GURL& url) {
+  const base::string16 url_scheme = base::ASCIIToUTF16(url.scheme());
   if (!IsValidCustomProtocol(url_scheme))
-    return std::u16string();
+    return base::string16();
 
   // First, try and extract the application's display name.
-  std::wstring command_to_launch;
+  base::string16 command_to_launch;
   base::win::RegKey cmd_key_name(HKEY_CLASSES_ROOT, url_scheme.c_str(),
                                  KEY_READ);
   if (cmd_key_name.ReadValue(NULL, &command_to_launch) == ERROR_SUCCESS &&
       !command_to_launch.empty()) {
-    return base::AsString16(command_to_launch);
+    return command_to_launch;
   }
 
   // Otherwise, parse the command line in the registry, and return the basename
   // of the program path if it exists.
-  const std::wstring cmd_key_path = url_scheme + L"\\shell\\open\\command";
+  const base::string16 cmd_key_path = url_scheme + L"\\shell\\open\\command";
   base::win::RegKey cmd_key_exe(HKEY_CLASSES_ROOT, cmd_key_path.c_str(),
                                 KEY_READ);
   if (cmd_key_exe.ReadValue(NULL, &command_to_launch) == ERROR_SUCCESS) {
     base::CommandLine command_line(
         base::CommandLine::FromString(command_to_launch));
-    return command_line.GetProgram().BaseName().AsUTF16Unsafe();
+    return command_line.GetProgram().BaseName().value();
   }
 
-  return std::u16string();
+  return base::string16();
 }
 
 DefaultWebClientState GetDefaultWebClientStateFromShellUtilDefaultState(
@@ -249,10 +241,6 @@ class DefaultBrowserActionRecorder : public SettingsAppMonitor::Delegate {
   explicit DefaultBrowserActionRecorder(base::OnceClosure continuation)
       : continuation_(std::move(continuation)), settings_app_monitor_(this) {}
 
-  DefaultBrowserActionRecorder(const DefaultBrowserActionRecorder&) = delete;
-  DefaultBrowserActionRecorder& operator=(const DefaultBrowserActionRecorder&) =
-      delete;
-
  private:
   // win::SettingsAppMonitor::Delegate:
   void OnInitialized(HRESULT result) override {
@@ -274,7 +262,7 @@ class DefaultBrowserActionRecorder : public SettingsAppMonitor::Delegate {
         base::UserMetricsAction("SettingsAppMonitor.ChooserInvoked"));
   }
 
-  void OnBrowserChosen(const std::wstring& browser_name) override {
+  void OnBrowserChosen(const base::string16& browser_name) override {
     if (browser_name == InstallUtil::GetDisplayName()) {
       base::RecordAction(
           base::UserMetricsAction("SettingsAppMonitor.ChromeBrowserChosen"));
@@ -305,6 +293,8 @@ class DefaultBrowserActionRecorder : public SettingsAppMonitor::Delegate {
   // Monitors user interaction with the Windows Settings app for the sake of
   // reporting user actions.
   SettingsAppMonitor settings_app_monitor_;
+
+  DISALLOW_COPY_AND_ASSIGN(DefaultBrowserActionRecorder);
 };
 
 // A function bound up in a callback with a DefaultBrowserActionRecorder and
@@ -328,9 +318,6 @@ void OnSettingsAppFinished(
 // This class also manages its own lifetime.
 class OpenSystemSettingsHelper {
  public:
-  OpenSystemSettingsHelper(const OpenSystemSettingsHelper&) = delete;
-  OpenSystemSettingsHelper& operator=(const OpenSystemSettingsHelper&) = delete;
-
   // Begin the monitoring and will call |on_finished_callback| when done.
   // Takes in a null-terminated array of |protocols| whose registry keys must be
   // watched. The array must contain at least one element.
@@ -364,7 +351,7 @@ class OpenSystemSettingsHelper {
     // Only the watchers that were succesfully initialized are counted.
     registry_watcher_count_ = registry_key_watchers_.size();
 
-    timer_.Start(FROM_HERE, base::Minutes(2),
+    timer_.Start(FROM_HERE, base::TimeDelta::FromMinutes(2),
                  base::BindOnce(&OpenSystemSettingsHelper::ConcludeInteraction,
                                 weak_ptr_factory_.GetWeakPtr(),
                                 ConcludeReason::TIMEOUT));
@@ -449,6 +436,8 @@ class OpenSystemSettingsHelper {
   // registry watcher. This makes it possible to self-delete after one of the
   // callbacks is executed to cancel the remaining ones.
   base::WeakPtrFactory<OpenSystemSettingsHelper> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(OpenSystemSettingsHelper);
 };
 
 OpenSystemSettingsHelper* OpenSystemSettingsHelper::instance_ = nullptr;
@@ -460,10 +449,6 @@ class IsPinnedToTaskbarHelper {
  public:
   using ResultCallback = win::IsPinnedToTaskbarCallback;
   using ErrorCallback = win::ConnectionErrorCallback;
-
-  IsPinnedToTaskbarHelper(const IsPinnedToTaskbarHelper&) = delete;
-  IsPinnedToTaskbarHelper& operator=(const IsPinnedToTaskbarHelper&) = delete;
-
   static void GetState(ErrorCallback error_callback,
                        ResultCallback result_callback);
 
@@ -472,7 +457,9 @@ class IsPinnedToTaskbarHelper {
                           ResultCallback result_callback);
 
   void OnConnectionError();
-  void OnIsPinnedToTaskbarResult(bool succeeded, bool is_pinned_to_taskbar);
+  void OnIsPinnedToTaskbarResult(bool succeeded,
+                                 bool is_pinned_to_taskbar,
+                                 bool is_pinned_to_taskbar_verb_check);
 
   mojo::Remote<chrome::mojom::UtilWin> remote_util_win_;
 
@@ -480,6 +467,8 @@ class IsPinnedToTaskbarHelper {
   ResultCallback result_callback_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(IsPinnedToTaskbarHelper);
 };
 
 // static
@@ -515,155 +504,12 @@ void IsPinnedToTaskbarHelper::OnConnectionError() {
 
 void IsPinnedToTaskbarHelper::OnIsPinnedToTaskbarResult(
     bool succeeded,
-    bool is_pinned_to_taskbar) {
+    bool is_pinned_to_taskbar,
+    bool is_pinned_to_taskbar_verb_check) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  std::move(result_callback_).Run(succeeded, is_pinned_to_taskbar);
-  delete this;
-}
-
-// Helper class to unpin shortcuts from the taskbar. Hides the complexity of
-//  managing the lifetime of the connection to the Windows utility service.
-class UnpinShortcutsHelper {
- public:
-  UnpinShortcutsHelper(const UnpinShortcutsHelper&) = delete;
-  UnpinShortcutsHelper& operator=(const UnpinShortcutsHelper&) = delete;
-
-  static void DoUnpin(const std::vector<base::FilePath>& shortcuts,
-                      base::OnceClosure completion_callback);
-
- private:
-  static void RecordUnpinShortcutProcessError(bool error);
-
-  UnpinShortcutsHelper(const std::vector<base::FilePath>& shortcuts,
-                       base::OnceClosure completion_callback);
-
-  void OnConnectionError();
-  void OnUnpinShortcutResult();
-
-  mojo::Remote<chrome::mojom::UtilWin> remote_util_win_;
-
-  base::OnceClosure completion_callback_;
-
-  SEQUENCE_CHECKER(sequence_checker_);
-};
-
-// static
-void UnpinShortcutsHelper::RecordUnpinShortcutProcessError(bool error) {
-  base::UmaHistogramBoolean("Windows.UnpinShortcut.ProcessError", error);
-}
-
-// static
-void UnpinShortcutsHelper::DoUnpin(const std::vector<base::FilePath>& shortcuts,
-                                   base::OnceClosure completion_callback) {
-  // Self-deleting when the ShellHandler completes.
-  new UnpinShortcutsHelper(shortcuts, std::move(completion_callback));
-}
-
-UnpinShortcutsHelper::UnpinShortcutsHelper(
-    const std::vector<base::FilePath>& shortcuts,
-    base::OnceClosure completion_callback)
-    : remote_util_win_(LaunchUtilWinServiceInstance()),
-      completion_callback_(std::move(completion_callback)) {
-  DCHECK(completion_callback_);
-
-  // |remote_util_win_| owns the callbacks and is guaranteed to be destroyed
-  // before |this|, therefore making base::Unretained() safe to use.
-  remote_util_win_.set_disconnect_handler(base::BindOnce(
-      &UnpinShortcutsHelper::OnConnectionError, base::Unretained(this)));
-  remote_util_win_->UnpinShortcuts(
-      shortcuts, base::BindOnce(&UnpinShortcutsHelper::OnUnpinShortcutResult,
-                                base::Unretained(this)));
-}
-
-void UnpinShortcutsHelper::OnConnectionError() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  RecordUnpinShortcutProcessError(true);
-  std::move(completion_callback_).Run();
-  delete this;
-}
-
-void UnpinShortcutsHelper::OnUnpinShortcutResult() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  RecordUnpinShortcutProcessError(false);
-  std::move(completion_callback_).Run();
-  delete this;
-}
-
-// Helper class to create or update desktop shortcuts Hides the complexity of
-// managing the lifetime of the connection to the Windows utility service.
-class CreateOrUpdateShortcutsHelper {
- public:
-  CreateOrUpdateShortcutsHelper(const CreateOrUpdateShortcutsHelper&) = delete;
-  CreateOrUpdateShortcutsHelper& operator=(
-      const CreateOrUpdateShortcutsHelper&) = delete;
-
-  static void DoCreateOrUpdateShortcuts(
-      const std::vector<base::FilePath>& shortcuts,
-      const std::vector<base::win::ShortcutProperties>& properties,
-      base::win::ShortcutOperation operation,
-      win::CreateOrUpdateShortcutsResultCallback);
-
- private:
-  CreateOrUpdateShortcutsHelper(
-      const std::vector<base::FilePath>& shortcuts,
-      const std::vector<base::win::ShortcutProperties>& properties,
-      base::win::ShortcutOperation operation,
-      win::CreateOrUpdateShortcutsResultCallback completion_callback);
-
-  void OnConnectionError();
-  void OnCreateOrUpdateShortcutResult(bool succeeded);
-
-  mojo::Remote<chrome::mojom::UtilWin> remote_util_win_;
-
-  win::CreateOrUpdateShortcutsResultCallback completion_callback_;
-
-  SEQUENCE_CHECKER(sequence_checker_);
-};
-
-// static
-void CreateOrUpdateShortcutsHelper::DoCreateOrUpdateShortcuts(
-    const std::vector<base::FilePath>& shortcuts,
-    const std::vector<base::win::ShortcutProperties>& properties,
-    base::win::ShortcutOperation operation,
-    win::CreateOrUpdateShortcutsResultCallback completion_callback) {
-  // Self-deleting when the ShellHandler completes.
-  new CreateOrUpdateShortcutsHelper(shortcuts, properties, operation,
-                                    std::move(completion_callback));
-}
-
-CreateOrUpdateShortcutsHelper::CreateOrUpdateShortcutsHelper(
-    const std::vector<base::FilePath>& shortcuts,
-    const std::vector<base::win::ShortcutProperties>& properties,
-    base::win::ShortcutOperation operation,
-    win::CreateOrUpdateShortcutsResultCallback completion_callback)
-    : remote_util_win_(LaunchUtilWinServiceInstance()),
-      completion_callback_(std::move(completion_callback)) {
-  DCHECK(completion_callback_);
-
-  // |remote_util_win_| owns the callbacks and is guaranteed to be destroyed
-  // before |this|, therefore making base::Unretained() safe to use.
-  remote_util_win_.set_disconnect_handler(
-      base::BindOnce(&CreateOrUpdateShortcutsHelper::OnConnectionError,
-                     base::Unretained(this)));
-  remote_util_win_->CreateOrUpdateShortcuts(
-      shortcuts, properties, operation,
-      base::BindOnce(
-          &CreateOrUpdateShortcutsHelper::OnCreateOrUpdateShortcutResult,
-          base::Unretained(this)));
-}
-
-void CreateOrUpdateShortcutsHelper::OnConnectionError() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  std::move(completion_callback_).Run(false);
-  delete this;
-}
-
-void CreateOrUpdateShortcutsHelper::OnCreateOrUpdateShortcutResult(
-    bool succeeded) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  std::move(completion_callback_).Run(succeeded);
+  std::move(result_callback_)
+      .Run(succeeded, is_pinned_to_taskbar, is_pinned_to_taskbar_verb_check);
   delete this;
 }
 
@@ -677,8 +523,8 @@ void MigrateChromeAndChromeProxyShortcuts(
   win::MigrateShortcutsInPathInternal(chrome_proxy_path, shortcut_path);
 }
 
-std::wstring GetHttpProtocolUserChoiceProgId() {
-  std::wstring prog_id;
+base::string16 GetHttpProtocolUserChoiceProgId() {
+  base::string16 prog_id;
   base::win::RegKey key(HKEY_CURRENT_USER, ShellUtil::kRegVistaUrlPrefs,
                         KEY_QUERY_VALUE);
   if (key.Valid())
@@ -699,12 +545,8 @@ bool SetAsDefaultBrowser() {
   }
 
   // From UI currently we only allow setting default browser for current user.
-  if (!(CanSetAsDefaultDirectly()
-            ? ShellUtil::MakeChromeDefaultDirectly(
-                  ShellUtil::CURRENT_USER, chrome_exe,
-                  true /* elevate_if_not_admin */)
-            : ShellUtil::MakeChromeDefault(ShellUtil::CURRENT_USER, chrome_exe,
-                                           true /* elevate_if_not_admin */))) {
+  if (!ShellUtil::MakeChromeDefault(ShellUtil::CURRENT_USER, chrome_exe,
+                                    true /* elevate_if_not_admin */)) {
     LOG(ERROR) << "Chrome could not be set as default browser.";
     return false;
   }
@@ -726,7 +568,7 @@ bool SetAsDefaultProtocolClient(const std::string& protocol) {
     return false;
   }
 
-  std::wstring wprotocol(base::UTF8ToWide(protocol));
+  base::string16 wprotocol(base::UTF8ToUTF16(protocol));
   if (!ShellUtil::MakeChromeDefaultProtocolClient(chrome_exe, wprotocol)) {
     LOG(ERROR) << "Chrome could not be set as default handler for "
                << protocol << ".";
@@ -737,16 +579,13 @@ bool SetAsDefaultProtocolClient(const std::string& protocol) {
   return true;
 }
 
-DefaultWebClientSetPermission
-GetPlatformSpecificDefaultWebClientSetPermission() {
+DefaultWebClientSetPermission GetDefaultWebClientSetPermission() {
   if (!install_static::SupportsSetAsDefaultBrowser())
     return SET_DEFAULT_NOT_ALLOWED;
   if (ShellUtil::CanMakeChromeDefaultUnattended())
     return SET_DEFAULT_UNATTENDED;
-  if (CanSetAsDefaultDirectly())
-    return SET_DEFAULT_UNATTENDED;
-  // Setting the default web client generally requires user interaction in
-  // Windows 8+ with permitted exceptions above.
+  // Windows 8 and 10 both introduced a new way to set the default web client
+  // which require user interaction.
   return SET_DEFAULT_INTERACTIVE;
 }
 
@@ -754,10 +593,10 @@ bool IsElevationNeededForSettingDefaultProtocolClient() {
   return base::win::GetVersion() < base::win::Version::WIN8;
 }
 
-std::u16string GetApplicationNameForProtocol(const GURL& url) {
+base::string16 GetApplicationNameForProtocol(const GURL& url) {
   // Windows 8 or above has a new protocol association query.
   if (base::win::GetVersion() >= base::win::Version::WIN8) {
-    std::u16string application_name = GetAppForProtocolUsingAssocQuery(url);
+    base::string16 application_name = GetAppForProtocolUsingAssocQuery(url);
     if (!application_name.empty())
       return application_name;
   }
@@ -779,8 +618,8 @@ bool IsFirefoxDefaultBrowser() {
 }
 
 std::string GetFirefoxProgIdSuffix() {
-  const std::wstring app_cmd = GetHttpProtocolUserChoiceProgId();
-  static constexpr base::WStringPiece kFirefoxProgIdPrefix(L"FirefoxURL-");
+  const base::string16 app_cmd = GetHttpProtocolUserChoiceProgId();
+  static constexpr base::StringPiece16 kFirefoxProgIdPrefix(L"FirefoxURL-");
   if (base::StartsWith(app_cmd, kFirefoxProgIdPrefix,
                        base::CompareCase::SENSITIVE)) {
     // Returns the id that appears after the prefix "FirefoxURL-".
@@ -797,7 +636,7 @@ bool IsIEDefaultBrowser() {
 DefaultWebClientState IsDefaultProtocolClient(const std::string& protocol) {
   return GetDefaultWebClientStateFromShellUtilDefaultState(
       ShellUtil::GetChromeDefaultProtocolClientState(
-          base::UTF8ToWide(protocol)));
+          base::UTF8ToUTF16(protocol)));
 }
 
 namespace win {
@@ -842,8 +681,9 @@ void SetAsDefaultBrowserUsingSystemSettings(
   // interaction.
   static const wchar_t* const kProtocols[] = {L"http", L"https", nullptr};
   OpenSystemSettingsHelper::Begin(
-      kProtocols, base::BindOnce(&OnSettingsAppFinished, std::move(recorder),
-                                 std::move(on_finished_callback)));
+      kProtocols,
+      base::BindOnce(&OnSettingsAppFinished, base::Passed(&recorder),
+                     std::move(on_finished_callback)));
 }
 
 bool SetAsDefaultProtocolClientUsingIntentPicker(const std::string& protocol) {
@@ -856,7 +696,7 @@ bool SetAsDefaultProtocolClientUsingIntentPicker(const std::string& protocol) {
     return false;
   }
 
-  std::wstring wprotocol(base::UTF8ToWide(protocol));
+  base::string16 wprotocol(base::UTF8ToUTF16(protocol));
   if (!ShellUtil::ShowMakeChromeDefaultProtocolClientSystemUI(chrome_exe,
                                                               wprotocol)) {
     LOG(ERROR) << "Failed to launch the set-default-client Windows UI.";
@@ -878,38 +718,24 @@ void SetAsDefaultProtocolClientUsingSystemSettings(
   }
 
   // The helper manages its own lifetime.
-  std::wstring wprotocol(base::UTF8ToWide(protocol));
+  base::string16 wprotocol(base::UTF8ToUTF16(protocol));
   const wchar_t* const kProtocols[] = {wprotocol.c_str(), nullptr};
   OpenSystemSettingsHelper::Begin(kProtocols, std::move(on_finished_callback));
 
   ShellUtil::ShowMakeChromeDefaultProtocolClientSystemUI(chrome_exe, wprotocol);
 }
 
-std::wstring GetAppUserModelIdForApp(const std::wstring& app_name,
-                                     const base::FilePath& profile_path) {
+base::string16 GetAppUserModelIdForApp(const base::string16& app_name,
+                                       const base::FilePath& profile_path) {
   return GetAppUserModelIdImpl(install_static::GetBaseAppId(), app_name,
                                profile_path);
 }
 
-std::wstring GetAppUserModelIdForBrowser(const base::FilePath& profile_path) {
+base::string16 GetAppUserModelIdForBrowser(const base::FilePath& profile_path) {
   return GetAppUserModelIdImpl(
-      std::wstring(),
+      base::string16(),
       ShellUtil::GetBrowserModelId(InstallUtil::IsPerUserInstall()),
       profile_path);
-}
-
-void UnpinShortcuts(const std::vector<base::FilePath>& shortcuts,
-                    base::OnceClosure completion_callback) {
-  UnpinShortcutsHelper::DoUnpin(shortcuts, std::move(completion_callback));
-}
-
-void CreateOrUpdateShortcuts(
-    const std::vector<base::FilePath>& shortcuts,
-    const std::vector<base::win::ShortcutProperties>& properties,
-    base::win::ShortcutOperation operation,
-    win::CreateOrUpdateShortcutsResultCallback callback) {
-  CreateOrUpdateShortcutsHelper::DoCreateOrUpdateShortcuts(
-      shortcuts, properties, operation, std::move(callback));
 }
 
 void MigrateTaskbarPins(base::OnceClosure completion_callback) {
@@ -974,8 +800,8 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
                                    const base::FilePath& path) {
   // This function may load DLL's so ensure it is running in a foreground
   // thread.
-  DCHECK_GT(base::PlatformThread::GetCurrentThreadType(),
-            base::ThreadType::kBackground);
+  DCHECK_GT(base::PlatformThread::GetCurrentThreadPriority(),
+            base::ThreadPriority::BACKGROUND);
 
   // Enumerate all pinned shortcuts in the given path directly.
   base::FileEnumerator shortcuts_enum(
@@ -986,7 +812,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
 
   int shortcuts_migrated = 0;
   base::FilePath target_path;
-  std::wstring arguments;
+  base::string16 arguments;
   base::win::ScopedPropVariant propvariant;
   for (base::FilePath shortcut = shortcuts_enum.Next(); !shortcut.empty();
        shortcut = shortcuts_enum.Next()) {
@@ -1002,7 +828,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
             L"\"%ls\" %ls", target_path.value().c_str(), arguments.c_str())));
 
     // Get the expected AppId for this Chrome shortcut.
-    std::wstring expected_app_id(
+    base::string16 expected_app_id(
         GetExpectedAppId(command_line, is_per_user_install));
     if (expected_app_id.empty())
       continue;
@@ -1039,7 +865,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
             updated_properties.set_app_id(expected_app_id);
           break;
         case VT_LPWSTR:
-          if (expected_app_id != std::wstring(propvariant.get().pwszVal))
+          if (expected_app_id != base::string16(propvariant.get().pwszVal))
             updated_properties.set_app_id(expected_app_id);
           break;
         default:
@@ -1051,7 +877,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
     // Clear dual_mode property from any shortcuts that previously had it (it
     // was only ever installed on shortcuts with the
     // |default_chromium_model_id|).
-    std::wstring default_chromium_model_id(
+    base::string16 default_chromium_model_id(
         ShellUtil::GetBrowserModelId(is_per_user_install));
     if (expected_app_id == default_chromium_model_id) {
       propvariant.Reset();
@@ -1074,7 +900,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
     if (updated_properties.options &&
         base::win::CreateOrUpdateShortcutLink(
             shortcut, updated_properties,
-            base::win::ShortcutOperation::kUpdateExisting)) {
+            base::win::SHORTCUT_UPDATE_EXISTING)) {
       ++shortcuts_migrated;
     }
   }

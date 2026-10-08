@@ -1,10 +1,6 @@
 Document
-++Group
-++++Text Name='ruby base'
 ++Group IsControlElement=false
-++++Group
-++++++Text Name='ruby base'
-++Group IsControlElement=false
-++++Text Name='Hi! '
-++++Group
+++++Pane IsControlElement=false
+++++++Text IsControlElement=false
+++++++++Text Name='ruby text'
 ++++++Text Name='ruby base'

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,25 +7,18 @@
 #import <MobileCoreServices/UTCoreTypes.h>
 
 #import "base/mac/foundation_util.h"
-#import "ios/chrome/common/app_group/app_group_metrics.h"
+#include "ios/chrome/common/app_group/app_group_metrics.h"
 #import "ios/chrome/common/constants.h"
 #import "ios/chrome/common/credential_provider/credential.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/elements/highlight_button.h"
 #import "ios/chrome/credential_provider_extension/metrics_util.h"
-#import "ios/chrome/credential_provider_extension/ui/feature_flags.h"
 #import "ios/chrome/credential_provider_extension/ui/tooltip_view.h"
-#import "ios/chrome/credential_provider_extension/ui/ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
-
-// Desired space between the bottom of the nav bar and the top of the table
-// view.
-const CGFloat kTableViewTopSpace = 14;
 
 NSString* kCellIdentifier = @"cdvcCell";
 
@@ -40,8 +33,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 }  // namespace
 
-@interface CredentialDetailsViewController () <TooltipViewDelegate,
-                                               UITableViewDataSource>
+@interface CredentialDetailsViewController () <UITableViewDataSource>
 
 // Current credential.
 @property(nonatomic, weak) id<Credential> credential;
@@ -55,33 +47,13 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 @synthesize delegate;
 
-- (instancetype)init {
-  self = [super initWithStyle:UITableViewStyleInsetGrouped];
-  return self;
-}
-
 - (void)viewDidLoad {
   [super viewDidLoad];
-  UIColor* backgroundColor =
-      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
-  self.view.backgroundColor = backgroundColor;
-  UINavigationBarAppearance* appearance =
-      [[UINavigationBarAppearance alloc] init];
-  [appearance configureWithDefaultBackground];
-  appearance.backgroundColor = backgroundColor;
-  if (@available(iOS 15, *)) {
-    self.navigationItem.scrollEdgeAppearance = appearance;
-  } else {
-    // On iOS 14, scrollEdgeAppearance only affects navigation bars with large
-    // titles, so it can't be used. Instead, the navigation bar will always be
-    // the same style.
-    self.navigationItem.standardAppearance = appearance;
-  }
-  self.navigationItem.rightBarButtonItem = [self navigationEnterButton];
-  // UITableViewStyleInsetGrouped adds space to the top of the table view by
-  // default. Remove that space and add in the desired amount.
-  self.tableView.contentInset = UIEdgeInsetsMake(
-      -kUITableViewInsetGroupedTopSpace + kTableViewTopSpace, 0, 0, 0);
+  self.view.backgroundColor = [UIColor colorNamed:kBackgroundColor];
+  self.navigationController.navigationBar.translucent = NO;
+  self.navigationController.navigationBar.backgroundColor =
+      [UIColor colorNamed:kBackgroundColor];
+  self.navigationItem.rightBarButtonItem = [self navigationCancelButton];
   self.tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
 
   NSNotificationCenter* defaultCenter = [NSNotificationCenter defaultCenter];
@@ -116,8 +88,11 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
                                   reuseIdentifier:kCellIdentifier];
   }
 
+  cell.selectionStyle = UITableViewCellSelectionStyleNone;
   cell.textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
   cell.detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+  cell.contentView.backgroundColor = [UIColor colorNamed:kBackgroundColor];
+  cell.backgroundColor = [UIColor colorNamed:kBackgroundColor];
   cell.accessibilityTraits |= UIAccessibilityTraitButton;
 
   switch (indexPath.row) {
@@ -188,13 +163,6 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   }
 }
 
-#pragma mark - TooltipViewDelegate
-
-- (void)tooltipViewWillDismiss:(TooltipView*)tooltipView {
-  NSIndexPath* selectedIndexPath = self.tableView.indexPathForSelectedRow;
-  [self.tableView deselectRowAtIndexPath:selectedIndexPath animated:YES];
-}
-
 #pragma mark - Private
 
 // Copy credential URL to clipboard.
@@ -226,11 +194,6 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   [self passwordIconButtonTapped:nil event:nil];
 }
 
-// Alert the delegate that the user wants to enter this password.
-- (void)enterPassword {
-  [self.delegate userSelectedCredential:self.credential];
-}
-
 // Creates a cancel button for the navigation item.
 - (UIBarButtonItem*)navigationCancelButton {
   UIBarButtonItem* cancelButton = [[UIBarButtonItem alloc]
@@ -239,19 +202,6 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
                            action:@selector(navigationCancelButtonWasPressed:)];
   cancelButton.tintColor = [UIColor colorNamed:kBlueColor];
   return cancelButton;
-}
-
-// Creates an enter button for the navigation item
-- (UIBarButtonItem*)navigationEnterButton {
-  NSString* title =
-      NSLocalizedString(@"IDS_IOS_CREDENTIAL_PROVIDER_USE", @"Use");
-  UIBarButtonItem* enterButton =
-      [[UIBarButtonItem alloc] initWithTitle:title
-                                       style:UIBarButtonItemStyleDone
-                                      target:self
-                                      action:@selector(enterPassword)];
-  enterButton.tintColor = [UIColor colorNamed:kBlueColor];
-  return enterButton;
 }
 
 // Returns the string to display as password.
@@ -266,27 +216,32 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
                                              : @"password_reveal_icon"];
   image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 
-  HighlightButton* button = [HighlightButton buttonWithType:UIButtonTypeCustom];
+  UIButton* button = [UIButton buttonWithType:UIButtonTypeCustom];
   button.frame = CGRectMake(0.0, 0.0, image.size.width, image.size.height);
+  button.backgroundColor = [UIColor colorNamed:kBackgroundColor];
   [button setBackgroundImage:image forState:UIControlStateNormal];
   [button setTintColor:[UIColor colorNamed:kBlueColor]];
   [button addTarget:self
                 action:@selector(passwordIconButtonTapped:event:)
       forControlEvents:UIControlEventTouchUpInside];
 
-  button.pointerInteractionEnabled = YES;
-  button.pointerStyleProvider = ^UIPointerStyle*(
-      UIButton* theButton, __unused UIPointerEffect* proposedEffect,
-      __unused UIPointerShape* proposedShape) {
-    UITargetedPreview* preview =
-        [[UITargetedPreview alloc] initWithView:theButton];
-    UIPointerHighlightEffect* effect =
-        [UIPointerHighlightEffect effectWithPreview:preview];
-    UIPointerShape* shape =
-        [UIPointerShape shapeWithRoundedRect:theButton.frame
-                                cornerRadius:theButton.frame.size.width / 2];
-    return [UIPointerStyle styleWithEffect:effect shape:shape];
-  };
+#if defined(__IPHONE_13_4)
+  if (@available(iOS 13.4, *)) {
+    button.pointerInteractionEnabled = YES;
+    button.pointerStyleProvider = ^UIPointerStyle*(
+        UIButton* button, __unused UIPointerEffect* proposedEffect,
+        __unused UIPointerShape* proposedShape) {
+      UITargetedPreview* preview =
+          [[UITargetedPreview alloc] initWithView:button];
+      UIPointerHighlightEffect* effect =
+          [UIPointerHighlightEffect effectWithPreview:preview];
+      UIPointerShape* shape =
+          [UIPointerShape shapeWithRoundedRect:button.frame
+                                  cornerRadius:button.frame.size.width / 2];
+      return [UIPointerStyle styleWithEffect:effect shape:shape];
+    };
+  }
+#endif  // defined(__IPHONE_13_4)
 
   return button;
 }
@@ -331,7 +286,6 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   TooltipView* tooltip = [[TooltipView alloc] initWithKeyWindow:self.view
                                                          target:self
                                                          action:action];
-  tooltip.delegate = self;
   [tooltip showMessage:message atBottomOf:cell];
   UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification,
                                   tooltip);

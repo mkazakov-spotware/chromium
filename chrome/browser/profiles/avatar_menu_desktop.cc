@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,11 +20,9 @@ AvatarMenu::ImageLoadStatus AvatarMenu::GetImageForMenuButton(
     int preferred_size) {
   if (!g_browser_process->profile_manager())
     return ImageLoadStatus::BROWSER_SHUTTING_DOWN;
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile_path);
-  if (!entry) {
+  ProfileAttributesEntry* entry;
+  if (!g_browser_process->profile_manager()->GetProfileAttributesStorage().
+          GetProfileAttributesWithPath(profile_path, &entry)) {
     // This can happen if the user deletes the current profile.
     return ImageLoadStatus::PROFILE_DELETED;
   }

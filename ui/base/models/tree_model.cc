@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,13 @@
 
 namespace ui {
 
-void TreeModel::SetTitle(TreeModelNode* node, const std::u16string& title) {
+void TreeModel::SetTitle(TreeModelNode* node,
+                         const base::string16& title) {
   NOTREACHED();
 }
 
-absl::optional<size_t> TreeModel::GetIconIndex(TreeModelNode* node) {
-  return absl::nullopt;
+int TreeModel::GetIconIndex(TreeModelNode* node) {
+  return -1;
 }
 
 }  // namespace ui

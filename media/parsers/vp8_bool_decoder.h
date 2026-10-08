@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -47,6 +47,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "base/macros.h"
 #include "media/parsers/media_parsers_export.h"
 
 namespace media {
@@ -56,9 +57,6 @@ namespace media {
 class MEDIA_PARSERS_EXPORT Vp8BoolDecoder {
  public:
   Vp8BoolDecoder();
-
-  Vp8BoolDecoder(const Vp8BoolDecoder&) = delete;
-  Vp8BoolDecoder& operator=(const Vp8BoolDecoder&) = delete;
 
   // Initializes the decoder to start decoding |data|, |size| being size
   // of |data| in bytes. Returns false if |data| is NULL or empty.
@@ -127,6 +125,8 @@ class MEDIA_PARSERS_EXPORT Vp8BoolDecoder {
   size_t value_;
   int count_;
   size_t range_;
+
+  DISALLOW_COPY_AND_ASSIGN(Vp8BoolDecoder);
 };
 
 }  // namespace media

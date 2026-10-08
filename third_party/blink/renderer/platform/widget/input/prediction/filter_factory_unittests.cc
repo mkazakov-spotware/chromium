@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,6 @@ class FilterFactoryTest : public testing::Test {
                      PredictorType::kScrollPredictorTypeKalman,
                      FilterType::kEmpty);
   }
-  FilterFactoryTest(const FilterFactoryTest&) = delete;
-  FilterFactoryTest& operator=(const FilterFactoryTest&) = delete;
 
   void GetFilterParams(const FilterType& filter_type,
                        const PredictorType& predictor_type,
@@ -53,6 +51,8 @@ class FilterFactoryTest : public testing::Test {
 
  private:
   std::unique_ptr<FilterFactory> factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(FilterFactoryTest);
 };
 
 // Check if the FilterType returned is correct

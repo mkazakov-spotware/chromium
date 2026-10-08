@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -25,11 +26,6 @@ class WebViewUrlLanguageHistogramFactory
       WebViewBrowserState* browser_state);
   static WebViewUrlLanguageHistogramFactory* GetInstance();
 
-  WebViewUrlLanguageHistogramFactory(
-      const WebViewUrlLanguageHistogramFactory&) = delete;
-  WebViewUrlLanguageHistogramFactory& operator=(
-      const WebViewUrlLanguageHistogramFactory&) = delete;
-
  private:
   friend class base::NoDestructor<WebViewUrlLanguageHistogramFactory>;
 
@@ -41,6 +37,8 @@ class WebViewUrlLanguageHistogramFactory
       web::BrowserState* context) const override;
   void RegisterBrowserStatePrefs(
       user_prefs::PrefRegistrySyncable* registry) override;
+
+  DISALLOW_COPY_AND_ASSIGN(WebViewUrlLanguageHistogramFactory);
 };
 
 }  // namespace ios_web_view

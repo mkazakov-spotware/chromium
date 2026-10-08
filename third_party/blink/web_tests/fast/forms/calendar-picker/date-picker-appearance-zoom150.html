@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/picker-common.js"></script>
-
+<script>
+testRunner.waitUntilDone();
+</script>
+<script src="../../../fast/forms/resources/picker-common.js"></script>
 <body style="zoom: 1.5">
 <p>Calendar picker should respect zoom level.</p>
-<input type=date value="2013-01-10">
-
+<input type=date id=date value="2013-01-10">
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('input'));
+openPickerAppearanceOnly(document.getElementById('date'), () => testRunner.notifyDone());
 </script>
+</body>

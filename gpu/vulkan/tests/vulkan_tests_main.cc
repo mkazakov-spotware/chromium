@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include "base/test/launcher/unit_test_launcher.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_suite.h"
-#include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/events/platform/platform_event_source.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
+#include "ui/base/ui_base_features.h"
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
@@ -29,15 +29,17 @@ class VulkanTestSuite : public base::TestSuite {
         base::test::TaskEnvironment::MainThreadType::UI);
     platform_event_source_ = ui::PlatformEventSource::CreateDefault();
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
     // Make Ozone run in single-process mode.
-    ui::OzonePlatform::InitParams params;
-    params.single_process = true;
+    if (features::IsUsingOzonePlatform()) {
+      ui::OzonePlatform::InitParams params;
+      params.single_process = true;
 
-    // This initialization must be done after TaskEnvironment has
-    // initialized the UI thread.
-    ui::OzonePlatform::InitializeForUI(params);
-    ui::OzonePlatform::InitializeForGPU(params);
+      // This initialization must be done after TaskEnvironment has
+      // initialized the UI thread.
+      ui::OzonePlatform::InitializeForUI(params);
+      ui::OzonePlatform::InitializeForGPU(params);
+    }
 #endif
   }
 

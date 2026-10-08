@@ -1,18 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/permissions/crowd_deny_fake_safe_browsing_database_manager.h"
 
-#include "components/safe_browsing/core/browser/db/database_manager.h"
-#include "content/public/browser/browser_task_traits.h"
-#include "content/public/browser/browser_thread.h"
+#include "components/safe_browsing/core/db/database_manager.h"
 
 CrowdDenyFakeSafeBrowsingDatabaseManager::
-    CrowdDenyFakeSafeBrowsingDatabaseManager()
-    : safe_browsing::TestSafeBrowsingDatabaseManager(
-          content::GetUIThreadTaskRunner({}),
-          content::GetIOThreadTaskRunner({})) {}
+    CrowdDenyFakeSafeBrowsingDatabaseManager() = default;
 
 void CrowdDenyFakeSafeBrowsingDatabaseManager::SetSimulatedMetadataForUrl(
     const GURL& url,
@@ -20,7 +15,7 @@ void CrowdDenyFakeSafeBrowsingDatabaseManager::SetSimulatedMetadataForUrl(
   url_to_simulated_threat_metadata_[url] = metadata;
 }
 
-void CrowdDenyFakeSafeBrowsingDatabaseManager::RemoveAllBlocklistedUrls() {
+void CrowdDenyFakeSafeBrowsingDatabaseManager::RemoveAllBlacklistedUrls() {
   url_to_simulated_threat_metadata_.clear();
 }
 
@@ -29,7 +24,7 @@ CrowdDenyFakeSafeBrowsingDatabaseManager::
   EXPECT_THAT(pending_clients_, testing::IsEmpty());
 }
 
-bool CrowdDenyFakeSafeBrowsingDatabaseManager::CheckApiBlocklistUrl(
+bool CrowdDenyFakeSafeBrowsingDatabaseManager::CheckApiBlacklistUrl(
     const GURL& url,
     Client* client) {
   if (simulate_synchronous_result_)
@@ -40,7 +35,7 @@ bool CrowdDenyFakeSafeBrowsingDatabaseManager::CheckApiBlocklistUrl(
     pending_clients_.insert(client);
   } else {
     auto result = GetSimulatedMetadataOrSafe(url);
-    client->OnCheckApiBlocklistUrlResult(url, std::move(result));
+    client->OnCheckApiBlacklistUrlResult(url, std::move(result));
   }
   return false;
 }
@@ -48,6 +43,10 @@ bool CrowdDenyFakeSafeBrowsingDatabaseManager::CheckApiBlocklistUrl(
 bool CrowdDenyFakeSafeBrowsingDatabaseManager::CancelApiCheck(Client* client) {
   EXPECT_THAT(pending_clients_, testing::Contains(client));
   pending_clients_.erase(client);
+  return true;
+}
+
+bool CrowdDenyFakeSafeBrowsingDatabaseManager::IsSupported() const {
   return true;
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -177,9 +177,10 @@ public class AwImeTest {
      * keydown event.
      */
     // https://crbug.com/787651
+    // Flaky! - https://crbug.com/795423
     @Test
-    @SmallTest
-    @DisabledTest(message = "https://crbug.com/795423")
+    // @SmallTest
+    @DisabledTest
     public void testImeDpadMovesFocusOutOfWebView() throws Throwable {
         loadContentEditableBody();
         focusOnEditTextAndShowKeyboard();
@@ -242,9 +243,10 @@ public class AwImeTest {
     }
 
     // https://crbug.com/920061
+    // Flaky! - https://crbug.com/1061218
     @Test
-    @SmallTest
-    @DisabledTest(message = "https://crbug.com/1061218")
+    // @SmallTest
+    @DisabledTest
     public void testFocusAndViewSizeChangeCausesScroll() throws Throwable {
         loadBottomInputHtml();
         Rect currentRect = new Rect();

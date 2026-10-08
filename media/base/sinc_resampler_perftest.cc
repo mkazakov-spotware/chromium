@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/cpu.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "media/base/sinc_resampler.h"
@@ -18,6 +17,13 @@ static const int kBenchmarkIterations = 50000000;
 
 static const double kSampleRateRatio = 192000.0 / 44100.0;
 static const double kKernelInterpolationFactor = 0.5;
+
+// Define platform independent function name for Convolve* tests.
+#if defined(ARCH_CPU_X86_FAMILY)
+#define CONVOLVE_FUNC Convolve_SSE
+#elif defined(ARCH_CPU_ARM_FAMILY) && defined(USE_NEON)
+#define CONVOLVE_FUNC Convolve_NEON
+#endif
 
 static void RunConvolveBenchmark(
     float (*convolve_fn)(const float*, const float*, const float*, double),
@@ -45,35 +51,17 @@ TEST(SincResamplerPerfTest, Convolve_unoptimized_aligned) {
   RunConvolveBenchmark(SincResampler::Convolve_C, true, "unoptimized_aligned");
 }
 
+#if defined(CONVOLVE_FUNC)
 TEST(SincResamplerPerfTest, Convolve_optimized_aligned) {
-#if defined(ARCH_CPU_X86_FAMILY)
-  base::CPU cpu;
-  if (cpu.has_avx2()) {
-    RunConvolveBenchmark(SincResampler::Convolve_AVX2, true,
-                         "optimized_aligned");
-  } else if (cpu.has_sse2()) {
-    RunConvolveBenchmark(SincResampler::Convolve_SSE, true,
-                         "optimized_aligned");
-  }
-#elif defined(ARCH_CPU_ARM_FAMILY) && defined(USE_NEON)
-  RunConvolveBenchmark(SincResampler::Convolve_NEON, true, "optimized_aligned");
-#endif
+  RunConvolveBenchmark(SincResampler::CONVOLVE_FUNC, true, "optimized_aligned");
 }
 
 TEST(SincResamplerPerfTest, Convolve_optimized_unaligned) {
-#if defined(ARCH_CPU_X86_FAMILY)
-  base::CPU cpu;
-  if (cpu.has_avx2()) {
-    RunConvolveBenchmark(SincResampler::Convolve_AVX2, false,
-                         "optimized_unaligned");
-  } else if (cpu.has_sse2()) {
-    RunConvolveBenchmark(SincResampler::Convolve_SSE, false,
-                         "optimized_unaligned");
-  }
-#elif defined(ARCH_CPU_ARM_FAMILY) && defined(USE_NEON)
-  RunConvolveBenchmark(SincResampler::Convolve_NEON, false,
+  RunConvolveBenchmark(SincResampler::CONVOLVE_FUNC, false,
                        "optimized_unaligned");
-#endif
 }
+#endif
+
+#undef CONVOLVE_FUNC
 
 } // namespace media

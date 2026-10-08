@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.payments;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.action.ViewActions.swipeDown;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
@@ -14,13 +15,13 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import android.support.test.InstrumentationRegistry;
-import android.view.View;
+import android.support.test.uiautomator.UiDevice;
 
 import androidx.test.filters.SmallTest;
-import androidx.test.uiautomator.UiDevice;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,17 +37,15 @@ import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.StateChangeReason;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.payments.handler.PaymentHandlerCoordinator;
 import org.chromium.chrome.browser.payments.handler.PaymentHandlerCoordinator.PaymentHandlerUiObserver;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestTouchUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
+import org.chromium.ui.test.util.DisableAnimationsTestRule;
 import org.chromium.ui.test.util.UiDisableIf;
 import org.chromium.url.GURL;
 
@@ -60,6 +59,10 @@ import java.util.List;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class ExpandablePaymentHandlerTest {
+    // Disable animations to reduce flakiness.
+    @ClassRule
+    public static DisableAnimationsTestRule sNoAnimationsRule = new DisableAnimationsTestRule();
+
     // Open a tab on the blank page first to initiate the native bindings required by the test
     // server.
     @Rule
@@ -72,7 +75,6 @@ public class ExpandablePaymentHandlerTest {
     private UiDevice mDevice;
     private boolean mDefaultIsIncognito;
     private ChromeActivity mDefaultActivity;
-    private BottomSheetTestSupport mBottomSheetTestSupport;
 
     /**
      * A list of bad server-certificates used for parameterized tests.
@@ -124,8 +126,6 @@ public class ExpandablePaymentHandlerTest {
     public void setUp() throws Throwable {
         mDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
         mDefaultActivity = mRule.getActivity();
-        mBottomSheetTestSupport = new BottomSheetTestSupport(
-                mRule.getActivity().getRootUiCoordinatorForTesting().getBottomSheetController());
     }
 
     private PaymentHandlerCoordinator createPaymentHandlerAndShow(boolean isIncognito)
@@ -206,25 +206,15 @@ public class ExpandablePaymentHandlerTest {
 
     @Test
     @SmallTest
-    @DisabledTest(message = "https://crbug.com/1191988")
     @Feature({"Payments"})
     public void testSwipeDownCloseUI() throws Throwable {
         startDefaultServer();
         createPaymentHandlerAndShow(mDefaultIsIncognito);
-
         waitForUiShown();
 
-        View sheetControlContainer = mRule.getActivity().findViewById(
-                org.chromium.components.browser_ui.bottomsheet.R.id.bottom_sheet_control_container);
-        int touchX = sheetControlContainer.getWidth() / 2;
-        int startY = sheetControlContainer.getHeight() / 2;
-
-        // Swipe past the end of the screen.
-        int endY = mRule.getActivity().getResources().getDisplayMetrics().heightPixels + 100;
-
-        TestTouchUtils.dragCompleteView(InstrumentationRegistry.getInstrumentation(),
-                sheetControlContainer, touchX, touchX, startY, endY, 20);
-
+        onView(withId(org.chromium.components.browser_ui.bottomsheet.R.id
+                               .bottom_sheet_control_container))
+                .perform(swipeDown());
         waitForUiClosed();
     }
 
@@ -323,7 +313,7 @@ public class ExpandablePaymentHandlerTest {
                 .check(matches(withContentDescription("Close")));
         onView(withId(R.id.security_icon))
                 .check(matches(isDisplayed()))
-                .check(matches(withContentDescription("Connection is secure")));
+                .check(matches(withContentDescription("Connection is secure. Site information")));
         onView(withId(R.id.origin))
                 .check(matches(isDisplayed()))
                 .check(matches(withText(getOrigin(mServer))));
@@ -335,7 +325,6 @@ public class ExpandablePaymentHandlerTest {
     @Test
     @SmallTest
     @Feature({"Payments"})
-    @DisabledTest(message = "https://crbug.com/1382925")
     public void testOpenPageInfoDialog() throws Throwable {
         startDefaultServer();
         PaymentHandlerCoordinator paymentHandler = createPaymentHandlerAndShow(mDefaultIsIncognito);
@@ -345,9 +334,6 @@ public class ExpandablePaymentHandlerTest {
 
         String paymentAppUrl = mServer.getURL(
                 "/components/test/data/payments/maxpay.com/payment_handler_window.html");
-
-        // The UI only shows a hostname by default. Expand to full URL.
-        onView(withId(R.id.page_info_url_wrapper)).perform(click());
         onView(withId(R.id.page_info_url))
                 .check(matches(isDisplayed()))
                 .check(matches(withText(paymentAppUrl)));
@@ -399,7 +385,6 @@ public class ExpandablePaymentHandlerTest {
     @SmallTest
     @Feature({"Payments"})
     @ParameterAnnotations.UseMethodParameter(BadCertParams.class)
-    @DisabledTest(message = "https://crbug.com/1288003")
     public void testInsecureConnectionNotShowUi(int badCertificate) throws Throwable {
         startServer(badCertificate);
         PaymentHandlerCoordinator paymentHandler = createPaymentHandlerAndShow(mDefaultIsIncognito);
@@ -422,25 +407,9 @@ public class ExpandablePaymentHandlerTest {
 
         onView(withId(R.id.security_icon))
                 .check(matches(isDisplayed()))
-                .check(matches(withContentDescription("Connection is secure")));
+                .check(matches(withContentDescription("Connection is secure. Site information")));
 
         mRule.runOnUiThread(() -> paymentHandler.hide());
-        waitForUiClosed();
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Payments"})
-    public void testBottomSheetSuppressedFailsShow() {
-        startDefaultServer();
-        PaymentHandlerCoordinator paymentHandler = new PaymentHandlerCoordinator();
-        mBottomSheetTestSupport.suppressSheet(StateChangeReason.UNKNOWN);
-        mRule.runOnUiThread(() -> {
-            Assert.assertNull(paymentHandler.show(mDefaultActivity.getCurrentWebContents(),
-                    defaultPaymentAppUrl(), mDefaultIsIncognito, defaultUiObserver()));
-            // When the return value is null, the caller needs to hide() manually.
-            paymentHandler.hide();
-        });
         waitForUiClosed();
     }
 }

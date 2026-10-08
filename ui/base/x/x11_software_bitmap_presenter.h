@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 #define UI_BASE_X_X11_SOFTWARE_BITMAP_PRESENTER_H_
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "ui/gfx/geometry/rect.h"
@@ -31,10 +31,6 @@ class COMPONENT_EXPORT(UI_BASE_X) X11SoftwareBitmapPresenter {
   X11SoftwareBitmapPresenter(x11::Connection* connection,
                              gfx::AcceleratedWidget widget,
                              bool enable_multibuffering);
-
-  X11SoftwareBitmapPresenter(const X11SoftwareBitmapPresenter&) = delete;
-  X11SoftwareBitmapPresenter& operator=(const X11SoftwareBitmapPresenter&) =
-      delete;
 
   ~X11SoftwareBitmapPresenter();
 
@@ -60,7 +56,7 @@ class COMPONENT_EXPORT(UI_BASE_X) X11SoftwareBitmapPresenter {
   bool ShmPoolReady() const;
 
   x11::Window widget_;
-  raw_ptr<x11::Connection> connection_;
+  x11::Connection* connection_;
   x11::GraphicsContext gc_{};
   x11::VisualId visual_{};
   int depth_ = 0;
@@ -69,7 +65,7 @@ class COMPONENT_EXPORT(UI_BASE_X) X11SoftwareBitmapPresenter {
 
   // If nonzero, indicates that the widget should be drawn over its
   // parent-relative background.
-  uint8_t composite_ = 0;
+  int composite_ = 0;
 
   std::unique_ptr<ui::XShmImagePool> shm_pool_;
   bool needs_swap_ = false;
@@ -79,6 +75,8 @@ class COMPONENT_EXPORT(UI_BASE_X) X11SoftwareBitmapPresenter {
   gfx::Size viewport_pixel_size_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(X11SoftwareBitmapPresenter);
 };
 
 }  // namespace ui

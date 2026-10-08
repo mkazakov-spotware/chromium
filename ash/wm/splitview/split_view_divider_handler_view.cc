@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "ash/wm/splitview/split_view_constants.h"
 #include "ash/wm/splitview/split_view_utils.h"
 #include "base/timer/timer.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/views/background.h"
@@ -36,9 +35,6 @@ class SplitViewDividerHandlerView::SelectionAnimation
     SetTweenType(gfx::Tween::EASE_IN);
   }
 
-  SelectionAnimation(const SelectionAnimation&) = delete;
-  SelectionAnimation& operator=(const SelectionAnimation&) = delete;
-
   ~SelectionAnimation() override = default;
 
   void UpdateWhiteHandlerBounds() {
@@ -59,6 +55,8 @@ class SplitViewDividerHandlerView::SelectionAnimation
   }
 
   SplitViewDividerHandlerView* white_handler_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(SelectionAnimation);
 };
 
 class SplitViewDividerHandlerView::SpawningAnimation
@@ -76,9 +74,6 @@ class SplitViewDividerHandlerView::SpawningAnimation
     SetSlideDuration(kSplitviewDividerSpawnDuration);
     SetTweenType(gfx::Tween::LINEAR_OUT_SLOW_IN);
   }
-
-  SpawningAnimation(const SpawningAnimation&) = delete;
-  SpawningAnimation& operator=(const SpawningAnimation&) = delete;
 
   ~SpawningAnimation() override = default;
 
@@ -117,6 +112,8 @@ class SplitViewDividerHandlerView::SpawningAnimation
   SplitViewDividerHandlerView* white_handler_view_;
   int spawn_signed_offset_;
   base::OneShotTimer delay_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(SpawningAnimation);
 };
 
 SplitViewDividerHandlerView::SplitViewDividerHandlerView()
@@ -145,7 +142,7 @@ void SplitViewDividerHandlerView::Refresh(bool is_resizing) {
     selection_animation_->Hide();
 }
 
-void SplitViewDividerHandlerView::UpdateCornerRadius(float radius) {
+void SplitViewDividerHandlerView::UpdateCornerRadius(int radius) {
   layer()->SetRoundedCornerRadius(gfx::RoundedCornersF{radius});
 }
 

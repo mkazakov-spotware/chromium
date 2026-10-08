@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 
 namespace remoting {
 
@@ -17,15 +18,14 @@ namespace remoting {
 // called on the UI thread.
 class It2MeConfirmationDialog {
  public:
-  enum class Result { OK, CANCEL };
-  enum class DialogStyle {
-    kEnterprise,
-    kConsumer,
+  enum class Result {
+    OK,
+    CANCEL
   };
 
   typedef base::OnceCallback<void(Result)> ResultCallback;
 
-  virtual ~It2MeConfirmationDialog() = default;
+  virtual ~It2MeConfirmationDialog() {}
 
   // Shows the dialog. |callback| will be called with the user's selection.
   // |callback| will not be called if the dialog is destroyed.
@@ -35,23 +35,13 @@ class It2MeConfirmationDialog {
 
 class It2MeConfirmationDialogFactory {
  public:
-  explicit It2MeConfirmationDialogFactory(
-      It2MeConfirmationDialog::DialogStyle dialog_style)
-      : dialog_style_(dialog_style) {}
-
-  It2MeConfirmationDialogFactory(const It2MeConfirmationDialogFactory&) =
-      delete;
-  It2MeConfirmationDialogFactory& operator=(
-      const It2MeConfirmationDialogFactory&) = delete;
-
-  virtual ~It2MeConfirmationDialogFactory() = default;
+  It2MeConfirmationDialogFactory() {}
+  virtual ~It2MeConfirmationDialogFactory() {}
 
   virtual std::unique_ptr<It2MeConfirmationDialog> Create();
 
  private:
-  // This field is only used on ChromeOS.
-  [[maybe_unused]] It2MeConfirmationDialog::DialogStyle dialog_style_ =
-      It2MeConfirmationDialog::DialogStyle::kConsumer;
+  DISALLOW_COPY_AND_ASSIGN(It2MeConfirmationDialogFactory);
 };
 
 }  // namespace remoting

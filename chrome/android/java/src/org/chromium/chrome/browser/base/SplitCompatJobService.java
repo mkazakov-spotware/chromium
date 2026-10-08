@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,12 +31,12 @@ public class SplitCompatJobService extends JobService {
     @Override
     protected void attachBaseContext(Context context) {
         // Make sure specified split is installed, otherwise fall back to chrome split.
-        if (mSplitName != null && BundleUtils.isIsolatedSplitInstalled(mSplitName)) {
+        if (mSplitName != null && BundleUtils.isIsolatedSplitInstalled(context, mSplitName)) {
             context = BundleUtils.createIsolatedSplitContext(context, mSplitName);
         } else {
-            context = SplitCompatApplication.createChromeContext(context);
+            context = SplitCompatUtils.createChromeContext(context);
         }
-        mImpl = (Impl) BundleUtils.newInstance(context, mServiceClassName);
+        mImpl = (Impl) SplitCompatUtils.newInstance(context, mServiceClassName);
         mImpl.setService(this);
         super.attachBaseContext(context);
     }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,7 @@ class CastAudioInputStream : public ::media::AudioInputStream,
   ~CastAudioInputStream() override;
 
   // ::media::AudioInputStream implementation:
-  ::media::AudioInputStream::OpenOutcome Open() override;
+  bool Open() override;
   void Start(AudioInputCallback* source_callback) override;
   void Stop() override;
   void Close() override;
@@ -53,7 +53,6 @@ class CastAudioInputStream : public ::media::AudioInputStream,
       const capture_service::StreamInfo& stream_info) override;
   bool OnCaptureData(const char* data, size_t size) override;
   void OnCaptureError() override;
-  void OnCaptureMetadata(const char* data, size_t size) override;
 
  private:
   // Hold a raw pointer to audio manager to inform releasing |this|. The pointer

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,21 @@
 #include "ui/gfx/geometry/mojom/geometry_mojom_traits.h"
 
 namespace mojo {
+
+template <>
+class StructTraits<media::mojom::ScalingSettingsDataView,
+                   media::ScalingSettings> {
+ public:
+  static int32_t min_qp(const media::ScalingSettings& scaling_settings) {
+    return scaling_settings.min_qp;
+  }
+  static int32_t max_qp(const media::ScalingSettings& scaling_settings) {
+    return scaling_settings.max_qp;
+  }
+
+  static bool Read(media::mojom::ScalingSettingsDataView data,
+                   media::ScalingSettings* out);
+};
 
 template <>
 class StructTraits<media::mojom::ResolutionBitrateLimitDataView,
@@ -60,9 +75,9 @@ class StructTraits<media::mojom::VideoEncoderInfoDataView,
       const media::VideoEncoderInfo& video_encoder_info) {
     return video_encoder_info.supports_simulcast;
   }
-  static bool reports_average_qp(
+  static const base::Optional<media::ScalingSettings>& scaling_settings(
       const media::VideoEncoderInfo& video_encoder_info) {
-    return video_encoder_info.reports_average_qp;
+    return video_encoder_info.scaling_settings;
   }
   static base::span<const std::vector<uint8_t>,
                     media::VideoEncoderInfo::kMaxSpatialLayers>

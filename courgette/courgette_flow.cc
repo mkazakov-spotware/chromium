@@ -1,12 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "courgette/courgette_flow.h"
 
 #include <stdarg.h>
-
-#include <memory>
 
 #include "base/check.h"
 #include "base/files/file_path.h"
@@ -126,7 +124,7 @@ void CourgetteFlow::CreateEncodedProgramFromDisassemblerAndAssemblyProgram(
   if (failed())
     return;
   Data* d = data(group);
-  d->encoded = std::make_unique<EncodedProgram>();
+  d->encoded.reset(new EncodedProgram());
   if (!check(d->disassembler->DisassembleAndEncode(d->program.get(),
                                                    d->encoded.get()))) {
     setMessage("Cannot disassemble to form EncodedProgram for %s.",

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar_delegate.h"
+#include "weblayer/browser/android/resource_mapper.h"
+#include "weblayer/browser/infobar_service.h"
 #include "weblayer/browser/java/test_jni/TestInfoBar_jni.h"
 
 using base::android::JavaParamRef;
@@ -19,9 +20,9 @@ namespace weblayer {
 
 class TestInfoBarDelegate : public infobars::InfoBarDelegate {
  public:
-  TestInfoBarDelegate() = default;
+  TestInfoBarDelegate() {}
 
-  ~TestInfoBarDelegate() override = default;
+  ~TestInfoBarDelegate() override {}
 
   infobars::InfoBarDelegate::InfoBarIdentifier GetIdentifier() const override {
     return InfoBarDelegate::InfoBarIdentifier::TEST_INFOBAR;
@@ -29,23 +30,21 @@ class TestInfoBarDelegate : public infobars::InfoBarDelegate {
 };
 
 TestInfoBar::TestInfoBar(std::unique_ptr<TestInfoBarDelegate> delegate)
-    : infobars::InfoBarAndroid(std::move(delegate)) {}
+    : infobars::InfoBarAndroid(std::move(delegate),
+                               base::BindRepeating(&MapToJavaDrawableId)) {}
 
-TestInfoBar::~TestInfoBar() = default;
+TestInfoBar::~TestInfoBar() {}
 
 void TestInfoBar::ProcessButton(int action) {}
 
-ScopedJavaLocalRef<jobject> TestInfoBar::CreateRenderInfoBar(
-    JNIEnv* env,
-    const ResourceIdMapper& resource_id_mapper) {
+ScopedJavaLocalRef<jobject> TestInfoBar::CreateRenderInfoBar(JNIEnv* env) {
   return Java_TestInfoBar_create(env);
 }
 
 // static
 void TestInfoBar::Show(content::WebContents* web_contents) {
-  infobars::ContentInfoBarManager* manager =
-      infobars::ContentInfoBarManager::FromWebContents(web_contents);
-  manager->AddInfoBar(
+  InfoBarService* service = InfoBarService::FromWebContents(web_contents);
+  service->AddInfoBar(
       std::make_unique<TestInfoBar>(std::make_unique<TestInfoBarDelegate>()));
 }
 

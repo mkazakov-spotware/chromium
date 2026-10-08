@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,13 @@
 #include "base/bind.h"
 #include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/optional.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/win/core_winrt_util.h"
 #include "services/device/public/cpp/device_features.h"
 #include "services/device/public/cpp/geolocation/geoposition.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace device {
-
-class GeolocationManager;
-
 namespace {
 using ABI::Windows::Devices::Enumeration::DeviceAccessStatus;
 using ABI::Windows::Devices::Enumeration::DeviceClass;
@@ -72,20 +69,20 @@ bool IsWinRTSupported() {
 }
 
 template <typename F>
-absl::optional<DOUBLE> GetOptionalDouble(F&& getter) {
+base::Optional<DOUBLE> GetOptionalDouble(F&& getter) {
   DOUBLE value = 0;
   HRESULT hr = getter(&value);
   if (SUCCEEDED(hr))
     return value;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 template <typename F>
-absl::optional<DOUBLE> GetReferenceOptionalDouble(F&& getter) {
+base::Optional<DOUBLE> GetReferenceOptionalDouble(F&& getter) {
   IReference<DOUBLE>* reference_value;
   HRESULT hr = getter(&reference_value);
   if (!SUCCEEDED(hr) || !reference_value)
-    return absl::nullopt;
+    return base::nullopt;
   return GetOptionalDouble([&](DOUBLE* value) -> HRESULT {
     return reference_value->get_Value(value);
   });
@@ -244,7 +241,7 @@ void LocationProviderWinrt::RegisterCallbacks() {
     hr = geo_locator_->add_PositionChanged(
         Microsoft::WRL::Callback<
             ITypedEventHandler<Geolocator*, PositionChangedEventArgs*>>(
-            [task_runner(base::SingleThreadTaskRunner::GetCurrentDefault()),
+            [task_runner(base::ThreadTaskRunnerHandle::Get()),
              callback(
                  base::BindRepeating(&LocationProviderWinrt::OnPositionChanged,
                                      weak_ptr_factory_.GetWeakPtr()))](
@@ -282,7 +279,7 @@ void LocationProviderWinrt::RegisterCallbacks() {
     hr = geo_locator_->add_StatusChanged(
         Microsoft::WRL::Callback<
             ITypedEventHandler<Geolocator*, StatusChangedEventArgs*>>(
-            [task_runner(base::SingleThreadTaskRunner::GetCurrentDefault()),
+            [task_runner(base::ThreadTaskRunnerHandle::Get()),
              callback(
                  base::BindRepeating(&LocationProviderWinrt::OnStatusChanged,
                                      weak_ptr_factory_.GetWeakPtr()))](
@@ -364,8 +361,9 @@ void LocationProviderWinrt::OnPositionChanged(
         base::TimeTicks::Now() - position_callback_initialized_time_;
 
     UmaHistogramCustomTimes("Windows.RT.LocationRequest.TimeToFirstPosition",
-                            time_to_first_position, base::Milliseconds(1),
-                            base::Seconds(10), 100);
+                            time_to_first_position,
+                            base::TimeDelta::FromMilliseconds(1),
+                            base::TimeDelta::FromSeconds(10), 100);
     position_received_ = true;
   }
   RecordUmaEvent(WindowsRTLocationRequestEvent::
@@ -458,9 +456,8 @@ HRESULT LocationProviderWinrt::GetGeolocator(IGeolocator** geo_locator) {
   return hr;
 }
 
-std::unique_ptr<LocationProvider> NewSystemLocationProvider(
-    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
-    GeolocationManager* geolocation_manager) {
+// static
+std::unique_ptr<LocationProvider> NewSystemLocationProvider() {
   if (!base::FeatureList::IsEnabled(
           features::kWinrtGeolocationImplementation) ||
       !IsWinRTSupported() || !IsSystemLocationSettingEnabled()) {

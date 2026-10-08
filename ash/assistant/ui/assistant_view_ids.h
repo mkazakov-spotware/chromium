@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,24 +34,6 @@ enum AssistantViewID {
   kUiElementContainer,
   kZeroStateView,
   kOnboardingView,
-  kHorizontalSeparator,
-
-  // UIs in OptInView
-  kOptInViewStyledLabel,
-
-  // UIs in QueryView
-  kHighConfidenceLabel,
-  kLowConfidenceLabel,
-
-  // UIs in UiElementContainer
-  kOverflowIndicator,
-  kAshWebView,
-
-  // UIs in AssistantOnboardingSuggestionView
-  kAssistantOnboardingSuggestionViewLabel,
-
-  // UIs in SuggestionChipView
-  kSuggestionChipViewLabel
 };
 
 }  // namespace ash

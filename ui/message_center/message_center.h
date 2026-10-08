@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,10 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "ui/message_center/message_center_export.h"
 #include "ui/message_center/message_center_types.h"
 #include "ui/message_center/notification_list.h"
-#include "ui/message_center/public/cpp/notification.h"
-#include "ui/message_center/public/cpp/notifier_id.h"
 
 class DownloadNotification;
 class DownloadNotificationTestBase;
@@ -66,9 +65,6 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
   // Destroys the global message_center object.
   static void Shutdown();
 
-  MessageCenter(const MessageCenter&) = delete;
-  MessageCenter& operator=(const MessageCenter&) = delete;
-
   // Management of the observer list.
   virtual void AddObserver(MessageCenterObserver* observer) = 0;
   virtual void RemoveObserver(MessageCenterObserver* observer) = 0;
@@ -80,17 +76,6 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
 
   // Returns true if chrome vox spoken feedback is enabled.
   virtual bool IsSpokenFeedbackEnabled() const = 0;
-
-  // Returns the notification with the corresponding id. If not found, returns
-  // nullptr. Notification instance is owned by this list.
-  virtual Notification* FindNotificationById(const std::string& id) = 0;
-
-  // Find the parent notification for the corresponding notification. This is
-  // the oldest notification with the same url. Returns nullptr if not found.
-  // The returned instance is owned by the message center.
-  virtual Notification* FindParentNotification(Notification* notification) = 0;
-
-  virtual Notification* FindPopupNotificationById(const std::string& id) = 0;
 
   // Find the notification with the corresponding id. Returns null if not
   // found. The returned instance is owned by the message center.
@@ -110,19 +95,10 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
   // in this list.
   virtual const NotificationList::Notifications& GetVisibleNotifications() = 0;
 
-  // Gets all notifications being shown as popups. This should not be affected
+  // Gets all notifications being shown as popups.  This should not be affected
   // by the change queue since notifications are not held up while the state is
   // VISIBILITY_TRANSIENT or VISIBILITY_SETTINGS.
-  //
-  // Popups returned by this method are assumed to have now been shown to the
-  // user.
   virtual NotificationList::PopupNotifications GetPopupNotifications() = 0;
-
-  // Gets all notifications that would be popups if not for the given blocker.
-  // Ignores limits in the number of popups (e.g. for screen space).
-  virtual NotificationList::PopupNotifications
-  GetPopupNotificationsWithoutBlocker(
-      const NotificationBlocker& blocker) const = 0;
 
   // Management of NotificationBlockers.
   virtual void AddNotificationBlocker(NotificationBlocker* blocker) = 0;
@@ -146,7 +122,7 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
 
   // Sets the icon image. Icon appears at the top-left of the notification.
   virtual void SetNotificationIcon(const std::string& notification_id,
-                                   const ui::ImageModel& image) = 0;
+                                   const gfx::Image& image) = 0;
 
   // Sets the large image for the notifications of type == TYPE_IMAGE. Specified
   // image will appear below of the notification.
@@ -170,7 +146,7 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
   virtual void ClickOnNotificationButtonWithReply(
       const std::string& id,
       int button_index,
-      const std::u16string& reply) = 0;
+      const base::string16& reply) = 0;
 
   // Called by the UI classes when the settings buttons is clicked
   // to trigger the notification's delegate and update the message
@@ -189,18 +165,12 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
   virtual void MarkSinglePopupAsShown(const std::string& id,
                                       bool mark_notification_as_read) = 0;
 
-  // Resets the timer for the popup associated with the provided notification
-  // id.
-  virtual void ResetPopupTimer(const std::string& id) = 0;
-
-  // Resets the state for a popup so it is shown again.
-  virtual void ResetSinglePopup(const std::string& id) = 0;
-
   // This should be called by UI classes when a notification is first displayed
   // to the user, in order to decrement the unread_count for the tray, and to
   // notify observers that the notification is visible.
-  virtual void DisplayedNotification(const std::string& id,
-                                     const DisplaySource source) = 0;
+  virtual void DisplayedNotification(
+      const std::string& id,
+      const DisplaySource source) = 0;
 
   // This can be called to change the quiet mode state (without a timeout).
   virtual void SetQuietMode(bool in_quiet_mode) = 0;
@@ -238,11 +208,8 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
   // used to identify the application that generated a notification. Only used
   // for MD style notifications, which means that currently it's only set and
   // used on Chrome OS. On Chrome OS, this is "Chrome OS".
-  virtual const std::u16string& GetSystemNotificationAppName() const = 0;
-  virtual void SetSystemNotificationAppName(const std::u16string& name) = 0;
-
-  // Called when a message view associated with `notification_id` is hovered on.
-  virtual void OnMessageViewHovered(const std::string& notification_id) = 0;
+  virtual const base::string16& GetSystemNotificationAppName() const = 0;
+  virtual void SetSystemNotificationAppName(const base::string16& name) = 0;
 
  protected:
   friend class ::DownloadNotification;
@@ -250,7 +217,6 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
   friend class MessageCenterImplTest;
   friend class MessageCenterImplTestWithChangeQueue;
   friend class MessageCenterImplTestWithoutChangeQueue;
-  friend class NotificationViewControllerTest;
   friend class UiControllerTest;
   friend class TrayViewControllerTest;
   friend class MessagePopupCollectionTest;
@@ -258,6 +224,9 @@ class MESSAGE_CENTER_EXPORT MessageCenter {
 
   MessageCenter();
   virtual ~MessageCenter();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MessageCenter);
 };
 
 }  // namespace message_center

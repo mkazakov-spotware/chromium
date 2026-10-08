@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "components/cronet/cronet_url_request.h"
@@ -27,7 +27,7 @@ class UploadDataStream;
 
 namespace cronet {
 
-class CronetContextAdapter;
+class CronetURLRequestContextAdapter;
 class TestUtil;
 
 // An adapter from Java CronetUrlRequest object to native CronetURLRequest.
@@ -43,23 +43,19 @@ class CronetURLRequestAdapter : public CronetURLRequest::Callback {
   // causes connection migration to be disabled for this request if true. If
   // global connection migration flag is not enabled,
   // |jdisable_connection_migration| has no effect.
-  CronetURLRequestAdapter(CronetContextAdapter* context,
+  CronetURLRequestAdapter(CronetURLRequestContextAdapter* context,
                           JNIEnv* env,
                           jobject jurl_request,
                           const GURL& url,
                           net::RequestPriority priority,
                           jboolean jdisable_cache,
                           jboolean jdisable_connection_migration,
+                          jboolean jenable_metrics,
                           jboolean jtraffic_stats_tag_set,
                           jint jtraffic_stats_tag,
                           jboolean jtraffic_stats_uid_set,
                           jint jtraffic_stats_uid,
-                          net::Idempotency idempotency,
-                          jlong network);
-
-  CronetURLRequestAdapter(const CronetURLRequestAdapter&) = delete;
-  CronetURLRequestAdapter& operator=(const CronetURLRequestAdapter&) = delete;
-
+                          net::Idempotency idempotency);
   ~CronetURLRequestAdapter() override;
 
   // Methods called prior to Start are never called on network thread.
@@ -146,9 +142,7 @@ class CronetURLRequestAdapter : public CronetURLRequest::Callback {
                           const base::TimeTicks& request_end,
                           bool socket_reused,
                           int64_t sent_bytes_count,
-                          int64_t received_bytes_count,
-                          bool quic_connection_migration_attempted,
-                          bool quic_connection_migration_successful) override;
+                          int64_t received_bytes_count) override;
 
   void OnStatus(
       const base::android::ScopedJavaGlobalRef<jobject>& status_listener_ref,
@@ -158,10 +152,12 @@ class CronetURLRequestAdapter : public CronetURLRequest::Callback {
   friend class TestUtil;
 
   // Native Cronet URL Request that owns |this|.
-  raw_ptr<CronetURLRequest> request_;
+  CronetURLRequest* request_;
 
-  // Java object that owns this CronetContextAdapter.
+  // Java object that owns this CronetURLRequestContextAdapter.
   base::android::ScopedJavaGlobalRef<jobject> owner_;
+
+  DISALLOW_COPY_AND_ASSIGN(CronetURLRequestAdapter);
 };
 
 }  // namespace cronet

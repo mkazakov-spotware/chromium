@@ -31,6 +31,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_EXPORTED_WRAPPED_RESOURCE_REQUEST_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_EXPORTED_WRAPPED_RESOURCE_REQUEST_H_
 
+#include "base/macros.h"
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
@@ -40,8 +41,6 @@ namespace blink {
 // but just holds a pointer to it. It is not copyable.
 class WrappedResourceRequest : public WebURLRequest {
  public:
-  WrappedResourceRequest(const WrappedResourceRequest&) = delete;
-  WrappedResourceRequest& operator=(const WrappedResourceRequest&) = delete;
   ~WrappedResourceRequest() = default;
 
   explicit WrappedResourceRequest(ResourceRequest& resource_request)
@@ -50,8 +49,11 @@ class WrappedResourceRequest : public WebURLRequest {
   explicit WrappedResourceRequest(const ResourceRequest& resource_request)
       : WrappedResourceRequest(const_cast<ResourceRequest&>(resource_request)) {
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WrappedResourceRequest);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_EXPORTED_WRAPPED_RESOURCE_REQUEST_H_
+#endif

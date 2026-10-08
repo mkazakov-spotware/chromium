@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,14 @@
 #include "components/consent_auditor/consent_auditor_impl.h"
 #include "components/consent_auditor/consent_sync_bridge.h"
 #include "components/consent_auditor/consent_sync_bridge_impl.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_service.h"
 #include "components/sync/base/report_unrecoverable_error.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "components/sync/model/model_type_store_service.h"
+#include "components/sync/model_impl/client_tag_based_model_type_processor.h"
+#include "components/version_info/version_info.h"
 
 // static
 ConsentAuditorFactory* ConsentAuditorFactory::GetInstance() {
@@ -39,7 +44,9 @@ consent_auditor::ConsentAuditor* ConsentAuditorFactory::GetForProfile(
 }
 
 ConsentAuditorFactory::ConsentAuditorFactory()
-    : ProfileKeyedServiceFactory("ConsentAuditor") {
+    : BrowserContextKeyedServiceFactory(
+          "ConsentAuditor",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(ModelTypeStoreServiceFactory::GetInstance());
 }
 
@@ -63,8 +70,16 @@ KeyedService* ConsentAuditorFactory::BuildServiceInstanceFor(
           std::move(store_factory), std::move(change_processor));
 
   return new consent_auditor::ConsentAuditorImpl(
-      std::move(consent_sync_bridge),
-      // The locale doesn't change at runtime, so we can pass it directly.
+      profile->GetPrefs(), std::move(consent_sync_bridge),
+      // The browser version and locale do not change runtime, so we can pass
+      // them directly.
+      version_info::GetVersionNumber(),
       g_browser_process->GetApplicationLocale(),
       base::DefaultClock::GetInstance());
+}
+
+// static
+void ConsentAuditorFactory::RegisterProfilePrefs(
+    user_prefs::PrefRegistrySyncable* registry) {
+  consent_auditor::ConsentAuditorImpl::RegisterProfilePrefs(registry);
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "base/component_export.h"
+#include "base/macros.h"
 
 // TODO(kinuko): Split this file into per-observer multiple files.
 
@@ -30,14 +31,15 @@ class FileSystemURL;
 // sandboxed files (where usage is tracked).
 class COMPONENT_EXPORT(STORAGE_BROWSER) FileUpdateObserver {
  public:
-  FileUpdateObserver() = default;
-  FileUpdateObserver(const FileUpdateObserver&) = delete;
-  FileUpdateObserver& operator=(const FileUpdateObserver&) = delete;
-  virtual ~FileUpdateObserver() = default;
+  FileUpdateObserver() {}
+  virtual ~FileUpdateObserver() {}
 
   virtual void OnStartUpdate(const FileSystemURL& url) = 0;
   virtual void OnUpdate(const FileSystemURL& url, int64_t delta) = 0;
   virtual void OnEndUpdate(const FileSystemURL& url) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FileUpdateObserver);
 };
 
 // An abstract interface to observe file access.
@@ -46,12 +48,13 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileUpdateObserver {
 // is recursive or not)
 class COMPONENT_EXPORT(STORAGE_BROWSER) FileAccessObserver {
  public:
-  FileAccessObserver() = default;
-  FileAccessObserver(const FileAccessObserver&) = delete;
-  FileAccessObserver& operator=(const FileAccessObserver&) = delete;
-  virtual ~FileAccessObserver() = default;
+  FileAccessObserver() {}
+  virtual ~FileAccessObserver() {}
 
   virtual void OnAccess(const FileSystemURL& url) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FileAccessObserver);
 };
 
 // An abstract interface to observe file changes.
@@ -61,10 +64,8 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileAccessObserver {
 // by the local sandbox file system.
 class COMPONENT_EXPORT(STORAGE_BROWSER) FileChangeObserver {
  public:
-  FileChangeObserver() = default;
-  FileChangeObserver(const FileChangeObserver&) = delete;
-  FileChangeObserver& operator=(const FileChangeObserver&) = delete;
-  virtual ~FileChangeObserver() = default;
+  FileChangeObserver() {}
+  virtual ~FileChangeObserver() {}
 
   virtual void OnCreateFile(const FileSystemURL& url) = 0;
   virtual void OnCreateFileFrom(const FileSystemURL& url,
@@ -74,6 +75,9 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileChangeObserver {
 
   virtual void OnCreateDirectory(const FileSystemURL& url) = 0;
   virtual void OnRemoveDirectory(const FileSystemURL& url) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FileChangeObserver);
 };
 
 }  // namespace storage

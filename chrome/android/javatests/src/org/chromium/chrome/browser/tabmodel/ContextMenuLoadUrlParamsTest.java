@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,10 @@ import androidx.test.filters.MediumTest;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.R;
@@ -26,17 +23,16 @@ import org.chromium.chrome.browser.app.tabmodel.AsyncTabParamsManagerSingleton;
 import org.chromium.chrome.browser.app.tabmodel.ChromeTabModelFilterFactory;
 import org.chromium.chrome.browser.app.tabmodel.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
-import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
-import org.chromium.chrome.test.util.browser.contextmenu.ContextMenuUtils;
+import org.chromium.chrome.test.util.browser.contextmenu.RevampedContextMenuUtils;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.net.test.EmbeddedTestServer;
 
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
@@ -46,45 +42,41 @@ import java.util.regex.Pattern;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class ContextMenuLoadUrlParamsTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, true);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private static final String HTML_PATH =
             "/chrome/test/data/android/contextmenu/context_menu_test.html";
     private static final Pattern SCHEME_SEPARATOR_RE = Pattern.compile("://");
 
     // Load parameters of the last call to openNewTab().
-    private static LoadUrlParams sOpenNewTabLoadUrlParams;
+    LoadUrlParams mOpenNewTabLoadUrlParams;
+
+    private EmbeddedTestServer mTestServer;
 
     // Records parameters of calls to TabModelSelector methods and otherwise behaves like
     // TabModelSelectorImpl.
-    private static class RecordingTabModelSelector extends TabModelSelectorImpl {
+    class RecordingTabModelSelector extends TabModelSelectorImpl {
         @Override
         public Tab openNewTab(LoadUrlParams loadUrlParams, @TabLaunchType int type, Tab parent,
                 boolean incognito) {
-            sOpenNewTabLoadUrlParams = loadUrlParams;
+            mOpenNewTabLoadUrlParams = loadUrlParams;
             return super.openNewTab(loadUrlParams, type, parent, incognito);
         }
 
         public RecordingTabModelSelector(Activity activity, TabCreatorManager tabCreatorManager,
                 TabModelFilterFactory tabModelFilterFactory, int selectorIndex) {
-            super(null, tabCreatorManager, tabModelFilterFactory,
+            super(activity, null, tabCreatorManager,
+                    new TabbedModeTabPersistencePolicy(selectorIndex, false), tabModelFilterFactory,
                     ()
                             -> NextTabPolicy.HIERARCHICAL,
-                    AsyncTabParamsManagerSingleton.getInstance(), false, ActivityType.TABBED,
-                    false);
+                    AsyncTabParamsManagerSingleton.getInstance(), false, false, false);
         }
     }
 
-    @BeforeClass
-    public static void beforeClass() throws Exception {
+    @Before
+    public void setUp() throws Exception {
         // Plant RecordingTabModelSelector as the TabModelSelector used in Main. The factory has to
         // be set before super.setUp(), as super.setUp() creates Main and consequently the
         // TabModelSelector.
@@ -95,21 +87,21 @@ public class ContextMenuLoadUrlParamsTest {
                             TabCreatorManager tabCreatorManager,
                             NextTabPolicySupplier nextTabPolicySupplier, int selectorIndex) {
                         return new RecordingTabModelSelector(activity, tabCreatorManager,
-                                new ChromeTabModelFilterFactory(activity), selectorIndex);
+                                new ChromeTabModelFilterFactory(), selectorIndex);
                     }
                 });
-    }
-
-    @Before
-    public void setUp() throws Exception {
+        mActivityTestRule.startMainActivityOnBlankPage();
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> { FirstRunStatus.setFirstRunFlowComplete(true); });
+
+        mTestServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
     }
 
     @After
     public void tearDown() {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> { FirstRunStatus.setFirstRunFlowComplete(false); });
+        mTestServer.stopAndDestroyServer();
     }
 
     /**
@@ -119,12 +111,12 @@ public class ContextMenuLoadUrlParamsTest {
     @MediumTest
     @Feature({"Browser"})
     public void testOpenInNewTabReferrer() throws TimeoutException {
-        triggerContextMenuLoad(sActivityTestRule.getTestServer().getURL(HTML_PATH), "testLink",
+        triggerContextMenuLoad(mTestServer.getURL(HTML_PATH), "testLink",
                 R.id.contextmenu_open_in_new_tab);
 
-        Assert.assertNotNull(sOpenNewTabLoadUrlParams);
-        Assert.assertEquals(sActivityTestRule.getTestServer().getURL(HTML_PATH),
-                sOpenNewTabLoadUrlParams.getReferrer().getUrl());
+        Assert.assertNotNull(mOpenNewTabLoadUrlParams);
+        Assert.assertEquals(
+                mTestServer.getURL(HTML_PATH), mOpenNewTabLoadUrlParams.getReferrer().getUrl());
     }
 
     /**
@@ -134,11 +126,11 @@ public class ContextMenuLoadUrlParamsTest {
     @MediumTest
     @Feature({"Browser"})
     public void testOpenInIncognitoTabNoReferrer() throws TimeoutException {
-        triggerContextMenuLoad(sActivityTestRule.getTestServer().getURL(HTML_PATH), "testLink",
+        triggerContextMenuLoad(mTestServer.getURL(HTML_PATH), "testLink",
                 R.id.contextmenu_open_in_incognito_tab);
 
-        Assert.assertNotNull(sOpenNewTabLoadUrlParams);
-        Assert.assertNull(sOpenNewTabLoadUrlParams.getReferrer());
+        Assert.assertNotNull(mOpenNewTabLoadUrlParams);
+        Assert.assertNull(mOpenNewTabLoadUrlParams.getReferrer());
     }
 
     /**
@@ -148,22 +140,22 @@ public class ContextMenuLoadUrlParamsTest {
     @MediumTest
     @Feature({"Browser"})
     public void testOpenInNewTabSanitizeReferrer() throws TimeoutException {
-        String testUrl = sActivityTestRule.getTestServer().getURL(HTML_PATH);
+        String testUrl = mTestServer.getURL(HTML_PATH);
         String[] schemeAndUrl = SCHEME_SEPARATOR_RE.split(testUrl, 2);
         Assert.assertEquals(2, schemeAndUrl.length);
         String testUrlUserPass = schemeAndUrl[0] + "://user:pass@" + schemeAndUrl[1];
         triggerContextMenuLoad(testUrlUserPass, "testLink", R.id.contextmenu_open_in_new_tab);
-        Assert.assertNotNull(sOpenNewTabLoadUrlParams);
-        Assert.assertEquals(testUrl, sOpenNewTabLoadUrlParams.getReferrer().getUrl());
+        Assert.assertNotNull(mOpenNewTabLoadUrlParams);
+        Assert.assertEquals(testUrl, mOpenNewTabLoadUrlParams.getReferrer().getUrl());
     }
 
     private void triggerContextMenuLoad(String url, String openerDomId, int menuItemId)
             throws TimeoutException {
-        sActivityTestRule.loadUrl(url);
-        sActivityTestRule.assertWaitForPageScaleFactorMatch(0.5f);
-        Tab tab = sActivityTestRule.getActivity().getActivityTab();
-        ContextMenuUtils.selectContextMenuItem(InstrumentationRegistry.getInstrumentation(),
-                sActivityTestRule.getActivity(), tab, openerDomId, menuItemId);
+        mActivityTestRule.loadUrl(url);
+        mActivityTestRule.assertWaitForPageScaleFactorMatch(0.5f);
+        Tab tab = mActivityTestRule.getActivity().getActivityTab();
+        RevampedContextMenuUtils.selectContextMenuItem(InstrumentationRegistry.getInstrumentation(),
+                mActivityTestRule.getActivity(), tab, openerDomId, menuItemId);
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 }

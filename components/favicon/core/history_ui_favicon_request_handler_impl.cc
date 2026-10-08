@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,20 +23,27 @@ namespace {
 
 void RecordFaviconAvailabilityAndLatencyMetric(
     HistoryUiFaviconRequestOrigin origin_for_uma,
+    base::Time request_start_time_for_uma,
     FaviconAvailability availability) {
+  base::TimeDelta latency = base::Time::Now() - request_start_time_for_uma;
   switch (origin_for_uma) {
     case HistoryUiFaviconRequestOrigin::kHistory:
       UMA_HISTOGRAM_ENUMERATION("Sync.SyncedHistoryFaviconAvailability.HISTORY",
                                 availability);
+      UMA_HISTOGRAM_TIMES("Sync.SyncedHistoryFaviconLatency.HISTORY", latency);
       break;
     case HistoryUiFaviconRequestOrigin::kHistorySyncedTabs:
       UMA_HISTOGRAM_ENUMERATION(
           "Sync.SyncedHistoryFaviconAvailability.SYNCED_TABS", availability);
+      UMA_HISTOGRAM_TIMES("Sync.SyncedHistoryFaviconLatency.SYNCED_TABS",
+                          latency);
       break;
     case HistoryUiFaviconRequestOrigin::kRecentTabs:
       UMA_HISTOGRAM_ENUMERATION(
           "Sync.SyncedHistoryFaviconAvailability.RECENTLY_CLOSED_TABS",
           availability);
+      UMA_HISTOGRAM_TIMES(
+          "Sync.SyncedHistoryFaviconLatency.RECENTLY_CLOSED_TABS", latency);
       break;
   }
 }
@@ -85,7 +92,8 @@ void HistoryUiFaviconRequestHandlerImpl::GetRawFaviconForPageURL(
       base::BindOnce(
           &HistoryUiFaviconRequestHandlerImpl::OnBitmapLocalDataAvailable,
           weak_ptr_factory_.GetWeakPtr(), page_url, desired_size_in_pixel,
-          /*response_callback=*/std::move(callback), request_origin_for_uma),
+          /*response_callback=*/std::move(callback), request_origin_for_uma,
+          base::Time::Now()),
       &cancelable_task_tracker_);
 }
 
@@ -99,7 +107,8 @@ void HistoryUiFaviconRequestHandlerImpl::GetFaviconImageForPageURL(
       base::BindOnce(
           &HistoryUiFaviconRequestHandlerImpl::OnImageLocalDataAvailable,
           weak_ptr_factory_.GetWeakPtr(), page_url,
-          /*response_callback=*/std::move(callback), request_origin_for_uma),
+          /*response_callback=*/std::move(callback), request_origin_for_uma,
+          base::Time::Now()),
       &cancelable_task_tracker_);
 }
 
@@ -108,11 +117,13 @@ void HistoryUiFaviconRequestHandlerImpl::OnBitmapLocalDataAvailable(
     int desired_size_in_pixel,
     favicon_base::FaviconRawBitmapCallback response_callback,
     HistoryUiFaviconRequestOrigin origin_for_uma,
+    base::Time request_start_time_for_uma,
     const favicon_base::FaviconRawBitmapResult& bitmap_result) {
   if (bitmap_result.is_valid()) {
     // The icon comes from local storage now even though it may have been
     // originally retrieved from Google server.
     RecordFaviconAvailabilityAndLatencyMetric(origin_for_uma,
+                                              request_start_time_for_uma,
                                               FaviconAvailability::kLocal);
     large_icon_service_->TouchIconFromGoogleServer(bitmap_result.icon_url);
     std::move(response_callback).Run(bitmap_result);
@@ -120,15 +131,16 @@ void HistoryUiFaviconRequestHandlerImpl::OnBitmapLocalDataAvailable(
   }
 
   if (can_send_history_data_getter_.Run()) {
-    // base::SplitOnceCallback() is necessary here because
+    // base::AdaptCallbackForRepeating() is necessary here because
     // |response_callback| is needed to build both the empty response and local
     // lookup callbacks. This is safe because only one of the two is called.
-    auto split_response_callback =
-        base::SplitOnceCallback(std::move(response_callback));
+    base::RepeatingCallback<void(const favicon_base::FaviconRawBitmapResult&)>
+        repeating_response_callback =
+            base::AdaptCallbackForRepeating(std::move(response_callback));
     RequestFromGoogleServer(
         page_url,
         /*empty_response_callback=*/
-        base::BindOnce(std::move(split_response_callback.first),
+        base::BindOnce(repeating_response_callback,
                        favicon_base::FaviconRawBitmapResult()),
         /*local_lookup_callback=*/
         base::BindOnce(
@@ -137,14 +149,14 @@ void HistoryUiFaviconRequestHandlerImpl::OnBitmapLocalDataAvailable(
             // doesn't execute the callback if |this| is deleted.
             base::Unretained(favicon_service_), page_url,
             GetIconTypesForLocalQuery(), desired_size_in_pixel, kFallbackToHost,
-            std::move(split_response_callback.second),
-            &cancelable_task_tracker_),
-        origin_for_uma);
+            repeating_response_callback, &cancelable_task_tracker_),
+        origin_for_uma, request_start_time_for_uma);
     return;
   }
 
   // Send empty response.
   RecordFaviconAvailabilityAndLatencyMetric(origin_for_uma,
+                                            request_start_time_for_uma,
                                             FaviconAvailability::kNotAvailable);
   std::move(response_callback).Run(favicon_base::FaviconRawBitmapResult());
 }
@@ -153,11 +165,13 @@ void HistoryUiFaviconRequestHandlerImpl::OnImageLocalDataAvailable(
     const GURL& page_url,
     favicon_base::FaviconImageCallback response_callback,
     HistoryUiFaviconRequestOrigin origin_for_uma,
+    base::Time request_start_time_for_uma,
     const favicon_base::FaviconImageResult& image_result) {
   if (!image_result.image.IsEmpty()) {
     // The icon comes from local storage now even though it may have been
     // originally retrieved from Google server.
     RecordFaviconAvailabilityAndLatencyMetric(origin_for_uma,
+                                              request_start_time_for_uma,
                                               FaviconAvailability::kLocal);
     large_icon_service_->TouchIconFromGoogleServer(image_result.icon_url);
     std::move(response_callback).Run(image_result);
@@ -165,15 +179,16 @@ void HistoryUiFaviconRequestHandlerImpl::OnImageLocalDataAvailable(
   }
 
   if (can_send_history_data_getter_.Run()) {
-    // base::SplitOnceCallback() is necessary here because
+    // base::AdaptCallbackForRepeating() is necessary here because
     // |response_callback| is needed to build both the empty response and local
     // lookup callbacks. This is safe because only one of the two is called.
-    auto split_response_callback =
-        base::SplitOnceCallback(std::move(response_callback));
+    base::RepeatingCallback<void(const favicon_base::FaviconImageResult&)>
+        repeating_response_callback =
+            base::AdaptCallbackForRepeating(std::move(response_callback));
     RequestFromGoogleServer(
         page_url,
         /*empty_response_callback=*/
-        base::BindOnce(std::move(split_response_callback.first),
+        base::BindOnce(repeating_response_callback,
                        favicon_base::FaviconImageResult()),
         /*local_lookup_callback=*/
         base::BindOnce(
@@ -181,14 +196,14 @@ void HistoryUiFaviconRequestHandlerImpl::OnImageLocalDataAvailable(
             // base::Unretained() is safe here as RequestFromGoogleServer()
             // doesn't execture the callback if |this| is deleted.
             base::Unretained(favicon_service_), page_url,
-            std::move(split_response_callback.second),
-            &cancelable_task_tracker_),
-        origin_for_uma);
+            repeating_response_callback, &cancelable_task_tracker_),
+        origin_for_uma, request_start_time_for_uma);
     return;
   }
 
   // Send empty response.
   RecordFaviconAvailabilityAndLatencyMetric(origin_for_uma,
+                                            request_start_time_for_uma,
                                             FaviconAvailability::kNotAvailable);
   std::move(response_callback).Run(favicon_base::FaviconImageResult());
 }
@@ -197,7 +212,8 @@ void HistoryUiFaviconRequestHandlerImpl::RequestFromGoogleServer(
     const GURL& page_url,
     base::OnceClosure empty_response_callback,
     base::OnceClosure local_lookup_callback,
-    HistoryUiFaviconRequestOrigin origin_for_uma) {
+    HistoryUiFaviconRequestOrigin origin_for_uma,
+    base::Time request_start_time_for_uma) {
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation(
           "history_ui_favicon_request_handler_get_favicon",
@@ -236,13 +252,15 @@ void HistoryUiFaviconRequestHandlerImpl::RequestFromGoogleServer(
               &HistoryUiFaviconRequestHandlerImpl::OnGoogleServerDataAvailable,
               weak_ptr_factory_.GetWeakPtr(),
               std::move(empty_response_callback),
-              std::move(local_lookup_callback), origin_for_uma));
+              std::move(local_lookup_callback), origin_for_uma,
+              request_start_time_for_uma));
 }
 
 void HistoryUiFaviconRequestHandlerImpl::OnGoogleServerDataAvailable(
     base::OnceClosure empty_response_callback,
     base::OnceClosure local_lookup_callback,
     HistoryUiFaviconRequestOrigin origin_for_uma,
+    base::Time request_start_time_for_uma,
     favicon_base::GoogleFaviconServerRequestStatus status) {
   // When parallel requests return the same icon url, we get FAILURE_ON_WRITE,
   // since we're trying to write repeated values to the DB. Or if a write
@@ -257,11 +275,13 @@ void HistoryUiFaviconRequestHandlerImpl::OnGoogleServerDataAvailable(
     // We record the metrics as kLocal since the icon will be subsequently
     // retrieved from local storage.
     RecordFaviconAvailabilityAndLatencyMetric(origin_for_uma,
+                                              request_start_time_for_uma,
                                               FaviconAvailability::kLocal);
     std::move(local_lookup_callback).Run();
   } else {
     RecordFaviconAvailabilityAndLatencyMetric(
-        origin_for_uma, FaviconAvailability::kNotAvailable);
+        origin_for_uma, request_start_time_for_uma,
+        FaviconAvailability::kNotAvailable);
     std::move(empty_response_callback).Run();
   }
 }

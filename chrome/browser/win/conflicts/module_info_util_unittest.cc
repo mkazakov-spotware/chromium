@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,10 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
-#include "base/scoped_environment_variable_override.h"
 #include "base/scoped_native_library.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/scoped_environment_variable_override.h"
 #include "base/win/pe_image.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -78,10 +79,11 @@ TEST(ModuleInfoUtilTest, GetCertificateInfoSigned) {
 }
 
 TEST(ModuleInfoUtilTest, GetEnvironmentVariablesMapping) {
-  base::ScopedEnvironmentVariableOverride scoped_override("foo", "C:\\bar\\");
+  base::test::ScopedEnvironmentVariableOverride scoped_override("foo",
+                                                                "C:\\bar\\");
 
   // The mapping for these variables will be retrieved.
-  std::vector<std::wstring> environment_variables = {
+  std::vector<base::string16> environment_variables = {
       L"foo",
       L"SYSTEMROOT",
   };
@@ -90,32 +92,32 @@ TEST(ModuleInfoUtilTest, GetEnvironmentVariablesMapping) {
 
   ASSERT_EQ(2u, string_mapping.size());
 
-  EXPECT_EQ(u"c:\\bar", string_mapping[0].first);
-  EXPECT_EQ(u"%foo%", string_mapping[0].second);
+  EXPECT_STREQ(L"c:\\bar", string_mapping[0].first.c_str());
+  EXPECT_STREQ(L"%foo%", string_mapping[0].second.c_str());
   EXPECT_FALSE(string_mapping[1].second.empty());
 }
 
 const struct CollapsePathList {
-  std::u16string expected_result;
-  std::u16string test_case;
+  base::string16 expected_result;
+  base::string16 test_case;
 } kCollapsePathList[] = {
     // Negative testing (should not collapse this path).
-    {u"c:\\a\\a.dll", u"c:\\a\\a.dll"},
+    {L"c:\\a\\a.dll", L"c:\\a\\a.dll"},
     // These two are to test that we select the maximum collapsed path.
-    {u"%foo%\\a.dll", u"c:\\foo\\a.dll"},
-    {u"%x%\\a.dll", u"c:\\foo\\bar\\a.dll"},
+    {L"%foo%\\a.dll", L"c:\\foo\\a.dll"},
+    {L"%x%\\a.dll", L"c:\\foo\\bar\\a.dll"},
     // Tests that only full path components are collapsed.
-    {u"c:\\foo_bar\\a.dll", u"c:\\foo_bar\\a.dll"},
+    {L"c:\\foo_bar\\a.dll", L"c:\\foo_bar\\a.dll"},
 };
 
 TEST(ModuleInfoUtilTest, CollapseMatchingPrefixInPath) {
   StringMapping string_mapping = {
-      std::make_pair(u"c:\\foo", u"%foo%"),
-      std::make_pair(u"c:\\foo\\bar", u"%x%"),
+      std::make_pair(L"c:\\foo", L"%foo%"),
+      std::make_pair(L"c:\\foo\\bar", L"%x%"),
   };
 
-  for (size_t i = 0; i < std::size(kCollapsePathList); ++i) {
-    std::u16string test_case = kCollapsePathList[i].test_case;
+  for (size_t i = 0; i < base::size(kCollapsePathList); ++i) {
+    base::string16 test_case = kCollapsePathList[i].test_case;
     CollapseMatchingPrefixInPath(string_mapping, &test_case);
     EXPECT_EQ(kCollapsePathList[i].expected_result, test_case);
   }
@@ -171,10 +173,10 @@ TEST(ModuleInfoUtilTest, InvalidNTHeader) {
 }
 
 TEST(ModuleInfoUtilTest, NormalizeCertificateSubject) {
-  std::wstring test_case = std::wstring(L"signer\0", 7);
+  base::string16 test_case = base::string16(L"signer\0", 7);
   EXPECT_EQ(7u, test_case.length());
 
-  std::wstring expected = L"signer";
+  base::string16 expected = L"signer";
 
   internal::NormalizeCertificateSubject(&test_case);
 

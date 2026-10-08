@@ -1,8 +1,7 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_channel_mojo.h"
@@ -11,7 +10,7 @@
 
 namespace IPC {
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 namespace {
 int g_global_pid = 0;
@@ -27,21 +26,21 @@ int Channel::GetGlobalPid() {
   return g_global_pid;
 }
 
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 // static
 std::unique_ptr<Channel> Channel::CreateClient(
     const IPC::ChannelHandle& channel_handle,
     Listener* listener,
     const scoped_refptr<base::SingleThreadTaskRunner>& ipc_task_runner) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
   return Channel::Create(channel_handle, Channel::MODE_CLIENT, listener);
 #else
   DCHECK(channel_handle.is_mojo_channel_handle());
   return ChannelMojo::Create(
       mojo::ScopedMessagePipeHandle(channel_handle.mojo_handle),
       Channel::MODE_CLIENT, listener, ipc_task_runner,
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
+      base::ThreadTaskRunnerHandle::Get(),
       mojo::internal::MessageQuotaChecker::MaybeCreate());
 #endif
 }
@@ -51,14 +50,14 @@ std::unique_ptr<Channel> Channel::CreateServer(
     const IPC::ChannelHandle& channel_handle,
     Listener* listener,
     const scoped_refptr<base::SingleThreadTaskRunner>& ipc_task_runner) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
   return Channel::Create(channel_handle, Channel::MODE_SERVER, listener);
 #else
   DCHECK(channel_handle.is_mojo_channel_handle());
   return ChannelMojo::Create(
       mojo::ScopedMessagePipeHandle(channel_handle.mojo_handle),
       Channel::MODE_SERVER, listener, ipc_task_runner,
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
+      base::ThreadTaskRunnerHandle::Get(),
       mojo::internal::MessageQuotaChecker::MaybeCreate());
 #endif
 }

@@ -1,15 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/base/filename_util.h"
 
-#include <string>
-
-#include "base/check.h"
 #include "base/files/file_path.h"
 #include "base/i18n/file_util_icu.h"
-#include "build/chromeos_buildflags.h"
+#include "base/strings/string16.h"
 #include "net/base/filename_util_internal.h"
 
 class GURL;
@@ -17,7 +14,7 @@ class GURL;
 namespace net {
 
 bool IsSafePortablePathComponent(const base::FilePath& component) {
-  std::u16string component16;
+  base::string16 component16;
   base::FilePath::StringType sanitized = component.value();
   SanitizeGeneratedFileName(&sanitized, true);
   base::FilePath::StringType extension = component.Extension();
@@ -35,7 +32,8 @@ bool IsSafePortablePathComponent(const base::FilePath& component) {
 bool IsSafePortableRelativePath(const base::FilePath& path) {
   if (path.empty() || path.IsAbsolute() || path.EndsWithSeparator())
     return false;
-  std::vector<base::FilePath::StringType> components = path.GetComponents();
+  std::vector<base::FilePath::StringType> components;
+  path.GetComponents(&components);
   if (components.empty())
     return false;
   for (size_t i = 0; i < components.size() - 1; ++i) {
@@ -45,7 +43,7 @@ bool IsSafePortableRelativePath(const base::FilePath& path) {
   return IsSafePortablePathComponent(path.BaseName());
 }
 
-std::u16string GetSuggestedFilename(const GURL& url,
+base::string16 GetSuggestedFilename(const GURL& url,
                                     const std::string& content_disposition,
                                     const std::string& referrer_charset,
                                     const std::string& suggested_name,
@@ -80,7 +78,7 @@ base::FilePath GenerateFileName(const GURL& url,
       default_file_name, should_replace_extension,
       &base::i18n::ReplaceIllegalCharactersInPath));
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // When doing file manager operations on ChromeOS, the file paths get
   // normalized in WebKit layer, so let's ensure downloaded files have
   // normalized names. Otherwise, we won't be able to handle files with NFD

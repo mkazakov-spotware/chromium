@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,22 +6,13 @@
 #define SERVICES_NETWORK_NETWORK_SERVICE_NETWORK_DELEGATE_H_
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/network_delegate_impl.h"
-#include "net/first_party_sets/first_party_set_metadata.h"
-#include "net/first_party_sets/first_party_sets_cache_filter.h"
-#include "net/first_party_sets/same_party_context.h"
-#include "services/network/cookie_settings.h"
 #include "services/network/network_context.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-
-namespace net {
-class SchemefulSite;
-class SiteForCookies;
-}  // namespace net
 
 namespace network {
 
@@ -36,11 +27,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkServiceNetworkDelegate
       bool validate_referrer_policy_on_initial_request,
       mojo::PendingRemote<mojom::ProxyErrorClient> proxy_error_client_remote,
       NetworkContext* network_context);
-
-  NetworkServiceNetworkDelegate(const NetworkServiceNetworkDelegate&) = delete;
-  NetworkServiceNetworkDelegate& operator=(
-      const NetworkServiceNetworkDelegate&) = delete;
-
   ~NetworkServiceNetworkDelegate() override;
 
   void set_enable_referrers(bool enable_referrers) {
@@ -48,42 +34,37 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkServiceNetworkDelegate
   }
 
  private:
-  using QueryReason = CookieSettings::QueryReason;
   // net::NetworkDelegateImpl implementation.
   int OnBeforeURLRequest(net::URLRequest* request,
                          net::CompletionOnceCallback callback,
                          GURL* new_url) override;
-  int OnBeforeStartTransaction(
-      net::URLRequest* request,
-      const net::HttpRequestHeaders& headers,
-      OnBeforeStartTransactionCallback callback) override;
+  int OnBeforeStartTransaction(net::URLRequest* request,
+                               net::CompletionOnceCallback callback,
+                               net::HttpRequestHeaders* headers) override;
   int OnHeadersReceived(
       net::URLRequest* request,
       net::CompletionOnceCallback callback,
       const net::HttpResponseHeaders* original_response_headers,
       scoped_refptr<net::HttpResponseHeaders>* override_response_headers,
       const net::IPEndPoint& endpoint,
-      absl::optional<GURL>* preserve_fragment_on_redirect_url) override;
+      base::Optional<GURL>* preserve_fragment_on_redirect_url) override;
   void OnBeforeRedirect(net::URLRequest* request,
                         const GURL& new_location) override;
   void OnResponseStarted(net::URLRequest* request, int net_error) override;
   void OnCompleted(net::URLRequest* request,
                    bool started,
                    int net_error) override;
-  void OnPACScriptError(int line_number, const std::u16string& error) override;
-  bool OnAnnotateAndMoveUserBlockedCookies(
-      const net::URLRequest& request,
-      const net::FirstPartySetMetadata& first_party_set_metadata,
-      net::CookieAccessResultList& maybe_included_cookies,
-      net::CookieAccessResultList& excluded_cookies) override;
+  void OnPACScriptError(int line_number, const base::string16& error) override;
+  bool OnCanGetCookies(const net::URLRequest& request,
+                       bool allowed_from_caller) override;
   bool OnCanSetCookie(const net::URLRequest& request,
                       const net::CanonicalCookie& cookie,
-                      net::CookieOptions* options) override;
-  net::NetworkDelegate::PrivacySetting OnForcePrivacyMode(
+                      net::CookieOptions* options,
+                      bool allowed_from_caller) override;
+  bool OnForcePrivacyMode(
       const GURL& url,
       const net::SiteForCookies& site_for_cookies,
-      const absl::optional<url::Origin>& top_frame_origin,
-      net::SamePartyContext::Type same_party_context_type) const override;
+      const base::Optional<url::Origin>& top_frame_origin) const override;
   bool OnCancelURLRequestWithPolicyViolatingReferrerHeader(
       const net::URLRequest& request,
       const GURL& target_url,
@@ -96,11 +77,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkServiceNetworkDelegate
                                const GURL& endpoint) const override;
   bool OnCanUseReportingClient(const url::Origin& origin,
                                const GURL& endpoint) const override;
-  absl::optional<net::FirstPartySetsCacheFilter::MatchInfo>
-  OnGetFirstPartySetsCacheFilterMatchInfoMaybeAsync(
-      const net::SchemefulSite& request_site,
-      base::OnceCallback<void(net::FirstPartySetsCacheFilter::MatchInfo)>
-          callback) const override;
 
   int HandleClearSiteDataHeader(
       net::URLRequest* request,
@@ -124,10 +100,12 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkServiceNetworkDelegate
   bool enable_referrers_;
   bool validate_referrer_policy_on_initial_request_;
   mojo::Remote<mojom::ProxyErrorClient> proxy_error_client_;
-  raw_ptr<NetworkContext> network_context_;
+  NetworkContext* network_context_;
 
   mutable base::WeakPtrFactory<NetworkServiceNetworkDelegate> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkServiceNetworkDelegate);
 };
 
 }  // namespace network

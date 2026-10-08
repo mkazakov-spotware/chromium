@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <cups/cups.h>
 
-#include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 
 namespace printing {
 
@@ -24,7 +24,7 @@ constexpr char kIppPinEncryption[] = "job-password-encryption";  // PWG 5100.11
 constexpr char kCollated[] = "separate-documents-collated-copies";
 constexpr char kUncollated[] = "separate-documents-uncollated-copies";
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
 
 constexpr char kIppDocumentAttributes[] =
     "document-creation-attributes";                              // PWG 5100.5
@@ -35,13 +35,6 @@ constexpr char kPinEncryptionNone[] = "none";
 constexpr char kOptionFalse[] = "false";
 constexpr char kOptionTrue[] = "true";
 
-constexpr char kIppClientInfo[] = "client-info";
-constexpr char kIppClientName[] = "client-name";
-constexpr char kIppClientPatches[] = "client-patches";
-constexpr char kIppClientStringVersion[] = "client-string-version";
-constexpr char kIppClientType[] = "client-type";
-constexpr char kIppClientVersion[] = "client-version";
-
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_ASH)
 
 }  // namespace printing

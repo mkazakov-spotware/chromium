@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,31 +9,51 @@
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_gl_api_implementation.h"
 #include "ui/gl/gl_surface.h"
-#include "ui/gl/gl_utils.h"
+
+#if defined(USE_OZONE)
 #include "ui/gl/init/gl_display_egl_util_ozone.h"
 #include "ui/gl/init/ozone_util.h"
 #include "ui/ozone/public/ozone_platform.h"
+#endif
+
+#if defined(USE_X11)
+#include "ui/base/ui_base_features.h"
+#include "ui/gl/init/gl_initializer_linux_x11.h"
+#endif
 
 namespace gl {
 namespace init {
 
-GLDisplay* InitializeGLOneOffPlatform(uint64_t system_device_id) {
+bool InitializeGLOneOffPlatform() {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::InitializeGLOneOffPlatformX11();
+#endif
+
+#if defined(USE_OZONE)
   if (HasGLOzone()) {
     gl::GLDisplayEglUtil::SetInstance(gl::GLDisplayEglUtilOzone::GetInstance());
-    return GetGLOzone()->InitializeGLOneOffPlatform(system_device_id);
+    return GetGLOzone()->InitializeGLOneOffPlatform();
   }
 
   switch (GetGLImplementation()) {
     case kGLImplementationMockGL:
     case kGLImplementationStubGL:
-      return GetDisplayEGL(system_device_id);
+      return true;
     default:
       NOTREACHED();
   }
-  return nullptr;
+#endif
+  return false;
 }
 
-bool InitializeStaticGLBindings(GLImplementationParts implementation) {
+bool InitializeStaticGLBindings(GLImplementation implementation) {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::InitializeStaticGLBindingsX11(implementation);
+#endif
+
+#if defined(USE_OZONE)
   // Prevent reinitialization with a different implementation. Once the gpu
   // unit tests have initialized with kGLImplementationMock, we don't want to
   // later switch to another GL implementation.
@@ -44,25 +64,34 @@ bool InitializeStaticGLBindings(GLImplementationParts implementation) {
         ->InitializeStaticGLBindings(implementation);
   }
 
-  switch (implementation.gl) {
+  switch (implementation) {
     case kGLImplementationMockGL:
     case kGLImplementationStubGL:
-      SetGLImplementationParts(implementation);
+      SetGLImplementation(implementation);
       InitializeStaticGLBindingsGL();
       return true;
     default:
       NOTREACHED();
   }
+#endif
+
   return false;
 }
 
-void ShutdownGLPlatform(GLDisplay* display) {
+void ShutdownGLPlatform() {
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform())
+    return gl::init::ShutdownGLPlatformX11();
+#endif
+
+#if defined(USE_OZONE)
   if (HasGLOzone()) {
-    GetGLOzone()->ShutdownGL(display);
+    GetGLOzone()->ShutdownGL();
     return;
   }
 
   ClearBindingsGL();
+#endif
 }
 
 }  // namespace init

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "components/policy/core/common/cloud/cloud_policy_manager.h"
 #include "components/policy/policy_export.h"
@@ -24,8 +25,6 @@ class SequencedTaskRunner;
 namespace network {
 class SharedURLLoaderFactory;
 }
-
-class SchemaRegistry;
 
 namespace policy {
 
@@ -44,17 +43,7 @@ class POLICY_EXPORT UserCloudPolicyManager : public CloudPolicyManager {
       const scoped_refptr<base::SequencedTaskRunner>& task_runner,
       network::NetworkConnectionTrackerGetter
           network_connection_tracker_getter);
-  UserCloudPolicyManager(const UserCloudPolicyManager&) = delete;
-  UserCloudPolicyManager& operator=(const UserCloudPolicyManager&) = delete;
   ~UserCloudPolicyManager() override;
-
-  static std::unique_ptr<UserCloudPolicyManager> Create(
-      const base::FilePath& profile_path,
-      SchemaRegistry* schema_registry,
-      bool force_immediate_load,
-      const scoped_refptr<base::SequencedTaskRunner>& background_task_runner,
-      network::NetworkConnectionTrackerGetter
-          network_connection_tracker_getter);
 
   // ConfigurationPolicyProvider overrides:
   void Shutdown() override;
@@ -65,7 +54,6 @@ class POLICY_EXPORT UserCloudPolicyManager : public CloudPolicyManager {
   // This might be set to false if the user profile is an unmanaged consumer
   // profile.
   void SetPoliciesRequired(bool required);
-  bool ArePoliciesRequired() const;
 
   // Initializes the cloud connection. |local_state| must stay valid until this
   // object is deleted or DisconnectAndRemovePolicy() gets called. Virtual for
@@ -79,6 +67,10 @@ class POLICY_EXPORT UserCloudPolicyManager : public CloudPolicyManager {
   // disassociated from a given user (e.g. during signout). No policy will be
   // provided by this object until the next time Initialize() is invoked.
   void DisconnectAndRemovePolicy();
+
+  // Returns true if the underlying CloudPolicyClient is already registered.
+  // Virtual for mocking.
+  virtual bool IsClientRegistered() const;
 
   // Creates a CloudPolicyClient for this client. Used in situations where
   // callers want to create a DMToken without actually initializing the
@@ -106,6 +98,8 @@ class POLICY_EXPORT UserCloudPolicyManager : public CloudPolicyManager {
 
   // Manages external data referenced by policies.
   std::unique_ptr<CloudExternalDataManager> external_data_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserCloudPolicyManager);
 };
 
 }  // namespace policy

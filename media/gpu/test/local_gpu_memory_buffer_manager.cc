@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,13 +82,13 @@ uint32_t GetGbmUsage(gfx::BufferUsage usage) {
     case gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE:
     case gfx::BufferUsage::CAMERA_AND_CPU_READ_WRITE:
       return GBM_BO_USE_LINEAR | GBM_BO_USE_CAMERA_READ |
-             GBM_BO_USE_CAMERA_WRITE | GBM_BO_USE_SW_READ_OFTEN;
-    case gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE:
+             GBM_BO_USE_CAMERA_WRITE;
+    case gfx::BufferUsage::SCANOUT_VEA_READ_CAMERA_AND_CPU_READ_WRITE:
       return GBM_BO_USE_LINEAR | GBM_BO_USE_CAMERA_READ |
              GBM_BO_USE_CAMERA_WRITE | GBM_BO_USE_TEXTURING |
-             GBM_BO_USE_HW_VIDEO_ENCODER | GBM_BO_USE_SW_READ_OFTEN;
+             GBM_BO_USE_HW_VIDEO_ENCODER;
     case gfx::BufferUsage::SCANOUT_CPU_READ_WRITE:
-      return GBM_BO_USE_LINEAR | GBM_BO_USE_SW_READ_OFTEN;
+      return GBM_BO_USE_LINEAR;
     default:
       return 0;
   }
@@ -96,8 +96,6 @@ uint32_t GetGbmUsage(gfx::BufferUsage usage) {
 
 class GpuMemoryBufferImplGbm : public gfx::GpuMemoryBuffer {
  public:
-  GpuMemoryBufferImplGbm() = delete;
-
   GpuMemoryBufferImplGbm(gfx::BufferFormat format, gbm_bo* buffer_object)
       : format_(format), buffer_object_(buffer_object), mapped_(false) {
     handle_.type = gfx::NATIVE_PIXMAP;
@@ -113,9 +111,6 @@ class GpuMemoryBufferImplGbm : public gfx::GpuMemoryBuffer {
           base::ScopedFD(gbm_bo_get_plane_fd(buffer_object, i))));
     }
   }
-
-  GpuMemoryBufferImplGbm(const GpuMemoryBufferImplGbm&) = delete;
-  GpuMemoryBufferImplGbm& operator=(const GpuMemoryBufferImplGbm&) = delete;
 
   ~GpuMemoryBufferImplGbm() override {
     if (mapped_) {
@@ -203,6 +198,10 @@ class GpuMemoryBufferImplGbm : public gfx::GpuMemoryBuffer {
     return handle;
   }
 
+  ClientBuffer AsClientBuffer() override {
+    return reinterpret_cast<ClientBuffer>(this);
+  }
+
   void OnMemoryDump(
       base::trace_event::ProcessMemoryDump* pmd,
       const base::trace_event::MemoryAllocatorDumpGuid& buffer_dump_guid,
@@ -225,6 +224,7 @@ class GpuMemoryBufferImplGbm : public gfx::GpuMemoryBuffer {
   gfx::GpuMemoryBufferHandle handle_;
   bool mapped_;
   std::vector<MappedPlane> mapped_planes_;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(GpuMemoryBufferImplGbm);
 };
 
 }  // namespace
@@ -244,8 +244,7 @@ LocalGpuMemoryBufferManager::CreateGpuMemoryBuffer(
     const gfx::Size& size,
     gfx::BufferFormat format,
     gfx::BufferUsage usage,
-    gpu::SurfaceHandle surface_handle,
-    base::WaitableEvent* shutdown_event) {
+    gpu::SurfaceHandle surface_handle) {
   if (!gbm_device_) {
     LOG(ERROR) << "Invalid GBM device";
     return nullptr;
@@ -281,19 +280,6 @@ LocalGpuMemoryBufferManager::CreateGpuMemoryBuffer(
 void LocalGpuMemoryBufferManager::SetDestructionSyncToken(
     gfx::GpuMemoryBuffer* buffer,
     const gpu::SyncToken& sync_token) {}
-
-void LocalGpuMemoryBufferManager::CopyGpuMemoryBufferAsync(
-    gfx::GpuMemoryBufferHandle buffer_handle,
-    base::UnsafeSharedMemoryRegion memory_region,
-    base::OnceCallback<void(bool)> callback) {
-  std::move(callback).Run(false);
-}
-
-bool LocalGpuMemoryBufferManager::CopyGpuMemoryBufferSync(
-    gfx::GpuMemoryBufferHandle buffer_handle,
-    base::UnsafeSharedMemoryRegion memory_region) {
-  return false;
-}
 
 std::unique_ptr<gfx::GpuMemoryBuffer> LocalGpuMemoryBufferManager::ImportDmaBuf(
     const gfx::NativePixmapHandle& handle,

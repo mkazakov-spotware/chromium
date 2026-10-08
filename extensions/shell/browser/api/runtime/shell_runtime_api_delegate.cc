@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,8 +35,9 @@ void ShellRuntimeAPIDelegate::ReloadExtension(const std::string& extension_id) {
       ->ReloadExtension(extension_id);
 }
 
-bool ShellRuntimeAPIDelegate::CheckForUpdates(const std::string& extension_id,
-                                              UpdateCheckCallback callback) {
+bool ShellRuntimeAPIDelegate::CheckForUpdates(
+    const std::string& extension_id,
+    const UpdateCheckCallback& callback) {
   return false;
 }
 
@@ -45,7 +46,7 @@ void ShellRuntimeAPIDelegate::OpenURL(const GURL& uninstall_url) {}
 bool ShellRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   info->os = api::runtime::PLATFORM_OS_CROS;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   info->os = api::runtime::PLATFORM_OS_LINUX;
 #endif
   return true;
@@ -55,7 +56,7 @@ bool ShellRuntimeAPIDelegate::RestartDevice(std::string* error_message) {
 // We allow chrome.runtime.restart() to request a device restart on ChromeOS.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   chromeos::PowerManagerClient::Get()->RequestRestart(
-      power_manager::REQUEST_RESTART_API, "AppShell chrome.runtime API");
+      power_manager::REQUEST_RESTART_OTHER, "AppShell chrome.runtime API");
   return true;
 #else
   *error_message = "Restart is only supported on ChromeOS.";

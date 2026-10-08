@@ -1,17 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/invalidation/impl/fcm_sync_network_channel.h"
 
 #include "base/logging.h"
-#include "base/observer_list.h"
 
-namespace invalidation {
+namespace syncer {
 
 FCMSyncNetworkChannel::FCMSyncNetworkChannel() : received_messages_count_(0) {}
 
-FCMSyncNetworkChannel::~FCMSyncNetworkChannel() = default;
+FCMSyncNetworkChannel::~FCMSyncNetworkChannel() {}
 
 void FCMSyncNetworkChannel::SetMessageReceiver(
     MessageCallback incoming_receiver) {
@@ -61,4 +60,4 @@ bool FCMSyncNetworkChannel::DeliverToken(const std::string& token) {
   return true;
 }
 
-}  // namespace invalidation
+}  // namespace syncer

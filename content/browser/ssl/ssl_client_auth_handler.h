@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "content/common/content_export.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "net/ssl/client_cert_identity.h"
@@ -32,12 +33,9 @@ class SSLClientAuthHandler {
  public:
   // Delegate interface for SSLClientAuthHandler. Method implementations may
   // delete the handler when called.
-  class Delegate {
+  class CONTENT_EXPORT Delegate {
    public:
     Delegate() {}
-
-    Delegate(const Delegate&) = delete;
-    Delegate& operator=(const Delegate&) = delete;
 
     // Called to continue the request with |cert|. |cert| may be nullptr.
     virtual void ContinueWithCertificate(
@@ -49,6 +47,9 @@ class SSLClientAuthHandler {
 
    protected:
     virtual ~Delegate() {}
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Delegate);
   };
 
   // Creates a new SSLClientAuthHandler. The caller ensures that the handler
@@ -57,10 +58,6 @@ class SSLClientAuthHandler {
                        WebContents::Getter web_contents_getter,
                        net::SSLCertRequestInfo* cert_request_info,
                        Delegate* delegate);
-
-  SSLClientAuthHandler(const SSLClientAuthHandler&) = delete;
-  SSLClientAuthHandler& operator=(const SSLClientAuthHandler&) = delete;
-
   ~SSLClientAuthHandler();
 
   // Selects a certificate and resumes the URL request with that certificate.
@@ -88,9 +85,11 @@ class SSLClientAuthHandler {
   scoped_refptr<net::SSLCertRequestInfo> cert_request_info_;
 
   // The delegate to call back with the result.
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
 
   base::WeakPtrFactory<SSLClientAuthHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SSLClientAuthHandler);
 };
 
 }  // namespace content

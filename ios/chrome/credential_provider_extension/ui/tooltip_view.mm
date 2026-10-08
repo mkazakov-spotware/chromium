@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -121,7 +121,6 @@ static __weak TooltipView* _active;
   if (self == _active) {
     _active = nil;
   }
-  [self.delegate tooltipViewWillDismiss:self];
   [UIView animateWithDuration:kTooltipFadeInTime
       delay:0.0
       options:UIViewAnimationOptionCurveEaseOut
@@ -137,11 +136,13 @@ static __weak TooltipView* _active;
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
   [super traitCollectionDidChange:previousTraitCollection];
-  if ([self.traitCollection
-          hasDifferentColorAppearanceComparedToTraitCollection:
-              previousTraitCollection]) {
-    self.backgroundLayer.fillColor =
-        [UIColor colorNamed:kTextPrimaryColor].CGColor;
+  if (@available(iOS 13, *)) {
+    if ([self.traitCollection
+            hasDifferentColorAppearanceComparedToTraitCollection:
+                previousTraitCollection]) {
+      self.backgroundLayer.fillColor =
+          [UIColor colorNamed:kTextPrimaryColor].CGColor;
+    }
   }
 }
 

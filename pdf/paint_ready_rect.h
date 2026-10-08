@@ -1,14 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef PDF_PAINT_READY_RECT_H_
 #define PDF_PAINT_READY_RECT_H_
 
-#include "third_party/skia/include/core/SkRefCnt.h"
+#include "pdf/ppapi_migration/image.h"
 #include "ui/gfx/geometry/rect.h"
 
-class SkImage;
+class SkBitmap;
+
+namespace pp {
+class ImageData;
+class Rect;
+}  // namespace pp
 
 namespace chrome_pdf {
 
@@ -17,8 +22,11 @@ namespace chrome_pdf {
 // ready.
 class PaintReadyRect {
  public:
+  PaintReadyRect(const pp::Rect& rect,
+                 const pp::ImageData& image_data,
+                 bool flush_now = false);
   PaintReadyRect(const gfx::Rect& rect,
-                 sk_sp<SkImage> image,
+                 const SkBitmap& bitmap,
                  bool flush_now = false);
 
   PaintReadyRect(const PaintReadyRect& other);
@@ -28,7 +36,7 @@ class PaintReadyRect {
   const gfx::Rect& rect() const { return rect_; }
   void set_rect(const gfx::Rect& rect) { rect_ = rect; }
 
-  const SkImage& image() const { return *image_; }
+  const Image& image() const { return image_; }
 
   // Whether to flush to screen immediately; otherwise, when the rest of the
   // plugin viewport is ready.
@@ -36,7 +44,7 @@ class PaintReadyRect {
 
  private:
   gfx::Rect rect_;
-  sk_sp<SkImage> image_;
+  Image image_;
   bool flush_now_;
 };
 

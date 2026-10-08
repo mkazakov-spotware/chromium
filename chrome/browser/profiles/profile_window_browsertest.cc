@@ -1,8 +1,7 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile_window.h"
 
 #include <stddef.h>
@@ -14,7 +13,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/devtools/devtools_window.h"
@@ -24,16 +22,16 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/find_bar/find_bar_state.h"
 #include "chrome/browser/ui/find_bar/find_bar_state_factory.h"
-#include "chrome/browser/ui/profile_picker.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
+#include "chrome/browser/ui/user_manager.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/search_test_utils.h"
+#include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/base/web_ui_browser_test.h"
 #include "components/account_id/account_id.h"
@@ -46,11 +44,13 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #error "This test verifies the Desktop implementation of Guest only."
 #endif
 
 namespace {
+
+enum ProfileWindowType { INCOGNITO, GUEST, EPHEMERAL_GUEST };
 
 // Code related to history borrowed from:
 // chrome/browser/history/history_browsertest.cc
@@ -100,6 +100,22 @@ class EmptyAcceleratorHandler : public ui::AcceleratorProvider {
   }
 };
 
+base::FilePath CreateTestingProfile(const std::string& name,
+                                    const std::string& relative_path) {
+  ProfileManager* manager = g_browser_process->profile_manager();
+  ProfileAttributesStorage& storage = manager->GetProfileAttributesStorage();
+  size_t starting_number_of_profiles = storage.GetNumberOfProfiles();
+
+  base::FilePath profile_path =
+      manager->user_data_dir().AppendASCII(relative_path);
+  storage.AddProfile(profile_path, base::ASCIIToUTF16(name), std::string(),
+                     base::string16(), false, 0u, std::string(),
+                     EmptyAccountId());
+
+  EXPECT_EQ(starting_number_of_profiles + 1u, storage.GetNumberOfProfiles());
+  return profile_path;
+}
+
 }  // namespace
 
 class ProfileWindowBrowserTest : public InProcessBrowserTest {
@@ -110,35 +126,38 @@ class ProfileWindowBrowserTest : public InProcessBrowserTest {
   ~ProfileWindowBrowserTest() override = default;
 };
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, CountForNullBrowser) {
-  EXPECT_EQ(size_t{0}, chrome::GetBrowserCount(nullptr));
-  EXPECT_EQ(0, BrowserList::GetOffTheRecordBrowsersActiveForProfile(nullptr));
-}
-
-class ProfileWindowCountBrowserTest : public ProfileWindowBrowserTest,
-                                      public testing::WithParamInterface<bool> {
+class ProfileWindowCountBrowserTest
+    : public ProfileWindowBrowserTest,
+      public testing::WithParamInterface<ProfileWindowType> {
  protected:
-  ProfileWindowCountBrowserTest() = default;
-
-  bool is_incognito() { return GetParam(); }
+  ProfileWindowCountBrowserTest() {
+    ProfileWindowType profile_type = GetParam();
+    is_incognito_ = profile_type == ProfileWindowType::INCOGNITO;
+    if (!is_incognito_)
+      TestingProfile::SetScopedFeatureListForEphemeralGuestProfiles(
+          scoped_feature_list_,
+          profile_type == ProfileWindowType::EPHEMERAL_GUEST);
+  }
 
   int GetWindowCount() {
-    return is_incognito()
-               ? BrowserList::GetOffTheRecordBrowsersActiveForProfile(
-                     browser()->profile())
-               : BrowserList::GetGuestBrowserCount();
+    return is_incognito_ ? BrowserList::GetOffTheRecordBrowsersActiveForProfile(
+                               browser()->profile())
+                         : BrowserList::GetGuestBrowserCount();
   }
 
   Browser* CreateGuestOrIncognitoBrowser() {
     Browser* new_browser;
     // When |profile_| is null this means no browsers have been created,
     // this is the first browser instance.
+    // |is_incognito_| is used to determine which browser type to open.
     if (!profile_) {
-      new_browser = is_incognito()
-                        ? CreateIncognitoBrowser(browser()->profile())
-                        : CreateGuestBrowser();
+      new_browser = is_incognito_ ? CreateIncognitoBrowser(browser()->profile())
+                                  : CreateGuestBrowser();
       profile_ = new_browser->profile();
     } else {
+      if (profile_->IsEphemeralGuestProfile())
+        new_browser = CreateBrowser(profile_);
+      else
         new_browser = CreateIncognitoBrowser(profile_);
     }
 
@@ -146,66 +165,81 @@ class ProfileWindowCountBrowserTest : public ProfileWindowBrowserTest,
   }
 
  private:
-  raw_ptr<Profile, DanglingUntriaged> profile_ = nullptr;
+  bool is_incognito_;
+  base::test::ScopedFeatureList scoped_feature_list_;
+  Profile* profile_ = nullptr;
 };
 
 IN_PROC_BROWSER_TEST_P(ProfileWindowCountBrowserTest, CountProfileWindows) {
-  EXPECT_EQ(0, GetWindowCount());
+  DCHECK_EQ(0, GetWindowCount());
 
   // Create a browser and check the count.
   Browser* browser1 = CreateGuestOrIncognitoBrowser();
-  EXPECT_EQ(1, GetWindowCount());
+  DCHECK_EQ(1, GetWindowCount());
 
   // Create another browser and check the count.
   Browser* browser2 = CreateGuestOrIncognitoBrowser();
-  EXPECT_EQ(2, GetWindowCount());
+  DCHECK_EQ(2, GetWindowCount());
+
+  // Open a docked DevTool window and count.
+  DevToolsWindow* devtools_window =
+      DevToolsWindowTesting::OpenDevToolsWindowSync(browser1, true);
+  DCHECK_EQ(2, GetWindowCount());
+  DevToolsWindowTesting::CloseDevToolsWindowSync(devtools_window);
+
+  // Open a detached DevTool window and count.
+  devtools_window =
+      DevToolsWindowTesting::OpenDevToolsWindowSync(browser1, false);
+  DCHECK_EQ(2, GetWindowCount());
+  DevToolsWindowTesting::CloseDevToolsWindowSync(devtools_window);
 
   // Close one browser and count.
   CloseBrowserSynchronously(browser2);
-  EXPECT_EQ(1, GetWindowCount());
+  DCHECK_EQ(1, GetWindowCount());
 
   // Close another browser and count.
   CloseBrowserSynchronously(browser1);
-  EXPECT_EQ(0, GetWindowCount());
+  DCHECK_EQ(0, GetWindowCount());
 }
 
-// |OpenDevToolsWindowSync| is slow on Linux Debug and can result in flacky test
-// failure. See (crbug.com/1186994).
-#if BUILDFLAG(IS_LINUX) && !defined(NDEBUG)
-#define MAYBE_DevToolsWindowsNotCounted DISABLED_DevToolsWindowsNotCounted
-#else
-#define MAYBE_DevToolsWindowsNotCounted DevToolsWindowsNotCounted
-#endif
-IN_PROC_BROWSER_TEST_P(ProfileWindowCountBrowserTest,
-                       MAYBE_DevToolsWindowsNotCounted) {
-  Browser* browser = CreateGuestOrIncognitoBrowser();
-  EXPECT_EQ(1, GetWindowCount());
+INSTANTIATE_TEST_SUITE_P(All,
+                         ProfileWindowCountBrowserTest,
+                         testing::Values(ProfileWindowType::INCOGNITO,
+                                         ProfileWindowType::GUEST,
+                                         ProfileWindowType::EPHEMERAL_GUEST));
 
-  DevToolsWindow* devtools_window =
-      DevToolsWindowTesting::OpenDevToolsWindowSync(browser,
-                                                    /*is_docked=*/true);
-  EXPECT_EQ(1, GetWindowCount());
-  DevToolsWindowTesting::CloseDevToolsWindowSync(devtools_window);
+class GuestProfileWindowBrowserTest : public ProfileWindowBrowserTest,
+                                      public testing::WithParamInterface<bool> {
+ protected:
+  GuestProfileWindowBrowserTest() {
+    is_ephemeral_ = GetParam();
 
-  devtools_window = DevToolsWindowTesting::OpenDevToolsWindowSync(
-      browser, /*is_docked=*/false);
-  EXPECT_EQ(1, GetWindowCount());
-  DevToolsWindowTesting::CloseDevToolsWindowSync(devtools_window);
+    // Change the value if Ephemeral is not supported.
+    is_ephemeral_ &=
+        TestingProfile::SetScopedFeatureListForEphemeralGuestProfiles(
+            scoped_feature_list_, is_ephemeral_);
+  }
 
-  EXPECT_EQ(1, GetWindowCount());
-}
+  bool IsEphemeral() { return is_ephemeral_; }
 
-INSTANTIATE_TEST_SUITE_P(All, ProfileWindowCountBrowserTest, testing::Bool());
+ private:
+  bool is_ephemeral_;
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, OpenGuestBrowser) {
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest, OpenGuestBrowser) {
   EXPECT_TRUE(CreateGuestBrowser());
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestIsOffTheRecord) {
-  EXPECT_TRUE(CreateGuestBrowser()->profile()->IsOffTheRecord());
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest, GuestIsOffTheRecord) {
+  Profile* guest_profile = CreateGuestBrowser()->profile();
+  if (IsEphemeral())
+    EXPECT_FALSE(guest_profile->IsOffTheRecord());
+  else
+    EXPECT_TRUE(guest_profile->IsOffTheRecord());
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestIgnoresHistory) {
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest, GuestIgnoresHistory) {
   Browser* guest_browser = CreateGuestBrowser();
 
   ui_test_utils::WaitForHistoryToLoad(HistoryServiceFactory::GetForProfile(
@@ -215,16 +249,18 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestIgnoresHistory) {
       base::FilePath(base::FilePath::kCurrentDirectory),
       base::FilePath(FILE_PATH_LITERAL("title2.html")));
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(guest_browser, test_url));
+  ui_test_utils::NavigateToURL(guest_browser, test_url);
   WaitForHistoryBackendToRun(guest_browser->profile());
 
   std::vector<GURL> urls =
       ui_test_utils::HistoryEnumerator(guest_browser->profile()).urls();
 
-  ASSERT_EQ(0u, urls.size());
+  unsigned int expect_history =
+      guest_browser->profile()->IsEphemeralGuestProfile() ? 1 : 0;
+  ASSERT_EQ(expect_history, urls.size());
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestClearsCookies) {
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest, GuestClearsCookies) {
   Browser* guest_browser = CreateGuestBrowser();
   Profile* guest_profile = guest_browser->profile();
 
@@ -236,7 +272,7 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestClearsCookies) {
   ASSERT_EQ("", cookie);
 
   // After navigation there is a cookie for the URL.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(guest_browser, url));
+  ui_test_utils::NavigateToURL(guest_browser, url);
   cookie = content::GetCookies(guest_profile, url);
   EXPECT_EQ("cookie1", cookie);
 
@@ -247,19 +283,21 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestClearsCookies) {
   ASSERT_EQ("", cookie);
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestClearsFindInPageCache) {
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest,
+                       GuestClearsFindInPageCache) {
   Browser* guest_browser = CreateGuestBrowser();
   Profile* guest_profile = guest_browser->profile();
 
-  std::u16string fip_text = u"first guest session search text";
+  base::string16 fip_text =
+      base::ASCIIToUTF16("first guest session search text");
   FindBarStateFactory::GetForBrowserContext(guest_profile)
       ->SetLastSearchText(fip_text);
 
   // Open a second guest window and close one. This should not affect the find
   // in page cache as the guest session hasn't been ended.
   profiles::FindOrCreateNewWindowForProfile(
-      guest_profile, chrome::startup::IsProcessStartup::kNo,
-      chrome::startup::IsFirstRun::kNo, true /*always_create*/);
+      guest_profile, chrome::startup::IS_NOT_PROCESS_STARTUP,
+      chrome::startup::IS_NOT_FIRST_RUN, true /*always_create*/);
   CloseBrowserSynchronously(guest_browser);
   EXPECT_EQ(fip_text, FindBarStateFactory::GetForBrowserContext(guest_profile)
                           ->GetSearchPrepopulateText());
@@ -268,20 +306,31 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestClearsFindInPageCache) {
   guest_browser = chrome::FindAnyBrowser(guest_profile, true);
   EXPECT_TRUE(guest_browser);
   CloseBrowserSynchronously(guest_browser);
-  content::RunAllTasksUntilIdle();
 
   // Open a new guest browser window. Since this is a separate session, the find
   // in page text should have been cleared (along with all other browsing data).
-  profiles::FindOrCreateNewWindowForProfile(
-      guest_profile, chrome::startup::IsProcessStartup::kNo,
-      chrome::startup::IsFirstRun::kNo, true /*always_create*/);
-
-  EXPECT_EQ(std::u16string(),
+  // For ephemeral Guest profiles, after closing the last Guest browser the
+  // Guest profile is scheduled for deletion and is not considered a Guest
+  // profile anymore. Therefore the next Guest window requires opening a new
+  // browser and refreshing the profile object.
+  if (IsEphemeral()) {
+    guest_profile = CreateGuestBrowser()->profile();
+  } else {
+    profiles::FindOrCreateNewWindowForProfile(
+        guest_profile, chrome::startup::IS_NOT_PROCESS_STARTUP,
+        chrome::startup::IS_NOT_FIRST_RUN, true /*always_create*/);
+  }
+  EXPECT_EQ(base::string16(),
             FindBarStateFactory::GetForBrowserContext(guest_profile)
                 ->GetSearchPrepopulateText());
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestCannotSignin) {
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest, GuestCannotSignin) {
+  // TODO(https://crbug.com/1125474): Enable the test after identity manager is
+  // updated for ephemeral Guest profiles.
+  if (IsEphemeral())
+    return;
+
   Browser* guest_browser = CreateGuestBrowser();
 
   signin::IdentityManager* identity_manager =
@@ -291,33 +340,37 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestCannotSignin) {
   ASSERT_FALSE(identity_manager);
 }
 
-IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestAppMenuLacksBookmarks) {
+IN_PROC_BROWSER_TEST_P(GuestProfileWindowBrowserTest,
+                       GuestAppMenuLacksBookmarks) {
   EmptyAcceleratorHandler accelerator_handler;
   // Verify the normal browser has a bookmark menu.
   AppMenuModel model_normal_profile(&accelerator_handler, browser());
   model_normal_profile.Init();
-  EXPECT_TRUE(
-      model_normal_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU).has_value());
+  EXPECT_NE(-1, model_normal_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU));
 
   // Guest browser has no bookmark menu.
   Browser* guest_browser = CreateGuestBrowser();
   AppMenuModel model_guest_profile(&accelerator_handler, guest_browser);
-  EXPECT_FALSE(
-      model_guest_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU).has_value());
+  EXPECT_EQ(-1, model_guest_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU));
 }
+
+INSTANTIATE_TEST_SUITE_P(GuestProfileWindowBrowserTest,
+                         GuestProfileWindowBrowserTest,
+                         /*is_ephemeral=*/testing::Bool());
 
 IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, OpenBrowserWindowForProfile) {
   Profile* profile = browser()->profile();
   size_t num_browsers = BrowserList::GetInstance()->size();
-  profiles::OpenBrowserWindowForProfile(base::OnceCallback<void(Profile*)>(),
-                                        true, false, false, profile);
+  profiles::OpenBrowserWindowForProfile(
+      ProfileManager::CreateCallback(), true, false, false, profile,
+      Profile::CreateStatus::CREATE_STATUS_INITIALIZED);
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(num_browsers + 1, BrowserList::GetInstance()->size());
-  EXPECT_FALSE(ProfilePicker::IsOpen());
+  EXPECT_FALSE(UserManager::IsShowing());
 }
 
 // TODO(crbug.com/935746): Test is flaky on Win and Linux.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN)
 #define MAYBE_OpenBrowserWindowForProfileWithSigninRequired \
   DISABLED_OpenBrowserWindowForProfileWithSigninRequired
 #else
@@ -326,23 +379,21 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, OpenBrowserWindowForProfile) {
 #endif
 IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest,
                        MAYBE_OpenBrowserWindowForProfileWithSigninRequired) {
-  signin_util::ScopedForceSigninSetterForTesting force_signin_setter(true);
   Profile* profile = browser()->profile();
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile->GetPath());
-  ASSERT_NE(entry, nullptr);
-  entry->LockForceSigninProfile(true);
+  ProfileAttributesEntry* entry;
+  ASSERT_TRUE(g_browser_process->profile_manager()
+                  ->GetProfileAttributesStorage()
+                  .GetProfileAttributesWithPath(profile->GetPath(), &entry));
+  entry->SetIsSigninRequired(true);
   size_t num_browsers = BrowserList::GetInstance()->size();
   base::RunLoop run_loop;
-  ProfilePicker::AddOnProfilePickerOpenedCallbackForTesting(
-      run_loop.QuitClosure());
-  profiles::OpenBrowserWindowForProfile(base::OnceCallback<void(Profile*)>(),
-                                        true, false, false, profile);
+  UserManager::AddOnUserManagerShownCallbackForTesting(run_loop.QuitClosure());
+  profiles::OpenBrowserWindowForProfile(
+      ProfileManager::CreateCallback(), true, false, false, profile,
+      Profile::CreateStatus::CREATE_STATUS_INITIALIZED);
   run_loop.Run();
   EXPECT_EQ(num_browsers, BrowserList::GetInstance()->size());
-  EXPECT_TRUE(ProfilePicker::IsOpen());
+  EXPECT_TRUE(UserManager::IsShowing());
 }
 
 class ProfileWindowWebUIBrowserTest : public WebUIBrowserTest {
@@ -362,3 +413,41 @@ class ProfileWindowWebUIBrowserTest : public WebUIBrowserTest {
         FILE_PATH_LITERAL("profile_window_browsertest.js")));
   }
 };
+
+IN_PROC_BROWSER_TEST_F(ProfileWindowWebUIBrowserTest,
+                       UserManagerFocusSingleProfile) {
+  std::string url_to_test;
+  base::RunLoop run_loop;
+  profiles::CreateSystemProfileForUserManager(
+      browser()->profile()->GetPath(),
+      profiles::USER_MANAGER_SELECT_PROFILE_NO_ACTION,
+      base::BindRepeating(
+          &ProfileWindowWebUIBrowserTest::OnSystemProfileCreated,
+          base::Unretained(this), &url_to_test, run_loop.QuitClosure()));
+  run_loop.Run();
+
+  ui_test_utils::NavigateToURL(browser(), GURL(url_to_test));
+  EXPECT_TRUE(RunJavascriptTest("testNoPodFocused"));
+}
+
+// This test is flaky, see https://crbug.com/611619.
+IN_PROC_BROWSER_TEST_F(ProfileWindowWebUIBrowserTest,
+                       DISABLED_UserManagerFocusMultipleProfiles) {
+  // The profile names are meant to sort differently by ICU collation and by
+  // naive sorting. See crbug/596280.
+  base::FilePath expected_path = CreateTestingProfile("#abc", "Profile 1");
+  CreateTestingProfile("?abc", "Profile 2");
+
+  std::string url_to_test;
+  base::RunLoop run_loop;
+  profiles::CreateSystemProfileForUserManager(
+      expected_path, profiles::USER_MANAGER_SELECT_PROFILE_NO_ACTION,
+      base::BindRepeating(
+          &ProfileWindowWebUIBrowserTest::OnSystemProfileCreated,
+          base::Unretained(this), &url_to_test, run_loop.QuitClosure()));
+  run_loop.Run();
+
+  ui_test_utils::NavigateToURL(browser(), GURL(url_to_test));
+  EXPECT_TRUE(RunJavascriptTest("testPodFocused",
+                                base::Value(expected_path.AsUTF8Unsafe())));
+}

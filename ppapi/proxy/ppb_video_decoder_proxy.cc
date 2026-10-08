@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ppapi/proxy/ppb_video_decoder_proxy.h"
 
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "gpu/command_buffer/client/gles2_implementation.h"
 #include "ppapi/proxy/enter_proxy.h"
@@ -28,10 +29,6 @@ class VideoDecoder : public PPB_VideoDecoder_Shared {
  public:
   // You must call Init() before using this class.
   explicit VideoDecoder(const HostResource& resource);
-
-  VideoDecoder(const VideoDecoder&) = delete;
-  VideoDecoder& operator=(const VideoDecoder&) = delete;
-
   ~VideoDecoder() override;
 
   static VideoDecoder* Create(const HostResource& resource,
@@ -57,6 +54,8 @@ class VideoDecoder : public PPB_VideoDecoder_Shared {
   void FlushACK(int32_t result);
   void ResetACK(int32_t result);
   void EndOfBitstreamACK(int32_t buffer_id, int32_t result);
+
+  DISALLOW_COPY_AND_ASSIGN(VideoDecoder);
 };
 
 VideoDecoder::VideoDecoder(const HostResource& decoder)

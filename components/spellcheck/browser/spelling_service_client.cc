@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,13 @@
 #include "base/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/string_escape.h"
+#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/stl_util.h"
+#include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "components/prefs/pref_service.h"
 #include "components/spellcheck/browser/pref_names.h"
@@ -26,10 +28,10 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "google_apis/google_api_keys.h"
+#include "net/base/load_flags.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
 
 namespace {
@@ -57,7 +59,7 @@ SpellingServiceClient::~SpellingServiceClient() = default;
 bool SpellingServiceClient::RequestTextCheck(
     content::BrowserContext* context,
     ServiceType type,
-    const std::u16string& text,
+    const base::string16& text,
     TextCheckCompleteCallback callback) {
   DCHECK(type == SUGGEST || type == SPELLCHECK);
   if (!context || !IsAvailable(context, type)) {
@@ -68,10 +70,8 @@ bool SpellingServiceClient::RequestTextCheck(
   DCHECK(pref);
 
   std::string dictionary;
-  const base::Value::List& dicts_list =
-      pref->GetList(spellcheck::prefs::kSpellCheckDictionaries);
-  if (0u < dicts_list.size() && dicts_list[0].is_string())
-    dictionary = dicts_list[0].GetString();
+  pref->GetList(spellcheck::prefs::kSpellCheckDictionaries)
+      ->GetString(0, &dictionary);
 
   std::string language_code;
   std::string country_code;
@@ -80,12 +80,13 @@ bool SpellingServiceClient::RequestTextCheck(
 
   // Replace typographical apostrophes with typewriter apostrophes, so that
   // server word breaker behaves correctly.
-  const char16_t kApostrophe = 0x27;
-  const char16_t kRightSingleQuotationMark = 0x2019;
-  std::u16string text_copy = text;
+  const base::char16 kApostrophe = 0x27;
+  const base::char16 kRightSingleQuotationMark = 0x2019;
+  base::string16 text_copy = text;
   std::replace(text_copy.begin(), text_copy.end(), kRightSingleQuotationMark,
                kApostrophe);
 
+  std::string api_key = google_apis::GetAPIKey();
   std::string encoded_text = base::GetQuotedJSONString(text_copy);
 
   static const char kSpellingRequestRestBodyTemplate[] =
@@ -148,10 +149,11 @@ bool SpellingServiceClient::RequestTextCheck(
       std::make_unique<TextCheckCallbackData>(std::move(simple_url_loader),
                                               std::move(callback), text));
   network::SimpleURLLoader* loader = it->get()->simple_url_loader.get();
-  auto url_loader_factory = url_loader_factory_for_testing_
-                                ? url_loader_factory_for_testing_
-                                : context->GetDefaultStoragePartition()
-                                      ->GetURLLoaderFactoryForBrowserProcess();
+  auto url_loader_factory =
+      url_loader_factory_for_testing_
+          ? url_loader_factory_for_testing_
+          : content::BrowserContext::GetDefaultStoragePartition(context)
+                ->GetURLLoaderFactoryForBrowserProcess();
   loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
       url_loader_factory.get(),
       base::BindOnce(&SpellingServiceClient::OnSimpleLoaderComplete,
@@ -175,11 +177,8 @@ bool SpellingServiceClient::IsAvailable(content::BrowserContext* context,
   // If the locale for spelling has not been set, the user has not decided to
   // use spellcheck so we don't do anything remote (suggest or spelling).
   std::string locale;
-  const auto& dicts_list =
-      pref->GetList(spellcheck::prefs::kSpellCheckDictionaries);
-  if (0u < dicts_list.size() && dicts_list[0].is_string())
-    locale = dicts_list[0].GetString();
-
+  pref->GetList(spellcheck::prefs::kSpellCheckDictionaries)
+      ->GetString(0, &locale);
   if (locale.empty())
     return false;
 
@@ -245,48 +244,52 @@ bool SpellingServiceClient::ParseResponse(
   //    }
   //  }
 
-  absl::optional<base::Value> value(
-      base::JSONReader::Read(data, base::JSON_ALLOW_TRAILING_COMMAS));
+  std::unique_ptr<base::DictionaryValue> value(
+      static_cast<base::DictionaryValue*>(
+          base::JSONReader::ReadDeprecated(data,
+                                           base::JSON_ALLOW_TRAILING_COMMAS)
+              .release()));
   if (!value || !value->is_dict())
     return false;
 
   // Check for errors from spelling service.
-  const base::Value* error = value->FindDictPath(kErrorPath);
-  if (error)
+  base::DictionaryValue* error = nullptr;
+  if (value->GetDictionary(kErrorPath, &error))
     return false;
 
   // Retrieve the array of Misspelling objects. When the input text does not
   // have misspelled words, it returns an empty JSON. (In this case, its HTTP
   // status is 200.) We just return true for this case.
-  const base::Value* misspellings = value->FindListPath(kMisspellingsRestPath);
+  base::ListValue* misspellings = nullptr;
 
-  if (!misspellings)
+  if (!value->GetList(kMisspellingsRestPath, &misspellings))
     return true;
 
-  for (const base::Value& misspelling : misspellings->GetList()) {
+  for (size_t i = 0; i < misspellings->GetSize(); ++i) {
     // Retrieve the i-th misspelling region and put it to the given vector. When
     // the Spelling service sends two or more suggestions, we read only the
     // first one because SpellCheckResult can store only one suggestion.
-    if (!misspelling.is_dict())
+    base::DictionaryValue* misspelling = nullptr;
+    if (!misspellings->GetDictionary(i, &misspelling))
       return false;
 
-    absl::optional<int> start = misspelling.FindIntKey("charStart");
-    absl::optional<int> length = misspelling.FindIntKey("charLength");
-    const base::Value* suggestions = misspelling.FindListKey("suggestions");
-    if (!start || !length || !suggestions) {
+    int start = 0;
+    int length = 0;
+    base::ListValue* suggestions = nullptr;
+    if (!misspelling->GetInteger("charStart", &start) ||
+        !misspelling->GetInteger("charLength", &length) ||
+        !misspelling->GetList("suggestions", &suggestions)) {
       return false;
     }
 
-    const base::Value& suggestion = suggestions->GetList()[0];
-    if (!suggestion.is_dict())
-      return false;
-
-    const std::string* replacement = suggestion.FindStringKey("suggestion");
-    if (!replacement) {
+    base::DictionaryValue* suggestion = nullptr;
+    base::string16 replacement;
+    if (!suggestions->GetDictionary(0, &suggestion) ||
+        !suggestion->GetString("suggestion", &replacement)) {
       return false;
     }
-    SpellCheckResult result(SpellCheckResult::SPELLING, *start, *length,
-                            base::UTF8ToUTF16(*replacement));
+    SpellCheckResult result(SpellCheckResult::SPELLING, start, length,
+                            replacement);
     results->push_back(result);
   }
   return true;
@@ -295,7 +298,7 @@ bool SpellingServiceClient::ParseResponse(
 SpellingServiceClient::TextCheckCallbackData::TextCheckCallbackData(
     std::unique_ptr<network::SimpleURLLoader> simple_url_loader,
     TextCheckCompleteCallback callback,
-    std::u16string text)
+    base::string16 text)
     : simple_url_loader(std::move(simple_url_loader)),
       callback(std::move(callback)),
       text(text) {}
@@ -310,7 +313,7 @@ void SpellingServiceClient::OnSimpleLoaderComplete(
                       base::TimeTicks::Now() - request_start);
 
   TextCheckCompleteCallback callback = std::move(it->get()->callback);
-  std::u16string text = it->get()->text;
+  base::string16 text = it->get()->text;
   bool success = false;
   std::vector<SpellCheckResult> results;
   if (response_body)

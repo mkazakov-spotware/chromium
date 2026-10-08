@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,27 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "components/prefs/pref_member.h"
-#include "components/user_education/common/feature_promo_controller.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/models/simple_menu_model.h"
 
 class Browser;
 class CommandUpdater;
+class StarMenuModel;
 
 // The star icon to show a bookmark bubble.
-class StarView : public PageActionIconView {
+class StarView : public PageActionIconView,
+                 public ui::SimpleMenuModel::Delegate {
  public:
-  METADATA_HEADER(StarView);
   StarView(CommandUpdater* command_updater,
            Browser* browser,
            IconLabelBubbleView::Delegate* icon_label_bubble_delegate,
            PageActionIconView::Delegate* page_action_icon_delegate);
-  StarView(const StarView&) = delete;
-  StarView& operator=(const StarView&) = delete;
   ~StarView() override;
 
-  // ui::PropertyHandler:
-  void AfterPropertyChange(const void* key, int64_t old_value) override;
+  StarMenuModel* menu_model_for_test() { return menu_model_.get(); }
 
  protected:
   // PageActionIconView:
@@ -38,14 +36,25 @@ class StarView : public PageActionIconView {
   void ExecuteCommand(ExecuteSource source) override;
   views::BubbleDialogDelegate* GetBubble() const override;
   const gfx::VectorIcon& GetVectorIcon() const override;
-  std::u16string GetTextForTooltipAndAccessibleName() const override;
+  base::string16 GetTextForTooltipAndAccessibleName() const override;
+  const char* GetClassName() const override;
 
  private:
   void EditBookmarksPrefUpdated();
+  bool IsBookmarkStarHiddenByExtension() const;
 
-  const raw_ptr<Browser> browser_;
+  // ui::SimpleMenuModel::Delegate:
+  void ExecuteCommand(int command_id, int event_flags) override;
+  void MenuClosed(ui::SimpleMenuModel* source) override;
+
+  Browser* const browser_;
+
+  std::unique_ptr<views::MenuRunner> menu_runner_;
+  std::unique_ptr<StarMenuModel> menu_model_;
 
   BooleanPrefMember edit_bookmarks_enabled_;
+
+  DISALLOW_COPY_AND_ASSIGN(StarView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_LOCATION_BAR_STAR_VIEW_H_

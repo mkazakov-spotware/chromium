@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,6 @@ StubWebView::StubWebView(const std::string& id) : id_(id) {}
 
 StubWebView::~StubWebView() {}
 
-bool StubWebView::IsServiceWorker() const {
-  return false;
-}
-
 std::string StubWebView::GetId() {
   return id_;
 }
@@ -28,9 +24,8 @@ Status StubWebView::ConnectIfNecessary() {
   return Status(kOk);
 }
 
-Status StubWebView::HandleEventsUntil(const ConditionalFunc& conditional_func,
-                                      const Timeout& timeout) {
-  return Status{kOk};
+Status StubWebView::SetUpDevTools() {
+  return Status(kOk);
 }
 
 Status StubWebView::HandleReceivedEvents() {
@@ -57,29 +52,22 @@ Status StubWebView::Resume(const Timeout* timeout) {
   return Status(kOk);
 }
 
-Status StubWebView::StartBidiServer(std::string bidi_mapper_script) {
-  return Status{kOk};
-}
-
-Status StubWebView::PostBidiCommand(base::Value::Dict command) {
-  return Status{kOk};
-}
-
 Status StubWebView::SendCommand(const std::string& cmd,
-                                const base::Value::Dict& params) {
+                                const base::DictionaryValue& params) {
   return Status(kOk);
 }
 
-Status StubWebView::SendCommandFromWebSocket(const std::string& cmd,
-                                             const base::Value::Dict& params,
-                                             const int client_cmd_id) {
+Status StubWebView::SendCommandFromWebSocket(
+    const std::string& cmd,
+    const base::DictionaryValue& params,
+    const int client_cmd_id) {
   return Status(kOk);
 }
 
 Status StubWebView::SendCommandAndGetResult(
-    const std::string& cmd,
-    const base::Value::Dict& params,
-    std::unique_ptr<base::Value>* value) {
+        const std::string& cmd,
+        const base::DictionaryValue& params,
+        std::unique_ptr<base::Value>* value) {
   return Status(kOk);
 }
 
@@ -89,21 +77,21 @@ Status StubWebView::TraverseHistory(int delta, const Timeout* timeout) {
 
 Status StubWebView::EvaluateScript(const std::string& frame,
                                    const std::string& function,
-                                   const bool await_promise,
+                                   const bool awaitPromise,
                                    std::unique_ptr<base::Value>* result) {
   return Status(kOk);
 }
 
 Status StubWebView::CallFunction(const std::string& frame,
                                  const std::string& function,
-                                 const base::Value::List& args,
+                                 const base::ListValue& args,
                                  std::unique_ptr<base::Value>* result) {
   return Status(kOk);
 }
 
 Status StubWebView::CallAsyncFunction(const std::string& frame,
                                       const std::string& function,
-                                      const base::Value::List& args,
+                                      const base::ListValue& args,
                                       const base::TimeDelta& timeout,
                                       std::unique_ptr<base::Value>* result) {
   return Status(kOk);
@@ -112,7 +100,7 @@ Status StubWebView::CallAsyncFunction(const std::string& frame,
 Status StubWebView::CallUserAsyncFunction(
     const std::string& frame,
     const std::string& function,
-    const base::Value::List& args,
+    const base::ListValue& args,
     const base::TimeDelta& timeout,
     std::unique_ptr<base::Value>* result) {
   return Status(kOk);
@@ -120,7 +108,7 @@ Status StubWebView::CallUserAsyncFunction(
 
 Status StubWebView::CallUserSyncScript(const std::string& frame,
                                        const std::string& script,
-                                       const base::Value::List& args,
+                                       const base::ListValue& args,
                                        const base::TimeDelta& timeout,
                                        std::unique_ptr<base::Value>* result) {
   return Status(kOk);
@@ -128,7 +116,7 @@ Status StubWebView::CallUserSyncScript(const std::string& frame,
 
 Status StubWebView::GetFrameByFunction(const std::string& frame,
                                        const std::string& function,
-                                       const base::Value::List& args,
+                                       const base::ListValue& args,
                                        std::string* out_frame) {
   return Status(kOk);
 }
@@ -160,8 +148,7 @@ Status StubWebView::DispatchKeyEvents(const std::vector<KeyEvent>& events,
   return Status(kOk);
 }
 
-
-Status StubWebView::GetCookies(base::Value* cookies,
+Status StubWebView::GetCookies(std::unique_ptr<base::ListValue>* cookies,
                                const std::string& current_page_url) {
   return Status(kOk);
 }
@@ -178,9 +165,9 @@ Status StubWebView::AddCookie(const std::string& name,
                               const std::string& value,
                               const std::string& domain,
                               const std::string& path,
-                              const std::string& same_site,
+                              const std::string& sameSite,
                               bool secure,
-                              bool http_only,
+                              bool httpOnly,
                               double expiry) {
   return Status(kOk);
 }
@@ -219,18 +206,19 @@ Status StubWebView::OverrideDownloadDirectoryIfNeeded(
   return Status(kOk);
 }
 
-Status StubWebView::CaptureScreenshot(std::string* screenshot,
-                                      const base::Value::Dict& params) {
+Status StubWebView::CaptureScreenshot(
+    std::string* screenshot,
+    const base::DictionaryValue& params) {
   return Status(kOk);
 }
 
-Status StubWebView::PrintToPDF(const base::Value::Dict& params,
+Status StubWebView::PrintToPDF(const base::DictionaryValue& params,
                                std::string* pdf) {
   return Status(kOk);
 }
 
 Status StubWebView::SetFileInputFiles(const std::string& frame,
-                                      const base::Value& element,
+                                      const base::DictionaryValue& element,
                                       const std::vector<base::FilePath>& files,
                                       const bool append) {
   return Status(kOk);
@@ -266,6 +254,10 @@ bool StubWebView::IsNonBlocking() const {
   return false;
 }
 
+bool StubWebView::IsOOPIF(const std::string& frame_id) {
+  return false;
+}
+
 FrameTracker* StubWebView::GetFrameTracker() const {
   return nullptr;
 }
@@ -280,8 +272,8 @@ std::unique_ptr<base::Value> StubWebView::GetCastIssueMessage() {
 
 void StubWebView::SetFrame(const std::string& new_frame_id) {}
 
-Status StubWebView::GetBackendNodeIdByElement(const std::string& frame,
-                                              const base::Value& element,
-                                              int* node_id) {
+Status StubWebView::GetNodeIdByElement(const std::string& frame,
+                                       const base::DictionaryValue& element,
+                                       int* node_id) {
   return Status(kOk);
 }

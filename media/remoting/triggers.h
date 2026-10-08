@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,8 @@ enum StartTrigger {
   ENABLED_BY_PAGE = 3,          // The page re-allowed remote playback.
 
   // User actions, such as connecting to a receiver or pressing play.
-  SINK_AVAILABLE = 4,         // A receiver (sink) became available.
-  PLAY_COMMAND = 5,           // The media element was issued a play command.
-  REQUESTED_BY_BROWSER = 10,  // The browser requested to start Media Remoting
-                              // without fullscreen-in-tab.
+  SINK_AVAILABLE = 4,  // A receiver (sink) became available.
+  PLAY_COMMAND = 5,    // The media element was issued a play command.
 
   // Met requirements for playback of the media.
   SUPPORTED_AUDIO_CODEC = 6,  // Stream began using a supported audio codec.
@@ -35,7 +33,7 @@ enum StartTrigger {
   CDM_READY = 9,  // The CDM required for decrypting the content became ready.
 
   // Change this to the highest value.
-  START_TRIGGER_MAX = 10,
+  START_TRIGGER_MAX = 9,
 };
 
 // Events and conditions that can result in a start failure, or trigger remoting
@@ -43,10 +41,8 @@ enum StartTrigger {
 //
 // NOTE: Never re-number or re-use numbers for different triggers. These are
 // used in UMA histograms, and must remain backwards-compatible for all time.
-//
-// ADDITIONAL NOTE: The values are intentionally out-of-order to maintain a
-// logical grouping. When adding a new value, add one to STOP_TRIGGER_MAX, then
-// update STOP_TRIGGER_MAX. Also, don't forget to update enums.xml!
+// However, *do* change STOP_TRIGGER_MAX to one after the greatest value when
+// adding new ones. Also, don't forget to update histograms.xml!
 enum StopTrigger {
   UNKNOWN_STOP_TRIGGER = 0,
 
@@ -74,9 +70,7 @@ enum StopTrigger {
   PEERS_OUT_OF_SYNC = 15,  // The local state disagrees with the remote.
   RPC_INVALID = 16,        // An RPC field value is missing or has bad data.
   DATA_PIPE_CREATE_ERROR = 17,  // Mojo data pipe creation failed (OOM?).
-  MOJO_DISCONNECTED = 18,       // Mojo message pipe was disconnected; e.g, the
-                                // browser shut down.
-  DATA_PIPE_WRITE_ERROR = 24,   // Failure to write the mojo data pipe.
+  MOJO_PIPE_ERROR = 18,         // Mojo message/data pipe operation failed.
 
   // Message/Data sending errors forcing shutdown.
   MESSAGE_SEND_FAILED = 19,  // Failed to send a RPC message to the sink.
@@ -87,11 +81,8 @@ enum StopTrigger {
   // User changing setting forcing shutdown.
   USER_DISABLED = 23,  // Media Remoting was disabled by user.
 
-  // Media element was frozen (e.g. page was navigated away).
-  MEDIA_ELEMENT_FROZEN = 25,
-
   // Change this to the highest value.
-  STOP_TRIGGER_MAX = MEDIA_ELEMENT_FROZEN,
+  STOP_TRIGGER_MAX = 23,
 };
 
 }  // namespace remoting

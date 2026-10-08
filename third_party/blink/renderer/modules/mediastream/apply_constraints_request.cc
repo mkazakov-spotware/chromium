@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,18 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/modules/mediastream/overconstrained_error.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
 ApplyConstraintsRequest::ApplyConstraintsRequest(
-    MediaStreamTrack* track,
+    MediaStreamComponent* component,
     const MediaConstraints& constraints,
     ScriptPromiseResolver* resolver)
-    : track_(track), constraints_(constraints), resolver_(resolver) {}
+    : component_(component), constraints_(constraints), resolver_(resolver) {}
 
 MediaStreamComponent* ApplyConstraintsRequest::Track() const {
-  return track_->Component();
+  return component_;
 }
 
 MediaConstraints ApplyConstraintsRequest::Constraints() const {
@@ -26,10 +26,10 @@ MediaConstraints ApplyConstraintsRequest::Constraints() const {
 }
 
 void ApplyConstraintsRequest::RequestSucceeded() {
-  track_->SetConstraints(constraints_);
+  component_->SetConstraints(constraints_);
   if (resolver_)
     resolver_->Resolve();
-  track_ = nullptr;
+  component_ = nullptr;
 }
 
 void ApplyConstraintsRequest::RequestFailed(const String& constraint,
@@ -38,11 +38,11 @@ void ApplyConstraintsRequest::RequestFailed(const String& constraint,
     resolver_->Reject(
         MakeGarbageCollected<OverconstrainedError>(constraint, message));
   }
-  track_ = nullptr;
+  component_ = nullptr;
 }
 
 void ApplyConstraintsRequest::Trace(Visitor* visitor) const {
-  visitor->Trace(track_);
+  visitor->Trace(component_);
   visitor->Trace(resolver_);
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,6 @@ namespace remoting {
 class FakeDemuxerStream : public DemuxerStream {
  public:
   explicit FakeDemuxerStream(bool is_audio);
-
-  FakeDemuxerStream(const FakeDemuxerStream&) = delete;
-  FakeDemuxerStream& operator=(const FakeDemuxerStream&) = delete;
-
   ~FakeDemuxerStream() override;
 
   // DemuxerStream implementation.
@@ -32,7 +28,7 @@ class FakeDemuxerStream : public DemuxerStream {
   AudioDecoderConfig audio_decoder_config() override;
   VideoDecoderConfig video_decoder_config() override;
   Type type() const override;
-  StreamLiveness liveness() const override;
+  Liveness liveness() const override;
   void EnableBitstreamConverter() override {}
   bool SupportsConfigChanges() override;
 
@@ -45,17 +41,15 @@ class FakeDemuxerStream : public DemuxerStream {
   Type type_;
   AudioDecoderConfig audio_config_;
   VideoDecoderConfig video_config_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDemuxerStream);
 };
 
 // Audio only demuxer stream provider
-class FakeMediaResource final : public MediaResource {
+class FakeMediaResource : public MediaResource {
  public:
   FakeMediaResource();
-
-  FakeMediaResource(const FakeMediaResource&) = delete;
-  FakeMediaResource& operator=(const FakeMediaResource&) = delete;
-
-  ~FakeMediaResource() override;
+  ~FakeMediaResource() final;
 
   // MediaResource implementation.
   std::vector<DemuxerStream*> GetAllStreams() override;
@@ -63,6 +57,8 @@ class FakeMediaResource final : public MediaResource {
  private:
   std::unique_ptr<FakeDemuxerStream> audio_stream_;
   std::unique_ptr<FakeDemuxerStream> video_stream_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeMediaResource);
 };
 
 }  // namespace remoting

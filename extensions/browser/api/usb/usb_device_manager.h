@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
-#include "base/observer_list.h"
-#include "build/build_config.h"
+#include "base/macros.h"
+#include "build/chromeos_buildflags.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router.h"
@@ -33,9 +31,6 @@ class UsbDeviceManager : public BrowserContextKeyedAPI,
                          public EventRouter::Observer,
                          public device::mojom::UsbDeviceManagerClient {
  public:
-  UsbDeviceManager(const UsbDeviceManager&) = delete;
-  UsbDeviceManager& operator=(const UsbDeviceManager&) = delete;
-
   static UsbDeviceManager* Get(content::BrowserContext* browser_context);
 
   // BrowserContextKeyedAPI implementation.
@@ -74,11 +69,11 @@ class UsbDeviceManager : public BrowserContextKeyedAPI,
   const device::mojom::UsbDeviceInfo* GetDeviceInfo(const std::string& guid);
   bool UpdateActiveConfig(const std::string& guid, uint8_t config_value);
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
   void CheckAccess(
       const std::string& guid,
       device::mojom::UsbDeviceManager::CheckAccessCallback callback);
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   void EnsureConnectionWithDeviceManager();
 
@@ -113,7 +108,7 @@ class UsbDeviceManager : public BrowserContextKeyedAPI,
   void DispatchEvent(const std::string& event_name,
                      const device::mojom::UsbDeviceInfo& device_info);
 
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
 
   // Legacy integer IDs are used in USB extensions API so we need to maps USB
   // device GUIDs to integer IDs.
@@ -134,6 +129,7 @@ class UsbDeviceManager : public BrowserContextKeyedAPI,
   base::ObserverList<Observer> observer_list_;
 
   base::WeakPtrFactory<UsbDeviceManager> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(UsbDeviceManager);
 };
 
 template <>

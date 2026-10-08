@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/host/client_session_control.h"
@@ -34,12 +34,12 @@ class LocalInputMonitorTest : public testing::Test {
   void SetUp() override;
 
   base::test::TaskEnvironment task_environment_ {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     base::test::TaskEnvironment::MainThreadType::UI
-#else   // !BUILDFLAG(IS_WIN)
+#else   // !defined(OS_WIN)
     // Required to watch a file descriptor from NativeMessageProcessHost.
     base::test::TaskEnvironment::MainThreadType::IO
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !defined(OS_WIN)
   };
 
   base::RunLoop run_loop_;
@@ -56,9 +56,8 @@ LocalInputMonitorTest::LocalInputMonitorTest()
 
 void LocalInputMonitorTest::SetUp() {
   // Run the task environment until no components depend on it.
-  task_runner_ = new AutoThreadTaskRunner(
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      run_loop_.QuitClosure());
+  task_runner_ = new AutoThreadTaskRunner(base::ThreadTaskRunnerHandle::Get(),
+                                          run_loop_.QuitClosure());
 }
 
 }  // namespace

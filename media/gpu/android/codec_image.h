@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
-#include "gpu/command_buffer/service/ref_counted_lock.h"
 #include "gpu/command_buffer/service/stream_texture_shared_image_interface.h"
 #include "media/gpu/android/codec_output_buffer_renderer.h"
 #include "media/gpu/android/promotion_hint_aggregator.h"
@@ -28,14 +27,9 @@ class ScopedHardwareBufferFenceSync;
 namespace media {
 
 // A GLImage that renders MediaCodec buffers to a TextureOwner or overlay
-// as needed in order to draw them. Note that when DrDc is enabled(kEnableDrDc),
-// a per codec dr-dc lock is expected to be held while calling methods of this
-// class. This is ensured by adding AssertAcquiredDrDcLock() to those methods.
-// We are not adding a Locked suffix on those methods since many of those
-// methods are either overrides or virtual.
+// as needed in order to draw them.
 class MEDIA_GPU_EXPORT CodecImage
-    : public gpu::StreamTextureSharedImageInterface,
-      gpu::RefCountedLockHelperDrDc {
+    : public gpu::StreamTextureSharedImageInterface {
  public:
   // Callback to notify that a codec image is now unused in the sense of not
   // being out for display.  This lets us signal interested folks once a video
@@ -48,11 +42,7 @@ class MEDIA_GPU_EXPORT CodecImage
   // destroying it.
   using UnusedCB = base::OnceCallback<void(CodecImage*)>;
 
-  CodecImage(const gfx::Size& coded_size,
-             scoped_refptr<gpu::RefCountedLock> drdc_lock);
-
-  CodecImage(const CodecImage&) = delete;
-  CodecImage& operator=(const CodecImage&) = delete;
+  CodecImage(const gfx::Size& coded_size);
 
   // (Re-)Initialize this CodecImage to use |output_buffer| et. al.
   //
@@ -78,12 +68,29 @@ class MEDIA_GPU_EXPORT CodecImage
   bool CopyTexSubImage(unsigned target,
                        const gfx::Point& offset,
                        const gfx::Rect& rect) override;
+  // Currently this API is depended on the implementation of
+  // NotifyOverlayPromotion. since we expect overlay to use SharedImage in the
+  // future.
+  bool ScheduleOverlayPlane(gfx::AcceleratedWidget widget,
+                            int z_order,
+                            gfx::OverlayTransform transform,
+                            const gfx::Rect& bounds_rect,
+                            const gfx::RectF& crop_rect,
+                            bool enable_blend,
+                            std::unique_ptr<gfx::GpuFence> gpu_fence) override;
   void SetColorSpace(const gfx::ColorSpace& color_space) override {}
+  void Flush() override {}
   void OnMemoryDump(base::trace_event::ProcessMemoryDump* pmd,
                     uint64_t process_tracing_id,
                     const std::string& dump_name) override;
   std::unique_ptr<base::android::ScopedHardwareBufferFenceSync>
   GetAHardwareBuffer() override;
+
+  // If we re-use one CodecImage with different output buffers, then we must
+  // not claim to have mutable state.  Otherwise, CopyTexImage is only called
+  // once.  For pooled shared images, this must return false.  For single-use
+  // images, it works either way.
+  bool HasMutableState() const override;
 
   // Notify us that we're no longer in-use for display, and may be pointed at
   // another output buffer via a call to Initialize.
@@ -92,14 +99,13 @@ class MEDIA_GPU_EXPORT CodecImage
   // gpu::StreamTextureSharedImageInterface implementation.
   void ReleaseResources() override;
   bool IsUsingGpuMemory() const override;
-  void UpdateAndBindTexImage(GLuint service_id) override;
+  void UpdateAndBindTexImage() override;
   bool HasTextureOwner() const override;
   gpu::TextureBase* GetTextureBase() const override;
   void NotifyOverlayPromotion(bool promotion, const gfx::Rect& bounds) override;
   // Renders this image to the overlay. Returns true if the buffer is in the
   // overlay front buffer. Returns false if the buffer was invalidated.
   bool RenderToOverlay() override;
-  bool TextureOwnerBindsTextureOnUpdate() override;
 
   // Whether the codec buffer has been rendered to the front buffer.
   bool was_rendered_to_front_buffer() const {
@@ -150,12 +156,7 @@ class MEDIA_GPU_EXPORT CodecImage
   // Renders this image to the texture owner front buffer by first rendering
   // it to the back buffer if it's not already there, and then waiting for the
   // frame available event before calling UpdateTexImage().
-  // Also bind the latest image
-  // to the provided |service_id| if TextureOwner does not binds texture on
-  // update. If |bindings_mode| is other than kEnsureTexImageBound, then
-  // |service_id| is not required.
-  bool RenderToTextureOwnerFrontBuffer(BindingsMode bindings_mode,
-                                       GLuint service_id);
+  bool RenderToTextureOwnerFrontBuffer(BindingsMode bindings_mode);
 
   // Whether this image is texture_owner or overlay backed.
   bool is_texture_owner_backed_ = false;
@@ -171,9 +172,7 @@ class MEDIA_GPU_EXPORT CodecImage
 
   std::vector<UnusedCB> unused_cbs_;
 
-  // Bound to the gpu main thread on which this CodecImage is created. Some
-  // methods can only be called on this thread.
-  THREAD_CHECKER(gpu_main_thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(CodecImage);
 };
 
 // Temporary helper class to prevent touching a non-threadsafe-ref-counted
@@ -181,15 +180,10 @@ class MEDIA_GPU_EXPORT CodecImage
 // Passing a raw pointer around isn't safe, since stub destruction could still
 // destroy the consumers of the codec image.
 class MEDIA_GPU_EXPORT CodecImageHolder
-    : public base::RefCountedDeleteOnSequence<CodecImageHolder>,
-      public gpu::RefCountedLockHelperDrDc {
+    : public base::RefCountedDeleteOnSequence<CodecImageHolder> {
  public:
   CodecImageHolder(scoped_refptr<base::SequencedTaskRunner> task_runner,
-                   scoped_refptr<CodecImage> codec_image,
-                   scoped_refptr<gpu::RefCountedLock> drdc_lock);
-
-  CodecImageHolder(const CodecImageHolder&) = delete;
-  CodecImageHolder& operator=(const CodecImageHolder&) = delete;
+                   scoped_refptr<CodecImage> codec_image);
 
   // Safe from any thread.
   CodecImage* codec_image_raw() const { return codec_image_.get(); }
@@ -201,6 +195,8 @@ class MEDIA_GPU_EXPORT CodecImageHolder
   friend class base::DeleteHelper<CodecImageHolder>;
 
   scoped_refptr<CodecImage> codec_image_;
+
+  DISALLOW_COPY_AND_ASSIGN(CodecImageHolder);
 };
 
 }  // namespace media

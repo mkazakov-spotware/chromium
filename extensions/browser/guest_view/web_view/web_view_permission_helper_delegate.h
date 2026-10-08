@@ -1,12 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_GUEST_VIEW_WEB_VIEW_WEB_VIEW_PERMISSION_HELPER_DELEGATE_H_
 #define EXTENSIONS_BROWSER_GUEST_VIEW_WEB_VIEW_WEB_VIEW_PERMISSION_HELPER_DELEGATE_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/guest_view/web_view/web_view_permission_helper.h"
 #include "third_party/blink/public/common/mediastream/media_stream_request.h"
 
@@ -14,17 +15,11 @@ namespace extensions {
 
 // A delegate class of WebViewPermissionHelper to request permissions that are
 // not a part of extensions.
-class WebViewPermissionHelperDelegate {
+class WebViewPermissionHelperDelegate : public content::WebContentsObserver {
  public:
   explicit WebViewPermissionHelperDelegate(
       WebViewPermissionHelper* web_view_permission_helper);
-
-  WebViewPermissionHelperDelegate(const WebViewPermissionHelperDelegate&) =
-      delete;
-  WebViewPermissionHelperDelegate& operator=(
-      const WebViewPermissionHelperDelegate&) = delete;
-
-  virtual ~WebViewPermissionHelperDelegate();
+  ~WebViewPermissionHelperDelegate() override;
 
   virtual void CanDownload(const GURL& url,
                            const std::string& request_method,
@@ -37,9 +32,12 @@ class WebViewPermissionHelperDelegate {
 
   // Requests Geolocation Permission from the embedder.
   virtual void RequestGeolocationPermission(
+      int bridge_id,
       const GURL& requesting_frame,
       bool user_gesture,
       base::OnceCallback<void(bool)> callback) {}
+
+  virtual void CancelGeolocationPermissionRequest(int bridge_id) {}
 
   virtual void RequestFileSystemPermission(
       const GURL& url,
@@ -68,7 +66,9 @@ class WebViewPermissionHelperDelegate {
   }
 
  private:
-  const raw_ptr<WebViewPermissionHelper> web_view_permission_helper_;
+  WebViewPermissionHelper* const web_view_permission_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebViewPermissionHelperDelegate);
 };
 
 }  // namespace extensions

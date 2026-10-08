@@ -1,14 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_IMPORT_MAP_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_IMPORT_MAP_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/script/import_map_error.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl_hash.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
@@ -16,19 +15,21 @@
 namespace blink {
 
 class ConsoleLogger;
-class ImportMapError;
 class JSONObject;
+class Modulator;
 class ParsedSpecifier;
+class ScriptValue;
 
 // Import maps.
 // https://wicg.github.io/import-maps/
 // https://github.com/WICG/import-maps/blob/master/spec.md
 class CORE_EXPORT ImportMap final : public GarbageCollected<ImportMap> {
  public:
-  static ImportMap* Parse(const String& text,
+  static ImportMap* Parse(const Modulator&,
+                          const String& text,
                           const KURL& base_url,
                           ConsoleLogger& logger,
-                          absl::optional<ImportMapError>* error_to_rethrow);
+                          ScriptValue* error_to_rethrow);
 
   // <spec href="https://wicg.github.io/import-maps/#specifier-map">A specifier
   // map is an ordered map from strings to resolution results.</spec>
@@ -51,11 +52,11 @@ class CORE_EXPORT ImportMap final : public GarbageCollected<ImportMap> {
 
   // Return values of Resolve(), ResolveImportsMatch() and
   // ResolveImportsMatchInternal():
-  // - absl::nullopt: corresponds to returning a null in the spec,
+  // - base::nullopt: corresponds to returning a null in the spec,
   //   i.e. allowing fallback to a less specific scope etc.
   // - An invalid KURL: corresponds to throwing an error in the spec.
   // - A valid KURL: corresponds to returning a valid URL in the spec.
-  absl::optional<KURL> Resolve(const ParsedSpecifier&,
+  base::Optional<KURL> Resolve(const ParsedSpecifier&,
                                const KURL& base_url,
                                String* debug_message) const;
 
@@ -67,10 +68,10 @@ class CORE_EXPORT ImportMap final : public GarbageCollected<ImportMap> {
   using MatchResult = SpecifierMap::const_iterator;
 
   // https://wicg.github.io/import-maps/#resolve-an-imports-match
-  absl::optional<KURL> ResolveImportsMatch(const ParsedSpecifier&,
+  base::Optional<KURL> ResolveImportsMatch(const ParsedSpecifier&,
                                            const SpecifierMap&,
                                            String* debug_message) const;
-  absl::optional<MatchResult> MatchPrefix(const ParsedSpecifier&,
+  base::Optional<MatchResult> MatchPrefix(const ParsedSpecifier&,
                                           const SpecifierMap&) const;
   static SpecifierMap SortAndNormalizeSpecifierMap(const JSONObject* imports,
                                                    const KURL& base_url,
@@ -89,4 +90,4 @@ class CORE_EXPORT ImportMap final : public GarbageCollected<ImportMap> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_IMPORT_MAP_H_
+#endif

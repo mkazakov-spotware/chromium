@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "build/build_config.h"
 #include "extensions/browser/extension_prefs_scope.h"
 
 // Preference keys which are needed by both the ExtensionPrefs and by external
@@ -33,7 +32,7 @@ extern const char kAlertsInitialized[];
 extern const char kAllowedInstallSites[];
 
 // A list of allowed extension types. Extensions can only be installed if their
-// type is on this allowlist or alternatively on kInstallAllowList or
+// type is on this whitelist or alternatively on kInstallAllowList or
 // kInstallForceList.
 extern const char kAllowedTypes[];
 
@@ -47,6 +46,9 @@ extern const char kBlockExternalExtensions[];
 // extension ids.
 extern const char kExtensions[];
 
+// A boolean indicating if the extensions checkup has been shown on startup.
+extern const char kExtensionCheckupOnStartup[];
+
 // Dictionary pref that manages extensions, controlled by policy.
 // Values are expected to conform to the schema of the ExtensionManagement
 // policy.
@@ -55,7 +57,7 @@ extern const char kExtensionManagement[];
 // Policy that indicates whether CRX2 extension updates are allowed.
 extern const char kInsecureExtensionUpdatesEnabled[];
 
-// A allowlist of extension ids the user can install: exceptions from the
+// A whitelist of extension ids the user can install: exceptions from the
 // following denylist.
 extern const char kInstallAllowList[];
 
@@ -71,6 +73,13 @@ extern const char kInstallDenyList[];
 // accessed through extensions::ExternalPolicyProvider.
 extern const char kInstallForceList[];
 
+// A list containing apps or extensions that Chrome will silently install on the
+// login screen on Chrome OS at startup time. It is a list of strings, each
+// string contains an app ID and an update URL, delimited by a semicolon. This
+// preference is set by an admin policy, and meant to be only accessed through
+// extensions::ExternalPolicyProvider.
+extern const char kLoginScreenExtensions[];
+
 // String pref for what version chrome was last time the extension prefs were
 // loaded.
 extern const char kLastChromeVersion[];
@@ -85,11 +94,6 @@ extern const char kNativeMessagingUserLevelHosts[];
 // Time of the next scheduled extensions auto-update checks.
 extern const char kNextUpdateCheck[];
 
-// An integer indicates the availability of manifest v2 extensions. The value is
-// controlled by the ExtensionManifestV2Availability policy. More details can
-// be found at ExtensionManifestV2Availability.yaml.
-extern const char kManifestV2Availability[];
-
 // A preference that tracks extensions pinned to the toolbar. This is a list
 // object stored in the Preferences file. The extensions are stored by ID.
 extern const char kPinnedExtensions[];
@@ -98,17 +102,21 @@ extern const char kPinnedExtensions[];
 // on the next start of the browser.
 extern const char kStorageGarbageCollect[];
 
+// A preference that tracks browser action toolbar configuration. This is a list
+// object stored in the Preferences file. The extensions are stored by ID.
+extern const char kToolbar[];
+
+// Integer pref that tracks the number of browser actions visible in the browser
+// actions toolbar.
+extern const char kToolbarSize[];
+
+// Indicates whether extensions have been migrated from BrowserActionsContainer
+// to the ExtensionsToolbarContainer.
+extern const char kPinnedExtensionsMigrationComplete[];
+
 // A preference for a list of Component extensions that have been
 // uninstalled/removed and should not be reloaded.
 extern const char kDeletedComponentExtensions[];
-
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_FUCHSIA)
-// A preference for whether Chrome Apps should be allowed. The default depends
-// on the ChromeAppsDeprecation feature flag, and this pref can extend support
-// for Chrome Apps by enterprise policy.
-extern const char kChromeAppsEnabled[];
-#endif
 
 // Properties in kExtensions dictionaries --------------------------------------
 

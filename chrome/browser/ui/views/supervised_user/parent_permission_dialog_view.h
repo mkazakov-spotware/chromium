@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/callback_forward.h"
+#include "base/macros.h"
 #include "chrome/browser/extensions/install_prompt_permissions.h"
 #include "chrome/browser/supervised_user/supervised_user_extensions_metrics_recorder.h"
 #include "chrome/browser/ui/supervised_user/parent_permission_dialog.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
 #include "google_apis/gaia/gaia_auth_consumer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/view.h"
@@ -44,8 +44,6 @@ class ParentPermissionInputSection;
 class ParentPermissionDialogView : public views::DialogDelegateView,
                                    public GaiaAuthConsumer {
  public:
-  METADATA_HEADER(ParentPermissionDialogView);
-
   class Observer {
    public:
     // Tells observers that their references to the view are becoming invalid.
@@ -55,10 +53,12 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
 
   ParentPermissionDialogView(std::unique_ptr<Params> params,
                              Observer* observer);
+
+  ~ParentPermissionDialogView() override;
+
   ParentPermissionDialogView(const ParentPermissionDialogView&) = delete;
   ParentPermissionDialogView& operator=(const ParentPermissionDialogView&) =
       delete;
-  ~ParentPermissionDialogView() override;
 
   // Closes the dialog.
   void CloseDialog();
@@ -69,32 +69,31 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
   // Removes the observer reference.
   void RemoveObserver();
 
-  void SetSelectedParentPermissionEmail(const std::u16string& email_address);
-  std::u16string GetSelectedParentPermissionEmail() const;
+  void set_selected_parent_permission_email_address(
+      const base::string16& email_address) {
+    selected_parent_permission_email_ = email_address;
+  }
 
-  void SetParentPermissionCredential(const std::u16string& credential);
-  std::u16string GetParentPermissionCredential() const;
+  void set_parent_permission_credential(const base::string16& credential) {
+    parent_permission_credential_ = credential;
+  }
 
-  bool GetInvalidCredentialReceived() const;
-
+  bool invalid_credential_received() { return invalid_credential_received_; }
   void SetIdentityManagerForTesting(signin::IdentityManager* identity_manager);
-
   void SetRepromptAfterIncorrectCredential(bool reprompt);
-  bool GetRepromptAfterIncorrectCredential() const;
 
  private:
-  std::u16string GetActiveUserFirstName() const;
+  base::string16 GetActiveUserFirstName() const;
 
   // views::View:
   void AddedToWidget() override;
-  void OnThemeChanged() override;
 
   // views::DialogDelegate:
   bool Cancel() override;
   bool Accept() override;
 
   // views::WidgetDelegate:
-  std::u16string GetAccessibleWindowTitle() const override;
+  base::string16 GetAccessibleWindowTitle() const override;
 
   // Changes the widget size to accommodate the contents' preferred size.
   void ResizeWidget();
@@ -110,12 +109,11 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
   void OnExtensionIconLoaded(const gfx::Image& image);
   void LoadExtensionIcon();
   void CloseWithReason(views::Widget::ClosedReason reason);
-  void OnDialogClose();
 
   // Given an email address of the child's parent, return the parents'
   // obfuscated gaia id.
   std::string GetParentObfuscatedGaiaID(
-      const std::u16string& parent_email) const;
+      const base::string16& parent_email) const;
 
   // Starts the Reauth-scoped OAuth access token fetch process.
   void StartReauthAccessTokenFetch(const std::string& parent_obfuscated_gaia_id,
@@ -139,9 +137,7 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
   void OnReAuthProofTokenFailure(
       const GaiaAuthConsumer::ReAuthProofTokenStatus error) override;
 
-  // The first time it is called, logs the result to UMA and passes it to the
-  // callback. No effect if called subsequent times.
-  void SendResultOnce(ParentPermissionDialog::Result result);
+  void SendResult(ParentPermissionDialog::Result result);
 
   // Sets the |extension| to be optionally displayed in the dialog.  This
   // causes the view to show several extension properties including the
@@ -154,7 +150,7 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
   extensions::InstallPromptPermissions prompt_permissions_;
 
   // The email address of the parents to display in the dialog.
-  std::vector<std::u16string> parent_permission_email_addresses_;
+  std::vector<base::string16> parent_permission_email_addresses_;
 
   bool reprompt_after_incorrect_credential_ = true;
 
@@ -162,15 +158,15 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
   std::unique_ptr<ParentPermissionInputSection>
       parent_permission_input_section_;
 
-  raw_ptr<views::Label> invalid_credential_label_ = nullptr;
+  views::Label* invalid_credential_label_ = nullptr;
 
   bool invalid_credential_received_ = false;
 
   // The currently selected parent email.
-  std::u16string selected_parent_permission_email_;
+  base::string16 selected_parent_permission_email_;
 
   // The currently entered parent credential.
-  std::u16string parent_permission_credential_;
+  base::string16 parent_permission_credential_;
 
   // Parameters for the dialog.
   std::unique_ptr<Params> params_;
@@ -178,18 +174,14 @@ class ParentPermissionDialogView : public views::DialogDelegateView,
   // Used to ensure we don't try to show same dialog twice.
   bool is_showing_ = false;
 
-  // Used to set close reason if the dialog is closed without clicking
-  // "approve."
-  bool is_approve_clicked_ = false;
-
   // Used to fetch the Reauth token.
   std::unique_ptr<GaiaAuthFetcher> reauth_token_fetcher_;
 
   // Used to fetch OAuth2 access tokens.
-  raw_ptr<signin::IdentityManager> identity_manager_ = nullptr;
+  signin::IdentityManager* identity_manager_ = nullptr;
   std::unique_ptr<signin::AccessTokenFetcher> oauth2_access_token_fetcher_;
 
-  raw_ptr<Observer> observer_;
+  Observer* observer_;
 
   SupervisedUserExtensionsMetricsRecorder supervised_user_metrics_recorder_;
 

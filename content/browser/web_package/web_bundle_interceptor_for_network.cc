@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/web_package/web_bundle_interceptor_for_network.h"
 
 #include "base/strings/stringprintf.h"
-#include "components/web_package/web_bundle_utils.h"
 #include "content/browser/loader/navigation_loader_interceptor.h"
 #include "content/browser/loader/single_request_url_loader_factory.h"
+#include "content/browser/web_package/signed_exchange_utils.h"
 #include "content/browser/web_package/web_bundle_reader.h"
 #include "content/browser/web_package/web_bundle_redirect_url_loader.h"
 #include "content/browser/web_package/web_bundle_source.h"
@@ -68,7 +68,7 @@ bool WebBundleInterceptorForNetwork::MaybeCreateLoaderForResponse(
   }
   *client_receiver = forwarding_client_.BindNewPipeAndPassReceiver();
 
-  if (!web_package::HasNoSniffHeader(**response_head)) {
+  if (!signed_exchange_utils::HasNoSniffHeader(**response_head)) {
     web_bundle_utils::CompleteWithInvalidWebBundleError(
         std::move(forwarding_client_), frame_tree_node_id_,
         web_bundle_utils::kNoSniffErrorMessage);
@@ -92,7 +92,8 @@ bool WebBundleInterceptorForNetwork::MaybeCreateLoaderForResponse(
 
   reader_ = base::MakeRefCounted<WebBundleReader>(
       std::move(source), length_hint, std::move(*response_body),
-      url_loader->Unbind(), browser_context_->GetBlobStorageContext());
+      url_loader->Unbind(),
+      BrowserContext::GetBlobStorageContext(browser_context_));
   reader_->ReadMetadata(
       base::BindOnce(&WebBundleInterceptorForNetwork::OnMetadataReady,
                      weak_factory_.GetWeakPtr(), request));
@@ -108,34 +109,14 @@ void WebBundleInterceptorForNetwork::OnMetadataReady(
         web_bundle_utils::GetMetadataParseErrorMessage(error));
     return;
   }
-  primary_url_ = reader_->GetPrimaryURL().value_or(GURL());
-  if (primary_url_.is_empty()) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kNoPrimaryUrlErrorMessage);
-    return;
-  }
-  if (!web_bundle_utils::IsAllowedExchangeUrl(primary_url_)) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kInvalidPrimaryUrlErrorMessage);
-    return;
-  }
-  if (!base::ranges::all_of(reader_->GetEntries(),
-                            &web_bundle_utils::IsAllowedExchangeUrl)) {
-    web_bundle_utils::CompleteWithInvalidWebBundleError(
-        std::move(forwarding_client_), frame_tree_node_id_,
-        web_bundle_utils::kInvalidExchangeUrlErrorMessage);
-    return;
-  }
+  primary_url_ = reader_->GetPrimaryURL();
   if (!reader_->HasEntry(primary_url_)) {
     web_bundle_utils::CompleteWithInvalidWebBundleError(
         std::move(forwarding_client_), frame_tree_node_id_,
         "The primary URL resource is not found in the web bundle.");
     return;
   }
-  if (primary_url_.DeprecatedGetOriginAsURL() !=
-      reader_->source().url().DeprecatedGetOriginAsURL()) {
+  if (primary_url_.GetOrigin() != reader_->source().url().GetOrigin()) {
     web_bundle_utils::CompleteWithInvalidWebBundleError(
         std::move(forwarding_client_), frame_tree_node_id_,
         "The origin of primary URL doesn't match with the origin of the web "
@@ -165,7 +146,7 @@ void WebBundleInterceptorForNetwork::StartResponse(
   network::ResourceRequest new_resource_request = resource_request;
   new_resource_request.url = primary_url_;
   url_loader_factory_->CreateLoaderAndStart(
-      std::move(receiver), 0, 0, new_resource_request, std::move(client),
+      std::move(receiver), 0, 0, 0, new_resource_request, std::move(client),
       net::MutableNetworkTrafficAnnotationTag(
           web_bundle_utils::kTrafficAnnotation));
   std::move(done_callback_).Run(primary_url_, std::move(url_loader_factory_));

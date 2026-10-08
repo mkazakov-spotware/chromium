@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,29 +13,25 @@ namespace media {
 
 AudioCodec ToCastAudioCodec(const ::media::AudioCodec codec) {
   switch (codec) {
-    case ::media::AudioCodec::kAAC:
+    case ::media::kCodecAAC:
       return kCodecAAC;
-    case ::media::AudioCodec::kMP3:
+    case ::media::kCodecMP3:
       return kCodecMP3;
-    case ::media::AudioCodec::kPCM:
+    case ::media::kCodecPCM:
       return kCodecPCM;
-    case ::media::AudioCodec::kPCM_S16BE:
+    case ::media::kCodecPCM_S16BE:
       return kCodecPCM_S16BE;
-    case ::media::AudioCodec::kVorbis:
+    case ::media::kCodecVorbis:
       return kCodecVorbis;
-    case ::media::AudioCodec::kOpus:
+    case ::media::kCodecOpus:
       return kCodecOpus;
-    case ::media::AudioCodec::kEAC3:
+    case ::media::kCodecEAC3:
       return kCodecEAC3;
-    case ::media::AudioCodec::kAC3:
+    case ::media::kCodecAC3:
       return kCodecAC3;
-    case ::media::AudioCodec::kDTS:
-      return kCodecDTS;
-    case ::media::AudioCodec::kDTSXP2:
-      return kCodecDTSXP2;
-    case ::media::AudioCodec::kFLAC:
+    case ::media::kCodecFLAC:
       return kCodecFLAC;
-    case ::media::AudioCodec::kMpegHAudio:
+    case ::media::kCodecMpegHAudio:
       return kCodecMpegHAudio;
     default:
       LOG(ERROR) << "Unsupported audio codec " << codec;
@@ -46,15 +42,15 @@ AudioCodec ToCastAudioCodec(const ::media::AudioCodec codec) {
 VideoCodec ToCastVideoCodec(const ::media::VideoCodec video_codec,
                             const ::media::VideoCodecProfile codec_profile) {
   switch (video_codec) {
-    case ::media::VideoCodec::kH264:
+    case ::media::kCodecH264:
       return kCodecH264;
-    case ::media::VideoCodec::kVP8:
+    case ::media::kCodecVP8:
       return kCodecVP8;
-    case ::media::VideoCodec::kVP9:
+    case ::media::kCodecVP9:
       return kCodecVP9;
-    case ::media::VideoCodec::kHEVC:
+    case ::media::kCodecHEVC:
       return kCodecHEVC;
-    case ::media::VideoCodec::kDolbyVision:
+    case ::media::kCodecDolbyVision:
       if (codec_profile == ::media::DOLBYVISION_PROFILE0 ||
           codec_profile == ::media::DOLBYVISION_PROFILE9) {
         return kCodecDolbyVisionH264;
@@ -66,7 +62,7 @@ VideoCodec ToCastVideoCodec(const ::media::VideoCodec video_codec,
       }
       LOG(ERROR) << "Unsupported video codec profile " << codec_profile;
       break;
-    case ::media::VideoCodec::kAV1:
+    case ::media::kCodecAV1:
       return kCodecAV1;
     default:
       LOG(ERROR) << "Unsupported video codec " << video_codec;
@@ -105,22 +101,6 @@ VideoProfile ToCastVideoProfile(
       return kHEVCMain10;
     case ::media::HEVCPROFILE_MAIN_STILL_PICTURE:
       return kHEVCMainStillPicture;
-    case ::media::HEVCPROFILE_REXT:
-      return kHEVCRext;
-    case ::media::HEVCPROFILE_HIGH_THROUGHPUT:
-      return kHEVCHighThroughput;
-    case ::media::HEVCPROFILE_MULTIVIEW_MAIN:
-      return kHEVCMultiviewMain;
-    case ::media::HEVCPROFILE_SCALABLE_MAIN:
-      return kHEVCScalableMain;
-    case ::media::HEVCPROFILE_3D_MAIN:
-      return kHEVC3dMain;
-    case ::media::HEVCPROFILE_SCREEN_EXTENDED:
-      return kHEVCScreenExtended;
-    case ::media::HEVCPROFILE_SCALABLE_REXT:
-      return kHEVCScalableRext;
-    case ::media::HEVCPROFILE_HIGH_THROUGHPUT_SCREEN_EXTENDED:
-      return kHEVCHighThroughputScreenExtended;
     case ::media::VP8PROFILE_ANY:
       return kVP8ProfileAny;
     case ::media::VP9PROFILE_PROFILE0:
@@ -132,17 +112,13 @@ VideoProfile ToCastVideoProfile(
     case ::media::VP9PROFILE_PROFILE3:
       return kVP9Profile3;
     case ::media::DOLBYVISION_PROFILE0:
-      return kDolbyVisionProfile0;
+      return kDolbyVisionCompatible_EL_MD;
     case ::media::DOLBYVISION_PROFILE4:
-      return kDolbyVisionProfile4;
+      return kDolbyVisionCompatible_EL_MD;
     case ::media::DOLBYVISION_PROFILE5:
-      return kDolbyVisionProfile5;
+      return kDolbyVisionNonCompatible_BL_MD;
     case ::media::DOLBYVISION_PROFILE7:
-      return kDolbyVisionProfile7;
-    case ::media::DOLBYVISION_PROFILE8:
-      return kDolbyVisionProfile8;
-    case ::media::DOLBYVISION_PROFILE9:
-      return kDolbyVisionProfile9;
+      return kDolbyVisionNonCompatible_BL_EL_MD;
     case ::media::AV1PROFILE_PROFILE_MAIN:
       return kAV1ProfileMain;
     case ::media::AV1PROFILE_PROFILE_HIGH:

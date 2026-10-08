@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "build/build_config.h"
 #include "content/public/common/page_type.h"
 #include "ui/gfx/native_widget_types.h"
 #include "url/gurl.h"
@@ -76,31 +75,28 @@ GURL GetTestUrl(const char* dir, const char* file);
 // version below which also takes the expected commit URL.  If the navigation
 // will not result in a commit, such as a download or a 204 response, use
 // NavigateToURLAndExpectNoCommit() instead.
-[[nodiscard]] bool NavigateToURL(Shell* window, const GURL& url);
+WARN_UNUSED_RESULT bool NavigateToURL(Shell* window, const GURL& url);
 
 // Same as above, but takes in an additional URL, |expected_commit_url|, to
 // which the navigation should eventually commit.  This is useful for cases
 // like redirects, where navigation starts on one URL but ends up committing a
 // different URL.  This function will return true if navigating to |url|
 // results in a successful commit to |expected_commit_url|.
-[[nodiscard]] bool NavigateToURL(Shell* window,
-                                 const GURL& url,
-                                 const GURL& expected_commit_url);
+WARN_UNUSED_RESULT bool NavigateToURL(Shell* window,
+                                      const GURL& url,
+                                      const GURL& expected_commit_url);
 
 // Navigates |window| to |url|, blocking until the given number of navigations
-// finishes. If |ignore_uncommitted_navigations| is true, then an aborted
-// navigation also counts toward |number_of_navigations| being complete.
-void NavigateToURLBlockUntilNavigationsComplete(
-    Shell* window,
-    const GURL& url,
-    int number_of_navigations,
-    bool ignore_uncommitted_navigations = true);
+// finishes.
+void NavigateToURLBlockUntilNavigationsComplete(Shell* window,
+                                                const GURL& url,
+                                                int number_of_navigations);
 
 // Navigates |window| to |url|, blocks until the navigation finishes, and
 // checks that the navigation did not commit (e.g., due to a crash or
 // download).
-[[nodiscard]] bool NavigateToURLAndExpectNoCommit(Shell* window,
-                                                  const GURL& url);
+WARN_UNUSED_RESULT bool NavigateToURLAndExpectNoCommit(Shell* window,
+                                                       const GURL& url);
 
 // Reloads |window|, blocking until the given number of navigations finishes.
 void ReloadBlockUntilNavigationsComplete(Shell* window,
@@ -135,7 +131,7 @@ class AppModalDialogWaiter {
  private:
   void EarlyCallback();
   bool was_dialog_request_callback_called_ = false;
-  raw_ptr<Shell> shell_;
+  Shell* shell_;
 };
 
 // Extends the ToRenderFrameHost mechanism to content::Shells.
@@ -152,10 +148,6 @@ void LookupAndLogNameAndIdOfFirstCamera();
 class ShellAddedObserver {
  public:
   ShellAddedObserver();
-
-  ShellAddedObserver(const ShellAddedObserver&) = delete;
-  ShellAddedObserver& operator=(const ShellAddedObserver&) = delete;
-
   ~ShellAddedObserver();
 
   // Will run a message loop to wait for the new window if it hasn't been
@@ -165,11 +157,13 @@ class ShellAddedObserver {
  private:
   void ShellCreated(Shell* shell);
 
-  raw_ptr<Shell, DanglingUntriaged> shell_ = nullptr;
+  Shell* shell_ = nullptr;
   std::unique_ptr<base::RunLoop> runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShellAddedObserver);
 };
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // An observer of the RenderWidgetHostViewCocoa which is the NSView
 // corresponding to the page.
 class RenderWidgetHostViewCocoaObserver {
@@ -191,12 +185,6 @@ class RenderWidgetHostViewCocoaObserver {
       WebContents* web_contents);
 
   explicit RenderWidgetHostViewCocoaObserver(WebContents* web_contents);
-
-  RenderWidgetHostViewCocoaObserver(const RenderWidgetHostViewCocoaObserver&) =
-      delete;
-  RenderWidgetHostViewCocoaObserver& operator=(
-      const RenderWidgetHostViewCocoaObserver&) = delete;
-
   virtual ~RenderWidgetHostViewCocoaObserver();
 
   // Called when a new NSView is added as a subview of RWHVCocoa.
@@ -219,7 +207,9 @@ class RenderWidgetHostViewCocoaObserver {
       rwhvcocoa_swizzlers_;
   static std::map<WebContents*, RenderWidgetHostViewCocoaObserver*> observers_;
 
-  const raw_ptr<WebContents> web_contents_;
+  WebContents* const web_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderWidgetHostViewCocoaObserver);
 };
 
 void SetWindowBounds(gfx::NativeWindow window, const gfx::Rect& bounds);
@@ -258,12 +248,12 @@ void IsolateOriginsForTesting(
     WebContents* web_contents,
     std::vector<std::string> hostnames_to_isolate);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 void SetMockCursorPositionForTesting(WebContents* web_contents,
                                      const gfx::Point& position);
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace content
 

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Matchers to be used with the mock utilities.  They allow for
@@ -23,10 +31,10 @@ goog.provide('goog.testing.mockmatchers.RegexpMatch');
 goog.provide('goog.testing.mockmatchers.SaveArgument');
 goog.provide('goog.testing.mockmatchers.TypeOf');
 
+goog.forwardDeclare('goog.testing.MockExpectation');
 goog.require('goog.array');
 goog.require('goog.dom');
-goog.require('goog.testing.asserts');
-goog.requireType('goog.testing.MockExpectation');
+goog.require('goog.testing.asserts');  // circular
 
 
 
@@ -42,7 +50,6 @@ goog.requireType('goog.testing.MockExpectation');
  */
 goog.testing.mockmatchers.ArgumentMatcher = function(
     opt_matchFn, opt_matchName) {
-  'use strict';
   /**
    * A function that evaluates a given argument and returns true if it meets a
    * given criteria.
@@ -71,7 +78,6 @@ goog.testing.mockmatchers.ArgumentMatcher = function(
  */
 goog.testing.mockmatchers.ArgumentMatcher.prototype.matches = function(
     toVerify, opt_expectation) {
-  'use strict';
   if (this.matchFn_) {
     var isamatch = this.matchFn_(toVerify);
     if (!isamatch && opt_expectation) {
@@ -101,9 +107,7 @@ goog.testing.mockmatchers.ArgumentMatcher.prototype.matches = function(
  * @final
  */
 goog.testing.mockmatchers.InstanceOf = function(ctor) {
-  'use strict';
   goog.testing.mockmatchers.ArgumentMatcher.call(this, function(obj) {
-    'use strict';
     return obj instanceof ctor;
     // NOTE: Browser differences on ctor.toString() output
     // make using that here problematic. So for now, just let
@@ -125,9 +129,7 @@ goog.inherits(
  * @final
  */
 goog.testing.mockmatchers.TypeOf = function(type) {
-  'use strict';
   goog.testing.mockmatchers.ArgumentMatcher.call(this, function(obj) {
-    'use strict';
     return goog.typeOf(obj) == type;
   }, 'typeOf(' + type + ')');
 };
@@ -145,9 +147,7 @@ goog.inherits(
  * @final
  */
 goog.testing.mockmatchers.RegexpMatch = function(regexp) {
-  'use strict';
   goog.testing.mockmatchers.ArgumentMatcher.call(this, function(str) {
-    'use strict';
     return regexp.test(str);
   }, 'match(' + regexp + ')');
 };
@@ -166,11 +166,8 @@ goog.inherits(
  * @final
  */
 goog.testing.mockmatchers.IgnoreArgument = function() {
-  'use strict';
-  goog.testing.mockmatchers.ArgumentMatcher.call(this, function() {
-    'use strict';
-    return true;
-  }, 'true');
+  goog.testing.mockmatchers.ArgumentMatcher.call(
+      this, function() { return true; }, 'true');
 };
 goog.inherits(
     goog.testing.mockmatchers.IgnoreArgument,
@@ -187,7 +184,6 @@ goog.inherits(
  * @extends {goog.testing.mockmatchers.ArgumentMatcher}
  */
 goog.testing.mockmatchers.ObjectEquals = function(expectedObject) {
-  'use strict';
   /** @private */
   this.expectedObject_ = expectedObject;
 };
@@ -199,7 +195,6 @@ goog.inherits(
 /** @override */
 goog.testing.mockmatchers.ObjectEquals.prototype.matches = function(
     toVerify, opt_expectation) {
-  'use strict';
   // Override the default matches implementation to provide a custom error
   // message to opt_expectation if it exists.
   var differences =
@@ -230,7 +225,6 @@ goog.testing.mockmatchers.ObjectEquals.prototype.matches = function(
  * @final
  */
 goog.testing.mockmatchers.SaveArgument = function(opt_matcher, opt_matchName) {
-  'use strict';
   goog.testing.mockmatchers.ArgumentMatcher.call(
       this, /** @type {Function} */ (opt_matcher), opt_matchName);
 
@@ -259,7 +253,6 @@ goog.inherits(
 /** @override */
 goog.testing.mockmatchers.SaveArgument.prototype.matches = function(
     toVerify, opt_expectation) {
-  'use strict';
   this.arg = toVerify;
   this.allArgs.push(toVerify);
   if (this.delegateMatcher_) {
@@ -290,7 +283,7 @@ goog.testing.mockmatchers.ignoreArgument =
  * @type {!goog.testing.mockmatchers.ArgumentMatcher}
  */
 goog.testing.mockmatchers.isArray =
-    new goog.testing.mockmatchers.ArgumentMatcher(Array.isArray, 'isArray');
+    new goog.testing.mockmatchers.ArgumentMatcher(goog.isArray, 'isArray');
 
 
 /**
@@ -317,8 +310,7 @@ goog.testing.mockmatchers.isDateLike =
  * @type {!goog.testing.mockmatchers.ArgumentMatcher}
  */
 goog.testing.mockmatchers.isString =
-    new goog.testing.mockmatchers.ArgumentMatcher(
-        x => typeof x === 'string', 'isString');
+    new goog.testing.mockmatchers.ArgumentMatcher(goog.isString, 'isString');
 
 
 /**
@@ -326,8 +318,7 @@ goog.testing.mockmatchers.isString =
  * @type {!goog.testing.mockmatchers.ArgumentMatcher}
  */
 goog.testing.mockmatchers.isBoolean =
-    new goog.testing.mockmatchers.ArgumentMatcher(
-        x => typeof x === 'boolean', 'isBoolean');
+    new goog.testing.mockmatchers.ArgumentMatcher(goog.isBoolean, 'isBoolean');
 
 
 /**
@@ -335,8 +326,7 @@ goog.testing.mockmatchers.isBoolean =
  * @type {!goog.testing.mockmatchers.ArgumentMatcher}
  */
 goog.testing.mockmatchers.isNumber =
-    new goog.testing.mockmatchers.ArgumentMatcher(
-        x => typeof x === 'number', 'isNumber');
+    new goog.testing.mockmatchers.ArgumentMatcher(goog.isNumber, 'isNumber');
 
 
 /**
@@ -345,7 +335,7 @@ goog.testing.mockmatchers.isNumber =
  */
 goog.testing.mockmatchers.isFunction =
     new goog.testing.mockmatchers.ArgumentMatcher(
-        x => typeof x === 'function', 'isFunction');
+        goog.isFunction, 'isFunction');
 
 
 /**
@@ -379,9 +369,7 @@ goog.testing.mockmatchers.isNodeLike =
  */
 goog.testing.mockmatchers.flexibleArrayMatcher = function(
     expectedArr, arr, opt_expectation) {
-  'use strict';
   return goog.array.equals(expectedArr, arr, function(a, b) {
-    'use strict';
     var errCount = 0;
     if (opt_expectation) {
       errCount = opt_expectation.getErrorMessageCount();

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,12 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "net/tools/huffman_trie/huffman/huffman_builder.h"
 
-namespace net::huffman_trie {
+namespace net {
+
+namespace huffman_trie {
 
 class BitWriter;
 
@@ -22,10 +25,6 @@ class BitWriter;
 class TrieBitBuffer {
  public:
   TrieBitBuffer();
-
-  TrieBitBuffer(const TrieBitBuffer&) = delete;
-  TrieBitBuffer& operator=(const TrieBitBuffer&) = delete;
-
   ~TrieBitBuffer();
 
   // Writes |bit| to the buffer.
@@ -68,6 +67,9 @@ class TrieBitBuffer {
     uint32_t position;
   };
 
+  // Returns the minimum number of bits needed to represent |input|.
+  uint8_t BitLength(uint32_t input) const;
+
   // Append a new element to |elements_|.
   void AppendBitsElement(uint8_t bits, uint8_t number_of_bits);
   void AppendPositionElement(uint32_t position);
@@ -79,8 +81,12 @@ class TrieBitBuffer {
   uint32_t used_ = 0;
 
   std::vector<BitsOrPosition> elements_;
+
+  DISALLOW_COPY_AND_ASSIGN(TrieBitBuffer);
 };
 
-}  // namespace net::huffman_trie
+}  // namespace huffman_trie
+
+}  // namespace net
 
 #endif  // NET_TOOLS_HUFFMAN_TRIE_TRIE_TRIE_BIT_BUFFER_H_

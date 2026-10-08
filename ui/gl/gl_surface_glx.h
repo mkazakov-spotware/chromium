@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gfx/x/event.h"
@@ -33,9 +34,6 @@ class GL_EXPORT GLSurfaceGLX : public GLSurface {
  public:
   GLSurfaceGLX();
 
-  GLSurfaceGLX(const GLSurfaceGLX&) = delete;
-  GLSurfaceGLX& operator=(const GLSurfaceGLX&) = delete;
-
   static bool InitializeOneOff();
   static bool InitializeExtensionSettingsOneOff();
   static void ShutdownOneOff();
@@ -56,7 +54,7 @@ class GL_EXPORT GLSurfaceGLX : public GLSurface {
   static bool IsEXTSwapControlSupported();
   static bool IsMESASwapControlSupported();
 
-  GLDisplay* GetGLDisplay() override;
+  void* GetDisplay() override;
 
   // Get the FB config that the surface was created with or NULL if it is not
   // a GLX drawable.
@@ -66,17 +64,14 @@ class GL_EXPORT GLSurfaceGLX : public GLSurface {
   ~GLSurfaceGLX() override;
 
  private:
+  DISALLOW_COPY_AND_ASSIGN(GLSurfaceGLX);
   static bool initialized_;
-  raw_ptr<GLDisplayX11> display_;
 };
 
 // A surface used to render to a view.
 class GL_EXPORT NativeViewGLSurfaceGLX : public GLSurfaceGLX {
  public:
   explicit NativeViewGLSurfaceGLX(gfx::AcceleratedWidget window);
-
-  NativeViewGLSurfaceGLX(const NativeViewGLSurfaceGLX&) = delete;
-  NativeViewGLSurfaceGLX& operator=(const NativeViewGLSurfaceGLX&) = delete;
 
   // Implement GLSurfaceGLX.
   bool Initialize(GLSurfaceFormat format) override;
@@ -86,8 +81,7 @@ class GL_EXPORT NativeViewGLSurfaceGLX : public GLSurfaceGLX {
               const gfx::ColorSpace& color_space,
               bool has_alpha) override;
   bool IsOffscreen() override;
-  gfx::SwapResult SwapBuffers(PresentationCallback callback,
-                              FrameData data) override;
+  gfx::SwapResult SwapBuffers(PresentationCallback callback) override;
   gfx::Size GetSize() override;
   void* GetHandle() override;
   bool SupportsPostSubBuffer() override;
@@ -97,8 +91,7 @@ class GL_EXPORT NativeViewGLSurfaceGLX : public GLSurfaceGLX {
                                 int y,
                                 int width,
                                 int height,
-                                PresentationCallback callback,
-                                FrameData data) override;
+                                PresentationCallback callback) override;
   bool OnMakeCurrent(GLContext* context) override;
   gfx::VSyncProvider* GetVSyncProvider() override;
   void SetVSyncEnabled(bool enabled) override;
@@ -111,10 +104,10 @@ class GL_EXPORT NativeViewGLSurfaceGLX : public GLSurfaceGLX {
   virtual void UnregisterEvents() = 0;
 
   // Forwards Expose event to child window.
-  void ForwardExposeEvent(const x11::Event& xevent);
+  void ForwardExposeEvent(x11::Event* xevent);
 
   // Checks if event is Expose for child window.
-  bool CanHandleEvent(const x11::Event& xevent);
+  bool CanHandleEvent(x11::Event* xevent);
 
   gfx::AcceleratedWidget window() const {
     return static_cast<gfx::AcceleratedWidget>(window_);
@@ -141,6 +134,8 @@ class GL_EXPORT NativeViewGLSurfaceGLX : public GLSurfaceGLX {
   std::unique_ptr<gfx::VSyncProvider> vsync_provider_;
 
   std::unique_ptr<GLSurfacePresentationHelper> presentation_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeViewGLSurfaceGLX);
 };
 
 // A surface used to render to an offscreen pbuffer.
@@ -148,17 +143,11 @@ class GL_EXPORT UnmappedNativeViewGLSurfaceGLX : public GLSurfaceGLX {
  public:
   explicit UnmappedNativeViewGLSurfaceGLX(const gfx::Size& size);
 
-  UnmappedNativeViewGLSurfaceGLX(const UnmappedNativeViewGLSurfaceGLX&) =
-      delete;
-  UnmappedNativeViewGLSurfaceGLX& operator=(
-      const UnmappedNativeViewGLSurfaceGLX&) = delete;
-
   // Implement GLSurfaceGLX.
   bool Initialize(GLSurfaceFormat format) override;
   void Destroy() override;
   bool IsOffscreen() override;
-  gfx::SwapResult SwapBuffers(PresentationCallback callback,
-                              FrameData data) override;
+  gfx::SwapResult SwapBuffers(PresentationCallback callback) override;
   gfx::Size GetSize() override;
   void* GetHandle() override;
   void* GetConfig() override;
@@ -175,6 +164,8 @@ class GL_EXPORT UnmappedNativeViewGLSurfaceGLX : public GLSurfaceGLX {
 
   // GLXDrawable for the window.
   x11::Glx::Window glx_window_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnmappedNativeViewGLSurfaceGLX);
 };
 
 }  // namespace gl

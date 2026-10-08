@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,12 +22,12 @@ static const FillLayer* GetFillLayerForSize(const CSSProperty& property,
 }
 
 static FillLayer* AccessFillLayerForSize(const CSSProperty& property,
-                                         ComputedStyleBuilder& builder) {
+                                         ComputedStyle& style) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kBackgroundSize:
-      return &builder.AccessBackgroundLayers();
+      return &style.AccessBackgroundLayers();
     case CSSPropertyID::kWebkitMaskSize:
-      return &builder.AccessMaskLayers();
+      return &style.AccessMaskLayers();
     default:
       NOTREACHED();
       return nullptr;
@@ -35,9 +35,8 @@ static FillLayer* AccessFillLayerForSize(const CSSProperty& property,
 }
 
 SizeList SizeListPropertyFunctions::GetInitialSizeList(
-    const CSSProperty& property,
-    const ComputedStyle& initial_style) {
-  return GetSizeList(property, initial_style);
+    const CSSProperty& property) {
+  return GetSizeList(property, ComputedStyle::InitialStyle());
 }
 
 SizeList SizeListPropertyFunctions::GetSizeList(const CSSProperty& property,
@@ -50,9 +49,9 @@ SizeList SizeListPropertyFunctions::GetSizeList(const CSSProperty& property,
 }
 
 void SizeListPropertyFunctions::SetSizeList(const CSSProperty& property,
-                                            ComputedStyleBuilder& builder,
+                                            ComputedStyle& style,
                                             const SizeList& size_list) {
-  FillLayer* fill_layer = AccessFillLayerForSize(property, builder);
+  FillLayer* fill_layer = AccessFillLayerForSize(property, style);
   FillLayer* prev = nullptr;
   for (const FillSize& size : size_list) {
     if (!fill_layer)

@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/memory/unsafe_shared_memory_region.h"
 
 #include <utility>
-
-#include "base/check_op.h"
 
 namespace base {
 
@@ -48,24 +46,22 @@ UnsafeSharedMemoryRegion UnsafeSharedMemoryRegion::Duplicate() const {
   return UnsafeSharedMemoryRegion(handle_.Duplicate());
 }
 
-WritableSharedMemoryMapping UnsafeSharedMemoryRegion::Map(
-    SharedMemoryMapper* mapper) const {
-  return MapAt(0, handle_.GetSize(), mapper);
+WritableSharedMemoryMapping UnsafeSharedMemoryRegion::Map() const {
+  return MapAt(0, handle_.GetSize());
 }
 
-WritableSharedMemoryMapping UnsafeSharedMemoryRegion::MapAt(
-    uint64_t offset,
-    size_t size,
-    SharedMemoryMapper* mapper) const {
+WritableSharedMemoryMapping UnsafeSharedMemoryRegion::MapAt(off_t offset,
+                                                            size_t size) const {
   if (!IsValid())
     return {};
 
-  auto result = handle_.MapAt(offset, size, mapper);
-  if (!result.has_value())
+  void* memory = nullptr;
+  size_t mapped_size = 0;
+  if (!handle_.MapAt(offset, size, &memory, &mapped_size))
     return {};
 
-  return WritableSharedMemoryMapping(result.value(), size, handle_.GetGUID(),
-                                     mapper);
+  return WritableSharedMemoryMapping(memory, size, mapped_size,
+                                     handle_.GetGUID());
 }
 
 bool UnsafeSharedMemoryRegion::IsValid() const {

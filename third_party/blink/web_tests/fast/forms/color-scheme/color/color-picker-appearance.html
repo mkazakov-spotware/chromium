@@ -1,11 +1,20 @@
 <!DOCTYPE html>
+<html>
+<head>
 <meta name="color-scheme" content="light dark">
-<script src="../../../../resources/testdriver.js"></script>
-<script src="../../../../resources/testdriver-vendor.js"></script>
-<script src="../../resources/picker-common.js"></script>
+<script>
+testRunner.waitUntilDone();
+</script>
+<script src='../../../../fast/forms/resources/picker-common.js'></script>
+</head>
+<body>
+<input type='color' id='color'>
 
-<input type='color'>
+<p id='description' style='opacity: 0'></p>
+<div id='console' style='opacity: 0'></div>
 
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('input'));
+openPickerAppearanceOnly(document.getElementById('color'), () => testRunner.notifyDone());
 </script>
+</body>
+</html>

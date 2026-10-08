@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define SERVICES_TRACING_PUBLIC_CPP_BACKGROUND_TRACING_BACKGROUND_TRACING_AGENT_PROVIDER_IMPL_H_
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/unique_receiver_set.h"
 #include "services/tracing/public/mojom/background_tracing_agent.mojom.h"
@@ -17,12 +18,6 @@ class COMPONENT_EXPORT(BACKGROUND_TRACING_CPP)
     : public mojom::BackgroundTracingAgentProvider {
  public:
   BackgroundTracingAgentProviderImpl();
-
-  BackgroundTracingAgentProviderImpl(
-      const BackgroundTracingAgentProviderImpl&) = delete;
-  BackgroundTracingAgentProviderImpl& operator=(
-      const BackgroundTracingAgentProviderImpl&) = delete;
-
   ~BackgroundTracingAgentProviderImpl() override;
 
   void AddBinding(
@@ -37,6 +32,8 @@ class COMPONENT_EXPORT(BACKGROUND_TRACING_CPP)
  private:
   mojo::ReceiverSet<mojom::BackgroundTracingAgentProvider> self_receiver_set_;
   mojo::UniqueReceiverSet<mojom::BackgroundTracingAgent> agent_receiver_set_;
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundTracingAgentProviderImpl);
 };
 
 }  // namespace tracing

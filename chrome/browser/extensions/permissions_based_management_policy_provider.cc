@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/permissions_based_management_policy_provider.h"
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "extensions/common/extension.h"
@@ -37,7 +36,7 @@ PermissionsBasedManagementPolicyProvider::GetDebugPolicyProviderName() const {
 
 bool PermissionsBasedManagementPolicyProvider::UserMayLoad(
     const Extension* extension,
-    std::u16string* error) const {
+    base::string16* error) const {
   // Component extensions are always allowed.
   if (Manifest::IsComponentLocation(extension->location()))
     return true;

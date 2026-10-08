@@ -26,8 +26,6 @@
 #include "third_party/blink/renderer/core/svg/animation/smil_time_container.h"
 
 #include <algorithm>
-
-#include "base/auto_reset.h"
 #include "third_party/blink/renderer/core/animation/document_timeline.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
@@ -119,7 +117,7 @@ class SMILTimeContainer::TimingUpdate {
 SMILTimeContainer::TimingUpdate::~TimingUpdate() {
   if (!ShouldDispatchEvents())
     return;
-  DCHECK(IsSeek() || updated_elements_.empty());
+  DCHECK(IsSeek() || updated_elements_.IsEmpty());
   for (const auto& entry : updated_elements_) {
     SVGSMILElement* element = entry.key;
     if (auto events_to_dispatch = element->ComputeSeekEvents(entry.value))
@@ -217,7 +215,7 @@ void SMILTimeContainer::Reschedule(SVGSMILElement* animation,
 }
 
 bool SMILTimeContainer::HasAnimations() const {
-  return !animated_targets_.empty();
+  return !animated_targets_.IsEmpty();
 }
 
 bool SMILTimeContainer::HasPendingSynchronization() const {
@@ -372,7 +370,7 @@ void SMILTimeContainer::ScheduleAnimationFrame(base::TimeDelta delay_time) {
   DCHECK(GetDocument().IsActive());
 
   const base::TimeDelta kLocalMinimumDelay =
-      base::Seconds(DocumentTimeline::kMinimumDelay);
+      base::TimeDelta::FromSecondsD(DocumentTimeline::kMinimumDelay);
   if (delay_time < kLocalMinimumDelay) {
     ServiceOnNextFrame();
   } else {
@@ -449,7 +447,7 @@ void SMILTimeContainer::ServiceOnNextFrame() {
   }
 }
 
-bool SMILTimeContainer::ServiceAnimations() {
+void SMILTimeContainer::ServiceAnimations() {
   // If a synchronization is pending, we can flush it now.
   if (frame_scheduling_state_ == kSynchronizeAnimations) {
     DCHECK(wakeup_timer_.IsActive());
@@ -457,24 +455,24 @@ bool SMILTimeContainer::ServiceAnimations() {
     frame_scheduling_state_ = kAnimationFrame;
   }
   if (frame_scheduling_state_ != kAnimationFrame)
-    return false;
+    return;
   frame_scheduling_state_ = kIdle;
   // TODO(fs): The timeline should not be running if we're in an inactive
   // document, so this should be turned into a DCHECK.
   if (!GetDocument().IsActive())
-    return false;
+    return;
   TimingUpdate update(*this, Elapsed(), TimingUpdate::kNormal);
-  return UpdateAnimationsAndScheduleFrameIfNeeded(update);
+  UpdateAnimationsAndScheduleFrameIfNeeded(update);
 }
 
-bool SMILTimeContainer::UpdateAnimationsAndScheduleFrameIfNeeded(
+void SMILTimeContainer::UpdateAnimationsAndScheduleFrameIfNeeded(
     TimingUpdate& update) {
   DCHECK(GetDocument().IsActive());
   DCHECK(!wakeup_timer_.IsActive());
   // If the priority queue is empty, there are no timed elements to process and
   // no animations to apply, so we are done.
   if (priority_queue_.IsEmpty())
-    return false;
+    return;
   AnimationTargetsMutationsForbidden scope(this);
   UpdateTimedElements(update);
   ApplyTimedEffects(update.TargetTime());
@@ -482,14 +480,14 @@ bool SMILTimeContainer::UpdateAnimationsAndScheduleFrameIfNeeded(
   DCHECK(!HasPendingSynchronization());
 
   if (!IsTimelineRunning())
-    return false;
+    return;
   SMILTime next_progress_time = NextProgressTime(update.TargetTime());
   if (!next_progress_time.IsFinite())
-    return false;
+    return;
   SMILTime delay_time = next_progress_time - update.TargetTime();
   DCHECK(delay_time.IsFinite());
-  ScheduleAnimationFrame(base::Microseconds(delay_time.InMicroseconds()));
-  return true;
+  ScheduleAnimationFrame(
+      base::TimeDelta::FromMicroseconds(delay_time.InMicroseconds()));
 }
 
 SMILTime SMILTimeContainer::NextProgressTime(SMILTime presentation_time) const {
@@ -610,7 +608,6 @@ void SMILTimeContainer::AdvanceFrameForTesting() {
 }
 
 void SMILTimeContainer::Trace(Visitor* visitor) const {
-  visitor->Trace(wakeup_timer_);
   visitor->Trace(animated_targets_);
   visitor->Trace(priority_queue_);
   visitor->Trace(owner_svg_element_);

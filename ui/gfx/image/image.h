@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,24 +21,21 @@
 
 #include <stddef.h>
 
+#include <map>
 #include <memory>
 #include <vector>
 
+#include "base/memory/ref_counted_memory.h"
 #include "base/memory/scoped_policy.h"
-#include "base/memory/scoped_refptr.h"
 #include "build/build_config.h"
 #include "ui/gfx/gfx_export.h"
 #include "ui/gfx/native_widget_types.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 typedef struct CGColorSpace* CGColorSpaceRef;
 #endif
 
 class SkBitmap;
-
-namespace base {
-class RefCountedMemory;
-}
 
 namespace gfx {
 struct ImagePNGRep;
@@ -70,10 +67,10 @@ class GFX_EXPORT Image {
   // representation.
   explicit Image(const ImageSkia& image);
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // Retains |image|.
   explicit Image(UIImage* image);
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
   // Retains |image|.
   explicit Image(NSImage* image);
 #endif
@@ -121,9 +118,9 @@ class GFX_EXPORT Image {
   // the Image. Must only be called if IsEmpty() is false.
   const SkBitmap* ToSkBitmap() const;
   const ImageSkia* ToImageSkia() const;
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   UIImage* ToUIImage() const;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
   NSImage* ToNSImage() const;
 #endif
 
@@ -141,7 +138,7 @@ class GFX_EXPORT Image {
   ImageSkia AsImageSkia() const;
 
   // Same as ToNSImage(), but returns nil if this image is empty.
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   NSImage* AsNSImage() const;
 #endif
 
@@ -159,12 +156,12 @@ class GFX_EXPORT Image {
   int Height() const;
   gfx::Size Size() const;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Set the default representation's color space. This is used for converting
   // to NSImage. This is used to compensate for PNGCodec not writing or reading
   // colorspace ancillary chunks. (sRGB, iCCP).
   void SetSourceColorSpace(CGColorSpaceRef color_space);
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
  private:
   // Returns the type of the default representation.

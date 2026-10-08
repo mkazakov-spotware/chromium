@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,14 @@
 
 #include "ash/ash_export.h"
 #include "ash/detachable_base/detachable_base_pairing_status.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
-#include "chromeos/ash/components/dbus/hammerd/hammerd_client.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
+#include "chromeos/dbus/hammerd/hammerd_client.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "components/account_id/account_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class PrefRegistrySimple;
 class PrefService;
@@ -44,15 +45,11 @@ struct UserInfo;
 // DetachableBaseHandler clients are expected to determine for which users the
 // detachable base state should be set or retrieved.
 class ASH_EXPORT DetachableBaseHandler
-    : public HammerdClient::Observer,
+    : public chromeos::HammerdClient::Observer,
       public chromeos::PowerManagerClient::Observer {
  public:
   // |local_state| - PrefService of Local state. May be null in tests.
   explicit DetachableBaseHandler(PrefService* local_state);
-
-  DetachableBaseHandler(const DetachableBaseHandler&) = delete;
-  DetachableBaseHandler& operator=(const DetachableBaseHandler&) = delete;
-
   ~DetachableBaseHandler() override;
 
   // Registers the local state prefs for detachable base devices.
@@ -85,7 +82,7 @@ class ASH_EXPORT DetachableBaseHandler
   // paired) - setting the last used base can be retried at that point.
   bool SetPairedBaseAsLastUsedByUser(const UserInfo& user);
 
-  // HammerdClient::Observer:
+  // chromeos::HammerdClient::Observer:
   void BaseFirmwareUpdateNeeded() override;
   void BaseFirmwareUpdateStarted() override;
   void BaseFirmwareUpdateSucceeded() override;
@@ -96,7 +93,7 @@ class ASH_EXPORT DetachableBaseHandler
 
   // chromeos::PowerManagerClient::Observer:
   void TabletModeEventReceived(chromeos::PowerManagerClient::TabletMode mode,
-                               base::TimeTicks timestamp) override;
+                               const base::TimeTicks& timestamp) override;
 
  private:
   // Identifier for a detachable base device - HEX encoded string created from
@@ -107,7 +104,7 @@ class ASH_EXPORT DetachableBaseHandler
   // Callback for getting initial power manager switches - used to determine
   // whether the tablet mode is on when the DetachableBaseHandler is created.
   void OnGotPowerManagerSwitchStates(
-      absl::optional<chromeos::PowerManagerClient::SwitchStates> switch_states);
+      base::Optional<chromeos::PowerManagerClient::SwitchStates> switch_states);
 
   // Updates the tracked tablet mode state, and notifies observers about pairing
   // status change if required.
@@ -128,7 +125,7 @@ class ASH_EXPORT DetachableBaseHandler
 
   // Tablet mode state currently reported by power manager - tablet mode getting
   // turned on is used as a signal that the base is detached.
-  absl::optional<chromeos::PowerManagerClient::TabletMode> tablet_mode_;
+  base::Optional<chromeos::PowerManagerClient::TabletMode> tablet_mode_;
 
   // The HEX encoded ID of the authenticated paired base device. This will
   // be non empty iff pairing_status_ is kAuthenticated.
@@ -138,11 +135,11 @@ class ASH_EXPORT DetachableBaseHandler
   DetachableBasePairingStatus pairing_status_ =
       DetachableBasePairingStatus::kNone;
 
-  base::ScopedObservation<HammerdClient, HammerdClient::Observer>
-      hammerd_observation_;
-  base::ScopedObservation<chromeos::PowerManagerClient,
-                          chromeos::PowerManagerClient::Observer>
-      power_manager_observation_;
+  ScopedObserver<chromeos::HammerdClient, chromeos::HammerdClient::Observer>
+      hammerd_observer_;
+  ScopedObserver<chromeos::PowerManagerClient,
+                 chromeos::PowerManagerClient::Observer>
+      power_manager_observer_;
 
   // In-memory map from a user account ID to last used device set for user using
   // SetPairedBaseAsLastUsedByUser().
@@ -152,6 +149,8 @@ class ASH_EXPORT DetachableBaseHandler
   base::ObserverList<DetachableBaseObserver>::Unchecked observers_;
 
   base::WeakPtrFactory<DetachableBaseHandler> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DetachableBaseHandler);
 };
 
 }  // namespace ash

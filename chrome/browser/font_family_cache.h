@@ -1,15 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_FONT_FAMILY_CACHE_H_
 #define CHROME_BROWSER_FONT_FAMILY_CACHE_H_
 
-#include <string>
 #include <unordered_map>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/supports_user_data.h"
 #include "chrome/browser/font_pref_change_notifier.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
@@ -30,10 +30,6 @@ FORWARD_DECLARE_TEST(FontFamilyCacheTest, Caching);
 class FontFamilyCache : public base::SupportsUserData::Data {
  public:
   explicit FontFamilyCache(Profile* profile);
-
-  FontFamilyCache(const FontFamilyCache&) = delete;
-  FontFamilyCache& operator=(const FontFamilyCache&) = delete;
-
   ~FontFamilyCache() override;
 
   // Gets or creates the relevant FontFamilyCache, and then fills |map|.
@@ -48,14 +44,14 @@ class FontFamilyCache : public base::SupportsUserData::Data {
  protected:
   // Exposed and virtual for testing.
   // Fetches the font without checking the cache.
-  virtual std::u16string FetchFont(const char* script, const char* map_name);
+  virtual base::string16 FetchFont(const char* script, const char* map_name);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(::FontFamilyCacheTest, Caching);
 
   // Map from script to font.
   // Key comparison uses pointer equality.
-  using ScriptFontMap = std::unordered_map<const char*, std::u16string>;
+  using ScriptFontMap = std::unordered_map<const char*, base::string16>;
 
   // Map from font family to ScriptFontMap.
   // Key comparison uses pointer equality.
@@ -70,7 +66,7 @@ class FontFamilyCache : public base::SupportsUserData::Data {
   // |script| and |map_name| must be compile time constants. Two behaviors rely
   // on this: key comparison uses pointer equality, and keys must outlive the
   // maps.
-  std::u16string FetchAndCacheFont(const char* script, const char* map_name);
+  base::string16 FetchAndCacheFont(const char* script, const char* map_name);
 
   // Called when font family preferences changed.
   // Invalidates the cached entry, and removes the relevant observer.
@@ -83,7 +79,7 @@ class FontFamilyCache : public base::SupportsUserData::Data {
   // Weak reference.
   // Note: The lifetime of this object is tied to the lifetime of the
   // PrefService, so there is no worry about an invalid pointer.
-  raw_ptr<const PrefService, DanglingUntriaged> prefs_;
+  const PrefService* prefs_;
 
   // Reacts to profile font changes. |font_change_registrar_| will be
   // automatically unregistered when the FontPrefChangeNotifier is destroyed as
@@ -91,6 +87,8 @@ class FontFamilyCache : public base::SupportsUserData::Data {
   // |this| is destroyed after the Profile destructor completes as part of
   // Profile's super class destructor ~base::SupportsUserData.
   FontPrefChangeNotifier::Registrar font_change_registrar_;
+
+  DISALLOW_COPY_AND_ASSIGN(FontFamilyCache);
 };
 
 #endif  // CHROME_BROWSER_FONT_FAMILY_CACHE_H_

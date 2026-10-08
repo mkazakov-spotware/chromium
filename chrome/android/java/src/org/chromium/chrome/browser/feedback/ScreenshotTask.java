@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,8 @@ import org.chromium.base.task.PostTask;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.tab.SadTab;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tasks.ReturnToChromeUtil;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
+import org.chromium.chrome.features.start_surface.StartSurfaceConfiguration;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.ui.UiUtils;
@@ -41,24 +41,13 @@ public final class ScreenshotTask implements ScreenshotSource {
     private boolean mDone;
     private Bitmap mBitmap;
     private Runnable mCallback;
-    private @ScreenshotMode int mScreenshotMode;
-
-    /**
-     * Creates a {@link ScreenshotTask} instance that, will grab a screenshot of {@code activity}.
-     * @param activity The {@link Activity} to grab a screenshot of.
-     * @param screenshotMode The kind of screenshot to take.
-     */
-    public ScreenshotTask(Activity activity, @ScreenshotMode int screenshotMode) {
-        mActivity = activity;
-        mScreenshotMode = screenshotMode;
-    }
 
     /**
      * Creates a {@link ScreenshotTask} instance that, will grab a screenshot of {@code activity}.
      * @param activity The {@link Activity} to grab a screenshot of.
      */
     public ScreenshotTask(Activity activity) {
-        this(activity, ScreenshotMode.DEFAULT);
+        mActivity = activity;
     }
 
     // ScreenshotSource implementation.
@@ -66,21 +55,8 @@ public final class ScreenshotTask implements ScreenshotSource {
     public void capture(@Nullable Runnable callback) {
         mCallback = callback;
 
-        switch (mScreenshotMode) {
-            case ScreenshotMode.DEFAULT:
-                if (shouldTakeCompositorScreenshot(mActivity)
-                        && takeCompositorScreenshot(mActivity)) {
-                    return;
-                }
-                if (takeAndroidViewScreenshot(mActivity)) return;
-                break;
-            case ScreenshotMode.COMPOSITOR:
-                if (takeCompositorScreenshot(mActivity)) return;
-                break;
-            case ScreenshotMode.ANDROID_VIEW:
-                if (takeAndroidViewScreenshot(mActivity)) return;
-                break;
-        }
+        if (takeCompositorScreenshot(mActivity)) return;
+        if (takeAndroidViewScreenshot(mActivity)) return;
 
         // If neither the compositor nor the Android view screenshot tasks were kicked off, admit
         // defeat and return a {@code null} screenshot.
@@ -119,7 +95,7 @@ public final class ScreenshotTask implements ScreenshotSource {
     }
 
     private boolean takeCompositorScreenshot(@Nullable Activity activity) {
-        if (activity == null) return false;
+        if (activity == null || !shouldTakeCompositorScreenshot((activity))) return false;
 
         Rect rect = new Rect();
         activity.getWindow().getDecorView().getRootView().getWindowVisibleDisplayFrame(rect);
@@ -163,8 +139,8 @@ public final class ScreenshotTask implements ScreenshotSource {
         // If the start surface or the grid tab switcher are in use, do not use the compositor, it
         // will snapshot the last active tab instead of the current screen if we try to use it.
         if (chromeActivity.isInOverviewMode()
-                && (ReturnToChromeUtil.isStartSurfaceEnabled(chromeActivity)
-                        || TabUiFeatureUtilities.isGridTabSwitcherEnabled(chromeActivity))) {
+                && (StartSurfaceConfiguration.isStartSurfaceEnabled()
+                        || TabUiFeatureUtilities.isGridTabSwitcherEnabled())) {
             return false;
         }
 

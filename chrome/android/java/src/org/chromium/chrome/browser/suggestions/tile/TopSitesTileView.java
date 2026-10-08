@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,7 @@ public class TopSitesTileView extends SuggestionsTileView {
 
     @Override
     protected void setIconViewLayoutParams(Tile tile) {
-        MarginLayoutParams params = (MarginLayoutParams) getIconView().getLayoutParams();
+        MarginLayoutParams params = (MarginLayoutParams) mIconView.getLayoutParams();
         Resources resources = getResources();
         if (tile.getType() == TileVisualType.ICON_REAL) {
             // Grouped icons have extra large size.
@@ -39,6 +39,6 @@ public class TopSitesTileView extends SuggestionsTileView {
             params.topMargin = resources.getDimensionPixelSize(
                     org.chromium.chrome.R.dimen.tile_view_icon_margin_top_modern);
         }
-        getIconView().setLayoutParams(params);
+        mIconView.setLayoutParams(params);
     }
 }

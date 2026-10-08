@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_WM_CORE_SHADOW_CONTROLLER_DELEGATE_H_
 #define UI_WM_CORE_SHADOW_CONTROLLER_DELEGATE_H_
 
-#include "base/component_export.h"
+#include "ui/wm/core/wm_core_export.h"
 
 namespace aura {
 class Window;
@@ -15,7 +15,7 @@ namespace wm {
 
 // ShadowControllerDelegate allows a user to modify a shadow on certain windows
 // differently from the normal use case.
-class COMPONENT_EXPORT(UI_WM) ShadowControllerDelegate {
+class WM_CORE_EXPORT ShadowControllerDelegate {
  public:
   ShadowControllerDelegate() = default;
   virtual ~ShadowControllerDelegate() = default;

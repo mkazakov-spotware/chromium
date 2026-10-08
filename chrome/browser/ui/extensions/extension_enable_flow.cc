@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,20 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/notreached.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/ui/extensions/extension_enable_flow_delegate.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_source.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_system.h"
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ui/profile_picker.h"
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
+#include "chrome/browser/ui/user_manager.h"
+#endif  // !defined(OS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
 #include "chrome/browser/supervised_user/supervised_user_service.h"
@@ -131,11 +131,10 @@ void ExtensionEnableFlow::CheckPermissionAndMaybePromptUser() {
   }
 
   if (profiles::IsProfileLocked(profile_->GetPath())) {
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-    ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
-        ProfilePicker::EntryPoint::kProfileLocked));
-
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
+    UserManager::Show(base::FilePath(),
+                      profiles::USER_MANAGER_SELECT_PROFILE_NO_ACTION);
+#endif  // !defined(OS_CHROMEOS)
     return;
   }
 
@@ -154,8 +153,8 @@ void ExtensionEnableFlow::CheckPermissionAndMaybePromptUser() {
   ExtensionInstallPrompt::PromptType type =
       ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(profile_,
                                                                 extension);
-  prompt_->ShowDialog(base::BindOnce(&ExtensionEnableFlow::InstallPromptDone,
-                                     weak_ptr_factory_.GetWeakPtr()),
+  prompt_->ShowDialog(base::Bind(&ExtensionEnableFlow::InstallPromptDone,
+                                 weak_ptr_factory_.GetWeakPtr()),
                       extension, nullptr,
                       std::make_unique<ExtensionInstallPrompt::Prompt>(type),
                       ExtensionInstallPrompt::GetDefaultShowDialogCallback());
@@ -196,20 +195,22 @@ void ExtensionEnableFlow::OnBlockedByParentDialogDone() {
 #endif  // BUILDFLAG(ENABLE_SUPERVISED_USERS)
 
 void ExtensionEnableFlow::StartObserving() {
-  extension_registry_observation_.Observe(
+  extension_registry_observer_.Add(
       extensions::ExtensionRegistry::Get(profile_));
-  load_error_observation_.Observe(extensions::LoadErrorReporter::GetInstance());
+  registrar_.Add(this,
+                 extensions::NOTIFICATION_EXTENSION_LOAD_ERROR,
+                 content::Source<Profile>(profile_));
 }
 
 void ExtensionEnableFlow::StopObserving() {
-  extension_registry_observation_.Reset();
-  load_error_observation_.Reset();
+  registrar_.RemoveAll();
+  extension_registry_observer_.RemoveAll();
 }
 
-void ExtensionEnableFlow::OnLoadFailure(
-    content::BrowserContext* browser_context,
-    const base::FilePath& file_path,
-    const std::string& error) {
+void ExtensionEnableFlow::Observe(int type,
+                                  const content::NotificationSource& source,
+                                  const content::NotificationDetails& details) {
+  DCHECK_EQ(extensions::NOTIFICATION_EXTENSION_LOAD_ERROR, type);
   StopObserving();
   delegate_->ExtensionEnableFlowAborted(
       /*user_initiated=*/false);  // |delegate_| may delete us.
@@ -266,22 +267,13 @@ void ExtensionEnableFlow::EnableExtension() {
 }
 
 void ExtensionEnableFlow::InstallPromptDone(
-    ExtensionInstallPrompt::DoneCallbackPayload payload) {
-  switch (payload.result) {
-    case ExtensionInstallPrompt::Result::ACCEPTED:
-      EnableExtension();
-      break;
-    case ExtensionInstallPrompt::Result::ACCEPTED_WITH_WITHHELD_PERMISSIONS:
-      // This dialog doesn't support the "withhold permissions" checkbox.
-      NOTREACHED();
-      break;
-    case ExtensionInstallPrompt::Result::USER_CANCELED:
-    case ExtensionInstallPrompt::Result::ABORTED:
-      delegate_->ExtensionEnableFlowAborted(/*user_initiated=*/
-                                            payload.result ==
-                                            ExtensionInstallPrompt::Result::
-                                                USER_CANCELED);
-      // `delegate_` may delete us.
-      break;
+    ExtensionInstallPrompt::Result result) {
+  if (result == ExtensionInstallPrompt::Result::ACCEPTED) {
+    EnableExtension();
+  } else {
+    delegate_->ExtensionEnableFlowAborted(/*user_initiated=*/
+                                          result == ExtensionInstallPrompt::
+                                                        Result::USER_CANCELED);
+    // |delegate_| may delete us.
   }
 }

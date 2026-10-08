@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,8 +55,6 @@ int GetIDSForDMStatus(DeviceManagementStatus status) {
       return IDS_POLICY_DM_STATUS_UNKNOWN_ERROR;
     case DM_STATUS_SERVICE_TOO_MANY_REQUESTS:
       return IDS_POLICY_DM_STATUS_SERVICE_TOO_MANY_REQUESTS;
-    case DM_STATUS_SERVICE_DEVICE_NEEDS_RESET:
-      return IDS_POLICY_DM_STATUS_SERVICE_DEVICE_NEEDS_RESET;
     case DM_STATUS_SERVICE_CONSUMER_ACCOUNT_WITH_PACKAGED_LICENSE:
       return IDS_POLICY_DM_STATUS_CONSUMER_ACCOUNT_WITH_PACKAGED_LICENSE;
     case DM_STATUS_SERVICE_ENTERPRISE_ACCOUNT_IS_NOT_ELIGIBLE_TO_ENROLL:
@@ -64,8 +62,6 @@ int GetIDSForDMStatus(DeviceManagementStatus status) {
     case DM_STATUS_SERVICE_ENTERPRISE_TOS_HAS_NOT_BEEN_ACCEPTED:
       // This is shown only on registration failed.
       return IDS_POLICY_DM_STATUS_UNKNOWN_ERROR;
-    case DM_STATUS_SERVICE_INVALID_PACKAGED_DEVICE_FOR_KIOSK:
-      return IDS_POLICY_DM_STATUS_INVALID_PACKAGED_DEVICE_FOR_KIOSK;
     case DM_STATUS_SERVICE_ILLEGAL_ACCOUNT_FOR_PACKAGED_EDU_LICENSE:
       return IDS_POLICY_DM_STATUS_SERVICE_DOMAIN_MISMATCH;
   }
@@ -136,17 +132,17 @@ int GetIDSForStoreStatus(CloudPolicyStore::Status status) {
 
 }  // namespace
 
-std::u16string FormatDeviceManagementStatus(DeviceManagementStatus status) {
+base::string16 FormatDeviceManagementStatus(DeviceManagementStatus status) {
   return l10n_util::GetStringUTF16(GetIDSForDMStatus(status));
 }
 
-std::u16string FormatValidationStatus(
+base::string16 FormatValidationStatus(
     CloudPolicyValidatorBase::Status validation_status) {
   return l10n_util::GetStringUTF16(
       GetIDSForValidationStatus(validation_status));
 }
 
-std::u16string FormatStoreStatus(
+base::string16 FormatStoreStatus(
     CloudPolicyStore::Status store_status,
     CloudPolicyValidatorBase::Status validation_status) {
   if (store_status == CloudPolicyStore::STATUS_VALIDATION_ERROR) {

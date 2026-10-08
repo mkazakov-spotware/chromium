@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/browser/service_worker_client_info.h"
-#include "content/public/common/child_process_host.h"
 
 namespace content {
 
-ServiceWorkerClientInfo::ServiceWorkerClientInfo()
-    : type_(blink::mojom::ServiceWorkerClientType::kWindow) {}
+ServiceWorkerClientInfo::ServiceWorkerClientInfo(int frame_tree_node_id)
+    : type_(blink::mojom::ServiceWorkerClientType::kWindow),
+      frame_tree_node_id_(frame_tree_node_id) {}
 
 ServiceWorkerClientInfo::ServiceWorkerClientInfo(
     const blink::DedicatedWorkerToken& dedicated_worker_token)
@@ -39,18 +39,9 @@ ServiceWorkerClientInfo& ServiceWorkerClientInfo::operator=(
 
 ServiceWorkerClientInfo::~ServiceWorkerClientInfo() = default;
 
-GlobalRenderFrameHostId ServiceWorkerClientInfo::GetRenderFrameHostId() const {
+int ServiceWorkerClientInfo::GetFrameTreeNodeId() const {
   DCHECK_EQ(type_, blink::mojom::ServiceWorkerClientType::kWindow);
-  return render_frame_host_id_;
-}
-
-void ServiceWorkerClientInfo::SetRenderFrameHostId(
-    const GlobalRenderFrameHostId& render_frame_host_id) {
-  DCHECK_EQ(type_, blink::mojom::ServiceWorkerClientType::kWindow);
-  DCHECK_NE(ChildProcessHost::kInvalidUniqueID, render_frame_host_id.child_id);
-  DCHECK_NE(MSG_ROUTING_NONE, render_frame_host_id.frame_routing_id);
-
-  render_frame_host_id_ = render_frame_host_id;
+  return frame_tree_node_id_;
 }
 
 blink::DedicatedWorkerToken ServiceWorkerClientInfo::GetDedicatedWorkerToken()

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,20 @@
 #include "base/compiler_specific.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "remoting/base/compound_buffer.h"
 #include "remoting/proto/internal.pb.h"
 #include "remoting/protocol/p2p_stream_socket.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 static const int kReadBufferSize = 4096;
 
-MessageReader::MessageReader() = default;
+MessageReader::MessageReader() {}
 MessageReader::~MessageReader() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
@@ -101,7 +103,7 @@ void MessageReader::OnDataReceived(net::IOBuffer* data, int data_size) {
     CompoundBuffer* buffer = message_decoder_.GetNextMessage();
     if (!buffer)
       break;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&MessageReader::RunCallback, weak_factory_.GetWeakPtr(),
                        base::WrapUnique(buffer)));
@@ -114,4 +116,5 @@ void MessageReader::RunCallback(std::unique_ptr<CompoundBuffer> message) {
   }
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

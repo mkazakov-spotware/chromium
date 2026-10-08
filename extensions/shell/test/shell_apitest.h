@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "extensions/shell/test/shell_test.h"
 
 namespace extensions {
@@ -20,10 +21,6 @@ class ResultCatcher;
 class ShellApiTest : public AppShellTest {
  public:
   ShellApiTest();
-
-  ShellApiTest(const ShellApiTest&) = delete;
-  ShellApiTest& operator=(const ShellApiTest&) = delete;
-
   ~ShellApiTest() override;
 
   // Loads an unpacked extension. Returns an instance of the extension that was
@@ -59,6 +56,8 @@ class ShellApiTest : public AppShellTest {
 
  private:
   bool RunTest(const Extension* extension, ResultCatcher* catcher);
+
+  DISALLOW_COPY_AND_ASSIGN(ShellApiTest);
 };
 
 }  // namespace extensions

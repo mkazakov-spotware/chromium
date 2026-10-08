@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,44 +9,13 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/openxr/src/include/openxr/openxr.h"
 #include "third_party/openxr/src/include/openxr/openxr_platform.h"
 
 namespace device {
 struct OpenXrExtensionMethods {
-  OpenXrExtensionMethods();
-  ~OpenXrExtensionMethods();
-  // D3D
   PFN_xrGetD3D11GraphicsRequirementsKHR xrGetD3D11GraphicsRequirementsKHR{
       nullptr};
-
-  // Hand Tracking
-  PFN_xrCreateHandTrackerEXT xrCreateHandTrackerEXT{nullptr};
-  PFN_xrDestroyHandTrackerEXT xrDestroyHandTrackerEXT{nullptr};
-  PFN_xrLocateHandJointsEXT xrLocateHandJointsEXT{nullptr};
-
-  // Anchors
-  PFN_xrCreateSpatialAnchorMSFT xrCreateSpatialAnchorMSFT{nullptr};
-  PFN_xrDestroySpatialAnchorMSFT xrDestroySpatialAnchorMSFT{nullptr};
-  PFN_xrCreateSpatialAnchorSpaceMSFT xrCreateSpatialAnchorSpaceMSFT{nullptr};
-
-  // Scene Understanding
-  PFN_xrEnumerateSceneComputeFeaturesMSFT xrEnumerateSceneComputeFeaturesMSFT{
-      nullptr};
-  PFN_xrCreateSceneObserverMSFT xrCreateSceneObserverMSFT{nullptr};
-  PFN_xrDestroySceneObserverMSFT xrDestroySceneObserverMSFT{nullptr};
-  PFN_xrCreateSceneMSFT xrCreateSceneMSFT{nullptr};
-  PFN_xrDestroySceneMSFT xrDestroySceneMSFT{nullptr};
-  PFN_xrComputeNewSceneMSFT xrComputeNewSceneMSFT{nullptr};
-  PFN_xrGetSceneComputeStateMSFT xrGetSceneComputeStateMSFT{nullptr};
-  PFN_xrGetSceneComponentsMSFT xrGetSceneComponentsMSFT{nullptr};
-  PFN_xrLocateSceneComponentsMSFT xrLocateSceneComponentsMSFT{nullptr};
-  PFN_xrGetSceneMeshBuffersMSFT xrGetSceneMeshBuffersMSFT{nullptr};
-
-  // Time
-  PFN_xrConvertWin32PerformanceCounterToTimeKHR
-      xrConvertWin32PerformanceCounterToTimeKHR{nullptr};
 };
 
 class OpenXrExtensionEnumeration {
@@ -77,7 +46,7 @@ class OpenXrExtensionHelper {
 
  private:
   const OpenXrExtensionMethods extension_methods_;
-  const raw_ptr<const OpenXrExtensionEnumeration> extension_enumeration_;
+  const OpenXrExtensionEnumeration* const extension_enumeration_;
 };
 
 }  // namespace device

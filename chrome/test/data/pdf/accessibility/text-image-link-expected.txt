@@ -17,5 +17,3 @@ WebLinks in PDFium
 .
 ¶
 Second Page
-¶
-

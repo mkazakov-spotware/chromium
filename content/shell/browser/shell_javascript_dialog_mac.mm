@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/shell/browser/shell_javascript_dialog.h"
-
-#include "base/memory/raw_ptr.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -20,7 +18,7 @@
   NSTextField* _textField;  // WEAK; owned by alert_
 
   // Copies of the fields in ShellJavaScriptDialog because they're private.
-  raw_ptr<content::ShellJavaScriptDialogManager> _manager;
+  content::ShellJavaScriptDialogManager* _manager;
   content::JavaScriptDialogManager::DialogClosedCallback _callback;
 }
 
@@ -67,7 +65,7 @@
     return;
 
   bool success = returnCode == NSAlertFirstButtonReturn;
-  std::u16string input;
+  base::string16 input;
   if (_textField)
     input = base::SysNSStringToUTF16([_textField stringValue]);
 
@@ -79,7 +77,7 @@
   [NSApp endSheet:[_alert window]];
   _alert.reset();
   if (_callback)
-    std::move(_callback).Run(false, std::u16string());
+    std::move(_callback).Run(false, base::string16());
 }
 
 @end
@@ -90,8 +88,8 @@ ShellJavaScriptDialog::ShellJavaScriptDialog(
     ShellJavaScriptDialogManager* manager,
     gfx::NativeWindow parent_window,
     JavaScriptDialogType dialog_type,
-    const std::u16string& message_text,
-    const std::u16string& default_prompt_text,
+    const base::string16& message_text,
+    const base::string16& default_prompt_text,
     JavaScriptDialogManager::DialogClosedCallback callback) {
   bool text_field = dialog_type == JAVASCRIPT_DIALOG_TYPE_PROMPT;
   bool one_button = dialog_type == JAVASCRIPT_DIALOG_TYPE_ALERT;

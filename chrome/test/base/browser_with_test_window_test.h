@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,10 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/test_browser_window.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/variations/scoped_variations_ids_provider.h"
-#include "components/variations/variations_client.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_renderer_host.h"
 #include "services/network/test/test_url_loader_factory.h"
@@ -24,62 +20,48 @@
 #if defined(TOOLKIT_VIEWS)
 #include "chrome/test/views/chrome_test_views_delegate.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "ash/test/ash_test_helper.h"
 #include "ash/test/ash_test_views_delegate.h"
-#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
-#include "chromeos/ash/components/install_attributes/stub_install_attributes.h"
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#include "chrome/browser/chromeos/settings/scoped_cros_settings_test_helper.h"
+#include "chromeos/tpm/stub_install_attributes.h"
 #else
 #include "ui/views/test/scoped_views_test_helper.h"
 #endif
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/base/win/scoped_ole_initializer.h"
 #endif
 
 class GURL;
 
-namespace chromeos {
-class ScopedLacrosServiceTestHelper;
-class TabletState;
-}  // namespace chromeos
-
 namespace content {
 class NavigationController;
 }
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-namespace crosapi {
-class CrosapiManager;
-}
-
-namespace user_manager {
-class ScopedUserManager;
-}  // namespace user_manager
-#endif
 
 class TestingProfileManager;
 
 // Base class for browser based unit tests. BrowserWithTestWindowTest creates a
 // Browser with a TestingProfile and TestBrowserWindow. To add a tab use
-// AddTab. For example, the following adds a tab and navigates to two URLs:
+// AddTab. For example, the following adds a tab and navigates to
+// two URLs that target the TestWebContents:
 //
 //   // Add a new tab and navigate it. This will be at index 0.
-//   // WARNING: this creates a real WebContents. If you want to add a test
-//   // WebContents create it directly and insert it into the TabStripModel.
 //   AddTab(browser(), GURL("http://foo/1"));
-//   WebContents* contents = browser()->tab_strip_model()->GetWebContentsAt(0);
+//   NavigationController* controller =
+//       &browser()->tab_strip_model()->GetWebContentsAt(0)->GetController();
 //
 //   // Navigate somewhere else.
 //   GURL url2("http://foo/2");
-//   NavigateAndCommit(contents, url2);
+//   NavigateAndCommit(controller, url2);
 //
 //   // This is equivalent to the above, and lets you test pending navigations.
 //   browser()->OpenURL(OpenURLParams(
 //       GURL("http://foo/2"), GURL(), WindowOpenDisposition::CURRENT_TAB,
 //       ui::PAGE_TRANSITION_TYPED, false));
-//   CommitPendingLoad(&contents->GetController());
+//   CommitPendingLoad(controller);
 //
 // Subclasses must invoke BrowserWithTestWindowTest::SetUp as it is responsible
 // for creating the various objects of this class.
@@ -130,7 +112,7 @@ class BrowserWithTestWindowTest : public testing::Test {
 
   Browser* browser() const { return browser_.get(); }
   void set_browser(Browser* browser) { browser_.reset(browser); }
-  [[nodiscard]] Browser* release_browser() { return browser_.release(); }
+  Browser* release_browser() WARN_UNUSED_RESULT { return browser_.release(); }
 
   TestingProfile* profile() const { return profile_; }
 
@@ -146,11 +128,11 @@ class BrowserWithTestWindowTest : public testing::Test {
     return &test_url_loader_factory_;
   }
 
-  [[nodiscard]] BrowserWindow* release_browser_window() {
+  BrowserWindow* release_browser_window() WARN_UNUSED_RESULT {
     return window_.release();
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   ash::AshTestHelper* ash_test_helper() { return &ash_test_helper_; }
 #endif
 
@@ -159,18 +141,18 @@ class BrowserWithTestWindowTest : public testing::Test {
 
   // Adds a tab to |browser| with the given URL and commits the load.
   // This is a convenience function. The new tab will be added at index 0.
-  // WARNING: this creates a real WebContents. If you want to add a test
-  // WebContents create it directly and insert it into the TabStripModel.
   void AddTab(Browser* browser, const GURL& url);
 
   // Commits the pending load on the given controller. It will keep the
   // URL of the pending load. If there is no pending load, this does nothing.
   void CommitPendingLoad(content::NavigationController* controller);
 
-  // Creates a pending navigation on the given WebContents to the given URL with
-  // the default parameters and the commits the load with a page ID one larger
-  // than any seen. This emulates what happens on a new navigation.
-  void NavigateAndCommit(content::WebContents* web_contents, const GURL& url);
+  // Creates a pending navigation on the given navigation controller to the
+  // given URL with the default parameters and the commits the load with a page
+  // ID one larger than any seen. This emulates what happens on a new
+  // navigation.
+  void NavigateAndCommit(content::NavigationController* controller,
+                         const GURL& url);
 
   // Navigates the current tab. This is a wrapper around NavigateAndCommit.
   void NavigateAndCommitActiveTab(const GURL& url);
@@ -178,7 +160,7 @@ class BrowserWithTestWindowTest : public testing::Test {
   // Set the |title| of the current tab.
   void NavigateAndCommitActiveTabWithTitle(Browser* browser,
                                            const GURL& url,
-                                           const std::u16string& title);
+                                           const base::string16& title);
 
   // Creates the profile used by this test. The caller doesn't own the return
   // value.
@@ -202,7 +184,7 @@ class BrowserWithTestWindowTest : public testing::Test {
 
 #if defined(TOOLKIT_VIEWS)
   views::TestViewsDelegate* test_views_delegate() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     return test_views_delegate_.get();
 #else
     return views_test_helper_->test_views_delegate();
@@ -210,9 +192,9 @@ class BrowserWithTestWindowTest : public testing::Test {
   }
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ScopedCrosSettingsTestHelper* GetCrosSettingsHelper();
-  ash::StubInstallAttributes* GetInstallAttributes();
+#if defined(OS_CHROMEOS)
+  chromeos::ScopedCrosSettingsTestHelper* GetCrosSettingsHelper();
+  chromeos::StubInstallAttributes* GetInstallAttributes();
 #endif
 
  private:
@@ -226,18 +208,12 @@ class BrowserWithTestWindowTest : public testing::Test {
   // We need to create a MessageLoop, otherwise a bunch of things fails.
   std::unique_ptr<content::BrowserTaskEnvironment> task_environment_;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  std::unique_ptr<chromeos::ScopedLacrosServiceTestHelper>
-      lacros_service_test_helper_;
+#if defined(OS_CHROMEOS)
+  chromeos::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
+  chromeos::ScopedTestUserManager test_user_manager_;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
-  std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_;
-  std::unique_ptr<crosapi::CrosapiManager> manager_;
-#endif
-
-  raw_ptr<TestingProfile> profile_ = nullptr;
+  TestingProfile* profile_;
 
   // test_url_loader_factory_ is declared before profile_manager_
   // to guarantee it outlives any profiles that might use it.
@@ -247,7 +223,7 @@ class BrowserWithTestWindowTest : public testing::Test {
   std::unique_ptr<BrowserWindow> window_;  // Usually a TestBrowserWindow.
   std::unique_ptr<Browser> browser_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   ash::AshTestHelper ash_test_helper_;
   std::unique_ptr<views::TestViewsDelegate> test_views_delegate_ =
       std::make_unique<ChromeTestViewsDelegate<ash::AshTestViewsDelegate>>();
@@ -257,14 +233,10 @@ class BrowserWithTestWindowTest : public testing::Test {
           std::make_unique<ChromeTestViewsDelegate<>>());
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  std::unique_ptr<chromeos::TabletState> tablet_state_;
-#endif
-
   // The existence of this object enables tests via RenderViewHostTester.
   std::unique_ptr<content::RenderViewHostTestEnabler> rvh_test_enabler_;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   ui::ScopedOleInitializer ole_initializer_;
 #endif
 
@@ -273,10 +245,6 @@ class BrowserWithTestWindowTest : public testing::Test {
 
   // Whether the browser is part of a hosted app.
   const bool hosted_app_;
-
-  // Initialize the variations provider.
-  variations::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
-      variations::VariationsIdsProvider::Mode::kUseSignedInState};
 };
 
 #endif  // CHROME_TEST_BASE_BROWSER_WITH_TEST_WINDOW_TEST_H_

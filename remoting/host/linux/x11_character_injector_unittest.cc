@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,15 @@
 #include <unordered_map>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "base/time/time.h"
 #include "remoting/host/linux/x11_keyboard.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
-constexpr base::TimeDelta kKeycodeReuseDuration = base::Milliseconds(100);
+  constexpr base::TimeDelta kKeycodeReuseDuration =
+      base::TimeDelta::FromMilliseconds(100);
 }
 
 namespace remoting {
@@ -103,11 +101,10 @@ void FakeX11Keyboard::PressKey(uint32_t keycode, uint32_t modifiers) {
 bool FakeX11Keyboard::FindKeycode(uint32_t code_point,
                                   uint32_t* keycode,
                                   uint32_t* modifiers) {
-  auto position =
-      base::ranges::find(keycode_mapping_, code_point,
-                         [](const std::pair<uint32_t, MappingInfo>& pair) {
-                           return pair.second.code_point;
-                         });
+  auto position = std::find_if(keycode_mapping_.begin(), keycode_mapping_.end(),
+               [code_point](const std::pair<uint32_t, MappingInfo>& pair) {
+    return pair.second.code_point == code_point;
+  });
   if (position == keycode_mapping_.end()) {
     return false;
   }
@@ -153,14 +150,14 @@ class X11CharacterInjectorTest : public testing::Test {
   void InjectAndRun(const std::vector<uint32_t>& code_points);
 
   std::unique_ptr<X11CharacterInjector> injector_;
-  raw_ptr<FakeX11Keyboard> keyboard_;  // Owned by |injector_|.
+  FakeX11Keyboard* keyboard_;  // Owned by |injector_|.
 
   base::test::SingleThreadTaskEnvironment task_environment_;
 };
 
 void X11CharacterInjectorTest::SetUp() {
   keyboard_ = new FakeX11Keyboard({55, 54, 53, 52, 51});
-  injector_.reset(new X11CharacterInjector(base::WrapUnique(keyboard_.get())));
+  injector_.reset(new X11CharacterInjector(base::WrapUnique(keyboard_)));
 }
 
 void X11CharacterInjectorTest::TearDown() {

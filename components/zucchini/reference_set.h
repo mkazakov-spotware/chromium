@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include <vector>
 
-#include "base/memory/raw_ref.h"
 #include "components/zucchini/image_utils.h"
 
 namespace zucchini {
@@ -39,7 +38,7 @@ class ReferenceSet {
 
   const std::vector<Reference>& references() const { return references_; }
   const ReferenceTypeTraits& traits() const { return traits_; }
-  const TargetPool& target_pool() const { return *target_pool_; }
+  const TargetPool& target_pool() const { return target_pool_; }
   TypeTag type_tag() const { return traits_.type_tag; }
   PoolTag pool_tag() const { return traits_.pool_tag; }
   offset_t width() const { return traits_.width; }
@@ -55,7 +54,7 @@ class ReferenceSet {
 
  private:
   ReferenceTypeTraits traits_;
-  const raw_ref<const TargetPool> target_pool_;
+  const TargetPool& target_pool_;
   // List of distinct Reference instances sorted by location.
   std::vector<Reference> references_;
 };

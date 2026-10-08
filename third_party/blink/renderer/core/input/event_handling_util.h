@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,9 +39,10 @@ ScrollableArea* AssociatedScrollableArea(const PaintLayer*);
 bool IsInDocument(EventTarget*);
 
 ContainerNode* ParentForClickEvent(const Node&);
+ContainerNode* ParentForClickEventInteractiveElementSensitive(const Node&);
 
-CORE_EXPORT PhysicalOffset
-ContentPointFromRootFrame(LocalFrame*, const gfx::PointF& point_in_root_frame);
+PhysicalOffset ContentPointFromRootFrame(LocalFrame*,
+                                         const FloatPoint& point_in_root_frame);
 
 MouseEventWithHitTestResults PerformMouseEventHitTest(LocalFrame*,
                                                       const HitTestRequest&,
@@ -53,8 +54,8 @@ LocalFrame* GetTargetSubframe(const MouseEventWithHitTestResults&,
 
 LocalFrame* SubframeForTargetNode(Node*, bool* is_remote_frame = nullptr);
 
-// Intervention: if an input event lands on a cross-origin iframe or fencedframe
-// that has moved or resized recently (recent==500ms), and which contains an
+// Intervention: if an input event lands on a cross-origin iframe that has
+// moved or resized recently (recent==500ms), and which contains an
 // IntersectionObserver that is tracking visibility, then the event is quietly
 // discarded.
 bool ShouldDiscardEventTargetingFrame(const WebInputEvent& event,
@@ -68,7 +69,6 @@ class PointerEventTarget {
 
   Member<Element> target_element;
   Member<LocalFrame> target_frame;
-  Member<Scrollbar> scrollbar;
   String region;
 };
 

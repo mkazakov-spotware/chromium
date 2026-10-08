@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,12 +14,10 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.AsyncTask;
-import org.chromium.chrome.browser.layouts.FilterLayoutStateObserver;
-import org.chromium.chrome.browser.layouts.LayoutStateProvider;
-import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
-import org.chromium.chrome.browser.layouts.LayoutType;
+import org.chromium.chrome.browser.compositor.layouts.EmptyOverviewModeObserver;
+import org.chromium.chrome.browser.compositor.layouts.OverviewModeBehavior;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -28,7 +26,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
-import org.chromium.components.version_info.VersionInfo;
+import org.chromium.chrome.browser.version.ChromeVersionInfo;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.ui.base.PageTransition;
@@ -40,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Manages Journey related signals, specifically those related to tab engagement.
  */
-public class JourneyManager implements DestroyObserver {
+public class JourneyManager implements Destroyable {
     @VisibleForTesting
     static final String PREFS_FILE = "last_engagement_for_tab_id_pref";
 
@@ -61,9 +59,9 @@ public class JourneyManager implements DestroyObserver {
 
     private final TabModelSelectorTabObserver mTabModelSelectorTabObserver;
     private final TabModelSelectorTabModelObserver mTabModelSelectorTabModelObserver;
-    private final LayoutStateObserver mLayoutStateObserver;
+    private final OverviewModeBehavior.OverviewModeObserver mOverviewModeObserver;
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
-    private final LayoutStateProvider mLayoutStateProvider;
+    private final OverviewModeBehavior mOverviewModeBehavior;
     private final EngagementTimeUtil mEngagementTimeUtil;
 
     private Map<Integer, Boolean> mDidFirstPaintPerTab = new HashMap<>();
@@ -73,17 +71,17 @@ public class JourneyManager implements DestroyObserver {
 
     public JourneyManager(TabModelSelector selector,
             @NonNull ActivityLifecycleDispatcher dispatcher,
-            @NonNull LayoutStateProvider layoutStateProvider,
+            @NonNull OverviewModeBehavior overviewModeBehavior,
             EngagementTimeUtil engagementTimeUtil) {
-        if (!VersionInfo.isLocalBuild() && !VersionInfo.isCanaryBuild()
-                && !VersionInfo.isDevBuild()) {
+        if (!ChromeVersionInfo.isLocalBuild() && !ChromeVersionInfo.isCanaryBuild()
+                && !ChromeVersionInfo.isDevBuild()) {
             // We do not want this in beta/stable until it's no longer backed by SharedPreferences.
             mTabModelSelectorTabObserver = null;
             mTabModelSelectorTabModelObserver = null;
-            mLayoutStateObserver = null;
+            mOverviewModeObserver = null;
             mLifecycleDispatcher = null;
             mEngagementTimeUtil = null;
-            mLayoutStateProvider = null;
+            mOverviewModeBehavior = null;
             return;
         }
 
@@ -112,11 +110,8 @@ public class JourneyManager implements DestroyObserver {
             }
 
             @Override
-            public void onDidStartNavigationInPrimaryMainFrame(
-                    Tab tab, NavigationHandle navigationHandle) {
-                if (navigationHandle.isSameDocument()) {
-                    return;
-                }
+            public void onDidStartNavigation(Tab tab, NavigationHandle navigationHandle) {
+                if (!navigationHandle.isInMainFrame() || navigationHandle.isSameDocument()) return;
 
                 mDidFirstPaintPerTab.put(tab.getId(), false);
             }
@@ -163,15 +158,14 @@ public class JourneyManager implements DestroyObserver {
             }
         };
 
-        mLayoutStateProvider = layoutStateProvider;
-        mLayoutStateObserver =
-                new FilterLayoutStateObserver(LayoutType.TAB_SWITCHER, new LayoutStateObserver() {
-                    @Override
-                    public void onStartedShowing(int layoutType, boolean showToolbar) {
-                        handleTabEngagementStopped(mCurrentTab);
-                    }
-                });
-        mLayoutStateProvider.addObserver(mLayoutStateObserver);
+        mOverviewModeBehavior = overviewModeBehavior;
+        mOverviewModeObserver = new EmptyOverviewModeObserver() {
+            @Override
+            public void onOverviewModeStartedShowing(boolean showToolbar) {
+                handleTabEngagementStopped(mCurrentTab);
+            }
+        };
+        mOverviewModeBehavior.addOverviewModeObserver(mOverviewModeObserver);
 
         mLifecycleDispatcher = dispatcher;
         mLifecycleDispatcher.register(this);
@@ -180,10 +174,10 @@ public class JourneyManager implements DestroyObserver {
     }
 
     @Override
-    public void onDestroy() {
+    public void destroy() {
         mTabModelSelectorTabObserver.destroy();
         mTabModelSelectorTabModelObserver.destroy();
-        mLayoutStateProvider.removeObserver(mLayoutStateObserver);
+        mOverviewModeBehavior.removeOverviewModeObserver(mOverviewModeObserver);
         mLifecycleDispatcher.unregister(this);
     }
 
@@ -303,7 +297,7 @@ public class JourneyManager implements DestroyObserver {
     }
 
     @VisibleForTesting
-    public LayoutStateObserver getOverviewModeObserver() {
-        return mLayoutStateObserver;
+    public OverviewModeBehavior.OverviewModeObserver getOverviewModeObserver() {
+        return mOverviewModeObserver;
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,14 +13,13 @@
 #include "base/task/sequence_manager/work_queue.h"
 #include "base/threading/thread_checker.h"
 #include "base/trace_event/base_tracing.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace sequence_manager {
 namespace internal {
 
 TaskQueueSelector::TaskQueueSelector(
-    scoped_refptr<const AssociatedThreadId> associated_thread,
+    scoped_refptr<AssociatedThreadId> associated_thread,
     const SequenceManager::Settings& settings)
     : associated_thread_(std::move(associated_thread)),
 #if DCHECK_IS_ON()
@@ -215,10 +214,10 @@ WorkQueue* TaskQueueSelector::SelectWorkQueueToService(
   return queue;
 }
 
-Value::Dict TaskQueueSelector::AsValue() const {
+Value TaskQueueSelector::AsValue() const {
   DCHECK_CALLED_ON_VALID_THREAD(associated_thread_->thread_checker);
-  Value::Dict state;
-  state.Set("immediate_starvation_count", immediate_starvation_count_);
+  Value state(Value::Type::DICTIONARY);
+  state.SetIntKey("immediate_starvation_count", immediate_starvation_count_);
   return state;
 }
 
@@ -226,11 +225,11 @@ void TaskQueueSelector::SetTaskQueueSelectorObserver(Observer* observer) {
   task_queue_selector_observer_ = observer;
 }
 
-absl::optional<TaskQueue::QueuePriority>
-TaskQueueSelector::GetHighestPendingPriority(SelectTaskOption option) const {
+Optional<TaskQueue::QueuePriority> TaskQueueSelector::GetHighestPendingPriority(
+    SelectTaskOption option) const {
   DCHECK_CALLED_ON_VALID_THREAD(associated_thread_->thread_checker);
   if (!active_priority_tracker_.HasActivePriority())
-    return absl::nullopt;
+    return nullopt;
 
   TaskQueue::QueuePriority highest_priority =
       active_priority_tracker_.HighestActivePriority();
@@ -245,11 +244,11 @@ TaskQueueSelector::GetHighestPendingPriority(SelectTaskOption option) const {
     }
   }
 
-  return absl::nullopt;
+  return nullopt;
 }
 
 void TaskQueueSelector::SetImmediateStarvationCountForTest(
-    int immediate_starvation_count) {
+    size_t immediate_starvation_count) {
   immediate_starvation_count_ = immediate_starvation_count;
 }
 

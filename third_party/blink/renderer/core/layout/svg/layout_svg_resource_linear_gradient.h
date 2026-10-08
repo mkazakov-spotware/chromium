@@ -32,7 +32,6 @@ class LayoutSVGResourceLinearGradient final : public LayoutSVGResourceGradient {
  public:
   explicit LayoutSVGResourceLinearGradient(SVGLinearGradientElement*);
   ~LayoutSVGResourceLinearGradient() override;
-  void Trace(Visitor*) const override;
 
   const char* GetName() const override {
     NOT_DESTROYED();
@@ -57,11 +56,11 @@ class LayoutSVGResourceLinearGradient final : public LayoutSVGResourceGradient {
   void CollectGradientAttributes() override;
   scoped_refptr<Gradient> BuildGradient() const override;
 
-  gfx::PointF StartPoint(const LinearGradientAttributes&) const;
-  gfx::PointF EndPoint(const LinearGradientAttributes&) const;
+  FloatPoint StartPoint(const LinearGradientAttributes&) const;
+  FloatPoint EndPoint(const LinearGradientAttributes&) const;
 
  private:
-  Member<LinearGradientAttributesWrapper> attributes_wrapper_;
+  Persistent<LinearGradientAttributesWrapper> attributes_wrapper_;
 
   LinearGradientAttributes& MutableAttributes() {
     NOT_DESTROYED();

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 #include "base/base_switches.h"
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/autofill/autofill_uitest_util.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -28,14 +27,9 @@
 #include "content/public/test/test_utils.h"
 #include "content/public/test/url_loader_interceptor.h"
 #include "services/network/test/test_utils.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/third_party/mozilla/url_parse.h"
 
-using testing::AllOf;
-using testing::Eq;
-using testing::Matcher;
-using testing::Property;
 using version_info::GetProductNameAndVersionForUserAgent;
 
 namespace autofill {
@@ -62,23 +56,19 @@ class WindowedPersonalDataManagerObserver : public PersonalDataManagerObserver {
   void OnPersonalDataChanged() override { message_loop_runner_->Quit(); }
 
  private:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
   scoped_refptr<content::MessageLoopRunner> message_loop_runner_;
 };
 
 class WindowedNetworkObserver {
  public:
-  explicit WindowedNetworkObserver(Matcher<std::string> expected_upload_data)
+  explicit WindowedNetworkObserver(const std::string& expected_upload_data)
       : expected_upload_data_(expected_upload_data),
         message_loop_runner_(new content::MessageLoopRunner) {
     interceptor_ =
         std::make_unique<content::URLLoaderInterceptor>(base::BindRepeating(
             &WindowedNetworkObserver::OnIntercept, base::Unretained(this)));
   }
-
-  WindowedNetworkObserver(const WindowedNetworkObserver&) = delete;
-  WindowedNetworkObserver& operator=(const WindowedNetworkObserver&) = delete;
-
   ~WindowedNetworkObserver() {}
 
   // Waits for a network request with the |expected_upload_data_|.
@@ -119,18 +109,21 @@ class WindowedNetworkObserver {
         (resource_request.method == "GET")
             ? GetLookupContent(resource_request.url.path())
             : network::GetUploadData(resource_request);
+    EXPECT_EQ(data, expected_upload_data_);
 
-    if (expected_upload_data_.Matches(data))
+    if (data == expected_upload_data_)
       message_loop_runner_->Quit();
 
     return false;
   }
 
  private:
-  Matcher<std::string> expected_upload_data_;
+  const std::string expected_upload_data_;
   scoped_refptr<content::MessageLoopRunner> message_loop_runner_;
 
   std::unique_ptr<content::URLLoaderInterceptor> interceptor_;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowedNetworkObserver);
 };
 
 }  // namespace
@@ -145,7 +138,7 @@ class AutofillServerTest : public InProcessBrowserTest {
         // Enabled.
         {features::kAutofillAllowNonHttpActivation},
         // Disabled.
-        {});
+        {features::kAutofillMetadataUploads});
 
     // Note that features MUST be enabled/disabled before continuing with
     // SetUp(); otherwise, the feature state doesn't propagate to the test
@@ -153,47 +146,15 @@ class AutofillServerTest : public InProcessBrowserTest {
     InProcessBrowserTest::SetUp();
   }
 
-  void SetUpOnMainThread() override {
-    // Wait for Personal Data Manager to be fully loaded as the events about
-    // being loaded may throw off the tests and cause flakiness.
-    WaitForPersonalDataManagerToBeLoaded(browser()->profile());
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    // Enable finch experiment for sending field metadata.
+    command_line->AppendSwitchASCII(::switches::kForceFieldTrials,
+                                    "AutofillFieldMetadata/Enabled/");
   }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
 };
-
-MATCHER_P(EqualsUploadProto, expected_const, "") {
-  AutofillUploadRequest expected = expected_const;
-  AutofillUploadRequest request;
-  if (!request.ParseFromString(arg))
-    return false;
-
-  // Remove metadata because it is randomised and won't match.
-  EXPECT_EQ(request.upload().has_randomized_form_metadata(),
-            expected.upload().has_randomized_form_metadata());
-  request.mutable_upload()->clear_randomized_form_metadata();
-  expected.mutable_upload()->clear_randomized_form_metadata();
-  EXPECT_EQ(request.upload().field_size(), expected.upload().field_size());
-  if (request.upload().field_size() != expected.upload().field_size())
-    return false;
-  for (int i = 0; i < request.upload().field_size(); i++) {
-    request.mutable_upload()
-        ->mutable_field(i)
-        ->clear_randomized_field_metadata();
-    expected.mutable_upload()
-        ->mutable_field(i)
-        ->clear_randomized_field_metadata();
-  }
-
-  // TODO(crbug.com/1251119): The language is sometimes missing from the upload,
-  // making the test flaky. Add the language back to the comparison when the
-  // root cause is fixed.
-  request.mutable_upload()->clear_language();
-  expected.mutable_upload()->clear_language();
-
-  return request.SerializeAsString() == expected.SerializeAsString();
-}
 
 // Regression test for http://crbug.com/177419
 IN_PROC_BROWSER_TEST_F(AutofillServerTest,
@@ -227,18 +188,18 @@ IN_PROC_BROWSER_TEST_F(AutofillServerTest,
   auto* query_form = query.add_forms();
   query_form->set_signature(15916856893790176210U);
 
-  query_form->add_fields()->set_signature(2594484045U);
-  query_form->add_fields()->set_signature(2750915947U);
-  query_form->add_fields()->set_signature(3494787134U);
-  query_form->add_fields()->set_signature(1236501728U);
+  test::FillQueryField(query_form->add_fields(), 2594484045U, "one", "text");
+  test::FillQueryField(query_form->add_fields(), 2750915947U, "two", "text");
+  test::FillQueryField(query_form->add_fields(), 3494787134U, "three", "text");
+  test::FillQueryField(query_form->add_fields(), 1236501728U, "four", "text");
 
   std::string expected_query_string;
   ASSERT_TRUE(query.SerializeToString(&expected_query_string));
 
   WindowedNetworkObserver query_network_observer(expected_query_string);
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL(std::string(kDataURIPrefix) + kFormHtml)));
+  ui_test_utils::NavigateToURL(browser(),
+                               GURL(std::string(kDataURIPrefix) + kFormHtml));
   query_network_observer.Wait();
 
   // Submit the form, using a simulated mouse click because form submissions not
@@ -250,56 +211,35 @@ IN_PROC_BROWSER_TEST_F(AutofillServerTest,
   upload->set_client_version(GetProductNameAndVersionForUserAgent());
   upload->set_form_signature(15916856893790176210U);
   upload->set_autofill_used(false);
-
-  // The `data_present` fields is a bit mask of field types that are associated
-  // with non-empty profile values. Each bit in this mask corresponds to a
-  // specific type. For details on that mapping please consult
-  // |EncodeFieldTypes()| in components/autofill/core/browser/form_structure.cc.
-  // The resulting bit mask in this test is hard-coded to capture regressions in
-  // the calculation of the mask.
-
-  const bool honorific_prefix = base::FeatureList::IsEnabled(
-      features::kAutofillEnableSupportForHonorificPrefixes);
-
-  // Combinations of honorific_prefix without structured_names are omitted
-  // because honorific_prefix can only be enabled on top of structured_names.
-  std::string data_present;
-  if (!honorific_prefix) {
-    data_present = "1f7e0003780000080004000001c40018";
-  } else {
-    data_present = "1f7e0003780000080004000001c40418";
-  }
-
-  // TODO(crbug.com/1311937): Additional phone number trunk types are present
-  // if AutofillEnableSupportForPhoneNumberTrunkTypes is enabled. Clean-up
-  // implementation when launched.
+  // TODO(crbug.com/1103421): Clean legacy implementation once structured names
+  // are fully launched.
+  // For structured names, there is additional data present.
   if (base::FeatureList::IsEnabled(
-          features::kAutofillEnableSupportForPhoneNumberTrunkTypes)) {
-    data_present.rbegin()[1] = '7';
+          features::kAutofillEnableSupportForMoreStructureInNames)) {
+    upload->set_data_present("1f7e000378000008000400000004");
+  } else {
+    upload->set_data_present("1f7e0003780000080004");
   }
-  upload->set_data_present(data_present);
-
+  upload->set_action_signature(15724779818122431245U);
+  upload->set_form_name("test_form");
   upload->set_passwords_revealed(false);
   upload->set_submission_event(
       AutofillUploadContents_SubmissionIndicatorEvent_HTML_FORM_SUBMISSION);
   upload->set_has_form_tag(true);
-  // We don't set metadata, because the matcher will skip them.
-  upload->set_language("und");
-  *upload->mutable_randomized_form_metadata() =
-      autofill::AutofillRandomizedFormMetadata();
 
-  // Enabling raw form data uploading (e.g., field name) is too complicated in
-  // this test. So, don't expect it in the upload.
-  test::FillUploadField(upload->add_field(), 2594484045U, nullptr, nullptr,
+  test::FillUploadField(upload->add_field(), 2594484045U, "one", "text",
                         nullptr, 2U);
-  test::FillUploadField(upload->add_field(), 2750915947U, nullptr, nullptr,
+  test::FillUploadField(upload->add_field(), 2750915947U, "two", "text", "off",
+                        2U);
+  test::FillUploadField(upload->add_field(), 3494787134U, "three", "text",
                         nullptr, 2U);
-  test::FillUploadField(upload->add_field(), 3494787134U, nullptr, nullptr,
-                        nullptr, 2U);
-  test::FillUploadField(upload->add_field(), 1236501728U, nullptr, nullptr,
-                        nullptr, 2U);
+  test::FillUploadField(upload->add_field(), 1236501728U, "four", "text", "off",
+                        2U);
 
-  WindowedNetworkObserver upload_network_observer(EqualsUploadProto(request));
+  std::string expected_upload_string;
+  ASSERT_TRUE(request.SerializeToString(&expected_upload_string));
+
+  WindowedNetworkObserver upload_network_observer(expected_upload_string);
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::SimulateMouseClick(web_contents, 0,
@@ -325,16 +265,17 @@ IN_PROC_BROWSER_TEST_F(AutofillServerTest, AlwaysQueryForPasswordFields) {
   auto* query_form = query.add_forms();
   query_form->set_signature(8900697631820480876U);
 
-  query_form->add_fields()->set_signature(2594484045U);
-  query_form->add_fields()->set_signature(2750915947U);
-  query_form->add_fields()->set_signature(116843943U);
+  test::FillQueryField(query_form->add_fields(), 2594484045U, "one", "text");
+  test::FillQueryField(query_form->add_fields(), 2750915947U, "two", "text");
+  test::FillQueryField(query_form->add_fields(), 116843943U, "three",
+                       "password");
 
   std::string expected_query_string;
   ASSERT_TRUE(query.SerializeToString(&expected_query_string));
 
   WindowedNetworkObserver query_network_observer(expected_query_string);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL(std::string(kDataURIPrefix) + kFormHtml)));
+  ui_test_utils::NavigateToURL(browser(),
+                               GURL(std::string(kDataURIPrefix) + kFormHtml));
   query_network_observer.Wait();
 }
 

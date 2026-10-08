@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/i18n/rtl.h"
 #include "base/numerics/safe_conversions.h"
@@ -37,10 +36,10 @@ namespace task_manager {
 
 namespace {
 
-std::u16string GetLocalizedTitle(const std::u16string& title,
+base::string16 GetLocalizedTitle(const base::string16& title,
                                  int process_type,
                                  ChildProcessTask::ProcessSubtype subtype) {
-  std::u16string result_title = title;
+  base::string16 result_title = title;
   if (result_title.empty()) {
     switch (process_type) {
       case content::PROCESS_TYPE_PPAPI_PLUGIN:
@@ -105,7 +104,7 @@ std::u16string GetLocalizedTitle(const std::u16string& title,
         default:
           break;
       }
-      [[fallthrough]];
+      FALLTHROUGH;
     }
     // These types don't need display names or get them from elsewhere.
     case content::PROCESS_TYPE_BROWSER:
@@ -120,18 +119,33 @@ std::u16string GetLocalizedTitle(const std::u16string& title,
   return result_title;
 }
 
+// Connects the |resource_reporter| to the InterfaceRegistry of the
+// BrowserChildProcessHost whose unique ID is |unique_child_process_id|.
+void ConnectResourceReporterOnIOThread(
+    int unique_child_process_id,
+    mojo::PendingReceiver<content::mojom::ResourceUsageReporter>
+        resource_reporter) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+
+  content::BrowserChildProcessHost* host =
+      content::BrowserChildProcessHost::FromID(unique_child_process_id);
+  if (!host)
+    return;
+
+  host->GetHost()->BindReceiver(std::move(resource_reporter));
+}
+
 // Creates the Mojo service wrapper that will be used to sample the V8 memory
 // usage of the browser child process whose unique ID is
 // |unique_child_process_id|.
 ProcessResourceUsage* CreateProcessResourcesSampler(
     int unique_child_process_id) {
   mojo::PendingRemote<content::mojom::ResourceUsageReporter> usage_reporter;
-  content::BrowserChildProcessHost* host =
-      content::BrowserChildProcessHost::FromID(unique_child_process_id);
-  auto receiver = usage_reporter.InitWithNewPipeAndPassReceiver();
-  if (host)
-    host->GetHost()->BindReceiver(std::move(receiver));
-
+  content::GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(&ConnectResourceReporterOnIOThread,
+                     unique_child_process_id,
+                     usage_reporter.InitWithNewPipeAndPassReceiver()));
   return new ProcessResourceUsage(std::move(usage_reporter));
 }
 

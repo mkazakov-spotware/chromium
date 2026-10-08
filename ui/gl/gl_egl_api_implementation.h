@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "ui/gl/gl_bindings.h"
-#include "ui/gl/gl_display.h"
 #include "ui/gl/gl_export.h"
 
 namespace gl {
@@ -22,7 +21,7 @@ GL_EXPORT void InitializeStaticGLBindingsEGL();
 GL_EXPORT void ClearBindingsEGL();
 GL_EXPORT bool GetGLWindowSystemBindingInfoEGL(GLWindowSystemBindingInfo* info);
 GL_EXPORT void SetDisabledExtensionsEGL(const std::string& disabled_extensions);
-GL_EXPORT bool InitializeExtensionSettingsOneOffEGL(GLDisplayEGL* display);
+GL_EXPORT bool InitializeExtensionSettingsOneOffEGL();
 
 class GL_EXPORT EGLApiBase : public EGLApi {
  public:
@@ -36,7 +35,7 @@ class GL_EXPORT EGLApiBase : public EGLApi {
   ~EGLApiBase() override;
   void InitializeBase(DriverEGL* driver);
 
-  raw_ptr<DriverEGL> driver_;
+  DriverEGL* driver_;
 };
 
 class GL_EXPORT RealEGLApi : public EGLApiBase {
@@ -67,7 +66,7 @@ class GL_EXPORT LogEGLApi : public EGLApi {
   #include "gl_bindings_api_autogen_egl.h"
 
  private:
-  raw_ptr<EGLApi> egl_api_;
+  EGLApi* egl_api_;
 };
 
 // Inserts a TRACE for every EGL call.
@@ -83,7 +82,7 @@ class GL_EXPORT TraceEGLApi : public EGLApi {
   #include "gl_bindings_api_autogen_egl.h"
 
  private:
-  raw_ptr<EGLApi> egl_api_;
+  EGLApi* egl_api_;
 };
 
 }  // namespace gl

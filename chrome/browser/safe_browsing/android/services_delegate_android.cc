@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,10 @@
 #include "base/notreached.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/telemetry/android/android_telemetry_service.h"
+#include "chrome/browser/safe_browsing/telemetry/telemetry_service.h"
 #include "components/safe_browsing/android/remote_database_manager.h"
 #include "components/safe_browsing/buildflags.h"
-#include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/features.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_manager.h"
@@ -69,6 +70,9 @@ void ServicesDelegateAndroid::ShutdownServices() {
 
 void ServicesDelegateAndroid::RefreshState(bool enable) {}
 
+void ServicesDelegateAndroid::ProcessResourceRequest(
+    const ResourceRequestInfo* request) {}
+
 std::unique_ptr<prefs::mojom::TrackedPreferenceValidationDelegate>
 ServicesDelegateAndroid::CreatePreferenceValidationDelegate(Profile* profile) {
   return nullptr;
@@ -81,9 +85,14 @@ void ServicesDelegateAndroid::AddDownloadManager(
     content::DownloadManager* download_manager) {}
 
 void ServicesDelegateAndroid::StartOnIOThread(
+    scoped_refptr<network::SharedURLLoaderFactory> sb_url_loader_factory,
     scoped_refptr<network::SharedURLLoaderFactory> browser_url_loader_factory,
     const V4ProtocolConfig& v4_config) {
-  database_manager_->StartOnIOThread(browser_url_loader_factory, v4_config);
+  if (base::FeatureList::IsEnabled(kSafeBrowsingRemoveCookies)) {
+    database_manager_->StartOnIOThread(browser_url_loader_factory, v4_config);
+  } else {
+    database_manager_->StartOnIOThread(sb_url_loader_factory, v4_config);
+  }
 }
 
 void ServicesDelegateAndroid::StopOnIOThread(bool shutdown) {
@@ -98,7 +107,8 @@ void ServicesDelegateAndroid::CreateTelemetryService(Profile* profile) {
     return;
 
   DCHECK(!telemetry_service_);
-  telemetry_service_ = std::make_unique<AndroidTelemetryService>(profile);
+  telemetry_service_ = std::make_unique<AndroidTelemetryService>(
+      safe_browsing_service_, profile);
 }
 
 void ServicesDelegateAndroid::RemoveTelemetryService(Profile* profile) {

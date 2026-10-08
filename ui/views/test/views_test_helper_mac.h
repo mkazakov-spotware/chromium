@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,17 @@
 
 #include <memory>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/test/scoped_fake_full_keyboard_access.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/compositor/test/test_context_factories.h"
-#include "ui/display/screen.h"
 #include "ui/views/test/views_test_helper.h"
 
-namespace ui::test {
+namespace ui {
+namespace test {
 class ScopedFakeNSWindowFocus;
 class ScopedFakeNSWindowFullscreen;
-}  // namespace ui::test
+}  // namespace test
+}  // namespace ui
 
 namespace views {
 
@@ -31,7 +31,7 @@ class ViewsTestHelperMac : public ViewsTestHelper {
   // ViewsTestHelper:
   void SetUpTestViewsDelegate(
       TestViewsDelegate* delegate,
-      absl::optional<ViewsDelegate::NativeWidgetFactory> factory) override;
+      base::Optional<ViewsDelegate::NativeWidgetFactory> factory) override;
 
  private:
   ui::TestContextFactories context_factories_{false};
@@ -58,8 +58,6 @@ class ViewsTestHelperMac : public ViewsTestHelper {
   // more consistent with other platforms, where most views are focusable by
   // default.
   ui::test::ScopedFakeFullKeyboardAccess faked_full_keyboard_access_;
-
-  display::ScopedNativeScreen screen_;
 };
 
 }  // namespace views

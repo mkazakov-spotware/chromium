@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_EXO_WAYLAND_CLIENTS_TEST_WAYLAND_CLIENT_TEST_SERVER_H_
 #define COMPONENTS_EXO_WAYLAND_CLIENTS_TEST_WAYLAND_CLIENT_TEST_SERVER_H_
 
+#include "ash/test/ash_test_suite.h"
 #include "base/callback.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "chromeos/ash/components/test/ash_test_suite.h"
 
 namespace exo {
 
@@ -20,11 +20,6 @@ class WaylandClientTestSuiteServer : public ash::AshTestSuite {
                                                                        char**)>;
 
   WaylandClientTestSuiteServer(int argc, char** argv);
-
-  WaylandClientTestSuiteServer(const WaylandClientTestSuiteServer&) = delete;
-  WaylandClientTestSuiteServer& operator=(const WaylandClientTestSuiteServer&) =
-      delete;
-
   ~WaylandClientTestSuiteServer() override;
 
   int Run();
@@ -52,6 +47,8 @@ class WaylandClientTestSuiteServer : public ash::AshTestSuite {
 
   // Result of RunTestsOnClientThread().
   int result_ = 1;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandClientTestSuiteServer);
 };
 
 }  // namespace exo

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,7 @@ bool StructTraits<network::mojom::CrossOriginOpenerPolicyDataView,
       input.ReadReportingEndpoint(&result.reporting_endpoint) &&
       input.ReadReportOnlyValue(&result.report_only_value) &&
       input.ReadReportOnlyReportingEndpoint(
-          &result.report_only_reporting_endpoint) &&
-      input.ReadSoapByDefaultValue(&result.soap_by_default_value)) {
+          &result.report_only_reporting_endpoint)) {
     *output = std::move(result);
     return true;
   }

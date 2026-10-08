@@ -1,14 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 function dumpBackgroundServiceGrid() {
   TestRunner.addResult('Grid Entries:');
 
-  const treeElement = UI.panels.resources.sidebar.backgroundFetchTreeElement;
+  const treeElement = UI.panels.resources._sidebar.backgroundFetchTreeElement;
   treeElement.onselect(false);
 
-  const dataGrid = treeElement.view.dataGrid;
+  const dataGrid = treeElement._view._dataGrid;
   if (!dataGrid.rootNode().children.length) {
     TestRunner.addResult('    [empty]');
     return;
@@ -29,18 +29,17 @@ function dumpBackgroundServiceGrid() {
 };
 
 function setOriginCheckbox(value) {
-  const treeElement = UI.panels.resources.sidebar.backgroundFetchTreeElement;
+  const treeElement = UI.panels.resources._sidebar.backgroundFetchTreeElement;
   treeElement.onselect(false);
-  treeElement.view.originCheckbox.setChecked(value);
+  treeElement._view._originCheckbox.setChecked(value);
   // Simulate click.
-  treeElement.view.refreshView();
+  treeElement._view._refreshView();
 }
 
 (async function() {
   Root.Runtime.experiments.setEnabled('backgroundServices', true);
 
   TestRunner.addResult(`Tests that the grid shows information as expected.\n`);
-  await TestRunner.loadLegacyModule('resources');
   await TestRunner.showPanel('resources');
 
   const backgroundServiceModel = TestRunner.mainTarget.model(Resources.BackgroundServiceModel);
@@ -60,7 +59,6 @@ function setOriginCheckbox(value) {
       eventName: 'Event1',
       instanceId: 'Instance1',
       eventMetadata: [],
-      storageKey: 'testKey',
     },
   });
   dumpBackgroundServiceGrid();
@@ -75,7 +73,6 @@ function setOriginCheckbox(value) {
       eventName: 'Event1',
       instanceId: 'Instance2',
       eventMetadata: [],
-      storageKey: 'testKey',
     },
   });
   dumpBackgroundServiceGrid();
@@ -90,7 +87,6 @@ function setOriginCheckbox(value) {
       eventName: 'Event2',
       instanceId: 'Instance1',
       eventMetadata: [],
-      storageKey: 'testKey',
     },
   });
   dumpBackgroundServiceGrid();
@@ -104,7 +100,7 @@ function setOriginCheckbox(value) {
   dumpBackgroundServiceGrid();
 
   // Simulate clicking the clear button.
-  UI.panels.resources.sidebar.backgroundFetchTreeElement.view.clearEvents();
+  UI.panels.resources._sidebar.backgroundFetchTreeElement._view._clearEvents();
   dumpBackgroundServiceGrid();
 
   TestRunner.completeTest();

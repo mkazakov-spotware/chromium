@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/test/task_environment.h"
 #include "components/history/core/test/fake_web_history_service.h"
 #include "components/sync/base/model_type.h"
-#include "components/sync/test/test_sync_service.h"
+#include "components/sync/driver/test_sync_service.h"
 #include "components/version_info/version_info.h"
 #include "net/http/http_status_code.h"
 #include "net/url_request/url_request_test_util.h"
@@ -73,26 +73,20 @@ TEST_F(HistoryNoticeUtilsTest, SyncingWithWrongParameters) {
   history_service()->SetOtherFormsOfBrowsingHistoryPresent(true);
 
   // ...the response is false if there's custom passphrase...
-  sync_service()->GetUserSettings()->SetSelectedTypes(
-      /*sync_everything=*/true,
-      /*types=*/syncer::UserSelectableTypeSet::All());
-  sync_service()->SetIsUsingExplicitPassphrase(true);
+  sync_service()->SetActiveDataTypes(syncer::ModelTypeSet::All());
+  sync_service()->SetIsUsingSecondaryPassphrase(true);
   ExpectShouldPopupDialogAboutOtherFormsOfBrowsingHistoryWithResult(false);
 
   // ...or even if there's no custom passphrase, but we're not syncing history.
-  sync_service()->GetUserSettings()->SetSelectedTypes(
-      /*sync_everything=*/false,
-      /*types=*/syncer::UserSelectableTypeSet(
-          syncer::UserSelectableType::kPasswords));
-  sync_service()->SetIsUsingExplicitPassphrase(false);
+  syncer::ModelTypeSet only_passwords(syncer::PASSWORDS);
+  sync_service()->SetActiveDataTypes(only_passwords);
+  sync_service()->SetIsUsingSecondaryPassphrase(false);
   ExpectShouldPopupDialogAboutOtherFormsOfBrowsingHistoryWithResult(false);
 }
 
 TEST_F(HistoryNoticeUtilsTest, WebHistoryStates) {
   // If history Sync is active...
-  sync_service()->GetUserSettings()->SetSelectedTypes(
-      /*sync_everything=*/true,
-      /*types=*/syncer::UserSelectableTypeSet::All());
+  sync_service()->SetActiveDataTypes(syncer::ModelTypeSet::All());
 
   // ...the result is true if both web history queries return true...
   history_service()->SetWebAndAppActivityEnabled(true);

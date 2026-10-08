@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@ TestingProfileKey::~TestingProfileKey() = default;
 
 leveldb_proto::ProtoDatabaseProvider*
 TestingProfileKey::GetProtoDatabaseProvider() {
-  auto* storage_partition = testing_profile_->GetDefaultStoragePartition();
+  auto* storage_partition =
+      content::BrowserContext::GetDefaultStoragePartition(testing_profile_);
   return storage_partition->GetProtoDatabaseProvider();
 }

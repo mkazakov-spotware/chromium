@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 #define UI_VIEWS_CONTROLS_MENU_NATIVE_MENU_WIN_H_
 
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/views_export.h"
 
@@ -28,10 +28,6 @@ class VIEWS_EXPORT NativeMenuWin {
   // is non-NULL, the NativeMenuWin wraps the system menu for that window.
   // The caller owns the model and the delegate.
   NativeMenuWin(ui::MenuModel* model, HWND system_menu_for);
-
-  NativeMenuWin(const NativeMenuWin&) = delete;
-  NativeMenuWin& operator=(const NativeMenuWin&) = delete;
-
   ~NativeMenuWin();
 
   void Rebuild(MenuInsertionDelegateWin* delegate);
@@ -51,37 +47,37 @@ class VIEWS_EXPORT NativeMenuWin {
   //            code in the functions in this class.
 
   // Returns true if the item at the specified index is a separator.
-  bool IsSeparatorItemAt(size_t menu_index) const;
+  bool IsSeparatorItemAt(int menu_index) const;
 
   // Add items. See note above about indices.
-  void AddMenuItemAt(size_t menu_index, size_t model_index);
-  void AddSeparatorItemAt(size_t menu_index, size_t model_index);
+  void AddMenuItemAt(int menu_index, int model_index);
+  void AddSeparatorItemAt(int menu_index, int model_index);
 
   // Sets the state of the item at the specified index.
-  void SetMenuItemState(size_t menu_index,
+  void SetMenuItemState(int menu_index,
                         bool enabled,
                         bool checked,
                         bool is_default);
 
   // Sets the label of the item at the specified index.
-  void SetMenuItemLabel(size_t menu_index,
-                        size_t model_index,
-                        const std::u16string& label);
+  void SetMenuItemLabel(int menu_index,
+                        int model_index,
+                        const base::string16& label);
 
   // Updates the local data structure with the correctly formatted version of
   // |label| at the specified model_index, and adds string data to |mii| if
   // the menu is not owner-draw. That's a mouthful. This function exists because
   // of the peculiarities of the Windows menu API.
   void UpdateMenuItemInfoForString(MENUITEMINFO* mii,
-                                   size_t model_index,
-                                   const std::u16string& label);
+                                   int model_index,
+                                   const base::string16& label);
 
   // Resets the native menu stored in |menu_| by destroying any old menu then
   // creating a new empty one.
   void ResetNativeMenu();
 
   // Our attached model and delegate.
-  raw_ptr<ui::MenuModel> model_;
+  ui::MenuModel* model_;
 
   HMENU menu_;
 
@@ -99,10 +95,17 @@ class VIEWS_EXPORT NativeMenuWin {
   HWND system_menu_for_;
 
   // The index of the first item in the model in the menu.
-  size_t first_item_index_;
+  int first_item_index_;
 
   // If we're a submenu, this is our parent.
-  raw_ptr<NativeMenuWin> parent_;
+  NativeMenuWin* parent_;
+
+  // If non-null the destructor sets this to true. This is set to non-null while
+  // the menu is showing. It is used to detect if the menu was deleted while
+  // running.
+  bool* destroyed_flag_;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeMenuWin);
 };
 
 }  // namespace views

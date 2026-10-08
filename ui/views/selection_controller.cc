@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 #include <algorithm>
 #include <vector>
 
-#include "base/cxx17_backports.h"
+#include "base/numerics/ranges.h"
 #include "build/build_config.h"
-#include "ui/base/clipboard/clipboard.h"
 #include "ui/events/event.h"
 #include "ui/gfx/render_text.h"
 #include "ui/views/metrics.h"
@@ -20,12 +19,13 @@
 namespace views {
 
 SelectionController::SelectionController(SelectionControllerDelegate* delegate)
-    : delegate_(delegate) {
-  // If selection clipboard is used, update it on a text selection.
-  if (ui::Clipboard::IsSupportedClipboardBuffer(
-          ui::ClipboardBuffer::kSelection)) {
-    set_handles_selection_clipboard(true);
-  }
+    : aggregated_clicks_(0),
+      delegate_(delegate),
+      handles_selection_clipboard_(false) {
+// On Linux, update the selection clipboard on a text selection.
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+  set_handles_selection_clipboard(true);
+#endif
 
   DCHECK(delegate);
 }
@@ -117,12 +117,12 @@ bool SelectionController::OnMouseDragged(const ui::MouseEvent& event) {
     SelectThroughLastDragLocation();
   } else if (!drag_selection_timer_.IsRunning()) {
     // Select through the edge of the visible text, then start the scroll timer.
-    last_drag_location_.set_x(base::clamp(x, 0, width));
+    last_drag_location_.set_x(base::ClampToRange(x, 0, width));
     SelectThroughLastDragLocation();
 
     drag_selection_timer_.Start(
-        FROM_HERE, base::Milliseconds(drag_selection_delay), this,
-        &SelectionController::SelectThroughLastDragLocation);
+        FROM_HERE, base::TimeDelta::FromMilliseconds(drag_selection_delay),
+        this, &SelectionController::SelectThroughLastDragLocation);
   }
 
   return true;
@@ -159,7 +159,7 @@ void SelectionController::OnMouseCaptureLost() {
     delegate_->UpdateSelectionClipboard();
 }
 
-void SelectionController::OffsetDoubleClickWord(size_t offset) {
+void SelectionController::OffsetDoubleClickWord(int offset) {
   double_click_word_.set_start(double_click_word_.start() + offset);
   double_click_word_.set_end(double_click_word_.end() + offset);
 }

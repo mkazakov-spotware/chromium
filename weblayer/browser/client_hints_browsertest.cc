@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,8 @@ class ClientHintsBrowserTest : public WebLayerBrowserTest {
     WebLayerBrowserTest::SetUpOnMainThread();
     BrowserProcess::GetInstance()
         ->GetNetworkQualityTracker()
-        ->ReportRTTsAndThroughputForTesting(base::Milliseconds(500), 100);
+        ->ReportRTTsAndThroughputForTesting(
+            base::TimeDelta::FromMilliseconds(500), 100);
 
     EXPECT_TRUE(embedded_test_server()->Start());
   }
@@ -31,7 +32,8 @@ class ClientHintsBrowserTest : public WebLayerBrowserTest {
   void SetAcceptClientHints() {
     NavigateAndWaitForCompletion(
         embedded_test_server()->GetURL(
-            "/set-header?Accept-CH: device-memory,rtt"),
+            "/set-header?Accept-CH: device-memory,rtt&Accept-CH-Lifetime: "
+            "86400"),
         shell());
   }
 
@@ -65,7 +67,7 @@ class ClientHintsBrowserTest : public WebLayerBrowserTest {
     content::RenderProcessHost* child_process =
         static_cast<TabImpl*>(shell()->tab())
             ->web_contents()
-            ->GetPrimaryMainFrame()
+            ->GetMainFrame()
             ->GetProcess();
     content::RenderProcessHostWatcher crash_observer(
         child_process,
@@ -132,13 +134,13 @@ IN_PROC_BROWSER_TEST_F(ClientHintsBrowserTest,
       static_cast<TabImpl*>(shell()->tab())
           ->web_contents()
           ->GetBrowserContext());
-  base::Value setting = settings_map->GetWebsiteSetting(
+  std::unique_ptr<base::Value> setting = settings_map->GetWebsiteSetting(
       embedded_test_server()->base_url(), GURL(),
       ContentSettingsType::CLIENT_HINTS, nullptr);
-  ASSERT_FALSE(setting.is_none());
-  settings_map->SetWebsiteSettingDefaultScope(other_server.base_url(), GURL(),
-                                              ContentSettingsType::CLIENT_HINTS,
-                                              setting.Clone());
+  ASSERT_TRUE(setting);
+  settings_map->SetWebsiteSettingDefaultScope(
+      other_server.base_url(), GURL(), ContentSettingsType::CLIENT_HINTS,
+      std::make_unique<base::Value>(setting->Clone()));
 
   // Settings take affect after navigation only, so the header shouldn't be
   // there yet.

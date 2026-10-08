@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,15 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "cc/animation/keyframe_model.h"
+#include "cc/animation/keyframed_animation_curve.h"
+#include "cc/test/geometry_test_utils.h"
 #include "chrome/browser/vr/databinding/binding.h"
 #include "chrome/browser/vr/test/animation_utils.h"
 #include "chrome/browser/vr/test/constants.h"
 #include "chrome/browser/vr/ui_scene.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/gfx/animation/keyframe/keyframed_animation_curve.h"
-#include "ui/gfx/geometry/test/geometry_util.h"
 
 namespace vr {
 
@@ -34,9 +35,9 @@ TEST(UiElement, BoundsContainChildren) {
   parent->AddChild(std::move(c1));
 
   parent->SizeAndLayOut();
-  EXPECT_RECTF_NEAR(gfx::RectF(2.5f, 2.5f, 3.2f, 3.4f),
-                    gfx::RectF(parent->local_origin(), parent->size()),
-                    kEpsilon);
+  EXPECT_RECT_NEAR(gfx::RectF(2.5f, 2.5f, 3.2f, 3.4f),
+                   gfx::RectF(parent->local_origin(), parent->size()),
+                   kEpsilon);
   EXPECT_EQ(parent->GetCenter().ToString(), c1_ptr->GetCenter().ToString());
 
   auto c2 = std::make_unique<UiElement>();
@@ -45,9 +46,9 @@ TEST(UiElement, BoundsContainChildren) {
   parent->AddChild(std::move(c2));
 
   parent->SizeAndLayOut();
-  EXPECT_RECTF_NEAR(gfx::RectF(-0.5f, 1.0f, 9.2f, 6.4f),
-                    gfx::RectF(parent->local_origin(), parent->size()),
-                    kEpsilon);
+  EXPECT_RECT_NEAR(gfx::RectF(-0.5f, 1.0f, 9.2f, 6.4f),
+                   gfx::RectF(parent->local_origin(), parent->size()),
+                   kEpsilon);
 
   auto c3 = std::make_unique<UiElement>();
   c3->SetSize(2.0f, 2.0f);
@@ -55,9 +56,9 @@ TEST(UiElement, BoundsContainChildren) {
   parent->AddChild(std::move(c3));
 
   parent->SizeAndLayOut();
-  EXPECT_RECTF_NEAR(gfx::RectF(-0.5f, 0.5f, 9.2f, 7.4f),
-                    gfx::RectF(parent->local_origin(), parent->size()),
-                    kEpsilon);
+  EXPECT_RECT_NEAR(gfx::RectF(-0.5f, 0.5f, 9.2f, 7.4f),
+                   gfx::RectF(parent->local_origin(), parent->size()),
+                   kEpsilon);
 
   auto c4 = std::make_unique<UiElement>();
   c4->SetSize(2.0f, 2.0f);
@@ -67,9 +68,9 @@ TEST(UiElement, BoundsContainChildren) {
 
   // We expect no change due to an invisible child.
   parent->SizeAndLayOut();
-  EXPECT_RECTF_NEAR(gfx::RectF(-0.5f, 0.5f, 9.2f, 7.4f),
-                    gfx::RectF(parent->local_origin(), parent->size()),
-                    kEpsilon);
+  EXPECT_RECT_NEAR(gfx::RectF(-0.5f, 0.5f, 9.2f, 7.4f),
+                   gfx::RectF(parent->local_origin(), parent->size()),
+                   kEpsilon);
 
   auto grand_parent = std::make_unique<UiElement>();
   grand_parent->set_bounds_contain_children(true);
@@ -84,12 +85,12 @@ TEST(UiElement, BoundsContainChildren) {
   grand_parent->AddChild(std::move(anchored));
 
   grand_parent->SizeAndLayOut();
-  EXPECT_RECTF_NEAR(
+  EXPECT_RECT_NEAR(
       gfx::RectF(-0.5f, 0.5f, 9.4f, 7.8f),
       gfx::RectF(grand_parent->local_origin(), grand_parent->size()), kEpsilon);
 
   gfx::Point3F p;
-  p = anchored_ptr->LocalTransform().MapPoint(p);
+  anchored_ptr->LocalTransform().TransformPoint(&p);
   EXPECT_FLOAT_EQ(-3.9, p.y());
 }
 
@@ -142,9 +143,9 @@ TEST(UiElement, IgnoringAsymmetricPadding) {
   a->UpdateWorldSpaceTransform(false);
 
   gfx::Point3F p;
-  p = a->world_space_transform().MapPoint(p);
+  a->world_space_transform().TransformPoint(&p);
 
-  EXPECT_POINT3F_EQ(gfx::Point3F(), p);
+  EXPECT_VECTOR3DF_EQ(gfx::Point3F(), p);
 }
 
 TEST(UiElement, BoundsContainPaddingWithAnchoring) {
@@ -180,8 +181,8 @@ TEST(UiElement, BoundsContainPaddingWithAnchoring) {
     child_ptr->set_y_anchoring(test_case.y_anchoring);
     parent->SizeAndLayOut();
     gfx::Point3F p;
-    p = child_ptr->LocalTransform().MapPoint(p);
-    EXPECT_POINT3F_EQ(test_case.expected_position, p);
+    child_ptr->LocalTransform().TransformPoint(&p);
+    EXPECT_VECTOR3DF_EQ(test_case.expected_position, p);
   }
 }
 
@@ -221,8 +222,9 @@ TEST(UiElement, BoundsContainPaddingWithCentering) {
     child_ptr->set_x_centering(test_case.x_centering);
     child_ptr->set_y_centering(test_case.y_centering);
     parent->SizeAndLayOut();
-    EXPECT_POINT3F_EQ(test_case.expected_position,
-                      child_ptr->LocalTransform().MapPoint(gfx::Point3F()));
+    gfx::Point3F p;
+    child_ptr->LocalTransform().TransformPoint(&p);
+    EXPECT_VECTOR3DF_EQ(test_case.expected_position, p);
   }
 }
 
@@ -242,8 +244,8 @@ TEST(UiElement, BoundsContainScaledChildren) {
   c->AddChild(std::move(b));
 
   c->SizeAndLayOut();
-  EXPECT_RECTF_NEAR(gfx::RectF(0.3f, 0.0f, 1.1f, 0.7f),
-                    gfx::RectF(c->local_origin(), c->size()), kEpsilon);
+  EXPECT_RECT_NEAR(gfx::RectF(0.3f, 0.0f, 1.1f, 0.7f),
+                   gfx::RectF(c->local_origin(), c->size()), kEpsilon);
 }
 
 TEST(UiElement, AnimateSize) {
@@ -251,17 +253,17 @@ TEST(UiElement, AnimateSize) {
   scene.RunFirstFrameForTest();
   auto rect = std::make_unique<UiElement>();
   rect->SetSize(10, 100);
-  rect->AddKeyframeModel(gfx::CreateSizeAnimation(
-      rect.get(), 1, BOUNDS, gfx::SizeF(10, 100), gfx::SizeF(20, 200),
-      gfx::MicrosecondsToDelta(10000)));
+  rect->AddKeyframeModel(CreateBoundsAnimation(1, 1, gfx::SizeF(10, 100),
+                                               gfx::SizeF(20, 200),
+                                               MicrosecondsToDelta(10000)));
   UiElement* rect_ptr = rect.get();
   scene.AddUiElement(kRoot, std::move(rect));
-  base::TimeTicks start_time = gfx::MicrosecondsToTicks(1);
+  base::TimeTicks start_time = MicrosecondsToTicks(1);
   EXPECT_TRUE(scene.OnBeginFrame(start_time, kStartHeadPose));
-  EXPECT_SIZEF_EQ(gfx::SizeF(10, 100), rect_ptr->size());
-  EXPECT_TRUE(scene.OnBeginFrame(start_time + gfx::MicrosecondsToDelta(10000),
+  EXPECT_FLOAT_SIZE_EQ(gfx::SizeF(10, 100), rect_ptr->size());
+  EXPECT_TRUE(scene.OnBeginFrame(start_time + MicrosecondsToDelta(10000),
                                  kStartHeadPose));
-  EXPECT_SIZEF_EQ(gfx::SizeF(20, 200), rect_ptr->size());
+  EXPECT_FLOAT_SIZE_EQ(gfx::SizeF(20, 200), rect_ptr->size());
 }
 
 TEST(UiElement, AnimationAffectsInheritableTransform) {
@@ -271,22 +273,23 @@ TEST(UiElement, AnimationAffectsInheritableTransform) {
   UiElement* rect_ptr = rect.get();
   scene.AddUiElement(kRoot, std::move(rect));
 
-  gfx::TransformOperations from_operations;
+  cc::TransformOperations from_operations;
   from_operations.AppendTranslate(10, 100, 1000);
-  gfx::TransformOperations to_operations;
+  cc::TransformOperations to_operations;
   to_operations.AppendTranslate(20, 200, 2000);
-  rect_ptr->AddKeyframeModel(gfx::CreateTransformAnimation(
-      rect_ptr, 2, TRANSFORM, from_operations, to_operations,
-      gfx::MicrosecondsToDelta(10000)));
+  rect_ptr->AddKeyframeModel(CreateTransformAnimation(
+      2, 2, from_operations, to_operations, MicrosecondsToDelta(10000)));
 
-  base::TimeTicks start_time = gfx::MicrosecondsToTicks(1);
+  base::TimeTicks start_time = MicrosecondsToTicks(1);
   EXPECT_TRUE(scene.OnBeginFrame(start_time, kStartHeadPose));
-  EXPECT_POINT3F_EQ(gfx::Point3F(10, 100, 1000),
-                    rect_ptr->LocalTransform().MapPoint(gfx::Point3F()));
-  EXPECT_TRUE(scene.OnBeginFrame(start_time + gfx::MicrosecondsToDelta(10000),
+  gfx::Point3F p;
+  rect_ptr->LocalTransform().TransformPoint(&p);
+  EXPECT_VECTOR3DF_EQ(gfx::Vector3dF(10, 100, 1000), p);
+  p = gfx::Point3F();
+  EXPECT_TRUE(scene.OnBeginFrame(start_time + MicrosecondsToDelta(10000),
                                  kStartHeadPose));
-  EXPECT_POINT3F_EQ(gfx::Point3F(20, 200, 2000),
-                    rect_ptr->LocalTransform().MapPoint(gfx::Point3F()));
+  rect_ptr->LocalTransform().TransformPoint(&p);
+  EXPECT_VECTOR3DF_EQ(gfx::Vector3dF(20, 200, 2000), p);
 }
 
 TEST(UiElement, HitTest) {
@@ -339,7 +342,7 @@ TEST(UiElement, HitTest) {
       {gfx::PointF(-0.1f, -0.1f), false, false, false},
   };
 
-  for (size_t i = 0; i < std::size(test_cases); ++i) {
+  for (size_t i = 0; i < base::size(test_cases); ++i) {
     SCOPED_TRACE(i);
     EXPECT_EQ(test_cases[i].expected_rect,
               rect.LocalHitTest(test_cases[i].location));
@@ -375,7 +378,7 @@ TEST(UiElement, HitTestWithClip) {
       {{kAlmostOne, 0.5f}, true},
   };
 
-  for (size_t i = 0; i < std::size(test_cases); ++i) {
+  for (size_t i = 0; i < base::size(test_cases); ++i) {
     SCOPED_TRACE(i);
     EXPECT_EQ(test_cases[i].expected,
               rect.LocalHitTest(test_cases[i].location));
@@ -399,10 +402,6 @@ class ElementEventHandlers {
         &ElementEventHandlers::HandleButtonUp, base::Unretained(this));
     element->set_event_handlers(event_handlers);
   }
-
-  ElementEventHandlers(const ElementEventHandlers&) = delete;
-  ElementEventHandlers& operator=(const ElementEventHandlers&) = delete;
-
   void HandleHoverEnter() { hover_enter_ = true; }
   bool hover_enter_called() { return hover_enter_; }
 
@@ -432,6 +431,8 @@ class ElementEventHandlers {
   bool hover_leave_ = false;
   bool button_up_ = false;
   bool button_down_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ElementEventHandlers);
 };
 
 TEST(UiElement, CoordinatedVisibilityTransitions) {
@@ -463,11 +464,11 @@ TEST(UiElement, CoordinatedVisibilityTransitions) {
   parent->AddChild(std::move(child));
   scene.AddUiElement(kRoot, std::move(parent));
 
-  scene.OnBeginFrame(gfx::MsToTicks(0), kStartHeadPose);
+  scene.OnBeginFrame(MsToTicks(0), kStartHeadPose);
 
   value = true;
 
-  scene.OnBeginFrame(gfx::MsToTicks(16), kStartHeadPose);
+  scene.OnBeginFrame(MsToTicks(16), kStartHeadPose);
 
   // We should have started animating both, and they should both be at opacity
   // zero given that this is the first frame. This does not guarantee that
@@ -478,7 +479,7 @@ TEST(UiElement, CoordinatedVisibilityTransitions) {
   EXPECT_TRUE(child_ptr->IsAnimatingProperty(OPACITY));
   EXPECT_EQ(child_ptr->opacity(), parent_ptr->opacity());
 
-  scene.OnBeginFrame(gfx::MsToTicks(32), kStartHeadPose);
+  scene.OnBeginFrame(MsToTicks(32), kStartHeadPose);
   EXPECT_EQ(child_ptr->opacity(), parent_ptr->opacity());
   EXPECT_LT(0.0f, child_ptr->opacity());
 }
@@ -532,11 +533,13 @@ TEST(UiElement, ClipChildren) {
 
   parent->SizeAndLayOut();
 
-  EXPECT_RECTF_EQ(gfx::RectF(-1.5f, 0.5f, 4.0f, 2.0f), p_child->GetClipRect());
+  EXPECT_FLOAT_RECT_EQ(gfx::RectF(-1.5f, 0.5f, 4.0f, 2.0f),
+                       p_child->GetClipRect());
 
   p_child->SetScale(0.5f, 0.5f, 1.0f);
   parent->SizeAndLayOut();
-  EXPECT_RECTF_EQ(gfx::RectF(-3.5f, 0.5f, 8.0f, 4.0f), p_child->GetClipRect());
+  EXPECT_FLOAT_RECT_EQ(gfx::RectF(-3.5f, 0.5f, 8.0f, 4.0f),
+                       p_child->GetClipRect());
 }
 
 }  // namespace vr

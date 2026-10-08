@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,12 +18,10 @@ void NetworkStatusListenerImpl::Start(
     NetworkStatusListener::Observer* observer) {
   NetworkStatusListener::Start(observer);
   network_connection_tracker_->AddNetworkConnectionObserver(this);
-  bool sync = network_connection_tracker_->GetConnectionType(
+  network_connection_tracker_->GetConnectionType(
       &connection_type_,
-      base::BindOnce(&NetworkStatusListenerImpl::OnNetworkStatusReady,
-                     weak_ptr_factory_.GetWeakPtr()));
-  if (sync)
-    observer_->OnNetworkStatusReady(connection_type_);
+      base::BindOnce(&NetworkStatusListenerImpl::OnConnectionChanged,
+                     base::Unretained(this)));
 }
 
 void NetworkStatusListenerImpl::Stop() {
@@ -40,13 +38,6 @@ void NetworkStatusListenerImpl::OnConnectionChanged(
   DCHECK(observer_);
   connection_type_ = type;
   observer_->OnNetworkChanged(type);
-}
-
-void NetworkStatusListenerImpl::OnNetworkStatusReady(
-    network::mojom::ConnectionType type) {
-  DCHECK(observer_);
-  connection_type_ = type;
-  observer_->OnNetworkStatusReady(type);
 }
 
 }  // namespace download

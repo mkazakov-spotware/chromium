@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that dataReceived is called on NetworkDispatcher for XHR with responseType="blob".\n`);
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   TestRunner.addSniffer(SDK.NetworkDispatcher.prototype, 'dataReceived', dataReceived);
@@ -13,9 +13,8 @@
   NetworkTestRunner.makeXHR(
       'GET', 'resources/resource.php', true, undefined, undefined, [], false, undefined, 'blob', function() {});
 
-  function dataReceived(event) {
-    var request = NetworkTestRunner.networkLog().requestByManagerAndId(
-        TestRunner.networkManager, event.requestId);
+  function dataReceived(requestId, time, dataLength, encodedDataLength) {
+    var request = SDK.NetworkLog.instance().requestByManagerAndId(TestRunner.networkManager, requestId);
     if (/resource\.php/.exec(request.url())) {
       TestRunner.addResult('Received data for resource.php');
       TestRunner.addResult('SUCCESS');

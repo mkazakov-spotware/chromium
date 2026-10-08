@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,12 +24,6 @@ class SignedExchangePageLoadMetricsBrowserTest
     feature_list_.InitWithFeatures(
         {ukm::kUkmFeature, features::kSignedHTTPExchange}, {});
   }
-
-  SignedExchangePageLoadMetricsBrowserTest(
-      const SignedExchangePageLoadMetricsBrowserTest&) = delete;
-  SignedExchangePageLoadMetricsBrowserTest& operator=(
-      const SignedExchangePageLoadMetricsBrowserTest&) = delete;
-
   ~SignedExchangePageLoadMetricsBrowserTest() override {}
 
  protected:
@@ -46,8 +40,7 @@ class SignedExchangePageLoadMetricsBrowserTest
   // and only use NavigateToUntrackedUrl for cases where the waiter isn't
   // sufficient.
   void NavigateToUntrackedUrl() {
-    ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
+    ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL));
   }
 
   void InstallUrlInterceptor(const GURL& url, const std::string& data_path) {
@@ -75,7 +68,7 @@ class SignedExchangePageLoadMetricsBrowserTest
     const GURL url =
         https_server_.GetURL(hostname, "/sxg/test.example.org_test.sxg");
 
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+    ui_test_utils::NavigateToURL(browser(), url);
 
     // Force navigation to another page, which should force logging of
     // histograms persisted at the end of the page load lifetime.
@@ -129,6 +122,8 @@ class SignedExchangePageLoadMetricsBrowserTest
   std::unique_ptr<ukm::TestAutoSetUkmRecorder> test_ukm_recorder_;
   content::SignedExchangeBrowserTestHelper sxg_test_helper_;
   net::EmbeddedTestServer https_server_;
+
+  DISALLOW_COPY_AND_ASSIGN(SignedExchangePageLoadMetricsBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(SignedExchangePageLoadMetricsBrowserTest,

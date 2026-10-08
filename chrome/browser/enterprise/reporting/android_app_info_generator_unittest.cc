@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #include <memory>
 
-#include "ash/components/arc/test/fake_app_instance.h"
-#include "base/strings/stringprintf.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_test.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/arc/test/fake_app_instance.h"
 #include "content/public/test/browser_task_environment.h"
 #include "device_management_backend.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -27,14 +26,14 @@ constexpr char kPackageName[] = "package_name";
 constexpr char kActivityName[] = "activity_name";
 constexpr int kPackageVersion = 9;
 
-am::AppInfoPtr CreateArcApp(bool suspended) {
-  auto app = am::AppInfo::New();
-  app->name = kAppName;
-  app->package_name = kPackageName;
-  app->activity = kActivityName;
-  app->suspended = suspended;
-  app->sticky = true;
-  app->notifications_enabled = true;
+am::AppInfo CreateArcApp(bool suspended) {
+  am::AppInfo app;
+  app.name = kAppName;
+  app.package_name = kPackageName;
+  app.activity = kActivityName;
+  app.suspended = suspended;
+  app.sticky = true;
+  app.notifications_enabled = true;
   return app;
 }
 
@@ -52,7 +51,7 @@ am::ArcPackageInfoPtr CreateArcPackage(const std::string& package_name,
   return am::ArcPackageInfo::New(
       package_name, package_version, 1 /* last_backup_android_id */,
       1 /* last_backup_time */, true /* sync */, false /* system */,
-      false /* vpn_provider */, nullptr /* web_app_info */, absl::nullopt,
+      false /* vpn_provider */, nullptr /* web_app_info */, base::nullopt,
       std::move(permissions) /* permission states */);
 }
 
@@ -76,10 +75,8 @@ class AndroidAppInfoGeneratorTest : public ::testing::Test {
     testing::Test::TearDown();
   }
 
-  void AddArcApp(am::AppInfoPtr arc_app_ptr) {
-    auto apps = std::vector<am::AppInfoPtr>();
-    apps.emplace_back(std::move(arc_app_ptr));
-    arc_app_test()->app_instance()->SendRefreshAppList(apps);
+  void AddArcApp(am::AppInfo arc_app) {
+    arc_app_test()->app_instance()->SendRefreshAppList({arc_app});
   }
 
   void AddArcPackage(am::ArcPackageInfoPtr arc_package_ptr) {
@@ -115,12 +112,12 @@ TEST_F(AndroidAppInfoGeneratorTest, GenerateAppInfo) {
   EXPECT_EQ(app_info->permissions_size(), 2);
 
   em::AndroidAppPermission permission0 = app_info->permissions(0);
-  EXPECT_EQ(permission0.name(), "CAMERA");
+  EXPECT_EQ(permission0.name(), "AppPermission::CAMERA");
   EXPECT_FALSE(permission0.granted());
   EXPECT_FALSE(permission0.managed());
 
   em::AndroidAppPermission permission1 = app_info->permissions(1);
-  EXPECT_EQ(permission1.name(), "LOCATION");
+  EXPECT_EQ(permission1.name(), "AppPermission::LOCATION");
   EXPECT_TRUE(permission1.granted());
   EXPECT_TRUE(permission1.managed());
 }

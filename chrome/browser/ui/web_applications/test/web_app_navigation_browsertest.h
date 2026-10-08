@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/files/file_path.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "chrome/browser/web_applications/web_app_id.h"
+#include "chrome/browser/web_applications/components/web_app_id.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/test/content_mock_cert_verifier.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
@@ -61,9 +61,7 @@ class WebAppNavigationBrowserTest : public InProcessBrowserTest {
       const GURL& target_url,
       LinkTarget target,
       const std::string& rel,
-      int modifiers,
-      blink::WebMouseEvent::Button button =
-          blink::WebMouseEvent::Button::kLeft);
+      int modifiers);
 
   // Creates an <a> element, sets its href and target to |link_url| and |target|
   // respectively, adds it to the DOM, and clicks on it. Returns once
@@ -90,7 +88,6 @@ class WebAppNavigationBrowserTest : public InProcessBrowserTest {
   void TearDownInProcessBrowserTestFixture() override;
   void SetUpCommandLine(base::CommandLine* command_line) override;
   void SetUpOnMainThread() override;
-  void TearDownOnMainThread() override;
 
   Profile* profile();
 
@@ -116,18 +113,15 @@ class WebAppNavigationBrowserTest : public InProcessBrowserTest {
   bool TestTabActionDoesNotOpenAppWindow(const GURL& target_url,
                                          base::OnceClosure action);
 
-  net::EmbeddedTestServer& https_server() { return https_server_; }
+  const net::EmbeddedTestServer& https_server() { return https_server_; }
 
   const AppId& test_web_app_id() const { return test_web_app_; }
-
-  const GURL& test_web_app_start_url();
 
  private:
   net::EmbeddedTestServer https_server_;
   // Similar to net::MockCertVerifier, but also updates the CertVerifier
   // used by the NetworkService.
   content::ContentMockCertVerifier cert_verifier_;
-  raw_ptr<Profile, DanglingUntriaged> profile_ = nullptr;
   AppId test_web_app_;
   base::HistogramTester histogram_tester_;
 };

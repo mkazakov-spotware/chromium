@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,14 +18,14 @@ TEST(JsonSchemaCompilerFunctionsAsParametersTest, PopulateRequiredFunction) {
   // The expectation is that if any value is set for the function, then
   // the function is "present".
   {
-    base::Value empty_value;
+    base::DictionaryValue empty_value;
     FunctionType out;
     EXPECT_FALSE(FunctionType::Populate(empty_value, &out));
   }
   {
-    base::Value value(base::Value::Type::DICTIONARY);
-    value.GetDict().Set("event_callback", base::Value::Dict());
-
+    base::DictionaryValue value;
+    base::DictionaryValue function_dict;
+    value.SetKey("event_callback", function_dict.Clone());
     FunctionType out;
     ASSERT_TRUE(FunctionType::Populate(value, &out));
     EXPECT_TRUE(out.event_callback.empty());
@@ -34,65 +34,68 @@ TEST(JsonSchemaCompilerFunctionsAsParametersTest, PopulateRequiredFunction) {
 
 TEST(JsonSchemaCompilerFunctionsAsParametersTest, RequiredFunctionToValue) {
   {
-    base::Value value(base::Value::Type::DICTIONARY);
-    value.GetDict().Set("event_callback", base::Value::Dict());
+    base::DictionaryValue value;
+    base::DictionaryValue function_dict;
+    value.SetKey("event_callback", function_dict.Clone());
 
     FunctionType out;
     ASSERT_TRUE(FunctionType::Populate(value, &out));
-    EXPECT_EQ(value, out.ToValue());
+    EXPECT_TRUE(value.Equals(out.ToValue().get()));
   }
   {
-    base::Value value(base::Value::Type::DICTIONARY);
-    base::Value expected_value(base::Value::Type::DICTIONARY);
-    value.GetDict().Set("event_callback", base::Value::Dict());
-    expected_value.GetDict().Set("event_callback", base::Value::Dict());
+    base::DictionaryValue value;
+    base::DictionaryValue expected_value;
+    base::DictionaryValue function_dict;
+    value.SetKey("event_callback", function_dict.Clone());
+    expected_value.SetKey("event_callback", function_dict.Clone());
 
     FunctionType out;
     ASSERT_TRUE(FunctionType::Populate(value, &out));
-    EXPECT_EQ(expected_value, out.ToValue());
+    EXPECT_TRUE(expected_value.Equals(out.ToValue().get()));
   }
 }
 
 TEST(JsonSchemaCompilerFunctionsAsParametersTest, PopulateOptionalFunction) {
   {
-    base::Value empty_dictionary(base::Value::Type::DICTIONARY);
+    base::DictionaryValue empty_value;
     OptionalFunctionType out;
-    ASSERT_TRUE(OptionalFunctionType::Populate(empty_dictionary, &out));
-    EXPECT_FALSE(out.event_callback.has_value());
+    ASSERT_TRUE(OptionalFunctionType::Populate(empty_value, &out));
+    EXPECT_FALSE(out.event_callback.get());
   }
   {
-    base::Value value(base::Value::Type::DICTIONARY);
-    value.GetDict().Set("event_callback", base::Value::Dict());
-
+    base::DictionaryValue value;
+    base::DictionaryValue function_value;
+    value.SetKey("event_callback", function_value.Clone());
     OptionalFunctionType out;
     ASSERT_TRUE(OptionalFunctionType::Populate(value, &out));
-    EXPECT_TRUE(out.event_callback.has_value());
+    EXPECT_TRUE(out.event_callback.get());
   }
   {
-    base::Value value(base::Value::Type::DICTIONARY);
-    value.GetDict().Set("event_callback", base::Value::Dict());
-
+    base::DictionaryValue value;
+    base::DictionaryValue function_value;
+    value.SetKey("event_callback", function_value.Clone());
     OptionalFunctionType out;
     ASSERT_TRUE(OptionalFunctionType::Populate(value, &out));
-    EXPECT_TRUE(out.event_callback.has_value());
+    EXPECT_TRUE(out.event_callback.get());
   }
 }
 
 TEST(JsonSchemaCompilerFunctionsAsParametersTest, OptionalFunctionToValue) {
   {
-    base::Value empty_value(base::Value::Type::DICTIONARY);
+    base::DictionaryValue empty_value;
     OptionalFunctionType out;
     ASSERT_TRUE(OptionalFunctionType::Populate(empty_value, &out));
     // event_callback should not be set in the return from ToValue.
-    EXPECT_EQ(empty_value, out.ToValue());
+    EXPECT_TRUE(empty_value.Equals(out.ToValue().get()));
   }
   {
-    base::Value value(base::Value::Type::DICTIONARY);
-    value.GetDict().Set("event_callback", base::Value::Dict());
+    base::DictionaryValue value;
+    base::DictionaryValue function_value;
+    value.SetKey("event_callback", function_value.Clone());
 
     OptionalFunctionType out;
     ASSERT_TRUE(OptionalFunctionType::Populate(value, &out));
-    EXPECT_EQ(value, out.ToValue());
+    EXPECT_TRUE(value.Equals(out.ToValue().get()));
   }
 }
 
@@ -100,10 +103,11 @@ TEST(JsonSchemaCompilerFunctionsAsParametersTest, SerializableFunctionTypes) {
   constexpr char kFunction[] = "function() {}";
   SerializableFunctionType serializable_type;
   serializable_type.function_property = kFunction;
-  base::Value::Dict serialized = serializable_type.ToValue();
+  std::unique_ptr<base::DictionaryValue> serialized =
+      serializable_type.ToValue();
+  ASSERT_TRUE(serialized);
   SerializableFunctionType deserialized;
-  ASSERT_TRUE(SerializableFunctionType::Populate(
-      base::Value(std::move(serialized)), &deserialized));
+  ASSERT_TRUE(SerializableFunctionType::Populate(*serialized, &deserialized));
   EXPECT_EQ(kFunction, serializable_type.function_property);
 }
 
@@ -113,21 +117,26 @@ TEST(JsonSchemaCompilerFunctionsAsParametersTest,
   {
     // Test with the optional property set.
     OptionalSerializableFunctionType serializable_type;
-    serializable_type.function_property = kFunction;
-    base::Value::Dict serialized = serializable_type.ToValue();
+    serializable_type.function_property =
+        std::make_unique<std::string>(kFunction);
+    std::unique_ptr<base::DictionaryValue> serialized =
+        serializable_type.ToValue();
+    ASSERT_TRUE(serialized);
     OptionalSerializableFunctionType deserialized;
-    ASSERT_TRUE(OptionalSerializableFunctionType::Populate(
-        base::Value(std::move(serialized)), &deserialized));
+    ASSERT_TRUE(
+        OptionalSerializableFunctionType::Populate(*serialized, &deserialized));
     ASSERT_TRUE(serializable_type.function_property);
     EXPECT_EQ(kFunction, *serializable_type.function_property);
   }
   {
     // Test without the property set.
     OptionalSerializableFunctionType serializable_type;
-    base::Value::Dict serialized = serializable_type.ToValue();
+    std::unique_ptr<base::DictionaryValue> serialized =
+        serializable_type.ToValue();
+    ASSERT_TRUE(serialized);
     OptionalSerializableFunctionType deserialized;
-    ASSERT_TRUE(OptionalSerializableFunctionType::Populate(
-        base::Value(std::move(serialized)), &deserialized));
+    ASSERT_TRUE(
+        OptionalSerializableFunctionType::Populate(*serialized, &deserialized));
     EXPECT_FALSE(serializable_type.function_property);
   }
 }

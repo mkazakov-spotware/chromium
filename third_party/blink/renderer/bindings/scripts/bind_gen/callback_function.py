@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,7 +10,6 @@ from .blink_v8_bridge import blink_type_info
 from .blink_v8_bridge import make_blink_to_v8_value
 from .blink_v8_bridge import native_value_tag
 from .code_node import EmptyNode
-from .code_node import FormatNode
 from .code_node import ListNode
 from .code_node import SequenceNode
 from .code_node import SymbolNode
@@ -25,6 +24,7 @@ from .code_node_cxx import CxxNamespaceNode
 from .code_node_cxx import CxxUnlikelyIfNode
 from .codegen_accumulator import CodeGenAccumulator
 from .codegen_context import CodeGenContext
+from .codegen_format import format_template as _format
 from .codegen_utils import collect_forward_decls_and_include_headers
 from .codegen_utils import component_export
 from .codegen_utils import component_export_header
@@ -49,13 +49,13 @@ def bind_local_vars(code_node, cg_context, is_construct_call=False):
     local_vars = []
 
     local_vars.extend([
-        S("exception_state",
-          ("ExceptionState ${exception_state}("
-           "${isolate}, ExceptionContext::Context::kOperationInvoke,"
-           "${class_like_name}, ${property_name});")),
+        S("argument_creation_context",
+          ("v8::Local<v8::Object> ${argument_creation_context} = "
+           "CallbackRelevantScriptState()->GetContext()->Global();")),
+        S("exception_state", ("ExceptionState ${exception_state}("
+                              "${isolate}, ExceptionState::kExecutionContext,"
+                              "${class_like_name}, ${property_name});")),
         S("isolate", "v8::Isolate* ${isolate} = GetIsolate();"),
-        S("script_state",
-          "ScriptState* ${script_state} = CallbackRelevantScriptState();"),
     ])
 
     if cg_context.callback_function:
@@ -164,7 +164,7 @@ def make_callback_invocation_function(cg_context,
     assert isinstance(is_construct_call, bool)
 
     T = TextNode
-    F = FormatNode
+    F = lambda *args, **kwargs: T(_format(*args, **kwargs))
 
     func_like = cg_context.function_like
     return_type = ("void" if func_like.return_type.unwrap().is_void else
@@ -185,22 +185,22 @@ def make_callback_invocation_function(cg_context,
     func_decl = CxxFuncDeclNode(name=function_name,
                                 arg_decls=arg_decls,
                                 return_type=maybe_return_type,
-                                nodiscard=True)
+                                warn_unused_result=True)
     if cg_context.callback_function:
         if is_construct_call:
             comment = T("""\
 // Performs "construct".
-// https://webidl.spec.whatwg.org/#construct-a-callback-function\
+// https://heycam.github.io/webidl/#construct-a-callback-function\
 """)
         else:
             comment = T("""\
 // Performs "invoke".
-// https://webidl.spec.whatwg.org/#invoke-a-callback-function\
+// https://heycam.github.io/webidl/#invoke-a-callback-function\
 """)
     elif cg_context.callback_interface:
         comment = T("""\
 // Performs "call a user object's operation".
-// https://webidl.spec.whatwg.org/#call-a-user-objects-operation\
+// https://heycam.github.io/webidl/#call-a-user-objects-operation\
 """)
     decls.extend([
         comment,
@@ -250,7 +250,7 @@ if (!callback_relevant_script_state) {
                 body=[
                     T("v8::HandleScope handle_scope(${isolate});"),
                     T("v8::Context::Scope context_scope("
-                      "callback_relevant_script_state->GetContext());"),
+                      "CallbackObject()->CreationContext());"),
                     T("${exception_state}.ThrowException("
                       "static_cast<ExceptionCode>(ESErrorType::kError), "
                       "\"The provided callback is no longer runnable.\");"),
@@ -268,15 +268,6 @@ if (!callback_relevant_script_state) {
             template_params.append(
                 "bindings::"
                 "CallbackInvokeHelperMode::kLegacyTreatNonObjectAsNull")
-        else:
-            template_params.append(
-                "bindings::CallbackInvokeHelperMode::kDefault")
-        if func_like.return_type.unwrap(typedef=True).is_promise:
-            template_params.append(
-                "bindings::CallbackReturnTypeIsPromise::kYes")
-        else:
-            template_params.append(
-                "bindings::CallbackReturnTypeIsPromise::kNo")
     elif cg_context.callback_interface:
         template_params = ["CallbackInterfaceBase"]
     body.extend([
@@ -320,13 +311,9 @@ bindings::CallbackInvokeHelper<{template_params}> helper(
             v8_arg_name = name_style.local_var_f("v8_arg{}_{}", index + 1,
                                                  arguments[index].identifier)
             body.register_code_symbol(
-                make_blink_to_v8_value(
-                    v8_arg_name,
-                    arg_name,
-                    arguments[index].idl_type,
-                    argument=arguments[index],
-                    error_exit_return_statement=(
-                        "return ${return_value_on_failure};")))
+                make_blink_to_v8_value(v8_arg_name, arg_name,
+                                       arguments[index].idl_type,
+                                       "${argument_creation_context}"))
             body.append(
                 F("argv[{index}] = ${{{v8_arg}}};",
                   index=index,
@@ -335,13 +322,10 @@ bindings::CallbackInvokeHelper<{template_params}> helper(
             v8_arg_name = name_style.local_var_f("v8_arg{}_{}", len(arguments),
                                                  arguments[-1].identifier)
             body.register_code_symbol(
-                make_blink_to_v8_value(
-                    v8_arg_name,
-                    "{}[i]".format(variadic_arg_name),
-                    arguments[-1].idl_type.unwrap(variadic=True),
-                    argument=arguments[-1],
-                    error_exit_return_statement=(
-                        "return ${return_value_on_failure};")))
+                make_blink_to_v8_value(v8_arg_name,
+                                       "{}[i]".format(variadic_arg_name),
+                                       arguments[-1].idl_type,
+                                       "${argument_creation_context}"))
             body.append(
                 CxxForLoopNode(
                     cond=F("wtf_size_t i = 0; i < {var_arg}.size(); ++i",
@@ -351,7 +335,7 @@ bindings::CallbackInvokeHelper<{template_params}> helper(
                           non_var_arg_size=len(arguments) - 1,
                           v8_arg=v8_arg_name),
                     ],
-                    weak_dep_syms=["isolate", "script_state"]))
+                    weak_dep_syms=["argument_creation_context", "isolate"]))
 
     body.extend([
         CxxUnlikelyIfNode(cond="!helper.Call(argc, argv)",
@@ -370,7 +354,7 @@ def make_invoke_and_report_function(cg_context, function_name, api_func_name):
     assert isinstance(api_func_name, str)
 
     T = TextNode
-    F = FormatNode
+    F = lambda *args, **kwargs: T(_format(*args, **kwargs))
 
     func_like = cg_context.function_like
     if not (func_like.return_type.unwrap().is_void
@@ -420,7 +404,7 @@ def make_invoke_and_report_function(cg_context, function_name, api_func_name):
         T("v8::TryCatch try_catch(${isolate});"),
         T("try_catch.SetVerbose(true);"),
         EmptyNode(),
-        F("std::ignore = {api_func_name}({arg_names});",
+        F("ignore_result({api_func_name}({arg_names}));",
           api_func_name=api_func_name,
           arg_names=", ".join(arg_names)),
     ])
@@ -602,19 +586,14 @@ def generate_callback_function(callback_function_identifier):
         "third_party/blink/renderer/platform/bindings/callback_function_base.h",
         "third_party/blink/renderer/platform/bindings/v8_value_or_script_wrappable_adapter.h",
     ])
-    source_node.accumulator.add_stdcpp_include_headers([
-        "tuple",
-    ])
     source_node.accumulator.add_include_headers([
         "third_party/blink/renderer/bindings/core/v8/callback_invoke_helper.h",
         "third_party/blink/renderer/bindings/core/v8/generated_code_helper.h",
-        "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h",
     ])
     (header_forward_decls, header_include_headers, source_forward_decls,
      source_include_headers) = collect_forward_decls_and_include_headers(
-         [callback_function.return_type] + list(
-             map(lambda argument: argument.idl_type,
-                 callback_function.arguments)))
+         [callback_function.return_type] +
+         map(lambda argument: argument.idl_type, callback_function.arguments))
     header_node.accumulator.add_class_decls(header_forward_decls)
     header_node.accumulator.add_include_headers(header_include_headers)
     source_node.accumulator.add_class_decls(source_forward_decls)

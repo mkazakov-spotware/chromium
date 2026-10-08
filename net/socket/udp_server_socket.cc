@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,16 @@
 
 #include <utility>
 
-#include "build/build_config.h"
 #include "net/base/net_errors.h"
 
 namespace net {
 
 UDPServerSocket::UDPServerSocket(net::NetLog* net_log,
                                  const net::NetLogSource& source)
-    : socket_(DatagramSocket::DEFAULT_BIND, net_log, source) {}
+    : socket_(DatagramSocket::DEFAULT_BIND, net_log, source),
+      allow_address_reuse_(false),
+      allow_broadcast_(false),
+      allow_address_sharing_for_multicast_(false) {}
 
 UDPServerSocket::~UDPServerSocket() = default;
 
@@ -136,7 +138,7 @@ void UDPServerSocket::DetachFromThread() {
 }
 
 void UDPServerSocket::UseNonBlockingIO() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   socket_.UseNonBlockingIO();
 #endif
 }

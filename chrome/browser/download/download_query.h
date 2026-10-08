@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/download/public/common/download_item.h"
 
 namespace base {
@@ -33,7 +35,7 @@ class Value;
 // bool FilterOutOddDownloads(const DownloadItem& item) {
 //   return 0 == (item.GetId() % 2);
 // }
-// CHECK(query.AddFilter(base::BindRepeating(&FilterOutOddDownloads)));
+// CHECK(query.AddFilter(base::Bind(&FilterOutOddDownloads)));
 // query.AddSorter(SORT_BYTES_RECEIVED, ASCENDING);
 // query.AddSorter(SORT_URL, DESCENDING);
 // query.Limit(20);
@@ -45,7 +47,7 @@ class DownloadQuery {
 
   // FilterCallback is a Callback that takes a DownloadItem and returns true if
   // the item matches the filter and false otherwise.
-  // query.AddFilter(base::BindRepeating(&YourFilterFunction));
+  // query.AddFilter(base::Bind(&YourFilterFunction));
   typedef base::RepeatingCallback<bool(const download::DownloadItem&)>
       FilterCallback;
 
@@ -61,7 +63,7 @@ class DownloadQuery {
     FILTER_FILENAME_REGEX,       // string
     FILTER_MIME,                 // string
     FILTER_PAUSED,               // bool
-    FILTER_QUERY,                // vector<std::u16string>
+    FILTER_QUERY,                // vector<base::string16>
     FILTER_STARTED_AFTER,        // string
     FILTER_STARTED_BEFORE,       // string
     FILTER_START_TIME,           // string
@@ -95,14 +97,10 @@ class DownloadQuery {
     DESCENDING,
   };
 
-  static bool MatchesQuery(const std::vector<std::u16string>& query_terms,
+  static bool MatchesQuery(const std::vector<base::string16>& query_terms,
                            const download::DownloadItem& item);
 
   DownloadQuery();
-
-  DownloadQuery(const DownloadQuery&) = delete;
-  DownloadQuery& operator=(const DownloadQuery&) = delete;
-
   ~DownloadQuery();
 
   // Adds a new filter of type |type| with value |value| and returns true if
@@ -153,7 +151,7 @@ class DownloadQuery {
 
   bool FilterRegex(
       const std::string& regex_str,
-      const base::RepeatingCallback<std::string(const download::DownloadItem&)>&
+      const base::Callback<std::string(const download::DownloadItem&)>&
           accessor);
   bool Matches(const download::DownloadItem& item) const;
   void FinishSearch(DownloadVector* results) const;
@@ -161,6 +159,8 @@ class DownloadQuery {
   FilterCallbackVector filters_;
   SorterVector sorters_;
   size_t limit_;
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadQuery);
 };
 
 #endif  // CHROME_BROWSER_DOWNLOAD_DOWNLOAD_QUERY_H_

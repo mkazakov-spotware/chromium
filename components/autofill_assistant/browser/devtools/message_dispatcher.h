@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_DEVTOOLS_MESSAGE_DISPATCHER_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_DEVTOOLS_MESSAGE_DISPATCHER_H_
+
+#include <memory>
 
 #include "base/callback_forward.h"
 
@@ -35,12 +37,12 @@ class MessageDispatcher {
 
   virtual void SendMessage(
       const char* method,
-      base::Value params,
+      std::unique_ptr<base::Value> params,
       const std::string& optional_node_frame_id,
       base::OnceCallback<void(const ReplyStatus&, const base::Value&)>
           callback) = 0;
   virtual void SendMessage(const char* method,
-                           base::Value params,
+                           std::unique_ptr<base::Value> params,
                            const std::string& optional_node_frame_id,
                            base::OnceClosure callback) = 0;
 

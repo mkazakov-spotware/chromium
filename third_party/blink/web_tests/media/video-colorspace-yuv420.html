@@ -7,6 +7,7 @@
     <p>Test correct colorspace for yuv420, i.e. YU12 video </p>
     <video/>
     <script>
-        setVideoSrcAndWaitForFirstFrame('content/test_yuv420.ogv');
+        setSrcByTagName('video', 'content/test_yuv420.ogv');
+        init();
     </script>
 </body>

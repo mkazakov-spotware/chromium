@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that CSS variables are resolved properly for DOM inheritance`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
     <style>
@@ -26,7 +26,7 @@
   `);
 
   const node = await ElementsTestRunner.selectNodeAndWaitForStylesPromise('inspected');
-  const matchedStyles = await TestRunner.cssModel.getMatchedStyles(node.id);
+  const matchedStyles = await TestRunner.cssModel.matchedStylesPromise(node.id);
   for (const style of matchedStyles.nodeStyles()) {
     const selector = style.parentRule ? style.parentRule.selectorText() : 'element.style';
     const value = 'var(--color)';

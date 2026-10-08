@@ -1,15 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/media/media_internals_audio_focus_helper.h"
 
+#include <list>
 #include <string>
 
 #include "base/bind.h"
 #include "base/containers/adapters.h"
-#include "base/ranges/algorithm.h"
-#include "base/strings/strcat.h"
 #include "base/values.h"
 #include "content/browser/media/media_internals.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -45,7 +44,6 @@ const char kMediaSessionIsControllable[] = "Controllable";
 const char kMediaSessionIsSensitive[] = "Sensitive";
 
 const char kMediaSessionHasAudio[] = "HasAudio";
-const char kMediaSessionHasVideo[] = "HasVideo";
 const char kMediaSessionHasAudioVideo[] = "HasAudioVideo";
 
 }  // namespace
@@ -150,19 +148,19 @@ void MediaInternalsAudioFocusHelper::DidGetAudioFocusRequestList(
   if (!EnsureServiceConnection())
     return;
 
-  audio_focus_data_.clear();
+  audio_focus_data_.Clear();
   request_state_.clear();
 
   // We should go backwards through the stack so the top of the stack is
   // always shown first in the list.
-  base::Value::List stack_data;
+  base::ListValue stack_data;
   for (const auto& session : base::Reversed(stack)) {
     if (!session->request_id.has_value())
       continue;
 
     std::string id_string = session->request_id.value().ToString();
-    base::Value::Dict media_session_data;
-    media_session_data.Set(kAudioFocusIdKey, id_string);
+    base::DictionaryValue media_session_data;
+    media_session_data.SetKey(kAudioFocusIdKey, base::Value(id_string));
     stack_data.Append(std::move(media_session_data));
 
     request_state_.emplace(id_string, session.Clone());
@@ -174,12 +172,12 @@ void MediaInternalsAudioFocusHelper::DidGetAudioFocusRequestList(
             base::Unretained(this), id_string));
   }
 
-  audio_focus_data_.Set(kAudioFocusSessionsKey, std::move(stack_data));
+  audio_focus_data_.SetKey(kAudioFocusSessionsKey, std::move(stack_data));
 
   // If the stack is empty then we should send an update to the web ui to clear
   // the list.
   if (stack.empty())
-    SerializeAndSendUpdate(kAudioFocusFunction, audio_focus_data_);
+    SerializeAndSendUpdate(kAudioFocusFunction, &audio_focus_data_);
 }
 
 void MediaInternalsAudioFocusHelper::DidGetAudioFocusDebugInfo(
@@ -190,150 +188,137 @@ void MediaInternalsAudioFocusHelper::DidGetAudioFocusDebugInfo(
   if (!EnsureServiceConnection())
     return;
 
-  base::Value::List* sessions_list =
-      audio_focus_data_.FindList(kAudioFocusSessionsKey);
+  base::Value* sessions_list =
+      audio_focus_data_.FindKey(kAudioFocusSessionsKey);
   DCHECK(sessions_list);
 
   bool updated = false;
-  for (auto& value : *sessions_list) {
-    base::Value::Dict& session = value.GetDict();
-    if (session.Find(kAudioFocusIdKey)->GetString() != id)
+  for (auto& session : sessions_list->GetList()) {
+    if (session.FindKey(kAudioFocusIdKey)->GetString() != id)
       continue;
 
     auto state = request_state_.find(id);
     DCHECK(state != request_state_.end());
 
-    session.Set("name", BuildNameString(state->second, info->name));
-    session.Set("owner", info->owner);
-    session.Set("state", BuildStateString(state->second, info->state));
+    session.SetKey("name",
+                   base::Value(BuildNameString(state->second, info->name)));
+    session.SetKey("owner", base::Value(info->owner));
+    session.SetKey("state",
+                   base::Value(BuildStateString(state->second, info->state)));
     updated = true;
   }
 
   if (!updated)
     return;
 
-  SerializeAndSendUpdate(kAudioFocusFunction, audio_focus_data_);
+  SerializeAndSendUpdate(kAudioFocusFunction, &audio_focus_data_);
 }
 
 void MediaInternalsAudioFocusHelper::SerializeAndSendUpdate(
-    base::StringPiece function,
-    const base::Value::Dict& value) {
-  base::ValueView args[] = {value};
+    const std::string& function,
+    const base::Value* value) {
   return MediaInternals::GetInstance()->SendUpdate(
-      content::WebUI::GetJavascriptCall(function, args));
+      content::WebUI::GetJavascriptCall(
+          function, std::vector<const base::Value*>(1, value)));
 }
 
 std::string MediaInternalsAudioFocusHelper::BuildNameString(
     const media_session::mojom::AudioFocusRequestStatePtr& state,
     const std::string& provided_name) const {
-  std::string result;
+  std::stringstream stream;
 
   // Add the |source_name| (optional).
-  if (state->source_name.has_value())
-    base::StrAppend(&result, {state->source_name.value(), ":"});
+  if (state->source_name.has_value()) {
+    stream << state->source_name.value();
+    stream << ":";
+  }
 
   // Add the |request_id|.
-  result.append(state->request_id.value().ToString());
+  stream << state->request_id.value().ToString();
 
   if (!provided_name.empty())
-    base::StrAppend(&result, {" ", provided_name});
-
-  return result;
+    stream << " " << provided_name;
+  return stream.str();
 }
 
 std::string MediaInternalsAudioFocusHelper::BuildStateString(
     const media_session::mojom::AudioFocusRequestStatePtr& state,
     const std::string& provided_state) const {
-  std::string result(" ");
+  std::stringstream stream;
 
   // Convert the AudioFocusType mojo enum to a string.
   switch (state->audio_focus_type) {
     case media_session::mojom::AudioFocusType::kGain:
-      result.append(kAudioFocusTypeGain);
+      stream << " " << kAudioFocusTypeGain;
       break;
     case media_session::mojom::AudioFocusType::kGainTransient:
-      result.append(kAudioFocusTypeGainTransient);
+      stream << " " << kAudioFocusTypeGainTransient;
       break;
     case media_session::mojom::AudioFocusType::kGainTransientMayDuck:
-      result.append(kAudioFocusTypeGainTransientMayDuck);
+      stream << " " << kAudioFocusTypeGainTransientMayDuck;
       break;
     case media_session::mojom::AudioFocusType::kAmbient:
-      result.append(kAudioFocusTypeAmbient);
+      stream << " " << kAudioFocusTypeAmbient;
       break;
   }
 
   // Convert the MediaSessionInfo::SessionState mojo enum to a string.
-  result.append(" ");
   switch (state->session_info->state) {
     case media_session::mojom::MediaSessionInfo::SessionState::kActive:
-      result.append(kMediaSessionStateActive);
+      stream << " " << kMediaSessionStateActive;
       break;
     case media_session::mojom::MediaSessionInfo::SessionState::kDucking:
-      result.append(kMediaSessionStateDucking);
+      stream << " " << kMediaSessionStateDucking;
       break;
     case media_session::mojom::MediaSessionInfo::SessionState::kSuspended:
-      result.append(kMediaSessionStateSuspended);
+      stream << " " << kMediaSessionStateSuspended;
       break;
     case media_session::mojom::MediaSessionInfo::SessionState::kInactive:
-      result.append(kMediaSessionStateInactive);
+      stream << " " << kMediaSessionStateInactive;
       break;
   }
 
   // Convert the MediaPlaybackState mojo enum to a string.
-  result.append(" ");
   switch (state->session_info->playback_state) {
     case media_session::mojom::MediaPlaybackState::kPaused:
-      result.append(kMediaSessionPlaybackStatePaused);
+      stream << " " << kMediaSessionPlaybackStatePaused;
       break;
     case media_session::mojom::MediaPlaybackState::kPlaying:
-      result.append(kMediaSessionPlaybackStatePlaying);
+      stream << " " << kMediaSessionPlaybackStatePlaying;
       break;
   }
 
-  // Convert the audio_video_states to a string.
-  if (state->session_info->audio_video_states) {
-    result.append(" {");
-    base::ranges::for_each(
-        *state->session_info->audio_video_states, [&result](const auto& state) {
-          result.append(" ");
-          switch (state) {
-            case media_session::mojom::MediaAudioVideoState::kAudioOnly:
-              result.append(kMediaSessionHasAudio);
-              break;
-            case media_session::mojom::MediaAudioVideoState::kVideoOnly:
-              result.append(kMediaSessionHasVideo);
-              break;
-            case media_session::mojom::MediaAudioVideoState::kAudioVideo:
-              result.append(kMediaSessionHasAudioVideo);
-              break;
-            case media_session::mojom::MediaAudioVideoState::kDeprecatedUnknown:
-              NOTREACHED();
-              break;
-          }
-        });
-    result.append(" }");
+  // Convert the audio_video_state to a string.
+  switch (state->session_info->audio_video_state) {
+    case media_session::mojom::MediaAudioVideoState::kUnknown:
+      break;
+    case media_session::mojom::MediaAudioVideoState::kAudioOnly:
+      stream << " " << kMediaSessionHasAudio;
+      break;
+    case media_session::mojom::MediaAudioVideoState::kAudioVideo:
+      stream << " " << kMediaSessionHasAudioVideo;
+      break;
   }
 
   // Convert the |force_duck| boolean into a string.
   if (state->session_info->force_duck)
-    base::StrAppend(&result, {" ", kAudioFocusForceDuck});
+    stream << " " << kAudioFocusForceDuck;
 
   // Convert the |prefer_stop_for_gain_focus_loss| boolean into a string.
   if (state->session_info->prefer_stop_for_gain_focus_loss)
-    base::StrAppend(&result, {" ", kAudioFocusPreferStop});
+    stream << " " << kAudioFocusPreferStop;
 
   // Convert the |is_controllable| boolean into a string.
   if (state->session_info->is_controllable)
-    base::StrAppend(&result, {" ", kMediaSessionIsControllable});
+    stream << " " << kMediaSessionIsControllable;
 
   // Convert the |is_sensitive| boolean into a string.
   if (state->session_info->is_sensitive)
-    base::StrAppend(&result, {" ", kMediaSessionIsSensitive});
+    stream << " " << kMediaSessionIsSensitive;
 
   if (!provided_state.empty())
-    base::StrAppend(&result, {" ", provided_state});
-
-  return result;
+    stream << " " << provided_state;
+  return stream.str();
 }
 
 }  // namespace content

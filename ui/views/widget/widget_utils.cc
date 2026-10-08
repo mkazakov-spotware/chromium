@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,16 +21,16 @@ WidgetOpenTimer::~WidgetOpenTimer() = default;
 
 void WidgetOpenTimer::OnWidgetDestroying(Widget* widget) {
   DCHECK(open_timer_.has_value());
-  DCHECK(observed_widget_.IsObservingSource(widget));
+  DCHECK(observed_widget_.IsObserving(widget));
   callback_.Run(open_timer_->Elapsed());
   open_timer_.reset();
-  observed_widget_.Reset();
+  observed_widget_.Remove(widget);
 }
 
 void WidgetOpenTimer::Reset(Widget* widget) {
   DCHECK(!open_timer_.has_value());
-  DCHECK(!observed_widget_.IsObservingSource(widget));
-  observed_widget_.Observe(widget);
+  DCHECK(!observed_widget_.IsObserving(widget));
+  observed_widget_.Add(widget);
   open_timer_ = base::ElapsedTimer();
 }
 

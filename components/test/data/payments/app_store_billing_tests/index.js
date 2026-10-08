@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Chromium Authors
+ * Copyright 2020 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -13,7 +13,7 @@ let supportedInstruments = [];
  * @return {string} - a message indicating whether the installation is
  *  successful.
  */
-async function install() {
+async function install() { // eslint-disable-line no-unused-vars
   info('installing');
 
   await navigator.serviceWorker.register('empty_app.js');
@@ -40,7 +40,7 @@ async function install() {
  * @param {string} method - the payment method.
  * @return {string} - a message indicating whether the operation is successful.
  */
-function addSupportedMethod(method) {
+function addSupportedMethod(method) { // eslint-disable-line no-unused-vars
   info('addSupportedMethod: ' + method);
   supportedInstruments.push({
     supportedMethods: [
@@ -54,7 +54,7 @@ function addSupportedMethod(method) {
  * Create a PaymentRequest.
  * @return {string} - a message indicating whether the operation is successful.
  */
-function createPaymentRequest() {
+function createPaymentRequest() { // eslint-disable-line no-unused-vars
   info('createPaymentRequest: ' + JSON.stringify(supportedInstruments));
   const details = {
     total: {
@@ -73,7 +73,7 @@ function createPaymentRequest() {
  * Check whether payments can be made.
  * @return {string} - "true", "false", or an error message.
  */
-async function canMakePayment() {
+async function canMakePayment() { // eslint-disable-line no-unused-vars
   info('canMakePayment');
   try {
     const result = await request.canMakePayment();
@@ -88,7 +88,7 @@ async function canMakePayment() {
  * Show the payment sheet.
  * @return {string} - a message indicating whether the operation is successful.
  */
-async function show() {
+async function show() { // eslint-disable-line no-unused-vars
   info('show');
   try {
     return await request.show();

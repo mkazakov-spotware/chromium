@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/i18n/icu_util.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_executor.h"
@@ -20,19 +21,24 @@
 #include "mojo/core/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/events/platform/platform_event_source.h"
 #include "ui/platform_window/platform_window.h"
 #include "ui/platform_window/platform_window_delegate.h"
 #include "ui/platform_window/platform_window_init_properties.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
 #include "ui/ozone/public/ozone_gpu_test_helper.h"
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/ozone/public/surface_factory_ozone.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/platform_window/win/win_window.h"
+#endif
+
+#if defined(USE_X11)
+#include "ui/platform_window/x11/x11_window.h"  // nogncheck
 #endif
 
 namespace {
@@ -46,15 +52,14 @@ class InitBase {
     base::ThreadPoolInstance::CreateAndStartWithDefaultParams("demo");
   }
 
-  InitBase(const InitBase&) = delete;
-  InitBase& operator=(const InitBase&) = delete;
-
   ~InitBase() = default;
 
  private:
   // The exit manager is in charge of calling the dtors of singleton objects.
   base::AtExitManager exit_manager_;
   base::SingleThreadTaskExecutor main_task_executor_{base::MessagePumpType::UI};
+
+  DISALLOW_COPY_AND_ASSIGN(InitBase);
 };
 
 // Initializes and owns mojo.
@@ -69,14 +74,13 @@ class InitMojo {
         mojo::core::ScopedIPCSupport::ShutdownPolicy::CLEAN);
   }
 
-  InitMojo(const InitMojo&) = delete;
-  InitMojo& operator=(const InitMojo&) = delete;
-
   ~InitMojo() = default;
 
  private:
   base::Thread thread_;
   std::unique_ptr<mojo::core::ScopedIPCSupport> ipc_support_;
+
+  DISALLOW_COPY_AND_ASSIGN(InitMojo);
 };
 
 // Initializes and owns the UI components needed for the app.
@@ -86,13 +90,12 @@ class InitUI {
     event_source_ = ui::PlatformEventSource::CreateDefault();
   }
 
-  InitUI(const InitUI&) = delete;
-  InitUI& operator=(const InitUI&) = delete;
-
   ~InitUI() = default;
 
  private:
   std::unique_ptr<ui::PlatformEventSource> event_source_;
+
+  DISALLOW_COPY_AND_ASSIGN(InitUI);
 };
 
 // DemoWindow creates the native window for the demo app. The native window
@@ -101,10 +104,6 @@ class InitUI {
 class DemoWindow : public ui::PlatformWindowDelegate {
  public:
   DemoWindow() = default;
-
-  DemoWindow(const DemoWindow&) = delete;
-  DemoWindow& operator=(const DemoWindow&) = delete;
-
   ~DemoWindow() override = default;
 
   void Create(const gfx::Rect& bounds) {
@@ -118,10 +117,21 @@ class DemoWindow : public ui::PlatformWindowDelegate {
   std::unique_ptr<ui::PlatformWindow> CreatePlatformWindow(
       const gfx::Rect& bounds) {
     ui::PlatformWindowInitProperties props(bounds);
-#if BUILDFLAG(IS_OZONE)
-    return ui::OzonePlatform::GetInstance()->CreatePlatformWindow(
-        this, std::move(props));
-#elif BUILDFLAG(IS_WIN)
+#if defined(USE_X11) || defined(USE_OZONE)
+#if defined(USE_OZONE)
+    if (features::IsUsingOzonePlatform()) {
+      return ui::OzonePlatform::GetInstance()->CreatePlatformWindow(
+          this, std::move(props));
+    }
+#endif
+#if defined(USE_X11)
+    auto x11_window = std::make_unique<ui::X11Window>(this);
+    x11_window->Initialize(std::move(props));
+    return x11_window;
+#endif
+    NOTREACHED();
+    return nullptr;
+#elif defined(OS_WIN)
     return std::make_unique<ui::WinWindow>(this, props.bounds);
 #else
     NOTIMPLEMENTED();
@@ -148,7 +158,7 @@ class DemoWindow : public ui::PlatformWindowDelegate {
     // Next, create the host and the service, and pass them the right ends of
     // the message-pipes.
     host_ = std::make_unique<demo::DemoHost>(
-        widget_, platform_window_->GetBoundsInPixels().size(),
+        widget_, platform_window_->GetBounds().size(),
         std::move(frame_sink_manager_client_receiver),
         std::move(frame_sink_manager));
 
@@ -158,8 +168,8 @@ class DemoWindow : public ui::PlatformWindowDelegate {
   }
 
   // ui::PlatformWindowDelegate:
-  void OnBoundsChanged(const BoundsChange& bounds) override {
-    host_->Resize(platform_window_->GetBoundsInPixels().size());
+  void OnBoundsChanged(const gfx::Rect& new_bounds) override {
+    host_->Resize(new_bounds.size());
   }
 
   void OnAcceleratedWidgetAvailable(gfx::AcceleratedWidget widget) override {
@@ -172,8 +182,7 @@ class DemoWindow : public ui::PlatformWindowDelegate {
   void DispatchEvent(ui::Event* event) override {}
   void OnCloseRequest() override {}
   void OnClosed() override {}
-  void OnWindowStateChanged(ui::PlatformWindowState old_state,
-                            ui::PlatformWindowState new_state) override {}
+  void OnWindowStateChanged(ui::PlatformWindowState new_state) override {}
   void OnLostCapture() override {}
   void OnWillDestroyAcceleratedWidget() override {}
   void OnAcceleratedWidgetDestroyed() override {}
@@ -185,6 +194,8 @@ class DemoWindow : public ui::PlatformWindowDelegate {
 
   std::unique_ptr<ui::PlatformWindow> platform_window_;
   gfx::AcceleratedWidget widget_;
+
+  DISALLOW_COPY_AND_ASSIGN(DemoWindow);
 };
 
 int DemoMain() {
@@ -195,7 +206,7 @@ int DemoMain() {
   return 0;
 }
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
 std::unique_ptr<ui::OzoneGpuTestHelper> gpu_helper;
 
 static void SetupOzone(base::WaitableEvent* done) {
@@ -211,7 +222,7 @@ static void SetupOzone(base::WaitableEvent* done) {
 }  // namespace
 
 int main(int argc, char** argv) {
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
   base::CommandLine command_line(argc, argv);
   auto feature_list = std::make_unique<base::FeatureList>();
   feature_list->InitializeFromCommandLine(
@@ -226,23 +237,25 @@ int main(int argc, char** argv) {
   InitMojo mojo;
   InitUI ui;
 
-#if BUILDFLAG(IS_OZONE)
-  ui::OzonePlatform::InitParams params;
-  params.single_process = true;
-  ui::OzonePlatform::InitializeForUI(params);
+#if defined(USE_OZONE)
+  if (features::IsUsingOzonePlatform()) {
+    ui::OzonePlatform::InitParams params;
+    params.single_process = true;
+    ui::OzonePlatform::InitializeForUI(params);
 
-  base::Thread::Options options;
-  options.message_pump_type = base::MessagePumpType::UI;
-  CHECK(rendering_thread.StartWithOptions(std::move(options)));
-  base::WaitableEvent done(base::WaitableEvent::ResetPolicy::AUTOMATIC,
-                           base::WaitableEvent::InitialState::NOT_SIGNALED);
-  rendering_thread.task_runner()->PostTask(FROM_HERE,
-                                           base::BindOnce(&SetupOzone, &done));
-  done.Wait();
+    base::Thread::Options options;
+    options.message_pump_type = base::MessagePumpType::UI;
+    CHECK(rendering_thread.StartWithOptions(options));
+    base::WaitableEvent done(base::WaitableEvent::ResetPolicy::AUTOMATIC,
+                             base::WaitableEvent::InitialState::NOT_SIGNALED);
+    rendering_thread.task_runner()->PostTask(
+        FROM_HERE, base::BindOnce(&SetupOzone, &done));
+    done.Wait();
 
-  // To create dmabuf through gbm, Ozone needs to be set up.
-  gpu_helper = std::make_unique<ui::OzoneGpuTestHelper>();
-  gpu_helper->Initialize();
+    // To create dmabuf through gbm, Ozone needs to be set up.
+    gpu_helper = std::make_unique<ui::OzoneGpuTestHelper>();
+    gpu_helper->Initialize(base::ThreadTaskRunnerHandle::Get());
+  }
 #endif
 
   return DemoMain();

@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.compositor.layouts;
 
+import android.content.res.Resources;
 import android.graphics.Rect;
 
 import org.chromium.ui.resources.ResourceManager;
@@ -51,6 +52,16 @@ public interface LayoutRenderHost {
      * @param color The color of the rect.
      */
     void pushDebugRect(Rect rect, int color);
+
+    /**
+     * Loads the persistent textures if they are not loaded already.
+     */
+    void loadPersitentTextureDataIfNeeded();
+
+    /**
+     * @return The background color of the toolbar.
+     */
+    int getBrowserControlsBackgroundColor(Resources resources);
 
     /**
      * @return The {@link ResourceManager}.

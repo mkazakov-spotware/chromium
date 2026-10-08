@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,6 @@ import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.UrlUtils;
-import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.io.File;
@@ -48,9 +47,6 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
     // A callback that fires when the decoder is ready.
     public final CallbackHelper mOnDecoderReadyCallback = new CallbackHelper();
 
-    // A callback that fires when the decoder is idle.
-    public final CallbackHelper mOnDecoderIdleCallback = new CallbackHelper();
-
     // A callback that fires when something is finished decoding in the dialog.
     public final CallbackHelper mOnDecodedCallback = new CallbackHelper();
 
@@ -64,7 +60,6 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
     @Before
     public void setUp() throws Exception {
         mContext = InstrumentationRegistry.getTargetContext();
-        NativeLibraryTestUtils.loadNativeLibraryNoBrowserProcess();
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             DecoderServiceHost.setIntentSupplier(
@@ -82,9 +77,7 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
     }
 
     @Override
-    public void decoderIdle() {
-        mOnDecoderIdleCallback.notifyCalled();
-    }
+    public void decoderIdle() {}
 
     // DecoderServiceHost.ImagesDecodedCallback:
 
@@ -105,11 +98,6 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
         int callCount = mOnDecoderReadyCallback.getCallCount();
         mOnDecoderReadyCallback.waitForCallback(
                 callCount, 1, WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-    }
-
-    private void waitForDecoderIdle(int lastCount) throws Exception {
-        mOnDecoderIdleCallback.waitForCallback(
-                lastCount, 1, WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     private void waitForThumbnailDecode() throws Exception {
@@ -202,11 +190,9 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
 
     @Test
     @LargeTest
-    @MinAndroidSdkLevel(Build.VERSION_CODES.O) // Video is only supported on O+.
     public void testDecodingOrder() throws Throwable {
         DecoderServiceHost host = new DecoderServiceHost(this, mContext);
-        host.setAnimatedThumbnailsSupportedForTesting(true);
-        host.bind();
+        host.bind(mContext);
         waitForDecoder();
 
         String video1 = "noogler.mp4";
@@ -263,78 +249,14 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
         Assert.assertEquals("0:00", mLastVideoDuration);
         Assert.assertEquals(10, mLastFrameCount);
 
-        host.unbind();
+        host.unbind(mContext);
     }
 
     @Test
     @LargeTest
-    @MinAndroidSdkLevel(Build.VERSION_CODES.O) // Video is only supported on O+.
-    public void testDecodingOrderNoAnimationSupported() throws Throwable {
-        DecoderServiceHost host = new DecoderServiceHost(this, mContext);
-        host.setAnimatedThumbnailsSupportedForTesting(false);
-        host.bind();
-        waitForDecoder();
-
-        String video1 = "noogler.mp4";
-        String video2 = "noogler2.mp4";
-        String jpg1 = "blue100x100.jpg";
-        File file1 = new File(UrlUtils.getIsolatedTestFilePath(TEST_FILE_PATH + video1));
-        File file2 = new File(UrlUtils.getIsolatedTestFilePath(TEST_FILE_PATH + video2));
-        File file3 = new File(UrlUtils.getIsolatedTestFilePath(TEST_FILE_PATH + jpg1));
-
-        decodeImage(host, Uri.fromFile(file1), PickerBitmap.TileTypes.VIDEO, 10,
-                /*fullWidth=*/false, this);
-        decodeImage(host, Uri.fromFile(file2), PickerBitmap.TileTypes.VIDEO, 10,
-                /*fullWidth=*/false, this);
-        decodeImage(host, Uri.fromFile(file3), PickerBitmap.TileTypes.PICTURE, 10,
-                /*fullWidth=*/false, this);
-
-        int idleCallCount = mOnDecoderIdleCallback.getCallCount();
-
-        // First decoding result should be first frame of video 1. Even though still images take
-        // priority over video decoding, video 1 will be the only item in the queue when the first
-        // decoding request is kicked off (as a result of calling decodeImage).
-        waitForThumbnailDecode();
-        Assert.assertTrue(mLastDecodedPath.contains(video1));
-        Assert.assertEquals(true, mLastIsVideo);
-        Assert.assertEquals("0:00", mLastVideoDuration);
-        Assert.assertEquals(1, mLastFrameCount);
-
-        // When the decoder is finished with the first frame of video 1, there will be two new
-        // requests available for processing. Video2 was added first, but that will be skipped in
-        // favor of the still image, so the jpg is expected to be decoded next.
-        waitForThumbnailDecode();
-        Assert.assertTrue(mLastDecodedPath.contains(jpg1));
-        Assert.assertEquals(false, mLastIsVideo);
-        Assert.assertEquals(null, mLastVideoDuration);
-        Assert.assertEquals(1, mLastFrameCount);
-
-        // Third and last decoding result is first frame of video 2.
-        waitForThumbnailDecode();
-        Assert.assertTrue(mLastDecodedPath.contains(video2));
-        Assert.assertEquals(true, mLastIsVideo);
-        Assert.assertEquals("0:00", mLastVideoDuration);
-        Assert.assertEquals(1, mLastFrameCount);
-
-        // Make sure nothing else is returned (no animations should be supported).
-        waitForDecoderIdle(idleCallCount);
-
-        // Everything should be as we left it.
-        Assert.assertTrue(mLastDecodedPath.contains(video2));
-        Assert.assertEquals(true, mLastIsVideo);
-        Assert.assertEquals("0:00", mLastVideoDuration);
-        Assert.assertEquals(1, mLastFrameCount);
-
-        host.unbind();
-    }
-
-    @Test
-    @LargeTest
-    @MinAndroidSdkLevel(Build.VERSION_CODES.O) // Video is only supported on O+.
     public void testDecodingSizes() throws Throwable {
         DecoderServiceHost host = new DecoderServiceHost(this, mContext);
-        host.setAnimatedThumbnailsSupportedForTesting(true);
-        host.bind();
+        host.bind(mContext);
         waitForDecoder();
 
         String video1 = "noogler.mp4"; // 1920 x 1080 video.
@@ -406,14 +328,14 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
         Assert.assertEquals(2000, mLastInitialFrame.getWidth());
         Assert.assertEquals(1125, mLastInitialFrame.getHeight());
 
-        host.unbind();
+        host.unbind(mContext);
     }
 
     @Test
     @LargeTest
     public void testCancelation() throws Throwable {
         DecoderServiceHost host = new DecoderServiceHost(this, mContext);
-        host.bind();
+        host.bind(mContext);
         waitForDecoder();
 
         String green = "green100x100.jpg";
@@ -442,7 +364,7 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
         waitForThumbnailDecode();
         Assert.assertEquals(yellowPath, mLastDecodedPath);
 
-        host.unbind();
+        host.unbind(mContext);
     }
 
     @Test
@@ -463,7 +385,7 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
     @LargeTest
     public void testFileNotFoundFailureMode() throws Throwable {
         DecoderServiceHost host = new DecoderServiceHost(this, mContext);
-        host.bind();
+        host.bind(mContext);
         waitForDecoder();
 
         // Try decoding a file that doesn't exist.
@@ -473,6 +395,6 @@ public class DecoderServiceHostTest implements DecoderServiceHost.DecoderStatusC
         Assert.assertEquals(noPath, mLastDecodedPath);
         Assert.assertEquals(null, mLastInitialFrame);
 
-        host.unbind();
+        host.unbind(mContext);
     }
 }

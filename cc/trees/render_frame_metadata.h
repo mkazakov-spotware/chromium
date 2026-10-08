@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TREES_RENDER_FRAME_METADATA_H_
 #define CC_TREES_RENDER_FRAME_METADATA_H_
 
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "cc/cc_export.h"
 #include "components/viz/common/quads/selection.h"
 #include "components/viz/common/surfaces/local_surface_id.h"
 #include "components/viz/common/vertical_scroll_direction.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/size_f.h"
@@ -19,31 +19,6 @@
 #include "ui/gfx/selection_bound.h"
 
 namespace cc {
-
-// Contains information to assist in making a decision about forwarding
-// pointerevents to viz for use in a delegated ink trail.
-struct DelegatedInkBrowserMetadata {
- public:
-  DelegatedInkBrowserMetadata() = default;
-  explicit DelegatedInkBrowserMetadata(bool hovering)
-      : delegated_ink_is_hovering(hovering) {}
-
-  bool operator==(const DelegatedInkBrowserMetadata& other) const {
-    return delegated_ink_is_hovering == other.delegated_ink_is_hovering;
-  }
-
-  bool operator!=(const DelegatedInkBrowserMetadata& other) const {
-    return !operator==(other);
-  }
-
-  // Flag used to indicate the state of the hovering on the pointerevent that
-  // the delegated ink metadata was created from. If this state does not match
-  // the point under consideration to send to viz, it won't be sent. As soon
-  // as it matches again the point will be sent, regardless of if the renderer
-  // has processed the point that didn't match yet or not. It is true when
-  // hovering, false otherwise.
-  bool delegated_ink_is_hovering;
-};
 
 class CC_EXPORT RenderFrameMetadata {
  public:
@@ -64,10 +39,10 @@ class CC_EXPORT RenderFrameMetadata {
   // The background color of a CompositorFrame. It can be used for filling the
   // content area if the primary surface is unavailable and fallback is not
   // specified.
-  SkColor4f root_background_color = SkColors::kWhite;
+  SkColor root_background_color = SK_ColorWHITE;
 
   // Scroll offset of the root layer.
-  absl::optional<gfx::PointF> root_scroll_offset;
+  base::Optional<gfx::Vector2dF> root_scroll_offset;
 
   // Selection region relative to the current viewport. If the selection is
   // empty or otherwise unused, the bound types will indicate such.
@@ -80,12 +55,10 @@ class CC_EXPORT RenderFrameMetadata {
   // are the same).
   bool is_mobile_optimized = false;
 
-  // Existence of this flag informs the browser process to start forwarding
-  // points to viz for use in a delegated ink trail. It contains more
-  // information to be used in making the forwarding decision. It exists the
-  // entire time points could be forwarded, and forwarding must stop as soon as
-  // it is null.
-  absl::optional<DelegatedInkBrowserMetadata> delegated_ink_metadata;
+  // Flag used to notify the browser process to start or stop forwarding points
+  // to viz for use in a delegated ink trail. True the entire time points should
+  // be forwarded, and forwarding stops as soon as it is false again.
+  bool has_delegated_ink_metadata = false;
 
   // The device scale factor used to generate a CompositorFrame.
   float device_scale_factor = 1.f;
@@ -95,7 +68,7 @@ class CC_EXPORT RenderFrameMetadata {
   gfx::Size viewport_size_in_pixels;
 
   // The last viz::LocalSurfaceId used to submit a CompositorFrame.
-  absl::optional<viz::LocalSurfaceId> local_surface_id;
+  base::Optional<viz::LocalSurfaceId> local_surface_id;
 
   // Page scale factor (always 1.f for sub-frame renderers).
   float page_scale_factor = 1.f;
@@ -115,15 +88,7 @@ class CC_EXPORT RenderFrameMetadata {
   viz::VerticalScrollDirection new_vertical_scroll_direction =
       viz::VerticalScrollDirection::kNull;
 
-  // The cumulative time spent performing visual updates for all
-  // `local_surface_id` before this one.
-  base::TimeDelta previous_surfaces_visual_update_duration;
-
-  // The cumulative time spent performing visual updates for the current
-  // `local_surface_id`.
-  base::TimeDelta current_surface_visual_update_duration;
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Used to position Android bottom bar, whose position is computed by the
   // renderer compositor.
   float bottom_controls_height = 0.f;

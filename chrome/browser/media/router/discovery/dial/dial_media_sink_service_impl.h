@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,9 @@
 #include <set>
 
 #include "base/containers/flat_map.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/containers/flat_set.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "chrome/browser/media/router/discovery/dial/device_description_service.h"
 #include "chrome/browser/media/router/discovery/dial/dial_app_discovery_service.h"
 #include "chrome/browser/media/router/discovery/dial/dial_media_sink_service.h"
@@ -28,12 +26,11 @@ class DeviceDescriptionService;
 class DialRegistry;
 
 // A service which can be used to start background discovery and resolution of
-// DIAL devices (Smart TVs, Game Consoles, etc.). It is indirectly owned by a
-// singleton that is never freed. It may be created on any thread. All methods,
-// unless otherwise noted, must be invoked on the SequencedTaskRunner given by
-// |task_runner()|.
+// DIAL devices (Smart TVs, Game Consoles, etc.).
+// This class may be created on any thread. All methods, unless otherwise noted,
+// must be invoked on the SequencedTaskRunner given by |task_runner()|.
 class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
-                                 public DialRegistry::Client {
+                                 public DialRegistry::Observer {
  public:
   // Callbacks invoked when the list of available sinks for |app_name| changes.
   // The client can call |GetAvailableSinks()| to obtain the latest sink list.
@@ -43,6 +40,8 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   using SinkQueryByAppCallbackList =
       base::RepeatingCallbackList<void(const std::string&)>;
   using SinkQueryByAppCallback = SinkQueryByAppCallbackList::CallbackType;
+  using SinkQueryByAppSubscription =
+      std::unique_ptr<SinkQueryByAppCallbackList::Subscription>;
 
   // Represents DIAL app status on receiver device.
   enum SinkAppStatus { kUnknown = 0, kAvailable, kUnavailable };
@@ -69,10 +68,11 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   virtual DialAppDiscoveryService* app_discovery_service();
 
   // Registers |callback| to callback list entry in |sink_queries_|, with the
-  // key |app_name|. Caller owns the returned subscription and is responsible
-  // for destroying when it wants to unregister |callback|. Marked virtual for
-  // tests.
-  virtual base::CallbackListSubscription StartMonitoringAvailableSinksForApp(
+  // key |app_name|. Returns a unique_ptr of callback list subscription. Caller
+  // owns the returned subscription and is responsible for destroying when it
+  // wants to unregister |callback|.
+  // Marked virtual for tests.
+  virtual SinkQueryByAppSubscription StartMonitoringAvailableSinksForApp(
       const std::string& app_name,
       const SinkQueryByAppCallback& callback);
 
@@ -84,7 +84,11 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   virtual std::vector<MediaSinkInternal> GetAvailableSinks(
       const std::string& app_name) const;
 
+  void BindLogger(mojo::PendingRemote<mojom::Logger> pending_remote);
+
  protected:
+  // Does not take ownership of |dial_registry|.
+  void SetDialRegistryForTest(DialRegistry* dial_registry);
   void SetDescriptionServiceForTest(
       std::unique_ptr<DeviceDescriptionService> description_service);
   void SetAppDiscoveryServiceForTest(
@@ -96,7 +100,7 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   FRIEND_TEST_ALL_PREFIXES(DialMediaSinkServiceImplTest,
                            OnDeviceDescriptionRestartsTimer);
   FRIEND_TEST_ALL_PREFIXES(DialMediaSinkServiceImplTest,
-                           OnDialDeviceListRestartsTimer);
+                           OnDialDeviceEventRestartsTimer);
   FRIEND_TEST_ALL_PREFIXES(DialMediaSinkServiceImplTest,
                            OnDeviceDescriptionAvailable);
   FRIEND_TEST_ALL_PREFIXES(DialMediaSinkServiceImplTest,
@@ -118,8 +122,8 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   FRIEND_TEST_ALL_PREFIXES(DialMediaSinkServiceImplTest,
                            FetchDialAppInfoWithDiscoveryOnlySink);
 
-  // DialRegistry::Client implementation
-  void OnDialDeviceList(const DialRegistry::DeviceList& devices) override;
+  // DialRegistry::Observer implementation
+  void OnDialDeviceEvent(const DialRegistry::DeviceList& devices) override;
   void OnDialError(DialRegistry::DialErrorCode type) override;
 
   // Called when description service successfully fetches and parses device
@@ -163,13 +167,16 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   void RecordDeviceCounts() override;
 
   // Initialized in |Start()|.
-  std::unique_ptr<DialRegistry> dial_registry_;
-
-  // Initialized in |Start()|.
   std::unique_ptr<DeviceDescriptionService> description_service_;
 
   // Initialized in |Start()|.
   std::unique_ptr<DialAppDiscoveryService> app_discovery_service_;
+
+  // Raw pointer to DialRegistry singleton.
+  DialRegistry* dial_registry_ = nullptr;
+
+  // DialRegistry for unit test.
+  DialRegistry* test_dial_registry_ = nullptr;
 
   // Device data list from current round of discovery.
   DialRegistry::DeviceList current_devices_;
@@ -185,6 +192,11 @@ class DialMediaSinkServiceImpl : public MediaSinkServiceBase,
   // Set of sink queries keyed by app name.
   base::flat_map<std::string, std::unique_ptr<SinkQueryByAppCallbackList>>
       sink_queries_;
+
+  // Mojo Remote to the logger owned by the Media Router. The Remote is not
+  // bound until |BindLogger()| is called. Always check if |logger_.is_bound()|
+  // is true before using.
+  mojo::Remote<mojom::Logger> logger_;
 
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 

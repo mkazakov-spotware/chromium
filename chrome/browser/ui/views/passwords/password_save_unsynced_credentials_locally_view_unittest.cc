@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate_mock.h"
 #include "chrome/browser/ui/views/passwords/password_bubble_view_test_base.h"
@@ -27,8 +26,8 @@ class PasswordSaveUnsyncedCredentialsLocallyViewTest
         .WillByDefault(ReturnRef(unsynced_credentials_));
 
     unsynced_credentials_.resize(1);
-    unsynced_credentials_[0].username_value = u"user";
-    unsynced_credentials_[0].password_value = u"password";
+    unsynced_credentials_[0].username_value = ASCIIToUTF16("user");
+    unsynced_credentials_[0].password_value = ASCIIToUTF16("password");
   }
   ~PasswordSaveUnsyncedCredentialsLocallyViewTest() override = default;
 
@@ -37,7 +36,7 @@ class PasswordSaveUnsyncedCredentialsLocallyViewTest
   void TearDown() override;
 
  protected:
-  raw_ptr<PasswordSaveUnsyncedCredentialsLocallyView> view_;
+  PasswordSaveUnsyncedCredentialsLocallyView* view_;
   std::vector<password_manager::PasswordForm> unsynced_credentials_;
 };
 

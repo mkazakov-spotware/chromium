@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Unit tests for goog.position.
@@ -46,8 +54,10 @@ let testArea;
 /** This is used to round pixel values on FF3 Mac. */
 function assertRoundedEquals(a, b, c) {
   function round(x) {
-    return userAgent.GECKO && (userAgent.MAC || userAgent.X11) ? Math.round(x) :
-                                                                 x;
+    return userAgent.GECKO && (userAgent.MAC || userAgent.X11) &&
+            userAgent.isVersionOrHigher('1.9') ?
+        Math.round(x) :
+        x;
   }
   if (arguments.length == 3) {
     assertRoughlyEquals(a, round(b), round(c), ALLOWED_OFFSET);
@@ -258,10 +268,6 @@ testSuite({
         anchorRect.top, popupRect.top - 1);
   },
 
-  /**
-     @suppress {strictPrimitiveOperators} suppression added to enable type
-     checking
-   */
   testPositionAtAnchorOverflowLeftEdgeRightToLeft() {
     const anchor = document.getElementById('anchor5');
     const popup = document.getElementById('popup5');
@@ -294,7 +300,6 @@ testSuite({
 
     const anchorRect = style.getBounds(anchor);
     const popupRect = style.getBounds(popup);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const parentRect = style.getBounds(anchor.parentNode);
     assertTrue(
         'Position should have been adjusted so that the left edge of ' +
@@ -327,7 +332,6 @@ testSuite({
     anchorRect = style.getBounds(anchor);
     popupRect = style.getBounds(popup);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const visibleAnchorRect = positioning.getVisiblePart_(anchor);
 
     assertRoundedEquals(
@@ -342,13 +346,13 @@ testSuite({
   },
 
   testPositionAtAnchorRightToLeft() {
-    if (userAgent.IE) {
+    if (userAgent.IE && userAgent.isVersionOrHigher('6')) {
       // These tests fails with IE6.
       // TODO(user): Investigate the reason.
       return;
     }
     if (product.SAFARI) {
-      // TODO(user): Disabled so we can get the rest of the Closure test
+      // TODO(b/20733468): Disabled so we can get the rest of the Closure test
       // suite running in a continuous build. Will investigate later.
       return;
     }
@@ -385,13 +389,13 @@ testSuite({
   },
 
   testPositionAtAnchorRightToLeftWithScroll() {
-    if (userAgent.IE) {
+    if (userAgent.IE && userAgent.isVersionOrHigher('6')) {
       // These tests fails with IE6.
       // TODO(user): Investigate the reason.
       return;
     }
     if (product.SAFARI) {
-      // TODO(user): Disabled so we can get the rest of the Closure test
+      // TODO(b/20733468): Disabled so we can get the rest of the Closure test
       // suite running in a continuous build. Will investigate later.
       return;
     }
@@ -424,7 +428,6 @@ testSuite({
     anchorRect = style.getBounds(anchor);
     popupRect = style.getBounds(popup);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const visibleAnchorRect = positioning.getVisiblePart_(anchor);
     const visibleAnchorBox = visibleAnchorRect.toBox();
 
@@ -512,7 +515,6 @@ testSuite({
     // position again within box1.
     const box = document.getElementById('box1');
     const viewport = style.getBounds(box);
-    /** @suppress {checkTypes} suppression added to enable type checking */
     status = positioning.positionAtAnchor(
         anchor, corner.TOP_LEFT, popup, corner.TOP_RIGHT, undefined, undefined,
         overflow.FAIL_X, undefined, viewport);
@@ -521,7 +523,6 @@ testSuite({
         (status & OverflowStatus.FAILED) == 0);
 
     // Change overflow strategy to adjust.
-    /** @suppress {checkTypes} suppression added to enable type checking */
     status = positioning.positionAtAnchor(
         anchor, corner.TOP_LEFT, popup, corner.TOP_RIGHT, undefined, undefined,
         overflow.ADJUST_X, undefined, viewport);
@@ -598,7 +599,6 @@ testSuite({
   },
 
   testAdjustForViewportFailIgnore() {
-    /** @suppress {visibility} suppression added to enable type checking */
     const f = positioning.adjustForViewport_;
     const viewport = new Box(100, 200, 200, 100);
     const overflow = Overflow.IGNORE;
@@ -623,7 +623,6 @@ testSuite({
   },
 
   testAdjustForViewportFailXY() {
-    /** @suppress {visibility} suppression added to enable type checking */
     const f = positioning.adjustForViewport_;
     const viewport = new Box(100, 200, 200, 100);
     const overflow = Overflow.FAIL_X | Overflow.FAIL_Y;
@@ -667,7 +666,6 @@ testSuite({
   },
 
   testAdjustForViewportAdjustXFailY() {
-    /** @suppress {visibility} suppression added to enable type checking */
     const f = positioning.adjustForViewport_;
     const viewport = new Box(100, 200, 200, 100);
     const overflow = Overflow.ADJUST_X | Overflow.FAIL_Y;
@@ -710,7 +708,6 @@ testSuite({
   },
 
   testAdjustForViewportResizeHeight() {
-    /** @suppress {visibility} suppression added to enable type checking */
     const f = positioning.adjustForViewport_;
     const viewport = new Box(0, 200, 200, 0);
     const overflow = Overflow.RESIZE_HEIGHT;
@@ -783,7 +780,6 @@ testSuite({
   },
 
   testAdjustForViewportResizeWidth() {
-    /** @suppress {visibility} suppression added to enable type checking */
     const f = positioning.adjustForViewport_;
     const viewport = new Box(0, 200, 200, 0);
     const overflow = Overflow.RESIZE_WIDTH;
@@ -1124,10 +1120,6 @@ testSuite({
     new DomHelper(iframeDoc).getDocumentScrollElement().scrollTop = 100;
     const anchor = iframeDoc.getElementById('anchor1');
     const popup = document.getElementById('popup7');
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     popup.offsetParent.scrollTop = 50;
 
     const status = positioning.positionAtAnchor(
@@ -1204,7 +1196,6 @@ testSuite({
     assertObjectEquals(newCoord(-1000, -1000), style.getPageOffset(popup));
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testPositionAtAnchorWithOverflowScrollOffsetParent() {
     const testAreaOffset = style.getPageOffset(testArea);
     const scrollbarWidth = style.getScrollbarWidth();
@@ -1274,7 +1265,6 @@ testSuite({
         style.getPageOffset(popup), 1);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testPositionAtAnchorWithOverflowHiddenParent() {
     const testAreaOffset = style.getPageOffset(testArea);
     window.scrollTo(testAreaOffset.x, testAreaOffset.y);

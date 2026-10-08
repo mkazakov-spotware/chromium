@@ -1,9 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef COMPONENTS_NACL_RENDERER_PLUGIN_PPAPI_ENTRYPOINTS_H_
-#define COMPONENTS_NACL_RENDERER_PLUGIN_PPAPI_ENTRYPOINTS_H_
+#ifndef PPAPI_COMPONENTS_NACL_RENDERER_PLUGIN_PPAPI_ENTRYPOINTS_H_
+#define PPAPI_COMPONENTS_NACL_RENDERER_PLUGIN_PPAPI_ENTRYPOINTS_H_
 
 #include "ppapi/c/pp_module.h"
 #include "ppapi/c/ppb.h"
@@ -18,4 +18,4 @@ void PPP_ShutdownModule();
 
 }  // namespace nacl_plugin
 
-#endif  // COMPONENTS_NACL_RENDERER_PLUGIN_PPAPI_ENTRYPOINTS_H_
+#endif  // PPAPI_COMPONENTS_NACL_RENDERER_PLUGIN_PPAPI_ENTRYPOINTS_H_

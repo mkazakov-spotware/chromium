@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/activity_services/activities/send_tab_to_self_activity.h"
 
 #import "ios/chrome/browser/ui/activity_services/data/share_to_data.h"
-#import "ios/chrome/browser/ui/commands/browser_coordinator_commands.h"
-#import "testing/platform_test.h"
+#include "ios/chrome/browser/ui/commands/browser_commands.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-#import "third_party/ocmock/gtest_support.h"
-#import "url/gurl.h"
+#include "third_party/ocmock/gtest_support.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -23,11 +23,10 @@ class SendTabToSelfActivityTest : public PlatformTest {
   void SetUp() override {
     PlatformTest::SetUp();
 
-    mocked_handler_ =
-        OCMStrictProtocolMock(@protocol(BrowserCoordinatorCommands));
+    mocked_handler_ = OCMStrictProtocolMock(@protocol(BrowserCommands));
   }
 
-  // Creates a ShareToData instance with `can_send_tab_to_self` set.
+  // Creates a ShareToData instance with |can_send_tab_to_self| set.
   ShareToData* CreateData(bool can_send_tab_to_self) {
     return [[ShareToData alloc] initWithShareURL:GURL("https://www.google.com/")
                                       visibleURL:GURL("https://google.com/")
@@ -38,8 +37,7 @@ class SendTabToSelfActivityTest : public PlatformTest {
                                 isPageSearchable:YES
                                 canSendTabToSelf:can_send_tab_to_self
                                        userAgent:web::UserAgentType::MOBILE
-                              thumbnailGenerator:nil
-                                    linkMetadata:nil];
+                              thumbnailGenerator:nil];
   }
 
   id mocked_handler_;
@@ -67,10 +65,9 @@ TEST_F(SendTabToSelfActivityTest, DataFalse_ActivityDisabled) {
 
 // Tests that executing the activity triggers the right handler method.
 TEST_F(SendTabToSelfActivityTest, ExecuteActivity_CallsHandler) {
+  [[mocked_handler_ expect] showSendTabToSelfUI];
+
   ShareToData* data = CreateData(true);
-
-  [[mocked_handler_ expect] showSendTabToSelfUI:data.shareURL title:data.title];
-
   SendTabToSelfActivity* activity =
       [[SendTabToSelfActivity alloc] initWithData:data handler:mocked_handler_];
 

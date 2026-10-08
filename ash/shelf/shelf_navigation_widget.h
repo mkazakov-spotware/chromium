@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,10 +52,6 @@ class ASH_EXPORT ShelfNavigationWidget : public ShelfComponent,
   };
 
   ShelfNavigationWidget(Shelf* shelf, ShelfView* shelf_view);
-
-  ShelfNavigationWidget(const ShelfNavigationWidget&) = delete;
-  ShelfNavigationWidget& operator=(const ShelfNavigationWidget&) = delete;
-
   ~ShelfNavigationWidget() override;
 
   // Initializes the widget, sets its contents view and basic properties.
@@ -109,9 +105,8 @@ class ASH_EXPORT ShelfNavigationWidget : public ShelfComponent,
       NavigationButtonAnimationMetricsReporter* metrics_reporter,
       HotseatState target_hotseat_state);
 
-  // Returns the clip rectangle in the shelf navigation widget's coordinates.
-  // The returned rectangle is mirrored under RTL.
-  gfx::Rect CalculateClipRectAfterRTL() const;
+  // Returns the clip rectangle.
+  gfx::Rect CalculateClipRect() const;
 
   // Returns the ideal size of the whole widget or the visible area only when
   // |only_visible_area| is true.
@@ -123,11 +118,9 @@ class ASH_EXPORT ShelfNavigationWidget : public ShelfComponent,
   Shelf* shelf_ = nullptr;
   Delegate* delegate_ = nullptr;
 
-  // In tablet mode with hotseat enabled, `clip_rect_after_rtl_` is used to hide
-  // the invisible widget part. We try best to avoid changing the widget's
-  // bounds and use layer clip instead. `clip_rect_after_rtl_` is mirrored under
-  // RTL.
-  gfx::Rect clip_rect_after_rtl_;
+  // In tablet mode with hotseat enabled, |clip_rect_| is used to hide the
+  // invisible widget part.
+  gfx::Rect clip_rect_;
 
   // The target widget bounds in screen coordinates.
   gfx::Rect target_bounds_;
@@ -143,6 +136,8 @@ class ASH_EXPORT ShelfNavigationWidget : public ShelfComponent,
   // Widget to ensure it outlives the HomeButton view.
   std::unique_ptr<NavigationButtonAnimationMetricsReporter>
       home_button_metrics_reporter_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShelfNavigationWidget);
 };
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 
 #include "base/environment.h"
 #include "base/strings/string_number_conversions.h"
@@ -66,7 +65,7 @@ TEST(SetuidSandboxHost, SetupLaunchEnvironment) {
 TEST(SetuidSandboxHost, GetSandboxBinaryPath) {
   std::unique_ptr<SetuidSandboxHost> setuid_sandbox_host(
       SetuidSandboxHost::Create());
-  std::ignore = setuid_sandbox_host->GetSandboxBinaryPath();
+  ignore_result(setuid_sandbox_host->GetSandboxBinaryPath());
 }
 
 }  // namespace sandbox

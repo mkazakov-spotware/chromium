@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "chrome/browser/payments/chrome_payment_request_delegate.h"
 #include "chrome/browser/ui/views/payments/secure_payment_confirmation_dialog_view.h"
+#include "content/public/browser/global_routing_id.h"
 
 namespace content {
 class RenderFrameHost;
@@ -24,8 +25,7 @@ class TestSecurePaymentConfirmationPaymentRequestDelegate
   TestSecurePaymentConfirmationPaymentRequestDelegate(
       content::RenderFrameHost* render_frame_host,
       base::WeakPtr<SecurePaymentConfirmationModel> model,
-      base::WeakPtr<SecurePaymentConfirmationDialogView::ObserverForTest>
-          observer);
+      SecurePaymentConfirmationDialogView::ObserverForTest* observer);
   ~TestSecurePaymentConfirmationPaymentRequestDelegate() override;
 
   // ChromePaymentRequestDelegate:
@@ -37,6 +37,7 @@ class TestSecurePaymentConfirmationPaymentRequestDelegate
   }
 
  private:
+  const content::GlobalFrameRoutingId frame_routing_id_;
   base::WeakPtr<SecurePaymentConfirmationModel> model_;
   base::WeakPtr<SecurePaymentConfirmationDialogView> dialog_view_;
 };

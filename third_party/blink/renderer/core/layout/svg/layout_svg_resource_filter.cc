@@ -44,11 +44,12 @@ bool LayoutSVGResourceFilter::IsChildAllowed(LayoutObject* child,
 
 void LayoutSVGResourceFilter::RemoveAllClientsFromCache() {
   NOT_DESTROYED();
-  MarkAllClientsForInvalidation(kPaintInvalidation | kFilterCacheInvalidation);
+  MarkAllClientsForInvalidation(SVGResourceClient::kPaintInvalidation |
+                                SVGResourceClient::kFilterCacheInvalidation);
 }
 
-gfx::RectF LayoutSVGResourceFilter::ResourceBoundingBox(
-    const gfx::RectF& reference_box) const {
+FloatRect LayoutSVGResourceFilter::ResourceBoundingBox(
+    const FloatRect& reference_box) const {
   NOT_DESTROYED();
   const auto* filter_element = To<SVGFilterElement>(GetElement());
   return SVGLengthContext::ResolveRectangle(filter_element, FilterUnits(),
@@ -67,7 +68,8 @@ SVGUnitTypes::SVGUnitType LayoutSVGResourceFilter::PrimitiveUnits() const {
       ->CurrentEnumValue();
 }
 
-bool LayoutSVGResourceFilter::FindCycleFromSelf() const {
+bool LayoutSVGResourceFilter::FindCycleFromSelf(
+    SVGResourcesCycleSolver& solver) const {
   NOT_DESTROYED();
   // Traverse and check all <feImage> 'href' element references.
   for (auto& feimage_element :
@@ -78,10 +80,24 @@ bool LayoutSVGResourceFilter::FindCycleFromSelf() const {
     const LayoutObject* target_layout_object = target->GetLayoutObject();
     if (!target_layout_object)
       continue;
-    if (FindCycleInSubtree(*target_layout_object))
+    if (FindCycleInSubtree(solver, *target_layout_object))
       return true;
   }
   return false;
+}
+
+LayoutSVGResourceFilter* GetFilterResourceForSVG(const ComputedStyle& style) {
+  if (!style.HasFilter())
+    return nullptr;
+  const FilterOperations& operations = style.Filter();
+  if (operations.size() != 1)
+    return nullptr;
+  const auto* reference_filter =
+      DynamicTo<ReferenceFilterOperation>(*operations.at(0));
+  if (!reference_filter)
+    return nullptr;
+  return GetSVGResourceAsType<LayoutSVGResourceFilter>(
+      reference_filter->Resource());
 }
 
 }  // namespace blink

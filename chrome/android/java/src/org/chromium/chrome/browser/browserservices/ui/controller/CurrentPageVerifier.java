@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.ObserverList;
 import org.chromium.base.Promise;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar.CustomTabTabObserver;
@@ -52,13 +52,11 @@ public class CurrentPageVerifier implements NativeInitObserver {
     /** Represents the verification state of currently viewed web page. */
     public static class VerificationState {
         public final String scope;
-        public final String url;
         @VerificationStatus
         public final int status;
 
-        public VerificationState(String scope, String url, @VerificationStatus int status) {
+        public VerificationState(String scope, @VerificationStatus int status) {
             this.scope = scope;
-            this.url = url;
             this.status = status;
         }
     }
@@ -66,14 +64,12 @@ public class CurrentPageVerifier implements NativeInitObserver {
     /** A {@link TabObserver} that checks whether we are on a verified page on navigation. */
     private final CustomTabTabObserver mVerifyOnPageLoadObserver = new CustomTabTabObserver() {
         @Override
-        public void onDidFinishNavigationInPrimaryMainFrame(Tab tab, NavigationHandle navigation) {
-            if (!navigation.hasCommitted() || navigation.isSameDocument()) return;
-            verify(navigation.getUrl().getSpec());
-        }
-
-        @Override
-        public void onDidFinishNavigationNoop(Tab tab, NavigationHandle navigation) {
-            if (!navigation.isInPrimaryMainFrame()) return;
+        public void onDidFinishNavigation(Tab tab, NavigationHandle navigation) {
+            if (!navigation.hasCommitted() || !navigation.isInMainFrame()
+                    || navigation.isSameDocument()) {
+                return;
+            }
+            verify(navigation.getUrlString());
         }
 
         @Override
@@ -81,7 +77,7 @@ public class CurrentPageVerifier implements NativeInitObserver {
             // When a link with target="_blank" is followed and the user navigates back, we
             // don't get the onDidFinishNavigation event (because the original page wasn't
             // navigated away from, it was only ever hidden). https://crbug.com/942088
-            verify(tab.getUrl().getSpec());
+            verify(tab.getUrlString());
         }
     };
 
@@ -128,9 +124,9 @@ public class CurrentPageVerifier implements NativeInitObserver {
         if (scope == null) return;
 
         if (result.isFulfilled()) {
-            updateState(scope, url, statusFromBoolean(result.getResult()));
+            updateState(scope, statusFromBoolean(result.getResult()));
         } else {
-            updateState(scope, url, VerificationStatus.PENDING);
+            updateState(scope, VerificationStatus.PENDING);
             result.then(verified -> { onVerificationResult(scope, verified); });
         }
     }
@@ -144,15 +140,14 @@ public class CurrentPageVerifier implements NativeInitObserver {
         Tab tab = mTabProvider.getTab();
 
         boolean resultStillApplies =
-                tab != null && scope.equals(mDelegate.getVerifiedScope(tab.getUrl().getSpec()));
+                tab != null && scope.equals(mDelegate.getVerifiedScope(tab.getUrlString()));
         if (resultStillApplies) {
-            updateState(scope, tab.getUrl().getSpec(),
-                    verified ? VerificationStatus.SUCCESS : VerificationStatus.FAILURE);
+            updateState(scope, verified ? VerificationStatus.SUCCESS : VerificationStatus.FAILURE);
         }
     }
 
-    private void updateState(String scope, String url, @VerificationStatus int status) {
-        mState = new VerificationState(scope, url, status);
+    private void updateState(String scope, @VerificationStatus int status) {
+        mState = new VerificationState(scope, status);
         for (Runnable observer : mObservers) {
             observer.run();
         }

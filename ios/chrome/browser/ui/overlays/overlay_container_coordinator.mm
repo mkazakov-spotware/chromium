@@ -1,13 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/overlays/overlay_container_coordinator.h"
 #import "ios/chrome/browser/ui/overlays/overlay_container_coordinator+initialization.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/check_op.h"
+#include "base/check_op.h"
+#include "base/scoped_observer.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/overlays/overlay_container_view_controller.h"
 #import "ios/chrome/browser/ui/overlays/overlay_presentation_context_coordinator.h"
@@ -117,7 +118,7 @@
       needsContainer ? self.viewController : nil);
 
   // Start or stop the presentation context coordinator depending on whether
-  // it is required to support `capabilities`.
+  // it is required to support |capabilities|.
   if (capabilities &
       OverlayPresentationContext::UIPresentationCapabilities::kPresented) {
     // The coordinator cannot be started if its base UIViewController doesn't

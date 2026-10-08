@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/offline_pages/download_archive_manager.h"
 
-#include <memory>
-
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/common/pref_names.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
@@ -26,11 +25,6 @@ const char* kChromePublicSdCardDir =
 class DownloadArchiveManagerTest : public testing::Test {
  public:
   DownloadArchiveManagerTest() = default;
-
-  DownloadArchiveManagerTest(const DownloadArchiveManagerTest&) = delete;
-  DownloadArchiveManagerTest& operator=(const DownloadArchiveManagerTest&) =
-      delete;
-
   ~DownloadArchiveManagerTest() override = default;
 
   void SetUp() override;
@@ -44,6 +38,7 @@ class DownloadArchiveManagerTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   sync_preferences::TestingPrefServiceSyncable prefs_;
   std::unique_ptr<DownloadArchiveManager> archive_manager_;
+  DISALLOW_COPY_AND_ASSIGN(DownloadArchiveManagerTest);
 };
 
 void DownloadArchiveManagerTest::SetUp() {
@@ -52,10 +47,10 @@ void DownloadArchiveManagerTest::SetUp() {
   prefs()->SetString(prefs::kDownloadDefaultDirectory, kChromePublicSdCardDir);
 
   // Create a DownloadArchiveManager to use.
-  archive_manager_ = std::make_unique<DownloadArchiveManager>(
+  archive_manager_.reset(new DownloadArchiveManager(
       base::FilePath(kTemporaryDir), base::FilePath(kPrivateDir),
-      base::FilePath(kPublicDir),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), prefs());
+      base::FilePath(kPublicDir), base::ThreadTaskRunnerHandle::Get(),
+      prefs()));
 }
 
 void DownloadArchiveManagerTest::TearDown() {
@@ -70,8 +65,7 @@ TEST_F(DownloadArchiveManagerTest, UseDownloadDirFromPreferences) {
 TEST_F(DownloadArchiveManagerTest, NullPrefs) {
   DownloadArchiveManager download_archive_manager(
       base::FilePath(kTemporaryDir), base::FilePath(kPrivateDir),
-      base::FilePath(kPublicDir),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), nullptr);
+      base::FilePath(kPublicDir), base::ThreadTaskRunnerHandle::Get(), nullptr);
 
   base::FilePath download_dir = download_archive_manager.GetPublicArchivesDir();
   ASSERT_EQ(kPublicDir, download_dir.AsUTF8Unsafe());

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,8 +37,10 @@ void LayoutOutsideListMarker::UpdateLayout() {
 
 void LayoutOutsideListMarker::UpdateMargins() {
   NOT_DESTROYED();
-  auto [margin_start, margin_end] = ListMarker::InlineMarginsForOutside(
-      GetDocument(), StyleRef(), list_marker_.ListItem(*this)->StyleRef(),
+  LayoutUnit margin_start;
+  LayoutUnit margin_end;
+  std::tie(margin_start, margin_end) = ListMarker::InlineMarginsForOutside(
+      StyleRef(), list_marker_.ListItem(*this)->StyleRef(),
       PreferredLogicalWidths().min_size);
   SetMarginStart(margin_start);
   SetMarginEnd(margin_end);

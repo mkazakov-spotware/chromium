@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/system/power/power_status.h"
+#include "base/macros.h"
 
 namespace message_center {
 class MessageCenter;
@@ -24,10 +25,6 @@ namespace ash {
 class ASH_EXPORT DualRoleNotification {
  public:
   explicit DualRoleNotification(message_center::MessageCenter* message_center);
-
-  DualRoleNotification(const DualRoleNotification&) = delete;
-  DualRoleNotification& operator=(const DualRoleNotification&) = delete;
-
   ~DualRoleNotification();
 
   // Creates or updates the notification.
@@ -42,6 +39,8 @@ class ASH_EXPORT DualRoleNotification {
   std::unique_ptr<PowerStatus::PowerSource> dual_role_sink_;
   size_t num_dual_role_sinks_;
   bool line_power_connected_;
+
+  DISALLOW_COPY_AND_ASSIGN(DualRoleNotification);
 };
 
 }  // namespace ash

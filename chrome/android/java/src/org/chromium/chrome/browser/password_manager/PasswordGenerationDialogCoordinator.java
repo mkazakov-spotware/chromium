@@ -1,17 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.password_manager;
 
-import android.app.Activity;
 import android.view.LayoutInflater;
 
 import androidx.annotation.NonNull;
 
 import org.chromium.base.Callback;
 import org.chromium.chrome.R;
-import org.chromium.ui.base.WindowAndroid;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -27,14 +26,11 @@ public class PasswordGenerationDialogCoordinator {
 
     private PropertyModel mDialogModel;
 
-    public PasswordGenerationDialogCoordinator(@NonNull WindowAndroid windowAndroid) {
+    public PasswordGenerationDialogCoordinator(@NonNull ChromeActivity activity) {
         mModel = new PasswordGenerationDialogModel();
-        mModalDialogManager = windowAndroid.getModalDialogManager();
-
-        Activity activity = windowAndroid.getActivity().get();
-        assert activity != null;
         mCustomView = (PasswordGenerationDialogCustomView) LayoutInflater.from(activity).inflate(
                 R.layout.password_generation_dialog, null);
+        mModalDialogManager = activity.getModalDialogManager();
     }
 
     public void showDialog(String generatedPassword, String saveExplanationText,

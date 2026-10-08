@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,12 @@
 #include <stdint.h>
 
 #include "base/check.h"
+#include "base/strings/utf_string_conversions.h"
 #include "sql/statement.h"
 
 namespace storage {
 
-DatabaseDetails::DatabaseDetails() = default;
+DatabaseDetails::DatabaseDetails() : estimated_size(0) { }
 
 DatabaseDetails::DatabaseDetails(const DatabaseDetails& other) = default;
 
@@ -41,7 +42,7 @@ bool DatabasesTable::Init() {
 }
 
 int64_t DatabasesTable::GetDatabaseID(const std::string& origin_identifier,
-                                      const std::u16string& database_name) {
+                                      const base::string16& database_name) {
   sql::Statement select_statement(db_->GetCachedStatement(
       SQL_FROM_HERE, "SELECT id FROM Databases WHERE origin = ? AND name = ?"));
   select_statement.BindString(0, origin_identifier);
@@ -55,11 +56,11 @@ int64_t DatabasesTable::GetDatabaseID(const std::string& origin_identifier,
 }
 
 bool DatabasesTable::GetDatabaseDetails(const std::string& origin_identifier,
-                                        const std::u16string& database_name,
+                                        const base::string16& database_name,
                                         DatabaseDetails* details) {
   DCHECK(details);
   sql::Statement select_statement(db_->GetCachedStatement(
-      SQL_FROM_HERE, "SELECT description FROM Databases "
+      SQL_FROM_HERE, "SELECT description, estimated_size FROM Databases "
                      "WHERE origin = ? AND name = ?"));
   select_statement.BindString(0, origin_identifier);
   select_statement.BindString16(1, database_name);
@@ -68,6 +69,7 @@ bool DatabasesTable::GetDatabaseDetails(const std::string& origin_identifier,
     details->origin_identifier = origin_identifier;
     details->database_name = database_name;
     details->description = select_statement.ColumnString16(0);
+    details->estimated_size = select_statement.ColumnInt64(1);
     return true;
   }
 
@@ -77,28 +79,30 @@ bool DatabasesTable::GetDatabaseDetails(const std::string& origin_identifier,
 bool DatabasesTable::InsertDatabaseDetails(const DatabaseDetails& details) {
   sql::Statement insert_statement(db_->GetCachedStatement(
       SQL_FROM_HERE, "INSERT INTO Databases (origin, name, description, "
-                     "estimated_size) VALUES (?, ?, ?, 0)"));
+                     "estimated_size) VALUES (?, ?, ?, ?)"));
   insert_statement.BindString(0, details.origin_identifier);
   insert_statement.BindString16(1, details.database_name);
   insert_statement.BindString16(2, details.description);
+  insert_statement.BindInt64(3, details.estimated_size);
 
   return insert_statement.Run();
 }
 
 bool DatabasesTable::UpdateDatabaseDetails(const DatabaseDetails& details) {
   sql::Statement update_statement(db_->GetCachedStatement(
-      SQL_FROM_HERE, "UPDATE Databases SET description = ? "
-                     "WHERE origin = ? AND name = ?"));
+      SQL_FROM_HERE, "UPDATE Databases SET description = ?, "
+                     "estimated_size = ? WHERE origin = ? AND name = ?"));
   update_statement.BindString16(0, details.description);
-  update_statement.BindString(1, details.origin_identifier);
-  update_statement.BindString16(2, details.database_name);
+  update_statement.BindInt64(1, details.estimated_size);
+  update_statement.BindString(2, details.origin_identifier);
+  update_statement.BindString16(3, details.database_name);
 
   return (update_statement.Run() && db_->GetLastChangeCount());
 }
 
 bool DatabasesTable::DeleteDatabaseDetails(
     const std::string& origin_identifier,
-    const std::u16string& database_name) {
+    const base::string16& database_name) {
   sql::Statement delete_statement(db_->GetCachedStatement(
       SQL_FROM_HERE, "DELETE FROM Databases WHERE origin = ? AND name = ?"));
   delete_statement.BindString(0, origin_identifier);
@@ -122,7 +126,7 @@ bool DatabasesTable::GetAllDatabaseDetailsForOriginIdentifier(
     const std::string& origin_identifier,
     std::vector<DatabaseDetails>* details_vector) {
   sql::Statement statement(db_->GetCachedStatement(
-      SQL_FROM_HERE, "SELECT name, description "
+      SQL_FROM_HERE, "SELECT name, description, estimated_size "
                      "FROM Databases WHERE origin = ? ORDER BY name"));
   statement.BindString(0, origin_identifier);
 
@@ -131,6 +135,7 @@ bool DatabasesTable::GetAllDatabaseDetailsForOriginIdentifier(
     details.origin_identifier = origin_identifier;
     details.database_name = statement.ColumnString16(0);
     details.description = statement.ColumnString16(1);
+    details.estimated_size = statement.ColumnInt64(2);
     details_vector->push_back(details);
   }
 

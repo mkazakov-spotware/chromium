@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,12 +49,9 @@ void LogWithLevel(LogLevel level,
 
 void Break() {
 #if defined(OFFICIAL_BUILD) && defined(NDEBUG)
-  base::ImmediateCrash();
+  IMMEDIATE_CRASH();
 #else
-  // Chrome's base::debug::BreakDebugger is not properly annotated as
-  // [[noreturn]], so we abort instead. This may need to be revisited
-  // if we want MSVC support in the future.
-  std::abort();
+  ::base::debug::BreakDebugger();
 #endif
 }
 

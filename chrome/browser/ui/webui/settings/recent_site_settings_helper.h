@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,6 @@ struct TimestampedSetting {
 
 struct RecentSitePermissions {
   GURL origin;
-  absl::optional<std::string> isolated_web_app_name;
   bool incognito;
   std::vector<TimestampedSetting> settings;
 
@@ -46,7 +45,6 @@ struct RecentSitePermissions {
       default;
   RecentSitePermissions(RecentSitePermissions&& other);
   RecentSitePermissions(GURL origin,
-                        absl::optional<std::string> isolated_web_app_name,
                         bool incognito,
                         std::vector<TimestampedSetting> settings);
   ~RecentSitePermissions();

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/feature_list.h"
 
-BASE_DECLARE_FEATURE(kWindows10CustomTitlebar);
+extern const base::Feature kWindows10CustomTitlebar;
 
 // Returns whether we should custom draw the titlebar even if we're using the
 // native frame.

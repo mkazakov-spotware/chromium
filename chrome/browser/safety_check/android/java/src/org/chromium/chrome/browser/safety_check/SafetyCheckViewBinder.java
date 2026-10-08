@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,8 +47,6 @@ class SafetyCheckViewBinder {
                 return context.getResources().getQuantityString(
                         R.plurals.safety_check_passwords_compromised_exist, compromised,
                         compromised);
-            case PasswordsState.BACKEND_VERSION_NOT_SUPPORTED:
-                return context.getString(R.string.safety_check_passwords_update_play_services);
             default:
                 assert false : "Unknown PasswordsState value.";
         }
@@ -70,7 +68,6 @@ class SafetyCheckViewBinder {
             case PasswordsState.QUOTA_LIMIT:
             case PasswordsState.OFFLINE:
             case PasswordsState.ERROR:
-            case PasswordsState.BACKEND_VERSION_NOT_SUPPORTED:
                 return R.drawable.ic_info_outline_grey_24dp;
             default:
                 assert false : "Unknown PasswordsState value.";

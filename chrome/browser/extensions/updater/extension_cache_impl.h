@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,11 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/task/task_traits.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/updater/extension_cache.h"
 
 namespace base {
@@ -26,14 +30,12 @@ class LocalExtensionCache;
 
 // Singleton call that caches extensions .crx files to share them between
 // multiple users and profiles on the machine.
-class ExtensionCacheImpl : public ExtensionCache {
+class ExtensionCacheImpl : public ExtensionCache,
+                           public content::NotificationObserver {
  public:
   explicit ExtensionCacheImpl(
-      std::unique_ptr<ChromeOSExtensionCacheDelegate> delegate);
-
-  ExtensionCacheImpl(const ExtensionCacheImpl&) = delete;
-  ExtensionCacheImpl& operator=(const ExtensionCacheImpl&) = delete;
-
+      std::unique_ptr<ChromeOSExtensionCacheDelegate> delegate,
+      base::TaskPriority task_priority = base::TaskPriority::BEST_EFFORT);
   ~ExtensionCacheImpl() override;
 
   // Implementation of ExtensionCache.
@@ -49,9 +51,11 @@ class ExtensionCacheImpl : public ExtensionCache {
                     const base::FilePath& file_path,
                     const std::string& version,
                     PutExtensionCallback callback) override;
-  bool OnInstallFailed(const std::string& id,
-                       const std::string& hash,
-                       const CrxInstallError& error) override;
+
+  // Implementation of content::NotificationObserver:
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
  private:
   // Callback that is called when local cache is ready.
@@ -69,8 +73,13 @@ class ExtensionCacheImpl : public ExtensionCache {
   // List of callbacks that should be called when the cache is ready.
   std::vector<base::OnceClosure> init_callbacks_;
 
+  // Observes failures to install CRX files.
+  content::NotificationRegistrar notification_registrar_;
+
   // Weak factory for callbacks.
   base::WeakPtrFactory<ExtensionCacheImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionCacheImpl);
 };
 
 }  // namespace extensions

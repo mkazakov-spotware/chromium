@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <string>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "base/threading/thread_checker.h"
 #include "base/timer/timer.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -45,35 +45,29 @@ class IdleManager : public ExtensionRegistryObserver,
   class IdleTimeProvider {
    public:
     IdleTimeProvider() {}
-
-    IdleTimeProvider(const IdleTimeProvider&) = delete;
-    IdleTimeProvider& operator=(const IdleTimeProvider&) = delete;
-
     virtual ~IdleTimeProvider() {}
     virtual ui::IdleState CalculateIdleState(int idle_threshold) = 0;
     virtual int CalculateIdleTime() = 0;
     virtual bool CheckIdleStateIsLocked() = 0;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(IdleTimeProvider);
   };
 
   class EventDelegate {
    public:
     EventDelegate() {}
-
-    EventDelegate(const EventDelegate&) = delete;
-    EventDelegate& operator=(const EventDelegate&) = delete;
-
     virtual ~EventDelegate() {}
     virtual void OnStateChanged(const std::string& extension_id,
                                 ui::IdleState new_state) = 0;
     virtual void RegisterObserver(EventRouter::Observer* observer) = 0;
     virtual void UnregisterObserver(EventRouter::Observer* observer) = 0;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(EventDelegate);
   };
 
   explicit IdleManager(content::BrowserContext* context);
-
-  IdleManager(const IdleManager&) = delete;
-  IdleManager& operator=(const IdleManager&) = delete;
-
   ~IdleManager() override;
 
   void Init();
@@ -92,15 +86,13 @@ class IdleManager : public ExtensionRegistryObserver,
 
   ui::IdleState QueryState(int threshold);
   void SetThreshold(const std::string& extension_id, int threshold);
-  int GetThresholdForTest(const std::string& extension_id) const;
-
   // Returns the maximum time in seconds until the screen lock automatically
   // when idle.
   // Note: Currently supported on Chrome OS only. Returns a zero duration for
   // other operating systems.
   base::TimeDelta GetAutoLockDelay() const;
 
-  static base::Value CreateIdleValue(ui::IdleState idle_state);
+  static std::unique_ptr<base::Value> CreateIdleValue(ui::IdleState idle_state);
 
   // Override default event class. Callee assumes ownership. Used for testing.
   void SetEventDelegateForTest(std::unique_ptr<EventDelegate> event_delegate);
@@ -132,7 +124,7 @@ class IdleManager : public ExtensionRegistryObserver,
   void StopPolling();
   void UpdateIdleState();
 
-  const raw_ptr<content::BrowserContext> context_;
+  content::BrowserContext* const context_;
 
   ui::IdleState last_state_;
   MonitorMap monitors_;
@@ -145,8 +137,10 @@ class IdleManager : public ExtensionRegistryObserver,
   base::ThreadChecker thread_checker_;
 
   // Listen to extension unloaded notification.
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(IdleManager);
 };
 
 }  // namespace extensions

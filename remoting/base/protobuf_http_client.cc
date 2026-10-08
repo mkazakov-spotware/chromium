@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -78,19 +78,8 @@ void ProtobufHttpClient::DoExecuteRequest(
     std::string error_message =
         base::StringPrintf("Failed to fetch access token. Status: %d", status);
     LOG(ERROR) << error_message;
-    ProtobufHttpStatus::Code code;
-    switch (status) {
-      case OAuthTokenGetter::Status::AUTH_ERROR:
-        code = ProtobufHttpStatus::Code::UNAUTHENTICATED;
-        break;
-      case OAuthTokenGetter::Status::NETWORK_ERROR:
-        code = ProtobufHttpStatus::Code::UNAVAILABLE;
-        break;
-      default:
-        NOTREACHED() << "Unknown OAuthTokenGetter Status: " << status;
-        code = ProtobufHttpStatus::Code::UNKNOWN;
-    }
-    request->OnAuthFailed(ProtobufHttpStatus(code, error_message));
+    request->OnAuthFailed(ProtobufHttpStatus(
+        ProtobufHttpStatus::Code::UNAUTHENTICATED, error_message));
     return;
   }
 

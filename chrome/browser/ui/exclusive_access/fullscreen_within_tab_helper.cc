@@ -1,12 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/exclusive_access/fullscreen_within_tab_helper.h"
 
 FullscreenWithinTabHelper::FullscreenWithinTabHelper(
-    content::WebContents* contents)
-    : content::WebContentsUserData<FullscreenWithinTabHelper>(*contents) {}
+    content::WebContents* ignored)
+    : is_fullscreen_within_tab_(false) {}
 
 FullscreenWithinTabHelper::~FullscreenWithinTabHelper() {}
 
@@ -17,4 +17,4 @@ void FullscreenWithinTabHelper::RemoveForWebContents(
   web_contents->RemoveUserData(UserDataKey());
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(FullscreenWithinTabHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(FullscreenWithinTabHelper)

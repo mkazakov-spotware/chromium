@@ -1,17 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <memory>
+#include <memory>
 
 #import "base/test/ios/wait_util.h"
-#import "build/branding_buildflags.h"
-#import "components/autofill/core/common/autofill_features.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/metrics/metrics_app_interface.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/metrics/metrics_app_interface.h"
 #import "ios/chrome/browser/ui/autofill/autofill_app_interface.h"
 #import "ios/chrome/browser/ui/infobars/banners/infobar_banner_constants.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
@@ -19,9 +17,9 @@
 #import "ios/testing/earl_grey/app_launch_manager.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/http_server/http_server.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -81,15 +79,11 @@ id<GREYMatcher> LocalBannerMatcher() {
 }
 
 id<GREYMatcher> UploadBannerMatcher() {
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  NSString* title =
-      l10n_util::GetNSString(IDS_AUTOFILL_SAVE_CARD_PROMPT_TITLE_TO_CLOUD_V3);
-#else
-  NSString* title =
-      l10n_util::GetNSString(IDS_AUTOFILL_SAVE_CARD_PROMPT_TITLE_TO_CLOUD);
-#endif
-  NSString* bannerLabel =
-      [NSString stringWithFormat:@"%@,%@", title, kSavedCardLabel];
+  NSString* bannerLabel = [NSString
+      stringWithFormat:@"%@,%@",
+                       l10n_util::GetNSString(
+                           IDS_AUTOFILL_SAVE_CARD_PROMPT_TITLE_TO_CLOUD),
+                       kSavedCardLabel];
   return grey_allOf(grey_accessibilityID(kInfobarBannerViewIdentifier),
                     grey_accessibilityLabel(bannerLabel), nil);
 }
@@ -101,20 +95,6 @@ id<GREYMatcher> UploadBannerMatcher() {
 @end
 
 @implementation SaveCardInfobarEGTest
-
-// TODO(crbug.com/1245213)
-// Some tests are not compatible with explicit save prompts for addresses.
-- (AppLaunchConfiguration)appConfigurationForTestCase {
-  AppLaunchConfiguration config;
-  if ([self isRunningTest:@selector(testUserData_LocalSave_UserAccepts)] ||
-      [self
-          isRunningTest:@selector(testOfferLocalSave_FullData_RequestFails)] ||
-      [self isRunningTest:@selector(testUserData_LocalSave_UserDeclines)] ||
-      [self isRunningTest:@selector
-            (testOfferLocalSave_FullData_PaymentsDeclines)]) {
-  }
-  return config;
-}
 
 - (void)setUp {
   [super setUp];

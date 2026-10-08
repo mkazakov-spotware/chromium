@@ -1,24 +1,28 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_DRIVER_GLUE_SYNC_ENGINE_IMPL_H_
 #define COMPONENTS_SYNC_DRIVER_GLUE_SYNC_ENGINE_IMPL_H_
 
+#include <stdint.h>
+
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/callback.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "components/invalidation/public/invalidation_handler.h"
 #include "components/sync/base/extensions_activity.h"
 #include "components/sync/base/model_type.h"
+#include "components/sync/base/weak_handle.h"
 #include "components/sync/engine/configure_reason.h"
 #include "components/sync/engine/connection_status.h"
 #include "components/sync/engine/cycle/sync_cycle_snapshot.h"
@@ -26,8 +30,9 @@
 #include "components/sync/engine/sync_credentials.h"
 #include "components/sync/engine/sync_engine.h"
 #include "components/sync/engine/sync_status.h"
-#include "components/sync/invalidations/fcm_registration_token_observer.h"
 #include "components/sync/invalidations/invalidations_listener.h"
+#include "components/sync/protocol/encryption.pb.h"
+#include "components/sync/protocol/sync_protocol_error.h"
 
 namespace invalidation {
 class InvalidationService;
@@ -36,19 +41,19 @@ class InvalidationService;
 namespace syncer {
 
 class ActiveDevicesProvider;
+class DataTypeDebugInfoListener;
+class JsBackend;
 class ModelTypeConnector;
 class ProtocolEvent;
 class SyncEngineBackend;
 class SyncInvalidationsService;
-struct SyncProtocolError;
-class SyncTransportDataPrefs;
+class SyncPrefs;
 
 // The only real implementation of the SyncEngine. See that interface's
 // definition for documentation of public methods.
 class SyncEngineImpl : public SyncEngine,
-                       public invalidation::InvalidationHandler,
-                       public InvalidationsListener,
-                       public FCMRegistrationTokenObserver {
+                       public InvalidationHandler,
+                       public InvalidationsListener {
  public:
   using Status = SyncStatus;
 
@@ -56,14 +61,9 @@ class SyncEngineImpl : public SyncEngine,
                  invalidation::InvalidationService* invalidator,
                  SyncInvalidationsService* sync_invalidations_service,
                  std::unique_ptr<ActiveDevicesProvider> active_devices_provider,
-                 std::unique_ptr<SyncTransportDataPrefs> prefs,
+                 const base::WeakPtr<SyncPrefs>& sync_prefs,
                  const base::FilePath& sync_data_folder,
-                 scoped_refptr<base::SequencedTaskRunner> sync_task_runner,
-                 const base::RepeatingClosure& sync_transport_data_cleared_cb);
-
-  SyncEngineImpl(const SyncEngineImpl&) = delete;
-  SyncEngineImpl& operator=(const SyncEngineImpl&) = delete;
-
+                 scoped_refptr<base::SequencedTaskRunner> sync_task_runner);
   ~SyncEngineImpl() override;
 
   // SyncEngine implementation.
@@ -72,66 +72,62 @@ class SyncEngineImpl : public SyncEngine,
   void TriggerRefresh(const ModelTypeSet& types) override;
   void UpdateCredentials(const SyncCredentials& credentials) override;
   void InvalidateCredentials() override;
-  std::string GetCacheGuid() const override;
-  std::string GetBirthday() const override;
-  base::Time GetLastSyncedTimeForDebugging() const override;
   void StartConfiguration() override;
   void StartSyncingWithServer() override;
-  void StartHandlingInvalidations() override;
-  void SetEncryptionPassphrase(
-      const std::string& passphrase,
-      const KeyDerivationParams& key_derivation_params) override;
-  void SetExplicitPassphraseDecryptionKey(std::unique_ptr<Nigori> key) override;
+  void SetEncryptionPassphrase(const std::string& passphrase) override;
+  void SetDecryptionPassphrase(const std::string& passphrase) override;
   void AddTrustedVaultDecryptionKeys(
       const std::vector<std::vector<uint8_t>>& keys,
       base::OnceClosure done_cb) override;
   void StopSyncingForShutdown() override;
   void Shutdown(ShutdownReason reason) override;
   void ConfigureDataTypes(ConfigureParams params) override;
-  void ConnectDataType(ModelType type,
-                       std::unique_ptr<DataTypeActivationResponse>) override;
-  void DisconnectDataType(ModelType type) override;
-  void SetProxyTabsDatatypeEnabled(bool enabled) override;
+  void ActivateDataType(ModelType type,
+                        std::unique_ptr<DataTypeActivationResponse>) override;
+  void DeactivateDataType(ModelType type) override;
+  void ActivateProxyDataType(ModelType type) override;
+  void DeactivateProxyDataType(ModelType type) override;
   const Status& GetDetailedStatus() const override;
   void HasUnsyncedItemsForTest(
       base::OnceCallback<void(bool)> cb) const override;
-  void GetThrottledDataTypesForTest(
-      base::OnceCallback<void(ModelTypeSet)> cb) const override;
   void RequestBufferedProtocolEventsAndEnableForwarding() override;
   void DisableProtocolEventForwarding() override;
   void OnCookieJarChanged(bool account_mismatch,
+                          bool empty_jar,
                           base::OnceClosure callback) override;
   void SetInvalidationsForSessionsEnabled(bool enabled) override;
   void GetNigoriNodeForDebugging(AllNodesCallback callback) override;
 
   // InvalidationHandler implementation.
-  void OnInvalidatorStateChange(invalidation::InvalidatorState state) override;
+  void OnInvalidatorStateChange(InvalidatorState state) override;
   void OnIncomingInvalidation(
-      const invalidation::TopicInvalidationMap& invalidation_map) override;
+      const TopicInvalidationMap& invalidation_map) override;
   std::string GetOwnerName() const override;
   void OnInvalidatorClientIdChange(const std::string& client_id) override;
 
   // InvalidationsListener implementation.
   void OnInvalidationReceived(const std::string& payload) override;
 
-  // FCMRegistrationTokenObserver implementation.
-  void OnFCMRegistrationTokenChanged() override;
-
-  static std::string GenerateCacheGUIDForTest();
-
- private:
-  friend class SyncEngineBackend;
+ protected:
+  // The types and functions below are protected so that test
+  // subclasses can use them.
 
   // Called when the syncer has finished performing a configuration.
-  void FinishConfigureDataTypesOnFrontendLoop(const ModelTypeSet enabled_types,
-                                              base::OnceClosure ready_task);
+  void FinishConfigureDataTypesOnFrontendLoop(
+      const ModelTypeSet enabled_types,
+      const ModelTypeSet succeeded_configuration_types,
+      const ModelTypeSet failed_configuration_types,
+      base::OnceCallback<void(ModelTypeSet, ModelTypeSet)> ready_task);
 
   // Reports backend initialization success.  Includes some objects from sync
   // manager initialization to be passed back to the UI thread.
   //
   // |model_type_connector| is our ModelTypeConnector, which is owned because in
   // production it is a proxy object to the real ModelTypeConnector.
-  void HandleInitializationSuccessOnFrontendLoop(
+  virtual void HandleInitializationSuccessOnFrontendLoop(
+      ModelTypeSet initial_types,
+      const WeakHandle<JsBackend> js_backend,
+      const WeakHandle<DataTypeDebugInfoListener> debug_info_listener,
       std::unique_ptr<ModelTypeConnector> model_type_connector,
       const std::string& birthday,
       const std::string& bag_of_chips);
@@ -147,6 +143,9 @@ class SyncEngineImpl : public SyncEngine,
       const std::map<ModelType, int64_t>& invalidation_versions);
 
   void HandleSyncStatusChanged(const SyncStatus& status);
+
+ private:
+  friend class SyncEngineBackend;
 
   // Handles backend initialization failure.
   void HandleInitializationFailureOnFrontendLoop();
@@ -175,25 +174,11 @@ class SyncEngineImpl : public SyncEngine,
   // the same |active_devices|.
   void OnActiveDevicesChanged();
 
-  // Sets the last synced time to the current time.
-  void UpdateLastSyncedTime();
-
-  // Helper function that clears SyncTransportDataPrefs and also notifies
-  // upper layers via |sync_transport_data_cleared_cb_|.
-  void ClearLocalTransportDataAndNotify();
-
-  // Updates the current state of standalone invalidations.
-  void UpdateStandaloneInvalidationsState();
-
   // The task runner where all the sync engine operations happen.
   scoped_refptr<base::SequencedTaskRunner> sync_task_runner_;
 
   // Name used for debugging (set from profile_->GetDebugName()).
   const std::string name_;
-
-  const std::unique_ptr<SyncTransportDataPrefs> prefs_;
-
-  const base::RepeatingClosure sync_transport_data_cleared_cb_;
 
   // Our backend, which communicates directly to the syncapi. Use refptr instead
   // of WeakHandle because |backend_| is created on UI loop but released on
@@ -206,18 +191,20 @@ class SyncEngineImpl : public SyncEngine,
 
   bool initialized_ = false;
 
+  const base::WeakPtr<SyncPrefs> sync_prefs_;
+
   // The host which we serve (and are owned by). Set in Initialize() and nulled
   // out in StopSyncingForShutdown().
-  raw_ptr<SyncEngineHost> host_ = nullptr;
+  SyncEngineHost* host_ = nullptr;
 
-  raw_ptr<invalidation::InvalidationService> invalidator_ = nullptr;
+  invalidation::InvalidationService* invalidator_ = nullptr;
   bool invalidation_handler_registered_ = false;
 
   // Sync invalidation service, it may be nullptr if sync invalidations are
   // disabled or not supported. It doesn't need to have the same as
   // |invalidation_handler_registered_| flag as the service doesn't have topics
   // to unsibscribe.
-  raw_ptr<SyncInvalidationsService> sync_invalidations_service_ = nullptr;
+  SyncInvalidationsService* sync_invalidations_service_ = nullptr;
 
   ModelTypeSet last_enabled_types_;
   bool sessions_invalidation_enabled_;
@@ -230,6 +217,8 @@ class SyncEngineImpl : public SyncEngine,
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<SyncEngineImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SyncEngineImpl);
 };
 
 }  // namespace syncer

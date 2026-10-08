@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/base_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_flattener.h"
 #include "base/metrics/histogram_snapshot_manager.h"
 #include "base/threading/thread_checker.h"
@@ -24,11 +24,6 @@ class BASE_EXPORT HistogramDeltaSerialization : public HistogramFlattener {
  public:
   // |caller_name| is string used in histograms for counting inconsistencies.
   explicit HistogramDeltaSerialization(const std::string& caller_name);
-
-  HistogramDeltaSerialization(const HistogramDeltaSerialization&) = delete;
-  HistogramDeltaSerialization& operator=(const HistogramDeltaSerialization&) =
-      delete;
-
   ~HistogramDeltaSerialization() override;
 
   // Computes deltas in histogram bucket counts relative to the previous call to
@@ -56,7 +51,9 @@ class BASE_EXPORT HistogramDeltaSerialization : public HistogramFlattener {
   HistogramSnapshotManager histogram_snapshot_manager_;
 
   // Output buffer for serialized deltas.
-  raw_ptr<std::vector<std::string>> serialized_deltas_;
+  std::vector<std::string>* serialized_deltas_;
+
+  DISALLOW_COPY_AND_ASSIGN(HistogramDeltaSerialization);
 };
 
 }  // namespace base

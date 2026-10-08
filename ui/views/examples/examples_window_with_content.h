@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@ namespace content {
 class BrowserContext;
 }
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 // Shows a window with the views examples in it.
 VIEWS_EXAMPLES_WITH_CONTENT_EXPORT void ShowExamplesWindowWithContent(
@@ -22,6 +23,7 @@ VIEWS_EXAMPLES_WITH_CONTENT_EXPORT void ShowExamplesWindowWithContent(
     content::BrowserContext* browser_context,
     gfx::NativeWindow window_context);
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views
 
 #endif  // UI_VIEWS_EXAMPLES_EXAMPLES_WINDOW_WITH_CONTENT_H_

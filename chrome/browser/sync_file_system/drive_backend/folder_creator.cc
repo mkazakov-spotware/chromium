@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 namespace drive {
 class DriveServiceInterface;
 class DriveUploaderInterface;
-}  // namespace drive
+}
 
 namespace sync_file_system {
 namespace drive_backend {
@@ -31,50 +31,51 @@ FolderCreator::FolderCreator(drive::DriveServiceInterface* drive_service,
       parent_folder_id_(parent_folder_id),
       title_(title) {}
 
-FolderCreator::~FolderCreator() = default;
+FolderCreator::~FolderCreator() {
+}
 
-void FolderCreator::Run(FileIDCallback callback) {
+void FolderCreator::Run(const FileIDCallback& callback) {
   drive::AddNewDirectoryOptions options;
   options.visibility = google_apis::drive::FILE_VISIBILITY_PRIVATE;
   drive_service_->AddNewDirectory(
       parent_folder_id_, title_, options,
       base::BindOnce(&FolderCreator::DidCreateFolder,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+                     weak_ptr_factory_.GetWeakPtr(), callback));
 }
 
 void FolderCreator::DidCreateFolder(
-    FileIDCallback callback,
-    google_apis::ApiErrorCode error,
+    const FileIDCallback& callback,
+    google_apis::DriveApiErrorCode error,
     std::unique_ptr<google_apis::FileResource> entry) {
-  SyncStatusCode status = ApiErrorCodeToSyncStatusCode(error);
+  SyncStatusCode status = DriveApiErrorCodeToSyncStatusCode(error);
   if (status != SYNC_STATUS_OK) {
-    std::move(callback).Run(std::string(), status);
+    callback.Run(std::string(), status);
     return;
   }
 
   drive_service_->SearchByTitle(
       title_, parent_folder_id_,
-      base::BindOnce(
+      base::Bind(
           &FolderCreator::DidListFolders, weak_ptr_factory_.GetWeakPtr(),
-          std::move(callback),
-
-          std::vector<std::unique_ptr<google_apis::FileResource>>()));
+          callback,
+          base::Passed(
+              std::vector<std::unique_ptr<google_apis::FileResource>>())));
 }
 
 void FolderCreator::DidListFolders(
-    FileIDCallback callback,
+    const FileIDCallback& callback,
     std::vector<std::unique_ptr<google_apis::FileResource>> candidates,
-    google_apis::ApiErrorCode error,
+    google_apis::DriveApiErrorCode error,
     std::unique_ptr<google_apis::FileList> file_list) {
-  SyncStatusCode status = ApiErrorCodeToSyncStatusCode(error);
+  SyncStatusCode status = DriveApiErrorCodeToSyncStatusCode(error);
   if (status != SYNC_STATUS_OK) {
-    std::move(callback).Run(std::string(), status);
+    callback.Run(std::string(), status);
     return;
   }
 
   if (!file_list) {
     NOTREACHED();
-    std::move(callback).Run(std::string(), SYNC_STATUS_FAILED);
+    callback.Run(std::string(), SYNC_STATUS_FAILED);
     return;
   }
 
@@ -86,9 +87,9 @@ void FolderCreator::DidListFolders(
   if (!file_list->next_link().is_empty()) {
     drive_service_->GetRemainingFileList(
         file_list->next_link(),
-        base::BindOnce(&FolderCreator::DidListFolders,
-                       weak_ptr_factory_.GetWeakPtr(), std::move(callback),
-                       std::move(candidates)));
+        base::Bind(&FolderCreator::DidListFolders,
+                   weak_ptr_factory_.GetWeakPtr(), callback,
+                   base::Passed(&candidates)));
     return;
   }
 
@@ -103,7 +104,7 @@ void FolderCreator::DidListFolders(
   }
 
   if (!oldest) {
-    std::move(callback).Run(std::string(), SYNC_FILE_ERROR_NOT_FOUND);
+    callback.Run(std::string(), SYNC_FILE_ERROR_NOT_FOUND);
     return;
   }
 
@@ -111,17 +112,17 @@ void FolderCreator::DidListFolders(
 
   status = metadata_database_->UpdateByFileResourceList(std::move(candidates));
   if (status != SYNC_STATUS_OK) {
-    std::move(callback).Run(std::string(), status);
+    callback.Run(std::string(), status);
     return;
   }
 
   DCHECK(!file_id.empty());
   if (!metadata_database_->FindFileByFileID(file_id, nullptr)) {
-    std::move(callback).Run(std::string(), SYNC_FILE_ERROR_NOT_FOUND);
+    callback.Run(std::string(), SYNC_FILE_ERROR_NOT_FOUND);
     return;
   }
 
-  std::move(callback).Run(file_id, status);
+  callback.Run(file_id, status);
 }
 
 }  // namespace drive_backend

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 
 #include "base/check.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
-#include "components/omnibox/browser/omnibox_popup_selection.h"
+#include "components/omnibox/browser/omnibox_popup_model.h"
 #include "components/omnibox/browser/suggestion_answer.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -49,54 +50,42 @@ std::string AutocompleteMatchType::ToString(AutocompleteMatchType::Type type) {
     "image-from-clipboard",
     "query-tiles",
     "navsuggest-tiles",
-    "open-tab",
-    "history-cluster",
-    "null-result-message",
-    "starter-pack"
   };
   // clang-format on
-  static_assert(std::size(strings) == AutocompleteMatchType::NUM_TYPES,
+  static_assert(base::size(strings) == AutocompleteMatchType::NUM_TYPES,
                 "strings array must have NUM_TYPES elements");
   return strings[type];
 }
 
-// static
-bool AutocompleteMatchType::FromInteger(int value, Type* result) {
-  DCHECK(result);
+static const wchar_t kAccessibilityLabelPrefixEndSentinal[] =
+    L"\uFFFC";  // Embedded object character.
 
-  if (value < Type::URL_WHAT_YOU_TYPED || value >= Type::NUM_TYPES) {
-    return false;
-  }
-
-  *result = static_cast<Type>(value);
-  return true;
+static int AccessibilityLabelPrefixLength(base::string16 accessibility_label) {
+  const base::string16 sentinal =
+      base::WideToUTF16(kAccessibilityLabelPrefixEndSentinal);
+  auto length = accessibility_label.find(sentinal);
+  return length == base::string16::npos ? 0 : static_cast<int>(length);
 }
 
-static constexpr char16_t kAccessibilityLabelPrefixEndSentinel[] =
-    u"\uFFFC";  // Embedded object character.
-
-static int AccessibilityLabelPrefixLength(std::u16string accessibility_label) {
-  auto length = accessibility_label.find(kAccessibilityLabelPrefixEndSentinel);
-  return length == std::u16string::npos ? 0 : static_cast<int>(length);
-}
-
-// Places the |replacement| inside the given format string.
+// Gets the localized string |message_id| and places the |replacement| inside.
 // It also adjusts |label_prefix_length|, if non-nullptr.
-std::u16string AddAdditionalMessaging(const std::u16string& format,
-                                      const std::u16string& replacement,
+base::string16 AddAdditionalMessaging(int message_id,
+                                      base::string16 replacement,
                                       int* label_prefix_length) {
+  DCHECK(message_id != 0);
   if (label_prefix_length) {
-    *label_prefix_length +=
-        AccessibilityLabelPrefixLength(l10n_util::FormatString(
-            format, {kAccessibilityLabelPrefixEndSentinel}, nullptr));
+    const base::string16 sentinal =
+        base::WideToUTF16(kAccessibilityLabelPrefixEndSentinal);
+    *label_prefix_length += AccessibilityLabelPrefixLength(
+        l10n_util::GetStringFUTF16(message_id, sentinal));
   }
-  return l10n_util::FormatString(format, {replacement}, nullptr);
+  return l10n_util::GetStringFUTF16(message_id, replacement);
 }
 
 // Returns the base label for this match, without handling the positional or
 // secondary button messaging.
-std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
-                                         const std::u16string& match_text,
+base::string16 GetAccessibilityBaseLabel(const AutocompleteMatch& match,
+                                         const base::string16& match_text,
                                          int* label_prefix_length) {
   // Types with a message ID of zero get |text| returned as-is.
   static constexpr int message_ids[] = {
@@ -141,12 +130,8 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
       IDS_ACC_AUTOCOMPLETE_CLIPBOARD_IMAGE,  // CLIPBOARD_IMAGE
       0,                                     // TILE_SUGGESTION
       0,                                     // TILE_NAVSUGGEST
-      0,                                     // OPEN_TAB
-      0,                                     // HISTORY_CLUSTER
-      0,                                     // NULL_RESULT_MESSAGE
-      0,                                     // STARTER_PACK
   };
-  static_assert(std::size(message_ids) == AutocompleteMatchType::NUM_TYPES,
+  static_assert(base::size(message_ids) == AutocompleteMatchType::NUM_TYPES,
                 "message_ids must have NUM_TYPES elements");
 
   // Document provider should use its full display text; description has
@@ -154,8 +139,9 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
   // TODO(skare) http://crbug.com/951109: format as string in grd so this isn't
   // special-cased.
   if (match.type == AutocompleteMatchType::DOCUMENT_SUGGESTION) {
-    std::u16string doc_string =
-        match.contents + u", " + match.description + u", " + match_text;
+    base::string16 doc_string = match.contents + base::ASCIIToUTF16(", ") +
+                                match.description + base::ASCIIToUTF16(", ") +
+                                match_text;
     return doc_string;
   }
 
@@ -163,7 +149,9 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
   if (!message)
     return match_text;
 
-  std::u16string description;
+  const base::string16 sentinal =
+      base::WideToUTF16(kAccessibilityLabelPrefixEndSentinal);
+  base::string16 description;
   bool has_description = false;
   switch (message) {
     case IDS_ACC_AUTOCOMPLETE_SEARCH_HISTORY:
@@ -214,10 +202,10 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
   if (label_prefix_length) {
     *label_prefix_length =
         has_description
-            ? AccessibilityLabelPrefixLength(l10n_util::GetStringFUTF16(
-                  message, kAccessibilityLabelPrefixEndSentinel, description))
-            : AccessibilityLabelPrefixLength(l10n_util::GetStringFUTF16(
-                  message, kAccessibilityLabelPrefixEndSentinel));
+            ? AccessibilityLabelPrefixLength(
+                  l10n_util::GetStringFUTF16(message, sentinal, description))
+            : AccessibilityLabelPrefixLength(
+                  l10n_util::GetStringFUTF16(message, sentinal));
   }
 
   return has_description
@@ -226,28 +214,28 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
 }
 
 // static
-std::u16string AutocompleteMatchType::ToAccessibilityLabel(
+base::string16 AutocompleteMatchType::ToAccessibilityLabel(
     const AutocompleteMatch& match,
-    const std::u16string& match_text,
+    const base::string16& match_text,
     size_t match_index,
     size_t total_matches,
-    const std::u16string& additional_message_format,
+    int additional_message_id,
     int* label_prefix_length) {
   if (label_prefix_length)
     *label_prefix_length = 0;
 
   // Start with getting the base label.
-  std::u16string result =
+  base::string16 result =
       GetAccessibilityBaseLabel(match, match_text, label_prefix_length);
 
   // Add the additional message, if applicable.
-  if (!additional_message_format.empty()) {
-    result = AddAdditionalMessaging(additional_message_format, result,
+  if (additional_message_id != 0) {
+    result = AddAdditionalMessaging(additional_message_id, result,
                                     label_prefix_length);
   }
 
   // Add the positional info, if applicable.
-  if (total_matches != 0 && match_index != OmniboxPopupSelection::kNoMatch) {
+  if (total_matches != 0 && match_index != OmniboxPopupModel::kNoMatch) {
     // TODO(tommycli): If any localization of the "n of m" positional message
     // puts it as a prefix, then |label_prefix_length| will get the wrong value.
     result = l10n_util::GetStringFUTF16(IDS_ACC_AUTOCOMPLETE_N_OF_M, result,

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/observer_list.h"
 #include "components/zoom/zoom_event_manager_observer.h"
 #include "content/public/browser/browser_context.h"
 
@@ -35,7 +34,8 @@ void ZoomEventManager::OnZoomLevelChanged(
   zoom_level_changed_callbacks_.Notify(change);
 }
 
-base::CallbackListSubscription ZoomEventManager::AddZoomLevelChangedCallback(
+std::unique_ptr<content::HostZoomMap::Subscription>
+ZoomEventManager::AddZoomLevelChangedCallback(
     content::HostZoomMap::ZoomLevelChangedCallback callback) {
   return zoom_level_changed_callbacks_.Add(std::move(callback));
 }

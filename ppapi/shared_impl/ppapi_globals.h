@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/threading/thread_local.h"  // For testing purposes only.
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/c/pp_module.h"
@@ -44,9 +45,6 @@ class PPAPI_SHARED_EXPORT PpapiGlobals {
   // using this method. See SetPpapiGlobalsOnThreadForTest for more information.
   struct PerThreadForTest {};
   explicit PpapiGlobals(PerThreadForTest);
-
-  PpapiGlobals(const PpapiGlobals&) = delete;
-  PpapiGlobals& operator=(const PpapiGlobals&) = delete;
 
   virtual ~PpapiGlobals();
 
@@ -129,6 +127,8 @@ class PPAPI_SHARED_EXPORT PpapiGlobals {
   static PpapiGlobals* GetThreadLocalPointer();
 
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(PpapiGlobals);
 };
 
 }  // namespace ppapi

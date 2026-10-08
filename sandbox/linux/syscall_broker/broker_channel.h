@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define SANDBOX_LINUX_SYSCALL_BROKER_BROKER_CHANNEL_H_
 
 #include "base/files/scoped_file.h"
+#include "base/macros.h"
 #include "sandbox/sandbox_export.h"
 
 namespace sandbox {
@@ -18,12 +19,10 @@ namespace syscall_broker {
 class SANDBOX_EXPORT BrokerChannel {
  public:
   typedef base::ScopedFD EndPoint;
-
-  BrokerChannel() = delete;
-  BrokerChannel(const BrokerChannel&) = delete;
-  BrokerChannel& operator=(const BrokerChannel&) = delete;
-
   static void CreatePair(EndPoint* reader, EndPoint* writer);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(BrokerChannel);
 };
 
 }  // namespace syscall_broker

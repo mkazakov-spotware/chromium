@@ -25,7 +25,6 @@
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
 
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_selection_mode.h"
 #include "third_party/blink/renderer/core/accessibility/ax_object_cache.h"
 #include "third_party/blink/renderer/core/css/style_change_reason.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -63,7 +62,8 @@
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
@@ -74,13 +74,14 @@ namespace {
 Position GetNextSoftBreak(const NGOffsetMapping& mapping,
                           NGInlineCursor& cursor) {
   while (cursor) {
-    DCHECK(cursor.Current().IsLineBox()) << cursor;
+    DCHECK(cursor.Current().IsLineBox()) << cursor.Current();
     const auto* break_token = cursor.Current().InlineBreakToken();
+    DCHECK(break_token);
     cursor.MoveToNextLine();
     // We don't need to emit a LF for the last line.
     if (!cursor)
       return Position();
-    if (break_token && !break_token->IsForcedBreak())
+    if (!break_token->IsForcedBreak())
       return mapping.GetFirstPosition(break_token->TextOffset());
   }
   return Position();
@@ -105,15 +106,15 @@ TextControlElement::TextControlElement(const QualifiedName& tag_name,
 
 TextControlElement::~TextControlElement() = default;
 
-bool TextControlElement::DispatchFocusEvent(
+void TextControlElement::DispatchFocusEvent(
     Element* old_focused_element,
     mojom::blink::FocusType type,
     InputDeviceCapabilities* source_capabilities) {
   if (SupportsPlaceholder())
     UpdatePlaceholderVisibility();
   HandleFocusEvent(old_focused_element, type);
-  return HTMLFormControlElementWithState::DispatchFocusEvent(
-      old_focused_element, type, source_capabilities);
+  HTMLFormControlElementWithState::DispatchFocusEvent(old_focused_element, type,
+                                                      source_capabilities);
 }
 
 void TextControlElement::DispatchBlurEvent(
@@ -190,8 +191,8 @@ bool TextControlElement::IsPlaceholderEmpty() const {
 }
 
 bool TextControlElement::PlaceholderShouldBeVisible() const {
-  return SupportsPlaceholder() && InnerEditorValue().empty() &&
-         !IsPlaceholderEmpty() && SuggestedValue().empty();
+  return SupportsPlaceholder() && InnerEditorValue().IsEmpty() &&
+         !IsPlaceholderEmpty() && SuggestedValue().IsEmpty();
 }
 
 HTMLElement* TextControlElement::PlaceholderElement() const {
@@ -217,14 +218,14 @@ void TextControlElement::UpdatePlaceholderVisibility() {
 
   placeholder->SetInlineStyleProperty(
       CSSPropertyID::kDisplay,
-      IsPlaceholderVisible() || !SuggestedValue().empty() ? CSSValueID::kBlock
-                                                          : CSSValueID::kNone,
+      IsPlaceholderVisible() || !SuggestedValue().IsEmpty() ? CSSValueID::kBlock
+                                                            : CSSValueID::kNone,
       true);
 
   // If there was a visibility change not caused by the suggested value, set
   // that the pseudo state changed.
   if (place_holder_was_visible != IsPlaceholderVisible() &&
-      SuggestedValue().empty()) {
+      SuggestedValue().IsEmpty()) {
     PseudoStateChanged(CSSSelector::kPseudoPlaceholderShown);
   }
 }
@@ -247,7 +248,7 @@ void TextControlElement::select() {
   setSelectionRangeForBinding(0, std::numeric_limits<unsigned>::max());
   // Avoid SelectionBehaviorOnFocus::Restore, which scrolls containers to show
   // the selection.
-  Focus(FocusParams(SelectionBehaviorOnFocus::kNone,
+  focus(FocusParams(SelectionBehaviorOnFocus::kNone,
                     mojom::blink::FocusType::kNone, nullptr));
   RestoreCachedSelection();
 }
@@ -255,7 +256,7 @@ void TextControlElement::select() {
 void TextControlElement::SetValueBeforeFirstUserEditIfNotSet() {
   if (!value_before_first_user_edit_.IsNull())
     return;
-  String value = this->Value();
+  String value = this->value();
   value_before_first_user_edit_ = value.IsNull() ? g_empty_string : value;
 }
 
@@ -284,7 +285,7 @@ void TextControlElement::SetFocused(bool flag,
 
 void TextControlElement::DispatchFormControlChangeEvent() {
   if (!value_before_first_user_edit_.IsNull() &&
-      !EqualIgnoringNullity(value_before_first_user_edit_, Value())) {
+      !EqualIgnoringNullity(value_before_first_user_edit_, value())) {
     ClearValueBeforeFirstUserEdit();
     DispatchChangeEvent();
   } else {
@@ -294,7 +295,7 @@ void TextControlElement::DispatchFormControlChangeEvent() {
 
 void TextControlElement::EnqueueChangeEvent() {
   if (!value_before_first_user_edit_.IsNull() &&
-      !EqualIgnoringNullity(value_before_first_user_edit_, Value())) {
+      !EqualIgnoringNullity(value_before_first_user_edit_, value())) {
     Event* event = Event::CreateBubble(event_type_names::kChange);
     event->SetTarget(this);
     GetDocument().EnqueueAnimationFrameEvent(event);
@@ -304,15 +305,14 @@ void TextControlElement::EnqueueChangeEvent() {
 
 void TextControlElement::setRangeText(const String& replacement,
                                       ExceptionState& exception_state) {
-  setRangeText(replacement, selectionStart(), selectionEnd(),
-               V8SelectionMode(V8SelectionMode::Enum::kPreserve),
+  setRangeText(replacement, selectionStart(), selectionEnd(), "preserve",
                exception_state);
 }
 
 void TextControlElement::setRangeText(const String& replacement,
                                       unsigned start,
                                       unsigned end,
-                                      const V8SelectionMode& selection_mode,
+                                      const String& selection_mode,
                                       ExceptionState& exception_state) {
   if (start > end) {
     exception_state.ThrowDOMException(
@@ -339,34 +339,29 @@ void TextControlElement::setRangeText(const String& replacement,
   text.Append(replacement);
   text.Append(StringView(original_text, end));
 
-  SetValue(text.ToString(), TextFieldEventBehavior::kDispatchNoEvent,
+  setValue(text.ToString(), TextFieldEventBehavior::kDispatchNoEvent,
            TextControlSetValueSelection::kDoNotSet);
 
-  switch (selection_mode.AsEnum()) {
-    case V8SelectionMode::Enum::kSelect:
+  if (selection_mode == "select") {
+    new_selection_start = start;
+    new_selection_end = start + replacement_length;
+  } else if (selection_mode == "start") {
+    new_selection_start = new_selection_end = start;
+  } else if (selection_mode == "end") {
+    new_selection_start = new_selection_end = start + replacement_length;
+  } else {
+    DCHECK_EQ(selection_mode, "preserve");
+    int delta = replacement_length - (end - start);
+
+    if (new_selection_start > end)
+      new_selection_start += delta;
+    else if (new_selection_start > start)
       new_selection_start = start;
+
+    if (new_selection_end > end)
+      new_selection_end += delta;
+    else if (new_selection_end > start)
       new_selection_end = start + replacement_length;
-      break;
-    case V8SelectionMode::Enum::kStart:
-      new_selection_start = new_selection_end = start;
-      break;
-    case V8SelectionMode::Enum::kEnd:
-      new_selection_start = new_selection_end = start + replacement_length;
-      break;
-    case V8SelectionMode::Enum::kPreserve: {
-      int delta = replacement_length - (end - start);
-
-      if (new_selection_start > end)
-        new_selection_start += delta;
-      else if (new_selection_start > start)
-        new_selection_start = start;
-
-      if (new_selection_end > end)
-        new_selection_end += delta;
-      else if (new_selection_end > start)
-        new_selection_end = start + replacement_length;
-      break;
-    }
   }
 
   setSelectionRangeForBinding(new_selection_start, new_selection_end);
@@ -455,7 +450,7 @@ unsigned TextControlElement::IndexForPosition(HTMLElement* inner_editor,
 
 bool TextControlElement::ShouldApplySelectionCache() const {
   const auto& doc = GetDocument();
-  return doc.FocusedElement() != this || doc.ShouldUpdateSelectionAfterLayout();
+  return doc.FocusedElement() != this || doc.WillUpdateFocusAppearance();
 }
 
 bool TextControlElement::SetSelectionRange(
@@ -537,6 +532,18 @@ VisiblePosition TextControlElement::VisiblePositionForIndex(int index) const {
   CharacterIterator it(start, end);
   it.Advance(index - 1);
   return CreateVisiblePosition(it.EndPosition(), TextAffinity::kUpstream);
+}
+
+// TODO(yosin): We should move |TextControlElement::IndexForVisiblePosition()|
+// to "ax_layout_object.cc" since this function is used only there.
+int TextControlElement::IndexForVisiblePosition(
+    const VisiblePosition& pos) const {
+  Position index_position = pos.DeepEquivalent().ParentAnchoredEquivalent();
+  if (EnclosingTextControl(index_position) != this)
+    return 0;
+  DCHECK(index_position.IsConnected()) << index_position;
+  return TextIterator::RangeLength(Position(InnerEditorElement(), 0),
+                                   index_position);
 }
 
 unsigned TextControlElement::selectionStart() const {
@@ -773,7 +780,7 @@ void TextControlElement::SelectionChanged(bool user_triggered) {
     return;
   const SelectionInDOMTree& selection =
       frame->Selection().GetSelectionInDOMTree();
-  if (!selection.IsRange())
+  if (selection.Type() != kRangeSelection)
     return;
   DispatchEvent(*Event::CreateBubble(event_type_names::kSelect));
 }
@@ -800,13 +807,6 @@ void TextControlElement::ParseAttribute(
     if (HTMLElement* inner_editor = InnerEditorElement()) {
       if (auto* frame = GetDocument().GetFrame())
         frame->GetSpellChecker().RemoveSpellingAndGrammarMarkers(*inner_editor);
-    }
-  } else if (params.name == html_names::kSpellcheckAttr) {
-    if (HTMLElement* inner_editor = InnerEditorElement()) {
-      if (auto* frame = GetDocument().GetFrame()) {
-        frame->GetSpellChecker().RespondToChangedEnablement(
-            *inner_editor, IsSpellCheckingEnabled());
-      }
     }
   } else {
     HTMLFormControlElementWithState::ParseAttribute(params);
@@ -862,7 +862,7 @@ void TextControlElement::SetInnerEditorValue(const String& value) {
     inner_editor->RemoveChild(inner_editor->lastChild(), ASSERT_NO_EXCEPTION);
 
   // We don't use setTextContent.  It triggers unnecessary paint.
-  if (value.empty())
+  if (value.IsEmpty())
     inner_editor->RemoveChildren();
   else
     ReplaceChildrenWithText(inner_editor, value, ASSERT_NO_EXCEPTION);
@@ -933,19 +933,19 @@ String TextControlElement::ValueWithHardLineBreaks() const {
   // problem, it would be best to fix it some day.
   HTMLElement* inner_text = InnerEditorElement();
   if (!inner_text || !IsTextControl())
-    return Value();
+    return value();
 
   auto* layout_object = To<LayoutBlockFlow>(inner_text->GetLayoutObject());
   if (!layout_object)
-    return Value();
+    return value();
 
   if (layout_object->IsLayoutNGObject()) {
     NGInlineCursor cursor(*layout_object);
     if (!cursor)
-      return Value();
+      return value();
     const auto* mapping = NGInlineNode::GetOffsetMapping(layout_object);
     if (!mapping)
-      return Value();
+      return value();
     Position break_position = GetNextSoftBreak(*mapping, cursor);
     StringBuilder result;
     for (Node& node : NodeTraversal::DescendantsOf(*inner_text)) {
@@ -978,7 +978,7 @@ String TextControlElement::ValueWithHardLineBreaks() const {
   unsigned break_offset;
   RootInlineBox* line = layout_object->FirstRootBox();
   if (!line)
-    return Value();
+    return value();
 
   GetNextSoftBreak(line, break_node, break_offset);
 
@@ -1047,32 +1047,31 @@ String TextControlElement::DirectionForFormData() const {
       return dir_attribute_value;
 
     if (EqualIgnoringASCIICase(dir_attribute_value, "auto")) {
-      return element->CachedDirectionality() == TextDirection::kRtl ? "rtl"
-                                                                    : "ltr";
+      bool is_auto;
+      TextDirection text_direction =
+          element->DirectionalityIfhasDirAutoAttribute(is_auto);
+      return text_direction == TextDirection::kRtl ? "rtl" : "ltr";
     }
   }
 
   return "ltr";
 }
 
-void TextControlElement::SetAutofillValue(const String& value,
-                                          WebAutofillState autofill_state) {
+void TextControlElement::SetAutofillValue(const String& value) {
   // Set the value trimmed to the max length of the field and dispatch the input
   // and change events.
-  SetValue(value.Substring(0, maxLength()),
-           TextFieldEventBehavior::kDispatchInputAndChangeEvent,
-           TextControlSetValueSelection::kSetSelectionToEnd,
-           value.empty() ? WebAutofillState::kNotFilled : autofill_state);
+  setValue(value.Substring(0, maxLength()),
+           TextFieldEventBehavior::kDispatchInputAndChangeEvent);
 }
 
 // TODO(crbug.com/772433): Create and use a new suggested-value element instead.
 void TextControlElement::SetSuggestedValue(const String& value) {
   suggested_value_ = value.Substring(0, maxLength());
-  if (!suggested_value_.empty() && !InnerEditorValue().empty()) {
+  if (!suggested_value_.IsEmpty() && !InnerEditorValue().IsEmpty()) {
     // If there is an inner editor value, hide it so the suggested value can be
     // shown to the user.
     InnerEditorElement()->SetVisibility(false);
-  } else if (suggested_value_.empty() && InnerEditorElement()) {
+  } else if (suggested_value_.IsEmpty() && InnerEditorElement()) {
     // If there is no suggested value and there is an InnerEditorElement, reset
     // its visibility.
     InnerEditorElement()->SetVisibility(true);
@@ -1086,7 +1085,7 @@ void TextControlElement::SetSuggestedValue(const String& value) {
 
   UpdatePlaceholderVisibility();
 
-  if (suggested_value_.empty()) {
+  if (suggested_value_.IsEmpty()) {
     // Reset the pseudo-id for placeholders to use the appropriated style
     placeholder->SetShadowPseudoId(
         shadow_element_names::kPseudoInputPlaceholder);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define BASE_TASK_SEQUENCE_MANAGER_TEST_MOCK_TIME_MESSAGE_PUMP_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump.h"
+#include "base/optional.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/time/time.h"
 
@@ -34,8 +34,7 @@ class MockTimeMessagePump : public MessagePump {
   void Run(Delegate* delegate) override;
   void Quit() override;
   void ScheduleWork() override;
-  void ScheduleDelayedWork(
-      const Delegate::NextWorkInfo& next_work_info) override;
+  void ScheduleDelayedWork(const TimeTicks& delayed_work_time) override;
 
   // Returns the time at which the pump would have to wake up to be perform
   // work.
@@ -69,7 +68,7 @@ class MockTimeMessagePump : public MessagePump {
   // another iteration of the DoWork-DoIdleWork-loop.
   bool MaybeAdvanceTime(TimeTicks target_time);
 
-  const raw_ptr<SimpleTestTickClock> clock_;
+  SimpleTestTickClock* const clock_;
   // This flag is set to false when Run should return.
   bool keep_running_ = true;
 

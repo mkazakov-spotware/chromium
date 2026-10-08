@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,6 @@
 #include "content/browser/service_worker/service_worker_info.h"
 #include "content/common/background_fetch/background_fetch_types.h"
 #include "content/common/content_export.h"
-#include "net/base/isolation_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
 #include "third_party/blink/public/mojom/background_fetch/background_fetch.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -32,14 +30,7 @@ namespace background_fetch {
 // after start-up.
 struct CONTENT_EXPORT BackgroundFetchInitializationData {
   BackgroundFetchInitializationData();
-
-  BackgroundFetchInitializationData(const BackgroundFetchInitializationData&) =
-      delete;
-  BackgroundFetchInitializationData& operator=(
-      const BackgroundFetchInitializationData&) = delete;
-
   BackgroundFetchInitializationData(BackgroundFetchInitializationData&&);
-
   ~BackgroundFetchInitializationData();
 
   BackgroundFetchRegistrationId registration_id;
@@ -57,7 +48,7 @@ struct CONTENT_EXPORT BackgroundFetchInitializationData {
   blink::mojom::BackgroundFetchError error =
       blink::mojom::BackgroundFetchError::NONE;
 
-  absl::optional<net::IsolationInfo> isolation_info;
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchInitializationData);
 };
 
 using GetInitializationDataCallback =
@@ -84,10 +75,6 @@ class GetInitializationDataTask : public DatabaseTask {
   GetInitializationDataTask(DatabaseTaskHost* host,
                             GetInitializationDataCallback callback);
 
-  GetInitializationDataTask(const GetInitializationDataTask&) = delete;
-  GetInitializationDataTask& operator=(const GetInitializationDataTask&) =
-      delete;
-
   ~GetInitializationDataTask() override;
 
   // DatabaseTask implementation:
@@ -109,6 +96,8 @@ class GetInitializationDataTask : public DatabaseTask {
 
   base::WeakPtrFactory<GetInitializationDataTask> weak_factory_{
       this};  // Keep as last.
+
+  DISALLOW_COPY_AND_ASSIGN(GetInitializationDataTask);
 };
 
 }  // namespace background_fetch

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,11 @@ class PatternParser;
 namespace mojom {
 class ContentSettingsPatternDataView;
 }
+
+enum class WildcardsInPrimaryPattern {
+  NOT_ALLOWED,
+  ALLOWED,
+};
 }
 
 // A pattern used in content setting rules. See |IsValid| for a description of
@@ -189,15 +194,6 @@ class ContentSettingsPattern {
   // Compares |scheme| against the schemes set by the embedder.
   static bool IsNonWildcardDomainNonPortScheme(base::StringPiece scheme);
 
-  // Convert pattern to domain wildcard pattern. If fail to extract domain from
-  // the pattern, return an invalid pattern.
-  static ContentSettingsPattern ToDomainWildcardPattern(
-      const ContentSettingsPattern& pattern);
-
-  // Convert pattern to host only pattern.
-  static ContentSettingsPattern ToHostOnlyPattern(
-      const ContentSettingsPattern& pattern);
-
   // Constructs an empty pattern. Empty patterns are invalid patterns. Invalid
   // patterns match nothing.
   ContentSettingsPattern();
@@ -210,13 +206,6 @@ class ContentSettingsPattern {
 
   // True if this pattern matches all hosts (i.e. it has a host wildcard).
   bool MatchesAllHosts() const;
-
-  // True if this pattern matches a single origin (i.e. it's the narrowest kind
-  // of a pattern, with no wildcards).
-  bool MatchesSingleOrigin() const;
-
-  // True if this pattern has domain wildcard.
-  bool HasDomainWildcard() const;
 
   // Returns a std::string representation of this pattern.
   std::string ToString() const;
@@ -234,6 +223,9 @@ class ContentSettingsPattern {
   // Compares the pattern with a given |other| pattern and returns the
   // |Relation| of the two patterns.
   Relation Compare(const ContentSettingsPattern& other) const;
+
+  // True if the host in the pattern has a wildcard.
+  bool HasHostWildcards() const;
 
   // Returns true if the pattern and the |other| pattern are identical.
   bool operator==(const ContentSettingsPattern& other) const;

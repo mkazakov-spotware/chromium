@@ -30,15 +30,14 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_DOM_TREE_ORDERED_LIST_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_DOM_TREE_ORDERED_LIST_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_linked_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/list_hash_set.h"
 
 namespace blink {
 
 class Node;
 
-class CORE_EXPORT TreeOrderedList final {
+class TreeOrderedList final {
   DISALLOW_NEW();
 
  public:
@@ -48,14 +47,14 @@ class CORE_EXPORT TreeOrderedList final {
 
   void Add(Node*);
   void Remove(const Node*);
-  bool IsEmpty() const { return nodes_.empty(); }
+  bool IsEmpty() const { return nodes_.IsEmpty(); }
   void Clear() { nodes_.clear(); }
   wtf_size_t size() const { return nodes_.size(); }
 
-  using iterator = HeapLinkedHashSet<Member<Node>>::iterator;
-  using const_iterator = HeapLinkedHashSet<Member<Node>>::const_iterator;
+  using iterator = HeapListHashSet<Member<Node>, 32>::iterator;
+  using const_iterator = HeapListHashSet<Member<Node>, 32>::const_iterator;
   using const_reverse_iterator =
-      HeapLinkedHashSet<Member<Node>>::const_reverse_iterator;
+      HeapListHashSet<Member<Node>, 32>::const_reverse_iterator;
 
   iterator begin() { return nodes_.begin(); }
   iterator end() { return nodes_.end(); }
@@ -68,9 +67,9 @@ class CORE_EXPORT TreeOrderedList final {
   void Trace(Visitor*) const;
 
  private:
-  HeapLinkedHashSet<Member<Node>> nodes_;
+  HeapListHashSet<Member<Node>, 32> nodes_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_DOM_TREE_ORDERED_LIST_H_
+#endif

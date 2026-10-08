@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,10 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "components/subresource_filter/content/common/ruleset_dealer.h"
 
 namespace base {
@@ -38,10 +38,6 @@ enum class RulesetVerificationStatus {
   kMaxValue = kInvalidFile,
 };
 
-// The unique_ptr ensures that the file is always closed on the proper task
-// runner. See crbug.com/1182000
-using RulesetFilePtr = std::unique_ptr<base::File, base::OnTaskRunnerDeleter>;
-
 // This class is the same as RulesetDealer, but additionally does a one-time
 // integrity checking on the ruleset before handing it out from GetRuleset().
 //
@@ -53,10 +49,6 @@ class VerifiedRulesetDealer : public RulesetDealer {
   class Handle;
 
   VerifiedRulesetDealer();
-
-  VerifiedRulesetDealer(const VerifiedRulesetDealer&) = delete;
-  VerifiedRulesetDealer& operator=(const VerifiedRulesetDealer&) = delete;
-
   ~VerifiedRulesetDealer() override;
 
   // RulesetDealer:
@@ -66,10 +58,9 @@ class VerifiedRulesetDealer : public RulesetDealer {
   // Opens file and use it as ruleset file on success. Returns valid
   // |base::File| in the case of file opened and set. Returns invalid
   // |base::File| in the case of file open error. In the case of error
-  // ruleset dealer continues to use the previous file (if any). In both
-  // cases, the returned unique_ptr contains a non-null |base::File|.
-  RulesetFilePtr OpenAndSetRulesetFile(int expected_checksum,
-                                       const base::FilePath& file_path);
+  // ruleset dealer continues to use the previous file (if any).
+  base::File OpenAndSetRulesetFile(int expected_checksum,
+                                   const base::FilePath& file_path);
 
   // For tests only.
   RulesetVerificationStatus status() const { return status_; }
@@ -78,6 +69,8 @@ class VerifiedRulesetDealer : public RulesetDealer {
   RulesetVerificationStatus status_ = RulesetVerificationStatus::kNotVerified;
   // Associated with the current |ruleset_file_|;
   int expected_checksum_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(VerifiedRulesetDealer);
 };
 
 // The UI-thread handle that owns a VerifiedRulesetDealer living on a dedicated
@@ -88,10 +81,6 @@ class VerifiedRulesetDealer::Handle {
   // Creates a VerifiedRulesetDealer that is owned by this handle, accessed
   // through this handle, but lives on |task_runner|.
   explicit Handle(scoped_refptr<base::SequencedTaskRunner> task_runner);
-
-  Handle(const Handle&) = delete;
-  Handle& operator=(const Handle&) = delete;
-
   ~Handle();
 
   // Returns the |task_runner| on which the VerifiedRulesetDealer, as well as
@@ -107,18 +96,18 @@ class VerifiedRulesetDealer::Handle {
   // Schedules file open to use as a new ruleset file. In the case of success,
   // the new and valid |base::File| is passed to |callback|. In the case of
   // error an invalid |base::File| is passed to |callback| and dealer continues
-  // to use previous ruleset file (if any). In either case, the unique_ptr
-  // supplied to the callback contains a non-null |base::File|.
-  void TryOpenAndSetRulesetFile(
-      const base::FilePath& path,
-      int expected_checksum,
-      base::OnceCallback<void(RulesetFilePtr)> callback);
+  // to use previous ruleset file (if any).
+  void TryOpenAndSetRulesetFile(const base::FilePath& path,
+                                int expected_checksum,
+                                base::OnceCallback<void(base::File)> callback);
 
  private:
   // Note: Raw pointer, |dealer_| already holds a reference to |task_runner_|.
-  raw_ptr<base::SequencedTaskRunner, DanglingUntriaged> task_runner_;
+  base::SequencedTaskRunner* task_runner_;
   std::unique_ptr<VerifiedRulesetDealer, base::OnTaskRunnerDeleter> dealer_;
-  SEQUENCE_CHECKER(sequence_checker_);
+  base::SequenceChecker sequence_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(Handle);
 };
 
 // Holds a strong reference to MemoryMappedRuleset, and provides acceess to it.
@@ -132,16 +121,12 @@ class VerifiedRuleset {
   class Handle;
 
   VerifiedRuleset();
-
-  VerifiedRuleset(const VerifiedRuleset&) = delete;
-  VerifiedRuleset& operator=(const VerifiedRuleset&) = delete;
-
   ~VerifiedRuleset();
 
   // Can return nullptr even after initialization in case no ruleset is
   // available, or if the ruleset is corrupted.
   const MemoryMappedRuleset* Get() const {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    DCHECK(sequence_checker_.CalledOnValidSequence());
     return ruleset_.get();
   }
 
@@ -150,7 +135,9 @@ class VerifiedRuleset {
   void Initialize(VerifiedRulesetDealer* dealer);
 
   scoped_refptr<const MemoryMappedRuleset> ruleset_;
-  SEQUENCE_CHECKER(sequence_checker_);
+  base::SequenceChecker sequence_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(VerifiedRuleset);
 };
 
 // The UI-thread handle that owns a VerifiedRuleset living on a dedicated
@@ -162,10 +149,6 @@ class VerifiedRuleset::Handle {
   // |task_runner| using |dealer_handle|. The instance remains owned by this
   // handle, but living and accessed on the |task_runner|.
   explicit Handle(VerifiedRulesetDealer::Handle* dealer_handle);
-
-  Handle(const Handle&) = delete;
-  Handle& operator=(const Handle&) = delete;
-
   ~Handle();
 
   // Returns the |task_runner| on which the VerifiedRuleset, as well as the
@@ -182,9 +165,11 @@ class VerifiedRuleset::Handle {
   friend class AsyncDocumentSubresourceFilter;
 
   // Note: Raw pointer, |ruleset_| already holds a reference to |task_runner_|.
-  raw_ptr<base::SequencedTaskRunner, DanglingUntriaged> task_runner_;
+  base::SequencedTaskRunner* task_runner_;
   std::unique_ptr<VerifiedRuleset, base::OnTaskRunnerDeleter> ruleset_;
-  SEQUENCE_CHECKER(sequence_checker_);
+  base::SequenceChecker sequence_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(Handle);
 };
 
 }  // namespace subresource_filter

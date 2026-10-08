@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,14 +22,10 @@ class GPUBindGroupLayout : public DawnObject<WGPUBindGroupLayout> {
       ExceptionState& exception_state);
   explicit GPUBindGroupLayout(GPUDevice* device,
                               WGPUBindGroupLayout bind_group_layout);
+  ~GPUBindGroupLayout() override;
 
-  GPUBindGroupLayout(const GPUBindGroupLayout&) = delete;
-  GPUBindGroupLayout& operator=(const GPUBindGroupLayout&) = delete;
-
-  void setLabelImpl(const String& value) override {
-    std::string utf8_label = value.Utf8();
-    GetProcs().bindGroupLayoutSetLabel(GetHandle(), utf8_label.c_str());
-  }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GPUBindGroupLayout);
 };
 
 }  // namespace blink

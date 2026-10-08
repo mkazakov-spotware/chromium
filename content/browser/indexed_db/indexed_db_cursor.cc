@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,12 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/notreached.h"
-#include "base/trace_event/base_tracing.h"
-#include "components/services/storage/public/cpp/buckets/bucket_locator.h"
+#include "base/task/post_task.h"
 #include "content/browser/indexed_db/indexed_db_callback_helpers.h"
 #include "content/browser/indexed_db/indexed_db_callbacks.h"
 #include "content/browser/indexed_db/indexed_db_context_impl.h"
 #include "content/browser/indexed_db/indexed_db_database_error.h"
+#include "content/browser/indexed_db/indexed_db_tracing.h"
 #include "content/browser/indexed_db/indexed_db_transaction.h"
 #include "content/browser/indexed_db/indexed_db_value.h"
 #include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom.h"
@@ -52,15 +52,14 @@ IndexedDBCursor::IndexedDBCursor(
     indexed_db::CursorType cursor_type,
     blink::mojom::IDBTaskType task_type,
     base::WeakPtr<IndexedDBTransaction> transaction)
-    : bucket_locator_(transaction->BackingStoreTransaction()
-                          ->backing_store()
-                          ->bucket_locator()),
+    : origin_(
+          transaction->BackingStoreTransaction()->backing_store()->origin()),
       task_type_(task_type),
       cursor_type_(cursor_type),
       transaction_(std::move(transaction)),
       cursor_(std::move(cursor)),
       closed_(false) {
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("IndexedDB", "IndexedDBCursor::open", this);
+  IDB_ASYNC_TRACE_BEGIN("IndexedDBCursor::open", this);
 }
 
 IndexedDBCursor::~IndexedDBCursor() {
@@ -72,7 +71,7 @@ void IndexedDBCursor::Advance(
     uint32_t count,
     base::WeakPtr<content::IndexedDBDispatcherHost> dispatcher_host,
     blink::mojom::IDBCursor::AdvanceCallback callback) {
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::Advance");
+  IDB_TRACE("IndexedDBCursor::Advance");
 
   if (!transaction_)
     Close();
@@ -100,7 +99,7 @@ leveldb::Status IndexedDBCursor::CursorAdvanceOperation(
     base::WeakPtr<IndexedDBDispatcherHost> dispatcher_host,
     blink::mojom::IDBCursor::AdvanceCallback callback,
     IndexedDBTransaction* /*transaction*/) {
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::CursorAdvanceOperation");
+  IDB_TRACE("IndexedDBCursor::CursorAdvanceOperation");
   leveldb::Status s = leveldb::Status::OK();
   if (!dispatcher_host)
     return s;
@@ -129,7 +128,7 @@ leveldb::Status IndexedDBCursor::CursorAdvanceOperation(
   if (value) {
     mojo_value = IndexedDBValue::ConvertAndEraseValue(value);
     external_objects.swap(value->external_objects);
-    dispatcher_host->CreateAllExternalObjects(bucket_locator_, external_objects,
+    dispatcher_host->CreateAllExternalObjects(origin_, external_objects,
                                               &mojo_value->external_objects);
   } else {
     mojo_value = blink::mojom::IDBValue::New();
@@ -150,7 +149,7 @@ void IndexedDBCursor::Continue(
     std::unique_ptr<IndexedDBKey> key,
     std::unique_ptr<IndexedDBKey> primary_key,
     blink::mojom::IDBCursor::CursorContinueCallback callback) {
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::Continue");
+  IDB_TRACE("IndexedDBCursor::Continue");
   if (!transaction_)
     Close();
   if (closed_) {
@@ -169,8 +168,8 @@ void IndexedDBCursor::Continue(
       task_type_,
       BindWeakOperation<IndexedDBCursor>(
           &IndexedDBCursor::CursorContinueOperation, ptr_factory_.GetWeakPtr(),
-          std::move(dispatcher_host), std::move(key), std::move(primary_key),
-          std::move(aborting_callback)));
+          std::move(dispatcher_host), base::Passed(&key),
+          base::Passed(&primary_key), std::move(aborting_callback)));
 }
 
 leveldb::Status IndexedDBCursor::CursorContinueOperation(
@@ -179,7 +178,7 @@ leveldb::Status IndexedDBCursor::CursorContinueOperation(
     std::unique_ptr<IndexedDBKey> primary_key,
     blink::mojom::IDBCursor::CursorContinueCallback callback,
     IndexedDBTransaction* /*transaction*/) {
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::CursorContinueOperation");
+  IDB_TRACE("IndexedDBCursor::CursorContinueOperation");
   leveldb::Status s = leveldb::Status::OK();
   if (!dispatcher_host)
     return s;
@@ -210,7 +209,7 @@ leveldb::Status IndexedDBCursor::CursorContinueOperation(
   if (value) {
     mojo_value = IndexedDBValue::ConvertAndEraseValue(value);
     external_objects.swap(value->external_objects);
-    dispatcher_host->CreateAllExternalObjects(bucket_locator_, external_objects,
+    dispatcher_host->CreateAllExternalObjects(origin_, external_objects,
                                               &mojo_value->external_objects);
   } else {
     mojo_value = blink::mojom::IDBValue::New();
@@ -230,7 +229,7 @@ void IndexedDBCursor::PrefetchContinue(
     base::WeakPtr<IndexedDBDispatcherHost> dispatcher_host,
     int number_to_fetch,
     blink::mojom::IDBCursor::PrefetchCallback callback) {
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::PrefetchContinue");
+  IDB_TRACE("IndexedDBCursor::PrefetchContinue");
 
   if (!transaction_)
     Close();
@@ -258,8 +257,7 @@ leveldb::Status IndexedDBCursor::CursorPrefetchIterationOperation(
     int number_to_fetch,
     blink::mojom::IDBCursor::PrefetchCallback callback,
     IndexedDBTransaction* /*transaction*/) {
-  TRACE_EVENT0("IndexedDB",
-               "IndexedDBCursor::CursorPrefetchIterationOperation");
+  IDB_TRACE("IndexedDBCursor::CursorPrefetchIterationOperation");
   leveldb::Status s = leveldb::Status::OK();
   if (!dispatcher_host)
     return s;
@@ -338,7 +336,7 @@ leveldb::Status IndexedDBCursor::CursorPrefetchIterationOperation(
     mojo_values.push_back(
         IndexedDBValue::ConvertAndEraseValue(&found_values[i]));
     dispatcher_host->CreateAllExternalObjects(
-        bucket_locator_, found_values[i].external_objects,
+        origin_, found_values[i].external_objects,
         &mojo_values[i]->external_objects);
   }
 
@@ -351,7 +349,7 @@ leveldb::Status IndexedDBCursor::CursorPrefetchIterationOperation(
 
 leveldb::Status IndexedDBCursor::PrefetchReset(int used_prefetches,
                                                int /* unused_prefetches */) {
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::PrefetchReset");
+  IDB_TRACE("IndexedDBCursor::PrefetchReset");
   cursor_.swap(saved_cursor_);
   saved_cursor_.reset();
   leveldb::Status s;
@@ -381,8 +379,8 @@ void IndexedDBCursor::RemoveBinding() {
 void IndexedDBCursor::Close() {
   if (closed_)
     return;
-  TRACE_EVENT_NESTABLE_ASYNC_END0("IndexedDB", "IndexedDBCursor::open", this);
-  TRACE_EVENT0("IndexedDB", "IndexedDBCursor::Close");
+  IDB_ASYNC_TRACE_END("IndexedDBCursor::open", this);
+  IDB_TRACE("IndexedDBCursor::Close");
   closed_ = true;
   cursor_.reset();
   saved_cursor_.reset();

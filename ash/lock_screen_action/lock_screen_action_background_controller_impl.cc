@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,8 +85,7 @@ void LockScreenActionBackgroundControllerImpl::OnWidgetDestroyed(
     views::Widget* widget) {
   if (widget != background_widget_)
     return;
-  DCHECK(widget_observation_.IsObservingSource(widget));
-  widget_observation_.Reset();
+  widget_observer_.Remove(widget);
 
   background_widget_ = nullptr;
   contents_view_ = nullptr;
@@ -108,7 +107,7 @@ views::Widget* LockScreenActionBackgroundControllerImpl::CreateWidget() {
   views::Widget* widget = new views::Widget();
   widget->Init(std::move(params));
   widget->SetVisibilityChangedAnimationsEnabled(false);
-  widget_observation_.Observe(widget);
+  widget_observer_.Add(widget);
 
   return widget;
 }

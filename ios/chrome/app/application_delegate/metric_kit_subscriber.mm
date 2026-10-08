@@ -1,28 +1,25 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/app/application_delegate/metric_kit_subscriber.h"
 
-#import "base/files/file_path.h"
-#import "base/files/file_util.h"
-#import "base/metrics/histogram_base.h"
-#import "base/metrics/histogram_functions.h"
-#import "base/numerics/safe_conversions.h"
-#import "base/path_service.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/task/task_traits.h"
-#import "base/task/thread_pool.h"
-#import "base/version.h"
-#import "components/crash/core/app/crashpad.h"
-#import "components/crash/core/common/reporter_running_ios.h"
-#import "components/previous_session_info/previous_session_info.h"
-#import "components/version_info/version_info.h"
-#import "ios/chrome/browser/crash_report/features.h"
+#include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/metrics/histogram_base.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/numerics/safe_conversions.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/task/task_traits.h"
+#include "base/task/thread_pool.h"
+#include "base/version.h"
+#include "components/version_info/version_info.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+NSString* const kChromeMetricKitPayloadsDirectory = @"ChromeMetricKitPayloads";
 
 // The different causes of app exit as reported by MetricKit.
 // This enum is used in UMA. Do not change the order.
@@ -47,6 +44,9 @@ enum MetricKitExitReason {
 
 namespace {
 
+NSString* const kEnableMetricKit = @"EnableMetricKit";
+
+#if defined(__IPHONE_14_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_14_0
 void ReportExitReason(base::HistogramBase* histogram,
                       MetricKitExitReason bucket,
                       NSUInteger count) {
@@ -55,22 +55,24 @@ void ReportExitReason(base::HistogramBase* histogram,
   }
   histogram->AddCount(bucket, count);
 }
+#endif
 
-void ReportLongDuration(const std::string& histogram_name,
-                        NSMeasurement* measurement) {
+void ReportLongDuration(const char* histogram_name, NSMeasurement* measurement)
+    API_AVAILABLE(ios(13.0)) {
   if (!measurement) {
     return;
   }
   double value =
       [measurement measurementByConvertingToUnit:NSUnitDuration.seconds]
           .doubleValue;
-  base::UmaHistogramCustomTimes(histogram_name, base::Seconds(value),
-                                base::Seconds(1),
-                                base::Seconds(86400 /* secs per day */), 50);
+  base::UmaHistogramCustomTimes(
+      histogram_name, base::TimeDelta::FromSecondsD(value),
+      base::TimeDelta::FromSeconds(1),
+      base::TimeDelta::FromSeconds(86400 /* secs per day */), 50);
 }
 
-void ReportMemory(const std::string& histogram_name,
-                  NSMeasurement* measurement) {
+void ReportMemory(const char* histogram_name, NSMeasurement* measurement)
+    API_AVAILABLE(ios(13.0)) {
   if (!measurement) {
     return;
   }
@@ -81,73 +83,65 @@ void ReportMemory(const std::string& histogram_name,
   base::UmaHistogramMemoryLargeMB(histogram_name, value);
 }
 
-void SendDiagnostic(MXDiagnostic* diagnostic, const std::string& type) {
-  base::FilePath cache_dir_path;
-  if (!base::PathService::Get(base::DIR_CACHE, &cache_dir_path)) {
+void WriteMetricPayloads(NSArray<MXMetricPayload*>* payloads)
+    API_AVAILABLE(ios(13.0)) {
+  NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                       NSUserDomainMask, YES);
+  NSString* documents_directory = [paths objectAtIndex:0];
+  NSString* metric_kit_report_directory = [documents_directory
+      stringByAppendingPathComponent:kChromeMetricKitPayloadsDirectory];
+  base::FilePath metric_kit_report_path(
+      base::SysNSStringToUTF8(metric_kit_report_directory));
+  if (!base::CreateDirectory(metric_kit_report_path)) {
     return;
   }
+  NSDateFormatter* formatter = [[NSDateFormatter alloc] init];
+  [formatter setDateFormat:@"yyyyMMdd_HHmmss"];
+  [formatter setTimeZone:[NSTimeZone timeZoneWithName:@"UTC"]];
+  for (MXMetricPayload* payload : payloads) {
+    NSDate* end_date = payload.timeStampEnd;
+    NSString* file_name =
+        [NSString stringWithFormat:@"Metrics-%@.json",
+                                   [formatter stringFromDate:end_date]];
+    base::FilePath file_path(
+        base::SysNSStringToUTF8([metric_kit_report_directory
+            stringByAppendingPathComponent:file_name]));
+    NSData* file_data = payload.JSONRepresentation;
+    base::WriteFile(file_path, static_cast<const char*>(file_data.bytes),
+                    file_data.length);
+  }
+}
 
-  // Deflate the payload.
-  NSError* error = nil;
-  NSData* payload = [diagnostic.JSONRepresentation
-      compressedDataUsingAlgorithm:NSDataCompressionAlgorithmZlib
-                             error:&error];
-  if (!payload) {
+#if defined(__IPHONE_14_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_14_0
+void WriteDiagnosticPayloads(NSArray<MXDiagnosticPayload*>* payloads)
+    API_AVAILABLE(ios(14.0)) {
+  NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                       NSUserDomainMask, YES);
+  NSString* documents_directory = [paths objectAtIndex:0];
+  NSString* metric_kit_report_directory = [documents_directory
+      stringByAppendingPathComponent:kChromeMetricKitPayloadsDirectory];
+  base::FilePath metric_kit_report_path(
+      base::SysNSStringToUTF8(metric_kit_report_directory));
+  if (!base::CreateDirectory(metric_kit_report_path)) {
     return;
   }
-
-  if (crash_reporter::IsCrashpadRunning()) {
-    base::span<const uint8_t> spanpayload(
-        reinterpret_cast<const uint8_t*>(payload.bytes), payload.length);
-
-    std::map<std::string, std::string> override_annotations = {
-        {"ver",
-         base::SysNSStringToUTF8(diagnostic.metaData.applicationBuildVersion)},
-        {"metrickit", "true"},
-        {"metrickit_type", type}};
-    PreviousSessionInfo* previous_session =
-        [PreviousSessionInfo sharedInstance];
-    for (NSString* key in previous_session.reportParameters.allKeys) {
-      override_annotations.insert(
-          {base::SysNSStringToUTF8(key),
-           base::SysNSStringToUTF8(previous_session.reportParameters[key])});
-    }
-
-    crash_reporter::ProcessExternalDump("MetricKit", spanpayload,
-                                        override_annotations);
+  NSDateFormatter* formatter = [[NSDateFormatter alloc] init];
+  [formatter setDateFormat:@"yyyyMMdd_HHmmss"];
+  [formatter setTimeZone:[NSTimeZone timeZoneWithName:@"UTC"]];
+  for (MXDiagnosticPayload* payload : payloads) {
+    NSDate* end_date = payload.timeStampEnd;
+    NSString* file_name =
+        [NSString stringWithFormat:@"Diagnostic-%@.json",
+                                   [formatter stringFromDate:end_date]];
+    base::FilePath file_path(
+        base::SysNSStringToUTF8([metric_kit_report_directory
+            stringByAppendingPathComponent:file_name]));
+    NSData* file_data = payload.JSONRepresentation;
+    base::WriteFile(file_path, static_cast<const char*>(file_data.bytes),
+                    file_data.length);
   }
 }
-
-void ProcessDiagnosticPayloads(NSArray<MXDiagnosticPayload*>* payloads) {
-  for (MXDiagnosticPayload* payload in payloads) {
-    for (MXCrashDiagnostic* diagnostic in payload.crashDiagnostics) {
-      SendDiagnostic(diagnostic, "crash");
-    }
-    if (base::FeatureList::IsEnabled(kMetrickitNonCrashReport)) {
-      for (MXCPUExceptionDiagnostic* diagnostic in payload
-               .cpuExceptionDiagnostics) {
-        SendDiagnostic(diagnostic, "cpu-exception");
-      }
-      for (MXHangDiagnostic* diagnostic in payload.hangDiagnostics) {
-        SendDiagnostic(diagnostic, "hang");
-      }
-      for (MXDiskWriteExceptionDiagnostic* diagnostic in payload
-               .diskWriteExceptionDiagnostics) {
-        SendDiagnostic(diagnostic, "diskwrite-exception");
-      }
-    }
-  }
-}
-
-// Record MXPayload data even when the version is mismatched.
-const char kHistogramPrefixIncludingMismatch[] =
-    "IOS.MetricKit.IncludingMismatch.";
-const char kHistogramPrefix[] = "IOS.MetricKit.";
-
-std::string HistogramPrefix(bool include_mismatch) {
-  return include_mismatch ? kHistogramPrefixIncludingMismatch
-                          : kHistogramPrefix;
-}
+#endif
 
 }  // namespace
 
@@ -170,29 +164,43 @@ std::string HistogramPrefix(bool include_mismatch) {
   }
 }
 
-- (void)didReceiveMetricPayloads:(NSArray<MXMetricPayload*>*)payloads {
+- (void)didReceiveMetricPayloads:(NSArray<MXMetricPayload*>*)payloads
+    API_AVAILABLE(ios(13.0)) {
+  NSUserDefaults* standard_defaults = [NSUserDefaults standardUserDefaults];
+  if ([standard_defaults boolForKey:kEnableMetricKit]) {
+    base::ThreadPool::PostTask(
+        FROM_HERE,
+        {base::TaskPriority::BEST_EFFORT,
+         base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN,
+         base::ThreadPolicy::PREFER_BACKGROUND, base::MayBlock()},
+        base::BindOnce(WriteMetricPayloads, payloads));
+  }
   for (MXMetricPayload* payload : payloads) {
     [self processPayload:payload];
   }
 }
 
 - (void)logStartupDurationMXHistogram:(MXHistogram*)histogram
-                       toUMAHistogram:(const std::string&)histogramUMAName {
+                       toUMAHistogram:(const char*)histogramUMAName
+    API_AVAILABLE(ios(13.0)) {
   if (!histogram || !histogram.totalBucketCount) {
     return;
   }
   // It should take less than 1 minute to startup.
   // Histogram is defined in millisecond granularity.
   base::HistogramBase* histogramUMA = base::Histogram::FactoryTimeGet(
-      histogramUMAName, base::Milliseconds(1), base::Minutes(1), 50,
+      histogramUMAName, base::TimeDelta::FromMilliseconds(1),
+      base::TimeDelta::FromMinutes(1), 50,
       base::HistogramBase::kUmaTargetedHistogramFlag);
-  for (MXHistogramBucket* bucket in [histogram bucketEnumerator]) {
+  MXHistogramBucket* bucket;
+  NSEnumerator* enumerator = [histogram bucketEnumerator];
+  while (bucket = [enumerator nextObject]) {
     // MXHistogram structure is linear and the bucket size is not guaranteed to
     // never change. As the granularity is small in the current iOS version,
     // (10ms) they are reported using a representative value of the bucket.
     // DCHECK on the size of the bucket to detect if the resolution decrease.
 
-    // Time based MXHistogram report their values using `UnitDuration` which has
+    // Time based MXHistogram report their values using |UnitDuration| which has
     // seconds as base unit. Hence, start and end are given in seconds.
     double start =
         [bucket.bucketStart
@@ -212,10 +220,11 @@ std::string HistogramPrefix(bool include_mismatch) {
   }
 }
 
+#if defined(__IPHONE_14_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_14_0
 - (void)logForegroundExit:(MXForegroundExitData*)exitData
-          histogramPrefix:(const std::string&)prefix {
+    API_AVAILABLE(ios(14.0)) {
   base::HistogramBase* histogramUMA = base::LinearHistogram::FactoryGet(
-      prefix + "ForegroundExitData", 1, kMetricKitExitReasonCount,
+      "IOS.MetricKit.ForegroundExitData", 1, kMetricKitExitReasonCount,
       kMetricKitExitReasonCount + 1,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   ReportExitReason(histogramUMA, kNormalAppExit,
@@ -233,9 +242,9 @@ std::string HistogramPrefix(bool include_mismatch) {
 }
 
 - (void)logBackgroundExit:(MXBackgroundExitData*)exitData
-          histogramPrefix:(const std::string&)prefix {
+    API_AVAILABLE(ios(14.0)) {
   base::HistogramBase* histogramUMA = base::LinearHistogram::FactoryGet(
-      prefix + "BackgroundExitData", 1, kMetricKitExitReasonCount,
+      "IOS.MetricKit.BackgroundExitData", 1, kMetricKitExitReasonCount,
       kMetricKitExitReasonCount + 1,
       base::HistogramBase::kUmaTargetedHistogramFlag);
   ReportExitReason(histogramUMA, kNormalAppExit,
@@ -259,55 +268,68 @@ std::string HistogramPrefix(bool include_mismatch) {
   ReportExitReason(histogramUMA, kBackgroundTaskAssertionTimeoutExit,
                    exitData.cumulativeBackgroundTaskAssertionTimeoutExitCount);
 }
+#endif
 
-- (void)processPayload:(MXMetricPayload*)payload {
-  if (!payload.includesMultipleApplicationVersions &&
-      base::SysNSStringToUTF8(payload.metaData.applicationBuildVersion) ==
-          version_info::GetVersionNumber()) {
-    [self processPayload:payload withHistogramPrefix:HistogramPrefix(false)];
+- (void)processPayload:(MXMetricPayload*)payload API_AVAILABLE(ios(13.0)) {
+  // TODO(crbug.com/1140474): See related bug for why |bundleVersion| comes from
+  // mainBundle instead of from version_info::GetVersionNumber(). Remove once
+  // iOS 14.2 reaches mass adoption.
+  NSString* bundleVersion =
+      [[NSBundle mainBundle] infoDictionary][(NSString*)kCFBundleVersionKey];
+  if (payload.includesMultipleApplicationVersions ||
+      base::SysNSStringToUTF8(payload.metaData.applicationBuildVersion) !=
+          base::SysNSStringToUTF8(bundleVersion)) {
+    // The metrics will be reported on the current version of Chrome.
+    // Ignore any report that contains data from another version to avoid
+    // confusion.
+    return;
   }
-  [self processPayload:payload withHistogramPrefix:HistogramPrefix(true)];
-}
 
-- (void)processPayload:(MXMetricPayload*)payload
-    withHistogramPrefix:(const std::string&)prefix {
-  ReportLongDuration(prefix + "ForegroundTimePerDay",
+  ReportLongDuration("IOS.MetricKit.ForegroundTimePerDay",
                      payload.applicationTimeMetrics.cumulativeForegroundTime);
-  ReportLongDuration(prefix + "BackgroundTimePerDay",
+  ReportLongDuration("IOS.MetricKit.BackgroundTimePerDay",
                      payload.applicationTimeMetrics.cumulativeBackgroundTime);
-  ReportMemory(prefix + "AverageSuspendedMemory",
+  ReportMemory("IOS.MetricKit.AverageSuspendedMemory",
                payload.memoryMetrics.averageSuspendedMemory.averageMeasurement);
-  ReportMemory(prefix + "PeakMemoryUsage",
+  ReportMemory("IOS.MetricKit.PeakMemoryUsage",
                payload.memoryMetrics.peakMemoryUsage);
 
   MXHistogram* histogrammedApplicationResumeTime =
       payload.applicationLaunchMetrics.histogrammedApplicationResumeTime;
   [self logStartupDurationMXHistogram:histogrammedApplicationResumeTime
-                       toUMAHistogram:prefix + "ApplicationResumeTime"];
+                       toUMAHistogram:"IOS.MetricKit.ApplicationResumeTime"];
 
   MXHistogram* histogrammedTimeToFirstDraw =
       payload.applicationLaunchMetrics.histogrammedTimeToFirstDraw;
   [self logStartupDurationMXHistogram:histogrammedTimeToFirstDraw
-                       toUMAHistogram:prefix + "TimeToFirstDraw"];
+                       toUMAHistogram:"IOS.MetricKit.TimeToFirstDraw"];
 
   MXHistogram* histogrammedApplicationHangTime =
       payload.applicationResponsivenessMetrics.histogrammedApplicationHangTime;
   [self logStartupDurationMXHistogram:histogrammedApplicationHangTime
-                       toUMAHistogram:prefix + "ApplicationHangTime"];
+                       toUMAHistogram:"IOS.MetricKit.ApplicationHangTime"];
 
-  [self logForegroundExit:payload.applicationExitMetrics.foregroundExitData
-          histogramPrefix:prefix];
-  [self logBackgroundExit:payload.applicationExitMetrics.backgroundExitData
-          histogramPrefix:prefix];
+#if defined(__IPHONE_14_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_14_0
+  if (@available(iOS 14, *)) {
+    [self logForegroundExit:payload.applicationExitMetrics.foregroundExitData];
+    [self logBackgroundExit:payload.applicationExitMetrics.backgroundExitData];
+  }
+#endif
 }
 
-- (void)didReceiveDiagnosticPayloads:(NSArray<MXDiagnosticPayload*>*)payloads {
-  base::ThreadPool::PostTask(
-      FROM_HERE,
-      {base::TaskPriority::BEST_EFFORT,
-       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN,
-       base::ThreadPolicy::PREFER_BACKGROUND, base::MayBlock()},
-      base::BindOnce(ProcessDiagnosticPayloads, payloads));
+#if defined(__IPHONE_14_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_14_0
+- (void)didReceiveDiagnosticPayloads:(NSArray<MXDiagnosticPayload*>*)payloads
+    API_AVAILABLE(ios(14.0)) {
+  NSUserDefaults* standard_defaults = [NSUserDefaults standardUserDefaults];
+  if ([standard_defaults boolForKey:kEnableMetricKit]) {
+    base::ThreadPool::PostTask(
+        FROM_HERE,
+        {base::TaskPriority::BEST_EFFORT,
+         base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN,
+         base::ThreadPolicy::PREFER_BACKGROUND, base::MayBlock()},
+        base::BindOnce(WriteDiagnosticPayloads, payloads));
+  }
 }
+#endif
 
 @end

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "media/cast/logging/logging_defines.h"
 #include "media/cast/logging/proto/raw_events.pb.h"
@@ -55,9 +56,6 @@ class EncodingEventSubscriber final : public RawEventSubscriber {
   // If so, it will remove the oldest aggregated entry (ordered by RTP
   // timestamp).
   EncodingEventSubscriber(EventMediaType event_media_type, size_t max_frames);
-
-  EncodingEventSubscriber(const EncodingEventSubscriber&) = delete;
-  EncodingEventSubscriber& operator=(const EncodingEventSubscriber&) = delete;
 
   ~EncodingEventSubscriber() final;
 
@@ -128,6 +126,8 @@ class EncodingEventSubscriber final : public RawEventSubscriber {
 
   // Set to RTP timestamp of first event encountered after a |Reset()|.
   RtpTimeTicks first_rtp_timestamp_;
+
+  DISALLOW_COPY_AND_ASSIGN(EncodingEventSubscriber);
 };
 
 }  // namespace cast

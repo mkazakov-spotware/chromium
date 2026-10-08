@@ -1,16 +1,9 @@
-include_rules = [
-  "+cc/metrics",
-]
-
 specific_include_rules = {
   "ambient_backend_controller_impl\.*": [
     "+chromeos/assistant/internal/ambient/backdrop_client_config.h",
-    "+chromeos/assistant/internal/proto/backdrop",
+    "+chromeos/assistant/internal/proto/google3/backdrop/backdrop.pb.h",
   ],
-  "ambient_controller.*": [
-    "+chromeos/ash/components/assistant/buildflags.h",
-  ],
-  ".*test.cc": [
-    "+cc/test",
+  "ambient_controller.cc": [
+    "+chromeos/assistant/buildflags.h",
   ],
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/api_resource_manager.h"
 #include "extensions/browser/api/sockets_udp/sockets_udp_api.h"
@@ -28,7 +27,9 @@ namespace api {
 
 // Dispatch events related to "sockets.udp" sockets from callback on native
 // socket instances. There is one instance per profile.
-class UDPSocketEventDispatcher : public BrowserContextKeyedAPI {
+class UDPSocketEventDispatcher
+    : public BrowserContextKeyedAPI,
+      public base::SupportsWeakPtr<UDPSocketEventDispatcher> {
  public:
   explicit UDPSocketEventDispatcher(content::BrowserContext* context);
   ~UDPSocketEventDispatcher() override;
@@ -62,7 +63,7 @@ class UDPSocketEventDispatcher : public BrowserContextKeyedAPI {
     ~ReceiveParams();
 
     content::BrowserThread::ID thread_id;
-    raw_ptr<void> browser_context_id;
+    void* browser_context_id;
     std::string extension_id;
     scoped_refptr<SocketData> sockets;
     int socket_id;
@@ -90,7 +91,7 @@ class UDPSocketEventDispatcher : public BrowserContextKeyedAPI {
 
   // Usually IO thread (except for unit testing).
   content::BrowserThread::ID thread_id_;
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
   scoped_refptr<SocketData> sockets_;
 };
 

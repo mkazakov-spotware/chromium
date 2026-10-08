@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,9 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/component_updater/sw_reporter_installer_win.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
@@ -46,6 +46,7 @@
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "extensions/browser/extension_registry.h"
 #include "net/http/http_status_code.h"
 #include "ui/base/window_open_disposition.h"
 
@@ -64,6 +65,16 @@ ChromeCleanerControllerImpl* g_controller = nullptr;
 // https://crbug.com/727956
 constexpr int kRebootRequiredExitCode = 15;
 constexpr int kRebootNotRequiredExitCode = 0;
+
+// These values are used to send UMA information and are replicated in the
+// enums.xml file, so the order MUST NOT CHANGE.
+enum CleanupResultHistogramValue {
+  CLEANUP_RESULT_SUCCEEDED = 0,
+  CLEANUP_RESULT_REBOOT_REQUIRED = 1,
+  CLEANUP_RESULT_FAILED = 2,
+
+  CLEANUP_RESULT_MAX,
+};
 
 // These values are used to send UMA information and are replicated in the
 // enums.xml file, so the order MUST NOT CHANGE.
@@ -123,9 +134,19 @@ ChromeCleanerController::IdleReason IdleReasonWhenConnectionClosedTooSoon(
              : ChromeCleanerController::IdleReason::kConnectionLost;
 }
 
+void RecordScannerLogsAcceptanceHistogram(bool logs_accepted) {
+  UMA_HISTOGRAM_BOOLEAN("SoftwareReporter.ScannerLogsAcceptance",
+                        logs_accepted);
+}
+
 void RecordCleanerLogsAcceptanceHistogram(bool logs_accepted) {
   UMA_HISTOGRAM_BOOLEAN("SoftwareReporter.CleanerLogsAcceptance",
                         logs_accepted);
+}
+
+void RecordCleanupResultHistogram(CleanupResultHistogramValue result) {
+  UMA_HISTOGRAM_ENUMERATION("SoftwareReporter.Cleaner.CleanupResult", result,
+                            CLEANUP_RESULT_MAX);
 }
 
 void RecordIPCDisconnectedHistogram(IPCDisconnectedHistogramValue error) {
@@ -140,6 +161,10 @@ void RecordReporterSequenceTypeHistogram(
                             static_cast<int>(SwReporterInvocationType::kMax));
 }
 
+void RecordOnDemandUpdateRequiredHistogram(bool value) {
+  UMA_HISTOGRAM_BOOLEAN("SoftwareReporter.OnDemandUpdateRequired", value);
+}
+
 }  // namespace
 
 ChromeCleanerControllerDelegate::ChromeCleanerControllerDelegate() = default;
@@ -151,8 +176,7 @@ void ChromeCleanerControllerDelegate::FetchAndVerifyChromeCleaner(
   FetchChromeCleaner(
       base::BindOnce(&OnChromeCleanerFetched, std::move(fetched_callback)),
       g_browser_process->system_network_context_manager()
-          ->GetURLLoaderFactory(),
-      g_browser_process->local_state());
+          ->GetURLLoaderFactory());
 }
 
 bool ChromeCleanerControllerDelegate::IsMetricsAndCrashReportingEnabled() {
@@ -350,12 +374,9 @@ void ChromeCleanerControllerImpl::OnReporterSequenceDone(
 }
 
 void ChromeCleanerControllerImpl::OnSwReporterReady(
-    const std::string& prompt_seed,
     SwReporterInvocationSequence&& invocations) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(!invocations.container().empty());
-
-  manifest_prompt_seed_ = prompt_seed;
 
   SwReporterInvocationType invocation_type =
       SwReporterInvocationType::kPeriodicRun;
@@ -378,6 +399,7 @@ void ChromeCleanerControllerImpl::RequestUserInitiatedScan(Profile* profile) {
              SwReporterInvocationType::kUserInitiatedWithLogsDisallowed);
 
   const bool logs_enabled = this->logs_enabled(profile);
+  RecordScannerLogsAcceptanceHistogram(logs_enabled);
 
   SwReporterInvocationType invocation_type =
       logs_enabled ? SwReporterInvocationType::kUserInitiatedWithLogsAllowed
@@ -393,6 +415,8 @@ void ChromeCleanerControllerImpl::RequestUserInitiatedScan(Profile* profile) {
             // The invocations will be modified by the |ReporterRunner|.
             // Give it a copy to keep the cached invocations pristine.
             std::move(copied_sequence)));
+
+    RecordOnDemandUpdateRequiredHistogram(false);
   } else {
     pending_invocation_type_ = invocation_type;
     OnReporterSequenceStarted();
@@ -407,6 +431,8 @@ void ChromeCleanerControllerImpl::RequestUserInitiatedScan(Profile* profile) {
             base::BindOnce(&ChromeCleanerController::OnReporterSequenceDone,
                            base::Unretained(this),
                            SwReporterInvocationResult::kComponentNotAvailable));
+
+    RecordOnDemandUpdateRequiredHistogram(true);
   }
 }
 
@@ -441,6 +467,7 @@ void ChromeCleanerControllerImpl::Scan(
 
 void ChromeCleanerControllerImpl::ReplyWithUserResponse(
     Profile* profile,
+    extensions::ExtensionService* extension_service,
     UserResponse user_response) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
@@ -458,6 +485,8 @@ void ChromeCleanerControllerImpl::ReplyWithUserResponse(
       RecordCleanerLogsAcceptanceHistogram(true);
       new_state = State::kCleaning;
       delegate_->TagForResetting(profile);
+      extension_service_ = extension_service;
+      extension_registry_ = extensions::ExtensionRegistry::Get(profile);
       break;
     case UserResponse::kAcceptedWithoutLogs:
       acceptance = PromptUserResponse::ACCEPTED_WITHOUT_LOGS;
@@ -465,6 +494,8 @@ void ChromeCleanerControllerImpl::ReplyWithUserResponse(
       RecordCleanerLogsAcceptanceHistogram(false);
       new_state = State::kCleaning;
       delegate_->TagForResetting(profile);
+      extension_service_ = extension_service;
+      extension_registry_ = extensions::ExtensionRegistry::Get(profile);
       break;
     case UserResponse::kDenied:  // Fallthrough
     case UserResponse::kDismissed:
@@ -491,6 +522,7 @@ void ChromeCleanerControllerImpl::Reboot() {
   if (state() != State::kRebootRequired)
     return;
 
+  UMA_HISTOGRAM_BOOLEAN("SoftwareReporter.Cleaner.RebootResponse", true);
   InitiateReboot();
 }
 
@@ -505,14 +537,6 @@ bool ChromeCleanerControllerImpl::IsReportingManagedByPolicy(Profile* profile) {
   return !IsAllowedByPolicy() ||
          (profile_prefs && profile_prefs->IsManagedPreference(
                                prefs::kSwReporterReportingEnabled));
-}
-
-std::string ChromeCleanerControllerImpl::GetIncomingPromptSeed() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  // This should only be called after OnSwReporterReady, which records the
-  // prompt seed.
-  DCHECK(manifest_prompt_seed_);
-  return *manifest_prompt_seed_;
 }
 
 ChromeCleanerControllerImpl::ChromeCleanerControllerImpl()
@@ -591,7 +615,8 @@ void ChromeCleanerControllerImpl::OnChromeCleanerFetchedAndVerified(
           : ChromeCleanerRunner::ChromeMetricsStatus::kDisabled;
 
   ChromeCleanerRunner::RunChromeCleanerAndReplyWithExitCode(
-      executable_path, *reporter_invocation_, metrics_status,
+      extension_service_, extension_registry_, executable_path,
+      *reporter_invocation_, metrics_status,
       base::BindOnce(&ChromeCleanerControllerImpl::WeakOnPromptUser,
                      weak_factory_.GetWeakPtr()),
       base::BindOnce(&ChromeCleanerControllerImpl::OnConnectionClosed,
@@ -599,7 +624,7 @@ void ChromeCleanerControllerImpl::OnChromeCleanerFetchedAndVerified(
       base::BindOnce(&ChromeCleanerControllerImpl::OnCleanerProcessDone,
                      weak_factory_.GetWeakPtr()),
       // Our callbacks should be dispatched to the UI thread only.
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
 
   time_scanning_started_ = base::Time::Now();
 }
@@ -629,6 +654,7 @@ void ChromeCleanerControllerImpl::OnPromptUser(
   DCHECK_EQ(State::kScanning, state());
   DCHECK(scanner_results_.files_to_delete().empty());
   DCHECK(scanner_results_.registry_keys().empty());
+  DCHECK(scanner_results_.extension_ids().empty());
   DCHECK(!prompt_user_reply_callback_);
   DCHECK(!time_scanning_started_.is_null());
 
@@ -655,6 +681,8 @@ void ChromeCleanerControllerImpl::OnPromptUser(
     return;
   }
 
+  UMA_HISTOGRAM_COUNTS_1000("SoftwareReporter.NumberOfFilesToDelete",
+                            scanner_results.files_to_delete().size());
   scanner_results_ = std::move(scanner_results);
   prompt_user_reply_callback_ = std::move(reply_callback);
   SetStateAndNotifyObservers(State::kInfected);
@@ -709,10 +737,12 @@ void ChromeCleanerControllerImpl::OnCleanerProcessDone(
       DCHECK(!time_cleanup_started_.is_null());
       UMA_HISTOGRAM_CUSTOM_TIMES("SoftwareReporter.Cleaner.CleaningTime",
                                  base::Time::Now() - time_cleanup_started_,
-                                 base::Milliseconds(1), base::Hours(5), 100);
+                                 base::TimeDelta::FromMilliseconds(1),
+                                 base::TimeDelta::FromHours(5), 100);
     }
 
     if (process_status.exit_code == kRebootRequiredExitCode) {
+      RecordCleanupResultHistogram(CLEANUP_RESULT_REBOOT_REQUIRED);
       SetStateAndNotifyObservers(State::kRebootRequired);
 
       // Start the reboot prompt flow.
@@ -721,6 +751,7 @@ void ChromeCleanerControllerImpl::OnCleanerProcessDone(
     }
 
     if (process_status.exit_code == kRebootNotRequiredExitCode) {
+      RecordCleanupResultHistogram(CLEANUP_RESULT_SUCCEEDED);
       delegate_->ResetTaggedProfiles(
           g_browser_process->profile_manager()->GetLoadedProfiles(),
           base::DoNothing());
@@ -730,6 +761,7 @@ void ChromeCleanerControllerImpl::OnCleanerProcessDone(
     }
   }
 
+  RecordCleanupResultHistogram(CLEANUP_RESULT_FAILED);
   idle_reason_ = IdleReason::kCleaningFailed;
   SetStateAndNotifyObservers(State::kIdle);
 }

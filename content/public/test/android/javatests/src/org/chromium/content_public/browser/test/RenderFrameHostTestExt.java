@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,11 +28,7 @@ public class RenderFrameHostTestExt {
      *        serialized to a String using JSONStringValueSerializer.
      */
     public void executeJavaScript(String script, Callback<String> callback) {
-        nativeExecuteJavaScript(mNativeRenderFrameHostTestExt, script, callback, false);
-    }
-
-    public void executeJavaScriptWithUserGesture(String script) {
-        nativeExecuteJavaScript(mNativeRenderFrameHostTestExt, script, (String r) -> {}, true);
+        nativeExecuteJavaScript(mNativeRenderFrameHostTestExt, script, callback);
     }
 
     public void updateVisualState(Callback<Boolean> callback) {
@@ -44,8 +40,8 @@ public class RenderFrameHostTestExt {
     }
 
     private native long nativeInit(long renderFrameHostAndroidPtr);
-    private native void nativeExecuteJavaScript(long nativeRenderFrameHostTestExt, String script,
-            Callback<String> callback, boolean withUserGesture);
+    private native void nativeExecuteJavaScript(
+            long nativeRenderFrameHostTestExt, String script, Callback<String> callback);
     private native void nativeUpdateVisualState(
             long nativeRenderFrameHostTestExt, Callback<Boolean> callback);
     private native void nativeNotifyVirtualKeyboardOverlayRect(

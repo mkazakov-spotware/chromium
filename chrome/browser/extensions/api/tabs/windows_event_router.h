@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,24 +9,25 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/values.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/extensions/window_controller_list_observer.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/browser/extension_event_histogram_value.h"
 
-#if defined(TOOLKIT_VIEWS) && !BUILDFLAG(IS_MAC)
+#if defined(TOOLKIT_VIEWS) && !defined(OS_MAC)
 #include "ui/views/focus/widget_focus_manager.h"  // nogncheck
 #endif
 
-#if BUILDFLAG(IS_MAC)
-#include "chrome/browser/mac/key_window_notifier.h"
-#endif
-
 class Profile;
+
+namespace base {
+class ListValue;
+}
 
 namespace extensions {
 
@@ -38,18 +39,13 @@ class AppWindowController;
 // but will only route events within a profile to extension processes in the
 // same profile.
 class WindowsEventRouter : public AppWindowRegistry::Observer,
-#if BUILDFLAG(IS_MAC)
-                           public KeyWindowNotifier::Observer,
-#elif defined(TOOLKIT_VIEWS)
+                           public WindowControllerListObserver,
+#if defined(TOOLKIT_VIEWS) && !defined(OS_MAC)
                            public views::WidgetFocusChangeListener,
 #endif
-                           public WindowControllerListObserver {
+                           public content::NotificationObserver {
  public:
   explicit WindowsEventRouter(Profile* profile);
-
-  WindowsEventRouter(const WindowsEventRouter&) = delete;
-  WindowsEventRouter& operator=(const WindowsEventRouter&) = delete;
-
   ~WindowsEventRouter() override;
 
   // |window_controller| is NULL to indicate a focused window has lost focus.
@@ -66,29 +62,31 @@ class WindowsEventRouter : public AppWindowRegistry::Observer,
   void OnWindowControllerRemoved(WindowController* window) override;
   void OnWindowBoundsChanged(WindowController* window_controller) override;
 
-#if defined(TOOLKIT_VIEWS) && !BUILDFLAG(IS_MAC)
+#if defined(TOOLKIT_VIEWS) && !defined(OS_MAC)
   void OnNativeFocusChanged(gfx::NativeView focused_now) override;
 #endif
 
-#if BUILDFLAG(IS_MAC)
-  // KeyWindowNotifier::Observer:
-  void OnNoKeyWindow() override;
-#endif
+  // content::NotificationObserver.
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
   void DispatchEvent(events::HistogramValue histogram_value,
                      const std::string& event_name,
                      WindowController* window_controller,
-                     base::Value::List args);
+                     std::unique_ptr<base::ListValue> args);
   bool HasEventListener(const std::string& event_name);
   void AddAppWindow(extensions::AppWindow* app_window);
 
+  content::NotificationRegistrar registrar_;
+
   // The main profile that owns this event router.
-  raw_ptr<Profile, DanglingUntriaged> profile_;
+  Profile* profile_;
 
   // The profile the currently focused window belongs to; either the main or
   // incognito profile or NULL (none of the above). We remember this in order
   // to correctly handle focus changes between non-OTR and OTR windows.
-  raw_ptr<Profile, DanglingUntriaged> focused_profile_;
+  Profile* focused_profile_;
 
   // The currently focused window. We keep this so as to avoid sending multiple
   // windows.onFocusChanged events with the same windowId.
@@ -99,17 +97,14 @@ class WindowsEventRouter : public AppWindowRegistry::Observer,
   AppWindowMap app_windows_;
 
   // Observed AppWindowRegistry.
-  base::ScopedObservation<AppWindowRegistry, AppWindowRegistry::Observer>
+  ScopedObserver<AppWindowRegistry, AppWindowRegistry::Observer>
       observed_app_registry_{this};
 
   // Observed WindowControllerList.
-  base::ScopedObservation<WindowControllerList, WindowControllerListObserver>
+  ScopedObserver<WindowControllerList, WindowControllerListObserver>
       observed_controller_list_{this};
 
-#if BUILDFLAG(IS_MAC)
-  base::ScopedObservation<KeyWindowNotifier, KeyWindowNotifier::Observer>
-      observed_key_window_notifier_{this};
-#endif
+  DISALLOW_COPY_AND_ASSIGN(WindowsEventRouter);
 };
 
 }  // namespace extensions

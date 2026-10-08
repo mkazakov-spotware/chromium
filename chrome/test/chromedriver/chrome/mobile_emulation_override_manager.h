@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,13 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/values.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/test/chromedriver/chrome/devtools_event_listener.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 class DevToolsClient;
 struct DeviceMetrics;
@@ -22,19 +26,13 @@ class MobileEmulationOverrideManager : public DevToolsEventListener {
  public:
   MobileEmulationOverrideManager(DevToolsClient* client,
                                  const DeviceMetrics* device_metrics);
-
-  MobileEmulationOverrideManager(const MobileEmulationOverrideManager&) =
-      delete;
-  MobileEmulationOverrideManager& operator=(
-      const MobileEmulationOverrideManager&) = delete;
-
   ~MobileEmulationOverrideManager() override;
 
   // Overridden from DevToolsEventListener:
   Status OnConnected(DevToolsClient* client) override;
   Status OnEvent(DevToolsClient* client,
                  const std::string& method,
-                 const base::Value::Dict& params) override;
+                 const base::DictionaryValue& params) override;
 
   bool IsEmulatingTouch() const;
   bool HasOverrideMetrics() const;
@@ -44,8 +42,10 @@ class MobileEmulationOverrideManager : public DevToolsEventListener {
  private:
   Status ApplyOverrideIfNeeded();
 
-  raw_ptr<DevToolsClient> client_;
-  raw_ptr<const DeviceMetrics> overridden_device_metrics_;
+  DevToolsClient* client_;
+  const DeviceMetrics* overridden_device_metrics_;
+
+  DISALLOW_COPY_AND_ASSIGN(MobileEmulationOverrideManager);
 };
 
 #endif  // CHROME_TEST_CHROMEDRIVER_CHROME_MOBILE_EMULATION_OVERRIDE_MANAGER_H_

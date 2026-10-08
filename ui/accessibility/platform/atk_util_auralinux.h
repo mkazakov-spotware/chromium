@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 
 #include <atk/atk.h>
 
-#include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/singleton.h"
+#include "ui/accessibility/ax_export.h"
 #include "ui/accessibility/platform/ax_platform_node_auralinux.h"
 
 namespace ui {
@@ -32,15 +33,12 @@ enum DiscardAtkKeyEvent { Discard, Retain };
 // This singleton class initializes ATK (accessibility toolkit) and
 // registers an implementation of the AtkUtil class, a global class that
 // every accessible application needs to register once.
-class COMPONENT_EXPORT(AX_PLATFORM) AtkUtilAuraLinux {
+class AX_EXPORT AtkUtilAuraLinux {
  public:
   // Get the single instance of this class.
   static AtkUtilAuraLinux* GetInstance();
 
   AtkUtilAuraLinux() = default;
-
-  AtkUtilAuraLinux(const AtkUtilAuraLinux&) = delete;
-  AtkUtilAuraLinux& operator=(const AtkUtilAuraLinux&) = delete;
 
   void InitializeAsync();
   void InitializeForTesting();
@@ -64,6 +62,8 @@ class COMPONENT_EXPORT(AX_PLATFORM) AtkUtilAuraLinux {
   void PlatformInitializeAsync();
 
   bool at_spi_ready_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(AtkUtilAuraLinux);
 };
 
 }  // namespace ui

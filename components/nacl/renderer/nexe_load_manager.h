@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include <string>
 
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
@@ -32,10 +33,6 @@ class TrustedPluginChannel;
 class NexeLoadManager {
  public:
   explicit NexeLoadManager(PP_Instance instance);
-
-  NexeLoadManager(const NexeLoadManager&) = delete;
-  NexeLoadManager& operator=(const NexeLoadManager&) = delete;
-
   ~NexeLoadManager();
 
   void NexeFileDidOpen(int32_t pp_error,
@@ -123,6 +120,12 @@ class NexeLoadManager {
     crash_info_shmem_region_ = std::move(shmem_region);
   }
 
+  bool nonsfi() const { return nonsfi_; }
+  void set_nonsfi(bool nonsfi) { nonsfi_ = nonsfi; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NexeLoadManager);
+
   void ReportDeadNexe();
 
   // Copies a crash log to the console, one line at a time.
@@ -178,6 +181,9 @@ class NexeLoadManager {
   std::string mime_type_;
 
   base::Time pnacl_start_time_;
+
+  // A flag that indicates if the plugin is using Non-SFI mode.
+  bool nonsfi_;
 
   base::ReadOnlySharedMemoryRegion crash_info_shmem_region_;
 

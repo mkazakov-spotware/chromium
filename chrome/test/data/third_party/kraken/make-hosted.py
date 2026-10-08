@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # Copyright (C) 2007 Apple Inc.  All rights reserved.
 # Copyright (C) 2010 Mozilla Foundation

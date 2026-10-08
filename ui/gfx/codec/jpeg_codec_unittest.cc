@@ -1,8 +1,6 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "ui/gfx/codec/jpeg_codec.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -10,10 +8,12 @@
 
 #include "base/barrier_closure.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/gfx/codec/jpeg_codec.h"
 
 namespace {
 
@@ -179,7 +179,7 @@ TEST(JPEGCodec, InvalidRead) {
   std::vector<unsigned char> output;
   int outw, outh;
   JPEGCodec::Decode(kTopSitesMigrationTestImage,
-                    std::size(kTopSitesMigrationTestImage),
+                    base::size(kTopSitesMigrationTestImage),
                     JPEGCodec::FORMAT_RGBA, &output, &outw, &outh);
 }
 

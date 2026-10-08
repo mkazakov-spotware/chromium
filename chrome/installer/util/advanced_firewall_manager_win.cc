@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/guid.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/scoped_bstr.h"
@@ -20,7 +21,7 @@ AdvancedFirewallManager::AdvancedFirewallManager() {}
 
 AdvancedFirewallManager::~AdvancedFirewallManager() {}
 
-bool AdvancedFirewallManager::Init(const std::wstring& app_name,
+bool AdvancedFirewallManager::Init(const base::string16& app_name,
                                    const base::FilePath& app_path) {
   firewall_rules_ = nullptr;
   HRESULT hr = ::CoCreateInstance(CLSID_NetFwPolicy2, nullptr, CLSCTX_ALL,
@@ -49,7 +50,7 @@ bool AdvancedFirewallManager::IsFirewallEnabled() {
   // The most-restrictive active profile takes precedence.
   const NET_FW_PROFILE_TYPE2 kProfileTypes[] = {
       NET_FW_PROFILE2_PUBLIC, NET_FW_PROFILE2_PRIVATE, NET_FW_PROFILE2_DOMAIN};
-  for (size_t i = 0; i < std::size(kProfileTypes); ++i) {
+  for (size_t i = 0; i < base::size(kProfileTypes); ++i) {
     if ((profile_types & kProfileTypes[i]) != 0) {
       VARIANT_BOOL enabled = VARIANT_TRUE;
       hr = firewall_policy_->get_FirewallEnabled(kProfileTypes[i], &enabled);
@@ -67,8 +68,8 @@ bool AdvancedFirewallManager::HasAnyRule() {
   return !rules.empty();
 }
 
-bool AdvancedFirewallManager::AddUDPRule(const std::wstring& rule_name,
-                                         const std::wstring& description,
+bool AdvancedFirewallManager::AddUDPRule(const base::string16& rule_name,
+                                         const base::string16& description,
                                          uint16_t port) {
   // Delete the rule. According MDSN |INetFwRules::Add| should replace rule with
   // same "rule identifier". It's not clear what is "rule identifier", but it
@@ -86,13 +87,15 @@ bool AdvancedFirewallManager::AddUDPRule(const std::wstring& rule_name,
   return SUCCEEDED(hr);
 }
 
-void AdvancedFirewallManager::DeleteRuleByName(const std::wstring& rule_name) {
+void AdvancedFirewallManager::DeleteRuleByName(
+    const base::string16& rule_name) {
   std::vector<Microsoft::WRL::ComPtr<INetFwRule>> rules;
   GetAllRules(&rules);
   for (size_t i = 0; i < rules.size(); ++i) {
     base::win::ScopedBstr name;
     HRESULT hr = rules[i]->get_Name(name.Receive());
-    if (SUCCEEDED(hr) && name.Get() && std::wstring(name.Get()) == rule_name) {
+    if (SUCCEEDED(hr) && name.Get() &&
+        base::string16(name.Get()) == rule_name) {
       DeleteRule(rules[i]);
     }
   }
@@ -103,7 +106,7 @@ void AdvancedFirewallManager::DeleteRule(
   // Rename rule to unique name and delete by unique name. We can't just delete
   // rule by name. Multiple rules with the same name and different app are
   // possible.
-  base::win::ScopedBstr unique_name(base::ASCIIToWide(base::GenerateGUID()));
+  base::win::ScopedBstr unique_name(base::UTF8ToUTF16(base::GenerateGUID()));
   rule->put_Name(unique_name.Get());
   firewall_rules_->Remove(unique_name.Get());
 }
@@ -117,8 +120,8 @@ void AdvancedFirewallManager::DeleteAllRules() {
 }
 
 Microsoft::WRL::ComPtr<INetFwRule> AdvancedFirewallManager::CreateUDPRule(
-    const std::wstring& rule_name,
-    const std::wstring& description,
+    const base::string16& rule_name,
+    const base::string16& description,
     uint16_t port) {
   Microsoft::WRL::ComPtr<INetFwRule> udp_rule;
 

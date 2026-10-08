@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,7 +16,6 @@
 #include "base/memory/ref_counted.h"
 #include "base/version.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/update_client/update_client.h"
 #include "url/gurl.h"
 
@@ -29,7 +27,7 @@ class ComponentUpdaterPolicyTest;
 }
 
 namespace speech {
-class SodaInstallerImpl;
+class SODAInstallerImpl;
 }
 
 namespace update_client {
@@ -37,10 +35,6 @@ class ComponentInstaller;
 class Configurator;
 struct CrxComponent;
 struct CrxUpdateItem;
-}
-
-namespace extensions {
-class AutotestPrivateLoadSmartDimComponentFunction;
 }
 
 namespace component_updater {
@@ -58,58 +52,26 @@ using CrxUpdateItem = update_client::CrxUpdateItem;
 struct ComponentInfo {
   ComponentInfo(const std::string& id,
                 const std::string& fingerprint,
-                const std::u16string& name,
+                const base::string16& name,
                 const base::Version& version);
   ComponentInfo(const ComponentInfo& other);
-  ComponentInfo& operator=(const ComponentInfo& other);
   ComponentInfo(ComponentInfo&& other);
-  ComponentInfo& operator=(ComponentInfo&& other);
   ~ComponentInfo();
 
-  std::string id;
-  std::string fingerprint;
-  std::u16string name;
-  base::Version version;
+  const std::string id;
+  const std::string fingerprint;
+  const base::string16 name;
+  const base::Version version;
 };
 
-struct ComponentRegistration {
-  ComponentRegistration(
-      const std::string& app_id,
-      const std::string& name,
-      std::vector<uint8_t> public_key_hash,
-      const base::Version& version,
-      const std::string& fingerprint,
-      std::map<std::string, std::string> installer_attributes,
-      scoped_refptr<update_client::ActionHandler> action_handler,
-      scoped_refptr<update_client::CrxInstaller> installer,
-      bool requires_network_encryption,
-      bool supports_group_policy_enable_component_updates);
-  ComponentRegistration(const ComponentRegistration& other);
-  ComponentRegistration& operator=(const ComponentRegistration& other);
-  ComponentRegistration(ComponentRegistration&& other);
-  ComponentRegistration& operator=(ComponentRegistration&& other);
-  ~ComponentRegistration();
-
-  std::string app_id;
-  std::string name;
-  std::vector<uint8_t> public_key_hash;
-  base::Version version;
-  std::string fingerprint;
-  std::map<std::string, std::string> installer_attributes;
-  scoped_refptr<update_client::ActionHandler> action_handler;
-  scoped_refptr<update_client::CrxInstaller> installer;
-  bool requires_network_encryption;
-  bool supports_group_policy_enable_component_updates;
-};
-
-// The component update service is in charge of installing or upgrading select
-// parts of chrome. Each part is called a component and managed by instances of
-// ComponentRegistration registered using RegisterComponent(). On the
-// server, each component is packaged as a CRX which is the same format used to
-// package extensions. To the update service each component is identified by
-// its public key hash (CrxComponent::pk_hash). If there is an update available
-// and its version is bigger than (CrxComponent::version), it will be
-// downloaded, verified and unpacked. Then component-specific installer
+// The component update service is in charge of installing or upgrading
+// select parts of chrome. Each part is called a component and managed by
+// instances of CrxComponent registered using RegisterComponent(). On the
+// server, each component is packaged as a CRX which is the same format used
+// to package extensions. To the update service each component is identified
+// by its public key hash (CrxComponent::pk_hash). If there is an update
+// available and its version is bigger than (CrxComponent::version), it will
+// be downloaded, verified and unpacked. Then component-specific installer
 // ComponentInstaller::Install (of CrxComponent::installer) will be called.
 //
 // During the normal operation of the component updater some specific
@@ -129,12 +91,8 @@ class ComponentUpdateService {
   // the observers are being notified.
   virtual void RemoveObserver(Observer* observer) = 0;
 
-  // Returns the last registered version for the component associated with
-  // |app_id|. Returns kNullVersion if no suitable version is found.
-  virtual base::Version GetRegisteredVersion(const std::string& app_id) = 0;
-
   // Add component to be checked for updates.
-  virtual bool RegisterComponent(const ComponentRegistration& component) = 0;
+  virtual bool RegisterComponent(const CrxComponent& component) = 0;
 
   // Unregisters the component with the given ID. This means that the component
   // is not going to be included in future update checks. If a download or
@@ -150,6 +108,13 @@ class ComponentUpdateService {
 
   // Returns a list of registered components.
   virtual std::vector<std::string> GetComponentIDs() const = 0;
+
+  // Returns a ComponentInfo describing a registered component that implements a
+  // handler for the specified |mime_type|. If multiple such components exist,
+  // returns information for the one that was most recently registered. If no
+  // such components exist, returns nullptr.
+  virtual std::unique_ptr<ComponentInfo> GetComponentForMimeType(
+      const std::string& mime_type) const = 0;
 
   // Returns a list of ComponentInfo objects describing all registered
   // components.
@@ -182,7 +147,7 @@ class ComponentUpdateService {
   virtual bool GetComponentDetails(const std::string& id,
                                    CrxUpdateItem* item) const = 0;
 
-  friend class speech::SodaInstallerImpl;
+  friend class speech::SODAInstallerImpl;
   friend class ::ComponentsHandler;
   FRIEND_TEST_ALL_PREFIXES(ComponentInstallerTest, RegisterComponent);
 };
@@ -201,15 +166,16 @@ class OnDemandUpdater {
  private:
   friend class OnDemandTester;
   friend class policy::ComponentUpdaterPolicyTest;
+  friend class SupervisedUserWhitelistInstaller;
   friend class ::ComponentsHandler;
   friend class ::PluginObserver;
   friend class SwReporterOnDemandFetcher;
-  friend class SodaComponentInstallerPolicy;
-  friend class SodaLanguagePackComponentInstallerPolicy;
-  friend class ::extensions::AutotestPrivateLoadSmartDimComponentFunction;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+  friend class SODAComponentInstallerPolicy;
+  friend class SodaEnUsComponentInstallerPolicy;
+  friend class SodaJaJpComponentInstallerPolicy;
+#if defined(OS_CHROMEOS)
   friend class CrOSComponentInstaller;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
   friend class VrAssetsComponentInstallerPolicy;
 
   // Triggers an update check for a component. |id| is a value
@@ -226,11 +192,7 @@ class OnDemandUpdater {
 // Creates the component updater.
 std::unique_ptr<ComponentUpdateService> ComponentUpdateServiceFactory(
     scoped_refptr<Configurator> config,
-    std::unique_ptr<UpdateScheduler> scheduler,
-    const std::string& brand);
-
-// Register prefs required by the component update service.
-void RegisterComponentUpdateServicePrefs(PrefRegistrySimple* registry);
+    std::unique_ptr<UpdateScheduler> scheduler);
 
 }  // namespace component_updater
 

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verifies that sequence of setting selector and disabling property works.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <style>
@@ -23,15 +23,15 @@
     function editSelector(next) {
       var section = ElementsTestRunner.firstMatchedStyleSection();
       section.startEditingSelector();
-      section.selectorElement.textContent = '#inspected, .INSERTED-OTHER-SELECTOR';
+      section._selectorElement.textContent = '#inspected, .INSERTED-OTHER-SELECTOR';
       ElementsTestRunner.waitForSelectorCommitted(next);
-      section.selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
+      section._selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));
     },
 
     function testDisableProperty(next) {
       var treeItem = ElementsTestRunner.getMatchedStylePropertyTreeItem('color');
       ElementsTestRunner.waitForStyleApplied(onPropertyDisabled);
-      treeItem.toggleDisabled(true);
+      treeItem._toggleDisabled(true);
 
       async function onPropertyDisabled() {
         TestRunner.addResult('\n\n#### AFTER PROPERTY DISABLED ####\n\n');

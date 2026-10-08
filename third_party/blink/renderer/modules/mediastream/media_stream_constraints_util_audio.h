@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASTREAM_MEDIA_STREAM_CONSTRAINTS_UTIL_AUDIO_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASTREAM_MEDIA_STREAM_CONSTRAINTS_UTIL_AUDIO_H_
 
-#include "third_party/blink/public/mojom/mediastream/media_stream.mojom-blink-forward.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -53,8 +52,7 @@ class MODULES_EXPORT AudioDeviceCaptureCapability {
   // getUserMedia() with device capture for devices that are currently in use.
   explicit AudioDeviceCaptureCapability(blink::MediaStreamAudioSource* source);
 
-  AudioDeviceCaptureCapability(const AudioDeviceCaptureCapability&);
-  AudioDeviceCaptureCapability& operator=(const AudioDeviceCaptureCapability&);
+  AudioDeviceCaptureCapability(const AudioDeviceCaptureCapability& other);
 
   // If this capability represents a device currently in use, this method
   // returns a pointer to the MediaStreamAudioSource object associated with the
@@ -150,7 +148,6 @@ using AudioDeviceCaptureCapabilities = Vector<AudioDeviceCaptureCapability>;
 MODULES_EXPORT blink::AudioCaptureSettings SelectSettingsAudioCapture(
     const AudioDeviceCaptureCapabilities& capabilities,
     const MediaConstraints& constraints,
-    mojom::blink::MediaStreamType stream_type,
     bool should_disable_hardware_noise_suppression,
     bool is_reconfiguration_allowed = false);
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "courgette/image_utils.h"
 
 namespace courgette {
@@ -50,10 +50,6 @@ class LabelManager {
   class SimpleIndexAssigner {
    public:
     explicit SimpleIndexAssigner(LabelVector* labels);
-
-    SimpleIndexAssigner(const SimpleIndexAssigner&) = delete;
-    SimpleIndexAssigner& operator=(const SimpleIndexAssigner&) = delete;
-
     ~SimpleIndexAssigner();
 
     // Scans forward to assign successive indexes to Labels, using existing
@@ -70,20 +66,18 @@ class LabelManager {
 
    private:
     // The target LabelVector, owned by the caller.
-    raw_ptr<LabelVector> labels_;
+    LabelVector* labels_;
 
     // A bound on indexes.
     int num_index_ = 0;
 
     // Tracker for index usage to ensure uniqueness of indexes.
     std::vector<bool> available_;
+
+    DISALLOW_COPY_AND_ASSIGN(SimpleIndexAssigner);
   };
 
   LabelManager();
-
-  LabelManager(const LabelManager&) = delete;
-  LabelManager& operator=(const LabelManager&) = delete;
-
   ~LabelManager();
 
   // Returns an exclusive upper bound for all assigned indexes in |labels|.
@@ -120,6 +114,9 @@ class LabelManager {
 
   // The main list of Label instances, sorted by the |rva_| member.
   LabelVector labels_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LabelManager);
 };
 
 }  // namespace courgette

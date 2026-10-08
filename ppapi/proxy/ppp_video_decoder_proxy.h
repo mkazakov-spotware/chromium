@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ppapi/c/dev/ppp_video_decoder_dev.h"
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/proxy/interface_proxy.h"
@@ -21,10 +22,6 @@ namespace proxy {
 class PPP_VideoDecoder_Proxy : public InterfaceProxy {
  public:
   explicit PPP_VideoDecoder_Proxy(Dispatcher* dispatcher);
-
-  PPP_VideoDecoder_Proxy(const PPP_VideoDecoder_Proxy&) = delete;
-  PPP_VideoDecoder_Proxy& operator=(const PPP_VideoDecoder_Proxy&) = delete;
-
   ~PPP_VideoDecoder_Proxy() override;
 
   static const PPP_VideoDecoder_Dev* GetProxyInterface();
@@ -49,6 +46,8 @@ class PPP_VideoDecoder_Proxy : public InterfaceProxy {
   // pointer so we don't have to retrieve it from the dispatcher each time.
   // In the host, this value is always NULL.
   const PPP_VideoDecoder_Dev* ppp_video_decoder_impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(PPP_VideoDecoder_Proxy);
 };
 
 }  // namespace proxy

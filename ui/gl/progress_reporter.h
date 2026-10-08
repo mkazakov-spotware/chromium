@@ -1,11 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GL_PROGRESS_REPORTER_H_
 #define UI_GL_PROGRESS_REPORTER_H_
-
-#include "base/memory/raw_ptr.h"
 
 namespace gl {
 
@@ -32,7 +30,7 @@ class ScopedProgressReporter {
   }
 
  private:
-  raw_ptr<ProgressReporter> progress_reporter_;
+  ProgressReporter* progress_reporter_;
 };
 
 }  // namespace gl

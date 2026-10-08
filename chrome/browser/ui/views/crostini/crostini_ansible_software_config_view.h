@@ -1,14 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_CROSTINI_CROSTINI_ANSIBLE_SOFTWARE_CONFIG_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_CROSTINI_CROSTINI_ANSIBLE_SOFTWARE_CONFIG_VIEW_H_
 
-#include "chrome/browser/ash/crostini/ansible/ansible_management_service.h"
-#include "chrome/browser/ash/crostini/crostini_util.h"
-#include "chrome/browser/ash/guest_os/guest_id.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "chrome/browser/chromeos/crostini/ansible/ansible_management_service.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/label.h"
@@ -18,39 +15,23 @@ class Profile;
 
 // The Ansible software configuration is shown to let the user know that an
 // Ansible playbook is being applied and their app might take longer than
-// usual to launch. This is specifically implemented in a way such that it
-// doesn't need to know about which GuestID it's configuring for.
+// usual to launch.
 class CrostiniAnsibleSoftwareConfigView
     : public views::BubbleDialogDelegateView,
       public crostini::AnsibleManagementService::Observer {
  public:
-  CrostiniAnsibleSoftwareConfigView(const CrostiniAnsibleSoftwareConfigView&) =
-      delete;
-  CrostiniAnsibleSoftwareConfigView& operator=(
-      const CrostiniAnsibleSoftwareConfigView&) = delete;
-  ~CrostiniAnsibleSoftwareConfigView() override;
-
-  METADATA_HEADER(CrostiniAnsibleSoftwareConfigView);
-
   // views::DialogDelegateView:
   bool Accept() override;
-  bool Cancel() override;
 
-  std::u16string GetSubtextLabelStringForTesting();
-  std::u16string GetProgressLabelStringForTesting();
+  // crostini::AnsibleManagementService::Observer:
+  void OnAnsibleSoftwareConfigurationStarted() override;
+  void OnAnsibleSoftwareConfigurationFinished(bool success) override;
 
-  // AnsibleManagementService::Observer
-  void OnAnsibleSoftwareConfigurationStarted(
-      const guest_os::GuestId& container_id) override;
-  void OnAnsibleSoftwareConfigurationProgress(
-      const guest_os::GuestId& container_id,
-      const std::vector<std::string>& status_lines) override;
-  void OnAnsibleSoftwareConfigurationFinished(
-      const guest_os::GuestId& container_id,
-      bool success) override;
+  base::string16 GetSubtextLabelStringForTesting();
 
-  explicit CrostiniAnsibleSoftwareConfigView(Profile* profile,
-                                             guest_os::GuestId container_id);
+  static CrostiniAnsibleSoftwareConfigView* GetActiveViewForTesting();
+
+  explicit CrostiniAnsibleSoftwareConfigView(Profile* profile);
 
  private:
   enum class State {
@@ -59,22 +40,20 @@ class CrostiniAnsibleSoftwareConfigView
     ERROR_OFFLINE,
   };
 
-  std::u16string GetWindowTitleForState(State state);
+  static base::string16 GetWindowTitleForState(State state);
 
   void OnStateChanged();
-  std::u16string GetSubtextLabel() const;
+  base::string16 GetSubtextLabel() const;
 
   State state_ = State::CONFIGURING;
+  crostini::AnsibleManagementService* ansible_management_service_ = nullptr;
 
   views::Label* subtext_label_ = nullptr;
-  views::Label* progress_label_ = nullptr;
   views::ProgressBar* progress_bar_ = nullptr;
-  base::FilePath default_container_ansible_filepath_;
 
-  Profile* profile_;
+  ~CrostiniAnsibleSoftwareConfigView() override;
 
-  guest_os::GuestId container_id_;
-  std::u16string container_name_;
+  DISALLOW_COPY_AND_ASSIGN(CrostiniAnsibleSoftwareConfigView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_CROSTINI_CROSTINI_ANSIBLE_SOFTWARE_CONFIG_VIEW_H_

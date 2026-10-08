@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,7 +45,7 @@ bool CanAddUrl(const GURL& url) {
 // of favicon types that are requested for the platform (see
 // FaviconDriverImpl).
 favicon_base::IconTypeSet GetIconTypeSet() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return {favicon_base::IconType::kFavicon, favicon_base::IconType::kTouchIcon,
           favicon_base::IconType::kTouchPrecomposedIcon,
           favicon_base::IconType::kWebManifestIcon};
@@ -55,7 +55,7 @@ favicon_base::IconTypeSet GetIconTypeSet() {
 }
 
 int GetDesiredFaviconSizeInDips() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // This is treatest as the largest available icon.
   return 0;
 #else

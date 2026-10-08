@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_DOWNLOAD_INTERNAL_BACKGROUND_SERVICE_IN_MEMORY_DOWNLOAD_DRIVER_H_
 #define COMPONENTS_DOWNLOAD_INTERNAL_BACKGROUND_SERVICE_IN_MEMORY_DOWNLOAD_DRIVER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "components/download/internal/background_service/download_driver.h"
 
 #include <map>
 #include <memory>
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "components/download/internal/background_service/in_memory_download.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
 
@@ -25,10 +25,6 @@ class InMemoryDownloadFactory : public InMemoryDownload::Factory {
   InMemoryDownloadFactory(
       network::mojom::URLLoaderFactory* url_loader_factory,
       scoped_refptr<base::SingleThreadTaskRunner> io_task_runner);
-
-  InMemoryDownloadFactory(const InMemoryDownloadFactory&) = delete;
-  InMemoryDownloadFactory& operator=(const InMemoryDownloadFactory&) = delete;
-
   ~InMemoryDownloadFactory() override;
 
  private:
@@ -40,9 +36,11 @@ class InMemoryDownloadFactory : public InMemoryDownload::Factory {
       const net::NetworkTrafficAnnotationTag& traffic_annotation,
       InMemoryDownload::Delegate* delegate) override;
 
-  raw_ptr<network::mojom::URLLoaderFactory> url_loader_factory_;
+  network::mojom::URLLoaderFactory* url_loader_factory_;
 
   scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(InMemoryDownloadFactory);
 };
 
 // Download backend that owns the list of in memory downloads and propagate
@@ -53,10 +51,6 @@ class InMemoryDownloadDriver : public DownloadDriver,
   InMemoryDownloadDriver(
       std::unique_ptr<InMemoryDownload::Factory> download_factory,
       BlobContextGetterFactoryPtr blob_context_getter_factory);
-
-  InMemoryDownloadDriver(const InMemoryDownloadDriver&) = delete;
-  InMemoryDownloadDriver& operator=(const InMemoryDownloadDriver&) = delete;
-
   ~InMemoryDownloadDriver() override;
 
  private:
@@ -73,7 +67,7 @@ class InMemoryDownloadDriver : public DownloadDriver,
   void Remove(const std::string& guid, bool remove_file) override;
   void Pause(const std::string& guid) override;
   void Resume(const std::string& guid) override;
-  absl::optional<DriverEntry> Find(const std::string& guid) override;
+  base::Optional<DriverEntry> Find(const std::string& guid) override;
   std::set<std::string> GetActiveDownloads() override;
   size_t EstimateMemoryUsage() const override;
 
@@ -85,7 +79,7 @@ class InMemoryDownloadDriver : public DownloadDriver,
   void RetrieveBlobContextGetter(BlobContextGetterCallback callback) override;
 
   // The client that receives updates from low level download logic.
-  raw_ptr<DownloadDriver::Client> client_;
+  DownloadDriver::Client* client_;
 
   // The factory used to create in memory download objects.
   std::unique_ptr<InMemoryDownload::Factory> download_factory_;
@@ -95,6 +89,8 @@ class InMemoryDownloadDriver : public DownloadDriver,
 
   // A map of GUID and in memory download, which holds download data.
   std::map<std::string, std::unique_ptr<InMemoryDownload>> downloads_;
+
+  DISALLOW_COPY_AND_ASSIGN(InMemoryDownloadDriver);
 };
 
 }  // namespace download

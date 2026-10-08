@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <limits>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "components/viz/common/resources/resource_sizes.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -30,10 +29,6 @@ class TestBackingClient : public OutputDeviceBacking::Client {
     backing_->ClientResized();
     backing_->GetSharedMemoryRegion(viewport_size_);
   }
-
-  TestBackingClient(const TestBackingClient&) = delete;
-  TestBackingClient& operator=(const TestBackingClient&) = delete;
-
   ~TestBackingClient() override { backing_->UnregisterClient(this); }
 
   const gfx::Size& viewport_size() const { return viewport_size_; }
@@ -46,9 +41,11 @@ class TestBackingClient : public OutputDeviceBacking::Client {
   void ReleaseCanvas() override { release_canvas_called_ = true; }
 
  private:
-  const raw_ptr<OutputDeviceBacking> backing_;
+  OutputDeviceBacking* const backing_;
   gfx::Size viewport_size_;
   bool release_canvas_called_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(TestBackingClient);
 };
 
 }  // namespace

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -11,16 +11,15 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
-#include <string>
 
 #include "base/bind.h"
 #include "base/check.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "base/numerics/safe_conversions.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/win/atl.h"
 #include "base/win/embedded_i18n/language_selector.h"
 #include "chrome/install_static/install_details.h"
@@ -39,8 +38,8 @@ constexpr base::win::i18n::LanguageSelector::LangToOffset
 
 // Returns the language under which Chrome was downloaded, or an empty string if
 // no such language is specified.
-std::wstring GetPreferredLanguageFromGoogleUpdate() {
-  std::wstring language;
+base::string16 GetPreferredLanguageFromGoogleUpdate() {
+  base::string16 language;
   GoogleUpdateSettings::GetLanguage(&language);
   return language;
 }
@@ -72,8 +71,7 @@ std::wstring GetLocalizedString(int base_message_id) {
 
   std::wstring localized_string;
 
-  UINT message_id = base::checked_cast<UINT>(base_message_id +
-                                             GetLanguageSelector().offset());
+  int message_id = base_message_id + GetLanguageSelector().offset();
   const ATLSTRINGRESOURCEIMAGE* image =
       AtlGetStringResourceImage(_AtlBaseModule.GetModuleInstance(), message_id);
   if (image) {
@@ -85,6 +83,13 @@ std::wstring GetLocalizedString(int base_message_id) {
   return localized_string;
 }
 
+base::string16 GetLocalizedStringF(int base_message_id,
+                                   const base::string16& a) {
+  return base::ReplaceStringPlaceholders(GetLocalizedString(base_message_id),
+                                         std::vector<base::string16>(1, a),
+                                         nullptr);
+}
+
 // Here we generate the url spec with the Microsoft res:// scheme which is
 // explained here : http://support.microsoft.com/kb/220830
 std::wstring GetLocalizedEulaResource() {
@@ -94,7 +99,7 @@ std::wstring GetLocalizedEulaResource() {
     return L"";
 
   // The resource names are more or less the upcased language names.
-  std::wstring language(GetLanguageSelector().selected_translation());
+  base::string16 language(GetLanguageSelector().selected_translation());
   std::replace(language.begin(), language.end(), L'-', L'_');
   language = base::ToUpperASCII(language);
 
@@ -127,12 +132,12 @@ std::wstring GetCurrentTranslation() {
 
 int GetBaseMessageIdForMode(int base_message_id) {
 // Generate the constants holding the mode-specific resource ID arrays.
-#define HANDLE_MODE_STRING(id, ...)                                   \
-  static constexpr int k##id##Strings[] = {__VA_ARGS__};              \
-  static_assert(                                                      \
-      std::size(k##id##Strings) == install_static::NUM_INSTALL_MODES, \
-      "resource " #id                                                 \
-      " has the wrong number of mode-specific "                       \
+#define HANDLE_MODE_STRING(id, ...)                                    \
+  static constexpr int k##id##Strings[] = {__VA_ARGS__};               \
+  static_assert(                                                       \
+      base::size(k##id##Strings) == install_static::NUM_INSTALL_MODES, \
+      "resource " #id                                                  \
+      " has the wrong number of mode-specific "                        \
       "strings.");
   DO_MODE_STRINGS
 #undef HANDLE_MODE_STRING

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/path_service.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace remoting {
 
@@ -37,10 +37,6 @@ class CertDbContentWatcher {
       scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
       base::FilePath cert_watch_path,
       base::TimeDelta read_delay);
-
-  CertDbContentWatcher(const CertDbContentWatcher&) = delete;
-  CertDbContentWatcher& operator=(const CertDbContentWatcher&) = delete;
-
   ~CertDbContentWatcher();
 
   void StartWatching();
@@ -86,6 +82,8 @@ class CertDbContentWatcher {
   // FileWatcher detects changes, the code is re-computed and compared with
   // this stored value.
   HashValue current_hash_;
+
+  DISALLOW_COPY_AND_ASSIGN(CertDbContentWatcher);
 };
 
 CertDbContentWatcher::CertDbContentWatcher(
@@ -115,7 +113,7 @@ void CertDbContentWatcher::StartWatching() {
 
   // base::Unretained() is safe since this class owns the FileWatcher.
   file_watcher_->Watch(
-      cert_watch_path_, base::FilePathWatcher::Type::kRecursive,
+      cert_watch_path_, true,
       base::BindRepeating(&CertDbContentWatcher::OnCertDirectoryChanged,
                           base::Unretained(this)));
 
@@ -175,9 +173,9 @@ CertificateWatcher::CertificateWatcher(
     const base::RepeatingClosure& restart_action,
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner)
     : restart_action_(restart_action),
-      caller_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      caller_task_runner_(base::ThreadTaskRunnerHandle::Get()),
       io_task_runner_(io_task_runner),
-      delay_(base::Seconds(kReadDelayInSeconds)) {
+      delay_(base::TimeDelta::FromSeconds(kReadDelayInSeconds)) {
   if (!base::PathService::Get(base::DIR_HOME, &cert_watch_path_)) {
     LOG(FATAL) << "Failed to get path of the home directory.";
   }

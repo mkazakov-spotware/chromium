@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/containers/flat_map.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 
 namespace chromeos {
 namespace sensors {
@@ -21,23 +21,26 @@ FakeSensorService::~FakeSensorService() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
 
-void FakeSensorService::AddReceiver(
+bool FakeSensorService::is_bound() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  return receiver_.is_bound();
+}
+
+void FakeSensorService::Bind(
     mojo::PendingReceiver<mojom::SensorService> pending_receiver) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(!is_bound());
 
-  receiver_set_.Add(this, std::move(pending_receiver));
+  receiver_.Bind(std::move(pending_receiver));
+  receiver_.set_disconnect_handler(base::BindOnce(
+      &FakeSensorService::OnServiceDisconnect, base::Unretained(this)));
 }
 
-void FakeSensorService::ClearReceivers() {
+void FakeSensorService::OnServiceDisconnect() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  receiver_set_.Clear();
-}
-
-bool FakeSensorService::HasReceivers() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  return !receiver_set_.empty();
+  receiver_.reset();
 }
 
 void FakeSensorService::SetDevice(
@@ -69,7 +72,7 @@ void FakeSensorService::GetDeviceIds(mojom::DeviceType type,
     ids.push_back(device.first);
   }
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(ids)));
 }
 
@@ -83,7 +86,7 @@ void FakeSensorService::GetAllDeviceIds(GetAllDeviceIdsCallback callback) {
                                                     device.second.types.end()));
   }
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(id_types)));
 }
 

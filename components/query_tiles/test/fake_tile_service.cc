@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/query_tiles/test/fake_tile_service.h"
-#include "base/task/single_thread_task_runner.h"
 
 #include <utility>
 #include <vector>
+
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace query_tiles {
 namespace {
@@ -49,7 +50,7 @@ std::vector<std::unique_ptr<Tile>> BuildFakeTree() {
   return top_tiles;
 }
 
-absl::optional<Tile> FindTile(std::vector<std::unique_ptr<Tile>>& tiles,
+base::Optional<Tile> FindTile(std::vector<std::unique_ptr<Tile>>& tiles,
                               const std::string& id) {
   for (const auto& tile : tiles) {
     if (id == tile->id)
@@ -63,7 +64,7 @@ absl::optional<Tile> FindTile(std::vector<std::unique_ptr<Tile>>& tiles,
     }
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace
@@ -77,21 +78,21 @@ void FakeTileService::GetQueryTiles(GetTilesCallback callback) {
   for (auto& tile : tiles_)
     tiles.push_back(*tile.get());
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(tiles)));
 }
 
 void FakeTileService::GetTile(const std::string& tile_id,
                               TileCallback callback) {
   auto tile = FindTile(tiles_, tile_id);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), std::move(tile)));
 }
 
 void FakeTileService::StartFetchForTiles(
     bool is_from_reduced_mode,
     BackgroundTaskFinishedCallback callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(std::move(callback), false /*need_reschedule*/));
 }
@@ -105,8 +106,8 @@ void FakeTileService::SetServerUrl(const std::string& url) {}
 void FakeTileService::OnTileClicked(const std::string& url) {}
 
 void FakeTileService::OnQuerySelected(
-    const absl::optional<std::string>& parent_tile_id,
-    const std::u16string& query_text) {}
+    const base::Optional<std::string>& parent_tile_id,
+    const base::string16& query_text) {}
 
 Logger* FakeTileService::GetLogger() {
   return nullptr;

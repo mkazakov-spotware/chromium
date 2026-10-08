@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "cc/cc_export.h"
 #include "cc/layers/layer.h"
-#include "cc/metrics/web_vital_metrics.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/core/SkTypeface.h"
 #include "ui/gfx/geometry/rect.h"
@@ -27,19 +25,14 @@ class CC_EXPORT HeadsUpDisplayLayer : public Layer {
 
   void UpdateLocationAndSize(const gfx::Size& device_viewport,
                              float device_scale_factor);
-  void UpdateWebVitalMetrics(
-      std::unique_ptr<WebVitalMetrics> web_vital_metrics);
 
   const std::vector<gfx::Rect>& LayoutShiftRects() const;
   void SetLayoutShiftRects(const std::vector<gfx::Rect>& rects);
 
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
 
   // Layer overrides.
-  void PushPropertiesTo(LayerImpl* layer,
-                        const CommitState& commit_state,
-                        const ThreadUnsafeCommitState& unsafe_state) override;
+  void PushPropertiesTo(LayerImpl* layer) override;
 
  protected:
   HeadsUpDisplayLayer();
@@ -48,11 +41,8 @@ class CC_EXPORT HeadsUpDisplayLayer : public Layer {
  private:
   ~HeadsUpDisplayLayer() override;
 
-  ProtectedSequenceWritable<sk_sp<SkTypeface>> typeface_;
-  ProtectedSequenceWritable<std::vector<gfx::Rect>> layout_shift_rects_;
-
-  ProtectedSequenceWritable<std::unique_ptr<WebVitalMetrics>>
-      web_vital_metrics_;
+  sk_sp<SkTypeface> typeface_;
+  std::vector<gfx::Rect> layout_shift_rects_;
 };
 
 }  // namespace cc

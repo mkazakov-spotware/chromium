@@ -19,13 +19,10 @@ To produce an executable built with a custom PGO profile:
 
 * Run representative benchmarks to produce profiles
 
-  * `vpython3 tools/perf/run_benchmark system_health.common_desktop --assert-gpu-compositing --run-abridged-story-set --browser=exact --browser-executable=out/path/to/chrome`
-  * `vpython3 tools/perf/run_benchmark speedometer2 --assert-gpu-compositing --browser=exact --browser-executable=out/path/to/chrome`
+  * `vpython tools/perf/run_benchmark system_health.common_desktop --assert-gpu-compositing --run-abridged-story-set --browser=exact --browser-executable=out/path/to/chrome`
+  * `vpython tools/perf/run_benchmark speedometer2 --assert-gpu-compositing --browser=exact --browser-executable=out/path/to/chrome`
+  * `vpython tools/perf/run_benchmark webrtc --assert-gpu-compositing --browser=exact --browser-executable=out/path/to/chrome`
   * This will produce `*.profraw` files in the current working directory
-
-  If this fails with `ServiceException: 401 Anonymous caller does not have storage.objects.get
-  access to the Google Cloud Storage object.`, then run `download_from_google_storage --config`
-  (with your @google address; enter 0 as project-id).
 
 * Merge the profiling data
 

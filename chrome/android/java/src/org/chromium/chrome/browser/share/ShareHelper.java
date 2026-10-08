@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.share;
 
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -13,6 +14,7 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.util.Pair;
 import android.view.MenuItem;
 
@@ -25,10 +27,11 @@ import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.StrictModeContext;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.lens.LensController;
+import org.chromium.chrome.browser.lens.LensIntentParams;
+import org.chromium.chrome.browser.lens.LensQueryResult;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.browser_ui.share.ShareParams.TargetChosenCallback;
 import org.chromium.ui.base.WindowAndroid;
@@ -61,11 +64,7 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
     public static void shareDirectly(
             @NonNull ShareParams params, @NonNull ComponentName component) {
         Intent intent = getShareLinkIntent(params);
-
         intent.addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT | Intent.FLAG_ACTIVITY_PREVIOUS_IS_TOP);
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.CHROME_SHARING_HUB_LAUNCH_ADJACENT)) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
-        }
         intent.setComponent(component);
         fireIntent(params.getWindow(), intent, null);
     }
@@ -78,7 +77,6 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
         ComponentName component = getLastShareComponentName();
         if (component == null) return;
         assert params.getCallback() == null;
-        recordShareSource(ShareSourceAndroid.DIRECT_SHARE);
         shareDirectly(params, component);
     }
 
@@ -90,10 +88,9 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
      * @param saveLastUsed True if the chosen share component should be saved for future reuse.
      */
     // TODO(crbug/1022172): Should be package-protected once modularization is complete.
-    public static void showDefaultShareUi(
-            ShareParams params, @Nullable Profile profile, boolean saveLastUsed) {
+    public static void showDefaultShareUi(ShareParams params, boolean saveLastUsed) {
         if (saveLastUsed) {
-            params.setCallback(new SaveComponentCallback(profile, params.getCallback()));
+            params.setCallback(new SaveComponentCallback(params.getCallback()));
         }
 
         ShareHelper.shareWithUi(params);
@@ -105,13 +102,13 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
      * @param name The component name of the activity to share the image with.
      * @param imageUri The url to share with the external activity.
      */
-    public static void shareImage(final WindowAndroid window, final Profile profile,
-            final ComponentName name, Uri imageUri) {
+    public static void shareImage(
+            final WindowAndroid window, final ComponentName name, Uri imageUri) {
         Intent shareIntent = getShareImageIntent(imageUri);
         if (name == null) {
             if (TargetChosenReceiver.isSupported()) {
                 TargetChosenReceiver.sendChooserIntent(
-                        window, shareIntent, new SaveComponentCallback(profile, null));
+                        window, shareIntent, new SaveComponentCallback(null));
             } else {
                 Intent chooserIntent = Intent.createChooser(shareIntent,
                         window.getActivity().get().getString(R.string.share_link_chooser_title));
@@ -120,6 +117,44 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
         } else {
             shareIntent.setComponent(name);
             fireIntent(window, shareIntent, null);
+        }
+    }
+
+    /**
+     * Share an image URI with Google Lens.
+     * @param window The current window.
+     * @param imageUri The url to share with the app.
+     * @param isIncognito Whether the current tab is in incognito mode.
+     * @param srcUrl The 'src' attribute of the image.
+     * @param titleOrAltText The 'title' or, if empty, the 'alt' attribute of the image.
+     * @param pageUrl The page url.
+     * @param lensQueryResult The wrapper object which contains the classify result of Lens image
+     *         query.
+     * @param requiresConfirmation Whether the request requires an confirmation dialog.
+     */
+    public static void shareImageWithGoogleLens(final WindowAndroid window, Uri imageUri,
+            boolean isIncognito, String srcUrl, String titleOrAltText, String pageUrl,
+            LensQueryResult lensQueryResult, boolean requiresConfirmation) {
+        if (LensUtils.useDirectIntentSdkIntegration(ContextUtils.getApplicationContext())) {
+            LensIntentParams intentParams = LensUtils.buildLensIntentParams(
+                    imageUri, isIncognito, srcUrl, titleOrAltText, pageUrl, requiresConfirmation);
+            LensController.getInstance().startLens(window, intentParams);
+        } else {
+            Intent shareIntent =
+                    LensUtils.getShareWithGoogleLensIntent(ContextUtils.getApplicationContext(),
+                            imageUri, isIncognito, SystemClock.elapsedRealtimeNanos(), srcUrl,
+                            titleOrAltText, pageUrl, lensQueryResult, requiresConfirmation);
+            try {
+                // Pass an empty callback to ensure the triggered activity can identify the source
+                // of the intent (startActivityForResult allows app identification).
+                fireIntent(window, shareIntent, (w, resultCode, data) -> {});
+            } catch (ActivityNotFoundException e) {
+                // The initial version check should guarantee that the activity is available.
+                // However, the exception may be thrown in test environments after mocking out the
+                // version check.
+                if (Boolean.TRUE.equals(sIgnoreActivityNotFoundException)) return;
+                throw e;
+            }
         }
     }
 
@@ -192,13 +227,12 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
      * @param component The {@link ComponentName} of the app selected for sharing.
      */
     @VisibleForTesting
-    public static void setLastShareComponentName(Profile profile, ComponentName component) {
-        SharedPreferencesManager.getInstance().writeString(
-                ChromePreferenceKeys.SHARING_LAST_SHARED_COMPONENT_NAME,
-                component.flattenToString());
-        if (profile != null) {
-            ShareHistoryBridge.addShareEntry(profile, component.flattenToString());
-        }
+    public static void setLastShareComponentName(ComponentName component) {
+        SharedPreferencesManager preferencesManager = SharedPreferencesManager.getInstance();
+        preferencesManager.writeString(
+                ChromePreferenceKeys.SHARING_LAST_SHARED_PACKAGE_NAME, component.getPackageName());
+        preferencesManager.writeString(
+                ChromePreferenceKeys.SHARING_LAST_SHARED_CLASS_NAME, component.getClassName());
     }
 
     /**
@@ -207,17 +241,14 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
      */
     static class SaveComponentCallback implements TargetChosenCallback {
         private TargetChosenCallback mOriginalCallback;
-        private Profile mProfile;
 
-        public SaveComponentCallback(
-                @Nullable Profile profile, @Nullable TargetChosenCallback originalCallback) {
+        public SaveComponentCallback(@Nullable TargetChosenCallback originalCallback) {
             mOriginalCallback = originalCallback;
-            mProfile = profile;
         }
 
         @Override
         public void onTargetChosen(ComponentName chosenComponent) {
-            setLastShareComponentName(mProfile, chosenComponent);
+            setLastShareComponentName(chosenComponent);
             if (mOriginalCallback != null) mOriginalCallback.onTargetChosen(chosenComponent);
         }
 
@@ -257,11 +288,15 @@ public class ShareHelper extends org.chromium.components.browser_ui.share.ShareH
     @Nullable
     public static ComponentName getLastShareComponentName() {
         SharedPreferencesManager preferencesManager = SharedPreferencesManager.getInstance();
-        String name = preferencesManager.readString(
-                ChromePreferenceKeys.SHARING_LAST_SHARED_COMPONENT_NAME, null);
-        if (name == null) {
-            return null;
-        }
-        return ComponentName.unflattenFromString(name);
+        String packageName = preferencesManager.readString(
+                ChromePreferenceKeys.SHARING_LAST_SHARED_PACKAGE_NAME, null);
+        String className = preferencesManager.readString(
+                ChromePreferenceKeys.SHARING_LAST_SHARED_CLASS_NAME, null);
+        return createComponentName(packageName, className);
+    }
+
+    private static ComponentName createComponentName(String packageName, String className) {
+        if (packageName == null || className == null) return null;
+        return new ComponentName(packageName, className);
     }
 }

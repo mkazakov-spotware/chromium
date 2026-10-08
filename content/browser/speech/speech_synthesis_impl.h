@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_SPEECH_SPEECH_SYNTHESIS_IMPL_H_
 #define CONTENT_BROWSER_SPEECH_SPEECH_SYNTHESIS_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/tts_controller.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
@@ -13,7 +12,7 @@
 
 namespace content {
 class BrowserContext;
-class RenderFrameHostImpl;
+class WebContents;
 
 // Back-end for the web speech synthesis API; dispatches speech requests to
 // content::TtsController and forwards voice lists and events back to the
@@ -22,7 +21,7 @@ class SpeechSynthesisImpl : public blink::mojom::SpeechSynthesis,
                             public VoicesChangedDelegate {
  public:
   SpeechSynthesisImpl(BrowserContext* browser_context,
-                      RenderFrameHostImpl* rfh);
+                      WebContents* web_contents);
   ~SpeechSynthesisImpl() override;
 
   SpeechSynthesisImpl(const SpeechSynthesisImpl&) = delete;
@@ -46,8 +45,8 @@ class SpeechSynthesisImpl : public blink::mojom::SpeechSynthesis,
   void OnVoicesChanged() override;
 
  private:
-  raw_ptr<BrowserContext> browser_context_;
-  raw_ptr<WebContents> web_contents_;
+  BrowserContext* browser_context_;
+  WebContents* web_contents_;
 
   mojo::ReceiverSet<blink::mojom::SpeechSynthesis> receiver_set_;
   mojo::RemoteSet<blink::mojom::SpeechSynthesisVoiceListObserver> observer_set_;

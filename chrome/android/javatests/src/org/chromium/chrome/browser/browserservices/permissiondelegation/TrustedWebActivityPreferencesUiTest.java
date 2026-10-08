@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browserservices.permissiondelegation;
-
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
 
 import android.support.test.InstrumentationRegistry;
 
@@ -18,9 +16,8 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.settings.SettingsActivity;
 import org.chromium.chrome.browser.site_settings.SiteSettingsTestUtils;
@@ -33,9 +30,9 @@ import org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
 import org.chromium.components.browser_ui.site_settings.Website;
 import org.chromium.components.browser_ui.site_settings.WebsiteAddress;
-import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.components.embedder_support.util.Origin;
+import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /**
  * Tests for TrustedWebActivity functionality under Settings > Site Settings.
@@ -49,14 +46,14 @@ public class TrustedWebActivityPreferencesUiTest {
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private String mPackage;
-    private InstalledWebappPermissionManager mPermissionMananger;
+    private TrustedWebActivityPermissionManager mPermissionMananger;
 
     @Before
     public void setUp() throws Exception {
         mActivityTestRule.startMainActivityOnBlankPage();
 
         mPackage = InstrumentationRegistry.getTargetContext().getPackageName();
-        mPermissionMananger = ChromeApplicationImpl.getComponent().resolvePermissionManager();
+        mPermissionMananger = ChromeApplication.getComponent().resolveTwaPermissionManager();
     }
 
     /**
@@ -67,20 +64,21 @@ public class TrustedWebActivityPreferencesUiTest {
     @Test
     @SmallTest
     @Feature({"Preferences"})
-    @DisabledTest(message = "https://crbug.com/1202711")
     public void testSingleCategoryManagedBy() throws Exception {
         final String site = "http://example.com";
         final Origin origin = Origin.create(site);
 
-        runOnUiThreadBlocking(() -> mPermissionMananger.updatePermission(origin, mPackage,
-                ContentSettingsType.NOTIFICATIONS, ContentSettingValues.ALLOW));
+        TestThreadUtils.runOnUiThreadBlocking(
+                ()
+                        -> mPermissionMananger.updatePermission(
+                                origin, mPackage, ContentSettingsType.NOTIFICATIONS, true));
 
         SettingsActivity settingsActivity = SiteSettingsTestUtils.startSiteSettingsCategory(
                 SiteSettingsCategory.Type.NOTIFICATIONS);
         final String groupName = "managed_group";
 
         final SingleCategorySettings websitePreferences =
-                runOnUiThreadBlocking(() -> {
+                TestThreadUtils.runOnUiThreadBlocking(() -> {
                     final SingleCategorySettings preferences =
                             (SingleCategorySettings) settingsActivity.getMainFragment();
                     final ExpandablePreferenceGroup group =
@@ -97,7 +95,7 @@ public class TrustedWebActivityPreferencesUiTest {
             return group.isExpanded();
         });
 
-        runOnUiThreadBlocking(() -> {
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
             final ExpandablePreferenceGroup group =
                     (ExpandablePreferenceGroup) websitePreferences.findPreference(groupName);
             Assert.assertEquals(1, group.getPreferenceCount());
@@ -106,7 +104,7 @@ public class TrustedWebActivityPreferencesUiTest {
             Assert.assertEquals("example.com", title.toString());
         });
 
-        runOnUiThreadBlocking(() -> mPermissionMananger.unregister(origin));
+        TestThreadUtils.runOnUiThreadBlocking(() -> mPermissionMananger.unregister(origin));
 
         settingsActivity.finish();
     }
@@ -122,15 +120,17 @@ public class TrustedWebActivityPreferencesUiTest {
         final String site = "http://example.com";
         final Origin origin = Origin.create(site);
 
-        runOnUiThreadBlocking(() -> mPermissionMananger.updatePermission(origin, mPackage,
-                ContentSettingsType.NOTIFICATIONS, ContentSettingValues.ALLOW));
+        TestThreadUtils.runOnUiThreadBlocking(
+                ()
+                        -> mPermissionMananger.updatePermission(
+                                origin, mPackage, ContentSettingsType.NOTIFICATIONS, true));
 
         WebsiteAddress address = WebsiteAddress.create(site);
         Website website = new Website(address, address);
         final SettingsActivity settingsActivity =
                 SiteSettingsTestUtils.startSingleWebsitePreferences(website);
 
-        runOnUiThreadBlocking(() -> {
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
             final SingleWebsiteSettings websitePreferences =
                     (SingleWebsiteSettings) settingsActivity.getMainFragment();
             final ChromeImageViewPreference notificationPreference =
@@ -140,7 +140,7 @@ public class TrustedWebActivityPreferencesUiTest {
             Assert.assertTrue(summary.toString().startsWith("Managed by "));
         });
 
-        runOnUiThreadBlocking(() -> mPermissionMananger.unregister(origin));
+        TestThreadUtils.runOnUiThreadBlocking(() -> mPermissionMananger.unregister(origin));
 
         settingsActivity.finish();
     }

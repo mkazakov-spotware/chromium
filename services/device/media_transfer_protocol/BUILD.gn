@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,7 +6,7 @@ import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
 import("//third_party/protobuf/proto_library.gni")
 
-assert(is_chromeos_ash)
+assert(is_ash)
 assert(use_dbus)
 
 proto_library("mtp_file_entry_proto") {
@@ -34,7 +34,7 @@ source_set("media_transfer_protocol") {
     ":mtp_storage_info_proto",
     "//base",
     "//build:chromeos_buildflags",
-    "//chromeos/ash/components/dbus",
+    "//chromeos/dbus",
     "//dbus",
   ]
 }

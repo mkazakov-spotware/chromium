@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,10 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
+#include "components/crash/core/common/crash_key.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/callback_registry.h"
 #include "media/base/cdm_initialized_promise.h"
@@ -144,9 +145,7 @@ void* GetCdmHost(int host_interface_version, void* user_data) {
 
 void ReportSystemCodeUMA(const std::string& key_system, uint32_t system_code) {
   base::UmaHistogramSparse(
-      "Media.EME." +
-          GetKeySystemNameForUMA(key_system, /*use_hw_secure_codecs=*/false) +
-          ".SystemCode",
+      "Media.EME." + GetKeySystemNameForUMA(key_system) + ".SystemCode",
       system_code);
 }
 
@@ -171,6 +170,7 @@ using crash_reporter::ScopedCrashKeyString;
 
 // static
 void CdmAdapter::Create(
+    const std::string& key_system,
     const CdmConfig& cdm_config,
     CreateCdmFunc create_cdm_func,
     std::unique_ptr<CdmAuxiliaryHelper> helper,
@@ -179,15 +179,16 @@ void CdmAdapter::Create(
     const SessionKeysChangeCB& session_keys_change_cb,
     const SessionExpirationUpdateCB& session_expiration_update_cb,
     CdmCreatedCB cdm_created_cb) {
-  DCHECK(!cdm_config.key_system.empty());
+  DCHECK(!key_system.empty());
   DCHECK(session_message_cb);
   DCHECK(session_closed_cb);
   DCHECK(session_keys_change_cb);
   DCHECK(session_expiration_update_cb);
 
-  scoped_refptr<CdmAdapter> cdm = new CdmAdapter(
-      cdm_config, create_cdm_func, std::move(helper), session_message_cb,
-      session_closed_cb, session_keys_change_cb, session_expiration_update_cb);
+  scoped_refptr<CdmAdapter> cdm =
+      new CdmAdapter(key_system, cdm_config, create_cdm_func, std::move(helper),
+                     session_message_cb, session_closed_cb,
+                     session_keys_change_cb, session_expiration_update_cb);
 
   // |cdm| ownership passed to the promise.
   cdm->Initialize(
@@ -195,6 +196,7 @@ void CdmAdapter::Create(
 }
 
 CdmAdapter::CdmAdapter(
+    const std::string& key_system,
     const CdmConfig& cdm_config,
     CreateCdmFunc create_cdm_func,
     std::unique_ptr<CdmAuxiliaryHelper> helper,
@@ -202,7 +204,8 @@ CdmAdapter::CdmAdapter(
     const SessionClosedCB& session_closed_cb,
     const SessionKeysChangeCB& session_keys_change_cb,
     const SessionExpirationUpdateCB& session_expiration_update_cb)
-    : cdm_config_(cdm_config),
+    : key_system_(key_system),
+      cdm_config_(cdm_config),
       create_cdm_func_(create_cdm_func),
       helper_(std::move(helper)),
       session_message_cb_(session_message_cb),
@@ -210,12 +213,11 @@ CdmAdapter::CdmAdapter(
       session_keys_change_cb_(session_keys_change_cb),
       session_expiration_update_cb_(session_expiration_update_cb),
       cdm_origin_(helper_->GetCdmOrigin().Serialize()),
-      scoped_crash_key_(&g_origin_crash_key, cdm_origin_),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      task_runner_(base::ThreadTaskRunnerHandle::Get()),
       pool_(new AudioBufferMemoryPool()) {
   DVLOG(1) << __func__;
 
-  DCHECK(!cdm_config.key_system.empty());
+  DCHECK(!key_system_.empty());
   DCHECK(create_cdm_func_);
   DCHECK(helper_);
   DCHECK(session_message_cb_);
@@ -224,14 +226,14 @@ CdmAdapter::CdmAdapter(
   DCHECK(session_expiration_update_cb_);
 
   helper_->SetFileReadCB(
-      base::BindRepeating(&CdmAdapter::OnFileRead, weak_factory_.GetWeakPtr()));
+      base::Bind(&CdmAdapter::OnFileRead, weak_factory_.GetWeakPtr()));
 }
 
 CdmAdapter::~CdmAdapter() {
   DVLOG(1) << __func__;
 
   // Reject any outstanding promises and close all the existing sessions.
-  cdm_promise_adapter_.Clear(CdmPromiseAdapter::ClearReason::kDestruction);
+  cdm_promise_adapter_.Clear();
 
   if (audio_init_cb_)
     std::move(audio_init_cb_).Run(false);
@@ -263,7 +265,7 @@ void CdmAdapter::Initialize(std::unique_ptr<media::SimpleCdmPromise> promise) {
   DVLOG(1) << __func__;
   TRACE_EVENT0("media", "CdmAdapter::Initialize");
 
-  cdm_.reset(CreateCdmInstance(cdm_config_.key_system));
+  cdm_.reset(CreateCdmInstance(key_system_));
   if (!cdm_) {
     promise->reject(CdmPromise::Exception::INVALID_STATE_ERROR, 0,
                     "Unable to create CDM.");
@@ -411,9 +413,9 @@ Decryptor* CdmAdapter::GetDecryptor() {
   return this;
 }
 
-absl::optional<base::UnguessableToken> CdmAdapter::GetCdmId() const {
+base::Optional<base::UnguessableToken> CdmAdapter::GetCdmId() const {
   DCHECK(task_runner_->BelongsToCurrentThread());
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void CdmAdapter::Decrypt(StreamType stream_type,
@@ -422,6 +424,8 @@ void CdmAdapter::Decrypt(StreamType stream_type,
   DVLOG(3) << __func__ << ": "
            << encrypted->AsHumanReadableString(/*verbose=*/true);
   DCHECK(task_runner_->BelongsToCurrentThread());
+
+  ScopedCrashKeyString scoped_crash_key(&g_origin_crash_key, cdm_origin_);
 
   cdm::InputBuffer_2 input_buffer = {};
   std::vector<cdm::SubsampleEntry> subsamples;
@@ -445,7 +449,7 @@ void CdmAdapter::Decrypt(StreamType stream_type,
       DecoderBuffer::CopyFrom(decrypted_block->DecryptedBuffer()->Data(),
                               decrypted_block->DecryptedBuffer()->Size()));
   decrypted_buffer->set_timestamp(
-      base::Microseconds(decrypted_block->Timestamp()));
+      base::TimeDelta::FromMicroseconds(decrypted_block->Timestamp()));
   std::move(decrypt_cb).Run(Decryptor::kSuccess, std::move(decrypted_buffer));
 }
 
@@ -523,7 +527,7 @@ void CdmAdapter::InitializeVideoDecoder(const VideoDecoderConfig& config,
     return;
   }
 
-  aspect_ratio_ = config.aspect_ratio();
+  pixel_aspect_ratio_ = config.GetPixelAspectRatio();
   is_video_encrypted_ = config.is_encrypted();
 
   if (status == cdm::kDeferredInitialization) {
@@ -536,10 +540,12 @@ void CdmAdapter::InitializeVideoDecoder(const VideoDecoderConfig& config,
 }
 
 void CdmAdapter::DecryptAndDecodeAudio(scoped_refptr<DecoderBuffer> encrypted,
-                                       AudioDecodeCB audio_decode_cb) {
+                                       const AudioDecodeCB& audio_decode_cb) {
   DVLOG(3) << __func__ << ": "
            << encrypted->AsHumanReadableString(/*verbose=*/true);
   DCHECK(task_runner_->BelongsToCurrentThread());
+
+  ScopedCrashKeyString scoped_crash_key(&g_origin_crash_key, cdm_origin_);
 
   cdm::InputBuffer_2 input_buffer = {};
   std::vector<cdm::SubsampleEntry> subsamples;
@@ -556,8 +562,7 @@ void CdmAdapter::DecryptAndDecodeAudio(scoped_refptr<DecoderBuffer> encrypted,
   const Decryptor::AudioFrames empty_frames;
   if (status != cdm::kSuccess) {
     DVLOG(1) << __func__ << ": status = " << status;
-    std::move(audio_decode_cb)
-        .Run(ToMediaDecryptorStatus(status), empty_frames);
+    audio_decode_cb.Run(ToMediaDecryptorStatus(status), empty_frames);
     return;
   }
 
@@ -566,18 +571,20 @@ void CdmAdapter::DecryptAndDecodeAudio(scoped_refptr<DecoderBuffer> encrypted,
   if (!AudioFramesDataToAudioFrames(std::move(audio_frames),
                                     &audio_frame_list)) {
     DVLOG(1) << __func__ << " unable to convert Audio Frames";
-    std::move(audio_decode_cb).Run(Decryptor::kError, empty_frames);
+    audio_decode_cb.Run(Decryptor::kError, empty_frames);
     return;
   }
 
-  std::move(audio_decode_cb).Run(Decryptor::kSuccess, audio_frame_list);
+  audio_decode_cb.Run(Decryptor::kSuccess, audio_frame_list);
 }
 
 void CdmAdapter::DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
-                                       VideoDecodeCB video_decode_cb) {
+                                       const VideoDecodeCB& video_decode_cb) {
   DVLOG(3) << __func__ << ": "
            << encrypted->AsHumanReadableString(/*verbose=*/true);
   DCHECK(task_runner_->BelongsToCurrentThread());
+
+  ScopedCrashKeyString scoped_crash_key(&g_origin_crash_key, cdm_origin_);
 
   cdm::InputBuffer_2 input_buffer = {};
   std::vector<cdm::SubsampleEntry> subsamples;
@@ -597,22 +604,22 @@ void CdmAdapter::DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
 
   if (status != cdm::kSuccess) {
     DVLOG(1) << __func__ << ": status = " << status;
-    std::move(video_decode_cb).Run(ToMediaDecryptorStatus(status), nullptr);
+    video_decode_cb.Run(ToMediaDecryptorStatus(status), nullptr);
     return;
   }
 
   gfx::Rect visible_rect(video_frame->Size().width, video_frame->Size().height);
   scoped_refptr<VideoFrame> decoded_frame = video_frame->TransformToVideoFrame(
-      aspect_ratio_.GetNaturalSize(visible_rect));
+      GetNaturalSize(visible_rect, pixel_aspect_ratio_));
   if (!decoded_frame) {
     DLOG(ERROR) << __func__ << ": TransformToVideoFrame failed.";
-    std::move(video_decode_cb).Run(Decryptor::kError, nullptr);
+    video_decode_cb.Run(Decryptor::kError, nullptr);
     return;
   }
 
-  decoded_frame->metadata().protected_video = is_video_encrypted_;
+  decoded_frame->metadata()->protected_video = is_video_encrypted_;
 
-  std::move(video_decode_cb).Run(Decryptor::kSuccess, decoded_frame);
+  video_decode_cb.Run(Decryptor::kSuccess, decoded_frame);
 }
 
 void CdmAdapter::ResetDecoder(StreamType stream_type) {
@@ -638,7 +645,7 @@ void CdmAdapter::DeinitializeDecoder(StreamType stream_type) {
       audio_channel_layout_ = CHANNEL_LAYOUT_NONE;
       break;
     case Decryptor::kVideo:
-      aspect_ratio_ = VideoAspectRatio();
+      pixel_aspect_ratio_ = 0.0;
       break;
   }
 }
@@ -654,7 +661,7 @@ cdm::Buffer* CdmAdapter::Allocate(uint32_t capacity) {
 void CdmAdapter::SetTimer(int64_t delay_ms, void* context) {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
-  auto delay = base::Milliseconds(delay_ms);
+  auto delay = base::TimeDelta::FromMilliseconds(delay_ms);
   DVLOG(3) << __func__ << ": delay = " << delay << ", context = " << context;
   TRACE_EVENT2("media", "CdmAdapter::SetTimer", "delay_ms", delay_ms, "context",
                context);
@@ -731,7 +738,7 @@ void CdmAdapter::OnRejectPromise(uint32_t promise_id,
   // This is the central place for library CDM promise rejection. Cannot report
   // this in more generic classes like CdmPromise or CdmPromiseAdapter because
   // they may be used multiple times in one promise chain that involves IPC.
-  ReportSystemCodeUMA(cdm_config_.key_system, system_code);
+  ReportSystemCodeUMA(key_system_, system_code);
 
   // UMA to help track file related errors. See http://crbug.com/410630
   if (system_code == 0x27) {
@@ -814,8 +821,7 @@ void CdmAdapter::OnSessionClosed(const char* session_id,
   std::string session_id_str(session_id, session_id_size);
   TRACE_EVENT1("media", "CdmAdapter::OnSessionClosed", "session_id",
                session_id_str);
-  // Library CDMs typically only close sessions as a result of `CloseSession()`.
-  session_closed_cb_.Run(session_id_str, CdmSessionClosedReason::kClose);
+  session_closed_cb_.Run(session_id_str);
 }
 
 void CdmAdapter::SendPlatformChallenge(const char* service_id,
@@ -1077,7 +1083,7 @@ bool CdmAdapter::AudioFramesDataToAudioFrames(
     scoped_refptr<media::AudioBuffer> frame = media::AudioBuffer::CopyFrom(
         sample_format, audio_channel_layout_, audio_channel_count,
         audio_samples_per_second_, frame_count, &channel_ptrs[0],
-        base::Microseconds(timestamp), pool_);
+        base::TimeDelta::FromMicroseconds(timestamp), pool_);
     result_frames->push_back(frame);
 
     data += frame_size;

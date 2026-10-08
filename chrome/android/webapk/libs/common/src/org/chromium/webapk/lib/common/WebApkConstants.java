@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,12 +35,10 @@ public final class WebApkConstants {
     public static final String EXTRA_RELAUNCH = "org.chromium.webapk.relaunch";
     public static final String EXTRA_IS_WEBAPK = "org.chromium.webapk.is_webapk";
 
-    // Must be kept in sync with components/webapps/browser/android/shortcut_info.h.
-    public @interface ShortcutSource {
-        int UNKNOWN = 0;
-        int EXTERNAL_INTENT = 9;
-        int WEBAPK_SHARE_TARGET = 13;
-    }
+    // Must be kept in sync with chrome/browser/android/shortcut_info.h.
+    public static final int SHORTCUT_SOURCE_UNKNOWN = 0;
+    public static final int SHORTCUT_SOURCE_EXTERNAL_INTENT = 9;
+    public static final int SHORTCUT_SOURCE_SHARE = 13;
 
     /** Name of the shared preferences file. */
     public static final String PREF_PACKAGE = "org.chromium.webapk.shell_apk";

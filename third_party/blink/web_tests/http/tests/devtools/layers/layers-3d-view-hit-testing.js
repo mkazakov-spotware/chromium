@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests hit testing in Layers3DView\n`);
-  await TestRunner.loadTestModule('layers_test_runner');
+  await TestRunner.loadModule('layers_test_runner');
 
   await TestRunner.loadHTML(`
       <div id="a" style="will-change: transform; transform:translateY(60px) rotateZ(45deg);width:300px;height:300px;margin-left:100px; border: 1px solid black;">

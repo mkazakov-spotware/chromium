@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <stdint.h>
 
 #include <cstring>
 #include <string>
@@ -14,32 +13,32 @@
 #include <vector>
 
 #include "base/big_endian.h"
-#include "base/check.h"
-#include "base/containers/contains.h"
-#include "base/containers/span.h"
-#include "base/feature_list.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "build/build_config.h"
+#include "net/base/address_list.h"
 #include "net/base/url_util.h"
 #include "net/dns/public/dns_protocol.h"
 #include "net/dns/public/doh_provider_entry.h"
 #include "net/dns/public/util.h"
 #include "net/third_party/uri_template/uri_template.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "url/url_canon.h"
 
-#if BUILDFLAG(IS_POSIX)
-#include <net/if.h>
+#if defined(OS_POSIX)
 #include <netinet/in.h>
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_NACL)
+#include <net/if.h>
+#if !defined(OS_ANDROID)
 #include <ifaddrs.h>
-#endif  // !BUILDFLAG(IS_ANDROID)
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // !defined(OS_ANDROID)
+#endif  // !defined(OS_NACL)
+#endif  // defined(OS_POSIX)
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "net/android/network_library.h"
 #endif
 
@@ -47,20 +46,14 @@ namespace net {
 namespace {
 
 // Based on DJB's public domain code.
-absl::optional<std::vector<uint8_t>> DNSDomainFromDot(base::StringPiece dotted,
-                                                      bool is_unrestricted) {
-  // Use full IsCanonicalizedHostCompliant() validation if not
-  // `is_unrestricted`. All subsequent validity checks should not apply unless
-  // `is_unrestricted` because IsCanonicalizedHostCompliant() is expected to be
-  // more strict than any validation here.
-  if (!is_unrestricted && !IsCanonicalizedHostCompliant(dotted))
-    return absl::nullopt;
-
+bool DNSDomainFromDot(const base::StringPiece& dotted,
+                      bool is_unrestricted,
+                      std::string* out) {
   const char* buf = dotted.data();
   size_t n = dotted.size();
-  uint8_t label[dns_protocol::kMaxLabelLength];
+  char label[dns_protocol::kMaxLabelLength];
   size_t labellen = 0; /* <= sizeof label */
-  std::vector<uint8_t> name(dns_protocol::kMaxNameLength, 0);
+  char name[dns_protocol::kMaxNameLength];
   size_t namelen = 0; /* <= sizeof name */
   char ch;
 
@@ -71,63 +64,57 @@ absl::optional<std::vector<uint8_t>> DNSDomainFromDot(base::StringPiece dotted,
     --n;
     if (ch == '.') {
       // Don't allow empty labels per http://crbug.com/456391.
-      if (!labellen) {
-        DCHECK(is_unrestricted);
-        return absl::nullopt;
-      }
-      if (namelen + labellen + 1 > name.size()) {
-        DCHECK(is_unrestricted);
-        return absl::nullopt;
-      }
-      name[namelen++] = static_cast<uint8_t>(labellen);
-      memcpy(name.data() + namelen, label, labellen);
+      if (!labellen)
+        return false;
+      if (namelen + labellen + 1 > sizeof name)
+        return false;
+      name[namelen++] = static_cast<char>(labellen);
+      memcpy(name + namelen, label, labellen);
       namelen += labellen;
       labellen = 0;
       continue;
     }
-    if (labellen >= sizeof(label)) {
-      DCHECK(is_unrestricted);
-      return absl::nullopt;
+    if (labellen >= sizeof label)
+      return false;
+    if (!is_unrestricted && !IsValidHostLabelCharacter(ch, labellen == 0)) {
+      return false;
     }
     label[labellen++] = ch;
   }
 
   // Allow empty label at end of name to disable suffix search.
   if (labellen) {
-    if (namelen + labellen + 1 > name.size()) {
-      DCHECK(is_unrestricted);
-      return absl::nullopt;
-    }
-    name[namelen++] = static_cast<uint8_t>(labellen);
-    memcpy(name.data() + namelen, label, labellen);
+    if (namelen + labellen + 1 > sizeof name)
+      return false;
+    name[namelen++] = static_cast<char>(labellen);
+    memcpy(name + namelen, label, labellen);
     namelen += labellen;
     labellen = 0;
   }
 
-  if (namelen + 1 > name.size()) {
-    DCHECK(is_unrestricted);
-    return absl::nullopt;
-  }
-  if (namelen == 0) {  // Empty names e.g. "", "." are not valid.
-    DCHECK(is_unrestricted);
-    return absl::nullopt;
-  }
+  if (namelen + 1 > sizeof name)
+    return false;
+  if (namelen == 0)  // Empty names e.g. "", "." are not valid.
+    return false;
   name[namelen++] = 0;  // This is the root label (of length 0).
 
-  name.resize(namelen);
-  return name;
+  *out = std::string(name, namelen);
+  return true;
 }
 
 DohProviderEntry::List GetDohProviderEntriesFromNameservers(
-    const std::vector<IPEndPoint>& dns_servers) {
+    const std::vector<IPEndPoint>& dns_servers,
+    const std::vector<std::string>& excluded_providers) {
   const DohProviderEntry::List& providers = DohProviderEntry::GetList();
   DohProviderEntry::List entries;
 
   for (const auto& server : dns_servers) {
     for (const auto* entry : providers) {
+      if (base::Contains(excluded_providers, entry->provider))
+        continue;
+
       // DoH servers should only be added once.
-      if (base::FeatureList::IsEnabled(entry->feature) &&
-          base::Contains(entry->ip_addresses, server.address()) &&
+      if (base::Contains(entry->ip_addresses, server.address()) &&
           !base::Contains(entries, entry)) {
         entries.push_back(entry);
       }
@@ -138,34 +125,37 @@ DohProviderEntry::List GetDohProviderEntriesFromNameservers(
 
 }  // namespace
 
-absl::optional<std::vector<uint8_t>> DNSDomainFromDot(
-    base::StringPiece dotted) {
-  return DNSDomainFromDot(dotted, /*is_unrestricted=*/false);
+bool DNSDomainFromDot(const base::StringPiece& dotted, std::string* out) {
+  return DNSDomainFromDot(dotted, false /* is_unrestricted */, out);
 }
 
-absl::optional<std::vector<uint8_t>> DNSDomainFromUnrestrictedDot(
-    base::StringPiece dotted) {
-  return DNSDomainFromDot(dotted, /*is_unrestricted=*/true);
+bool DNSDomainFromUnrestrictedDot(const base::StringPiece& dotted,
+                                  std::string* out) {
+  return DNSDomainFromDot(dotted, true /* is_unrestricted */, out);
 }
 
-bool IsValidDnsName(base::StringPiece dotted) {
-  return DNSDomainFromUnrestrictedDot(dotted).has_value();
+bool IsValidDNSDomain(const base::StringPiece& dotted) {
+  std::string dns_formatted;
+  return DNSDomainFromDot(dotted, &dns_formatted);
 }
 
-absl::optional<std::string> DnsDomainToString(
-    base::span<const uint8_t> dns_name,
-    bool require_complete) {
-  base::BigEndianReader reader(dns_name.data(), dns_name.size());
-  return DnsDomainToString(reader, require_complete);
+bool IsValidUnrestrictedDNSDomain(const base::StringPiece& dotted) {
+  std::string dns_formatted;
+  return DNSDomainFromUnrestrictedDot(dotted, &dns_formatted);
 }
 
-absl::optional<std::string> DnsDomainToString(base::StringPiece dns_name,
+bool IsValidHostLabelCharacter(char c, bool is_first_char) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') || (!is_first_char && c == '-') || c == '_';
+}
+
+base::Optional<std::string> DnsDomainToString(base::StringPiece dns_name,
                                               bool require_complete) {
-  auto reader = base::BigEndianReader::FromStringPiece(dns_name);
+  base::BigEndianReader reader(dns_name.data(), dns_name.length());
   return DnsDomainToString(reader, require_complete);
 }
 
-absl::optional<std::string> DnsDomainToString(base::BigEndianReader& reader,
+base::Optional<std::string> DnsDomainToString(base::BigEndianReader& reader,
                                               bool require_complete) {
   std::string ret;
   size_t octets_read = 0;
@@ -174,20 +164,17 @@ absl::optional<std::string> DnsDomainToString(base::BigEndianReader& reader,
     // the context of a full DNS message.
     if ((*reader.ptr() & dns_protocol::kLabelMask) ==
         dns_protocol::kLabelPointer)
-      return absl::nullopt;
+      return base::nullopt;
 
     base::StringPiece label;
     if (!reader.ReadU8LengthPrefixed(&label))
-      return absl::nullopt;
-
-    // Final zero-length label not included in size enforcement.
-    if (label.size() != 0)
-      octets_read += label.size() + 1;
+      return base::nullopt;
+    octets_read += label.size() + 1;
 
     if (label.size() > dns_protocol::kMaxLabelLength)
-      return absl::nullopt;
+      return base::nullopt;
     if (octets_read > dns_protocol::kMaxNameLength)
-      return absl::nullopt;
+      return base::nullopt;
 
     if (label.size() == 0)
       return ret;
@@ -199,11 +186,12 @@ absl::optional<std::string> DnsDomainToString(base::BigEndianReader& reader,
   }
 
   if (require_complete)
-    return absl::nullopt;
+    return base::nullopt;
 
-  // If terminating zero-length label was not included in the input, no need to
-  // recheck against max name length because terminating zero-length label does
-  // not count against the limit.
+  // If terminating zero-length label was not included in the input, it still
+  // counts against the max name length.
+  if (octets_read + 1 > dns_protocol::kMaxNameLength)
+    return base::nullopt;
 
   return ret;
 }
@@ -215,6 +203,7 @@ std::string GetURLFromTemplateWithoutParameters(const string& server_template) {
   return url_string;
 }
 
+#if !defined(OS_NACL)
 namespace {
 
 bool GetTimeDeltaForConnectionTypeFromFieldTrial(
@@ -234,7 +223,7 @@ bool GetTimeDeltaForConnectionTypeFromFieldTrial(
   int64_t ms;
   if (!base::StringToInt64(group_parts[type_size], &ms))
     return false;
-  *out = base::Milliseconds(ms);
+  *out = base::TimeDelta::FromMilliseconds(ms);
   return true;
 }
 
@@ -248,6 +237,47 @@ base::TimeDelta GetTimeDeltaForConnectionTypeFromFieldTrialOrDefault(
   if (!GetTimeDeltaForConnectionTypeFromFieldTrial(field_trial, type, &out))
     out = default_delta;
   return out;
+}
+#endif  // !defined(OS_NACL)
+
+AddressListDeltaType FindAddressListDeltaType(const AddressList& a,
+                                              const AddressList& b) {
+  bool pairwise_mismatch = false;
+  bool any_match = false;
+  bool any_missing = false;
+  bool same_size = a.size() == b.size();
+
+  for (size_t i = 0; i < a.size(); ++i) {
+    bool this_match = false;
+    for (size_t j = 0; j < b.size(); ++j) {
+      if (a[i] == b[j]) {
+        any_match = true;
+        this_match = true;
+        // If there is no match before, and the current match, this means
+        // DELTA_OVERLAP.
+        if (any_missing)
+          return DELTA_OVERLAP;
+      } else if (i == j) {
+        pairwise_mismatch = true;
+      }
+    }
+    if (!this_match) {
+      any_missing = true;
+      // If any match has occurred before, then there is no need to compare the
+      // remaining addresses. This means DELTA_OVERLAP.
+      if (any_match)
+        return DELTA_OVERLAP;
+    }
+  }
+
+  if (same_size && !pairwise_mismatch)
+    return DELTA_IDENTICAL;
+  else if (same_size && !any_missing)
+    return DELTA_REORDERED;
+  else if (any_match)
+    return DELTA_OVERLAP;
+  else
+    return DELTA_DISJOINT;
 }
 
 std::string CreateNamePointer(uint16_t offset) {
@@ -273,6 +303,8 @@ uint16_t DnsQueryTypeToQtype(DnsQueryType dns_query_type) {
       return dns_protocol::kTypePTR;
     case DnsQueryType::SRV:
       return dns_protocol::kTypeSRV;
+    case DnsQueryType::INTEGRITY:
+      return dns_protocol::kExperimentalTypeIntegrity;
     case DnsQueryType::HTTPS:
       return dns_protocol::kTypeHttps;
   }
@@ -293,43 +325,59 @@ DnsQueryType AddressFamilyToDnsQueryType(AddressFamily address_family) {
 }
 
 std::vector<DnsOverHttpsServerConfig> GetDohUpgradeServersFromDotHostname(
-    const std::string& dot_server) {
+    const std::string& dot_server,
+    const std::vector<std::string>& excluded_providers) {
   std::vector<DnsOverHttpsServerConfig> doh_servers;
 
   if (dot_server.empty())
     return doh_servers;
 
   for (const auto* entry : DohProviderEntry::GetList()) {
-    if (base::FeatureList::IsEnabled(entry->feature) &&
-        base::Contains(entry->dns_over_tls_hostnames, dot_server)) {
-      doh_servers.push_back(entry->doh_server_config);
+    if (base::Contains(excluded_providers, entry->provider))
+      continue;
+
+    if (base::Contains(entry->dns_over_tls_hostnames, dot_server)) {
+      std::string server_method;
+      CHECK(dns_util::IsValidDohTemplate(entry->dns_over_https_template,
+                                         &server_method));
+      doh_servers.emplace_back(entry->dns_over_https_template,
+                               server_method == "POST");
     }
   }
   return doh_servers;
 }
 
 std::vector<DnsOverHttpsServerConfig> GetDohUpgradeServersFromNameservers(
-    const std::vector<IPEndPoint>& dns_servers) {
-  const auto entries = GetDohProviderEntriesFromNameservers(dns_servers);
+    const std::vector<IPEndPoint>& dns_servers,
+    const std::vector<std::string>& excluded_providers) {
+  const auto entries =
+      GetDohProviderEntriesFromNameservers(dns_servers, excluded_providers);
   std::vector<DnsOverHttpsServerConfig> doh_servers;
   doh_servers.reserve(entries.size());
   std::transform(entries.begin(), entries.end(),
-                 std::back_inserter(doh_servers),
-                 [](const auto* entry) { return entry->doh_server_config; });
+                 std::back_inserter(doh_servers), [](const auto* entry) {
+                   std::string server_method;
+                   CHECK(dns_util::IsValidDohTemplate(
+                       entry->dns_over_https_template, &server_method));
+                   return DnsOverHttpsServerConfig(
+                       entry->dns_over_https_template, server_method == "POST");
+                 });
   return doh_servers;
 }
 
-std::string GetDohProviderIdForHistogramFromServerConfig(
+std::string GetDohProviderIdForHistogramFromDohConfig(
     const DnsOverHttpsServerConfig& doh_server) {
   const auto& entries = DohProviderEntry::GetList();
-  const auto it = base::ranges::find(entries, doh_server,
-                                     &DohProviderEntry::doh_server_config);
+  const auto it =
+      std::find_if(entries.begin(), entries.end(), [&](const auto* entry) {
+        return entry->dns_over_https_template == doh_server.server_template;
+      });
   return it != entries.end() ? (*it)->provider : "Other";
 }
 
 std::string GetDohProviderIdForHistogramFromNameserver(
     const IPEndPoint& nameserver) {
-  const auto entries = GetDohProviderEntriesFromNameservers({nameserver});
+  const auto entries = GetDohProviderEntriesFromNameservers({nameserver}, {});
   return entries.empty() ? "Other" : entries[0]->provider;
 }
 

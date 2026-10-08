@@ -30,5 +30,5 @@
     ImplementedAs=Geoposition
 ] interface GeolocationPosition {
     readonly attribute GeolocationCoordinates coords;
-    readonly attribute EpochTimeStamp timestamp;
+    readonly attribute DOMTimeStamp timestamp;
 };

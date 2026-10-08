@@ -32,6 +32,7 @@
 
 #include "third_party/blink/public/web/web_ax_enums.h"
 #include "third_party/blink/renderer/core/editing/markers/text_match_marker.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 
 namespace blink {
@@ -43,7 +44,7 @@ DocumentMarker::DocumentMarker(unsigned start_offset, unsigned end_offset)
   DCHECK_LT(start_offset_, end_offset_);
 }
 
-absl::optional<DocumentMarker::MarkerOffsets>
+base::Optional<DocumentMarker::MarkerOffsets>
 DocumentMarker::ComputeOffsetsAfterShift(unsigned offset,
                                          unsigned old_length,
                                          unsigned new_length) const {
@@ -84,7 +85,7 @@ DocumentMarker::ComputeOffsetsAfterShift(unsigned offset,
   }
 
   if (result.start_offset >= result.end_offset)
-    return absl::nullopt;
+    return base::nullopt;
 
   return result;
 }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,35 +6,24 @@
 
 #include <aura-shell-server-protocol.h>
 
-#include <sys/socket.h>
 #include <memory>
 
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/wm/desks/desks_util.h"
 #include "ash/wm/window_util.h"
-#include "base/containers/cxx20_erase_list.h"
 #include "base/time/time.h"
 #include "components/exo/buffer.h"
-#include "components/exo/shell_surface.h"
 #include "components/exo/test/exo_test_base.h"
-#include "components/exo/test/shell_surface_builder.h"
-#include "components/exo/wayland/scoped_wl.h"
-#include "components/exo/wayland/wayland_display_observer.h"
-#include "components/exo/wayland/wayland_display_output.h"
-#include "components/exo/wayland/wayland_display_util.h"
-#include "components/exo/wayland/wl_output.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/window_occlusion_tracker.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/compositor/layer_animation_sequence.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/compositor/test/layer_animator_test_controller.h"
-#include "ui/gfx/geometry/size_f.h"
 #include "ui/views/widget/widget.h"
 #include "ui/wm/core/window_util.h"
 #include "ui/wm/public/activation_change_observer.h"
@@ -45,21 +34,15 @@ namespace wayland {
 
 namespace {
 
-constexpr auto kTransitionDuration = base::Seconds(3);
+constexpr auto kTransitionDuration = base::TimeDelta::FromSeconds(3);
 
 class TestAuraSurface : public AuraSurface {
  public:
   explicit TestAuraSurface(Surface* surface)
       : AuraSurface(surface, /*resource=*/nullptr) {}
 
-  TestAuraSurface(const TestAuraSurface&) = delete;
-  TestAuraSurface& operator=(const TestAuraSurface&) = delete;
-
   float last_sent_occlusion_fraction() const {
     return last_sent_occlusion_fraction_;
-  }
-  aura::Window::OcclusionState last_sent_occlusion_state() const {
-    return last_sent_occlusion_state_;
   }
   int num_occlusion_updates() const { return num_occlusion_updates_; }
 
@@ -69,16 +52,11 @@ class TestAuraSurface : public AuraSurface {
     num_occlusion_updates_++;
   }
 
-  void SendOcclusionState(
-      const aura::Window::OcclusionState occlusion_state) override {
-    last_sent_occlusion_state_ = occlusion_state;
-  }
-
  private:
   float last_sent_occlusion_fraction_ = -1.0f;
-  aura::Window::OcclusionState last_sent_occlusion_state_ =
-      aura::Window::OcclusionState::UNKNOWN;
   int num_occlusion_updates_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(TestAuraSurface);
 };
 
 class MockSurfaceDelegate : public SurfaceDelegate {
@@ -103,31 +81,6 @@ class MockSurfaceDelegate : public SurfaceDelegate {
   MOCK_METHOD(void, SetUseImmersiveForFullscreen, (bool value), (override));
   MOCK_METHOD(void, OnActivationRequested, (), (override));
   MOCK_METHOD(void, OnNewOutputAdded, (), (override));
-  MOCK_METHOD(void, OnSetServerStartResize, (), (override));
-  MOCK_METHOD(void, ShowSnapPreviewToPrimary, (), (override));
-  MOCK_METHOD(void, ShowSnapPreviewToSecondary, (), (override));
-  MOCK_METHOD(void, HideSnapPreview, (), (override));
-  MOCK_METHOD(void, SetSnappedToSecondary, (), (override));
-  MOCK_METHOD(void, SetSnappedToPrimary, (), (override));
-  MOCK_METHOD(void, UnsetSnap, (), (override));
-  MOCK_METHOD(void, SetCanGoBack, (), (override));
-  MOCK_METHOD(void, UnsetCanGoBack, (), (override));
-  MOCK_METHOD(void, SetPip, (), (override));
-  MOCK_METHOD(void, UnsetPip, (), (override));
-  MOCK_METHOD(void,
-              SetAspectRatio,
-              (const gfx::SizeF& aspect_ratio),
-              (override));
-  MOCK_METHOD(void, MoveToDesk, (int desk_index), (override));
-  MOCK_METHOD(void, SetVisibleOnAllWorkspaces, (), (override));
-  MOCK_METHOD(void,
-              SetInitialWorkspace,
-              (const char* initial_workspace),
-              (override));
-  MOCK_METHOD(void, Pin, (bool trusted), (override));
-  MOCK_METHOD(void, Unpin, (), (override));
-  MOCK_METHOD(void, SetSystemModal, (bool modal), (override));
-  MOCK_METHOD(SecurityDelegate*, GetSecurityDelegate, (), (override));
 };
 
 }  // namespace
@@ -136,10 +89,6 @@ class ZAuraSurfaceTest : public test::ExoTestBase,
                          public ::wm::ActivationChangeObserver {
  public:
   ZAuraSurfaceTest() {}
-
-  ZAuraSurfaceTest(const ZAuraSurfaceTest&) = delete;
-  ZAuraSurfaceTest& operator=(const ZAuraSurfaceTest&) = delete;
-
   ~ZAuraSurfaceTest() override {}
 
   // test::ExoTestBase overrides:
@@ -150,10 +99,10 @@ class ZAuraSurfaceTest : public test::ExoTestBase,
     std::unique_ptr<Buffer> buffer(
         new Buffer(exo_test_helper()->CreateGpuMemoryBuffer(buffer_size)));
 
-    surface_ = std::make_unique<Surface>();
+    surface_.reset(new Surface);
     surface_->Attach(buffer.get());
 
-    aura_surface_ = std::make_unique<TestAuraSurface>(surface_.get());
+    aura_surface_.reset(new TestAuraSurface(surface_.get()));
 
     gfx::Transform transform;
     transform.Scale(1.5f, 1.5f);
@@ -209,14 +158,14 @@ class ZAuraSurfaceTest : public test::ExoTestBase,
   std::unique_ptr<Surface> surface_;
   std::unique_ptr<views::Widget> parent_widget_;
   float occlusion_fraction_on_activation_loss_ = -1.0f;
+
+  DISALLOW_COPY_AND_ASSIGN(ZAuraSurfaceTest);
 };
 
 TEST_F(ZAuraSurfaceTest, OcclusionTrackingStartsAfterCommit) {
   surface().OnWindowOcclusionChanged();
 
   EXPECT_EQ(-1.0f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::UNKNOWN,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(0, aura_surface().num_occlusion_updates());
   EXPECT_FALSE(surface().IsTrackingOcclusion());
 
@@ -225,8 +174,6 @@ TEST_F(ZAuraSurfaceTest, OcclusionTrackingStartsAfterCommit) {
   surface().Commit();
 
   EXPECT_EQ(0.2f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(1, aura_surface().num_occlusion_updates());
   EXPECT_TRUE(surface().IsTrackingOcclusion());
 }
@@ -235,8 +182,6 @@ TEST_F(ZAuraSurfaceTest,
        LosingActivationWithNoAnimatingWindowsSendsCorrectOcclusionFraction) {
   surface().Commit();
   EXPECT_EQ(0.0f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(1, aura_surface().num_occlusion_updates());
   ::wm::ActivateWindow(parent_widget().GetNativeWindow());
 
@@ -247,8 +192,6 @@ TEST_F(ZAuraSurfaceTest,
   widget->Show();
   EXPECT_EQ(0.2f, occlusion_fraction_on_activation_loss());
   EXPECT_EQ(0.2f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(2, aura_surface().num_occlusion_updates());
 }
 
@@ -256,8 +199,6 @@ TEST_F(ZAuraSurfaceTest,
        LosingActivationWithAnimatingWindowsSendsTargetOcclusionFraction) {
   surface().Commit();
   EXPECT_EQ(0.0f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(1, aura_surface().num_occlusion_updates());
   ::wm::ActivateWindow(parent_widget().GetNativeWindow());
 
@@ -287,8 +228,6 @@ TEST_F(ZAuraSurfaceTest,
   widget->Show();
   EXPECT_EQ(0.2f, occlusion_fraction_on_activation_loss());
   EXPECT_EQ(0.2f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(2, aura_surface().num_occlusion_updates());
 
   // Explicitly stop animation because threaded animation may have started
@@ -302,8 +241,6 @@ TEST_F(ZAuraSurfaceTest,
   // Expect the occlusion tracker to send an update after the animation
   // finishes.
   EXPECT_EQ(0.2f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(3, aura_surface().num_occlusion_updates());
 }
 
@@ -311,8 +248,6 @@ TEST_F(ZAuraSurfaceTest,
        LosingActivationByTriggeringTheLockScreenDoesNotSendOccludedFraction) {
   surface().Commit();
   EXPECT_EQ(0.0f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
   EXPECT_EQ(1, aura_surface().num_occlusion_updates());
   ::wm::ActivateWindow(parent_widget().GetNativeWindow());
 
@@ -341,12 +276,10 @@ TEST_F(ZAuraSurfaceTest,
             ash::window_util::GetActiveWindow());
   EXPECT_EQ(0.0f, occlusion_fraction_on_activation_loss());
   EXPECT_EQ(0.0f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
 }
 
 TEST_F(ZAuraSurfaceTest, OcclusionIncludesOffScreenArea) {
-  UpdateDisplay("200x150");
+  UpdateDisplay("150x150");
 
   gfx::Size buffer_size(80, 100);
   std::unique_ptr<Buffer> buffer(
@@ -360,8 +293,6 @@ TEST_F(ZAuraSurfaceTest, OcclusionIncludesOffScreenArea) {
   surface().OnWindowOcclusionChanged();
 
   EXPECT_EQ(0.75f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
 }
 
 TEST_F(ZAuraSurfaceTest, ZeroSizeWindowSendsZeroOcclusionFraction) {
@@ -370,28 +301,6 @@ TEST_F(ZAuraSurfaceTest, ZeroSizeWindowSendsZeroOcclusionFraction) {
   surface().Commit();
   surface().OnWindowOcclusionChanged();
   EXPECT_EQ(0.0f, aura_surface().last_sent_occlusion_fraction());
-  EXPECT_EQ(aura::Window::OcclusionState::VISIBLE,
-            aura_surface().last_sent_occlusion_state());
-}
-
-TEST_F(ZAuraSurfaceTest, CanPin) {
-  MockSurfaceDelegate delegate;
-  wl_resource resource;
-  resource.data = &aura_surface();
-  surface().SetSurfaceDelegate(&delegate);
-  EXPECT_CALL(delegate, Pin(true));
-
-  aura_surface().Pin(true);
-}
-
-TEST_F(ZAuraSurfaceTest, CanUnpin) {
-  MockSurfaceDelegate delegate;
-  wl_resource resource;
-  resource.data = &aura_surface();
-  surface().SetSurfaceDelegate(&delegate);
-  EXPECT_CALL(delegate, Unpin());
-
-  aura_surface().Unpin();
 }
 
 TEST_F(ZAuraSurfaceTest, CanSetFullscreenModeToPlain) {
@@ -410,247 +319,6 @@ TEST_F(ZAuraSurfaceTest, CanSetFullscreenModeToImmersive) {
   EXPECT_CALL(delegate, SetUseImmersiveForFullscreen(true));
 
   aura_surface().SetFullscreenMode(ZAURA_SURFACE_FULLSCREEN_MODE_IMMERSIVE);
-}
-
-class MockAuraOutput : public AuraOutput {
- public:
-  using AuraOutput::AuraOutput;
-
-  MOCK_METHOD(void, SendInsets, (const gfx::Insets&), (override));
-  MOCK_METHOD(void, SendLogicalTransform, (int32_t), (override));
-  MOCK_METHOD(void, SendActiveDisplay, (), (override));
-};
-
-class ZAuraOutputTest : public test::ExoTestBase {
- protected:
-  ZAuraOutputTest() = default;
-  ZAuraOutputTest(const ZAuraOutputTest&) = delete;
-  ZAuraOutputTest& operator=(const ZAuraOutputTest&) = delete;
-  // test::ExxoTestBase:
-  ~ZAuraOutputTest() override = default;
-
-  void SetUp() override {
-    test::ExoTestBase::SetUp();
-
-    int fds[2];
-    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, fds), 0);
-    wayland_display_.reset(wl_display_create());
-    client_ = wl_client_create(wayland_display_.get(), fds[0]);
-
-    UpdateDisplayOutput();
-  }
-
-  void TearDown() override {
-    output_holder_list_.clear();
-    test::ExoTestBase::TearDown();
-  }
-
-  void ResetDisplayOutput() {
-    for (auto& holder : output_holder_list_) {
-      holder->aura_output.reset();
-      holder->output.reset();
-    }
-  }
-
-  void UpdateDisplayOutput() {
-    auto display_list = display::Screen::GetScreen()->GetAllDisplays();
-    auto iter = output_holder_list_.begin();
-    while (iter != output_holder_list_.end()) {
-      auto* out_ptr = (*iter)->output.get();
-      bool erased = base::EraseIf(display_list,
-                                  [out_ptr](const display::Display& display) {
-                                    return display.id() == out_ptr->id();
-                                  });
-      if (erased)
-        ++iter;
-      else
-        iter = output_holder_list_.erase(iter);
-    }
-
-    for (auto& display : display_list) {
-      auto output_holder = std::make_unique<OutputHolder>();
-      output_holder->client = client_;
-      output_holder->output =
-          std::make_unique<WaylandDisplayOutput>(display.id());
-
-      wl_resource* output_resource = wl_resource_create(
-          client_, &wl_output_interface, kWlOutputVersion, 0);
-      output_holder->handler = std::make_unique<WaylandDisplayHandler>(
-          output_holder->output.get(), output_resource);
-      output_holder->handler->Initialize();
-      output_holder->CreateAuraOutput();
-
-      output_holder_list_.push_back(std::move(output_holder));
-    }
-  }
-
-  MockAuraOutput* GetPrimaryAuraOutput() {
-    return GetAuraOutput(
-        display::Screen::GetScreen()->GetPrimaryDisplay().id());
-  }
-
-  MockAuraOutput* GetAuraOutput(int64_t display_id) {
-    return GetOutputHolder(display_id)->aura_output.get();
-  }
-
-  WaylandDisplayHandler* GetPrimaryDisplayHandler() {
-    return GetOutputHolder(
-               display::Screen::GetScreen()->GetPrimaryDisplay().id())
-        ->handler.get();
-  }
-
-  struct OutputHolder {
-    std::unique_ptr<MockAuraOutput> aura_output;
-    std::unique_ptr<WaylandDisplayOutput> output;
-    std::unique_ptr<WaylandDisplayHandler> handler;
-
-    wl_client* client;
-
-    void CreateAuraOutput() {
-      DCHECK(!aura_output);
-      aura_output = std::make_unique<::testing::NiceMock<MockAuraOutput>>(
-          wl_resource_create(client, &zaura_output_interface,
-                             kZAuraShellVersion, 0),
-          handler.get());
-    }
-  };
-
-  OutputHolder* GetOutputHolder(int64_t display_id) {
-    auto iter = base::ranges::find_if(
-        output_holder_list_,
-        [display_id](const std::unique_ptr<OutputHolder>& holder) {
-          return holder->output->id() == display_id;
-        });
-    return iter == output_holder_list_.end() ? nullptr : iter->get();
-  }
-
- private:
-  std::vector<std::unique_ptr<OutputHolder>> output_holder_list_;
-  std::unique_ptr<wl_display, WlDisplayDeleter> wayland_display_;
-  wl_client* client_ = nullptr;
-};
-
-TEST_F(ZAuraOutputTest, SendInsets) {
-  auto* mock_aura_output = GetPrimaryAuraOutput();
-
-  UpdateDisplay("800x600");
-  display::Display display =
-      display_manager()->GetDisplayForId(display_manager()->first_display_id());
-  const gfx::Rect initial_bounds{800, 600};
-  EXPECT_EQ(display.bounds(), initial_bounds);
-  const gfx::Rect new_work_area{10, 20, 500, 400};
-  EXPECT_NE(display.work_area(), new_work_area);
-  display.set_work_area(new_work_area);
-
-  const gfx::Insets expected_insets = initial_bounds.InsetsFrom(new_work_area);
-  EXPECT_CALL(*mock_aura_output, SendInsets(expected_insets)).Times(1);
-  mock_aura_output->SendDisplayMetrics(
-      display, display::DisplayObserver::DISPLAY_METRIC_WORK_AREA);
-}
-
-TEST_F(ZAuraOutputTest, SendLogicalTransform) {
-  auto* mock_aura_output = GetPrimaryAuraOutput();
-
-  UpdateDisplay("800x600");
-  display::Display display =
-      display_manager()->GetDisplayForId(display_manager()->first_display_id());
-
-  // Make sure the expected calls happen in order.
-  ::testing::InSequence seq;
-
-  EXPECT_EQ(display.rotation(), display::Display::ROTATE_0);
-  EXPECT_EQ(display.panel_rotation(), display::Display::ROTATE_0);
-  EXPECT_CALL(*mock_aura_output,
-              SendLogicalTransform(OutputTransform(display.rotation())))
-      .Times(1);
-  mock_aura_output->SendDisplayMetrics(
-      display, display::DisplayObserver::DISPLAY_METRIC_ROTATION);
-
-  display.set_rotation(display::Display::ROTATE_270);
-  display.set_panel_rotation(display::Display::ROTATE_180);
-  EXPECT_CALL(*mock_aura_output,
-              SendLogicalTransform(OutputTransform(display.rotation())))
-      .Times(1);
-  mock_aura_output->SendDisplayMetrics(
-      display, display::DisplayObserver::DISPLAY_METRIC_ROTATION);
-
-  display.set_rotation(display::Display::ROTATE_90);
-  display.set_panel_rotation(display::Display::ROTATE_180);
-  EXPECT_CALL(*mock_aura_output,
-              SendLogicalTransform(OutputTransform(display.rotation())))
-      .Times(1);
-  mock_aura_output->SendDisplayMetrics(
-      display, display::DisplayObserver::DISPLAY_METRIC_ROTATION);
-
-  display.set_rotation(display::Display::ROTATE_270);
-  display.set_panel_rotation(display::Display::ROTATE_270);
-  EXPECT_CALL(*mock_aura_output,
-              SendLogicalTransform(OutputTransform(display.rotation())))
-      .Times(1);
-  mock_aura_output->SendDisplayMetrics(
-      display, display::DisplayObserver::DISPLAY_METRIC_ROTATION);
-}
-
-// Make sure that data associated with wl/aura outputs are destroyed
-// properly regardless of which one is destroyed first.
-TEST_F(ZAuraOutputTest, DestroyAuraOutput) {
-  auto* output_holder =
-      GetOutputHolder(display::Screen::GetScreen()->GetPrimaryDisplay().id());
-
-  EXPECT_EQ(1u, GetPrimaryDisplayHandler()->CountObserversForTesting());
-  output_holder->aura_output.reset();
-  EXPECT_EQ(0u, GetPrimaryDisplayHandler()->CountObserversForTesting());
-  output_holder->CreateAuraOutput();
-
-  EXPECT_EQ(1u, GetPrimaryDisplayHandler()->CountObserversForTesting());
-  EXPECT_TRUE(output_holder->aura_output->HasDisplayHandlerForTesting());
-  output_holder->handler.reset();
-  EXPECT_FALSE(output_holder->aura_output->HasDisplayHandlerForTesting());
-}
-
-// Make sure that data associated with wl/aura outputs are destroyed
-// properly regardless of which one is destroyed first.
-TEST_F(ZAuraOutputTest, ActiveDisplay) {
-  UpdateDisplay("800x600, 800x600");
-  UpdateDisplayOutput();
-  auto* screen = display::Screen::GetScreen();
-  int64_t primary_id = screen->GetAllDisplays()[0].id();
-  int64_t secondary_id = screen->GetAllDisplays()[1].id();
-
-  auto* primary_output_holder = GetOutputHolder(primary_id);
-  auto* secondary_output_holder = GetOutputHolder(secondary_id);
-
-  auto shell_surface =
-      test::ShellSurfaceBuilder({100, 100}).BuildShellSurface();
-
-  auto test_widget = CreateTestWidget();
-  test_widget->SetBounds({800, 0, 100, 100});
-
-  ASSERT_EQ(screen->GetDisplayNearestWindow(shell_surface->host_window()).id(),
-            primary_id);
-  ASSERT_EQ(
-      screen->GetDisplayNearestWindow(test_widget->GetNativeWindow()).id(),
-      secondary_id);
-
-  EXPECT_CALL(*(primary_output_holder->aura_output), SendActiveDisplay())
-      .Times(1);
-  EXPECT_CALL(*(secondary_output_holder->aura_output), SendActiveDisplay())
-      .Times(0);
-  shell_surface->GetWidget()->Activate();
-  testing::Mock::VerifyAndClearExpectations(
-      primary_output_holder->aura_output.get());
-  testing::Mock::VerifyAndClearExpectations(
-      secondary_output_holder->aura_output.get());
-
-  EXPECT_CALL(*(primary_output_holder->aura_output), SendActiveDisplay())
-      .Times(0);
-  EXPECT_CALL(*(secondary_output_holder->aura_output), SendActiveDisplay())
-      .Times(1);
-  test_widget->Activate();
-  testing::Mock::VerifyAndClearExpectations(
-      primary_output_holder->aura_output.get());
-  testing::Mock::VerifyAndClearExpectations(
-      secondary_output_holder->aura_output.get());
 }
 
 }  // namespace wayland

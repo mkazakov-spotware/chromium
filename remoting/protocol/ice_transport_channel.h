@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/timer/timer.h"
 #include "remoting/protocol/network_settings.h"
@@ -28,7 +28,8 @@ class P2PTransportChannel;
 class PortAllocator;
 }  // namespace cricket
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class P2PDatagramSocket;
 class TransportContext;
@@ -69,10 +70,6 @@ class IceTransportChannel : public sigslot::has_slots<> {
 
   explicit IceTransportChannel(
       scoped_refptr<TransportContext> transport_context);
-
-  IceTransportChannel(const IceTransportChannel&) = delete;
-  IceTransportChannel& operator=(const IceTransportChannel&) = delete;
-
   ~IceTransportChannel() override;
 
   // Connects the channel and calls the |callback| after that.
@@ -119,7 +116,7 @@ class IceTransportChannel : public sigslot::has_slots<> {
   scoped_refptr<TransportContext> transport_context_;
 
   std::string name_;
-  raw_ptr<Delegate> delegate_ = nullptr;
+  Delegate* delegate_ = nullptr;
   ConnectedCallback callback_;
   std::string ice_username_fragment_;
 
@@ -132,11 +129,14 @@ class IceTransportChannel : public sigslot::has_slots<> {
   int connect_attempts_left_;
   base::RepeatingTimer reconnect_timer_;
 
-  THREAD_CHECKER(thread_checker_);
+  base::ThreadChecker thread_checker_;
 
   base::WeakPtrFactory<IceTransportChannel> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(IceTransportChannel);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_ICE_TRANSPORT_CHANNEL_H_

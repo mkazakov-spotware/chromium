@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/stl_util.h"
 #include "media/base/video_types.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/vaapi/vaapi_utils.h"
@@ -53,7 +54,7 @@ static void FillIQMatrix(const JpegQuantizationTable* q_table,
     if (!q_table[i].valid)
       continue;
     iq_matrix->load_quantiser_table[i] = 1;
-    for (size_t j = 0; j < std::size(q_table[i].value); j++)
+    for (size_t j = 0; j < base::size(q_table[i].value); j++)
       iq_matrix->quantiser_table[i][j] = q_table[i].value[j];
   }
 }
@@ -154,11 +155,15 @@ static bool IsVaapiSupportedJpeg(const JpegParseResult& jpeg) {
 
   // Validate the coded size.
   gfx::Size min_jpeg_resolution;
+  if (!VaapiWrapper::GetDecodeMinResolution(VAProfileJPEGBaseline,
+                                            &min_jpeg_resolution)) {
+    DLOG(ERROR) << "Could not get the minimum resolution";
+    return false;
+  }
   gfx::Size max_jpeg_resolution;
-  if (!VaapiWrapper::GetSupportedResolutions(
-          VAProfileJPEGBaseline, VaapiWrapper::CodecMode::kDecode,
-          min_jpeg_resolution, max_jpeg_resolution)) {
-    DLOG(ERROR) << "Could not get the minimum and maximum resolutions";
+  if (!VaapiWrapper::GetDecodeMaxResolution(VAProfileJPEGBaseline,
+                                            &max_jpeg_resolution)) {
+    DLOG(ERROR) << "Could not get the maximum resolution";
     return false;
   }
   const int actual_jpeg_coded_width =
@@ -326,15 +331,16 @@ bool VaapiJpegDecoder::MaybeCreateSurface(unsigned int picture_va_rt_format,
   // keep track of the |new_visible_size| inside the ScopedVASurface so that
   // when we create a VAImage or export the surface as a NativePixmapDmaBuf, we
   // can report the size that clients should be using to read the contents.
-  auto scoped_va_surfaces = vaapi_wrapper_->CreateContextAndScopedVASurfaces(
-      picture_va_rt_format, new_coded_size,
-      {VaapiWrapper::SurfaceUsageHint::kGeneric}, 1u, new_visible_size);
-  if (scoped_va_surfaces.empty()) {
+  scoped_va_context_and_surface_.reset(
+      vaapi_wrapper_
+          ->CreateContextAndScopedVASurface(picture_va_rt_format,
+                                            new_coded_size, new_visible_size)
+          .release());
+  if (!scoped_va_context_and_surface_) {
     VLOGF(1) << "CreateContextAndScopedVASurface() failed";
     return false;
   }
 
-  scoped_va_context_and_surface_.reset(scoped_va_surfaces[0].release());
   DCHECK(scoped_va_context_and_surface_->IsValid());
   return true;
 }

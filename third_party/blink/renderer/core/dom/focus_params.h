@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,27 +17,20 @@ struct FocusParams {
 
  public:
   FocusParams() : options(FocusOptions::Create()) {}
-  explicit FocusParams(bool gate_on_user_activation)
-      : options(FocusOptions::Create()),
-        gate_on_user_activation(gate_on_user_activation) {}
   FocusParams(SelectionBehaviorOnFocus selection,
               mojom::blink::FocusType focus_type,
               InputDeviceCapabilities* capabilities,
-              const FocusOptions* focus_options = FocusOptions::Create(),
-              bool gate_on_user_activation = false)
+              const FocusOptions* focus_options = FocusOptions::Create())
       : selection_behavior(selection),
         type(focus_type),
         source_capabilities(capabilities),
-        options(focus_options),
-        gate_on_user_activation(gate_on_user_activation) {}
+        options(focus_options) {}
 
   SelectionBehaviorOnFocus selection_behavior =
       SelectionBehaviorOnFocus::kRestore;
   mojom::blink::FocusType type = mojom::blink::FocusType::kNone;
   InputDeviceCapabilities* source_capabilities = nullptr;
   const FocusOptions* options = nullptr;
-  bool omit_blur_events = false;
-  bool gate_on_user_activation = false;
 };
 
 }  // namespace blink

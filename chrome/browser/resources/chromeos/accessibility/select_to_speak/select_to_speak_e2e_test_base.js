@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,14 @@ SelectToSpeakE2ETest = class extends E2ETestBase {
   testGenCppIncludes() {
     super.testGenCppIncludes();
     GEN(`
+#include "ash/accessibility/accessibility_delegate.h"
 #include "ash/keyboard/ui/keyboard_util.h"
-#include "ui/accessibility/accessibility_features.h"
+#include "ash/shell.h"
+#include "base/bind.h"
+#include "base/callback.h"
+#include "chrome/browser/chromeos/accessibility/accessibility_manager.h"
+#include "chrome/common/extensions/extension_constants.h"
+#include "content/public/test/browser_test.h"
     `);
   }
 
@@ -21,12 +27,14 @@ SelectToSpeakE2ETest = class extends E2ETestBase {
   testGenPreamble() {
     super.testGenPreamble();
     GEN(`
-    base::OnceClosure load_cb =
-        base::BindOnce(&ash::AccessibilityManager::SetSelectToSpeakEnabled,
-            base::Unretained(ash::AccessibilityManager::Get()),
+    //keyboard::SetRequestedKeyboardState(keyboard::KEYBOARD_STATE_ENABLED);
+    //ash::Shell::Get()->CreateKeyboard();
+    base::Closure load_cb =
+        base::Bind(&chromeos::AccessibilityManager::SetSelectToSpeakEnabled,
+            base::Unretained(chromeos::AccessibilityManager::Get()),
             true);
-    `);
-    super.testGenPreambleCommon('kSelectToSpeakExtensionId');
+    WaitForExtension(extension_misc::kSelectToSpeakExtensionId, load_cb);
+      `);
   }
 
   /**
@@ -49,45 +57,5 @@ SelectToSpeakE2ETest = class extends E2ETestBase {
    */
   findTextNode(root, text) {
     return root.find({role: 'staticText', attributes: {name: text}});
-  }
-
-  /**
-   * Triggers select-to-speak to read selected text at a keystroke.
-   */
-  triggerReadSelectedText() {
-    assertFalse(this.mockTts.currentlySpeaking());
-    assertEquals(this.mockTts.pendingUtterances().length, 0);
-    selectToSpeak.fireMockKeyDownEvent(
-        {keyCode: SelectToSpeakConstants.SEARCH_KEY_CODE});
-    selectToSpeak.fireMockKeyDownEvent(
-        {keyCode: SelectToSpeakConstants.READ_SELECTION_KEY_CODE});
-    assertTrue(selectToSpeak.inputHandler_.isSelectionKeyDown_);
-    selectToSpeak.fireMockKeyUpEvent(
-        {keyCode: SelectToSpeakConstants.READ_SELECTION_KEY_CODE});
-    selectToSpeak.fireMockKeyUpEvent(
-        {keyCode: SelectToSpeakConstants.SEARCH_KEY_CODE});
-  }
-
-  /**
-   * Triggers speech using the search key and clicking with the mouse.
-   * @param {Object} downEvent The mouse-down event.
-   * @param {Object} upEvent The mouse-up event.
-   */
-  triggerReadMouseSelectedText(downEvent, upEvent) {
-    selectToSpeak.fireMockKeyDownEvent(
-        {keyCode: SelectToSpeakConstants.SEARCH_KEY_CODE});
-    selectToSpeak.fireMockMouseDownEvent(downEvent);
-    selectToSpeak.fireMockMouseUpEvent(upEvent);
-    selectToSpeak.fireMockKeyUpEvent(
-        {keyCode: SelectToSpeakConstants.SEARCH_KEY_CODE});
-  }
-
-  /**
-   * Waits one event loop before invoking callback. Useful if you are waiting
-   * for pending promises to resolve.
-   * @param {function()} callback
-   */
-  waitOneEventLoop(callback) {
-    setTimeout(this.newCallback(callback), 0);
   }
 };

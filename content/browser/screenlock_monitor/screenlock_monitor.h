@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list_threadsafe.h"
-#include "base/time/time.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/screenlock_observer.h"
 
@@ -24,10 +24,6 @@ class ScreenlockMonitorSource;
 class CONTENT_EXPORT ScreenlockMonitor {
  public:
   ScreenlockMonitor(std::unique_ptr<ScreenlockMonitorSource> source);
-
-  ScreenlockMonitor(const ScreenlockMonitor&) = delete;
-  ScreenlockMonitor& operator=(const ScreenlockMonitor&) = delete;
-
   ~ScreenlockMonitor();
 
   // Get the process-wide ScreenlockMonitor (if not present, returns NULL).
@@ -45,12 +41,11 @@ class CONTENT_EXPORT ScreenlockMonitor {
 
   void NotifyScreenLocked();
   void NotifyScreenUnlocked();
-  void ReportLockUnlockDuration(bool is_locked);
 
-  base::TimeTicks last_lock_unlock_time_;
-  bool is_locked_ = false;
   scoped_refptr<base::ObserverListThreadSafe<ScreenlockObserver>> observers_;
   std::unique_ptr<ScreenlockMonitorSource> source_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScreenlockMonitor);
 };
 
 }  // namespace content

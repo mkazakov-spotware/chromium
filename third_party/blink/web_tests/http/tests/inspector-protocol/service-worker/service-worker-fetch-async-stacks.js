@@ -8,11 +8,9 @@
   await dp.Target.setAutoAttach({autoAttach: true, waitForDebuggerOnStart: true, flatten: true});
   const onAttached = async event => {
     swdp = session.createChild(event.params.sessionId).protocol;
-    const idCallback = swdp.Debugger.enable();
-    const stackCallback = swdp.Debugger.setAsyncCallStackDepth({maxDepth: 32});
+    swDebuggerId = (await swdp.Debugger.enable()).result.debuggerId;
+    await swdp.Debugger.setAsyncCallStackDepth({maxDepth: 32});
     swdp.Runtime.runIfWaitingForDebugger();
-    swDebuggerId = (await idCallback).result.debuggerId;
-    await stackCallback;
   };
   dp.Target.onAttachedToTarget(onAttached);
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,7 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/notifications/notification_blocker.h"
 #include "chrome/browser/notifications/notification_common.h"
 #include "chrome/browser/notifications/notification_handler.h"
@@ -96,7 +95,7 @@ class NotificationDisplayQueue : public NotificationBlocker::Observer {
   };
 
   // The |notification_display_service_| owns |this|.
-  raw_ptr<NotificationDisplayService> notification_display_service_;
+  NotificationDisplayService* notification_display_service_;
 
   // A list of notification blockers that indicate when notifications should be
   // blocked and notify when their state changes.
@@ -108,9 +107,8 @@ class NotificationDisplayQueue : public NotificationBlocker::Observer {
   std::vector<QueuedNotification> queued_notifications_;
 
   // Observer for the list of |blockers_|.
-  base::ScopedMultiSourceObservation<NotificationBlocker,
-                                     NotificationBlocker::Observer>
-      notification_blocker_observations_{this};
+  ScopedObserver<NotificationBlocker, NotificationBlocker::Observer>
+      notification_blocker_observer_{this};
 };
 
 #endif  // CHROME_BROWSER_NOTIFICATIONS_NOTIFICATION_DISPLAY_QUEUE_H_

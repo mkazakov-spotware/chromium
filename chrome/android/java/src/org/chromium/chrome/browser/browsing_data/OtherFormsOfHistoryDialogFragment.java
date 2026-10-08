@@ -1,10 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browsing_data;
 
+import android.app.Activity;
 import android.app.Dialog;
+import android.app.DialogFragment;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.text.SpannableString;
@@ -15,8 +17,6 @@ import android.widget.TextView;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
-import androidx.fragment.app.DialogFragment;
-import androidx.fragment.app.FragmentActivity;
 
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
@@ -38,8 +38,8 @@ public class OtherFormsOfHistoryDialogFragment
      * Show the dialog.
      * @param activity The activity in which to show the dialog.
      */
-    public void show(FragmentActivity activity) {
-        show(activity.getSupportFragmentManager(), TAG);
+    public void show(Activity activity) {
+        show(activity.getFragmentManager(), TAG);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class OtherFormsOfHistoryDialogFragment
         TextView textView = (TextView) view.findViewById(R.id.text);
         final SpannableString textWithLink = SpanApplier.applySpans(textView.getText().toString(),
                 new SpanApplier.SpanInfo("<link>", "</link>",
-                        new NoUnderlineClickableSpan(getContext(), (widget) -> {
+                        new NoUnderlineClickableSpan(getResources(), (widget) -> {
                             new TabDelegate(false /* incognito */)
                                     .launchUrl(UrlConstants.MY_ACTIVITY_URL_IN_CBD_NOTICE,
                                             TabLaunchType.FROM_CHROME_UI);
@@ -63,7 +63,7 @@ public class OtherFormsOfHistoryDialogFragment
 
         // Construct the dialog.
         AlertDialog dialog =
-                new AlertDialog.Builder(getActivity(), R.style.ThemeOverlay_BrowserUI_AlertDialog)
+                new AlertDialog.Builder(getActivity(), R.style.Theme_Chromium_AlertDialog)
                         .setView(view)
                         .setTitle(R.string.clear_browsing_data_history_dialog_title)
                         .setPositiveButton(R.string.ok_got_it, this)

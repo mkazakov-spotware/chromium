@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,8 @@
 
 #include <string>
 #include <vector>
+
+#include "base/macros.h"
 
 namespace device {
 
@@ -33,12 +35,6 @@ class FakeGattDeviceServicesResultWinrt
   explicit FakeGattDeviceServicesResultWinrt(
       const std::vector<Microsoft::WRL::ComPtr<FakeGattDeviceServiceWinrt>>&
           fake_services);
-
-  FakeGattDeviceServicesResultWinrt(const FakeGattDeviceServicesResultWinrt&) =
-      delete;
-  FakeGattDeviceServicesResultWinrt& operator=(
-      const FakeGattDeviceServicesResultWinrt&) = delete;
-
   ~FakeGattDeviceServicesResultWinrt() override;
 
   // IGattDeviceServicesResult:
@@ -59,6 +55,8 @@ class FakeGattDeviceServicesResultWinrt
       Microsoft::WRL::ComPtr<ABI::Windows::Devices::Bluetooth::
                                  GenericAttributeProfile::IGattDeviceService>>
       services_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeGattDeviceServicesResultWinrt);
 };
 
 }  // namespace device

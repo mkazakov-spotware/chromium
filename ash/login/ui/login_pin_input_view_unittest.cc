@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include "ash/login/ui/login_palette.h"
 #include "ash/login/ui/login_test_base.h"
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/strings/strcat.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/strings/string16.h"
 #include "ui/accessibility/ax_enums.mojom-shared.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/events/test/event_generator.h"
@@ -32,8 +33,7 @@ class LoginPinInputViewTest
 
   void SetUp() override {
     LoginTestBase::SetUp();
-    view_ = new LoginPinInputView(
-        CreateDefaultLoginPalette(/*color_provider=*/nullptr));
+    view_ = new LoginPinInputView(CreateDefaultLoginPalette());
     view_->Init(base::BindRepeating(&LoginPinInputViewTest::OnPinSubmit,
                                     base::Unretained(this)),
                 base::BindRepeating(&LoginPinInputViewTest::OnPinChanged,
@@ -44,12 +44,12 @@ class LoginPinInputViewTest
     SetWidget(CreateWidgetWithContent(view_));
   }
 
-  void OnPinSubmit(const std::u16string& pin) {
-    submitted_pin_ = absl::make_optional(pin);
+  void OnPinSubmit(const base::string16& pin) {
+    submitted_pin_ = base::make_optional(pin);
   }
 
   void OnPinChanged(const bool is_empty) {
-    is_empty_ = absl::make_optional(is_empty);
+    is_empty_ = base::make_optional(is_empty);
   }
 
   void PressKeyHelper(ui::KeyboardCode key) {
@@ -78,8 +78,8 @@ class LoginPinInputViewTest
   int length_ = 0;
 
   // Generated during the callback response.
-  absl::optional<std::u16string> submitted_pin_;
-  absl::optional<bool> is_empty_;
+  base::Optional<base::string16> submitted_pin_;
+  base::Optional<bool> is_empty_;
 };
 
 // Verifies that pressing 'Return' on the PIN input field triggers an
@@ -96,7 +96,7 @@ TEST_P(LoginPinInputViewTest, PressingReturnTriggersUnlockWithEmptyPin) {
   view_->SetAuthenticateWithEmptyPinOnReturnKey(true);
   generator->PressKey(ui::KeyboardCode::VKEY_RETURN, 0);
   ASSERT_TRUE(submitted_pin_.has_value());
-  EXPECT_EQ(u"", *submitted_pin_);
+  EXPECT_EQ(base::ASCIIToUTF16(""), *submitted_pin_);
 }
 
 // Tests that ChromeVox announces "Enter your PIN" when the
@@ -130,41 +130,6 @@ TEST_P(LoginPinInputViewTest, AccessibleValues) {
   PressKeyHelper(ui::KeyboardCode::VKEY_1);
   ExpectTextValue("\u2022\u2022\u2022\u2022\u2022 "); /* 5 bullets 1 space */
   ExpectDescription("One digit remaining");
-}
-
-TEST_P(LoginPinInputViewTest, ReadOnly) {
-  EXPECT_FALSE(view_->IsReadOnly());
-  view_->SetReadOnly(true);
-  EXPECT_TRUE(view_->IsReadOnly());
-  ExpectTextValue("      ");
-
-  // Keys are ignored in the read-only mode.
-  PressKeyHelper(ui::KeyboardCode::VKEY_1);
-  ExpectTextValue("      ");
-  PressKeyHelper(ui::KeyboardCode::VKEY_RETURN);
-  EXPECT_FALSE(submitted_pin_.has_value());
-
-  // After unsetting the read-only mode, keys start working again.
-  view_->SetReadOnly(false);
-  PressKeyHelper(ui::KeyboardCode::VKEY_1);
-  ExpectTextValue("\u2022     "); /* 1 bullet 5 spaces */
-}
-
-TEST_P(LoginPinInputViewTest, FlagsPreservedOnPaletteChange) {
-  EXPECT_TRUE(view_->GetVisible());
-  EXPECT_FALSE(view_->IsReadOnly());
-
-  // Updating the palette doesn't affect the default flags.
-  view_->UpdatePalette(CreateDefaultLoginPalette(/*color_provider=*/nullptr));
-  EXPECT_TRUE(view_->GetVisible());
-  EXPECT_FALSE(view_->IsReadOnly());
-
-  // After inverting flags and updating the pallette, the flags are preserved.
-  view_->SetVisible(false);
-  view_->SetReadOnly(true);
-  view_->UpdatePalette(CreateDefaultLoginPalette(/*color_provider=*/nullptr));
-  EXPECT_FALSE(view_->GetVisible());
-  EXPECT_TRUE(view_->IsReadOnly());
 }
 
 INSTANTIATE_TEST_SUITE_P(PinInputViewTests,

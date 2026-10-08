@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
-#include <memory>
-
-#include "base/time/time.h"
+#include "base/macros.h"
 #include "net/base/load_timing_info.h"
 #include "net/http/http_response_info.h"
 
@@ -43,16 +41,15 @@ class MetricsDelegate {
   // the MetricsDelegate callback.
   struct Metrics {
     Metrics();
-
-    Metrics(const Metrics&) = delete;
-    Metrics& operator=(const Metrics&) = delete;
-
     ~Metrics();
 
     NSURLSessionTask* task;
     LoadTimingInfo load_timing_info;
     HttpResponseInfo response_info;
     base::Time response_end_time;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Metrics);
   };
 
   // Set the global instance of the MetricsDelegate.

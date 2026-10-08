@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,14 +16,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   if (size > 16 * 1024)
     return 0;
 
-  absl::optional<base::Value> input = base::JSONReader::Read(
+  base::Optional<base::Value> input = base::JSONReader::Read(
       std::string(reinterpret_cast<const char*>(data), size));
-  if (!input || !input.value().is_dict())
+  if (!input)
     return 0;
 
   std::string error_unused;
-  auto dial_internal_message = DialInternalMessage::From(
-      std::move(input.value().GetDict()), &error_unused);
+  auto dial_internal_message =
+      DialInternalMessage::From(std::move(input.value()), &error_unused);
   if (!dial_internal_message)
     return 0;
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -97,7 +97,8 @@ void FakeBluetoothGattDescriptorServiceProvider::SendValueChanged(
 
 void FakeBluetoothGattDescriptorServiceProvider::GetValue(
     const dbus::ObjectPath& device_path,
-    device::BluetoothLocalGattService::Delegate::ValueCallback callback) {
+    device::BluetoothLocalGattService::Delegate::ValueCallback callback,
+    device::BluetoothLocalGattService::Delegate::ErrorCallback error_callback) {
   DVLOG(1) << "GATT descriptor value Get request: " << object_path_.value()
            << " UUID: " << uuid_;
   // Check if this descriptor is registered.
@@ -115,22 +116,20 @@ void FakeBluetoothGattDescriptorServiceProvider::GetValue(
   if (!fake_bluetooth_gatt_manager_client->IsServiceRegistered(
           characteristic->service_path())) {
     DVLOG(1) << "GATT descriptor not registered.";
-    std::move(callback).Run(
-        device::BluetoothGattService::GattErrorCode::kFailed,
-        /*value=*/std::vector<uint8_t>());
+    std::move(error_callback).Run();
     return;
   }
 
   if (!CanRead(flags_)) {
-    std::move(callback).Run(
-        device::BluetoothGattService::GattErrorCode::kFailed,
-        /*value=*/std::vector<uint8_t>());
+    DVLOG(1) << "GATT descriptor not readable.";
+    std::move(error_callback).Run();
     return;
   }
 
   // Pass on to the delegate.
   DCHECK(delegate_);
-  delegate_->GetValue(device_path, std::move(callback));
+  delegate_->GetValue(device_path, std::move(callback),
+                      std::move(error_callback));
 }
 
 void FakeBluetoothGattDescriptorServiceProvider::SetValue(

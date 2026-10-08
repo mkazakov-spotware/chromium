@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -90,7 +90,7 @@ ScriptValue PortalActivateEvent::data(ScriptState* script_state) {
       result.stored_value->value;
 
   if (!result.is_new_entry)
-    return ScriptValue(isolate, relevant_data.Get(isolate));
+    return ScriptValue(isolate, relevant_data.NewLocal(isolate));
 
   v8::Local<v8::Value> value;
   if (data_) {
@@ -102,7 +102,7 @@ ScriptValue PortalActivateEvent::data(ScriptState* script_state) {
     value = data_from_init_.GetAcrossWorld(script_state);
   }
 
-  relevant_data.Reset(isolate, value);
+  relevant_data.Set(isolate, value);
   return ScriptValue(isolate, value);
 }
 

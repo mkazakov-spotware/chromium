@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,38 +17,6 @@
 
 namespace network {
 
-TestURLLoaderFactory::TestURLLoader::FollowRedirectParams::
-    FollowRedirectParams() = default;
-TestURLLoaderFactory::TestURLLoader::FollowRedirectParams::
-    ~FollowRedirectParams() = default;
-
-TestURLLoaderFactory::TestURLLoader::FollowRedirectParams::FollowRedirectParams(
-    FollowRedirectParams&& other) = default;
-
-TestURLLoaderFactory::TestURLLoader::FollowRedirectParams&
-TestURLLoaderFactory::TestURLLoader::FollowRedirectParams::operator=(
-    FollowRedirectParams&& other) = default;
-
-TestURLLoaderFactory::TestURLLoader::TestURLLoader(
-    mojo::PendingReceiver<network::mojom::URLLoader> url_loader_receiver)
-    : receiver_(this, std::move(url_loader_receiver)) {}
-
-TestURLLoaderFactory::TestURLLoader::~TestURLLoader() = default;
-
-void TestURLLoaderFactory::TestURLLoader::FollowRedirect(
-    const std::vector<std::string>& removed_headers,
-    const net::HttpRequestHeaders& modified_headers,
-    const net::HttpRequestHeaders& modified_cors_exempt_headers,
-    const absl::optional<GURL>& new_url) {
-  FollowRedirectParams params;
-  params.removed_headers = removed_headers;
-  params.modified_headers = modified_headers;
-  params.modified_cors_exempt_headers = modified_cors_exempt_headers;
-  params.new_url = new_url;
-
-  follow_redirect_params_.emplace_back(std::move(params));
-}
-
 TestURLLoaderFactory::PendingRequest::PendingRequest() = default;
 TestURLLoaderFactory::PendingRequest::~PendingRequest() = default;
 
@@ -63,11 +31,10 @@ TestURLLoaderFactory::Response::Response(Response&&) = default;
 TestURLLoaderFactory::Response& TestURLLoaderFactory::Response::operator=(
     Response&&) = default;
 
-TestURLLoaderFactory::TestURLLoaderFactory(bool observe_loader_requests)
+TestURLLoaderFactory::TestURLLoaderFactory()
     : weak_wrapper_(
           base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
-              this)),
-      observe_loader_requests_(observe_loader_requests) {}
+              this)) {}
 
 TestURLLoaderFactory::~TestURLLoaderFactory() {
   weak_wrapper_->Detach();
@@ -114,8 +81,7 @@ bool TestURLLoaderFactory::IsPending(const std::string& url,
     if (candidate.request.url == url) {
       if (request_out)
         *request_out = &candidate.request;
-      if (candidate.client.is_connected())
-        return true;
+      return candidate.client.is_connected();
     }
   }
   return false;
@@ -150,13 +116,12 @@ void TestURLLoaderFactory::SetInterceptor(const Interceptor& interceptor) {
 
 void TestURLLoaderFactory::CreateLoaderAndStart(
     mojo::PendingReceiver<mojom::URLLoader> receiver,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const ResourceRequest& url_request,
     mojo::PendingRemote<mojom::URLLoaderClient> client,
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
-  ++total_requests_;
-
   if (interceptor_)
     interceptor_.Run(url_request);
 
@@ -165,17 +130,9 @@ void TestURLLoaderFactory::CreateLoaderAndStart(
     return;
 
   PendingRequest pending_request;
-
-  if (observe_loader_requests_) {
-    pending_request.test_url_loader =
-        std::make_unique<TestURLLoader>(std::move(receiver));
-  }
-
   pending_request.client = std::move(client_remote);
-  pending_request.request_id = request_id;
-  pending_request.options = options;
   pending_request.request = url_request;
-  pending_request.traffic_annotation = traffic_annotation;
+  pending_request.options = options;
   pending_requests_.push_back(std::move(pending_request));
 }
 
@@ -198,7 +155,8 @@ bool TestURLLoaderFactory::CreateLoaderAndStartInternal(
 
   Redirects redirects;
   for (auto& redirect : it->second.redirects) {
-    redirects.emplace_back(redirect.first, redirect.second.Clone());
+    redirects.push_back(
+        std::make_pair(redirect.first, redirect.second.Clone()));
   }
   SimulateResponse(client, std::move(redirects), it->second.head.Clone(),
                    it->second.content, it->second.status, it->second.flags);
@@ -302,23 +260,19 @@ void TestURLLoaderFactory::SimulateResponse(
   if (response_flags & kResponseOnlyRedirectsNoDestination)
     return;
 
-  mojo::ScopedDataPipeConsumerHandle body;
-
-  if (status.error_code == net::OK) {
-    mojo::ScopedDataPipeProducerHandle producer_handle;
-    CHECK_EQ(mojo::CreateDataPipe(content.size(), producer_handle, body),
-             MOJO_RESULT_OK);
-    uint32_t bytes_written = content.size();
-    CHECK_EQ(MOJO_RESULT_OK,
-             producer_handle->WriteData(content.data(), &bytes_written,
-                                        MOJO_WRITE_DATA_FLAG_ALL_OR_NONE));
-  }
-
   if ((response_flags & kSendHeadersOnNetworkError) ||
       status.error_code == net::OK) {
-    client->OnReceiveResponse(std::move(head), std::move(body), absl::nullopt);
+    client->OnReceiveResponse(std::move(head));
   }
 
+  if (status.error_code == net::OK) {
+    mojo::DataPipe data_pipe(content.size());
+    uint32_t bytes_written = content.size();
+    CHECK_EQ(MOJO_RESULT_OK, data_pipe.producer_handle->WriteData(
+                                 content.data(), &bytes_written,
+                                 MOJO_WRITE_DATA_FLAG_ALL_OR_NONE));
+    client->OnStartLoadingResponseBody(std::move(data_pipe.consumer_handle));
+  }
   client->OnComplete(status);
 }
 

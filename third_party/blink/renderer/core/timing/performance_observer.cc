@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@
 
 #include <algorithm>
 
-#include "third_party/blink/public/mojom/frame/lifecycle.mojom-shared.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_performance_observer_callback.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_performance_observer_callback_options.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_performance_observer_init.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -23,8 +21,7 @@
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/bindings/v8_throw_exception.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/timer.h"
@@ -61,12 +58,9 @@ Vector<AtomicString> PerformanceObserver::supportedEntryTypes(
   Vector<AtomicString> supportedEntryTypes;
   auto* execution_context = ExecutionContext::From(script_state);
   if (execution_context->IsWindow()) {
-    if (RuntimeEnabledFeatures::NavigationIdEnabled(execution_context)) {
-      supportedEntryTypes.push_back(
-          performance_entry_names::kBackForwardCacheRestoration);
-    }
     supportedEntryTypes.push_back(performance_entry_names::kElement);
-    supportedEntryTypes.push_back(performance_entry_names::kEvent);
+    if (RuntimeEnabledFeatures::EventTimingEnabled(execution_context))
+      supportedEntryTypes.push_back(performance_entry_names::kEvent);
     supportedEntryTypes.push_back(performance_entry_names::kFirstInput);
     supportedEntryTypes.push_back(
         performance_entry_names::kLargestContentfulPaint);
@@ -136,12 +130,10 @@ void PerformanceObserver::observe(const PerformanceObserverInit* observer_init,
       if (entry_type == PerformanceEntry::kInvalid) {
         String message = "The entry type '" + entry_type_string +
                          "' does not exist or isn't supported.";
-        if (GetExecutionContext()) {
-          GetExecutionContext()->AddConsoleMessage(
-              MakeGarbageCollected<ConsoleMessage>(
-                  mojom::ConsoleMessageSource::kJavaScript,
-                  mojom::ConsoleMessageLevel::kWarning, message));
-        }
+        GetExecutionContext()->AddConsoleMessage(
+            MakeGarbageCollected<ConsoleMessage>(
+                mojom::ConsoleMessageSource::kJavaScript,
+                mojom::ConsoleMessageLevel::kWarning, message));
       }
       entry_types |= entry_type;
     }
@@ -154,12 +146,10 @@ void PerformanceObserver::observe(const PerformanceObserverInit* observer_init,
       String message =
           "The PerformanceObserver does not support buffered flag with "
           "the entryTypes argument.";
-      if (GetExecutionContext()) {
-        GetExecutionContext()->AddConsoleMessage(
-            MakeGarbageCollected<ConsoleMessage>(
-                mojom::ConsoleMessageSource::kJavaScript,
-                mojom::ConsoleMessageLevel::kWarning, message));
-      }
+      GetExecutionContext()->AddConsoleMessage(
+          MakeGarbageCollected<ConsoleMessage>(
+              mojom::ConsoleMessageSource::kJavaScript,
+              mojom::ConsoleMessageLevel::kWarning, message));
     }
     filter_options_ = entry_types;
   } else {
@@ -184,12 +174,10 @@ void PerformanceObserver::observe(const PerformanceObserverInit* observer_init,
     if (entry_type == PerformanceEntry::kInvalid) {
       String message = "The entry type '" + observer_init->type() +
                        "' does not exist or isn't supported.";
-      if (GetExecutionContext()) {
-        GetExecutionContext()->AddConsoleMessage(
-            MakeGarbageCollected<ConsoleMessage>(
-                mojom::ConsoleMessageSource::kJavaScript,
-                mojom::ConsoleMessageLevel::kWarning, message));
-      }
+      GetExecutionContext()->AddConsoleMessage(
+          MakeGarbageCollected<ConsoleMessage>(
+              mojom::ConsoleMessageSource::kJavaScript,
+              mojom::ConsoleMessageLevel::kWarning, message));
       return;
     }
     if (observer_init->buffered()) {
@@ -226,7 +214,6 @@ void PerformanceObserver::observe(const PerformanceObserverInit* observer_init,
   if (filter_options_ & PerformanceEntry::kLongTask) {
     UseCounter::Count(GetExecutionContext(), WebFeature::kLongTaskObserver);
   }
-  requires_dropped_entries_ = true;
   if (is_registered_)
     performance_->UpdatePerformanceObserverFilterOptions();
   else
@@ -269,24 +256,19 @@ bool PerformanceObserver::HasPendingActivity() const {
   return is_registered_;
 }
 
-void PerformanceObserver::Deliver(absl::optional<int> dropped_entries_count) {
+void PerformanceObserver::Deliver() {
   if (!GetExecutionContext())
     return;
   DCHECK(!GetExecutionContext()->IsContextPaused());
 
-  if (performance_entries_.empty())
+  if (performance_entries_.IsEmpty())
     return;
 
   PerformanceEntryVector performance_entries;
   performance_entries.swap(performance_entries_);
   PerformanceObserverEntryList* entry_list =
       MakeGarbageCollected<PerformanceObserverEntryList>(performance_entries);
-  auto* options = PerformanceObserverCallbackOptions::Create();
-  if (dropped_entries_count.has_value()) {
-    options->setDroppedEntriesCount(dropped_entries_count.value());
-  }
-  requires_dropped_entries_ = false;
-  callback_->InvokeAndReportException(this, entry_list, this, options);
+  callback_->InvokeAndReportException(this, entry_list, this);
 }
 
 void PerformanceObserver::ContextLifecycleStateChanged(

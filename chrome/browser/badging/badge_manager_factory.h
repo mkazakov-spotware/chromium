@@ -1,11 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_BADGING_BADGE_MANAGER_FACTORY_H_
 #define CHROME_BROWSER_BADGING_BADGE_MANAGER_FACTORY_H_
 
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "base/macros.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 namespace base {
 template <typename T>
@@ -19,7 +20,7 @@ namespace badging {
 class BadgeManager;
 
 // Singleton that provides access to Profile specific BadgeManagers.
-class BadgeManagerFactory : public ProfileKeyedServiceFactory {
+class BadgeManagerFactory : public BrowserContextKeyedServiceFactory {
  public:
   // Gets the BadgeManager for the current profile. |nullptr| for guest and
   // incognito profiles.
@@ -27,9 +28,6 @@ class BadgeManagerFactory : public ProfileKeyedServiceFactory {
 
   // Returns the BadgeManagerFactory singleton.
   static BadgeManagerFactory* GetInstance();
-
-  BadgeManagerFactory(const BadgeManagerFactory&) = delete;
-  BadgeManagerFactory& operator=(const BadgeManagerFactory&) = delete;
 
  private:
   friend struct base::DefaultSingletonTraits<BadgeManagerFactory>;
@@ -40,6 +38,8 @@ class BadgeManagerFactory : public ProfileKeyedServiceFactory {
   // BrowserContextKeyedServiceFactory
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* profile) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(BadgeManagerFactory);
 };
 
 }  // namespace badging

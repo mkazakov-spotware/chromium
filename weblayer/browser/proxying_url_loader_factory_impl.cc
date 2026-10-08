@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,17 +45,17 @@ void StartCachedLoad(
     const std::string& data) {
   mojo::Remote<network::mojom::URLLoaderClient> client(
       std::move(pending_client));
+  client->OnReceiveResponse(std::move(response_head));
 
   mojo::ScopedDataPipeProducerHandle producer;
   mojo::ScopedDataPipeConsumerHandle consumer;
-  if (CreateDataPipe(nullptr, producer, consumer) != MOJO_RESULT_OK) {
+  if (CreateDataPipe(nullptr, &producer, &consumer) != MOJO_RESULT_OK) {
     client->OnComplete(
         network::URLLoaderCompletionStatus(net::ERR_INSUFFICIENT_RESOURCES));
     return;
   }
 
-  client->OnReceiveResponse(std::move(response_head), std::move(consumer),
-                            absl::nullopt);
+  client->OnStartLoadingResponseBody(std::move(consumer));
 
   auto write_data = std::make_unique<WriteData>();
   write_data->client = std::move(client);
@@ -107,6 +107,7 @@ bool IsCachedResponseValid(net::HttpResponseHeaders* headers,
   return headers->RequiresValidation(request_time, response_time,
                                      base::Time::Now()) == net::VALIDATION_NONE;
 }
+
 
 // A ResponseDelegate for AndroidStreamReaderURLLoader which will cache the
 // response if it's successful. This allows back-forward navigations to reuse an
@@ -222,6 +223,7 @@ bool ProxyingURLLoaderFactoryImpl::HasCachedInputStream(
 
 void ProxyingURLLoaderFactoryImpl::CreateLoaderAndStart(
     mojo::PendingReceiver<network::mojom::URLLoader> loader,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& request,
@@ -234,7 +236,7 @@ void ProxyingURLLoaderFactoryImpl::CreateLoaderAndStart(
           std::make_unique<CachingResponseDelegate>(
               std::move(response_), frame_tree_node_id_,
               navigation_entry_unique_id_),
-          absl::nullopt);
+          base::nullopt);
       stream_loader->Start();
       return;
     }
@@ -251,9 +253,9 @@ void ProxyingURLLoaderFactoryImpl::CreateLoaderAndStart(
     }
   }
 
-  target_factory_->CreateLoaderAndStart(std::move(loader), request_id, options,
-                                        request, std::move(client),
-                                        traffic_annotation);
+  target_factory_->CreateLoaderAndStart(std::move(loader), routing_id,
+                                        request_id, options, request,
+                                        std::move(client), traffic_annotation);
 }
 
 void ProxyingURLLoaderFactoryImpl::Clone(

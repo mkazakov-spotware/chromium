@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "media/base/bitstream_buffer.h"
 #include "media/base/video_decoder_config.h"
 #include "media/video/picture.h"
@@ -23,11 +24,6 @@ namespace media {
 class MockVideoDecodeAccelerator : public VideoDecodeAccelerator {
  public:
   MockVideoDecodeAccelerator();
-
-  MockVideoDecodeAccelerator(const MockVideoDecodeAccelerator&) = delete;
-  MockVideoDecodeAccelerator& operator=(const MockVideoDecodeAccelerator&) =
-      delete;
-
   ~MockVideoDecodeAccelerator() override;
 
   MOCK_METHOD2(Initialize, bool(const Config& config, Client* client));
@@ -46,6 +42,7 @@ class MockVideoDecodeAccelerator : public VideoDecodeAccelerator {
 
  private:
   void DeleteThis();
+  DISALLOW_COPY_AND_ASSIGN(MockVideoDecodeAccelerator);
 };
 
 }  // namespace media

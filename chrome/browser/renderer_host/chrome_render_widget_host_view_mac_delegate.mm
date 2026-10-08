@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,8 +38,7 @@ using content::RenderViewHost;
   BOOL _resigningFirstResponder;
 }
 
-- (instancetype)initWithRenderWidgetHost:
-    (content::RenderWidgetHost*)renderWidgetHost {
+- (id)initWithRenderWidgetHost:(content::RenderWidgetHost*)renderWidgetHost {
   self = [super init];
   if (self) {
     _renderWidgetHost = renderWidgetHost;
@@ -110,30 +109,6 @@ using content::RenderViewHost;
   return _renderWidgetHost->GetView()->GetNativeView().GetNativeNSView();
 }
 
-- (BOOL)canNavigateInDirection:(history_swiper::NavigationDirection)direction
-                      onWindow:(NSWindow*)window {
-  Browser* browser = chrome::FindBrowserWithWindow(window);
-  if (!browser)
-    return NO;
-
-  if (direction == history_swiper::kForwards) {
-    return chrome::CanGoForward(browser);
-  } else {
-    return chrome::CanGoBack(browser);
-  }
-}
-
-- (void)navigateInDirection:(history_swiper::NavigationDirection)direction
-                   onWindow:(NSWindow*)window {
-  Browser* browser = chrome::FindBrowserWithWindow(window);
-  if (browser) {
-    if (direction == history_swiper::kForwards)
-      chrome::GoForward(browser, WindowOpenDisposition::CURRENT_TAB);
-    else
-      chrome::GoBack(browser, WindowOpenDisposition::CURRENT_TAB);
-  }
-}
-
 - (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item
                       isValidItem:(BOOL*)valid {
   SEL action = [item action];
@@ -161,10 +136,9 @@ using content::RenderViewHost;
   // is still necessary.
   if (action == @selector(toggleContinuousSpellChecking:)) {
     if ([(id)item respondsToSelector:@selector(setState:)]) {
-      NSControlStateValue checkedState =
-          pref->GetBoolean(spellcheck::prefs::kSpellCheckEnable)
-              ? NSControlStateValueOn
-              : NSControlStateValueOff;
+      NSCellStateValue checkedState =
+          pref->GetBoolean(spellcheck::prefs::kSpellCheckEnable) ? NSOnState
+                                                                 : NSOffState;
       [(id)item setState:checkedState];
     }
     *valid = spellCheckUserModifiable;

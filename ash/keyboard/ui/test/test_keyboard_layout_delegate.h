@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ASH_KEYBOARD_UI_TEST_TEST_KEYBOARD_LAYOUT_DELEGATE_H_
 
 #include "ash/keyboard/ui/keyboard_layout_delegate.h"
+#include "base/macros.h"
 
 namespace aura {
 class Window;
@@ -18,11 +19,6 @@ class TestKeyboardLayoutDelegate : public KeyboardLayoutDelegate {
   // |root_window| is the window that is always returned by the
   // KeyboardLayoutDelegate methods.
   explicit TestKeyboardLayoutDelegate(aura::Window* root_window);
-
-  TestKeyboardLayoutDelegate(const TestKeyboardLayoutDelegate&) = delete;
-  TestKeyboardLayoutDelegate& operator=(const TestKeyboardLayoutDelegate&) =
-      delete;
-
   ~TestKeyboardLayoutDelegate() override = default;
 
   // Overridden from keyboard::KeyboardLayoutDelegate
@@ -33,6 +29,8 @@ class TestKeyboardLayoutDelegate : public KeyboardLayoutDelegate {
 
  private:
   aura::Window* root_window_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestKeyboardLayoutDelegate);
 };
 
 }  // namespace keyboard

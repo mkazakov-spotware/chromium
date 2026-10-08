@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/containers/cxx20_erase.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/strings/stringprintf.h"
 #include "media/capture/video/android/capture_jni_headers/VideoCaptureFactory_jni.h"
 #include "media/capture/video/android/video_capture_device_android.h"
 
@@ -32,27 +32,25 @@ VideoCaptureDeviceFactoryAndroid::createVideoCaptureAndroid(
 VideoCaptureDeviceFactoryAndroid::VideoCaptureDeviceFactoryAndroid() = default;
 VideoCaptureDeviceFactoryAndroid::~VideoCaptureDeviceFactoryAndroid() = default;
 
-VideoCaptureErrorOrDevice VideoCaptureDeviceFactoryAndroid::CreateDevice(
+std::unique_ptr<VideoCaptureDevice>
+VideoCaptureDeviceFactoryAndroid::CreateDevice(
     const VideoCaptureDeviceDescriptor& device_descriptor) {
   DCHECK(thread_checker_.CalledOnValidThread());
   int id;
   if (!base::StringToInt(device_descriptor.device_id, &id))
-    return VideoCaptureErrorOrDevice(
-        VideoCaptureError::
-            kVideoCaptureControllerInvalidOrUnsupportedVideoCaptureParametersRequested);
+    return std::unique_ptr<VideoCaptureDevice>();
 
-  auto video_capture_device =
-      std::make_unique<VideoCaptureDeviceAndroid>(device_descriptor);
+  std::unique_ptr<VideoCaptureDeviceAndroid> video_capture_device(
+      new VideoCaptureDeviceAndroid(device_descriptor));
 
   if (video_capture_device->Init()) {
     if (test_mode_)
       video_capture_device->ConfigureForTesting();
-    return VideoCaptureErrorOrDevice(std::move(video_capture_device));
+    return std::move(video_capture_device);
   }
 
   DLOG(ERROR) << "Error creating Video Capture Device.";
-  return VideoCaptureErrorOrDevice(
-      VideoCaptureError::kAndroidApi2ErrorConfiguringCamera);
+  return nullptr;
 }
 
 void VideoCaptureDeviceFactoryAndroid::GetDevicesInfo(
@@ -84,10 +82,8 @@ void VideoCaptureDeviceFactoryAndroid::GetDevicesInfo(
     const std::string device_id =
         base::android::ConvertJavaStringToUTF8(device_id_jstring);
 
-    const VideoCaptureApi capture_api_type = static_cast<VideoCaptureApi>(
-        Java_VideoCaptureFactory_getCaptureApiType(env, camera_index));
-    if (capture_api_type == VideoCaptureApi::UNKNOWN)
-      continue;
+    const int capture_api_type =
+        Java_VideoCaptureFactory_getCaptureApiType(env, camera_index);
     VideoCaptureControlSupport control_support;
     const int facing_mode =
         Java_VideoCaptureFactory_getFacingMode(env, camera_index);
@@ -105,8 +101,9 @@ void VideoCaptureDeviceFactoryAndroid::GetDevicesInfo(
     // currently only used for USB model identifiers, so this implementation
     // just indicates an unknown device model (by not providing one).
     VideoCaptureDeviceInfo device_info(VideoCaptureDeviceDescriptor(
-        display_name, device_id, "" /*model_id*/, capture_api_type,
-        control_support, VideoCaptureTransportType::OTHER_TRANSPORT,
+        display_name, device_id, "" /*model_id*/,
+        static_cast<VideoCaptureApi>(capture_api_type), control_support,
+        VideoCaptureTransportType::OTHER_TRANSPORT,
         static_cast<VideoFacingMode>(facing_mode)));
 
     auto it = supported_formats_cache_.find(device_id);

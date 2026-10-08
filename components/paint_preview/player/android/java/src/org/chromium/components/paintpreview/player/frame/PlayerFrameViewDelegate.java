@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ interface PlayerFrameViewDelegate {
      * @param x X coordinate of the point clicked.
      * @param y Y coordinate of the point clicked.
      */
-    void onTap(int x, int y, boolean isAbsolute);
+    void onTap(int x, int y);
 
     /**
      * Called when a long press gesture is performed.

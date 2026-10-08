@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 
 #include <memory>
 #include <vector>
+
+#include "base/macros.h"
 
 namespace media {
 
@@ -22,10 +24,6 @@ enum OpusConstants {
 class OpusPacket {
  public:
   OpusPacket(uint8_t config, uint8_t frame_count, bool is_VBR);
-
-  OpusPacket(const OpusPacket&) = delete;
-  OpusPacket& operator=(const OpusPacket&) = delete;
-
   ~OpusPacket();
 
   const uint8_t* data() const;
@@ -35,6 +33,8 @@ class OpusPacket {
  private:
   std::vector<uint8_t> data_;
   double duration_ms_;
+
+  DISALLOW_COPY_AND_ASSIGN(OpusPacket);
 };
 
 // Builds an exhaustive collection of Opus packet configurations.

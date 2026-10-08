@@ -1,15 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_UPDATE_CLIENT_ACTIVITY_DATA_SERVICE_H_
 #define COMPONENTS_UPDATE_CLIENT_ACTIVITY_DATA_SERVICE_H_
 
-#include <set>
+#include <memory>
 #include <string>
-#include <vector>
 
-#include "base/callback_forward.h"
+#include "base/macros.h"
 
 namespace update_client {
 
@@ -24,19 +23,11 @@ const int kDaysUnknown = -2;
 // compatibility.
 class ActivityDataService {
  public:
-  // Calls `callback` with the subset of `ids` that are active.
-  // The callback is called on the same sequence that calls this function.
-  virtual void GetActiveBits(
-      const std::vector<std::string>& ids,
-      base::OnceCallback<void(const std::set<std::string>&)> callback)
-      const = 0;
+  // Returns the current state of the active bit of the specified |id|.
+  virtual bool GetActiveBit(const std::string& id) const = 0;
 
-  // Calls `callback` with the subset of `ids` that are active, after clearing
-  // their active setting.  The callback is called on the same sequence that
-  // calls this function.
-  virtual void GetAndClearActiveBits(
-      const std::vector<std::string>& ids,
-      base::OnceCallback<void(const std::set<std::string>&)> callback) = 0;
+  // Clears the active bit of the specified |id|.
+  virtual void ClearActiveBit(const std::string& id) = 0;
 
   // The following 2 functions return the number of days since last
   // active/roll call.

@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/tray/status_area_overflow_button_tray.h"
 
-#include "ash/constants/tray_background_view_catalog.h"
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shelf/shelf.h"
@@ -12,12 +11,9 @@
 #include "ash/system/status_area_widget.h"
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_container.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/paint_vector_icon.h"
-#include "ui/views/border.h"
 #include "ui/views/view.h"
 
 namespace ash {
@@ -32,7 +28,8 @@ StatusAreaOverflowButtonTray::IconView::IconView()
     : slide_animation_(std::make_unique<gfx::SlideAnimation>(this)) {
   slide_animation_->Reset(1.0);
   slide_animation_->SetTweenType(gfx::Tween::EASE_OUT);
-  slide_animation_->SetSlideDuration(base::Milliseconds(kAnimationDurationMs));
+  slide_animation_->SetSlideDuration(
+      base::TimeDelta::FromMilliseconds(kAnimationDurationMs));
 
   SetPaintToLayer();
   layer()->SetFillsBoundsOpaquely(false);
@@ -46,7 +43,7 @@ StatusAreaOverflowButtonTray::IconView::IconView()
   const int vertical_padding = (kTrayHeight - image.height()) / 2;
   const int horizontal_padding = (kTrayWidth - image.width()) / 2;
   SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::VH(vertical_padding, horizontal_padding)));
+      gfx::Insets(vertical_padding, horizontal_padding)));
 
   UpdateRotation();
 }
@@ -60,8 +57,8 @@ void StatusAreaOverflowButtonTray::IconView::ToggleState(State state) {
   else if (state == CLICK_TO_COLLAPSE)
     slide_animation_->Hide();
 
-  // TODO(b/260253147): Currently, the collapse/expand animation is not fully
-  // spec'd, so skip it for now.
+  // TODO(tengs): Currently, the collpase/expand animation is not fully spec'd,
+  // so skip it for now.
   slide_animation_->End();
 }
 
@@ -93,20 +90,20 @@ void StatusAreaOverflowButtonTray::IconView::UpdateRotation() {
 }
 
 StatusAreaOverflowButtonTray::StatusAreaOverflowButtonTray(Shelf* shelf)
-    : TrayBackgroundView(
-          shelf,
-          TrayBackgroundViewCatalogName::kStatusAreaOverflowButton),
-      icon_(tray_container()->AddChildView(std::make_unique<IconView>())) {
-  SetPressedCallback(base::BindRepeating(
-      &StatusAreaOverflowButtonTray::OnButtonPressed, base::Unretained(this)));
-  set_use_bounce_in_animation(false);
+    : TrayBackgroundView(shelf), icon_(new IconView()) {
+  tray_container()->AddChildView(icon_);
 }
 
 StatusAreaOverflowButtonTray::~StatusAreaOverflowButtonTray() {}
 
 void StatusAreaOverflowButtonTray::ClickedOutsideBubble() {}
 
-std::u16string StatusAreaOverflowButtonTray::GetAccessibleNameForTray() {
+void StatusAreaOverflowButtonTray::ResetStateToCollapsed() {
+  state_ = CLICK_TO_EXPAND;
+  icon_->ToggleState(state_);
+}
+
+base::string16 StatusAreaOverflowButtonTray::GetAccessibleNameForTray() {
   return l10n_util::GetStringUTF16(
       state_ == CLICK_TO_COLLAPSE ? IDS_ASH_STATUS_AREA_OVERFLOW_BUTTON_COLLAPSE
                                   : IDS_ASH_STATUS_AREA_OVERFLOW_BUTTON_EXPAND);
@@ -122,31 +119,28 @@ void StatusAreaOverflowButtonTray::Initialize() {
   SetVisiblePreferred(false);
 }
 
+bool StatusAreaOverflowButtonTray::PerformAction(const ui::Event& event) {
+  state_ = state_ == CLICK_TO_COLLAPSE ? CLICK_TO_EXPAND : CLICK_TO_COLLAPSE;
+  icon_->ToggleState(state_);
+  shelf()->GetStatusAreaWidget()->UpdateCollapseState();
+  return false;
+}
+
 void StatusAreaOverflowButtonTray::SetVisiblePreferred(bool visible_preferred) {
-  // The visibility of the overflow tray button is controlled by the
-  // `StatusAreaWidget`, so we bypass all default visibility logic from
-  // `TrayBackgroundView`.
+  // The visibility of the overflow tray button is completed controlled by the
+  // StatusAreaWidget, so we bypass all default visibility logic from
+  // TrayBackgroundView.
   views::View::SetVisible(visible_preferred);
 }
 
 void StatusAreaOverflowButtonTray::UpdateAfterStatusAreaCollapseChange() {
-  // The visibility of the overflow tray button is controlled by the
-  // `StatusAreaWidget`, so we bypass all default visibility logic from
-  // `TrayBackgroundView`.
+  // The visibility of the overflow tray button is completed controlled by the
+  // StatusAreaWidget, so we bypass all default visibility logic from
+  // TrayBackgroundView.
 }
 
-void StatusAreaOverflowButtonTray::OnButtonPressed(const ui::Event& event) {
-  state_ = state_ == CLICK_TO_COLLAPSE ? CLICK_TO_EXPAND : CLICK_TO_COLLAPSE;
-  icon_->ToggleState(state_);
-  shelf()->GetStatusAreaWidget()->UpdateCollapseState();
+const char* StatusAreaOverflowButtonTray::GetClassName() const {
+  return "StatusAreaOverflowButtonTray";
 }
-
-void StatusAreaOverflowButtonTray::ResetStateToCollapsed() {
-  state_ = CLICK_TO_EXPAND;
-  icon_->ToggleState(state_);
-}
-
-BEGIN_METADATA(StatusAreaOverflowButtonTray, TrayBackgroundView);
-END_METADATA
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "ash/wm/window_positioning_utils.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/wm_event.h"
-#include "base/containers/contains.h"
 #include "ui/aura/test/test_windows.h"
 #include "ui/aura/window.h"
 #include "ui/display/screen.h"
@@ -28,11 +27,7 @@ std::string GetAdjustedBounds(const gfx::Rect& visible,
 
 class FakeWindowState : public WindowState::State {
  public:
-  FakeWindowState() = default;
-
-  FakeWindowState(const FakeWindowState&) = delete;
-  FakeWindowState& operator=(const FakeWindowState&) = delete;
-
+  explicit FakeWindowState() = default;
   ~FakeWindowState() override = default;
 
   // WindowState::State overrides:
@@ -51,6 +46,8 @@ class FakeWindowState : public WindowState::State {
 
  private:
   bool was_visible_on_minimize_ = true;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeWindowState);
 };
 
 }  // namespace
@@ -147,7 +144,7 @@ TEST_F(WindowUtilTest, MoveWindowToDisplay) {
   const int64_t original_display_id =
       screen->GetDisplayNearestWindow(window.get()).id();
   EXPECT_EQ(screen->GetPrimaryDisplay().id(), original_display_id);
-  const int original_container_id = window->parent()->GetId();
+  const int original_container_id = window->parent()->id();
   const aura::Window* original_root = window->GetRootWindow();
 
   ASSERT_EQ(2, screen->GetNumDisplays());
@@ -156,13 +153,13 @@ TEST_F(WindowUtilTest, MoveWindowToDisplay) {
   EXPECT_TRUE(MoveWindowToDisplay(window.get(), secondary_display_id));
   EXPECT_EQ(secondary_display_id,
             screen->GetDisplayNearestWindow(window.get()).id());
-  EXPECT_EQ(original_container_id, window->parent()->GetId());
+  EXPECT_EQ(original_container_id, window->parent()->id());
   EXPECT_NE(original_root, window->GetRootWindow());
 
   EXPECT_TRUE(MoveWindowToDisplay(window.get(), original_display_id));
   EXPECT_EQ(original_display_id,
             screen->GetDisplayNearestWindow(window.get()).id());
-  EXPECT_EQ(original_container_id, window->parent()->GetId());
+  EXPECT_EQ(original_container_id, window->parent()->id());
   EXPECT_EQ(original_root, window->GetRootWindow());
 }
 

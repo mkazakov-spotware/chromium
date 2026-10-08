@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,11 +55,11 @@ void Keyboard::HitTest(const HitTestRequest& request,
   result->local_hit_point = gfx::PointF(0, 0);
 }
 
-void Keyboard::OnFloatAnimated(const float& value,
-                               int target_property_id,
-                               gfx::KeyframeModel* animation) {
+void Keyboard::NotifyClientFloatAnimated(float value,
+                                         int target_property_id,
+                                         cc::KeyframeModel* animation) {
   DCHECK(target_property_id == OPACITY);
-  UiElement::OnFloatAnimated(value, target_property_id, animation);
+  UiElement::NotifyClientFloatAnimated(value, target_property_id, animation);
   UpdateDelegateVisibility();
 }
 

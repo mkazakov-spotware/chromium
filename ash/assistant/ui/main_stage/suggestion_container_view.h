@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,12 @@
 #include "ash/assistant/ui/main_stage/animated_container_view.h"
 #include "ash/assistant/ui/main_stage/suggestion_chip_view.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "chromeos/ash/services/libassistant/public/cpp/assistant_suggestion.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/scoped_observer.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 #include "ui/views/controls/scroll_view.h"
+#include "ui/views/metadata/metadata_header_macros.h"
 
 namespace views {
 class BoxLayout;
@@ -34,7 +36,7 @@ class COMPONENT_EXPORT(ASSISTANT_UI) SuggestionContainerView
       public AssistantSuggestionsModelObserver,
       public AssistantUiModelObserver {
  public:
-  using AssistantSuggestion = assistant::AssistantSuggestion;
+  using AssistantSuggestion = chromeos::assistant::AssistantSuggestion;
 
   METADATA_HEADER(SuggestionContainerView);
 
@@ -58,10 +60,8 @@ class COMPONENT_EXPORT(ASSISTANT_UI) SuggestionContainerView
   void OnUiVisibilityChanged(
       AssistantVisibility new_visibility,
       AssistantVisibility old_visibility,
-      absl::optional<AssistantEntryPoint> entry_point,
-      absl::optional<AssistantExitPoint> exit_point) override;
-
-  void InitializeUIForBubbleView();
+      base::Optional<AssistantEntryPoint> entry_point,
+      base::Optional<AssistantExitPoint> exit_point) override;
 
   // The suggestion chip that was pressed by the user. May be |nullptr|.
   const SuggestionChipView* selected_chip() const { return selected_chip_; }

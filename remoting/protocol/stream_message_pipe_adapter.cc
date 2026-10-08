@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@
 #include "remoting/protocol/p2p_stream_socket.h"
 #include "remoting/protocol/stream_channel_factory.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 StreamMessagePipeAdapter::StreamMessagePipeAdapter(
     std::unique_ptr<P2PStreamSocket> socket,
@@ -126,4 +127,5 @@ void StreamMessageChannelFactoryAdapter::OnChannelCreated(
       std::move(socket), error_callback_));
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

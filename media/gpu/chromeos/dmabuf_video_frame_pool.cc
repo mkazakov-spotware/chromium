@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,14 +21,6 @@ void DmabufVideoFramePool::set_parent_task_runner(
   DCHECK(!parent_task_runner_);
 
   parent_task_runner_ = std::move(parent_task_runner);
-}
-
-PlatformVideoFramePool* DmabufVideoFramePool::AsPlatformVideoFramePool() {
-  return nullptr;
-}
-
-bool DmabufVideoFramePool::IsFakeVideoFramePool() {
-  return false;
 }
 
 }  // namespace media

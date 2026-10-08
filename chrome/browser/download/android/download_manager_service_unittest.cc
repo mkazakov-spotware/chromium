@@ -1,16 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/download/android/download_manager_service.h"
 
-#include <memory>
-
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "chrome/browser/profiles/profile_key_android.h"
 #include "chrome/test/base/testing_profile.h"
@@ -32,6 +30,7 @@ class DownloadManagerServiceTest : public testing::Test {
   DownloadManagerServiceTest()
       : service_(new DownloadManagerService()),
         coordinator_(base::NullCallback(), false),
+        finished_(false),
         success_(false) {
     ON_CALL(manager_, GetDownloadByGuid(_))
         .WillByDefault(::testing::Invoke(
@@ -40,18 +39,14 @@ class DownloadManagerServiceTest : public testing::Test {
     service_->UpdateCoordinator(&coordinator_, profile_.GetProfileKey());
   }
 
-  DownloadManagerServiceTest(const DownloadManagerServiceTest&) = delete;
-  DownloadManagerServiceTest& operator=(const DownloadManagerServiceTest&) =
-      delete;
-
   void OnResumptionDone(bool success) {
+    finished_ = true;
     success_ = success;
-    run_loop_.Quit();
   }
 
   void StartDownload(const std::string& download_guid) {
     JNIEnv* env = base::android::AttachCurrentThread();
-    service_->set_resume_callback_for_testing(base::BindOnce(
+    service_->set_resume_callback_for_testing(base::Bind(
         &DownloadManagerServiceTest::OnResumptionDone, base::Unretained(this)));
     ProfileKeyAndroid profile_key_android(profile_.GetProfileKey());
 
@@ -65,11 +60,12 @@ class DownloadManagerServiceTest : public testing::Test {
         false);
     EXPECT_FALSE(success_);
     service_->OnDownloadsInitialized(&coordinator_, false);
-    run_loop_.Run();
+    while (!finished_)
+      base::RunLoop().RunUntilIdle();
   }
 
   void CreateDownloadItem(bool can_resume) {
-    download_ = std::make_unique<download::MockDownloadItem>();
+    download_.reset(new download::MockDownloadItem());
     ON_CALL(*download_, CanResume())
         .WillByDefault(::testing::Return(can_resume));
   }
@@ -80,13 +76,15 @@ class DownloadManagerServiceTest : public testing::Test {
   }
 
   content::BrowserTaskEnvironment task_environment_;
-  raw_ptr<DownloadManagerService> service_;
+  DownloadManagerService* service_;
   download::SimpleDownloadManagerCoordinator coordinator_;
   std::unique_ptr<download::MockDownloadItem> download_;
   content::MockDownloadManager manager_;
   TestingProfile profile_;
+  bool finished_;
   bool success_;
-  base::RunLoop run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(DownloadManagerServiceTest);
 };
 
 // Test that resumption succeeds if the download item is found and can be

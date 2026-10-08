@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,24 +63,23 @@ WritableSharedMemoryRegion& WritableSharedMemoryRegion::operator=(
     WritableSharedMemoryRegion&& region) = default;
 WritableSharedMemoryRegion::~WritableSharedMemoryRegion() = default;
 
-WritableSharedMemoryMapping WritableSharedMemoryRegion::Map(
-    SharedMemoryMapper* mapper) const {
-  return MapAt(0, handle_.GetSize(), mapper);
+WritableSharedMemoryMapping WritableSharedMemoryRegion::Map() const {
+  return MapAt(0, handle_.GetSize());
 }
 
 WritableSharedMemoryMapping WritableSharedMemoryRegion::MapAt(
-    uint64_t offset,
-    size_t size,
-    SharedMemoryMapper* mapper) const {
+    off_t offset,
+    size_t size) const {
   if (!IsValid())
     return {};
 
-  auto result = handle_.MapAt(offset, size, mapper);
-  if (!result.has_value())
+  void* memory = nullptr;
+  size_t mapped_size = 0;
+  if (!handle_.MapAt(offset, size, &memory, &mapped_size))
     return {};
 
-  return WritableSharedMemoryMapping(result.value(), size, handle_.GetGUID(),
-                                     mapper);
+  return WritableSharedMemoryMapping(memory, size, mapped_size,
+                                     handle_.GetGUID());
 }
 
 bool WritableSharedMemoryRegion::IsValid() const {

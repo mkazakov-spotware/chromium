@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,8 +37,8 @@ class ContentHashUnittest : public ExtensionsTest {
       const content_verifier_test_utils::TestExtensionBuilder& builder) {
     std::string error;
     scoped_refptr<Extension> extension = file_util::LoadExtension(
-        builder.extension_path(), builder.extension_id(),
-        mojom::ManifestLocation::kInternal, 0 /* flags */, &error);
+        builder.extension_path(), builder.extension_id(), Manifest::INTERNAL,
+        0 /* flags */, &error);
     if (!extension)
       ADD_FAILURE() << " error:'" << error << "'";
     return extension;

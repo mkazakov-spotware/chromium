@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@ namespace payments {
 
 // static
 base::WeakPtr<SecurePaymentConfirmationView>
-SecurePaymentConfirmationView::Create(
-    const base::WeakPtr<PaymentUIObserver> payment_ui_observer) {
+SecurePaymentConfirmationView::Create() {
   return nullptr;
 }
 

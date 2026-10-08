@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ class TtsSsmlBrowserTest : public ContentBrowserTest {
     std::unique_ptr<MockTtsControllerImpl> controller =
         std::make_unique<MockTtsControllerImpl>();
 
-    std::unique_ptr<TtsUtterance> utterance = TtsUtterance::Create();
+    std::unique_ptr<TtsUtterance> utterance = TtsUtterance::Create(nullptr);
     utterance->SetText(input);
 
     base::RunLoop run_loop;

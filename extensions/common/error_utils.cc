@@ -1,14 +1,12 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/common/error_utils.h"
 
 #include <initializer_list>
-#include <ostream>
 
 #include "base/check_op.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_tokenizer.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -20,7 +18,7 @@ namespace {
 std::string FormatErrorMessageInternal(
     base::StringPiece format,
     std::initializer_list<base::StringPiece> args) {
-  std::string format_str(format);
+  std::string format_str = format.as_string();
   base::StringTokenizer tokenizer(format_str, "*");
   tokenizer.set_options(base::StringTokenizer::RETURN_DELIMS);
 
@@ -66,18 +64,18 @@ std::string ErrorUtils::FormatErrorMessage(base::StringPiece format,
   return FormatErrorMessageInternal(format, {s1, s2, s3});
 }
 
-std::u16string ErrorUtils::FormatErrorMessageUTF16(base::StringPiece format,
+base::string16 ErrorUtils::FormatErrorMessageUTF16(base::StringPiece format,
                                                    base::StringPiece s1) {
   return base::UTF8ToUTF16(FormatErrorMessageInternal(format, {s1}));
 }
 
-std::u16string ErrorUtils::FormatErrorMessageUTF16(base::StringPiece format,
+base::string16 ErrorUtils::FormatErrorMessageUTF16(base::StringPiece format,
                                                    base::StringPiece s1,
                                                    base::StringPiece s2) {
   return base::UTF8ToUTF16(FormatErrorMessageInternal(format, {s1, s2}));
 }
 
-std::u16string ErrorUtils::FormatErrorMessageUTF16(base::StringPiece format,
+base::string16 ErrorUtils::FormatErrorMessageUTF16(base::StringPiece format,
                                                    base::StringPiece s1,
                                                    base::StringPiece s2,
                                                    base::StringPiece s3) {

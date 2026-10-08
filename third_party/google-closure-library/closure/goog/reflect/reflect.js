@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Useful compiler idioms.
@@ -24,7 +32,6 @@ goog.provide('goog.reflect');
  * @return {Object} The object literal.
  */
 goog.reflect.object = function(type, object) {
-  'use strict';
   return object;
 };
 
@@ -45,7 +52,6 @@ goog.reflect.object = function(type, object) {
  * @return {string} The renamed property.
  */
 goog.reflect.objectProperty = function(prop, object) {
-  'use strict';
   return prop;
 };
 
@@ -61,7 +67,6 @@ goog.reflect.objectProperty = function(prop, object) {
  * @template T
  */
 goog.reflect.sinkValue = function(x) {
-  'use strict';
   goog.reflect.sinkValue[' '](x);
   return x;
 };
@@ -82,7 +87,7 @@ goog.reflect.sinkValue[' '] = goog.nullFunction;
  *     if obj is null.
  */
 goog.reflect.canAccessProperty = function(obj, prop) {
-  'use strict';
+
   try {
     goog.reflect.sinkValue(obj[prop]);
     return true;
@@ -121,7 +126,6 @@ goog.reflect.canAccessProperty = function(obj, prop) {
  * @template V
  */
 goog.reflect.cache = function(cacheObj, key, valueFn, opt_keyFn) {
-  'use strict';
   const storedKey = opt_keyFn ? opt_keyFn(key) : key;
 
   if (Object.prototype.hasOwnProperty.call(cacheObj, storedKey)) {

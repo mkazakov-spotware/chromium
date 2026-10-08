@@ -25,7 +25,6 @@
 
 #include "third_party/blink/renderer/core/html/track/text_track_list.h"
 
-#include "third_party/blink/renderer/core/event_target_names.h"
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
 #include "third_party/blink/renderer/core/html/track/inband_text_track.h"
 #include "third_party/blink/renderer/core/html/track/loadable_text_track.h"
@@ -287,7 +286,7 @@ void TextTrackList::ScheduleRemoveTrackEvent(TextTrack* track) {
 
 bool TextTrackList::HasShowingTracks() {
   for (unsigned i = 0; i < length(); ++i) {
-    if (AnonymousIndexedGetter(i)->mode() == TextTrackMode::kShowing)
+    if (AnonymousIndexedGetter(i)->mode() == TextTrack::ShowingKeyword())
       return true;
   }
   return false;

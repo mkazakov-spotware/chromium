@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2015 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview The default Protobuf stream parser.
@@ -60,7 +68,6 @@ goog.require('goog.net.streams.StreamParser');
  * @final
  */
 goog.net.streams.PbStreamParser = function() {
-  'use strict';
   /**
    * The current error message, if any.
    * @private {?string}
@@ -141,7 +148,6 @@ goog.net.streams.PbStreamParser.PADDING_TAG_ = 15;
  * @override
  */
 goog.net.streams.PbStreamParser.prototype.isInputValid = function() {
-  'use strict';
   return this.state_ != goog.net.streams.PbStreamParser.State_.INVALID;
 };
 
@@ -150,7 +156,6 @@ goog.net.streams.PbStreamParser.prototype.isInputValid = function() {
  * @override
  */
 goog.net.streams.PbStreamParser.prototype.getErrorMessage = function() {
-  'use strict';
   return this.errorMessage_;
 };
 
@@ -164,7 +169,6 @@ goog.net.streams.PbStreamParser.prototype.getErrorMessage = function() {
  */
 goog.net.streams.PbStreamParser.prototype.error_ = function(
     inputBytes, pos, errorMsg) {
-  'use strict';
   this.state_ = goog.net.streams.PbStreamParser.State_.INVALID;
   this.errorMessage_ = 'The stream is broken @' + this.streamPos_ + '/' + pos +
       '. ' +
@@ -173,25 +177,17 @@ goog.net.streams.PbStreamParser.prototype.error_ = function(
   throw new Error(this.errorMessage_);
 };
 
-/**
- * @override
- * @return {boolean}
- */
-goog.net.streams.PbStreamParser.prototype.acceptsBinaryInput = function() {
-  return true;
-};
 
 /**
  * @throws {!Error} Throws an error message if the input is invalid.
  * @override
  */
 goog.net.streams.PbStreamParser.prototype.parse = function(input) {
-  'use strict';
   goog.asserts.assert(input instanceof Array || input instanceof ArrayBuffer);
 
-  const parser = this;
-  const inputBytes = (input instanceof Array) ? input : new Uint8Array(input);
-  let pos = 0;
+  var parser = this;
+  var inputBytes = (input instanceof Array) ? input : new Uint8Array(input);
+  var pos = 0;
 
   while (pos < inputBytes.length) {
     switch (parser.state_) {
@@ -220,7 +216,7 @@ goog.net.streams.PbStreamParser.prototype.parse = function(input) {
     pos++;
   }
 
-  const msgs = parser.result_;
+  var msgs = parser.result_;
   parser.result_ = [];
   return msgs.length > 0 ? msgs : null;
 
@@ -232,7 +228,7 @@ goog.net.streams.PbStreamParser.prototype.parse = function(input) {
       parser.error_(inputBytes, pos, 'invalid tag');
     }
 
-    const wireType = b & 0x07;
+    var wireType = b & 0x07;
     if (wireType != 2) {
       parser.error_(inputBytes, pos, 'invalid wire type');
     }
@@ -289,7 +285,7 @@ goog.net.streams.PbStreamParser.prototype.parse = function(input) {
    */
   function finishMessage() {
     if (parser.tag_ < goog.net.streams.PbStreamParser.PADDING_TAG_) {
-      const message = {};
+      var message = {};
       message[parser.tag_] = parser.messageBuffer_;
       parser.result_.push(message);
     }

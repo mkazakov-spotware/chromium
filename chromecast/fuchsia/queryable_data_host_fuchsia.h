@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/values.h"
 #include "chromecast/activity/queryable_data_host.h"
 
@@ -16,15 +17,14 @@ namespace chromecast {
 class QueryableDataHostFuchsia : public QueryableDataHost {
  public:
   QueryableDataHostFuchsia();
-
-  QueryableDataHostFuchsia(const QueryableDataHostFuchsia&) = delete;
-  QueryableDataHostFuchsia& operator=(const QueryableDataHostFuchsia&) = delete;
-
   ~QueryableDataHostFuchsia() override;
 
   // chromecast::QueryableDataHost implementation:
   void SendQueryableValue(const std::string& key,
                           const base::Value& value) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(QueryableDataHostFuchsia);
 };
 
 }  // namespace chromecast

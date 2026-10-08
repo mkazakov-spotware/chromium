@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,7 +61,7 @@ class PictureInPictureInterstitial final : public HTMLDivElement {
   // necessary.
   Member<ResizeObserver> resize_observer_;
 
-  HeapTaskRunnerTimer<PictureInPictureInterstitial> interstitial_timer_;
+  TaskRunnerTimer<PictureInPictureInterstitial> interstitial_timer_;
   Member<HTMLVideoElement> video_element_;
   Member<HTMLImageElement> background_image_;
   Member<HTMLDivElement> message_element_;

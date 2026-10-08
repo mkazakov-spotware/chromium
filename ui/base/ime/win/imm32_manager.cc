@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,18 @@
 #include <stdint.h>
 
 #include <memory>
-#include <string>
 
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/ime/composition_text.h"
+
+// Following code requires wchar_t to be same as char16. It should always be
+// true on Windows.
+static_assert(sizeof(wchar_t) == sizeof(base::char16),
+              "wchar_t should be the same size as char16");
 
 ///////////////////////////////////////////////////////////////////////////////
 // IMM32Manager
@@ -71,6 +77,7 @@ void GetImeTextSpans(HIMC imm_context,
         ui::ImeTextSpan ime_text_span;
         ime_text_span.start_offset = clause_data[i];
         ime_text_span.end_offset = clause_data[i + 1];
+        ime_text_span.underline_color = SK_ColorBLACK;
         ime_text_span.thickness = ui::ImeTextSpan::Thickness::kThin;
         ime_text_span.background_color = SK_ColorTRANSPARENT;
 
@@ -331,9 +338,9 @@ void IMM32Manager::GetCompositionInfo(HIMC imm_context,
 }
 
 bool IMM32Manager::GetString(HIMC imm_context,
-                             WPARAM lparam,
-                             int type,
-                             std::u16string* result) {
+                         WPARAM lparam,
+                         int type,
+                         base::string16* result) {
   if (!(lparam & type))
     return false;
   LONG string_size = ::ImmGetCompositionString(imm_context, type, NULL, 0);
@@ -341,15 +348,13 @@ bool IMM32Manager::GetString(HIMC imm_context,
     return false;
   DCHECK_EQ(0u, string_size % sizeof(wchar_t));
   ::ImmGetCompositionString(imm_context, type,
-                            base::as_writable_wcstr(base::WriteInto(
-                                result, (string_size / sizeof(wchar_t)) + 1)),
-                            string_size);
+      base::WriteInto(result, (string_size / sizeof(wchar_t)) + 1),
+      string_size);
   return true;
 }
 
-bool IMM32Manager::GetResult(HWND window_handle,
-                             LPARAM lparam,
-                             std::u16string* result) {
+bool IMM32Manager::GetResult(
+    HWND window_handle, LPARAM lparam, base::string16* result) {
   bool ret = false;
   HIMC imm_context = ::ImmGetContext(window_handle);
   if (imm_context) {

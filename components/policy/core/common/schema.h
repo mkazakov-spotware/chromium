@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,10 @@
 #include <string>
 #include <vector>
 
-#include "absl/types/variant.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/values.h"
 #include "components/policy/policy_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace policy {
 namespace internal {
@@ -24,18 +22,6 @@ struct POLICY_EXPORT PropertyNode;
 struct POLICY_EXPORT PropertiesNode;
 
 }  // namespace internal
-
-// The error path, which leads to an error occurred. Members of the
-// error path can either be ints in case of list items or strings in case of
-// dictionary keys.
-typedef std::vector<absl::variant<int, std::string>> PolicyErrorPath;
-
-// Returns a formatted string for a given error path |error_path|, consisting
-// of list indices and dict keys.
-// For example, ErrorPathToString("TestPolicy", {4, "testField"}) will be
-// encoded as "TestPolicy[4].testField"
-POLICY_EXPORT std::string ErrorPathToString(const std::string& policy_name,
-                                            PolicyErrorPath error_path);
 
 // Option flags passed to Schema::Validate() and Schema::Normalize(), describing
 // the strategy to handle unknown properties or invalid values for dict type.
@@ -51,22 +37,11 @@ enum SchemaOnErrorStrategy {
   // No errors will be allowed. This should not be used for policies, since it
   // basically prevents future changes to the policy (Server sends newField, but
   // clients running older versions of Chrome reject the policy because they
-  // don't know newField). Prefer to use |SCHEMA_ALLOW_UNKNOWN| or
-  // |SCHEMA_ALLOW_UNKOWN_AND_INVALID_LIST_ENTRY| for policies
+  // don't know newField). Prefer to use |SCHEMA_ALLOW_UNKNOWN| for policies
   // instead.
   SCHEMA_STRICT = 0,
   // Unknown properties in any dictionary will be ignored.
   SCHEMA_ALLOW_UNKNOWN,
-  // In addition to the previous, invalid list entries will be ignored for all
-  // lists in the schema. Should only be used in cases where dropping list items
-  // is safe. For example, can't be used if an empty list has a special meaning,
-  // like allowing everything.
-  SCHEMA_ALLOW_UNKNOWN_AND_INVALID_LIST_ENTRY,
-  // Same as |SCHEMA_ALLOW_UNKNOWN|, but unknown properties won't cause errors
-  // messages to be added. Used to allow adding extra fields to the policy
-  // internally, without adding those fields to the schema. This option should
-  // be avoided, since it suppresses the errors.
-  SCHEMA_ALLOW_UNKNOWN_WITHOUT_WARNING,
 };
 
 // Schema validation options for Schema::ParseToDictAndValidate().
@@ -128,7 +103,7 @@ class POLICY_EXPORT Schema {
   // accept any strings.
   // |options| is a bitwise-OR combination of the options above (see
   // |kSchemaOptions*| above).
-  static absl::optional<base::Value> ParseToDictAndValidate(
+  static base::Optional<base::Value> ParseToDictAndValidate(
       const std::string& schema,
       int options,
       std::string* error);
@@ -141,30 +116,29 @@ class POLICY_EXPORT Schema {
 
   // Validate |value| against current schema, |strategy| is the strategy to
   // handle unknown properties or invalid values. Allowed errors will be
-  // ignored. |out_error_path| and |out_error| will contain the last error
-  // location and detailed message if |value| doesn't strictly conform to the
-  // schema. If |value| doesn't conform to the schema even within the allowance
-  // of |strategy|, false will be returned and |out_error_path| and |out_error|
-  // will contain the corresponding error that caused the failure.
-  // |out_error_path| and |out_error| can be nullptr and in that case no value
-  // will be returned.
+  // ignored. |error_path| and |error| will contain the last error location and
+  // detailed message if |value| doesn't strictly conform to the schema. If
+  // |value| doesn't conform to the schema even within the allowance of
+  // |strategy|, false will be returned and |error_path| and |error| will
+  // contain the corresponding error that caused the failure. |error_path| can
+  // be NULL and in that case no error path will be returned.
   bool Validate(const base::Value& value,
                 SchemaOnErrorStrategy strategy,
-                PolicyErrorPath* out_error_path,
-                std::string* out_error) const;
+                std::string* error_path,
+                std::string* error) const;
 
   // Similar to Validate() but drop values with errors instead of ignoring them.
-  // |out_changed| is a pointer to a boolean value, and indicate whether |value|
+  // |changed| is a pointer to a boolean value, and indicate whether |value|
   // is changed or not (probably dropped properties or items). Be sure to set
-  // the bool that |out_changed| pointed to false before calling Normalize().
-  // |out_error_path|, |out_error| and |out_changed| can be nullptr and in that
-  // case no value will be set. This function will also take the ownership of
-  // dropped base::Value and destroy them.
+  // the bool that |changed| pointed to to false before calling Normalize().
+  // |changed| can be NULL and in that case no boolean will be set.
+  // This function will also take the ownership of dropped base::Value and
+  // destroy them.
   bool Normalize(base::Value* value,
                  SchemaOnErrorStrategy strategy,
-                 PolicyErrorPath* out_error_path,
-                 std::string* out_error,
-                 bool* out_changed) const;
+                 std::string* error_path,
+                 std::string* error,
+                 bool* changed) const;
 
   // Modifies |value| in place - masks values that have been marked as sensitive
   // ("sensitiveValue": true) in this Schema. Note that |value| may not be
@@ -197,8 +171,8 @@ class POLICY_EXPORT Schema {
 
    private:
     scoped_refptr<const InternalStorage> storage_;
-    raw_ptr<const internal::PropertyNode> it_;
-    raw_ptr<const internal::PropertyNode> end_;
+    const internal::PropertyNode* it_;
+    const internal::PropertyNode* end_;
   };
 
   // These methods should be called only if type() == Type::DICTIONARY,

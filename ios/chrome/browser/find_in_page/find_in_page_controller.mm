@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,22 @@
 #import <UIKit/UIKit.h>
 
 #import <cmath>
-#import <memory>
+#include <memory>
 
-#import "base/check_op.h"
+#include "base/check_op.h"
 #import "base/mac/foundation_util.h"
-#import "base/notreached.h"
-#import "components/ukm/ios/ukm_url_recorder.h"
+#include "base/notreached.h"
+#include "components/ukm/ios/ukm_url_recorder.h"
 #import "ios/chrome/browser/find_in_page/find_in_page_model.h"
 #import "ios/chrome/browser/find_in_page/find_in_page_response_delegate.h"
+#import "ios/chrome/browser/web/dom_altering_lock.h"
 #import "ios/web/public/find_in_page/find_in_page_manager.h"
 #import "ios/web/public/find_in_page/find_in_page_manager_delegate_bridge.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 #import "ios/web/public/ui/crw_web_view_scroll_view_proxy.h"
 #import "ios/web/public/web_state.h"
-#import "services/metrics/public/cpp/ukm_builders.h"
+#import "ios/web/public/web_state_observer_bridge.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -37,7 +39,9 @@ namespace {
 static NSString* gSearchTerm;
 }
 
-@interface FindInPageController () <CRWFindInPageManagerDelegate>
+@interface FindInPageController () <DOMAltering,
+                                    CRWWebStateObserver,
+                                    CRWFindInPageManagerDelegate>
 
 // The web view's scroll view.
 - (CRWWebViewScrollViewProxy*)webViewScrollView;
@@ -69,6 +73,9 @@ static NSString* gSearchTerm;
   // -webStateDestroyed: has been called.
   web::WebState* _webState;
 
+  // Bridge to observe the web state from Objective-C.
+  std::unique_ptr<web::WebStateObserverBridge> _webStateObserverBridge;
+
   // Bridge to observe FindInPageManager from Objective-C.
   std::unique_ptr<web::FindInPageManagerDelegateBridge>
       _findInPageDelegateBridge;
@@ -88,15 +95,16 @@ static NSString* gSearchTerm;
   self = [super init];
   if (self) {
     DCHECK(webState);
-    DCHECK(webState->IsRealized());
-
     _webState = webState;
     _findInPageModel = [[FindInPageModel alloc] init];
-    _findInPageDelegateBridge =
-        std::make_unique<web::FindInPageManagerDelegateBridge>(self);
-    _findInPageManager = web::FindInPageManager::FromWebState(_webState);
-    _findInPageManager->SetDelegate(_findInPageDelegateBridge.get());
+      _findInPageDelegateBridge =
+          std::make_unique<web::FindInPageManagerDelegateBridge>(self);
+      _findInPageManager = web::FindInPageManager::FromWebState(_webState);
+      _findInPageManager->SetDelegate(_findInPageDelegateBridge.get());
 
+    _webStateObserverBridge =
+        std::make_unique<web::WebStateObserverBridge>(self);
+    _webState->AddObserver(_webStateObserverBridge.get());
     _webViewProxy = _webState->GetWebViewProxy();
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -108,16 +116,21 @@ static NSString* gSearchTerm;
            selector:@selector(findBarTextFieldDidResignFirstResponder:)
                name:kFindBarTextFieldDidResignFirstResponderNotification
              object:nil];
+    DOMAlteringLock::CreateForWebState(_webState);
   }
   return self;
 }
 
 - (void)dealloc {
-  DCHECK(!_webState) << "-detachFromWebState must be called before -dealloc";
+  if (_webState) {
+    _webState->RemoveObserver(_webStateObserverBridge.get());
+    _webStateObserverBridge.reset();
+    _webState = nullptr;
+  }
 }
 
 - (BOOL)canFindInPage {
-  return _findInPageManager->CanSearchContent();
+    return _findInPageManager->CanSearchContent();
 }
 
 - (CRWWebViewScrollViewProxy*)webViewScrollView {
@@ -169,12 +182,21 @@ static NSString* gSearchTerm;
     return;
   }
 
+  __weak FindInPageController* weakSelf = self;
+  ProceduralBlock handler = ^{
+    FindInPageController* strongSelf = weakSelf;
+    if (strongSelf && strongSelf->_webState) {
+      DOMAlteringLock::FromWebState(strongSelf->_webState)->Release(strongSelf);
+    }
+  };
   // Only run FindInPageManager::StopFinding() if there is a string in progress
   // to avoid WKWebView crash on deallocation due to outstanding completion
   // handler.
   if (_findStringStarted) {
       _findInPageManager->StopFinding();
-      _findStringStarted = NO;
+    _findStringStarted = NO;
+  } else {
+    handler();
   }
 }
 
@@ -200,7 +222,7 @@ static NSString* gSearchTerm;
                 withMatchCount:(NSInteger)matchCount
                    forWebState:(web::WebState*)webState {
   if (matchCount == 0 && !query) {
-    // StopFinding responds with `matchCount` as 0 and `query` as nil.
+    // StopFinding responds with |matchCount| as 0 and |query| as nil.
     [self.responseDelegate findDidStop];
     return;
   }
@@ -268,10 +290,28 @@ static NSString* gSearchTerm;
 }
 
 - (void)detachFromWebState {
-  _findInPageManager->SetDelegate(nullptr);
-  _findInPageDelegateBridge.reset();
-  _findInPageManager = nullptr;
-  _webState = nullptr;
+  if (_webState) {
+    _webState->RemoveObserver(_webStateObserverBridge.get());
+    _webStateObserverBridge.reset();
+    _webState = nullptr;
+  }
+}
+
+#pragma mark - CRWWebStateObserver Methods
+
+- (void)webStateDestroyed:(web::WebState*)webState {
+  DCHECK_EQ(_webState, webState);
+  [self detachFromWebState];
+}
+
+#pragma mark - DOMAltering Methods
+
+- (BOOL)canReleaseDOMLock {
+  return NO;
+}
+
+- (void)releaseDOMLockWithCompletionHandler:(ProceduralBlock)completionHandler {
+  NOTREACHED();
 }
 
 @end

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,7 @@ NetworkInfo::NetworkInfo(const std::string& guid)
       connection_state(
           chromeos::network_config::mojom::ConnectionStateType::kNotConnected),
       type(chromeos::network_config::mojom::NetworkType::kWiFi),
-      source(chromeos::network_config::mojom::OncSource::kNone),
-      activation_state(
-          chromeos::network_config::mojom::ActivationStateType::kUnknown) {}
+      source(chromeos::network_config::mojom::OncSource::kNone) {}
 
 NetworkInfo::~NetworkInfo() = default;
 
@@ -25,9 +23,7 @@ bool NetworkInfo::operator==(const NetworkInfo& other) const {
   return guid == other.guid && label == other.label &&
          tooltip == other.tooltip && image.BackedBySameObjectAs(other.image) &&
          type == other.type && disable == other.disable &&
-         sim_locked == other.sim_locked && sim_eid == other.sim_eid &&
          connection_state == other.connection_state && source == other.source &&
-         activation_state == other.activation_state &&
          battery_percentage == other.battery_percentage;
 }
 

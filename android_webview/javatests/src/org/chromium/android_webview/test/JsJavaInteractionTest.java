@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,13 +19,12 @@ import org.junit.runner.RunWith;
 
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.JsReplyProxy;
-import org.chromium.android_webview.ScriptHandler;
+import org.chromium.android_webview.ScriptReference;
 import org.chromium.android_webview.WebMessageListener;
 import org.chromium.android_webview.test.TestAwContentsClient.OnReceivedTitleHelper;
 import org.chromium.android_webview.test.util.CommonResources;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
-import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer.OnPageFinishedHelper;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
@@ -180,7 +179,7 @@ public class JsJavaInteractionTest {
         final OnReceivedTitleHelper onReceivedTitleHelper =
                 mContentsClient.getOnReceivedTitleHelper();
         final int titleCallCount = onReceivedTitleHelper.getCallCount();
-        ports[0].postMessage(new MessagePayload(NEW_TITLE), new MessagePort[0]);
+        ports[0].postMessage(NEW_TITLE, new MessagePort[0]);
         onReceivedTitleHelper.waitForCallback(titleCallCount);
 
         Assert.assertEquals(NEW_TITLE, onReceivedTitleHelper.getTitle());
@@ -538,7 +537,7 @@ public class JsJavaInteractionTest {
     @Test
     @MediumTest
     @Feature({"AndroidWebView", "JsJavaInteraction"})
-    public void testDontAllowAddWebMessageLitenerWithTheSameJsObjectName() throws Throwable {
+    public void testDontAllowAddWebMessageLitenerWithTheSameJsObjectName() {
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
         try {
             addWebMessageListenerOnUiThread(
@@ -619,6 +618,22 @@ public class JsJavaInteractionTest {
                 isJsObjectInjectedWhenLoadingUrl("https://www.ok.com", JS_OBJECT_NAME_2));
         Assert.assertFalse(
                 isJsObjectInjectedWhenLoadingUrl("https://www.noinjection.com", JS_OBJECT_NAME_2));
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"AndroidWebView", "JsJavaInteraction"})
+    public void testAddWebMessageListener_dontInjectWhenMatchesImplicitRules() throws Throwable {
+        // allowedOriginRules is an empty String array, shouldn't inject the object to any frame.
+        addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[0], mListener);
+
+        // following are some origins allowed by implicit rules.
+        Assert.assertFalse(isJsObjectInjectedWhenLoadingUrl("http://127.0.0.1", JS_OBJECT_NAME));
+        Assert.assertFalse(isJsObjectInjectedWhenLoadingUrl("https://127.0.0.1", JS_OBJECT_NAME));
+        Assert.assertFalse(isJsObjectInjectedWhenLoadingUrl("http://localhost", JS_OBJECT_NAME));
+        Assert.assertFalse(isJsObjectInjectedWhenLoadingUrl("http://169.254.0.1", JS_OBJECT_NAME));
+        Assert.assertFalse(isJsObjectInjectedWhenLoadingUrl("http://localhost6", JS_OBJECT_NAME));
+        Assert.assertFalse(isJsObjectInjectedWhenLoadingUrl("http://[::1]", JS_OBJECT_NAME));
     }
 
     @Test
@@ -1195,13 +1210,13 @@ public class JsJavaInteractionTest {
     @Feature({"AndroidWebView", "JsJavaInteraction"})
     public void testDocumentStartJavaScript_removeScript() throws Throwable {
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
-        ScriptHandler[] handlers = new ScriptHandler[2];
+        ScriptReference[] references = new ScriptReference[2];
         for (int i = 0; i < 2; ++i) {
             final String script =
                     JS_OBJECT_NAME + ".postMessage('" + HELLO + Integer.toString(i) + "');";
             // Since we are matching both origins, the script will run in both iframe and main
             // frame, but it will send message in only iframe.
-            handlers[i] =
+            references[i] =
                     addDocumentStartJavaScriptOnUiThread(mAwContents, script, new String[] {"*"});
         }
 
@@ -1214,14 +1229,14 @@ public class JsJavaInteractionTest {
             Assert.assertEquals(HELLO + Integer.toString(i), data.mMessage);
         }
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> handlers[0].remove());
+        TestThreadUtils.runOnUiThreadBlocking(() -> references[0].remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
         TestWebMessageListener.Data data = mListener.waitForOnPostMessage();
         Assert.assertEquals(HELLO + "1", data.mMessage);
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> handlers[1].remove());
+        TestThreadUtils.runOnUiThreadBlocking(() -> references[1].remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
@@ -1235,7 +1250,7 @@ public class JsJavaInteractionTest {
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
 
         final String script = JS_OBJECT_NAME + ".postMessage('" + HELLO + "');";
-        ScriptHandler handler =
+        ScriptReference reference =
                 addDocumentStartJavaScriptOnUiThread(mAwContents, script, new String[] {"*"});
 
         final String url = loadUrlFromPath(HELLO_WORLD_HTML);
@@ -1246,16 +1261,16 @@ public class JsJavaInteractionTest {
         Assert.assertEquals(HELLO, data.mMessage);
 
         // Remove twice, the second time should take no effect.
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
+        TestThreadUtils.runOnUiThreadBlocking(() -> reference.remove());
+        TestThreadUtils.runOnUiThreadBlocking(() -> reference.remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
         Assert.assertTrue(mListener.hasNoMoreOnPostMessage());
 
         // Remove twice again, should have no effect.
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
+        TestThreadUtils.runOnUiThreadBlocking(() -> reference.remove());
+        TestThreadUtils.runOnUiThreadBlocking(() -> reference.remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
@@ -1318,24 +1333,21 @@ public class JsJavaInteractionTest {
                 + "</body></html>";
     }
 
-    private static ScriptHandler addDocumentStartJavaScriptOnUiThread(final AwContents awContents,
-            final String script, final String[] allowedOriginRules) throws Exception {
-        AwActivityTestRule.checkJavaScriptEnabled(awContents);
+    private static ScriptReference addDocumentStartJavaScriptOnUiThread(
+            final AwContents awContents, final String script, final String[] allowedOriginRules) {
         return TestThreadUtils.runOnUiThreadBlockingNoException(
                 () -> awContents.addDocumentStartJavaScript(script, allowedOriginRules));
     }
 
     private static void addWebMessageListenerOnUiThread(final AwContents awContents,
             final String jsObjectName, final String[] allowedOriginRules,
-            final WebMessageListener listener) throws Exception {
-        AwActivityTestRule.checkJavaScriptEnabled(awContents);
+            final WebMessageListener listener) {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.addWebMessageListener(jsObjectName, allowedOriginRules, listener));
     }
 
     private static void removeWebMessageListenerOnUiThread(
-            final AwContents awContents, final String jsObjectName) throws Exception {
-        AwActivityTestRule.checkJavaScriptEnabled(awContents);
+            final AwContents awContents, final String jsObjectName) {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.removeWebMessageListener(jsObjectName));
     }

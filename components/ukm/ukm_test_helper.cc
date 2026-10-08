@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include <algorithm>
 #include <string>
 
-#include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "components/metrics/log_decoder.h"
 #include "components/metrics/unsent_log_store.h"
 
@@ -19,16 +19,16 @@ UkmTestHelper::UkmTestHelper(UkmService* ukm_service)
     : ukm_service_(ukm_service) {}
 
 bool UkmTestHelper::IsExtensionRecordingEnabled() const {
-  return ukm_service_ ? ukm_service_->recording_enabled(EXTENSIONS) : false;
+  return ukm_service_ ? ukm_service_->extensions_enabled_ : false;
 }
 
 bool UkmTestHelper::IsRecordingEnabled() const {
-  return ukm_service_ ? ukm_service_->recording_enabled() : false;
+  return ukm_service_ ? ukm_service_->recording_enabled_ : false;
 }
 
 bool UkmTestHelper::IsReportUserNoisedUserBirthYearAndGenderEnabled() {
   return base::FeatureList::IsEnabled(
-      ukm::kReportUserNoisedUserBirthYearAndGender);
+      ukm::UkmService::kReportUserNoisedUserBirthYearAndGender);
 }
 
 uint64_t UkmTestHelper::GetClientId() {

@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_model.h"
 
-#include "base/observer_list.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_model_observer.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_state.h"
@@ -47,7 +46,7 @@ bool WebauthnDialogModel::IsCancelButtonVisible() const {
   return true;
 }
 
-std::u16string WebauthnDialogModel::GetCancelButtonLabel() const {
+base::string16 WebauthnDialogModel::GetCancelButtonLabel() const {
   switch (state_) {
     case WebauthnDialogState::kOffer:
     case WebauthnDialogState::kOfferPending:
@@ -63,7 +62,7 @@ std::u16string WebauthnDialogModel::GetCancelButtonLabel() const {
     case WebauthnDialogState::kUnknown:
       break;
   }
-  return std::u16string();
+  return base::string16();
 }
 
 bool WebauthnDialogModel::IsAcceptButtonVisible() const {
@@ -75,7 +74,7 @@ bool WebauthnDialogModel::IsAcceptButtonEnabled() const {
   return state_ != WebauthnDialogState::kOfferPending;
 }
 
-std::u16string WebauthnDialogModel::GetAcceptButtonLabel() const {
+base::string16 WebauthnDialogModel::GetAcceptButtonLabel() const {
   return l10n_util::GetStringUTF16(
       IDS_AUTOFILL_WEBAUTHN_OPT_IN_DIALOG_OK_BUTTON_LABEL);
 }
@@ -100,7 +99,7 @@ const gfx::VectorIcon& WebauthnDialogModel::GetStepIllustration(
   return gfx::kNoneIcon;
 }
 
-std::u16string WebauthnDialogModel::GetStepTitle() const {
+base::string16 WebauthnDialogModel::GetStepTitle() const {
   switch (state_) {
     case WebauthnDialogState::kOffer:
     case WebauthnDialogState::kOfferPending:
@@ -117,10 +116,10 @@ std::u16string WebauthnDialogModel::GetStepTitle() const {
       break;
   }
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
-std::u16string WebauthnDialogModel::GetStepDescription() const {
+base::string16 WebauthnDialogModel::GetStepDescription() const {
   switch (state_) {
     case WebauthnDialogState::kOffer:
     case WebauthnDialogState::kOfferPending:
@@ -130,13 +129,13 @@ std::u16string WebauthnDialogModel::GetStepDescription() const {
       return l10n_util::GetStringUTF16(
           IDS_AUTOFILL_WEBAUTHN_OPT_IN_DIALOG_INSTRUCTION_ERROR);
     case WebauthnDialogState::kVerifyPending:
-      return std::u16string();
+      return base::string16();
     case WebauthnDialogState::kInactive:
     case WebauthnDialogState::kUnknown:
       break;
   }
   NOTREACHED();
-  return std::u16string();
+  return base::string16();
 }
 
 }  // namespace autofill

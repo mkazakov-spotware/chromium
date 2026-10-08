@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "content/browser/background_fetch/background_fetch_request_info.h"
 #include "content/browser/background_fetch/storage/database_task.h"
+#include "content/browser/cache_storage/cache_storage_cache.h"
 #include "storage/browser/blob/blob_data_handle.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
 
@@ -27,18 +28,20 @@ class GetRequestBlobTask : public DatabaseTask {
       const scoped_refptr<BackgroundFetchRequestInfo>& request_info,
       GetRequestBlobCallback callback);
 
-  GetRequestBlobTask(const GetRequestBlobTask&) = delete;
-  GetRequestBlobTask& operator=(const GetRequestBlobTask&) = delete;
-
   ~GetRequestBlobTask() override;
 
   // DatabaseTask implementation:
   void Start() override;
 
  private:
-  void DidOpenCache(int64_t trace_id, blink::mojom::CacheStorageError error);
-  void DidMatchRequest(int64_t trace_id,
-                       blink::mojom::CacheKeysResultPtr result);
+  void DidOpenCache(int64_t trace_id,
+                    CacheStorageCacheHandle handle,
+                    blink::mojom::CacheStorageError error);
+
+  void DidMatchRequest(CacheStorageCacheHandle handle,
+                       int64_t trace_id,
+                       blink::mojom::CacheStorageError error,
+                       std::vector<CacheStorageCache::CacheEntry> entries);
 
   void FinishWithError(blink::mojom::BackgroundFetchError error) override;
 
@@ -52,6 +55,8 @@ class GetRequestBlobTask : public DatabaseTask {
 
   base::WeakPtrFactory<GetRequestBlobTask> weak_factory_{
       this};  // Keep as last.
+
+  DISALLOW_COPY_AND_ASSIGN(GetRequestBlobTask);
 };
 
 }  // namespace background_fetch

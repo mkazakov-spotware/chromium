@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.download;
 
 import org.chromium.base.annotations.CalledByNative;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
 import org.chromium.components.download.DownloadState;
 import org.chromium.components.download.ResumeMode;
 import org.chromium.components.offline_items_collection.ContentId;
@@ -164,10 +163,9 @@ public class DownloadItem {
         offlineItem.totalSizeBytes = downloadInfo.getBytesTotalSize();
         offlineItem.receivedBytes = downloadInfo.getBytesReceived();
         offlineItem.isResumable = downloadInfo.isResumable();
-        offlineItem.url = downloadInfo.getUrl();
+        offlineItem.pageUrl = downloadInfo.getUrl();
         offlineItem.originalUrl = downloadInfo.getOriginalUrl();
         offlineItem.isOffTheRecord = downloadInfo.isOffTheRecord();
-        offlineItem.otrProfileId = OTRProfileID.serialize(downloadInfo.getOTRProfileId());
         offlineItem.mimeType = downloadInfo.getMimeType();
         offlineItem.progress = downloadInfo.getProgress();
         offlineItem.timeRemainingMs = downloadInfo.getTimeRemainingInMillis();
@@ -180,6 +178,7 @@ public class DownloadItem {
         offlineItem.completionTimeMs = item.getEndTime();
         offlineItem.externallyRemoved = item.hasBeenExternallyRemoved();
         offlineItem.canRename = item.getDownloadInfo().state() == DownloadState.COMPLETE;
+        offlineItem.schedule = downloadInfo.getOfflineItemSchedule();
         switch (downloadInfo.state()) {
             case DownloadState.IN_PROGRESS:
                 offlineItem.state = downloadInfo.isPaused() ? OfflineItemState.PAUSED
@@ -196,7 +195,7 @@ public class DownloadItem {
             case DownloadState.INTERRUPTED:
                 @ResumeMode
                 int resumeMode = DownloadUtils.getResumeMode(
-                        downloadInfo.getUrl().getSpec(), downloadInfo.getFailState());
+                        downloadInfo.getUrl(), downloadInfo.getFailState());
                 if (resumeMode == ResumeMode.INVALID || resumeMode == ResumeMode.USER_RESTART) {
                     // Fail but can restart from the beginning. The UI should let the user to retry.
                     offlineItem.state = OfflineItemState.INTERRUPTED;

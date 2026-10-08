@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/bluetooth/dbus/fake_bluetooth_agent_manager_client.h"
 
 #include "base/logging.h"
-#include "base/observer_list.h"
 #include "device/bluetooth/dbus/fake_bluetooth_agent_service_provider.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 

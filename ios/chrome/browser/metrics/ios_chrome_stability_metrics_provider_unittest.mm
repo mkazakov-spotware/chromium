@@ -1,22 +1,19 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/metrics/ios_chrome_stability_metrics_provider.h"
+#include "ios/chrome/browser/metrics/ios_chrome_stability_metrics_provider.h"
 
-#import "base/test/metrics/histogram_tester.h"
-#import "components/metrics/stability_metrics_helper.h"
-#import "components/prefs/pref_service.h"
-#import "components/prefs/scoped_user_pref_update.h"
-#import "components/prefs/testing_pref_service.h"
-#import "ios/web/common/features.h"
+#include "base/macros.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
+#include "components/prefs/testing_pref_service.h"
+#include "ios/web/common/features.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
-
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
+#include "third_party/metrics_proto/system_profile.pb.h"
 
 namespace {
 
@@ -44,8 +41,13 @@ TEST_F(IOSChromeStabilityMetricsProviderTest,
   // A navigation should not increment metrics if recording is disabled.
   provider.WebStateDidStartNavigation(kNullWebState, &context);
 
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kPageLoad, 0);
+  metrics::SystemProfileProto system_profile;
+
+  // Call ProvideStabilityMetrics to check that it will force pending tasks to
+  // be executed immediately.
+  provider.ProvideStabilityMetrics(&system_profile);
+
+  EXPECT_EQ(0, system_profile.stability().page_load_count());
   EXPECT_TRUE(histogram_tester_
                   .GetTotalCountsForPrefix(
                       IOSChromeStabilityMetricsProvider::kPageLoadCountMetric)
@@ -55,8 +57,10 @@ TEST_F(IOSChromeStabilityMetricsProviderTest,
   provider.OnRecordingEnabled();
   provider.WebStateDidStartNavigation(kNullWebState, &context);
 
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kPageLoad, 1);
+  system_profile.Clear();
+  provider.ProvideStabilityMetrics(&system_profile);
+
+  EXPECT_EQ(1, system_profile.stability().page_load_count());
   histogram_tester_.ExpectUniqueSample(
       IOSChromeStabilityMetricsProvider::kPageLoadCountMetric,
       static_cast<base::HistogramBase::Sample>(
@@ -81,8 +85,9 @@ TEST_F(IOSChromeStabilityMetricsProviderTest,
               SAME_DOCUMENT_WEB_NAVIGATION),
       1);
 
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kPageLoad, 0);
+  metrics::SystemProfileProto system_profile;
+  provider.ProvideStabilityMetrics(&system_profile);
+  EXPECT_EQ(0, system_profile.stability().page_load_count());
 }
 
 TEST_F(IOSChromeStabilityMetricsProviderTest,
@@ -101,8 +106,10 @@ TEST_F(IOSChromeStabilityMetricsProviderTest,
           IOSChromeStabilityMetricsProvider::PageLoadCountNavigationType::
               CHROME_URL_NAVIGATION),
       1);
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kPageLoad, 0);
+
+  metrics::SystemProfileProto system_profile;
+  provider.ProvideStabilityMetrics(&system_profile);
+  EXPECT_EQ(0, system_profile.stability().page_load_count());
 }
 
 TEST_F(IOSChromeStabilityMetricsProviderTest,
@@ -121,8 +128,10 @@ TEST_F(IOSChromeStabilityMetricsProviderTest,
           IOSChromeStabilityMetricsProvider::PageLoadCountNavigationType::
               CHROME_URL_NAVIGATION),
       1);
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kPageLoad, 0);
+
+  metrics::SystemProfileProto system_profile;
+  provider.ProvideStabilityMetrics(&system_profile);
+  EXPECT_EQ(0, system_profile.stability().page_load_count());
 }
 
 TEST_F(IOSChromeStabilityMetricsProviderTest, WebNavigationShouldLogPageLoad) {
@@ -137,8 +146,10 @@ TEST_F(IOSChromeStabilityMetricsProviderTest, WebNavigationShouldLogPageLoad) {
           IOSChromeStabilityMetricsProvider::PageLoadCountNavigationType::
               PAGE_LOAD_NAVIGATION),
       1);
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kPageLoad, 1);
+
+  metrics::SystemProfileProto system_profile;
+  provider.ProvideStabilityMetrics(&system_profile);
+  EXPECT_EQ(1, system_profile.stability().page_load_count());
 }
 
 TEST_F(IOSChromeStabilityMetricsProviderTest,
@@ -148,17 +159,26 @@ TEST_F(IOSChromeStabilityMetricsProviderTest,
   // A crash should not increment the renderer crash count if recording is
   // disabled.
   provider.LogRendererCrash();
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 0);
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kExtensionCrash, 0);
+
+  metrics::SystemProfileProto system_profile;
+
+  // Call ProvideStabilityMetrics to check that it will force pending tasks to
+  // be executed immediately.
+  provider.ProvideStabilityMetrics(&system_profile);
+
+  EXPECT_EQ(0, system_profile.stability().renderer_crash_count());
+  EXPECT_EQ(0, system_profile.stability().renderer_failed_launch_count());
+  EXPECT_EQ(0, system_profile.stability().extension_renderer_crash_count());
 
   // A crash should increment the renderer crash count if recording is
   // enabled.
   provider.OnRecordingEnabled();
   provider.LogRendererCrash();
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kRendererCrash, 1);
-  histogram_tester_.ExpectBucketCount(
-      "Stability.Counts2", metrics::StabilityEventType::kExtensionCrash, 0);
+
+  system_profile.Clear();
+  provider.ProvideStabilityMetrics(&system_profile);
+
+  EXPECT_EQ(1, system_profile.stability().renderer_crash_count());
+  EXPECT_EQ(0, system_profile.stability().renderer_failed_launch_count());
+  EXPECT_EQ(0, system_profile.stability().extension_renderer_crash_count());
 }

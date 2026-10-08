@@ -34,11 +34,9 @@
 #include "third_party/blink/renderer/core/html/track/cue_timeline.h"
 #include "third_party/blink/renderer/core/html/track/text_track.h"
 #include "third_party/blink/renderer/core/layout/layout_block_flow.h"
-#include "third_party/blink/renderer/core/layout/layout_object_factory.h"
 #include "third_party/blink/renderer/core/layout/layout_video.h"
 #include "third_party/blink/renderer/core/resize_observer/resize_observer.h"
 #include "third_party/blink/renderer/core/resize_observer/resize_observer_entry.h"
-#include "ui/accessibility/accessibility_features.h"
 
 namespace blink {
 
@@ -104,9 +102,14 @@ void TextTrackContainer::RemovedFrom(ContainerNode& insertion_point) {
   }
 }
 
-LayoutObject* TextTrackContainer::CreateLayoutObject(const ComputedStyle& style,
-                                                     LegacyLayout legacy) {
-  return LayoutObjectFactory::CreateBlockFlow(*this, style, legacy);
+LayoutObject* TextTrackContainer::CreateLayoutObject(const ComputedStyle&,
+                                                     LegacyLayout) {
+  // TODO(mstensho): Should use LayoutObjectFactory to create the right type of
+  // object here, to enable LayoutNG, but currently we can't, because this will
+  // typically be a child of LayoutVideo (a legacy type), and we'll typically
+  // also insert a LayoutVTTCue (a LayoutBlockFlow type) child, which also isn't
+  // implemented in NG.
+  return new LayoutBlockFlow(this);
 }
 
 void TextTrackContainer::ObserveSizeChanges(Element& element) {
@@ -167,15 +170,15 @@ void TextTrackContainer::UpdateDisplay(HTMLMediaElement& media_element,
 
   // Note: This is a layout algorithm, expressed terms of appending CSS block
   // boxes to output, and the "apply WebVTT cue settings" part is implemented
-  // in VttCueLayoutAlgorithm. Here we merely create the DOM tree from which
-  // the layout tree is built and append it to this TextTrackContainer.
+  // in LayoutVTTCue. Here we merely create the DOM tree from which the layout
+  // tree is built and append it to this TextTrackContainer.
 
   // 4. If the user agent is exposing a user interface for video, add to
   // output one or more completely transparent positioned CSS block boxes that
   // cover the same region as the user interface.
 
-  // Note: Overlap checking for the controls is implemented in
-  // VttCueLayoutAlgorithm without a placeholder box (element or layout object).
+  // Note: Overlap checking for the controls is implemented in LayoutVTTCue
+  // without a placeholder box (element or layout object).
 
   // 5. If the last time these rules were run, the user agent was not exposing
   // a user interface for video, but now it is, optionally let reset be true.
@@ -212,10 +215,7 @@ void TextTrackContainer::UpdateDisplay(HTMLMediaElement& media_element,
     if (!cue->track() || !cue->track()->IsRendered() || !cue->IsActive())
       continue;
 
-    if (!cue->track()->IsSpokenKind()) {
-      cue->UpdateDisplay(*this);
-    }
-
+    cue->UpdateDisplay(*this);
     cue->UpdatePastAndFutureNodes(movie_time);
   }
 

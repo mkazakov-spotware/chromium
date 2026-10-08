@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,17 @@
 #include "third_party/blink/renderer/modules/xr/xr_pose.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
 #include "third_party/blink/renderer/modules/xr/xr_space.h"
-#include "ui/gfx/geometry/transform.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 
 namespace blink {
+
+class XRImageSpace : public XRObjectSpace<XRImageTrackingResult> {
+ public:
+  XRImageSpace(XRSession* session, const XRImageTrackingResult* object)
+      : XRObjectSpace<XRImageTrackingResult>(session, object) {}
+
+  bool IsStationary() const override { return false; }
+};
 
 XRImageTrackingResult::XRImageTrackingResult(
     XRSession* session,
@@ -28,26 +36,21 @@ XRImageTrackingResult::XRImageTrackingResult(
   }
 }
 
-absl::optional<gfx::Transform> XRImageTrackingResult::MojoFromObject() const {
+base::Optional<TransformationMatrix> XRImageTrackingResult::MojoFromObject()
+    const {
   if (!mojo_from_this_) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
-  return mojo_from_this_->ToTransform();
+  return mojo_from_this_->ToTransform().matrix();
 }
 
 XRSpace* XRImageTrackingResult::imageSpace() const {
   if (!image_space_) {
-    image_space_ = MakeGarbageCollected<XRObjectSpace<XRImageTrackingResult>>(
-        session_, this);
+    image_space_ = MakeGarbageCollected<XRImageSpace>(session_, this);
   }
 
   return image_space_;
-}
-
-device::mojom::blink::XRNativeOriginInformationPtr
-XRImageTrackingResult::NativeOrigin() const {
-  return device::mojom::blink::XRNativeOriginInformation::NewImageIndex(index_);
 }
 
 void XRImageTrackingResult::Trace(Visitor* visitor) const {

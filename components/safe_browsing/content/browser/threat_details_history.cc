@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -42,8 +42,8 @@ void ThreatDetailsRedirectsCollector::StartHistoryCollection(
 
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,
-      base::BindOnce(&ThreatDetailsRedirectsCollector::StartGetRedirects,
-                     weak_factory_.GetWeakPtr(), urls));
+      base::BindOnce(&ThreatDetailsRedirectsCollector::StartGetRedirects, this,
+                     urls));
 }
 
 bool ThreatDetailsRedirectsCollector::HasStarted() const {
@@ -79,7 +79,7 @@ void ThreatDetailsRedirectsCollector::GetRedirects(const GURL& url) {
   history_service_->QueryRedirectsTo(
       url,
       base::BindOnce(&ThreatDetailsRedirectsCollector::OnGotQueryRedirectsTo,
-                     weak_factory_.GetWeakPtr(), url),
+                     base::Unretained(this), url),
       &request_tracker_);
 }
 
@@ -112,7 +112,7 @@ void ThreatDetailsRedirectsCollector::AllDone() {
 void ThreatDetailsRedirectsCollector::HistoryServiceBeingDeleted(
     history::HistoryService* history_service) {
   DCHECK(history_service_observation_.IsObservingSource(history_service));
-  history_service_observation_.Reset();
+  history_service_observation_.RemoveObservation();
   history_service_.reset();
 }
 

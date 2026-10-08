@@ -3,18 +3,21 @@ rootWebArea
 ++++genericContainer ignored
 ++++++list
 ++++++++listItem hierarchicalLevel=1
-++++++++++listMarker name='%E2%80%A2 '
-++++++++++++staticText ignored name='%E2%80%A2 '
+++++++++++listMarker name='• '
+++++++++++++staticText name='• '
+++++++++++++++inlineTextBox name='• '
 ++++++++++staticText name='tic'
 ++++++++++++inlineTextBox name='tic'
 ++++++++listItem hierarchicalLevel=1
-++++++++++listMarker name='%E2%80%A2 '
-++++++++++++staticText ignored name='%E2%80%A2 '
+++++++++++listMarker name='• '
+++++++++++++staticText name='• '
+++++++++++++++inlineTextBox name='• '
 ++++++++++staticText name='tac'
 ++++++++++++inlineTextBox name='tac'
 ++++++++listItem hierarchicalLevel=1
-++++++++++listMarker name='%E2%80%A2 '
-++++++++++++staticText ignored name='%E2%80%A2 '
+++++++++++listMarker name='• '
+++++++++++++staticText name='• '
+++++++++++++++inlineTextBox name='• '
 ++++++++++staticText name='toe'
 ++++++++++++inlineTextBox name='toe'
 ++++++list

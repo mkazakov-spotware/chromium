@@ -1,12 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_GPU_TEXTURE_USAGE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_GPU_TEXTURE_USAGE_H_
 
-#include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_texture_usage.h"
-#include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 
 namespace blink {
@@ -16,17 +14,14 @@ class GPUTextureUsage : public ScriptWrappable {
 
  public:
   // gpu_texture_usage.idl
-  static constexpr uint32_t kCopySrc = V8GPUTextureUsage::Constant::kCopySrc;
-  static constexpr uint32_t kCopyDst = V8GPUTextureUsage::Constant::kCopyDst;
-  static constexpr uint32_t kTextureBinding =
-      V8GPUTextureUsage::Constant::kTextureBinding;
-  static constexpr uint32_t kStorageBinding =
-      V8GPUTextureUsage::Constant::kStorageBinding;
-  static constexpr uint32_t kRenderAttachment =
-      V8GPUTextureUsage::Constant::kRenderAttachment;
+  static constexpr uint32_t kCopySrc = 1;
+  static constexpr uint32_t kCopyDst = 2;
+  static constexpr uint32_t kSampled = 4;
+  static constexpr uint32_t kStorage = 8;
+  static constexpr uint32_t kOutputAttachment = 16;
 
-  GPUTextureUsage(const GPUTextureUsage&) = delete;
-  GPUTextureUsage& operator=(const GPUTextureUsage&) = delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GPUTextureUsage);
 };
 
 }  // namespace blink

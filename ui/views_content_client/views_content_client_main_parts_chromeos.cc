@@ -1,9 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "content/public/browser/context_factory.h"
-#include "content/public/common/result_codes.h"
 #include "content/shell/browser/shell_browser_context.h"
 #include "ui/aura/window.h"
 #include "ui/views_content_client/views_content_client.h"
@@ -17,30 +17,29 @@ namespace {
 class ViewsContentClientMainPartsChromeOS
     : public ViewsContentClientMainPartsAura {
  public:
-  explicit ViewsContentClientMainPartsChromeOS(
-      ViewsContentClient* views_content_client);
-
   ViewsContentClientMainPartsChromeOS(
-      const ViewsContentClientMainPartsChromeOS&) = delete;
-  ViewsContentClientMainPartsChromeOS& operator=(
-      const ViewsContentClientMainPartsChromeOS&) = delete;
-
+      const content::MainFunctionParams& content_params,
+      ViewsContentClient* views_content_client);
   ~ViewsContentClientMainPartsChromeOS() override {}
 
   // content::BrowserMainParts:
-  int PreMainMessageLoopRun() override;
+  void PreMainMessageLoopRun() override;
   void PostMainMessageLoopRun() override;
 
  private:
   // Enable a minimal set of views::corewm to be initialized.
   std::unique_ptr<::wm::WMTestHelper> wm_test_helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewsContentClientMainPartsChromeOS);
 };
 
 ViewsContentClientMainPartsChromeOS::ViewsContentClientMainPartsChromeOS(
+    const content::MainFunctionParams& content_params,
     ViewsContentClient* views_content_client)
-    : ViewsContentClientMainPartsAura(views_content_client) {}
+    : ViewsContentClientMainPartsAura(content_params, views_content_client) {
+}
 
-int ViewsContentClientMainPartsChromeOS::PreMainMessageLoopRun() {
+void ViewsContentClientMainPartsChromeOS::PreMainMessageLoopRun() {
   ViewsContentClientMainPartsAura::PreMainMessageLoopRun();
 
   // Set up basic pieces of views::corewm.
@@ -52,8 +51,6 @@ int ViewsContentClientMainPartsChromeOS::PreMainMessageLoopRun() {
   aura::Window* root_window = wm_test_helper_->host()->window();
   views_content_client()->OnPreMainMessageLoopRun(browser_context(),
                                                   root_window);
-
-  return content::RESULT_CODE_NORMAL_EXIT;
 }
 
 void ViewsContentClientMainPartsChromeOS::PostMainMessageLoopRun() {
@@ -66,9 +63,11 @@ void ViewsContentClientMainPartsChromeOS::PostMainMessageLoopRun() {
 
 // static
 std::unique_ptr<ViewsContentClientMainParts>
-ViewsContentClientMainParts::Create(ViewsContentClient* views_content_client) {
+ViewsContentClientMainParts::Create(
+    const content::MainFunctionParams& content_params,
+    ViewsContentClient* views_content_client) {
   return std::make_unique<ViewsContentClientMainPartsChromeOS>(
-      views_content_client);
+      content_params, views_content_client);
 }
 
 }  // namespace ui

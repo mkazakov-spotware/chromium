@@ -163,7 +163,7 @@ class InlineProcessor(Treeprocessor):
         childResult = self.__processPlaceholders(text, subnode)
 
         if not isText and node is not subnode:
-            pos = list(node).index(subnode)
+            pos = node.getchildren().index(subnode)
             node.remove(subnode)
         else:
             pos = 0
@@ -211,7 +211,7 @@ class InlineProcessor(Treeprocessor):
                         linkText(text)
 
                     if not isString(node): # it's Element
-                        for child in [node] + list(node):
+                        for child in [node] + node.getchildren():
                             if child.tail:
                                 if child.tail.strip():
                                     self.__processElementText(node, child,False)
@@ -269,9 +269,9 @@ class InlineProcessor(Treeprocessor):
         if not isString(node):
             if not isinstance(node.text, util.AtomicString):
                 # We need to process current node too
-                for child in [node] + list(node):
+                for child in [node] + node.getchildren():
                     if not isString(node):
-                        if child.text:
+                        if child.text: 
                             child.text = self.__handleInline(child.text,
                                                             patternIndex + 1)
                         if child.tail:
@@ -308,7 +308,7 @@ class InlineProcessor(Treeprocessor):
         while stack:
             currElement = stack.pop()
             insertQueue = []
-            for child in currElement:
+            for child in currElement.getchildren():
                 if child.text and not isinstance(child.text, util.AtomicString):
                     text = child.text
                     child.text = None
@@ -324,11 +324,11 @@ class InlineProcessor(Treeprocessor):
                         child.tail = dumby.text
                     else:
                         child.tail = None
-                    pos = list(currElement).index(child) + 1
+                    pos = currElement.getchildren().index(child) + 1
                     tailResult.reverse()
                     for newChild in tailResult:
                         currElement.insert(pos, newChild)
-                if list(child):
+                if child.getchildren():
                     stack.append(child)
 
             for element, lst in insertQueue:
@@ -379,14 +379,14 @@ class PrettifyTreeprocessor(Treeprocessor):
         self._prettifyETree(root)
         # Do <br />'s seperately as they are often in the middle of
         # inline content and missed by _prettifyETree.
-        brs = root.iter('br')
+        brs = root.getiterator('br')
         for br in brs:
             if not br.tail or not br.tail.strip():
                 br.tail = '\n'
             else:
                 br.tail = '\n%s' % br.tail
         # Clean up extra empty lines at end of code blocks.
-        pres = root.iter('pre')
+        pres = root.getiterator('pre')
         for pre in pres:
             if len(pre) and pre[0].tag == 'code':
                 pre[0].text = pre[0].text.rstrip() + '\n'

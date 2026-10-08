@@ -1,6 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import {$} from '//resources/js/util.m.js';
 
 function onDocumentLoaded() {
   // Find out the video, image, and caption urls from the url params.
@@ -17,7 +19,7 @@ function onVideoEnded() {
   video.controls = false;
 }
 
-const video = document.querySelector('video');
-const track = document.querySelector('track');
+const video = $('video');
+const track = $('track');
 video.addEventListener('ended', onVideoEnded);
 document.addEventListener('DOMContentLoaded', onDocumentLoaded);

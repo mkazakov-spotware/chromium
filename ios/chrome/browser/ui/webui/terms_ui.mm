@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #import <Foundation/Foundation.h>
 
-#import "base/mac/bundle_locations.h"
-#import "base/memory/ref_counted_memory.h"
+#include "base/mac/bundle_locations.h"
+#include "base/memory/ref_counted_memory.h"
 #import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/ui/util/terms_util.h"
-#import "ios/web/public/webui/url_data_source_ios.h"
-#import "ios/web/public/webui/web_ui_ios.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/ui/util/terms_util.h"
+#include "ios/web/public/webui/url_data_source_ios.h"
+#include "ios/web/public/webui/web_ui_ios.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -22,11 +22,8 @@ namespace {
 
 class TermsUIHTMLSource : public web::URLDataSourceIOS {
  public:
-  // Construct a data source for the specified `source_name`.
+  // Construct a data source for the specified |source_name|.
   explicit TermsUIHTMLSource(const std::string& source_name);
-
-  TermsUIHTMLSource(const TermsUIHTMLSource&) = delete;
-  TermsUIHTMLSource& operator=(const TermsUIHTMLSource&) = delete;
 
   // web::URLDataSourceIOS implementation.
   std::string GetSource() const override;
@@ -44,6 +41,8 @@ class TermsUIHTMLSource : public web::URLDataSourceIOS {
   ~TermsUIHTMLSource() override;
 
   std::string source_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(TermsUIHTMLSource);
 };
 
 }  // namespace
@@ -78,7 +77,8 @@ void TermsUIHTMLSource::StartDataRequest(
 void TermsUIHTMLSource::FinishDataRequest(
     const std::string& html,
     web::URLDataSourceIOS::GotDataCallback callback) {
-  std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(html));
+  std::string html_copy(html);
+  std::move(callback).Run(base::RefCountedString::TakeString(&html_copy));
 }
 
 std::string TermsUIHTMLSource::GetMimeType(const std::string& path) const {

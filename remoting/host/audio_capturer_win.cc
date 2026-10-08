@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include <windows.h>
 
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include "base/logging.h"
@@ -67,7 +66,7 @@ bool AudioCapturerWin::Start(const PacketCapturedCallback& callback) {
   // be reset or restarted in ResetAndInitialize() function. Which means we
   // expect the audio_device_period_ is a system wide configuration, it would
   // not be changed with the default audio device.
-  capture_timer_ = std::make_unique<base::RepeatingTimer>();
+  capture_timer_.reset(new base::RepeatingTimer());
   capture_timer_->Start(FROM_HERE, audio_device_period_, this,
                         &AudioCapturerWin::DoCapture);
   return true;
@@ -110,8 +109,8 @@ bool AudioCapturerWin::Initialize() {
     return false;
   }
 
-  default_device_detector_ =
-      std::make_unique<DefaultAudioDeviceChangeDetector>(mm_device_enumerator);
+  default_device_detector_.reset(
+      new DefaultAudioDeviceChangeDetector(mm_device_enumerator));
 
   // Get the audio endpoint.
   hr = mm_device_enumerator->GetDefaultAudioEndpoint(eRender, eConsole,
@@ -141,7 +140,7 @@ bool AudioCapturerWin::Initialize() {
   // is not a whole number.
   int device_period_in_milliseconds =
       1 + ((device_period - 1) / k100nsPerMillisecond);
-  audio_device_period_ = base::Milliseconds(
+  audio_device_period_ = base::TimeDelta::FromMilliseconds(
       std::max(device_period_in_milliseconds, kMinTimerInterval));
 
   // Get the wave format.
@@ -251,7 +250,7 @@ void AudioCapturerWin::DoCapture() {
   HRESULT hr = S_OK;
   while (true) {
     UINT32 next_packet_size;
-    hr = audio_capture_client_->GetNextPacketSize(&next_packet_size);
+    HRESULT hr = audio_capture_client_->GetNextPacketSize(&next_packet_size);
     if (FAILED(hr))
       break;
 

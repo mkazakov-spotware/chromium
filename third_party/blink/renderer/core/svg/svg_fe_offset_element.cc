@@ -25,7 +25,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg_names.h"
 #include "third_party/blink/renderer/platform/graphics/filters/fe_offset.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -50,9 +50,7 @@ void SVGFEOffsetElement::Trace(Visitor* visitor) const {
   SVGFilterPrimitiveStandardAttributes::Trace(visitor);
 }
 
-void SVGFEOffsetElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGFEOffsetElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   if (attr_name == svg_names::kInAttr || attr_name == svg_names::kDxAttr ||
       attr_name == svg_names::kDyAttr) {
     SVGElement::InvalidationGuard invalidation_guard(this);
@@ -60,7 +58,7 @@ void SVGFEOffsetElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFEOffsetElement::Build(SVGFilterBuilder* filter_builder,

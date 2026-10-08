@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,18 +23,17 @@ MediaStreamDevices WebMediaStreamDeviceObserver::GetNonScreenCaptureDevices() {
   return observer_->GetNonScreenCaptureDevices();
 }
 
-void WebMediaStreamDeviceObserver::AddStreams(
+void WebMediaStreamDeviceObserver::AddStream(
     const WebString& label,
-    const mojom::blink::StreamDevicesSet& stream_devices_set,
+    const MediaStreamDevices& audio_devices,
+    const MediaStreamDevices& video_devices,
     OnDeviceStoppedCb on_device_stopped_cb,
     OnDeviceChangedCb on_device_changed_cb,
-    OnDeviceRequestStateChangeCb on_device_request_state_change_cb,
-    OnDeviceCaptureHandleChangeCb on_device_capture_handle_change_cb) {
-  observer_->AddStreams(label, stream_devices_set,
-                        std::move(on_device_stopped_cb),
-                        std::move(on_device_changed_cb),
-                        std::move(on_device_request_state_change_cb),
-                        std::move(on_device_capture_handle_change_cb));
+    OnDeviceRequestStateChangeCb on_device_request_state_change_cb) {
+  observer_->AddStream(label, audio_devices, video_devices,
+                       std::move(on_device_stopped_cb),
+                       std::move(on_device_changed_cb),
+                       std::move(on_device_request_state_change_cb));
 }
 
 void WebMediaStreamDeviceObserver::AddStream(const WebString& label,
@@ -42,8 +41,8 @@ void WebMediaStreamDeviceObserver::AddStream(const WebString& label,
   observer_->AddStream(label, device);
 }
 
-bool WebMediaStreamDeviceObserver::RemoveStreams(const WebString& label) {
-  return observer_->RemoveStreams(label);
+bool WebMediaStreamDeviceObserver::RemoveStream(const WebString& label) {
+  return observer_->RemoveStream(label);
 }
 void WebMediaStreamDeviceObserver::RemoveStreamDevice(
     const MediaStreamDevice& device) {

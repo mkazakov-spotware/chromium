@@ -60,7 +60,7 @@ void LayoutImageResourceStyleImage::Shutdown() {
 }
 
 scoped_refptr<Image> LayoutImageResourceStyleImage::GetImage(
-    const gfx::SizeF& size) const {
+    const FloatSize& size) const {
   // Generated content may trigger calls to image() while we're still pending,
   // don't assert but gracefully exit.
   if (style_image_->IsPendingImage())
@@ -69,33 +69,23 @@ scoped_refptr<Image> LayoutImageResourceStyleImage::GetImage(
                                 layout_object_->StyleRef(), size);
 }
 
-gfx::SizeF LayoutImageResourceStyleImage::ImageSize(float multiplier) const {
+FloatSize LayoutImageResourceStyleImage::ImageSize(float multiplier) const {
   // TODO(davve): Find out the correct default object size in this context.
-  auto* list_marker = DynamicTo<LayoutListMarkerImage>(layout_object_.Get());
-  gfx::SizeF default_size = list_marker
-                                ? list_marker->DefaultSize()
-                                : gfx::SizeF(LayoutReplaced::kDefaultWidth,
-                                             LayoutReplaced::kDefaultHeight);
+  FloatSize default_size =
+      layout_object_->IsListMarkerImage()
+          ? FloatSize(To<LayoutListMarkerImage>(layout_object_)->DefaultSize())
+          : FloatSize(LayoutReplaced::kDefaultWidth,
+                      LayoutReplaced::kDefaultHeight);
   return ImageSizeWithDefaultSize(multiplier, default_size);
 }
 
-gfx::SizeF LayoutImageResourceStyleImage::ImageSizeWithDefaultSize(
+FloatSize LayoutImageResourceStyleImage::ImageSizeWithDefaultSize(
     float multiplier,
-    const gfx::SizeF& default_size) const {
+    const FloatSize& default_size) const {
   return style_image_->ImageSize(
-      multiplier, default_size,
+      layout_object_->GetDocument(), multiplier, default_size,
       LayoutObject::ShouldRespectImageOrientation(layout_object_));
 }
-
-RespectImageOrientationEnum LayoutImageResourceStyleImage::ImageOrientation()
-    const {
-  // Always respect the orientation of opaque origin images to avoid leaking
-  // image data. Otherwise pull orientation from the layout object's style.
-  RespectImageOrientationEnum respect_orientation =
-      LayoutObject::ShouldRespectImageOrientation(layout_object_);
-  return style_image_->ForceOrientationIfNecessary(respect_orientation);
-}
-
 void LayoutImageResourceStyleImage::Trace(Visitor* visitor) const {
   visitor->Trace(style_image_);
   LayoutImageResource::Trace(visitor);

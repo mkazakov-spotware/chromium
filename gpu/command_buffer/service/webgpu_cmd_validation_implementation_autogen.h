@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,6 @@
 #ifndef GPU_COMMAND_BUFFER_SERVICE_WEBGPU_CMD_VALIDATION_IMPLEMENTATION_AUTOGEN_H_
 #define GPU_COMMAND_BUFFER_SERVICE_WEBGPU_CMD_VALIDATION_IMPLEMENTATION_AUTOGEN_H_
 
-static const MailboxFlags valid_mailbox_flags_table[] = {
-    WEBGPU_MAILBOX_NONE,
-    WEBGPU_MAILBOX_DISCARD,
-};
-
 static const PowerPreference valid_power_preference_table[] = {
     PowerPreference::kDefault,
     PowerPreference::kHighPerformance,
@@ -23,9 +18,7 @@ static const PowerPreference valid_power_preference_table[] = {
 };
 
 Validators::Validators()
-    : mailbox_flags(valid_mailbox_flags_table,
-                    std::size(valid_mailbox_flags_table)),
-      power_preference(valid_power_preference_table,
-                       std::size(valid_power_preference_table)) {}
+    : power_preference(valid_power_preference_table,
+                       base::size(valid_power_preference_table)) {}
 
 #endif  // GPU_COMMAND_BUFFER_SERVICE_WEBGPU_CMD_VALIDATION_IMPLEMENTATION_AUTOGEN_H_

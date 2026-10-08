@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,19 @@
 
 namespace mojo {
 
-bool StructTraits<gfx::mojom::ColorVolumeMetadataDataView,
-                  gfx::ColorVolumeMetadata>::
-    Read(gfx::mojom::ColorVolumeMetadataDataView data,
-         gfx::ColorVolumeMetadata* output) {
+bool StructTraits<
+    gfx::mojom::MasteringMetadataDataView,
+    gfx::MasteringMetadata>::Read(gfx::mojom::MasteringMetadataDataView data,
+                                  gfx::MasteringMetadata* output) {
   output->luminance_max = data.luminance_max();
   output->luminance_min = data.luminance_min();
-  if (!data.ReadPrimaries(&output->primaries))
+  if (!data.ReadPrimaryR(&output->primary_r))
+    return false;
+  if (!data.ReadPrimaryG(&output->primary_g))
+    return false;
+  if (!data.ReadPrimaryB(&output->primary_b))
+    return false;
+  if (!data.ReadWhitePoint(&output->white_point))
     return false;
   return true;
 }
@@ -22,7 +28,7 @@ bool StructTraits<gfx::mojom::HDRMetadataDataView, gfx::HDRMetadata>::Read(
     gfx::HDRMetadata* output) {
   output->max_content_light_level = data.max_content_light_level();
   output->max_frame_average_light_level = data.max_frame_average_light_level();
-  if (!data.ReadColorVolumeMetadata(&output->color_volume_metadata))
+  if (!data.ReadMasteringMetadata(&output->mastering_metadata))
     return false;
   return true;
 }

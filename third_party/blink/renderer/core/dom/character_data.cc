@@ -39,11 +39,12 @@
 namespace blink {
 
 void CharacterData::MakeParkable() {
-  if (absl::holds_alternative<ParkableString>(data_))
+  if (is_parkable_)
     return;
 
-  auto released = absl::get<String>(data_).ReleaseImpl();
-  data_ = ParkableString(std::move(released));
+  parkable_data_ = ParkableString(data_.ReleaseImpl());
+  data_ = String();
+  is_parkable_ = true;
 }
 
 void CharacterData::setData(const String& data) {
@@ -103,7 +104,7 @@ void CharacterData::insertData(unsigned offset,
   new_str.Append(data);
   new_str.Append(StringView(current_data, offset));
 
-  SetDataAndUpdate(new_str.ReleaseString(), offset, 0, data.length(),
+  SetDataAndUpdate(new_str.ToString(), offset, 0, data.length(),
                    kUpdateFromNonParser);
 
   GetDocument().DidInsertText(*this, offset, data.length());
@@ -147,7 +148,7 @@ void CharacterData::deleteData(unsigned offset,
   new_str.ReserveCapacity(current_data.length() - real_count);
   new_str.Append(StringView(current_data, 0, offset));
   new_str.Append(StringView(current_data, offset + real_count));
-  SetDataAndUpdate(new_str.ReleaseString(), offset, real_count, 0,
+  SetDataAndUpdate(new_str.ToString(), offset, real_count, 0,
                    kUpdateFromNonParser);
 
   GetDocument().DidRemoveText(*this, offset, real_count);
@@ -169,7 +170,7 @@ void CharacterData::replaceData(unsigned offset,
   new_str.Append(data);
   new_str.Append(StringView(current_data, offset + real_count));
 
-  SetDataAndUpdate(new_str.ReleaseString(), offset, real_count, data.length(),
+  SetDataAndUpdate(new_str.ToString(), offset, real_count, data.length(),
                    kUpdateFromNonParser);
 
   // update DOM ranges
@@ -185,7 +186,7 @@ bool CharacterData::ContainsOnlyWhitespaceOrEmpty() const {
   return data().ContainsOnlyWhitespaceOrEmpty();
 }
 
-void CharacterData::setNodeValue(const String& node_value, ExceptionState&) {
+void CharacterData::setNodeValue(const String& node_value) {
   setData(!node_value.IsNull() ? node_value : g_empty_string);
 }
 
@@ -195,6 +196,10 @@ void CharacterData::SetDataAndUpdate(const String& new_data,
                                      unsigned new_length,
                                      UpdateSource source) {
   String old_data = this->data();
+  if (is_parkable_) {
+    is_parkable_ = false;
+    parkable_data_ = ParkableString();
+  }
   data_ = new_data;
 
   DCHECK(!GetLayoutObject() || IsTextNode());
@@ -229,8 +234,7 @@ void CharacterData::DidModifyData(const String& old_data, UpdateSource source) {
         this,
         previousSibling(),
         nextSibling(),
-        {},
-        old_data};
+        nullptr};
     parentNode()->ChildrenChanged(change);
   }
 

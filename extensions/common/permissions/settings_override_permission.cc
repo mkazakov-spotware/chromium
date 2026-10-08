@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,7 @@ PermissionIDSet SettingsOverrideAPIPermission::GetPermissions() const {
 
 bool SettingsOverrideAPIPermission::Check(
     const APIPermission::CheckParam* param) const {
-  return (param == nullptr);
+  return (param == NULL);
 }
 
 bool SettingsOverrideAPIPermission::Contains(const APIPermission* rhs) const {
@@ -50,10 +50,7 @@ bool SettingsOverrideAPIPermission::FromValue(
     const base::Value* value,
     std::string* /*error*/,
     std::vector<std::string>* unhandled_permissions) {
-  if (!value || !value->is_string())
-    return false;
-  setting_value_ = value->GetString();
-  return true;
+  return value && value->GetAsString(&setting_value_);
 }
 
 std::unique_ptr<base::Value> SettingsOverrideAPIPermission::ToValue() const {
@@ -83,6 +80,17 @@ std::unique_ptr<APIPermission> SettingsOverrideAPIPermission::Intersect(
   CHECK_EQ(info(), rhs->info());
   return std::make_unique<SettingsOverrideAPIPermission>(info(),
                                                          setting_value_);
+}
+
+void SettingsOverrideAPIPermission::Write(base::Pickle* m) const {}
+
+bool SettingsOverrideAPIPermission::Read(const base::Pickle* m,
+                                         base::PickleIterator* iter) {
+  return true;
+}
+
+void SettingsOverrideAPIPermission::Log(std::string* log) const {
+  *log = setting_value_;
 }
 
 }  // namespace extensions

@@ -1,13 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/tabs/synced_window_delegate_browser_agent.h"
+#include "ios/chrome/browser/tabs/synced_window_delegate_browser_agent.h"
 
-#import "base/check_op.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/sessions/ios_chrome_session_tab_helper.h"
-#import "ios/chrome/browser/sync/ios_chrome_synced_tab_delegate.h"
+#include "base/check_op.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/sessions/ios_chrome_session_tab_helper.h"
+#include "ios/chrome/browser/sync/ios_chrome_synced_tab_delegate.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 
@@ -39,9 +39,10 @@ bool SyncedWindowDelegateBrowserAgent::IsSessionRestoreInProgress() const {
   // main thread.
   // * as this is in a batch operation, no event is forwarded to the sync engine
   // * as it is on main thread, the tab sync (also on the main thread) is not
-  // called during the process.
+  // called during the process. See
+  // |TabModel restoreSessionWindow:forInitialRestore:|.
   // TODO(crbug.com/1010164): Use SessionRestorationObserver to track if the
-  // session is being restored.
+  // TabModel is restoring.
   return false;
 }
 

@@ -33,9 +33,7 @@
 #include <memory>
 #include <utility>
 
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_blob_property_bag.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybuffer_arraybufferview_blob_usvstring.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/fetch/blob_bytes_consumer.h"
 #include "third_party/blink/renderer/core/fetch/body_stream_buffer.h"
@@ -114,10 +112,12 @@ Blob::Blob(scoped_refptr<BlobDataHandle> data_handle)
 Blob::~Blob() = default;
 
 // static
-Blob* Blob::Create(ExecutionContext* context,
-                   const HeapVector<Member<V8BlobPart>>& blob_parts,
-                   const BlobPropertyBag* options) {
+Blob* Blob::Create(
+    ExecutionContext* context,
+    const HeapVector<ArrayBufferOrArrayBufferViewOrBlobOrUSVString>& blob_parts,
+    const BlobPropertyBag* options) {
   DCHECK(options->hasType());
+
   DCHECK(options->hasEndings());
   bool normalize_line_endings_to_native = (options->endings() == "native");
   if (normalize_line_endings_to_native)
@@ -150,32 +150,26 @@ Blob* Blob::Create(const unsigned char* data,
 }
 
 // static
-void Blob::PopulateBlobData(BlobData* blob_data,
-                            const HeapVector<Member<V8BlobPart>>& parts,
-                            bool normalize_line_endings_to_native) {
+void Blob::PopulateBlobData(
+    BlobData* blob_data,
+    const HeapVector<ArrayBufferOrArrayBufferViewOrBlobOrUSVString>& parts,
+    bool normalize_line_endings_to_native) {
   for (const auto& item : parts) {
-    switch (item->GetContentType()) {
-      case V8BlobPart::ContentType::kArrayBuffer: {
-        DOMArrayBuffer* array_buffer = item->GetAsArrayBuffer();
-        blob_data->AppendBytes(array_buffer->Data(),
-                               array_buffer->ByteLength());
-        break;
-      }
-      case V8BlobPart::ContentType::kArrayBufferView: {
-        auto&& array_buffer_view = item->GetAsArrayBufferView();
-        blob_data->AppendBytes(array_buffer_view->BaseAddress(),
-                               array_buffer_view->byteLength());
-        break;
-      }
-      case V8BlobPart::ContentType::kBlob: {
-        item->GetAsBlob()->AppendTo(*blob_data);
-        break;
-      }
-      case V8BlobPart::ContentType::kUSVString: {
-        blob_data->AppendText(item->GetAsUSVString(),
-                              normalize_line_endings_to_native);
-        break;
-      }
+    if (item.IsArrayBuffer()) {
+      DOMArrayBuffer* array_buffer = item.GetAsArrayBuffer();
+      blob_data->AppendBytes(array_buffer->Data(), array_buffer->ByteLength());
+    } else if (item.IsArrayBufferView()) {
+      DOMArrayBufferView* array_buffer_view =
+          item.GetAsArrayBufferView().View();
+      blob_data->AppendBytes(array_buffer_view->BaseAddress(),
+                             array_buffer_view->byteLength());
+    } else if (item.IsBlob()) {
+      item.GetAsBlob()->AppendTo(*blob_data);
+    } else if (item.IsUSVString()) {
+      blob_data->AppendText(item.GetAsUSVString(),
+                            normalize_line_endings_to_native);
+    } else {
+      NOTREACHED();
     }
   }
 }
@@ -225,37 +219,34 @@ ReadableStream* Blob::stream(ScriptState* script_state) const {
       script_state,
       MakeGarbageCollected<BlobBytesConsumer>(
           ExecutionContext::From(script_state), blob_data_handle_),
-      /*signal=*/nullptr, /*cached_metadata_handler=*/nullptr);
+      nullptr);
 
   return body_buffer->Stream();
 }
 
-// Helper called by Blob::text() and arrayBuffer(). The operations only differ
-// by 1 line, depending on the read_type.
-static ScriptPromise ReadBlobHelper(
-    const scoped_refptr<BlobDataHandle>& blob_data_handle,
+blink::ScriptPromise Blob::text(ScriptState* script_state) {
+  auto read_type = FileReaderLoader::kReadAsText;
+  return ReadBlobInternal(script_state, read_type);
+}
+
+blink::ScriptPromise Blob::arrayBuffer(ScriptState* script_state) {
+  auto read_type = FileReaderLoader::kReadAsArrayBuffer;
+  return ReadBlobInternal(script_state, read_type);
+}
+
+blink::ScriptPromise Blob::ReadBlobInternal(
     ScriptState* script_state,
     FileReaderLoader::ReadType read_type) {
   ScriptPromiseResolver* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   auto promise = resolver->Promise();
 
-  new BlobFileReaderClient(blob_data_handle,
+  new BlobFileReaderClient(blob_data_handle_,
                            ExecutionContext::From(script_state)
                                ->GetTaskRunner(TaskType::kFileReading),
                            read_type, resolver);
 
   return promise;
-}
-
-blink::ScriptPromise Blob::text(ScriptState* script_state) {
-  auto read_type = FileReaderLoader::kReadAsText;
-  return ReadBlobHelper(blob_data_handle_, script_state, read_type);
-}
-
-blink::ScriptPromise Blob::arrayBuffer(ScriptState* script_state) {
-  auto read_type = FileReaderLoader::kReadAsArrayBuffer;
-  return ReadBlobHelper(blob_data_handle_, script_state, read_type);
 }
 
 void Blob::AppendTo(BlobData& blob_data) const {

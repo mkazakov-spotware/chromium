@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,12 +15,12 @@ class DevToolsMHTMLHelper
     : public base::RefCountedThreadSafe<DevToolsMHTMLHelper> {
  public:
   static void Capture(
-      const WebContents::Getter& web_contents_getter,
+      base::WeakPtr<PageHandler> page_handler,
       std::unique_ptr<PageHandler::CaptureSnapshotCallback> callback);
 
  private:
   DevToolsMHTMLHelper(
-      const WebContents::Getter& web_contents_getter,
+      base::WeakPtr<PageHandler> page_handler,
       std::unique_ptr<PageHandler::CaptureSnapshotCallback> callback);
   ~DevToolsMHTMLHelper();
 
@@ -32,7 +32,7 @@ class DevToolsMHTMLHelper
   void ReportFailure(const std::string& message);
   void ReportSuccess(std::unique_ptr<std::string> mhtml_snapshot);
 
-  WebContents::Getter web_contents_getter_;
+  base::WeakPtr<PageHandler> page_handler_;
   std::unique_ptr<PageHandler::CaptureSnapshotCallback> callback_;
   scoped_refptr<storage::ShareableFileReference> mhtml_file_;
   base::FilePath mhtml_snapshot_path_;

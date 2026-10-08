@@ -1,26 +1,25 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/web_state_list/web_state_list_metrics_browser_agent.h"
 
-#import "base/metrics/histogram_macros.h"
-#import "base/metrics/user_metrics.h"
-#import "base/metrics/user_metrics_action.h"
-#import "components/navigation_metrics/navigation_metrics.h"
-#import "components/profile_metrics/browser_profile_type.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/crash_report/crash_loop_detection_util.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
+#include "components/navigation_metrics/navigation_metrics.h"
+#include "components/profile_metrics/browser_profile_type.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state_metrics/browser_state_metrics.h"
+#include "ios/chrome/browser/chrome_url_constants.h"
+#include "ios/chrome/browser/crash_report/crash_loop_detection_util.h"
 #import "ios/chrome/browser/sessions/session_restoration_browser_agent.h"
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/browser/url/chrome_url_constants.h"
-#import "ios/chrome/browser/web_state_list/all_web_state_observation_forwarder.h"
-#import "ios/chrome/browser/web_state_list/session_metrics.h"
+#include "ios/chrome/browser/web_state_list/session_metrics.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
-#import "ios/web/public/browser_state.h"
-#import "ios/web/public/navigation/navigation_context.h"
-#import "ios/web/public/navigation/navigation_item.h"
-#import "ios/web/public/navigation/navigation_manager.h"
+#include "ios/web/public/browser_state.h"
+#include "ios/web/public/navigation/navigation_context.h"
+#include "ios/web/public/navigation/navigation_item.h"
+#include "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -28,6 +27,17 @@
 #endif
 
 BROWSER_USER_DATA_KEY_IMPL(WebStateListMetricsBrowserAgent)
+
+// static
+void WebStateListMetricsBrowserAgent::CreateForBrowser(
+    Browser* browser,
+    SessionMetrics* session_metrics) {
+  if (!FromBrowser(browser)) {
+    browser->SetUserData(UserDataKey(),
+                         base::WrapUnique(new WebStateListMetricsBrowserAgent(
+                             browser, session_metrics)));
+  }
+}
 
 WebStateListMetricsBrowserAgent::WebStateListMetricsBrowserAgent(
     Browser* browser,
@@ -38,8 +48,10 @@ WebStateListMetricsBrowserAgent::WebStateListMetricsBrowserAgent(
   DCHECK(session_metrics_);
   browser->AddObserver(this);
   web_state_list_->AddObserver(this);
-  web_state_forwarder_.reset(
-      new AllWebStateObservationForwarder(web_state_list_, this));
+  for (int index = 0; index < web_state_list_->count(); ++index) {
+    web::WebState* web_state = web_state_list_->GetWebStateAt(index);
+    web_state->AddObserver(this);
+  }
 
   SessionRestorationBrowserAgent* restoration_agent =
       SessionRestorationBrowserAgent::FromBrowser(browser);
@@ -63,6 +75,7 @@ void WebStateListMetricsBrowserAgent::WebStateInsertedAt(
     web::WebState* web_state,
     int index,
     bool activating) {
+  web_state->AddObserver(this);
   if (metric_collection_paused_)
     return;
   base::RecordAction(base::UserMetricsAction("MobileNewTabOpened"));
@@ -73,20 +86,11 @@ void WebStateListMetricsBrowserAgent::WebStateDetachedAt(
     WebStateList* web_state_list,
     web::WebState* web_state,
     int index) {
+  web_state->RemoveObserver(this);
   if (metric_collection_paused_)
     return;
+  base::RecordAction(base::UserMetricsAction("MobileTabClosed"));
   session_metrics_->OnWebStateDetached();
-}
-
-void WebStateListMetricsBrowserAgent::WillCloseWebStateAt(
-    WebStateList* web_state_list,
-    web::WebState* web_state,
-    int index,
-    bool user_action) {
-  if (metric_collection_paused_)
-    return;
-  if (user_action)
-    base::RecordAction(base::UserMetricsAction("MobileTabClosed"));
 }
 
 void WebStateListMetricsBrowserAgent::WebStateActivatedAt(
@@ -104,6 +108,31 @@ void WebStateListMetricsBrowserAgent::WebStateActivatedAt(
   base::RecordAction(base::UserMetricsAction("MobileTabSwitched"));
 }
 
+void WebStateListMetricsBrowserAgent::WebStateReplacedAt(
+    WebStateList* web_state_list,
+    web::WebState* old_web_state,
+    web::WebState* new_web_state,
+    int index) {
+  old_web_state->RemoveObserver(this);
+  new_web_state->AddObserver(this);
+}
+
+// web::WebStateObserver
+void WebStateListMetricsBrowserAgent::DidStartNavigation(
+    web::WebState* web_state,
+    web::NavigationContext* navigation_context) {
+  // In order to avoid false positive in the crash loop detection, disable the
+  // counter as soon as an URL is loaded. This requires an user action and is a
+  // significant source of crashes. Ignore NTP as it is loaded by default after
+  // a crash.
+  if (navigation_context->GetUrl().host_piece() != kChromeUINewTabHost) {
+    static dispatch_once_t dispatch_once_token;
+    dispatch_once(&dispatch_once_token, ^{
+      crash_util::ResetFailedStartupAttemptCount();
+    });
+  }
+}
+
 void WebStateListMetricsBrowserAgent::DidFinishNavigation(
     web::WebState* web_state,
     web::NavigationContext* navigation_context) {
@@ -118,17 +147,17 @@ void WebStateListMetricsBrowserAgent::DidFinishNavigation(
 
   web::NavigationItem* item =
       web_state->GetNavigationManager()->GetLastCommittedItem();
-  navigation_metrics::RecordPrimaryMainFrameNavigation(
+  navigation_metrics::RecordMainFrameNavigation(
       item ? item->GetVirtualURL() : GURL::EmptyGURL(),
       navigation_context->IsSameDocument(),
       web_state->GetBrowserState()->IsOffTheRecord(),
-      profile_metrics::GetBrowserProfileType(web_state->GetBrowserState()));
+      GetBrowserStateType(web_state->GetBrowserState()));
 }
 
 void WebStateListMetricsBrowserAgent::PageLoaded(
     web::WebState* web_state,
     web::PageLoadCompletionStatus load_completion_status) {
-  switch (GetInterfaceOrientation()) {
+  switch ([[UIApplication sharedApplication] statusBarOrientation]) {
     case UIInterfaceOrientationPortrait:
     case UIInterfaceOrientationPortraitUpsideDown:
       UMA_HISTOGRAM_BOOLEAN("Tab.PageLoadInPortrait", YES);
@@ -152,7 +181,10 @@ void WebStateListMetricsBrowserAgent::BrowserDestroyed(Browser* browser) {
   if (restoration_agent)
     restoration_agent->RemoveObserver(this);
 
-  web_state_forwarder_.reset(nullptr);
+  for (int index = 0; index < web_state_list_->count(); ++index) {
+    web::WebState* web_state = web_state_list_->GetWebStateAt(index);
+    web_state->RemoveObserver(this);
+  }
   web_state_list_->RemoveObserver(this);
   web_state_list_ = nullptr;
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/tick_clock.h"
 #include "components/services/storage/indexed_db/scopes/varint_coding.h"
@@ -105,7 +104,7 @@ IndexedDBTombstoneSweeper::SweepState::~SweepState() = default;
 
 void IndexedDBTombstoneSweeper::Stop(StopReason reason) {
   leveldb::Status s;
-  RecordUMAStats(reason, absl::nullopt, s);
+  RecordUMAStats(reason, base::nullopt, s);
 }
 
 bool IndexedDBTombstoneSweeper::RunRound() {
@@ -131,13 +130,13 @@ bool IndexedDBTombstoneSweeper::RunRound() {
   if (status == Status::SWEEPING)
     return false;
 
-  RecordUMAStats(absl::nullopt, status, s);
+  RecordUMAStats(base::nullopt, status, s);
   return true;
 }
 
 void IndexedDBTombstoneSweeper::RecordUMAStats(
-    absl::optional<StopReason> stop_reason,
-    absl::optional<IndexedDBTombstoneSweeper::Status> status,
+    base::Optional<StopReason> stop_reason,
+    base::Optional<IndexedDBTombstoneSweeper::Status> status,
     const leveldb::Status& leveldb_error) {
   DCHECK(stop_reason || status);
   DCHECK(!stop_reason || !status);
@@ -307,7 +306,7 @@ IndexedDBTombstoneSweeper::Status IndexedDBTombstoneSweeper::DoSweep(
     size_t start_database_idx = static_cast<size_t>(
         sweep_state_.start_database_seed % database_metadata_->size());
     sweep_state_.database_it = WrappingIterator<DatabaseMetadataVector>(
-        database_metadata_.get(), start_database_idx);
+        database_metadata_, start_database_idx);
   }
   // Loop conditions facilitate starting at random index.
   for (; sweep_state_.database_it.value().IsValid();
@@ -350,9 +349,9 @@ IndexedDBTombstoneSweeper::Status IndexedDBTombstoneSweeper::DoSweep(
         if (!can_continue)
           return sweep_status;
       }
-      sweep_state_.index_it = absl::nullopt;
+      sweep_state_.index_it = base::nullopt;
     }
-    sweep_state_.object_store_it = absl::nullopt;
+    sweep_state_.object_store_it = base::nullopt;
   }
   return Status::DONE_COMPLETE;
 }
@@ -415,7 +414,7 @@ bool IndexedDBTombstoneSweeper::IterateIndex(
       }
       continue;
     }
-    std::string encoded_primary_key(index_value_str);
+    std::string encoded_primary_key = index_value_str.as_string();
     std::string exists_key = ExistsEntryKey::Encode(
         database_id, object_store_id, encoded_primary_key);
 
@@ -458,7 +457,7 @@ bool IndexedDBTombstoneSweeper::IterateIndex(
     }
   }
   ++indices_scanned_;
-  sweep_state_.index_it_key = absl::nullopt;
+  sweep_state_.index_it_key = base::nullopt;
   return true;
 }
 

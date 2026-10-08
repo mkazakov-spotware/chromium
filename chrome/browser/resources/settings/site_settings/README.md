@@ -145,13 +145,13 @@ available expressions.
 Examples:
 
 ```
-<if expr="chromeos_ash">
+<if expr="chromeos">
   <link rel="import" href="android_info_browser_proxy.html">
 </if>
 ```
 
 ```
-<if expr="chromeos_ash">
+<if expr="chromeos">
   <template is="dom-if" if="[[settingsAppAvailable_]]">
     <cr-link-row on-click="onManageAndroidAppsClick_"
         label="$i18n{androidAppsManageAppLinks}" external></cr-link-row>

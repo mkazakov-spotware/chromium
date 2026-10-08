@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,14 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "media/base/android/media_player_listener.h"
 #include "media/base/media_export.h"
 #include "media/base/simple_watch_timer.h"
-#include "net/cookies/site_for_cookies.h"
 #include "ui/gl/android/scoped_java_surface.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -72,23 +72,19 @@ class MEDIA_EXPORT MediaPlayerBridge {
     MEDIA_ERROR_SERVER_DIED,
   };
 
-  // Construct a MediaPlayerBridge object. This object needs to call `client`'s
-  // GetMediaResourceGetter() before decoding the media stream. This allows
-  // `client` to track unused resources and free them when needed.
+  // Construct a MediaPlayerBridge object. This object needs to call |manager|'s
+  // RequestMediaResources() before decoding the media stream. This allows
+  // |manager| to track unused resources and free them when needed.
   // MediaPlayerBridge also forwards Android MediaPlayer callbacks to
-  // the `client` when needed.
+  // the |manager| when needed.
   MediaPlayerBridge(const GURL& url,
-                    const net::SiteForCookies& site_for_cookies,
+                    const GURL& site_for_cookies,
                     const url::Origin& top_frame_origin,
                     const std::string& user_agent,
                     bool hide_url_log,
                     Client* client,
                     bool allow_credentials,
                     bool is_hls);
-
-  MediaPlayerBridge(const MediaPlayerBridge&) = delete;
-  MediaPlayerBridge& operator=(const MediaPlayerBridge&) = delete;
-
   virtual ~MediaPlayerBridge();
 
   // Initialize this object and extract the metadata from the media.
@@ -96,7 +92,6 @@ class MEDIA_EXPORT MediaPlayerBridge {
 
   // Methods to partially expose the underlying MediaPlayer.
   void SetVideoSurface(gl::ScopedJavaSurface surface);
-  void SetPlaybackRate(double playback_rate);
   void Pause();
   void SeekTo(base::TimeDelta timestamp);
   base::TimeDelta GetCurrentTime();
@@ -110,7 +105,7 @@ class MEDIA_EXPORT MediaPlayerBridge {
   GURL GetUrl();
 
   // The site whose cookies should be given to the MediaPlayer if needed.
-  const net::SiteForCookies& GetSiteForCookies();
+  GURL GetSiteForCookies();
 
   // Set the player volume, and take effect immediately.
   // The volume should be between 0.0 and 1.0.
@@ -150,35 +145,34 @@ class MEDIA_EXPORT MediaPlayerBridge {
   // Get allowed operations from the player.
   base::android::ScopedJavaLocalRef<jobject> GetAllowedOperations();
 
-  // Attach/Detaches `listener_` for listening to all the media events. If
-  // `j_media_player` is NULL, `listener_` only listens to the system media
-  // events. Otherwise, it also listens to the events from `j_media_player`.
+  // Attach/Detaches |listener_| for listening to all the media events. If
+  // |j_media_player| is NULL, |listener_| only listens to the system media
+  // events. Otherwise, it also listens to the events from |j_media_player|.
   void AttachListener(const base::android::JavaRef<jobject>& j_media_player);
   void DetachListener();
 
   // Set the data source for the media player.
   void SetDataSource(const std::string& url);
-  void SetDataSourceInternal();
 
   // Functions that implements media player control.
   void StartInternal();
   void PauseInternal();
 
   // Calls Java MediaPlayerBridge's seekTo method, or no-ops if the operation
-  // is not allowed (based off of `can_seek_forward_` and `can_seek_backward_`).
+  // is not allowed (based off of |can_seek_forward_| and |can_seek_backward_|).
   void SeekInternal(base::TimeDelta time);
 
   // Update allowed operations from the player.
   void UpdateAllowedOperations();
 
-  // Callback function passed to `resource_getter_`. Called when the cookies
+  // Callback function passed to |resource_getter_|. Called when the cookies
   // are retrieved.
   void OnCookiesRetrieved(const std::string& cookies);
 
-  // Callback function passed to `resource_getter_`. Called when the auth
+  // Callback function passed to |resource_getter_|. Called when the auth
   // credentials are retrieved.
-  void OnAuthCredentialsRetrieved(const std::u16string& username,
-                                  const std::u16string& password);
+  void OnAuthCredentialsRetrieved(const base::string16& username,
+                                  const base::string16& password);
 
   // Extract the media metadata from a url, asynchronously.
   // OnMediaMetadataExtracted() will be called when this call finishes.
@@ -221,16 +215,10 @@ class MEDIA_EXPORT MediaPlayerBridge {
   GURL url_;
 
   // Used to determine if cookies are accessed in a third-party context.
-  net::SiteForCookies site_for_cookies_;
+  GURL site_for_cookies_;
 
   // Used to check for cookie content settings.
   url::Origin top_frame_origin_;
-
-  // Waiting to retrieve cookies for `url_`.
-  bool pending_retrieve_cookies_;
-
-  // Whether to prepare after cookies retrieved.
-  bool should_prepare_on_retrieved_cookies_;
 
   // User agent string to be used for media player.
   const std::string user_agent_;
@@ -249,7 +237,7 @@ class MEDIA_EXPORT MediaPlayerBridge {
   // The player volume. Should be between 0.0 and 1.0.
   double volume_;
 
-  // Cookies for `url_`.
+  // Cookies for |url_|.
   std::string cookies_;
 
   // The surface object currently owned by the player.
@@ -276,18 +264,17 @@ class MEDIA_EXPORT MediaPlayerBridge {
   bool is_hls_;
   SimpleWatchTimer watch_timer_;
 
-  // A reference to the owner of `this`.
-  raw_ptr<Client> client_;
+  // A reference to the owner of |this|.
+  Client* client_;
 
   // Listener object that listens to all the media player events.
   std::unique_ptr<MediaPlayerListener> listener_;
 
-  // Pending playback rate while player is preparing.
-  absl::optional<double> pending_playback_rate_;
-
-  // Weak pointer passed to `listener_` for callbacks.
+  // Weak pointer passed to |listener_| for callbacks.
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<MediaPlayerBridge> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MediaPlayerBridge);
 };
 
 }  // namespace media

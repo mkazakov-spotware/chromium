@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <ostream>
 
+#include "base/macros.h"
 #include "remoting/protocol/audio_stub.h"
 #include "remoting/protocol/client_stub.h"
 #include "remoting/protocol/fake_connection_to_client.h"
@@ -21,11 +22,6 @@ class FakeConnectionEventLogger {
  public:
   explicit FakeConnectionEventLogger(
       protocol::FakeConnectionToClient* connection = nullptr);
-
-  FakeConnectionEventLogger(const FakeConnectionEventLogger&) = delete;
-  FakeConnectionEventLogger& operator=(const FakeConnectionEventLogger&) =
-      delete;
-
   virtual ~FakeConnectionEventLogger();
 
   protocol::ClientStub* client_stub();
@@ -45,6 +41,9 @@ class FakeConnectionEventLogger {
   std::unique_ptr<CounterHostStub> host_stub_;
   std::unique_ptr<CounterAudioStub> audio_stub_;
   std::unique_ptr<CounterVideoStub> video_stub_;
+
+  // Counter*Stub are not copyable and assignable.
+  DISALLOW_COPY_AND_ASSIGN(FakeConnectionEventLogger);
 };
 
 }  // namespace test

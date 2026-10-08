@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,7 @@
 #include "third_party/blink/renderer/core/animation/svg_interpolation_environment.h"
 #include "third_party/blink/renderer/core/svg/svg_transform.h"
 #include "third_party/blink/renderer/core/svg/svg_transform_list.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "ui/gfx/geometry/size_f.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -58,10 +57,10 @@ namespace {
 
 std::unique_ptr<InterpolableValue> TranslateToInterpolableValue(
     SVGTransform* transform) {
-  gfx::Vector2dF translate = transform->Translate();
+  FloatPoint translate = transform->Translate();
   auto result = std::make_unique<InterpolableList>(2);
-  result->Set(0, std::make_unique<InterpolableNumber>(translate.x()));
-  result->Set(1, std::make_unique<InterpolableNumber>(translate.y()));
+  result->Set(0, std::make_unique<InterpolableNumber>(translate.X()));
+  result->Set(1, std::make_unique<InterpolableNumber>(translate.Y()));
   return std::move(result);
 }
 
@@ -77,10 +76,10 @@ SVGTransform* TranslateFromInterpolableValue(const InterpolableValue& value) {
 
 std::unique_ptr<InterpolableValue> ScaleToInterpolableValue(
     SVGTransform* transform) {
-  gfx::Vector2dF scale = transform->Scale();
+  FloatSize scale = transform->Scale();
   auto result = std::make_unique<InterpolableList>(2);
-  result->Set(0, std::make_unique<InterpolableNumber>(scale.x()));
-  result->Set(1, std::make_unique<InterpolableNumber>(scale.y()));
+  result->Set(0, std::make_unique<InterpolableNumber>(scale.Width()));
+  result->Set(1, std::make_unique<InterpolableNumber>(scale.Height()));
   return std::move(result);
 }
 
@@ -96,11 +95,11 @@ SVGTransform* ScaleFromInterpolableValue(const InterpolableValue& value) {
 
 std::unique_ptr<InterpolableValue> RotateToInterpolableValue(
     SVGTransform* transform) {
-  gfx::PointF rotation_center = transform->RotationCenter();
+  FloatPoint rotation_center = transform->RotationCenter();
   auto result = std::make_unique<InterpolableList>(3);
   result->Set(0, std::make_unique<InterpolableNumber>(transform->Angle()));
-  result->Set(1, std::make_unique<InterpolableNumber>(rotation_center.x()));
-  result->Set(2, std::make_unique<InterpolableNumber>(rotation_center.y()));
+  result->Set(1, std::make_unique<InterpolableNumber>(rotation_center.X()));
+  result->Set(2, std::make_unique<InterpolableNumber>(rotation_center.Y()));
   return std::move(result);
 }
 

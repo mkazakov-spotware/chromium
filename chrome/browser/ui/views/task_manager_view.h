@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/task_manager/task_manager_table_model.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/simple_menu_model.h"
 #include "ui/base/models/table_model.h"
 #include "ui/views/context_menu_controller.h"
@@ -35,9 +34,6 @@ class TaskManagerView : public TableViewDelegate,
                         public views::ContextMenuController,
                         public ui::SimpleMenuModel::Delegate {
  public:
-  METADATA_HEADER(TaskManagerView);
-  TaskManagerView(const TaskManagerView&) = delete;
-  TaskManagerView& operator=(const TaskManagerView&) = delete;
   ~TaskManagerView() override;
 
   // Shows the Task Manager window, or re-activates an existing one.
@@ -60,14 +56,14 @@ class TaskManagerView : public TableViewDelegate,
   // views::DialogDelegateView:
   views::View* GetInitiallyFocusedView() override;
   bool ExecuteWindowsCommand(int command_id) override;
-  ui::ImageModel GetWindowIcon() override;
+  gfx::ImageSkia GetWindowIcon() override;
   std::string GetWindowName() const override;
   bool Accept() override;
   bool IsDialogButtonEnabled(ui::DialogButton button) const override;
   void WindowClosing() override;
 
   // views::TableGrouper:
-  void GetGroupRange(size_t model_index, views::GroupRange* range) override;
+  void GetGroupRange(int model_index, views::GroupRange* range) override;
 
   // views::TableViewObserver:
   void OnSelectionChanged() override;
@@ -113,16 +109,18 @@ class TaskManagerView : public TableViewDelegate,
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
   // We need to own the text of the menu, the Windows API does not copy it.
-  std::u16string always_on_top_menu_text_;
+  base::string16 always_on_top_menu_text_;
 
-  raw_ptr<views::TableView, DanglingUntriaged> tab_table_;
-  raw_ptr<views::View, DanglingUntriaged> tab_table_parent_;
+  views::TableView* tab_table_;
+  views::View* tab_table_parent_;
 
   // all possible columns, not necessarily visible
   std::vector<ui::TableColumn> columns_;
 
   // True when the Task Manager window should be shown on top of other windows.
   bool is_always_on_top_;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskManagerView);
 };
 
 }  // namespace task_manager

@@ -27,13 +27,12 @@
 #include "third_party/blink/renderer/core/layout/layout_object_child_list.h"
 
 #include "third_party/blink/renderer/core/accessibility/ax_object_cache.h"
-#include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/layout/layout_counter.h"
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_fragment_items.h"
+#include "third_party/blink/renderer/core/paint/ng/ng_paint_fragment.h"
 #include "third_party/blink/renderer/core/paint/object_paint_invalidator.h"
 
 namespace blink {
@@ -60,22 +59,24 @@ void InvalidateInlineItems(LayoutObject* object) {
     }
   }
 
-  // This LayoutObject is not technically destroyed, but further access should
-  // be prohibited when moved to different parent as if it were destroyed.
-  if (object->FirstInlineFragmentItemIndex()) {
-    if (auto* text = DynamicTo<LayoutText>(object))
-      text->DetachAbstractInlineTextBoxesIfNeeded();
-    NGFragmentItems::LayoutObjectWillBeMoved(*object);
+  if (RuntimeEnabledFeatures::LayoutNGFragmentItemEnabled()) {
+    // This LayoutObject is not technically destroyed, but further access should
+    // be prohibited when moved to different parent as if it were destroyed.
+    if (object->FirstInlineFragmentItemIndex()) {
+      if (auto* text = DynamicTo<LayoutText>(object))
+        text->DetachAbstractInlineTextBoxesIfNeeded();
+      NGFragmentItems::LayoutObjectWillBeMoved(*object);
+    }
+  } else if (NGPaintFragment* fragment = object->FirstInlineFragment()) {
+    // This LayoutObject is not technically destroyed, but further access should
+    // be prohibited when moved to different parent as if it were destroyed.
+    fragment->LayoutObjectWillBeDestroyed();
+    object->SetFirstInlineFragment(nullptr);
   }
   object->SetIsInLayoutNGInlineFormattingContext(false);
 }
 
 }  // namespace
-
-void LayoutObjectChildList::Trace(Visitor* visitor) const {
-  visitor->Trace(first_child_);
-  visitor->Trace(last_child_);
-}
 
 void LayoutObjectChildList::DestroyLeftoverChildren() {
   // Destroy any anonymous children remaining in the layout tree, as well as
@@ -106,10 +107,9 @@ LayoutObject* LayoutObjectChildList::RemoveChildNode(
     if (notify_layout_object && old_child->EverHadLayout()) {
       old_child->SetNeedsLayoutAndIntrinsicWidthsRecalc(
           layout_invalidation_reason::kRemovedFromLayout);
-      if ((old_child->IsOutOfFlowPositioned() ||
-           old_child->IsColumnSpanAll()) &&
+      if (old_child->IsOutOfFlowPositioned() &&
           RuntimeEnabledFeatures::LayoutNGEnabled())
-        old_child->MarkParentForSpannerOrOutOfFlowPositionedChange();
+        old_child->MarkParentForOutOfFlowPositionedChange();
     }
     InvalidatePaintOnRemoval(*old_child);
   }
@@ -119,6 +119,8 @@ LayoutObject* LayoutObjectChildList::RemoveChildNode(
     To<LayoutBox>(old_child)->DeleteLineBoxWrapper();
 
   if (!owner->DocumentBeingDestroyed()) {
+    owner->NotifyOfSubtreeChange();
+
     if (notify_layout_object) {
       LayoutCounter::LayoutObjectSubtreeWillBeDetached(old_child);
       old_child->WillBeRemovedFromTree();
@@ -129,7 +131,8 @@ LayoutObject* LayoutObjectChildList::RemoveChildNode(
 
     if (old_child->IsInLayoutNGInlineFormattingContext()) {
       owner->SetChildNeedsCollectInlines();
-      InvalidateInlineItems(old_child);
+      if (RuntimeEnabledFeatures::LayoutNGFragmentItemEnabled())
+        InvalidateInlineItems(old_child);
     }
   }
 
@@ -185,7 +188,8 @@ void LayoutObjectChildList::InsertChildNode(LayoutObject* owner,
     return;
   }
 
-  if (!owner->DocumentBeingDestroyed() &&
+  if (RuntimeEnabledFeatures::LayoutNGFragmentItemEnabled() &&
+      !owner->DocumentBeingDestroyed() &&
       new_child->IsInLayoutNGInlineFormattingContext()) {
     InvalidateInlineItems(new_child);
   }
@@ -233,20 +237,19 @@ void LayoutObjectChildList::InsertChildNode(LayoutObject* owner,
   if (owner->HasSubtreeChangeListenerRegistered())
     new_child->RegisterSubtreeChangeListenerOnDescendants(true);
 
-  if (UNLIKELY(!new_child->IsLayoutNGObject())) {
-    if (owner->ForceLegacyLayoutForChildren()) {
-      new_child->SetForceLegacyLayout();
-    }
-  }
+  // If the inserted node is currently marked as needing to notify children then
+  // we have to propagate that mark up the tree.
+  if (new_child->WasNotifiedOfSubtreeChange())
+    owner->NotifyAncestorsOfSubtreeChange();
 
-  // Mark the ancestor chain for paint invalidation checking.
-  owner->SetShouldCheckForPaintInvalidation();
+  if (owner->ForceLegacyLayout() && !new_child->IsLayoutNGObject())
+    new_child->SetForceLegacyLayout();
 
   new_child->SetNeedsLayoutAndIntrinsicWidthsRecalc(
       layout_invalidation_reason::kAddedToLayout);
-  if ((new_child->IsOutOfFlowPositioned() || new_child->IsColumnSpanAll()) &&
+  if (new_child->IsOutOfFlowPositioned() &&
       RuntimeEnabledFeatures::LayoutNGEnabled())
-    new_child->MarkParentForSpannerOrOutOfFlowPositionedChange();
+    new_child->MarkParentForOutOfFlowPositionedChange();
   new_child->SetShouldDoFullPaintInvalidation(
       PaintInvalidationReason::kAppeared);
   new_child->AddSubtreePaintPropertyUpdateReason(
@@ -258,6 +261,9 @@ void LayoutObjectChildList::InsertChildNode(LayoutObject* owner,
                                    // absolute positioned child.
   }
 
+  if (!owner->DocumentBeingDestroyed())
+    owner->NotifyOfSubtreeChange();
+
   if (AXObjectCache* cache = owner->GetDocument().ExistingAXObjectCache())
     cache->ChildrenChanged(owner);
 }
@@ -265,11 +271,8 @@ void LayoutObjectChildList::InsertChildNode(LayoutObject* owner,
 void LayoutObjectChildList::InvalidatePaintOnRemoval(LayoutObject& old_child) {
   if (!old_child.IsRooted())
     return;
-  if (old_child.View() &&
-      (old_child.IsBody() || old_child.IsDocumentElement())) {
+  if (old_child.IsBody() && old_child.View())
     old_child.View()->SetShouldDoFullPaintInvalidation();
-    old_child.View()->SetBackgroundNeedsFullPaintInvalidation();
-  }
   ObjectPaintInvalidator paint_invalidator(old_child);
   paint_invalidator.SlowSetPaintingLayerNeedsRepaint();
 }

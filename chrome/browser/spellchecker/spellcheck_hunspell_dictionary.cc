@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,13 @@
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/notreached.h"
-#include "base/observer_list.h"
 #include "base/path_service.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "base/threading/scoped_blocking_call.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
 #include "chrome/common/chrome_paths.h"
@@ -34,10 +36,9 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "base/files/memory_mapped_file.h"
 #include "third_party/hunspell/google/bdict.h"  // nogncheck crbug.com/1125897
 #endif
@@ -67,7 +68,7 @@ bool SaveDictionaryData(std::unique_ptr<std::string> data,
       base::WriteFile(path, data->data(), data->length());
   if (bytes_written != data->length()) {
     bool success = false;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     base::FilePath dict_dir;
     base::PathService::Get(chrome::DIR_USER_DATA, &dict_dir);
     base::FilePath fallback_file_path =
@@ -185,13 +186,13 @@ const std::string& SpellcheckHunspellDictionary::GetLanguage() const {
 
 const std::string& SpellcheckHunspellDictionary::GetPlatformSpellcheckLanguage()
     const {
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
   // Currently the platform spellcheck language is only distinguished for
   // Windows.
   return platform_spellcheck_language_;
 #else
   return language_;
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 }
 
 bool SpellcheckHunspellDictionary::HasPlatformSupport() const {
@@ -245,7 +246,7 @@ void SpellcheckHunspellDictionary::OnSimpleLoaderComplete(
     return;
   }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // To prevent corrupted dictionary data from causing a renderer crash, scan
   // the dictionary data and verify it is sane before save it to a file.
   // TODO(rlp): Adding metrics to RecordDictionaryCorruptionStats
@@ -257,8 +258,8 @@ void SpellcheckHunspellDictionary::OnSimpleLoaderComplete(
   }
 #endif
 
-  task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      task_runner_.get(), FROM_HERE,
       base::BindOnce(&SaveDictionaryData, std::move(data),
                      dictionary_file_.path),
       base::BindOnce(&SpellcheckHunspellDictionary::SaveDictionaryDataComplete,
@@ -320,7 +321,7 @@ void SpellcheckHunspellDictionary::DownloadDictionary(GURL url) {
   simple_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
                                                     traffic_annotation);
   network::mojom::URLLoaderFactory* loader_factory =
-      browser_context_->GetDefaultStoragePartition()
+      content::BrowserContext::GetDefaultStoragePartition(browser_context_)
           ->GetURLLoaderFactoryForBrowserProcess()
           .get();
   simple_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
@@ -332,7 +333,7 @@ void SpellcheckHunspellDictionary::DownloadDictionary(GURL url) {
   browser_context_ = nullptr;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // static
 SpellcheckHunspellDictionary::DictionaryFile
 SpellcheckHunspellDictionary::OpenDictionaryFile(base::TaskRunner* task_runner,
@@ -349,7 +350,7 @@ SpellcheckHunspellDictionary::OpenDictionaryFile(base::TaskRunner* task_runner,
   // download is chrome::DIR_USER_DATA.
   DictionaryFile dictionary(task_runner);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Check if the dictionary exists in the fallback location. If so, use it
   // rather than downloading anew.
   base::FilePath user_dir;
@@ -361,7 +362,7 @@ SpellcheckHunspellDictionary::OpenDictionaryFile(base::TaskRunner* task_runner,
     dictionary.path = path;
 #else
   dictionary.path = path;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   // Read the dictionary file and scan its data to check for corruption. The
   // scoping closes the memory-mapped file before it is opened or deleted.
@@ -431,7 +432,7 @@ void SpellcheckHunspellDictionary::InitializeDictionaryLocationComplete(
 
   InformListenersOfInitialization();
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 void SpellcheckHunspellDictionary::SaveDictionaryDataComplete(
     bool dictionary_saved) {
@@ -480,15 +481,15 @@ void SpellcheckHunspellDictionary::PlatformSupportsLanguageComplete(
     // Either the platform spellchecker is unavailable / disabled, or it doesn't
     // support this language. In either case, we must use Hunspell for this
     // language, unless we are on Android, which doesn't support Hunspell.
-#if !BUILDFLAG(IS_ANDROID) && BUILDFLAG(USE_RENDERER_SPELLCHECKER)
-    task_runner_->PostTaskAndReplyWithResult(
-        FROM_HERE,
+#if !defined(OS_ANDROID) && BUILDFLAG(USE_RENDERER_SPELLCHECKER)
+    base::PostTaskAndReplyWithResult(
+        task_runner_.get(), FROM_HERE,
         base::BindOnce(&InitializeDictionaryLocation,
                        base::RetainedRef(task_runner_.get()), language_),
         base::BindOnce(
             &SpellcheckHunspellDictionary::InitializeDictionaryLocationComplete,
             weak_ptr_factory_.GetWeakPtr()));
-#endif  // !BUILDFLAG(IS_ANDROID) && BUILDFLAG(USE_RENDERER_SPELLCHECKER)
+#endif  // !defined(OS_ANDROID) && BUILDFLAG(USE_RENDERER_SPELLCHECKER)
   }
 }
 
@@ -501,7 +502,7 @@ void SpellcheckHunspellDictionary::SpellCheckPlatformSetLanguageComplete(
     return;
 
   use_browser_spellchecker_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(
           &SpellcheckHunspellDictionary::InformListenersOfInitialization,

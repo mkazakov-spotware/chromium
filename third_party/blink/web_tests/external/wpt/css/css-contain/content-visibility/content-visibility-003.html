@@ -5,7 +5,9 @@
 <link rel="author" title="Vladimir Levin" href="mailto:vmpstr@chromium.org">
 <link rel="help" href="https://drafts.csswg.org/css-contain/#content-visibility">
 <link rel="match" href="content-visibility-003-ref.html">
-<meta name="assert" content="content-visibility hidden container is not breakable">
+<meta name="assert" content="content-visibility container is not breakable">
+<script src="/common/reftest-wait.js"></script>
+<script src="resources/utils.js"></script>
 
 <style>
 #container {
@@ -20,8 +22,6 @@
   column-gap: 0;
 }
 </style>
-
-<p>Test passes if there is a solid green square below.
 
 <div id="parent">
   <div id="container">Text</div>

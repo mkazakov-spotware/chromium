@@ -1,13 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util.h"
+#include <string>
+
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util_sets.h"
 #include "third_party/blink/renderer/modules/mediastream/mock_constraint_factory.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_audio_processor_options.h"
-#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
@@ -41,8 +42,8 @@ class MediaStreamConstraintsUtilTest : public testing::Test {
 };
 
 TEST_F(MediaStreamConstraintsUtilTest, BooleanConstraints) {
-  static const String kValueTrue = "true";
-  static const String kValueFalse = "false";
+  static const std::string kValueTrue = "true";
+  static const std::string kValueFalse = "false";
 
   MockConstraintFactory constraint_factory;
   // Mandatory constraints.
@@ -534,11 +535,11 @@ TEST_F(MediaStreamConstraintsUtilTest, VideoTrackAdapterSettingsConstrained) {
 
   // Source frame rate.
   {
-    DoubleRangeSet source_frame_rate_set(kMinFrameRate, kSourceFrameRate);
+    DoubleRangeSet frame_rate_set(kMinFrameRate, kSourceFrameRate);
     MockConstraintFactory constraint_factory;
     auto result =
         SelectTrackSettings(constraint_factory.CreateMediaConstraints().Basic(),
-                            resolution_set, source_frame_rate_set);
+                            resolution_set, frame_rate_set);
     EXPECT_EQ(kSourceHeight, result.target_height());
     EXPECT_EQ(kSourceWidth, result.target_width());
     EXPECT_EQ(kMinAspectRatio, result.min_aspect_ratio());
@@ -549,13 +550,13 @@ TEST_F(MediaStreamConstraintsUtilTest, VideoTrackAdapterSettingsConstrained) {
   // High frame rate.
   {
     constexpr double kHighFrameRate = 400.0;  // Greater than source.
-    DoubleRangeSet high_frame_rate_set(kMinFrameRate, kHighFrameRate);
+    DoubleRangeSet frame_rate_set(kMinFrameRate, kHighFrameRate);
     static_assert(kHighFrameRate > kSourceFrameRate,
                   "kIdealFrameRate must be greater than kSourceFrameRate");
     MockConstraintFactory constraint_factory;
     auto result =
         SelectTrackSettings(constraint_factory.CreateMediaConstraints().Basic(),
-                            resolution_set, high_frame_rate_set);
+                            resolution_set, frame_rate_set);
     EXPECT_EQ(kSourceHeight, result.target_height());
     EXPECT_EQ(kSourceWidth, result.target_width());
     EXPECT_EQ(kMinAspectRatio, result.min_aspect_ratio());

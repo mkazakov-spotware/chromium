@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 #include <psapi.h>
 
 #include <cstring>
-#include <string>
 #include <vector>
 
 #include "base/command_line.h"
 #include "base/process/process_handle.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/multiprocess_test.h"
@@ -27,13 +27,13 @@ namespace performance_manager {
 namespace {
 
 constexpr char kTestProcessIdSwitchName[] = "test_test_process_id";
-constexpr wchar_t kBufferInitializedEventName[] =
+constexpr base::char16 kBufferInitializedEventName[] =
     L"RCEmptyWorkingSetTestBufferInitialized";
-constexpr wchar_t kChildProcessExitEventName[] =
+constexpr base::char16 kChildProcessExitEventName[] =
     L"RCEmptyWorkingSetTestChildProcessExit";
 
-base::win::ScopedHandle CreateEvent(const std::wstring& name,
-                                    const std::wstring& test_process_id) {
+base::win::ScopedHandle CreateEvent(const base::string16& name,
+                                    const base::string16& test_process_id) {
   base::win::ScopedHandle event(::CreateEvent(
       nullptr, TRUE, FALSE, (L"Local\\" + name + test_process_id).c_str()));
   DCHECK(event.IsValid());
@@ -53,7 +53,7 @@ size_t GetWorkingSetSizeMb(base::ProcessHandle handle) {
 }
 
 MULTIPROCESS_TEST_MAIN(ProcessWithLargeWorkingSet) {
-  const std::wstring test_process_id =
+  const base::string16 test_process_id =
       base::CommandLine::ForCurrentProcess()->GetSwitchValueNative(
           kTestProcessIdSwitchName);
 
@@ -73,10 +73,6 @@ MULTIPROCESS_TEST_MAIN(ProcessWithLargeWorkingSet) {
 }
 
 class WorkingSetTrimmerTest : public GraphTestHarness {
- public:
-  WorkingSetTrimmerTest(const WorkingSetTrimmerTest&) = delete;
-  WorkingSetTrimmerTest& operator=(const WorkingSetTrimmerTest&) = delete;
-
  protected:
   WorkingSetTrimmerTest() = default;
 
@@ -109,18 +105,22 @@ class WorkingSetTrimmerTest : public GraphTestHarness {
     GraphTestHarness::TearDown();
   }
 
-  const std::wstring test_process_id_ =
-      base::NumberToWString(base::GetCurrentProcId());
+  const base::string16 test_process_id_ =
+      base::NumberToString16(base::GetCurrentProcId());
   base::Process child_process_;
   TestNodeWrapper<ProcessNodeImpl> process_node_ =
       CreateNode<ProcessNodeImpl>();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WorkingSetTrimmerTest);
 };
 
 }  // namespace
 
 TEST_F(WorkingSetTrimmerTest, EmptyWorkingSet) {
+  // Set the launch time of the process node to match |child_process_|.
   process_node_->SetProcess(child_process_.Duplicate(),
-                            /* launch_time=*/base::TimeTicks::Now());
+                            child_process_.CreationTime());
 
   // When all frames in the process node are frozen, the working set of
   // |child_process_| should be emptied.

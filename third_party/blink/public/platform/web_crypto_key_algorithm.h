@@ -44,42 +44,42 @@ namespace blink {
 
 class WebCryptoKeyAlgorithmPrivate;
 
-// WebCryptoKeyAlgorithm represents the algorithm used to generate a
-// WebCryptoKey instance.
+// WebCryptoKeyAlgorithm represents the algorithm used to generate a key.
 //   * Immutable
 //   * Threadsafe
 //   * Copiable (cheaply)
-//
-// The WebCryptoKey represents a key from the Web Crypto API:
-// https://w3c.github.io/webcrypto/#cryptokey-interface
-class BLINK_PLATFORM_EXPORT WebCryptoKeyAlgorithm {
+class WebCryptoKeyAlgorithm {
  public:
   WebCryptoKeyAlgorithm() = default;
 
 #if INSIDE_BLINK
-  WebCryptoKeyAlgorithm(WebCryptoAlgorithmId,
-                        std::unique_ptr<WebCryptoKeyAlgorithmParams>);
+  BLINK_PLATFORM_EXPORT WebCryptoKeyAlgorithm(
+      WebCryptoAlgorithmId,
+      std::unique_ptr<WebCryptoKeyAlgorithmParams>);
 #endif
 
   // FIXME: Delete this in favor of the Create*() functions.
-  static WebCryptoKeyAlgorithm AdoptParamsAndCreate(
+  BLINK_PLATFORM_EXPORT static WebCryptoKeyAlgorithm AdoptParamsAndCreate(
       WebCryptoAlgorithmId,
       WebCryptoKeyAlgorithmParams*);
 
-  static WebCryptoKeyAlgorithm CreateAes(WebCryptoAlgorithmId,
-                                         uint16_t key_length_bits);
-  static WebCryptoKeyAlgorithm CreateHmac(WebCryptoAlgorithmId hash,
-                                          unsigned key_length_bits);
-  static WebCryptoKeyAlgorithm CreateRsaHashed(
+  BLINK_PLATFORM_EXPORT static WebCryptoKeyAlgorithm CreateAes(
+      WebCryptoAlgorithmId,
+      uint16_t key_length_bits);
+  BLINK_PLATFORM_EXPORT static WebCryptoKeyAlgorithm CreateHmac(
+      WebCryptoAlgorithmId hash,
+      unsigned key_length_bits);
+  BLINK_PLATFORM_EXPORT static WebCryptoKeyAlgorithm CreateRsaHashed(
       WebCryptoAlgorithmId,
       unsigned modulus_length_bits,
       const unsigned char* public_exponent,
       unsigned public_exponent_size,
       WebCryptoAlgorithmId hash);
-  static WebCryptoKeyAlgorithm CreateEc(WebCryptoAlgorithmId,
-                                        WebCryptoNamedCurve);
-  static WebCryptoKeyAlgorithm CreateEd25519(WebCryptoAlgorithmId);
-  static WebCryptoKeyAlgorithm CreateWithoutParams(WebCryptoAlgorithmId);
+  BLINK_PLATFORM_EXPORT static WebCryptoKeyAlgorithm CreateEc(
+      WebCryptoAlgorithmId,
+      WebCryptoNamedCurve);
+  BLINK_PLATFORM_EXPORT static WebCryptoKeyAlgorithm CreateWithoutParams(
+      WebCryptoAlgorithmId);
 
   ~WebCryptoKeyAlgorithm() { Reset(); }
 
@@ -89,30 +89,32 @@ class BLINK_PLATFORM_EXPORT WebCryptoKeyAlgorithm {
     return *this;
   }
 
-  bool IsNull() const;
+  BLINK_PLATFORM_EXPORT bool IsNull() const;
 
-  WebCryptoAlgorithmId Id() const;
+  BLINK_PLATFORM_EXPORT WebCryptoAlgorithmId Id() const;
 
-  WebCryptoKeyAlgorithmParamsType ParamsType() const;
+  BLINK_PLATFORM_EXPORT WebCryptoKeyAlgorithmParamsType ParamsType() const;
 
   // Returns the type-specific parameters for this key. If the requested
   // parameters are not applicable (for instance an HMAC key does not have
   // any AES parameters) then returns 0.
-  WebCryptoAesKeyAlgorithmParams* AesParams() const;
-  WebCryptoHmacKeyAlgorithmParams* HmacParams() const;
-  WebCryptoRsaHashedKeyAlgorithmParams* RsaHashedParams() const;
-  WebCryptoEcKeyAlgorithmParams* EcParams() const;
+  BLINK_PLATFORM_EXPORT WebCryptoAesKeyAlgorithmParams* AesParams() const;
+  BLINK_PLATFORM_EXPORT WebCryptoHmacKeyAlgorithmParams* HmacParams() const;
+  BLINK_PLATFORM_EXPORT WebCryptoRsaHashedKeyAlgorithmParams* RsaHashedParams()
+      const;
+  BLINK_PLATFORM_EXPORT WebCryptoEcKeyAlgorithmParams* EcParams() const;
 
   // Write the algorithm parameters to a dictionary.
-  void WriteToDictionary(WebCryptoKeyAlgorithmDictionary*) const;
+  BLINK_PLATFORM_EXPORT void WriteToDictionary(
+      WebCryptoKeyAlgorithmDictionary*) const;
 
  private:
-  void Assign(const WebCryptoKeyAlgorithm& other);
-  void Reset();
+  BLINK_PLATFORM_EXPORT void Assign(const WebCryptoKeyAlgorithm& other);
+  BLINK_PLATFORM_EXPORT void Reset();
 
   WebPrivatePtr<WebCryptoKeyAlgorithmPrivate> private_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_CRYPTO_KEY_ALGORITHM_H_
+#endif

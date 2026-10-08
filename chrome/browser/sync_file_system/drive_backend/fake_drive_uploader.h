@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,14 @@
 #include <string>
 
 #include "base/files/file_util.h"
-#include "base/memory/raw_ptr.h"
-#include "base/strings/escape.h"
+#include "base/macros.h"
+#include "base/values.h"
 #include "chrome/browser/sync_file_system/drive_backend/fake_drive_service_helper.h"
 #include "components/drive/drive_uploader.h"
 #include "components/drive/service/fake_drive_service.h"
-#include "google_apis/common/api_error_codes.h"
-#include "google_apis/common/test_util.h"
+#include "google_apis/drive/drive_api_error_codes.h"
+#include "google_apis/drive/test_util.h"
+#include "net/base/escape.h"
 
 namespace sync_file_system {
 namespace drive_backend {
@@ -22,10 +23,6 @@ namespace drive_backend {
 class FakeDriveServiceWrapper : public drive::FakeDriveService {
  public:
   FakeDriveServiceWrapper();
-
-  FakeDriveServiceWrapper(const FakeDriveServiceWrapper&) = delete;
-  FakeDriveServiceWrapper& operator=(const FakeDriveServiceWrapper&) = delete;
-
   ~FakeDriveServiceWrapper() override;
 
   // DriveServiceInterface overrides.
@@ -41,6 +38,8 @@ class FakeDriveServiceWrapper : public drive::FakeDriveService {
 
  private:
   bool make_directory_conflict_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDriveServiceWrapper);
 };
 
 // A fake implementation of DriveUploaderInterface, which provides fake
@@ -48,10 +47,6 @@ class FakeDriveServiceWrapper : public drive::FakeDriveService {
 class FakeDriveUploader : public drive::DriveUploaderInterface {
  public:
   explicit FakeDriveUploader(FakeDriveServiceWrapper* fake_drive_service);
-
-  FakeDriveUploader(const FakeDriveUploader&) = delete;
-  FakeDriveUploader& operator=(const FakeDriveUploader&) = delete;
-
   ~FakeDriveUploader() override;
 
   // DriveUploaderInterface overrides.
@@ -79,11 +74,15 @@ class FakeDriveUploader : public drive::DriveUploaderInterface {
       drive::UploadCompletionCallback callback,
       google_apis::ProgressCallback progress_callback) override;
 
-  void set_make_file_conflict(bool enable) { make_file_conflict_ = enable; }
+  void set_make_file_conflict(bool enable) {
+    make_file_conflict_ = enable;
+  }
 
  private:
-  raw_ptr<FakeDriveServiceWrapper> fake_drive_service_;
+  FakeDriveServiceWrapper* fake_drive_service_;
   bool make_file_conflict_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDriveUploader);
 };
 
 }  // namespace drive_backend

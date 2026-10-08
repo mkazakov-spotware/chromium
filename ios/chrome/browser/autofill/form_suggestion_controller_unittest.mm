@@ -1,44 +1,41 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/autofill/form_suggestion_controller.h"
 
-#import <utility>
-#import <vector>
+#include <utility>
+#include <vector>
 
-#import "base/mac/foundation_util.h"
-#import "base/path_service.h"
-#import "base/test/scoped_feature_list.h"
-#import "components/autofill/core/browser/ui/popup_types.h"
+#include "base/mac/foundation_util.h"
+#include "base/path_service.h"
+#include "base/strings/stringprintf.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
 #import "components/autofill/ios/browser/form_suggestion_provider.h"
 #import "components/autofill/ios/form_util/form_activity_observer_bridge.h"
-#import "components/autofill/ios/form_util/form_activity_params.h"
-#import "components/autofill/ios/form_util/test_form_activity_tab_helper.h"
+#include "components/autofill/ios/form_util/form_activity_params.h"
+#include "components/autofill/ios/form_util/test_form_activity_tab_helper.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
+#import "ios/chrome/browser/autofill/form_suggestion_view.h"
 #import "ios/chrome/browser/ui/autofill/form_input_accessory/form_input_accessory_consumer.h"
 #import "ios/chrome/browser/ui/autofill/form_input_accessory/form_input_accessory_mediator.h"
-#import "ios/chrome/browser/ui/autofill/form_input_accessory/form_suggestion_view.h"
-#import "ios/chrome/browser/ui/bubble/bubble_features.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/web/public/navigation/navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_navigation_context.h"
-#import "ios/web/public/test/fakes/fake_web_frame.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
+#include "ios/web/public/test/fakes/fake_web_frame.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 #import "testing/gtest_mac.h"
 #import "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-#import "third_party/ocmock/gtest_support.h"
+#include "third_party/ocmock/gtest_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-using autofill::FieldRendererId;
 using autofill::FormRendererId;
-using autofill::PopupType;
+using autofill::FieldRendererId;
 
 // Test provider that records invocations of its interface methods.
 @interface TestSuggestionProvider : NSObject<FormSuggestionProvider>
@@ -50,8 +47,6 @@ using autofill::PopupType;
 @property(nonatomic, assign) BOOL selected;
 @property(nonatomic, assign) BOOL askedIfSuggestionsAvailable;
 @property(nonatomic, assign) BOOL askedForSuggestions;
-@property(nonatomic, assign) SuggestionProviderType type;
-@property(nonatomic, readonly) PopupType suggestionType;
 
 // Creates a test provider with default suggesstions.
 + (instancetype)providerWithSuggestions;
@@ -92,10 +87,8 @@ using autofill::PopupType;
 
 - (instancetype)initWithSuggestions:(NSArray*)suggestions {
   self = [super init];
-  if (self) {
+  if (self)
     _suggestions = [suggestions copy];
-    _type = SuggestionProviderTypeUnknown;
-  }
   return self;
 }
 
@@ -117,6 +110,7 @@ using autofill::PopupType;
 
 - (void)checkIfSuggestionsAvailableForForm:
             (FormSuggestionProviderQuery*)formQuery
+                               isMainFrame:(BOOL)isMainFrame
                             hasUserGesture:(BOOL)hasUserGesture
                                   webState:(web::WebState*)webState
                          completionHandler:
@@ -157,16 +151,16 @@ namespace {
 class FormSuggestionControllerTest : public PlatformTest {
  public:
   FormSuggestionControllerTest()
-      : test_form_activity_tab_helper_(&fake_web_state_) {}
-
-  FormSuggestionControllerTest(const FormSuggestionControllerTest&) = delete;
-  FormSuggestionControllerTest& operator=(const FormSuggestionControllerTest&) =
-      delete;
+      : test_form_activity_tab_helper_(&test_web_state_) {}
 
   void SetUp() override {
     PlatformTest::SetUp();
 
-    fake_web_state_.SetWebViewProxy(mock_web_view_proxy_);
+    // Mock out the JsSuggestionManager.
+    mock_js_suggestion_manager_ =
+        [OCMockObject niceMockForClass:[JsSuggestionManager class]];
+
+    test_web_state_.SetWebViewProxy(mock_web_view_proxy_);
   }
 
   void TearDown() override {
@@ -175,12 +169,13 @@ class FormSuggestionControllerTest : public PlatformTest {
   }
 
  protected:
-  // Sets up `suggestion_controller_` with the specified array of
+  // Sets up |suggestion_controller_| with the specified array of
   // FormSuggestionProviders.
   void SetUpController(NSArray* providers) {
-    suggestion_controller_ =
-        [[FormSuggestionController alloc] initWithWebState:&fake_web_state_
-                                                 providers:providers];
+    suggestion_controller_ = [[FormSuggestionController alloc]
+           initWithWebState:&test_web_state_
+                  providers:providers
+        JsSuggestionManager:mock_js_suggestion_manager_];
     [suggestion_controller_ setWebViewProxy:mock_web_view_proxy_];
 
     id mock_consumer = [OCMockObject
@@ -194,27 +189,35 @@ class FormSuggestionControllerTest : public PlatformTest {
     [[[mock_consumer stub] andDo:mockShow]
         showAccessorySuggestions:[OCMArg any]];
 
+    // Mock restore keyboard to verify cleanup.
+    void (^mockRestore)(NSInvocation*) = ^(NSInvocation* invocation) {
+      received_suggestions_ = nil;
+    };
+    [[[mock_consumer stub] andDo:mockRestore] restoreOriginalKeyboardView];
+
     id mock_window = OCMClassMock([UIWindow class]);
 
     id mock_web_state_view = OCMClassMock([UIView class]);
     OCMStub([mock_web_state_view window]).andReturn(mock_window);
 
-    fake_web_state_.SetView(mock_web_state_view);
+    test_web_state_.SetView(mock_web_state_view);
 
-    mock_handler_ =
-        OCMProtocolMock(@protocol(FormInputAccessoryMediatorHandler));
+    id mock_app_state = OCMClassMock([AppState class]);
+    OCMStub([mock_app_state lastTappedWindow]).andReturn(mock_window);
 
     accessory_mediator_ =
         [[FormInputAccessoryMediator alloc] initWithConsumer:mock_consumer
-                                                     handler:mock_handler_
+                                                    delegate:nil
                                                 webStateList:NULL
                                          personalDataManager:NULL
                                                passwordStore:nullptr
+                                                    appState:mock_app_state
                                         securityAlertHandler:nil
                                       reauthenticationModule:nil];
 
-    [accessory_mediator_ injectWebState:&fake_web_state_];
+    [accessory_mediator_ injectWebState:&test_web_state_];
     [accessory_mediator_ injectProvider:suggestion_controller_];
+    [accessory_mediator_ injectSuggestionManager:mock_js_suggestion_manager_];
   }
 
   // The FormSuggestionController under test.
@@ -223,54 +226,53 @@ class FormSuggestionControllerTest : public PlatformTest {
   // The suggestions the controller sent to the client, if any.
   NSArray* received_suggestions_;
 
+  // Mock JsSuggestionManager for verifying interactions.
+  id mock_js_suggestion_manager_;
+
   // Mock CRWWebViewProxy for verifying interactions.
   id mock_web_view_proxy_;
 
   // Accessory view controller.
   FormInputAccessoryMediator* accessory_mediator_;
 
-  // The scoped feature list to enable/disable features. This needs to be placed
-  // before task_environment_, as per
-  // https://source.chromium.org/chromium/chromium/src/+/main:base/test/scoped_feature_list.h;l=37-41;drc=fe05104cfedb627fa99f218d7d1af6862871566c.
-  base::test::ScopedFeatureList scoped_feature_list_;
-
   // The associated test Web Threads.
   web::WebTaskEnvironment task_environment_;
 
   // The fake WebState to simulate navigation and JavaScript events.
-  web::FakeWebState fake_web_state_;
+  web::TestWebState test_web_state_;
 
   // The fake form tracker to simulate form events.
   autofill::TestFormActivityTabHelper test_form_activity_tab_helper_;
 
-  // Mock FormInputAccessoryMediatorHandler for verifying interactions.
-  id mock_handler_;
+  DISALLOW_COPY_AND_ASSIGN(FormSuggestionControllerTest);
 };
 
 // Tests that pages whose URLs don't have a web scheme aren't processed.
 TEST_F(FormSuggestionControllerTest, PageLoadShouldBeIgnoredWhenNotWebScheme) {
   SetUpController(@[ [TestSuggestionProvider providerWithSuggestions] ]);
-  fake_web_state_.SetCurrentURL(GURL("data:text/html;charset=utf8;base64,"));
-  fake_web_state_.OnPageLoaded(web::PageLoadCompletionStatus::SUCCESS);
+  test_web_state_.SetCurrentURL(GURL("data:text/html;charset=utf8;base64,"));
+  test_web_state_.OnPageLoaded(web::PageLoadCompletionStatus::SUCCESS);
   EXPECT_FALSE(received_suggestions_.count);
+  EXPECT_OCMOCK_VERIFY(mock_js_suggestion_manager_);
 }
 
 // Tests that pages whose content isn't HTML aren't processed.
 TEST_F(FormSuggestionControllerTest, PageLoadShouldBeIgnoredWhenNotHtml) {
   SetUpController(@[ [TestSuggestionProvider providerWithSuggestions] ]);
   // Load PDF file URL.
-  fake_web_state_.SetContentIsHTML(false);
-  fake_web_state_.OnPageLoaded(web::PageLoadCompletionStatus::SUCCESS);
+  test_web_state_.SetContentIsHTML(false);
+  test_web_state_.OnPageLoaded(web::PageLoadCompletionStatus::SUCCESS);
   EXPECT_FALSE(received_suggestions_.count);
 }
 
-// Tests that the suggestions are reset when a navigation is finished.
+// Tests that the suggestions are reset and JavaScript is injected when a page
+// is loaded.
 TEST_F(FormSuggestionControllerTest,
        PageLoadShouldRestoreKeyboardAccessoryViewAndInjectJavaScript) {
   SetUpController(@[ [TestSuggestionProvider providerWithSuggestions] ]);
   GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
+  test_web_state_.SetCurrentURL(url);
+  web::FakeMainWebFrame main_frame(url);
 
   // Trigger form activity, which should set up the suggestions view.
   autofill::FormActivityParams params;
@@ -280,13 +282,11 @@ TEST_F(FormSuggestionControllerTest,
   params.type = "type";
   params.value = "value";
   params.input_missing = false;
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
+  test_form_activity_tab_helper_.FormActivityRegistered(&main_frame, params);
   EXPECT_TRUE(received_suggestions_.count);
 
-  // Trigger another navigation. The suggestions should not be present.
-  web::FakeNavigationContext navigation_context;
-  fake_web_state_.OnNavigationFinished(&navigation_context);
+  // Trigger another page load. The suggestions should not be present.
+  test_web_state_.OnPageLoaded(web::PageLoadCompletionStatus::SUCCESS);
   EXPECT_FALSE(received_suggestions_.count);
 }
 
@@ -294,8 +294,8 @@ TEST_F(FormSuggestionControllerTest,
 TEST_F(FormSuggestionControllerTest, FormActivityBlurShouldBeIgnored) {
   SetUpController(@[ [TestSuggestionProvider providerWithSuggestions] ]);
   GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
+  test_web_state_.SetCurrentURL(url);
+  web::FakeMainWebFrame main_frame(url);
 
   autofill::FormActivityParams params;
   params.form_name = "form";
@@ -304,8 +304,7 @@ TEST_F(FormSuggestionControllerTest, FormActivityBlurShouldBeIgnored) {
   params.type = "blur";  // blur!
   params.value = "value";
   params.input_missing = false;
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
+  test_form_activity_tab_helper_.FormActivityRegistered(&main_frame, params);
   EXPECT_FALSE(received_suggestions_.count);
 }
 
@@ -315,8 +314,8 @@ TEST_F(FormSuggestionControllerTest,
   // Set up the controller without any providers.
   SetUpController(@[]);
   GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
+  test_web_state_.SetCurrentURL(url);
+  web::FakeMainWebFrame main_frame(url);
 
   autofill::FormActivityParams params;
   params.form_name = "form";
@@ -325,8 +324,7 @@ TEST_F(FormSuggestionControllerTest,
   params.type = "type";
   params.value = "value";
   params.input_missing = false;
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
+  test_form_activity_tab_helper_.FormActivityRegistered(&main_frame, params);
 
   // The suggestions should be empty.
   EXPECT_TRUE(received_suggestions_);
@@ -345,8 +343,8 @@ TEST_F(FormSuggestionControllerTest,
       [[TestSuggestionProvider alloc] initWithSuggestions:@[]];
   SetUpController(@[ provider1, provider2 ]);
   GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
+  test_web_state_.SetCurrentURL(url);
+  web::FakeMainWebFrame main_frame(url);
 
   autofill::FormActivityParams params;
   params.form_name = "form";
@@ -355,8 +353,7 @@ TEST_F(FormSuggestionControllerTest,
   params.type = "type";
   params.value = "value";
   params.input_missing = false;
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
+  test_form_activity_tab_helper_.FormActivityRegistered(&main_frame, params);
 
   // The providers should each be asked if they have suggestions for the
   // form in question.
@@ -397,8 +394,8 @@ TEST_F(FormSuggestionControllerTest,
       [[TestSuggestionProvider alloc] initWithSuggestions:@[]];
   SetUpController(@[ provider1, provider2 ]);
   GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
+  test_web_state_.SetCurrentURL(url);
+  web::FakeMainWebFrame main_frame(url);
 
   autofill::FormActivityParams params;
   params.form_name = "form";
@@ -407,8 +404,7 @@ TEST_F(FormSuggestionControllerTest,
   params.type = "type";
   params.value = "value";
   params.input_missing = false;
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
+  test_form_activity_tab_helper_.FormActivityRegistered(&main_frame, params);
 
   // Since the first provider has suggestions available, it and only it
   // should have been asked.
@@ -440,8 +436,8 @@ TEST_F(FormSuggestionControllerTest, SelectingSuggestionShouldNotifyDelegate) {
       [[TestSuggestionProvider alloc] initWithSuggestions:suggestions];
   SetUpController(@[ provider ]);
   GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
+  test_web_state_.SetCurrentURL(url);
+  web::FakeMainWebFrame main_frame(url);
 
   autofill::FormActivityParams params;
   params.form_name = "form";
@@ -451,8 +447,7 @@ TEST_F(FormSuggestionControllerTest, SelectingSuggestionShouldNotifyDelegate) {
   params.value = "value";
   params.frame_id = "frame_id";
   params.input_missing = false;
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
+  test_form_activity_tab_helper_.FormActivityRegistered(&main_frame, params);
 
   // Selecting a suggestion should notify the delegate.
   [suggestion_controller_ didSelectSuggestion:suggestions[0]];
@@ -461,54 +456,6 @@ TEST_F(FormSuggestionControllerTest, SelectingSuggestionShouldNotifyDelegate) {
   EXPECT_NSEQ(@"field_id", [provider fieldIdentifier]);
   EXPECT_NSEQ(@"frame_id", [provider frameID]);
   EXPECT_NSEQ(suggestions[0], [provider suggestion]);
-}
-
-// Tests that the password suggestion IPH is triggered when suggesting a
-// password.
-TEST_F(FormSuggestionControllerTest, PasswordSuggestionIPH) {
-  NSArray* suggestions = @[
-    [FormSuggestion suggestionWithValue:@"foo"
-                     displayDescription:nil
-                                   icon:@""
-                             identifier:0
-                         requiresReauth:NO],
-  ];
-  TestSuggestionProvider* provider =
-      [[TestSuggestionProvider alloc] initWithSuggestions:suggestions];
-  provider.type = SuggestionProviderTypePassword;
-  SetUpController(@[ provider ]);
-  GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
-  autofill::FormActivityParams params;
-
-  OCMExpect([mock_handler_ showPasswordSuggestionIPHIfNeeded]);
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
-  [mock_handler_ verify];
-}
-
-// Tests that the password suggestion IPH is not triggered when not suggesting a
-// password.
-TEST_F(FormSuggestionControllerTest, NonPasswordSuggestionNoIPH) {
-  NSArray* suggestions = @[
-    [FormSuggestion suggestionWithValue:@"foo"
-                     displayDescription:nil
-                                   icon:@""
-                             identifier:1
-                         requiresReauth:NO],
-  ];
-  TestSuggestionProvider* provider =
-      [[TestSuggestionProvider alloc] initWithSuggestions:suggestions];
-  SetUpController(@[ provider ]);
-  GURL url("http://foo.com");
-  fake_web_state_.SetCurrentURL(url);
-  auto main_frame = web::FakeWebFrame::CreateMainWebFrame(url);
-  autofill::FormActivityParams params;
-
-  [[mock_handler_ reject] showPasswordSuggestionIPHIfNeeded];
-  test_form_activity_tab_helper_.FormActivityRegistered(main_frame.get(),
-                                                        params);
 }
 
 }  // namespace

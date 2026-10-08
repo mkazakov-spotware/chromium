@@ -1,11 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_SESSIONS_MOCK_SYNC_SESSIONS_CLIENT_H_
 #define COMPONENTS_SYNC_SESSIONS_MOCK_SYNC_SESSIONS_CLIENT_H_
-
-#include <string>
 
 #include "components/sync_sessions/sync_sessions_client.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -25,10 +23,6 @@ class MockSyncSessionsClient : public SyncSessionsClient {
               (override));
   MOCK_METHOD(void, ClearAllOnDemandFavicons, (), (override));
   MOCK_METHOD(bool, ShouldSyncURL, (const GURL& url), (const override));
-  MOCK_METHOD(bool,
-              IsRecentLocalCacheGuid,
-              (const std::string& cache_guid),
-              (const override));
   MOCK_METHOD(SyncedWindowDelegatesGetter*,
               GetSyncedWindowDelegatesGetter,
               (),

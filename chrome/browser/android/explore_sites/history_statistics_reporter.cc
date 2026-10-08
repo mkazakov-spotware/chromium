@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <utility>
 #include "base/bind.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chrome/common/pref_names.h"
 #include "components/history/core/browser/history_service.h"
@@ -35,10 +35,12 @@ void HistoryStatisticsReporter::RegisterPrefs(PrefRegistrySimple* registry) {
 HistoryStatisticsReporter::HistoryStatisticsReporter(
     history::HistoryService* history_service,
     PrefService* prefs)
-    : history_service_(history_service), prefs_(prefs) {}
+    : history_service_(history_service),
+      prefs_(prefs),
+      history_service_observer_(this) {}
 
 HistoryStatisticsReporter::~HistoryStatisticsReporter() {
-  history_service_observation_.Reset();
+  history_service_observer_.RemoveAll();
 }
 
 void HistoryStatisticsReporter::ScheduleReportStatistics() {
@@ -49,10 +51,10 @@ void HistoryStatisticsReporter::ScheduleReportStatistics() {
 
   // If we've already reported metrics during last week, bail out.
   base::Time last_report_time = prefs_->GetTime(kWeeklyStatsReportingTimestamp);
-  if (last_report_time > base::Time::Now() - base::Days(7))
+  if (last_report_time > base::Time::Now() - base::TimeDelta::FromDays(7))
     return;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&HistoryStatisticsReporter::MaybeReportStatistics,
                      weak_ptr_factory_.GetWeakPtr()),
@@ -67,7 +69,7 @@ void HistoryStatisticsReporter::OnHistoryServiceLoaded(
 
 void HistoryStatisticsReporter::HistoryServiceBeingDeleted(
     history::HistoryService* history_service) {
-  history_service_observation_.Reset();
+  history_service_observer_.RemoveAll();
 }
 
 void HistoryStatisticsReporter::MaybeReportStatistics() {
@@ -77,9 +79,8 @@ void HistoryStatisticsReporter::MaybeReportStatistics() {
   } else {
     // Register for HistoryServiceLoading in case HistoryService is not yet
     // ready.
-    DCHECK(!history_service_observation_.IsObservingSource(
-        history_service_.get()));
-    history_service_observation_.Observe(history_service_.get());
+    DCHECK(!history_service_observer_.IsObserving(history_service_));
+    history_service_observer_.Add(history_service_);
   }
 }
 

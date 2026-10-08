@@ -1,10 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "chrome/browser/ui/cocoa/applescript/bookmark_folder_applescript.h"
 
 #import "base/mac/scoped_nsobject.h"
+#import "base/strings/string16.h"
 #include "base/strings/sys_string_conversions.h"
 #import "chrome/browser/ui/cocoa/applescript/bookmark_item_applescript.h"
 #import "chrome/browser/ui/cocoa/applescript/constants_applescript.h"
@@ -44,7 +45,7 @@ using bookmarks::BookmarkNode;
     return;
 
   const BookmarkNode* node = model->AddFolder(
-      _bookmarkNode, _bookmarkNode->children().size(), std::u16string());
+      _bookmarkNode, _bookmarkNode->children().size(), base::string16());
   if (!node) {
     AppleScript::SetError(AppleScript::errCreateBookmarkFolder);
     return;
@@ -64,8 +65,9 @@ using bookmarks::BookmarkNode;
   if (!model)
     return;
 
-  const BookmarkNode* node =
-      model->AddFolder(_bookmarkNode, position, std::u16string());
+  const BookmarkNode* node = model->AddFolder(_bookmarkNode,
+                                              position,
+                                              base::string16());
   if (!node) {
     AppleScript::SetError(AppleScript::errCreateBookmarkFolder);
     return;
@@ -117,8 +119,8 @@ using bookmarks::BookmarkNode;
     return;
   }
 
-  const BookmarkNode* node = model->AddNewURL(
-      _bookmarkNode, _bookmarkNode->children().size(), std::u16string(), url);
+  const BookmarkNode* node = model->AddURL(
+      _bookmarkNode, _bookmarkNode->children().size(), base::string16(), url);
   if (!node) {
     AppleScript::SetError(AppleScript::errCreateBookmarkItem);
     return;
@@ -145,8 +147,10 @@ using bookmarks::BookmarkNode;
     return;
   }
 
-  const BookmarkNode* node =
-      model->AddNewURL(_bookmarkNode, position, std::u16string(), url);
+  const BookmarkNode* node = model->AddURL(_bookmarkNode,
+                                           position,
+                                           base::string16(),
+                                           url);
   if (!node) {
     AppleScript::SetError(AppleScript::errCreateBookmarkItem);
     return;

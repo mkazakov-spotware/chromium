@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/callback_forward.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/gcm_driver/crypto/gcm_message_cryptographer.h"
 
@@ -58,10 +59,6 @@ class GCMEncryptionProvider {
   static const char kContentCodingAes128Gcm[];
 
   GCMEncryptionProvider();
-
-  GCMEncryptionProvider(const GCMEncryptionProvider&) = delete;
-  GCMEncryptionProvider& operator=(const GCMEncryptionProvider&) = delete;
-
   ~GCMEncryptionProvider();
 
   // Initializes the encryption provider with the |store_path| and the
@@ -150,6 +147,8 @@ class GCMEncryptionProvider {
   std::unique_ptr<GCMKeyStore> key_store_;
 
   base::WeakPtrFactory<GCMEncryptionProvider> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GCMEncryptionProvider);
 };
 
 }  // namespace gcm

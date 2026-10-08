@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,9 +22,8 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "net/base/net_errors.h"
 #include "net/socket/stream_socket.h"
 #include "net/socket/unix_domain_server_socket_posix.h"
@@ -63,15 +62,10 @@ class SecurityKeyAuthHandlerPosix : public SecurityKeyAuthHandler {
  public:
   explicit SecurityKeyAuthHandlerPosix(
       scoped_refptr<base::SingleThreadTaskRunner> file_task_runner);
-
-  SecurityKeyAuthHandlerPosix(const SecurityKeyAuthHandlerPosix&) = delete;
-  SecurityKeyAuthHandlerPosix& operator=(const SecurityKeyAuthHandlerPosix&) =
-      delete;
-
   ~SecurityKeyAuthHandlerPosix() override;
 
  private:
-  using ActiveSockets = std::map<int, std::unique_ptr<SecurityKeySocket>>;
+  typedef std::map<int, std::unique_ptr<SecurityKeySocket>> ActiveSockets;
 
   // SecurityKeyAuthHandler interface.
   void CreateSecurityKeyConnection() override;
@@ -84,7 +78,7 @@ class SecurityKeyAuthHandlerPosix : public SecurityKeyAuthHandler {
   void SetRequestTimeoutForTest(base::TimeDelta timeout) override;
 
   // Sets up the socket used for accepting new connections.
-  void CreateSocket(bool success);
+  void CreateSocket();
 
   // Starts listening for connection.
   void DoAccept();
@@ -130,6 +124,8 @@ class SecurityKeyAuthHandlerPosix : public SecurityKeyAuthHandler {
   base::TimeDelta request_timeout_;
 
   base::WeakPtrFactory<SecurityKeyAuthHandlerPosix> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SecurityKeyAuthHandlerPosix);
 };
 
 std::unique_ptr<SecurityKeyAuthHandler> SecurityKeyAuthHandler::Create(
@@ -150,15 +146,16 @@ void SecurityKeyAuthHandler::SetSecurityKeySocketName(
 SecurityKeyAuthHandlerPosix::SecurityKeyAuthHandlerPosix(
     scoped_refptr<base::SingleThreadTaskRunner> file_task_runner)
     : file_task_runner_(file_task_runner),
-      request_timeout_(base::Seconds(kDefaultRequestTimeoutSeconds)) {}
+      request_timeout_(
+          base::TimeDelta::FromSeconds(kDefaultRequestTimeoutSeconds)) {}
 
 SecurityKeyAuthHandlerPosix::~SecurityKeyAuthHandlerPosix() {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (file_task_runner_) {
     // Attempt to clean up the socket before being destroyed.
     file_task_runner_->PostTask(
-        FROM_HERE,
-        base::GetDeleteFileCallback(g_security_key_socket_name.Get()));
+        FROM_HERE, base::BindOnce(base::GetDeleteFileCallback(),
+                                  g_security_key_socket_name.Get()));
   }
 }
 
@@ -170,25 +167,21 @@ void SecurityKeyAuthHandlerPosix::CreateSecurityKeyConnection() {
   // blocking function call which cannot be run on the main thread.  Once
   // that task has completed, the main thread will be called back and we will
   // resume setting up our security key auth socket there.
-  file_task_runner_->PostTask(
-      FROM_HERE, base::GetDeleteFileCallback(
-                     g_security_key_socket_name.Get(),
-                     base::BindOnce(&SecurityKeyAuthHandlerPosix::CreateSocket,
-                                    weak_factory_.GetWeakPtr())));
+  file_task_runner_->PostTaskAndReply(
+      FROM_HERE,
+      base::BindOnce(base::GetDeleteFileCallback(),
+                     g_security_key_socket_name.Get()),
+      base::BindOnce(&SecurityKeyAuthHandlerPosix::CreateSocket,
+                     weak_factory_.GetWeakPtr()));
 }
 
-void SecurityKeyAuthHandlerPosix::CreateSocket(bool success) {
+void SecurityKeyAuthHandlerPosix::CreateSocket() {
   DCHECK(thread_checker_.CalledOnValidThread());
   HOST_LOG << "Listening for security key requests on "
            << g_security_key_socket_name.Get().value();
 
-  if (!success) {
-    LOG(ERROR) << "Delete g_security_key_socket_name failed";
-    return;
-  }
-
-  auth_socket_ = std::make_unique<net::UnixDomainServerSocket>(
-      base::BindRepeating(MatchUid), false);
+  auth_socket_.reset(
+      new net::UnixDomainServerSocket(base::BindRepeating(MatchUid), false));
   int rv = auth_socket_->BindAndListen(g_security_key_socket_name.Get().value(),
                                        /*backlog=*/1);
   if (rv != net::OK) {

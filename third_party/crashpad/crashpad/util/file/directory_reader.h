@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,15 +16,16 @@
 #define CRASHPAD_UTIL_FILE_DIRECTORY_READER_H_
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "util/posix/scoped_dir.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
 
 #include "util/win/scoped_handle.h"
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
 namespace crashpad {
 
@@ -47,10 +48,6 @@ class DirectoryReader {
   };
 
   DirectoryReader();
-
-  DirectoryReader(const DirectoryReader&) = delete;
-  DirectoryReader& operator=(const DirectoryReader&) = delete;
-
   ~DirectoryReader();
 
   //! \brief Opens the directory specified by \a path for reading.
@@ -67,20 +64,22 @@ class DirectoryReader {
   //!     logged.
   Result NextFile(base::FilePath* filename);
 
-#if BUILDFLAG(IS_POSIX) || DOXYGEN
+#if defined(OS_POSIX) || DOXYGEN
   //! \brief Returns the file descriptor associated with this reader, logging a
   //!     message and returning -1 on error.
   int DirectoryFD();
 #endif
 
  private:
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   ScopedDIR dir_;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   WIN32_FIND_DATA find_data_;
   ScopedSearchHANDLE handle_;
   bool first_entry_;
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
+
+  DISALLOW_COPY_AND_ASSIGN(DirectoryReader);
 };
 
 }  // namespace crashpad

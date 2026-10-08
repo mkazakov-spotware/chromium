@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) ObfuscatedFileUtilDiskDelegate
     : public ObfuscatedFileUtilDelegate {
  public:
   ObfuscatedFileUtilDiskDelegate();
-  ObfuscatedFileUtilDiskDelegate(const ObfuscatedFileUtilDiskDelegate&) =
-      delete;
-  ObfuscatedFileUtilDiskDelegate& operator=(
-      const ObfuscatedFileUtilDiskDelegate&) = delete;
   ~ObfuscatedFileUtilDiskDelegate() override;
 
   bool DirectoryExists(const base::FilePath& path) override;
@@ -35,8 +31,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) ObfuscatedFileUtilDiskDelegate
   NativeFileUtil::CopyOrMoveMode CopyOrMoveModeForDestination(
       const FileSystemURL& dest_url,
       bool copy) override;
-  base::File CreateOrOpen(const base::FilePath& path,
-                          uint32_t file_flags) override;
+  base::File CreateOrOpen(const base::FilePath& path, int file_flags) override;
   base::File::Error EnsureFileExists(const base::FilePath& path,
                                      bool* created) override;
   base::File::Error CreateDirectory(const base::FilePath& path,
@@ -52,14 +47,16 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) ObfuscatedFileUtilDiskDelegate
   base::File::Error CopyOrMoveFile(
       const base::FilePath& src_path,
       const base::FilePath& dest_path,
-      FileSystemOperation::CopyOrMoveOptionSet options,
+      FileSystemOperation::CopyOrMoveOption option,
       NativeFileUtil::CopyOrMoveMode mode) override;
   base::File::Error CopyInForeignFile(
       const base::FilePath& src_path,
       const base::FilePath& dest_path,
-      FileSystemOperation::CopyOrMoveOptionSet options,
+      FileSystemOperation::CopyOrMoveOption option,
       NativeFileUtil::CopyOrMoveMode mode) override;
   base::File::Error DeleteFile(const base::FilePath& path) override;
+
+  DISALLOW_COPY_AND_ASSIGN(ObfuscatedFileUtilDiskDelegate);
 };
 
 }  // namespace storage

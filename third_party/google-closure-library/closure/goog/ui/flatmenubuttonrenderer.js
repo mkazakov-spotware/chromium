@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Similar functionality of {@link goog.ui.MenuButtonRenderer},
@@ -22,9 +30,6 @@ goog.require('goog.ui.Menu');
 goog.require('goog.ui.MenuButton');
 goog.require('goog.ui.MenuRenderer');
 goog.require('goog.ui.registry');
-goog.requireType('goog.ui.Button');
-goog.requireType('goog.ui.Control');
-goog.requireType('goog.ui.ControlContent');
 
 
 
@@ -37,7 +42,6 @@ goog.requireType('goog.ui.ControlContent');
  * @extends {goog.ui.FlatButtonRenderer}
  */
 goog.ui.FlatMenuButtonRenderer = function() {
-  'use strict';
   goog.ui.FlatButtonRenderer.call(this);
 };
 goog.inherits(goog.ui.FlatMenuButtonRenderer, goog.ui.FlatButtonRenderer);
@@ -71,7 +75,6 @@ goog.ui.FlatMenuButtonRenderer.CSS_CLASS =
  * @override
  */
 goog.ui.FlatMenuButtonRenderer.prototype.createDom = function(control) {
-  'use strict';
   var button = /** @type {goog.ui.Button} */ (control);
   var classNames = this.getClassNames(button);
   var element = button.getDomHelper().createDom(
@@ -94,7 +97,6 @@ goog.ui.FlatMenuButtonRenderer.prototype.createDom = function(control) {
  * @override
  */
 goog.ui.FlatMenuButtonRenderer.prototype.getContentElement = function(element) {
-  'use strict';
   return element && /** @type {Element} */ (element.firstChild);
 };
 
@@ -110,7 +112,6 @@ goog.ui.FlatMenuButtonRenderer.prototype.getContentElement = function(element) {
  * @override
  */
 goog.ui.FlatMenuButtonRenderer.prototype.decorate = function(button, element) {
-  'use strict';
   // TODO(user): MenuButtonRenderer uses the exact same code.
   // Refactor this block to its own module where both can use it.
   var menuElem = goog.dom.getElementsByTagNameAndClass(
@@ -132,8 +133,7 @@ goog.ui.FlatMenuButtonRenderer.prototype.decorate = function(button, element) {
       '*', goog.getCssName(this.getCssClass(), 'caption'), element)[0];
   if (!captionElem) {
     element.appendChild(
-        /** @type {!Node} */ (
-            this.createCaption(element.childNodes, button.getDomHelper())));
+        this.createCaption(element.childNodes, button.getDomHelper()));
   }
 
   // Add the dropdown icon if it's not already there.
@@ -160,14 +160,12 @@ goog.ui.FlatMenuButtonRenderer.prototype.decorate = function(button, element) {
  * @param {goog.ui.ControlContent} content Text caption or DOM structure to wrap
  *     in a box.
  * @param {goog.dom.DomHelper} dom DOM helper, used for document interaction.
- * @return {!Element} Caption element.
+ * @return {Element} Caption element.
  */
 goog.ui.FlatMenuButtonRenderer.prototype.createCaption = function(
     content, dom) {
-  'use strict';
   return dom.createDom(
-      goog.dom.TagName.DIV,
-      goog.ui.INLINE_BLOCK_CLASSNAME + ' ' +
+      goog.dom.TagName.DIV, goog.ui.INLINE_BLOCK_CLASSNAME + ' ' +
           goog.getCssName(this.getCssClass(), 'caption'),
       content);
 };
@@ -185,7 +183,6 @@ goog.ui.FlatMenuButtonRenderer.prototype.createCaption = function(
  * @return {!Element} Dropdown element.
  */
 goog.ui.FlatMenuButtonRenderer.prototype.createDropdown = function(dom) {
-  'use strict';
   // 00A0 is &nbsp;
   return dom.createDom(
       goog.dom.TagName.DIV, {
@@ -204,7 +201,6 @@ goog.ui.FlatMenuButtonRenderer.prototype.createDropdown = function(dom) {
  * @override
  */
 goog.ui.FlatMenuButtonRenderer.prototype.getCssClass = function() {
-  'use strict';
   return goog.ui.FlatMenuButtonRenderer.CSS_CLASS;
 };
 
@@ -212,7 +208,6 @@ goog.ui.FlatMenuButtonRenderer.prototype.getCssClass = function() {
 // Register a decorator factory function for Flat Menu Buttons.
 goog.ui.registry.setDecoratorByClassName(
     goog.ui.FlatMenuButtonRenderer.CSS_CLASS, function() {
-      'use strict';
       // Uses goog.ui.MenuButton, but with FlatMenuButtonRenderer.
       return new goog.ui.MenuButton(
           null, null, goog.ui.FlatMenuButtonRenderer.getInstance());

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "base/strings/utf_string_conversions.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
 #include "rlz/lib/assert.h"
 
 namespace rlz_lib {
@@ -68,23 +69,23 @@ bool GetComputerSid(const wchar_t* account_name, SID* sid, DWORD sid_size) {
   return success != FALSE;
 }
 
-std::u16string ConvertSidToString(SID* sid) {
+std::wstring ConvertSidToString(SID* sid) {
   std::wstring sid_string;
   wchar_t* sid_buffer = NULL;
   if (ConvertSidToStringSidW(sid, &sid_buffer)) {
     sid_string = sid_buffer;
     LocalFree(sid_buffer);
   }
-  return base::WideToUTF16(sid_string);
+  return sid_string;
 }
 
 }  // namespace
 
-bool GetRawMachineId(std::u16string* sid_string, int* volume_id) {
+bool GetRawMachineId(base::string16* sid_string, int* volume_id) {
   // Calculate the Windows SID.
 
   wchar_t computer_name[MAX_COMPUTERNAME_LENGTH + 1] = {0};
-  DWORD size = std::size(computer_name);
+  DWORD size = base::size(computer_name);
 
   if (GetComputerNameW(computer_name, &size)) {
     char sid_buffer[SECURITY_MAX_SID_SIZE];

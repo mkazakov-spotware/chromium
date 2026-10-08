@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/time/default_tick_clock.h"
 #include "components/blocked_content/popup_opener_tab_helper.h"
+#include "components/ukm/content/source_url_recorder.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "services/metrics/public/cpp/metrics_utils.h"
@@ -46,11 +47,10 @@ PopupTracker::PopupTracker(content::WebContents* contents,
                            content::WebContents* opener,
                            WindowOpenDisposition disposition)
     : content::WebContentsObserver(contents),
-      content::WebContentsUserData<PopupTracker>(*contents),
       visibility_tracker_(
           base::DefaultTickClock::GetInstance(),
           contents->GetVisibility() != content::Visibility::HIDDEN),
-      opener_source_id_(opener->GetPrimaryMainFrame()->GetPageUkmSourceId()),
+      opener_source_id_(ukm::GetSourceIdForWebContentsDocument(opener)),
       window_open_disposition_(disposition) {
   if (auto* popup_opener = PopupOpenerTabHelper::FromWebContents(opener))
     popup_opener->OnOpenedPopup(this);
@@ -75,13 +75,14 @@ void PopupTracker::WebContentsDestroyed() {
         "ContentSettings.Popups.FirstDocumentEngagementTime2",
         first_load_visible_time);
   }
-  UMA_HISTOGRAM_CUSTOM_TIMES("ContentSettings.Popups.EngagementTime",
-                             total_foreground_duration, base::Milliseconds(1),
-                             base::Hours(6), 50);
+  UMA_HISTOGRAM_CUSTOM_TIMES(
+      "ContentSettings.Popups.EngagementTime", total_foreground_duration,
+      base::TimeDelta::FromMilliseconds(1), base::TimeDelta::FromHours(6), 50);
   if (web_contents()->GetClosedByUserGesture()) {
     UMA_HISTOGRAM_CUSTOM_TIMES(
         "ContentSettings.Popups.EngagementTime.GestureClose",
-        total_foreground_duration, base::Milliseconds(1), base::Hours(6), 50);
+        total_foreground_duration, base::TimeDelta::FromMilliseconds(1),
+        base::TimeDelta::FromHours(6), 50);
   }
 
   if (opener_source_id_ != ukm::kInvalidSourceId) {
@@ -108,12 +109,11 @@ void PopupTracker::WebContentsDestroyed() {
 void PopupTracker::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
   if (!navigation_handle->HasCommitted() ||
-      navigation_handle->IsSameDocument() ||
-      !navigation_handle->IsInPrimaryMainFrame()) {
+      navigation_handle->IsSameDocument()) {
     return;
   }
 
-  if (!first_navigation_committed_) {
+  if (navigation_handle->IsInMainFrame() && !first_navigation_committed_) {
     first_navigation_committed_ = true;
     // The last page in the redirect chain is the current page, the number of
     // redirects is one less than the size of the chain.
@@ -160,9 +160,6 @@ void PopupTracker::OnSafeBrowsingChecksComplete(
     const subresource_filter::SubresourceFilterSafeBrowsingClient::CheckResult&
         result) {
   DCHECK(navigation_handle->IsInMainFrame());
-  if (!navigation_handle->IsInPrimaryMainFrame())
-    return;
-
   safe_browsing_status_ = PopupSafeBrowsingStatus::kSafe;
   if (result.threat_type ==
           safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_PHISHING ||
@@ -175,10 +172,9 @@ void PopupTracker::OnSafeBrowsingChecksComplete(
 }
 
 void PopupTracker::OnSubresourceFilterGoingAway() {
-  DCHECK(scoped_observation_.IsObserving());
-  scoped_observation_.Reset();
+  scoped_observation_.RemoveObservation();
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(PopupTracker);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(PopupTracker)
 
 }  // namespace blocked_content

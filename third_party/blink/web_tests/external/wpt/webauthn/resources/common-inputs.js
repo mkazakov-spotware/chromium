@@ -10,6 +10,7 @@ const PUBLIC_KEY_USER = {
     id: new TextEncoder().encode("123456789"),
     name: "madeline@example.com",
     displayName: "Madeline",
+    icon: "https://example.com/celeste.png"
 };
 
 // ES256.

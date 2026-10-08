@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,17 +14,13 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/callback.h"
-#include "base/functional/callback_helpers.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/sqlite_proto/key_value_table.h"
 #include "components/sqlite_proto/table_manager.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace sqlite_proto {
 
@@ -43,14 +39,12 @@ struct FakeCompare {
 // KeyValueTable<T>. The current implementation caches all the
 // data in the memory. The cache size is limited by the |max_num_entries|
 // parameter, using the Compare function to decide which entries should
-// be evicted. The data is written back to disk periodically and some updates
-// might be lost on shutdown. To prevent this data loss, one can call
-// `FlushDataToDisk()` before shutting down.
+// be evicted.
 //
 // NOTE: If the data store is larger than the maximum cache size, it
 // will be pruned on construction to satisfy the size invariant specified
 // by |max_num_entries|. If this is undesirable, set a sufficiently high
-// |max_num_entries| (or pass |max_num_entries| = absl::nullopt for
+// |max_num_entries| (or pass |max_num_entries| = base::nullopt for
 // unbounded size).
 //
 // InitializeOnDBSequence() must be called on the DB sequence of the
@@ -71,7 +65,7 @@ class KeyValueData {
   // pass writes and deletes through immediately.
   KeyValueData(scoped_refptr<TableManager> manager,
                KeyValueTable<T>* backend,
-               absl::optional<size_t> max_num_entries,
+               base::Optional<size_t> max_num_entries,
                base::TimeDelta flush_delay);
 
   KeyValueData(const KeyValueData&) = delete;
@@ -99,13 +93,6 @@ class KeyValueData {
   // Deletes all entries from the database.
   void DeleteAllData();
 
-  // Force cached updates to be immediately flushed to disk.
-  void FlushDataToDisk();
-
-  // As above, but runs `on_done` when all tasks have finished flushing to disk,
-  // including any previously posted tasks.
-  void FlushDataToDisk(base::OnceClosure on_done);
-
  private:
   struct EntryCompare : private Compare {
     bool operator()(const std::pair<std::string, T>& lhs,
@@ -116,13 +103,15 @@ class KeyValueData {
 
   enum class DeferredOperation { kUpdate, kDelete };
 
+  void FlushDataToDisk();
+
   scoped_refptr<TableManager> manager_;
-  base::WeakPtr<KeyValueTable<T>> backend_table_;
+  KeyValueTable<T>* backend_table_;
   std::unique_ptr<std::map<std::string, T>> data_cache_;
   std::unordered_map<std::string, DeferredOperation> deferred_updates_;
   base::RepeatingTimer flush_timer_;
   const base::TimeDelta flush_delay_;
-  const absl::optional<size_t> max_num_entries_;
+  const base::Optional<size_t> max_num_entries_;
   EntryCompare entry_compare_;
 
   SEQUENCE_CHECKER(sequence_checker_);
@@ -131,10 +120,10 @@ class KeyValueData {
 template <typename T, typename Compare>
 KeyValueData<T, Compare>::KeyValueData(scoped_refptr<TableManager> manager,
                                        KeyValueTable<T>* backend,
-                                       absl::optional<size_t> max_num_entries,
+                                       base::Optional<size_t> max_num_entries,
                                        base::TimeDelta flush_delay)
     : manager_(manager),
-      backend_table_(backend->AsWeakPtr()),
+      backend_table_(backend),
       flush_delay_(flush_delay),
       max_num_entries_(max_num_entries) {}
 
@@ -143,8 +132,9 @@ void KeyValueData<T, Compare>::InitializeOnDBSequence() {
   DCHECK(manager_->GetTaskRunner()->RunsTasksInCurrentSequence());
   auto data_map = std::make_unique<std::map<std::string, T>>();
 
-  manager_->ExecuteDBTaskOnDBSequence(base::BindOnce(
-      &KeyValueTable<T>::GetAllData, backend_table_, data_map.get()));
+  manager_->ExecuteDBTaskOnDBSequence(
+      base::BindOnce(&KeyValueTable<T>::GetAllData, backend_table_->AsWeakPtr(),
+                     data_map.get()));
 
   // To ensure invariant that data_cache_.size() <= max_num_entries_.
   std::vector<std::string> keys_to_delete;
@@ -155,9 +145,9 @@ void KeyValueData<T, Compare>::InitializeOnDBSequence() {
     data_map->erase(entry_to_delete);
   }
   if (!keys_to_delete.empty()) {
-    manager_->ExecuteDBTaskOnDBSequence(
-        base::BindOnce(&KeyValueTable<T>::DeleteData, backend_table_,
-                       std::vector<std::string>(keys_to_delete)));
+    manager_->ExecuteDBTaskOnDBSequence(base::BindOnce(
+        &KeyValueTable<T>::DeleteData, backend_table_->AsWeakPtr(),
+        std::vector<std::string>(keys_to_delete)));
   }
 
   data_cache_ = std::move(data_map);
@@ -228,9 +218,9 @@ void KeyValueData<T, Compare>::DeleteAllData() {
   deferred_updates_.clear();
   // Delete all the content of the database immediately because it was requested
   // by user.
-  manager_->ScheduleDBTask(
-      FROM_HERE,
-      base::BindOnce(&KeyValueTable<T>::DeleteAllData, backend_table_));
+  manager_->ScheduleDBTask(FROM_HERE,
+                           base::BindOnce(&KeyValueTable<T>::DeleteAllData,
+                                          backend_table_->AsWeakPtr()));
 }
 
 template <typename T, typename Compare>
@@ -247,8 +237,9 @@ void KeyValueData<T, Compare>::FlushDataToDisk() {
         auto it = data_cache_->find(key);
         if (it != data_cache_->end()) {
           manager_->ScheduleDBTask(
-              FROM_HERE, base::BindOnce(&KeyValueTable<T>::UpdateData,
-                                        backend_table_, key, it->second));
+              FROM_HERE,
+              base::BindOnce(&KeyValueTable<T>::UpdateData,
+                             backend_table_->AsWeakPtr(), key, it->second));
         }
         break;
       }
@@ -259,21 +250,11 @@ void KeyValueData<T, Compare>::FlushDataToDisk() {
 
   if (!keys_to_delete.empty()) {
     manager_->ScheduleDBTask(
-        FROM_HERE, base::BindOnce(&KeyValueTable<T>::DeleteData, backend_table_,
-                                  keys_to_delete));
+        FROM_HERE, base::BindOnce(&KeyValueTable<T>::DeleteData,
+                                  backend_table_->AsWeakPtr(), keys_to_delete));
   }
 
   deferred_updates_.clear();
-}
-
-template <typename T, typename Compare>
-void KeyValueData<T, Compare>::FlushDataToDisk(base::OnceClosure on_done) {
-  FlushDataToDisk();
-
-  // Wait for all tasks posted to the task runner before now to complete. This
-  // accounts for any previously scheduled updates as well.
-  manager_->ScheduleDBTaskWithReply(FROM_HERE, base::DoNothing(),
-                                    std::move(on_done));
 }
 
 }  // namespace sqlite_proto

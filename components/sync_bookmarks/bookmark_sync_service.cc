@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync_bookmarks/bookmark_sync_service.h"
 
 #include "base/feature_list.h"
+#include "components/sync/driver/sync_driver_switches.h"
 #include "components/sync_bookmarks/bookmark_model_type_processor.h"
 #include "components/undo/bookmark_undo_service.h"
 
@@ -12,12 +13,12 @@ namespace sync_bookmarks {
 
 BookmarkSyncService::BookmarkSyncService(
     BookmarkUndoService* bookmark_undo_service) {
-  bookmark_model_type_processor_ =
-      std::make_unique<sync_bookmarks::BookmarkModelTypeProcessor>(
-          bookmark_undo_service);
+    bookmark_model_type_processor_ =
+        std::make_unique<sync_bookmarks::BookmarkModelTypeProcessor>(
+            bookmark_undo_service);
 }
 
-BookmarkSyncService::~BookmarkSyncService() = default;
+BookmarkSyncService::~BookmarkSyncService() {}
 
 std::string BookmarkSyncService::EncodeBookmarkSyncMetadata() {
   if (!bookmark_model_type_processor_) {
@@ -45,12 +46,6 @@ BookmarkSyncService::GetBookmarkSyncControllerDelegate(
   }
   bookmark_model_type_processor_->SetFaviconService(favicon_service);
   return bookmark_model_type_processor_->GetWeakPtr();
-}
-
-void BookmarkSyncService::SetBookmarksLimitForTesting(size_t limit) {
-  bookmark_model_type_processor_
-      ->SetMaxBookmarksTillSyncEnabledForTest(  // IN-TEST
-          limit);
 }
 
 }  // namespace sync_bookmarks

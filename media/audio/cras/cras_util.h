@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,55 +11,29 @@
 #include <string>
 #include <vector>
 
-#include "media/base/media_export.h"
-
 namespace media {
 
 enum class DeviceType { kInput, kOutput };
 
-struct MEDIA_EXPORT CrasDevice {
+struct CrasDevice {
   CrasDevice();
-  explicit CrasDevice(struct libcras_node_info* node, DeviceType type);
-  explicit CrasDevice(DeviceType type,
-                      uint64_t id,
-                      uint32_t dev_idx,
-                      uint32_t max_supported_channels,
-                      bool plugged,
-                      bool active,
-                      std::string node_type,
-                      std::string name,
-                      std::string dev_name);
-
+  explicit CrasDevice(const cras_ionode_info* node,
+                      const cras_iodev_info* dev,
+                      DeviceType type);
   DeviceType type;
   uint64_t id;
-  uint32_t dev_idx;
-  uint32_t max_supported_channels;
-  bool plugged;
-  bool active;
-  std::string node_type;
   std::string name;
-  std::string dev_name;
 };
 
-class MEDIA_EXPORT CrasUtil {
- public:
-  CrasUtil();
+// Enumerates all devices of |type|.
+std::vector<CrasDevice> CrasGetAudioDevices(DeviceType type);
 
-  virtual ~CrasUtil();
+// Returns if system AEC is supported in CRAS.
+int CrasGetAecSupported();
 
-  // Enumerates all devices of |type|.
-  virtual std::vector<CrasDevice> CrasGetAudioDevices(DeviceType type);
-
-  // Returns if system AEC is supported in CRAS.
-  virtual int CrasGetAecSupported();
-
-  // Returns the system AEC group ID. If no group ID is specified, -1 is
-  // returned.
-  virtual int CrasGetAecGroupId();
-
-  // Returns the default output buffer size.
-  virtual int CrasGetDefaultOutputBufferSize();
-};
+// Returns the system AEC group ID. If no group ID is specified, -1 is
+// returned.
+int CrasGetAecGroupId();
 
 }  // namespace media
 

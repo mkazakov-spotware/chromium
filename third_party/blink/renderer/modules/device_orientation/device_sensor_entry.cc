@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,30 +25,22 @@ DeviceSensorEntry::~DeviceSensorEntry() = default;
 
 void DeviceSensorEntry::Start(
     device::mojom::blink::SensorProvider* sensor_provider) {
-  // If sensor remote is not bound, reset to |kNotInitialized| state (in case
-  // we're in some other state), unless we're currently being initialized (which
-  // is indicated by either |kInitializing| or |kShouldSuspend| state).
-  if (!sensor_remote_.is_bound() && state_ != State::kInitializing &&
-      state_ != State::kShouldSuspend) {
-    state_ = State::kNotInitialized;
-  }
-
-  if (state_ == State::kNotInitialized) {
-    state_ = State::kInitializing;
-    sensor_provider->GetSensor(
-        type_, WTF::BindOnce(&DeviceSensorEntry::OnSensorCreated,
-                             WrapWeakPersistent(this)));
-  } else if (state_ == State::kSuspended) {
+  if (state_ == State::NOT_INITIALIZED) {
+    state_ = State::INITIALIZING;
+    sensor_provider->GetSensor(type_,
+                               WTF::Bind(&DeviceSensorEntry::OnSensorCreated,
+                                         WrapWeakPersistent(this)));
+  } else if (state_ == State::SUSPENDED) {
     sensor_remote_->Resume();
-    state_ = State::kActive;
+    state_ = State::ACTIVE;
     event_pump_->DidStartIfPossible();
-  } else if (state_ == State::kShouldSuspend) {
+  } else if (state_ == State::SHOULD_SUSPEND) {
     // This can happen when calling Start(), Stop(), Start() in a sequence:
     // After the first Start() call, the sensor state is
     // State::INITIALIZING. Then after the Stop() call, the sensor
     // state is State::SHOULD_SUSPEND, and the next Start() call needs
     // to set the sensor state to be State::INITIALIZING again.
-    state_ = State::kInitializing;
+    state_ = State::INITIALIZING;
   } else {
     NOTREACHED();
   }
@@ -57,15 +49,15 @@ void DeviceSensorEntry::Start(
 void DeviceSensorEntry::Stop() {
   if (sensor_remote_.is_bound()) {
     sensor_remote_->Suspend();
-    state_ = State::kSuspended;
-  } else if (state_ == State::kInitializing) {
+    state_ = State::SUSPENDED;
+  } else if (state_ == State::INITIALIZING) {
     // When the sensor needs to be suspended, and it is still in the
     // State::INITIALIZING state, the sensor creation is not affected
     // (the DeviceSensorEntry::OnSensorCreated() callback will run as usual),
     // but the sensor is marked as State::SHOULD_SUSPEND, and when the sensor is
     // created successfully, it will be suspended and its state will be marked
     // as State::SUSPENDED in the DeviceSensorEntry::OnSensorAddConfiguration().
-    state_ = State::kShouldSuspend;
+    state_ = State::SHOULD_SUSPEND;
   }
 }
 
@@ -76,7 +68,7 @@ bool DeviceSensorEntry::IsConnected() const {
 bool DeviceSensorEntry::ReadyOrErrored() const {
   // When some sensors are not available, the pump still needs to fire
   // events which set the unavailable sensor data fields to null.
-  return state_ == State::kActive || state_ == State::kNotInitialized;
+  return state_ == State::ACTIVE || state_ == State::NOT_INITIALIZED;
 }
 
 bool DeviceSensorEntry::GetReading(device::SensorReading* reading) {
@@ -116,7 +108,7 @@ void DeviceSensorEntry::OnSensorCreated(
     device::mojom::blink::SensorInitParamsPtr params) {
   // |state_| can be State::SHOULD_SUSPEND if Stop() is called
   // before OnSensorCreated() is called.
-  DCHECK(state_ == State::kInitializing || state_ == State::kShouldSuspend);
+  DCHECK(state_ == State::INITIALIZING || state_ == State::SHOULD_SUSPEND);
 
   if (!params) {
     HandleSensorError();
@@ -147,31 +139,30 @@ void DeviceSensorEntry::OnSensorCreated(
       static_cast<double>(DeviceSensorEventPump::kDefaultPumpFrequencyHz),
       params->maximum_frequency);
 
-  sensor_remote_.set_disconnect_handler(WTF::BindOnce(
+  sensor_remote_.set_disconnect_handler(WTF::Bind(
       &DeviceSensorEntry::HandleSensorError, WrapWeakPersistent(this)));
   sensor_remote_->ConfigureReadingChangeNotifications(/*enabled=*/false);
   sensor_remote_->AddConfiguration(
-      std::move(config),
-      WTF::BindOnce(&DeviceSensorEntry::OnSensorAddConfiguration,
-                    WrapWeakPersistent(this)));
+      std::move(config), WTF::Bind(&DeviceSensorEntry::OnSensorAddConfiguration,
+                                   WrapWeakPersistent(this)));
 }
 
 void DeviceSensorEntry::OnSensorAddConfiguration(bool success) {
   if (!success)
     HandleSensorError();
 
-  if (state_ == State::kInitializing) {
-    state_ = State::kActive;
+  if (state_ == State::INITIALIZING) {
+    state_ = State::ACTIVE;
     event_pump_->DidStartIfPossible();
-  } else if (state_ == State::kShouldSuspend) {
+  } else if (state_ == State::SHOULD_SUSPEND) {
     sensor_remote_->Suspend();
-    state_ = State::kSuspended;
+    state_ = State::SUSPENDED;
   }
 }
 
 void DeviceSensorEntry::HandleSensorError() {
   sensor_remote_.reset();
-  state_ = State::kNotInitialized;
+  state_ = State::NOT_INITIALIZED;
   shared_buffer_reader_.reset();
   client_receiver_.reset();
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,22 @@
 #import "base/mac/foundation_util.h"
 #import "base/numerics/safe_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "ios/chrome/browser/ui/tab_switcher/tab_grid/grid/grid_view_controller+private.h"
-#import "ios/chrome/browser/ui/tab_switcher/tab_switcher_item.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/grid/grid_item.h"
 #import "ios/chrome/test/root_view_controller_test.h"
-#import "testing/gtest/include/gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
+
+// Test object that exposes the inner state for test verification.
+@interface GridViewController (Testing)
+@property(nonatomic, readonly) NSMutableArray<GridItem*>* items;
+@property(nonatomic, readonly) NSUInteger selectedIndex;
+@property(nonatomic, readonly) UICollectionView* collectionView;
+@property(nonatomic, assign, getter=isViewAppeared) BOOL viewAppeared;
+@end
 
 // Fake object that conforms to GridViewControllerDelegate.
 @interface FakeGridViewControllerDelegate
@@ -24,10 +31,6 @@
 @end
 @implementation FakeGridViewControllerDelegate
 @synthesize itemCount = _itemCount;
-
-- (void)gridViewController:(GridViewController*)gridViewController
-    contentNeedsAuthenticationChanged:(BOOL)needsAuth {
-}
 - (void)gridViewController:(GridViewController*)gridViewController
         didChangeItemCount:(NSUInteger)count {
   self.itemCount = count;
@@ -57,26 +60,6 @@
     (GridViewController*)gridViewController {
   // No-op for unittests.
 }
-- (void)gridViewControllerWillBeginDragging:
-    (GridViewController*)gridViewController {
-  // No-op for unittests.
-}
-
-- (void)gridViewControllerDragSessionWillBegin:
-    (GridViewController*)gridViewController {
-  // No-op for unittests.
-}
-
-- (void)gridViewControllerDragSessionDidEnd:
-    (GridViewController*)gridViewController {
-  // No-op for unittests.
-}
-
-- (void)gridViewControllerScrollViewDidScroll:
-    (GridViewController*)gridViewController {
-  // No-op for unittests.
-}
-
 @end
 
 class GridViewControllerTest : public RootViewControllerTest {
@@ -85,8 +68,8 @@ class GridViewControllerTest : public RootViewControllerTest {
     view_controller_ = [[GridViewController alloc] init];
     [view_controller_ loadView];
     NSArray* items = @[
-      [[TabSwitcherItem alloc] initWithIdentifier:@"A"],
-      [[TabSwitcherItem alloc] initWithIdentifier:@"B"]
+      [[GridItem alloc] initWithIdentifier:@"A"],
+      [[GridItem alloc] initWithIdentifier:@"B"]
     ];
     [view_controller_ populateItems:items selectedItemID:@"A"];
     delegate_ = [[FakeGridViewControllerDelegate alloc] init];
@@ -104,8 +87,7 @@ class GridViewControllerTest : public RootViewControllerTest {
 TEST_F(GridViewControllerTest, InitializeItems) {
   // Previously: The grid had 2 items and selectedIndex was 0. The delegate had
   // an itemCount of 2.
-  TabSwitcherItem* item =
-      [[TabSwitcherItem alloc] initWithIdentifier:@"NEW-ITEM"];
+  GridItem* item = [[GridItem alloc] initWithIdentifier:@"NEW-ITEM"];
   [view_controller_ populateItems:@[ item ] selectedItemID:@"NEW-ITEM"];
   EXPECT_NSEQ(@"NEW-ITEM", view_controller_.items[0].identifier);
   EXPECT_EQ(1U, view_controller_.items.count);
@@ -117,10 +99,9 @@ TEST_F(GridViewControllerTest, InitializeItems) {
 TEST_F(GridViewControllerTest, InsertItem) {
   // Previously: The grid had 2 items and selectedIndex was 0. The delegate had
   // an itemCount of 2.
-  [view_controller_
-          insertItem:[[TabSwitcherItem alloc] initWithIdentifier:@"NEW-ITEM"]
-             atIndex:2
-      selectedItemID:@"NEW-ITEM"];
+  [view_controller_ insertItem:[[GridItem alloc] initWithIdentifier:@"NEW-ITEM"]
+                       atIndex:2
+                selectedItemID:@"NEW-ITEM"];
   EXPECT_EQ(3U, view_controller_.items.count);
   EXPECT_EQ(2U, view_controller_.selectedIndex);
   EXPECT_EQ(3U, delegate_.itemCount);
@@ -160,8 +141,7 @@ TEST_F(GridViewControllerTest, SelectNonexistentItem) {
 TEST_F(GridViewControllerTest, ReplaceItem) {
   // Previously: The grid had 2 items and selectedIndex was 0. The delegate had
   // an itemCount of 2.
-  TabSwitcherItem* item =
-      [[TabSwitcherItem alloc] initWithIdentifier:@"NEW-ITEM"];
+  GridItem* item = [[GridItem alloc] initWithIdentifier:@"NEW-ITEM"];
   [view_controller_ replaceItemID:@"A" withItem:item];
   EXPECT_NSEQ(@"NEW-ITEM", view_controller_.items[0].identifier);
   EXPECT_EQ(2U, delegate_.itemCount);
@@ -171,7 +151,7 @@ TEST_F(GridViewControllerTest, ReplaceItem) {
 TEST_F(GridViewControllerTest, ReplaceItemSameIdentifier) {
   // Previously: The grid had 2 items and selectedIndex was 0. The delegate had
   // an itemCount of 2.
-  TabSwitcherItem* item = [[TabSwitcherItem alloc] initWithIdentifier:@"A"];
+  GridItem* item = [[GridItem alloc] initWithIdentifier:@"A"];
   item.title = @"NEW-ITEM-TITLE";
   [view_controller_ replaceItemID:@"A" withItem:item];
   EXPECT_NSEQ(@"A", view_controller_.items[0].identifier);
@@ -183,8 +163,7 @@ TEST_F(GridViewControllerTest, ReplaceItemSameIdentifier) {
 TEST_F(GridViewControllerTest, ReplaceItemNotFound) {
   // Previously: The grid had 2 items and selectedIndex was 0. The delegate had
   // an itemCount of 2.
-  TabSwitcherItem* item =
-      [[TabSwitcherItem alloc] initWithIdentifier:@"NOT-FOUND"];
+  GridItem* item = [[GridItem alloc] initWithIdentifier:@"NOT-FOUND"];
   [view_controller_ replaceItemID:@"NOT-FOUND" withItem:item];
   EXPECT_NSNE(@"NOT-FOUND", view_controller_.items[0].identifier);
   EXPECT_NSNE(@"NOT-FOUND", view_controller_.items[1].identifier);
@@ -211,12 +190,16 @@ TEST_F(GridViewControllerTest, MoveUnselectedItem) {
   EXPECT_EQ(2U, delegate_.itemCount);
 }
 
-// Tests that `-replaceItemID:withItem:` does not crash when updating an item
+// Tests that |-replaceItemID:withItem:| does not crash when updating an item
 // that is scrolled offscreen.
-// TODO(crbug.com/1104872): On iOS 14 iPhone X, visibleCellsCount is always
-// equal to the total number of cells, so the while loop below never
-// terminates.
 TEST_F(GridViewControllerTest, DISABLED_ReplaceScrolledOffScreenCell) {
+  // TODO(crbug.com/1104872): On iOS 14 iPhone X, visibleCellsCount is always
+  // equal to the total number of cells, so the while loop below never
+  // terminates.
+  if (@available(iOS 14, *)) {
+    return;
+  }
+
   // This test requires that the collection view be placed on the screen.
   SetRootViewController(view_controller_);
   EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
@@ -232,14 +215,12 @@ TEST_F(GridViewControllerTest, DISABLED_ReplaceScrolledOffScreenCell) {
   while (visibleCellsCount >= items.count) {
     NSString* uniqueID =
         [NSString stringWithFormat:@"%d", base::checked_cast<int>(items.count)];
-    TabSwitcherItem* item =
-        [[TabSwitcherItem alloc] initWithIdentifier:uniqueID];
+    GridItem* item = [[GridItem alloc] initWithIdentifier:uniqueID];
     [view_controller_ insertItem:item atIndex:0 selectedItemID:@"A"];
     visibleCellsCount = view_controller_.collectionView.visibleCells.count;
   }
   // The last item ("B") is scrolled off screen.
-  TabSwitcherItem* item =
-      [[TabSwitcherItem alloc] initWithIdentifier:@"NEW-ITEM"];
+  GridItem* item = [[GridItem alloc] initWithIdentifier:@"NEW-ITEM"];
   // Do not crash due to cell being nil.
   [view_controller_ replaceItemID:@"B" withItem:item];
 }

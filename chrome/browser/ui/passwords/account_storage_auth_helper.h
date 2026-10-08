@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_PASSWORDS_ACCOUNT_STORAGE_AUTH_HELPER_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/signin_view_controller.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
@@ -17,7 +16,6 @@ class PasswordFeatureManager;
 
 namespace signin {
 enum class ReauthResult;
-class IdentityManager;
 }
 
 namespace signin_metrics {
@@ -25,21 +23,15 @@ enum class ReauthAccessPoint;
 }
 
 class SigninViewController;
+class Profile;
 
 // Responsible for triggering authentication flows related to the passwords
 // account storage. Used only by desktop.
 class AccountStorageAuthHelper {
  public:
-  // |identity_manager| can be null (e.g. in incognito).
-  // |password_feature_manager| must be non-null and outlive this object.
-  // |signin_view_controller_getter| is passed rather than SigninViewController
-  // because the controller is per window, while this helper is per tab. It
-  // may return null.
   AccountStorageAuthHelper(
-      signin::IdentityManager* identity_manager,
-      password_manager::PasswordFeatureManager* password_feature_manager,
-      base::RepeatingCallback<SigninViewController*()>
-          signin_view_controller_getter);
+      Profile* profile,
+      password_manager::PasswordFeatureManager* password_feature_manager);
   ~AccountStorageAuthHelper();
 
   AccountStorageAuthHelper(const AccountStorageAuthHelper&) = delete;
@@ -59,6 +51,12 @@ class AccountStorageAuthHelper {
   // metrics recording and represents where the sign-in was triggered.
   void TriggerSignIn(signin_metrics::AccessPoint access_point);
 
+  void SetSigninViewControllerGetterForTesting(
+      base::RepeatingCallback<SigninViewController*()>
+          signin_view_controller_getter) {
+    signin_view_controller_getter_ = std::move(signin_view_controller_getter);
+  }
+
  private:
   void OnOptInReauthCompleted(
       base::OnceCallback<
@@ -66,12 +64,11 @@ class AccountStorageAuthHelper {
           reauth_callback,
       signin::ReauthResult result);
 
-  const raw_ptr<signin::IdentityManager> identity_manager_;
+  Profile* const profile_;
 
-  const raw_ptr<password_manager::PasswordFeatureManager>
-      password_feature_manager_;
+  password_manager::PasswordFeatureManager* const password_feature_manager_;
 
-  const base::RepeatingCallback<SigninViewController*()>
+  base::RepeatingCallback<SigninViewController*()>
       signin_view_controller_getter_;
 
   // Aborts ongoing reauths if AccountStorageAuthHelper gets destroyed.

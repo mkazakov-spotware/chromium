@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
@@ -85,8 +86,8 @@ CGaiaCredentialProviderModule::UpdateRegistryAppId(BOOL do_register) throw() {
       base::win::WStringFromGUID(CLSID_CGaiaCredentialProviderFilter);
 
   ATL::_ATL_REGMAP_ENTRY regmap[] = {
-      {L"CP_CLASS_GUID", provider_guid_string.c_str()},
-      {L"CP_FILTER_CLASS_GUID", filter_guid_string.c_str()},
+      {L"CP_CLASS_GUID", base::as_wcstr(provider_guid_string.c_str())},
+      {L"CP_FILTER_CLASS_GUID", base::as_wcstr(filter_guid_string.c_str())},
       {L"VERSION", TEXT(CHROME_VERSION_STRING)},
       {L"EVENTLOG_PATH", eventlog_path.value().c_str()},
       {nullptr, nullptr},

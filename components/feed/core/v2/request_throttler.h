@@ -1,21 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_FEED_CORE_V2_REQUEST_THROTTLER_H_
 #define COMPONENTS_FEED_CORE_V2_REQUEST_THROTTLER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "components/feed/core/v2/enums.h"
 
 class PrefService;
+namespace base {
+class Clock;
+}  // namespace base
 
 namespace feed {
 
 // Limits number of network requests that can be made each day.
 class RequestThrottler {
  public:
-  explicit RequestThrottler(PrefService* pref_service);
+  RequestThrottler(PrefService* pref_service, const base::Clock* clock);
 
   RequestThrottler(const RequestThrottler&) = delete;
   RequestThrottler& operator=(const RequestThrottler&) = delete;
@@ -28,7 +30,10 @@ class RequestThrottler {
   void ResetCountersIfDayChanged();
 
   // Provides durable storage.
-  raw_ptr<PrefService> pref_service_;
+  PrefService* pref_service_;
+
+  // Used to access current time, injected for testing.
+  const base::Clock* clock_;
 };
 
 }  // namespace feed

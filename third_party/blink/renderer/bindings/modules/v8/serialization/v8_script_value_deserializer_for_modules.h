@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,8 @@
 
 namespace blink {
 
-class AudioData;
-class CropTarget;
 class CryptoKey;
-class EncodedAudioChunk;
-class EncodedVideoChunk;
-class FileSystemHandle;
-class MediaSourceHandleImpl;
+class NativeFileSystemHandle;
 class RTCEncodedAudioFrame;
 class RTCEncodedVideoFrame;
 class VideoFrame;
@@ -39,9 +34,6 @@ class MODULES_EXPORT V8ScriptValueDeserializerForModules final
       const Options& options = Options())
       : V8ScriptValueDeserializer(script_state, std::move(value), options) {}
 
-  static bool ExecutionContextExposesInterface(ExecutionContext*,
-                                               SerializationTag interface_tag);
-
  protected:
   ScriptWrappable* ReadDOMObject(SerializationTag, ExceptionState&) override;
 
@@ -54,16 +46,10 @@ class MODULES_EXPORT V8ScriptValueDeserializerForModules final
     return true;
   }
   CryptoKey* ReadCryptoKey();
-  FileSystemHandle* ReadFileSystemHandle(SerializationTag tag);
+  NativeFileSystemHandle* ReadNativeFileSystemHandle(SerializationTag tag);
   RTCEncodedAudioFrame* ReadRTCEncodedAudioFrame();
   RTCEncodedVideoFrame* ReadRTCEncodedVideoFrame();
-  AudioData* ReadAudioData();
   VideoFrame* ReadVideoFrame();
-  EncodedAudioChunk* ReadEncodedAudioChunk();
-  EncodedVideoChunk* ReadEncodedVideoChunk();
-  MediaStreamTrack* ReadMediaStreamTrack();
-  CropTarget* ReadCropTarget();
-  MediaSourceHandleImpl* ReadMediaSourceHandle();
 };
 
 }  // namespace blink

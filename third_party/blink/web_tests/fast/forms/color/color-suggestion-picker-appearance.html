@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/picker-common.js"></script>
-
-<input type=color value="#ff0000" list=gray focus>
+<html>
+<head>
+<script>
+window.enablePixelTesting = true;
+</script>
+<script src="../../../resources/js-test.js"></script>
+<script src="../../forms/resources/picker-common.js"></script>
+</head>
+<body>
+<input type=color id=color value="#ff0000" list=gray focus>
 <datalist id=gray>
     <option>#ffffff</option>
     <option>#eeeeee</option>
@@ -25,14 +30,22 @@
     <option>red</option> <!--invalid-->
 </datalist>
 
+<p id="description" style="opacity: 0"></p>
+<div id="console" style="opacity: 0"></div>
+
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('input'),() => {
-    internals.pagePopupWindow.focus();
+openPickerAppearanceOnly(document.getElementById('color'), test);
+
+function test() {
+    popupWindow.focus();
     eventSender.keyDown('ArrowDown');
     eventSender.keyDown('ArrowDown');
     eventSender.keyDown('ArrowDown');
     eventSender.keyDown('ArrowLeft');
     eventSender.keyDown('ArrowUp');
     eventSender.keyDown('ArrowRight');
-  });
+    finishJSTest();
+}
 </script>
+</body>
+</html>

@@ -1,11 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/trees/de_jelly_state.h"
-
-#include <algorithm>
-#include <utility>
 
 #include "cc/trees/layer_tree_impl.h"
 #include "cc/trees/scroll_node.h"
@@ -30,11 +27,10 @@ void DeJellyState::AdvanceFrame(LayerTreeImpl* layer_tree_impl) {
 
   // Make sure we have an active scroll node. Otherwise we won't perform any
   // de-jelly.
-  const ScrollNode* current_scroll =
-      layer_tree_impl->property_trees()->scroll_tree().Node(
+  ScrollNode* current_scroll =
+      layer_tree_impl->property_trees()->scroll_tree.Node(
           layer_tree_impl->property_trees()
-              ->scroll_tree()
-              .currently_scrolling_node());
+              ->scroll_tree.currently_scrolling_node());
   if (!current_scroll) {
     new_scroll_node_transform_.reset();
     return;
@@ -45,16 +41,16 @@ void DeJellyState::AdvanceFrame(LayerTreeImpl* layer_tree_impl) {
   // Check to make sure the ToScreen transform of our scroll node is not a
   // complex transform (doesn't work well with de-jelly). Also make sure the
   // scale is not changing.
-  absl::optional<gfx::Transform> previous_scroll_transform =
+  base::Optional<gfx::Transform> previous_scroll_transform =
       new_scroll_node_transform_;
   new_scroll_node_transform_ =
-      layer_tree_impl->property_trees()->transform_tree().ToScreen(
+      layer_tree_impl->property_trees()->transform_tree.ToScreen(
           current_scroll->transform_id);
   if (!previous_scroll_transform ||
       !previous_scroll_transform->IsScaleOrTranslation() ||
       !new_scroll_node_transform_->IsScaleOrTranslation() ||
-      new_scroll_node_transform_->To2dScale() !=
-          previous_scroll_transform->To2dScale()) {
+      new_scroll_node_transform_->Scale2d() !=
+          previous_scroll_transform->Scale2d()) {
     return;
   }
 
@@ -62,13 +58,12 @@ void DeJellyState::AdvanceFrame(LayerTreeImpl* layer_tree_impl) {
   // scroll offset of the currently scrolling node.
   float previous_scroll_offset = scroll_offset_;
   scroll_offset_ = layer_tree_impl->property_trees()
-                       ->transform_tree()
-                       .Node(scroll_transform_node_)
+                       ->transform_tree.Node(scroll_transform_node_)
                        ->scroll_offset.y();
-  float scroll_delta = scroll_offset_ - previous_scroll_offset;
-  fallback_delta_y_ =
-      new_scroll_node_transform_->MapVector(gfx::Vector3dF(0, scroll_delta, 0))
-          .y();
+  fallback_delta_y_ = scroll_offset_ - previous_scroll_offset;
+  gfx::Vector3dF vector(0, fallback_delta_y_, 0);
+  new_scroll_node_transform_->TransformVector(&vector);
+  fallback_delta_y_ = vector.y();
 
   // Don't attempt de-jelly while the omnibox is transitioning in or out. There
   // is no correct way to handle this.
@@ -99,8 +94,8 @@ void DeJellyState::UpdateSharedQuadState(
   bool does_not_scroll = false;
   auto node_id = transform_id;
   while (node_id != scroll_transform_node_ && node_id != kInvalidNodeId) {
-    const auto* current_node =
-        layer_tree_impl->property_trees()->transform_tree().Node(node_id);
+    auto* current_node =
+        layer_tree_impl->property_trees()->transform_tree.Node(node_id);
 
     // Position fixed.
     if (current_node->moved_by_outer_viewport_bounds_delta_y) {
@@ -111,8 +106,7 @@ void DeJellyState::UpdateSharedQuadState(
     if (current_node->sticky_position_constraint_id > -1) {
       const StickyPositionNodeData* sticky_data =
           layer_tree_impl->property_trees()
-              ->transform_tree()
-              .GetStickyPositionData(node_id);
+              ->transform_tree.GetStickyPositionData(node_id);
       if (sticky_data &&
           sticky_data->total_containing_block_sticky_offset.y() > 0.0f) {
         does_not_scroll = true;
@@ -128,8 +122,7 @@ void DeJellyState::UpdateSharedQuadState(
 
   // Get the current node's ToScreen transform.
   gfx::Transform transform =
-      layer_tree_impl->property_trees()->transform_tree().ToScreen(
-          transform_id);
+      layer_tree_impl->property_trees()->transform_tree.ToScreen(transform_id);
   new_transforms_[transform_id] = transform;
 
   // Get the previous transform (if any).
@@ -141,8 +134,10 @@ void DeJellyState::UpdateSharedQuadState(
   } else {
     // Calculate the delta of point (0, 0) from the previous frame.
     gfx::Transform previous_transform = found->second;
-    gfx::PointF new_point = transform.MapPoint(gfx::PointF(0, 0));
-    gfx::PointF old_point = previous_transform.MapPoint(gfx::PointF(0, 0));
+    gfx::PointF new_point(0, 0);
+    transform.TransformPoint(&new_point);
+    gfx::PointF old_point(0, 0);
+    previous_transform.TransformPoint(&old_point);
     delta_y = old_point.y() - new_point.y();
   }
 

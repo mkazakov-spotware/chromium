@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <limits>
 
 #include "base/metrics/histogram_macros.h"
-#include "base/trace_event/trace_event.h"
 #include "third_party/blink/public/platform/web_effective_connection_type.h"
 #include "third_party/blink/public/web/web_local_frame_client.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -16,17 +15,19 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_client.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
+#include "third_party/blink/renderer/core/geometry/dom_rect_read_only.h"
 #include "third_party/blink/renderer/core/html/html_frame_owner_element.h"
-#include "third_party/blink/renderer/core/html/loading_attribute.h"
 #include "third_party/blink/renderer/core/intersection_observer/intersection_observer.h"
 #include "third_party/blink/renderer/core/intersection_observer/intersection_observer_entry.h"
 #include "third_party/blink/renderer/core/loader/frame_load_request.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/geometry/length.h"
+#include "third_party/blink/renderer/platform/heap/visitor.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
 #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -44,14 +45,12 @@ bool IsFrameProbablyHidden(const PhysicalRect& bounding_client_rect,
   // Tiny frames that are 4x4 or smaller are likely not intended to be seen by
   // the user. Note that this condition includes frames marked as
   // "display:none", since those frames would have dimensions of 0x0.
-  if (bounding_client_rect.Width() <= 4.0f ||
-      bounding_client_rect.Height() <= 4.0f)
+  if (bounding_client_rect.Width() < 4.1 || bounding_client_rect.Height() < 4.1)
     return true;
 
   // Frames that are positioned completely off the page above or to the left are
   // likely never intended to be visible to the user.
-  if (bounding_client_rect.Right() < 0.0f ||
-      bounding_client_rect.Bottom() < 0.0f)
+  if (bounding_client_rect.Right() < 0.0 || bounding_client_rect.Bottom() < 0.0)
     return true;
 
   const ComputedStyle* style = element.GetComputedStyle();
@@ -141,27 +140,21 @@ void LazyLoadFrameObserver::CancelPendingLazyLoad() {
 
 void LazyLoadFrameObserver::LoadIfHiddenOrNearViewport(
     const HeapVector<Member<IntersectionObserverEntry>>& entries) {
-  DCHECK(!entries.empty());
+  DCHECK(!entries.IsEmpty());
   DCHECK_EQ(element_, entries.back()->target());
 
   if (entries.back()->isIntersecting()) {
     RecordInitialDeferralAction(
         FrameInitialDeferralAction::kLoadedNearOrInViewport);
-    LoadImmediately();
-    return;
-  }
-
-  LoadingAttributeValue loading_attr = GetLoadingAttributeValue(
-      element_->FastGetAttribute(html_names::kLoadingAttr));
-  if (loading_attr != LoadingAttributeValue::kLazy &&
-      IsFrameProbablyHidden(entries.back()->GetGeometry().TargetRect(),
-                            *element_)) {
+  } else if (IsFrameProbablyHidden(entries.back()->GetGeometry().TargetRect(),
+                                   *element_)) {
     RecordInitialDeferralAction(FrameInitialDeferralAction::kLoadedHidden);
-    LoadImmediately();
+  } else {
+    RecordInitialDeferralAction(FrameInitialDeferralAction::kDeferred);
     return;
   }
 
-  RecordInitialDeferralAction(FrameInitialDeferralAction::kDeferred);
+  LoadImmediately();
 }
 
 void LazyLoadFrameObserver::LoadImmediately() {
@@ -176,6 +169,8 @@ void LazyLoadFrameObserver::LoadImmediately() {
     UMA_HISTOGRAM_ENUMERATION(
         "Blink.LazyLoad.CrossOriginFrames.LoadStartedAfterBeingDeferred",
         GetNetworkStateNotifier().EffectiveType());
+    element_->GetDocument().GetFrame()->Client()->DidObserveLazyLoadBehavior(
+        WebLocalFrameClient::LazyLoadBehavior::kLazyLoadedFrame);
   }
 
   std::unique_ptr<LazyLoadRequestInfo> scoped_request_info =
@@ -219,13 +214,10 @@ void LazyLoadFrameObserver::StartTrackingVisibilityMetrics() {
 
 void LazyLoadFrameObserver::RecordMetricsOnVisibilityChanged(
     const HeapVector<Member<IntersectionObserverEntry>>& entries) {
-  DCHECK(!entries.empty());
+  DCHECK(!entries.IsEmpty());
   DCHECK_EQ(element_, entries.back()->target());
 
-  LoadingAttributeValue loading_attr = GetLoadingAttributeValue(
-      element_->FastGetAttribute(html_names::kLoadingAttr));
-  if (loading_attr != LoadingAttributeValue::kLazy &&
-      IsFrameProbablyHidden(entries.back()->GetGeometry().TargetRect(),
+  if (IsFrameProbablyHidden(entries.back()->GetGeometry().TargetRect(),
                             *element_)) {
     visibility_metrics_observer_->disconnect();
     visibility_metrics_observer_.Clear();
@@ -262,9 +254,9 @@ void LazyLoadFrameObserver::RecordMetricsOnVisibilityChanged(
   if (time_when_first_load_finished_.is_null() &&
       !is_initially_above_the_fold_) {
     // Note: If the WebEffectiveConnectionType enum ever gets out of sync with
-    // mojom::blink::EffectiveConnectionType, then this will have to be updated
-    // to record the sample in terms of mojom::blink::EffectiveConnectionType
-    // instead of WebEffectiveConnectionType.
+    // net::EffectiveConnectionType, then this will have to be updated to record
+    // the sample in terms of net::EffectiveConnectionType instead of
+    // WebEffectiveConnectionType.
     UMA_HISTOGRAM_ENUMERATION(
         "Blink.VisibleBeforeLoaded.LazyLoadEligibleFrames.BelowTheFold",
         GetNetworkStateNotifier().EffectiveType());
@@ -295,7 +287,7 @@ void LazyLoadFrameObserver::RecordVisibilityMetricsIfLoadedAndVisible() {
 
   base::TimeDelta visible_load_delay =
       time_when_first_load_finished_ - time_when_first_visible_;
-  if (visible_load_delay.is_negative())
+  if (visible_load_delay < base::TimeDelta())
     visible_load_delay = base::TimeDelta();
 
   switch (GetNetworkStateNotifier().EffectiveType()) {
@@ -393,8 +385,11 @@ void LazyLoadFrameObserver::RecordInitialDeferralAction(
       break;
   }
 
-  if (action == FrameInitialDeferralAction::kDeferred)
+  if (action == FrameInitialDeferralAction::kDeferred) {
+    element_->GetDocument().GetFrame()->Client()->DidObserveLazyLoadBehavior(
+        WebLocalFrameClient::LazyLoadBehavior::kDeferredFrame);
     was_recorded_as_deferred_ = true;
+  }
 }
 
 void LazyLoadFrameObserver::Trace(Visitor* visitor) const {

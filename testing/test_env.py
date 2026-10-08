@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,6 +13,15 @@ import subprocess
 import sys
 import time
 
+SIX_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'third_party',
+    'six')
+sys.path.insert(0, SIX_DIR)
+
+try:
+  import six
+except ImportError:
+  raise Exception('Failed to import six. Run under vpython or install six.')
 
 # This is hardcoded to be src/ relative to this script.
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,8 +48,7 @@ def get_sandbox_env(env):
 def trim_cmd(cmd):
   """Removes internal flags from cmd since they're just used to communicate from
   the host machine to this script running on the swarm slaves."""
-  sanitizers = ['asan', 'lsan', 'msan', 'tsan', 'coverage-continuous-mode',
-                'skip-set-lpac-acls']
+  sanitizers = ['asan', 'lsan', 'msan', 'tsan']
   internal_flags = frozenset('--%s=%d' % (name, value)
                              for name in sanitizers
                              for value in [0, 1])
@@ -57,8 +65,8 @@ def fix_python_path(cmd):
   return out
 
 
-def get_sanitizer_env(asan, lsan, msan, tsan, cfi_diag):
-  """Returns the environment flags needed for sanitizer tools."""
+def get_sanitizer_env(cmd, asan, lsan, msan, tsan, cfi_diag):
+  """Returns the envirnoment flags needed for sanitizer tools."""
 
   extra_env = {}
 
@@ -95,13 +103,16 @@ def get_sanitizer_env(asan, lsan, msan, tsan, cfi_diag):
     asan_options = symbolization_options[:]
     if lsan:
       asan_options.append('detect_leaks=1')
-      # LSan appears to have trouble with later versions of glibc.
-      # See https://github.com/google/sanitizers/issues/1322
-      if 'linux' in sys.platform:
-        asan_options.append('intercept_tls_get_addr=0')
 
     if asan_options:
       extra_env['ASAN_OPTIONS'] = ' '.join(asan_options)
+
+    if sys.platform == 'darwin':
+      isolate_output_dir = os.path.abspath(os.path.dirname(cmd[0]))
+      # This is needed because the test binary has @executable_path embedded in
+      # it that the OS tries to resolve to the cache directory and not the
+      # mapped directory.
+      extra_env['DYLD_LIBRARY_PATH'] = str(isolate_output_dir)
 
   if lsan:
     if asan or msan:
@@ -120,8 +131,6 @@ def get_sanitizer_env(asan, lsan, msan, tsan, cfi_diag):
     if lsan:
       msan_options.append('detect_leaks=1')
     extra_env['MSAN_OPTIONS'] = ' '.join(msan_options)
-    extra_env['VK_ICD_FILENAMES'] = ''
-    extra_env['LIBGL_DRIVERS_PATH'] = ''
 
   if tsan:
     tsan_options = symbolization_options[:]
@@ -134,18 +143,6 @@ def get_sanitizer_env(asan, lsan, msan, tsan, cfi_diag):
 
   return extra_env
 
-def get_coverage_continuous_mode_env(env):
-  """Append %c (clang code coverage continuous mode) flag to LLVM_PROFILE_FILE
-  pattern string."""
-  llvm_profile_file = env.get('LLVM_PROFILE_FILE')
-  if not llvm_profile_file:
-    return {}
-
-  dirname, basename = os.path.split(llvm_profile_file)
-  root, ext = os.path.splitext(basename)
-  return {
-    'LLVM_PROFILE_FILE': os.path.join(dirname, root + "%c" + ext)
-  }
 
 def get_sanitizer_symbolize_command(json_path=None, executable_path=None):
   """Construct the command to invoke offline symbolization script."""
@@ -193,12 +190,12 @@ def run_command_with_output(argv, stdoutfile, env=None, cwd=None):
   """Run command and stream its stdout/stderr to the console & |stdoutfile|.
 
   Also forward_signals to obey
-  https://chromium.googlesource.com/infra/luci/luci-py/+/main/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
+  https://chromium.googlesource.com/infra/luci/luci-py/+/master/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
 
   Returns:
     integer returncode of the subprocess.
   """
-  print('Running %r in %r (env: %r)' % (argv, cwd, env), file=sys.stderr)
+  print('Running %r in %r (env: %r)' % (argv, cwd, env))
   assert stdoutfile
   with io.open(stdoutfile, 'wb') as writer, \
       io.open(stdoutfile, 'rb', 1) as reader:
@@ -206,14 +203,13 @@ def run_command_with_output(argv, stdoutfile, env=None, cwd=None):
                      stderr=subprocess.STDOUT)
     forward_signals([process])
     while process.poll() is None:
-      sys.stdout.write(reader.read().decode('utf-8'))
+      sys.stdout.write(reader.read())
       # This sleep is needed for signal propagation. See the
       # wait_with_signals() docstring.
       time.sleep(0.1)
     # Read the remaining.
-    sys.stdout.write(reader.read().decode('utf-8'))
-    print('Command %r returned exit code %d' % (argv, process.returncode),
-          file=sys.stderr)
+    sys.stdout.write(reader.read())
+    print('Command %r returned exit code %d' % (argv, process.returncode))
     return process.returncode
 
 
@@ -221,26 +217,23 @@ def run_command(argv, env=None, cwd=None, log=True):
   """Run command and stream its stdout/stderr both to stdout.
 
   Also forward_signals to obey
-  https://chromium.googlesource.com/infra/luci/luci-py/+/main/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
+  https://chromium.googlesource.com/infra/luci/luci-py/+/master/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
 
   Returns:
     integer returncode of the subprocess.
   """
   if log:
-    print('Running %r in %r (env: %r)' % (argv, cwd, env), file=sys.stderr)
+    print('Running %r in %r (env: %r)' % (argv, cwd, env))
   process = _popen(argv, env=env, cwd=cwd, stderr=subprocess.STDOUT)
   forward_signals([process])
-  exit_code = wait_with_signals(process)
-  if log:
-    print('Command returned exit code %d' % exit_code, file=sys.stderr)
-  return exit_code
+  return wait_with_signals(process)
 
 
 def run_command_output_to_handle(argv, file_handle, env=None, cwd=None):
   """Run command and stream its stdout/stderr both to |file_handle|.
 
   Also forward_signals to obey
-  https://chromium.googlesource.com/infra/luci/luci-py/+/main/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
+  https://chromium.googlesource.com/infra/luci/luci-py/+/master/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
 
   Returns:
     integer returncode of the subprocess.
@@ -280,7 +273,7 @@ def forward_signals(procs):
   """Forwards unix's SIGTERM or win's CTRL_BREAK_EVENT to the given processes.
 
   This plays nicely with swarming's timeout handling. See also
-  https://chromium.googlesource.com/infra/luci/luci-py/+/main/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
+  https://chromium.googlesource.com/infra/luci/luci-py/+/master/appengine/swarming/doc/Bot.md#graceful-termination_aka-the-sigterm-and-sigkill-dance
 
   Args:
       procs: A list of subprocess.Popen objects representing child processes.
@@ -291,21 +284,18 @@ def forward_signals(procs):
       if p.poll() is not None:
         continue
       # SIGBREAK is defined only for win32.
-      # pylint: disable=no-member
       if sys.platform == 'win32' and sig == signal.SIGBREAK:
         p.send_signal(signal.CTRL_BREAK_EVENT)
       else:
-        print("Forwarding signal(%d) to process %d" % (sig, p.pid))
         p.send_signal(sig)
-      # pylint: enable=no-member
   if sys.platform == 'win32':
-    signal.signal(signal.SIGBREAK, _sig_handler) # pylint: disable=no-member
+    signal.signal(signal.SIGBREAK, _sig_handler)
   else:
     signal.signal(signal.SIGTERM, _sig_handler)
     signal.signal(signal.SIGINT, _sig_handler)
 
 
-def run_executable(cmd, env, stdoutfile=None, cwd=None):
+def run_executable(cmd, env, stdoutfile=None):
   """Runs an executable with:
     - CHROME_HEADLESS set to indicate that the test is running on a
       bot and shouldn't do anything interactive like show modal dialogs.
@@ -343,23 +333,11 @@ def run_executable(cmd, env, stdoutfile=None, cwd=None):
     use_symbolization_script = (asan or msan or cfi_diag or lsan or tsan)
 
   if asan or lsan or msan or tsan or cfi_diag:
-    extra_env.update(get_sanitizer_env(asan, lsan, msan, tsan, cfi_diag))
+    extra_env.update(get_sanitizer_env(cmd, asan, lsan, msan, tsan, cfi_diag))
 
   if lsan or tsan:
     # LSan and TSan are not sandbox-friendly.
     cmd.append('--no-sandbox')
-
-  # Enable clang code coverage continuous mode.
-  if '--coverage-continuous-mode=1' in cmd:
-    extra_env.update(get_coverage_continuous_mode_env(env))
-
-  # pylint: disable=import-outside-toplevel
-  if '--skip-set-lpac-acls=1' not in cmd and sys.platform == 'win32':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-        'scripts'))
-    from scripts import common
-    common.set_lpac_acls(ROOT_DIR, is_test_script=True)
-  # pylint: enable=import-outside-toplevel
 
   cmd = trim_cmd(cmd)
 
@@ -376,23 +354,20 @@ def run_executable(cmd, env, stdoutfile=None, cwd=None):
 
   print('Additional test environment:\n%s\n'
         'Command: %s\n' % (
-        '\n'.join('    %s=%s' % (k, v)
-                  for k, v in sorted(env_to_print.items())),
+        '\n'.join('    %s=%s' %
+            (k, v) for k, v in sorted(six.iteritems(env_to_print))),
         ' '.join(cmd)))
   sys.stdout.flush()
   env.update(extra_env or {})
   try:
     if stdoutfile:
       # Write to stdoutfile and poll to produce terminal output.
-      return run_command_with_output(cmd,
-                                     env=env,
-                                     stdoutfile=stdoutfile,
-                                     cwd=cwd)
-    if use_symbolization_script:
+      return run_command_with_output(cmd, env=env, stdoutfile=stdoutfile)
+    elif use_symbolization_script:
       # See above comment regarding offline symbolization.
       # Need to pipe to the symbolizer script.
       p1 = _popen(cmd, env=env, stdout=subprocess.PIPE,
-                  cwd=cwd, stderr=sys.stdout)
+                  stderr=sys.stdout)
       p2 = _popen(
           get_sanitizer_symbolize_command(executable_path=cmd[0]),
           env=env, stdin=p1.stdout)
@@ -403,7 +378,8 @@ def run_executable(cmd, env, stdoutfile=None, cwd=None):
       # Also feed the out-of-band JSON output to the symbolizer script.
       symbolize_snippets_in_json(cmd, env)
       return p1.returncode
-    return run_command(cmd, env=env, cwd=cwd, log=False)
+    else:
+      return run_command(cmd, env=env, log=False)
   except OSError:
     print('Failed to start %s' % cmd, file=sys.stderr)
     raise

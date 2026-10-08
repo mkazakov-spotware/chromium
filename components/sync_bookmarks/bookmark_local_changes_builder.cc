@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "base/strings/utf_string_conversions.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -17,7 +16,6 @@
 #include "components/sync_bookmarks/bookmark_specifics_conversions.h"
 #include "components/sync_bookmarks/switches.h"
 #include "components/sync_bookmarks/synced_bookmark_tracker.h"
-#include "components/sync_bookmarks/synced_bookmark_tracker_entity.h"
 
 namespace sync_bookmarks {
 
@@ -32,67 +30,60 @@ BookmarkLocalChangesBuilder::BookmarkLocalChangesBuilder(
 syncer::CommitRequestDataList BookmarkLocalChangesBuilder::BuildCommitRequests(
     size_t max_entries) const {
   DCHECK(bookmark_tracker_);
-
-  const std::vector<const SyncedBookmarkTrackerEntity*>
+  const std::vector<const SyncedBookmarkTracker::Entity*>
       entities_with_local_changes =
-          bookmark_tracker_->GetEntitiesWithLocalChanges();
+          bookmark_tracker_->GetEntitiesWithLocalChanges(max_entries);
+  DCHECK_LE(entities_with_local_changes.size(), max_entries);
 
   syncer::CommitRequestDataList commit_requests;
-  for (const SyncedBookmarkTrackerEntity* entity :
+  for (const SyncedBookmarkTracker::Entity* entity :
        entities_with_local_changes) {
-    if (commit_requests.size() >= max_entries) {
-      break;
-    }
-
     DCHECK(entity);
     DCHECK(entity->IsUnsynced());
-    const sync_pb::EntityMetadata& metadata = entity->metadata();
+    const sync_pb::EntityMetadata* metadata = entity->metadata();
 
     auto data = std::make_unique<syncer::EntityData>();
-    data->id = metadata.server_id();
-    data->creation_time = syncer::ProtoTimeToTime(metadata.creation_time());
+    data->id = metadata->server_id();
+    data->creation_time = syncer::ProtoTimeToTime(metadata->creation_time());
     data->modification_time =
-        syncer::ProtoTimeToTime(metadata.modification_time());
-
-    DCHECK(!metadata.client_tag_hash().empty());
-    data->client_tag_hash =
-        syncer::ClientTagHash::FromHashed(metadata.client_tag_hash());
-    DCHECK(metadata.is_deleted() ||
-           data->client_tag_hash ==
-               syncer::ClientTagHash::FromUnhashed(
-                   syncer::BOOKMARKS,
-                   entity->bookmark_node()->guid().AsLowercaseString()));
-
-    if (!metadata.is_deleted()) {
+        syncer::ProtoTimeToTime(metadata->modification_time());
+    if (!metadata->is_deleted()) {
       const bookmarks::BookmarkNode* node = entity->bookmark_node();
-      DCHECK(!node->is_permanent_node());
-
       // Skip current entity if its favicon is not loaded yet. It will be
       // committed once the favicon is loaded in
       // BookmarkModelObserverImpl::BookmarkNodeFaviconChanged.
-      if (!node->is_folder() && !node->is_favicon_loaded()) {
+      if (!node->is_folder() && !node->is_favicon_loaded() &&
+          !node->is_permanent_node() &&
+          base::FeatureList::IsEnabled(
+              switches::kSyncDoNotCommitBookmarksWithoutFavicon)) {
         // Force the favicon to be loaded. The worker will be nudged for commit
         // in BookmarkModelObserverImpl::BookmarkNodeFaviconChanged() once
         // favicon is loaded.
         bookmark_model_->GetFavicon(node);
         continue;
       }
-
       DCHECK(node);
-      DCHECK_EQ(syncer::ClientTagHash::FromUnhashed(
-                    syncer::BOOKMARKS, node->guid().AsLowercaseString()),
-                syncer::ClientTagHash::FromHashed(metadata.client_tag_hash()));
-
       const bookmarks::BookmarkNode* parent = node->parent();
-      const SyncedBookmarkTrackerEntity* parent_entity =
+      const SyncedBookmarkTracker::Entity* parent_entity =
           bookmark_tracker_->GetEntityForBookmarkNode(parent);
       DCHECK(parent_entity);
-      data->legacy_parent_id = parent_entity->metadata().server_id();
+      data->parent_id = parent_entity->metadata()->server_id();
+      // TODO(crbug.com/516866): Double check that custom passphrase works well
+      // with this implementation, because:
+      // 1. syncer::CommitContributionImpl::AdjustCommitProto() clears the
+      //    title out.
+      // 2. Bookmarks (maybe ancient legacy bookmarks only?) use/used |name| to
+      //    encode the title.
+      data->is_folder = node->is_folder();
+      data->unique_position = metadata->unique_position();
       // Assign specifics only for the non-deletion case. In case of deletion,
       // EntityData should contain empty specifics to indicate deletion.
+      // TODO(crbug.com/978430): has_final_guid() should be enough below
+      // assuming that all codepaths that populate the final GUID make sure the
+      // local model has the appropriate GUID too (and update if needed).
       data->specifics = CreateSpecificsFromBookmarkNode(
-          node, bookmark_model_, metadata.unique_position(),
-          /*force_favicon_load=*/true);
+          node, bookmark_model_, /*force_favicon_load=*/true,
+          entity->final_guid_matches(node->guid()));
       // TODO(crbug.com/1058376): check after finishing if we need to use full
       // title instead of legacy canonicalized one.
       data->name = data->specifics.bookmark().legacy_canonicalized_title();
@@ -100,15 +91,30 @@ syncer::CommitRequestDataList BookmarkLocalChangesBuilder::BuildCommitRequests(
 
     auto request = std::make_unique<syncer::CommitRequestData>();
     request->entity = std::move(data);
-    request->sequence_number = metadata.sequence_number();
-    request->base_version = metadata.server_version();
+    request->sequence_number = metadata->sequence_number();
+    request->base_version = metadata->server_version();
     // Specifics hash has been computed in the tracker when this entity has been
     // added/updated.
-    request->specifics_hash = metadata.specifics_hash();
+    request->specifics_hash = metadata->specifics_hash();
 
     bookmark_tracker_->MarkCommitMayHaveStarted(entity);
 
     commit_requests.push_back(std::move(request));
+
+    // This codepath prevents permanently staying server-side bookmarks without
+    // favicons due to an automatically-triggered upload. As far as favicon is
+    // loaded the bookmark will be committed again.
+    if (!metadata->is_deleted()) {
+      const bookmarks::BookmarkNode* node = entity->bookmark_node();
+      DCHECK(node);
+
+      if (!node->is_permanent_node() && !node->is_folder() &&
+          !node->is_favicon_loaded() &&
+          base::FeatureList::IsEnabled(
+              switches::kSyncReuploadBookmarkFullTitles)) {
+        bookmark_tracker_->IncrementSequenceNumber(entity);
+      }
+    }
   }
   return commit_requests;
 }

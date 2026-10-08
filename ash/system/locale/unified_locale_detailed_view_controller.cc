@@ -1,10 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/locale/unified_locale_detailed_view_controller.h"
-
-#include <memory>
 
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/locale/locale_detailed_view.h"
@@ -22,15 +20,13 @@ UnifiedLocaleDetailedViewController::UnifiedLocaleDetailedViewController(
 UnifiedLocaleDetailedViewController::~UnifiedLocaleDetailedViewController() =
     default;
 
-std::unique_ptr<views::View> UnifiedLocaleDetailedViewController::CreateView() {
+views::View* UnifiedLocaleDetailedViewController::CreateView() {
   DCHECK(!view_);
-  auto view =
-      std::make_unique<LocaleDetailedView>(detailed_view_delegate_.get());
-  view_ = view.get();
-  return view;
+  view_ = new tray::LocaleDetailedView(detailed_view_delegate_.get());
+  return view_;
 }
 
-std::u16string UnifiedLocaleDetailedViewController::GetAccessibleName() const {
+base::string16 UnifiedLocaleDetailedViewController::GetAccessibleName() const {
   return l10n_util::GetStringUTF16(
       IDS_ASH_QUICK_SETTINGS_BUBBLE_LOCALE_SETTINGS_ACCESSIBLE_DESCRIPTION);
 }

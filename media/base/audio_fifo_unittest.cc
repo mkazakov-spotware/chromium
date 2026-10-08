@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "media/base/audio_fifo.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -14,10 +15,6 @@ namespace media {
 class AudioFifoTest : public testing::Test {
  public:
   AudioFifoTest() = default;
-
-  AudioFifoTest(const AudioFifoTest&) = delete;
-  AudioFifoTest& operator=(const AudioFifoTest&) = delete;
-
   ~AudioFifoTest() override = default;
 
   void VerifyValue(const float data[], int size, float value) {
@@ -26,6 +23,7 @@ class AudioFifoTest : public testing::Test {
   }
 
  protected:
+  DISALLOW_COPY_AND_ASSIGN(AudioFifoTest);
 };
 
 // Verify that construction works as intended.
@@ -123,7 +121,7 @@ TEST_F(AudioFifoTest, FramesInFifo) {
   const int frames_in_fifo = bus2->frames();
   fifo.Push(bus2.get());
   EXPECT_EQ(fifo.frames(), frames_in_fifo);
-  for (n = 0; n < kMaxFrameCount; ++n) {
+  for (int n = 0; n < kMaxFrameCount; ++n) {
     fifo.Push(bus2.get());
     fifo.Consume(bus2.get(), 0, frames_in_fifo);
     EXPECT_EQ(fifo.frames(), frames_in_fifo);

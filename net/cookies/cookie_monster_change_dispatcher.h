@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,34 +11,24 @@
 
 #include "base/callback.h"
 #include "base/callback_list.h"
+#include "base/compiler_specific.h"
 #include "base/containers/linked_list.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "net/cookies/cookie_change_dispatcher.h"
 #include "url/gurl.h"
 
 namespace net {
 
-class CookieAccessDelegate;
-class CookieMonster;
-
 // CookieChangeDispatcher implementation used by CookieMonster.
 class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
  public:
   using CookieChangeCallbackList =
-      base::RepeatingCallbackList<void(const CookieChangeInfo&)>;
+      base::CallbackList<void(const CookieChangeInfo&)>;
 
-  // Expects |cookie_monster| to outlive this.
-  CookieMonsterChangeDispatcher(const CookieMonster* cookie_monster,
-                                bool same_party_attribute_enabled);
-
-  CookieMonsterChangeDispatcher(const CookieMonsterChangeDispatcher&) = delete;
-  CookieMonsterChangeDispatcher& operator=(
-      const CookieMonsterChangeDispatcher&) = delete;
-
+  CookieMonsterChangeDispatcher();
   ~CookieMonsterChangeDispatcher() override;
 
   // The key in CookieNameMap for a cookie name.
@@ -51,17 +41,15 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
   static std::string DomainKey(const GURL& url);
 
   // net::CookieChangeDispatcher
-  [[nodiscard]] std::unique_ptr<CookieChangeSubscription> AddCallbackForCookie(
+  std::unique_ptr<CookieChangeSubscription> AddCallbackForCookie(
       const GURL& url,
       const std::string& name,
-      const absl::optional<CookiePartitionKey>& cookie_partition_key,
-      CookieChangeCallback callback) override;
-  [[nodiscard]] std::unique_ptr<CookieChangeSubscription> AddCallbackForUrl(
+      CookieChangeCallback callback) override WARN_UNUSED_RESULT;
+  std::unique_ptr<CookieChangeSubscription> AddCallbackForUrl(
       const GURL& url,
-      const absl::optional<CookiePartitionKey>& cookie_partition_key,
-      CookieChangeCallback callback) override;
-  [[nodiscard]] std::unique_ptr<CookieChangeSubscription>
-  AddCallbackForAllChanges(CookieChangeCallback callback) override;
+      CookieChangeCallback callback) override WARN_UNUSED_RESULT;
+  std::unique_ptr<CookieChangeSubscription> AddCallbackForAllChanges(
+      CookieChangeCallback callback) override WARN_UNUSED_RESULT;
 
   // |notify_global_hooks| is true if the function should run the
   // global hooks in addition to the per-cookie hooks.
@@ -77,12 +65,7 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
                  std::string domain_key,
                  std::string name_key,
                  GURL url,
-                 absl::optional<CookiePartitionKey> cookie_partition_key,
-                 bool same_party_attribute_enabled,
                  net::CookieChangeCallback callback);
-
-    Subscription(const Subscription&) = delete;
-    Subscription& operator=(const Subscription&) = delete;
 
     ~Subscription() override;
 
@@ -96,18 +79,14 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
     const std::string& name_key() const { return name_key_; }
 
     // Dispatches a cookie change notification if the listener is interested.
-    void DispatchChange(const CookieChangeInfo& change,
-                        const CookieAccessDelegate* cookie_access_delegate);
+    void DispatchChange(const CookieChangeInfo& change);
 
    private:
     base::WeakPtr<CookieMonsterChangeDispatcher> change_dispatcher_;
     const std::string domain_key_;  // kGlobalDomainKey means no filtering.
     const std::string name_key_;    // kGlobalNameKey means no filtering.
     const GURL url_;                // empty() means no URL-based filtering.
-    // nullopt means all Partitioned cookies will be ignored.
-    const absl::optional<CookiePartitionKey> cookie_partition_key_;
     const net::CookieChangeCallback callback_;
-    bool same_party_attribute_enabled_;
 
     void DoDispatchChange(const CookieChangeInfo& change) const;
 
@@ -119,6 +98,8 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
     // Used to cancel delayed calls to DoDispatchChange() when the subscription
     // gets destroyed.
     base::WeakPtrFactory<Subscription> weak_ptr_factory_{this};
+
+    DISALLOW_COPY_AND_ASSIGN(Subscription);
   };
 
   // The last level of the subscription data structures.
@@ -153,16 +134,14 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
   // Called by the Subscription destructor.
   void UnlinkSubscription(Subscription* subscription);
 
-  raw_ptr<const CookieMonster> cookie_monster_;
-
   CookieDomainMap cookie_domain_map_;
-
-  const bool same_party_attribute_enabled_;
 
   THREAD_CHECKER(thread_checker_);
 
   // Vends weak pointers to subscriptions.
   base::WeakPtrFactory<CookieMonsterChangeDispatcher> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CookieMonsterChangeDispatcher);
 };
 
 }  // namespace net

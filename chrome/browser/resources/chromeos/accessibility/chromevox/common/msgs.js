@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,11 @@
  * @fileoverview Defines methods related to retrieving translated messages.
  */
 
-export class Msgs {
+goog.provide('Msgs');
+
+Msgs = class {
+  constructor() {}
+
   /**
    * Return the current locale.
    * @return {string} The locale.
@@ -98,7 +102,7 @@ export class Msgs {
     }
     return message;
   }
-}
+};
 
 /**
  * The namespace for all Chromevox messages.

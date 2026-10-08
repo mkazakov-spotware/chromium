@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 #include "base/cancelable_callback.h"
 #include "base/check_op.h"
 #include "base/location.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/thread_annotations.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
@@ -25,11 +25,8 @@ namespace media {
 class FakeAudioWorker::Worker
     : public base::RefCountedThreadSafe<FakeAudioWorker::Worker> {
  public:
-  Worker(const scoped_refptr<base::SequencedTaskRunner>& worker_task_runner,
+  Worker(const scoped_refptr<base::SingleThreadTaskRunner>& worker_task_runner,
          const AudioParameters& params);
-
-  Worker(const Worker&) = delete;
-  Worker& operator=(const Worker&) = delete;
 
   bool IsStopped();
   void Start(FakeAudioWorker::Callback worker_cb);
@@ -50,7 +47,7 @@ class FakeAudioWorker::Worker
   // the worker loop.
   void DoRead();
 
-  const scoped_refptr<base::SequencedTaskRunner> worker_task_runner_;
+  const scoped_refptr<base::SingleThreadTaskRunner> worker_task_runner_;
   const int sample_rate_;
   const int frames_per_read_;
 
@@ -60,13 +57,15 @@ class FakeAudioWorker::Worker
   int64_t frames_elapsed_;
 
   // Used to cancel any delayed tasks still inside the worker loop's queue.
-  base::CancelableRepeatingClosure worker_task_cb_;
+  base::CancelableClosure worker_task_cb_;
 
-  SEQUENCE_CHECKER(sequence_checker_);
+  THREAD_CHECKER(thread_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(Worker);
 };
 
 FakeAudioWorker::FakeAudioWorker(
-    const scoped_refptr<base::SequencedTaskRunner>& worker_task_runner,
+    const scoped_refptr<base::SingleThreadTaskRunner>& worker_task_runner,
     const AudioParameters& params)
     : worker_(new Worker(worker_task_runner, params)) {}
 
@@ -95,14 +94,14 @@ base::TimeDelta FakeAudioWorker::ComputeFakeOutputDelay(
 }
 
 FakeAudioWorker::Worker::Worker(
-    const scoped_refptr<base::SequencedTaskRunner>& worker_task_runner,
+    const scoped_refptr<base::SingleThreadTaskRunner>& worker_task_runner,
     const AudioParameters& params)
     : worker_task_runner_(worker_task_runner),
       sample_rate_(params.sample_rate()),
       frames_per_read_(params.frames_per_buffer()) {
   // Worker can be constructed on any thread, but will DCHECK that its
   // Start/Stop methods are called from the same thread.
-  DETACH_FROM_SEQUENCE(sequence_checker_);
+  DETACH_FROM_THREAD(thread_checker_);
 }
 
 FakeAudioWorker::Worker::~Worker() {
@@ -115,7 +114,7 @@ bool FakeAudioWorker::Worker::IsStopped() {
 }
 
 void FakeAudioWorker::Worker::Start(FakeAudioWorker::Callback worker_cb) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DCHECK(worker_cb);
   {
     base::AutoLock scoped_lock(worker_cb_lock_);
@@ -127,7 +126,7 @@ void FakeAudioWorker::Worker::Start(FakeAudioWorker::Callback worker_cb) {
 }
 
 void FakeAudioWorker::Worker::DoStart() {
-  DCHECK(worker_task_runner_->RunsTasksInCurrentSequence());
+  DCHECK(worker_task_runner_->BelongsToCurrentThread());
   first_read_time_ = base::TimeTicks::Now();
   frames_elapsed_ = 0;
   worker_task_cb_.Reset(base::BindRepeating(&Worker::DoRead, this));
@@ -135,7 +134,7 @@ void FakeAudioWorker::Worker::DoStart() {
 }
 
 void FakeAudioWorker::Worker::Stop() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   {
     base::AutoLock scoped_lock(worker_cb_lock_);
     if (!worker_cb_)
@@ -147,12 +146,12 @@ void FakeAudioWorker::Worker::Stop() {
 }
 
 void FakeAudioWorker::Worker::DoCancel() {
-  DCHECK(worker_task_runner_->RunsTasksInCurrentSequence());
+  DCHECK(worker_task_runner_->BelongsToCurrentThread());
   worker_task_cb_.Cancel();
 }
 
 void FakeAudioWorker::Worker::DoRead() {
-  DCHECK(worker_task_runner_->RunsTasksInCurrentSequence());
+  DCHECK(worker_task_runner_->BelongsToCurrentThread());
 
   const base::TimeTicks read_time =
       first_read_time_ +
@@ -186,10 +185,8 @@ void FakeAudioWorker::Worker::DoRead() {
                                             frames_elapsed_, sample_rate_);
   }
 
-  worker_task_runner_->PostDelayedTaskAt(base::subtle::PostDelayedTaskPassKey(),
-                                         FROM_HERE, worker_task_cb_.callback(),
-                                         next_read_time,
-                                         base::subtle::DelayPolicy::kPrecise);
+  worker_task_runner_->PostDelayedTask(FROM_HERE, worker_task_cb_.callback(),
+                                       next_read_time - now);
 }
 
 }  // namespace media

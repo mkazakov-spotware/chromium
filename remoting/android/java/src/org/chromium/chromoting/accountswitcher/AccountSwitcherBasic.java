@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -140,12 +140,8 @@ public class AccountSwitcherBasic extends AccountSwitcherBase {
         if (mSelectedAccount != null) {
             selected = new Account(mSelectedAccount, ACCOUNT_TYPE);
         }
-
-        Intent intent = AccountManager.newChooseAccountIntent(selected, /*allowableAccounts=*/null,
-                new String[] {ACCOUNT_TYPE},
-                /*descriptionOverrideText=*/null, /*addAccountAuthTokenType=*/null,
-                /*addAccountRequiredFeatures=*/null, /*addAccountOptions=*/null);
-
+        Intent intent = AccountManagerCompat.newChooseAccountIntent(
+                selected, null, new String[] {ACCOUNT_TYPE}, null, null, null, null);
         mActivity.startActivityForResult(intent, REQUEST_CODE_CHOOSE_ACCOUNT);
     }
 }

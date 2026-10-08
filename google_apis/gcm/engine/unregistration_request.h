@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "google_apis/gcm/base/gcm_export.h"
@@ -119,10 +119,6 @@ class GCM_EXPORT UnregistrationRequest {
       scoped_refptr<base::SequencedTaskRunner> io_task_runner,
       GCMStatsRecorder* recorder,
       const std::string& source_to_record);
-
-  UnregistrationRequest(const UnregistrationRequest&) = delete;
-  UnregistrationRequest& operator=(const UnregistrationRequest&) = delete;
-
   ~UnregistrationRequest();
 
   // Starts an unregistration request.
@@ -154,10 +150,12 @@ class GCM_EXPORT UnregistrationRequest {
   const scoped_refptr<base::SequencedTaskRunner> io_task_runner_;
 
   // Recorder that records GCM activities for debugging purpose. Not owned.
-  raw_ptr<GCMStatsRecorder> recorder_;
+  GCMStatsRecorder* recorder_;
   std::string source_to_record_;
 
   base::WeakPtrFactory<UnregistrationRequest> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UnregistrationRequest);
 };
 
 }  // namespace gcm

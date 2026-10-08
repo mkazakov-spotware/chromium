@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "extensions/common/api/file_system.h"
@@ -19,14 +19,18 @@
 
 class ExtensionFunction;
 
+namespace base {
+class FilePath;
+}  // namespace base
+
 namespace content {
 class BrowserContext;
+class RenderFrameHost;
 class WebContents;
 }  // namespace content
 
 namespace extensions {
 
-class ConsentProvider;
 class Extension;
 class SavedFilesServiceInterface;
 
@@ -41,16 +45,11 @@ class FileSystemDelegate {
   using VolumeListCallback =
       base::OnceCallback<void(const std::vector<api::file_system::Volume>&)>;
 
+  enum GrantVolumesMode { kGrantAll, kGrantNone, kGrantPerVolume };
+
   virtual ~FileSystemDelegate() {}
 
   virtual base::FilePath GetDefaultDirectory() = 0;
-
-  // If policies set downloads as managed, and `extension` respects the
-  // downloads policies, then return the managed directory to use for save-as
-  // operations.
-  virtual base::FilePath GetManagedSaveAsDirectory(
-      content::BrowserContext* browser_context,
-      const Extension& extension) = 0;
 
   // Shows a dialog to prompt the user to select files/directories. Returns
   // false if the dialog cannot be shown, i.e. there is no valid WebContents.
@@ -66,7 +65,7 @@ class FileSystemDelegate {
   // for a given app.
   virtual void ConfirmSensitiveDirectoryAccess(
       bool has_write_permission,
-      const std::u16string& app_name,
+      const base::string16& app_name,
       content::WebContents* web_contents,
       base::OnceClosure on_accept,
       base::OnceClosure on_cancel) = 0;
@@ -75,12 +74,17 @@ class FileSystemDelegate {
   // string ID is found.
   virtual int GetDescriptionIdForAcceptType(const std::string& accept_type) = 0;
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  // Checks whether the extension can be granted access.
+  virtual GrantVolumesMode GetGrantVolumesMode(
+      content::BrowserContext* browser_context,
+      content::RenderFrameHost* render_frame_host,
+      const Extension& extension) = 0;
+
   // Grants or denies an extension's request for access to the named file
   // system. May prompt the user for consent.
   virtual void RequestFileSystem(content::BrowserContext* browser_context,
                                  scoped_refptr<ExtensionFunction> requester,
-                                 ConsentProvider* consent_provider,
                                  const Extension& extension,
                                  std::string volume_id,
                                  bool writable,
@@ -89,9 +93,10 @@ class FileSystemDelegate {
 
   // Immediately calls VolumeListCallback or ErrorCallback.
   virtual void GetVolumeList(content::BrowserContext* browser_context,
+                             const Extension& extension,
                              VolumeListCallback success_callback,
                              ErrorCallback error_callback) = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
   virtual SavedFilesServiceInterface* GetSavedFilesService(
       content::BrowserContext* browser_context) = 0;

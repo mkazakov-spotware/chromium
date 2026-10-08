@@ -1,15 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_COMPONENTS_WEBUI_WEB_UI_PROVIDER_H_
 #define IOS_COMPONENTS_WEBUI_WEB_UI_PROVIDER_H_
 
-#include <string>
-
 namespace syncer {
 class SyncService;
-class SyncInvalidationsService;
 }  // namespace syncer
 
 namespace version_info {
@@ -27,15 +24,7 @@ namespace web_ui {
 // Gets the SyncService of the underlying original profile. May return null.
 syncer::SyncService* GetSyncServiceForWebUI(web::WebUIIOS* web_ui);
 
-// Gets the SyncInvalidationsService of the underlying original profile. May
-// return null.
-syncer::SyncInvalidationsService* GetSyncInvalidationsServiceForWebUI(
-    web::WebUIIOS* web_ui);
-
-// Returns the human-readable name of the app channel.
-std::string GetChannelString();
-
-// Returns the app channel.
+// Returns the app channel .
 version_info::Channel GetChannel();
 
 }  // namespace web_ui

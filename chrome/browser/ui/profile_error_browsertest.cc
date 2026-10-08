@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/strings/string_util.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/simple_message_box_internal.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -72,7 +71,7 @@ class ProfileErrorBrowserTest : public InProcessBrowserTest,
   const bool do_corrupt_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // Disable the test on chromos since kernel controls the user profile thus we
 // won't be able to corrupt it.
 #define MAYBE_CorruptedProfile DISABLED_CorruptedProfile
@@ -85,8 +84,7 @@ IN_PROC_BROWSER_TEST_P(ProfileErrorBrowserTest, MAYBE_CorruptedProfile) {
   const char kPaintHistogram[] = "Startup.FirstWebContents.NonEmptyPaint3";
 
   // Navigate to a URL so the first non-empty paint is registered.
-  ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("http://www.example.com/")));
+  ui_test_utils::NavigateToURL(browser(), GURL("http://www.example.com/"));
 
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();

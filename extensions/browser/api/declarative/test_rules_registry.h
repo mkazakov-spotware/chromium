@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_DECLARATIVE_TEST_RULES_REGISTRY_H__
 #define EXTENSIONS_BROWSER_API_DECLARATIVE_TEST_RULES_REGISTRY_H__
 
+#include "base/macros.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/declarative/rules_registry.h"
 
@@ -21,9 +22,6 @@ class TestRulesRegistry : public RulesRegistry {
                     content::BrowserThread::ID owner_thread,
                     RulesCacheDelegate* cache_delegate,
                     int rules_registry_id);
-
-  TestRulesRegistry(const TestRulesRegistry&) = delete;
-  TestRulesRegistry& operator=(const TestRulesRegistry&) = delete;
 
   // RulesRegistry implementation:
   std::string AddRulesImpl(
@@ -45,6 +43,8 @@ class TestRulesRegistry : public RulesRegistry {
   // The string that gets returned by the implementation functions of
   // RulesRegistry. Defaults to "".
   std::string result_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestRulesRegistry);
 };
 
 }  // namespace extensions

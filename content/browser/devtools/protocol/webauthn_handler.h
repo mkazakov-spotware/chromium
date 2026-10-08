@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,16 @@
 
 #include <memory>
 
-#include "base/scoped_multi_source_observation.h"
+#include "base/macros.h"
 #include "content/browser/devtools/protocol/devtools_domain_handler.h"
 #include "content/browser/devtools/protocol/web_authn.h"
-#include "content/browser/webauth/virtual_authenticator.h"
 #include "content/common/content_export.h"
-#include "device/fido/virtual_fido_device.h"
 
-namespace content::protocol {
+namespace content {
+class VirtualAuthenticator;
+namespace protocol {
 
-class WebAuthnHandler : public DevToolsDomainHandler,
-                        public WebAuthn::Backend,
-                        public VirtualAuthenticator::Observer {
+class WebAuthnHandler : public DevToolsDomainHandler, public WebAuthn::Backend {
  public:
   CONTENT_EXPORT WebAuthnHandler();
   CONTENT_EXPORT ~WebAuthnHandler() override;
@@ -31,16 +29,12 @@ class WebAuthnHandler : public DevToolsDomainHandler,
   void Wire(UberDispatcher* dispatcher) override;
 
   // WebAuthn::Backend
-  CONTENT_EXPORT Response Enable(Maybe<bool> enable_ui) override;
+  CONTENT_EXPORT Response Enable() override;
   CONTENT_EXPORT Response Disable() override;
   Response AddVirtualAuthenticator(
       std::unique_ptr<WebAuthn::VirtualAuthenticatorOptions> options,
       String* out_authenticator_id) override;
   Response RemoveVirtualAuthenticator(const String& authenticator_id) override;
-  Response SetResponseOverrideBits(const String& authenticator_id,
-                                   Maybe<bool> is_bogus_signature,
-                                   Maybe<bool> is_bad_uv,
-                                   Maybe<bool> is_bad_up) override;
   void AddCredential(const String& authenticator_id,
                      std::unique_ptr<protocol::WebAuthn::Credential> credential,
                      std::unique_ptr<AddCredentialCallback> callback) override;
@@ -63,24 +57,10 @@ class WebAuthnHandler : public DevToolsDomainHandler,
   // successful, an error otherwise.
   Response FindAuthenticator(const String& id,
                              VirtualAuthenticator** out_authenticator);
-
-  // VirtualAuthenticator::Observer:
-  void OnCredentialCreated(
-      VirtualAuthenticator* authenticator,
-      const device::VirtualFidoDevice::Credential& credential) override;
-  void OnAssertion(
-      VirtualAuthenticator* authenticator,
-      const device::VirtualFidoDevice::Credential& credential) override;
-  void OnAuthenticatorWillBeDestroyed(
-      VirtualAuthenticator* authenticator) override;
-
   RenderFrameHostImpl* frame_host_ = nullptr;
-  std::unique_ptr<WebAuthn::Frontend> frontend_;
-  base::ScopedMultiSourceObservation<VirtualAuthenticator,
-                                     VirtualAuthenticator::Observer>
-      observations_{this};
 };
 
-}  // namespace content::protocol
+}  // namespace protocol
+}  // namespace content
 
 #endif  // CONTENT_BROWSER_DEVTOOLS_PROTOCOL_WEBAUTHN_HANDLER_H_

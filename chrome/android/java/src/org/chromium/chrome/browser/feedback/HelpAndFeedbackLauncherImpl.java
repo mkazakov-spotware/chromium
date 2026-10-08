@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.SystemClock;
 import android.provider.Browser;
 import android.text.TextUtils;
 
@@ -16,7 +15,6 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.AppHooks;
@@ -93,35 +91,7 @@ public class HelpAndFeedbackLauncherImpl implements HelpAndFeedbackLauncher {
         new ChromeFeedbackCollector(activity, null /* categoryTag */, null /* description */,
                 new ScreenshotTask(activity),
                 new ChromeFeedbackCollector.InitParams(profile, url, helpContext),
-                collector -> show(activity, helpContext, collector), profile);
-    }
-
-    /**
-     * Starts an activity prompting the user to enter feedback.
-     *
-     * @param activity The activity to use for starting the feedback activity and to take a
-     *                 screenshot of.
-     * @param profile the current profile.
-     * @param url the current URL. May be null.
-     * @param categoryTag The category that this feedback report falls under.
-     * @param screenshotMode The kind of screenshot to include with the feedback.
-     * @param feedbackContext The context that describes the current feature being used.
-     */
-    @Override
-    public void showFeedback(final Activity activity, Profile profile, @Nullable String url,
-            @Nullable final String categoryTag, @ScreenshotMode int screenshotMode,
-            @Nullable final String feedbackContext) {
-        long startTime = SystemClock.elapsedRealtime();
-        new ChromeFeedbackCollector(activity, categoryTag, null /* description */,
-                new ScreenshotTask(activity, screenshotMode),
-                new ChromeFeedbackCollector.InitParams(profile, url, feedbackContext),
-                (collector)
-                        -> {
-                    RecordHistogram.recordLongTimesHistogram("Feedback.Duration.FormOpenToSubmit",
-                            SystemClock.elapsedRealtime() - startTime);
-                    showFeedback(activity, collector);
-                },
-                profile);
+                collector -> show(activity, helpContext, collector));
     }
 
     /**
@@ -136,7 +106,10 @@ public class HelpAndFeedbackLauncherImpl implements HelpAndFeedbackLauncher {
     @Override
     public void showFeedback(final Activity activity, Profile profile, @Nullable String url,
             @Nullable final String categoryTag) {
-        showFeedback(activity, profile, url, categoryTag, ScreenshotMode.DEFAULT, null);
+        new ChromeFeedbackCollector(activity, categoryTag, null /* description */,
+                new ScreenshotTask(activity),
+                new ChromeFeedbackCollector.InitParams(profile, url, null),
+                collector -> showFeedback(activity, collector));
     }
 
     /**
@@ -147,16 +120,17 @@ public class HelpAndFeedbackLauncherImpl implements HelpAndFeedbackLauncher {
      * @param profile the current profile.
      * @param categoryTag The category that this feedback report falls under.
      * @param feedContext Feed specific parameters (url, title, etc) to include with feedback.
+     * @param feedbackContext The context that describes the current feature being used.
      */
     @Override
     public void showFeedback(final Activity activity, Profile profile, @Nullable String url,
-            @Nullable final String categoryTag, @Nullable final Map<String, String> feedContext) {
-        new FeedFeedbackCollector(activity, categoryTag, null /* description */,
+            @Nullable final String categoryTag, @Nullable final Map<String, String> feedContext,
+            @Nullable final String feedbackContext) {
+        new FeedFeedbackCollector(activity, categoryTag, null /* description */, feedbackContext,
                 new ScreenshotTask(activity),
                 new FeedFeedbackCollector.InitParams(profile, url, feedContext),
-                collector -> showFeedback(activity, collector), profile);
+                collector -> showFeedback(activity, collector));
     }
-
     /**
      * Get help context ID from URL.
      *

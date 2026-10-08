@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/events/keycodes/dom/dom_keyboard_layout.h"
 
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversion_utils.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
@@ -34,7 +35,7 @@ const DomCode writing_system_key_domcodes[] = {
 };
 
 const size_t kWritingSystemKeyDomCodeEntries =
-    std::size(writing_system_key_domcodes);
+    base::size(writing_system_key_domcodes);
 
 const uint32_t kHankakuZenkakuPlaceholder = 0x89d2;
 
@@ -68,7 +69,7 @@ base::flat_map<std::string, std::string> DomKeyboardLayout::GetMap() {
     // Map combining accents into the corresponding printable character.
     if (unicode >= 0x0300 && unicode <= 0x036f) {
       uint16_t printable = 0;
-      for (size_t j = 0; j < std::size(kCombiningKeyMapping); ++j) {
+      for (size_t j = 0; j < base::size(kCombiningKeyMapping); ++j) {
         if (kCombiningKeyMapping[j].combining == unicode) {
           printable = kCombiningKeyMapping[j].printable;
           break;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <memory>
 
 #include "base/files/file_path.h"
+#include "base/optional.h"
 #include "components/viz/service/display_embedder/output_surface_provider.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace viz {
 
@@ -18,19 +18,14 @@ namespace viz {
 class FuzzerSoftwareOutputSurfaceProvider : public OutputSurfaceProvider {
  public:
   explicit FuzzerSoftwareOutputSurfaceProvider(
-      absl::optional<base::FilePath> png_dir_path);
-
-  FuzzerSoftwareOutputSurfaceProvider(
-      const FuzzerSoftwareOutputSurfaceProvider&) = delete;
-  FuzzerSoftwareOutputSurfaceProvider& operator=(
-      const FuzzerSoftwareOutputSurfaceProvider&) = delete;
-
+      base::Optional<base::FilePath> png_dir_path);
   ~FuzzerSoftwareOutputSurfaceProvider() override;
 
   // OutputSurfaceProvider implementation.
   std::unique_ptr<DisplayCompositorMemoryAndTaskController> CreateGpuDependency(
       bool gpu_compositing,
-      gpu::SurfaceHandle surface_handle) override;
+      gpu::SurfaceHandle surface_handle,
+      const RendererSettings& renderer_settings) override;
   std::unique_ptr<OutputSurface> CreateOutputSurface(
       gpu::SurfaceHandle surface_handle,
       bool gpu_compositing,
@@ -40,7 +35,9 @@ class FuzzerSoftwareOutputSurfaceProvider : public OutputSurfaceProvider {
       const DebugRendererSettings* debug_settings) override;
 
  private:
-  absl::optional<base::FilePath> png_dir_path_;
+  base::Optional<base::FilePath> png_dir_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(FuzzerSoftwareOutputSurfaceProvider);
 };
 
 }  // namespace viz

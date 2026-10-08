@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_BOOKMARKS_BOOKMARK_SYNC_SERVICE_FACTORY_H_
 #define IOS_CHROME_BROWSER_BOOKMARKS_BOOKMARK_SYNC_SERVICE_FACTORY_H_
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -26,10 +27,6 @@ class BookmarkSyncServiceFactory : public BrowserStateKeyedServiceFactory {
   // Returns an instance of the BookmarkSyncServiceFactory singleton.
   static BookmarkSyncServiceFactory* GetInstance();
 
-  BookmarkSyncServiceFactory(const BookmarkSyncServiceFactory&) = delete;
-  BookmarkSyncServiceFactory& operator=(const BookmarkSyncServiceFactory&) =
-      delete;
-
  private:
   friend class base::NoDestructor<BookmarkSyncServiceFactory>;
 
@@ -41,6 +38,8 @@ class BookmarkSyncServiceFactory : public BrowserStateKeyedServiceFactory {
       web::BrowserState* context) const override;
   web::BrowserState* GetBrowserStateToUse(
       web::BrowserState* context) const override;
+
+  DISALLOW_COPY_AND_ASSIGN(BookmarkSyncServiceFactory);
 };
 
 }  // namespace ios

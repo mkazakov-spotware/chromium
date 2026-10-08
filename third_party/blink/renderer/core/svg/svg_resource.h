@@ -1,14 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_RESOURCE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_RESOURCE_H_
 
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/loader/fetch/resource_client.h"
+#include "base/macros.h"
+#include "third_party/blink/renderer/core/svg/svg_external_document_cache.h"
+#include "third_party/blink/renderer/core/svg/svg_resource_client.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
+#include "third_party/blink/renderer/platform/wtf/hash_counted_set.h"
+#include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 
 namespace blink {
@@ -17,10 +20,6 @@ class Document;
 class Element;
 class IdTargetObserver;
 class LayoutSVGResourceContainer;
-class QualifiedName;
-class SVGFilterPrimitiveStandardAttributes;
-class SVGResourceClient;
-class SVGResourceDocumentContent;
 class TreeScope;
 
 // A class tracking a reference to an SVG resource (an element that constitutes
@@ -61,24 +60,13 @@ class TreeScope;
 //
 class SVGResource : public GarbageCollected<SVGResource> {
  public:
-  SVGResource(const SVGResource&) = delete;
-  SVGResource& operator=(const SVGResource&) = delete;
   virtual ~SVGResource();
 
   virtual void Load(Document&) {}
   virtual void LoadWithoutCSP(Document&) {}
 
   Element* Target() const { return target_; }
-  // Returns the target's LayoutObject (if target exists and is attached to the
-  // layout tree). Also perform cycle-checking, and may thus return nullptr if
-  // this SVGResourceClient -> SVGResource reference would start a cycle.
-  LayoutSVGResourceContainer* ResourceContainer(SVGResourceClient&) const;
-  // Same as the above, minus the cycle-checking.
-  LayoutSVGResourceContainer* ResourceContainerNoCycleCheck() const;
-  // Run cycle-checking for this SVGResourceClient -> SVGResource
-  // reference. Used internally by the cycle-checking, and shouldn't be called
-  // directly in general.
-  bool FindCycle(SVGResourceClient&) const;
+  LayoutSVGResourceContainer* ResourceContainer() const;
 
   void AddClient(SVGResourceClient&);
   void RemoveClient(SVGResourceClient&);
@@ -88,22 +76,13 @@ class SVGResource : public GarbageCollected<SVGResource> {
  protected:
   SVGResource();
 
-  void InvalidateCycleCache();
-  void NotifyContentChanged();
+  void NotifyElementChanged();
 
   Member<Element> target_;
+  HeapHashCountedSet<Member<SVGResourceClient>> clients_;
 
-  enum CycleState {
-    kNeedCheck,
-    kPerformingCheck,
-    kHasCycle,
-    kNoCycle,
-  };
-  struct ClientEntry {
-    int count = 0;
-    CycleState cached_cycle_check = kNeedCheck;
-  };
-  mutable HeapHashMap<Member<SVGResourceClient>, ClientEntry> clients_;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SVGResource);
 };
 
 // Local resource reference (see SVGResource.)
@@ -113,11 +92,13 @@ class LocalSVGResource final : public SVGResource {
 
   void Unregister();
 
-  using SVGResource::NotifyContentChanged;
-
+  void NotifyContentChanged(InvalidationModeMask);
   void NotifyFilterPrimitiveChanged(
       SVGFilterPrimitiveStandardAttributes& primitive,
       const QualifiedName& attribute);
+
+  void NotifyResourceAttached(LayoutSVGResourceContainer&);
+  void NotifyResourceDestroyed(LayoutSVGResourceContainer&);
 
   void Trace(Visitor*) const override;
 
@@ -129,7 +110,8 @@ class LocalSVGResource final : public SVGResource {
 };
 
 // External resource reference (see SVGResource.)
-class ExternalSVGResource final : public SVGResource, public ResourceClient {
+class ExternalSVGResource final : public SVGResource,
+                                  private SVGExternalDocumentCache::Client {
  public:
   explicit ExternalSVGResource(const KURL&);
 
@@ -141,11 +123,10 @@ class ExternalSVGResource final : public SVGResource, public ResourceClient {
  private:
   Element* ResolveTarget();
 
-  // ResourceClient implementation
-  void NotifyFinished(Resource*) override;
-  String DebugName() const override;
+  // SVGExternalDocumentCache::Client implementation
+  void NotifyFinished(Document*) override;
 
-  Member<SVGResourceDocumentContent> document_content_;
+  Member<SVGExternalDocumentCache::Entry> cache_entry_;
   KURL url_;
 };
 

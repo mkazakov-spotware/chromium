@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,17 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "remoting/protocol/connection_to_host.h"
 #include "remoting/protocol/protocol_mock_objects.h"
 
-namespace remoting::test {
+namespace remoting {
+namespace test {
 
 class FakeConnectionToHost : public protocol::ConnectionToHost {
  public:
   FakeConnectionToHost();
-
-  FakeConnectionToHost(const FakeConnectionToHost&) = delete;
-  FakeConnectionToHost& operator=(const FakeConnectionToHost&) = delete;
-
   ~FakeConnectionToHost() override;
 
   // ConnectionToHost interface.
@@ -53,14 +50,17 @@ class FakeConnectionToHost : public protocol::ConnectionToHost {
 
   State state_ = INITIALIZING;
 
-  raw_ptr<HostEventCallback> event_callback_;
+  HostEventCallback* event_callback_;
 
   testing::NiceMock<protocol::MockClipboardStub> mock_clipboard_stub_;
   testing::NiceMock<protocol::MockHostStub> mock_host_stub_;
   testing::NiceMock<protocol::MockInputStub> mock_input_stub_;
   std::unique_ptr<protocol::SessionConfig> session_config_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeConnectionToHost);
 };
 
-}  // namespace remoting::test
+}  // namespace test
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_FAKE_CONNECTION_TO_HOST_H_

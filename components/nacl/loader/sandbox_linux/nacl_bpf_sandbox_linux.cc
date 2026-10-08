@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "sandbox/sandbox_buildflags.h"
 
@@ -25,11 +26,11 @@
 #include "base/files/scoped_file.h"
 #include "base/notreached.h"
 #include "components/nacl/common/nacl_switches.h"
+#include "content/public/common/sandbox_init.h"
 #include "sandbox/linux/bpf_dsl/bpf_dsl.h"
 #include "sandbox/linux/bpf_dsl/policy.h"
 #include "sandbox/linux/seccomp-bpf-helpers/syscall_parameters_restrictions.h"
 #include "sandbox/linux/system_headers/linux_syscalls.h"
-#include "sandbox/policy/linux/sandbox_seccomp_bpf_linux.h"
 
 #endif  // BUILDFLAG(USE_SECCOMP_BPF)
 
@@ -46,8 +47,7 @@ using sandbox::bpf_dsl::ResultExpr;
 class NaClBPFSandboxPolicy : public sandbox::bpf_dsl::Policy {
  public:
   NaClBPFSandboxPolicy()
-      : baseline_policy_(
-            sandbox::policy::SandboxSeccompBPF::GetBaselinePolicy()),
+      : baseline_policy_(content::GetBPFSandboxBaselinePolicy()),
         policy_pid_(syscall(__NR_getpid)) {
     const base::CommandLine* command_line =
         base::CommandLine::ForCurrentProcess();
@@ -56,10 +56,6 @@ class NaClBPFSandboxPolicy : public sandbox::bpf_dsl::Policy {
     // whenever kEnableNaClDebug is passed.
     enable_nacl_debug_ = command_line->HasSwitch(switches::kEnableNaClDebug);
   }
-
-  NaClBPFSandboxPolicy(const NaClBPFSandboxPolicy&) = delete;
-  NaClBPFSandboxPolicy& operator=(const NaClBPFSandboxPolicy&) = delete;
-
   ~NaClBPFSandboxPolicy() override {}
 
   ResultExpr EvaluateSyscall(int system_call_number) const override;
@@ -71,6 +67,8 @@ class NaClBPFSandboxPolicy : public sandbox::bpf_dsl::Policy {
   std::unique_ptr<sandbox::bpf_dsl::Policy> baseline_policy_;
   bool enable_nacl_debug_;
   const pid_t policy_pid_;
+
+  DISALLOW_COPY_AND_ASSIGN(NaClBPFSandboxPolicy);
 };
 
 ResultExpr NaClBPFSandboxPolicy::EvaluateSyscall(int sysno) const {
@@ -176,8 +174,10 @@ void RunSandboxSanityChecks() {
 
 bool InitializeBPFSandbox(base::ScopedFD proc_fd) {
 #if BUILDFLAG(USE_SECCOMP_BPF)
-  if (sandbox::policy::SandboxSeccompBPF::StartSandboxWithExternalPolicy(
-          std::make_unique<NaClBPFSandboxPolicy>(), std::move(proc_fd))) {
+  bool sandbox_is_initialized = content::InitializeSandbox(
+      std::unique_ptr<sandbox::bpf_dsl::Policy>(new NaClBPFSandboxPolicy),
+      std::move(proc_fd));
+  if (sandbox_is_initialized) {
     RunSandboxSanityChecks();
     return true;
   }

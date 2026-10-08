@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,7 @@ int FileErrorToPepperError(base::File::Error error_code) {
 }
 
 bool PepperFileOpenFlagsToPlatformFileFlags(int32_t pp_open_flags,
-                                            uint32_t* flags_out) {
+                                            int* flags_out) {
   bool pp_read = !!(pp_open_flags & PP_FILEOPENFLAG_READ);
   bool pp_write = !!(pp_open_flags & PP_FILEOPENFLAG_WRITE);
   bool pp_create = !!(pp_open_flags & PP_FILEOPENFLAG_CREATE);
@@ -45,7 +45,7 @@ bool PepperFileOpenFlagsToPlatformFileFlags(int32_t pp_open_flags,
   bool pp_append = !!(pp_open_flags & PP_FILEOPENFLAG_APPEND);
 
   // Pepper allows Touch on any open file, so always set this Windows-only flag.
-  uint32_t flags = base::File::FLAG_WRITE_ATTRIBUTES;
+  int flags = base::File::FLAG_WRITE_ATTRIBUTES;
 
   if (pp_read)
     flags |= base::File::FLAG_READ;

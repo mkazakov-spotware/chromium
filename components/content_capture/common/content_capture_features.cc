@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,27 +11,19 @@
 namespace content_capture {
 namespace features {
 
-#if BUILDFLAG(IS_ANDROID)
-BASE_FEATURE(kContentCapture,
-             "ContentCapture",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+#if defined(OS_ANDROID)
+const base::Feature kContentCapture{"ContentCapture",
+                                    base::FEATURE_ENABLED_BY_DEFAULT};
 
-BASE_FEATURE(kContentCaptureTriggeringForExperiment,
-             "ContentCaptureTriggeringForExperiment",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kContentCaptureTriggeringForExperiment{
+    "ContentCaptureTriggeringForExperiment", base::FEATURE_ENABLED_BY_DEFAULT};
 #else
-BASE_FEATURE(kContentCapture,
-             "ContentCapture",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kContentCapture{"ContentCapture",
+                                    base::FEATURE_DISABLED_BY_DEFAULT};
 
-BASE_FEATURE(kContentCaptureTriggeringForExperiment,
-             "ContentCaptureTriggeringForExperiment",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kContentCaptureTriggeringForExperiment{
+    "ContentCaptureTriggeringForExperiment", base::FEATURE_DISABLED_BY_DEFAULT};
 #endif
-
-BASE_FEATURE(kContentCaptureInWebLayer,
-             "ContentCaptureInWebLayer",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsContentCaptureEnabled() {
   return base::FeatureList::IsEnabled(kContentCapture);
@@ -41,13 +33,14 @@ bool ShouldTriggerContentCaptureForExperiment() {
   return base::FeatureList::IsEnabled(kContentCaptureTriggeringForExperiment);
 }
 
-bool IsContentCaptureEnabledInWebLayer() {
-  return base::FeatureList::IsEnabled(kContentCaptureInWebLayer);
+int TaskLongDelayInMilliseconds() {
+  return base::GetFieldTrialParamByFeatureAsInt(
+      kContentCapture, "task_long_delay_in_milliseconds", 5000);
 }
 
-int TaskInitialDelayInMilliseconds() {
+int TaskShortDelayInMilliseconds() {
   return base::GetFieldTrialParamByFeatureAsInt(
-      kContentCapture, "task_initial_delay_in_milliseconds", 500);
+      kContentCapture, "task_short_delay_in_milliseconds", 500);
 }
 
 }  // namespace features

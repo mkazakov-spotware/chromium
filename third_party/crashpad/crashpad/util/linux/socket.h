@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "util/file/file_io.h"
 
 namespace crashpad {
@@ -28,10 +29,6 @@ namespace crashpad {
 //!     sockets.
 class UnixCredentialSocket {
  public:
-  UnixCredentialSocket() = delete;
-  UnixCredentialSocket(const UnixCredentialSocket&) = delete;
-  UnixCredentialSocket& operator=(const UnixCredentialSocket&) = delete;
-
   //! \brief Creates an `AF_UNIX` family socket pair with `SO_PASSCRED` set on
   //!     each socket.
   //!
@@ -89,6 +86,9 @@ class UnixCredentialSocket {
                       size_t buf_size,
                       ucred* creds,
                       std::vector<ScopedFileHandle>* fds = nullptr);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(UnixCredentialSocket);
 };
 
 }  // namespace crashpad

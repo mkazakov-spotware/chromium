@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,19 @@
 
 #include "base/unguessable_token.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
+#include "third_party/blink/public/mojom/feature_policy/feature_policy_feature.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_serial_port_filter.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_serial_port_request_options.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
-#include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/execution_context/navigator_base.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/modules/event_target_modules_names.h"
+#include "third_party/blink/renderer/modules/serial/serial_connection_event.h"
 #include "third_party/blink/renderer/modules/serial/serial_port.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -31,7 +29,7 @@ namespace {
 
 const char kContextGone[] = "Script context has shut down.";
 const char kFeaturePolicyBlocked[] =
-    "Access to the feature \"serial\" is disallowed by permissions policy.";
+    "Access to the feature \"serial\" is disallowed by feature policy.";
 const char kNoPortSelected[] = "No port selected by the user.";
 
 String TokenToString(const base::UnguessableToken& token) {
@@ -43,22 +41,10 @@ String TokenToString(const base::UnguessableToken& token) {
 
 }  // namespace
 
-const char Serial::kSupplementName[] = "Serial";
-
-Serial* Serial::serial(NavigatorBase& navigator) {
-  Serial* serial = Supplement<NavigatorBase>::From<Serial>(navigator);
-  if (!serial) {
-    serial = MakeGarbageCollected<Serial>(navigator);
-    ProvideTo(navigator, serial);
-  }
-  return serial;
-}
-
-Serial::Serial(NavigatorBase& navigator)
-    : Supplement<NavigatorBase>(navigator),
-      ExecutionContextLifecycleObserver(navigator.GetExecutionContext()),
-      service_(navigator.GetExecutionContext()),
-      receiver_(this, navigator.GetExecutionContext()) {}
+Serial::Serial(ExecutionContext& execution_context)
+    : ExecutionContextLifecycleObserver(&execution_context),
+      service_(&execution_context),
+      receiver_(this, &execution_context) {}
 
 ExecutionContext* Serial::GetExecutionContext() const {
   return ExecutionContextLifecycleObserver::GetExecutionContext();
@@ -74,13 +60,13 @@ void Serial::ContextDestroyed() {
 }
 
 void Serial::OnPortAdded(mojom::blink::SerialPortInfoPtr port_info) {
-  SerialPort* port = GetOrCreatePort(std::move(port_info));
-  port->DispatchEvent(*Event::CreateBubble(event_type_names::kConnect));
+  DispatchEvent(*SerialConnectionEvent::Create(
+      event_type_names::kConnect, GetOrCreatePort(std::move(port_info))));
 }
 
 void Serial::OnPortRemoved(mojom::blink::SerialPortInfoPtr port_info) {
-  SerialPort* port = GetOrCreatePort(std::move(port_info));
-  port->DispatchEvent(*Event::CreateBubble(event_type_names::kDisconnect));
+  DispatchEvent(*SerialConnectionEvent::Create(
+      event_type_names::kDisconnect, GetOrCreatePort(std::move(port_info))));
 }
 
 ScriptPromise Serial::getPorts(ScriptState* script_state,
@@ -92,9 +78,8 @@ ScriptPromise Serial::getPorts(ScriptState* script_state,
     return ScriptPromise();
   }
 
-  if (!context->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kSerial,
-          ReportOptions::kReportOnFailure)) {
+  if (!context->IsFeatureEnabled(mojom::blink::FeaturePolicyFeature::kSerial,
+                                 ReportOptions::kReportOnFailure)) {
     exception_state.ThrowSecurityError(kFeaturePolicyBlocked);
     return ScriptPromise();
   }
@@ -103,8 +88,8 @@ ScriptPromise Serial::getPorts(ScriptState* script_state,
   get_ports_promises_.insert(resolver);
 
   EnsureServiceConnection();
-  service_->GetPorts(WTF::BindOnce(&Serial::OnGetPorts, WrapPersistent(this),
-                                   WrapPersistent(resolver)));
+  service_->GetPorts(WTF::Bind(&Serial::OnGetPorts, WrapPersistent(this),
+                               WrapPersistent(resolver)));
 
   return resolver->Promise();
 }
@@ -119,7 +104,7 @@ ScriptPromise Serial::requestPort(ScriptState* script_state,
   }
 
   if (!GetExecutionContext()->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kSerial,
+          mojom::blink::FeaturePolicyFeature::kSerial,
           ReportOptions::kReportOnFailure)) {
     exception_state.ThrowSecurityError(kFeaturePolicyBlocked);
     return ScriptPromise();
@@ -160,14 +145,13 @@ ScriptPromise Serial::requestPort(ScriptState* script_state,
     }
   }
 
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(
-      script_state, exception_state.GetContext());
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   request_port_promises_.insert(resolver);
 
   EnsureServiceConnection();
   service_->RequestPort(std::move(filters),
-                        resolver->WrapCallbackInScriptScope(WTF::BindOnce(
-                            &Serial::OnRequestPort, WrapPersistent(this))));
+                        WTF::Bind(&Serial::OnRequestPort, WrapPersistent(this),
+                                  WrapPersistent(resolver)));
 
   return resolver->Promise();
 }
@@ -182,13 +166,6 @@ void Serial::OpenPort(
                      std::move(callback));
 }
 
-void Serial::ForgetPort(
-    const base::UnguessableToken& token,
-    mojom::blink::SerialService::ForgetPortCallback callback) {
-  EnsureServiceConnection();
-  service_->ForgetPort(token, std::move(callback));
-}
-
 void Serial::Trace(Visitor* visitor) const {
   visitor->Trace(service_);
   visitor->Trace(receiver_);
@@ -196,7 +173,6 @@ void Serial::Trace(Visitor* visitor) const {
   visitor->Trace(request_port_promises_);
   visitor->Trace(port_cache_);
   EventTargetWithInlineData::Trace(visitor);
-  Supplement<NavigatorBase>::Trace(visitor);
   ExecutionContextLifecycleObserver::Trace(visitor);
 }
 
@@ -210,9 +186,9 @@ void Serial::AddedEventListener(const AtomicString& event_type,
   }
 
   ExecutionContext* context = GetExecutionContext();
-  if (!context || !context->IsFeatureEnabled(
-                      mojom::blink::PermissionsPolicyFeature::kSerial,
-                      ReportOptions::kDoNotReport)) {
+  if (!context ||
+      !context->IsFeatureEnabled(mojom::blink::FeaturePolicyFeature::kSerial,
+                                 ReportOptions::kDoNotReport)) {
     return;
   }
 
@@ -229,8 +205,8 @@ void Serial::EnsureServiceConnection() {
       GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI);
   GetExecutionContext()->GetBrowserInterfaceBroker().GetInterface(
       service_.BindNewPipeAndPassReceiver(task_runner));
-  service_.set_disconnect_handler(WTF::BindOnce(
-      &Serial::OnServiceConnectionError, WrapWeakPersistent(this)));
+  service_.set_disconnect_handler(
+      WTF::Bind(&Serial::OnServiceConnectionError, WrapWeakPersistent(this)));
 
   service_->SetClient(receiver_.BindNewPipeAndPassRemote(task_runner));
 }
@@ -249,25 +225,17 @@ void Serial::OnServiceConnectionError() {
   HeapHashSet<Member<ScriptPromiseResolver>> request_port_promises;
   request_port_promises_.swap(request_port_promises);
   for (ScriptPromiseResolver* resolver : request_port_promises) {
-    ScriptState* resolver_script_state = resolver->GetScriptState();
-    if (!IsInParallelAlgorithmRunnable(resolver->GetExecutionContext(),
-                                       resolver_script_state)) {
-      continue;
-    }
-    ScriptState::Scope script_state_scope(resolver_script_state);
-    resolver->RejectWithDOMException(DOMExceptionCode::kNotFoundError,
-                                     kNoPortSelected);
+    resolver->Reject(MakeGarbageCollected<DOMException>(
+        DOMExceptionCode::kNotFoundError, kNoPortSelected));
   }
 }
 
 SerialPort* Serial::GetOrCreatePort(mojom::blink::SerialPortInfoPtr info) {
-  auto it = port_cache_.find(TokenToString(info->token));
-  if (it != port_cache_.end()) {
-    return it->value;
+  SerialPort* port = port_cache_.at(TokenToString(info->token));
+  if (!port) {
+    port = MakeGarbageCollected<SerialPort>(this, std::move(info));
+    port_cache_.insert(TokenToString(port->token()), port);
   }
-
-  SerialPort* port = MakeGarbageCollected<SerialPort>(this, std::move(info));
-  port_cache_.insert(TokenToString(port->token()), port);
   return port;
 }
 
@@ -289,8 +257,8 @@ void Serial::OnRequestPort(ScriptPromiseResolver* resolver,
   request_port_promises_.erase(resolver);
 
   if (!port_info) {
-    resolver->RejectWithDOMException(DOMExceptionCode::kNotFoundError,
-                                     kNoPortSelected);
+    resolver->Reject(MakeGarbageCollected<DOMException>(
+        DOMExceptionCode::kNotFoundError, kNoPortSelected));
     return;
   }
 

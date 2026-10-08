@@ -1,16 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 module storage.mojom;
 
+import "components/services/storage/public/mojom/local_storage_control.mojom";
 import "components/services/storage/public/mojom/service_worker_database.mojom";
-import "components/services/storage/public/mojom/storage_policy_update.mojom";
 import "mojo/public/mojom/base/big_buffer.mojom";
 import "mojo/public/mojom/base/time.mojom";
 import "services/network/public/mojom/url_response_head.mojom";
-import "third_party/blink/public/mojom/service_worker/service_worker_fetch_handler_type.mojom";
-import "third_party/blink/public/mojom/storage_key/storage_key.mojom";
+import "url/mojom/origin.mojom";
 import "url/mojom/url.mojom";
 
 // An interface that is used to keep track of which service worker versions are
@@ -55,29 +54,25 @@ struct ServiceWorkerFindRegistrationResult {
 
 // Used to tell the browser process or embedders if there are registrations
 // after ServiceWorkerStorageControl::DeleteRegistration().
-enum ServiceWorkerStorageStorageKeyState {
-  // Registrations may exist for the StorageKey. It cannot be deleted.
+enum ServiceWorkerStorageOriginState {
+  // Registrations may exist for the origin. It cannot be deleted.
   kKeep,
-  // No registrations exist for the StorageKey. It can be deleted.
+  // No registrations exist for the origin. It can be deleted.
   kDelete,
 };
 
+// A notifier interface for ServiceWorkerResourceReader::ReadData().
+interface ServiceWorkerDataPipeStateNotifier {
+  // Called when ReadData() completes. On success, |status| is the number of
+  // bytes written. On failure, |status| is a //net error, which is a negative
+  // number.
+  OnComplete(int32 status);
+};
+
 // An interface that reads a service worker script (resource) to storage.
-// This is hosted in the browser process and should be only used from the
-// browser process, and relies on the callers to satisfy the calling order
-// invariant below.
-//
-// A valid use of this interface is that
-// 1. Exactly one call to ReadResponseHead().
-// 2. A call to PrepareReadData() followed by a call to ReadData().
-// Step 2 can be repeated multiple times.
-// Each call must not be overlapped.
-//
-// TODO(crbug.com/1353545): Clarify whether we should really support multiple
-// `PrepareReadData()` calls.
-//
-// TODO(crbug.com/1353545): Enforce the calling order requirement. See
-// https://chromium-review.googlesource.com/c/chromium/src/+/3823684/comments/fd5170e2_19c5fb5e
+// A valid use of this interface is that exactly one call to
+// ReadResponseHead(), followed by possibly multiple ReadData() calls. Each call
+// must not be overlapped.
 interface ServiceWorkerResourceReader {
   // Reads the response head of the resource associated with this reader.
   // |status| is the number of bytes read, or a //net error.
@@ -86,17 +81,10 @@ interface ServiceWorkerResourceReader {
       (int32 status,
        network.mojom.URLResponseHead? response_head,
        mojo_base.mojom.BigBuffer? metadata);
-
-  // Prepare for reading the content of the resource associated with this
-  // reader. `pipe` can be empty when creating a data pipe fails.
-  // TODO(crbug.com/1353545): Clarify the meaning of `size` parameter.
-  PrepareReadData(int64 size) =>
-      (handle<data_pipe_consumer>? pipe);
-
-  // Actually reads the content, and returns when finished.
-  // On success, |status| is the number of bytes written.
-  // On failure, |status| is a //net error, which is a negative number.
-  ReadData() => (int32 status);
+  // Reads the content of the resource associated with this reader.
+  ReadData(int64 size,
+           pending_remote<ServiceWorkerDataPipeStateNotifier> notifier) =>
+      (handle<data_pipe_consumer> pipe);
 };
 
 // An interface that writes a service worker script (resource) to storage.
@@ -137,9 +125,8 @@ struct ServiceWorkerUserData {
 // Currently this is consumed and implemented in the browser process, but the
 // implementation will eventually live in the Storage Service.
 interface ServiceWorkerStorageControl {
-  // Disables the storage. The callback is invoked after the storage is
-  // disabled.
-  Disable() => ();
+  // Disables the storage.
+  Disable();
 
   // Deletes the whole storage.
   Delete() => (ServiceWorkerDatabaseStatus status);
@@ -150,31 +137,30 @@ interface ServiceWorkerStorageControl {
   // have been deleted.
   Recover(array<ServiceWorkerLiveVersionInfo> versions) => ();
 
-  // Returns all StorageKeys which have service worker registrations.
-  GetRegisteredStorageKeys() => (array<blink.mojom.StorageKey> keys);
+  // Returns all origins which have service worker registrations.
+  GetRegisteredOrigins() => (array<url.mojom.Origin> origins);
 
-  // Reads a stored registration for `client_url` that is associated with `key`.
-  FindRegistrationForClientUrl(url.mojom.Url client_url,
-                               blink.mojom.StorageKey key) =>
+  // Reads a stored registration for |client_id|.
+  FindRegistrationForClientUrl(url.mojom.Url client_url) =>
       (ServiceWorkerDatabaseStatus status,
        ServiceWorkerFindRegistrationResult? result);
-  // Reads a stored registration for `scope` that is associated with `key`.
-  FindRegistrationForScope(url.mojom.Url scope, blink.mojom.StorageKey key) =>
+  // Reads a stored registration for |scope|.
+  FindRegistrationForScope(url.mojom.Url scope) =>
       (ServiceWorkerDatabaseStatus status,
        ServiceWorkerFindRegistrationResult? result);
-  // Reads a stored registration for `registration_id`. `key` is to
+  // Reads a stored registration for |registration_id|. |origin| is to
   // be used as a hint to look up the registration faster.
-  FindRegistrationForId(int64 registration_id, blink.mojom.StorageKey? key) =>
+  FindRegistrationForId(int64 registration_id, url.mojom.Origin? origin) =>
       (ServiceWorkerDatabaseStatus status,
        ServiceWorkerFindRegistrationResult? result);
 
-  // Returns all stored registrations for a given StorageKey.
-  GetRegistrationsForStorageKey(blink.mojom.StorageKey key) =>
+  // Returns all stored registrations for a given origin.
+  GetRegistrationsForOrigin(url.mojom.Origin origin) =>
       (ServiceWorkerDatabaseStatus status,
        array<ServiceWorkerFindRegistrationResult> registrations);
 
-  // Returns the total resource size for a given StorageKey.
-  GetUsageForStorageKey(blink.mojom.StorageKey key) =>
+  // Returns the total resource size for a given origin.
+  GetUsageForOrigin(url.mojom.Origin origin) =>
       (ServiceWorkerDatabaseStatus status, int64 usage);
 
   // Returns all stored registrations.
@@ -184,45 +170,34 @@ interface ServiceWorkerStorageControl {
       (ServiceWorkerDatabaseStatus status,
        array<ServiceWorkerRegistrationData> registrations);
 
-  // Stores |registration_data| and |resources|. If exists, the previous
-  // registration for `registration.registration_id` will be deleted when
-  // storing succeeds. `deleted_resources_size` carries the total size of
-  // deleted resources.
+  // Stores |registration_data| and |resources|.
   StoreRegistration(ServiceWorkerRegistrationData registration,
                     array<ServiceWorkerResourceRecord> resources) =>
-      (ServiceWorkerDatabaseStatus status, uint64 deleted_resources_size);
+      (ServiceWorkerDatabaseStatus status);
 
-  // Deletes the registration specified by `registration_id`.
-  // `deleted_resources_size` carries the total size of deleted resources.
-  // `storage_key_state` is kDelete if there is no registration for `key` after
-  // deletion.
-  DeleteRegistration(int64 registration_id, blink.mojom.StorageKey key) =>
+  // Deletes the registration specified by |registration_id|. |origin_state| is
+  // kDelete if there is no registration for |origin| after deletion.
+  DeleteRegistration(int64 registration_id, url.mojom.Url origin) =>
       (ServiceWorkerDatabaseStatus status,
-       uint64 deleted_resources_size,
-       ServiceWorkerStorageStorageKeyState storage_key_state);
+       ServiceWorkerStorageOriginState origin_state);
 
   // Updates the state of the registration's stored version to active.
-  UpdateToActiveState(int64 registration_id, blink.mojom.StorageKey key) =>
+  UpdateToActiveState(int64 registration_id, url.mojom.Url origin) =>
       (ServiceWorkerDatabaseStatus status);
   // Updates the last update check time on the storage.
   UpdateLastUpdateCheckTime(int64 registration_id,
-                            blink.mojom.StorageKey key,
+                            url.mojom.Url origin,
                             mojo_base.mojom.Time last_update_check_time) =>
       (ServiceWorkerDatabaseStatus status);
   // Updates the registration's navigation preload enabled flag in storage.
   UpdateNavigationPreloadEnabled(int64 registration_id,
-                                 blink.mojom.StorageKey key,
+                                 url.mojom.Url origin,
                                  bool enable) =>
       (ServiceWorkerDatabaseStatus status);
   // Updates the registration's navigation preload header in storage.
   UpdateNavigationPreloadHeader(int64 registration_id,
-                                blink.mojom.StorageKey key,
+                                url.mojom.Url origin,
                                 string value) =>
-      (ServiceWorkerDatabaseStatus status);
-  // Updates the fetch handler type in storage.
-  UpdateFetchHandlerType(int64 registration_id,
-                         blink.mojom.StorageKey key,
-                         blink.mojom.ServiceWorkerFetchHandlerType type) =>
       (ServiceWorkerDatabaseStatus status);
 
   // Returns a new registration id which is guaranteed to be unique in the
@@ -258,7 +233,7 @@ interface ServiceWorkerStorageControl {
   // with any registration yet.
   // StoreRegistration() or DoomUncommittedResources() needs to be
   // called later to clear the |resource_id| from the uncommitted resource list.
-  StoreUncommittedResourceId(int64 resource_id) =>
+  StoreUncommittedResourceId(int64 resource_id, url.mojom.Url origin) =>
       (ServiceWorkerDatabaseStatus status);
 
   // Removes |resource_ids| from the uncommitted resource list.
@@ -270,9 +245,9 @@ interface ServiceWorkerStorageControl {
   // of |values| are the same as |keys|.
   GetUserData(int64 registration_id, array<string> keys) =>
       (ServiceWorkerDatabaseStatus status, array<string> values);
-  // Stores `user_data` on persistent storage.
+  // Stores |user_data| on persistent storage.
   StoreUserData(int64 registration_id,
-                blink.mojom.StorageKey key,
+                url.mojom.Origin origin,
                 array<ServiceWorkerUserData> user_data) =>
       (ServiceWorkerDatabaseStatus status);
   // Clears user data specified by |registration_id| and |keys|.
@@ -312,19 +287,11 @@ interface ServiceWorkerStorageControl {
 
   // Applies changes to data retention policy which are relevant at shutdown.
   // This is analogous to LocalStorageControl::ApplyPolicyUpdates.
-  ApplyPolicyUpdates(array<StoragePolicyUpdate> policy_updates) =>
-      (ServiceWorkerDatabaseStatus status);
+  ApplyPolicyUpdates(array<LocalStoragePolicyUpdate> policy_updates);
 
-  // Gets resource ids which are scheduled to purge.
+  // Get resource ids which are scheduled to purge.
   GetPurgingResourceIdsForTest() => (ServiceWorkerDatabaseStatus status,
                                      array<int64> resource_ids);
-
-  // Gets resource ids which will be scheduled to purge once the version with
-  // the given id is no longer alive.
-  GetPurgingResourceIdsForLiveVersionForTest(int64 version_id) =>
-      (ServiceWorkerDatabaseStatus status,
-      array<int64> resource_ids);
-
   // Gets resource ids which are purgeable.
   GetPurgeableResourceIdsForTest() => (ServiceWorkerDatabaseStatus status,
                                        array<int64> resource_ids);

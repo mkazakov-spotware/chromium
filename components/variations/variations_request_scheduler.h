@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define COMPONENTS_VARIATIONS_VARIATIONS_REQUEST_SCHEDULER_H_
 
 #include "base/bind.h"
-#include "base/component_export.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 
@@ -16,12 +16,8 @@ class PrefService;
 namespace variations {
 
 // A helper class that makes VariationsService requests at the correct times.
-class COMPONENT_EXPORT(VARIATIONS) VariationsRequestScheduler {
+class VariationsRequestScheduler {
  public:
-  VariationsRequestScheduler(const VariationsRequestScheduler&) = delete;
-  VariationsRequestScheduler& operator=(const VariationsRequestScheduler&) =
-      delete;
-
   virtual ~VariationsRequestScheduler();
 
   // Starts the task. This can be a repeated event or a one-off.
@@ -66,6 +62,8 @@ class COMPONENT_EXPORT(VARIATIONS) VariationsRequestScheduler {
 
   // A one-shot timer used for scheduling out-of-band fetches.
   base::OneShotTimer one_shot_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(VariationsRequestScheduler);
 };
 
 }  // namespace variations

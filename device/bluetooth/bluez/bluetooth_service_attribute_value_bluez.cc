@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/check_op.h"
 #include "base/memory/ptr_util.h"
-#include "base/values.h"
 
 namespace bluez {
 
@@ -43,7 +42,7 @@ operator=(const BluetoothServiceAttributeValueBlueZ& attribute) {
       value_ = nullptr;
       sequence_ = std::make_unique<Sequence>(*attribute.sequence_);
     } else {
-      value_ = base::Value::ToUniquePtrValue(attribute.value_->Clone());
+      value_ = attribute.value_->CreateDeepCopy();
       sequence_ = nullptr;
     }
   }

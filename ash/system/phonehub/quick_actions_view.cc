@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,12 @@ namespace ash {
 
 namespace {
 
-constexpr auto kQuickActionsViewPadding = gfx::Insets::TLBR(16, 4, 12, 4);
+constexpr gfx::Insets kQuickActionsViewPadding(16, 4, 12, 4);
 
 }  // namespace
 
-QuickActionsView::QuickActionsView(phonehub::PhoneHubManager* phone_hub_manager)
+QuickActionsView::QuickActionsView(
+    chromeos::phonehub::PhoneHubManager* phone_hub_manager)
     : phone_hub_manager_(phone_hub_manager) {
   SetID(PhoneHubViewID::kQuickActionsView);
 
@@ -48,7 +49,8 @@ void QuickActionsView::InitQuickActionItems() {
 
   auto locate_phone_controller =
       std::make_unique<LocatePhoneQuickActionController>(
-          phone_hub_manager_->GetFindMyDeviceController());
+          phone_hub_manager_->GetFindMyDeviceController(),
+          silence_phone_controller.get());
   locate_phone_ = AddChildView(locate_phone_controller->CreateItem());
 
   quick_action_controllers_.push_back(std::move(silence_phone_controller));

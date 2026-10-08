@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,12 @@
 #include <algorithm>
 #include <map>
 
+#include "base/macros.h"
 #include "base/memory/singleton.h"
-#include "base/strings/string_piece.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
 #include "base/trace_event/trace_event.h"
@@ -56,7 +58,7 @@ void GetFontNamesFromFilename(const std::string& filename,
 
 // Returns true if |text| contains only ASCII digits.
 bool ContainsOnlyDigits(const std::string& text) {
-  return text.find_first_not_of("0123456789") == std::u16string::npos;
+  return text.find_first_not_of("0123456789") == base::string16::npos;
 }
 
 // Appends a Font with the given |name| and |size| to |fonts| unless the last
@@ -112,9 +114,6 @@ class CachedFontLinkSettings {
  public:
   static CachedFontLinkSettings* GetInstance();
 
-  CachedFontLinkSettings(const CachedFontLinkSettings&) = delete;
-  CachedFontLinkSettings& operator=(const CachedFontLinkSettings&) = delete;
-
   // Returns the linked fonts list correspond to |font|. Returned value will
   // never be null.
   const std::vector<Font>* GetLinkedFonts(const Font& font);
@@ -130,6 +129,8 @@ class CachedFontLinkSettings {
 
   // Map from font names to vectors of linked fonts.
   std::map<std::string, std::vector<Font> > cached_linked_fonts_;
+
+  DISALLOW_COPY_AND_ASSIGN(CachedFontLinkSettings);
 };
 
 // static
@@ -141,14 +142,19 @@ CachedFontLinkSettings* CachedFontLinkSettings::GetInstance() {
 
 const std::vector<Font>* CachedFontLinkSettings::GetLinkedFonts(
     const Font& font) {
+  SCOPED_UMA_HISTOGRAM_LONG_TIMER("FontFallback.GetLinkedFonts.Timing");
   const std::string& font_name = font.GetFontName();
   std::map<std::string, std::vector<Font> >::const_iterator it =
       cached_linked_fonts_.find(font_name);
   if (it != cached_linked_fonts_.end())
     return &it->second;
 
+  SCOPED_UMA_HISTOGRAM_LONG_TIMER(
+      "FontFallback.GetLinkedFonts.CacheMissTiming");
   std::vector<Font>* linked_fonts = &cached_linked_fonts_[font_name];
   QueryLinkedFontsFromRegistry(font, &cached_system_fonts_, linked_fonts);
+  UMA_HISTOGRAM_COUNTS_100("FontFallback.GetLinkedFonts.FontCount",
+                           linked_fonts->size());
   return linked_fonts;
 }
 
@@ -224,7 +230,7 @@ bool GetFallbackFont(const Font& font,
   // Check that we have at least as much text as was claimed. If we have less
   // text than expected then DirectWrite will become confused and crash. This
   // shouldn't happen, but crbug.com/624905 shows that it happens sometimes.
-  constexpr char16_t kNulCharacter = '\0';
+  constexpr base::char16 kNulCharacter = '\0';
   if (text.find(kNulCharacter) != base::StringPiece16::npos)
     return false;
 
@@ -239,7 +245,7 @@ bool GetFallbackFont(const Font& font,
   // font handles and is not guaranteed to result in the correct typeface, see
   // https://crbug.com/1003829
   *result = Font(PlatformFont::CreateFromSkTypeface(
-      std::move(fallback_typeface), font.GetFontSize(), absl::nullopt));
+      std::move(fallback_typeface), font.GetFontSize(), base::nullopt));
   return true;
 }
 

@@ -1,12 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_HELP_TEST_VERSION_UPDATER_H_
 #define CHROME_BROWSER_UI_WEBUI_HELP_TEST_VERSION_UPDATER_H_
 
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/webui/help/version_updater.h"
 
 // A very simple VersionUpdater implementation that immediately invokes the
@@ -16,34 +16,26 @@
 class TestVersionUpdater : public VersionUpdater {
  public:
   TestVersionUpdater();
-
-  TestVersionUpdater(const TestVersionUpdater&) = delete;
-  TestVersionUpdater& operator=(const TestVersionUpdater&) = delete;
-
   ~TestVersionUpdater() override;
 
-  void CheckForUpdate(StatusCallback callback, PromoteCallback) override;
+  void CheckForUpdate(const StatusCallback& callback,
+                      const PromoteCallback&) override;
 
   void SetReturnedStatus(Status status) { status_ = status; }
 
 // VersionUpdater implementation:
-#if BUILDFLAG(IS_MAC)
-  void PromoteUpdater() override {}
+#if defined(OS_MAC)
+  void PromoteUpdater() const override {}
 #endif
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   void SetChannel(const std::string& channel,
                   bool is_powerwash_allowed) override {}
-  void GetChannel(bool get_current_channel, ChannelCallback callback) override {
-  }
+  void GetChannel(bool get_current_channel,
+                  const ChannelCallback& callback) override {}
   void GetEolInfo(EolInfoCallback callback) override {}
-  void ToggleFeature(const std::string& feature, bool enable) override {}
-  void IsFeatureEnabled(const std::string& feature,
-                        IsFeatureEnabledCallback callback) override {}
-  bool IsManagedAutoUpdateEnabled() override;
-  void SetUpdateOverCellularOneTimePermission(StatusCallback callback,
+  void SetUpdateOverCellularOneTimePermission(const StatusCallback& callback,
                                               const std::string& update_version,
                                               int64_t update_size) override {}
-  void ApplyDeferredUpdate() override {}
 #endif
 
  private:
@@ -53,7 +45,9 @@ class TestVersionUpdater : public VersionUpdater {
   bool powerwash_ = false;
   std::string version_;
   int64_t update_size_ = 0;
-  std::u16string message_;
+  base::string16 message_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestVersionUpdater);
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_HELP_TEST_VERSION_UPDATER_H_

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ enum ColorSpacePrimaryID {
   BT2020,
   SMPTEST428_1,
   SMPTEST431_2,
-  P3,
+  SMPTEST432_1,
   XYZ_D50,
   ADOBE_RGB,
   APPLE_GENERIC_RGB,
@@ -41,18 +41,17 @@ enum ColorSpaceTransferID {
   LOG_SQRT,
   IEC61966_2_4,
   BT1361_ECG,
-  SRGB,
+  IEC61966_2_1,
   BT2020_10,
   BT2020_12,
-  PQ,
+  SMPTEST2084,
   SMPTEST428_1,
-  HLG,
-  SRGB_HDR,
+  ARIB_STD_B67,
+  IEC61966_2_1_HDR,
   LINEAR_HDR,
   CUSTOM,
   CUSTOM_HDR,
-  PIECEWISE_HDR,
-  SCRGB_LINEAR_80_NITS
+  PIECEWISE_HDR
 };
 
 enum ColorSpaceMatrixID {

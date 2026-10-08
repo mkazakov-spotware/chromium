@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,33 +8,30 @@
 #include <utility>
 #include <vector>
 
-#include "ash/components/arc/mojom/intent_helper.mojom.h"
-#include "ash/components/arc/session/arc_bridge_service.h"
-#include "ash/components/arc/session/arc_service_manager.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/public/cpp/bluetooth_config_service.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "base/bind.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
-#include "chrome/browser/ui/app_list/arc/intent.h"
-#include "chromeos/ash/components/network/network_event_log.h"
-#include "chromeos/ash/components/network/network_state_handler.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "chromeos/dbus/power_manager/backlight.pb.h"
+#include "chromeos/network/network_state_handler.h"
+#include "components/arc/arc_service_manager.h"
+#include "components/arc/mojom/intent_helper.mojom.h"
+#include "components/arc/session/arc_bridge_service.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/user_manager.h"
 #include "ui/display/types/display_constants.h"
 
-using ::ash::NetworkHandler;
-using ::ash::NetworkStateHandler;
-using ::ash::NetworkTypePattern;
-using ::ash::assistant::AndroidAppInfo;
-using ::ash::assistant::AppStatus;
+using chromeos::NetworkHandler;
+using chromeos::NetworkStateHandler;
+using chromeos::NetworkTypePattern;
+using chromeos::assistant::AndroidAppInfo;
+using chromeos::assistant::AppStatus;
 
 namespace {
 
@@ -44,20 +41,20 @@ constexpr char kPackage[] = "package";
 constexpr char kLaunchFlags[] = "launchFlags";
 constexpr char kEndSuffix[] = "end";
 
-absl::optional<std::string> GetActivity(const std::string& package_name) {
+base::Optional<std::string> GetActivity(const std::string& package_name) {
   auto* prefs = ArcAppListPrefs::Get(ProfileManager::GetActiveUserProfile());
   if (!prefs) {
     LOG(ERROR) << "ArcAppListPrefs is not available.";
-    return absl::nullopt;
+    return base::nullopt;
   }
   std::string app_id = prefs->GetAppIdByPackageName(package_name);
 
   if (!app_id.empty()) {
     std::unique_ptr<ArcAppListPrefs::AppInfo> app_info = prefs->GetApp(app_id);
-    return absl::optional<std::string>(app_info->activity);
+    return base::Optional<std::string>(app_info->activity);
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 std::string GetLaunchIntent(const AndroidAppInfo& app_info) {
@@ -100,7 +97,8 @@ std::vector<AndroidAppInfo> GetAppsInfo() {
 }
 
 void NotifyAndroidAppListRefreshed(
-    base::ObserverList<ash::assistant::AppListEventSubscriber>* subscribers) {
+    base::ObserverList<chromeos::assistant::AppListEventSubscriber>*
+        subscribers) {
   std::vector<AndroidAppInfo> android_apps_info = GetAppsInfo();
   for (auto& subscriber : *subscribers)
     subscriber.OnAndroidAppListRefreshed(android_apps_info);
@@ -109,27 +107,30 @@ void NotifyAndroidAppListRefreshed(
 }  // namespace
 
 DeviceActions::DeviceActions(std::unique_ptr<DeviceActionsDelegate> delegate)
-    : delegate_(std::move(delegate)) {
-  ash::GetBluetoothConfigService(
-      remote_cros_bluetooth_config_.BindNewPipeAndPassReceiver());
-}
+    : delegate_(std::move(delegate)) {}
 
 DeviceActions::~DeviceActions() = default;
 
 void DeviceActions::SetWifiEnabled(bool enabled) {
-  NET_LOG(USER) << __func__ << ":" << enabled;
   NetworkHandler::Get()->network_state_handler()->SetTechnologyEnabled(
       NetworkTypePattern::WiFi(), enabled,
-      ash::network_handler::ErrorCallback());
+      chromeos::network_handler::ErrorCallback());
 }
 
 void DeviceActions::SetBluetoothEnabled(bool enabled) {
-  remote_cros_bluetooth_config_->SetBluetoothEnabledState(enabled);
+  const user_manager::User* const user =
+      user_manager::UserManager::Get()->GetActiveUser();
+  Profile* profile = chromeos::ProfileHelper::Get()->GetProfileByUser(user);
+  DCHECK(profile);
+  // Simply toggle the user pref, which is being observed by ash's bluetooth
+  // power controller.
+  profile->GetPrefs()->SetBoolean(ash::prefs::kUserBluetoothAdapterEnabled,
+                                  enabled);
 }
 
 void HandleScreenBrightnessCallback(
     DeviceActions::GetScreenBrightnessLevelCallback callback,
-    absl::optional<double> level) {
+    base::Optional<double> level) {
   if (level.has_value()) {
     std::move(callback).Run(true, level.value() / 100.0);
   } else {
@@ -158,7 +159,7 @@ void DeviceActions::SetScreenBrightnessLevel(double level, bool gradual) {
 void DeviceActions::SetNightLightEnabled(bool enabled) {
   const user_manager::User* const user =
       user_manager::UserManager::Get()->GetActiveUser();
-  Profile* profile = ash::ProfileHelper::Get()->GetProfileByUser(user);
+  Profile* profile = chromeos::ProfileHelper::Get()->GetProfileByUser(user);
   DCHECK(profile);
   // Simply toggle the user pref, which is being observed by ash's night
   // light controller.
@@ -168,7 +169,7 @@ void DeviceActions::SetNightLightEnabled(bool enabled) {
 void DeviceActions::SetSwitchAccessEnabled(bool enabled) {
   const user_manager::User* const user =
       user_manager::UserManager::Get()->GetActiveUser();
-  Profile* profile = ash::ProfileHelper::Get()->GetProfileByUser(user);
+  Profile* profile = chromeos::ProfileHelper::Get()->GetProfileByUser(user);
   DCHECK(profile);
   profile->GetPrefs()->SetBoolean(ash::prefs::kAccessibilitySwitchAccessEnabled,
                                   enabled);
@@ -180,13 +181,10 @@ bool DeviceActions::OpenAndroidApp(const AndroidAppInfo& app_info) {
     return false;
 
   auto* app = ARC_GET_INSTANCE_FOR_METHOD(
-      arc::ArcServiceManager::Get()->arc_bridge_service()->app(),
-      LaunchIntentWithWindowInfo);
+      arc::ArcServiceManager::Get()->arc_bridge_service()->app(), LaunchIntent);
   if (app) {
-    arc::mojom::WindowInfoPtr window_info = arc::mojom::WindowInfo::New();
-    window_info->display_id = display::kDefaultDisplayId;
-    app->LaunchIntentWithWindowInfo(GetLaunchIntent(std::move(app_info)),
-                                    std::move(window_info));
+    app->LaunchIntent(GetLaunchIntent(std::move(app_info)),
+                      display::kDefaultDisplayId);
   } else {
     LOG(ERROR) << "Android container is not running. Discard request for launch"
                << app_info.package_name;
@@ -201,20 +199,17 @@ AppStatus DeviceActions::GetAndroidAppStatus(const AndroidAppInfo& app_info) {
 
 void DeviceActions::LaunchAndroidIntent(const std::string& intent) {
   auto* app = ARC_GET_INSTANCE_FOR_METHOD(
-      arc::ArcServiceManager::Get()->arc_bridge_service()->app(),
-      LaunchIntentWithWindowInfo);
+      arc::ArcServiceManager::Get()->arc_bridge_service()->app(), LaunchIntent);
   if (!app) {
     LOG(ERROR) << "Android container is not running.";
     return;
   }
 
-  arc::mojom::WindowInfoPtr window_info = arc::mojom::WindowInfo::New();
-  window_info->display_id = display::kDefaultDisplayId;
-  app->LaunchIntentWithWindowInfo(intent, std::move(window_info));
+  app->LaunchIntent(intent, display::kDefaultDisplayId);
 }
 
-void DeviceActions::AddAndFireAppListEventSubscriber(
-    ash::assistant::AppListEventSubscriber* subscriber) {
+void DeviceActions::AddAppListEventSubscriber(
+    chromeos::assistant::AppListEventSubscriber* subscriber) {
   auto* prefs = ArcAppListPrefs::Get(ProfileManager::GetActiveUserProfile());
   if (prefs && prefs->package_list_initial_refreshed()) {
     std::vector<AndroidAppInfo> android_apps_info = GetAppsInfo();
@@ -223,20 +218,20 @@ void DeviceActions::AddAndFireAppListEventSubscriber(
 
   app_list_subscribers_.AddObserver(subscriber);
 
-  if (prefs && !scoped_prefs_observations_.IsObservingSource(prefs))
-    scoped_prefs_observations_.AddObservation(prefs);
+  if (prefs && !scoped_prefs_observer_.IsObserving(prefs))
+    scoped_prefs_observer_.Add(prefs);
 }
 
 void DeviceActions::RemoveAppListEventSubscriber(
-    ash::assistant::AppListEventSubscriber* subscriber) {
+    chromeos::assistant::AppListEventSubscriber* subscriber) {
   app_list_subscribers_.RemoveObserver(subscriber);
 }
 
-absl::optional<std::string> DeviceActions::GetAndroidAppLaunchIntent(
+base::Optional<std::string> DeviceActions::GetAndroidAppLaunchIntent(
     const AndroidAppInfo& app_info) {
   auto status = delegate_->GetAndroidAppStatus(app_info.package_name);
   if (status != AppStatus::kAvailable)
-    return absl::nullopt;
+    return base::nullopt;
 
   return GetLaunchIntent(std::move(app_info));
 }

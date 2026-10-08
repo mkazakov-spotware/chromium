@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -875,8 +875,7 @@
   Enum.prototype.encodedSize = 4;
 
   Enum.prototype.decode = function(decoder) {
-    let value = decoder.readInt32();
-    return this.cls.toKnownEnumValue(value);
+    return decoder.readInt32();
   };
 
   Enum.prototype.encode = function(encoder, val) {

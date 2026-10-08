@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/check_op.h"
 #include "base/format_macros.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/clock.h"
@@ -21,7 +22,7 @@ namespace {
 // Type names corresponding to MCSProtoTags. Useful for identifying what type
 // of MCS protobuf is contained within a google::protobuf::MessageLite object.
 // WARNING: must match the order in MCSProtoTag.
-const char* const kProtoNames[] = {
+const char* kProtoNames[] = {
   "mcs_proto.HeartbeatPing",
   "mcs_proto.HeartbeatAck",
   "mcs_proto.LoginRequest",
@@ -39,7 +40,7 @@ const char* const kProtoNames[] = {
   "mcs_proto.BindAccountResponse",
   "mcs_proto.TalkMetadata"
 };
-static_assert(std::size(kProtoNames) == kNumProtoTypes,
+static_assert(base::size(kProtoNames) == kNumProtoTypes,
               "Proto Names Must Include All Tags");
 
 const char kLoginId[] = "chrome-";
@@ -138,7 +139,7 @@ std::unique_ptr<google::protobuf::MessageLite> BuildProtobufFromTag(
       return std::unique_ptr<google::protobuf::MessageLite>(
           new mcs_proto::StreamErrorStanza());
     default:
-      return nullptr;
+      return std::unique_ptr<google::protobuf::MessageLite>();
   }
 }
 

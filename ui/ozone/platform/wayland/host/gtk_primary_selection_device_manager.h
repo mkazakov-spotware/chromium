@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_source.h"
 
@@ -16,20 +15,10 @@ namespace ui {
 class GtkPrimarySelectionDevice;
 class WaylandConnection;
 
-class GtkPrimarySelectionDeviceManager
-    : public wl::GlobalObjectRegistrar<GtkPrimarySelectionDeviceManager> {
+class GtkPrimarySelectionDeviceManager {
  public:
   using DataSource = GtkPrimarySelectionSource;
   using DataDevice = GtkPrimarySelectionDevice;
-
-  static constexpr char kInterfaceName[] =
-      "gtk_primary_selection_device_manager";
-
-  static void Instantiate(WaylandConnection* connection,
-                          wl_registry* registry,
-                          uint32_t name,
-                          const std::string& interface,
-                          uint32_t version);
 
   GtkPrimarySelectionDeviceManager(
       gtk_primary_selection_device_manager* manager,
@@ -47,7 +36,7 @@ class GtkPrimarySelectionDeviceManager
  private:
   wl::Object<gtk_primary_selection_device_manager> device_manager_;
 
-  const raw_ptr<WaylandConnection> connection_;
+  WaylandConnection* const connection_;
 
   std::unique_ptr<GtkPrimarySelectionDevice> device_;
 };

@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@
 #include "build/build_config.h"
 #include "gtest/gtest.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "test/mac/exception_swallower.h"
 #endif
 
 //! \file
 
-#if BUILDFLAG(IS_MAC) || DOXYGEN
+#if defined(OS_MAC) || DOXYGEN
 
 //! \brief Wraps the Google Test `ASSERT_DEATH_IF_SUPPORTED()` macro to make
 //!     assertions about death caused by crashes.
@@ -73,14 +73,14 @@
                  regex);                                                  \
   } while (false)
 
-#else  // BUILDFLAG(IS_MAC)
+#else  // OS_MAC
 
 #define ASSERT_DEATH_CRASH(statement, regex) \
   ASSERT_DEATH_IF_SUPPORTED(statement, regex)
 #define EXPECT_DEATH_CRASH(statement, regex) \
   EXPECT_DEATH_IF_SUPPORTED(statement, regex)
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 #if !(!defined(MINI_CHROMIUM_BASE_LOGGING_H_) && \
       defined(OFFICIAL_BUILD) &&                 \

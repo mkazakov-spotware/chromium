@@ -1,28 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/graphics/web_graphics_context_3d_provider_util.h"
 
 #include "base/synchronization/waitable_event.h"
-#include "third_party/blink/public/platform/web_url.h"
-#include "third_party/blink/renderer/platform/heap/cross_thread_handle.h"
-#include "third_party/blink/renderer/platform/scheduler/public/main_thread.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_std.h"
+#include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
-#include "third_party/blink/renderer/platform/wtf/wtf.h"
 
 namespace blink {
-
-// Define a function that is allowed to access MainThreadTaskRunnerRestricted.
-MainThreadTaskRunnerRestricted
-AccessMainThreadForWebGraphicsContext3DProvider() {
-  return {};
-}
-
-namespace {
 
 struct ContextProviderCreationInfo {
   // Inputs.
@@ -31,14 +18,17 @@ struct ContextProviderCreationInfo {
   KURL url;
   // Outputs.
   std::unique_ptr<WebGraphicsContext3DProvider> created_context_provider;
+  bool* using_gpu_compositing;
 };
 
-void CreateOffscreenGraphicsContextOnMainThread(
+static void CreateContextProviderOnMainThread(
     ContextProviderCreationInfo* creation_info,
     base::WaitableEvent* waitable_event) {
   DCHECK(IsMainThread());
-  // The gpu compositing mode is snapshotted in the GraphicsInfo when
-  // making the context. The context will be lost if the mode changes.
+  // Ask for gpu compositing mode when making the context. The context will be
+  // lost if the mode changes.
+  *creation_info->using_gpu_compositing =
+      !Platform::Current()->IsGpuCompositingDisabled();
   creation_info->created_context_provider =
       Platform::Current()->CreateOffscreenGraphicsContext3DProvider(
           creation_info->context_attributes, creation_info->url,
@@ -46,102 +36,25 @@ void CreateOffscreenGraphicsContextOnMainThread(
   waitable_event->Signal();
 }
 
-void CreateWebGPUGraphicsContextOnMainThread(
-    const KURL& url,
-    base::WaitableEvent* waitable_event,
-    std::unique_ptr<WebGraphicsContext3DProvider>* created_context_provider) {
-  DCHECK(IsMainThread());
-  *created_context_provider =
-      Platform::Current()->CreateWebGPUGraphicsContext3DProvider(url);
-  waitable_event->Signal();
-}
-
-void CreateWebGPUGraphicsContextOnMainThreadAsync(
-    KURL url,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    CrossThreadOnceFunction<void(std::unique_ptr<WebGraphicsContext3DProvider>)>
-        callback) {
-  DCHECK(IsMainThread());
-  PostCrossThreadTask(
-      *task_runner, FROM_HERE,
-      CrossThreadBindOnce(
-          std::move(callback),
-          Platform::Current()->CreateWebGPUGraphicsContext3DProvider(url)));
-}
-
-}  // namespace
-
 std::unique_ptr<WebGraphicsContext3DProvider>
-CreateOffscreenGraphicsContext3DProvider(
+CreateContextProviderOnWorkerThread(
     Platform::ContextAttributes context_attributes,
     Platform::GraphicsInfo* gl_info,
+    bool* using_gpu_compositing,
     const KURL& url) {
-  if (IsMainThread()) {
-    return Platform::Current()->CreateOffscreenGraphicsContext3DProvider(
-        context_attributes, url, gl_info);
-  } else {
-    base::WaitableEvent waitable_event;
-    ContextProviderCreationInfo creation_info;
-    creation_info.context_attributes = context_attributes;
-    creation_info.gl_info = gl_info;
-    creation_info.url = url;
-    PostCrossThreadTask(
-        *Thread::MainThread()->GetTaskRunner(
-            AccessMainThreadForWebGraphicsContext3DProvider()),
-        FROM_HERE,
-        CrossThreadBindOnce(&CreateOffscreenGraphicsContextOnMainThread,
-                            CrossThreadUnretained(&creation_info),
-                            CrossThreadUnretained(&waitable_event)));
-    waitable_event.Wait();
-    return std::move(creation_info.created_context_provider);
-  }
-}
-
-std::unique_ptr<WebGraphicsContext3DProvider>
-CreateWebGPUGraphicsContext3DProvider(const KURL& url) {
-  if (IsMainThread()) {
-    return Platform::Current()->CreateWebGPUGraphicsContext3DProvider(url);
-  } else {
-    base::WaitableEvent waitable_event;
-    std::unique_ptr<WebGraphicsContext3DProvider> created_context_provider;
-    PostCrossThreadTask(
-        *Thread::MainThread()->GetTaskRunner(
-            AccessMainThreadForWebGraphicsContext3DProvider()),
-        FROM_HERE,
-        CrossThreadBindOnce(&CreateWebGPUGraphicsContextOnMainThread, url,
-                            CrossThreadUnretained(&waitable_event),
-                            CrossThreadUnretained(&created_context_provider)));
-
-    waitable_event.Wait();
-    return created_context_provider;
-  }
-}
-
-void CreateWebGPUGraphicsContext3DProviderAsync(
-    const KURL& url,
-    scoped_refptr<base::SingleThreadTaskRunner> current_thread_task_runner,
-    base::OnceCallback<void(std::unique_ptr<WebGraphicsContext3DProvider>)>
-        callback) {
-  if (IsMainThread()) {
-    std::move(callback).Run(
-        Platform::Current()->CreateWebGPUGraphicsContext3DProvider(url));
-  } else {
-    // Posts a task to the main thread to create context provider
-    // because the current RendererBlinkPlatformImpl and viz::Gpu
-    // APIs allow to create it only on the main thread.
-    // When it is created, posts it back to the current thread
-    // and call the callback with it.
-    // TODO(takahiro): Directly create context provider on Workers threads
-    //                 if RendererBlinkPlatformImpl and viz::Gpu will start to
-    //                 allow the context provider creation on Workers.
-    PostCrossThreadTask(
-        *Thread::MainThread()->GetTaskRunner(
-            AccessMainThreadForWebGraphicsContext3DProvider()),
-        FROM_HERE,
-        CrossThreadBindOnce(&CreateWebGPUGraphicsContextOnMainThreadAsync, url,
-                            current_thread_task_runner,
-                            CrossThreadBindOnce(std::move(callback))));
-  }
+  base::WaitableEvent waitable_event;
+  ContextProviderCreationInfo creation_info;
+  creation_info.context_attributes = context_attributes;
+  creation_info.gl_info = gl_info;
+  creation_info.url = url.Copy();
+  creation_info.using_gpu_compositing = using_gpu_compositing;
+  PostCrossThreadTask(
+      *Thread::MainThread()->GetTaskRunner(), FROM_HERE,
+      CrossThreadBindOnce(&CreateContextProviderOnMainThread,
+                          CrossThreadUnretained(&creation_info),
+                          CrossThreadUnretained(&waitable_event)));
+  waitable_event.Wait();
+  return std::move(creation_info.created_context_provider);
 }
 
 }  // namespace blink

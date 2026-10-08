@@ -1,32 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/password_manager/password_scripts_fetcher_factory.h"
 
-#include <memory>
-#include <utility>
-
 #include "base/no_destructor.h"
-#include "chrome/browser/password_manager/account_password_store_factory.h"
-#include "chrome/browser/password_manager/affiliation_service_factory.h"
-#include "chrome/browser/password_manager/password_store_factory.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
-#include "components/password_manager/core/browser/capabilities_service_impl.h"
-#include "components/password_manager/core/browser/saved_passwords_capabilities_fetcher.h"
-#include "components/password_manager/core/browser/site_affiliation/affiliation_service_impl.h"
-#include "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
-#include "components/password_manager/core/common/password_manager_features.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/password_manager/core/browser/password_scripts_fetcher_impl.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 
 PasswordScriptsFetcherFactory::PasswordScriptsFetcherFactory()
-    : ProfileKeyedServiceFactory("PasswordScriptsFetcher") {
-  DependsOn(AffiliationServiceFactory::GetInstance());
-  DependsOn(PasswordStoreFactory::GetInstance());
-  DependsOn(AccountPasswordStoreFactory::GetInstance());
-}
+    : BrowserContextKeyedServiceFactory(
+          "PasswordScriptsFetcher",
+          BrowserContextDependencyManager::GetInstance()) {}
 
 PasswordScriptsFetcherFactory::~PasswordScriptsFetcherFactory() = default;
 
@@ -46,14 +33,7 @@ PasswordScriptsFetcherFactory::GetForBrowserContext(
 
 KeyedService* PasswordScriptsFetcherFactory::BuildServiceInstanceFor(
     content::BrowserContext* browser_context) const {
-  Profile* profile = Profile::FromBrowserContext(browser_context);
-
-  return new password_manager::SavedPasswordsCapabilitiesFetcher(
-      std::make_unique<CapabilitiesServiceImpl>(),
-      std::make_unique<password_manager::SavedPasswordsPresenter>(
-          AffiliationServiceFactory::GetForProfile(profile),
-          PasswordStoreFactory::GetForProfile(
-              profile, ServiceAccessType::EXPLICIT_ACCESS),
-          AccountPasswordStoreFactory::GetForProfile(
-              profile, ServiceAccessType::EXPLICIT_ACCESS)));
+  return new password_manager::PasswordScriptsFetcherImpl(
+      content::BrowserContext::GetDefaultStoragePartition(browser_context)
+          ->GetURLLoaderFactoryForBrowserProcess());
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,8 @@ public class ApkAssets {
         AssetFileDescriptor afd = null;
         try {
             Context context = ContextUtils.getApplicationContext();
-            if (!TextUtils.isEmpty(splitName) && BundleUtils.isIsolatedSplitInstalled(splitName)) {
+            if (!TextUtils.isEmpty(splitName)
+                    && BundleUtils.isIsolatedSplitInstalled(context, splitName)) {
                 context = BundleUtils.createIsolatedSplitContext(context, splitName);
             }
             AssetManager manager = context.getAssets();

@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "components/prefs/testing_pref_service.h"
@@ -22,10 +22,6 @@ class TestEulaAcceptedNotifier : public EulaAcceptedNotifier {
       : EulaAcceptedNotifier(nullptr),
         eula_accepted_(false) {
   }
-
-  TestEulaAcceptedNotifier(const TestEulaAcceptedNotifier&) = delete;
-  TestEulaAcceptedNotifier& operator=(const TestEulaAcceptedNotifier&) = delete;
-
   ~TestEulaAcceptedNotifier() override {}
 
   bool IsEulaAccepted() override { return eula_accepted_; }
@@ -40,6 +36,8 @@ class TestEulaAcceptedNotifier : public EulaAcceptedNotifier {
 
  private:
   bool eula_accepted_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEulaAcceptedNotifier);
 };
 
 enum class ConnectionTrackerResponseMode {
@@ -67,14 +65,8 @@ class ResourceRequestAllowedNotifierTest
     tracker->SetConnectionType(network::mojom::ConnectionType::CONNECTION_WIFI);
 
     resource_request_allowed_notifier_.InitWithEulaAcceptNotifier(
-        this, base::WrapUnique(eula_notifier_.get()));
+        this, base::WrapUnique(eula_notifier_));
   }
-
-  ResourceRequestAllowedNotifierTest(
-      const ResourceRequestAllowedNotifierTest&) = delete;
-  ResourceRequestAllowedNotifierTest& operator=(
-      const ResourceRequestAllowedNotifierTest&) = delete;
-
   ~ResourceRequestAllowedNotifierTest() override {}
 
   bool was_notified() const { return was_notified_; }
@@ -131,8 +123,10 @@ class ResourceRequestAllowedNotifierTest
       base::test::SingleThreadTaskEnvironment::MainThreadType::UI};
   TestRequestAllowedNotifier resource_request_allowed_notifier_;
   TestingPrefServiceSimple prefs_;
-  raw_ptr<TestEulaAcceptedNotifier> eula_notifier_;  // Weak, owned by RRAN.
+  TestEulaAcceptedNotifier* eula_notifier_;  // Weak, owned by RRAN.
   bool was_notified_;
+
+  DISALLOW_COPY_AND_ASSIGN(ResourceRequestAllowedNotifierTest);
 };
 
 TEST_P(ResourceRequestAllowedNotifierTest, NotifyOnInitialNetworkState) {

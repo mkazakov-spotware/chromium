@@ -1,42 +1,37 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
     },
     {
       "name": "LayoutBlockFlow DIV class='scroller'",
-      "bounds": [285, 285],
-      "drawsContent": false,
+      "bounds": [300, 300],
       "transform": 1
     },
     {
-      "name": "HorizontalScrollbar",
+      "name": "ContentsLayer for Horizontal Scrollbar Layer",
       "position": [0, 285],
       "bounds": [285, 15],
-      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [285, 0],
       "bounds": [15, 285],
-      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "Scroll corner of LayoutBlockFlow DIV class='scroller'",
+      "name": "Scroll Corner Layer",
       "position": [285, 285],
       "bounds": [15, 15],
-      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "LayoutBlockFlow DIV class='scroller'",
+      "name": "Scrolling Contents Layer",
       "bounds": [1000, 1000],
-      "contentsOpaque": true,
       "backgroundColor": "#C0C0C0",
       "transform": 1
     }

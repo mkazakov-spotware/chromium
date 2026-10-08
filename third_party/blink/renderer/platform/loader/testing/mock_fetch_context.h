@@ -1,12 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_TESTING_MOCK_FETCH_CONTEXT_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_TESTING_MOCK_FETCH_CONTEXT_H_
 
-#include "base/task/single_thread_task_runner.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/resource_load_info_notifier_wrapper.h"
@@ -36,42 +36,22 @@ class MockFetchContext : public FetchContext {
   MockFetchContext() = default;
   ~MockFetchContext() override = default;
 
-  void set_blocked_urls(Vector<String> blocked_urls) {
-    blocked_urls_ = std::move(blocked_urls);
-  }
-  void set_tagged_urls(Vector<String> tagged_urls) {
-    tagged_urls_ = std::move(tagged_urls);
-  }
+  uint64_t GetTransferSize() const { return transfer_size_; }
 
   bool AllowImage(bool images_enabled, const KURL&) const override {
     return true;
   }
-  absl::optional<ResourceRequestBlockedReason> CanRequest(
+  base::Optional<ResourceRequestBlockedReason> CanRequest(
       ResourceType,
       const ResourceRequest&,
       const KURL&,
       const ResourceLoaderOptions&,
       ReportingDisposition,
-      const absl::optional<ResourceRequest::RedirectInfo>& redirect_info)
+      const base::Optional<ResourceRequest::RedirectInfo>& redirect_info)
       const override {
-    return absl::nullopt;
+    return base::nullopt;
   }
-  absl::optional<ResourceRequestBlockedReason>
-  CanRequestBasedOnSubresourceFilterOnly(
-      ResourceType type,
-      const ResourceRequest& resource_request,
-      const KURL& url,
-      const ResourceLoaderOptions& options,
-      ReportingDisposition reporting_disposition,
-      const absl::optional<ResourceRequest::RedirectInfo>& redirect_info)
-      const override {
-    if (blocked_urls_.Contains(url.GetString())) {
-      return ResourceRequestBlockedReason::kSubresourceFilter;
-    }
-
-    return absl::nullopt;
-  }
-  absl::optional<ResourceRequestBlockedReason> CheckCSPForRequest(
+  base::Optional<ResourceRequestBlockedReason> CheckCSPForRequest(
       mojom::blink::RequestContextType,
       network::mojom::RequestDestination request_destination,
       const KURL& url,
@@ -79,10 +59,11 @@ class MockFetchContext : public FetchContext {
       ReportingDisposition reporting_disposition,
       const KURL& url_before_redirects,
       ResourceRequest::RedirectStatus redirect_status) const override {
-    return absl::nullopt;
+    return base::nullopt;
   }
   void AddResourceTiming(
       const ResourceTimingInfo& resource_timing_info) override {
+    transfer_size_ = resource_timing_info.TransferSize();
   }
   std::unique_ptr<ResourceLoadInfoNotifierWrapper>
   CreateResourceLoadInfoNotifierWrapper() override {
@@ -98,28 +79,18 @@ class MockFetchContext : public FetchContext {
         weak_wrapper_resource_load_info_notifier_->AsWeakPtr());
   }
 
-  bool CalculateIfAdSubresource(
-      const ResourceRequestHead& resource_request,
-      const absl::optional<KURL>& alias_url,
-      ResourceType type,
-      const FetchInitiatorInfo& initiator_info) override {
-    const KURL url = alias_url ? alias_url.value() : resource_request.Url();
-    return tagged_urls_.Contains(url.GetString());
-  }
-
   void SetResourceLoadInfoNotifier(
       mojom::ResourceLoadInfoNotifier* resource_load_info_notifier) {
     resource_load_info_notifier_ = resource_load_info_notifier;
   }
 
  private:
+  uint64_t transfer_size_ = 0;
   mojom::ResourceLoadInfoNotifier* resource_load_info_notifier_ = nullptr;
   std::unique_ptr<WeakWrapperResourceLoadInfoNotifier>
       weak_wrapper_resource_load_info_notifier_;
-  Vector<String> blocked_urls_;
-  Vector<String> tagged_urls_;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_TESTING_MOCK_FETCH_CONTEXT_H_
+#endif

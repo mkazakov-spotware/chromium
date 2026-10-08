@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,9 @@
 #define COMPONENTS_OFFLINE_PAGES_CORE_OFFLINE_PAGE_ARCHIVE_PUBLISHER_H_
 
 #include <cstdint>
+#include <string>
 
+#include "base/callback.h"
 #include "base/files/file_path.h"
 #include "components/offline_pages/core/offline_page_item.h"
 #include "components/offline_pages/core/offline_page_types.h"
@@ -59,7 +61,7 @@ class OfflinePageArchivePublisher {
       base::OnceCallback<void(const OfflinePageItem& /* offline_page */,
                               PublishArchiveResult /* archive_result */)>;
 
-  virtual ~OfflinePageArchivePublisher() = default;
+  virtual ~OfflinePageArchivePublisher() {}
 
   // Publishes the page on a background thread, then returns to the
   // OfflinePageModelTaskified's done callback.
@@ -71,8 +73,6 @@ class OfflinePageArchivePublisher {
   // Removes  archives from downloads.
   virtual void UnpublishArchives(
       const std::vector<PublishedArchiveId>& archive_ids) const = 0;
-
-  virtual base::WeakPtr<OfflinePageArchivePublisher> GetWeakPtr() = 0;
 };
 
 }  // namespace offline_pages

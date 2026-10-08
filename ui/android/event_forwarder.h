@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,32 +6,13 @@
 #define UI_ANDROID_EVENT_FORWARDER_H_
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
-#include "base/observer_list.h"
-#include "ui/android/ui_android_export.h"
 
 namespace ui {
 
-class MotionEventAndroid;
 class ViewAndroid;
 
-class UI_ANDROID_EXPORT EventForwarder {
+class EventForwarder {
  public:
-  // Interface for observing events on the `EventForwarder`.
-  class Observer : public base::CheckedObserver {
-   public:
-    ~Observer() override = default;
-
-    virtual void OnTouchEvent(const ui::MotionEventAndroid&) {}
-
-    virtual void OnMouseEvent(const ui::MotionEventAndroid&) {}
-
-    virtual void OnGenericMotionEvent(const ui::MotionEventAndroid&) {}
-  };
-
-  EventForwarder(const EventForwarder&) = delete;
-  EventForwarder& operator=(const EventForwarder&) = delete;
-
   ~EventForwarder();
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaWindowAndroid(
@@ -88,10 +69,10 @@ class UI_ANDROID_EXPORT EventForwarder {
   void OnDragEvent(JNIEnv* env,
                    const base::android::JavaParamRef<jobject>& jobj,
                    jint action,
-                   jfloat x,
-                   jfloat y,
-                   jfloat screen_x,
-                   jfloat screen_y,
+                   jint x,
+                   jint y,
+                   jint screen_x,
+                   jint screen_y,
                    const base::android::JavaParamRef<jobjectArray>& j_mimeTypes,
                    const base::android::JavaParamRef<jstring>& j_content);
 
@@ -146,10 +127,6 @@ class UI_ANDROID_EXPORT EventForwarder {
                    jlong time_ms,
                    jboolean prevent_boosting);
 
-  void AddObserver(Observer* observer);
-
-  void RemoveObserver(Observer* observer);
-
  private:
   friend class ViewAndroid;
 
@@ -157,10 +134,10 @@ class UI_ANDROID_EXPORT EventForwarder {
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
-  const raw_ptr<ViewAndroid> view_;
+  ViewAndroid* const view_;
   base::android::ScopedJavaGlobalRef<jobject> java_obj_;
 
-  base::ObserverList<Observer> observers_;
+  DISALLOW_COPY_AND_ASSIGN(EventForwarder);
 };
 
 }  // namespace ui

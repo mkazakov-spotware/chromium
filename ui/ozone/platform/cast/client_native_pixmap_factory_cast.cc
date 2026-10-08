@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,7 @@
 
 #include <memory>
 
-#include "base/check_op.h"
 #include "base/notreached.h"
-#include "base/numerics/safe_conversions.h"
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/client_native_pixmap.h"
 #include "ui/gfx/client_native_pixmap_factory.h"
@@ -22,35 +20,20 @@ namespace {
 // so they get instantiated, but not used.
 class ClientNativePixmapCast : public gfx::ClientNativePixmap {
  public:
-  explicit ClientNativePixmapCast(gfx::NativePixmapHandle pixmap_handle)
-      : pixmap_handle_(std::move(pixmap_handle)) {}
-  ~ClientNativePixmapCast() override = default;
-
   // ClientNativePixmap implementation:
   bool Map() override {
-    CHECK(false);
+    NOTREACHED();
     return false;
   }
-  size_t GetNumberOfPlanes() const override {
-    CHECK(false);
-    return 0u;
-  }
   void* GetMemoryAddress(size_t plane) const override {
-    CHECK(false);
+    NOTREACHED();
     return nullptr;
   }
-  void Unmap() override { CHECK(false); }
+  void Unmap() override { NOTREACHED(); }
   int GetStride(size_t plane) const override {
-    CHECK(false);
+    NOTREACHED();
     return 0;
   }
-  gfx::NativePixmapHandle CloneHandleForIPC() const override {
-    CHECK(false);
-    return gfx::NativePixmapHandle();
-  }
-
- private:
-  gfx::NativePixmapHandle pixmap_handle_;
 };
 
 class ClientNativePixmapFactoryCast : public gfx::ClientNativePixmapFactory {
@@ -61,7 +44,7 @@ class ClientNativePixmapFactoryCast : public gfx::ClientNativePixmapFactory {
       const gfx::Size& size,
       gfx::BufferFormat format,
       gfx::BufferUsage usage) override {
-    return std::make_unique<ClientNativePixmapCast>(std::move(handle));
+    return std::make_unique<ClientNativePixmapCast>();
   }
 };
 

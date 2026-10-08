@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 #include "base/compiler_specific.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "net/base/net_errors.h"
 #include "net/server/http_connection.h"
@@ -53,11 +54,13 @@ constexpr NetworkTrafficAnnotationTag
 
 HttpServer::HttpServer(std::unique_ptr<ServerSocket> server_socket,
                        HttpServer::Delegate* delegate)
-    : server_socket_(std::move(server_socket)), delegate_(delegate) {
+    : server_socket_(std::move(server_socket)),
+      delegate_(delegate),
+      last_id_(0) {
   DCHECK(server_socket_);
   // Start accepting connections in next run loop in case when delegate is not
   // ready to get callbacks.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&HttpServer::DoAcceptLoop,
                                 weak_ptr_factory_.GetWeakPtr()));
 }
@@ -83,8 +86,7 @@ void HttpServer::SendOverWebSocket(
   if (connection == nullptr)
     return;
   DCHECK(connection->web_socket());
-  connection->web_socket()->Send(
-      data, WebSocketFrameHeader::OpCodeEnum::kOpCodeText, traffic_annotation);
+  connection->web_socket()->Send(data, traffic_annotation);
 }
 
 void HttpServer::SendRaw(int connection_id,
@@ -149,8 +151,8 @@ void HttpServer::Close(int connection_id) {
   // connection. Instead of referencing connection with ID all the time,
   // destroys the connection in next run loop to make sure any pending
   // callbacks in the call stack return.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(
-      FROM_HERE, connection.release());
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE,
+                                                  connection.release());
 }
 
 int HttpServer::GetLocalAddress(IPEndPoint* address) {
@@ -253,8 +255,7 @@ int HttpServer::HandleReadResult(HttpConnection* connection, int rv) {
         Close(connection->id());
         return ERR_CONNECTION_CLOSED;
       }
-      if (result == WebSocket::FRAME_OK_FINAL)
-        delegate_->OnWebSocketMessage(connection->id(), std::move(message));
+      delegate_->OnWebSocketMessage(connection->id(), std::move(message));
       if (HasClosedConnection(connection))
         return ERR_CONNECTION_CLOSED;
       continue;
@@ -277,8 +278,7 @@ int HttpServer::HandleReadResult(HttpConnection* connection, int rv) {
     // Sets peer address if exists.
     connection->socket()->GetPeerAddress(&request.peer);
 
-    if (request.HasHeaderValue("connection", "upgrade") &&
-        request.HasHeaderValue("upgrade", "websocket")) {
+    if (request.HasHeaderValue("connection", "upgrade")) {
       connection->SetWebSocket(std::make_unique<WebSocket>(this, connection));
       read_buf->DidConsume(pos);
       delegate_->OnWebSocketRequest(connection->id(), request);

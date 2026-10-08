@@ -1,18 +1,14 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
-
-#include "base/memory/raw_ptr.h"
+#include "chrome/browser/media/router/discovery/mdns/dns_sd_registry.h"
 #include "chrome/browser/media/router/discovery/mdns/dns_sd_delegate.h"
 #include "chrome/browser/media/router/discovery/mdns/dns_sd_device_lister.h"
-#include "chrome/browser/media/router/discovery/mdns/dns_sd_registry.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using testing::_;
-using testing::NiceMock;
 
 namespace media_router {
 
@@ -55,7 +51,7 @@ class TestDnsSdRegistry : public DnsSdRegistry {
       local_discovery::ServiceDiscoverySharedClient* discovery_client)
       override {
     delegate_ = delegate;
-    MockDnsSdDeviceLister* lister = new NiceMock<MockDnsSdDeviceLister>();
+    MockDnsSdDeviceLister* lister = new MockDnsSdDeviceLister();
     listers_[service_type] = lister;
     return lister;
   }
@@ -63,7 +59,7 @@ class TestDnsSdRegistry : public DnsSdRegistry {
  private:
   std::map<std::string, MockDnsSdDeviceLister*> listers_;
   // The last delegate used or NULL.
-  raw_ptr<DnsSdDelegate> delegate_;
+  DnsSdDelegate* delegate_;
 };
 
 class MockDnsSdObserver : public DnsSdRegistry::DnsSdObserver {
@@ -79,7 +75,7 @@ class DnsSdRegistryTest : public testing::Test {
   ~DnsSdRegistryTest() override {}
 
   void SetUp() override {
-    registry_ = std::make_unique<TestDnsSdRegistry>();
+    registry_.reset(new TestDnsSdRegistry());
     registry_->AddObserver(&observer_);
   }
 

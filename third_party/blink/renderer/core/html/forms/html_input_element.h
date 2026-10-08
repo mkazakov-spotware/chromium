@@ -26,16 +26,14 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_FORMS_HTML_INPUT_ELEMENT_H_
 
 #include "base/gtest_prod_util.h"
-#include "build/build_config.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink-forward.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_regexp.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/create_element_flags.h"
-#include "third_party/blink/renderer/core/dom/events/simulated_click_options.h"
+#include "third_party/blink/renderer/core/html/forms/file_chooser.h"
 #include "third_party/blink/renderer/core/html/forms/step_range.h"
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
-#include "third_party/blink/renderer/platform/theme_types.h"
 
 namespace blink {
 
@@ -114,14 +112,10 @@ class CORE_EXPORT HTMLInputElement
   // its value can be protected from memorization by autofill or keyboards.
   bool HasBeenPasswordField() const;
 
-  bool IsCheckable() const;
-  bool checkedForBinding() const { return Checked(); }
-  void setCheckedForBinding(bool);
-  bool Checked() const;
-  void SetChecked(
+  bool checked() const;
+  void setChecked(
       bool,
-      TextFieldEventBehavior = TextFieldEventBehavior::kDispatchNoEvent,
-      WebAutofillState = WebAutofillState::kNotFilled);
+      TextFieldEventBehavior = TextFieldEventBehavior::kDispatchNoEvent);
   void DispatchChangeEventIfNeeded();
   void DispatchInputAndChangeEventIfNeeded();
 
@@ -134,8 +128,6 @@ class CORE_EXPORT HTMLInputElement
   bool ShouldAppearChecked() const;
   bool ShouldAppearIndeterminate() const override;
 
-  PopoverTriggerSupport SupportsPopoverTriggering() const override;
-
   // Returns null if this isn't associated with any radio button group.
   RadioButtonGroupScope* GetRadioButtonGroupScope() const;
 
@@ -144,15 +136,16 @@ class CORE_EXPORT HTMLInputElement
 
   void setType(const AtomicString&);
 
-  String Value() const override;
-  void SetValue(
+  String value() const override;
+  void setValue(
+      const String&,
+      ExceptionState&,
+      TextFieldEventBehavior = TextFieldEventBehavior::kDispatchNoEvent);
+  void setValue(
       const String&,
       TextFieldEventBehavior = TextFieldEventBehavior::kDispatchNoEvent,
       TextControlSetValueSelection =
-          TextControlSetValueSelection::kSetSelectionToEnd,
-      WebAutofillState = WebAutofillState::kNotFilled) override;
-  String valueForBinding() const { return Value(); }
-  void setValueForBinding(const String&, ExceptionState&);
+          TextControlSetValueSelection::kSetSelectionToEnd) override;
   void SetValueForUser(const String&);
   // Update the value, and clear hasDirtyValue() flag.
   void SetNonDirtyValue(const String&);
@@ -166,9 +159,6 @@ class CORE_EXPORT HTMLInputElement
 
   String LocalizeValue(const String&) const;
 
-  // Sets the suggested value and puts the element into
-  // WebAutofillState::kPreviewed state if |value| is non-empty, or
-  // WebAutofillState::kNotFilled otherwise.
   void SetSuggestedValue(const String& value) override;
 
   void SetEditingValue(const String&);
@@ -196,11 +186,11 @@ class CORE_EXPORT HTMLInputElement
   // delay the 'input' event with EventQueueScope.
   void SetValueFromRenderer(const String&);
 
-  absl::optional<uint32_t> selectionStartForBinding(ExceptionState&) const;
-  absl::optional<uint32_t> selectionEndForBinding(ExceptionState&) const;
+  base::Optional<uint32_t> selectionStartForBinding(ExceptionState&) const;
+  base::Optional<uint32_t> selectionEndForBinding(ExceptionState&) const;
   String selectionDirectionForBinding(ExceptionState&) const;
-  void setSelectionStartForBinding(absl::optional<uint32_t>, ExceptionState&);
-  void setSelectionEndForBinding(absl::optional<uint32_t>, ExceptionState&);
+  void setSelectionStartForBinding(base::Optional<uint32_t>, ExceptionState&);
+  void setSelectionEndForBinding(base::Optional<uint32_t>, ExceptionState&);
   void setSelectionDirectionForBinding(const String&, ExceptionState&);
   void setSelectionRangeForBinding(unsigned start,
                                    unsigned end,
@@ -219,8 +209,8 @@ class CORE_EXPORT HTMLInputElement
   bool LayoutObjectIsNeeded(const ComputedStyle&) const final;
   LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
   void DetachLayoutTree(bool performing_reattach) final;
-  void UpdateSelectionOnFocus(SelectionBehaviorOnFocus,
-                              const FocusOptions*) final;
+  void UpdateFocusAppearanceWithOptions(SelectionBehaviorOnFocus,
+                                        const FocusOptions*) final;
 
   // FIXME: For isActivatedSubmit and setActivatedSubmit, we should use the
   // NVI-idiom here by making it private virtual in all classes and expose a
@@ -312,13 +302,11 @@ class CORE_EXPORT HTMLInputElement
 
   bool MatchesReadOnlyPseudoClass() const final;
   bool MatchesReadWritePseudoClass() const final;
-  ControlPart AutoAppearance() const;
-
   void setRangeText(const String& replacement, ExceptionState&) final;
   void setRangeText(const String& replacement,
                     unsigned start,
                     unsigned end,
-                    const V8SelectionMode& selection_mode,
+                    const String& selection_mode,
                     ExceptionState&) final;
 
   HTMLImageLoader* ImageLoader() const { return image_loader_.Get(); }
@@ -332,10 +320,6 @@ class CORE_EXPORT HTMLInputElement
   bool ShouldDrawCapsLockIndicator() const;
   void SetShouldRevealPassword(bool value);
   bool ShouldRevealPassword() const { return should_reveal_password_; }
-#if BUILDFLAG(IS_ANDROID)
-  bool IsLastInputElementInForm();
-  void DispatchSimulatedEnter();
-#endif
   AXObject* PopupRootAXObject();
   void DidNotifySubtreeInsertionsToDocument() override;
 
@@ -367,9 +351,6 @@ class CORE_EXPORT HTMLInputElement
       FormElementPiiType form_element_pii_type) override {
     form_element_pii_type_ = form_element_pii_type;
   }
-
-  bool isMutable();
-  void showPicker(ExceptionState&);
 
  protected:
   void DefaultEventHandler(Event&) override;
@@ -407,7 +388,7 @@ class CORE_EXPORT HTMLInputElement
 
   bool CanStartSelection() const final;
 
-  void AccessKeyAction(SimulatedClickCreationScope creation_scope) final;
+  void AccessKeyAction(bool send_mouse_events) final;
 
   void ParseAttribute(const AttributeModificationParams&) override;
   bool IsPresentationAttribute(const QualifiedName&) const final;
@@ -419,6 +400,7 @@ class CORE_EXPORT HTMLInputElement
 
   void CloneNonAttributePropertiesFrom(const Element&, CloneChildrenFlag) final;
 
+  bool TypeShouldForceLegacyLayout() const final;
   void AttachLayoutTree(AttachContext&) final;
 
   void AppendToFormData(FormData&) final;
@@ -441,7 +423,7 @@ class CORE_EXPORT HTMLInputElement
   bool TooShort(const String&, NeedsToCheckDirtyFlag) const;
 
   void UpdatePlaceholderText() final;
-  bool IsEmptyValue() const final { return InnerEditorValue().empty(); }
+  bool IsEmptyValue() const final { return InnerEditorValue().IsEmpty(); }
   void HandleBlurEvent() final;
   void DispatchFocusInEvent(const AtomicString& event_type,
                             Element* old_focused_element,
@@ -464,8 +446,8 @@ class CORE_EXPORT HTMLInputElement
 
   void AddToRadioButtonGroup();
   void RemoveFromRadioButtonGroup();
-  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject(
-      const StyleRecalcContext&) override;
+  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject() override;
+  void DidRecalcStyle(const StyleRecalcChange) override;
 
   void MaybeReportPiiMetrics();
 

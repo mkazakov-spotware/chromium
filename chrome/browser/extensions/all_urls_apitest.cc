@@ -1,14 +1,15 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/search/ntp_test_utils.h"
+#include "chrome/browser/ui/search/local_ntp_test_utils.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/crx_file/id_util.h"
@@ -22,16 +23,10 @@
 namespace extensions {
 
 namespace {
-
-const char kAllUrlsTarget[] = "/extensions/api_test/all_urls/index.html";
-
-}  // namespace
+const std::string kAllUrlsTarget = "/extensions/api_test/all_urls/index.html";
+}
 
 class AllUrlsApiTest : public ExtensionApiTest {
- public:
-  AllUrlsApiTest(const AllUrlsApiTest&) = delete;
-  AllUrlsApiTest& operator=(const AllUrlsApiTest&) = delete;
-
  protected:
   AllUrlsApiTest() {}
   ~AllUrlsApiTest() override {}
@@ -46,7 +41,7 @@ class AllUrlsApiTest : public ExtensionApiTest {
     ExtensionsClient::Get()->SetScriptingAllowlist(allowlist);
     // Extensions will have certain permissions withheld at initialization if
     // they aren't allowlisted, so we need to reload them.
-    ExtensionTestMessageListener listener("execute: ready");
+    ExtensionTestMessageListener listener("execute: ready", false);
     extension_service()->ReloadExtension(content_script_->id());
     extension_service()->ReloadExtension(execute_script_->id());
     ASSERT_TRUE(listener.WaitUntilSatisfied());
@@ -56,12 +51,13 @@ class AllUrlsApiTest : public ExtensionApiTest {
     std::string expected_url = url;
     if (url == chrome::kChromeUINewTabURL) {
       expected_url =
-          ntp_test_utils::GetFinalNtpUrl(browser()->profile()).spec();
+          local_ntp_test_utils::GetFinalNtpUrl(browser()->profile()).spec();
     }
-    ExtensionTestMessageListener listener_a("content script: " + expected_url);
-    ExtensionTestMessageListener listener_b("execute: " + expected_url);
+    ExtensionTestMessageListener listener_a("content script: " + expected_url,
+                                            false);
+    ExtensionTestMessageListener listener_b("execute: " + expected_url, false);
 
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url)));
+    ui_test_utils::NavigateToURL(browser(), GURL(url));
     ASSERT_TRUE(listener_a.WaitUntilSatisfied());
     ASSERT_TRUE(listener_b.WaitUntilSatisfied());
   }
@@ -78,6 +74,8 @@ class AllUrlsApiTest : public ExtensionApiTest {
 
   scoped_refptr<const Extension> content_script_;
   scoped_refptr<const Extension> execute_script_;
+
+  DISALLOW_COPY_AND_ASSIGN(AllUrlsApiTest);
 };
 
 IN_PROC_BROWSER_TEST_F(AllUrlsApiTest, AllowlistedExtension) {

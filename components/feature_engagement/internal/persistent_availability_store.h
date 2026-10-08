@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "components/feature_engagement/internal/proto/availability.pb.h"
 #include "components/feature_engagement/public/feature_list.h"
 #include "components/leveldb_proto/public/proto_database.h"
@@ -33,10 +34,6 @@ class PersistentAvailabilityStore {
   using OnLoadedCallback = base::OnceCallback<
       void(bool success, std::unique_ptr<std::map<std::string, uint32_t>>)>;
 
-  PersistentAvailabilityStore(const PersistentAvailabilityStore&) = delete;
-  PersistentAvailabilityStore& operator=(const PersistentAvailabilityStore&) =
-      delete;
-
   // Loads the availability data, updates the DB with newly enabled features,
   // deletes features that are not enabled anymore, and asynchronously invokes
   // |on_loaded_callback| with the result. The result will mirror the content
@@ -55,6 +52,8 @@ class PersistentAvailabilityStore {
  private:
   PersistentAvailabilityStore() = default;
   ~PersistentAvailabilityStore() = default;
+
+  DISALLOW_COPY_AND_ASSIGN(PersistentAvailabilityStore);
 };
 
 }  // namespace feature_engagement

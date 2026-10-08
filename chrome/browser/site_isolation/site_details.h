@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,10 @@
 #include <map>
 #include <set>
 
+#include "base/macros.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/site_instance.h"
-
-namespace content {
-class Page;
-}  // namespace content
+#include "content/public/browser/web_contents.h"
 
 // Collects metrics about an actual browsing instance in the current session.
 struct BrowsingInstanceInfo {
@@ -42,16 +40,8 @@ struct SiteData {
   BrowsingInstanceMap browsing_instances;
 
   // A count of all RenderFrameHosts, which are in a different SiteInstance from
-  // their parents. This does not include guestviews or fencedframes.
+  // their parents.
   int out_of_process_frames = 0;
-
-  // A count of all inner frame trees which are in a different RenderProcessHost
-  // from their parents.
-  int out_of_process_inner_frame_trees = 0;
-
-  // Estimated increase in process count due to OriginAgentCluster (OAC)
-  // SiteInstances over all elements in |browsing_instances|.
-  int oac_overhead;
 };
 
 // Maps a BrowserContext to information about the sites it contains.
@@ -59,26 +49,20 @@ typedef std::map<content::BrowserContext*, SiteData> BrowserContextSiteDataMap;
 
 class SiteDetails {
  public:
-  SiteDetails(const SiteDetails&) = delete;
-  SiteDetails& operator=(const SiteDetails&) = delete;
-
-  // Collect information about all committed sites in the given Page
+  // Collect information about all committed sites in the given WebContents
   // on the UI thread.
-  static void CollectSiteInfo(content::Page& page, SiteData* site_data);
-
-  // Collect count of OriginAgentCluster SiteInstances, and compare to what we
-  // would expect with OAC off (and no coalescing different BrowsingInstances
-  // into shared RenderProcesses).
-  static int EstimateOriginAgentClusterOverhead(const SiteData& site_data);
+  static void CollectSiteInfo(content::WebContents* contents,
+                              SiteData* site_data);
 
   // Updates the global histograms for tracking memory usage.
-  static void UpdateHistograms(const BrowserContextSiteDataMap& site_data_map,
-                               size_t live_process_count);
+  static void UpdateHistograms(const BrowserContextSiteDataMap& site_data_map);
 
  private:
   // Only static methods - never needs to be constructed.
   SiteDetails() = delete;
   ~SiteDetails() = delete;
+
+  DISALLOW_COPY_AND_ASSIGN(SiteDetails);
 };
 
 #endif  // CHROME_BROWSER_SITE_ISOLATION_SITE_DETAILS_H_

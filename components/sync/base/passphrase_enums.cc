@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/check_op.h"
 #include "base/notreached.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace syncer {
 
@@ -32,7 +31,7 @@ sync_pb::NigoriSpecifics::PassphraseType ProtoPassphraseInt32ToProtoEnum(
              : sync_pb::NigoriSpecifics::UNKNOWN;
 }
 
-absl::optional<PassphraseType> ProtoPassphraseInt32ToEnum(
+base::Optional<PassphraseType> ProtoPassphraseInt32ToEnum(
     ::google::protobuf::int32 type) {
   switch (ProtoPassphraseInt32ToProtoEnum(type)) {
     case sync_pb::NigoriSpecifics::IMPLICIT_PASSPHRASE:
@@ -51,7 +50,7 @@ absl::optional<PassphraseType> ProtoPassphraseInt32ToEnum(
       break;
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 sync_pb::NigoriSpecifics::PassphraseType EnumPassphraseTypeToProto(
@@ -73,7 +72,7 @@ sync_pb::NigoriSpecifics::PassphraseType EnumPassphraseTypeToProto(
   return sync_pb::NigoriSpecifics::IMPLICIT_PASSPHRASE;
 }
 
-absl::optional<KeyDerivationMethod> ProtoKeyDerivationMethodToEnum(
+KeyDerivationMethod ProtoKeyDerivationMethodToEnum(
     ::google::protobuf::int32 method) {
   DCHECK_GE(method, 0);
 
@@ -90,7 +89,7 @@ absl::optional<KeyDerivationMethod> ProtoKeyDerivationMethodToEnum(
 
   // We do not know about this value. It is likely a method added in a newer
   // version of Chrome.
-  return absl::nullopt;
+  return KeyDerivationMethod::UNSUPPORTED;
 }
 
 sync_pb::NigoriSpecifics::KeyDerivationMethod EnumKeyDerivationMethodToProto(
@@ -100,6 +99,10 @@ sync_pb::NigoriSpecifics::KeyDerivationMethod EnumKeyDerivationMethodToProto(
       return sync_pb::NigoriSpecifics::PBKDF2_HMAC_SHA1_1003;
     case KeyDerivationMethod::SCRYPT_8192_8_11:
       return sync_pb::NigoriSpecifics::SCRYPT_8192_8_11;
+    case KeyDerivationMethod::UNSUPPORTED:
+      // This value does not have a counterpart in the protocol proto enum,
+      // because it is just a client side abstraction.
+      break;
   }
 
   NOTREACHED();

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,12 @@
 #include <string>
 #include <vector>
 
-#include "base/strings/abseil_string_conversions.h"
-#include "base/strings/escape.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
+#include "net/base/escape.h"
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
 #include "net/http/http_request_headers.h"
@@ -33,26 +31,28 @@ void AddSpdyHeader(const std::string& name,
   if (headers->find(name) == headers->end()) {
     (*headers)[name] = value;
   } else {
-    (*headers)[name] = base::StrCat(
-        {(*headers)[name].as_string(), base::StringPiece("\0", 1), value});
+    std::string joint_value = (*headers)[name].as_string();
+    joint_value.append(1, '\0');
+    joint_value.append(value);
+    (*headers)[name] = joint_value;
   }
 }
 
 }  // namespace
 
-int SpdyHeadersToHttpResponse(const spdy::Http2HeaderBlock& headers,
-                              HttpResponseInfo* response) {
+bool SpdyHeadersToHttpResponse(const spdy::Http2HeaderBlock& headers,
+                               HttpResponseInfo* response) {
   // The ":status" header is required.
   spdy::Http2HeaderBlock::const_iterator it =
       headers.find(spdy::kHttp2StatusHeader);
   if (it == headers.end())
-    return ERR_INCOMPLETE_HTTP2_HEADERS;
-
-  const auto status = base::StringViewToStringPiece(it->second);
-  std::string raw_headers =
-      base::StrCat({"HTTP/1.1 ", status, base::StringPiece("\0", 1)});
+    return false;
+  auto status = std::string(it->second);
+  std::string raw_headers("HTTP/1.1 ");
+  raw_headers.append(status);
+  raw_headers.push_back('\0');
   for (it = headers.begin(); it != headers.end(); ++it) {
-    const auto name = base::StringViewToStringPiece(it->first);
+    auto name = std::string(it->first);
     DCHECK_GT(name.size(), 0u);
     if (name[0] == ':') {
       // https://tools.ietf.org/html/rfc7540#section-8.1.2.4
@@ -67,33 +67,28 @@ int SpdyHeadersToHttpResponse(const spdy::Http2HeaderBlock& headers,
     // becomes
     //    Set-Cookie: foo\0
     //    Set-Cookie: bar\0
-    const auto value = base::StringViewToStringPiece(it->second);
+    auto value = std::string(it->second);
     size_t start = 0;
     size_t end = 0;
     do {
+      raw_headers.append(name);
+      raw_headers.push_back(':');
+
       end = value.find('\0', start);
-      base::StringPiece tval;
+      std::string tval;
       if (end != value.npos)
         tval = value.substr(start, (end - start));
       else
         tval = value.substr(start);
-      base::StrAppend(&raw_headers,
-                      {name, ":", tval, base::StringPiece("\0", 1)});
+      raw_headers.append(tval);
+      raw_headers.push_back('\0');
       start = end + 1;
     } while (end != value.npos);
   }
 
-  response->headers = base::MakeRefCounted<HttpResponseHeaders>(raw_headers);
-
-  // When there are multiple location headers the response is a potential
-  // response smuggling attack.
-  if (HttpUtil::HeadersContainMultipleCopiesOfField(*response->headers,
-                                                    "location")) {
-    return ERR_RESPONSE_HEADERS_MULTIPLE_LOCATION;
-  }
-
+  response->headers = new HttpResponseHeaders(raw_headers);
   response->was_fetched_via_spdy = true;
-  return OK;
+  return true;
 }
 
 void CreateSpdyHeadersFromHttpRequest(const HttpRequestInfo& info,

@@ -1,23 +1,23 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/format_macros.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
+#include "base/format_macros.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "components/content_settings/core/common/content_settings.h"
+#include "components/content_settings/core/common/content_settings.h"
 #import "ios/chrome/browser/ui/infobars/banners/infobar_banner_constants.h"
-#import "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#import "ios/chrome/test/earl_grey/scoped_block_popups_pref.h"
-#import "ios/net/url_test_util.h"
+#include "ios/net/url_test_util.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#import "ios/web/public/test/element_selector.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/web/public/test/element_selector.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -33,26 +33,32 @@ const char kTestURL[] = "/window_open.html";
 id<GREYMatcher> PopupBlocker() {
   return grey_allOf(
       grey_accessibilityID(kInfobarBannerViewIdentifier),
-      grey_accessibilityLabel(base::SysUTF16ToNSString(
-          l10n_util::GetStringFUTF16(IDS_IOS_POPUPS_BLOCKED_MOBILE, u"1"))),
+      grey_accessibilityLabel(
+          base::SysUTF16ToNSString(l10n_util::GetStringFUTF16(
+              IDS_IOS_POPUPS_BLOCKED_MOBILE, base::UTF8ToUTF16("1")))),
       nil);
 }
 
 }  // namespace
 
 // Test case for opening child windows by DOM.
-@interface WindowOpenByDOMTestCase : ChromeTestCase {
-  std::unique_ptr<ScopedBlockPopupsPref> _blockPopupsPref;
-}
-
+@interface WindowOpenByDOMTestCase : ChromeTestCase
 @end
 
 @implementation WindowOpenByDOMTestCase
 
++ (void)setUpForTestCase {
+  [super setUpForTestCase];
+  [ChromeEarlGrey setContentSettings:CONTENT_SETTING_ALLOW];
+}
+
++ (void)tearDown {
+  [ChromeEarlGrey setContentSettings:CONTENT_SETTING_DEFAULT];
+  [super tearDown];
+}
+
 - (void)setUp {
   [super setUp];
-  _blockPopupsPref =
-      std::make_unique<ScopedBlockPopupsPref>(CONTENT_SETTING_ALLOW);
   GREYAssertTrue(self.testServer->Start(), @"Server did not start.");
 
   // Open the test page. There should only be one tab open.
@@ -69,6 +75,21 @@ id<GREYMatcher> PopupBlocker() {
   [ChromeEarlGrey waitForMainTabCount:1];
 }
 
+// Tests that sessionStorage content is available for windows opened by DOM via
+// target="_blank" links.
+- (void)testLinkWithBlankTargetSessionStorage {
+  [ChromeEarlGrey executeJavaScript:@"sessionStorage.setItem('key', 'value');"];
+  [ChromeEarlGrey
+      tapWebStateElementWithID:@"webScenarioWindowOpenSameURLWithBlankTarget"];
+
+  [ChromeEarlGrey waitForMainTabCount:2];
+  [ChromeEarlGrey waitForWebStateContainingText:"Expected result"];
+
+  id value =
+      [ChromeEarlGrey executeJavaScript:@"sessionStorage.getItem('key');"];
+  GREYAssert([value isEqual:@"value"], @"sessionStorage is not shared");
+}
+
 // Tests tapping a link with target="_blank".
 - (void)testLinkWithBlankTarget {
   [ChromeEarlGrey tapWebStateElementWithID:@"webScenarioWindowOpenRegularLink"];
@@ -79,16 +100,24 @@ id<GREYMatcher> PopupBlocker() {
 - (void)testWindowOpenWithSpecialURL {
   [ChromeEarlGrey
       tapWebStateElementWithID:@"webScenarioWindowOpenWithSpecialURL"];
-  // Starting from iOS 13 WebKit does not rewrite URL that ends with /..;
-  [ChromeEarlGrey waitForMainTabCount:2];
+  if (@available(iOS 13, *)) {
+    // Starting from iOS 13 WebKit does not rewrite URL that ends with /..;
+    [ChromeEarlGrey waitForMainTabCount:2];
+  } else {
+    // Prior to iOS 13 WebKit rewries URL that ends with /..; to invalid URL
+    // so Chrome opens about:blank for that invalid URL.
+    [ChromeEarlGrey waitForMainTabCount:2];
+    [[EarlGrey selectElementWithMatcher:OmniboxText("about:blank")]
+        assertWithMatcher:grey_notNil()];
+  }
 }
 
 // Tests executing script that clicks a link with target="_blank".
 - (void)testLinkWithBlankTargetWithoutUserGesture {
-  ScopedBlockPopupsPref prefSetter(CONTENT_SETTING_BLOCK);
-  [ChromeEarlGrey evaluateJavaScriptForSideEffect:
-                      @"document.getElementById('"
-                      @"webScenarioWindowOpenRegularLink').click()"];
+  [ChromeEarlGrey setContentSettings:CONTENT_SETTING_BLOCK];
+  [ChromeEarlGrey
+      executeJavaScript:@"document.getElementById('"
+                        @"webScenarioWindowOpenRegularLink').click()"];
   [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:PopupBlocker()];
   [ChromeEarlGrey waitForMainTabCount:1];
 }
@@ -159,7 +188,7 @@ id<GREYMatcher> PopupBlocker() {
   [ChromeEarlGrey
       tapWebStateElementWithID:@"webScenarioWindowOpenWithDelayedClose"];
   [ChromeEarlGrey waitForMainTabCount:2];
-  base::test::ios::SpinRunLoopWithMinDelay(base::Seconds(5));
+  base::test::ios::SpinRunLoopWithMinDelay(base::TimeDelta::FromSecondsD(5));
   [ChromeEarlGrey waitForMainTabCount:1];
 }
 
@@ -235,7 +264,7 @@ id<GREYMatcher> PopupBlocker() {
 // Tests that popup blocking works when a popup is injected into a window before
 // its initial load is committed.
 - (void)testBlockPopupInjectedIntoOpenedWindow {
-  ScopedBlockPopupsPref prefSetter(CONTENT_SETTING_BLOCK);
+  [ChromeEarlGrey setContentSettings:CONTENT_SETTING_BLOCK];
   [ChromeEarlGrey
       tapWebStateElementWithID:@"webScenarioOpenWindowAndInjectPopup"];
   [[EarlGrey selectElementWithMatcher:PopupBlocker()]

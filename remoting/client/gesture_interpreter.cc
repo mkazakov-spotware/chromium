@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/client/gesture_interpreter.h"
-
-#include <memory>
 
 #include "base/bind.h"
 #include "base/time/time.h"
@@ -49,10 +47,10 @@ void GestureInterpreter::SetContext(RendererProxy* renderer,
 void GestureInterpreter::SetInputMode(InputMode mode) {
   switch (mode) {
     case DIRECT_INPUT_MODE:
-      input_strategy_ = std::make_unique<DirectTouchInputStrategy>();
+      input_strategy_.reset(new DirectTouchInputStrategy());
       break;
     case TRACKPAD_INPUT_MODE:
-      input_strategy_ = std::make_unique<TrackpadInputStrategy>(viewport_);
+      input_strategy_.reset(new TrackpadInputStrategy(viewport_));
       break;
     default:
       NOTREACHED();

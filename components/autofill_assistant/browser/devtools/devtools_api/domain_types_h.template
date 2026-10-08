@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_DEVTOOLS_DEVTOOLS_DOMAINS_TYPES_{{domain.domain | camelcase_to_hacker_style | upper}}_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_DEVTOOLS_DEVTOOLS_DOMAINS_TYPES_{{domain.domain | camelcase_to_hacker_style | upper}}_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "base/values.h"
 {% for domain_name in domain.dependencies %}
 #include "components/autofill_assistant/browser/devtools/devtools/internal/types_forward_declarations_{{domain_name | camelcase_to_hacker_style}}.h"
@@ -29,8 +29,6 @@ namespace {{domain.domain | camelcase_to_hacker_style}} {
 class {{type.id}} {
  public:
   static {{resolve_type(type).pass_type}} Parse(const base::Value& value, ErrorReporter* errors);
-  {{type.id}}(const {{type.id}}&) = delete;
-  {{type.id}}& operator=(const {{type.id}}&) = delete;
   ~{{type.id}}() { }
   {% for property in type.properties %}
 
@@ -47,7 +45,7 @@ class {{type.id}} {
     {% endif %}
   {% endfor %}
 
-  base::Value Serialize() const;
+  std::unique_ptr<base::Value> Serialize() const;
   {{resolve_type(type).pass_type}} Clone() const;
 
   template<int STATE>
@@ -104,11 +102,13 @@ class {{type.id}} {
 
   {% for property in type.properties %}
     {% if property.optional %}
-  absl::optional<{{resolve_type(property).type}}> {{property.name | camelcase_to_hacker_style}}_;
+  base::Optional<{{resolve_type(property).type}}> {{property.name | camelcase_to_hacker_style}}_;
     {% else %}
   {{resolve_type(property).type}} {{property.name | camelcase_to_hacker_style}}_;
     {% endif %}
   {% endfor %}
+
+  DISALLOW_COPY_AND_ASSIGN({{type.id}});
 };
 
 {% endfor %}

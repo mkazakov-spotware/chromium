@@ -1,19 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/profiler/thread_delegate_posix.h"
 
-#include "base/numerics/clamped_math.h"
 #include "base/process/process_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
 
 // ASAN moves local variables outside of the stack extents.
-#if defined(ADDRESS_SANITIZER)
+// Test is flaky on ChromeOS. crbug.com/1133434.
+#if defined(ADDRESS_SANITIZER) || defined(OS_CHROMEOS)
 #define MAYBE_CurrentThreadBase DISABLED_CurrentThreadBase
 #else
 #define MAYBE_CurrentThreadBase CurrentThreadBase
@@ -26,13 +25,12 @@ TEST(ThreadDelegatePosixTest, MAYBE_CurrentThreadBase) {
   EXPECT_GT(base, 0u);
   uintptr_t stack_addr = reinterpret_cast<uintptr_t>(&base);
   // Check that end of stack is within 4MiB of a current stack address.
-  EXPECT_LE(base, ClampAdd(stack_addr, 4 * 1024 * 1024));
+  EXPECT_LE(base, stack_addr + 4 * 1024 * 1024);
 }
 
-#if BUILDFLAG(IS_ANDROID)
-// On ChromeOS, this functionality is tested by
-// GetThreadStackBaseAddressTest.MainThread.
-TEST(ThreadDelegatePosixTest, MainThreadStackBase) {
+#if defined(OS_ANDROID)
+
+TEST(ThreadDelegatePosixTest, AndroidMainThreadStackBase) {
   // The delegate does not use pthread id for main thread.
   auto delegate = ThreadDelegatePosix::Create(
       SamplingProfilerThreadToken{GetCurrentProcId(), pthread_t()});
@@ -41,5 +39,5 @@ TEST(ThreadDelegatePosixTest, MainThreadStackBase) {
   EXPECT_GT(base, 0u);
 }
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }  // namespace base

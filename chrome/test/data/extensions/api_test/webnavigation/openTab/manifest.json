@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - openTab.",
   "background": {
-    "scripts": ["test_openTab.js"],
-    "persistent": true
+    "page": "test_openTab.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

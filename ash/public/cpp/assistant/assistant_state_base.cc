@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece_forward.h"
-#include "chromeos/ash/components/audio/cras_audio_handler.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 
@@ -19,24 +18,24 @@ namespace ash {
 
 namespace {
 
-using assistant::prefs::AssistantOnboardingMode;
+using chromeos::assistant::prefs::AssistantOnboardingMode;
 
 #define PRINT_VALUE(value) PrintValue(&result, #value, value())
 
 template <typename T, std::enable_if_t<std::is_enum<T>::value>* = nullptr>
-void PrintValue(std::stringstream* result, const absl::optional<T>& value) {
+void PrintValue(std::stringstream* result, const base::Optional<T>& value) {
   *result << base::NumberToString(static_cast<int>(value.value()));
 }
 
 template <typename T, std::enable_if_t<!std::is_enum<T>::value>* = nullptr>
-void PrintValue(std::stringstream* result, const absl::optional<T>& value) {
+void PrintValue(std::stringstream* result, const base::Optional<T>& value) {
   *result << value.value();
 }
 
 template <typename T>
 void PrintValue(std::stringstream* result,
                 const std::string& name,
-                const absl::optional<T>& value) {
+                const base::Optional<T>& value) {
   *result << std::endl << "  " << name << ": ";
   if (value.has_value())
     PrintValue(result, value);
@@ -87,36 +86,40 @@ void AssistantStateBase::RegisterPrefChanges(PrefService* pref_service) {
   pref_change_registrar_ = std::make_unique<PrefChangeRegistrar>();
   pref_change_registrar_->Init(pref_service);
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantConsentStatus,
+      chromeos::assistant::prefs::kAssistantConsentStatus,
       base::BindRepeating(&AssistantStateBase::UpdateConsentStatus,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantContextEnabled,
+      chromeos::assistant::prefs::kAssistantContextEnabled,
       base::BindRepeating(&AssistantStateBase::UpdateContextEnabled,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantEnabled,
+      chromeos::assistant::prefs::kAssistantEnabled,
       base::BindRepeating(&AssistantStateBase::UpdateSettingsEnabled,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantHotwordAlwaysOn,
+      chromeos::assistant::prefs::kAssistantHotwordAlwaysOn,
       base::BindRepeating(&AssistantStateBase::UpdateHotwordAlwaysOn,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantHotwordEnabled,
+      chromeos::assistant::prefs::kAssistantHotwordEnabled,
       base::BindRepeating(&AssistantStateBase::UpdateHotwordEnabled,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantLaunchWithMicOpen,
+      chromeos::assistant::prefs::kAssistantLaunchWithMicOpen,
       base::BindRepeating(&AssistantStateBase::UpdateLaunchWithMicOpen,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantNotificationEnabled,
+      chromeos::assistant::prefs::kAssistantNotificationEnabled,
       base::BindRepeating(&AssistantStateBase::UpdateNotificationEnabled,
                           base::Unretained(this)));
   pref_change_registrar_->Add(
-      assistant::prefs::kAssistantOnboardingMode,
+      chromeos::assistant::prefs::kAssistantOnboardingMode,
       base::BindRepeating(&AssistantStateBase::UpdateOnboardingMode,
+                          base::Unretained(this)));
+  pref_change_registrar_->Add(
+      chromeos::assistant::prefs::kAssistantQuickAnswersEnabled,
+      base::BindRepeating(&AssistantStateBase::UpdateQuickAnswersEnabled,
                           base::Unretained(this)));
 
   UpdateConsentStatus();
@@ -127,22 +130,14 @@ void AssistantStateBase::RegisterPrefChanges(PrefService* pref_service) {
   UpdateLaunchWithMicOpen();
   UpdateNotificationEnabled();
   UpdateOnboardingMode();
+  UpdateQuickAnswersEnabled();
 }
 
 bool AssistantStateBase::IsScreenContextAllowed() const {
-  return allowed_state() == assistant::AssistantAllowedState::ALLOWED &&
+  return allowed_state() ==
+             chromeos::assistant::AssistantAllowedState::ALLOWED &&
          settings_enabled().value_or(false) &&
          context_enabled().value_or(false);
-}
-
-bool AssistantStateBase::HasAudioInputDevice() const {
-  ash::AudioDeviceList devices;
-  ash::CrasAudioHandler::Get()->GetAudioDevices(&devices);
-  for (const chromeos::AudioDevice& device : devices) {
-    if (device.is_input)
-      return true;
-  }
-  return false;
 }
 
 void AssistantStateBase::InitializeObserver(AssistantStateObserver* observer) {
@@ -162,6 +157,8 @@ void AssistantStateBase::InitializeObserver(AssistantStateObserver* observer) {
     observer->OnAssistantNotificationEnabled(notification_enabled_.value());
   if (onboarding_mode_.has_value())
     observer->OnAssistantOnboardingModeChanged(onboarding_mode_.value());
+  if (quick_answers_enabled_.has_value())
+    observer->OnAssistantQuickAnswersEnabled(quick_answers_enabled_.value());
 
   observer->OnAssistantStatusChanged(assistant_status_);
   if (allowed_state_.has_value())
@@ -174,7 +171,7 @@ void AssistantStateBase::InitializeObserver(AssistantStateObserver* observer) {
 
 void AssistantStateBase::UpdateConsentStatus() {
   auto consent_status = pref_change_registrar_->prefs()->GetInteger(
-      assistant::prefs::kAssistantConsentStatus);
+      chromeos::assistant::prefs::kAssistantConsentStatus);
   if (consent_status_.has_value() &&
       consent_status_.value() == consent_status) {
     return;
@@ -186,7 +183,7 @@ void AssistantStateBase::UpdateConsentStatus() {
 
 void AssistantStateBase::UpdateContextEnabled() {
   auto context_enabled = pref_change_registrar_->prefs()->GetBoolean(
-      assistant::prefs::kAssistantContextEnabled);
+      chromeos::assistant::prefs::kAssistantContextEnabled);
   if (context_enabled_.has_value() &&
       context_enabled_.value() == context_enabled) {
     return;
@@ -198,7 +195,7 @@ void AssistantStateBase::UpdateContextEnabled() {
 
 void AssistantStateBase::UpdateSettingsEnabled() {
   auto settings_enabled = pref_change_registrar_->prefs()->GetBoolean(
-      assistant::prefs::kAssistantEnabled);
+      chromeos::assistant::prefs::kAssistantEnabled);
   if (settings_enabled_.has_value() &&
       settings_enabled_.value() == settings_enabled) {
     return;
@@ -210,7 +207,7 @@ void AssistantStateBase::UpdateSettingsEnabled() {
 
 void AssistantStateBase::UpdateHotwordAlwaysOn() {
   auto hotword_always_on = pref_change_registrar_->prefs()->GetBoolean(
-      assistant::prefs::kAssistantHotwordAlwaysOn);
+      chromeos::assistant::prefs::kAssistantHotwordAlwaysOn);
   if (hotword_always_on_.has_value() &&
       hotword_always_on_.value() == hotword_always_on) {
     return;
@@ -222,7 +219,7 @@ void AssistantStateBase::UpdateHotwordAlwaysOn() {
 
 void AssistantStateBase::UpdateHotwordEnabled() {
   auto hotword_enabled = pref_change_registrar_->prefs()->GetBoolean(
-      assistant::prefs::kAssistantHotwordEnabled);
+      chromeos::assistant::prefs::kAssistantHotwordEnabled);
   if (hotword_enabled_.has_value() &&
       hotword_enabled_.value() == hotword_enabled) {
     return;
@@ -234,7 +231,7 @@ void AssistantStateBase::UpdateHotwordEnabled() {
 
 void AssistantStateBase::UpdateLaunchWithMicOpen() {
   auto launch_with_mic_open = pref_change_registrar_->prefs()->GetBoolean(
-      assistant::prefs::kAssistantLaunchWithMicOpen);
+      chromeos::assistant::prefs::kAssistantLaunchWithMicOpen);
   if (launch_with_mic_open_.has_value() &&
       launch_with_mic_open_.value() == launch_with_mic_open) {
     return;
@@ -246,7 +243,7 @@ void AssistantStateBase::UpdateLaunchWithMicOpen() {
 
 void AssistantStateBase::UpdateNotificationEnabled() {
   auto notification_enabled = pref_change_registrar_->prefs()->GetBoolean(
-      assistant::prefs::kAssistantNotificationEnabled);
+      chromeos::assistant::prefs::kAssistantNotificationEnabled);
   if (notification_enabled_.has_value() &&
       notification_enabled_.value() == notification_enabled) {
     return;
@@ -257,9 +254,10 @@ void AssistantStateBase::UpdateNotificationEnabled() {
 }
 
 void AssistantStateBase::UpdateOnboardingMode() {
-  AssistantOnboardingMode onboarding_mode = assistant::prefs::ToOnboardingMode(
-      pref_change_registrar_->prefs()->GetString(
-          assistant::prefs::kAssistantOnboardingMode));
+  AssistantOnboardingMode onboarding_mode =
+      chromeos::assistant::prefs::ToOnboardingMode(
+          pref_change_registrar_->prefs()->GetString(
+              chromeos::assistant::prefs::kAssistantOnboardingMode));
 
   if (onboarding_mode_ == onboarding_mode)
     return;
@@ -270,14 +268,14 @@ void AssistantStateBase::UpdateOnboardingMode() {
 }
 
 void AssistantStateBase::UpdateAssistantStatus(
-    assistant::AssistantStatus status) {
+    chromeos::assistant::AssistantStatus status) {
   assistant_status_ = status;
   for (auto& observer : observers_)
     observer.OnAssistantStatusChanged(assistant_status_);
 }
 
 void AssistantStateBase::UpdateFeatureAllowedState(
-    assistant::AssistantAllowedState state) {
+    chromeos::assistant::AssistantAllowedState state) {
   allowed_state_ = state;
   for (auto& observer : observers_)
     observer.OnAssistantFeatureAllowedChanged(allowed_state_.value());
@@ -301,6 +299,18 @@ void AssistantStateBase::UpdateLockedFullScreenState(bool enabled) {
     observer.OnLockedFullScreenStateChanged(
         locked_full_screen_enabled_.value());
   }
+}
+
+void AssistantStateBase::UpdateQuickAnswersEnabled() {
+  auto quick_answers_enabled = pref_change_registrar_->prefs()->GetBoolean(
+      chromeos::assistant::prefs::kAssistantQuickAnswersEnabled);
+  if (quick_answers_enabled_.has_value() &&
+      quick_answers_enabled_.value() == quick_answers_enabled) {
+    return;
+  }
+  quick_answers_enabled_ = quick_answers_enabled;
+  for (auto& observer : observers_)
+    observer.OnAssistantQuickAnswersEnabled(quick_answers_enabled_.value());
 }
 
 }  // namespace ash

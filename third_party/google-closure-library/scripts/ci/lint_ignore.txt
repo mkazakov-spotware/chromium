@@ -1,4 +1,4 @@
-closure/goog/deps.js
+deps.js
 alltests.js
 protractor.conf.js
 protractor_spec.js

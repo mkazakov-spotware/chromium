@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,13 +30,13 @@ void BatteryStatusListenerImpl::Start(Observer* observer) {
   observer_ = observer;
 
   DCHECK(base::PowerMonitor::IsInitialized());
-  base::PowerMonitor::AddPowerStateObserver(this);
+  base::PowerMonitor::AddObserver(this);
 
   UpdateBatteryPercentage(true);
 }
 
 void BatteryStatusListenerImpl::Stop() {
-  base::PowerMonitor::RemovePowerStateObserver(this);
+  base::PowerMonitor::RemoveObserver(this);
 }
 
 int BatteryStatusListenerImpl::GetBatteryPercentageInternal() {

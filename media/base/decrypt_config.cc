@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/decrypt_config.h"
 
 #include <stddef.h>
-
-#include <ostream>
 
 #include "base/check_op.h"
 #include "base/memory/ptr_util.h"
@@ -21,7 +19,7 @@ std::unique_ptr<DecryptConfig> DecryptConfig::CreateCencConfig(
     const std::string& iv,
     const std::vector<SubsampleEntry>& subsamples) {
   return std::make_unique<DecryptConfig>(EncryptionScheme::kCenc, key_id, iv,
-                                         subsamples, absl::nullopt);
+                                         subsamples, base::nullopt);
 }
 
 // static
@@ -29,7 +27,7 @@ std::unique_ptr<DecryptConfig> DecryptConfig::CreateCbcsConfig(
     const std::string& key_id,
     const std::string& iv,
     const std::vector<SubsampleEntry>& subsamples,
-    absl::optional<EncryptionPattern> encryption_pattern) {
+    base::Optional<EncryptionPattern> encryption_pattern) {
   return std::make_unique<DecryptConfig>(EncryptionScheme::kCbcs, key_id, iv,
                                          subsamples,
                                          std::move(encryption_pattern));
@@ -40,7 +38,7 @@ DecryptConfig::DecryptConfig(
     const std::string& key_id,
     const std::string& iv,
     const std::vector<SubsampleEntry>& subsamples,
-    absl::optional<EncryptionPattern> encryption_pattern)
+    base::Optional<EncryptionPattern> encryption_pattern)
     : encryption_scheme_(encryption_scheme),
       key_id_(key_id),
       iv_(iv),

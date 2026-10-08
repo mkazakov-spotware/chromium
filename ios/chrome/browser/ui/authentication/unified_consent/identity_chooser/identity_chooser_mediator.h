@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,31 +7,20 @@
 
 #import <UIKit/UIKit.h>
 
-class ChromeAccountManagerService;
+@class ChromeIdentity;
 @protocol IdentityChooserConsumer;
-@protocol SystemIdentity;
 
 // A mediator object that monitors updates of chrome identities, and updates the
 // IdentityChooserViewController.
 @interface IdentityChooserMediator : NSObject
 
-// The designated initializer.
-- (instancetype)initWithAccountManagerService:
-    (ChromeAccountManagerService*)accountManagerService
-    NS_DESIGNATED_INITIALIZER;
-
-- (instancetype)init NS_UNAVAILABLE;
-
 // Selected Chrome identity.
-@property(nonatomic, strong) id<SystemIdentity> selectedIdentity;
+@property(nonatomic, strong) ChromeIdentity* selectedIdentity;
 // View controller.
 @property(nonatomic, weak) id<IdentityChooserConsumer> consumer;
 
 // Starts this mediator.
 - (void)start;
-
-// Disconnect the mediator.
-- (void)disconnect;
 
 // Selects an identity with a Gaia ID.
 - (void)selectIdentityWithGaiaID:(NSString*)gaiaID;

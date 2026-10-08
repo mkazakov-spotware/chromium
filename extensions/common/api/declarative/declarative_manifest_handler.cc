@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,10 +17,9 @@ DeclarativeManifestHandler::~DeclarativeManifestHandler() {
 }
 
 bool DeclarativeManifestHandler::Parse(Extension* extension,
-                                       std::u16string* error) {
-  const base::Value* event_rules =
-      extension->manifest()->FindPath(manifest_keys::kEventRules);
-  CHECK(event_rules != nullptr);
+                                       base::string16* error) {
+  const base::Value* event_rules = NULL;
+  CHECK(extension->manifest()->Get(manifest_keys::kEventRules, &event_rules));
   std::unique_ptr<DeclarativeManifestData> data =
       DeclarativeManifestData::FromValue(*event_rules, error);
   if (!data)

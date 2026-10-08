@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -133,9 +133,8 @@ void TouchSelectionControllerClientManagerAndroid::OnSelectionEvent(
 }
 
 void TouchSelectionControllerClientManagerAndroid::OnDragUpdate(
-    const ui::TouchSelectionDraggable::Type type,
     const gfx::PointF& position) {
-  rwhv_->OnDragUpdate(type, position);
+  rwhv_->OnDragUpdate(position);
 }
 
 std::unique_ptr<ui::TouchHandleDrawable>

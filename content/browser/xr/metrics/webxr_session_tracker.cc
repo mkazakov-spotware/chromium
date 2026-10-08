@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -80,9 +80,6 @@ void WebXRSessionTracker::ReportFeatureUsed(
     case XRSessionFeature::PLANE_DETECTION:
     case XRSessionFeature::DEPTH:
     case XRSessionFeature::IMAGE_TRACKING:
-    case XRSessionFeature::HAND_INPUT:
-    case XRSessionFeature::SECONDARY_VIEWS:
-    case XRSessionFeature::LAYERS:
       // Not recording metrics for these features currently.
       // TODO(https://crbug.com/965729): Add metrics for the AR-related features
       // that are enabled by default.
@@ -124,9 +121,6 @@ void WebXRSessionTracker::SetFeatureRequest(
     case XRSessionFeature::PLANE_DETECTION:
     case XRSessionFeature::DEPTH:
     case XRSessionFeature::IMAGE_TRACKING:
-    case XRSessionFeature::HAND_INPUT:
-    case XRSessionFeature::SECONDARY_VIEWS:
-    case XRSessionFeature::LAYERS:
       // Not recording metrics for these features currently.
       // TODO(https://crbug.com/965729): Add metrics for the AR-related features
       // that are enabled by default.

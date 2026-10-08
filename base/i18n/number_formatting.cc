@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,7 +50,7 @@ LazyInstance<NumberFormatWrapper>::DestructorAtExit g_number_format_float =
 
 }  // namespace
 
-std::u16string FormatNumber(int64_t number) {
+string16 FormatNumber(int64_t number) {
   icu::NumberFormat* number_format =
       g_number_format_int.Get().number_format.get();
 
@@ -64,7 +64,7 @@ std::u16string FormatNumber(int64_t number) {
   return i18n::UnicodeStringToString16(ustr);
 }
 
-std::u16string FormatDouble(double number, int fractional_digits) {
+string16 FormatDouble(double number, int fractional_digits) {
   icu::NumberFormat* number_format =
       g_number_format_float.Get().number_format.get();
 
@@ -80,9 +80,9 @@ std::u16string FormatDouble(double number, int fractional_digits) {
   return i18n::UnicodeStringToString16(ustr);
 }
 
-std::u16string FormatPercent(int number) {
+string16 FormatPercent(int number) {
   return i18n::MessageFormatter::FormatWithNumberedArgs(
-      u"{0,number,percent}", static_cast<double>(number) / 100.0);
+      ASCIIToUTF16("{0,number,percent}"), static_cast<double>(number) / 100.0);
 }
 
 void ResetFormattersForTesting() {

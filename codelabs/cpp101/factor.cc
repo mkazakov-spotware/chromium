@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/logging.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
@@ -13,21 +14,20 @@
 #include "base/test/test_timeouts.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
-absl::optional<int> FindNonTrivialFactor(int n) {
+base::Optional<int> FindNonTrivialFactor(int n) {
   // Really naive algorithm.
   for (int i = 2; i < n; ++i) {
     if (n % i == 0) {
       return i;
     }
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-void FindNonTrivialFactorHelper(int n, absl::optional<int>* result) {
+void FindNonTrivialFactorHelper(int n, base::Optional<int>* result) {
   *result = FindNonTrivialFactor(n);
 }
 
@@ -67,18 +67,19 @@ int main(int argc, char* argv[]) {
 
   base::RunLoop run_loop;
 
-  absl::optional<int> result;
+  base::Optional<int> result;
   // Notice that we're posting the long-running factoring operation to
-  // `base::ThreadPool` to avoid blocking the main thread.
+  // |base::ThreadPool| to avoid blocking the main thread
   //
-  // `run_loop.QuitClosure()` will be called once the factoring task completes.
+  // |run_loop.QuitClosure()| will be called once the factoring task completes.
   base::ThreadPool::PostTaskAndReply(
       FROM_HERE, base::BindOnce(&FindNonTrivialFactorHelper, n, &result),
       run_loop.QuitClosure());
 
   base::ThreadPool::PostTask(
-      FROM_HERE, base::BindOnce(&PrintStatusUpdateRepeatedly,
-                                base::TimeTicks::Now(), base::Seconds(1)));
+      FROM_HERE,
+      base::BindOnce(&PrintStatusUpdateRepeatedly, base::TimeTicks::Now(),
+                     base::TimeDelta::FromSeconds(1)));
 
   run_loop.Run();
 

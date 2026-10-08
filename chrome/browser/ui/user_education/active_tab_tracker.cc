@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,23 +42,22 @@ void ActiveTabTracker::OnTabStripModelChanged(
   DCHECK(active_tab_changed_times_.find(model) !=
          active_tab_changed_times_.end());
 
-  const absl::optional<size_t> prev_active_tab_index =
-      selection.old_model.active();
+  const int prev_active_tab_index = selection.old_model.active();
 
   if (change.type() == TabStripModelChange::Type::kRemoved) {
     auto* remove = change.GetRemove();
     // If the closing tab was the active tab, call the callback.
     // Ignore if the tab isn't being closed (this would happen if it were
     // dragged to a different tab strip).
+    if (remove->will_be_deleted) {
       for (const auto& contents : remove->contents) {
-        if (contents.remove_reason ==
-                TabStripModelChange::RemoveReason::kDeleted &&
-            static_cast<size_t>(contents.index) == prev_active_tab_index) {
+        if (contents.index == prev_active_tab_index) {
           active_tab_closed_callback_.Run(
               model, clock_->NowTicks() - active_tab_changed_times_[model]);
         }
       }
     }
+  }
 
   if (selection.active_tab_changed())
     active_tab_changed_times_[model] = clock_->NowTicks();

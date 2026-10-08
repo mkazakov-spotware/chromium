@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,10 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
-#include "ui/base/webui/resource_path.h"
 
-extern const webui::ResourcePath kDevtoolsResources[];
-extern const size_t kDevtoolsResourcesSize;
+#if !defined(OS_FUCHSIA)
+#include "content/browser/devtools/grit/devtools_resources_map.h"  // nogncheck
+#endif
 
 namespace content {
 
@@ -51,11 +51,14 @@ void DevToolsFrontendHost::SetupExtensionsAPI(
 // static
 scoped_refptr<base::RefCountedMemory>
 DevToolsFrontendHost::GetFrontendResourceBytes(const std::string& path) {
+#if !defined(OS_FUCHSIA)
   for (size_t i = 0; i < kDevtoolsResourcesSize; ++i) {
-    if (path == kDevtoolsResources[i].path) {
-      return GetContentClient()->GetDataResourceBytes(kDevtoolsResources[i].id);
+    if (path == kDevtoolsResources[i].name) {
+      return GetContentClient()->GetDataResourceBytes(
+          kDevtoolsResources[i].value);
     }
   }
+#endif  // defined(OS_FUCHSIA)
   return nullptr;
 }
 
@@ -84,14 +87,13 @@ DevToolsFrontendHostImpl::DevToolsFrontendHostImpl(
 DevToolsFrontendHostImpl::~DevToolsFrontendHostImpl() = default;
 
 void DevToolsFrontendHostImpl::BadMessageReceived() {
-  bad_message::ReceivedBadMessage(
-      web_contents_->GetPrimaryMainFrame()->GetProcess(),
-      bad_message::DFH_BAD_EMBEDDER_MESSAGE);
+  bad_message::ReceivedBadMessage(web_contents_->GetMainFrame()->GetProcess(),
+                                  bad_message::DFH_BAD_EMBEDDER_MESSAGE);
 }
 
 void DevToolsFrontendHostImpl::DispatchEmbedderMessage(
-    base::Value::Dict message) {
-  handle_message_callback_.Run(std::move(message));
+    const std::string& message) {
+  handle_message_callback_.Run(message);
 }
 
 }  // namespace content

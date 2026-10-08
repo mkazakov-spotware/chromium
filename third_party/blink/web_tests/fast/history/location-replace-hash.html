@@ -14,7 +14,7 @@ var testWindow;
 onload = function()
 {
     if (window.testRunner) {
-        testRunner.setPopupBlockingEnabled(false);
+        testRunner.setCanOpenWindows();
         testRunner.dumpAsText();
         testRunner.waitUntilDone();
     }

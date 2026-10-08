@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,8 @@
 typedef unsigned long MojoResult;
 
 enum MojoScope {
-  // If MojoJS interface broker is provided to MojoBindingContext, refers to
-  // that BrowserInterfaceBroker. Otherwise, it refers to the
-  // BrowserInterfaceBroker associated with the current execution context.
-  // Either a Document or WorkerGlobalScope.
+  // Refers to the BrowserInterfaceBroker associated with the current execution
+  // context. Either a Document or WorkerGlobalScope.
   "context",
   // Refers to the BrowserInterfaceBroker of the current process.
   //
@@ -48,6 +46,5 @@ enum MojoScope {
     static MojoCreateDataPipeResult createDataPipe(MojoCreateDataPipeOptions options);
     static MojoCreateSharedBufferResult createSharedBuffer(unsigned long numBytes);
 
-    [CallWith=ScriptState, RaisesException]
-    static void bindInterface(DOMString interfaceName, MojoHandle request_handle, optional MojoScope scope = "context");
+    [CallWith=ScriptState] static void bindInterface(DOMString interfaceName, MojoHandle request_handle, optional MojoScope scope = "context");
 };

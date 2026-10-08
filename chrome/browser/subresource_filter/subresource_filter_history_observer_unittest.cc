@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/subresource_filter/subresource_filter_profile_context_factory.h"
@@ -33,15 +32,10 @@ class SubresourceFilterHistoryObserverTest : public testing::Test {
       const SubresourceFilterHistoryObserverTest&) = delete;
 
   void SetUp() override {
-    TestingProfile::Builder profile_builder;
-    profile_builder.AddTestingFactory(
-        HistoryServiceFactory::GetInstance(),
-        HistoryServiceFactory::GetDefaultFactory());
-    testing_profile_ = profile_builder.Build();
-
-    settings_manager_ = SubresourceFilterProfileContextFactory::GetForProfile(
-                            testing_profile_.get())
-                            ->settings_manager();
+    ASSERT_TRUE(profile()->CreateHistoryService());
+    settings_manager_ =
+        SubresourceFilterProfileContextFactory::GetForProfile(&testing_profile_)
+            ->settings_manager();
     settings_manager_->set_should_use_smart_ui_for_testing(true);
   }
 
@@ -50,15 +44,15 @@ class SubresourceFilterHistoryObserverTest : public testing::Test {
     return settings_manager_;
   }
 
-  TestingProfile* profile() { return testing_profile_.get(); }
+  TestingProfile* profile() { return &testing_profile_; }
 
  private:
   content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
-  std::unique_ptr<TestingProfile> testing_profile_;
+  TestingProfile testing_profile_;
 
   // Owned by the testing_profile_.
-  raw_ptr<subresource_filter::SubresourceFilterContentSettingsManager>
+  subresource_filter::SubresourceFilterContentSettingsManager*
       settings_manager_ = nullptr;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,10 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/scoped_observer.h"
+#include "base/sequenced_task_runner.h"
 #include "base/win/scoped_gdi_object.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/ui/views/frame/browser_desktop_window_tree_host.h"
@@ -76,13 +76,12 @@ class BrowserDesktopWindowTreeHostWin
   views::FrameMode GetFrameMode() const override;
   bool ShouldUseNativeFrame() const override;
   bool ShouldWindowContentsBeTransparent() const override;
-  void HandleWindowMinimizedOrRestored(bool restored) override;
 
   // ProfileAttributesStorage::Observer:
   void OnProfileAvatarChanged(const base::FilePath& profile_path) override;
   void OnProfileAdded(const base::FilePath& profile_path) override;
   void OnProfileWasRemoved(const base::FilePath& profile_path,
-                           const std::u16string& profile_name) override;
+                           const base::string16& profile_name) override;
 
   // Kicks off an asynchronous update of |workspace_|, and notifies
   // WindowTreeHost of its value.
@@ -92,8 +91,8 @@ class BrowserDesktopWindowTreeHostWin
 
   void SetWindowIcon(bool badged);
 
-  raw_ptr<BrowserView> browser_view_;
-  raw_ptr<BrowserFrame> browser_frame_;
+  BrowserView* browser_view_;
+  BrowserFrame* browser_frame_;
 
   MinimizeButtonMetrics minimize_button_metrics_;
 
@@ -105,9 +104,8 @@ class BrowserDesktopWindowTreeHostWin
 
   // This is used to monitor when the window icon needs to be updated because
   // the icon badge has changed (e.g., avatar icon changed).
-  base::ScopedObservation<ProfileAttributesStorage,
-                          ProfileAttributesStorage::Observer>
-      profile_observation_{this};
+  ScopedObserver<ProfileAttributesStorage, ProfileAttributesStorage::Observer>
+      profile_observer_{this};
 
   base::win::ScopedHICON icon_handle_;
 

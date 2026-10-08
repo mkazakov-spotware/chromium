@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,10 @@ import androidx.annotation.NonNull;
 
 /**
  * Used to intercept interaction with GAIA accounts.
+ *
+ * @since 86
  */
-abstract class GoogleAccountsCallback {
+public abstract class GoogleAccountsCallback {
     /**
      * Called when a user wants to change the state of their GAIA account. This could be a signin,
      * signout, or any other action. See {@link GoogleAccountServiceType} for all the possible

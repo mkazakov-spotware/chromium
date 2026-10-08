@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,10 +50,7 @@ FakeGpuMemoryBufferSupport::CreateGpuMemoryBufferImplFromHandle(
     const gfx::Size& size,
     gfx::BufferFormat format,
     gfx::BufferUsage usage,
-    gpu::GpuMemoryBufferImpl::DestructionCallback callback,
-    gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
-    scoped_refptr<base::UnsafeSharedMemoryPool> pool,
-    base::span<uint8_t> premapped_memory) {
+    gpu::GpuMemoryBufferImpl::DestructionCallback callback) {
   return std::make_unique<FakeGpuMemoryBufferImpl>(size, format);
 }
 
@@ -63,12 +60,10 @@ TestingPlatformSupportForGpuMemoryBuffer::
       gpu_factories_(new media::MockGpuVideoAcceleratorFactories(sii_.get())),
       media_thread_("TestingMediaThread") {
   gpu_factories_->SetVideoFrameOutputFormat(
-      media::GpuVideoAcceleratorFactories::OutputFormat::NV12);
+      media::GpuVideoAcceleratorFactories::OutputFormat::NV12_SINGLE_GMB);
   media_thread_.Start();
   ON_CALL(*gpu_factories_, GetTaskRunner())
       .WillByDefault(Return(media_thread_.task_runner()));
-  ON_CALL(*gpu_factories_, ContextCapabilities())
-      .WillByDefault(testing::Invoke([&]() { return capabilities_; }));
 }
 
 TestingPlatformSupportForGpuMemoryBuffer::
@@ -79,11 +74,6 @@ TestingPlatformSupportForGpuMemoryBuffer::
 media::GpuVideoAcceleratorFactories*
 TestingPlatformSupportForGpuMemoryBuffer::GetGpuFactories() {
   return gpu_factories_.get();
-}
-
-void TestingPlatformSupportForGpuMemoryBuffer::SetGpuCapabilities(
-    gpu::Capabilities* capabilities) {
-  capabilities_ = capabilities;
 }
 
 }  // namespace blink

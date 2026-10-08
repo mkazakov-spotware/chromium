@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <utility>
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "base/time/tick_clock.h"
@@ -28,11 +28,6 @@ class CONTENT_EXPORT SignedExchangePrefetchMetricRecorder final
   explicit SignedExchangePrefetchMetricRecorder(
       const base::TickClock* tick_clock);
 
-  SignedExchangePrefetchMetricRecorder(
-      const SignedExchangePrefetchMetricRecorder&) = delete;
-  SignedExchangePrefetchMetricRecorder& operator=(
-      const SignedExchangePrefetchMetricRecorder&) = delete;
-
   void OnSignedExchangeNonPrefetch(const GURL& outer_url,
                                    base::Time response_time);
   void OnSignedExchangePrefetchFinished(const GURL& outer_url,
@@ -46,7 +41,7 @@ class CONTENT_EXPORT SignedExchangePrefetchMetricRecorder final
   void OnFlushTimer();
 
   bool disabled_ = false;
-  raw_ptr<const base::TickClock> tick_clock_;
+  const base::TickClock* tick_clock_;
 
   using PrefetchEntries =
       base::flat_map<std::pair<GURL, base::Time /* response_time */>,
@@ -56,6 +51,7 @@ class CONTENT_EXPORT SignedExchangePrefetchMetricRecorder final
   std::unique_ptr<base::OneShotTimer> flush_timer_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+  DISALLOW_COPY_AND_ASSIGN(SignedExchangePrefetchMetricRecorder);
 };
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,22 @@
 #include <stdint.h>
 #include <string>
 
+#include "base/macros.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/plugin.mojom.h"
+#include "components/no_state_prefetch/common/prerender_types.mojom.h"
 #include "components/no_state_prefetch/renderer/prerender_observer.h"
 #include "components/plugins/renderer/loadable_plugin_placeholder.h"
+#include "content/public/renderer/context_menu_client.h"
 #include "content/public/renderer/render_thread_observer.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
-#include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
 
 class ChromePluginPlaceholder final
     : public plugins::LoadablePluginPlaceholder,
       public content::RenderThreadObserver,
-      public blink::mojom::ContextMenuClient,
+      public content::ContextMenuClient,
+      public chrome::mojom::PluginRenderer,
       public prerender::PrerenderObserver,
       public gin::Wrappable<ChromePluginPlaceholder> {
  public:
@@ -30,17 +34,14 @@ class ChromePluginPlaceholder final
       const blink::WebPluginParams& params,
       const content::WebPluginInfo& info,
       const std::string& identifier,
-      const std::u16string& name,
+      const base::string16& name,
       int resource_id,
-      const std::u16string& message);
+      const base::string16& message);
 
   // Creates a new WebViewPlugin with a MissingPlugin as a delegate.
   static ChromePluginPlaceholder* CreateLoadableMissingPlugin(
       content::RenderFrame* render_frame,
       const blink::WebPluginParams& params);
-
-  ChromePluginPlaceholder(const ChromePluginPlaceholder&) = delete;
-  ChromePluginPlaceholder& operator=(const ChromePluginPlaceholder&) = delete;
 
   // Runs |callback| over each plugin placeholder for the given RenderFrame.
   static void ForEach(
@@ -49,11 +50,13 @@ class ChromePluginPlaceholder final
 
   void SetStatus(chrome::mojom::PluginStatus status);
 
+  mojo::PendingRemote<chrome::mojom::PluginRenderer> BindPluginRenderer();
+
  private:
   ChromePluginPlaceholder(content::RenderFrame* render_frame,
                           const blink::WebPluginParams& params,
                           const std::string& html_data,
-                          const std::u16string& title);
+                          const base::string16& title);
   ~ChromePluginPlaceholder() override;
 
   // content::LoadablePluginPlaceholder overrides.
@@ -72,21 +75,32 @@ class ChromePluginPlaceholder final
   // content::RenderThreadObserver methods:
   void PluginListChanged() override;
 
-  // blink::mojom::ContextMenuClient methods.
-  void CustomContextMenuAction(uint32_t action) override;
-  void ContextMenuClosed(const GURL& link_followed) override;
+  // content::ContextMenuClient methods:
+  void OnMenuAction(int request_id, unsigned action) override;
+  void OnMenuClosed(int request_id) override;
+
+  // Show the Plugins permission bubble.
+  void ShowPermissionBubbleCallback();
+
+  // chrome::mojom::PluginRenderer methods.
+  void FinishedDownloading() override;
+  void UpdateDownloading() override;
+  void UpdateSuccess() override;
+  void UpdateFailure() override;
 
   // prerender::PrerenderObserver methods:
   void SetIsPrerendering(bool is_prerendering) override;
 
   chrome::mojom::PluginStatus status_;
 
-  std::u16string title_;
+  base::string16 title_;
 
-  std::u16string plugin_name_;
+  int context_menu_request_id_;  // Nonzero when request pending.
+  base::string16 plugin_name_;
 
-  mojo::AssociatedReceiver<blink::mojom::ContextMenuClient>
-      context_menu_client_receiver_{this};
+  mojo::Receiver<chrome::mojom::PluginRenderer> plugin_renderer_receiver_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromePluginPlaceholder);
 };
 
 #endif  // CHROME_RENDERER_PLUGINS_CHROME_PLUGIN_PLACEHOLDER_H_

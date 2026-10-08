@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/gcm_driver/gcm_driver_desktop.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -12,13 +11,13 @@
 #include "base/files/file_path.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/observer_list.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task_runner_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/gcm_driver/gcm_account_mapper.h"
 #include "components/gcm_driver/gcm_app_handler.h"
 #include "components/gcm_driver/gcm_client_factory.h"
@@ -27,8 +26,11 @@
 #include "components/gcm_driver/system_encryptor.h"
 #include "google_apis/gcm/engine/account_mapping.h"
 #include "net/base/ip_endpoint.h"
-#include "services/network/public/cpp/network_connection_tracker.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+
+#if defined(OS_CHROMEOS)
+#include "components/timers/alarm_timer_chromeos.h"
+#endif
 
 namespace gcm {
 
@@ -37,10 +39,6 @@ class GCMDriverDesktop::IOWorker : public GCMClient::Delegate {
   // Called on UI thread.
   IOWorker(const scoped_refptr<base::SequencedTaskRunner>& ui_thread,
            const scoped_refptr<base::SequencedTaskRunner>& io_thread);
-
-  IOWorker(const IOWorker&) = delete;
-  IOWorker& operator=(const IOWorker&) = delete;
-
   virtual ~IOWorker();
 
   // Overridden from GCMClient::Delegate:
@@ -99,6 +97,7 @@ class GCMDriverDesktop::IOWorker : public GCMClient::Delegate {
   void UpdateAccountMapping(const AccountMapping& account_mapping);
   void RemoveAccountMapping(const CoreAccountId& account_id);
   void SetLastTokenFetchTime(const base::Time& time);
+  void WakeFromSuspendForHeartbeat(bool wake);
   void AddHeartbeatInterval(const std::string& scope, int interval_ms);
   void RemoveHeartbeatInterval(const std::string& scope);
 
@@ -110,7 +109,8 @@ class GCMDriverDesktop::IOWorker : public GCMClient::Delegate {
   void GetToken(const std::string& app_id,
                 const std::string& authorized_entity,
                 const std::string& scope,
-                base::TimeDelta time_to_live);
+                base::TimeDelta time_to_live,
+                const std::map<std::string, std::string>& options);
   bool ValidateRegistration(scoped_refptr<RegistrationInfo> registration_info,
                             const std::string& registration_id);
   void DeleteToken(const std::string& app_id,
@@ -130,12 +130,15 @@ class GCMDriverDesktop::IOWorker : public GCMClient::Delegate {
   base::WeakPtr<GCMDriverDesktop> service_;
 
   std::unique_ptr<GCMClient> gcm_client_;
+
+  DISALLOW_COPY_AND_ASSIGN(IOWorker);
 };
 
 GCMDriverDesktop::IOWorker::IOWorker(
     const scoped_refptr<base::SequencedTaskRunner>& ui_thread,
     const scoped_refptr<base::SequencedTaskRunner>& io_thread)
-    : ui_thread_(ui_thread), io_thread_(io_thread) {
+    : ui_thread_(ui_thread),
+      io_thread_(io_thread) {
   DCHECK(ui_thread_->RunsTasksInCurrentSequence());
 }
 
@@ -437,7 +440,8 @@ void GCMDriverDesktop::IOWorker::RemoveInstanceIDData(
     gcm_client_->RemoveInstanceIDData(app_id);
 }
 
-void GCMDriverDesktop::IOWorker::GetInstanceIDData(const std::string& app_id) {
+void GCMDriverDesktop::IOWorker::GetInstanceIDData(
+    const std::string& app_id) {
   DCHECK(io_thread_->RunsTasksInCurrentSequence());
 
   std::string instance_id;
@@ -450,10 +454,12 @@ void GCMDriverDesktop::IOWorker::GetInstanceIDData(const std::string& app_id) {
                                 service_, app_id, instance_id, extra_data));
 }
 
-void GCMDriverDesktop::IOWorker::GetToken(const std::string& app_id,
-                                          const std::string& authorized_entity,
-                                          const std::string& scope,
-                                          base::TimeDelta time_to_live) {
+void GCMDriverDesktop::IOWorker::GetToken(
+    const std::string& app_id,
+    const std::string& authorized_entity,
+    const std::string& scope,
+    base::TimeDelta time_to_live,
+    const std::map<std::string, std::string>& options) {
   DCHECK(io_thread_->RunsTasksInCurrentSequence());
 
   auto instance_id_token_info = base::MakeRefCounted<InstanceIDTokenInfo>();
@@ -461,6 +467,7 @@ void GCMDriverDesktop::IOWorker::GetToken(const std::string& app_id,
   instance_id_token_info->authorized_entity = authorized_entity;
   instance_id_token_info->scope = scope;
   instance_id_token_info->time_to_live = time_to_live;
+  instance_id_token_info->options = options;
   gcm_client_->Register(std::move(instance_id_token_info));
 }
 
@@ -473,6 +480,24 @@ void GCMDriverDesktop::IOWorker::DeleteToken(
   instance_id_token_info->authorized_entity = authorized_entity;
   instance_id_token_info->scope = scope;
   gcm_client_->Unregister(std::move(instance_id_token_info));
+}
+
+void GCMDriverDesktop::IOWorker::WakeFromSuspendForHeartbeat(bool wake) {
+#if defined(OS_CHROMEOS)
+  DCHECK(io_thread_->RunsTasksInCurrentSequence());
+
+  std::unique_ptr<base::RetainingOneShotTimer> timer;
+  if (wake)
+    timer = timers::SimpleAlarmTimer::Create();
+
+  // If not |wake|, or SimpleAlarmTimer is not supported on the running
+  // platform (please see SimpleAlarmTimer for the details), fall back to
+  // RetainingOneShotTimer.
+  if (!timer)
+    timer = std::make_unique<base::RetainingOneShotTimer>();
+
+  gcm_client_->UpdateHeartbeatTimer(std::move(timer));
+#endif
 }
 
 void GCMDriverDesktop::IOWorker::AddHeartbeatInterval(const std::string& scope,
@@ -497,6 +522,7 @@ void GCMDriverDesktop::IOWorker::RecordDecryptionFailure(
 GCMDriverDesktop::GCMDriverDesktop(
     std::unique_ptr<GCMClientFactory> gcm_client_factory,
     const GCMClient::ChromeBuildInfo& chrome_build_info,
+    const std::string& user_agent,
     PrefService* prefs,
     const base::FilePath& store_path,
     bool remove_account_mappings_with_email_key,
@@ -518,10 +544,11 @@ GCMDriverDesktop::GCMDriverDesktop(
       // in which case the fetching will be triggered.
       last_token_fetch_time_(base::Time::Max()),
       ui_thread_(ui_thread),
-      io_thread_(io_thread) {
+      io_thread_(io_thread),
+      wake_from_suspend_enabled_(false) {
   // Create and initialize the GCMClient. Note that this does not initiate the
   // GCM check-in.
-  io_worker_ = std::make_unique<IOWorker>(ui_thread, io_thread);
+  io_worker_.reset(new IOWorker(ui_thread, io_thread));
   io_thread_->PostTask(
       FROM_HERE,
       base::BindOnce(
@@ -535,7 +562,8 @@ GCMDriverDesktop::GCMDriverDesktop(
           base::Unretained(network_connection_tracker), blocking_task_runner));
 }
 
-GCMDriverDesktop::~GCMDriverDesktop() = default;
+GCMDriverDesktop::~GCMDriverDesktop() {
+}
 
 void GCMDriverDesktop::ValidateRegistration(
     const std::string& app_id,
@@ -579,8 +607,8 @@ void GCMDriverDesktop::DoValidateRegistration(
     scoped_refptr<RegistrationInfo> registration_info,
     const std::string& registration_id,
     ValidateRegistrationCallback callback) {
-  io_thread_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      io_thread_.get(), FROM_HERE,
       base::BindOnce(&GCMDriverDesktop::IOWorker::ValidateRegistration,
                      base::Unretained(io_worker_.get()),
                      std::move(registration_info), registration_id),
@@ -609,7 +637,7 @@ void GCMDriverDesktop::AddAppHandler(const std::string& app_id,
   DCHECK(ui_thread_->RunsTasksInCurrentSequence());
   GCMDriver::AddAppHandler(app_id, handler);
 
-  // Ensures that the GCM service is started when there is an interest.
+   // Ensures that the GCM service is started when there is an interest.
   EnsureStarted(GCMClient::DELAYED_START);
 }
 
@@ -619,10 +647,8 @@ void GCMDriverDesktop::RemoveAppHandler(const std::string& app_id) {
 
   // Stops the GCM service when no app intends to consume it. Stop function will
   // remove the last app handler - account mapper.
-  if (app_handlers().size() == 1) {
-    DVLOG(1) << "Removed last app handler, calling GCMDriverDesktop::Stop now.";
+  if (app_handlers().size() == 1)
     Stop();
-  }
 }
 
 void GCMDriverDesktop::AddConnectionObserver(GCMConnectionObserver* observer) {
@@ -810,11 +836,13 @@ InstanceIDHandler* GCMDriverDesktop::GetInstanceIDHandlerInternal() {
   return this;
 }
 
-void GCMDriverDesktop::GetToken(const std::string& app_id,
-                                const std::string& authorized_entity,
-                                const std::string& scope,
-                                base::TimeDelta time_to_live,
-                                GetTokenCallback callback) {
+void GCMDriverDesktop::GetToken(
+    const std::string& app_id,
+    const std::string& authorized_entity,
+    const std::string& scope,
+    base::TimeDelta time_to_live,
+    const std::map<std::string, std::string>& options,
+    GetTokenCallback callback) {
   DCHECK(!app_id.empty());
   DCHECK(!authorized_entity.empty());
   DCHECK(!scope.empty());
@@ -843,17 +871,19 @@ void GCMDriverDesktop::GetToken(const std::string& app_id,
   if (!delayed_task_controller_->CanRunTaskWithoutDelay()) {
     delayed_task_controller_->AddTask(base::BindOnce(
         &GCMDriverDesktop::DoGetToken, weak_ptr_factory_.GetWeakPtr(), app_id,
-        authorized_entity, scope, time_to_live));
+        authorized_entity, scope, time_to_live, options));
     return;
   }
 
-  DoGetToken(app_id, authorized_entity, scope, time_to_live);
+  DoGetToken(app_id, authorized_entity, scope, time_to_live, options);
 }
 
-void GCMDriverDesktop::DoGetToken(const std::string& app_id,
-                                  const std::string& authorized_entity,
-                                  const std::string& scope,
-                                  base::TimeDelta time_to_live) {
+void GCMDriverDesktop::DoGetToken(
+    const std::string& app_id,
+    const std::string& authorized_entity,
+    const std::string& scope,
+    base::TimeDelta time_to_live,
+    const std::map<std::string, std::string>& options) {
   DCHECK(ui_thread_->RunsTasksInCurrentSequence());
 
   TokenTuple tuple_key(app_id, authorized_entity, scope);
@@ -864,9 +894,10 @@ void GCMDriverDesktop::DoGetToken(const std::string& app_id,
   }
 
   io_thread_->PostTask(
-      FROM_HERE, base::BindOnce(&GCMDriverDesktop::IOWorker::GetToken,
-                                base::Unretained(io_worker_.get()), app_id,
-                                authorized_entity, scope, time_to_live));
+      FROM_HERE,
+      base::BindOnce(&GCMDriverDesktop::IOWorker::GetToken,
+                     base::Unretained(io_worker_.get()), app_id,
+                     authorized_entity, scope, time_to_live, options));
 }
 
 void GCMDriverDesktop::ValidateToken(const std::string& app_id,
@@ -960,9 +991,10 @@ void GCMDriverDesktop::DoDeleteToken(const std::string& app_id,
                                 authorized_entity, scope));
 }
 
-void GCMDriverDesktop::AddInstanceIDData(const std::string& app_id,
-                                         const std::string& instance_id,
-                                         const std::string& extra_data) {
+void GCMDriverDesktop::AddInstanceIDData(
+    const std::string& app_id,
+    const std::string& instance_id,
+    const std::string& extra_data) {
   DCHECK(ui_thread_->RunsTasksInCurrentSequence());
 
   GCMClient::Result result = EnsureStarted(GCMClient::IMMEDIATE_START);
@@ -983,9 +1015,10 @@ void GCMDriverDesktop::AddInstanceIDData(const std::string& app_id,
   DoAddInstanceIDData(app_id, instance_id, extra_data);
 }
 
-void GCMDriverDesktop::DoAddInstanceIDData(const std::string& app_id,
-                                           const std::string& instance_id,
-                                           const std::string& extra_data) {
+void GCMDriverDesktop::DoAddInstanceIDData(
+    const std::string& app_id,
+    const std::string& instance_id,
+    const std::string& extra_data) {
   io_thread_->PostTask(
       FROM_HERE, base::BindOnce(&GCMDriverDesktop::IOWorker::AddInstanceIDData,
                                 base::Unretained(io_worker_.get()), app_id,
@@ -1022,6 +1055,7 @@ void GCMDriverDesktop::DoRemoveInstanceIDData(const std::string& app_id) {
 
 void GCMDriverDesktop::GetInstanceIDData(const std::string& app_id,
                                          GetInstanceIDDataCallback callback) {
+  DCHECK(!get_instance_id_data_callbacks_.count(app_id));
   DCHECK(ui_thread_->RunsTasksInCurrentSequence());
 
   GCMClient::Result result = EnsureStarted(GCMClient::IMMEDIATE_START);
@@ -1034,13 +1068,13 @@ void GCMDriverDesktop::GetInstanceIDData(const std::string& app_id,
     DLOG(ERROR)
         << "Unable to get the InstanceID data: cannot start the GCM Client";
     // Resolve the |callback| to not leave it hanging indefinitely.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback), std::string(), std::string()));
     return;
   }
 
-  get_instance_id_data_callbacks_[app_id].push(std::move(callback));
+  get_instance_id_data_callbacks_[app_id] = std::move(callback);
 
   // Delay the operation until GCMClient is ready.
   if (!delayed_task_controller_->CanRunTaskWithoutDelay()) {
@@ -1063,16 +1097,10 @@ void GCMDriverDesktop::GetInstanceIDDataFinished(
     const std::string& app_id,
     const std::string& instance_id,
     const std::string& extra_data) {
-  auto iter = get_instance_id_data_callbacks_.find(app_id);
-  DCHECK(iter != get_instance_id_data_callbacks_.end());
-
-  base::queue<GetInstanceIDDataCallback>& callbacks = iter->second;
-  std::move(callbacks.front()).Run(instance_id, extra_data);
-
-  callbacks.pop();
-
-  if (!callbacks.size())
-    get_instance_id_data_callbacks_.erase(iter);
+  DCHECK(get_instance_id_data_callbacks_.count(app_id));
+  std::move(get_instance_id_data_callbacks_[app_id])
+      .Run(instance_id, extra_data);
+  get_instance_id_data_callbacks_.erase(app_id);
 }
 
 void GCMDriverDesktop::GetTokenFinished(const std::string& app_id,
@@ -1106,6 +1134,32 @@ void GCMDriverDesktop::DeleteTokenFinished(const std::string& app_id,
   DeleteTokenCallback callback = std::move(callback_iter->second);
   delete_token_callbacks_.erase(callback_iter);
   std::move(callback).Run(result);
+}
+
+void GCMDriverDesktop::WakeFromSuspendForHeartbeat(bool wake) {
+  DCHECK(ui_thread_->RunsTasksInCurrentSequence());
+
+  wake_from_suspend_enabled_ = wake;
+
+  // The GCM service has not been initialized.
+  if (!delayed_task_controller_)
+    return;
+
+  if (!delayed_task_controller_->CanRunTaskWithoutDelay()) {
+    // The GCM service was initialized but has not started yet.
+    delayed_task_controller_->AddTask(base::BindOnce(
+        &GCMDriverDesktop::WakeFromSuspendForHeartbeat,
+        weak_ptr_factory_.GetWeakPtr(), wake_from_suspend_enabled_));
+    return;
+  }
+
+  // The GCMClient is ready so we can go ahead and post this task to the
+  // IOWorker.
+  io_thread_->PostTask(
+      FROM_HERE,
+      base::BindOnce(&GCMDriverDesktop::IOWorker::WakeFromSuspendForHeartbeat,
+                     base::Unretained(io_worker_.get()),
+                     wake_from_suspend_enabled_));
 }
 
 void GCMDriverDesktop::AddHeartbeatInterval(const std::string& scope,
@@ -1175,7 +1229,7 @@ GCMClient::Result GCMDriverDesktop::EnsureStarted(
     return GCMClient::UNKNOWN_ERROR;
 
   if (!delayed_task_controller_)
-    delayed_task_controller_ = std::make_unique<GCMDelayedTaskController>();
+    delayed_task_controller_.reset(new GCMDelayedTaskController);
 
   // Note that we need to pass weak pointer again since the existing weak
   // pointer in IOWorker might have been invalidated when GCM is stopped.
@@ -1256,6 +1310,8 @@ void GCMDriverDesktop::GCMClientReady(
   UMA_HISTOGRAM_BOOLEAN("GCM.UserSignedIn", signed_in_);
 
   gcm_started_ = true;
+  if (wake_from_suspend_enabled_)
+    WakeFromSuspendForHeartbeat(wake_from_suspend_enabled_);
 
   last_token_fetch_time_ = last_token_fetch_time;
 
@@ -1313,8 +1369,7 @@ void GCMDriverDesktop::OnActivityRecorded(
 }
 
 bool GCMDriverDesktop::TokenTupleComparer::operator()(
-    const TokenTuple& a,
-    const TokenTuple& b) const {
+    const TokenTuple& a, const TokenTuple& b) const {
   if (std::get<0>(a) < std::get<0>(b))
     return true;
   if (std::get<0>(a) > std::get<0>(b))

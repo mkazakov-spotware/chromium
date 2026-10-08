@@ -1,17 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_header_synchronizer.h"
 
-#import <memory>
+#include <memory>
 
-#import "base/run_loop.h"
-#import "base/test/task_environment.h"
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_collection_controlling.h"
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_header_controlling.h"
 #import "ios/testing/scoped_block_swizzler.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "third_party/ocmock/gtest_support.h"
 
@@ -47,7 +45,6 @@ class ContentSuggestionsHeaderSynchronizerTest : public PlatformTest {
   }
 
  private:
-  base::test::TaskEnvironment task_environment_;
   ContentSuggestionsHeaderSynchronizer* synchronizer_;
   id header_controller_;
   id collection_controller_;
@@ -58,11 +55,10 @@ class ContentSuggestionsHeaderSynchronizerTest : public PlatformTest {
 TEST_F(ContentSuggestionsHeaderSynchronizerTest, shiftUp) {
   // Setup.
   id collectionController = CollectionController();
-  OCMExpect([collectionController setScrolledToMinimumHeight:YES]);
+  OCMExpect([collectionController setScrolledToTop:YES]);
 
   // Action.
   [Synchronizer() shiftTilesUpWithAnimations:nil completion:nil];
-  base::RunLoop().RunUntilIdle();
 
   // Tests.
   EXPECT_OCMOCK_VERIFY(collectionController);
@@ -78,7 +74,7 @@ TEST_F(ContentSuggestionsHeaderSynchronizerTest, updateFakeOmnibox) {
   SetAsIPhone();
 
   // Action.
-  [Synchronizer() updateFakeOmniboxForScrollPosition];
+  [Synchronizer() updateFakeOmniboxOnCollectionScroll];
 
   // Tests.
   EXPECT_OCMOCK_VERIFY(headerController);

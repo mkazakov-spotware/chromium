@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/ozone/demo/skia/skia_gl_renderer.h"
 
@@ -21,11 +22,6 @@ class SurfacelessSkiaGlRenderer : public SkiaGlRenderer {
       std::unique_ptr<PlatformWindowSurface> window_surface,
       const scoped_refptr<gl::GLSurface>& gl_surface,
       const gfx::Size& size);
-
-  SurfacelessSkiaGlRenderer(const SurfacelessSkiaGlRenderer&) = delete;
-  SurfacelessSkiaGlRenderer& operator=(const SurfacelessSkiaGlRenderer&) =
-      delete;
-
   ~SurfacelessSkiaGlRenderer() override;
 
   // Renderer:
@@ -49,6 +45,8 @@ class SurfacelessSkiaGlRenderer : public SkiaGlRenderer {
   int back_buffer_ = 0;
 
   base::WeakPtrFactory<SurfacelessSkiaGlRenderer> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SurfacelessSkiaGlRenderer);
 };
 
 }  // namespace ui

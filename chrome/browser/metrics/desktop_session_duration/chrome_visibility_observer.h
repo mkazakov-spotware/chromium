@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,6 @@ namespace metrics {
 class ChromeVisibilityObserver : public BrowserListObserver {
  public:
   ChromeVisibilityObserver();
-
-  ChromeVisibilityObserver(const ChromeVisibilityObserver&) = delete;
-  ChromeVisibilityObserver& operator=(const ChromeVisibilityObserver&) = delete;
-
   ~ChromeVisibilityObserver() override;
 
  private:
@@ -47,6 +43,8 @@ class ChromeVisibilityObserver : public BrowserListObserver {
   base::TimeDelta visibility_gap_timeout_;
 
   base::WeakPtrFactory<ChromeVisibilityObserver> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeVisibilityObserver);
 };
 
 }  // namespace metrics

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "courgette/disassembler.h"
 #include "courgette/image_utils.h"
 #include "courgette/instruction_utils.h"
@@ -85,21 +85,17 @@ class DisassemblerElf32 : public Disassembler {
    public:
     Elf32RvaVisitor_Rel32(
         const std::vector<std::unique_ptr<TypedRVA>>& rva_locations);
-
-    Elf32RvaVisitor_Rel32(const Elf32RvaVisitor_Rel32&) = delete;
-    Elf32RvaVisitor_Rel32& operator=(const Elf32RvaVisitor_Rel32&) = delete;
-
     ~Elf32RvaVisitor_Rel32() override { }
 
     // VectorRvaVisitor<TypedRVA*> interfaces.
     RVA Get() const override;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Elf32RvaVisitor_Rel32);
   };
 
  public:
   DisassemblerElf32(const uint8_t* start, size_t length);
-
-  DisassemblerElf32(const DisassemblerElf32&) = delete;
-  DisassemblerElf32& operator=(const DisassemblerElf32&) = delete;
 
   ~DisassemblerElf32() override { }
 
@@ -113,11 +109,11 @@ class DisassemblerElf32 : public Disassembler {
 
   virtual e_machine_values ElfEM() const = 0;
 
-  [[nodiscard]] CheckBool IsValidTargetRVA(RVA rva) const;
+  CheckBool IsValidTargetRVA(RVA rva) const WARN_UNUSED_RESULT;
 
   // Converts an ELF relocation instruction into an RVA.
-  [[nodiscard]] virtual CheckBool RelToRVA(Elf32_Rel rel,
-                                           RVA* result) const = 0;
+  virtual CheckBool RelToRVA(Elf32_Rel rel, RVA* result)
+    const WARN_UNUSED_RESULT = 0;
 
   // Public for unittests only
   std::vector<RVA>& Abs32Locations() { return abs32_locations_; }
@@ -182,17 +178,17 @@ class DisassemblerElf32 : public Disassembler {
 
   // Helpers for ParseFile().
 
-  [[nodiscard]] virtual CheckBool ParseRelocationSection(
-      const Elf32_Shdr* section_header,
-      InstructionReceptor* receptor) const = 0;
+  virtual CheckBool ParseRelocationSection(const Elf32_Shdr* section_header,
+                                           InstructionReceptor* receptor) const
+      WARN_UNUSED_RESULT = 0;
 
-  [[nodiscard]] virtual CheckBool ParseRel32RelocsFromSection(
-      const Elf32_Shdr* section) = 0;
+  virtual CheckBool ParseRel32RelocsFromSection(const Elf32_Shdr* section)
+      WARN_UNUSED_RESULT = 0;
 
-  [[nodiscard]] CheckBool ParseAbs32Relocs();
+  CheckBool ParseAbs32Relocs() WARN_UNUSED_RESULT;
 
   // Extracts all rel32 TypedRVAs. Does not sort the result.
-  [[nodiscard]] CheckBool ParseRel32RelocsFromSections();
+  CheckBool ParseRel32RelocsFromSections() WARN_UNUSED_RESULT;
 
   // Disassembler interfaces.
   bool ExtractAbs32Locations() override;
@@ -203,26 +199,26 @@ class DisassemblerElf32 : public Disassembler {
   InstructionGenerator GetInstructionGenerator(
       AssemblyProgram* program) override;
 
-  [[nodiscard]] CheckBool ParseFile(AssemblyProgram* target,
-                                    InstructionReceptor* receptor) const;
+  CheckBool ParseFile(AssemblyProgram* target,
+                      InstructionReceptor* receptor) const WARN_UNUSED_RESULT;
 
-  [[nodiscard]] CheckBool ParseProgbitsSection(
+  CheckBool ParseProgbitsSection(
       const Elf32_Shdr* section_header,
       std::vector<FileOffset>::iterator* current_abs_offset,
       std::vector<FileOffset>::iterator end_abs_offset,
       std::vector<std::unique_ptr<TypedRVA>>::iterator* current_rel,
       std::vector<std::unique_ptr<TypedRVA>>::iterator end_rel,
       AssemblyProgram* program,
-      InstructionReceptor* receptor) const;
+      InstructionReceptor* receptor) const WARN_UNUSED_RESULT;
 
-  [[nodiscard]] CheckBool ParseSimpleRegion(
-      FileOffset start_file_offset,
-      FileOffset end_file_offset,
-      InstructionReceptor* receptor) const;
+  CheckBool ParseSimpleRegion(FileOffset start_file_offset,
+                              FileOffset end_file_offset,
+                              InstructionReceptor* receptor) const
+      WARN_UNUSED_RESULT;
 
-  [[nodiscard]] CheckBool CheckSection(RVA rva);
+  CheckBool CheckSection(RVA rva) WARN_UNUSED_RESULT;
 
-  raw_ptr<const Elf32_Ehdr> header_;
+  const Elf32_Ehdr* header_;
 
   Elf32_Half section_header_table_size_;
 
@@ -232,7 +228,7 @@ class DisassemblerElf32 : public Disassembler {
   // An ordering of |section_header_table_|, sorted by file offset.
   std::vector<Elf32_Half> section_header_file_offset_order_;
 
-  raw_ptr<const Elf32_Phdr> program_header_table_;
+  const Elf32_Phdr* program_header_table_;
   Elf32_Half program_header_table_size_;
 
   // Pointer to string table containing section names.
@@ -244,6 +240,9 @@ class DisassemblerElf32 : public Disassembler {
   // Sorted rel32 RVAs. This is mutable because ParseFile() temporarily sorts
   // these by file offsets.
   mutable std::vector<std::unique_ptr<TypedRVA>> rel32_locations_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerElf32);
 };
 
 }  // namespace courgette

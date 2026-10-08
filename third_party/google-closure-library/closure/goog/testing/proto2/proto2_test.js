@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.testing.proto2Test');
 goog.setTestOnly();
@@ -34,13 +42,11 @@ testSuite({
     assertEquals('oops\noptional_int32 should not be present', ex.message);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_EmptyMessages() {
     assertEquals(
         '', proto2.findDifferences_(new TestAllTypes, new TestAllTypes, ''));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_FieldNotPresent() {
     const message = new TestAllTypes;
     message.setOptionalInt32(0);
@@ -56,7 +62,6 @@ testSuite({
         proto2.findDifferences_(message, empty, 'path'));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_IntFieldDiffers() {
     const message1 = new TestAllTypes;
     message1.setOptionalInt32(1);
@@ -67,7 +72,6 @@ testSuite({
         proto2.findDifferences_(message1, message2, ''));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_NestedIntFieldDiffers() {
     const message1 = new TestAllTypes;
     const nested1 = new TestAllTypes.NestedMessage();
@@ -82,7 +86,6 @@ testSuite({
         proto2.findDifferences_(message1, message2, ''));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_RepeatedFieldLengthDiffers() {
     const message1 = new TestAllTypes;
     message1.addRepeatedInt32(1);
@@ -94,7 +97,6 @@ testSuite({
         proto2.findDifferences_(message1, message2, ''));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_RepeatedFieldItemDiffers() {
     const message1 = new TestAllTypes;
     message1.addRepeatedInt32(1);
@@ -105,7 +107,6 @@ testSuite({
         proto2.findDifferences_(message1, message2, ''));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testFindDifferences_RepeatedNestedMessageDiffers() {
     const message1 = new TestAllTypes;
     const nested1 = new TestAllTypes.NestedMessage();

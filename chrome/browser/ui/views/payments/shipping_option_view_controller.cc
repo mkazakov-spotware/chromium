@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/payments/shipping_option_view_controller.h"
 
 #include <memory>
-#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view.h"
 #include "chrome/browser/ui/views/payments/payment_request_views_util.h"
 #include "components/payments/content/payment_request_spec.h"
@@ -38,21 +37,17 @@ class ShippingOptionItem : public PaymentRequestItemList::Item {
         shipping_option_(shipping_option) {
     Init();
   }
-
-  ShippingOptionItem(const ShippingOptionItem&) = delete;
-  ShippingOptionItem& operator=(const ShippingOptionItem&) = delete;
-
   ~ShippingOptionItem() override {}
 
  private:
   // payments::PaymentRequestItemList::Item:
   std::unique_ptr<views::View> CreateContentView(
-      std::u16string* accessible_content) override {
+      base::string16* accessible_content) override {
     return CreateShippingOptionLabel(
         shipping_option_,
         /*formatted_amount=*/
         spec() ? spec()->GetFormattedCurrencyAmount(shipping_option_->amount)
-               : std::u16string(),
+               : base::string16(),
         /*emphasize_label=*/true, accessible_content);
   }
 
@@ -62,7 +57,7 @@ class ShippingOptionItem : public PaymentRequestItemList::Item {
     }
   }
 
-  std::u16string GetNameForDataType() override {
+  base::string16 GetNameForDataType() override {
     return l10n_util::GetStringUTF16(IDS_PAYMENTS_SHIPPING_OPTION_LABEL);
   }
 
@@ -81,7 +76,9 @@ class ShippingOptionItem : public PaymentRequestItemList::Item {
     NOTREACHED();
   }
 
-  raw_ptr<mojom::PaymentShippingOption> shipping_option_;
+  mojom::PaymentShippingOption* shipping_option_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShippingOptionItem);
 };
 
 }  // namespace
@@ -117,9 +114,9 @@ void ShippingOptionViewController::OnSpecUpdated() {
   }
 }
 
-std::u16string ShippingOptionViewController::GetSheetTitle() {
+base::string16 ShippingOptionViewController::GetSheetTitle() {
   return spec() ? GetShippingOptionSectionString(spec()->shipping_type())
-                : std::u16string();
+                : base::string16();
 }
 
 void ShippingOptionViewController::FillContentView(views::View* content_view) {

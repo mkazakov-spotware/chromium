@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/sequence_checker.h"
 #include "chromeos/components/sensors/fake_sensor_device.h"
 #include "chromeos/components/sensors/mojom/sensor.mojom.h"
-#include "mojo/public/cpp/bindings/receiver_set.h"
+#include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
 
 namespace chromeos {
@@ -25,10 +25,9 @@ class FakeSensorService final : public mojom::SensorService {
   FakeSensorService& operator=(const FakeSensorService&) = delete;
   ~FakeSensorService() override;
 
-  void AddReceiver(
-      mojo::PendingReceiver<mojom::SensorService> pending_receiver);
-  void ClearReceivers();
-  bool HasReceivers() const;
+  bool is_bound();
+  void Bind(mojo::PendingReceiver<mojom::SensorService> pending_receiver);
+  void OnServiceDisconnect();
 
   void SetDevice(int32_t iio_device_id,
                  std::set<mojom::DeviceType> types,
@@ -59,7 +58,7 @@ class FakeSensorService final : public mojom::SensorService {
   // First is the iio_device_id, second is the device's data.
   std::map<int32_t, DeviceData> devices_;
 
-  mojo::ReceiverSet<mojom::SensorService> receiver_set_;
+  mojo::Receiver<mojom::SensorService> receiver_{this};
   mojo::RemoteSet<mojom::SensorServiceNewDevicesObserver> observers_;
 
   SEQUENCE_CHECKER(sequence_checker_);

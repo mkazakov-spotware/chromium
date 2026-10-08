@@ -1,10 +1,8 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/safe_browsing/safe_browsing_service.h"
-
-#include <memory>
 
 #include "base/bind.h"
 #include "base/path_service.h"
@@ -13,27 +11,21 @@
 #include "components/safe_browsing/android/safe_browsing_api_handler_bridge.h"
 #include "components/safe_browsing/content/browser/browser_url_loader_throttle.h"
 #include "components/safe_browsing/content/browser/mojo_safe_browsing_impl.h"
-#include "components/safe_browsing/content/browser/safe_browsing_navigation_throttle.h"
-#include "components/safe_browsing/content/browser/safe_browsing_network_context.h"
-#include "components/safe_browsing/content/browser/triggers/trigger_manager.h"
-#include "components/safe_browsing/core/browser/realtime/url_lookup_service.h"
+#include "components/safe_browsing/core/browser/safe_browsing_network_context.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/core/realtime/url_lookup_service.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/resource_context.h"
-#include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
 #include "weblayer/browser/browser_context_impl.h"
-#include "weblayer/browser/browser_process.h"
+#include "weblayer/browser/safe_browsing/safe_browsing_navigation_throttle.h"
 #include "weblayer/browser/safe_browsing/url_checker_delegate_impl.h"
-#include "weblayer/browser/safe_browsing/weblayer_safe_browsing_blocking_page_factory.h"
-#include "weblayer/browser/safe_browsing/weblayer_ui_manager_delegate.h"
-#include "weblayer/common/features.h"
 
 namespace weblayer {
 
@@ -44,7 +36,7 @@ network::mojom::NetworkContextParamsPtr CreateDefaultNetworkContextParams(
   network::mojom::NetworkContextParamsPtr network_context_params =
       network::mojom::NetworkContextParams::New();
   network_context_params->cert_verifier_params = content::GetCertVerifierParams(
-      cert_verifier::mojom::CertVerifierCreationParams::New());
+      network::mojom::CertVerifierCreationParams::New());
   network_context_params->user_agent = user_agent;
   return network_context_params;
 }
@@ -95,6 +87,11 @@ void SafeBrowsingService::Initialize() {
     return;
   }
 
+  safe_browsing_api_handler_.reset(
+      new safe_browsing::SafeBrowsingApiHandlerBridge());
+  safe_browsing::SafeBrowsingApiHandler::SetInstance(
+      safe_browsing_api_handler_.get());
+
   base::FilePath user_data_dir;
   bool result =
       base::PathService::Get(base::DIR_ANDROID_APP_DATA, &user_data_dir);
@@ -103,13 +100,10 @@ void SafeBrowsingService::Initialize() {
   // safebrowsing network context needs to be created on the UI thread.
   network_context_ =
       std::make_unique<safe_browsing::SafeBrowsingNetworkContext>(
-          user_data_dir, /*trigger_migration=*/false,
+          user_data_dir,
           base::BindRepeating(CreateDefaultNetworkContextParams, user_agent_));
 
   CreateSafeBrowsingUIManager();
-
-  // Needs to happen after |ui_manager_| is created.
-  CreateTriggerManager();
 }
 
 std::unique_ptr<blink::URLLoaderThrottle>
@@ -130,14 +124,10 @@ SafeBrowsingService::CreateURLLoaderThrottle(
 }
 
 std::unique_ptr<content::NavigationThrottle>
-SafeBrowsingService::MaybeCreateSafeBrowsingNavigationThrottleFor(
+SafeBrowsingService::CreateSafeBrowsingNavigationThrottle(
     content::NavigationHandle* handle) {
-  if (!base::FeatureList::IsEnabled(features::kWebLayerSafeBrowsing)) {
-    return nullptr;
-  }
-
-  return safe_browsing::SafeBrowsingNavigationThrottle::MaybeCreateThrottleFor(
-      handle, GetSafeBrowsingUIManager().get());
+  return std::make_unique<SafeBrowsingNavigationThrottle>(
+      handle, GetSafeBrowsingUIManager());
 }
 
 scoped_refptr<safe_browsing::UrlCheckerDelegate>
@@ -152,35 +142,21 @@ SafeBrowsingService::GetSafeBrowsingUrlCheckerDelegate() {
   return safe_browsing_url_checker_delegate_;
 }
 
-scoped_refptr<safe_browsing::RemoteSafeBrowsingDatabaseManager>
+safe_browsing::RemoteSafeBrowsingDatabaseManager*
 SafeBrowsingService::GetSafeBrowsingDBManager() {
   if (!safe_browsing_db_manager_) {
     CreateAndStartSafeBrowsingDBManager();
   }
-  return safe_browsing_db_manager_;
+  return safe_browsing_db_manager_.get();
 }
 
-scoped_refptr<safe_browsing::SafeBrowsingUIManager>
-SafeBrowsingService::GetSafeBrowsingUIManager() {
-  return ui_manager_;
-}
-
-safe_browsing::TriggerManager* SafeBrowsingService::GetTriggerManager() {
-  return trigger_manager_.get();
+SafeBrowsingUIManager* SafeBrowsingService::GetSafeBrowsingUIManager() {
+  return ui_manager_.get();
 }
 
 void SafeBrowsingService::CreateSafeBrowsingUIManager() {
   DCHECK(!ui_manager_);
-  ui_manager_ = new safe_browsing::SafeBrowsingUIManager(
-      std::make_unique<WebLayerSafeBrowsingUIManagerDelegate>(),
-      std::make_unique<WebLayerSafeBrowsingBlockingPageFactory>(),
-      GURL(url::kAboutBlankURL));
-}
-
-void SafeBrowsingService::CreateTriggerManager() {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  trigger_manager_ = std::make_unique<safe_browsing::TriggerManager>(
-      ui_manager_.get(), BrowserProcess::GetInstance()->GetLocalState());
+  ui_manager_ = new SafeBrowsingUIManager(this);
 }
 
 void SafeBrowsingService::CreateAndStartSafeBrowsingDBManager() {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 
 namespace base {
@@ -29,10 +30,6 @@ class MediaPlayerListener {
   MediaPlayerListener(
       const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
       base::WeakPtr<MediaPlayerBridge> media_player);
-
-  MediaPlayerListener(const MediaPlayerListener&) = delete;
-  MediaPlayerListener& operator=(const MediaPlayerListener&) = delete;
-
   virtual ~MediaPlayerListener();
 
   // Called by the Java MediaPlayerListener and mirrored to corresponding
@@ -68,6 +65,8 @@ class MediaPlayerListener {
   base::WeakPtr<MediaPlayerBridge> media_player_;
 
   base::android::ScopedJavaGlobalRef<jobject> j_media_player_listener_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaPlayerListener);
 };
 
 }  // namespace media

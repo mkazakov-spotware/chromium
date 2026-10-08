@@ -1,71 +1,57 @@
-// Copyright 2021 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_HEAP_COLLECTION_SUPPORT_HEAP_HASH_TABLE_BACKING_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_HEAP_COLLECTION_SUPPORT_HEAP_HASH_TABLE_BACKING_H_
 
-#include <type_traits>
-
-#include "base/check_op.h"
-#include "third_party/blink/renderer/platform/heap/custom_spaces.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/thread_state_storage.h"
-#include "third_party/blink/renderer/platform/heap/trace_traits.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/heap/impl/heap_page.h"
+#include "third_party/blink/renderer/platform/heap/impl/threading_traits.h"
+#include "third_party/blink/renderer/platform/heap/impl/trace_traits.h"
+#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/conditional_destructor.h"
-#include "third_party/blink/renderer/platform/wtf/hash_table.h"
-#include "third_party/blink/renderer/platform/wtf/hash_traits.h"
-#include "third_party/blink/renderer/platform/wtf/sanitizers.h"
-#include "v8/include/cppgc/custom-space.h"
-#include "v8/include/cppgc/explicit-management.h"
-#include "v8/include/cppgc/object-size-trait.h"
 
 namespace blink {
 
 template <typename Table>
 class HeapHashTableBacking final
-    : public GarbageCollected<HeapHashTableBacking<Table>>,
-      public WTF::ConditionalDestructor<
+    : public WTF::ConditionalDestructor<
           HeapHashTableBacking<Table>,
-          !std::is_trivially_destructible<typename Table::ValueType>::value> {
-  using ClassType = HeapHashTableBacking<Table>;
-  using ValueType = typename Table::ValueType;
+          std::is_trivially_destructible<typename Table::ValueType>::value> {
+  DISALLOW_NEW();
+  IS_GARBAGE_COLLECTED_TYPE();
 
  public:
-  // Although the HeapHashTableBacking is fully constructed, the array resulting
-  // from ToArray may not be fully constructed as the elements of the array are
-  // not initialized and may have null vtable pointers. Null vtable pointer
-  // violates CFI for polymorphic types.
-  NO_SANITIZE_UNRELATED_CAST ALWAYS_INLINE static ValueType* ToArray(
-      ClassType* backing) {
-    return reinterpret_cast<ValueType*>(backing);
-  }
+  template <typename Backing>
+  static void* AllocateObject(size_t size);
 
-  ALWAYS_INLINE static ClassType* FromArray(ValueType* array) {
-    return reinterpret_cast<ClassType*>(array);
-  }
-
-  void Free(cppgc::HeapHandle& heap_handle) {
-    cppgc::subtle::FreeUnreferencedObject(heap_handle, *this);
-  }
-
-  bool Resize(size_t new_size) {
-    return cppgc::subtle::Resize(*this, GetAdditionalBytes(new_size));
-  }
-
-  // Conditionally invoked via destructor.
   void Finalize();
-
- private:
-  static cppgc::AdditionalBytes GetAdditionalBytes(size_t wanted_array_size) {
-    // HHTB is an empty class that's purely used with inline storage. Since its
-    // sizeof(HHTB) == 1, we need to subtract its size to avoid wasting storage.
-    static_assert(sizeof(ClassType) == 1, "Class declaration changed");
-    DCHECK_GE(wanted_array_size, sizeof(ClassType));
-    return cppgc::AdditionalBytes{wanted_array_size - sizeof(ClassType)};
-  }
 };
+
+template <typename Table>
+struct ThreadingTrait<HeapHashTableBacking<Table>> {
+  STATIC_ONLY(ThreadingTrait);
+  using Key = typename Table::KeyType;
+  using Value = typename Table::ValueType;
+  static const ThreadAffinity kAffinity =
+      (ThreadingTrait<Key>::kAffinity == kMainThreadOnly) &&
+              (ThreadingTrait<Value>::kAffinity == kMainThreadOnly)
+          ? kMainThreadOnly
+          : kAnyThread;
+};
+
+// static
+template <typename Table>
+template <typename Backing>
+void* HeapHashTableBacking<Table>::AllocateObject(size_t size) {
+  ThreadState* state =
+      ThreadStateFor<ThreadingTrait<Backing>::kAffinity>::GetState();
+  DCHECK(state->IsAllocationAllowed());
+  const char* type_name = WTF_HEAP_PROFILER_TYPE_NAME(Backing);
+  return state->Heap().AllocateOnArenaIndex(
+      state, size, BlinkGC::kHashTableArenaIndex, GCInfoTrait<Backing>::Index(),
+      type_name);
+}
 
 template <typename Table>
 void HeapHashTableBacking<Table>::Finalize() {
@@ -73,10 +59,10 @@ void HeapHashTableBacking<Table>::Finalize() {
   static_assert(
       !std::is_trivially_destructible<Value>::value,
       "Finalization of trivially destructible classes should not happen.");
-  const size_t object_size =
-      cppgc::subtle::ObjectSizeTrait<HeapHashTableBacking<Table>>::GetSize(
-          *this);
-  const size_t length = object_size / sizeof(Value);
+  HeapObjectHeader* header = HeapObjectHeader::FromPayload(this);
+  // Use the payload size as recorded by the heap to determine how many
+  // elements to finalize.
+  size_t length = header->PayloadSize() / sizeof(Value);
   Value* table = reinterpret_cast<Value*>(this);
   for (unsigned i = 0; i < length; ++i) {
     if (!Table::IsEmptyOrDeletedBucket(table[i]))
@@ -85,75 +71,103 @@ void HeapHashTableBacking<Table>::Finalize() {
 }
 
 template <typename Table>
-struct ThreadingTrait<HeapHashTableBacking<Table>> {
-  STATIC_ONLY(ThreadingTrait);
-  using Key = typename Table::KeyType;
-  using Value = typename Table::ValueType;
-  static constexpr ThreadAffinity kAffinity =
-      (ThreadingTrait<Key>::kAffinity == kMainThreadOnly) &&
-              (ThreadingTrait<Value>::kAffinity == kMainThreadOnly)
-          ? kMainThreadOnly
-          : kAnyThread;
+struct MakeGarbageCollectedTrait<HeapHashTableBacking<Table>> {
+  static HeapHashTableBacking<Table>* Call(size_t num_elements) {
+    CHECK_GT(num_elements, 0u);
+    void* memory = HeapHashTableBacking<Table>::template AllocateObject<
+        HeapHashTableBacking<Table>>(num_elements *
+                                     sizeof(typename Table::ValueType));
+    HeapObjectHeader* header = HeapObjectHeader::FromPayload(memory);
+    // Placement new as regular operator new() is deleted.
+    HeapHashTableBacking<Table>* object =
+        ::new (memory) HeapHashTableBacking<Table>();
+    header->MarkFullyConstructed<HeapObjectHeader::AccessMode::kAtomic>();
+    return object;
+  }
 };
 
-template <typename First, typename Second>
-struct ThreadingTrait<WTF::KeyValuePair<First, Second>> {
-  STATIC_ONLY(ThreadingTrait);
-  static constexpr ThreadAffinity kAffinity =
-      (ThreadingTrait<First>::kAffinity == kMainThreadOnly) &&
-              (ThreadingTrait<Second>::kAffinity == kMainThreadOnly)
-          ? kMainThreadOnly
-          : kAnyThread;
-};
+// The trace trait for the heap hashtable backing is used when we find a
+// direct pointer to the backing from the conservative stack scanner. This
+// normally indicates that there is an ongoing iteration over the table, and so
+// we disable weak processing of table entries. When the backing is found
+// through the owning hash table we mark differently, in order to do weak
+// processing.
+template <typename Table>
+struct TraceTrait<HeapHashTableBacking<Table>> {
+  STATIC_ONLY(TraceTrait);
+  using Backing = HeapHashTableBacking<Table>;
+  using ValueType = typename Table::ValueTraits::TraitType;
+  using Traits = typename Table::ValueTraits;
 
-// Helper for processing ephemerons represented as KeyValuePair. Reorders
-// parameters if needed so that KeyType is always weak.
-template <typename _KeyType,
-          typename _ValueType,
-          typename _KeyTraits,
-          typename _ValueTraits,
-          bool = WTF::IsWeak<_ValueType>::value>
-struct EphemeronKeyValuePair {
-  using KeyType = _KeyType;
-  using ValueType = _ValueType;
-  using KeyTraits = _KeyTraits;
-  using ValueTraits = _ValueTraits;
+ public:
+  static TraceDescriptor GetTraceDescriptor(const void* self) {
+    return {self, Trace<WTF::kNoWeakHandling>};
+  }
 
-  // Ephemerons have different weakness for KeyType and ValueType. If weakness
-  // is equal, we either have Strong/Strong, or Weak/Weak, which would indicate
-  // a full strong or fully weak pair.
-  static constexpr bool is_ephemeron =
-      WTF::IsWeak<KeyType>::value != WTF::IsWeak<ValueType>::value;
+  static TraceDescriptor GetWeakTraceDescriptor(const void* self) {
+    return GetWeakTraceDescriptorImpl<ValueType>::GetWeakTraceDescriptor(self);
+  }
 
-  static_assert(!WTF::IsWeak<KeyType>::value ||
-                    WTF::IsWeakMemberType<KeyType>::value,
-                "Weakness must be encoded using WeakMember.");
+  template <WTF::WeakHandlingFlag WeakHandling = WTF::kNoWeakHandling>
+  static void Trace(Visitor* visitor, const void* self) {
+    if (!Traits::kCanTraceConcurrently && self) {
+      if (visitor->DeferredTraceIfConcurrent({self, &Trace<WeakHandling>},
+                                             GetBackingStoreSize(self)))
+        return;
+    }
 
-  EphemeronKeyValuePair(const KeyType* k, const ValueType* v)
-      : key(k), value(v) {}
-  const KeyType* key;
-  const ValueType* value;
-};
+    static_assert(WTF::IsTraceableInCollectionTrait<Traits>::value ||
+                      WTF::IsWeak<ValueType>::value,
+                  "T should not be traced");
+    WTF::TraceInCollectionTrait<WeakHandling, Backing, void>::Trace(visitor,
+                                                                    self);
+  }
 
-template <typename _KeyType,
-          typename _ValueType,
-          typename _KeyTraits,
-          typename _ValueTraits>
-struct EphemeronKeyValuePair<_KeyType,
-                             _ValueType,
-                             _KeyTraits,
-                             _ValueTraits,
-                             true> : EphemeronKeyValuePair<_ValueType,
-                                                           _KeyType,
-                                                           _ValueTraits,
-                                                           _KeyTraits,
-                                                           false> {
-  EphemeronKeyValuePair(const _KeyType* k, const _ValueType* v)
-      : EphemeronKeyValuePair<_ValueType,
-                              _KeyType,
-                              _ValueTraits,
-                              _KeyTraits,
-                              false>(v, k) {}
+ private:
+  static size_t GetBackingStoreSize(const void* backing_store) {
+    const HeapObjectHeader* header =
+        HeapObjectHeader::FromPayload(backing_store);
+    return header->IsLargeObject<HeapObjectHeader::AccessMode::kAtomic>()
+               ? static_cast<LargeObjectPage*>(PageFromObject(header))
+                     ->ObjectSize()
+               : header->size<HeapObjectHeader::AccessMode::kAtomic>();
+  }
+
+  template <typename ValueType>
+  struct GetWeakTraceDescriptorImpl {
+    static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
+      return {backing, nullptr};
+    }
+  };
+
+  template <typename K, typename V>
+  struct GetWeakTraceDescriptorImpl<WTF::KeyValuePair<K, V>> {
+    static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
+      return GetWeakTraceDescriptorKVPImpl<K, V>::GetWeakTraceDescriptor(
+          backing);
+    }
+
+    template <typename KeyType,
+              typename ValueType,
+              bool ephemeron_semantics = (WTF::IsWeak<KeyType>::value &&
+                                          !WTF::IsWeak<ValueType>::value &&
+                                          WTF::IsTraceable<ValueType>::value) ||
+                                         (WTF::IsWeak<ValueType>::value &&
+                                          !WTF::IsWeak<KeyType>::value &&
+                                          WTF::IsTraceable<KeyType>::value)>
+    struct GetWeakTraceDescriptorKVPImpl {
+      static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
+        return {backing, nullptr};
+      }
+    };
+
+    template <typename KeyType, typename ValueType>
+    struct GetWeakTraceDescriptorKVPImpl<KeyType, ValueType, true> {
+      static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
+        return {backing, Trace<WTF::kWeakHandling>};
+      }
+    };
+  };
 };
 
 }  // namespace blink
@@ -217,7 +231,11 @@ class ConcurrentBucket<KeyValuePair<Key, Value>> {
 
 }  // namespace internal
 
-template <WTF::WeakHandlingFlag weak_handling, typename Table>
+// This trace method is for tracing a HashTableBacking either through regular
+// tracing (via the relevant TraceTraits) or when finding a HashTableBacking
+// through conservative stack scanning (which will treat all references in the
+// backing strongly).
+template <WTF::WeakHandlingFlag WeakHandling, typename Table>
 struct TraceHashTableBackingInCollectionTrait {
   using Value = typename Table::ValueType;
   using Traits = typename Table::ValueTraits;
@@ -228,21 +246,32 @@ struct TraceHashTableBackingInCollectionTrait {
                       WTF::IsWeak<Value>::value,
                   "Table should not be traced");
     const Value* array = reinterpret_cast<const Value*>(self);
-    const size_t length =
-        cppgc::subtle::
-            ObjectSizeTrait<const blink::HeapHashTableBacking<Table>>::GetSize(
-                *reinterpret_cast<const blink::HeapHashTableBacking<Table>*>(
-                    self)) /
-        sizeof(Value);
+    blink::HeapObjectHeader* header =
+        blink::HeapObjectHeader::FromPayload(self);
+    // Use the payload size as recorded by the heap to determine how many
+    // elements to trace.
+    size_t length = header->PayloadSize() / sizeof(Value);
+    const bool is_concurrent = visitor->IsConcurrent();
     for (size_t i = 0; i < length; ++i) {
-      internal::ConcurrentBucket<Value> concurrent_bucket(
-          array[i], Extractor::ExtractSafe);
-      if (!HashTableHelper<Value, Extractor, typename Table::KeyTraitsType>::
-              IsEmptyOrDeletedBucketForKey(*concurrent_bucket.key())) {
-        blink::TraceCollectionIfEnabled<
-            weak_handling,
-            typename internal::ConcurrentBucket<Value>::BucketType,
-            Traits>::Trace(visitor, concurrent_bucket.bucket());
+      // If tracing concurrently, use a concurrent-safe version of
+      // IsEmptyOrDeletedBucket (check performed on a local copy instead
+      // of directly on the bucket).
+      if (is_concurrent) {
+        internal::ConcurrentBucket<Value> concurrent_bucket(
+            array[i], Extractor::ExtractSafe);
+        if (!HashTableHelper<Value, Extractor, typename Table::KeyTraitsType>::
+                IsEmptyOrDeletedBucketForKey(*concurrent_bucket.key())) {
+          blink::TraceCollectionIfEnabled<
+              WeakHandling,
+              typename internal::ConcurrentBucket<Value>::BucketType,
+              Traits>::Trace(visitor, concurrent_bucket.bucket());
+        }
+      } else {
+        if (!HashTableHelper<Value, Extractor, typename Table::KeyTraitsType>::
+                IsEmptyOrDeletedBucket(array[i])) {
+          blink::TraceCollectionIfEnabled<WeakHandling, Value, Traits>::Trace(
+              visitor, &array[i]);
+        }
       }
     }
   }
@@ -403,118 +432,6 @@ struct TraceInCollectionTrait<
   }
 };
 
-template <typename T>
-struct IsWeak<internal::ConcurrentBucket<T>> : IsWeak<T> {};
-
 }  // namespace WTF
-
-namespace cppgc {
-
-// Assign HeapVector to the custom HeapVectorBackingSpace.
-template <typename Table>
-struct SpaceTrait<blink::HeapHashTableBacking<Table>> {
-  using Space = blink::HeapHashTableBackingSpace;
-};
-
-// Custom allocation accounts for inlined storage of the actual elements of the
-// backing table.
-template <typename Table>
-class MakeGarbageCollectedTrait<blink::HeapHashTableBacking<Table>>
-    : public MakeGarbageCollectedTraitBase<blink::HeapHashTableBacking<Table>> {
- public:
-  using Backing = blink::HeapHashTableBacking<Table>;
-
-  template <typename... Args>
-  static Backing* Call(AllocationHandle& handle, size_t num_elements) {
-    static_assert(
-        !std::is_polymorphic<blink::HeapHashTableBacking<Table>>::value,
-        "HeapHashTableBacking must not be polymorphic as it is converted to a "
-        "raw array of buckets for certain operation");
-    CHECK_GT(num_elements, 0u);
-    // Allocate automatically considers the custom space via SpaceTrait.
-    void* memory = MakeGarbageCollectedTraitBase<Backing>::Allocate(
-        handle, sizeof(typename Table::ValueType) * num_elements);
-    Backing* object = ::new (memory) Backing();
-    MakeGarbageCollectedTraitBase<Backing>::MarkObjectAsFullyConstructed(
-        object);
-    return object;
-  }
-};
-
-template <typename Table>
-struct TraceTrait<blink::HeapHashTableBacking<Table>> {
-  using Backing = blink::HeapHashTableBacking<Table>;
-  using Traits = typename Table::ValueTraits;
-  using ValueType = typename Table::ValueTraits::TraitType;
-
-  static TraceDescriptor GetTraceDescriptor(const void* self) {
-    return {self, Trace<WTF::kNoWeakHandling>};
-  }
-
-  static TraceDescriptor GetWeakTraceDescriptor(const void* self) {
-    return GetWeakTraceDescriptorImpl<ValueType>::GetWeakTraceDescriptor(self);
-  }
-
-  template <WTF::WeakHandlingFlag weak_handling = WTF::kNoWeakHandling>
-  static void Trace(Visitor* visitor, const void* self) {
-    if (!Traits::kCanTraceConcurrently && self) {
-      if (visitor->DeferTraceToMutatorThreadIfConcurrent(
-              self, &Trace<weak_handling>,
-              cppgc::subtle::ObjectSizeTrait<const Backing>::GetSize(
-                  *reinterpret_cast<const Backing*>(self)))) {
-        return;
-      }
-    }
-
-    static_assert(WTF::IsTraceableInCollectionTrait<Traits>::value ||
-                      WTF::IsWeak<ValueType>::value,
-                  "T should not be traced");
-    WTF::TraceInCollectionTrait<weak_handling, Backing, void>::Trace(visitor,
-                                                                     self);
-  }
-
- private:
-  // Default setting for HashTable is without weak trace descriptor.
-  template <typename ValueType>
-  struct GetWeakTraceDescriptorImpl {
-    static TraceDescriptor GetWeakTraceDescriptor(const void* self) {
-      return {self, nullptr};
-    }
-  };
-
-  // Specialization for WTF::KeyValuePair, which is default bucket storage type.
-  template <typename K, typename V>
-  struct GetWeakTraceDescriptorImpl<WTF::KeyValuePair<K, V>> {
-    static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
-      return GetWeakTraceDescriptorKVPImpl<K, V>::GetWeakTraceDescriptor(
-          backing);
-    }
-
-    // Default setting for KVP without ephemeron semantics.
-    template <typename KeyType,
-              typename ValueType,
-              bool ephemeron_semantics = (WTF::IsWeak<KeyType>::value &&
-                                          !WTF::IsWeak<ValueType>::value &&
-                                          WTF::IsTraceable<ValueType>::value) ||
-                                         (WTF::IsWeak<ValueType>::value &&
-                                          !WTF::IsWeak<KeyType>::value &&
-                                          WTF::IsTraceable<KeyType>::value)>
-    struct GetWeakTraceDescriptorKVPImpl {
-      static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
-        return {backing, nullptr};
-      }
-    };
-
-    // Specialization for KVP with ephemeron semantics.
-    template <typename KeyType, typename ValueType>
-    struct GetWeakTraceDescriptorKVPImpl<KeyType, ValueType, true> {
-      static TraceDescriptor GetWeakTraceDescriptor(const void* backing) {
-        return {backing, Trace<WTF::kWeakHandling>};
-      }
-    };
-  };
-};
-
-}  // namespace cppgc
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_HEAP_COLLECTION_SUPPORT_HEAP_HASH_TABLE_BACKING_H_

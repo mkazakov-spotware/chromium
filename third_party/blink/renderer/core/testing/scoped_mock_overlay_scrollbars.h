@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_TESTING_SCOPED_MOCK_OVERLAY_SCROLLBARS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TESTING_SCOPED_MOCK_OVERLAY_SCROLLBARS_H_
 
-#include "base/check_op.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar_theme.h"
@@ -69,7 +68,7 @@ class ScopedMockOverlayScrollbars {
     // platform independent.
     if (use_mock_overlay_scrollbars_)
       return true;
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_ANDROID) || BUILDFLAG(IS_ASH)
     // Non-overlay scrollbar is not supported on Android and ChromeOS.
     return false;
 #else

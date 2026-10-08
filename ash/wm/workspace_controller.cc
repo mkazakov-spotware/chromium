@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,10 +50,10 @@ const int kInitialAnimationDurationMS = 200;
 WorkspaceController::WorkspaceController(aura::Window* viewport)
     : viewport_(viewport),
       event_handler_(std::make_unique<WorkspaceEventHandler>(viewport)),
-      layout_manager_(viewport_->SetLayoutManager(
-          std::make_unique<WorkspaceLayoutManager>(viewport))) {
+      layout_manager_(new WorkspaceLayoutManager(viewport)) {
   viewport_->AddObserver(this);
   ::wm::SetWindowVisibilityAnimationTransition(viewport_, ::wm::ANIMATE_NONE);
+  viewport_->SetLayoutManager(layout_manager_);
 }
 
 WorkspaceController::~WorkspaceController() {
@@ -112,14 +112,14 @@ void WorkspaceController::DoInitialAnimation() {
 
     settings.SetPreemptionStrategy(ui::LayerAnimator::ENQUEUE_NEW_ANIMATION);
     layer->GetAnimator()->SchedulePauseForProperties(
-        base::Milliseconds(kInitialPauseTimeMS),
+        base::TimeDelta::FromMilliseconds(kInitialPauseTimeMS),
         ui::LayerAnimationElement::TRANSFORM |
             ui::LayerAnimationElement::OPACITY |
             ui::LayerAnimationElement::BRIGHTNESS |
             ui::LayerAnimationElement::VISIBILITY);
     settings.SetTweenType(gfx::Tween::EASE_OUT);
     settings.SetTransitionDuration(
-        base::Milliseconds(kInitialAnimationDurationMS));
+        base::TimeDelta::FromMilliseconds(kInitialAnimationDurationMS));
     layer->SetTransform(gfx::Transform());
     layer->SetOpacity(1.0f);
   }
@@ -134,15 +134,13 @@ void WorkspaceController::OnWindowDestroying(aura::Window* window) {
   layout_manager_ = nullptr;
 }
 
-void SetWorkspaceController(
-    aura::Window* desk_container,
-    std::unique_ptr<WorkspaceController> workspace_controller) {
+void SetWorkspaceController(aura::Window* desk_container,
+                            WorkspaceController* workspace_controller) {
   DCHECK(desk_container);
   DCHECK(desks_util::IsDeskContainer(desk_container));
 
   if (workspace_controller)
-    desk_container->SetProperty(kWorkspaceController,
-                                std::move(workspace_controller));
+    desk_container->SetProperty(kWorkspaceController, workspace_controller);
   else
     desk_container->ClearProperty(kWorkspaceController);
 }

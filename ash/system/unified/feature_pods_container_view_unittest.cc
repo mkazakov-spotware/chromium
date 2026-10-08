@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/unified/feature_pods_container_view.h"
 
-#include "ash/constants/quick_settings_catalogs.h"
+#include "ash/public/cpp/ash_features.h"
 #include "ash/public/cpp/pagination/pagination_controller.h"
 #include "ash/public/cpp/pagination/pagination_model.h"
 #include "ash/system/tray/tray_constants.h"
@@ -13,10 +13,8 @@
 #include "ash/system/unified/unified_system_tray_controller.h"
 #include "ash/system/unified/unified_system_tray_model.h"
 #include "ash/test/ash_test_base.h"
-#include "base/memory/scoped_refptr.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
-#include "ui/views/test/views_test_utils.h"
 #include "ui/views/view_observer.h"
 
 namespace ash {
@@ -26,17 +24,12 @@ class FeaturePodsContainerViewTest : public NoSessionAshTestBase,
                                      public views::ViewObserver {
  public:
   FeaturePodsContainerViewTest() = default;
-
-  FeaturePodsContainerViewTest(const FeaturePodsContainerViewTest&) = delete;
-  FeaturePodsContainerViewTest& operator=(const FeaturePodsContainerViewTest&) =
-      delete;
-
   ~FeaturePodsContainerViewTest() override = default;
 
   // AshTestBase:
   void SetUp() override {
     AshTestBase::SetUp();
-    model_ = base::MakeRefCounted<UnifiedSystemTrayModel>(nullptr);
+    model_ = std::make_unique<UnifiedSystemTrayModel>(nullptr);
     controller_ = std::make_unique<UnifiedSystemTrayController>(model_.get());
     container_ = std::make_unique<FeaturePodsContainerView>(
         controller_.get(), true /* initially_expanded */);
@@ -53,11 +46,9 @@ class FeaturePodsContainerViewTest : public NoSessionAshTestBase,
 
   // FeaturePodControllerBase:
   FeaturePodButton* CreateButton() override { return nullptr; }
-
   void OnIconPressed() override {}
-
-  QsFeatureCatalogName GetCatalogName() override {
-    return QsFeatureCatalogName::kUnknown;
+  SystemTrayItemUmaType GetUmaType() const override {
+    return SystemTrayItemUmaType::UMA_TEST;
   }
 
   // views::ViewObserver:
@@ -66,16 +57,13 @@ class FeaturePodsContainerViewTest : public NoSessionAshTestBase,
   }
 
  protected:
-  void AddButton(FeaturePodButton* button) {
-    buttons_.push_back(button);
-    container()->AddChildView(button);
-  }
-
   void AddButtons(int count) {
-    for (int i = 0; i < count; ++i)
-      AddButton(new FeaturePodButton(this));
+    for (int i = 0; i < count; ++i) {
+      buttons_.push_back(new FeaturePodButton(this));
+      container()->AddChildView(buttons_.back());
+    }
     container()->SetBoundsRect(gfx::Rect(container_->GetPreferredSize()));
-    views::test::RunScheduledLayout(container());
+    container()->Layout();
   }
 
   FeaturePodsContainerView* container() { return container_.get(); }
@@ -92,9 +80,11 @@ class FeaturePodsContainerViewTest : public NoSessionAshTestBase,
 
  private:
   std::unique_ptr<FeaturePodsContainerView> container_;
-  scoped_refptr<UnifiedSystemTrayModel> model_;
+  std::unique_ptr<UnifiedSystemTrayModel> model_;
   std::unique_ptr<UnifiedSystemTrayController> controller_;
   int preferred_size_changed_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(FeaturePodsContainerViewTest);
 };
 
 TEST_F(FeaturePodsContainerViewTest, ExpandedAndCollapsed) {
@@ -245,7 +235,7 @@ TEST_F(FeaturePodsContainerViewTest, PaginationTransition) {
       gfx::Rect(initial_bounds.x() - page_offset, initial_bounds.y(),
                 initial_bounds.width(), initial_bounds.height());
   pagination_model()->SelectPage(1, false);
-  views::test::RunScheduledLayout(container());
+  container()->Layout();
   EXPECT_EQ(final_bounds, buttons_[0]->bounds());
 }
 
@@ -446,7 +436,7 @@ TEST_F(FeaturePodsContainerViewTest, PaginationMouseWheelHandling) {
 
 TEST_F(FeaturePodsContainerViewTest, NonTogglableButton) {
   // Add one togglable and one non-tobblable button.
-  AddButton(new FeaturePodButton(this, /*is_togglable=*/false));
+  buttons_.push_back(new FeaturePodButton(this, /*is_togglable=*/false));
   AddButtons(1);
 
   // Non-togglable buttons should be labelled as a regular button for

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
 
 import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
 import org.chromium.webapk.lib.common.WebApkMetaDataUtils;
@@ -36,9 +35,11 @@ import java.lang.annotation.RetentionPolicy;
 
 /** Displays splash screen. */
 public class SplashActivity extends Activity {
+    /** Whether {@link mSplashView} was laid out. */
+    private boolean mSplashViewLaidOut;
+
     /** Task to screenshot and encode splash. */
     @SuppressWarnings("NoAndroidAsyncTaskCheck")
-    @Nullable
     private android.os.AsyncTask mScreenshotSplashTask;
 
     @IntDef({ActivityResult.NONE, ActivityResult.CANCELED, ActivityResult.IGNORE})
@@ -50,33 +51,16 @@ public class SplashActivity extends Activity {
     }
 
     private View mSplashView;
-    private Bitmap mBitmap;
     private HostBrowserLauncherParams mParams;
     private @ActivityResult int mResult;
-
-    private final LaunchTrigger mLaunchTrigger = new LaunchTrigger(this::encodeSplashInBackground);
+    private boolean mResumed;
+    private boolean mPendingLaunch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        boolean androidSSplashSuccess = false;
-        if (androidSSplashScreenEnabled() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // When launched with a data Intent, the splash screen is created, but
-            // SplashScreen.OnExitAnimationListener#onSplashScreenExit is not called.
-            // Fall back to manually creating our own splash screen in that case.
-            androidSSplashSuccess =
-                    SplashUtilsForS.listenForSplashScreen(this, getWindow(), (view, bitmap) -> {
-                        mSplashView = view;
-                        mBitmap = bitmap;
-                        mLaunchTrigger.onSplashScreenReady();
-                    });
-        }
-        if (!androidSSplashSuccess) {
-            // Fall back to the old behaviour if our reflection based method to launch the Android S
-            // splash screen fails.
-            showPreSSplashScreen();
-        }
+        showSplashScreen();
         final long splashAddedToLayoutTimeMs = SystemClock.elapsedRealtime();
 
         // On Android O+, if:
@@ -91,6 +75,7 @@ public class SplashActivity extends Activity {
             return;
         }
 
+        mPendingLaunch = true;
         selectHostBrowser(splashAddedToLayoutTimeMs);
     }
 
@@ -112,7 +97,7 @@ public class SplashActivity extends Activity {
         // "singleTask".
         mResult = ActivityResult.IGNORE;
 
-        mLaunchTrigger.reset();
+        mPendingLaunch = true;
 
         selectHostBrowser(-1 /* splashShownTimeMs */);
     }
@@ -120,16 +105,20 @@ public class SplashActivity extends Activity {
     @Override
     public void onResume() {
         super.onResume();
-
-        // If Activity#onActivityResult() will be called, it will be called prior to the
-        // activity being resumed.
+        mResumed = true;
         if (mResult == ActivityResult.CANCELED) {
             finish();
             return;
         }
 
         mResult = ActivityResult.NONE;
-        mLaunchTrigger.onWillLaunch();
+        maybeScreenshotSplashAndLaunch();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        mResumed = false;
     }
 
     @Override
@@ -161,7 +150,7 @@ public class SplashActivity extends Activity {
                 });
     }
 
-    private void showPreSSplashScreen() {
+    private void showSplashScreen() {
         Bundle metadata = WebApkUtils.readMetaData(this);
         updateStatusBar(metadata);
 
@@ -171,12 +160,7 @@ public class SplashActivity extends Activity {
             setRequestedOrientation(orientation);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // This case will be hit when we are launched by a data intent.
-            mSplashView = SplashUtilsForS.createSplashView(this);
-        } else {
-            mSplashView = SplashUtils.createSplashView(this);
-        }
+        mSplashView = SplashUtils.createSplashView(this);
         mSplashView.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
                     @Override
@@ -184,9 +168,8 @@ public class SplashActivity extends Activity {
                         if (mSplashView.getWidth() == 0 || mSplashView.getHeight() == 0) return;
 
                         mSplashView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        mBitmap = SplashUtils.screenshotView(
-                                mSplashView, SplashContentProvider.MAX_TRANSFER_SIZE_BYTES);
-                        mLaunchTrigger.onSplashScreenReady();
+                        mSplashViewLaidOut = true;
+                        maybeScreenshotSplashAndLaunch();
                     }
                 });
         setContentView(mSplashView);
@@ -224,7 +207,22 @@ public class SplashActivity extends Activity {
         }
 
         mParams = params;
-        mLaunchTrigger.onHostBrowserSelected();
+        maybeScreenshotSplashAndLaunch();
+    }
+
+    /**
+     * Screenshots {@link mSplashView} if:
+     * - host browser was selected
+     * AND
+     * - splash view was laid out
+     */
+    private void maybeScreenshotSplashAndLaunch() {
+        // If Activity#onActivityResult() will be called, it will be called prior to the
+        // activity being resumed.
+        if (mParams == null || !mSplashViewLaidOut || !mResumed || !mPendingLaunch) return;
+        mPendingLaunch = false;
+
+        screenshotAndEncodeSplashInBackground();
     }
 
     /**
@@ -243,8 +241,10 @@ public class SplashActivity extends Activity {
      * Screenshots and encodes {@link mSplashView} on a background thread.
      */
     @SuppressWarnings("NoAndroidAsyncTaskCheck")
-    private void encodeSplashInBackground() {
-        if (mBitmap == null) {
+    private void screenshotAndEncodeSplashInBackground() {
+        final Bitmap bitmap = SplashUtils.screenshotView(
+                mSplashView, SplashContentProvider.MAX_TRANSFER_SIZE_BYTES);
+        if (bitmap == null) {
             launch(null, Bitmap.CompressFormat.PNG);
             return;
         }
@@ -258,8 +258,8 @@ public class SplashActivity extends Activity {
                                 try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                                     Bitmap.CompressFormat encodingFormat =
                                             SplashUtils.selectBitmapEncoding(
-                                                    mBitmap.getWidth(), mBitmap.getHeight());
-                                    mBitmap.compress(encodingFormat, 100, out);
+                                                    bitmap.getWidth(), bitmap.getHeight());
+                                    bitmap.compress(encodingFormat, 100, out);
                                     return Pair.create(out.toByteArray(), encodingFormat);
                                 } catch (IOException e) {
                                 }
@@ -278,10 +278,5 @@ public class SplashActivity extends Activity {
                             // Do nothing if task was cancelled.
                         }
                         .executeOnExecutor(android.os.AsyncTask.THREAD_POOL_EXECUTOR);
-    }
-
-    /** Whether we enable integration with Android S splash screens. */
-    static boolean androidSSplashScreenEnabled() {
-        return false;
     }
 }

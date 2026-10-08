@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/input/touch_emulator_client.h"
-#include "content/common/content_export.h"
 #include "content/common/cursors/webcursor.h"
 #include "third_party/blink/public/common/input/web_touch_event.h"
 #include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
@@ -43,10 +41,6 @@ class CONTENT_EXPORT TouchEmulator : public ui::GestureProviderClient {
   };
 
   TouchEmulator(TouchEmulatorClient* client, float device_scale_factor);
-
-  TouchEmulator(const TouchEmulator&) = delete;
-  TouchEmulator& operator=(const TouchEmulator&) = delete;
-
   ~TouchEmulator() override;
 
   void Enable(Mode mode, ui::GestureProviderConfigType config_type);
@@ -136,7 +130,7 @@ class CONTENT_EXPORT TouchEmulator : public ui::GestureProviderClient {
   // Called when ack for injected touch has been received.
   void OnInjectedTouchCompleted();
 
-  const raw_ptr<TouchEmulatorClient> client_;
+  TouchEmulatorClient* const client_;
 
   // Emulator is enabled iff gesture provider is created.
   // Disabled emulator does only process touch acks left from previous
@@ -166,7 +160,7 @@ class CONTENT_EXPORT TouchEmulator : public ui::GestureProviderClient {
   blink::WebTouchEvent touch_event_;
   int emulated_stream_active_sequence_count_;
   int native_stream_active_sequence_count_;
-  raw_ptr<RenderWidgetHostViewBase> last_emulated_start_target_;
+  RenderWidgetHostViewBase* last_emulated_start_target_;
   // TODO(einbinder): this relies on synchronous tap gesture generation and does
   // not work for any other gestures. We should switch to callbacks which go
   // through touches and gestures once that's available.
@@ -183,6 +177,8 @@ class CONTENT_EXPORT TouchEmulator : public ui::GestureProviderClient {
   bool pinch_gesture_active_;
 
   base::queue<base::OnceClosure> injected_touch_completion_callbacks_;
+
+  DISALLOW_COPY_AND_ASSIGN(TouchEmulator);
 };
 
 }  // namespace content

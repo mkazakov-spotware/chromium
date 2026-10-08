@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,10 +75,9 @@ std::string RendererExtensionRegistry::GetExtensionOrAppIDByURL(
 }
 
 const Extension* RendererExtensionRegistry::GetExtensionOrAppByURL(
-    const GURL& url,
-    bool include_guid) const {
+    const GURL& url) const {
   base::AutoLock lock(lock_);
-  return extensions_.GetExtensionOrAppByURL(url, include_guid);
+  return extensions_.GetExtensionOrAppByURL(url);
 }
 
 const Extension* RendererExtensionRegistry::GetHostedAppByURL(
@@ -115,13 +114,13 @@ void RendererExtensionRegistry::SetWorkerActivationSequence(
   worker_activation_sequences_[extension->id()] = worker_activation_sequence;
 }
 
-absl::optional<ActivationSequence>
+base::Optional<ActivationSequence>
 RendererExtensionRegistry::GetWorkerActivationSequence(
     const ExtensionId& extension_id) const {
   base::AutoLock lock(lock_);
   auto iter = worker_activation_sequences_.find(extension_id);
   if (iter == worker_activation_sequences_.end())
-    return absl::nullopt;
+    return base::nullopt;
   return iter->second;
 }
 

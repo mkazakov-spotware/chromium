@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,11 @@
 #include "base/bind.h"
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/scoped_blocking_call.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
@@ -53,9 +52,6 @@ class Watch {
   explicit Watch(DBusWatch* watch) : raw_watch_(watch) {
     dbus_watch_set_data(raw_watch_, this, nullptr);
   }
-
-  Watch(const Watch&) = delete;
-  Watch& operator=(const Watch&) = delete;
 
   ~Watch() { dbus_watch_set_data(raw_watch_, nullptr, nullptr); }
 
@@ -96,9 +92,11 @@ class Watch {
     CHECK(dbus_watch_handle(raw_watch_, flags)) << "Unable to allocate memory";
   }
 
-  raw_ptr<DBusWatch> raw_watch_;
+  DBusWatch* raw_watch_;
   std::unique_ptr<base::FileDescriptorWatcher::Controller> read_watcher_;
   std::unique_ptr<base::FileDescriptorWatcher::Controller> write_watcher_;
+
+  DISALLOW_COPY_AND_ASSIGN(Watch);
 };
 
 // The class is used for monitoring the timeout used for D-Bus method
@@ -109,9 +107,6 @@ class Timeout {
     // Associated |this| with the underlying DBusTimeout.
     dbus_timeout_set_data(raw_timeout_, this, nullptr);
   }
-
-  Timeout(const Timeout&) = delete;
-  Timeout& operator=(const Timeout&) = delete;
 
   ~Timeout() {
     // Remove the association between |this| and the |raw_timeout_|.
@@ -135,16 +130,19 @@ class Timeout {
   void StopMonitoring() { weak_ptr_factory_.InvalidateWeakPtrs(); }
 
   base::TimeDelta GetInterval() {
-    return base::Milliseconds(dbus_timeout_get_interval(raw_timeout_));
+    return base::TimeDelta::FromMilliseconds(
+        dbus_timeout_get_interval(raw_timeout_));
   }
 
  private:
   // Calls DBus to handle the timeout.
   void HandleTimeout() { CHECK(dbus_timeout_handle(raw_timeout_)); }
 
-  raw_ptr<DBusTimeout> raw_timeout_;
+  DBusTimeout* raw_timeout_;
 
   base::WeakPtrFactory<Timeout> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Timeout);
 };
 
 }  // namespace
@@ -155,10 +153,6 @@ Bus::Options::Options()
 }
 
 Bus::Options::~Options() = default;
-
-Bus::Options::Options(Bus::Options&&) = default;
-
-Bus::Options& Bus::Options::operator=(Bus::Options&&) = default;
 
 Bus::Bus(const Options& options)
     : bus_type_(options.bus_type),
@@ -177,8 +171,8 @@ Bus::Bus(const Options& options)
   dbus_threads_init_default();
   // The origin message loop is unnecessary if the client uses synchronous
   // functions only.
-  if (base::SequencedTaskRunner::HasCurrentDefault())
-    origin_task_runner_ = base::SequencedTaskRunner::GetCurrentDefault();
+  if (base::SequencedTaskRunnerHandle::IsSet())
+    origin_task_runner_ = base::SequencedTaskRunnerHandle::Get();
 }
 
 Bus::~Bus() {
@@ -510,7 +504,7 @@ void Bus::ShutdownOnDBusThreadAndBlock() {
   // Wait until the shutdown is complete on the D-Bus thread.
   // The shutdown should not hang, but set timeout just in case.
   const int kTimeoutSecs = 3;
-  const base::TimeDelta timeout(base::Seconds(kTimeoutSecs));
+  const base::TimeDelta timeout(base::TimeDelta::FromSeconds(kTimeoutSecs));
   const bool signaled = on_shutdown_.TimedWait(timeout);
   LOG_IF(ERROR, !signaled) << "Failed to shutdown the bus";
 }
@@ -640,7 +634,7 @@ DBusMessage* Bus::SendWithReplyAndBlock(DBusMessage* request,
   DBusMessage* reply = dbus_connection_send_with_reply_and_block(
       connection_, request, timeout_ms, error);
 
-  constexpr base::TimeDelta kLongCall = base::Seconds(1);
+  constexpr base::TimeDelta kLongCall = base::TimeDelta::FromSeconds(1);
   LOG_IF(WARNING, elapsed.Elapsed() >= kLongCall)
       << "Bus::SendWithReplyAndBlock took "
       << elapsed.Elapsed().InMilliseconds() << "ms to process message: "

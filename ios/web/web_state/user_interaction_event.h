@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #import <CoreFoundation/CFDate.h>
 
-#include "base/time/time.h"
 #include "url/gurl.h"
 
 namespace web {
@@ -16,12 +15,11 @@ namespace web {
 // interaction and the main document URL at that time.
 struct UserInteractionEvent {
   explicit UserInteractionEvent(const GURL& url)
-      : main_document_url(url), time(base::TimeTicks::Now()) {}
-
+      : main_document_url(url), time(CFAbsoluteTimeGetCurrent()) {}
   // Main document URL at the time the interaction occurred.
   GURL main_document_url;
-  // Time that the interaction occurred.
-  base::TimeTicks time;
+  // Time that the interaction occurred, measured in seconds since Jan 1 2001.
+  CFAbsoluteTime time;
 };
 
 }  // namespace web

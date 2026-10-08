@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include "base/stl_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "ppapi/c/dev/ppb_truetype_font_dev.h"
 #include "ppapi/proxy/serialized_structs.h"
@@ -29,7 +30,7 @@ const PP_TrueTypeFontWeight_Dev kPepperFontWeights[] = {
     PP_TRUETYPEFONTWEIGHT_ULTRABOLD,
     PP_TRUETYPEFONTWEIGHT_HEAVY,
 };
-const NSInteger kPepperFontWeightsLength = std::size(kPepperFontWeights);
+const NSInteger kPepperFontWeightsLength = base::size(kPepperFontWeights);
 
 }  // namespace
 

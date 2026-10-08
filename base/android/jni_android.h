@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,12 @@
 #include <string>
 
 #include "base/android/scoped_java_ref.h"
+#include "base/atomicops.h"
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/debug/debugging_buildflags.h"
 #include "base/debug/stack_trace.h"
+#include "base/macros.h"
 
 #if BUILDFLAG(CAN_UNWIND_WITH_FRAME_POINTERS)
 
@@ -84,16 +86,15 @@ BASE_EXPORT bool IsVMInitialized();
 // is no Java code on the stack. The base ClassLoader doesn't know about any of
 // the application classes and will fail to lookup anything other than system
 // classes.
-void InitGlobalClassLoader(JNIEnv* env);
+BASE_EXPORT void InitReplacementClassLoader(
+    JNIEnv* env,
+    const JavaRef<jobject>& class_loader);
 
 // Finds the class named |class_name| and returns it.
 // Use this method instead of invoking directly the JNI FindClass method (to
 // prevent leaking local references).
 // This method triggers a fatal assertion if the class could not be found.
 // Use HasClass if you need to check whether the class exists.
-BASE_EXPORT ScopedJavaLocalRef<jclass> GetClass(JNIEnv* env,
-                                                const char* class_name,
-                                                const char* split_name);
 BASE_EXPORT ScopedJavaLocalRef<jclass> GetClass(JNIEnv* env,
                                                 const char* class_name);
 
@@ -103,10 +104,6 @@ BASE_EXPORT ScopedJavaLocalRef<jclass> GetClass(JNIEnv* env,
 // The caller is responsible to zero-initialize |atomic_method_id|.
 // It's fine to simultaneously call this on multiple threads referencing the
 // same |atomic_method_id|.
-BASE_EXPORT jclass LazyGetClass(JNIEnv* env,
-                                const char* class_name,
-                                const char* split_name,
-                                std::atomic<jclass>* atomic_class_id);
 BASE_EXPORT jclass LazyGetClass(
     JNIEnv* env,
     const char* class_name,
@@ -160,15 +157,13 @@ BASE_EXPORT std::string GetJavaExceptionInfo(JNIEnv* env,
 class BASE_EXPORT JNIStackFrameSaver {
  public:
   JNIStackFrameSaver(void* current_fp);
-
-  JNIStackFrameSaver(const JNIStackFrameSaver&) = delete;
-  JNIStackFrameSaver& operator=(const JNIStackFrameSaver&) = delete;
-
   ~JNIStackFrameSaver();
   static void* SavedFrame();
 
  private:
   void* previous_fp_;
+
+  DISALLOW_COPY_AND_ASSIGN(JNIStackFrameSaver);
 };
 
 #endif  // BUILDFLAG(CAN_UNWIND_WITH_FRAME_POINTERS)

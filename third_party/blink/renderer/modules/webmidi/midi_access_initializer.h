@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBMIDI_MIDI_ACCESS_INITIALIZER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBMIDI_MIDI_ACCESS_INITIALIZER_H_
 
+#include <memory>
 #include "media/midi/midi_service.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/permissions/permission.mojom-blink.h"
 #include "third_party/blink/public/mojom/permissions/permission_status.mojom-blink-forward.h"
@@ -30,14 +31,14 @@ class MODULES_EXPORT MIDIAccessInitializer : public ScriptPromiseResolver,
     String id;
     String manufacturer;
     String name;
-    MIDIPortType type;
+    MIDIPort::TypeCode type;
     String version;
     midi::mojom::PortState state;
 
     PortDescriptor(const String& id,
                    const String& manufacturer,
                    const String& name,
-                   MIDIPortType type,
+                   MIDIPort::TypeCode type,
                    const String& version,
                    midi::mojom::PortState state)
         : id(id),

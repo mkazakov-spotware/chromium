@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,5 +16,9 @@ PlatformWindowInitProperties::PlatformWindowInitProperties(
     PlatformWindowInitProperties&& props) = default;
 
 PlatformWindowInitProperties::~PlatformWindowInitProperties() = default;
+
+#if defined(OS_FUCHSIA)
+bool PlatformWindowInitProperties::allow_null_view_token_for_test = false;
+#endif
 
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,10 @@
 
 #include "base/values.h"
 
+namespace base {
+class DictionaryValue;
+}  // namespace base
+
 namespace content {
 class WebContents;
 }  // namespace content
@@ -17,7 +21,6 @@ class WebContents;
 namespace guest_view {
 
 class GuestViewBase;
-class GuestViewManager;
 
 // A GuestViewManagerDelegate interface allows GuestViewManager to delegate
 // responsibilities to other modules in Chromium. Different builds of Chromium
@@ -36,7 +39,7 @@ class GuestViewManagerDelegate {
   // Dispatches the event with |name| with the provided |args| to the embedder
   // of the given |guest| with |instance_id| for routing.
   virtual void DispatchEvent(const std::string& event_name,
-                             base::Value::Dict args,
+                             std::unique_ptr<base::DictionaryValue> args,
                              GuestViewBase* guest,
                              int instance_id) {}
 
@@ -49,7 +52,7 @@ class GuestViewManagerDelegate {
 
   // Registers additional GuestView types the delegator (GuestViewManger) can
   // create.
-  virtual void RegisterAdditionalGuestViewTypes(GuestViewManager* manager) {}
+  virtual void RegisterAdditionalGuestViewTypes() {}
 };
 
 }  // namespace guest_view

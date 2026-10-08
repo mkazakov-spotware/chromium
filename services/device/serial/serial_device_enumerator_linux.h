@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "device/udev_linux/udev_watcher.h"
 #include "services/device/serial/serial_device_enumerator.h"
 
@@ -22,11 +23,6 @@ class SerialDeviceEnumeratorLinux : public SerialDeviceEnumerator,
 
   explicit SerialDeviceEnumeratorLinux(
       const base::FilePath& tty_driver_info_path);
-
-  SerialDeviceEnumeratorLinux(const SerialDeviceEnumeratorLinux&) = delete;
-  SerialDeviceEnumeratorLinux& operator=(const SerialDeviceEnumeratorLinux&) =
-      delete;
-
   ~SerialDeviceEnumeratorLinux() override;
 
   // UdevWatcher::Observer
@@ -40,6 +36,8 @@ class SerialDeviceEnumeratorLinux : public SerialDeviceEnumerator,
   std::unique_ptr<UdevWatcher> watcher_;
   const base::FilePath tty_driver_info_path_;
   std::map<std::string, base::UnguessableToken> paths_;
+
+  DISALLOW_COPY_AND_ASSIGN(SerialDeviceEnumeratorLinux);
 };
 
 }  // namespace device

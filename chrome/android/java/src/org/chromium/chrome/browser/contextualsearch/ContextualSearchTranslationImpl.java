@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import androidx.annotation.Nullable;
 
 import org.chromium.chrome.browser.translate.TranslateBridge;
 
-import java.util.List;
+import java.util.LinkedHashSet;
 
 /**
  * Controls how Translation triggering is handled for the {@link ContextualSearchManager}.
@@ -34,6 +34,7 @@ public class ContextualSearchTranslationImpl implements ContextualSearchTranslat
     public void forceTranslateIfNeeded(
             ContextualSearchRequest searchRequest, String sourceLanguage, boolean isTapSelection) {
         if (needsTranslation(sourceLanguage)) {
+            ContextualSearchUma.logTranslationNeeded(isTapSelection);
             searchRequest.forceTranslation(sourceLanguage, getTranslateServiceTargetLanguage());
         }
     }
@@ -50,7 +51,7 @@ public class ContextualSearchTranslationImpl implements ContextualSearchTranslat
     public boolean needsTranslation(@Nullable String sourceLanguage) {
         if (TextUtils.isEmpty(sourceLanguage)) return false;
 
-        List<String> languages = mTranslateBridgeWrapper.getNeverTranslateLanguages();
+        LinkedHashSet<String> languages = mTranslateBridgeWrapper.getModelLanguages();
         for (String language : languages) {
             if (language.equals(sourceLanguage)) return false;
         }
@@ -64,7 +65,7 @@ public class ContextualSearchTranslationImpl implements ContextualSearchTranslat
 
     @Override
     public String getTranslateServiceFluentLanguages() {
-        return TextUtils.join(",", mTranslateBridgeWrapper.getNeverTranslateLanguages());
+        return TextUtils.join(",", mTranslateBridgeWrapper.getModelLanguages());
     }
 
     /**
@@ -81,11 +82,11 @@ public class ContextualSearchTranslationImpl implements ContextualSearchTranslat
         }
 
         /**
-         * @return The {@link List} of languages the user has set to never translate, in
-         *         alphabetical order.
+         * @return The {@link LinkedHashSet} of language code strings that the Chrome Language Model
+         *         thinks the user knows, in order of most familiar to least familiar.
          */
-        public List<String> getNeverTranslateLanguages() {
-            return TranslateBridge.getNeverTranslateLanguages();
+        public LinkedHashSet<String> getModelLanguages() {
+            return TranslateBridge.getModelLanguages();
         }
     }
 }

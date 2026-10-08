@@ -1,3 +1,6 @@
-file://content/browser/font_access/OWNERS
-
 drott@chromium.org
+jsbell@chromium.org
+oyiptong@chromium.org
+
+# TEAM: storage-dev@chromium.org
+# COMPONENT: Blink>Storage>FontAccess

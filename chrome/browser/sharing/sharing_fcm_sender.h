@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,14 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "chrome/browser/sharing/proto/sharing_message.pb.h"
 #include "chrome/browser/sharing/sharing_message_sender.h"
 #include "chrome/browser/sharing/sharing_send_message_result.h"
 #include "chrome/browser/sharing/web_push/web_push_sender.h"
 #include "components/sync_device_info/device_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace gcm {
 class GCMDriver;
@@ -29,10 +28,6 @@ namespace syncer {
 class LocalDeviceInfoProvider;
 class SyncService;
 }  // namespace syncer
-
-namespace sync_pb {
-class SharingMessageCommitError;
-}
 
 enum class SharingChannelType;
 enum class SendWebPushMessageResult;
@@ -46,7 +41,7 @@ class SharingFCMSender : public SharingMessageSender::SendMessageDelegate {
   using SharingMessage = chrome_browser_sharing::SharingMessage;
   using SendMessageCallback =
       base::OnceCallback<void(SharingSendMessageResult result,
-                              absl::optional<std::string> message_id,
+                              base::Optional<std::string> message_id,
                               SharingChannelType channel_type)>;
 
   SharingFCMSender(std::unique_ptr<WebPushSender> web_push_sender,
@@ -62,7 +57,7 @@ class SharingFCMSender : public SharingMessageSender::SendMessageDelegate {
 
   // Sends a |message| to device identified by |fcm_configuration|, which
   // expires after |time_to_live| seconds. |callback| will be invoked with
-  // message_id if asynchronous operation succeeded, or absl::nullopt if
+  // message_id if asynchronous operation succeeded, or base::nullopt if
   // operation failed.
   virtual void SendMessageToFcmTarget(
       const chrome_browser_sharing::FCMChannelConfiguration& fcm_configuration,
@@ -72,7 +67,7 @@ class SharingFCMSender : public SharingMessageSender::SendMessageDelegate {
 
   // Sends a |message| to device identified by |server_channel|, |callback| will
   // be invoked with message_id if asynchronous operation succeeded, or
-  // absl::nullopt if operation failed.
+  // base::nullopt if operation failed.
   virtual void SendMessageToServerTarget(
       const chrome_browser_sharing::ServerChannelConfiguration& server_channel,
       SharingMessage message,
@@ -118,7 +113,7 @@ class SharingFCMSender : public SharingMessageSender::SendMessageDelegate {
 
   void OnMessageSentToVapidTarget(SendMessageCallback callback,
                                   SendWebPushMessageResult result,
-                                  absl::optional<std::string> message_id);
+                                  base::Optional<std::string> message_id);
 
   void DoSendMessageToSenderIdTarget(const std::string& fcm_token,
                                      base::TimeDelta time_to_live,
@@ -139,13 +134,12 @@ class SharingFCMSender : public SharingMessageSender::SendMessageDelegate {
   bool SetMessageSenderInfo(SharingMessage* message);
 
   std::unique_ptr<WebPushSender> web_push_sender_;
-  raw_ptr<SharingMessageBridge, DanglingUntriaged> sharing_message_bridge_;
-  raw_ptr<SharingSyncPreference, DanglingUntriaged> sync_preference_;
-  raw_ptr<VapidKeyManager, DanglingUntriaged> vapid_key_manager_;
-  raw_ptr<gcm::GCMDriver, DanglingUntriaged> gcm_driver_;
-  raw_ptr<syncer::LocalDeviceInfoProvider, DanglingUntriaged>
-      local_device_info_provider_;
-  raw_ptr<syncer::SyncService, DanglingUntriaged> sync_service_;
+  SharingMessageBridge* sharing_message_bridge_;
+  SharingSyncPreference* sync_preference_;
+  VapidKeyManager* vapid_key_manager_;
+  gcm::GCMDriver* gcm_driver_;
+  syncer::LocalDeviceInfoProvider* local_device_info_provider_;
+  syncer::SyncService* sync_service_;
 
   base::WeakPtrFactory<SharingFCMSender> weak_ptr_factory_{this};
 };

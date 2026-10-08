@@ -1,13 +1,12 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/preferences/tracked/dictionary_hash_store_contents.h"
 
-#include <ostream>
-
 #include "base/callback.h"
 #include "base/check.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -46,7 +45,7 @@ base::StringPiece DictionaryHashStoreContents::GetUMASuffix() const {
 }
 
 void DictionaryHashStoreContents::Reset() {
-  storage_->RemovePath(kPreferenceMACs);
+  storage_->Remove(kPreferenceMACs, NULL);
 }
 
 bool DictionaryHashStoreContents::GetMac(const std::string& path,
@@ -68,13 +67,14 @@ bool DictionaryHashStoreContents::GetSplitMacs(
   const base::DictionaryValue* split_macs_dict = NULL;
   if (!macs_dict || !macs_dict->GetDictionary(path, &split_macs_dict))
     return false;
-  for (const auto item : split_macs_dict->GetDict()) {
-    const std::string* mac_string = item.second.GetIfString();
-    if (!mac_string) {
+  for (base::DictionaryValue::Iterator it(*split_macs_dict); !it.IsAtEnd();
+       it.Advance()) {
+    std::string mac_string;
+    if (!it.value().GetAsString(&mac_string)) {
       NOTREACHED();
       continue;
     }
-    split_macs->insert(make_pair(item.first, *mac_string));
+    split_macs->insert(make_pair(it.key(), mac_string));
   }
   return true;
 }
@@ -89,10 +89,11 @@ void DictionaryHashStoreContents::SetSplitMac(const std::string& path,
                                               const std::string& split_path,
                                               const std::string& value) {
   base::DictionaryValue* macs_dict = GetMutableContents(true);
-  base::Value* split_dict = macs_dict->FindDictPath(path);
+  base::DictionaryValue* split_dict = nullptr;
+  macs_dict->GetDictionary(path, &split_dict);
   if (!split_dict) {
-    split_dict =
-        macs_dict->SetPath(path, base::Value(base::Value::Type::DICTIONARY));
+    split_dict = macs_dict->SetDictionary(
+        path, std::make_unique<base::DictionaryValue>());
   }
   split_dict->SetKey(split_path, base::Value(value));
 }
@@ -100,13 +101,13 @@ void DictionaryHashStoreContents::SetSplitMac(const std::string& path,
 void DictionaryHashStoreContents::ImportEntry(const std::string& path,
                                               const base::Value* in_value) {
   base::DictionaryValue* macs_dict = GetMutableContents(true);
-  macs_dict->SetPath(path, in_value->Clone());
+  macs_dict->Set(path, std::make_unique<base::Value>(in_value->Clone()));
 }
 
 bool DictionaryHashStoreContents::RemoveEntry(const std::string& path) {
   base::DictionaryValue* macs_dict = GetMutableContents(false);
   if (macs_dict)
-    return macs_dict->RemovePath(path);
+    return macs_dict->RemovePath(path, NULL);
 
   return false;
 }
@@ -132,8 +133,8 @@ base::DictionaryValue* DictionaryHashStoreContents::GetMutableContents(
   base::DictionaryValue* macs_dict = NULL;
   storage_->GetDictionary(kPreferenceMACs, &macs_dict);
   if (!macs_dict && create_if_null) {
-    macs_dict = static_cast<base::DictionaryValue*>(storage_->SetPath(
-        kPreferenceMACs, base::Value(base::Value::Type::DICTIONARY)));
+    macs_dict = storage_->SetDictionary(
+        kPreferenceMACs, std::make_unique<base::DictionaryValue>());
   }
   return macs_dict;
 }

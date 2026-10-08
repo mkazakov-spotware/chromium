@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Zippy widget implementation.
@@ -17,7 +25,6 @@ goog.provide('goog.ui.ZippyEvent');
 goog.require('goog.a11y.aria');
 goog.require('goog.a11y.aria.Role');
 goog.require('goog.a11y.aria.State');
-goog.require('goog.dispose');
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
 goog.require('goog.events.Event');
@@ -27,7 +34,6 @@ goog.require('goog.events.EventType');
 goog.require('goog.events.KeyCodes');
 goog.require('goog.events.KeyHandler');
 goog.require('goog.style');
-goog.requireType('goog.events.BrowserEvent');
 
 
 
@@ -55,7 +61,6 @@ goog.requireType('goog.events.BrowserEvent');
 goog.ui.Zippy = function(
     header, opt_content, opt_expanded, opt_expandedHeader, opt_domHelper,
     opt_role) {
-  'use strict';
   goog.ui.Zippy.base(this, 'constructor');
 
   /**
@@ -86,7 +91,7 @@ goog.ui.Zippy = function(
    * @type {?function():Element}
    * @private
    */
-  this.lazyCreateFunc_ = typeof opt_content === 'function' ? opt_content : null;
+  this.lazyCreateFunc_ = goog.isFunction(opt_content) ? opt_content : null;
 
   /**
    * ARIA role.
@@ -162,6 +167,7 @@ goog.ui.Zippy = function(
   this.setExpanded(this.expanded_);
 };
 goog.inherits(goog.ui.Zippy, goog.events.EventTarget);
+goog.tagUnsealableClass(goog.ui.Zippy);
 
 
 /**
@@ -197,7 +203,6 @@ goog.ui.Zippy.prototype.handleKeyEvents_ = true;
 
 /** @override */
 goog.ui.Zippy.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.Zippy.base(this, 'disposeInternal');
   goog.dispose(this.keyboardEventHandler_);
   goog.dispose(this.keyHandler_);
@@ -209,16 +214,14 @@ goog.ui.Zippy.prototype.disposeInternal = function() {
  * @return {goog.a11y.aria.Role} The ARIA role to be applied to Zippy element.
  */
 goog.ui.Zippy.prototype.getAriaRole = function() {
-  'use strict';
   return this.role_;
 };
 
 
 /**
- * @return {!HTMLElement} The content element.
+ * @return {HTMLElement} The content element.
  */
 goog.ui.Zippy.prototype.getContentElement = function() {
-  'use strict';
   return /** @type {!HTMLElement} */ (this.elContent_);
 };
 
@@ -227,7 +230,6 @@ goog.ui.Zippy.prototype.getContentElement = function() {
  * @return {Element} The visible header element.
  */
 goog.ui.Zippy.prototype.getVisibleHeaderElement = function() {
-  'use strict';
   var expandedHeader = this.elExpandedHeader_;
   return expandedHeader && goog.style.isElementShown(expandedHeader) ?
       expandedHeader :
@@ -239,7 +241,6 @@ goog.ui.Zippy.prototype.getVisibleHeaderElement = function() {
  * Expands content pane.
  */
 goog.ui.Zippy.prototype.expand = function() {
-  'use strict';
   this.setExpanded(true);
 };
 
@@ -248,7 +249,6 @@ goog.ui.Zippy.prototype.expand = function() {
  * Collapses content pane.
  */
 goog.ui.Zippy.prototype.collapse = function() {
-  'use strict';
   this.setExpanded(false);
 };
 
@@ -257,7 +257,6 @@ goog.ui.Zippy.prototype.collapse = function() {
  * Toggles expanded state.
  */
 goog.ui.Zippy.prototype.toggle = function() {
-  'use strict';
   this.setExpanded(!this.expanded_);
 };
 
@@ -268,7 +267,6 @@ goog.ui.Zippy.prototype.toggle = function() {
  * @param {boolean} expanded Expanded/visibility state.
  */
 goog.ui.Zippy.prototype.setExpanded = function(expanded) {
-  'use strict';
   if (this.elContent_) {
     // Hide the element, if one is provided.
     goog.style.setElementShown(this.elContent_, expanded);
@@ -306,7 +304,6 @@ goog.ui.Zippy.prototype.setExpanded = function(expanded) {
  * @protected
  */
 goog.ui.Zippy.prototype.setExpandedInternal = function(expanded) {
-  'use strict';
   this.expanded_ = expanded;
 };
 
@@ -315,7 +312,6 @@ goog.ui.Zippy.prototype.setExpandedInternal = function(expanded) {
  * @return {boolean} Whether the zippy is expanded.
  */
 goog.ui.Zippy.prototype.isExpanded = function() {
-  'use strict';
   return this.expanded_;
 };
 
@@ -328,7 +324,6 @@ goog.ui.Zippy.prototype.isExpanded = function() {
  * @protected
  */
 goog.ui.Zippy.prototype.updateHeaderClassName = function(expanded) {
-  'use strict';
   if (this.elHeader_) {
     goog.dom.classlist.enable(
         this.elHeader_, goog.getCssName('goog-zippy-expanded'), expanded);
@@ -344,7 +339,6 @@ goog.ui.Zippy.prototype.updateHeaderClassName = function(expanded) {
  * @return {boolean} Whether the Zippy handles its own key events.
  */
 goog.ui.Zippy.prototype.isHandleKeyEvents = function() {
-  'use strict';
   return this.handleKeyEvents_;
 };
 
@@ -353,7 +347,6 @@ goog.ui.Zippy.prototype.isHandleKeyEvents = function() {
  * @return {boolean} Whether the Zippy handles its own mouse events.
  */
 goog.ui.Zippy.prototype.isHandleMouseEvents = function() {
-  'use strict';
   return this.handleMouseEvents_;
 };
 
@@ -363,7 +356,6 @@ goog.ui.Zippy.prototype.isHandleMouseEvents = function() {
  * @param {boolean} enable Whether the Zippy handles keyboard events.
  */
 goog.ui.Zippy.prototype.setHandleKeyboardEvents = function(enable) {
-  'use strict';
   if (this.handleKeyEvents_ != enable) {
     this.handleKeyEvents_ = enable;
     if (enable) {
@@ -382,7 +374,6 @@ goog.ui.Zippy.prototype.setHandleKeyboardEvents = function(enable) {
  * @param {boolean} enable Whether the Zippy handles mouse events.
  */
 goog.ui.Zippy.prototype.setHandleMouseEvents = function(enable) {
-  'use strict';
   if (this.handleMouseEvents_ != enable) {
     this.handleMouseEvents_ = enable;
     if (enable) {
@@ -401,7 +392,6 @@ goog.ui.Zippy.prototype.setHandleMouseEvents = function(enable) {
  * @private
  */
 goog.ui.Zippy.prototype.enableKeyboardEventsHandling_ = function(header) {
-  'use strict';
   if (header) {
     this.keyHandler_.attach(header);
     this.keyboardEventHandler_.listen(
@@ -417,7 +407,6 @@ goog.ui.Zippy.prototype.enableKeyboardEventsHandling_ = function(header) {
  * @private
  */
 goog.ui.Zippy.prototype.enableMouseEventsHandling_ = function(header) {
-  'use strict';
   if (header) {
     this.mouseEventHandler_.listen(
         header, goog.events.EventType.CLICK, this.onHeaderClick_);
@@ -433,7 +422,6 @@ goog.ui.Zippy.prototype.enableMouseEventsHandling_ = function(header) {
  * @private
  */
 goog.ui.Zippy.prototype.onHeaderKeyDown_ = function(event) {
-  'use strict';
   if (event.keyCode == goog.events.KeyCodes.ENTER ||
       event.keyCode == goog.events.KeyCodes.SPACE) {
     this.toggle();
@@ -454,7 +442,6 @@ goog.ui.Zippy.prototype.onHeaderKeyDown_ = function(event) {
  * @private
  */
 goog.ui.Zippy.prototype.onHeaderClick_ = function(event) {
-  'use strict';
   this.toggle();
   this.dispatchActionEvent_(event);
 };
@@ -469,7 +456,6 @@ goog.ui.Zippy.prototype.onHeaderClick_ = function(event) {
  * @private
  */
 goog.ui.Zippy.prototype.dispatchActionEvent_ = function(triggeringEvent) {
-  'use strict';
   this.dispatchEvent(new goog.ui.ZippyEvent(
       goog.ui.Zippy.Events.ACTION, this, this.expanded_, triggeringEvent));
 };
@@ -488,7 +474,6 @@ goog.ui.Zippy.prototype.dispatchActionEvent_ = function(triggeringEvent) {
  * @final
  */
 goog.ui.ZippyEvent = function(type, target, expanded, opt_triggeringEvent) {
-  'use strict';
   goog.ui.ZippyEvent.base(this, 'constructor', type, target);
 
   /**

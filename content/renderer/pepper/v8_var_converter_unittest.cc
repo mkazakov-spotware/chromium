@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@
 #include "base/test/task_environment.h"
 #include "base/values.h"
 #include "content/renderer/pepper/resource_converter.h"
-#include "gin/public/isolate_holder.h"
 #include "ppapi/c/pp_bool.h"
 #include "ppapi/c/pp_var.h"
 #include "ppapi/shared_impl/array_var.h"
@@ -33,15 +32,7 @@
 #include "ppapi/shared_impl/var.h"
 #include "ppapi/shared_impl/var_tracker.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "v8/include/v8-container.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-microtask-queue.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-persistent-handle.h"
-#include "v8/include/v8-primitive.h"
-#include "v8/include/v8-script.h"
-#include "v8/include/v8-template.h"
+#include "v8/include/v8.h"
 
 using ppapi::ArrayBufferVar;
 using ppapi::ArrayVar;
@@ -183,13 +174,10 @@ bool Equals(const PP_Var& var, v8::Local<v8::Value> val) {
 class V8VarConverterTest : public testing::Test {
  public:
   V8VarConverterTest()
-      : isolate_holder_(task_environment_.GetMainThreadTaskRunner(),
-                        gin::IsolateHolder::IsolateType::kTest),
-        isolate_scope_(isolate_holder_.isolate()) {
-    isolate_ = isolate_holder_.isolate();
+      : isolate_(v8::Isolate::GetCurrent()) {
     PP_Instance dummy = 1234;
-    converter_ = std::make_unique<V8VarConverter>(
-        dummy, std::unique_ptr<ResourceConverter>(new MockResourceConverter));
+    converter_.reset(new V8VarConverter(
+        dummy, std::unique_ptr<ResourceConverter>(new MockResourceConverter)));
   }
   ~V8VarConverterTest() override {}
 
@@ -224,8 +212,6 @@ class V8VarConverterTest : public testing::Test {
     v8::Local<v8::Context> context =
         v8::Local<v8::Context>::New(isolate_, context_);
     v8::Context::Scope context_scope(context);
-    v8::MicrotasksScope microtasks(isolate_,
-                                   v8::MicrotasksScope::kDoNotRunMicrotasks);
     v8::Local<v8::Value> v8_result;
     if (!converter_->ToV8Value(var, context, &v8_result))
       return false;
@@ -256,8 +242,6 @@ class V8VarConverterTest : public testing::Test {
  private:
   // Required to receive callbacks.
   base::test::TaskEnvironment task_environment_;
-  gin::IsolateHolder isolate_holder_;
-  v8::Isolate::Scope isolate_scope_;
 
   TestGlobals globals_;
 };
@@ -355,8 +339,6 @@ TEST_F(V8VarConverterTest, Cycles) {
   v8::Local<v8::Context> context =
       v8::Local<v8::Context>::New(isolate_, context_);
   v8::Context::Scope context_scope(context);
-  v8::MicrotasksScope microtasks(isolate_,
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   // Var->V8 conversion.
   {

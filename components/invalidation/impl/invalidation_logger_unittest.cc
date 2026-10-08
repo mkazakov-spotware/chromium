@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/invalidation/impl/invalidation_logger.h"
 
-#include "base/values.h"
 #include "components/invalidation/impl/invalidation_logger_observer.h"
 #include "components/invalidation/public/invalidation.h"
 #include "components/invalidation/public/topic_invalidation_map.h"
@@ -23,35 +22,37 @@ class InvalidationLoggerObserverTest : public InvalidationLoggerObserver {
     debug_message_received = false;
     invalidation_received = false;
     detailed_status_received = false;
-    updated_topics_replicated = std::map<std::string, TopicCountMap>();
-    registered_handlers = std::set<std::string>();
+    updated_topics_replicated = std::map<std::string, syncer::TopicCountMap>();
+    registered_handlers = std::multiset<std::string>();
   }
 
-  void OnRegistrationChange(const std::set<std::string>& handlers) override {
+  void OnRegistrationChange(
+      const std::multiset<std::string>& handlers) override {
     registered_handlers = handlers;
     registration_change_received = true;
   }
 
-  void OnStateChange(const InvalidatorState& new_state,
+  void OnStateChange(const syncer::InvalidatorState& new_state,
                      const base::Time& last_change_timestamp) override {
     state_received = true;
   }
 
   void OnUpdatedTopics(const std::string& handler,
-                       const TopicCountMap& topics_counts) override {
+                       const syncer::TopicCountMap& topics_counts) override {
     update_id_received = true;
     updated_topics_replicated[handler] = topics_counts;
   }
 
-  void OnDebugMessage(const base::Value::Dict& details) override {
+  void OnDebugMessage(const base::DictionaryValue& details) override {
     debug_message_received = true;
   }
 
-  void OnInvalidation(const TopicInvalidationMap& new_invalidations) override {
+  void OnInvalidation(
+      const syncer::TopicInvalidationMap& new_invalidations) override {
     invalidation_received = true;
   }
 
-  void OnDetailedStatus(base::Value::Dict details) override {
+  void OnDetailedStatus(const base::DictionaryValue& details) override {
     detailed_status_received = true;
   }
 
@@ -61,8 +62,8 @@ class InvalidationLoggerObserverTest : public InvalidationLoggerObserver {
   bool debug_message_received;
   bool invalidation_received;
   bool detailed_status_received;
-  std::map<std::string, TopicCountMap> updated_topics_replicated;
-  std::set<std::string> registered_handlers;
+  std::map<std::string, syncer::TopicCountMap> updated_topics_replicated;
+  std::multiset<std::string> registered_handlers;
 };
 
 // Test that the callbacks are actually being called when observers are
@@ -72,7 +73,7 @@ TEST(InvalidationLoggerTest, TestCallbacks) {
   InvalidationLoggerObserverTest observer_test;
 
   log.RegisterObserver(&observer_test);
-  log.OnStateChange(INVALIDATIONS_ENABLED);
+  log.OnStateChange(syncer::INVALIDATIONS_ENABLED);
   EXPECT_TRUE(observer_test.state_received);
   EXPECT_FALSE(observer_test.update_id_received);
   EXPECT_FALSE(observer_test.registration_change_received);
@@ -82,7 +83,7 @@ TEST(InvalidationLoggerTest, TestCallbacks) {
 
   observer_test.ResetStates();
 
-  log.OnInvalidation(TopicInvalidationMap());
+  log.OnInvalidation(syncer::TopicInvalidationMap());
   EXPECT_TRUE(observer_test.invalidation_received);
   EXPECT_FALSE(observer_test.state_received);
   EXPECT_FALSE(observer_test.update_id_received);
@@ -103,12 +104,12 @@ TEST(InvalidationLoggerTest, TestReleaseOfObserver) {
   log.RegisterObserver(&observer_test);
   log.UnregisterObserver(&observer_test);
 
-  log.OnInvalidation(TopicInvalidationMap());
-  log.OnStateChange(INVALIDATIONS_ENABLED);
+  log.OnInvalidation(syncer::TopicInvalidationMap());
+  log.OnStateChange(syncer::INVALIDATIONS_ENABLED);
   log.OnRegistration(std::string());
   log.OnUnregistration(std::string());
-  log.OnDebugMessage(base::Value::Dict());
-  log.OnUpdatedTopics(std::map<std::string, Topics>());
+  log.OnDebugMessage(base::DictionaryValue());
+  log.OnUpdatedTopics(std::map<std::string, syncer::Topics>());
   EXPECT_FALSE(observer_test.registration_change_received);
   EXPECT_FALSE(observer_test.update_id_received);
   EXPECT_FALSE(observer_test.invalidation_received);
@@ -136,8 +137,8 @@ TEST(InvalidationLoggerTest, TestEmitContent) {
   EXPECT_FALSE(observer_test.detailed_status_received);
 
   observer_test.ResetStates();
-  std::map<std::string, Topics> test_map;
-  test_map["Test"] = Topics();
+  std::map<std::string, syncer::Topics> test_map;
+  test_map["Test"] = syncer::Topics();
   log.OnUpdatedTopics(test_map);
   EXPECT_TRUE(observer_test.update_id_received);
   observer_test.ResetStates();
@@ -159,26 +160,26 @@ TEST(InvalidationLoggerTest, TestEmitContent) {
 TEST(InvalidationLoggerTest, TestUpdatedTopicsMap) {
   InvalidationLogger log;
   InvalidationLoggerObserverTest observer_test;
-  std::map<std::string, Topics> send_test_map;
-  std::map<std::string, TopicCountMap> expected_received_map;
+  std::map<std::string, syncer::Topics> send_test_map;
+  std::map<std::string, syncer::TopicCountMap> expected_received_map;
   log.RegisterObserver(&observer_test);
 
-  Topics topics_a;
-  TopicCountMap topics_counts_a;
+  syncer::Topics topics_a;
+  syncer::TopicCountMap topics_counts_a;
 
-  Topic t1 = "Topic1";
-  topics_a.emplace(t1, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t1 = "Topic1";
+  topics_a.emplace(t1, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts_a[t1] = 0;
 
-  Topic t2 = "Topic2";
-  topics_a.emplace(t2, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t2 = "Topic2";
+  topics_a.emplace(t2, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts_a[t2] = 0;
 
-  Topics topics_b;
-  TopicCountMap topics_counts_b;
+  syncer::Topics topics_b;
+  syncer::TopicCountMap topics_counts_b;
 
-  Topic t3 = "Topic3";
-  topics_b.emplace(t3, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t3 = "Topic3";
+  topics_b.emplace(t3, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts_b[t3] = 0;
 
   send_test_map["TestA"] = topics_a;
@@ -190,15 +191,15 @@ TEST(InvalidationLoggerTest, TestUpdatedTopicsMap) {
   log.OnUpdatedTopics(send_test_map);
   EXPECT_EQ(expected_received_map, observer_test.updated_topics_replicated);
 
-  Topics topics_b2;
-  TopicCountMap topics_counts_b2;
+  syncer::Topics topics_b2;
+  syncer::TopicCountMap topics_counts_b2;
 
-  Topic t4 = "Topic4";
-  topics_b2.emplace(t4, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t4 = "Topic4";
+  topics_b2.emplace(t4, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts_b2[t4] = 0;
 
-  Topic t5 = "Topic5";
-  topics_b2.emplace(t5, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t5 = "Topic5";
+  topics_b2.emplace(t5, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts_b2[t5] = 0;
 
   send_test_map["TestB"] = topics_b2;
@@ -223,21 +224,21 @@ TEST(InvalidationLoggerTest, TestInvalidtionsTotalCount) {
   InvalidationLoggerObserverTest observer_test;
   log.RegisterObserver(&observer_test);
 
-  std::map<std::string, Topics> send_test_map;
-  std::map<std::string, TopicCountMap> expected_received_map;
-  Topics topics;
-  TopicCountMap topics_counts;
+  std::map<std::string, syncer::Topics> send_test_map;
+  std::map<std::string, syncer::TopicCountMap> expected_received_map;
+  syncer::Topics topics;
+  syncer::TopicCountMap topics_counts;
 
-  Topic t1 = "Topic1";
-  topics.emplace(t1, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t1 = "Topic1";
+  topics.emplace(t1, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts[t1] = 1;
 
   // Generate invalidation for |t1| only.
-  TopicInvalidationMap fake_invalidations;
-  fake_invalidations.Insert(Invalidation::InitUnknownVersion(t1));
+  syncer::TopicInvalidationMap fake_invalidations;
+  fake_invalidations.Insert(syncer::Invalidation::InitUnknownVersion(t1));
 
-  Topic t2 = "Topic2";
-  topics.emplace(t2, TopicMetadata{/*is_public=*/false});
+  syncer::Topic t2 = "Topic2";
+  topics.emplace(t2, syncer::TopicMetadata{/*is_public=*/false});
   topics_counts[t2] = 0;
 
   // Register the two Topics and send an invalidation only for |t1|.
@@ -263,24 +264,23 @@ TEST(InvalidationLoggerTest, TestRegisteredHandlers) {
   log.RegisterObserver(&observer_test);
 
   log.OnRegistration(std::string("FakeHandler1"));
-  std::set<std::string> test_set;
-  test_set.insert("FakeHandler1");
+  std::multiset<std::string> test_multiset;
+  test_multiset.insert("FakeHandler1");
   EXPECT_TRUE(observer_test.registration_change_received);
-  EXPECT_EQ(observer_test.registered_handlers, test_set);
+  EXPECT_EQ(observer_test.registered_handlers, test_multiset);
 
   observer_test.ResetStates();
   log.OnRegistration(std::string("FakeHandler2"));
-  test_set.insert("FakeHandler2");
+  test_multiset.insert("FakeHandler2");
   EXPECT_TRUE(observer_test.registration_change_received);
-  EXPECT_EQ(observer_test.registered_handlers, test_set);
+  EXPECT_EQ(observer_test.registered_handlers, test_multiset);
 
   observer_test.ResetStates();
   log.OnUnregistration(std::string("FakeHandler2"));
-  test_set.erase("FakeHandler2");
+  test_multiset.erase("FakeHandler2");
   EXPECT_TRUE(observer_test.registration_change_received);
-  EXPECT_EQ(observer_test.registered_handlers, test_set);
+  EXPECT_EQ(observer_test.registered_handlers, test_multiset);
 
   log.UnregisterObserver(&observer_test);
 }
-
 }  // namespace invalidation

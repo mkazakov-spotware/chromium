@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,6 @@ namespace content {
 namespace {
 
 class ResourceSchedulerBrowserTest : public ContentBrowserTest {
- public:
-  ResourceSchedulerBrowserTest(const ResourceSchedulerBrowserTest&) = delete;
-  ResourceSchedulerBrowserTest& operator=(const ResourceSchedulerBrowserTest&) =
-      delete;
-
  protected:
   ResourceSchedulerBrowserTest() {}
   ~ResourceSchedulerBrowserTest() override {}
@@ -29,27 +24,34 @@ class ResourceSchedulerBrowserTest : public ContentBrowserTest {
   void SetUpInProcessBrowserTestFixture() override {
     ASSERT_TRUE(embedded_test_server()->Start());
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ResourceSchedulerBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(ResourceSchedulerBrowserTest,
-                       DISABLED_ResourceLoadingExperimentIncognito) {
+                       ResourceLoadingExperimentIncognito) {
   GURL url(embedded_test_server()->GetURL(
       "/resource_loading/resource_loading_non_mobile.html"));
 
   Shell* otr_browser = CreateOffTheRecordBrowser();
   EXPECT_TRUE(NavigateToURL(otr_browser, url));
-  EXPECT_EQ(9, EvalJs(otr_browser, "getResourceNumber()",
-                      EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+  int data = -1;
+  EXPECT_TRUE(
+      ExecuteScriptAndExtractInt(otr_browser, "getResourceNumber()", &data));
+  EXPECT_EQ(9, data);
 }
 
 IN_PROC_BROWSER_TEST_F(ResourceSchedulerBrowserTest,
-                       DISABLED_ResourceLoadingExperimentNormal) {
+                       ResourceLoadingExperimentNormal) {
   GURL url(embedded_test_server()->GetURL(
       "/resource_loading/resource_loading_non_mobile.html"));
   Shell* browser = shell();
   EXPECT_TRUE(NavigateToURL(browser, url));
-  EXPECT_EQ(9, EvalJs(browser, "getResourceNumber()",
-                      EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+  int data = -1;
+  EXPECT_TRUE(
+      ExecuteScriptAndExtractInt(browser, "getResourceNumber()", &data));
+  EXPECT_EQ(9, data);
 }
 
 }  // anonymous namespace

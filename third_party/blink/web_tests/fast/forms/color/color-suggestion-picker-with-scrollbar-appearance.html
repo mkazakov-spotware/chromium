@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/picker-common.js"></script>
-
-<input type=color value="#ff0000" list=many focus>
+<html>
+<head>
+<script>
+window.enablePixelTesting = true;
+</script>
+<script src="../../../resources/js-test.js"></script>
+<script src="../../forms/resources/picker-common.js"></script>
+</head>
+<body>
+<input type=color id=color value="#ff0000" list=many focus>
 <datalist id=many>
     <option>#000000</option>
     <option>#070707</option>
@@ -43,6 +48,11 @@
     <option>#ffffff</option>
 </datalist>
 
+<p id="description" style="opacity: 0"></p>
+<div id="console" style="opacity: 0"></div>
+
 <script>
-  window.onload = openPickerAppearanceOnly(document.querySelector('input'));
+openPickerAppearanceOnly(document.getElementById('color'), finishJSTest);
 </script>
+</body>
+</html>

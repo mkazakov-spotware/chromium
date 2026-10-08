@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stddef.h>
 
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/env.h"
@@ -48,7 +47,7 @@ Window* CreateTestWindowWithDelegateAndType(WindowDelegate* delegate,
                                             Window* parent,
                                             bool show_on_creation) {
   Window* window = new Window(delegate, type);
-  window->SetId(id);
+  window->set_id(id);
   window->Init(ui::LAYER_TEXTURED);
   window->SetProperty(
       client::kResizeBehaviorKey,
@@ -66,8 +65,10 @@ bool ObjectIsAbove(T* upper, T* lower) {
   DCHECK_EQ(upper->parent(), lower->parent());
   DCHECK_NE(upper, lower);
   const std::vector<T*>& children = upper->parent()->children();
-  const size_t upper_i = base::ranges::find(children, upper) - children.begin();
-  const size_t lower_i = base::ranges::find(children, lower) - children.begin();
+  const size_t upper_i =
+      std::find(children.begin(), children.end(), upper) - children.begin();
+  const size_t lower_i =
+      std::find(children.begin(), children.end(), lower) - children.begin();
   return upper_i > lower_i;
 }
 
@@ -85,7 +86,7 @@ std::string ChildWindowIDsAsString(aura::Window* parent) {
        ++i) {
     if (!result.empty())
       result += " ";
-    result += base::NumberToString((*i)->GetId());
+    result += base::NumberToString((*i)->id());
   }
   return result;
 }

@@ -1,4 +1,4 @@
-// META: script=resources/support.js
+// META: script=support.js
 
 indexeddb_test(
   (t, db) => {

@@ -43,6 +43,7 @@ class SQLValue {
   SQLValue() : type_(kNullValue), number_(0.0) {}
   SQLValue(double number) : type_(kNumberValue), number_(number) {}
   SQLValue(const String& s) : type_(kStringValue), number_(0.0), string_(s) {}
+  SQLValue(const SQLValue&);
 
   Type GetType() const { return type_; }
 
@@ -57,4 +58,4 @@ class SQLValue {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_WEBDATABASE_SQLITE_SQL_VALUE_H_
+#endif

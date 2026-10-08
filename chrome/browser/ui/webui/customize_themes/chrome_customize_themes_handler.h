@@ -1,12 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_CUSTOMIZE_THEMES_CHROME_CUSTOMIZE_THEMES_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_CUSTOMIZE_THEMES_CHROME_CUSTOMIZE_THEMES_HANDLER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/themes/theme_service_observer.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -32,7 +32,7 @@ class ThemeService;
 // receiver about all theme updates in the current profile.
 class ChromeCustomizeThemesHandler
     : public customize_themes::mojom::CustomizeThemesHandler,
-      public ThemeServiceObserver {
+      public content::NotificationObserver {
  public:
   explicit ChromeCustomizeThemesHandler(
       mojo::PendingRemote<customize_themes::mojom::CustomizeThemesClient>
@@ -52,8 +52,10 @@ class ChromeCustomizeThemesHandler
   void ConfirmThemeChanges() override;
   void RevertThemeChanges() override;
 
-  // ThemeServiceObserver:
-  void OnThemeChanged() override;
+  // content::NotificationObserver:
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
  private:
   void UpdateTheme();
@@ -61,10 +63,12 @@ class ChromeCustomizeThemesHandler
   mojo::Remote<customize_themes::mojom::CustomizeThemesClient> remote_client_;
   mojo::Receiver<customize_themes::mojom::CustomizeThemesHandler> receiver_;
 
-  const raw_ptr<content::WebContents> web_contents_;
-  const raw_ptr<Profile> profile_;
-  const raw_ptr<chrome_colors::ChromeColorsService> chrome_colors_service_;
-  const raw_ptr<ThemeService> theme_service_;
+  content::WebContents* const web_contents_;
+  Profile* const profile_;
+  chrome_colors::ChromeColorsService* const chrome_colors_service_;
+  ThemeService* const theme_service_;
+
+  content::NotificationRegistrar notification_registrar_;
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_CUSTOMIZE_THEMES_CHROME_CUSTOMIZE_THEMES_HANDLER_H_

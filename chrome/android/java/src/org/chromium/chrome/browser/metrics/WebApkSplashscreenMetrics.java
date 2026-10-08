@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.metrics;
 
-import org.chromium.chrome.browser.browserservices.metrics.WebApkUmaRecorder;
 import org.chromium.chrome.browser.browserservices.ui.splashscreen.SplashscreenObserver;
 
 /**
@@ -33,13 +32,11 @@ public class WebApkSplashscreenMetrics implements SplashscreenObserver {
 
         // commit both shown/hidden histograms here because native may not be loaded when the
         // splashscreen is shown.
-        WebApkUmaRecorder.recordShellApkLaunchToSplashVisible(
-                startTimestamp - mShellApkLaunchTimestamp);
-        WebApkUmaRecorder.recordShellApkLaunchToSplashHidden(
-                endTimestamp - mShellApkLaunchTimestamp);
+        WebApkUma.recordShellApkLaunchToSplashVisible(startTimestamp - mShellApkLaunchTimestamp);
+        WebApkUma.recordShellApkLaunchToSplashHidden(endTimestamp - mShellApkLaunchTimestamp);
 
         if (mNewStyleSplashShownTimestamp != -1) {
-            WebApkUmaRecorder.recordNewStyleShellApkLaunchToSplashVisible(
+            WebApkUma.recordNewStyleShellApkLaunchToSplashVisible(
                     mNewStyleSplashShownTimestamp - mShellApkLaunchTimestamp);
         }
     }

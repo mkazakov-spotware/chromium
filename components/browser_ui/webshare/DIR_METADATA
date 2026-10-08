@@ -2,3 +2,4 @@ monorail {
   component: "Blink>WebShare"
 }
 
+os: ANDROID

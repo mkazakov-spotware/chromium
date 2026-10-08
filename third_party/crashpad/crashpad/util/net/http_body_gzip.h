@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/net/http_body.h"
 
@@ -34,9 +35,6 @@ namespace crashpad {
 class GzipHTTPBodyStream : public HTTPBodyStream {
  public:
   explicit GzipHTTPBodyStream(std::unique_ptr<HTTPBodyStream> source);
-
-  GzipHTTPBodyStream(const GzipHTTPBodyStream&) = delete;
-  GzipHTTPBodyStream& operator=(const GzipHTTPBodyStream&) = delete;
 
   ~GzipHTTPBodyStream() override;
 
@@ -60,6 +58,8 @@ class GzipHTTPBodyStream : public HTTPBodyStream {
   std::unique_ptr<HTTPBodyStream> source_;
   std::unique_ptr<z_stream> z_stream_;
   State state_;
+
+  DISALLOW_COPY_AND_ASSIGN(GzipHTTPBodyStream);
 };
 
 }  // namespace crashpad

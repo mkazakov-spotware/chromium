@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -115,8 +115,8 @@ x11::GrabStatus GrabPointer(x11::Window window,
 }
 
 void ChangeActivePointerGrabCursor(scoped_refptr<ui::X11Cursor> cursor) {
-  if (g_grab_window != x11::Window::None)
-    GrabPointer(g_grab_window, g_owner_events, cursor);
+  DCHECK(g_grab_window != x11::Window::None);
+  GrabPointer(g_grab_window, g_owner_events, cursor);
 }
 
 void UngrabPointer() {
@@ -132,7 +132,7 @@ void UngrabPointer() {
     }
   }
   // Try core pointer ungrab in case the XInput2 pointer ungrab failed.
-  connection->UngrabPointer().IgnoreError();
+  connection->UngrabPointer({}).IgnoreError();
 }
 
 }  // namespace ui

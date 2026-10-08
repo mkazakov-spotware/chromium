@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,6 @@ import org.chromium.base.Callback;
  * Interface to handle chip data and actions.
  */
 public interface ChipDelegate {
-    /**
-     * Determines whether the chip delegate is able to support a chip in the chosen context.
-     * @return Whether the chip can be supported and rendered.
-     */
-    boolean isChipSupported();
-
     /**
      * Retrieves the data for displaying a chip below the context menu.
      * @param callback The callback will always be called with the retrieved ChipRenderParams.

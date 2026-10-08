@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <array>
 #include <memory>
 
-#include "base/callback_helpers.h"
 #include "base/message_loop/message_pump.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
@@ -37,8 +36,10 @@ class BrowserTaskQueuesTest : public testing::Test {
   BrowserTaskQueuesTest()
       : sequence_manager_(CreateSequenceManagerOnCurrentThreadWithPump(
             base::MessagePump::Create(base::MessagePumpType::DEFAULT))),
-        queues_(std::make_unique<BrowserTaskQueues>(BrowserThread::UI,
-                                                    sequence_manager_.get())),
+        queues_(std::make_unique<BrowserTaskQueues>(
+            BrowserThread::UI,
+            sequence_manager_.get(),
+            sequence_manager_->GetRealTimeDomain())),
         handle_(queues_->GetHandle()) {
     sequence_manager_->SetDefaultTaskRunner(handle_->GetDefaultTaskRunner());
   }
@@ -61,7 +62,7 @@ TEST_F(BrowserTaskQueuesTest, NoTaskRunsUntilQueuesAreEnabled) {
     run_loop.Run();
   }
 
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
 
   {
     RunLoop run_loop;
@@ -102,7 +103,7 @@ TEST_F(BrowserTaskQueuesTest, TasksRunWhenQueuesAreEnabled) {
     run_loop.Run();
   }
 
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
 
   {
     RunLoop run_loop;
@@ -113,7 +114,7 @@ TEST_F(BrowserTaskQueuesTest, TasksRunWhenQueuesAreEnabled) {
 }
 
 TEST_F(BrowserTaskQueuesTest, SimplePosting) {
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
   scoped_refptr<base::SingleThreadTaskRunner> tq =
       handle_->GetBrowserTaskRunner(QueueType::kDefault);
 
@@ -136,7 +137,7 @@ TEST_F(BrowserTaskQueuesTest, SimplePosting) {
 }
 
 TEST_F(BrowserTaskQueuesTest, RunAllPendingTasksForTesting) {
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
 
   StrictMockTask task;
   StrictMockTask followup_task;
@@ -166,7 +167,7 @@ TEST_F(BrowserTaskQueuesTest, RunAllPendingTasksForTesting) {
 
 TEST_F(BrowserTaskQueuesTest, RunAllPendingTasksForTestingRunsAllTasks) {
   constexpr size_t kTasksPerPriority = 100;
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
 
   StrictMockTask task;
   EXPECT_CALL(task, Run).Times(BrowserTaskQueues::kNumQueueTypes *
@@ -184,7 +185,7 @@ TEST_F(BrowserTaskQueuesTest, RunAllPendingTasksForTestingRunsAllTasks) {
 }
 
 TEST_F(BrowserTaskQueuesTest, RunAllPendingTasksForTestingIsReentrant) {
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
   StrictMockTask task_1;
   StrictMockTask task_2;
   StrictMockTask task_3;
@@ -240,7 +241,7 @@ TEST_F(BrowserTaskQueuesTest,
     // RunAllPendingTasksForTesting() call
     handle_->GetBrowserTaskRunner(QueueType::kBestEffort)
         ->PostTask(FROM_HERE, task_3.Get());
-    handle_->OnStartupComplete();
+    handle_->EnableAllQueues();
   }));
   EXPECT_CALL(task_2, Run);
 
@@ -255,13 +256,14 @@ TEST_F(BrowserTaskQueuesTest,
 }
 
 TEST_F(BrowserTaskQueuesTest, HandleStillWorksWhenQueuesDestroyed) {
-  handle_->OnStartupComplete();
+  handle_->EnableAllQueues();
   StrictMockTask task;
   queues_.reset();
 
   for (size_t i = 0; i < BrowserTaskQueues::kNumQueueTypes; ++i) {
-    EXPECT_FALSE(handle_->GetBrowserTaskRunner(static_cast<QueueType>(i))
-                     ->PostTask(FROM_HERE, base::DoNothing()));
+    EXPECT_FALSE(
+        handle_->GetBrowserTaskRunner(static_cast<QueueType>(i))
+            ->PostTask(FROM_HERE, base::BindLambdaForTesting([]() {})));
   }
 
   RunLoop run_loop;

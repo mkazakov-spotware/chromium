@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,11 +29,10 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/sys_byteorder.h"
-#include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <uuid/uuid.h>
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
 namespace crashpad {
 
@@ -42,10 +41,6 @@ static_assert(std::is_pod<UUID>::value, "UUID must be POD");
 
 bool UUID::operator==(const UUID& that) const {
   return memcmp(this, &that, sizeof(*this)) == 0;
-}
-
-bool UUID::operator<(const UUID& that) const {
-  return memcmp(this, &that, sizeof(*this)) < 0;
 }
 
 void UUID::InitializeToZero() {
@@ -88,20 +83,20 @@ bool UUID::InitializeFromString(const base::StringPiece& string) {
   return true;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 bool UUID::InitializeFromString(const base::WStringPiece& string) {
   return InitializeFromString(WideToUTF8(string));
 }
 #endif
 
 bool UUID::InitializeWithNew() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   uuid_t uuid;
   uuid_generate(uuid);
   InitializeFromBytes(uuid);
   return true;
-#elif BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS) || \
+    defined(OS_ANDROID) || defined(OS_FUCHSIA)
   // Linux, Android, and Fuchsia do not provide a UUID generator in a
   // widely-available system library. On Linux and Android, uuid_generate()
   // from libuuid is not available everywhere.
@@ -116,10 +111,10 @@ bool UUID::InitializeWithNew() {
   return true;
 #else
 #error Port.
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void UUID::InitializeFromSystemUUID(const ::UUID* system_uuid) {
   static_assert(sizeof(::UUID) == sizeof(UUID),
                 "unexpected system uuid size");
@@ -127,7 +122,7 @@ void UUID::InitializeFromSystemUUID(const ::UUID* system_uuid) {
                 "unexpected system uuid layout");
   memcpy(this, system_uuid, sizeof(*this));
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 std::string UUID::ToString() const {
   return base::StringPrintf("%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
@@ -144,10 +139,10 @@ std::string UUID::ToString() const {
                             data_5[5]);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 std::wstring UUID::ToWString() const {
   return base::UTF8ToWide(ToString());
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 }  // namespace crashpad

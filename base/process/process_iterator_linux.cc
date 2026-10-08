@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,12 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/notreached.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/process/internal_linux.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 
 namespace base {
-
-class ScopedAllowBlockingForProc : public ScopedAllowBlocking {};
 
 namespace {
 
@@ -47,7 +44,7 @@ std::string GetProcStatsFieldAsString(
 // delimiter.
 bool GetProcCmdline(pid_t pid, std::vector<std::string>* proc_cmd_line_args) {
   // Synchronously reading files in /proc is safe.
-  ScopedAllowBlockingForProc allow_blocking;
+  ThreadRestrictions::ScopedAllowIO allow_io;
 
   FilePath cmd_line_file = internal::GetProcPidDir(pid).Append("cmdline");
   std::string cmd_line;
@@ -63,7 +60,8 @@ bool GetProcCmdline(pid_t pid, std::vector<std::string>* proc_cmd_line_args) {
 }  // namespace
 
 ProcessIterator::ProcessIterator(const ProcessFilter* filter)
-    : procfs_dir_(opendir(internal::kProcDir)), filter_(filter) {
+    : filter_(filter) {
+  procfs_dir_ = opendir(internal::kProcDir);
   if (!procfs_dir_) {
     // On Android, SELinux may prevent reading /proc. See
     // https://crbug.com/581517 for details.
@@ -71,7 +69,12 @@ ProcessIterator::ProcessIterator(const ProcessFilter* filter)
   }
 }
 
-ProcessIterator::~ProcessIterator() = default;
+ProcessIterator::~ProcessIterator() {
+  if (procfs_dir_) {
+    closedir(procfs_dir_);
+    procfs_dir_ = nullptr;
+  }
+}
 
 bool ProcessIterator::CheckForNextProcess() {
   // TODO(port): skip processes owned by different UID
@@ -91,7 +94,7 @@ bool ProcessIterator::CheckForNextProcess() {
   int skipped = 0;
   const int kSkipLimit = 200;
   while (skipped < kSkipLimit) {
-    dirent* slot = readdir(procfs_dir_.get());
+    dirent* slot = readdir(procfs_dir_);
     // all done looking through /proc?
     if (!slot)
       return false;
@@ -133,10 +136,8 @@ bool ProcessIterator::CheckForNextProcess() {
   }
 
   entry_.pid_ = pid;
-  entry_.ppid_ = checked_cast<ProcessId>(
-      GetProcStatsFieldAsInt64(proc_stats, internal::VM_PPID));
-  entry_.gid_ = checked_cast<ProcessId>(
-      GetProcStatsFieldAsInt64(proc_stats, internal::VM_PGRP));
+  entry_.ppid_ = GetProcStatsFieldAsInt64(proc_stats, internal::VM_PPID);
+  entry_.gid_ = GetProcStatsFieldAsInt64(proc_stats, internal::VM_PGRP);
   entry_.cmd_line_args_.assign(cmd_line_args.begin(), cmd_line_args.end());
   entry_.exe_file_ = GetProcessExecutablePath(pid).BaseName().value();
   return true;

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,17 +36,19 @@ TEST_F(FirefoxProfileLockTest, ProfileLock) {
   base::FilePath lock_file_path =
       test_path.Append(FirefoxProfileLock::kLockFileName);
 
+  std::unique_ptr<FirefoxProfileLock> lock;
+  EXPECT_EQ(static_cast<FirefoxProfileLock*>(NULL), lock.get());
   EXPECT_FALSE(base::PathExists(lock_file_path));
-  auto lock = std::make_unique<FirefoxProfileLock>(test_path);
+  lock.reset(new FirefoxProfileLock(test_path));
   EXPECT_TRUE(lock->HasAcquired());
   EXPECT_TRUE(base::PathExists(lock_file_path));
   lock->Unlock();
   EXPECT_FALSE(lock->HasAcquired());
 
   // In the posix code, we don't delete the file when releasing the lock.
-#if !BUILDFLAG(IS_POSIX)
+#if !defined(OS_POSIX)
   EXPECT_FALSE(base::PathExists(lock_file_path));
-#endif  // !BUILDFLAG(IS_POSIX)
+#endif  // !defined(OS_POSIX)
   lock->Lock();
   EXPECT_TRUE(lock->HasAcquired());
   EXPECT_TRUE(base::PathExists(lock_file_path));
@@ -55,9 +57,9 @@ TEST_F(FirefoxProfileLockTest, ProfileLock) {
   lock->Unlock();
   EXPECT_FALSE(lock->HasAcquired());
   // In the posix code, we don't delete the file when releasing the lock.
-#if !BUILDFLAG(IS_POSIX)
+#if !defined(OS_POSIX)
   EXPECT_FALSE(base::PathExists(lock_file_path));
-#endif  // !BUILDFLAG(IS_POSIX)
+#endif  // !defined(OS_POSIX)
 }
 
 // If for some reason the lock file is left behind by the previous owner, we
@@ -73,7 +75,9 @@ TEST_F(FirefoxProfileLockTest, ProfileLockOrphaned) {
   base::CloseFile(lock_file);
   EXPECT_TRUE(base::PathExists(lock_file_path));
 
-  auto lock = std::make_unique<FirefoxProfileLock>(test_path);
+  std::unique_ptr<FirefoxProfileLock> lock;
+  EXPECT_EQ(static_cast<FirefoxProfileLock*>(NULL), lock.get());
+  lock.reset(new FirefoxProfileLock(test_path));
   EXPECT_TRUE(lock->HasAcquired());
   lock->Unlock();
   EXPECT_FALSE(lock->HasAcquired());
@@ -81,15 +85,19 @@ TEST_F(FirefoxProfileLockTest, ProfileLockOrphaned) {
 
 // This is broken on POSIX since the same process is allowed to reacquire a
 // lock.
-#if !BUILDFLAG(IS_POSIX)
+#if !defined(OS_POSIX)
 // Tests two locks contending for the same lock file.
 TEST_F(FirefoxProfileLockTest, ProfileLockContention) {
   base::FilePath test_path = temp_dir_.GetPath();
 
-  auto lock1 = std::make_unique<FirefoxProfileLock>(test_path);
+  std::unique_ptr<FirefoxProfileLock> lock1;
+  EXPECT_EQ(static_cast<FirefoxProfileLock*>(NULL), lock1.get());
+  lock1.reset(new FirefoxProfileLock(test_path));
   EXPECT_TRUE(lock1->HasAcquired());
 
-  auto lock2 = std::make_unique<FirefoxProfileLock>(test_path);
+  std::unique_ptr<FirefoxProfileLock> lock2;
+  EXPECT_EQ(static_cast<FirefoxProfileLock*>(NULL), lock2.get());
+  lock2.reset(new FirefoxProfileLock(test_path));
   EXPECT_FALSE(lock2->HasAcquired());
 
   lock1->Unlock();

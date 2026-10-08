@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/apdu/apdu_command.h"
-
-#include "base/check_op.h"
 
 namespace apdu {
 
@@ -18,10 +16,10 @@ uint16_t ParseMessageLength(base::span<const uint8_t> message, size_t offset) {
 
 }  // namespace
 
-absl::optional<ApduCommand> ApduCommand::CreateFromMessage(
+base::Optional<ApduCommand> ApduCommand::CreateFromMessage(
     base::span<const uint8_t> message) {
   if (message.size() < kApduMinHeader || message.size() > kApduMaxLength)
-    return absl::nullopt;
+    return base::nullopt;
 
   uint8_t cla = message[0];
   uint8_t ins = message[1];
@@ -38,12 +36,12 @@ absl::optional<ApduCommand> ApduCommand::CreateFromMessage(
     // Invalid encoding sizes.
     case kApduMinHeader + 1:
     case kApduMinHeader + 2:
-      return absl::nullopt;
+      return base::nullopt;
     // No data present; response expected.
     case kApduMinHeader + 3:
       // Fifth byte must be 0.
       if (message[4] != 0)
-        return absl::nullopt;
+        return base::nullopt;
       response_length = ParseMessageLength(message, kApduCommandLengthOffset);
       // Special case where response length of 0x0000 corresponds to 65536
       // as defined in ISO7816-4.
@@ -53,7 +51,7 @@ absl::optional<ApduCommand> ApduCommand::CreateFromMessage(
     default:
       // Fifth byte must be 0.
       if (message[4] != 0)
-        return absl::nullopt;
+        return base::nullopt;
       auto data_length = ParseMessageLength(message, kApduCommandLengthOffset);
 
       if (message.size() == data_length + kApduCommandDataOffset) {
@@ -71,7 +69,7 @@ absl::optional<ApduCommand> ApduCommand::CreateFromMessage(
         if (response_length == 0)
           response_length = kApduMaxResponseLength;
       } else {
-        return absl::nullopt;
+        return base::nullopt;
       }
       break;
   }

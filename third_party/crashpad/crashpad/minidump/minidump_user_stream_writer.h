@@ -1,4 +1,4 @@
-// Copyright 2016 The Crashpad Authors
+// Copyright 2016 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "minidump/minidump_extensions.h"
 #include "minidump/minidump_stream_writer.h"
 #include "minidump/minidump_writable.h"
@@ -34,10 +35,6 @@ namespace crashpad {
 class MinidumpUserStreamWriter final : public internal::MinidumpStreamWriter {
  public:
   MinidumpUserStreamWriter();
-
-  MinidumpUserStreamWriter(const MinidumpUserStreamWriter&) = delete;
-  MinidumpUserStreamWriter& operator=(const MinidumpUserStreamWriter&) = delete;
-
   ~MinidumpUserStreamWriter() override;
 
   //! \brief Initializes a MINIDUMP_USER_STREAM based on \a stream.
@@ -73,6 +70,8 @@ class MinidumpUserStreamWriter final : public internal::MinidumpStreamWriter {
   std::unique_ptr<ContentsWriter> contents_writer_;
 
   MinidumpStreamType stream_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(MinidumpUserStreamWriter);
 };
 
 }  // namespace crashpad

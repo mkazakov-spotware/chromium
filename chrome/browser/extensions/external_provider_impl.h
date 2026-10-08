@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,21 +10,22 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/values.h"
 #include "chrome/browser/extensions/external_loader.h"
 #include "extensions/browser/external_provider_interface.h"
 #include "extensions/common/manifest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class Profile;
 
 namespace base {
+class DictionaryValue;
 class Version;
 }
 
 namespace extensions {
+
+class PendingExtensionManager;
 
 // A specialization of the ExternalProvider that uses an instance of
 // ExternalLoader to provide external extensions. This class can be seen as a
@@ -38,16 +39,13 @@ class ExternalProviderImpl : public ExternalProviderInterface {
   // |crx_location|: extensions originating from crx files
   // |download_location|: extensions originating from update URLs
   // If either of the origins is not supported by this provider, then it should
-  // be initialized as mojom::ManifestLocation::kInvalidLocation.
+  // be initialized as Manifest::INVALID_LOCATION.
   ExternalProviderImpl(VisitorInterface* service,
                        const scoped_refptr<ExternalLoader>& loader,
                        Profile* profile,
-                       mojom::ManifestLocation crx_location,
-                       mojom::ManifestLocation download_location,
+                       Manifest::Location crx_location,
+                       Manifest::Location download_location,
                        int creation_flags);
-
-  ExternalProviderImpl(const ExternalProviderImpl&) = delete;
-  ExternalProviderImpl& operator=(const ExternalProviderImpl&) = delete;
 
   ~ExternalProviderImpl() override;
 
@@ -55,15 +53,16 @@ class ExternalProviderImpl : public ExternalProviderInterface {
   static void CreateExternalProviders(
       VisitorInterface* service,
       Profile* profile,
+      PendingExtensionManager* pending_extension_manager,
       ProviderCollection* provider_list);
 
   // Sets underlying prefs and notifies provider. Only to be called by the
   // owned ExternalLoader instance.
-  virtual void SetPrefs(base::Value::Dict prefs);
+  virtual void SetPrefs(std::unique_ptr<base::DictionaryValue> prefs);
 
   // Updates the underlying prefs and notifies provider.
   // Only to be called by the owned ExternalLoader instance.
-  void UpdatePrefs(base::Value::Dict prefs);
+  void UpdatePrefs(std::unique_ptr<base::DictionaryValue> prefs);
 
   // ExternalProvider implementation:
   void ServiceShutdown() override;
@@ -71,11 +70,10 @@ class ExternalProviderImpl : public ExternalProviderInterface {
   bool HasExtension(const std::string& id) const override;
   bool GetExtensionDetails(
       const std::string& id,
-      mojom::ManifestLocation* location,
+      Manifest::Location* location,
       std::unique_ptr<base::Version>* version) const override;
 
   bool IsReady() const override;
-  void TriggerOnExternalExtensionFound() override;
 
   static const char kExternalCrx[];
   static const char kExternalVersion[];
@@ -102,12 +100,12 @@ class ExternalProviderImpl : public ExternalProviderInterface {
   void set_allow_updates(bool allow_updates) { allow_updates_ = allow_updates; }
 
  private:
-  bool HandleMinProfileVersion(const base::Value::Dict& extension,
+  bool HandleMinProfileVersion(const base::DictionaryValue* extension,
                                const std::string& extension_id,
                                std::set<std::string>* unsupported_extensions);
 
   bool HandleDoNotInstallForEnterprise(
-      const base::Value::Dict& extension,
+      const base::DictionaryValue* extension,
       const std::string& extension_id,
       std::set<std::string>* unsupported_extensions);
 
@@ -116,24 +114,20 @@ class ExternalProviderImpl : public ExternalProviderInterface {
       std::vector<ExternalInstallInfoUpdateUrl>* external_update_url_extensions,
       std::vector<ExternalInstallInfoFile>* external_file_extensions);
 
-  // Retrieves the extensions from prefs and notifies the extension service for
-  // each extension file/update URL found.
-  void NotifyServiceOnExternalExtensionsFound();
-
   // Location for external extensions that are provided by this provider from
   // local crx files.
-  const mojom::ManifestLocation crx_location_;
+  const Manifest::Location crx_location_;
 
   // Location for external extensions that are provided by this provider from
   // update URLs.
-  const mojom::ManifestLocation download_location_;
+  const Manifest::Location download_location_;
 
   // Weak pointer to the object that consumes the external extensions.
   // This is zeroed out by: ServiceShutdown()
-  raw_ptr<VisitorInterface> service_;  // weak
+  VisitorInterface* service_;  // weak
 
-  // Dict of the external extensions that are provided by this provider.
-  absl::optional<base::Value::Dict> prefs_;
+  // Dictionary of the external extensions that are provided by this provider.
+  std::unique_ptr<base::DictionaryValue> prefs_;
 
   // Indicates that the extensions provided by this provider are loaded
   // entirely.
@@ -144,7 +138,7 @@ class ExternalProviderImpl : public ExternalProviderInterface {
   scoped_refptr<ExternalLoader> loader_;
 
   // The profile that will be used to install external extensions.
-  const raw_ptr<Profile> profile_;
+  Profile* const profile_;
 
   // Creation flags to use for the extension.  These flags will be used
   // when calling Extension::Create() by the crx installer.
@@ -160,6 +154,8 @@ class ExternalProviderImpl : public ExternalProviderInterface {
   // Whether the provider should be allowed to update the set of external
   // extensions it provides.
   bool allow_updates_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ExternalProviderImpl);
 };
 
 }  // namespace extensions

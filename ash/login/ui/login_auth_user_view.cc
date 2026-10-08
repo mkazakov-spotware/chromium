@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,11 @@
 #include <memory>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
 #include "ash/login/login_screen_controller.h"
 #include "ash/login/resources/grit/login_resources.h"
 #include "ash/login/ui/arrow_button_view.h"
-#include "ash/login/ui/fingerprint_auth_factor_model.h"
 #include "ash/login/ui/horizontal_image_sequence_animation_decoder.h"
 #include "ash/login/ui/lock_screen.h"
-#include "ash/login/ui/login_auth_factors_view.h"
-#include "ash/login/ui/login_constants.h"
 #include "ash/login/ui/login_display_style.h"
 #include "ash/login/ui/login_password_view.h"
 #include "ash/login/ui/login_pin_input_view.h"
@@ -25,45 +21,39 @@
 #include "ash/login/ui/non_accessible_view.h"
 #include "ash/login/ui/pin_keyboard_animation.h"
 #include "ash/login/ui/pin_request_view.h"
-#include "ash/login/ui/smart_lock_auth_factor_model.h"
 #include "ash/login/ui/system_label_button.h"
 #include "ash/login/ui/views_utils.h"
-#include "ash/public/cpp/smartlock_state.h"
+#include "ash/public/cpp/login_constants.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
-#include "ash/style/color_util.h"
 #include "ash/system/model/clock_model.h"
 #include "ash/system/model/system_tray_model.h"
-#include "ash/system/time/time_of_day.h"
+#include "ash/system/night_light/time_of_day.h"
+#include "ash/wallpaper/wallpaper_controller_impl.h"
 #include "base/bind.h"
-#include "base/feature_list.h"
 #include "base/i18n/time_formatting.h"
 #include "base/memory/ptr_util.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "components/user_manager/user.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/l10n/time_format.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/compositor/callback_layer_animation_observer.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_sequence.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
-#include "ui/gfx/canvas.h"
+#include "ui/gfx/color_analysis.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/interpolated_transform.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
-#include "ui/views/accessibility/accessibility_paint_checks.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/md_text_button.h"
@@ -72,6 +62,7 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/layout/flex_layout.h"
+#include "ui/views/layout/grid_layout.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/view.h"
 
@@ -92,7 +83,6 @@ const int kDistanceBetweenPasswordFieldAndPinKeyboardDp = 16;
 // Height of button used for switching between pin and password authentication.
 const int kPinPasswordToggleButtonHeight = 32;
 const int kPinPasswordToggleButtonPaddingTop = 24;
-const int kPinPasswordToggleButtonPaddingBottom = 20;
 
 // Distance from the end of pin keyboard to the bottom of the big user view.
 const int kDistanceFromPinKeyboardToBigUserViewBottomDp = 50;
@@ -100,13 +90,15 @@ const int kDistanceFromPinKeyboardToBigUserViewBottomDp = 50;
 // Distance from the top of the user view to the user icon.
 constexpr int kDistanceFromTopOfBigUserViewToUserIconDp = 24;
 
+constexpr SkColor kChallengeResponseErrorColor = gfx::kGoogleRed300;
+
 // Date time format containing only the day of the week, for example: "Tuesday".
 constexpr char kDayOfWeekOnlyTimeFormat[] = "EEEE";
 
 constexpr int kFingerprintIconSizeDp = 28;
 constexpr int kResetToDefaultIconDelayMs = 1300;
 constexpr base::TimeDelta kResetToDefaultMessageDelayMs =
-    base::Milliseconds(3000);
+    base::TimeDelta::FromMilliseconds(3000);
 constexpr int kFingerprintIconTopSpacingDp = 20;
 constexpr int kSpacingBetweenFingerprintIconAndLabelDp = 15;
 constexpr int kFingerprintViewWidthDp = 204;
@@ -115,7 +107,7 @@ constexpr int kFingerprintFailedAnimationDurationMs = 700;
 constexpr int kFingerprintFailedAnimationNumFrames = 45;
 
 constexpr base::TimeDelta kChallengeResponseResetAfterFailureDelay =
-    base::Seconds(5);
+    base::TimeDelta::FromSeconds(5);
 constexpr int kChallengeResponseArrowSizeDp = 48;
 constexpr int kSpacingBetweenChallengeResponseArrowAndIconDp = 100;
 constexpr int kSpacingBetweenChallengeResponseIconAndLabelDp = 15;
@@ -141,10 +133,6 @@ constexpr int kLockedTpmMessageHeightDp = 108;
 constexpr int kLockedTpmMessageIconSizeDp = 24;
 constexpr int kLockedTpmMessageDeltaDp = 0;
 constexpr int kLockedTpmMessageRoundedCornerRadiusDp = 8;
-
-constexpr int kAuthFactorHidingPasswordFieldSlideUpDistanceDp = 42;
-constexpr base::TimeDelta kAuthFactorHidingPasswordFieldSlideUpDuration =
-    base::Milliseconds(600);
 
 constexpr int kNonEmptyWidthDp = 1;
 gfx::Size SizeFromHeight(int height) {
@@ -202,9 +190,29 @@ ui::CallbackLayerAnimationObserver* BuildObserverToNotifyA11yLocationChanged(
       view));
 }
 
+// Clears the password for the given |LoginPasswordView| instance, hides it, and
+// then deletes itself.
+class ClearPasswordAndHideAnimationObserver
+    : public ui::ImplicitAnimationObserver {
+ public:
+  explicit ClearPasswordAndHideAnimationObserver(LoginPasswordView* view)
+      : password_view_(view) {}
+  ~ClearPasswordAndHideAnimationObserver() override = default;
+
+  // ui::ImplicitAnimationObserver:
+  void OnImplicitAnimationsCompleted() override {
+    password_view_->Reset();
+    password_view_->SetVisible(false);
+    delete this;
+  }
+
+ private:
+  LoginPasswordView* const password_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClearPasswordAndHideAnimationObserver);
+};
+
 // The label shown below the fingerprint icon.
-// TODO(https://crbug.com/1233614): Remove this class after the Smart Lock UI
-// revamp is complete.
 class FingerprintLabel : public views::Label {
  public:
   FingerprintLabel() {
@@ -217,9 +225,6 @@ class FingerprintLabel : public views::Label {
     SetTextBasedOnState(FingerprintState::AVAILABLE_DEFAULT,
                         false /*can_use_pin*/);
   }
-
-  FingerprintLabel(const FingerprintLabel&) = delete;
-  FingerprintLabel& operator=(const FingerprintLabel&) = delete;
 
   void SetTextBasedOnAuthAttempt(bool success) {
     SetText(l10n_util::GetStringUTF16(
@@ -239,7 +244,7 @@ class FingerprintLabel : public views::Label {
         case FingerprintState::AVAILABLE_WITH_TOUCH_SENSOR_WARNING:
           return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_TOUCH_SENSOR;
         case FingerprintState::DISABLED_FROM_ATTEMPTS:
-          return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_DISABLED_FROM_ATTEMPTS_OLD;
+          return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_DISABLED_FROM_ATTEMPTS;
         case FingerprintState::DISABLED_FROM_TIMEOUT:
           if (can_use_pin)
             return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_PIN_OR_PASSWORD_REQUIRED;
@@ -258,33 +263,28 @@ class FingerprintLabel : public views::Label {
     SetAccessibleName(l10n_util::GetStringUTF16(get_accessible_id()));
   }
 
-  // views::Label:
+  // views::View:
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
     node_data->role = ax::mojom::Role::kStaticText;
-    node_data->SetNameChecked(accessible_name_);
-  }
-
-  // views::Label:
-  void OnThemeChanged() override {
-    views::Label::OnThemeChanged();
-    SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
-        AshColorProvider::ContentLayerType::kTextColorSecondary));
+    node_data->SetName(accessible_name_);
   }
 
  private:
-  void SetAccessibleName(const std::u16string& name) {
+  void SetAccessibleName(const base::string16& name) {
     accessible_name_ = name;
     NotifyAccessibilityEvent(ax::mojom::Event::kTextChanged,
                              true /*send_native_event*/);
   }
 
-  std::u16string accessible_name_;
+  base::string16 accessible_name_;
+
+  DISALLOW_COPY_AND_ASSIGN(FingerprintLabel);
 };
 
 // The content needed to render the disabled auth message view.
 struct LockScreenMessage {
-  std::u16string title;
-  std::u16string content;
+  base::string16 title;
+  base::string16 content;
   const gfx::VectorIcon* icon;
 };
 
@@ -297,7 +297,7 @@ LockScreenMessage GetWindowLimitMessage(const base::Time& unlock_time,
 
   base::Time local_midnight = base::Time::Now().LocalMidnight();
 
-  std::u16string time_to_display;
+  base::string16 time_to_display;
   if (use_24hour_clock) {
     time_to_display = base::TimeFormatTimeOfDayWithHourClockType(
         unlock_time, base::k24HourClock, base::kDropAmPm);
@@ -306,11 +306,11 @@ LockScreenMessage GetWindowLimitMessage(const base::Time& unlock_time,
         unlock_time, base::k12HourClock, base::kKeepAmPm);
   }
 
-  if (unlock_time < local_midnight + base::Days(1)) {
+  if (unlock_time < local_midnight + base::TimeDelta::FromDays(1)) {
     // Unlock time is today.
     message.content = l10n_util::GetStringFUTF16(
         IDS_ASH_LOGIN_COME_BACK_MESSAGE, time_to_display);
-  } else if (unlock_time < local_midnight + base::Days(2)) {
+  } else if (unlock_time < local_midnight + base::TimeDelta::FromDays(2)) {
     // Unlock time is tomorrow.
     message.content = l10n_util::GetStringFUTF16(
         IDS_ASH_LOGIN_COME_BACK_TOMORROW_MESSAGE, time_to_display);
@@ -331,7 +331,7 @@ LockScreenMessage GetUsageLimitMessage(const base::TimeDelta& used_time) {
 
   // 1 minute is used instead of 0, because the device is used for a few
   // milliseconds before locking.
-  if (used_time < base::Minutes(1)) {
+  if (used_time < base::TimeDelta::FromMinutes(1)) {
     // The device was locked all day.
     message.title = l10n_util::GetStringUTF16(IDS_ASH_LOGIN_TAKE_BREAK_MESSAGE);
     message.content =
@@ -340,9 +340,16 @@ LockScreenMessage GetUsageLimitMessage(const base::TimeDelta& used_time) {
     // The usage limit is over.
     message.title = l10n_util::GetStringUTF16(IDS_ASH_LOGIN_TIME_IS_UP_MESSAGE);
 
-    const std::u16string used_time_string = ui::TimeFormat::Detailed(
-        ui::TimeFormat::Format::FORMAT_DURATION,
-        ui::TimeFormat::Length::LENGTH_LONG, /*cutoff=*/3, used_time);
+    // TODO(933973): Stop displaying the hours part of the string when duration
+    // is less than 1 hour. Example: change "0 hours, 7 minutes" to "7 minutes".
+    base::string16 used_time_string;
+    if (!base::TimeDurationFormat(
+            used_time, base::DurationFormatWidth::DURATION_WIDTH_WIDE,
+            &used_time_string)) {
+      LOG(ERROR) << "Failed to generate time duration string.";
+      return message;
+    }
+
     message.content = l10n_util::GetStringFUTF16(
         IDS_ASH_LOGIN_SCREEN_TIME_USED_MESSAGE, used_time_string);
   }
@@ -381,15 +388,12 @@ LockScreenMessage GetLockScreenMessage(AuthDisabledReason lock_reason,
 }  // namespace
 
 // Consists of fingerprint icon view and a label.
-// TODO(https://crbug.com/1233614): Remove this class after the Smart Lock UI
-// revamp is complete.
 class LoginAuthUserView::FingerprintView : public views::View {
  public:
   FingerprintView() {
     SetPaintToLayer();
     layer()->SetFillsBoundsOpaquely(false);
-    SetBorder(views::CreateEmptyBorder(
-        gfx::Insets::TLBR(kFingerprintIconTopSpacingDp, 0, 0, 0)));
+    SetBorder(views::CreateEmptyBorder(kFingerprintIconTopSpacingDp, 0, 0, 0));
 
     auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical, gfx::Insets(),
@@ -400,7 +404,10 @@ class LoginAuthUserView::FingerprintView : public views::View {
     icon_ = new AnimatedRoundedImageView(
         gfx::Size(kFingerprintIconSizeDp, kFingerprintIconSizeDp),
         0 /*corner_radius*/);
-
+    icon_->SetImage(gfx::CreateVectorIcon(
+        kLockScreenFingerprintIcon, kFingerprintIconSizeDp,
+        AshColorProvider::Get()->GetContentLayerColor(
+            AshColorProvider::ContentLayerType::kIconColorPrimary)));
     AddChildView(icon_);
 
     label_ = new FingerprintLabel();
@@ -408,9 +415,6 @@ class LoginAuthUserView::FingerprintView : public views::View {
 
     DisplayCurrentState();
   }
-
-  FingerprintView(const FingerprintView&) = delete;
-  FingerprintView& operator=(const FingerprintView&) = delete;
 
   ~FingerprintView() override = default;
 
@@ -435,26 +439,22 @@ class LoginAuthUserView::FingerprintView : public views::View {
     label_->SetTextBasedOnState(state_, can_use_pin_);
   }
 
-  void ResetUIState() { DisplayCurrentState(); }
-
   void NotifyFingerprintAuthResult(bool success) {
     reset_state_.Stop();
     label_->SetTextBasedOnAuthAttempt(success);
 
     if (success) {
-      // We do not need to treat the light/dark mode for this use-case since
-      // this hint is shown for a short time interval.
-      icon_->SetImage(gfx::CreateVectorIcon(
-          kLockScreenFingerprintSuccessIcon, kFingerprintIconSizeDp,
-          AshColorProvider::Get()->GetContentLayerColor(
-              AshColorProvider::ContentLayerType::kIconColorPositive)));
+      icon_->SetImage(gfx::CreateVectorIcon(kLockScreenFingerprintSuccessIcon,
+                                            kFingerprintIconSizeDp,
+                                            gfx::kGoogleGreen300));
     } else {
       SetIcon(FingerprintState::DISABLED_FROM_ATTEMPTS);
       // base::Unretained is safe because reset_state_ is owned by |this|.
-      reset_state_.Start(FROM_HERE,
-                         base::Milliseconds(kResetToDefaultIconDelayMs),
-                         base::BindOnce(&FingerprintView::DisplayCurrentState,
-                                        base::Unretained(this)));
+      reset_state_.Start(
+          FROM_HERE,
+          base::TimeDelta::FromMilliseconds(kResetToDefaultIconDelayMs),
+          base::BindOnce(&FingerprintView::DisplayCurrentState,
+                         base::Unretained(this)));
 
       FireAlert();
     }
@@ -481,12 +481,6 @@ class LoginAuthUserView::FingerprintView : public views::View {
     }
   }
 
-  // views::View:
-  void OnThemeChanged() override {
-    views::View::OnThemeChanged();
-    SetIcon(state_);
-  }
-
  private:
   void DisplayCurrentState() {
     SetVisible(state_ != FingerprintState::UNAVAILABLE);
@@ -506,7 +500,7 @@ class LoginAuthUserView::FingerprintView : public views::View {
         state == FingerprintState::AVAILABLE_DEFAULT ||
                 state == FingerprintState::AVAILABLE_WITH_TOUCH_SENSOR_WARNING
             ? icon_color
-            : ColorUtil::GetDisabledColor(icon_color);
+            : AshColorProvider::Get()->GetDisabledColor(icon_color);
     switch (state) {
       case FingerprintState::UNAVAILABLE:
       case FingerprintState::AVAILABLE_DEFAULT:
@@ -520,7 +514,8 @@ class LoginAuthUserView::FingerprintView : public views::View {
             std::make_unique<HorizontalImageSequenceAnimationDecoder>(
                 *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
                     IDR_LOGIN_FINGERPRINT_UNLOCK_SPINNER),
-                base::Milliseconds(kFingerprintFailedAnimationDurationMs),
+                base::TimeDelta::FromMilliseconds(
+                    kFingerprintFailedAnimationDurationMs),
                 kFingerprintFailedAnimationNumFrames),
             AnimatedRoundedImageView::Playback::kSingle);
         break;
@@ -539,6 +534,8 @@ class LoginAuthUserView::FingerprintView : public views::View {
 
   // Affects DISABLED_FROM_TIMEOUT message.
   bool can_use_pin_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(FingerprintView);
 };
 
 // Consists of challenge-response icon view and a label.
@@ -589,9 +586,6 @@ class LoginAuthUserView::ChallengeResponseView : public views::View {
         gfx::Font::Weight::NORMAL));
   }
 
-  ChallengeResponseView(const ChallengeResponseView&) = delete;
-  ChallengeResponseView& operator=(const ChallengeResponseView&) = delete;
-
   ~ChallengeResponseView() override = default;
 
   void SetState(State state) {
@@ -619,16 +613,7 @@ class LoginAuthUserView::ChallengeResponseView : public views::View {
     Layout();
   }
 
-  // views::View:
   void RequestFocus() override { arrow_button_->RequestFocus(); }
-
-  // views::View:
-  void OnThemeChanged() override {
-    views::View::OnThemeChanged();
-    icon_->SetImage(GetImageForIcon());
-    label_->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
-        AshColorProvider::ContentLayerType::kTextColorSecondary));
-  }
 
   views::Button* GetButtonForTesting() { return arrow_button_; }
   views::Label* GetLabelForTesting() { return label_; }
@@ -643,14 +628,13 @@ class LoginAuthUserView::ChallengeResponseView : public views::View {
             AshColorProvider::Get()->GetContentLayerColor(
                 AshColorProvider::ContentLayerType::kIconColorPrimary));
       case State::kFailure:
-        return gfx::CreateVectorIcon(
-            kLockScreenSmartCardFailureIcon, kChallengeResponseIconSizeDp,
-            AshColorProvider::Get()->GetContentLayerColor(
-                AshColorProvider::ContentLayerType::kIconColorAlert));
+        return gfx::CreateVectorIcon(kLockScreenSmartCardFailureIcon,
+                                     kChallengeResponseIconSizeDp,
+                                     kChallengeResponseErrorColor);
     }
   }
 
-  std::u16string GetTextForLabel() const {
+  base::string16 GetTextForLabel() const {
     switch (state_) {
       case State::kInitial:
       case State::kAuthenticating:
@@ -675,14 +659,11 @@ class LoginAuthUserView::ChallengeResponseView : public views::View {
   views::ImageView* icon_ = nullptr;
   views::Label* label_ = nullptr;
   base::OneShotTimer reset_state_timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChallengeResponseView);
 };
 
-// The message shown to the user when auth is disabled. This could happen when:
-// -auth method is |AUTH_DISABLED|
-// -auth method is |AUTH_ONLINE_SIGN_IN| and the user is on the secondary login
-//  screen
-// -the selected account has a restricted multiprofile policy set and the user
-// is on the secondary login screen
+// The message shown to user when the auth method is |AUTH_DISABLED|.
 class LoginAuthUserView::DisabledAuthMessageView : public views::View {
  public:
   class ASH_EXPORT TestApi {
@@ -690,7 +671,7 @@ class LoginAuthUserView::DisabledAuthMessageView : public views::View {
     explicit TestApi(DisabledAuthMessageView* view) : view_(view) {}
     ~TestApi() = default;
 
-    const std::u16string& GetDisabledAuthMessageContent() const {
+    const base::string16& GetDisabledAuthMessageContent() const {
       return view_->message_contents_->GetText();
     }
 
@@ -698,76 +679,103 @@ class LoginAuthUserView::DisabledAuthMessageView : public views::View {
     DisabledAuthMessageView* const view_;
   };
 
-  DisabledAuthMessageView() {
+  // If the reason of disabled auth is multiprofile policy, then we can already
+  // set the text and message. Otherwise, in case of disabled auth because of
+  // time limit exceeded on child account, we wait for SetAuthDisabledMessage to
+  // be called.
+  DisabledAuthMessageView(bool shown_because_of_multiprofile_policy,
+                          MultiProfileUserBehavior multiprofile_policy)
+      : shown_because_of_multiprofile_policy_(
+            shown_because_of_multiprofile_policy) {
     SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical,
-        gfx::Insets::VH(kDisabledAuthMessageVerticalBorderDp,
-                        kDisabledAuthMessageHorizontalBorderDp),
+        gfx::Insets(kDisabledAuthMessageVerticalBorderDp,
+                    kDisabledAuthMessageHorizontalBorderDp),
         kDisabledAuthMessageChildrenSpacingDp));
     SetPaintToLayer();
     layer()->SetFillsBoundsOpaquely(false);
+    SetPreferredSize(gfx::Size(shown_because_of_multiprofile_policy
+                                   ? kDisabledAuthMessageMultiprofileWidthDp
+                                   : kDisabledAuthMessageTimeWidthDp,
+                               kDisabledAuthMessageHeightDp));
     SetFocusBehavior(FocusBehavior::ALWAYS);
-    // TODO(crbug.com/1218186): Remove this, this is in place temporarily to be
-    // able to submit accessibility checks, but this focusable View needs to
-    // add a name so that the screen reader knows what to announce.
-    SetProperty(views::kSkipAccessibilityPaintChecks, true);
-
-    // The icon size has to be defined later if the image will be visible.
-    message_icon_ = AddChildView(std::make_unique<views::ImageView>());
-    message_icon_->SetImageSize(gfx::Size(kDisabledAuthMessageIconSizeDp,
-                                          kDisabledAuthMessageIconSizeDp));
+    if (!shown_because_of_multiprofile_policy) {
+      message_icon_ = new views::ImageView();
+      message_icon_->SetPreferredSize(gfx::Size(
+          kDisabledAuthMessageIconSizeDp, kDisabledAuthMessageIconSizeDp));
+      message_icon_->SetImage(gfx::CreateVectorIcon(
+          kLockScreenTimeLimitMoonIcon, kDisabledAuthMessageIconSizeDp,
+          AshColorProvider::Get()->GetContentLayerColor(
+              AshColorProvider::ContentLayerType::kIconColorPrimary)));
+      AddChildView(message_icon_);
+    }
 
     auto decorate_label = [](views::Label* label) {
       label->SetSubpixelRenderingEnabled(false);
       label->SetAutoColorReadabilityEnabled(false);
+      label->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
+          AshColorProvider::ContentLayerType::kTextColorPrimary));
       label->SetFocusBehavior(FocusBehavior::ALWAYS);
     };
-    message_title_ = AddChildView(std::make_unique<views::Label>(
-        std::u16string(), views::style::CONTEXT_LABEL,
-        views::style::STYLE_PRIMARY));
+    message_title_ =
+        new views::Label(base::string16(), views::style::CONTEXT_LABEL,
+                         views::style::STYLE_PRIMARY);
     message_title_->SetFontList(
         gfx::FontList().Derive(kDisabledAuthMessageTitleFontSizeDeltaDp,
                                gfx::Font::NORMAL, gfx::Font::Weight::MEDIUM));
     decorate_label(message_title_);
+    AddChildView(message_title_);
 
-    message_contents_ = AddChildView(std::make_unique<views::Label>(
-        std::u16string(), views::style::CONTEXT_LABEL,
-        views::style::STYLE_PRIMARY));
+    message_contents_ =
+        new views::Label(base::string16(), views::style::CONTEXT_LABEL,
+                         views::style::STYLE_PRIMARY);
     message_contents_->SetFontList(
         gfx::FontList().Derive(kDisabledAuthMessageContentsFontSizeDeltaDp,
                                gfx::Font::NORMAL, gfx::Font::Weight::NORMAL));
     decorate_label(message_contents_);
     message_contents_->SetMultiLine(true);
-  }
+    AddChildView(message_contents_);
 
-  DisabledAuthMessageView(const DisabledAuthMessageView&) = delete;
-  DisabledAuthMessageView& operator=(const DisabledAuthMessageView&) = delete;
+    if (shown_because_of_multiprofile_policy) {
+      message_title_->SetText(l10n_util::GetStringUTF16(
+          IDS_ASH_LOGIN_MULTI_PROFILES_RESTRICTED_POLICY_TITLE));
+      switch (multiprofile_policy) {
+        case MultiProfileUserBehavior::PRIMARY_ONLY:
+          message_contents_->SetText(l10n_util::GetStringUTF16(
+              IDS_ASH_LOGIN_MULTI_PROFILES_PRIMARY_ONLY_POLICY_MSG));
+          break;
+        case MultiProfileUserBehavior::NOT_ALLOWED:
+          message_contents_->SetText(l10n_util::GetStringUTF16(
+              IDS_ASH_LOGIN_MULTI_PROFILES_NOT_ALLOWED_POLICY_MSG));
+          break;
+        case MultiProfileUserBehavior::OWNER_PRIMARY_ONLY:
+          message_contents_->SetText(l10n_util::GetStringUTF16(
+              IDS_ASH_LOGIN_MULTI_PROFILES_OWNER_PRIMARY_ONLY_MSG));
+          break;
+        default:
+          NOTREACHED();
+      }
+    }
+  }
 
   ~DisabledAuthMessageView() override = default;
 
   // Set the parameters needed to render the message.
   void SetAuthDisabledMessage(const AuthDisabledData& auth_disabled_data,
                               bool use_24hour_clock) {
+    // Do not do anything if message is already shown.
+    if (shown_because_of_multiprofile_policy_)
+      return;
     LockScreenMessage message = GetLockScreenMessage(
         auth_disabled_data.reason, auth_disabled_data.auth_reenabled_time,
         auth_disabled_data.device_used_time, use_24hour_clock);
-    SetPreferredSize(gfx::Size(kDisabledAuthMessageTimeWidthDp,
-                               kDisabledAuthMessageHeightDp));
-    message_icon_->SetVisible(true);
-    message_vector_icon_ = message.icon;
+    message_icon_->SetImage(gfx::CreateVectorIcon(
+        *message.icon, kDisabledAuthMessageIconSizeDp,
+        AshColorProvider::Get()->GetContentLayerColor(
+            AshColorProvider::ContentLayerType::kIconColorPrimary)));
     message_title_->SetText(message.title);
     message_contents_->SetText(message.content);
-    UpdateColors();
-  }
-
-  void SetAuthDisabledMessage(const std::u16string& title,
-                              const std::u16string& content) {
-    SetPreferredSize(gfx::Size(kDisabledAuthMessageMultiprofileWidthDp,
-                               kDisabledAuthMessageHeightDp));
-    message_icon_->SetVisible(false);
-    message_title_->SetText(title);
-    message_contents_->SetText(content);
-    UpdateColors();
+    Layout();
   }
 
   // views::View:
@@ -781,36 +789,18 @@ class LoginAuthUserView::DisabledAuthMessageView : public views::View {
     canvas->DrawRoundRect(GetContentsBounds(),
                           kDisabledAuthMessageRoundedCornerRadiusDp, flags);
   }
-
-  // views::View:
   void RequestFocus() override { message_title_->RequestFocus(); }
 
-  // views::View:
-  void OnThemeChanged() override {
-    views::View::OnThemeChanged();
-    UpdateColors();
-  }
-
  private:
-  void UpdateColors() {
-    message_title_->SetEnabledColor(
-        AshColorProvider::Get()->GetContentLayerColor(
-            AshColorProvider::ContentLayerType::kTextColorPrimary));
-    message_contents_->SetEnabledColor(
-        AshColorProvider::Get()->GetContentLayerColor(
-            AshColorProvider::ContentLayerType::kTextColorPrimary));
-    if (message_vector_icon_) {
-      message_icon_->SetImage(gfx::CreateVectorIcon(
-          *message_vector_icon_, kDisabledAuthMessageIconSizeDp,
-          AshColorProvider::Get()->GetContentLayerColor(
-              AshColorProvider::ContentLayerType::kIconColorPrimary)));
-    }
-  }
-
   views::Label* message_title_;
   views::Label* message_contents_;
   views::ImageView* message_icon_;
-  const gfx::VectorIcon* message_vector_icon_ = nullptr;
+  // Used in case a child account has triggered the disabled auth message
+  // because of time limit exceeded while it also has disabled auth by
+  // multiprofile policy.
+  bool shown_because_of_multiprofile_policy_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(DisabledAuthMessageView);
 };
 
 // The message shown to user when TPM is locked.
@@ -819,8 +809,8 @@ class LoginAuthUserView::LockedTpmMessageView : public views::View {
   LockedTpmMessageView() {
     SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical,
-        gfx::Insets::VH(kLockedTpmMessageVerticalBorderDp,
-                        kLockedTpmMessageHorizontalBorderDp),
+        gfx::Insets(kLockedTpmMessageVerticalBorderDp,
+                    kLockedTpmMessageHorizontalBorderDp),
         kLockedTpmMessageChildrenSpacingDp));
     SetPaintToLayer();
     layer()->SetFillsBoundsOpaquely(false);
@@ -828,15 +818,20 @@ class LoginAuthUserView::LockedTpmMessageView : public views::View {
         gfx::Size(kLockedTpmMessageWidthDp, kLockedTpmMessageHeightDp));
     SetFocusBehavior(FocusBehavior::ALWAYS);
 
-    message_icon_ = AddChildView(std::make_unique<views::ImageView>());
-    message_icon_->SetPreferredSize(
+    auto message_icon = std::make_unique<views::ImageView>();
+    message_icon->SetPreferredSize(
         gfx::Size(kLockedTpmMessageIconSizeDp, kLockedTpmMessageIconSizeDp));
+    message_icon->SetImage(gfx::CreateVectorIcon(
+        kLockScreenAlertIcon,
+        AshColorProvider::Get()->GetContentLayerColor(
+            AshColorProvider::ContentLayerType::kIconColorPrimary)));
+    message_icon_ = AddChildView(std::move(message_icon));
 
     message_warning_ = CreateLabel();
     message_description_ = CreateLabel();
 
     // Set content.
-    std::u16string message_description = l10n_util::GetStringUTF16(
+    base::string16 message_description = l10n_util::GetStringUTF16(
         IDS_ASH_LOGIN_POD_TPM_LOCKED_ISSUE_DESCRIPTION);
     message_description_->SetText(message_description);
   }
@@ -847,11 +842,11 @@ class LoginAuthUserView::LockedTpmMessageView : public views::View {
 
   // Set the parameters needed to render the message.
   void SetRemainingTime(base::TimeDelta time_left) {
-    std::u16string time_left_message;
+    base::string16 time_left_message;
     if (base::TimeDurationFormatWithSeconds(
             time_left, base::DurationFormatWidth::DURATION_WIDTH_WIDE,
             &time_left_message)) {
-      std::u16string message_warning = l10n_util::GetStringFUTF16(
+      base::string16 message_warning = l10n_util::GetStringFUTF16(
           IDS_ASH_LOGIN_POD_TPM_LOCKED_ISSUE_WARNING, time_left_message);
       message_warning_->SetText(message_warning);
 
@@ -874,28 +869,11 @@ class LoginAuthUserView::LockedTpmMessageView : public views::View {
     canvas->DrawRoundRect(GetContentsBounds(),
                           kLockedTpmMessageRoundedCornerRadiusDp, flags);
   }
-
-  // views::View:
   void RequestFocus() override { message_warning_->RequestFocus(); }
-
-  // views::View:
-  void OnThemeChanged() override {
-    views::View::OnThemeChanged();
-    message_icon_->SetImage(gfx::CreateVectorIcon(
-        kLockScreenAlertIcon,
-        AshColorProvider::Get()->GetContentLayerColor(
-            AshColorProvider::ContentLayerType::kIconColorPrimary)));
-    message_warning_->SetEnabledColor(
-        AshColorProvider::Get()->GetContentLayerColor(
-            AshColorProvider::ContentLayerType::kTextColorPrimary));
-    message_description_->SetEnabledColor(
-        AshColorProvider::Get()->GetContentLayerColor(
-            AshColorProvider::ContentLayerType::kTextColorPrimary));
-  }
 
  private:
   views::Label* CreateLabel() {
-    auto label = std::make_unique<views::Label>(std::u16string(),
+    auto label = std::make_unique<views::Label>(base::string16(),
                                                 views::style::CONTEXT_LABEL,
                                                 views::style::STYLE_PRIMARY);
     label->SetFontList(gfx::FontList().Derive(kLockedTpmMessageDeltaDp,
@@ -903,6 +881,8 @@ class LoginAuthUserView::LockedTpmMessageView : public views::View {
                                               gfx::Font::Weight::NORMAL));
     label->SetSubpixelRenderingEnabled(false);
     label->SetAutoColorReadabilityEnabled(false);
+    label->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
+        AshColorProvider::ContentLayerType::kTextColorPrimary));
     label->SetFocusBehavior(FocusBehavior::ALWAYS);
     label->SetMultiLine(true);
     return AddChildView(std::move(label));
@@ -926,7 +906,6 @@ struct LoginAuthUserView::UiState {
     has_pinpad = view->ShouldShowPinPad();
     has_toggle = view->ShouldShowToggle();
     has_fingerprint = view->HasAuthMethod(LoginAuthUserView::AUTH_FINGERPRINT);
-    has_smart_lock = view->HasAuthMethod(LoginAuthUserView::AUTH_SMART_LOCK);
     has_challenge_response =
         view->HasAuthMethod(LoginAuthUserView::AUTH_CHALLENGE_RESPONSE);
     auth_disabled = view->HasAuthMethod(LoginAuthUserView::AUTH_DISABLED);
@@ -934,8 +913,7 @@ struct LoginAuthUserView::UiState {
         view->HasAuthMethod(LoginAuthUserView::AUTH_DISABLED_TPM_LOCKED);
     force_online_sign_in =
         view->HasAuthMethod(LoginAuthUserView::AUTH_ONLINE_SIGN_IN);
-    auth_factor_is_hiding_password = view->HasAuthMethod(
-        LoginAuthUserView::AUTH_AUTH_FACTOR_IS_HIDING_PASSWORD);
+
     non_pin_y_start_in_screen = view->GetBoundsInScreen().y();
     pin_start_in_screen = view->pin_view_->GetBoundsInScreen().origin();
   }
@@ -945,12 +923,10 @@ struct LoginAuthUserView::UiState {
   bool has_pinpad = false;
   bool has_toggle = false;
   bool has_fingerprint = false;
-  bool has_smart_lock = false;
   bool has_challenge_response = false;
   bool auth_disabled = false;
   bool tpm_is_locked = false;
   bool force_online_sign_in = false;
-  bool auth_factor_is_hiding_password = false;
   // Used for this view's animation in `ApplyAnimationPostLayout`.
   int non_pin_y_start_in_screen = 0;
   gfx::Point pin_start_in_screen;
@@ -981,7 +957,7 @@ views::Button* LoginAuthUserView::TestApi::pin_password_toggle() const {
 }
 
 views::Button* LoginAuthUserView::TestApi::online_sign_in_message() const {
-  return view_->online_sign_in_button_;
+  return view_->online_sign_in_message_;
 }
 
 views::View* LoginAuthUserView::TestApi::disabled_auth_message() const {
@@ -996,34 +972,11 @@ views::Label* LoginAuthUserView::TestApi::challenge_response_label() {
   return view_->challenge_response_view_->GetLabelForTesting();
 }
 
-LoginAuthFactorsView* LoginAuthUserView::TestApi::auth_factors_view() const {
-  return view_->auth_factors_view_;
-}
-
-AuthFactorModel* LoginAuthUserView::TestApi::fingerprint_auth_factor_model()
-    const {
-  return view_->fingerprint_auth_factor_model_;
-}
-
-AuthFactorModel* LoginAuthUserView::TestApi::smart_lock_auth_factor_model()
-    const {
-  return view_->smart_lock_auth_factor_model_;
-}
-
 bool LoginAuthUserView::TestApi::HasAuthMethod(AuthMethods auth_method) const {
   return view_->HasAuthMethod(auth_method);
 }
 
-void LoginAuthUserView::TestApi::SetFingerprintState(
-    FingerprintState state) const {
-  return view_->SetFingerprintState(state);
-}
-
-void LoginAuthUserView::TestApi::SetSmartLockState(SmartLockState state) const {
-  return view_->SetSmartLockState(state);
-}
-
-const std::u16string&
+const base::string16&
 LoginAuthUserView::TestApi::GetDisabledAuthMessageContent() const {
   return LoginAuthUserView::DisabledAuthMessageView::TestApi(
              view_->disabled_auth_message_)
@@ -1046,7 +999,6 @@ LoginAuthUserView::LoginAuthUserView(const LoginUserInfo& user,
   DCHECK(callbacks.on_remove_warning_shown);
   DCHECK(callbacks.on_remove);
   DCHECK(callbacks.on_easy_unlock_icon_hovered);
-  DCHECK(callbacks.on_auth_factor_is_hiding_password_changed);
   DCHECK_NE(user.basic_user_info.type, user_manager::USER_TYPE_PUBLIC_ACCOUNT);
 
   // Build child views.
@@ -1057,7 +1009,7 @@ LoginAuthUserView::LoginAuthUserView(const LoginUserInfo& user,
       callbacks.on_remove_warning_shown, callbacks.on_remove);
   user_view_ = user_view.get();
 
-  const LoginPalette palette = CreateDefaultLoginPalette(GetColorProvider());
+  const LoginPalette palette = CreateDefaultLoginPalette();
 
   auto password_view = std::make_unique<LoginPasswordView>(palette);
   password_view_ = password_view.get();
@@ -1083,13 +1035,13 @@ LoginAuthUserView::LoginAuthUserView(const LoginUserInfo& user,
   auto toggle_container = std::make_unique<NonAccessibleView>();
   toggle_container->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
-      gfx::Insets::TLBR(kPinPasswordToggleButtonPaddingTop, 0,
-                        kPinPasswordToggleButtonPaddingBottom, 0)));
+      gfx::Insets(kPinPasswordToggleButtonPaddingTop, 0, 0, 0)));
   pin_password_toggle_ =
       toggle_container->AddChildView(std::make_unique<SystemLabelButton>(
           base::BindRepeating(&LoginAuthUserView::OnSwitchButtonClicked,
                               base::Unretained(this)),
-          GetPinPasswordToggleText()));
+          GetPinPasswordToggleText(), SystemLabelButton::DisplayType::DEFAULT,
+          /*multiline*/ false));
   pin_password_toggle_->SetMaxSize(
       gfx::Size(/*ignored*/ 0, kPinPasswordToggleButtonHeight));
 
@@ -1112,60 +1064,35 @@ LoginAuthUserView::LoginAuthUserView(const LoginUserInfo& user,
       gfx::Size(kNonEmptyWidthDp, kDistanceBetweenUserViewAndPasswordDp));
   padding_below_user_view_ = padding_below_user_view.get();
 
-  std::u16string button_message =
-      l10n_util::GetStringUTF16(IDS_ASH_LOGIN_ONLINE_SIGN_IN_MESSAGE);
+  base::string16 button_message =
+      l10n_util::GetStringUTF16(IDS_ASH_LOGIN_SIGN_IN_REQUIRED_MESSAGE);
   if (user.is_signed_in) {
     button_message =
         l10n_util::GetStringUTF16(IDS_ASH_LOCK_SCREEN_VERIFY_ACCOUNT_MESSAGE);
   }
-
+  bool is_login_secondary =
+      Shell::Get()->session_controller()->GetSessionState() ==
+      session_manager::SessionState::LOGIN_SECONDARY;
   auto online_sign_in_button = std::make_unique<SystemLabelButton>(
       base::BindRepeating(&LoginAuthUserView::OnOnlineSignInMessageTap,
                           base::Unretained(this)),
-      button_message);
-  online_sign_in_button_ = online_sign_in_button.get();
+      button_message, SystemLabelButton::DisplayType::ALERT_WITH_ICON,
+      /*multiline*/ false);
+  // Disable online sign-in on secondary login screen as there is no OOBE there.
+  online_sign_in_button->SetEnabled(!is_login_secondary);
+  online_sign_in_message_ = online_sign_in_button.get();
 
-  auto disabled_auth_message = std::make_unique<DisabledAuthMessageView>();
+  bool shown_because_of_multiprofile_policy =
+      !user.is_multiprofile_allowed && is_login_secondary;
+  auto disabled_auth_message = std::make_unique<DisabledAuthMessageView>(
+      shown_because_of_multiprofile_policy, user.multiprofile_policy);
   disabled_auth_message_ = disabled_auth_message.get();
 
   auto locked_tpm_message_view = std::make_unique<LockedTpmMessageView>();
   locked_tpm_message_view_ = locked_tpm_message_view.get();
 
-  smart_lock_ui_revamp_enabled_ =
-      base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp);
-  std::unique_ptr<FingerprintView> fingerprint_view;
-  std::unique_ptr<LoginAuthFactorsView> auth_factors_view;
-  if (smart_lock_ui_revamp_enabled_) {
-    auto fingerprint_auth_factor_model =
-        FingerprintAuthFactorModel::Factory::Create(user.fingerprint_state);
-    fingerprint_auth_factor_model_ = fingerprint_auth_factor_model.get();
-    auto smart_lock_auth_factor_model =
-        SmartLockAuthFactorModel::Factory::Create(
-            user.smart_lock_state,
-            base::BindRepeating(
-                &LoginAuthUserView::OnSmartLockArrowButtonTapped,
-                base::Unretained(this)));
-    smart_lock_auth_factor_model_ = smart_lock_auth_factor_model.get();
-
-    // Note: at the moment, between Fingerprint and Smart Lock, Smart Lock
-    // is the only auth factor which considers an "arrow button" tap event.
-    auth_factors_view = std::make_unique<LoginAuthFactorsView>(
-        base::BindRepeating(
-            &SmartLockAuthFactorModel::OnArrowButtonTapOrClickEvent,
-            base::Unretained(smart_lock_auth_factor_model_)),
-        callbacks.on_auth_factor_is_hiding_password_changed);
-
-    auth_factors_view_ = auth_factors_view.get();
-    auth_factors_view_->AddAuthFactor(std::move(fingerprint_auth_factor_model));
-    auth_factors_view_->AddAuthFactor(std::move(smart_lock_auth_factor_model));
-
-    // Needed for up/down sliding animation.
-    auth_factors_view_->SetPaintToLayer();
-    auth_factors_view_->layer()->SetFillsBoundsOpaquely(false);
-  } else {
-    fingerprint_view = std::make_unique<FingerprintView>();
-    fingerprint_view_ = fingerprint_view.get();
-  }
+  auto fingerprint_view = std::make_unique<FingerprintView>();
+  fingerprint_view_ = fingerprint_view.get();
 
   auto challenge_response_view =
       std::make_unique<ChallengeResponseView>(base::BindRepeating(
@@ -1195,15 +1122,8 @@ LoginAuthUserView::LoginAuthUserView(const LoginUserInfo& user,
       login_views_utils::WrapViewForPreferredSize(std::move(pin_input_view));
   auto wrapped_pin_password_toggle_view =
       login_views_utils::WrapViewForPreferredSize(std::move(toggle_container));
-  std::unique_ptr<views::View> wrapped_fingerprint_view;
-  std::unique_ptr<views::View> wrapped_auth_factors_view;
-  if (smart_lock_ui_revamp_enabled_) {
-    wrapped_auth_factors_view = login_views_utils::WrapViewForPreferredSize(
-        std::move(auth_factors_view));
-  } else {
-    wrapped_fingerprint_view = login_views_utils::WrapViewForPreferredSize(
-        std::move(fingerprint_view));
-  }
+  auto wrapped_fingerprint_view =
+      login_views_utils::WrapViewForPreferredSize(std::move(fingerprint_view));
   auto wrapped_challenge_response_view =
       login_views_utils::WrapViewForPreferredSize(
           std::move(challenge_response_view));
@@ -1214,45 +1134,69 @@ LoginAuthUserView::LoginAuthUserView(const LoginUserInfo& user,
       login_views_utils::WrapViewForPreferredSize(
           std::move(padding_below_user_view));
 
-  auto* box_layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
-      views::BoxLayout::Orientation::kVertical,
-      gfx::Insets::TLBR(kDistanceFromTopOfBigUserViewToUserIconDp, 0,
-                        kDistanceFromPinKeyboardToBigUserViewBottomDp, 0)));
-  box_layout->set_cross_axis_alignment(
-      views::BoxLayout::CrossAxisAlignment::kCenter);
+  // Add views in tabbing order; they are rendered in a different order below.
+  views::View* wrapped_password_view_ptr =
+      AddChildView(std::move(wrapped_password_view));
+  views::View* wrapped_online_sign_in_message_view_ptr =
+      AddChildView(std::move(wrapped_online_sign_in_message_view));
+  views::View* wrapped_disabled_auth_message_view_ptr =
+      AddChildView(std::move(wrapped_disabled_auth_message_view));
+  views::View* wrapped_locked_tpm_message_view_ptr =
+      AddChildView(std::move(wrapped_locked_tpm_message_view));
+  views::View* wrapped_pin_input_view_ptr =
+      AddChildView(std::move(wrapped_pin_input_view));
+  views::View* wrapped_pin_view_ptr = AddChildView(std::move(wrapped_pin_view));
+  views::View* wrapped_pin_password_toggle_view_ptr =
+      AddChildView(std::move(wrapped_pin_password_toggle_view));
+  views::View* wrapped_fingerprint_view_ptr =
+      AddChildView(std::move(wrapped_fingerprint_view));
+  views::View* wrapped_challenge_response_view_ptr =
+      AddChildView(std::move(wrapped_challenge_response_view));
+  views::View* wrapped_user_view_ptr =
+      AddChildView(std::move(wrapped_user_view));
+  views::View* wrapped_padding_below_password_view_ptr =
+      AddChildView(std::move(wrapped_padding_below_password_view));
+  views::View* wrapped_padding_below_user_view_ptr =
+      AddChildView(std::move(wrapped_padding_below_user_view));
+
+  // Use views::GridLayout instead of views::BoxLayout because views::BoxLayout
+  // lays out children according to the view->children order.
+  views::GridLayout* grid_layout =
+      SetLayoutManager(std::make_unique<views::GridLayout>());
+  views::ColumnSet* column_set = grid_layout->AddColumnSet(0);
+  column_set->AddColumn(views::GridLayout::CENTER, views::GridLayout::LEADING,
+                        0 /*resize_percent*/,
+                        views::GridLayout::ColumnSize::kUsePreferred,
+                        0 /*fixed_width*/, 0 /*min_width*/);
+  auto add_view = [&](views::View* view) {
+    grid_layout->StartRow(0 /*vertical_resize*/, 0 /*column_set_id*/);
+    grid_layout->AddExistingView(view);
+  };
+  auto add_padding = [&](int amount) {
+    grid_layout->AddPaddingRow(0 /*vertical_resize*/, amount /*size*/);
+  };
 
   // Add views in rendering order.
-  auto* user_ptr = AddChildView(std::move(wrapped_user_view));
-  AddChildView(std::move(wrapped_padding_below_user_view));
-  auto* tpm_message_ptr =
-      AddChildView(std::move(wrapped_locked_tpm_message_view));
-  AddChildView(std::move(wrapped_password_view));
-  AddChildView(std::move(wrapped_online_sign_in_message_view));
-  auto* auth_message_ptr =
-      AddChildView(std::move(wrapped_disabled_auth_message_view));
-  AddChildView(std::move(wrapped_pin_input_view));
-  AddChildView(std::move(wrapped_padding_below_password_view));
-  AddChildView(std::move(wrapped_pin_view));
-  AddChildView(std::move(wrapped_pin_password_toggle_view));
-  if (smart_lock_ui_revamp_enabled_) {
-    AddChildView(std::move(wrapped_auth_factors_view));
-  } else {
-    AddChildView(std::move(wrapped_fingerprint_view));
-  }
-  auto* challenge_ptr =
-      AddChildView(std::move(wrapped_challenge_response_view));
-
-  // Set up taborder.
-  tpm_message_ptr->InsertAfterInFocusList(auth_message_ptr);
-  user_ptr->InsertAfterInFocusList(challenge_ptr);
-
-  // The user needs to be set before SetAuthMethods is called.
-  user_view_->UpdateForUser(user, /*animate*/ false);
+  add_padding(kDistanceFromTopOfBigUserViewToUserIconDp);
+  add_view(wrapped_user_view_ptr);
+  add_view(wrapped_padding_below_user_view_ptr);
+  add_view(wrapped_locked_tpm_message_view_ptr);
+  add_view(wrapped_password_view_ptr);
+  add_view(wrapped_online_sign_in_message_view_ptr);
+  add_view(wrapped_disabled_auth_message_view_ptr);
+  add_view(wrapped_pin_input_view_ptr);
+  add_view(wrapped_padding_below_password_view_ptr);
+  add_view(wrapped_pin_view_ptr);
+  add_view(wrapped_pin_password_toggle_view_ptr);
+  add_view(wrapped_fingerprint_view_ptr);
+  add_view(wrapped_challenge_response_view_ptr);
+  add_padding(kDistanceFromPinKeyboardToBigUserViewBottomDp);
 
   // Update authentication UI.
   CaptureStateForAnimationPreLayout();
   SetAuthMethods(auth_methods_);
   ApplyAnimationPostLayout(/*animate*/ false);
+  user_view_->UpdateForUser(user, /*animate*/ false);
 }
 
 LoginAuthUserView::~LoginAuthUserView() = default;
@@ -1269,37 +1213,8 @@ void LoginAuthUserView::SetAuthMethods(
   UpdateInputFieldMode();
   const UiState current_state{this};
 
-  auto user = current_user();
-  const std::u16string user_display_email =
-      base::UTF8ToUTF16(user.basic_user_info.display_email);
-  bool is_secondary_login =
-      Shell::Get()->session_controller()->GetSessionState() ==
-      session_manager::SessionState::LOGIN_SECONDARY;
-
-  if (is_secondary_login && !user.is_multiprofile_allowed) {
-    online_sign_in_button_->SetVisible(false);
-    disabled_auth_message_->SetVisible(true);
-    disabled_auth_message_->SetAuthDisabledMessage(
-        l10n_util::GetStringUTF16(
-            IDS_ASH_LOGIN_MULTI_PROFILES_RESTRICTED_POLICY_TITLE),
-        GetMultiprofileDisableAuthMessage());
-  }
-  // We do not want the online sign in button to be visible on the secondary
-  // login screen since we can not call OOBE there. In such a case, we indicate
-  // the user to return on the login screen to go through online sign in.
-  else if (is_secondary_login && current_state.force_online_sign_in) {
-    online_sign_in_button_->SetVisible(false);
-    disabled_auth_message_->SetVisible(true);
-    disabled_auth_message_->SetAuthDisabledMessage(
-        l10n_util::GetStringUTF16(IDS_ASH_LOGIN_SIGN_IN_REQUIRED_DIALOG_TITLE),
-        l10n_util::GetStringFUTF16(
-            IDS_ASH_LOGIN_SIGN_IN_REQUIRED_SECONDARY_LOGIN_MESSAGE,
-            user_display_email, user_display_email));
-  } else {
-    online_sign_in_button_->SetVisible(current_state.force_online_sign_in);
-    disabled_auth_message_->SetVisible(current_state.auth_disabled);
-  }
-
+  online_sign_in_message_->SetVisible(current_state.force_online_sign_in);
+  disabled_auth_message_->SetVisible(current_state.auth_disabled);
   locked_tpm_message_view_->SetVisible(current_state.tpm_is_locked);
   if (current_state.tpm_is_locked &&
       auth_metadata.time_until_tpm_unlock.has_value())
@@ -1313,9 +1228,9 @@ void LoginAuthUserView::SetAuthMethods(
 
   password_view_->SetEnabled(current_state.has_password);
   password_view_->SetEnabledOnEmptyPassword(HasAuthMethod(AUTH_TAP));
-  password_view_->SetFocusEnabledForTextfield(current_state.has_password);
+  password_view_->SetFocusEnabledForChildViews(current_state.has_password);
   password_view_->SetVisible(current_state.has_password);
-  password_view_->layer()->SetOpacity(current_state.has_password);
+  password_view_->layer()->SetOpacity(current_state.has_password ? 1 : 0);
 
   pin_input_view_->UpdateLength(auth_metadata_.autosubmit_pin_length);
   pin_input_view_->SetAuthenticateWithEmptyPinOnReturnKey(
@@ -1325,31 +1240,19 @@ void LoginAuthUserView::SetAuthMethods(
   pin_password_toggle_->SetVisible(current_state.has_toggle);
   pin_password_toggle_->SetText(GetPinPasswordToggleText());
 
-  if (smart_lock_ui_revamp_enabled_) {
-    DCHECK(fingerprint_auth_factor_model_);
-    DCHECK(smart_lock_auth_factor_model_);
-    DCHECK(auth_factors_view_);
-    // TODO(b/219978360): Should investigate why setting
-    // |fingerprint_auth_factor_model_| availability here is necessary if state
-    // management within LockContentsView is working properly.
-    fingerprint_auth_factor_model_->set_available(
-        current_state.has_fingerprint);
-    auth_factors_view_->SetCanUsePin(HasAuthMethod(AUTH_PIN));
-    auth_factors_view_->SetVisible(current_state.has_fingerprint ||
-                                   current_state.has_smart_lock);
-  } else {
-    DCHECK(fingerprint_view_);
-    fingerprint_view_->SetVisible(current_state.has_fingerprint);
-    fingerprint_view_->SetCanUsePin(HasAuthMethod(AUTH_PIN));
-  }
+  fingerprint_view_->SetVisible(current_state.has_fingerprint);
+  fingerprint_view_->SetCanUsePin(HasAuthMethod(AUTH_PIN));
   challenge_response_view_->SetVisible(current_state.has_challenge_response);
 
   padding_below_user_view_->SetPreferredSize(GetPaddingBelowUserView());
   padding_below_password_view_->SetPreferredSize(GetPaddingBelowPasswordView());
 
   password_view_->SetPlaceholderText(GetPasswordViewPlaceholder());
+  const std::string& user_display_email =
+      current_user().basic_user_info.display_email;
   password_view_->SetAccessibleName(l10n_util::GetStringFUTF16(
-      IDS_ASH_LOGIN_POD_PASSWORD_FIELD_ACCESSIBLE_NAME, user_display_email));
+      IDS_ASH_LOGIN_POD_PASSWORD_FIELD_ACCESSIBLE_NAME,
+      base::UTF8ToUTF16(user_display_email)));
 
   // Only the active auth user view has authentication methods. If that is the
   // case, then render the user view as if it was always focused, since clicking
@@ -1362,17 +1265,13 @@ void LoginAuthUserView::SetAuthMethods(
 }
 
 void LoginAuthUserView::SetEasyUnlockIcon(
-    EasyUnlockIconState icon_state,
-    const std::u16string& accessibility_label) {
-  if (smart_lock_ui_revamp_enabled_) {
-    return;
-  }
-
-  password_view_->SetEasyUnlockIcon(icon_state, accessibility_label);
+    EasyUnlockIconId id,
+    const base::string16& accessibility_label) {
+  password_view_->SetEasyUnlockIcon(id, accessibility_label);
 
   const std::string& user_display_email =
       current_user().basic_user_info.display_email;
-  if (icon_state == EasyUnlockIconState::UNLOCKED) {
+  if (id == EasyUnlockIconId::UNLOCKED) {
     password_view_->SetAccessibleName(l10n_util::GetStringFUTF16(
         IDS_ASH_LOGIN_POD_AUTH_TAP_PASSWORD_FIELD_ACCESSIBLE_NAME,
         base::UTF8ToUTF16(user_display_email)));
@@ -1393,14 +1292,9 @@ void LoginAuthUserView::CaptureStateForAnimationPreLayout() {
   stop_animation(this);
   stop_animation(password_view_);
   stop_animation(pin_view_);
-  if (fingerprint_view_) {
-    stop_animation(fingerprint_view_);
-  }
+  stop_animation(fingerprint_view_);
   stop_animation(challenge_response_view_);
   stop_animation(pin_password_toggle_);
-  if (auth_factors_view_) {
-    stop_animation(auth_factors_view_);
-  }
 
   DCHECK(!previous_state_);
   previous_state_ = std::make_unique<UiState>(this);
@@ -1420,8 +1314,6 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
   // Animate the user info (ie, icon, name) up or down the screen.
   {
     int non_pin_y_end_in_screen = GetBoundsInScreen().y();
-    auto prev_transform_y =
-        layer()->GetAnimator()->GetTargetTransform().To2dTranslation().y();
 
     // Transform the layer so the user view renders where it used to be. This
     // requires a y offset.
@@ -1429,13 +1321,14 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
     // but it seems that the timing gets slightly out of sync with the PIN
     // animation.
     auto move_to_center = std::make_unique<ui::InterpolatedTranslation>(
-        gfx::PointF(0, previous_state_->non_pin_y_start_in_screen +
-                           prev_transform_y - non_pin_y_end_in_screen),
+        gfx::PointF(0, previous_state_->non_pin_y_start_in_screen -
+                           non_pin_y_end_in_screen),
         gfx::PointF());
     auto transition =
         ui::LayerAnimationElement::CreateInterpolatedTransformElement(
             std::move(move_to_center),
-            base::Milliseconds(login::kChangeUserAnimationDurationMs));
+            base::TimeDelta::FromMilliseconds(
+                login_constants::kChangeUserAnimationDurationMs));
     transition->set_tween_type(gfx::Tween::Type::FAST_OUT_SLOW_IN);
     auto* sequence = new ui::LayerAnimationSequence(std::move(transition));
     auto* observer = BuildObserverToNotifyA11yLocationChanged(this);
@@ -1457,11 +1350,12 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
     {
       ui::ScopedLayerAnimationSettings settings(
           password_view_->layer()->GetAnimator());
-      settings.SetTransitionDuration(
-          base::Milliseconds(login::kChangeUserAnimationDurationMs));
+      settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+          login_constants::kChangeUserAnimationDurationMs));
       settings.SetTweenType(gfx::Tween::Type::FAST_OUT_SLOW_IN);
       if (previous_state_->has_password && !current_state.has_password) {
-        settings.AddObserver(password_view_);
+        settings.AddObserver(
+            new ClearPasswordAndHideAnimationObserver(password_view_));
       }
 
       password_view_->layer()->SetOpacity(opacity_end);
@@ -1480,8 +1374,8 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
     {
       ui::ScopedLayerAnimationSettings settings(
           pin_password_toggle_->layer()->GetAnimator());
-      settings.SetTransitionDuration(
-          base::Milliseconds(login::kChangeUserAnimationDurationMs));
+      settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+          login_constants::kChangeUserAnimationDurationMs));
       settings.SetTweenType(gfx::Tween::Type::FAST_OUT_SLOW_IN);
       pin_password_toggle_->layer()->SetOpacity(opacity_end);
     }
@@ -1508,7 +1402,8 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
     auto transition = std::make_unique<PinKeyboardAnimation>(
         current_state.has_pinpad /*grow*/, pin_view_->height(),
         // TODO(https://crbug.com/955119): Implement proper animation.
-        base::Milliseconds(login::kChangeUserAnimationDurationMs / 2.0f),
+        base::TimeDelta::FromMilliseconds(
+            login_constants::kChangeUserAnimationDurationMs / 2.0f),
         gfx::Tween::FAST_OUT_SLOW_IN);
     auto* sequence = new ui::LayerAnimationSequence(std::move(transition));
 
@@ -1526,8 +1421,8 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
 
   ////////
   // Fade the fingerprint view if it is being hidden or shown.
-  if (!smart_lock_ui_revamp_enabled_ && fingerprint_view_ &&
-      previous_state_->has_fingerprint != current_state.has_fingerprint) {
+
+  if (previous_state_->has_fingerprint != current_state.has_fingerprint) {
     float opacity_start = 0, opacity_end = 1;
     if (!current_state.has_fingerprint)
       std::swap(opacity_start, opacity_end);
@@ -1537,48 +1432,10 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
     {
       ui::ScopedLayerAnimationSettings settings(
           fingerprint_view_->layer()->GetAnimator());
-      settings.SetTransitionDuration(
-          base::Milliseconds(login::kChangeUserAnimationDurationMs));
+      settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+          login_constants::kChangeUserAnimationDurationMs));
       settings.SetTweenType(gfx::Tween::Type::FAST_OUT_SLOW_IN);
       fingerprint_view_->layer()->SetOpacity(opacity_end);
-    }
-  }
-
-  if (smart_lock_ui_revamp_enabled_) {
-    ////////
-    // Slide the auth factors view up/down when entering/leaving a state of
-    // |auth_factors_view_| that requests the password field to be hidden.
-    if (previous_state_->auth_factor_is_hiding_password !=
-        current_state.auth_factor_is_hiding_password) {
-      CHECK(auth_factors_view_);
-      ui::ScopedLayerAnimationSettings settings(
-          auth_factors_view_->layer()->GetAnimator());
-      settings.SetTransitionDuration(
-          kAuthFactorHidingPasswordFieldSlideUpDuration);
-      settings.SetTweenType(gfx::Tween::Type::ACCEL_20_DECEL_100);
-
-      gfx::Transform transform;
-      transform.Translate(/*x=*/0,
-                          /*y=*/current_state.auth_factor_is_hiding_password
-                              ? -kAuthFactorHidingPasswordFieldSlideUpDistanceDp
-                              : 0);
-      auth_factors_view_->layer()->SetTransform(transform);
-    }
-
-    // Translate the user view to its previous position when in the auth factor
-    // view requests to hide the password field. This prevents the user view
-    // from moving when the password view collapses. Note that this transform is
-    // applied even if |auth_factor_is_hiding_password| hasn't changed; the
-    // user view should not move on subsequent LayoutAuth() calls if an auth
-    // factor still wants to hide the password.
-    if (current_state.auth_factor_is_hiding_password) {
-      layer()->GetAnimator()->StopAnimating();
-      int non_pin_y_end_in_screen = GetBoundsInScreen().y();
-      gfx::Transform transform;
-      transform.Translate(/*x=*/0,
-                          /*y=*/previous_state_->non_pin_y_start_in_screen -
-                              non_pin_y_end_in_screen);
-      layer()->SetTransform(transform);
     }
   }
 
@@ -1595,8 +1452,8 @@ void LoginAuthUserView::ApplyAnimationPostLayout(bool animate) {
     {
       ui::ScopedLayerAnimationSettings settings(
           challenge_response_view_->layer()->GetAnimator());
-      settings.SetTransitionDuration(
-          base::Milliseconds(login::kChangeUserAnimationDurationMs));
+      settings.SetTransitionDuration(base::TimeDelta::FromMilliseconds(
+          login_constants::kChangeUserAnimationDurationMs));
       settings.SetTweenType(gfx::Tween::Type::FAST_OUT_SLOW_IN);
       challenge_response_view_->layer()->SetOpacity(opacity_end);
     }
@@ -1610,76 +1467,44 @@ void LoginAuthUserView::UpdateForUser(const LoginUserInfo& user) {
                             user.basic_user_info.account_id;
   user_view_->UpdateForUser(user, true /*animate*/);
   if (user_changed) {
-    pin_input_view_->Reset();
     password_view_->Reset();
     password_view_->SetDisplayPasswordButtonVisible(
         user.show_display_password_button);
   }
-  online_sign_in_button_->SetText(
-      l10n_util::GetStringUTF16(IDS_ASH_LOGIN_ONLINE_SIGN_IN_MESSAGE));
+  online_sign_in_message_->SetText(
+      l10n_util::GetStringUTF16(IDS_ASH_LOGIN_SIGN_IN_REQUIRED_MESSAGE));
 }
 
 void LoginAuthUserView::SetFingerprintState(FingerprintState state) {
-  if (smart_lock_ui_revamp_enabled_) {
-    DCHECK(fingerprint_auth_factor_model_);
-    fingerprint_auth_factor_model_->SetFingerprintState(state);
-  } else {
-    DCHECK(fingerprint_view_);
-    fingerprint_view_->SetState(state);
-  }
-}
-
-void LoginAuthUserView::ResetFingerprintUIState() {
-  if (smart_lock_ui_revamp_enabled_) {
-    DCHECK(fingerprint_auth_factor_model_);
-    fingerprint_auth_factor_model_->ResetUIState();
-  } else {
-    DCHECK(fingerprint_view_);
-    fingerprint_view_->ResetUIState();
-  }
+  fingerprint_view_->SetState(state);
 }
 
 void LoginAuthUserView::NotifyFingerprintAuthResult(bool success) {
-  if (smart_lock_ui_revamp_enabled_) {
-    DCHECK(fingerprint_auth_factor_model_);
-    fingerprint_auth_factor_model_->NotifyFingerprintAuthResult(success);
-  } else {
-    DCHECK(fingerprint_view_);
-    fingerprint_view_->NotifyFingerprintAuthResult(success);
-  }
-}
-
-void LoginAuthUserView::SetSmartLockState(SmartLockState state) {
-  DCHECK(smart_lock_auth_factor_model_);
-  smart_lock_auth_factor_model_->SetSmartLockState(state);
-}
-
-void LoginAuthUserView::NotifySmartLockAuthResult(bool success) {
-  DCHECK(smart_lock_auth_factor_model_);
-  smart_lock_auth_factor_model_->NotifySmartLockAuthResult(success);
+  fingerprint_view_->NotifyFingerprintAuthResult(success);
 }
 
 void LoginAuthUserView::SetAuthDisabledMessage(
     const AuthDisabledData& auth_disabled_data) {
   disabled_auth_message_->SetAuthDisabledMessage(
       auth_disabled_data, current_user().use_24hour_clock);
+  Layout();
 }
 
 const LoginUserInfo& LoginAuthUserView::current_user() const {
   return user_view_->current_user();
 }
 
-base::WeakPtr<views::View> LoginAuthUserView::GetActiveInputView() {
+views::View* LoginAuthUserView::GetActiveInputView() {
   if (input_field_mode_ == InputFieldMode::PIN_WITH_TOGGLE)
-    return pin_input_view_ != nullptr ? pin_input_view_->AsWeakPtr() : nullptr;
+    return pin_input_view_;
 
-  return password_view_ != nullptr ? password_view_->AsWeakPtr() : nullptr;
+  return password_view_;
 }
 
 gfx::Size LoginAuthUserView::CalculatePreferredSize() const {
   gfx::Size size = views::View::CalculatePreferredSize();
-  // Make sure we are at least as big as the user view. If we do not do this
-  // the view will be below minimum size when no auth methods are displayed.
+  // Make sure we are at least as big as the user view. If we do not do this the
+  // view will be below minimum size when no auth methods are displayed.
   size.SetToMax(user_view_->GetPreferredSize());
   return size;
 }
@@ -1687,31 +1512,11 @@ gfx::Size LoginAuthUserView::CalculatePreferredSize() const {
 void LoginAuthUserView::RequestFocus() {
   if (input_field_mode_ == InputFieldMode::PIN_WITH_TOGGLE)
     pin_input_view_->RequestFocus();
-  else if (password_view_->GetEnabled())
-    RequestFocusOnPasswordView();
+  else
+    password_view_->RequestFocus();
 }
 
-void LoginAuthUserView::OnGestureEvent(ui::GestureEvent* event) {
-  // The textfield area may be too small for the user to successfully tap
-  // inside it at their first attempt. We also want to bring up the virtual
-  // keyboard if the user taps in the auth user view area.
-  RequestFocus();
-}
-
-void LoginAuthUserView::OnThemeChanged() {
-  NonAccessibleView::OnThemeChanged();
-  const LoginPalette palette = CreateDefaultLoginPalette(GetColorProvider());
-  password_view_->UpdatePalette(palette);
-  pin_input_view_->UpdatePalette(palette);
-  pin_view_->UpdatePalette(palette);
-}
-
-void LoginAuthUserView::OnAuthSubmit(const std::u16string& password) {
-  LOG(WARNING) << "crbug.com/1339004 : AuthSubmit "
-               << password_view_->IsReadOnly() << " / "
-               << pin_input_view_->IsReadOnly() << " /  "
-               << HasAuthMethod(AUTH_TAP);
-
+void LoginAuthUserView::OnAuthSubmit(const base::string16& password) {
   // Pressing enter when the password field is empty and tap-to-unlock is
   // enabled should attempt unlock.
   if (HasAuthMethod(AUTH_TAP) && password.empty()) {
@@ -1723,41 +1528,30 @@ void LoginAuthUserView::OnAuthSubmit(const std::u16string& password) {
   password_view_->SetReadOnly(true);
   pin_input_view_->SetReadOnly(true);
 
-  // Checking if the password is only formed of numbers with base::StringToInt
-  // will easily fail due to numeric limits. ContainsOnlyChars is used instead.
-  const bool authenticated_by_pin =
-      ShouldAuthenticateWithPin() &&
-      base::ContainsOnlyChars(base::UTF16ToUTF8(password), "0123456789");
-
   Shell::Get()->login_screen_controller()->AuthenticateUserWithPasswordOrPin(
       current_user().basic_user_info.account_id, base::UTF16ToUTF8(password),
-      authenticated_by_pin,
+      HasAuthMethod(AUTH_PIN),
       base::BindOnce(&LoginAuthUserView::OnAuthComplete,
-                     weak_factory_.GetWeakPtr(), authenticated_by_pin));
+                     weak_factory_.GetWeakPtr()));
 }
 
-void LoginAuthUserView::OnAuthComplete(bool authenticated_by_pin,
-                                       absl::optional<bool> auth_success) {
-  bool failed = !auth_success.value_or(false);
-  LOG(WARNING) << "crbug.com/1339004 : OnAuthComplete " << failed;
-
-  // Clear the password only if auth fails. Make sure to keep the password
-  // view disabled even if auth succeededs, as if the user submits a password
-  // while animating the next lock screen will not work as expected. See
+void LoginAuthUserView::OnAuthComplete(base::Optional<bool> auth_success) {
+  // Clear the password only if auth fails. Make sure to keep the password view
+  // disabled even if auth succeededs, as if the user submits a password while
+  // animating the next lock screen will not work as expected. See
   // https://crbug.com/808486.
-  if (failed) {
+  if (!auth_success.has_value() || !auth_success.value()) {
     password_view_->Reset();
     password_view_->SetReadOnly(false);
     pin_input_view_->Reset();
     pin_input_view_->SetReadOnly(false);
   }
 
-  on_auth_.Run(auth_success.value(), /*display_error_messages=*/true,
-               authenticated_by_pin);
+  on_auth_.Run(auth_success.value(), /*display_error_messages=*/true);
 }
 
 void LoginAuthUserView::OnChallengeResponseAuthComplete(
-    absl::optional<bool> auth_success) {
+    base::Optional<bool> auth_success) {
   if (!auth_success.has_value() || !auth_success.value()) {
     password_view_->Reset();
     password_view_->SetReadOnly(false);
@@ -1775,23 +1569,13 @@ void LoginAuthUserView::OnChallengeResponseAuthComplete(
     }
   }
 
-  on_auth_.Run(auth_success.value_or(false),
-               /*display_error_messages=*/false,
-               /*authenticated_by_pin*/ false);
-}
-
-void LoginAuthUserView::OnSmartLockArrowButtonTapped() {
-  DCHECK(smart_lock_ui_revamp_enabled_);
-  Shell::Get()->login_screen_controller()->AuthenticateUserWithEasyUnlock(
-      current_user().basic_user_info.account_id);
+  on_auth_.Run(auth_success.value_or(false), /*display_error_messages=*/false);
 }
 
 void LoginAuthUserView::OnUserViewTap() {
   if (HasAuthMethod(AUTH_TAP)) {
-    if (!smart_lock_ui_revamp_enabled_) {
-      Shell::Get()->login_screen_controller()->AuthenticateUserWithEasyUnlock(
-          current_user().basic_user_info.account_id);
-    }
+    Shell::Get()->login_screen_controller()->AuthenticateUserWithEasyUnlock(
+        current_user().basic_user_info.account_id);
   } else if (HasAuthMethod(AUTH_ONLINE_SIGN_IN)) {
     // Tapping anywhere in the user view is the same with tapping the message.
     OnOnlineSignInMessageTap();
@@ -1801,11 +1585,6 @@ void LoginAuthUserView::OnUserViewTap() {
 }
 
 void LoginAuthUserView::OnOnlineSignInMessageTap() {
-  // Do not show on secondary login screen as there is no OOBE there.
-  if (Shell::Get()->session_controller()->GetSessionState() ==
-      session_manager::SessionState::LOGIN_SECONDARY) {
-    return;
-  }
   Shell::Get()->login_screen_controller()->ShowGaiaSignin(
       current_user().basic_user_info.account_id);
 }
@@ -1844,11 +1623,6 @@ bool LoginAuthUserView::HasAuthMethod(AuthMethods auth_method) const {
   return (auth_methods_ & auth_method) != 0;
 }
 
-bool LoginAuthUserView::ShouldAuthenticateWithPin() const {
-  return input_field_mode_ == InputFieldMode::PIN_AND_PASSWORD ||
-         input_field_mode_ == InputFieldMode::PIN_WITH_TOGGLE;
-}
-
 void LoginAuthUserView::AttemptAuthenticateWithChallengeResponse() {
   challenge_response_view_->SetState(
       ChallengeResponseView::State::kAuthenticating);
@@ -1858,17 +1632,6 @@ void LoginAuthUserView::AttemptAuthenticateWithChallengeResponse() {
           current_user().basic_user_info.account_id,
           base::BindOnce(&LoginAuthUserView::OnChallengeResponseAuthComplete,
                          weak_factory_.GetWeakPtr()));
-}
-
-void LoginAuthUserView::RequestFocusOnPasswordView() {
-  password_view_->RequestFocus();
-
-  const UiState current_state{this};
-  // Bring up the virtual keyboard if enabled as soon as we get the focus.
-  // This way, the user does not have to type twice (on the user pod and
-  // additionally on the textfield or user view).
-  if (GetInputMethod() && !current_state.has_pinpad)
-    GetInputMethod()->SetVirtualKeyboardVisibilityIfEnabled(true);
 }
 
 void LoginAuthUserView::UpdateFocus() {
@@ -1885,7 +1648,7 @@ void LoginAuthUserView::UpdateFocus() {
   if (current_state.has_challenge_response)
     challenge_response_view_->RequestFocus();
   if (current_state.has_password && !previous_state_->has_password)
-    RequestFocusOnPasswordView();
+    password_view_->RequestFocus();
   if (current_state.has_pin_input)
     pin_input_view_->RequestFocus();
   // Tapping the user view will trigger the online sign-in flow when
@@ -1922,12 +1685,10 @@ void LoginAuthUserView::UpdateInputFieldMode() {
   // - Online sign in message shown
   // - Disabled message shown
   // - No password auth available
-  // - Auth factors view is requesting to hide the password/PIN field
   if (HasAuthMethod(AUTH_CHALLENGE_RESPONSE) ||
-      HasAuthMethod(AUTH_ONLINE_SIGN_IN) || HasAuthMethod(AUTH_DISABLED) ||
-      !HasAuthMethod(AUTH_PASSWORD) ||
-      (smart_lock_ui_revamp_enabled_ &&
-       HasAuthMethod(AUTH_AUTH_FACTOR_IS_HIDING_PASSWORD))) {
+      HasAuthMethod(AUTH_ONLINE_SIGN_IN) ||
+      HasAuthMethod(AUTH_DISABLED) ||
+      !HasAuthMethod(AUTH_PASSWORD)) {
     input_field_mode_ = InputFieldMode::NONE;
     return;
   }
@@ -2002,8 +1763,7 @@ gfx::Size LoginAuthUserView::GetPaddingBelowPasswordView() const {
 
   if (state.has_pinpad)
     return SizeFromHeight(kDistanceBetweenPasswordFieldAndPinKeyboardDp);
-  if (state.has_fingerprint ||
-      (auth_factors_view_ && auth_factors_view_->GetVisible()))
+  if (state.has_fingerprint)
     return SizeFromHeight(kDistanceBetweenPasswordFieldAndFingerprintViewDp);
   if (state.has_challenge_response)
     return SizeFromHeight(kDistanceBetweenPwdFieldAndChallengeResponseViewDp);
@@ -2011,17 +1771,17 @@ gfx::Size LoginAuthUserView::GetPaddingBelowPasswordView() const {
   return SizeFromHeight(0);
 }
 
-std::u16string LoginAuthUserView::GetPinPasswordToggleText() const {
+base::string16 LoginAuthUserView::GetPinPasswordToggleText() {
   if (input_field_mode_ == InputFieldMode::PWD_WITH_TOGGLE)
     return l10n_util::GetStringUTF16(IDS_ASH_LOGIN_SWITCH_TO_PIN);
   else
     return l10n_util::GetStringUTF16(IDS_ASH_LOGIN_SWITCH_TO_PASSWORD);
 }
 
-std::u16string LoginAuthUserView::GetPasswordViewPlaceholder() const {
+base::string16 LoginAuthUserView::GetPasswordViewPlaceholder() const {
   // Note: |AUTH_TAP| must have higher priority than |AUTH_PIN| when
   // determining the placeholder.
-  if (HasAuthMethod(AUTH_TAP) && !smart_lock_ui_revamp_enabled_)
+  if (HasAuthMethod(AUTH_TAP))
     return l10n_util::GetStringUTF16(
         IDS_ASH_LOGIN_POD_PASSWORD_TAP_PLACEHOLDER);
   if (input_field_mode_ == InputFieldMode::PIN_AND_PASSWORD)
@@ -2029,26 +1789,6 @@ std::u16string LoginAuthUserView::GetPasswordViewPlaceholder() const {
         IDS_ASH_LOGIN_POD_PASSWORD_PIN_PLACEHOLDER);
 
   return l10n_util::GetStringUTF16(IDS_ASH_LOGIN_POD_PASSWORD_PLACEHOLDER);
-}
-
-std::u16string LoginAuthUserView::GetMultiprofileDisableAuthMessage() const {
-  int message_id;
-  switch (current_user().multiprofile_policy) {
-    case MultiProfileUserBehavior::PRIMARY_ONLY:
-      message_id = IDS_ASH_LOGIN_MULTI_PROFILES_PRIMARY_ONLY_POLICY_MSG;
-      break;
-    case MultiProfileUserBehavior::NOT_ALLOWED:
-      message_id = IDS_ASH_LOGIN_MULTI_PROFILES_NOT_ALLOWED_POLICY_MSG;
-      break;
-    case MultiProfileUserBehavior::OWNER_PRIMARY_ONLY:
-      message_id = IDS_ASH_LOGIN_MULTI_PROFILES_OWNER_PRIMARY_ONLY_MSG;
-      break;
-    case MultiProfileUserBehavior::UNRESTRICTED:
-      NOTREACHED();
-      message_id = 0;
-      break;
-  }
-  return l10n_util::GetStringUTF16(message_id);
 }
 
 }  // namespace ash

@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/invalidation/impl/invalidation_logger.h"
 
-#include "base/observer_list.h"
 #include "base/values.h"
 #include "components/invalidation/impl/invalidation_logger_observer.h"
 #include "components/invalidation/public/invalidation_handler.h"
@@ -14,13 +13,12 @@
 namespace invalidation {
 
 InvalidationLogger::InvalidationLogger()
-    : last_invalidator_state_timestamp_(base::Time::Now()) {}
+    : last_invalidator_state_(syncer::TRANSIENT_INVALIDATION_ERROR),
+      last_invalidator_state_timestamp_(base::Time::Now()) { }
 
-InvalidationLogger::~InvalidationLogger() = default;
+InvalidationLogger::~InvalidationLogger() {}
 
 void InvalidationLogger::OnRegistration(const std::string& registrar_name) {
-  DCHECK(registered_handlers_.find(registrar_name) ==
-         registered_handlers_.end());
   registered_handlers_.insert(registrar_name);
   EmitRegisteredHandlers();
 }
@@ -39,7 +37,8 @@ void InvalidationLogger::EmitRegisteredHandlers() {
     observer.OnRegistrationChange(registered_handlers_);
 }
 
-void InvalidationLogger::OnStateChange(const InvalidatorState& new_state) {
+void InvalidationLogger::OnStateChange(
+    const syncer::InvalidatorState& new_state) {
   // Prevent spurious same state emissions from updating the timestamp.
   if (new_state != last_invalidator_state_)
     last_invalidator_state_timestamp_ = base::Time::Now();
@@ -55,7 +54,7 @@ void InvalidationLogger::EmitState() {
 }
 
 void InvalidationLogger::OnUpdatedTopics(
-    std::map<std::string, Topics> handler_updated_topics_map) {
+    std::map<std::string, syncer::Topics> handler_updated_topics_map) {
   for (const auto& updated_topics : handler_updated_topics_map) {
     handler_latest_topics_map_[updated_topics.first] = updated_topics.second;
   }
@@ -64,9 +63,9 @@ void InvalidationLogger::OnUpdatedTopics(
 
 void InvalidationLogger::EmitUpdatedTopics() {
   for (const auto& handler_name_and_topics : handler_latest_topics_map_) {
-    TopicCountMap per_handler_invalidation_count;
+    syncer::TopicCountMap per_handler_invalidation_count;
     for (const auto& topic_item : handler_name_and_topics.second) {
-      const Topic& topic = topic_item.first;
+      const syncer::Topic& topic = topic_item.first;
       per_handler_invalidation_count[topic] = invalidation_count_[topic];
     }
     for (auto& observer : observer_list_) {
@@ -76,13 +75,13 @@ void InvalidationLogger::EmitUpdatedTopics() {
   }
 }
 
-void InvalidationLogger::OnDebugMessage(const base::Value::Dict& details) {
+void InvalidationLogger::OnDebugMessage(const base::DictionaryValue& details) {
   for (auto& observer : observer_list_)
     observer.OnDebugMessage(details);
 }
 
 void InvalidationLogger::OnInvalidation(
-    const TopicInvalidationMap& invalidations) {
+    const syncer::TopicInvalidationMap& invalidations) {
   for (const auto& topic : invalidations.GetTopics()) {
     invalidation_count_[topic] += invalidations.ForTopic(topic).GetSize();
   }
@@ -110,5 +109,4 @@ bool InvalidationLogger::IsObserverRegistered(
     const InvalidationLoggerObserver* debug_observer) const {
   return observer_list_.HasObserver(debug_observer);
 }
-
 }  // namespace invalidation

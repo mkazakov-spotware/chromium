@@ -41,9 +41,9 @@
 // anything related to Windows or Windows headers those will then use
 // the ASCII versions which we do not want. To avoid that happening in
 // jumbo builds, we redefine UNICODE again here.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define UNICODE 1
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 namespace blink {
 

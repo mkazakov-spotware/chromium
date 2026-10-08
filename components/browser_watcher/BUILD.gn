@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors
+# Copyright 2015 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -92,6 +92,7 @@ if (is_win) {
       "exit_code_watcher_win_unittest.cc",
       "extended_crash_reporting_win_unittest.cc",
     ]
+    configs += [ "//build/config/compiler:no_size_t_to_int_warning" ]
     deps = [
       ":activity_report_proto",
       ":browser_watcher_client",
@@ -99,7 +100,7 @@ if (is_win) {
       ":stability_common",
       "//base",
       "//base/test:test_support",
-      "//components/crash/core/common:crash_key",
+      "//components/crash/core/common:crash_key_lib",
       "//components/metrics:metrics",
       "//testing/gmock",
       "//testing/gtest",

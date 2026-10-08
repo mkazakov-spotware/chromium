@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 #include <string>
 
 #include "base/memory/ref_counted.h"
-#include "content/common/content_export.h"
-#include "content/public/browser/storage_partition_config.h"
 
 namespace content {
 
@@ -36,16 +34,9 @@ class SessionStorageNamespace
   virtual ~SessionStorageNamespace() {}
 };
 
-// Used to store mappings of StoragePartitionConfig to SessionStorageNamespace.
-typedef std::map<StoragePartitionConfig, scoped_refptr<SessionStorageNamespace>>
+// Used to store mappings of StoragePartition id to SessionStorageNamespace.
+typedef std::map<std::string, scoped_refptr<SessionStorageNamespace> >
     SessionStorageNamespaceMap;
-
-// Helper function that creates a SessionStorageNamespaceMap and assigns
-// `session_storage_namespace` to the default StoragePartitionConfig.
-CONTENT_EXPORT SessionStorageNamespaceMap
-CreateMapWithDefaultSessionStorageNamespace(
-    BrowserContext* browser_context,
-    scoped_refptr<SessionStorageNamespace> session_storage_namespace);
 
 }  // namespace content
 

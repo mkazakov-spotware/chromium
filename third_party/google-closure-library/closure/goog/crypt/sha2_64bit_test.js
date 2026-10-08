@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2014 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.crypt.Sha2_64bit_test');
 goog.setTestOnly();
@@ -11,6 +19,7 @@ const Sha384 = goog.require('goog.crypt.Sha384');
 const Sha512 = goog.require('goog.crypt.Sha512');
 const Sha512_256 = goog.require('goog.crypt.Sha512_256');
 const crypt = goog.require('goog.crypt');
+const googArray = goog.require('goog.array');
 const hashTester = goog.require('goog.crypt.hashTester');
 const testSuite = goog.require('goog.testing.testSuite');
 const userAgent = goog.require('goog.userAgent');
@@ -87,7 +96,7 @@ const TEST_FENCEPOST_VECTOR = {
  *     key to use in TEST_VECTOR for the expected hash value
  */
 function hashGoldenTester(hasher, length) {
-  TEST_VECTOR.forEach(data => {
+  googArray.forEach(TEST_VECTOR, (data) => {
     hasher.update(data.source);
     const digest = hasher.digest();
     assertEquals('Hash digest has the wrong length', length, digest.length * 8);
@@ -166,7 +175,7 @@ testSuite({
     // This test tends to time out on IE7 and IE8. See b/22873770.
     if (!userAgent.IE || userAgent.isVersionOrHigher('9')) {
       const hasher = new Sha512();
-      hasher.update((new Array(1000000)).fill(0));
+      hasher.update(googArray.repeat(0, 1000000));
       const digest = hasher.digest();
       const expected = crypt.hexToByteArray(
           'ce044bc9fd43269d5bbc946cbebc3bb711341115cc4abdf2edbc3ff2c57ad4b1' +
@@ -178,12 +187,9 @@ testSuite({
   /** Check that the code throws an error for bad input */
   testBadInput_nullNotAllowed() {
     const hasher = new Sha512();
-    assertThrows(
-        'Null input not allowed',
-        /** @suppress {checkTypes} array like isn't a supported type */
-        () => {
-          hasher.update({});
-        });
+    assertThrows('Null input not allowed', () => {
+      hasher.update({});
+    });
   },
 
   testBadInput_noFloatingPoint() {
@@ -239,7 +245,6 @@ testSuite({
     });
   },
 
-  /** @suppress {checkTypes} array like isn't a supported type */
   testHashingArrayLike() {
     // Create array-like object
     const obj = {};

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,8 @@ import android.os.Bundle;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.IntentUtils;
-import org.chromium.chrome.browser.BackPressHelper;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.SnackbarActivity;
-import org.chromium.chrome.browser.history_clusters.HistoryClustersConstants;
-import org.chromium.chrome.browser.profiles.Profile;
 
 /**
  * Activity for displaying the browsing history manager.
@@ -27,15 +24,8 @@ public class HistoryActivity extends SnackbarActivity {
 
         boolean isIncognito = IntentUtils.safeGetBooleanExtra(
                 getIntent(), IntentHandler.EXTRA_INCOGNITO_MODE, false);
-        boolean showHistoryClustersImmediately = IntentUtils.safeGetBooleanExtra(
-                getIntent(), HistoryClustersConstants.EXTRA_SHOW_HISTORY_CLUSTERS, false);
-        String historyClustersQuery = IntentUtils.safeGetStringExtra(
-                getIntent(), HistoryClustersConstants.EXTRA_HISTORY_CLUSTERS_QUERY);
-        mHistoryManager = new HistoryManager(this, true, getSnackbarManager(), isIncognito,
-                /* Supplier<Tab>= */ null, showHistoryClustersImmediately, historyClustersQuery,
-                new BrowsingHistoryBridge(Profile.getLastUsedRegularProfile()));
+        mHistoryManager = new HistoryManager(this, true, getSnackbarManager(), isIncognito);
         setContentView(mHistoryManager.getView());
-        BackPressHelper.create(this, getOnBackPressedDispatcher(), mHistoryManager::onBackPressed);
     }
 
     @Override
@@ -48,5 +38,10 @@ public class HistoryActivity extends SnackbarActivity {
     @VisibleForTesting
     HistoryManager getHistoryManagerForTests() {
         return mHistoryManager;
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!mHistoryManager.onBackPressed()) super.onBackPressed();
     }
 }

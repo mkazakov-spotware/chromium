@@ -32,7 +32,7 @@
         metadata: {
           content_type: "application/reports+json",
         },
-      }, true /* retain */), "receive report about redirected resource");
+      }), "receive report about redirected resource");
       assert_true(await reportExists({
         // This happens to be where we're redirected to.
         url: getURLForResourceWithNoPolicy(),

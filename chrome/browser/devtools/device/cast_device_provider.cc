@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/local_discovery/service_discovery_shared_client.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "net/base/host_port_pair.h"
@@ -150,11 +151,10 @@ CastDeviceProvider::CastDeviceProvider() {}
 
 CastDeviceProvider::~CastDeviceProvider() {}
 
-void CastDeviceProvider::QueryDevices(SerialsCallback callback) {
+void CastDeviceProvider::QueryDevices(const SerialsCallback& callback) {
   if (!lister_delegate_) {
     lister_delegate_.reset(new DeviceListerDelegate(
-        weak_factory_.GetWeakPtr(),
-        base::SingleThreadTaskRunner::GetCurrentDefault()));
+        weak_factory_.GetWeakPtr(), base::ThreadTaskRunnerHandle::Get()));
     content::GetUIThreadTaskRunner({})->PostTask(
         FROM_HERE, base::BindOnce(&DeviceListerDelegate::StartDiscovery,
                                   lister_delegate_->AsWeakPtr()));
@@ -163,21 +163,21 @@ void CastDeviceProvider::QueryDevices(SerialsCallback callback) {
   for (const auto& device_entry : device_info_map_)
     targets.insert(net::HostPortPair(device_entry.first, kCastInspectPort));
   tcp_provider_ = new TCPDeviceProvider(targets);
-  tcp_provider_->QueryDevices(std::move(callback));
+  tcp_provider_->QueryDevices(callback);
 }
 
 void CastDeviceProvider::QueryDeviceInfo(const std::string& serial,
-                                         DeviceInfoCallback callback) {
+                                         const DeviceInfoCallback& callback) {
   auto it_device = device_info_map_.find(serial);
   if (it_device == device_info_map_.end())
     return;
-  std::move(callback).Run(it_device->second);
+  callback.Run(it_device->second);
 }
 
 void CastDeviceProvider::OpenSocket(const std::string& serial,
                                     const std::string& socket_name,
-                                    SocketCallback callback) {
-  tcp_provider_->OpenSocket(serial, socket_name, std::move(callback));
+                                    const SocketCallback& callback) {
+  tcp_provider_->OpenSocket(serial, socket_name, callback);
 }
 
 void CastDeviceProvider::OnDeviceChanged(

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 
@@ -17,9 +19,6 @@ class LocalInputMonitor;
 
 class HostWindow {
  public:
-  HostWindow(const HostWindow&) = delete;
-  HostWindow& operator=(const HostWindow&) = delete;
-
   virtual ~HostWindow();
 
   // Creates a platform-specific instance of the continue window.
@@ -47,6 +46,9 @@ class HostWindow {
   HostWindow() {}
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HostWindow);
 };
 
 }  // namespace remoting

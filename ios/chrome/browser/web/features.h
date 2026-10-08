@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,19 @@
 
 namespace web {
 
+// Used to control the state of the WebPageTextAccessibility feature.
+extern const base::Feature kWebPageTextAccessibility;
+
 // Feature flag to tie the default zoom level for webpages to the current
 // dynamic type setting.
-BASE_DECLARE_FEATURE(kWebPageDefaultZoomFromDynamicType);
+extern const base::Feature kWebPageDefaultZoomFromDynamicType;
 
 // Used to enable a different method of zooming web pages.
-BASE_DECLARE_FEATURE(kWebPageAlternativeTextZoom);
+extern const base::Feature kWebPageAlternativeTextZoom;
 
-// Reneables text zoom on iPad.
-BASE_DECLARE_FEATURE(kWebPageTextZoomIPad);
-
-// Feature flag for to use native session restoration.
-BASE_DECLARE_FEATURE(kRestoreSessionFromCache);
+// Feature flag to keep the mobile version for Google SRP. Should be used when
+// the desktop version is requested by default.
+extern const base::Feature kMobileGoogleSRP;
 
 }  // namespace web
 

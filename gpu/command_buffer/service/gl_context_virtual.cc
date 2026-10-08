@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -98,11 +98,16 @@ void GLContextVirtual::SetUnbindFboOnMakeCurrent() {
   shared_context_->SetUnbindFboOnMakeCurrent();
 }
 
+gl::YUVToRGBConverter* GLContextVirtual::GetYUVToRGBConverter(
+    const gfx::ColorSpace& color_space) {
+  return shared_context_->GetYUVToRGBConverter(color_space);
+}
+
 void GLContextVirtual::ForceReleaseVirtuallyCurrent() {
   shared_context_->OnReleaseVirtuallyCurrent(this);
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 uint64_t GLContextVirtual::BackpressureFenceCreate() {
   return shared_context_->BackpressureFenceCreate();
 }
@@ -113,12 +118,6 @@ void GLContextVirtual::BackpressureFenceWait(uint64_t fence) {
 
 void GLContextVirtual::FlushForDriverCrashWorkaround() {
   shared_context_->FlushForDriverCrashWorkaround();
-}
-#endif
-
-#if defined(USE_EGL)
-gl::GLDisplayEGL* GLContextVirtual::GetGLDisplayEGL() {
-  return shared_context_->GetGLDisplayEGL();
 }
 #endif
 

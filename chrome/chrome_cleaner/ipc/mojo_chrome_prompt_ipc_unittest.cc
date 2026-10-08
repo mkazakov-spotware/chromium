@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,6 +41,7 @@ constexpr char kExpectedParentDisconnectedSwitch[] =
 
 const base::FilePath kBadFilePath(L"/path/to/bad.dll");
 const std::wstring kBadRegistryKey(L"HKCU:32\\Software\\ugly-uws\\nasty");
+const std::wstring kExtensionId(L"expected-extension-id");
 
 // Possible moments when the parent process can disconnect from the IPC to
 // check connection error handling in the child process.
@@ -95,8 +96,8 @@ class MockChromePrompt : public mojom::ChromePrompt {
 
   void PromptUser(
       const std::vector<base::FilePath>& files_to_delete,
-      const absl::optional<std::vector<std::wstring>>& registry_keys,
-      const absl::optional<std::vector<std::wstring>>& extension_ids,
+      const base::Optional<std::vector<std::wstring>>& registry_keys,
+      const base::Optional<std::vector<std::wstring>>& extension_ids,
       mojom::ChromePrompt::PromptUserCallback callback) override {
     EXPECT_NE(test_config_.uws_expected, files_to_delete.empty());
     if (test_config_.uws_expected) {
@@ -113,7 +114,7 @@ class MockChromePrompt : public mojom::ChromePrompt {
 
   void DisableExtensions(const std::vector<std::wstring>& extension_ids,
                          DisableExtensionsCallback callback) override {
-    FAIL() << "DisableExtensions is deprecated and should not be called.";
+    FAIL() << "No tests include UwE so DisableExtensions should not be called.";
   }
 
   // Close the IPC connection on the parent process depending on the value of
@@ -203,6 +204,11 @@ class ChromePromptIPCChildProcess : public ChildProcess {
       PromptUserResponse::PromptAcceptance prompt_acceptance) {
     CHECK_EQ(expected_prompt_acceptance(), prompt_acceptance);
     // Unblocks the main thread.
+    std::move(done).Run();
+  }
+
+  void ReceiveDisableExtensionsResult(base::OnceClosure done, bool completed) {
+    CHECK(completed);
     std::move(done).Run();
   }
 

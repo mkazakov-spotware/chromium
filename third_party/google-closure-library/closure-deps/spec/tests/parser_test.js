@@ -101,6 +101,7 @@ describe('parse', function() {
         'goog.require("my.example");', 'goog.require("my.second.example");');
 
     expect(dep.imports).toEqual([
+      requireText('goog'),
       requireText('my.example'),
       requireText('my.second.example'),
     ]);
@@ -111,7 +112,7 @@ describe('parse', function() {
         'goog.provide("my.example");', 'goog.provide("my.second.example");');
     expect(dep.type).toEqual(depGraph.DependencyType.CLOSURE_PROVIDE);
     expect(dep.closureSymbols).toEqual(['my.example', 'my.second.example']);
-    expect(dep.imports).toEqual([]);
+    expect(dep.imports).toEqual([requireText('goog')]);
   });
 
   describe('goog module', function() {
@@ -120,7 +121,7 @@ describe('parse', function() {
       expect(dep.type).toEqual(
           depGraph.DependencyType.CLOSURE_MODULE);
       expect(dep.closureSymbols).toEqual(['my.example']);
-      expect(dep.imports).toEqual([]);
+      expect(dep.imports).toEqual([requireText('goog')]);
     });
 
     it('multiple is error', function() {
@@ -137,7 +138,7 @@ describe('parse', function() {
       expect(dep.type).toEqual(
           depGraph.DependencyType.CLOSURE_MODULE);
       expect(dep.closureSymbols).toEqual(['my.example']);
-      expect(dep.imports).toEqual([]);
+      expect(dep.imports).toEqual([requireText('goog')]);
     });
 
     it('with default exports', function() {
@@ -231,6 +232,7 @@ describe('parse', function() {
             depGraph.DependencyType.ES6_MODULE);
         expect(dep.closureSymbols).toEqual([]);
         expect(dep.imports).toEqual([
+          requireText('goog'),
           requireText('my.example'),
         ]);
       });
@@ -244,6 +246,7 @@ describe('parse', function() {
         expect(dep.closureSymbols).toEqual([]);
         expect(dep.imports).toEqual([
           importText('es6'),
+          requireText('goog'),
           requireText('my.example'),
         ]);
       });

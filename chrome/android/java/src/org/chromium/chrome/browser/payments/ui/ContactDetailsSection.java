@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
 import org.chromium.chrome.browser.payments.AutofillAddress;
 import org.chromium.chrome.browser.payments.AutofillContact;
@@ -28,7 +29,8 @@ import java.util.List;
 public class ContactDetailsSection extends SectionInformation {
     private final Context mContext;
     private final ContactEditor mContactEditor;
-    private final List<AutofillProfile> mProfiles;
+
+    private List<AutofillProfile> mProfiles;
 
     /**
      * Builds a Contact section from a list of AutofillProfile.
@@ -68,18 +70,21 @@ public class ContactDetailsSection extends SectionInformation {
                 createAutofillContactFromProfile(editedAddress.getProfile());
         if (null == updatedContact) return;
 
-        for (int i = 0; i < mItems.size(); i++) {
-            AutofillContact existingContact = (AutofillContact) mItems.get(i);
-            if (existingContact.getProfile().getGUID().equals(
-                        editedAddress.getProfile().getGUID())) {
-                // We need to replace |existingContact| with |updatedContact|.
-                mItems.remove(i);
-                mItems.add(i, updatedContact);
-                return;
+        if (mItems != null) {
+            for (int i = 0; i < mItems.size(); i++) {
+                AutofillContact existingContact = (AutofillContact) mItems.get(i);
+                if (existingContact.getProfile().getGUID().equals(
+                            editedAddress.getProfile().getGUID())) {
+                    // We need to replace |existingContact| with |updatedContact|.
+                    mItems.remove(i);
+                    mItems.add(i, updatedContact);
+                    return;
+                }
             }
         }
         // The contact didn't exist. Add the new address to |mItems| to the end of the list, in
         // anticipation of the contacts section refresh.
+        if (mItems == null) mItems = new ArrayList<>();
         mItems.add(updatedContact);
 
         // The selection is not updated.
@@ -148,6 +153,9 @@ public class ContactDetailsSection extends SectionInformation {
                     firstCompleteContactIndex != SectionInformation.NO_SELECTION);
         }
 
+        // Record all required and missing fields of the most complete suggestion.
+        recordMissingContactFields(uniqueContacts.isEmpty() ? null : uniqueContacts.get(0));
+
         updateItemsWithCollection(firstCompleteContactIndex, uniqueContacts);
     }
 
@@ -173,5 +181,27 @@ public class ContactDetailsSection extends SectionInformation {
                     requestPayerName, requestPayerPhone, requestPayerEmail);
         }
         return null;
+    }
+
+    // Bit field values are identical to ProfileFields from payments_profile_comparator.h
+    private void recordMissingContactFields(AutofillContact contact) {
+        int missingFields = 0;
+        if (mContactEditor.getRequestPayerName()
+                && (contact == null || TextUtils.isEmpty(contact.getPayerName()))) {
+            missingFields |= ContactEditor.INVALID_NAME;
+        }
+        if (mContactEditor.getRequestPayerPhone()
+                && (contact == null || TextUtils.isEmpty(contact.getPayerPhone()))) {
+            missingFields |= ContactEditor.INVALID_PHONE_NUMBER;
+        }
+        if (mContactEditor.getRequestPayerEmail()
+                && (contact == null || TextUtils.isEmpty(contact.getPayerEmail()))) {
+            missingFields |= ContactEditor.INVALID_EMAIL;
+        }
+
+        if (missingFields != 0) {
+            RecordHistogram.recordSparseHistogram(
+                    "PaymentRequest.MissingContactFields", missingFields);
+        }
     }
 }

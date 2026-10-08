@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,9 @@ namespace {
 // Return false on failure. If false is returned then contents of |out_message|
 // and |out_offsets| are undefined.
 bool ReplaceTemplatePlaceholders(
-    const std::u16string& template_icu,
-    const std::vector<std::u16string>& display_texts,
-    std::u16string* out_message,
+    const base::string16& template_icu,
+    const std::vector<base::string16>& display_texts,
+    base::string16* out_message,
     std::vector<size_t>* out_offsets) {
   // Escape "$" -> "$$" for ReplaceStringPlaceholders().
   //
@@ -38,12 +38,13 @@ bool ReplaceTemplatePlaceholders(
   //
   // Both of these cases are noted in the header file, and are unlikely to
   // occur in any actual legal message.
-  std::u16string template_icu_escaped;
-  base::ReplaceChars(template_icu, u"$", u"$$", &template_icu_escaped);
+  base::string16 template_icu_escaped;
+  base::ReplaceChars(template_icu, base::ASCIIToUTF16("$"),
+                     base::ASCIIToUTF16("$$"), &template_icu_escaped);
 
   // Replace "{0}" -> "$1", "{1}" -> "$2", ... to prepare |template_dollars|
   // for ReplaceStringPlaceholders().
-  std::u16string template_dollars =
+  base::string16 template_dollars =
       base::i18n::MessageFormatter::FormatWithNumberedArgs(
           template_icu_escaped, "$1", "$2", "$3", "$4", "$5", "$6", "$7");
 
@@ -87,7 +88,7 @@ bool LegalMessageLine::Parse(const base::Value& legal_message,
     LegalMessageLines lines;
     lines.reserve(lines_list->GetList().size());
     for (const base::Value& single_line : lines_list->GetList()) {
-      lines.emplace_back();
+      lines.emplace_back(LegalMessageLine());
       if (!single_line.is_dict() ||
           !lines.back().ParseLine(single_line, escape_apostrophes))
         return false;
@@ -106,13 +107,13 @@ bool LegalMessageLine::ParseLine(const base::Value& line,
 
   // |display_texts| elements are the strings that will be substituted for
   // "{0}", "{1}", etc. in the template string.
-  std::vector<std::u16string> display_texts;
+  std::vector<base::string16> display_texts;
 
   // Process all the template parameters.
   const base::Value* template_parameters =
       line.FindKeyOfType("template_parameter", base::Value::Type::LIST);
   if (template_parameters) {
-    const base::Value::List& template_parameters_view =
+    base::Value::ConstListView template_parameters_view =
         template_parameters->GetList();
     display_texts.reserve(template_parameters_view.size());
     links_.reserve(template_parameters_view.size());
@@ -140,7 +141,7 @@ bool LegalMessageLine::ParseLine(const base::Value& line,
   if (!template_icu_utf8)
     return false;
 
-  std::u16string template_icu = base::UTF8ToUTF16(*template_icu_utf8);
+  base::string16 template_icu = base::UTF8ToUTF16(*template_icu_utf8);
   if (escape_apostrophes) {
     // The ICU standard counts "'{" as beginning an escaped string literal, even
     // if there's no closing apostrophe.  This fails legal message templates
@@ -148,7 +149,8 @@ bool LegalMessageLine::ParseLine(const base::Value& line,
     // Italian.  Therefore, when |escape_apostrophes| is true, escape all
     // apostrophes in the string by doubling them up.
     // http://www.icu-project.org/apiref/icu4c/messagepattern_8h.html#af6e0757e0eb81c980b01ee5d68a9978b
-    base::ReplaceChars(template_icu, u"'", u"''", &template_icu);
+    base::ReplaceChars(template_icu, base::ASCIIToUTF16("'"),
+                       base::ASCIIToUTF16("''"), &template_icu);
   }
 
   // Replace the placeholders in |template_icu| with strings from

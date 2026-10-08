@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "cc/layers/solid_color_layer.h"
+#include "chrome/android/chrome_jni_headers/TopToolbarSceneLayer_jni.h"
 #include "chrome/browser/android/compositor/layer/toolbar_layer.h"
-#include "chrome/browser/ui/android/toolbar/jni_headers/TopToolbarSceneLayer_jni.h"
 #include "ui/android/resources/resource_manager_impl.h"
 #include "ui/gfx/android/java_bitmap.h"
 
@@ -37,11 +37,9 @@ void TopToolbarSceneLayer::UpdateToolbarLayer(
     jint toolbar_background_color,
     jint url_bar_resource_id,
     jint url_bar_color,
-    jfloat x_offset,
     jfloat content_offset,
     bool show_shadow,
-    bool visible,
-    bool anonymize) {
+    bool visible) {
   // If the toolbar layer has not been created yet, create it.
   if (!toolbar_layer_) {
     ui::ResourceManager* resource_manager =
@@ -56,8 +54,8 @@ void TopToolbarSceneLayer::UpdateToolbarLayer(
     return;
 
   toolbar_layer_->PushResource(toolbar_resource_id, toolbar_background_color,
-                               anonymize, url_bar_color, url_bar_resource_id,
-                               x_offset, content_offset, false, !show_shadow);
+                               false, url_bar_color, url_bar_resource_id,
+                               content_offset, false, !show_shadow);
 }
 
 void TopToolbarSceneLayer::UpdateProgressBar(

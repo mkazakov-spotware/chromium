@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,6 @@
 #include "google_apis/gaia/gaia_urls.h"
 #include "google_apis/gaia/oauth2_access_token_fetcher_impl.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#include "services/network/public/mojom/early_hints.mojom.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -47,7 +45,7 @@ class CredentialProviderFetcherTest : public ::testing::Test {
   ~CredentialProviderFetcherTest() override;
 
   void OnFetchComplete(base::OnceClosure done_closure,
-                       base::Value::Dict fetch_result);
+                       base::Value fetch_result);
 
   void SetFakeResponses(const std::string& access_token_fetch_data,
                         net::HttpStatusCode access_token_fetch_code,
@@ -66,7 +64,7 @@ class CredentialProviderFetcherTest : public ::testing::Test {
   void RunFetcher(const std::string& additional_oauth_scopes);
 
   // Used for result verification
-  base::Value::Dict fetch_result_;
+  base::Value fetch_result_;
   CredentialProviderSigninDialogTestDataStorage test_data_storage_;
 
   std::string valid_token_info_response_;
@@ -95,7 +93,8 @@ CredentialProviderFetcherTest::~CredentialProviderFetcherTest() = default;
 
 void CredentialProviderFetcherTest::OnFetchComplete(
     base::OnceClosure done_closure,
-    base::Value::Dict fetch_result) {
+    base::Value fetch_result) {
+  EXPECT_TRUE(fetch_result.is_dict());
   fetch_result_ = std::move(fetch_result);
 
   std::move(done_closure).Run();
@@ -135,10 +134,8 @@ void CredentialProviderFetcherTest::RunFetcher(
       base::BindOnce(&CredentialProviderFetcherTest::OnFetchComplete,
                      base::Unretained(this), run_loop.QuitClosure());
 
-  CredentialProviderSigninInfoFetcher fetcher(
-      kRefreshTokenValue,
-      /*consumer_name=*/"credential_provider_signin_info_fetcher_win_unittest",
-      shared_factory());
+  CredentialProviderSigninInfoFetcher fetcher(kRefreshTokenValue,
+                                              shared_factory());
   fetcher.SetCompletionCallbackAndStart(
       kAccessTokenValue, additional_oauth_scopes, std::move(fetcher_callback));
   run_loop.Run();
@@ -150,9 +147,8 @@ TEST_F(CredentialProviderFetcherTest, ValidFetchResult) {
                    valid_token_info_response_, net::HTTP_OK, net::OK);
 
   RunFetcher("");
-  EXPECT_FALSE(fetch_result_.empty());
-  EXPECT_TRUE(test_data_storage_.EqualsSccessfulFetchResult(
-      base::Value(std::move(fetch_result_))));
+  EXPECT_FALSE(fetch_result_.DictEmpty());
+  EXPECT_TRUE(test_data_storage_.EqualsSccessfulFetchResult(fetch_result_));
 }
 
 TEST_F(CredentialProviderFetcherTest,
@@ -162,7 +158,7 @@ TEST_F(CredentialProviderFetcherTest,
                    net::OK, valid_token_info_response_, net::HTTP_OK, net::OK);
 
   RunFetcher("");
-  EXPECT_TRUE(fetch_result_.empty());
+  EXPECT_TRUE(fetch_result_.DictEmpty());
 }
 
 TEST_F(CredentialProviderFetcherTest,
@@ -173,7 +169,7 @@ TEST_F(CredentialProviderFetcherTest,
                    net::OK);
 
   RunFetcher("");
-  EXPECT_TRUE(fetch_result_.empty());
+  EXPECT_TRUE(fetch_result_.DictEmpty());
 }
 
 TEST_F(CredentialProviderFetcherTest, InvalidAccessTokenFetch) {
@@ -183,7 +179,7 @@ TEST_F(CredentialProviderFetcherTest, InvalidAccessTokenFetch) {
       valid_token_info_response_, net::HTTP_OK, net::OK);
 
   RunFetcher("");
-  EXPECT_TRUE(fetch_result_.empty());
+  EXPECT_TRUE(fetch_result_.DictEmpty());
 }
 
 TEST_F(CredentialProviderFetcherTest, InvalidUserInfoFetch) {
@@ -193,7 +189,7 @@ TEST_F(CredentialProviderFetcherTest, InvalidUserInfoFetch) {
       net::HTTP_OK, net::OK, valid_token_info_response_, net::HTTP_OK, net::OK);
 
   RunFetcher("");
-  EXPECT_TRUE(fetch_result_.empty());
+  EXPECT_TRUE(fetch_result_.DictEmpty());
 }
 
 TEST_F(CredentialProviderFetcherTest, InvalidTokenInfoFetch) {
@@ -204,7 +200,7 @@ TEST_F(CredentialProviderFetcherTest, InvalidTokenInfoFetch) {
       net::HTTP_OK, net::OK);
 
   RunFetcher("");
-  EXPECT_TRUE(fetch_result_.empty());
+  EXPECT_TRUE(fetch_result_.DictEmpty());
 }
 
 TEST_F(CredentialProviderFetcherTest, InvalidFetchResult) {
@@ -217,7 +213,7 @@ TEST_F(CredentialProviderFetcherTest, InvalidFetchResult) {
       net::HTTP_OK, net::OK);
 
   RunFetcher("");
-  EXPECT_TRUE(fetch_result_.empty());
+  EXPECT_TRUE(fetch_result_.DictEmpty());
 }
 
 TEST_F(CredentialProviderFetcherTest, ProperlyProvidedScopes) {

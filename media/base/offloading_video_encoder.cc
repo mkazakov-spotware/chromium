@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/offloading_video_encoder.h"
 
-#include "base/task/bind_post_task.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "base/trace_event/trace_event.h"
+#include "media/base/bind_to_current_loop.h"
 #include "media/base/video_frame.h"
 
 namespace media {
@@ -24,24 +23,19 @@ OffloadingVideoEncoder::OffloadingVideoEncoder(
   DCHECK(work_runner_);
   DCHECK(callback_runner_);
   DCHECK_NE(callback_runner_, work_runner_);
-
-  // Tell the inner encoder not to bother wrapping callbacks into separate
-  // runner tasks and call them directly.
-  wrapped_encoder_->DisablePostedCallbacks();
 }
 
 OffloadingVideoEncoder::OffloadingVideoEncoder(
     std::unique_ptr<VideoEncoder> wrapped_encoder)
     : OffloadingVideoEncoder(std::move(wrapped_encoder),
                              base::ThreadPool::CreateSequencedTaskRunner(
-                                 {base::TaskPriority::USER_BLOCKING,
-                                  base::WithBaseSyncPrimitives()}),
-                             base::SequencedTaskRunner::GetCurrentDefault()) {}
+                                 {base::TaskPriority::USER_BLOCKING}),
+                             base::SequencedTaskRunnerHandle::Get()) {}
 
 void OffloadingVideoEncoder::Initialize(VideoCodecProfile profile,
                                         const Options& options,
                                         OutputCB output_cb,
-                                        EncoderStatusCB done_cb) {
+                                        StatusCB done_cb) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   work_runner_->PostTask(
       FROM_HERE,
@@ -53,9 +47,8 @@ void OffloadingVideoEncoder::Initialize(VideoCodecProfile profile,
 
 void OffloadingVideoEncoder::Encode(scoped_refptr<VideoFrame> frame,
                                     bool key_frame,
-                                    EncoderStatusCB done_cb) {
+                                    StatusCB done_cb) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  TRACE_EVENT0("media", "OffloadingVideoEncoder::Encode");
   work_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&VideoEncoder::Encode,
@@ -65,7 +58,7 @@ void OffloadingVideoEncoder::Encode(scoped_refptr<VideoFrame> frame,
 
 void OffloadingVideoEncoder::ChangeOptions(const Options& options,
                                            OutputCB output_cb,
-                                           EncoderStatusCB done_cb) {
+                                           StatusCB done_cb) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   work_runner_->PostTask(
       FROM_HERE, base::BindOnce(&VideoEncoder::ChangeOptions,
@@ -74,7 +67,7 @@ void OffloadingVideoEncoder::ChangeOptions(const Options& options,
                                 WrapCallback(std::move(done_cb))));
 }
 
-void OffloadingVideoEncoder::Flush(EncoderStatusCB done_cb) {
+void OffloadingVideoEncoder::Flush(StatusCB done_cb) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   work_runner_->PostTask(
       FROM_HERE, base::BindOnce(&VideoEncoder::Flush,
@@ -90,7 +83,7 @@ OffloadingVideoEncoder::~OffloadingVideoEncoder() {
 template <class T>
 T OffloadingVideoEncoder::WrapCallback(T cb) {
   DCHECK(callback_runner_);
-  return base::BindPostTask(callback_runner_, std::move(cb));
+  return media::BindToLoop(callback_runner_.get(), std::move(cb));
 }
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,17 @@
 #include <stdint.h>
 
 #include "net/base/net_export.h"
-#include "net/log/net_log_with_source.h"
 
 namespace net {
 
 class HostPortPair;
 class HostResolver;
-class NetworkAnonymizationKey;
+class NetworkIsolationKey;
 class URLRequest;
 
-namespace nqe::internal {
+namespace nqe {
+
+namespace internal {
 
 // A unified compact representation of an IPv6 or an IPv4 address.
 typedef uint64_t IPHash;
@@ -31,17 +32,18 @@ typedef uint64_t IPHash;
 // To make this determination, this method makes the best effort estimate
 // including trying to resolve the host from the HostResolver's cache. This
 // method is synchronous.
-NET_EXPORT_PRIVATE bool IsRequestForPrivateHost(const URLRequest& request,
-                                                NetLogWithSource net_log);
+NET_EXPORT_PRIVATE bool IsRequestForPrivateHost(const URLRequest& request);
 
 // Provides access to the method used internally by IsRequestForPrivateHost(),
 // for testing.
 NET_EXPORT_PRIVATE bool IsPrivateHostForTesting(
     HostResolver* host_resolver,
     const HostPortPair& host_port_pair,
-    const NetworkAnonymizationKey& network_anonymization_key);
+    const NetworkIsolationKey& network_isolation_key);
 
-}  // namespace nqe::internal
+}  // namespace internal
+
+}  // namespace nqe
 
 }  // namespace net
 

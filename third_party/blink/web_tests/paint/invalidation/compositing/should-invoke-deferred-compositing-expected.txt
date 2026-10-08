@@ -1,7 +1,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -9,11 +9,17 @@
     {
       "name": "LayoutNGBlockFlow (positioned) DIV id='container' class='composited box'",
       "bounds": [300, 300],
-      "contentsOpaqueForText": true,
       "drawsContent": false
     },
     {
       "name": "LayoutHTMLCanvas (positioned) CANVAS",
+      "bounds": [200, 200],
+      "invalidations": [
+        [0, 0, 200, 200]
+      ]
+    },
+    {
+      "name": "ContentsLayer for LayoutHTMLCanvas (positioned) CANVAS",
       "bounds": [200, 200]
     }
   ]

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,20 +10,21 @@
 #include "base/containers/queue.h"
 #include "base/files/file.h"
 #include "base/guid.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/scoped_observer.h"
 #include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/task_runner_util.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
-#include "base/types/optional_util.h"
 #include "components/download/public/common/download_task_runner.h"
 #include "content/browser/bad_message.h"
 #include "content/browser/download/mhtml_extra_parts_impl.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
-#include "content/browser/web_contents/web_contents_impl.h"
 #include "content/common/download/mhtml_file_writer.mojom.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/mhtml_extra_parts.h"
@@ -59,16 +60,16 @@ struct CloseFileResult {
                   std::string* digest)
       : save_status(status), file_size(size) {
     if (digest)
-      file_digest = absl::optional<std::string>(*digest);
+      file_digest = base::Optional<std::string>(*digest);
   }
 
   content::mojom::MhtmlSaveStatus save_status;
   int64_t file_size;
-  absl::optional<std::string> file_digest;
+  base::Optional<std::string> file_digest;
 
   content::MHTMLGenerationResult toMHTMLGenerationResult() const {
     return content::MHTMLGenerationResult(file_size,
-                                          base::OptionalToPtr(file_digest));
+                                          base::OptionalOrNullptr(file_digest));
   }
 };
 
@@ -114,9 +115,6 @@ class MHTMLGenerationManager::Job {
       const MHTMLGenerationParams& params,
       MHTMLGenerationResult::GenerateMHTMLCallback callback);
 
-  Job(const Job&) = delete;
-  Job& operator=(const Job&) = delete;
-
  private:
   Job(WebContents* web_contents,
       const MHTMLGenerationParams& params,
@@ -148,6 +146,8 @@ class MHTMLGenerationManager::Job {
       const std::vector<MHTMLExtraDataPart>& extra_data_parts,
       std::unique_ptr<mojo::SimpleWatcher> watcher,
       std::unique_ptr<crypto::SecureHash> secure_hash);
+
+  void AddFrame(RenderFrameHost* render_frame_host);
 
   // Creates a string that encompasses any remaining extra data parts to write
   // to the file.
@@ -300,6 +300,8 @@ class MHTMLGenerationManager::Job {
   std::unique_ptr<crypto::SecureHash> secure_hash_;
 
   base::WeakPtrFactory<Job> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Job);
 };
 
 MHTMLGenerationManager::Job::Job(
@@ -330,18 +332,9 @@ void MHTMLGenerationManager::Job::initializeJob(WebContents* web_contents) {
       web_contents->GetLastCommittedURL().possibly_invalid_spec(), "file",
       params_.file_path.AsUTF8Unsafe());
 
-  // Only include nodes from the primary frame tree, since an MHTML document
-  // would not be able to load inner frame trees (e.g. fenced frames).
-  for (FrameTreeNode* node : static_cast<WebContentsImpl*>(web_contents)
-                                 ->GetPrimaryFrameTree()
-                                 .Nodes()) {
-    if (node->current_frame_host()->inner_tree_main_frame_tree_node_id() !=
-        FrameTreeNode::kFrameTreeNodeInvalidId) {
-      // Skip inner tree placeholder nodes.
-      continue;
-    }
-    pending_frame_tree_node_ids_.push(node->frame_tree_node_id());
-  }
+  web_contents->ForEachFrame(base::BindRepeating(
+      &MHTMLGenerationManager::Job::AddFrame,
+      base::Unretained(this)));  // Safe because ForEachFrame() is synchronous.
 
   // Main frame needs to be processed first.
   DCHECK(!pending_frame_tree_node_ids_.empty());
@@ -354,8 +347,9 @@ void MHTMLGenerationManager::Job::initializeJob(WebContents* web_contents) {
   if (extra_parts)
     extra_data_parts_ = extra_parts->parts();
 
-  download::GetDownloadTaskRunner()->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&CreateMHTMLFile, params_.file_path),
+  base::PostTaskAndReplyWithResult(
+      download::GetDownloadTaskRunner().get(), FROM_HERE,
+      base::BindOnce(&CreateMHTMLFile, params_.file_path),
       base::BindOnce(&Job::OnFileAvailable, weak_factory_.GetWeakPtr()));
 }
 
@@ -405,10 +399,11 @@ mojom::MhtmlSaveStatus MHTMLGenerationManager::Job::SendToNextRenderFrame() {
 
   mojom::SerializeAsMHTMLParamsPtr params(CreateMojoParams());
 
+  params->output_handle = mojom::MhtmlOutputHandle::New();
+
   // File::Duplicate() creates a reference to this file for use in the
   // Renderer.
-  params->output_handle =
-      mojom::MhtmlOutputHandle::NewFileHandle(browser_file_.Duplicate());
+  params->output_handle->set_file_handle(browser_file_.Duplicate());
 
   // Send a Mojo request to Renderer to serialize its frame.
   DCHECK_EQ(FrameTreeNode::kFrameTreeNodeInvalidId,
@@ -601,11 +596,17 @@ void MHTMLGenerationManager::Job::MarkAsFinished() {
 
 void MHTMLGenerationManager::Job::ReportRendererMainThreadTime(
     base::TimeDelta renderer_main_thread_time) {
-  DCHECK(renderer_main_thread_time.is_positive());
-  if (renderer_main_thread_time.is_positive())
+  DCHECK(renderer_main_thread_time > base::TimeDelta());
+  if (renderer_main_thread_time > base::TimeDelta())
     all_renderers_main_thread_time_ += renderer_main_thread_time;
   if (renderer_main_thread_time > longest_renderer_main_thread_time_)
     longest_renderer_main_thread_time_ = renderer_main_thread_time;
+}
+
+void MHTMLGenerationManager::Job::AddFrame(RenderFrameHost* render_frame_host) {
+  auto* rfhi = static_cast<RenderFrameHostImpl*>(render_frame_host);
+  int frame_tree_node_id = rfhi->frame_tree_node()->frame_tree_node_id();
+  pending_frame_tree_node_ids_.push(frame_tree_node_id);
 }
 
 void MHTMLGenerationManager::Job::CloseFile(
@@ -619,8 +620,8 @@ void MHTMLGenerationManager::Job::CloseFile(
     save_status = mojom::MhtmlSaveStatus::kFileWritingError;
 
   // If no previous error occurred the boundary should be sent.
-  download::GetDownloadTaskRunner()->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      download::GetDownloadTaskRunner().get(), FROM_HERE,
       base::BindOnce(&MHTMLGenerationManager::Job::FinalizeOnFileThread,
                      save_status, mhtml_boundary_marker_,
                      std::move(browser_file_), std::move(extra_data_parts_),
@@ -745,16 +746,6 @@ CloseFileResult MHTMLGenerationManager::Job::FinalizeOnFileThread(
   if (save_status == mojom::MhtmlSaveStatus::kSuccess) {
     TRACE_EVENT0("page-serialization",
                  "MHTMLGenerationManager::Job MHTML footer writing");
-
-#if BUILDFLAG(IS_FUCHSIA)
-    // TODO(crbug.com/1288816): Remove the Seek call.
-    // On fuchsia, fds do not share state. As the fd has been duped and sent to
-    // the renderer process, it must be seeked to the end to ensure the data is
-    // appended.
-    if (file.Seek(base::File::FROM_END, 0) == -1) {
-      save_status = mojom::MhtmlSaveStatus::kFileWritingError;
-    }
-#endif  // BUILDFLAG(IS_FUCHSIA)
 
     // Write the extra data into a part of its own, if we have any.
     std::string serialized_extra_data_parts =

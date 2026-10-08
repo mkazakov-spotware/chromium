@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "build/build_config.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
-#include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/dom/static_node_list.h"
 #include "third_party/blink/renderer/core/editing/finder/text_finder.h"
 #include "third_party/blink/renderer/core/frame/find_in_page.h"
@@ -15,14 +14,12 @@
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #include "third_party/blink/renderer/core/geometry/dom_rect.h"
-#include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/layout/layout_box.h"
 #include "third_party/blink/renderer/core/page/print_context.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scroll_animator_base.h"
-#include "third_party/blink/renderer/core/testing/sim/sim_request.h"
-#include "third_party/blink/renderer/core/testing/sim/sim_test.h"
-#include "third_party/blink/renderer/platform/bindings/script_forbidden_scope.h"
+#include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
+#include "third_party/blink/renderer/platform/testing/histogram_tester.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 
@@ -30,33 +27,22 @@ namespace blink {
 
 using Corner = ScrollAnchor::Corner;
 
-#if BUILDFLAG(IS_FUCHSIA)
-// TODO(crbug.com/1313270): Fix this test on Fuchsia and re-enable.
-#define MAYBE_ScrollAnchorTest DISABLED_ScrollAnchorTest
-#else
-#define MAYBE_ScrollAnchorTest ScrollAnchorTest
-#endif
-class MAYBE_ScrollAnchorTest : public testing::WithParamInterface<bool>,
-                               private ScopedLayoutNGForTest,
-                               public SimTest {
+class ScrollAnchorTest : public testing::WithParamInterface<bool>,
+                         private ScopedLayoutNGForTest,
+                         public RenderingTest {
  public:
-  MAYBE_ScrollAnchorTest() : ScopedLayoutNGForTest(GetParam()) {}
+  ScrollAnchorTest() : ScopedLayoutNGForTest(GetParam()) {}
 
  protected:
   void SetUp() override {
-    SimTest::SetUp();
-    ResizeView(gfx::Size(800, 600));
-    String kUrl = "https://example.com/test.html";
-    SimRequest request(kUrl, "text/html");
-    LoadURL(kUrl);
-    request.Complete("<!DOCTYPE html>");
+    EnableCompositing();
+    RenderingTest::SetUp();
   }
 
-  void Update() { Compositor().BeginFrame(); }
-
-  void SetBodyInnerHTML(const String& body_content) {
-    GetDocument().body()->setInnerHTML(body_content, ASSERT_NO_EXCEPTION);
-    Update();
+  void Update() {
+    // TODO(skobes): Use SimTest instead of RenderingTest and move into
+    // Source/web?
+    UpdateAllLifecyclePhasesForTest();
   }
 
   ScrollableArea* LayoutViewport() {
@@ -84,14 +70,12 @@ class MAYBE_ScrollAnchorTest : public testing::WithParamInterface<bool>,
 
   void ScrollLayoutViewport(ScrollOffset delta) {
     Element* scrolling_element = GetDocument().scrollingElement();
-    if (delta.x()) {
+    if (delta.Width())
       scrolling_element->setScrollLeft(scrolling_element->scrollLeft() +
-                                       delta.x());
-    }
-    if (delta.y()) {
+                                       delta.Width());
+    if (delta.Height())
       scrolling_element->setScrollTop(scrolling_element->scrollTop() +
-                                      delta.y());
-    }
+                                      delta.Height());
   }
 
   void ValidateSerializedAnchor(const String& expected_selector,
@@ -118,7 +102,7 @@ class MAYBE_ScrollAnchorTest : public testing::WithParamInterface<bool>,
     scrollbar_drag_point_ =
         gfx::PointF(scrollbar->GetScrollableArea()
                         ->ConvertFromScrollbarToContainingEmbeddedContentView(
-                            *scrollbar, gfx::Point(0, thumb_center)));
+                            *scrollbar, IntPoint(0, thumb_center)));
     scrollbar->MouseDown(blink::WebMouseEvent(
         blink::WebInputEvent::Type::kMouseDown, *scrollbar_drag_point_,
         *scrollbar_drag_point_, blink::WebPointerProperties::Button::kLeft, 0,
@@ -132,8 +116,8 @@ class MAYBE_ScrollAnchorTest : public testing::WithParamInterface<bool>,
         0, scroll_delta_y *
                (scrollbar->GetTheme().TrackLength(*scrollbar) -
                 scrollbar->GetTheme().ThumbLength(*scrollbar)) /
-               (scroller->MaximumScrollOffset().y() -
-                scroller->MinimumScrollOffset().y()));
+               (scroller->MaximumScrollOffset().Height() -
+                scroller->MinimumScrollOffset().Height()));
     scrollbar->MouseMoved(blink::WebMouseEvent(
         blink::WebInputEvent::Type::kMouseMove, *scrollbar_drag_point_,
         *scrollbar_drag_point_, blink::WebPointerProperties::Button::kLeft, 0,
@@ -149,14 +133,79 @@ class MAYBE_ScrollAnchorTest : public testing::WithParamInterface<bool>,
     scrollbar_drag_point_.reset();
   }
 
-  absl::optional<gfx::PointF> scrollbar_drag_point_;
+  base::Optional<gfx::PointF> scrollbar_drag_point_;
 };
 
-INSTANTIATE_TEST_SUITE_P(All, MAYBE_ScrollAnchorTest, testing::Bool());
+INSTANTIATE_TEST_SUITE_P(All, ScrollAnchorTest, testing::Bool());
+
+// TODO(ymalik): Currently, this should be the first test in the file to avoid
+// failure when running with other tests. Dig into this more and fix.
+TEST_P(ScrollAnchorTest, UMAMetricUpdated) {
+  HistogramTester histogram_tester;
+  SetBodyInnerHTML(R"HTML(
+    <style> body { height: 1000px } div { height: 100px } </style>
+    <div id='block1'>abc</div>
+    <div id='block2'>def</div>
+    <script></script>
+  )HTML");
+
+  ScrollableArea* viewport = LayoutViewport();
+
+  // Scroll position not adjusted, metric not updated.
+  ScrollLayoutViewport(ScrollOffset(0, 150));
+  histogram_tester.ExpectTotalCount("Layout.ScrollAnchor.AdjustedScrollOffset",
+                                    0);
+  histogram_tester.ExpectTotalCount(
+      "Layout.ScrollAnchor.TimeToComputeAnchorNodeSelector", 0);
+
+  // Height changed, verify metric updated once.
+  SetHeight(GetDocument().getElementById("block1"), 200);
+  histogram_tester.ExpectUniqueSample(
+      "Layout.ScrollAnchor.AdjustedScrollOffset", 1, 1);
+
+  EXPECT_EQ(250, viewport->ScrollOffsetInt().Height());
+  EXPECT_EQ(GetDocument().getElementById("block2")->GetLayoutObject(),
+            GetScrollAnchor(viewport).AnchorObject());
+
+  GetScrollAnchor(viewport).GetSerializedAnchor();
+  histogram_tester.ExpectTotalCount(
+      "Layout.ScrollAnchor.TimeToComputeAnchorNodeSelector", 1);
+  // 7 == "#block2".length()
+  histogram_tester.ExpectUniqueSample(
+      "Layout.ScrollAnchor.SerializedAnchorSelectorLength", 7, 1);
+
+  // Clear the current anchor so that we can test restoration histograms.
+  // Restoration only proceeds if there isn't an existing anchor.
+  GetScrollAnchor(viewport).Clear();
+
+  SerializedAnchor bad_anchor("##foobar", LayoutPoint(0, 0));
+  EXPECT_FALSE(GetScrollAnchor(LayoutViewport()).RestoreAnchor(bad_anchor));
+  histogram_tester.ExpectBucketCount("Layout.ScrollAnchor.RestorationStatus",
+                                     ScrollAnchor::kFailedBadSelector, 1);
+
+  SerializedAnchor bad_anchor2("#bl", LayoutPoint(0, 0));
+  EXPECT_FALSE(GetScrollAnchor(LayoutViewport()).RestoreAnchor(bad_anchor2));
+  histogram_tester.ExpectBucketCount("Layout.ScrollAnchor.RestorationStatus",
+                                     ScrollAnchor::kFailedNoMatches, 1);
+
+  SerializedAnchor bad_anchor3("script", LayoutPoint(0, -1000));
+  EXPECT_FALSE(GetScrollAnchor(LayoutViewport()).RestoreAnchor(bad_anchor3));
+  histogram_tester.ExpectBucketCount("Layout.ScrollAnchor.RestorationStatus",
+                                     ScrollAnchor::kFailedNoValidMatches, 1);
+
+  SerializedAnchor serialized_anchor("#block1", LayoutPoint(0, 0));
+  EXPECT_TRUE(
+      GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
+
+  histogram_tester.ExpectTotalCount("Layout.ScrollAnchor.TimeToRestoreAnchor",
+                                    4);
+  histogram_tester.ExpectBucketCount("Layout.ScrollAnchor.RestorationStatus",
+                                     ScrollAnchor::kSuccess, 1);
+}
 
 // TODO(skobes): Convert this to web-platform-tests when visual viewport API is
 // launched (http://crbug.com/635031).
-TEST_P(MAYBE_ScrollAnchorTest, VisualViewportAnchors) {
+TEST_P(ScrollAnchorTest, VisualViewportAnchors) {
   SetBodyInnerHTML(R"HTML(
     <style>
         * { font-size: 1.2em; font-family: sans-serif; }
@@ -177,26 +226,26 @@ TEST_P(MAYBE_ScrollAnchorTest, VisualViewportAnchors) {
   // Scroll the visual viewport to bring #text to the top.
   int top =
       GetDocument().getElementById("text")->getBoundingClientRect()->top();
-  v_viewport.SetLocation(gfx::PointF(0, top));
+  v_viewport.SetLocation(FloatPoint(0, top));
 
   SetHeight(GetDocument().getElementById("div"), 10);
   EXPECT_EQ(GetDocument().getElementById("text")->GetLayoutObject(),
             GetScrollAnchor(l_viewport).AnchorObject());
-  EXPECT_EQ(top - 90, v_viewport.ScrollOffsetInt().y());
+  EXPECT_EQ(top - 90, v_viewport.ScrollOffsetInt().Height());
 
   SetHeight(GetDocument().getElementById("div"), 100);
   EXPECT_EQ(GetDocument().getElementById("text")->GetLayoutObject(),
             GetScrollAnchor(l_viewport).AnchorObject());
-  EXPECT_EQ(top, v_viewport.ScrollOffsetInt().y());
+  EXPECT_EQ(top, v_viewport.ScrollOffsetInt().Height());
 
   // Scrolling the visual viewport should clear the anchor.
-  v_viewport.SetLocation(gfx::PointF(0, 0));
+  v_viewport.SetLocation(FloatPoint(0, 0));
   EXPECT_EQ(nullptr, GetScrollAnchor(l_viewport).AnchorObject());
 }
 
 // Test that a non-anchoring scroll on scroller clears scroll anchors for all
 // parent scrollers.
-TEST_P(MAYBE_ScrollAnchorTest, ClearScrollAnchorsOnAncestors) {
+TEST_P(ScrollAnchorTest, ClearScrollAnchorsOnAncestors) {
   SetBodyInnerHTML(R"HTML(
     <style>
         body { height: 1000px } div { height: 200px }
@@ -212,7 +261,7 @@ TEST_P(MAYBE_ScrollAnchorTest, ClearScrollAnchorsOnAncestors) {
   ScrollLayoutViewport(ScrollOffset(0, 250));
   SetHeight(GetDocument().getElementById("changer"), 300);
 
-  EXPECT_EQ(350, viewport->ScrollOffsetInt().y());
+  EXPECT_EQ(350, viewport->ScrollOffsetInt().Height());
   EXPECT_EQ(GetDocument().getElementById("anchor")->GetLayoutObject(),
             GetScrollAnchor(viewport).AnchorObject());
 
@@ -223,7 +272,7 @@ TEST_P(MAYBE_ScrollAnchorTest, ClearScrollAnchorsOnAncestors) {
   EXPECT_EQ(nullptr, GetScrollAnchor(viewport).AnchorObject());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, AncestorClearingWithSiblingReference) {
+TEST_P(ScrollAnchorTest, AncestorClearingWithSiblingReference) {
   SetBodyInnerHTML(R"HTML(
     <style>
     .scroller {
@@ -265,7 +314,7 @@ TEST_P(MAYBE_ScrollAnchorTest, AncestorClearingWithSiblingReference) {
   Update();
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, FractionalOffsetsAreRoundedBeforeComparing) {
+TEST_P(ScrollAnchorTest, FractionalOffsetsAreRoundedBeforeComparing) {
   SetBodyInnerHTML(R"HTML(
     <style> body { height: 1000px } </style>
     <div id='block1' style='height: 50.4px'>abc</div>
@@ -279,10 +328,10 @@ TEST_P(MAYBE_ScrollAnchorTest, FractionalOffsetsAreRoundedBeforeComparing) {
                                                        "height: 50.6px");
   Update();
 
-  EXPECT_EQ(101, viewport->ScrollOffsetInt().y());
+  EXPECT_EQ(101, viewport->ScrollOffsetInt().Height());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, AvoidStickyAnchorWhichMovesWithScroll) {
+TEST_P(ScrollAnchorTest, AvoidStickyAnchorWhichMovesWithScroll) {
   SetBodyInnerHTML(R"HTML(
     <style> body { height: 1000px } </style>
     <div id='block1' style='height: 50px'>abc</div>
@@ -297,10 +346,10 @@ TEST_P(MAYBE_ScrollAnchorTest, AvoidStickyAnchorWhichMovesWithScroll) {
                                                        "height: 100px");
   Update();
 
-  EXPECT_EQ(60, viewport->ScrollOffsetInt().y());
+  EXPECT_EQ(60, viewport->ScrollOffsetInt().Height());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, AnchorWithLayerInScrollingDiv) {
+TEST_P(ScrollAnchorTest, AnchorWithLayerInScrollingDiv) {
   SetBodyInnerHTML(R"HTML(
     <style>
         #scroller { overflow: scroll; width: 500px; height: 400px; }
@@ -323,7 +372,7 @@ TEST_P(MAYBE_ScrollAnchorTest, AnchorWithLayerInScrollingDiv) {
 
   // In this layout pass we will anchor to #block2 which has its own PaintLayer.
   SetHeight(block1, 200);
-  EXPECT_EQ(250, scroller->ScrollOffsetInt().y());
+  EXPECT_EQ(250, scroller->ScrollOffsetInt().Height());
   EXPECT_EQ(block2->GetLayoutObject(),
             GetScrollAnchor(scroller).AnchorObject());
 
@@ -331,10 +380,10 @@ TEST_P(MAYBE_ScrollAnchorTest, AnchorWithLayerInScrollingDiv) {
   // position.
   block2->remove();
   Update();
-  EXPECT_EQ(250, scroller->ScrollOffsetInt().y());
+  EXPECT_EQ(250, scroller->ScrollOffsetInt().Height());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, AnchorWhileDraggingScrollbar) {
+TEST_P(ScrollAnchorTest, AnchorWhileDraggingScrollbar) {
   // Dragging the scrollbar is inherently inaccurate. Allow many pixels slop in
   // the scroll position.
   const int kScrollbarDragAccuracy = 10;
@@ -361,34 +410,27 @@ TEST_P(MAYBE_ScrollAnchorTest, AnchorWhileDraggingScrollbar) {
   scroller->MouseEnteredScrollbar(*scrollbar);
   MouseDownOnVerticalScrollbar(scrollbar);
   MouseDragVerticalScrollbar(scrollbar, 150);
-
-  // Process the injected scroll gestures.
-  GetWebFrameWidget().FlushInputHandlerTasks();
-  Compositor().BeginFrame();
-
-  EXPECT_NEAR(150, scroller->GetScrollOffset().y(), kScrollbarDragAccuracy);
+  EXPECT_NEAR(150, scroller->GetScrollOffset().Height(),
+              kScrollbarDragAccuracy);
 
   // In this layout pass we will anchor to #block2 which has its own PaintLayer.
   SetHeight(block1, 200);
-  EXPECT_NEAR(250, scroller->ScrollOffsetInt().y(), kScrollbarDragAccuracy);
+  EXPECT_NEAR(250, scroller->ScrollOffsetInt().Height(),
+              kScrollbarDragAccuracy);
   EXPECT_EQ(block2->GetLayoutObject(),
             GetScrollAnchor(scroller).AnchorObject());
 
   // If we continue dragging the scroller should scroll from the newly anchored
   // position.
-  MouseDragVerticalScrollbar(scrollbar, 12);
-
-  // Process the injected scroll gesture.
-  GetWebFrameWidget().FlushInputHandlerTasks();
-  Compositor().BeginFrame();
-
-  EXPECT_NEAR(262, scroller->ScrollOffsetInt().y(), kScrollbarDragAccuracy);
+  MouseDragVerticalScrollbar(scrollbar, 10);
+  EXPECT_NEAR(260, scroller->ScrollOffsetInt().Height(),
+              kScrollbarDragAccuracy);
   MouseUpOnVerticalScrollbar(scrollbar);
 }
 
 // Verify that a nested scroller with a div that has its own PaintLayer can be
 // removed without causing a crash. This test passes if it doesn't crash.
-TEST_P(MAYBE_ScrollAnchorTest, RemoveScrollerWithLayerInScrollingDiv) {
+TEST_P(ScrollAnchorTest, RemoveScrollerWithLayerInScrollingDiv) {
   SetBodyInnerHTML(R"HTML(
     <style>
         body { height: 2000px }
@@ -418,7 +460,7 @@ TEST_P(MAYBE_ScrollAnchorTest, RemoveScrollerWithLayerInScrollingDiv) {
   // #anchor.
   SetHeight(changer1, 100);
   SetHeight(changer2, 100);
-  EXPECT_EQ(250, scroller->ScrollOffsetInt().y());
+  EXPECT_EQ(250, scroller->ScrollOffsetInt().Height());
   EXPECT_EQ(anchor->GetLayoutObject(),
             GetScrollAnchor(scroller).AnchorObject());
   EXPECT_EQ(anchor->GetLayoutObject(),
@@ -429,7 +471,7 @@ TEST_P(MAYBE_ScrollAnchorTest, RemoveScrollerWithLayerInScrollingDiv) {
   Update();
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, FlexboxDelayedClampingAlsoDelaysAdjustment) {
+TEST_P(ScrollAnchorTest, FlexboxDelayedClampingAlsoDelaysAdjustment) {
   SetBodyInnerHTML(R"HTML(
     <style>
         html { overflow: hidden; }
@@ -457,10 +499,10 @@ TEST_P(MAYBE_ScrollAnchorTest, FlexboxDelayedClampingAlsoDelaysAdjustment) {
   scroller->setScrollTop(100);
 
   SetHeight(GetDocument().getElementById("before"), 100);
-  EXPECT_EQ(150, ScrollerForElement(scroller)->ScrollOffsetInt().y());
+  EXPECT_EQ(150, ScrollerForElement(scroller)->ScrollOffsetInt().Height());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, FlexboxDelayedAdjustmentRespectsSANACLAP) {
+TEST_P(ScrollAnchorTest, FlexboxDelayedAdjustmentRespectsSANACLAP) {
   SetBodyInnerHTML(R"HTML(
     <style>
         html { overflow: hidden; }
@@ -489,12 +531,12 @@ TEST_P(MAYBE_ScrollAnchorTest, FlexboxDelayedAdjustmentRespectsSANACLAP) {
   GetDocument().getElementById("spacer")->setAttribute(html_names::kStyleAttr,
                                                        "margin-top: 50px");
   Update();
-  EXPECT_EQ(100, ScrollerForElement(scroller)->ScrollOffsetInt().y());
+  EXPECT_EQ(100, ScrollerForElement(scroller)->ScrollOffsetInt().Height());
 }
 
 // This test verifies that scroll anchoring is disabled when the document is in
 // printing mode.
-TEST_P(MAYBE_ScrollAnchorTest, AnchoringDisabledForPrinting) {
+TEST_P(ScrollAnchorTest, AnchoringDisabledForPrinting) {
   SetBodyInnerHTML(R"HTML(
     <style> body { height: 1000px } div { height: 100px } </style>
     <div id='block1'>abc</div>
@@ -505,13 +547,13 @@ TEST_P(MAYBE_ScrollAnchorTest, AnchoringDisabledForPrinting) {
   ScrollLayoutViewport(ScrollOffset(0, 150));
 
   // This will trigger printing and layout.
-  PrintContext::NumberOfPages(GetDocument().GetFrame(), gfx::SizeF(500, 500));
+  PrintContext::NumberOfPages(GetDocument().GetFrame(), FloatSize(500, 500));
 
-  EXPECT_EQ(150, viewport->ScrollOffsetInt().y());
+  EXPECT_EQ(150, viewport->ScrollOffsetInt().Height());
   EXPECT_EQ(nullptr, GetScrollAnchor(viewport).AnchorObject());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorSimple) {
+TEST_P(ScrollAnchorTest, SerializeAnchorSimple) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -524,7 +566,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorSimple) {
   ValidateSerializedAnchor("#block2", LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesTagname) {
+TEST_P(ScrollAnchorTest, SerializeAnchorUsesTagname) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -539,7 +581,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesTagname) {
   ValidateSerializedAnchor("#ancestor>span", LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorSetsIsAnchorBit) {
+TEST_P(ScrollAnchorTest, SerializeAnchorSetsIsAnchorBit) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -567,7 +609,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorSetsIsAnchorBit) {
   ScrollLayoutViewport(ScrollOffset(0, 25));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorSetsSavedRelativeOffset) {
+TEST_P(ScrollAnchorTest, SerializeAnchorSetsSavedRelativeOffset) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -581,10 +623,10 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorSetsSavedRelativeOffset) {
   ValidateSerializedAnchor("#block2", LayoutPoint(0, -50));
 
   SetHeight(GetDocument().getElementById("block1"), 200);
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 250);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 250);
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesClassname) {
+TEST_P(ScrollAnchorTest, SerializeAnchorUsesClassname) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -599,7 +641,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesClassname) {
   ValidateSerializedAnchor("#ancestor>.barbaz", LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesNthChild) {
+TEST_P(ScrollAnchorTest, SerializeAnchorUsesNthChild) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -614,7 +656,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesNthChild) {
   ValidateSerializedAnchor("#ancestor>:nth-child(2)", LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesLeastSpecificSelector) {
+TEST_P(ScrollAnchorTest, SerializeAnchorUsesLeastSpecificSelector) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -636,7 +678,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorUsesLeastSpecificSelector) {
                            LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorWithNoIdAttribute) {
+TEST_P(ScrollAnchorTest, SerializeAnchorWithNoIdAttribute) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -658,7 +700,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorWithNoIdAttribute) {
                            LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorChangesWithScroll) {
+TEST_P(ScrollAnchorTest, SerializeAnchorChangesWithScroll) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -682,7 +724,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorChangesWithScroll) {
   ValidateSerializedAnchor("#ancestor>.foobar", LayoutPoint(0, -1));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorVerticalWritingMode) {
+TEST_P(ScrollAnchorTest, SerializeAnchorVerticalWritingMode) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body {
@@ -707,7 +749,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorVerticalWritingMode) {
   ValidateSerializedAnchor("html>body>.barbaz", LayoutPoint(-50, 0));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorVerticalRlWritingMode) {
+TEST_P(ScrollAnchorTest, RestoreAnchorVerticalRlWritingMode) {
   SetBodyInnerHTML(R"HTML(
       <style>
       body {
@@ -727,11 +769,11 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorVerticalRlWritingMode) {
 
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().x(), 0);
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 0);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Width(), 0);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 0);
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorQualifiedTagName) {
+TEST_P(ScrollAnchorTest, SerializeAnchorQualifiedTagName) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -745,7 +787,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorQualifiedTagName) {
   ValidateSerializedAnchor("html>body>ns\\:div", LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorLimitsSelectorLength) {
+TEST_P(ScrollAnchorTest, SerializeAnchorLimitsSelectorLength) {
   StringBuilder builder;
   builder.Append("<style> body { height: 1000px; margin: 0; }</style>");
   builder.Append("<div style='height:100px'>foobar</div>");
@@ -762,7 +804,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorLimitsSelectorLength) {
   EXPECT_FALSE(serialized.IsValid());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorIgnoresDuplicatedId) {
+TEST_P(ScrollAnchorTest, SerializeAnchorIgnoresDuplicatedId) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -780,7 +822,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorIgnoresDuplicatedId) {
                            LayoutPoint(0, -50));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorFailsForPseudoElement) {
+TEST_P(ScrollAnchorTest, SerializeAnchorFailsForPseudoElement) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -794,36 +836,7 @@ TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorFailsForPseudoElement) {
   EXPECT_FALSE(GetScrollAnchor(LayoutViewport()).AnchorObject());
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, SerializeAnchorFailsForShadowDOMElement) {
-  SetBodyInnerHTML(R"HTML(
-      <style>
-        body { height: 5000px; margin: 0; }
-        div { height: 200px; }
-      </style>
-      <div id='host'></div>
-      <div></div>
-      <div></div>)HTML");
-  auto* host = GetDocument().getElementById("host");
-  auto& shadow_root = host->AttachShadowRootInternal(ShadowRootType::kOpen);
-  shadow_root.setInnerHTML(R"HTML(
-      <style>
-        div { height: 100px; }
-      </style>
-      <div></div>)HTML");
-  Update();
-
-  ScrollLayoutViewport(ScrollOffset(0, 50));
-
-  SerializedAnchor serialized =
-      GetScrollAnchor(LayoutViewport()).GetSerializedAnchor();
-  EXPECT_FALSE(serialized.IsValid());
-
-  LayoutObject* anchor_object =
-      GetScrollAnchor(LayoutViewport()).AnchorObject();
-  EXPECT_TRUE(anchor_object->GetNode()->IsInShadowTree());
-}
-
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSimple) {
+TEST_P(ScrollAnchorTest, RestoreAnchorSimple) {
   SetBodyInnerHTML(
       "<style> body { height: 1000px; margin: 0; } div { height: 100px } "
       "</style>"
@@ -836,16 +849,16 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSimple) {
 
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 100);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 100);
 
   SetHeight(GetDocument().getElementById("block1"), 200);
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 200);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 200);
 
   SetHeight(GetDocument().getElementById("block1"), 50);
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 50);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 50);
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorNonTrivialSelector) {
+TEST_P(ScrollAnchorTest, RestoreAnchorNonTrivialSelector) {
   SetBodyInnerHTML(R"HTML(
       <style>
         body { height: 1000px; margin: 0; }
@@ -869,13 +882,13 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorNonTrivialSelector) {
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
 
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 350);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 350);
 
   SetHeight(GetDocument().getElementById("block1"), 200);
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 450);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 450);
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorFailsForInvalidSelectors) {
+TEST_P(ScrollAnchorTest, RestoreAnchorFailsForInvalidSelectors) {
   SetBodyInnerHTML(
       "<style> body { height: 1000px; margin: 0; } div { height: 100px } "
       "</style>"
@@ -903,7 +916,7 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorFailsForInvalidSelectors) {
 // Ensure that when the serialized selector refers to a non-box, non-text
 // element(meaning its corresponding LayoutObject can't be the anchor object)
 // that restoration will still succeed.
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSucceedsForNonBoxNonTextElement) {
+TEST_P(ScrollAnchorTest, RestoreAnchorSucceedsForNonBoxNonTextElement) {
   SetBodyInnerHTML(
       "<style> body { height: 1000px; margin: 0; } div { height: 100px } "
       "</style>"
@@ -917,17 +930,17 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSucceedsForNonBoxNonTextElement) {
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
 
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 100);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 100);
 
   SetHeight(GetDocument().getElementById("block1"), 200);
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 200);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 200);
 
   SerializedAnchor serialized =
       GetScrollAnchor(LayoutViewport()).GetSerializedAnchor();
   ValidateSerializedAnchor("html>body>code", LayoutPoint(0, 0));
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSucceedsWhenScriptForbidden) {
+TEST_P(ScrollAnchorTest, RestoreAnchorSucceedsWhenScriptForbidden) {
   SetBodyInnerHTML(
       "<style> body { height: 1000px; margin: 0; } div { height: 100px } "
       "</style>"
@@ -941,10 +954,10 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSucceedsWhenScriptForbidden) {
   ScriptForbiddenScope scope;
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 100);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 100);
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSucceedsWithExistingAnchorObject) {
+TEST_P(ScrollAnchorTest, RestoreAnchorSucceedsWithExistingAnchorObject) {
   SetBodyInnerHTML(
       "<style> body { height: 1000px; margin: 0; } div { height: 100px } "
       "</style>"
@@ -958,15 +971,15 @@ TEST_P(MAYBE_ScrollAnchorTest, RestoreAnchorSucceedsWithExistingAnchorObject) {
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
   EXPECT_TRUE(GetScrollAnchor(LayoutViewport()).AnchorObject());
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 0);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 0);
 
   EXPECT_TRUE(
       GetScrollAnchor(LayoutViewport()).RestoreAnchor(serialized_anchor));
   EXPECT_TRUE(GetScrollAnchor(LayoutViewport()).AnchorObject());
-  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().y(), 0);
+  EXPECT_EQ(LayoutViewport()->ScrollOffsetInt().Height(), 0);
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, DeleteAnonymousBlockCrash) {
+TEST_P(ScrollAnchorTest, DeleteAnonymousBlockCrash) {
   SetBodyInnerHTML(R"HTML(
     <div>
       <div id="deleteMe" style="height:20000px;"></div>
@@ -983,7 +996,7 @@ TEST_P(MAYBE_ScrollAnchorTest, DeleteAnonymousBlockCrash) {
   Update();
 }
 
-TEST_P(MAYBE_ScrollAnchorTest, ClampAdjustsAnchorAnimation) {
+TEST_P(ScrollAnchorTest, ClampAdjustsAnchorAnimation) {
   SetBodyInnerHTML(R"HTML(
     <style>
       body { margin: 0 }
@@ -1008,18 +1021,19 @@ TEST_P(MAYBE_ScrollAnchorTest, ClampAdjustsAnchorAnimation) {
   GetDocument().getElementById("hidden")->setAttribute(html_names::kStyleAttr,
                                                        "display:block");
   GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kTest);
-  EXPECT_EQ(gfx::Vector2d(0, 200),
-            LayoutViewport()
-                ->GetScrollAnimator()
-                .ImplOnlyAnimationAdjustmentForTesting());
+#if !defined(OS_MAC)
+  EXPECT_EQ(IntSize(0, 200), LayoutViewport()
+                                 ->GetScrollAnimator()
+                                 .ImplOnlyAnimationAdjustmentForTesting());
+#endif
   GetDocument().getElementById("hidden")->setAttribute(html_names::kStyleAttr,
                                                        "");
   GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kTest);
   // The clamping scroll after resizing layout overflow to be smaller
   // should adjust the animation back to 0.
-  EXPECT_EQ(gfx::Vector2d(0, 0), LayoutViewport()
-                                     ->GetScrollAnimator()
-                                     .ImplOnlyAnimationAdjustmentForTesting());
+  EXPECT_EQ(IntSize(0, 0), LayoutViewport()
+                               ->GetScrollAnimator()
+                               .ImplOnlyAnimationAdjustmentForTesting());
 }
 
 class ScrollAnchorTestFindInPageClient : public mojom::blink::FindInPageClient {
@@ -1050,13 +1064,7 @@ class ScrollAnchorTestFindInPageClient : public mojom::blink::FindInPageClient {
   mojo::Receiver<mojom::blink::FindInPageClient> receiver_{this};
 };
 
-#if BUILDFLAG(IS_FUCHSIA)
-// TODO(crbug.com/1313270): Fix this test on Fuchsia and re-enable.
-#define MAYBE_ScrollAnchorFindInPageTest DISABLED_ScrollAnchorFindInPageTest
-#else
-#define MAYBE_ScrollAnchorFindInPageTest ScrollAnchorFindInPageTest
-#endif
-class MAYBE_ScrollAnchorFindInPageTest : public testing::Test {
+class ScrollAnchorFindInPageTest : public testing::Test {
  public:
   void SetUp() override { web_view_helper_.Initialize(); }
   void TearDown() override { web_view_helper_.Reset(); }
@@ -1113,7 +1121,7 @@ class MAYBE_ScrollAnchorFindInPageTest : public testing::Test {
   frame_test_helpers::WebViewHelper web_view_helper_;
 };
 
-TEST_F(MAYBE_ScrollAnchorFindInPageTest, FindInPageResultPrioritized) {
+TEST_F(ScrollAnchorFindInPageTest, FindInPageResultPrioritized) {
   ResizeAndFocus();
   SetHtmlInnerHTML(R"HTML(
     <style>
@@ -1157,7 +1165,7 @@ TEST_F(MAYBE_ScrollAnchorFindInPageTest, FindInPageResultPrioritized) {
   EXPECT_EQ(old_bounds->y(), new_bounds->y());
 }
 
-TEST_F(MAYBE_ScrollAnchorFindInPageTest, FocusPrioritizedOverFindInPage) {
+TEST_F(ScrollAnchorFindInPageTest, FocusPrioritizedOverFindInPage) {
   ResizeAndFocus();
   SetHtmlInnerHTML(R"HTML(
     <style>
@@ -1187,7 +1195,7 @@ TEST_F(MAYBE_ScrollAnchorFindInPageTest, FocusPrioritizedOverFindInPage) {
   Find(search_text, client);
   ASSERT_EQ(1, client.Count());
 
-  GetDocument().getElementById("focus_target")->Focus();
+  GetDocument().getElementById("focus_target")->focus();
 
   // Save the old bounds for comparison.
   auto* old_focus_bounds =
@@ -1210,7 +1218,7 @@ TEST_F(MAYBE_ScrollAnchorFindInPageTest, FocusPrioritizedOverFindInPage) {
   EXPECT_NE(old_find_bounds->y(), new_find_bounds->y());
 }
 
-TEST_F(MAYBE_ScrollAnchorFindInPageTest, FocusedUnderStickyIsSkipped) {
+TEST_F(ScrollAnchorFindInPageTest, FocusedUnderStickyIsSkipped) {
   ResizeAndFocus();
   SetHtmlInnerHTML(R"HTML(
     <style>
@@ -1238,7 +1246,7 @@ TEST_F(MAYBE_ScrollAnchorFindInPageTest, FocusedUnderStickyIsSkipped) {
   LayoutViewport()->SetScrollOffset(ScrollOffset(0, 150),
                                     mojom::blink::ScrollType::kUser);
 
-  GetDocument().getElementById("target")->Focus();
+  GetDocument().getElementById("target")->focus();
 
   // Save the old bounds for comparison. Use #check, since sticky won't move
   // regardless of scroll anchoring.

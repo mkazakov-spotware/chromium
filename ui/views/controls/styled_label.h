@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <string>
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/class_property.h"
 #include "ui/gfx/font_list.h"
@@ -22,7 +22,6 @@
 #include "ui/gfx/range/range.h"
 #include "ui/gfx/text_constants.h"
 #include "ui/views/controls/link.h"
-#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/view.h"
 
@@ -30,7 +29,6 @@ namespace views {
 
 class Label;
 class Link;
-class LinkFragment;
 
 // A class which can apply mixed styles to a block of text. Currently, text is
 // always multiline. Trailing whitespace in the styled label text is not
@@ -54,28 +52,28 @@ class VIEWS_EXPORT StyledLabel : public View {
 
     // Allows full customization of the font used in the range. Ignores the
     // StyledLabel's default text context and |text_style|.
-    absl::optional<gfx::FontList> custom_font;
+    base::Optional<gfx::FontList> custom_font;
 
     // The style::TextStyle for this range.
-    absl::optional<int> text_style;
+    base::Optional<int> text_style;
 
     // Overrides the text color given by |text_style| for this range.
     // DEPRECATED: Use TextStyle.
-    absl::optional<SkColor> override_color;
+    base::Optional<SkColor> override_color;
 
     // A callback to be called when this link is clicked. Only used if
     // |text_style| is style::STYLE_LINK.
     Link::ClickedCallback callback;
 
     // Tooltip for the range.
-    std::u16string tooltip;
+    base::string16 tooltip;
 
-    // Accessible name for the range.
-    std::u16string accessible_name;
+    // If set, the whole range will be put on a single line.
+    bool disable_line_wrapping = false;
 
     // A custom view shown instead of the underlying text. Ownership of custom
     // views must be passed to StyledLabel via AddCustomView().
-    raw_ptr<View> custom_view = nullptr;
+    View* custom_view = nullptr;
   };
 
   // Sizing information for laying out the label based on a particular width.
@@ -101,16 +99,12 @@ class VIEWS_EXPORT StyledLabel : public View {
   };
 
   StyledLabel();
-
-  StyledLabel(const StyledLabel&) = delete;
-  StyledLabel& operator=(const StyledLabel&) = delete;
-
   ~StyledLabel() override;
 
   // Sets the text to be displayed, and clears any previous styling.  Trailing
   // whitespace is trimmed from the text.
-  const std::u16string& GetText() const;
-  void SetText(std::u16string text);
+  const base::string16& GetText() const;
+  void SetText(base::string16 text);
 
   // Returns the FontList that should be used. |style_info| is an optional
   // argument that takes precedence over the default values.
@@ -143,14 +137,11 @@ class VIEWS_EXPORT StyledLabel : public View {
   // Gets/Sets the color of the background on which the label is drawn. This
   // won't be explicitly drawn, but the label will force the text color to be
   // readable over it.
-  absl::optional<SkColor> GetDisplayedOnBackgroundColor() const;
-  void SetDisplayedOnBackgroundColor(const absl::optional<SkColor>& color);
+  base::Optional<SkColor> GetDisplayedOnBackgroundColor() const;
+  void SetDisplayedOnBackgroundColor(const base::Optional<SkColor>& color);
 
   bool GetAutoColorReadabilityEnabled() const;
   void SetAutoColorReadabilityEnabled(bool auto_color_readability);
-
-  bool GetSubpixelRenderingEnabled() const;
-  void SetSubpixelRenderingEnabled(bool subpixel_rendering_enabled);
 
   // Returns the layout size information that would be used to layout the label
   // at width |w|.  This can be used by callers who need more detail than what's
@@ -182,10 +173,7 @@ class VIEWS_EXPORT StyledLabel : public View {
 
   // Sends a space keypress to the first child that is a link.  Assumes at least
   // one such child exists.
-  void ClickFirstLinkForTesting();
-
-  // Get the first child that is a link.
-  views::Link* GetFirstLinkForTesting();
+  void ClickLinkForTesting();
 
  private:
   struct StyleRange {
@@ -216,11 +204,9 @@ class VIEWS_EXPORT StyledLabel : public View {
   void CalculateLayout(int width) const;
 
   // Creates a Label for a given |text|, |style_info|, and |range|.
-  std::unique_ptr<Label> CreateLabel(
-      const std::u16string& text,
-      const RangeStyleInfo& style_info,
-      const gfx::Range& range,
-      LinkFragment** previous_link_component) const;
+  std::unique_ptr<Label> CreateLabel(const base::string16& text,
+                                     const RangeStyleInfo& style_info,
+                                     const gfx::Range& range) const;
 
   // Update the label background color from the theme or
   // |displayed_on_background_color_| if set.
@@ -231,12 +217,12 @@ class VIEWS_EXPORT StyledLabel : public View {
   void RemoveOrDeleteAllChildViews();
 
   // The text to display.
-  std::u16string text_;
+  base::string16 text_;
 
   int text_context_ = style::CONTEXT_LABEL;
   int default_text_style_ = style::STYLE_PRIMARY;
 
-  absl::optional<int> line_height_;
+  base::Optional<int> line_height_;
 
   // The ranges that should be linkified, sorted by start position.
   StyleRanges style_ranges_;
@@ -253,36 +239,19 @@ class VIEWS_EXPORT StyledLabel : public View {
   mutable std::unique_ptr<LayoutViews> layout_views_;
 
   // Background color on which the label is drawn, for auto color readability.
-  absl::optional<SkColor> displayed_on_background_color_;
+  base::Optional<SkColor> displayed_on_background_color_;
 
   // Controls whether the text is automatically re-colored to be readable on the
   // background.
   bool auto_color_readability_enabled_ = true;
 
-  // Controls whether subpixel rendering is enabled.
-  bool subpixel_rendering_enabled_ = true;
-
   // The horizontal alignment. This value is flipped for RTL. The default
   // behavior is to align left in LTR UI and right in RTL UI.
-  gfx::HorizontalAlignment horizontal_alignment_ =
-      base::i18n::IsRTL() ? gfx::ALIGN_RIGHT : gfx::ALIGN_LEFT;
+  gfx::HorizontalAlignment horizontal_alignment_ = gfx::ALIGN_LEFT;
+
+  DISALLOW_COPY_AND_ASSIGN(StyledLabel);
 };
 
-BEGIN_VIEW_BUILDER(VIEWS_EXPORT, StyledLabel, View)
-VIEW_BUILDER_PROPERTY(const std::u16string&, Text)
-VIEW_BUILDER_PROPERTY(int, TextContext)
-VIEW_BUILDER_PROPERTY(int, DefaultTextStyle)
-VIEW_BUILDER_PROPERTY(int, LineHeight)
-VIEW_BUILDER_PROPERTY(const absl::optional<SkColor>&,
-                      DisplayedOnBackgroundColor)
-VIEW_BUILDER_PROPERTY(bool, AutoColorReadabilityEnabled)
-VIEW_BUILDER_PROPERTY(gfx::HorizontalAlignment, HorizontalAlignment)
-VIEW_BUILDER_METHOD(SizeToFit, int)
-VIEW_BUILDER_METHOD(AddStyleRange, gfx::Range, StyledLabel::RangeStyleInfo)
-END_VIEW_BUILDER
-
 }  // namespace views
-
-DEFINE_VIEW_BUILDER(VIEWS_EXPORT, views::StyledLabel)
 
 #endif  // UI_VIEWS_CONTROLS_STYLED_LABEL_H_

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,8 +21,7 @@ enum class QuotaClientType {
   kServiceWorkerCache = 4,
   kServiceWorker = 5,
   kBackgroundFetch = 6,
-  kNativeIO = 7,
-  kMediaLicense = 8,
+  kAppcache = 7,
 };
 
 // Set of QuotaClientType values.

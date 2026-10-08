@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -181,15 +181,15 @@ def CreateEnumTypeDefinition(domain_name, type):
 def CreateObjectTypeDefinition():
   return {
       'js_type': 'Object',
-      'return_type': 'absl::optional<base::Value::Dict>',
-      'pass_type': 'absl::optional<base::Value::Dict>',
+      'return_type': 'std::unique_ptr<base::DictionaryValue>',
+      'pass_type': 'std::unique_ptr<base::DictionaryValue>',
       'to_raw_type': '*%s',
-      'to_raw_return_type': '*%s',
+      'to_raw_return_type': '%s.get()',
       'to_pass_type': 'std::move(%s)',
-      'type': 'absl::optional<base::Value::Dict>',
-      'raw_type': 'base::Value::Dict',
-      'raw_pass_type': 'base::Value::Dict*',
-      'raw_return_type': 'const base::Value::Dict&',
+      'type': 'std::unique_ptr<base::DictionaryValue>',
+      'raw_type': 'base::DictionaryValue',
+      'raw_pass_type': 'base::DictionaryValue*',
+      'raw_return_type': 'const base::DictionaryValue*',
   }
 
 
@@ -435,7 +435,7 @@ def InitializeDomainDependencies(json_api):
 
     if not isinstance(json, dict):
       return
-    for value in json.values():
+    for value in json.itervalues():
       GetDomainDepsFromRefs(domain_name, value)
 
     if '$ref' in json:

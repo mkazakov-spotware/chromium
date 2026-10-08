@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/web_test/renderer/gc_controller.h"
-
-#include <tuple>
 
 #include "base/bind.h"
 #include "gin/arguments.h"
@@ -90,22 +88,18 @@ void GCController::AsyncCollectAllWithEmptyStack(
   v8::Isolate* const isolate = blink::MainThreadIsolate();
 
   for (int i = 0; i < kNumberOfGCsForFullCollection; i++) {
-    isolate->RequestGarbageCollectionForTesting(
-        v8::Isolate::kFullGarbageCollection,
-        cppgc::EmbedderStackState::kNoHeapPointers);
+    isolate->GetEmbedderHeapTracer()->GarbageCollectionForTesting(
+        v8::EmbedderHeapTracer::EmbedderStackState::kEmpty);
   }
 
   v8::HandleScope scope(isolate);
   v8::Local<v8::Function> func = callback.Get(isolate);
-  v8::Local<v8::Context> context = func->GetCreationContextChecked();
+  v8::Local<v8::Context> context = func->CreationContext();
   v8::Context::Scope context_scope(context);
   v8::TryCatch try_catch(isolate);
-  v8::MicrotasksScope microtasks_scope(
-      isolate, context->GetMicrotaskQueue(),
-      v8::MicrotasksScope::kDoNotRunMicrotasks);
   auto result = func->Call(context, context->Global(), 0, nullptr);
   // Swallow potential exception.
-  std::ignore = result;
+  ignore_result(result);
 }
 
 void GCController::MinorCollect(const gin::Arguments& args) {

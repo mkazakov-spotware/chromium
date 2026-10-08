@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "components/ntp_snippets/content_suggestions_provider.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -24,10 +25,6 @@ class MockContentSuggestionsProvider : public ContentSuggestionsProvider {
   MockContentSuggestionsProvider(
       Observer* observer,
       const std::vector<Category>& provided_categories);
-  MockContentSuggestionsProvider(const MockContentSuggestionsProvider&) =
-      delete;
-  MockContentSuggestionsProvider& operator=(
-      const MockContentSuggestionsProvider&) = delete;
   ~MockContentSuggestionsProvider() override;
 
   void SetProvidedCategories(const std::vector<Category>& provided_categories);
@@ -92,6 +89,8 @@ class MockContentSuggestionsProvider : public ContentSuggestionsProvider {
   std::map<int, CategoryStatus> statuses_;
 
   DestructorCallback destructor_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockContentSuggestionsProvider);
 };
 
 }  // namespace ntp_snippets

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,11 @@
 
 namespace base {
 
+#if defined(BASE_STRING16_IS_STD_U16STRING)
 namespace internal {
 
 template <>
-inline WStringPiece WhitespaceForType<wchar_t>() {
+inline WStringPiece WhitespaceForType<std::wstring>() {
   return kWhitespaceWide;
 }
 
@@ -53,5 +54,6 @@ std::vector<WStringPiece> SplitStringPieceUsingSubstr(
   return internal::SplitStringUsingSubstrT<WStringPiece>(
       input, delimiter, whitespace, result_type);
 }
+#endif
 
 }  // namespace base

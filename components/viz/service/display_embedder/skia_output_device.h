@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,16 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/time/time.h"
+#include "base/optional.h"
 #include "build/build_config.h"
 #include "components/viz/service/display/output_surface.h"
-#include "components/viz/service/display/output_surface_frame.h"
 #include "components/viz/service/display/overlay_processor_interface.h"
 #include "components/viz/service/display/skia_output_surface.h"
 #include "gpu/command_buffer/common/swap_buffers_complete_params.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/skia/include/gpu/GrBackendSemaphore.h"
+#include "third_party/skia/src/gpu/GrSemaphore.h"
 #include "ui/gfx/swap_result.h"
 
 class GrDirectContext;
@@ -32,6 +30,7 @@ class SequencedTaskRunner;
 }
 
 namespace gfx {
+class ColorSpace;
 class Rect;
 class Size;
 struct PresentationFeedback;
@@ -55,13 +54,7 @@ class SkiaOutputDevice {
   // A helper class for defining a BeginPaint() and EndPaint() scope.
   class ScopedPaint {
    public:
-    ScopedPaint(std::vector<GrBackendSemaphore> end_semaphores,
-                SkiaOutputDevice* device,
-                SkSurface* sk_surface);
-
-    ScopedPaint(const ScopedPaint&) = delete;
-    ScopedPaint& operator=(const ScopedPaint&) = delete;
-
+    explicit ScopedPaint(SkiaOutputDevice* device);
     ~ScopedPaint();
 
     // This can be null.
@@ -83,41 +76,30 @@ class SkiaOutputDevice {
 
    private:
     std::vector<GrBackendSemaphore> end_semaphores_;
-    const raw_ptr<SkiaOutputDevice, DanglingUntriaged> device_;
+    SkiaOutputDevice* const device_;
     // Null when using vulkan secondary command buffer.
-    const raw_ptr<SkSurface, DanglingUntriaged> sk_surface_;
+    SkSurface* const sk_surface_;
+
+    DISALLOW_COPY_AND_ASSIGN(ScopedPaint);
   };
 
   using BufferPresentedCallback =
       base::OnceCallback<void(const gfx::PresentationFeedback& feedback)>;
   using DidSwapBufferCompleteCallback =
       base::RepeatingCallback<void(gpu::SwapBuffersCompleteParams,
-                                   const gfx::Size& pixel_size,
-                                   gfx::GpuFenceHandle release_fence)>;
+                                   const gfx::Size& pixel_size)>;
   SkiaOutputDevice(
       GrDirectContext* gr_context,
       gpu::MemoryTracker* memory_tracker,
       DidSwapBufferCompleteCallback did_swap_buffer_complete_callback);
-
-  SkiaOutputDevice(const SkiaOutputDevice&) = delete;
-  SkiaOutputDevice& operator=(const SkiaOutputDevice&) = delete;
-
   virtual ~SkiaOutputDevice();
 
-  // Begins a paint scope. The base implementation fails when the SkSurface
-  // cannot be initialized, but devices that don't draw to a SkSurface (i.e
-  // |SkiaOutputDeviceVulkanSecondaryCB|) can override this to bypass the
-  // check.
-  virtual std::unique_ptr<SkiaOutputDevice::ScopedPaint> BeginScopedPaint();
-
   // Changes the size of draw surface and invalidates it's contents.
-  virtual bool Reshape(const SkSurfaceCharacterization& characterization,
-                       const gfx::ColorSpace& color_space,
+  virtual bool Reshape(const gfx::Size& size,
                        float device_scale_factor,
+                       const gfx::ColorSpace& color_space,
+                       gfx::BufferFormat format,
                        gfx::OverlayTransform transform) = 0;
-
-  // For devices that supports viewporter.
-  virtual void SetViewportSize(const gfx::Size& viewport_size);
 
   // Submit the GrContext and run |callback| after. Note most but not all
   // implementations will run |callback| in this call stack.
@@ -127,13 +109,12 @@ class SkiaOutputDevice {
 
   // Presents the back buffer.
   virtual void SwapBuffers(BufferPresentedCallback feedback,
-                           OutputSurfaceFrame frame) = 0;
+                           std::vector<ui::LatencyInfo> latency_info) = 0;
   virtual void PostSubBuffer(const gfx::Rect& rect,
                              BufferPresentedCallback feedback,
-                             OutputSurfaceFrame frame);
+                             std::vector<ui::LatencyInfo> latency_info);
   virtual void CommitOverlayPlanes(BufferPresentedCallback feedback,
-                                   OutputSurfaceFrame frame);
-  virtual bool EnsureMinNumberOfBuffers(size_t n);
+                                   std::vector<ui::LatencyInfo> latency_info);
 
   // Set the rectangle that will be drawn into on the surface.
   virtual bool SetDrawRectangle(const gfx::Rect& draw_rectangle);
@@ -151,7 +132,7 @@ class SkiaOutputDevice {
   // primary plane will be on screen when SwapBuffers() or PostSubBuffer() is
   // called.
   virtual void SchedulePrimaryPlane(
-      const absl::optional<
+      const base::Optional<
           OverlayProcessorInterface::OutputSurfaceOverlayPlane>& plane);
 
   // Schedule overlays which will be on screen when SwapBuffers() or
@@ -168,18 +149,9 @@ class SkiaOutputDevice {
   virtual void EnsureBackbuffer();
   virtual void DiscardBackbuffer();
 
-  // Acknowledges a SwapBuffers request without actually attempting to swap.
-  // This should be called when the GPU thread decides to skip a swap that was
-  // invoked by the viz thread to ensure that we still run the relevant metrics
-  // bookkeeping.
-  virtual void SwapBuffersSkipped(BufferPresentedCallback feedback,
-                                  OutputSurfaceFrame frame);
-
   bool is_emulated_rgbx() const { return is_emulated_rgbx_; }
 
   void SetDrawTimings(base::TimeTicks submitted, base::TimeTicks started);
-
-  void SetDependencyTimings(base::TimeTicks task_ready);
 
  protected:
   // Only valid between StartSwapBuffers and FinishSwapBuffers.
@@ -188,16 +160,13 @@ class SkiaOutputDevice {
     SwapInfo(uint64_t swap_id,
              BufferPresentedCallback feedback,
              base::TimeTicks viz_scheduled_draw,
-             base::TimeTicks gpu_started_draw,
-             base::TimeTicks task_ready);
+             base::TimeTicks gpu_started_draw);
     SwapInfo(SwapInfo&& other);
     ~SwapInfo();
-    uint64_t SwapId();
     const gpu::SwapBuffersCompleteParams& Complete(
         gfx::SwapCompletionResult result,
-        const absl::optional<gfx::Rect>& damage_area,
-        std::vector<gpu::Mailbox> released_overlays,
-        const gpu::Mailbox& primary_plane_mailbox);
+        const base::Optional<gfx::Rect>& damage_area,
+        std::vector<gpu::Mailbox> released_overlays);
     void CallFeedback();
 
    private:
@@ -235,12 +204,11 @@ class SkiaOutputDevice {
   void FinishSwapBuffers(
       gfx::SwapCompletionResult result,
       const gfx::Size& size,
-      OutputSurfaceFrame frame,
-      const absl::optional<gfx::Rect>& damage_area = absl::nullopt,
-      std::vector<gpu::Mailbox> released_overlays = {},
-      const gpu::Mailbox& primary_plane_mailbox = gpu::Mailbox());
+      std::vector<ui::LatencyInfo> latency_info,
+      const base::Optional<gfx::Rect>& damage_area = base::nullopt,
+      std::vector<gpu::Mailbox> released_overlays = {});
 
-  const raw_ptr<GrDirectContext, DanglingUntriaged> gr_context_;
+  GrDirectContext* const gr_context_;
 
   OutputSurface::Capabilities capabilities_;
 
@@ -250,7 +218,6 @@ class SkiaOutputDevice {
   base::queue<SwapInfo> pending_swaps_;
   base::TimeTicks viz_scheduled_draw_;
   base::TimeTicks gpu_started_draw_;
-  base::TimeTicks gpu_task_ready_;
 
   // RGBX format is emulated with RGBA.
   bool is_emulated_rgbx_ = false;
@@ -261,8 +228,8 @@ class SkiaOutputDevice {
   std::unique_ptr<ui::LatencyTracker> latency_tracker_;
   // task runner for latency tracker.
   scoped_refptr<base::SequencedTaskRunner> latency_tracker_runner_;
-  // A mapping from skipped swap ID to its corresponding OutputSurfaceFrame.
-  base::flat_map<uint64_t, OutputSurfaceFrame> skipped_swap_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(SkiaOutputDevice);
 };
 
 }  // namespace viz

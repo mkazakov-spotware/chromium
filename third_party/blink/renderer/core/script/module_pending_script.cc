@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/script/module_pending_script.h"
 
+#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/script/script_loader.h"
 
 namespace blink {
@@ -39,7 +40,7 @@ void ModulePendingScriptTreeClient::Trace(Visitor* visitor) const {
 ModulePendingScript::ModulePendingScript(ScriptElementBase* element,
                                          ModulePendingScriptTreeClient* client,
                                          bool is_external)
-    : PendingScript(element, TextPosition::MinimumPosition()),
+    : PendingScript(element, TextPosition()),
       module_tree_client_(client),
       is_external_(is_external) {
   CHECK(GetElement());
@@ -64,7 +65,7 @@ void ModulePendingScript::NotifyModuleTreeLoadFinished() {
   PendingScriptFinished();
 }
 
-Script* ModulePendingScript::GetSource() const {
+Script* ModulePendingScript::GetSource(const KURL& document_url) const {
   CHECK(IsReady());
   return GetModuleScript();
 }

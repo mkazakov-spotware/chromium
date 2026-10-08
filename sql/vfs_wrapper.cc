@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,11 @@
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
-#include "base/mac/backup_util.h"
+#if defined(OS_MAC)
+#include "base/mac/mac_util.h"
 #endif
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include "sql/vfs_wrapper_fuchsia.h"
 #endif
 
@@ -50,15 +50,14 @@ sqlite3_file* GetWrappedFile(sqlite3_file* wrapper_file) {
   return AsVfsFile(wrapper_file)->wrapped_file;
 }
 
-int Close(sqlite3_file* sqlite_file) {
-#if BUILDFLAG(IS_FUCHSIA)
-  // Other platforms automatically unlock when the file descriptor is closed,
-  // but the fuchsia virtual implementation doesn't have that so it needs an
-  // explicit unlock on close.
-  Unlock(sqlite_file, SQLITE_LOCK_NONE);
+int Close(sqlite3_file* sqlite_file)
+{
+  VfsFile* file = AsVfsFile(sqlite_file);
+
+#if defined(OS_FUCHSIA)
+  FuchsiaVfsUnlock(sqlite_file, SQLITE_LOCK_NONE);
 #endif
 
-  VfsFile* file = AsVfsFile(sqlite_file);
   int r = file->wrapped_file->pMethods->xClose(file->wrapped_file);
   sqlite3_free(file->wrapped_file);
 
@@ -100,7 +99,7 @@ int FileSize(sqlite3_file* sqlite_file, sqlite3_int64* size)
   return wrapped_file->pMethods->xFileSize(wrapped_file, size);
 }
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 
 int Lock(sqlite3_file* sqlite_file, int file_lock)
 {
@@ -120,8 +119,7 @@ int CheckReservedLock(sqlite3_file* sqlite_file, int* result)
   return wrapped_file->pMethods->xCheckReservedLock(wrapped_file, result);
 }
 
-#endif  // !BUILDFLAG(IS_FUCHSIA)
-// Else these functions are imported via vfs_wrapper_fuchsia.h.
+#endif  // !defined(OS_FUCHSIA)
 
 int FileControl(sqlite3_file* sqlite_file, int op, void* arg)
 {
@@ -194,8 +192,8 @@ int Open(sqlite3_vfs* vfs, const char* file_name, sqlite3_file* wrapper_file,
   // NOTE(shess): Any early exit from here needs to call xClose() on
   // |wrapped_file|.
 
-#if BUILDFLAG(IS_APPLE)
-  // When opening journal files, propagate backup exclusion from db.
+#if defined(OS_MAC)
+  // When opening journal files, propagate time-machine exclusion from db.
   static int kJournalFlags =
       SQLITE_OPEN_MAIN_JOURNAL | SQLITE_OPEN_TEMP_JOURNAL |
       SQLITE_OPEN_SUBJOURNAL | SQLITE_OPEN_MASTER_JOURNAL;
@@ -206,8 +204,9 @@ int Open(sqlite3_vfs* vfs, const char* file_name, sqlite3_file* wrapper_file,
     size_t dash_index = file_name_string_piece.rfind('-');
     if (dash_index != base::StringPiece::npos) {
       base::StringPiece db_name(file_name, dash_index);
-      if (base::mac::GetBackupExclusion(base::FilePath(db_name))) {
-        base::mac::SetBackupExclusion(base::FilePath(file_name_string_piece));
+      if (base::mac::GetFileBackupExclusion(base::FilePath(db_name))) {
+        base::mac::SetFileBackupExclusion(
+            base::FilePath(file_name_string_piece));
       }
     }
   }
@@ -234,72 +233,91 @@ int Open(sqlite3_vfs* vfs, const char* file_name, sqlite3_file* wrapper_file,
 
   file->wrapped_file = wrapped_file;
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   file->file_name = file_name;
+  file->lock_level = SQLITE_LOCK_NONE;
 #endif
 
   if (wrapped_file->pMethods->iVersion == 1) {
     static const sqlite3_io_methods io_methods = {
-        1,
-        Close,
-        Read,
-        Write,
-        Truncate,
-        Sync,
-        FileSize,
-        Lock,
-        Unlock,
-        CheckReservedLock,
-        FileControl,
-        SectorSize,
-        DeviceCharacteristics,
+      1,
+      Close,
+      Read,
+      Write,
+      Truncate,
+      Sync,
+      FileSize,
+#if !defined(OS_FUCHSIA)
+      Lock,
+      Unlock,
+      CheckReservedLock,
+#else
+      FuchsiaVfsLock,
+      FuchsiaVfsUnlock,
+      FuchsiaVfsCheckReservedLock,
+#endif
+      FileControl,
+      SectorSize,
+      DeviceCharacteristics,
     };
     file->methods = &io_methods;
   } else if (wrapped_file->pMethods->iVersion == 2) {
     static const sqlite3_io_methods io_methods = {
-        2,
-        Close,
-        Read,
-        Write,
-        Truncate,
-        Sync,
-        FileSize,
-        Lock,
-        Unlock,
-        CheckReservedLock,
-        FileControl,
-        SectorSize,
-        DeviceCharacteristics,
-        // Methods above are valid for version 1.
-        ShmMap,
-        ShmLock,
-        ShmBarrier,
-        ShmUnmap,
+      2,
+      Close,
+      Read,
+      Write,
+      Truncate,
+      Sync,
+      FileSize,
+#if !defined(OS_FUCHSIA)
+      Lock,
+      Unlock,
+      CheckReservedLock,
+#else
+      FuchsiaVfsLock,
+      FuchsiaVfsUnlock,
+      FuchsiaVfsCheckReservedLock,
+#endif
+      FileControl,
+      SectorSize,
+      DeviceCharacteristics,
+      // Methods above are valid for version 1.
+      ShmMap,
+      ShmLock,
+      ShmBarrier,
+      ShmUnmap,
     };
     file->methods = &io_methods;
   } else {
     static const sqlite3_io_methods io_methods = {
-        3,
-        Close,
-        Read,
-        Write,
-        Truncate,
-        Sync,
-        FileSize,
-        Lock,
-        Unlock,
-        CheckReservedLock,
-        FileControl,
-        SectorSize,
-        DeviceCharacteristics,
-        // Methods above are valid for version 1.
-        ShmMap,
-        ShmLock,
-        ShmBarrier,
-        ShmUnmap,
-        // Methods above are valid for version 2.
-        Fetch,
-        Unfetch,
+      3,
+      Close,
+      Read,
+      Write,
+      Truncate,
+      Sync,
+      FileSize,
+#if !defined(OS_FUCHSIA)
+      Lock,
+      Unlock,
+      CheckReservedLock,
+#else
+      FuchsiaVfsLock,
+      FuchsiaVfsUnlock,
+      FuchsiaVfsCheckReservedLock,
+#endif
+      FileControl,
+      SectorSize,
+      DeviceCharacteristics,
+      // Methods above are valid for version 1.
+      ShmMap,
+      ShmLock,
+      ShmBarrier,
+      ShmUnmap,
+      // Methods above are valid for version 2.
+      Fetch,
+      Unfetch,
     };
     file->methods = &io_methods;
   }
@@ -346,7 +364,7 @@ int CurrentTimeInt64(sqlite3_vfs* vfs, sqlite3_int64* now) {
 }  // namespace
 
 sqlite3_vfs* VFSWrapper() {
-  static constexpr char kVFSName[] = "VFSWrapper";
+  const char* kVFSName = "VFSWrapper";
 
   // Return existing version if already registered.
   {
@@ -356,13 +374,11 @@ sqlite3_vfs* VFSWrapper() {
   }
 
   // Get the default VFS on all platforms except Fuchsia.
-  static constexpr const char* kBaseVfsName =
-#if BUILDFLAG(IS_FUCHSIA)
-      "unix-none";
-#else
-      nullptr;
+  const char* base_vfs_name = nullptr;
+#if defined(OS_FUCHSIA)
+  base_vfs_name = "unix-none";
 #endif
-  sqlite3_vfs* wrapped_vfs = sqlite3_vfs_find(kBaseVfsName);
+  sqlite3_vfs* wrapped_vfs = sqlite3_vfs_find(base_vfs_name);
 
   // Give up if there is no VFS implementation for the current platform.
   if (!wrapped_vfs) {

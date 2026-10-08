@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,13 @@
 #include "ash/wm/overview/overview_types.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "ui/aura/client/transient_window_client_observer.h"
 #include "ui/aura/window_observer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace aura {
 class ScopedWindowEventTargetingBlocker;
@@ -94,13 +95,11 @@ class ASH_EXPORT ScopedOverviewTransformWindow
   // ancestors, in which case returns 0.
   int GetTopInset() const;
 
-  // Restores and animates the managed window to its non overview mode state. If
-  // `animate_back` is false, the window will just be restored and not animated.
+  // Restores and animates the managed window to its non overview mode state.
   // If |reset_transform| equals false, the window's transform will not be reset
   // to identity transform when exiting the overview mode. See
   // OverviewItem::RestoreWindow() for details why we need this.
-  void RestoreWindow(bool reset_transform,
-                     bool was_desk_templates_grid_showing);
+  void RestoreWindow(bool reset_transform);
 
   // Prepares for overview mode by doing any necessary actions before entering.
   void PrepareForOverview();
@@ -153,7 +152,6 @@ class ASH_EXPORT ScopedOverviewTransformWindow
                              const gfx::Rect& old_bounds,
                              const gfx::Rect& new_bounds,
                              ui::PropertyChangeReason reason) override;
-  void OnWindowDestroying(aura::Window* window) override;
 
   aura::Window* window() const { return window_; }
 
@@ -161,7 +159,7 @@ class ASH_EXPORT ScopedOverviewTransformWindow
 
  private:
   friend class OverviewHighlightControllerTest;
-  friend class OverviewTestBase;
+  friend class OverviewSessionTest;
   FRIEND_TEST_ALL_PREFIXES(OverviewSessionTest, CloseAnimationShadow);
   class LayerCachingAndFilteringObserver;
 
@@ -207,14 +205,9 @@ class ASH_EXPORT ScopedOverviewTransformWindow
   // mode.
   gfx::Rect original_clip_rect_;
 
-  // Removes clipping on `window_` during destruction in the case it was not
-  // removed in `RestoreWindw()`. See destructor for more information.
-  bool reset_clip_on_shutdown_ = true;
-
   std::unique_ptr<ScopedOverviewHideWindows> hidden_transient_children_;
 
-  base::ScopedMultiSourceObservation<aura::Window, aura::WindowObserver>
-      window_observations_{this};
+  ScopedObserver<aura::Window, aura::WindowObserver> window_observer_{this};
 
   base::WeakPtrFactory<ScopedOverviewTransformWindow> weak_ptr_factory_{this};
 };

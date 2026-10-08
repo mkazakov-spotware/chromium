@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "device/bluetooth/bluetooth_remote_gatt_descriptor.h"
 
@@ -29,12 +30,6 @@ class BluetoothRemoteGattDescriptorCast : public BluetoothRemoteGattDescriptor {
   BluetoothRemoteGattDescriptorCast(
       BluetoothRemoteGattCharacteristicCast* characteristic,
       scoped_refptr<chromecast::bluetooth::RemoteDescriptor> remote_descriptor);
-
-  BluetoothRemoteGattDescriptorCast(const BluetoothRemoteGattDescriptorCast&) =
-      delete;
-  BluetoothRemoteGattDescriptorCast& operator=(
-      const BluetoothRemoteGattDescriptorCast&) = delete;
-
   ~BluetoothRemoteGattDescriptorCast() override;
 
   // BluetoothGattDescriptor implementation:
@@ -45,7 +40,8 @@ class BluetoothRemoteGattDescriptorCast : public BluetoothRemoteGattDescriptor {
   // BluetoothRemoteGattDescriptor implementation:
   const std::vector<uint8_t>& GetValue() const override;
   BluetoothRemoteGattCharacteristic* GetCharacteristic() const override;
-  void ReadRemoteDescriptor(ValueCallback callback) override;
+  void ReadRemoteDescriptor(ValueCallback callback,
+                            ErrorCallback error_callback) override;
   void WriteRemoteDescriptor(const std::vector<uint8_t>& new_value,
                              base::OnceClosure callback,
                              ErrorCallback error_callback) override;
@@ -54,9 +50,10 @@ class BluetoothRemoteGattDescriptorCast : public BluetoothRemoteGattDescriptor {
   // Called when the remote descriptor has been read or the operation has
   // failed. If the former, |success| will be true, and |result| will be
   // valid. In this case, |value_| is updated and |callback| is run with
-  // |result|. If |success| is false, |callback| will be called with
-  // an appropriate error_code and the value should be ignored.
+  // |result|. If |success| is false, |result| is ignored and |error_callback|
+  // is run.
   void OnReadRemoteDescriptor(ValueCallback callback,
+                              ErrorCallback error_callback,
                               bool success,
                               const std::vector<uint8_t>& result);
 
@@ -74,6 +71,7 @@ class BluetoothRemoteGattDescriptorCast : public BluetoothRemoteGattDescriptor {
   std::vector<uint8_t> value_;
 
   base::WeakPtrFactory<BluetoothRemoteGattDescriptorCast> weak_factory_;
+  DISALLOW_COPY_AND_ASSIGN(BluetoothRemoteGattDescriptorCast);
 };
 
 }  // namespace device

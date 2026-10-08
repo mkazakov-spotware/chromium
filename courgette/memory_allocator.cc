@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <map>
 
 #include "base/files/file_util.h"
-#include "build/build_config.h"
+#include "base/strings/stringprintf.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 #include <windows.h>
 
@@ -28,7 +28,7 @@ base::File CreateTempFile() {
 
   int flags = base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
               base::File::FLAG_WRITE | base::File::FLAG_DELETE_ON_CLOSE |
-              base::File::FLAG_WIN_TEMPORARY;
+              base::File::FLAG_TEMPORARY;
   return base::File(path, flags);
 }
 
@@ -137,4 +137,4 @@ TempMapping* TempMapping::GetMappingFromPtr(void* mem) {
 
 }  // namespace courgette
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN

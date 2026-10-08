@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/payments/merchant_validation_event.h"
 
+#include "base/macros.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
@@ -40,7 +41,7 @@ TEST(MerchantValidationEventTest, EmptyPaymentMethodIsValid) {
       scope.GetScriptState(), "merchantvalidation", &initializer,
       scope.GetExceptionState());
   EXPECT_FALSE(scope.GetExceptionState().HadException());
-  EXPECT_TRUE(event->methodName().empty());
+  EXPECT_TRUE(event->methodName().IsEmpty());
   EXPECT_EQ(KURL(kValidURL), event->validationURL());
 }
 

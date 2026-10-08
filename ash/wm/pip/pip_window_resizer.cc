@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/display/screen.h"
 #include "ui/views/widget/widget.h"
@@ -129,7 +128,7 @@ void CollectPositionMetric(const gfx::Rect& bounds_in_screen,
                                bounds),
        AshPipPosition::BOTTOM_RIGHT}};
 
-  std::sort(area_ninths, area_ninths + std::size(area_ninths));
+  std::sort(area_ninths, area_ninths + base::size(area_ninths));
   UMA_HISTOGRAM_ENUMERATION(kAshPipPositionHistogramName,
                             area_ninths[8].second);
 }
@@ -297,7 +296,7 @@ void PipWindowResizer::CompleteDrag() {
         CollisionDetectionUtils::RelativePriority::kPictureInPicture);
 
     base::TimeDelta duration =
-        base::Milliseconds(kPipSnapToEdgeAnimationDurationMs);
+        base::TimeDelta::FromMilliseconds(kPipSnapToEdgeAnimationDurationMs);
     ::wm::ConvertRectFromScreen(GetTarget()->parent(), &bounds);
     SetBoundsWMEvent event(bounds, /*animate=*/true, duration);
     window_state()->OnWMEvent(&event);

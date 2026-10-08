@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
-#include "ash/test/test_window_builder.h"
-#include "base/bind.h"
-#include "base/test/bind.h"
+#include "ui/aura/test/test_windows.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/display/scoped_display_for_new_windows.h"
@@ -22,33 +20,32 @@ namespace ash {
 class DragDropTrackerTest : public AshTestBase {
  public:
   aura::Window* CreateTestWindow(const gfx::Rect& bounds) {
-    return TestWindowBuilder()
-        .SetBounds(bounds)
-        .SetTestWindowDelegate()
-        .Build()
-        .release();
+    static int window_id = 0;
+    return CreateTestWindowInShellWithDelegate(
+        aura::test::TestWindowDelegate::CreateSelfDestroyingDelegate(),
+        window_id++, bounds);
   }
 
   static aura::Window* GetTarget(const gfx::Point& location) {
-    std::unique_ptr<DragDropTracker> tracker(new DragDropTracker(
-        Shell::GetPrimaryRootWindow(), base::BindLambdaForTesting([&]() {})));
+    std::unique_ptr<DragDropTracker> tracker(
+        new DragDropTracker(Shell::GetPrimaryRootWindow(), NULL));
     ui::MouseEvent e(ui::ET_MOUSE_DRAGGED, location, location,
                      ui::EventTimeForNow(), ui::EF_NONE, ui::EF_NONE);
     aura::Window* target = tracker->GetTarget(e);
     return target;
   }
 
-  static std::unique_ptr<ui::LocatedEvent> ConvertEvent(
-      aura::Window* target,
-      const ui::MouseEvent& event) {
-    std::unique_ptr<DragDropTracker> tracker(new DragDropTracker(
-        Shell::GetPrimaryRootWindow(), base::BindLambdaForTesting([&]() {})));
-    return tracker->ConvertEvent(target, event);
+  static ui::LocatedEvent* ConvertEvent(aura::Window* target,
+                                        const ui::MouseEvent& event) {
+    std::unique_ptr<DragDropTracker> tracker(
+        new DragDropTracker(Shell::GetPrimaryRootWindow(), NULL));
+    ui::LocatedEvent* converted = tracker->ConvertEvent(target, event);
+    return converted;
   }
 };
 
 TEST_F(DragDropTrackerTest, GetTarget) {
-  UpdateDisplay("200x300,400x300");
+  UpdateDisplay("200x200,300x300");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   EXPECT_EQ(2U, root_windows.size());
 
@@ -108,7 +105,7 @@ TEST_F(DragDropTrackerTest, GetTarget) {
 }
 
 TEST_F(DragDropTrackerTest, ConvertEvent) {
-  UpdateDisplay("200x300,400x300");
+  UpdateDisplay("200x200,300x300");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   EXPECT_EQ(2U, root_windows.size());
 

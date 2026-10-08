@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef CRASHPAD_UTIL_STREAM_FILE_OUTPUT_STREAM_H_
 #define CRASHPAD_UTIL_STREAM_FILE_OUTPUT_STREAM_H_
 
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/file/file_writer.h"
 #include "util/stream/output_stream_interface.h"
@@ -26,10 +27,6 @@ class FileOutputStream : public OutputStreamInterface {
  public:
   //! \param[in] file_handle The file that this object writes to.
   explicit FileOutputStream(FileHandle file_handle);
-
-  FileOutputStream(const FileOutputStream&) = delete;
-  FileOutputStream& operator=(const FileOutputStream&) = delete;
-
   ~FileOutputStream();
 
   // OutputStream.
@@ -40,6 +37,8 @@ class FileOutputStream : public OutputStreamInterface {
   WeakFileHandleFileWriter writer_;
   bool flush_needed_;
   bool flushed_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileOutputStream);
 };
 
 }  // namespace crashpad

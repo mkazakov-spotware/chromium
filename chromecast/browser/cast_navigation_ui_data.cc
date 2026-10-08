@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,15 +27,13 @@ class SessionIdUserData : public base::SupportsUserData::Data {
 }  // namespace
 
 // static
-void CastNavigationUIData::SetAppPropertiesForWebContents(
+void CastNavigationUIData::SetSessionIdForWebContents(
     content::WebContents* web_contents,
-    const std::string& session_id,
-    bool is_audio_app) {
+    const std::string& session_id) {
   DCHECK(web_contents);
   web_contents->SetUserData(kUserDataKey,
                             std::make_unique<SessionIdUserData>(session_id));
-  CastSessionIdMap::GetInstance()->SetAppProperties(session_id, is_audio_app,
-                                                    web_contents);
+  CastSessionIdMap::SetSessionId(session_id, web_contents);
 }
 
 // static

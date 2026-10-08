@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
-#include "content/public/renderer/render_frame.h"
+#include "content/public/renderer/render_view.h"
+#include "content/public/renderer/render_view_observer.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test.h"
@@ -19,14 +20,13 @@
 #include "content/public/test/test_utils.h"
 #include "content/renderer/render_frame_impl.h"
 #include "content/shell/browser/shell.h"
-#include "third_party/blink/public/web/web_view_observer.h"
 
 namespace content {
 
-class CommitObserver : public blink::WebViewObserver {
+class CommitObserver : public RenderViewObserver {
  public:
-  explicit CommitObserver(blink::WebView* web_view)
-      : blink::WebViewObserver(web_view) {}
+  CommitObserver(RenderView* render_view)
+      : RenderViewObserver(render_view), quit_closures_(), commit_count_(0) {}
 
   void DidCommitCompositorFrame() override {
     commit_count_++;
@@ -54,11 +54,11 @@ class CommitObserver : public blink::WebViewObserver {
   int GetCommitCount() { return commit_count_; }
 
  private:
-  // blink::WebViewObserver implementation.
+  // RenderViewObserver implementation.
   void OnDestruct() override { delete this; }
 
   base::flat_map<int, base::RepeatingClosure> quit_closures_;
-  int commit_count_ = 0;
+  int commit_count_;
 };
 
 class VisualStateTest : public ContentBrowserTest {
@@ -105,11 +105,11 @@ IN_PROC_BROWSER_TEST_F(VisualStateTest, DISABLED_CallbackDoesNotDeadlock) {
   // with a high level of confidence if we used a timeout, but that's
   // discouraged (see https://codereview.chromium.org/939673002).
   EXPECT_TRUE(NavigateToURL(shell(), GURL("about:blank")));
-  CommitObserver observer(
-      RenderFrame::FromRoutingID(
-          shell()->web_contents()->GetPrimaryMainFrame()->GetRoutingID())
-          ->GetWebFrame()
-          ->View());
+  CommitObserver observer(RenderView::FromRoutingID(shell()
+                                                        ->web_contents()
+                                                        ->GetMainFrame()
+                                                        ->GetRenderViewHost()
+                                                        ->GetRoutingID()));
 
   // Wait for the commit corresponding to the load.
 
@@ -121,7 +121,7 @@ IN_PROC_BROWSER_TEST_F(VisualStateTest, DISABLED_CallbackDoesNotDeadlock) {
       base::BindOnce(&VisualStateTest::AssertIsIdle, base::Unretained(this)));
 
   // Insert a visual state callback.
-  shell()->web_contents()->GetPrimaryMainFrame()->InsertVisualStateCallback(
+  shell()->web_contents()->GetMainFrame()->InsertVisualStateCallback(
       base::BindOnce(&VisualStateTest::InvokeVisualStateCallback,
                      base::Unretained(this)));
 

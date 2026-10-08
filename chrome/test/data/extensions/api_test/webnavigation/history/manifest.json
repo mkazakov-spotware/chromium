@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - history.",
   "background": {
-    "scripts": ["test_history.js"],
-    "persistent": true
+    "page": "test_history.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

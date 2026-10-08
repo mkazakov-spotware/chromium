@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ class CORE_EXPORT CSSAnimation : public Animation {
   CSSAnimation(ExecutionContext*,
                AnimationTimeline*,
                AnimationEffect*,
-               wtf_size_t animation_index,
+               int animation_index,
                const String& animation_name);
 
   bool IsCSSAnimation() const final { return true; }
@@ -28,7 +28,7 @@ class CORE_EXPORT CSSAnimation : public Animation {
   Element* OwningElement() const override { return owning_element_; }
 
   const String& animationName() const { return animation_name_; }
-  wtf_size_t AnimationIndex() const { return animation_index_; }
+  int AnimationIndex() const { return animation_index_; }
   void SetAnimationIndex(wtf_size_t absolute_position) {
     animation_index_ = absolute_position;
   }
@@ -51,8 +51,7 @@ class CORE_EXPORT CSSAnimation : public Animation {
   void play(ExceptionState& = ASSERT_NO_EXCEPTION) override;
   void reverse(ExceptionState& = ASSERT_NO_EXCEPTION) override;
   void setTimeline(AnimationTimeline*) override;
-  void setStartTime(const V8CSSNumberish* start_time,
-                    ExceptionState& exception_state) override;
+  void setStartTime(base::Optional<double>, ExceptionState&) override;
 
   // When set, subsequent changes to animation-play-state no longer affect the
   // play state.
@@ -94,7 +93,7 @@ class CORE_EXPORT CSSAnimation : public Animation {
   // animation_index_ represents the absolute position of an animation within
   // the same owning element. This index helps resolve the animation ordering
   // when comparing two animations with the same owning element.
-  wtf_size_t animation_index_;
+  int animation_index_;
   AtomicString animation_name_;
 
   // When set, the web-animation API is overruling the animation-play-state

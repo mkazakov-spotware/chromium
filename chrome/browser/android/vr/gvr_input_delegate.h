@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/android/vr/vr_controller.h"
 #include "chrome/browser/vr/input_delegate.h"
 
@@ -22,10 +22,6 @@ class GestureDetector;
 class GvrInputDelegate : public InputDelegate {
  public:
   explicit GvrInputDelegate(gvr::GvrApi* gvr_api);
-
-  GvrInputDelegate(const GvrInputDelegate&) = delete;
-  GvrInputDelegate& operator=(const GvrInputDelegate&) = delete;
-
   ~GvrInputDelegate() override;
 
   // InputDelegate implementation.
@@ -43,9 +39,11 @@ class GvrInputDelegate : public InputDelegate {
  private:
   std::unique_ptr<VrController> controller_;
   GestureDetector gesture_detector_;
-  raw_ptr<gvr::GvrApi> gvr_api_;
+  gvr::GvrApi* gvr_api_;
 
   bool was_select_button_down_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(GvrInputDelegate);
 };
 
 }  // namespace vr

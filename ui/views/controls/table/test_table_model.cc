@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,27 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "third_party/skia/include/core/SkBitmap.h"
-#include "ui/base/models/image_model.h"
 #include "ui/base/models/table_model_observer.h"
 #include "ui/gfx/image/image_skia.h"
 
-TestTableModel::TestTableModel(size_t row_count)
+TestTableModel::TestTableModel(int row_count)
     : row_count_(row_count), observer_(nullptr) {}
 
 TestTableModel::~TestTableModel() = default;
 
-size_t TestTableModel::RowCount() {
+int TestTableModel::RowCount() {
   return row_count_;
 }
 
-std::u16string TestTableModel::GetText(size_t row, int column_id) {
+base::string16 TestTableModel::GetText(int row, int column_id) {
   return base::ASCIIToUTF16(base::NumberToString(row) + "x" +
                             base::NumberToString(column_id));
 }
 
-ui::ImageModel TestTableModel::GetIcon(size_t row) {
+gfx::ImageSkia TestTableModel::GetIcon(int row) {
   SkBitmap bitmap;
   bitmap.setInfo(SkImageInfo::MakeN32Premul(16, 16));
-  return ui::ImageModel::FromImageSkia(
-      gfx::ImageSkia::CreateFrom1xBitmap(bitmap));
+  return gfx::ImageSkia::CreateFrom1xBitmap(bitmap);
 }
 
 void TestTableModel::SetObserver(ui::TableModelObserver* observer) {

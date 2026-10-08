@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# Copyright 2012 The Chromium Authors
+#!/usr/bin/env python
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -30,7 +30,7 @@ class XMLFormattedWriter(template_writer.TemplateWriter):
 
     doc = parent.ownerDocument
     element = doc.createElement(name)
-    for key, value in sorted(attrs.items()):
+    for key, value in sorted(attrs.iteritems()):
       element.setAttribute(key, value)
     if text:
       element.appendChild(doc.createTextNode(text))

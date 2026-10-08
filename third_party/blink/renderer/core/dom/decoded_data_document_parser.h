@@ -44,15 +44,16 @@ class CORE_EXPORT DecodedDataDocumentParser : public DocumentParser {
   virtual void Flush();
   bool NeedsDecoder() const final { return needs_decoder_; }
   void SetDecoder(std::unique_ptr<TextResourceDecoder>) override;
-  void AppendDecodedData(const String& data,
-                         const DocumentEncodingData& encoding_data) override;
+  TextResourceDecoder* Decoder() final;
+
+  std::unique_ptr<TextResourceDecoder> TakeDecoder();
 
  protected:
   explicit DecodedDataDocumentParser(Document&);
   ~DecodedDataDocumentParser() override;
 
  private:
-  void UpdateDocument(const String& decoded_data);
+  void UpdateDocument(String& decoded_data);
 
   bool needs_decoder_;
   std::unique_ptr<TextResourceDecoder> decoder_;

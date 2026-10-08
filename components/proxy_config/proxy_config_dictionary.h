@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/values.h"
 #include "components/proxy_config/proxy_config_export.h"
 #include "components/proxy_config/proxy_prefs.h"
@@ -28,12 +29,7 @@ class ProxyServer;
 class PROXY_CONFIG_EXPORT ProxyConfigDictionary {
  public:
   // Takes ownership of |dict| (|dict| will be moved to |dict_|).
-  explicit ProxyConfigDictionary(base::Value::Dict dict);
-  ProxyConfigDictionary(ProxyConfigDictionary&& other);
-
-  ProxyConfigDictionary(const ProxyConfigDictionary&) = delete;
-  ProxyConfigDictionary& operator=(const ProxyConfigDictionary&) = delete;
-
+  explicit ProxyConfigDictionary(base::Value dict);
   ~ProxyConfigDictionary();
 
   bool GetMode(ProxyPrefs::ProxyMode* out) const;
@@ -43,15 +39,15 @@ class PROXY_CONFIG_EXPORT ProxyConfigDictionary {
   bool GetBypassList(std::string* out) const;
   bool HasBypassList() const;
 
-  const base::Value::Dict& GetDictionary() const;
+  const base::Value& GetDictionary() const;
 
-  static base::Value::Dict CreateDirect();
-  static base::Value::Dict CreateAutoDetect();
-  static base::Value::Dict CreatePacScript(const std::string& pac_url,
-                                           bool pac_mandatory);
-  static base::Value::Dict CreateFixedServers(const std::string& proxy_server,
-                                              const std::string& bypass_list);
-  static base::Value::Dict CreateSystem();
+  static base::Value CreateDirect();
+  static base::Value CreateAutoDetect();
+  static base::Value CreatePacScript(const std::string& pac_url,
+                                     bool pac_mandatory);
+  static base::Value CreateFixedServers(const std::string& proxy_server,
+                                        const std::string& bypass_list);
+  static base::Value CreateSystem();
 
   // Encodes the proxy server as "<url-scheme>=<proxy-scheme>://<proxy>".
   // Used to generate the |proxy_server| arg for CreateFixedServers().
@@ -62,13 +58,15 @@ class PROXY_CONFIG_EXPORT ProxyConfigDictionary {
  private:
   bool GetString(const char* key, std::string* out) const;
 
-  static base::Value::Dict CreateDictionary(ProxyPrefs::ProxyMode mode,
-                                            const std::string& pac_url,
-                                            bool pac_mandatory,
-                                            const std::string& proxy_server,
-                                            const std::string& bypass_list);
+  static base::Value CreateDictionary(ProxyPrefs::ProxyMode mode,
+                                      const std::string& pac_url,
+                                      bool pac_mandatory,
+                                      const std::string& proxy_server,
+                                      const std::string& bypass_list);
 
-  base::Value::Dict dict_;
+  base::Value dict_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyConfigDictionary);
 };
 
 #endif  // COMPONENTS_PROXY_CONFIG_PROXY_CONFIG_DICTIONARY_H_

@@ -35,6 +35,7 @@
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
+#include "third_party/blink/renderer/platform/wtf/text/unicode.h"
 
 namespace blink {
 
@@ -81,7 +82,7 @@ class PLATFORM_EXPORT DateComponents {
   int Week() const { return week_; }
   Type GetType() const { return type_; }
 
-  enum class SecondFormat {
+  enum SecondFormat {
     kNone,  // Suppress the second part and the millisecond part if they are 0.
     kSecond,  // Always show the second part, and suppress the millisecond part
               // if it is 0.
@@ -91,7 +92,7 @@ class PLATFORM_EXPORT DateComponents {
   // Returns an ISO 8601 representation for this instance.
   // The format argument is valid for kDateTime, kDateTimeLocal, and
   // kTime types.
-  String ToString(SecondFormat format = SecondFormat::kNone) const;
+  String ToString(SecondFormat format = kNone) const;
 
   // Parse*() and SetMillisecondsSince*() functions are initializers for an
   // DateComponents instance. If these functions return false, the instance

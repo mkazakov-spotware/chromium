@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
-#include "base/task/bind_post_task.h"
 #include "cc/layers/video_frame_provider.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/shared_image_interface.h"
@@ -38,12 +37,6 @@ StreamTextureWrapperImpl::StreamTextureWrapperImpl(
 
 StreamTextureWrapperImpl::~StreamTextureWrapperImpl() {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
-
-  // Clears create video frame callback so it couldn't be called from compositor
-  // thread after |this| is being destroyed.
-  if (stream_texture_proxy_)
-    stream_texture_proxy_->ClearCreateVideoFrameCB();
-
   SetCurrentFrameInternal(nullptr);
 }
 
@@ -64,7 +57,7 @@ void StreamTextureWrapperImpl::CreateVideoFrame(
     const gpu::Mailbox& mailbox,
     const gfx::Size& coded_size,
     const gfx::Rect& visible_rect,
-    const absl::optional<gpu::VulkanYCbCrInfo>& ycbcr_info) {
+    const base::Optional<gpu::VulkanYCbCrInfo>& ycbcr_info) {
   // This message comes from GPU process when the SharedImage is already
   // created, so we don't need to wait on any synctoken, mailbox is ready to
   // use.
@@ -72,7 +65,7 @@ void StreamTextureWrapperImpl::CreateVideoFrame(
       gpu::MailboxHolder(mailbox, gpu::SyncToken(), GL_TEXTURE_EXTERNAL_OES)};
 
   gpu::SharedImageInterface* sii = factory_->SharedImageInterface();
-  sii->NotifyMailboxAdded(mailbox, gpu::SHARED_IMAGE_USAGE_DISPLAY_READ |
+  sii->NotifyMailboxAdded(mailbox, gpu::SHARED_IMAGE_USAGE_DISPLAY |
                                        gpu::SHARED_IMAGE_USAGE_GLES2 |
                                        gpu::SHARED_IMAGE_USAGE_RASTER);
 
@@ -86,14 +79,16 @@ void StreamTextureWrapperImpl::CreateVideoFrame(
   scoped_refptr<media::VideoFrame> new_frame =
       media::VideoFrame::WrapNativeTextures(
           media::PIXEL_FORMAT_ABGR, holders,
-          base::BindPostTask(
+          media::BindToLoop(
               main_task_runner_,
               base::BindOnce(&OnReleaseVideoFrame, factory_, mailbox)),
           coded_size, visible_rect, visible_rect.size(), base::TimeDelta());
   new_frame->set_ycbcr_info(ycbcr_info);
 
-  if (enable_texture_copy_)
-    new_frame->metadata().copy_required = true;
+  if (enable_texture_copy_) {
+    new_frame->metadata()->copy_mode =
+        media::VideoFrameMetadata::CopyMode::kCopyToNewTexture;
+  }
 
   SetCurrentFrameInternal(new_frame);
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,13 @@
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
+#include "base/strings/string16.h"
 #include "base/threading/thread_checker.h"
-#include "base/values.h"
 #include "chrome/browser/extensions/install_prompt_permissions.h"
 #include "chrome/common/buildflags.h"
 #include "extensions/common/permissions/permission_message.h"
@@ -29,6 +29,10 @@
 
 class ExtensionInstallPromptShowParams;
 class Profile;
+
+namespace base {
+class DictionaryValue;
+}  // namespace base
 
 namespace content {
 class BrowserContext;
@@ -97,10 +101,6 @@ class ExtensionInstallPrompt {
   class Prompt {
    public:
     explicit Prompt(PromptType type);
-
-    Prompt(const Prompt&) = delete;
-    Prompt& operator=(const Prompt&) = delete;
-
     ~Prompt();
 
     void AddPermissionSet(const extensions::PermissionSet& permissions);
@@ -114,14 +114,14 @@ class ExtensionInstallPrompt {
     PromptType type() const { return type_; }
 
     // Getters for UI element labels.
-    std::u16string GetDialogTitle() const;
+    base::string16 GetDialogTitle() const;
     int GetDialogButtons() const;
     // Returns the empty string when there should be no "accept" button.
-    std::u16string GetAcceptButtonLabel() const;
-    std::u16string GetAbortButtonLabel() const;
-    std::u16string GetPermissionsHeading() const;
-    std::u16string GetRetainedFilesHeading() const;
-    std::u16string GetRetainedDevicesHeading() const;
+    base::string16 GetAcceptButtonLabel() const;
+    base::string16 GetAbortButtonLabel() const;
+    base::string16 GetPermissionsHeading() const;
+    base::string16 GetRetainedFilesHeading() const;
+    base::string16 GetRetainedDevicesHeading() const;
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
     void set_requires_parent_permission(bool requires_parent_permission) {
@@ -134,10 +134,7 @@ class ExtensionInstallPrompt {
 #endif  // BUILDFLAG(ENABLE_SUPERVISED_USERS)
 
     bool ShouldShowPermissions() const;
-
-    // Returns whether the dialog should withheld permissions if the dialog is
-    // accepted.
-    bool ShouldWithheldPermissionsOnDialogAccept() const;
+    bool ShouldDisplayWithholdingUI() const;
 
     // Getters for webstore metadata. Only populated when the type is
     // INLINE_INSTALL_PROMPT, EXTERNAL_INSTALL_PROMPT, or REPAIR_PROMPT.
@@ -148,15 +145,15 @@ class ExtensionInstallPrompt {
     // that they append to the star display area.
     typedef void(*StarAppender)(const gfx::ImageSkia*, void*);
     void AppendRatingStars(StarAppender appender, void* data) const;
-    std::u16string GetRatingCount() const;
-    std::u16string GetUserCount() const;
+    base::string16 GetRatingCount() const;
+    base::string16 GetUserCount() const;
     size_t GetPermissionCount() const;
-    std::u16string GetPermission(size_t index) const;
-    std::u16string GetPermissionsDetails(size_t index) const;
+    base::string16 GetPermission(size_t index) const;
+    base::string16 GetPermissionsDetails(size_t index) const;
     size_t GetRetainedFileCount() const;
-    std::u16string GetRetainedFile(size_t index) const;
+    base::string16 GetRetainedFile(size_t index) const;
     size_t GetRetainedDeviceCount() const;
-    std::u16string GetRetainedDeviceMessageString(size_t index) const;
+    base::string16 GetRetainedDeviceMessageString(size_t index) const;
 
     const extensions::Extension* extension() const { return extension_; }
     void set_extension(const extensions::Extension* extension) {
@@ -168,7 +165,7 @@ class ExtensionInstallPrompt {
       retained_files_ = retained_files;
     }
     void set_retained_device_messages(
-        const std::vector<std::u16string>& retained_device_messages) {
+        const std::vector<base::string16>& retained_device_messages) {
       retained_device_messages_ = retained_device_messages;
     }
 
@@ -216,7 +213,7 @@ class ExtensionInstallPrompt {
     bool is_requesting_host_permissions_;
 
     // The extension being installed.
-    raw_ptr<const extensions::Extension, DanglingUntriaged> extension_;
+    const extensions::Extension* extension_;
 
     std::string delegated_username_;
 
@@ -240,9 +237,11 @@ class ExtensionInstallPrompt {
     bool has_webstore_data_;
 
     std::vector<base::FilePath> retained_files_;
-    std::vector<std::u16string> retained_device_messages_;
+    std::vector<base::string16> retained_device_messages_;
 
     base::ObserverList<Observer> observers_;
+
+    DISALLOW_COPY_AND_ASSIGN(Prompt);
   };
 
   static const int kMinExtensionRating = 0;
@@ -250,26 +249,17 @@ class ExtensionInstallPrompt {
 
   enum class Result {
     ACCEPTED,
-    ACCEPTED_WITH_WITHHELD_PERMISSIONS,
+    ACCEPTED_AND_OPTION_CHECKED,
     USER_CANCELED,
     ABORTED,
   };
 
-  struct DoneCallbackPayload {
-    explicit DoneCallbackPayload(Result result);
-    DoneCallbackPayload(Result result, std::string justification);
-    ~DoneCallbackPayload() = default;
+  using DoneCallback = base::Callback<void(Result result)>;
 
-    const Result result;
-    const std::string justification;
-  };
-
-  using DoneCallback = base::OnceCallback<void(DoneCallbackPayload payload)>;
-
-  using ShowDialogCallback = base::RepeatingCallback<void(
-      std::unique_ptr<ExtensionInstallPromptShowParams>,
-      DoneCallback,
-      std::unique_ptr<ExtensionInstallPrompt::Prompt>)>;
+  typedef base::Callback<void(ExtensionInstallPromptShowParams*,
+                              const DoneCallback&,
+                              std::unique_ptr<ExtensionInstallPrompt::Prompt>)>
+      ShowDialogCallback;
 
   // Callback to show the default extension install dialog.
   // The implementations of this function are platform-specific.
@@ -285,7 +275,7 @@ class ExtensionInstallPrompt {
   // Creates a dummy extension from the |manifest|, replacing the name and
   // description with the localizations if provided.
   static scoped_refptr<extensions::Extension> GetLocalizedExtensionForDisplay(
-      const base::DictAdapterForMigration manifest,
+      const base::DictionaryValue* manifest,
       int flags,  // Extension::InitFromValueFlags
       const std::string& id,
       const std::string& localized_name,
@@ -299,9 +289,6 @@ class ExtensionInstallPrompt {
   // active browser window (or a new browser window if there are no browser
   // windows) is used if a new tab needs to be opened.
   ExtensionInstallPrompt(Profile* profile, gfx::NativeWindow native_window);
-
-  ExtensionInstallPrompt(const ExtensionInstallPrompt&) = delete;
-  ExtensionInstallPrompt& operator=(const ExtensionInstallPrompt&) = delete;
 
   virtual ~ExtensionInstallPrompt();
 
@@ -321,11 +308,11 @@ class ExtensionInstallPrompt {
   // current permissions are used.
   //
   // The |install_callback| *MUST* eventually be called.
-  void ShowDialog(DoneCallback install_callback,
+  void ShowDialog(const DoneCallback& install_callback,
                   const extensions::Extension* extension,
                   const SkBitmap* icon,
                   const ShowDialogCallback& show_dialog_callback);
-  void ShowDialog(DoneCallback install_callback,
+  void ShowDialog(const DoneCallback& install_callback,
                   const extensions::Extension* extension,
                   const SkBitmap* icon,
                   std::unique_ptr<Prompt> prompt,
@@ -334,7 +321,7 @@ class ExtensionInstallPrompt {
   // Note: if all you want to do is automatically confirm or cancel, prefer
   // ScopedTestDialogAutoConfirm from extension_dialog_auto_confirm.h
   virtual void ShowDialog(
-      DoneCallback install_callback,
+      const DoneCallback& install_callback,
       const extensions::Extension* extension,
       const SkBitmap* icon,
       std::unique_ptr<Prompt> prompt,
@@ -373,7 +360,7 @@ class ExtensionInstallPrompt {
   // install and returns true. Otherwise returns false.
   bool AutoConfirmPromptIfEnabled();
 
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   base::ThreadChecker ui_thread_checker_;
 
@@ -406,6 +393,8 @@ class ExtensionInstallPrompt {
   bool did_call_show_dialog_;
 
   base::WeakPtrFactory<ExtensionInstallPrompt> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInstallPrompt);
 };
 
 #endif  // CHROME_BROWSER_EXTENSIONS_EXTENSION_INSTALL_PROMPT_H_

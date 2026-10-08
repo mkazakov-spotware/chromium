@@ -1,62 +1,27 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'chrome://diagnostics/diagnostics_app.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
 
-import {DiagnosticsAppElement} from 'chrome://diagnostics/diagnostics_app.js';
-import {DiagnosticsBrowserProxyImpl} from 'chrome://diagnostics/diagnostics_browser_proxy.js';
-import {fakeBatteryChargeStatus, fakeBatteryHealth, fakeBatteryInfo, fakeCellularNetwork, fakeCpuUsage, fakeEthernetNetwork, fakeMemoryUsage, fakeNetworkGuidInfoList, fakeSystemInfo, fakeWifiNetwork} from 'chrome://diagnostics/fake_data.js';
-import {FakeNetworkHealthProvider} from 'chrome://diagnostics/fake_network_health_provider.js';
+import {BatteryChargeStatus, BatteryHealth, BatteryInfo, CpuUsage, MemoryUsage, SystemInfo} from 'chrome://diagnostics/diagnostics_types.js';
+import {fakeBatteryChargeStatus, fakeBatteryHealth, fakeBatteryInfo, fakeCpuUsage, fakeMemoryUsage, fakeSystemInfo, fakeSystemInfoWithoutBattery} from 'chrome://diagnostics/fake_data.js';
 import {FakeSystemDataProvider} from 'chrome://diagnostics/fake_system_data_provider.js';
-import {FakeSystemRoutineController} from 'chrome://diagnostics/fake_system_routine_controller.js';
-import {setNetworkHealthProviderForTesting, setSystemDataProviderForTesting, setSystemRoutineControllerForTesting} from 'chrome://diagnostics/mojo_interface_provider.js';
-import {BatteryChargeStatus, BatteryHealth, BatteryInfo, CpuUsage, MemoryUsage, SystemInfo} from 'chrome://diagnostics/system_data_provider.mojom-webui.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
+import {setSystemDataProviderForTesting} from 'chrome://diagnostics/mojo_interface_provider.js';
 
-import {assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-import {isVisible} from '../test_util.js';
+import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
+import {flushTasks} from '../../test_util.m.js';
 
-import * as dx_utils from './diagnostics_test_utils.js';
-import {TestDiagnosticsBrowserProxy} from './test_diagnostics_browser_proxy.js';
-
-suite('appTestSuite', function() {
+export function appTestSuite() {
   /** @type {?DiagnosticsAppElement} */
   let page = null;
 
   /** @type {?FakeSystemDataProvider} */
-  let systemDataProvider = null;
-
-  /** @type {?FakeNetworkHealthProvider} */
-  let networkHealthProvider = null;
-
-  /** @type {!FakeSystemRoutineController} */
-  let routineController;
-
-  /** @type {?TestDiagnosticsBrowserProxy} */
-  let DiagnosticsBrowserProxy = null;
+  let provider = null;
 
   suiteSetup(() => {
-    systemDataProvider = new FakeSystemDataProvider();
-    networkHealthProvider = new FakeNetworkHealthProvider();
-
-    setSystemDataProviderForTesting(systemDataProvider);
-    setNetworkHealthProviderForTesting(networkHealthProvider);
-
-    DiagnosticsBrowserProxy = new TestDiagnosticsBrowserProxy();
-    DiagnosticsBrowserProxyImpl.setInstance(DiagnosticsBrowserProxy);
-
-    // Setup a fake routine controller.
-    routineController = new FakeSystemRoutineController();
-    routineController.setDelayTimeInMillisecondsForTesting(-1);
-
-    // Enable all routines by default.
-    routineController.setFakeSupportedRoutines(
-        routineController.getAllRoutines());
-
-    setSystemRoutineControllerForTesting(routineController);
+    provider = new FakeSystemDataProvider();
+    setSystemDataProviderForTesting(provider);
   });
 
   setup(() => {
@@ -64,86 +29,15 @@ suite('appTestSuite', function() {
   });
 
   teardown(() => {
-    page.remove();
+    if (page) {
+      page.remove();
+    }
     page = null;
-    systemDataProvider.reset();
-    networkHealthProvider.reset();
+    provider.reset();
   });
 
-  /** @return {!HTMLElement} */
-  function getCautionBanner() {
-    assertTrue(!!page);
-
-    return /** @type {!HTMLElement} */ (
-        page.shadowRoot.querySelector('diagnostics-sticky-banner'));
-  }
-
-  /** @return {!HTMLElement} */
-  function getCautionBannerMessage() {
-    return /** @type {!HTMLElement} */ (
-        getCautionBanner().shadowRoot.querySelector('#bannerMsg'));
-  }
-
   /**
-   * @return {!CrButtonElement}
-   */
-  function getSessionLogButton() {
-    assertTrue(!!page);
-
-    return /** @type {!CrButtonElement} */ (
-        page.shadowRoot.querySelector('.session-log-button'));
-  }
-
-  /**
-   * @return {!HTMLElement}
-   */
-  function getBottomNavContentDrawer() {
-    assertTrue(!!page);
-
-    return /** @type {!HTMLElement} */ (
-        page.shadowRoot.querySelector('[slot=bottom-nav-content-drawer]'));
-  }
-
-  /**
-   * @return {!HTMLElement}
-   */
-  function getBottomNavContentPanel() {
-    assertTrue(!!page);
-
-    return /** @type {!HTMLElement} */ (
-        page.shadowRoot.querySelector('[slot=bottom-nav-content-panel]'));
-  }
-
-  /**
-   * Triggers 'dismiss-caution-banner' custom event.
-   * @return {!Promise}
-   */
-  function triggerDismissBannerEvent() {
-    window.dispatchEvent(new CustomEvent('dismiss-caution-banner', {
-      bubbles: true,
-      composed: true,
-    }));
-
-    return flushTasks();
-  }
-
-  /**
-   * Triggers 'show-caution-banner' custom event with correctly configured event
-   * detail object based on provided message.
-   * @param {string} message
-   * @return {!Promise}
-   */
-  function triggerShowBannerEvent(message) {
-    window.dispatchEvent(new CustomEvent('show-caution-banner', {
-      bubbles: true,
-      composed: true,
-      detail: {message},
-    }));
-
-    return flushTasks();
-  }
-
-  /**
+   *
    * @param {!SystemInfo} systemInfo
    * @param {!Array<!BatteryChargeStatus>} batteryChargeStatus
    * @param {!Array<!BatteryHealth>} batteryHealth
@@ -157,19 +51,12 @@ suite('appTestSuite', function() {
     assertFalse(!!page);
 
     // Initialize the fake data.
-    systemDataProvider.setFakeSystemInfo(systemInfo);
-    systemDataProvider.setFakeBatteryChargeStatus(batteryChargeStatus);
-    systemDataProvider.setFakeBatteryHealth(batteryHealth);
-    systemDataProvider.setFakeBatteryInfo(batteryInfo);
-    systemDataProvider.setFakeCpuUsage(cpuUsage);
-    systemDataProvider.setFakeMemoryUsage(memoryUsage);
-
-    networkHealthProvider.setFakeNetworkGuidInfo(fakeNetworkGuidInfoList);
-    networkHealthProvider.setFakeNetworkState(
-        'ethernetGuid', [fakeEthernetNetwork]);
-    networkHealthProvider.setFakeNetworkState('wifiGuid', [fakeWifiNetwork]);
-    networkHealthProvider.setFakeNetworkState(
-        'cellularGuid', [fakeCellularNetwork]);
+    provider.setFakeSystemInfo(systemInfo);
+    provider.setFakeBatteryChargeStatus(batteryChargeStatus);
+    provider.setFakeBatteryHealth(batteryHealth);
+    provider.setFakeBatteryInfo(batteryInfo);
+    provider.setFakeCpuUsage(cpuUsage);
+    provider.setFakeMemoryUsage(memoryUsage);
 
     page = /** @type {!DiagnosticsAppElement} */ (
         document.createElement('diagnostics-app'));
@@ -177,61 +64,42 @@ suite('appTestSuite', function() {
     document.body.appendChild(page);
     return flushTasks();
   }
+  test('LandingPageLoaded', () => {
+    return initializeDiagnosticsApp(
+               fakeSystemInfo, fakeBatteryChargeStatus, fakeBatteryHealth,
+               fakeBatteryInfo, fakeCpuUsage, fakeMemoryUsage)
+        .then(() => {
+          // Verify the overview card is in the page.
+          const overview = page.$$('#overviewCard');
+          assertTrue(!!overview);
 
-  if (window.loadTimeData.getBoolean('isNetworkingEnabled') ||
-      window.loadTimeData.getBoolean('isInputEnabled')) {
-    test('SystemPagePopulated', () => {
-      return initializeDiagnosticsApp(
-                 fakeSystemInfo, fakeBatteryChargeStatus, fakeBatteryHealth,
-                 fakeBatteryInfo, fakeCpuUsage, fakeMemoryUsage)
-          .then(() => {
-            const systemPage =
-                dx_utils.getNavigationViewPanelElement(page, 'system');
-            assertTrue(!!systemPage);
-            assertTrue(isVisible(systemPage));
-            assertFalse(isVisible(getCautionBanner()));
-            assertFalse(isVisible(getBottomNavContentDrawer()));
-            assertTrue(isVisible(getBottomNavContentPanel()));
-            assertTrue(isVisible(getSessionLogButton()));
-          });
-    });
+          // Verify the memory card is in the page.
+          const memory = page.$$('#memoryCard');
+          assertTrue(!!memory);
 
-    test('BannerVisibliblityTogglesWithEvents', () => {
-      const bannerMessage = 'Diagnostics Banner Message';
-      return initializeDiagnosticsApp(
-                 fakeSystemInfo, fakeBatteryChargeStatus, fakeBatteryHealth,
-                 fakeBatteryInfo, fakeCpuUsage, fakeMemoryUsage)
-          .then(() => {
-            assertFalse(isVisible(getCautionBanner()));
+          // Verify the CPU card is in the page.
+          const cpu = page.$$('#cpuCard');
+          assertTrue(!!cpu);
 
-            return triggerShowBannerEvent(bannerMessage);
-          })
-          .then(() => {
-            assertTrue(isVisible(getCautionBanner()));
-            dx_utils.assertElementContainsText(
-                getCautionBannerMessage(), bannerMessage);
+          // Verify the battery status card is in the page.
+          const batteryStatus = page.$$('#batteryStatusCard');
+          assertTrue(!!batteryStatus);
 
-            return triggerDismissBannerEvent();
-          })
-          .then(() => assertFalse(isVisible(getCautionBanner())));
-    });
+          // Verify the session log button is in the page.
+          const sessionLog = page.$$('.session-log-button');
+          assertTrue(!!sessionLog);
+        });
+  });
 
-    test('SaveSessionLogDisabledUntilResolved', () => {
-      return initializeDiagnosticsApp(
-                 fakeSystemInfo, fakeBatteryChargeStatus, fakeBatteryHealth,
-                 fakeBatteryInfo, fakeCpuUsage, fakeMemoryUsage)
-          .then(() => {
-            assertFalse(getSessionLogButton().disabled);
-
-            DiagnosticsBrowserProxy.setSuccess(true);
-            getSessionLogButton().click();
-            assertTrue(getSessionLogButton().disabled);
-
-            return flushTasks();
-          })
-          .then(() => {
-            assertFalse(getSessionLogButton().disabled);
-          });
-    });
-  }
-});
+  test('BatteryStatusCardHiddenIfNotSupported', () => {
+    return initializeDiagnosticsApp(
+               fakeSystemInfoWithoutBattery, fakeBatteryChargeStatus,
+               fakeBatteryHealth, fakeBatteryInfo, fakeCpuUsage,
+               fakeMemoryUsage)
+        .then(() => {
+          // Verify the battery status card is not in the page.
+          const batteryStatus = page.$$('#batteryStatusCard');
+          assertFalse(!!batteryStatus);
+        });
+  });
+}

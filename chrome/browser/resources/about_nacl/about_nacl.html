@@ -11,17 +11,14 @@
   <div id="header">
     <h1>About NaCl</h1>
   </div>
-  <dom-bind>
-    <template>
-      <template is="dom-repeat" items="[[naclInfo]]">
-        <div>
-          <span class="key">[[item.key]]</span>
-          <span class="value">[[item.value]]</span>
-        </div>
-      </template>
-    </template>
-  </dom-bind>
+  <div id="naclInfoTemplate">
+    <div jsselect="naclInfo">
+      <span jscontent="key" class="key"></span>
+      <span jscontent="value" class="value"></span>
+    </div>
+  </div>
 </div>
 <script type="module" src="about_nacl.js"></script>
+<script src="chrome://resources/js/jstemplate_compiled.js"></script>
 </body>
 </html>

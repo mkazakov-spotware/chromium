@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cronet_c.h"
 
-#include "base/test/gtest_util.h"
 #include "build/build_config.h"
 #include "components/cronet/native/engine.h"
 #include "components/cronet/native/generated/cronet.idl_impl_struct.h"
@@ -118,12 +117,15 @@ TEST(EngineUnitTest, RequestFinishedInfoListeners) {
   Cronet_EngineParams_Destroy(engine_params);
 }
 
+// EXPECT_DEBUG_DEATH(), used by the tests below, isn't available on iOS.
+#if !defined(OS_IOS)
+
 TEST(EngineUnitTest, AddNullRequestFinishedInfoListener) {
   Cronet_EnginePtr engine = Cronet_Engine_Create();
 
   Cronet_ExecutorPtr executor =
       Cronet_Executor_CreateWith(TestExecutor_Execute);
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_AddRequestFinishedListener(engine, nullptr, executor),
       "Both listener and executor must be non-null. listener: .* executor: "
       ".*\\.");
@@ -141,7 +143,7 @@ TEST(EngineUnitTest, AddNullRequestFinishedInfoExecutor) {
   Cronet_RequestFinishedInfoListenerPtr listener =
       Cronet_RequestFinishedInfoListener_CreateWith(
           TestRequestInfoListener_OnRequestFinished);
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_AddRequestFinishedListener(engine, listener, nullptr),
       "Both listener and executor must be non-null. listener: .* executor: "
       ".*\\.");
@@ -156,7 +158,7 @@ TEST(EngineUnitTest, AddNullRequestFinishedInfoExecutor) {
 TEST(EngineUnitTest, AddNullRequestFinishedInfoListenerAndExecutor) {
   Cronet_EnginePtr engine = Cronet_Engine_Create();
 
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_AddRequestFinishedListener(engine, nullptr, nullptr),
       "Both listener and executor must be non-null. listener: .* executor: "
       ".*\\.");
@@ -176,7 +178,7 @@ TEST(EngineUnitTest, AddListenerTwice) {
   Cronet_ExecutorPtr executor =
       Cronet_Executor_CreateWith(TestExecutor_Execute);
   Cronet_Engine_AddRequestFinishedListener(engine, listener, executor);
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_AddRequestFinishedListener(engine, listener, executor),
       "Listener .* already registered with executor .*, \\*NOT\\* changing to "
       "new executor .*\\.");
@@ -197,7 +199,7 @@ TEST(EngineUnitTest, RemoveNonexistentListener) {
   Cronet_RequestFinishedInfoListenerPtr listener =
       Cronet_RequestFinishedInfoListener_CreateWith(
           TestRequestInfoListener_OnRequestFinished);
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_RemoveRequestFinishedListener(engine, listener),
       "Asked to erase non-existent RequestFinishedInfoListener .*\\.");
 
@@ -221,7 +223,7 @@ TEST(EngineUnitTest, RemoveNonexistentListenerWithAddedListener) {
       Cronet_Executor_CreateWith(TestExecutor_Execute);
   Cronet_Engine_AddRequestFinishedListener(engine, listener, executor);
 
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_RemoveRequestFinishedListener(engine, listener2),
       "Asked to erase non-existent RequestFinishedInfoListener .*\\.");
 
@@ -239,7 +241,7 @@ TEST(EngineUnitTest, RemoveNonexistentListenerWithAddedListener) {
 TEST(EngineUnitTest, RemoveNullListener) {
   Cronet_EnginePtr engine = Cronet_Engine_Create();
 
-  EXPECT_DCHECK_DEATH_WITH(
+  EXPECT_DEBUG_DEATH(
       Cronet_Engine_RemoveRequestFinishedListener(engine, nullptr),
       "Asked to erase non-existent RequestFinishedInfoListener .*\\.");
 
@@ -249,5 +251,8 @@ TEST(EngineUnitTest, RemoveNullListener) {
   Cronet_Engine_Destroy(engine);
 }
 
+#endif  // !defined(OS_IOS)
+
 }  // namespace
+
 }  // namespace cronet

@@ -1,12 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SEARCH_ENGINES_TEMPLATE_URL_ID_H_
 #define COMPONENTS_SEARCH_ENGINES_TEMPLATE_URL_ID_H_
 
-// ID of a search provider.
-using TemplateURLID = int64_t;
+#include "components/history/core/browser/keyword_id.h"
+
+typedef history::KeywordID TemplateURLID;
 
 const TemplateURLID kInvalidTemplateURLID = 0;
 

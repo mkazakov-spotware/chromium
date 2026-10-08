@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,17 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "build/build_config.h"
-#include "media/audio/aecdump_recording_manager.h"
 #include "media/audio/audio_debug_recording_manager.h"
 #include "media/audio/audio_device_name.h"
 #include "media/audio/audio_manager.h"
 #include "media/audio/audio_output_dispatcher.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -36,9 +34,6 @@ class AudioOutputDispatcher;
 class MEDIA_EXPORT AudioManagerBase : public AudioManager {
  public:
   enum class VoiceProcessingMode { kDisabled = 0, kEnabled = 1 };
-
-  AudioManagerBase(const AudioManagerBase&) = delete;
-  AudioManagerBase& operator=(const AudioManagerBase&) = delete;
 
   ~AudioManagerBase() override;
 
@@ -161,11 +156,9 @@ class MEDIA_EXPORT AudioManagerBase : public AudioManager {
   std::string GetCommunicationsOutputDeviceID() override;
 
   virtual std::unique_ptr<AudioDebugRecordingManager>
-  CreateAudioDebugRecordingManager();
+  CreateAudioDebugRecordingManager(
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner);
   AudioDebugRecordingManager* GetAudioDebugRecordingManager() final;
-
-  void SetAecDumpRecordingManager(base::WeakPtr<AecdumpRecordingManager>
-                                      aecdump_recording_manager) override;
 
   // These functions assign group ids to devices based on their device ids. The
   // default implementation is an attempt to do this based on
@@ -183,6 +176,8 @@ class MEDIA_EXPORT AudioManagerBase : public AudioManager {
 
   struct DispatcherParams;
   typedef std::vector<std::unique_ptr<DispatcherParams>> AudioOutputDispatchers;
+
+  class CompareByParams;
 
   // AudioManager:
   void InitializeDebugRecording() final;
@@ -212,10 +207,12 @@ class MEDIA_EXPORT AudioManagerBase : public AudioManager {
   AudioOutputDispatchers output_dispatchers_;
 
   // Proxy for creating AudioLog objects.
-  const raw_ptr<AudioLogFactory, DanglingUntriaged> audio_log_factory_;
+  AudioLogFactory* const audio_log_factory_;
 
   // Debug recording manager.
   std::unique_ptr<AudioDebugRecordingManager> debug_recording_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioManagerBase);
 };
 
 }  // namespace media

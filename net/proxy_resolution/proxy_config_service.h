@@ -1,18 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_PROXY_RESOLUTION_PROXY_CONFIG_SERVICE_H_
 #define NET_PROXY_RESOLUTION_PROXY_CONFIG_SERVICE_H_
 
-#include <memory>
-
-#include "base/memory/scoped_refptr.h"
 #include "net/base/net_export.h"
-
-namespace base {
-class SequencedTaskRunner;
-}  // namespace base
 
 namespace net {
 
@@ -34,7 +27,7 @@ class NET_EXPORT ProxyConfigService {
   // Observer for being notified when the proxy settings have changed.
   class NET_EXPORT Observer {
    public:
-    virtual ~Observer() = default;
+    virtual ~Observer() {}
     // Notification callback that should be invoked by ProxyConfigService
     // implementors whenever the configuration changes. |availability| indicates
     // the new availability status and can be CONFIG_UNSET or CONFIG_VALID (in
@@ -44,7 +37,7 @@ class NET_EXPORT ProxyConfigService {
                                       ConfigAvailability availability) = 0;
   };
 
-  virtual ~ProxyConfigService() = default;
+  virtual ~ProxyConfigService() {}
 
   // Adds/Removes an observer that will be called whenever the proxy
   // configuration has changed.
@@ -69,12 +62,6 @@ class NET_EXPORT ProxyConfigService {
   // X seconds at which point they check for changes. However that has
   // the disadvantage of doing continuous work even during idle periods.
   virtual void OnLazyPoll() {}
-
-  // Creates a config service appropriate for this platform that fetches the
-  // system proxy settings. |main_task_runner| is the sequence where the
-  // consumer of the ProxyConfigService will live.
-  static std::unique_ptr<ProxyConfigService> CreateSystemProxyConfigService(
-      scoped_refptr<base::SequencedTaskRunner> main_task_runner);
 };
 
 }  // namespace net

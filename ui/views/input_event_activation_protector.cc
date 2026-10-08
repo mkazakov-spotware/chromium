@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright (c) 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,28 +9,13 @@
 
 namespace views {
 
-namespace {
-bool g_disable_for_testing = false;
-}  // namespace
-
 void InputEventActivationProtector::VisibilityChanged(bool is_visible) {
   if (is_visible)
     view_shown_time_stamp_ = base::TimeTicks::Now();
 }
 
-void InputEventActivationProtector::UpdateViewShownTimeStamp() {
-  // The UI was never shown, ignore.
-  if (view_shown_time_stamp_ == base::TimeTicks())
-    return;
-
-  view_shown_time_stamp_ = base::TimeTicks::Now();
-}
-
 bool InputEventActivationProtector::IsPossiblyUnintendedInteraction(
     const ui::Event& event) {
-  if (g_disable_for_testing)
-    return false;
-
   if (view_shown_time_stamp_ == base::TimeTicks()) {
     // The UI was never shown, ignore. This can happen in tests.
     return false;
@@ -45,7 +30,7 @@ bool InputEventActivationProtector::IsPossiblyUnintendedInteraction(
     return false;
 
   const base::TimeDelta kShortInterval =
-      base::Milliseconds(GetDoubleClickInterval());
+      base::TimeDelta::FromMilliseconds(GetDoubleClickInterval());
   const bool short_event_after_last_event =
       event.time_stamp() < last_event_timestamp_ + kShortInterval;
   last_event_timestamp_ = event.time_stamp();
@@ -65,10 +50,6 @@ void InputEventActivationProtector::ResetForTesting() {
   view_shown_time_stamp_ = base::TimeTicks();
   last_event_timestamp_ = base::TimeTicks();
   repeated_event_count_ = 0;
-}
-
-void InputEventActivationProtector::DisableForTesting() {
-  g_disable_for_testing = true;
 }
 
 }  // namespace views

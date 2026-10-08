@@ -47,7 +47,6 @@
 #define ZIP64_EOCD_LOCATOR_SIGNATURE  0x07064b50
 #define EOCD_SIGNATURE                0x06054b50
 #define DATA_DESCRIPTOR_SIGNATURE     0x08074b50
-#define ZIP64_EXTRA_FIELD_TAG 0x0001
 
 #define U2_MAX 0xffff
 #define U4_MAX 0xffffffffUL
@@ -103,10 +102,10 @@ class InputZipFile : public ZipExtractor {
 
   virtual u8 CalculateOutputLength();
 
-  virtual bool ProcessCentralDirEntry(const u1 *&p, u8 *compressed_size,
-                                      u8 *uncompressed_size, char *filename,
+  virtual bool ProcessCentralDirEntry(const u1 *&p, size_t *compressed_size,
+                                      size_t *uncompressed_size, char *filename,
                                       size_t filename_size, u4 *attr,
-                                      u8 *offset);
+                                      u4 *offset);
 
  private:
   ZipExtractorProcessor *processor;
@@ -142,8 +141,8 @@ class InputZipFile : public ZipExtractor {
   u2 extract_version_;
   u2 general_purpose_bit_flag_;
   u2 compression_method_;
-  u8 uncompressed_size_;
-  u8 compressed_size_;
+  u4 uncompressed_size_;
+  u4 compressed_size_;
   u2 file_name_length_;
   u2 extra_field_length_;
   const u1 *file_name_;
@@ -314,8 +313,8 @@ class OutputZipFile : public ZipBuilder {
 bool InputZipFile::ProcessNext() {
   // Process the next entry in the central directory. Also make sure that the
   // content pointer is in sync.
-  u8 compressed, uncompressed;
-  u8 offset;
+  size_t compressed, uncompressed;
+  u4 offset;
   if (!ProcessCentralDirEntry(central_dir_current_, &compressed, &uncompressed,
                               filename, PATH_MAX, &attr, &offset)) {
     return false;
@@ -387,7 +386,7 @@ int InputZipFile::ProcessLocalFileEntry(
   // zero in the local file header. If not, check that they are the same as the
   // lengths from the central directory, otherwise, just believe the central
   // directory
-  if (compressed_size_ == 0 || compressed_size_ == U4_MAX) {
+  if (compressed_size_ == 0) {
     compressed_size_ = compressed_size;
   } else {
     if (compressed_size_ != compressed_size) {
@@ -395,7 +394,7 @@ int InputZipFile::ProcessLocalFileEntry(
     }
   }
 
-  if (uncompressed_size_ == 0 || uncompressed_size_ == U4_MAX) {
+  if (uncompressed_size_ == 0) {
     uncompressed_size_ = uncompressed_size;
   } else {
     if (uncompressed_size_ != uncompressed_size) {
@@ -508,10 +507,10 @@ int InputZipFile::ProcessFile(const bool compressed) {
 // Of course, in the latter case, the size output variables are not changed.
 // Note that the central directory is always followed by another data structure
 // that has a signature, so parsing it this way is safe.
-bool InputZipFile::ProcessCentralDirEntry(const u1 *&p, u8 *compressed_size,
-                                          u8 *uncompressed_size, char *filename,
-                                          size_t filename_size, u4 *attr,
-                                          u8 *offset) {
+bool InputZipFile::ProcessCentralDirEntry(const u1 *&p, size_t *compressed_size,
+                                          size_t *uncompressed_size,
+                                          char *filename, size_t filename_size,
+                                          u4 *attr, u4 *offset) {
   u4 signature = get_u4le(p);
 
   if (signature != CENTRAL_FILE_HEADER_SIGNATURE) {
@@ -539,25 +538,7 @@ bool InputZipFile::ProcessCentralDirEntry(const u1 *&p, u8 *compressed_size,
     filename[len] = 0;
   }
   p += file_name_length;
-  const u1 *extra_p = p;
   p += extra_field_length;
-  while (extra_p != p) {
-    const u2 header_id = get_u2le(extra_p);
-    const u2 data_size = get_u2le(extra_p);
-    const u1 *extra = extra_p;
-    extra_p += data_size;
-    if (header_id == ZIP64_EXTRA_FIELD_TAG) {
-      if (*uncompressed_size == U4_MAX) {
-        *uncompressed_size = get_u8le(extra);
-      }
-      if (*compressed_size == U4_MAX) {
-        *compressed_size = get_u8le(extra);
-      }
-      if (*offset == U4_MAX) {
-        *offset = get_u8le(extra);
-      }
-    }
-  }
   p += file_comment_length;
   return true;
 }
@@ -572,11 +553,11 @@ u8 InputZipFile::CalculateOutputLength() {
   u8 uncompressed_size = 0;
   u8 skipped_compressed_size = 0;
   u4 attr;
-  u8 offset;
+  u4 offset;
   char filename[PATH_MAX];
 
   while (true) {
-    u8 file_compressed, file_uncompressed;
+    size_t file_compressed, file_uncompressed;
     if (!ProcessCentralDirEntry(current,
                                 &file_compressed, &file_uncompressed,
                                 filename, PATH_MAX, &attr, &offset)) {
@@ -707,8 +688,7 @@ bool FindZip64CentralDirectory(const u1 *bytes, size_t in_length,
   if (MaybeReadZip64CentralDirectory(bytes, in_length,
                                      bytes + zip64_end_of_central_dir_offset,
                                      end_of_central_dir, cd)) {
-    // TODO(b/228519294) Add a test for a valid zip64 file with total disks = 0
-    if (disk_with_zip64_central_directory != 0 || zip64_total_disks > 1) {
+    if (disk_with_zip64_central_directory != 0 || zip64_total_disks != 1) {
       fprintf(stderr, "multi-disk JAR files are not supported\n");
       return false;
     }
@@ -719,7 +699,7 @@ bool FindZip64CentralDirectory(const u1 *bytes, size_t in_length,
 
 // Given the data in the zip file, returns the offset of the central directory
 // and the number of files contained in it.
-bool FindZipCentralDirectory(const u1 *bytes, size_t in_length, u8 *offset,
+bool FindZipCentralDirectory(const u1 *bytes, size_t in_length, u4 *offset,
                              const u1 **central_dir) {
   static const int MAX_COMMENT_LENGTH = 0xffff;
   static const int CENTRAL_DIR_LOCATOR_SIZE = 22;
@@ -835,7 +815,7 @@ bool InputZipFile::Open() {
   }
 
   void *zipdata_in = input_file->Buffer();
-  u8 central_dir_offset;
+  u4 central_dir_offset;
   const u1 *central_dir = NULL;
 
   if (!devtools_ijar::FindZipCentralDirectory(

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.download;
 import android.Manifest.permission;
 import android.app.DownloadManager;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Pair;
@@ -20,10 +21,9 @@ import org.chromium.base.UserData;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.components.embedder_support.util.UrlUtilities;
+import org.chromium.components.embedder_support.util.UrlConstants;
+import org.chromium.ui.base.PermissionCallback;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.permissions.PermissionCallback;
-import org.chromium.url.GURL;
 
 import java.io.File;
 
@@ -73,7 +73,7 @@ public class ChromeDownloadDelegate implements UserData {
         final String fileName = downloadInfo.getFileName();
         assert !TextUtils.isEmpty(fileName);
         final String newMimeType = MimeUtils.remapGenericMimeType(
-                downloadInfo.getMimeType(), downloadInfo.getUrl().getSpec(), fileName);
+                downloadInfo.getMimeType(), downloadInfo.getUrl(), fileName);
         new AsyncTask<Pair<String, File>>() {
             @Override
             protected Pair<String, File> doInBackground() {
@@ -91,17 +91,17 @@ public class ChromeDownloadDelegate implements UserData {
                             downloadInfo, fullDirPath, externalStorageState)) {
                     return;
                 }
-                GURL url = sanitizeDownloadUrl(downloadInfo);
+                String url = sanitizeDownloadUrl(downloadInfo);
                 if (url == null) return;
                 DownloadInfo newInfo = DownloadInfo.Builder.fromDownloadInfo(downloadInfo)
                                                .setUrl(url)
                                                .setMimeType(newMimeType)
-                                               .setDescription(url.getSpec())
+                                               .setDescription(url)
                                                .setFileName(fileName)
                                                .setIsGETRequest(true)
                                                .build();
                 DownloadController.enqueueDownloadManagerRequest(newInfo);
-                // TODO(shaktisahu): Verify if we still need to close an empty tab for OMA download.
+                DownloadController.closeTabIfBlank(mTab);
             }
         }
                 .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
@@ -112,7 +112,7 @@ public class ChromeDownloadDelegate implements UserData {
      *
      * @param downloadInfo Information about the download.
      */
-    protected GURL sanitizeDownloadUrl(DownloadInfo downloadInfo) {
+    protected String sanitizeDownloadUrl(DownloadInfo downloadInfo) {
         return downloadInfo.getUrl();
     }
 
@@ -191,13 +191,16 @@ public class ChromeDownloadDelegate implements UserData {
      * @param url URL to be downloaded.
      * @return whether the DownloadManager should intercept the download.
      */
-    public boolean shouldInterceptContextMenuDownload(GURL url) {
-        if (!UrlUtilities.isHttpOrHttps(url)) return false;
-        String path = url.getPath();
+    public boolean shouldInterceptContextMenuDownload(String url) {
+        Uri uri = Uri.parse(url);
+        String scheme = uri.normalizeScheme().getScheme();
+        if (!UrlConstants.HTTP_SCHEME.equals(scheme) && !UrlConstants.HTTPS_SCHEME.equals(scheme)) {
+            return false;
+        }
+        String path = uri.getPath();
         if (!OMADownloadHandler.isOMAFile(path)) return false;
         if (mTab == null) return true;
-        String fileName =
-                URLUtil.guessFileName(url.getSpec(), null, MimeUtils.OMA_DRM_MESSAGE_MIME);
+        String fileName = URLUtil.guessFileName(url, null, MimeUtils.OMA_DRM_MESSAGE_MIME);
         final DownloadInfo downloadInfo =
                 new DownloadInfo.Builder().setUrl(url).setFileName(fileName).build();
         WindowAndroid window = mTab.getWindowAndroid();

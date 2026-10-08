@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <memory>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "chromecast/media/audio/mixer_service/mixer_service_transport.pb.h"
-#include "chromecast/media/audio/net/audio_socket_service.h"
+#include "chromecast/media/audio/mixer_service/audio_socket_service.h"
+#include "chromecast/media/audio/mixer_service/mixer_service.pb.h"
 
 namespace base {
 class SequencedTaskRunner;
@@ -25,10 +26,6 @@ class MixerSocket;
 class Receiver : public AudioSocketService::Delegate {
  public:
   Receiver();
-
-  Receiver(const Receiver&) = delete;
-  Receiver& operator=(const Receiver&) = delete;
-
   ~Receiver() override;
 
   virtual void CreateOutputStream(std::unique_ptr<MixerSocket> socket,
@@ -64,6 +61,8 @@ class Receiver : public AudioSocketService::Delegate {
       initial_sockets_;
 
   base::WeakPtrFactory<Receiver> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(Receiver);
 };
 
 }  // namespace mixer_service

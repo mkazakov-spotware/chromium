@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,15 +42,8 @@ constexpr char kWindowsPlatformName[] = "windows";
 void OnGetAppUrlHandlers(
     std::vector<blink::mojom::RelatedApplicationPtr> related_apps,
     blink::mojom::InstalledAppProvider::FilterInstalledAppsCallback callback,
-    ComPtr<IVectorView<AppInfo*>> found_app_list) {
+    base::win::internal::AsyncResultsT<IVectorView<AppInfo*>*> found_app_list) {
   std::vector<blink::mojom::RelatedApplicationPtr> found_installed_apps;
-
-  if (!found_app_list) {
-    // |found_app_list| can be null when returned from the OS.
-    std::move(callback).Run(std::move(found_installed_apps));
-    return;
-  }
-
   UINT found_app_url_size = 0;
   HRESULT hr = found_app_list->get_Size(&found_app_url_size);
   if (FAILED(hr) || found_app_url_size == 0) {
@@ -69,7 +62,7 @@ void OnGetAppUrlHandlers(
     if (FAILED(hr))
       continue;
 
-    std::wstring app_user_model_id(
+    base::string16 app_user_model_id(
         base::win::ScopedHString(app_user_model_id_native).Get());
 
     size_t windows_app_count = 0;
@@ -91,7 +84,7 @@ void OnGetAppUrlHandlers(
       // https://docs.microsoft.com/en-us/uwp/schemas/
       // appinstallerschema/element-package
       if (base::CompareCaseInsensitiveASCII(
-              related_app->id.value(), base::WideToASCII(app_user_model_id)) ==
+              related_app->id.value(), base::UTF16ToASCII(app_user_model_id)) ==
           0) {
         auto application = blink::mojom::RelatedApplication::New();
         application->platform = related_app->platform;

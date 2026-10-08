@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "media/base/media_export.h"
 #include "media/base/stream_parser.h"
 #include "media/formats/common/offset_byte_queue.h"
@@ -24,7 +24,8 @@
 #include "media/formats/mp4/aac.h"
 #endif
 
-namespace media::mp4 {
+namespace media {
+namespace mp4 {
 
 struct Movie;
 struct MovieHeader;
@@ -36,25 +37,19 @@ class MEDIA_EXPORT MP4StreamParser : public StreamParser {
   MP4StreamParser(const std::set<int>& audio_object_types,
                   bool has_sbr,
                   bool has_flac);
-
-  MP4StreamParser(const MP4StreamParser&) = delete;
-  MP4StreamParser& operator=(const MP4StreamParser&) = delete;
-
   ~MP4StreamParser() override;
 
   void Init(InitCB init_cb,
-            NewConfigCB config_cb,
-            NewBuffersCB new_buffers_cb,
+            const NewConfigCB& config_cb,
+            const NewBuffersCB& new_buffers_cb,
             bool ignore_text_tracks,
-            EncryptedMediaInitDataCB encrypted_media_init_data_cb,
-            NewMediaSegmentCB new_segment_cb,
-            EndMediaSegmentCB end_of_segment_cb,
+            const EncryptedMediaInitDataCB& encrypted_media_init_data_cb,
+            const NewMediaSegmentCB& new_segment_cb,
+            const EndMediaSegmentCB& end_of_segment_cb,
             MediaLog* media_log) override;
   void Flush() override;
   bool GetGenerateTimestampsFlag() const override;
-  [[nodiscard]] bool AppendToParseBuffer(const uint8_t* buf,
-                                         size_t size) override;
-  [[nodiscard]] ParseStatus Parse(int max_pending_bytes_to_inspect) override;
+  bool Parse(const uint8_t* buf, int size) override;
 
   // Calculates the rotation value from the track header display matricies.
   VideoTransformation CalculateRotation(const TrackHeader& track,
@@ -68,11 +63,6 @@ class MEDIA_EXPORT MP4StreamParser : public StreamParser {
     kEmittingSamples,
     kError
   };
-
-  // Wrappers of `queue_` that observe constraint of `max_parse_offset_`.
-  void ModulatedPeek(const uint8_t** buf, int* size);
-  void ModulatedPeekAt(int64_t offset, const uint8_t** buf, int* size);
-  bool ModulatedTrim(int64_t max_offset);
 
   ParseResult ParseBox();
   bool ParseMoov(mp4::BoxReader* reader);
@@ -120,21 +110,8 @@ class MEDIA_EXPORT MP4StreamParser : public StreamParser {
   EncryptedMediaInitDataCB encrypted_media_init_data_cb_;
   NewMediaSegmentCB new_segment_cb_;
   EndMediaSegmentCB end_of_segment_cb_;
-  raw_ptr<MediaLog> media_log_;
+  MediaLog* media_log_;
 
-  // Bytes of the mp4 stream.
-  // `max_parse_offset_` tracks the point in `queue_` beyond which no data may
-  // yet be parsed even if it is less than the queue's tail offset. This allows
-  // incremental parsing. `max_parse_offset_` must be less than or equal to the
-  // queue_'s current tail offset. Note that operations like Trim() and PeekAt()
-  // on the offset queue can involve offsets beyond tail or `max_parse_offset_`,
-  // so this parser must consider `max_parse_offset_` too when using those
-  // operations, otherwise more data than the amount indicated in the Parse()
-  // call's `max_pending_bytes_to_inspect` increment might be inspected in a
-  // Parse() call. See the various Modulated*() wrappers in this class.
-  // TODO(https://crbug.com/1286464): Consider reworking all these parsers to
-  // use a new type of queue that internally modulates the increment.
-  int64_t max_parse_offset_ = 0;
   OffsetByteQueue queue_;
 
   // These two parameters are only valid in the |kEmittingSegments| state.
@@ -173,8 +150,11 @@ class MEDIA_EXPORT MP4StreamParser : public StreamParser {
 
   // Tracks the number of MEDIA_LOGS for video keyframe MP4<->frame mismatch.
   int num_video_keyframe_mismatches_;
+
+  DISALLOW_COPY_AND_ASSIGN(MP4StreamParser);
 };
 
-}  // namespace media::mp4
+}  // namespace mp4
+}  // namespace media
 
 #endif  // MEDIA_FORMATS_MP4_MP4_STREAM_PARSER_H_

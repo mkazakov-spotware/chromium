@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,15 +21,14 @@ using TrainedModelCB = base::OnceCallback<void(std::unique_ptr<Model>)>;
 class TrainingAlgorithm {
  public:
   TrainingAlgorithm() = default;
-
-  TrainingAlgorithm(const TrainingAlgorithm&) = delete;
-  TrainingAlgorithm& operator=(const TrainingAlgorithm&) = delete;
-
   virtual ~TrainingAlgorithm() = default;
 
   virtual void Train(const LearningTask& task,
                      const TrainingData& training_data,
                      TrainedModelCB model_cb) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TrainingAlgorithm);
 };
 
 }  // namespace learning

@@ -1,11 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_WEB_CONTENTS_WEB_CONTENTS_VIEW_MAC_H_
 #define CONTENT_BROWSER_WEB_CONTENTS_WEB_CONTENTS_VIEW_MAC_H_
-
-#include "base/memory/raw_ptr.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -15,6 +13,7 @@
 #include <vector>
 
 #include "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/popup_menu_helper_mac.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"
 #include "content/browser/web_contents/web_contents_view.h"
@@ -59,11 +58,7 @@ class WebContentsViewMac : public WebContentsView,
   // our lifetime. This doesn't need to be the case, but is this way currently
   // because that's what was easiest when they were split.
   WebContentsViewMac(WebContentsImpl* web_contents,
-                     std::unique_ptr<WebContentsViewDelegate> delegate);
-
-  WebContentsViewMac(const WebContentsViewMac&) = delete;
-  WebContentsViewMac& operator=(const WebContentsViewMac&) = delete;
-
+                     WebContentsViewDelegate* delegate);
   ~WebContentsViewMac() override;
 
   // WebContentsView implementation --------------------------------------------
@@ -83,28 +78,25 @@ class WebContentsViewMac : public WebContentsView,
       RenderWidgetHost* render_widget_host) override;
   RenderWidgetHostViewBase* CreateViewForChildWidget(
       RenderWidgetHost* render_widget_host) override;
-  void SetPageTitle(const std::u16string& title) override;
+  void SetPageTitle(const base::string16& title) override;
   void RenderViewReady() override;
   void RenderViewHostChanged(RenderViewHost* old_host,
                              RenderViewHost* new_host) override;
   void SetOverscrollControllerEnabled(bool enabled) override;
   bool CloseTabAfterEventTrackingIfNeeded() override;
-  void OnCapturerCountChanged() override;
-  void FullscreenStateChanged(bool is_fullscreen) override;
 
   // RenderViewHostDelegateView:
   void StartDragging(const DropData& drop_data,
                      blink::DragOperationsMask allowed_operations,
                      const gfx::ImageSkia& image,
-                     const gfx::Vector2d& cursor_offset,
-                     const gfx::Rect& drag_obj_rect,
+                     const gfx::Vector2d& image_offset,
                      const blink::mojom::DragEventSourceInfo& event_info,
                      RenderWidgetHostImpl* source_rwh) override;
-  void UpdateDragCursor(ui::mojom::DragOperation operation) override;
+  void UpdateDragCursor(blink::DragOperation operation) override;
   void GotFocus(RenderWidgetHostImpl* render_widget_host) override;
   void LostFocus(RenderWidgetHostImpl* render_widget_host) override;
   void TakeFocus(bool reverse) override;
-  void ShowContextMenu(RenderFrameHost& render_frame_host,
+  void ShowContextMenu(RenderFrameHost* render_frame_host,
                        const ContextMenuParams& params) override;
   void ShowPopupMenu(
       RenderFrameHost* render_frame_host,
@@ -188,7 +180,7 @@ class WebContentsViewMac : public WebContentsView,
   std::list<RenderWidgetHostViewMac*> GetChildViews();
 
   // The WebContentsImpl whose contents we display.
-  raw_ptr<WebContentsImpl> web_contents_;
+  WebContentsImpl* web_contents_;
 
   // Destination for drag-drop.
   base::scoped_nsobject<WebDragDest> drag_dest_;
@@ -207,7 +199,7 @@ class WebContentsViewMac : public WebContentsView,
   std::list<base::WeakPtr<RenderWidgetHostViewBase>> child_views_;
 
   // Interface to the views::View host of this view.
-  raw_ptr<ViewsHostableView::Host> views_host_ = nullptr;
+  ViewsHostableView::Host* views_host_ = nullptr;
 
   // The accessibility element specified via ViewsHostableSetParentAccessible.
   gfx::NativeViewAccessible views_host_accessibility_element_ = nil;
@@ -231,6 +223,8 @@ class WebContentsViewMac : public WebContentsView,
 
   // Used by CloseTabAfterEventTrackingIfNeeded.
   base::WeakPtrFactory<WebContentsViewMac> deferred_close_weak_ptr_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebContentsViewMac);
 };
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ class USBIsochronousInTransferPacket final : public ScriptWrappable {
   static USBIsochronousInTransferPacket* Create(const String& status,
                                                 NotShared<DOMDataView> data) {
     return MakeGarbageCollected<USBIsochronousInTransferPacket>(status,
-                                                                data.Get());
+                                                                data.View());
   }
 
   USBIsochronousInTransferPacket(const String& status, DOMDataView* data)

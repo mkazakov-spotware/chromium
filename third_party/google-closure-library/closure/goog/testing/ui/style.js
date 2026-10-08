@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Tools for testing Closure renderers against static markup
@@ -12,6 +20,7 @@
 goog.setTestOnly('goog.testing.ui.style');
 goog.provide('goog.testing.ui.style');
 
+goog.require('goog.array');
 goog.require('goog.asserts');
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
@@ -26,7 +35,6 @@ goog.require('goog.testing.asserts');
  * @param {string} referencePath A path to a reference HTML file.
  */
 goog.testing.ui.style.writeReferenceFrame = function(referencePath) {
-  'use strict';
   document.write(
       '<iframe id="reference" name="reference" ' +
       'src="' + referencePath + '"></iframe>');
@@ -42,7 +50,6 @@ goog.testing.ui.style.writeReferenceFrame = function(referencePath) {
  * @return {Node} The root element of the reference structure.
  */
 goog.testing.ui.style.getReferenceNode = function(referenceId) {
-  'use strict';
   return goog.dom.getFirstElementChild(
       window.frames['reference'].document.getElementById(referenceId));
 };
@@ -54,14 +61,11 @@ goog.testing.ui.style.getReferenceNode = function(referenceId) {
  * @return {!Array<!Node>} An array of all the element children.
  */
 goog.testing.ui.style.getElementChildren = function(element) {
-  'use strict';
-  const first = goog.dom.getFirstElementChild(element);
+  var first = goog.dom.getFirstElementChild(element);
   if (!first) {
     return [];
   }
-  const children = [first];
-  let next;
-
+  var children = [first], next;
   while (next = goog.dom.getNextElementSibling(children[children.length - 1])) {
     children.push(next);
   }
@@ -77,7 +81,6 @@ goog.testing.ui.style.getElementChildren = function(element) {
  * @suppress {missingProperties} "className" not defined on Node
  */
 goog.testing.ui.style.isContentNode = function(element) {
-  'use strict';
   return element.className.indexOf('content') != -1;
 };
 
@@ -93,7 +96,6 @@ goog.testing.ui.style.isContentNode = function(element) {
  */
 goog.testing.ui.style.assertStructureMatchesReference = function(
     element, referenceId) {
-  'use strict';
   goog.testing.ui.style.assertStructureMatchesReferenceInner_(
       element, goog.testing.ui.style.getReferenceNode(referenceId));
 };
@@ -110,7 +112,6 @@ goog.testing.ui.style.assertStructureMatchesReference = function(
  */
 goog.testing.ui.style.assertStructureMatchesReferenceInner_ = function(
     element, reference) {
-  'use strict';
   if (!element && !reference) {
     return;
   }
@@ -118,28 +119,25 @@ goog.testing.ui.style.assertStructureMatchesReferenceInner_ = function(
   assertEquals(
       'Expected nodes to have the same nodeName.', element.nodeName,
       reference.nodeName);
-  const testElem = goog.asserts.assertElement(element);
-  const refElem = goog.asserts.assertElement(reference);
-  const elementClasses = goog.dom.classlist.get(testElem);
-  Array.prototype.forEach.call(
-      goog.dom.classlist.get(refElem), function(referenceClass) {
-        'use strict';
-        assertContains(
-            'Expected test node to have all reference classes.', referenceClass,
-            elementClasses);
-      });
+  var testElem = goog.asserts.assertElement(element);
+  var refElem = goog.asserts.assertElement(reference);
+  var elementClasses = goog.dom.classlist.get(testElem);
+  goog.array.forEach(goog.dom.classlist.get(refElem), function(referenceClass) {
+    assertContains(
+        'Expected test node to have all reference classes.', referenceClass,
+        elementClasses);
+  });
   // Call assertStructureMatchesReferenceInner_ on all element children
   // unless this is a content node
-  const elChildren = goog.testing.ui.style.getElementChildren(element);
-  const refChildren = goog.testing.ui.style.getElementChildren(reference);
-
+  var elChildren = goog.testing.ui.style.getElementChildren(element),
+      refChildren = goog.testing.ui.style.getElementChildren(reference);
   if (!goog.testing.ui.style.isContentNode(reference)) {
     if (elChildren.length != refChildren.length) {
       assertEquals(
           'Expected same number of children for a non-content node.',
           elChildren.length, refChildren.length);
     }
-    for (let i = 0; i < elChildren.length; i++) {
+    for (var i = 0; i < elChildren.length; i++) {
       goog.testing.ui.style.assertStructureMatchesReferenceInner_(
           elChildren[i], refChildren[i]);
     }

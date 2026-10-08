@@ -16,12 +16,28 @@
   }
 })();
 
+// This function is shared between blink/web_tests/usb and external/wpt/webusb.
+// Only include "/gen/" paths here, which are available in both places.
+async function loadChromiumResources() {
+  const chromiumResources = [
+    '/gen/mojo/public/mojom/base/big_buffer.mojom.js',
+    '/gen/mojo/public/mojom/base/string16.mojom.js',
+    '/gen/url/mojom/url.mojom.js',
+    '/gen/services/device/public/mojom/usb_device.mojom.js',
+    '/gen/services/device/public/mojom/usb_enumeration_options.mojom.js',
+    '/gen/services/device/public/mojom/usb_manager_client.mojom.js',
+    '/gen/third_party/blink/public/mojom/usb/web_usb_service.mojom.js',
+  ];
+  await loadMojoResources(chromiumResources);
+}
+
 function usb_test(func, name, properties) {
-  promise_test(async (t) => {
+  promise_test(async () => {
     assert_implements(navigator.usb, 'missing navigator.usb');
     if (navigator.usb.test === undefined) {
       // Try loading a polyfill for the WebUSB Testing API.
       if (isChromiumBased) {
+        await loadChromiumResources();
         await loadScript('/resources/chromium/webusb-test.js');
       }
     }
@@ -29,7 +45,7 @@ function usb_test(func, name, properties) {
 
     await navigator.usb.test.initialize();
     try {
-      await func(t);
+      await func();
     } finally {
       await navigator.usb.test.reset();
     }
@@ -66,6 +82,16 @@ function waitForDisconnect(fakeDevice) {
   let promise = connectionEventPromise('disconnect');
   fakeDevice.disconnect();
   return promise;
+}
+
+function assertRejectsWithError(promise, name, message) {
+  return promise.then(() => {
+    assert_unreached('expected promise to reject with ' + name);
+  }, error => {
+    assert_equals(error.name, name);
+    if (message !== undefined)
+      assert_equals(error.message, message);
+  });
 }
 
 function assertDeviceInfoEquals(usbDevice, deviceInit) {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,32 +17,30 @@
 #define BASE_COMMAND_LINE_H_
 
 #include <stddef.h>
-#include <functional>
 #include <map>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "base/base_export.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
 
 namespace base {
 
-class DuplicateSwitchHandler;
 class FilePath;
 
 class BASE_EXPORT CommandLine {
  public:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // The native command line string type.
   using StringType = std::wstring;
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   using StringType = std::string;
 #endif
 
+  using StringPieceType = base::BasicStringPiece<StringType>;
   using CharType = StringType::value_type;
-  using StringPieceType = base::BasicStringPiece<CharType>;
   using StringVector = std::vector<StringType>;
   using SwitchMap = std::map<std::string, StringType, std::less<>>;
 
@@ -62,7 +60,7 @@ class BASE_EXPORT CommandLine {
 
   ~CommandLine();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // By default this class will treat command-line arguments beginning with
   // slashes as switches on Windows, but not other platforms.
   //
@@ -103,7 +101,7 @@ class BASE_EXPORT CommandLine {
   // Returns true if the CommandLine has been initialized for the given process.
   static bool InitializedForCurrentProcess();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   static CommandLine FromString(StringPieceType command_line);
 #endif
 
@@ -118,24 +116,17 @@ class BASE_EXPORT CommandLine {
   // GetCommandLineStringForShell() instead.
   StringType GetCommandLineString() const;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Returns the command-line string in the proper format for the Windows shell,
   // ending with the argument placeholder "--single-argument %1". The single-
   // argument switch prevents unexpected parsing of arguments from other
   // software that cannot be trusted to escape double quotes when substituting
-  // into a placeholder (e.g., "%1" insert sequences populated by the Windows
+  // into a placeholder (e.g., "%1" placeholders populated by the Windows
   // shell).
   // NOTE: this must be used to generate the command-line string for the shell
   // even if this command line was parsed from a string with the proper syntax,
   // because the --single-argument switch is not preserved during parsing.
   StringType GetCommandLineStringForShell() const;
-
-  // Returns the represented command-line string. Allows the use of unsafe
-  // Windows insert sequences like "%1". Only use this method if
-  // GetCommandLineStringForShell() is not adequate AND the processor inserting
-  // the arguments is known to do so securely (i.e., is not the Windows shell).
-  // If in doubt, do not use.
-  StringType GetCommandLineStringWithUnsafeInsertSequences() const;
 #endif
 
   // Constructs and returns the represented arguments string.
@@ -155,25 +146,28 @@ class BASE_EXPORT CommandLine {
   // The second override provides an optimized version to avoid inlining codegen
   // at every callsite to find the length of the constant and construct a
   // StringPiece.
-  bool HasSwitch(StringPiece switch_string) const;
+  bool HasSwitch(const StringPiece& switch_string) const;
   bool HasSwitch(const char switch_constant[]) const;
 
   // Returns the value associated with the given switch. If the switch has no
   // value or isn't present, this method returns the empty string.
   // Switch names must be lowercase.
-  std::string GetSwitchValueASCII(StringPiece switch_string) const;
-  FilePath GetSwitchValuePath(StringPiece switch_string) const;
-  StringType GetSwitchValueNative(StringPiece switch_string) const;
+  std::string GetSwitchValueASCII(const StringPiece& switch_string) const;
+  FilePath GetSwitchValuePath(const StringPiece& switch_string) const;
+  StringType GetSwitchValueNative(const StringPiece& switch_string) const;
 
   // Get a copy of all switches, along with their values.
   const SwitchMap& GetSwitches() const { return switches_; }
 
   // Append a switch [with optional value] to the command line.
   // Note: Switches will precede arguments regardless of appending order.
-  void AppendSwitch(StringPiece switch_string);
-  void AppendSwitchPath(StringPiece switch_string, const FilePath& path);
-  void AppendSwitchNative(StringPiece switch_string, StringPieceType value);
-  void AppendSwitchASCII(StringPiece switch_string, StringPiece value);
+  void AppendSwitch(const std::string& switch_string);
+  void AppendSwitchPath(const std::string& switch_string,
+                        const FilePath& path);
+  void AppendSwitchNative(const std::string& switch_string,
+                          StringPieceType value);
+  void AppendSwitchASCII(const std::string& switch_string,
+                         const std::string& value);
 
   // Removes the switch that matches |switch_key_without_prefix|, regardless of
   // prefix and value. If no such switch is present, this has no effect.
@@ -192,9 +186,9 @@ class BASE_EXPORT CommandLine {
   // properly such that it is interpreted as one argument to the target command.
   // AppendArg is primarily for ASCII; non-ASCII input is interpreted as UTF-8.
   // Note: Switches will precede arguments regardless of appending order.
-  void AppendArg(StringPiece value);
+  void AppendArg(const std::string& value);
   void AppendArgPath(const FilePath& value);
-  void AppendArgNative(StringPieceType value);
+  void AppendArgNative(const StringType& value);
 
   // Append the switches and arguments from another command line to this one.
   // If |include_program| is true, include |other|'s program as well.
@@ -202,22 +196,13 @@ class BASE_EXPORT CommandLine {
 
   // Insert a command before the current command.
   // Common for debuggers, like "gdb --args".
-  void PrependWrapper(StringPieceType wrapper);
+  void PrependWrapper(const StringType& wrapper);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Initialize by parsing the given command line string.
   // The program name is assumed to be the first item in the string.
   void ParseFromString(StringPieceType command_line);
-
-  // Returns true if the command line had the --single-argument switch, and
-  // thus likely came from a Windows shell registration. This is only set if the
-  // command line is parsed, and is not changed after it is parsed.
-  bool HasSingleArgumentSwitch() const { return has_single_argument_switch_; }
 #endif
-
-  // Sets a delegate that's called when we encounter a duplicate switch
-  static void SetDuplicateSwitchHandler(
-      std::unique_ptr<DuplicateSwitchHandler>);
 
  private:
   // Disallow default constructor; a program name must be explicitly specified.
@@ -230,13 +215,7 @@ class BASE_EXPORT CommandLine {
   // Append switches and arguments, keeping switches before arguments.
   void AppendSwitchesAndArguments(const StringVector& argv);
 
-  // Internal version of GetArgumentsString to support allowing unsafe insert
-  // sequences in rare cases (see
-  // GetCommandLineStringWithUnsafeInsertSequences).
-  StringType GetArgumentsStringInternal(
-      bool allow_unsafe_insert_sequences) const;
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Initializes by parsing |raw_command_line_string_|, treating everything
   // after |single_arg_switch_string| + <a single character> as the command
   // line's single argument, and dropping any arguments previously parsed. The
@@ -252,11 +231,6 @@ class BASE_EXPORT CommandLine {
   // ParseFromString(). Empty if this command line was not parsed from a string,
   // or if ParseFromString() has finished executing.
   StringPieceType raw_command_line_string_;
-
-  // Set to true if the command line had --single-argument when initially
-  // parsed. It does not change if the command line mutates after initial
-  // parsing.
-  bool has_single_argument_switch_ = false;
 #endif
 
   // The singleton CommandLine representing the current process's command line.
@@ -269,16 +243,7 @@ class BASE_EXPORT CommandLine {
   SwitchMap switches_;
 
   // The index after the program and switches, any arguments start here.
-  ptrdiff_t begin_args_;
-};
-
-class BASE_EXPORT DuplicateSwitchHandler {
- public:
-  // out_value contains the existing value of the switch
-  virtual void ResolveDuplicate(base::StringPiece key,
-                                CommandLine::StringPieceType new_value,
-                                CommandLine::StringType& out_value) = 0;
-  virtual ~DuplicateSwitchHandler() = default;
+  size_t begin_args_;
 };
 
 }  // namespace base

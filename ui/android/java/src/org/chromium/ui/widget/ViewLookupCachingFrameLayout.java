@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.build.BuildConfig;
+import org.chromium.base.BuildConfig;
 
 import java.lang.ref.WeakReference;
 
@@ -95,7 +95,7 @@ public class ViewLookupCachingFrameLayout extends OptimizedFrameLayout {
         View view = null;
         if (ref != null) view = ref.get();
         if (view == null) view = findViewById(id);
-        if (BuildConfig.ENABLE_ASSERTS) {
+        if (BuildConfig.DCHECK_IS_ON) {
             assert view == findViewById(id) : "View caching logic is broken!";
             assert ref == null
                     || ref.get() != null : "Cache held reference to garbage collected view!";

@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -71,6 +71,7 @@ source_set("test_helpers") {
   ]
   deps = [
     "//media/gpu",
+    "//media/mojo/common:mojo_shared_buffer_video_frame",
     "//media/parsers",
     "//mojo/public/cpp/system",
     "//testing/gtest",
@@ -81,17 +82,35 @@ source_set("test_helpers") {
   }
 }
 
+static_library("video_player_thumbnail_renderer") {
+  testonly = true
+  sources = [
+    "video_player/frame_renderer.h",
+    "video_player/frame_renderer_thumbnail.cc",
+    "video_player/frame_renderer_thumbnail.h",
+  ]
+  deps = [
+    ":test_helpers",
+    "//gpu/command_buffer/common",
+    "//media/gpu",
+    "//ui/gfx/codec:codec",
+    "//ui/gl:gl",
+    "//ui/gl/init:init",
+  ]
+}
+
 static_library("video_player") {
   testonly = true
   sources = [
-    "video_player/decoder_listener.cc",
-    "video_player/decoder_listener.h",
-    "video_player/decoder_wrapper.cc",
-    "video_player/decoder_wrapper.h",
+    "video_player/frame_renderer.h",
     "video_player/frame_renderer_dummy.cc",
     "video_player/frame_renderer_dummy.h",
     "video_player/test_vda_video_decoder.cc",
     "video_player/test_vda_video_decoder.h",
+    "video_player/video_decoder_client.cc",
+    "video_player/video_decoder_client.h",
+    "video_player/video_player.cc",
+    "video_player/video_player.h",
   ]
   deps = [
     ":test_helpers",
@@ -177,11 +196,7 @@ static_library("video_encoder_test_environment") {
     ":helpers",
     ":video_test_environment",
   ]
-  deps = [
-    "//base:base",
-    "//build:chromeos_buildflags",
-    "//media/gpu",
-  ]
+  deps = [ "//media/gpu" ]
 }
 
 if (use_vaapi || use_v4l2_codec) {
@@ -204,7 +219,7 @@ if (use_vaapi || use_v4l2_codec) {
   }
 }
 
-if (is_chromeos_ash) {
+if (is_ash) {
   static_library("local_gpu_memory_buffer_manager") {
     testonly = true
     sources = [

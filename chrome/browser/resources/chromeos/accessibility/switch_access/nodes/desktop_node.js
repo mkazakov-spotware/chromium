@@ -1,20 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {Navigator} from '../navigator.js';
-import {SwitchAccess} from '../switch_access.js';
-import {SAConstants} from '../switch_access_constants.js';
-import {SwitchAccessPredicate} from '../switch_access_predicate.js';
-
-import {BasicNode, BasicRootNode} from './basic_node.js';
-
-const AutomationNode = chrome.automation.AutomationNode;
 
 /**
  * This class handles interactions with the desktop automation node.
  */
-export class DesktopNode extends BasicRootNode {
+class DesktopNode extends BasicRootNode {
   /**
    * @param {!AutomationNode} autoNode The automation node representing the
    *     desktop.
@@ -49,20 +40,20 @@ export class DesktopNode extends BasicRootNode {
     }
 
     // Update this DesktopNode's children.
-    const childConstructor = node => BasicNode.create(node, this);
+    const childConstructor = (node) => BasicNode.create(node, this);
     DesktopNode.findAndSetChildren(this, childConstructor);
 
     // Set the new instance of that child to be the focused node.
     for (const child of this.children) {
       if (child.isEquivalentTo(focusedChild)) {
-        Navigator.byItem.forceFocusedNode(child);
+        NavigationManager.forceFocusedNode(child);
         return;
       }
     }
 
     // If the previously focused node no longer exists, focus the first node in
     // the group.
-    Navigator.byItem.forceFocusedNode(this.children[0]);
+    NavigationManager.forceFocusedNode(this.children[0]);
   }
 
   // ================= Static methods =================
@@ -73,7 +64,7 @@ export class DesktopNode extends BasicRootNode {
    */
   static build(desktop) {
     const root = new DesktopNode(desktop);
-    const childConstructor = autoNode => BasicNode.create(autoNode, root);
+    const childConstructor = (autoNode) => BasicNode.create(autoNode, root);
 
     DesktopNode.findAndSetChildren(root, childConstructor);
     return root;

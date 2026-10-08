@@ -1,17 +1,16 @@
-import {MojoWebTestHelperReceiver} from '/gen/content/test/data/mojo_web_test_helper_test.mojom.m.js';
-
-export const kTestReply = "hehe got ya";
+const kTestReply = "hehe got ya";
 
 // An impl of the test interface which replies to reverse() with a fixed
 // message rather than the normally expected value.
-export class TestHelperImpl {
+class TestHelperImpl {
   constructor() {
-    this.receiver_ = new MojoWebTestHelperReceiver(this);
+    this.binding_ =
+        new mojo.Binding(content.mojom.MojoWebTestHelper, this);
   }
-  bindRequest(request) { this.receiver_.$.bindHandle(request); }
+  bindRequest(request) { this.binding_.bind(request); }
   getLastString() { return this.lastString_; }
   reverse(message) {
     this.lastString_ = message;
-    return {reversed: kTestReply};
+    return Promise.resolve({ reversed: kTestReply });
   }
 }

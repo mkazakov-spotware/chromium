@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,13 @@ HeadlessContentClient::HeadlessContentClient() = default;
 
 HeadlessContentClient::~HeadlessContentClient() = default;
 
-std::u16string HeadlessContentClient::GetLocalizedString(int message_id) {
+base::string16 HeadlessContentClient::GetLocalizedString(int message_id) {
   return l10n_util::GetStringUTF16(message_id);
 }
 
 base::StringPiece HeadlessContentClient::GetDataResource(
     int resource_id,
-    ui::ResourceScaleFactor scale_factor) {
+    ui::ScaleFactor scale_factor) {
   return ui::ResourceBundle::GetSharedInstance().GetRawDataResourceForScale(
       resource_id, scale_factor);
 }
@@ -28,11 +28,6 @@ base::StringPiece HeadlessContentClient::GetDataResource(
 base::RefCountedMemory* HeadlessContentClient::GetDataResourceBytes(
     int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
-      resource_id);
-}
-
-std::string HeadlessContentClient::GetDataResourceString(int resource_id) {
-  return ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
       resource_id);
 }
 

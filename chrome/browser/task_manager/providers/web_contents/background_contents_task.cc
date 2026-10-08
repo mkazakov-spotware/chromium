@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,9 +24,9 @@ namespace task_manager {
 
 namespace {
 
-std::u16string AdjustAndLocalizeTitle(const std::u16string& title,
+base::string16 AdjustAndLocalizeTitle(const base::string16& title,
                                       const std::string& url_spec) {
-  std::u16string localized_title(title);
+  base::string16 localized_title(title);
   if (localized_title.empty()) {
     // No title (can't locate the parent app for some reason) so just display
     // the URL (properly forced to be LTR).
@@ -45,7 +45,7 @@ std::u16string AdjustAndLocalizeTitle(const std::u16string& title,
 gfx::ImageSkia* BackgroundContentsTask::s_icon_ = nullptr;
 
 BackgroundContentsTask::BackgroundContentsTask(
-    const std::u16string& title,
+    const base::string16& title,
     BackgroundContents* background_contents)
     : RendererTask(
           AdjustAndLocalizeTitle(title, background_contents->GetURL().spec()),

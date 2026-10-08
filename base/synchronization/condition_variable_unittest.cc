@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,8 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/spin_wait.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/thread.h"
@@ -43,12 +43,13 @@ class ConditionVariableTest : public PlatformTest {
   const TimeDelta kOneHundredMs;
 
   ConditionVariableTest()
-      : kZeroMs(Milliseconds(0)),
-        kTenMs(Milliseconds(10)),
-        kThirtyMs(Milliseconds(30)),
-        kFortyFiveMs(Milliseconds(45)),
-        kSixtyMs(Milliseconds(60)),
-        kOneHundredMs(Milliseconds(100)) {}
+      : kZeroMs(TimeDelta::FromMilliseconds(0)),
+        kTenMs(TimeDelta::FromMilliseconds(10)),
+        kThirtyMs(TimeDelta::FromMilliseconds(30)),
+        kFortyFiveMs(TimeDelta::FromMilliseconds(45)),
+        kSixtyMs(TimeDelta::FromMilliseconds(60)),
+        kOneHundredMs(TimeDelta::FromMilliseconds(100)) {
+  }
 };
 
 //------------------------------------------------------------------------------
@@ -180,9 +181,9 @@ TEST_F(ConditionVariableTest, TimeoutTest) {
   lock.Acquire();
 
   TimeTicks start = TimeTicks::Now();
-  const TimeDelta WAIT_TIME = Milliseconds(300);
+  const TimeDelta WAIT_TIME = TimeDelta::FromMilliseconds(300);
   // Allow for clocking rate granularity.
-  const TimeDelta FUDGE_TIME = Milliseconds(50);
+  const TimeDelta FUDGE_TIME = TimeDelta::FromMilliseconds(50);
 
   cv.TimedWait(WAIT_TIME + FUDGE_TIME);
   TimeDelta duration = TimeTicks::Now() - start;
@@ -193,7 +194,7 @@ TEST_F(ConditionVariableTest, TimeoutTest) {
   lock.Release();
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 const int kDiscontinuitySeconds = 2;
 
 void BackInTime(Lock* lock) {
@@ -227,9 +228,9 @@ TEST_F(ConditionVariableTest, DISABLED_TimeoutAcrossSetTimeOfDay) {
   thread.task_runner()->PostTask(FROM_HERE, base::BindOnce(&BackInTime, &lock));
 
   TimeTicks start = TimeTicks::Now();
-  const TimeDelta kWaitTime = Milliseconds(300);
+  const TimeDelta kWaitTime = TimeDelta::FromMilliseconds(300);
   // Allow for clocking rate granularity.
-  const TimeDelta kFudgeTime = Milliseconds(50);
+  const TimeDelta kFudgeTime = TimeDelta::FromMilliseconds(50);
 
   cv.TimedWait(kWaitTime + kFudgeTime);
   TimeDelta duration = TimeTicks::Now() - start;
@@ -238,14 +239,22 @@ TEST_F(ConditionVariableTest, DISABLED_TimeoutAcrossSetTimeOfDay) {
   // We can't use EXPECT_GE here as the TimeDelta class does not support the
   // required stream conversion.
   EXPECT_TRUE(duration >= kWaitTime);
-  EXPECT_TRUE(duration <= Seconds(kDiscontinuitySeconds));
+  EXPECT_TRUE(duration <= TimeDelta::FromSeconds(kDiscontinuitySeconds));
 
   lock.Release();
 }
 #endif
 
+// Suddenly got flaky on Win, see http://crbug.com/10607 (starting at
+// comment #15).
+// This is also flaky on Fuchsia, see http://crbug.com/738275.
+#if defined(OS_WIN) || defined(OS_FUCHSIA)
+#define MAYBE_MultiThreadConsumerTest DISABLED_MultiThreadConsumerTest
+#else
+#define MAYBE_MultiThreadConsumerTest MultiThreadConsumerTest
+#endif
 // Test serial task servicing, as well as two parallel task servicing methods.
-TEST_F(ConditionVariableTest, MultiThreadConsumerTest) {
+TEST_F(ConditionVariableTest, MAYBE_MultiThreadConsumerTest) {
   const int kThreadCount = 10;
   WorkQueue queue(kThreadCount);  // Start the threads.
 
@@ -385,11 +394,17 @@ TEST_F(ConditionVariableTest, MultiThreadConsumerTest) {
   }
   queue.work_is_available()->Broadcast();  // Force check for shutdown.
 
-  SPIN_FOR_TIMEDELTA_OR_UNTIL_TRUE(Minutes(1),
+  SPIN_FOR_TIMEDELTA_OR_UNTIL_TRUE(TimeDelta::FromMinutes(1),
                                    queue.ThreadSafeCheckShutdown(kThreadCount));
 }
 
-TEST_F(ConditionVariableTest, LargeFastTaskTest) {
+#if defined(OS_FUCHSIA)
+// TODO(crbug.com/751894): This flakily times out on Fuchsia.
+#define MAYBE_LargeFastTaskTest DISABLED_LargeFastTaskTest
+#else
+#define MAYBE_LargeFastTaskTest LargeFastTaskTest
+#endif
+TEST_F(ConditionVariableTest, MAYBE_LargeFastTaskTest) {
   const int kThreadCount = 200;
   WorkQueue queue(kThreadCount);  // Start the threads.
 
@@ -476,7 +491,7 @@ TEST_F(ConditionVariableTest, LargeFastTaskTest) {
   queue.work_is_available()->Broadcast();  // Force check for shutdown.
 
   // Wait for shutdowns to complete.
-  SPIN_FOR_TIMEDELTA_OR_UNTIL_TRUE(Minutes(1),
+  SPIN_FOR_TIMEDELTA_OR_UNTIL_TRUE(TimeDelta::FromMinutes(1),
                                    queue.ThreadSafeCheckShutdown(kThreadCount));
 }
 
@@ -502,7 +517,7 @@ WorkQueue::WorkQueue(int thread_count)
   EXPECT_GE(thread_count_, 1);
   ResetHistory();
   SetTaskCount(0);
-  SetWorkTime(Milliseconds(30));
+  SetWorkTime(TimeDelta::FromMilliseconds(30));
 
   for (int i = 0; i < thread_count_; ++i) {
     PlatformThreadHandle pth;
@@ -670,7 +685,7 @@ void WorkQueue::SpinUntilAllThreadsAreWaiting() {
       if (waiting_thread_count_ == thread_count_)
         break;
     }
-    PlatformThread::Sleep(Milliseconds(30));
+    PlatformThread::Sleep(TimeDelta::FromMilliseconds(30));
   }
 }
 
@@ -681,7 +696,7 @@ void WorkQueue::SpinUntilTaskCountLessThan(int task_count) {
       if (task_count_ < task_count)
         break;
     }
-    PlatformThread::Sleep(Milliseconds(30));
+    PlatformThread::Sleep(TimeDelta::FromMilliseconds(30));
   }
 }
 
@@ -714,7 +729,7 @@ void WorkQueue::ThreadMain() {
   }
 
   Lock private_lock;  // Used to waste time on "our work".
-  while (true) {      // This is the main consumer loop.
+  while (1) {  // This is the main consumer loop.
     TimeDelta work_time;
     bool could_use_help;
     {
@@ -738,7 +753,7 @@ void WorkQueue::ThreadMain() {
     if (could_use_help)
       work_is_available()->Signal();  // Get help from other threads.
 
-    if (work_time > Milliseconds(0)) {
+    if (work_time > TimeDelta::FromMilliseconds(0)) {
       // We could just sleep(), but we'll instead further exercise the
       // condition variable class, and do a timed wait.
       base::AutoLock auto_lock(private_lock);

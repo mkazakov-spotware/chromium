@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_cursor.h"
 #include "third_party/blink/renderer/core/layout/ng/layout_ng_block_flow.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_block_node.h"
+#include "third_party/blink/renderer/core/paint/ng/ng_paint_fragment.h"
 #include "third_party/blink/renderer/core/paint/paint_controller_paint_test.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
@@ -42,7 +43,7 @@ TEST_P(NGTextFragmentPainterTest, TestTextStyle) {
       *cursor.Current().GetDisplayItemClient();
   EXPECT_THAT(ContentDisplayItems(),
               ElementsAre(VIEW_SCROLLING_BACKGROUND_DISPLAY_ITEM,
-                          IsSameId(text_fragment.Id(), kForegroundType)));
+                          IsSameId(&text_fragment, kForegroundType)));
 }
 
 TEST_P(NGTextFragmentPainterTest, LineBreak) {
@@ -71,31 +72,6 @@ TEST_P(NGTextFragmentPainterTest, DegenerateUnderlineIntercepts) {
   UpdateAllLifecyclePhasesForTest();
   // Test for https://crbug.com/1043753: the underline intercepts are infinite
   // due to letter spacing and this test passes if that does not cause a crash.
-}
-
-TEST_P(NGTextFragmentPainterTest, SvgTextWithFirstLineTextDecoration) {
-  SetBodyInnerHTML(R"HTML(
-<!DOCTYPE html>
-<style>
-*::first-line {
-  text-decoration: underline dashed;
-}
-</style>
-<svg xmlns="http://www.w3.org/2000/svg">
-  <text y="30">vX7 Image 2</text>
-</svg>)HTML");
-  UpdateAllLifecyclePhasesForTest();
-  // Test passes if no crashes.
-}
-
-TEST_P(NGTextFragmentPainterTest, SvgTextWithTextDecorationNotInFirstLine) {
-  SetBodyInnerHTML(R"HTML(
-    <style>text:first-line { fill: lime; }</style>
-    <svg xmlns="http://www.w3.org/2000/svg">
-    <text text-decoration="overline">foo</text>
-    </svg>)HTML");
-  UpdateAllLifecyclePhasesForTest();
-  // Test passes if no crashes.
 }
 
 }  // namespace blink

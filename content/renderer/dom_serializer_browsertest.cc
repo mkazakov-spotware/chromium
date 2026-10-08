@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/renderer/render_frame.h"
+#include "content/public/renderer/render_view.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/content_browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
@@ -32,10 +33,10 @@
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/public/platform/web_vector.h"
-#include "third_party/blink/public/test/test_web_frame_content_dumper.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_element_collection.h"
+#include "third_party/blink/public/web/web_frame_content_dumper.h"
 #include "third_party/blink/public/web/web_frame_serializer.h"
 #include "third_party/blink/public/web/web_frame_serializer_client.h"
 #include "third_party/blink/public/web/web_local_frame.h"
@@ -47,17 +48,17 @@
 using blink::WebData;
 using blink::WebDocument;
 using blink::WebElement;
+using blink::WebMetaElement;
 using blink::WebElementCollection;
 using blink::WebFrame;
 using blink::WebFrameSerializer;
 using blink::WebFrameSerializerClient;
 using blink::WebLocalFrame;
-using blink::WebMetaElement;
 using blink::WebNode;
 using blink::WebString;
 using blink::WebURL;
-using blink::WebVector;
 using blink::WebView;
+using blink::WebVector;
 
 namespace content {
 
@@ -66,14 +67,11 @@ bool HasDocType(const WebDocument& doc) {
 }
 
 // https://crbug.com/788788
-#if BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER)
-#define MAYBE_DomSerializerTests DISABLED_DomSerializerTests
-#elif defined(THREAD_SANITIZER)
-// http://crbug.com/1350508
+#if defined(OS_ANDROID) && defined(ADDRESS_SANITIZER)
 #define MAYBE_DomSerializerTests DISABLED_DomSerializerTests
 #else
 #define MAYBE_DomSerializerTests DomSerializerTests
-#endif  // BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER)
+#endif  // defined(OS_ANDROID) && defined(ADDRESS_SANITIZER)
 class MAYBE_DomSerializerTests : public ContentBrowserTest,
                                  public WebFrameSerializerClient {
  public:
@@ -81,15 +79,18 @@ class MAYBE_DomSerializerTests : public ContentBrowserTest,
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitch(switches::kSingleProcess);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // Don't want to try to create a GPU process.
     command_line->AppendSwitch(switches::kDisableGpu);
 #endif
   }
 
   void SetUpOnMainThread() override {
-    main_frame_token_ =
-        shell()->web_contents()->GetPrimaryMainFrame()->GetFrameToken();
+    render_view_routing_id_ = shell()
+                                  ->web_contents()
+                                  ->GetMainFrame()
+                                  ->GetRenderViewHost()
+                                  ->GetRoutingID();
   }
 
   // DomSerializerDelegate.
@@ -99,17 +100,23 @@ class MAYBE_DomSerializerTests : public ContentBrowserTest,
     ASSERT_FALSE(serialization_reported_end_of_data_);
 
     // Add data to corresponding frame's content.
-    serialized_contents_.append(data.data(), data.size());
+    serialized_contents_.append(data.Data(), data.size());
 
     // Current frame is completed saving, change the finish status.
     if (status == WebFrameSerializerClient::kCurrentFrameIsFinished)
       serialization_reported_end_of_data_ = true;
   }
 
-  WebView* GetWebView() { return GetMainFrame()->View(); }
+  RenderView* GetRenderView() {
+    return RenderView::FromRoutingID(render_view_routing_id_);
+  }
+
+  WebView* GetWebView() {
+    return GetRenderView()->GetWebView();
+  }
 
   WebLocalFrame* GetMainFrame() {
-    return WebFrame::FromFrameToken(main_frame_token_)->ToWebLocalFrame();
+    return GetRenderView()->GetMainRenderFrame()->GetWebFrame();
   }
 
   WebLocalFrame* FindSubFrameByURL(const GURL& url) {
@@ -127,13 +134,16 @@ class MAYBE_DomSerializerTests : public ContentBrowserTest,
   void LoadContents(const std::string& contents, const GURL& base_url) {
     TestNavigationObserver navigation_observer(shell()->web_contents(), 1);
     shell()->LoadDataWithBaseURL(
-        shell()->web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL(),
+        shell()->web_contents()->GetMainFrame()->GetLastCommittedURL(),
         contents, base_url);
     navigation_observer.Wait();
-    // After navigations, the `blink::WebView` for the new document might be a
-    // new one.
-    main_frame_token_ =
-        shell()->web_contents()->GetPrimaryMainFrame()->GetFrameToken();
+    // After navigations, the RenderView for the new document might be a new
+    // one.
+    render_view_routing_id_ = shell()
+                                  ->web_contents()
+                                  ->GetMainFrame()
+                                  ->GetRenderViewHost()
+                                  ->GetRoutingID();
   }
 
   class SingleLinkRewritingDelegate
@@ -188,7 +198,7 @@ class MAYBE_DomSerializerTests : public ContentBrowserTest,
  private:
   // Written only on the browser main UI thread. Read only from the in-process
   // renderer thread via posted tasks:
-  blink::LocalFrameToken main_frame_token_;
+  int32_t render_view_routing_id_ = -1;
   std::string serialized_contents_;
   bool serialization_reported_end_of_data_ = false;
 };
@@ -636,17 +646,8 @@ IN_PROC_BROWSER_TEST_F(MAYBE_DomSerializerTests,
 
 // Test situation of non-standard HTML entities when serializing HTML DOM.
 // This test started to fail at WebKit r65351. See http://crbug.com/52279.
-
-// Disabled due to test failure. http://crbug.com/1349583
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_SerializeHTMLDOMWithNonStandardEntities \
-  DISABLED_SerializeHTMLDOMWithNonStandardEntities
-#else
-#define MAYBE_SerializeHTMLDOMWithNonStandardEntities \
-  SerializeHTMLDOMWithNonStandardEntities
-#endif
 IN_PROC_BROWSER_TEST_F(MAYBE_DomSerializerTests,
-                       MAYBE_SerializeHTMLDOMWithNonStandardEntities) {
+                       SerializeHTMLDOMWithNonStandardEntities) {
   // Make a test file URL and load it.
   base::FilePath page_file_path =
       GetTestFilePath("dom_serializer", "nonstandard_htmlentities.htm");
@@ -662,7 +663,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_DomSerializerTests,
     // Unescaped string for "&percnt;&nsup;&sup1;&apos;".
     static const wchar_t parsed_value[] = {'%', 0x2285, 0x00b9, '\'', 0};
     WebString value = body_element.GetAttribute("title");
-    WebString content = blink::TestWebFrameContentDumper::DumpWebViewAsText(
+    WebString content = blink::WebFrameContentDumper::DumpWebViewAsText(
         web_frame->View(), 1024);
     ASSERT_TRUE(base::UTF16ToWide(value.Utf16()) == parsed_value);
     ASSERT_TRUE(base::UTF16ToWide(content.Utf16()) == parsed_value);
@@ -683,15 +684,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_DomSerializerTests,
 // When serializing, we should comment the BASE tag, append a new BASE tag.
 // rewrite all the savable URLs to relative local path, and change other URLs
 // to absolute URLs.
-
-// Disabled due to test failure. http://crbug.com/1349583
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_SerializeHTMLDOMWithBaseTag DISABLED_SerializeHTMLDOMWithBaseTag
-#else
-#define MAYBE_SerializeHTMLDOMWithBaseTag SerializeHTMLDOMWithBaseTag
-#endif
-IN_PROC_BROWSER_TEST_F(MAYBE_DomSerializerTests,
-                       MAYBE_SerializeHTMLDOMWithBaseTag) {
+IN_PROC_BROWSER_TEST_F(MAYBE_DomSerializerTests, SerializeHTMLDOMWithBaseTag) {
   base::FilePath page_file_path =
       GetTestFilePath("dom_serializer", "html_doc_has_base_tag.htm");
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "content/browser/download/save_types.h"
 #include "content/public/common/referrer.h"
 #include "url/gurl.h"
@@ -33,9 +33,6 @@ class SaveItem {
            SaveFileCreateInfo::SaveFileSource save_source,
            int frame_tree_node_id,
            int container_frame_tree_node_id);
-
-  SaveItem(const SaveItem&) = delete;
-  SaveItem& operator=(const SaveItem&) = delete;
 
   ~SaveItem();
 
@@ -105,7 +102,9 @@ class SaveItem {
   SaveFileCreateInfo::SaveFileSource save_source_;
 
   // Our owning object.
-  raw_ptr<SavePackage> package_;
+  SavePackage* package_;
+
+  DISALLOW_COPY_AND_ASSIGN(SaveItem);
 };
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,14 @@
 #include <memory>
 #include <string>
 
-#include "base/files/file.h"
-#include "base/memory/ref_counted.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 
 // Include this to avoid conflicts with CreateDirectory Win macro.
 // It converts CreateDirectory into CreateDirectoryW.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_types.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace base {
 class FilePath;
@@ -29,11 +28,13 @@ namespace web_app {
 // base/files/file_util.h functions.
 // Allows a testing implementation to intercept calls to the file system.
 // TODO(loyso): Add more tests and promote mocked methods to |virtual|.
-class FileUtilsWrapper : public base::RefCountedThreadSafe<FileUtilsWrapper> {
+class FileUtilsWrapper {
  public:
   FileUtilsWrapper() = default;
+  virtual ~FileUtilsWrapper() = default;
 
-  FileUtilsWrapper& operator=(const FileUtilsWrapper&) = delete;
+  // Create a copy to use in IO task.
+  virtual std::unique_ptr<FileUtilsWrapper> Clone() const;
 
   bool PathExists(const base::FilePath& path);
 
@@ -42,8 +43,6 @@ class FileUtilsWrapper : public base::RefCountedThreadSafe<FileUtilsWrapper> {
   bool DirectoryExists(const base::FilePath& path);
 
   bool CreateDirectory(const base::FilePath& full_path);
-
-  bool GetFileInfo(const base::FilePath& file_path, base::File::Info* info);
 
   int ReadFile(const base::FilePath& filename, char* data, int max_size);
 
@@ -62,9 +61,7 @@ class FileUtilsWrapper : public base::RefCountedThreadSafe<FileUtilsWrapper> {
 
   virtual bool DeleteFileRecursively(const base::FilePath& path);
 
- protected:
-  friend class base::RefCountedThreadSafe<FileUtilsWrapper>;
-  virtual ~FileUtilsWrapper() = default;
+  DISALLOW_ASSIGN(FileUtilsWrapper);
 };
 
 }  // namespace web_app

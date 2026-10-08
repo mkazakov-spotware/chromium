@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,6 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/script_executor.h"
 #include "extensions/common/extension_builder.h"
-#include "extensions/common/mojom/css_origin.mojom-shared.h"
-#include "extensions/common/mojom/host_id.mojom.h"
-#include "extensions/common/mojom/run_location.mojom-shared.h"
 #include "extensions/common/user_script.h"
 #include "net/dns/mock_host_resolver.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -50,18 +47,25 @@ class ScriptExecutorHelper {
                           base::Unretained(this));
   }
 
-  const std::vector<ScriptExecutor::FrameResult>& results() const {
-    return results_;
-  }
+  const std::string& error() const { return error_; }
+  const GURL& url() const { return url_; }
+  const base::Value& result() const { return result_; }
 
  private:
-  void OnScriptFinished(
-      std::vector<ScriptExecutor::FrameResult> frame_results) {
-    results_ = std::move(frame_results);
+  void OnScriptFinished(const std::string& error,
+                        const GURL& url,
+                        const base::ListValue& result) {
+    error_ = error;
+    url_ = url;
+    result_ = result.Clone();
     run_loop_.Quit();
   }
 
-  std::vector<ScriptExecutor::FrameResult> results_;
+  // Note: we include an initial value for the error so that asserting it's
+  // empty is meaningful.
+  std::string error_{"<initial error>"};
+  GURL url_;
+  base::Value result_;
   base::RunLoop run_loop_;
 };
 
@@ -95,59 +99,9 @@ class ScriptExecutorBrowserTest : public ExtensionBrowserTest {
   content::RenderFrameHost* GetFrameByName(content::WebContents* web_contents,
                                            const std::string& name) {
     return content::FrameMatchingPredicate(
-        web_contents->GetPrimaryPage(),
-        base::BindRepeating(&content::FrameMatchesName, name));
+        web_contents, base::Bind(&content::FrameMatchesName, name));
   }
 };
-
-IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, MainWorldExecution) {
-  const Extension* extension =
-      LoadExtensionWithHostPermission("http://example.com/*");
-
-  GURL example_com =
-      embedded_test_server()->GetURL("example.com", "/simple.html");
-  content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(web_contents);
-
-  {
-    content::TestNavigationObserver nav_observer(web_contents);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), example_com));
-    nav_observer.Wait();
-    EXPECT_TRUE(nav_observer.last_navigation_succeeded());
-  }
-
-  content::RenderFrameHost* main_frame = web_contents->GetPrimaryMainFrame();
-
-  constexpr char kSetFlagScript[] = "window.mainWorldFlag = 'executionFlag';";
-  // NOTE: We use ExecuteScript() (and not EvalJs or ExecJs) because we
-  // explicitly *need* this to happen in the main world for the test.
-  EXPECT_TRUE(content::ExecuteScript(main_frame, kSetFlagScript));
-
-  ScriptExecutor script_executor(web_contents);
-
-  ScriptExecutorHelper helper;
-  std::vector<mojom::JSSourcePtr> sources;
-  sources.push_back(mojom::JSSource::New("window.mainWorldFlag", GURL()));
-  script_executor.ExecuteScript(
-      mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-      mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-          std::move(sources), mojom::ExecutionWorld::kMain,
-          blink::mojom::WantResultOption::kWantResult,
-          blink::mojom::UserActivationOption::kDoNotActivate,
-          blink::mojom::PromiseResultOption::kAwait)),
-      ScriptExecutor::SPECIFIED_FRAMES, {ExtensionApiFrameIdMap::kTopFrameId},
-      ScriptExecutor::DONT_MATCH_ABOUT_BLANK, mojom::RunLocation::kDocumentIdle,
-      ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
-      helper.GetCallback());
-  helper.Wait();
-
-  ASSERT_EQ(1u, helper.results().size());
-  EXPECT_EQ(web_contents->GetLastCommittedURL(), helper.results()[0].url);
-  EXPECT_EQ(base::Value("executionFlag"), helper.results()[0].value);
-  EXPECT_EQ(0, helper.results()[0].frame_id);
-  EXPECT_EQ("", helper.results()[0].error);
-}
 
 IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, MainFrameExecution) {
   const Extension* extension =
@@ -161,7 +115,7 @@ IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, MainFrameExecution) {
 
   {
     content::TestNavigationObserver nav_observer(web_contents);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), example_com));
+    ui_test_utils::NavigateToURL(browser(), example_com);
     nav_observer.Wait();
     EXPECT_TRUE(nav_observer.last_navigation_succeeded());
   }
@@ -176,180 +130,23 @@ IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, MainFrameExecution) {
         )";
 
   ScriptExecutorHelper helper;
-  std::vector<mojom::JSSourcePtr> sources;
-  sources.push_back(mojom::JSSource::New(kCode, GURL()));
   script_executor.ExecuteScript(
-      mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-      mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-          std::move(sources), mojom::ExecutionWorld::kIsolated,
-          blink::mojom::WantResultOption::kWantResult,
-          blink::mojom::UserActivationOption::kDoNotActivate,
-          blink::mojom::PromiseResultOption::kAwait)),
-      ScriptExecutor::SPECIFIED_FRAMES, {ExtensionApiFrameIdMap::kTopFrameId},
-      ScriptExecutor::DONT_MATCH_ABOUT_BLANK, mojom::RunLocation::kDocumentIdle,
+      HostID(HostID::EXTENSIONS, extension->id()), UserScript::ADD_JAVASCRIPT,
+      kCode, ScriptExecutor::SPECIFIED_FRAMES,
+      {ExtensionApiFrameIdMap::kTopFrameId},
+      ScriptExecutor::DONT_MATCH_ABOUT_BLANK, UserScript::DOCUMENT_IDLE,
       ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
+      GURL() /* script_url */, false /* user_gesture */,
+      base::nullopt /* css_origin */, ScriptExecutor::JSON_SERIALIZED_RESULT,
       helper.GetCallback());
   helper.Wait();
   EXPECT_EQ("New Title", base::UTF16ToUTF8(web_contents->GetTitle()));
+  EXPECT_EQ(web_contents->GetLastCommittedURL(), helper.url());
+  EXPECT_EQ("", helper.error());
 
-  ASSERT_EQ(1u, helper.results().size());
-  EXPECT_EQ(web_contents->GetLastCommittedURL(), helper.results()[0].url);
-  EXPECT_EQ(base::Value("OK"), helper.results()[0].value);
-  EXPECT_EQ(0, helper.results()[0].frame_id);
-  EXPECT_EQ("", helper.results()[0].error);
-}
-
-// Tests injecting multiple JS sources into a frame.
-IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, MultipleSourceExecution) {
-  const Extension* extension =
-      LoadExtensionWithHostPermission("http://example.com/*");
-
-  GURL example_com =
-      embedded_test_server()->GetURL("example.com", "/simple.html");
-  content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(web_contents);
-
-  {
-    content::TestNavigationObserver nav_observer(web_contents);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), example_com));
-    nav_observer.Wait();
-    EXPECT_TRUE(nav_observer.last_navigation_succeeded());
-  }
-
-  EXPECT_EQ("OK", base::UTF16ToUTF8(web_contents->GetTitle()));
-
-  // Inject two pieces of code. Note that the second references a variable set
-  // by the first, which thus also exercises injection order (in addition to
-  // that they both run).
-  ScriptExecutor script_executor(web_contents);
-  constexpr char kCode1[] =
-      R"(window.newTitle = 'New Title';
-         'First Result';)";
-  constexpr char kCode2[] =
-      R"(document.title = window.newTitle;
-         'Second Result';)";
-
-  ScriptExecutorHelper helper;
-  std::vector<mojom::JSSourcePtr> sources;
-  sources.push_back(mojom::JSSource::New(kCode1, GURL()));
-  sources.push_back(mojom::JSSource::New(kCode2, GURL()));
-  script_executor.ExecuteScript(
-      mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-      mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-          std::move(sources), mojom::ExecutionWorld::kIsolated,
-          blink::mojom::WantResultOption::kWantResult,
-          blink::mojom::UserActivationOption::kDoNotActivate,
-          blink::mojom::PromiseResultOption::kAwait)),
-      ScriptExecutor::SPECIFIED_FRAMES, {ExtensionApiFrameIdMap::kTopFrameId},
-      ScriptExecutor::DONT_MATCH_ABOUT_BLANK, mojom::RunLocation::kDocumentIdle,
-      ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
-      helper.GetCallback());
-  helper.Wait();
-  EXPECT_EQ("New Title", base::UTF16ToUTF8(web_contents->GetTitle()));
-
-  ASSERT_EQ(1u, helper.results().size());
-  EXPECT_EQ(web_contents->GetLastCommittedURL(), helper.results()[0].url);
-  EXPECT_EQ(base::Value("Second Result"), helper.results()[0].value);
-  EXPECT_EQ(0, helper.results()[0].frame_id);
-  EXPECT_EQ("", helper.results()[0].error);
-}
-
-// Tests that scripts that evaluate to promises can be properly waited upon.
-IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, PromisesResolve) {
-  const Extension* extension =
-      LoadExtensionWithHostPermission("http://example.com/*");
-
-  GURL example_com =
-      embedded_test_server()->GetURL("example.com", "/simple.html");
-  content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(web_contents);
-
-  {
-    content::TestNavigationObserver nav_observer(web_contents);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), example_com));
-    nav_observer.Wait();
-    EXPECT_TRUE(nav_observer.last_navigation_succeeded());
-  }
-
-  EXPECT_EQ("OK", base::UTF16ToUTF8(web_contents->GetTitle()));
-
-  ScriptExecutor script_executor(web_contents);
-
-  {
-    // Inject two pieces of code. They each evaluate to a promise. The second,
-    // `kCode2`, evaluates to a promise that resolves immediately, and then
-    // asynchronously resovles the promise from the first, `kCode1`, which
-    // changes the title of the page.
-    // This guarantees that the renderer code properly waits for *all* results
-    // to resolve, and not simply the last one.
-    constexpr char kCode1[] =
-        R"((new Promise((resolve) => {
-              window.resolveFirstPromise = resolve;
-           }).then(() => {
-              document.title = 'New Title';
-           }));)";
-    constexpr char kCode2[] =
-        R"((new Promise((resolve) => {
-              resolve('Second Promise');
-              setTimeout(window.resolveFirstPromise, 0);
-           }));)";
-
-    ScriptExecutorHelper helper;
-    std::vector<mojom::JSSourcePtr> sources;
-    sources.push_back(mojom::JSSource::New(kCode1, GURL()));
-    sources.push_back(mojom::JSSource::New(kCode2, GURL()));
-    script_executor.ExecuteScript(
-        mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-        mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-            std::move(sources), mojom::ExecutionWorld::kIsolated,
-            blink::mojom::WantResultOption::kWantResult,
-            blink::mojom::UserActivationOption::kDoNotActivate,
-            blink::mojom::PromiseResultOption::kAwait)),
-        ScriptExecutor::SPECIFIED_FRAMES, {ExtensionApiFrameIdMap::kTopFrameId},
-        ScriptExecutor::DONT_MATCH_ABOUT_BLANK,
-        mojom::RunLocation::kDocumentIdle, ScriptExecutor::DEFAULT_PROCESS,
-        GURL() /* webview_src */, helper.GetCallback());
-    helper.Wait();
-
-    EXPECT_EQ("New Title", base::UTF16ToUTF8(web_contents->GetTitle()));
-    ASSERT_EQ(1u, helper.results().size());
-    EXPECT_EQ(web_contents->GetLastCommittedURL(), helper.results()[0].url);
-    EXPECT_EQ(base::Value("Second Promise"), helper.results()[0].value);
-    EXPECT_EQ(0, helper.results()[0].frame_id);
-    EXPECT_EQ("", helper.results()[0].error);
-  }
-
-  {
-    // Next, inject code that evaluates to a promise, but don't include the
-    // "wait_for_promise" flag. The returned result should be the promise
-    // itself, which then serializes to an empty object (`{}`).
-    constexpr char kCode[] = R"((new Promise((r) => { r('hello'); }));)";
-
-    ScriptExecutorHelper helper;
-    std::vector<mojom::JSSourcePtr> sources;
-    sources.push_back(mojom::JSSource::New(kCode, GURL()));
-    script_executor.ExecuteScript(
-        mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-        mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-            std::move(sources), mojom::ExecutionWorld::kIsolated,
-            blink::mojom::WantResultOption::kWantResult,
-            blink::mojom::UserActivationOption::kDoNotActivate,
-            blink::mojom::PromiseResultOption::kDoNotWait)),
-        ScriptExecutor::SPECIFIED_FRAMES, {ExtensionApiFrameIdMap::kTopFrameId},
-        ScriptExecutor::DONT_MATCH_ABOUT_BLANK,
-        mojom::RunLocation::kDocumentIdle, ScriptExecutor::DEFAULT_PROCESS,
-        GURL() /* webview_src */, helper.GetCallback());
-    helper.Wait();
-
-    ASSERT_EQ(1u, helper.results().size());
-    EXPECT_EQ(web_contents->GetLastCommittedURL(), helper.results()[0].url);
-    EXPECT_EQ(base::Value(base::Value::Type::DICTIONARY),
-              helper.results()[0].value);
-    EXPECT_EQ(0, helper.results()[0].frame_id);
-    EXPECT_EQ("", helper.results()[0].error);
-  }
+  base::Value expected(base::Value::Type::LIST);
+  expected.Append("OK");
+  EXPECT_EQ(expected, helper.result());
 }
 
 // Tests script execution into a specified set of frames.
@@ -365,7 +162,7 @@ IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, SpecifiedFrames) {
 
   {
     content::TestNavigationObserver nav_observer(web_contents);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), example_com));
+    ui_test_utils::NavigateToURL(browser(), example_com);
     nav_observer.Wait();
     EXPECT_TRUE(nav_observer.last_navigation_succeeded());
   }
@@ -379,88 +176,66 @@ IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, SpecifiedFrames) {
   content::RenderFrameHost* frame1 = GetFrameByName(web_contents, "frame1");
   ASSERT_TRUE(frame1);
   const int frame1_id = ExtensionApiFrameIdMap::GetFrameId(frame1);
-  const GURL frame1_url = frame1->GetLastCommittedURL();
   content::RenderFrameHost* frame2 = GetFrameByName(web_contents, "frame2");
   ASSERT_TRUE(frame2);
   const int frame2_id = ExtensionApiFrameIdMap::GetFrameId(frame2);
-  const GURL frame2_url = frame2->GetLastCommittedURL();
   content::RenderFrameHost* frame3 = GetFrameByName(web_contents, "frame3");
   ASSERT_TRUE(frame3);
   content::RenderFrameHost* frame2_child =
       GetFrameByName(web_contents, "frame2_child");
   ASSERT_TRUE(frame2_child);
-  const int frame2_child_id = ExtensionApiFrameIdMap::GetFrameId(frame2_child);
-  const GURL frame2_child_url = frame2_child->GetLastCommittedURL();
 
   ScriptExecutor script_executor(web_contents);
   // Note: Since other tests verify the code's effects, here we just rely on the
   // execution result as an indication that it ran.
   constexpr char kCode[] = "document.title;";
 
-  const base::Value frame1_result("Frame 1");
-  const base::Value frame2_result("Frame 2");
-  const base::Value frame2_child_result("Frame 2 Child");
-
-  auto get_result_matcher = [](const base::Value& value, int frame_id,
-                               const GURL& url, const std::string& error = "") {
-    return ::testing::AllOf(
-        ::testing::Field(&ScriptExecutor::FrameResult::value,
-                         ::testing::Eq(std::cref(value))),
-        ::testing::Field(&ScriptExecutor::FrameResult::frame_id, frame_id),
-        ::testing::Field(&ScriptExecutor::FrameResult::url, url),
-        ::testing::Field(&ScriptExecutor::FrameResult::error, error));
-  };
-
   {
     // Execute in frames 1 and 2. These are the only frames for which we should
     // get a result.
     ScriptExecutorHelper helper;
-    std::vector<mojom::JSSourcePtr> sources;
-    sources.push_back(mojom::JSSource::New(kCode, GURL()));
     script_executor.ExecuteScript(
-        mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-        mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-            std::move(sources), mojom::ExecutionWorld::kIsolated,
-            blink::mojom::WantResultOption::kWantResult,
-            blink::mojom::UserActivationOption::kDoNotActivate,
-            blink::mojom::PromiseResultOption::kAwait)),
-        ScriptExecutor::SPECIFIED_FRAMES, {frame1_id, frame2_id},
-        ScriptExecutor::DONT_MATCH_ABOUT_BLANK,
-        mojom::RunLocation::kDocumentIdle, ScriptExecutor::DEFAULT_PROCESS,
-        GURL() /* webview_src */, helper.GetCallback());
+        HostID(HostID::EXTENSIONS, extension->id()), UserScript::ADD_JAVASCRIPT,
+        kCode, ScriptExecutor::SPECIFIED_FRAMES, {frame1_id, frame2_id},
+        ScriptExecutor::DONT_MATCH_ABOUT_BLANK, UserScript::DOCUMENT_IDLE,
+        ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
+        GURL() /* script_url */, false /* user_gesture */,
+        base::nullopt /* css_origin */, ScriptExecutor::JSON_SERIALIZED_RESULT,
+        helper.GetCallback());
     helper.Wait();
+    EXPECT_EQ("", helper.error());
 
-    EXPECT_THAT(helper.results(),
-                testing::UnorderedElementsAre(
-                    get_result_matcher(frame1_result, frame1_id, frame1_url),
-                    get_result_matcher(frame2_result, frame2_id, frame2_url)));
+    base::Value frame1_result("Frame 1");
+    base::Value frame2_result("Frame 2");
+    EXPECT_THAT(
+        helper.result().GetList(),
+        testing::UnorderedElementsAre(::testing::Eq(std::cref(frame1_result)),
+                                      ::testing::Eq(std::cref(frame2_result))));
   }
 
   {
     // Repeat the execution in frames 1 and 2, but include subframes. This
     // should result in frame2_child being added to the results.
     ScriptExecutorHelper helper;
-    std::vector<mojom::JSSourcePtr> sources;
-    sources.push_back(mojom::JSSource::New(kCode, GURL()));
     script_executor.ExecuteScript(
-        mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-        mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-            std::move(sources), mojom::ExecutionWorld::kIsolated,
-            blink::mojom::WantResultOption::kWantResult,
-            blink::mojom::UserActivationOption::kDoNotActivate,
-            blink::mojom::PromiseResultOption::kAwait)),
-        ScriptExecutor::INCLUDE_SUB_FRAMES, {frame1_id, frame2_id},
-        ScriptExecutor::DONT_MATCH_ABOUT_BLANK,
-        mojom::RunLocation::kDocumentIdle, ScriptExecutor::DEFAULT_PROCESS,
-        GURL() /* webview_src */, helper.GetCallback());
+        HostID(HostID::EXTENSIONS, extension->id()), UserScript::ADD_JAVASCRIPT,
+        kCode, ScriptExecutor::INCLUDE_SUB_FRAMES, {frame1_id, frame2_id},
+        ScriptExecutor::DONT_MATCH_ABOUT_BLANK, UserScript::DOCUMENT_IDLE,
+        ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
+        GURL() /* script_url */, false /* user_gesture */,
+        base::nullopt /* css_origin */, ScriptExecutor::JSON_SERIALIZED_RESULT,
+        helper.GetCallback());
     helper.Wait();
+    EXPECT_EQ("", helper.error());
 
-    EXPECT_THAT(helper.results(),
+    base::Value frame1_result("Frame 1");
+    base::Value frame2_result("Frame 2");
+    base::Value frame2_child_result("Frame 2 Child");
+    EXPECT_THAT(helper.result().GetList(),
                 testing::UnorderedElementsAre(
-                    get_result_matcher(frame1_result, frame1_id, frame1_url),
-                    get_result_matcher(frame2_result, frame2_id, frame2_url),
-                    get_result_matcher(frame2_child_result, frame2_child_id,
-                                       frame2_child_url)));
+                    ::testing::Eq(std::cref(frame1_result)),
+                    ::testing::Eq(std::cref(frame2_result)),
+                    ::testing::Eq(std::cref(frame2_child_result))));
   }
 
   // Note: we don't use ExtensionApiFrameIdMap::kInvalidFrameId because we want
@@ -474,52 +249,45 @@ IN_PROC_BROWSER_TEST_F(ScriptExecutorBrowserTest, SpecifiedFrames) {
     // Try injecting into multiple frames when one of the specified frames
     // doesn't exist.
     ScriptExecutorHelper helper;
-    std::vector<mojom::JSSourcePtr> sources;
-    sources.push_back(mojom::JSSource::New(kCode, GURL()));
     script_executor.ExecuteScript(
-        mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-        mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-            std::move(sources), mojom::ExecutionWorld::kIsolated,
-            blink::mojom::WantResultOption::kWantResult,
-            blink::mojom::UserActivationOption::kDoNotActivate,
-            blink::mojom::PromiseResultOption::kAwait)),
-        ScriptExecutor::SPECIFIED_FRAMES,
+        HostID(HostID::EXTENSIONS, extension->id()), UserScript::ADD_JAVASCRIPT,
+        kCode, ScriptExecutor::SPECIFIED_FRAMES,
         {frame1_id, frame2_id, kNonExistentFrameId},
-        ScriptExecutor::DONT_MATCH_ABOUT_BLANK,
-        mojom::RunLocation::kDocumentIdle, ScriptExecutor::DEFAULT_PROCESS,
-        GURL() /* webview_src */, helper.GetCallback());
+        ScriptExecutor::DONT_MATCH_ABOUT_BLANK, UserScript::DOCUMENT_IDLE,
+        ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
+        GURL() /* script_url */, false /* user_gesture */,
+        base::nullopt /* css_origin */, ScriptExecutor::JSON_SERIALIZED_RESULT,
+        helper.GetCallback());
     helper.Wait();
 
-    EXPECT_THAT(helper.results(),
-                testing::UnorderedElementsAre(
-                    get_result_matcher(frame1_result, frame1_id, frame1_url),
-                    get_result_matcher(frame2_result, frame2_id, frame2_url),
-                    get_result_matcher(base::Value(), kNonExistentFrameId,
-                                       GURL(), "No frame with ID: 99999")));
+    // When specifying multiple frames, if one doesn't exist, the rest of the
+    // injections should succeed and there should be no error.
+    EXPECT_EQ("", helper.error());
+    base::Value frame1_result("Frame 1");
+    base::Value frame2_result("Frame 2");
+    EXPECT_THAT(
+        helper.result().GetList(),
+        testing::UnorderedElementsAre(::testing::Eq(std::cref(frame1_result)),
+                                      ::testing::Eq(std::cref(frame2_result))));
   }
 
   {
     // Try injecting into a single non-existent frame.
     ScriptExecutorHelper helper;
-    std::vector<mojom::JSSourcePtr> sources;
-    sources.push_back(mojom::JSSource::New(kCode, GURL()));
     script_executor.ExecuteScript(
-        mojom::HostID(mojom::HostID::HostType::kExtensions, extension->id()),
-        mojom::CodeInjection::NewJs(mojom::JSInjection::New(
-            std::move(sources), mojom::ExecutionWorld::kIsolated,
-            blink::mojom::WantResultOption::kWantResult,
-            blink::mojom::UserActivationOption::kDoNotActivate,
-            blink::mojom::PromiseResultOption::kAwait)),
-        ScriptExecutor::SPECIFIED_FRAMES, {kNonExistentFrameId},
-        ScriptExecutor::DONT_MATCH_ABOUT_BLANK,
-        mojom::RunLocation::kDocumentIdle, ScriptExecutor::DEFAULT_PROCESS,
-        GURL() /* webview_src */, helper.GetCallback());
+        HostID(HostID::EXTENSIONS, extension->id()), UserScript::ADD_JAVASCRIPT,
+        kCode, ScriptExecutor::SPECIFIED_FRAMES, {kNonExistentFrameId},
+        ScriptExecutor::DONT_MATCH_ABOUT_BLANK, UserScript::DOCUMENT_IDLE,
+        ScriptExecutor::DEFAULT_PROCESS, GURL() /* webview_src */,
+        GURL() /* script_url */, false /* user_gesture */,
+        base::nullopt /* css_origin */, ScriptExecutor::JSON_SERIALIZED_RESULT,
+        helper.GetCallback());
     helper.Wait();
 
-    EXPECT_THAT(helper.results(),
-                testing::UnorderedElementsAre(
-                    get_result_matcher(base::Value(), kNonExistentFrameId,
-                                       GURL(), "No frame with ID: 99999")));
+    // If only a single frame was specified and it doesn't exist, the call
+    // should return an error.
+    EXPECT_EQ("The frame was removed.", helper.error());
+    EXPECT_TRUE(helper.result().GetList().empty());
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "build/chromeos_buildflags.h"
 #include "content/public/browser/browser_context.h"
 #include "extensions/browser/api/idle/idle_api_constants.h"
@@ -16,10 +16,7 @@
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chromeos/dbus/power/power_policy_controller.h"
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_service.h"
-#include "chromeos/lacros/system_idle_cache.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif
 
 namespace keys = extensions::idle_api_constants;
 namespace idle = extensions::api::idle;
@@ -42,7 +39,7 @@ class DefaultEventDelegate : public IdleManager::EventDelegate {
   void UnregisterObserver(EventRouter::Observer* observer) override;
 
  private:
-  const raw_ptr<content::BrowserContext> context_;
+  content::BrowserContext* const context_;
 };
 
 DefaultEventDelegate::DefaultEventDelegate(content::BrowserContext* context)
@@ -54,8 +51,8 @@ DefaultEventDelegate::~DefaultEventDelegate() {
 
 void DefaultEventDelegate::OnStateChanged(const std::string& extension_id,
                                           ui::IdleState new_state) {
-  base::Value::List args;
-  args.Append(IdleManager::CreateIdleValue(new_state));
+  std::unique_ptr<base::ListValue> args(new base::ListValue());
+  args->Append(IdleManager::CreateIdleValue(new_state));
   auto event = std::make_unique<Event>(events::IDLE_ON_STATE_CHANGED,
                                        idle::OnStateChanged::kEventName,
                                        std::move(args), context_);
@@ -133,7 +130,7 @@ IdleManager::~IdleManager() {
 }
 
 void IdleManager::Init() {
-  extension_registry_observation_.Observe(ExtensionRegistry::Get(context_));
+  extension_registry_observer_.Add(ExtensionRegistry::Get(context_));
   event_delegate_->RegisterObserver(this);
 }
 
@@ -181,27 +178,18 @@ void IdleManager::SetThreshold(const std::string& extension_id, int threshold) {
   GetMonitor(extension_id)->threshold = threshold;
 }
 
-int IdleManager::GetThresholdForTest(const std::string& extension_id) const {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  auto it = monitors_.find(extension_id);
-
-  return it == monitors_.end() ? kDefaultIdleThreshold : it->second.threshold;
-}
-
 base::TimeDelta IdleManager::GetAutoLockDelay() const {
   DCHECK(thread_checker_.CalledOnValidThread());
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   return chromeos::PowerPolicyController::Get()
       ->GetMaxPolicyAutoScreenLockDelay();
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  return chromeos::LacrosService::Get()->system_idle_cache()->auto_lock_delay();
-#else
+#endif
   return base::TimeDelta();
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 }
 
 // static
-base::Value IdleManager::CreateIdleValue(ui::IdleState idle_state) {
+std::unique_ptr<base::Value> IdleManager::CreateIdleValue(
+    ui::IdleState idle_state) {
   const char* description;
 
   if (idle_state == ui::IDLE_STATE_ACTIVE) {
@@ -212,7 +200,7 @@ base::Value IdleManager::CreateIdleValue(ui::IdleState idle_state) {
     description = keys::kStateLocked;
   }
 
-  return base::Value(description);
+  return std::make_unique<base::Value>(description);
 }
 
 void IdleManager::SetEventDelegateForTest(
@@ -241,8 +229,8 @@ IdleMonitor* IdleManager::GetMonitor(const std::string& extension_id) {
 void IdleManager::StartPolling() {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (!poll_timer_.IsRunning()) {
-    poll_timer_.Start(FROM_HERE, base::Seconds(kPollInterval), this,
-                      &IdleManager::UpdateIdleState);
+    poll_timer_.Start(FROM_HERE, base::TimeDelta::FromSeconds(kPollInterval),
+                      this, &IdleManager::UpdateIdleState);
   }
 }
 

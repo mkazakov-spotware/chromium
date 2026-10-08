@@ -32,7 +32,7 @@ enum MediaStreamTrackState {
 
 // https://w3c.github.io/mediacapture-main/#media-stream-track-interface-definition
 [
-    Exposed(Window MediaStreamTrackInWindow, Worker MediaStreamTrackInWorker),
+    Exposed=Window,
     ActiveScriptWrappable
 ] interface MediaStreamTrack : EventTarget {
     readonly attribute DOMString kind;
@@ -44,17 +44,12 @@ enum MediaStreamTrackState {
     attribute EventHandler onunmute;
     readonly attribute MediaStreamTrackState readyState;
     attribute EventHandler onended;
-    // https://w3c.github.io/mediacapture-handle/identity/
-    [RuntimeEnabled = CaptureHandle] attribute EventHandler oncapturehandlechange;
 
-    [CallWith=ExecutionContext] MediaStreamTrack clone();
+    [CallWith=ScriptState] MediaStreamTrack clone();
     [ImplementedAs=stopTrack, CallWith=ExecutionContext] void stop();
 
     MediaTrackCapabilities getCapabilities();
     MediaTrackConstraints getConstraints();
     MediaTrackSettings getSettings();
-    // https://w3c.github.io/mediacapture-handle/identity/
-    [RuntimeEnabled=CaptureHandle, MeasureAs=CaptureHandle] CaptureHandle? getCaptureHandle();
-
-    [CallWith=ScriptState, Measure] Promise<void> applyConstraints(optional MediaTrackConstraints constraints = {});
+    [CallWith=ScriptState] Promise<void> applyConstraints(optional MediaTrackConstraints constraints = {});
 };

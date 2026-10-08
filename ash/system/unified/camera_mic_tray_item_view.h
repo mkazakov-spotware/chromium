@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "ash/media/media_controller_impl.h"
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/system/tray/tray_item_view.h"
+#include "base/macros.h"
 
 namespace ash {
 
@@ -28,12 +29,12 @@ class ASH_EXPORT CameraMicTrayItemView : public TrayItemView,
   CameraMicTrayItemView(const CameraMicTrayItemView&) = delete;
   CameraMicTrayItemView& operator=(const CameraMicTrayItemView&) = delete;
 
-  std::u16string GetAccessibleNameString() const;
+  base::string16 GetAccessibleNameString() const;
 
   // views::View:
   const char* GetClassName() const override;
   views::View* GetTooltipHandlerForPoint(const gfx::Point& point) override;
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
+  base::string16 GetTooltipText(const gfx::Point& p) const override;
 
   // SessionObserver:
   void OnActiveUserSessionChanged(const AccountId& account_id) override;
@@ -42,9 +43,7 @@ class ASH_EXPORT CameraMicTrayItemView : public TrayItemView,
   void HandleLocaleChange() override;
 
   // MediaCaptureObserver:
-  void OnVmMediaNotificationChanged(bool camera,
-                                    bool mic,
-                                    bool camera_and_mic) override;
+  void OnVmMediaCaptureChanged(MediaCaptureState capture_state) override;
 
  private:
   void Update();
@@ -52,9 +51,8 @@ class ASH_EXPORT CameraMicTrayItemView : public TrayItemView,
 
   const Type type_;
   bool active_ = false;
-  bool with_mic_ = false;  // Only for `type_ == kCamera`.
   bool is_primary_session_ = false;
-  std::u16string message_;
+  base::string16 message_;
 };
 
 }  // namespace ash

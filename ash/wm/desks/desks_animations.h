@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,8 +23,7 @@ void PerformHitTheWallAnimation(aura::Window* root, bool going_left);
 // tree offscreen in the direction of the target desk indicated by |going_left|.
 // After this function, |window| can be moved safely immediately to the target
 // desk without having to wait for the animation to finish, since we're
-// animating a completely separate layer tree. |window| cannot be visible on all
-// desks.
+// animating a completely separate layer tree.
 // Note: This animation should not be performed on windows in overview.
 void PerformWindowMoveToDeskAnimation(aura::Window* window, bool going_left);
 

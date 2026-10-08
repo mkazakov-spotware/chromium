@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,34 +6,27 @@
 #define BASE_TASK_SEQUENCE_MANAGER_WORK_QUEUE_SETS_H_
 
 #include <array>
-#include <functional>
+#include <map>
 #include <vector>
 
 #include "base/base_export.h"
-#include "base/containers/intrusive_heap.h"
-#include "base/dcheck_is_on.h"
-#include "base/memory/raw_ptr.h"
+#include "base/check_op.h"
+#include "base/task/common/intrusive_heap.h"
 #include "base/task/sequence_manager/sequence_manager.h"
-#include "base/task/sequence_manager/task_order.h"
 #include "base/task/sequence_manager/task_queue_impl.h"
 #include "base/task/sequence_manager/work_queue.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/trace_event/base_tracing.h"
 
 namespace base {
 namespace sequence_manager {
 namespace internal {
 
-struct WorkQueueAndTaskOrder {
-  WorkQueueAndTaskOrder(WorkQueue& work_queue, const TaskOrder& task_order)
-      : queue(&work_queue), order(task_order) {}
-
-  raw_ptr<WorkQueue> queue;
-  TaskOrder order;
-};
-
-// There is a min-heap for each scheduler priority which keeps track of which
-// queue in the set has the oldest task (i.e. the one that should be run next if
-// the TaskQueueSelector chooses to run a task a given priority).
+// There is a WorkQueueSet for each scheduler priority and each WorkQueueSet
+// uses a EnqueueOrderToWorkQueueMap to keep track of which queue in the set has
+// the oldest task (i.e. the one that should be run next if the
+// TaskQueueSelector chooses to run a task a given priority).  The reason this
+// works is because std::map is a tree based associative container and all the
+// values are kept in sorted order.
 class BASE_EXPORT WorkQueueSets {
  public:
   class Observer {
@@ -76,13 +69,21 @@ class BASE_EXPORT WorkQueueSets {
   void OnQueueBlocked(WorkQueue* work_queue);
 
   // O(1)
-  absl::optional<WorkQueueAndTaskOrder> GetOldestQueueAndTaskOrderInSet(
-      size_t set_index) const;
+  WorkQueue* GetOldestQueueInSet(size_t set_index) const;
+
+  // O(1)
+  WorkQueue* GetOldestQueueAndEnqueueOrderInSet(
+      size_t set_index,
+      EnqueueOrder* out_enqueue_order) const;
 
 #if DCHECK_IS_ON()
   // O(1)
-  absl::optional<WorkQueueAndTaskOrder> GetRandomQueueAndTaskOrderInSet(
-      size_t set_index) const;
+  WorkQueue* GetRandomQueueInSet(size_t set_index) const;
+
+  // O(1)
+  WorkQueue* GetRandomQueueAndEnqueueOrderInSet(
+      size_t set_index,
+      EnqueueOrder* out_enqueue_order) const;
 #endif
 
   // O(1)
@@ -103,18 +104,21 @@ class BASE_EXPORT WorkQueueSets {
       std::vector<const Task*>* result) const;
 
  private:
-  struct OldestTaskOrder {
-    TaskOrder key;
-    raw_ptr<WorkQueue> value;
+  struct OldestTaskEnqueueOrder {
+    EnqueueOrder key;
+    WorkQueue* value;
 
-    // Used for a min-heap.
-    bool operator>(const OldestTaskOrder& other) const {
-      return key > other.key;
+    bool operator<=(const OldestTaskEnqueueOrder& other) const {
+      return key <= other.key;
     }
 
-    void SetHeapHandle(HeapHandle handle) { value->set_heap_handle(handle); }
+    void SetHeapHandle(base::internal::HeapHandle handle) {
+      value->set_heap_handle(handle);
+    }
 
-    void ClearHeapHandle() { value->set_heap_handle(HeapHandle()); }
+    void ClearHeapHandle() {
+      value->set_heap_handle(base::internal::HeapHandle());
+    }
 
     HeapHandle GetHeapHandle() const { return value->heap_handle(); }
   };
@@ -123,7 +127,7 @@ class BASE_EXPORT WorkQueueSets {
 
   // For each set |work_queue_heaps_| has a queue of WorkQueue ordered by the
   // oldest task in each WorkQueue.
-  std::array<IntrusiveHeap<OldestTaskOrder, std::greater<>>,
+  std::array<base::internal::IntrusiveHeap<OldestTaskEnqueueOrder>,
              TaskQueue::kQueuePriorityCount>
       work_queue_heaps_;
 
@@ -139,7 +143,7 @@ class BASE_EXPORT WorkQueueSets {
 
   // This is for a debugging feature which lets us randomize task selection. Its
   // not for production use.
-  // TODO(crbug.com/1350190): Use a seedable PRNG from ::base if one is added.
+  // TODO(alexclarke): Use a seedable PRNG from ::base if one is added.
   uint64_t Random() const {
     last_rand_ = MurmurHash3(last_rand_);
     return last_rand_;
@@ -148,7 +152,7 @@ class BASE_EXPORT WorkQueueSets {
   mutable uint64_t last_rand_;
 #endif
 
-  const raw_ptr<Observer> observer_;
+  Observer* const observer_;
 };
 
 }  // namespace internal

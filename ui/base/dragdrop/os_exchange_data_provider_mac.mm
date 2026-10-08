@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,9 @@
 #include "ui/base/clipboard/clipboard_format_type.h"
 #import "ui/base/clipboard/clipboard_util_mac.h"
 #include "ui/base/clipboard/custom_data_helper.h"
-#include "ui/base/clipboard/file_info.h"
 #include "ui/base/data_transfer_policy/data_transfer_policy_controller.h"
 #import "ui/base/dragdrop/cocoa_dnd_util.h"
+#include "ui/base/dragdrop/file_info/file_info.h"
 #include "url/gurl.h"
 
 @interface CrPasteboardItemWrapper : NSObject <NSPasteboardWriting>
@@ -140,28 +140,17 @@ void OSExchangeDataProviderMac::MarkOriginatedFromRenderer() {
 }
 
 bool OSExchangeDataProviderMac::DidOriginateFromRenderer() const {
-  // TODO(crbug.com/1288599): Implement this method.
   NOTIMPLEMENTED();
   return false;
 }
 
-void OSExchangeDataProviderMac::MarkAsFromPrivileged() {
-  NOTIMPLEMENTED();
-}
-
-bool OSExchangeDataProviderMac::IsFromPrivileged() const {
-  // TODO(crbug.com/1288601): Implement this method.
-  NOTIMPLEMENTED();
-  return false;
-}
-
-void OSExchangeDataProviderMac::SetString(const std::u16string& string) {
+void OSExchangeDataProviderMac::SetString(const base::string16& string) {
   [GetPasteboard() setString:base::SysUTF16ToNSString(string)
                      forType:NSPasteboardTypeString];
 }
 
 void OSExchangeDataProviderMac::SetURL(const GURL& url,
-                                       const std::u16string& title) {
+                                       const base::string16& title) {
   base::scoped_nsobject<NSPasteboardItem> item =
       ClipboardUtil::PasteboardItemFromUrl(base::SysUTF8ToNSString(url.spec()),
                                            base::SysUTF16ToNSString(title));
@@ -194,7 +183,7 @@ void OSExchangeDataProviderMac::SetPickledData(
   [GetPasteboard() setData:ns_data forType:format.ToNSString()];
 }
 
-bool OSExchangeDataProviderMac::GetString(std::u16string* data) const {
+bool OSExchangeDataProviderMac::GetString(base::string16* data) const {
   DCHECK(data);
   NSString* item = [GetPasteboard() stringForType:NSPasteboardTypeString];
   if (item) {
@@ -204,7 +193,7 @@ bool OSExchangeDataProviderMac::GetString(std::u16string* data) const {
 
   // There was no NSString, check for an NSURL.
   GURL url;
-  std::u16string title;
+  base::string16 title;
   bool result = GetURLAndTitle(FilenameToURLPolicy::DO_NOT_CONVERT_FILENAMES,
                                &url, &title);
   if (result)
@@ -215,7 +204,7 @@ bool OSExchangeDataProviderMac::GetString(std::u16string* data) const {
 
 bool OSExchangeDataProviderMac::GetURLAndTitle(FilenameToURLPolicy policy,
                                                GURL* url,
-                                               std::u16string* title) const {
+                                               base::string16* title) const {
   DCHECK(url);
   DCHECK(title);
 
@@ -279,13 +268,13 @@ bool OSExchangeDataProviderMac::GetPickledData(
 }
 
 bool OSExchangeDataProviderMac::HasString() const {
-  std::u16string string;
+  base::string16 string;
   return GetString(&string);
 }
 
 bool OSExchangeDataProviderMac::HasURL(FilenameToURLPolicy policy) const {
   GURL url;
-  std::u16string title;
+  base::string16 title;
   return GetURLAndTitle(policy, &url, &title);
 }
 
@@ -296,24 +285,6 @@ bool OSExchangeDataProviderMac::HasFile() const {
 bool OSExchangeDataProviderMac::HasCustomFormat(
     const ClipboardFormatType& format) const {
   return [[GetPasteboard() types] containsObject:format.ToNSString()];
-}
-
-void OSExchangeDataProviderMac::SetFileContents(
-    const base::FilePath& filename,
-    const std::string& file_contents) {
-  NOTIMPLEMENTED();
-}
-
-bool OSExchangeDataProviderMac::GetFileContents(
-    base::FilePath* filename,
-    std::string* file_contents) const {
-  NOTIMPLEMENTED();
-  return false;
-}
-
-bool OSExchangeDataProviderMac::HasFileContents() const {
-  NOTIMPLEMENTED();
-  return false;
 }
 
 void OSExchangeDataProviderMac::SetDragImage(

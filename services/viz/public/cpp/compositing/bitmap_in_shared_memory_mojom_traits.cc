@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/viz/public/cpp/compositing/bitmap_in_shared_memory_mojom_traits.h"
-
-#include <memory>
 
 namespace {
 
@@ -17,29 +15,24 @@ void DeleteSharedMemoryMapping(void* not_used, void* context) {
 namespace mojo {
 
 // static
-const SkImageInfo StructTraits<viz::mojom::BitmapInSharedMemoryDataView,
-                               viz::CopyOutputResult::ScopedSkBitmap>::
-    image_info(const viz::CopyOutputResult::ScopedSkBitmap& scoped_bitmap) {
-  auto sk_bitmap = scoped_bitmap.bitmap();
+const SkImageInfo&
+StructTraits<viz::mojom::BitmapInSharedMemoryDataView, SkBitmap>::image_info(
+    const SkBitmap& sk_bitmap) {
   return sk_bitmap.info();
 }
 
 // static
 uint64_t StructTraits<viz::mojom::BitmapInSharedMemoryDataView,
-                      viz::CopyOutputResult::ScopedSkBitmap>::
-    row_bytes(const viz::CopyOutputResult::ScopedSkBitmap& scoped_bitmap) {
-  auto sk_bitmap = scoped_bitmap.bitmap();
+                      SkBitmap>::row_bytes(const SkBitmap& sk_bitmap) {
   return sk_bitmap.rowBytes();
 }
 
 // static
-absl::optional<base::WritableSharedMemoryRegion>
-StructTraits<viz::mojom::BitmapInSharedMemoryDataView,
-             viz::CopyOutputResult::ScopedSkBitmap>::
-    pixels(const viz::CopyOutputResult::ScopedSkBitmap& scoped_bitmap) {
-  auto sk_bitmap = scoped_bitmap.bitmap();
+base::Optional<base::WritableSharedMemoryRegion>
+StructTraits<viz::mojom::BitmapInSharedMemoryDataView, SkBitmap>::pixels(
+    const SkBitmap& sk_bitmap) {
   if (!sk_bitmap.readyToDraw())
-    return absl::nullopt;
+    return base::nullopt;
 
   size_t byte_size = sk_bitmap.computeByteSize();
   base::WritableSharedMemoryRegion region =
@@ -47,7 +40,7 @@ StructTraits<viz::mojom::BitmapInSharedMemoryDataView,
   {
     base::WritableSharedMemoryMapping mapping = region.Map();
     if (!mapping.IsValid())
-      return absl::nullopt;
+      return base::nullopt;
     memcpy(mapping.memory(), sk_bitmap.getPixels(), byte_size);
   }
   return region;
@@ -63,7 +56,7 @@ bool StructTraits<viz::mojom::BitmapInSharedMemoryDataView, SkBitmap>::Read(
   if (!image_info.validRowBytes(data.row_bytes()))
     return false;
 
-  absl::optional<base::WritableSharedMemoryRegion> region_opt;
+  base::Optional<base::WritableSharedMemoryRegion> region_opt;
   if (!data.ReadPixels(&region_opt))
     return false;
 

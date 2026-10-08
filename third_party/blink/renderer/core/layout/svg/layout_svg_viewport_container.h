@@ -34,7 +34,7 @@ class SVGSVGElement;
 class LayoutSVGViewportContainer final : public LayoutSVGContainer {
  public:
   explicit LayoutSVGViewportContainer(SVGSVGElement*);
-  gfx::RectF Viewport() const {
+  FloatRect Viewport() const {
     NOT_DESTROYED();
     return viewport_;
   }
@@ -70,11 +70,11 @@ class LayoutSVGViewportContainer final : public LayoutSVGContainer {
   bool NodeAtPoint(HitTestResult&,
                    const HitTestLocation&,
                    const PhysicalOffset& accumulated_offset,
-                   HitTestPhase) final;
+                   HitTestAction) final;
 
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
 
-  gfx::RectF viewport_;
+  FloatRect viewport_;
   mutable AffineTransform local_to_parent_transform_;
   bool is_layout_size_changed_ : 1;
   bool needs_transform_update_ : 1;

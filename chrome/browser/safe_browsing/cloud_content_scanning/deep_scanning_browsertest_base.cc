@@ -1,24 +1,21 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_browsertest_base.h"
-
-#include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/enterprise/connectors/analysis/content_analysis_dialog.h"
-#include "chrome/browser/enterprise/connectors/analysis/fake_content_analysis_delegate.h"
-#include "chrome/browser/enterprise/connectors/analysis/files_request_handler.h"
-#include "chrome/browser/enterprise/connectors/connectors_service.h"
+#include "chrome/browser/enterprise/connectors/connectors_manager.h"
+#include "chrome/browser/enterprise/connectors/content_analysis_dialog.h"
+#include "chrome/browser/enterprise/connectors/fake_content_analysis_delegate.h"
 #include "chrome/browser/policy/dm_token_utils.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_test_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
-#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/core/features.h"
 
 namespace safe_browsing {
 
@@ -26,40 +23,10 @@ namespace {
 
 constexpr char kDmToken[] = "dm_token";
 
-constexpr base::TimeDelta kMinimumPendingDelay = base::Milliseconds(400);
-constexpr base::TimeDelta kSuccessTimeout = base::Milliseconds(100);
-constexpr base::TimeDelta kShowDialogDelay = base::Milliseconds(0);
-
-class UnresponsiveFilesRequestHandler
-    : public enterprise_connectors::FilesRequestHandler {
- public:
-  using enterprise_connectors::FilesRequestHandler::FilesRequestHandler;
-
-  static std::unique_ptr<enterprise_connectors::FilesRequestHandler> Create(
-      safe_browsing::BinaryUploadService* upload_service,
-      Profile* profile,
-      const enterprise_connectors::AnalysisSettings& analysis_settings,
-      GURL url,
-      const std::string& source,
-      const std::string& destination,
-      const std::string& user_action_id,
-      safe_browsing::DeepScanAccessPoint access_point,
-      const std::vector<base::FilePath>& paths,
-      enterprise_connectors::FilesRequestHandler::CompletionCallback callback) {
-    return base::WrapUnique(new UnresponsiveFilesRequestHandler(
-        upload_service, profile, analysis_settings, url, source, destination,
-        user_action_id, access_point, paths, std::move(callback)));
-  }
-
- private:
-  void UploadFileForDeepScanning(
-      safe_browsing::BinaryUploadService::Result result,
-      const base::FilePath& path,
-      std::unique_ptr<safe_browsing::BinaryUploadService::Request> request)
-      override {
-    // Do nothing.
-  }
-};
+constexpr base::TimeDelta kMinimumPendingDelay =
+    base::TimeDelta::FromMilliseconds(400);
+constexpr base::TimeDelta kSuccessTimeout =
+    base::TimeDelta::FromMilliseconds(100);
 
 class UnresponsiveContentAnalysisDelegate
     : public enterprise_connectors::FakeContentAnalysisDelegate {
@@ -70,19 +37,27 @@ class UnresponsiveContentAnalysisDelegate
   static std::unique_ptr<enterprise_connectors::ContentAnalysisDelegate> Create(
       base::RepeatingClosure delete_closure,
       StatusCallback status_callback,
+      EncryptionStatusCallback encryption_callback,
       std::string dm_token,
       content::WebContents* web_contents,
       Data data,
       CompletionCallback callback) {
-    enterprise_connectors::FilesRequestHandler::SetFactoryForTesting(
-        base::BindRepeating(&UnresponsiveFilesRequestHandler::Create));
-    return std::make_unique<UnresponsiveContentAnalysisDelegate>(
-        delete_closure, status_callback, std::move(dm_token), web_contents,
-        std::move(data), std::move(callback));
+    auto ret = std::make_unique<UnresponsiveContentAnalysisDelegate>(
+        delete_closure, status_callback, encryption_callback,
+        std::move(dm_token), web_contents, std::move(data),
+        std::move(callback));
+    return ret;
   }
 
  private:
   void UploadTextForDeepScanning(
+      std::unique_ptr<BinaryUploadService::Request> request) override {
+    // Do nothing.
+  }
+
+  void UploadFileForDeepScanning(
+      BinaryUploadService::Result result,
+      const base::FilePath& path,
       std::unique_ptr<BinaryUploadService::Request> request) override {
     // Do nothing.
   }
@@ -101,25 +76,22 @@ DeepScanningBrowserTestBase::DeepScanningBrowserTestBase() {
       SetMinimumPendingDialogTimeForTesting(kMinimumPendingDelay);
   enterprise_connectors::ContentAnalysisDialog::
       SetSuccessDialogTimeoutForTesting(kSuccessTimeout);
-  enterprise_connectors::ContentAnalysisDialog::SetShowDialogDelayForTesting(
-      kShowDialogDelay);
 }
 
 DeepScanningBrowserTestBase::~DeepScanningBrowserTestBase() = default;
 
-void DeepScanningBrowserTestBase::TearDownOnMainThread() {
-  enterprise_connectors::ContentAnalysisDelegate::ResetFactoryForTesting();
-  enterprise_connectors::FilesRequestHandler::ResetFactoryForTesting();
+void DeepScanningBrowserTestBase::SetUpOnMainThread() {
+  enterprise_connectors::ConnectorsManager::GetInstance()->SetUpForTesting();
+}
 
-  ClearAnalysisConnector(browser()->profile()->GetPrefs(),
-                         enterprise_connectors::FILE_ATTACHED);
-  ClearAnalysisConnector(browser()->profile()->GetPrefs(),
-                         enterprise_connectors::FILE_DOWNLOADED);
-  ClearAnalysisConnector(browser()->profile()->GetPrefs(),
-                         enterprise_connectors::BULK_DATA_ENTRY);
-  ClearAnalysisConnector(browser()->profile()->GetPrefs(),
-                         enterprise_connectors::PRINT);
-  SetOnSecurityEventReporting(browser()->profile()->GetPrefs(), false);
+void DeepScanningBrowserTestBase::TearDownOnMainThread() {
+  enterprise_connectors::ConnectorsManager::GetInstance()->TearDownForTesting();
+  enterprise_connectors::ContentAnalysisDelegate::ResetFactoryForTesting();
+
+  ClearAnalysisConnector(enterprise_connectors::FILE_ATTACHED);
+  ClearAnalysisConnector(enterprise_connectors::FILE_DOWNLOADED);
+  ClearAnalysisConnector(enterprise_connectors::BULK_DATA_ENTRY);
+  SetOnSecurityEventReporting(false);
 }
 
 void DeepScanningBrowserTestBase::SetUpDelegate() {
@@ -130,6 +102,9 @@ void DeepScanningBrowserTestBase::SetUpDelegate() {
           base::DoNothing(),
           base::BindRepeating(&DeepScanningBrowserTestBase::StatusCallback,
                               base::Unretained(this)),
+          base::BindRepeating(
+              &DeepScanningBrowserTestBase::EncryptionStatusCallback,
+              base::Unretained(this)),
           kDmToken));
 }
 
@@ -140,6 +115,9 @@ void DeepScanningBrowserTestBase::SetUpUnresponsiveDelegate() {
           &UnresponsiveContentAnalysisDelegate::Create, base::DoNothing(),
           base::BindRepeating(&DeepScanningBrowserTestBase::StatusCallback,
                               base::Unretained(this)),
+          base::BindRepeating(
+              &DeepScanningBrowserTestBase::EncryptionStatusCallback,
+              base::Unretained(this)),
           kDmToken));
 }
 
@@ -159,9 +137,13 @@ void DeepScanningBrowserTestBase::SetStatusCallbackResponse(
 }
 
 enterprise_connectors::ContentAnalysisResponse
-DeepScanningBrowserTestBase::StatusCallback(const std::string& contents,
-                                            const base::FilePath& path) {
+DeepScanningBrowserTestBase::StatusCallback(const base::FilePath& path) {
   return connector_status_callback_response_;
+}
+
+bool DeepScanningBrowserTestBase::EncryptionStatusCallback(
+    const base::FilePath& path) {
+  return false;
 }
 
 void DeepScanningBrowserTestBase::CreateFilesForTest(

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "base/auto_reset.h"
-#include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "components/js_injection/common/interfaces.mojom.h"
 #include "gin/arguments.h"
 #include "gin/wrappable.h"
@@ -27,39 +27,36 @@ class RenderFrame;
 
 namespace js_injection {
 class JsCommunication;
-
-// A gin::Wrappable class used for providing JavaScript API. JsCommunication
-// creates an instance of JsBinding for each unique name exposed to the page.
-// JsBinding is owned by v8.
-class JsBinding final : public gin::Wrappable<JsBinding>,
-                        public mojom::BrowserToJsMessaging {
+// A gin::Wrappable class used for providing JavaScript API. We will inject the
+// object of this class to JavaScript world in JsCommunication.
+// JsCommunication will own at most one instance of this class. When the
+// RenderFrame gone or another DidClearWindowObject comes, the instance will be
+// destroyed.
+class JsBinding : public gin::Wrappable<JsBinding>,
+                  public mojom::BrowserToJsMessaging {
  public:
   static gin::WrapperInfo kWrapperInfo;
 
-  JsBinding(const JsBinding&) = delete;
-  JsBinding& operator=(const JsBinding&) = delete;
-
-  static base::WeakPtr<JsBinding> Install(
+  static std::unique_ptr<JsBinding> Install(
       content::RenderFrame* render_frame,
-      const std::u16string& js_object_name,
-      base::WeakPtr<JsCommunication> js_communication);
+      const base::string16& js_object_name,
+      JsCommunication* js_java_configurator);
 
   // mojom::BrowserToJsMessaging implementation.
-  void OnPostMessage(mojom::JsWebMessagePtr message) override;
+  void OnPostMessage(const base::string16& message) override;
 
   void ReleaseV8GlobalObjects();
 
- protected:
-  ~JsBinding() override;
+  ~JsBinding() final;
 
  private:
   explicit JsBinding(content::RenderFrame* render_frame,
-                     const std::u16string& js_object_name,
-                     base::WeakPtr<JsCommunication> js_java_configurator);
+                     const base::string16& js_object_name,
+                     JsCommunication* js_java_configurator);
 
   // gin::Wrappable implementation
   gin::ObjectTemplateBuilder GetObjectTemplateBuilder(
-      v8::Isolate* isolate) override;
+      v8::Isolate* isolate) final;
 
   // For jsObject.postMessage(message[, ports]) JavaScript API.
   void PostMessage(gin::Arguments* args);
@@ -73,15 +70,16 @@ class JsBinding final : public gin::Wrappable<JsBinding>,
   void SetOnMessage(v8::Isolate* isolate, v8::Local<v8::Value> value);
 
   content::RenderFrame* render_frame_;
-  std::u16string js_object_name_;
+  base::string16 js_object_name_;
   v8::Global<v8::Function> on_message_;
   std::vector<v8::Global<v8::Function>> listeners_;
-
-  base::WeakPtr<JsCommunication> js_communication_;
+  // |js_java_configurator| owns JsBinding objects, so it will out live
+  // JsBinding's life cycle, it is safe to access it.
+  JsCommunication* js_java_configurator_;
 
   mojo::AssociatedReceiver<mojom::BrowserToJsMessaging> receiver_{this};
 
-  base::WeakPtrFactory<JsBinding> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(JsBinding);
 };
 
 }  // namespace js_injection

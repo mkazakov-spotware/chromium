@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/content_test_utils.h"
 
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/test/event_generator.h"
@@ -21,7 +21,7 @@ namespace {
 // only when there is no better way to synchronize.
 void GiveItSomeTime(base::TimeDelta delta) {
   base::RunLoop run_loop;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, run_loop.QuitClosure(), delta);
   run_loop.Run();
 }
@@ -51,7 +51,7 @@ void TestTextInputViaKeyEvent(content::WebContents* contents) {
   // Verify text input is updated.
   std::string result;
   while (result != "a") {
-    GiveItSomeTime(base::Milliseconds(100));
+    GiveItSomeTime(base::TimeDelta::FromMilliseconds(100));
 
     ASSERT_TRUE(content::ExecuteScriptAndExtractString(contents, R"(
       window.domAutomationController.send(

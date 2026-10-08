@@ -1,2 +1,2 @@
-CONSOLE MESSAGE: Reloading
+CONSOLE MESSAGE: line 22: Reloading
 PASS

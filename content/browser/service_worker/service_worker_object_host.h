@@ -1,11 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_SERVICE_WORKER_SERVICE_WORKER_OBJECT_HOST_H_
 #define CONTENT_BROWSER_SERVICE_WORKER_SERVICE_WORKER_OBJECT_HOST_H_
 
-#include "base/memory/raw_ptr.h"
+#include <memory>
+
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/service_worker/service_worker_version.h"
@@ -41,14 +43,9 @@ class CONTENT_EXPORT ServiceWorkerObjectHost
     : public blink::mojom::ServiceWorkerObjectHost,
       public ServiceWorkerVersion::Observer {
  public:
-  ServiceWorkerObjectHost(
-      base::WeakPtr<ServiceWorkerContextCore> context,
-      base::WeakPtr<ServiceWorkerContainerHost> container_host,
-      scoped_refptr<ServiceWorkerVersion> version);
-
-  ServiceWorkerObjectHost(const ServiceWorkerObjectHost&) = delete;
-  ServiceWorkerObjectHost& operator=(const ServiceWorkerObjectHost&) = delete;
-
+  ServiceWorkerObjectHost(base::WeakPtr<ServiceWorkerContextCore> context,
+                          ServiceWorkerContainerHost* container_host,
+                          scoped_refptr<ServiceWorkerVersion> version);
   ~ServiceWorkerObjectHost() override;
 
   // ServiceWorkerVersion::Observer overrides.
@@ -105,22 +102,7 @@ class CONTENT_EXPORT ServiceWorkerObjectHost
   base::WeakPtr<ServiceWorkerContextCore> context_;
   // |container_host_| is valid throughout lifetime of |this| because it owns
   // |this|.
-  //
-  // However, there exists an exception, because of an ownership cycle
-  // between 1,2,3,4:
-  // 1. ServiceWorkerContainerHost owns via unique_ptr (2)
-  // 2. ServiceWorkerObjectHost owns via scoped_ptr(3)
-  // 3. ServiceWorkerVersion owns via unique_ptr (4)
-  // 4. ServiceWorkerHost owns via unique_ptr (1)
-  //
-  // The cycle is broken in
-  // `ServiceWorkerContainerHost::RemoveServiceWorkerObjectHost`, by
-  // transferring ownership of |this| to the stack, while deleting
-  // |container_host_|.
-  //
-  // As a result, |container_host_| is always valid, except during the
-  // destructor.
-  const base::WeakPtr<ServiceWorkerContainerHost> container_host_;
+  ServiceWorkerContainerHost* const container_host_;
   // The origin of the |container_host_|. Note that this is const because once a
   // JavaScript ServiceWorker object is created for an execution context, we
   // don't expect that context to change origins and still hold on to the
@@ -138,6 +120,8 @@ class CONTENT_EXPORT ServiceWorkerObjectHost
   mojo::AssociatedRemoteSet<blink::mojom::ServiceWorkerObject> remote_objects_;
 
   base::WeakPtrFactory<ServiceWorkerObjectHost> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ServiceWorkerObjectHost);
 };
 
 }  // namespace content

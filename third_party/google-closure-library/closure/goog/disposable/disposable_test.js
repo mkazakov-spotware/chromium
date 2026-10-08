@@ -1,15 +1,21 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.DisposableTest');
 goog.setTestOnly();
 
 const Disposable = goog.require('goog.Disposable');
-const dispose = goog.require('goog.dispose');
-const disposeAll = goog.require('goog.disposeAll');
 const recordFunction = goog.require('goog.testing.recordFunction');
 const testSuite = goog.require('goog.testing.testSuite');
 
@@ -64,13 +70,8 @@ testSuite({
   },
 
   tearDown() {
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.OFF;
-
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['INCLUDE_STACK_ON_CREATION'] = true;
-
-    /** @suppress {visibility} suppression added to enable type checking */
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.OFF;
+    Disposable.INCLUDE_STACK_ON_CREATION = true;
     Disposable.instances_ = {};
     d1.dispose();
     d2.dispose();
@@ -128,50 +129,47 @@ testSuite({
 
   testStaticDispose() {
     assertFalse(d1.isDisposed());
-    dispose(d1);
+    goog.dispose(d1);
     assertTrue(
         'goog.Disposable instance should have been disposed of',
         d1.isDisposed());
 
     assertFalse(d2.isDisposed());
-    dispose(d2);
+    goog.dispose(d2);
     assertTrue(
         'goog.DisposableTest instance should have been disposed of',
         d2.isDisposed());
 
     const duck = new DisposableDuck();
     assertNotUndefined(duck.element);
-    dispose(duck);
+    goog.dispose(duck);
     assertUndefined(
         'goog.dispose should have disposed of object that ' +
             'implements the disposable interface',
         duck.element);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testStaticDisposeOnNonDisposableType() {
     // Call goog.dispose() with various types and make sure no errors are
     // thrown.
-    dispose(true);
-    dispose(false);
-    dispose(null);
-    dispose(undefined);
-    dispose('');
-    dispose([]);
-    dispose({});
+    goog.dispose(true);
+    goog.dispose(false);
+    goog.dispose(null);
+    goog.dispose(undefined);
+    goog.dispose('');
+    goog.dispose([]);
+    goog.dispose({});
 
     function A() {}
-    dispose(new A());
+    goog.dispose(new A());
   },
 
   testMonitoringFailure() {
     function BadDisposable() {}
     goog.inherits(BadDisposable, Disposable);
 
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.PERMANENT;
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.PERMANENT;
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const badDisposable = new BadDisposable;
     assertArrayEquals(
         'no disposable objects registered', [],
@@ -182,8 +180,7 @@ testSuite({
   },
 
   testGetUndisposedObjects() {
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.PERMANENT;
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.PERMANENT;
 
     const d1 = new DisposableTest();
     const d2 = new DisposableTest();
@@ -207,8 +204,7 @@ testSuite({
   },
 
   testClearUndisposedObjects() {
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.PERMANENT;
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.PERMANENT;
 
     const d1 = new DisposableTest();
     const d2 = new DisposableTest();
@@ -240,7 +236,7 @@ testSuite({
     const d1 = new DisposableTest();
     const d2 = new DisposableTest();
 
-    disposeAll(d1, d2);
+    goog.disposeAll(d1, d2);
 
     assertTrue('d1 should be disposed', d1.isDisposed());
     assertTrue('d2 should be disposed', d2.isDisposed());
@@ -252,7 +248,7 @@ testSuite({
     const d3 = new DisposableTest();
     const d4 = new DisposableTest();
 
-    disposeAll(d1, [[d2], d3, d4]);
+    goog.disposeAll(d1, [[d2], d3, d4]);
 
     assertTrue('d1 should be disposed', d1.isDisposed());
     assertTrue('d2 should be disposed', d2.isDisposed());
@@ -262,8 +258,7 @@ testSuite({
 
   testCreationStack() {
     if (!new Error().stack) return;
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.PERMANENT;
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.PERMANENT;
     const disposableStack = new DisposableTest().creationStack;
     // Check that the name of this test function occurs in the stack trace.
     assertNotEquals(-1, disposableStack.indexOf('testCreationStack'));
@@ -271,13 +266,8 @@ testSuite({
 
   testMonitoredWithoutCreationStack() {
     if (!new Error().stack) return;
-
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.PERMANENT;
-
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['INCLUDE_STACK_ON_CREATION'] = false;
-
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.PERMANENT;
+    Disposable.INCLUDE_STACK_ON_CREATION = false;
     const d1 = new DisposableTest();
 
     // Check that it is tracked, but not with a creation stack.
@@ -303,7 +293,7 @@ testSuite({
     };
     d1.addOnDisposeCallback(goog.partial(callback, 'a'));
     d1.addOnDisposeCallback(goog.partial(callback, 'b'));
-    dispose(d1);
+    goog.dispose(d1);
     assertArrayEquals(
         'callbacks should be called in chronological order', ['a', 'b'],
         invocations);
@@ -312,7 +302,7 @@ testSuite({
   testAddOnDisposeCallbackAfterDispose() {
     const callback = recordFunction();
     const scope = {};
-    dispose(d1);
+    goog.dispose(d1);
     d1.addOnDisposeCallback(callback, scope);
     assertEquals(
         'Callback should be immediately called if already disposed', 1,
@@ -324,10 +314,7 @@ testSuite({
 
   testInteractiveMonitoring() {
     const d1 = new DisposableTest();
-
-    /** Use computed properties to avoid compiler checks of defines. */
-    Disposable['MONITORING_MODE'] = Disposable.MonitoringMode.INTERACTIVE;
-
+    Disposable.MONITORING_MODE = Disposable.MonitoringMode.INTERACTIVE;
     const d2 = new DisposableTest();
 
     assertSameElements(

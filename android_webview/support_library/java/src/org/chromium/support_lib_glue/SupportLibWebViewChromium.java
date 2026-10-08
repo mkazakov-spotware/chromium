@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -68,9 +68,7 @@ class SupportLibWebViewChromium implements WebViewProviderBoundaryInterface {
         WebMessageBoundaryInterface messageBoundaryInterface =
                 BoundaryInterfaceReflectionUtil.castToSuppLibClass(
                         WebMessageBoundaryInterface.class, message);
-        mSharedWebViewChromium.postMessageToMainFrame(
-                SupportLibWebMessagePayloadAdapter.fromWebMessageBoundaryInterface(
-                        messageBoundaryInterface),
+        mSharedWebViewChromium.postMessageToMainFrame(messageBoundaryInterface.getData(),
                 targetOrigin.toString(),
                 SupportLibWebMessagePortAdapter.toMessagePorts(
                         messageBoundaryInterface.getPorts()));
@@ -91,11 +89,11 @@ class SupportLibWebViewChromium implements WebViewProviderBoundaryInterface {
     }
 
     @Override
-    public /* ScriptHandler */ InvocationHandler addDocumentStartJavaScript(
+    public /* ScriptReference */ InvocationHandler addDocumentStartJavaScript(
             final String script, final String[] allowedOriginRules) {
         recordApiCall(ApiCall.ADD_DOCUMENT_START_SCRIPT);
         return BoundaryInterfaceReflectionUtil.createInvocationHandlerFor(
-                new SupportLibScriptHandlerAdapter(
+                new SupportLibScriptReferenceAdapter(
                         mSharedWebViewChromium.addDocumentStartJavaScript(
                                 script, allowedOriginRules)));
     }

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,16 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/time/time.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/crash_upload_list/crash_upload_list.h"
 #include "components/feedback/feedback_report.h"
 #include "content/public/browser/browser_thread.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "base/threading/sequenced_task_runner_handle.h"
-#include "chromeos/ash/components/dbus/debug_daemon/debug_daemon_client.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
+#include "chromeos/dbus/debug_daemon/debug_daemon_client.h"
 #include "content/public/browser/browser_task_traits.h"
+#include "content/public/browser/browser_thread.h"
 #endif
 
 namespace system_logs {
@@ -31,10 +32,10 @@ constexpr size_t kMaxCrashesCountToRetrieve = 10;
 constexpr size_t kCrashIdStringSize = 16;
 
 // For recent crashes, which is for all reports, look back one hour.
-constexpr base::TimeDelta kOneHourTimeDelta = base::Hours(1);
+constexpr base::TimeDelta kOneHourTimeDelta = base::TimeDelta::FromHours(1);
 
 // For all crashes, which is for only @google.com reports, look back 120 days.
-constexpr base::TimeDelta k120DaysTimeDelta = base::Days(120);
+constexpr base::TimeDelta k120DaysTimeDelta = base::TimeDelta::FromDays(120);
 
 }  // namespace
 
@@ -61,12 +62,13 @@ void CrashIdsSource::Fetch(SysLogsSourceCallback callback) {
   base::OnceClosure list_available_cb = base::BindOnce(
       &CrashIdsSource::OnUploadListAvailable, weak_ptr_factory_.GetWeakPtr());
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Upload recent crashes so that they're shown in the report.
   // Non-chromeOS systems upload crashes shortly after they happen. ChromeOS is
   // unique in that it has a separate process (crash_sender) that uploads
   // crashes periodically (by default every 5 minutes).
-  ash::DebugDaemonClient* debugd_client = ash::DebugDaemonClient::Get();
+  chromeos::DebugDaemonClient* debugd_client =
+      chromeos::DBusThreadManager::Get()->GetDebugDaemonClient();
   if (debugd_client) {
     debugd_client->UploadCrashes(base::BindOnce(
         [](base::OnceClosure load_crash_list_cb, bool success) {

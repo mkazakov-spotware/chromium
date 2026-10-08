@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/platform/graphics/dark_mode_settings.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_types.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/skia/include/core/SkPixmap.h"
@@ -24,8 +23,7 @@ FORWARD_DECLARE_TEST(DarkModeImageClassifierTest, FeaturesAndClassification);
 // results is not threadsafe. So it can be used only in blink main thread.
 class PLATFORM_EXPORT DarkModeImageClassifier {
  public:
-  explicit DarkModeImageClassifier(
-      DarkModeImageClassifierPolicy image_classifier_policy);
+  DarkModeImageClassifier();
   ~DarkModeImageClassifier();
 
   struct Features {
@@ -51,7 +49,7 @@ class PLATFORM_EXPORT DarkModeImageClassifier {
 
   enum class ColorMode { kColor = 0, kGrayscale = 1 };
 
-  absl::optional<Features> GetFeatures(const SkPixmap& pixmap,
+  base::Optional<Features> GetFeatures(const SkPixmap& pixmap,
                                        const SkIRect& src) const;
   // Extracts a sample set of pixels (|sampled_pixels|), |transparency_ratio|,
   // and |background_ratio|.
@@ -80,8 +78,6 @@ class PLATFORM_EXPORT DarkModeImageClassifier {
   // is grayscale, each bucket is a 4 bit representation of luminance.
   float ComputeColorBucketsRatio(const std::vector<SkColor>& sampled_pixels,
                                  const ColorMode color_mode) const;
-
-  const DarkModeImageClassifierPolicy image_classifier_policy_;
 
   FRIEND_TEST_ALL_PREFIXES(DarkModeImageClassifierTest, BlockSamples);
   FRIEND_TEST_ALL_PREFIXES(DarkModeImageClassifierTest,

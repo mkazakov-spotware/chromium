@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,8 @@
 #include "remoting/protocol/session.h"
 #include "remoting/protocol/session_config.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 AudioWriter::AudioWriter() : ChannelDispatcherBase(kAudioChannelName) {}
 AudioWriter::~AudioWriter() = default;
@@ -37,4 +38,5 @@ void AudioWriter::OnIncomingMessage(std::unique_ptr<CompoundBuffer> message) {
   LOG(ERROR) << "Received unexpected message on the audio channel.";
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

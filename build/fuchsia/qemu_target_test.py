@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# Copyright 2018 The Chromium Authors
+#!/usr/bin/python
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -28,6 +28,17 @@ with qemu_target.QemuTarget(tmpdir, 'x64') as target:
       target.Shutdown()
       shutil.rmtree(tmpdir)
 
+    def testCopyBidirectional(self):
+      tmp_path = tmpdir + "/payload"
+      with open(tmp_path, "w") as tmpfile:
+        tmpfile.write(TEST_PAYLOAD)
+      target.PutFile(tmp_path, '/tmp/payload')
+
+      tmp_path_roundtrip = tmp_path + ".roundtrip"
+      target.GetFile('/tmp/payload', tmp_path_roundtrip)
+      with open(tmp_path_roundtrip) as roundtrip:
+        self.assertEqual(TEST_PAYLOAD, roundtrip.read())
+
     def testRunCommand(self):
       self.assertEqual(0, target.RunCommand(['true']))
       self.assertEqual(1, target.RunCommand(['false']))
@@ -44,4 +55,4 @@ with qemu_target.QemuTarget(tmpdir, 'x64') as target:
 
 
   if __name__ == '__main__':
-    unittest.main()
+      unittest.main()

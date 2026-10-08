@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,29 +14,12 @@ namespace content {
 class WebContents;
 }
 
-namespace ui {
-class WindowAndroid;
-}
-
 namespace permissions {
 
-// Appends to `out` the required Android permissions associated with
-// `content_settings_type`.
-void AppendRequiredAndroidPermissionsForContentSetting(
-    ContentSettingsType content_settings_type,
-    std::vector<std::string>* out);
-
-// Appends to `out` the optional Android permissions associated with
-// `content_settings_type`.
-void AppendOptionalAndroidPermissionsForContentSetting(
-    ContentSettingsType content_settings_type,
-    std::vector<std::string>* out);
-
-// Returns whether the required Android permission for `content_settings_type`
-// are granted.
-bool HasRequiredAndroidPermissionsForContentSetting(
-    ui::WindowAndroid* window_android,
-    ContentSettingsType content_settings_type);
+// Populate the list of corresponding Android permissions associated with the
+// ContentSettingsType specified.
+void GetAndroidPermissionsForContentSetting(ContentSettingsType content_type,
+                                            std::vector<std::string>* out);
 
 // The states that indicate if the user should/can be re-nudged to accept
 // permissions. In Chrome this correlates to the PermissionUpdateInfoBar.
@@ -53,29 +36,6 @@ enum class PermissionRepromptState {
 PermissionRepromptState ShouldRepromptUserForPermissions(
     content::WebContents* web_contents,
     const std::vector<ContentSettingsType>& content_settings_types);
-
-// Filters the given |content_setting_types| to keep only types which are
-// missing required Android permissions.
-std::vector<ContentSettingsType>
-GetContentSettingsWithMissingRequiredAndroidPermissions(
-    const std::vector<ContentSettingsType>& content_settings_types,
-    content::WebContents* web_contents);
-
-// Appends to `out_required_permissions` the required Android permissions, and
-// `out_optional_permissions` the optional Android permission, associated with
-// each content setting type in given list.
-void AppendRequiredAndOptionalAndroidPermissionsForContentSettings(
-    const std::vector<ContentSettingsType>& content_settings_types,
-    std::vector<std::string>& out_required_permissions,
-    std::vector<std::string>& out_optional_permissions);
-
-// Called to check whether Chrome settings and permissions allow requesting site
-// level notification permission.
-bool DoesAppLevelSettingsAllowSiteNotifications();
-
-// Called to check whether Chrome has enabled app-level Notifications
-// permission.
-bool AreAppLevelNotificationsEnabled();
 
 }  // namespace permissions
 

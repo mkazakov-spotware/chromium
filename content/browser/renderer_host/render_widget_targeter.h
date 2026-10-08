@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,12 @@
 
 #include <queue>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
-#include "base/timer/timer.h"
 #include "components/viz/common/surfaces/frame_sink_id.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/common/content_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/events/blink/web_input_event_traits.h"
 #include "ui/latency/latency_info.h"
 
@@ -29,6 +27,7 @@ class PointF;
 namespace content {
 
 class RenderWidgetHostViewBase;
+class OneShotTimeoutMonitor;
 
 // TODO(sunxd): Make |RenderWidgetTargetResult| a class. Merge the booleans into
 // a mask to reduce the size. Make the constructor take in enums for better
@@ -38,13 +37,13 @@ struct CONTENT_EXPORT RenderWidgetTargetResult {
   RenderWidgetTargetResult(const RenderWidgetTargetResult&);
   RenderWidgetTargetResult(RenderWidgetHostViewBase* view,
                            bool should_query_view,
-                           absl::optional<gfx::PointF> location,
+                           base::Optional<gfx::PointF> location,
                            bool latched_target);
   ~RenderWidgetTargetResult();
 
-  raw_ptr<RenderWidgetHostViewBase, DanglingUntriaged> view = nullptr;
+  RenderWidgetHostViewBase* view = nullptr;
   bool should_query_view = false;
-  absl::optional<gfx::PointF> target_location = absl::nullopt;
+  base::Optional<gfx::PointF> target_location = base::nullopt;
   // When |latched_target| is false, we explicitly hit-tested events instead of
   // using a known target.
   bool latched_target = false;
@@ -56,7 +55,7 @@ class RenderWidgetTargeter {
  public:
   using RenderWidgetHostAtPointCallback =
       base::OnceCallback<void(base::WeakPtr<RenderWidgetHostViewBase>,
-                              absl::optional<gfx::PointF>)>;
+                              base::Optional<gfx::PointF>)>;
 
   class Delegate {
    public:
@@ -76,7 +75,7 @@ class RenderWidgetTargeter {
         RenderWidgetHostViewBase* target,
         blink::WebInputEvent* event,
         const ui::LatencyInfo& latency,
-        const absl::optional<gfx::PointF>& target_location) = 0;
+        const base::Optional<gfx::PointF>& target_location) = 0;
 
     virtual void SetEventsBeingFlushed(bool events_being_flushed) = 0;
 
@@ -99,10 +98,6 @@ class RenderWidgetTargeter {
 
   // The delegate must outlive this targeter.
   explicit RenderWidgetTargeter(Delegate* delegate);
-
-  RenderWidgetTargeter(const RenderWidgetTargeter&) = delete;
-  RenderWidgetTargeter& operator=(const RenderWidgetTargeter&) = delete;
-
   ~RenderWidgetTargeter();
 
   // Finds the appropriate target inside |root_view| for |event|, and dispatches
@@ -147,14 +142,10 @@ class RenderWidgetTargeter {
                      RenderWidgetHostAtPointCallback);
     TargetingRequest(TargetingRequest&& request);
     TargetingRequest& operator=(TargetingRequest&& other);
-
-    TargetingRequest(const TargetingRequest&) = delete;
-    TargetingRequest& operator=(const TargetingRequest&) = delete;
-
     ~TargetingRequest();
 
     void RunCallback(RenderWidgetHostViewBase* target,
-                     absl::optional<gfx::PointF> point);
+                     base::Optional<gfx::PointF> point);
 
     bool MergeEventIfPossible(const blink::WebInputEvent& event);
     bool IsWebInputEventRequest() const;
@@ -174,6 +165,8 @@ class RenderWidgetTargeter {
     // |event| if set is in the coordinate space of |root_view|.
     ui::WebScopedInputEvent event;
     ui::LatencyInfo latency;
+
+    DISALLOW_COPY_AND_ASSIGN(TargetingRequest);
   };
 
   void ResolveTargetingRequest(TargetingRequest);
@@ -208,9 +201,12 @@ class RenderWidgetTargeter {
                         const gfx::PointF& transformed_location);
 
   // |target_location|, if
-  // set, is the location in |target|'s coordinate space.
+  // set, is the location in |target|'s coordinate space. If |latched_target| is
+  // false, we explicitly did hit-testing for this event, instead of using a
+  // known target.
   void FoundTarget(RenderWidgetHostViewBase* target,
-                   const absl::optional<gfx::PointF>& target_location,
+                   const base::Optional<gfx::PointF>& target_location,
+                   bool latched_target,
                    TargetingRequest* request);
 
   // Callback when the hit testing timer fires, to resume event processing
@@ -232,11 +228,15 @@ class RenderWidgetTargeter {
     return async_hit_test_timeout_delay_;
   }
 
-  absl::optional<TargetingRequest> request_in_flight_;
+  base::Optional<TargetingRequest> request_in_flight_;
   uint32_t last_request_id_ = 0;
   std::queue<TargetingRequest> requests_;
 
   std::unordered_set<RenderWidgetHostViewBase*> unresponsive_views_;
+
+  // This value keeps track of the number of clients we have asked in order to
+  // do async hit-testing.
+  uint32_t async_depth_ = 0;
 
   // Target to send events to if autoscroll is in progress
   RenderWidgetTargetResult middle_click_result_;
@@ -248,12 +248,19 @@ class RenderWidgetTargeter {
   // process before giving up and resuming event processing.
   base::TimeDelta async_hit_test_timeout_delay_;
 
-  base::OneShotTimer async_hit_test_timeout_;
+  std::unique_ptr<OneShotTimeoutMonitor> async_hit_test_timeout_;
 
   uint64_t trace_id_;
 
-  const raw_ptr<Delegate, DanglingUntriaged> delegate_;
+  const bool is_viz_hit_testing_debug_enabled_;
+  // Stores SurfaceIds for regions that were async queried if hit-test debugging
+  // is enabled. This allows us to send the queried regions in batches.
+  std::vector<viz::FrameSinkId> hit_test_async_queried_debug_queue_;
+
+  Delegate* const delegate_;
   base::WeakPtrFactory<RenderWidgetTargeter> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(RenderWidgetTargeter);
 };
 
 }  // namespace content

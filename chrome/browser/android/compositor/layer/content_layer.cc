@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ static cc::Layer* GetDrawsContentLeaf(scoped_refptr<cc::Layer> layer) {
   if (layer->opacity() == 0.0f)
     return nullptr;
 
-  if (layer->draws_content())
+  if (layer->DrawsContent())
     return layer.get();
 
   const cc::LayerList& children = layer->children();
@@ -74,7 +74,9 @@ void ContentLayer::SetProperties(int id,
   if (live_layer_draws)
     static_opacity = static_to_view_blend;
 
-  layer_->RemoveAllChildren();
+  const cc::LayerList& layer_children = layer_->children();
+  for (unsigned i = 0; i < layer_children.size(); i++)
+    layer_children[i]->RemoveFromParent();
 
   if (live_layer.get()) {
     live_layer->SetMasksToBounds(should_clip);

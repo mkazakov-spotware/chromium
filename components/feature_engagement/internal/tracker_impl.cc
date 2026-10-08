@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,8 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/feature_engagement/internal/availability_model_impl.h"
 #include "components/feature_engagement/internal/chrome_variations_configuration.h"
@@ -37,7 +36,6 @@
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/public/feature_list.h"
 #include "components/leveldb_proto/public/proto_database_provider.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace feature_engagement {
 
@@ -159,8 +157,8 @@ TrackerImpl::TrackerImpl(
       event_model_initialization_finished_(false),
       availability_model_initialization_finished_(false) {
   event_model_->Initialize(
-      base::BindOnce(&TrackerImpl::OnEventModelInitializationFinished,
-                     weak_ptr_factory_.GetWeakPtr()),
+      base::Bind(&TrackerImpl::OnEventModelInitializationFinished,
+                 weak_ptr_factory_.GetWeakPtr()),
       time_provider_->GetCurrentDay());
 
   availability_model_->Initialize(
@@ -178,16 +176,10 @@ void TrackerImpl::NotifyEvent(const std::string& event) {
 }
 
 bool TrackerImpl::ShouldTriggerHelpUI(const base::Feature& feature) {
-  return ShouldTriggerHelpUIWithSnooze(feature).ShouldShowIph();
-}
-
-TrackerImpl::TriggerDetails TrackerImpl::ShouldTriggerHelpUIWithSnooze(
-    const base::Feature& feature) {
   FeatureConfig feature_config = configuration_->GetFeatureConfig(feature);
   ConditionValidator::Result result = condition_validator_->MeetsConditions(
       feature, feature_config, *event_model_, *availability_model_,
-      *display_lock_controller_, configuration_.get(),
-      time_provider_->GetCurrentDay());
+      *display_lock_controller_, time_provider_->GetCurrentDay());
   if (result.NoErrors()) {
     condition_validator_->NotifyIsShowing(
         feature, feature_config, configuration_->GetRegisteredFeatures());
@@ -202,36 +194,14 @@ TrackerImpl::TriggerDetails TrackerImpl::ShouldTriggerHelpUIWithSnooze(
            << ": trigger=" << result.NoErrors()
            << " tracking_only=" << feature_config.tracking_only << " "
            << result;
-
-  bool should_show_iph = false;
-
-  if (feature_config.tracking_only) {
-    if (result.NoErrors()) {
-      // Because tracking only features always return false to the client,
-      // clients do not have the context to correctly dismiss. The dismiss is
-      // needed because our condition validator thinks the feature is currently
-      // showing. See https://crbug.com/1188679 for more details.
-      Dismissed(feature);
-    }
-    should_show_iph = false;
-  } else {
-    should_show_iph = result.NoErrors();
-  }
-
-  if (should_show_iph) {
-    DCHECK(start_times_.find(feature.name) == start_times_.end());
-    start_times_[feature.name] = time_provider_->Now();
-  }
-
-  return TriggerDetails(should_show_iph, result.should_show_snooze);
+  return result.NoErrors() && !feature_config.tracking_only;
 }
 
 bool TrackerImpl::WouldTriggerHelpUI(const base::Feature& feature) const {
   FeatureConfig feature_config = configuration_->GetFeatureConfig(feature);
   ConditionValidator::Result result = condition_validator_->MeetsConditions(
       feature, feature_config, *event_model_, *availability_model_,
-      *display_lock_controller_, configuration_.get(),
-      time_provider_->GetCurrentDay());
+      *display_lock_controller_, time_provider_->GetCurrentDay());
   DVLOG(2) << "Would trigger result for " << feature.name
            << ": trigger=" << result.NoErrors()
            << " tracking_only=" << feature_config.tracking_only << " "
@@ -264,7 +234,7 @@ Tracker::TriggerState TrackerImpl::GetTriggerState(
 
   ConditionValidator::Result result = condition_validator_->MeetsConditions(
       feature, configuration_->GetFeatureConfig(feature), *event_model_,
-      *availability_model_, *display_lock_controller_, configuration_.get(),
+      *availability_model_, *display_lock_controller_,
       time_provider_->GetCurrentDay());
 
   if (result.trigger_ok) {
@@ -282,67 +252,10 @@ void TrackerImpl::Dismissed(const base::Feature& feature) {
   DVLOG(2) << "Dismissing " << feature.name;
   condition_validator_->NotifyDismissed(feature);
   stats::RecordUserDismiss();
-  RecordShownTime(feature);
-}
-
-void TrackerImpl::DismissedWithSnooze(
-    const base::Feature& feature,
-    absl::optional<SnoozeAction> snooze_action) {
-  FeatureConfig feature_config = configuration_->GetFeatureConfig(feature);
-  if (snooze_action == SnoozeAction::SNOOZED) {
-    event_model_->IncrementSnooze(feature_config.trigger.name,
-                                  time_provider_->GetCurrentDay(),
-                                  time_provider_->Now());
-  } else if (snooze_action == SnoozeAction::DISMISSED) {
-    event_model_->DismissSnooze(feature_config.trigger.name);
-  }
-  if (snooze_action.has_value())
-    stats::RecordUserSnoozeAction(snooze_action.value());
-  RecordShownTime(feature);
 }
 
 std::unique_ptr<DisplayLockHandle> TrackerImpl::AcquireDisplayLock() {
   return display_lock_controller_->AcquireDisplayLock();
-}
-
-void TrackerImpl::SetPriorityNotification(const base::Feature& feature) {
-  // If the handler hasn't been registered.
-  auto iter = priority_notification_handlers_.find(feature.name);
-  if (iter == priority_notification_handlers_.end()) {
-    condition_validator_->SetPriorityNotification(feature.name);
-    return;
-  }
-
-  // We already have a handler. Serve the request and remove the handler.
-  condition_validator_->SetPriorityNotification(absl::nullopt);
-  std::move(iter->second).Run();
-  priority_notification_handlers_.erase(feature.name);
-}
-
-absl::optional<std::string> TrackerImpl::GetPendingPriorityNotification() {
-  return condition_validator_->GetPendingPriorityNotification();
-}
-
-void TrackerImpl::RegisterPriorityNotificationHandler(
-    const base::Feature& feature,
-    base::OnceClosure callback) {
-  // If we already have a pending notification, handle it right away.
-  auto pending_priority_notification =
-      condition_validator_->GetPendingPriorityNotification();
-  if (pending_priority_notification.has_value() &&
-      pending_priority_notification.value() == feature.name) {
-    std::move(callback).Run();
-    condition_validator_->SetPriorityNotification(absl::nullopt);
-    return;
-  }
-
-  // We don't have the notification yet. Cache the handler.
-  priority_notification_handlers_.emplace(feature.name, std::move(callback));
-}
-
-void TrackerImpl::UnregisterPriorityNotificationHandler(
-    const base::Feature& feature) {
-  priority_notification_handlers_.erase(feature.name);
 }
 
 bool TrackerImpl::IsInitialized() const {
@@ -351,7 +264,7 @@ bool TrackerImpl::IsInitialized() const {
 
 void TrackerImpl::AddOnInitializedCallback(OnInitializedCallback callback) {
   if (IsInitializationFinished()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), IsInitialized()));
     return;
   }
@@ -389,22 +302,11 @@ void TrackerImpl::MaybePostInitializedCallbacks() {
   DVLOG(2) << "Initialization finished.";
 
   for (auto& callback : on_initialized_callbacks_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), IsInitialized()));
   }
 
   on_initialized_callbacks_.clear();
-}
-
-void TrackerImpl::RecordShownTime(const base::Feature& feature) {
-  std::string feature_name = feature.name;
-  auto iter = start_times_.find(feature_name);
-  if (iter == start_times_.end())
-    return;
-
-  UmaHistogramTimes("InProductHelp.ShownTime." + feature_name,
-                    time_provider_->Now() - iter->second);
-  start_times_.erase(feature_name);
 }
 
 }  // namespace feature_engagement

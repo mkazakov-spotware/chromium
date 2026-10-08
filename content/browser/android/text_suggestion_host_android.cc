@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 #include "base/bind.h"
 #include "content/browser/android/text_suggestion_host_mojo_impl_android.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
-#include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/android/content_jni_headers/SuggestionInfo_jni.h"
 #include "content/public/android/content_jni_headers/TextSuggestionHost_jni.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/common/use_zoom_for_dsf_policy.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 #include "ui/gfx/android/view_configuration.h"
 
@@ -121,6 +122,16 @@ void TextSuggestionHostAndroid::OnSuggestionMenuClosed(
   text_suggestion_backend->OnSuggestionMenuClosed();
 }
 
+double TextSuggestionHostAndroid::DpToPxIfNeeded(double value) {
+  WebContents* contents = RenderWidgetHostConnector::web_contents();
+  // When --use-zoom-for-dsf is disabled, caret values are CSS scale
+  // (i.e., not pixel scale). This code changes it to pixel scale.
+  if (!IsUseZoomForDSFEnabled() && contents && contents->GetNativeView()) {
+    return contents->GetNativeView()->GetDipScale() * value;
+  }
+  return value;
+}
+
 ScopedJavaLocalRef<jobject>
 TextSuggestionHostAndroid::GetJavaTextSuggestionHost() {
   JNIEnv* env = AttachCurrentThread();
@@ -148,6 +159,9 @@ void TextSuggestionHostAndroid::ShowSpellCheckSuggestionMenu(
   ScopedJavaLocalRef<jobject> obj = GetJavaTextSuggestionHost();
   if (obj.is_null())
     return;
+
+  caret_x = DpToPxIfNeeded(caret_x);
+  caret_y = DpToPxIfNeeded(caret_y);
 
   Java_TextSuggestionHost_showSpellCheckSuggestionMenu(
       env, obj, caret_x, caret_y, ConvertUTF8ToJavaString(env, marked_text),
@@ -181,6 +195,9 @@ void TextSuggestionHostAndroid::ShowTextSuggestionMenu(
         ConvertUTF8ToJavaString(env, suggestion_ptr->suffix));
   }
 
+  caret_x = DpToPxIfNeeded(caret_x);
+  caret_y = DpToPxIfNeeded(caret_y);
+
   Java_TextSuggestionHost_showTextSuggestionMenu(
       env, obj, caret_x, caret_y, ConvertUTF8ToJavaString(env, marked_text),
       jsuggestion_infos);
@@ -188,8 +205,8 @@ void TextSuggestionHostAndroid::ShowTextSuggestionMenu(
 
 void TextSuggestionHostAndroid::StartSuggestionMenuTimer() {
   suggestion_menu_timeout_.Stop();
-  suggestion_menu_timeout_.Start(
-      base::Milliseconds(gfx::ViewConfiguration::GetDoubleTapTimeoutInMs()));
+  suggestion_menu_timeout_.Start(base::TimeDelta::FromMilliseconds(
+      gfx::ViewConfiguration::GetDoubleTapTimeoutInMs()));
 }
 
 void TextSuggestionHostAndroid::OnKeyEvent() {
@@ -222,7 +239,10 @@ RenderFrameHost* TextSuggestionHostAndroid::GetFocusedFrame() {
     return nullptr;
   RenderWidgetHostImpl* rwh =
       RenderWidgetHostImpl::From(rwhva_->GetRenderWidgetHost());
-  if (auto* contents = WebContentsImpl::FromRenderWidgetHostImpl(rwh))
+  if (!rwh || !rwh->delegate())
+    return nullptr;
+
+  if (auto* contents = rwh->delegate()->GetAsWebContents())
     return contents->GetFocusedFrame();
 
   return nullptr;

@@ -4,7 +4,7 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -13,7 +13,6 @@
       "name": "LayoutBlockFlow DIV class='composited block'",
       "position": [-5, -5],
       "bounds": [210, 60],
-      "contentsOpaqueForText": true,
       "backgroundColor": "#0000FF",
       "transform": 1
     },
@@ -28,7 +27,6 @@
       "name": "LayoutBlockFlow DIV class='composited block'",
       "position": [-5, -5],
       "bounds": [210, 60],
-      "contentsOpaqueForText": true,
       "backgroundColor": "#0000FF",
       "transform": 2
     },

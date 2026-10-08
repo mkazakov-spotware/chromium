@@ -1,7 +1,5 @@
 // META: global=window,worker
 
-"use strict";
-
 promise_test(() => fetch("../cors/resources/not-cors-safelisted.json").then(res => res.json().then(runTests)), "Loading data…");
 
 const longValue = "s".repeat(127);
@@ -38,9 +36,7 @@ const longValue = "s".repeat(127);
 function runTests(testArray) {
   testArray = testArray.concat([
     ["dpr", "2"],
-    ["rtt", "1.0"],
-    ["downlink", "-1.0"],
-    ["ect", "6g"],
+    ["downlink", "1"],
     ["save-data", "on"],
     ["viewport-width", "100"],
     ["width", "100"],

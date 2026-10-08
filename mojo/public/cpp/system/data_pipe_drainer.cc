@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
 
 namespace mojo {
 
@@ -19,7 +18,7 @@ DataPipeDrainer::DataPipeDrainer(Client* client,
       source_(std::move(source)),
       handle_watcher_(FROM_HERE,
                       SimpleWatcher::ArmingPolicy::AUTOMATIC,
-                      base::SequencedTaskRunner::GetCurrentDefault()) {
+                      base::SequencedTaskRunnerHandle::Get()) {
   DCHECK(client_);
   handle_watcher_.Watch(source_.get(), MOJO_HANDLE_SIGNAL_READABLE,
                         base::BindRepeating(&DataPipeDrainer::WaitComplete,

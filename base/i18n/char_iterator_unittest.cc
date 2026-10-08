@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ TEST(CharIteratorsTest, TestUTF8) {
 }
 
 TEST(CharIteratorsTest, TestUTF16_Empty) {
-  std::u16string empty;
+  string16 empty;
   UTF16CharIterator empty_iter(empty);
   EXPECT_TRUE(empty_iter.end());
   EXPECT_TRUE(empty_iter.start());
@@ -71,7 +71,7 @@ TEST(CharIteratorsTest, TestUTF16_Empty) {
 }
 
 TEST(CharIteratorsTest, TestUTF16) {
-  std::u16string str = UTF8ToUTF16(kTestString);
+  string16 str = UTF8ToUTF16(kTestString);
   UTF16CharIterator iter(str);
   EXPECT_FALSE(iter.end());
   EXPECT_TRUE(iter.start());
@@ -125,7 +125,7 @@ TEST(CharIteratorsTest, TestUTF16) {
 }
 
 TEST(CharIteratorsTest, TestUTF16_Rewind) {
-  std::u16string str = UTF8ToUTF16(kTestString);
+  string16 str = UTF8ToUTF16(kTestString);
 
   // It is valid for the starting array index to be on the terminating null
   // character; in fact, this is where end() reports true. So we'll start on the
@@ -184,7 +184,7 @@ TEST(CharIteratorsTest, TestUTF16_Rewind) {
 }
 
 TEST(CharIteratorsTest, TestUTF16_UpperBound) {
-  std::u16string str = UTF8ToUTF16(kTestString);
+  string16 str = UTF8ToUTF16(kTestString);
   ASSERT_EQ(0u, UTF16CharIterator::UpperBound(str, 0).array_pos());
   ASSERT_EQ(1u, UTF16CharIterator::UpperBound(str, 1).array_pos());
   ASSERT_EQ(2u, UTF16CharIterator::UpperBound(str, 2).array_pos());
@@ -194,7 +194,7 @@ TEST(CharIteratorsTest, TestUTF16_UpperBound) {
 }
 
 TEST(CharIteratorsTest, TestUTF16_LowerBound) {
-  std::u16string str = UTF8ToUTF16(kTestString);
+  string16 str = UTF8ToUTF16(kTestString);
   ASSERT_EQ(0u, UTF16CharIterator::LowerBound(str, 0).array_pos());
   ASSERT_EQ(1u, UTF16CharIterator::LowerBound(str, 1).array_pos());
   ASSERT_EQ(2u, UTF16CharIterator::LowerBound(str, 2).array_pos());

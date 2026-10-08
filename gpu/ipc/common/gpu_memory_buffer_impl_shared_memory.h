@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "gpu/gpu_export.h"
 #include "gpu/ipc/common/gpu_memory_buffer_impl.h"
 
@@ -17,11 +18,6 @@ namespace gpu {
 // Implementation of GPU memory buffer based on shared memory.
 class GPU_EXPORT GpuMemoryBufferImplSharedMemory : public GpuMemoryBufferImpl {
  public:
-  GpuMemoryBufferImplSharedMemory(const GpuMemoryBufferImplSharedMemory&) =
-      delete;
-  GpuMemoryBufferImplSharedMemory& operator=(
-      const GpuMemoryBufferImplSharedMemory&) = delete;
-
   ~GpuMemoryBufferImplSharedMemory() override;
 
   static constexpr gfx::GpuMemoryBufferType kBufferType =
@@ -85,12 +81,14 @@ class GPU_EXPORT GpuMemoryBufferImplSharedMemory : public GpuMemoryBufferImpl {
       base::UnsafeSharedMemoryRegion shared_memory_region,
       base::WritableSharedMemoryMapping shared_memory_mapping,
       size_t offset,
-      uint32_t stride);
+      int stride);
 
   base::UnsafeSharedMemoryRegion shared_memory_region_;
   base::WritableSharedMemoryMapping shared_memory_mapping_;
   size_t offset_;
-  uint32_t stride_;
+  int stride_;
+
+  DISALLOW_COPY_AND_ASSIGN(GpuMemoryBufferImplSharedMemory);
 };
 
 }  // namespace gpu

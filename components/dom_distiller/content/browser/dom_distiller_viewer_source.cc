@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,18 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "components/back_forward_cache/back_forward_cache_disable.h"
 #include "components/dom_distiller/content/browser/distiller_javascript_utils.h"
 #include "components/dom_distiller/core/distilled_page_prefs.h"
 #include "components/dom_distiller/core/dom_distiller_request_view_base.h"
@@ -60,8 +61,7 @@ class DomDistillerViewerSource::RequestViewerHandle
   // content::WebContentsObserver implementation:
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
-  void PrimaryMainFrameRenderProcessGone(
-      base::TerminationStatus status) override;
+  void RenderProcessGone(base::TerminationStatus status) override;
   void WebContentsDestroyed() override;
   void DOMContentLoaded(content::RenderFrameHost* render_frame_host) override;
 
@@ -109,15 +109,14 @@ void DomDistillerViewerSource::RequestViewerHandle::SendJavaScript(
   } else {
     DCHECK(buffer_.empty());
     if (web_contents()) {
-      RunIsolatedJavaScript(web_contents()->GetPrimaryMainFrame(), buffer);
+      RunIsolatedJavaScript(web_contents()->GetMainFrame(), buffer);
     }
   }
 }
 
 void DomDistillerViewerSource::RequestViewerHandle::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!navigation_handle->IsInPrimaryMainFrame() ||
-      !navigation_handle->HasCommitted())
+  if (!navigation_handle->IsInMainFrame() || !navigation_handle->HasCommitted())
     return;
 
   const GURL& navigation = navigation_handle->GetURL();
@@ -132,14 +131,13 @@ void DomDistillerViewerSource::RequestViewerHandle::DidFinishNavigation(
   // from being stored in back-forward cache.
   content::BackForwardCache::DisableForRenderFrameHost(
       navigation_handle->GetPreviousRenderFrameHostId(),
-      back_forward_cache::DisabledReason(
-          back_forward_cache::DisabledReasonId::kDomDistillerViewerSource));
+      "DomDistillerViewerSource");
 
   Cancel();
 }
 
-void DomDistillerViewerSource::RequestViewerHandle::
-    PrimaryMainFrameRenderProcessGone(base::TerminationStatus status) {
+void DomDistillerViewerSource::RequestViewerHandle::RenderProcessGone(
+    base::TerminationStatus status) {
   Cancel();
 }
 
@@ -153,8 +151,7 @@ void DomDistillerViewerSource::RequestViewerHandle::Cancel() {
 
   // Schedule the Viewer for deletion. Ensures distillation is cancelled, and
   // any pending data stored in |buffer_| is released.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                this);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
 void DomDistillerViewerSource::RequestViewerHandle::DOMContentLoaded(
@@ -169,7 +166,7 @@ void DomDistillerViewerSource::RequestViewerHandle::DOMContentLoaded(
   // reason the accessibility focus is on the close button of the CCT, the title
   // could go unannounced.
   // See http://crbug.com/811417.
-  if (render_frame_host->GetParentOrOuterDocument()) {
+  if (render_frame_host->GetParent()) {
     return;
   }
 
@@ -177,7 +174,7 @@ void DomDistillerViewerSource::RequestViewerHandle::DOMContentLoaded(
       render_frame_host->GetLastCommittedURL());
   if (start_time_ms > 0) {
     base::TimeTicks start_time =
-        base::Milliseconds(start_time_ms) + base::TimeTicks();
+        base::TimeDelta::FromMilliseconds(start_time_ms) + base::TimeTicks();
     base::TimeDelta latency = base::TimeTicks::Now() - start_time;
 
     UMA_HISTOGRAM_TIMES("DomDistiller.Time.ViewerLoading", latency);
@@ -186,16 +183,16 @@ void DomDistillerViewerSource::RequestViewerHandle::DOMContentLoaded(
   // No SendJavaScript() calls allowed before |buffer_| is run and cleared.
   waiting_for_page_ready_ = false;
   if (!buffer_.empty()) {
-    RunIsolatedJavaScript(web_contents()->GetPrimaryMainFrame(), buffer_);
+    RunIsolatedJavaScript(web_contents()->GetMainFrame(), buffer_);
     buffer_.clear();
   }
   // No need to Cancel() here.
 }
 
 DomDistillerViewerSource::DomDistillerViewerSource(
-    DomDistillerServiceInterface* dom_distiller_service)
-    : scheme_(kDomDistillerScheme),
-      dom_distiller_service_(dom_distiller_service) {}
+    DomDistillerServiceInterface* dom_distiller_service,
+    const std::string& scheme)
+    : scheme_(scheme), dom_distiller_service_(dom_distiller_service) {}
 
 DomDistillerViewerSource::~DomDistillerViewerSource() = default;
 
@@ -212,23 +209,21 @@ void DomDistillerViewerSource::StartDataRequest(
   content::WebContents* web_contents = wc_getter.Run();
   if (!web_contents)
     return;
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Don't allow loading of mixed content on Reader Mode pages.
   blink::web_pref::WebPreferences prefs =
       web_contents->GetOrCreateWebPreferences();
   prefs.strict_mixed_content_checking = true;
   web_contents->SetWebPreferences(prefs);
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
   if (kViewerCssPath == path) {
     std::string css = viewer::GetCss();
-    std::move(callback).Run(
-        base::MakeRefCounted<base::RefCountedString>(std::move(css)));
+    std::move(callback).Run(base::RefCountedString::TakeString(&css));
     return;
   }
   if (kViewerLoadingImagePath == path) {
     std::string image = viewer::GetLoadingImage();
-    std::move(callback).Run(
-        base::MakeRefCounted<base::RefCountedString>(std::move(image)));
+    std::move(callback).Run(base::RefCountedString::TakeString(&image));
     return;
   }
   if (base::StartsWith(path, kViewerSaveFontScalingPath,
@@ -260,12 +255,9 @@ void DomDistillerViewerSource::StartDataRequest(
       web_contents->GetContainerBounds().size());
 
   GURL current_url(url_utils::GetOriginalUrlFromDistillerUrl(request_url));
-
-  // Pass an empty nonce value as the CSP is only inlined on the iOS build.
   std::string unsafe_page_html = viewer::GetArticleTemplateHtml(
       dom_distiller_service_->GetDistilledPagePrefs()->GetTheme(),
-      dom_distiller_service_->GetDistilledPagePrefs()->GetFontFamily(),
-      std::string());
+      dom_distiller_service_->GetDistilledPagePrefs()->GetFontFamily());
 
   if (viewer_handle) {
     // The service returned a |ViewerHandle| and guarantees it will call
@@ -278,12 +270,11 @@ void DomDistillerViewerSource::StartDataRequest(
   }
 
   // Place template on the page.
-  std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
-      std::move(unsafe_page_html)));
+  std::move(callback).Run(
+      base::RefCountedString::TakeString(&unsafe_page_html));
 }
 
-std::string DomDistillerViewerSource::GetMimeType(const GURL& url) {
-  const base::StringPiece path = url.path_piece().substr(1);
+std::string DomDistillerViewerSource::GetMimeType(const std::string& path) {
   if (kViewerCssPath == path)
     return "text/css";
   if (kViewerLoadingImagePath == path)

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Provides a convenient API for data persistence with key and
@@ -20,6 +28,7 @@
 
 goog.provide('goog.storage.EncryptedStorage');
 
+goog.forwardDeclare('goog.storage.mechanism.IterableMechanism');
 goog.require('goog.crypt');
 goog.require('goog.crypt.Arc4');
 goog.require('goog.crypt.Sha1');
@@ -29,7 +38,6 @@ goog.require('goog.json.Serializer');
 goog.require('goog.storage.CollectableStorage');
 goog.require('goog.storage.ErrorCode');
 goog.require('goog.storage.RichStorage');
-goog.requireType('goog.storage.mechanism.IterableMechanism');
 
 
 
@@ -48,7 +56,6 @@ goog.requireType('goog.storage.mechanism.IterableMechanism');
  * @final
  */
 goog.storage.EncryptedStorage = function(mechanism, secret) {
-  'use strict';
   goog.storage.EncryptedStorage.base(this, 'constructor', mechanism);
   /**
    * The secret used to encrypt the storage.
@@ -86,8 +93,7 @@ goog.storage.EncryptedStorage.SALT_KEY = 'salt';
  * @private
  */
 goog.storage.EncryptedStorage.prototype.hashKeyWithSecret_ = function(key) {
-  'use strict';
-  const sha1 = new goog.crypt.Sha1();
+  var sha1 = new goog.crypt.Sha1();
   sha1.update(goog.crypt.stringToByteArray(key));
   sha1.update(this.secret_);
   return goog.crypt.base64.encodeByteArray(
@@ -106,19 +112,18 @@ goog.storage.EncryptedStorage.prototype.hashKeyWithSecret_ = function(key) {
  */
 goog.storage.EncryptedStorage.prototype.encryptValue_ = function(
     salt, key, value) {
-  'use strict';
   if (!(salt.length > 0)) {
     throw new Error('Non-empty salt must be provided');
   }
-  const sha1 = new goog.crypt.Sha1();
+  var sha1 = new goog.crypt.Sha1();
   sha1.update(goog.crypt.stringToByteArray(key));
   sha1.update(salt);
   sha1.update(this.secret_);
-  const arc4 = new goog.crypt.Arc4();
+  var arc4 = new goog.crypt.Arc4();
   arc4.setKey(sha1.digest());
   // Warm up the streamcypher state, see goog.crypt.Arc4 for details.
   arc4.discard(1536);
-  const bytes = goog.crypt.stringToByteArray(value);
+  var bytes = goog.crypt.stringToByteArray(value);
   arc4.crypt(bytes);
   return goog.crypt.byteArrayToString(bytes);
 };
@@ -135,7 +140,6 @@ goog.storage.EncryptedStorage.prototype.encryptValue_ = function(
  */
 goog.storage.EncryptedStorage.prototype.decryptValue_ = function(
     salt, key, value) {
-  'use strict';
   // ARC4 is symmetric.
   return this.encryptValue_(salt, key, value);
 };
@@ -144,18 +148,18 @@ goog.storage.EncryptedStorage.prototype.decryptValue_ = function(
 /** @override */
 goog.storage.EncryptedStorage.prototype.set = function(
     key, value, opt_expiration) {
-  'use strict';
   if (value === undefined) {
     goog.storage.EncryptedStorage.prototype.remove.call(this, key);
     return;
   }
-  const salt = [];
+  var salt = [];
   // 64-bit random salt.
-  for (let i = 0; i < 8; ++i) {
+  for (var i = 0; i < 8; ++i) {
     salt[i] = Math.floor(Math.random() * 0x100);
   }
-  const wrapper = new goog.storage.RichStorage.Wrapper(this.encryptValue_(
-      salt, key, this.cleartextSerializer_.serialize(value)));
+  var wrapper = new goog.storage.RichStorage.Wrapper(
+      this.encryptValue_(
+          salt, key, this.cleartextSerializer_.serialize(value)));
   wrapper[goog.storage.EncryptedStorage.SALT_KEY] = salt;
   goog.storage.EncryptedStorage.base(
       this, 'set', this.hashKeyWithSecret_(key), wrapper, opt_expiration);
@@ -165,18 +169,17 @@ goog.storage.EncryptedStorage.prototype.set = function(
 /** @override */
 goog.storage.EncryptedStorage.prototype.getWrapper = function(
     key, opt_expired) {
-  'use strict';
-  const wrapper = goog.storage.EncryptedStorage.base(
+  var wrapper = goog.storage.EncryptedStorage.base(
       this, 'getWrapper', this.hashKeyWithSecret_(key), opt_expired);
   if (!wrapper) {
     return undefined;
   }
-  const value = goog.storage.RichStorage.Wrapper.unwrap(wrapper);
-  const salt = wrapper[goog.storage.EncryptedStorage.SALT_KEY];
-  if (typeof value !== 'string' || !Array.isArray(salt) || !salt.length) {
+  var value = goog.storage.RichStorage.Wrapper.unwrap(wrapper);
+  var salt = wrapper[goog.storage.EncryptedStorage.SALT_KEY];
+  if (typeof value !== 'string' || !goog.isArray(salt) || !salt.length) {
     throw goog.storage.ErrorCode.INVALID_VALUE;
   }
-  const json = this.decryptValue_(salt, key, value);
+  var json = this.decryptValue_(salt, key, value);
 
   try {
     wrapper[goog.storage.RichStorage.DATA_KEY] = JSON.parse(json);
@@ -189,7 +192,6 @@ goog.storage.EncryptedStorage.prototype.getWrapper = function(
 
 /** @override */
 goog.storage.EncryptedStorage.prototype.remove = function(key) {
-  'use strict';
   goog.storage.EncryptedStorage.base(
       this, 'remove', this.hashKeyWithSecret_(key));
 };

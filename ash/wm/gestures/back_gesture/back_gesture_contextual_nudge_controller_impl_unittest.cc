@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/gestures/back_gesture/back_gesture_contextual_nudge_controller_impl.h"
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
-#include "ash/controls/contextual_tooltip.h"
+#include "ash/public/cpp/ash_features.h"
+#include "ash/public/cpp/ash_pref_names.h"
 #include "ash/session/session_controller_impl.h"
+#include "ash/shelf/contextual_tooltip.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "ash/test_shell_delegate.h"
@@ -15,9 +15,9 @@
 #include "ash/wm/gestures/back_gesture/back_gesture_event_handler.h"
 #include "ash/wm/gestures/back_gesture/test_back_gesture_contextual_nudge_delegate.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller_test_api.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
-#include "build/build_config.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/wm/core/window_util.h"
 
@@ -38,14 +38,6 @@ class BackGestureContextualNudgeControllerTest : public NoSessionAshTestBase {
  public:
   explicit BackGestureContextualNudgeControllerTest(bool can_go_back = true)
       : can_go_back_(can_go_back) {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kContextualNudges, features::kHideShelfControlsInTabletMode},
-        {});
-  }
-  BackGestureContextualNudgeControllerTest(
-      base::test::TaskEnvironment::TimeSource time,
-      bool can_go_back = true)
-      : NoSessionAshTestBase(time), can_go_back_(can_go_back) {
     scoped_feature_list_.InitWithFeatures(
         {features::kContextualNudges, features::kHideShelfControlsInTabletMode},
         {});
@@ -72,7 +64,7 @@ class BackGestureContextualNudgeControllerTest : public NoSessionAshTestBase {
     // Is only allowed after the drag handle nudge has been shown - simulate
     // drag handle so back gesture gets enabled.
     contextual_tooltip::OverrideClockForTesting(&test_clock_);
-    test_clock_.Advance(base::Seconds(360));
+    test_clock_.Advance(base::TimeDelta::FromSeconds(360));
     contextual_tooltip::HandleNudgeShown(
         user1_pref_service(), contextual_tooltip::TooltipType::kInAppToHome);
     contextual_tooltip::HandleNudgeShown(
@@ -97,8 +89,9 @@ class BackGestureContextualNudgeControllerTest : public NoSessionAshTestBase {
   void WaitNudgeAnimationDone() {
     while (nudge()) {
       base::RunLoop run_loop;
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(100));
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+          FROM_HERE, run_loop.QuitClosure(),
+          base::TimeDelta::FromMilliseconds(100));
       run_loop.Run();
     }
   }
@@ -135,7 +128,7 @@ class BackGestureContextualNudgeControllerTest : public NoSessionAshTestBase {
   void GenerateBackSequence() {
     GetEventGenerator()->GestureScrollSequence(
         gfx::Point(0, 100), gfx::Point(kSwipingDistanceForGoingBack + 10, 100),
-        base::Milliseconds(100), 3);
+        base::TimeDelta::FromMilliseconds(100), 3);
   }
 
  private:
@@ -153,17 +146,7 @@ class BackGestureContextualNudgeControllerTestCantGoBack
 
 class BackGestureContextualNudgeControllerTestA11yPrefs
     : public BackGestureContextualNudgeControllerTest,
-      public ::testing::WithParamInterface<std::string> {
- public:
-  BackGestureContextualNudgeControllerTestA11yPrefs()
-      : BackGestureContextualNudgeControllerTest(
-            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
-  BackGestureContextualNudgeControllerTestA11yPrefs(
-      const BackGestureContextualNudgeControllerTestA11yPrefs&) = delete;
-  BackGestureContextualNudgeControllerTestA11yPrefs& operator=(
-      const BackGestureContextualNudgeControllerTestA11yPrefs&) = delete;
-  ~BackGestureContextualNudgeControllerTestA11yPrefs() override = default;
-};
+      public ::testing::WithParamInterface<std::string> {};
 
 INSTANTIATE_TEST_SUITE_P(
     All,
@@ -339,6 +322,7 @@ TEST_F(BackGestureContextualNudgeControllerTest,
 // even it the user does not leave tablet mode.
 TEST_F(BackGestureContextualNudgeControllerTest,
        CanBeShownAfterRenteringTabletMode) {
+  base::HistogramTester histogram_tester;
   ui::ScopedAnimationDurationScaleMode non_zero(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
@@ -367,10 +351,15 @@ TEST_F(BackGestureContextualNudgeControllerTest,
 
   std::unique_ptr<aura::Window> window_2 = CreateTestWindow();
   EXPECT_TRUE(nudge());
+
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kSwitchToClamshell, 1);
 }
 
 // Back gesture metrics should be recorded after performing gesture.
 TEST_F(BackGestureContextualNudgeControllerTest, GesturePerformedMetricTest) {
+  base::HistogramTester histogram_tester;
   ui::ScopedAnimationDurationScaleMode non_zero(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   // Verify the nudge is created and wait until nudge animation is shown.
@@ -379,26 +368,32 @@ TEST_F(BackGestureContextualNudgeControllerTest, GesturePerformedMetricTest) {
   SetNudgeShownForTesting();
 
   GenerateBackSequence();
+
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kPerformedGesture, 1);
+  histogram_tester.ExpectTimeBucketCount(
+      "Ash.ContextualNudgeDismissTime.BackGesture",
+      base::TimeDelta::FromSeconds(0), 1);
 }
 
-// crbug.com/1239200: flaky on linux.
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_TimeoutMetricsTest DISABLED_TimeoutMetricsTest
-#else
-#define MAYBE_TimeoutMetricsTest TimeoutMetricsTest
-#endif
-TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs,
-       MAYBE_TimeoutMetricsTest) {
+TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs, TimeoutMetricsTest) {
+  base::HistogramTester histogram_tester;
   ui::ScopedAnimationDurationScaleMode non_zero(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   std::unique_ptr<aura::Window> window = CreateTestWindow();
   EXPECT_TRUE(nudge());
   WaitNudgeAnimationDone();
   EXPECT_FALSE(nudge());
+
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kTimeout, 1);
 }
 
 TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs,
        LogDismissMetricsAfterNudgeShown) {
+  base::HistogramTester histogram_tester;
   ui::ScopedAnimationDurationScaleMode non_zero(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   std::unique_ptr<aura::Window> window = CreateTestWindow();
@@ -409,6 +404,12 @@ TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs,
   tablet_mode_api.LeaveTabletMode();
   EXPECT_FALSE(nudge());
 
+  // Because the nudge hasn't shown yet, the dismissal metrics should not be
+  // logged.
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kSwitchToClamshell, 0);
+
   tablet_mode_api.EnterTabletMode();
   std::unique_ptr<aura::Window> window2 = CreateTestWindow();
   EXPECT_TRUE(nudge());
@@ -418,11 +419,17 @@ TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs,
   // metrics should be correctly logged.
   tablet_mode_api.LeaveTabletMode();
   WaitNudgeAnimationDone();
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kSwitchToClamshell, 1);
+  histogram_tester.ExpectTotalCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture", 1);
 }
 
 // Back Gesture Nudge should be hidden when shelf controls are enabled.
 TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs,
        HideNudgesForShelfControls) {
+  base::HistogramTester histogram_tester;
   SCOPED_TRACE(testing::Message() << "Pref=" << GetParam());
   std::unique_ptr<aura::Window> window = CreateTestWindow();
   EXPECT_TRUE(nudge());
@@ -435,8 +442,16 @@ TEST_P(BackGestureContextualNudgeControllerTestA11yPrefs,
       ->SetBoolean(GetParam(), true);
   EXPECT_FALSE(nudge());
 
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kOther, 1);
+
   TabletModeControllerTestApi tablet_mode_api;
   tablet_mode_api.LeaveTabletMode();
+
+  histogram_tester.ExpectBucketCount(
+      "Ash.ContextualNudgeDismissContext.BackGesture",
+      contextual_tooltip::DismissNudgeReason::kSwitchToClamshell, 0);
 }
 
 // Back Gesture Nudge should be disabled when shelf controls are enabled.

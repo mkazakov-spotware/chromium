@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
-#include <string>
-
+#include "base/strings/string16.h"
 
 namespace base {
 class Time;
@@ -17,13 +16,13 @@ class GURL;
 
 namespace history {
 
-// Returns a localized version of `visit_time` including a relative
+// Returns a localized version of |visit_time| including a relative
 // indicator (e.g. today, yesterday).
-std::u16string GetRelativeDateLocalized(const base::Time& visit_time);
+base::string16 GetRelativeDateLocalized(const base::Time& visit_time);
 
-// Formats `title` to support RTL, or creates an RTL supported title based on
-// `url` if `title` is empty.
-NSString* FormattedTitle(const std::u16string& title, const GURL& url);
+// Formats |title| to support RTL, or creates an RTL supported title based on
+// |url| if |title| is empty.
+NSString* FormattedTitle(const base::string16& title, const GURL& url);
 
 }  // namespace history
 

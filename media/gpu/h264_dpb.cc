@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/logging.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "media/gpu/h264_dpb.h"
 
 namespace media {
@@ -33,8 +34,6 @@ H264Picture::H264Picture()
       idr(false),
       idr_pic_id(0),
       ref(false),
-      ref_pic_list_modification_flag_l0(0),
-      abs_diff_pic_num_minus1(0),
       long_term(false),
       outputted(false),
       mem_mgmt_5(false),
@@ -53,10 +52,6 @@ V4L2H264Picture* H264Picture::AsV4L2H264Picture() {
 }
 
 VaapiH264Picture* H264Picture::AsVaapiH264Picture() {
-  return nullptr;
-}
-
-D3D11H264Picture* H264Picture::AsD3D11H264Picture() {
   return nullptr;
 }
 
@@ -82,15 +77,15 @@ void H264DPB::UpdatePicPositions() {
   }
 }
 
-void H264DPB::Delete(scoped_refptr<H264Picture> pic) {
+void H264DPB::DeleteByPOC(int poc) {
   for (auto it = pics_.begin(); it != pics_.end(); ++it) {
-    if ((*it) == pic) {
+    if ((*it)->pic_order_cnt == poc) {
       pics_.erase(it);
       UpdatePicPositions();
       return;
     }
   }
-  NOTREACHED() << "Missing pic with POC: " << pic->pic_order_cnt;
+  NOTREACHED() << "Missing POC: " << poc;
 }
 
 void H264DPB::DeleteUnused() {

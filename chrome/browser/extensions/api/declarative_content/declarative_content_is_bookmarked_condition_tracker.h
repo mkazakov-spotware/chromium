@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/extensions/api/declarative_content/content_predicate_evaluator.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -27,11 +27,6 @@ namespace extensions {
 // Tests the bookmarked state of the page.
 class DeclarativeContentIsBookmarkedPredicate : public ContentPredicate {
  public:
-  DeclarativeContentIsBookmarkedPredicate(
-      const DeclarativeContentIsBookmarkedPredicate&) = delete;
-  DeclarativeContentIsBookmarkedPredicate& operator=(
-      const DeclarativeContentIsBookmarkedPredicate&) = delete;
-
   ~DeclarativeContentIsBookmarkedPredicate() override;
 
   bool IsIgnored() const override;
@@ -54,10 +49,12 @@ class DeclarativeContentIsBookmarkedPredicate : public ContentPredicate {
       bool is_bookmarked);
 
   // Weak.
-  const raw_ptr<ContentPredicateEvaluator, DanglingUntriaged> evaluator_;
+  ContentPredicateEvaluator* const evaluator_;
 
   scoped_refptr<const Extension> extension_;
   bool is_bookmarked_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeclarativeContentIsBookmarkedPredicate);
 };
 
 // Supports tracking of URL matches across tab contents in a browser context,
@@ -69,12 +66,6 @@ class DeclarativeContentIsBookmarkedConditionTracker
   DeclarativeContentIsBookmarkedConditionTracker(
       content::BrowserContext* context,
       Delegate* delegate);
-
-  DeclarativeContentIsBookmarkedConditionTracker(
-      const DeclarativeContentIsBookmarkedConditionTracker&) = delete;
-  DeclarativeContentIsBookmarkedConditionTracker& operator=(
-      const DeclarativeContentIsBookmarkedConditionTracker&) = delete;
-
   ~DeclarativeContentIsBookmarkedConditionTracker() override;
 
   // ContentPredicateEvaluator:
@@ -92,9 +83,6 @@ class DeclarativeContentIsBookmarkedConditionTracker
   void OnWebContentsNavigation(
       content::WebContents* contents,
       content::NavigationHandle* navigation_handle) override;
-  void OnWatchedPageChanged(
-      content::WebContents* contents,
-      const std::vector<std::string>& css_selectors) override;
   bool EvaluatePredicate(const ContentPredicate* predicate,
                          content::WebContents* tab) const override;
 
@@ -102,17 +90,14 @@ class DeclarativeContentIsBookmarkedConditionTracker
   class PerWebContentsTracker : public content::WebContentsObserver {
    public:
     using RequestEvaluationCallback =
-        base::RepeatingCallback<void(content::WebContents*)>;
+        base::Callback<void(content::WebContents*)>;
     using WebContentsDestroyedCallback =
-        base::OnceCallback<void(content::WebContents*)>;
+        base::Callback<void(content::WebContents*)>;
 
-    PerWebContentsTracker(content::WebContents* contents,
-                          RequestEvaluationCallback request_evaluation,
-                          WebContentsDestroyedCallback web_contents_destroyed);
-
-    PerWebContentsTracker(const PerWebContentsTracker&) = delete;
-    PerWebContentsTracker& operator=(const PerWebContentsTracker&) = delete;
-
+    PerWebContentsTracker(
+        content::WebContents* contents,
+        const RequestEvaluationCallback& request_evaluation,
+        const WebContentsDestroyedCallback& web_contents_destroyed);
     ~PerWebContentsTracker() override;
 
     void BookmarkAddedForUrl(const GURL& url);
@@ -131,15 +116,16 @@ class DeclarativeContentIsBookmarkedConditionTracker
 
     bool is_url_bookmarked_;
     const RequestEvaluationCallback request_evaluation_;
-    WebContentsDestroyedCallback web_contents_destroyed_;
+    const WebContentsDestroyedCallback web_contents_destroyed_;
+
+    DISALLOW_COPY_AND_ASSIGN(PerWebContentsTracker);
   };
 
   // bookmarks::BookmarkModelObserver implementation.
   void BookmarkModelChanged() override;
   void BookmarkNodeAdded(bookmarks::BookmarkModel* model,
                          const bookmarks::BookmarkNode* parent,
-                         size_t index,
-                         bool added_by_user) override;
+                         size_t index) override;
   void BookmarkNodeRemoved(bookmarks::BookmarkModel* model,
                            const bookmarks::BookmarkNode* parent,
                            size_t old_index,
@@ -161,7 +147,7 @@ class DeclarativeContentIsBookmarkedConditionTracker
   void UpdateAllPerWebContentsTrackers();
 
   // Weak.
-  const raw_ptr<Delegate> delegate_;
+  Delegate* const delegate_;
 
   // Maps WebContents to the tracker for that WebContents state.
   std::map<content::WebContents*, std::unique_ptr<PerWebContentsTracker>>
@@ -172,9 +158,10 @@ class DeclarativeContentIsBookmarkedConditionTracker
   // are complete.
   int extensive_bookmark_changes_in_progress_;
 
-  base::ScopedObservation<bookmarks::BookmarkModel,
-                          bookmarks::BookmarkModelObserver>
-      scoped_bookmarks_observation_{this};
+  ScopedObserver<bookmarks::BookmarkModel, bookmarks::BookmarkModelObserver>
+      scoped_bookmarks_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DeclarativeContentIsBookmarkedConditionTracker);
 };
 
 }  // namespace extensions

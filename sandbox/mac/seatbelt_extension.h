@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SANDBOX_MAC_SEATBELT_EXTENSION_H_
 #define SANDBOX_MAC_SEATBELT_EXTENSION_H_
 
+#include "base/macros.h"
 #include "sandbox/mac/seatbelt_export.h"
 
 #include <stddef.h>
@@ -26,16 +27,9 @@ class SEATBELT_EXPORT SeatbeltExtension {
   enum Type {
     // Requires (allow file-read* (extension "com.apple.app-sandbox.read")).
     FILE_READ,
-
-    // Requires: (allow file-read* file-write*
-    //               (extension "com.apple.app-sandbox.read-write"))
-    FILE_READ_WRITE,
-
-    // TODO(rsesek): Potentially support MACH and GENERIC extension types.
+    // TODO(rsesek): Potentially support FILE_READ_WRITE, MACH and GENERIC
+    // extension types.
   };
-
-  SeatbeltExtension(const SeatbeltExtension&) = delete;
-  SeatbeltExtension& operator=(const SeatbeltExtension&) = delete;
 
   // Before an extension is destroyed, it must be consumed or explicitly
   // revoked.
@@ -84,6 +78,8 @@ class SEATBELT_EXPORT SeatbeltExtension {
 
   // An opaque reference to a consumed extension, 0 if revoked or not consumed.
   int64_t handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(SeatbeltExtension);
 };
 
 }  // namespace sandbox

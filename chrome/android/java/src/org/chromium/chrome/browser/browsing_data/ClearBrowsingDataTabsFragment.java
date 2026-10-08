@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browsing_data;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -12,22 +13,26 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.core.text.TextUtilsCompat;
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
-import androidx.viewpager2.widget.ViewPager2;
+// TODO(bjoyce): Need to convert viewpager after fragmentpageradatper.
+import androidx.viewpager.widget.ViewPager;
 
-import com.google.android.material.appbar.AppBarLayout;
+// TODO(bjoyce): Need to convert tablayout to androidx after viewpager
+// and fragmentpageradatper are converted.
 import com.google.android.material.tabs.TabLayout;
-import com.google.android.material.tabs.TabLayoutMediator;
 
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.SettingsActivity;
+
+import java.util.Locale;
 
 /**
  * Fragment with a {@link TabLayout} containing a basic and an advanced version of the CBD dialog.
@@ -54,6 +59,21 @@ public class ClearBrowsingDataTabsFragment extends Fragment {
         RecordUserAction.record("ClearBrowsingData_DialogCreated");
     }
 
+    /*
+     * RTL is broken for ViewPager: https://code.google.com/p/android/issues/detail?id=56831
+     * This class works around this issue by inserting the tabs in inverse order if RTL is active.
+     * The TabLayout needs to be set to LTR for this to work.
+     * TODO(dullweber): Extract the RTL code into a wrapper class if other places in Chromium need
+     * it as well.
+     */
+    private static int adjustIndexForDirectionality(int index) {
+        if (TextUtilsCompat.getLayoutDirectionFromLocale(Locale.getDefault())
+                == ViewCompat.LAYOUT_DIRECTION_RTL) {
+            return CBD_TAB_COUNT - 1 - index;
+        }
+        return index;
+    }
+
     @Override
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -61,39 +81,26 @@ public class ClearBrowsingDataTabsFragment extends Fragment {
         View view = inflater.inflate(R.layout.clear_browsing_data_tabs, container, false);
 
         // Get the ViewPager and set its PagerAdapter so that it can display items.
-        ViewPager2 viewPager = view.findViewById(R.id.clear_browsing_data_viewpager);
-        viewPager.setAdapter(new ClearBrowsingDataPagerAdapter(
-                mFetcher, getFragmentManager(), (FragmentActivity) getActivity()));
+        ViewPager viewPager = view.findViewById(R.id.clear_browsing_data_viewpager);
+        viewPager.setAdapter(
+                new ClearBrowsingDataPagerAdapter(mFetcher, getFragmentManager(), getActivity()));
 
         // Give the TabLayout the ViewPager.
         TabLayout tabLayout = view.findViewById(R.id.clear_browsing_data_tabs);
-        new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
-            tab.setText(getTabTitle(position));
-        }).attach();
-        int tabIndex = BrowsingDataBridge.getInstance().getLastSelectedClearBrowsingDataTab();
+        tabLayout.setupWithViewPager(viewPager);
+        int tabIndex = adjustIndexForDirectionality(
+                BrowsingDataBridge.getInstance().getLastSelectedClearBrowsingDataTab());
         TabLayout.Tab tab = tabLayout.getTabAt(tabIndex);
         if (tab != null) {
             tab.select();
         }
         tabLayout.addOnTabSelectedListener(new TabSelectListener());
 
-        // Set outline provider to null to prevent shadow from being drawn between title and tabs.
+        // Remove elevation to avoid shadow between title and tabs.
         SettingsActivity activity = (SettingsActivity) getActivity();
-        AppBarLayout appBarLayout = activity.findViewById(R.id.app_bar_layout);
-        appBarLayout.setOutlineProvider(null);
+        activity.getSupportActionBar().setElevation(0.0f);
 
         return view;
-    }
-
-    private String getTabTitle(int position) {
-        switch (position) {
-            case 0:
-                return getActivity().getString(R.string.clear_browsing_data_basic_tab_title);
-            case 1:
-                return getActivity().getString(R.string.prefs_section_advanced);
-            default:
-                throw new RuntimeException("invalid position: " + position);
-        }
     }
 
     @Override
@@ -104,22 +111,25 @@ public class ClearBrowsingDataTabsFragment extends Fragment {
         outState.putParcelable(ClearBrowsingDataFragment.CLEAR_BROWSING_DATA_FETCHER, mFetcher);
     }
 
-    private static class ClearBrowsingDataPagerAdapter extends FragmentStateAdapter {
+    private static class ClearBrowsingDataPagerAdapter extends FragmentPagerAdapter {
         private final ClearBrowsingDataFetcher mFetcher;
+        private final Context mContext;
 
         ClearBrowsingDataPagerAdapter(
-                ClearBrowsingDataFetcher fetcher, FragmentManager fm, FragmentActivity activity) {
-            super(activity);
+                ClearBrowsingDataFetcher fetcher, FragmentManager fm, Context context) {
+            super(fm);
             mFetcher = fetcher;
+            mContext = context;
         }
 
         @Override
-        public int getItemCount() {
+        public int getCount() {
             return CBD_TAB_COUNT;
         }
 
         @Override
-        public Fragment createFragment(int position) {
+        public Fragment getItem(int position) {
+            position = adjustIndexForDirectionality(position);
             ClearBrowsingDataFragment fragment;
             switch (position) {
                 case 0:
@@ -134,12 +144,25 @@ public class ClearBrowsingDataTabsFragment extends Fragment {
             fragment.setClearBrowsingDataFetcher(mFetcher);
             return fragment;
         }
+
+        @Override
+        public CharSequence getPageTitle(int position) {
+            position = adjustIndexForDirectionality(position);
+            switch (position) {
+                case 0:
+                    return mContext.getString(R.string.clear_browsing_data_basic_tab_title);
+                case 1:
+                    return mContext.getString(R.string.prefs_section_advanced);
+                default:
+                    throw new RuntimeException("invalid position: " + position);
+            }
+        }
     }
 
     private static class TabSelectListener implements TabLayout.OnTabSelectedListener {
         @Override
         public void onTabSelected(TabLayout.Tab tab) {
-            int tabIndex = tab.getPosition();
+            int tabIndex = adjustIndexForDirectionality(tab.getPosition());
             BrowsingDataBridge.getInstance().setLastSelectedClearBrowsingDataTab(tabIndex);
             if (tabIndex == ClearBrowsingDataTab.BASIC) {
                 RecordUserAction.record("ClearBrowsingData_SwitchTo_BasicTab");

@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_VIEW_LAYOUT_DELEGATE_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_VIEW_LAYOUT_DELEGATE_H_
 
-#include "chrome/browser/ui/browser.h"
 #include "ui/gfx/native_widget_types.h"
 
 class ExclusiveAccessBubbleViews;
@@ -32,9 +31,6 @@ class BrowserViewLayoutDelegate {
   virtual float GetTopControlsSlideBehaviorShownRatio() const = 0;
   virtual bool SupportsWindowFeature(Browser::WindowFeature feature) const = 0;
   virtual gfx::NativeView GetHostView() const = 0;
-  virtual bool BrowserIsSystemWebApp() const = 0;
-  virtual bool BrowserIsWebApp() const = 0;
-  virtual bool BrowserIsTypeApp() const = 0;
   virtual bool BrowserIsTypeNormal() const = 0;
   virtual bool HasFindBarController() const = 0;
   virtual void MoveWindowForFindBarIfNecessary() const = 0;

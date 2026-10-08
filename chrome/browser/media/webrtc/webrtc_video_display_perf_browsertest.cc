@@ -1,9 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <algorithm>
-#include <tuple>
 
 #include "base/json/json_reader.h"
 #include "base/strings/string_tokenizer.h"
@@ -89,11 +88,9 @@ void PrintMeanAndMax(const std::string& var_name,
   CalculateMeanAndMax(vars, &mean, &std_dev, &max);
   perf_test::PrintResultMeanAndError(
       kTestResultString, name_modifier, var_name + " Mean",
-      base::StringPrintf("%.0lf,%.0lf", mean, std_dev), "μs_smallerIsBetter",
-      true);
+      base::StringPrintf("%.0lf,%.0lf", mean, std_dev), "μs", true);
   perf_test::PrintResult(kTestResultString, name_modifier, var_name + " Max",
-                         base::StringPrintf("%.0lf", max), "μs_smallerIsBetter",
-                         true);
+                         base::StringPrintf("%.0lf", max), "μs", true);
 }
 
 void FindEvents(trace_analyzer::TraceAnalyzer* analyzer,
@@ -118,8 +115,7 @@ void AssociateEvents(trace_analyzer::TraceAnalyzer* analyzer,
 
 content::WebContents* OpenWebrtcInternalsTab(Browser* browser) {
   chrome::AddTabAt(browser, GURL(url::kAboutBlankURL), -1, true);
-  EXPECT_TRUE(
-      ui_test_utils::NavigateToURL(browser, GURL("chrome://webrtc-internals")));
+  ui_test_utils::NavigateToURL(browser, GURL("chrome://webrtc-internals"));
   return browser->tab_strip_model()->GetActiveWebContents();
 }
 
@@ -127,31 +123,32 @@ std::vector<double> ParseGoogMaxDecodeFromWebrtcInternalsTab(
     const std::string& webrtc_internals_stats_json) {
   std::vector<double> goog_decode_ms;
 
-  absl::optional<base::Value> parsed_json =
-      base::JSONReader::Read(webrtc_internals_stats_json);
-  if (!parsed_json || !parsed_json->is_dict())
+  std::unique_ptr<base::Value> parsed_json =
+      base::JSONReader::ReadDeprecated(webrtc_internals_stats_json);
+  base::DictionaryValue* dictionary = nullptr;
+  if (!parsed_json.get() || !parsed_json->GetAsDictionary(&dictionary))
     return goog_decode_ms;
-  const base::Value::Dict& dictionary = parsed_json->GetDict();
+  ignore_result(parsed_json.release());
 
   // |dictionary| should have exactly two entries, one per ssrc.
-  if (dictionary.size() != 2u)
+  if (!dictionary || dictionary->size() != 2u)
     return goog_decode_ms;
 
   // Only a given |dictionary| entry will have a "stats" entry that has a key
   // that ends with "recv-googMaxDecodeMs" inside (it will start with the ssrc
   // id, but we don't care about that). Then collect the string of "values" out
   // of that key and convert those into the |goog_decode_ms| vector of doubles.
-  for (auto dictionary_entry : dictionary) {
-    for (auto ssrc_entry : dictionary_entry.second.GetDict()) {
+  for (const auto& dictionary_entry : *dictionary) {
+    for (const auto& ssrc_entry : dictionary_entry.second->DictItems()) {
       if (ssrc_entry.first != "stats")
         continue;
 
-      for (auto stat_entry : ssrc_entry.second.GetDict()) {
+      for (const auto& stat_entry : ssrc_entry.second.DictItems()) {
         if (!base::EndsWith(stat_entry.first, "recv-googMaxDecodeMs",
                             base::CompareCase::SENSITIVE)) {
           continue;
         }
-        const base::Value* values_entry = stat_entry.second.FindKey({"values"});
+        base::Value* values_entry = stat_entry.second.FindKey({"values"});
         if (!values_entry)
           continue;
         base::StringTokenizer values_tokenizer(values_entry->GetString(),
@@ -232,7 +229,7 @@ class WebRtcVideoDisplayPerfBrowserTest
         OpenPageAndGetUserMediaInNewTabWithConstraints(
             embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage),
             "{audio: true, video: false}");
-    const int process_id = right_tab->GetPrimaryMainFrame()
+    const int process_id = right_tab->GetMainFrame()
                                ->GetRenderViewHost()
                                ->GetProcess()
                                ->GetProcess()
@@ -416,8 +413,8 @@ class WebRtcVideoDisplayPerfBrowserTest
         test_config_.fps, smoothness_indicator.c_str());
     perf_test::PrintResult(
         kTestResultString, name_modifier, "Skipped frames",
-        base::StringPrintf("%.2lf", skipped_frame_percentage_),
-        "percent_smallerIsBetter", true);
+        base::StringPrintf("%.2lf", skipped_frame_percentage_), "percent",
+        true);
     // We identify intervals in a way that can help us easily bisect the source
     // of added latency in case of a regression. From these intervals, "Render
     // Algorithm" can take random amount of times based on the vsync cycle it is

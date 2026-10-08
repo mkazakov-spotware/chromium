@@ -292,11 +292,10 @@ function run_test() {
 
 
 
-    promise_test(function() {
-        return Promise.all(all_promises)
-            .then(function() {done();})
-            .catch(function() {done();})
-    }, "setup");
+    Promise.all(all_promises)
+    .then(function() {done();})
+    .catch(function() {done();})
+    return;
 
     // A test vector has all needed fields for signing and verifying, EXCEPT that the
     // key field may be null. This function replaces that null with the Correct

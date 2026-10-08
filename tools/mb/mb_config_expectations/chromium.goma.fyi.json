@@ -1,7 +1,24 @@
 {
+  "Linux Builder Goma Canary": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": false,
+      "is_debug": false,
+      "proprietary_codecs": true,
+      "use_goma": true
+    }
+  },
+  "Linux Builder Goma Latest Client": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": false,
+      "is_debug": false,
+      "proprietary_codecs": true,
+      "use_goma": true
+    }
+  },
   "Linux Builder Goma RBE Canary": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
@@ -11,11 +28,50 @@
   },
   "Linux Builder Goma RBE Latest Client": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
       "proprietary_codecs": true,
+      "use_goma": true
+    }
+  },
+  "Mac Builder (dbg) Goma Canary": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": true,
+      "is_debug": true,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "Mac Builder (dbg) Goma Canary (clobber)": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": true,
+      "is_debug": true,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "Mac Builder (dbg) Goma Latest Client": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": true,
+      "is_debug": true,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "Mac Builder (dbg) Goma Latest Client (clobber)": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": true,
+      "is_debug": true,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
       "use_goma": true
     }
   },
@@ -39,18 +95,27 @@
       "use_goma": true
     }
   },
-  "Mac M1 Builder (dbg) Goma RBE Canary (clobber)": {
+  "Mac Builder Goma Canary": {
     "gn_args": {
       "ffmpeg_branding": "Chrome",
-      "is_component_build": true,
-      "is_debug": true,
+      "is_component_build": false,
+      "is_debug": false,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "target_cpu": "arm64",
       "use_goma": true
     }
   },
-  "Win Builder (dbg) Goma RBE ATS Canary": {
+  "Mac Builder Goma Latest Client": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": false,
+      "is_debug": false,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "Win Builder (dbg) Goma Canary": {
     "gn_args": {
       "ffmpeg_branding": "Chrome",
       "is_component_build": true,
@@ -61,18 +126,7 @@
       "use_goma": true
     }
   },
-  "Win Builder (dbg) Goma RBE ATS Latest Client": {
-    "gn_args": {
-      "ffmpeg_branding": "Chrome",
-      "is_component_build": true,
-      "is_debug": true,
-      "proprietary_codecs": true,
-      "symbol_level": 0,
-      "target_cpu": "x86",
-      "use_goma": true
-    }
-  },
-  "Win Builder (dbg) Goma RBE Canary": {
+  "Win Builder (dbg) Goma Latest Client": {
     "gn_args": {
       "ffmpeg_branding": "Chrome",
       "is_component_build": true,
@@ -94,9 +148,8 @@
       "use_goma": true
     }
   },
-  "Win Builder Goma RBE ATS Canary": {
+  "Win Builder Goma Canary": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
@@ -106,33 +159,8 @@
       "use_goma": true
     }
   },
-  "Win Builder Goma RBE ATS Latest Client": {
+  "Win Builder Goma Latest Client": {
     "gn_args": {
-      "dcheck_always_on": false,
-      "ffmpeg_branding": "Chrome",
-      "is_component_build": false,
-      "is_debug": false,
-      "proprietary_codecs": true,
-      "symbol_level": 1,
-      "target_cpu": "x86",
-      "use_goma": true
-    }
-  },
-  "Win Builder Goma RBE Canary": {
-    "gn_args": {
-      "dcheck_always_on": false,
-      "ffmpeg_branding": "Chrome",
-      "is_component_build": false,
-      "is_debug": false,
-      "proprietary_codecs": true,
-      "symbol_level": 1,
-      "target_cpu": "x86",
-      "use_goma": true
-    }
-  },
-  "Win Builder Goma RBE Canary (clobber)": {
-    "gn_args": {
-      "dcheck_always_on": false,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
@@ -144,7 +172,6 @@
   },
   "Win Builder Goma RBE Latest Client": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ffmpeg_branding": "Chrome",
       "is_component_build": false,
       "is_debug": false,
@@ -154,9 +181,70 @@
       "use_goma": true
     }
   },
+  "Win7 Builder (dbg) Goma Canary": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": true,
+      "is_debug": true,
+      "proprietary_codecs": true,
+      "symbol_level": 0,
+      "target_cpu": "x86",
+      "use_goma": true
+    }
+  },
+  "Win7 Builder (dbg) Goma Latest Client": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": true,
+      "is_debug": true,
+      "proprietary_codecs": true,
+      "symbol_level": 0,
+      "target_cpu": "x86",
+      "use_goma": true
+    }
+  },
+  "Win7 Builder Goma Canary": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": false,
+      "is_debug": false,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
+      "target_cpu": "x86",
+      "use_goma": true
+    }
+  },
+  "Win7 Builder Goma Latest Client": {
+    "gn_args": {
+      "ffmpeg_branding": "Chrome",
+      "is_component_build": false,
+      "is_debug": false,
+      "proprietary_codecs": true,
+      "symbol_level": 1,
+      "target_cpu": "x86",
+      "use_goma": true
+    }
+  },
+  "android-archive-dbg-goma-canary": {
+    "gn_args": {
+      "is_component_build": true,
+      "is_debug": true,
+      "symbol_level": 1,
+      "target_os": "android",
+      "use_goma": true
+    }
+  },
+  "android-archive-dbg-goma-latest": {
+    "gn_args": {
+      "is_component_build": true,
+      "is_debug": true,
+      "symbol_level": 1,
+      "target_os": "android",
+      "use_goma": true
+    }
+  },
   "android-archive-dbg-goma-rbe-ats-canary": {
     "gn_args": {
-      "debuggable_apks": false,
       "is_component_build": true,
       "is_debug": true,
       "symbol_level": 1,
@@ -166,7 +254,6 @@
   },
   "android-archive-dbg-goma-rbe-ats-latest": {
     "gn_args": {
-      "debuggable_apks": false,
       "is_component_build": true,
       "is_debug": true,
       "symbol_level": 1,
@@ -176,7 +263,6 @@
   },
   "android-archive-dbg-goma-rbe-canary": {
     "gn_args": {
-      "debuggable_apks": false,
       "is_component_build": true,
       "is_debug": true,
       "symbol_level": 1,
@@ -186,7 +272,6 @@
   },
   "android-archive-dbg-goma-rbe-latest": {
     "gn_args": {
-      "debuggable_apks": false,
       "is_component_build": true,
       "is_debug": true,
       "symbol_level": 1,
@@ -194,34 +279,69 @@
       "use_goma": true
     }
   },
-  "chromeos-amd64-generic-rel-goma-rbe-canary": {
-    "args_file": "//build/args/chromeos/amd64-generic-vm.gni",
+  "chromeos-amd64-generic-rel-goma-canary": {
+    "args_file": "//build/args/chromeos/amd64-generic.gni",
     "gn_args": {
-      "also_build_lacros_chrome_for_architecture": "amd64",
-      "dcheck_always_on": false,
       "is_chromeos_device": true,
       "ozone_platform_headless": true,
-      "use_goma": true,
-      "use_real_dbus_clients": false
+      "use_goma": true
+    }
+  },
+  "chromeos-amd64-generic-rel-goma-latest": {
+    "args_file": "//build/args/chromeos/amd64-generic.gni",
+    "gn_args": {
+      "is_chromeos_device": true,
+      "ozone_platform_headless": true,
+      "use_goma": true
+    }
+  },
+  "chromeos-amd64-generic-rel-goma-rbe-canary": {
+    "args_file": "//build/args/chromeos/amd64-generic.gni",
+    "gn_args": {
+      "is_chromeos_device": true,
+      "ozone_platform_headless": true,
+      "use_goma": true
     }
   },
   "chromeos-amd64-generic-rel-goma-rbe-latest": {
-    "args_file": "//build/args/chromeos/amd64-generic-vm.gni",
+    "args_file": "//build/args/chromeos/amd64-generic.gni",
     "gn_args": {
-      "also_build_lacros_chrome_for_architecture": "amd64",
-      "dcheck_always_on": false,
       "is_chromeos_device": true,
       "ozone_platform_headless": true,
-      "use_goma": true,
-      "use_real_dbus_clients": false
+      "use_goma": true
+    }
+  },
+  "ios-device-goma-canary-clobber": {
+    "gn_args": {
+      "ios_code_signing_identity_description": "Apple Development",
+      "ios_enable_code_signing": false,
+      "is_component_build": false,
+      "is_debug": false,
+      "symbol_level": 0,
+      "target_cpu": "arm64",
+      "target_environment": "device",
+      "target_os": "ios",
+      "use_goma": true
+    }
+  },
+  "ios-device-goma-latest-clobber": {
+    "gn_args": {
+      "ios_code_signing_identity_description": "Apple Development",
+      "ios_enable_code_signing": false,
+      "is_component_build": false,
+      "is_debug": false,
+      "symbol_level": 0,
+      "target_cpu": "arm64",
+      "target_environment": "device",
+      "target_os": "ios",
+      "use_goma": true
     }
   },
   "ios-device-goma-rbe-canary-clobber": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ios_code_signing_identity_description": "Apple Development",
       "ios_enable_code_signing": false,
-      "ios_set_attributes_for_xcode_project_generation": false,
+      "ios_use_goma_rbe": true,
       "is_component_build": false,
       "is_debug": false,
       "symbol_level": 0,
@@ -233,10 +353,9 @@
   },
   "ios-device-goma-rbe-latest-clobber": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ios_code_signing_identity_description": "Apple Development",
       "ios_enable_code_signing": false,
-      "ios_set_attributes_for_xcode_project_generation": false,
+      "ios_use_goma_rbe": true,
       "is_component_build": false,
       "is_debug": false,
       "symbol_level": 0,
@@ -246,9 +365,36 @@
       "use_goma": true
     }
   },
+  "linux-archive-rel-goma-canary": {
+    "gn_args": {
+      "is_component_build": false,
+      "is_debug": false,
+      "use_goma": true
+    }
+  },
+  "linux-archive-rel-goma-canary-localoutputcache": {
+    "gn_args": {
+      "is_component_build": false,
+      "is_debug": false,
+      "use_goma": true
+    }
+  },
+  "linux-archive-rel-goma-latest": {
+    "gn_args": {
+      "is_component_build": false,
+      "is_debug": false,
+      "use_goma": true
+    }
+  },
+  "linux-archive-rel-goma-latest-localoutputcache": {
+    "gn_args": {
+      "is_component_build": false,
+      "is_debug": false,
+      "use_goma": true
+    }
+  },
   "linux-archive-rel-goma-rbe-ats-canary": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -256,7 +402,6 @@
   },
   "linux-archive-rel-goma-rbe-ats-latest": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -264,7 +409,6 @@
   },
   "linux-archive-rel-goma-rbe-canary": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -272,15 +416,49 @@
   },
   "linux-archive-rel-goma-rbe-latest": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
     }
   },
+  "mac-archive-rel-goma-canary": {
+    "gn_args": {
+      "enable_stripping": true,
+      "is_component_build": false,
+      "is_debug": false,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "mac-archive-rel-goma-canary-localoutputcache": {
+    "gn_args": {
+      "enable_stripping": true,
+      "is_component_build": false,
+      "is_debug": false,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "mac-archive-rel-goma-latest": {
+    "gn_args": {
+      "enable_stripping": true,
+      "is_component_build": false,
+      "is_debug": false,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "mac-archive-rel-goma-latest-localoutputcache": {
+    "gn_args": {
+      "enable_stripping": true,
+      "is_component_build": false,
+      "is_debug": false,
+      "symbol_level": 1,
+      "use_goma": true
+    }
+  },
   "mac-archive-rel-goma-rbe-canary": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_stripping": true,
       "is_component_build": false,
       "is_debug": false,
@@ -290,11 +468,30 @@
   },
   "mac-archive-rel-goma-rbe-latest": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_stripping": true,
       "is_component_build": false,
       "is_debug": false,
       "symbol_level": 1,
+      "use_goma": true
+    }
+  },
+  "win32-archive-rel-goma-canary-localoutputcache": {
+    "gn_args": {
+      "is_component_build": false,
+      "is_debug": false,
+      "skip_archive_compression": false,
+      "symbol_level": 1,
+      "target_cpu": "x86",
+      "use_goma": true
+    }
+  },
+  "win32-archive-rel-goma-latest-localoutputcache": {
+    "gn_args": {
+      "is_component_build": false,
+      "is_debug": false,
+      "skip_archive_compression": false,
+      "symbol_level": 1,
+      "target_cpu": "x86",
       "use_goma": true
     }
   }

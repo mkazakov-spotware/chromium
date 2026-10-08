@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 
 #include "base/command_line.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -42,9 +42,6 @@ class TCPServerSocketFactory
   explicit TCPServerSocketFactory(uint16_t port)
       : port_(port), last_tethering_port_(kMinTetheringPort) {}
 
-  TCPServerSocketFactory(const TCPServerSocketFactory&) = delete;
-  TCPServerSocketFactory& operator=(const TCPServerSocketFactory&) = delete;
-
  private:
   std::unique_ptr<net::ServerSocket> CreateLocalHostServerSocket(int port) {
     std::unique_ptr<net::ServerSocket> socket(
@@ -54,18 +51,20 @@ class TCPServerSocketFactory
       return socket;
     if (socket->ListenWithAddressAndPort("::1", port, kBackLog) == net::OK)
       return socket;
-    return nullptr;
+    return std::unique_ptr<net::ServerSocket>();
   }
 
   // content::DevToolsSocketFactory.
   std::unique_ptr<net::ServerSocket> CreateForHttpServer() override {
+    std::unique_ptr<net::ServerSocket> socket(
+        new net::TCPServerSocket(nullptr, net::NetLogSource()));
     return CreateLocalHostServerSocket(port_);
   }
 
   std::unique_ptr<net::ServerSocket> CreateForTethering(
       std::string* name) override {
     if (!g_tethering_enabled.Get())
-      return nullptr;
+      return std::unique_ptr<net::ServerSocket>();
 
     if (last_tethering_port_ == kMaxTetheringPort)
       last_tethering_port_ = kMinTetheringPort;
@@ -77,6 +76,8 @@ class TCPServerSocketFactory
   std::string address_;
   uint16_t port_;
   uint16_t last_tethering_port_;
+
+  DISALLOW_COPY_AND_ASSIGN(TCPServerSocketFactory);
 };
 
 }  // namespace
@@ -90,8 +91,8 @@ RemoteDebuggingServer::RemoteDebuggingServer() {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kRemoteDebuggingPipe)) {
-    content::DevToolsAgentHost::StartRemoteDebuggingPipeHandler(
-        base::BindOnce(&ChromeDevToolsManagerDelegate::CloseBrowserSoon));
+    content::DevToolsAgentHost::StartRemoteDebuggingPipeHandler();
+    return;
   }
 
   std::string port_str =

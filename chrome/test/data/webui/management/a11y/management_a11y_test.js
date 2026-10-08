@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@ GEN_INCLUDE([
   '//chrome/test/data/webui/polymer_browser_test_base.js',
 ]);
 
-GEN('#include "chrome/browser/ui/webui/management/management_a11y_browsertest.h"');
+GEN('#include "chrome/browser/ui/webui/management_a11y_browsertest.h"');
 GEN('#include "content/public/test/browser_test.h"');
 
 /**
@@ -16,6 +16,7 @@ GEN('#include "content/public/test/browser_test.h"');
  * @constructor
  * @extends {PolymerTest}
  */
+// eslint-disable-next-line no-var
 var CrManagementA11yTest = class extends PolymerTest {
   /** @override */
   get browsePreload() {

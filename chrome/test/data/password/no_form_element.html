@@ -1,6 +1,7 @@
 <html>
 <head>
   <script>
+
     function state_changed(xhr) {
       if (xhr.readyState == 4) {
         window.top.location.href = "done.html";
@@ -13,17 +14,12 @@
       xhr.open("GET", "password_xhr_submit.html", true);
       xhr.send(null);
     }
-
-    function on_keypress(event) {
-      if(event.which === 13)
-        send_xhr();
-    }
   </script>
 </head>
 <body>
 
 <input type="text" id="username_field">
-<input type="password" id="password_field" onkeypress="on_keypress(event)">
+<input type="password" id="password_field">
 
 </body>
 </html>

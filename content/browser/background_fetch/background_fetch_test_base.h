@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,21 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/memory/weak_ptr.h"
 #include "content/browser/background_fetch/background_fetch_test_browser_context.h"
 #include "content/browser/background_fetch/background_fetch_test_service_worker.h"
 #include "content/browser/devtools/devtools_background_services_context_impl.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_browser_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/origin.h"
 
 namespace content {
 
 class ServiceWorkerRegistration;
-class StoragePartitionImpl;
+class StoragePartition;
 
 // Base class containing common functionality needed in unit tests written for
 // the Background Fetch feature.
@@ -34,10 +33,6 @@ class BackgroundFetchTestBase : public ::testing::Test {
   using TestResponseBuilder = MockBackgroundFetchDelegate::TestResponseBuilder;
 
   BackgroundFetchTestBase();
-
-  BackgroundFetchTestBase(const BackgroundFetchTestBase&) = delete;
-  BackgroundFetchTestBase& operator=(const BackgroundFetchTestBase&) = delete;
-
   ~BackgroundFetchTestBase() override;
 
   // ::testing::Test overrides.
@@ -78,18 +73,16 @@ class BackgroundFetchTestBase : public ::testing::Test {
   }
 
   // Returns the browser context that should be used for the tests.
-  TestBrowserContext* browser_context() { return &browser_context_; }
+  BrowserContext* browser_context() { return &browser_context_; }
 
   // Returns the once-initialized default storage partition to be used in tests.
-  base::WeakPtr<StoragePartitionImpl> storage_partition() {
-    return storage_partition_factory_.GetWeakPtr();
-  }
+  StoragePartition* storage_partition() { return storage_partition_; }
 
-  // Returns the storage key that should be used for Background Fetch tests.
-  const blink::StorageKey& storage_key() const { return storage_key_; }
+  // Returns the origin that should be used for Background Fetch tests.
+  const url::Origin& origin() const { return origin_; }
 
   // Returns the DevTools context for logging events.
-  scoped_refptr<DevToolsBackgroundServicesContextImpl> devtools_context();
+  scoped_refptr<DevToolsBackgroundServicesContextImpl> devtools_context() const;
 
  protected:
   BrowserTaskEnvironment task_environment_;  // Must be first member.
@@ -97,13 +90,13 @@ class BackgroundFetchTestBase : public ::testing::Test {
  private:
   BackgroundFetchTestBrowserContext browser_context_;
 
-  raw_ptr<MockBackgroundFetchDelegate> delegate_;
+  MockBackgroundFetchDelegate* delegate_;
 
   EmbeddedWorkerTestHelper embedded_worker_test_helper_;
 
-  blink::StorageKey storage_key_;
+  url::Origin origin_;
 
-  base::WeakPtrFactory<StoragePartitionImpl> storage_partition_factory_;
+  StoragePartition* storage_partition_;
 
   int next_pattern_id_ = 0;
 
@@ -114,6 +107,8 @@ class BackgroundFetchTestBase : public ::testing::Test {
 
   bool set_up_called_ = false;
   bool tear_down_called_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchTestBase);
 };
 
 }  // namespace content

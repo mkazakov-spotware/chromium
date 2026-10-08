@@ -38,10 +38,12 @@ namespace blink {
 
 RTCVoidRequestImpl::RTCVoidRequestImpl(
     ExecutionContext* context,
+    base::Optional<RTCSetSessionDescriptionOperation> operation,
     RTCPeerConnection* requester,
     V8VoidFunction* success_callback,
     V8RTCPeerConnectionErrorCallback* error_callback)
     : ExecutionContextLifecycleObserver(context),
+      operation_(std::move(operation)),
       success_callback_(success_callback),
       error_callback_(error_callback),
       requester_(requester) {
@@ -54,6 +56,8 @@ void RTCVoidRequestImpl::RequestSucceeded() {
   bool should_fire_callback =
       requester_ && requester_->ShouldFireDefaultCallbacks();
   if (should_fire_callback && success_callback_) {
+    if (operation_)
+      requester_->NoteVoidRequestCompleted(*operation_, true);
     success_callback_->InvokeAndReportException(nullptr);
   }
 
@@ -64,6 +68,8 @@ void RTCVoidRequestImpl::RequestFailed(const webrtc::RTCError& error) {
   bool should_fire_callback =
       requester_ && requester_->ShouldFireDefaultCallbacks();
   if (should_fire_callback && error_callback_.Get()) {
+    if (operation_)
+      requester_->NoteVoidRequestCompleted(*operation_, false);
     error_callback_->InvokeAndReportException(
         nullptr, CreateDOMExceptionFromRTCError(error));
   }

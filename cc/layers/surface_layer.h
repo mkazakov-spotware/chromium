@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,7 +50,7 @@ class CC_EXPORT SurfaceLayer : public Layer {
   // surface is ignored and the content will be stretched to fill the bounds.
   void SetStretchContentToFillBounds(bool stretch_content_to_fill_bounds);
   bool stretch_content_to_fill_bounds() const {
-    return stretch_content_to_fill_bounds_.Read(*this);
+    return stretch_content_to_fill_bounds_;
   }
 
   void SetSurfaceHitTestable(bool surface_hit_testable);
@@ -62,23 +62,18 @@ class CC_EXPORT SurfaceLayer : public Layer {
   void SetMayContainVideo(bool may_contain_video);
 
   // Layer overrides.
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
   void SetLayerTreeHost(LayerTreeHost* host) override;
-  void PushPropertiesTo(LayerImpl* layer,
-                        const CommitState& commit_state,
-                        const ThreadUnsafeCommitState& unsafe_state) override;
+  void PushPropertiesTo(LayerImpl* layer) override;
 
-  const viz::SurfaceId& surface_id() const {
-    return surface_range_.Read(*this).end();
+  const viz::SurfaceId& surface_id() const { return surface_range_.end(); }
+
+  const base::Optional<viz::SurfaceId>& oldest_acceptable_fallback() const {
+    return surface_range_.start();
   }
 
-  const absl::optional<viz::SurfaceId>& oldest_acceptable_fallback() const {
-    return surface_range_.Read(*this).start();
-  }
-
-  absl::optional<uint32_t> deadline_in_frames() const {
-    return deadline_in_frames_.Read(*this);
+  base::Optional<uint32_t> deadline_in_frames() const {
+    return deadline_in_frames_;
   }
 
  protected:
@@ -89,14 +84,13 @@ class CC_EXPORT SurfaceLayer : public Layer {
  private:
   ~SurfaceLayer() override;
 
-  ProtectedSequenceWritable<UpdateSubmissionStateCB>
-      update_submission_state_callback_;
+  UpdateSubmissionStateCB update_submission_state_callback_;
 
-  ProtectedSequenceReadable<bool> may_contain_video_;
-  ProtectedSequenceReadable<viz::SurfaceRange> surface_range_;
-  ProtectedSequenceWritable<absl::optional<uint32_t>> deadline_in_frames_;
+  bool may_contain_video_ = false;
+  viz::SurfaceRange surface_range_;
+  base::Optional<uint32_t> deadline_in_frames_ = 0u;
 
-  ProtectedSequenceReadable<bool> stretch_content_to_fill_bounds_;
+  bool stretch_content_to_fill_bounds_ = false;
 
   // Whether or not the surface should submit hit test data when submitting
   // compositor frame. The bit represents that the surface layer may be
@@ -104,16 +98,16 @@ class CC_EXPORT SurfaceLayer : public Layer {
   // the hit test information of that iframe. This bit is different from a layer
   // being hit testable in the renderer, a hit testable surface layer may not
   // be surface hit testable (e.g., a surface layer created by video).
-  ProtectedSequenceReadable<bool> surface_hit_testable_;
+  bool surface_hit_testable_ = false;
 
   // Whether or not the surface can accept pointer events. It is set to true if
   // the frame owner has pointer-events: none property.
   // TODO(sunxd): consider renaming it to oopif_has_pointer_events_none_ for
   // disambiguation.
-  ProtectedSequenceWritable<bool> has_pointer_events_none_;
+  bool has_pointer_events_none_ = false;
 
   // This surface layer is reflecting the root surface of another display.
-  ProtectedSequenceReadable<bool> is_reflection_;
+  bool is_reflection_ = false;
 };
 
 }  // namespace cc

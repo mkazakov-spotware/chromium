@@ -26,7 +26,7 @@
 namespace blink {
 
 inline CDATASection::CDATASection(Document& document, const String& data)
-    : Text(document, data, kCreateCdataSection) {}
+    : Text(document, data, kCreateText) {}
 
 CDATASection* CDATASection::Create(Document& document, const String& data) {
   return MakeGarbageCollected<CDATASection>(document, data);
@@ -34,6 +34,10 @@ CDATASection* CDATASection::Create(Document& document, const String& data) {
 
 String CDATASection::nodeName() const {
   return "#cdata-section";
+}
+
+Node::NodeType CDATASection::getNodeType() const {
+  return kCdataSectionNode;
 }
 
 Text* CDATASection::CloneWithData(Document& factory, const String& data) const {

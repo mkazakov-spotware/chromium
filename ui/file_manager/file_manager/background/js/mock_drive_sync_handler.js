@@ -1,18 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {DriveSyncHandler} from '../../externs/background/drive_sync_handler.js';
-import {DriveDialogControllerInterface} from '../../externs/drive_dialog_controller.js';
-
+'use strict';
 
 /**
  * Mock of DriveSyncHandler.
  * @implements {DriveSyncHandler}
  */
-export class MockDriveSyncHandler extends EventTarget {
+class MockDriveSyncHandler extends cr.EventTarget {
   constructor() {
     super();
 
@@ -58,24 +54,6 @@ export class MockDriveSyncHandler extends EventTarget {
   get syncing() {
     return false;
   }
-
-  /**
-   * @param {Object} model
-   */
-  set metadataModel(model) {}
-
-  /**
-   * Adds a dialog to be controlled by DriveSyncHandler.
-   * @param {string} appId App ID of window containing the dialog.
-   * @param {DriveDialogControllerInterface} dialog
-   */
-  addDialog(appId, dialog) {}
-
-  /**
-   * Removes a dialog from being controlled by DriveSyncHandler.
-   * @param {string} appId App ID of window containing the dialog.
-   */
-  removeDialog(appId) {}
 }
 
 /**

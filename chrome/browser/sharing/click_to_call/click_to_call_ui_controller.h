@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,14 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "build/build_config.h"
+#include "base/optional.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_metrics.h"
 #include "chrome/browser/sharing/sharing_service.h"
 #include "chrome/browser/sharing/sharing_ui_controller.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
-#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents_user_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -32,14 +31,9 @@ class ClickToCallUiController
   static ClickToCallUiController* GetOrCreateFromWebContents(
       content::WebContents* web_contents);
   static void ShowDialog(content::WebContents* web_contents,
-                         const absl::optional<url::Origin>& initiating_origin,
-                         content::WeakDocumentPtr initiator_document,
+                         const base::Optional<url::Origin>& initiating_origin,
                          const GURL& url,
-                         bool hide_default_handler,
-                         const std::u16string& program_name);
-
-  ClickToCallUiController(const ClickToCallUiController&) = delete;
-  ClickToCallUiController& operator=(const ClickToCallUiController&) = delete;
+                         bool hide_default_handler);
 
   ~ClickToCallUiController() override;
 
@@ -47,27 +41,16 @@ class ClickToCallUiController
                         const syncer::DeviceInfo& device,
                         SharingClickToCallEntryPoint entry_point);
 
-#if BUILDFLAG(IS_CHROMEOS)
-  // Called when an Intent Picker dialog is shown containing click to call
-  // devices.
-  void OnIntentPickerShown(bool has_devices, bool has_apps);
-
-  // Called when an Intent Picker dialog containing click to call results is
-  // closed.
-  void OnIntentPickerClosed();
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
   // Overridden from SharingUiController:
-  std::u16string GetTitle(SharingDialogType dialog_type) override;
+  base::string16 GetTitle(SharingDialogType dialog_type) override;
   PageActionIconType GetIconType() override;
-  sync_pb::SharingSpecificFields::EnabledFeatures GetRequiredFeature()
-      const override;
+  sync_pb::SharingSpecificFields::EnabledFeatures GetRequiredFeature() override;
   void OnDeviceChosen(const syncer::DeviceInfo& device) override;
   void OnAppChosen(const SharingApp& app) override;
   void OnDialogClosed(SharingDialog* dialog) override;
-  std::u16string GetContentType() const override;
+  base::string16 GetContentType() const override;
   const gfx::VectorIcon& GetVectorIcon() const override;
-  std::u16string GetTextForTooltipAndAccessibleName() const override;
+  base::string16 GetTextForTooltipAndAccessibleName() const override;
   SharingFeatureName GetFeatureMetricsPrefix() const override;
   void OnDialogShown(bool has_devices, bool has_apps) override;
 
@@ -90,13 +73,13 @@ class ClickToCallUiController
 
   UKMRecorderCallback ukm_recorder_;
   GURL phone_url_;
-  std::u16string default_program_name_;
-  content::WeakDocumentPtr initiator_document_;
   bool hide_default_handler_ = false;
 
   base::WeakPtrFactory<ClickToCallUiController> weak_ptr_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(ClickToCallUiController);
 };
 
 #endif  // CHROME_BROWSER_SHARING_CLICK_TO_CALL_CLICK_TO_CALL_UI_CONTROLLER_H_

@@ -45,7 +45,7 @@
 namespace blink {
 
 SubmitInputType::SubmitInputType(HTMLInputElement& element)
-    : BaseButtonInputType(Type::kSubmit, element) {
+    : BaseButtonInputType(element) {
   UseCounter::Count(element.GetDocument(), WebFeature::kInputTypeSubmit);
 }
 

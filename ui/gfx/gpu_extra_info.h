@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright (c) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,11 @@
 #include <string>
 #include <vector>
 
-#include "build/build_config.h"
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/gfx_export.h"
 
-#if BUILDFLAG(IS_OZONE)
-#include "ui/ozone/buildflags.h"
-#if BUILDFLAG(OZONE_PLATFORM_X11)
-#define USE_OZONE_PLATFORM_X11
-#endif
+#if defined(USE_OZONE) || defined(USE_X11)
+typedef unsigned long VisualID;
 #endif
 
 namespace gfx {
@@ -62,7 +58,10 @@ struct GFX_EXPORT GpuExtraInfo {
   // applicable.
   ANGLEFeatures angle_features;
 
-#if defined(USE_OZONE_PLATFORM_X11)
+#if defined(USE_OZONE) || defined(USE_X11)
+  VisualID system_visual = 0;
+  VisualID rgba_visual = 0;
+
   std::vector<gfx::BufferUsageAndFormat> gpu_memory_buffer_support_x11;
 #endif
 };

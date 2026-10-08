@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,32 +8,16 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/chrome/browser/ui/coordinators/chrome_coordinator.h"
-#import "ios/chrome/browser/ui/gestures/view_revealing_animatee.h"
 
+@class ThumbStripCoordinator;
 @class ViewRevealingVerticalPanHandler;
-enum class ViewRevealState;
 
 // Coordinator for the thumb strip, which is a 1-row horizontal display of tab
 // miniatures above the toolbar.
-@interface ThumbStripCoordinator : ChromeCoordinator <ViewRevealingAnimatee>
-
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                                   browser:(Browser*)browser
-                              initialState:(ViewRevealState)initialState
-    NS_DESIGNATED_INITIALIZER;
-
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                                   browser:(Browser*)browser NS_UNAVAILABLE;
+@interface ThumbStripCoordinator : ChromeCoordinator
 
 // The thumb strip's pan gesture handler.
 @property(nonatomic, strong) ViewRevealingVerticalPanHandler* panHandler;
-
-// The regular browser used to observe scroll events to show/hide the thumb
-// strip.
-@property(nonatomic, assign) Browser* regularBrowser;
-// The incognito browser used to observe scroll events to show/hide the thumb
-// strip.
-@property(nonatomic, assign) Browser* incognitoBrowser;
 
 @end
 

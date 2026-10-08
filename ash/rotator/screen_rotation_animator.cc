@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,25 +7,25 @@
 #include <memory>
 #include <utility>
 
+#include "ash/public/cpp/ash_switches.h"
 #include "ash/public/cpp/metrics_util.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/rotator/screen_rotation_animation.h"
 #include "ash/rotator/screen_rotation_animator_observer.h"
 #include "ash/shell.h"
-#include "ash/utility/layer_util.h"
 #include "ash/utility/transformer_util.h"
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
+#include "third_party/khronos/GLES2/gl2.h"
 #include "ui/aura/window.h"
 #include "ui/base/class_property.h"
 #include "ui/compositor/animation_throughput_reporter.h"
 #include "ui/compositor/callback_layer_animation_observer.h"
-#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animation_sequence.h"
@@ -41,8 +41,8 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size_f.h"
-#include "ui/gfx/geometry/transform.h"
-#include "ui/gfx/geometry/transform_util.h"
+#include "ui/gfx/transform.h"
+#include "ui/gfx/transform_util.h"
 #include "ui/wm/core/window_util.h"
 
 DEFINE_UI_CLASS_PROPERTY_TYPE(ash::ScreenRotationAnimator*)
@@ -102,13 +102,10 @@ int GetInitialDegrees(display::Display::Rotation initial_rotation,
   return (Is180DegreeFlip(initial_rotation, new_rotation) ? 180 : 90);
 }
 
-void AddLayerAboveWindowLayer(aura::Window* root_window,
-                              ui::Layer* container_layer,
-                              ui::Layer* layer) {
+void AddLayerAtTopOfWindowLayers(aura::Window* root_window, ui::Layer* layer) {
   // Add the cloned/copied layer tree into the root, so it will be rendered.
-  DCHECK_EQ(container_layer->parent(), root_window->layer());
   root_window->layer()->Add(layer);
-  root_window->layer()->StackAbove(layer, container_layer);
+  root_window->layer()->StackAtTop(layer);
 }
 
 void AddLayerBelowWindowLayer(aura::Window* root_window,
@@ -181,7 +178,7 @@ ScreenRotationAnimator* ScreenRotationAnimator::GetForRootWindow(
 void ScreenRotationAnimator::SetScreenRotationAnimatorForTest(
     aura::Window* root_window,
     std::unique_ptr<ScreenRotationAnimator> animator) {
-  root_window->SetProperty(kScreenRotationAnimatorKey, std::move(animator));
+  root_window->SetProperty(kScreenRotationAnimatorKey, animator.release());
 }
 
 ScreenRotationAnimator::ScreenRotationAnimator(aura::Window* root_window)
@@ -215,8 +212,7 @@ void ScreenRotationAnimator::StartRotationAnimation(
     current_async_rotation_request_ = ScreenRotationRequest(*rotation_request);
     RequestCopyScreenRotationContainerLayer(
         std::make_unique<viz::CopyOutputRequest>(
-            viz::CopyOutputRequest::ResultFormat::RGBA,
-            viz::CopyOutputRequest::ResultDestination::kNativeTextures,
+            viz::CopyOutputRequest::ResultFormat::RGBA_TEXTURE,
             CreateAfterCopyCallbackBeforeRotation(
                 std::move(rotation_request))));
     screen_rotation_state_ = COPY_REQUESTED;
@@ -261,7 +257,7 @@ void ScreenRotationAnimator::RequestCopyScreenRotationContainerLayer(
   copy_output_request->set_area(
       gfx::Rect(screen_rotation_container_layer->size()));
   copy_output_request->set_result_task_runner(
-      base::SequencedTaskRunner::GetCurrentDefault());
+      base::SequencedTaskRunnerHandle::Get());
   screen_rotation_container_layer->RequestCopyOfOutput(
       std::move(copy_output_request));
 }
@@ -309,9 +305,7 @@ void ScreenRotationAnimator::OnScreenRotationContainerLayerCopiedBeforeRotation(
   }
 
   old_layer_tree_owner_ = CopyLayerTree(std::move(result));
-  AddLayerAboveWindowLayer(root_window_,
-                           GetScreenRotationContainer(root_window_)->layer(),
-                           old_layer_tree_owner_->root());
+  AddLayerAtTopOfWindowLayers(root_window_, old_layer_tree_owner_->root());
 
   // TODO(oshima): We need a better way to control animation and other
   // activities during system wide animation.
@@ -327,8 +321,7 @@ void ScreenRotationAnimator::OnScreenRotationContainerLayerCopiedBeforeRotation(
 
   RequestCopyScreenRotationContainerLayer(
       std::make_unique<viz::CopyOutputRequest>(
-          viz::CopyOutputRequest::ResultFormat::RGBA,
-          viz::CopyOutputRequest::ResultDestination::kNativeTextures,
+          viz::CopyOutputRequest::ResultFormat::RGBA_TEXTURE,
           CreateAfterCopyCallbackAfterRotation(std::move(rotation_request))));
 }
 
@@ -362,23 +355,28 @@ void ScreenRotationAnimator::OnScreenRotationContainerLayerCopiedAfterRotation(
 
 void ScreenRotationAnimator::CreateOldLayerTreeForSlowAnimation() {
   old_layer_tree_owner_ = ::wm::RecreateLayers(root_window_);
-  AddLayerAboveWindowLayer(root_window_,
-                           GetScreenRotationContainer(root_window_)->layer(),
-                           old_layer_tree_owner_->root());
+  AddLayerAtTopOfWindowLayers(root_window_, old_layer_tree_owner_->root());
 }
 
 std::unique_ptr<ui::LayerTreeOwner> ScreenRotationAnimator::CopyLayerTree(
     std::unique_ptr<viz::CopyOutputResult> result) {
-  gfx::Size layer_size =
-      GetScreenRotationContainer(root_window_)->layer()->size();
-  std::unique_ptr<ui::Layer> copy_layer =
-      CreateLayerFromCopyOutputResult(std::move(result), layer_size);
-  DCHECK_EQ(copy_layer->size(),
-            GetScreenRotationContainer(root_window_)->layer()->size());
-
+  DCHECK(!result->IsEmpty());
+  DCHECK_EQ(result->format(), viz::CopyOutputResult::Format::RGBA_TEXTURE);
+  auto transfer_resource = viz::TransferableResource::MakeGL(
+      result->GetTextureResult()->mailbox, GL_LINEAR, GL_TEXTURE_2D,
+      result->GetTextureResult()->sync_token, result->size(),
+      false /* is_overlay_candidate */);
+  std::unique_ptr<viz::SingleReleaseCallback> release_callback =
+      result->TakeTextureOwnership();
+  const gfx::Rect rect(
+      GetScreenRotationContainer(root_window_)->layer()->size());
+  std::unique_ptr<ui::Layer> copy_layer = std::make_unique<ui::Layer>();
+  copy_layer->SetBounds(rect);
   // TODO(crbug.com/1040279): This is a workaround and should be removed once
   // the issue is fixed.
   copy_layer->SetFillsBoundsOpaquely(false);
+  copy_layer->SetTransferableResource(transfer_resource,
+                                      std::move(release_callback), rect.size());
   return std::make_unique<ui::LayerTreeOwner>(std::move(copy_layer));
 }
 
@@ -389,7 +387,8 @@ void ScreenRotationAnimator::AnimateRotation(
                                                 rotation_request->new_rotation);
   const int old_layer_initial_rotation_degrees = GetInitialDegrees(
       rotation_request->old_rotation, rotation_request->new_rotation);
-  const base::TimeDelta duration = base::Milliseconds(kRotationDurationInMs);
+  const base::TimeDelta duration =
+      base::TimeDelta::FromMilliseconds(kRotationDurationInMs);
   const gfx::Tween::Type tween_type = gfx::Tween::FAST_OUT_LINEAR_IN;
   const gfx::Rect rotated_screen_bounds = root_window_->GetTargetBounds();
   const gfx::Point pivot = gfx::Point(rotated_screen_bounds.width() / 2,
@@ -499,7 +498,7 @@ void ScreenRotationAnimator::Rotate(
   switch (screen_rotation_state_) {
     case IDLE:
       DCHECK(!current_async_rotation_request_);
-      [[fallthrough]];
+      FALLTHROUGH;
     case COPY_REQUESTED:
       if (current_async_rotation_request_ &&
           !RootWindowChangedForDisplayId(

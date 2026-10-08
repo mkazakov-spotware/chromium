@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ void StyleTraversalRoot::Update(ContainerNode* common_ancestor,
                                 Node* dirty_node) {
   DCHECK(dirty_node);
   DCHECK(dirty_node->isConnected());
-  AssertRootNodeInvariants();
 
   if (!common_ancestor) {
     // This is either first dirty node in which case we are using it as a
@@ -31,7 +30,6 @@ void StyleTraversalRoot::Update(ContainerNode* common_ancestor,
              (!root_node_ && root_type_ == RootType::kSingleRoot));
     }
     root_node_ = dirty_node;
-    AssertRootNodeInvariants();
     return;
   }
 
@@ -57,12 +55,9 @@ void StyleTraversalRoot::Update(ContainerNode* common_ancestor,
   root_type_ = RootType::kCommonRoot;
 }
 
-#if DCHECK_IS_ON()
-bool StyleTraversalRoot::IsModifyingFlatTree() const {
-  DCHECK(root_node_);
-  return root_node_->GetDocument().GetStyleEngine().InDOMRemoval() ||
-         root_node_->GetDocument().IsInSlotAssignmentRecalc();
+void StyleTraversalRoot::ChildrenRemoved(ContainerNode& parent) {
+  if (root_node_ && !root_node_->isConnected())
+    RootRemoved(parent);
 }
-#endif
 
 }  // namespace blink

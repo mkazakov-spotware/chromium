@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_AUTOFILL_ADDRESS_NORMALIZER_FACTORY_H_
 
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "components/autofill/core/browser/address_normalizer_impl.h"
 
 namespace autofill {
@@ -15,9 +16,6 @@ class AddressNormalizerFactory {
  public:
   static AddressNormalizer* GetInstance();
 
-  AddressNormalizerFactory(const AddressNormalizerFactory&) = delete;
-  AddressNormalizerFactory& operator=(const AddressNormalizerFactory&) = delete;
-
  private:
   friend struct base::LazyInstanceTraitsBase<AddressNormalizerFactory>;
 
@@ -26,6 +24,8 @@ class AddressNormalizerFactory {
 
   // The only instance that exists.
   AddressNormalizerImpl address_normalizer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AddressNormalizerFactory);
 };
 
 }  // namespace autofill

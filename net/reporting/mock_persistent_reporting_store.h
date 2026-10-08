@@ -1,14 +1,16 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_REPORTING_MOCK_PERSISTENT_REPORTING_STORE_H_
 #define NET_REPORTING_MOCK_PERSISTENT_REPORTING_STORE_H_
 
+#include <string>
 #include <vector>
 
 #include "base/callback.h"
-#include "net/base/network_anonymization_key.h"
+#include "base/macros.h"
+#include "net/base/network_isolation_key.h"
 #include "net/reporting/reporting_cache.h"
 #include "net/reporting/reporting_endpoint.h"
 #include "url/origin.h"
@@ -80,11 +82,6 @@ class MockPersistentReportingStore
   using CommandList = std::vector<Command>;
 
   MockPersistentReportingStore();
-
-  MockPersistentReportingStore(const MockPersistentReportingStore&) = delete;
-  MockPersistentReportingStore& operator=(const MockPersistentReportingStore&) =
-      delete;
-
   ~MockPersistentReportingStore() override;
 
   // PersistentReportingStore implementation:
@@ -142,18 +139,20 @@ class MockPersistentReportingStore
   std::vector<CachedReportingEndpointGroup> prestored_endpoint_groups_;
 
   // Set when LoadReportingClients() is called.
-  bool load_started_ = false;
+  bool load_started_;
 
   // Simulates the total number of endpoints/groups that would be stored in the
   // store. Updated when pre-stored policies are added, and when Flush() is
   // called.
-  int endpoint_count_ = 0;
-  int endpoint_group_count_ = 0;
+  int endpoint_count_;
+  int endpoint_group_count_;
 
   // Simulates the delta to be added to to the counts the next time Flush() is
   // called. Reset to 0 when Flush() is called.
-  int queued_endpoint_count_delta_ = 0;
-  int queued_endpoint_group_count_delta_ = 0;
+  int queued_endpoint_count_delta_;
+  int queued_endpoint_group_count_delta_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPersistentReportingStore);
 };
 
 bool operator==(const MockPersistentReportingStore::Command& lhs,

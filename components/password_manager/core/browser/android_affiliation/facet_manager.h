@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include <set>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "components/password_manager/core/browser/android_affiliation/affiliation_utils.h"
-#include "components/password_manager/core/browser/site_affiliation/affiliation_service.h"
+#include "components/password_manager/core/browser/android_affiliation/android_affiliation_service.h"
 
 namespace base {
 class Clock;
@@ -29,24 +29,20 @@ class FacetManagerHost;
 // interface to provide shared functionality needed by all FacetManagers.
 class FacetManager {
  public:
-  using StrategyOnCacheMiss = AffiliationService::StrategyOnCacheMiss;
+  using StrategyOnCacheMiss = AndroidAffiliationService::StrategyOnCacheMiss;
 
   // Both the |backend| and |clock| must outlive this object.
   FacetManager(const FacetURI& facet_uri,
                FacetManagerHost* backend,
                base::Clock* clock);
-
-  FacetManager(const FacetManager&) = delete;
-  FacetManager& operator=(const FacetManager&) = delete;
-
   ~FacetManager();
 
-  // Facet-specific implementations for methods in AffiliationService of
+  // Facet-specific implementations for methods in AndroidAffiliationService of
   // the same name. See documentation in android_affiliation_service.h for
   // details:
   void GetAffiliationsAndBranding(
       StrategyOnCacheMiss cache_miss_strategy,
-      AffiliationService::ResultCallback callback,
+      AndroidAffiliationService::ResultCallback callback,
       const scoped_refptr<base::TaskRunner>& callback_task_runner);
   void Prefetch(const base::Time& keep_fresh_until);
   void CancelPrefetch(const base::Time& keep_fresh_until);
@@ -112,8 +108,8 @@ class FacetManager {
   static void ServeRequestWithFailure(RequestInfo request_info);
 
   FacetURI facet_uri_;
-  raw_ptr<FacetManagerHost> backend_;
-  raw_ptr<base::Clock> clock_;
+  FacetManagerHost* backend_;
+  base::Clock* clock_;
 
   // The last time affiliation information was fetched for this facet, i.e. the
   // freshness of the data in the cache. If there is no corresponding data in
@@ -134,6 +130,8 @@ class FacetManager {
   // of individual prefetches can be supported even if there are two requests
   // with the same |keep_fresh_until| threshold.
   std::multiset<base::Time> keep_fresh_until_thresholds_;
+
+  DISALLOW_COPY_AND_ASSIGN(FacetManager);
 };
 
 }  // namespace password_manager

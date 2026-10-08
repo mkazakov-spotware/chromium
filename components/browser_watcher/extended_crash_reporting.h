@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_piece.h"
 
 namespace base {
@@ -35,10 +34,10 @@ class ExtendedCrashReporting {
 
   // Records identifying strings for the product and version for an extended
   // crash report. This function is threadsafe.
-  void SetProductStrings(const std::u16string& product_name,
-                         const std::u16string& product_version,
-                         const std::u16string& channel_name,
-                         const std::u16string& special_build);
+  void SetProductStrings(const base::string16& product_name,
+                         const base::string16& product_version,
+                         const base::string16& channel_name,
+                         const base::string16& special_build);
 
   // Adds or updates the global extended crash reporting data.
   // These functions are threadsafe.
@@ -62,8 +61,8 @@ class ExtendedCrashReporting {
   // activity report on exception - handled or not.
   void RegisterVEH();
 
-  raw_ptr<void> veh_handle_ = nullptr;
-  const raw_ptr<base::debug::GlobalActivityTracker> tracker_;
+  void* veh_handle_ = nullptr;
+  base::debug::GlobalActivityTracker* const tracker_;
 };
 
 }  // namespace browser_watcher

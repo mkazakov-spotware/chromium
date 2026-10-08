@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A palette control.  A palette is a grid that the user can
@@ -13,21 +21,16 @@
 
 goog.provide('goog.ui.Palette');
 
-goog.require('goog.asserts');
+goog.require('goog.array');
 goog.require('goog.dom');
 goog.require('goog.events');
 goog.require('goog.events.EventType');
 goog.require('goog.events.KeyCodes');
 goog.require('goog.math.Size');
-goog.require('goog.style');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.Control');
 goog.require('goog.ui.PaletteRenderer');
 goog.require('goog.ui.SelectionModel');
-goog.requireType('goog.events.BrowserEvent');
-goog.requireType('goog.events.Event');
-goog.requireType('goog.events.KeyEvent');
-goog.requireType('goog.ui.ControlContent');
 
 
 
@@ -51,7 +54,6 @@ goog.requireType('goog.ui.ControlContent');
  * @extends {goog.ui.Control}
  */
 goog.ui.Palette = function(items, opt_renderer, opt_domHelper) {
-  'use strict';
   goog.ui.Palette.base(
       this, 'constructor', items,
       opt_renderer || goog.ui.PaletteRenderer.getInstance(), opt_domHelper);
@@ -74,6 +76,7 @@ goog.ui.Palette = function(items, opt_renderer, opt_domHelper) {
   this.lastHighlightedIndex_ = -1;
 };
 goog.inherits(goog.ui.Palette, goog.ui.Control);
+goog.tagUnsealableClass(goog.ui.Palette);
 
 
 /**
@@ -115,7 +118,6 @@ goog.ui.Palette.prototype.selectionModel_ = null;
 
 /** @override */
 goog.ui.Palette.prototype.disposeInternal = function() {
-  'use strict';
   goog.ui.Palette.superClass_.disposeInternal.call(this);
 
   if (this.selectionModel_) {
@@ -138,7 +140,6 @@ goog.ui.Palette.prototype.disposeInternal = function() {
  * @override
  */
 goog.ui.Palette.prototype.setContentInternal = function(content) {
-  'use strict';
   var items = /** @type {Array<Node>} */ (content);
   goog.ui.Palette.superClass_.setContentInternal.call(this, items);
 
@@ -171,7 +172,6 @@ goog.ui.Palette.prototype.setContentInternal = function(content) {
  * @override
  */
 goog.ui.Palette.prototype.getCaption = function() {
-  'use strict';
   return '';
 };
 
@@ -198,7 +198,6 @@ goog.ui.Palette.prototype.setCaption = function(caption) {
  * @override
  */
 goog.ui.Palette.prototype.handleMouseOver = function(e) {
-  'use strict';
   goog.ui.Palette.superClass_.handleMouseOver.call(this, e);
 
   var item = this.getRenderer().getContainingItem(this, e.target);
@@ -220,7 +219,6 @@ goog.ui.Palette.prototype.handleMouseOver = function(e) {
  * @override
  */
 goog.ui.Palette.prototype.handleMouseDown = function(e) {
-  'use strict';
   goog.ui.Palette.superClass_.handleMouseDown.call(this, e);
 
   if (this.isActive()) {
@@ -243,7 +241,6 @@ goog.ui.Palette.prototype.handleMouseDown = function(e) {
  * @override
  */
 goog.ui.Palette.prototype.performActionInternal = function(e) {
-  'use strict';
   var highlightedItem = this.getHighlightedItem();
   if (highlightedItem) {
     if (e && this.shouldSelectHighlightedItem_(e)) {
@@ -264,7 +261,6 @@ goog.ui.Palette.prototype.performActionInternal = function(e) {
  * @private
  */
 goog.ui.Palette.prototype.shouldSelectHighlightedItem_ = function(e) {
-  'use strict';
   if (!this.getSelectedItem()) {
     // It's always ok to select when nothing is selected yet.
     return true;
@@ -291,7 +287,6 @@ goog.ui.Palette.prototype.shouldSelectHighlightedItem_ = function(e) {
  * @override
  */
 goog.ui.Palette.prototype.handleKeyEvent = function(e) {
-  'use strict';
   var items = this.getContent();
   var numItems = items ? items.length : 0;
   var numColumns = this.size_.width;
@@ -309,10 +304,10 @@ goog.ui.Palette.prototype.handleKeyEvent = function(e) {
 
   // User hit HOME or END; move highlight.
   if (e.keyCode == goog.events.KeyCodes.HOME) {
-    this.setHighlightedIndexInternal_(0, true /* scrollIntoView */);
+    this.setHighlightedIndex(0);
     return true;
   } else if (e.keyCode == goog.events.KeyCodes.END) {
-    this.setHighlightedIndexInternal_(numItems - 1, true /* scrollIntoView */);
+    this.setHighlightedIndex(numItems - 1);
     return true;
   }
 
@@ -328,8 +323,7 @@ goog.ui.Palette.prototype.handleKeyEvent = function(e) {
       if (highlightedIndex == -1 || highlightedIndex == 0) {
         highlightedIndex = numItems;
       }
-      this.setHighlightedIndexInternal_(
-          highlightedIndex - 1, true /* scrollIntoView */);
+      this.setHighlightedIndex(highlightedIndex - 1);
       e.preventDefault();
       return true;
       break;
@@ -339,8 +333,7 @@ goog.ui.Palette.prototype.handleKeyEvent = function(e) {
       if (highlightedIndex == numItems - 1) {
         highlightedIndex = -1;
       }
-      this.setHighlightedIndexInternal_(
-          highlightedIndex + 1, true /* scrollIntoView */);
+      this.setHighlightedIndex(highlightedIndex + 1);
       e.preventDefault();
       return true;
       break;
@@ -350,8 +343,7 @@ goog.ui.Palette.prototype.handleKeyEvent = function(e) {
         highlightedIndex = numItems + numColumns - 1;
       }
       if (highlightedIndex >= numColumns) {
-        this.setHighlightedIndexInternal_(
-            highlightedIndex - numColumns, true /* scrollIntoView */);
+        this.setHighlightedIndex(highlightedIndex - numColumns);
         e.preventDefault();
         return true;
       }
@@ -362,8 +354,7 @@ goog.ui.Palette.prototype.handleKeyEvent = function(e) {
         highlightedIndex = -numColumns;
       }
       if (highlightedIndex < numItems - numColumns) {
-        this.setHighlightedIndexInternal_(
-            highlightedIndex + numColumns, true /* scrollIntoView */);
+        this.setHighlightedIndex(highlightedIndex + numColumns);
         e.preventDefault();
         return true;
       }
@@ -391,7 +382,6 @@ goog.ui.Palette.prototype.handleSelectionChange = function(e) {
  * @return {goog.math.Size} Palette size (columns x rows).
  */
 goog.ui.Palette.prototype.getSize = function() {
-  'use strict';
   return this.size_;
 };
 
@@ -408,7 +398,6 @@ goog.ui.Palette.prototype.getSize = function() {
  * @param {number=} opt_rows The number of rows (optional).
  */
 goog.ui.Palette.prototype.setSize = function(size, opt_rows) {
-  'use strict';
   if (this.getElement()) {
     throw new Error(goog.ui.Component.Error.ALREADY_RENDERED);
   }
@@ -428,7 +417,6 @@ goog.ui.Palette.prototype.setSize = function(size, opt_rows) {
  * @return {number} Index of the highlighted item (-1 if none).
  */
 goog.ui.Palette.prototype.getHighlightedIndex = function() {
-  'use strict';
   return this.highlightedIndex_;
 };
 
@@ -439,7 +427,6 @@ goog.ui.Palette.prototype.getHighlightedIndex = function() {
  * @return {Node} The highlighted item (undefined if none).
  */
 goog.ui.Palette.prototype.getHighlightedItem = function() {
-  'use strict';
   var items = this.getContent();
   return items && items[this.highlightedIndex_];
 };
@@ -450,7 +437,6 @@ goog.ui.Palette.prototype.getHighlightedItem = function() {
  * @private
  */
 goog.ui.Palette.prototype.getHighlightedCellElement_ = function() {
-  'use strict';
   return this.getRenderer().getCellForItem(this.getHighlightedItem());
 };
 
@@ -462,34 +448,11 @@ goog.ui.Palette.prototype.getHighlightedCellElement_ = function() {
  * @param {number} index 0-based index of the item to highlight.
  */
 goog.ui.Palette.prototype.setHighlightedIndex = function(index) {
-  'use strict';
-  this.setHighlightedIndexInternal_(index, false /* scrollIntoView */);
-};
-
-
-/**
- * @param {number} index 0-based index of the item to highlight.
- * @param {boolean} scrollIntoView Whether to bring the highlighted item into
- *     view by potentially scrolling the palette's container. This has no effect
- *     if the palette is not in a scrollbale container.
- * @private
- */
-goog.ui.Palette.prototype.setHighlightedIndexInternal_ = function(
-    index, scrollIntoView) {
-  'use strict';
   if (index != this.highlightedIndex_) {
     this.highlightIndex_(this.highlightedIndex_, false);
     this.lastHighlightedIndex_ = this.highlightedIndex_;
     this.highlightedIndex_ = index;
     this.highlightIndex_(index, true);
-    if (scrollIntoView) {
-      var highlightedElement = goog.asserts.assert(
-          this.getHighlightedCellElement_(),
-          'Highlighted item must exist to scroll to make it visible in ' +
-              'container. Please check that index is non-negative and valid.');
-      goog.style.scrollIntoContainerView(
-          highlightedElement, this.getParent().getElementStrict());
-    }
     this.dispatchEvent(goog.ui.Palette.EventType.AFTER_HIGHLIGHT);
   }
 };
@@ -501,9 +464,9 @@ goog.ui.Palette.prototype.setHighlightedIndexInternal_ = function(
  * @param {Node|undefined} item Item to highlight.
  */
 goog.ui.Palette.prototype.setHighlightedItem = function(item) {
-  'use strict';
   var items = /** @type {Array<Node>} */ (this.getContent());
-  this.setHighlightedIndex((items && item) ? items.indexOf(item) : -1);
+  this.setHighlightedIndex(
+      (items && item) ? goog.array.indexOf(items, item) : -1);
 };
 
 
@@ -513,7 +476,6 @@ goog.ui.Palette.prototype.setHighlightedItem = function(item) {
  * @return {number} Index of the selected item (-1 if none).
  */
 goog.ui.Palette.prototype.getSelectedIndex = function() {
-  'use strict';
   return this.selectionModel_ ? this.selectionModel_.getSelectedIndex() : -1;
 };
 
@@ -523,10 +485,9 @@ goog.ui.Palette.prototype.getSelectedIndex = function() {
  * @return {Node} The selected item (null if none).
  */
 goog.ui.Palette.prototype.getSelectedItem = function() {
-  'use strict';
   return this.selectionModel_ ?
       /** @type {Node} */ (this.selectionModel_.getSelectedItem()) :
-      null;
+                          null;
 };
 
 
@@ -537,7 +498,6 @@ goog.ui.Palette.prototype.getSelectedItem = function() {
  * @param {number} index 0-based index of the item to select.
  */
 goog.ui.Palette.prototype.setSelectedIndex = function(index) {
-  'use strict';
   if (this.selectionModel_) {
     this.selectionModel_.setSelectedIndex(index);
   }
@@ -550,7 +510,6 @@ goog.ui.Palette.prototype.setSelectedIndex = function(index) {
  * @param {Node} item Item to select.
  */
 goog.ui.Palette.prototype.setSelectedItem = function(item) {
-  'use strict';
   if (this.selectionModel_) {
     this.selectionModel_.setSelectedItem(item);
   }
@@ -568,7 +527,6 @@ goog.ui.Palette.prototype.setSelectedItem = function(item) {
  * @private
  */
 goog.ui.Palette.prototype.highlightIndex_ = function(index, highlight) {
-  'use strict';
   if (this.getElement()) {
     var items = this.getContent();
     if (items && index >= 0 && index < items.length) {
@@ -586,7 +544,6 @@ goog.ui.Palette.prototype.highlightIndex_ = function(index, highlight) {
 
 /** @override */
 goog.ui.Palette.prototype.setHighlighted = function(highlight) {
-  'use strict';
   if (highlight && this.highlightedIndex_ == -1) {
     // If there was a last highlighted index, use that. Otherwise, highlight the
     // first cell.
@@ -612,7 +569,6 @@ goog.ui.Palette.prototype.setHighlighted = function(highlight) {
  * @private
  */
 goog.ui.Palette.prototype.selectItem_ = function(item, select) {
-  'use strict';
   if (this.getElement()) {
     this.getRenderer().selectCell(this, item, select);
   }
@@ -628,7 +584,6 @@ goog.ui.Palette.prototype.selectItem_ = function(item, select) {
  * @private
  */
 goog.ui.Palette.prototype.adjustSize_ = function() {
-  'use strict';
   var items = this.getContent();
   if (items) {
     if (this.size_ && this.size_.width) {
@@ -660,7 +615,6 @@ goog.ui.Palette.prototype.adjustSize_ = function() {
  * @private
  */
 goog.ui.Palette.CurrentCell_ = function() {
-  'use strict';
   goog.ui.Palette.CurrentCell_.base(this, 'constructor', null);
   this.setDispatchTransitionEvents(goog.ui.Component.State.HOVER, true);
 };
@@ -672,7 +626,6 @@ goog.inherits(goog.ui.Palette.CurrentCell_, goog.ui.Control);
  * @return {boolean} Whether it was successful.
  */
 goog.ui.Palette.CurrentCell_.prototype.tryHighlight = function(highlight) {
-  'use strict';
   this.setHighlighted(highlight);
   return this.isHighlighted() == highlight;
 };

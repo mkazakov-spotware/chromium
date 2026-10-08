@@ -1,23 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/autofill/manual_fill/manual_fill_password_coordinator.h"
 
-#import "base/mac/foundation_util.h"
-#import "components/keyed_service/core/service_access_type.h"
-#import "components/password_manager/core/browser/password_store_interface.h"
+#include "base/mac/foundation_util.h"
+#include "components/keyed_service/core/service_access_type.h"
+#include "components/password_manager/core/browser/password_store.h"
 #import "ios/chrome/browser/favicon/favicon_loader.h"
-#import "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
+#include "ios/chrome/browser/favicon/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/main/browser.h"
-#import "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
-#import "ios/chrome/browser/sync/sync_setup_service_factory.h"
+#include "ios/chrome/browser/passwords/ios_chrome_password_store_factory.h"
 #import "ios/chrome/browser/ui/autofill/manual_fill/manual_fill_injection_handler.h"
 #import "ios/chrome/browser/ui/autofill/manual_fill/manual_fill_password_mediator.h"
 #import "ios/chrome/browser/ui/autofill/manual_fill/password_list_navigator.h"
 #import "ios/chrome/browser/ui/autofill/manual_fill/password_view_controller.h"
-#import "ios/chrome/browser/web_state_list/web_state_list.h"
-#import "ui/base/device_form_factor.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -49,31 +47,25 @@
                                    browser:(Browser*)browser
                                        URL:(const GURL&)URL
                           injectionHandler:
-                              (ManualFillInjectionHandler*)injectionHandler
-                    invokedOnPasswordField:(BOOL)invokedOnPasswordField {
+                              (ManualFillInjectionHandler*)injectionHandler {
   self = [super initWithBaseViewController:viewController
                                    browser:browser
                           injectionHandler:injectionHandler];
   if (self) {
     _passwordViewController =
         [[PasswordViewController alloc] initWithSearchController:nil];
+    _passwordViewController.contentInsetsAlwaysEqualToSafeArea = YES;
 
     auto passwordStore = IOSChromePasswordStoreFactory::GetForBrowserState(
         browser->GetBrowserState(), ServiceAccessType::EXPLICIT_ACCESS);
     FaviconLoader* faviconLoader =
         IOSChromeFaviconLoaderFactory::GetForBrowserState(
             browser->GetBrowserState());
-    SyncSetupService* syncService = SyncSetupServiceFactory::GetForBrowserState(
-        self.browser->GetBrowserState());
 
     _passwordMediator = [[ManualFillPasswordMediator alloc]
-         initWithPasswordStore:passwordStore
-                 faviconLoader:faviconLoader
-                      webState:browser->GetWebStateList()->GetActiveWebState()
-                   syncService:syncService
-                           URL:URL
-        invokedOnPasswordField:invokedOnPasswordField];
-    [_passwordMediator fetchPasswords];
+        initWithPasswordStore:passwordStore
+                faviconLoader:faviconLoader];
+    [_passwordMediator fetchPasswordsForURL:URL];
     _passwordMediator.actionSectionEnabled = YES;
     _passwordMediator.consumer = _passwordViewController;
     _passwordMediator.navigator = self;
@@ -104,26 +96,27 @@
 #pragma mark - PasswordListNavigator
 
 - (void)openAllPasswordsList {
-  __weak id<PasswordCoordinatorDelegate> weakDelegate = self.delegate;
-
-  [self dismissIfNecessaryThenDoCompletion:^{
-    [weakDelegate openAllPasswordsPicker];
-  }];
+  // On iPad, first dismiss the popover before the new view is presented.
+  __weak __typeof(self) weakSelf = self;
+  if (IsIPadIdiom() && self.passwordViewController.presentingViewController) {
+    [self.passwordViewController
+        dismissViewControllerAnimated:true
+                           completion:^{
+                             [weakSelf openAllPasswordsList];
+                           }];
+    return;
+  }
+  [self.delegate openAllPasswordsPicker];
 }
 
 - (void)openPasswordSettings {
-  __weak id<PasswordCoordinatorDelegate> weakDelegate = self.delegate;
-
+  __weak id<PasswordCoordinatorDelegate> delegate = self.delegate;
   [self dismissIfNecessaryThenDoCompletion:^{
-    [weakDelegate openPasswordSettings];
-  }];
-}
-
-- (void)openPasswordSuggestion {
-  __weak id<PasswordCoordinatorDelegate> weakDelegate = self.delegate;
-
-  [self dismissIfNecessaryThenDoCompletion:^{
-    [weakDelegate openPasswordSuggestion];
+    [delegate openPasswordSettings];
+    if (IsIPadIdiom()) {
+      // Settings close the popover but don't send a message to reopen it.
+      [delegate fallbackCoordinatorDidDismissPopover:self];
+    }
   }];
 }
 

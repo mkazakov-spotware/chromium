@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/run_loop.h"
+#include "base/task/post_task.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "content/browser/browsing_data/browsing_data_test_utils.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -28,9 +29,6 @@
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/public/mojom/network_service_test.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
-#include "third_party/blink/public/mojom/service_worker/service_worker_registration_options.mojom.h"
-#include "url/origin.h"
 
 namespace content {
 
@@ -38,8 +36,8 @@ namespace browsing_data_browsertest_utils {
 
 namespace {
 
-void AddServiceWorkerCallback(blink::ServiceWorkerStatusCode status) {
-  ASSERT_EQ(status, blink::ServiceWorkerStatusCode::kOk);
+void AddServiceWorkerCallback(bool success) {
+  ASSERT_TRUE(success);
 }
 
 void GetServiceWorkersCallback(
@@ -52,7 +50,6 @@ void GetServiceWorkersCallback(
 
 }  // namespace
 
-// static
 void ServiceWorkerActivationObserver::SignalActivation(
     ServiceWorkerContextWrapper* context,
     base::OnceClosure callback) {
@@ -72,7 +69,6 @@ ServiceWorkerActivationObserver::~ServiceWorkerActivationObserver() {}
 void ServiceWorkerActivationObserver::OnVersionStateChanged(
     int64_t version_id,
     const GURL& scope,
-    const blink::StorageKey& key,
     ServiceWorkerVersion::Status) {
   if (context_->GetLiveVersion(version_id)->status() ==
       ServiceWorkerVersion::ACTIVATED) {
@@ -92,7 +88,7 @@ void SetIgnoreCertificateErrors(base::CommandLine* command_line) {
   }
 }
 
-GURL AddServiceWorker(const std::string& origin,
+void AddServiceWorker(const std::string& origin,
                       StoragePartition* storage_partition,
                       net::EmbeddedTestServer* https_server) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -107,16 +103,20 @@ GURL AddServiceWorker(const std::string& origin,
   blink::mojom::ServiceWorkerRegistrationOptions options(
       scope_url, blink::mojom::ScriptType::kClassic,
       blink::mojom::ServiceWorkerUpdateViaCache::kImports);
-  blink::StorageKey key(url::Origin::Create(options.scope));
-  service_worker_context->RegisterServiceWorker(
-      js_url, key, options, base::BindOnce(&AddServiceWorkerCallback));
+  RunOrPostTaskOnThread(
+      FROM_HERE, ServiceWorkerContext::GetCoreThreadId(),
+      base::BindOnce(&ServiceWorkerContextWrapper::RegisterServiceWorker,
+                     base::Unretained(service_worker_context), js_url, options,
+                     base::BindOnce(&AddServiceWorkerCallback)));
 
   // Wait for its activation.
   base::RunLoop run_loop;
-  ServiceWorkerActivationObserver::SignalActivation(service_worker_context,
-                                                    run_loop.QuitClosure());
+  RunOrPostTaskOnThread(
+      FROM_HERE, ServiceWorkerContext::GetCoreThreadId(),
+      base::BindOnce(&ServiceWorkerActivationObserver::SignalActivation,
+                     base::Unretained(service_worker_context),
+                     run_loop.QuitClosure()));
   run_loop.Run();
-  return scope_url;
 }
 
 std::vector<StorageUsageInfo> GetServiceWorkers(
@@ -129,9 +129,13 @@ std::vector<StorageUsageInfo> GetServiceWorkers(
   std::vector<StorageUsageInfo> service_workers;
   base::RunLoop run_loop;
 
-  service_worker_context->GetAllOriginsInfo(
-      base::BindOnce(&GetServiceWorkersCallback, run_loop.QuitClosure(),
-                     base::Unretained(&service_workers)));
+  RunOrPostTaskOnThread(
+      FROM_HERE, ServiceWorkerContext::GetCoreThreadId(),
+      base::BindOnce(
+          &ServiceWorkerContextWrapper::GetAllOriginsInfo,
+          base::Unretained(service_worker_context),
+          base::BindOnce(&GetServiceWorkersCallback, run_loop.QuitClosure(),
+                         base::Unretained(&service_workers))));
   run_loop.Run();
 
   return service_workers;

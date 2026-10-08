@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,14 +88,6 @@ function runTests() {
                                     fileSystems[0].writable);
                                 chrome.test.assertEq(2,
                                     fileSystems[0].openedFilesLimit);
-                                chrome.test.assertEq(
-                                    1, fileSystems[0].openedFiles.length);
-                                chrome.test.assertEq(
-                                    '/' + TESTING_TIRAMISU_FILE.name,
-                                    fileSystems[0].openedFiles[0].filePath);
-                                chrome.test.assertEq(
-                                    chrome.fileSystemProvider.OpenFileMode.READ,
-                                    fileSystems[0].openedFiles[0].mode);
                               }));
 
                           chrome.fileSystemProvider.get(
@@ -110,14 +102,6 @@ function runTests() {
                                 chrome.test.assertTrue(fileSystem.writable);
                                 chrome.test.assertEq(2,
                                     fileSystem.openedFilesLimit);
-                                chrome.test.assertEq(
-                                    1, fileSystem.openedFiles.length);
-                                chrome.test.assertEq(
-                                    '/' + TESTING_TIRAMISU_FILE.name,
-                                    fileSystem.openedFiles[0].filePath);
-                                chrome.test.assertEq(
-                                    chrome.fileSystemProvider.OpenFileMode.READ,
-                                    fileSystem.openedFiles[0].mode);
                                 }));
                         });
                     fileReader.readAsText(file);

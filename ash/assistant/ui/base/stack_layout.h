@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <map>
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "ui/views/layout/layout_manager.h"
 
 namespace ash {
@@ -35,10 +36,6 @@ class COMPONENT_EXPORT(ASSISTANT_UI) StackLayout : public views::LayoutManager {
   };
 
   StackLayout();
-
-  StackLayout(const StackLayout&) = delete;
-  StackLayout& operator=(const StackLayout&) = delete;
-
   ~StackLayout() override;
 
   // views::LayoutManager:
@@ -61,6 +58,8 @@ class COMPONENT_EXPORT(ASSISTANT_UI) StackLayout : public views::LayoutManager {
   views::View* host_ = nullptr;
   std::map<views::View*, RespectDimension> respect_dimension_map_;
   std::map<views::View*, VerticalAlignment> vertical_alignment_map_;
+
+  DISALLOW_COPY_AND_ASSIGN(StackLayout);
 };
 
 }  // namespace ash

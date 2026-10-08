@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,12 @@
 
 #include <algorithm>
 
-#include "base/metrics/field_trial_params.h"
 #include "base/strings/string_util.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 
 namespace page_load_metrics {
 
-namespace {
-
-// Default timer delay value.
-const int kBaseBufferTimerDelayMillis = 100;
-
-// Additional delay for the browser timer relative to the renderer timer, to
-// allow for some variability in task queuing duration and IPC latency.
-const int kExtraBufferTimerDelayMillis = 50;
-
-}  // namespace
-
-absl::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
+base::Optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
   const size_t registry_length =
       net::registry_controlled_domains::GetRegistryLength(
           url,
@@ -39,7 +27,7 @@ absl::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
   const base::StringPiece hostname = url.host_piece();
   if (registry_length == 0 || registry_length == std::string::npos ||
       registry_length >= hostname.length()) {
-    return absl::optional<std::string>();
+    return base::Optional<std::string>();
   }
 
   // Removes the tld and the preceding dot.
@@ -51,7 +39,7 @@ absl::optional<std::string> GetGoogleHostnamePrefix(const GURL& url) {
 
   if (!base::EndsWith(hostname_minus_registry, ".google",
                       base::CompareCase::INSENSITIVE_ASCII)) {
-    return absl::optional<std::string>();
+    return base::Optional<std::string>();
   }
 
   return std::string(hostname_minus_registry.substr(
@@ -62,28 +50,16 @@ bool IsGoogleHostname(const GURL& url) {
   return GetGoogleHostnamePrefix(url).has_value();
 }
 
-absl::optional<base::TimeDelta> OptionalMin(
-    const absl::optional<base::TimeDelta>& a,
-    const absl::optional<base::TimeDelta>& b) {
+base::Optional<base::TimeDelta> OptionalMin(
+    const base::Optional<base::TimeDelta>& a,
+    const base::Optional<base::TimeDelta>& b) {
   if (a && !b)
     return a;
   if (b && !a)
     return b;
   if (!a && !b)
     return a;  // doesn't matter which
-  return absl::optional<base::TimeDelta>(std::min(a.value(), b.value()));
-}
-
-int GetBufferTimerDelayMillis(TimerType timer_type) {
-  int result = kBaseBufferTimerDelayMillis;
-
-  DCHECK(timer_type == TimerType::kBrowser ||
-         timer_type == TimerType::kRenderer);
-  if (timer_type == TimerType::kBrowser) {
-    result += kExtraBufferTimerDelayMillis;
-  }
-
-  return result;
+  return base::Optional<base::TimeDelta>(std::min(a.value(), b.value()));
 }
 
 }  // namespace page_load_metrics

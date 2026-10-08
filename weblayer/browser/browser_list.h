@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ namespace weblayer {
 class BrowserImpl;
 class BrowserListObserver;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 class BrowserListProxy;
 #endif
 
@@ -29,7 +29,7 @@ class BrowserList {
 
   const base::flat_set<BrowserImpl*>& browsers() { return browsers_; }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Returns true if there is at least one Browser in a resumed state.
   bool HasAtLeastOneResumedBrowser();
 #endif
@@ -47,13 +47,13 @@ class BrowserList {
   void AddBrowser(BrowserImpl* browser);
   void RemoveBrowser(BrowserImpl* browser);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void NotifyHasAtLeastOneResumedBrowserChanged();
 #endif
 
   base::flat_set<BrowserImpl*> browsers_;
   base::ObserverList<BrowserListObserver> observers_;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::unique_ptr<BrowserListProxy> browser_list_proxy_;
 #endif
 };

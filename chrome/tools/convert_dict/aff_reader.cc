@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -138,7 +138,7 @@ bool AffReader::Read() {
 
 bool AffReader::EncodingToUTF8(const std::string& encoded,
                                std::string* utf8) const {
-  std::u16string word;
+  base::string16 word;
   if (!base::CodepageToUTF16(encoded, encoding(),
                              base::OnStringConversionError::FAIL, &word))
     return false;

@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/metrics/lcd_text_metrics_reporter.h"
 
 #include "base/lazy_instance.h"
-#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "cc/base/histograms.h"
 #include "cc/layers/picture_layer_impl.h"
@@ -17,7 +16,7 @@ namespace cc {
 
 namespace {
 
-constexpr auto kMinimumTimeInterval = base::Minutes(1);
+constexpr auto kMinimumTimeInterval = base::TimeDelta::FromMinutes(1);
 constexpr unsigned kMinimumFrameInterval = 500;
 
 // This must be the same as that used in DeviceScaleEnsuresTextQuality() in
@@ -75,7 +74,7 @@ void LCDTextMetricsReporter::NotifyPauseFrameProduction() {
 
   for (const auto* layer :
        layer_tree_host_impl_->active_tree()->picture_layers()) {
-    if (!layer->draws_content() || !layer->GetRasterSource())
+    if (!layer->DrawsContent() || !layer->GetRasterSource())
       continue;
     const scoped_refptr<DisplayItemList>& display_item_list =
         layer->GetRasterSource()->GetDisplayItemList();

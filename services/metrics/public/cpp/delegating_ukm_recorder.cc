@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/bind.h"
 #include "base/lazy_instance.h"
-#include "base/task/sequenced_task_runner.h"
 
 namespace ukm {
 
@@ -30,7 +29,7 @@ void DelegatingUkmRecorder::AddDelegate(base::WeakPtr<UkmRecorder> delegate) {
   base::AutoLock auto_lock(lock_);
   delegates_.insert(
       {delegate.get(),
-       Delegate(base::SequencedTaskRunner::GetCurrentDefault(), delegate)});
+       Delegate(base::SequencedTaskRunnerHandle::Get(), delegate)});
 }
 
 void DelegatingUkmRecorder::RemoveDelegate(UkmRecorder* delegate) {

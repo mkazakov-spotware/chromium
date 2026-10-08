@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/atomicops.h"
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "base/values.h"
 
 namespace base {
 
-class Value;
+class DictionaryValue;
 class HistogramBase;
 class HistogramSamples;
+class ListValue;
 class Pickle;
 class PickleIterator;
 
@@ -146,10 +148,6 @@ class BASE_EXPORT HistogramBase {
   // Construct the base histogram. The name is not copied; it's up to the
   // caller to ensure that it lives at least as long as this object.
   explicit HistogramBase(const char* name);
-
-  HistogramBase(const HistogramBase&) = delete;
-  HistogramBase& operator=(const HistogramBase&) = delete;
-
   virtual ~HistogramBase();
 
   const char* histogram_name() const { return histogram_name_; }
@@ -163,7 +161,7 @@ class BASE_EXPORT HistogramBase {
   virtual uint64_t name_hash() const = 0;
 
   // Operations with Flags enum.
-  int32_t flags() const { return flags_.load(std::memory_order_relaxed); }
+  int32_t flags() const { return subtle::NoBarrier_Load(&flags_); }
   void SetFlags(int32_t flags);
   void ClearFlags(int32_t flags);
 
@@ -172,9 +170,10 @@ class BASE_EXPORT HistogramBase {
   // Whether the histogram has construction arguments as parameters specified.
   // For histograms that don't have the concept of minimum, maximum or
   // bucket_count, this function always returns false.
-  virtual bool HasConstructionArguments(Sample expected_minimum,
-                                        Sample expected_maximum,
-                                        size_t expected_bucket_count) const = 0;
+  virtual bool HasConstructionArguments(
+      Sample expected_minimum,
+      Sample expected_maximum,
+      uint32_t expected_bucket_count) const = 0;
 
   virtual void Add(Sample value) = 0;
 
@@ -215,7 +214,7 @@ class BASE_EXPORT HistogramBase {
 
   // Snapshot the current complete set of sample data.
   // Note that histogram data is stored per-process. The browser process
-  // periodically ingests data from subprocesses. As such, the browser
+  // periodically injests data from subprocesses. As such, the browser
   // process can see histogram data from any process but other processes
   // can only see histogram data recorded in the subprocess.
   // Moreover, the data returned here may not be up to date:
@@ -230,42 +229,11 @@ class BASE_EXPORT HistogramBase {
   // in about:histograms and test code.
   virtual std::unique_ptr<HistogramSamples> SnapshotSamples() const = 0;
 
-  // Returns a copy of the samples that have not yet been logged. To mark the
-  // returned samples as logged, see MarkSamplesAsLogged().
-  //
-  // See additional caveats by SnapshotSamples().
-  //
-  // WARNING: This may be called from a background thread by the metrics
-  // collection system. Do not make a call to this unless it was properly vetted
-  // by someone familiar with the system.
-  // TODO(crbug/1052796): Consider gating this behind a PassKey, so that
-  // eventually, only StatisticsRecorder can use this.
-  virtual std::unique_ptr<HistogramSamples> SnapshotUnloggedSamples() const = 0;
-
-  // Marks the passed |samples| as logged. More formally, the |samples| passed
-  // will not appear in the samples returned by a subsequent call to
-  // SnapshotDelta().
-  //
-  // See additional caveats by SnapshotSamples().
-  //
-  // WARNING: This may be called from a background thread by the metrics
-  // collection system. Do not make a call to this unless it was properly vetted
-  // by someone familiar with the system.
-  // TODO(crbug/1052796): Consider gating this behind a PassKey, so that
-  // eventually, only StatisticsRecorder can use this.
-  virtual void MarkSamplesAsLogged(const HistogramSamples& samples) = 0;
-
   // Calculate the change (delta) in histogram counts since the previous call
-  // to this method. Each successive call will return only those counts changed
-  // since the last call. Calls to MarkSamplesAsLogged() will also affect the
-  // samples returned. Logically, this function is equivalent to a call to
-  // SnapshotUnloggedSamples() followed by a call to MarkSamplesAsLogged().
+  // to this method. Each successive call will return only those counts
+  // changed since the last call.
   //
   // See additional caveats by SnapshotSamples().
-  //
-  // WARNING: This may be called from a background thread by the metrics
-  // collection system. Do not make a call to this unless it was properly vetted
-  // by someone familiar with the system.
   virtual std::unique_ptr<HistogramSamples> SnapshotDelta() = 0;
 
   // Calculate the change (delta) in histogram counts since the previous call
@@ -280,13 +248,13 @@ class BASE_EXPORT HistogramBase {
   virtual std::unique_ptr<HistogramSamples> SnapshotFinalDelta() const = 0;
 
   // The following method provides graphical histogram displays.
-  virtual void WriteAscii(std::string* output) const;
+  virtual void WriteAscii(std::string* output) const = 0;
 
   // Returns histograms data as a Dict (or an empty dict if not available),
   // with the following format:
   // {"header": "Name of the histogram with samples, mean, and/or flags",
   // "body": "ASCII histogram representation"}
-  virtual base::Value::Dict ToGraphDict() const = 0;
+  virtual base::DictionaryValue ToGraphDict() const = 0;
 
   // TODO(bcwhite): Remove this after https://crbug/836875.
   virtual void ValidateHistogramContents() const;
@@ -300,32 +268,22 @@ class BASE_EXPORT HistogramBase {
  protected:
   enum ReportActivity { HISTOGRAM_CREATED, HISTOGRAM_LOOKUP };
 
-  struct BASE_EXPORT CountAndBucketData {
-    Count count;
-    int64_t sum;
-    Value::List buckets;
-
-    CountAndBucketData(Count count, int64_t sum, Value::List buckets);
-    ~CountAndBucketData();
-
-    CountAndBucketData(CountAndBucketData&& other);
-    CountAndBucketData& operator=(CountAndBucketData&& other);
-  };
-
   // Subclasses should implement this function to make SerializeInfo work.
   virtual void SerializeInfoImpl(base::Pickle* pickle) const = 0;
 
   // Writes information about the construction parameters in |params|.
-  virtual Value::Dict GetParameters() const = 0;
+  virtual void GetParameters(DictionaryValue* params) const = 0;
 
-  // Returns information about the current (non-empty) buckets and their sample
+  // Writes information about the current (non-empty) buckets and their sample
   // counts to |buckets|, the total sample count to |count| and the total sum
   // to |sum|.
-  CountAndBucketData GetCountAndBucketData() const;
+  void GetCountAndBucketData(Count* count,
+                             int64_t* sum,
+                             ListValue* buckets) const;
 
-  // Produces an actual graph (set of blank vs non blank char's) for a bucket.
-  void WriteAsciiBucketGraph(double x_count,
-                             int line_length,
+  //// Produce actual graph (set of blank vs non blank char's) for a bucket.
+  void WriteAsciiBucketGraph(double current_size,
+                             double max_size,
                              std::string* output) const;
 
   // Return a string description of what goes in a given bucket.
@@ -337,9 +295,9 @@ class BASE_EXPORT HistogramBase {
                              double scaled_sum,
                              std::string* output) const;
 
-  // Retrieves the registered callbacks for this histogram, if any, and runs
-  // them passing |sample| as the parameter.
-  void FindAndRunCallbacks(Sample sample) const;
+  // Retrieves the callback for this histogram, if one exists, and runs it
+  // passing |sample| as the parameter.
+  void FindAndRunCallback(Sample sample) const;
 
   // Gets a permanent string that can be used for histogram objects when the
   // original is not a code constant or held in persistent memory.
@@ -359,7 +317,9 @@ class BASE_EXPORT HistogramBase {
   const char* const histogram_name_;
 
   // Additional information about the histogram.
-  std::atomic<int32_t> flags_{0};
+  AtomicCount flags_;
+
+  DISALLOW_COPY_AND_ASSIGN(HistogramBase);
 };
 
 }  // namespace base

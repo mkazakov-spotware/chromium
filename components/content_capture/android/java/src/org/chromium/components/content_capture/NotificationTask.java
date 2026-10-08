@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.content_capture;
 
+import android.annotation.TargetApi;
 import android.graphics.Rect;
 import android.os.Build;
 import android.text.TextUtils;
@@ -11,17 +12,18 @@ import android.view.ViewStructure;
 import android.view.autofill.AutofillId;
 import android.view.contentcapture.ContentCaptureSession;
 
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
+import org.chromium.base.annotations.VerifiesOnQ;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.components.content_capture.PlatformSession.PlatformSessionData;
 
 /**
  * The background task to talk to the ContentCapture Service.
  */
-@RequiresApi(Build.VERSION_CODES.Q)
+@VerifiesOnQ
+@TargetApi(Build.VERSION_CODES.Q)
 abstract class NotificationTask extends AsyncTask<Boolean> {
     private static final String TAG = "ContentCapture";
     private static Boolean sDump;
@@ -71,12 +73,12 @@ abstract class NotificationTask extends AsyncTask<Boolean> {
     }
 
     protected AutofillId notifyViewAppeared(
-            PlatformSessionData parentPlatformSessionData, ContentCaptureDataBase data) {
+            PlatformSessionData parentPlatformSessionData, ContentCaptureData data) {
         ViewStructure viewStructure = PlatformAPIWrapper.getInstance().newVirtualViewStructure(
                 parentPlatformSessionData.contentCaptureSession,
                 parentPlatformSessionData.autofillId, data.getId());
 
-        viewStructure.setText(data.getText());
+        if (!data.hasChildren()) viewStructure.setText(data.getValue());
         Rect rect = data.getBounds();
         // Always set scroll as (0, 0).
         viewStructure.setDimens(rect.left, rect.top, 0, 0, rect.width(), rect.height());
@@ -86,14 +88,13 @@ abstract class NotificationTask extends AsyncTask<Boolean> {
     }
 
     public PlatformSessionData createOrGetSession(
-            PlatformSessionData parentPlatformSessionData, ContentCaptureFrame frame) {
+            PlatformSessionData parentPlatformSessionData, ContentCaptureData frame) {
         PlatformSessionData platformSessionData =
                 mPlatformSession.getFrameIdToPlatformSessionData().get(frame.getId());
-        if (platformSessionData == null && !TextUtils.isEmpty(frame.getUrl())) {
+        if (platformSessionData == null && !TextUtils.isEmpty(frame.getValue())) {
             ContentCaptureSession session =
                     PlatformAPIWrapper.getInstance().createContentCaptureSession(
-                            parentPlatformSessionData.contentCaptureSession, frame.getUrl(),
-                            frame.getFavicon());
+                            parentPlatformSessionData.contentCaptureSession, frame.getValue());
             AutofillId autofillId = PlatformAPIWrapper.getInstance().newAutofillId(
                     parentPlatformSessionData.contentCaptureSession,
                     mPlatformSession.getRootPlatformSessionData().autofillId, frame.getId());

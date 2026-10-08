@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.payments;
-
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
@@ -29,8 +27,7 @@ public class ErrorMessageUtil {
      * ErrorMessageUtilJni.
      */
     @NativeMethods
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    public interface Natives {
+    /* package */ interface Natives {
         String getNotSupportedErrorMessage(String[] methods);
     }
 }

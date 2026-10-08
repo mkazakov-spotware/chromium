@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,29 +11,31 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
+#include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/signin/chrome_signin_helper.h"
+#include "chrome/browser/ui/signin/profile_colors_util.h"
 #include "chrome/common/chrome_constants.h"
-#include "components/keyed_service/core/keyed_service_factory.h"
-#include "components/keyed_service/core/refcounted_keyed_service_factory.h"
+#include "chrome/installer/util/google_update_settings.h"
+#include "components/profile_metrics/browser_profile_type.h"
 #include "components/profile_metrics/counts.h"
 #include "components/signin/core/browser/signin_header_helper.h"
 #include "content/public/browser/browser_thread.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "chrome/browser/ui/browser_finder.h"
 #endif
 
 namespace {
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 constexpr base::TimeDelta kProfileActivityThreshold =
-    base::Days(28);  // Should be integral number of weeks.
+    base::TimeDelta::FromDays(28);  // Should be integral number of weeks.
 #endif
 
 enum class ProfileType {
@@ -64,9 +66,35 @@ ProfileType GetProfileType(const base::FilePath& profile_path) {
   return metric;
 }
 
-int GetTotalKeyedServiceCount(Profile* profile) {
-  return KeyedServiceFactory::GetServicesCount(profile) +
-         RefcountedKeyedServiceFactory::GetServicesCount(profile);
+profile_metrics::ProfileColorsUniqueness GetProfileColorsUniqueness(
+    ProfileAttributesStorage* storage) {
+#if defined(OS_ANDROID)
+  return profile_metrics::ProfileColorsUniqueness::kSingleProfile;
+#else
+  std::vector<ProfileAttributesEntry*> entries =
+      storage->GetAllProfilesAttributes();
+  DCHECK(!entries.empty());
+  if (entries.size() == 1u)
+    return profile_metrics::ProfileColorsUniqueness::kSingleProfile;
+
+  size_t default_colors_count = 0;
+  std::set<ProfileThemeColors> used_colors;
+  for (ProfileAttributesEntry* entry : entries) {
+    base::Optional<ProfileThemeColors> profile_colors =
+        entry->GetProfileThemeColorsIfSet();
+    if (!profile_colors) {
+      default_colors_count++;
+    } else if (!base::Contains(used_colors, *profile_colors)) {
+      used_colors.insert(*profile_colors);
+    } else {
+      return profile_metrics::ProfileColorsUniqueness::kRepeated;
+    }
+  }
+  return default_colors_count > 1u
+             ? profile_metrics::ProfileColorsUniqueness::
+                   kUniqueExceptForRepeatedDefault
+             : profile_metrics::ProfileColorsUniqueness::kUnique;
+#endif
 }
 
 }  // namespace
@@ -138,7 +166,7 @@ enum ProfileAvatar {
 
 // static
 bool ProfileMetrics::IsProfileActive(const ProfileAttributesEntry* entry) {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // TODO(mlerman): iOS and Android should set an ActiveTime in the
   // ProfileAttributesStorage. (see ProfileManager::OnBrowserSetLastActive)
   if (base::Time::Now() - entry->GetActiveTime() > kProfileActivityThreshold)
@@ -164,12 +192,41 @@ void ProfileMetrics::CountProfileInformation(ProfileAttributesStorage* storage,
       counts->unused++;
     } else {
       counts->active++;
+      if (!entry->IsUsingDefaultName())
+        counts->named++;
       if (entry->IsSupervised())
         counts->supervised++;
-      if (entry->IsAuthenticated())
+      if (entry->IsAuthenticated()) {
         counts->signedin++;
+        if (entry->IsUsingGAIAPicture())
+          counts->gaia_icon++;
+        if (entry->IsAuthError())
+          counts->auth_errors++;
+      }
     }
   }
+  counts->colors_uniqueness = GetProfileColorsUniqueness(storage);
+}
+
+profile_metrics::BrowserProfileType ProfileMetrics::GetBrowserProfileType(
+    Profile* profile) {
+  if (profile->IsSystemProfile())
+    return profile_metrics::BrowserProfileType::kSystem;
+  if (profile->IsGuestSession() || profile->IsEphemeralGuestProfile())
+    return profile_metrics::BrowserProfileType::kGuest;
+  // A regular profile can be in a guest session or a system profile. Hence it
+  // should be checked after them.
+  if (profile->IsRegularProfile())
+    return profile_metrics::BrowserProfileType::kRegular;
+
+  if (profile->IsIncognitoProfile())
+    return profile_metrics::BrowserProfileType::kIncognito;
+
+  if (profile->IsOffTheRecord() && !profile->IsPrimaryOTRProfile())
+    return profile_metrics::BrowserProfileType::kOtherOffTheRecordProfile;
+
+  NOTREACHED();
+  return profile_metrics::BrowserProfileType::kMaxValue;
 }
 
 void ProfileMetrics::LogNumberOfProfiles(ProfileAttributesStorage* storage) {
@@ -182,19 +239,6 @@ void ProfileMetrics::LogProfileAddNewUser(ProfileAdd metric) {
   base::UmaHistogramEnumeration("Profile.AddNewUser", metric);
   base::UmaHistogramEnumeration("Profile.NetUserCount",
                                 ProfileNetUserCounts::ADD_NEW_USER);
-}
-
-// static
-void ProfileMetrics::LogProfileAddSignInFlowOutcome(
-    ProfileSignedInFlowOutcome outcome) {
-  base::UmaHistogramEnumeration("Profile.AddSignInFlowOutcome", outcome);
-}
-
-// static
-void ProfileMetrics::LogLacrosPrimaryProfileFirstRunOutcome(
-    ProfileSignedInFlowOutcome outcome) {
-  base::UmaHistogramEnumeration("Profile.LacrosPrimaryProfileFirstRunOutcome",
-                                outcome);
 }
 
 void ProfileMetrics::LogProfileAvatarSelection(size_t icon_index) {
@@ -405,7 +449,19 @@ void ProfileMetrics::LogProfileSyncInfo(ProfileSync metric) {
                                 NUM_PROFILE_SYNC_METRICS);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+void ProfileMetrics::LogProfileDelete(bool profile_was_signed_in) {
+  base::UmaHistogramBoolean("Profile.Delete", profile_was_signed_in);
+}
+
+void ProfileMetrics::LogTimeToOpenUserManager(
+    const base::TimeDelta& time_to_open) {
+  base::UmaHistogramCustomTimes("Profile.TimeToOpenUserManagerUpTo1min",
+                                time_to_open,
+                                base::TimeDelta::FromMilliseconds(1),
+                                base::TimeDelta::FromMinutes(1), 50);
+}
+
+#if defined(OS_ANDROID)
 void ProfileMetrics::LogProfileAndroidAccountManagementMenu(
     ProfileAndroidAccountManagementMenu metric,
     signin::GAIAServiceType gaia_service) {
@@ -445,10 +501,10 @@ void ProfileMetrics::LogProfileAndroidAccountManagementMenu(
       break;
   }
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 void ProfileMetrics::LogProfileLaunch(Profile* profile) {
-  if (profile->IsChild()) {
+  if (profile->IsSupervised()) {
     base::RecordAction(
         base::UserMetricsAction("ManagedMode_NewManagedUserWindow"));
   }
@@ -456,13 +512,4 @@ void ProfileMetrics::LogProfileLaunch(Profile* profile) {
 
 void ProfileMetrics::LogProfileUpdate(const base::FilePath& profile_path) {
   base::UmaHistogramEnumeration("Profile.Update", GetProfileType(profile_path));
-}
-
-void ProfileMetrics::LogSystemProfileKeyedServicesCount(Profile* profile) {
-  DCHECK(profile->IsSystemProfile());
-
-  std::string histogram_name = "Profile.KeyedService.Count.SystemProfile";
-  histogram_name += profile->IsOffTheRecord() ? "OTR-M-107" : "Original-M-107";
-  base::UmaHistogramCounts1000(histogram_name,
-                               GetTotalKeyedServiceCount(profile));
 }

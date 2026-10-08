@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,44 +6,33 @@
 
 #include <errno.h>
 
-#include <memory>
 #include <vector>
 
-#include "base/bits.h"
 #include "base/logging.h"
-#include "base/memory/page_size.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/shared_memory_tracker.h"
 #include "base/process/process_metrics.h"
-#include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/memory_infra_background_allowlist.h"
 #include "base/trace_event/trace_event_impl.h"
 #include "base/trace_event/traced_value.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/perfetto/protos/perfetto/trace/memory_graph.pbzero.h"
 #include "third_party/perfetto/protos/perfetto/trace/trace_packet.pbzero.h"
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include <mach/vm_page_size.h>
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include <sys/mman.h>
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>  // Must be in front of other Windows header files
 
 #include <Psapi.h>
-#endif
-
-#if BUILDFLAG(IS_FUCHSIA)
-#include <tuple>
-
-#include "base/notreached.h"
 #endif
 
 using ProcessSnapshot =
@@ -80,7 +69,7 @@ bool ProcessMemoryDump::is_black_hole_non_fatal_for_testing_ = false;
 #if defined(COUNT_RESIDENT_BYTES_SUPPORTED)
 // static
 size_t ProcessMemoryDump::GetSystemPageSize() {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // On iOS, getpagesize() returns the user page sizes, but for allocating
   // arrays for mincore(), kernel page sizes is needed. Use vm_kernel_page_size
   // as recommended by Apple, https://forums.developer.apple.com/thread/47532/.
@@ -88,13 +77,12 @@ size_t ProcessMemoryDump::GetSystemPageSize() {
   return vm_kernel_page_size;
 #else
   return base::GetPageSize();
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
 }
 
 // static
-absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
-    void* start_address,
-    size_t mapped_size) {
+size_t ProcessMemoryDump::CountResidentBytes(void* start_address,
+                                             size_t mapped_size) {
   const size_t page_size = GetSystemPageSize();
   const uintptr_t start_pointer = reinterpret_cast<uintptr_t>(start_address);
   DCHECK_EQ(0u, start_pointer % page_size);
@@ -109,12 +97,12 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
   const size_t kMaxChunkSize = 8 * 1024 * 1024;
   size_t max_vec_size =
       GetSystemPageCount(std::min(mapped_size, kMaxChunkSize), page_size);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::unique_ptr<PSAPI_WORKING_SET_EX_INFORMATION[]> vec(
       new PSAPI_WORKING_SET_EX_INFORMATION[max_vec_size]);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   std::unique_ptr<char[]> vec(new char[max_vec_size]);
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   std::unique_ptr<unsigned char[]> vec(new unsigned char[max_vec_size]);
 #endif
 
@@ -123,7 +111,7 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
     const size_t chunk_size = std::min(mapped_size - offset, kMaxChunkSize);
     const size_t page_count = GetSystemPageCount(chunk_size, page_size);
     size_t resident_page_count = 0;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     for (size_t i = 0; i < page_count; i++) {
       vec[i].VirtualAddress =
           reinterpret_cast<void*>(chunk_start + i * page_size);
@@ -134,25 +122,23 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
 
     for (size_t i = 0; i < page_count; i++)
       resident_page_count += vec[i].VirtualAttributes.Valid;
-#elif BUILDFLAG(IS_FUCHSIA)
-    // TODO(crbug.com/851760): Implement counting resident bytes.
-    // For now, log and avoid unused variable warnings.
-    NOTIMPLEMENTED_LOG_ONCE();
-    std::ignore = chunk_start;
-    std::ignore = page_count;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_FUCHSIA)
+    // TODO(fuchsia): Port, see https://crbug.com/706592.
+    ALLOW_UNUSED_LOCAL(chunk_start);
+    ALLOW_UNUSED_LOCAL(page_count);
+#elif defined(OS_APPLE)
     // mincore in MAC does not fail with EAGAIN.
     failure =
         !!mincore(reinterpret_cast<void*>(chunk_start), chunk_size, vec.get());
     for (size_t i = 0; i < page_count; i++)
       resident_page_count += vec[i] & MINCORE_INCORE ? 1 : 0;
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
     int error_counter = 0;
     int result = 0;
     // HANDLE_EINTR tries for 100 times. So following the same pattern.
     do {
       result =
-#if BUILDFLAG(IS_AIX)
+#if defined(OS_AIX)
           mincore(reinterpret_cast<char*>(chunk_start), chunk_size,
                   reinterpret_cast<char*>(vec.get()));
 #else
@@ -174,43 +160,29 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
 
   DCHECK(!failure);
   if (failure) {
+    total_resident_pages = 0;
     LOG(ERROR) << "CountResidentBytes failed. The resident size is invalid";
-    return absl::nullopt;
   }
   return total_resident_pages;
 }
 
 // static
-absl::optional<size_t> ProcessMemoryDump::CountResidentBytesInSharedMemory(
+base::Optional<size_t> ProcessMemoryDump::CountResidentBytesInSharedMemory(
     void* start_address,
     size_t mapped_size) {
-  // `MapAt()` performs some internal arithmetic to allow non-page-aligned
-  // offsets, but the memory accounting still expects to work with page-aligned
-  // allocations.
-  //
-  // TODO(dcheng): one peculiarity here is that the shmem implementation uses
-  // `base::SysInfo::VMAllocationGranularity()` while this file uses
-  // `GetSystemPageSize()`. It'd be nice not to have two names for the same
-  // thing...
-  uint8_t* aligned_start_address = base::bits::AlignDown(
-      static_cast<uint8_t*>(start_address), GetSystemPageSize());
-  size_t adjusted_size =
-      mapped_size + static_cast<size_t>(static_cast<uint8_t*>(start_address) -
-                                        aligned_start_address);
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // On macOS, use mach_vm_region instead of mincore for performance
   // (crbug.com/742042).
   mach_vm_size_t dummy_size = 0;
   mach_vm_address_t address =
-      reinterpret_cast<mach_vm_address_t>(aligned_start_address);
+      reinterpret_cast<mach_vm_address_t>(start_address);
   vm_region_top_info_data_t info;
   MachVMRegionResult result =
       GetTopInfo(mach_task_self(), &dummy_size, &address, &info);
   if (result == MachVMRegionResult::Error) {
     LOG(ERROR) << "CountResidentBytesInSharedMemory failed. The resident size "
                   "is invalid";
-    return absl::optional<size_t>();
+    return base::Optional<size_t>();
   }
 
   size_t resident_pages =
@@ -245,9 +217,9 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytesInSharedMemory(
   // Sanity check in case the mapped size is less than the total size of the
   // region.
   size_t pages_to_fault =
-      std::min(resident_pages, (adjusted_size + PAGE_SIZE - 1) / PAGE_SIZE);
+      std::min(resident_pages, (mapped_size + PAGE_SIZE - 1) / PAGE_SIZE);
 
-  volatile uint8_t* base_address = const_cast<uint8_t*>(aligned_start_address);
+  volatile char* base_address = static_cast<char*>(start_address);
   for (size_t i = 0; i < pages_to_fault; ++i) {
     // Reading from a volatile is a visible side-effect for the purposes of
     // optimization. This guarantees that the optimizer will not kill this line.
@@ -256,8 +228,8 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytesInSharedMemory(
 
   return resident_pages * PAGE_SIZE;
 #else
-  return CountResidentBytes(aligned_start_address, adjusted_size);
-#endif  // BUILDFLAG(IS_MAC)
+  return CountResidentBytes(start_address, mapped_size);
+#endif  // defined(OS_MAC)
 }
 
 #endif  // defined(COUNT_RESIDENT_BYTES_SUPPORTED)
@@ -291,7 +263,7 @@ MemoryAllocatorDump* ProcessMemoryDump::AddAllocatorDumpInternal(
   // given.
   if (dump_args_.level_of_detail == MemoryDumpLevelOfDetail::BACKGROUND &&
       !IsMemoryAllocatorDumpNameInAllowlist(mad->absolute_name())) {
-    return GetBlackHoleMad(mad->absolute_name());
+    return GetBlackHoleMad();
   }
 
   auto insertion_result = allocator_dumps_.insert(
@@ -440,8 +412,7 @@ void ProcessMemoryDump::SerializeAllocatorDumpsInto(
 
     memory_edge->set_source_id(edge.source.ToUint64());
     memory_edge->set_target_id(edge.target.ToUint64());
-    // TODO(crbug.com/1333557): Fix .proto and remove this cast.
-    memory_edge->set_importance(static_cast<uint32_t>(edge.importance));
+    memory_edge->set_importance(edge.importance);
   }
 }
 
@@ -540,15 +511,12 @@ void ProcessMemoryDump::AddSuballocation(const MemoryAllocatorDumpGuid& source,
   AddOwnershipEdge(source, target_child_mad->guid());
 }
 
-MemoryAllocatorDump* ProcessMemoryDump::GetBlackHoleMad(
-    const std::string& absolute_name) {
-  DCHECK(is_black_hole_non_fatal_for_testing_)
-      << " unknown dump name " << absolute_name
-      << " this likely means kAllocatorDumpNameAllowlist needs to be updated";
+MemoryAllocatorDump* ProcessMemoryDump::GetBlackHoleMad() {
+  DCHECK(is_black_hole_non_fatal_for_testing_);
   if (!black_hole_mad_) {
     std::string name = "discarded";
-    black_hole_mad_ = std::make_unique<MemoryAllocatorDump>(
-        name, dump_args_.level_of_detail, GetDumpId(name));
+    black_hole_mad_.reset(new MemoryAllocatorDump(
+        name, dump_args_.level_of_detail, GetDumpId(name)));
   }
   return black_hole_mad_.get();
 }

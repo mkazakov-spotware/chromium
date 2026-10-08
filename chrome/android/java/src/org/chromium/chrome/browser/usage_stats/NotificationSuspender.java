@@ -1,9 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.usage_stats;
 
+import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Context;
@@ -16,12 +17,11 @@ import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.webkit.URLUtil;
 
-import androidx.annotation.RequiresApi;
-
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Promise;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.notifications.NotificationPlatformBridge;
 import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -45,7 +45,8 @@ public class NotificationSuspender {
     private final NotificationManager mNotificationManager;
 
     private static boolean isEnabled() {
-        return UsageStatsService.isEnabled();
+        return UsageStatsService.isEnabled()
+                && ChromeFeatureList.isEnabled(ChromeFeatureList.NOTIFICATION_SUSPENDER);
     }
 
     /**
@@ -116,7 +117,7 @@ public class NotificationSuspender {
         NotificationSuspenderJni.get().reDisplayNotifications(mProfile, origins);
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
+    @TargetApi(Build.VERSION_CODES.M)
     private List<NotificationWrapper> getActiveNotificationsForFqdns(List<String> fqdns) {
         List<NotificationWrapper> notifications = new ArrayList<>();
 
@@ -135,18 +136,18 @@ public class NotificationSuspender {
         return notifications;
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
+    @TargetApi(Build.VERSION_CODES.P)
     private Bitmap getBitmapFromIcon(Icon icon) {
         if (icon == null || icon.getType() != Icon.TYPE_BITMAP) return null;
         return ((BitmapDrawable) icon.loadDrawable(mContext)).getBitmap();
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
+    @TargetApi(Build.VERSION_CODES.M)
     private Bitmap getNotificationIcon(Notification notification) {
         return getBitmapFromIcon(notification.getLargeIcon());
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
+    @TargetApi(Build.VERSION_CODES.M)
     private Bitmap getNotificationBadge(Notification notification) {
         return getBitmapFromIcon(notification.getSmallIcon());
     }

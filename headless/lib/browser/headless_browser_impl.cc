@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,7 @@
 #include "headless/lib/browser/headless_browser_main_parts.h"
 #include "headless/lib/browser/headless_devtools_agent_host_client.h"
 #include "headless/lib/browser/headless_web_contents_impl.h"
+#include "headless/lib/headless_content_main_delegate.h"
 #include "net/http/http_util.h"
 #include "services/network/public/cpp/network_switches.h"
 #include "ui/events/devices/device_data_manager.h"
@@ -53,7 +54,6 @@ HeadlessBrowserImpl::BrowserMainThread() const {
 
 void HeadlessBrowserImpl::Shutdown() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  did_shutdown_ = true;
 
   weak_ptr_factory_.InvalidateWeakPtrs();
   // Make sure GetAllBrowserContexts is sane if called after this point.
@@ -104,10 +104,15 @@ HeadlessBrowserContext* HeadlessBrowserImpl::CreateBrowserContext(
     HeadlessBrowserContext::Builder* builder) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  CHECK(!did_shutdown_);
+  std::unique_ptr<HeadlessBrowserContextImpl> browser_context =
+      HeadlessBrowserContextImpl::Create(builder);
 
-  auto browser_context = HeadlessBrowserContextImpl::Create(builder);
+  if (!browser_context) {
+    return nullptr;
+  }
+
   HeadlessBrowserContext* result = browser_context.get();
+
   browser_contexts_[browser_context->Id()] = std::move(browser_context);
 
   return result;
@@ -187,19 +192,6 @@ HeadlessBrowserImpl::CreateDevToolsChannel() {
   DCHECK(agent_host_);
   return std::make_unique<HeadlessDevToolsAgentHostClient>(agent_host_);
 }
-
-#if defined(HEADLESS_USE_PREFS)
-PrefService* HeadlessBrowserImpl::GetPrefs() {
-  return browser_main_parts_ ? browser_main_parts_->GetPrefs() : nullptr;
-}
-#endif
-
-#if defined(HEADLESS_USE_POLICY)
-policy::PolicyService* HeadlessBrowserImpl::GetPolicyService() {
-  return browser_main_parts_ ? browser_main_parts_->GetPolicyService()
-                             : nullptr;
-}
-#endif
 
 void HeadlessBrowserImpl::AttachClient(HeadlessDevToolsClient* client) {
   client->AttachToChannel(CreateDevToolsChannel());

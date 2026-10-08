@@ -1,11 +1,7 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
-import {VolumeManager} from '../../externs/volume_manager.js';
 
 /**
  * An item in the model. Represents a single providing extension.
@@ -100,7 +96,7 @@ class ProvidersModelItem {
  * providing extensions as well as performing operations on them, such as
  * requesting a new mount point.
  */
-export class ProvidersModel {
+class ProvidersModel {
   /**
    * @param {!VolumeManager} volumeManager
    */

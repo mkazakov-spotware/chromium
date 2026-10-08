@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,12 @@
 
 #include <map>
 #include <memory>
+#include <string>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_constraints.h"
-#include "components/content_settings/core/common/content_settings_metadata.h"
 
 class GURL;
 
@@ -37,8 +38,10 @@ class OriginIdentifierValueMap {
   };
 
   struct ValueEntry {
+    base::Time last_modified;
+    base::Time expiration;
     base::Value value;
-    RuleMetaData metadata;
+    SessionModel session_model;
     ValueEntry();
     ~ValueEntry();
   };
@@ -83,10 +86,6 @@ class OriginIdentifierValueMap {
       base::Lock* lock) const;
 
   OriginIdentifierValueMap();
-
-  OriginIdentifierValueMap(const OriginIdentifierValueMap&) = delete;
-  OriginIdentifierValueMap& operator=(const OriginIdentifierValueMap&) = delete;
-
   ~OriginIdentifierValueMap();
 
   // Returns a weak pointer to the value for the given |primary_pattern|,
@@ -96,6 +95,10 @@ class OriginIdentifierValueMap {
                               const GURL& secondary_url,
                               ContentSettingsType content_type) const;
 
+  base::Time GetLastModified(const ContentSettingsPattern& primary_pattern,
+                             const ContentSettingsPattern& secondary_pattern,
+                             ContentSettingsType content_type) const;
+
   // Sets the |value| for the given |primary_pattern|, |secondary_pattern|,
   // |content_type| tuple. The caller can also store a
   // |last_modified| date for each value. The |constraints| will be used to
@@ -104,8 +107,9 @@ class OriginIdentifierValueMap {
   void SetValue(const ContentSettingsPattern& primary_pattern,
                 const ContentSettingsPattern& secondary_pattern,
                 ContentSettingsType content_type,
+                base::Time last_modified,
                 base::Value value,
-                const RuleMetaData& metadata);
+                const ContentSettingConstraints& constraints);
 
   // Deletes the map entry for the given |primary_pattern|,
   // |secondary_pattern|, |content_type| tuple.
@@ -121,6 +125,8 @@ class OriginIdentifierValueMap {
 
  private:
   EntryMap entries_;
+
+  DISALLOW_COPY_AND_ASSIGN(OriginIdentifierValueMap);
 };
 
 }  // namespace content_settings

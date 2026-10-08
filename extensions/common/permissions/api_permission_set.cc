@@ -1,10 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/common/permissions/api_permission_set.h"
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/ranges/algorithm.h"
 #include "base/stl_util.h"
@@ -14,8 +13,6 @@
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/permissions/permissions_info.h"
 
-using extensions::mojom::APIPermissionID;
-
 namespace extensions {
 
 namespace errors = manifest_errors;
@@ -23,20 +20,22 @@ namespace errors = manifest_errors;
 namespace {
 
 // Helper object that is implicitly constructible from both a PermissionID and
-// from an mojom::APIPermissionID.
+// from an APIPermission::ID.
 struct PermissionIDCompareHelper {
   PermissionIDCompareHelper(const PermissionID& id) : id(id.id()) {}
-  PermissionIDCompareHelper(const APIPermissionID id) : id(id) {}
+  PermissionIDCompareHelper(const APIPermission::ID id) : id(id) {}
 
-  APIPermissionID id;
+  APIPermission::ID id;
 };
 
-bool CreateAPIPermission(const std::string& permission_str,
-                         const base::Value* permission_value,
-                         APIPermissionSet::ParseSource source,
-                         APIPermissionSet* api_permissions,
-                         std::u16string* error,
-                         std::vector<std::string>* unhandled_permissions) {
+bool CreateAPIPermission(
+    const std::string& permission_str,
+    const base::Value* permission_value,
+    APIPermissionSet::ParseSource source,
+    APIPermissionSet* api_permissions,
+    base::string16* error,
+    std::vector<std::string>* unhandled_permissions) {
+
   const APIPermissionInfo* permission_info =
       PermissionsInfo::GetInstance()->GetByName(permission_str);
   if (permission_info) {
@@ -68,7 +67,7 @@ bool CreateAPIPermission(const std::string& permission_str,
         }
         return false;
       }
-      VLOG(1) << "Parse permission failed.";
+      LOG(WARNING) << "Parse permission failed.";
     } else {
       api_permissions->insert(std::move(permission));
     }
@@ -78,7 +77,7 @@ bool CreateAPIPermission(const std::string& permission_str,
   if (unhandled_permissions)
     unhandled_permissions->push_back(permission_str);
   else
-    VLOG(1) << "Unknown permission[" << permission_str << "].";
+    LOG(WARNING) << "Unknown permission[" << permission_str << "].";
 
   return true;
 }
@@ -87,7 +86,7 @@ bool ParseChildPermissions(const std::string& base_name,
                            const base::Value* permission_value,
                            APIPermissionSet::ParseSource source,
                            APIPermissionSet* api_permissions,
-                           std::u16string* error,
+                           base::string16* error,
                            std::vector<std::string>* unhandled_permissions) {
   if (permission_value) {
     if (!permission_value->is_list()) {
@@ -96,16 +95,16 @@ bool ParseChildPermissions(const std::string& base_name,
             errors::kInvalidPermission, base_name);
         return false;
       }
-      VLOG(1) << "Permission value is not a list.";
+      LOG(WARNING) << "Permission value is not a list.";
       // Failed to parse, but since error is NULL, failures are not fatal so
       // return true here anyway.
       return true;
     }
 
-    const base::Value::List& list = permission_value->GetList();
-    for (size_t i = 0; i < list.size(); ++i) {
+    base::Value::ConstListView list_view = permission_value->GetList();
+    for (size_t i = 0; i < list_view.size(); ++i) {
       std::string permission_str;
-      if (!list[i].is_string()) {
+      if (!list_view[i].is_string()) {
         // permission should be a string
         if (error) {
           *error = ErrorUtils::FormatErrorMessageUTF16(
@@ -113,12 +112,12 @@ bool ParseChildPermissions(const std::string& base_name,
               base_name + '.' + base::NumberToString(i));
           return false;
         }
-        VLOG(1) << "Permission is not a string.";
+        LOG(WARNING) << "Permission is not a string.";
         continue;
       }
 
-      if (!CreateAPIPermission(base_name + '.' + list[i].GetString(), nullptr,
-                               source, api_permissions, error,
+      if (!CreateAPIPermission(base_name + '.' + list_view[i].GetString(),
+                               nullptr, source, api_permissions, error,
                                unhandled_permissions))
         return false;
     }
@@ -130,7 +129,7 @@ bool ParseChildPermissions(const std::string& base_name,
 
 }  // namespace
 
-void APIPermissionSet::insert(APIPermissionID id) {
+void APIPermissionSet::insert(APIPermission::ID id) {
   const APIPermissionInfo* permission_info =
       PermissionsInfo::GetInstance()->GetByID(id);
   DCHECK(permission_info);
@@ -143,19 +142,31 @@ void APIPermissionSet::insert(std::unique_ptr<APIPermission> permission) {
 
 // static
 bool APIPermissionSet::ParseFromJSON(
-    const base::Value::List& permissions,
+    const base::Value* permissions,
     APIPermissionSet::ParseSource source,
     APIPermissionSet* api_permissions,
-    std::u16string* error,
+    base::string16* error,
     std::vector<std::string>* unhandled_permissions) {
-  for (size_t i = 0; i < permissions.size(); ++i) {
+  if (!permissions->is_list()) {
+    if (error) {
+      *error = ErrorUtils::FormatErrorMessageUTF16(errors::kInvalidPermission,
+                                                   "<root>");
+      return false;
+    }
+    LOG(WARNING) << "Root Permissions value is not a list.";
+    // Failed to parse, but since error is NULL, failures are not fatal so
+    // return true here anyway.
+    return true;
+  }
+  base::Value::ConstListView list_view = permissions->GetList();
+  for (size_t i = 0; i < list_view.size(); ++i) {
     std::string permission_str;
     const base::Value* permission_value = nullptr;
     // permission should be a string or a single key dict.
-    if (permissions[i].is_string()) {
-      permission_str = permissions[i].GetString();
-    } else if (permissions[i].is_dict() && permissions[i].DictSize() == 1) {
-      auto dict_iter = permissions[i].DictItems().begin();
+    if (list_view[i].is_string()) {
+      permission_str = list_view[i].GetString();
+    } else if (list_view[i].is_dict() && list_view[i].DictSize() == 1) {
+      auto dict_iter = list_view[i].DictItems().begin();
       permission_str = dict_iter->first;
       permission_value = &dict_iter->second;
     } else {
@@ -164,7 +175,7 @@ bool APIPermissionSet::ParseFromJSON(
                                                      base::NumberToString(i));
         return false;
       }
-      VLOG(1) << "Permission is not a string or single key dict.";
+      LOG(WARNING) << "Permission is not a string or single key dict.";
       continue;
     }
 
@@ -184,11 +195,14 @@ bool APIPermissionSet::ParseFromJSON(
   return true;
 }
 
-PermissionID::PermissionID(APIPermissionID id)
-    : std::pair<APIPermissionID, std::u16string>(id, std::u16string()) {}
+PermissionID::PermissionID(APIPermission::ID id)
+    : std::pair<APIPermission::ID, base::string16>(id, base::string16()) {
+}
 
-PermissionID::PermissionID(APIPermissionID id, const std::u16string& parameter)
-    : std::pair<APIPermissionID, std::u16string>(id, parameter) {}
+PermissionID::PermissionID(APIPermission::ID id,
+                           const base::string16& parameter)
+    : std::pair<APIPermission::ID, base::string16>(id, parameter) {
+}
 
 PermissionID::~PermissionID() {
 }
@@ -197,7 +211,7 @@ PermissionIDSet::PermissionIDSet() {
 }
 
 PermissionIDSet::PermissionIDSet(
-    std::initializer_list<APIPermissionID> permissions) {
+    std::initializer_list<APIPermission::ID> permissions) {
   for (auto permission : permissions) {
     permissions_.insert(PermissionID(permission));
   }
@@ -208,12 +222,12 @@ PermissionIDSet::PermissionIDSet(const PermissionIDSet& other) = default;
 PermissionIDSet::~PermissionIDSet() {
 }
 
-void PermissionIDSet::insert(APIPermissionID permission_id) {
-  insert(permission_id, std::u16string());
+void PermissionIDSet::insert(APIPermission::ID permission_id) {
+  insert(permission_id, base::string16());
 }
 
-void PermissionIDSet::insert(APIPermissionID permission_id,
-                             const std::u16string& permission_detail) {
+void PermissionIDSet::insert(APIPermission::ID permission_id,
+                             const base::string16& permission_detail) {
   permissions_.insert(PermissionID(permission_id, permission_detail));
 }
 
@@ -223,7 +237,7 @@ void PermissionIDSet::InsertAll(const PermissionIDSet& permission_set) {
   }
 }
 
-void PermissionIDSet::erase(APIPermissionID permission_id) {
+void PermissionIDSet::erase(APIPermission::ID permission_id) {
   auto lower_bound = permissions_.lower_bound(PermissionID(permission_id));
   auto upper_bound = lower_bound;
   while (upper_bound != permissions_.end() &&
@@ -233,9 +247,9 @@ void PermissionIDSet::erase(APIPermissionID permission_id) {
   permissions_.erase(lower_bound, upper_bound);
 }
 
-std::vector<std::u16string> PermissionIDSet::GetAllPermissionParameters()
+std::vector<base::string16> PermissionIDSet::GetAllPermissionParameters()
     const {
-  std::vector<std::u16string> params;
+  std::vector<base::string16> params;
   for (const auto& permission : permissions_) {
     params.push_back(permission.parameter());
   }
@@ -247,12 +261,12 @@ bool PermissionIDSet::ContainsID(PermissionID permission_id) const {
   return it != permissions_.end() && it->id() == permission_id.id();
 }
 
-bool PermissionIDSet::ContainsID(APIPermissionID permission_id) const {
+bool PermissionIDSet::ContainsID(APIPermission::ID permission_id) const {
   return ContainsID(PermissionID(permission_id));
 }
 
 bool PermissionIDSet::ContainsAllIDs(
-    const std::set<APIPermissionID>& permission_ids) const {
+    const std::set<APIPermission::ID>& permission_ids) const {
   return std::includes(permissions_.begin(), permissions_.end(),
                        permission_ids.begin(), permission_ids.end(),
                        [] (const PermissionIDCompareHelper& lhs,
@@ -262,8 +276,8 @@ bool PermissionIDSet::ContainsAllIDs(
 }
 
 bool PermissionIDSet::ContainsAnyID(
-    const std::set<APIPermissionID>& permission_ids) const {
-  for (APIPermissionID id : permission_ids) {
+    const std::set<APIPermission::ID>& permission_ids) const {
+  for (APIPermission::ID id : permission_ids) {
     if (ContainsID(id))
       return true;
   }
@@ -279,7 +293,7 @@ bool PermissionIDSet::ContainsAnyID(const PermissionIDSet& other) const {
 }
 
 PermissionIDSet PermissionIDSet::GetAllPermissionsWithID(
-    APIPermissionID permission_id) const {
+    APIPermission::ID permission_id) const {
   PermissionIDSet subset;
   auto it = permissions_.lower_bound(PermissionID(permission_id));
   while (it != permissions_.end() && it->id() == permission_id) {
@@ -290,7 +304,7 @@ PermissionIDSet PermissionIDSet::GetAllPermissionsWithID(
 }
 
 PermissionIDSet PermissionIDSet::GetAllPermissionsWithIDs(
-    const std::set<APIPermissionID>& permission_ids) const {
+    const std::set<APIPermission::ID>& permission_ids) const {
   PermissionIDSet subset;
   for (const auto& permission : permissions_) {
     if (base::Contains(permission_ids, permission.id())) {

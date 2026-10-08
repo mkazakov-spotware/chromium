@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,13 @@
 #include <string>
 
 #include "base/time/time.h"
-#include "base/values.h"
 #include "components/invalidation/public/invalidation_export.h"
 
-namespace invalidation {
+namespace base {
+class DictionaryValue;
+}
+
+namespace syncer {
 
 // Opaque class that represents a local ack handle. We don't reuse the
 // invalidation ack handles to avoid unnecessary dependencies.
@@ -23,8 +26,8 @@ class INVALIDATION_EXPORT AckHandle {
 
   bool Equals(const AckHandle& other) const;
 
-  base::Value::Dict ToValue() const;
-  bool ResetFromValue(const base::Value::Dict& value);
+  std::unique_ptr<base::DictionaryValue> ToValue() const;
+  bool ResetFromValue(const base::DictionaryValue& value);
 
   bool IsValid() const;
 
@@ -40,6 +43,6 @@ class INVALIDATION_EXPORT AckHandle {
   base::Time timestamp_;
 };
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_PUBLIC_ACK_HANDLE_H_

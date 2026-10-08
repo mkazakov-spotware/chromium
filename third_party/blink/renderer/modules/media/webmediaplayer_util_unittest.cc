@@ -1,12 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/web/modules/media/webmediaplayer_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/scheme_registry.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
-#include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
 
 namespace blink {
 
@@ -19,22 +17,22 @@ TEST(GetMediaURLScheme, MissingUnknown) {
 
 TEST(GetMediaURLScheme, WebCommon) {
   EXPECT_EQ(media::mojom::MediaURLScheme::kFtp,
-            GetMediaURLScheme(KURL("ftp://abc.test")));
+            GetMediaURLScheme(KURL("ftp://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kHttp,
-            GetMediaURLScheme(KURL("http://abc.test")));
+            GetMediaURLScheme(KURL("http://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kHttps,
-            GetMediaURLScheme(KURL("https://abc.test")));
+            GetMediaURLScheme(KURL("https://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kData,
-            GetMediaURLScheme(KURL("data://abc.test")));
+            GetMediaURLScheme(KURL("data://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kBlob,
-            GetMediaURLScheme(KURL("blob://abc.test")));
+            GetMediaURLScheme(KURL("blob://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kJavascript,
-            GetMediaURLScheme(KURL("javascript://abc.test")));
+            GetMediaURLScheme(KURL("javascript://abc.123")));
 }
 
 TEST(GetMediaURLScheme, Files) {
   EXPECT_EQ(media::mojom::MediaURLScheme::kFile,
-            GetMediaURLScheme(KURL("file://abc.test")));
+            GetMediaURLScheme(KURL("file://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kFileSystem,
             GetMediaURLScheme(KURL("filesystem:file://abc/123")));
 }
@@ -47,14 +45,10 @@ TEST(GetMediaURLScheme, Android) {
 }
 
 TEST(GetMediaURLScheme, Chrome) {
-  SchemeRegistry::RegisterURLSchemeAsWebUIForTest("chrome");
-  CommonSchemeRegistry::RegisterURLSchemeAsExtension("chrome-extension");
   EXPECT_EQ(media::mojom::MediaURLScheme::kChrome,
             GetMediaURLScheme(KURL("chrome://abc.123")));
   EXPECT_EQ(media::mojom::MediaURLScheme::kChromeExtension,
             GetMediaURLScheme(KURL("chrome-extension://abc.123")));
-  CommonSchemeRegistry::RemoveURLSchemeAsExtensionForTest("chrome-extension");
-  SchemeRegistry::RemoveURLSchemeAsWebUIForTest("chrome");
 }
 
 }  // namespace blink

@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/base/audio_codecs.h"
-
-#include <ostream>
 
 #include "base/strings/string_util.h"
 
@@ -13,44 +11,40 @@ namespace media {
 // These names come from src/third_party/ffmpeg/libavcodec/codec_desc.c
 std::string GetCodecName(AudioCodec codec) {
   switch (codec) {
-    case AudioCodec::kUnknown:
+    case kUnknownAudioCodec:
       return "unknown";
-    case AudioCodec::kAAC:
+    case kCodecAAC:
       return "aac";
-    case AudioCodec::kMP3:
+    case kCodecMP3:
       return "mp3";
-    case AudioCodec::kPCM:
-    case AudioCodec::kPCM_S16BE:
-    case AudioCodec::kPCM_S24BE:
+    case kCodecPCM:
+    case kCodecPCM_S16BE:
+    case kCodecPCM_S24BE:
       return "pcm";
-    case AudioCodec::kVorbis:
+    case kCodecVorbis:
       return "vorbis";
-    case AudioCodec::kFLAC:
+    case kCodecFLAC:
       return "flac";
-    case AudioCodec::kAMR_NB:
+    case kCodecAMR_NB:
       return "amr_nb";
-    case AudioCodec::kAMR_WB:
+    case kCodecAMR_WB:
       return "amr_wb";
-    case AudioCodec::kPCM_MULAW:
+    case kCodecPCM_MULAW:
       return "pcm_mulaw";
-    case AudioCodec::kGSM_MS:
+    case kCodecGSM_MS:
       return "gsm_ms";
-    case AudioCodec::kOpus:
+    case kCodecOpus:
       return "opus";
-    case AudioCodec::kPCM_ALAW:
+    case kCodecPCM_ALAW:
       return "pcm_alaw";
-    case AudioCodec::kEAC3:
+    case kCodecEAC3:
       return "eac3";
-    case AudioCodec::kALAC:
+    case kCodecALAC:
       return "alac";
-    case AudioCodec::kAC3:
+    case kCodecAC3:
       return "ac3";
-    case AudioCodec::kMpegHAudio:
+    case kCodecMpegHAudio:
       return "mpeg-h-audio";
-    case AudioCodec::kDTS:
-      return "dts";
-    case AudioCodec::kDTSXP2:
-      return "dtsx-p2";
   }
 }
 
@@ -65,40 +59,28 @@ std::string GetProfileName(AudioCodecProfile profile) {
 
 AudioCodec StringToAudioCodec(const std::string& codec_id) {
   if (codec_id == "aac")
-    return AudioCodec::kAAC;
+    return kCodecAAC;
   if (codec_id == "ac-3" || codec_id == "mp4a.A5" || codec_id == "mp4a.a5")
-    return AudioCodec::kAC3;
+    return kCodecAC3;
   if (codec_id == "ec-3" || codec_id == "mp4a.A6" || codec_id == "mp4a.a6")
-    return AudioCodec::kEAC3;
-  if (codec_id == "dtsc")
-    return AudioCodec::kDTS;
-  if (codec_id == "dtsx")
-    return AudioCodec::kDTSXP2;
+    return kCodecEAC3;
   if (codec_id == "mp3" || codec_id == "mp4a.69" || codec_id == "mp4a.6B")
-    return AudioCodec::kMP3;
+    return kCodecMP3;
   if (codec_id == "alac")
-    return AudioCodec::kALAC;
+    return kCodecALAC;
   if (codec_id == "flac")
-    return AudioCodec::kFLAC;
+    return kCodecFLAC;
   if (base::StartsWith(codec_id, "mhm1.", base::CompareCase::SENSITIVE) ||
       base::StartsWith(codec_id, "mha1.", base::CompareCase::SENSITIVE)) {
-    return AudioCodec::kMpegHAudio;
+    return kCodecMpegHAudio;
   }
   if (codec_id == "opus")
-    return AudioCodec::kOpus;
+    return kCodecOpus;
   if (codec_id == "vorbis")
-    return AudioCodec::kVorbis;
-  if (codec_id == "dtsc")
-    return AudioCodec::kDTS;
-  if (codec_id == "dtsx")
-    return AudioCodec::kDTSXP2;
+    return kCodecVorbis;
   if (base::StartsWith(codec_id, "mp4a.40.", base::CompareCase::SENSITIVE))
-    return AudioCodec::kAAC;
-  return AudioCodec::kUnknown;
-}
-
-std::ostream& operator<<(std::ostream& os, const AudioCodec& codec) {
-  return os << GetCodecName(codec);
+    return kCodecAAC;
+  return kUnknownAudioCodec;
 }
 
 }  // namespace media

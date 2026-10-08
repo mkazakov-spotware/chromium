@@ -1,11 +1,8 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import subprocess
-
-USE_PYTHON3 = True
-
 
 def _CheckSphinxBuild(input_api, output_api):
   """Check that the docs are buildable without any warnings.
@@ -21,11 +18,7 @@ def _CheckSphinxBuild(input_api, output_api):
                             stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError as e:
     return [output_api.PresubmitNotifyResult('sphinx_build failed:\n' +
-                                             e.output.decode('utf-8'))]
-  # FileNotFoundError is typically the exception thrown on Windows, because make
-  # will usually not be in the path.
-  except FileNotFoundError as e:
-    return [output_api.PresubmitNotifyResult('sphinx_build failed')]
+            e.output)]
 
   return []
 

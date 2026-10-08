@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,9 +27,6 @@ namespace media_session {
 class MediaControllerTest : public testing::Test {
  public:
   MediaControllerTest() = default;
-
-  MediaControllerTest(const MediaControllerTest&) = delete;
-  MediaControllerTest& operator=(const MediaControllerTest&) = delete;
 
   void SetUp() override {
     // Create an instance of the MediaSessionService and bind some interfaces.
@@ -76,6 +73,8 @@ class MediaControllerTest : public testing::Test {
   mojo::Remote<mojom::AudioFocusManager> audio_focus_remote_;
   mojo::Remote<mojom::MediaController> media_controller_remote_;
   mojo::Remote<mojom::MediaControllerManager> controller_manager_remote_;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaControllerTest);
 };
 
 TEST_F(MediaControllerTest, ActiveController_Suspend) {
@@ -507,7 +506,8 @@ TEST_F(MediaControllerTest, ActiveController_Seek) {
     EXPECT_EQ(0, media_session.seek_count());
   }
 
-  controller()->Seek(base::Seconds(mojom::kDefaultSeekTimeSeconds));
+  controller()->Seek(
+      base::TimeDelta::FromSeconds(mojom::kDefaultSeekTimeSeconds));
   controller().FlushForTesting();
 
   EXPECT_EQ(1, media_session.seek_count());
@@ -527,7 +527,8 @@ TEST_F(MediaControllerTest, ActiveController_SeekTo) {
     EXPECT_EQ(0, media_session.seek_to_count());
   }
 
-  controller()->SeekTo(base::Seconds(mojom::kDefaultSeekTimeSeconds));
+  controller()->SeekTo(
+      base::TimeDelta::FromSeconds(mojom::kDefaultSeekTimeSeconds));
   controller().FlushForTesting();
 
   EXPECT_EQ(1, media_session.seek_to_count());
@@ -549,19 +550,22 @@ TEST_F(MediaControllerTest, ActiveController_ScrubTo) {
     EXPECT_EQ(0, media_session.seek_to_count());
   }
 
-  controller()->ScrubTo(base::Seconds(mojom::kDefaultSeekTimeSeconds));
+  controller()->ScrubTo(
+      base::TimeDelta::FromSeconds(mojom::kDefaultSeekTimeSeconds));
   controller().FlushForTesting();
 
   EXPECT_TRUE(media_session.is_scrubbing());
   EXPECT_EQ(0, media_session.seek_to_count());
 
-  controller()->ScrubTo(base::Seconds(mojom::kDefaultSeekTimeSeconds));
+  controller()->ScrubTo(
+      base::TimeDelta::FromSeconds(mojom::kDefaultSeekTimeSeconds));
   controller().FlushForTesting();
 
   EXPECT_TRUE(media_session.is_scrubbing());
   EXPECT_EQ(0, media_session.seek_to_count());
 
-  controller()->SeekTo(base::Seconds(mojom::kDefaultSeekTimeSeconds));
+  controller()->SeekTo(
+      base::TimeDelta::FromSeconds(mojom::kDefaultSeekTimeSeconds));
   controller().FlushForTesting();
 
   EXPECT_FALSE(media_session.is_scrubbing());
@@ -570,14 +574,14 @@ TEST_F(MediaControllerTest, ActiveController_ScrubTo) {
 
 TEST_F(MediaControllerTest, ActiveController_Metadata_Observer_Abandoned) {
   MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
-  metadata.album = u"album";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
+  metadata.album = base::ASCIIToUTF16("album");
 
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaMetadata> test_metadata(metadata);
+  base::Optional<MediaMetadata> test_metadata(metadata);
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -598,7 +602,7 @@ TEST_F(MediaControllerTest, ActiveController_Metadata_Observer_Empty) {
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaMetadata> test_metadata;
+  base::Optional<MediaMetadata> test_metadata;
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -615,14 +619,14 @@ TEST_F(MediaControllerTest, ActiveController_Metadata_Observer_Empty) {
 
 TEST_F(MediaControllerTest, ActiveController_Metadata_Observer_WithInfo) {
   MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
-  metadata.album = u"album";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
+  metadata.album = base::ASCIIToUTF16("album");
 
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaMetadata> test_metadata(metadata);
+  base::Optional<MediaMetadata> test_metadata(metadata);
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -641,7 +645,7 @@ TEST_F(MediaControllerTest, ActiveController_Metadata_AddObserver_Empty) {
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaMetadata> test_metadata;
+  base::Optional<MediaMetadata> test_metadata;
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -659,14 +663,14 @@ TEST_F(MediaControllerTest, ActiveController_Metadata_AddObserver_Empty) {
 
 TEST_F(MediaControllerTest, ActiveController_Metadata_AddObserver_WithInfo) {
   MediaMetadata metadata;
-  metadata.title = u"title";
-  metadata.artist = u"artist";
-  metadata.album = u"album";
+  metadata.title = base::ASCIIToUTF16("title");
+  metadata.artist = base::ASCIIToUTF16("artist");
+  metadata.album = base::ASCIIToUTF16("album");
 
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaMetadata> test_metadata(metadata);
+  base::Optional<MediaMetadata> test_metadata(metadata);
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -894,7 +898,7 @@ TEST_F(MediaControllerTest, ActiveController_Position_Observer_Empty) {
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaPosition> test_position;
+  base::Optional<MediaPosition> test_position;
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -910,16 +914,14 @@ TEST_F(MediaControllerTest, ActiveController_Position_Observer_Empty) {
 }
 
 TEST_F(MediaControllerTest, ActiveController_Position_Observer_WithInfo) {
-  MediaPosition position(
-      /*playback_rate=*/1,
-      /*duration=*/base::Seconds(600),
-      /*position=*/base::Seconds(300),
-      /*end_of_media=*/false);
+  MediaPosition position(1 /* playback_rate */,
+                         base::TimeDelta::FromSeconds(600) /* duration */,
+                         base::TimeDelta::FromSeconds(300) /* position */);
 
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaPosition> test_position(position);
+  base::Optional<MediaPosition> test_position(position);
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -938,7 +940,7 @@ TEST_F(MediaControllerTest, ActiveController_Position_AddObserver_Empty) {
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaPosition> test_position;
+  base::Optional<MediaPosition> test_position;
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -955,16 +957,14 @@ TEST_F(MediaControllerTest, ActiveController_Position_AddObserver_Empty) {
 }
 
 TEST_F(MediaControllerTest, ActiveController_Position_AddObserver_WithInfo) {
-  MediaPosition position(
-      /*playback_rate=*/1,
-      /*duration=*/base::Seconds(600),
-      /*position=*/base::Seconds(300),
-      /*end_of_media=*/false);
+  MediaPosition position(1 /* playback_rate */,
+                         base::TimeDelta::FromSeconds(600) /* duration */,
+                         base::TimeDelta::FromSeconds(300) /* position */);
 
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaPosition> test_position(position);
+  base::Optional<MediaPosition> test_position(position);
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -981,16 +981,14 @@ TEST_F(MediaControllerTest, ActiveController_Position_AddObserver_WithInfo) {
 }
 
 TEST_F(MediaControllerTest, ActiveController_Position_Observer_Abandoned) {
-  MediaPosition position(
-      /*playback_rate=*/1,
-      /*duration=*/base::Seconds(600),
-      /*position=*/base::Seconds(300),
-      /*end_of_media=*/false);
+  MediaPosition position(1 /* playback_rate */,
+                         base::TimeDelta::FromSeconds(600) /* duration */,
+                         base::TimeDelta::FromSeconds(300) /* position */);
 
   test::MockMediaSession media_session;
   media_session.SetIsControllable(true);
 
-  absl::optional<MediaPosition> test_position(position);
+  base::Optional<MediaPosition> test_position(position);
 
   {
     test::MockMediaSessionMojoObserver observer(media_session);
@@ -1280,7 +1278,7 @@ TEST_F(MediaControllerTest, ActiveController_Observer_SessionChanged) {
 
   {
     test::TestMediaControllerObserver observer(controller());
-    observer.WaitForSession(absl::nullopt);
+    observer.WaitForSession(base::nullopt);
   }
 
   {
@@ -1314,7 +1312,7 @@ TEST_F(MediaControllerTest, ActiveController_Observer_SessionChanged) {
   {
     test::TestMediaControllerObserver observer(controller());
     media_session_1.SetIsControllable(false);
-    observer.WaitForSession(absl::nullopt);
+    observer.WaitForSession(base::nullopt);
   }
 }
 

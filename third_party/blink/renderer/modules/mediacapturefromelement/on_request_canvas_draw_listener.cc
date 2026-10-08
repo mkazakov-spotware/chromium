@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,11 @@ OnRequestCanvasDrawListener::OnRequestCanvasDrawListener(
 
 OnRequestCanvasDrawListener::~OnRequestCanvasDrawListener() = default;
 
-CanvasDrawListener::NewFrameCallback
-OnRequestCanvasDrawListener::GetNewFrameCallback() {
+void OnRequestCanvasDrawListener::SendNewFrame(
+    scoped_refptr<StaticBitmapImage> image,
+    base::WeakPtr<WebGraphicsContext3DProviderWrapper> context_provider) {
   frame_capture_requested_ = false;
-  return AutoCanvasDrawListener::GetNewFrameCallback();
+  AutoCanvasDrawListener::SendNewFrame(image, context_provider);
 }
 
 void OnRequestCanvasDrawListener::Trace(Visitor* visitor) const {

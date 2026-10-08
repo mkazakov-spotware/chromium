@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors
+// Copyright 2015 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/crashpad_info_client_options.h"
 #include "snapshot/crashpad_types/crashpad_info_reader.h"
 #include "snapshot/module_snapshot.h"
@@ -43,10 +44,6 @@ namespace internal {
 class ModuleSnapshotWin final : public ModuleSnapshot {
  public:
   ModuleSnapshotWin();
-
-  ModuleSnapshotWin(const ModuleSnapshotWin&) = delete;
-  ModuleSnapshotWin& operator=(const ModuleSnapshotWin&) = delete;
-
   ~ModuleSnapshotWin() override;
 
   //! \brief Initializes the object.
@@ -127,6 +124,8 @@ class ModuleSnapshotWin final : public ModuleSnapshot {
   time_t timestamp_;
   uint32_t age_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ModuleSnapshotWin);
 };
 
 }  // namespace internal

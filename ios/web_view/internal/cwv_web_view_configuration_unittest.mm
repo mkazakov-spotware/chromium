@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,24 +49,6 @@ TEST_F(CWVWebViewConfigurationTest, ShutDown) {
   EXPECT_TRUE(configuration.browserState);
   [configuration shutDown];
   EXPECT_FALSE(configuration.browserState);
-}
-
-// Test CWVWebViewConfiguration shuts down all outstanding configurations.
-TEST_F(CWVWebViewConfigurationTest, ShutDownAllConfigurations) {
-  CWVWebViewConfiguration* defaultConfiguration =
-      [CWVWebViewConfiguration defaultConfiguration];
-  CWVWebViewConfiguration* nonPersistentConfigurationA =
-      [CWVWebViewConfiguration nonPersistentConfiguration];
-  CWVWebViewConfiguration* nonPersistentConfigurationB =
-      [CWVWebViewConfiguration nonPersistentConfiguration];
-
-  // Non persistent configurations must not be singletons.
-  ASSERT_NE(nonPersistentConfigurationA, nonPersistentConfigurationB);
-
-  [CWVWebViewConfiguration shutDown];
-  EXPECT_FALSE(defaultConfiguration.browserState);
-  EXPECT_FALSE(nonPersistentConfigurationA.browserState);
-  EXPECT_FALSE(nonPersistentConfigurationB.browserState);
 }
 
 }  // namespace ios_web_view

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,13 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/values.h"
 #include "extensions/browser/api/lock_screen_data/lock_screen_value_store_migrator.h"
 #include "extensions/browser/api/lock_screen_data/operation_result.h"
 
 namespace base {
+class DictionaryValue;
 class SequencedTaskRunner;
 }  // namespace base
 
@@ -42,20 +43,14 @@ class LockScreenValueStoreMigratorImpl : public LockScreenValueStoreMigrator {
                                    ValueStoreCache* target_store,
                                    base::SequencedTaskRunner* task_runner,
                                    const std::string& crypto_key);
-
-  LockScreenValueStoreMigratorImpl(const LockScreenValueStoreMigratorImpl&) =
-      delete;
-  LockScreenValueStoreMigratorImpl& operator=(
-      const LockScreenValueStoreMigratorImpl&) = delete;
-
   ~LockScreenValueStoreMigratorImpl() override;
 
   // LockScreenValueStorageMigrator:
   void Run(const std::set<ExtensionId>& extensions_to_migrate,
-           ExtensionMigratedCallback callback) override;
+           const ExtensionMigratedCallback& callback) override;
   bool IsMigratingExtensionData(const ExtensionId& extension_id) const override;
   void ClearDataForExtension(const ExtensionId& extension_id,
-                             base::OnceClosure callback) override;
+                             const base::Closure& callback) override;
 
  private:
   // Per-extension migration status data.
@@ -84,7 +79,7 @@ class LockScreenValueStoreMigratorImpl : public LockScreenValueStoreMigrator {
   // and starts data item migration.
   void OnGotItemsForExtension(const ExtensionId& extension_id,
                               OperationResult result,
-                              base::Value::Dict items);
+                              std::unique_ptr<base::DictionaryValue> items);
 
   // Starts migration for the next data item in the extension's migration
   // queue - it reads the item contents from the source storage.
@@ -116,12 +111,12 @@ class LockScreenValueStoreMigratorImpl : public LockScreenValueStoreMigrator {
 
   // Deletes all extension's data items from the migration source value store.
   void DeleteItemsFromSourceStore(const ExtensionId& extension_id,
-                                  base::OnceClosure callback);
+                                  const base::Closure& callback);
 
   // Runs the extension data deletion callback - |callback|. The main purpose
   // is to wrap |callback| to ensure it's not called after |this| has been
   // deleted.
-  void RunClearDataForExtensionCallback(base::OnceClosure callback);
+  void RunClearDataForExtensionCallback(const base::Closure& callback);
 
   // Clears data for the extension from |extensions_to_migrate_| and
   // |migration_items_|.
@@ -146,6 +141,8 @@ class LockScreenValueStoreMigratorImpl : public LockScreenValueStoreMigrator {
 
   base::WeakPtrFactory<LockScreenValueStoreMigratorImpl> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(LockScreenValueStoreMigratorImpl);
 };
 
 }  // namespace lock_screen_data

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/in_memory_url_index_types.h"
@@ -42,10 +41,10 @@ class HistoryProvider : public AutocompleteProvider {
   // backing data.
   void DeleteMatchFromMatches(const AutocompleteMatch& match);
 
-  AutocompleteProviderClient* client() const { return client_; }
+  AutocompleteProviderClient* client() { return client_; }
 
  private:
-  raw_ptr<AutocompleteProviderClient> client_;
+  AutocompleteProviderClient* client_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_HISTORY_PROVIDER_H_

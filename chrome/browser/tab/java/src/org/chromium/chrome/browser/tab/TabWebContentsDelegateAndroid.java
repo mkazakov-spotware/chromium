@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,11 @@ import org.chromium.content_public.browser.WebContents;
  * A basic {@link WebContentsDelegateAndroid} that proxies methods into Tab.
  */
 public abstract class TabWebContentsDelegateAndroid extends WebContentsDelegateAndroid {
+    /**
+     * Returns {@link WebDisplayMode} value.
+     */
+    protected abstract int getDisplayMode();
+
     /**
      * Returns whether the page should resume accepting requests for the new window. This is
      * used when window creation is asynchronous and the navigations need to be delayed.
@@ -63,13 +68,6 @@ public abstract class TabWebContentsDelegateAndroid extends WebContentsDelegateA
     }
 
     /**
-     * @return True if auto-darkening may be applied to web contents per Chrome browser settings.
-     */
-    protected boolean isForceDarkWebContentEnabled() {
-        return false;
-    }
-
-    /**
      * Return true if app banners are to be permitted in this tab. May need to be overridden.
      * @return true if app banners are permitted, and false otherwise.
      */
@@ -100,13 +98,5 @@ public abstract class TabWebContentsDelegateAndroid extends WebContentsDelegateA
      */
     protected boolean isInstalledWebappDelegateGeolocation() {
         return false;
-    }
-
-    /**
-     * Checks if the associated tab uses modal context menu.
-     * @return true if the current tab uses modal context menu.
-     */
-    protected boolean isModalContextMenu() {
-        return true;
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,14 @@
 #define CHROME_BROWSER_SAFE_BROWSING_CHROME_CLEANER_MOCK_CHROME_CLEANER_PROCESS_WIN_H_
 
 #include <ostream>
-#include <string>
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/safe_browsing/chrome_cleaner/chrome_prompt_actions_win.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+
+class Profile;
 
 namespace base {
 class CommandLine;
@@ -43,7 +45,7 @@ class MockChromeCleanerProcess {
     kNumCrashPoints,
   };
 
-  // Indicates if a category of items (e.g. registry keys) to be
+  // Indicates if a category of items (e.g. registry keys, extensions) to be
   // removed/changed will be sent from the cleaner process.
   enum class ItemsReporting {
     // Simulation of an older cleaner version that doesn't support sending
@@ -63,12 +65,25 @@ class MockChromeCleanerProcess {
     kUwsFoundNoRebootRequired,
   };
 
+  enum class ExtensionCleaningFeatureStatus {
+    kEnabled,
+    kDisabled,
+  };
+
   static constexpr int kInternalTestFailureExitCode = 100001;
   static constexpr int kDeliberateCrashExitCode = 100002;
   static constexpr int kNothingFoundExitCode = 2;
   static constexpr int kDeclinedExitCode = 44;
   static constexpr int kRebootRequiredExitCode = 15;
   static constexpr int kRebootNotRequiredExitCode = 0;
+
+  static const base::char16 kInstalledExtensionId1[];
+  static const base::char16 kInstalledExtensionName1[];
+  static const base::char16 kInstalledExtensionId2[];
+  static const base::char16 kInstalledExtensionName2[];
+  static const base::char16 kUnknownExtensionId[];
+
+  static void AddMockExtensionsToProfile(Profile* profile);
 
   class Options {
    public:
@@ -83,13 +98,22 @@ class MockChromeCleanerProcess {
     void AddSwitchesToCommandLine(base::CommandLine* command_line) const;
 
     void SetReportedResults(bool has_files_to_remove,
-                            ItemsReporting registry_keys_reporting);
+                            ItemsReporting registry_keys_reporting,
+                            ItemsReporting extensions_reporting);
 
     const std::vector<base::FilePath>& files_to_delete() const {
       return files_to_delete_;
     }
-    const absl::optional<std::vector<std::wstring>>& registry_keys() const {
+    const base::Optional<std::vector<base::string16>>& registry_keys() const {
       return registry_keys_;
+    }
+    const base::Optional<std::vector<base::string16>>& extension_ids() const {
+      return extension_ids_;
+    }
+
+    const base::Optional<std::vector<base::string16>>&
+    expected_extension_names() const {
+      return expected_extension_names_;
     }
 
     void set_reboot_required(bool reboot_required) {
@@ -115,15 +139,22 @@ class MockChromeCleanerProcess {
       return registry_keys_reporting_;
     }
 
+    ItemsReporting extensions_reporting() const {
+      return extensions_reporting_;
+    }
+
     int ExpectedExitCode(chrome_cleaner::PromptUserResponse::PromptAcceptance
                              received_prompt_acceptance) const;
 
    private:
     std::vector<base::FilePath> files_to_delete_;
-    absl::optional<std::vector<std::wstring>> registry_keys_;
+    base::Optional<std::vector<base::string16>> registry_keys_;
+    base::Optional<std::vector<base::string16>> extension_ids_;
+    base::Optional<std::vector<base::string16>> expected_extension_names_;
     bool reboot_required_ = false;
     CrashPoint crash_point_ = CrashPoint::kNone;
     ItemsReporting registry_keys_reporting_ = ItemsReporting::kUnsupported;
+    ItemsReporting extensions_reporting_ = ItemsReporting::kUnsupported;
     chrome_cleaner::PromptUserResponse::PromptAcceptance
         expected_user_response_ =
             chrome_cleaner::PromptUserResponse::UNSPECIFIED;
@@ -156,6 +187,10 @@ std::ostream& operator<<(std::ostream& out,
 
 std::ostream& operator<<(std::ostream& out,
                          MockChromeCleanerProcess::UwsFoundStatus status);
+
+std::ostream& operator<<(
+    std::ostream& out,
+    MockChromeCleanerProcess::ExtensionCleaningFeatureStatus status);
 
 std::ostream& operator<<(
     std::ostream& out,

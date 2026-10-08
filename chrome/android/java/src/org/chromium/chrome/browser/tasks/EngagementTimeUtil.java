@@ -1,10 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.tasks;
 
-import android.os.SystemClock;
+import org.chromium.base.TimeUtilsJni;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * Utility class to provide engagement time helper methods.
@@ -49,19 +51,19 @@ public class EngagementTimeUtil {
 
     /**
      * Given the last engagement time, typically set by System.currentTimeMillis(), and the current
-     * event timestamp in {@link SystemClock#uptimeMillis()} timebase, this computes the elapsed
-     * time between the two in milliseconds.
+     * event timestamp in base::TimeTicks in milliseconds, this computes the elapsed time between
+     * the two in milliseconds.
      *
      * @param lastEngagementMs Timestamp of the last engagement in milliseconds.
-     * @param currentEngagementMs Timestamp of the current event in milliseconds
-     *         ({@link SystemClock#uptimeMillis()} timebase).
+     * @param currentEngagementTicksMs Timestamp of the current event in TimeTicks (ms)
      * @return
      */
     public long timeSinceLastEngagementFromTimeTicksMs(
-            final long lastEngagementMs, final long currentEngagementMs) {
+            final long lastEngagementMs, final long currentEngagementTicksMs) {
         final long currentTimeMs = currentTime();
-        final long currentUptimeMs = SystemClock.uptimeMillis();
-        final long offsetMs = currentUptimeMs - currentEngagementMs;
+        final long currentTimeTicksUs = TimeUtilsJni.get().getTimeTicksNowUs();
+        final long currentTimeTicksMs = TimeUnit.MICROSECONDS.toMillis(currentTimeTicksUs);
+        final long offsetMs = currentTimeTicksMs - currentEngagementTicksMs;
         final long currentEngagementTimeMs = currentTimeMs - offsetMs;
         final long elapsedMs = currentEngagementTimeMs - lastEngagementMs;
 

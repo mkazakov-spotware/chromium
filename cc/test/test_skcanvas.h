@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,22 +54,18 @@ class MockCanvas : public SkNoDrawCanvas {
   MOCK_METHOD0(willRestore, void());
   MOCK_METHOD0(willSave, void());
   MOCK_METHOD2(onDrawPath, void(const SkPath&, const SkPaint&));
-  MOCK_METHOD5(onDrawImage2,
+  MOCK_METHOD4(onDrawImage,
+               void(const SkImage*, SkScalar, SkScalar, const SkPaint*));
+  MOCK_METHOD5(onDrawImageRect,
                void(const SkImage*,
-                    SkScalar,
-                    SkScalar,
-                    const SkSamplingOptions&,
-                    const SkPaint*));
-  MOCK_METHOD6(onDrawImageRect2,
-               void(const SkImage*,
+                    const SkRect*,
                     const SkRect&,
-                    const SkRect&,
-                    const SkSamplingOptions&,
                     const SkPaint*,
                     SrcRectConstraint));
   MOCK_METHOD5(onDrawArc,
                void(const SkRect&, SkScalar, SkScalar, bool, const SkPaint&));
   MOCK_METHOD1(didConcat44, void(const SkM44&));
+  MOCK_METHOD1(didConcat, void(const SkMatrix&));
   MOCK_METHOD2(didScale, void(SkScalar, SkScalar));
   MOCK_METHOD2(didTranslate, void(SkScalar, SkScalar));
   MOCK_METHOD2(onDrawOval, void(const SkRect&, const SkPaint&));

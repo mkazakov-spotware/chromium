@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "base/token.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
 class WebContents;
@@ -28,11 +28,8 @@ class SessionRestoreDelegate {
                 bool is_active,
                 bool is_app,
                 bool is_pinned,
-                const absl::optional<tab_groups::TabGroupId>& group);
-    RestoredTab(const RestoredTab&);
-    RestoredTab& operator=(const RestoredTab&);
-
-    ~RestoredTab();
+                const base::Optional<tab_groups::TabGroupId>& group);
+    RestoredTab(const RestoredTab& other);
 
     bool operator<(const RestoredTab& right) const;
 
@@ -41,27 +38,26 @@ class SessionRestoreDelegate {
     bool is_app() const { return is_app_; }
     bool is_internal_page() const { return is_internal_page_; }
     bool is_pinned() const { return is_pinned_; }
-    const absl::optional<tab_groups::TabGroupId>& group() const {
+    const base::Optional<tab_groups::TabGroupId>& group() const {
       return group_;
     }
 
    private:
-    raw_ptr<content::WebContents> contents_;
+    content::WebContents* contents_;
     bool is_active_;
     bool is_app_;            // Browser window is an app.
     bool is_internal_page_;  // Internal web UI page, like NTP or Settings.
     bool is_pinned_;
     // The ID for the tab group that this tab belonged to, if any. See
     // |TabStripModel::AddToNewGroup()| for more documentation.
-    absl::optional<tab_groups::TabGroupId> group_;
+    base::Optional<tab_groups::TabGroupId> group_;
   };
-
-  SessionRestoreDelegate() = delete;
-  SessionRestoreDelegate(const SessionRestoreDelegate&) = delete;
-  SessionRestoreDelegate& operator=(const SessionRestoreDelegate&) = delete;
 
   static void RestoreTabs(const std::vector<RestoredTab>& tabs,
                           const base::TimeTicks& restore_started);
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(SessionRestoreDelegate);
 };
 
 #endif  // CHROME_BROWSER_SESSIONS_SESSION_RESTORE_DELEGATE_H_

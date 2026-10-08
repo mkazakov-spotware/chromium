@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,11 @@ namespace browsing_data {
 namespace features {
 
 // Enable removal of all third-party cookies and site data.
-BASE_DECLARE_FEATURE(kEnableRemovingAllThirdPartyCookies);
+extern const base::Feature kEnableRemovingAllThirdPartyCookies;
 
 // Enable BrowsingDataLifetimeManager that periodically delete browsing data as
 // defined by the BrowsingDataLifetime policy.
-BASE_DECLARE_FEATURE(kEnableBrowsingDataLifetimeManager);
+extern const base::Feature kEnableBrowsingDataLifetimeManager;
 
 }  // namespace features
 }  // namespace browsing_data

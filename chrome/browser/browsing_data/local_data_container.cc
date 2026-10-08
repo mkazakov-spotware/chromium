@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,13 +19,16 @@ LocalDataContainer::LocalDataContainer(
     scoped_refptr<browsing_data::DatabaseHelper> database_helper,
     scoped_refptr<browsing_data::LocalStorageHelper> local_storage_helper,
     scoped_refptr<browsing_data::LocalStorageHelper> session_storage_helper,
+    scoped_refptr<browsing_data::AppCacheHelper> appcache_helper,
     scoped_refptr<browsing_data::IndexedDBHelper> indexed_db_helper,
     scoped_refptr<browsing_data::FileSystemHelper> file_system_helper,
     scoped_refptr<BrowsingDataQuotaHelper> quota_helper,
     scoped_refptr<browsing_data::ServiceWorkerHelper> service_worker_helper,
     scoped_refptr<browsing_data::SharedWorkerHelper> shared_worker_helper,
-    scoped_refptr<browsing_data::CacheStorageHelper> cache_storage_helper)
-    : cookie_helper_(std::move(cookie_helper)),
+    scoped_refptr<browsing_data::CacheStorageHelper> cache_storage_helper,
+    scoped_refptr<BrowsingDataMediaLicenseHelper> media_license_helper)
+    : appcache_helper_(std::move(appcache_helper)),
+      cookie_helper_(std::move(cookie_helper)),
       database_helper_(std::move(database_helper)),
       local_storage_helper_(std::move(local_storage_helper)),
       session_storage_helper_(std::move(session_storage_helper)),
@@ -34,7 +37,8 @@ LocalDataContainer::LocalDataContainer(
       quota_helper_(std::move(quota_helper)),
       service_worker_helper_(std::move(service_worker_helper)),
       shared_worker_helper_(std::move(shared_worker_helper)),
-      cache_storage_helper_(std::move(cache_storage_helper)) {}
+      cache_storage_helper_(std::move(cache_storage_helper)),
+      media_license_helper_(std::move(media_license_helper)) {}
 
 LocalDataContainer::~LocalDataContainer() {}
 
@@ -68,6 +72,15 @@ void LocalDataContainer::Init(CookiesTreeModel* model) {
     batches_started_++;
     session_storage_helper_->StartFetching(
         base::BindOnce(&LocalDataContainer::OnSessionStorageModelInfoLoaded,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
+
+  // TODO(michaeln): When all of the UI implementations have been updated, make
+  // this a required parameter.
+  if (appcache_helper_.get()) {
+    batches_started_++;
+    appcache_helper_->StartFetching(
+        base::BindOnce(&LocalDataContainer::OnAppCacheModelInfoLoaded,
                        weak_ptr_factory_.GetWeakPtr()));
   }
 
@@ -113,7 +126,21 @@ void LocalDataContainer::Init(CookiesTreeModel* model) {
                        weak_ptr_factory_.GetWeakPtr()));
   }
 
+  if (media_license_helper_.get()) {
+    batches_started_++;
+    media_license_helper_->StartFetching(
+        base::BindOnce(&LocalDataContainer::OnMediaLicenseInfoLoaded,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
+
   model_->SetBatchExpectation(batches_started_, true);
+}
+
+void LocalDataContainer::OnAppCacheModelInfoLoaded(
+    const AppCacheInfoList& info_list) {
+  appcache_info_list_ = info_list;
+  DCHECK(model_);
+  model_->PopulateAppCacheInfo(this);
 }
 
 void LocalDataContainer::OnCookiesModelInfoLoaded(
@@ -186,4 +213,11 @@ void LocalDataContainer::OnCacheStorageModelInfoLoaded(
   cache_storage_info_list_ = cache_storage_info;
   DCHECK(model_);
   model_->PopulateCacheStorageUsageInfo(this);
+}
+
+void LocalDataContainer::OnMediaLicenseInfoLoaded(
+    const MediaLicenseInfoList& media_license_info) {
+  media_license_info_list_ = media_license_info;
+  DCHECK(model_);
+  model_->PopulateMediaLicenseInfo(this);
 }

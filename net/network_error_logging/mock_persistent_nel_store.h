@@ -1,13 +1,15 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_NETWORK_ERROR_LOGGING_MOCK_PERSISTENT_NEL_STORE_H_
 #define NET_NETWORK_ERROR_LOGGING_MOCK_PERSISTENT_NEL_STORE_H_
 
+#include <string>
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "net/network_error_logging/network_error_logging_service.h"
 #include "url/origin.h"
 
@@ -36,7 +38,7 @@ class MockPersistentNelStore
     // commands.
     Command(Type type, const NetworkErrorLoggingService::NelPolicy& policy);
     // Constructor for FLUSH commands.
-    explicit Command(Type type);
+    Command(Type type);
 
     Command(const Command& other);
     Command(Command&& other);
@@ -58,10 +60,6 @@ class MockPersistentNelStore
   using CommandList = std::vector<Command>;
 
   MockPersistentNelStore();
-
-  MockPersistentNelStore(const MockPersistentNelStore&) = delete;
-  MockPersistentNelStore& operator=(const MockPersistentNelStore&) = delete;
-
   ~MockPersistentNelStore() override;
 
   // PersistentNelStore implementation:
@@ -104,15 +102,17 @@ class MockPersistentNelStore
   std::vector<NetworkErrorLoggingService::NelPolicy> prestored_policies_;
 
   // Set when LoadNelPolicies() is called.
-  bool load_started_ = false;
+  bool load_started_;
 
   // Simulates the total number of policies that would be stored in the store.
   // Updated when pre-stored policies are added, and when Flush() is called.
-  int policy_count_ = 0;
+  int policy_count_;
 
   // Simulates the delta to be added to |policy_count_| the next time Flush() is
   // called. Reset to 0 when Flush() is called.
-  int queued_policy_count_delta_ = 0;
+  int queued_policy_count_delta_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPersistentNelStore);
 };
 
 bool operator==(const MockPersistentNelStore::Command& lhs,

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,11 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "components/invalidation/public/invalidation.h"
 #include "components/invalidation/public/invalidation_handler.h"
 #include "components/invalidation/public/invalidation_util.h"
@@ -35,7 +35,7 @@ class InvalidationService;
 namespace policy {
 
 // Listens for and provides policy invalidations.
-class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
+class CloudPolicyInvalidator : public syncer::InvalidationHandler,
                                public CloudPolicyCore::Observer,
                                public CloudPolicyStore::Observer {
  public:
@@ -90,8 +90,6 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
       const scoped_refptr<base::SequencedTaskRunner>& task_runner,
       base::Clock* clock,
       int64_t highest_handled_invalidation_version);
-  CloudPolicyInvalidator(const CloudPolicyInvalidator&) = delete;
-  CloudPolicyInvalidator& operator=(const CloudPolicyInvalidator&) = delete;
   ~CloudPolicyInvalidator() override;
 
   // Initializes the invalidator. No invalidations will be generated before this
@@ -118,12 +116,12 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
     return invalidation_service_;
   }
 
-  // invalidation::InvalidationHandler:
-  void OnInvalidatorStateChange(invalidation::InvalidatorState state) override;
+  // syncer::InvalidationHandler:
+  void OnInvalidatorStateChange(syncer::InvalidatorState state) override;
   void OnIncomingInvalidation(
-      const invalidation::TopicInvalidationMap& invalidation_map) override;
+      const syncer::TopicInvalidationMap& invalidation_map) override;
   std::string GetOwnerName() const override;
-  bool IsPublicTopic(const invalidation::Topic& topic) const override;
+  bool IsPublicTopic(const syncer::Topic& topic) const override;
 
   // CloudPolicyCore::Observer:
   void OnCoreConnected(CloudPolicyCore* core) override;
@@ -136,7 +134,7 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
 
  private:
   // Handle an invalidation to the policy.
-  void HandleInvalidation(const invalidation::Invalidation& invalidation);
+  void HandleInvalidation(const syncer::Invalidation& invalidation);
 
   // Update topic subscription with the invalidation service based on the
   // given policy data.
@@ -144,7 +142,7 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
 
   // Registers this handler with |invalidation_service_| if needed and
   // subscribes to the given |topic| with the invalidation service.
-  void Register(const invalidation::Topic& topic);
+  void Register(const syncer::Topic& topic);
 
   // Unregisters this handler and unsubscribes from the current topic with
   // the invalidation service.
@@ -192,17 +190,16 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
   const std::string owner_name_;
 
   // The cloud policy core.
-  raw_ptr<CloudPolicyCore> core_;
+  CloudPolicyCore* core_;
 
   // Schedules delayed tasks.
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   // The clock.
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 
   // The invalidation service.
-  raw_ptr<invalidation::InvalidationService, DanglingUntriaged>
-      invalidation_service_;
+  invalidation::InvalidationService* invalidation_service_;
 
   // Whether the invalidator currently has the ability to receive invalidations.
   // This is true if the invalidation service is enabled and the invalidator
@@ -219,7 +216,7 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
   bool is_registered_;
 
   // The topic representing the policy in the invalidation service.
-  invalidation::Topic topic_;
+  syncer::Topic topic_;
 
   // Whether the policy is current invalid. This is set to true when an
   // invalidation is received and reset when the policy fetched due to the
@@ -240,7 +237,7 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
   int64_t highest_handled_invalidation_version_;
 
   // The most up to date invalidation.
-  std::unique_ptr<invalidation::Invalidation> invalidation_;
+  std::unique_ptr<syncer::Invalidation> invalidation_;
 
   // The maximum random delay, in ms, between receiving an invalidation and
   // fetching the new policy.
@@ -256,6 +253,8 @@ class CloudPolicyInvalidator : public invalidation::InvalidationHandler,
 
   // WeakPtrFactory used to create callbacks to this object.
   base::WeakPtrFactory<CloudPolicyInvalidator> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CloudPolicyInvalidator);
 };
 
 }  // namespace policy

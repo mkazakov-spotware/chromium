@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <sstream>
 
 #include "base/process/process.h"
-#include "base/strings/string_util.h"
 #include "chrome/test/base/process_inspector_win.h"
 
 // static
@@ -41,12 +40,12 @@ ProcessLineage::ProcessLineage(ProcessLineage&& other) = default;
 ProcessLineage& ProcessLineage::operator=(ProcessLineage&& other) = default;
 ProcessLineage::~ProcessLineage() = default;
 
-std::wstring ProcessLineage::ToString() const {
+base::string16 ProcessLineage::ToString() const {
   std::wostringstream sstream;
-  std::wstring sep;
+  base::string16 sep;
   for (const auto& prop : lineage_) {
     sstream << sep << L"(process_id: " << prop.process_id
-            << L", command_line: \"" << prop.command_line << L"\")";
+            << L", command_line: \"" << prop.command_line << "\")";
     if (sep.empty())
       sep = L", ";
   }

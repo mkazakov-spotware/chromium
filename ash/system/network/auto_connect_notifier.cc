@@ -1,25 +1,34 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/network/auto_connect_notifier.h"
 
-#include <string>
-
-#include "ash/constants/notifier_catalogs.h"
-#include "ash/public/cpp/system/toast_data.h"
-#include "ash/public/cpp/system/toast_manager.h"
+#include "ash/public/cpp/network_icon_image_source.h"
+#include "ash/public/cpp/notification_utils.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
+#include "base/strings/string16.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chromeos/ash/components/network/network_connection_handler.h"
-#include "chromeos/ash/components/network/network_event_log.h"
-#include "chromeos/ash/components/network/network_state.h"
-#include "chromeos/ash/components/network/network_state_handler.h"
-#include "chromeos/ash/components/network/network_type_pattern.h"
+#include "chromeos/network/network_connection_handler.h"
+#include "chromeos/network/network_event_log.h"
+#include "chromeos/network/network_state.h"
+#include "chromeos/network/network_state_handler.h"
+#include "chromeos/network/network_type_pattern.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/geometry/size.h"
+#include "ui/gfx/image/canvas_image_source.h"
+#include "ui/gfx/image/image.h"
+#include "ui/message_center/message_center.h"
+#include "ui/message_center/public/cpp/message_center_constants.h"
+#include "ui/message_center/public/cpp/notification.h"
+#include "ui/message_center/public/cpp/notification_types.h"
+#include "ui/message_center/public/cpp/notifier_id.h"
+#include "url/gurl.h"
+
+using chromeos::NetworkHandler;
 
 namespace ash {
 
@@ -29,18 +38,15 @@ namespace {
 // initiated, we expect the connection to occur within this amount of time. If
 // a timeout occurs, we assume that no auto-connection occurred and do not show
 // a notification.
-constexpr const base::TimeDelta kNetworkConnectionTimeout = base::Seconds(3);
+constexpr const base::TimeDelta kNetworkConnectionTimeout =
+    base::TimeDelta::FromSeconds(3);
 
-void ShowToast(std::string id,
-               ToastCatalogName catalog_name,
-               const std::u16string& text) {
-  ash::ToastManager::Get()->Show(ToastData(id, catalog_name, text));
-}
+const char kNotifierAutoConnect[] = "ash.auto-connect";
 
 }  // namespace
 
 // static
-const char AutoConnectNotifier::kAutoConnectToastId[] =
+const char AutoConnectNotifier::kAutoConnectNotificationId[] =
     "cros_auto_connect_notifier_ids.connected_to_network";
 
 AutoConnectNotifier::AutoConnectNotifier()
@@ -74,9 +80,9 @@ void AutoConnectNotifier::ConnectToNetworkRequested(
 }
 
 void AutoConnectNotifier::NetworkConnectionStateChanged(
-    const NetworkState* network) {
+    const chromeos::NetworkState* network) {
   // Ignore non WiFi networks completely.
-  if (!network->Matches(NetworkTypePattern::WiFi()))
+  if (!network->Matches(chromeos::NetworkTypePattern::WiFi()))
     return;
 
   // The notification is only shown when a connection has succeeded; if
@@ -103,7 +109,7 @@ void AutoConnectNotifier::NetworkConnectionStateChanged(
 
   // An auto-connected network has connected successfully. Display a
   // notification alerting the user that this has occurred.
-  DisplayToast(network);
+  DisplayNotification(network);
   has_user_explicitly_requested_connection_ = false;
 }
 
@@ -117,8 +123,8 @@ void AutoConnectNotifier::OnAutoConnectedInitiated(int auto_connect_reasons) {
   // policy or certificate. Other reasons (e.g., joining a network due to login)
   // do not require that a notification be shown.
   const int kManagedNetworkReasonsBitmask =
-      AutoConnectHandler::AUTO_CONNECT_REASON_POLICY_APPLIED |
-      AutoConnectHandler::AUTO_CONNECT_REASON_CERTIFICATE_RESOLVED;
+      chromeos::AutoConnectHandler::AUTO_CONNECT_REASON_POLICY_APPLIED |
+      chromeos::AutoConnectHandler::AUTO_CONNECT_REASON_CERTIFICATE_RESOLVED;
   if (!(auto_connect_reasons & kManagedNetworkReasonsBitmask))
     return;
 
@@ -138,12 +144,34 @@ void AutoConnectNotifier::OnAutoConnectedInitiated(int auto_connect_reasons) {
   timer_->Start(FROM_HERE, kNetworkConnectionTimeout, base::DoNothing());
 }
 
-void AutoConnectNotifier::DisplayToast(const NetworkState* network) {
-  NET_LOG(EVENT) << "Show AutoConnect Toast for: " << NetworkId(network);
-  // Remove previous toast if one was already being shown.
-  ash::ToastManager::Get()->Cancel(kAutoConnectToastId);
-  ShowToast(kAutoConnectToastId, ToastCatalogName::kNetworkAutoConnect,
-            l10n_util::GetStringUTF16(IDS_ASH_NETWORK_AUTOCONNECT));
+void AutoConnectNotifier::DisplayNotification(
+    const chromeos::NetworkState* network) {
+  NET_LOG(EVENT) << "Show AutoConnect Notification for: " << NetworkId(network);
+  auto notification = CreateSystemNotification(
+      message_center::NotificationType::NOTIFICATION_TYPE_SIMPLE,
+      kAutoConnectNotificationId,
+      l10n_util::GetStringUTF16(IDS_ASH_NETWORK_AUTOCONNECT_NOTIFICATION_TITLE),
+      l10n_util::GetStringUTF16(
+          IDS_ASH_NETWORK_AUTOCONNECT_NOTIFICATION_MESSAGE),
+      base::string16() /* display_source */, GURL() /* origin_url */,
+      message_center::NotifierId(message_center::NotifierType::SYSTEM_COMPONENT,
+                                 kNotifierAutoConnect),
+      {} /* optional_fields */,
+      base::MakeRefCounted<message_center::NotificationDelegate>(),
+      gfx::VectorIcon() /* small_image */,
+      message_center::SystemNotificationWarningLevel::NORMAL);
+
+  notification->set_small_image(gfx::Image(network_icon::GetImageForWifiNetwork(
+      notification->accent_color().value_or(
+          ash::kSystemNotificationColorNormal),
+      gfx::Size(message_center::kSmallImageSizeMD,
+                message_center::kSmallImageSizeMD))));
+
+  message_center::MessageCenter* message_center =
+      message_center::MessageCenter::Get();
+  if (message_center->FindVisibleNotificationById(kAutoConnectNotificationId))
+    message_center->RemoveNotification(kAutoConnectNotificationId, false);
+  message_center->AddNotification(std::move(notification));
 }
 
 }  // namespace ash

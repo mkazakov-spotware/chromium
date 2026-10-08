@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "media/audio/android/muteable_audio_output_stream.h"
 #include "media/audio/android/opensles_util.h"
 #include "media/base/audio_parameters.h"
@@ -37,9 +36,6 @@ class OpenSLESOutputStream : public MuteableAudioOutputStream {
   OpenSLESOutputStream(AudioManagerAndroid* manager,
                        const AudioParameters& params,
                        SLint32 stream_type);
-
-  OpenSLESOutputStream(const OpenSLESOutputStream&) = delete;
-  OpenSLESOutputStream& operator=(const OpenSLESOutputStream&) = delete;
 
   ~OpenSLESOutputStream() override;
 
@@ -94,13 +90,13 @@ class OpenSLESOutputStream : public MuteableAudioOutputStream {
   // |buffer_size_bytes_| and |simple_buffer_queue_|.
   base::Lock lock_;
 
-  raw_ptr<AudioManagerAndroid> audio_manager_;
+  AudioManagerAndroid* audio_manager_;
 
   // Audio playback stream type.
   // See SLES/OpenSLES_Android.h for details.
   SLint32 stream_type_;
 
-  raw_ptr<AudioSourceCallback> callback_;
+  AudioSourceCallback* callback_;
 
   // Shared engine interfaces for the app.
   media::ScopedSLObjectItf engine_object_;
@@ -112,6 +108,7 @@ class OpenSLESOutputStream : public MuteableAudioOutputStream {
   // Buffer queue recorder interface.
   SLAndroidSimpleBufferQueueItf simple_buffer_queue_;
 
+  SLDataFormat_PCM format_;
   SLAndroidDataFormat_PCM_EX float_format_;
 
   // Audio buffers that are allocated during Open() based on parameters given
@@ -153,6 +150,8 @@ class OpenSLESOutputStream : public MuteableAudioOutputStream {
   // Adjustment for hardware latency.  Needed for some cast targets, since
   // OpenSLES's GetPosition doesn't properly account for HAL latency.
   base::TimeDelta hardware_latency_;
+
+  DISALLOW_COPY_AND_ASSIGN(OpenSLESOutputStream);
 };
 
 }  // namespace media

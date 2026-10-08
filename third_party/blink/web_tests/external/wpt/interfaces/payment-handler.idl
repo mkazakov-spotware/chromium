@@ -11,6 +11,14 @@ partial interface ServiceWorkerRegistration {
 interface PaymentManager {
   [SameObject] readonly attribute PaymentInstruments instruments;
   attribute DOMString userHint;
+  Promise<void> enableDelegations(sequence<PaymentDelegation> delegations);
+};
+
+enum PaymentDelegation {
+  "shippingAddress",
+  "payerName",
+  "payerPhone",
+  "payerEmail"
 };
 
 [SecureContext, Exposed=(Window,Worker)]
@@ -19,14 +27,15 @@ interface PaymentInstruments {
   Promise<any> get(DOMString instrumentKey);
   Promise<sequence<DOMString>>  keys();
   Promise<boolean> has(DOMString instrumentKey);
-  Promise<undefined> set(DOMString instrumentKey, PaymentInstrument details);
-  Promise<undefined> clear();
+  Promise<void> set(DOMString instrumentKey, PaymentInstrument details);
+  Promise<void> clear();
 };
 
 dictionary PaymentInstrument {
   required DOMString name;
   sequence<ImageObject> icons;
   DOMString method;
+  object capabilities;
 };
 
 dictionary ImageObject {
@@ -45,7 +54,7 @@ interface CanMakePaymentEvent : ExtendableEvent {
   readonly attribute USVString topOrigin;
   readonly attribute USVString paymentRequestOrigin;
   readonly attribute FrozenArray<PaymentMethodData> methodData;
-  undefined respondWith(Promise<boolean> canMakePaymentResponse);
+  void respondWith(Promise<boolean> canMakePaymentResponse);
 };
 
 dictionary CanMakePaymentEventInit : ExtendableEventInit {
@@ -62,7 +71,9 @@ dictionary PaymentRequestDetailsUpdate {
   DOMString error;
   PaymentCurrencyAmount total;
   sequence<PaymentDetailsModifier> modifiers;
+  sequence<PaymentShippingOption> shippingOptions;
   object paymentMethodErrors;
+  AddressErrors shippingAddressErrors;
 };
 
 [Exposed=ServiceWorker]
@@ -74,9 +85,15 @@ interface PaymentRequestEvent : ExtendableEvent {
   readonly attribute FrozenArray<PaymentMethodData> methodData;
   readonly attribute object total;
   readonly attribute FrozenArray<PaymentDetailsModifier> modifiers;
+  readonly attribute DOMString instrumentKey;
+  readonly attribute boolean requestBillingAddress;
+  readonly attribute object? paymentOptions;
+  readonly attribute FrozenArray<PaymentShippingOption>? shippingOptions;
   Promise<WindowClient?> openWindow(USVString url);
   Promise<PaymentRequestDetailsUpdate?> changePaymentMethod(DOMString methodName, optional object? methodDetails = null);
-  undefined respondWith(Promise<PaymentHandlerResponse> handlerResponsePromise);
+  Promise<PaymentRequestDetailsUpdate?> changeShippingAddress(optional AddressInit shippingAddress = {});
+  Promise<PaymentRequestDetailsUpdate?> changeShippingOption(DOMString shippingOption);
+  void respondWith(Promise<PaymentHandlerResponse> handlerResponsePromise);
 };
 
 dictionary PaymentRequestEventInit : ExtendableEventInit {
@@ -86,9 +103,17 @@ dictionary PaymentRequestEventInit : ExtendableEventInit {
   sequence<PaymentMethodData> methodData;
   PaymentCurrencyAmount total;
   sequence<PaymentDetailsModifier> modifiers;
+  DOMString instrumentKey;
+  PaymentOptions paymentOptions;
+  sequence<PaymentShippingOption> shippingOptions;
 };
 
 dictionary PaymentHandlerResponse {
 DOMString methodName;
 object details;
+DOMString? payerName;
+DOMString? payerEmail;
+DOMString? payerPhone;
+AddressInit shippingAddress;
+DOMString? shippingOption;
 };

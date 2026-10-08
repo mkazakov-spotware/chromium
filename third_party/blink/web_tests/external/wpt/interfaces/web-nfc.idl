@@ -13,6 +13,8 @@ dictionary NDEFMessageInit {
   required sequence<NDEFRecordInit> records;
 };
 
+typedef (DOMString or BufferSource or NDEFMessageInit) NDEFRecordDataSource;
+
 [SecureContext, Exposed=Window]
 interface NDEFRecord {
   constructor(NDEFRecordInit recordInit);
@@ -36,22 +38,27 @@ dictionary NDEFRecordInit {
   USVString encoding;
   USVString lang;
 
-  any data; // DOMString or BufferSource or NDEFMessageInit
+  NDEFRecordDataSource data;
 };
 
 typedef (DOMString or BufferSource or NDEFMessageInit) NDEFMessageSource;
 
 [SecureContext, Exposed=Window]
+interface NDEFWriter {
+  constructor();
+
+  Promise<undefined> write(NDEFMessageSource message,
+                                 optional NDEFWriteOptions options={});
+};
+
+[SecureContext, Exposed=Window]
 interface NDEFReader : EventTarget {
   constructor();
 
+  attribute EventHandler onerror;
   attribute EventHandler onreading;
-  attribute EventHandler onreadingerror;
 
   Promise<undefined> scan(optional NDEFScanOptions options={});
-  Promise<undefined> write(NDEFMessageSource message,
-                                 optional NDEFWriteOptions options={});
-  Promise<undefined> makeReadOnly(optional NDEFMakeReadOnlyOptions options={});
 };
 
 [SecureContext, Exposed=Window]
@@ -69,10 +76,6 @@ dictionary NDEFReadingEventInit : EventInit {
 
 dictionary NDEFWriteOptions {
   boolean overwrite = true;
-  AbortSignal? signal;
-};
-
-dictionary NDEFMakeReadOnlyOptions {
   AbortSignal? signal;
 };
 

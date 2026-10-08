@@ -1,10 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_SERVICES_PRINTING_PDF_TO_PWG_RASTER_CONVERTER_H_
 #define CHROME_SERVICES_PRINTING_PDF_TO_PWG_RASTER_CONVERTER_H_
 
+#include <memory>
+
+#include "base/macros.h"
 #include "chrome/services/printing/public/mojom/pdf_to_pwg_raster_converter.mojom.h"
 
 namespace printing {
@@ -15,10 +18,6 @@ class PdfToPwgRasterConverter
     : public printing::mojom::PdfToPwgRasterConverter {
  public:
   PdfToPwgRasterConverter();
-
-  PdfToPwgRasterConverter(const PdfToPwgRasterConverter&) = delete;
-  PdfToPwgRasterConverter& operator=(const PdfToPwgRasterConverter&) = delete;
-
   ~PdfToPwgRasterConverter() override;
 
  private:
@@ -27,6 +26,8 @@ class PdfToPwgRasterConverter
                const PdfRenderSettings& pdf_settings,
                const PwgRasterSettings& pwg_raster_settings,
                ConvertCallback callback) override;
+
+  DISALLOW_COPY_AND_ASSIGN(PdfToPwgRasterConverter);
 };
 
 }  // namespace printing

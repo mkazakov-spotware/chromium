@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ InstalledWebappGeolocationContext::~InstalledWebappGeolocationContext() =
 
 void InstalledWebappGeolocationContext::BindGeolocation(
     mojo::PendingReceiver<device::mojom::Geolocation> receiver,
-    const GURL& requesting_url) {
+    const GURL& requesting_origin) {
   impls_.push_back(std::make_unique<InstalledWebappGeolocationBridge>(
-      std::move(receiver), requesting_url, this));
+      std::move(receiver), requesting_origin, this));
   if (geoposition_override_)
     impls_.back()->SetOverride(*geoposition_override_);
   else

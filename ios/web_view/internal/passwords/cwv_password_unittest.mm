@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,8 @@ namespace ios_web_view {
 
 using CWVPasswordTest = PlatformTest;
 
-// Tests CWVPassword initialization for a blocked site.
-TEST_F(CWVPasswordTest, Blocked) {
+// Tests CWVPassword initialization for a blacklisted site.
+TEST_F(CWVPasswordTest, Blacklisted) {
   password_manager::PasswordForm password_form;
   password_form.url = GURL("http://www.example.com/accounts/LoginAuth");
   password_form.action = GURL("http://www.example.com/accounts/Login");
@@ -32,7 +32,6 @@ TEST_F(CWVPasswordTest, Blocked) {
   password_form.signon_realm = "http://www.example.com/";
   password_form.scheme = password_manager::PasswordForm::Scheme::kHtml;
   password_form.blocked_by_user = true;
-  password_form.encrypted_password = "test-encrypted-password";
   auto name_and_link =
       password_manager::GetShownOriginAndLinkUrl(password_form);
 
@@ -43,14 +42,13 @@ TEST_F(CWVPasswordTest, Blocked) {
   EXPECT_NSEQ(base::SysUTF8ToNSString(name_and_link.first), password.title);
   EXPECT_NSEQ(base::SysUTF8ToNSString(name_and_link.second.spec()),
               password.site);
-  EXPECT_TRUE(password.blocked);
+  EXPECT_TRUE(password.blacklisted);
   EXPECT_FALSE(password.username);
   EXPECT_FALSE(password.password);
-  EXPECT_FALSE(password.keychainIdentifier);
 }
 
-// Tests CWVPassword initialization for a non-blocked site.
-TEST_F(CWVPasswordTest, NonBlocked) {
+// Tests CWVPassword initialization for a non-blacklisted site.
+TEST_F(CWVPasswordTest, NonBlacklisted) {
   password_manager::PasswordForm password_form;
   password_form.url = GURL("http://www.example.com/accounts/LoginAuth");
   password_form.action = GURL("http://www.example.com/accounts/Login");
@@ -62,7 +60,6 @@ TEST_F(CWVPasswordTest, NonBlocked) {
   password_form.signon_realm = "http://www.example.com/";
   password_form.scheme = password_manager::PasswordForm::Scheme::kHtml;
   password_form.blocked_by_user = false;
-  password_form.encrypted_password = "test-encrypted-password";
   auto name_and_link =
       password_manager::GetShownOriginAndLinkUrl(password_form);
 
@@ -73,10 +70,9 @@ TEST_F(CWVPasswordTest, NonBlocked) {
   EXPECT_NSEQ(base::SysUTF8ToNSString(name_and_link.first), password.title);
   EXPECT_NSEQ(base::SysUTF8ToNSString(name_and_link.second.spec()),
               password.site);
-  EXPECT_FALSE(password.blocked);
+  EXPECT_FALSE(password.blacklisted);
   EXPECT_NSEQ(@"test@egmail.com", password.username);
   EXPECT_NSEQ(@"test", password.password);
-  EXPECT_NSEQ(@"test-encrypted-password", password.keychainIdentifier);
 }
 
 }  // namespace ios_web_view

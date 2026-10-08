@@ -1,14 +1,15 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_INSTALL_STATIC_INSTALL_DETAILS_H_
 #define CHROME_INSTALL_STATIC_INSTALL_DETAILS_H_
 
+#include <windows.h>
+
 #include <memory>
 #include <string>
 
-#include "base/win/windows_types.h"
 #include "chrome/install_static/install_constants.h"
 #include "chrome/install_static/install_modes.h"
 #include "chrome/install_static/install_util.h"
@@ -21,6 +22,7 @@ class ScopedInstallDetails;
 // The origin of the active channel.
 enum class ChannelOrigin {
   kInstallMode,           // The channel dictated by the install mode.
+  kAdditionalParameters,  // The legacy "ap" value.
   kPolicy,                // The updater's "TargetChannel" policy.
 };
 
@@ -57,17 +59,12 @@ class InstallDetails {
     // The string length of |channel| (not including the string terminator).
     size_t channel_length;
 
-    // The origin of the |channel| value. Install modes that use the FLOATING
-    // channel strategy may determine the channel by an administrative policy
-    // override (kPolicy). For all other install modes, the channel is dictated
-    // by the mode itself (kInstallMode).
+    // The origin of the |channel| value. Install modes that use the
+    // ADDITIONAL_PARAMETERS channel strategy may determine the channel by
+    // either the "ap" value (kAdditionalParameters) or by an administrative
+    // policy override (kPolicy). For all other install modes, the channel is
+    // dictated by the mode itself (kInstallMode).
     ChannelOrigin channel_origin;
-
-    // The value that was used to select |channel| if |channel_origin| is
-    // kPolicy. This is the value provided to the installer via the --channel=
-    // command line switch or the value provided to the browser via the
-    // "channel" value in its Clients key.
-    const wchar_t* channel_override;
 
     // The "ap" (additional parameters) value read from Chrome's ClientState key
     // during process startup.
@@ -79,9 +76,6 @@ class InstallDetails {
 
     // True if installed in C:\Program Files{, {x86)}; otherwise, false.
     bool system_level;
-
-    // True if |channel| is an empty string for the extended stable channel.
-    bool is_extended_stable_channel;
   };
 
   InstallDetails(const InstallDetails&) = delete;
@@ -164,23 +158,9 @@ class InstallDetails {
     return std::wstring(payload_->channel, payload_->channel_length);
   }
 
-  // The origin of a ChannelStrategy::FLOATING install mode's channel, or
-  // kInstallMode.
+  // The origin of a ChannelStrategy::ADDITIONAL_PARAMETERS install mode's
+  // channel, or kInstallMode.
   ChannelOrigin channel_origin() const { return payload_->channel_origin; }
-
-  // Returns the value that was used to select the channel if |channel_origin()|
-  // returns kPolicy. This is the value provided to the installer via the
-  // --channel= command line switch or the value provided to the browser via the
-  // "channel" value in its Clients key.
-  std::wstring channel_override() const {
-    return payload_->channel_override ? std::wstring(payload_->channel_override)
-                                      : std::wstring();
-  }
-
-  // Returns true if channel is an empty string for the extended stable channel.
-  bool is_extended_stable_channel() const {
-    return payload_->is_extended_stable_channel;
-  }
 
   // Returns the "ap" (additional parameters) value read from Chrome's
   // ClientState key during process startup.
@@ -253,7 +233,6 @@ class PrimaryInstallDetails : public InstallDetails {
   PrimaryInstallDetails(const PrimaryInstallDetails&) = delete;
   PrimaryInstallDetails(PrimaryInstallDetails&&) = delete;
   PrimaryInstallDetails& operator=(const PrimaryInstallDetails&) = delete;
-  ~PrimaryInstallDetails() override;
 
   void set_mode(const InstallConstants* mode) { payload_.mode = mode; }
   void set_channel(const std::wstring& channel) {
@@ -263,13 +242,6 @@ class PrimaryInstallDetails : public InstallDetails {
   }
   void set_channel_origin(ChannelOrigin origin) {
     payload_.channel_origin = origin;
-  }
-  void set_channel_override(const std::wstring& channel_override) {
-    channel_override_ = channel_override;
-    payload_.channel_override = channel_override_.c_str();
-  }
-  void set_is_extended_stable_channel(bool is_extended_stable_channel) {
-    payload_.is_extended_stable_channel = is_extended_stable_channel;
   }
   void set_update_ap(const std::wstring& update_ap) {
     update_ap_ = update_ap;
@@ -285,7 +257,6 @@ class PrimaryInstallDetails : public InstallDetails {
 
  private:
   std::wstring channel_;
-  std::wstring channel_override_;
   std::wstring update_ap_;
   std::wstring update_cohort_name_;
   Payload payload_ = Payload();

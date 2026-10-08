@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,12 +14,6 @@ class ASH_EXPORT SessionLimitNotificationController
     : public SessionLengthLimitModel::Observer {
  public:
   SessionLimitNotificationController();
-
-  SessionLimitNotificationController(
-      const SessionLimitNotificationController&) = delete;
-  SessionLimitNotificationController& operator=(
-      const SessionLimitNotificationController&) = delete;
-
   ~SessionLimitNotificationController() override;
 
   // SessionLengthLimitModel::Observer:
@@ -30,7 +24,7 @@ class ASH_EXPORT SessionLimitNotificationController
 
   void UpdateNotification();
 
-  std::u16string ComposeNotificationTitle() const;
+  base::string16 ComposeNotificationTitle() const;
 
   static const char kNotificationId[];
 
@@ -42,6 +36,8 @@ class ASH_EXPORT SessionLimitNotificationController
       SessionLengthLimitModel::LIMIT_NONE;
 
   bool has_notification_been_shown_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(SessionLimitNotificationController);
 };
 
 }  // namespace ash

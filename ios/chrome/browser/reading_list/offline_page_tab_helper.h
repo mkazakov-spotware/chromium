@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,11 +30,14 @@ class ReadingListModel;
 //   - The load is slow (possibly due to poor network conditions).
 //   - The load has failed (possibly because the device does not have internet).
 //     It is possible to trigger a page load failure to load the distilled
-//     version of `url` by loading chrome://offline?entryURL=url.
+//     version of |url| by loading chrome://offline?entryURL=url.
 class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
                              public web::WebStateObserver,
                              ReadingListModelObserver {
  public:
+  // Creates TabHelper. |web_state| and |model| must not be null.
+  static void CreateForWebState(web::WebState* web_state,
+                                ReadingListModel* model);
   ~OfflinePageTabHelper() override;
 
   // Returns true if distilled version is currently being presented.
@@ -42,13 +45,6 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
 
   // Returns true if reading list model has processed entry for the given url.
   bool HasDistilledVersionForOnlineUrl(const GURL& url) const;
-
-  // Returns true if offline page can handle this url loading.
-  bool CanHandleErrorLoadingURL(const GURL& url) const;
-
-  // Presents distilled version of the page if reading list model has processed
-  // entry for the given url.
-  void LoadOfflinePage(const GURL& url);
 
  private:
   friend class web::WebStateUserData<OfflinePageTabHelper>;
@@ -64,13 +60,6 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
                           web::NavigationContext* context) override;
   void DidFinishNavigation(web::WebState* web_state,
                            web::NavigationContext* navigation_context) override;
-
-  // Makes a simulated request to `url` by loading `data` as HTML or PDF,
-  // depending on `is_pdf`.
-  void LoadOfflineData(web::WebState* web_state,
-                       const GURL& url,
-                       bool is_pdf,
-                       const std::string& data) API_AVAILABLE(ios(15.0));
   void PageLoaded(
       web::WebState* web_state,
       web::PageLoadCompletionStatus load_completion_status) override;
@@ -89,9 +78,9 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
   // TODO(crbug.com/936773): handle uncommitted navigations.
   void PresentOfflinePageForOnlineUrl(const GURL& url);
 
-  // Starts repeating `timer_` which will fire `CheckLoadingProgress` method.
+  // Starts repeating |timer_| which will fire |CheckLoadingProgress| method.
   void StartCheckingLoadingProgress(const GURL& url);
-  // Stops repeating `timer_`.
+  // Stops repeating |timer_|.
   void StopCheckingLoadingProgress();
   // Tracks the page loading progress and presents distilled version of the page
   // if the following conditions are met:
@@ -99,9 +88,9 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
   //  - the loading progress did not reach 75%
   //  - reading list model has processed entry for the given url
   void CheckLoadingProgress(const GURL& url);
-  // Loads `data` into the web_state() if `offline_navigation` is equal to
-  // `last_navigation_started_`. `extension` is used to determine the MIMEType
-  // of `data`.
+  // Loads |data| into the web_state() if |offline_navigation| is equal to
+  // |last_navigation_started_|. |extension| is used to determine the MIMEType
+  // of |data|.
   void LoadData(int offline_navigation,
                 const GURL& url,
                 const std::string& extension,
@@ -109,9 +98,6 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
 
   // Returns the URL of the Reading List entry given a navigation URL.
   GURL GetOnlineURLFromNavigationURL(const GURL& url) const;
-
-  // Injects some JS to replace the current page with `url` and reload the page.
-  void ReplaceLocationUrlAndReload(const GURL& url);
 
   web::WebState* web_state_ = nullptr;
   ReadingListModel* reading_list_model_ = nullptr;
@@ -124,7 +110,7 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
   // Timer started with navigation. When this timer fires, this tab helper may
   // attempt to present distilled version of the page.
   std::unique_ptr<base::RepeatingTimer> timer_;
-  // Number of times when `timer_` fired. Used to determine if the load progress
+  // Number of times when |timer_| fired. Used to determine if the load progress
   // is slow and it's actually time to present distilled version of the page.
   int try_number_ = 0;
   // A counter of the navigation sterted in web_state. Is used as an ID for the
@@ -142,18 +128,10 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
   // Whether the latest navigation started for this tab helper was initiated
   // with chrome://offline URL.
   bool is_offline_navigation_ = false;
-  // Whether the latest navigation started for this tab helper was a reload.
-  bool is_reload_navigation_ = false;
-  // Whether the latest navigation started for this tab helper is a new one.
-  bool is_new_navigation_ = false;
   // Some parameters of the latest navigation started observed by this tab
   // helper.
   ui::PageTransition navigation_transition_type_ = ui::PAGE_TRANSITION_FIRST;
   bool navigation_is_renderer_initiated_ = false;
-  // On next navigation, don't reload the online page.
-  bool dont_reload_online_on_next_navigation_ = false;
-  // Whether a reload navigation has just been triggered.
-  bool reloading_from_offline_ = false;
 
   WEB_STATE_USER_DATA_KEY_DECL();
 

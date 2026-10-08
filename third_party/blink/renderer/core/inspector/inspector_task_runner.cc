@@ -1,12 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/inspector/inspector_task_runner.h"
 
-#include "third_party/blink/renderer/platform/bindings/thread_debugger.h"
+#include "third_party/blink/renderer/core/inspector/thread_debugger.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 
 namespace blink {
@@ -18,21 +17,21 @@ InspectorTaskRunner::InspectorTaskRunner(
 InspectorTaskRunner::~InspectorTaskRunner() = default;
 
 void InspectorTaskRunner::InitIsolate(v8::Isolate* isolate) {
-  base::AutoLock locker(lock_);
+  MutexLocker lock(mutex_);
   isolate_ = isolate;
 }
 
 void InspectorTaskRunner::Dispose() {
-  base::AutoLock locker(lock_);
+  MutexLocker lock(mutex_);
   disposed_ = true;
   isolate_ = nullptr;
   isolate_task_runner_ = nullptr;
 }
 
-bool InspectorTaskRunner::AppendTask(Task task) {
-  base::AutoLock locker(lock_);
+void InspectorTaskRunner::AppendTask(Task task) {
+  MutexLocker lock(mutex_);
   if (disposed_)
-    return false;
+    return;
   interrupting_task_queue_.push_back(std::move(task));
   PostCrossThreadTask(
       *isolate_task_runner_, FROM_HERE,
@@ -43,21 +42,19 @@ bool InspectorTaskRunner::AppendTask(Task task) {
     AddRef();
     isolate_->RequestInterrupt(&V8InterruptCallback, this);
   }
-  return true;
 }
 
-bool InspectorTaskRunner::AppendTaskDontInterrupt(Task task) {
-  base::AutoLock locker(lock_);
+void InspectorTaskRunner::AppendTaskDontInterrupt(Task task) {
+  MutexLocker lock(mutex_);
   if (disposed_)
-    return false;
+    return;
   PostCrossThreadTask(*isolate_task_runner_, FROM_HERE, std::move(task));
-  return true;
 }
 
 InspectorTaskRunner::Task InspectorTaskRunner::TakeNextInterruptingTask() {
-  base::AutoLock locker(lock_);
+  MutexLocker lock(mutex_);
 
-  if (disposed_ || interrupting_task_queue_.empty())
+  if (disposed_ || interrupting_task_queue_.IsEmpty())
     return Task();
 
   return interrupting_task_queue_.TakeFirst();

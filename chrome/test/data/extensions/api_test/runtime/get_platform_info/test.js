@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // These are found here:
 //   https://developer.chrome.com/extensions/runtime#type-PlatformOs
-let platformOsList =
-    ['mac', 'win', 'android', 'cros', 'linux', 'openbsd', 'fuchsia'];
+let platformOsList = ['mac', 'win', 'android', 'cros', 'linux', 'openbsd'];
 let platformArchList = ['arm', 'arm64', 'x86-32', 'x86-64', 'mips', 'mips64'];
 let platformNaclArchList = ['arm', 'x86-32', 'x86-64', 'mips', 'mips64'];
 

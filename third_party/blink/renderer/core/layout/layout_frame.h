@@ -34,6 +34,8 @@ class LayoutFrame final : public LayoutEmbeddedContent {
  public:
   explicit LayoutFrame(HTMLFrameElement*);
 
+  FrameEdgeInfo EdgeInfo() const;
+
   void ImageChanged(WrappedImagePtr, CanDeferInvalidation) override;
 
   const char* GetName() const override {
@@ -46,13 +48,11 @@ class LayoutFrame final : public LayoutEmbeddedContent {
     NOT_DESTROYED();
     return type == kLayoutObjectFrame || LayoutEmbeddedContent::IsOfType(type);
   }
-  void UpdateLayout() override;
+
+  void UpdateFromElement() override;
 };
 
-template <>
-struct DowncastTraits<LayoutFrame> {
-  static bool AllowFrom(const LayoutObject& object) { return object.IsFrame(); }
-};
+DEFINE_LAYOUT_OBJECT_TYPE_CASTS(LayoutFrame, IsFrame());
 
 }  // namespace blink
 

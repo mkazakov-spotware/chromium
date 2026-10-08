@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -179,8 +179,8 @@ base::TimeDelta GetParallelRequestDelayConfig() {
       features::kParallelDownloading, kParallelRequestDelayFinchKey);
   int64_t time_ms = 0;
   return base::StringToInt64(finch_value, &time_ms)
-             ? base::Milliseconds(time_ms)
-             : base::Milliseconds(0);
+             ? base::TimeDelta::FromMilliseconds(time_ms)
+             : base::TimeDelta::FromMilliseconds(0);
 }
 
 base::TimeDelta GetParallelRequestRemainingTimeConfig() {
@@ -188,8 +188,8 @@ base::TimeDelta GetParallelRequestRemainingTimeConfig() {
       features::kParallelDownloading, kParallelRequestRemainingTimeFinchKey);
   int time_in_seconds = 0;
   return base::StringToInt(finch_value, &time_in_seconds)
-             ? base::Seconds(time_in_seconds)
-             : base::Seconds(kDefaultRemainingTimeInSeconds);
+             ? base::TimeDelta::FromSeconds(time_in_seconds)
+             : base::TimeDelta::FromSeconds(kDefaultRemainingTimeInSeconds);
 }
 
 int64_t GetMaxContiguousDataBlockSizeFromBeginning(

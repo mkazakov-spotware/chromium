@@ -1,6 +1,6 @@
-# Enterprise Management on ChromeOS
+# Enterprise Management on Chrome OS
 
-Once enrolled, ChromeOS device can be managed by organization admins via
+Once enrolled, Chrome OS device can be managed by organization admins via
 https://admin.google.com/.
 
 Few notable management options are:

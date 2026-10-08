@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/content_settings/browser/ui/cookie_controls_controller.h"
 #include "content/public/browser/browser_context.h"
-#include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/paint_vector_icon.h"
 
@@ -27,8 +25,7 @@ CookieControlsIconView::CookieControlsIconView(
     : PageActionIconView(nullptr,
                          0,
                          icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         "CookieControls") {
+                         page_action_icon_delegate) {
   SetVisible(false);
 }
 
@@ -46,7 +43,7 @@ void CookieControlsIconView::UpdateImpl() {
               profile->IsOffTheRecord() ? CookieSettingsFactory::GetForProfile(
                                               profile->GetOriginalProfile())
                                         : nullptr);
-      observation_.Observe(controller_.get());
+      observer_.Add(controller_.get());
     }
     controller_->Update(web_contents);
   }
@@ -80,7 +77,7 @@ bool CookieControlsIconView::ShouldBeVisible() const {
   if (delegate()->ShouldHidePageActionIcons())
     return false;
 
-  if (GetAssociatedBubble())
+  if (HasAssociatedBubble())
     return true;
 
   if (!delegate()->GetWebContentsForPageActionIconView())
@@ -97,11 +94,15 @@ bool CookieControlsIconView::ShouldBeVisible() const {
   }
 }
 
-bool CookieControlsIconView::GetAssociatedBubble() const {
+bool CookieControlsIconView::HasAssociatedBubble() const {
+  if (!GetBubble())
+    return false;
+
   // There may be multiple icons but only a single bubble can be displayed
   // at a time. Check if the bubble belongs to this icon.
-  return GetBubble() && GetBubble()->GetAnchorView() &&
-         GetBubble()->GetAnchorView()->GetWidget() == GetWidget();
+  if (!GetBubble()->GetAnchorView())
+    return false;
+  return GetBubble()->GetAnchorView()->GetWidget() == GetWidget();
 }
 
 void CookieControlsIconView::OnExecuting(
@@ -121,11 +122,11 @@ const gfx::VectorIcon& CookieControlsIconView::GetVectorIcon() const {
   return kEyeCrossedIcon;
 }
 
-std::u16string CookieControlsIconView::GetTextForTooltipAndAccessibleName()
+const char* CookieControlsIconView::GetClassName() const {
+  return "CookieControlsIconView";
+}
+
+base::string16 CookieControlsIconView::GetTextForTooltipAndAccessibleName()
     const {
   return l10n_util::GetStringUTF16(IDS_COOKIE_CONTROLS_TOOLTIP);
 }
-
-BEGIN_METADATA(CookieControlsIconView, PageActionIconView)
-ADD_READONLY_PROPERTY_METADATA(bool, AssociatedBubble)
-END_METADATA

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define EXTENSIONS_SHELL_TEST_SHELL_TEST_BASE_AURA_H_
 
 #include <memory>
+
+#include "base/macros.h"
 
 #include "extensions/browser/extensions_test.h"
 #include "ui/gfx/geometry/rect.h"
@@ -17,10 +19,6 @@ class ShellTestHelperAura;
 class ShellTestBaseAura : public ExtensionsTest {
  public:
   ShellTestBaseAura();
-
-  ShellTestBaseAura(const ShellTestBaseAura&) = delete;
-  ShellTestBaseAura& operator=(const ShellTestBaseAura&) = delete;
-
   ~ShellTestBaseAura() override;
 
   // ExtensionsTest:
@@ -32,6 +30,8 @@ class ShellTestBaseAura : public ExtensionsTest {
 
  private:
   std::unique_ptr<ShellTestHelperAura> helper_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShellTestBaseAura);
 };
 
 }  // namespace extensions

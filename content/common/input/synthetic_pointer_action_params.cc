@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,7 @@ SyntheticPointerActionParams::SyntheticPointerActionParams() = default;
 
 SyntheticPointerActionParams::SyntheticPointerActionParams(
     PointerActionType action_type)
-    : pointer_action_type_(action_type),
-      button_(action_type == PointerActionType::MOVE ? Button::NO_BUTTON
-                                                     : Button::LEFT) {}
+    : pointer_action_type_(action_type) {}
 
 SyntheticPointerActionParams::SyntheticPointerActionParams(
     const SyntheticPointerActionParams& other) = default;

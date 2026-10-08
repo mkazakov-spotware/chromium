@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "net/base/completion_once_callback.h"
 #include "net/filter/source_stream.h"
 
@@ -24,10 +25,6 @@ class FuzzedSourceStream : public SourceStream {
   // |data_provider| is used to determine behavior of the FuzzedSourceStream.
   // It must remain valid until after the FuzzedSocket is destroyed.
   explicit FuzzedSourceStream(FuzzedDataProvider* data_provider);
-
-  FuzzedSourceStream(const FuzzedSourceStream&) = delete;
-  FuzzedSourceStream& operator=(const FuzzedSourceStream&) = delete;
-
   ~FuzzedSourceStream() override;
 
   // SourceStream implementation
@@ -46,10 +43,12 @@ class FuzzedSourceStream : public SourceStream {
   FuzzedDataProvider* data_provider_;
 
   // Whether there is a pending Read().
-  bool read_pending_ = false;
+  bool read_pending_;
 
   // Last result returned by Read() is an error or 0.
-  bool end_returned_ = false;
+  bool end_returned_;
+
+  DISALLOW_COPY_AND_ASSIGN(FuzzedSourceStream);
 };
 
 }  // namespace net

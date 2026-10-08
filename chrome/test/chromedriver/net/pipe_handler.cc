@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "net/base/net_errors.h"
 #include "net/log/net_log_source.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <io.h>
 #else
 #include <unistd.h>

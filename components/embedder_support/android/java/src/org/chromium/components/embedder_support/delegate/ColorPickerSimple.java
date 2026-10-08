@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@ package org.chromium.components.embedder_support.delegate;
 import android.content.Context;
 import android.graphics.Color;
 import android.util.AttributeSet;
-import android.view.View;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ListView;
 
 import org.chromium.components.embedder_support.delegate.ColorSuggestionListAdapter.OnColorSuggestionClickListener;
@@ -28,8 +26,6 @@ public class ColorPickerSimple extends ListView implements OnColorSuggestionClic
             R.string.color_picker_button_green, R.string.color_picker_button_magenta,
             R.string.color_picker_button_yellow, R.string.color_picker_button_black,
             R.string.color_picker_button_white};
-
-    private ColorSuggestionListAdapter mAdapter;
 
     public ColorPickerSimple(Context context) {
         super(context);
@@ -62,24 +58,14 @@ public class ColorPickerSimple extends ListView implements OnColorSuggestionClic
             }
         }
 
-        mAdapter = new ColorSuggestionListAdapter(getContext(), suggestions);
-        mAdapter.setOnColorSuggestionClickListener(this);
-        setAdapter(mAdapter);
-        setAccessibilityDelegate(new View.AccessibilityDelegate() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(
-                        DEFAULT_COLORS.length, 1, false));
-            }
-        });
+        ColorSuggestionListAdapter adapter =
+                new ColorSuggestionListAdapter(getContext(), suggestions);
+        adapter.setOnColorSuggestionClickListener(this);
+        setAdapter(adapter);
     }
 
     @Override
     public void onColorSuggestionClick(ColorSuggestion suggestion) {
         mOnColorChangedListener.onColorChanged(suggestion.mColor);
-
-        assert mAdapter != null;
-        mAdapter.setSelectedColor(suggestion.mColor);
     }
 }

@@ -31,9 +31,9 @@ class PointerEventsHitRules {
 
  public:
   enum EHitTesting {
-    kSvgImageHitTesting,
-    kSvgGeometryHitTesting,
-    kSvgTextHitTesting
+    SVG_IMAGE_HITTESTING,
+    SVG_GEOMETRY_HITTESTING,
+    SVG_TEXT_HITTESTING
   };
 
   PointerEventsHitRules(EHitTesting, const HitTestRequest&, EPointerEvents);
@@ -48,4 +48,4 @@ class PointerEventsHitRules {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_POINTER_EVENTS_HIT_RULES_H_
+#endif

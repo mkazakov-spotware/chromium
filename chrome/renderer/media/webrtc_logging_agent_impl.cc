@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "third_party/blink/public/platform/modules/webrtc/webrtc_logging.h"
 
@@ -14,8 +14,9 @@ namespace chrome {
 namespace {
 
 constexpr base::TimeDelta kMinTimeSinceLastLogBufferSend =
-    base::Milliseconds(100);
-constexpr base::TimeDelta kSendLogBufferDelay = base::Milliseconds(200);
+    base::TimeDelta::FromMilliseconds(100);
+constexpr base::TimeDelta kSendLogBufferDelay =
+    base::TimeDelta::FromMilliseconds(200);
 
 // There can be only one registered WebRtcLogMessageDelegate, and so this class
 // abstracts away that detail, so that we can set callbacks more than once. It
@@ -29,7 +30,7 @@ class WebRtcLogMessageDelegateImpl : public blink::WebRtcLogMessageDelegate {
 
   void Start(
       base::RepeatingCallback<void(mojom::WebRtcLoggingMessagePtr)> callback) {
-    auto task_runner = base::SequencedTaskRunner::GetCurrentDefault();
+    auto task_runner = base::SequencedTaskRunnerHandle::Get();
     {
       base::AutoLock locked(lock_);
       task_runner_ = task_runner;
@@ -114,7 +115,7 @@ void WebRtcLoggingAgentImpl::OnNewMessage(
       kMinTimeSinceLastLogBufferSend) {
     SendLogBuffer();
   } else {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&WebRtcLoggingAgentImpl::SendLogBuffer,
                        weak_factory_.GetWeakPtr()),

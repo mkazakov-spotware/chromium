@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/login_delegate.h"
+#include "content/public/browser/web_contents_observer.h"
 
 namespace content {
 class WebContents;
@@ -25,7 +26,8 @@ class AuthChallengeInfo;
 namespace android_webview {
 
 // Bridges the Java class of the same name and content::LoginDelegate.
-class AwHttpAuthHandler : public content::LoginDelegate {
+class AwHttpAuthHandler : public content::LoginDelegate,
+                          public content::WebContentsObserver {
  public:
   AwHttpAuthHandler(const net::AuthChallengeInfo& auth_info,
                     content::WebContents* web_contents,
@@ -45,7 +47,6 @@ class AwHttpAuthHandler : public content::LoginDelegate {
  private:
   void Start();
 
-  base::WeakPtr<content::WebContents> web_contents_;
   base::android::ScopedJavaGlobalRef<jobject> http_auth_handler_;
   std::string host_;
   std::string realm_;

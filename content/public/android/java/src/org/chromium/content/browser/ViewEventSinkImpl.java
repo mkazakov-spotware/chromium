@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import org.chromium.content.browser.webcontents.WebContentsImpl.UserDataFactory;
 import org.chromium.content_public.browser.ViewEventSink;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.ViewAndroidDelegate;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid.ActivityStateObserver;
 
 /**
@@ -63,14 +62,6 @@ public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObse
     @Override
     public void onDetachedFromWindow() {
         WindowEventObserverManager.from(mWebContents).onDetachedFromWindow();
-        // Stylus Writing
-        if (mWebContents.getStylusWritingHandler() != null) {
-            ViewAndroidDelegate viewAndroidDelegate = mWebContents.getViewAndroidDelegate();
-            if (viewAndroidDelegate != null) {
-                mWebContents.getStylusWritingHandler().onDetachedFromWindow(
-                        viewAndroidDelegate.getContainerView().getContext());
-            }
-        }
     }
 
     @Override
@@ -83,11 +74,6 @@ public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObse
         if (mHasViewFocus != null && mHasViewFocus == gainFocus) return;
         mHasViewFocus = gainFocus;
         onFocusChanged();
-
-        // Stylus Writing
-        if (mWebContents.getStylusWritingHandler() != null) {
-            mWebContents.getStylusWritingHandler().onFocusChanged(gainFocus);
-        }
     }
 
     @Override
@@ -104,10 +90,7 @@ public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObse
             // To request layout has side effect, but it seems OK as it only happen in
             // onConfigurationChange and layout has to be changed in most case.
             ViewAndroidDelegate delegate = mWebContents.getViewAndroidDelegate();
-            if (delegate != null) {
-                ViewUtils.requestLayout(
-                        delegate.getContainerView(), "ViewEventSinkImpl.onConfigurationChanged");
-            }
+            if (delegate != null) delegate.getContainerView().requestLayout();
         } finally {
             TraceEvent.end("ViewEventSink.onConfigurationChanged");
         }
@@ -155,9 +138,6 @@ public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObse
         mPaused = false;
         onFocusChanged();
     }
-
-    @Override
-    public void onActivityDestroyed() {}
 
     @Override
     public void onPauseForTesting() {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -129,18 +129,19 @@
                 "minItems": 1
               }
             ]
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
+                "type": "array",
+                "items": { "$ref": "BookmarkTreeNode" }
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "results",
-              "type": "array",
-              "items": { "$ref": "BookmarkTreeNode" }
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "getChildren",
@@ -151,18 +152,19 @@
             "type": "string",
             "serialized_type": "int64",
             "name": "id"
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
+                "type": "array",
+                "items": { "$ref": "BookmarkTreeNode"}
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "results",
-              "type": "array",
-              "items": { "$ref": "BookmarkTreeNode"}
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "getRecent",
@@ -174,34 +176,37 @@
             "minimum": 1,
             "name": "numberOfItems",
             "description": "The maximum number of items to return."
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
+                "type": "array",
+                "items": { "$ref": "BookmarkTreeNode" }
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "results",
-              "type": "array",
-              "items": { "$ref": "BookmarkTreeNode" }
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "getTree",
         "type": "function",
         "description": "Retrieves the entire Bookmarks hierarchy.",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "results",
-              "type": "array",
-              "items": { "$ref": "BookmarkTreeNode" }
-            }
-          ]
-        }
+        "parameters": [
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
+                "type": "array",
+                "items": { "$ref": "BookmarkTreeNode" }
+              }
+            ]
+          }
+        ]
       },
       {
         "name": "getSubTree",
@@ -213,18 +218,19 @@
             "serialized_type": "int64",
             "name": "id",
             "description": "The ID of the root of the subtree to retrieve."
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
+                "type": "array",
+                "items": { "$ref": "BookmarkTreeNode" }
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "results",
-              "type": "array",
-              "items": { "$ref": "BookmarkTreeNode" }
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "search",
@@ -261,18 +267,19 @@
                 }
               }
             ]
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
+                "type": "array",
+                "items": { "$ref": "BookmarkTreeNode" }
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "results",
-              "type": "array",
-              "items": { "$ref": "BookmarkTreeNode" }
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "create",
@@ -282,18 +289,19 @@
           {
             "$ref": "CreateDetails",
             "name": "bookmark"
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": [
+              {
+                "name": "result",
+                "$ref": "BookmarkTreeNode"
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": [
-            {
-              "name": "result",
-              "$ref": "BookmarkTreeNode"
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "move",
@@ -319,18 +327,19 @@
                 "optional": true
               }
             }
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": [
+              {
+                "name": "result",
+                "$ref": "BookmarkTreeNode"
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": [
-            {
-              "name": "result",
-              "$ref": "BookmarkTreeNode"
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "update",
@@ -355,18 +364,19 @@
                 "optional": true
               }
             }
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": [
+              {
+                "name": "result",
+                "$ref": "BookmarkTreeNode"
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": [
-            {
-              "name": "result",
-              "$ref": "BookmarkTreeNode"
-            }
-          ]
-        }
+        ]
       },
       {
         "name": "remove",
@@ -377,13 +387,14 @@
             "type": "string",
             "serialized_type": "int64",
             "name": "id"
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": []
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": []
-        }
+        ]
       },
       {
         "name": "removeTree",
@@ -394,37 +405,42 @@
             "type": "string",
             "serialized_type": "int64",
             "name": "id"
+          },
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": []
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": []
-        }
+        ]
       },
       {
         "name": "import",
         "type": "function",
-        "description": "Imports bookmarks from a Chrome html bookmark file",
+        "description": "Imports bookmarks from a chrome html bookmark file",
         "nodoc": "true",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": []
-        }
+        "parameters": [
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": []
+          }
+        ]
       },
       {
         "name": "export",
         "type": "function",
-        "description": "Exports bookmarks to a Chrome html bookmark file",
+        "description": "Exports bookmarks to a chrome html bookmark file",
         "nodoc": "true",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "optional": true,
-          "parameters": []
-        }
+        "parameters": [
+          {
+            "type": "function",
+            "name": "callback",
+            "optional": true,
+            "parameters": []
+          }
+        ]
       }
     ],
     "events": [

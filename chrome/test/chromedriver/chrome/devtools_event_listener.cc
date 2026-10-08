@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,13 @@
 
 DevToolsEventListener::~DevToolsEventListener() {}
 
-bool DevToolsEventListener::ListensToConnections() const {
-  return true;
-}
-
 Status DevToolsEventListener::OnConnected(DevToolsClient* client) {
   return Status(kOk);
 }
 
 Status DevToolsEventListener::OnEvent(DevToolsClient* client,
                                       const std::string& method,
-                                      const base::Value::Dict& params) {
+                                      const base::DictionaryValue& params) {
   return Status(kOk);
 }
 

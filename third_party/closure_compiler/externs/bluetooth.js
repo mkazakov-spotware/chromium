@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 // NOTE: The format of types has changed. 'FooType' is now
 //   'chrome.bluetooth.FooType'.
 // Please run the closure compiler before committing changes.
-// See https://chromium.googlesource.com/chromium/src/+/main/docs/closure_compilation.md
+// See https://chromium.googlesource.com/chromium/src/+/master/docs/closure_compilation.md
+
+/** @fileoverview Externs generated from namespace: bluetooth */
 
 /**
- * @fileoverview Externs generated from namespace: bluetooth
- * @externs
+ * @const
  */
-
-/** @const */
 chrome.bluetooth = {};
 
 /**
@@ -131,13 +130,13 @@ chrome.bluetooth.getDevice = function(deviceAddress, callback) {};
 /**
  * Get a list of Bluetooth devices known to the system, including paired and
  * recently discovered devices.
- * @param {?chrome.bluetooth.BluetoothFilter|undefined} filter Some criteria to
- *     filter the list of returned bluetooth devices. If the filter is not set
- *     or set to <code>{}</code>, returned device list will contain all
- *     bluetooth devices. Right now this is only supported in ChromeOS, for
- *     other platforms, a full list is returned.
- * @param {function(!Array<!chrome.bluetooth.Device>): void} callback Called
- *     when the search is completed.
+ * @param {!chrome.bluetooth.BluetoothFilter=} filter Some criteria to filter
+ *     the list of returned bluetooth devices. If the filter is not set or set
+ *     to <code>{}</code>, returned device list will contain all bluetooth
+ *     devices. Right now this is only supported in ChromeOS, for other
+ *     platforms, a full list is returned.
+ * @param {function(!Array<!chrome.bluetooth.Device>): void=} callback Called when
+ *     the search is completed.
  * @see https://developer.chrome.com/extensions/bluetooth#method-getDevices
  */
 chrome.bluetooth.getDevices = function(filter, callback) {};

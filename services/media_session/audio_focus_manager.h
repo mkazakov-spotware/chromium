@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <list>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/memory/weak_ptr.h"
@@ -43,10 +44,6 @@ class AudioFocusManager : public mojom::AudioFocusManager,
                           public mojom::MediaControllerManager {
  public:
   AudioFocusManager();
-
-  AudioFocusManager(const AudioFocusManager&) = delete;
-  AudioFocusManager& operator=(const AudioFocusManager&) = delete;
-
   ~AudioFocusManager() override;
 
   // TODO(beccahughes): Remove this.
@@ -78,7 +75,6 @@ class AudioFocusManager : public mojom::AudioFocusManager,
       mojo::PendingRemote<mojom::AudioFocusObserver> observer) override;
   void GetSourceFocusRequests(const base::UnguessableToken& source_id,
                               GetFocusRequestsCallback callback) override;
-  void RequestIdReleased(const base::UnguessableToken& request_id) override;
 
   // mojom::AudioFocusManagerDebug.
   void GetDebugInfoForRequest(const RequestId& request_id,
@@ -192,6 +188,8 @@ class AudioFocusManager : public mojom::AudioFocusManager,
   THREAD_CHECKER(thread_checker_);
 
   base::WeakPtrFactory<AudioFocusManager> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AudioFocusManager);
 };
 
 }  // namespace media_session

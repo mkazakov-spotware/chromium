@@ -1,10 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/location_bar/location_bar_layout.h"
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/view.h"
@@ -38,7 +37,7 @@ struct DecorationInfo {
   // Padding to use if the decoration is the first element next to the edge.
   int edge_item_padding;
 
-  raw_ptr<views::View> view;
+  views::View* view;
 
   // The width computed by the layout process.
   double computed_width;

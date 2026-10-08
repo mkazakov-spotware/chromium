@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,8 +36,7 @@ SkiaOutputDeviceWebView::SkiaOutputDeviceWebView(
   // SkSurface wrappers non GL fbo0.
   capabilities_.uses_default_gl_framebuffer = true;
   capabilities_.output_surface_origin = gl_surface_->GetOrigin();
-  capabilities_.pending_swap_params.max_pending_swaps =
-      gl_surface_->GetBufferCount() - 1;
+  capabilities_.max_frames_pending = gl_surface_->GetBufferCount() - 1;
 
   DCHECK(context_state_->gr_context());
   DCHECK(context_state_->context());
@@ -50,37 +49,36 @@ SkiaOutputDeviceWebView::SkiaOutputDeviceWebView(
 
 SkiaOutputDeviceWebView::~SkiaOutputDeviceWebView() = default;
 
-bool SkiaOutputDeviceWebView::Reshape(
-    const SkSurfaceCharacterization& characterization,
-    const gfx::ColorSpace& color_space,
-    float device_scale_factor,
-    gfx::OverlayTransform transform) {
+bool SkiaOutputDeviceWebView::Reshape(const gfx::Size& size,
+                                      float device_scale_factor,
+                                      const gfx::ColorSpace& color_space,
+                                      gfx::BufferFormat format,
+                                      gfx::OverlayTransform transform) {
   DCHECK_EQ(transform, gfx::OVERLAY_TRANSFORM_NONE);
 
-  gfx::Size size = gfx::SkISizeToSize(characterization.dimensions());
   if (!gl_surface_->Resize(size, device_scale_factor, color_space,
-                           /*has_alpha=*/true)) {
+                           gfx::AlphaBitsForBufferFormat(format))) {
     DLOG(ERROR) << "Failed to resize.";
     return false;
   }
 
   size_ = size;
-  sk_color_space_ = characterization.refColorSpace();
+  color_space_ = color_space;
   InitSkiaSurface(gl_surface_->GetBackingFramebufferObject());
   return !!sk_surface_;
 }
 
-void SkiaOutputDeviceWebView::SwapBuffers(BufferPresentedCallback feedback,
-                                          OutputSurfaceFrame frame) {
+void SkiaOutputDeviceWebView::SwapBuffers(
+    BufferPresentedCallback feedback,
+    std::vector<ui::LatencyInfo> latency_info) {
   StartSwapBuffers({});
 
   gfx::Size surface_size =
       gfx::Size(sk_surface_->width(), sk_surface_->height());
 
-  auto data = std::move(frame.data);
-  FinishSwapBuffers(gfx::SwapCompletionResult(gl_surface_->SwapBuffers(
-                        std::move(feedback), std::move(data))),
-                    surface_size, std::move(frame));
+  FinishSwapBuffers(
+      gfx::SwapCompletionResult(gl_surface_->SwapBuffers(std::move(feedback))),
+      surface_size, std::move(latency_info));
 }
 
 SkSurface* SkiaOutputDeviceWebView::BeginPaint(
@@ -101,6 +99,9 @@ void SkiaOutputDeviceWebView::EndPaint() {}
 void SkiaOutputDeviceWebView::InitSkiaSurface(unsigned int fbo) {
   last_frame_buffer_object_ = fbo;
 
+  SkSurfaceProps surface_props =
+      skia::LegacyDisplayGlobals::GetSkSurfaceProps();
+
   GrGLFramebufferInfo framebuffer_info;
   framebuffer_info.fFBOID = fbo;
   framebuffer_info.fFormat = GL_RGBA8;
@@ -112,17 +113,16 @@ void SkiaOutputDeviceWebView::InitSkiaSurface(unsigned int fbo) {
   auto origin = (gl_surface_->GetOrigin() == gfx::SurfaceOrigin::kTopLeft)
                     ? kTopLeft_GrSurfaceOrigin
                     : kBottomLeft_GrSurfaceOrigin;
-
-  SkSurfaceProps surface_props{0, kUnknown_SkPixelGeometry};
   sk_surface_ = SkSurface::MakeFromBackendRenderTarget(
       context_state_->gr_context(), render_target, origin, color_type,
-      sk_color_space_, &surface_props);
+      color_space_.ToSkColorSpace(), &surface_props);
 
   if (!sk_surface_) {
     LOG(ERROR) << "Couldn't create surface: "
                << context_state_->gr_context()->abandoned() << " " << color_type
                << " " << framebuffer_info.fFBOID << " "
-               << framebuffer_info.fFormat << " " << size_.ToString();
+               << framebuffer_info.fFormat << " " << color_space_.ToString()
+               << " " << size_.ToString();
   }
 }
 

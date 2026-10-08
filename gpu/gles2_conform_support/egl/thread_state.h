@@ -1,15 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef GPU_GLES2_CONFORM_SUPPORT_EGL_THREAD_STATE_H_
-#define GPU_GLES2_CONFORM_SUPPORT_EGL_THREAD_STATE_H_
+#ifndef GPU_GLES2_CONFORM_SUPPORT_EGL_STATE_H_
+#define GPU_GLES2_CONFORM_SUPPORT_EGL_STATE_H_
 
-#include <EGL/egl.h>
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include <EGL/egl.h>
 
-namespace gles2_conform_support {
 namespace egl {
 
 class Context;
@@ -22,10 +21,6 @@ class ThreadState {
   // Factory getter for the class. Should only be called by the API layer, and
   // then passed through Display in order to avoid lock issues.
   static ThreadState* Get();
-
-  ThreadState(const ThreadState&) = delete;
-  ThreadState& operator=(const ThreadState&) = delete;
-
   static void ReleaseThread();
 
   Surface* current_surface() const { return current_surface_.get(); }
@@ -51,16 +46,12 @@ class ThreadState {
   class AutoCurrentContextRestore {
    public:
     AutoCurrentContextRestore(ThreadState*);
-
-    AutoCurrentContextRestore(const AutoCurrentContextRestore&) = delete;
-    AutoCurrentContextRestore& operator=(const AutoCurrentContextRestore&) =
-        delete;
-
     ~AutoCurrentContextRestore();
     void SetCurrent(Surface*, Context*);
 
    private:
-    raw_ptr<ThreadState> thread_state_;
+    ThreadState* thread_state_;
+    DISALLOW_COPY_AND_ASSIGN(AutoCurrentContextRestore);
   };
 
  private:
@@ -71,9 +62,9 @@ class ThreadState {
   EGLint error_code_;
   scoped_refptr<Surface> current_surface_;
   scoped_refptr<Context> current_context_;
+  DISALLOW_COPY_AND_ASSIGN(ThreadState);
 };
 
 }  // namespace egl
-}  // namespace gles2_conform_support
 
-#endif  // GPU_GLES2_CONFORM_SUPPORT_EGL_THREAD_STATE_H_
+#endif

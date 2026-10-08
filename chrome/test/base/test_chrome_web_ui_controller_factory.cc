@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@
 #include "base/callback_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/test_data_source.h"
-#include "chrome/common/webui_url_constants.h"
-#include "chrome/test/base/web_ui_test_data_source.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_controller.h"
@@ -65,14 +63,10 @@ TestChromeWebUIControllerFactory::CreateWebUIControllerForURL(
       provider ? provider->NewWebUI(web_ui, webui_url)
                : ChromeWebUIControllerFactory::CreateWebUIControllerForURL(
                      web_ui, webui_url);
-
   // Add an empty callback since managed-footnote always sends this message.
   web_ui->RegisterMessageCallback("observeManagedUI", base::DoNothing());
-  content::WebUIDataSource* source = webui::CreateWebUITestDataSource();
-  if (provider)
-    provider->DataSourceOverrides(source);
-  content::WebUIDataSource::Add(profile, source);
-
+  content::URLDataSource::Add(profile,
+                              std::make_unique<TestDataSource>("webui"));
   return controller;
 }
 
@@ -86,10 +80,8 @@ TestChromeWebUIControllerFactory::WebUIProvider*
 
 GURL TestChromeWebUIControllerFactory::TestURLToWebUIURL(
     const GURL& url) const {
-  if ((url.host() != "test" && url.host() != chrome::kChromeUIWebUITestHost) ||
-      webui_host_.empty()) {
+  if (url.host() != "test" || webui_host_.empty())
     return url;
-  }
 
   GURL webui_url(url);
   GURL::Replacements replacements;

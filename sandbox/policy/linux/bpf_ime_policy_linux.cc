@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,10 +32,6 @@ ResultExpr ImeProcessPolicy::EvaluateSyscall(int sysno) const {
 #if defined(__NR_clock_gettime)
     case __NR_clock_gettime:
 #endif
-#if defined(__i386__) || defined(__arm__) || \
-    (defined(ARCH_CPU_MIPS_FAMILY) && defined(ARCH_CPU_32_BITS))
-    case __NR_clock_gettime64:
-#endif
       return Allow();
 // https://crbug.com/991435
 #if defined(__NR_getrusage)
@@ -45,7 +41,7 @@ ResultExpr ImeProcessPolicy::EvaluateSyscall(int sysno) const {
     default:
       auto* sandbox_linux = SandboxLinux::GetInstance();
       if (sandbox_linux->ShouldBrokerHandleSyscall(sysno))
-        return sandbox_linux->HandleViaBroker(sysno);
+        return sandbox_linux->HandleViaBroker();
 
       return BPFBasePolicy::EvaluateSyscall(sysno);
   }

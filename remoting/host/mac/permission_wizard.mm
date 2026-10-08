@@ -1,20 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/host/mac/permission_wizard.h"
 
-#include "base/memory/raw_ptr.h"
-
 #import <Cocoa/Cocoa.h>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/mac/mac_util.h"
 #include "base/memory/weak_ptr.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "remoting/base/string_resources.h"
@@ -30,7 +28,7 @@ namespace {
 
 // Interval between permission checks, used to update the UI when the user
 // grants permission.
-constexpr base::TimeDelta kPollingInterval = base::Seconds(1);
+constexpr base::TimeDelta kPollingInterval = base::TimeDelta::FromSeconds(1);
 
 // The steps of the wizard.
 enum class WizardPage {
@@ -189,7 +187,7 @@ void PermissionWizard::Impl::OnPermissionCheckResult(bool result) {
 
   // Reference used for permission-checking. Its lifetime should outlast this
   // Controller.
-  raw_ptr<PermissionWizard::Impl> _impl;
+  PermissionWizard::Impl* _impl;
 }
 
 - (instancetype)initWithWindow:(NSWindow*)window
@@ -366,13 +364,18 @@ void PermissionWizard::Impl::OnPermissionCheckResult(bool result) {
 }
 
 - (void)onLaunchA11y:(id)sender {
-  base::mac::OpenSystemSettingsPane(
-      base::mac::SystemSettingsPane::kPrivacySecurity_Accessibility);
+  // Launch the Security and Preferences pane with Accessibility selected.
+  [[NSWorkspace sharedWorkspace]
+      openURL:[NSURL
+                  URLWithString:@"x-apple.systempreferences:com.apple."
+                                @"preference.security?Privacy_Accessibility"]];
 }
 
 - (void)onLaunchScreenRecording:(id)sender {
-  base::mac::OpenSystemSettingsPane(
-      base::mac::SystemSettingsPane::kPrivacySecurity_ScreenRecording);
+  [[NSWorkspace sharedWorkspace]
+      openURL:[NSURL
+                  URLWithString:@"x-apple.systempreferences:com.apple."
+                                @"preference.security?Privacy_ScreenCapture"]];
 }
 
 - (void)onNext:(id)sender {
@@ -389,7 +392,7 @@ void PermissionWizard::Impl::OnPermissionCheckResult(bool result) {
 // updates the first-responder button, so it should only be called when the
 // state needs to change.
 - (void)updateUI {
-  std::u16string bundleName = base::UTF8ToUTF16(_impl->GetBundleName());
+  base::string16 bundleName = base::UTF8ToUTF16(_impl->GetBundleName());
   switch (_page) {
     case WizardPage::ACCESSIBILITY:
       _instructionText.stringValue = l10n_util::GetNSStringF(

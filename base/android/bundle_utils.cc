@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,17 +51,15 @@ const void* ReadRelPtr(const int32_t* relptr) {
 }  // namespace
 
 // static
-std::string BundleUtils::ResolveLibraryPath(const std::string& library_name,
-                                            const std::string& split_name) {
+std::string BundleUtils::ResolveLibraryPath(const std::string& library_name) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jstring> java_path = Java_BundleUtils_getNativeLibraryPath(
-      env, ConvertUTF8ToJavaString(env, library_name),
-      ConvertUTF8ToJavaString(env, split_name));
+      env, base::android::ConvertUTF8ToJavaString(env, library_name));
   // TODO(https://crbug.com/1019853): Remove this tolerance.
   if (!java_path) {
     return std::string();
   }
-  return ConvertJavaStringToUTF8(env, java_path);
+  return base::android::ConvertJavaStringToUTF8(env, java_path);
 }
 
 // static
@@ -70,11 +68,15 @@ bool BundleUtils::IsBundle() {
 }
 
 // static
+bool BundleUtils::IsolatedSplitsEnabled() {
+  return Java_BundleUtils_isolatedSplitsEnabled(AttachCurrentThread());
+}
+
+// static
 void* BundleUtils::DlOpenModuleLibraryPartition(const std::string& library_name,
-                                                const std::string& partition,
-                                                const std::string& split_name) {
+                                                const std::string& partition) {
   // TODO(https://crbug.com/1019853): Remove this tolerance.
-  std::string library_path = ResolveLibraryPath(library_name, split_name);
+  std::string library_path = ResolveLibraryPath(library_name);
   if (library_path.empty()) {
     return nullptr;
   }

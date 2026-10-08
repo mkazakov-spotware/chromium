@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "ash/tray_action/tray_action.h"
 #include "ash/tray_action/tray_action_observer.h"
 #include "base/callback.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 
 namespace ash {
 
@@ -20,10 +21,6 @@ class ASH_EXPORT LockScreenNoteLauncher : public TrayActionObserver {
   using LaunchCallback = base::OnceCallback<void(bool success)>;
 
   LockScreenNoteLauncher();
-
-  LockScreenNoteLauncher(const LockScreenNoteLauncher&) = delete;
-  LockScreenNoteLauncher& operator=(const LockScreenNoteLauncher&) = delete;
-
   ~LockScreenNoteLauncher() override;
 
   // Whether the lock screen note state indicates that a note action launch can
@@ -51,8 +48,9 @@ class ASH_EXPORT LockScreenNoteLauncher : public TrayActionObserver {
   // The callback provided to |Run|.
   LaunchCallback callback_;
 
-  base::ScopedObservation<TrayAction, TrayActionObserver>
-      tray_action_observation_{this};
+  ScopedObserver<TrayAction, TrayActionObserver> tray_action_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LockScreenNoteLauncher);
 };
 
 }  // namespace ash

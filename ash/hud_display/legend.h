@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_HUD_DISPLAY_LEGEND_H_
 #define ASH_HUD_DISPLAY_LEGEND_H_
 
-#include <string>
 #include <vector>
 
 #include "base/callback.h"
 
+#include "base/strings/string16.h"
 #include "ui/views/view.h"
 
 namespace ash {
@@ -20,25 +20,25 @@ class Graph;
 // Draws legend view.
 class Legend : public views::View {
  public:
-  using Formatter = base::RepeatingCallback<std::u16string(float)>;
+  using Formatter = base::RepeatingCallback<base::string16(float)>;
 
   METADATA_HEADER(Legend);
 
   struct Entry {
     Entry(const Graph& graph,
-          std::u16string label,
-          std::u16string tooltip,
+          base::string16 label,
+          base::string16 tooltip,
           Formatter formatter);
     Entry(const Entry&);
     ~Entry();
 
     const Graph& graph;
-    std::u16string label;
-    std::u16string tooltip;
+    base::string16 label;
+    base::string16 tooltip;
     Formatter formatter;  // formatting function
   };
 
-  explicit Legend(const std::vector<Entry>& contents);
+  Legend(const std::vector<Entry>& contents);
 
   Legend(const Legend&) = delete;
   Legend& operator=(const Legend&) = delete;

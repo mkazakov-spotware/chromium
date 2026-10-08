@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,14 +10,10 @@ mojom("mojom") {
     "cros_network_config.mojom",
   ]
 
-  webui_module_path =
-      "chrome://resources/mojo/chromeos/services/network_config/public/mojom"
-
   public_deps = [
     ":network_types",
     "//mojo/public/mojom/base",
     "//services/network/public/mojom:mojom_ip_address",
-    "//url/mojom:url_mojom_gurl",
   ]
 
   cpp_typemaps = [
@@ -37,7 +33,4 @@ mojom("mojom") {
 
 mojom("network_types") {
   sources = [ "network_types.mojom" ]
-
-  webui_module_path =
-      "chrome://resources/mojo/chromeos/services/network_config/public/mojom"
 }

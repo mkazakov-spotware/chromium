@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,7 @@ class ShellPopupWrapper;
 
 class WaylandPopup : public WaylandWindow {
  public:
-  WaylandPopup(PlatformWindowDelegate* delegate,
-               WaylandConnection* connection,
-               WaylandWindow* parent);
-
-  WaylandPopup(const WaylandPopup&) = delete;
-  WaylandPopup& operator=(const WaylandPopup&) = delete;
-
+  WaylandPopup(PlatformWindowDelegate* delegate, WaylandConnection* connection);
   ~WaylandPopup() override;
 
   ShellPopupWrapper* shell_popup() const { return shell_popup_.get(); }
@@ -29,27 +23,15 @@ class WaylandPopup : public WaylandWindow {
   void Show(bool inactive) override;
   void Hide() override;
   bool IsVisible() const override;
-  void SetBoundsInDIP(const gfx::Rect& bounds) override;
 
  private:
   // WaylandWindow overrides:
   void HandlePopupConfigure(const gfx::Rect& bounds) override;
-  void HandleSurfaceConfigure(uint32_t serial) override;
   void OnCloseRequest() override;
   bool OnInitialize(PlatformWindowInitProperties properties) override;
-  WaylandPopup* AsWaylandPopup() override;
-  bool IsSurfaceConfigured() override;
-  void SetWindowGeometry(gfx::Rect bounds) override;
-  void AckConfigure(uint32_t serial) override;
-  void UpdateVisualSize(const gfx::Size& size_px) override;
-  void ApplyPendingBounds() override;
-  void UpdateWindowMask() override;
 
   // Creates a popup window, which is visible as a menu window.
   bool CreateShellPopup();
-
-  // Decorates the surface, which requires custom extensions based on exo.
-  void UpdateDecoration();
 
   // Returns bounds with origin relative to parent window's origin.
   gfx::Rect AdjustPopupWindowPosition();
@@ -58,20 +40,7 @@ class WaylandPopup : public WaylandWindow {
   // know anything about the version.
   std::unique_ptr<ShellPopupWrapper> shell_popup_;
 
-  // Set to true if the surface is decorated via aura_popup -- the custom exo
-  // extension to xdg_popup.
-  bool decorated_via_aura_popup_ = false;
-
-  PlatformWindowShadowType shadow_type_ = PlatformWindowShadowType::kNone;
-
-  // Helps to avoid reposition itself if HandlePopupConfigure was called, which
-  // resulted in calling SetBounds.
-  bool wayland_sets_bounds_ = false;
-
-  // If WaylandPopup has been moved, schedule redraw as the client of the
-  // Ozone/Wayland may not do so. Otherwise, a new state (if bounds has been
-  // changed) won't be applied.
-  bool schedule_redraw_ = false;
+  DISALLOW_COPY_AND_ASSIGN(WaylandPopup);
 };
 
 }  // namespace ui

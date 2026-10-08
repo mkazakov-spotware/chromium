@@ -1,11 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/browser/cast_content_gesture_handler.h"
 
-#include "base/callback_helpers.h"
-#include "base/logging.h"
 #include "chromecast/base/chromecast_switches.h"
 
 namespace chromecast {
@@ -15,7 +13,7 @@ constexpr int kDefaultBackGestureHorizontalThreshold = 80;
 }  // namespace
 
 CastContentGestureHandler::CastContentGestureHandler(
-    GestureRouter* delegate,
+    base::WeakPtr<CastContentWindow::Delegate> delegate,
     bool enable_top_drag_gesture)
     : priority_(Priority::NONE),
       enable_top_drag_gesture_(enable_top_drag_gesture),
@@ -26,7 +24,8 @@ CastContentGestureHandler::CastContentGestureHandler(
   DCHECK(delegate_);
 }
 
-CastContentGestureHandler::CastContentGestureHandler(GestureRouter* delegate)
+CastContentGestureHandler::CastContentGestureHandler(
+    base::WeakPtr<CastContentWindow::Delegate> delegate)
     : CastContentGestureHandler(
           delegate,
           GetSwitchValueBoolean(switches::kEnableTopDragGesture, false)) {}

@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_DOWNLOAD_PUBLIC_COMMON_URL_LOADER_FACTORY_PROVIDER_H_
 #define COMPONENTS_DOWNLOAD_PUBLIC_COMMON_URL_LOADER_FACTORY_PROVIDER_H_
 
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "components/download/public/common/download_export.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -21,10 +21,6 @@ class COMPONENTS_DOWNLOAD_EXPORT URLLoaderFactoryProvider {
 
   explicit URLLoaderFactoryProvider(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
-
-  URLLoaderFactoryProvider(const URLLoaderFactoryProvider&) = delete;
-  URLLoaderFactoryProvider& operator=(const URLLoaderFactoryProvider&) = delete;
-
   virtual ~URLLoaderFactoryProvider();
 
   // Called on the io thread to get the URL loader.
@@ -35,6 +31,8 @@ class COMPONENTS_DOWNLOAD_EXPORT URLLoaderFactoryProvider {
 
  private:
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(URLLoaderFactoryProvider);
 };
 
 }  // namespace download

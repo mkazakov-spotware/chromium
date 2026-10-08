@@ -1,11 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_TOUCH_SELECTION_LONGPRESS_DRAG_SELECTOR_H_
 #define UI_TOUCH_SELECTION_LONGPRESS_DRAG_SELECTOR_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/vector2d_f.h"
@@ -59,7 +58,7 @@ class UI_TOUCH_SELECTION_EXPORT LongPressDragSelector
 
   void SetState(SelectionState state);
 
-  const raw_ptr<LongPressDragSelectorClient> client_;
+  LongPressDragSelectorClient* const client_;
 
   SelectionState state_;
 

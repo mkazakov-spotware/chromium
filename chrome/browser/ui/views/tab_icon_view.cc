@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,27 +6,25 @@
 
 #include <memory>
 
+#if defined(OS_WIN)
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/views/tab_icon_view_model.h"
 #include "chrome/grit/theme_resources.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
-#include "ui/color/color_id.h"
-#include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/paint_throbber.h"
+#include "ui/native_theme/native_theme.h"
 
-#if BUILDFLAG(IS_WIN)
-#include <windows.h>
-
-// windows.h needs to come first.  The gap above prevents reordering.
-#include <shellapi.h>
-
+#if defined(OS_WIN)
 #include "chrome/browser/win/app_icon.h"
 #include "ui/gfx/icon_util.h"
 #endif
@@ -35,11 +33,11 @@ namespace {
 
 gfx::ImageSkia CreateDefaultFavicon() {
   gfx::ImageSkia icon;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // The default window icon is the application icon, not the default favicon.
   HICON app_icon = GetAppIcon();
-  icon = gfx::ImageSkia::CreateFromBitmap(
-      IconUtil::CreateSkBitmapFromHICON(app_icon, gfx::Size(16, 16)), 1.0f);
+  icon = gfx::ImageSkia(gfx::ImageSkiaRep(
+      IconUtil::CreateSkBitmapFromHICON(app_icon, gfx::Size(16, 16)), 1.0f));
   DestroyIcon(app_icon);
 #else
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
@@ -50,9 +48,6 @@ gfx::ImageSkia CreateDefaultFavicon() {
 
 class DefaultFavicon {
  public:
-  DefaultFavicon(const DefaultFavicon&) = delete;
-  DefaultFavicon& operator=(const DefaultFavicon&) = delete;
-
   static const DefaultFavicon& GetInstance() {
     static base::NoDestructor<DefaultFavicon> default_favicon;
     return *default_favicon;
@@ -66,12 +61,16 @@ class DefaultFavicon {
   DefaultFavicon() : icon_(CreateDefaultFavicon()) {}
 
   const gfx::ImageSkia icon_;
+
+  DISALLOW_COPY_AND_ASSIGN(DefaultFavicon);
 };
 
 }  // namespace
 
-TabIconView::TabIconView() {
-  // Inheriting from Button causes this View to be focusable, but it is
+TabIconView::TabIconView(TabIconViewModel* model,
+                         views::Button::PressedCallback callback)
+    : views::MenuButton(std::move(callback)), model_(model), is_light_(false) {
+  // Inheriting from Button causes this View to be focusable, but it us
   // purely decorative and should not be exposed as focusable in accessibility.
   SetFocusBehavior(FocusBehavior::NEVER);
 }
@@ -79,13 +78,8 @@ TabIconView::TabIconView() {
 TabIconView::~TabIconView() {
 }
 
-void TabIconView::SetModel(TabIconViewModel* model) {
-  model_ = model;
-  Update();
-}
-
 void TabIconView::Update() {
-  if (!model_ || !model_->ShouldTabIconViewAnimate())
+  if (!model_->ShouldTabIconViewAnimate())
     throbber_start_time_ = base::TimeTicks();
 
   SchedulePaint();
@@ -95,9 +89,12 @@ void TabIconView::PaintThrobber(gfx::Canvas* canvas) {
   if (throbber_start_time_ == base::TimeTicks())
     throbber_start_time_ = base::TimeTicks::Now();
 
-  gfx::PaintThrobberSpinning(canvas, GetLocalBounds(),
-                             GetColorProvider()->GetColor(ui::kColorThrobber),
-                             base::TimeTicks::Now() - throbber_start_time_);
+  gfx::PaintThrobberSpinning(
+      canvas, GetLocalBounds(),
+      GetNativeTheme()->GetSystemColor(
+          is_light_ ? ui::NativeTheme::kColorId_ThrobberLightColor
+                    : ui::NativeTheme::kColorId_ThrobberSpinningColor),
+      base::TimeTicks::Now() - throbber_start_time_);
 }
 
 void TabIconView::PaintFavicon(gfx::Canvas* canvas,
@@ -132,23 +129,24 @@ gfx::Size TabIconView::CalculatePreferredSize() const {
   return gfx::Size(gfx::kFaviconSize, gfx::kFaviconSize);
 }
 
-void TabIconView::PaintButtonContents(gfx::Canvas* canvas) {
-  if (model_) {
-    if (model_->ShouldTabIconViewAnimate()) {
-      PaintThrobber(canvas);
-      return;
-    }
+const char* TabIconView::GetClassName() const {
+  return "TabIconView";
+}
 
-    gfx::ImageSkia favicon =
-        model_->GetFaviconForTabIconView().Rasterize(GetColorProvider());
+void TabIconView::PaintButtonContents(gfx::Canvas* canvas) {
+  bool rendered = false;
+
+  if (model_->ShouldTabIconViewAnimate()) {
+    rendered = true;
+    PaintThrobber(canvas);
+  } else {
+    gfx::ImageSkia favicon = model_->GetFaviconForTabIconView();
     if (!favicon.isNull()) {
+      rendered = true;
       PaintFavicon(canvas, favicon);
-      return;
     }
   }
 
-  PaintFavicon(canvas, DefaultFavicon::GetInstance().icon());
+  if (!rendered)
+    PaintFavicon(canvas, DefaultFavicon::GetInstance().icon());
 }
-
-BEGIN_METADATA(TabIconView, views::MenuButton)
-END_METADATA

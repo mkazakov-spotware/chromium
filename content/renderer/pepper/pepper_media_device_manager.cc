@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/common/content_features.h"
 #include "content/renderer/pepper/renderer_ppapi_host_impl.h"
 #include "content/renderer/render_frame_impl.h"
@@ -166,7 +167,7 @@ int PepperMediaDeviceManager::OpenDevice(PP_DeviceType_Dev type,
           blink::mojom::ConsoleMessageLevel::kWarning,
           kPepperInsecureOriginMessage);
     }
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&PepperMediaDeviceManager::OnDeviceOpened,
                                   AsWeakPtr(), request_id, false, std::string(),
                                   blink::MediaStreamDevice()));
@@ -189,7 +190,7 @@ void PepperMediaDeviceManager::CancelOpenDevice(int request_id) {
 }
 
 void PepperMediaDeviceManager::CloseDevice(const std::string& label) {
-  if (!GetMediaStreamDeviceObserver()->RemoveStreams(
+  if (!GetMediaStreamDeviceObserver()->RemoveStream(
           blink::WebString::FromUTF8(label)))
     return;
 

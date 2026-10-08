@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ import android.os.Messenger;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.IntentUtils;
 import org.chromium.base.PackageUtils;
 
 import java.io.IOException;
@@ -132,7 +131,9 @@ public class GoogleCloudMessagingV2 implements GoogleCloudMessagingSubscriber {
         if (Looper.getMainLooper() == Looper.myLooper()) {
             throw new IOException(ERROR_MAIN_THREAD);
         }
-        if (!PackageUtils.isPackageInstalled(GOOGLE_PLAY_SERVICES_PACKAGE)) {
+        if (PackageUtils.getPackageVersion(
+                    ContextUtils.getApplicationContext(), GOOGLE_PLAY_SERVICES_PACKAGE)
+                < 0) {
             throw new IOException("Google Play Services missing");
         }
         if (data == null) {
@@ -186,8 +187,8 @@ public class GoogleCloudMessagingV2 implements GoogleCloudMessagingSubscriber {
                 Intent target = new Intent();
                 // Fill in the package, to prevent the intent from being used.
                 target.setPackage("com.google.example.invalidpackage");
-                mAppPendingIntent = PendingIntent.getBroadcast(ContextUtils.getApplicationContext(),
-                        0, target, IntentUtils.getPendingIntentMutabilityFlag(false));
+                mAppPendingIntent = PendingIntent.getBroadcast(
+                        ContextUtils.getApplicationContext(), 0, target, 0);
             }
         }
         intent.putExtra(INTENT_PARAM_APP, mAppPendingIntent);

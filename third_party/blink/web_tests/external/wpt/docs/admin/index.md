@@ -10,8 +10,8 @@ infrastructure which makes the project possible.
    :titlesonly:
 
    ../README
-   /tools/wptrunner/README.rst
-   /tools/wptserve/docs/index.rst
+   ../tools/wptrunner/README
+   ../tools/wptserve/docs/index.rst
    pywebsocket3
 
 .. toctree::
@@ -44,12 +44,15 @@ explicitly-managed secret.
 - (unknown registrar): http://testthewebforward.org
   - web-human@w3.org
 - [Google Domains](https://domains.google/): https://wpt.fyi
-  - danielrsmith@google.com
   - foolip@google.com
-  - kyleju@google.com
-  - pastithas@google.com
+  - robertma@google.com
+  - mike@bocoup.com
+- (Google internal): https://wpt.live https://wptpr.live
+  - foolip@google.com
+  - robertma@google.com
 - [GitHub](https://github.com/): web-platform-tests
   - [@foolip](https://github.com/foolip)
+  - [@Hexcles](https://github.com/Hexcles)
   - [@jgraham](https://github.com/jgraham)
   - [@plehegar](https://github.com/plehegar)
   - [@thejohnjansen](https://github.com/thejohnjansen)
@@ -59,22 +62,15 @@ explicitly-managed secret.
   - [@plehegar](https://github.com/plehegar)
   - [@sideshowbarker](https://github.com/sideshowbarker)
 - [Google Cloud Platform](https://cloud.google.com/): wptdashboard{-staging}
-  - danielrsmith@google.com
+  - robertma@google.com
+  - smcgruer@google.com
   - foolip@google.com
-  - kyleju@google.com
-  - pastithas@google.com
 - [Google Cloud Platform](https://cloud.google.com/): wpt-live
-  - danielrsmith@chromium.org
-  - foolip@chromium.org
-  - kyleju@chromium.org
-  - mike@bocoup.com
-  - pastithas@chromium.org
-  - The DNS for wpt.live, not-wpt.live, wptpr.live, and not-wptpr.live are also managed in this project, while the domains are registered with a Google-internal mechanism.
+  - smcgruer@google.com
+  - robertma@google.com
 - [Google Cloud Platform](https://cloud.google.com/): wpt-pr-bot
-  - danielrsmith@google.com
-  - foolip@google.com
-  - kyleju@google.com
-  - pastithas@google.com
+  - smcgruer@google.com
+  - robertma@google.com
 - E-mail address: wpt.pr.bot@gmail.com
   - smcgruer@google.com
   - boaz@bocoup.com
@@ -85,6 +81,9 @@ explicitly-managed secret.
   - boaz@bocoup.com
   - mike@bocoup.com
   - simon@bocoup.com
+
+[web-platform-tests]: https://github.com/e3c/web-platform-tests
+[wpt.fyi]: https://github.com/web-platform-tests/wpt.fyi
 
 ## Emergency playbook
 

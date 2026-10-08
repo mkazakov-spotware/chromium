@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@
 #include "third_party/blink/renderer/core/page/scrolling/scroll_state.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/platform/wtf/deque.h"
-#include "ui/gfx/geometry/point_conversions.h"
 
 namespace blink {
 
@@ -78,6 +77,8 @@ WebInputEventResult MouseWheelEventManager::HandleWheelEvent(
 
   if ((event.phase & kWheelEventPhaseNoEventMask) ||
       (event.momentum_phase & kWheelEventPhaseNoEventMask)) {
+    // Filter wheel events with zero deltas and reset the wheel_target_ node.
+    DCHECK(!event.delta_x && !event.delta_y);
     return WebInputEventResult::kNotHandled;
   }
 
@@ -153,10 +154,11 @@ Node* MouseWheelEventManager::FindTargetNode(const WebMouseWheelEvent& event,
                                              const Document* doc,
                                              const LocalFrameView* view) {
   DCHECK(doc && doc->GetLayoutView() && view);
-  PhysicalOffset v_point(view->ConvertFromRootFrame(
-      gfx::ToFlooredPoint(event.PositionInRootFrame())));
+  PhysicalOffset v_point(
+      view->ConvertFromRootFrame(FlooredIntPoint(event.PositionInRootFrame())));
 
-  HitTestRequest request(HitTestRequest::kReadOnly);
+  HitTestRequest request(HitTestRequest::kReadOnly |
+                         HitTestRequest::kRetargetForInert);
   HitTestLocation location(v_point);
   HitTestResult result(request, location);
   doc->GetLayoutView()->HitTest(location, result);

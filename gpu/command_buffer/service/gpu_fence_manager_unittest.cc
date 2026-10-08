@@ -1,14 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/command_buffer/service/gpu_fence_manager.h"
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/service/error_state_mock.h"
 #include "gpu/command_buffer/service/feature_info.h"
@@ -18,18 +15,16 @@
 #include "ui/gfx/gpu_fence.h"
 #include "ui/gfx/gpu_fence_handle.h"
 #include "ui/gl/egl_mock.h"
-#include "ui/gl/gl_display.h"
 #include "ui/gl/gl_egl_api_implementation.h"
-#include "ui/gl/gl_utils.h"
+#include "ui/gl/gl_surface_egl.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
-using ::testing::_;
-using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SetArgPointee;
+using ::testing::_;
 
 namespace gpu {
 namespace gles2 {
@@ -49,8 +44,8 @@ class GpuFenceManagerTest : public GpuServiceTest {
     GpuServiceTest::SetUp();
     SetupMockEGL("EGL_ANDROID_native_fence_sync EGL_KHR_wait_sync");
     SetupFeatureInfo("", "OpenGL ES 2.0", CONTEXT_TYPE_OPENGLES2);
-    error_state_ = std::make_unique<::testing::StrictMock<MockErrorState>>();
-    manager_ = std::make_unique<GpuFenceManager>();
+    error_state_.reset(new ::testing::StrictMock<MockErrorState>());
+    manager_.reset(new GpuFenceManager());
   }
 
   void TearDown() override {
@@ -62,8 +57,8 @@ class GpuFenceManagerTest : public GpuServiceTest {
 
   void SetupMockEGL(const char* extensions) {
     gl::SetGLGetProcAddressProc(gl::MockEGLInterface::GetGLProcAddress);
-    egl_ = std::make_unique<::testing::NiceMock<::gl::MockEGLInterface>>();
-    gl::MockEGLInterface::SetEGLInterface(egl_.get());
+    egl_.reset(new ::testing::NiceMock<::gl::MockEGLInterface>());
+    ::gl::MockEGLInterface::SetEGLInterface(egl_.get());
 
     const EGLDisplay kDummyDisplay = reinterpret_cast<EGLDisplay>(0x1001);
     ON_CALL(*egl_, QueryString(_, EGL_EXTENSIONS))
@@ -75,15 +70,10 @@ class GpuFenceManagerTest : public GpuServiceTest {
 
     gl::ClearBindingsEGL();
     gl::InitializeStaticGLBindingsEGL();
-    display_ = gl::GetDefaultDisplayEGL();
-    display_->InitializeForTesting();
+    gl::GLSurfaceEGL::InitializeOneOffForTesting();
   }
 
-  void TeardownMockEGL() {
-    if (display_)
-      display_->Shutdown();
-    egl_.reset();
-  }
+  void TeardownMockEGL() { egl_.reset(); }
 
   void SetupFeatureInfo(const char* gl_extensions,
                         const char* gl_version,
@@ -98,7 +88,6 @@ class GpuFenceManagerTest : public GpuServiceTest {
   std::unique_ptr<GpuFenceManager> manager_;
   std::unique_ptr<MockErrorState> error_state_;
   std::unique_ptr<::testing::NiceMock<::gl::MockEGLInterface>> egl_;
-  raw_ptr<gl::GLDisplayEGL> display_ = nullptr;
 };
 
 TEST_F(GpuFenceManagerTest, Basic) {
@@ -115,9 +104,6 @@ TEST_F(GpuFenceManagerTest, Basic) {
       .Times(1)
       .WillOnce(Return(kDummySync))
       .RetiresOnSaturation();
-  EXPECT_CALL(*egl_, GetSyncAttribKHR(_, kDummySync, EGL_SYNC_STATUS_KHR, _))
-      .WillRepeatedly(
-          DoAll(SetArgPointee<3>(EGL_UNSIGNALED_KHR), Return(EGL_TRUE)));
   EXPECT_CALL(*gl_, Flush()).Times(1).RetiresOnSaturation();
   EXPECT_TRUE(manager_->CreateGpuFence(kClient1Id));
   EXPECT_TRUE(manager_->IsValidGpuFence(kClient1Id));
@@ -160,7 +146,7 @@ TEST_F(GpuFenceManagerTest, Destruction) {
   manager_->Destroy(true);
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
 TEST_F(GpuFenceManagerTest, GetGpuFence) {
   const GLuint kClient1Id = 1;
@@ -214,9 +200,6 @@ TEST_F(GpuFenceManagerTest, Duplication) {
       .Times(1)
       .WillOnce(Return(kDummySync))
       .RetiresOnSaturation();
-  EXPECT_CALL(*egl_, GetSyncAttribKHR(_, kDummySync, EGL_SYNC_STATUS_KHR, _))
-      .WillRepeatedly(
-          DoAll(SetArgPointee<3>(EGL_UNSIGNALED_KHR), Return(EGL_TRUE)));
   EXPECT_CALL(*gl_, Flush()).Times(1).RetiresOnSaturation();
   EXPECT_TRUE(
       manager_->CreateGpuFenceFromHandle(kClient1Id, std::move(handle)));
@@ -234,7 +217,7 @@ TEST_F(GpuFenceManagerTest, Duplication) {
   EXPECT_FALSE(manager_->IsValidGpuFence(kClient1Id));
 }
 
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
 }  // namespace gles2
 }  // namespace gpu

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,30 +12,24 @@
 #include "base/compiler_specific.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/rand_util.h"
+#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/base/auth.h"
-#include "net/base/io_buffer.h"
 #include "net/base/load_flags.h"
 #include "net/base/load_timing_info.h"
 #include "net/base/net_errors.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/network_delegate.h"
 #include "net/base/upload_data_stream.h"
-#include "net/cert/x509_certificate.h"
-#include "net/cookies/cookie_store.h"
-#include "net/cookies/cookie_util.h"
-#include "net/dns/public/secure_dns_policy.h"
-#include "net/http/http_log_util.h"
 #include "net/http/http_util.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_source_type.h"
 #include "net/socket/next_proto.h"
 #include "net/ssl/ssl_cert_request_info.h"
-#include "net/ssl/ssl_private_key.h"
 #include "net/url_request/redirect_info.h"
 #include "net/url_request/redirect_util.h"
 #include "net/url_request/url_request_context.h"
@@ -46,6 +40,9 @@
 #include "net/url_request/url_request_redirect_job.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+using base::Time;
+using std::string;
 
 namespace net {
 
@@ -92,23 +89,17 @@ void ConvertRealLoadTimesToBlockingTimes(LoadTimingInfo* load_timing_info) {
       load_timing_info->receive_headers_start < block_on_connect) {
     load_timing_info->receive_headers_start = block_on_connect;
   }
-  if (!load_timing_info->receive_non_informational_headers_start.is_null() &&
-      load_timing_info->receive_non_informational_headers_start <
-          block_on_connect) {
-    load_timing_info->receive_non_informational_headers_start =
-        block_on_connect;
-  }
 
   // Make sure connection times are after start and proxy times.
 
   LoadTimingInfo::ConnectTiming* connect_timing =
       &load_timing_info->connect_timing;
-  if (!connect_timing->domain_lookup_start.is_null()) {
-    DCHECK(!connect_timing->domain_lookup_end.is_null());
-    if (connect_timing->domain_lookup_start < block_on_connect)
-      connect_timing->domain_lookup_start = block_on_connect;
-    if (connect_timing->domain_lookup_end < block_on_connect)
-      connect_timing->domain_lookup_end = block_on_connect;
+  if (!connect_timing->dns_start.is_null()) {
+    DCHECK(!connect_timing->dns_end.is_null());
+    if (connect_timing->dns_start < block_on_connect)
+      connect_timing->dns_start = block_on_connect;
+    if (connect_timing->dns_end < block_on_connect)
+      connect_timing->dns_end = block_on_connect;
   }
 
   if (!connect_timing->connect_start.is_null()) {
@@ -128,23 +119,13 @@ void ConvertRealLoadTimesToBlockingTimes(LoadTimingInfo* load_timing_info) {
   }
 }
 
-NetLogWithSource CreateNetLogWithSource(
-    NetLog* net_log,
-    absl::optional<net::NetLogSource> net_log_source) {
-  if (net_log_source) {
-    return NetLogWithSource::Make(net_log, net_log_source.value());
-  }
-  return NetLogWithSource::Make(net_log, NetLogSourceType::URL_REQUEST);
-}
-
 }  // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 // URLRequest::Delegate
 
 int URLRequest::Delegate::OnConnected(URLRequest* request,
-                                      const TransportInfo& info,
-                                      CompletionOnceCallback callback) {
+                                      const TransportInfo& info) {
   return OK;
 }
 
@@ -222,8 +203,8 @@ bool URLRequest::has_upload() const {
   return upload_data_stream_.get() != nullptr;
 }
 
-void URLRequest::SetExtraRequestHeaderByName(base::StringPiece name,
-                                             base::StringPiece value,
+void URLRequest::SetExtraRequestHeaderByName(const string& name,
+                                             const string& value,
                                              bool overwrite) {
   DCHECK(!is_pending_ || is_redirecting_);
   if (overwrite) {
@@ -233,7 +214,7 @@ void URLRequest::SetExtraRequestHeaderByName(base::StringPiece name,
   }
 }
 
-void URLRequest::RemoveRequestHeaderByName(base::StringPiece name) {
+void URLRequest::RemoveRequestHeaderByName(const string& name) {
   DCHECK(!is_pending_ || is_redirecting_);
   extra_request_headers_.RemoveHeader(name);
 }
@@ -274,50 +255,49 @@ LoadStateWithParam URLRequest::GetLoadState() const {
     return LoadStateWithParam(LOAD_STATE_WAITING_FOR_DELEGATE,
                               use_blocked_by_as_load_param_
                                   ? base::UTF8ToUTF16(blocked_by_)
-                                  : std::u16string());
+                                  : base::string16());
   }
   return LoadStateWithParam(job_.get() ? job_->GetLoadState() : LOAD_STATE_IDLE,
-                            std::u16string());
+                            base::string16());
 }
 
 base::Value URLRequest::GetStateAsValue() const {
-  base::Value::Dict dict;
-  dict.Set("url", original_url().possibly_invalid_spec());
+  base::Value dict(base::Value::Type::DICTIONARY);
+  dict.SetStringKey("url", original_url().possibly_invalid_spec());
 
   if (url_chain_.size() > 1) {
     base::Value list(base::Value::Type::LIST);
     for (const GURL& url : url_chain_) {
       list.Append(url.possibly_invalid_spec());
     }
-    dict.Set("url_chain", std::move(list));
+    dict.SetKey("url_chain", std::move(list));
   }
 
-  dict.Set("load_flags", load_flags_);
+  dict.SetIntKey("load_flags", load_flags_);
 
   LoadStateWithParam load_state = GetLoadState();
-  dict.Set("load_state", load_state.state);
+  dict.SetIntKey("load_state", load_state.state);
   if (!load_state.param.empty())
-    dict.Set("load_state_param", load_state.param);
+    dict.SetStringKey("load_state_param", load_state.param);
   if (!blocked_by_.empty())
-    dict.Set("delegate_blocked_by", blocked_by_);
+    dict.SetStringKey("delegate_blocked_by", blocked_by_);
 
-  dict.Set("method", method_);
-  // TODO(https://crbug.com/1343856): Update "network_isolation_key" to
-  // "network_anonymization_key" and change NetLog viewer.
-  dict.Set("network_isolation_key",
-           isolation_info_.network_isolation_key().ToDebugString());
-  dict.Set("has_upload", has_upload());
-  dict.Set("is_pending", is_pending_);
+  dict.SetStringKey("method", method_);
+  dict.SetStringKey("network_isolation_key",
+                    isolation_info_.network_isolation_key().ToDebugString());
+  dict.SetBoolKey("has_upload", has_upload());
+  dict.SetBoolKey("is_pending", is_pending_);
 
-  dict.Set("traffic_annotation", traffic_annotation_.unique_id_hash_code);
+  dict.SetIntKey("traffic_annotation", traffic_annotation_.unique_id_hash_code);
 
   if (status_ != OK)
-    dict.Set("net_error", status_);
-  return base::Value(std::move(dict));
+    dict.SetIntKey("net_error", status_);
+  return dict;
 }
 
-void URLRequest::LogBlockedBy(base::StringPiece blocked_by) {
-  DCHECK(!blocked_by.empty());
+void URLRequest::LogBlockedBy(const char* blocked_by) {
+  DCHECK(blocked_by);
+  DCHECK_GT(strlen(blocked_by), 0u);
 
   // Only log information to NetLog during startup and certain deferring calls
   // to delegates.  For all reads but the first, do nothing.
@@ -325,14 +305,14 @@ void URLRequest::LogBlockedBy(base::StringPiece blocked_by) {
     return;
 
   LogUnblocked();
-  blocked_by_ = std::string(blocked_by);
+  blocked_by_ = blocked_by;
   use_blocked_by_as_load_param_ = false;
 
   net_log_.BeginEventWithStringParams(NetLogEventType::DELEGATE_INFO,
                                       "delegate_blocked_by", blocked_by_);
 }
 
-void URLRequest::LogAndReportBlockedBy(base::StringPiece source) {
+void URLRequest::LogAndReportBlockedBy(const char* source) {
   LogBlockedBy(source);
   use_blocked_by_as_load_param_ = true;
 }
@@ -364,8 +344,8 @@ UploadProgress URLRequest::GetUploadProgress() const {
   return UploadProgress();
 }
 
-void URLRequest::GetResponseHeaderByName(base::StringPiece name,
-                                         std::string* value) const {
+void URLRequest::GetResponseHeaderByName(const string& name,
+                                         string* value) const {
   DCHECK(value);
   if (response_info_.headers.get()) {
     response_info_.headers->GetNormalizedHeader(name, value);
@@ -383,7 +363,7 @@ HttpResponseHeaders* URLRequest::response_headers() const {
   return response_info_.headers.get();
 }
 
-const absl::optional<AuthChallengeInfo>& URLRequest::auth_challenge_info()
+const base::Optional<AuthChallengeInfo>& URLRequest::auth_challenge_info()
     const {
   return response_info_.auth_challenge;
 }
@@ -405,12 +385,12 @@ bool URLRequest::GetTransactionRemoteEndpoint(IPEndPoint* endpoint) const {
   return job_->GetTransactionRemoteEndpoint(endpoint);
 }
 
-void URLRequest::GetMimeType(std::string* mime_type) const {
+void URLRequest::GetMimeType(string* mime_type) const {
   DCHECK(job_.get());
   job_->GetMimeType(mime_type);
 }
 
-void URLRequest::GetCharset(std::string* charset) const {
+void URLRequest::GetCharset(string* charset) const {
   DCHECK(job_.get());
   job_->GetCharset(charset);
 }
@@ -443,8 +423,8 @@ void URLRequest::SetLoadFlags(int flags) {
     SetPriority(MAXIMUM_PRIORITY);
 }
 
-void URLRequest::SetSecureDnsPolicy(SecureDnsPolicy secure_dns_policy) {
-  secure_dns_policy_ = secure_dns_policy;
+void URLRequest::SetDisableSecureDns(bool disable_secure_dns) {
+  disable_secure_dns_ = disable_secure_dns;
 }
 
 // static
@@ -453,34 +433,9 @@ void URLRequest::SetDefaultCookiePolicyToBlock() {
   g_default_can_use_cookies = false;
 }
 
-void URLRequest::SetURLChain(const std::vector<GURL>& url_chain) {
-  DCHECK(!job_);
-  DCHECK(!is_pending_);
-  DCHECK_EQ(url_chain_.size(), 1u);
-
-  if (url_chain.size() < 2)
-    return;
-
-  // In most cases the current request URL will match the last URL in the
-  // explicitly set URL chain.  In some cases, however, a throttle will modify
-  // the request URL resulting in a different request URL.  We handle this by
-  // using previous values from the explicitly set URL chain, but with the
-  // request URL as the final entry in the chain.
-  url_chain_.insert(url_chain_.begin(), url_chain.begin(),
-                    url_chain.begin() + url_chain.size() - 1);
-}
-
 void URLRequest::set_site_for_cookies(const SiteForCookies& site_for_cookies) {
   DCHECK(!is_pending_);
   site_for_cookies_ = site_for_cookies;
-}
-
-void URLRequest::set_isolation_info_from_network_anonymization_key(
-    const NetworkAnonymizationKey& network_anonymization_key) {
-  set_isolation_info(URLRequest::CreateIsolationInfoFromNetworkAnonymizationKey(
-      network_anonymization_key));
-
-  is_created_from_network_anonymization_key_ = true;
 }
 
 void URLRequest::set_first_party_url_policy(
@@ -489,16 +444,16 @@ void URLRequest::set_first_party_url_policy(
   first_party_url_policy_ = first_party_url_policy;
 }
 
-void URLRequest::set_initiator(const absl::optional<url::Origin>& initiator) {
+void URLRequest::set_initiator(const base::Optional<url::Origin>& initiator) {
   DCHECK(!is_pending_);
   DCHECK(!initiator.has_value() || initiator.value().opaque() ||
          initiator.value().GetURL().is_valid());
   initiator_ = initiator;
 }
 
-void URLRequest::set_method(base::StringPiece method) {
+void URLRequest::set_method(const std::string& method) {
   DCHECK(!is_pending_);
-  method_ = std::string(method);
+  method_ = method;
 }
 
 #if BUILDFLAG(ENABLE_REPORTING)
@@ -508,13 +463,13 @@ void URLRequest::set_reporting_upload_depth(int reporting_upload_depth) {
 }
 #endif
 
-void URLRequest::SetReferrer(base::StringPiece referrer) {
+void URLRequest::SetReferrer(const std::string& referrer) {
   DCHECK(!is_pending_);
   GURL referrer_url(referrer);
   if (referrer_url.is_valid()) {
     referrer_ = referrer_url.GetAsReferrer().spec();
   } else {
-    referrer_ = std::string(referrer);
+    referrer_ = referrer;
   }
 }
 
@@ -537,9 +492,6 @@ void URLRequest::Start() {
 
   if (status_ != OK)
     return;
-
-  if (context_->require_network_isolation_key())
-    DCHECK(!isolation_info_.IsEmpty());
 
   // Some values can be NULL, but the job factory must not be.
   DCHECK(context_->job_factory());
@@ -578,21 +530,41 @@ URLRequest::URLRequest(const GURL& url,
                        RequestPriority priority,
                        Delegate* delegate,
                        const URLRequestContext* context,
-                       NetworkTrafficAnnotationTag traffic_annotation,
-                       bool is_for_websockets,
-                       absl::optional<net::NetLogSource> net_log_source)
+                       NetworkTrafficAnnotationTag traffic_annotation)
     : context_(context),
-      net_log_(CreateNetLogWithSource(context->net_log(), net_log_source)),
+      net_log_(NetLogWithSource::Make(context->net_log(),
+                                      NetLogSourceType::URL_REQUEST)),
       url_chain_(1, url),
+      force_ignore_site_for_cookies_(false),
       method_("GET"),
+      referrer_policy_(
+          ReferrerPolicy::CLEAR_ON_TRANSITION_FROM_SECURE_TO_INSECURE),
+      first_party_url_policy_(
+          RedirectInfo::FirstPartyURLPolicy::NEVER_CHANGE_URL),
+      load_flags_(LOAD_NORMAL),
+      allow_credentials_(true),
+      privacy_mode_(PRIVACY_MODE_DISABLED),
+      disable_secure_dns_(false),
+#if BUILDFLAG(ENABLE_REPORTING)
+      reporting_upload_depth_(0),
+#endif
       delegate_(delegate),
-      is_for_websockets_(is_for_websockets),
+      status_(OK),
+      is_pending_(false),
+      is_redirecting_(false),
       redirect_limit_(kMaxRedirects),
       priority_(priority),
+      delegate_event_type_(NetLogEventType::FAILED),
+      calling_delegate_(false),
+      use_blocked_by_as_load_param_(false),
+      has_notified_completion_(false),
+      received_response_content_length_(0),
       creation_time_(base::TimeTicks::Now()),
-      traffic_annotation_(traffic_annotation) {
+      raw_header_size_(0),
+      traffic_annotation_(traffic_annotation),
+      upgrade_if_insecure_(false) {
   // Sanity check out environment.
-  DCHECK(base::SingleThreadTaskRunner::HasCurrentDefault());
+  DCHECK(base::ThreadTaskRunnerHandle::IsSet());
 
   context->url_requests()->insert(this);
   net_log_.BeginEvent(NetLogEventType::REQUEST_ALIVE, [&] {
@@ -621,8 +593,7 @@ void URLRequest::BeforeRequestComplete(int error) {
     StartJob(std::make_unique<URLRequestRedirectJob>(
         this, new_url,
         // Use status code 307 to preserve the method, so POST requests work.
-        RedirectUtil::ResponseCode::REDIRECT_307_TEMPORARY_REDIRECT,
-        "Delegate"));
+        URLRequestRedirectJob::REDIRECT_307_TEMPORARY_REDIRECT, "Delegate"));
   } else {
     StartJob(context_->job_factory()->CreateJob(this));
   }
@@ -631,15 +602,13 @@ void URLRequest::BeforeRequestComplete(int error) {
 void URLRequest::StartJob(std::unique_ptr<URLRequestJob> job) {
   DCHECK(!is_pending_);
   DCHECK(!job_);
-  if (is_created_from_network_anonymization_key_) {
-    DCHECK(load_flags_ & LOAD_DISABLE_CACHE);
-    DCHECK(!allow_credentials_);
-  }
+
+  privacy_mode_ = DeterminePrivacyMode();
 
   net_log_.BeginEvent(NetLogEventType::URL_REQUEST_START_JOB, [&] {
     return NetLogURLRequestStartParams(
-        url(), method_, load_flags_, isolation_info_, site_for_cookies_,
-        initiator_,
+        url(), method_, load_flags_, privacy_mode_,
+        isolation_info_.network_isolation_key(), site_for_cookies_, initiator_,
         upload_data_stream_ ? upload_data_stream_->identifier() : -1);
   });
 
@@ -647,7 +616,6 @@ void URLRequest::StartJob(std::unique_ptr<URLRequestJob> job) {
   job_->SetExtraRequestHeaders(extra_request_headers_);
   job_->SetPriority(priority_);
   job_->SetRequestHeadersCallback(request_headers_callback_);
-  job_->SetEarlyResponseHeadersCallback(early_response_headers_callback_);
   job_->SetResponseHeadersCallback(response_headers_callback_);
 
   if (upload_data_stream_.get())
@@ -778,9 +746,6 @@ int URLRequest::Read(IOBuffer* dest, int dest_size) {
     return OK;
   }
 
-  // Caller should provide a buffer.
-  DCHECK(dest && dest->data());
-
   int rv = job_->Read(dest, dest_size);
   if (rv == ERR_IO_PENDING) {
     set_status(ERR_IO_PENDING);
@@ -803,25 +768,12 @@ bool URLRequest::failed() const {
   return (status_ != OK && status_ != ERR_IO_PENDING);
 }
 
-int URLRequest::NotifyConnected(const TransportInfo& info,
-                                CompletionOnceCallback callback) {
-  OnCallToDelegate(NetLogEventType::URL_REQUEST_DELEGATE_CONNECTED);
-  int result = delegate_->OnConnected(
-      this, info,
-      base::BindOnce(
-          [](URLRequest* request, CompletionOnceCallback callback, int result) {
-            request->OnCallToDelegateComplete(result);
-            std::move(callback).Run(result);
-          },
-          this, std::move(callback)));
-  if (result != ERR_IO_PENDING)
-    OnCallToDelegateComplete(result);
-  return result;
+int URLRequest::NotifyConnected(const TransportInfo& info) {
+  return delegate_->OnConnected(this, info);
 }
 
 void URLRequest::NotifyReceivedRedirect(const RedirectInfo& redirect_info,
                                         bool* defer_redirect) {
-  DCHECK_EQ(OK, status_);
   is_redirecting_ = true;
   OnCallToDelegate(NetLogEventType::URL_REQUEST_DELEGATE_RECEIVED_REDIRECT);
   delegate_->OnReceivedRedirect(this, redirect_info, defer_redirect);
@@ -860,8 +812,8 @@ void URLRequest::NotifyResponseStarted(int net_error) {
 }
 
 void URLRequest::FollowDeferredRedirect(
-    const absl::optional<std::vector<std::string>>& removed_headers,
-    const absl::optional<net::HttpRequestHeaders>& modified_headers) {
+    const base::Optional<std::vector<std::string>>& removed_headers,
+    const base::Optional<net::HttpRequestHeaders>& modified_headers) {
   DCHECK(job_.get());
   DCHECK_EQ(OK, status_);
 
@@ -914,14 +866,6 @@ void URLRequest::ContinueDespiteLastError() {
   job_->ContinueDespiteLastError();
 }
 
-void URLRequest::AbortAndCloseConnection() {
-  DCHECK_EQ(OK, status_);
-  DCHECK(!has_notified_completion_);
-  DCHECK(job_);
-  job_->CloseConnectionOnDestruction();
-  job_.reset();
-}
-
 void URLRequest::PrepareToRestart() {
   DCHECK(job_.get());
 
@@ -945,8 +889,8 @@ void URLRequest::PrepareToRestart() {
 
 void URLRequest::Redirect(
     const RedirectInfo& redirect_info,
-    const absl::optional<std::vector<std::string>>& removed_headers,
-    const absl::optional<net::HttpRequestHeaders>& modified_headers) {
+    const base::Optional<std::vector<std::string>>& removed_headers,
+    const base::Optional<net::HttpRequestHeaders>& modified_headers) {
   // This method always succeeds. Whether |job_| is allowed to redirect to
   // |redirect_info| is checked in URLRequestJob::CanFollowRedirect, before
   // NotifyReceivedRedirect. This means the delegate can assume that, if it
@@ -984,11 +928,6 @@ void URLRequest::Redirect(
   --redirect_limit_;
 
   Start();
-}
-
-// static
-bool URLRequest::DefaultCanUseCookies() {
-  return g_default_can_use_cookies;
 }
 
 const URLRequestContext* URLRequest::context() const {
@@ -1031,7 +970,6 @@ void URLRequest::SetPriority(RequestPriority priority) {
 
 void URLRequest::NotifyAuthRequired(
     std::unique_ptr<AuthChallengeInfo> auth_info) {
-  DCHECK_EQ(OK, status_);
   DCHECK(auth_info);
   // Check that there are no callbacks to already failed or cancelled requests.
   DCHECK(!failed());
@@ -1055,16 +993,54 @@ void URLRequest::NotifySSLCertificateError(int net_error,
   delegate_->OnSSLCertificateError(this, net_error, ssl_info, fatal);
 }
 
+bool URLRequest::CanGetCookies() const {
+  DCHECK_EQ(PrivacyMode::PRIVACY_MODE_DISABLED, privacy_mode_);
+  bool can_get_cookies = g_default_can_use_cookies;
+  if (network_delegate()) {
+    can_get_cookies =
+        network_delegate()->CanGetCookies(*this, /*allowed_from_caller=*/true);
+  }
+
+  if (!can_get_cookies)
+    net_log_.AddEvent(NetLogEventType::COOKIE_GET_BLOCKED_BY_NETWORK_DELEGATE);
+  return can_get_cookies;
+}
+
 bool URLRequest::CanSetCookie(const net::CanonicalCookie& cookie,
                               CookieOptions* options) const {
   DCHECK(!(load_flags_ & LOAD_DO_NOT_SAVE_COOKIES));
   bool can_set_cookies = g_default_can_use_cookies;
   if (network_delegate()) {
-    can_set_cookies = network_delegate()->CanSetCookie(*this, cookie, options);
+    can_set_cookies =
+        network_delegate()->CanSetCookie(*this, cookie, options,
+                                         /*allowed_from_caller=*/true);
   }
   if (!can_set_cookies)
     net_log_.AddEvent(NetLogEventType::COOKIE_SET_BLOCKED_BY_NETWORK_DELEGATE);
   return can_set_cookies;
+}
+
+PrivacyMode URLRequest::DeterminePrivacyMode() const {
+  if (!allow_credentials_) {
+    // |allow_credentials_| implies LOAD_DO_NOT_SAVE_COOKIES.
+    DCHECK(load_flags_ & LOAD_DO_NOT_SAVE_COOKIES);
+
+    // TODO(https://crbug.com/775438): Client certs should always be
+    // affirmatively omitted for these requests.
+    return send_client_certs_ ? PRIVACY_MODE_ENABLED
+                              : PRIVACY_MODE_ENABLED_WITHOUT_CLIENT_CERTS;
+  }
+
+  // Otherwise, check with the delegate if present, or base it off of
+  // |g_default_can_use_cookies| if not.
+  // TODO(mmenke): Looks like |g_default_can_use_cookies| is not too useful,
+  // with the network service - remove it.
+  bool enable_privacy_mode = !g_default_can_use_cookies;
+  if (network_delegate()) {
+    enable_privacy_mode = network_delegate()->ForcePrivacyMode(
+        url(), site_for_cookies_, isolation_info_.top_frame_origin());
+  }
+  return enable_privacy_mode ? PRIVACY_MODE_ENABLED : PRIVACY_MODE_DISABLED;
 }
 
 void URLRequest::NotifyReadCompleted(int bytes_read) {
@@ -1091,10 +1067,6 @@ void URLRequest::NotifyReadCompleted(int bytes_read) {
 }
 
 void URLRequest::OnHeadersComplete() {
-  // The URLRequest status should still be IO_PENDING, which it was set to
-  // before the URLRequestJob was started.  On error or cancellation, this
-  // method should not be called.
-  DCHECK_EQ(ERR_IO_PENDING, status_);
   set_status(OK);
   // Cache load timing information now, as information will be lost once the
   // socket is closed and the ClientSocketHandle is Reset, which will happen
@@ -1111,6 +1083,7 @@ void URLRequest::OnHeadersComplete() {
 
     load_timing_info_.request_start = request_start;
     load_timing_info_.request_start_time = request_start_time;
+    raw_header_size_ = GetTotalReceivedBytes();
 
     ConvertRealLoadTimesToBlockingTimes(&load_timing_info_);
   }
@@ -1137,13 +1110,13 @@ void URLRequest::OnCallToDelegate(NetLogEventType type) {
   net_log_.BeginEvent(type);
 }
 
-void URLRequest::OnCallToDelegateComplete(int error) {
+void URLRequest::OnCallToDelegateComplete() {
   // This should have been cleared before resuming the request.
   DCHECK(blocked_by_.empty());
   if (!calling_delegate_)
     return;
   calling_delegate_ = false;
-  net_log_.EndEventWithNetErrorCode(delegate_event_type_, error);
+  net_log_.EndEvent(delegate_event_type_);
   delegate_event_type_ = NetLogEventType::FAILED;
 }
 
@@ -1172,52 +1145,11 @@ void URLRequest::RecordReferrerGranularityMetrics(
   }
 }
 
-IsolationInfo URLRequest::CreateIsolationInfoFromNetworkAnonymizationKey(
-    const NetworkAnonymizationKey& network_anonymization_key) {
-  if (!network_anonymization_key.IsFullyPopulated()) {
-    return IsolationInfo();
-  }
-
-  url::Origin top_frame_origin =
-      network_anonymization_key.GetTopFrameSite()->site_as_origin_;
-
-  absl::optional<url::Origin> frame_origin;
-  if (NetworkAnonymizationKey::IsFrameSiteEnabled() &&
-      network_anonymization_key.GetFrameSite().has_value()) {
-    // If frame site is set on the network anonymization key, use it to set the
-    // frame origin on the isolation info.
-    frame_origin = network_anonymization_key.GetFrameSite()->site_as_origin_;
-  } else if (NetworkAnonymizationKey::IsCrossSiteFlagSchemeEnabled() &&
-             network_anonymization_key.GetIsCrossSite().value()) {
-    // If frame site is not set on the network anonymization key but we know
-    // that it is cross site to the top level site, create an empty origin to
-    // use as the frame origin for the isolation info. This should be cross site
-    // with the top level origin.
-    frame_origin = url::Origin();
-  } else {
-    // If frame sit is not set on the network anonymization key and we don't
-    // know that it's cross site to the top level site, use the top frame site
-    // to set the frame origin.
-    frame_origin = top_frame_origin;
-  }
-
-  const base::UnguessableToken* nonce =
-      network_anonymization_key.GetNonce()
-          ? &network_anonymization_key.GetNonce().value()
-          : nullptr;
-
-  auto isolation_info = IsolationInfo::Create(
-      IsolationInfo::RequestType::kOther, top_frame_origin,
-      frame_origin.value(), SiteForCookies(),
-      /*party_context=*/absl::nullopt, nonce);
-  // TODO(crbug/1343856): DCHECK isolation info is fully populated.
-  return isolation_info;
-}
-
-ConnectionAttempts URLRequest::GetConnectionAttempts() const {
+void URLRequest::GetConnectionAttempts(ConnectionAttempts* out) const {
   if (job_)
-    return job_->GetConnectionAttempts();
-  return {};
+    job_->GetConnectionAttempts(out);
+  else
+    out->clear();
 }
 
 void URLRequest::SetRequestHeadersCallback(RequestHeadersCallback callback) {
@@ -1230,13 +1162,6 @@ void URLRequest::SetResponseHeadersCallback(ResponseHeadersCallback callback) {
   DCHECK(!job_.get());
   DCHECK(response_headers_callback_.is_null());
   response_headers_callback_ = std::move(callback);
-}
-
-void URLRequest::SetEarlyResponseHeadersCallback(
-    ResponseHeadersCallback callback) {
-  DCHECK(!job_.get());
-  DCHECK(early_response_headers_callback_.is_null());
-  early_response_headers_callback_ = std::move(callback);
 }
 
 void URLRequest::set_socket_tag(const SocketTag& socket_tag) {

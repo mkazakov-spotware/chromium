@@ -1,29 +1,24 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "chrome/browser/ui/views/extensions/chooser_dialog_view.h"
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
+#include "chrome/browser/chooser_controller/fake_bluetooth_chooser_controller.h"
 #include "chrome/browser/ui/views/device_chooser_content_view.h"
 #include "chrome/test/views/chrome_views_test_base.h"
-#include "components/permissions/fake_bluetooth_chooser_controller.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/table/table_view.h"
 #include "ui/views/widget/widget.h"
 
-using permissions::FakeBluetoothChooserController;
-
 class ChooserDialogViewTest : public ChromeViewsTestBase {
  public:
   ChooserDialogViewTest() {}
-
-  ChooserDialogViewTest(const ChooserDialogViewTest&) = delete;
-  ChooserDialogViewTest& operator=(const ChooserDialogViewTest&) = delete;
 
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
@@ -36,7 +31,7 @@ class ChooserDialogViewTest : public ChromeViewsTestBase {
         FakeBluetoothChooserController::BluetoothStatus::IDLE);
 
     gfx::NativeView parent = gfx::kNullNativeView;
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // We need a native view parent for the dialog to avoid a DCHECK
     // on Mac.
     parent_widget_ = CreateTestWidget();
@@ -46,7 +41,7 @@ class ChooserDialogViewTest : public ChromeViewsTestBase {
                                                         parent);
     widget_->SetVisibilityChangedAnimationsEnabled(false);
     widget_->Show();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // Necessary for Mac. On other platforms this happens in the focus
     // manager, but it's disabled for Mac due to crbug.com/650859.
     parent_widget_->Activate();
@@ -81,12 +76,14 @@ class ChooserDialogViewTest : public ChromeViewsTestBase {
   }
 
  protected:
-  raw_ptr<ChooserDialogView> dialog_ = nullptr;
-  raw_ptr<FakeBluetoothChooserController> controller_ = nullptr;
+  ChooserDialogView* dialog_ = nullptr;
+  FakeBluetoothChooserController* controller_ = nullptr;
 
  private:
   std::unique_ptr<views::Widget> parent_widget_;
-  raw_ptr<views::Widget> widget_ = nullptr;
+  views::Widget* widget_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(ChooserDialogViewTest);
 };
 
 TEST_F(ChooserDialogViewTest, ButtonState) {

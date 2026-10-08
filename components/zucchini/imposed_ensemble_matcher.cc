@@ -1,15 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/zucchini/imposed_ensemble_matcher.h"
 
+#include <algorithm>
 #include <sstream>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "components/zucchini/io_utils.h"
 
 namespace zucchini {
@@ -67,8 +67,9 @@ ImposedMatchParser::Status ImposedMatchParser::Parse(
             });
 
   // Check for overlaps in "new" file.
-  if (base::ranges::adjacent_find(
-          matches_, [](const ElementMatch& match1, const ElementMatch& match2) {
+  if (std::adjacent_find(
+          matches_.begin(), matches_.end(),
+          [](const ElementMatch& match1, const ElementMatch& match2) {
             return match1.new_element.hi() > match2.new_element.lo();
           }) != matches_.end()) {
     return kOverlapInNew;
@@ -88,8 +89,8 @@ ImposedMatchParser::Status ImposedMatchParser::Parse(
       continue;
     }
     // Check executable types of sub-images.
-    absl::optional<Element> old_element = detector.Run(old_sub_image);
-    absl::optional<Element> new_element = detector.Run(new_sub_image);
+    base::Optional<Element> old_element = detector.Run(old_sub_image);
+    base::Optional<Element> new_element = detector.Run(new_sub_image);
     if (!old_element || !new_element) {
       // Skip unknown types, including those mixed with known types.
       bad_matches_.push_back(matches_[read_idx]);

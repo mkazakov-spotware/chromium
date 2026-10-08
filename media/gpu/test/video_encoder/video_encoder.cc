@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
+#include "gpu/ipc/service/gpu_memory_buffer_factory.h"
 #include "media/base/video_bitrate_allocation.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/test/bitstream_helpers.h"
@@ -30,29 +31,27 @@ const char* EventName(VideoEncoder::EncoderEvent event) {
       return "Flushing";
     case VideoEncoder::EncoderEvent::kFlushDone:
       return "FlushDone";
-    case VideoEncoder::EncoderEvent::kKeyFrame:
-      return "KeyFrame";
     default:
       return "Unknown";
   }
 }
 
 // Default timeout used when waiting for events.
-constexpr base::TimeDelta kDefaultEventWaitTimeout = base::Seconds(30);
+constexpr base::TimeDelta kDefaultEventWaitTimeout =
+    base::TimeDelta::FromSeconds(30);
 
 // Default initial size used for |video_encoder_events_|.
 constexpr size_t kDefaultEventListSize = 512;
 
-constexpr std::pair<VideoEncoder::EncoderEvent, size_t> kInvalidEncodeUntil{
-    VideoEncoder::kNumEvents, std::numeric_limits<size_t>::max()};
 }  // namespace
 
 // static
 std::unique_ptr<VideoEncoder> VideoEncoder::Create(
     const VideoEncoderClientConfig& config,
+    gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory,
     std::vector<std::unique_ptr<BitstreamProcessor>> bitstream_processors) {
   auto video_encoder = base::WrapUnique(new VideoEncoder());
-  if (!video_encoder->CreateEncoderClient(config,
+  if (!video_encoder->CreateEncoderClient(config, gpu_memory_buffer_factory,
                                           std::move(bitstream_processors))) {
     return nullptr;
   }
@@ -62,8 +61,7 @@ std::unique_ptr<VideoEncoder> VideoEncoder::Create(
 VideoEncoder::VideoEncoder()
     : event_timeout_(kDefaultEventWaitTimeout),
       video_encoder_event_counts_{},
-      next_unprocessed_event_(0),
-      encode_until_(kInvalidEncodeUntil) {
+      next_unprocessed_event_(0) {
   video_encoder_events_.reserve(kDefaultEventListSize);
 }
 
@@ -76,6 +74,7 @@ VideoEncoder::~VideoEncoder() {
 
 bool VideoEncoder::CreateEncoderClient(
     const VideoEncoderClientConfig& config,
+    gpu::GpuMemoryBufferFactory* const gpu_memory_buffer_factory,
     std::vector<std::unique_ptr<BitstreamProcessor>> bitstream_processors) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(video_encoder_state_.load(), EncoderState::kUninitialized);
@@ -87,8 +86,9 @@ bool VideoEncoder::CreateEncoderClient(
   EventCallback event_cb =
       base::BindRepeating(&VideoEncoder::NotifyEvent, base::Unretained(this));
 
-  encoder_client_ = VideoEncoderClient::Create(
-      event_cb, std::move(bitstream_processors), config);
+  encoder_client_ =
+      VideoEncoderClient::Create(event_cb, std::move(bitstream_processors),
+                                 gpu_memory_buffer_factory, config);
   if (!encoder_client_) {
     VLOGF(1) << "Failed to create video encoder client";
     return false;
@@ -127,6 +127,7 @@ bool VideoEncoder::Initialize(const Video* video) {
 
 void VideoEncoder::Encode() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_EQ(video_encoder_state_.load(), EncoderState::kIdle);
   DVLOGF(4);
 
   // Encode until the end of the video.
@@ -135,12 +136,7 @@ void VideoEncoder::Encode() {
 
 void VideoEncoder::EncodeUntil(EncoderEvent event, size_t event_count) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (video_encoder_state_.load() != EncoderState::kIdle) {
-    LOG(ERROR) << "VideoEncoder state is not idle: "
-               << static_cast<int>(video_encoder_state_.load());
-    return;
-  }
-  DCHECK(encode_until_ == kInvalidEncodeUntil);
+  DCHECK_EQ(video_encoder_state_.load(), EncoderState::kIdle);
   DCHECK(video_);
   DVLOGF(4);
 
@@ -157,19 +153,13 @@ void VideoEncoder::Flush() {
   encoder_client_->Flush();
 }
 
-void VideoEncoder::UpdateBitrate(const VideoBitrateAllocation& bitrate,
-                                 uint32_t framerate) {
+void VideoEncoder::UpdateBitrate(uint32_t bitrate, uint32_t framerate) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DVLOGF(4);
 
-  encoder_client_->UpdateBitrate(bitrate, framerate);
-}
-
-void VideoEncoder::ForceKeyFrame() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DVLOGF(4);
-
-  encoder_client_->ForceKeyFrame();
+  VideoBitrateAllocation bitrate_allocation;
+  ASSERT_TRUE(bitrate_allocation.SetBitrate(0, 0, bitrate));
+  encoder_client_->UpdateBitrate(bitrate_allocation, framerate);
 }
 
 VideoEncoder::EncoderState VideoEncoder::GetState() const {
@@ -191,13 +181,9 @@ bool VideoEncoder::WaitForEvent(EncoderEvent event, size_t times) {
     // Go through the list of events since last wait, looking for the event
     // we're interested in.
     while (next_unprocessed_event_ < video_encoder_events_.size()) {
-      EncoderEvent cur_event = video_encoder_events_[next_unprocessed_event_++];
-      if (cur_event == event) {
+      if (video_encoder_events_[next_unprocessed_event_++] == event) {
         if (--times == 0)
           return true;
-      } else if (cur_event == EncoderEvent::kError) {
-        LOG(ERROR) << "Got error event";
-        return false;
       }
     }
 
@@ -205,29 +191,6 @@ bool VideoEncoder::WaitForEvent(EncoderEvent event, size_t times) {
     if (time_waiting >= event_timeout_) {
       LOG(ERROR) << "Timeout while waiting for '" << EventName(event)
                  << "' event";
-      return false;
-    }
-
-    const base::TimeTicks start_time = base::TimeTicks::Now();
-    event_cv_.TimedWait(event_timeout_ - time_waiting);
-    time_waiting += base::TimeTicks::Now() - start_time;
-  }
-}
-
-bool VideoEncoder::WaitUntilIdle() {
-  base::TimeDelta time_waiting;
-  base::AutoLock auto_lock(event_lock_);
-  while (true) {
-    if (video_encoder_state_.load() == EncoderState::kIdle)
-      return true;
-    if (video_encoder_state_.load() == EncoderState::kError) {
-      LOG(ERROR) << "Encoder in error state";
-      return false;
-    }
-
-    // Check whether we've exceeded the maximum time we're allowed to wait.
-    if (time_waiting >= event_timeout_) {
-      LOG(ERROR) << "Timeout while waiting for EncodeUntil complete";
       return false;
     }
 
@@ -275,24 +238,22 @@ size_t VideoEncoder::GetFrameReleasedCount() const {
 
 bool VideoEncoder::NotifyEvent(EncoderEvent event) {
   base::AutoLock auto_lock(event_lock_);
-  if (event == EncoderEvent::kFlushDone)
+  if (event == EncoderEvent::kFlushDone) {
     video_encoder_state_ = EncoderState::kIdle;
-  else if (event == EncoderEvent::kError)
-    video_encoder_state_ = EncoderState::kError;
+  }
 
   video_encoder_events_.push_back(event);
   video_encoder_event_counts_[event]++;
+  event_cv_.Signal();
 
-  bool should_continue_encoding = true;
   // Check whether video encoding should be paused after this event.
   if (encode_until_.first == event &&
       encode_until_.second == video_encoder_event_counts_[event]) {
     video_encoder_state_ = EncoderState::kIdle;
-    encode_until_ = kInvalidEncodeUntil;
-    should_continue_encoding = false;
+    return false;
   }
-  event_cv_.Signal();
-  return should_continue_encoding;
+  return true;
 }
+
 }  // namespace test
 }  // namespace media

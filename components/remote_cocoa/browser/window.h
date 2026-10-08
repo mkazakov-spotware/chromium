@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_REMOTE_COCOA_BROWSER_WINDOW_H_
 #define COMPONENTS_REMOTE_COCOA_BROWSER_WINDOW_H_
 
-#include "base/memory/raw_ptr.h"
 #include "components/remote_cocoa/browser/remote_cocoa_browser_export.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -37,9 +36,9 @@ class REMOTE_COCOA_BROWSER_EXPORT ScopedNativeWindowMapping {
 
  private:
   const gfx::NativeWindow native_window_;
-  const raw_ptr<ApplicationHost> application_host_;
-  const raw_ptr<NativeWidgetNSWindowBridge> in_process_window_bridge_;
-  const raw_ptr<mojom::NativeWidgetNSWindow> mojo_interface_;
+  ApplicationHost* const application_host_;
+  NativeWidgetNSWindowBridge* const in_process_window_bridge_;
+  mojom::NativeWidgetNSWindow* const mojo_interface_;
 };
 
 // Return the application host for the specified browser-side gfx::NativeWindow.

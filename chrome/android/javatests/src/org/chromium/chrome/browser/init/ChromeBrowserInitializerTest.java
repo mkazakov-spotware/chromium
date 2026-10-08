@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,7 +54,7 @@ public class ChromeBrowserInitializerTest {
         };
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             Assert.assertFalse(mInstance.isFullBrowserInitialized());
-            mInstance.handlePreNativeStartupAndLoadLibraries(parts);
+            mInstance.handlePreNativeStartup(parts);
             mInstance.handlePostNativeStartup(true, parts);
 
             Assert.assertFalse("Should not be synchronous", mInstance.isFullBrowserInitialized());

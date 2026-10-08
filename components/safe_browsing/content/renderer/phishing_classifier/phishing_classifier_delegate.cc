@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,20 +16,20 @@
 #include "base/no_destructor.h"
 #include "components/safe_browsing/content/common/safe_browsing.mojom-forward.h"
 #include "components/safe_browsing/content/common/safe_browsing.mojom-shared.h"
-#include "components/safe_browsing/content/renderer/phishing_classifier/flatbuffer_scorer.h"
 #include "components/safe_browsing/content/renderer/phishing_classifier/phishing_classifier.h"
-#include "components/safe_browsing/content/renderer/phishing_classifier/protobuf_scorer.h"
-#include "components/safe_browsing/core/common/proto/csd.pb.h"
+#include "components/safe_browsing/content/renderer/phishing_classifier/scorer.h"
+#include "components/safe_browsing/core/proto/csd.pb.h"
+#include "content/public/renderer/document_state.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_thread.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
-#include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_view.h"
 
+using content::DocumentState;
 using content::RenderThread;
 
 namespace safe_browsing {
@@ -42,6 +42,14 @@ GURL StripRef(const GURL& url) {
   return url.ReplaceComponents(replacements);
 }
 
+std::set<PhishingClassifierDelegate*>& PhishingClassifierDelegates() {
+  static base::NoDestructor<std::set<PhishingClassifierDelegate*>> s;
+  return *s;
+}
+
+base::LazyInstance<std::unique_ptr<const safe_browsing::Scorer>>::
+    DestructorAtExit g_phishing_scorer = LAZY_INSTANCE_INITIALIZER;
+
 }  // namespace
 
 PhishingClassifierDelegate::PhishingClassifierDelegate(
@@ -51,22 +59,38 @@ PhishingClassifierDelegate::PhishingClassifierDelegate(
       last_main_frame_transition_(ui::PAGE_TRANSITION_LINK),
       have_page_text_(false),
       is_classifying_(false) {
+  PhishingClassifierDelegates().insert(this);
   if (!classifier) {
     classifier = new PhishingClassifier(render_frame);
   }
 
   classifier_.reset(classifier);
 
-  render_frame->GetAssociatedInterfaceRegistry()
-      ->AddInterface<mojom::PhishingDetector>(base::BindRepeating(
-          &PhishingClassifierDelegate::PhishingDetectorReceiver,
-          base::Unretained(this)));
+  if (g_phishing_scorer.Get().get())
+    SetPhishingScorer(g_phishing_scorer.Get().get());
 
-  model_change_observation_.Observe(ScorerStorage::GetInstance());
+  registry_.AddInterface(
+      base::BindRepeating(&PhishingClassifierDelegate::PhishingDetectorReceiver,
+                          base::Unretained(this)));
 }
 
 PhishingClassifierDelegate::~PhishingClassifierDelegate() {
   CancelPendingClassification(SHUTDOWN);
+  PhishingClassifierDelegates().erase(this);
+}
+
+void PhishingClassifierDelegate::SetPhishingModel(const std::string& model) {
+  safe_browsing::Scorer* scorer = nullptr;
+  // An empty model string means we should disable client-side phishing
+  // detection.
+  if (!model.empty()) {
+    scorer = safe_browsing::Scorer::Create(model);
+    if (!scorer)
+      return;
+  }
+  for (auto* delegate : PhishingClassifierDelegates())
+    delegate->SetPhishingScorer(scorer);
+  g_phishing_scorer.Get().reset(scorer);
 }
 
 // static
@@ -78,10 +102,29 @@ PhishingClassifierDelegate* PhishingClassifierDelegate::Create(
   return new PhishingClassifierDelegate(render_frame, classifier);
 }
 
+void PhishingClassifierDelegate::SetPhishingScorer(
+    const safe_browsing::Scorer* scorer) {
+  if (is_classifying_) {
+    // If there is a classification going on right now it means we're
+    // actually replacing an existing scorer with a new model.  In
+    // this case we simply cancel the current classification.
+    // TODO(noelutz): if this happens too frequently we could also
+    // replace the old scorer with the new one once classification is done
+    // but this would complicate the code somewhat.
+    CancelPendingClassification(NEW_PHISHING_SCORER);
+  }
+  classifier_->set_phishing_scorer(scorer);
+}
+
 void PhishingClassifierDelegate::PhishingDetectorReceiver(
-    mojo::PendingAssociatedReceiver<mojom::PhishingDetector> receiver) {
-  phishing_detector_receiver_.reset();
-  phishing_detector_receiver_.Bind(std::move(receiver));
+    mojo::PendingReceiver<mojom::PhishingDetector> receiver) {
+  phishing_detector_receivers_.Add(this, std::move(receiver));
+}
+
+void PhishingClassifierDelegate::OnInterfaceRequestForFrame(
+    const std::string& interface_name,
+    mojo::ScopedMessagePipeHandle* interface_pipe) {
+  registry_.TryBindInterface(interface_name, interface_pipe);
 }
 
 void PhishingClassifierDelegate::StartPhishingDetection(
@@ -118,11 +161,7 @@ void PhishingClassifierDelegate::DidFinishSameDocumentNavigation() {
   CancelPendingClassification(NAVIGATE_WITHIN_PAGE);
 }
 
-bool PhishingClassifierDelegate::is_ready() {
-  return classifier_->is_ready();
-}
-
-void PhishingClassifierDelegate::PageCaptured(std::u16string* page_text,
+void PhishingClassifierDelegate::PageCaptured(base::string16* page_text,
                                               bool preliminary_capture) {
   RecordEvent(SBPhishingClassifierEvent::kPageTextCaptured);
 
@@ -144,6 +183,10 @@ void PhishingClassifierDelegate::PageCaptured(std::u16string* page_text,
   if (stripped_last_load_url == StripRef(last_url_sent_to_classifier_)) {
     return;
   }
+
+  UMA_HISTOGRAM_BOOLEAN(
+      "SBClientPhishing.PageCapturedMatchesBrowserURL",
+      (last_url_received_from_browser_ == stripped_last_load_url));
 
   MaybeStartClassification();
 }
@@ -248,15 +291,6 @@ void PhishingClassifierDelegate::OnDestruct() {
     RecordEvent(SBPhishingClassifierEvent::kDestructedBeforeClassificationDone);
   }
   delete this;
-}
-
-void PhishingClassifierDelegate::OnScorerChanged() {
-  if (is_classifying_) {
-    // If there is a classification going on right now it means we're
-    // actually replacing an existing scorer with a new model.  In
-    // this case we simply cancel the current classification.
-    CancelPendingClassification(NEW_PHISHING_SCORER);
-  }
 }
 
 }  // namespace safe_browsing

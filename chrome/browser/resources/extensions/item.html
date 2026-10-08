@@ -86,24 +86,11 @@
     margin-bottom: 8px;
   }
 
-  #allowlist-warning {
-    flex: 1;
-    margin-bottom: 8px;
-  }
-
-  .message-icon {
+  #error-icon {
+    --iron-icon-fill-color: var(--error-color);
     height: 18px;
     margin-inline-end: 4px;
-    vertical-align: top;
     width: 18px;
-  }
-
-  #warnings .message-icon {
-    --iron-icon-fill-color: var(--error-color);
-  }
-
-  #allowlist-warning .message-icon {
-    --iron-icon-fill-color: var(--warning-color);
   }
 
   #extension-id {
@@ -181,13 +168,17 @@
   element that's hidden when referenced by an aria label.  Unfortunately,
   this text can be found by Ctrl + F because it isn't hidden. -->
 <div id="a11yAssociation" aria-hidden="true">
-  [[a11yAssociation(data.name)]]
+  [[a11yAssociation_(data.name)]]
 </div>
 <div id="card" class$="[[computeClasses_(data.state, inDevMode)]]">
   <div id="main">
     <div id="icon-wrapper">
       <img id="icon" src="[[data.iconUrl]]"
-          aria-describedby="a11yAssociation" alt="">
+          aria-describedby="a11yAssociation"
+          alt$="[[appOrExtension(
+              data.type,
+              '$i18nPolymer{appIcon}',
+              '$i18nPolymer{extensionIcon}')]]">
       <template is="dom-if"
           if="[[computeSourceIndicatorIcon_(data.*)]]">
         <div id="source-indicator">
@@ -222,13 +213,13 @@
         </div>
       </div>
       <div id="description" class="cr-secondary-text multiline-clippable-text"
-          hidden$="[[!showDescription_(data.disableReasons.*, data.*)]]">
+          hidden$="[[hasWarnings_(data.disableReasons.*, data.*)]]">
         [[data.description]]
       </div>
       <template is="dom-if"
-          if="[[hasSevereWarnings_(data.disableReasons.*, data.*)]]">
+          if="[[hasWarnings_(data.disableReasons.*, data.*)]]">
         <div id="warnings">
-          <iron-icon class="message-icon" icon="cr:error"></iron-icon>
+          <iron-icon id="error-icon" icon="cr:error"></iron-icon>
           <span id="runtime-warnings" aria-describedby="a11yAssociation"
               hidden$="[[!data.runtimeWarnings.length]]">
             <template is="dom-repeat" items="[[data.runtimeWarnings]]">
@@ -238,8 +229,7 @@
           <span id="suspicious-warning" aria-describedby="a11yAssociation"
               hidden$="[[!data.disableReasons.suspiciousInstall]]">
             $i18n{itemSuspiciousInstall}
-            <a target="_blank" href="$i18n{suspiciousInstallHelpUrl}"
-                aria-label="$i18n{itemSuspiciousInstallLearnMore}">
+            <a target="_blank" href="$i18n{suspiciousInstallHelpUrl}">
               $i18n{learnMore}
             </a>
           </span>
@@ -250,21 +240,6 @@
           <span id="blacklisted-warning"><!-- No whitespace
             -->[[data.blacklistText]]<!-- so we can use :empty in css.
          --></span>
-        </div>
-      </template>
-      <template is="dom-if"
-          if="[[showAllowlistWarning_(data.disableReasons.*, data.*)]]">
-        <div id="allowlist-warning">
-          <iron-icon class="message-icon"
-              icon="extensions-icons:safebrowsing_warning">
-          </iron-icon>
-          <span class="cr-secondary-text" aria-describedby="a11yAssociation">
-            $i18n{itemAllowlistWarning}
-            <a href="$i18n{enhancedSafeBrowsingWarningHelpUrl}" target="_blank"
-                aria-label="$i18n{itemAllowlistWarningLearnMoreLabel}">
-              $i18n{learnMore}
-            </a>
-          </span>
         </div>
       </template>
       <template is="dom-if" if="[[inDevMode]]">
@@ -281,14 +256,14 @@
                 $i18n{itemInspectViews}
               </span>
               <a class="clippable-flex-text" is="action-link"
-                  title="[[computeFirstInspectTitle_(firstInspectView_)]]"
+                  title="[[computeFirstInspectTitle_(data.views)]]"
                   on-click="onInspectTap_">
-                [[computeFirstInspectLabel_(firstInspectView_)]]
+                [[computeFirstInspectLabel_(data.views)]]
               </a>
               <a is="action-link"
                   hidden$="[[computeExtraViewsHidden_(data.views)]]"
                   on-click="onExtraInspectTap_">
-                &nbsp;[[computeExtraInspectLabel_(data.views)]]
+                [[computeExtraInspectLabel_(data.views)]]
               </a>
             </div>
           </div>
@@ -302,7 +277,7 @@
           aria-describedby="a11yAssociation">
         $i18n{itemDetails}
       </cr-button>
-      <cr-button id="removeButton" on-click="onRemoveTap_"
+      <cr-button id="remove-button" on-click="onRemoveTap_"
           aria-describedby="a11yAssociation"
           hidden="[[data.mustRemainInstalled]]">
         $i18n{remove}

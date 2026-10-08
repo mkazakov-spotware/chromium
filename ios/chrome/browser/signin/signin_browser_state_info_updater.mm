@@ -1,20 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/signin/signin_browser_state_info_updater.h"
+#include "ios/chrome/browser/signin/signin_browser_state_info_updater.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-#import <string>
+#include <string>
 
-#import "base/strings/utf_string_conversions.h"
-#import "components/signin/public/identity_manager/account_info.h"
-#import "ios/chrome/browser/application_context/application_context.h"
-#import "ios/chrome/browser/browser_state/browser_state_info_cache.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state_manager.h"
+#include "base/strings/string16.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/signin/public/identity_manager/account_info.h"
+#include "ios/chrome/browser/application_context.h"
+#include "ios/chrome/browser/browser_state/browser_state_info_cache.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state_manager.h"
 
 SigninBrowserStateInfoUpdater::SigninBrowserStateInfoUpdater(
     signin::IdentityManager* identity_manager,
@@ -27,9 +28,9 @@ SigninBrowserStateInfoUpdater::SigninBrowserStateInfoUpdater(
   if (!GetApplicationContext()->GetChromeBrowserStateManager())
     return;
 
-  identity_manager_observation_.Observe(identity_manager_);
+  identity_manager_observer_.Add(identity_manager_);
 
-  signin_error_controller_observation_.Observe(signin_error_controller);
+  signin_error_controller_observer_.Add(signin_error_controller);
 
   UpdateBrowserStateInfo();
   // TODO(crbug.com/908457): Call OnErrorChanged() here, to catch any change
@@ -40,8 +41,8 @@ SigninBrowserStateInfoUpdater::SigninBrowserStateInfoUpdater(
 SigninBrowserStateInfoUpdater::~SigninBrowserStateInfoUpdater() = default;
 
 void SigninBrowserStateInfoUpdater::Shutdown() {
-  identity_manager_observation_.Reset();
-  signin_error_controller_observation_.Reset();
+  identity_manager_observer_.RemoveAll();
+  signin_error_controller_observer_.RemoveAll();
 }
 
 void SigninBrowserStateInfoUpdater::UpdateBrowserStateInfo() {
@@ -54,14 +55,13 @@ void SigninBrowserStateInfoUpdater::UpdateBrowserStateInfo() {
   if (index == std::string::npos)
     return;
 
-  if (identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
-    CoreAccountInfo account_info =
-        identity_manager_->GetPrimaryAccountInfo(signin::ConsentLevel::kSync);
+  if (identity_manager_->HasPrimaryAccount()) {
+    CoreAccountInfo account_info = identity_manager_->GetPrimaryAccountInfo();
     cache->SetAuthInfoOfBrowserStateAtIndex(
         index, account_info.gaia, base::UTF8ToUTF16(account_info.email));
   } else {
     cache->SetAuthInfoOfBrowserStateAtIndex(index, /*gaia_id=*/std::string(),
-                                            /*user_name=*/std::u16string());
+                                            /*user_name=*/base::string16());
   }
 }
 
@@ -77,7 +77,12 @@ void SigninBrowserStateInfoUpdater::OnErrorChanged() {
       index, signin_error_controller_->HasError());
 }
 
-void SigninBrowserStateInfoUpdater::OnPrimaryAccountChanged(
-    const signin::PrimaryAccountChangeEvent& event) {
+void SigninBrowserStateInfoUpdater::OnPrimaryAccountSet(
+    const CoreAccountInfo& primary_account_info) {
+  UpdateBrowserStateInfo();
+}
+
+void SigninBrowserStateInfoUpdater::OnPrimaryAccountCleared(
+    const CoreAccountInfo& previous_primary_account_info) {
   UpdateBrowserStateInfo();
 }

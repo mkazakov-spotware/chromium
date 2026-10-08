@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityM
 import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel.DISCLOSURE_FIRST_TIME;
 import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel.DISCLOSURE_SCOPE;
 import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel.DISCLOSURE_STATE;
-import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel.DISCLOSURE_STATE_DISMISSED_BY_USER;
 import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel.DISCLOSURE_STATE_NOT_SHOWN;
 import static org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel.DISCLOSURE_STATE_SHOWN;
 
@@ -32,7 +31,7 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.browserservices.BrowserServicesStore;
-import org.chromium.chrome.browser.browserservices.metrics.TrustedWebActivityUmaRecorder;
+import org.chromium.chrome.browser.browserservices.TrustedWebActivityUmaRecorder;
 import org.chromium.chrome.browser.browserservices.ui.TrustedWebActivityModel;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier.VerificationState;
@@ -63,7 +62,6 @@ public class TrustedWebActivityDisclosureControllerTest {
     public ArgumentCaptor<Runnable> mVerificationObserverCaptor;
 
     public TrustedWebActivityModel mModel = new TrustedWebActivityModel();
-    private TrustedWebActivityDisclosureController mController;
 
     @Before
     public void setUp() {
@@ -75,8 +73,8 @@ public class TrustedWebActivityDisclosureControllerTest {
                 .addVerificationObserver(mVerificationObserverCaptor.capture());
         doReturn(false).when(mStore).hasUserAcceptedTwaDisclosureForPackage(anyString());
 
-        mController = new TrustedWebActivityDisclosureController(mStore, mModel,
-                mLifecycleDispatcher, mCurrentPageVerifier, mRecorder, mClientPackageNameProvider);
+        new TrustedWebActivityDisclosureController(mStore, mModel, mLifecycleDispatcher,
+                mCurrentPageVerifier, mRecorder, mClientPackageNameProvider);
     }
 
     @Test
@@ -155,25 +153,12 @@ public class TrustedWebActivityDisclosureControllerTest {
         verify(mStore).setUserSeenTwaDisclosureForPackage(CLIENT_PACKAGE);
     }
 
-    @Test
-    @Feature("TrustedWebActivities")
-    public void noticesShouldShowDisclosureChanges() {
-        mController.onFinishNativeInitialization();
-        enterVerifiedOrigin();
-        assertSnackbarShown();
-
-        doReturn(true).when(mStore).hasUserAcceptedTwaDisclosureForPackage(anyString());
-        mController.onStopWithNative();
-
-        assertEquals(DISCLOSURE_STATE_DISMISSED_BY_USER, mModel.get(DISCLOSURE_STATE));
-    }
-
     private void enterVerifiedOrigin() {
-        setVerificationState(new VerificationState(SCOPE, SCOPE, VerificationStatus.SUCCESS));
+        setVerificationState(new VerificationState(SCOPE, VerificationStatus.SUCCESS));
     }
 
     private void exitVerifiedOrigin() {
-        setVerificationState(new VerificationState(SCOPE, SCOPE, VerificationStatus.FAILURE));
+        setVerificationState(new VerificationState(SCOPE, VerificationStatus.FAILURE));
     }
 
     private void setVerificationState(VerificationState state) {

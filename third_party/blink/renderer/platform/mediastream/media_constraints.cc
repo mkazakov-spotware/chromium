@@ -31,8 +31,6 @@
 #include "third_party/blink/renderer/platform/mediastream/media_constraints.h"
 
 #include <math.h>
-
-#include "base/containers/contains.h"
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -120,7 +118,7 @@ MediaConstraintsPrivate::MediaConstraintsPrivate(
 bool MediaConstraintsPrivate::IsUnconstrained() const {
   // TODO(hta): When generating advanced constraints, make sure no empty
   // elements can be added to the m_advanced vector.
-  return basic_.IsUnconstrained() && advanced_.empty();
+  return basic_.IsUnconstrained() && advanced_.IsEmpty();
 }
 
 const MediaTrackConstraintSetPlatform& MediaConstraintsPrivate::Basic() const {
@@ -137,7 +135,7 @@ const String MediaConstraintsPrivate::ToString() const {
   if (!IsUnconstrained()) {
     builder.Append('{');
     builder.Append(Basic().ToString());
-    if (!Advanced().empty()) {
+    if (!Advanced().IsEmpty()) {
       if (builder.length() > 1)
         builder.Append(", ");
       builder.Append("advanced: [");
@@ -252,7 +250,7 @@ StringConstraint::StringConstraint(const char* name)
     : BaseConstraint(name), exact_(), ideal_() {}
 
 bool StringConstraint::Matches(String value) const {
-  if (exact_.empty()) {
+  if (exact_.IsEmpty()) {
     return true;
   }
   for (const auto& choice : exact_) {
@@ -264,7 +262,7 @@ bool StringConstraint::Matches(String value) const {
 }
 
 bool StringConstraint::IsUnconstrained() const {
-  return exact_.empty() && ideal_.empty();
+  return exact_.IsEmpty() && ideal_.IsEmpty();
 }
 
 const Vector<String>& StringConstraint::Exact() const {
@@ -278,7 +276,7 @@ const Vector<String>& StringConstraint::Ideal() const {
 String StringConstraint::ToString() const {
   StringBuilder builder;
   builder.Append('{');
-  if (!ideal_.empty()) {
+  if (!ideal_.IsEmpty()) {
     builder.Append("ideal: [");
     bool first = true;
     for (const auto& iter : ideal_) {
@@ -291,7 +289,7 @@ String StringConstraint::ToString() const {
     }
     builder.Append(']');
   }
-  if (!exact_.empty()) {
+  if (!exact_.IsEmpty()) {
     if (builder.length() > 1)
       builder.Append(", ");
     builder.Append("exact: [");
@@ -352,12 +350,11 @@ MediaTrackConstraintSetPlatform::MediaTrackConstraintSetPlatform()
       channel_count("channelCount"),
       device_id("deviceId"),
       disable_local_echo("disableLocalEcho"),
-      suppress_local_audio_playback("suppressLocalAudioPlayback"),
       pan("pan"),
       tilt("tilt"),
       zoom("zoom"),
       group_id("groupId"),
-      display_surface("displaySurface"),
+      video_kind("videoKind"),
       media_stream_source("mediaStreamSource"),
       render_to_associated_sink("chromeRenderToAssociatedSink"),
       goog_echo_cancellation("googEchoCancellation"),
@@ -369,7 +366,31 @@ MediaTrackConstraintSetPlatform::MediaTrackConstraintSetPlatform()
       goog_experimental_noise_suppression("googExperimentalNoiseSuppression"),
       goog_audio_mirroring("googAudioMirroring"),
       goog_da_echo_cancellation("googDAEchoCancellation"),
-      goog_noise_reduction("googNoiseReduction") {}
+      goog_noise_reduction("googNoiseReduction"),
+      offer_to_receive_audio("offerToReceiveAudio"),
+      offer_to_receive_video("offerToReceiveVideo"),
+      voice_activity_detection("voiceActivityDetection"),
+      ice_restart("iceRestart"),
+      goog_use_rtp_mux("googUseRtpMux"),
+      enable_dtls_srtp("enableDtlsSrtp"),
+      enable_rtp_data_channels("enableRtpDataChannels"),
+      enable_dscp("enableDscp"),
+      enable_i_pv6("enableIPv6"),
+      goog_enable_video_suspend_below_min_bitrate(
+          "googEnableVideoSuspendBelowMinBitrate"),
+      goog_num_unsignalled_recv_streams("googNumUnsignalledRecvStreams"),
+      goog_combined_audio_video_bwe("googCombinedAudioVideoBwe"),
+      goog_screencast_min_bitrate("googScreencastMinBitrate"),
+      goog_cpu_overuse_detection("googCpuOveruseDetection"),
+      goog_cpu_underuse_threshold("googCpuUnderuseThreshold"),
+      goog_cpu_overuse_threshold("googCpuOveruseThreshold"),
+      goog_cpu_underuse_encode_rsd_threshold(
+          "googCpuUnderuseEncodeRsdThreshold"),
+      goog_cpu_overuse_encode_rsd_threshold("googCpuOveruseEncodeRsdThreshold"),
+      goog_cpu_overuse_encode_usage("googCpuOveruseEncodeUsage"),
+      goog_high_start_bitrate("googHighStartBitrate"),
+      goog_payload_padding("googPayloadPadding"),
+      goog_latency_ms("latencyMs") {}
 
 Vector<const BaseConstraint*> MediaTrackConstraintSetPlatform::AllConstraints()
     const {
@@ -388,10 +409,9 @@ Vector<const BaseConstraint*> MediaTrackConstraintSetPlatform::AllConstraints()
           &channel_count,
           &device_id,
           &group_id,
-          &display_surface,
+          &video_kind,
           &media_stream_source,
           &disable_local_echo,
-          &suppress_local_audio_playback,
           &pan,
           &tilt,
           &zoom,
@@ -405,7 +425,29 @@ Vector<const BaseConstraint*> MediaTrackConstraintSetPlatform::AllConstraints()
           &goog_experimental_noise_suppression,
           &goog_audio_mirroring,
           &goog_da_echo_cancellation,
-          &goog_noise_reduction};
+          &goog_noise_reduction,
+          &offer_to_receive_audio,
+          &offer_to_receive_video,
+          &voice_activity_detection,
+          &ice_restart,
+          &goog_use_rtp_mux,
+          &enable_dtls_srtp,
+          &enable_rtp_data_channels,
+          &enable_dscp,
+          &enable_i_pv6,
+          &goog_enable_video_suspend_below_min_bitrate,
+          &goog_num_unsignalled_recv_streams,
+          &goog_combined_audio_video_bwe,
+          &goog_screencast_min_bitrate,
+          &goog_cpu_overuse_detection,
+          &goog_cpu_underuse_threshold,
+          &goog_cpu_overuse_threshold,
+          &goog_cpu_underuse_encode_rsd_threshold,
+          &goog_cpu_overuse_encode_rsd_threshold,
+          &goog_cpu_overuse_encode_usage,
+          &goog_high_start_bitrate,
+          &goog_payload_padding,
+          &goog_latency_ms};
 }
 
 bool MediaTrackConstraintSetPlatform::IsUnconstrained() const {
@@ -421,7 +463,8 @@ bool MediaTrackConstraintSetPlatform::HasMandatoryOutsideSet(
     String& found_name) const {
   for (auto* const constraint : AllConstraints()) {
     if (constraint->HasMandatory()) {
-      if (!base::Contains(good_names, constraint->GetName())) {
+      if (std::find(good_names.begin(), good_names.end(),
+                    constraint->GetName()) == good_names.end()) {
         found_name = constraint->GetName();
         return true;
       }

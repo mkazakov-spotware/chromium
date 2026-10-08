@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 
 #include "base/scoped_generic.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 namespace internal {
 
@@ -32,6 +33,7 @@ using ScopedCFFileDescriptorRef =
     ScopedGeneric<CFFileDescriptorRef,
                   internal::ScopedCFFileDescriptorRefTraits>;
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #endif  // BASE_MAC_SCOPED_CFFILEDESCRIPTORREF_H_

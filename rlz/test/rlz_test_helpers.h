@@ -1,26 +1,25 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
 // Helper functions used by the tests.
 
-#ifndef RLZ_TEST_RLZ_TEST_HELPERS_H_
-#define RLZ_TEST_RLZ_TEST_HELPERS_H_
+#ifndef RLZ_TEST_RLZ_TEST_HELPERS_H
+#define RLZ_TEST_RLZ_TEST_HELPERS_H
 
 #include "base/compiler_specific.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/scoped_temp_dir.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/test/test_reg_util_win.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chromeos/system/fake_statistics_provider.h"
 #endif
 
@@ -33,11 +32,11 @@ class RlzLibTestNoMachineStateHelper {
   void TearDown();
   void Reset();
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   base::ScopedTempDir temp_dir_;
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   registry_util::RegistryOverrideManager override_manager_;
 #endif
 };
@@ -59,10 +58,10 @@ class RlzLibTestBase : public RlzLibTestNoMachineState {
   void SetUp() override;
   void TearDown() override;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   std::unique_ptr<chromeos::system::FakeStatisticsProvider>
       statistics_provider_;
 #endif
 };
 
-#endif  // RLZ_TEST_RLZ_TEST_HELPERS_H_
+#endif  // RLZ_TEST_RLZ_TEST_HELPERS_H

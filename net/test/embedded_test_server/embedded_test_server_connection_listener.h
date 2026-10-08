@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,20 +26,15 @@ class EmbeddedTestServerConnectionListener {
 
   // Notified when the EmbeddedTestServer has completed a request and response
   // successfully on |socket|. The listener can take |socket| to manually handle
-  // further traffic on it (for example, if doing a proxy tunnel). Not called if
-  // the socket has already been closed by the remote side, since it can't be
-  // used to convey data if that happens.
-  //
-  // Note: Connection and stream management on HTTP/2 is separated from this
-  // request/response concept, and as such this event is NOT supported for
-  // HTTP/2 connections/negotiated sockets.
+  // further traffic on it (for example, if doing a proxy tunnel), otherwise
+  // |socket| is destroyed.
   virtual void OnResponseCompletedSuccessfully(
-      std::unique_ptr<StreamSocket> socket);
+      std::unique_ptr<StreamSocket> socket) {}
 
  protected:
-  EmbeddedTestServerConnectionListener() = default;
+  EmbeddedTestServerConnectionListener() {}
 
-  virtual ~EmbeddedTestServerConnectionListener() = default;
+  virtual ~EmbeddedTestServerConnectionListener() {}
 };
 
 }  // namespace test_server

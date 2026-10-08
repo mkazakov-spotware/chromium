@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,13 +27,13 @@ WebGraphicsContext3DProviderImpl::~WebGraphicsContext3DProviderImpl() {
   provider_->RemoveObserver(this);
 }
 
-bool WebGraphicsContext3DProviderImpl::BindToCurrentSequence() {
+bool WebGraphicsContext3DProviderImpl::BindToCurrentThread() {
   // TODO(danakj): Could plumb this result out to the caller so they know to
   // retry or not, if any client cared to know if it should retry or not.
   // Call AddObserver here instead of in constructor so that it's called on the
   // correct thread.
   provider_->AddObserver(this);
-  return provider_->BindToCurrentSequence() == gpu::ContextResult::kSuccess;
+  return provider_->BindToCurrentThread() == gpu::ContextResult::kSuccess;
 }
 
 gpu::InterfaceBase* WebGraphicsContext3DProviderImpl::InterfaceBase() {
@@ -116,7 +116,7 @@ WebGraphicsContext3DProviderImpl::GetWebglPreferences() const {
     }
 
     // Set default context limits for WebGL.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     prefs.max_active_webgl_contexts = 8u;
 #else
     prefs.max_active_webgl_contexts = 16u;
@@ -182,7 +182,8 @@ cc::ImageDecodeCache* WebGraphicsContext3DProviderImpl::ImageDecodeCache(
       color_type,
       std::make_unique<cc::GpuImageDecodeCache>(
           provider_.get(), use_transfer_cache, color_type, kMaxWorkingSetBytes,
-          provider_->ContextCapabilities().max_texture_size, nullptr));
+          provider_->ContextCapabilities().max_texture_size,
+          cc::PaintImage::kDefaultGeneratorClientId, nullptr));
   DCHECK(insertion_result.second);
   cache_iterator = insertion_result.first;
   return cache_iterator->second.get();
@@ -197,12 +198,7 @@ void WebGraphicsContext3DProviderImpl::CopyVideoFrame(
     media::PaintCanvasVideoRenderer* video_renderer,
     media::VideoFrame* video_frame,
     cc::PaintCanvas* canvas) {
-  video_renderer->Copy(video_frame, canvas, provider_.get());
-}
-
-viz::RasterContextProvider*
-WebGraphicsContext3DProviderImpl::RasterContextProvider() const {
-  return provider_.get();
+  video_renderer->Copy(video_frame, canvas, context_provider());
 }
 
 }  // namespace content

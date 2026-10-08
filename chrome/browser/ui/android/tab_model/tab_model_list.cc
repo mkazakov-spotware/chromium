@@ -1,13 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 
-#include <jni.h>
-
-#include "base/android/jni_android.h"
-#include "base/ranges/algorithm.h"
+#include "base/no_destructor.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
@@ -16,41 +13,45 @@
 #include "content/public/browser/web_contents.h"
 
 namespace {
-base::LazyInstance<TabModelList>::Leaky tab_model_list_ =
-    LAZY_INSTANCE_INITIALIZER;
+
+// Maintains and gives access to a static list of TabModel instances.
+TabModelList::TabModelVector& tab_models() {
+  static base::NoDestructor<TabModelList::TabModelVector> tab_model_vector;
+  return *tab_model_vector;
+}
+
 }  // namespace
 
-TabModelList::TabModelList() = default;
-TabModelList::~TabModelList() = default;
+// static
+base::LazyInstance<base::ObserverList<TabModelListObserver>::Unchecked>::Leaky
+    TabModelList::observers_ = LAZY_INSTANCE_INITIALIZER;
 
 void TabModelList::AddTabModel(TabModel* tab_model) {
   DCHECK(tab_model);
-  tab_model_list_.Get().models_.push_back(tab_model);
+  tab_models().push_back(tab_model);
 
-  for (TabModelListObserver& observer : tab_model_list_.Get().observers_)
+  for (TabModelListObserver& observer : observers_.Get())
     observer.OnTabModelAdded();
 }
 
 void TabModelList::RemoveTabModel(TabModel* tab_model) {
   DCHECK(tab_model);
-  auto& tab_models = tab_model_list_.Get().models_;
-
   TabModelList::iterator remove_tab_model =
-      base::ranges::find(tab_models, tab_model);
+      std::find(tab_models().begin(), tab_models().end(), tab_model);
 
-  if (remove_tab_model != tab_models.end())
-    tab_models.erase(remove_tab_model);
+  if (remove_tab_model != tab_models().end())
+    tab_models().erase(remove_tab_model);
 
-  for (TabModelListObserver& observer : tab_model_list_.Get().observers_)
+  for (TabModelListObserver& observer : observers_.Get())
     observer.OnTabModelRemoved();
 }
 
 void TabModelList::AddObserver(TabModelListObserver* observer) {
-  tab_model_list_.Get().observers_.AddObserver(observer);
+  observers_.Get().AddObserver(observer);
 }
 
 void TabModelList::RemoveObserver(TabModelListObserver* observer) {
-  tab_model_list_.Get().observers_.RemoveObserver(observer);
+  observers_.Get().RemoveObserver(observer);
 }
 
 void TabModelList::HandlePopupNavigation(NavigateParams* params) {
@@ -68,7 +69,9 @@ TabModel* TabModelList::GetTabModelForWebContents(
   if (!web_contents)
     return nullptr;
 
-  for (TabModel* model : models()) {
+  for (TabModelList::const_iterator i = TabModelList::begin();
+      i != TabModelList::end(); ++i) {
+    TabModel* model = *i;
     for (int index = 0; index < model->GetTabCount(); index++) {
       if (web_contents == model->GetWebContentsAt(index))
         return model;
@@ -82,7 +85,9 @@ TabModel* TabModelList::GetTabModelForTabAndroid(TabAndroid* tab_android) {
   if (!tab_android)
     return nullptr;
 
-  for (TabModel* model : models()) {
+  for (TabModelList::const_iterator i = TabModelList::begin();
+       i != TabModelList::end(); ++i) {
+    TabModel* model = *i;
     for (int index = 0; index < model->GetTabCount(); index++) {
       if (tab_android == model->GetTabAt(index))
         return model;
@@ -93,21 +98,10 @@ TabModel* TabModelList::GetTabModelForTabAndroid(TabAndroid* tab_android) {
 }
 
 TabModel* TabModelList::FindTabModelWithId(SessionID desired_id) {
-  for (TabModel* model : models()) {
-    if (model->GetSessionId() == desired_id)
-      return model;
-  }
-
-  return nullptr;
-}
-
-TabModel* TabModelList::FindNativeTabModelForJavaObject(
-    const base::android::ScopedJavaLocalRef<jobject>& jtab_model) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  for (TabModel* model : models()) {
-    if (env->IsSameObject(jtab_model.obj(), model->GetJavaObject().obj())) {
-      return model;
-    }
+  for (TabModelList::const_iterator i = TabModelList::begin();
+      i != TabModelList::end(); i++) {
+    if ((*i)->GetSessionId() == desired_id)
+      return *i;
   }
 
   return nullptr;
@@ -116,15 +110,32 @@ TabModel* TabModelList::FindNativeTabModelForJavaObject(
 bool TabModelList::IsOffTheRecordSessionActive() {
   // TODO(https://crbug.com/1023759): This function should return true for
   // incognito CCTs.
-  for (TabModel* model : models()) {
-    if (model->IsOffTheRecord() && model->GetTabCount() > 0)
+  for (TabModelList::const_iterator i = TabModelList::begin();
+      i != TabModelList::end(); i++) {
+    if ((*i)->IsOffTheRecord() && (*i)->GetTabCount() > 0)
       return true;
   }
 
   return false;
 }
 
-// static
-const TabModelList::TabModelVector& TabModelList::models() {
-  return tab_model_list_.Get().models_;
+TabModelList::const_iterator TabModelList::begin() {
+  return tab_models().begin();
+}
+
+TabModelList::const_iterator TabModelList::end() {
+  return tab_models().end();
+}
+
+bool TabModelList::empty() {
+  return tab_models().empty();
+}
+
+size_t TabModelList::size() {
+  return tab_models().size();
+}
+
+TabModel* TabModelList::get(size_t index) {
+  DCHECK_LT(index, size());
+  return tab_models()[index];
 }

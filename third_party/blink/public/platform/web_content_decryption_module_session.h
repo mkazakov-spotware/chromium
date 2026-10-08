@@ -38,8 +38,6 @@
 #include "third_party/blink/public/platform/web_vector.h"
 
 namespace media {
-enum class CdmMessageType;
-enum class CdmSessionClosedReason;
 enum class EmeInitDataType;
 }
 
@@ -52,10 +50,17 @@ class BLINK_PLATFORM_EXPORT WebContentDecryptionModuleSession {
  public:
   class BLINK_PLATFORM_EXPORT Client {
    public:
-    virtual void OnSessionMessage(media::CdmMessageType,
+    enum class MessageType {
+      kLicenseRequest,
+      kLicenseRenewal,
+      kLicenseRelease,
+      kIndividualizationRequest
+    };
+
+    virtual void OnSessionMessage(MessageType,
                                   const unsigned char* message,
                                   size_t message_length) = 0;
-    virtual void OnSessionClosed(media::CdmSessionClosedReason reason) = 0;
+    virtual void OnSessionClosed() = 0;
 
     // Called when the expiration time for the session changes.
     // |updated_expiry_time_in_ms| is specified as the number of milliseconds

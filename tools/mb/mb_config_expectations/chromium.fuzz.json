@@ -6,31 +6,29 @@
       "is_debug": true,
       "is_lsan": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "ASAN Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "is_asan": true,
       "is_component_build": false,
       "is_debug": false,
       "is_lsan": true,
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
     }
   },
   "ASAN Release Media": {
     "gn_args": {
-      "dcheck_always_on": false,
       "ffmpeg_branding": "ChromeOS",
       "is_asan": true,
       "is_component_build": false,
       "is_debug": false,
       "is_lsan": true,
       "proprietary_codecs": true,
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
     }
   },
@@ -42,28 +40,26 @@
       "is_debug": true,
       "symbol_level": 1,
       "target_cpu": "x86",
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true,
       "v8_target_cpu": "arm"
     }
   },
   "ASan Release (32-bit x86 with V8-ARM)": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "enable_nacl": false,
       "is_asan": true,
       "is_component_build": false,
       "is_debug": false,
       "target_cpu": "x86",
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true,
       "v8_target_cpu": "arm"
     }
   },
   "ASan Release Media (32-bit x86 with V8-ARM)": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
@@ -72,7 +68,7 @@
       "is_debug": false,
       "proprietary_codecs": true,
       "target_cpu": "x86",
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true,
       "v8_target_cpu": "arm"
     }
@@ -80,7 +76,6 @@
   "Afl Upload Linux ASan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
       "is_asan": true,
@@ -90,86 +85,24 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "use_afl": true,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "ChromiumOS ASAN Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "is_asan": true,
       "is_component_build": false,
       "is_debug": false,
       "is_lsan": true,
       "target_os": "chromeos",
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
-    }
-  },
-  "Libfuzzer Local Chrome OS ASan": {
-    "gn_args": {
-      "archive_seed_corpus": false,
-      "dcheck_always_on": false,
-      "enable_nacl": false,
-      "ffmpeg_branding": "ChromeOS",
-      "is_asan": true,
-      "is_debug": false,
-      "optimize_for_fuzzing": true,
-      "pdf_enable_xfa": true,
-      "proprietary_codecs": true,
-      "target_os": "chromeos",
-      "use_libfuzzer": true,
-      "use_remoteexec": false
-    }
-  },
-  "Libfuzzer Local Linux ASan": {
-    "gn_args": {
-      "dcheck_always_on": false,
-      "enable_mojom_fuzzer": true,
-      "enable_nacl": false,
-      "ffmpeg_branding": "ChromeOS",
-      "is_asan": true,
-      "is_debug": false,
-      "optimize_for_fuzzing": true,
-      "pdf_enable_xfa": true,
-      "proprietary_codecs": true,
-      "use_libfuzzer": true,
-      "use_remoteexec": false
-    }
-  },
-  "Libfuzzer Local Mac ASan": {
-    "gn_args": {
-      "dcheck_always_on": false,
-      "enable_nacl": false,
-      "ffmpeg_branding": "Chrome",
-      "is_asan": true,
-      "is_debug": false,
-      "optimize_for_fuzzing": true,
-      "pdf_enable_xfa": true,
-      "proprietary_codecs": true,
-      "use_libfuzzer": true,
-      "use_remoteexec": false
-    }
-  },
-  "Libfuzzer Local Windows ASan": {
-    "gn_args": {
-      "dcheck_always_on": false,
-      "enable_mojom_fuzzer": true,
-      "enable_nacl": false,
-      "ffmpeg_branding": "Chrome",
-      "is_asan": true,
-      "is_debug": false,
-      "pdf_enable_xfa": true,
-      "proprietary_codecs": true,
-      "symbol_level": 1,
-      "use_libfuzzer": true,
-      "use_remoteexec": false
     }
   },
   "Libfuzzer Upload Chrome OS ASan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
       "is_asan": true,
@@ -179,13 +112,12 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "target_os": "chromeos",
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux ASan": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_mojom_fuzzer": true,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
@@ -195,8 +127,8 @@
       "optimize_for_fuzzing": true,
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux ASan Debug": {
@@ -211,17 +143,15 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux MSan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
-      "instrumented_libraries_release": "xenial",
       "is_component_build": true,
       "is_debug": false,
       "is_msan": true,
@@ -229,14 +159,13 @@
       "optimize_for_fuzzing": true,
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux UBSan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
       "is_component_build": false,
@@ -245,14 +174,13 @@
       "optimize_for_fuzzing": true,
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux V8-ARM64 ASan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
       "is_asan": true,
@@ -262,8 +190,8 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "target_cpu": "x64",
+      "use_goma": true,
       "use_libfuzzer": true,
-      "use_remoteexec": true,
       "v8_target_cpu": "arm64"
     }
   },
@@ -280,15 +208,14 @@
       "proprietary_codecs": true,
       "symbol_level": 1,
       "target_cpu": "x64",
+      "use_goma": true,
       "use_libfuzzer": true,
-      "use_remoteexec": true,
       "v8_target_cpu": "arm64"
     }
   },
   "Libfuzzer Upload Linux32 ASan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
       "host_cpu": "x86",
@@ -299,8 +226,8 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "target_cpu": "x86",
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux32 ASan Debug": {
@@ -317,14 +244,13 @@
       "proprietary_codecs": true,
       "symbol_level": 1,
       "target_cpu": "x86",
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Linux32 V8-ARM ASan": {
     "gn_args": {
       "archive_seed_corpus": false,
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "ChromeOS",
       "host_cpu": "x86",
@@ -335,8 +261,8 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "target_cpu": "x86",
+      "use_goma": true,
       "use_libfuzzer": true,
-      "use_remoteexec": true,
       "v8_target_cpu": "arm"
     }
   },
@@ -354,14 +280,13 @@
       "proprietary_codecs": true,
       "symbol_level": 1,
       "target_cpu": "x86",
+      "use_goma": true,
       "use_libfuzzer": true,
-      "use_remoteexec": true,
       "v8_target_cpu": "arm"
     }
   },
   "Libfuzzer Upload Mac ASan": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "ffmpeg_branding": "Chrome",
       "is_asan": true,
@@ -370,13 +295,12 @@
       "optimize_for_fuzzing": true,
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "Libfuzzer Upload Windows ASan": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_mojom_fuzzer": true,
       "enable_nacl": false,
       "ffmpeg_branding": "Chrome",
@@ -386,62 +310,41 @@
       "pdf_enable_xfa": true,
       "proprietary_codecs": true,
       "symbol_level": 1,
-      "use_libfuzzer": true,
-      "use_remoteexec": true
-    }
-  },
-  "Libfuzzer Upload iOS Catalyst Debug": {
-    "gn_args": {
-      "enable_dsyms": false,
-      "enable_remoting": false,
-      "ios_set_attributes_for_xcode_project_generation": false,
-      "is_asan": true,
-      "is_component_build": false,
-      "is_debug": true,
-      "symbol_level": 1,
-      "target_cpu": "x64",
-      "target_environment": "catalyst",
-      "target_os": "ios",
-      "use_libfuzzer": true,
-      "use_remoteexec": true
+      "use_goma": true,
+      "use_libfuzzer": true
     }
   },
   "MSAN Release (chained origins)": {
     "gn_args": {
-      "dcheck_always_on": false,
-      "instrumented_libraries_release": "xenial",
       "is_component_build": false,
       "is_debug": false,
       "is_msan": true,
       "msan_track_origins": 2,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "MSAN Release (no origins)": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "is_msan": true,
       "msan_track_origins": 0,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "Mac ASAN Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "enable_nacl": false,
       "is_asan": true,
       "is_component_build": false,
       "is_debug": false,
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
     }
   },
   "Mac ASAN Release Media": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "enable_nacl": false,
       "ffmpeg_branding": "Chrome",
@@ -449,7 +352,7 @@
       "is_component_build": false,
       "is_debug": false,
       "proprietary_codecs": true,
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
     }
   },
@@ -460,53 +363,48 @@
       "is_debug": true,
       "is_tsan": true,
       "symbol_level": 1,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "TSAN Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_nacl": false,
       "is_component_build": false,
       "is_debug": false,
       "is_tsan": true,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "UBSan Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "is_ubsan": true,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "UBSan vptr Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "is_ubsan_no_recover": true,
       "is_ubsan_vptr": true,
-      "use_remoteexec": true
+      "use_goma": true
     }
   },
   "Win ASan Release": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "is_asan": true,
       "is_clang": true,
       "is_component_build": false,
       "is_debug": false,
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
     }
   },
   "Win ASan Release Media": {
     "gn_args": {
-      "dcheck_always_on": false,
       "enable_ipc_fuzzer": true,
       "ffmpeg_branding": "Chrome",
       "is_asan": true,
@@ -514,7 +412,7 @@
       "is_component_build": false,
       "is_debug": false,
       "proprietary_codecs": true,
-      "use_remoteexec": true,
+      "use_goma": true,
       "v8_enable_verify_heap": true
     }
   }

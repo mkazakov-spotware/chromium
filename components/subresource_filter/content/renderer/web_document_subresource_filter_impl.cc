@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/bind.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/subresource_filter/core/common/load_policy.h"
 #include "components/subresource_filter/core/common/memory_mapped_ruleset.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
@@ -71,6 +71,7 @@ proto::ElementType ToElementType(
 
     case blink::mojom::RequestContextType::CSP_REPORT:
     case blink::mojom::RequestContextType::DOWNLOAD:
+    case blink::mojom::RequestContextType::IMPORT:
     case blink::mojom::RequestContextType::MANIFEST:
     case blink::mojom::RequestContextType::UNSPECIFIED:
     default:
@@ -81,7 +82,7 @@ proto::ElementType ToElementType(
 WebLoadPolicy ToWebLoadPolicy(LoadPolicy load_policy) {
   switch (load_policy) {
     case LoadPolicy::EXPLICITLY_ALLOW:
-      [[fallthrough]];
+      FALLTHROUGH;
     case LoadPolicy::ALLOW:
       return WebLoadPolicy::kAllow;
     case LoadPolicy::DISALLOW:
@@ -126,12 +127,6 @@ WebDocumentSubresourceFilterImpl::GetLoadPolicyForWebSocketConnect(
   return getLoadPolicyImpl(url, proto::ELEMENT_TYPE_WEBSOCKET);
 }
 
-WebLoadPolicy
-WebDocumentSubresourceFilterImpl::GetLoadPolicyForWebTransportConnect(
-    const blink::WebURL& url) {
-  return getLoadPolicyImpl(url, proto::ELEMENT_TYPE_WEBTRANSPORT);
-}
-
 void WebDocumentSubresourceFilterImpl::ReportDisallowedLoad() {
   if (!first_disallowed_load_callback_.is_null())
     std::move(first_disallowed_load_callback_).Run();
@@ -164,7 +159,7 @@ WebDocumentSubresourceFilterImpl::BuilderImpl::BuilderImpl(
       ruleset_file_(std::move(ruleset_file)),
       first_disallowed_load_callback_(
           std::move(first_disallowed_load_callback)),
-      main_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+      main_task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 WebDocumentSubresourceFilterImpl::BuilderImpl::~BuilderImpl() {}
 
 std::unique_ptr<blink::WebDocumentSubresourceFilter>

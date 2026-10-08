@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import android.content.SharedPreferences;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 
 import java.util.Date;
@@ -83,11 +82,28 @@ public class ExponentialBackoffScheduler {
      * @return the timestamp of the scheduled intent
      */
     public long createAlarm(Intent intent, long timestamp) {
-        PendingIntent retryPIntent = PendingIntent.getService(
-                mContext, 0, intent, IntentUtils.getPendingIntentMutabilityFlag(false));
+        PendingIntent retryPIntent = PendingIntent.getService(mContext, 0, intent, 0);
         AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
         setAlarm(am, timestamp, retryPIntent);
         return timestamp;
+    }
+
+    /**
+     * Attempts to cancel any alarms set using the given Intent.
+     * @param scheduledIntent Intent that may have been previously scheduled.
+     * @return whether or not an alarm was canceled.
+     */
+    public boolean cancelAlarm(Intent scheduledIntent) {
+        PendingIntent pendingIntent = PendingIntent.getService(
+                mContext, 0, scheduledIntent, PendingIntent.FLAG_NO_CREATE);
+        if (pendingIntent != null) {
+            AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+            am.cancel(pendingIntent);
+            pendingIntent.cancel();
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public int getNumFailedAttempts() {

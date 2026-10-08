@@ -1,19 +1,20 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/scanner/scanner_view.h"
 
-#import "base/check.h"
-#import "base/mac/foundation_util.h"
-#import "base/numerics/math_constants.h"
-#import "ios/chrome/browser/ui/icons/chrome_icon.h"
+#include "base/check.h"
+#include "base/mac/foundation_util.h"
+#include "base/numerics/math_constants.h"
+#include "ios/chrome/browser/ui/icons/chrome_icon.h"
 #import "ios/chrome/browser/ui/scanner/preview_overlay_view.h"
 #import "ios/chrome/browser/ui/scanner/video_preview_view.h"
+#include "ios/chrome/browser/ui/util/ui_util.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -36,8 +37,6 @@ const CGFloat kFlashDuration = 0.5;
 }  // namespace
 
 @interface ScannerView () {
-  // A scrollview containing the viewport's caption.
-  UIScrollView* _captionContainer;
   // A button to toggle the torch.
   UIBarButtonItem* _torchButton;
   // A view containing the preview layer for camera input.
@@ -46,10 +45,10 @@ const CGFloat kFlashDuration = 0.5;
   PreviewOverlayView* _previewOverlay;
   // The constraint specifying that the preview overlay should be square.
   NSLayoutConstraint* _overlaySquareConstraint;
-  // The constraint relating the size of the `_previewOverlay` to the width of
+  // The constraint relating the size of the |_previewOverlay| to the width of
   // the ScannerView.
   NSLayoutConstraint* _overlayWidthConstraint;
-  // The constraint relating the size of the `_previewOverlay` to the height of
+  // The constraint relating the size of the |_previewOverlay| to the height of
   // te ScannerView.
   NSLayoutConstraint* _overlayHeightConstraint;
 }
@@ -182,12 +181,6 @@ const CGFloat kFlashDuration = 0.5;
   return @"";
 }
 
-- (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
-  [super traitCollectionDidChange:previousTraitCollection];
-  _captionContainer.hidden =
-      UIUserInterfaceSizeClassCompact == self.traitCollection.verticalSizeClass;
-}
-
 #pragma mark - private methods
 
 // Creates an image with template rendering mode for use in icons.
@@ -270,42 +263,38 @@ const CGFloat kFlashDuration = 0.5;
   [viewportCaption.layer setMasksToBounds:NO];
   [viewportCaption.layer setShouldRasterize:YES];
 
-  _captionContainer = [[UIScrollView alloc] init];
-  _captionContainer.showsVerticalScrollIndicator = NO;
-  [self addSubview:_captionContainer];
-  [_captionContainer addSubview:viewportCaption];
+  UIScrollView* scrollView = [[UIScrollView alloc] init];
+  scrollView.showsVerticalScrollIndicator = NO;
+  [self addSubview:scrollView];
+  [scrollView addSubview:viewportCaption];
 
   // Constraints for viewportCaption.
-  _captionContainer.translatesAutoresizingMaskIntoConstraints = NO;
+  scrollView.translatesAutoresizingMaskIntoConstraints = NO;
   viewportCaption.translatesAutoresizingMaskIntoConstraints = NO;
 
   [NSLayoutConstraint activateConstraints:@[
-    [_captionContainer.topAnchor
+    [scrollView.topAnchor
         constraintEqualToAnchor:self.centerYAnchor
-                       constant:self.viewportSize.height / 2 +
+                       constant:[self viewportSize].height / 2 +
                                 kViewportCaptionVerticalPadding],
-    [_captionContainer.bottomAnchor constraintEqualToAnchor:toolbar.topAnchor],
-    [_captionContainer.centerXAnchor
-        constraintEqualToAnchor:_previewOverlay.centerXAnchor],
-    [_captionContainer.contentLayoutGuide.widthAnchor
-        constraintEqualToAnchor:_captionContainer.widthAnchor],
-    [_captionContainer.widthAnchor
-        constraintLessThanOrEqualToAnchor:self.widthAnchor
-                                 constant:-2 *
-                                          kViewportCaptionHorizontalPadding],
-    [_captionContainer.widthAnchor
-        constraintLessThanOrEqualToAnchor:self.heightAnchor
-                                 constant:-2 *
-                                          kViewportCaptionHorizontalPadding],
+    [scrollView.bottomAnchor constraintEqualToAnchor:toolbar.topAnchor],
+    [scrollView.leadingAnchor
+        constraintEqualToAnchor:self.leadingAnchor
+                       constant:kViewportCaptionHorizontalPadding],
+    [viewportCaption.leadingAnchor
+        constraintEqualToAnchor:self.leadingAnchor
+                       constant:kViewportCaptionHorizontalPadding],
+    [scrollView.trailingAnchor
+        constraintEqualToAnchor:self.trailingAnchor
+                       constant:-kViewportCaptionHorizontalPadding],
+    [viewportCaption.trailingAnchor
+        constraintEqualToAnchor:self.trailingAnchor
+                       constant:-kViewportCaptionHorizontalPadding],
   ]];
-  AddSameConstraints(_captionContainer, viewportCaption);
-
-  // There is no space for at least 1 line of text in compact height.
-  _captionContainer.hidden =
-      UIUserInterfaceSizeClassCompact == self.traitCollection.verticalSizeClass;
+  AddSameConstraints(scrollView, viewportCaption);
 }
 
-// Adds a preview view to `self` and configures its layout constraints.
+// Adds a preview view to |self| and configures its layout constraints.
 - (void)setupPreviewView {
   DCHECK(!_previewView);
   _previewView = [[VideoPreviewView alloc] initWithFrame:self.frame
@@ -313,7 +302,7 @@ const CGFloat kFlashDuration = 0.5;
   [self insertSubview:_previewView atIndex:0];
 }
 
-// Adds a transparent overlay with a viewport border to `self` and configures
+// Adds a transparent overlay with a viewport border to |self| and configures
 // its layout constraints.
 - (void)setupPreviewOverlayView {
   DCHECK(!_previewOverlay);

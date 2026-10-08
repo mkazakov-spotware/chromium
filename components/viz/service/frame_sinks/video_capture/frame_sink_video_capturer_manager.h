@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 namespace viz {
 
 class CapturableFrameSink;
-struct VideoCaptureTarget;
+class FrameSinkId;
 class FrameSinkVideoCapturerImpl;
 
 // Interface implemented by the owner/manager of FrameSinkVideoCapturerImpl
@@ -17,9 +17,9 @@ class FrameSinkVideoCapturerImpl;
 class FrameSinkVideoCapturerManager {
  public:
   // Returns the CapturableFrameSink implementation associated with the given
-  // |target|, or nullptr if unknown.
+  // |frame_sink_id|, or nullptr if unknown.
   virtual CapturableFrameSink* FindCapturableFrameSink(
-      const VideoCaptureTarget& target) = 0;
+      const FrameSinkId& frame_sink_id) = 0;
 
   // Called once, when the mojo binding for the given |capturer| has been
   // closed. At this point, the capturer is a zombie waiting to be destroyed.

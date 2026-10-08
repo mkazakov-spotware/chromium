@@ -1,40 +1,41 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
       "invalidations": [
-        [7, 7, 183, 38]
+        [8, 8, 181, 36]
       ]
     },
     {
       "name": "LayoutNGTextControlMultiLine TEXTAREA id='editor'",
-      "position": [1, 1],
-      "bounds": [179, 19],
-      "drawsContent": false,
-      "transform": 1
-    },
-    {
-      "name": "Scroll corner of LayoutNGTextControlMultiLine TEXTAREA id='editor'",
-      "position": [150, 5],
-      "bounds": [30, 30],
-      "contentsOpaqueForText": true,
+      "position": [-2, -2],
+      "bounds": [185, 40],
+      "backgroundColor": "#FFFFFF",
       "invalidations": [
-        [0, 0, 30, 30]
+        [0, 0, 185, 40]
       ],
       "transform": 1
     },
     {
-      "name": "HorizontalScrollbar",
+      "name": "ContentsLayer for Horizontal Scrollbar Layer",
       "position": [1, 20],
       "bounds": [164, 15],
-      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "LayoutNGTextControlMultiLine TEXTAREA id='editor'",
+      "name": "Scroll Corner Layer",
+      "position": [165, 20],
+      "bounds": [15, 15],
+      "invalidations": [
+        [0, 0, 15, 15]
+      ],
+      "transform": 1
+    },
+    {
+      "name": "Scrolling Contents Layer",
       "position": [1, 1],
       "bounds": [470, 19],
       "backgroundColor": "#FFFFFF",
@@ -44,22 +45,11 @@
       "transform": 2
     },
     {
-      "name": "Caret",
-      "position": [470, 3],
-      "bounds": [1, 15],
-      "contentsOpaque": true,
+      "name": "Decoration Layer",
+      "position": [-2, -2],
+      "bounds": [185, 40],
       "invalidations": [
-        [0, 0, 1, 15]
-      ],
-      "transform": 2
-    },
-    {
-      "name": "LayoutNGTextControlMultiLine TEXTAREA id='editor'",
-      "position": [-1, -1],
-      "bounds": [183, 38],
-      "contentsOpaqueForText": true,
-      "invalidations": [
-        [0, 0, 183, 38]
+        [0, 0, 185, 40]
       ],
       "transform": 1
     }

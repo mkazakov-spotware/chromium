@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "components/webdata/common/web_database_table.h"
 
 class WebDatabase;
@@ -23,10 +24,6 @@ class TokenServiceTable : public WebDatabaseTable {
   };
 
   TokenServiceTable() {}
-
-  TokenServiceTable(const TokenServiceTable&) = delete;
-  TokenServiceTable& operator=(const TokenServiceTable&) = delete;
-
   ~TokenServiceTable() override {}
 
   // Retrieves the TokenServiceTable* owned by |database|.
@@ -52,6 +49,9 @@ class TokenServiceTable : public WebDatabaseTable {
   // a mac keychain popup.
   // True if we encrypted a token and stored it, false otherwise.
   bool SetTokenForService(const std::string& service, const std::string& token);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TokenServiceTable);
 };
 
 #endif  // COMPONENTS_SIGNIN_PUBLIC_WEBDATA_TOKEN_SERVICE_TABLE_H_

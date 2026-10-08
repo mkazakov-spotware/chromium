@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "components/viz/common/buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -27,12 +26,8 @@ TEST(ParseOverlayStrategiesTest, ParseFullList) {
 
   EXPECT_THAT(strategies, UnorderedElementsAre(OverlayStrategy::kFullscreen,
                                                OverlayStrategy::kSingleOnTop,
-                                               OverlayStrategy::kUnderlay
-#if BUILDFLAG(ENABLE_CAST_OVERLAY_STRATEGY)
-                                               ,
-                                               OverlayStrategy::kUnderlayCast
-#endif
-                                               ));
+                                               OverlayStrategy::kUnderlay,
+                                               OverlayStrategy::kUnderlayCast));
 }
 
 TEST(ParseOverlayStrategiesTest, BadValue) {

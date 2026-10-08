@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,24 +62,24 @@ std::string MediaEngineEventToString(MF_MEDIA_ENGINE_EVENT event) {
 
 #undef ENUM_TO_STRING
 
-PipelineStatus MediaEngineErrorToPipelineStatus(
-    MF_MEDIA_ENGINE_ERR media_engine_error) {
-  switch (media_engine_error) {
+PipelineStatus MediaEngineStatusToPipelineStatus(
+    MF_MEDIA_ENGINE_ERR media_engine_status) {
+  switch (media_engine_status) {
     case MF_MEDIA_ENGINE_ERR_NOERROR:
-      return PIPELINE_OK;
+      return PipelineStatus::PIPELINE_OK;
     case MF_MEDIA_ENGINE_ERR_ABORTED:
-      return PIPELINE_ERROR_ABORT;
+      return PipelineStatus::PIPELINE_ERROR_ABORT;
     case MF_MEDIA_ENGINE_ERR_NETWORK:
-      return PIPELINE_ERROR_NETWORK;
+      return PipelineStatus::PIPELINE_ERROR_NETWORK;
     case MF_MEDIA_ENGINE_ERR_DECODE:
-      [[fallthrough]];
+      FALLTHROUGH;
     case MF_MEDIA_ENGINE_ERR_ENCRYPTED:
-      return PIPELINE_ERROR_DECODE;
+      return PipelineStatus::PIPELINE_ERROR_DECODE;
     case MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED:
-      return DEMUXER_ERROR_COULD_NOT_OPEN;
+      return PipelineStatus::DEMUXER_ERROR_COULD_NOT_OPEN;
     default:
       NOTREACHED();
-      return PIPELINE_ERROR_INVALID_STATE;
+      return PipelineStatus::PIPELINE_ERROR_INVALID_STATE;
   }
 }
 
@@ -91,21 +91,15 @@ MediaEngineNotifyImpl::~MediaEngineNotifyImpl() = default;
 HRESULT MediaEngineNotifyImpl::RuntimeClassInitialize(
     ErrorCB error_cb,
     EndedCB ended_cb,
-    FormatChangeCB format_change_cb,
-    LoadedDataCB loaded_data_cb,
-    CanPlayThroughCB can_play_through_cb,
-    PlayingCB playing_cb,
-    WaitingCB waiting_cb,
+    BufferingStateChangedCB buffering_state_changed_cb,
+    VideoNaturalSizeChangedCB video_natural_size_changed_cb,
     TimeUpdateCB time_update_cb) {
   DVLOG_FUNC(1);
 
   error_cb_ = std::move(error_cb);
   ended_cb_ = std::move(ended_cb);
-  format_change_cb_ = std::move(format_change_cb);
-  loaded_data_cb_ = std::move(loaded_data_cb);
-  can_play_through_cb_ = std::move(can_play_through_cb);
-  playing_cb_ = std::move(playing_cb);
-  waiting_cb_ = std::move(waiting_cb);
+  buffering_state_changed_cb_ = std::move(buffering_state_changed_cb);
+  video_natural_size_changed_cb_ = std::move(video_natural_size_changed_cb);
   time_update_cb_ = std::move(time_update_cb);
   return S_OK;
 }
@@ -129,28 +123,29 @@ HRESULT MediaEngineNotifyImpl::EventNotify(DWORD event_code,
       // |param1| - A member of the MF_MEDIA_ENGINE_ERR enumeration.
       // |param2| - An HRESULT error code, or zero.
       MF_MEDIA_ENGINE_ERR error = static_cast<MF_MEDIA_ENGINE_ERR>(param1);
-      HRESULT hr = param2;
-      LOG(ERROR) << __func__ << ": error=" << error << ", hr=" << PrintHr(hr);
-      error_cb_.Run(MediaEngineErrorToPipelineStatus(error), hr);
+      LOG(ERROR) << __func__ << ": error=" << error
+                 << ", hr=" << PrintHr(param2);
+      error_cb_.Run(MediaEngineStatusToPipelineStatus(error));
       break;
     }
     case MF_MEDIA_ENGINE_EVENT_ENDED:
       ended_cb_.Run();
       break;
     case MF_MEDIA_ENGINE_EVENT_FORMATCHANGE:
-      format_change_cb_.Run();
+      video_natural_size_changed_cb_.Run();
       break;
     case MF_MEDIA_ENGINE_EVENT_LOADEDDATA:
-      loaded_data_cb_.Run();
-      break;
-    case MF_MEDIA_ENGINE_EVENT_CANPLAYTHROUGH:
-      can_play_through_cb_.Run();
-      break;
+      video_natural_size_changed_cb_.Run();
+      FALLTHROUGH;
     case MF_MEDIA_ENGINE_EVENT_PLAYING:
-      playing_cb_.Run();
+      buffering_state_changed_cb_.Run(
+          BufferingState::BUFFERING_HAVE_ENOUGH,
+          BufferingStateChangeReason::BUFFERING_CHANGE_REASON_UNKNOWN);
       break;
     case MF_MEDIA_ENGINE_EVENT_WAITING:
-      waiting_cb_.Run();
+      buffering_state_changed_cb_.Run(
+          BufferingState::BUFFERING_HAVE_NOTHING,
+          BufferingStateChangeReason::BUFFERING_CHANGE_REASON_UNKNOWN);
       break;
     case MF_MEDIA_ENGINE_EVENT_TIMEUPDATE:
       time_update_cb_.Run();

@@ -1,17 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_CAPTURE_VIDEO_VIDEO_CAPTURE_SYSTEM_IMPL_H_
 #define MEDIA_CAPTURE_VIDEO_VIDEO_CAPTURE_SYSTEM_IMPL_H_
 
-#include <list>
-#include <memory>
-#include <string>
-#include <vector>
-
-#include "base/memory/weak_ptr.h"
-#include "base/threading/thread_checker.h"
 #include "media/capture/video/video_capture_system.h"
 
 namespace media {
@@ -26,9 +19,8 @@ class CAPTURE_EXPORT VideoCaptureSystemImpl : public VideoCaptureSystem {
   ~VideoCaptureSystemImpl() override;
 
   void GetDeviceInfosAsync(DeviceInfoCallback result_callback) override;
-  VideoCaptureErrorOrDevice CreateDevice(const std::string& device_id) override;
-
-  VideoCaptureDeviceFactory* GetFactory() override;
+  std::unique_ptr<VideoCaptureDevice> CreateDevice(
+      const std::string& device_id) override;
 
  private:
   using DeviceEnumQueue = std::list<DeviceInfoCallback>;

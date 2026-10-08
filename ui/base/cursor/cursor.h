@@ -1,47 +1,50 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_CURSOR_CURSOR_H_
 #define UI_BASE_CURSOR_CURSOR_H_
 
-#include <vector>
-
 #include "base/component_export.h"
-#include "base/memory/scoped_refptr.h"
+#include "build/build_config.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
-#include "ui/base/cursor/platform_cursor.h"
 #include "ui/gfx/geometry/point.h"
+
+#if defined(OS_WIN)
+#include "base/win/windows_types.h"
+#endif
 
 namespace ui {
 
-struct COMPONENT_EXPORT(UI_BASE_CURSOR) CursorData {
- public:
-  CursorData();
-  CursorData(std::vector<SkBitmap> bitmaps, gfx::Point hotspot);
-  CursorData(const CursorData&);
-  ~CursorData();
-
-  // `bitmaps` contains at least 1 element. Animated cursors (e.g.
-  // `CursorType::kWait`, `CursorType::kProgress`) are represented as a list
-  // of images, so a bigger number is expected.
-  std::vector<SkBitmap> bitmaps;
-  gfx::Point hotspot;
-};
+#if defined(OS_WIN)
+typedef ::HCURSOR PlatformCursor;
+#else
+// NOTE: On Ozone platforms, the type is chosen at runtime, and is either
+// X11Cursor* or BitmapCursorOzone*.
+typedef void* PlatformCursor;
+#endif
 
 // Ref-counted cursor that supports both default and custom cursors.
-class COMPONENT_EXPORT(UI_BASE_CURSOR) Cursor {
+class COMPONENT_EXPORT(UI_BASE_CURSOR_BASE) Cursor {
  public:
   Cursor();
+
+  // Implicit constructor.
   Cursor(mojom::CursorType type);
+
+  // Allow copy.
   Cursor(const Cursor& cursor);
+
   ~Cursor();
 
-  void SetPlatformCursor(scoped_refptr<PlatformCursor> platform_cursor);
+  void SetPlatformCursor(const PlatformCursor& platform);
+
+  void RefCustomCursor();
+  void UnrefCustomCursor();
 
   mojom::CursorType type() const { return type_; }
-  scoped_refptr<PlatformCursor> platform() const { return platform_cursor_; }
+  PlatformCursor platform() const { return platform_cursor_; }
   float image_scale_factor() const { return image_scale_factor_; }
   void set_image_scale_factor(float scale) { image_scale_factor_ = scale; }
 
@@ -60,12 +63,14 @@ class COMPONENT_EXPORT(UI_BASE_CURSOR) Cursor {
   bool operator==(mojom::CursorType type) const { return type_ == type; }
   bool operator!=(mojom::CursorType type) const { return type_ != type; }
 
+  void operator=(const Cursor& cursor);
+
  private:
   // The basic cursor type.
   mojom::CursorType type_ = mojom::CursorType::kNull;
 
   // The native platform cursor.
-  scoped_refptr<PlatformCursor> platform_cursor_;
+  PlatformCursor platform_cursor_ = 0;
 
   // The scale factor for the cursor bitmap.
   float image_scale_factor_ = 1.0f;

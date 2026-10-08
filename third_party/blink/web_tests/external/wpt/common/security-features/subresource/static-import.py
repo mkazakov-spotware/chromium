@@ -1,9 +1,9 @@
 import os, sys
-from urllib.parse import unquote
+from six.moves.urllib.parse import unquote
 
 from wptserve.utils import isomorphic_decode
-import importlib
-subresource = importlib.import_module("common.security-features.subresource.subresource")
+sys.path.insert(0, os.path.dirname(os.path.abspath(isomorphic_decode(__file__))))
+import subresource
 
 def generate_payload(request):
     import_url = unquote(isomorphic_decode(request.GET[b'import_url']))

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/process/process.h"
 
 class TestLicenseServerConfig;
@@ -17,10 +18,6 @@ class TestLicenseServer {
  public:
   explicit TestLicenseServer(
       std::unique_ptr<TestLicenseServerConfig> server_config);
-
-  TestLicenseServer(const TestLicenseServer&) = delete;
-  TestLicenseServer& operator=(const TestLicenseServer&) = delete;
-
   ~TestLicenseServer();
 
   // Returns true if the server started successfully. False otherwise.
@@ -35,6 +32,8 @@ class TestLicenseServer {
   std::unique_ptr<TestLicenseServerConfig> server_config_;
   // Process for the license server.
   base::Process license_server_process_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestLicenseServer);
 };
 
 #endif  // CHROME_BROWSER_MEDIA_TEST_LICENSE_SERVER_H_

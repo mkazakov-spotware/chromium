@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <list>
 
+#include "base/macros.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/notification_observer.h"
@@ -19,12 +20,6 @@ class LoginHandler;
 class LoginPromptBrowserTestObserver : public content::NotificationObserver {
  public:
   LoginPromptBrowserTestObserver();
-
-  LoginPromptBrowserTestObserver(const LoginPromptBrowserTestObserver&) =
-      delete;
-  LoginPromptBrowserTestObserver& operator=(
-      const LoginPromptBrowserTestObserver&) = delete;
-
   ~LoginPromptBrowserTestObserver() override;
 
   void Observe(int type,
@@ -57,6 +52,8 @@ class LoginPromptBrowserTestObserver : public content::NotificationObserver {
 
  private:
   content::NotificationRegistrar registrar_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoginPromptBrowserTestObserver);
 };
 
 template <int T>
@@ -66,9 +63,8 @@ class WindowedNavigationObserver
   explicit WindowedNavigationObserver(
       content::NavigationController* controller);
 
-  WindowedNavigationObserver(const WindowedNavigationObserver&) = delete;
-  WindowedNavigationObserver& operator=(const WindowedNavigationObserver&) =
-      delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(WindowedNavigationObserver);
 };
 
 template <int T>
@@ -95,9 +91,6 @@ class WindowedLoadStopObserver
   WindowedLoadStopObserver(content::NavigationController* controller,
                            int notification_count);
 
-  WindowedLoadStopObserver(const WindowedLoadStopObserver&) = delete;
-  WindowedLoadStopObserver& operator=(const WindowedLoadStopObserver&) = delete;
-
  protected:
   void Observe(int type,
                const content::NotificationSource& source,
@@ -105,6 +98,8 @@ class WindowedLoadStopObserver
 
  private:
   int remaining_notification_count_;  // Number of notifications remaining.
+
+  DISALLOW_COPY_AND_ASSIGN(WindowedLoadStopObserver);
 };
 
 #endif  // CHROME_BROWSER_UI_LOGIN_LOGIN_HANDLER_TEST_UTILS_H_

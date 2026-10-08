@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,11 +21,6 @@ namespace ui {
 class HardwareDisplayPlaneAtomic : public HardwareDisplayPlane {
  public:
   explicit HardwareDisplayPlaneAtomic(uint32_t id);
-
-  HardwareDisplayPlaneAtomic(const HardwareDisplayPlaneAtomic&) = delete;
-  HardwareDisplayPlaneAtomic& operator=(const HardwareDisplayPlaneAtomic&) =
-      delete;
-
   ~HardwareDisplayPlaneAtomic() override;
 
   bool Initialize(DrmDevice* drm) override;
@@ -36,9 +31,7 @@ class HardwareDisplayPlaneAtomic : public HardwareDisplayPlane {
                                 const gfx::Rect& crtc_rect,
                                 const gfx::Rect& src_rect,
                                 const gfx::OverlayTransform transform,
-                                int in_fence_fd,
-                                uint32_t format_fourcc,
-                                bool is_original_buffer);
+                                int in_fence_fd);
   // Sets the props on |property_set| for commit.
   bool SetPlaneProps(drmModeAtomicReq* property_set);
 
@@ -49,6 +42,8 @@ class HardwareDisplayPlaneAtomic : public HardwareDisplayPlane {
  private:
   // Intermediate variable between Assign()ment and Set()ting.
   HardwareDisplayPlane::Properties assigned_props_;
+
+  DISALLOW_COPY_AND_ASSIGN(HardwareDisplayPlaneAtomic);
 };
 
 }  // namespace ui

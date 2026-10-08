@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,9 @@
 #include "ash/shell_delegate.h"
 #include "ash/wm/container_finder.h"
 #include "ash/wm/desks/desks_util.h"
-#include "ash/wm/float/float_controller.h"
 #include "ash/wm/mru_window_tracker.h"
-#include "ash/wm/overview/overview_controller.h"
-#include "ash/wm/window_restore/window_restore_controller.h"
 #include "ash/wm/window_state.h"
-#include "base/containers/adapters.h"
-#include "base/containers/contains.h"
-#include "components/app_restore/full_restore_utils.h"
+#include "base/stl_util.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
 #include "ui/events/event.h"
@@ -29,7 +24,7 @@ namespace {
 bool BelongsToContainerWithEqualOrGreaterId(const aura::Window* window,
                                             int container_id) {
   for (; window; window = window->parent()) {
-    if (window->GetId() >= container_id)
+    if (window->id() >= container_id)
       return true;
   }
   return false;
@@ -37,7 +32,7 @@ bool BelongsToContainerWithEqualOrGreaterId(const aura::Window* window,
 
 bool BelongsToContainerWithId(const aura::Window* window, int container_id) {
   for (; window; window = window->parent()) {
-    if (window->GetId() == container_id)
+    if (window->id() == container_id)
       return true;
   }
   return false;
@@ -53,8 +48,7 @@ bool IsInactiveDeskContainerId(int id) {
 ////////////////////////////////////////////////////////////////////////////////
 // AshFocusRules, public:
 
-AshFocusRules::AshFocusRules()
-    : activatable_container_ids_(GetActivatableShellWindowIds()) {}
+AshFocusRules::AshFocusRules() = default;
 
 AshFocusRules::~AshFocusRules() = default;
 
@@ -69,61 +63,41 @@ bool AshFocusRules::IsToplevelWindow(const aura::Window* window) const {
 
   // The window must exist within a container that supports activation.
   // The window cannot be blocked by a modal transient.
-  return base::Contains(activatable_container_ids_, window->parent()->GetId());
+  return IsActivatableShellWindowId(window->parent()->id());
 }
 
 bool AshFocusRules::SupportsChildActivation(const aura::Window* window) const {
-  return base::Contains(activatable_container_ids_, window->GetId());
+  return IsActivatableShellWindowId(window->id());
 }
 
 bool AshFocusRules::IsWindowConsideredVisibleForActivation(
     const aura::Window* window) const {
   DCHECK(window);
-
-  Shell* shell = Shell::Get();
   // If the |window| doesn't belong to the current active user and also doesn't
   // show for the current active user, then it should not be activated.
-  if (!shell->shell_delegate()->CanShowWindowForUser(window))
+  if (!Shell::Get()->shell_delegate()->CanShowWindowForUser(window))
     return false;
 
   if (window->IsVisible())
     return true;
 
-  const WindowState* window_state = WindowState::Get(window);
   // Minimized windows are hidden in their minimized state, but they can always
   // be activated.
-  if (window_state->IsMinimized())
+  if (WindowState::Get(window)->IsMinimized())
     return true;
-
-  // Floated windows are hidden if they belong to inactive desks, but they can
-  // always be activated.
-  if (window_state->IsFloated() &&
-      shell->float_controller()->FindDeskOfFloatedWindow(window) !=
-          DesksController::Get()->active_desk()) {
-    return true;
-  }
 
   if (!window->TargetVisibility())
     return false;
 
   const aura::Window* const parent = window->parent();
   return desks_util::IsDeskContainer(parent) ||
-         parent->GetId() == kShellWindowId_LockScreenContainer;
+         parent->id() == kShellWindowId_LockScreenContainer;
 }
 
 bool AshFocusRules::CanActivateWindow(const aura::Window* window) const {
   // Clearing activation is always permissible.
   if (!window)
     return true;
-
-  if (!WindowRestoreController::CanActivateRestoredWindow(window))
-    return false;
-
-  // Special case during Full Restore that prevents the app list from being
-  // activated during tablet mode if the topmost window of any root window is a
-  // Full Restore'd window. See http://crbug/1202923.
-  if (!WindowRestoreController::CanActivateAppList(window))
-    return false;
 
   if (!BaseFocusRules::CanActivateWindow(window))
     return false;
@@ -167,16 +141,7 @@ aura::Window* AshFocusRules::GetNextActivatableWindow(
   // start from the container of |ignore|.
   aura::Window* starting_window = nullptr;
   aura::Window* transient_parent = ::wm::GetTransientParent(ignore);
-  OverviewController* overview_controller = Shell::Get()->overview_controller();
-  // It's possible for this to be called either on shutdown or when a session is
-  // not yet active, so we need to check for the existence of the overview
-  // controller.
-  if (overview_controller && overview_controller->InOverviewSession() &&
-      overview_controller->overview_session()->IsTemplatesUiLosingActivation(
-          ignore)) {
-    starting_window =
-        overview_controller->overview_session()->GetOverviewFocusWindow();
-  } else if (transient_parent) {
+  if (transient_parent) {
     starting_window = transient_parent;
   } else {
     MruWindowTracker* mru = Shell::Get()->mru_window_tracker();
@@ -192,10 +157,10 @@ aura::Window* AshFocusRules::GetNextActivatableWindow(
   aura::Window* root = starting_window->GetRootWindow();
   if (!root)
     root = Shell::GetRootWindowForNewWindows();
-  const int container_count = activatable_container_ids_.size();
+  const auto& container_ids = GetActivatableShellWindowIds();
+  const int container_count = container_ids.size();
   for (int i = 0; i < container_count; i++) {
-    aura::Window* container =
-        Shell::GetContainer(root, activatable_container_ids_[i]);
+    aura::Window* container = Shell::GetContainer(root, container_ids[i]);
     if (container && container->Contains(starting_window)) {
       starting_container_index = i;
       break;
@@ -218,7 +183,7 @@ aura::Window* AshFocusRules::GetNextActivatableWindow(
 aura::Window* AshFocusRules::GetTopmostWindowToActivateForContainerIndex(
     int index,
     aura::Window* ignore) const {
-  const int container_id = activatable_container_ids_[index];
+  const int container_id = GetActivatableShellWindowIds()[index];
   // Inactive desk containers should be ignored, since windows in them should
   // never be returned as a next activatable window.
   if (IsInactiveDeskContainerId(container_id))
@@ -238,15 +203,13 @@ aura::Window* AshFocusRules::GetTopmostWindowToActivateForContainerIndex(
 aura::Window* AshFocusRules::GetTopmostWindowToActivateInContainer(
     aura::Window* container,
     aura::Window* ignore) const {
-  for (aura::Window* child : base::Reversed(container->children())) {
-    WindowState* window_state = WindowState::Get(child);
-    // A floated window should not be activatable if it's hidden on an inactive
-    // desk.
-    if (child != ignore && window_state->CanActivate() &&
-        !window_state->IsMinimized() &&
-        !(window_state->IsFloated() && !child->IsVisible())) {
-      return child;
-    }
+  for (aura::Window::Windows::const_reverse_iterator i =
+           container->children().rbegin();
+       i != container->children().rend(); ++i) {
+    WindowState* window_state = WindowState::Get(*i);
+    if (*i != ignore && window_state->CanActivate() &&
+        !window_state->IsMinimized())
+      return *i;
   }
   return nullptr;
 }

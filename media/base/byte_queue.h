@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "media/base/media_export.h"
 
 namespace media {
@@ -23,10 +24,6 @@ namespace media {
 class MEDIA_EXPORT ByteQueue {
  public:
   ByteQueue();
-
-  ByteQueue(const ByteQueue&) = delete;
-  ByteQueue& operator=(const ByteQueue&) = delete;
-
   ~ByteQueue();
 
   // Reset the queue to the empty state.
@@ -59,6 +56,8 @@ class MEDIA_EXPORT ByteQueue {
   int used_ = 0;
 
   std::unique_ptr<uint8_t[]> buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ByteQueue);
 };
 
 }  // namespace media

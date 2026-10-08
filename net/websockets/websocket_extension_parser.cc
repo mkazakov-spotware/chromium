@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/websockets/websocket_extension_parser.h"
 
 #include "base/check_op.h"
-#include "base/strings/string_piece.h"
 #include "net/http/http_util.h"
 
 namespace net {
@@ -51,7 +50,7 @@ bool WebSocketExtensionParser::ConsumeExtension(WebSocketExtension* extension) {
   base::StringPiece name;
   if (!ConsumeToken(&name))
     return false;
-  *extension = WebSocketExtension(std::string(name));
+  *extension = WebSocketExtension(name.as_string());
 
   while (ConsumeIfMatch(';')) {
     WebSocketExtension::Parameter parameter((std::string()));
@@ -72,7 +71,7 @@ bool WebSocketExtensionParser::ConsumeExtensionParameter(
     return false;
 
   if (!ConsumeIfMatch('=')) {
-    *parameter = WebSocketExtension::Parameter(std::string(name));
+    *parameter = WebSocketExtension::Parameter(name.as_string());
     return true;
   }
 
@@ -82,9 +81,9 @@ bool WebSocketExtensionParser::ConsumeExtensionParameter(
   } else {
     if (!ConsumeToken(&value))
       return false;
-    value_string = std::string(value);
+    value_string = value.as_string();
   }
-  *parameter = WebSocketExtension::Parameter(std::string(name), value_string);
+  *parameter = WebSocketExtension::Parameter(name.as_string(), value_string);
   return true;
 }
 

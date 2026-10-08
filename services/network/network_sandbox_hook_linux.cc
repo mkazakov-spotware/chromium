@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,29 +13,22 @@ using sandbox::syscall_broker::MakeBrokerCommandSet;
 
 namespace network {
 
-sandbox::syscall_broker::BrokerCommandSet GetNetworkBrokerCommandSet() {
-  return MakeBrokerCommandSet({
-      sandbox::syscall_broker::COMMAND_ACCESS,
-      sandbox::syscall_broker::COMMAND_MKDIR,
-      sandbox::syscall_broker::COMMAND_OPEN,
-      sandbox::syscall_broker::COMMAND_READLINK,
-      sandbox::syscall_broker::COMMAND_RENAME,
-      sandbox::syscall_broker::COMMAND_RMDIR,
-      sandbox::syscall_broker::COMMAND_STAT,
-      sandbox::syscall_broker::COMMAND_UNLINK,
-  });
-}
-
-std::vector<BrokerFilePermission> GetNetworkFilePermissions() {
-  // TODO(tsepez): remove universal permission under filesystem root.
-  return {BrokerFilePermission::ReadWriteCreateRecursive("/")};
-}
-
 bool NetworkPreSandboxHook(sandbox::policy::SandboxLinux::Options options) {
   auto* instance = sandbox::policy::SandboxLinux::GetInstance();
 
+  // TODO(tsepez): remove universal permission under filesytem root.
   instance->StartBrokerProcess(
-      GetNetworkBrokerCommandSet(), GetNetworkFilePermissions(),
+      MakeBrokerCommandSet({
+          sandbox::syscall_broker::COMMAND_ACCESS,
+          sandbox::syscall_broker::COMMAND_MKDIR,
+          sandbox::syscall_broker::COMMAND_OPEN,
+          sandbox::syscall_broker::COMMAND_READLINK,
+          sandbox::syscall_broker::COMMAND_RENAME,
+          sandbox::syscall_broker::COMMAND_RMDIR,
+          sandbox::syscall_broker::COMMAND_STAT,
+          sandbox::syscall_broker::COMMAND_UNLINK,
+      }),
+      {BrokerFilePermission::ReadWriteCreateRecursive("/")},
       sandbox::policy::SandboxLinux::PreSandboxHook(), options);
 
   instance->EngageNamespaceSandboxIfPossible();

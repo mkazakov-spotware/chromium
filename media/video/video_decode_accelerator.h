@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,16 +12,16 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/unguessable_token.h"
 #include "media/base/bitstream_buffer.h"
 #include "media/base/cdm_context.h"
 #include "media/base/decoder_buffer.h"
-#include "media/base/decoder_status.h"
 #include "media/base/encryption_scheme.h"
 #include "media/base/overlay_info.h"
+#include "media/base/status.h"
 #include "media/base/video_decoder_config.h"
 #include "media/video/picture.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/color_space.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/gpu_memory_buffer.h"
@@ -37,8 +37,6 @@ class SharedImageStub;
 }
 
 namespace media {
-
-class CommandBufferHelper;
 
 // Video decoder interface.
 // This interface is extended by the various components that ultimately
@@ -156,7 +154,7 @@ class MEDIA_EXPORT VideoDecodeAccelerator {
 
     // The CDM that the VDA should use to decode encrypted streams. Must be
     // set to a valid ID if |is_encrypted|.
-    absl::optional<base::UnguessableToken> cdm_id;
+    base::Optional<base::UnguessableToken> cdm_id;
 
     // Whether the client supports deferred initialization.
     bool is_deferred_initialization_allowed = false;
@@ -189,7 +187,7 @@ class MEDIA_EXPORT VideoDecodeAccelerator {
     gfx::ColorSpace target_color_space;
 
     // HDR metadata specified by the container.
-    absl::optional<gfx::HDRMetadata> hdr_metadata;
+    base::Optional<gfx::HDRMetadata> hdr_metadata;
   };
 
   // Interface for collaborating with picture interface to provide memory for
@@ -207,7 +205,7 @@ class MEDIA_EXPORT VideoDecodeAccelerator {
     // call to VDA::Initialize returns true.
     // The default implementation is a NOTREACHED, since deferred initialization
     // is not supported by default.
-    virtual void NotifyInitializationComplete(DecoderStatus status);
+    virtual void NotifyInitializationComplete(Status status);
 
     // Callback to tell client how many and what size of buffers to provide.
     // Note that the actual count provided through AssignPictureBuffers() can be
@@ -263,10 +261,6 @@ class MEDIA_EXPORT VideoDecodeAccelerator {
     // Return the SharedImageStub through which SharedImages may be created.
     // Default implementation returns nullptr.
     virtual gpu::SharedImageStub* GetSharedImageStub() const;
-
-    // Return the CommandBufferHelper through which GL passthrough textures may
-    // be created. Default implementation returns nullptr.
-    virtual CommandBufferHelper* GetCommandBufferHelper() const;
 
    protected:
     virtual ~Client() {}
@@ -423,15 +417,6 @@ class MEDIA_EXPORT VideoDecodeAccelerator {
   // Returns true if the decoder supports SharedImage backed picture buffers.
   // May be called on any thread at any time.
   virtual bool SupportsSharedImagePictureBuffers() const;
-
-  enum class TextureAllocationMode {
-    kDoNotAllocateGLTextures,
-    kAllocateGLTextures
-  };
-
-  // Returns an enum used to allocate GL textures for shared images.
-  // May be called on any thread at any time.
-  virtual TextureAllocationMode GetSharedImageTextureAllocationMode() const;
 
  protected:
   // Do not delete directly; use Destroy() or own it with a scoped_ptr, which

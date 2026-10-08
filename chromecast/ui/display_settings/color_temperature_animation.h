@@ -1,15 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_UI_DISPLAY_SETTINGS_COLOR_TEMPERATURE_ANIMATION_H_
 #define CHROMECAST_UI_DISPLAY_SETTINGS_COLOR_TEMPERATURE_ANIMATION_H_
 
+#include <vector>
+
 #include "chromecast/ui/display_settings_manager.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/linear_animation.h"
 
 namespace chromecast {
+
+class CastWindowManager;
 
 namespace shell {
 class CastDisplayConfigurator;
@@ -20,6 +24,7 @@ class CastDisplayConfigurator;
 class ColorTemperatureAnimation : public gfx::LinearAnimation {
  public:
   ColorTemperatureAnimation(
+      CastWindowManager* window_manager,
       shell::CastDisplayConfigurator* display_configurator,
       const DisplaySettingsManager::ColorTemperatureConfig& config);
   ColorTemperatureAnimation(const ColorTemperatureAnimation&) = delete;
@@ -42,6 +47,7 @@ class ColorTemperatureAnimation : public gfx::LinearAnimation {
 
   void ApplyValuesToDisplay();
 
+  CastWindowManager* const window_manager_;
   shell::CastDisplayConfigurator* const display_configurator_;
 
   const DisplaySettingsManager::ColorTemperatureConfig config_;

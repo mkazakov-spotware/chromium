@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,19 @@
 
 #include <Security/Security.h>
 
-#include "build/build_config.h"
-#include "net/cert/pki/cert_errors.h"
+#include "net/cert/internal/cert_errors.h"
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
-#include "net/cert/x509_util_apple.h"
+
+#if defined(OS_IOS)
+#include "net/cert/x509_util_ios.h"
+#else
+#include "net/cert/x509_util_mac.h"
+#endif
 
 namespace net {
 
-bool TestRootCerts::AddImpl(X509Certificate* certificate) {
+bool TestRootCerts::Add(X509Certificate* certificate) {
   base::ScopedCFTypeRef<SecCertificateRef> os_cert(
       x509_util::CreateSecCertificateFromX509Certificate(certificate));
   if (!os_cert)
@@ -26,11 +30,25 @@ bool TestRootCerts::AddImpl(X509Certificate* certificate) {
     return true;
   CFArrayAppendValue(temporary_roots_, os_cert.get());
 
+  // Add the certificate to the parallel |test_trust_store_|.
+  CertErrors errors;
+  scoped_refptr<ParsedCertificate> parsed = ParsedCertificate::Create(
+      bssl::UpRef(certificate->cert_buffer()),
+      x509_util::DefaultParseCertificateOptions(), &errors);
+  if (!parsed)
+    return false;
+  test_trust_store_.AddTrustAnchor(parsed);
+
   return true;
 }
 
-void TestRootCerts::ClearImpl() {
+void TestRootCerts::Clear() {
   CFArrayRemoveAllValues(temporary_roots_);
+  test_trust_store_.Clear();
+}
+
+bool TestRootCerts::IsEmpty() const {
+  return CFArrayGetCount(temporary_roots_) == 0;
 }
 
 OSStatus TestRootCerts::FixupSecTrustRef(SecTrustRef trust_ref) const {
@@ -44,7 +62,7 @@ OSStatus TestRootCerts::FixupSecTrustRef(SecTrustRef trust_ref) const {
   return SecTrustSetAnchorCertificatesOnly(trust_ref, false);
 }
 
-TestRootCerts::~TestRootCerts() = default;
+TestRootCerts::~TestRootCerts() {}
 
 void TestRootCerts::Init() {
   temporary_roots_.reset(

@@ -1,5 +1,0 @@
-monorail {
-  component: "UI>Browser>Mobile"
-}
-team_email: "ios-directory-owners@chromium.org"
-os: IOS

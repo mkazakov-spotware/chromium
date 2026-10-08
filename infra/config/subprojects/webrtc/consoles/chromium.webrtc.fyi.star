@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,7 +8,6 @@ luci.console_view(
     name = "chromium.webrtc.fyi",
     header = HEADER,
     repo = "https://webrtc.googlesource.com/src",
-    refs = ["refs/heads/master", "refs/heads/main"],
     entries = [
         luci.console_view_entry(
             builder = "webrtc.fyi/WebRTC Chromium FYI Android Builder (dbg)",
@@ -21,14 +20,14 @@ luci.console_view(
             short_name = "64",
         ),
         luci.console_view_entry(
-            builder = "webrtc.fyi/WebRTC Chromium FYI Android Tests (dbg)",
+            builder = "webrtc.fyi/WebRTC Chromium FYI Android Tests (dbg) (L Nexus5)",
             category = "android|debug|tester",
-            short_name = "32",
+            short_name = "L",
         ),
         luci.console_view_entry(
-            builder = "webrtc.fyi/WebRTC Chromium FYI Android Tests ARM64 (dbg)",
+            builder = "webrtc.fyi/WebRTC Chromium FYI Android Tests (dbg) (M Nexus5X)",
             category = "android|debug|tester",
-            short_name = "64",
+            short_name = "M",
         ),
         luci.console_view_entry(
             builder = "webrtc.fyi/WebRTC Chromium FYI Android Builder",
@@ -79,6 +78,16 @@ luci.console_view(
             builder = "webrtc.fyi/WebRTC Chromium FYI Win10 Tester",
             category = "win|release|tester",
             short_name = "10",
+        ),
+        luci.console_view_entry(
+            builder = "webrtc.fyi/WebRTC Chromium FYI Win7 Tester",
+            category = "win|release|tester",
+            short_name = "7",
+        ),
+        luci.console_view_entry(
+            builder = "webrtc.fyi/WebRTC Chromium FYI Win8 Tester",
+            category = "win|release|tester",
+            short_name = "8",
         ),
         luci.console_view_entry(
             builder = "webrtc.fyi/WebRTC Chromium FYI ios-device",

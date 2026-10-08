@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,9 @@
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "services/network/mojo_socket_test_util.h"
 #include "services/network/public/mojom/tcp_socket.mojom.h"
-#include "services/network/public/mojom/tls_socket.mojom.h"
 #include "services/network/socket_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -43,13 +40,7 @@ class TCPBoundSocketTest : public testing::Test {
  public:
   TCPBoundSocketTest()
       : task_environment_(base::test::TaskEnvironment::MainThreadType::IO),
-        url_request_context_(
-            net::CreateTestURLRequestContextBuilder()->Build()),
-        factory_(/*net_log=*/nullptr, url_request_context_.get()) {}
-
-  TCPBoundSocketTest(const TCPBoundSocketTest&) = delete;
-  TCPBoundSocketTest& operator=(const TCPBoundSocketTest&) = delete;
-
+        factory_(nullptr /* net_log */, &url_request_context_) {}
   ~TCPBoundSocketTest() override {}
 
   SocketFactory* factory() { return &factory_; }
@@ -64,7 +55,7 @@ class TCPBoundSocketTest : public testing::Test {
         bound_socket->BindNewPipeAndPassReceiver(),
         base::BindLambdaForTesting(
             [&](int net_error,
-                const absl::optional<net::IPEndPoint>& local_addr) {
+                const base::Optional<net::IPEndPoint>& local_addr) {
               bind_result = net_error;
               if (net_error == net::OK) {
                 *ip_endpoint_out = *local_addr;
@@ -134,8 +125,8 @@ class TCPBoundSocketTest : public testing::Test {
         std::move(socket_observer),
         base::BindLambdaForTesting(
             [&](int net_error,
-                const absl::optional<net::IPEndPoint>& local_addr,
-                const absl::optional<net::IPEndPoint>& remote_addr,
+                const base::Optional<net::IPEndPoint>& local_addr,
+                const base::Optional<net::IPEndPoint>& remote_addr,
                 mojo::ScopedDataPipeConsumerHandle receive_stream,
                 mojo::ScopedDataPipeProducerHandle send_stream) {
               connect_result = net_error;
@@ -202,8 +193,10 @@ class TCPBoundSocketTest : public testing::Test {
 
  private:
   base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<net::URLRequestContext> url_request_context_;
+  net::TestURLRequestContext url_request_context_;
   SocketFactory factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(TCPBoundSocketTest);
 };
 
 // Try to bind a socket to an address already being listened on, which should
@@ -233,7 +226,7 @@ TEST_F(TCPBoundSocketTest, BindError) {
 //
 // Don't run on Apple platforms because this pattern ends in a connect timeout
 // on OSX (after 25+ seconds) instead of connection refused.
-#if !BUILDFLAG(IS_APPLE)
+#if !defined(OS_APPLE)
 TEST_F(TCPBoundSocketTest, ConnectError) {
   mojo::Remote<mojom::TCPBoundSocket> bound_socket1;
   net::IPEndPoint bound_address1;
@@ -255,7 +248,7 @@ TEST_F(TCPBoundSocketTest, ConnectError) {
                     &connected_socket, mojo::NullRemote(),
                     &client_socket_receive_handle, &client_socket_send_handle));
 }
-#endif  // !BUILDFLAG(IS_APPLE)
+#endif  // !defined(OS_APPLE)
 
 // Test listen failure.
 
@@ -265,7 +258,7 @@ TEST_F(TCPBoundSocketTest, ConnectError) {
 //
 // Apple platforms don't allow binding multiple TCP sockets to the same port
 // even with SO_REUSEADDR enabled.
-#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_APPLE)
+#if !defined(OS_WIN) && !defined(OS_APPLE)
 TEST_F(TCPBoundSocketTest, ListenError) {
   // Bind a socket.
   mojo::Remote<mojom::TCPBoundSocket> bound_socket1;
@@ -292,7 +285,7 @@ TEST_F(TCPBoundSocketTest, ListenError) {
   EXPECT_TRUE(result == net::ERR_ADDRESS_IN_USE ||
               result == net::ERR_INVALID_ARGUMENT);
 }
-#endif  // !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_APPLE)
+#endif  // !defined(OS_WIN) && !defined(OS_APPLE)
 
 // Test the case bind succeeds, and transfer some data.
 TEST_F(TCPBoundSocketTest, ReadWrite) {
@@ -326,7 +319,7 @@ TEST_F(TCPBoundSocketTest, ReadWrite) {
   server_socket->Accept(
       mojo::NullRemote() /* ovserver */,
       base::BindLambdaForTesting(
-          [&](int net_error, const absl::optional<net::IPEndPoint>& remote_addr,
+          [&](int net_error, const base::Optional<net::IPEndPoint>& remote_addr,
               mojo::PendingRemote<mojom::TCPConnectedSocket> connected_socket,
               mojo::ScopedDataPipeConsumerHandle receive_stream,
               mojo::ScopedDataPipeProducerHandle send_stream) {
@@ -411,7 +404,7 @@ TEST_F(TCPBoundSocketTest, ConnectWithOptions) {
   server_socket->Accept(
       mojo::NullRemote() /* ovserver */,
       base::BindLambdaForTesting(
-          [&](int net_error, const absl::optional<net::IPEndPoint>& remote_addr,
+          [&](int net_error, const base::Optional<net::IPEndPoint>& remote_addr,
               mojo::PendingRemote<mojom::TCPConnectedSocket> connected_socket,
               mojo::ScopedDataPipeConsumerHandle receive_stream,
               mojo::ScopedDataPipeProducerHandle send_stream) {
@@ -479,7 +472,7 @@ TEST_F(TCPBoundSocketTest, UpgradeToTLS) {
           [&](int net_error,
               mojo::ScopedDataPipeConsumerHandle receive_pipe_handle,
               mojo::ScopedDataPipeProducerHandle send_pipe_handle,
-              const absl::optional<net::SSLInfo>& ssl_info) {
+              const base::Optional<net::SSLInfo>& ssl_info) {
             EXPECT_EQ(net::OK, net_error);
             client_socket_receive_handle = std::move(receive_pipe_handle);
             client_socket_send_handle = std::move(send_pipe_handle);

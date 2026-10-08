@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base;
 
+import android.annotation.TargetApi;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -17,9 +18,9 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.build.annotations.MainDex;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -122,9 +123,8 @@ public class SysUtils {
     }
 
     /**
-     * @return amount of physical ram detected in KB, or 0 if detection failed.
+     * @return Whether or not this device should be considered a low end device.
      */
-    @CalledByNative
     public static int amountOfPhysicalMemoryKB() {
         if (sAmountOfPhysicalMemoryKB == null) {
             sAmountOfPhysicalMemoryKB = detectAmountOfPhysicalMemoryKB();
@@ -156,9 +156,15 @@ public class SysUtils {
 
     public static boolean hasCamera(final Context context) {
         final PackageManager pm = context.getPackageManager();
-        return pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+        // JellyBean support.
+        boolean hasCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            hasCamera |= pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+        }
+        return hasCamera;
     }
 
+    @TargetApi(Build.VERSION_CODES.KITKAT)
     private static boolean detectLowEndDevice() {
         assert CommandLine.isInitialized();
         if (CommandLine.getInstance().hasSwitch(BaseSwitches.ENABLE_LOW_END_DEVICE_MODE)) {

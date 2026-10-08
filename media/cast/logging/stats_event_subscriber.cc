@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,30 +64,35 @@ void StatsEventSubscriber::SimpleHistogram::Reset() {
   buckets_.assign(buckets_.size(), 0);
 }
 
-base::Value::List StatsEventSubscriber::SimpleHistogram::GetHistogram() const {
-  base::Value::List histo;
+std::unique_ptr<base::ListValue>
+StatsEventSubscriber::SimpleHistogram::GetHistogram() const {
+  std::unique_ptr<base::ListValue> histo(new base::ListValue);
+
+  std::unique_ptr<base::DictionaryValue> bucket(new base::DictionaryValue);
 
   if (buckets_.front()) {
-    base::Value::Dict bucket;
-    bucket.Set(base::StringPrintf("<%" PRId64, min_), buckets_.front());
-    histo.Append(std::move(bucket));
+    bucket->SetInteger(base::StringPrintf("<%" PRId64, min_),
+                       buckets_.front());
+    histo->Append(std::move(bucket));
   }
 
   for (size_t i = 1; i < buckets_.size() - 1; i++) {
     if (!buckets_[i])
       continue;
-    base::Value::Dict bucket;
+    bucket.reset(new base::DictionaryValue);
     int64_t lower = min_ + (i - 1) * width_;
     int64_t upper = lower + width_ - 1;
-    bucket.Set(base::StringPrintf("%" PRId64 "-%" PRId64, lower, upper),
-               buckets_[i]);
-    histo.Append(std::move(bucket));
+    bucket->SetInteger(
+        base::StringPrintf("%" PRId64 "-%" PRId64, lower, upper),
+        buckets_[i]);
+    histo->Append(std::move(bucket));
   }
 
   if (buckets_.back()) {
-    base::Value::Dict bucket;
-    bucket.Set(base::StringPrintf(">=%" PRId64, max_), buckets_.back());
-    histo.Append(std::move(bucket));
+    bucket.reset(new base::DictionaryValue);
+    bucket->SetInteger(base::StringPrintf(">=%" PRId64, max_),
+                       buckets_.back());
+    histo->Append(std::move(bucket));
   }
   return histo;
 }
@@ -154,7 +159,7 @@ void StatsEventSubscriber::OnReceiveFrameEvent(const FrameEvent& frame_event) {
     base::TimeDelta delay_delta = frame_event.delay_delta;
 
     // Positive delay_delta means the frame is late.
-    if (delay_delta.is_positive()) {
+    if (delay_delta > base::TimeDelta()) {
       num_frames_late_++;
       histograms_[LATE_FRAME_MS_HISTO]->Add(delay_delta.InMillisecondsF());
     }
@@ -220,25 +225,26 @@ void StatsEventSubscriber::UpdateFirstLastEventTime(base::TimeTicks timestamp,
   }
 }
 
-base::Value::Dict StatsEventSubscriber::GetStats() const {
+std::unique_ptr<base::DictionaryValue> StatsEventSubscriber::GetStats() const {
   StatsMap stats_map;
   GetStatsInternal(&stats_map);
-  base::Value::Dict ret;
+  auto ret = std::make_unique<base::DictionaryValue>();
 
-  base::Value::Dict stats;
+  auto stats = std::make_unique<base::DictionaryValue>();
   for (StatsMap::const_iterator it = stats_map.begin(); it != stats_map.end();
        ++it) {
     // Round to 3 digits after the decimal point.
-    stats.Set(CastStatToString(it->first), round(it->second * 1000.0) / 1000.0);
+    stats->SetDouble(CastStatToString(it->first),
+                     round(it->second * 1000.0) / 1000.0);
   }
 
   // Populate all histograms.
   for (auto it = histograms_.begin(); it != histograms_.end(); ++it) {
-    stats.Set(CastStatToString(it->first), it->second->GetHistogram());
+    stats->Set(CastStatToString(it->first), it->second->GetHistogram());
   }
 
-  ret.Set(event_media_type_ == AUDIO_EVENT ? "audio" : "video",
-          std::move(stats));
+  ret->Set(event_media_type_ == AUDIO_EVENT ? "audio" : "video",
+           std::move(stats));
 
   return ret;
 }
@@ -658,7 +664,7 @@ void StatsEventSubscriber::PopulateFpsStat(base::TimeTicks end_time,
     double fps = 0.0;
     base::TimeDelta duration = (end_time - start_time_);
     int count = it->second.event_counter;
-    if (duration.is_positive())
+    if (duration > base::TimeDelta())
       fps = count / duration.InSecondsF();
     stats_map->insert(std::make_pair(stat, fps));
   }
@@ -688,7 +694,7 @@ void StatsEventSubscriber::PopulateFrameBitrateStat(base::TimeTicks end_time,
   if (it != frame_stats_.end()) {
     double kbps = 0.0;
     base::TimeDelta duration = end_time - start_time_;
-    if (duration.is_positive()) {
+    if (duration > base::TimeDelta()) {
       kbps = it->second.sum_size / duration.InMillisecondsF() * 8;
     }
 
@@ -705,7 +711,7 @@ void StatsEventSubscriber::PopulatePacketBitrateStat(
   if (it != packet_stats_.end()) {
     double kbps = 0;
     base::TimeDelta duration = end_time - start_time_;
-    if (duration.is_positive()) {
+    if (duration > base::TimeDelta()) {
       kbps = it->second.sum_size / duration.InMillisecondsF() * 8;
     }
 

@@ -1,17 +1,16 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
-  await TestRunner.loadTestModule('extensions_test_runner');
-  await TestRunner.loadLegacyModule('timeline'); await TestRunner.loadTestModule('performance_test_runner');
+  await TestRunner.loadModule('extensions_test_runner');
+  await TestRunner.loadModule('performance_test_runner');
   await TestRunner.showPanel('timeline');
 
   TestRunner.enableTimelineExtensionAndStart = function(callback) {
-    const traceProviders = Extensions.extensionServer.traceProviders();
-    const provider = traceProviders[traceProviders.length - 1];
+    const provider = Extensions.extensionServer.traceProviders().peekLast();
     const timelinePanel = UI.panels.timeline;
-    const setting = Timeline.TimelinePanel.settingForTraceProvider(provider);
+    const setting = Timeline.TimelinePanel._settingForTraceProvider(provider);
     setting.set(true);
     TestRunner.addResult(`Provider short display name: ${provider.shortDisplayName()}`);
     TestRunner.addResult(`Provider long display name: ${provider.longDisplayName()}`);

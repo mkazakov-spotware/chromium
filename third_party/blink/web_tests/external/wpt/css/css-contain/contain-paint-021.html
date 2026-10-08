@@ -6,11 +6,10 @@
 <link rel="match" href="../reference/nothing.html">
 <meta name=assert content="Elements in which paint containment doesn't apply, do not create a stacking context.">
 <style>
-rt {
+div {
   display: ruby-text;
   contain: paint;
   background: white;
-  overflow: hidden;
 }
 span {
   position: relative;
@@ -19,4 +18,4 @@ span {
 </style>
 
 <p>There should be nothing below.</p>
-<ruby><rt><span>FAIL</span></rt></ruby>
+<div><span>FAIL</span></div>

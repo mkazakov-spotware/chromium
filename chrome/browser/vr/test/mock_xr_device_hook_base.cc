@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/test/mock_xr_device_hook_base.h"
 #include "content/public/test/xr_test_utils.h"
 #include "device/vr/public/mojom/isolated_xr_service.mojom.h"
-#include "mojo/public/cpp/bindings/sync_call_restrictions.h"
 
 // TODO(https://crbug.com/891832): Remove these conversion functions as part of
 // the switch to only mojom types.
@@ -43,7 +42,7 @@ device_test::mojom::ControllerFrameDataPtr DeviceToMojoControllerFrameData(
   ret->pose_data->device_to_origin = gfx::Transform();
   for (int col = 0; col < 4; ++col) {
     for (int row = 0; row < 4; ++row) {
-      ret->pose_data->device_to_origin->set_rc(
+      ret->pose_data->device_to_origin->matrix().set(
           row, col, data.pose_data.device_to_origin[row + col * 4]);
     }
   }
@@ -76,7 +75,7 @@ void MockXRDeviceHookBase::StopHooking() {
 }
 
 void MockXRDeviceHookBase::OnFrameSubmitted(
-    std::vector<device_test::mojom::ViewDataPtr> views,
+    device_test::mojom::SubmittedFrameDataPtr frame_data,
     device_test::mojom::XRTestHook::OnFrameSubmittedCallback callback) {
   std::move(callback).Run();
 }
@@ -217,13 +216,4 @@ device::ControllerFrameData MockXRDeviceHookBase::CreateValidController(
 
 void MockXRDeviceHookBase::PopulateEvent(device_test::mojom::EventData data) {
   event_data_queue_.push(data);
-}
-
-void MockXRDeviceHookBase::WaitGetCanCreateSession(
-    device_test::mojom::XRTestHook::WaitGetCanCreateSessionCallback callback) {
-  std::move(callback).Run(can_create_session_);
-}
-
-void MockXRDeviceHookBase::SetCanCreateSession(bool can_create_session) {
-  can_create_session_ = can_create_session;
 }

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,6 @@ namespace blink {
 struct MessageFromServiceWorker {
   MessageFromServiceWorker(WebServiceWorkerObjectInfo source,
                            blink::TransferableMessage message);
-
-  MessageFromServiceWorker(const MessageFromServiceWorker&) = delete;
-  MessageFromServiceWorker& operator=(const MessageFromServiceWorker&) = delete;
-
   virtual ~MessageFromServiceWorker();
 
   // The service worker that posted the message.
@@ -26,6 +22,9 @@ struct MessageFromServiceWorker {
 
   // The message.
   blink::TransferableMessage message;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MessageFromServiceWorker);
 };
 
 }  // namespace blink

@@ -1,14 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/ipc/common/device_perf_info_mojom_traits.h"
 
-#include "build/build_config.h"
-
 namespace mojo {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // static
 gpu::mojom::Direct3DFeatureLevel
 EnumTraits<gpu::mojom::Direct3DFeatureLevel, D3D_FEATURE_LEVEL>::ToMojom(
@@ -34,8 +32,6 @@ EnumTraits<gpu::mojom::Direct3DFeatureLevel, D3D_FEATURE_LEVEL>::ToMojom(
       return gpu::mojom::Direct3DFeatureLevel::k12_0;
     case D3D_FEATURE_LEVEL_12_1:
       return gpu::mojom::Direct3DFeatureLevel::k12_1;
-    case D3D_FEATURE_LEVEL_12_2:
-      return gpu::mojom::Direct3DFeatureLevel::k12_2;
   }
   NOTREACHED() << "Invalid D3D_FEATURE_LEVEL:" << d3d_feature_level;
   return gpu::mojom::Direct3DFeatureLevel::k1_0_Core;
@@ -76,14 +72,11 @@ bool EnumTraits<gpu::mojom::Direct3DFeatureLevel, D3D_FEATURE_LEVEL>::FromMojom(
     case gpu::mojom::Direct3DFeatureLevel::k12_1:
       *out = D3D_FEATURE_LEVEL_12_1;
       return true;
-    case gpu::mojom::Direct3DFeatureLevel::k12_2:
-      *out = D3D_FEATURE_LEVEL_12_2;
-      return true;
   }
   NOTREACHED() << "Invalid D3D_FEATURE_LEVEL: " << input;
   return false;
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 gpu::mojom::HasDiscreteGpu
 EnumTraits<gpu::mojom::HasDiscreteGpu, gpu::HasDiscreteGpu>::ToMojom(
@@ -127,11 +120,11 @@ bool StructTraits<gpu::mojom::DevicePerfInfoDataView, gpu::DevicePerfInfo>::
   out->total_disk_space_mb = data.total_disk_space_mb();
   out->hardware_concurrency = data.hardware_concurrency();
   bool rt = true;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   out->system_commit_limit_mb = data.system_commit_limit_mb();
   rt &= data.ReadD3d11FeatureLevel(&out->d3d11_feature_level);
   rt &= data.ReadHasDiscreteGpu(&out->has_discrete_gpu);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
   return rt;
 }
 

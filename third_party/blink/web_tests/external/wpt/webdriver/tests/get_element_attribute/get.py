@@ -1,8 +1,7 @@
 import pytest
 
-from webdriver import Element
-
 from tests.support.asserts import assert_error, assert_success
+from tests.support.inline import inline
 
 
 def get_element_attribute(session, element, attr):
@@ -14,14 +13,8 @@ def get_element_attribute(session, element, attr):
 
 
 def test_no_top_browsing_context(session, closed_window):
-    original_handle, element = closed_window
-    response = get_element_attribute(session, element.id, "id")
-    assert_error(response, "no such window")
     response = get_element_attribute(session, "foo", "id")
     assert_error(response, "no such window")
-    session.window_handle = original_handle
-    response = get_element_attribute(session, element.id, "id")
-    assert_error(response, "no such element")
 
 
 def test_no_browsing_context(session, closed_frame):
@@ -29,46 +22,21 @@ def test_no_browsing_context(session, closed_frame):
     assert_error(response, "no such window")
 
 
-def test_no_such_element_with_invalid_value(session):
-    element = Element("foo", session)
-
-    response = get_element_attribute(session, element.id, "id")
-    assert_error(response, "no such element")
-
-
-def test_no_such_element_from_other_window_handle(session, inline):
-    session.url = inline("<div id='parent'><p/>")
-    element = session.find.css("#parent", all=False)
-
-    new_handle = session.new_window()
-    session.window_handle = new_handle
-
-    response = get_element_attribute(session, element.id, "id")
-    assert_error(response, "no such element")
+def test_element_not_found(session):
+    # 13.2 Step 3
+    result = get_element_attribute(session, "foo", "id")
+    assert_error(result, "no such element")
 
 
-def test_no_such_element_from_other_frame(session, iframe, inline):
-    session.url = inline(iframe("<div id='parent'><p/>"))
-
-    frame = session.find.css("iframe", all=False)
-    session.switch_frame(frame)
-
-    element = session.find.css("#parent", all=False)
-    session.switch_frame("parent")
-
-    response = get_element_attribute(session, element.id, "id")
-    assert_error(response, "no such element")
-
-
-@pytest.mark.parametrize("as_frame", [False, True], ids=["top_context", "child_context"])
-def test_stale_element_reference(session, stale_element, as_frame):
-    element = stale_element("<input>", "input", as_frame=as_frame)
-
+def test_element_stale(session):
+    session.url = inline("<input id=foo>")
+    element = session.find.css("input", all=False)
+    session.refresh()
     result = get_element_attribute(session, element.id, "id")
     assert_error(result, "stale element reference")
 
 
-def test_normal(session, inline):
+def test_normal(session):
     # 13.2 Step 5
     session.url = inline("<input type=checkbox>")
     element = session.find.css("input", all=False)
@@ -105,7 +73,7 @@ def test_normal(session, inline):
     ("track", ["default"]),
     ("video", ["autoplay", "controls", "loop", "muted"])
 ])
-def test_boolean_attribute(session, inline, tag, attrs):
+def test_boolean_attribute(session, tag, attrs):
     for attr in attrs:
         session.url = inline("<{0} {1}>".format(tag, attr))
         element = session.find.css(tag, all=False)
@@ -113,7 +81,7 @@ def test_boolean_attribute(session, inline, tag, attrs):
         assert_success(result, "true")
 
 
-def test_global_boolean_attributes(session, inline):
+def test_global_boolean_attributes(session):
     session.url = inline("<p hidden>foo")
     element = session.find.css("p", all=False)
     result = get_element_attribute(session, element.id, "hidden")
@@ -135,14 +103,3 @@ def test_global_boolean_attributes(session, inline):
     element = session.find.css("p", all=False)
     result = get_element_attribute(session, element.id, "itemscope")
     assert_success(result, None)
-
-
-@pytest.mark.parametrize("is_relative", [True, False], ids=["relative", "absolute"])
-def test_anchor_href(session, inline, url, is_relative):
-    href = "/foo.html" if is_relative else url("/foo.html")
-
-    session.url = inline("<a href='{}'>foo</a>".format(href))
-    element = session.find.css("a", all=False)
-
-    response = get_element_attribute(session, element.id, "href")
-    assert_success(response, href)

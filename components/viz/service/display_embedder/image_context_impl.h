@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,15 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "components/viz/common/quads/aggregated_render_pass.h"
-#include "components/viz/common/resources/shared_image_format.h"
+#include "components/viz/common/resources/resource_format.h"
 #include "components/viz/service/display/external_use_client.h"
 #include "gpu/command_buffer/common/mailbox_holder.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
+#include "gpu/command_buffer/service/shared_image_representation.h"
 #include "gpu/ipc/common/vulkan_ycbcr_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/gpu/GrBackendSurface.h"
@@ -48,22 +48,25 @@ class ImageContextImpl final : public ExternalUseClient::ImageContext {
  public:
   ImageContextImpl(const gpu::MailboxHolder& mailbox_holder,
                    const gfx::Size& size,
-                   SharedImageFormat format,
-                   bool maybe_concurrent_reads,
-                   const absl::optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
-                   sk_sp<SkColorSpace> color_space,
-                   bool allow_keeping_read_access = true,
-                   bool raw_draw_if_possible = false);
+                   ResourceFormat resource_format,
+                   const base::Optional<gpu::VulkanYCbCrInfo>& ycbcr_info,
+                   sk_sp<SkColorSpace> color_space);
 
-  ImageContextImpl(const ImageContextImpl&) = delete;
-  ImageContextImpl& operator=(const ImageContextImpl&) = delete;
-
+  // TODO(https://crbug.com/991659): The use of ImageContext for
+  // SkiaOutputSurfaceImplOnGpu::OffscreenSurface can be factored out. This
+  // would make ImageContextImpl cleaner and handling of render passes less
+  // confusing.
+  ImageContextImpl(AggregatedRenderPassId render_pass_id,
+                   const gfx::Size& size,
+                   ResourceFormat resource_format,
+                   bool mipmap,
+                   sk_sp<SkColorSpace> color_space);
   ~ImageContextImpl() final;
 
   void OnContextLost() final;
 
-  // Returns true if there might be concurrent reads to the backing texture.
-  bool maybe_concurrent_reads() const { return maybe_concurrent_reads_; }
+  AggregatedRenderPassId render_pass_id() const { return render_pass_id_; }
+  GrMipMapped mipmap() const { return mipmap_; }
 
   void set_promise_image_texture(
       sk_sp<SkPromiseImageTexture> promise_image_texture) {
@@ -73,9 +76,9 @@ class ImageContextImpl final : public ExternalUseClient::ImageContext {
   SkPromiseImageTexture* promise_image_texture() const {
     return promise_image_texture_;
   }
-  std::unique_ptr<GrBackendSurfaceMutableState> TakeAccessEndState() const {
+  GrBackendSurfaceMutableState* end_access_state() const {
     return representation_scoped_read_access_
-               ? representation_scoped_read_access_->TakeEndState()
+               ? representation_scoped_read_access_->end_state()
                : nullptr;
   }
 
@@ -85,8 +88,6 @@ class ImageContextImpl final : public ExternalUseClient::ImageContext {
       gpu::MailboxManager* mailbox_manager,
       std::vector<GrBackendSemaphore>* begin_semaphores,
       std::vector<GrBackendSemaphore>* end_semaphores);
-  bool BeginRasterAccess(
-      gpu::SharedImageRepresentationFactory* representation_factory);
   void EndAccessIfNecessary();
 
  private:
@@ -103,25 +104,21 @@ class ImageContextImpl final : public ExternalUseClient::ImageContext {
   bool BindOrCopyTextureIfNecessary(gpu::TextureBase* texture_base,
                                     gfx::Size* size);
 
-  const bool maybe_concurrent_reads_ = false;
-  const bool allow_keeping_read_access_ = true;
-  const bool raw_draw_if_possible_ = false;
+  const AggregatedRenderPassId render_pass_id_;
+  const GrMipMapped mipmap_ = GrMipMapped::kNo;
 
   // Fallback in case we cannot produce a |representation_|.
-  raw_ptr<gpu::SharedContextState> fallback_context_state_ = nullptr;
+  gpu::SharedContextState* fallback_context_state_ = nullptr;
   GrBackendTexture fallback_texture_;
 
   // Only one of the follow should be non-null at the same time.
   scoped_refptr<gpu::gles2::TexturePassthrough> texture_passthrough_;
-  std::unique_ptr<gpu::SkiaImageRepresentation> representation_;
-  std::unique_ptr<gpu::RasterImageRepresentation> raster_representation_;
+  std::unique_ptr<gpu::SharedImageRepresentationSkia> representation_;
 
   // For scoped read accessing |representation|. It is only accessed on GPU
   // thread.
-  std::unique_ptr<gpu::SkiaImageRepresentation::ScopedReadAccess>
+  std::unique_ptr<gpu::SharedImageRepresentationSkia::ScopedReadAccess>
       representation_scoped_read_access_;
-  std::unique_ptr<gpu::RasterImageRepresentation::ScopedReadAccess>
-      representation_raster_scoped_access_;
 
   // For holding SkPromiseImageTexture create from |fallback_texture| or legacy
   // mailbox.
@@ -129,8 +126,9 @@ class ImageContextImpl final : public ExternalUseClient::ImageContext {
 
   // The |promise_image_texture| is used for fulfilling the promise image. It is
   // used on GPU thread.
-  raw_ptr<SkPromiseImageTexture, DanglingUntriaged> promise_image_texture_ =
-      nullptr;
+  SkPromiseImageTexture* promise_image_texture_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(ImageContextImpl);
 };
 
 }  // namespace viz

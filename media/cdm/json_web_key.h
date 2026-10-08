@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/time/time.h"
 #include "media/base/media_export.h"
 
 namespace media {
@@ -96,6 +97,11 @@ MEDIA_EXPORT void CreateKeyIdsInitData(const KeyIdList& key_ids,
 
 MEDIA_EXPORT std::vector<uint8_t> CreateLicenseReleaseMessage(
     const KeyIdList& key_ids);
+
+MEDIA_EXPORT std::vector<uint8_t> CreateLicenseReleaseMessage(
+    const KeyIdList& key_ids,
+    const base::Time first_decrypt_time,
+    const base::Time latest_decrypt_time);
 
 // Extract the first key from the license request message. Returns true if
 // |license| is a valid license request and contains at least one key,

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 #include "base/i18n/rtl.h"
 #include "base/lazy_instance.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
@@ -24,7 +24,6 @@
 #include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/gfx/vector_icon_types.h"
-#include "ui/gfx/vector_icon_utils.h"
 
 namespace gfx {
 
@@ -73,10 +72,10 @@ const VectorIconRep* GetRepForPxSize(const VectorIcon& icon, int icon_size_px) {
 
 struct CompareIconDescription {
   bool operator()(const IconDescription& a, const IconDescription& b) const {
-    const VectorIcon* a_icon = &*a.icon;
-    const VectorIcon* b_icon = &*b.icon;
-    const VectorIcon* a_badge = &*a.badge_icon;
-    const VectorIcon* b_badge = &*b.badge_icon;
+    const VectorIcon* a_icon = &a.icon;
+    const VectorIcon* b_icon = &b.icon;
+    const VectorIcon* a_badge = &a.badge_icon;
+    const VectorIcon* b_badge = &b.badge_icon;
     return std::tie(a_icon, a.dip_size, a.color, a_badge) <
            std::tie(b_icon, b.dip_size, b.color, b_badge);
   }
@@ -87,10 +86,6 @@ class PathParser {
  public:
   PathParser(const PathElement* path_elements, size_t path_size)
       : path_elements_(path_elements), path_size_(path_size) {}
-
-  PathParser(const PathParser&) = delete;
-  PathParser& operator=(const PathParser&) = delete;
-
   ~PathParser() {}
 
   void Advance() { command_index_ += GetArgumentCount() + 1; }
@@ -161,9 +156,11 @@ class PathParser {
     return 0;
   }
 
-  raw_ptr<const PathElement> path_elements_;
+  const PathElement* path_elements_;
   size_t path_size_;
   size_t command_index_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(PathParser);
 };
 
 // Translates a string such as "MOVE_TO" into a command such as MOVE_TO.
@@ -482,21 +479,18 @@ class VectorIconSource : public CanvasImageSource {
         data_(kNoneIcon, dip_size, color, &kNoneIcon),
         path_(PathFromSource(definition)) {}
 
-  VectorIconSource(const VectorIconSource&) = delete;
-  VectorIconSource& operator=(const VectorIconSource&) = delete;
-
   ~VectorIconSource() override {}
 
   // CanvasImageSource:
   bool HasRepresentationAtAllScales() const override {
-    return !data_.icon->is_empty();
+    return !data_.icon.is_empty();
   }
 
   void Draw(Canvas* canvas) override {
     if (path_.empty()) {
-      PaintVectorIcon(canvas, *data_.icon, size_.width(), data_.color);
-      if (!data_.badge_icon->is_empty())
-        PaintVectorIcon(canvas, *data_.badge_icon, size_.width(), data_.color);
+      PaintVectorIcon(canvas, data_.icon, size_.width(), data_.color);
+      if (!data_.badge_icon.is_empty())
+        PaintVectorIcon(canvas, data_.badge_icon, size_.width(), data_.color);
     } else {
       PaintPath(canvas, path_.data(), path_.size(), size_.width(), data_.color);
     }
@@ -505,6 +499,8 @@ class VectorIconSource : public CanvasImageSource {
  private:
   const IconDescription data_;
   const std::vector<PathElement> path_;
+
+  DISALLOW_COPY_AND_ASSIGN(VectorIconSource);
 };
 
 // This class caches vector icons (as ImageSkia) so they don't have to be drawn
@@ -513,10 +509,6 @@ class VectorIconSource : public CanvasImageSource {
 class VectorIconCache {
  public:
   VectorIconCache() {}
-
-  VectorIconCache(const VectorIconCache&) = delete;
-  VectorIconCache& operator=(const VectorIconCache&) = delete;
-
   ~VectorIconCache() {}
 
   ImageSkia GetOrCreateIcon(const IconDescription& description) {
@@ -532,6 +524,8 @@ class VectorIconCache {
 
  private:
   std::map<IconDescription, ImageSkia, CompareIconDescription> images_;
+
+  DISALLOW_COPY_AND_ASSIGN(VectorIconCache);
 };
 
 static base::LazyInstance<VectorIconCache>::DestructorAtExit g_icon_cache =
@@ -574,7 +568,7 @@ void PaintVectorIcon(Canvas* canvas,
 }
 
 ImageSkia CreateVectorIcon(const IconDescription& params) {
-  if (params.icon->is_empty())
+  if (params.icon.is_empty())
     return ImageSkia();
 
   return g_icon_cache.Get().GetOrCreateIcon(params);
@@ -602,6 +596,18 @@ ImageSkia CreateVectorIconFromSource(const std::string& source,
                                      SkColor color) {
   return CanvasImageSource::MakeImageSkia<VectorIconSource>(source, dip_size,
                                                             color);
+}
+
+int GetDefaultSizeOfVectorIcon(const VectorIcon& icon) {
+  if (icon.is_empty())
+    return kEmptyIconSize;
+  DCHECK_EQ(icon.reps[icon.reps_size - 1].path[0].command, CANVAS_DIMENSIONS)
+      << " " << icon.name
+      << " has no size in its icon definition, and it seems unlikely you want "
+         "to display at the default of 48dip. Please specify a size in "
+         "CreateVectorIcon().";
+  const PathElement* default_icon_path = icon.reps[icon.reps_size - 1].path;
+  return GetCanvasDimensions(default_icon_path);
 }
 
 }  // namespace gfx

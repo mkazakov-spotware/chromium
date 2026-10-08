@@ -1,10 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef DEVICE_BLUETOOTH_TEST_TEST_BLUETOOTH_ADVERTISEMENT_OBSERVER_H_
 #define DEVICE_BLUETOOTH_TEST_TEST_BLUETOOTH_ADVERTISEMENT_OBSERVER_H_
 
+#include <utility>
+
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 
@@ -17,12 +20,6 @@ class TestBluetoothAdvertisementObserver
  public:
   explicit TestBluetoothAdvertisementObserver(
       scoped_refptr<BluetoothAdvertisement> advertisement);
-
-  TestBluetoothAdvertisementObserver(
-      const TestBluetoothAdvertisementObserver&) = delete;
-  TestBluetoothAdvertisementObserver& operator=(
-      const TestBluetoothAdvertisementObserver&) = delete;
-
   ~TestBluetoothAdvertisementObserver() override;
 
   // BluetoothAdvertisement::Observer:
@@ -35,6 +32,8 @@ class TestBluetoothAdvertisementObserver
   bool released_ = false;
   size_t released_count_ = 0;
   scoped_refptr<BluetoothAdvertisement> advertisement_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestBluetoothAdvertisementObserver);
 };
 
 }  // namespace device

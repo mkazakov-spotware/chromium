@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,9 +59,6 @@ class ZygoteForkDelegate {
     // The child process is required to write to the socket after
     // successfully forking.
     kPIDOracleFDIndex,
-    // A descriptor for a read-only shared memory region that can be mapped and
-    // used to initialize a base::FieldTrialList.
-    kFieldTrialFDIndex,
     kNumPassedFDs  // Number of FDs in the vector passed to Fork().
   };
 
@@ -72,7 +69,6 @@ class ZygoteForkDelegate {
   // Delegate is responsible for communicating the channel ID to the
   // newly created child process.
   virtual pid_t Fork(const std::string& process_type,
-                     const std::vector<std::string>& args,
                      const std::vector<int>& fds,
                      const std::string& channel_id) = 0;
 

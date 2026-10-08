@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "components/download/internal/background_service/model.h"
@@ -32,8 +33,7 @@ class FileMonitor {
   // in either database.
   virtual void DeleteUnknownFiles(
       const Model::EntryList& known_entries,
-      const std::vector<DriverEntry>& known_driver_entries,
-      base::OnceClosure completion_callback) = 0;
+      const std::vector<DriverEntry>& known_driver_entries) = 0;
 
   // Deletes the files associated with the |entries|.
   virtual void CleanupFilesForCompletedEntries(

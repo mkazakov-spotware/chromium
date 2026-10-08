@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,7 @@ namespace autofill {
 
 SaveUPIBubbleControllerImpl::SaveUPIBubbleControllerImpl(
     content::WebContents* web_contents)
-    : content::WebContentsUserData<SaveUPIBubbleControllerImpl>(*web_contents) {
-}
+    : content::WebContentsObserver(web_contents) {}
 
 SaveUPIBubbleControllerImpl::~SaveUPIBubbleControllerImpl() = default;
 
@@ -33,7 +32,7 @@ void SaveUPIBubbleControllerImpl::OfferUpiIdLocalSave(
   ShowBubble();
 }
 
-std::u16string SaveUPIBubbleControllerImpl::GetUpiId() const {
+base::string16 SaveUPIBubbleControllerImpl::GetUpiId() const {
   return base::UTF8ToUTF16(upi_id_);
 }
 
@@ -52,13 +51,13 @@ void SaveUPIBubbleControllerImpl::ShowBubble() {
 
   // TODO(crbug.com/986289) Show an icon on the omnibar when saving is proposed.
 
-  Browser* browser = chrome::FindBrowserWithWebContents(&GetWebContents());
+  Browser* browser = chrome::FindBrowserWithWebContents(web_contents());
   save_upi_bubble_ =
       browser->window()->GetAutofillBubbleHandler()->ShowSaveUPIBubble(
-          &GetWebContents(), this);
+          web_contents(), this);
   DCHECK(save_upi_bubble_);
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(SaveUPIBubbleControllerImpl);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(SaveUPIBubbleControllerImpl)
 
 }  // namespace autofill

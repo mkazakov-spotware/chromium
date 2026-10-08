@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,8 +45,7 @@ bool CheckChildProcessSecurityPolicyForURL(content::RenderFrameHost* frame,
 
   content::ChildProcessSecurityPolicy* policy =
       content::ChildProcessSecurityPolicy::GetInstance();
-  if (!policy->CanAccessDataForOrigin(frame->GetProcess()->GetID(),
-                                      url::Origin::Create(form_url))) {
+  if (!policy->CanAccessDataForOrigin(frame->GetProcess()->GetID(), form_url)) {
     SYSLOG(WARNING) << "Killing renderer: illegal password access. Reason: "
                     << static_cast<int>(reason);
     bad_message::ReceivedBadMessage(frame->GetProcess(), reason);
@@ -86,16 +85,6 @@ bool CheckChildProcessSecurityPolicy(
             frame, form_data.url, reason)) {
       return false;
     }
-  }
-  return true;
-}
-
-bool CheckFrameNotPrerendering(content::RenderFrameHost* frame) {
-  if (frame->GetLifecycleState() ==
-      content::RenderFrameHost::LifecycleState::kPrerendering) {
-    bad_message::ReceivedBadMessage(
-        frame->GetProcess(), BadMessageReason::CPMD_BAD_ORIGIN_PRERENDERING);
-    return false;
   }
   return true;
 }

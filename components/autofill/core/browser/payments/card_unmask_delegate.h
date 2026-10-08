@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 
 namespace autofill {
 
@@ -18,13 +19,16 @@ class CardUnmaskDelegate {
     ~UserProvidedUnmaskDetails();
 
     // User input data.
-    std::u16string cvc;
+    base::string16 cvc;
 
     // Two digit month.
-    std::u16string exp_month;
+    base::string16 exp_month;
 
     // Four digit year.
-    std::u16string exp_year;
+    base::string16 exp_year;
+
+    // State of "copy to this device" checkbox.
+    bool should_store_pan;
 
     // User is opting-in for FIDO Authentication for future card unmasking.
     bool enable_fido_auth = false;

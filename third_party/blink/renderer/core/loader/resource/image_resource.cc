@@ -48,6 +48,7 @@
 #include "third_party/blink/renderer/platform/loader/fetch/unique_identifier.h"
 #include "third_party/blink/renderer/platform/network/http_parsers.h"
 #include "third_party/blink/renderer/platform/network/network_utils.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/weborigin/reporting_disposition.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
@@ -63,7 +64,7 @@ namespace {
 // The amount of time to wait before informing the clients that the image has
 // been updated (in seconds). This effectively throttles invalidations that
 // result from new data arriving for this image.
-constexpr auto kFlushDelay = base::Seconds(1);
+constexpr auto kFlushDelay = base::TimeDelta::FromSeconds(1);
 
 }  // namespace
 
@@ -100,10 +101,10 @@ class ImageResource::ImageResourceInfoImpl final
   bool HasCacheControlNoStoreHeader() const override {
     return resource_->HasCacheControlNoStoreHeader();
   }
-  absl::optional<ResourceError> GetResourceError() const override {
+  base::Optional<ResourceError> GetResourceError() const override {
     if (resource_->LoadFailedOrCanceled())
       return resource_->GetResourceError();
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   void SetDecodedSize(size_t size) override { resource_->SetDecodedSize(size); }
@@ -140,18 +141,6 @@ class ImageResource::ImageResourceInfoImpl final
     return &resource_->Options().unsupported_image_mime_types->data;
   }
 
-  absl::optional<WebURLRequest::Priority> RequestPriority() const override {
-    auto priority = resource_->GetResourceRequest().Priority();
-    if (priority == WebURLRequest::Priority::kUnresolved) {
-      // This can happen for image documents (e.g. when `<iframe
-      // src="title.png">` is the LCP), because the `ImageResource` isn't
-      // associated with `ResourceLoader` in such cases. For now, consider the
-      // priority not available for such cases by returning nullopt.
-      return absl::nullopt;
-    }
-    return priority;
-  }
-
   const Member<ImageResource> resource_;
 };
 
@@ -177,23 +166,14 @@ ImageResource* ImageResource::Fetch(FetchParameters& params,
     params.SetRequestDestination(network::mojom::RequestDestination::kImage);
   }
 
-  // If the fetch originated from user agent CSS we do not need to check CSP.
-  bool is_user_agent_resource = params.Options().initiator_info.name ==
-                                fetch_initiator_type_names::kUacss;
-  if (is_user_agent_resource) {
-    params.SetContentSecurityCheck(
-        network::mojom::CSPDisposition::DO_NOT_CHECK);
-  }
-
-  auto* resource = To<ImageResource>(
+  ImageResource* resource = ToImageResource(
       fetcher->RequestResource(params, ImageResourceFactory(), nullptr));
 
   // If the fetch originated from user agent CSS we should mark it as a user
   // agent resource.
-  if (is_user_agent_resource) {
+  if (params.Options().initiator_info.name ==
+      fetch_initiator_type_names::kUacss)
     resource->FlagAsUserAgentResource();
-  }
-
   return resource;
 }
 
@@ -252,8 +232,8 @@ void ImageResource::OnMemoryDump(WebMemoryDumpLevelOfDetail level_of_detail,
   Resource::OnMemoryDump(level_of_detail, memory_dump);
   const String name = GetMemoryDumpName() + "/image_content";
   auto* dump = memory_dump->CreateMemoryAllocatorDump(name);
-  if (content_->HasImage() && content_->GetImage()->HasData())
-    dump->AddScalar("size", "bytes", content_->GetImage()->DataSize());
+  if (content_->HasImage() && content_->GetImage()->Data())
+    dump->AddScalar("size", "bytes", content_->GetImage()->Data()->size());
 }
 
 void ImageResource::Trace(Visitor* visitor) const {
@@ -315,7 +295,7 @@ scoped_refptr<const SharedBuffer> ImageResource::ResourceBuffer() const {
 void ImageResource::AppendData(const char* data, size_t length) {
   v8::Isolate::GetCurrent()->AdjustAmountOfExternalAllocatedMemory(length);
   if (multipart_parser_) {
-    multipart_parser_->AppendData(data, base::checked_cast<wtf_size_t>(length));
+    multipart_parser_->AppendData(data, SafeCast<wtf_size_t>(length));
   } else {
     Resource::AppendData(data, length);
 
@@ -347,11 +327,10 @@ void ImageResource::AppendData(const char* data, size_t length) {
       DCHECK_LE(last_flush_time_, now);
       base::TimeDelta flush_delay =
           std::max(base::TimeDelta(), last_flush_time_ - now + kFlushDelay);
-      task_runner->PostDelayedTask(
-          FROM_HERE,
-          WTF::BindOnce(&ImageResource::FlushImageIfNeeded,
-                        WrapWeakPersistent(this)),
-          flush_delay);
+      task_runner->PostDelayedTask(FROM_HERE,
+                                   WTF::Bind(&ImageResource::FlushImageIfNeeded,
+                                             WrapWeakPersistent(this)),
+                                   flush_delay);
       is_pending_flushing_ = true;
     }
   }
@@ -393,7 +372,7 @@ void ImageResource::DecodeError(bool all_data_received) {
     DCHECK_EQ(result, ImageResourceContent::UpdateImageResult::kNoDecodeError);
   }
 
-  MemoryCache::Get()->Remove(this);
+  GetMemoryCache()->Remove(this);
 }
 
 void ImageResource::UpdateImageAndClearBuffer() {
@@ -446,7 +425,7 @@ void ImageResource::ResponseReceived(const ResourceResponse& response) {
     Vector<char> boundary = network_utils::ParseMultipartBoundary(
         response.HttpHeaderField(http_names::kContentType));
     // If there's no boundary, just handle the request normally.
-    if (!boundary.empty()) {
+    if (!boundary.IsEmpty()) {
       multipart_parser_ = MakeGarbageCollected<MultipartImageResourceParser>(
           response, boundary, this);
     }
@@ -515,8 +494,7 @@ const ImageResourceContent* ImageResource::GetContent() const {
   return content_;
 }
 
-std::pair<ResourcePriority, ResourcePriority>
-ImageResource::PriorityFromObservers() {
+ResourcePriority ImageResource::PriorityFromObservers() {
   return GetContent()->PriorityFromObservers();
 }
 

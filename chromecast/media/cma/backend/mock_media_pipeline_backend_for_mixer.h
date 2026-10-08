@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,13 +32,10 @@ class MockMediaPipelineBackendForMixer : public MediaPipelineBackendForMixer {
   }
 
   int64_t MonotonicClockNow() const override;
-
-  MockMediaPipelineBackendForMixer(const MockMediaPipelineBackendForMixer&) =
-      delete;
-  MockMediaPipelineBackendForMixer& operator=(
-      const MockMediaPipelineBackendForMixer&) = delete;
-
   ~MockMediaPipelineBackendForMixer() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockMediaPipelineBackendForMixer);
 };
 
 inline MockMediaPipelineBackendForMixer::~MockMediaPipelineBackendForMixer() =

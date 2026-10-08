@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_METRICS_DESKTOP_SESSION_DURATION_DESKTOP_PROFILE_SESSION_DURATIONS_SERVICE_H_
 #define CHROME_BROWSER_METRICS_DESKTOP_SESSION_DURATION_DESKTOP_PROFILE_SESSION_DURATIONS_SERVICE_H_
 
-#include "base/scoped_observation.h"
-#include "chrome/browser/download/download_session_durations_metrics_recorder.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_tracker.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/password_manager/core/browser/password_session_durations_metrics_recorder.h"
@@ -34,16 +33,7 @@ class DesktopProfileSessionDurationsService
       syncer::SyncService* sync_service,
       signin::IdentityManager* identity_manager,
       DesktopSessionDurationTracker* tracker);
-
-  DesktopProfileSessionDurationsService(
-      const DesktopProfileSessionDurationsService&) = delete;
-  DesktopProfileSessionDurationsService& operator=(
-      const DesktopProfileSessionDurationsService&) = delete;
-
   ~DesktopProfileSessionDurationsService() override;
-
-  bool IsSignedIn() const;
-  bool IsSyncing() const;
 
   // DesktopSessionDurationtracker::Observer:
   void OnSessionStarted(base::TimeTicks session_start) override;
@@ -58,12 +48,12 @@ class DesktopProfileSessionDurationsService
       sync_metrics_recorder_;
   std::unique_ptr<password_manager::PasswordSessionDurationsMetricsRecorder>
       password_metrics_recorder_;
-  std::unique_ptr<DownloadSessionDurationsMetricsRecorder>
-      download_metrics_recorder_;
 
-  base::ScopedObservation<DesktopSessionDurationTracker,
-                          DesktopSessionDurationTracker::Observer>
-      session_duration_observation_{this};
+  ScopedObserver<DesktopSessionDurationTracker,
+                 DesktopSessionDurationTracker::Observer>
+      session_duration_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopProfileSessionDurationsService);
 };
 
 }  // namespace metrics

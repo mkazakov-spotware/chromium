@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,10 @@
 
 #include "base/component_export.h"
 #include "base/strings/string_piece.h"
-#include "base/values.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace ui {
 
@@ -25,7 +28,7 @@ typedef std::map<const std::string, std::string> TemplateReplacements;
 // TODO(dschuyler): remove this function by using TemplateReplacements directly.
 COMPONENT_EXPORT(UI_BASE)
 void TemplateReplacementsFromDictionaryValue(
-    const base::Value::Dict& dictionary,
+    const base::DictionaryValue& dictionary,
     TemplateReplacements* replacements);
 
 // Replace $i18n*{foo} in the format string with the value for the foo key in

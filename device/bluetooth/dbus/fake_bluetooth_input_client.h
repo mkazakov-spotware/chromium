@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "dbus/object_path.h"
 #include "dbus/property.h"
@@ -35,10 +36,6 @@ class DEVICE_BLUETOOTH_EXPORT FakeBluetoothInputClient
   };
 
   FakeBluetoothInputClient();
-
-  FakeBluetoothInputClient(const FakeBluetoothInputClient&) = delete;
-  FakeBluetoothInputClient& operator=(const FakeBluetoothInputClient&) = delete;
-
   ~FakeBluetoothInputClient() override;
 
   // BluetoothInputClient overrides
@@ -61,6 +58,8 @@ class DEVICE_BLUETOOTH_EXPORT FakeBluetoothInputClient
 
   // List of observers interested in event notifications from us.
   base::ObserverList<Observer>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeBluetoothInputClient);
 };
 
 }  // namespace bluez

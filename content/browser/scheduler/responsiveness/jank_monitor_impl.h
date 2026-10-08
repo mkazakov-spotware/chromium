@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,16 @@
 #include <atomic>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/lock.h"
+#include "base/task/post_task.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "content/browser/scheduler/responsiveness/metric_source.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/jank_monitor.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace content {
 namespace responsiveness {
@@ -72,8 +71,8 @@ class CONTENT_EXPORT JankMonitorImpl : public content::JankMonitor,
     void DidRunTaskOrEvent(const void* opaque_identifier);
 
     // Checks the jankiness of the target thread. Returns the opaque identifier
-    // of the janky task or absl::nullopt if the current task is not janky.
-    absl::optional<const void*> CheckJankiness();
+    // of the janky task or base::nullopt if the current task is not janky.
+    base::Optional<const void*> CheckJankiness();
     void AssertOnTargetThread();
 
    private:
@@ -87,7 +86,7 @@ class CONTENT_EXPORT JankMonitorImpl : public content::JankMonitor,
       ~TaskMetadata();
 
       base::TimeTicks execution_start_time;
-      raw_ptr<const void, DanglingUntriaged> identifier;
+      const void* identifier;
     };
     std::vector<TaskMetadata> task_execution_metadata_;
 

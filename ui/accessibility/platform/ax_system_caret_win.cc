@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,15 +16,9 @@
 
 namespace ui {
 
-// static
-void AXSystemCaretWin::AXPlatformNodeWinDeleter(AXPlatformNodeWin* ptr) {
-  ptr->Destroy();
-}
-
 AXSystemCaretWin::AXSystemCaretWin(gfx::AcceleratedWidget event_target)
     : event_target_(event_target) {
-  caret_.reset(
-      static_cast<AXPlatformNodeWin*>(AXPlatformNodeWin::Create(this)));
+  caret_ = static_cast<AXPlatformNodeWin*>(AXPlatformNodeWin::Create(this));
   // The caret object is not part of the accessibility tree and so doesn't need
   // a node ID. A globally unique ID is used when firing Win events, retrieved
   // via |unique_id|.
@@ -34,7 +28,7 @@ AXSystemCaretWin::AXSystemCaretWin(gfx::AcceleratedWidget event_target)
   data_.state = 0;
   data_.AddState(ax::mojom::State::kInvisible);
   // According to MSDN, "Edit" should be the name of the caret object.
-  data_.SetName(u"Edit");
+  data_.SetName(L"Edit");
   data_.relative_bounds.offset_container_id = -1;
 
   if (event_target_) {
@@ -48,6 +42,7 @@ AXSystemCaretWin::~AXSystemCaretWin() {
     ::NotifyWinEvent(EVENT_OBJECT_DESTROY, event_target_, OBJID_CARET,
                      -caret_->GetUniqueId());
   }
+  caret_->Destroy();
 }
 
 Microsoft::WRL::ComPtr<IAccessible> AXSystemCaretWin::GetCaret() const {
@@ -101,7 +96,7 @@ const AXNodeData& AXSystemCaretWin::GetData() const {
   return data_;
 }
 
-gfx::NativeViewAccessible AXSystemCaretWin::GetParent() const {
+gfx::NativeViewAccessible AXSystemCaretWin::GetParent() {
   if (!event_target_)
     return nullptr;
 

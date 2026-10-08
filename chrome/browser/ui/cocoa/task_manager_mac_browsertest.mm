@@ -1,12 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <Cocoa/Cocoa.h>
 #include <stddef.h>
 
-#include "base/callback.h"
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
+#include "base/macros.h"
 #include "base/strings/pattern.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/task_manager/task_manager_browsertest_util.h"
@@ -33,8 +34,6 @@
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gtest_mac.h"
-#include "ui/base/test/ui_controls.h"
-#include "url/gurl.h"
 
 namespace task_manager {
 
@@ -43,10 +42,6 @@ using browsertest_util::WaitForTaskManagerRows;
 class TaskManagerMacTest : public InProcessBrowserTest {
  public:
   TaskManagerMacTest() {}
-
-  TaskManagerMacTest(const TaskManagerMacTest&) = delete;
-  TaskManagerMacTest& operator=(const TaskManagerMacTest&) = delete;
-
   ~TaskManagerMacTest() override {}
 
   void SetUpOnMainThread() override {
@@ -71,10 +66,8 @@ class TaskManagerMacTest : public InProcessBrowserTest {
                                : nullptr;
   }
 
-  absl::optional<size_t> TableFirstSelectedRow() const {
-    int index = [[GetTable() selectedRowIndexes] firstIndex];
-    return (index < 0) ? absl::nullopt
-                       : absl::make_optional(static_cast<size_t>(index));
+  int TableFirstSelectedRow() const {
+    return [[GetTable() selectedRowIndexes] firstIndex];
   }
 
   void PressKillButton() {
@@ -87,8 +80,9 @@ class TaskManagerMacTest : public InProcessBrowserTest {
     if (!local_state)
       FAIL();
 
-    local_state->SetDict(prefs::kTaskManagerColumnVisibility,
-                         base::Value::Dict());
+    DictionaryPrefUpdate dict_update(local_state,
+                                     prefs::kTaskManagerColumnVisibility);
+    dict_update->Clear();
   }
 
   void ToggleColumnVisibility(TaskManagerMac* task_manager, int col_id) {
@@ -99,24 +93,29 @@ class TaskManagerMacTest : public InProcessBrowserTest {
   // Looks up a tab based on its tab ID.
   content::WebContents* FindWebContentsByTabId(SessionID tab_id) {
     auto& all_tabs = AllTabContentses();
-    auto it = base::ranges::find(all_tabs, tab_id,
-                                 &sessions::SessionTabHelper::IdForTab);
+    auto tab_id_matches = [tab_id](content::WebContents* web_contents) {
+      return sessions::SessionTabHelper::IdForTab(web_contents) == tab_id;
+    };
+    auto it = std::find_if(all_tabs.begin(), all_tabs.end(), tab_id_matches);
 
     return (it == all_tabs.end()) ? nullptr : *it;
   }
 
   // Returns the current TaskManagerTableModel index for a particular tab. Don't
   // cache this value, since it can change whenever the message loop runs.
-  absl::optional<size_t> FindRowForTab(content::WebContents* tab) {
+  int FindRowForTab(content::WebContents* tab) {
     SessionID tab_id = sessions::SessionTabHelper::IdForTab(tab);
     std::unique_ptr<TaskManagerTester> tester =
-        TaskManagerTester::Create(base::RepeatingClosure());
-    for (size_t i = 0; i < tester->GetRowCount(); ++i) {
+        TaskManagerTester::Create(base::Closure());
+    for (int i = 0; i < tester->GetRowCount(); ++i) {
       if (tester->GetTabId(i) == tab_id)
         return i;
     }
-    return absl::nullopt;
+    return -1;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TaskManagerMacTest);
 };
 
 // Tests that all defined columns have a corresponding string IDs for keying
@@ -139,8 +138,10 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, TableStartsWithDefaultColumns) {
   EXPECT_EQ(0u, [[table sortDescriptors] count]);
   NSArray* tableColumns = [table tableColumns];
   for (size_t i = 0; i < kColumnsSize; ++i) {
-    EXPECT_EQ(kColumns[i].id, [[tableColumns[i] identifier] intValue]);
-    EXPECT_EQ(kColumns[i].default_visibility, ![tableColumns[i] isHidden]);
+    EXPECT_EQ(kColumns[i].id,
+              [[[tableColumns objectAtIndex:i] identifier] intValue]);
+    EXPECT_EQ(kColumns[i].default_visibility,
+              ![[tableColumns objectAtIndex:i] isHidden]);
   }
 }
 
@@ -159,8 +160,10 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, ColumnsSettingsAreRestored) {
   EXPECT_EQ(0u, [[table sortDescriptors] count]);
   NSArray* tableColumns = [table tableColumns];
   for (size_t i = 0; i < kColumnsSize; ++i) {
-    EXPECT_EQ(kColumns[i].id, [[tableColumns[i] identifier] intValue]);
-    EXPECT_EQ(kColumns[i].default_visibility, ![tableColumns[i] isHidden]);
+    EXPECT_EQ(kColumns[i].id,
+              [[[tableColumns objectAtIndex:i] identifier] intValue]);
+    EXPECT_EQ(kColumns[i].default_visibility,
+              ![[tableColumns objectAtIndex:i] isHidden]);
     ToggleColumnVisibility(task_manager, kColumns[i].id);
   }
 
@@ -168,6 +171,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, ColumnsSettingsAreRestored) {
   // be nice to fake a click with -performClick: but that doesn't work (see
   // http://www.cocoabuilder.com/archive/cocoa/177610-programmatically-click-column-header-in-nstableview.html).
   bool is_sorted = false;
+  int sorted_col_id = -1;
   for (NSTableColumn* column in tableColumns) {
     if ([column isHidden])
       continue;
@@ -177,6 +181,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, ColumnsSettingsAreRestored) {
           [[column sortDescriptorPrototype] reversedSortDescriptor];
       [table setSortDescriptors:@[ newSortDescriptor ]];
       is_sorted = true;
+      sorted_col_id = [[column identifier] intValue];
       break;
     }
   }
@@ -205,8 +210,8 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, SelectionConsistency) {
   chrome::ShowTaskManager(browser());
 
   // Set up a total of three tabs in different processes.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL("a.com", "/title2.html")));
+  ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("a.com", "/title2.html"));
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), embedded_test_server()->GetURL("b.com", "/title2.html"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
@@ -219,15 +224,15 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, SelectionConsistency) {
   // Wait for their titles to appear in the TaskManager. There should be three
   // rows.
   auto pattern = browsertest_util::MatchTab("Title *");
-  size_t rows = 3;
+  int rows = 3;
   ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows(rows, pattern));
 
   // Find the three tabs we set up, in TaskManager model order. Because we have
   // not sorted the table yet, this should also be their UI display order.
   std::unique_ptr<TaskManagerTester> tester =
-      TaskManagerTester::Create(base::RepeatingClosure());
+      TaskManagerTester::Create(base::Closure());
   std::vector<content::WebContents*> tabs;
-  for (size_t i = 0; i < tester->GetRowCount(); ++i) {
+  for (int i = 0; i < tester->GetRowCount(); ++i) {
     // Filter based on our title.
     if (!base::MatchPattern(tester->GetRowTitle(i), pattern))
       continue;
@@ -239,8 +244,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, SelectionConsistency) {
 
   // Select the middle row, and store its tab id.
   [GetTable()
-          selectRowIndexes:[NSIndexSet
-                               indexSetWithIndex:FindRowForTab(tabs[1]).value()]
+          selectRowIndexes:[NSIndexSet indexSetWithIndex:FindRowForTab(tabs[1])]
       byExtendingSelection:NO];
   EXPECT_EQ(TableFirstSelectedRow(), FindRowForTab(tabs[1]));
   EXPECT_EQ(1, [GetTable() numberOfSelectedRows]);
@@ -282,12 +286,11 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, SelectionConsistency) {
   }
 
   // No row should now be selected.
-  ASSERT_FALSE(TableFirstSelectedRow().has_value());
+  ASSERT_EQ(-1, TableFirstSelectedRow());
 
   // Now select tabs[2].
   [GetTable()
-          selectRowIndexes:[NSIndexSet
-                               indexSetWithIndex:FindRowForTab(tabs[2]).value()]
+          selectRowIndexes:[NSIndexSet indexSetWithIndex:FindRowForTab(tabs[2])]
       byExtendingSelection:NO];
 
   // Focus and reload one of the sad tabs. It should reappear in the TM. The
@@ -305,90 +308,4 @@ IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, SelectionConsistency) {
   EXPECT_EQ(TableFirstSelectedRow(), FindRowForTab(tabs[2]));
 }
 
-IN_PROC_BROWSER_TEST_F(TaskManagerMacTest, NavigateSelection) {
-  ASSERT_NO_FATAL_FAILURE(ClearStoredColumnSettings());
-  ui_controls::EnableUIControls();
-  chrome::ShowTaskManager(browser());
-
-  // Set up two tabs in different processes.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL("a.com", "/title2.html")));
-  ui_test_utils::NavigateToURLWithDisposition(
-      browser(), embedded_test_server()->GetURL("b.com", "/title2.html"),
-      WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-
-  // Wait for their titles to appear in the TaskManager.
-  auto pattern = browsertest_util::MatchTab("Title *");
-  size_t rows = 2;
-  ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows(rows, pattern));
-
-  // Find the two tabs we set up, in TaskManager model order. Because we have
-  // not sorted the table yet, this should also be their UI display order.
-  std::unique_ptr<TaskManagerTester> tester =
-      TaskManagerTester::Create(base::RepeatingClosure());
-  std::vector<content::WebContents*> tabs;
-  for (size_t i = 0; i < tester->GetRowCount(); ++i) {
-    // Filter based on our title.
-    if (!base::MatchPattern(tester->GetRowTitle(i), pattern))
-      continue;
-    content::WebContents* tab = FindWebContentsByTabId(tester->GetTabId(i));
-    EXPECT_NE(nullptr, tab);
-    tabs.push_back(tab);
-  }
-  EXPECT_EQ(2U, tabs.size());
-
-  // Select the first row, and store its tab id.
-  [GetTable()
-          selectRowIndexes:[NSIndexSet
-                               indexSetWithIndex:FindRowForTab(tabs[0]).value()]
-      byExtendingSelection:NO];
-  EXPECT_EQ(TableFirstSelectedRow(), FindRowForTab(tabs[0]));
-  EXPECT_EQ(1, [GetTable() numberOfSelectedRows]);
-
-  // Add two new tasks to the same process as a.com
-  int num_group_tasks = 1;
-  for (int i = 0; i < 2; i++) {
-    ASSERT_TRUE(content::ExecuteScript(tabs[0], "window.open('title3.html');"));
-    EXPECT_EQ(TableFirstSelectedRow(), FindRowForTab(tabs[0]));
-    ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows((rows += 1), pattern));
-    EXPECT_EQ(TableFirstSelectedRow(), FindRowForTab(tabs[0]));
-    num_group_tasks++;
-    EXPECT_EQ(num_group_tasks, [GetTable() numberOfSelectedRows]);
-  }
-
-  absl::optional<size_t> selected_row = TableFirstSelectedRow();
-  ASSERT_TRUE(selected_row.has_value());
-  size_t expected_selected_row = selected_row.value();
-  TaskManagerWindowController* window_controller =
-      GetTaskManagerMac()->CocoaControllerForTests();
-
-  // Navigate off of the grouped tasks into a different process task
-  ui_controls::SendKeyPress(window_controller.window, ui::VKEY_DOWN, false,
-                            false, false, false);
-  expected_selected_row = expected_selected_row + 3;
-  EXPECT_EQ(expected_selected_row, TableFirstSelectedRow().value());
-  EXPECT_EQ(1, [GetTable() numberOfSelectedRows]);
-
-  // Navigate into the three grouped tasks
-  ui_controls::SendKeyPress(window_controller.window, ui::VKEY_UP, false, false,
-                            false, false);
-  expected_selected_row -= num_group_tasks;
-  EXPECT_EQ(expected_selected_row, TableFirstSelectedRow().value());
-  EXPECT_EQ(num_group_tasks, [GetTable() numberOfSelectedRows]);
-
-  // Navigate off of grouped tasks
-  ui_controls::SendKeyPress(window_controller.window, ui::VKEY_UP, false, false,
-                            false, false);
-  expected_selected_row--;
-  EXPECT_EQ(expected_selected_row, TableFirstSelectedRow().value());
-  EXPECT_EQ(1, [GetTable() numberOfSelectedRows]);
-
-  // Navigate back into the three grouped tasks
-  ui_controls::SendKeyPress(window_controller.window, ui::VKEY_DOWN, false,
-                            false, false, false);
-  expected_selected_row++;
-  EXPECT_EQ(expected_selected_row, TableFirstSelectedRow().value());
-  EXPECT_EQ(num_group_tasks, [GetTable() numberOfSelectedRows]);
-}
 }  // namespace task_manager

@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 from telemetry.util import wpr_modes
@@ -33,16 +33,17 @@ class ToughPinchZoomPage(rendering_story.RenderingStory):
   def RunPinchGesture(self, action_runner, left_anchor_ratio=0.5,
                       top_anchor_ratio=0.5, scale_factor=None,
                       speed_in_pixels_per_second=800):
-    with action_runner.CreateGestureInteraction('PinchAction', repeatable=True):
-      action_runner.PinchPage(
-          left_anchor_ratio=left_anchor_ratio,
-          top_anchor_ratio=top_anchor_ratio,
-          scale_factor=scale_factor,
-          speed_in_pixels_per_second=speed_in_pixels_per_second)
+      with action_runner.CreateGestureInteraction('PinchAction',
+                                                  repeatable=True):
+        action_runner.PinchPage(
+            left_anchor_ratio=left_anchor_ratio,
+            top_anchor_ratio=top_anchor_ratio,
+            scale_factor=scale_factor,
+            speed_in_pixels_per_second=speed_in_pixels_per_second)
 
   def RunPageInteractions(self, action_runner):
     action_runner.tab.WaitForDocumentReadyStateToBeInteractiveOrBetter()
-    for _ in range(3):
+    for _ in xrange(0, 3):
       current_scale_factor = self.target_scale_factor
       self.RunPinchGesture(action_runner, scale_factor=current_scale_factor)
       while current_scale_factor > 1.0:
@@ -73,8 +74,7 @@ class GmailPinchZoom2018Page(ToughPinchZoomPage):
 
   def RunNavigateSteps(self, action_runner):
     if self.wpr_mode != wpr_modes.WPR_REPLAY:
-      # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-      google_login.ManualLoginGoogleAccount(action_runner)
+      google_login.NewLoginGoogleAccount(action_runner, 'googletest')
     super(GmailPinchZoom2018Page, self).RunNavigateSteps(action_runner)
     action_runner.WaitForJavaScriptCondition(
         'window.gmonkey !== undefined &&'
@@ -91,8 +91,7 @@ class GoogleCalendarPinchZoom2018Page(ToughPinchZoomPage):
 
   def RunNavigateSteps(self, action_runner):
     if self.wpr_mode != wpr_modes.WPR_REPLAY:
-      # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-      google_login.ManualLoginGoogleAccount(action_runner)
+      google_login.NewLoginGoogleAccount(action_runner, 'googletest')
     super(GoogleCalendarPinchZoom2018Page, self).RunNavigateSteps(
       action_runner)
     action_runner.WaitForElement('span[class~="sm8sCf"]')

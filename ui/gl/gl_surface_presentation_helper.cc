@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "ui/gfx/vsync_provider.h"
 #include "ui/gl/egl_timestamps.h"
@@ -67,13 +67,12 @@ bool GLSurfacePresentationHelper::GetFrameTimestampInfoIfAvailable(
     const Frame& frame,
     base::TimeTicks* timestamp,
     base::TimeDelta* interval,
-    base::TimeTicks* writes_done,
     uint32_t* flags) {
   DCHECK(frame.timer || frame.fence || egl_timestamp_client_);
 
   if (egl_timestamp_client_) {
     bool result = egl_timestamp_client_->GetFrameTimestampInfoIfAvailable(
-        timestamp, interval, writes_done, flags, frame.frame_id);
+        timestamp, interval, flags, frame.frame_id);
 
     // Workaround null timestamp by setting it to TimeTicks::Now() snapped to
     // the next vsync interval. See
@@ -96,7 +95,7 @@ bool GLSurfacePresentationHelper::GetFrameTimestampInfoIfAvailable(
     int64_t start = 0;
     int64_t end = 0;
     frame.timer->GetStartEndTimestamps(&start, &end);
-    *timestamp = base::TimeTicks() + base::Microseconds(start);
+    *timestamp = base::TimeTicks() + base::TimeDelta::FromMicroseconds(start);
   } else {
     if (!frame.fence->HasCompleted())
       return false;
@@ -215,7 +214,7 @@ void GLSurfacePresentationHelper::OnMakeCurrent(GLContext* context,
 
 // https://crbug.com/854298 : disable GLFence on Android as they seem to cause
 // issues on some devices.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   gl_fence_supported_ = GLFence::IsSupported();
 #endif
 }
@@ -320,17 +319,14 @@ void GLSurfacePresentationHelper::CheckPendingFrames() {
 
     base::TimeTicks timestamp;
     base::TimeDelta interval;
-    base::TimeTicks writes_done;
     uint32_t flags = 0;
     // Get timestamp info for a frame if available. If timestamp is not
     // available, it means this frame is not yet done.
-    if (!GetFrameTimestampInfoIfAvailable(frame, &timestamp, &interval,
-                                          &writes_done, &flags))
+    if (!GetFrameTimestampInfoIfAvailable(frame, &timestamp, &interval, &flags))
       break;
 
-    gfx::PresentationFeedback feedback(timestamp, interval, flags);
-    feedback.writes_done_timestamp = writes_done;
-    frame_presentation_callback(feedback);
+    frame_presentation_callback(
+        gfx::PresentationFeedback(timestamp, interval, flags));
   }
 
   if (!pending_frames_.empty())
@@ -381,7 +377,7 @@ void GLSurfacePresentationHelper::ScheduleCheckPendingFrames(
     return;
 
   if (!align_with_next_vsync) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&GLSurfacePresentationHelper::CheckPendingFramesCallback,
                        weak_ptr_factory_.GetWeakPtr()));
@@ -391,11 +387,12 @@ void GLSurfacePresentationHelper::ScheduleCheckPendingFrames(
   // If the |vsync_provider_| can not notify us for the next VSync
   // asynchronically, we have to compute the next VSync time and post a delayed
   // task so we can check the VSync later.
-  base::TimeDelta interval =
-      vsync_interval_.is_zero() ? base::Seconds(1) / 60 : vsync_interval_;
+  base::TimeDelta interval = vsync_interval_.is_zero()
+                                 ? base::TimeDelta::FromSeconds(1) / 60
+                                 : vsync_interval_;
   auto now = base::TimeTicks::Now();
   auto next_vsync = now.SnappedToNextTick(vsync_timebase_, interval);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&GLSurfacePresentationHelper::CheckPendingFramesCallback,
                      weak_ptr_factory_.GetWeakPtr()),

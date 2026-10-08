@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,9 +27,8 @@ class SettingsOverriddenParamsProvidersUnitTest
     // exists.
     extensions::ExtensionWebUIOverrideRegistrar::GetFactoryInstance()
         ->SetTestingFactoryAndUse(
-            profile(),
-            base::BindRepeating([](content::BrowserContext* context)
-                                    -> std::unique_ptr<KeyedService> {
+            profile(), base::Bind([](content::BrowserContext* context)
+                                      -> std::unique_ptr<KeyedService> {
               return std::make_unique<
                   extensions::ExtensionWebUIOverrideRegistrar>(context);
             }));
@@ -43,14 +42,13 @@ class SettingsOverriddenParamsProvidersUnitTest
   // Adds a new extension that overrides the NTP.
   const extensions::Extension* AddExtensionControllingNewTab(
       const char* name = "ntp override") {
-    base::Value chrome_url_overrides = base::Value::FromUniquePtrValue(
-        extensions::DictionaryBuilder().Set("newtab", "newtab.html").Build());
+    std::unique_ptr<base::Value> chrome_url_overrides =
+        extensions::DictionaryBuilder().Set("newtab", "newtab.html").Build();
     scoped_refptr<const extensions::Extension> extension =
         extensions::ExtensionBuilder(name)
-            .SetLocation(extensions::mojom::ManifestLocation::kInternal)
-            .SetManifestKey(
-                "chrome_url_overrides",
-                base::Value::ToUniquePtrValue(std::move(chrome_url_overrides)))
+            .SetLocation(extensions::Manifest::INTERNAL)
+            .SetManifestKey("chrome_url_overrides",
+                            std::move(chrome_url_overrides))
             .Build();
 
     service()->AddExtension(extension.get());
@@ -64,7 +62,7 @@ class SettingsOverriddenParamsProvidersUnitTest
 TEST_F(SettingsOverriddenParamsProvidersUnitTest,
        GetExtensionControllingNewTab) {
   // With no extensions installed, there should be no controlling extension.
-  EXPECT_EQ(absl::nullopt,
+  EXPECT_EQ(base::nullopt,
             settings_overridden_params::GetNtpOverriddenParams(profile()));
 
   // Install an extension, but not one that overrides the NTP. There should
@@ -72,13 +70,13 @@ TEST_F(SettingsOverriddenParamsProvidersUnitTest,
   scoped_refptr<const extensions::Extension> regular_extension =
       extensions::ExtensionBuilder("regular").Build();
   service()->AddExtension(regular_extension.get());
-  EXPECT_EQ(absl::nullopt,
+  EXPECT_EQ(base::nullopt,
             settings_overridden_params::GetNtpOverriddenParams(profile()));
 
   // Finally, install an extension that overrides the NTP. It should be the
   // controlling extension.
   const extensions::Extension* ntp_extension = AddExtensionControllingNewTab();
-  absl::optional<ExtensionSettingsOverriddenDialog::Params> params =
+  base::Optional<ExtensionSettingsOverriddenDialog::Params> params =
       settings_overridden_params::GetNtpOverriddenParams(profile());
   ASSERT_TRUE(params);
   EXPECT_EQ(ntp_extension->id(), params->controlling_extension_id);
@@ -99,7 +97,7 @@ TEST_F(SettingsOverriddenParamsProvidersUnitTest,
   // When there are multiple extensions that could override the NTP, we should
   // show a generic dialog (rather than prompting to go back to the default
   // NTP), because the other extension would just take over.
-  absl::optional<ExtensionSettingsOverriddenDialog::Params> params =
+  base::Optional<ExtensionSettingsOverriddenDialog::Params> params =
       settings_overridden_params::GetNtpOverriddenParams(profile());
   ASSERT_TRUE(params);
   EXPECT_EQ(extension2->id(), params->controlling_extension_id);

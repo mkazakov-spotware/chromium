@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,9 @@
 
 NSString* const kReadingListViewID = @"ReadingListTableView";
 
+NSString* const kTableViewURLCellFaviconBadgeViewID =
+    @"TableViewURLCellFaviconBadgeView";
+
 NSString* const kReadingListToolbarEditButtonID =
     @"ReadingListToolbarEditButtonID";
 NSString* const kReadingListToolbarDeleteButtonID =
@@ -20,6 +23,3 @@ NSString* const kReadingListToolbarCancelButtonID =
     @"ReadingListToolbarCancelButton";
 NSString* const kReadingListToolbarMarkButtonID =
     @"ReadingListToolbarMarkButton";
-
-NSString* const kLastReadingListEntryAddedFromMessages =
-    @"LastReadingListEntryAddedFromMessages";

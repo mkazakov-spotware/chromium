@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,6 @@ namespace {
 class SimpleDeviceAccessProvider : public mojom::BluetoothDeviceAccessProvider {
  public:
   SimpleDeviceAccessProvider() = default;
-
-  SimpleDeviceAccessProvider(const SimpleDeviceAccessProvider&) = delete;
-  SimpleDeviceAccessProvider& operator=(const SimpleDeviceAccessProvider&) =
-      delete;
-
   ~SimpleDeviceAccessProvider() override = default;
 
   // mojom::BluetoothDeviceAccessProvider implementation:
@@ -47,6 +42,8 @@ class SimpleDeviceAccessProvider : public mojom::BluetoothDeviceAccessProvider {
   mojo::Remote<mojom::BluetoothDeviceAccessProviderClient> client_;
   base::MockCallback<base::OnceClosure> connection_closed_;
   std::vector<std::string> approved_devices_;
+
+  DISALLOW_COPY_AND_ASSIGN(SimpleDeviceAccessProvider);
 };
 
 }  // namespace
@@ -61,13 +58,10 @@ class CastBluetoothChooserTest : public testing::Test {
     task_environment_.RunUntilIdle();
   }
 
-  CastBluetoothChooserTest(const CastBluetoothChooserTest&) = delete;
-  CastBluetoothChooserTest& operator=(const CastBluetoothChooserTest&) = delete;
-
   ~CastBluetoothChooserTest() override = default;
 
   void AddDeviceToChooser(const std::string& address) {
-    chooser().AddOrUpdateDevice(address, false, std::u16string(), false, false,
+    chooser().AddOrUpdateDevice(address, false, base::string16(), false, false,
                                 0);
   }
 
@@ -82,6 +76,8 @@ class CastBluetoothChooserTest : public testing::Test {
   SimpleDeviceAccessProvider provider_;
   mojo::Receiver<mojom::BluetoothDeviceAccessProvider> provider_receiver_;
   std::unique_ptr<CastBluetoothChooser> cast_bluetooth_chooser_;
+
+  DISALLOW_COPY_AND_ASSIGN(CastBluetoothChooserTest);
 };
 
 TEST_F(CastBluetoothChooserTest, GrantAccessBeforeDeviceAvailable) {

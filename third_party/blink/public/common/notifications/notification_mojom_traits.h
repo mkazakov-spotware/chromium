@@ -1,30 +1,62 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_PUBLIC_COMMON_NOTIFICATIONS_NOTIFICATION_MOJOM_TRAITS_H_
 #define THIRD_PARTY_BLINK_PUBLIC_COMMON_NOTIFICATIONS_NOTIFICATION_MOJOM_TRAITS_H_
 
-#include <string>
-
 #include "base/containers/span.h"
+#include "base/strings/string16.h"
 #include "mojo/public/cpp/base/string16_mojom_traits.h"
 #include "mojo/public/cpp/base/time_mojom_traits.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
 #include "skia/public/mojom/bitmap_skbitmap_mojom_traits.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/common_export.h"
 #include "third_party/blink/public/common/notifications/notification_resources.h"
 #include "third_party/blink/public/common/notifications/platform_notification_data.h"
+#include "third_party/blink/public/mojom/notifications/notification.mojom-shared.h"
 #include "url/gurl.h"
 #include "url/mojom/url_gurl_mojom_traits.h"
 
 namespace mojo {
 
 template <>
+struct BLINK_COMMON_EXPORT
+    StructTraits<blink::mojom::NotificationActionDataView,
+                 blink::PlatformNotificationAction> {
+  static blink::mojom::NotificationActionType type(
+      const blink::PlatformNotificationAction& action) {
+    return action.type;
+  }
+
+  static const std::string& action(
+      const blink::PlatformNotificationAction& action) {
+    return action.action;
+  }
+
+  static const base::string16& title(
+      const blink::PlatformNotificationAction& action) {
+    return action.title;
+  }
+
+  static const GURL& icon(const blink::PlatformNotificationAction& action) {
+    return action.icon;
+  }
+
+  static const base::Optional<base::string16>& placeholder(
+      const blink::PlatformNotificationAction& action) {
+    return action.placeholder;
+  }
+
+  static bool Read(
+      blink::mojom::NotificationActionDataView notification_action,
+      blink::PlatformNotificationAction* platform_notification_action);
+};
+
+template <>
 struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::NotificationDataDataView,
                                         blink::PlatformNotificationData> {
-  static const std::u16string& title(
+  static const base::string16& title(
       const blink::PlatformNotificationData& data) {
     return data.title;
   }
@@ -38,7 +70,7 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::NotificationDataDataView,
     return data.lang;
   }
 
-  static const std::u16string& body(
+  static const base::string16& body(
       const blink::PlatformNotificationData& data) {
     return data.body;
   }
@@ -90,19 +122,14 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::NotificationDataDataView,
                            data.data.size());
   }
 
-  static const std::vector<blink::mojom::NotificationActionPtr>& actions(
+  static const std::vector<blink::PlatformNotificationAction>& actions(
       const blink::PlatformNotificationData& data) {
     return data.actions;
   }
 
-  static absl::optional<base::Time> show_trigger_timestamp(
+  static base::Optional<base::Time> show_trigger_timestamp(
       const blink::PlatformNotificationData& data) {
     return data.show_trigger_timestamp;
-  }
-
-  static blink::mojom::NotificationScenario scenario(
-      const blink::PlatformNotificationData& data) {
-    return data.scenario;
   }
 
   static bool Read(blink::mojom::NotificationDataDataView notification_data,

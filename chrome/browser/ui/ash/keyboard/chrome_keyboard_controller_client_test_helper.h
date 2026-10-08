@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/callback_forward.h"
 #include "chrome/browser/ui/ash/keyboard/chrome_keyboard_controller_client.h"
 
 class Profile;
@@ -25,12 +26,6 @@ class ChromeKeyboardControllerClientTestHelper {
   InitializeWithFake();
 
   ChromeKeyboardControllerClientTestHelper();
-
-  ChromeKeyboardControllerClientTestHelper(
-      const ChromeKeyboardControllerClientTestHelper&) = delete;
-  ChromeKeyboardControllerClientTestHelper& operator=(
-      const ChromeKeyboardControllerClientTestHelper&) = delete;
-
   ~ChromeKeyboardControllerClientTestHelper();
 
   void SetProfile(Profile* profile);
@@ -45,6 +40,8 @@ class ChromeKeyboardControllerClientTestHelper {
 
   // Used when InitializeWithFake is called.
   std::unique_ptr<FakeKeyboardController> fake_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeKeyboardControllerClientTestHelper);
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_KEYBOARD_CHROME_KEYBOARD_CONTROLLER_CLIENT_TEST_HELPER_H_

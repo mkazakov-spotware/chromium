@@ -32,14 +32,12 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_SHAPING_SHAPE_RESULT_H_
 
 #include <memory>
-
 #include "base/containers/span.h"
-#include "base/dcheck_is_on.h"
-#include "base/types/strong_alias.h"
 #include "third_party/blink/renderer/platform/fonts/canvas_rotation_in_vertical.h"
 #include "third_party/blink/renderer/platform/fonts/glyph.h"
 #include "third_party/blink/renderer/platform/fonts/opentype/open_type_math_stretch_data.h"
 #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
+#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/text/text_direction.h"
@@ -47,10 +45,8 @@
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/ref_counted.h"
-#include "third_party/blink/renderer/platform/wtf/text/wtf_uchar.h"
+#include "third_party/blink/renderer/platform/wtf/text/unicode.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
-#include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/vector2d_f.h"
 
 struct hb_buffer_t;
 
@@ -82,21 +78,24 @@ struct ShapeResultCharacterData {
 // IncludePartialGlyphs - decides what to do when the position hits more than
 // 50% of the glyph. If enabled, we count that glyph, if disable we don't.
 enum IncludePartialGlyphsOption {
-  kOnlyFullGlyphs,
-  kIncludePartialGlyphs,
+  OnlyFullGlyphs,
+  IncludePartialGlyphs,
 };
 
-// BreakGlyphsOption - allows OffsetForPosition to consider graphemes
-// separations inside a glyph. It allows the function to return a point inside
-// a glyph when multiple graphemes share a glyph (for example, in a ligature)
-using BreakGlyphsOption = base::StrongAlias<class BreakGlyphsOptionTag, bool>;
+// BreakGlyphs - allows OffsetForPosition to consider graphemes separations
+// inside a glyph. It allows the function to return a point inside a glyph when
+// multiple graphemes share a glyph (for example, in a ligature)
+enum BreakGlyphsOption {
+  DontBreakGlyphs,
+  BreakGlyphs,
+};
 
-// std::function is forbidden in Chromium and base::RepeatingCallback is way too
+// std::function is forbidden in Chromium and base::Callback is way too
 // expensive so we resort to a good old function pointer instead.
 typedef void (*GlyphCallback)(void* context,
                               unsigned character_index,
                               Glyph,
-                              gfx::Vector2dF glyph_offset,
+                              FloatSize glyph_offset,
                               float total_advance,
                               bool is_horizontal,
                               CanvasRotationInVertical,
@@ -139,19 +138,11 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
       float position,
       unsigned start_index,
       unsigned length);
-  // The first glyph has |width| advance, and other glyphs have 0 advance.
   static scoped_refptr<ShapeResult> CreateForSpaces(const Font* font,
                                                     TextDirection direction,
                                                     unsigned start_index,
                                                     unsigned length,
                                                     float width);
-  // Each of glyphs has |per_glyph_width| advance.
-  static scoped_refptr<ShapeResult> CreateForSpacesWithPerGlyphWidth(
-      const Font* font,
-      TextDirection direction,
-      unsigned start_index,
-      unsigned length,
-      float per_glyph_width);
   static scoped_refptr<ShapeResult> CreateForStretchyMathOperator(
       const Font*,
       TextDirection,
@@ -169,7 +160,6 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
   LayoutUnit SnappedWidth() const { return LayoutUnit::FromFloatCeil(width_); }
   unsigned NumCharacters() const { return num_characters_; }
   unsigned NumGlyphs() const { return num_glyphs_; }
-  const SimpleFontData* PrimaryFont() const { return primary_font_.get(); }
 
   // TODO(eae): Remove start_x and return value once ShapeResultBuffer has been
   // removed.
@@ -183,8 +173,7 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
   TextDirection Direction() const {
     return static_cast<TextDirection>(direction_);
   }
-  bool IsLtr() const { return blink::IsLtr(Direction()); }
-  bool IsRtl() const { return blink::IsRtl(Direction()); }
+  bool Rtl() const { return Direction() == TextDirection::kRtl; }
 
   // True if at least one glyph in this result has vertical offsets.
   //
@@ -197,9 +186,6 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
 
   // For memory reporting.
   size_t ByteSize() const;
-
-  // True if |StartIndex()| is safe to break.
-  bool IsStartSafeToBreak() const;
 
   // Returns the next or previous offsets respectively at which it is safe to
   // break without reshaping.
@@ -225,15 +211,15 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
   unsigned OffsetForPosition(float x,
                              const StringView& text,
                              IncludePartialGlyphsOption include_partial_glyphs,
-                             BreakGlyphsOption break_glyphs) const {
-    if (include_partial_glyphs == kOnlyFullGlyphs) {
-      // TODO(kojii): Consider prohibiting OnlyFullGlyphs +
-      // BreakGlyphsOption(true), sed only in tests.
-      if (break_glyphs)
+                             BreakGlyphsOption break_glyphs_option) const {
+    if (include_partial_glyphs == OnlyFullGlyphs) {
+      // TODO(kojii): Consider prohibiting OnlyFullGlyphs+BreakGlyphs, used only
+      // in tests.
+      if (break_glyphs_option == BreakGlyphs)
         EnsureGraphemes(text);
-      return OffsetForPosition(x, break_glyphs);
+      return OffsetForPosition(x, break_glyphs_option);
     }
-    return CaretOffsetForHitTest(x, text, break_glyphs);
+    return CaretOffsetForHitTest(x, text, break_glyphs_option);
   }
 
   // Returns the position for a given offset, relative to StartIndex.
@@ -348,19 +334,17 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
 
   // Computes and returns the ink bounds (or visual overflow rect). This is
   // quite expensive and involves measuring each glyph accumulating the bounds.
-  gfx::RectF ComputeInkBounds() const;
+  FloatRect ComputeInkBounds() const;
 
   // Only used by CachingWordShapeIterator
   // TODO(eae): Remove once LayoutNG lands. https://crbug.com/591099
-  void SetDeprecatedInkBounds(gfx::RectF r) const {
-    deprecated_ink_bounds_ = r;
-  }
-  gfx::RectF DeprecatedInkBounds() const { return deprecated_ink_bounds_; }
+  void SetDeprecatedInkBounds(FloatRect r) const { deprecated_ink_bounds_ = r; }
+  FloatRect DeprecatedInkBounds() const { return deprecated_ink_bounds_; }
 
   String ToString() const;
   void ToString(StringBuilder*) const;
 
-  using GlyphOffset = gfx::Vector2dF;
+  class GlyphOffset;
   struct RunInfo;
   RunInfo* InsertRunForTesting(unsigned start_index,
                                unsigned num_characters,
@@ -476,13 +460,9 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
                              unsigned start_glyph,
                              unsigned num_glyphs,
                              hb_buffer_t*);
-  // Inserts as many glyphs as possible as a RunInfo, and sets
-  // |next_start_glyph| to the start index of the remaining glyphs to be
-  // inserted.
   void InsertRun(scoped_refptr<ShapeResult::RunInfo>,
                  unsigned start_glyph,
                  unsigned num_glyphs,
-                 unsigned* next_start_glyph,
                  hb_buffer_t*);
   void InsertRun(scoped_refptr<ShapeResult::RunInfo>);
   void ReorderRtlRuns(unsigned run_size_before);
@@ -490,7 +470,7 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
   template <bool is_horizontal_run, bool has_non_zero_glyph_offsets>
   void ComputeRunInkBounds(const ShapeResult::RunInfo&,
                            float run_advance,
-                           gfx::RectF* ink_bounds) const;
+                           FloatRect* ink_bounds) const;
 
   // Common signatures with ShapeResultView, to templatize algorithms.
   const Vector<scoped_refptr<RunInfo>>& RunsOrParts() const { return runs_; }
@@ -501,7 +481,7 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
   // Only used by CachingWordShapeIterator and stored here for memory reduction
   // reasons. See https://crbug.com/955776
   // TODO(eae): Remove once LayoutNG lands. https://crbug.com/591099
-  mutable gfx::RectF deprecated_ink_bounds_;
+  mutable FloatRect deprecated_ink_bounds_;
 
   Vector<scoped_refptr<RunInfo>> runs_;
   scoped_refptr<const SimpleFontData> primary_font_;
@@ -533,13 +513,6 @@ class PLATFORM_EXPORT ShapeResult : public RefCounted<ShapeResult> {
   friend class ShapeResultTest;
   friend class StretchyOperatorShaper;
 
-  static scoped_refptr<ShapeResult> CreateForSpacesInternal(
-      const Font* font,
-      TextDirection direction,
-      unsigned start_index,
-      unsigned length,
-      float total_width,
-      float per_glyph_width);
   template <bool has_non_zero_glyph_offsets>
   float ForEachGlyphImpl(float initial_advance,
                          GlyphCallback,

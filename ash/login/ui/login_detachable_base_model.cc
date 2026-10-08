@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include "ash/login/ui/login_data_dispatcher.h"
 #include "ash/public/cpp/session/user_info.h"
 #include "ash/shell.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 
 namespace ash {
 
@@ -23,12 +24,8 @@ class LoginDetachableBaseModelImpl : public LoginDetachableBaseModel,
   explicit LoginDetachableBaseModelImpl(
       DetachableBaseHandler* detachable_base_handler)
       : detachable_base_handler_(detachable_base_handler) {
-    detachable_base_observation_.Observe(detachable_base_handler);
+    detachable_base_observer_.Add(detachable_base_handler);
   }
-
-  LoginDetachableBaseModelImpl(const LoginDetachableBaseModelImpl&) = delete;
-  LoginDetachableBaseModelImpl& operator=(const LoginDetachableBaseModelImpl&) =
-      delete;
 
   ~LoginDetachableBaseModelImpl() override = default;
 
@@ -55,8 +52,10 @@ class LoginDetachableBaseModelImpl : public LoginDetachableBaseModel,
 
  private:
   DetachableBaseHandler* detachable_base_handler_;
-  base::ScopedObservation<DetachableBaseHandler, DetachableBaseObserver>
-      detachable_base_observation_{this};
+  ScopedObserver<DetachableBaseHandler, DetachableBaseObserver>
+      detachable_base_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LoginDetachableBaseModelImpl);
 };
 
 }  // namespace

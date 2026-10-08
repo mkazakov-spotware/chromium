@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests self and total time calculation in CPU profiler.\n`);
-  await TestRunner.loadTestModule('cpu_profiler_test_runner');
+  await TestRunner.loadModule('cpu_profiler_test_runner');
 
   // Profile for 1070ms, 2140 samples.
   var profileAndExpectations = {
@@ -94,8 +94,8 @@
     'samples': [1, 2]
   };
   profileAndExpectations.root = profileAndExpectations.head;
-  SDK.ProfileTreeModel.prototype.assignDepthsAndParents.call(profileAndExpectations);
-  SDK.ProfileTreeModel.prototype.calculateTotals(profileAndExpectations.head);
+  SDK.ProfileTreeModel.prototype._assignDepthsAndParents.call(profileAndExpectations);
+  SDK.ProfileTreeModel.prototype._calculateTotals(profileAndExpectations.head);
   function checkExpectations(node) {
     if (Math.abs(node.selfTime - node.expectedSelfTime) > 0.0001) {
       TestRunner.addResult('totalTime: ' + node.totalTime + ', expected:' + node.expectedTotalTime);

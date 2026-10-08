@@ -1,9 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef EXAMPLES_API_VPN_PROVIDER_VPN_PROVIDER_HELPER_H_
-#define EXAMPLES_API_VPN_PROVIDER_VPN_PROVIDER_HELPER_H_
+#ifndef VPN_PROVIDER_HELPER_H_
+#define VPN_PROVIDER_HELPER_H_
 
 #include <stdint.h>
 
@@ -49,4 +49,4 @@ class VpnProviderHelper {
   std::string config_id_;
 };
 
-#endif  // EXAMPLES_API_VPN_PROVIDER_VPN_PROVIDER_HELPER_H_
+#endif

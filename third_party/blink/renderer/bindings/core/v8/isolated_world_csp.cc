@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,11 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/inspector/inspector_audits_issue.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
-#include "third_party/blink/renderer/platform/bindings/source_location.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
@@ -78,7 +77,7 @@ class IsolatedWorldCSPDelegate final
   std::unique_ptr<SourceLocation> GetSourceLocation() override {
     return nullptr;
   }
-  absl::optional<uint16_t> GetStatusCode() override { return absl::nullopt; }
+  base::Optional<uint16_t> GetStatusCode() override { return base::nullopt; }
   String GetDocumentReferrer() override { return g_empty_string; }
   void DispatchViolationEvent(const SecurityPolicyViolationEventInit&,
                               Element*) override {
@@ -104,18 +103,13 @@ class IsolatedWorldCSPDelegate final
     window_->AddConsoleMessage(console_message);
   }
 
-  void AddInspectorIssue(AuditsIssue issue) override {
-    window_->AddInspectorIssue(std::move(issue));
+  void AddInspectorIssue(mojom::blink::InspectorIssueInfoPtr info) override {
+    window_->AddInspectorIssue(std::move(info));
   }
 
   void DisableEval(const String& error_message) override {
     window_->GetScriptController().DisableEvalForIsolatedWorld(world_id_,
                                                                error_message);
-  }
-
-  void SetWasmEvalErrorMessage(const String& error_message) override {
-    window_->GetScriptController().SetWasmEvalErrorMessageForIsolatedWorld(
-        world_id_, error_message);
   }
 
   void ReportBlockedScriptExecutionToInspector(
@@ -188,13 +182,12 @@ ContentSecurityPolicy* IsolatedWorldCSP::CreateIsolatedWorldCSP(
 
   IsolatedWorldCSPDelegate* delegate =
       MakeGarbageCollected<IsolatedWorldCSPDelegate>(
-          window, self_origin, world_id,
-          policy.empty() ? CSPType::kEmpty : CSPType::kNonEmpty);
+          window, std::move(self_origin), world_id,
+          policy.IsEmpty() ? CSPType::kEmpty : CSPType::kNonEmpty);
   csp->BindToDelegate(*delegate);
-  csp->AddPolicies(ParseContentSecurityPolicies(
-      policy, network::mojom::blink::ContentSecurityPolicyType::kEnforce,
-      network::mojom::blink::ContentSecurityPolicySource::kHTTP,
-      *(self_origin)));
+  csp->AddPolicyFromHeaderValue(
+      policy, network::mojom::ContentSecurityPolicyType::kEnforce,
+      network::mojom::ContentSecurityPolicySource::kHTTP);
 
   return csp;
 }

@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/dom_distiller/core/distilled_content_store.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -62,8 +61,7 @@ class InMemoryContentStoreTest : public testing::Test {
  protected:
   // testing::Test implementation:
   void SetUp() override {
-    store_ =
-        std::make_unique<InMemoryContentStore>(kDefaultMaxNumCachedEntries);
+    store_.reset(new InMemoryContentStore(kDefaultMaxNumCachedEntries));
     save_success_ = false;
     load_success_ = false;
     loaded_proto_.reset();
@@ -172,7 +170,7 @@ TEST_F(InMemoryContentStoreTest, SaveAndLoadMoreThanMaxArticles) {
 
   // Create a new store with only |kMaxNumArticles| articles as the limit.
   const int kMaxNumArticles = 3;
-  store_ = std::make_unique<InMemoryContentStore>(kMaxNumArticles);
+  store_.reset(new InMemoryContentStore(kMaxNumArticles));
 
   // Store first article.
   const ArticleEntry first_entry =
@@ -294,7 +292,7 @@ TEST_F(InMemoryContentStoreTest, LoadArticleByURLAfterExpungedFromCache) {
 
   // Create a new store with only |kMaxNumArticles| articles as the limit.
   const int kMaxNumArticles = 1;
-  store_ = std::make_unique<InMemoryContentStore>(kMaxNumArticles);
+  store_.reset(new InMemoryContentStore(kMaxNumArticles));
 
   // Store an article.
   const ArticleEntry first_entry =

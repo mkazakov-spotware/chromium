@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/trace_config_memory_test_util.h"
 #include "base/trace_event/trace_event.h"
@@ -35,8 +36,8 @@ using tracing::EndTracing;
 void RequestGlobalDumpCallback(base::OnceClosure quit_closure,
                                bool success,
                                uint64_t) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, std::move(quit_closure));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                std::move(quit_closure));
   // TODO(ssid): Check for dump success once crbug.com/709524 is fixed.
 }
 
@@ -115,8 +116,8 @@ class MemoryTracingBrowserTest : public InProcessBrowserTest {
 };
 
 // TODO(crbug.com/806988): Disabled due to excessive output on lsan bots and
-// timeouts on debug bots.
-#if defined(LEAK_SANITIZER) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
+// timeouts on Mac Test debug bots.
+#if defined(LEAK_SANITIZER) || defined(ADDRESS_SANITIZER) || defined(OS_MAC)
 #define MAYBE_TestMemoryInfra DISABLED_TestMemoryInfra
 #else
 #define MAYBE_TestMemoryInfra TestMemoryInfra
@@ -134,9 +135,8 @@ IN_PROC_BROWSER_TEST_F(MemoryTracingBrowserTest, MAYBE_TestMemoryInfra) {
       base::trace_event::MemoryDumpLevelOfDetail::DETAILED, &json_events);
 }
 
-// crbug.com/808152: This test is flakily failing on LSAN. This test also
-// flakily fails with timeout on Linux debug.
-#if defined(LEAK_SANITIZER) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
+// crbug.com/808152: This test is flakily failing on LSAN.
+#if defined(LEAK_SANITIZER) || defined(ADDRESS_SANITIZER)
 #define MAYBE_TestBackgroundMemoryInfra DISABLED_TestBackgroundMemoryInfra
 #else
 #define MAYBE_TestBackgroundMemoryInfra TestBackgroundMemoryInfra

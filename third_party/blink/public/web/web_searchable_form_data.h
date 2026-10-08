@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SEARCHABLE_FORM_DATA_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SEARCHABLE_FORM_DATA_H_
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/public/web/web_input_element.h"
@@ -42,11 +41,11 @@ class WebFormElement;
 
 // SearchableFormData encapsulates a URL and encoding of an INPUT field that
 // corresponds to a searchable form request.
-class BLINK_EXPORT WebSearchableFormData {
+class WebSearchableFormData {
  public:
   // If the provided form is suitable for automated searching, isValid()
   // will return false.
-  WebSearchableFormData(
+  BLINK_EXPORT WebSearchableFormData(
       const WebFormElement&,
       const WebInputElement& selected_input_element = WebInputElement());
 
@@ -65,4 +64,4 @@ class BLINK_EXPORT WebSearchableFormData {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_SEARCHABLE_FORM_DATA_H_
+#endif

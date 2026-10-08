@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/callback.h"
 #include "base/callback_forward.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/timer/timer.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -22,18 +22,16 @@ namespace safe_browsing {
 // prompt for deep scanning.
 class PromptForScanningModalDialog : public views::DialogDelegateView {
  public:
-  METADATA_HEADER(PromptForScanningModalDialog);
-
   // Show this dialog for the given |web_contents|.
   static void ShowForWebContents(content::WebContents* web_contents,
-                                 const std::u16string& filename,
+                                 const base::string16& filename,
                                  base::OnceClosure accept_callback,
                                  base::OnceClosure open_now_callback);
 
   // Create a PromptForScanningModalDialog attached to |web_contents|. The
   // dialog will call |accept_callback| if the user accepts the prompt.
   PromptForScanningModalDialog(content::WebContents* web_contents,
-                               const std::u16string& filename,
+                               const base::string16& filename,
                                base::OnceClosure accept_callback,
                                base::OnceClosure open_now_callback);
   PromptForScanningModalDialog(const PromptForScanningModalDialog&) = delete;
@@ -44,6 +42,9 @@ class PromptForScanningModalDialog : public views::DialogDelegateView {
   // views::DialogDelegate implementation:
   bool IsDialogButtonEnabled(ui::DialogButton button) const override;
   bool ShouldShowCloseButton() const override;
+
+  // views::WidgetDelegate implementation:
+  ui::ModalType GetModalType() const override;
 
  private:
   base::OnceClosure open_now_callback_;

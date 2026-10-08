@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Test runner for running tests using xcodebuild."""
@@ -13,7 +13,6 @@ import sys
 
 import gtest_utils
 import test_apps
-from test_result_util import ResultCollection
 import test_runner
 import xctest_utils
 
@@ -47,8 +46,23 @@ class WprToolsNotFoundError(test_runner.TestRunnerError):
 class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
   """Class for running simulator tests with WPR against saved website replays"""
 
-  def __init__(self, app_path, host_app_path, iossim_path, replay_path,
-               platform, version, wpr_tools_path, out_dir, **kwargs):
+  def __init__(
+      self,
+      app_path,
+      host_app_path,
+      iossim_path,
+      replay_path,
+      platform,
+      version,
+      wpr_tools_path,
+      out_dir,
+      env_vars=None,
+      retries=None,
+      shards=None,
+      test_args=None,
+      test_cases=None,
+      xctest=False,
+  ):
     """Initializes a new instance of this class.
 
     Args:
@@ -62,7 +76,6 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
         can be found by running "iossim -l". e.g. "9.3", "8.2", "7.1".
       wpr_tools_path: Path to pre-installed (from CIPD) WPR-related tools
       out_dir: Directory to emit test data into.
-      (Following are potential args in **kwargs)
       env_vars: List of environment variables to pass to the test itself.
       retries: Number of times to retry failed test cases.
       test_args: List of strings to pass as arguments to the test when
@@ -76,9 +89,20 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
       ReplayPathNotFoundError: If the replay path was not found.
       WprToolsNotFoundError: If wpr_tools_path is not specified.
     """
-    super(WprProxySimulatorTestRunner,
-          self).__init__(app_path, iossim_path, platform, version, out_dir,
-                         **kwargs)
+    super(WprProxySimulatorTestRunner, self).__init__(
+        app_path,
+        iossim_path,
+        platform,
+        version,
+        out_dir,
+        env_vars=env_vars,
+        retries=retries,
+        shards=shards,
+        test_args=test_args,
+        test_cases=test_cases,
+        wpr_tools_path=wpr_tools_path,
+        xctest=xctest,
+    )
     self.host_app_path = None
     if host_app_path is not None and host_app_path != 'NO_PATH':
       self.host_app_path = os.path.abspath(host_app_path)
@@ -96,7 +120,6 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
 
     if not os.path.exists(wpr_tools_path):
       raise WprToolsNotFoundError(wpr_tools_path)
-    self.wpr_tools_path = wpr_tools_path
 
     self.proxy_process = None
     self.wprgo_process = None
@@ -195,8 +218,7 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
     else:
       parser = gtest_utils.GTestLogParser()
 
-    test_runner.print_process_output(proc, 'xcodebuild', parser,
-                                     self.readline_timeout)
+    test_runner.print_process_output(proc, 'xcodebuild', parser)
 
     proc.wait()
     self.set_sigterm_handler(old_handler)
@@ -235,14 +257,10 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
 
     return test_matched_filter != invert
 
-  def copy_trusted_certificate(self, udid):
-    """Copies a root HTTPS cert into a simulator.
+  def copy_trusted_certificate(self):
+    """Copies a TrustStore file with a trusted HTTPS certificate into all sims.
 
     This allows the simulators to access HTTPS webpages served through WprGo.
-
-    Args:
-      udid: String of UDID of the simulator to install the trusted certificate
-        into.
 
     Raises:
       WprToolsNotFoundError: If wpr_tools_path is not specified.
@@ -251,16 +269,24 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
 
     if not os.path.exists(self.wpr_tools_path):
       raise WprToolsNotFoundError(self.wpr_tools_path)
-    cert_path = "{}/web_page_replay_go/wpr_cert.pem".format(self.wpr_tools_path)
+    cert_path = "{}/TrustStore_trust.sqlite3".format(self.wpr_tools_path)
 
     if not os.path.exists(cert_path):
       raise CertPathNotFoundError(cert_path)
 
-    LOGGER.info('Copying root cert into %s', udid)
-    subprocess.check_call(['xcrun', 'simctl', 'boot', udid])
-    subprocess.check_call(
-        ['xcrun', 'simctl', 'keychain', udid, 'add-root-cert', cert_path])
-    subprocess.check_call(['xcrun', 'simctl', 'shutdown', udid])
+    trust_stores = glob.glob(
+        '{}/Library/Developer/CoreSimulator/Devices/*/data/Library'.format(
+            os.path.expanduser('~')))
+    for trust_store in trust_stores:
+      LOGGER.info('Copying TrustStore to %s', trust_store)
+      trust_store_file_path = os.path.join(trust_store,
+                                           'Keychains/TrustStore.sqlite3')
+      if os.path.isfile(trust_store_file_path):
+        os.remove(trust_store_file_path)
+      trust_store_dir_path = os.path.join(trust_store, 'Keychains')
+      if not os.path.exists(trust_store_dir_path):
+        os.makedirs(trust_store_dir_path)
+      shutil.copy(cert_path, trust_store_file_path)
 
   def _run(self, cmd, shards=1):
     """Runs the specified command, parsing GTest output.
@@ -273,13 +299,16 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
         we build and execute in _run.
 
     Returns:
-      TestResult.ResultCollection() object.
+      GTestResult instance.
+
     Raises:
       ShardingDisabledError: If shards > 1 as currently sharding is not
         supported.
       SystemAlertPresentError: If system alert is shown on the device.
     """
-    overall_result = ResultCollection()
+    result = gtest_utils.GTestResult(cmd)
+    completed_without_failure = True
+    total_returncode = 0
     if shards > 1:
       # TODO(crbug.com/881096): reimplement sharding in the future
       raise test_runner.ShardingDisabledError()
@@ -291,7 +320,7 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
     # certificate needed for HTTPS proxying.
     udid = self.getSimulator()
 
-    self.copy_trusted_certificate(udid)
+    self.copy_trusted_certificate()
 
     for recipe_path in glob.glob('{}/*.test'.format(self.replay_path)):
       base_name = os.path.basename(recipe_path)
@@ -302,31 +331,49 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
 
         parser, returncode = self.run_wpr_test(udid, test_name, recipe_path,
                                                replay_path)
-        recipe_result = parser.GetResultCollection()
-
 
         # If this test fails, immediately rerun it to see if it deflakes.
         # We simply overwrite the first result with the second.
-        if recipe_result.never_expected_tests():
+        if parser.FailedTests(include_flaky=True):
           parser, returncode = self.run_wpr_test(udid, test_name, recipe_path,
                                                  replay_path)
-          recipe_result = parser.GetResultCollection()
 
-        # All test names will be the same since we re-run the same suite;
-        # therefore, to differentiate the results, we append the recipe
-        # name to the test suite.
-        recipe_result.add_name_prefix_to_tests(base_name + '.')
-        overall_result.add_result_collection(recipe_result)
+        for test in parser.FailedTests(include_flaky=True):
+          # All test names will be the same since we re-run the same suite;
+          # therefore, to differentiate the results, we append the recipe
+          # name to the test suite.
+          testWithRecipeName = "{}.{}".format(base_name, test)
+
+          # Test cases are named as <test group>.<test case>. If the test case
+          # is prefixed w/"FLAKY_", it should be reported as flaked not failed
+          if '.' in test and test.split('.', 1)[1].startswith('FLAKY_'):
+            result.flaked_tests[testWithRecipeName] = parser.FailureDescription(
+                test)
+          else:
+            result.failed_tests[testWithRecipeName] = parser.FailureDescription(
+                test)
+
+        for test in parser.PassedTests(include_flaky=True):
+          testWithRecipeName = "{}.{}".format(base_name, test)
+          result.passed_tests.extend([testWithRecipeName])
 
         # Check for runtime errors.
         if self.xctest_path and parser.SystemAlertPresent():
           raise test_runner.SystemAlertPresentError()
+        if returncode != 0:
+          total_returncode = returncode
+        if not parser.CompletedWithoutFailure():
+          completed_without_failure = False
         LOGGER.info('%s test returned %s\n', recipe_path, returncode)
 
     self.deleteSimulator(udid)
 
-    return overall_result
+    # xcodebuild can return 5 if it exits noncleanly even if all tests passed.
+    # Therefore we cannot rely on process exit code to determine success.
 
+    # NOTE: total_returncode is 0 OR the last non-zero return code from a test.
+    result.finalize(total_returncode, completed_without_failure)
+    return result
 
   def get_launch_command(self, test_app=None, out_dir=None,
                          destination=None, shards=1):
@@ -355,18 +402,6 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
         test_config['test_filter'] = test_app.excluded_tests
     return test_config
 
-  def get_launch_test_app(self):
-    """Returns the proper test_app for the run.
-
-    Returns:
-      This runner disregards xcode, and returns an implementation of GTestsApp
-    """
-    return test_apps.GTestsApp(
-        self.app_path,
-        included_tests=self.test_cases,
-        env_vars=self.env_vars,
-        test_args=self.test_args)
-
   def proxy_start(self):
     """Starts tsproxy and routes the machine's traffic through tsproxy."""
 
@@ -377,23 +412,18 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
     # We route all network adapters through the proxy, since it is easier than
     # determining which network adapter is being used currently.
     network_services = subprocess.check_output(
-        ['networksetup',
-         '-listallnetworkservices']).decode('utf-8').strip().split('\n')
+        ['networksetup', '-listallnetworkservices']).strip().split('\n')
     if len(network_services) > 1:
       # We ignore the first line as it is a description of the command's output.
       network_services = network_services[1:]
 
       for service in network_services:
-        # Skip disabled services on setup (denoted by leading '*')
-        if service.startswith('*'):
-          continue
         subprocess.check_call(
             ['networksetup', '-setsocksfirewallproxystate', service, 'on'])
         subprocess.check_call([
             'networksetup', '-setsocksfirewallproxy', service, '127.0.0.1',
             '1080'
         ])
-        LOGGER.info('Added SOCKS proxy for service: %s.', service)
 
     self.proxy_process = subprocess.Popen(
         [
@@ -410,7 +440,16 @@ class WprProxySimulatorTestRunner(test_runner.SimulatorTestRunner):
     """Stops tsproxy and disables the machine's proxy settings."""
     if self.proxy_process is not None:
       os.kill(self.proxy_process.pid, signal.SIGINT)
-    self.remove_proxy_settings()
+
+    network_services = subprocess.check_output(
+        ['networksetup', '-listallnetworkservices']).strip().split('\n')
+    if len(network_services) > 1:
+      # We ignore the first line as it is a description of the command's output.
+      network_services = network_services[1:]
+
+      for service in network_services:
+        subprocess.check_call(
+            ['networksetup', '-setsocksfirewallproxystate', service, 'off'])
 
   def wprgo_start(self, replay_path):
     """Starts WprGo serving the specified replay file.

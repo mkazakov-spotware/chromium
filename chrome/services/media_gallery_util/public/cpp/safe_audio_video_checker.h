@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define CHROME_SERVICES_MEDIA_GALLERY_UTIL_PUBLIC_CPP_SAFE_AUDIO_VIDEO_CHECKER_H_
 
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "chrome/services/media_gallery_util/public/cpp/media_parser_provider.h"
 
 // Uses a utility process to validate a media file.  If the callback returns
@@ -18,10 +19,6 @@ class SafeAudioVideoChecker : public MediaParserProvider {
 
   // Takes responsibility for closing |file|.
   SafeAudioVideoChecker(base::File file, ResultCallback callback);
-
-  SafeAudioVideoChecker(const SafeAudioVideoChecker&) = delete;
-  SafeAudioVideoChecker& operator=(const SafeAudioVideoChecker&) = delete;
-
   ~SafeAudioVideoChecker() override;
 
   // Checks the file. Can be called on a different thread than the UI thread.
@@ -42,6 +39,8 @@ class SafeAudioVideoChecker : public MediaParserProvider {
 
   // Report the check result to |callback_|.
   ResultCallback callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(SafeAudioVideoChecker);
 };
 
 #endif  // CHROME_SERVICES_MEDIA_GALLERY_UTIL_PUBLIC_CPP_SAFE_AUDIO_VIDEO_CHECKER_H_

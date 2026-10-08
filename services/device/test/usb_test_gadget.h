@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,10 @@
 #define SERVICES_DEVICE_TEST_USB_TEST_GADGET_H_
 
 #include <memory>
+#include <string>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -31,9 +33,6 @@ class UsbTestGadget {
     ECHO,
   };
 
-  UsbTestGadget(const UsbTestGadget&) = delete;
-  UsbTestGadget& operator=(const UsbTestGadget&) = delete;
-
   virtual ~UsbTestGadget() {}
 
   static bool IsTestEnabled();
@@ -50,6 +49,9 @@ class UsbTestGadget {
 
  protected:
   UsbTestGadget() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UsbTestGadget);
 };
 
 }  // namespace device

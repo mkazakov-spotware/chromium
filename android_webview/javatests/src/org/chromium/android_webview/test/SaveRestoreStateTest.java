@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -113,8 +113,8 @@ public class SaveRestoreStateTest {
         // but is only meant to test enough to make sure state is restored.
         // See NavigationHistoryTest for more thorough tests.
         for (int i = 0; i < NUM_NAVIGATIONS; ++i) {
-            Assert.assertEquals(mUrls[i], history.getEntryAtIndex(i).getOriginalUrl().getSpec());
-            Assert.assertEquals(mUrls[i], history.getEntryAtIndex(i).getUrl().getSpec());
+            Assert.assertEquals(mUrls[i], history.getEntryAtIndex(i).getOriginalUrl());
+            Assert.assertEquals(mUrls[i], history.getEntryAtIndex(i).getUrl());
             Assert.assertEquals(TITLES[i], history.getEntryAtIndex(i).getTitle());
         }
     }

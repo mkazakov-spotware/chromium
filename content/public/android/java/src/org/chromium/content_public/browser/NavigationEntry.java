@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,40 +6,35 @@ package org.chromium.content_public.browser;
 
 import android.graphics.Bitmap;
 
-import androidx.annotation.NonNull;
-
-import org.chromium.url.GURL;
-
 /**
  * Represents one entry in the navigation history of a page.
  */
 public class NavigationEntry {
 
     private final int mIndex;
-    private final GURL mUrl;
-    private final GURL mOriginalUrl;
-    private final GURL mVirtualUrl;
+    private final String mUrl;
+    private final String mOriginalUrl;
+    private final String mVirtualUrl;
+    private final String mReferrerUrl;
     private final String mTitle;
     private Bitmap mFavicon;
     private int mTransition;
     private long mTimestamp;
-    private final boolean mIsInitialEntry;
 
     /**
      * Default constructor.
      */
-    public NavigationEntry(int index, @NonNull GURL url, @NonNull GURL virtualUrl,
-            @NonNull GURL originalUrl, String title, Bitmap favicon, int transition, long timestamp,
-            boolean isInitialEntry) {
+    public NavigationEntry(int index, String url, String virtualUrl, String originalUrl,
+            String referrerUrl, String title, Bitmap favicon, int transition, long timestamp) {
         mIndex = index;
         mUrl = url;
         mVirtualUrl = virtualUrl;
         mOriginalUrl = originalUrl;
+        mReferrerUrl = referrerUrl;
         mTitle = title;
         mFavicon = favicon;
         mTransition = transition;
         mTimestamp = timestamp;
-        mIsInitialEntry = isInitialEntry;
     }
 
     /**
@@ -54,7 +49,7 @@ public class NavigationEntry {
      *         scary data: URL or something like that. Use GetVirtualURL() for
      *         showing to the user.
      */
-    public @NonNull GURL getUrl() {
+    public String getUrl() {
         return mUrl;
     }
 
@@ -69,15 +64,22 @@ public class NavigationEntry {
      *         cases, so if there is no overridden display URL, it will return
      *         the actual one.
      */
-    public @NonNull GURL getVirtualUrl() {
+    public String getVirtualUrl() {
         return mVirtualUrl;
     }
 
     /**
      * @return The URL that caused this NavigationEntry to be created.
      */
-    public @NonNull GURL getOriginalUrl() {
+    public String getOriginalUrl() {
         return mOriginalUrl;
+    }
+
+    /**
+     * @return The referring URL, can be empty.
+     */
+    public String getReferrerUrl() {
+        return mReferrerUrl;
     }
 
     /**
@@ -113,12 +115,5 @@ public class NavigationEntry {
      */
     public long getTimestamp() {
         return mTimestamp;
-    }
-
-    /**
-     * @return Whether the entry is the initial entry or not.
-     */
-    public boolean isInitialEntry() {
-        return mIsInitialEntry;
     }
 }

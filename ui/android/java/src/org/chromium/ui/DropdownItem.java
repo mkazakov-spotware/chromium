@@ -1,14 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui;
 
-import android.graphics.Bitmap;
-
-import androidx.annotation.Nullable;
-
-import org.chromium.url.GURL;
 /**
  * Dropdown item interface used to access all the information needed to show the item.
  */
@@ -17,44 +12,21 @@ public interface DropdownItem {
     public static final int NO_ICON = 0;
 
     /**
-     * Returns the first part of the first line that should be shown in the dropdown.
+     * Returns the label that should be shown in the dropdown.
      */
     String getLabel();
     /**
-     * Returns the second part of the first line that should be shown in the dropdown.
-     */
-    @Nullable
-    String getSecondaryLabel();
-    /**
-     * Returns the first part of the second line that should be shown in the dropdown.
+     * Returns the sublabel that should be shown in the dropdown.
      */
     String getSublabel();
-    /**
-     * Returns the second part of the second line that should be shown in the dropdown.
-     */
-    @Nullable
-    String getSecondarySublabel();
     /**
      * Returns the item tag that should be shown in the dropdown.
      */
     String getItemTag();
     /**
-     * Returns the drawable id of the icon that should be shown in the dropdown, or NO_ICON. Note:
-     * If the getCustomIconUrl() is present, then it'll be preferred over the drawable id returned
-     * by getIconId().
+     * Returns the drawable id of the icon that should be shown in the dropdown, or NO_ICON.
      */
     int getIconId();
-    /**
-     * Returns the url for the icon to be downloaded. If present, the downloaded icon should be
-     * preferred over the resource id returned by getIconId().
-     */
-    GURL getCustomIconUrl();
-    /**
-     * Returns the bitmap for the icon. If present, then it should be preferred over the drawable id
-     * returned by getIconId().
-     */
-    @Nullable
-    Bitmap getCustomIcon();
     /**
      * Returns true if the item should be enabled in the dropdown.
      */

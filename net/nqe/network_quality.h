@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,14 @@
 #include <stdint.h>
 
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "net/base/net_export.h"
 
-namespace net::nqe::internal {
+namespace net {
+namespace nqe {
+namespace internal {
 
 // RTT and throughput values are set to |INVALID_RTT_THROUGHPUT| if a valid
 // value is unavailable.
@@ -103,6 +106,8 @@ class NET_EXPORT_PRIVATE NetworkQuality {
   SEQUENCE_CHECKER(sequence_checker_);
 };
 
-}  // namespace net::nqe::internal
+}  // namespace internal
+}  // namespace nqe
+}  // namespace net
 
 #endif  // NET_NQE_NETWORK_QUALITY_H_

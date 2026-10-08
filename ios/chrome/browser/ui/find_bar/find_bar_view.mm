@@ -1,17 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/find_bar/find_bar_view.h"
 
-#import "components/strings/grit/components_strings.h"
+#include "base/feature_list.h"
+#include "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/ui/find_bar/find_bar_constants.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_constants.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
+#import "ios/chrome/common/ui/colors/dynamic_color_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -35,6 +39,8 @@ const CGFloat kButtonLength = 44;
 // The overlay that shows number of results in format "1 of 13".
 @property(nonatomic, strong) UILabel* resultsCountLabel;
 
+@property(nonatomic, assign) BOOL darkMode;
+
 @end
 
 @implementation FindBarView
@@ -44,11 +50,15 @@ const CGFloat kButtonLength = 44;
 @synthesize nextButton = _nextButton;
 @synthesize closeButton = _closeButton;
 @synthesize resultsCountLabel = _resultsCountLabel;
+@synthesize darkMode = _darkMode;
 
 #pragma mark - Public
 
-- (instancetype)init {
+- (instancetype)initWithDarkAppearance:(BOOL)darkAppearance {
   self = [super initWithFrame:CGRectZero];
+  if (self) {
+    _darkMode = darkAppearance;
+  }
   return self;
 }
 
@@ -134,16 +144,23 @@ const CGFloat kButtonLength = 44;
   ]];
 }
 
-// Sets the colors for the different subviews.
+// Sets the colors for the different subviews, based on the |darkMode|.
 - (void)setupColors {
-  UIColor* inputFieldBackground =
-      [UIColor colorNamed:kTextfieldBackgroundColor];
-  UIColor* inputFieldPlaceHolderTextColor =
-      [UIColor colorNamed:kTextfieldPlaceholderColor];
-  UIColor* inputFieldTextColor = [UIColor colorNamed:kTextPrimaryColor];
-  UIColor* resultsCountLabelTextColor =
-      [UIColor colorNamed:kTextfieldPlaceholderColor];
-  UIColor* buttonTintColor = [UIColor colorNamed:kBlueColor];
+  UIColor* inputFieldBackground = color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextfieldBackgroundColor], self.darkMode,
+      [UIColor colorNamed:kTextfieldBackgroundDarkColor]);
+  UIColor* inputFieldPlaceHolderTextColor = color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextfieldPlaceholderColor], self.darkMode,
+      [UIColor colorNamed:kTextfieldPlaceholderDarkColor]);
+  UIColor* inputFieldTextColor = color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextPrimaryColor], self.darkMode,
+      [UIColor colorNamed:kTextPrimaryDarkColor]);
+  UIColor* resultsCountLabelTextColor = color::DarkModeDynamicColor(
+      [UIColor colorNamed:kTextfieldPlaceholderColor], self.darkMode,
+      [UIColor colorNamed:kTextfieldPlaceholderDarkColor]);
+  UIColor* buttonTintColor = color::DarkModeDynamicColor(
+      [UIColor colorNamed:kBlueColor], self.darkMode,
+      [UIColor colorNamed:kBlueDarkColor]);
 
   self.inputField.backgroundColor = inputFieldBackground;
   NSString* placeholder = [self.inputField placeholder];
@@ -166,7 +183,7 @@ const CGFloat kButtonLength = 44;
 
 #pragma mark - Configuration
 
-// Adds `rightLabel` as right view of the `textField`.
+// Adds |rightLabel| as right view of the |textField|.
 - (void)addLabel:(UILabel*)rightLabel
     asRightViewOfTextField:(UITextField*)textField {
   UIView* rightView = [[UIView alloc] init];
@@ -227,7 +244,13 @@ const CGFloat kButtonLength = 44;
     SetA11yLabelAndUiAutomationName(_previousButton,
                                     IDS_FIND_IN_PAGE_PREVIOUS_TOOLTIP,
                                     kFindInPagePreviousButtonId);
-    _previousButton.pointerInteractionEnabled = YES;
+#if defined(__IPHONE_13_4)
+    if (@available(iOS 13.4, *)) {
+      if (base::FeatureList::IsEnabled(kPointerSupport)) {
+        _previousButton.pointerInteractionEnabled = YES;
+      }
+    }
+#endif  // defined(__IPHONE_13_4)
   }
 
   return _previousButton;
@@ -244,7 +267,13 @@ const CGFloat kButtonLength = 44;
     _nextButton.translatesAutoresizingMaskIntoConstraints = NO;
     SetA11yLabelAndUiAutomationName(_nextButton, IDS_FIND_IN_PAGE_NEXT_TOOLTIP,
                                     kFindInPageNextButtonId);
-    _nextButton.pointerInteractionEnabled = YES;
+#if defined(__IPHONE_13_4)
+    if (@available(iOS 13.4, *)) {
+      if (base::FeatureList::IsEnabled(kPointerSupport)) {
+        _nextButton.pointerInteractionEnabled = YES;
+      }
+    }
+#endif  // defined(__IPHONE_13_4)
   }
 
   return _nextButton;
@@ -259,7 +288,13 @@ const CGFloat kButtonLength = 44;
     _closeButton.translatesAutoresizingMaskIntoConstraints = NO;
     _closeButton.accessibilityIdentifier = kFindInPageCloseButtonId;
     _closeButton.titleLabel.font = [UIFont systemFontOfSize:kButtonFontSize];
-    _closeButton.pointerInteractionEnabled = YES;
+#if defined(__IPHONE_13_4)
+    if (@available(iOS 13.4, *)) {
+      if (base::FeatureList::IsEnabled(kPointerSupport)) {
+        _closeButton.pointerInteractionEnabled = YES;
+      }
+    }
+#endif  // defined(__IPHONE_13_4)
   }
 
   return _closeButton;

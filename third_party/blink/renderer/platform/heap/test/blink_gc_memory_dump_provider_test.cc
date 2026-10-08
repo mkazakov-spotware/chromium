@@ -1,15 +1,13 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/heap/blink_gc_memory_dump_provider.h"
 
-#include "base/ranges/algorithm.h"
 #include "base/trace_event/process_memory_dump.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/platform/platform.h"
-#include "third_party/blink/public/platform/scheduler/test/renderer_scheduler_test_support.h"
-#include "third_party/blink/renderer/platform/heap/custom_spaces.h"
+#include "third_party/blink/renderer/platform/heap/blink_gc.h"
 #include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
 #include "third_party/blink/renderer/platform/wtf/threading.h"
 
@@ -33,31 +31,6 @@ void CheckBasicHeapDumpStructure(base::trace_event::MemoryAllocatorDump* dump) {
   EXPECT_TRUE(found_size);
 }
 
-template <typename Callback>
-void IterateMemoryDumps(base::trace_event::ProcessMemoryDump& dump,
-                        const std::string dump_prefix,
-                        Callback callback) {
-  auto dump_prefix_depth = base::ranges::count(dump_prefix, '/');
-  for (auto& it : dump.allocator_dumps()) {
-    const std::string& key = it.first;
-    if ((key.compare(0, dump_prefix.size(), dump_prefix) == 0) &&
-        (base::ranges::count(key, '/') == dump_prefix_depth)) {
-      callback(it.second.get());
-    }
-  }
-}
-
-void CheckSpacesInDump(base::trace_event::ProcessMemoryDump& dump,
-                       const std::string dump_prefix) {
-  size_t custom_space_count = 0;
-  IterateMemoryDumps(
-      dump, dump_prefix + "CustomSpace",
-      [&custom_space_count](base::trace_event::MemoryAllocatorDump*) {
-        custom_space_count++;
-      });
-  EXPECT_EQ(CustomSpaces::CreateCustomSpaces().size(), custom_space_count);
-}
-
 }  // namespace
 
 TEST_F(BlinkGCMemoryDumpProviderTest, MainThreadLightDump) {
@@ -67,8 +40,7 @@ TEST_F(BlinkGCMemoryDumpProviderTest, MainThreadLightDump) {
       new base::trace_event::ProcessMemoryDump(args));
   std::unique_ptr<BlinkGCMemoryDumpProvider> dump_provider(
       new BlinkGCMemoryDumpProvider(
-          ThreadState::Current(),
-          scheduler::GetSingleThreadTaskRunnerForTesting(),
+          ThreadState::Current(), base::ThreadTaskRunnerHandle::Get(),
           BlinkGCMemoryDumpProvider::HeapType::kBlinkMainThread));
   dump_provider->OnMemoryDump(args, dump.get());
 
@@ -83,13 +55,17 @@ TEST_F(BlinkGCMemoryDumpProviderTest, MainThreadDetailedDump) {
       new base::trace_event::ProcessMemoryDump(args));
   std::unique_ptr<BlinkGCMemoryDumpProvider> dump_provider(
       new BlinkGCMemoryDumpProvider(
-          ThreadState::Current(),
-          scheduler::GetSingleThreadTaskRunnerForTesting(),
+          ThreadState::Current(), base::ThreadTaskRunnerHandle::Get(),
           BlinkGCMemoryDumpProvider::HeapType::kBlinkMainThread));
   dump_provider->OnMemoryDump(args, dump.get());
 
-  IterateMemoryDumps(*dump, "blink_gc/main/heap/", CheckBasicHeapDumpStructure);
-  CheckSpacesInDump(*dump, "blink_gc/main/heap/");
+  // All arenas should be present in the dump.
+#define CheckArena(name)       \
+  CheckBasicHeapDumpStructure( \
+      dump->GetAllocatorDump("blink_gc/main/heap/" #name "Arena"));
+
+  FOR_EACH_ARENA(CheckArena)
+#undef CheckArena
 }
 
 TEST_F(BlinkGCMemoryDumpProviderTest, WorkerLightDump) {
@@ -99,8 +75,7 @@ TEST_F(BlinkGCMemoryDumpProviderTest, WorkerLightDump) {
       new base::trace_event::ProcessMemoryDump(args));
   std::unique_ptr<BlinkGCMemoryDumpProvider> dump_provider(
       new BlinkGCMemoryDumpProvider(
-          ThreadState::Current(),
-          scheduler::GetSingleThreadTaskRunnerForTesting(),
+          ThreadState::Current(), base::ThreadTaskRunnerHandle::Get(),
           BlinkGCMemoryDumpProvider::HeapType::kBlinkWorkerThread));
   dump_provider->OnMemoryDump(args, dump.get());
 
@@ -109,7 +84,7 @@ TEST_F(BlinkGCMemoryDumpProviderTest, WorkerLightDump) {
 
   size_t workers_found = 0;
   for (const auto& kvp : dump->allocator_dumps()) {
-    if (kvp.first.find("blink_gc/workers/") != std::string::npos) {
+    if (kvp.first.find("blink_gc/workers/heap") != std::string::npos) {
       workers_found++;
       CheckBasicHeapDumpStructure(dump->GetAllocatorDump(kvp.first));
     }
@@ -124,18 +99,17 @@ TEST_F(BlinkGCMemoryDumpProviderTest, WorkerDetailedDump) {
       new base::trace_event::ProcessMemoryDump(args));
   std::unique_ptr<BlinkGCMemoryDumpProvider> dump_provider(
       new BlinkGCMemoryDumpProvider(
-          ThreadState::Current(),
-          scheduler::GetSingleThreadTaskRunnerForTesting(),
+          ThreadState::Current(), base::ThreadTaskRunnerHandle::Get(),
           BlinkGCMemoryDumpProvider::HeapType::kBlinkWorkerThread));
   dump_provider->OnMemoryDump(args, dump.get());
 
-  const std::string worker_path_prefix = "blink_gc/workers";
-  const std::string worker_path_suffix = "/heap";
+  // There should be no main thread heap dump available.
+  ASSERT_EQ(nullptr, dump->GetAllocatorDump("blink_gc/main/heap"));
 
   // Find worker suffix.
   std::string worker_suffix;
   for (const auto& kvp : dump->allocator_dumps()) {
-    if (kvp.first.find(worker_path_prefix + "/worker_0x") !=
+    if (kvp.first.find("blink_gc/workers/heap/worker_0x") !=
         std::string::npos) {
       auto start_pos = kvp.first.find("_0x");
       auto end_pos = kvp.first.find("/", start_pos);
@@ -143,12 +117,15 @@ TEST_F(BlinkGCMemoryDumpProviderTest, WorkerDetailedDump) {
     }
   }
   std::string worker_base_path =
-      worker_path_prefix + "/worker_" + worker_suffix + worker_path_suffix;
+      "blink_gc/workers/heap/worker_" + worker_suffix;
   CheckBasicHeapDumpStructure(dump->GetAllocatorDump(worker_base_path));
 
-  IterateMemoryDumps(*dump, worker_base_path + "/",
-                     CheckBasicHeapDumpStructure);
-  CheckSpacesInDump(*dump, worker_base_path + "/");
+#define CheckArena(name)       \
+  CheckBasicHeapDumpStructure( \
+      dump->GetAllocatorDump(worker_base_path + "/" #name "Arena"));
+
+  FOR_EACH_ARENA(CheckArena)
+#undef CheckArena
 }
 
 }  // namespace blink

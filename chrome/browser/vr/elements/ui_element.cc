@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 #include <limits>
 
 #include "base/check_op.h"
-#include "base/containers/adapters.h"
-#include "base/cxx17_backports.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
+#include "base/numerics/ranges.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
@@ -56,7 +55,7 @@ constexpr char kCyan[] = "\x1b[36m";
 constexpr char kYellow[] = "\x1b[33m";
 constexpr char kReset[] = "\x1b[0m";
 
-void DumpTransformOperations(const gfx::TransformOperations& ops,
+void DumpTransformOperations(const cc::TransformOperations& ops,
                              std::ostringstream* os) {
   if (!ops.at(0).IsIdentity()) {
     const auto& translate = ops.at(0).translate;
@@ -93,13 +92,16 @@ EventHandlers::~EventHandlers() = default;
 EventHandlers::EventHandlers(const EventHandlers& other) = default;
 
 UiElement::UiElement() : id_(AllocateId()) {
+  animation_.set_target(this);
   layout_offset_.AppendTranslate(0, 0, 0);
   transform_operations_.AppendTranslate(0, 0, 0);
   transform_operations_.AppendRotate(1, 0, 0, 0);
   transform_operations_.AppendScale(1, 1, 1);
 }
 
-UiElement::~UiElement() = default;
+UiElement::~UiElement() {
+  animation_.set_target(nullptr);
+}
 
 void UiElement::SetName(UiElementName name) {
   name_ = name;
@@ -261,14 +263,14 @@ bool UiElement::DoBeginFrame(const gfx::Transform& head_pose,
                              bool force_animations_to_completion) {
   // TODO(mthiesse): This is overly cautious. We may have keyframe_models but
   // not trigger any updates, so we should refine this logic and have
-  // KeyframeEffect::Tick return a boolean. Similarly, the bindings update
-  // may have had no visual effect and dirtiness should be related to setting
-  // properties that do indeed cause visual updates.
-  bool keyframe_models_updated = !animator_.keyframe_models().empty();
+  // Animation::Tick return a boolean. Similarly, the bindings update may have
+  // had no visual effect and dirtiness should be related to setting properties
+  // that do indeed cause visual updates.
+  bool keyframe_models_updated = !animation_.keyframe_models().empty();
   if (force_animations_to_completion) {
-    animator_.FinishAll();
+    animation_.FinishAll();
   } else {
-    animator_.Tick(last_frame_time_);
+    animation_.Tick(last_frame_time_);
   }
   set_update_phase(kUpdatedAnimations);
   bool begin_frame_updated = OnBeginFrame(head_pose);
@@ -307,8 +309,8 @@ bool UiElement::IsHitTestable() const {
 }
 
 void UiElement::SetSize(float width, float height) {
-  animator_.TransitionSizeTo(this, last_frame_time_, BOUNDS, size_,
-                             gfx::SizeF(width, height));
+  animation_.TransitionSizeTo(last_frame_time_, BOUNDS, size_,
+                              gfx::SizeF(width, height));
   OnSetSize(gfx::SizeF(width, height));
 }
 
@@ -320,7 +322,7 @@ void UiElement::SetVisible(bool visible) {
 
 void UiElement::SetVisibleImmediately(bool visible) {
   opacity_ = visible ? opacity_when_visible_ : 0.0;
-  animator_.RemoveKeyframeModels(OPACITY);
+  animation_.RemoveKeyframeModels(OPACITY);
 }
 
 bool UiElement::IsVisible() const {
@@ -378,12 +380,12 @@ void UiElement::SetLayoutOffset(float x, float y) {
     return;
   }
 
-  gfx::TransformOperations operations = layout_offset_;
-  gfx::TransformOperation& op = operations.at(0);
+  cc::TransformOperations operations = layout_offset_;
+  cc::TransformOperation& op = operations.at(0);
   op.translate = {x, y, 0};
   op.Bake();
-  animator_.TransitionTransformOperationsTo(
-      this, last_frame_time_, LAYOUT_OFFSET, layout_offset_, operations);
+  animation_.TransitionTransformOperationsTo(last_frame_time_, LAYOUT_OFFSET,
+                                             layout_offset_, operations);
 }
 
 void UiElement::SetTranslate(float x, float y, float z) {
@@ -394,12 +396,12 @@ void UiElement::SetTranslate(float x, float y, float z) {
     return;
   }
 
-  gfx::TransformOperations operations = transform_operations_;
-  gfx::TransformOperation& op = operations.at(kTranslateIndex);
+  cc::TransformOperations operations = transform_operations_;
+  cc::TransformOperation& op = operations.at(kTranslateIndex);
   op.translate = {x, y, z};
   op.Bake();
-  animator_.TransitionTransformOperationsTo(this, last_frame_time_, TRANSFORM,
-                                            transform_operations_, operations);
+  animation_.TransitionTransformOperationsTo(last_frame_time_, TRANSFORM,
+                                             transform_operations_, operations);
 }
 
 void UiElement::SetRotate(float x, float y, float z, float radians) {
@@ -413,13 +415,13 @@ void UiElement::SetRotate(float x, float y, float z, float radians) {
     return;
   }
 
-  gfx::TransformOperations operations = transform_operations_;
-  gfx::TransformOperation& op = operations.at(kRotateIndex);
+  cc::TransformOperations operations = transform_operations_;
+  cc::TransformOperation& op = operations.at(kRotateIndex);
   op.rotate.axis = {x, y, z};
   op.rotate.angle = degrees;
   op.Bake();
-  animator_.TransitionTransformOperationsTo(this, last_frame_time_, TRANSFORM,
-                                            transform_operations_, operations);
+  animation_.TransitionTransformOperationsTo(last_frame_time_, TRANSFORM,
+                                             transform_operations_, operations);
 }
 
 void UiElement::SetScale(float x, float y, float z) {
@@ -430,17 +432,16 @@ void UiElement::SetScale(float x, float y, float z) {
     return;
   }
 
-  gfx::TransformOperations operations = transform_operations_;
-  gfx::TransformOperation& op = operations.at(kScaleIndex);
+  cc::TransformOperations operations = transform_operations_;
+  cc::TransformOperation& op = operations.at(kScaleIndex);
   op.scale = {x, y, z};
   op.Bake();
-  animator_.TransitionTransformOperationsTo(this, last_frame_time_, TRANSFORM,
-                                            transform_operations_, operations);
+  animation_.TransitionTransformOperationsTo(last_frame_time_, TRANSFORM,
+                                             transform_operations_, operations);
 }
 
 void UiElement::SetOpacity(float opacity) {
-  animator_.TransitionFloatTo(this, last_frame_time_, OPACITY, opacity_,
-                              opacity);
+  animation_.TransitionFloatTo(last_frame_time_, OPACITY, opacity_, opacity);
 }
 
 void UiElement::SetCornerRadii(const CornerRadii& radii) {
@@ -451,24 +452,24 @@ void UiElement::SetCornerRadii(const CornerRadii& radii) {
 void UiElement::OnSetCornerRadii(const CornerRadii& radii) {}
 
 gfx::SizeF UiElement::GetTargetSize() const {
-  return animator_.GetTargetSizeValue(TargetProperty::BOUNDS, size_);
+  return animation_.GetTargetSizeValue(TargetProperty::BOUNDS, size_);
 }
 
-gfx::TransformOperations UiElement::GetTargetTransform() const {
-  return animator_.GetTargetTransformOperationsValue(TargetProperty::TRANSFORM,
-                                                     transform_operations_);
+cc::TransformOperations UiElement::GetTargetTransform() const {
+  return animation_.GetTargetTransformOperationsValue(TargetProperty::TRANSFORM,
+                                                      transform_operations_);
 }
 
 gfx::Transform UiElement::ComputeTargetWorldSpaceTransform() const {
   gfx::Transform m;
   for (const UiElement* current = this; current; current = current->parent()) {
-    m.PostConcat(current->GetTargetLocalTransform());
+    m.ConcatTransform(current->GetTargetLocalTransform());
   }
   return m;
 }
 
 float UiElement::GetTargetOpacity() const {
-  return animator_.GetTargetFloatValue(TargetProperty::OPACITY, opacity_);
+  return animation_.GetTargetFloatValue(TargetProperty::OPACITY, opacity_);
 }
 
 float UiElement::ComputeTargetOpacity() const {
@@ -687,8 +688,10 @@ std::unique_ptr<UiElement> UiElement::ReplaceChild(
   to_remove->parent_ = nullptr;
   size_t old_size = children_.size();
 
-  auto it = base::ranges::find(children_, to_remove,
-                               &std::unique_ptr<UiElement>::get);
+  auto it = std::find_if(std::begin(children_), std::end(children_),
+                         [to_remove](const std::unique_ptr<UiElement>& child) {
+                           return child.get() == to_remove;
+                         });
   DCHECK(it != std::end(children_));
 
   std::unique_ptr<UiElement> removed(it->release());
@@ -724,16 +727,19 @@ void UiElement::UpdateBindings() {
 }
 
 gfx::Point3F UiElement::GetCenter() const {
-  return world_space_transform_.MapPoint(gfx::Point3F());
+  gfx::Point3F center;
+  world_space_transform_.TransformPoint(&center);
+  return center;
 }
 
 gfx::PointF UiElement::GetUnitRectangleCoordinates(
     const gfx::Point3F& world_point) const {
-  gfx::Vector3dF x_axis =
-      world_space_transform_.MapVector(gfx::Vector3dF(1, 0, 0));
-  gfx::Vector3dF y_axis =
-      world_space_transform_.MapVector(gfx::Vector3dF(0, 1, 0));
-  gfx::Point3F origin = world_space_transform_.MapPoint(gfx::Point3F());
+  gfx::Point3F origin;
+  gfx::Vector3dF x_axis(1, 0, 0);
+  gfx::Vector3dF y_axis(0, 1, 0);
+  world_space_transform_.TransformPoint(&origin);
+  world_space_transform_.TransformVector(&x_axis);
+  world_space_transform_.TransformVector(&y_axis);
   gfx::Vector3dF origin_to_world = world_point - origin;
   float x = gfx::DotProduct(origin_to_world, x_axis) /
             gfx::DotProduct(x_axis, x_axis);
@@ -743,10 +749,10 @@ gfx::PointF UiElement::GetUnitRectangleCoordinates(
 }
 
 gfx::Vector3dF UiElement::GetNormal() const {
-  gfx::Vector3dF x_axis =
-      world_space_transform_.MapVector(gfx::Vector3dF(1, 0, 0));
-  gfx::Vector3dF y_axis =
-      world_space_transform_.MapVector(gfx::Vector3dF(0, 1, 0));
+  gfx::Vector3dF x_axis(1, 0, 0);
+  gfx::Vector3dF y_axis(0, 1, 0);
+  world_space_transform_.TransformVector(&x_axis);
+  world_space_transform_.TransformVector(&y_axis);
   gfx::Vector3dF normal = CrossProduct(x_axis, y_axis);
   normal.GetNormalized(&normal);
   return normal;
@@ -759,15 +765,16 @@ bool UiElement::GetRayDistance(const gfx::Point3F& ray_origin,
                              distance);
 }
 
-void UiElement::OnFloatAnimated(const float& value,
-                                int target_property_id,
-                                gfx::KeyframeModel* keyframe_model) {
-  opacity_ = base::clamp(value, 0.0f, 1.0f);
+void UiElement::NotifyClientFloatAnimated(float value,
+                                          int target_property_id,
+                                          cc::KeyframeModel* keyframe_model) {
+  opacity_ = base::ClampToRange(value, 0.0f, 1.0f);
 }
 
-void UiElement::OnTransformAnimated(const gfx::TransformOperations& operations,
-                                    int target_property_id,
-                                    gfx::KeyframeModel* keyframe_model) {
+void UiElement::NotifyClientTransformOperationsAnimated(
+    const cc::TransformOperations& operations,
+    int target_property_id,
+    cc::KeyframeModel* keyframe_model) {
   if (target_property_id == TRANSFORM) {
     transform_operations_ = operations;
   } else if (target_property_id == LAYOUT_OFFSET) {
@@ -779,44 +786,40 @@ void UiElement::OnTransformAnimated(const gfx::TransformOperations& operations,
   world_space_transform_dirty_ = true;
 }
 
-void UiElement::OnSizeAnimated(const gfx::SizeF& size,
-                               int target_property_id,
-                               gfx::KeyframeModel* keyframe_model) {
+void UiElement::NotifyClientSizeAnimated(const gfx::SizeF& size,
+                                         int target_property_id,
+                                         cc::KeyframeModel* keyframe_model) {
   if (size_ == size)
     return;
   size_ = size;
   world_space_transform_dirty_ = true;
 }
 
-void UiElement::OnColorAnimated(const SkColor& size,
-                                int target_property_id,
-                                gfx::KeyframeModel* keyframe_model) {}
-
 void UiElement::SetTransitionedProperties(
     const std::set<TargetProperty>& properties) {
   std::set<int> converted_properties(properties.begin(), properties.end());
-  animator_.SetTransitionedProperties(converted_properties);
+  animation_.SetTransitionedProperties(converted_properties);
 }
 
 void UiElement::SetTransitionDuration(base::TimeDelta delta) {
-  animator_.SetTransitionDuration(delta);
+  animation_.SetTransitionDuration(delta);
 }
 
 void UiElement::AddKeyframeModel(
-    std::unique_ptr<gfx::KeyframeModel> keyframe_model) {
-  animator_.AddKeyframeModel(std::move(keyframe_model));
+    std::unique_ptr<cc::KeyframeModel> keyframe_model) {
+  animation_.AddKeyframeModel(std::move(keyframe_model));
 }
 
 void UiElement::RemoveKeyframeModel(int keyframe_model_id) {
-  animator_.RemoveKeyframeModel(keyframe_model_id);
+  animation_.RemoveKeyframeModel(keyframe_model_id);
 }
 
 void UiElement::RemoveKeyframeModels(int target_property) {
-  animator_.RemoveKeyframeModels(target_property);
+  animation_.RemoveKeyframeModels(target_property);
 }
 
 bool UiElement::IsAnimatingProperty(TargetProperty property) const {
-  return animator_.IsAnimatingProperty(static_cast<int>(property));
+  return animation_.IsAnimatingProperty(static_cast<int>(property));
 }
 
 bool UiElement::SizeAndLayOut() {
@@ -869,11 +872,8 @@ gfx::RectF UiElement::ComputeContributingChildrenBounds() {
     gfx::RectF outer_bounds(child->size());
     gfx::RectF inner_bounds(child->size());
     if (!child->bounds_contain_padding_) {
-      // TODO(crbug.com/1312352): The order of bottom_padding_ and top_padding_
-      // seems incorrect.
-      inner_bounds.Inset(
-          gfx::InsetsF::TLBR(child->bottom_padding_, child->left_padding_,
-                             child->top_padding_, child->right_padding_));
+      inner_bounds.Inset(child->left_padding_, child->bottom_padding_,
+                         child->right_padding_, child->top_padding_);
     }
     gfx::SizeF size = inner_bounds.size();
     if (size.IsEmpty())
@@ -887,8 +887,8 @@ gfx::RectF UiElement::ComputeContributingChildrenBounds() {
     gfx::Point3F child_upper_left = child_center + corner_offset;
     gfx::Point3F child_lower_right = child_center - corner_offset;
 
-    child_upper_left = child->LocalTransform().MapPoint(child_upper_left);
-    child_lower_right = child->LocalTransform().MapPoint(child_lower_right);
+    child->LocalTransform().TransformPoint(&child_upper_left);
+    child->LocalTransform().TransformPoint(&child_lower_right);
     gfx::RectF local_rect =
         gfx::RectF(child_upper_left.x(), child_upper_left.y(),
                    child_lower_right.x() - child_upper_left.x(),
@@ -896,10 +896,8 @@ gfx::RectF UiElement::ComputeContributingChildrenBounds() {
     bounds.Union(local_rect);
   }
 
-  // TODO(crbug.com/1312352): The order of bottom_padding_ and top_padding_
-  // seems incorrect.
-  bounds.Inset(gfx::InsetsF::TLBR(-bottom_padding_, -left_padding_,
-                                  -top_padding_, -right_padding_));
+  bounds.Inset(-left_padding_, -bottom_padding_, -right_padding_,
+               -top_padding_);
   bounds.set_origin(bounds.CenterPoint());
   if (local_origin_ != bounds.origin()) {
     world_space_transform_dirty_ = true;
@@ -967,17 +965,16 @@ void UiElement::ClipChildren(const gfx::RectF& abs_clip) {
       continue;
 
     DCHECK(child->LocalTransform().IsScaleOrTranslation());
-    absl::optional<gfx::RectF> child_abs_clip =
-        child->LocalTransform().InverseMapRect(abs_clip);
-    DCHECK(child_abs_clip);
+    auto child_abs_clip = abs_clip;
+    child->LocalTransform().TransformRectReverse(&child_abs_clip);
     if (!child->size().IsEmpty()) {
-      child->clip_rect_ = *child_abs_clip;
+      child->clip_rect_ = child_abs_clip;
       child->clip_rect_.Scale(1.0f / child->size().width(),
                               1.0f / child->size().height());
     } else {
       child->clip_rect_ = kRelativeFullRectClip;
     }
-    child->ClipChildren(*child_abs_clip);
+    child->ClipChildren(child_abs_clip);
   }
 }
 
@@ -999,13 +996,16 @@ void UiElement::SetClipRect(const gfx::RectF& rect) {
 }
 
 UiElement* UiElement::FirstLaidOutChild() const {
-  auto i = base::ranges::find_if(children_, &UiElement::requires_layout);
+  auto i = std::find_if(
+      children_.begin(), children_.end(),
+      [](const std::unique_ptr<UiElement>& e) { return e->requires_layout(); });
   return i == children_.end() ? nullptr : i->get();
 }
 
 UiElement* UiElement::LastLaidOutChild() const {
-  auto i = base::ranges::find_if(base::Reversed(children_),
-                                 &UiElement::requires_layout);
+  auto i = std::find_if(
+      children_.rbegin(), children_.rend(),
+      [](const std::unique_ptr<UiElement>& e) { return e->requires_layout(); });
   return i == children_.rend() ? nullptr : i->get();
 }
 
@@ -1038,10 +1038,10 @@ bool UiElement::UpdateWorldSpaceTransform(bool parent_changed) {
     gfx::Transform inheritable = LocalTransform();
 
     if (parent_) {
-      inheritable.PostConcat(parent_->inheritable_transform());
+      inheritable.ConcatTransform(parent_->inheritable_transform());
     }
 
-    transform.PostConcat(inheritable);
+    transform.ConcatTransform(inheritable);
     changed = !transform.ApproximatelyEqual(world_space_transform_) ||
               !inheritable.ApproximatelyEqual(inheritable_transform_);
     set_world_space_transform(transform);

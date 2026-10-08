@@ -1,20 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/fileapi/public_url_manager.h"
 
-#include "base/test/scoped_feature_list.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
-#include "net/base/features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/fileapi/url_registry.h"
-#include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
-#include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
+#include "third_party/blink/renderer/core/testing/null_execution_context.h"
 #include "third_party/blink/renderer/platform/blob/testing/fake_blob.h"
 #include "third_party/blink/renderer/platform/blob/testing/fake_blob_url_store.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
@@ -66,40 +62,26 @@ class FakeURLRegistry : public URLRegistry {
   Vector<Registration> registrations;
 };
 
-enum class PublicURLManagerTestCase {
-  kSupportPartitionedBlobUrlDisabled,
-  kSupportPartitionedBlobUrlEnabled,
-};
-
 }  // namespace
 
-class PublicURLManagerTestP
-    : public testing::Test,
-      public testing::WithParamInterface<PublicURLManagerTestCase> {
+class PublicURLManagerTest : public testing::Test {
  public:
-  PublicURLManagerTestP() : url_store_receiver_(&url_store_) {}
+  PublicURLManagerTest() : url_store_receiver_(&url_store_) {}
 
   void SetUp() override {
-    test_case_ = GetParam();
-    scoped_feature_list_.InitWithFeatureState(
-        net::features::kSupportPartitionedBlobUrl,
-        test_case_ ==
-            PublicURLManagerTestCase::kSupportPartitionedBlobUrlEnabled);
-
-    page_holder_ = std::make_unique<DummyPageHolder>();
+    execution_context_ = MakeGarbageCollected<NullExecutionContext>();
     // By default this creates a unique origin, which is exactly what this test
     // wants.
-    SetUpSecurityContextForTesting();
+    execution_context_->SetUpSecurityContextForTesting();
 
-    HeapMojoAssociatedRemote<BlobURLStore> url_store_remote(
-        GetExecutionContext());
+    HeapMojoAssociatedRemote<BlobURLStore> url_store_remote(execution_context_);
     url_store_receiver_.Bind(
         url_store_remote.BindNewEndpointAndPassDedicatedReceiver());
     url_manager().SetURLStoreForTesting(std::move(url_store_remote));
   }
 
   PublicURLManager& url_manager() {
-    return GetExecutionContext()->GetPublicURLManager();
+    return execution_context_->GetPublicURLManager();
   }
 
   mojo::PendingRemote<mojom::blink::Blob> CreateMojoBlob(const String& uuid) {
@@ -109,53 +91,32 @@ class PublicURLManagerTestP
     return result;
   }
 
-  ExecutionContext* GetExecutionContext() const {
-    return page_holder_->GetFrame().DomWindow();
-  }
-
-  void SetURL(const KURL& url) { page_holder_->GetDocument().SetURL(url); }
-
-  void SetUpSecurityContextForTesting() {
-    // Replicate what NullExecutionContext::SetUpSecurityContextForTesting()
-    // does but using the execution context associated with `page_holder_`.
-    auto* policy = MakeGarbageCollected<ContentSecurityPolicy>();
-    auto* window = page_holder_->GetFrame().DomWindow();
-    auto& security_context = window->GetSecurityContext();
-    security_context.SetSecurityOriginForTesting(
-        SecurityOrigin::Create(window->Url()));
-    policy->BindToDelegate(window->GetContentSecurityPolicyDelegate());
-    window->SetContentSecurityPolicy(policy);
-  }
-
  protected:
-  PublicURLManagerTestCase test_case_;
-  base::test::ScopedFeatureList scoped_feature_list_;
-
-  std::unique_ptr<DummyPageHolder> page_holder_;
+  Persistent<NullExecutionContext> execution_context_;
 
   FakeBlobURLStore url_store_;
   mojo::AssociatedReceiver<BlobURLStore> url_store_receiver_;
 };
 
-TEST_P(PublicURLManagerTestP, RegisterNonMojoBlob) {
+TEST_F(PublicURLManagerTest, RegisterNonMojoBlob) {
   FakeURLRegistry registry;
   TestURLRegistrable registrable(&registry);
   String url = url_manager().RegisterURL(&registrable);
   ASSERT_EQ(1u, registry.registrations.size());
   EXPECT_EQ(0u, url_store_.registrations.size());
-  EXPECT_EQ(GetExecutionContext()->GetSecurityOrigin(),
+  EXPECT_EQ(execution_context_->GetSecurityOrigin(),
             registry.registrations[0].origin);
   EXPECT_EQ(url, registry.registrations[0].url);
   EXPECT_EQ(&registrable, registry.registrations[0].registrable);
 
   EXPECT_TRUE(SecurityOrigin::CreateFromString(url)->IsSameOriginWith(
-      GetExecutionContext()->GetSecurityOrigin()));
-  EXPECT_EQ(GetExecutionContext()->GetSecurityOrigin(),
+      execution_context_->GetSecurityOrigin()));
+  EXPECT_EQ(execution_context_->GetSecurityOrigin(),
             SecurityOrigin::CreateFromString(url));
 
   url_manager().Revoke(KURL(url));
   EXPECT_FALSE(SecurityOrigin::CreateFromString(url)->IsSameOriginWith(
-      GetExecutionContext()->GetSecurityOrigin()));
+      execution_context_->GetSecurityOrigin()));
   url_store_receiver_.FlushForTesting();
   // Even though this was not a mojo blob, the PublicURLManager might not know
   // that, so still expect a revocation on the mojo interface.
@@ -163,7 +124,7 @@ TEST_P(PublicURLManagerTestP, RegisterNonMojoBlob) {
   EXPECT_EQ(url, url_store_.revocations[0]);
 }
 
-TEST_P(PublicURLManagerTestP, RegisterMojoBlob) {
+TEST_F(PublicURLManagerTest, RegisterMojoBlob) {
   FakeURLRegistry registry;
   TestURLRegistrable registrable(&registry, CreateMojoBlob("id"));
   String url = url_manager().RegisterURL(&registrable);
@@ -173,21 +134,21 @@ TEST_P(PublicURLManagerTestP, RegisterMojoBlob) {
   EXPECT_EQ(url, url_store_.registrations.begin()->key);
 
   EXPECT_TRUE(SecurityOrigin::CreateFromString(url)->IsSameOriginWith(
-      GetExecutionContext()->GetSecurityOrigin()));
-  EXPECT_EQ(GetExecutionContext()->GetSecurityOrigin(),
+      execution_context_->GetSecurityOrigin()));
+  EXPECT_EQ(execution_context_->GetSecurityOrigin(),
             SecurityOrigin::CreateFromString(url));
 
   url_manager().Revoke(KURL(url));
   EXPECT_FALSE(SecurityOrigin::CreateFromString(url)->IsSameOriginWith(
-      GetExecutionContext()->GetSecurityOrigin()));
+      execution_context_->GetSecurityOrigin()));
   url_store_receiver_.FlushForTesting();
   ASSERT_EQ(1u, url_store_.revocations.size());
   EXPECT_EQ(url, url_store_.revocations[0]);
 }
 
-TEST_P(PublicURLManagerTestP, RevokeValidNonRegisteredURL) {
-  SetURL(KURL("http://example.com/foo/bar"));
-  SetUpSecurityContextForTesting();
+TEST_F(PublicURLManagerTest, RevokeValidNonRegisteredURL) {
+  execution_context_->SetURL(KURL("http://example.com/foo/bar"));
+  execution_context_->SetUpSecurityContextForTesting();
 
   KURL url = KURL("blob:http://example.com/id");
   url_manager().Revoke(url);
@@ -196,9 +157,9 @@ TEST_P(PublicURLManagerTestP, RevokeValidNonRegisteredURL) {
   EXPECT_EQ(url, url_store_.revocations[0]);
 }
 
-TEST_P(PublicURLManagerTestP, RevokeInvalidURL) {
-  SetURL(KURL("http://example.com/foo/bar"));
-  SetUpSecurityContextForTesting();
+TEST_F(PublicURLManagerTest, RevokeInvalidURL) {
+  execution_context_->SetURL(KURL("http://example.com/foo/bar"));
+  execution_context_->SetUpSecurityContextForTesting();
 
   KURL invalid_scheme_url = KURL("blb:http://example.com/id");
   KURL fragment_url = KURL("blob:http://example.com/id#fragment");
@@ -208,14 +169,7 @@ TEST_P(PublicURLManagerTestP, RevokeInvalidURL) {
   url_manager().Revoke(invalid_origin_url);
   url_store_receiver_.FlushForTesting();
   // Both should have been silently ignored.
-  EXPECT_TRUE(url_store_.revocations.empty());
+  EXPECT_TRUE(url_store_.revocations.IsEmpty());
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    PublicURLManagerTest,
-    PublicURLManagerTestP,
-    ::testing::Values(
-        PublicURLManagerTestCase::kSupportPartitionedBlobUrlDisabled,
-        PublicURLManagerTestCase::kSupportPartitionedBlobUrlEnabled));
 
 }  // namespace blink

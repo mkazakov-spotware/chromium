@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "chrome/browser/sync_file_system/file_status_observer.h"
 #include "chrome/browser/sync_file_system/sync_service_state.h"
 
@@ -21,10 +22,6 @@ namespace sync_file_system {
 class SyncEventObserver {
  public:
   SyncEventObserver() {}
-
-  SyncEventObserver(const SyncEventObserver&) = delete;
-  SyncEventObserver& operator=(const SyncEventObserver&) = delete;
-
   virtual ~SyncEventObserver() {}
 
   // Reports there was a state change in the sync file system backend.
@@ -40,6 +37,9 @@ class SyncEventObserver {
                             SyncFileStatus status,
                             SyncAction action,
                             SyncDirection direction) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SyncEventObserver);
 };
 
 }  // namespace sync_file_system

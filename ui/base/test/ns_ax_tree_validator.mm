@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,11 +60,11 @@ std::string NSAXTreeProblemDetails::ToString() {
   return base::SysNSStringToUTF8(s);
 }
 
-absl::optional<NSAXTreeProblemDetails> ValidateNSAXTree(
+base::Optional<NSAXTreeProblemDetails> ValidateNSAXTree(
     id<NSAccessibility> root,
     size_t* nodes_visited) {
   if (!ToNSAccessibility(root)) {
-    return absl::make_optional<NSAXTreeProblemDetails>(
+    return base::make_optional<NSAXTreeProblemDetails>(
         NSAXTreeProblemDetails::NSAX_NOT_NSACCESSIBILITY, root, nil, nil);
   }
   (*nodes_visited)++;
@@ -72,7 +72,7 @@ absl::optional<NSAXTreeProblemDetails> ValidateNSAXTree(
   if (root.accessibilityParent) {
     id<NSAccessibility> parent = ToNSAccessibility(root.accessibilityParent);
     if (!parent) {
-      return absl::make_optional<NSAXTreeProblemDetails>(
+      return base::make_optional<NSAXTreeProblemDetails>(
           NSAXTreeProblemDetails::NSAX_PARENT_NOT_NSACCESSIBILITY, root, parent,
           nil);
     }
@@ -81,20 +81,20 @@ absl::optional<NSAXTreeProblemDetails> ValidateNSAXTree(
         parent.accessibilityChildren;
 
     if ([parent_children indexOfObjectIdenticalTo:root] == NSNotFound) {
-      return absl::make_optional<NSAXTreeProblemDetails>(
+      return base::make_optional<NSAXTreeProblemDetails>(
           NSAXTreeProblemDetails::NSAX_NOT_CHILD_OF_PARENT, root, parent, nil);
     }
   }
 
   NSArray<id<NSAccessibility>>* children = root.accessibilityChildren;
   for (id<NSAccessibility> child in children) {
-    absl::optional<NSAXTreeProblemDetails> details =
+    base::Optional<NSAXTreeProblemDetails> details =
         ValidateNSAXTree(child, nodes_visited);
     if (details.has_value())
       return details;
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void PrintNSAXTree(id<NSAccessibility> root) {

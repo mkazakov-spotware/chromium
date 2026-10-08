@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Utility functions used both when importing and exporting."""
@@ -6,12 +6,11 @@
 import json
 import logging
 
-from blinkpy.common.path_finder import RELATIVE_WPT_TESTS
+from blinkpy.common.path_finder import RELATIVE_WEB_TESTS
 
 WPT_GH_ORG = 'web-platform-tests'
 WPT_GH_REPO_NAME = 'wpt'
 WPT_GH_URL = 'https://github.com/%s/%s/' % (WPT_GH_ORG, WPT_GH_REPO_NAME)
-WPT_GH_RANGE_URL_TEMPLATE = '%scompare/{}...{}' % WPT_GH_URL
 WPT_MIRROR_URL = 'https://chromium.googlesource.com/external/github.com/web-platform-tests/wpt.git'
 WPT_GH_SSH_URL_TEMPLATE = 'https://{}@github.com/%s/%s.git' % \
     (WPT_GH_ORG, WPT_GH_REPO_NAME)
@@ -25,9 +24,7 @@ PROVISIONAL_PR_LABEL = 'do not merge yet'
 DEFAULT_WPT_COMMITTER_NAME = 'Chromium WPT Sync'
 DEFAULT_WPT_COMMITTER_EMAIL = 'blink-w3c-test-autoroller@chromium.org'
 
-EXPORT_DENYLIST = {
-    'third_party/blink/web_tests/external/wpt/config.json',
-}
+CHROMIUM_WPT_DIR = RELATIVE_WEB_TESTS + 'external/wpt/'
 
 _log = logging.getLogger(__name__)
 
@@ -77,12 +74,28 @@ def is_disallowed_ini(filename):
     in WPT to set expected statuses for tests. Chromium maintains its own list
     of such files and we don't want those to be shared with upstream.
 
+    There are a few .ini files that we do allow, which are mostly configuration
+    files for wptrunner.
+
     Args:
         filename: the basename of the file to check
     """
-    # Currently, there are no special .ini files that should be upstreamed.
-    # Therefore, assume any .ini file is WPT metadata.
-    return filename.endswith('.ini')
+    if not filename.endswith('.ini'):
+        return False
+    allowed_inis = [
+        # Configuration for mypy support
+        'mypy.ini',
+        # Configuration of wpt lint
+        'py27-flake8.ini',
+        'py3-flake8.ini',
+        # Configuration of wpt framework unit tests
+        'pytest.ini',
+        'tox.ini',
+        # Contains default locations of tests and manifest for wptrunner.
+        # Required for wptrunner to work.
+        'wptrunner.default.ini',
+    ]
+    return filename not in allowed_inis
 
 
 def is_basename_skipped(basename):
@@ -108,6 +121,6 @@ def is_file_exportable(path):
     Args:
         path: A relative path from the root of Chromium repository.
     """
-    assert path.startswith(RELATIVE_WPT_TESTS)
+    assert path.startswith(CHROMIUM_WPT_DIR)
     basename = path[path.rfind('/') + 1:]
-    return path not in EXPORT_DENYLIST and not is_basename_skipped(basename)
+    return not is_basename_skipped(basename)

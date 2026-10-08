@@ -43,39 +43,19 @@ The wptserver implements a number of Python APIs for controlling traffic.
    /tools/wptserve/docs/stash
 ```
 
-### Importing local helper scripts
+### Python3 compatibility
 
-Python file handlers may import local helper scripts, e.g. to share logic
-across multiple handlers. To avoid module name collision, however, imports must
-be relative to the root of WPT. For example, in an imaginary
-`cookies/resources/myhandler.py`:
+Even though Python3 is not fully supported at this point, some work is being
+done to add compatibility for it. This is why you can see in multiple places
+the use of the `six` python module which is meant to provide a set of simple
+utilities that work for both generation of python (see
+[docs](https://six.readthedocs.io/)). The module is vendored in
+tools/third_party/six/six.py.
 
-```python
-# DON'T DO THIS
-import myhelper
-
-# DO THIS
-from cookies.resources import myhelper
+When an handler is added, it should be at least syntax-compatible with Python3.
+You can check that by running:
 ```
-
-Only absolute imports are allowed; do not use relative imports. If the path to
-your helper script includes a hyphen (`-`), you can use `import_module` from
-`importlib` to import it. For example:
-
-```python
-import importlib
-myhelper = importlib.import_module('common.security-features.myhelper')
-```
-
-**Note on __init__ files**: Importing helper scripts like this
-requires a 'path' of empty `__init__.py` files in every directory down
-to the helper. For example, if your helper is
-`css/css-align/resources/myhelper.py`, you need to have:
-
-```
-css/__init__.py
-css/css-align/__init__.py
-css/css-align/resources/__init__.py
+python3 -m py_compile <path/to/handler.py>
 ```
 
 ## Example: Dynamic HTTP headers

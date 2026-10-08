@@ -1,13 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_APP_SHIM_APP_SHIM_DELEGATE_H_
 #define CHROME_APP_SHIM_APP_SHIM_DELEGATE_H_
 
-#include "base/memory/raw_ptr.h"
-
 #import <Cocoa/Cocoa.h>
+#include <vector>
+
+#include "base/files/file_path.h"
 
 class AppShimController;
 
@@ -16,7 +17,7 @@ class AppShimController;
 @interface AppShimDelegate
     : NSObject<NSApplicationDelegate, NSUserInterfaceValidations> {
  @private
-  raw_ptr<AppShimController> _appShimController;  // Weak, owns |this|
+  AppShimController* _appShimController;  // Weak, owns |this|
 }
 - (instancetype)initWithController:(AppShimController*)controller;
 @end

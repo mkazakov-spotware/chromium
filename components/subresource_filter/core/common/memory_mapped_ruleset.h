@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/files/file.h"
 #include "base/files/memory_mapped_file.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/numerics/safe_conversions.h"
@@ -26,9 +27,6 @@ class MemoryMappedRuleset : public base::RefCounted<MemoryMappedRuleset>,
   static scoped_refptr<MemoryMappedRuleset> CreateAndInitialize(
       base::File ruleset_file);
 
-  MemoryMappedRuleset(const MemoryMappedRuleset&) = delete;
-  MemoryMappedRuleset& operator=(const MemoryMappedRuleset&) = delete;
-
   static void SetMemoryMapFailuresForTesting(bool fail);
 
   const uint8_t* data() const { return ruleset_.data(); }
@@ -40,6 +38,8 @@ class MemoryMappedRuleset : public base::RefCounted<MemoryMappedRuleset>,
   ~MemoryMappedRuleset();
 
   base::MemoryMappedFile ruleset_;
+
+  DISALLOW_COPY_AND_ASSIGN(MemoryMappedRuleset);
 };
 
 }  // namespace subresource_filter

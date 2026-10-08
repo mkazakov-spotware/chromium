@@ -31,14 +31,13 @@
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
-#include "third_party/blink/renderer/core/css/cssom/css_color_value.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
 #include "third_party/blink/renderer/core/html/parser/html_parser_idioms.h"
 #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_gradient.h"
 #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_pattern.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_context.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_flags.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "third_party/skia/include/core/SkShader.h"
 
@@ -78,7 +77,7 @@ static mojom::blink::ColorScheme ColorScheme(HTMLCanvasElement* canvas) {
     if (auto* style = canvas->GetComputedStyle())
       return style->UsedColorScheme();
   }
-  return mojom::blink::ColorScheme::kLight;
+  return ComputedStyle::InitialStyle().UsedColorScheme();
 }
 
 bool ParseColorOrCurrentColor(Color& parsed_color,
@@ -92,7 +91,7 @@ bool ParseColorOrCurrentColor(Color& parsed_color,
     case kParsedSystemColor:
       return true;
     case kParsedCurrentColor:
-      parsed_color = CurrentColor(canvas);
+      parsed_color = canvas ? CurrentColor(canvas) : Color::kBlack;
       return true;
     case kParseFailed:
       return false;
@@ -110,15 +109,13 @@ CanvasStyle::CanvasStyle(CanvasGradient* gradient)
 CanvasStyle::CanvasStyle(CanvasPattern* pattern)
     : type_(kImagePattern), pattern_(pattern) {}
 
-void CanvasStyle::ApplyToFlags(cc::PaintFlags& flags) const {
-  ImageDrawOptions draw_options;
+void CanvasStyle::ApplyToFlags(PaintFlags& flags) const {
   switch (type_) {
     case kColorRGBA:
       flags.setShader(nullptr);
       break;
     case kGradient:
-      GetCanvasGradient()->GetGradient()->ApplyToFlags(flags, SkMatrix::I(),
-                                                       draw_options);
+      GetCanvasGradient()->GetGradient()->ApplyToFlags(flags, SkMatrix::I());
       break;
     case kImagePattern:
       GetCanvasPattern()->GetPattern()->ApplyToFlags(
@@ -133,7 +130,7 @@ RGBA32 CanvasStyle::PaintColor() const {
   if (type_ == kColorRGBA)
     return rgba_;
   DCHECK(type_ == kGradient || type_ == kImagePattern);
-  return Color::kBlack.Rgb();
+  return Color::kBlack;
 }
 
 void CanvasStyle::Trace(Visitor* visitor) const {

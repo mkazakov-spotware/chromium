@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,8 +12,6 @@ source_set("nearby") {
     "nearby_connections_conversions.h",
     "nearby_connections_stream_buffer_manager.cc",
     "nearby_connections_stream_buffer_manager.h",
-    "nearby_shared_remotes.cc",
-    "nearby_shared_remotes.h",
     "platform.cc",
   ]
 
@@ -22,15 +20,12 @@ source_set("nearby") {
     "platform",
     "//base",
     "//chrome/services/sharing/public/cpp",
-    "//chromeos/ash/services/nearby/public/mojom",
+    "//chromeos/services/nearby/public/mojom",
     "//mojo/public/cpp/bindings",
-    "//third_party/nearby:connections",
+    "//third_party/nearby:core",
   ]
 
-  deps = [
-    "//chrome/browser/nearby_sharing/logging",
-    "//chromeos/services/network_config/public/mojom",
-  ]
+  deps = [ "//chrome/browser/nearby_sharing/logging" ]
 }
 
 source_set("unit_tests") {
@@ -44,12 +39,9 @@ source_set("unit_tests") {
   deps = [
     ":nearby",
     "test_support",
-    "//ash/public/cpp",
     "//base/test:test_support",
-    "//chromeos/ash/services/nearby/public/cpp:test_support",
-    "//chromeos/services/network_config/public/cpp:test_support",
     "//testing/gmock",
     "//testing/gtest",
-    "//third_party/nearby:connections_test_util",
+    "//third_party/nearby:core_internal_test",
   ]
 }

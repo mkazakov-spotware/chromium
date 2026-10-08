@@ -73,13 +73,20 @@ DOMTokenList* HTMLOutputElement::htmlFor() const {
   return tokens_.Get();
 }
 
+void HTMLOutputElement::ChildrenChanged(const ChildrenChange& change) {
+  HTMLFormControlElement::ChildrenChanged(change);
+
+  if (is_default_value_mode_)
+    default_value_ = textContent();
+}
+
 void HTMLOutputElement::ResetImpl() {
   // The reset algorithm for output elements is to set the element's
   // value mode flag to "default" and then to set the element's textContent
   // attribute to the default value.
-  if (defaultValue() == value())
+  if (default_value_ == value())
     return;
-  setTextContent(defaultValue());
+  setTextContent(default_value_);
   is_default_value_mode_ = true;
 }
 
@@ -87,21 +94,16 @@ String HTMLOutputElement::value() const {
   return textContent();
 }
 
-void HTMLOutputElement::setValue(const String& new_value) {
-  String old_value = value();
-
-  if (is_default_value_mode_)
-    default_value_ = old_value;
-
+void HTMLOutputElement::setValue(const String& value) {
   // The value mode flag set to "value" when the value attribute is set.
   is_default_value_mode_ = false;
-
-  if (new_value != old_value)
-    setTextContent(new_value);
+  if (value == this->value())
+    return;
+  setTextContent(value);
 }
 
 String HTMLOutputElement::defaultValue() const {
-  return is_default_value_mode_ ? textContent() : default_value_;
+  return default_value_;
 }
 
 void HTMLOutputElement::setDefaultValue(const String& value) {

@@ -1,4 +1,4 @@
-/* Copyright 2013 The Chromium Authors
+/* Copyright 2013 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
@@ -31,14 +31,10 @@ cr-menu > [hidden] {
 }
 
 cr-menu > [shortcutText]::after {
-  color: var(--cros-menu-shortcut-color);
+  color: rgb(100, 100, 100);
   content: attr(shortcutText);
   float: right;
   padding-inline-start: 30px;
-}
-
-cr-menu > [shortcutText][disabled]::after {
-  color: var(--cros-text-color-disabled);
 }
 
 html[dir='rtl'] cr-menu > [shortcutText]::after {
@@ -46,23 +42,19 @@ html[dir='rtl'] cr-menu > [shortcutText]::after {
 }
 
 cr-menu > [sub-menu]::after {
-  -webkit-mask-image: url(../images/files/ui/arrow_right.svg);
-  -webkit-mask-position: center;
-  -webkit-mask-repeat: no-repeat;
-  background-color: var(--cros-icon-color-primary);
-  content: '';
+  color: rgb(100, 100, 100);
+  content: '▶';
   float: right;
-  height: 32px;
-  width: 20px;
+  font-size: 0.7em;
 }
 
 html[dir='rtl'] cr-menu > [sub-menu]::after {
+  content: '◀';
   float: left;
-  transform: scaleX(-1);
 }
 
 cr-menu > [sub-menu][disabled]::after {
-  background-color: var(--cros-text-color-disabled);
+  color: rgba(51, 51, 51, 0.20);
 }
 
 /* Keeps menu visibile while animating. Fade out animation is performed by
@@ -73,50 +65,34 @@ cr-menu[hidden].files-menu.animating {
 }
 
 cr-menu.files-menu > cr-menu-item {
-  display: flex;
-  align-items: center;
-  flex-direction: row;
+  background-size: 16px 16px;
+  position: relative;
 }
 
 /* Icon on the left of the item label for cr.ui.FilesMenuItem.
    TODO(mtomasz): Upstream to cr.ui.MenuItem. */
-cr-menu.files-menu cr-menu-item .icon {
-  -webkit-mask-position: center;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: 16px 16px;
+cr-menu.files-menu.has-icon-start cr-menu-item .icon.start {
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 16px 16px;
-  height: 32px;
+  display: inline-block;
+  height: 16px;
+  margin-inline-end: 8px;
   vertical-align: middle;
   width: 16px;
-}
-
-cr-menu.files-menu cr-menu-item .icon.start {
-  align-self: flex-start;
-  margin-inline-end: 8px;
 }
 
 cr-menu.files-menu:not(.has-icon-start) cr-menu-item .icon.start {
   display: none;
 }
 
-cr-menu.files-menu cr-menu-item .icon.managed {
-  background-image: url(chrome://resources/images/business.svg);
-  margin-inline-start: 8px;
-}
-
-cr-menu.files-menu cr-menu-item .icon.end {
-  align-self: flex-end;
-  margin-inline-start: 8px;
-}
-
 cr-menu.files-menu > cr-menu-item > .icon {
+  position: relative;
   z-index: 1;
 }
 
 cr-menu.files-menu > cr-menu-item > span {
-  flex-grow: 1;
+  position: relative;
+  vertical-align: middle;
   z-index: 1;
 }
 
@@ -128,16 +104,19 @@ html.files-ng cr-menu.files-menu > cr-menu-item {
   padding: 0 16px;
 }
 
-html.files-ng.pointer-active cr-menu-item > paper-ripple {
-  --paper-ripple-opacity: 100%;
-  color: var(--cros-ripple-color);
+html.files-ng:not(.pointer-active) cr-menu-item > paper-ripple {
+  display: none;
 }
 
-html.files-ng cr-menu.files-menu > cr-menu-item:not([disabled])[selected],
-html.files-ng cr-menu.files-menu > cr-menu-item:not([disabled]):active {
-  background-color: var(--cros-menu-item-background-hover);
+html.files-ng.pointer-active cr-menu-item > paper-ripple {
+  --paper-ripple-opacity: 8%;
+  color: black;
+}
+
+html.files-ng cr-menu.files-menu > cr-menu-item:not([disabled])[selected] {
+  background-color: rgba(0, 0, 0, 4%);
 }
 
 html.files-ng:not(.pointer-active) cr-menu.files-menu > cr-menu-item:not([disabled]):active[selected] {
-  background-color: var(--cros-menu-item-background-hover);
+  background-color: rgba(0, 0, 0, 12%);
 }

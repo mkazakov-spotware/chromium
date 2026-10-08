@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,10 @@ using TestParams = std::tuple<::media::ChannelLayout /* input layout */,
 class InterleavedChannelMixerTest : public testing::TestWithParam<TestParams> {
  public:
   InterleavedChannelMixerTest() = default;
-
-  InterleavedChannelMixerTest(const InterleavedChannelMixerTest&) = delete;
-  InterleavedChannelMixerTest& operator=(const InterleavedChannelMixerTest&) =
-      delete;
-
   ~InterleavedChannelMixerTest() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InterleavedChannelMixerTest);
 };
 
 TEST_P(InterleavedChannelMixerTest, Transform) {

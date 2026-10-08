@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,7 @@ namespace {
 
 class PrintRenderFrameHelperDelegate : public PrintRenderFrameHelper::Delegate {
  public:
-  explicit PrintRenderFrameHelperDelegate(bool generate_tagged_pdfs)
-      : generate_tagged_pdfs_(generate_tagged_pdfs) {}
-  ~PrintRenderFrameHelperDelegate() override = default;
+  ~PrintRenderFrameHelperDelegate() override {}
 
   blink::WebElement GetPdfElement(blink::WebLocalFrame* frame) override {
     return blink::WebElement();
@@ -30,26 +28,21 @@ class PrintRenderFrameHelperDelegate : public PrintRenderFrameHelper::Delegate {
     return false;
 #endif
   }
-  bool ShouldGenerateTaggedPDF() override { return generate_tagged_pdfs_; }
   bool OverridePrint(blink::WebLocalFrame* frame) override { return false; }
-
- private:
-  const bool generate_tagged_pdfs_;
 };
 
 }  // namespace
 
-PrintTestContentRendererClient::PrintTestContentRendererClient(
-    bool generate_tagged_pdfs)
-    : generate_tagged_pdfs_(generate_tagged_pdfs) {}
+PrintTestContentRendererClient::PrintTestContentRendererClient() {
+}
 
-PrintTestContentRendererClient::~PrintTestContentRendererClient() = default;
+PrintTestContentRendererClient::~PrintTestContentRendererClient() {
+}
 
 void PrintTestContentRendererClient::RenderFrameCreated(
     content::RenderFrame* render_frame) {
   new PrintRenderFrameHelper(
-      render_frame,
-      std::make_unique<PrintRenderFrameHelperDelegate>(generate_tagged_pdfs_));
+      render_frame, std::make_unique<PrintRenderFrameHelperDelegate>());
 }
 
 }  // namespace printing

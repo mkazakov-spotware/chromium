@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #else
@@ -17,28 +17,15 @@
 namespace chrome_test_utils {
 
 content::WebContents* GetActiveWebContents(PlatformBrowserTest* browser_test) {
-#if BUILDFLAG(IS_ANDROID)
-  for (const TabModel* model : TabModelList::models()) {
-    if (model->IsActiveModel())
-      return model->GetActiveWebContents();
+#if defined(OS_ANDROID)
+  for (size_t i = 0; i < TabModelList::size(); ++i) {
+    if (TabModelList::get(i)->IsActiveModel())
+      return TabModelList::get(i)->GetActiveWebContents();
   }
   NOTREACHED() << "No active TabModel??";
   return nullptr;
 #else
   return browser_test->browser()->tab_strip_model()->GetActiveWebContents();
-#endif
-}
-
-Profile* GetProfile(PlatformBrowserTest* browser_test) {
-#if BUILDFLAG(IS_ANDROID)
-  for (const TabModel* model : TabModelList::models()) {
-    if (model->IsActiveModel())
-      return model->GetProfile();
-  }
-  NOTREACHED() << "No active TabModel??";
-  return nullptr;
-#else
-  return browser_test->browser()->profile();
 #endif
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/android/jni_string.h"
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/browser/thumbnail/generator/android/thumbnail_media_parser.h"
 #include "chrome/browser/thumbnail/generator/jni_headers/ThumbnailGenerator_jni.h"
@@ -78,15 +77,6 @@ void ThumbnailGenerator::OnVideoThumbnailRetrieved(
   // Scale the bitmap before sending back to Java.
   ScaleDownBitmap(icon_size, std::move(thumbnail),
                   base::BindOnce(&OnThumbnailScaled, std::move(java_callback)));
-
-  // We want to delete |parser| but can't do it immediately because current
-  // stack contains functions that belong to ThumbnailMediaParser and the
-  // VideoDecoder that the parser owens. This would cause use-after-free.
-  // That's why |parser|'s destruction is postponed till the current task
-  // is completed and the call stack doesn't have frames referencing memory
-  // owned by |parser|
-  base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                             std::move(parser));
 }
 
 void ThumbnailGenerator::RetrieveThumbnail(
@@ -117,11 +107,10 @@ void ThumbnailGenerator::RetrieveThumbnail(
   if (base::StartsWith(mime_type, "video/",
                        base::CompareCase::INSENSITIVE_ASCII)) {
     auto parser = ThumbnailMediaParser::Create(mime_type, file_path);
-    auto* const parser_ptr = parser.get();
-    parser_ptr->Start(
-        base::BindOnce(&ThumbnailGenerator::OnVideoThumbnailRetrieved,
-                       weak_factory_.GetWeakPtr(), std::move(java_callback),
-                       icon_size, std::move(parser)));
+    parser->Start(base::BindOnce(&ThumbnailGenerator::OnVideoThumbnailRetrieved,
+                                 weak_factory_.GetWeakPtr(),
+                                 std::move(java_callback), icon_size,
+                                 std::move(parser)));
     return;
   }
 

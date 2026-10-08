@@ -1,26 +1,24 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_SCHEDULER_RESPONSIVENESS_NATIVE_EVENT_OBSERVER_H_
 #define CONTENT_BROWSER_SCHEDULER_RESPONSIVENESS_NATIVE_EVENT_OBSERVER_H_
 
-#include <vector>
-
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "content/common/content_export.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "content/public/browser/native_event_processor_observer_mac.h"
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "ui/aura/window_event_dispatcher_observer.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/message_loop/message_pump_win.h"
 #endif
 
@@ -39,11 +37,11 @@ namespace responsiveness {
 // On Windows, the hook should be in MessagePumpForUI::ProcessMessageHelper.
 // On Android, the hook should be in <TBD>.
 class CONTENT_EXPORT NativeEventObserver
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     : public NativeEventProcessorObserver
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
     : public aura::WindowEventDispatcherObserver
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
     : public base::MessagePumpForUI::Observer
 #endif
 {
@@ -58,30 +56,26 @@ class CONTENT_EXPORT NativeEventObserver
   NativeEventObserver(WillRunEventCallback will_run_event_callback,
                       DidRunEventCallback did_run_event_callback);
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-
-  NativeEventObserver(const NativeEventObserver&) = delete;
-  NativeEventObserver& operator=(const NativeEventObserver&) = delete;
-
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   ~NativeEventObserver() override;
 #else
   virtual ~NativeEventObserver();
 #endif
 
  protected:
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // NativeEventProcessorObserver overrides:
   // Exposed for tests.
   void WillRunNativeEvent(const void* opaque_identifier) override;
   void DidRunNativeEvent(const void* opaque_identifier) override;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   // aura::WindowEventDispatcherObserver overrides:
   void OnWindowEventDispatcherStartedProcessing(
       aura::WindowEventDispatcher* dispatcher,
       const ui::Event& event) override;
   void OnWindowEventDispatcherFinishedProcessingEvent(
       aura::WindowEventDispatcher* dispatcher) override;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   // base::MessagePumpForUI::Observer overrides:
   void WillDispatchMSG(const MSG& msg) override;
   void DidDispatchMSG(const MSG& msg) override;
@@ -91,15 +85,17 @@ class CONTENT_EXPORT NativeEventObserver
   void RegisterObserver();
   void DeregisterObserver();
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   struct EventInfo {
-    raw_ptr<const void> unique_id;
+    const void* unique_id;
   };
   std::vector<EventInfo> events_being_processed_;
 #endif
 
   WillRunEventCallback will_run_event_callback_;
   DidRunEventCallback did_run_event_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeEventObserver);
 };
 
 }  // namespace responsiveness

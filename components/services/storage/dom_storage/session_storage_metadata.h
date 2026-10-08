@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,7 @@
 #include "base/memory/ref_counted.h"
 #include "components/services/storage/dom_storage/async_dom_storage_database.h"
 #include "components/services/storage/dom_storage/dom_storage_database.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
+#include "url/origin.h"
 
 namespace storage {
 
@@ -45,12 +44,12 @@ class SessionStorageMetadata {
   // Represents a map which can be shared by multiple areas.
   // The |DeleteNamespace| and |DeleteArea| methods can destroy any MapData
   // objects who are no longer referenced by another namespace.
-  // Maps (and thus MapData objects) can only be shared for the same StorageKey.
+  // Maps (and thus MapData objects) can only be shared for the same origin.
   class MapData : public base::RefCounted<MapData> {
    public:
-    explicit MapData(int64_t map_number, blink::StorageKey storage_key);
+    explicit MapData(int64_t map_number, url::Origin origin);
 
-    const blink::StorageKey& storage_key() const { return storage_key_; }
+    const url::Origin& origin() const { return origin_; }
 
     // The number of namespaces that reference this map.
     int ReferenceCount() const { return reference_count_; }
@@ -75,14 +74,13 @@ class SessionStorageMetadata {
     // representation of the map number.
     std::vector<uint8_t> number_as_bytes_;
     std::vector<uint8_t> key_prefix_;
-    blink::StorageKey storage_key_;
+    url::Origin origin_;
     int reference_count_ = 0;
   };
 
-  using NamespaceStorageKeyMap =
-      std::map<std::string,
-               std::map<blink::StorageKey, scoped_refptr<MapData>>>;
-  using NamespaceEntry = NamespaceStorageKeyMap::iterator;
+  using NamespaceOriginMap =
+      std::map<std::string, std::map<url::Origin, scoped_refptr<MapData>>>;
+  using NamespaceEntry = NamespaceOriginMap::iterator;
 
   SessionStorageMetadata();
   ~SessionStorageMetadata();
@@ -92,7 +90,7 @@ class SessionStorageMetadata {
   std::vector<AsyncDomStorageDatabase::BatchDatabaseTask> SetupNewDatabase();
 
   // This parses the database version from the bytes that were stored on
-  // disk, or if there was no version saved then passes a absl::nullopt. This
+  // disk, or if there was no version saved then passes a base::nullopt. This
   // call is not necessary on new databases. The |upgrade_tasks| are populated
   // with any tasks needed to upgrade the databases versioning metadata. Note
   // this is different than the namespaces metadata, which will be upgraded in
@@ -100,7 +98,7 @@ class SessionStorageMetadata {
   //
   // Returns |true| if the parsing is correct and we support the version read.
   bool ParseDatabaseVersion(
-      absl::optional<std::vector<uint8_t>> value,
+      base::Optional<std::vector<uint8_t>> value,
       std::vector<AsyncDomStorageDatabase::BatchDatabaseTask>* upgrade_tasks);
 
   // Parses all namespaces and maps, and stores all metadata locally. This
@@ -118,7 +116,7 @@ class SessionStorageMetadata {
   // necessary on new databases.
   void ParseNextMapId(const std::vector<uint8_t>& map_id);
 
-  // Creates new map data for the given namespace-StorageKey area. If the area
+  // Creates new map data for the given namespace-origin area. If the area
   // entry exists, then it will decrement the refcount of the old map. Tasks
   // appended to |*save_tasks| if run will save the new or modified area entry
   // to disk, as well as saving the next available map id.
@@ -127,14 +125,14 @@ class SessionStorageMetadata {
   // only one reference.
   scoped_refptr<MapData> RegisterNewMap(
       NamespaceEntry namespace_entry,
-      const blink::StorageKey& storage_key,
+      const url::Origin& origin,
       std::vector<AsyncDomStorageDatabase::BatchDatabaseTask>* save_tasks);
 
-  // Registers an StorageKey-map in the |destination_namespace| from every
-  // StorageKey-map in the |source_namespace|. The |destination_namespace| must
-  // have no StorageKey-maps. All maps in the destination namespace are the same
-  // maps as the source namespace. All database operations to save the namespace
-  // StorageKey metadata are put in |save_tasks|.
+  // Registers an origin-map in the |destination_namespace| from every
+  // origin-map in the |source_namespace|. The |destination_namespace| must have
+  // no origin-maps. All maps in the destination namespace are the same maps as
+  // the source namespace. All database operations to save the namespace origin
+  // metadata are put in |save_tasks|.
   void RegisterShallowClonedNamespace(
       NamespaceEntry source_namespace,
       NamespaceEntry destination_namespace,
@@ -150,18 +148,18 @@ class SessionStorageMetadata {
       std::vector<AsyncDomStorageDatabase::BatchDatabaseTask>* save_tasks);
 
   // This returns a BatchDatabaseTask to remove the metadata entry for this
-  // namespace-StorageKey area. If the map at this entry isn't referenced by any
+  // namespace-origin area. If the map at this entry isn't referenced by any
   // other area (refcount hits 0), then the task will also delete that map on
   // disk and invalidate that MapData.
   void DeleteArea(
       const std::string& namespace_id,
-      const blink::StorageKey& storage_key,
+      const url::Origin& origin,
       std::vector<AsyncDomStorageDatabase::BatchDatabaseTask>* save_tasks);
 
   NamespaceEntry GetOrCreateNamespaceEntry(const std::string& namespace_id);
 
-  const NamespaceStorageKeyMap& namespace_storage_key_map() const {
-    return namespace_storage_key_map_;
+  const NamespaceOriginMap& namespace_origin_map() const {
+    return namespace_origin_map_;
   }
 
   int64_t NextMapId() const { return next_map_id_; }
@@ -172,7 +170,7 @@ class SessionStorageMetadata {
   static std::vector<uint8_t> GetNamespacePrefix(
       const std::string& namespace_id);
   static std::vector<uint8_t> GetAreaKey(const std::string& namespace_id,
-                                         const blink::StorageKey& storage_key);
+                                         const url::Origin& origin);
   static std::vector<uint8_t> GetMapPrefix(int64_t map_number);
   static std::vector<uint8_t> GetMapPrefix(
       const std::vector<uint8_t>& map_number_as_bytes);
@@ -181,7 +179,7 @@ class SessionStorageMetadata {
   int64_t next_map_id_ = kInvalidMapId;
   int64_t next_map_id_from_namespaces_ = 0;
 
-  NamespaceStorageKeyMap namespace_storage_key_map_;
+  NamespaceOriginMap namespace_origin_map_;
 };
 
 }  // namespace storage

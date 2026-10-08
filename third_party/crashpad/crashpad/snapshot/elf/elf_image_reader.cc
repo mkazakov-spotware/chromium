@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,14 +56,8 @@ template <typename PhdrType>
 class ElfImageReader::ProgramHeaderTableSpecific
     : public ElfImageReader::ProgramHeaderTable {
  public:
-  ProgramHeaderTableSpecific() {}
-
-  ProgramHeaderTableSpecific(
-      const ProgramHeaderTableSpecific<PhdrType>&) = delete;
-  ProgramHeaderTableSpecific<PhdrType>& operator=(
-      const ProgramHeaderTableSpecific<PhdrType>&) = delete;
-
-  ~ProgramHeaderTableSpecific() {}
+  ProgramHeaderTableSpecific<PhdrType>() {}
+  ~ProgramHeaderTableSpecific<PhdrType>() {}
 
   bool Initialize(const ProcessMemoryRange& memory,
                   VMAddress address,
@@ -189,6 +183,8 @@ class ElfImageReader::ProgramHeaderTableSpecific
  private:
   std::vector<PhdrType> table_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProgramHeaderTableSpecific<PhdrType>);
 };
 
 ElfImageReader::NoteReader::~NoteReader() = default;
@@ -733,13 +729,13 @@ bool ElfImageReader::GetAddressFromDynamicArray(uint64_t tag,
   if (!dynamic_array_->GetValue(tag, log, address)) {
     return false;
   }
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_ANDROID) || defined(OS_FUCHSIA)
   // The GNU loader updates the dynamic array according to the load bias.
   // The Android and Fuchsia loaders only update the debug address.
   if (tag != DT_DEBUG) {
     *address += GetLoadBias();
   }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID
   return true;
 }
 

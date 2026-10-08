@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,6 @@
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/label.h"
@@ -48,6 +47,7 @@ CriticalNotificationBubbleView::CriticalNotificationBubbleView(
       base::BindOnce(&CriticalNotificationBubbleView::OnDialogCancelled,
                      base::Unretained(this)));
   set_close_on_deactivate(false);
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::CRITICAL_NOTIFICATION);
 }
 
 CriticalNotificationBubbleView::~CriticalNotificationBubbleView() {
@@ -55,7 +55,7 @@ CriticalNotificationBubbleView::~CriticalNotificationBubbleView() {
 
 base::TimeDelta CriticalNotificationBubbleView::GetRemainingTime() const {
   // How long to give the user until auto-restart if no action is taken.
-  constexpr auto kCountdownDuration = base::Seconds(30);
+  constexpr auto kCountdownDuration = base::TimeDelta::FromSeconds(30);
   const base::TimeDelta time_lapsed = base::TimeTicks::Now() - bubble_created_;
   return kCountdownDuration - time_lapsed;
 }
@@ -84,9 +84,9 @@ void CriticalNotificationBubbleView::OnCountdown() {
   GetBubbleFrameView()->UpdateWindowTitle();
 }
 
-std::u16string CriticalNotificationBubbleView::GetWindowTitle() const {
+base::string16 CriticalNotificationBubbleView::GetWindowTitle() const {
   const auto remaining_time = GetRemainingTime();
-  return remaining_time.is_positive()
+  return remaining_time > base::TimeDelta()
              ? l10n_util::GetPluralStringFUTF16(IDS_CRITICAL_NOTIFICATION_TITLE,
                                                 remaining_time.InSeconds())
              : l10n_util::GetStringUTF16(
@@ -117,7 +117,7 @@ void CriticalNotificationBubbleView::OnDialogAccepted() {
 void CriticalNotificationBubbleView::Init() {
   bubble_created_ = base::TimeTicks::Now();
 
-  SetUseDefaultFillLayout(true);
+  SetLayoutManager(std::make_unique<views::FillLayout>());
 
   auto message = std::make_unique<views::Label>(
       l10n_util::GetStringUTF16(IDS_CRITICAL_NOTIFICATION_TEXT),
@@ -129,7 +129,7 @@ void CriticalNotificationBubbleView::Init() {
                      margins().width());
   AddChildView(std::move(message));
 
-  refresh_timer_.Start(FROM_HERE, base::Seconds(1), this,
+  refresh_timer_.Start(FROM_HERE, base::TimeDelta::FromSeconds(1), this,
                        &CriticalNotificationBubbleView::OnCountdown);
 
   base::RecordAction(UserMetricsAction("CriticalNotificationShown"));
@@ -145,6 +145,3 @@ void CriticalNotificationBubbleView::ViewHierarchyChanged(
   if (details.is_add && details.child == this)
     NotifyAccessibilityEvent(ax::mojom::Event::kAlert, true);
 }
-
-BEGIN_METADATA(CriticalNotificationBubbleView, views::BubbleDialogDelegateView)
-END_METADATA

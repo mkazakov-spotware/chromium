@@ -1,1 +1,4 @@
-file://content/browser/broadcast_channel/OWNERS
+mek@chromium.org
+
+# TEAM: platform-architecture-dev@chromium.org
+# COMPONENT: Blink>Messaging

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,21 +11,16 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/wm/desks/desks_util.h"
 #include "base/i18n/rtl.h"
+#include "base/stl_util.h"
 #include "base/test/icu_test_util.h"
 #include "chromeos/ui/base/window_properties.h"
 #include "chromeos/ui/frame/caption_buttons/frame_back_button.h"
 #include "chromeos/ui/frame/caption_buttons/frame_caption_button_container_view.h"
-#include "chromeos/ui/frame/frame_header.h"
 #include "ui/aura/window.h"
-#include "ui/aura/window_tree_host.h"
-#include "ui/compositor/layer.h"
-#include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
-#include "ui/compositor/test/test_utils.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/views/test/test_views.h"
-#include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/non_client_view.h"
 #include "ui/wm/core/window_util.h"
@@ -187,8 +182,9 @@ TEST_F(DefaultFrameHeaderTest, DeleteDuringAnimation) {
 
   EXPECT_TRUE(wm::IsActiveWindow(win1.get()));
 
-  // Waits until `FrameHeader` gets painted.
-  EXPECT_TRUE(ui::WaitForNextFrameToBePresented(win0->GetHost()->compositor()));
+  // A frame will not animate until it is painted first.
+  FramePaintWaiter(win0.get()).Wait();
+  FramePaintWaiter(win1.get()).Wait();
 
   ui::ScopedAnimationDurationScaleMode non_zero_duration_mode(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
@@ -196,8 +192,8 @@ TEST_F(DefaultFrameHeaderTest, DeleteDuringAnimation) {
 
   auto* frame_view = NonClientFrameViewAsh::Get(win0.get());
   auto* animating_layer_holding_view = frame_view->children()[0];
-  EXPECT_TRUE(views::IsViewClass<chromeos::FrameHeader::FrameAnimatorView>(
-      animating_layer_holding_view));
+  EXPECT_TRUE(!std::strcmp(animating_layer_holding_view->GetClassName(),
+                           "FrameAnimatorView"));
   ASSERT_TRUE(animating_layer_holding_view->layer());
   ASSERT_GT(animating_layer_holding_view->layer()->parent()->children().size(),
             2u);
@@ -222,17 +218,17 @@ TEST_F(DefaultFrameHeaderTest, ResizeAndReorderDuringAnimation) {
 
   EXPECT_TRUE(wm::IsActiveWindow(win_1.get()));
 
-  // Waits until `FrameHeader` gets painted.
-  EXPECT_TRUE(
-      ui::WaitForNextFrameToBePresented(win_0->GetHost()->compositor()));
+  // A frame will not animate until it is painted first.
+  FramePaintWaiter(win_0.get()).Wait();
+  FramePaintWaiter(win_1.get()).Wait();
 
   ui::ScopedAnimationDurationScaleMode non_zero_duration_mode(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   auto* frame_view_0 = NonClientFrameViewAsh::Get(win_0.get());
   auto* animating_layer_holding_view_0 = frame_view_0->children()[0];
-  EXPECT_TRUE(views::IsViewClass<chromeos::FrameHeader::FrameAnimatorView>(
-      animating_layer_holding_view_0));
+  EXPECT_TRUE(!std::strcmp(animating_layer_holding_view_0->GetClassName(),
+                           "FrameAnimatorView"));
   size_t original_layers_count_0 =
       animating_layer_holding_view_0->layer()->parent()->children().size();
 
@@ -241,8 +237,8 @@ TEST_F(DefaultFrameHeaderTest, ResizeAndReorderDuringAnimation) {
       frame_view_1->AddChildView(std::make_unique<views::View>());
 
   auto* animating_layer_holding_view_1 = frame_view_1->children()[0];
-  EXPECT_TRUE(views::IsViewClass<chromeos::FrameHeader::FrameAnimatorView>(
-      animating_layer_holding_view_1));
+  EXPECT_TRUE(!std::strcmp(animating_layer_holding_view_1->GetClassName(),
+                           "FrameAnimatorView"));
   size_t original_layers_count_1 =
       animating_layer_holding_view_1->layer()->parent()->children().size();
 
@@ -279,7 +275,7 @@ TEST_F(DefaultFrameHeaderTest, ResizeAndReorderDuringAnimation) {
     LayerDestroyedChecker checker(animating_layer);
 
     // Change the view's stacking order should stop the animation.
-    ASSERT_EQ(3u, frame_view_1->children().size());
+    ASSERT_EQ(2u, frame_view_1->children().size());
     frame_view_1->ReorderChildView(extra_view_1, 0);
 
     EXPECT_EQ(

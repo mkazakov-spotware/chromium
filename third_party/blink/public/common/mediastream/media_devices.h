@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/optional.h"
 #include "media/base/video_facing.h"
 #include "media/capture/video/video_capture_device_descriptor.h"
 #include "third_party/blink/public/common/common_export.h"
@@ -25,7 +26,7 @@ struct BLINK_COMMON_EXPORT WebMediaDeviceInfo {
       const std::string& group_id,
       const media::VideoCaptureControlSupport& video_control_support =
           media::VideoCaptureControlSupport(),
-      blink::mojom::FacingMode video_facing = blink::mojom::FacingMode::NONE);
+      media::VideoFacingMode video_facing = media::MEDIA_VIDEO_FACING_NONE);
   explicit WebMediaDeviceInfo(
       const media::VideoCaptureDeviceDescriptor& descriptor);
   ~WebMediaDeviceInfo();
@@ -36,7 +37,8 @@ struct BLINK_COMMON_EXPORT WebMediaDeviceInfo {
   std::string label;
   std::string group_id;
   media::VideoCaptureControlSupport video_control_support;
-  blink::mojom::FacingMode video_facing = blink::mojom::FacingMode::NONE;
+  media::VideoFacingMode video_facing =
+      media::VideoFacingMode::MEDIA_VIDEO_FACING_NONE;
 };
 
 using WebMediaDeviceInfoArray = std::vector<WebMediaDeviceInfo>;

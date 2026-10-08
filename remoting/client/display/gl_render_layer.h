@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <array>
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/client/display/sys_opengl.h"
@@ -25,10 +26,6 @@ class GlRenderLayer {
   // texture_id: An integer in range [0, GL_MAX_TEXTURE_IMAGE_UNITS], defining
   //             which slot to store the texture.
   GlRenderLayer(int texture_id, base::WeakPtr<Canvas> canvas);
-
-  GlRenderLayer(const GlRenderLayer&) = delete;
-  GlRenderLayer& operator=(const GlRenderLayer&) = delete;
-
   ~GlRenderLayer();
 
   // Sets the texture (RGBA 8888) to be drawn. Please use UpdateTexture() if the
@@ -98,6 +95,7 @@ class GlRenderLayer {
   int update_buffer_size_ = 0;
 
   base::ThreadChecker thread_checker_;
+  DISALLOW_COPY_AND_ASSIGN(GlRenderLayer);
 };
 
 }  // namespace remoting

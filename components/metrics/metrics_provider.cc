@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,8 +30,6 @@ void MetricsProvider::OnRecordingEnabled() {
 
 void MetricsProvider::OnRecordingDisabled() {
 }
-
-void MetricsProvider::OnClientStateCleared() {}
 
 void MetricsProvider::OnAppEnterBackground() {
 }
@@ -72,8 +70,6 @@ void MetricsProvider::ProvideCurrentSessionData(
     ChromeUserMetricsExtension* uma_proto) {
   ProvideStabilityMetrics(uma_proto->mutable_system_profile());
 }
-
-void MetricsProvider::ProvideCurrentSessionUKMData() {}
 
 void MetricsProvider::ProvideStabilityMetrics(
     SystemProfileProto* system_profile_proto) {

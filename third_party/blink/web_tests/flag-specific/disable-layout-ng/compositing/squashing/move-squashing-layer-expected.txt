@@ -3,7 +3,7 @@ This tests that squashed layers' offset from renderer is updated properly. If no
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -23,11 +23,11 @@ This tests that squashed layers' offset from renderer is updated properly. If no
       "transform": 2
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='squashed'",
-      "position": [8, 8],
+      "name": "Squashing Layer (first squashed layer: LayoutBlockFlow (relative positioned) DIV id='squashed')",
+      "position": [-92, -92],
       "bounds": [100, 100],
-      "contentsOpaque": true,
-      "backgroundColor": "#0000FF"
+      "backgroundColor": "#0000FF",
+      "transform": 2
     }
   ],
   "transforms": [

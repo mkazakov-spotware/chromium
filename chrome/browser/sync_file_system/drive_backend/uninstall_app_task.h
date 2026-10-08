@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,12 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/sync_file_system/drive_backend/sync_task.h"
 #include "chrome/browser/sync_file_system/remote_file_sync_service.h"
 #include "chrome/browser/sync_file_system/sync_callbacks.h"
-#include "google_apis/common/api_error_codes.h"
+#include "google_apis/drive/drive_api_error_codes.h"
 
 namespace drive {
 class DriveServiceInterface;
@@ -33,30 +33,28 @@ class UninstallAppTask : public ExclusiveTask {
   UninstallAppTask(SyncEngineContext* sync_context,
                    const std::string& app_id,
                    UninstallFlag uninstall_flag);
-
-  UninstallAppTask(const UninstallAppTask&) = delete;
-  UninstallAppTask& operator=(const UninstallAppTask&) = delete;
-
   ~UninstallAppTask() override;
 
-  void RunExclusive(SyncStatusCallback callback) override;
+  void RunExclusive(const SyncStatusCallback& callback) override;
 
  private:
-  void DidDeleteAppRoot(SyncStatusCallback callback,
+  void DidDeleteAppRoot(const SyncStatusCallback& callback,
                         int64_t change_id,
-                        google_apis::ApiErrorCode error);
+                        google_apis::DriveApiErrorCode error);
 
   bool IsContextReady();
   MetadataDatabase* metadata_database();
   drive::DriveServiceInterface* drive_service();
 
-  raw_ptr<SyncEngineContext> sync_context_;  // Not owned.
+  SyncEngineContext* sync_context_;  // Not owned.
 
   std::string app_id_;
   UninstallFlag uninstall_flag_;
   int64_t app_root_tracker_id_;
 
   base::WeakPtrFactory<UninstallAppTask> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UninstallAppTask);
 };
 
 }  // namespace drive_backend

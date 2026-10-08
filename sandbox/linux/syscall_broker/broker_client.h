@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "base/memory/raw_ref.h"
+#include "base/macros.h"
 #include "sandbox/linux/syscall_broker/broker_channel.h"
 #include "sandbox/linux/syscall_broker/broker_command.h"
-#include "sandbox/linux/syscall_broker/broker_sandbox_config.h"
 #include "sandbox/linux/syscall_broker/syscall_dispatcher.h"
 #include "sandbox/sandbox_export.h"
 
 namespace sandbox {
 namespace syscall_broker {
+
+class BrokerPermissionList;
 
 // This class can be embedded in a sandboxed process and can be
 // used to perform certain system calls in another, presumably
@@ -33,18 +34,15 @@ class SANDBOX_EXPORT BrokerClient : public SyscallDispatcher {
   static intptr_t SIGSYS_Handler(const arch_seccomp_data& args,
                                  void* aux_broker_process);
 
-  // |policy| needs to match the policy used by BrokerHost. This allows to
-  // predict some of the requests which will be denied and save an IPC round
-  // trip.
+  // |policy| needs to match the policy used by BrokerHost. This
+  // allows to predict some of the requests which will be denied
+  // and save an IPC round trip.
   // |ipc_channel| needs to be a suitable SOCK_SEQPACKET unix socket.
   // |fast_check_in_client| should be set to true and
-  BrokerClient(const BrokerSandboxConfig& policy,
+  BrokerClient(const BrokerPermissionList& policy,
                BrokerChannel::EndPoint ipc_channel,
+               const BrokerCommandSet& allowed_command_set,
                bool fast_check_in_client);
-
-  BrokerClient(const BrokerClient&) = delete;
-  BrokerClient& operator=(const BrokerClient&) = delete;
-
   ~BrokerClient() override;
 
   // Get the file descriptor used for IPC.
@@ -63,13 +61,11 @@ class SANDBOX_EXPORT BrokerClient : public SyscallDispatcher {
   int Rmdir(const char* path) const override;
   int Stat(const char* pathname,
            bool follow_links,
-           struct kernel_stat* sb) const override;
+           struct stat* sb) const override;
   int Stat64(const char* pathname,
              bool follow_links,
-             struct kernel_stat64* sb) const override;
+             struct stat64* sb) const override;
   int Unlink(const char* unlink) const override;
-
-  const BrokerSandboxConfig& policy() const { return *policy_; }
 
  private:
   int PathOnlySyscall(BrokerCommand syscall_type, const char* pathname) const;
@@ -88,11 +84,14 @@ class SANDBOX_EXPORT BrokerClient : public SyscallDispatcher {
                         void* result_ptr,
                         size_t expected_result_size) const;
 
-  const raw_ref<const BrokerSandboxConfig> policy_;
+  const BrokerPermissionList& broker_permission_list_;
   const BrokerChannel::EndPoint ipc_channel_;
+  const BrokerCommandSet allowed_command_set_;
   const bool fast_check_in_client_;  // Whether to forward a request that we
                                      // know will be denied to the broker. (Used
                                      // for tests).
+
+  DISALLOW_COPY_AND_ASSIGN(BrokerClient);
 };
 
 }  // namespace syscall_broker

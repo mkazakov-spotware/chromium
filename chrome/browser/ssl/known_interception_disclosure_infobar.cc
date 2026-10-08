@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,10 @@ KnownInterceptionDisclosureInfoBar::CreateInfoBar(
 
 KnownInterceptionDisclosureInfoBar::KnownInterceptionDisclosureInfoBar(
     std::unique_ptr<KnownInterceptionDisclosureInfoBarDelegate> delegate)
-    : infobars::ConfirmInfoBar(std::move(delegate)) {}
+    : ChromeConfirmInfoBar(std::move(delegate)) {}
 
 ScopedJavaLocalRef<jobject>
-KnownInterceptionDisclosureInfoBar::CreateRenderInfoBar(
-    JNIEnv* env,
-    const ResourceIdMapper& resource_id_mapper) {
+KnownInterceptionDisclosureInfoBar::CreateRenderInfoBar(JNIEnv* env) {
   KnownInterceptionDisclosureInfoBarDelegate* delegate = GetDelegate();
   ScopedJavaLocalRef<jstring> ok_button_text =
       base::android::ConvertUTF16ToJavaString(
@@ -49,13 +47,12 @@ KnownInterceptionDisclosureInfoBar::CreateRenderInfoBar(
   ScopedJavaLocalRef<jobject> java_bitmap;
   if (delegate->GetIconId() == infobars::InfoBarDelegate::kNoIconID &&
       !delegate->GetIcon().IsEmpty()) {
-    java_bitmap = gfx::ConvertToJavaBitmap(
-        *delegate->GetIcon().Rasterize(nullptr).bitmap());
+    java_bitmap = gfx::ConvertToJavaBitmap(*delegate->GetIcon().ToSkBitmap());
   }
 
   return Java_KnownInterceptionDisclosureInfoBar_create(
-      env, resource_id_mapper.Run(delegate->GetIconId()), java_bitmap,
-      message_text, link_text, ok_button_text, description_text);
+      env, GetJavaIconId(), java_bitmap, message_text, link_text,
+      ok_button_text, description_text);
 }
 
 KnownInterceptionDisclosureInfoBarDelegate*

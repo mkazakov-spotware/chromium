@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,6 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
-
-#include "base/check_op.h"
-#include "build/build_config.h"
-#include "v8/include/v8-isolate.h"
-
-#if defined(ARCH_CPU_ARM_FAMILY) && defined(ARCH_CPU_32_BITS)
-// V8 requires the embedder to establish the architecture define.
-#define V8_TARGET_ARCH_ARM 1
-#include "v8/include/v8-unwinder-state.h"
-#endif
 
 namespace {
 
@@ -86,52 +76,6 @@ v8::MemoryRange GetEmbeddedCodeRange(v8::Isolate* isolate) {
   return range;
 }
 
-void CopyCalleeSavedRegisterFromRegisterContext(
-    const base::RegisterContext& register_context,
-    v8::CalleeSavedRegisters* callee_saved_registers) {
-#if defined(ARCH_CPU_ARM_FAMILY) && defined(ARCH_CPU_32_BITS)
-  // ARM requires callee-saved registers to be restored:
-  // https://crbug.com/v8/10799.
-  DCHECK(callee_saved_registers);
-  callee_saved_registers->arm_r4 =
-      reinterpret_cast<void*>(register_context.arm_r4);
-  callee_saved_registers->arm_r5 =
-      reinterpret_cast<void*>(register_context.arm_r5);
-  callee_saved_registers->arm_r6 =
-      reinterpret_cast<void*>(register_context.arm_r6);
-  callee_saved_registers->arm_r7 =
-      reinterpret_cast<void*>(register_context.arm_r7);
-  callee_saved_registers->arm_r8 =
-      reinterpret_cast<void*>(register_context.arm_r8);
-  callee_saved_registers->arm_r9 =
-      reinterpret_cast<void*>(register_context.arm_r9);
-  callee_saved_registers->arm_r10 =
-      reinterpret_cast<void*>(register_context.arm_r10);
-#endif
-}
-
-void CopyCalleeSavedRegisterToRegisterContext(
-    const v8::CalleeSavedRegisters* callee_saved_registers,
-    base::RegisterContext& register_context) {
-#if defined(ARCH_CPU_ARM_FAMILY) && defined(ARCH_CPU_32_BITS)
-  DCHECK(callee_saved_registers);
-  register_context.arm_r4 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r4);
-  register_context.arm_r5 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r5);
-  register_context.arm_r6 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r6);
-  register_context.arm_r7 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r7);
-  register_context.arm_r8 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r8);
-  register_context.arm_r9 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r9);
-  register_context.arm_r10 =
-      reinterpret_cast<uintptr_t>(callee_saved_registers->arm_r10);
-#endif
-}
-
 }  // namespace
 
 V8Unwinder::V8Unwinder(v8::Isolate* isolate)
@@ -141,7 +85,7 @@ V8Unwinder::V8Unwinder(v8::Isolate* isolate)
 
 V8Unwinder::~V8Unwinder() = default;
 
-void V8Unwinder::InitializeModules() {
+void V8Unwinder::AddInitialModules(base::ModuleCache* module_cache) {
   // This function must be called only once.
   DCHECK(modules_.empty());
 
@@ -150,7 +94,7 @@ void V8Unwinder::InitializeModules() {
   new_module.push_back(
       std::make_unique<V8Module>(embedded_code_range_, V8Module::kEmbedded));
   modules_.insert(new_module.front().get());
-  module_cache()->UpdateNonNativeModules({}, std::move(new_module));
+  module_cache->UpdateNonNativeModules({}, std::move(new_module));
 }
 
 // IMPORTANT NOTE: to avoid deadlock this function must not invoke any
@@ -165,10 +109,10 @@ void V8Unwinder::OnStackCapture() {
 }
 
 // Update the modules based on what was recorded in |code_ranges_|. The singular
-// embedded code range was already added in in InitializeModules(). It is
+// embedded code range was already added in in AddInitialModules(). It is
 // preserved by the algorithm below, which is why kNonEmbedded is
 // unconditionally passed when creating new modules.
-void V8Unwinder::UpdateModules() {
+void V8Unwinder::UpdateModules(base::ModuleCache* module_cache) {
   MemoryRangeModuleCompare less_than;
 
   const auto is_embedded_code_range_module =
@@ -186,7 +130,7 @@ void V8Unwinder::UpdateModules() {
   v8::MemoryRange* const code_ranges_start = code_ranges_.buffer();
   v8::MemoryRange* const code_ranges_end =
       code_ranges_start + code_ranges_.size();
-  CHECK(std::is_sorted(code_ranges_start, code_ranges_end, less_than));
+  DCHECK(std::is_sorted(code_ranges_start, code_ranges_end, less_than));
   v8::MemoryRange* range_it = code_ranges_start;
   auto modules_it = modules_.begin();
 
@@ -229,8 +173,7 @@ void V8Unwinder::UpdateModules() {
     }
   }
 
-  module_cache()->UpdateNonNativeModules(defunct_modules,
-                                         std::move(new_modules));
+  module_cache->UpdateNonNativeModules(defunct_modules, std::move(new_modules));
   code_ranges_.ExpandCapacityIfNecessary(required_code_ranges_capacity_);
 }
 
@@ -243,9 +186,11 @@ bool V8Unwinder::CanUnwindFrom(const base::Frame& current_frame) const {
   return loc != modules_.end();
 }
 
-base::UnwindResult V8Unwinder::TryUnwind(base::RegisterContext* thread_context,
-                                         uintptr_t stack_top,
-                                         std::vector<base::Frame>* stack) {
+base::UnwindResult V8Unwinder::TryUnwind(
+    base::RegisterContext* thread_context,
+    uintptr_t stack_top,
+    base::ModuleCache* module_cache,
+    std::vector<base::Frame>* stack) const {
   v8::RegisterState register_state;
   register_state.pc = reinterpret_cast<void*>(
       base::RegisterContextInstructionPointer(thread_context));
@@ -254,17 +199,10 @@ base::UnwindResult V8Unwinder::TryUnwind(base::RegisterContext* thread_context,
   register_state.fp = reinterpret_cast<void*>(
       base::RegisterContextFramePointer(thread_context));
 
-#if defined(ARCH_CPU_ARM_FAMILY) && defined(ARCH_CPU_32_BITS)
-  if (!register_state.callee_saved)
-    register_state.callee_saved = std::make_unique<v8::CalleeSavedRegisters>();
-#endif
-  CopyCalleeSavedRegisterFromRegisterContext(*thread_context,
-                                             register_state.callee_saved.get());
-
   if (!v8::Unwinder::TryUnwindV8Frames(
           js_entry_stubs_, code_ranges_.size(), code_ranges_.buffer(),
           &register_state, reinterpret_cast<const void*>(stack_top))) {
-    return base::UnwindResult::kAborted;
+    return base::UnwindResult::ABORTED;
   }
 
   const uintptr_t prev_stack_pointer =
@@ -279,15 +217,12 @@ base::UnwindResult V8Unwinder::TryUnwind(base::RegisterContext* thread_context,
   base::RegisterContextFramePointer(thread_context) =
       reinterpret_cast<uintptr_t>(register_state.fp);
 
-  CopyCalleeSavedRegisterToRegisterContext(register_state.callee_saved.get(),
-                                           *thread_context);
-
   stack->emplace_back(
       base::RegisterContextInstructionPointer(thread_context),
-      module_cache()->GetModuleForAddress(
+      module_cache->GetModuleForAddress(
           base::RegisterContextInstructionPointer(thread_context)));
 
-  return base::UnwindResult::kUnrecognizedFrame;
+  return base::UnwindResult::UNRECOGNIZED_FRAME;
 }
 
 size_t V8Unwinder::CopyCodePages(size_t capacity, v8::MemoryRange* code_pages) {

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Unit tests for dependency_analysis.serialization."""
 
-import unittest
 import unittest.mock
 
 import class_dependency
@@ -12,7 +11,7 @@ import class_json_consts
 import graph
 import json_consts
 import package_dependency
-import group_json_consts
+import package_json_consts
 import serialization
 
 
@@ -86,13 +85,13 @@ class TestSerialization(unittest.TestCase):
             {
                 json_consts.NAME: 'p1',
                 json_consts.META: {
-                    group_json_consts.CLASSES: [CLASS_1, CLASS_2],
+                    package_json_consts.CLASSES: [CLASS_1, CLASS_2],
                 },
             },
             {
                 json_consts.NAME: 'p2',
                 json_consts.META: {
-                    group_json_consts.CLASSES: [CLASS_3],
+                    package_json_consts.CLASSES: [CLASS_3],
                 },
             },
         ],
@@ -101,7 +100,7 @@ class TestSerialization(unittest.TestCase):
                 json_consts.BEGIN: 'p1',
                 json_consts.END: 'p1',
                 json_consts.META: {
-                    group_json_consts.CLASS_EDGES: [
+                    package_json_consts.CLASS_EDGES: [
                         [CLASS_1, CLASS_2],
                     ],
                 },
@@ -110,7 +109,7 @@ class TestSerialization(unittest.TestCase):
                 json_consts.BEGIN: 'p1',
                 json_consts.END: 'p2',
                 json_consts.META: {
-                    group_json_consts.CLASS_EDGES: [
+                    package_json_consts.CLASS_EDGES: [
                         [CLASS_1, CLASS_3],
                         [CLASS_2, CLASS_3],
                     ],

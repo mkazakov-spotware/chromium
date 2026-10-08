@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define COMPONENTS_VIZ_COMMON_QUADS_RENDER_PASS_DRAW_QUAD_INTERNAL_H_
 
 #include <stddef.h>
+
+#include <memory>
 
 #include "cc/paint/filter_operations.h"
 #include "components/viz/common/quads/draw_quad.h"
@@ -39,9 +41,10 @@ class VIZ_COMMON_EXPORT RenderPassDrawQuadInternal : public DrawQuad {
 
   bool force_anti_aliasing_off;
 
-  // Indicates if this quad intersects any damage from quads under it rendering
-  // to the same target.
-  mutable bool intersects_damage_under = true;
+  // If the quad has backdrop filters, this flag indicates if the cached
+  // backdrop filtered result can be used instead of having to recompute the
+  // filter operation.
+  mutable bool can_use_backdrop_filter_cache;
 
   ResourceId mask_resource_id() const {
     return resources.ids[kMaskResourceIdIndex];

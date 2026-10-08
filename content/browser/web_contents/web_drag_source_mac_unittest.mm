@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,7 +36,7 @@ TEST_F(WebDragSourceMacTest, DragInvalidlyEscapedBookmarklet) {
 
   // Test that this call doesn't throw any exceptions: http://crbug.com/128371
   scoped_refptr<ui::UniquePasteboard> pasteboard2 = new ui::UniquePasteboard;
-  [source pasteboard:pasteboard2->get() provideDataForType:NSURLPboardType];
+  [source lazyWriteToPasteboard:pasteboard2->get() forType:NSURLPboardType];
 }
 
 }  // namespace content

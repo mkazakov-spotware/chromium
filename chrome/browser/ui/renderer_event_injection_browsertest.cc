@@ -1,12 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "build/chromeos_buildflags.h"
 #include "cc/base/switches.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -39,11 +39,6 @@ class RendererEventInjectionTest
       public ::testing::WithParamInterface<const char*> {
  public:
   RendererEventInjectionTest() {}
-
-  RendererEventInjectionTest(const RendererEventInjectionTest&) = delete;
-  RendererEventInjectionTest& operator=(const RendererEventInjectionTest&) =
-      delete;
-
   ~RendererEventInjectionTest() override {}
 
   // InProcessBrowserTest:
@@ -57,7 +52,7 @@ class RendererEventInjectionTest
     command_line->AppendSwitch(switches::kDisableRendererBackgrounding);
     command_line->AppendSwitch(cc::switches::kEnableGpuBenchmarking);
     // kHostWindowBounds is unique to ChromeOS.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     command_line->AppendSwitchASCII(switches::kHostWindowBounds, GetParam());
 #endif
     embedded_test_server()->ServeFilesFromSourceDirectory("content/test/data");
@@ -70,6 +65,8 @@ class RendererEventInjectionTest
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(RendererEventInjectionTest);
 };
 
 // Detects when a touch press is received.
@@ -79,10 +76,6 @@ class TouchEventObserver
   TouchEventObserver(const gfx::Point& location,
                      base::RepeatingClosure quit_closure)
       : expected_location_(location), quit_closure_(std::move(quit_closure)) {}
-
-  TouchEventObserver(const TouchEventObserver&) = delete;
-  TouchEventObserver& operator=(const TouchEventObserver&) = delete;
-
   ~TouchEventObserver() override = default;
 
  private:
@@ -108,13 +101,15 @@ class TouchEventObserver
 
   const gfx::Point expected_location_;
   base::RepeatingClosure quit_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(TouchEventObserver);
 };
 
 IN_PROC_BROWSER_TEST_P(RendererEventInjectionTest, TestRootTransform) {
   content::WebContents* main_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   GURL url = embedded_test_server()->GetURL("/title1.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   base::RunLoop run_loop;
   content::RenderWidgetHost* rwh =
       main_contents->GetRenderWidgetHostView()->GetRenderWidgetHost();
@@ -128,7 +123,7 @@ IN_PROC_BROWSER_TEST_P(RendererEventInjectionTest, TestRootTransform) {
   rwh->RemoveInputEventObserver(&touch_observer);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // This configures the display in various interesting ways for ChromeOS. In
 // particular, it tests rotation "/r" and a scale factor of 2 "*2".
 INSTANTIATE_TEST_SUITE_P(

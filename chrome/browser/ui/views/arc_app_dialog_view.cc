@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/arc/arc_app_dialog.h"
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/app_list/app_list_controller_delegate.h"
@@ -12,13 +13,12 @@
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
 #include "chrome/browser/ui/app_list/arc/arc_usb_host_permission_manager.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/controls/image_view.h"
@@ -41,18 +41,15 @@ using ArcAppConfirmCallback = base::OnceCallback<void(bool accept)>;
 class ArcAppDialogView : public views::DialogDelegateView,
                          public AppIconLoaderDelegate {
  public:
-  METADATA_HEADER(ArcAppDialogView);
   ArcAppDialogView(Profile* profile,
                    AppListControllerDelegate* controller,
                    const std::string& app_id,
-                   const std::u16string& window_title,
-                   const std::u16string& heading_text,
-                   const std::u16string& subheading_text,
-                   const std::u16string& confirm_button_text,
-                   const std::u16string& cancel_button_text,
+                   const base::string16& window_title,
+                   const base::string16& heading_text,
+                   const base::string16& subheading_text,
+                   const base::string16& confirm_button_text,
+                   const base::string16& cancel_button_text,
                    ArcAppConfirmCallback confirm_callback);
-  ArcAppDialogView(const ArcAppDialogView&) = delete;
-  ArcAppDialogView& operator=(const ArcAppDialogView&) = delete;
   ~ArcAppDialogView() override;
 
   // Public method used for test only.
@@ -63,7 +60,7 @@ class ArcAppDialogView : public views::DialogDelegateView,
   void OnAppImageUpdated(const std::string& app_id,
                          const gfx::ImageSkia& image) override;
 
-  void AddMultiLineLabel(views::View* parent, const std::u16string& label_text);
+  void AddMultiLineLabel(views::View* parent, const base::string16& label_text);
 
   void OnDialogAccepted();
   void OnDialogCancelled();
@@ -76,6 +73,8 @@ class ArcAppDialogView : public views::DialogDelegateView,
 
   const std::string app_id_;
   ArcAppConfirmCallback confirm_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppDialogView);
 };
 
 // Browsertest use only. Global pointer of currently shown ArcAppDialogView.
@@ -84,11 +83,11 @@ ArcAppDialogView* g_current_arc_app_dialog_view = nullptr;
 ArcAppDialogView::ArcAppDialogView(Profile* profile,
                                    AppListControllerDelegate* controller,
                                    const std::string& app_id,
-                                   const std::u16string& window_title,
-                                   const std::u16string& heading_text,
-                                   const std::u16string& subheading_text,
-                                   const std::u16string& confirm_button_text,
-                                   const std::u16string& cancel_button_text,
+                                   const base::string16& window_title,
+                                   const base::string16& heading_text,
+                                   const base::string16& subheading_text,
+                                   const base::string16& confirm_button_text,
+                                   const base::string16& cancel_button_text,
                                    ArcAppConfirmCallback confirm_callback)
     : profile_(profile),
       app_id_(app_id),
@@ -105,8 +104,7 @@ ArcAppDialogView::ArcAppDialogView(Profile* profile,
 
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
-      provider->GetDialogInsetsForContentType(views::DialogContentType::kText,
-                                              views::DialogContentType::kText),
+      provider->GetDialogInsetsForContentType(views::TEXT, views::TEXT),
       provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_HORIZONTAL)));
 
   SetModalType(ui::MODAL_TYPE_WINDOW);
@@ -142,6 +140,8 @@ ArcAppDialogView::ArcAppDialogView(Profile* profile,
   gfx::NativeWindow parent =
       controller ? controller->GetAppListWindow() : nullptr;
   constrained_window::CreateBrowserModalDialogViews(this, parent)->Show();
+
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::ARC_APP);
 }
 
 ArcAppDialogView::~ArcAppDialogView() {
@@ -150,7 +150,7 @@ ArcAppDialogView::~ArcAppDialogView() {
 }
 
 void ArcAppDialogView::AddMultiLineLabel(views::View* parent,
-                                         const std::u16string& label_text) {
+                                         const base::string16& label_text) {
   auto label = std::make_unique<views::Label>(label_text);
   label->SetMultiLine(true);
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
@@ -188,9 +188,6 @@ void ArcAppDialogView::OnAppImageUpdated(const std::string& app_id,
   icon_view_->SetImage(image);
 }
 
-BEGIN_METADATA(ArcAppDialogView, views::DialogDelegateView)
-END_METADATA
-
 std::unique_ptr<ArcAppListPrefs::AppInfo> GetArcAppInfo(
     Profile* profile,
     const std::string& app_id) {
@@ -211,26 +208,26 @@ void ShowUsbScanDeviceListPermissionDialog(Profile* profile,
     return;
   }
 
-  std::u16string window_title =
+  base::string16 window_title =
       l10n_util::GetStringUTF16(IDS_ARC_USB_PERMISSION_TITLE);
 
-  std::u16string heading_text = l10n_util::GetStringFUTF16(
+  base::string16 heading_text = l10n_util::GetStringFUTF16(
       IDS_ARC_USB_SCAN_DEVICE_LIST_PERMISSION_HEADING,
       base::UTF8ToUTF16(app_info->name));
 
-  std::u16string confirm_button_text = l10n_util::GetStringUTF16(IDS_OK);
+  base::string16 confirm_button_text = l10n_util::GetStringUTF16(IDS_OK);
 
-  std::u16string cancel_button_text = l10n_util::GetStringUTF16(IDS_CANCEL);
+  base::string16 cancel_button_text = l10n_util::GetStringUTF16(IDS_CANCEL);
 
   new ArcAppDialogView(profile, nullptr /* controller */, app_id, window_title,
-                       heading_text, std::u16string() /*subheading_text*/,
+                       heading_text, base::string16() /*subheading_text*/,
                        confirm_button_text, cancel_button_text,
                        std::move(callback));
 }
 
 void ShowUsbAccessPermissionDialog(Profile* profile,
                                    const std::string& app_id,
-                                   const std::u16string& device_name,
+                                   const base::string16& device_name,
                                    ArcUsbConfirmCallback callback) {
   std::unique_ptr<ArcAppListPrefs::AppInfo> app_info =
       GetArcAppInfo(profile, app_id);
@@ -239,17 +236,17 @@ void ShowUsbAccessPermissionDialog(Profile* profile,
     return;
   }
 
-  std::u16string window_title =
+  base::string16 window_title =
       l10n_util::GetStringUTF16(IDS_ARC_USB_PERMISSION_TITLE);
 
-  std::u16string heading_text = l10n_util::GetStringFUTF16(
+  base::string16 heading_text = l10n_util::GetStringFUTF16(
       IDS_ARC_USB_ACCESS_PERMISSION_HEADING, base::UTF8ToUTF16(app_info->name));
 
-  std::u16string subheading_text = device_name;
+  base::string16 subheading_text = device_name;
 
-  std::u16string confirm_button_text = l10n_util::GetStringUTF16(IDS_OK);
+  base::string16 confirm_button_text = l10n_util::GetStringUTF16(IDS_OK);
 
-  std::u16string cancel_button_text = l10n_util::GetStringUTF16(IDS_CANCEL);
+  base::string16 cancel_button_text = l10n_util::GetStringUTF16(IDS_CANCEL);
 
   new ArcAppDialogView(profile, nullptr /* controller */, app_id, window_title,
                        heading_text, subheading_text, confirm_button_text,

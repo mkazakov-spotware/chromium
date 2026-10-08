@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_PERMISSIONS_CONTEXTS_GEOLOCATION_PERMISSION_CONTEXT_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
 #include "components/content_settings/core/common/content_settings.h"
@@ -33,13 +34,14 @@ class GeolocationPermissionContext : public PermissionContextBase {
     // Allows the delegate to override the context's DecidePermission() logic.
     // If this returns true, the base context's DecidePermission() will not be
     // called.
-    virtual bool DecidePermission(const PermissionRequestID& id,
+    virtual bool DecidePermission(content::WebContents* web_contents,
+                                  const PermissionRequestID& id,
                                   const GURL& requesting_origin,
                                   bool user_gesture,
                                   BrowserPermissionCallback* callback,
                                   GeolocationPermissionContext* context) = 0;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     // Returns whether or not this |web_contents| is interactable.
     virtual bool IsInteractable(content::WebContents* web_contents) = 0;
 
@@ -49,19 +51,20 @@ class GeolocationPermissionContext : public PermissionContextBase {
     // Returns whether |requesting_origin| is the default search engine.
     virtual bool IsRequestingOriginDSE(content::BrowserContext* browser_context,
                                        const GURL& requesting_origin) = 0;
+
+    // Called after NotifyPermissionSet() has been called from this context.
+    virtual void FinishNotifyPermissionSet(const PermissionRequestID& id,
+                                           const GURL& requesting_origin,
+                                           const GURL& embedding_origin) = 0;
 #endif
   };
 
   GeolocationPermissionContext(content::BrowserContext* browser_context,
                                std::unique_ptr<Delegate> delegate);
-
-  GeolocationPermissionContext(const GeolocationPermissionContext&) = delete;
-  GeolocationPermissionContext& operator=(const GeolocationPermissionContext&) =
-      delete;
-
   ~GeolocationPermissionContext() override;
 
-  void DecidePermission(const PermissionRequestID& id,
+  void DecidePermission(content::WebContents* web_contents,
+                        const PermissionRequestID& id,
                         const GURL& requesting_origin,
                         const GURL& embedding_origin,
                         bool user_gesture,
@@ -79,12 +82,15 @@ class GeolocationPermissionContext : public PermissionContextBase {
   void UpdateTabContext(const PermissionRequestID& id,
                         const GURL& requesting_frame,
                         bool allowed) override;
+  bool IsRestrictedToSecureOrigins() const override;
 
   device::mojom::GeolocationControl* GetGeolocationControl();
 
   mojo::Remote<device::mojom::GeolocationControl> geolocation_control_;
 
   base::WeakPtrFactory<GeolocationPermissionContext> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GeolocationPermissionContext);
 };
 
 }  // namespace permissions

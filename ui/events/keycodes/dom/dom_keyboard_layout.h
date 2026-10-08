@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <string>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 
 namespace ui {
@@ -28,10 +29,6 @@ enum class DomCode;
 class DomKeyboardLayout final {
  public:
   DomKeyboardLayout();
-
-  DomKeyboardLayout(const DomKeyboardLayout&) = delete;
-  DomKeyboardLayout& operator=(const DomKeyboardLayout&) = delete;
-
   ~DomKeyboardLayout();
 
   // Add a DomCode -> Unicode mapping for this layout (or layout group).
@@ -48,6 +45,8 @@ class DomKeyboardLayout final {
  private:
   // Mapping from DomCode -> Unicode character.
   base::flat_map<ui::DomCode, uint32_t> layout_;
+
+  DISALLOW_COPY_AND_ASSIGN(DomKeyboardLayout);
 };
 
 // An array of DomCodes that identifies the Writing System Keys on the

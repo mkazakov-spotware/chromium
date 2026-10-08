@@ -33,7 +33,6 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/fileapi/file.h"
 #include "third_party/blink/renderer/core/fileapi/file_error.h"
 #include "third_party/blink/renderer/modules/filesystem/directory_entry_sync.h"
@@ -95,13 +94,12 @@ class CreateFileHelper final : public SnapshotFileCallbackBase {
   };
 
   static std::unique_ptr<SnapshotFileCallbackBase> Create(
-      ExecutionContext* context,
       CreateFileResult* result,
       const String& name,
       const KURL& url,
       mojom::blink::FileSystemType type) {
     return base::WrapUnique(static_cast<SnapshotFileCallbackBase*>(
-        new CreateFileHelper(context, result, name, url, type)));
+        new CreateFileHelper(result, name, url, type)));
   }
 
   void DidFail(base::File::Error error) override {
@@ -113,22 +111,16 @@ class CreateFileHelper final : public SnapshotFileCallbackBase {
 
   void DidCreateSnapshotFile(const FileMetadata& metadata) override {
     result_->file_ =
-        DOMFileSystemBase::CreateFile(context_, metadata, url_, type_, name_);
+        DOMFileSystemBase::CreateFile(metadata, url_, type_, name_);
   }
 
  private:
-  CreateFileHelper(ExecutionContext* context,
-                   CreateFileResult* result,
+  CreateFileHelper(CreateFileResult* result,
                    const String& name,
                    const KURL& url,
                    mojom::blink::FileSystemType type)
-      : context_(context),
-        result_(result),
-        name_(name),
-        url_(url),
-        type_(type) {}
+      : result_(result), name_(name), url_(url), type_(type) {}
 
-  Persistent<ExecutionContext> context_;
   Persistent<CreateFileResult> result_;
   String name_;
   KURL url_;
@@ -143,9 +135,8 @@ File* DOMFileSystemSync::CreateFile(const FileEntrySync* file_entry,
   CreateFileHelper::CreateFileResult* result(
       CreateFileHelper::CreateFileResult::Create());
   FileSystemDispatcher::From(context_).CreateSnapshotFileSync(
-      file_system_url,
-      CreateFileHelper::Create(context_, result, file_entry->name(),
-                               file_system_url, GetType()));
+      file_system_url, CreateFileHelper::Create(result, file_entry->name(),
+                                                file_system_url, GetType()));
   if (result->failed_) {
     file_error::ThrowDOMException(
         exception_state, result->error_,
@@ -165,11 +156,11 @@ FileWriterSync* DOMFileSystemSync::CreateWriter(
   auto* sync_helper = MakeGarbageCollected<FileWriterCallbacksSyncHelper>();
 
   auto success_callback_wrapper =
-      WTF::BindOnce(&FileWriterCallbacksSyncHelper::OnSuccess,
-                    WrapPersistentIfNeeded(sync_helper));
+      WTF::Bind(&FileWriterCallbacksSyncHelper::OnSuccess,
+                WrapPersistentIfNeeded(sync_helper));
   auto error_callback_wrapper =
-      WTF::BindOnce(&FileWriterCallbacksSyncHelper::OnError,
-                    WrapPersistentIfNeeded(sync_helper));
+      WTF::Bind(&FileWriterCallbacksSyncHelper::OnError,
+                WrapPersistentIfNeeded(sync_helper));
 
   auto callbacks = std::make_unique<FileWriterCallbacks>(
       file_writer, std::move(success_callback_wrapper),

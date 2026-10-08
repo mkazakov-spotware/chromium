@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,19 +13,18 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.CallbackController;
 import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.layouts.LayoutManager;
-import org.chromium.chrome.browser.layouts.LayoutStateProvider;
-import org.chromium.chrome.browser.layouts.LayoutType;
+import org.chromium.chrome.browser.compositor.layouts.OverviewModeBehavior;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
-import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 
@@ -43,7 +42,7 @@ public class EmptyBackgroundViewWrapper {
     private final SnackbarManager mSnackbarManager;
 
     CallbackController mCallbackController = new CallbackController();
-    private @Nullable LayoutStateProvider mLayoutStateProvider;
+    private @Nullable OverviewModeBehavior mOverviewModeBehavior;
 
     private EmptyBackgroundViewTablet mBackgroundView;
     private final @Nullable AppMenuHandler mMenuHandler;
@@ -57,21 +56,21 @@ public class EmptyBackgroundViewWrapper {
      * @param menuHandler A {@link AppMenuHandler} to handle menu touch events.
      * @param snackbarManager The {@link SnackbarManager} to show the undo snackbar when the empty
      *         background is visible.
-     * @param layoutStateProviderSupplier An {@link ObservableSupplier} for the
-     *         {@link LayoutManager} associated with the containing activity.
+     * @param overviewModeBehaviorSupplier An {@link ObservableSupplier} for the
+     *         {@link OverviewModeBehavior} associated with the containing activity.
      */
     public EmptyBackgroundViewWrapper(TabModelSelector selector, TabCreator tabCreator,
             Activity activity, @Nullable AppMenuHandler menuHandler,
             SnackbarManager snackbarManager,
-            ObservableSupplier<LayoutManager> layoutStateProviderSupplier) {
+            OneshotSupplier<OverviewModeBehavior> overviewModeBehaviorSupplier) {
         mActivity = activity;
         mMenuHandler = menuHandler;
         mTabModelSelector = selector;
         mTabCreator = tabCreator;
         mSnackbarManager = snackbarManager;
 
-        layoutStateProviderSupplier.addObserver(mCallbackController.makeCancelable(
-                layoutStateProvider -> mLayoutStateProvider = layoutStateProvider));
+        overviewModeBehaviorSupplier.onAvailable(mCallbackController.makeCancelable(
+                overviewModeBehavior -> mOverviewModeBehavior = overviewModeBehavior));
 
         mTabModelObserver = new TabModelObserver() {
             @Override
@@ -86,7 +85,7 @@ public class EmptyBackgroundViewWrapper {
             }
 
             @Override
-            public void onFinishingTabClosure(Tab tab) {
+            public void didCloseTab(int tabId, boolean incognito) {
                 updateEmptyContainerState();
             }
 
@@ -105,7 +104,7 @@ public class EmptyBackgroundViewWrapper {
                 updateEmptyContainerState();
             }
         };
-        mTabModelSelectorObserver = new TabModelSelectorObserver() {
+        mTabModelSelectorObserver = new EmptyTabModelSelectorObserver() {
             @Override
             public void onTabModelSelected(TabModel newModel, TabModel oldModel) {
                 updateEmptyContainerState();
@@ -173,9 +172,7 @@ public class EmptyBackgroundViewWrapper {
 
     private boolean shouldShowEmptyContainer() {
         TabModel model = mTabModelSelector.getModel(false);
-        if (model == null || TabUiFeatureUtilities.isTabletGridTabSwitcherEnabled(mActivity)) {
-            return false;
-        }
+        if (model == null) return false;
 
         boolean isIncognitoEmpty = mTabModelSelector.getModel(true).getCount() == 0;
         boolean incognitoSelected = mTabModelSelector.isIncognitoSelected();
@@ -185,8 +182,7 @@ public class EmptyBackgroundViewWrapper {
         // 2. Overview mode is not showing AND
         // 3. We're in the normal TabModel OR there are no tabs present in either model
         return model.getCount() == 0
-                && (mLayoutStateProvider == null
-                        || !mLayoutStateProvider.isLayoutVisible(LayoutType.TAB_SWITCHER))
+                && (mOverviewModeBehavior == null || !mOverviewModeBehavior.overviewVisible())
                 && (!incognitoSelected || isIncognitoEmpty);
     }
 }

@@ -1,11 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_COMMON_INPUT_SYNTHETIC_GESTURE_PARAMS_H_
 #define CONTENT_COMMON_INPUT_SYNTHETIC_GESTURE_PARAMS_H_
 
-#include "content/common/input/input_injector.mojom-shared.h"
+#include <memory>
+
+#include "content/common/content_export.h"
 
 namespace content {
 
@@ -15,12 +17,23 @@ namespace content {
 // The logic for dispatching input events that implement the gesture lives
 // in separate classes in content/browser/renderer_host/input/.
 //
-struct SyntheticGestureParams {
+struct CONTENT_EXPORT SyntheticGestureParams {
   SyntheticGestureParams();
   SyntheticGestureParams(const SyntheticGestureParams& other);
   virtual ~SyntheticGestureParams();
 
-  content::mojom::GestureSourceType gesture_source_type;
+  // Describes which type of input events synthetic gesture objects should
+  // generate. When specifying DEFAULT_INPUT the platform will be queried for
+  // the preferred input event type.
+  enum GestureSourceType {
+    DEFAULT_INPUT,
+    TOUCH_INPUT,
+    MOUSE_INPUT,
+    TOUCHPAD_INPUT = MOUSE_INPUT,
+    PEN_INPUT,
+    GESTURE_SOURCE_TYPE_MAX = PEN_INPUT
+  };
+  GestureSourceType gesture_source_type;
 
   enum GestureType {
     SMOOTH_SCROLL_GESTURE,
@@ -42,8 +55,7 @@ struct SyntheticGestureParams {
   // Returns true if the specific gesture source type is supported on this
   // platform.
   static bool IsGestureSourceTypeSupported(
-      content::mojom::GestureSourceType gesture_source_type);
-  bool from_devtools_debugger = false;
+      GestureSourceType gesture_source_type);
 };
 
 }  // namespace content

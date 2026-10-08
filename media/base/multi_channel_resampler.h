@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "media/base/sinc_resampler.h"
 
 namespace media {
@@ -35,10 +36,6 @@ class MEDIA_EXPORT MultiChannelResampler {
                         double io_sample_rate_ratio,
                         size_t request_frames,
                         const ReadCB read_cb);
-
-  MultiChannelResampler(const MultiChannelResampler&) = delete;
-  MultiChannelResampler& operator=(const MultiChannelResampler&) = delete;
-
   virtual ~MultiChannelResampler();
 
   // Resamples |frames| of data from |read_cb_| into AudioBus.
@@ -87,6 +84,8 @@ class MEDIA_EXPORT MultiChannelResampler {
   // The number of output frames that have successfully been processed during
   // the current Resample() call.
   int output_frames_ready_;
+
+  DISALLOW_COPY_AND_ASSIGN(MultiChannelResampler);
 };
 
 }  // namespace media

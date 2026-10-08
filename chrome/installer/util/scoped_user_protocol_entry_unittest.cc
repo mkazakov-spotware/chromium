@@ -1,11 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/installer/util/scoped_user_protocol_entry.h"
 
-#include <string>
-
+#include "base/strings/string16.h"
 #include "base/test/test_reg_util_win.h"
 #include "base/win/registry.h"
 #include "chrome/installer/util/registry_entry.h"
@@ -23,21 +22,21 @@ class ScopedUserProtocolEntryTest : public testing::Test {
   void SetUp() override {
     ASSERT_NO_FATAL_FAILURE(
         registry_overrides_manager_.OverrideRegistry(HKEY_CURRENT_USER));
-    ASSERT_FALSE(
-        RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, std::wstring())
-            .KeyExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
+    ASSERT_FALSE(RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName,
+                               base::string16())
+                     .KeyExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
   }
 
-  void CreateNewRegistryValue(const std::wstring& key_path,
-                              const std::wstring& name,
-                              const std::wstring& value) {
+  void CreateNewRegistryValue(const base::string16& key_path,
+                              const base::string16& name,
+                              const base::string16& value) {
     std::vector<std::unique_ptr<RegistryEntry>> entries;
     entries.push_back(std::make_unique<RegistryEntry>(key_path, name, value));
     ASSERT_TRUE(ShellUtil::AddRegistryEntries(HKEY_CURRENT_USER, entries));
   }
 
   void CreateScopedUserProtocolEntryAndVerifyRegistryValue(
-      const std::wstring& expected_entry_value) {
+      const base::string16& expected_entry_value) {
     entry_ = std::make_unique<ScopedUserProtocolEntry>(L"http");
     ASSERT_TRUE(RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName,
                               expected_entry_value)
@@ -60,10 +59,10 @@ const wchar_t ScopedUserProtocolEntryTest::kProtocolEntryFakeValue[] =
     L"Fake Value";
 
 TEST_F(ScopedUserProtocolEntryTest, CreateKeyWhenMissingTest) {
-  CreateScopedUserProtocolEntryAndVerifyRegistryValue(std::wstring());
+  CreateScopedUserProtocolEntryAndVerifyRegistryValue(base::string16());
   entry_.reset();
   ASSERT_FALSE(
-      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, std::wstring())
+      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, base::string16())
           .KeyExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
 }
 
@@ -81,7 +80,7 @@ TEST_F(ScopedUserProtocolEntryTest, DontTouchExistedKeyTest) {
 }
 
 TEST_F(ScopedUserProtocolEntryTest, EntryValueIsChangedTest) {
-  CreateScopedUserProtocolEntryAndVerifyRegistryValue(std::wstring());
+  CreateScopedUserProtocolEntryAndVerifyRegistryValue(base::string16());
   CreateNewRegistryValue(kProtocolEntryKeyPath, kProtocolEntryName,
                          kProtocolEntryFakeValue);
   entry_.reset();
@@ -91,7 +90,7 @@ TEST_F(ScopedUserProtocolEntryTest, EntryValueIsChangedTest) {
 }
 
 TEST_F(ScopedUserProtocolEntryTest, AnotherEntryIsCreatedTest) {
-  CreateScopedUserProtocolEntryAndVerifyRegistryValue(std::wstring());
+  CreateScopedUserProtocolEntryAndVerifyRegistryValue(base::string16());
   CreateNewRegistryValue(kProtocolEntryKeyPath, kProtocolEntryFakeName,
                          kProtocolEntryFakeValue);
   entry_.reset();
@@ -99,29 +98,29 @@ TEST_F(ScopedUserProtocolEntryTest, AnotherEntryIsCreatedTest) {
                             kProtocolEntryFakeValue)
                   .ExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
   ASSERT_TRUE(
-      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, std::wstring())
+      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, base::string16())
           .ExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
 }
 
 TEST_F(ScopedUserProtocolEntryTest, SubKeyIsCreatedTest) {
-  CreateScopedUserProtocolEntryAndVerifyRegistryValue(std::wstring());
+  CreateScopedUserProtocolEntryAndVerifyRegistryValue(base::string16());
   CreateNewRegistryValue(kProtocolEntrySubKeyPath, kProtocolEntryName,
-                         std::wstring());
+                         base::string16());
   entry_.reset();
   ASSERT_TRUE(RegistryEntry(kProtocolEntrySubKeyPath, kProtocolEntryName,
-                            std::wstring())
+                            base::string16())
                   .ExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
   ASSERT_TRUE(
-      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, std::wstring())
+      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, base::string16())
           .ExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
 }
 
 TEST_F(ScopedUserProtocolEntryTest, KeyHasBeenDeletedByOthersTest) {
-  CreateScopedUserProtocolEntryAndVerifyRegistryValue(std::wstring());
+  CreateScopedUserProtocolEntryAndVerifyRegistryValue(base::string16());
   base::win::RegKey key(HKEY_CURRENT_USER, L"", KEY_WRITE);
   EXPECT_EQ(ERROR_SUCCESS, key.DeleteKey(kProtocolEntryKeyPath));
   entry_.reset();
   ASSERT_FALSE(
-      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, std::wstring())
+      RegistryEntry(kProtocolEntryKeyPath, kProtocolEntryName, base::string16())
           .KeyExistsInRegistry(RegistryEntry::LOOK_IN_HKCU));
 }

@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_MOJOM_ACCELERATED_WIDGET_MOJOM_TRAITS_H_
 #define UI_GFX_MOJOM_ACCELERATED_WIDGET_MOJOM_TRAITS_H_
 
-#include "base/notreached.h"
 #include "build/build_config.h"
 #include "ui/gfx/mojom/accelerated_widget.mojom.h"
 #include "ui/gfx/native_widget_types.h"
@@ -16,9 +15,9 @@ template <>
 struct StructTraits<gfx::mojom::AcceleratedWidgetDataView,
                     gfx::AcceleratedWidget> {
   static uint64_t widget(gfx::AcceleratedWidget widget) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if defined(OS_WIN) || defined(OS_ANDROID) || defined(OS_IOS)
     return reinterpret_cast<uint64_t>(widget);
-#elif BUILDFLAG(IS_OZONE) || BUILDFLAG(IS_MAC)
+#elif defined(USE_OZONE) || defined(USE_X11) || defined(OS_MAC)
     return static_cast<uint64_t>(widget);
 #else
     NOTREACHED();
@@ -28,10 +27,10 @@ struct StructTraits<gfx::mojom::AcceleratedWidgetDataView,
 
   static bool Read(gfx::mojom::AcceleratedWidgetDataView data,
                    gfx::AcceleratedWidget* out) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if defined(OS_WIN) || defined(OS_ANDROID) || defined(OS_IOS)
     *out = reinterpret_cast<gfx::AcceleratedWidget>(data.widget());
     return true;
-#elif BUILDFLAG(IS_OZONE) || BUILDFLAG(IS_MAC)
+#elif defined(USE_OZONE) || defined(USE_X11) || defined(OS_MAC)
     *out = static_cast<gfx::AcceleratedWidget>(data.widget());
     return true;
 #else

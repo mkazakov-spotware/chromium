@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,22 +46,21 @@ base::Value ConvertToDictionary(
     element.SetKey(
         "registry_is_hkcu",
         base::Value(application.info.registry_root == HKEY_CURRENT_USER));
-    element.SetKey(
-        "registry_key_path",
-        base::Value(base::WideToUTF8(application.info.registry_key_path)));
+    element.SetKey("registry_key_path",
+                   base::Value(application.info.registry_key_path));
     element.SetKey(
         "registry_wow64_access",
         base::Value(static_cast<int>(application.info.registry_wow64_access)));
 
     // And then the actual information needed to display a warning to the user.
     element.SetKey("allow_load",
-                   base::Value(application.blocklist_action->allow_load()));
+                   base::Value(application.blacklist_action->allow_load()));
     element.SetKey("type",
-                   base::Value(application.blocklist_action->message_type()));
+                   base::Value(application.blacklist_action->message_type()));
     element.SetKey("message_url",
-                   base::Value(application.blocklist_action->message_url()));
+                   base::Value(application.blacklist_action->message_url()));
 
-    result.SetKey(base::WideToUTF8(application.info.name), std::move(element));
+    result.SetKey(base::UTF16ToUTF8(application.info.name), std::move(element));
   }
 
   return result;
@@ -96,23 +95,23 @@ ConvertToIncompatibleApplication(const std::string& name,
   }
 
   InstalledApplications::ApplicationInfo application_info = {
-      base::UTF8ToWide(name),
+      base::UTF8ToUTF16(name),
       registry_is_hkcu_value->GetBool() ? HKEY_CURRENT_USER
                                         : HKEY_LOCAL_MACHINE,
-      base::UTF8ToWide(registry_key_path_value->GetString()),
+      base::UTF8ToUTF16(registry_key_path_value->GetString()),
       static_cast<REGSAM>(registry_wow64_access_value->GetInt())};
 
-  auto blocklist_action =
-      std::make_unique<chrome::conflicts::BlocklistAction>();
-  blocklist_action->set_allow_load(allow_load_value->GetBool());
-  blocklist_action->set_message_type(
-      static_cast<chrome::conflicts::BlocklistMessageType>(
+  auto blacklist_action =
+      std::make_unique<chrome::conflicts::BlacklistAction>();
+  blacklist_action->set_allow_load(allow_load_value->GetBool());
+  blacklist_action->set_message_type(
+      static_cast<chrome::conflicts::BlacklistMessageType>(
           type_value->GetInt()));
-  blocklist_action->set_message_url(message_url_value->GetString());
+  blacklist_action->set_message_url(message_url_value->GetString());
 
   return std::make_unique<
       IncompatibleApplicationsUpdater::IncompatibleApplication>(
-      std::move(application_info), std::move(blocklist_action));
+      std::move(application_info), std::move(blacklist_action));
 }
 
 // Returns true if |application| references an existing application in the
@@ -164,10 +163,10 @@ void RemoveStaleApplications(
 template <class UnaryFunction>
 void EnumerateAndTrimIncompatibleApplications(UnaryFunction function) {
   std::vector<std::string> stale_application_names;
-  for (const auto item : g_browser_process->local_state()
-                             ->FindPreference(prefs::kIncompatibleApplications)
-                             ->GetValue()
-                             ->DictItems()) {
+  for (const auto& item : g_browser_process->local_state()
+                              ->FindPreference(prefs::kIncompatibleApplications)
+                              ->GetValue()
+                              ->DictItems()) {
     auto application =
         ConvertToIncompatibleApplication(item.first, item.second);
 
@@ -226,8 +225,8 @@ void UpdateIncompatibleApplications(
 IncompatibleApplicationsUpdater::IncompatibleApplication::
     IncompatibleApplication(
         InstalledApplications::ApplicationInfo info,
-        std::unique_ptr<chrome::conflicts::BlocklistAction> blocklist_action)
-    : info(std::move(info)), blocklist_action(std::move(blocklist_action)) {}
+        std::unique_ptr<chrome::conflicts::BlacklistAction> blacklist_action)
+    : info(std::move(info)), blacklist_action(std::move(blacklist_action)) {}
 
 IncompatibleApplicationsUpdater::IncompatibleApplication::
     ~IncompatibleApplication() = default;
@@ -352,11 +351,11 @@ void IncompatibleApplicationsUpdater::OnNewModuleFound(
 
   // First check if this module is a part of Chrome.
 
-  // Explicitly allowlist modules whose signing cert's Subject field matches the
+  // Explicitly whitelist modules whose signing cert's Subject field matches the
   // one in the current executable. No attempt is made to check the validity of
   // module signatures or of signing certs.
-  if (exe_certificate_info_->type != CertificateInfo::Type::NO_CERTIFICATE &&
-      exe_certificate_info_->subject ==
+  if (exe_certificate_info_.type != CertificateInfo::Type::NO_CERTIFICATE &&
+      exe_certificate_info_.subject ==
           module_data.inspection_result->certificate_info.subject) {
     warning_decision = ModuleWarningDecision::kAllowedSameCertificate;
     return;
@@ -370,9 +369,9 @@ void IncompatibleApplicationsUpdater::OnNewModuleFound(
     return;
   }
 
-  // allowlist modules in the same directory as the executable. This serves 2
+  // Whitelist modules in the same directory as the executable. This serves 2
   // purposes:
-  // - In unsigned builds, this allowlists all of the DLL that are part of
+  // - In unsigned builds, this whitelists all of the DLL that are part of
   //   Chrome.
   // - It avoids an issue with the simple heuristic used to determine to which
   //   application a DLL belongs. Without this, if an injected third-party DLL
@@ -385,14 +384,14 @@ void IncompatibleApplicationsUpdater::OnNewModuleFound(
     return;
   }
 
-  // Skip modules allowlisted by the Module List component.
-  if (module_list_filter_->IsAllowlisted(module_key, module_data)) {
-    warning_decision = ModuleWarningDecision::kAllowedAllowlisted;
+  // Skip modules whitelisted by the Module List component.
+  if (module_list_filter_->IsWhitelisted(module_key, module_data)) {
+    warning_decision = ModuleWarningDecision::kAllowedWhitelisted;
     return;
   }
 
-  // It is preferable to mark a allowlisted shell extension as allowed because
-  // it is allowlisted, not because it's a shell extension. Thus, check for the
+  // It is preferable to mark a whitelisted shell extension as allowed because
+  // it is whitelisted, not because it's a shell extension. Thus, check for the
   // module type after.
   if (module_data.module_properties & ModuleInfoData::kPropertyShellExtension) {
     warning_decision = ModuleWarningDecision::kAllowedShellExtension;
@@ -407,15 +406,15 @@ void IncompatibleApplicationsUpdater::OnNewModuleFound(
   // Now it has been determined that the module is unwanted. First check if it
   // is going to be blocked on the next Chrome launch.
   if (module_data.module_properties &
-      ModuleInfoData::kPropertyAddedToBlocklist) {
-    warning_decision = ModuleWarningDecision::kAddedToBlocklist;
+      ModuleInfoData::kPropertyAddedToBlacklist) {
+    warning_decision = ModuleWarningDecision::kAddedToBlacklist;
     return;
   }
 
   // Then check if it can be tied to an installed application on the user's
   // computer.
   std::vector<InstalledApplications::ApplicationInfo> associated_applications;
-  bool tied_to_app = installed_applications_->GetInstalledApplications(
+  bool tied_to_app = installed_applications_.GetInstalledApplications(
       module_key.module_path, &associated_applications);
   UMA_HISTOGRAM_BOOLEAN("ThirdPartyModules.Uninstallable", tied_to_app);
   if (!tied_to_app) {
@@ -425,22 +424,22 @@ void IncompatibleApplicationsUpdater::OnNewModuleFound(
 
   warning_decision = ModuleWarningDecision::kIncompatible;
 
-  std::unique_ptr<chrome::conflicts::BlocklistAction> blocklist_action =
-      module_list_filter_->IsBlocklisted(module_key, module_data);
-  if (!blocklist_action) {
+  std::unique_ptr<chrome::conflicts::BlacklistAction> blacklist_action =
+      module_list_filter_->IsBlacklisted(module_key, module_data);
+  if (!blacklist_action) {
     // The default behavior is to suggest to uninstall.
-    blocklist_action = std::make_unique<chrome::conflicts::BlocklistAction>();
-    blocklist_action->set_allow_load(true);
-    blocklist_action->set_message_type(
-        chrome::conflicts::BlocklistMessageType::UNINSTALL);
-    blocklist_action->set_message_url(std::string());
+    blacklist_action = std::make_unique<chrome::conflicts::BlacklistAction>();
+    blacklist_action->set_allow_load(true);
+    blacklist_action->set_message_type(
+        chrome::conflicts::BlacklistMessageType::UNINSTALL);
+    blacklist_action->set_message_url(std::string());
   }
 
   for (auto&& associated_application : associated_applications) {
     incompatible_applications_.emplace_back(
         std::move(associated_application),
-        std::make_unique<chrome::conflicts::BlocklistAction>(
-            *blocklist_action));
+        std::make_unique<chrome::conflicts::BlacklistAction>(
+            *blacklist_action));
   }
 }
 

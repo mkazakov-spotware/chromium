@@ -2,15 +2,9 @@
 const blob = new Blob(['test']);
 const file = new File(['test'], 'name');
 
-test(t => {
+test(() => {
   const url_count = 5000;
   let list = [];
-
-  t.add_cleanup(() => {
-    for (let url of list) {
-      URL.revokeObjectURL(url);
-    }
-  });
 
   for (let i = 0; i < url_count; ++i)
     list.push(URL.createObjectURL(blob));

@@ -1,16 +1,15 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-
-import {MetadataItem} from './metadata_item.js';
-import {MetadataRequest} from './metadata_request.js';
+// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {MetadataRequest} from './metadata_request.m.js';
+// #import {MetadataItem} from './metadata_item.m.js';
 
 /**
  * @abstract
  */
-export class MetadataProvider {
+/* #export */ class MetadataProvider {
   /**
    * @param {!Array<string>} validPropertyNames
    */

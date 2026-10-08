@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 
 #include "base/base64.h"
 #include "base/no_destructor.h"
+#include "components/metrics/content/content_stability_metrics_provider.h"
+#include "components/metrics/content/extensions_helper.h"
 #include "components/metrics/metrics_provider.h"
 #include "components/metrics/metrics_service.h"
 #include "components/page_load_metrics/browser/metrics_web_contents_observer.h"
-#include "components/prefs/pref_service.h"
 #include "components/ukm/ukm_service.h"
 #include "components/variations/variations_ids_provider.h"
 #include "components/version_info/android/channel_getter.h"
@@ -21,12 +22,12 @@
 #include "google_apis/google_api_keys.h"
 #include "weblayer/browser/browser_context_impl.h"
 #include "weblayer/browser/browser_list.h"
-#include "weblayer/browser/browser_process.h"
 #include "weblayer/browser/java/jni/MetricsServiceClient_jni.h"
 #include "weblayer/browser/system_network_context_manager.h"
 #include "weblayer/browser/tab_impl.h"
 
 namespace weblayer {
+
 namespace {
 
 // IMPORTANT: DO NOT CHANGE sample rates without first ensuring the Chrome
@@ -52,10 +53,6 @@ const int kPackageNameLimitRatePerMille = 100;
 class PageLoadMetricsProvider : public metrics::MetricsProvider {
  public:
   PageLoadMetricsProvider() = default;
-
-  PageLoadMetricsProvider(const PageLoadMetricsProvider&) = delete;
-  PageLoadMetricsProvider& operator=(const PageLoadMetricsProvider&) = delete;
-
   ~PageLoadMetricsProvider() override = default;
 
   // metrics:MetricsProvider implementation:
@@ -69,6 +66,9 @@ class PageLoadMetricsProvider : public metrics::MetricsProvider {
         observer->FlushMetricsOnAppEnterBackground();
     }
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PageLoadMetricsProvider);
 };
 
 }  // namespace
@@ -101,7 +101,7 @@ void WebLayerMetricsServiceClient::RegisterExternalExperiments(
     return;
   }
 
-  GetMetricsService()->GetSyntheticTrialRegistry()->RegisterExternalExperiments(
+  GetMetricsService()->synthetic_trial_registry()->RegisterExternalExperiments(
       "WebLayerExperiments", experiment_ids,
       variations::SyntheticTrialRegistry::kOverrideExistingIds);
 }
@@ -131,11 +131,6 @@ std::string WebLayerMetricsServiceClient::GetUploadSigningKey() {
   return decoded_key;
 }
 
-const network_time::NetworkTimeTracker*
-WebLayerMetricsServiceClient::GetNetworkTimeTracker() {
-  return BrowserProcess::GetInstance()->GetNetworkTimeTracker();
-}
-
 int WebLayerMetricsServiceClient::GetSampleRatePerMille() const {
   version_info::Channel channel = version_info::android::GetChannel();
   if (channel == version_info::Channel::STABLE ||
@@ -162,6 +157,9 @@ int WebLayerMetricsServiceClient::GetPackageNameLimitRatePerMille() {
 
 void WebLayerMetricsServiceClient::RegisterAdditionalMetricsProviders(
     metrics::MetricsService* service) {
+  service->RegisterMetricsProvider(
+      std::make_unique<metrics::ContentStabilityMetricsProvider>(pref_service(),
+                                                                 nullptr));
   service->RegisterMetricsProvider(std::make_unique<PageLoadMetricsProvider>());
 }
 

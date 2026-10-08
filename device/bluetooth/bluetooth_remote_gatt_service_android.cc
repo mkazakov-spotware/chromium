@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "device/bluetooth/bluetooth_adapter_android.h"
 #include "device/bluetooth/bluetooth_device_android.h"
 #include "device/bluetooth/bluetooth_remote_gatt_characteristic_android.h"
@@ -53,56 +53,56 @@ BluetoothRemoteGattServiceAndroid::GetJavaObject() {
 }
 
 // static
-BluetoothGattService::GattErrorCode
+BluetoothRemoteGattService::GattErrorCode
 BluetoothRemoteGattServiceAndroid::GetGattErrorCode(int bluetooth_gatt_code) {
   DCHECK(bluetooth_gatt_code != 0) << "Only errors valid. 0 == GATT_SUCCESS.";
 
-  // TODO(scheib) Create new BluetoothGattService::GattErrorCode enums for
+  // TODO(scheib) Create new BluetoothRemoteGattService::GattErrorCode enums for
   // android values not yet represented. http://crbug.com/548498
   switch (bluetooth_gatt_code) {  // android.bluetooth.BluetoothGatt values:
     case 0x00000101:              // GATT_FAILURE
-      return GattErrorCode::kFailed;
+      return GATT_ERROR_FAILED;
     case 0x0000000d:  // GATT_INVALID_ATTRIBUTE_LENGTH
-      return GattErrorCode::kInvalidLength;
+      return GATT_ERROR_INVALID_LENGTH;
     case 0x00000002:  // GATT_READ_NOT_PERMITTED
-      return GattErrorCode::kNotPermitted;
+      return GATT_ERROR_NOT_PERMITTED;
     case 0x00000006:  // GATT_REQUEST_NOT_SUPPORTED
-      return GattErrorCode::kNotSupported;
+      return GATT_ERROR_NOT_SUPPORTED;
     case 0x00000003:  // GATT_WRITE_NOT_PERMITTED
-      return GattErrorCode::kNotPermitted;
+      return GATT_ERROR_NOT_PERMITTED;
     default:
       DVLOG(1) << "Unhandled status: " << bluetooth_gatt_code;
-      return BluetoothGattService::GattErrorCode::kUnknown;
+      return BluetoothRemoteGattService::GATT_ERROR_UNKNOWN;
   }
 }
 
 // static
 int BluetoothRemoteGattServiceAndroid::GetAndroidErrorCode(
-    BluetoothGattService::GattErrorCode error_code) {
-  // TODO(scheib) Create new BluetoothGattService::GattErrorCode enums for
+    BluetoothRemoteGattService::GattErrorCode error_code) {
+  // TODO(scheib) Create new BluetoothRemoteGattService::GattErrorCode enums for
   // android values not yet represented. http://crbug.com/548498
   switch (error_code) {  // Return values from android.bluetooth.BluetoothGatt:
-    case GattErrorCode::kUnknown:
+    case GATT_ERROR_UNKNOWN:
       return 0x00000101;  // GATT_FAILURE. No good match.
-    case GattErrorCode::kFailed:
+    case GATT_ERROR_FAILED:
       return 0x00000101;  // GATT_FAILURE
-    case GattErrorCode::kInProgress:
+    case GATT_ERROR_IN_PROGRESS:
       return 0x00000101;  // GATT_FAILURE. No good match.
-    case GattErrorCode::kInvalidLength:
+    case GATT_ERROR_INVALID_LENGTH:
       return 0x0000000d;  // GATT_INVALID_ATTRIBUTE_LENGTH
-    case GattErrorCode::kNotPermitted:
+    case GATT_ERROR_NOT_PERMITTED:
       // Can't distinguish between:
       // 0x00000002:  // GATT_READ_NOT_PERMITTED
       // 0x00000003:  // GATT_WRITE_NOT_PERMITTED
       return 0x00000101;  // GATT_FAILURE. No good match.
-    case GattErrorCode::kNotAuthorized:
+    case GATT_ERROR_NOT_AUTHORIZED:
       return 0x00000101;  // GATT_FAILURE. No good match.
-    case GattErrorCode::kNotPaired:
+    case GATT_ERROR_NOT_PAIRED:
       return 0x00000101;  // GATT_FAILURE. No good match.
-    case GattErrorCode::kNotSupported:
+    case GATT_ERROR_NOT_SUPPORTED:
       return 0x00000006;  // GATT_REQUEST_NOT_SUPPORTED
   }
-  DVLOG(1) << "Unhandled error_code: " << static_cast<int>(error_code);
+  DVLOG(1) << "Unhandled error_code: " << error_code;
   return 0x00000101;  // GATT_FAILURE. No good match.
 }
 

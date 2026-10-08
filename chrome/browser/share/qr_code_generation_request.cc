@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/share/android/jni_headers/QRCodeGenerationRequest_jni.h"
 #include "chrome/services/qrcode_generator/public/cpp/qrcode_generator_service.h"
-#include "chrome/services/qrcode_generator/public/mojom/qrcode_generator.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/android/java_bitmap.h"
 
@@ -33,7 +32,7 @@ QRCodeGenerationRequest::QRCodeGenerationRequest(
       qrcode_generator::mojom::GenerateQRCodeRequest::New();
   request->data = url_string;
   request->should_render = true;
-  request->center_image = qrcode_generator::mojom::CenterImage::CHROME_DINO;
+  request->render_dino = true;
   request->render_module_style = qrcode_generator::mojom::ModuleStyle::CIRCLES;
   request->render_locator_style =
       qrcode_generator::mojom::LocatorStyle::ROUNDED;
@@ -71,6 +70,10 @@ void QRCodeGenerationRequest::OnGenerateCodeResponse(
         env, java_qr_code_generation_request_, nullptr);
     return;
   }
+  // The QRCode service should be sending us N32 32bpp bitmaps in reply,
+  // otherwise this can lead to out-of-bounds mistakes when transferring the
+  // pixels out of the bitmap into other buffers.
+  CHECK_EQ(service_response->bitmap.colorType(), kN32_SkColorType);
 
   // Convert the result to a Java Bitmap.
   ScopedJavaLocalRef<jobject> java_bitmap =

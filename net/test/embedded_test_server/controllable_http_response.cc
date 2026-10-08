@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/trace_event/typed_macros.h"
-#include "net/test/embedded_test_server/http_response.h"
+#include "base/threading/thread_task_runner_handle.h"
 
-namespace net::test_server {
+namespace net {
+
+namespace test_server {
 
 class ControllableHttpResponse::Interceptor : public HttpResponse {
  public:
@@ -22,27 +22,24 @@ class ControllableHttpResponse::Interceptor : public HttpResponse {
       : controller_(controller),
         controller_task_runner_(controller_task_runner),
         http_request_(std::make_unique<HttpRequest>(http_request)) {}
-
-  Interceptor(const Interceptor&) = delete;
-  Interceptor& operator=(const Interceptor&) = delete;
-
-  ~Interceptor() override = default;
+  ~Interceptor() override {}
 
  private:
-  void SendResponse(base::WeakPtr<HttpResponseDelegate> delegate) override {
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner =
-        base::SingleThreadTaskRunner::GetCurrentDefault();
-    CHECK(task_runner);
+  void SendResponse(const SendBytesCallback& send,
+                    SendCompleteCallback done) override {
     controller_task_runner_->PostTask(
-        FROM_HERE, base::BindOnce(&ControllableHttpResponse::OnRequest,
-                                  controller_, std::move(task_runner), delegate,
-                                  std::move(http_request_)));
+        FROM_HERE,
+        base::BindOnce(&ControllableHttpResponse::OnRequest, controller_,
+                       base::ThreadTaskRunnerHandle::Get(), send,
+                       std::move(done), std::move(http_request_)));
   }
 
   base::WeakPtr<ControllableHttpResponse> controller_;
   scoped_refptr<base::SingleThreadTaskRunner> controller_task_runner_;
 
   std::unique_ptr<HttpRequest> http_request_;
+
+  DISALLOW_COPY_AND_ASSIGN(Interceptor);
 };
 
 ControllableHttpResponse::ControllableHttpResponse(
@@ -52,82 +49,69 @@ ControllableHttpResponse::ControllableHttpResponse(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   embedded_test_server->RegisterRequestHandler(base::BindRepeating(
       RequestHandler, weak_ptr_factory_.GetWeakPtr(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      base::Owned(new bool(true)), relative_url, relative_url_is_prefix));
+      base::ThreadTaskRunnerHandle::Get(), base::Owned(new bool(true)),
+      relative_url, relative_url_is_prefix));
 }
 
-ControllableHttpResponse::~ControllableHttpResponse() = default;
+ControllableHttpResponse::~ControllableHttpResponse() {}
 
 void ControllableHttpResponse::WaitForRequest() {
-  TRACE_EVENT("test", "ControllableHttpResponse::WaitForRequest");
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK_EQ(State::WAITING_FOR_REQUEST, state_)
+  DCHECK_EQ(State::WAITING_FOR_REQUEST, state_)
       << "WaitForRequest() called twice.";
   loop_.Run();
-  CHECK(embedded_test_server_task_runner_);
+  DCHECK(embedded_test_server_task_runner_);
+  DCHECK(send_);
+  DCHECK(done_);
   state_ = State::READY_TO_SEND_DATA;
 }
 
-void ControllableHttpResponse::Send(
-    net::HttpStatusCode http_status,
-    const std::string& content_type,
-    const std::string& content,
-    const std::vector<std::string>& cookies,
-    const std::vector<std::string>& extra_headers) {
-  TRACE_EVENT("test", "ControllableHttpResponse::Send", "http_status",
-              http_status, "content_type", content_type, "content", content,
-              "cookies", cookies);
+void ControllableHttpResponse::Send(net::HttpStatusCode http_status,
+                                    const std::string& content_type,
+                                    const std::string& content,
+                                    const std::vector<std::string>& cookies) {
   std::string content_data(base::StringPrintf(
       "HTTP/1.1 %d %s\nContent-type: %s\n", static_cast<int>(http_status),
       net::GetHttpReasonPhrase(http_status), content_type.c_str()));
   for (auto& cookie : cookies)
     content_data += "Set-Cookie: " + cookie + "\n";
-  for (auto& header : extra_headers)
-    content_data += header + "\n";
   content_data += "\n";
   content_data += content;
   Send(content_data);
 }
 
 void ControllableHttpResponse::Send(const std::string& bytes) {
-  TRACE_EVENT("test", "ControllableHttpResponse::Send", "bytes", bytes);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK_EQ(State::READY_TO_SEND_DATA, state_) << "Send() called without any "
-                                                 "opened connection. Did you "
-                                                 "call WaitForRequest()?";
+  DCHECK_EQ(State::READY_TO_SEND_DATA, state_) << "Send() called without any "
+                                                  "opened connection. Did you "
+                                                  "call WaitForRequest()?";
   base::RunLoop loop;
   embedded_test_server_task_runner_->PostTask(
-      FROM_HERE, base::BindOnce(&HttpResponseDelegate::SendContents, delegate_,
-                                bytes, loop.QuitClosure()));
+      FROM_HERE, base::BindOnce(send_, bytes, loop.QuitClosure()));
   loop.Run();
 }
 
 void ControllableHttpResponse::Done() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK_EQ(State::READY_TO_SEND_DATA, state_) << "Done() called without any "
-                                                 "opened connection. Did you "
-                                                 "call WaitForRequest()?";
-  embedded_test_server_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&HttpResponseDelegate::FinishResponse, delegate_));
+  DCHECK_EQ(State::READY_TO_SEND_DATA, state_) << "Done() called without any "
+                                                  "opened connection. Did you "
+                                                  "call WaitForRequest()?";
+  embedded_test_server_task_runner_->PostTask(FROM_HERE, std::move(done_));
   state_ = State::DONE;
-}
-
-bool ControllableHttpResponse::has_received_request() {
-  return loop_.AnyQuitCalled();
 }
 
 void ControllableHttpResponse::OnRequest(
     scoped_refptr<base::SingleThreadTaskRunner>
         embedded_test_server_task_runner,
-    base::WeakPtr<HttpResponseDelegate> delegate,
+    const SendBytesCallback& send,
+    SendCompleteCallback done,
     std::unique_ptr<HttpRequest> http_request) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(embedded_test_server_task_runner);
-  CHECK(!embedded_test_server_task_runner_)
+  DCHECK(!embedded_test_server_task_runner_)
       << "A ControllableHttpResponse can only handle one request at a time";
   embedded_test_server_task_runner_ = embedded_test_server_task_runner;
-  delegate_ = delegate;
+  send_ = send;
+  done_ = std::move(done);
   http_request_ = std::move(http_request);
   loop_.Quit();
 }
@@ -156,4 +140,6 @@ std::unique_ptr<HttpResponse> ControllableHttpResponse::RequestHandler(
   return nullptr;
 }
 
-}  // namespace net::test_server
+}  // namespace test_server
+
+}  // namespace net

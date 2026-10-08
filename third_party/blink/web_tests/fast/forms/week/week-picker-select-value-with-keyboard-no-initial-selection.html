@@ -3,11 +3,9 @@
 <head>
 <script src="../../../resources/testharness.js"></script>
 <script src="../../../resources/testharnessreport.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
-<script src="../resources/common.js"></script>
-<script src="../resources/picker-common.js"></script>
-<script src="../calendar-picker/resources/calendar-picker-common.js"></script>
+<script src="../../../fast/forms/resources/common.js"></script>
+<script src="../../../fast/forms/resources/picker-common.js"></script>
+<script src="../../../fast/forms/calendar-picker/resources/calendar-picker-common.js"></script>
 </head>
 <body>
 <input type="week" id="week0" min="2019-W04" max="2019-W20">
@@ -18,7 +16,7 @@
 
 promise_test(() => {
   let weekElement = document.getElementById("week0");
-  return openPicker(weekElement)
+  return openPickerWithPromise(weekElement)
   .then(() => {
     eventSender.keyDown('Enter');
     assert_equals(internals.pagePopupWindow, null, "Enter key should dismiss popup.");
@@ -29,7 +27,7 @@ promise_test(() => {
 
 promise_test(() => {
   let weekElement = document.getElementById("week1");
-  return openPicker(weekElement)
+  return openPickerWithPromise(weekElement)
   .then(() => {
     eventSender.keyDown('Enter');
     assert_equals(internals.pagePopupWindow, null, "Enter key should dismiss popup.");
@@ -41,7 +39,7 @@ promise_test(() => {
 
 promise_test(() => {
   let weekElement = document.getElementById("week2");
-  return openPicker(weekElement)
+  return openPickerWithPromise(weekElement)
   .then(() => {
     eventSender.keyDown('Enter');
     assert_equals(internals.pagePopupWindow, null, "Enter key should dismiss popup.");
@@ -53,7 +51,7 @@ promise_test(() => {
 
 promise_test(() => {
   let weekElement = document.getElementById("week3");
-  return openPicker(weekElement)
+  return openPickerWithPromise(weekElement)
   .then(() => {
     eventSender.keyDown('Enter');
     assert_equals(internals.pagePopupWindow, null, "Enter key should dismiss popup.");

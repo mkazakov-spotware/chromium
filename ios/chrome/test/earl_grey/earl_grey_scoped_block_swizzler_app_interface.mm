@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/test/earl_grey/earl_grey_scoped_block_swizzler_app_interface.h"
+#include "ios/chrome/test/earl_grey/earl_grey_scoped_block_swizzler_app_interface.h"
 
-#import <map>
+#include <map>
 
-#import "base/check.h"
-#import "ios/testing/scoped_block_swizzler.h"
+#include "base/check.h"
+#include "ios/testing/scoped_block_swizzler.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -22,7 +22,7 @@
   std::map<int, std::unique_ptr<ScopedBlockSwizzler>> _map;
 }
 
-// Inserts and removes from `map`.
+// Inserts and removes from |map|.
 - (int)insertScopedBlockSwizzler:(std::unique_ptr<ScopedBlockSwizzler>)swizzler;
 - (void)removeScopedBlockSwizzler:(int)uniqueID;
 @end
@@ -65,16 +65,14 @@
                                 withBlock:(id)block {
   Class target = NSClassFromString(targetString);
   SEL selector = NSSelectorFromString(selectorString);
-  EarlGreyScopedBlockSwizzlerHelper* helper =
-      [EarlGreyScopedBlockSwizzlerHelper sharedInstance];
+  auto helper = [EarlGreyScopedBlockSwizzlerHelper sharedInstance];
   auto swizzler =
       std::make_unique<ScopedBlockSwizzler>(target, selector, block);
   return [helper insertScopedBlockSwizzler:std::move(swizzler)];
 }
 
 + (void)deleteScopedBlockSwizzlerForID:(int)uniqueID {
-  EarlGreyScopedBlockSwizzlerHelper* helper =
-      [EarlGreyScopedBlockSwizzlerHelper sharedInstance];
+  auto helper = [EarlGreyScopedBlockSwizzlerHelper sharedInstance];
   [helper removeScopedBlockSwizzler:uniqueID];
 }
 

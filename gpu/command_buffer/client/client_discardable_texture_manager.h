@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,12 +23,6 @@ namespace gpu {
 class GPU_EXPORT ClientDiscardableTextureManager {
  public:
   ClientDiscardableTextureManager();
-
-  ClientDiscardableTextureManager(const ClientDiscardableTextureManager&) =
-      delete;
-  ClientDiscardableTextureManager& operator=(
-      const ClientDiscardableTextureManager&) = delete;
-
   ~ClientDiscardableTextureManager();
   ClientDiscardableHandle InitializeTexture(CommandBuffer* command_buffer,
                                             uint32_t texture_id);
@@ -64,6 +58,8 @@ class GPU_EXPORT ClientDiscardableTextureManager {
   mutable base::Lock lock_;
   std::map<uint32_t, TextureEntry> texture_entries_;
   ClientDiscardableManager discardable_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClientDiscardableTextureManager);
 };
 
 }  // namespace gpu

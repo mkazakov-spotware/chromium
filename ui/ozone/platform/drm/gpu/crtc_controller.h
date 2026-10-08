@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,10 @@
 #include <stdint.h>
 #include <xf86drmMode.h>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "third_party/libdrm/src/include/drm/drm_fourcc.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
+#include "base/observer_list.h"
+#include "base/time/time.h"
 #include "ui/gfx/swap_result.h"
 #include "ui/ozone/platform/drm/common/scoped_drm_types.h"
 #include "ui/ozone/platform/drm/gpu/drm_overlay_plane.h"
@@ -31,10 +32,6 @@ class CrtcController {
   CrtcController(const scoped_refptr<DrmDevice>& drm,
                  uint32_t crtc,
                  uint32_t connector);
-
-  CrtcController(const CrtcController&) = delete;
-  CrtcController& operator=(const CrtcController&) = delete;
-
   ~CrtcController();
 
   drmModeModeInfo mode() const { return state_.mode; }
@@ -60,9 +57,6 @@ class CrtcController {
   void SetCursor(uint32_t handle, const gfx::Size& size);
   void MoveCursor(const gfx::Point& location);
 
-  // Adds trace records to |context|.
-  void WriteIntoTrace(perfetto::TracedValue context) const;
-
  private:
   const scoped_refptr<DrmDevice> drm_;
 
@@ -72,6 +66,8 @@ class CrtcController {
   const uint32_t connector_;
 
   const HardwareDisplayPlaneManager::CrtcState& state_;
+
+  DISALLOW_COPY_AND_ASSIGN(CrtcController);
 };
 
 }  // namespace ui

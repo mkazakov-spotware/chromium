@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "extensions/renderer/extensions_renderer_client.h"
 #include "services/service_manager/public/cpp/binder_registry.h"
 #include "ui/base/page_transition_types.h"
@@ -21,7 +22,6 @@ class WebFrame;
 class WebLocalFrame;
 struct WebPluginParams;
 class WebURL;
-class WebView;
 }
 
 namespace content {
@@ -29,8 +29,13 @@ class RenderFrame;
 struct WebPluginInfo;
 }
 
+namespace guest_view {
+class GuestViewContainer;
+}
+
 namespace extensions {
 class Dispatcher;
+class ExtensionsGuestViewContainerDispatcher;
 class RendererPermissionsPolicyDelegate;
 class ResourceRequestPolicy;
 }
@@ -58,12 +63,6 @@ class ChromeExtensionsRendererClient
     : public extensions::ExtensionsRendererClient {
  public:
   ChromeExtensionsRendererClient();
-
-  ChromeExtensionsRendererClient(const ChromeExtensionsRendererClient&) =
-      delete;
-  ChromeExtensionsRendererClient& operator=(
-      const ChromeExtensionsRendererClient&) = delete;
-
   ~ChromeExtensionsRendererClient() override;
 
   // Get the LazyInstance for ChromeExtensionsRendererClient.
@@ -83,8 +82,6 @@ class ChromeExtensionsRendererClient
 
   // See ChromeContentRendererClient methods with the same names.
   void RenderThreadStarted();
-  void WebViewCreated(blink::WebView* web_view,
-                      const url::Origin* outermost_origin);
   void RenderFrameCreated(content::RenderFrame* render_frame,
                           service_manager::BinderRegistry* registry);
   bool OverrideCreatePlugin(content::RenderFrame* render_frame,
@@ -96,13 +93,21 @@ class ChromeExtensionsRendererClient
                        const blink::WebURL& url,
                        const net::SiteForCookies& site_for_cookies,
                        const url::Origin* initiator_origin,
-                       GURL* new_url);
+                       GURL* new_url,
+                       bool* force_ignore_site_for_cookies);
   v8::Local<v8::Object> GetScriptableObject(
       const blink::WebElement& plugin_element,
       v8::Isolate* isolate);
   void SetExtensionDispatcherForTest(
       std::unique_ptr<extensions::Dispatcher> extension_dispatcher);
   extensions::Dispatcher* GetExtensionDispatcherForTest();
+
+  // TODO(533069): Remove since BrowserPlugin has been removed.
+  static guest_view::GuestViewContainer* CreateBrowserPluginDelegate(
+      content::RenderFrame* render_frame,
+      const content::WebPluginInfo& info,
+      const std::string& mime_type,
+      const GURL& original_url);
 
   static void DidBlockMimeHandlerViewForDisallowedPlugin(
       const blink::WebElement& plugin_element);
@@ -127,7 +132,11 @@ class ChromeExtensionsRendererClient
   std::unique_ptr<extensions::Dispatcher> extension_dispatcher_;
   std::unique_ptr<extensions::RendererPermissionsPolicyDelegate>
       permissions_policy_delegate_;
+  std::unique_ptr<extensions::ExtensionsGuestViewContainerDispatcher>
+      guest_view_container_dispatcher_;
   std::unique_ptr<extensions::ResourceRequestPolicy> resource_request_policy_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeExtensionsRendererClient);
 };
 
 #endif  // CHROME_RENDERER_EXTENSIONS_CHROME_EXTENSIONS_RENDERER_CLIENT_H_

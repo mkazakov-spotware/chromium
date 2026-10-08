@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,18 @@
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/viz/common/display/overlay_strategy.h"
 #include "components/viz/common/display/renderer_settings.h"
 #include "components/viz/common/features.h"
 #include "components/viz/common/switches.h"
 #include "ui/base/ui_base_switches.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(OS_APPLE)
+#include "ui/base/cocoa/remote_layer_api.h"
+#endif
+
+#if defined(USE_OZONE)
+#include "ui/base/ui_base_features.h"
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
@@ -51,21 +55,21 @@ RendererSettings CreateRendererSettings() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   renderer_settings.partial_swap_enabled =
       !command_line->HasSwitch(switches::kUIDisablePartialSwap);
-
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_LINUX)
-  // Simple frame rate throttling only works on macOS and Linux
-  renderer_settings.apply_simple_frame_rate_throttling =
-      features::IsSimpleFrameRateThrottlingEnabled();
-#endif
-
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   renderer_settings.release_overlay_resources_after_gpu_query = true;
   renderer_settings.auto_resize_output_surface = false;
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
   renderer_settings.auto_resize_output_surface = false;
 #endif
   renderer_settings.allow_antialiasing =
       !command_line->HasSwitch(switches::kDisableCompositedAntialiasing);
+  renderer_settings.use_skia_renderer = features::IsUsingSkiaRenderer();
+#if defined(OS_APPLE)
+  renderer_settings.allow_overlays =
+      ui::RemoteLayerAPISupported() &&
+      !base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDisableMacOverlays);
+#endif
 
   if (command_line->HasSwitch(switches::kSlowDownCompositingScaleFactor)) {
     const int kMinSlowDownScaleFactor = 1;
@@ -75,17 +79,19 @@ RendererSettings CreateRendererSettings() {
                         &renderer_settings.slow_down_compositing_scale_factor);
   }
 
-#if BUILDFLAG(IS_OZONE)
-  if (command_line->HasSwitch(switches::kEnableHardwareOverlays)) {
-    renderer_settings.overlay_strategies = ParseOverlayStrategies(
-        command_line->GetSwitchValueASCII(switches::kEnableHardwareOverlays));
-  } else {
-    auto& host_properties =
-        ui::OzonePlatform::GetInstance()->GetPlatformRuntimeProperties();
-    if (host_properties.supports_overlays) {
-      renderer_settings.overlay_strategies = {OverlayStrategy::kFullscreen,
-                                              OverlayStrategy::kSingleOnTop,
-                                              OverlayStrategy::kUnderlay};
+#if defined(USE_OZONE)
+  if (features::IsUsingOzonePlatform()) {
+    if (command_line->HasSwitch(switches::kEnableHardwareOverlays)) {
+      renderer_settings.overlay_strategies = ParseOverlayStrategies(
+          command_line->GetSwitchValueASCII(switches::kEnableHardwareOverlays));
+    } else {
+      auto& host_properties =
+          ui::OzonePlatform::GetInstance()->GetInitializedHostProperties();
+      if (host_properties.supports_overlays) {
+        renderer_settings.overlay_strategies = {OverlayStrategy::kFullscreen,
+                                                OverlayStrategy::kSingleOnTop,
+                                                OverlayStrategy::kUnderlay};
+      }
     }
   }
 #endif
@@ -98,8 +104,6 @@ DebugRendererSettings CreateDefaultDebugRendererSettings() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   result.tint_composited_content =
       command_line->HasSwitch(switches::kTintCompositedContent);
-  result.tint_composited_content_modulate =
-      command_line->HasSwitch(switches::kTintCompositedContentModulate);
   result.show_overdraw_feedback =
       command_line->HasSwitch(switches::kShowOverdrawFeedback);
   result.show_dc_layer_debug_borders =

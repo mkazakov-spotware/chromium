@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "third_party/blink/public/mojom/dwrite_font_proxy/dwrite_font_proxy.mojom.h"
@@ -31,9 +33,7 @@ CreateFakeCollectionSender();
 // Helper class for describing a font object. Use FakeFontCollection instead.
 class FakeFont {
  public:
-  explicit FakeFont(const std::u16string& name);
-
-  FakeFont& operator=(const FakeFont&) = delete;
+  explicit FakeFont(const base::string16& name);
 
   FakeFont(FakeFont&& other);
 
@@ -49,20 +49,22 @@ class FakeFont {
     return *this;
   }
 
-  FakeFont& AddFamilyName(const std::u16string& locale,
-                          const std::u16string& family_name) {
+  FakeFont& AddFamilyName(const base::string16& locale,
+                          const base::string16& family_name) {
     family_names_.emplace_back(locale, family_name);
     return *this;
   }
 
-  const std::u16string& font_name() { return font_name_; }
+  const base::string16& font_name() { return font_name_; }
 
  private:
   friend FakeFontCollection;
-  std::u16string font_name_;
+  base::string16 font_name_;
   std::vector<base::FilePath> file_paths_;
   std::vector<base::File> file_handles_;
-  std::vector<std::pair<std::u16string, std::u16string>> family_names_;
+  std::vector<std::pair<base::string16, base::string16>> family_names_;
+
+  DISALLOW_ASSIGN(FakeFont);
 };
 
 // Implements a font collection that supports interaction through sending IPC
@@ -95,13 +97,9 @@ class FakeFontCollection : public blink::mojom::DWriteFontProxy {
     kMapCharacters
   };
   FakeFontCollection();
-
-  FakeFontCollection(const FakeFontCollection&) = delete;
-  FakeFontCollection& operator=(const FakeFontCollection&) = delete;
-
   ~FakeFontCollection() override;
 
-  FakeFont& AddFont(const std::u16string& font_name);
+  FakeFont& AddFont(const base::string16& font_name);
 
   size_t MessageCount();
   MessageType GetMessageType(size_t id);
@@ -110,20 +108,20 @@ class FakeFontCollection : public blink::mojom::DWriteFontProxy {
 
  protected:
   // blink::mojom::DWriteFontProxy:
-  void FindFamily(const std::u16string& family_name,
+  void FindFamily(const base::string16& family_name,
                   FindFamilyCallback callback) override;
   void GetFamilyCount(GetFamilyCountCallback callback) override;
   void GetFamilyNames(uint32_t family_index,
                       GetFamilyNamesCallback callback) override;
   void GetFontFiles(uint32_t family_index,
                     GetFontFilesCallback callback) override;
-  void MapCharacters(const std::u16string& text,
+  void MapCharacters(const base::string16& text,
                      blink::mojom::DWriteFontStylePtr font_style,
-                     const std::u16string& locale_name,
+                     const base::string16& locale_name,
                      uint32_t reading_direction,
-                     const std::u16string& base_family_name,
+                     const base::string16& base_family_name,
                      MapCharactersCallback callback) override;
-  void MatchUniqueFont(const std::u16string& unique_font_name,
+  void MatchUniqueFont(const base::string16& unique_font_name,
                        MatchUniqueFontCallback callback) override;
   void GetUniqueFontLookupMode(
       GetUniqueFontLookupModeCallback callback) override;
@@ -143,6 +141,8 @@ class FakeFontCollection : public blink::mojom::DWriteFontProxy {
   std::vector<MessageType> message_types_;
 
   mojo::ReceiverSet<blink::mojom::DWriteFontProxy> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeFontCollection);
 };
 
 }  // namespace content

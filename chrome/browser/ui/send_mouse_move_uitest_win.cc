@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <windows.h>
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -15,12 +16,11 @@
 #include "ui/gfx/geometry/rect.h"
 
 class SendMouseMoveUITest : public InProcessBrowserTest {
- public:
-  SendMouseMoveUITest(const SendMouseMoveUITest&) = delete;
-  SendMouseMoveUITest& operator=(const SendMouseMoveUITest&) = delete;
-
  protected:
   SendMouseMoveUITest() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SendMouseMoveUITest);
 };
 
 // This test positions the mouse at every point on the screen. It is not meant
@@ -80,7 +80,7 @@ IN_PROC_BROWSER_TEST_F(SendMouseMoveUITest, Probe) {
                  << "(" << point.x() << ", " << point.y() << ")");
     // Move the pointer.
     base::RunLoop run_loop;
-    ASSERT_TRUE(ui_controls::SendMouseMoveNotifyWhenDone(
+    EXPECT_TRUE(ui_controls::SendMouseMoveNotifyWhenDone(
         point.x(), point.y(), run_loop.QuitClosure()));
     run_loop.Run();
 

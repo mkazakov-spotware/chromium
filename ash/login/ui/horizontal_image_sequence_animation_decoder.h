@@ -1,13 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_LOGIN_UI_HORIZONTAL_IMAGE_SEQUENCE_ANIMATION_DECODER_H_
 #define ASH_LOGIN_UI_HORIZONTAL_IMAGE_SEQUENCE_ANIMATION_DECODER_H_
 
-#include "ash/ash_export.h"
 #include "ash/login/ui/animated_rounded_image_view.h"
-#include "base/time/time.h"
 
 namespace ash {
 
@@ -21,18 +19,12 @@ namespace ash {
 //
 //    [1][2][3][4]
 //
-class ASH_EXPORT HorizontalImageSequenceAnimationDecoder
+class HorizontalImageSequenceAnimationDecoder
     : public AnimatedRoundedImageView::AnimationDecoder {
  public:
   HorizontalImageSequenceAnimationDecoder(const gfx::ImageSkia& image,
                                           base::TimeDelta duration,
                                           int num_frames);
-
-  HorizontalImageSequenceAnimationDecoder(
-      const HorizontalImageSequenceAnimationDecoder&) = delete;
-  HorizontalImageSequenceAnimationDecoder& operator=(
-      const HorizontalImageSequenceAnimationDecoder&) = delete;
-
   ~HorizontalImageSequenceAnimationDecoder() override;
 
   // AnimatedRoundedImageView::AnimationDecoder:
@@ -45,6 +37,8 @@ class ASH_EXPORT HorizontalImageSequenceAnimationDecoder
   base::TimeDelta duration_;
   // The total number of frames in the animation.
   int num_frames_;
+
+  DISALLOW_COPY_AND_ASSIGN(HorizontalImageSequenceAnimationDecoder);
 };
 
 }  // namespace ash

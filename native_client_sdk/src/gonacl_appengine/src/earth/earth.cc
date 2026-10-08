@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -81,11 +81,9 @@ struct Texture {
     pixels = new uint32_t[w * h];
     memcpy(pixels, p, sizeof(uint32_t) * w * h);
   }
-
-  Texture(const Texture&) = delete;
-  Texture& operator=(const Texture&) = delete;
-
   ~Texture() { delete[] pixels; }
+
+  DISALLOW_COPY_AND_ASSIGN(Texture);
 };
 
 

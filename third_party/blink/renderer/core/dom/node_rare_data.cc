@@ -37,16 +37,16 @@
 #include "third_party/blink/renderer/core/dom/flat_tree_node_data.h"
 #include "third_party/blink/renderer/core/dom/mutation_observer_registration.h"
 #include "third_party/blink/renderer/core/dom/node_lists_node_data.h"
-#include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
 
 namespace blink {
 
-struct SameSizeAsNodeRareData : NodeData {
-  Member<void*> member_[5];
+struct SameSizeAsNodeRareData {
+  Member<void*> willbe_member_[5];
+  unsigned bitfields_;
 };
 
 ASSERT_SIZE(NodeRareData, SameSizeAsNodeRareData);
@@ -78,12 +78,21 @@ void NodeMutationObserverData::RemoveRegistration(
   registry_.EraseAt(registry_.Find(registration));
 }
 
-void NodeData::Trace(Visitor* visitor) const {}
+void NodeData::Trace(Visitor* visitor) const {
+  if (bit_field_.get_concurrently<IsRareData>()) {
+    if (bit_field_.get_concurrently<IsElementRareData>())
+      static_cast<const ElementRareData*>(this)->TraceAfterDispatch(visitor);
+    else
+      static_cast<const NodeRareData*>(this)->TraceAfterDispatch(visitor);
+  } else {
+    static_cast<const NodeRenderingData*>(this)->TraceAfterDispatch(visitor);
+  }
+}
 
 NodeRenderingData::NodeRenderingData(
     LayoutObject* layout_object,
     scoped_refptr<const ComputedStyle> computed_style)
-    : NodeData(ClassType::kNodeRenderingData),
+    : NodeData(false, false),
       layout_object_(layout_object),
       computed_style_(computed_style) {}
 
@@ -99,10 +108,6 @@ NodeRenderingData& NodeRenderingData::SharedEmptyData() {
       (MakeGarbageCollected<NodeRenderingData>(nullptr, nullptr)));
   return *shared_empty_data;
 }
-void NodeRenderingData::Trace(Visitor* visitor) const {
-  visitor->Trace(layout_object_);
-  NodeData::Trace(visitor);
-}
 
 void NodeRareData::RegisterScrollTimeline(ScrollTimeline* timeline) {
   if (!scroll_timelines_) {
@@ -115,22 +120,20 @@ void NodeRareData::UnregisterScrollTimeline(ScrollTimeline* timeline) {
   scroll_timelines_->erase(timeline);
 }
 
-void NodeRareData::InvalidateAssociatedAnimationEffects() {
-  if (!scroll_timelines_)
-    return;
-
-  for (ScrollTimeline* scroll_timeline : *scroll_timelines_) {
-    scroll_timeline->InvalidateEffectTargetStyle();
-  }
-}
-
-void NodeRareData::Trace(blink::Visitor* visitor) const {
+void NodeRareData::TraceAfterDispatch(blink::Visitor* visitor) const {
   visitor->Trace(mutation_observer_data_);
   visitor->Trace(flat_tree_node_data_);
   visitor->Trace(node_layout_data_);
   visitor->Trace(node_lists_);
   visitor->Trace(scroll_timelines_);
-  NodeData::Trace(visitor);
+  NodeData::TraceAfterDispatch(visitor);
+}
+
+void NodeRareData::FinalizeGarbageCollectedObject() {
+  if (bit_field_.get<IsElementRareData>())
+    static_cast<ElementRareData*>(this)->~ElementRareData();
+  else
+    this->~NodeRareData();
 }
 
 void NodeRareData::IncrementConnectedSubframeCount() {

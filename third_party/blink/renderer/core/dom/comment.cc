@@ -26,7 +26,7 @@
 namespace blink {
 
 inline Comment::Comment(Document& document, const String& text)
-    : CharacterData(document, text, kCreateComment) {}
+    : CharacterData(document, text, kCreateOther) {}
 
 Comment* Comment::Create(Document& document, const String& text) {
   return MakeGarbageCollected<Comment>(document, text);
@@ -34,6 +34,10 @@ Comment* Comment::Create(Document& document, const String& text) {
 
 String Comment::nodeName() const {
   return "#comment";
+}
+
+Node::NodeType Comment::getNodeType() const {
+  return kCommentNode;
 }
 
 Node* Comment::Clone(Document& factory, CloneChildrenFlag) const {

@@ -1,30 +1,27 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/dns/dns_response.h"
 
 #include <algorithm>
-#include <cstdint>
 #include <limits>
 #include <numeric>
 #include <utility>
-#include <vector>
 
 #include "base/big_endian.h"
-#include "base/containers/span.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
+#include "net/base/address_list.h"
 #include "net/base/io_buffer.h"
+#include "net/base/ip_address.h"
 #include "net/base/net_errors.h"
 #include "net/dns/dns_query.h"
-#include "net/dns/dns_response_result_extractor.h"
 #include "net/dns/dns_util.h"
 #include "net/dns/public/dns_protocol.h"
 #include "net/dns/record_rdata.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace net {
 
@@ -113,15 +110,14 @@ size_t DnsResourceRecord::CalculateRecordSize() const {
          (owned_rdata.empty() ? rdata.size() : owned_rdata.size());
 }
 
-DnsRecordParser::DnsRecordParser() = default;
+DnsRecordParser::DnsRecordParser()
+    : packet_(nullptr), length_(0), cur_(nullptr) {}
 
 DnsRecordParser::DnsRecordParser(const void* packet,
                                  size_t length,
-                                 size_t offset,
-                                 size_t num_records)
+                                 size_t offset)
     : packet_(reinterpret_cast<const char*>(packet)),
       length_(length),
-      num_records_(num_records),
       cur_(packet_ + offset) {
   DCHECK_LE(offset, length);
 }
@@ -153,7 +149,7 @@ unsigned DnsRecordParser::ReadName(const void* const vpos,
 
   if (out) {
     out->clear();
-    out->reserve(dns_protocol::kMaxCharNameLength);
+    out->reserve(dns_protocol::kMaxNameLength);
   }
 
   for (;;) {
@@ -177,7 +173,7 @@ unsigned DnsRecordParser::ReadName(const void* const vpos,
           return 0;
         }
         uint16_t offset;
-        base::ReadBigEndian(reinterpret_cast<const uint8_t*>(p), &offset);
+        base::ReadBigEndian<uint16_t>(p, &offset);
         offset &= dns_protocol::kOffsetMask;
         p = packet_ + offset;
         if (p >= end) {
@@ -189,19 +185,19 @@ unsigned DnsRecordParser::ReadName(const void* const vpos,
       case dns_protocol::kLabelDirect: {
         uint8_t label_len = *p;
         ++p;
-        // Note: root domain (".") is NOT included.
-        if (label_len == 0) {
-          if (consumed == 0) {
-            consumed = p - pos;
-          }  // else we set |consumed| before first jump
-          return consumed;
-        }
         // Add one octet for the length and |label_len| for the number of
         // following octets.
         encoded_name_len += 1 + label_len;
         if (encoded_name_len > dns_protocol::kMaxNameLength) {
           VLOG(1) << kAbortMsg << " Name is too long.";
           return 0;
+        }
+        // Note: root domain (".") is NOT included.
+        if (label_len == 0) {
+          if (consumed == 0) {
+            consumed = p - pos;
+          }  // else we set |consumed| before first jump
+          return consumed;
         }
         if (p + label_len >= end) {
           VLOG(1) << kAbortMsg << " Truncated or missing label.";
@@ -211,7 +207,6 @@ unsigned DnsRecordParser::ReadName(const void* const vpos,
           if (!out->empty())
             out->append(".");
           out->append(p, label_len);
-          DCHECK_LE(out->size(), dns_protocol::kMaxCharNameLength);
         }
         p += label_len;
         seen += 1 + label_len;
@@ -227,42 +222,31 @@ unsigned DnsRecordParser::ReadName(const void* const vpos,
 
 bool DnsRecordParser::ReadRecord(DnsResourceRecord* out) {
   DCHECK(packet_);
-
-  // Disallow parsing any more than the claimed number of records.
-  if (num_records_parsed_ >= num_records_)
-    return false;
-
   size_t consumed = ReadName(cur_, &out->name);
   if (!consumed)
     return false;
-  base::BigEndianReader reader(
-      reinterpret_cast<const uint8_t*>(cur_ + consumed),
-      packet_ + length_ - (cur_ + consumed));
+  base::BigEndianReader reader(cur_ + consumed,
+                               packet_ + length_ - (cur_ + consumed));
   uint16_t rdlen;
   if (reader.ReadU16(&out->type) &&
       reader.ReadU16(&out->klass) &&
       reader.ReadU32(&out->ttl) &&
       reader.ReadU16(&rdlen) &&
       reader.ReadPiece(&out->rdata, rdlen)) {
-    cur_ = reinterpret_cast<const char*>(reader.ptr());
-    ++num_records_parsed_;
+    cur_ = reader.ptr();
     return true;
   }
   return false;
 }
 
-bool DnsRecordParser::ReadQuestion(std::string& out_dotted_qname,
-                                   uint16_t& out_qtype) {
-  size_t consumed = ReadName(cur_, &out_dotted_qname);
+bool DnsRecordParser::SkipQuestion() {
+  size_t consumed = ReadName(cur_, nullptr);
   if (!consumed)
     return false;
 
   const char* next = cur_ + consumed + 2 * sizeof(uint16_t);  // QTYPE + QCLASS
   if (next > packet_ + length_)
     return false;
-
-  base::ReadBigEndian(reinterpret_cast<const uint8_t*>(cur_ + consumed),
-                      &out_qtype);
 
   cur_ = next;
 
@@ -275,10 +259,9 @@ DnsResponse::DnsResponse(
     const std::vector<DnsResourceRecord>& answers,
     const std::vector<DnsResourceRecord>& authority_records,
     const std::vector<DnsResourceRecord>& additional_records,
-    const absl::optional<DnsQuery>& query,
+    const base::Optional<DnsQuery>& query,
     uint8_t rcode,
-    bool validate_records,
-    bool validate_names_as_internet_hostnames) {
+    bool validate_answers_match_query) {
   bool has_query = query.has_value();
   dns_protocol::Header header;
   header.id = id;
@@ -316,8 +299,9 @@ DnsResponse::DnsResponse(
       std::accumulate(additional_records.begin(), additional_records.end(),
                       response_size, do_accumulation);
 
-  auto io_buffer = base::MakeRefCounted<IOBuffer>(response_size);
-  base::BigEndianWriter writer(io_buffer->data(), response_size);
+  io_buffer_ = base::MakeRefCounted<IOBuffer>(response_size);
+  io_buffer_size_ = response_size;
+  base::BigEndianWriter writer(io_buffer_->data(), io_buffer_size_);
   success &= WriteHeader(&writer, header);
   DCHECK(success);
   if (has_query) {
@@ -326,27 +310,25 @@ DnsResponse::DnsResponse(
   }
   // Start the Answer section.
   for (const auto& answer : answers) {
-    success &= WriteAnswer(&writer, answer, query, validate_records,
-                           validate_names_as_internet_hostnames);
+    success &=
+        WriteAnswer(&writer, answer, query, validate_answers_match_query);
     DCHECK(success);
   }
   // Start the Authority section.
   for (const auto& record : authority_records) {
-    success &= WriteRecord(&writer, record, validate_records,
-                           validate_names_as_internet_hostnames);
+    success &= WriteRecord(&writer, record);
     DCHECK(success);
   }
   // Start the Additional section.
   for (const auto& record : additional_records) {
-    success &= WriteRecord(&writer, record, validate_records,
-                           validate_names_as_internet_hostnames);
+    success &= WriteRecord(&writer, record);
     DCHECK(success);
   }
   if (!success) {
+    io_buffer_.reset();
+    io_buffer_size_ = 0;
     return;
   }
-  io_buffer_ = io_buffer;
-  io_buffer_size_ = response_size;
   // Ensure we don't have any remaining uninitialized bytes in the buffer.
   DCHECK(!writer.remaining());
   memset(writer.ptr(), 0, writer.remaining());
@@ -370,24 +352,9 @@ DnsResponse::DnsResponse(size_t length)
 DnsResponse::DnsResponse(const void* data, size_t length, size_t answer_offset)
     : io_buffer_(base::MakeRefCounted<IOBufferWithSize>(length)),
       io_buffer_size_(length),
-      parser_(io_buffer_->data(),
-              length,
-              answer_offset,
-              std::numeric_limits<size_t>::max()) {
+      parser_(io_buffer_->data(), length, answer_offset) {
   DCHECK(data);
   memcpy(io_buffer_->data(), data, length);
-}
-
-// static
-DnsResponse DnsResponse::CreateEmptyNoDataResponse(
-    uint16_t id,
-    bool is_authoritative,
-    base::span<const uint8_t> qname,
-    uint16_t qtype) {
-  return DnsResponse(id, is_authoritative,
-                     /*answers=*/{},
-                     /*authority_records=*/{},
-                     /*additional_records=*/{}, DnsQuery(id, qname, qtype));
 }
 
 DnsResponse::DnsResponse(DnsResponse&& other) = default;
@@ -426,21 +393,9 @@ bool DnsResponse::InitParse(size_t nbytes, const DnsQuery& query) {
     return false;
   }
 
-  absl::optional<std::string> dotted_qname = DnsDomainToString(query.qname());
-  if (!dotted_qname.has_value())
-    return false;
-  dotted_qnames_.push_back(std::move(dotted_qname).value());
-  qtypes_.push_back(query.qtype());
-
-  size_t num_records = base::NetToHost16(header()->ancount) +
-                       base::NetToHost16(header()->nscount) +
-                       base::NetToHost16(header()->arcount);
-
-  // Construct the parser. Only allow parsing up to `num_records` records. If
-  // more records are present in the buffer, it's just garbage extra data after
-  // the formal end of the response and should be ignored.
+  // Construct the parser.
   parser_ = DnsRecordParser(io_buffer_->data(), nbytes,
-                            kHeaderSize + question.size(), num_records);
+                            kHeaderSize + question.size());
   return true;
 }
 
@@ -450,37 +405,26 @@ bool DnsResponse::InitParseWithoutQuery(size_t nbytes) {
   }
   id_available_ = true;
 
+  parser_ = DnsRecordParser(io_buffer_->data(), nbytes, kHeaderSize);
+
   // Not a response?
   if ((base::NetToHost16(header()->flags) & dns_protocol::kFlagResponse) == 0)
     return false;
 
-  size_t num_records = base::NetToHost16(header()->ancount) +
-                       base::NetToHost16(header()->nscount) +
-                       base::NetToHost16(header()->arcount);
-  // Only allow parsing up to `num_records` records. If more records are present
-  // in the buffer, it's just garbage extra data after the formal end of the
-  // response and should be ignored.
-  parser_ =
-      DnsRecordParser(io_buffer_->data(), nbytes, kHeaderSize, num_records);
-
   unsigned qdcount = base::NetToHost16(header()->qdcount);
   for (unsigned i = 0; i < qdcount; ++i) {
-    std::string dotted_qname;
-    uint16_t qtype;
-    if (!parser_.ReadQuestion(dotted_qname, qtype)) {
+    if (!parser_.SkipQuestion()) {
       parser_ = DnsRecordParser();  // Make parser invalid again.
       return false;
     }
-    dotted_qnames_.push_back(std::move(dotted_qname));
-    qtypes_.push_back(qtype);
   }
 
   return true;
 }
 
-absl::optional<uint16_t> DnsResponse::id() const {
+base::Optional<uint16_t> DnsResponse::id() const {
   if (!id_available_)
-    return absl::nullopt;
+    return base::nullopt;
 
   return base::NetToHost16(header()->id);
 }
@@ -499,11 +443,6 @@ uint8_t DnsResponse::rcode() const {
   return base::NetToHost16(header()->flags) & kRcodeMask;
 }
 
-unsigned DnsResponse::question_count() const {
-  DCHECK(parser_.IsValid());
-  return base::NetToHost16(header()->qdcount);
-}
-
 unsigned DnsResponse::answer_count() const {
   DCHECK(parser_.IsValid());
   return base::NetToHost16(header()->ancount);
@@ -519,14 +458,27 @@ unsigned DnsResponse::additional_answer_count() const {
   return base::NetToHost16(header()->arcount);
 }
 
-uint16_t DnsResponse::GetSingleQType() const {
-  DCHECK_EQ(qtypes().size(), 1u);
-  return qtypes().front();
+base::StringPiece DnsResponse::qname() const {
+  DCHECK(parser_.IsValid());
+  // The response is HEADER QNAME QTYPE QCLASS ANSWER.
+  // |parser_| is positioned at the beginning of ANSWER, so the end of QNAME is
+  // two uint16_ts before it.
+  const size_t qname_size =
+      parser_.GetOffset() - 2 * sizeof(uint16_t) - kHeaderSize;
+  return base::StringPiece(io_buffer_->data() + kHeaderSize, qname_size);
 }
 
-base::StringPiece DnsResponse::GetSingleDottedName() const {
-  DCHECK_EQ(dotted_qnames().size(), 1u);
-  return dotted_qnames().front();
+uint16_t DnsResponse::qtype() const {
+  DCHECK(parser_.IsValid());
+  // QTYPE starts where QNAME ends.
+  const size_t type_offset = parser_.GetOffset() - 2 * sizeof(uint16_t);
+  uint16_t type;
+  base::ReadBigEndian<uint16_t>(io_buffer_->data() + type_offset, &type);
+  return type;
+}
+
+std::string DnsResponse::GetDottedName() const {
+  return DnsDomainToString(qname()).value_or("");
 }
 
 DnsRecordParser DnsResponse::Parser() const {
@@ -539,6 +491,92 @@ const dns_protocol::Header* DnsResponse::header() const {
   return reinterpret_cast<const dns_protocol::Header*>(io_buffer_->data());
 }
 
+DnsResponse::Result DnsResponse::ParseToAddressList(
+    AddressList* out_addr_list,
+    base::Optional<base::TimeDelta>* out_ttl) const {
+  DCHECK(IsValid());
+  // DnsTransaction already verified that |response| matches the issued query.
+  // We still need to determine if there is a valid chain of CNAMEs from the
+  // query name to the RR owner name.
+  // We err on the side of caution with the assumption that if we are too picky,
+  // we can always fall back to the system getaddrinfo.
+
+  // Expected owner of record. No trailing dot.
+  std::string expected_name = GetDottedName();
+
+  uint16_t expected_type = qtype();
+  DCHECK(expected_type == dns_protocol::kTypeA ||
+         expected_type == dns_protocol::kTypeAAAA);
+
+  size_t expected_size = (expected_type == dns_protocol::kTypeAAAA)
+                             ? IPAddress::kIPv6AddressSize
+                             : IPAddress::kIPv4AddressSize;
+
+  base::Optional<base::TimeDelta> ttl;
+  IPAddressList ip_addresses;
+  DnsRecordParser parser = Parser();
+  DnsResourceRecord record;
+  unsigned ancount = answer_count();
+
+  for (unsigned i = 0; i < ancount; ++i) {
+    if (!parser.ReadRecord(&record))
+      return DNS_MALFORMED_RESPONSE;
+
+    base::TimeDelta record_ttl = base::TimeDelta::FromSeconds(record.ttl);
+    if (record.type == dns_protocol::kTypeCNAME) {
+      // Following the CNAME chain, only if no addresses seen.
+      if (!ip_addresses.empty())
+        return DNS_CNAME_AFTER_ADDRESS;
+
+      if (!base::EqualsCaseInsensitiveASCII(record.name, expected_name))
+        return DNS_NAME_MISMATCH;
+
+      if (record.rdata.size() !=
+          parser.ReadName(record.rdata.begin(), &expected_name))
+        return DNS_MALFORMED_CNAME;
+
+      ttl = std::min(ttl.value_or(base::TimeDelta::Max()), record_ttl);
+    } else if (record.type == expected_type) {
+      if (record.rdata.size() != expected_size)
+        return DNS_SIZE_MISMATCH;
+
+      if (!base::EqualsCaseInsensitiveASCII(record.name, expected_name))
+        return DNS_NAME_MISMATCH;
+
+      ttl = std::min(ttl.value_or(base::TimeDelta::Max()), record_ttl);
+      ip_addresses.push_back(
+          IPAddress(reinterpret_cast<const uint8_t*>(record.rdata.data()),
+                    record.rdata.length()));
+    }
+  }
+
+  // NXDOMAIN or NODATA cases respectively.
+  if (rcode() == dns_protocol::kRcodeNXDOMAIN ||
+      (ancount == 0 && rcode() == dns_protocol::kRcodeNOERROR)) {
+    bool soa_found = false;
+    unsigned nscount = base::NetToHost16(header()->nscount);
+    for (unsigned i = 0; i < nscount; ++i) {
+      if (parser.ReadRecord(&record) && record.type == dns_protocol::kTypeSOA) {
+        soa_found = true;
+        base::TimeDelta record_ttl = base::TimeDelta::FromSeconds(record.ttl);
+        ttl = std::min(ttl.value_or(base::TimeDelta::Max()), record_ttl);
+      }
+    }
+
+    // Per RFC2308, section 5, never cache negative results unless an SOA
+    // record is found.
+    if (!soa_found)
+      ttl.reset();
+  }
+
+  // getcanonname in eglibc returns the first owner name of an A or AAAA RR.
+  // If the response passed all the checks so far, then |expected_name| is it.
+  *out_addr_list =
+      AddressList::CreateFromIPAddressList(ip_addresses, expected_name);
+  *out_ttl = ttl;
+  return DNS_PARSE_OK;
+}
+
 bool DnsResponse::WriteHeader(base::BigEndianWriter* writer,
                               const dns_protocol::Header& header) {
   return writer->WriteU16(header.id) && writer->WriteU16(header.flags) &&
@@ -548,42 +586,27 @@ bool DnsResponse::WriteHeader(base::BigEndianWriter* writer,
 
 bool DnsResponse::WriteQuestion(base::BigEndianWriter* writer,
                                 const DnsQuery& query) {
-  base::StringPiece question = query.question();
+  const base::StringPiece& question = query.question();
   return writer->WriteBytes(question.data(), question.size());
 }
 
 bool DnsResponse::WriteRecord(base::BigEndianWriter* writer,
-                              const DnsResourceRecord& record,
-                              bool validate_record,
-                              bool validate_name_as_internet_hostname) {
+                              const DnsResourceRecord& record) {
   if (record.rdata != base::StringPiece(record.owned_rdata)) {
     VLOG(1) << "record.rdata should point to record.owned_rdata.";
     return false;
   }
 
-  if (validate_record &&
-      !RecordRdata::HasValidSize(record.owned_rdata, record.type)) {
+  if (!RecordRdata::HasValidSize(record.owned_rdata, record.type)) {
     VLOG(1) << "Invalid RDATA size for a record.";
     return false;
   }
-
-  absl::optional<std::vector<uint8_t>> domain_name;
-  if (validate_name_as_internet_hostname) {
-    domain_name = DNSDomainFromDot(record.name);
-    if (!domain_name.has_value()) {
-      VLOG(1) << "Invalid dotted name (as Internet hostname).";
-      return false;
-    }
-  } else {
-    domain_name = DNSDomainFromUnrestrictedDot(record.name);
-    if (!domain_name.has_value()) {
-      VLOG(1) << "Invalid dotted name (as DNS name).";
-      return false;
-    }
+  std::string domain_name;
+  if (!DNSDomainFromDot(record.name, &domain_name)) {
+    VLOG(1) << "Invalid dotted name.";
+    return false;
   }
-
-  return writer->WriteBytes(domain_name.value().data(),
-                            domain_name.value().size()) &&
+  return writer->WriteBytes(domain_name.data(), domain_name.size()) &&
          writer->WriteU16(record.type) && writer->WriteU16(record.klass) &&
          writer->WriteU32(record.ttl) &&
          writer->WriteU16(record.owned_rdata.size()) &&
@@ -594,19 +617,17 @@ bool DnsResponse::WriteRecord(base::BigEndianWriter* writer,
 
 bool DnsResponse::WriteAnswer(base::BigEndianWriter* writer,
                               const DnsResourceRecord& answer,
-                              const absl::optional<DnsQuery>& query,
-                              bool validate_record,
-                              bool validate_name_as_internet_hostname) {
+                              const base::Optional<DnsQuery>& query,
+                              bool validate_answer_matches_query) {
   // Generally assumed to be a mistake if we write answers that don't match the
   // query type, except CNAME answers which can always be added.
-  if (validate_record && query.has_value() &&
+  if (validate_answer_matches_query && query.has_value() &&
       answer.type != query.value().qtype() &&
       answer.type != dns_protocol::kTypeCNAME) {
     VLOG(1) << "Mismatched answer resource record type and qtype.";
     return false;
   }
-  return WriteRecord(writer, answer, validate_record,
-                     validate_name_as_internet_hostname);
+  return WriteRecord(writer, answer);
 }
 
 }  // namespace net

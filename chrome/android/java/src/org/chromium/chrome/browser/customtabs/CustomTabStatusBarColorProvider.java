@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,13 @@ package org.chromium.chrome.browser.customtabs;
 import static org.chromium.chrome.browser.ui.system.StatusBarColorController.DEFAULT_STATUS_BAR_COLOR;
 import static org.chromium.chrome.browser.ui.system.StatusBarColorController.UNDEFINED_STATUS_BAR_COLOR;
 
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import androidx.annotation.VisibleForTesting;
+
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarColorController;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarColorController.ToolbarColorType;
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
+import org.chromium.chrome.browser.previews.Previews;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.system.StatusBarColorController;
 
@@ -44,18 +47,25 @@ public class CustomTabStatusBarColorProvider {
         mStatusBarColorController.updateStatusBarColor();
     }
 
-    int getBaseStatusBarColor(Tab tab) {
+    int getBaseStatusBarColor(Tab tab, int fallbackStatusBarColor) {
+        if (mIntentDataProvider.isOpenedByChrome()) return fallbackStatusBarColor;
+
         @ToolbarColorType
         int toolbarColorType = CustomTabToolbarColorController.computeToolbarColorType(
-                mIntentDataProvider, mUseTabThemeColor, tab);
+                mIntentDataProvider, mUseTabThemeColor, tab, () -> isPreview(tab));
         switch (toolbarColorType) {
             case ToolbarColorType.THEME_COLOR:
                 return UNDEFINED_STATUS_BAR_COLOR;
             case ToolbarColorType.DEFAULT_COLOR:
                 return DEFAULT_STATUS_BAR_COLOR;
             case ToolbarColorType.INTENT_TOOLBAR_COLOR:
-                return mIntentDataProvider.getColorProvider().getToolbarColor();
+                return mIntentDataProvider.getToolbarColor();
         }
         return DEFAULT_STATUS_BAR_COLOR;
+    }
+
+    @VisibleForTesting
+    boolean isPreview(Tab tab) {
+        return Previews.isPreview(tab);
     }
 }

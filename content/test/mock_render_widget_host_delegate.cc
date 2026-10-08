@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ MockRenderWidgetHostDelegate::PreHandleKeyboardEvent(
 
 void MockRenderWidgetHostDelegate::ExecuteEditCommand(
     const std::string& command,
-    const absl::optional<std::u16string>& value) {}
+    const base::Optional<base::string16>& value) {}
 
 void MockRenderWidgetHostDelegate::Undo() {}
 
@@ -57,7 +57,7 @@ MockRenderWidgetHostDelegate::GetInputEventRouter() {
 
 RenderWidgetHostImpl* MockRenderWidgetHostDelegate::GetFocusedRenderWidgetHost(
     RenderWidgetHostImpl* widget_host) {
-  return !!focused_widget_ ? focused_widget_.get() : widget_host;
+  return !!focused_widget_ ? focused_widget_ : widget_host;
 }
 
 void MockRenderWidgetHostDelegate::SendScreenRects() {
@@ -75,6 +75,10 @@ bool MockRenderWidgetHostDelegate::IsFullscreen() {
 
 RenderViewHostDelegateView* MockRenderWidgetHostDelegate::GetDelegateView() {
   return &rvh_delegate_view_;
+}
+
+FrameTree* MockRenderWidgetHostDelegate::GetFrameTree() {
+  return frame_tree_;
 }
 
 bool MockRenderWidgetHostDelegate::ShouldIgnoreInputEvents() {

@@ -1,4 +1,4 @@
-// Copyright 2006-2008 The Chromium Authors
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 
 #include <map>
 #include <string>
-
-#include "base/compiler_specific.h"
 
 namespace {
 
@@ -157,7 +155,7 @@ PolicyRule::PolicyRule(const PolicyRule& other) {
 // to zero.
 bool PolicyRule::GenStringOpcode(RuleType rule_type,
                                  StringMatchOptions match_opts,
-                                 uint8_t parameter,
+                                 uint16_t parameter,
                                  int state,
                                  bool last_call,
                                  int* skip_count,
@@ -221,7 +219,7 @@ bool PolicyRule::GenStringOpcode(RuleType rule_type,
 }
 
 bool PolicyRule::AddStringMatch(RuleType rule_type,
-                                uint8_t parameter,
+                                int16_t parameter,
                                 const wchar_t* string,
                                 StringMatchOptions match_opts) {
   if (done_) {
@@ -267,7 +265,7 @@ bool PolicyRule::AddStringMatch(RuleType rule_type,
         if (L'?' == current_char[1]) {
           ++current_char;
         }
-        [[fallthrough]];
+        FALLTHROUGH;
       default:
         fragment += *current_char;
         last_char = kLastCharIsAlpha;
@@ -283,7 +281,7 @@ bool PolicyRule::AddStringMatch(RuleType rule_type,
 }
 
 bool PolicyRule::AddNumberMatch(RuleType rule_type,
-                                uint8_t parameter,
+                                int16_t parameter,
                                 uint32_t number,
                                 RuleOp comparison_op) {
   if (done_) {
@@ -350,8 +348,8 @@ bool PolicyRule::RebindCopy(PolicyOpcode* opcode_start,
 }
 
 PolicyRule::~PolicyRule() {
-  opcode_factory_.ClearAndDelete();
-  delete[] reinterpret_cast<char*>(buffer_.ExtractAsDangling().get());
+  delete[] reinterpret_cast<char*>(buffer_);
+  delete opcode_factory_;
 }
 
 }  // namespace sandbox

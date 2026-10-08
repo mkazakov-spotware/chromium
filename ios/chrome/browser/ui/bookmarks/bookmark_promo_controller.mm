@@ -1,18 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/bookmarks/bookmark_promo_controller.h"
 
-#import <memory>
+#include <memory>
 
-#import "components/signin/public/identity_manager/account_info.h"
-#import "components/signin/public/identity_manager/identity_manager.h"
-#import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/signin/authentication_service_factory.h"
-#import "ios/chrome/browser/signin/chrome_account_manager_service_factory.h"
-#import "ios/chrome/browser/signin/identity_manager_factory.h"
+#include "components/signin/public/identity_manager/account_info.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/signin/identity_manager_factory.h"
 #import "ios/chrome/browser/ui/authentication/cells/signin_promo_view_configurator.h"
 #import "ios/chrome/browser/ui/authentication/cells/signin_promo_view_consumer.h"
 #import "ios/chrome/browser/ui/authentication/signin_promo_view_mediator.h"
@@ -57,14 +55,10 @@
           new signin::IdentityManagerObserverBridge(
               IdentityManagerFactory::GetForBrowserState(_browserState), self));
       _signinPromoViewMediator = [[SigninPromoViewMediator alloc]
-          initWithAccountManagerService:ChromeAccountManagerServiceFactory::
-                                            GetForBrowserState(_browserState)
-                            authService:AuthenticationServiceFactory::
-                                            GetForBrowserState(_browserState)
-                            prefService:_browserState->GetPrefs()
-                            accessPoint:signin_metrics::AccessPoint::
-                                            ACCESS_POINT_BOOKMARK_MANAGER
-                              presenter:presenter];
+          initWithBrowserState:_browserState
+                   accessPoint:signin_metrics::AccessPoint::
+                                   ACCESS_POINT_BOOKMARK_MANAGER
+                     presenter:presenter];
       _signinPromoViewMediator.consumer = self;
     }
     [self updateShouldShowSigninPromo];
@@ -73,14 +67,7 @@
 }
 
 - (void)dealloc {
-  [self shutdown];
-}
-
-- (void)shutdown {
-  [_signinPromoViewMediator disconnect];
-  _signinPromoViewMediator = nil;
-
-  _identityManagerObserverBridge.reset();
+  [_signinPromoViewMediator signinPromoViewIsRemoved];
 }
 
 - (void)hidePromoCell {
@@ -102,38 +89,28 @@
     return;
 
   DCHECK(_browserState);
-  AuthenticationService* authenticationService =
-      AuthenticationServiceFactory::GetForBrowserState(_browserState);
   if ([SigninPromoViewMediator
           shouldDisplaySigninPromoViewWithAccessPoint:
               signin_metrics::AccessPoint::ACCESS_POINT_BOOKMARK_MANAGER
-                                authenticationService:authenticationService
-                                          prefService:_browserState
-                                                          ->GetPrefs()]) {
+                                         browserState:_browserState]) {
     signin::IdentityManager* identityManager =
         IdentityManagerFactory::GetForBrowserState(_browserState);
-    self.shouldShowSigninPromo =
-        !identityManager->HasPrimaryAccount(signin::ConsentLevel::kSync);
+    self.shouldShowSigninPromo = !identityManager->HasPrimaryAccount();
   }
 }
 
 #pragma mark - IdentityManagerObserverBridgeDelegate
 
-// Called when a user changes the syncing state.
-- (void)onPrimaryAccountChanged:
-    (const signin::PrimaryAccountChangeEvent&)event {
-  switch (event.GetEventTypeFor(signin::ConsentLevel::kSync)) {
-    case signin::PrimaryAccountChangeEvent::Type::kSet:
-      if (!self.signinPromoViewMediator.signinInProgress) {
-        self.shouldShowSigninPromo = NO;
-      }
-      break;
-    case signin::PrimaryAccountChangeEvent::Type::kCleared:
-      [self updateShouldShowSigninPromo];
-      break;
-    case signin::PrimaryAccountChangeEvent::Type::kNone:
-      break;
-  }
+// Called when a user signs into Google services such as sync.
+- (void)onPrimaryAccountSet:(const CoreAccountInfo&)primaryAccountInfo {
+  if (!self.signinPromoViewMediator.signinInProgress)
+    self.shouldShowSigninPromo = NO;
+}
+
+// Called when the currently signed-in user for a user has been signed out.
+- (void)onPrimaryAccountCleared:
+    (const CoreAccountInfo&)previousPrimaryAccountInfo {
+  [self updateShouldShowSigninPromo];
 }
 
 #pragma mark - SigninPromoViewConsumer

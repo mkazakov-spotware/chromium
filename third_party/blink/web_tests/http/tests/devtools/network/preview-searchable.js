@@ -1,19 +1,18 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that resources with JSON MIME types are previewed with the JSON viewer.\n`);
-  await TestRunner.loadTestModule('network_test_runner');
-  await TestRunner.loadLegacyModule('source_frame');
+  await TestRunner.loadModule('network_test_runner');
   await TestRunner.showPanel('network');
 
   async function testSearches(view, searches) {
     await new Promise(resolve => setTimeout(resolve, 0));
     for (var search of searches) {
-      view.searchInputElement.value = search;
-      view.regexButton.setToggled(false);
-      view.caseSensitiveButton.setToggled(false);
+      view._searchInputElement.value = search;
+      view._regexButton.setToggled(false);
+      view._caseSensitiveButton.setToggled(false);
       view.showSearchField();
       TestRunner.addResult('Should have found and highlighted all: ' + search);
 
@@ -40,11 +39,11 @@
       searchableView = view.children()[0];
     }
     if (isSearchable)
-      compontentView = searchableView.searchProvider;
+      compontentView = searchableView._searchProvider;
 
     if (compontentView instanceof SourceFrame.ResourceSourceFrame) {
       typeName = 'ResourceSourceFrame';
-      compontentView.ensureContentLoaded();
+      compontentView._ensureContentLoaded();
       if (!compontentView.loaded) {
         // try again when content is loaded.
         TestRunner.addSniffer(
@@ -75,21 +74,21 @@
 
   function trySearches(request, searches, callback) {
     var networkPanel = UI.panels.network;
-    TestRunner.addSniffer(Network.RequestPreviewView.prototype, 'doShowPreview', async function() {
-      previewViewHandled(searches, callback, await this.contentViewPromise);
-      networkPanel.hideRequestPanel();
+    TestRunner.addSniffer(Network.RequestPreviewView.prototype, '_doShowPreview', async function() {
+      previewViewHandled(searches, callback, await this._contentViewPromise);
+      networkPanel._hideRequestPanel();
     });
-    networkPanel.onRequestSelected({data: request});
-    networkPanel.showRequestPanel();
-    var itemView = networkPanel.networkItemView;
-    itemView.selectTab('preview');
+    networkPanel._onRequestSelected({data: request});
+    networkPanel._showRequestPanel();
+    var itemView = networkPanel._networkItemView;
+    itemView._selectTab('preview');
   }
 
   function testType(contentType, content, searches, callback) {
     var url = 'data:' + contentType + ',' + encodeURIComponent(content);
     NetworkTestRunner.makeSimpleXHR('GET', url, true, function() {
-      var request = NetworkTestRunner.findRequestsByURLPattern(new RegExp(Platform.StringUtilities.escapeForRegExp(url)))[0];
-      request.setResourceType(Common.resourceTypes.Document);
+      var request = NetworkTestRunner.findRequestsByURLPattern(new RegExp(url.escapeForRegExp()))[0];
+      request._resourceType = Common.resourceTypes.Document;
       trySearches(request, searches, callback);
     });
   }

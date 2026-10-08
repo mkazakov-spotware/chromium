@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 
 #include "base/command_line.h"
 #include "base/logging.h"
-#include "build/build_config.h"
+#include "base/stl_util.h"
 #include "gpu/command_buffer/common/gles2_cmd_utils.h"
 #include "gpu/config/gpu_driver_bug_workarounds.h"
 #include "gpu/config/gpu_info_collector.h"
@@ -24,7 +24,7 @@
 #include "ui/gl/gl_version_info.h"
 #include "ui/gl/init/gl_factory.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "ui/gl/gl_image_native_pixmap.h"
 #endif
 
@@ -35,26 +35,23 @@ namespace gpu {
 const uint8_t GLTestHelper::kCheckClearValue;
 #endif
 
-gl::GLDisplay* GLTestHelper::InitializeGL(gl::GLImplementation gl_impl) {
-  gl::GLDisplay* display = nullptr;
+bool GLTestHelper::InitializeGL(gl::GLImplementation gl_impl) {
   if (gl_impl == gl::GLImplementation::kGLImplementationNone) {
-    display = gl::init::InitializeGLNoExtensionsOneOff(/*init_bindings=*/true,
-                                                       /*system_device_id=*/0);
+    if (!gl::init::InitializeGLNoExtensionsOneOff(/*init_bindings*/ true))
+      return false;
   } else {
     if (!gl::init::InitializeStaticGLBindingsImplementation(
-            gl::GLImplementationParts(gl_impl),
-            /*fallback_to_software_gl=*/false))
-      return nullptr;
+            gl_impl, /*fallback_to_software_gl*/ false))
+      return false;
 
-    display = gl::init::InitializeGLOneOffPlatformImplementation(
-        /*fallback_to_software_gl=*/false,
-        /*disable_gl_drawing=*/false,
-        /*init_extensions=*/false,
-        /*system_device_id=*/0);
+    if (!gl::init::InitializeGLOneOffPlatformImplementation(
+            false,  // fallback_to_software_gl
+            false,  // disable_gl_drawing
+            false   // init_extensions
+            )) {
+      return false;
+    }
   }
-
-  if (!display)
-    return nullptr;
 
   gpu::GPUInfo gpu_info;
   gpu::CollectGraphicsInfoForTesting(&gpu_info);
@@ -65,12 +62,10 @@ gl::GLDisplay* GLTestHelper::InitializeGL(gl::GLImplementation gl_impl) {
 
   gl::init::SetDisabledExtensionsPlatform(
       gpu::GLManager::g_gpu_feature_info.disabled_extensions);
-  if (!gl::init::InitializeExtensionSettingsOneOffPlatform(display))
-    return nullptr;
-  return display;
+  return gl::init::InitializeExtensionSettingsOneOffPlatform();
 }
 
-gl::GLDisplay* GLTestHelper::InitializeGLDefault() {
+bool GLTestHelper::InitializeGLDefault() {
   return GLTestHelper::InitializeGL(
       gl::GLImplementation::kGLImplementationNone);
 }
@@ -401,20 +396,18 @@ bool GpuCommandBufferTestEGL::InitializeEGL(int width, int height) {
     }
     // The native EGL driver is not supported with the passthrough command
     // decoder, in that case use ANGLE
-    gl::GLImplementationParts new_impl(gl::kGLImplementationEGLGLES2);
-    if (gpu_info.passthrough_cmd_decoder)
-      new_impl = gl::GLImplementationParts(gl::kGLImplementationEGLANGLE);
-
+    const gl::GLImplementation new_impl =
+        (gpu_info.passthrough_cmd_decoder ? gl::kGLImplementationEGLANGLE
+                                          : gl::kGLImplementationEGLGLES2);
     const auto allowed_impls = gl::init::GetAllowedGLImplementations();
-    if (!new_impl.IsAllowed(allowed_impls)) {
+    if (!base::Contains(allowed_impls, new_impl)) {
       LOG(INFO) << "Skip test, no EGL implementation is available";
       return false;
     }
 
     gl_reinitialized_ = true;
-    gl::init::ShutdownGL(gl_display_, false /* due_to_fallback */);
-    gl_display_ = GLTestHelper::InitializeGL(new_impl.gl);
-    if (!gl_display_) {
+    gl::init::ShutdownGL(false /* due_to_fallback */);
+    if (!GLTestHelper::InitializeGL(new_impl)) {
       LOG(INFO) << "Skip test, failed to initialize EGL";
       return false;
     }
@@ -448,8 +441,8 @@ void GpuCommandBufferTestEGL::RestoreGLDefault() {
   gl_.Destroy();
 
   if (gl_reinitialized_) {
-    gl::init::ShutdownGL(gl_display_, false /* due_to_fallback */);
-    gl_display_ = GLTestHelper::InitializeGLDefault();
+    gl::init::ShutdownGL(false /* due_to_fallback */);
+    GLTestHelper::InitializeGLDefault();
   }
 
   gl_reinitialized_ = false;
@@ -458,7 +451,7 @@ void GpuCommandBufferTestEGL::RestoreGLDefault() {
   window_system_binding_info_ = gl::GLWindowSystemBindingInfo();
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 scoped_refptr<gl::GLImageNativePixmap>
 GpuCommandBufferTestEGL::CreateGLImageNativePixmap(gfx::BufferFormat format,
                                                    gfx::Size size,

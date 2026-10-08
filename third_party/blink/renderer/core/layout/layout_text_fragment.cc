@@ -23,7 +23,6 @@
 #include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
 
 #include "third_party/blink/renderer/core/css/style_change_reason.h"
-#include "third_party/blink/renderer/core/dom/dom_node_ids.h"
 #include "third_party/blink/renderer/core/dom/first_letter_pseudo_element.h"
 #include "third_party/blink/renderer/core/dom/pseudo_element.h"
 #include "third_party/blink/renderer/core/dom/text.h"
@@ -61,36 +60,24 @@ LayoutTextFragment* LayoutTextFragment::Create(Node* node,
                                                  length, legacy);
 }
 
-LayoutTextFragment* LayoutTextFragment::CreateAnonymous(Document& doc,
+LayoutTextFragment* LayoutTextFragment::CreateAnonymous(PseudoElement& pseudo,
                                                         StringImpl* text,
                                                         unsigned start,
                                                         unsigned length,
                                                         LegacyLayout legacy) {
   LayoutTextFragment* fragment =
       LayoutTextFragment::Create(nullptr, text, start, length, legacy);
-  fragment->SetDocumentForAnonymous(&doc);
+  fragment->SetDocumentForAnonymous(&pseudo.GetDocument());
   if (length)
-    doc.View()->IncrementVisuallyNonEmptyCharacterCount(length);
+    pseudo.GetDocument().View()->IncrementVisuallyNonEmptyCharacterCount(
+        length);
   return fragment;
-}
-
-LayoutTextFragment* LayoutTextFragment::CreateAnonymous(PseudoElement& pseudo,
-                                                        StringImpl* text,
-                                                        unsigned start,
-                                                        unsigned length,
-                                                        LegacyLayout legacy) {
-  return CreateAnonymous(pseudo.GetDocument(), text, start, length, legacy);
 }
 
 LayoutTextFragment* LayoutTextFragment::CreateAnonymous(PseudoElement& pseudo,
                                                         StringImpl* text,
                                                         LegacyLayout legacy) {
   return CreateAnonymous(pseudo, text, 0, text ? text->length() : 0, legacy);
-}
-
-void LayoutTextFragment::Trace(Visitor* visitor) const {
-  visitor->Trace(first_letter_pseudo_element_);
-  LayoutText::Trace(visitor);
 }
 
 void LayoutTextFragment::WillBeDestroyed() {
@@ -207,16 +194,11 @@ LayoutText* LayoutTextFragment::GetFirstLetterPart() const {
   NOT_DESTROYED();
   if (!is_remaining_text_layout_object_)
     return nullptr;
+  // Node: We assume first letter pseudo element has only one child and it
+  // is LayoutTextFragment.
   LayoutObject* const first_letter_container =
       GetFirstLetterPseudoElement()->GetLayoutObject();
-  LayoutObject* child = first_letter_container->SlowFirstChild();
-  if (!child->IsText()) {
-    DCHECK(!IsInLayoutNGInlineFormattingContext());
-    // In legacy layout there may also be a list item marker here. The next
-    // sibling better be the LayoutTextFragment of the ::first-letter, then.
-    child = child->NextSibling();
-    DCHECK(child);
-  }
+  LayoutObject* const child = first_letter_container->SlowFirstChild();
   CHECK(child->IsText());
   DCHECK_EQ(child, first_letter_container->SlowLastChild());
   return To<LayoutTextFragment>(child);
@@ -238,12 +220,6 @@ void LayoutTextFragment::UpdateHitTestResult(
   result.SetInnerNode(GetFirstLetterPseudoElement());
 }
 
-DOMNodeId LayoutTextFragment::OwnerNodeId() const {
-  NOT_DESTROYED();
-  Node* node = AssociatedTextNode();
-  return node ? DOMNodeIds::IdForNode(node) : kInvalidDOMNodeId;
-}
-
 Position LayoutTextFragment::PositionForCaretOffset(unsigned offset) const {
   NOT_DESTROYED();
   // TODO(layout-dev): Make the following DCHECK always enabled after we
@@ -260,11 +236,11 @@ Position LayoutTextFragment::PositionForCaretOffset(unsigned offset) const {
   return Position(node, Start() + clamped_offset);
 }
 
-absl::optional<unsigned> LayoutTextFragment::CaretOffsetForPosition(
+base::Optional<unsigned> LayoutTextFragment::CaretOffsetForPosition(
     const Position& position) const {
   NOT_DESTROYED();
   if (position.IsNull() || position.AnchorNode() != AssociatedTextNode())
-    return absl::nullopt;
+    return base::nullopt;
   unsigned dom_offset;
   if (position.IsBeforeAnchor()) {
     dom_offset = 0;
@@ -277,27 +253,8 @@ absl::optional<unsigned> LayoutTextFragment::CaretOffsetForPosition(
     dom_offset = position.OffsetInContainerNode();
   }
   if (dom_offset < Start() || dom_offset > Start() + FragmentLength())
-    return absl::nullopt;
+    return base::nullopt;
   return dom_offset - Start();
-}
-
-String LayoutTextFragment::PlainText() const {
-  // Special handling for floating ::first-letter in LayoutNG to ensure that
-  // PlainText() returns the full text of the node, not just the remaining text.
-  // See also ElementInnerTextCollector::ProcessTextNode(), which does the same.
-  NOT_DESTROYED();
-  if (!is_remaining_text_layout_object_ || !GetNode())
-    return LayoutText::PlainText();
-  LayoutText* first_letter = GetFirstLetterPart();
-  if (!first_letter)
-    return LayoutText::PlainText();
-  const NGOffsetMapping* remaining_text_mapping = GetNGOffsetMapping();
-  const NGOffsetMapping* first_letter_mapping =
-      first_letter->GetNGOffsetMapping();
-  if (first_letter_mapping && remaining_text_mapping &&
-      first_letter_mapping != remaining_text_mapping)
-    return first_letter_mapping->GetText() + LayoutText::PlainText();
-  return LayoutText::PlainText();
 }
 
 }  // namespace blink

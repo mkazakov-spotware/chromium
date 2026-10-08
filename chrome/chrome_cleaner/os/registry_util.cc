@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -366,6 +366,16 @@ bool ReadRegistryValue(const RegKeyPath& key_path,
   }
   // ReadRegistryValue() already logs to DLOG(ERROR), so no need to log here.
   return ReadRegistryValue(reg_key, value_name, content, content_type, error);
+}
+
+bool WriteRegistryValue(const wchar_t* value_name,
+                        const std::wstring& content,
+                        uint32_t content_type,
+                        base::win::RegKey* reg_key) {
+  LONG success = reg_key->WriteValue(
+      value_name, reinterpret_cast<const void*>(content.c_str()),
+      content.size() * sizeof(std::wstring::value_type), content_type);
+  return success == ERROR_SUCCESS;
 }
 
 void GetRegistryValueAsString(const wchar_t* raw_content,

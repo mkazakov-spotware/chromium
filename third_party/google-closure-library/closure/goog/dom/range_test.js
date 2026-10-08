@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.dom.RangeTest');
 goog.setTestOnly();
@@ -277,7 +285,6 @@ testSuite({
     assertTrue('Empty range is collapsed', range.isCollapsed());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCollapse() {
     let range = Range.createFromNodeContents(dom.getElement('test2'));
     assertFalse('Div range is not collapsed', range.isCollapsed());
@@ -291,7 +298,6 @@ testSuite({
     assertTrue('Empty range is still collapsed', range.isCollapsed());
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testIterator() {
     testingDom.assertNodesMatch(
         Range.createFromNodeContents(dom.getElement('test2')),
@@ -399,10 +405,6 @@ testSuite({
         outer.lastChild.nodeValue.length - 3);
 
     const div = dom.createDom(TagName.DIV, {'style': 'color: red'});
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const output = range.surroundContents(div);
 
     assertEquals(
@@ -474,7 +476,6 @@ testSuite({
     testingDom.assertHtmlContentsMatch('ABC', outer);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testSurroundWithNodes() {
     const outer = dom.getElement('insertTest');
     dom.setTextContent(outer, 'ACE');
@@ -511,9 +512,17 @@ testSuite({
 
     const newRange = Range.createFromWindow(window);
 
-    assertTrue(
-        'The other browsers will just have an empty range.',
-        newRange.isCollapsed());
+    // In Chrome 14 and below (<= Webkit 535.1), newRange will be null.
+    // In Chrome 16 and above (>= Webkit 535.7), newRange will be collapsed
+    // like on other browsers.
+    // We didn't bother testing in between.
+    if (userAgent.WEBKIT && !userAgent.isVersionOrHigher('535.7')) {
+      assertNull('Webkit supports rangeCount == 0', newRange);
+    } else {
+      assertTrue(
+          'The other browsers will just have an empty range.',
+          newRange.isCollapsed());
+    }
   },
 
   testReversedRange() {
@@ -631,10 +640,6 @@ testSuite({
   testRangeBeforeBreak() {
     const container = dom.getElement('rangeAroundBreaks');
     const text = container.firstChild;
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const offset = text.length;
     assertEquals(4, offset);
 
@@ -667,7 +672,7 @@ testSuite({
 
     const range = Range.createFromWindow();
     assertFalse('Should not contain whole <br>', range.containsNode(br, false));
-    const isSafari3 = false;
+    const isSafari3 = userAgent.WEBKIT && !userAgent.isVersionOrHigher('528');
 
     if (userAgent.IE && !userAgent.isDocumentModeOrHigher(9) || isSafari3) {
       assertTrue(

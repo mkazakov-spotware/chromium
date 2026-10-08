@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,17 +53,6 @@ class WebViewBackForwardListTest : public WebViewInttestBase {
         "<html><header><title>page4</title></header><body>4</body></html>");
   }
 
-  // Loads a URL then waits for the load to complete and the page title to
-  // update to the |expected| value.
-  bool LoadUrlAndWaitForTitle(const GURL& url, NSString* title) {
-    bool success = test::LoadUrl(web_view_, net::NSURLWithGURL(url));
-    success = success && base::test::ios::WaitUntilConditionOrTimeout(
-                             base::test::ios::kWaitForJSCompletionTimeout, ^{
-                               return [title isEqualToString:web_view_.title];
-                             });
-    return success;
-  }
-
   // Waits until web_view_ has loaded a page.
   bool WaitUntilPageLoaded() {
     CWVBackForwardListTestNavigationObserver* observer =
@@ -75,17 +64,6 @@ class WebViewBackForwardListTest : public WebViewInttestBase {
         });
     web_view_.navigationDelegate = nil;
     return result;
-  }
-
-  // Waits for the value of executing `document.title` JavaScript to equal
-  // `title`.
-  bool WaitForJSDocumentTitle(NSString* title) {
-    EXPECT_TRUE(WaitUntilPageLoaded());
-    return base::test::ios::WaitUntilConditionOrTimeout(
-        base::test::ios::kWaitForJSCompletionTimeout, ^{
-          return [title
-              isEqual:test::EvaluateJavaScript(web_view_, @"document.title")];
-        });
   }
 
   GURL page1_url_;
@@ -102,11 +80,12 @@ TEST_F(WebViewBackForwardListTest,
   GenerateTestPageUrls();
 
   // Go to page3
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page1_url_, @"page1"));
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page2_url_, @"page2"));
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page3_url_, @"page3"));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page1_url_)));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page2_url_)));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page3_url_)));
   // Now it should be in page3
-  ASSERT_NSEQ(@"page3", test::EvaluateJavaScript(web_view_, @"document.title"));
+  ASSERT_NSEQ(@"page3",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   CWVBackForwardList* list = web_view_.backForwardList;
   // Tests |backList|
@@ -128,8 +107,10 @@ TEST_F(WebViewBackForwardListTest,
 
   // Go to page2 by |goToBackForwardListItem:|
   ASSERT_TRUE([web_view_ goToBackForwardListItem:lastPageItem]);
+  ASSERT_TRUE(WaitUntilPageLoaded());
   // Now it should be in page2
-  ASSERT_TRUE(WaitForJSDocumentTitle(@"page2"));
+  ASSERT_NSEQ(@"page2",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   // The |list| should always be same as |web_view_.backForwardList|, to be
   // consistent with the API in WKWebView. Instead, the properties of |list|
@@ -154,8 +135,10 @@ TEST_F(WebViewBackForwardListTest,
   // Go to page1
   ASSERT_TRUE([web_view_ canGoBack]);
   [web_view_ goBack];
+  ASSERT_TRUE(WaitUntilPageLoaded());
   // Now it should be in page1
-  ASSERT_TRUE(WaitForJSDocumentTitle(@"page1"));
+  ASSERT_NSEQ(@"page1",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   ASSERT_EQ(web_view_.backForwardList, list);
   EXPECT_FALSE([web_view_ canGoBack]);
@@ -180,25 +163,31 @@ TEST_F(WebViewBackForwardListTest,
   // Go to page3 and tests going forward by
   // |goToBackForwardListItem:|
   ASSERT_TRUE([web_view_ goToBackForwardListItem:topPageItem]);
+  ASSERT_TRUE(WaitUntilPageLoaded());
   // Now it should be in page3
-  ASSERT_TRUE(WaitForJSDocumentTitle(@"page3"));
+  ASSERT_NSEQ(@"page3",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   // Go back to page1 and then go to page4 to make the items of page2 and page3
   // exipred
   ASSERT_TRUE([web_view_ goToBackForwardListItem:list.backList[0]]);
+  ASSERT_TRUE(WaitUntilPageLoaded());
   // Now it should be in page1
-  ASSERT_TRUE(WaitForJSDocumentTitle(@"page1"));
+  ASSERT_NSEQ(@"page1",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
   // Go to page4 then
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page4_url_, @"page4"));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page4_url_)));
   // Now it should be in page4
-  ASSERT_NSEQ(@"page4", test::EvaluateJavaScript(web_view_, @"document.title"));
+  ASSERT_NSEQ(@"page4",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
   EXPECT_EQ(1UL, list.backList.count);
   EXPECT_EQ(0UL, list.forwardList.count);
 
   // The page2 is expired now so |goToBackForwardListItem:| should do nothing
   // and return NO in this case.
   EXPECT_FALSE([web_view_ goToBackForwardListItem:lastPageItem]);
-  EXPECT_NSEQ(@"page4", test::EvaluateJavaScript(web_view_, @"document.title"));
+  EXPECT_NSEQ(@"page4",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 }
 
 // Tests if a CWVBackForwardList can be correctly created from CWVWebView, and
@@ -208,11 +197,12 @@ TEST_F(WebViewBackForwardListTest, TestBackForwardListItemAtIndex) {
   GenerateTestPageUrls();
 
   // Go to page3
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page1_url_, @"page1"));
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page2_url_, @"page2"));
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page3_url_, @"page3"));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page1_url_)));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page2_url_)));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page3_url_)));
   // Now it should be in page3
-  ASSERT_NSEQ(@"page3", test::EvaluateJavaScript(web_view_, @"document.title"));
+  ASSERT_NSEQ(@"page3",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   CWVBackForwardList* list = web_view_.backForwardList;
   ASSERT_EQ(2UL, list.backList.count);
@@ -225,8 +215,10 @@ TEST_F(WebViewBackForwardListTest, TestBackForwardListItemAtIndex) {
 
   // Go to page2
   ASSERT_TRUE([web_view_ goToBackForwardListItem:list.backList[1]]);
+  ASSERT_TRUE(WaitUntilPageLoaded());
   // Now it should be in page2
-  ASSERT_TRUE(WaitForJSDocumentTitle(@"page2"));
+  ASSERT_NSEQ(@"page2",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   list = web_view_.backForwardList;
   EXPECT_EQ(1UL, list.backList.count);
@@ -243,8 +235,10 @@ TEST_F(WebViewBackForwardListTest, TestBackForwardListItemAtIndex) {
   // Go to page1
   ASSERT_TRUE([web_view_ canGoBack]);
   [web_view_ goBack];
+  ASSERT_TRUE(WaitUntilPageLoaded());
   // Now it should be in page1
-  ASSERT_TRUE(WaitForJSDocumentTitle(@"page1"));
+  ASSERT_NSEQ(@"page1",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   list = web_view_.backForwardList;
   ASSERT_EQ(2UL, list.forwardList.count);
@@ -263,11 +257,12 @@ TEST_F(WebViewBackForwardListTest, TestCWVBackForwardListItemArrayForInLoop) {
   GenerateTestPageUrls();
 
   // Go to page3
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page1_url_, @"page1"));
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page2_url_, @"page2"));
-  ASSERT_TRUE(LoadUrlAndWaitForTitle(page3_url_, @"page3"));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page1_url_)));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page2_url_)));
+  ASSERT_TRUE(test::LoadUrl(web_view_, net::NSURLWithGURL(page3_url_)));
   // Now it should be in page3
-  ASSERT_NSEQ(@"page3", test::EvaluateJavaScript(web_view_, @"document.title"));
+  ASSERT_NSEQ(@"page3",
+              test::EvaluateJavaScript(web_view_, @"document.title", nil));
 
   CWVBackForwardList* list = web_view_.backForwardList;
   ASSERT_EQ(2UL, list.backList.count);

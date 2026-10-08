@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 #ifndef CHROME_BROWSER_UI_OMNIBOX_CLIPBOARD_UTILS_H_
 #define CHROME_BROWSER_UI_OMNIBOX_CLIPBOARD_UTILS_H_
 
-#include <string>
-
+#include "base/strings/string16.h"
 
 // Truncates the clipboard text returned in order to improve performance and
 // prevent unresponsiveness. For reference, a book is about ~500k characters and
@@ -27,6 +26,6 @@ static const size_t kMaxClipboardTextLength = 500 * 1024;
 // from bookmarks on the clipboard.
 // If `notify_if_restricted` is set to true, a notification will be shown to
 // the user if the clipboard contents can't be accessed.
-std::u16string GetClipboardText(bool notify_if_restricted);
+base::string16 GetClipboardText(bool notify_if_restricted);
 
 #endif  // CHROME_BROWSER_UI_OMNIBOX_CLIPBOARD_UTILS_H_

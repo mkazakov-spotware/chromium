@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "courgette/disassembler_win32.h"
 #include "courgette/image_utils.h"
 #include "courgette/types_win_pe.h"
@@ -25,10 +26,6 @@ class DisassemblerWin32X86 : public DisassemblerWin32 {
   }
 
   DisassemblerWin32X86(const uint8_t* start, size_t length);
-
-  DisassemblerWin32X86(const DisassemblerWin32X86&) = delete;
-  DisassemblerWin32X86& operator=(const DisassemblerWin32X86&) = delete;
-
   ~DisassemblerWin32X86() override = default;
 
   // Disassembler interfaces.
@@ -50,6 +47,9 @@ class DisassemblerWin32X86 : public DisassemblerWin32 {
   uint16_t RelativeOffsetOfDataDirectories() const override {
     return kOffsetOfDataDirectoryFromImageOptionalHeader32;
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerWin32X86);
 };
 
 }  // namespace courgette

@@ -24,8 +24,8 @@
 
 #include "third_party/blink/renderer/core/paint/scoped_svg_paint_state.h"
 
-#include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_masker.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
+#include "third_party/blink/renderer/core/layout/svg/svg_resources_cache.h"
 #include "third_party/blink/renderer/core/paint/clip_path_clipper.h"
 #include "third_party/blink/renderer/core/paint/svg_mask_painter.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
@@ -34,18 +34,12 @@
 namespace blink {
 
 ScopedSVGPaintState::~ScopedSVGPaintState() {
-  // Paint mask before clip path as mask because if both exist, the ClipPathMask
-  // effect node is a child of the Mask node (see object_paint_properties.h for
-  // the node hierarchy), to ensure the clip-path mask will be applied to the
-  // mask to create an intersection of the masks, then the intersection will be
-  // applied to the masked content.
+  if (should_paint_clip_path_as_mask_image_) {
+    ClipPathClipper::PaintClipPathAsMaskImage(
+        paint_info_.context, object_, display_item_client_, PhysicalOffset());
+  }
   if (should_paint_mask_)
     SVGMaskPainter::Paint(paint_info_.context, object_, display_item_client_);
-
-  if (should_paint_clip_path_as_mask_image_) {
-    ClipPathClipper::PaintClipPathAsMaskImage(paint_info_.context, object_,
-                                              display_item_client_);
-  }
 }
 
 void ScopedSVGPaintState::ApplyEffects() {
@@ -71,7 +65,7 @@ void ScopedSVGPaintState::ApplyEffects() {
   // LayoutSVGRoot and LayoutSVGForeignObject always have a self-painting
   // PaintLayer (hence comments below about PaintLayerPainter).
   bool is_svg_root_or_foreign_object =
-      object_.IsSVGRoot() || object_.IsSVGForeignObjectIncludingNG();
+      object_.IsSVGRoot() || object_.IsSVGForeignObject();
   if (is_svg_root_or_foreign_object) {
     // PaintLayerPainter takes care of clip path.
     DCHECK(object_.HasLayer() || !properties || !properties->ClipPathMask());
@@ -90,13 +84,10 @@ void ScopedSVGPaintState::ApplyPaintPropertyState(
     return;
   auto& paint_controller = paint_info_.context.GetPaintController();
   auto state = paint_controller.CurrentPaintChunkProperties();
-  if (const auto* filter = properties.Filter()) {
+  if (const auto* filter = properties.Filter())
     state.SetEffect(*filter);
-    if (const auto* filter_clip = properties.PixelMovingFilterClipExpander())
-      state.SetClip(*filter_clip);
-  } else if (const auto* effect = properties.Effect()) {
+  else if (const auto* effect = properties.Effect())
     state.SetEffect(*effect);
-  }
 
   if (const auto* mask_clip = properties.MaskClip())
     state.SetClip(*mask_clip);
@@ -108,11 +99,9 @@ void ScopedSVGPaintState::ApplyPaintPropertyState(
 }
 
 void ScopedSVGPaintState::ApplyMaskIfNecessary() {
-  SVGResourceClient* client = SVGResources::GetClient(object_);
-  if (!client)
-    return;
-  if (GetSVGResourceAsType<LayoutSVGResourceMasker>(
-          *client, object_.StyleRef().MaskerResource()))
+  SVGResources* resources =
+      SVGResourcesCache::CachedResourcesForLayoutObject(object_);
+  if (resources && resources->Masker())
     should_paint_mask_ = true;
 }
 

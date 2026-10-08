@@ -1,18 +1,12 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import typing
 
-from gold_inexact_matching import base_parameter_optimizer as bpo
-from gold_inexact_matching import common_typing as ct
-
-
-class OptimizerSet():
+class OptimizerSet(object):
   """Class to run a ParameterOptimizer for multiple tests."""
 
-  def __init__(self, args: ct.ParsedCmdArgs,
-               optimizer_class: typing.Type[bpo.BaseParameterOptimizer]):
+  def __init__(self, args, optimizer_class):
     """
     Args:
       args: The parse arguments from an argparse.ArgumentParser.
@@ -21,9 +15,9 @@ class OptimizerSet():
     self._args = args
     self._optimizer_class = optimizer_class
 
-  def RunOptimization(self) -> None:
+  def RunOptimization(self):
     test_names = set(self._args.test_names)
     for name in test_names:
-      print('Running optimization for test %s' % name)
+      print 'Running optimization for test %s' % name
       optimizer = self._optimizer_class(self._args, name)
       optimizer.RunOptimization()

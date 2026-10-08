@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,7 +46,7 @@ class BASE_EXPORT Version {
   // Version behavior (IsValid) if no wildcard is present.
   static bool IsValidWildcardString(StringPiece wildcard_string);
 
-  // Returns -1, 0, 1 for <, ==, >. `this` and `other` must both be valid.
+  // Returns -1, 0, 1 for <, ==, >.
   int CompareTo(const Version& other) const;
 
   // Given a valid version object, compare if a |wildcard_string| results in a

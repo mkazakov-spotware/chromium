@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/logging.h"
 #include "base/trace_event/trace_event.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkSurface.h"
@@ -31,7 +30,8 @@ SoftwareRenderer::SoftwareRenderer(
     const gfx::Size& size)
     : RendererBase(widget, size),
       window_surface_(std::move(window_surface)),
-      vsync_period_(base::Milliseconds(kFrameDelayMilliseconds)) {}
+      vsync_period_(
+          base::TimeDelta::FromMilliseconds(kFrameDelayMilliseconds)) {}
 
 SoftwareRenderer::~SoftwareRenderer() = default;
 
@@ -44,7 +44,7 @@ bool SoftwareRenderer::Initialize() {
     return false;
   }
 
-  software_surface_->ResizeCanvas(size_, 1.f /*scale_factor*/);
+  software_surface_->ResizeCanvas(size_);
   vsync_provider_ = software_surface_->CreateVSyncProvider();
   RenderFrame();
   return true;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,10 +88,7 @@ UIEdgeInsets TestFullscreenController::GetCurrentViewportInsets() const {
   return model_ ? model_->current_toolbar_insets() : UIEdgeInsetsZero;
 }
 
-void TestFullscreenController::EnterFullscreen() {
-  if (model_)
-    model_->AnimationEndedWithProgress(0.0);
-}
+void TestFullscreenController::EnterFullscreen() {}
 
 void TestFullscreenController::ExitFullscreen() {
   if (model_)
@@ -128,15 +125,4 @@ void TestFullscreenController::OnFullscreenWillAnimate(
 
 void TestFullscreenController::ResizeHorizontalViewport() {
   // NOOP in tests.
-}
-
-void TestFullscreenController::FreezeToolbarHeight(bool freeze_toolbar_height) {
-  if (model_) {
-    model_->SetFreezeToolbarHeight(freeze_toolbar_height);
-  }
-}
-
-// static
-const void* TestFullscreenController::UserDataKeyForTesting() {
-  return FullscreenController::UserDataKey();
 }

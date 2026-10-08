@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,13 +35,12 @@
 
 #include <windows.foundation.h>
 #include <windows.h>
-
 #include <mmsystem.h>
 #include <stdint.h>
 
 #include <atomic>
-#include <ostream>
 
+#include "base/atomicops.h"
 #include "base/bit_cast.h"
 #include "base/check_op.h"
 #include "base/cpu.h"
@@ -49,7 +48,6 @@
 #include "base/synchronization/lock.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time_override.h"
-#include "build/build_config.h"
 
 namespace base {
 
@@ -84,7 +82,7 @@ int64_t CurrentWallclockMicroseconds() {
 }
 
 // Time between resampling the un-granular clock for this API.
-constexpr TimeDelta kMaxTimeToAvoidDrift = Seconds(60);
+constexpr TimeDelta kMaxTimeToAvoidDrift = TimeDelta::FromSeconds(60);
 
 int64_t g_initial_time = 0;
 TimeTicks g_initial_ticks;
@@ -165,7 +163,7 @@ void UpdateTimerIntervalLocked() {
 }
 
 // Returns the current value of the performance counter.
-int64_t QPCNowRaw() {
+uint64_t QPCNowRaw() {
   LARGE_INTEGER perf_counter_now = {};
   // According to the MSDN documentation for QueryPerformanceCounter(), this
   // will never fail on systems that run XP or later.
@@ -211,14 +209,14 @@ Time TimeNowIgnoringOverride() {
       continue;
     }
 
-    return Time() + elapsed + Microseconds(g_initial_time);
+    return Time() + elapsed + TimeDelta::FromMicroseconds(g_initial_time);
   }
 }
 
 Time TimeNowFromSystemTimeIgnoringOverride() {
   // Force resync.
   InitializeClock();
-  return Time() + Microseconds(g_initial_time);
+  return Time() + TimeDelta::FromMicroseconds(g_initial_time);
 }
 }  // namespace subtle
 
@@ -408,7 +406,7 @@ DWORD (*g_tick_function)(void) = &timeGetTimeWrapper;
 // "rollover" counter.
 union LastTimeAndRolloversState {
   // The state as a single 32-bit opaque value.
-  std::atomic<int32_t> as_opaque_32{0};
+  subtle::Atomic32 as_opaque_32;
 
   // The state as usable values.
   struct {
@@ -424,7 +422,7 @@ union LastTimeAndRolloversState {
     uint16_t rollovers;
   } as_values;
 };
-std::atomic<int32_t> g_last_time_and_rollovers = 0;
+subtle::Atomic32 g_last_time_and_rollovers = 0;
 static_assert(
     sizeof(LastTimeAndRolloversState) <= sizeof(g_last_time_and_rollovers),
     "LastTimeAndRolloversState does not fit in a single atomic word");
@@ -443,8 +441,7 @@ TimeTicks RolloverProtectedNow() {
     // incrementing the "rollovers" counter if the tick-value has wrapped back
     // around. Atomic operations ensure that both "last" and "rollovers" are
     // always updated together.
-    int32_t original =
-        g_last_time_and_rollovers.load(std::memory_order_acquire);
+    int32_t original = subtle::Acquire_Load(&g_last_time_and_rollovers);
     state.as_opaque_32 = original;
     now = g_tick_function();
     uint8_t now_8 = static_cast<uint8_t>(now >> 24);
@@ -457,18 +454,18 @@ TimeTicks RolloverProtectedNow() {
       break;
 
     // Save the changed state. If the existing value is unchanged from the
-    // original so that the operation is successful. Exit the loop.
-    bool success = g_last_time_and_rollovers.compare_exchange_strong(
-        original, state.as_opaque_32, std::memory_order_release);
-    if (success)
+    // original, exit the loop.
+    int32_t check = subtle::Release_CompareAndSwap(
+        &g_last_time_and_rollovers, original, state.as_opaque_32);
+    if (check == original)
       break;
 
     // Another thread has done something in between so retry from the top.
   }
 
   return TimeTicks() +
-         Milliseconds(now +
-                      (static_cast<uint64_t>(state.as_values.rollovers) << 32));
+         TimeDelta::FromMilliseconds(
+             now + (static_cast<uint64_t>(state.as_values.rollovers) << 32));
 }
 
 // Discussion of tick counter options on Windows:
@@ -510,8 +507,8 @@ TimeTicks InitialNowFunction();
 
 // See "threading notes" in InitializeNowFunctionPointer() for details on how
 // concurrent reads/writes to these globals has been made safe.
-std::atomic<TimeTicksNowFunction> g_time_ticks_now_ignoring_override_function{
-    &InitialNowFunction};
+TimeTicksNowFunction g_time_ticks_now_ignoring_override_function =
+    &InitialNowFunction;
 int64_t g_qpc_ticks_per_second = 0;
 
 TimeDelta QPCValueToTimeDelta(LONGLONG qpc_value) {
@@ -524,16 +521,17 @@ TimeDelta QPCValueToTimeDelta(LONGLONG qpc_value) {
   // If the QPC Value is below the overflow threshold, we proceed with
   // simple multiply and divide.
   if (qpc_value < Time::kQPCOverflowThreshold) {
-    return Microseconds(qpc_value * Time::kMicrosecondsPerSecond /
-                        g_qpc_ticks_per_second);
+    return TimeDelta::FromMicroseconds(
+        qpc_value * Time::kMicrosecondsPerSecond / g_qpc_ticks_per_second);
   }
   // Otherwise, calculate microseconds in a round about manner to avoid
   // overflow and precision issues.
   int64_t whole_seconds = qpc_value / g_qpc_ticks_per_second;
   int64_t leftover_ticks = qpc_value - (whole_seconds * g_qpc_ticks_per_second);
-  return Microseconds((whole_seconds * Time::kMicrosecondsPerSecond) +
-                      ((leftover_ticks * Time::kMicrosecondsPerSecond) /
-                       g_qpc_ticks_per_second));
+  return TimeDelta::FromMicroseconds(
+      (whole_seconds * Time::kMicrosecondsPerSecond) +
+      ((leftover_ticks * Time::kMicrosecondsPerSecond) /
+       g_qpc_ticks_per_second));
 }
 
 TimeTicks QPCNow() {
@@ -563,9 +561,8 @@ void InitializeNowFunctionPointer() {
 
   // Threading note 1: In an unlikely race condition, it's possible for two or
   // more threads to enter InitializeNowFunctionPointer() in parallel. This is
-  // not a problem since all threads end up writing out the same values
-  // to the global variables, and those variable being atomic are safe to read
-  // from other threads.
+  // not a problem since all threads should end up writing out the same values
+  // to the global variables.
   //
   // Threading note 2: A release fence is placed here to ensure, from the
   // perspective of other threads using the function pointers, that the
@@ -574,21 +571,18 @@ void InitializeNowFunctionPointer() {
   g_qpc_ticks_per_second = ticks_per_sec.QuadPart;
   std::atomic_thread_fence(std::memory_order_release);
   // Also set g_time_ticks_now_function to avoid the additional indirection via
-  // TimeTicksNowIgnoringOverride() for future calls to TimeTicks::Now(), only
-  // if it wasn't already overridden to a different value. memory_order_relaxed
-  // is sufficient since an explicit fence was inserted above.
-  base::TimeTicksNowFunction initial_time_ticks_now_function =
-      &subtle::TimeTicksNowIgnoringOverride;
-  internal::g_time_ticks_now_function.compare_exchange_strong(
-      initial_time_ticks_now_function, now_function, std::memory_order_relaxed);
-  g_time_ticks_now_ignoring_override_function.store(now_function,
-                                                    std::memory_order_relaxed);
+  // TimeTicksNowIgnoringOverride() for future calls to TimeTicks::Now(). But
+  // g_time_ticks_now_function may have already be overridden.
+  if (internal::g_time_ticks_now_function ==
+      &subtle::TimeTicksNowIgnoringOverride) {
+    internal::g_time_ticks_now_function = now_function;
+  }
+  g_time_ticks_now_ignoring_override_function = now_function;
 }
 
 TimeTicks InitialNowFunction() {
   InitializeNowFunctionPointer();
-  return g_time_ticks_now_ignoring_override_function.load(
-      std::memory_order_relaxed)();
+  return g_time_ticks_now_ignoring_override_function();
 }
 
 }  // namespace
@@ -598,14 +592,13 @@ TimeTicks::TickFunctionType TimeTicks::SetMockTickFunction(
     TickFunctionType ticker) {
   TickFunctionType old = g_tick_function;
   g_tick_function = ticker;
-  g_last_time_and_rollovers.store(0, std::memory_order_relaxed);
+  subtle::NoBarrier_Store(&g_last_time_and_rollovers, 0);
   return old;
 }
 
 namespace subtle {
 TimeTicks TimeTicksNowIgnoringOverride() {
-  return g_time_ticks_now_ignoring_override_function.load(
-      std::memory_order_relaxed)();
+  return g_time_ticks_now_ignoring_override_function();
 }
 }  // namespace subtle
 
@@ -673,7 +666,7 @@ ThreadTicks ThreadTicks::GetForThread(
   ::QueryThreadCycleTime(thread_handle.platform_handle(), &thread_cycle_time);
 
   // Get the frequency of the TSC.
-  const double tsc_ticks_per_second = time_internal::TSCTicksPerSecond();
+  const double tsc_ticks_per_second = TSCTicksPerSecond();
   if (tsc_ticks_per_second == 0)
     return ThreadTicks();
 
@@ -688,74 +681,21 @@ ThreadTicks ThreadTicks::GetForThread(
 
 // static
 bool ThreadTicks::IsSupportedWin() {
-#if defined(ARCH_CPU_ARM64)
-  // The Arm implementation does not use QueryThreadCycleTime and therefore does
-  // not care about the time stamp counter.
-  return true;
-#else
-  return time_internal::HasConstantRateTSC();
-#endif
+  static bool is_supported = CPU().has_non_stop_time_stamp_counter();
+  return is_supported;
 }
 
 // static
 void ThreadTicks::WaitUntilInitializedWin() {
 #if !defined(ARCH_CPU_ARM64)
-  while (time_internal::TSCTicksPerSecond() == 0)
+  while (TSCTicksPerSecond() == 0)
     ::Sleep(10);
 #endif
 }
 
-// static
-TimeTicks TimeTicks::FromQPCValue(LONGLONG qpc_value) {
-  return TimeTicks() + QPCValueToTimeDelta(qpc_value);
-}
-
-// TimeDelta ------------------------------------------------------------------
-
-// static
-TimeDelta TimeDelta::FromQPCValue(LONGLONG qpc_value) {
-  return QPCValueToTimeDelta(qpc_value);
-}
-
-// static
-TimeDelta TimeDelta::FromFileTime(FILETIME ft) {
-  return Microseconds(FileTimeToMicroseconds(ft));
-}
-
-// static
-TimeDelta TimeDelta::FromWinrtDateTime(ABI::Windows::Foundation::DateTime dt) {
-  // UniversalTime is 100 ns intervals since January 1, 1601 (UTC)
-  return Microseconds(dt.UniversalTime / 10);
-}
-
-ABI::Windows::Foundation::DateTime TimeDelta::ToWinrtDateTime() const {
-  ABI::Windows::Foundation::DateTime date_time;
-  date_time.UniversalTime = InMicroseconds() * 10;
-  return date_time;
-}
-
-// static
-TimeDelta TimeDelta::FromWinrtTimeSpan(ABI::Windows::Foundation::TimeSpan ts) {
-  // Duration is 100 ns intervals
-  return Microseconds(ts.Duration / 10);
-}
-
-ABI::Windows::Foundation::TimeSpan TimeDelta::ToWinrtTimeSpan() const {
-  ABI::Windows::Foundation::TimeSpan time_span;
-  time_span.Duration = InMicroseconds() * 10;
-  return time_span;
-}
-
 #if !defined(ARCH_CPU_ARM64)
-namespace time_internal {
-
-bool HasConstantRateTSC() {
-  static bool is_supported = CPU().has_non_stop_time_stamp_counter();
-  return is_supported;
-}
-
-double TSCTicksPerSecond() {
-  DCHECK(HasConstantRateTSC());
+double ThreadTicks::TSCTicksPerSecond() {
+  DCHECK(IsSupported());
   // The value returned by QueryPerformanceFrequency() cannot be used as the TSC
   // frequency, because there is no guarantee that the TSC frequency is equal to
   // the performance counter frequency.
@@ -774,12 +714,12 @@ double TSCTicksPerSecond() {
   // TSC and the performance counter.
 
   static const uint64_t tsc_initial = __rdtsc();
-  static const int64_t perf_counter_initial = QPCNowRaw();
+  static const uint64_t perf_counter_initial = QPCNowRaw();
 
   // Make a another reading of the TSC and the performance counter every time
   // that this function is called.
   const uint64_t tsc_now = __rdtsc();
-  const int64_t perf_counter_now = QPCNowRaw();
+  const uint64_t perf_counter_now = QPCNowRaw();
 
   // Reset the thread priority.
   ::SetThreadPriority(::GetCurrentThread(), previous_priority);
@@ -796,7 +736,7 @@ double TSCTicksPerSecond() {
   LARGE_INTEGER perf_counter_frequency = {};
   ::QueryPerformanceFrequency(&perf_counter_frequency);
   DCHECK_GE(perf_counter_now, perf_counter_initial);
-  const int64_t perf_counter_ticks = perf_counter_now - perf_counter_initial;
+  const uint64_t perf_counter_ticks = perf_counter_now - perf_counter_initial;
   const double elapsed_time_seconds =
       perf_counter_ticks / static_cast<double>(perf_counter_frequency.QuadPart);
 
@@ -811,8 +751,35 @@ double TSCTicksPerSecond() {
 
   return tsc_ticks_per_second;
 }
-
-}  // namespace time_internal
 #endif  // defined(ARCH_CPU_ARM64)
+
+// static
+TimeTicks TimeTicks::FromQPCValue(LONGLONG qpc_value) {
+  return TimeTicks() + QPCValueToTimeDelta(qpc_value);
+}
+
+// TimeDelta ------------------------------------------------------------------
+
+// static
+TimeDelta TimeDelta::FromQPCValue(LONGLONG qpc_value) {
+  return QPCValueToTimeDelta(qpc_value);
+}
+
+// static
+TimeDelta TimeDelta::FromFileTime(FILETIME ft) {
+  return TimeDelta::FromMicroseconds(FileTimeToMicroseconds(ft));
+}
+
+// static
+TimeDelta TimeDelta::FromWinrtDateTime(ABI::Windows::Foundation::DateTime dt) {
+  // UniversalTime is 100 ns intervals since January 1, 1601 (UTC)
+  return TimeDelta::FromMicroseconds(dt.UniversalTime / 10);
+}
+
+ABI::Windows::Foundation::DateTime TimeDelta::ToWinrtDateTime() const {
+  ABI::Windows::Foundation::DateTime date_time;
+  date_time.UniversalTime = InMicroseconds() * 10;
+  return date_time;
+}
 
 }  // namespace base

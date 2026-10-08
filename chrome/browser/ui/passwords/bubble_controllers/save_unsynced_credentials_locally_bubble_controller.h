@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,7 @@ class SaveUnsyncedCredentialsLocallyBubbleController
 
  private:
   // PasswordBubbleControllerBase methods:
-  std::u16string GetTitle() const override;
+  base::string16 GetTitle() const override;
   void ReportInteractions() override;
 
   password_manager::metrics_util::UIDismissalReason dismissal_reason_;

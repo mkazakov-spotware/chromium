@@ -1,20 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {RootPath, TestEntryInfo} from '../test_util.js';
-import {testcase} from '../testcase.js';
-
-import {navigateWithDirectoryTree, recursiveExpand, remoteCall, setupAndWaitUntilReady} from './background.js';
-import {BASIC_DRIVE_ENTRY_SET, BASIC_LOCAL_ENTRY_SET} from './test_data.js';
+'use strict';
 
 /**
  * Constants for interacting with the directory tree on the LHS of Files app.
  * When we are not in guest mode, we fill Google Drive with the basic entry set
  * which causes an extra tree-item to be added.
  */
-export const TREEITEM_DRIVE = '#directory-tree [entry-label="My Drive"]';
-export const TREEITEM_DOWNLOADS = '#directory-tree [entry-label="Downloads"]';
+const TREEITEM_DRIVE = '#directory-tree [entry-label="My Drive"]';
+const TREEITEM_DOWNLOADS = '#directory-tree [entry-label="Downloads"]';
 
 /**
  * Selects the first item in the file list.
@@ -47,7 +42,7 @@ async function selectFirstFileListItem(appId) {
  * Creates a new folder in the file list.
  *
  * @param {string} appId The Files app windowId.
- * @param {!Array<!TestEntryInfo>} initialEntrySet Initial set of entries.
+ * @param {Array<TestEntryInfo>} initialEntrySet Initial set of entries.
  * @param {string} selector Downloads or Drive directory tree item selector.
  * @return {Promise} Promise to be fulfilled on success.
  */
@@ -63,15 +58,13 @@ async function createNewFolder(appId, initialEntrySet, selector) {
   chrome.test.assertTrue(
       await remoteCall.callRemoteTestUtil('fakeKeyDown', appId, key));
 
-  let newFolderName = 'New folder';
   // Check: a new folder should be shown in the file list.
-  let files = [[newFolderName, '--', 'Folder', '']].concat(
+  let files = [['New folder', '--', 'Folder', '']].concat(
       TestEntryInfo.getExpectedRows(initialEntrySet));
-  await remoteCall.waitForFiles(appId, files, {ignoreLastModifiedTime: true});
 
   // Check: a new folder should be present in the directory tree.
   const newSubtreeChildItem =
-      `${selector} .tree-children .tree-item[entry-label="${newFolderName}"]`;
+      selector + ' .tree-children .tree-item[entry-label="New folder"]';
   await remoteCall.waitForElement(appId, newSubtreeChildItem);
 
   // Check: the text input should be shown in the file list.
@@ -84,7 +77,7 @@ async function createNewFolder(appId, initialEntrySet, selector) {
 
   // Check: the new folder only should be 'renaming'.
   chrome.test.assertEq(1, elements.length);
-  chrome.test.assertEq(0, elements[0].text.indexOf(`${newFolderName}--`));
+  chrome.test.assertEq(0, elements[0].text.indexOf('New folder--'));
   chrome.test.assertTrue('selected' in elements[0].attributes);
 
   // Get all file list rows that have attribute 'selected'.
@@ -94,12 +87,12 @@ async function createNewFolder(appId, initialEntrySet, selector) {
 
   // Check: the new folder only should be 'selected'.
   chrome.test.assertEq(1, elements.length);
-  chrome.test.assertEq(0, elements[0].text.indexOf(`${newFolderName}--`));
+  chrome.test.assertEq(0, elements[0].text.indexOf('New folder--'));
   chrome.test.assertTrue('renaming' in elements[0].attributes);
 
   // Type the test folder name.
-  newFolderName = 'Test Folder Name';
-  await remoteCall.inputText(appId, textInput, newFolderName);
+  await remoteCall.callRemoteTestUtil(
+      'inputText', appId, [textInput, 'Test Folder Name']);
 
   // Press the Enter key.
   key = [textInput, 'Enter', false, false, false];
@@ -111,18 +104,23 @@ async function createNewFolder(appId, initialEntrySet, selector) {
   await remoteCall.waitForElementLost(appId, renamingItem);
 
   // Check: the test folder should be shown in the file list.
-  files = [[newFolderName, '--', 'Folder', '']].concat(
+  files = [['Test Folder Name', '--', 'Folder', '']].concat(
       TestEntryInfo.getExpectedRows(initialEntrySet));
-  await remoteCall.waitForFiles(appId, files, {ignoreLastModifiedTime: true});
 
   // Check: the test folder should be present in the directory tree.
   const testSubtreeChildItem =
-      `${selector} .tree-children .tree-item[entry-label="${newFolderName}"]`;
+      selector + ' .tree-children .tree-item[entry-label="Test Folder Name"]';
   await remoteCall.waitForElement(appId, testSubtreeChildItem);
 
-  // Wait for the new folder to become selected in the file list.
-  await remoteCall.waitForElement(
-      appId, [`#file-list .table-row[file-name="${newFolderName}"][selected]`]);
+  // Get all file list rows that have attribute 'selected'.
+  elements = await remoteCall.callRemoteTestUtil(
+      'queryAllElements', appId, selectedFileListRows);
+
+  // Check: the test folder only should be 'selected'.
+  chrome.test.assertEq(1, elements.length);
+  chrome.test.assertEq(
+      0, elements[0].text.indexOf('Test Folder Name--'),
+      'Actual text was: ' + elements[0].text);
 }
 
 testcase.selectCreateFolderDownloads = async () => {
@@ -144,7 +142,8 @@ testcase.createFolderNestedDownloads = async () => {
   const appId = await setupAndWaitUntilReady(
       RootPath.DOWNLOADS, BASIC_LOCAL_ENTRY_SET, []);
   await recursiveExpand(appId, '/My files/Downloads');
-  await navigateWithDirectoryTree(appId, '/My files/Downloads/photos');
+  await remoteCall.navigateWithDirectoryTree(
+      appId, '/Downloads/photos', 'My files/Downloads');
   await createNewFolder(appId, [], TREEITEM_DOWNLOADS);
 };
 

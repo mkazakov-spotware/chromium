@@ -4,11 +4,6 @@
 #for-pseudo:before {
   color: red;
   content: "BEFORE";
-  width: var(--width);
-}
-
-#for-pseudo {
-  --width: 10px;
 }
 </style>
 <div id='for-pseudo'>Test</div>`, 'Test that matching styles report pseudo element styles.');
@@ -29,15 +24,6 @@
 
   testRunner.log('\n=== Request matching styles for #for-pseudo::before ===\n');
   var response = await dp.CSS.getMatchedStylesForNode({nodeId: beforeNode.nodeId});
-  const inheritedStyle = response.result.inherited;
-  for (const {matchedCSSRules} of inheritedStyle) {
-    for (const rule of matchedCSSRules) {
-      if (rule.rule.style.cssText?.includes('--width: 10px')) {
-        testRunner.log('#for-pseudo::before inherits custom properties from parent');
-      }
-    }
-  }
-
   var matchedRules = response.result.matchedCSSRules;
   for (var i = 0; i < matchedRules.length; ++i) {
       var match = matchedRules[i];

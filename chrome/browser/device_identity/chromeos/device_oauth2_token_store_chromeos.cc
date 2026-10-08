@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include <utility>
 
 #include "base/logging.h"
-#include "chrome/browser/ash/settings/cros_settings.h"
-#include "chrome/browser/ash/settings/token_encryptor.h"
+#include "chrome/browser/chromeos/settings/cros_settings.h"
+#include "chrome/browser/chromeos/settings/token_encryptor.h"
 #include "chrome/common/pref_names.h"
-#include "chromeos/ash/components/cryptohome/system_salt_getter.h"
-#include "chromeos/ash/components/settings/cros_settings_names.h"
+#include "chromeos/cryptohome/system_salt_getter.h"
+#include "chromeos/settings/cros_settings_names.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 
@@ -21,10 +21,10 @@ DeviceOAuth2TokenStoreChromeOS::DeviceOAuth2TokenStoreChromeOS(
     : local_state_(local_state),
       service_account_identity_subscription_(
           CrosSettings::Get()->AddSettingsObserver(
-              ash::kServiceAccountIdentity,
-              base::BindRepeating(&DeviceOAuth2TokenStoreChromeOS::
-                                      OnServiceAccountIdentityChanged,
-                                  base::Unretained(this)))) {}
+              kServiceAccountIdentity,
+              base::Bind(&DeviceOAuth2TokenStoreChromeOS::
+                             OnServiceAccountIdentityChanged,
+                         base::Unretained(this)))) {}
 
 DeviceOAuth2TokenStoreChromeOS::~DeviceOAuth2TokenStoreChromeOS() {
   FlushTokenSaveCallbacks(false);
@@ -47,7 +47,7 @@ void DeviceOAuth2TokenStoreChromeOS::Init(InitCallback callback) {
 
 CoreAccountId DeviceOAuth2TokenStoreChromeOS::GetAccountId() const {
   std::string email;
-  CrosSettings::Get()->GetString(ash::kServiceAccountIdentity, &email);
+  CrosSettings::Get()->GetString(kServiceAccountIdentity, &email);
   return CoreAccountId::FromEmail(email);
 }
 
@@ -109,7 +109,7 @@ void DeviceOAuth2TokenStoreChromeOS::FlushTokenSaveCallbacks(bool result) {
 }
 
 void DeviceOAuth2TokenStoreChromeOS::EncryptAndSaveToken() {
-  ash::CryptohomeTokenEncryptor encryptor(system_salt_);
+  CryptohomeTokenEncryptor encryptor(system_salt_);
   std::string encrypted_refresh_token =
       encryptor.EncryptWithSystemSalt(refresh_token_);
   bool result = true;
@@ -149,7 +149,7 @@ void DeviceOAuth2TokenStoreChromeOS::DidGetSystemSalt(
   std::string encrypted_refresh_token =
       local_state_->GetString(prefs::kDeviceRobotAnyApiRefreshToken);
   if (!encrypted_refresh_token.empty()) {
-    ash::CryptohomeTokenEncryptor encryptor(system_salt_);
+    CryptohomeTokenEncryptor encryptor(system_salt_);
     refresh_token_ = encryptor.DecryptWithSystemSalt(encrypted_refresh_token);
     if (refresh_token_.empty()) {
       LOG(ERROR) << "Failed to decrypt refresh token.";

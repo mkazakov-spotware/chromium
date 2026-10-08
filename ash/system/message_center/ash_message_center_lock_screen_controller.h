@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/session/session_observer.h"
-#include "base/gtest_prod_util.h"
+#include "base/optional.h"
 #include "components/account_id/account_id.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/message_center/lock_screen/lock_screen_controller.h"
 
 namespace ash {
@@ -29,12 +28,6 @@ class AshMessageCenterLockScreenController
   static ASH_EXPORT bool IsAllowed();
 
   AshMessageCenterLockScreenController();
-
-  AshMessageCenterLockScreenController(
-      const AshMessageCenterLockScreenController&) = delete;
-  AshMessageCenterLockScreenController& operator=(
-      const AshMessageCenterLockScreenController&) = delete;
-
   ~AshMessageCenterLockScreenController() override;
 
   // message_center::LockScreenController:
@@ -61,9 +54,9 @@ class AshMessageCenterLockScreenController
 
   // Override the current mode for tests.
   // Exporting for test.
-  static ASH_EXPORT void OverrideModeForTest(absl::optional<Mode> new_mode);
+  static ASH_EXPORT void OverrideModeForTest(base::Optional<Mode> new_mode);
 
-  static absl::optional<Mode> overridden_mode_for_testing_;
+  static base::Optional<Mode> overridden_mode_for_testing_;
 
   // SessionObserver:
   void OnLockStateChanged(bool locked) override;
@@ -78,6 +71,8 @@ class AshMessageCenterLockScreenController
   base::OnceClosure cancel_task_;
 
   ScopedSessionObserver scoped_session_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AshMessageCenterLockScreenController);
 };
 
 }  // namespace ash

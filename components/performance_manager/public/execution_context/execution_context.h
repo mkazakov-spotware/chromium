@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,12 +49,6 @@ class ExecutionContext {
  public:
   using Observer = ExecutionContextObserver;
   using ObserverDefaultImpl = ExecutionContextObserverDefaultImpl;
-
-  // Syntactic sugar for converting from a node to the corresponding
-  // ExecutionContext.
-  static const ExecutionContext* From(const ExecutionContext* ec) { return ec; }
-  static const ExecutionContext* From(const FrameNode* frame_node);
-  static const ExecutionContext* From(const WorkerNode* worker_node);
 
   ExecutionContext() = default;
   ExecutionContext(const ExecutionContext&) = delete;

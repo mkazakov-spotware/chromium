@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,16 @@
 
 #include <stddef.h>
 
+#include <memory>
+
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
-#include "base/time/time.h"
+#include "base/macros.h"
 #include "base/timer/timer.h"
 #include "content/browser/renderer_host/event_with_latency_info.h"
 #include "content/browser/renderer_host/input/fling_controller.h"
 #include "content/common/content_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
-#include "third_party/blink/public/mojom/input/input_handler.mojom.h"
 
 namespace content {
 class GestureEventQueueTest;
@@ -35,8 +34,7 @@ class CONTENT_EXPORT GestureEventQueueClient {
   virtual void OnGestureEventAck(
       const GestureEventWithLatencyInfo& event,
       blink::mojom::InputEventResultSource ack_source,
-      blink::mojom::InputEventResultState ack_result,
-      blink::mojom::ScrollResultDataPtr scroll_result_data) = 0;
+      blink::mojom::InputEventResultState ack_result) = 0;
 };
 
 // Despite its name, this class isn't so much one queue as it is a collection
@@ -80,10 +78,6 @@ class CONTENT_EXPORT GestureEventQueue {
                     FlingControllerEventSenderClient* fling_event_sender_client,
                     FlingControllerSchedulerClient* fling_scheduler_client,
                     const Config& config);
-
-  GestureEventQueue(const GestureEventQueue&) = delete;
-  GestureEventQueue& operator=(const GestureEventQueue&) = delete;
-
   ~GestureEventQueue();
 
   // Allow the fling controller to observe the gesture event. Returns true if
@@ -107,8 +101,7 @@ class CONTENT_EXPORT GestureEventQueue {
   void ProcessGestureAck(blink::mojom::InputEventResultSource ack_source,
                          blink::mojom::InputEventResultState ack_result,
                          blink::WebInputEvent::Type type,
-                         const ui::LatencyInfo& latency,
-                         blink::mojom::ScrollResultDataPtr scroll_result_data);
+                         const ui::LatencyInfo& latency);
 
   // Returns the |TouchpadTapSuppressionController| instance.
   TouchpadTapSuppressionController* GetTouchpadTapSuppressionController();
@@ -128,7 +121,7 @@ class CONTENT_EXPORT GestureEventQueue {
   gfx::Vector2dF CurrentFlingVelocity() const;
 
   void set_debounce_interval_time_ms_for_testing(int interval_ms) {
-    debounce_interval_ = base::Milliseconds(interval_ms);
+    debounce_interval_ = base::TimeDelta::FromMilliseconds(interval_ms);
   }
 
   // TODO(nburris): Wheel event acks shouldn't really go through the gesture
@@ -145,12 +138,10 @@ class CONTENT_EXPORT GestureEventQueue {
   friend class GestureEventQueueTest;
   friend class MockRenderWidgetHost;
 
-  class GestureEventWithLatencyInfoAckStateAndScrollResultData
+  class GestureEventWithLatencyInfoAndAckState
       : public GestureEventWithLatencyInfo {
    public:
-    GestureEventWithLatencyInfoAckStateAndScrollResultData(
-        const GestureEventWithLatencyInfo&);
-    ~GestureEventWithLatencyInfoAckStateAndScrollResultData() = default;
+    GestureEventWithLatencyInfoAndAckState(const GestureEventWithLatencyInfo&);
     blink::mojom::InputEventResultState ack_state() const { return ack_state_; }
     void set_ack_info(blink::mojom::InputEventResultSource source,
                       blink::mojom::InputEventResultState state) {
@@ -160,28 +151,12 @@ class CONTENT_EXPORT GestureEventQueue {
     blink::mojom::InputEventResultSource ack_source() const {
       return ack_source_;
     }
-    void set_scroll_result_data(
-        blink::mojom::ScrollResultDataPtr scroll_result_data) {
-      // Creating a new instance and setting the field(s) explicitly because
-      // having blink::mojom::ScrollResultDataPtr as a field makes this class
-      // move-only and causes issues pushing into and removing from
-      // sent_events_awaiting_ack_.
-      // TODO(sinansahin): This class can probably be refactored to work with
-      // being move-only.
-      scroll_result_data_ = blink::mojom::ScrollResultData(
-          scroll_result_data ? scroll_result_data->root_scroll_offset
-                             : absl::nullopt);
-    }
-    const blink::mojom::ScrollResultData& scroll_result_data() {
-      return scroll_result_data_;
-    }
 
    private:
     blink::mojom::InputEventResultSource ack_source_ =
         blink::mojom::InputEventResultSource::kUnknown;
     blink::mojom::InputEventResultState ack_state_ =
         blink::mojom::InputEventResultState::kUnknown;
-    blink::mojom::ScrollResultData scroll_result_data_;
   };
 
   // Inovked on the expiration of the debounce interval to release
@@ -195,24 +170,22 @@ class CONTENT_EXPORT GestureEventQueue {
   // ACK completed events in order until we have reached an incomplete event.
   // Will preserve the FIFO order as events originally arrived.
   void AckCompletedEvents();
-  void AckGestureEventToClient(
-      const GestureEventWithLatencyInfo&,
-      blink::mojom::InputEventResultSource,
-      blink::mojom::InputEventResultState,
-      blink::mojom::ScrollResultDataPtr scroll_result_data);
+  void AckGestureEventToClient(const GestureEventWithLatencyInfo&,
+                               blink::mojom::InputEventResultSource,
+                               blink::mojom::InputEventResultState);
 
   bool FlingInProgressForTest() const;
 
   // The receiver of all forwarded gesture events.
-  raw_ptr<GestureEventQueueClient> client_;
+  GestureEventQueueClient* client_;
 
   // True if a GestureScrollUpdate sequence is in progress.
   bool scrolling_in_progress_;
 
   bool processing_acks_ = false;
 
-  using GestureQueueWithAckState = base::circular_deque<
-      GestureEventWithLatencyInfoAckStateAndScrollResultData>;
+  using GestureQueueWithAckState =
+      base::circular_deque<GestureEventWithLatencyInfoAndAckState>;
 
   // Stores outstanding events that have been sent to the renderer but not yet
   // been ACK'd. These are kept in the order they were sent in so that they can
@@ -244,6 +217,8 @@ class CONTENT_EXPORT GestureEventQueue {
   // True when the last GSE event is either in the debouncing_deferral_queue_ or
   // pushed to the queue and dropped from it later on.
   bool scroll_end_filtered_by_deboucing_deferral_queue_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(GestureEventQueue);
 };
 
 }  // namespace content

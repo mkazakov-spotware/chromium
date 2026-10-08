@@ -24,10 +24,11 @@
 
 #include "third_party/blink/renderer/platform/graphics/filters/fe_composite.h"
 
-#include "base/types/optional_util.h"
 #include "third_party/blink/renderer/platform/graphics/filters/paint_filter_builder.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_stream.h"
+#include "third_party/skia/include/effects/SkArithmeticImageFilter.h"
+#include "third_party/skia/include/effects/SkXfermodeImageFilter.h"
 
 namespace blink {
 
@@ -101,13 +102,13 @@ bool FEComposite::AffectsTransparentPixels() const {
   return type_ == FECOMPOSITE_OPERATOR_ARITHMETIC && K4() > 0;
 }
 
-gfx::RectF FEComposite::MapInputs(const gfx::RectF& rect) const {
-  gfx::RectF i1 = InputEffect(0)->MapRect(rect);
-  gfx::RectF i2 = InputEffect(1)->MapRect(rect);
+FloatRect FEComposite::MapInputs(const FloatRect& rect) const {
+  FloatRect i1 = InputEffect(0)->MapRect(rect);
+  FloatRect i2 = InputEffect(1)->MapRect(rect);
   switch (type_) {
     case FECOMPOSITE_OPERATOR_IN:
       // 'in' has output only in the intersection of both inputs.
-      return IntersectRects(i1, i2);
+      return Intersection(i1, i2);
     case FECOMPOSITE_OPERATOR_ATOP:
       // 'atop' has output only in the extents of the second input.
       return i2;
@@ -139,14 +140,14 @@ gfx::RectF FEComposite::MapInputs(const gfx::RectF& rect) const {
       // are non-transparent. Use intersection.
       // [k1 > 0 and k2 = k3 = k4 = 0 => result(i1,i2) = k1*i1*i2]
       if (K1() > 0)
-        return IntersectRects(i1, i2);
+        return Intersection(i1, i2);
       // [k1 = k2 = k3 = k4 = 0 => result(i1,i2) = 0]
-      return gfx::RectF();
+      return FloatRect();
     default:
       break;
   }
   // Take the union of both input effects.
-  return UnionRects(i1, i2);
+  return UnionRect(i1, i2);
 }
 
 SkBlendMode ToBlendMode(CompositeOperationType mode) {
@@ -185,19 +186,18 @@ sk_sp<PaintFilter> FEComposite::CreateImageFilterInternal(
   sk_sp<PaintFilter> background(
       paint_filter_builder::Build(InputEffect(1), OperatingInterpolationSpace(),
                                   !MayProduceInvalidPreMultipliedPixels()));
-  absl::optional<PaintFilter::CropRect> crop_rect = GetCropRect();
+  PaintFilter::CropRect crop_rect = GetCropRect();
 
   if (type_ == FECOMPOSITE_OPERATOR_ARITHMETIC) {
     return sk_make_sp<ArithmeticPaintFilter>(
         SkFloatToScalar(k1_), SkFloatToScalar(k2_), SkFloatToScalar(k3_),
         SkFloatToScalar(k4_), requires_pm_color_validation,
-        std::move(background), std::move(foreground),
-        base::OptionalToPtr(crop_rect));
+        std::move(background), std::move(foreground), &crop_rect);
   }
 
-  return sk_make_sp<XfermodePaintFilter>(
-      ToBlendMode(type_), std::move(background), std::move(foreground),
-      base::OptionalToPtr(crop_rect));
+  return sk_make_sp<XfermodePaintFilter>(ToBlendMode(type_),
+                                         std::move(background),
+                                         std::move(foreground), &crop_rect);
 }
 
 static WTF::TextStream& operator<<(WTF::TextStream& ts,

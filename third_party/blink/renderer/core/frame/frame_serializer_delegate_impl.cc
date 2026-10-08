@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,9 +32,10 @@
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/geometry/layout_point.h"
 #include "third_party/blink/renderer/platform/geometry/layout_rect.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/mhtml/mhtml_parser.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 
 namespace blink {
@@ -286,6 +287,9 @@ std::pair<Node*, Element*> FrameSerializerDelegateImpl::GetAuxiliaryDOMTree(
     case ShadowRootType::kUserAgent:
       // No need to serialize.
       return std::pair<Node*, Element*>();
+    case ShadowRootType::V0:
+      shadow_mode = "v0";
+      break;
     case ShadowRootType::kOpen:
       shadow_mode = "open";
       break;
@@ -301,7 +305,8 @@ std::pair<Node*, Element*> FrameSerializerDelegateImpl::GetAuxiliaryDOMTree(
   template_element->setAttribute(
       QualifiedName(g_null_atom, kShadowModeAttributeName, g_null_atom),
       AtomicString(shadow_mode));
-  if (shadow_root->delegatesFocus()) {
+  if (shadow_root->GetType() != ShadowRootType::V0 &&
+      shadow_root->delegatesFocus()) {
     template_element->setAttribute(
         QualifiedName(g_null_atom, kShadowDelegatesFocusAttributeName,
                       g_null_atom),

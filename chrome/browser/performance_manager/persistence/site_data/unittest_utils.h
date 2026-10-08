@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "components/performance_manager/performance_manager_impl.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -17,11 +18,6 @@ namespace testing {
 class TestWithPerformanceManager : public ::testing::Test {
  public:
   TestWithPerformanceManager();
-
-  TestWithPerformanceManager(const TestWithPerformanceManager&) = delete;
-  TestWithPerformanceManager& operator=(const TestWithPerformanceManager&) =
-      delete;
-
   ~TestWithPerformanceManager() override;
 
   void SetUp() override;
@@ -30,6 +26,8 @@ class TestWithPerformanceManager : public ::testing::Test {
  private:
   std::unique_ptr<PerformanceManagerImpl> performance_manager_;
   content::BrowserTaskEnvironment task_environment_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWithPerformanceManager);
 };
 
 }  // namespace testing

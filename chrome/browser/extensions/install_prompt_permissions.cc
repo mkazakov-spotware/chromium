@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <string>
 #include <vector>
 
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/install_prompt_permissions.h"
@@ -37,14 +37,16 @@ void InstallPromptPermissions::AddPermissionMessages(
   for (const extensions::PermissionMessage& msg : permissions_messages) {
     permissions.push_back(msg.message());
     // Add a dash to the front of each permission detail.
-    std::u16string details_str;
+    base::string16 details_str;
     if (!msg.submessages().empty()) {
-      std::vector<std::u16string> detail_lines_with_bullets;
+      std::vector<base::string16> detail_lines_with_bullets;
       for (const auto& detail_line : msg.submessages()) {
-        detail_lines_with_bullets.push_back(u"- " + detail_line);
+        detail_lines_with_bullets.push_back(base::ASCIIToUTF16("- ") +
+                                            detail_line);
       }
 
-      details_str = base::JoinString(detail_lines_with_bullets, u"\n");
+      details_str =
+          base::JoinString(detail_lines_with_bullets, base::ASCIIToUTF16("\n"));
     }
     details.push_back(details_str);
     is_showing_details.push_back(false);

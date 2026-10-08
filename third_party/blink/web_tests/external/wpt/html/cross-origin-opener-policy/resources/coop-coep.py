@@ -1,15 +1,9 @@
-import json
-
 def main(request, response):
-    requestData = request.GET
-    if request.method == u"POST":
-        requestData = request.POST
-
-    coop = requestData.first(b"coop")
-    coopReportOnly = requestData.first(b"coop-report-only", None)
-    coep = requestData.first(b"coep")
-    coepReportOnly = requestData.first(b"coep-report-only", None)
-    redirect = requestData.first(b"redirect", None)
+    coop = request.GET.first(b"coop")
+    coopReportOnly = request.GET.first(b"coop-report-only", None)
+    coep = request.GET.first(b"coep")
+    coepReportOnly = request.GET.first(b"coep-report-only", None)
+    redirect = request.GET.first(b"redirect", None)
     if coop != b"":
         response.headers.set(b"Cross-Origin-Opener-Policy", coop)
     if coopReportOnly is not None:
@@ -18,7 +12,7 @@ def main(request, response):
         response.headers.set(b"Cross-Origin-Embedder-Policy", coep)
     if coepReportOnly is not None:
         response.headers.set(b"Cross-Origin-Embedder-Policy-Report-Only", coepReportOnly)
-    if b'cache' in requestData:
+    if b'cache' in request.GET:
         response.headers.set(b'Cache-Control', b'max-age=3600')
     host = request.url_parts[1]
 
@@ -27,23 +21,18 @@ def main(request, response):
         response.headers.set(b"Location", redirect)
         return
 
-    # Collect relevant params to be visible to response JS
-    params = {}
-    for key in (b"navHistory", b"avoidBackAndForth", b"navigate", b"channel", b"responseToken", b"iframeToken"):
-        value = requestData.first(key, None)
-        params[key.decode()] = value and value.decode()
-
+    # This uses an <iframe> as BroadcastChannel is same-origin bound.
     response.content = b"""
 <!doctype html>
 <meta charset=utf-8>
 <script src="/common/get-host-info.sub.js"></script>
-<script src="/html/cross-origin-opener-policy/resources/fully-loaded.js"></script>
+<script src="/html/cross-origin-opener-policy/resources/common.js"></script>
 <body>
 <script>
-  const params = %s;
-  const navHistory = params.navHistory;
-  const avoidBackAndForth = params.avoidBackAndForth;
-  const navigate = params.navigate;
+  const params = new URL(location).searchParams;
+  const navHistory = params.get("navHistory");
+  const avoidBackAndForth = params.get("avoidBackAndForth");
+  const navigate = params.get("navigate");
   if (navHistory !== null) {
     fullyLoaded().then(() => {
       history.go(Number(navHistory));
@@ -70,15 +59,10 @@ def main(request, response):
       const payload = { name: self.name, opener: !!self.opener, openerDOMAccess: openerDOMAccessAllowed };
       iframe.contentWindow.postMessage(payload, "*");
     };
-    const channelName = params.channel;
-    const responseToken = params.responseToken;
-    const iframeToken = params.iframeToken;
-    iframe.src = `${get_host_info().HTTPS_ORIGIN}/html/cross-origin-opener-policy/resources/postback.html` +
-                 `?channel=${encodeURIComponent(channelName)}` +
-                 `&responseToken=${responseToken}` +
-                 `&iframeToken=${iframeToken}`;
+    const channelName = new URL(location).searchParams.get("channel");
+    iframe.src = `${get_host_info().HTTPS_ORIGIN}/html/cross-origin-opener-policy/resources/postback.html?channel=${encodeURIComponent(channelName)}`;
     document.body.appendChild(iframe);
   }
 </script>
 </body>
-""" % json.dumps(params).encode("utf-8")
+"""

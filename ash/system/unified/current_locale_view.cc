@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
-#include "ash/style/ash_color_id.h"
 #include "ash/system/model/system_tray_model.h"
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_utils.h"
@@ -23,8 +22,8 @@ CurrentLocaleView::CurrentLocaleView(Shelf* shelf) : TrayItemView(shelf) {
   SetVisible(false);
   CreateLabel();
   SetupLabelForTray(label());
-  SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
-      kUnifiedTrayTextTopPadding, 0, 0, kUnifiedTrayTextRightPadding)));
+  SetBorder(views::CreateEmptyBorder(kUnifiedTrayTextTopPadding, 0, 0,
+                                     kUnifiedTrayTextRightPadding));
 
   Shell::Get()->system_tray_model()->locale()->AddObserver(this);
 }
@@ -38,12 +37,13 @@ void CurrentLocaleView::OnLocaleListSet() {
   SetVisible(locale_model->ShouldShowCurrentLocaleInStatusArea());
   label()->SetText(base::i18n::ToUpper(base::UTF8ToUTF16(
       l10n_util::GetLanguage(locale_model->current_locale_iso_code()))));
-  label()->SetEnabledColorId(kColorAshIconColorPrimary);
+  label()->SetEnabledColor(
+      TrayIconColor(Shell::Get()->session_controller()->GetSessionState()));
 
   const std::vector<LocaleInfo>& locales = locale_model->locale_list();
   for (auto& entry : locales) {
     if (entry.iso_code == locale_model->current_locale_iso_code()) {
-      const std::u16string description = l10n_util::GetStringFUTF16(
+      const base::string16 description = l10n_util::GetStringFUTF16(
           IDS_ASH_STATUS_TRAY_INDICATOR_LOCALE_TOOLTIP, entry.display_name);
       label()->SetTooltipText(description);
       label()->SetCustomAccessibleName(description);

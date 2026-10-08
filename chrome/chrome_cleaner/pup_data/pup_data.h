@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,8 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
+#include "chrome/chrome_cleaner/chrome_utils/force_installed_extension.h"
 #include "chrome/chrome_cleaner/constants/uws_id.h"
 #include "chrome/chrome_cleaner/logging/proto/shared_data.pb.h"
 #include "chrome/chrome_cleaner/os/disk_util_types.h"
@@ -319,6 +321,10 @@ class PUPData {
     // target process when the engine is sandboxed.
     FileInfoMap disk_footprints_info;
 
+    // List of UwE found by the scanner. Populated in the broker process after
+    // the PUPData is copied from the target process.
+    std::vector<ForceInstalledExtension> matched_extensions;
+
    protected:
     // Allow PUPData to update |signature_| when UpdateCachedUwSForTesting is
     // called. The signature pointers can be invalidated when TestPUPData
@@ -330,10 +336,6 @@ class PUPData {
   };
 
   PUPData();
-
-  PUPData(const PUPData&) = delete;
-  PUPData& operator=(const PUPData&) = delete;
-
   ~PUPData();
 
   using UwSCatalogs = std::vector<const UwSCatalog*>;
@@ -456,6 +458,8 @@ class PUPData {
   static std::vector<UwSId>* cached_uws_ids_;
 
   static UwSCatalogs* last_uws_catalogs_;
+
+  DISALLOW_COPY_AND_ASSIGN(PUPData);
 };
 
 // This macro makes it easier to create strings with the

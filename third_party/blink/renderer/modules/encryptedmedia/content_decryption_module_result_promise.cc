@@ -1,15 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/encryptedmedia/content_decryption_module_result_promise.h"
 
-#include "media/base/key_systems.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
@@ -17,6 +15,7 @@
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
+#include "third_party/blink/renderer/platform/wtf/assertions.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -40,11 +39,9 @@ ExceptionCode WebCdmExceptionToExceptionCode(
 
 ContentDecryptionModuleResultPromise::ContentDecryptionModuleResultPromise(
     ScriptState* script_state,
-    const MediaKeysConfig& config,
-    EmeApiType api_type)
+    EmeApiType type)
     : resolver_(MakeGarbageCollected<ScriptPromiseResolver>(script_state)),
-      config_(config),
-      api_type_(api_type) {}
+      type_(type) {}
 
 ContentDecryptionModuleResultPromise::~ContentDecryptionModuleResultPromise() =
     default;
@@ -97,11 +94,7 @@ void ContentDecryptionModuleResultPromise::CompleteWithError(
     if (document) {
       ukm::builders::Media_EME_ApiPromiseRejection builder(
           document->UkmSourceID());
-      builder.SetKeySystem(
-          media::GetKeySystemIntForUKM(config_.key_system.Ascii()));
-      builder.SetUseHardwareSecureCodecs(
-          static_cast<int>(config_.use_hardware_secure_codecs));
-      builder.SetApi(static_cast<int>(api_type_));
+      builder.SetApi(static_cast<int>(type_));
       builder.SetSystemCode(system_code);
       builder.Record(document->UkmRecorder());
     }
@@ -113,7 +106,7 @@ void ContentDecryptionModuleResultPromise::CompleteWithError(
   StringBuilder result;
   result.Append(error_message);
   if (system_code != 0) {
-    if (result.empty())
+    if (result.IsEmpty())
       result.Append("Rejected with system code");
     result.Append(" (");
     result.AppendNumber(system_code);
@@ -132,11 +125,10 @@ void ContentDecryptionModuleResultPromise::Reject(ExceptionCode code,
   DCHECK(IsValidToFulfillPromise());
 
   ScriptState::Scope scope(resolver_->GetScriptState());
-  ExceptionState exception_state(
-      resolver_->GetScriptState()->GetIsolate(),
-      ExceptionState::kExecutionContext,
-      EncryptedMediaUtils::GetInterfaceName(api_type_),
-      EncryptedMediaUtils::GetPropertyName(api_type_));
+  ExceptionState exception_state(resolver_->GetScriptState()->GetIsolate(),
+                                 ExceptionState::kExecutionContext,
+                                 EncryptedMediaUtils::GetInterfaceName(type_),
+                                 EncryptedMediaUtils::GetPropertyName(type_));
   exception_state.ThrowException(code, error_message);
   resolver_->Reject(exception_state);
 
@@ -154,10 +146,6 @@ bool ContentDecryptionModuleResultPromise::IsValidToFulfillPromise() {
   // process of being destroyed. If it is, there is no need to fulfill this
   // promise which is about to go away anyway.
   return GetExecutionContext() && !GetExecutionContext()->IsContextDestroyed();
-}
-
-MediaKeysConfig ContentDecryptionModuleResultPromise::GetMediaKeysConfig() {
-  return config_;
 }
 
 void ContentDecryptionModuleResultPromise::Trace(Visitor* visitor) const {

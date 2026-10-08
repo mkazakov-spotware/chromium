@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_LABEL_ELEMENT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_LABEL_ELEMENT_H_
 
-#include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/web/web_element.h"
 
 namespace blink {
@@ -39,7 +38,7 @@ namespace blink {
 class HTMLLabelElement;
 
 // Provides readonly access to some properties of a DOM label element node.
-class BLINK_EXPORT WebLabelElement final : public WebElement {
+class WebLabelElement final : public WebElement {
  public:
   WebLabelElement() : WebElement() {}
   WebLabelElement(const WebLabelElement& element) = default;
@@ -51,7 +50,7 @@ class BLINK_EXPORT WebLabelElement final : public WebElement {
 
   void Assign(const WebLabelElement& element) { WebElement::Assign(element); }
 
-  WebElement CorrespondingControl();
+  BLINK_EXPORT WebElement CorrespondingControl();
 
 #if INSIDE_BLINK
   WebLabelElement(HTMLLabelElement*);
@@ -64,4 +63,4 @@ DECLARE_WEB_NODE_TYPE_CASTS(WebLabelElement);
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_LABEL_ELEMENT_H_
+#endif

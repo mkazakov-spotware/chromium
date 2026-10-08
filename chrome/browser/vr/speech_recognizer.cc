@@ -1,13 +1,13 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/speech_recognizer.h"
 
 #include <memory>
-#include <string>
 
 #include "base/bind.h"
+#include "base/strings/string16.h"
 #include "chrome/browser/vr/browser_ui_interface.h"
 #include "chrome/grit/generated_resources.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -53,10 +53,6 @@ content::SpeechRecognitionManager* GetSpeechRecognitionManager() {
 class SpeechRecognizerOnIO : public content::SpeechRecognitionEventListener {
  public:
   SpeechRecognizerOnIO();
-
-  SpeechRecognizerOnIO(const SpeechRecognizerOnIO&) = delete;
-  SpeechRecognizerOnIO& operator=(const SpeechRecognizerOnIO&) = delete;
-
   ~SpeechRecognizerOnIO() override;
 
   // |pending_shared_url_loader_factory| must be non-null for the first call to
@@ -110,9 +106,11 @@ class SpeechRecognizerOnIO : public content::SpeechRecognitionEventListener {
   std::string locale_;
   std::unique_ptr<base::OneShotTimer> speech_timeout_;
   int session_;
-  std::u16string last_result_str_;
+  base::string16 last_result_str_;
 
   base::WeakPtrFactory<SpeechRecognizerOnIO> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SpeechRecognizerOnIO);
 };
 
 SpeechRecognizerOnIO::SpeechRecognizerOnIO()
@@ -188,7 +186,8 @@ void SpeechRecognizerOnIO::NotifyRecognitionStateChanged(
 
 void SpeechRecognizerOnIO::StartSpeechTimeout(int timeout_seconds) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
-  speech_timeout_->Start(FROM_HERE, base::Seconds(timeout_seconds),
+  speech_timeout_->Start(FROM_HERE,
+                         base::TimeDelta::FromSeconds(timeout_seconds),
                          base::BindOnce(&SpeechRecognizerOnIO::SpeechTimeout,
                                         weak_factory_.GetWeakPtr()));
 }
@@ -211,7 +210,7 @@ void SpeechRecognizerOnIO::OnRecognitionEnd(int session_id) {
 void SpeechRecognizerOnIO::OnRecognitionResults(
     int session_id,
     const std::vector<blink::mojom::SpeechRecognitionResultPtr>& results) {
-  std::u16string result_str;
+  base::string16 result_str;
   size_t final_count = 0;
   // The number of results with |is_provisional| false. If |final_count| ==
   // results.size(), then all results are non-provisional and the recognition is
@@ -346,7 +345,7 @@ void SpeechRecognizer::Stop() {
   }
 }
 
-void SpeechRecognizer::OnSpeechResult(const std::u16string& query,
+void SpeechRecognizer::OnSpeechResult(const base::string16& query,
                                       bool is_final) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!is_final)

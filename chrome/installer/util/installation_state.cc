@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/installer/util/installation_state.h"
-
-#include <memory>
 
 #include "base/check.h"
 #include "base/strings/string_util.h"
@@ -12,7 +10,6 @@
 #include "base/version.h"
 #include "base/win/registry.h"
 #include "chrome/install_static/install_util.h"
-#include "chrome/installer/util/app_commands.h"
 #include "chrome/installer/util/google_update_constants.h"
 #include "chrome/installer/util/install_util.h"
 #include "chrome/installer/util/util_constants.h"
@@ -61,11 +58,10 @@ bool ProductState::Initialize(bool system_install) {
 
   // Read from the Clients key.
   if (key.Open(root_key, clients_key.c_str(), kAccess) == ERROR_SUCCESS) {
-    std::wstring version_str;
+    base::string16 version_str;
     if (key.ReadValue(google_update::kRegVersionField, &version_str) ==
         ERROR_SUCCESS) {
-      version_ =
-          std::make_unique<base::Version>(base::WideToASCII(version_str));
+      version_.reset(new base::Version(base::UTF16ToASCII(version_str)));
       if (!version_->IsValid())
         version_.reset();
     }
@@ -75,12 +71,12 @@ bool ProductState::Initialize(bool system_install) {
     // only be accessible via InstallationState::GetNonVersionedProductState.
     if (key.ReadValue(google_update::kRegOldVersionField, &version_str) ==
         ERROR_SUCCESS) {
-      old_version_ =
-          std::make_unique<base::Version>(base::WideToASCII(version_str));
+      old_version_.reset(new base::Version(base::UTF16ToASCII(version_str)));
       if (!old_version_->IsValid())
         old_version_.reset();
     }
 
+    key.ReadValue(google_update::kRegRenameCmdField, &rename_cmd_);
     if (!InitializeCommands(key, &commands_))
       commands_.Clear();
   }
@@ -89,6 +85,8 @@ bool ProductState::Initialize(bool system_install) {
   if (key.Open(root_key, state_key.c_str(), kAccess) == ERROR_SUCCESS) {
     std::wstring setup_path;
     std::wstring uninstall_arguments;
+    // "ap" will be absent if not managed by Google Update.
+    channel_.Initialize(key);
 
     // Read in the brand code, it may be absent
     key.ReadValue(google_update::kRegBrandField, &brand_);
@@ -149,12 +147,14 @@ const base::Version& ProductState::version() const {
 }
 
 ProductState& ProductState::CopyFrom(const ProductState& other) {
+  channel_.set_value(other.channel_.value());
   version_.reset(other.version_.get() ? new base::Version(*other.version_)
                                       : nullptr);
   old_version_.reset(other.old_version_.get()
                          ? new base::Version(*other.old_version_)
                          : nullptr);
   brand_ = other.brand_;
+  rename_cmd_ = other.rename_cmd_;
   uninstall_command_ = other.uninstall_command_;
   oem_install_ = other.oem_install_;
   commands_.CopyFrom(other.commands_);
@@ -169,9 +169,11 @@ ProductState& ProductState::CopyFrom(const ProductState& other) {
 }
 
 void ProductState::Clear() {
+  channel_.set_value(std::wstring());
   version_.reset();
   old_version_.reset();
   brand_.clear();
+  rename_cmd_.clear();
   oem_install_.clear();
   uninstall_command_ = base::CommandLine(base::CommandLine::NO_PROGRAM);
   commands_.Clear();

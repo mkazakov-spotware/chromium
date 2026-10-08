@@ -28,16 +28,13 @@ test(function() {
 }, 'username property on non relative URL');
 
 test(function() {
-    var url = new URL('http://user:@www.domain.com/');
-    var expected = 'user';
-    assert_equals(url.username, expected);
-
-    assert_throws_js(TypeError, () => { url.href = 'invalid'; });
-    assert_equals(url.username, expected);
+    var url = new URL('http://www.domain.com/');
+    url.href = 'invalid';
+    assert_equals(url.username, '');
 
     url.username = 'changed';
-    assert_equals(url.username, 'changed');
-    assert_equals(url.href, 'http://changed@www.domain.com/');
+    assert_equals(url.username, '');
+    assert_equals(url.href, 'invalid');
 }, 'username property invalid URL');
 
 </script>

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/wm/workspace/workspace_types.h"
+#include "base/macros.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 
@@ -23,10 +24,6 @@ class ASH_EXPORT WorkspaceController : public aura::WindowObserver {
  public:
   // Installs WorkspaceLayoutManager on |viewport|.
   explicit WorkspaceController(aura::Window* viewport);
-
-  WorkspaceController(const WorkspaceController&) = delete;
-  WorkspaceController& operator=(const WorkspaceController&) = delete;
-
   ~WorkspaceController() override;
 
   // Returns the current window state.
@@ -48,6 +45,8 @@ class ASH_EXPORT WorkspaceController : public aura::WindowObserver {
 
   // Owned by |viewport_|.
   WorkspaceLayoutManager* layout_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(WorkspaceController);
 };
 
 // Sets the given |workspace_controller| as a property of |desk_container|. Only
@@ -55,7 +54,7 @@ class ASH_EXPORT WorkspaceController : public aura::WindowObserver {
 // the property will be cleared from |desk_container|.
 ASH_EXPORT void SetWorkspaceController(
     aura::Window* desk_container,
-    std::unique_ptr<WorkspaceController> workspace_controller);
+    WorkspaceController* workspace_controller);
 
 // Gets the worspace controller from the properties of the specific given
 // |desk_container|. Only virtual desks containers are accepted.

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <windows.h>
 
 #include "printing/backend/win_helper.h"
-#include "printing/mojom/print.mojom.h"
 #include "printing/print_settings.h"
 
 namespace printing {
@@ -118,7 +117,7 @@ void PrintSettingsInitializerWin::InitPrintSettings(
   DCHECK_EQ(GetDeviceCaps(hdc, SCALINGFACTORX), 0);
   DCHECK_EQ(GetDeviceCaps(hdc, SCALINGFACTORY), 0);
 
-  // Initialize `page_setup_device_units_`.
+  // Initialize |page_setup_device_units_|.
   // Blink doesn't support different dpi settings in X and Y axis. However,
   // some printers use them. So, to avoid a bad page calculation, scale page
   // size components based on the dpi in the appropriate dimension.
@@ -152,26 +151,25 @@ void PrintSettingsInitializerWin::InitPrintSettings(
   int level;
   if (IsPrinterPostScript(hdc, &level)) {
     if (level == 2) {
-      print_settings->set_printer_language_type(
-          mojom::PrinterLanguageType::kPostscriptLevel2);
+      print_settings->set_printer_type(
+          PrintSettings::PrinterType::TYPE_POSTSCRIPT_LEVEL2);
       return;
     }
     DCHECK_EQ(3, level);
-    print_settings->set_printer_language_type(
-        mojom::PrinterLanguageType::kPostscriptLevel3);
+    print_settings->set_printer_type(
+        PrintSettings::PrinterType::TYPE_POSTSCRIPT_LEVEL3);
     return;
   }
   // Detects the generic / text only driver.
   if (IsPrinterTextOnly(hdc)) {
-    print_settings->set_printer_language_type(
-        mojom::PrinterLanguageType::kTextOnly);
+    print_settings->set_printer_type(PrintSettings::PrinterType::TYPE_TEXTONLY);
     return;
   }
   if (IsPrinterXPS(hdc)) {
-    print_settings->set_printer_language_type(mojom::PrinterLanguageType::kXps);
+    print_settings->set_printer_type(PrintSettings::PrinterType::TYPE_XPS);
     return;
   }
-  print_settings->set_printer_language_type(mojom::PrinterLanguageType::kNone);
+  print_settings->set_printer_type(PrintSettings::PrinterType::TYPE_NONE);
 }
 
 }  // namespace printing

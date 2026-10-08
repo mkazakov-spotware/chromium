@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ class ASH_EXPORT PrivacyScreenToastView : public views::View,
   void SetPrivacyScreenEnabled(bool enabled, bool managed);
 
   // Returns the accessible name for the view.
-  std::u16string GetAccessibleName();
+  base::string16 GetAccessibleName();
 
   // Returns true if the toggle button is focused.
   bool IsButtonFocused() const;

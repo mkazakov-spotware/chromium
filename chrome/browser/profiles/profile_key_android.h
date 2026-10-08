@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 
 class ProfileKey;
 
@@ -26,17 +26,18 @@ class ProfileKeyAndroid {
   GetLastUsedRegularProfileKey(JNIEnv* env);
 
   // Return the original profile key.
-  base::android::ScopedJavaLocalRef<jobject> GetOriginalKey(JNIEnv* env);
+  base::android::ScopedJavaLocalRef<jobject> GetOriginalKey(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& obj);
 
   // Whether this profile is off the record.
-  jboolean IsOffTheRecord(JNIEnv* env);
-
-  jlong GetSimpleFactoryKeyPointer(JNIEnv* env);
+  jboolean IsOffTheRecord(JNIEnv* env,
+                          const base::android::JavaParamRef<jobject>& obj);
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
  private:
-  raw_ptr<ProfileKey> key_;
+  ProfileKey* key_;
   base::android::ScopedJavaGlobalRef<jobject> obj_;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 #include "content/renderer/pepper/pepper_plugin_instance_impl.h"
 #include "content/renderer/pepper/ppapi_preferences_builder.h"
 #include "content/renderer/pepper/renderer_ppapi_host_impl.h"
+#include "content/renderer/render_view_impl.h"
 #include "gpu/config/gpu_feature_info.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_macros.h"
@@ -31,7 +32,6 @@
 #include "ppapi/shared_impl/ppapi_permissions.h"
 #include "ppapi/shared_impl/resource_tracker.h"
 #include "ppapi/shared_impl/var.h"
-#include "third_party/blink/public/web/web_view.h"
 
 // Note that the code in the creation functions in this file should generally
 // be the same as that in ppapi/proxy/resource_creation_proxy.cc. See
@@ -58,9 +58,7 @@ PP_Resource PepperInProcessResourceCreation::CreateBrowserFont(
   // GPU process whether these features are blacklisted or not.
   gpu::GpuFeatureInfo gpu_feature_info;
   ppapi::Preferences prefs(PpapiPreferencesBuilder::Build(
-      host_impl_->GetRenderFrameForInstance(instance)
-          ->GetWebView()
-          ->GetWebPreferences(),
+      host_impl_->GetRenderViewForInstance(instance)->GetBlinkPreferences(),
       gpu_feature_info));
   return (new BrowserFontResource_Trusted(
               host_impl_->in_process_router()->GetPluginConnection(instance),

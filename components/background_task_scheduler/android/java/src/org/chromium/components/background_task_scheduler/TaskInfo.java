@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -349,9 +349,6 @@ public class TaskInfo {
         }
 
         /**
-         * TODO(crbug.com/1190755): Either remove this or make sure it's compatible with Android S.
-         * Warning: This functionality might get removed, check with OWNERS before using this in new
-         * code: //components/background_task_scheduler/OWNERS.
          * @return a new {@link Builder} object to set the values of the exact task.
          */
         public static Builder create() {

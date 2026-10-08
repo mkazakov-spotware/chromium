@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/offline_pages/resource_loading_observer.h"
 #include "components/offline_pages/content/background_loader/background_loader_contents.h"
@@ -32,6 +30,7 @@ namespace offline_pages {
 
 class OfflinerPolicy;
 class OfflinePageModel;
+class PageRenovationLoader;
 class PageRenovator;
 
 struct RequestStats {
@@ -56,10 +55,6 @@ class BackgroundLoaderOffliner
       const OfflinerPolicy* policy,
       OfflinePageModel* offline_page_model,
       std::unique_ptr<LoadTerminationListener> load_termination_listener);
-
-  BackgroundLoaderOffliner(const BackgroundLoaderOffliner&) = delete;
-  BackgroundLoaderOffliner& operator=(const BackgroundLoaderOffliner&) = delete;
-
   ~BackgroundLoaderOffliner() override;
 
   static BackgroundLoaderOffliner* FromWebContents(
@@ -80,16 +75,16 @@ class BackgroundLoaderOffliner
   void CanDownload(base::OnceCallback<void(bool)> callback) override;
 
   // WebContentsObserver implementation.
-  void PrimaryMainDocumentElementAvailable() override;
-  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
-  void PrimaryMainFrameRenderProcessGone(
-      base::TerminationStatus status) override;
+  void DocumentAvailableInMainFrame() override;
+  void DocumentOnLoadCompletedInMainFrame() override;
+  void RenderProcessGone(base::TerminationStatus status) override;
   void WebContentsDestroyed() override;
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
 
   // BackgroundSnapshotController::Client implementation.
   void StartSnapshot() override;
+  void RunRenovations() override;
 
   void SetBackgroundSnapshotControllerForTest(
       std::unique_ptr<BackgroundSnapshotController> controller);
@@ -156,11 +151,11 @@ class BackgroundLoaderOffliner
 
   std::unique_ptr<background_loader::BackgroundLoaderContents> loader_;
   // Not owned.
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
   // Not owned.
-  raw_ptr<OfflinePageModel> offline_page_model_;
+  OfflinePageModel* offline_page_model_;
   // Not owned.
-  raw_ptr<const OfflinerPolicy> policy_;
+  const OfflinerPolicy* policy_;
   // Tracks pending request, if any.
   std::unique_ptr<SavePageRequest> pending_request_;
   // Handles determining when a page should be snapshotted.
@@ -174,6 +169,11 @@ class BackgroundLoaderOffliner
   std::unique_ptr<LoadTerminationListener> load_termination_listener_;
   // Whether we are on a low-end device.
   bool is_low_end_device_;
+
+  // PageRenovationLoader must live longer than the PageRenovator.
+  std::unique_ptr<PageRenovationLoader> page_renovation_loader_;
+  // Per-offliner PageRenovator instance.
+  std::unique_ptr<PageRenovator> page_renovator_;
 
   // Save state.
   SaveState save_state_;
@@ -200,6 +200,7 @@ class BackgroundLoaderOffliner
   RequestStats stats_[ResourceDataType::RESOURCE_DATA_TYPE_COUNT];
 
   base::WeakPtrFactory<BackgroundLoaderOffliner> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(BackgroundLoaderOffliner);
 };
 
 }  // namespace offline_pages

@@ -1,13 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_WORKER_HOST_DEDICATED_WORKER_SERVICE_IMPL_H_
 #define CONTENT_BROWSER_WORKER_HOST_DEDICATED_WORKER_SERVICE_IMPL_H_
 
-#include "base/containers/flat_map.h"
 #include "base/observer_list.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/dedicated_worker_service.h"
 #include "url/gurl.h"
 
@@ -29,12 +27,15 @@ class CONTENT_EXPORT DedicatedWorkerServiceImpl
   void EnumerateDedicatedWorkers(Observer* observer) override;
 
   // Notifies all observers about a new worker.
-  void NotifyWorkerCreated(DedicatedWorkerHost* host);
+  void NotifyWorkerCreated(const blink::DedicatedWorkerToken& worker_token,
+                           int worker_process_id,
+                           GlobalFrameRoutingId ancestor_render_frame_host_id,
+                           DedicatedWorkerHost* host);
 
   // Notifies all observers about a worker being destroyed.
   void NotifyBeforeWorkerDestroyed(
       const blink::DedicatedWorkerToken& worker_token,
-      GlobalRenderFrameHostId ancestor_render_frame_host_id);
+      GlobalFrameRoutingId ancestor_render_frame_host_id);
 
   // Notifies all observers that a worker's final response URL was determined.
   void NotifyWorkerFinalResponseURLDetermined(
@@ -53,8 +54,26 @@ class CONTENT_EXPORT DedicatedWorkerServiceImpl
 
  private:
   base::ObserverList<Observer> observers_;
-  base::flat_map<blink::DedicatedWorkerToken, DedicatedWorkerHost*>
-      dedicated_worker_hosts_;
+
+  // TODO(chromium:1145158): Remove this struct.
+  struct DedicatedWorkerInfo {
+    DedicatedWorkerInfo(int worker_process_id,
+                        GlobalFrameRoutingId ancestor_render_frame_host_id,
+                        DedicatedWorkerHost* dedicated_worker_host);
+    ~DedicatedWorkerInfo();
+
+    DedicatedWorkerInfo(const DedicatedWorkerInfo& info);
+    DedicatedWorkerInfo& operator=(const DedicatedWorkerInfo& info);
+
+    int worker_process_id;
+    GlobalFrameRoutingId ancestor_render_frame_host_id;
+    base::Optional<GURL> final_response_url;
+    // This rawptr is valid while the corresponding DedicatedWorkerInfo is kept
+    // by DedicatedWorkerServiceImpl.
+    DedicatedWorkerHost* dedicated_worker_host;
+  };
+  base::flat_map<blink::DedicatedWorkerToken, DedicatedWorkerInfo>
+      dedicated_worker_infos_;
 };
 
 }  // namespace content

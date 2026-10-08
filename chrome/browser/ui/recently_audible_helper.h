@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_UI_RECENTLY_AUDIBLE_HELPER_H_
 
 #include "base/callback_list.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -26,14 +26,12 @@ class RecentlyAudibleHelper
  public:
   // This corresponds to the amount of time that the "audio playing" icon will
   // persist in the tab strip after audio has stopped playing.
-  static constexpr base::TimeDelta kRecentlyAudibleTimeout = base::Seconds(2);
+  static constexpr base::TimeDelta kRecentlyAudibleTimeout =
+      base::TimeDelta::FromSeconds(2);
 
-  using CallbackList =
-      base::RepeatingCallbackList<void(bool was_recently_audible)>;
+  using CallbackList = base::CallbackList<void(bool was_recently_audible)>;
   using Callback = CallbackList::CallbackType;
-
-  RecentlyAudibleHelper(const RecentlyAudibleHelper&) = delete;
-  RecentlyAudibleHelper& operator=(const RecentlyAudibleHelper&) = delete;
+  using Subscription = CallbackList::Subscription;
 
   ~RecentlyAudibleHelper() override;
 
@@ -50,8 +48,7 @@ class RecentlyAudibleHelper
   // Registers the provided repeating callback for notifications. Destroying
   // the returned subscription will unregister the callback. This is safe to do
   // while in the context of the callback itself.
-  base::CallbackListSubscription RegisterCallbackForTesting(
-      const Callback& callback);
+  std::unique_ptr<Subscription> RegisterCallback(const Callback& callback);
 
   // Allows replacing the tick clock that is used by this class. Setting it back
   // to nullptr will restore the default tick clock.
@@ -94,9 +91,11 @@ class RecentlyAudibleHelper
   CallbackList callback_list_;
 
   // The tick clock this object is using.
-  raw_ptr<const base::TickClock> tick_clock_;
+  const base::TickClock* tick_clock_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(RecentlyAudibleHelper);
 };
 
 #endif  // CHROME_BROWSER_UI_RECENTLY_AUDIBLE_HELPER_H_

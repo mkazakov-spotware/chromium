@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ namespace {
 
 void AppendCookieToVectorIfMatchAndHasHostPermission(
     const net::CanonicalCookie cookie,
-    GetAll::Params::Details* details,
+    const GetAll::Params::Details* details,
     const Extension* extension,
     std::vector<Cookie>* match_vector) {
   // Ignore any cookie whose domain doesn't match the extension's
@@ -75,8 +75,8 @@ Profile* ChooseProfileFromStoreId(const std::string& store_id,
   if (store_id == kOriginalProfileStoreId && allow_original)
     return profile->GetOriginalProfile();
   if (store_id == kOffTheRecordProfileStoreId && allow_incognito)
-    return profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  return nullptr;
+    return profile->GetPrimaryOTRProfile();
+  return NULL;
 }
 
 const char* GetStoreIdFromProfile(Profile* profile) {
@@ -125,21 +125,23 @@ Cookie CreateCookie(const net::CanonicalCookie& canonical_cookie,
         !std::isfinite(expiration_date)) {
       expiration_date = std::numeric_limits<double>::max();
     }
-    cookie.expiration_date = expiration_date;
+    cookie.expiration_date = std::make_unique<double>(expiration_date);
   }
   cookie.store_id = store_id;
 
   return cookie;
 }
 
-CookieStore CreateCookieStore(Profile* profile, base::Value::List tab_ids) {
+CookieStore CreateCookieStore(Profile* profile,
+                              std::unique_ptr<base::ListValue> tab_ids) {
   DCHECK(profile);
-  base::Value::Dict dict;
-  dict.Set(cookies_api_constants::kIdKey, GetStoreIdFromProfile(profile));
+  DCHECK(tab_ids);
+  base::DictionaryValue dict;
+  dict.SetString(cookies_api_constants::kIdKey, GetStoreIdFromProfile(profile));
   dict.Set(cookies_api_constants::kTabIdsKey, std::move(tab_ids));
 
   CookieStore cookie_store;
-  bool rv = CookieStore::Populate(base::Value(std::move(dict)), &cookie_store);
+  bool rv = CookieStore::Populate(dict, &cookie_store);
   CHECK(rv);
   return cookie_store;
 }
@@ -149,7 +151,6 @@ void GetCookieListFromManager(
     const GURL& url,
     network::mojom::CookieManager::GetCookieListCallback callback) {
   manager->GetCookieList(url, net::CookieOptions::MakeAllInclusive(),
-                         net::CookiePartitionKeyCollection::Todo(),
                          std::move(callback));
 }
 
@@ -172,7 +173,7 @@ GURL GetURLFromCanonicalCookie(const net::CanonicalCookie& cookie) {
 
 void AppendMatchingCookiesFromCookieListToVector(
     const net::CookieList& all_cookies,
-    GetAll::Params::Details* details,
+    const GetAll::Params::Details* details,
     const Extension* extension,
     std::vector<Cookie>* match_vector) {
   for (const net::CanonicalCookie& cookie : all_cookies) {
@@ -183,7 +184,7 @@ void AppendMatchingCookiesFromCookieListToVector(
 
 void AppendMatchingCookiesFromCookieAccessResultListToVector(
     const net::CookieAccessResultList& all_cookies_with_access_result,
-    GetAll::Params::Details* details,
+    const GetAll::Params::Details* details,
     const Extension* extension,
     std::vector<Cookie>* match_vector) {
   for (const net::CookieWithAccessResult& cookie_with_access_result :
@@ -194,40 +195,43 @@ void AppendMatchingCookiesFromCookieAccessResultListToVector(
   }
 }
 
-void AppendToTabIdList(Browser* browser, base::Value::List& tab_ids) {
+void AppendToTabIdList(Browser* browser, base::ListValue* tab_ids) {
   DCHECK(browser);
+  DCHECK(tab_ids);
   TabStripModel* tab_strip = browser->tab_strip_model();
   for (int i = 0; i < tab_strip->count(); ++i) {
-    tab_ids.Append(ExtensionTabUtil::GetTabId(tab_strip->GetWebContentsAt(i)));
+    tab_ids->AppendInteger(
+        ExtensionTabUtil::GetTabId(tab_strip->GetWebContentsAt(i)));
   }
 }
 
-MatchFilter::MatchFilter(GetAll::Params::Details* details) : details_(details) {
+MatchFilter::MatchFilter(const GetAll::Params::Details* details)
+    : details_(details) {
   DCHECK(details_);
 }
 
 bool MatchFilter::MatchesCookie(
     const net::CanonicalCookie& cookie) {
-  if (details_->name && *details_->name != cookie.Name())
+  if (details_->name.get() && *details_->name != cookie.Name())
     return false;
 
   if (!MatchesDomain(cookie.Domain()))
     return false;
 
-  if (details_->path && *details_->path != cookie.Path())
+  if (details_->path.get() && *details_->path != cookie.Path())
     return false;
 
-  if (details_->secure && *details_->secure != cookie.IsSecure())
+  if (details_->secure.get() && *details_->secure != cookie.IsSecure())
     return false;
 
-  if (details_->session && *details_->session != !cookie.IsPersistent())
+  if (details_->session.get() && *details_->session != !cookie.IsPersistent())
     return false;
 
   return true;
 }
 
 bool MatchFilter::MatchesDomain(const std::string& domain) {
-  if (!details_->domain)
+  if (!details_->domain.get())
     return true;
 
   // Add a leading '.' character to the filter domain if it doesn't exist.

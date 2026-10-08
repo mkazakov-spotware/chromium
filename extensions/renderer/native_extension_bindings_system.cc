@@ -1,21 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/native_extension_bindings_system.h"
 
-#include <utility>
-
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/string_piece.h"
-#include "base/strings/stringprintf.h"
 #include "base/timer/elapsed_timer.h"
 #include "components/crx_file/id_util.h"
 #include "content/public/common/content_switches.h"
 #include "extensions/common/constants.h"
+#include "extensions/common/event_filtering_info.h"
 #include "extensions/common/extension_api.h"
 #include "extensions/common/extension_messages.h"
 #include "extensions/common/features/feature.h"
@@ -23,14 +20,6 @@
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/content_capabilities_handler.h"
 #include "extensions/common/manifest_handlers/externally_connectable.h"
-#include "extensions/common/mojom/event_dispatcher.mojom.h"
-#include "extensions/common/mojom/frame.mojom.h"
-#include "extensions/renderer/api/declarative_content_hooks_delegate.h"
-#include "extensions/renderer/api/dom_hooks_delegate.h"
-#include "extensions/renderer/api/feedback_private_hooks_delegate.h"
-#include "extensions/renderer/api/i18n_hooks_delegate.h"
-#include "extensions/renderer/api/runtime_hooks_delegate.h"
-#include "extensions/renderer/api/web_request_hooks.h"
 #include "extensions/renderer/api_activity_logger.h"
 #include "extensions/renderer/bindings/api_binding_bridge.h"
 #include "extensions/renderer/bindings/api_binding_hooks.h"
@@ -39,30 +28,29 @@
 #include "extensions/renderer/chrome_setting.h"
 #include "extensions/renderer/console.h"
 #include "extensions/renderer/content_setting.h"
+#include "extensions/renderer/declarative_content_hooks_delegate.h"
+#include "extensions/renderer/dom_hooks_delegate.h"
 #include "extensions/renderer/extension_frame_helper.h"
 #include "extensions/renderer/extension_interaction_provider.h"
 #include "extensions/renderer/extension_js_runner.h"
 #include "extensions/renderer/get_script_context.h"
+#include "extensions/renderer/i18n_hooks_delegate.h"
 #include "extensions/renderer/ipc_message_sender.h"
 #include "extensions/renderer/module_system.h"
 #include "extensions/renderer/renderer_extension_registry.h"
+#include "extensions/renderer/runtime_hooks_delegate.h"
 #include "extensions/renderer/script_context.h"
 #include "extensions/renderer/script_context_set_iterable.h"
 #include "extensions/renderer/storage_area.h"
+#include "extensions/renderer/web_request_hooks.h"
 #include "extensions/renderer/worker_thread_util.h"
 #include "gin/converter.h"
-#include "gin/data_object_builder.h"
 #include "gin/handle.h"
 #include "gin/per_context_data.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_registration.mojom.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-primitive.h"
-#include "v8/include/v8-template.h"
 
 namespace extensions {
 
@@ -88,8 +76,9 @@ bool IsPrefixedAPI(base::StringPiece api, base::StringPiece root_api) {
 // 'cast.streaming.session' and a reference of 'cast', this returns
 // 'cast.streaming'. If reference is empty, this simply returns the first layer;
 // so given 'app.runtime' and no reference, this returns 'app'.
-base::StringPiece GetFirstDifferentAPIName(base::StringPiece api_name,
-                                           base::StringPiece reference) {
+base::StringPiece GetFirstDifferentAPIName(
+    base::StringPiece api_name,
+    base::StringPiece reference) {
   base::StringPiece::size_type dot =
       api_name.find('.', reference.empty() ? 0 : reference.size() + 1);
   if (dot == base::StringPiece::npos)
@@ -132,8 +121,9 @@ v8::Local<v8::Object> GetOrCreateChrome(v8::Local<v8::Context> context) {
   v8::Local<v8::Object> chrome_object;
   if (chrome_value->IsUndefined()) {
     chrome_object = v8::Object::New(context->GetIsolate());
-    v8::Maybe<bool> success = context->Global()->CreateDataProperty(
-        context, chrome_string, chrome_object);
+    v8::Maybe<bool> success =
+        context->Global()->CreateDataProperty(context, chrome_string,
+                                              chrome_object);
     if (!success.IsJust() || !success.FromJust())
       return v8::Local<v8::Object>();
   } else if (chrome_value->IsObject()) {
@@ -148,7 +138,7 @@ v8::Local<v8::Object> GetOrCreateChrome(v8::Local<v8::Context> context) {
     // chrome object we construct, and check if it's present. Unfortunately, we
     // need to a) track down each place we create the chrome object (it's not
     // just in extensions) and also see how much that would break.
-    if (obj->GetCreationContextChecked() == context)
+    if (obj->CreationContext() == context)
       chrome_object = obj;
   }
 
@@ -188,8 +178,8 @@ void AddConsoleError(v8::Local<v8::Context> context, const std::string& error) {
 }
 
 // Returns the API schema indicated by |api_name|.
-const base::Value::Dict& GetAPISchema(const std::string& api_name) {
-  const base::Value::Dict* schema =
+const base::DictionaryValue& GetAPISchema(const std::string& api_name) {
+  const base::DictionaryValue* schema =
       ExtensionAPI::GetSharedInstance()->GetSchema(api_name);
   CHECK(schema) << api_name;
   return *schema;
@@ -329,7 +319,7 @@ v8::Local<v8::Object> CreateFullBinding(
 
     v8::Local<v8::Object> nested_binding =
         CreateFullBinding(context, script_context, bindings_system,
-                          api_feature_provider, std::string(binding_name));
+                          api_feature_provider, binding_name.as_string());
     // It's possible that we don't create a binding if no features or
     // prefixed features are available to the context.
     if (nested_binding.IsEmpty())
@@ -361,10 +351,7 @@ std::string GetContextOwner(v8::Local<v8::Context> context) {
   const std::string& extension_id = script_context->GetExtensionID();
   bool id_is_valid = crx_file::id_util::IdIsValid(extension_id);
   CHECK(id_is_valid || script_context->url().is_valid());
-  // Use only origin for URLs to match browser logic in EventListener::ForURL().
-  return id_is_valid
-             ? extension_id
-             : url::Origin::Create(script_context->url()).GetURL().spec();
+  return id_is_valid ? extension_id : script_context->url().spec();
 }
 
 // Returns true if any portion of the runtime API is available to the given
@@ -377,11 +364,82 @@ bool IsRuntimeAvailableToContext(ScriptContext* context) {
        *RendererExtensionRegistry::Get()->GetMainThreadExtensionSet()) {
     ExternallyConnectableInfo* info = static_cast<ExternallyConnectableInfo*>(
         extension->GetManifestData(manifest_keys::kExternallyConnectable));
-    if (info && info->matches.MatchesURL(context->url())) {
+    if (info && info->matches.MatchesURL(context->url()))
       return true;
-    }
   }
   return false;
+}
+
+// Logs the amount of time taken to update the bindings for a given context
+// (i.e., UpdateBindingsForContext()).
+void LogUpdateBindingsForContextTime(Feature::Context context_type,
+                                     bool is_for_service_worker,
+                                     base::TimeDelta elapsed) {
+  constexpr int kHistogramBucketCount = 50;
+  static const int kTenSecondsInMicroseconds = 10000000;
+  switch (context_type) {
+    case Feature::UNSPECIFIED_CONTEXT:
+      break;
+    case Feature::WEB_PAGE_CONTEXT:
+      UMA_HISTOGRAM_CUSTOM_COUNTS(
+          "Extensions.Bindings.UpdateBindingsForContextTime.WebPageContext",
+          elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+          kHistogramBucketCount);
+      break;
+    case Feature::BLESSED_WEB_PAGE_CONTEXT:
+      UMA_HISTOGRAM_CUSTOM_COUNTS(
+          "Extensions.Bindings.UpdateBindingsForContextTime."
+          "BlessedWebPageContext",
+          elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+          kHistogramBucketCount);
+      break;
+    case Feature::BLESSED_EXTENSION_CONTEXT:
+      if (is_for_service_worker) {
+        UMA_HISTOGRAM_CUSTOM_COUNTS(
+            "Extensions.Bindings.UpdateBindingsForContextTime."
+            "ServiceWorkerContext",
+            elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+            kHistogramBucketCount);
+      } else {
+        UMA_HISTOGRAM_CUSTOM_COUNTS(
+            "Extensions.Bindings.UpdateBindingsForContextTime."
+            "BlessedExtensionContext",
+            elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+            kHistogramBucketCount);
+      }
+      break;
+    case Feature::LOCK_SCREEN_EXTENSION_CONTEXT:
+      UMA_HISTOGRAM_CUSTOM_COUNTS(
+          "Extensions.Bindings.UpdateBindingsForContextTime."
+          "LockScreenExtensionContext",
+          elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+          kHistogramBucketCount);
+      break;
+    case Feature::UNBLESSED_EXTENSION_CONTEXT:
+      UMA_HISTOGRAM_CUSTOM_COUNTS(
+          "Extensions.Bindings.UpdateBindingsForContextTime."
+          "UnblessedExtensionContext",
+          elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+          kHistogramBucketCount);
+      break;
+    case Feature::CONTENT_SCRIPT_CONTEXT:
+      UMA_HISTOGRAM_CUSTOM_COUNTS(
+          "Extensions.Bindings.UpdateBindingsForContextTime."
+          "ContentScriptContext",
+          elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+          kHistogramBucketCount);
+      break;
+    case Feature::WEBUI_CONTEXT:
+      UMA_HISTOGRAM_CUSTOM_COUNTS(
+          "Extensions.Bindings.UpdateBindingsForContextTime.WebUIContext",
+          elapsed.InMicroseconds(), 1, kTenSecondsInMicroseconds,
+          kHistogramBucketCount);
+      break;
+    case Feature::WEBUI_UNTRUSTED_CONTEXT:
+      // Extension APIs in untrusted WebUIs are temporary so don't bother
+      // recording metrics for them.
+      break;
+  }
 }
 
 // The APIs that could potentially be available to webpage-like contexts.
@@ -391,8 +449,6 @@ bool IsRuntimeAvailableToContext(ScriptContext* context) {
 const char* const kWebAvailableFeatures[] = {
     "app",
     "dashboardPrivate",
-    "webstorePrivate",
-    "management",
 };
 
 }  // namespace
@@ -411,19 +467,17 @@ NativeExtensionBindingsSystem::NativeExtensionBindingsSystem(
               &NativeExtensionBindingsSystem::OnEventListenerChanged,
               base::Unretained(this)),
           base::BindRepeating(&GetContextOwner),
-          base::BindRepeating(&APIActivityLogger::LogAPICall,
-                              ipc_message_sender_.get()),
+          base::BindRepeating(&APIActivityLogger::LogAPICall),
           base::BindRepeating(&AddConsoleError),
-          APILastError(base::BindRepeating(&GetLastErrorParents),
-                       base::BindRepeating(&AddConsoleError))),
+          APILastError(base::Bind(&GetLastErrorParents),
+                       base::Bind(&AddConsoleError))),
       messaging_service_(this) {
-  api_system_.RegisterCustomType(
-      "storage.StorageArea",
-      base::BindRepeating(&StorageArea::CreateStorageArea));
+  api_system_.RegisterCustomType("storage.StorageArea",
+                                 base::Bind(&StorageArea::CreateStorageArea));
   api_system_.RegisterCustomType("types.ChromeSetting",
-                                 base::BindRepeating(&ChromeSetting::Create));
+                                 base::Bind(&ChromeSetting::Create));
   api_system_.RegisterCustomType("contentSettings.ContentSetting",
-                                 base::BindRepeating(&ContentSetting::Create));
+                                 base::Bind(&ContentSetting::Create));
   api_system_.GetHooksForAPI("webRequest")
       ->SetDelegate(std::make_unique<WebRequestHooks>());
   api_system_.GetHooksForAPI("declarativeContent")
@@ -434,8 +488,6 @@ NativeExtensionBindingsSystem::NativeExtensionBindingsSystem(
       std::make_unique<I18nHooksDelegate>());
   api_system_.GetHooksForAPI("runtime")->SetDelegate(
       std::make_unique<RuntimeHooksDelegate>(&messaging_service_));
-  api_system_.GetHooksForAPI("feedbackPrivate")
-      ->SetDelegate(std::make_unique<FeedbackPrivateHooksDelegate>());
 }
 
 NativeExtensionBindingsSystem::~NativeExtensionBindingsSystem() {}
@@ -471,16 +523,10 @@ void NativeExtensionBindingsSystem::DidCreateScriptContext(
   context->module_system()->SetGetInternalAPIHook(
       get_internal_api_.Get(isolate));
   context->module_system()->SetJSBindingUtilGetter(
-      base::BindRepeating(&NativeExtensionBindingsSystem::GetJSBindingUtil,
-                          weak_factory_.GetWeakPtr()));
+      base::Bind(&NativeExtensionBindingsSystem::GetJSBindingUtil,
+                 weak_factory_.GetWeakPtr()));
 
   UpdateBindingsForContext(context);
-
-  // Set the scripting params object for if we are running in a content script
-  // context. This effectively checks that we are running in an isolated world
-  // since main world script contexts have a different Feature::Context type.
-  if (context->context_type() == Feature::CONTENT_SCRIPT_CONTEXT)
-    SetScriptingParams(context);
 }
 
 void NativeExtensionBindingsSystem::WillReleaseScriptContext(
@@ -495,6 +541,7 @@ void NativeExtensionBindingsSystem::WillReleaseScriptContext(
 
 void NativeExtensionBindingsSystem::UpdateBindingsForContext(
     ScriptContext* context) {
+  base::ElapsedTimer timer;
   v8::Isolate* isolate = context->isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> v8_context = context->v8_context();
@@ -513,15 +560,6 @@ void NativeExtensionBindingsSystem::UpdateBindingsForContext(
     return success.IsJust() && success.FromJust();
   };
 
-  auto set_restricted_accessor = [chrome, isolate,
-                                  v8_context](base::StringPiece accessor_name) {
-    v8::Local<v8::String> api_name =
-        gin::StringToSymbol(isolate, accessor_name);
-    v8::Maybe<bool> success = chrome->SetLazyDataProperty(
-        v8_context, api_name, &ThrowDeveloperModeRestrictedError, api_name);
-    return success.IsJust() && success.FromJust();
-  };
-
   bool is_webpage = false;
   switch (context->context_type()) {
     case Feature::UNSPECIFIED_CONTEXT:
@@ -530,8 +568,11 @@ void NativeExtensionBindingsSystem::UpdateBindingsForContext(
       is_webpage = true;
       break;
     case Feature::BLESSED_EXTENSION_CONTEXT:
+      if (context->IsForServiceWorker())
+        DCHECK(ExtensionsClient::Get()
+                   ->ExtensionAPIEnabledInExtensionServiceWorkers());
+      FALLTHROUGH;
     case Feature::LOCK_SCREEN_EXTENSION_CONTEXT:
-    case Feature::OFFSCREEN_EXTENSION_CONTEXT:
     case Feature::UNBLESSED_EXTENSION_CONTEXT:
     case Feature::CONTENT_SCRIPT_CONTEXT:
     case Feature::WEBUI_CONTEXT:
@@ -559,6 +600,9 @@ void NativeExtensionBindingsSystem::UpdateBindingsForContext(
     if (IsRuntimeAvailableToContext(context) && !set_accessor("runtime"))
       LOG(ERROR) << "Failed to create API on Chrome object.";
 
+    LogUpdateBindingsForContextTime(context->context_type(),
+                                    context->IsForServiceWorker(),
+                                    timer.Elapsed());
     UpdateContentCapabilities(context);
     return;
   }
@@ -592,33 +636,19 @@ void NativeExtensionBindingsSystem::UpdateBindingsForContext(
     }
   }
 
-  FeatureCache::FeatureNameVector dev_mode_features =
-      feature_cache_.GetDeveloperModeRestrictedFeatures(
-          context->context_type(), context->extension(), context->url());
-
-  for (const std::string& feature : dev_mode_features) {
-    base::StringPiece accessor_name =
-        GetFirstDifferentAPIName(feature, base::StringPiece());
-    // This code only works for restricting top-level features to developer
-    // mode. For sub-features, this would result in overwriting the accessor
-    // for the root API object and restricting the whole API.
-    DCHECK_EQ(accessor_name, feature);
-    if (!set_restricted_accessor(accessor_name)) {
-      LOG(ERROR) << "Failed to create API on Chrome object.";
-      return;
-    }
-  }
+  LogUpdateBindingsForContextTime(
+      context->context_type(), context->IsForServiceWorker(), timer.Elapsed());
 }
 
 void NativeExtensionBindingsSystem::DispatchEventInContext(
     const std::string& event_name,
-    const base::Value::List& event_args,
-    const mojom::EventFilteringInfoPtr& filtering_info,
+    const base::ListValue* event_args,
+    const EventFilteringInfo* filtering_info,
     ScriptContext* context) {
   v8::HandleScope handle_scope(context->isolate());
   v8::Context::Scope context_scope(context->v8_context());
-  api_system_.FireEventInContext(event_name, context->v8_context(), event_args,
-                                 filtering_info.Clone());
+  api_system_.FireEventInContext(event_name, context->v8_context(), *event_args,
+                                 filtering_info);
 }
 
 bool NativeExtensionBindingsSystem::HasEventListenerInContext(
@@ -632,16 +662,14 @@ bool NativeExtensionBindingsSystem::HasEventListenerInContext(
 void NativeExtensionBindingsSystem::HandleResponse(
     int request_id,
     bool success,
-    const base::Value::List& response,
-    const std::string& error,
-    mojom::ExtraResponseDataPtr extra_data) {
+    const base::ListValue& response,
+    const std::string& error) {
   // Some API calls result in failure, but don't set an error. Use a generic and
   // unhelpful error string.
   // TODO(devlin): Track these down and fix them. See crbug.com/648275.
   api_system_.CompleteRequest(
       request_id, response,
-      !success && error.empty() ? "Unknown error." : error,
-      std::move(extra_data));
+      !success && error.empty() ? "Unknown error." : error);
   ipc_message_sender_->SendOnRequestResponseReceivedIPC(request_id);
 }
 
@@ -679,7 +707,7 @@ void NativeExtensionBindingsSystem::BindingAccessor(
     const v8::PropertyCallbackInfo<v8::Value>& info) {
   v8::Isolate* isolate = info.GetIsolate();
   v8::HandleScope handle_scope(isolate);
-  v8::Local<v8::Context> context = info.Holder()->GetCreationContextChecked();
+  v8::Local<v8::Context> context = info.Holder()->CreationContext();
 
   // Force binding creation in the owning context (even if another context is
   // calling in). This is also important to ensure that objects created through
@@ -693,18 +721,6 @@ void NativeExtensionBindingsSystem::BindingAccessor(
   v8::Local<v8::Object> binding = GetAPIHelper(context, api_name);
   if (!binding.IsEmpty())
     info.GetReturnValue().Set(binding);
-}
-
-void NativeExtensionBindingsSystem::ThrowDeveloperModeRestrictedError(
-    v8::Local<v8::Name> name,
-    const v8::PropertyCallbackInfo<v8::Value>& info) {
-  v8::Isolate* isolate = info.GetIsolate();
-  isolate->ThrowException(v8::Exception::Error(gin::StringToV8(
-      isolate,
-      base::StringPrintf(
-          "The '%s' API is only available for users in developer mode.",
-          gin::V8ToString(isolate, info.Data()).c_str()))));
-  return;
 }
 
 // static
@@ -809,8 +825,9 @@ void NativeExtensionBindingsSystem::GetInternalAPI(
   std::string api_name = gin::V8ToString(isolate, info[0]);
   const Feature* feature = FeatureProvider::GetAPIFeature(api_name);
   ScriptContext* script_context = GetScriptContextFromV8ContextChecked(context);
-  if (!feature || !script_context->IsAnyFeatureAvailableToContext(
-                      *feature, CheckAliasStatus::NOT_ALLOWED)) {
+  if (!feature ||
+      !script_context->IsAnyFeatureAvailableToContext(
+          *feature, CheckAliasStatus::NOT_ALLOWED)) {
     NOTREACHED();
     return;
   }
@@ -848,14 +865,13 @@ void NativeExtensionBindingsSystem::SendRequest(
   else
     url = script_context->url();
 
-  auto params = mojom::RequestParams::New();
+  auto params = std::make_unique<ExtensionHostMsg_Request_Params>();
   params->name = request->method_name;
-  base::Value::List args = std::move(*request->arguments_list).TakeList();
-  params->arguments = std::move(args);
+  params->arguments.Swap(request->arguments.get());
   params->extension_id = script_context->GetExtensionID();
   params->source_url = url;
   params->request_id = request->request_id;
-  params->has_callback = request->has_async_response_handler;
+  params->has_callback = request->has_callback;
   params->user_gesture = request->has_user_gesture;
   // The IPC sender will update these members, if appropriate.
   params->worker_thread_id = kMainThreadId;
@@ -888,7 +904,7 @@ void NativeExtensionBindingsSystem::OnEventListenerChanged(
       ipc_message_sender_->SendAddUnfilteredEventListenerIPC(script_context,
                                                              event_name);
       // Check if we need to add a lazy listener as well.
-      [[fallthrough]];
+      FALLTHROUGH;
     case binding::EventListenersChanged::
         kFirstUnfilteredListenerForContextAdded: {
       // If the listener is the first for the event page, we need to
@@ -906,7 +922,7 @@ void NativeExtensionBindingsSystem::OnEventListenerChanged(
       ipc_message_sender_->SendRemoveUnfilteredEventListenerIPC(script_context,
                                                                 event_name);
       // Check if we need to remove a lazy listener as well.
-      [[fallthrough]];
+      FALLTHROUGH;
     case binding::EventListenersChanged::
         kLastUnfilteredListenerForContextRemoved: {
       // If the listener was the last for the event page, we need to remove
@@ -985,25 +1001,6 @@ void NativeExtensionBindingsSystem::UpdateContentCapabilities(
 void NativeExtensionBindingsSystem::InvalidateFeatureCache(
     const ExtensionId& extension_id) {
   feature_cache_.InvalidateExtension(extension_id);
-}
-
-void NativeExtensionBindingsSystem::SetScriptingParams(ScriptContext* context) {
-  if (!IsAPIFeatureAvailable(context->v8_context(), "scripting.globalParams"))
-    return;
-
-  v8::Local<v8::Object> scripting_object =
-      GetAPIHelper(context->v8_context(),
-                   gin::StringToSymbol(context->isolate(), "scripting"));
-  if (scripting_object.IsEmpty())
-    return;
-
-  // Set the globalParams property on the chrome.scripting object if available.
-  scripting_object
-      ->CreateDataProperty(
-          context->v8_context(),
-          gin::StringToSymbol(context->isolate(), "globalParams"),
-          gin::DataObjectBuilder(context->isolate()).Build())
-      .Check();
 }
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 #define COMPONENTS_USER_MANAGER_USER_IMAGE_USER_IMAGE_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted_memory.h"
@@ -26,8 +28,6 @@ class USER_MANAGER_EXPORT UserImage {
     FORMAT_JPEG,
     FORMAT_PNG,
     FORMAT_UNKNOWN,
-    // Useful when the image is external and animated.
-    FORMAT_WEBP,
   };
 
   // Encodes the given bitmap to bytes representation in |image_format| for
@@ -61,9 +61,6 @@ class USER_MANAGER_EXPORT UserImage {
   UserImage(const gfx::ImageSkia& image,
             scoped_refptr<base::RefCountedBytes> image_bytes,
             ImageFormat image_format);
-
-  UserImage(const UserImage&) = delete;
-  UserImage& operator=(const UserImage&) = delete;
 
   virtual ~UserImage();
 
@@ -100,6 +97,8 @@ class USER_MANAGER_EXPORT UserImage {
   base::FilePath file_path_;
   bool is_safe_format_ = false;
   ImageFormat image_format_ = FORMAT_UNKNOWN;
+
+  DISALLOW_COPY_AND_ASSIGN(UserImage);
 };
 
 }  // namespace user_manager

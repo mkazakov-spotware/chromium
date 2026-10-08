@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -18,13 +18,13 @@ from telemetry.util import js_template
 class _LoadingStory(system_health_story.SystemHealthStory):
   """Abstract base class for single-page System Health user stories."""
   ABSTRACT_STORY = True
-  EXTRA_BROWSER_ARGUMENTS = []
 
-  def __init__(self, story_set, take_memory_measurement):
-    super(_LoadingStory,
-          self).__init__(story_set,
-                         take_memory_measurement,
-                         extra_browser_args=self.EXTRA_BROWSER_ARGUMENTS)
+  def __init__(self,
+               story_set,
+               take_memory_measurement,
+               extra_browser_args=None):
+    super(_LoadingStory, self).__init__(story_set, take_memory_measurement,
+                                        extra_browser_args)
     self.script_to_evaluate_on_commit = override_online.ALWAYS_ONLINE
 
   @classmethod
@@ -167,11 +167,11 @@ class LoadBbcMobileStory2019(_LoadingStory):
   SUPPORTED_PLATFORMS = platforms.MOBILE_ONLY
 
 
-class LoadCnnStory2020(_LoadingStory):
-  NAME = 'load:news:cnn:2020'
+class LoadCnnStory2018(_LoadingStory):
+  NAME = 'load:news:cnn:2018'
   URL = 'https://edition.cnn.com'
   TAGS = [
-      story_tags.HEALTH_CHECK, story_tags.JAVASCRIPT_HEAVY, story_tags.YEAR_2020
+      story_tags.HEALTH_CHECK, story_tags.JAVASCRIPT_HEAVY, story_tags.YEAR_2018
   ]
 
 
@@ -490,8 +490,7 @@ class LoadGmailStory2019(_LoadingStory):
   SKIP_LOGIN = False
 
   def _Login(self, action_runner):
-    # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-    google_login.ManualLoginGoogleAccount(action_runner)
+    google_login.NewLoginGoogleAccount(action_runner, 'googletest')
 
     # Navigating to http://mail.google.com immediately leads to an infinite
     # redirection loop due to a bug in WPR (see
@@ -514,8 +513,7 @@ class LoadChatStory2020(_LoadingStory):
   SKIP_LOGIN = False
 
   def _Login(self, action_runner):
-    # google_login.NewLoginGoogleAccount(action_runner, 'chatfeature')
-    google_login.ManualLoginGoogleAccount(action_runner)
+    google_login.NewLoginGoogleAccount(action_runner, 'chatfeature')
     action_runner.tab.WaitForDocumentReadyStateToBeComplete()
 
 
@@ -554,8 +552,7 @@ class LoadDriveStory2019(_LoadingStory):
   TAGS = [story_tags.JAVASCRIPT_HEAVY, story_tags.YEAR_2019]
 
   def _Login(self, action_runner):
-    # google_login.NewLoginGoogleAccount(action_runner, 'googletest')
-    google_login.ManualLoginGoogleAccount(action_runner)
+    google_login.NewLoginGoogleAccount(action_runner, 'googletest')
 
 
 ################################################################################

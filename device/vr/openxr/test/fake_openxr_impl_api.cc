@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <wrl.h>
 
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "device/vr/openxr/openxr_util.h"
 #include "device/vr/openxr/test/openxr_negotiate.h"
 #include "device/vr/openxr/test/openxr_test_helper.h"
@@ -75,31 +75,14 @@ XrResult xrBeginSession(XrSession session,
             "XrSessionBeginInfo is nullptr");
   RETURN_IF(begin_info->type != XR_TYPE_SESSION_BEGIN_INFO,
             XR_ERROR_VALIDATION_FAILURE, "XrSessionBeginInfo type invalid");
+  RETURN_IF(begin_info->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
+            "XrSessionBeginInfo next is not nullptr");
+  RETURN_IF(begin_info->primaryViewConfigurationType !=
+                OpenXrTestHelper::kViewConfigurationType,
+            XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED,
+            "XrSessionBeginInfo primaryViewConfigurationType invalid");
 
-  // Create a list of all the view configurations requested by the client.
-  std::vector<XrViewConfigurationType> view_configs = {
-      begin_info->primaryViewConfigurationType};
-  if (begin_info->next != nullptr) {
-    // Secondary views are requested if a next pointer is specified.
-    const XrSecondaryViewConfigurationSessionBeginInfoMSFT* second_begin_info =
-        reinterpret_cast<
-            const XrSecondaryViewConfigurationSessionBeginInfoMSFT*>(
-            begin_info->next);
-    RETURN_IF(second_begin_info->type !=
-                  XR_TYPE_SECONDARY_VIEW_CONFIGURATION_SESSION_BEGIN_INFO_MSFT,
-              XR_ERROR_VALIDATION_FAILURE,
-              "XrSecondaryViewConfigurationSessionBeginInfoMSFT type invalid");
-    RETURN_IF(
-        second_begin_info->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
-        "XrSecondaryViewConfigurationSessionBeginInfoMSFT next is not nullptr");
-
-    for (uint32_t i = 0; i < second_begin_info->viewConfigurationCount; i++) {
-      view_configs.push_back(
-          second_begin_info->enabledViewConfigurationTypes[i]);
-    }
-  }
-
-  RETURN_IF_XR_FAILED(g_test_helper.BeginSession(view_configs));
+  RETURN_IF_XR_FAILED(g_test_helper.BeginSession());
 
   return XR_SUCCESS;
 }
@@ -245,7 +228,7 @@ XrResult xrCreateSession(XrInstance instance,
   g_test_helper.SetD3DDevice(binding->device);
   RETURN_IF(session == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "XrSession is nullptr");
-  RETURN_IF_XR_FAILED(g_test_helper.CreateSession(session));
+  RETURN_IF_XR_FAILED(g_test_helper.GetSession(session));
 
   return XR_SUCCESS;
 }
@@ -273,10 +256,12 @@ XrResult xrCreateSwapchain(XrSession session,
   RETURN_IF(create_info->sampleCount != OpenXrTestHelper::kSwapCount,
             XR_ERROR_VALIDATION_FAILURE,
             "XrSwapchainCreateInfo sampleCount invalid");
-  RETURN_IF(create_info->width == 0, XR_ERROR_VALIDATION_FAILURE,
-            "XrSwapchainCreateInfo width is zero");
-  RETURN_IF(create_info->height == 0, XR_ERROR_VALIDATION_FAILURE,
-            "XrSwapchainCreateInfo height is zero");
+  RETURN_IF(create_info->width != OpenXrTestHelper::kDimension * 2,
+            XR_ERROR_VALIDATION_FAILURE,
+            "XrSwapchainCreateInfo width is not dimension * 2");
+  RETURN_IF(create_info->height != OpenXrTestHelper::kDimension,
+            XR_ERROR_VALIDATION_FAILURE,
+            "XrSwapchainCreateInfo height is not dimension");
   RETURN_IF(create_info->faceCount != 1, XR_ERROR_VALIDATION_FAILURE,
             "XrSwapchainCreateInfo faceCount is not 1");
   RETURN_IF(create_info->arraySize != 1, XR_ERROR_VALIDATION_FAILURE,
@@ -286,38 +271,34 @@ XrResult xrCreateSwapchain(XrSession session,
 
   RETURN_IF(swapchain == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "XrSwapchain is nullptr");
-  *swapchain = g_test_helper.CreateSwapchain();
+  *swapchain = g_test_helper.GetSwapchain();
 
   return XR_SUCCESS;
 }
 
 XrResult xrDestroyActionSet(XrActionSet action_set) {
   DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.DestroyActionSet(action_set));
+  RETURN_IF_XR_FAILED(g_test_helper.ValidateActionSet(action_set));
   return XR_SUCCESS;
 }
 
 XrResult xrDestroyInstance(XrInstance instance) {
   DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.DestroyInstance(instance));
+  RETURN_IF_XR_FAILED(g_test_helper.ValidateInstance(instance));
+  g_test_helper.Reset();
   return XR_SUCCESS;
 }
 
 XrResult xrDestroySession(XrSession session) {
   DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.DestroySession(session));
+  RETURN_IF_XR_FAILED(g_test_helper.ValidateSession(session));
   return XR_SUCCESS;
 }
 
 XrResult xrDestroySpace(XrSpace space) {
   DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.DestroySpace(space));
-  return XR_SUCCESS;
-}
+  RETURN_IF_XR_FAILED(g_test_helper.ValidateSpace(space));
 
-XrResult xrDestroySwapchain(XrSwapchain swapchain) {
-  DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.DestroySwapchain(swapchain));
   return XR_SUCCESS;
 }
 
@@ -328,78 +309,25 @@ XrResult xrEndFrame(XrSession session, const XrFrameEndInfo* frame_end_info) {
             "XrFrameEndInfo is nullptr");
   RETURN_IF(frame_end_info->type != XR_TYPE_FRAME_END_INFO,
             XR_ERROR_VALIDATION_FAILURE, "XrFrameEndInfo type invalid");
+  RETURN_IF(frame_end_info->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
+            "XrFrameEndInfo next is not nullptr");
   RETURN_IF_XR_FAILED(
       g_test_helper.ValidatePredictedDisplayTime(frame_end_info->displayTime));
   RETURN_IF(frame_end_info->environmentBlendMode !=
                 OpenXrTestHelper::kEnvironmentBlendMode,
             XR_ERROR_VALIDATION_FAILURE,
             "XrFrameEndInfo environmentBlendMode invalid");
-  // We currently only support one layer per view configuration.
   RETURN_IF(frame_end_info->layerCount != 1, XR_ERROR_VALIDATION_FAILURE,
             "XrFrameEndInfo layerCount invalid");
   RETURN_IF(frame_end_info->layers == nullptr, XR_ERROR_LAYER_INVALID,
             "XrFrameEndInfo has nullptr layers");
 
   for (uint32_t i = 0; i < frame_end_info->layerCount; i++) {
-    const XrCompositionLayerProjection* primary_layer_ptr =
+    const XrCompositionLayerProjection* multi_projection_layer_ptr =
         reinterpret_cast<const XrCompositionLayerProjection*>(
             frame_end_info->layers[i]);
     RETURN_IF_XR_FAILED(g_test_helper.ValidateXrCompositionLayerProjection(
-        g_test_helper.PrimaryViewConfig(), *primary_layer_ptr));
-  }
-
-  if (frame_end_info->next != nullptr) {
-    // If the next pointer is specified, secondary views are active.
-    const XrSecondaryViewConfigurationFrameEndInfoMSFT* second_end_info =
-        reinterpret_cast<const XrSecondaryViewConfigurationFrameEndInfoMSFT*>(
-            frame_end_info->next);
-
-    RETURN_IF(second_end_info->type !=
-                  XR_TYPE_SECONDARY_VIEW_CONFIGURATION_FRAME_END_INFO_MSFT,
-              XR_ERROR_VALIDATION_FAILURE,
-              "XR_TYPE_SECONDARY_VIEW_CONFIGURATION_FRAME_END_INFO_MSFT type "
-              "invalid");
-    RETURN_IF(
-        second_end_info->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
-        "XrSecondaryViewConfigurationFrameEndInfoMSFT next is not nullptr");
-
-    for (uint32_t i = 0; i < second_end_info->viewConfigurationCount; i++) {
-      XrSecondaryViewConfigurationLayerInfoMSFT layer_info =
-          second_end_info->viewConfigurationLayersInfo[i];
-
-      RETURN_IF(layer_info.type !=
-                    XR_TYPE_SECONDARY_VIEW_CONFIGURATION_LAYER_INFO_MSFT,
-                XR_ERROR_VALIDATION_FAILURE,
-                "XrSecondaryViewConfigurationLayerInfoMSFT type invalid");
-      RETURN_IF(
-          layer_info.next != nullptr, XR_ERROR_VALIDATION_FAILURE,
-          "XrSecondaryViewConfigurationLayerInfoMSFT next is not nullptr");
-      RETURN_IF(
-          layer_info.viewConfigurationType == g_test_helper.PrimaryViewConfig(),
-          XR_ERROR_LAYER_INVALID,
-          "XrSecondaryViewConfigurationLayerInfoMSFT cannot have a "
-          "primary view configuration");
-      RETURN_IF_XR_FAILED(g_test_helper.ValidateViewConfigType(
-          layer_info.viewConfigurationType));
-      RETURN_IF(layer_info.environmentBlendMode !=
-                    OpenXrTestHelper::kEnvironmentBlendMode,
-                XR_ERROR_VALIDATION_FAILURE,
-                "XrSecondaryViewConfigurationLayerInfoMSFT "
-                "environmentBlendMode invalid");
-      // We currently only support one layer per view configuration.
-      RETURN_IF(layer_info.layerCount != 1, XR_ERROR_VALIDATION_FAILURE,
-                "XrSecondaryViewConfigurationLayerInfoMSFT layerCount invalid");
-      RETURN_IF(layer_info.layers == nullptr, XR_ERROR_LAYER_INVALID,
-                "XrSecondaryViewConfigurationLayerInfoMSFT has nullptr layers");
-
-      for (uint32_t j = 0; j < layer_info.layerCount; j++) {
-        const XrCompositionLayerProjection* secondary_layer_ptr =
-            reinterpret_cast<const XrCompositionLayerProjection*>(
-                layer_info.layers[j]);
-        RETURN_IF_XR_FAILED(g_test_helper.ValidateXrCompositionLayerProjection(
-            layer_info.viewConfigurationType, *secondary_layer_ptr));
-      }
-    }
+        *multi_projection_layer_ptr));
   }
 
   RETURN_IF_XR_FAILED(g_test_helper.EndFrame());
@@ -425,8 +353,9 @@ XrResult xrEnumerateEnvironmentBlendModes(
   DVLOG(2) << __FUNCTION__;
   RETURN_IF_XR_FAILED(g_test_helper.ValidateInstance(instance));
   RETURN_IF_XR_FAILED(g_test_helper.ValidateSystemId(system_id));
-  RETURN_IF_XR_FAILED(
-      g_test_helper.ValidateViewConfigType(view_configuration_type));
+  RETURN_IF(view_configuration_type != OpenXrTestHelper::kViewConfigurationType,
+            XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED,
+            "xrEnumerateEnvironmentBlendModes viewConfigurationType invalid");
 
   RETURN_IF(environment_blend_mode_count_output == nullptr,
             XR_ERROR_VALIDATION_FAILURE,
@@ -477,43 +406,10 @@ XrResult xrEnumerateInstanceExtensionProperties(
   for (uint32_t i = 0; i < OpenXrTestHelper::kNumExtensionsSupported; i++) {
     properties[i].type = XR_TYPE_EXTENSION_PROPERTIES;
     errno_t error = strcpy_s(properties[i].extensionName,
-                             std::size(properties[i].extensionName),
+                             base::size(properties[i].extensionName),
                              OpenXrTestHelper::kExtensions[i]);
     DCHECK(error == 0);
     properties[i].extensionVersion = 1;
-  }
-
-  return XR_SUCCESS;
-}
-
-XrResult xrEnumerateViewConfigurations(
-    XrInstance instance,
-    XrSystemId system_id,
-    uint32_t view_configuration_type_capacity_input,
-    uint32_t* view_configuration_type_count_output,
-    XrViewConfigurationType* view_configuration_types) {
-  DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateInstance(instance));
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateSystemId(system_id));
-  RETURN_IF(view_configuration_type_count_output == nullptr,
-            XR_ERROR_VALIDATION_FAILURE,
-            "view_configuration_type_count_output is nullptr");
-
-  std::vector<XrViewConfigurationType> view_configs =
-      g_test_helper.SupportedViewConfigs();
-  *view_configuration_type_count_output = view_configs.size();
-  if (view_configuration_type_capacity_input == 0) {
-    return XR_SUCCESS;
-  }
-
-  RETURN_IF(view_configuration_types == nullptr, XR_ERROR_VALIDATION_FAILURE,
-            "view_configuration_types is nullptr");
-  RETURN_IF(view_configuration_type_capacity_input != view_configs.size(),
-            XR_ERROR_SIZE_INSUFFICIENT,
-            "view_configuration_type_capacity_input size is insufficient");
-
-  for (uint32_t i = 0; i < view_configs.size(); i++) {
-    view_configuration_types[i] = view_configs[i];
   }
 
   return XR_SUCCESS;
@@ -529,25 +425,23 @@ XrResult xrEnumerateViewConfigurationViews(
   DVLOG(2) << __FUNCTION__;
   RETURN_IF_XR_FAILED(g_test_helper.ValidateInstance(instance));
   RETURN_IF_XR_FAILED(g_test_helper.ValidateSystemId(system_id));
-  RETURN_IF_XR_FAILED(
-      g_test_helper.ValidateViewConfigType(view_configuration_type));
+  RETURN_IF(view_configuration_type != OpenXrTestHelper::kViewConfigurationType,
+            XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED,
+            "xrEnumerateViewConfigurationViews viewConfigurationType invalid");
   RETURN_IF(view_count_output == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "view_count_output is nullptr");
-
-  const std::vector<XrViewConfigurationView>& view_properties =
-      g_test_helper.GetViewConfigInfo(view_configuration_type).Properties();
-  *view_count_output = view_properties.size();
+  *view_count_output = OpenXrTestHelper::kNumViews;
   if (view_capacity_input == 0) {
     return XR_SUCCESS;
   }
 
-  RETURN_IF(view_capacity_input != view_properties.size(),
-            XR_ERROR_SIZE_INSUFFICIENT, "view_capacity_input is insufficient");
+  RETURN_IF(view_capacity_input != OpenXrTestHelper::kNumViews,
+            XR_ERROR_VALIDATION_FAILURE,
+            "view_capacity_input is neither 0 or kNumViews");
   RETURN_IF(views == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "XrViewConfigurationView is nullptr");
-  for (uint32_t i = 0; i < view_properties.size(); i++) {
-    views[i] = view_properties[i];
-  }
+  views[0] = OpenXrTestHelper::kViewConfigurationViews[0];
+  views[1] = OpenXrTestHelper::kViewConfigurationViews[1];
 
   return XR_SUCCESS;
 }
@@ -578,7 +472,7 @@ XrResult xrEnumerateSwapchainImages(XrSwapchain swapchain,
             "XrSwapchainImageBaseHeader is nullptr");
   const std::vector<Microsoft::WRL::ComPtr<ID3D11Texture2D>>& textures =
       g_test_helper.GetSwapchainTextures();
-  DCHECK_EQ(textures.size(), image_capacity_input);
+  DCHECK(textures.size() == image_capacity_input);
 
   for (uint32_t i = 0; i < image_capacity_input; i++) {
     XrSwapchainImageD3D11KHR& image =
@@ -596,7 +490,7 @@ XrResult xrEnumerateSwapchainImages(XrSwapchain swapchain,
   return XR_SUCCESS;
 }
 
-__stdcall XrResult xrGetD3D11GraphicsRequirementsKHR(
+XrResult xrGetD3D11GraphicsRequirementsKHR(
     XrInstance instance,
     XrSystemId system_id,
     XrGraphicsRequirementsD3D11KHR* graphics_requirements) {
@@ -764,31 +658,6 @@ XrResult xrGetReferenceSpaceBoundsRect(
   return XR_SUCCESS;
 }
 
-XrResult xrGetViewConfigurationProperties(
-    XrInstance instance,
-    XrSystemId system_id,
-    XrViewConfigurationType view_configuration_type,
-    XrViewConfigurationProperties* configuration_properties) {
-  DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateInstance(instance));
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateSystemId(system_id));
-  RETURN_IF(
-      view_configuration_type != XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
-      XR_ERROR_VALIDATION_FAILURE, "viewConfigurationType must be stereo");
-  RETURN_IF(
-      configuration_properties->type == XR_TYPE_VIEW_CONFIGURATION_PROPERTIES,
-      XR_ERROR_VALIDATION_FAILURE,
-      "XrViewConfigurationProperties.type must be "
-      "XR_TYPE_VIEW_CONFIGURATION_PROPERTIES");
-  RETURN_IF(configuration_properties->next == nullptr,
-            XR_ERROR_VALIDATION_FAILURE,
-            "XrViewConfigurationProperties.next must be nullptr");
-  configuration_properties->viewConfigurationType =
-      XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-  configuration_properties->fovMutable = XR_TRUE;
-  return XR_SUCCESS;
-}
-
 XrResult xrGetSystem(XrInstance instance,
                      const XrSystemGetInfo* get_info,
                      XrSystemId* system_id) {
@@ -806,25 +675,6 @@ XrResult xrGetSystem(XrInstance instance,
   RETURN_IF(system_id == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "XrSystemId is nullptr");
   *system_id = g_test_helper.GetSystemId();
-
-  return XR_SUCCESS;
-}
-
-XrResult xrGetSystemProperties(XrInstance instance,
-                               XrSystemId system_id,
-                               XrSystemProperties* system_properties) {
-  DVLOG(2) << __FUNCTION__;
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateInstance(instance));
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateSystemId(system_id));
-  RETURN_IF(system_properties == nullptr, XR_ERROR_VALIDATION_FAILURE,
-            "XrSystemProperties is nullptr");
-  RETURN_IF(system_properties->type != XR_TYPE_SYSTEM_PROPERTIES,
-            XR_ERROR_VALIDATION_FAILURE, "XrSystemProperties type invalid");
-  RETURN_IF(system_properties->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
-            "XrSystemProperties next is not nullptr");
-
-  *system_properties = g_test_helper.GetSystemProperties();
-  system_properties->systemId = system_id;
 
   return XR_SUCCESS;
 }
@@ -865,8 +715,10 @@ XrResult xrLocateViews(XrSession session,
             "xrLocateViews view_locate_info type invalid");
   RETURN_IF(view_locate_info->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
             "XrViewLocateInfo next is not nullptr");
-  RETURN_IF_XR_FAILED(g_test_helper.ValidateViewConfigType(
-      view_locate_info->viewConfigurationType));
+  RETURN_IF(view_locate_info->viewConfigurationType !=
+                OpenXrTestHelper::kViewConfigurationType,
+            XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED,
+            "XrViewLocateInfo viewConfigurationType invalid");
   RETURN_IF_XR_FAILED(g_test_helper.ValidatePredictedDisplayTime(
       view_locate_info->displayTime));
   RETURN_IF_XR_FAILED(g_test_helper.ValidateSpace(view_locate_info->space));
@@ -874,23 +726,18 @@ XrResult xrLocateViews(XrSession session,
             "XrViewState is nullptr");
   RETURN_IF(view_count_output == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "view_count_output is nullptr");
-
-  const device::OpenXrViewConfiguration& view_config =
-      g_test_helper.GetViewConfigInfo(view_locate_info->viewConfigurationType);
-  const std::vector<XrView>& view_config_views = view_config.Views();
-  *view_count_output = view_config_views.size();
+  *view_count_output = OpenXrTestHelper::kViewCount;
   if (view_capacity_input == 0) {
     return XR_SUCCESS;
   }
 
-  RETURN_IF(view_capacity_input != view_config_views.size(),
-            XR_ERROR_SIZE_INSUFFICIENT,
+  RETURN_IF(view_capacity_input != OpenXrTestHelper::kViewCount,
+            XR_ERROR_VALIDATION_FAILURE,
             "view_capacity_input is neither 0 or OpenXrTestHelper::kViewCount");
   RETURN_IF_XR_FAILED(g_test_helper.ValidateViews(view_capacity_input, views));
-  RETURN_IF_FALSE(
-      g_test_helper.UpdateViews(view_locate_info->viewConfigurationType, views,
-                                view_capacity_input),
-      XR_ERROR_VALIDATION_FAILURE, "xrLocateViews UpdateViews failed");
+  RETURN_IF_FALSE(g_test_helper.UpdateViewFOV(views, view_capacity_input),
+                  XR_ERROR_VALIDATION_FAILURE,
+                  "xrLocateViews UpdateViewFOV failed");
   view_state->viewStateFlags =
       XR_VIEW_STATE_POSITION_VALID_BIT | XR_VIEW_STATE_ORIENTATION_VALID_BIT;
 
@@ -989,7 +836,7 @@ XrResult xrPathToString(XrInstance instance,
       buffer_capacity_input <= path_string.size(), XR_ERROR_SIZE_INSUFFICIENT,
       "xrPathToString inputsize is not large enough to hold the output string");
   errno_t error = strcpy_s(buffer, *buffer_count_output, path_string.data());
-  DCHECK_EQ(error, 0);
+  DCHECK(error == 0);
 
   return XR_SUCCESS;
 }
@@ -1029,32 +876,12 @@ XrResult xrWaitFrame(XrSession session,
             "XrFrameWaitInfo is nullptr");
   RETURN_IF(frame_wait_info->type != XR_TYPE_FRAME_WAIT_INFO,
             XR_ERROR_VALIDATION_FAILURE, "frame_wait_info type invalid");
+  RETURN_IF(frame_wait_info->next != nullptr, XR_ERROR_VALIDATION_FAILURE,
+            "XrFrameWaitInfo next is not nullptr");
   RETURN_IF(frame_state == nullptr, XR_ERROR_VALIDATION_FAILURE,
             "XrFrameState is nullptr");
   RETURN_IF(frame_state->type != XR_TYPE_FRAME_STATE,
             XR_ERROR_VALIDATION_FAILURE, "XR_TYPE_FRAME_STATE type invalid");
-
-  if (frame_state->next != nullptr) {
-    // If a next pointer is specified, secondary views are active.
-    XrSecondaryViewConfigurationFrameStateMSFT* secondary_frame_state =
-        reinterpret_cast<XrSecondaryViewConfigurationFrameStateMSFT*>(
-            frame_state->next);
-    RETURN_IF(secondary_frame_state->type !=
-                  XR_TYPE_SECONDARY_VIEW_CONFIGURATION_FRAME_STATE_MSFT,
-              XR_ERROR_VALIDATION_FAILURE,
-              "XrSecondaryViewConfigurationFrameStateMSFT type invalid");
-    RETURN_IF(secondary_frame_state->next != nullptr,
-              XR_ERROR_VALIDATION_FAILURE,
-              "XrSecondaryViewConfigurationFrameStateMSFT next is not nullptr");
-    RETURN_IF(secondary_frame_state->viewConfigurationStates == nullptr,
-              XR_ERROR_VALIDATION_FAILURE,
-              "XrSecondaryViewConfigurationFrameStateMSFT "
-              "viewConfigurationStates must point to an array");
-
-    RETURN_IF_XR_FAILED(g_test_helper.GetSecondaryConfigStates(
-        secondary_frame_state->viewConfigurationCount,
-        secondary_frame_state->viewConfigurationStates));
-  }
 
   frame_state->predictedDisplayTime = g_test_helper.NextPredictedDisplayTime();
 
@@ -1111,12 +938,8 @@ XrResult XRAPI_PTR xrGetInstanceProcAddr(XrInstance instance,
     *function = reinterpret_cast<PFN_xrVoidFunction>(xrDestroyActionSet);
   } else if (strcmp(name, "xrDestroyInstance") == 0) {
     *function = reinterpret_cast<PFN_xrVoidFunction>(xrDestroyInstance);
-  } else if (strcmp(name, "xrDestroySession") == 0) {
-    *function = reinterpret_cast<PFN_xrVoidFunction>(xrDestroySession);
   } else if (strcmp(name, "xrDestroySpace") == 0) {
     *function = reinterpret_cast<PFN_xrVoidFunction>(xrDestroySpace);
-  } else if (strcmp(name, "xrDestroySwapchain") == 0) {
-    *function = reinterpret_cast<PFN_xrVoidFunction>(xrDestroySwapchain);
   } else if (strcmp(name, "xrEndFrame") == 0) {
     *function = reinterpret_cast<PFN_xrVoidFunction>(xrEndFrame);
   } else if (strcmp(name, "xrEndSession") == 0) {
@@ -1130,9 +953,6 @@ XrResult XRAPI_PTR xrGetInstanceProcAddr(XrInstance instance,
   } else if (strcmp(name, "xrEnumerateSwapchainImages") == 0) {
     *function =
         reinterpret_cast<PFN_xrVoidFunction>(xrEnumerateSwapchainImages);
-  } else if (strcmp(name, "xrEnumerateViewConfigurations") == 0) {
-    *function =
-        reinterpret_cast<PFN_xrVoidFunction>(xrEnumerateViewConfigurations);
   } else if (strcmp(name, "xrEnumerateViewConfigurationViews") == 0) {
     *function =
         reinterpret_cast<PFN_xrVoidFunction>(xrEnumerateViewConfigurationViews);
@@ -1153,13 +973,8 @@ XrResult XRAPI_PTR xrGetInstanceProcAddr(XrInstance instance,
   } else if (strcmp(name, "xrGetReferenceSpaceBoundsRect") == 0) {
     *function =
         reinterpret_cast<PFN_xrVoidFunction>(xrGetReferenceSpaceBoundsRect);
-  } else if (strcmp(name, "xrGetViewConfigurationProperties") == 0) {
-    *function =
-        reinterpret_cast<PFN_xrVoidFunction>(xrGetViewConfigurationProperties);
   } else if (strcmp(name, "xrGetSystem") == 0) {
     *function = reinterpret_cast<PFN_xrVoidFunction>(xrGetSystem);
-  } else if (strcmp(name, "xrGetSystemProperties") == 0) {
-    *function = reinterpret_cast<PFN_xrVoidFunction>(xrGetSystemProperties);
   } else if (strcmp(name, "xrLocateSpace") == 0) {
     *function = reinterpret_cast<PFN_xrVoidFunction>(xrLocateSpace);
   } else if (strcmp(name, "xrLocateViews") == 0) {

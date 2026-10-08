@@ -425,7 +425,6 @@ struct Attribute {
   virtual ~Attribute() {}
   virtual void Write(u1 *&p) = 0;
   virtual void ExtractClassNames() {}
-  virtual bool KeepForCompile() const { return false; }
 
   void WriteProlog(u1 *&p, u2 length) {
     put_u2be(p, attribute_name_->slot());
@@ -435,23 +434,8 @@ struct Attribute {
   Constant *attribute_name_;
 };
 
-struct HasAttrs {
-  std::vector<Attribute*> attributes;
-
-  void WriteAttrs(u1 *&p);
-  void ReadAttrs(const u1 *&p);
-
-  virtual ~HasAttrs() {
-    for (const auto *attribute : attributes) {
-      delete attribute;
-    }
-  }
-
-  void ExtractClassNames() {
-    for (auto *attribute : attributes) {
-      attribute->ExtractClassNames();
-    }
-  }
+struct KeepForCompileAttribute : Attribute {
+  void Write(u1 *&p) { WriteProlog(p, 0); }
 };
 
 // See sec.4.7.5 of JVM spec.
@@ -517,6 +501,7 @@ struct InnerClassesAttribute : Attribute {
     // kept. Then we mark its outer class and its class name as kept, too, then
     // iterate until a fixed point is reached.
     int entry_count;
+    int iteration = 0;
 
     do {
       entry_count = kept_entries.size();
@@ -542,6 +527,7 @@ struct InnerClassesAttribute : Attribute {
           entry->inner_name->slot();
         }
       }
+      iteration += 1;
     } while (entry_count != static_cast<int>(kept_entries.size()));
 
     if (kept_entries.empty()) {
@@ -1077,15 +1063,6 @@ struct AnnotationsAttribute : Attribute {
     }
   }
 
-  virtual bool KeepForCompile() const {
-    for (auto *annotation : annotations_) {
-      if (annotation->type_->Display() == "Lkotlin/Metadata;") {
-        return true;
-      }
-    }
-    return false;
-  }
-
   void Write(u1 *&p) {
     WriteProlog(p, -1);
     u1 *payload_start = p - 4;
@@ -1259,79 +1236,6 @@ struct NestMembersAttribute : Attribute {
   std::vector<Constant *> classes_;
 };
 
-// See JVMS §4.7.30
-struct RecordAttribute : Attribute {
-  static RecordAttribute *Read(const u1 *&p, Constant *attribute_name,
-                                    u4 attribute_length) {
-    auto attr = new RecordAttribute;
-    attr->attribute_name_ = attribute_name;
-    attr->attribute_length_ = attribute_length;
-    u2 components_length = get_u2be(p);
-    for (int i = 0; i < components_length; ++i) {
-      attr->components_.push_back(RecordComponentInfo::Read(p));
-    }
-    return attr;
-  }
-
-  void Write(u1 *&p) {
-    u1 *tmp = new u1[attribute_length_];
-    u1 *start = tmp;
-    put_u2be(tmp, components_.size());
-    for (size_t i = 0; i < components_.size(); ++i) {
-      components_[i]->Write(tmp);
-    }
-    u2 length = tmp - start;
-    WriteProlog(p, length);
-    memcpy(p, start, length);
-    p += length;
-  }
-
-  struct RecordComponentInfo : HasAttrs {
-    void Write(u1 *&p) {
-      put_u2be(p, name_->slot());
-      put_u2be(p, descriptor_->slot());
-      WriteAttrs(p);
-    }
-    static RecordComponentInfo *Read(const u1 *&p) {
-      RecordComponentInfo *value = new RecordComponentInfo;
-      value->name_ = constant(get_u2be(p));
-      value->descriptor_ = constant(get_u2be(p));
-      value->ReadAttrs(p);
-      return value;
-    }
-
-    Constant *name_;
-    Constant *descriptor_;
-  };
-
-  u4 attribute_length_;
-  std::vector<RecordComponentInfo *> components_;
-};
-
-// See JVMS §4.7.31
-struct PermittedSubclassesAttribute : Attribute {
-  static PermittedSubclassesAttribute *Read(const u1 *&p,
-                                            Constant *attribute_name) {
-    PermittedSubclassesAttribute *attr = new PermittedSubclassesAttribute;
-    attr->attribute_name_ = attribute_name;
-    u2 number_of_exceptions = get_u2be(p);
-    for (int ii = 0; ii < number_of_exceptions; ++ii) {
-      attr->permitted_subclasses_.push_back(constant(get_u2be(p)));
-    }
-    return attr;
-  }
-
-  void Write(u1 *&p) {
-    WriteProlog(p, permitted_subclasses_.size() * 2 + 2);
-    put_u2be(p, permitted_subclasses_.size());
-    for (size_t ii = 0; ii < permitted_subclasses_.size(); ++ii) {
-      put_u2be(p, permitted_subclasses_[ii]->slot());
-    }
-  }
-
-  std::vector<Constant *> permitted_subclasses_;
-};
-
 struct GeneralAttribute : Attribute {
   static GeneralAttribute* Read(const u1 *&p, Constant *attribute_name,
                                 u4 attribute_length) {
@@ -1357,6 +1261,25 @@ struct GeneralAttribute : Attribute {
  *                             ClassFile                              *
  *                                                                    *
  **********************************************************************/
+
+struct HasAttrs {
+  std::vector<Attribute*> attributes;
+
+  void WriteAttrs(u1 *&p);
+  void ReadAttrs(const u1 *&p);
+
+  virtual ~HasAttrs() {
+    for (const auto *attribute : attributes) {
+      delete attribute;
+    }
+  }
+
+  void ExtractClassNames() {
+    for (auto *attribute : attributes) {
+      attribute->ExtractClassNames();
+    }
+  }
+};
 
 // A field or method.
 // See sec.4.5 and 4.6 of JVM spec.
@@ -1416,7 +1339,7 @@ struct ClassFile : HasAttrs {
 
   bool ReadConstantPool(const u1 *&p);
 
-  bool KeepForCompile();
+  bool IsExplicitlyKept();
 
   bool IsLocalOrAnonymous();
 
@@ -1512,8 +1435,7 @@ void HasAttrs::ReadAttrs(const u1 *&p) {
           ParameterAnnotationsAttribute::Read(p, attribute_name));
     } else if (attr_name == "Scala" ||
                attr_name == "ScalaSig" ||
-               attr_name == "ScalaInlineInfo" ||
-               attr_name == "TurbineTransitiveJar") {
+               attr_name == "ScalaInlineInfo") {
       // These are opaque blobs, so can be handled with a general
       // attribute handler
       attributes.push_back(GeneralAttribute::Read(p, attribute_name,
@@ -1531,22 +1453,15 @@ void HasAttrs::ReadAttrs(const u1 *&p) {
     } else if (attr_name == "NestMembers") {
       attributes.push_back(
           NestMembersAttribute::Read(p, attribute_name, attribute_length));
-    } else if (attr_name == "Record") {
-      attributes.push_back(
-          RecordAttribute::Read(p, attribute_name, attribute_length));
-    } else if (attr_name == "PermittedSubclasses") {
-      attributes.push_back(
-          PermittedSubclassesAttribute::Read(p, attribute_name));
+    } else if (attr_name == "com.google.devtools.ijar.KeepForCompile") {
+      auto attr = new KeepForCompileAttribute;
+      attr->attribute_name_ = attribute_name;
+      attributes.push_back(attr);
     } else {
       // Skip over unknown attributes with a warning.  The JVM spec
       // says this is ok, so long as we handle the mandatory attributes.
-      // Don't even warn for the D8 desugar SynthesizedClass attribute. It is
-      // not relevant for ijar.
-      if (attr_name != "com.android.tools.r8.SynthesizedClass" &&
-          attr_name != "com.android.tools.r8.SynthesizedClassV2") {
-        fprintf(stderr, "ijar: skipping unknown attribute: \"%s\".\n",
-                attr_name.c_str());
-      }
+      fprintf(stderr, "ijar: skipping unknown attribute: \"%s\".\n",
+              attr_name.c_str());
       p += attribute_length;
     }
   }
@@ -1681,16 +1596,22 @@ bool ClassFile::IsLocalOrAnonymous() {
 
 static bool HasKeepForCompile(const std::vector<Attribute *> attributes) {
   for (const Attribute *attribute : attributes) {
-    if (attribute->KeepForCompile()) {
+    if (attribute->attribute_name_->Display() ==
+        "com.google.devtools.ijar.KeepForCompile") {
       return true;
     }
   }
   return false;
 }
 
-bool ClassFile::KeepForCompile() {
+bool ClassFile::IsExplicitlyKept() {
   if (HasKeepForCompile(attributes)) {
     return true;
+  }
+  for (const Member *method : methods) {
+    if (HasKeepForCompile(method->attributes)) {
+      return true;
+    }
   }
   return false;
 }
@@ -1741,6 +1662,12 @@ static ClassFile *ReadClass(const void *classdata, size_t length) {
   u2 methods_count = get_u2be(p);
   for (int ii = 0; ii < methods_count; ++ii) {
     Member *method = Member::Read(p);
+
+    if (HasKeepForCompile(method->attributes)) {
+      // Always keep methods marked as such
+      clazz->methods.push_back(method);
+      continue;
+    }
 
     // drop class initializers
     if (method->name->Display() == "<clinit>") continue;
@@ -1942,8 +1869,10 @@ void ClassFile::WriteClass(u1 *&p) {
 bool StripClass(u1 *&classdata_out, const u1 *classdata_in, size_t in_length) {
   ClassFile *clazz = ReadClass(classdata_in, in_length);
   bool keep = true;
-  if (clazz == NULL || clazz->KeepForCompile()) {
+  if (clazz == NULL || clazz->IsExplicitlyKept()) {
     // Class is invalid or kept. Simply copy it to the output and call it a day.
+    // TODO: If kept, only emit methods marked with KeepForCompile attribute,
+    // as opposed to the entire type.
     put_n(classdata_out, classdata_in, in_length);
   } else if (clazz->IsLocalOrAnonymous()) {
     keep = false;

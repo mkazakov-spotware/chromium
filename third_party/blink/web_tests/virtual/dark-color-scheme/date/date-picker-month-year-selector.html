@@ -1,16 +1,21 @@
 <!DOCTYPE html>
-<meta name="color-scheme" content="dark">
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
+
+<head>
+  <meta name="color-scheme" content="dark">
+</head>
+<script>
+  testRunner.waitUntilDone();
+</script>
 <script src="../../../fast/forms/resources/common.js"></script>
 <script src="../../../fast/forms/resources/picker-common.js"></script>
 <script
   src="../../../fast/forms/calendar-picker/resources/calendar-picker-common.js"></script>
-
-<input type=date value="2019-07-31">
+<input type=date id=date value="2019-07-31">
 <script>
-  openPickerAppearanceOnly(document.querySelector('input'), () => {
+  openPicker(document.getElementById('date'), function () {
     clickMonthPopupButton();
-    skipAnimation();
+    popupWindow.global.picker.monthPopupView.yearListView.element.addEventListener('webkitTransitionEnd', function () {
+      testRunner.notifyDone();
+    })
   });
 </script>

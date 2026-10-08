@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "chrome/chrome_elf/sha1/sha1.h"
@@ -17,12 +18,6 @@
 namespace {
 
 class ModuleLoadAttemptLogListenerTest : public testing::Test {
- public:
-  ModuleLoadAttemptLogListenerTest(const ModuleLoadAttemptLogListenerTest&) =
-      delete;
-  ModuleLoadAttemptLogListenerTest& operator=(
-      const ModuleLoadAttemptLogListenerTest&) = delete;
-
  protected:
   ModuleLoadAttemptLogListenerTest() = default;
   ~ModuleLoadAttemptLogListenerTest() override = default;
@@ -66,9 +61,11 @@ class ModuleLoadAttemptLogListenerTest : public testing::Test {
 
   bool notified_ = false;
 
-  base::OnceClosure quit_closure_;
+  base::Closure quit_closure_;
 
   std::vector<std::tuple<base::FilePath, uint32_t, uint32_t>> blocked_modules_;
+
+  DISALLOW_COPY_AND_ASSIGN(ModuleLoadAttemptLogListenerTest);
 };
 
 }  // namespace

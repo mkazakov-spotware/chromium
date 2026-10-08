@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,9 @@
 #include <vector>
 
 #include "base/containers/adapters.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_occlusion_tracker.h"
-#include "ui/compositor/layer.h"
 #include "ui/views/view.h"
 #include "ui/views/view_constants_aura.h"
 
@@ -56,7 +55,7 @@ void GetOrderOfViewsWithLayers(
     order->push_back(view);
   }
 
-  for (views::View* child : view->GetChildrenInZOrder())
+  for (views::View* child : view->children())
     GetOrderOfViewsWithLayers(child, parent_layer, hosts, order);
 }
 
@@ -67,10 +66,6 @@ void GetOrderOfViewsWithLayers(
 class WindowReorderer::AssociationObserver : public aura::WindowObserver {
  public:
   explicit AssociationObserver(WindowReorderer* reorderer);
-
-  AssociationObserver(const AssociationObserver&) = delete;
-  AssociationObserver& operator=(const AssociationObserver&) = delete;
-
   ~AssociationObserver() override;
 
   // Start/stop observing changes in the kHostViewKey property on |window|.
@@ -85,9 +80,11 @@ class WindowReorderer::AssociationObserver : public aura::WindowObserver {
   void OnWindowDestroying(aura::Window* window) override;
 
   // Not owned.
-  raw_ptr<WindowReorderer> reorderer_;
+  WindowReorderer* reorderer_;
 
   std::set<aura::Window*> windows_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssociationObserver);
 };
 
 WindowReorderer::AssociationObserver::AssociationObserver(

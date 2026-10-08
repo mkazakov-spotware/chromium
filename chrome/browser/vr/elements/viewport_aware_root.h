@@ -1,13 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_VR_ELEMENTS_VIEWPORT_AWARE_ROOT_H_
 #define CHROME_BROWSER_VR_ELEMENTS_VIEWPORT_AWARE_ROOT_H_
 
+#include "base/macros.h"
 #include "chrome/browser/vr/elements/ui_element.h"
 #include "chrome/browser/vr/vr_ui_export.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace vr {
 
@@ -19,10 +20,6 @@ class VR_UI_EXPORT ViewportAwareRoot : public UiElement {
   static const float kViewportRotationTriggerDegrees;
 
   ViewportAwareRoot();
-
-  ViewportAwareRoot(const ViewportAwareRoot&) = delete;
-  ViewportAwareRoot& operator=(const ViewportAwareRoot&) = delete;
-
   ~ViewportAwareRoot() override;
 
   void Reset();
@@ -45,6 +42,8 @@ class VR_UI_EXPORT ViewportAwareRoot : public UiElement {
   float z_center = 0;
   bool children_visible_ = false;
   bool recenter_on_rotate_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ViewportAwareRoot);
 };
 
 }  // namespace vr

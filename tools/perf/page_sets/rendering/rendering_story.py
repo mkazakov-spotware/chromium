@@ -1,8 +1,6 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-import six
 
 from page_sets.rendering import story_tags
 from page_sets.system_health import platforms
@@ -24,8 +22,9 @@ class _MetaRenderingStory(type):
     return cls.__dict__.get('ABSTRACT_STORY', False)
 
 
-class RenderingStory(six.with_metaclass(_MetaRenderingStory, page.Page)):
+class RenderingStory(page.Page):
   """Abstract base class for Rendering user stories."""
+  __metaclass__ = _MetaRenderingStory
 
   BASE_NAME = NotImplemented
   URL = NotImplemented
@@ -34,7 +33,6 @@ class RenderingStory(six.with_metaclass(_MetaRenderingStory, page.Page)):
   TAGS =[]
   PLATFORM_SPECIFIC = False
   YEAR = None
-  DISABLE_TRACING = False
 
   def __init__(self,
                page_set,
@@ -42,8 +40,7 @@ class RenderingStory(six.with_metaclass(_MetaRenderingStory, page.Page)):
                name_suffix='',
                extra_browser_args=None,
                make_javascript_deterministic=True,
-               base_dir=None,
-               perform_final_navigation=True):
+               base_dir=None):
     tags = []
     for t in self.TAGS:
       assert t in story_tags.ALL_TAGS
@@ -60,9 +57,4 @@ class RenderingStory(six.with_metaclass(_MetaRenderingStory, page.Page)):
         shared_page_state_class=shared_page_state_class,
         extra_browser_args=extra_browser_args,
         make_javascript_deterministic=make_javascript_deterministic,
-        base_dir=base_dir,
-        perform_final_navigation=perform_final_navigation)
-
-  def WillStartTracing(self, chrome_trace_config):
-    chrome_trace_config.category_filter.AddIncludedCategory('benchmark')
-    chrome_trace_config.category_filter.AddIncludedCategory('v8')
+        base_dir=base_dir)

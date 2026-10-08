@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OFFLINE_PAGES_CORE_TEST_SCOPED_OFFLINE_CLOCK_H_
 #define COMPONENTS_OFFLINE_PAGES_CORE_TEST_SCOPED_OFFLINE_CLOCK_H_
 
+#include "base/macros.h"
 #include "base/test/simple_test_clock.h"
 
 namespace offline_pages {
@@ -14,13 +15,10 @@ namespace offline_pages {
 class TestScopedOfflineClockOverride {
  public:
   explicit TestScopedOfflineClockOverride(const base::Clock* clock);
-
-  TestScopedOfflineClockOverride(const TestScopedOfflineClockOverride&) =
-      delete;
-  TestScopedOfflineClockOverride& operator=(
-      const TestScopedOfflineClockOverride&) = delete;
-
   ~TestScopedOfflineClockOverride();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestScopedOfflineClockOverride);
 };
 
 // Overrides |OfflineClock()| with |this| upon construction. Returns
@@ -28,14 +26,12 @@ class TestScopedOfflineClockOverride {
 class TestScopedOfflineClock : public base::SimpleTestClock {
  public:
   TestScopedOfflineClock();
-
-  TestScopedOfflineClock(const TestScopedOfflineClock&) = delete;
-  TestScopedOfflineClock& operator=(const TestScopedOfflineClock&) = delete;
-
   ~TestScopedOfflineClock() override;
 
  private:
   TestScopedOfflineClockOverride override_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestScopedOfflineClock);
 };
 
 }  // namespace offline_pages

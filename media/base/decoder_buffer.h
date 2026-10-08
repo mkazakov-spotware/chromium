@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,20 @@
 #include <stdint.h>
 
 #include <memory>
-#include <ostream>
 #include <string>
 #include <utility>
 
 #include "base/check.h"
-#include "base/containers/span.h"
+#include "base/macros.h"
+#include "base/memory/aligned_memory.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/ref_counted.h"
-#include "base/memory/shared_memory_mapping.h"
-#include "base/memory/unsafe_shared_memory_region.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "media/base/decrypt_config.h"
 #include "media/base/media_export.h"
 #include "media/base/timestamp_constants.h"
+#include "media/base/unaligned_shared_memory.h"
 
 namespace media {
 
@@ -35,48 +34,17 @@ namespace media {
 class MEDIA_EXPORT DecoderBuffer
     : public base::RefCountedThreadSafe<DecoderBuffer> {
  public:
-  // ExternalMemory wraps a class owning a buffer and expose the data interface
-  // through |span|. This class is derived by a class that owns the class owning
-  // the buffer owner class. It is generally better to add the buffer class to
-  // DecoderBuffer. ExternalMemory is for a class that cannot be added; for
-  // instance, rtc::scoped_refptr<webrtc::EncodedImageBufferInterface>, webrtc
-  // class cannot be included in //media/base.
-  struct MEDIA_EXPORT ExternalMemory {
-   public:
-    explicit ExternalMemory(base::span<const uint8_t> span) : span_(span) {}
-    virtual ~ExternalMemory() = default;
-    const base::span<const uint8_t>& span() const { return span_; }
-
-   private:
-    const base::span<const uint8_t> span_;
-  };
-
-  using DiscardPadding = std::pair<base::TimeDelta, base::TimeDelta>;
-
-  struct MEDIA_EXPORT TimeInfo {
-    TimeInfo();
-    ~TimeInfo();
-    TimeInfo(const TimeInfo&);
-    TimeInfo& operator=(const TimeInfo&);
-
-    // Presentation time of the frame.
-    base::TimeDelta timestamp;
-
-    // Presentation duration of the frame.
-    base::TimeDelta duration;
-
-    // Duration of (audio) samples from the beginning and end of this frame
-    // which should be discarded after decoding. A value of kInfiniteDuration
-    // for the first value indicates the entire frame should be discarded; the
-    // second value must be base::TimeDelta() in this case.
-    DiscardPadding discard_padding;
+  enum {
+    kPaddingSize = 64,
+#if defined(ARCH_CPU_ARM_FAMILY)
+    kAlignmentSize = 16
+#else
+    kAlignmentSize = 32
+#endif
   };
 
   // Allocates buffer with |size| >= 0. |is_key_frame_| will default to false.
   explicit DecoderBuffer(size_t size);
-
-  DecoderBuffer(const DecoderBuffer&) = delete;
-  DecoderBuffer& operator=(const DecoderBuffer&) = delete;
 
   // Create a DecoderBuffer whose |data_| is copied from |data|. |data| must not
   // be NULL and |size| >= 0. The buffer's |is_key_frame_| will default to
@@ -107,8 +75,8 @@ class MEDIA_EXPORT DecoderBuffer
   //
   // If mapping fails, nullptr will be returned.
   static scoped_refptr<DecoderBuffer> FromSharedMemoryRegion(
-      base::UnsafeSharedMemoryRegion region,
-      uint64_t offset,
+      base::subtle::PlatformSharedMemoryRegion region,
+      off_t offset,
       size_t size);
 
   // Create a DecoderBuffer where data() of |size| bytes resides within the
@@ -118,14 +86,8 @@ class MEDIA_EXPORT DecoderBuffer
   // Ownership of |region| is transferred to the buffer.
   static scoped_refptr<DecoderBuffer> FromSharedMemoryRegion(
       base::ReadOnlySharedMemoryRegion region,
-      uint64_t offset,
+      off_t offset,
       size_t size);
-
-  // Creates a DecoderBuffer with ExternalMemory. The buffer accessed through
-  // the created DecoderBuffer is |span| of |external_memory||.
-  // |external_memory| is owned by DecoderBuffer until it is destroyed.
-  static scoped_refptr<DecoderBuffer> FromExternalMemory(
-      std::unique_ptr<ExternalMemory> external_memory);
 
   // Create a DecoderBuffer indicating we've reached end of stream.
   //
@@ -133,14 +95,9 @@ class MEDIA_EXPORT DecoderBuffer
   // is disallowed.
   static scoped_refptr<DecoderBuffer> CreateEOSBuffer();
 
-  const TimeInfo& time_info() const {
-    DCHECK(!end_of_stream());
-    return time_info_;
-  }
-
   base::TimeDelta timestamp() const {
     DCHECK(!end_of_stream());
-    return time_info_.timestamp;
+    return timestamp_;
   }
 
   // TODO(dalecurtis): This should be renamed at some point, but to avoid a yak
@@ -149,7 +106,7 @@ class MEDIA_EXPORT DecoderBuffer
 
   base::TimeDelta duration() const {
     DCHECK(!end_of_stream());
-    return time_info_.duration;
+    return duration_;
   }
 
   void set_duration(base::TimeDelta duration) {
@@ -157,26 +114,23 @@ class MEDIA_EXPORT DecoderBuffer
     DCHECK(duration == kNoTimestamp ||
            (duration >= base::TimeDelta() && duration != kInfiniteDuration))
         << duration.InSecondsF();
-    time_info_.duration = duration;
+    duration_ = duration;
   }
 
   const uint8_t* data() const {
     DCHECK(!end_of_stream());
-    if (read_only_mapping_.IsValid())
-      return read_only_mapping_.GetMemoryAs<const uint8_t>();
-    if (writable_mapping_.IsValid())
-      return writable_mapping_.GetMemoryAs<const uint8_t>();
-    if (external_memory_)
-      return external_memory_->span().data();
+    if (shared_mem_mapping_ && shared_mem_mapping_->IsValid())
+      return static_cast<const uint8_t*>(shared_mem_mapping_->memory());
+    if (shm_)
+      return static_cast<uint8_t*>(shm_->memory());
     return data_.get();
   }
 
   // TODO(sandersd): Remove writable_data(). https://crbug.com/834088
   uint8_t* writable_data() const {
     DCHECK(!end_of_stream());
-    DCHECK(!read_only_mapping_.IsValid());
-    DCHECK(!writable_mapping_.IsValid());
-    DCHECK(!external_memory_);
+    DCHECK(!shm_);
+    DCHECK(!shared_mem_mapping_);
     return data_.get();
   }
 
@@ -195,14 +149,15 @@ class MEDIA_EXPORT DecoderBuffer
     return side_data_size_;
   }
 
+  typedef std::pair<base::TimeDelta, base::TimeDelta> DiscardPadding;
   const DiscardPadding& discard_padding() const {
     DCHECK(!end_of_stream());
-    return time_info_.discard_padding;
+    return discard_padding_;
   }
 
   void set_discard_padding(const DiscardPadding& discard_padding) {
     DCHECK(!end_of_stream());
-    time_info_.discard_padding = discard_padding;
+    discard_padding_ = discard_padding;
   }
 
   // Returns DecryptConfig associated with |this|. Returns null iff |this| is
@@ -218,10 +173,7 @@ class MEDIA_EXPORT DecoderBuffer
   }
 
   // If there's no data in this buffer, it represents end of stream.
-  bool end_of_stream() const {
-    return !read_only_mapping_.IsValid() && !writable_mapping_.IsValid() &&
-           !external_memory_ && !data_;
-  }
+  bool end_of_stream() const { return !shared_mem_mapping_ && !shm_ && !data_; }
 
   bool is_key_frame() const {
     DCHECK(!end_of_stream());
@@ -236,9 +188,6 @@ class MEDIA_EXPORT DecoderBuffer
   // Returns true if all fields in |buffer| matches this buffer
   // including |data_| and |side_data_|.
   bool MatchesForTesting(const DecoderBuffer& buffer) const;
-
-  // As above, except that |data_| and |side_data_| are not compared.
-  bool MatchesMetadataForTesting(const DecoderBuffer& buffer) const;
 
   // Returns a human-readable string describing |*this|.
   std::string AsHumanReadableString(bool verbose = false) const;
@@ -259,11 +208,10 @@ class MEDIA_EXPORT DecoderBuffer
 
   DecoderBuffer(std::unique_ptr<uint8_t[]> data, size_t size);
 
-  DecoderBuffer(base::ReadOnlySharedMemoryMapping mapping, size_t size);
+  DecoderBuffer(std::unique_ptr<UnalignedSharedMemory> shm, size_t size);
 
-  DecoderBuffer(base::WritableSharedMemoryMapping mapping, size_t size);
-
-  explicit DecoderBuffer(std::unique_ptr<ExternalMemory> external_memory);
+  DecoderBuffer(std::unique_ptr<ReadOnlyUnalignedMapping> shared_mem_mapping,
+                size_t size);
 
   virtual ~DecoderBuffer();
 
@@ -271,31 +219,40 @@ class MEDIA_EXPORT DecoderBuffer
   std::unique_ptr<uint8_t[]> data_;
 
  private:
-  TimeInfo time_info_;
+  // Presentation time of the frame.
+  base::TimeDelta timestamp_;
+  // Presentation duration of the frame.
+  base::TimeDelta duration_;
 
   // Size of the encoded data.
   size_t size_;
 
   // Side data. Used for alpha channel in VPx, and for text cues.
-  size_t side_data_size_ = 0;
+  size_t side_data_size_;
   std::unique_ptr<uint8_t[]> side_data_;
 
-  // Encoded data, if it is stored in a read-only shared memory mapping.
-  base::ReadOnlySharedMemoryMapping read_only_mapping_;
+  // Encoded data, if it is stored in a shared memory mapping.
+  std::unique_ptr<ReadOnlyUnalignedMapping> shared_mem_mapping_;
 
-  // Encoded data, if it is stored in a writable shared memory mapping.
-  base::WritableSharedMemoryMapping writable_mapping_;
-
-  std::unique_ptr<ExternalMemory> external_memory_;
+  // Encoded data, if it is stored in SHM.
+  std::unique_ptr<UnalignedSharedMemory> shm_;
 
   // Encryption parameters for the encoded data.
   std::unique_ptr<DecryptConfig> decrypt_config_;
 
+  // Duration of (audio) samples from the beginning and end of this frame which
+  // should be discarded after decoding. A value of kInfiniteDuration for the
+  // first value indicates the entire frame should be discarded; the second
+  // value must be base::TimeDelta() in this case.
+  DiscardPadding discard_padding_;
+
   // Whether the frame was marked as a keyframe in the container.
-  bool is_key_frame_ = false;
+  bool is_key_frame_;
 
   // Constructor helper method for memory allocations.
   void Initialize();
+
+  DISALLOW_COPY_AND_ASSIGN(DecoderBuffer);
 };
 
 }  // namespace media

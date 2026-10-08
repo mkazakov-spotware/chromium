@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -145,7 +145,7 @@ enum DownloadCountTypes {
 
 // Enum for in-progress download DB, used in histogram
 // "Download.InProgressDB.Counts".
-enum InProgressDBCountTypes : uint8_t {
+enum InProgressDBCountTypes {
   // Count of initialization attempts.
   kInitializationCount = 0,
 
@@ -224,10 +224,6 @@ COMPONENTS_DOWNLOAD_EXPORT void RecordDownloadResumption(
     DownloadInterruptReason reason,
     bool user_resume);
 
-// Records the interrupt reason when a download is retried.
-COMPONENTS_DOWNLOAD_EXPORT void RecordDownloadRetry(
-    DownloadInterruptReason reason);
-
 // Records whenever a download hits max auto-resumption limit.
 COMPONENTS_DOWNLOAD_EXPORT void RecordAutoResumeCountLimitReached(
     DownloadInterruptReason reason);
@@ -263,6 +259,22 @@ COMPONENTS_DOWNLOAD_EXPORT void RecordParallelizableDownloadCount(
 // including the initial request.
 COMPONENTS_DOWNLOAD_EXPORT void RecordParallelDownloadRequestCount(
     int request_count);
+
+// Records the bandwidth for parallelizable download and estimates the saved
+// time at the file end. Does not count in any hash computation or file
+// open/close time.
+COMPONENTS_DOWNLOAD_EXPORT void RecordParallelizableDownloadStats(
+    size_t bytes_downloaded_with_parallel_streams,
+    base::TimeDelta time_with_parallel_streams,
+    size_t bytes_downloaded_without_parallel_streams,
+    base::TimeDelta time_without_parallel_streams,
+    bool uses_parallel_requests);
+
+// Records the average bandwidth, time, and file size for parallelizable
+// download.
+COMPONENTS_DOWNLOAD_EXPORT void RecordParallelizableDownloadAverageStats(
+    int64_t bytes_downloaded,
+    const base::TimeDelta& time_span);
 
 // Record the result of a download file rename.
 COMPONENTS_DOWNLOAD_EXPORT void RecordDownloadFileRenameResultAfterRetry(
@@ -374,7 +386,7 @@ COMPONENTS_DOWNLOAD_EXPORT void RecordParallelRequestCreationFailure(
 COMPONENTS_DOWNLOAD_EXPORT void RecordDownloadLaterEvent(
     DownloadLaterEvent event);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 enum class BackgroudTargetDeterminationResultTypes {
   // Target determination succeeded.
   kSuccess = 0,
@@ -392,12 +404,12 @@ enum class BackgroudTargetDeterminationResultTypes {
 // reduced mode.
 COMPONENTS_DOWNLOAD_EXPORT void RecordBackgroundTargetDeterminationResult(
     BackgroudTargetDeterminationResultTypes type);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Records the OS error code when moving a file on Windows.
 COMPONENTS_DOWNLOAD_EXPORT void RecordWinFileMoveError(int os_error);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }  // namespace download
 
 #endif  // COMPONENTS_DOWNLOAD_PUBLIC_COMMON_DOWNLOAD_STATS_H_

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 #include <vector>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/storage_monitor/storage_monitor.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/device/public/mojom/mtp_manager.mojom.h"
 #endif
@@ -46,14 +45,14 @@ class TestStorageMonitor : public StorageMonitor {
   bool GetStorageInfoForPath(const base::FilePath& path,
                              StorageInfo* device_info) const override;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   bool GetMTPStorageInfoFromDeviceId(
       const std::string& storage_device_id,
-      std::wstring* device_location,
-      std::wstring* storage_object_id) const override;
+      base::string16* device_location,
+      base::string16* storage_object_id) const override;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   device::mojom::MtpManager* media_transfer_protocol_manager() override;
 #endif
 
@@ -79,7 +78,7 @@ class TestStorageMonitor : public StorageMonitor {
   // Paths considered for testing purposes to be on removable storage.
   std::vector<base::FilePath> removable_paths_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   mojo::Remote<device::mojom::MtpManager> media_transfer_protocol_manager_;
 #endif
 };

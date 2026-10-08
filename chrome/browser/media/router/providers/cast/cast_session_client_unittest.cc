@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "base/run_loop.h"
 #include "base/test/mock_log.h"
 #include "base/test/values_test_util.h"
+#include "chrome/browser/media/router/data_decoder_util.h"
 #include "chrome/browser/media/router/providers/cast/cast_activity_manager.h"
 #include "chrome/browser/media/router/providers/cast/cast_internal_message_util.h"
 #include "chrome/browser/media/router/providers/cast/cast_session_client_impl.h"
@@ -21,7 +22,7 @@
 #include "chrome/browser/media/router/providers/common/buffered_message_sender.h"
 #include "chrome/browser/media/router/test/mock_mojo_media_router.h"
 #include "chrome/browser/media/router/test/provider_test_helpers.h"
-#include "components/media_router/common/providers/cast/channel/cast_test_util.h"
+#include "components/cast_channel/cast_test_util.h"
 #include "components/media_router/common/test/test_helper.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -32,14 +33,13 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::test::IsJson;
-using base::test::ParseJsonDict;
+using base::test::ParseJson;
 using blink::mojom::PresentationConnectionCloseReason;
 using testing::_;
 using testing::AllOf;
 using testing::AnyNumber;
 using testing::HasSubstr;
 using testing::IsEmpty;
-using testing::NiceMock;
 using testing::Not;
 using testing::Return;
 using testing::WithArg;
@@ -56,9 +56,6 @@ class MockPresentationConnection : public blink::mojom::PresentationConnection {
       : connection_receiver_(this,
                              std::move(connections->connection_receiver)) {}
 
-  MockPresentationConnection(MockPresentationConnection&) = delete;
-  MockPresentationConnection& operator=(MockPresentationConnection&) = delete;
-
   ~MockPresentationConnection() override = default;
 
   MOCK_METHOD1(OnMessage, void(blink::mojom::PresentationConnectionMessagePtr));
@@ -69,6 +66,8 @@ class MockPresentationConnection : public blink::mojom::PresentationConnection {
   // NOTE: This member doesn't look like it's used for anything, but it needs to
   // exist in order for Mojo magic to work correctly.
   mojo::Receiver<blink::mojom::PresentationConnection> connection_receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPresentationConnection);
 };
 
 }  // namespace
@@ -103,7 +102,7 @@ class CastSessionClientImplTest : public testing::Test {
                                               AutoJoinPolicy::kPageScoped,
                                               &activity_);
   std::unique_ptr<MockPresentationConnection> mock_connection_ =
-      std::make_unique<NiceMock<MockPresentationConnection>>(client_->Init());
+      std::make_unique<MockPresentationConnection>(client_->Init());
   base::test::MockLog log_;
 };
 
@@ -244,7 +243,7 @@ TEST_F(CastSessionClientImplTest, OnMediaStatusUpdatedWithPendingRequest) {
     "timeoutMillis": 0,
     "type": "v2_message"
   })")));
-  client_->SendMediaStatusToClient(ParseJsonDict(R"({"foo": "bar"})"), 123);
+  client_->SendMediaStatusToClient(ParseJson(R"({"foo": "bar"})"), 123);
 }
 
 TEST_F(CastSessionClientImplTest, SendSetVolumeCommandToReceiver) {

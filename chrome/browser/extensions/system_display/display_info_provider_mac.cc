@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@ namespace extensions {
 DisplayInfoProviderMac::DisplayInfoProviderMac() = default;
 
 void DisplayInfoProviderMac::UpdateDisplayUnitInfoForPlatform(
-    const std::vector<display::Display>& display,
-    DisplayUnitInfoList& units) const {
+    const display::Display& display,
+    extensions::api::system_display::DisplayUnitInfo* unit) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 

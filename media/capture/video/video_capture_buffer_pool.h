@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/memory/ref_counted.h"
 #include "media/capture/capture_export.h"
-#include "media/capture/mojom/video_capture_buffer.mojom.h"
 #include "media/capture/mojom/video_capture_types.mojom.h"
 #include "media/capture/video/video_capture_device.h"
 #include "media/capture/video_capture_types.h"
@@ -52,6 +51,9 @@ class CAPTURE_EXPORT VideoCaptureBufferPool
       int buffer_id) = 0;
   virtual mojo::ScopedSharedBufferHandle DuplicateAsMojoBuffer(
       int buffer_id) = 0;
+
+  virtual mojom::SharedMemoryViaRawFileDescriptorPtr
+  CreateSharedMemoryViaRawFileDescriptorStruct(int buffer_id) = 0;
 
   // Try and obtain a read/write access to the buffer.
   virtual std::unique_ptr<VideoCaptureBufferHandle> GetHandleForInProcessAccess(

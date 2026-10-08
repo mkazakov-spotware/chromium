@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,15 +17,13 @@ namespace test {
 class FakeBatteryStatusListener : public BatteryStatusListenerImpl {
  public:
   FakeBatteryStatusListener() : BatteryStatusListenerImpl(base::TimeDelta()) {}
-
-  FakeBatteryStatusListener(const FakeBatteryStatusListener&) = delete;
-  FakeBatteryStatusListener& operator=(const FakeBatteryStatusListener&) =
-      delete;
-
   ~FakeBatteryStatusListener() override = default;
 
   // BatteryStatusListener implementation.
   int GetBatteryPercentageInternal() override { return 100; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakeBatteryStatusListener);
 };
 
 TestDeviceStatusListener::TestDeviceStatusListener()
@@ -60,7 +58,7 @@ void TestDeviceStatusListener::Start(const base::TimeDelta& start_delay) {
   listening_ = true;
 
   // Simulates the delay after start up.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&TestDeviceStatusListener::StartAfterDelay,
                                 weak_ptr_factory_.GetWeakPtr()));
 }

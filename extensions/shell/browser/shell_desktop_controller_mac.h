@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "extensions/shell/browser/desktop_controller.h"
-#include "ui/display/screen.h"
 
 namespace extensions {
 
@@ -21,14 +20,10 @@ class AppWindowClient;
 class ShellDesktopControllerMac : public DesktopController {
  public:
   ShellDesktopControllerMac();
-
-  ShellDesktopControllerMac(const ShellDesktopControllerMac&) = delete;
-  ShellDesktopControllerMac& operator=(const ShellDesktopControllerMac&) =
-      delete;
-
   ~ShellDesktopControllerMac() override;
 
   // DesktopController:
+  void Run() override;
   void AddAppWindow(AppWindow* app_window, gfx::NativeWindow window) override;
   void CloseAppWindows() override;
 
@@ -37,10 +32,9 @@ class ShellDesktopControllerMac : public DesktopController {
 
   // The desktop only supports a single app window.
   // TODO(yoz): Support multiple app windows, as we do in Aura.
-  raw_ptr<AppWindow, DanglingUntriaged>
-      app_window_;  // NativeAppWindow::Close() deletes this.
+  AppWindow* app_window_;  // NativeAppWindow::Close() deletes this.
 
-  display::ScopedNativeScreen screen_;
+  DISALLOW_COPY_AND_ASSIGN(ShellDesktopControllerMac);
 };
 
 }  // namespace extensions

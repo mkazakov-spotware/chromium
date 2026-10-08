@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,10 @@
 
 namespace {
 
-std::u16string FormatUrlToSubdomain(const GURL& url) {
-  std::u16string formated_url = url_formatter::FormatUrl(
+base::string16 FormatUrlToSubdomain(const GURL& url) {
+  base::string16 formated_url = url_formatter::FormatUrl(
       url, url_formatter::kFormatUrlOmitTrivialSubdomains,
-      base::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
+      net::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
   return base::UTF8ToUTF16(GURL(formated_url).host());
 }
 
@@ -34,23 +34,21 @@ TabUIHelper::TabUIData::TabUIData(const GURL& url)
     : title(FormatUrlToSubdomain(url)), favicon(favicon::GetDefaultFavicon()) {}
 
 TabUIHelper::TabUIHelper(content::WebContents* contents)
-    : WebContentsObserver(contents),
-      content::WebContentsUserData<TabUIHelper>(*contents) {}
+    : WebContentsObserver(contents) {}
+TabUIHelper::~TabUIHelper() {}
 
-TabUIHelper::~TabUIHelper() = default;
-
-std::u16string TabUIHelper::GetTitle() const {
-  const std::u16string& contents_title = web_contents()->GetTitle();
+base::string16 TabUIHelper::GetTitle() const {
+  const base::string16& contents_title = web_contents()->GetTitle();
   if (!contents_title.empty())
     return contents_title;
 
   if (tab_ui_data_)
     return tab_ui_data_->title;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   return l10n_util::GetStringUTF16(IDS_BROWSER_WINDOW_MAC_TAB_UNTITLED);
 #else
-  return std::u16string();
+  return base::string16();
 #endif
 }
 
@@ -95,8 +93,7 @@ void TabUIHelper::NotifyInitialNavigationDelayed(bool is_navigation_delayed) {
 
 void TabUIHelper::DidStopLoading() {
   // Reset the properties after the initial navigation finishes loading, so that
-  // latter navigations are not affected. Note that the prerendered page won't
-  // reset the properties because DidStopLoading is not called for prerendering.
+  // latter navigations are not affected.
   is_navigation_delayed_ = false;
   created_by_session_restore_ = false;
   tab_ui_data_.reset();
@@ -154,4 +151,4 @@ void TabUIHelper::UpdateFavicon(
   }
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(TabUIHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(TabUIHelper)

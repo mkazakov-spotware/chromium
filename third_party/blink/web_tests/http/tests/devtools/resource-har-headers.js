@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   'use strict';
   TestRunner.addResult(`Tests the nondeterministic bits of HAR conversion via the magic of hard-coded values.\n`);
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('application_test_runner');
-  await TestRunner.loadTestModule('network_test_runner');
+  await TestRunner.loadModule('application_test_runner');
+  await TestRunner.loadModule('network_test_runner');
 
   function visibleNewlines(s) {
     return s.replace(/\r/, '\\r').replace(/\n/, '\\n');
@@ -24,7 +24,7 @@
     request.statusCode = 200;
     request.statusText = 'OK';
     request.resourceSize = 1000;
-    request.setTransferSize(539);  // 39 = header size at the end of the day
+    request._transferSize = 539;  // 39 = header size at the end of the day
     request.setPriority('VeryHigh');
     request.setResourceType(Common.resourceTypes.Fetch);
 
@@ -56,9 +56,8 @@
     url: 'http://example.com/inspector-test.js',
     lineNumber: 117
   };
-  var testRequest = SDK.NetworkRequest.create(
-      'testRequest', 'http://example.com/inspector-test.js',
-      'http://example.com/fake-document-url', 1, 1, fakeInitiator);
+  var testRequest = new SDK.NetworkRequest(
+      'testRequest', 'http://example.com/inspector-test.js', 'http://example.com/fake-document-url', 1, 1, fakeInitiator);
   setRequestValues(testRequest);
   var headersText = testRequest.requestHeadersText();
   var requestResults = {
@@ -83,7 +82,7 @@
     '_transferSize': 'formatAsTypeName',
     '_error': 'skip'
   };
-  var har = await NetworkTestRunner.buildHARLogEntry(testRequest);
+  var har = await SDK.HARLog.Entry.build(testRequest);
   TestRunner.addObject(har, stillNondeterministic, '', 'HAR:');
   TestRunner.completeTest();
 })();

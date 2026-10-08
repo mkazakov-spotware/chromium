@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,10 @@
 #include "base/bind.h"
 #include "base/callback_forward.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "mojo/public/cpp/bindings/associated_group.h"
 #include "mojo/public/cpp/bindings/associated_interface_ptr_info.h"
 #include "mojo/public/cpp/bindings/connection_error_callback.h"
@@ -75,9 +76,9 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) AssociatedInterfacePtrStateBase {
     endpoint_client_->AcceptWithResponder(&message, std::move(responder));
   }
 
-  scoped_refptr<ThreadSafeProxy> CreateThreadSafeProxy(
-      scoped_refptr<ThreadSafeProxy::Target> target) {
-    return endpoint_client_->CreateThreadSafeProxy(std::move(target));
+  void force_outgoing_messages_async(bool force) {
+    DCHECK(endpoint_client_);
+    endpoint_client_->force_outgoing_messages_async(force);
   }
 
  protected:
@@ -86,9 +87,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) AssociatedInterfacePtrStateBase {
             uint32_t version,
             std::unique_ptr<MessageReceiver> validator,
             scoped_refptr<base::SequencedTaskRunner> runner,
-            const char* interface_name,
-            MessageToMethodInfoCallback method_info_callback,
-            MessageToMethodNameCallback method_name_callback);
+            const char* interface_name);
   ScopedInterfaceEndpointHandle PassHandle();
 
   InterfaceEndpointClient* endpoint_client() { return endpoint_client_.get(); }
@@ -106,10 +105,7 @@ class AssociatedInterfacePtrState : public AssociatedInterfacePtrStateBase {
  public:
   using Proxy = typename Interface::Proxy_;
 
-  AssociatedInterfacePtrState() = default;
-  AssociatedInterfacePtrState(const AssociatedInterfacePtrState&) = delete;
-  AssociatedInterfacePtrState& operator=(const AssociatedInterfacePtrState&) =
-      delete;
+  AssociatedInterfacePtrState() {}
   ~AssociatedInterfacePtrState() = default;
 
   Proxy* instance() {
@@ -128,9 +124,8 @@ class AssociatedInterfacePtrState : public AssociatedInterfacePtrStateBase {
     AssociatedInterfacePtrStateBase::Bind(
         info.PassHandle(), info.version(),
         std::make_unique<typename Interface::ResponseValidator_>(),
-        std::move(runner), Interface::Name_, Interface::MessageToMethodInfo_,
-        Interface::MessageToMethodName_);
-    proxy_ = std::make_unique<Proxy>(endpoint_client());
+        std::move(runner), Interface::Name_);
+    proxy_.reset(new Proxy(endpoint_client()));
   }
 
   // After this method is called, the object is in an invalid state and
@@ -141,12 +136,10 @@ class AssociatedInterfacePtrState : public AssociatedInterfacePtrStateBase {
     return info;
   }
 
-  InterfaceEndpointClient* endpoint_client_for_test() {
-    return endpoint_client();
-  }
-
  private:
   std::unique_ptr<Proxy> proxy_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssociatedInterfacePtrState);
 };
 
 }  // namespace internal

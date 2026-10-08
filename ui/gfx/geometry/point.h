@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,10 @@
 #include "ui/gfx/geometry/geometry_export.h"
 #include "ui/gfx/geometry/vector2d.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 typedef unsigned long DWORD;
 typedef struct tagPOINT POINT;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 typedef struct CGPoint CGPoint;
 #endif
 
@@ -28,20 +28,20 @@ class GEOMETRY_EXPORT Point {
  public:
   constexpr Point() : x_(0), y_(0) {}
   constexpr Point(int x, int y) : x_(x), y_(y) {}
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // |point| is a DWORD value that contains a coordinate.  The x-coordinate is
   // the low-order short and the y-coordinate is the high-order short.  This
   // value is commonly acquired from GetMessagePos/GetCursorPos.
   explicit Point(DWORD point);
   explicit Point(const POINT& point);
   Point& operator=(const POINT& point);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   explicit Point(const CGPoint& point);
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   POINT ToPOINT() const;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   CGPoint ToCGPoint() const;
 #endif
 
@@ -77,11 +77,6 @@ class GEOMETRY_EXPORT Point {
 
   Vector2d OffsetFromOrigin() const { return Vector2d(x_, y_); }
 
-  void Transpose() {
-    using std::swap;
-    swap(x_, y_);
-  }
-
   // A point is less than another point if its y-value is closer
   // to the origin. If the y-values are the same, then point with
   // the x-value closer to the origin is considered less than the
@@ -100,7 +95,7 @@ class GEOMETRY_EXPORT Point {
   int y_;
 };
 
-constexpr bool operator==(const Point& lhs, const Point& rhs) {
+inline bool operator==(const Point& lhs, const Point& rhs) {
   return lhs.x() == rhs.x() && lhs.y() == rhs.y();
 }
 
@@ -127,10 +122,6 @@ inline Vector2d operator-(const Point& lhs, const Point& rhs) {
 
 inline Point PointAtOffsetFromOrigin(const Vector2d& offset_from_origin) {
   return Point(offset_from_origin.x(), offset_from_origin.y());
-}
-
-inline Point TransposePoint(const gfx::Point& p) {
-  return Point(p.y(), p.x());
 }
 
 // This is declared here for use in gtest-based unit tests but is defined in

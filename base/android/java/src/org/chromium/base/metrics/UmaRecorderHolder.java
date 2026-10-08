@@ -1,8 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base.metrics;
+
+import androidx.annotation.VisibleForTesting;
 
 /** Holds the {@link CachingUmaRecorder} used by {@link RecordHistogram}. */
 public class UmaRecorderHolder {
@@ -11,11 +13,8 @@ public class UmaRecorderHolder {
     /** The instance held by this class. */
     private static CachingUmaRecorder sRecorder = new CachingUmaRecorder();
 
-    /** Set up native UMA Recorder */
-    private static boolean sSetUpNativeUmaRecorder = true;
-
-    /** Whether onLibraryLoaded() was called. */
-    private static boolean sNativeInitialized;
+    /** Allow calling onLibraryLoaded() */
+    private static boolean sAllowNativeUmaRecorder = true;
 
     /** Returns the held {@link UmaRecorder}. */
     public static UmaRecorder get() {
@@ -38,34 +37,30 @@ public class UmaRecorderHolder {
     }
 
     /**
-     * Whether a native UMA Recorder should be set up.
-     * @param setUpNativeUmaRecorder indicates whether a native UMA recorder should be set up.
-     * Defaults to true if unset.
+     * Disallow calling onLibraryLoaded() to set a {@link NativeUmaRecorder}.
+     * <p>
+     * Can be used in processes that don't load native library to make sure that a native recorder
+     * is never set to avoid possible breakage.
      */
-    public static void setUpNativeUmaRecorder(boolean setUpNativeUmaRecorder) {
-        sSetUpNativeUmaRecorder = setUpNativeUmaRecorder;
+    public static void setAllowNativeUmaRecorder(boolean allow) {
+        sAllowNativeUmaRecorder = allow;
     }
 
     /**
      * Starts forwarding metrics to the native code. Returns after the cache has been flushed.
      */
     public static void onLibraryLoaded() {
-        if (!sSetUpNativeUmaRecorder) return;
-
-        assert !sNativeInitialized;
-        sNativeInitialized = true;
+        assert sAllowNativeUmaRecorder : "Setting NativeUmaRecorder is not allowed";
         sRecorder.setDelegate(new NativeUmaRecorder());
     }
 
     /**
-     * Reset globals for tests.
+     * Tests may need to disable metrics. The value should be reset after the test done, to avoid
+     * carrying over state to unrelated tests.
+     *
+     * @deprecated This method does nothing.
      */
-    public static void resetForTesting() {
-        // Prevent hitting cache size limits from tests running without ever switching to the native
-        // recorder. Also guards against tests that use setNonNativeDelegate() to inject a mock from
-        // forgetting to reset it.
-        if (!sNativeInitialized) {
-            sRecorder = new CachingUmaRecorder();
-        }
-    }
+    @VisibleForTesting
+    @Deprecated
+    public static void setDisabledForTests(boolean disabled) {}
 }

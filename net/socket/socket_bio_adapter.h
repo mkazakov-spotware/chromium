@@ -1,15 +1,13 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_SOCKET_SOCKET_BIO_ADAPTER_H_
 #define NET_SOCKET_SOCKET_BIO_ADAPTER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/completion_repeating_callback.h"
-#include "net/base/net_errors.h"
 #include "net/base/net_export.h"
 #include "third_party/boringssl/src/include/openssl/base.h"
 
@@ -63,7 +61,7 @@ class NET_EXPORT_PRIVATE SocketBIOAdapter {
     virtual void OnWriteReady() = 0;
 
    protected:
-    virtual ~Delegate() = default;
+    virtual ~Delegate() {}
   };
 
   // Creates a new SocketBIOAdapter for the specified socket. |socket| and
@@ -72,10 +70,6 @@ class NET_EXPORT_PRIVATE SocketBIOAdapter {
                    int read_buffer_capacity,
                    int write_buffer_capacity,
                    Delegate* delegate);
-
-  SocketBIOAdapter(const SocketBIOAdapter&) = delete;
-  SocketBIOAdapter& operator=(const SocketBIOAdapter&) = delete;
-
   ~SocketBIOAdapter();
 
   BIO* bio() { return bio_.get(); }
@@ -110,7 +104,7 @@ class NET_EXPORT_PRIVATE SocketBIOAdapter {
 
   // The pointer is non-owning so this class may be used with both
   // ClientSocketHandles and raw StreamSockets.
-  raw_ptr<StreamSocket> socket_;
+  StreamSocket* socket_;
 
   CompletionRepeatingCallback read_callback_;
   CompletionRepeatingCallback write_callback_;
@@ -121,11 +115,11 @@ class NET_EXPORT_PRIVATE SocketBIOAdapter {
   // deallocated when unused.
   scoped_refptr<IOBuffer> read_buffer_;
   // The number of bytes of read_buffer_ consumed.
-  int read_offset_ = 0;
+  int read_offset_;
   // The result of the most recent socket Read(). If ERR_IO_PENDING, there is a
   // socket Read() in progress. If another error, Read() has failed. Otherwise,
   // it is the number of bytes in the buffer (zero if empty).
-  int read_result_ = 0;
+  int read_result_;
 
   // The capacity of the write buffer.
   int write_buffer_capacity_;
@@ -134,15 +128,17 @@ class NET_EXPORT_PRIVATE SocketBIOAdapter {
   // Write(). The buffer is deallocated when unused.
   scoped_refptr<GrowableIOBuffer> write_buffer_;
   // The number of bytes of data in write_buffer_.
-  int write_buffer_used_ = 0;
+  int write_buffer_used_;
   // The most recent socket Write() error. If ERR_IO_PENDING, there is a socket
   // Write() in progress. If OK, there is no socket Write() in progress and none
   // have failed.
-  int write_error_ = OK;
+  int write_error_;
 
-  raw_ptr<Delegate> delegate_;
+  Delegate* delegate_;
 
   base::WeakPtrFactory<SocketBIOAdapter> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SocketBIOAdapter);
 };
 
 }  // namespace net

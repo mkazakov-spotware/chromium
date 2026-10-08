@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,8 +38,6 @@ class LayoutBoxUtils {
 
   static bool SkipContainingBlockForPercentHeightCalculation(
       const LayoutBlock* cb);
-
-  static LayoutUnit InlineSize(const LayoutBox& box);
 
   // The total block size of all fragments.
   static LayoutUnit TotalBlockSize(const LayoutBox& box);

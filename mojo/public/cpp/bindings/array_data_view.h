@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,12 @@
 
 #include <type_traits>
 
-#include "base/memory/raw_ptr_exclusion.h"
 #include "mojo/public/cpp/bindings/lib/array_internal.h"
 #include "mojo/public/cpp/bindings/lib/bindings_internal.h"
+#include "mojo/public/cpp/bindings/lib/serialization_context.h"
 #include "mojo/public/cpp/bindings/lib/serialization_forward.h"
 
 namespace mojo {
-
-class Message;
-
 namespace internal {
 
 template <typename T, typename EnableType = void>
@@ -29,20 +26,16 @@ class ArrayDataViewImpl<
  public:
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
   T operator[](size_t index) const { return data_->at(index); }
 
   const T* data() const { return data_->storage(); }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 template <typename T>
@@ -53,18 +46,14 @@ class ArrayDataViewImpl<
  public:
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
   bool operator[](size_t index) const { return data_->at(index); }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 template <typename T>
@@ -73,17 +62,16 @@ class ArrayDataViewImpl<
     typename std::enable_if<
         BelongsTo<T, MojomTypeCategory::kEnum>::value>::type> {
  public:
-  static_assert(std::is_same<std::underlying_type_t<T>, int32_t>::value,
-                "Unexpected enum type");
+  static_assert(sizeof(T) == sizeof(int32_t), "Unexpected enum size");
 
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
-  T operator[](size_t index) const {
-    return ToKnownEnumValueHelper(static_cast<T>(data_->at(index)));
-  }
+  T operator[](size_t index) const { return static_cast<T>(data_->at(index)); }
+
+  const T* data() const { return reinterpret_cast<const T*>(data_->storage()); }
 
   template <typename U>
   bool Read(size_t index, U* output) {
@@ -91,12 +79,8 @@ class ArrayDataViewImpl<
   }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 template <typename T>
@@ -111,24 +95,20 @@ class ArrayDataViewImpl<
  public:
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
   template <typename U>
   U Take(size_t index) {
     U result;
-    bool ret = Deserialize<T>(&data_->at(index), &result, message_);
+    bool ret = Deserialize<T>(&data_->at(index), &result, context_);
     DCHECK(ret);
     return result;
   }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 template <typename T>
@@ -139,23 +119,19 @@ class ArrayDataViewImpl<
  public:
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
   T Take(size_t index) {
     T result;
-    bool ret = Deserialize<T>(&data_->at(index), &result, message_);
+    bool ret = Deserialize<T>(&data_->at(index), &result, context_);
     DCHECK(ret);
     return result;
   }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 template <typename T>
@@ -169,25 +145,21 @@ class ArrayDataViewImpl<
  public:
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
   void GetDataView(size_t index, T* output) {
-    *output = T(data_->at(index).Get(), message_);
+    *output = T(data_->at(index).Get(), context_);
   }
 
   template <typename U>
   bool Read(size_t index, U* output) {
-    return Deserialize<T>(data_->at(index).Get(), output, message_);
+    return Deserialize<T>(data_->at(index).Get(), output, context_);
   }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 template <typename T>
@@ -198,25 +170,21 @@ class ArrayDataViewImpl<
  public:
   using Data_ = typename MojomTypeTraits<ArrayDataView<T>>::Data;
 
-  ArrayDataViewImpl(Data_* data, Message* message)
-      : data_(data), message_(message) {}
+  ArrayDataViewImpl(Data_* data, SerializationContext* context)
+      : data_(data), context_(context) {}
 
   void GetDataView(size_t index, T* output) {
-    *output = T(&data_->at(index), message_);
+    *output = T(&data_->at(index), context_);
   }
 
   template <typename U>
   bool Read(size_t index, U* output) {
-    return Deserialize<T>(&data_->at(index), output, message_);
+    return Deserialize<T>(&data_->at(index), output, context_);
   }
 
  protected:
-  // `data_` is not a raw_ptr<...> for performance reasons (based on analysis of
-  // sampling profiler data).
-  RAW_PTR_EXCLUSION Data_* data_;
-  // `message_` is not a raw_ptr<...> for performance reasons (based on analysis
-  // of sampling profiler data).
-  RAW_PTR_EXCLUSION Message* message_;
+  Data_* data_;
+  SerializationContext* context_;
 };
 
 }  // namespace internal
@@ -232,8 +200,8 @@ class ArrayDataView : public internal::ArrayDataViewImpl<T> {
 
   ArrayDataView() : internal::ArrayDataViewImpl<T>(nullptr, nullptr) {}
 
-  ArrayDataView(Data_* data, Message* message)
-      : internal::ArrayDataViewImpl<T>(data, message) {}
+  ArrayDataView(Data_* data, internal::SerializationContext* context)
+      : internal::ArrayDataViewImpl<T>(data, context) {}
 
   bool is_null() const { return !this->data_; }
 
@@ -251,6 +219,7 @@ class ArrayDataView : public internal::ArrayDataViewImpl<T> {
 
   // Enums:
   //   T operator[](size_t index) const;
+  //   const T* data() const;
   //   template <typename U>
   //   bool Read(size_t index, U* output);
 

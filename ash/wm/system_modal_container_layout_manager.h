@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@
 #include "ash/shelf/shelf.h"
 #include "ash/shelf/shelf_observer.h"
 #include "ash/wm/wm_default_layout_manager.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "ui/aura/window_observer.h"
 
 namespace gfx {
@@ -34,12 +35,6 @@ class ASH_EXPORT SystemModalContainerLayoutManager
       public KeyboardControllerObserver {
  public:
   explicit SystemModalContainerLayoutManager(aura::Window* container);
-
-  SystemModalContainerLayoutManager(const SystemModalContainerLayoutManager&) =
-      delete;
-  SystemModalContainerLayoutManager& operator=(
-      const SystemModalContainerLayoutManager&) = delete;
-
   ~SystemModalContainerLayoutManager() override;
 
   bool has_window_dimmer() const { return window_dimmer_ != nullptr; }
@@ -125,7 +120,9 @@ class ASH_EXPORT SystemModalContainerLayoutManager
   std::set<const aura::Window*> windows_to_center_;
 
   // A shelf observer to update position of modals when work area is updated.
-  base::ScopedObservation<Shelf, ShelfObserver> shelf_observation_{this};
+  ScopedObserver<Shelf, ShelfObserver> shelf_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SystemModalContainerLayoutManager);
 };
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/test/task_environment.h"
 #include "net/base/features.h"
 #include "net/base/net_errors.h"
-#include "net/base/schemeful_site.h"
 #include "net/base/test_completion_callback.h"
 #include "net/http/http_cache_lookup_manager.h"
 #include "net/http/http_transaction_test_util.h"
@@ -19,7 +18,6 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest-param-test.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 using net::test::IsOk;
 
@@ -31,13 +29,13 @@ class MockServerPushHelper : public ServerPushDelegate::ServerPushHelper {
  public:
   explicit MockServerPushHelper(const GURL& url)
       : request_url_(url),
-        network_isolation_key_(SchemefulSite(url), SchemefulSite(url)) {}
+        network_isolation_key_(url::Origin::Create(url),
+                               url::Origin::Create(url)) {}
 
   const GURL& GetURL() const override { return request_url_; }
 
-  NetworkAnonymizationKey GetNetworkAnonymizationKey() const override {
-    return NetworkAnonymizationKey::CreateFromNetworkIsolationKey(
-        network_isolation_key_);
+  NetworkIsolationKey GetNetworkIsolationKey() const override {
+    return network_isolation_key_;
   }
 
   void set_network_isolation_key(
@@ -65,9 +63,6 @@ std::unique_ptr<MockTransaction> CreateMockTransaction(const GURL& url) {
       "Last-Modified: Wed, 28 Nov 2007 00:40:09 GMT\n",
       base::Time(),
       "<html><body>Google Blah Blah</body></html>",
-      {},
-      absl::nullopt,
-      absl::nullopt,
       TEST_MODE_NORMAL,
       nullptr,
       nullptr,
@@ -87,6 +82,7 @@ void PopulateCacheEntry(HttpCache* cache, const GURL& request_url) {
   AddMockTransaction(mock_trans.get());
 
   MockHttpRequest request(*(mock_trans.get()));
+
   std::unique_ptr<HttpTransaction> trans;
   int rv = cache->CreateTransaction(DEFAULT_PRIORITY, &trans);
   EXPECT_THAT(rv, IsOk());
@@ -199,9 +195,9 @@ TEST_P(HttpCacheLookupManagerTest_NetworkIsolationKey, ServerPushCacheStatus) {
   std::unique_ptr<MockServerPushHelper> push_helper =
       std::make_unique<MockServerPushHelper>(request_url);
   if (!use_same_network_isolation_key) {
-    SchemefulSite site(GURL("http://www.abc.com"));
+    url::Origin origin = url::Origin::Create(GURL("http://www.abc.com"));
     push_helper->set_network_isolation_key(
-        net::NetworkIsolationKey(site, site));
+        net::NetworkIsolationKey(origin, origin));
   }
 
   MockServerPushHelper* push_helper_ptr = push_helper.get();

@@ -1,89 +1,69 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './assistant_optin_flow.js';
+// <include src="../login/components/oobe_types.js">
+// <include src="../login/components/oobe_buttons.js">
+// <include src="../login/components/oobe_dialog_host_behavior.js">
+// <include src="../login/components/oobe_dialog.js">
+// <include src="assistant_optin_flow.js">
+// <include src="browser_proxy.js">
 
-import {$} from 'chrome://resources/ash/common/util.js';
+cr.define('login.AssistantOptInFlowScreen', function() {
+  return {
 
-import {BrowserProxyImpl} from './browser_proxy.m.js';
-
-class InSessionAssistantScreen {
     /**
      * Starts the assistant opt-in flow.
      */
-    static show() {
+    show() {
       var url = new URL(document.URL);
-      $('assistant-optin-flow-card').onBeforeShow();
       $('assistant-optin-flow-card')
           .onShow(
               url.searchParams.get('flow-type'),
               url.searchParams.get('caption-bar-height'));
-    }
+    },
 
     /**
      * Reloads localized strings.
      * @param {!Object} data New dictionary with i18n values.
      */
-    static reloadContent(data) {
+    reloadContent(data) {
       $('assistant-optin-flow-card').reloadContent(data);
-    }
+    },
 
     /**
      * Add a setting zippy object in the corresponding screen.
      * @param {string} type type of the setting zippy.
      * @param {!Object} data String and url for the setting zippy.
      */
-    static addSettingZippy(type, data) {
+    addSettingZippy(type, data) {
       $('assistant-optin-flow-card').addSettingZippy(type, data);
-    }
+    },
 
     /**
      * Show the next screen in the flow.
      */
-    static showNextScreen() {
+    showNextScreen() {
       $('assistant-optin-flow-card').showNextScreen();
-    }
+    },
 
     /**
      * Called when the Voice match state is updated.
      * @param {string} state the voice match state.
      */
-    static onVoiceMatchUpdate(state) {
+    onVoiceMatchUpdate(state) {
       $('assistant-optin-flow-card').onVoiceMatchUpdate(state);
-    }
-
-    /**
-     * Called to show the next settings when there are multiple unbundled
-     * activity control settings in the Value prop screen.
-     */
-    static onValuePropUpdate() {
-      $('assistant-optin-flow-card').onValuePropUpdate();
-    }
+    },
 
     /**
      * Called when the flow finished and close the dialog.
      */
-    static closeDialog() {
-      BrowserProxyImpl.getInstance().dialogClose();
-    }
-}
+    closeDialog() {
+      assistant.BrowserProxyImpl.getInstance().dialogClose();
+    },
+  };
+});
 
-function initializeInSessionAssistant() {
-  if (document.readyState === 'loading') {
-    return;
-  }
-  document.removeEventListener('DOMContentLoaded', initializeInSessionAssistant);
-
+document.addEventListener('DOMContentLoaded', function() {
   login.AssistantOptInFlowScreen.show();
-}
-
-
-window.login = {};
-window.login.AssistantOptInFlowScreen = InSessionAssistantScreen;
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeInSessionAssistant);
-} else {
-  initializeInSessionAssistant();
-}
+});

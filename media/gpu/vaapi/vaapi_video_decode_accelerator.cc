@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,17 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/cpu.h"
 #include "base/files/scoped_file.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/numerics/safe_conversions.h"
+#include "base/numerics/ranges.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
-#include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/process_memory_dump.h"
 #include "base/trace_event/trace_event.h"
@@ -31,6 +30,7 @@
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/format_utils.h"
 #include "media/base/media_log.h"
+#include "media/base/unaligned_shared_memory.h"
 #include "media/base/video_util.h"
 #include "media/gpu/accelerated_video_decoder.h"
 #include "media/gpu/h264_decoder.h"
@@ -44,6 +44,8 @@
 #include "media/gpu/vp8_decoder.h"
 #include "media/gpu/vp9_decoder.h"
 #include "media/video/picture.h"
+#include "ui/base/ui_base_features.h"
+#include "ui/gl/gl_image.h"
 
 namespace media {
 
@@ -97,10 +99,6 @@ class VaapiVideoDecodeAccelerator::InputBuffer {
       : id_(id),
         buffer_(std::move(buffer)),
         release_cb_(std::move(release_cb)) {}
-
-  InputBuffer(const InputBuffer&) = delete;
-  InputBuffer& operator=(const InputBuffer&) = delete;
-
   ~InputBuffer() {
     DVLOGF(4) << "id = " << id_;
     if (release_cb_)
@@ -116,9 +114,11 @@ class VaapiVideoDecodeAccelerator::InputBuffer {
   const int32_t id_ = -1;
   const scoped_refptr<DecoderBuffer> buffer_;
   base::OnceCallback<void(int32_t id)> release_cb_;
+
+  DISALLOW_COPY_AND_ASSIGN(InputBuffer);
 };
 
-void VaapiVideoDecodeAccelerator::NotifyStatus(VaapiStatus status) {
+void VaapiVideoDecodeAccelerator::NotifyStatus(Status status) {
   DCHECK(!status.is_ok());
   // Send a platform notification error
   NotifyError(PLATFORM_FAILURE);
@@ -150,10 +150,11 @@ VaapiVideoDecodeAccelerator::VaapiVideoDecodeAccelerator(
     const BindGLImageCallback& bind_image_cb)
     : state_(kUninitialized),
       input_ready_(&lock_),
+      vaapi_picture_factory_(new VaapiPictureFactory()),
       buffer_allocation_mode_(BufferAllocationMode::kNormal),
       surfaces_available_(&lock_),
       va_surface_format_(VA_INVALID_ID),
-      task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      task_runner_(base::ThreadTaskRunnerHandle::Get()),
       decoder_thread_("VaapiDecoderThread"),
       finish_flush_pending_(false),
       awaiting_va_surfaces_recycle_(false),
@@ -169,7 +170,7 @@ VaapiVideoDecodeAccelerator::VaapiVideoDecodeAccelerator(
       &VaapiVideoDecodeAccelerator::RecycleVASurface, weak_this_));
   base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
       this, "media::VaapiVideoDecodeAccelerator",
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
 }
 
 VaapiVideoDecodeAccelerator::~VaapiVideoDecodeAccelerator() {
@@ -182,7 +183,11 @@ bool VaapiVideoDecodeAccelerator::Initialize(const Config& config,
                                              Client* client) {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
-  vaapi_picture_factory_ = std::make_unique<VaapiPictureFactory>();
+#if defined(USE_X11)
+  // TODO(crbug/1116701): implement decode acceleration when running with Ozone.
+  if (features::IsUsingOzonePlatform())
+    return false;
+#endif
 
   if (config.is_encrypted()) {
     NOTREACHED() << "Encrypted streams are not supported for this VDA";
@@ -199,10 +204,9 @@ bool VaapiVideoDecodeAccelerator::Initialize(const Config& config,
   VLOGF(2) << "Initializing VAVDA, profile: " << GetProfileName(profile);
 
   vaapi_wrapper_ = VaapiWrapper::CreateForVideoCodec(
-      VaapiWrapper::kDecode, profile, EncryptionScheme::kUnencrypted,
+      VaapiWrapper::kDecode, profile,
       base::BindRepeating(&ReportVaapiErrorToUMA,
-                          "Media.VaapiVideoDecodeAccelerator.VAAPIError"),
-      /*enforce_sequence_affinity=*/false);
+                          "Media.VaapiVideoDecodeAccelerator.VAAPIError"));
 
   UMA_HISTOGRAM_BOOLEAN("Media.VAVDA.VaapiWrapperCreationSuccess",
                         vaapi_wrapper_.get());
@@ -464,11 +468,6 @@ void VaapiVideoDecodeAccelerator::DecodeTask() {
 
     switch (res) {
       case AcceleratedVideoDecoder::kConfigChange: {
-        const uint8_t bit_depth = decoder_->GetBitDepth();
-        RETURN_AND_NOTIFY_ON_FAILURE(
-            bit_depth == 8u,
-            "Unsupported bit depth: " << base::strict_cast<int>(bit_depth),
-            PLATFORM_FAILURE, );
         // The visible rect should be a subset of the picture size. Otherwise,
         // the encoded stream is bad.
         const gfx::Size pic_size = decoder_->GetPicSize();
@@ -520,7 +519,7 @@ void VaapiVideoDecodeAccelerator::DecodeTask() {
 
       case AcceleratedVideoDecoder::kNeedContextUpdate:
         // This should not happen as we return false from
-        // NeedsCompressedHeaderParsed().
+        // IsFrameContextRequired().
         NOTREACHED() << "Context updates not supported";
         return;
 
@@ -615,10 +614,9 @@ void VaapiVideoDecodeAccelerator::TryFinishSurfaceSetChange() {
   if (profile_ != new_profile) {
     profile_ = new_profile;
     auto new_vaapi_wrapper = VaapiWrapper::CreateForVideoCodec(
-        VaapiWrapper::kDecode, profile_, EncryptionScheme::kUnencrypted,
+        VaapiWrapper::kDecode, profile_,
         base::BindRepeating(&ReportVaapiErrorToUMA,
-                            "Media.VaapiVideoDecodeAccelerator.VAAPIError"),
-        /*enforce_sequence_affinity=*/false);
+                            "Media.VaapiVideoDecodeAccelerator.VAAPIError"));
     RETURN_AND_NOTIFY_ON_FAILURE(new_vaapi_wrapper.get(),
                                  "Failed creating VaapiWrapper",
                                  INVALID_ARGUMENT, );
@@ -642,7 +640,7 @@ void VaapiVideoDecodeAccelerator::TryFinishSurfaceSetChange() {
            << " pictures of size: " << requested_pic_size_.ToString()
            << " and visible rectangle = " << requested_visible_rect_.ToString();
 
-  const absl::optional<VideoPixelFormat> format =
+  const base::Optional<VideoPixelFormat> format =
       GfxBufferFormatToVideoPixelFormat(
           vaapi_picture_factory_->GetBufferFormat());
   CHECK(format);
@@ -711,11 +709,9 @@ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
     if (!vpp_vaapi_wrapper_) {
       vpp_vaapi_wrapper_ = VaapiWrapper::Create(
           VaapiWrapper::kVideoProcess, VAProfileNone,
-          EncryptionScheme::kUnencrypted,
           base::BindRepeating(
               &ReportVaapiErrorToUMA,
-              "Media.VaapiVideoDecodeAccelerator.Vpp.VAAPIError"),
-          /*enforce_sequence_affinity=*/false);
+              "Media.VaapiVideoDecodeAccelerator.Vpp.VAAPIError"));
       RETURN_AND_NOTIFY_ON_FAILURE(vpp_vaapi_wrapper_,
                                    "Failed to initialize VppVaapiWrapper",
                                    PLATFORM_FAILURE, );
@@ -784,7 +780,7 @@ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
     RETURN_AND_NOTIFY_ON_FAILURE(
         vaapi_wrapper_->CreateContextAndSurfaces(
             va_surface_format_, requested_pic_size_,
-            {VaapiWrapper::SurfaceUsageHint::kVideoDecoder},
+            VaapiWrapper::SurfaceUsageHint::kVideoDecoder,
             requested_num_surfaces, &va_surface_ids),
         "Failed creating VA Surfaces", PLATFORM_FAILURE, );
 
@@ -805,7 +801,7 @@ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
   }
 }
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
 void VaapiVideoDecodeAccelerator::ImportBufferForPicture(
     int32_t picture_buffer_id,
     VideoPixelFormat pixel_format,
@@ -1193,26 +1189,28 @@ void VaapiVideoDecodeAccelerator::RecycleVASurface(
 
 // static
 VideoDecodeAccelerator::SupportedProfiles
-VaapiVideoDecodeAccelerator::GetSupportedProfiles() {
+VaapiVideoDecodeAccelerator::GetSupportedProfiles(
+    const gpu::GpuDriverBugWorkarounds& workarounds) {
   VideoDecodeAccelerator::SupportedProfiles profiles =
-      VaapiWrapper::GetSupportedDecodeProfiles();
-  // VaVDA never supported VP9 Profile 2, AV1 and HEVC, but VaapiWrapper does.
-  // Filter them out.
+      VaapiWrapper::GetSupportedDecodeProfiles(workarounds);
+  // VaVDA never supported VP9 Profile 2 and AV1, but VaapiWrapper does. Filter
+  // them out.
   base::EraseIf(profiles, [](const auto& profile) {
-    VideoCodec codec = VideoCodecProfileToVideoCodec(profile.profile);
     return profile.profile == VP9PROFILE_PROFILE2 ||
-           codec == VideoCodec::kAV1 || codec == VideoCodec::kHEVC;
+           VideoCodecProfileToVideoCodec(profile.profile) ==
+               VideoCodec::kCodecAV1;
   });
   return profiles;
 }
 
 VaapiVideoDecodeAccelerator::BufferAllocationMode
 VaapiVideoDecodeAccelerator::DecideBufferAllocationMode() {
-#if BUILDFLAG(USE_VAAPI_X11)
+#if defined(USE_X11)
   // The IMPORT mode is used for Android on Chrome OS, so this doesn't apply
   // here.
   DCHECK_NE(output_mode_, VideoDecodeAccelerator::Config::OutputMode::IMPORT);
   // TODO(crbug/1116701): get video decode acceleration working with ozone.
+  DCHECK(!features::IsUsingOzonePlatform());
   // For H.264 on older devices, another +1 is experimentally needed for
   // high-to-high resolution changes.
   // TODO(mcasas): Figure out why and why only H264, see crbug.com/912295 and

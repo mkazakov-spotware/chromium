@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <unistd.h>
 #include <cmath>
-#include <memory>
 #include <utility>
 
 #include "base/android/event_log.h"
@@ -32,10 +31,10 @@ const int kObjectGetClassInvocationAttemptLogTag = 70151;
 GinJavaMethodInvocationHelper::GinJavaMethodInvocationHelper(
     std::unique_ptr<ObjectDelegate> object,
     const std::string& method_name,
-    const base::Value::List& arguments)
+    const base::ListValue& arguments)
     : object_(std::move(object)),
       method_name_(method_name),
-      arguments_(arguments.Clone()),
+      arguments_(arguments.DeepCopy()),
       invocation_error_(kGinJavaBridgeNoError) {}
 
 GinJavaMethodInvocationHelper::~GinJavaMethodInvocationHelper() {}
@@ -44,35 +43,43 @@ void GinJavaMethodInvocationHelper::Init(DispatcherDelegate* dispatcher) {
   // Build on the UI thread a map of object_id -> WeakRef for Java objects from
   // |arguments_|.  Then we can use this map on the background thread without
   // accessing |dispatcher|.
-  BuildObjectRefsFromListValue(dispatcher, arguments_);
+  BuildObjectRefsFromListValue(dispatcher, *arguments_);
 }
 
 // As V8ValueConverter has finite recursion depth when serializing
 // JavaScript values, we don't bother about having a recursion threshold here.
 void GinJavaMethodInvocationHelper::BuildObjectRefsFromListValue(
     DispatcherDelegate* dispatcher,
-    const base::Value::List& list_value) {
-  for (const auto& entry : list_value) {
+    const base::Value& list_value) {
+  DCHECK(list_value.is_list());
+  const base::ListValue* list;
+  list_value.GetAsList(&list);
+  for (const auto& entry : *list) {
     if (AppendObjectRef(dispatcher, entry))
       continue;
     if (entry.is_list()) {
-      BuildObjectRefsFromListValue(dispatcher, entry.GetList());
+      BuildObjectRefsFromListValue(dispatcher, entry);
     } else if (entry.is_dict()) {
-      BuildObjectRefsFromDictionaryValue(dispatcher, entry.GetDict());
+      BuildObjectRefsFromDictionaryValue(dispatcher, entry);
     }
   }
 }
 
 void GinJavaMethodInvocationHelper::BuildObjectRefsFromDictionaryValue(
     DispatcherDelegate* dispatcher,
-    const base::Value::Dict& dict_value) {
-  for (const auto item : dict_value) {
-    if (AppendObjectRef(dispatcher, item.second))
+    const base::Value& dict_value) {
+  DCHECK(dict_value.is_dict());
+  const base::DictionaryValue* dict;
+  dict_value.GetAsDictionary(&dict);
+  for (base::DictionaryValue::Iterator iter(*dict);
+       !iter.IsAtEnd();
+       iter.Advance()) {
+    if (AppendObjectRef(dispatcher, iter.value()))
       continue;
-    if (item.second.is_list()) {
-      BuildObjectRefsFromListValue(dispatcher, item.second.GetList());
-    } else if (item.second.is_dict()) {
-      BuildObjectRefsFromDictionaryValue(dispatcher, item.second.GetDict());
+    if (iter.value().is_list()) {
+      BuildObjectRefsFromListValue(dispatcher, iter.value());
+    } else if (iter.value().is_dict()) {
+      BuildObjectRefsFromDictionaryValue(dispatcher, iter.value());
     }
   }
 }
@@ -103,7 +110,7 @@ bool GinJavaMethodInvocationHelper::AppendObjectRef(
 void GinJavaMethodInvocationHelper::Invoke() {
   JNIEnv* env = AttachCurrentThread();
   const JavaMethod* method =
-      object_->FindMethod(method_name_, arguments_.size());
+      object_->FindMethod(method_name_, arguments_->GetSize());
   if (!method) {
     SetInvocationError(kGinJavaBridgeMethodNotFound);
     return;
@@ -131,10 +138,14 @@ void GinJavaMethodInvocationHelper::Invoke() {
   GinJavaBridgeError coercion_error = kGinJavaBridgeNoError;
   std::vector<jvalue> parameters(method->num_parameters());
   for (size_t i = 0; i < method->num_parameters(); ++i) {
-    const base::Value& argument = arguments_[i];
-    parameters[i] = CoerceJavaScriptValueToJavaValue(
-        env, argument, method->parameter_type(i), true, object_refs_,
-        &coercion_error);
+    const base::Value* argument;
+    arguments_->Get(i, &argument);
+    parameters[i] = CoerceJavaScriptValueToJavaValue(env,
+                                                     argument,
+                                                     method->parameter_type(i),
+                                                     true,
+                                                     object_refs_,
+                                                     &coercion_error);
   }
 
   if (coercion_error == kGinJavaBridgeNoError) {
@@ -159,15 +170,14 @@ void GinJavaMethodInvocationHelper::Invoke() {
 void GinJavaMethodInvocationHelper::SetInvocationError(
     GinJavaBridgeError error) {
   holds_primitive_result_ = true;
-  primitive_result_ = std::make_unique<base::Value::List>();
+  primitive_result_.reset(new base::ListValue());
   invocation_error_ = error;
 }
 
 void GinJavaMethodInvocationHelper::SetPrimitiveResult(
-    base::Value::List result_wrapper) {
+    const base::ListValue& result_wrapper) {
   holds_primitive_result_ = true;
-  primitive_result_ =
-      std::make_unique<base::Value::List>(std::move(result_wrapper));
+  primitive_result_.reset(result_wrapper.DeepCopy());
 }
 
 void GinJavaMethodInvocationHelper::SetObjectResult(
@@ -182,7 +192,7 @@ bool GinJavaMethodInvocationHelper::HoldsPrimitiveResult() {
   return holds_primitive_result_;
 }
 
-const base::Value::List& GinJavaMethodInvocationHelper::GetPrimitiveResult() {
+const base::ListValue& GinJavaMethodInvocationHelper::GetPrimitiveResult() {
   return *primitive_result_.get();
 }
 
@@ -207,47 +217,46 @@ void GinJavaMethodInvocationHelper::InvokeMethod(jobject object,
                                                  jvalue* parameters) {
   DCHECK(object || clazz);
   JNIEnv* env = AttachCurrentThread();
-  base::Value::List result_wrapper;
+  base::ListValue result_wrapper;
   switch (return_type.type) {
     case JavaType::TypeBoolean:
-      result_wrapper.Append(static_cast<bool>(
+      result_wrapper.AppendBoolean(
           object ? env->CallBooleanMethodA(object, id, parameters)
-                 : env->CallStaticBooleanMethodA(clazz, id, parameters)));
+                 : env->CallStaticBooleanMethodA(clazz, id, parameters));
       break;
     case JavaType::TypeByte:
-      result_wrapper.Append(static_cast<int>(
+      result_wrapper.AppendInteger(
           object ? env->CallByteMethodA(object, id, parameters)
-                 : env->CallStaticByteMethodA(clazz, id, parameters)));
+                 : env->CallStaticByteMethodA(clazz, id, parameters));
       break;
     case JavaType::TypeChar:
-      result_wrapper.Append(static_cast<int>(
+      result_wrapper.AppendInteger(
           object ? env->CallCharMethodA(object, id, parameters)
-                 : env->CallStaticCharMethodA(clazz, id, parameters)));
+                 : env->CallStaticCharMethodA(clazz, id, parameters));
       break;
     case JavaType::TypeShort:
-      result_wrapper.Append(static_cast<int>(
+      result_wrapper.AppendInteger(
           object ? env->CallShortMethodA(object, id, parameters)
-                 : env->CallStaticShortMethodA(clazz, id, parameters)));
+                 : env->CallStaticShortMethodA(clazz, id, parameters));
       break;
     case JavaType::TypeInt:
-      result_wrapper.Append(static_cast<int>(
+      result_wrapper.AppendInteger(
           object ? env->CallIntMethodA(object, id, parameters)
-                 : env->CallStaticIntMethodA(clazz, id, parameters)));
+                 : env->CallStaticIntMethodA(clazz, id, parameters));
       break;
     case JavaType::TypeLong:
-      result_wrapper.Append(static_cast<double>(
+      result_wrapper.AppendDouble(
           object ? env->CallLongMethodA(object, id, parameters)
-                 : env->CallStaticLongMethodA(clazz, id, parameters)));
+                 : env->CallStaticLongMethodA(clazz, id, parameters));
       break;
     case JavaType::TypeFloat: {
       float result = object
                          ? env->CallFloatMethodA(object, id, parameters)
                          : env->CallStaticFloatMethodA(clazz, id, parameters);
       if (std::isfinite(result)) {
-        result_wrapper.Append(static_cast<double>(result));
+        result_wrapper.AppendDouble(result);
       } else {
-        result_wrapper.Append(base::Value::FromUniquePtrValue(
-            GinJavaBridgeValue::CreateNonFiniteValue(result)));
+        result_wrapper.Append(GinJavaBridgeValue::CreateNonFiniteValue(result));
       }
       break;
     }
@@ -256,10 +265,9 @@ void GinJavaMethodInvocationHelper::InvokeMethod(jobject object,
                           ? env->CallDoubleMethodA(object, id, parameters)
                           : env->CallStaticDoubleMethodA(clazz, id, parameters);
       if (std::isfinite(result)) {
-        result_wrapper.Append(result);
+        result_wrapper.AppendDouble(result);
       } else {
-        result_wrapper.Append(base::Value::FromUniquePtrValue(
-            GinJavaBridgeValue::CreateNonFiniteValue(result)));
+        result_wrapper.Append(GinJavaBridgeValue::CreateNonFiniteValue(result));
       }
       break;
     }
@@ -268,15 +276,13 @@ void GinJavaMethodInvocationHelper::InvokeMethod(jobject object,
         env->CallVoidMethodA(object, id, parameters);
       else
         env->CallStaticVoidMethodA(clazz, id, parameters);
-      result_wrapper.Append(base::Value::FromUniquePtrValue(
-          GinJavaBridgeValue::CreateUndefinedValue()));
+      result_wrapper.Append(GinJavaBridgeValue::CreateUndefinedValue());
       break;
     case JavaType::TypeArray:
       // LIVECONNECT_COMPLIANCE: Existing behavior is to not call methods that
       // return arrays. Spec requires calling the method and converting the
       // result to a JavaScript array.
-      result_wrapper.Append(base::Value::FromUniquePtrValue(
-          GinJavaBridgeValue::CreateUndefinedValue()));
+      result_wrapper.Append(GinJavaBridgeValue::CreateUndefinedValue());
       break;
     case JavaType::TypeString: {
       jstring java_string = static_cast<jstring>(
@@ -293,11 +299,10 @@ void GinJavaMethodInvocationHelper::InvokeMethod(jobject object,
       if (!scoped_java_string.obj()) {
         // LIVECONNECT_COMPLIANCE: Existing behavior is to return undefined.
         // Spec requires returning a null string.
-        result_wrapper.Append(base::Value::FromUniquePtrValue(
-            GinJavaBridgeValue::CreateUndefinedValue()));
+        result_wrapper.Append(GinJavaBridgeValue::CreateUndefinedValue());
         break;
       }
-      result_wrapper.Append(
+      result_wrapper.AppendString(
           base::android::ConvertJavaStringToUTF8(scoped_java_string));
       break;
     }
@@ -314,7 +319,7 @@ void GinJavaMethodInvocationHelper::InvokeMethod(jobject object,
       }
       ScopedJavaLocalRef<jobject> scoped_java_object(env, java_object);
       if (!scoped_java_object.obj()) {
-        result_wrapper.Append(base::Value());
+        result_wrapper.Append(std::make_unique<base::Value>());
         break;
       }
       SetObjectResult(scoped_java_object, object_->GetSafeAnnotationClass());
@@ -323,7 +328,7 @@ void GinJavaMethodInvocationHelper::InvokeMethod(jobject object,
   }
   // This is for all cases except JavaType::TypeObject.
   if (!base::android::ClearException(env)) {
-    SetPrimitiveResult(std::move(result_wrapper));
+    SetPrimitiveResult(result_wrapper);
   } else {
     SetInvocationError(kGinJavaBridgeJavaExceptionRaised);
   }

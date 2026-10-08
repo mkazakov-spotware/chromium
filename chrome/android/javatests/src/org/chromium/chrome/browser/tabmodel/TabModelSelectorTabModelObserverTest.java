@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@ import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.UiThreadTest;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -26,21 +25,19 @@ import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Integration tests for the TabModelSelectorTabModelObserver.
- * See TabModelSelectorTabModelObserverUnitTest.java for unit tests.
+ * Tests for the TabModelSelectorTabModelObserver.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.PER_CLASS)
 public class TabModelSelectorTabModelObserverTest {
-    @ClassRule
-    public static final TabModelSelectorObserverTestRule sTestRule =
+    @Rule
+    public final TabModelSelectorObserverTestRule mTestRule =
             new TabModelSelectorObserverTestRule();
 
     private TabModelSelectorBase mSelector;
 
     @Before
     public void setUp() {
-        mSelector = sTestRule.getSelector();
+        mSelector = mTestRule.getSelector();
     }
 
     @Test
@@ -65,14 +62,6 @@ public class TabModelSelectorTabModelObserverTest {
     public void testUninitializedSelector() throws TimeoutException {
         mSelector = new TabModelSelectorBase(null, EmptyTabModelFilter::new, false) {
             @Override
-            public void requestToShowTab(Tab tab, int type) {}
-
-            @Override
-            public boolean isSessionRestoreInProgress() {
-                return false;
-            }
-
-            @Override
             public Tab openNewTab(LoadUrlParams loadUrlParams, @TabLaunchType int type, Tab parent,
                     boolean incognito) {
                 return null;
@@ -86,7 +75,7 @@ public class TabModelSelectorTabModelObserverTest {
                         registrationCompleteCallback.notifyCalled();
                     }
                 };
-        mSelector.initialize(sTestRule.getNormalTabModel(), sTestRule.getIncognitoTabModel());
+        mSelector.initialize(mTestRule.getNormalTabModel(), mTestRule.getIncognitoTabModel());
         registrationCompleteCallback.waitForCallback(0);
         assertAllModelsHaveObserver(mSelector, observer);
     }

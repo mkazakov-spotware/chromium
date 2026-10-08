@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_DOWNLOAD_PUBLIC_BACKGROUND_SERVICE_TEST_EMPTY_CLIENT_H_
 #define COMPONENTS_DOWNLOAD_PUBLIC_BACKGROUND_SERVICE_TEST_EMPTY_CLIENT_H_
 
+#include "base/macros.h"
 #include "components/download/public/background_service/client.h"
 #include "components/download/public/background_service/download_metadata.h"
 
@@ -14,10 +15,6 @@ namespace test {
 class EmptyClient : public Client {
  public:
   EmptyClient() = default;
-
-  EmptyClient(const EmptyClient&) = delete;
-  EmptyClient& operator=(const EmptyClient&) = delete;
-
   ~EmptyClient() override = default;
 
   // Client implementation.
@@ -41,6 +38,9 @@ class EmptyClient : public Client {
                                       bool force_delete) override;
   void GetUploadData(const std::string& guid,
                      GetUploadDataCallback callback) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EmptyClient);
 };
 
 }  // namespace test

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <windows.h>
 
-#include <string>
+#include "base/strings/string16.h"
 
 class WorkItemList;
 
@@ -25,39 +25,25 @@ namespace installer {
 class AppCommand {
  public:
   AppCommand();
-
-  // Constructs a new command with the given `command_name` and `command_line`.
+  // Constructs a new command that will execute the given |command_line|.
   // All other properties default to false.
-  AppCommand(const std::wstring& command_name,
-             const std::wstring& command_line);
-
-  // The default copy ctors, dtor, and assignment operators are desired.
-  AppCommand(AppCommand&&);
-  AppCommand(const AppCommand&);
-  ~AppCommand();
-  AppCommand& operator=(AppCommand&&) = default;
-  AppCommand& operator=(const AppCommand&) = default;
-
-  // Initializes an instance from the command in
-  // `root_key`\Google\Update\Clients\{`app_id`}\Commands\`command_name_`
-  bool Initialize(HKEY root_key);
+  explicit AppCommand(const base::string16& command_line);
+  // The implicit dtor, copy ctor and assignment operator are desired.
 
   // Initializes an instance from the command in |key|.
   bool Initialize(const base::win::RegKey& key);
 
-  // Adds to `item_list` work items to write the command under `root_key`.
-  void AddCreateAppCommandWorkItems(const HKEY root_key,
-                                    WorkItemList* item_list) const;
-
-  // Adds to `item_list` work items to delete the command under `root_key`.
-  void AddDeleteAppCommandWorkItems(const HKEY root_key,
-                                    WorkItemList* item_list) const;
+  // Adds to |item_list| work items to write this object to the key named
+  // |command_path| under |predefined_root|.
+  void AddWorkItems(HKEY predefined_root,
+                    const base::string16& command_path,
+                    WorkItemList* item_list) const;
 
   // Returns the command-line for the app command as it is represented in the
   // registry.  Use CommandLine::FromString() on this value to check arguments
   // or to launch the command.
-  const std::wstring& command_line() const { return command_line_; }
-  void set_command_line(const std::wstring& command_line) {
+  const base::string16& command_line() const { return command_line_; }
+  void set_command_line(const base::string16& command_line) {
     command_line_ = command_line;
   }
 
@@ -80,8 +66,7 @@ class AppCommand {
   }
 
  protected:
-  std::wstring command_name_;
-  std::wstring command_line_;
+  base::string16 command_line_;
   bool sends_pings_;
   bool is_web_accessible_;
   bool is_auto_run_on_os_upgrade_;

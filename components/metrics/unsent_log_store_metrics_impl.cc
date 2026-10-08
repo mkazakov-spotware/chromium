@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,13 @@
 #include "base/metrics/histogram_functions.h"
 
 namespace metrics {
+
+void UnsentLogStoreMetricsImpl::RecordLogReadStatus(
+    UnsentLogStoreMetrics::LogReadStatus status) {
+  base::UmaHistogramEnumeration("PrefService.PersistentLogRecallProtobufs",
+                                status,
+                                UnsentLogStoreMetrics::END_RECALL_STATUS);
+}
 
 void UnsentLogStoreMetricsImpl::RecordCompressionRatio(size_t compressed_size,
                                                        size_t original_size) {
@@ -22,6 +29,14 @@ void UnsentLogStoreMetricsImpl::RecordDroppedLogSize(size_t size) {
 
 void UnsentLogStoreMetricsImpl::RecordDroppedLogsNum(int dropped_logs_num) {
   base::UmaHistogramCounts1M("UMA.UnsentLogs.Dropped", dropped_logs_num);
+}
+
+void RecordIntendingToSentLogs(int num) {
+  base::UmaHistogramExactLinear("UMA.UnsentLogs.IntendingToSend", num, 22);
+}
+
+void RecordSentLog() {
+  base::UmaHistogramBoolean("UMA.UnsentLogs.Sent", true);
 }
 
 void UnsentLogStoreMetricsImpl::RecordLastUnsentLogMetadataMetrics(

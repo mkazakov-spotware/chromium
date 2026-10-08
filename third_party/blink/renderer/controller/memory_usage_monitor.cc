@@ -1,27 +1,23 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/controller/memory_usage_monitor.h"
 
-#include "base/observer_list.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
-#include "third_party/blink/renderer/platform/heap/process_heap.h"
-#include "third_party/blink/renderer/platform/scheduler/public/main_thread.h"
-#include "third_party/blink/renderer/platform/scheduler/public/main_thread_scheduler.h"
+#include "third_party/blink/renderer/platform/scheduler/public/thread.h"
+#include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/partitions.h"
 
 namespace blink {
 
 namespace {
-constexpr base::TimeDelta kPingInterval = base::Seconds(1);
+constexpr base::TimeDelta kPingInterval = base::TimeDelta::FromSeconds(1);
 }
 
 MemoryUsageMonitor::MemoryUsageMonitor() {
-  MainThreadScheduler* scheduler =
-      Thread::MainThread()->Scheduler()->ToMainThreadScheduler();
-  DCHECK(scheduler);
-  timer_.SetTaskRunner(scheduler->NonWakingTaskRunner());
+  timer_.SetTaskRunner(
+      Thread::MainThread()->Scheduler()->NonWakingTaskRunner());
 }
 
 MemoryUsageMonitor::MemoryUsageMonitor(
@@ -83,7 +79,7 @@ void MemoryUsageMonitor::TimerFired() {
   MemoryUsage usage = GetCurrentMemoryUsage();
   for (auto& observer : observers_)
     observer.OnMemoryPing(usage);
-  if (observers_.empty())
+  if (!observers_.might_have_observers())
     StopMonitoring();
 }
 

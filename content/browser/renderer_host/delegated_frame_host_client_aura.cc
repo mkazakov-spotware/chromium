@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,11 +40,8 @@ SkColor DelegatedFrameHostClientAura::DelegatedFrameHostGetGutterColor() const {
   return SK_ColorWHITE;
 }
 
-void DelegatedFrameHostClientAura::OnFrameTokenChanged(
-    uint32_t frame_token,
-    base::TimeTicks activation_time) {
-  render_widget_host_view_->OnFrameTokenChangedForView(frame_token,
-                                                       activation_time);
+void DelegatedFrameHostClientAura::OnFrameTokenChanged(uint32_t frame_token) {
+  render_widget_host_view_->OnFrameTokenChangedForView(frame_token);
 }
 
 float DelegatedFrameHostClientAura::GetDeviceScaleFactor() const {

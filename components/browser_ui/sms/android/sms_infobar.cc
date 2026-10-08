@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,27 +20,27 @@ namespace sms {
 // static
 void SmsInfoBar::Create(content::WebContents* web_contents,
                         infobars::InfoBarManager* manager,
-                        const std::vector<url::Origin>& origin_list,
+                        const ResourceIdMapper& resource_mapper,
+                        const url::Origin& origin,
                         const std::string& one_time_code,
                         base::OnceClosure on_confirm,
                         base::OnceClosure on_cancel) {
   auto delegate = std::make_unique<SmsInfoBarDelegate>(
-      origin_list, one_time_code, std::move(on_confirm), std::move(on_cancel));
-  auto infobar =
-      std::make_unique<SmsInfoBar>(web_contents, std::move(delegate));
+      origin, one_time_code, std::move(on_confirm), std::move(on_cancel));
+  auto infobar = std::make_unique<SmsInfoBar>(web_contents, resource_mapper,
+                                              std::move(delegate));
   manager->AddInfoBar(std::move(infobar));
 }
 
 SmsInfoBar::SmsInfoBar(content::WebContents* web_contents,
+                       const ResourceIdMapper& resource_mapper,
                        std::unique_ptr<SmsInfoBarDelegate> delegate)
-    : infobars::ConfirmInfoBar(std::move(delegate)),
+    : infobars::ConfirmInfoBar(std::move(delegate), resource_mapper),
       web_contents_(web_contents) {}
 
 SmsInfoBar::~SmsInfoBar() = default;
 
-ScopedJavaLocalRef<jobject> SmsInfoBar::CreateRenderInfoBar(
-    JNIEnv* env,
-    const ResourceIdMapper& resource_id_mapper) {
+ScopedJavaLocalRef<jobject> SmsInfoBar::CreateRenderInfoBar(JNIEnv* env) {
   SmsInfoBarDelegate* delegate =
       static_cast<SmsInfoBarDelegate*>(GetDelegate());
 
@@ -52,9 +52,8 @@ ScopedJavaLocalRef<jobject> SmsInfoBar::CreateRenderInfoBar(
   base::android::ScopedJavaLocalRef<jobject> window_android =
       web_contents_->GetNativeView()->GetWindowAndroid()->GetJavaObject();
 
-  return Java_WebOTPServiceInfoBar_create(
-      env, window_android, resource_id_mapper.Run(delegate->GetIconId()), title,
-      message, button);
+  return Java_WebOTPServiceInfoBar_create(env, window_android, GetJavaIconId(),
+                                          title, message, button);
 }
 
 }  // namespace sms

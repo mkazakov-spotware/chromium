@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -27,6 +27,7 @@ sys.path.insert(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir,
                  os.pardir, os.pardir, 'build', 'android', 'gyp'))
 from util import build_utils
+
 
 GENERATOR_PREFIX = 'java'
 
@@ -141,10 +142,10 @@ def GetNameForElement(element):
   raise Exception('Unexpected element: %s' % element)
 
 def GetInterfaceResponseName(method):
-  return UpperCamelCase(method.name) + '_Response'
+  return UpperCamelCase(method.name + '_Response')
 
 def ParseStringAttribute(attribute):
-  assert isinstance(attribute, str)
+  assert isinstance(attribute, basestring)
   return attribute
 
 def GetJavaTrueFalse(value):
@@ -333,7 +334,7 @@ def ExpressionToText(context, token, kind_spec=''):
     return _TranslateNamedValue(token)
   if kind_spec.startswith('i') or kind_spec.startswith('u'):
     number = ast.literal_eval(token.lstrip('+ '))
-    if not isinstance(number, int):
+    if not isinstance(number, (int, long)):
       raise ValueError('got unexpected type %r for int literal %r' % (
           type(number), token))
     # If the literal is too large to fit a signed long, convert it to the
@@ -436,35 +437,35 @@ class Generator(generator.Generator):
 
   def GetFilters(self):
     java_filters = {
-        'array_expected_length': GetArrayExpectedLength,
-        'array': GetArrayKind,
-        'constant_value': ConstantValue,
-        'covers_continuous_range': EnumCoversContinuousRange,
-        'decode_method': DecodeMethod,
-        'default_value': DefaultValue,
-        'encode_method': EncodeMethod,
-        'expression_to_text': ExpressionToText,
-        'has_method_without_response': HasMethodWithoutResponse,
-        'has_method_with_response': HasMethodWithResponse,
-        'interface_response_name': GetInterfaceResponseName,
-        'is_array_kind': mojom.IsArrayKind,
-        'is_any_handle_kind': mojom.IsAnyHandleKind,
-        "is_enum_kind": mojom.IsEnumKind,
-        'is_interface_request_kind': mojom.IsInterfaceRequestKind,
-        'is_map_kind': mojom.IsMapKind,
-        'is_nullable_kind': mojom.IsNullableKind,
-        'is_pointer_array_kind': IsPointerArrayKind,
-        'is_reference_kind': mojom.IsReferenceKind,
-        'is_struct_kind': mojom.IsStructKind,
-        'is_union_array_kind': IsUnionArrayKind,
-        'is_union_kind': mojom.IsUnionKind,
-        'java_class_for_enum': GetJavaClassForEnum,
-        'java_true_false': GetJavaTrueFalse,
-        'java_type': GetJavaType,
-        'method_ordinal_name': GetMethodOrdinalName,
-        'name': GetNameForElement,
-        'new_array': NewArray,
-        'ucc': lambda x: UpperCamelCase(x.name),
+      'array_expected_length': GetArrayExpectedLength,
+      'array': GetArrayKind,
+      'constant_value': ConstantValue,
+      'covers_continuous_range': EnumCoversContinuousRange,
+      'decode_method': DecodeMethod,
+      'default_value': DefaultValue,
+      'encode_method': EncodeMethod,
+      'expression_to_text': ExpressionToText,
+      'has_method_without_response': HasMethodWithoutResponse,
+      'has_method_with_response': HasMethodWithResponse,
+      'interface_response_name': GetInterfaceResponseName,
+      'is_array_kind': mojom.IsArrayKind,
+      'is_any_handle_kind': mojom.IsAnyHandleKind,
+      "is_enum_kind": mojom.IsEnumKind,
+      'is_interface_request_kind': mojom.IsInterfaceRequestKind,
+      'is_map_kind': mojom.IsMapKind,
+      'is_nullable_kind': mojom.IsNullableKind,
+      'is_pointer_array_kind': IsPointerArrayKind,
+      'is_reference_kind': mojom.IsReferenceKind,
+      'is_struct_kind': mojom.IsStructKind,
+      'is_union_array_kind': IsUnionArrayKind,
+      'is_union_kind': mojom.IsUnionKind,
+      'java_class_for_enum': GetJavaClassForEnum,
+      'java_true_false': GetJavaTrueFalse,
+      'java_type': GetJavaType,
+      'method_ordinal_name': GetMethodOrdinalName,
+      'name': GetNameForElement,
+      'new_array': NewArray,
+      'ucc': lambda x: UpperCamelCase(x.name),
     }
     return java_filters
 

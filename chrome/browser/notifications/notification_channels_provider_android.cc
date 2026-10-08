@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,14 +17,15 @@
 #include "base/strings/string_util.h"
 #include "base/time/default_clock.h"
 #include "base/values.h"
-#include "chrome/browser/notifications/jni_headers/NotificationSettingsBridge_jni.h"
+#include "chrome/android/chrome_jni_headers/NotificationSettingsBridge_jni.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/common/pref_names.h"
+#include "components/content_settings/core/browser/content_settings_details.h"
 #include "components/content_settings/core/browser/content_settings_pref_provider.h"
 #include "components/content_settings/core/browser/content_settings_rule.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
-#include "components/content_settings/core/common/content_settings_constraints.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -118,7 +119,7 @@ ContentSetting ChannelStatusToContentSetting(NotificationChannelStatus status) {
 class ChannelsRuleIterator : public content_settings::RuleIterator {
  public:
   explicit ChannelsRuleIterator(std::vector<NotificationChannel> channels)
-      : channels_(std::move(channels)) {}
+      : channels_(std::move(channels)), index_(0) {}
 
   ChannelsRuleIterator(const ChannelsRuleIterator&) = delete;
   ChannelsRuleIterator& operator=(const ChannelsRuleIterator&) = delete;
@@ -128,20 +129,20 @@ class ChannelsRuleIterator : public content_settings::RuleIterator {
 
   content_settings::Rule Next() override {
     DCHECK(HasNext());
-    auto& channel = channels_[index_];
     DCHECK_NE(channels_[index_].status, NotificationChannelStatus::UNAVAILABLE);
     content_settings::Rule rule = content_settings::Rule(
-        ContentSettingsPattern::FromURLNoWildcard(GURL(channel.origin)),
+        ContentSettingsPattern::FromURLNoWildcard(
+            GURL(channels_[index_].origin)),
         ContentSettingsPattern::Wildcard(),
-        base::Value(ChannelStatusToContentSetting(channel.status)),
-        {.last_modified = channel.timestamp});
+        base::Value(ChannelStatusToContentSetting(channels_[index_].status)),
+        base::Time(), content_settings::SessionModel::Durable);
     index_++;
     return rule;
   }
 
  private:
   std::vector<NotificationChannel> channels_;
-  size_t index_ = 0;
+  size_t index_;
 };
 
 // This copies the logic of
@@ -226,7 +227,7 @@ void NotificationChannelsProviderAndroid::MigrateToChannelsIfNecessary(
   for (const auto& rule : rules) {
     pref_provider->SetWebsiteSetting(
         rule.primary_pattern, rule.secondary_pattern,
-        ContentSettingsType::NOTIFICATIONS, base::Value(), {});
+        ContentSettingsType::NOTIFICATIONS, nullptr, {});
   }
 
   prefs->SetBoolean(prefs::kMigratedToSiteNotificationChannels, true);
@@ -287,8 +288,7 @@ NotificationChannelsProviderAndroid::UpdateCachedChannels() const {
         FROM_HERE,
         base::BindOnce(&NotificationChannelsProviderAndroid::NotifyObservers,
                        provider->weak_factory_.GetWeakPtr(),
-                       ContentSettingsPattern::Wildcard(),
-                       ContentSettingsPattern::Wildcard(),
+                       ContentSettingsPattern(), ContentSettingsPattern(),
                        ContentSettingsType::NOTIFICATIONS));
     provider->cached_channels_ = std::move(updated_channels_map);
     provider->initialized_cached_channels_ = true;
@@ -300,7 +300,7 @@ bool NotificationChannelsProviderAndroid::SetWebsiteSetting(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type,
-    base::Value&& value,
+    std::unique_ptr<base::Value>&& value,
     const content_settings::ContentSettingConstraints& constraints) {
   if (content_type != ContentSettingsType::NOTIFICATIONS ||
       !platform_supports_channels_) {
@@ -312,18 +312,13 @@ bool NotificationChannelsProviderAndroid::SetWebsiteSetting(
     return false;
   }
 
-  // These constraints are not supported for notifications on Android.
-  DCHECK_EQ(constraints.expiration, base::Time());
-  DCHECK_EQ(constraints.session_model, content_settings::SessionModel::Durable);
-  DCHECK_EQ(constraints.track_last_visit_for_autoexpiration, false);
-
   InitCachedChannels();
 
   url::Origin origin = url::Origin::Create(GURL(primary_pattern.ToString()));
   DCHECK(!origin.opaque());
   const std::string origin_string = origin.Serialize();
 
-  ContentSetting setting = content_settings::ValueToContentSetting(value);
+  ContentSetting setting = content_settings::ValueToContentSetting(value.get());
   switch (setting) {
     case CONTENT_SETTING_ALLOW:
       CreateChannelIfRequired(origin_string,
@@ -346,7 +341,7 @@ bool NotificationChannelsProviderAndroid::SetWebsiteSetting(
       NOTREACHED();
       break;
   }
-  value = base::Value();
+  value.reset();
   return true;
 }
 
@@ -362,8 +357,8 @@ void NotificationChannelsProviderAndroid::ClearAllContentSettingsRules(
   cached_channels_.clear();
 
   if (channels.size() > 0) {
-    NotifyObservers(ContentSettingsPattern::Wildcard(),
-                    ContentSettingsPattern::Wildcard(), content_type);
+    NotifyObservers(ContentSettingsPattern(), ContentSettingsPattern(),
+                    content_type);
   }
 }
 
@@ -371,12 +366,25 @@ void NotificationChannelsProviderAndroid::ShutdownOnUIThread() {
   RemoveAllObservers();
 }
 
-bool NotificationChannelsProviderAndroid::UpdateLastVisitTime(
+base::Time NotificationChannelsProviderAndroid::GetWebsiteSettingLastModified(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type) {
-  // Last visited tracking is not implemented for this type.
-  return false;
+  if (content_type != ContentSettingsType::NOTIFICATIONS ||
+      !platform_supports_channels_) {
+    return base::Time();
+  }
+  url::Origin origin = url::Origin::Create(GURL(primary_pattern.ToString()));
+  if (origin.opaque())
+    return base::Time();
+  const std::string origin_string = origin.Serialize();
+
+  InitCachedChannels();
+  auto channel_entry = cached_channels_.find(origin_string);
+  if (channel_entry == cached_channels_.end())
+    return base::Time();
+
+  return channel_entry->second.timestamp;
 }
 
 void NotificationChannelsProviderAndroid::SetClockForTesting(
@@ -397,8 +405,7 @@ void NotificationChannelsProviderAndroid::CreateChannelIfRequired(
         new_channel_status == NotificationChannelStatus::ENABLED);
     cached_channels_.emplace(origin_string, std::move(channel));
 
-    NotifyObservers(ContentSettingsPattern::Wildcard(),
-                    ContentSettingsPattern::Wildcard(),
+    NotifyObservers(ContentSettingsPattern(), ContentSettingsPattern(),
                     ContentSettingsType::NOTIFICATIONS);
   } else {
     auto old_channel_status =
@@ -415,7 +422,7 @@ void NotificationChannelsProviderAndroid::CreateChannelForRule(
   DCHECK(!origin.opaque());
   const std::string origin_string = origin.Serialize();
   ContentSetting content_setting =
-      content_settings::ValueToContentSetting(rule.value);
+      content_settings::ValueToContentSetting(&rule.value);
   switch (content_setting) {
     case CONTENT_SETTING_ALLOW:
       CreateChannelIfRequired(origin_string,

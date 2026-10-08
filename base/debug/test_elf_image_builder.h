@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,8 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/strings/string_piece.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 #if __SIZEOF_POINTER__ == 4
 using Addr = Elf32_Addr;
@@ -50,7 +49,7 @@ class TestElfImage {
 
  private:
   std::vector<uint8_t> buffer_;
-  raw_ptr<const void> elf_start_;
+  const void* elf_start_;
 };
 
 // Builds an in-memory image of an ELF file for testing.
@@ -121,7 +120,7 @@ class TestElfImageBuilder {
   const MappingType mapping_type_;
   std::vector<std::vector<uint8_t>> note_contents_;
   std::vector<LoadSegment> load_segments_;
-  absl::optional<std::string> soname_;
+  Optional<std::string> soname_;
 };
 
 }  // namespace base

@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/policy/reporting/report_scheduler_ios.h"
+#include "ios/chrome/browser/policy/reporting/report_scheduler_ios.h"
 
-#import "components/policy/core/common/cloud/dm_token.h"
-#import "ios/chrome/browser/application_context/application_context.h"
+#include "ios/chrome/browser/application_context.h"
+
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
@@ -16,7 +16,7 @@ ReportSchedulerIOS::ReportSchedulerIOS() = default;
 
 ReportSchedulerIOS::~ReportSchedulerIOS() = default;
 
-PrefService* ReportSchedulerIOS::GetPrefService() {
+PrefService* ReportSchedulerIOS::GetLocalState() {
   return GetApplicationContext()->GetLocalState();
 }
 
@@ -44,15 +44,6 @@ void ReportSchedulerIOS::StopWatchingExtensionRequest() {
 
 void ReportSchedulerIOS::OnExtensionRequestUploaded() {
   // Not used on iOS because there is no extension.
-}
-
-policy::DMToken ReportSchedulerIOS::GetProfileDMToken() {
-  // Profile reporting is not supported.
-  return policy::DMToken();
-}
-std::string ReportSchedulerIOS::GetProfileClientId() {
-  // Profile reporting is not supported.
-  return std::string();
 }
 
 }  // namespace enterprise_reporting

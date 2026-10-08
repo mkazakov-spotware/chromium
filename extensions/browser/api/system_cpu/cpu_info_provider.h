@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/cpu.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "extensions/browser/api/system_info/system_info_provider.h"
 #include "extensions/common/api/system_cpu.h"
 
@@ -16,9 +17,6 @@ namespace extensions {
 
 class CpuInfoProvider : public SystemInfoProvider {
  public:
-  CpuInfoProvider(const CpuInfoProvider&) = delete;
-  CpuInfoProvider& operator=(const CpuInfoProvider&) = delete;
-
   // Return the single shared instance of CpuInfoProvider.
   static CpuInfoProvider* Get();
 
@@ -55,6 +53,8 @@ class CpuInfoProvider : public SystemInfoProvider {
   static base::LazyInstance<scoped_refptr<CpuInfoProvider>>::DestructorAtExit
       provider_;
   base::CPU cpu_;
+
+  DISALLOW_COPY_AND_ASSIGN(CpuInfoProvider);
 };
 
 }  // namespace extensions

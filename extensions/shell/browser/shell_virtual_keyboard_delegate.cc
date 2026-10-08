@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ ShellVirtualKeyboardDelegate::ShellVirtualKeyboardDelegate() {}
 
 void ShellVirtualKeyboardDelegate::GetKeyboardConfig(
     OnKeyboardSettingsCallback on_settings_callback) {
-  base::Value::Dict settings;
-  settings.Set("hotrodmode", is_hotrod_keyboard_);
-  std::move(on_settings_callback).Run(std::move(settings));
+  std::unique_ptr<base::DictionaryValue> settings(new base::DictionaryValue());
+  settings->SetBoolean("hotrodmode", is_hotrod_keyboard_);
+  on_settings_callback.Run(std::move(settings));
 }
 
 void ShellVirtualKeyboardDelegate::OnKeyboardConfigChanged() {
@@ -29,7 +29,7 @@ bool ShellVirtualKeyboardDelegate::HideKeyboard() {
   return false;
 }
 
-bool ShellVirtualKeyboardDelegate::InsertText(const std::u16string& text) {
+bool ShellVirtualKeyboardDelegate::InsertText(const base::string16& text) {
   return false;
 }
 
@@ -101,35 +101,32 @@ bool ShellVirtualKeyboardDelegate::SetWindowBoundsInScreen(
   return false;
 }
 
-void ShellVirtualKeyboardDelegate::GetClipboardHistory(
-    const std::set<std::string>& item_ids_filter,
-    OnGetClipboardHistoryCallback get_history_callback) {
-  NOTIMPLEMENTED();
-}
-
-bool ShellVirtualKeyboardDelegate::PasteClipboardItem(
-    const std::string& clipboard_item_id) {
-  NOTIMPLEMENTED();
-  return false;
-}
-
-bool ShellVirtualKeyboardDelegate::DeleteClipboardItem(
-    const std::string& clipboard_item_id) {
-  NOTIMPLEMENTED();
-  return false;
-}
-
-void ShellVirtualKeyboardDelegate::RestrictFeatures(
-    const api::virtual_keyboard::RestrictFeatures::Params& params,
-    OnRestrictFeaturesCallback callback) {
+api::virtual_keyboard::FeatureRestrictions
+ShellVirtualKeyboardDelegate::RestrictFeatures(
+    const api::virtual_keyboard::RestrictFeatures::Params& params) {
   // Return the given parameter as is, since there's no stored values.
   api::virtual_keyboard::FeatureRestrictions update;
-  update.spell_check_enabled = params.restrictions.spell_check_enabled;
-  update.auto_complete_enabled = params.restrictions.auto_complete_enabled;
-  update.auto_correct_enabled = params.restrictions.auto_correct_enabled;
-  update.voice_input_enabled = params.restrictions.voice_input_enabled;
-  update.handwriting_enabled = params.restrictions.handwriting_enabled;
-  std::move(callback).Run(std::move(update));
+  if (params.restrictions.spell_check_enabled) {
+    update.spell_check_enabled =
+        std::make_unique<bool>(*params.restrictions.spell_check_enabled);
+  }
+  if (params.restrictions.auto_complete_enabled) {
+    update.auto_complete_enabled =
+        std::make_unique<bool>(*params.restrictions.auto_complete_enabled);
+  }
+  if (params.restrictions.auto_correct_enabled) {
+    update.auto_correct_enabled =
+        std::make_unique<bool>(*params.restrictions.auto_correct_enabled);
+  }
+  if (params.restrictions.voice_input_enabled) {
+    update.voice_input_enabled =
+        std::make_unique<bool>(*params.restrictions.voice_input_enabled);
+  }
+  if (params.restrictions.handwriting_enabled) {
+    update.handwriting_enabled =
+        std::make_unique<bool>(*params.restrictions.handwriting_enabled);
+  }
+  return update;
 }
 
 }  // namespace extensions

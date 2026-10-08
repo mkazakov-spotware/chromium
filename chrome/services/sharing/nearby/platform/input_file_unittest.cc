@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -102,17 +102,17 @@ TEST_F(InputFileTest, TestRead_Valid) {
 }
 
 // TODO(crbug.com/1126971): Fix these tests from crashing on Windows.
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
 TEST_F(InputFileTest, TestRead_Valid_ChunkLargerThanFileSize) {
   VerifyRead(kTestDataSize * 2);
 }
 
 TEST_F(InputFileTest, TestRead_Valid_LargeFileSize) {
-  // 100MB
+  // 100MB. 1GB does pass, but tcmalloc complains about a large alloc.
   CreateValidInputFile(kTestDataSize * 100);
   VerifyRead(kChunkSize);
 }
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !defined(OS_WIN)
 
 TEST_F(InputFileTest, TestRead_Invalid) {
   CreateInvalidInputFile();

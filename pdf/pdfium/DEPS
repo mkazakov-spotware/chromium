@@ -1,6 +1,12 @@
 include_rules = [
-  "+components/services/font/public/cpp",
+  "+cc/test/pixel_comparator.h",
+  "+cc/test/pixel_test_utils.h",
+  "+gin/array_buffer.h",
+  "+gin/public",
+  "+gin/v8_initializer.h",
+  "+printing/nup_parameters.h",
+  "+printing/page_setup.h",
+  "+printing/pdf_render_settings.h",
   "+third_party/pdfium/public",
-  "+ui/accessibility",
-  "+ui/gfx/codec",
+  "+ui/gfx/codec/jpeg_codec.h",
 ]

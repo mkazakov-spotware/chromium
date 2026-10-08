@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2016 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -92,7 +92,7 @@ class LegacyResultsProcessor(object):
 
     def IsImportant(self):
       """A graph is considered important if any of its traces is important."""
-      for trace in self.traces.values():
+      for trace in self.traces.itervalues():
         if trace.important:
           return True
       return False
@@ -189,11 +189,11 @@ class LegacyResultsProcessor(object):
     """Writes graph json for each graph seen.
     """
     charts = {}
-    for graph_name, graph in self._graphs.items():
+    for graph_name, graph in self._graphs.iteritems():
       traces = graph.BuildTracesDict()
 
       # Traces should contain exactly two elements: [mean, stddev].
-      for _, trace in traces.items():
+      for _, trace in traces.iteritems():
         assert len(trace) == 2
 
       graph_dict = collections.OrderedDict([
@@ -265,6 +265,6 @@ def _FormatHumanReadable(number):
     exponent += 1
   if digits >= 100:
     # Don't append a meaningless '.0' to an integer number.
-    digits = int(digits)
+    digits = int(digits)  # pylint: disable=redefined-variable-type
   # Exponent is now divisible by 3, between -3 and 6 inclusive: (-3, 0, 3, 6).
   return '%s%s' % (digits, metric_prefixes[exponent])

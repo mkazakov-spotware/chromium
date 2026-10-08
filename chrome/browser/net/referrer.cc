@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
 #include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace chrome_browser_net {
 
@@ -109,37 +108,33 @@ void Referrer::DeleteLeastUseful() {
 void Referrer::Deserialize(const base::Value& value) {
   if (value.type() != base::Value::Type::LIST)
     return;
-
-  const base::Value::List& list = value.GetList();
-  for (auto it = list.begin(); it != list.end() && it + 1 != list.end();
-       it += 2) {
-    const std::string* url = it->GetIfString();
-    if (!url) {
-      // Invalid URL, stop parsing.
+  const base::ListValue* subresource_list(
+      static_cast<const base::ListValue*>(&value));
+  size_t index = 0;  // Bounds checking is done by subresource_list->Get*().
+  while (true) {
+    std::string url_spec;
+    if (!subresource_list->GetString(index++, &url_spec))
       return;
-    }
-
-    absl::optional<double> rate = (it + 1)->GetIfDouble();
-    if (!rate) {
-      // Invalid rate, stop parsing.
+    double rate;
+    if (!subresource_list->GetDouble(index++, &rate))
       return;
-    }
 
+    GURL url(url_spec);
     // TODO(jar): We could be more direct, and change birth date or similar to
     // show that this is a resurrected value we're adding in.  I'm not yet sure
     // of how best to optimize the learning and pruning (Trim) algorithm at this
     // level, so for now, we just suggest subresources, which leaves them all
     // with the same birth date (typically start of process).
-    SuggestHost(GURL(*url));
-    (*this)[GURL(*url)].SetSubresourceUseRate(*rate);
+    SuggestHost(url);
+    (*this)[url].SetSubresourceUseRate(rate);
   }
 }
 
-std::unique_ptr<base::Value::List> Referrer::Serialize() const {
-  auto subresource_list = std::make_unique<base::Value::List>();
+std::unique_ptr<base::ListValue> Referrer::Serialize() const {
+  auto subresource_list = std::make_unique<base::ListValue>();
   for (auto it = begin(); it != end(); ++it) {
-    subresource_list->Append(it->first.spec());
-    subresource_list->Append(it->second.subresource_use_rate());
+    subresource_list->AppendString(it->first.spec());
+    subresource_list->AppendDouble(it->second.subresource_use_rate());
   }
   return subresource_list;
 }

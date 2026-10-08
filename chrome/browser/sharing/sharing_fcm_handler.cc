@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -147,20 +147,20 @@ void SharingFCMHandler::OnStoreReset() {
   // TODO: Handle GCM store reset.
 }
 
-absl::optional<chrome_browser_sharing::FCMChannelConfiguration>
+base::Optional<chrome_browser_sharing::FCMChannelConfiguration>
 SharingFCMHandler::GetFCMChannel(
     const chrome_browser_sharing::SharingMessage& original_message) {
   if (!original_message.has_fcm_channel_configuration())
-    return absl::nullopt;
+    return base::nullopt;
 
   return original_message.fcm_channel_configuration();
 }
 
-absl::optional<chrome_browser_sharing::ServerChannelConfiguration>
+base::Optional<chrome_browser_sharing::ServerChannelConfiguration>
 SharingFCMHandler::GetServerChannel(
     const chrome_browser_sharing::SharingMessage& original_message) {
   if (!original_message.has_server_channel_configuration())
-    return absl::nullopt;
+    return base::nullopt;
 
   return original_message.server_channel_configuration();
 }
@@ -178,8 +178,8 @@ SharingDevicePlatform SharingFCMHandler::GetSenderPlatform(
 void SharingFCMHandler::SendAckMessage(
     std::string original_message_id,
     chrome_browser_sharing::MessageType original_message_type,
-    absl::optional<chrome_browser_sharing::FCMChannelConfiguration> fcm_channel,
-    absl::optional<chrome_browser_sharing::ServerChannelConfiguration>
+    base::Optional<chrome_browser_sharing::FCMChannelConfiguration> fcm_channel,
+    base::Optional<chrome_browser_sharing::ServerChannelConfiguration>
         server_channel,
     SharingDevicePlatform sender_device_type,
     base::TimeTicks message_received_time,
@@ -218,7 +218,9 @@ void SharingFCMHandler::SendAckMessage(
   }
 
   sharing_fcm_sender_->SendMessageToFcmTarget(
-      *fcm_channel, kSharingAckMessageTTL, std::move(sharing_message),
+      *fcm_channel,
+      base::TimeDelta::FromSeconds(kSharingAckMessageTTLSeconds.Get()),
+      std::move(sharing_message),
       base::BindOnce(&SharingFCMHandler::OnAckMessageSent,
                      weak_ptr_factory_.GetWeakPtr(),
                      std::move(original_message_id), original_message_type,
@@ -231,7 +233,7 @@ void SharingFCMHandler::OnAckMessageSent(
     SharingDevicePlatform sender_device_type,
     int trace_id,
     SharingSendMessageResult result,
-    absl::optional<std::string> message_id,
+    base::Optional<std::string> message_id,
     SharingChannelType channel_type) {
   LogSendSharingAckMessageResult(original_message_type, sender_device_type,
                                  channel_type, result);

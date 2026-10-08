@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,8 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "components/infobars/core/infobar_manager.h"
 #include "third_party/skia/include/core/SkColor.h"
 
@@ -38,10 +39,6 @@ class InfoBarContainer : public InfoBarManager::Observer {
   };
 
   explicit InfoBarContainer(Delegate* delegate);
-
-  InfoBarContainer(const InfoBarContainer&) = delete;
-  InfoBarContainer& operator=(const InfoBarContainer&) = delete;
-
   ~InfoBarContainer() override;
 
   // Changes the InfoBarManager for which this container is showing infobars.
@@ -95,8 +92,8 @@ class InfoBarContainer : public InfoBarManager::Observer {
   // infobar->Show().
   void AddInfoBar(InfoBar* infobar, size_t position, bool animate);
 
-  raw_ptr<Delegate> delegate_;
-  raw_ptr<InfoBarManager> infobar_manager_;
+  Delegate* delegate_;
+  InfoBarManager* infobar_manager_;
   InfoBars infobars_;
 
   // Normally false.  When true, OnInfoBarStateChanged() becomes a no-op.  We
@@ -104,6 +101,8 @@ class InfoBarContainer : public InfoBarManager::Observer {
   // functionality in OnInfoBarStateChanged() once, to minimize unnecessary
   // layout and painting.
   bool ignore_infobar_state_changed_;
+
+  DISALLOW_COPY_AND_ASSIGN(InfoBarContainer);
 };
 
 }  // namespace infobars

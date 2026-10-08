@@ -40,11 +40,11 @@ namespace blink {
 // Methods of this interface can be only be used after blink::initialize()
 // and before blink::shutdown() is called.
 
-class BLINK_EXPORT WebImageCache {
+class WebImageCache {
  public:
   // Clears the cache (as much as possible; some resources may not be
   // cleared if they are actively referenced).
-  static void Clear();
+  BLINK_EXPORT static void Clear();
 
  private:
   WebImageCache() = delete;  // Not intended to be instanced.
@@ -52,4 +52,4 @@ class BLINK_EXPORT WebImageCache {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_IMAGE_CACHE_H_
+#endif

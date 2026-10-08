@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/modules/sensor/sensor_proxy_impl.h"
 #include "third_party/blink/renderer/modules/sensor/sensor_proxy_inspector_impl.h"
+#include "third_party/blink/renderer/platform/mojo/mojo_helper.h"
 
 namespace blink {
 
@@ -24,8 +25,8 @@ void SensorProviderProxy::InitializeIfNeeded() {
       sensor_provider_.BindNewPipeAndPassReceiver(
           GetSupplementable()->GetTaskRunner(TaskType::kSensor)));
   sensor_provider_.set_disconnect_handler(
-      WTF::BindOnce(&SensorProviderProxy::OnSensorProviderConnectionError,
-                    WrapWeakPersistent(this)));
+      WTF::Bind(&SensorProviderProxy::OnSensorProviderConnectionError,
+                WrapWeakPersistent(this)));
 }
 
 // static

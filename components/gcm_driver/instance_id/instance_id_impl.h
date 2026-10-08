@@ -1,14 +1,16 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_GCM_DRIVER_INSTANCE_ID_INSTANCE_ID_IMPL_H_
 #define COMPONENTS_GCM_DRIVER_INSTANCE_ID_INSTANCE_ID_IMPL_H_
 
+#include <map>
 #include <memory>
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/gcm_driver/gcm_client.h"
@@ -26,10 +28,6 @@ namespace instance_id {
 class InstanceIDImpl : public InstanceID {
  public:
   InstanceIDImpl(const std::string& app_id, gcm::GCMDriver* gcm_driver);
-
-  InstanceIDImpl(const InstanceIDImpl&) = delete;
-  InstanceIDImpl& operator=(const InstanceIDImpl&) = delete;
-
   ~InstanceIDImpl() override;
 
   // InstanceID:
@@ -38,6 +36,7 @@ class InstanceIDImpl : public InstanceID {
   void GetToken(const std::string& authorized_entity,
                 const std::string& scope,
                 base::TimeDelta time_to_live,
+                const std::map<std::string, std::string>& options,
                 std::set<Flags> flags,
                 GetTokenCallback callback) override;
   void ValidateToken(const std::string& authorized_entity,
@@ -67,6 +66,7 @@ class InstanceIDImpl : public InstanceID {
   void DoGetToken(const std::string& authorized_entity,
                   const std::string& scope,
                   base::TimeDelta time_to_live,
+                  const std::map<std::string, std::string>& options,
                   GetTokenCallback callback);
   void DoValidateToken(const std::string& authorized_entity,
                        const std::string& scope,
@@ -91,6 +91,8 @@ class InstanceIDImpl : public InstanceID {
   base::Time creation_time_;
 
   base::WeakPtrFactory<InstanceIDImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(InstanceIDImpl);
 };
 
 }  // namespace instance_id

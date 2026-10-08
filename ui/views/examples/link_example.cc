@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,8 @@
 using l10n_util::GetStringUTF16;
 using l10n_util::GetStringUTF8;
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 LinkExample::LinkExample()
     : ExampleBase(GetStringUTF8(IDS_LINK_SELECT_LABEL).c_str()) {}
@@ -37,4 +38,5 @@ void LinkExample::CreateExampleView(View* container) {
   container->AddChildView(std::move(link));
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

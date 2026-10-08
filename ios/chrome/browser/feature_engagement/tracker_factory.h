@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_FEATURE_ENGAGEMENT_TRACKER_FACTORY_H_
 #define IOS_CHROME_BROWSER_FEATURE_ENGAGEMENT_TRACKER_FACTORY_H_
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
 
@@ -26,9 +27,6 @@ class TrackerFactory : public BrowserStateKeyedServiceFactory {
   // browser state. It is created if it does not already exist.
   static Tracker* GetForBrowserState(ChromeBrowserState* browser_state);
 
-  TrackerFactory(const TrackerFactory&) = delete;
-  TrackerFactory& operator=(const TrackerFactory&) = delete;
-
  protected:
   // BrowserStateKeyedServiceFactory implementation.
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
@@ -41,6 +39,8 @@ class TrackerFactory : public BrowserStateKeyedServiceFactory {
 
   TrackerFactory();
   ~TrackerFactory() override;
+
+  DISALLOW_COPY_AND_ASSIGN(TrackerFactory);
 };
 
 }  // namespace feature_engagement

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,7 +61,7 @@ FrameOriginState GetFrameOriginState(const FrameScheduler& frame_scheduler) {
   if (frame_scheduler.GetFrameType() == FrameScheduler::FrameType::kMainFrame) {
     return FrameOriginState::kMainFrame;
   }
-  if (frame_scheduler.IsCrossOriginToNearestMainFrame())
+  if (frame_scheduler.IsCrossOriginToMainFrame())
     return FrameOriginState::kCrossOriginToMainFrame;
   return FrameOriginState::kSameOriginToMainFrame;
 }

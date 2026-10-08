@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/web_test/browser/web_test_bluetooth_chooser_factory.h"
 
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/render_frame_host.h"
 #include "url/origin.h"
@@ -23,9 +24,6 @@ class WebTestBluetoothChooserFactory::Chooser : public BluetoothChooser {
     factory->choosers_.insert(this);
   }
 
-  Chooser(const Chooser&) = delete;
-  Chooser& operator=(const Chooser&) = delete;
-
   ~Chooser() override {
     CheckFactory();
     factory_->choosers_.erase(this);
@@ -43,9 +41,6 @@ class WebTestBluetoothChooserFactory::Chooser : public BluetoothChooser {
         break;
       case AdapterPresence::POWERED_ON:
         factory_->events_.push_back("adapter-enabled");
-        break;
-      case AdapterPresence::UNAUTHORIZED:
-        factory_->events_.push_back("unauthorized");
         break;
     }
   }
@@ -67,7 +62,7 @@ class WebTestBluetoothChooserFactory::Chooser : public BluetoothChooser {
 
   void AddOrUpdateDevice(const std::string& device_id,
                          bool should_update_name,
-                         const std::u16string& device_name,
+                         const base::string16& device_name,
                          bool is_gatt_connected,
                          bool is_paired,
                          int signal_strength_level) override {
@@ -89,6 +84,8 @@ class WebTestBluetoothChooserFactory::Chooser : public BluetoothChooser {
   }
 
   base::WeakPtr<WebTestBluetoothChooserFactory> factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(Chooser);
 };
 
 WebTestBluetoothChooserFactory::WebTestBluetoothChooserFactory() {}

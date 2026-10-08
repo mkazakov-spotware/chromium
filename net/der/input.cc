@@ -1,19 +1,26 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/der/input.h"
 
+#include <string.h>
+
 #include <algorithm>
 
 #include "base/check_op.h"
 
-namespace net::der {
+namespace net {
 
-Input::Input(base::StringPiece in)
-    : data_(reinterpret_cast<const uint8_t*>(in.data())), len_(in.length()) {}
+namespace der {
 
-Input::Input(std::string_view in)
+Input::Input() : data_(nullptr), len_(0) {
+}
+
+Input::Input(const uint8_t* data, size_t len) : data_(data), len_(len) {
+}
+
+Input::Input(const base::StringPiece& in)
     : data_(reinterpret_cast<const uint8_t*>(in.data())), len_(in.length()) {}
 
 Input::Input(const std::string* s) : Input(base::StringPiece(*s)) {}
@@ -26,22 +33,20 @@ base::StringPiece Input::AsStringPiece() const {
   return base::StringPiece(reinterpret_cast<const char*>(data_), len_);
 }
 
-std::string_view Input::AsStringView() const {
-  return std::string_view(reinterpret_cast<const char*>(data_), len_);
-}
-
-base::span<const uint8_t> Input::AsSpan() const {
-  return base::make_span(data_, len_);
-}
-
 bool operator==(const Input& lhs, const Input& rhs) {
-  return lhs.Length() == rhs.Length() &&
-         std::equal(lhs.UnsafeData(), lhs.UnsafeData() + lhs.Length(),
-                    rhs.UnsafeData());
+  if (lhs.Length() != rhs.Length())
+    return false;
+  return memcmp(lhs.UnsafeData(), rhs.UnsafeData(), lhs.Length()) == 0;
 }
 
 bool operator!=(const Input& lhs, const Input& rhs) {
   return !(lhs == rhs);
+}
+
+bool operator<(const Input& lhs, const Input& rhs) {
+  return std::lexicographical_compare(
+      lhs.UnsafeData(), lhs.UnsafeData() + lhs.Length(), rhs.UnsafeData(),
+      rhs.UnsafeData() + rhs.Length());
 }
 
 ByteReader::ByteReader(const Input& in)
@@ -75,4 +80,6 @@ void ByteReader::Advance(size_t len) {
   len_ -= len;
 }
 
-}  // namespace net::der
+}  // namespace der
+
+}  // namespace net

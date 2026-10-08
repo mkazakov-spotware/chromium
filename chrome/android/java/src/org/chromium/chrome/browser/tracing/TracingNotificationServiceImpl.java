@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 
-import org.chromium.base.IntentUtils;
 import org.chromium.base.task.PostTask;
-import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
-import org.chromium.chrome.browser.tracing.settings.TracingSettings;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 
 /**
@@ -25,6 +21,9 @@ public class TracingNotificationServiceImpl extends TracingNotificationService.I
     private static final String ACTION_DISCARD_TRACE =
             "org.chromium.chrome.browser.tracing.DISCARD_TRACE";
 
+    private static final String ACTION_SHARE_TRACE =
+            "org.chromium.chrome.browser.tracing.SHARE_TRACE";
+
     /**
      * Get the intent to send to stop a trace recording.
      *
@@ -34,9 +33,7 @@ public class TracingNotificationServiceImpl extends TracingNotificationService.I
     public static PendingIntent getStopRecordingIntent(Context context) {
         Intent intent = new Intent(context, TracingNotificationService.class);
         intent.setAction(ACTION_STOP_RECORDING);
-        return PendingIntent.getService(context, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT
-                        | IntentUtils.getPendingIntentMutabilityFlag(false));
+        return PendingIntent.getService(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     /**
@@ -48,24 +45,19 @@ public class TracingNotificationServiceImpl extends TracingNotificationService.I
     public static PendingIntent getDiscardTraceIntent(Context context) {
         Intent intent = new Intent(context, TracingNotificationService.class);
         intent.setAction(ACTION_DISCARD_TRACE);
-        return PendingIntent.getService(context, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT
-                        | IntentUtils.getPendingIntentMutabilityFlag(false));
+        return PendingIntent.getService(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     /**
-     * Get the intent to open the settings tab with a "share trace" button.
+     * Get the intent to share a recorded trace.
      *
      * @param context the application's context.
      * @return the intent.
      */
-    public static PendingIntent getOpenSettingsIntent(Context context) {
-        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
-        Intent intent = settingsLauncher.createSettingsActivityIntent(
-                context, TracingSettings.class.getName());
-        return PendingIntent.getActivity(context, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT
-                        | IntentUtils.getPendingIntentMutabilityFlag(false));
+    public static PendingIntent getShareTraceIntent(Context context) {
+        Intent intent = new Intent(context, TracingNotificationService.class);
+        intent.setAction(ACTION_SHARE_TRACE);
+        return PendingIntent.getService(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     @Override
@@ -79,6 +71,8 @@ public class TracingNotificationServiceImpl extends TracingNotificationService.I
 
             if (ACTION_STOP_RECORDING.equals(intent.getAction())) {
                 TracingController.getInstance().stopRecording();
+            } else if (ACTION_SHARE_TRACE.equals(intent.getAction())) {
+                TracingController.getInstance().shareTrace();
             } else if (ACTION_DISCARD_TRACE.equals(intent.getAction())) {
                 TracingController.getInstance().discardTrace();
             }

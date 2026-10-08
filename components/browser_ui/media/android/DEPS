@@ -5,5 +5,4 @@ include_rules = [
   "+content/public/android",
   "+services/media_session/public/cpp/android",
   "+ui/android",
-  "+url:gurl_java",
 ]

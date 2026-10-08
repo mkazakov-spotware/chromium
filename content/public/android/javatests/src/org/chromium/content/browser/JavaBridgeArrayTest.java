@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser;
-
-import android.webkit.JavascriptInterface;
 
 import androidx.test.filters.SmallTest;
 
@@ -50,17 +48,14 @@ public class JavaBridgeArrayTest {
 
         private boolean mWasArrayMethodCalled;
 
-        @JavascriptInterface
         public synchronized void setBooleanValue(boolean x) {
             mBooleanValue = x;
             notifyResultIsReady();
         }
-        @JavascriptInterface
         public synchronized void setIntValue(int x) {
             mIntValue = x;
             notifyResultIsReady();
         }
-        @JavascriptInterface
         public synchronized void setStringValue(String x) {
             mStringValue = x;
             notifyResultIsReady();
@@ -79,12 +74,10 @@ public class JavaBridgeArrayTest {
             return mStringValue;
         }
 
-        @JavascriptInterface
         public synchronized void setIntArray(int[] x) {
             mIntArray = x;
             notifyResultIsReady();
         }
-        @JavascriptInterface
         public synchronized void setIntIntArray(int[][] x) {
             mIntIntArray = x;
             notifyResultIsReady();
@@ -99,7 +92,6 @@ public class JavaBridgeArrayTest {
             return mIntIntArray;
         }
 
-        @JavascriptInterface
         public synchronized int[] arrayMethod() {
             mWasArrayMethodCalled = true;
             return new int[] {42, 43, 44};
@@ -200,7 +192,7 @@ public class JavaBridgeArrayTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
-    @UseMethodParameter(JavaBridgeActivityTestRule.MojoTestParams.class)
+    @UseMethodParameter(JavaBridgeActivityTestRule.LegacyTestParams.class)
     public void testObjectWithLengthProperty(boolean useMojo) throws Throwable {
         mActivityTestRule.executeJavaScript("testObject.setIntArray({length: 3, 1: 42});");
         int[] result = mTestObject.waitForIntArray();
@@ -213,7 +205,7 @@ public class JavaBridgeArrayTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
-    @UseMethodParameter(JavaBridgeActivityTestRule.MojoTestParams.class)
+    @UseMethodParameter(JavaBridgeActivityTestRule.LegacyTestParams.class)
     public void testNonNumericLengthProperty(boolean useMojo) throws Throwable {
         // LIVECONNECT_COMPLIANCE: This should not count as an array, so we
         // should raise a JavaScript exception.
@@ -224,7 +216,7 @@ public class JavaBridgeArrayTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
-    @UseMethodParameter(JavaBridgeActivityTestRule.MojoTestParams.class)
+    @UseMethodParameter(JavaBridgeActivityTestRule.LegacyTestParams.class)
     public void testLengthOutOfBounds(boolean useMojo) throws Throwable {
         // LIVECONNECT_COMPLIANCE: This should not count as an array, so we
         // should raise a JavaScript exception.
@@ -305,7 +297,7 @@ public class JavaBridgeArrayTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
-    @UseMethodParameter(JavaBridgeActivityTestRule.MojoTestParams.class)
+    @UseMethodParameter(JavaBridgeActivityTestRule.LegacyTestParams.class)
     public void testPassArrayBuffer(boolean useMojo) throws Throwable {
         mActivityTestRule.executeJavaScript("buffer = new ArrayBuffer(16);");
         mActivityTestRule.executeJavaScript("testObject.setIntArray(buffer);");
@@ -321,7 +313,7 @@ public class JavaBridgeArrayTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
-    @UseMethodParameter(JavaBridgeActivityTestRule.MojoTestParams.class)
+    @UseMethodParameter(JavaBridgeActivityTestRule.LegacyTestParams.class)
     public void testPassDataView(boolean useMojo) throws Throwable {
         mActivityTestRule.executeJavaScript("buffer = new ArrayBuffer(16);");
         mActivityTestRule.executeJavaScript("testObject.setIntArray(new DataView(buffer));");

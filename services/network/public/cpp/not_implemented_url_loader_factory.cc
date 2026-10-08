@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,13 @@
 
 namespace network {
 
-NotImplementedURLLoaderFactory::NotImplementedURLLoaderFactory(
-    mojo::PendingReceiver<network::mojom::URLLoaderFactory> factory_receiver)
-    : SelfDeletingURLLoaderFactory(std::move(factory_receiver)) {}
+NotImplementedURLLoaderFactory::NotImplementedURLLoaderFactory() = default;
 
 NotImplementedURLLoaderFactory::~NotImplementedURLLoaderFactory() = default;
 
 void NotImplementedURLLoaderFactory::CreateLoaderAndStart(
     mojo::PendingReceiver<network::mojom::URLLoader> receiver,
+    int32_t routing_id,
     int32_t request_id,
     uint32_t options,
     const network::ResourceRequest& url_request,
@@ -30,18 +29,9 @@ void NotImplementedURLLoaderFactory::CreateLoaderAndStart(
       ->OnComplete(status);
 }
 
-// static
-mojo::PendingRemote<network::mojom::URLLoaderFactory>
-NotImplementedURLLoaderFactory::Create() {
-  mojo::PendingRemote<network::mojom::URLLoaderFactory> pending_remote;
-
-  // The NotImplementedURLLoaderFactory will delete itself when there are no
-  // more receivers - see the NotImplementedURLLoaderFactory::OnDisconnect
-  // method.
-  new NotImplementedURLLoaderFactory(
-      pending_remote.InitWithNewPipeAndPassReceiver());
-
-  return pending_remote;
+void NotImplementedURLLoaderFactory::Clone(
+    mojo::PendingReceiver<network::mojom::URLLoaderFactory> receiver) {
+  receivers_.Add(this, std::move(receiver));
 }
 
 }  // namespace network

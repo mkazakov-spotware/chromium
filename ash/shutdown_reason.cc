@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,6 @@ const char* ShutdownReasonToString(ShutdownReason reason) {
       return "login shut down button";
     case ShutdownReason::TRAY_SHUT_DOWN_BUTTON:
       return "tray shut down button";
-    case ShutdownReason::ARC_POWER_BUTTON:
-      return "arc power button";
   }
   NOTREACHED() << "Invalid reason " << static_cast<int>(reason);
   return "invalid";

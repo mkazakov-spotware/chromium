@@ -127,7 +127,7 @@ void SVGAnimateMotionElement::UpdateAnimationPath() {
 template <typename CharType>
 static bool ParsePointInternal(const CharType* ptr,
                                const CharType* end,
-                               gfx::PointF& point) {
+                               FloatPoint& point) {
   if (!SkipOptionalSVGSpaces(ptr, end))
     return false;
 
@@ -139,14 +139,14 @@ static bool ParsePointInternal(const CharType* ptr,
   if (!ParseNumber(ptr, end, y))
     return false;
 
-  point = gfx::PointF(x, y);
+  point = FloatPoint(x, y);
 
   // disallow anything except spaces at the end
   return !SkipOptionalSVGSpaces(ptr, end);
 }
 
-static bool ParsePoint(const String& string, gfx::PointF& point) {
-  if (string.empty())
+static bool ParsePoint(const String& string, FloatPoint& point) {
+  if (string.IsEmpty())
     return false;
   return WTF::VisitCharacters(string, [&](const auto* chars, unsigned length) {
     return ParsePointInternal(chars, chars + length, point);
@@ -189,7 +189,7 @@ bool SVGAnimateMotionElement::CalculateFromAndByValues(
   // Apply 'from' to 'to' to get 'by' semantics. If the animation mode
   // is 'by', |from_string| will be the empty string and yield a point
   // of (0,0).
-  to_point_ += from_point_.OffsetFromOrigin();
+  to_point_ += from_point_;
   to_point_at_end_of_duration_ = to_point_;
   return true;
 }
@@ -207,37 +207,37 @@ void SVGAnimateMotionElement::CalculateAnimationValue(
 
   if (GetAnimationMode() != kPathAnimation) {
     float animated_x = ComputeAnimatedNumber(
-        parameters, percentage, repeat_count, from_point_.x(), to_point_.x(),
-        to_point_at_end_of_duration_.x());
+        parameters, percentage, repeat_count, from_point_.X(), to_point_.X(),
+        to_point_at_end_of_duration_.X());
     float animated_y = ComputeAnimatedNumber(
-        parameters, percentage, repeat_count, from_point_.y(), to_point_.y(),
-        to_point_at_end_of_duration_.y());
+        parameters, percentage, repeat_count, from_point_.Y(), to_point_.Y(),
+        to_point_at_end_of_duration_.Y());
     transform->Translate(animated_x, animated_y);
     return;
   }
 
   DCHECK(!animation_path_.IsEmpty());
 
-  const float path_length = animation_path_.length();
-  float position_on_path = path_length * percentage;
-  PointAndTangent position =
-      animation_path_.PointAndNormalAtLength(position_on_path);
+  float position_on_path = animation_path_.length() * percentage;
+  FloatPoint position;
+  float angle;
+  animation_path_.PointAndNormalAtLength(position_on_path, position, angle);
 
   // Handle accumulate="sum".
   if (repeat_count && parameters.is_cumulative) {
-    gfx::PointF position_at_end_of_duration =
-        animation_path_.PointAtLength(path_length);
-    position.point += gfx::ScalePoint(position_at_end_of_duration, repeat_count)
-                          .OffsetFromOrigin();
+    FloatPoint position_at_end_of_duration =
+        animation_path_.PointAtLength(animation_path_.length());
+    position.Move(position_at_end_of_duration.X() * repeat_count,
+                  position_at_end_of_duration.Y() * repeat_count);
   }
 
-  transform->Translate(position.point.x(), position.point.y());
+  transform->Translate(position.X(), position.Y());
   RotateMode rotate_mode = GetRotateMode();
   if (rotate_mode != kRotateAuto && rotate_mode != kRotateAutoReverse)
     return;
   if (rotate_mode == kRotateAutoReverse)
-    position.tangent_in_degrees += 180;
-  transform->Rotate(position.tangent_in_degrees);
+    angle += 180;
+  transform->Rotate(angle);
 }
 
 void SVGAnimateMotionElement::ApplyResultsToTarget(
@@ -249,13 +249,14 @@ void SVGAnimateMotionElement::ApplyResultsToTarget(
 
 float SVGAnimateMotionElement::CalculateDistance(const String& from_string,
                                                  const String& to_string) {
-  gfx::PointF from;
-  gfx::PointF to;
+  FloatPoint from;
+  FloatPoint to;
   if (!ParsePoint(from_string, from))
     return -1;
   if (!ParsePoint(to_string, to))
     return -1;
-  return (to - from).Length();
+  FloatSize diff = to - from;
+  return sqrtf(diff.Width() * diff.Width() + diff.Height() * diff.Height());
 }
 
 void SVGAnimateMotionElement::UpdateAnimationMode() {

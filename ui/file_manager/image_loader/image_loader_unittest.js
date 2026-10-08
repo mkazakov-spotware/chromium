@@ -1,13 +1,6 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {assertEquals} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-import {ImageLoaderUtil} from './image_loader_util.js';
-import {ImageOrientation} from './image_orientation.js';
-import {LoadImageRequest} from './load_image_request.js';
-
 
 /**
  * Casts a map of options as an incoming load request to test CopyParameters.
@@ -26,14 +19,14 @@ function calculateCopyParametersFromOptions(source, options) {
  * - Source image: 200x50
  * - Target: max size is 100x100
  */
-export function testNormalImage() {
+function testNormalImage() {
   const source = new Image();
   source.width = 200;
   source.height = 50;
   const options = {
     maxWidth: 100,
     maxHeight: 100,
-    orientation: ImageOrientation.fromClockwiseRotation(0),
+    orientation: ImageOrientation.fromClockwiseRotation(0)
   };
   const result = calculateCopyParametersFromOptions(source, options);
   assertEquals(0, result.source.x);
@@ -53,14 +46,14 @@ export function testNormalImage() {
  * - Source image: 50x200 90 deg clock-wise rotated image.
  * - Target: max size is 100x100
  */
-export function testRotatedImage() {
+function testRotatedImage() {
   const source = new Image();
   source.width = 50;
   source.height = 200;
   const options = {
     maxWidth: 100,
     maxHeight: 100,
-    orientation: ImageOrientation.fromClockwiseRotation(1),
+    orientation: ImageOrientation.fromClockwiseRotation(1)
   };
   const result = calculateCopyParametersFromOptions(source, options);
   assertEquals(0, result.source.x);
@@ -80,7 +73,7 @@ export function testRotatedImage() {
  * - Source image: 800x100
  * - Target: 50x50 cropped image.
  */
-export function testCroppedImage() {
+function testCroppedImage() {
   const source = new Image();
   source.width = 800;
   source.height = 100;
@@ -88,7 +81,7 @@ export function testCroppedImage() {
     width: 50,
     height: 50,
     crop: true,
-    orientation: ImageOrientation.fromClockwiseRotation(0),
+    orientation: ImageOrientation.fromClockwiseRotation(0)
   };
   const result = calculateCopyParametersFromOptions(source, options);
   assertEquals(350, result.source.x);
@@ -108,7 +101,7 @@ export function testCroppedImage() {
  * - Source image: 200x25
  * - Target: 50x50 cropped image.
  */
-export function testCroppedImageWithResize() {
+function testCroppedImageWithResize() {
   const source = new Image();
   source.width = 200;
   source.height = 25;
@@ -116,7 +109,7 @@ export function testCroppedImageWithResize() {
     width: 50,
     height: 50,
     crop: true,
-    orientation: ImageOrientation.fromClockwiseRotation(0),
+    orientation: ImageOrientation.fromClockwiseRotation(0)
   };
   const result = calculateCopyParametersFromOptions(source, options);
   assertEquals(87, result.source.x);
@@ -136,7 +129,7 @@ export function testCroppedImageWithResize() {
  * - Source image: 20x10
  * - Target: 50x50 cropped image.
  */
-export function testCroppedTinyImage() {
+function testCroppedTinyImage() {
   const source = new Image();
   source.width = 20;
   source.height = 10;
@@ -144,7 +137,7 @@ export function testCroppedTinyImage() {
     width: 50,
     height: 50,
     crop: true,
-    orientation: ImageOrientation.fromClockwiseRotation(0),
+    orientation: ImageOrientation.fromClockwiseRotation(0)
   };
   const result = calculateCopyParametersFromOptions(source, options);
   assertEquals(5, result.source.x);
@@ -164,7 +157,7 @@ export function testCroppedTinyImage() {
  * - Source image: 100x400 90 degree clock-wise rotated.
  * - Target: 50x50 cropped image
  */
-export function testCroppedRotatedImage() {
+function testCroppedRotatedImage() {
   const source = new Image();
   source.width = 100;
   source.height = 400;
@@ -172,7 +165,7 @@ export function testCroppedRotatedImage() {
     width: 50,
     height: 50,
     crop: true,
-    orientation: ImageOrientation.fromClockwiseRotation(1),
+    orientation: ImageOrientation.fromClockwiseRotation(1)
   };
   const result = calculateCopyParametersFromOptions(source, options);
   assertEquals(0, result.source.x);

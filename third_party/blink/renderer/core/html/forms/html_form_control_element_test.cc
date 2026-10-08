@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -87,9 +87,10 @@ TEST_F(HTMLFormControlElementTest, customValidationMessageTextDirection) {
   EXPECT_EQ(TextDirection::kRtl, message_dir);
   EXPECT_EQ(TextDirection::kLtr, sub_message_dir);
 
-  ComputedStyleBuilder rtl_style_builder(input->GetLayoutObject()->StyleRef());
-  rtl_style_builder.SetDirection(TextDirection::kRtl);
-  input->GetLayoutObject()->SetStyle(rtl_style_builder.TakeStyle());
+  scoped_refptr<ComputedStyle> rtl_style =
+      ComputedStyle::Clone(input->GetLayoutObject()->StyleRef());
+  rtl_style->SetDirection(TextDirection::kRtl);
+  input->GetLayoutObject()->SetStyle(std::move(rtl_style));
   input->FindCustomValidationMessageTextDirection(message, message_dir,
                                                   sub_message, sub_message_dir);
   EXPECT_EQ(TextDirection::kRtl, message_dir);
@@ -151,7 +152,7 @@ TEST_F(HTMLFormControlElementTest, DoNotUpdateLayoutDuringDOMMutation) {
 TEST_F(HTMLFormControlElementTest, UniqueRendererFormControlId) {
   SetHtmlInnerHTML("<body><input id=input1><input id=input2></body>");
   auto* form_control1 = To<HTMLFormControlElement>(GetElementById("input1"));
-  uint64_t first_id = form_control1->UniqueRendererFormControlId();
+  unsigned first_id = form_control1->UniqueRendererFormControlId();
   auto* form_control2 = To<HTMLFormControlElement>(GetElementById("input2"));
   EXPECT_EQ(first_id + 1, form_control2->UniqueRendererFormControlId());
   SetHtmlInnerHTML("<body><select id=select1></body>");

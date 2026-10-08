@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/animation/test/test_ink_drop.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
 TestInkDrop::TestInkDrop() = default;
 TestInkDrop::~TestInkDrop() = default;
@@ -48,4 +49,5 @@ void TestInkDrop::SetShowHighlightOnHover(bool show_highlight_on_hover) {}
 
 void TestInkDrop::SetShowHighlightOnFocus(bool show_highlight_on_focus) {}
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

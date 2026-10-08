@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,9 @@
 #include "ash/assistant/ui/main_stage/assistant_opt_in_view.h"
 #include "ash/assistant/ui/main_stage/suggestion_container_view.h"
 #include "ash/assistant/util/animation_util.h"
-#include "ash/constants/ash_features.h"
 #include "base/bind.h"
 #include "base/time/time.h"
 #include "ui/compositor/callback_layer_animation_observer.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/views/layout/fill_layout.h"
@@ -25,12 +23,16 @@ namespace ash {
 
 namespace {
 
-// Animation.
-constexpr base::TimeDelta kAnimationFadeInDelay = base::Milliseconds(167);
-constexpr base::TimeDelta kAnimationFadeInDuration = base::Milliseconds(167);
-constexpr base::TimeDelta kAnimationFadeOutDuration = base::Milliseconds(167);
+// Appearance.
+constexpr int kPreferredHeightDip = 48;
 
-constexpr int kPreferredHeightDip = 64;
+// Animation.
+constexpr base::TimeDelta kAnimationFadeInDelay =
+    base::TimeDelta::FromMilliseconds(167);
+constexpr base::TimeDelta kAnimationFadeInDuration =
+    base::TimeDelta::FromMilliseconds(167);
+constexpr base::TimeDelta kAnimationFadeOutDuration =
+    base::TimeDelta::FromMilliseconds(167);
 
 }  // namespace
 
@@ -70,8 +72,8 @@ void AssistantFooterView::InitLayout() {
   // Initial view state is based on user consent state.
   const bool consent_given =
       AssistantState::Get()->consent_status().value_or(
-          assistant::prefs::ConsentStatus::kUnknown) ==
-      assistant::prefs::ConsentStatus::kActivityControlAccepted;
+          chromeos::assistant::prefs::ConsentStatus::kUnknown) ==
+      chromeos::assistant::prefs::ConsentStatus::kActivityControlAccepted;
 
   // Suggestion container.
   suggestion_container_ =
@@ -83,6 +85,7 @@ void AssistantFooterView::InitLayout() {
   suggestion_container_->layer()->SetFillsBoundsOpaquely(false);
   suggestion_container_->layer()->SetOpacity(consent_given ? 1.f : 0.f);
   suggestion_container_->SetVisible(consent_given);
+
 
   // Opt in view.
   opt_in_view_ = AddChildView(std::make_unique<AssistantOptInView>(delegate_));
@@ -102,7 +105,7 @@ void AssistantFooterView::OnAssistantConsentStatusChanged(int consent_status) {
 
   const bool consent_given =
       consent_status ==
-      assistant::prefs::ConsentStatus::kActivityControlAccepted;
+      chromeos::assistant::prefs::ConsentStatus::kActivityControlAccepted;
 
   // When the consent state changes, we need to hide/show the appropriate views.
   views::View* hide_view =
@@ -140,10 +143,6 @@ void AssistantFooterView::OnAssistantConsentStatusChanged(int consent_status) {
   animation_observer_->SetActive();
 }
 
-void AssistantFooterView::InitializeUIForBubbleView() {
-  suggestion_container_->InitializeUIForBubbleView();
-}
-
 void AssistantFooterView::OnAnimationStarted(
     const ui::CallbackLayerAnimationObserver& observer) {
   // Our views should not process events while animating.
@@ -155,8 +154,8 @@ bool AssistantFooterView::OnAnimationEnded(
     const ui::CallbackLayerAnimationObserver& observer) {
   const bool consent_given =
       AssistantState::Get()->consent_status().value_or(
-          assistant::prefs::ConsentStatus::kUnknown) ==
-      assistant::prefs::ConsentStatus::kActivityControlAccepted;
+          chromeos::assistant::prefs::ConsentStatus::kUnknown) ==
+      chromeos::assistant::prefs::ConsentStatus::kActivityControlAccepted;
 
   // Only the view relevant to our consent state should process events.
   suggestion_container_->SetCanProcessEventsWithinSubtree(consent_given);

@@ -1,14 +1,14 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/public/provider/chrome/browser/signin/fake_chrome_identity_interaction_manager.h"
 
-#import "ios/chrome/browser/signin/system_identity.h"
+#import "ios/public/provider/chrome/browser/chrome_browser_provider.h"
 #import "ios/public/provider/chrome/browser/signin/chrome_identity_interaction_manager.h"
 #import "ios/public/provider/chrome/browser/signin/fake_chrome_identity_interaction_manager_constants.h"
 #import "ios/public/provider/chrome/browser/signin/fake_chrome_identity_service.h"
-#import "ios/public/provider/chrome/browser/signin/signin_error_api.h"
+#include "ios/public/provider/chrome/browser/signin/signin_error_provider.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -21,11 +21,10 @@
 }
 @end
 
-@interface FakeChromeIdentityInteractionManager ()
-
-@property(nonatomic, strong) UIViewController* addAccountViewController;
-@property(nonatomic, copy) SigninCompletionCallback completionCallback;
-@property(nonatomic, assign, readwrite) BOOL viewControllerPresented;
+@interface FakeChromeIdentityInteractionManager () {
+  SigninCompletionCallback _completionCallback;
+  UIViewController* _viewController;
+}
 
 @end
 
@@ -94,111 +93,97 @@
 
 @end
 
-namespace {
-
-id<SystemIdentity> gFakeChromeIdentityInteractionManagerIdentity = nil;
-
-}
-
 @implementation FakeChromeIdentityInteractionManager
 
-+ (void)setIdentity:(id<SystemIdentity>)identity {
-  gFakeChromeIdentityInteractionManagerIdentity = identity;
-}
+@synthesize fakeIdentity = _fakeIdentity;
 
-+ (id<SystemIdentity>)identity {
-  return gFakeChromeIdentityInteractionManagerIdentity;
+- (void)addAccountWithPresentingViewController:(UIViewController*)viewController
+                                    completion:
+                                        (SigninCompletionCallback)completion {
+  _completionCallback = completion;
+  _viewController =
+      [[FakeAddAccountViewController alloc] initWithInteractionManager:self];
+  [self.delegate interactionManager:self
+              presentViewController:_viewController
+                           animated:YES
+                         completion:nil];
 }
 
 - (void)addAccountWithPresentingViewController:(UIViewController*)viewController
                                      userEmail:(NSString*)userEmail
                                     completion:
                                         (SigninCompletionCallback)completion {
-  self.completionCallback = completion;
-  self.addAccountViewController =
-      [[FakeAddAccountViewController alloc] initWithInteractionManager:self];
-  __weak __typeof(self) weakSelf = self;
-  [viewController presentViewController:self.addAccountViewController
-                               animated:YES
-                             completion:^() {
-                               weakSelf.viewControllerPresented = YES;
-                             }];
+  [self addAccountWithPresentingViewController:viewController
+                                    completion:completion];
 }
 
-- (void)cancelAddAccountAnimated:(BOOL)animated
-                      completion:(void (^)(void))completion {
-  NSError* error = ios::provider::CreateUserCancelledSigninError();
-  [self dismissAndRunCompletionCallbackWithError:error
+- (void)cancelAddAccountWithAnimation:(BOOL)animated
+                           completion:(void (^)(void))completion {
+  [self dismissAndRunCompletionCallbackWithError:[self canceledError]
                                         animated:animated
                                       completion:completion];
 }
 
 - (void)addAccountViewControllerDidTapSignIn {
-  ios::FakeChromeIdentityService::GetInstanceFromChromeProvider()->AddIdentity(
-      FakeChromeIdentityInteractionManager.identity);
+  ios::FakeChromeIdentityService::GetInstanceFromChromeProvider()
+      ->AddIdentity(_fakeIdentity);
   [self dismissAndRunCompletionCallbackWithError:nil
                                         animated:YES
                                       completion:nil];
 }
 
 - (void)addAccountViewControllerDidTapCancel {
-  NSError* error = ios::provider::CreateUserCancelledSigninError();
-  [self dismissAndRunCompletionCallbackWithError:error
+  [self dismissAndRunCompletionCallbackWithError:[self canceledError]
                                         animated:YES
                                       completion:nil];
 }
 
 - (void)addAccountViewControllerDidThrowUnhandledError {
-  NSError* error = [NSError errorWithDomain:@"Unhandled" code:-1 userInfo:nil];
-  [self dismissAndRunCompletionCallbackWithError:error
+  [self dismissAndRunCompletionCallbackWithError:[self unhandledError]
                                         animated:YES
                                       completion:nil];
-}
-
-- (void)addAccountViewControllerDidInterrupt {
-  // When the add account view is interrupted, its completion callback is
-  // invoked with the user cancel error.
-  [self addAccountViewControllerDidTapCancel];
 }
 
 #pragma mark Helper
 
 - (void)dismissAndRunCompletionCallbackWithError:(NSError*)error
                                         animated:(BOOL)animated
-                                      completion:(ProceduralBlock)completion {
-  DCHECK(error || FakeChromeIdentityInteractionManager.identity)
-      << "An identity should be set to close the dialog successfully, error: "
-      << error << ", identity "
-      << FakeChromeIdentityInteractionManager.identity;
-  DCHECK(self.addAccountViewController);
-  DCHECK(self.viewControllerPresented);
-  __weak __typeof(self) weakSelf = self;
-  [self.addAccountViewController.presentingViewController
+                                      completion:(void (^)(void))completion {
+  if (!_viewController) {
+    [self runCompletionCallbackWithError:error];
+    return;
+  }
+  [self.delegate interactionManager:self
       dismissViewControllerAnimated:animated
                          completion:^{
-                           __strong __typeof(self) strongSelf = weakSelf;
-                           [strongSelf
-                               runCompletionCallbackWithError:error
-                                                   completion:completion];
+                           [self runCompletionCallbackWithError:error];
+                           if (completion) {
+                             completion();
+                           }
                          }];
 }
 
-- (void)runCompletionCallbackWithError:(NSError*)error
-                            completion:(ProceduralBlock)completion {
-  self.addAccountViewController = nil;
-  id<SystemIdentity> identity =
-      error ? nil : FakeChromeIdentityInteractionManager.identity;
-  // Reset the identity for the next usage.
-  FakeChromeIdentityInteractionManager.identity = nil;
-  if (self.completionCallback) {
-    SigninCompletionCallback completionCallback = self.completionCallback;
-    self.completionCallback = nil;
-    completionCallback(identity, error);
+- (void)runCompletionCallbackWithError:(NSError*)error {
+  _viewController = nil;
+  if (_completionCallback) {
+    // Ensure self is not destroyed in the callback.
+    NS_VALID_UNTIL_END_OF_SCOPE FakeChromeIdentityInteractionManager*
+        strongSelf = self;
+    _completionCallback(_fakeIdentity, error);
+    _completionCallback = nil;
   }
-  if (completion) {
-    completion();
-  }
-  self.viewControllerPresented = NO;
+}
+
+- (NSError*)canceledError {
+  ios::SigninErrorProvider* provider =
+      ios::GetChromeBrowserProvider()->GetSigninErrorProvider();
+  return [NSError errorWithDomain:provider->GetSigninErrorDomain()
+                             code:provider->GetCode(ios::SigninError::CANCELED)
+                         userInfo:nil];
+}
+
+- (NSError*)unhandledError {
+  return [NSError errorWithDomain:@"" code:-1 userInfo:nil];
 }
 
 @end

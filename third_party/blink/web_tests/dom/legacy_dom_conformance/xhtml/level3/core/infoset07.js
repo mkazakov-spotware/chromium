@@ -100,7 +100,7 @@ doc = domImpl.createDocument("http://www.w3.org/1999/xhtml","html",nullDoctype);
     {
         success = false;
         try {
-            attr = doc.createAttribute("LegalName}");
+            attr = doc.createAttribute("LegalNameࢎ");
         }
         catch(ex) {
       success = (typeof(ex.code) != 'undefined' && ex.code == 5);
@@ -123,8 +123,8 @@ doc = domImpl.createDocument("http://www.w3.org/1999/xhtml","html",nullDoctype);
        throw ex;
         }
          }
-        docElem.setAttribute("LegalName}","foo");
-      attr = docElem.getAttributeNode("LegalName}");
+        docElem.setAttribute("LegalNameࢎ","foo");
+      attr = docElem.getAttributeNode("LegalNameࢎ");
       doc.xmlVersion = "1.0";
 
       domConfig = doc.domConfig;

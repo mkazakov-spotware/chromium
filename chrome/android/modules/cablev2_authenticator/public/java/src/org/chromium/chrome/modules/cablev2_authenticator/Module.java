@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,4 +20,8 @@ import org.chromium.components.module_installer.builder.ModuleInterface;
 public interface Module {
     /** Returns a {@link Fragment} that contains the authenticator UI. */
     public Fragment getFragment();
+
+    /** Handle a message from the tunnel service. */
+    public void onCloudMessage(
+            long event, long systemNetworkContext, long registration, String activityClassName);
 }

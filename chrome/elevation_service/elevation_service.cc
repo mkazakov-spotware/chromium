@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 
 extern "C" int WINAPI wWinMain(HINSTANCE instance,
                                HINSTANCE prev_instance,
-                               wchar_t* command_line,
+                               base::char16* command_line,
                                int show_command) {
   // Initialize the CommandLine singleton from the environment.
   base::CommandLine::Init(0, nullptr);

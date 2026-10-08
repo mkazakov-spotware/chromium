@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/task/thread_pool/pooled_parallel_task_runner.h"
 #include "base/task/thread_pool/pooled_sequenced_task_runner.h"
@@ -44,7 +43,7 @@ class MockJobTaskRunner : public TaskRunner {
   ~MockJobTaskRunner() override = default;
 
   const TaskTraits traits_;
-  const raw_ptr<PooledTaskRunnerDelegate> pooled_task_runner_delegate_;
+  PooledTaskRunnerDelegate* const pooled_task_runner_delegate_;
 };
 
 bool MockJobTaskRunner::PostDelayedTask(const Location& from_here,
@@ -52,10 +51,8 @@ bool MockJobTaskRunner::PostDelayedTask(const Location& from_here,
                                         TimeDelta delay) {
   DCHECK_EQ(delay, TimeDelta());  // Jobs doesn't support delayed tasks.
 
-  if (!PooledTaskRunnerDelegate::MatchesCurrentDelegate(
-          pooled_task_runner_delegate_)) {
+  if (!PooledTaskRunnerDelegate::Exists())
     return false;
-  }
 
   auto job_task = base::MakeRefCounted<MockJobTask>(std::move(closure));
   scoped_refptr<JobTaskSource> task_source = job_task->GetJobTaskSource(
@@ -107,9 +104,7 @@ scoped_refptr<Sequence> CreateSequenceWithTask(
     TaskSourceExecutionMode execution_mode) {
   scoped_refptr<Sequence> sequence =
       MakeRefCounted<Sequence>(traits, task_runner.get(), execution_mode);
-  auto transaction = sequence->BeginTransaction();
-  transaction.WillPushImmediateTask();
-  transaction.PushImmediateTask(std::move(task));
+  sequence->BeginTransaction().PushTask(std::move(task));
   return sequence;
 }
 
@@ -192,7 +187,7 @@ void MockPooledTaskRunnerDelegate::PostTaskWithSequenceNow(
     Task task,
     scoped_refptr<Sequence> sequence) {
   auto transaction = sequence->BeginTransaction();
-  const bool sequence_should_be_queued = transaction.WillPushImmediateTask();
+  const bool sequence_should_be_queued = transaction.WillPushTask();
   RegisteredTaskSource task_source;
   if (sequence_should_be_queued) {
     task_source = task_tracker_->RegisterTaskSource(std::move(sequence));
@@ -200,7 +195,7 @@ void MockPooledTaskRunnerDelegate::PostTaskWithSequenceNow(
     if (!task_source)
       return;
   }
-  transaction.PushImmediateTask(std::move(task));
+  transaction.PushTask(std::move(task));
   if (task_source) {
     thread_group_->PushTaskSourceAndWakeUpWorkers(
         {std::move(task_source), std::move(transaction)});
@@ -208,7 +203,7 @@ void MockPooledTaskRunnerDelegate::PostTaskWithSequenceNow(
 }
 
 bool MockPooledTaskRunnerDelegate::ShouldYield(const TaskSource* task_source) {
-  return thread_group_->ShouldYield(task_source->GetSortKey());
+  return thread_group_->ShouldYield(task_source->GetSortKey(false));
 }
 
 bool MockPooledTaskRunnerDelegate::EnqueueJobTaskSource(

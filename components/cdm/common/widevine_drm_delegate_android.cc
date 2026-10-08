@@ -1,9 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/cdm/common/widevine_drm_delegate_android.h"
 
+#include "base/stl_util.h"
 #include "media/cdm/cenc_utils.h"
 
 namespace cdm {
@@ -22,7 +23,7 @@ WidevineDrmDelegateAndroid::~WidevineDrmDelegateAndroid() {}
 
 const std::vector<uint8_t> WidevineDrmDelegateAndroid::GetUUID() const {
   return std::vector<uint8_t>(kWidevineUuid,
-                              kWidevineUuid + std::size(kWidevineUuid));
+                              kWidevineUuid + base::size(kWidevineUuid));
 }
 
 bool WidevineDrmDelegateAndroid::OnCreateSession(

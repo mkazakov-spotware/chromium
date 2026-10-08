@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include <stddef.h>
 #include <utility>
 
-#include "components/blocked_content/android/popup_blocked_helper.h"
+#include "components/blocked_content/popup_blocker_tab_helper.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
-#include "components/infobars/android/confirm_infobar.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar.h"
 #include "components/prefs/pref_service.h"
@@ -28,10 +27,11 @@ bool PopupBlockedInfoBarDelegate::Create(
     HostContentSettingsMap* settings_map,
     base::OnceClosure on_accept_callback) {
   const GURL& url = infobar_manager->web_contents()->GetURL();
-  auto infobar = std::make_unique<infobars::ConfirmInfoBar>(
-      base::WrapUnique<PopupBlockedInfoBarDelegate>(
-          new PopupBlockedInfoBarDelegate(num_popups, url, settings_map,
-                                          std::move(on_accept_callback))));
+  std::unique_ptr<infobars::InfoBar> infobar(
+      infobar_manager->CreateConfirmInfoBar(
+          std::unique_ptr<ConfirmInfoBarDelegate>(
+              new PopupBlockedInfoBarDelegate(num_popups, url, settings_map,
+                                              std::move(on_accept_callback)))));
 
   // See if there is an existing popup infobar already.
   // TODO(dfalcantara) When triggering more than one popup the infobar
@@ -76,10 +76,14 @@ PopupBlockedInfoBarDelegate::PopupBlockedInfoBarDelegate(
       url_(url),
       map_(map),
       on_accept_callback_(std::move(on_accept_callback)) {
-  can_show_popups_ = !PopupSettingManagedByPolicy(map, url);
+  content_settings::SettingInfo setting_info;
+  std::unique_ptr<base::Value> setting = map->GetWebsiteSetting(
+      url, url, ContentSettingsType::POPUPS, &setting_info);
+  can_show_popups_ =
+      setting_info.source != content_settings::SETTING_SOURCE_POLICY;
 }
 
-std::u16string PopupBlockedInfoBarDelegate::GetMessageText() const {
+base::string16 PopupBlockedInfoBarDelegate::GetMessageText() const {
   return l10n_util::GetPluralStringFUTF16(IDS_POPUPS_BLOCKED_INFOBAR_TEXT,
                                           num_popups_);
 }
@@ -93,7 +97,7 @@ int PopupBlockedInfoBarDelegate::GetButtons() const {
   return buttons;
 }
 
-std::u16string PopupBlockedInfoBarDelegate::GetButtonLabel(
+base::string16 PopupBlockedInfoBarDelegate::GetButtonLabel(
     InfoBarButton button) const {
   switch (button) {
     case BUTTON_OK:
@@ -104,7 +108,7 @@ std::u16string PopupBlockedInfoBarDelegate::GetButtonLabel(
       NOTREACHED();
       break;
   }
-  return std::u16string();
+  return base::string16();
 }
 
 bool PopupBlockedInfoBarDelegate::Accept() {
@@ -117,7 +121,17 @@ bool PopupBlockedInfoBarDelegate::Accept() {
   // Launch popups.
   content::WebContents* web_contents =
       infobars::ContentInfoBarManager::WebContentsFromInfoBar(infobar());
-  ShowBlockedPopups(web_contents);
+  blocked_content::PopupBlockerTabHelper* popup_blocker_helper =
+      blocked_content::PopupBlockerTabHelper::FromWebContents(web_contents);
+  DCHECK(popup_blocker_helper);
+  blocked_content::PopupBlockerTabHelper::PopupIdMap blocked_popups =
+      popup_blocker_helper->GetBlockedPopupRequests();
+  for (blocked_content::PopupBlockerTabHelper::PopupIdMap::iterator it =
+           blocked_popups.begin();
+       it != blocked_popups.end(); ++it) {
+    popup_blocker_helper->ShowBlockedPopup(it->first,
+                                           WindowOpenDisposition::CURRENT_TAB);
+  }
 
   if (on_accept_callback_)
     std::move(on_accept_callback_).Run();

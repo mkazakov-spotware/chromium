@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,8 +29,7 @@ ExtensionSettingModelTypeController::ExtensionSettingModelTypeController(
   DCHECK(type == syncer::EXTENSION_SETTINGS || type == syncer::APP_SETTINGS);
 }
 
-ExtensionSettingModelTypeController::~ExtensionSettingModelTypeController() =
-    default;
+ExtensionSettingModelTypeController::~ExtensionSettingModelTypeController() {}
 
 void ExtensionSettingModelTypeController::LoadModels(
     const syncer::ConfigureContext& configure_context,

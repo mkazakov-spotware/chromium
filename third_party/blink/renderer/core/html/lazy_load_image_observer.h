@@ -1,15 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_LAZY_LOAD_IMAGE_OBSERVER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_LAZY_LOAD_IMAGE_OBSERVER_H_
 
-#include "base/time/time.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
 
 namespace blink {
 
@@ -18,11 +16,16 @@ class Element;
 class HTMLImageElement;
 class IntersectionObserver;
 class IntersectionObserverEntry;
+class Visitor;
 
 class LazyLoadImageObserver final
     : public GarbageCollected<LazyLoadImageObserver> {
  public:
-  enum class DeferralMessage { kNone, kMissingDimensionForLazy };
+  enum class DeferralMessage {
+    kNone,
+    kLoadEventsDeferred,
+    kMissingDimensionForLazy
+  };
 
   struct VisibleLoadTimeMetrics {
     // Keeps track of whether the image was initially intersecting the viewport.
@@ -44,11 +47,9 @@ class LazyLoadImageObserver final
   void StartMonitoringVisibility(Document*, HTMLImageElement*);
   void OnLoadFinished(HTMLImageElement*);
 
-  void Trace(Visitor*) const;
+  bool IsFullyLoadableFirstKImageAndDecrementCount();
 
-  // Loads all currently known lazy-loaded images. Returns whether any
-  // resources started loading as a result.
-  bool LoadAllImagesAndBlockLoadEvent();
+  void Trace(Visitor*) const;
 
  private:
   void LoadIfNearViewport(const HeapVector<Member<IntersectionObserverEntry>>&);
@@ -62,6 +63,12 @@ class LazyLoadImageObserver final
 
   // The intersection observer used to track when the image becomes visible.
   Member<IntersectionObserver> visibility_metrics_observer_;
+
+  // Count of remaining images that can be fully loaded.
+  int count_remaining_images_fully_loaded_ = 0;
+
+  // Used to show the intervention console message one time only.
+  bool is_load_event_deferred_intervention_shown_ = false;
 };
 
 }  // namespace blink

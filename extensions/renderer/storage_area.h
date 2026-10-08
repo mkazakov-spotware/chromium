@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,13 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
-#include "base/values.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
+
+namespace base {
+class ListValue;
+}
 
 namespace gin {
 class Arguments;
@@ -30,17 +34,13 @@ class StorageArea {
               const APITypeReferenceMap* type_refs,
               const std::string& name,
               const BindingAccessChecker* access_checker);
-
-  StorageArea(const StorageArea&) = delete;
-  StorageArea& operator=(const StorageArea&) = delete;
-
   ~StorageArea();
 
   // Creates a StorageArea object for the given context and property name.
   static v8::Local<v8::Object> CreateStorageArea(
       v8::Isolate* isolate,
       const std::string& property_name,
-      const base::Value::List* property_values,
+      const base::ListValue* property_values,
       APIRequestHandler* request_handler,
       APIEventHandler* event_handler,
       APITypeReferenceMap* type_refs,
@@ -63,6 +63,8 @@ class StorageArea {
   std::string name_;
 
   const BindingAccessChecker* const access_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(StorageArea);
 };
 
 }  // namespace extensions

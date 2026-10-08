@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 namespace android_webview {
 
 AwNetworkChangeNotifier::~AwNetworkChangeNotifier() {
-  delegate_->UnregisterObserver(this);
+  delegate_->RemoveObserver(this);
 }
 
 net::NetworkChangeNotifier::ConnectionType
@@ -33,18 +33,16 @@ void AwNetworkChangeNotifier::GetCurrentConnectedNetworks(
 
 net::NetworkChangeNotifier::ConnectionType
 AwNetworkChangeNotifier::GetCurrentNetworkConnectionType(
-    net::handles::NetworkHandle network) const {
+    NetworkHandle network) const {
   return delegate_->GetNetworkConnectionType(network);
 }
 
-net::handles::NetworkHandle AwNetworkChangeNotifier::GetCurrentDefaultNetwork()
-    const {
+net::NetworkChangeNotifier::NetworkHandle
+AwNetworkChangeNotifier::GetCurrentDefaultNetwork() const {
   return delegate_->GetCurrentDefaultNetwork();
 }
 
 void AwNetworkChangeNotifier::OnConnectionTypeChanged() {}
-
-void AwNetworkChangeNotifier::OnConnectionCostChanged() {}
 
 void AwNetworkChangeNotifier::OnMaxBandwidthChanged(
     double max_bandwidth_mbps,
@@ -55,22 +53,18 @@ void AwNetworkChangeNotifier::OnMaxBandwidthChanged(
                                                              type);
 }
 
-void AwNetworkChangeNotifier::OnNetworkConnected(
-    net::handles::NetworkHandle network) {}
+void AwNetworkChangeNotifier::OnNetworkConnected(NetworkHandle network) {}
 void AwNetworkChangeNotifier::OnNetworkSoonToDisconnect(
-    net::handles::NetworkHandle network) {}
+    NetworkHandle network) {}
 void AwNetworkChangeNotifier::OnNetworkDisconnected(
-    net::handles::NetworkHandle network) {}
-void AwNetworkChangeNotifier::OnNetworkMadeDefault(
-    net::handles::NetworkHandle network) {}
-
-void AwNetworkChangeNotifier::OnDefaultNetworkActive() {}
+    NetworkHandle network) {}
+void AwNetworkChangeNotifier::OnNetworkMadeDefault(NetworkHandle network) {}
 
 AwNetworkChangeNotifier::AwNetworkChangeNotifier(
     net::NetworkChangeNotifierDelegateAndroid* delegate)
     : net::NetworkChangeNotifier(DefaultNetworkChangeCalculatorParams()),
       delegate_(delegate) {
-  delegate_->RegisterObserver(this);
+  delegate_->AddObserver(this);
 }
 
 // static
@@ -78,10 +72,10 @@ net::NetworkChangeNotifier::NetworkChangeCalculatorParams
 AwNetworkChangeNotifier::DefaultNetworkChangeCalculatorParams() {
   net::NetworkChangeNotifier::NetworkChangeCalculatorParams params;
   // Use defaults as in network_change_notifier_android.cc
-  params.ip_address_offline_delay_ = base::Seconds(1);
-  params.ip_address_online_delay_ = base::Seconds(1);
-  params.connection_type_offline_delay_ = base::Seconds(0);
-  params.connection_type_online_delay_ = base::Seconds(0);
+  params.ip_address_offline_delay_ = base::TimeDelta::FromSeconds(1);
+  params.ip_address_online_delay_ = base::TimeDelta::FromSeconds(1);
+  params.connection_type_offline_delay_ = base::TimeDelta::FromSeconds(0);
+  params.connection_type_online_delay_ = base::TimeDelta::FromSeconds(0);
   return params;
 }
 

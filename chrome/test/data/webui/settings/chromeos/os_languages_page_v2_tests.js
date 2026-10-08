@@ -1,22 +1,23 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {LanguagesBrowserProxyImpl, LanguagesMetricsProxyImpl, LanguagesPageInteraction, LifetimeBrowserProxyImpl} from 'chrome://os-settings/chromeos/lazy_load.js';
-import {CrSettingsPrefs, Router, routes} from 'chrome://os-settings/chromeos/os_settings.js';
-import {assert} from 'chrome://resources/js/assert.js';
-import {getDeepActiveElement} from 'chrome://resources/ash/common/util.js';
-import {keyDownOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {fakeDataBind, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
-
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-
-import {getFakeLanguagePrefs} from './fake_language_settings_private.js';
-import {FakeSettingsPrivate} from './fake_settings_private.js';
-import {TestLanguagesBrowserProxy} from './test_os_languages_browser_proxy.js';
-import {TestLanguagesMetricsProxy} from './test_os_languages_metrics_proxy.js';
-import {TestLifetimeBrowserProxy} from './test_os_lifetime_browser_proxy.js';
+// clang-format off
+// #import {LanguagesBrowserProxyImpl, LanguagesMetricsProxyImpl, LanguagesPageInteraction, LifetimeBrowserProxyImpl} from 'chrome://os-settings/chromeos/lazy_load.js';
+// #import {CrSettingsPrefs, Router, routes} from 'chrome://os-settings/chromeos/os_settings.js';
+// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {keyDownOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
+// #import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// #import {getFakeLanguagePrefs} from '../fake_language_settings_private.m.js'
+// #import {FakeSettingsPrivate} from '../fake_settings_private.m.js';
+// #import {TestLanguagesBrowserProxy} from './test_os_languages_browser_proxy.m.js';
+// #import {TestLanguagesMetricsProxy} from './test_os_languages_metrics_proxy.m.js';
+// #import {TestLifetimeBrowserProxy} from './test_os_lifetime_browser_proxy.m.js';
+// #import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
+// #import {fakeDataBind} from '../../test_util.m.js';
+// #import {getDeepActiveElement} from 'chrome://resources/js/util.m.js';
+// #import {waitAfterNextRender} from 'chrome://test/test_util.m.js';
+// clang-format on
 
 suite('languages page', () => {
   /** @type {!LanguageHelper} */
@@ -27,18 +28,22 @@ suite('languages page', () => {
   let languagesList;
   /** @type {!CrActionMenuElement} */
   let actionMenu;
-  /** @type {!LanguagesBrowserProxy} */
+  /** @type {!settings.LanguagesBrowserProxy} */
   let browserProxy;
-  /** @type {!TestLifetimeBrowserProxy} */
+  /** @type {!settings.TestLifetimeBrowserProxy} */
   let lifetimeProxy;
-  /** @type {!LanguagesMetricsProxy} */
+  /** @type {!settings.LanguagesMetricsProxy} */
   let metricsProxy;
+
+  // Enabled language pref name for the platform.
+  const languagesPref = 'settings.language.preferred_languages';
 
   // Initial value of enabled languages pref used in tests.
   const initialLanguages = 'en-US,sw';
 
   suiteSetup(() => {
     CrSettingsPrefs.deferInitialization = true;
+    loadTimeData.overrideValues({imeOptionsInSettings: true});
   });
 
   setup(async () => {
@@ -46,20 +51,20 @@ suite('languages page', () => {
 
     const settingsPrefs = document.createElement('settings-prefs');
     const settingsPrivate =
-        new FakeSettingsPrivate(getFakeLanguagePrefs());
+        new settings.FakeSettingsPrivate(settings.getFakeLanguagePrefs());
     settingsPrefs.initialize(settingsPrivate);
     document.body.appendChild(settingsPrefs);
     await CrSettingsPrefs.initialized;
     // Sets up test browser proxy.
-    browserProxy = new TestLanguagesBrowserProxy();
-    LanguagesBrowserProxyImpl.setInstanceForTesting(browserProxy);
+    browserProxy = new settings.TestLanguagesBrowserProxy();
+    settings.LanguagesBrowserProxyImpl.instance_ = browserProxy;
 
-    lifetimeProxy = new TestLifetimeBrowserProxy();
-    LifetimeBrowserProxyImpl.setInstance(lifetimeProxy);
+    lifetimeProxy = new settings.TestLifetimeBrowserProxy();
+    settings.LifetimeBrowserProxyImpl.instance_ = lifetimeProxy;
 
     // Sets up test metrics proxy.
-    metricsProxy = new TestLanguagesMetricsProxy();
-    LanguagesMetricsProxyImpl.setInstanceForTesting(metricsProxy);
+    metricsProxy = new settings.TestLanguagesMetricsProxy();
+    settings.LanguagesMetricsProxyImpl.instance_ = metricsProxy;
 
     // Sets up fake languageSettingsPrivate API.
     const languageSettingsPrivate = browserProxy.getLanguageSettingsPrivate();
@@ -68,17 +73,17 @@ suite('languages page', () => {
     // Instantiates the data model with data bindings for prefs.
     const settingsLanguages = document.createElement('settings-languages');
     settingsLanguages.prefs = settingsPrefs.prefs;
-    fakeDataBind(settingsPrefs, settingsLanguages, 'prefs');
+    test_util.fakeDataBind(settingsPrefs, settingsLanguages, 'prefs');
     document.body.appendChild(settingsLanguages);
 
     // Creates page with data bindings for prefs and data model.
     languagesPage = document.createElement('os-settings-languages-page-v2');
     languagesPage.prefs = settingsPrefs.prefs;
-    fakeDataBind(settingsPrefs, languagesPage, 'prefs');
+    test_util.fakeDataBind(settingsPrefs, languagesPage, 'prefs');
     languagesPage.languages = settingsLanguages.languages;
-    fakeDataBind(settingsLanguages, languagesPage, 'languages');
+    test_util.fakeDataBind(settingsLanguages, languagesPage, 'languages');
     languagesPage.languageHelper = settingsLanguages.languageHelper;
-    fakeDataBind(settingsLanguages, languagesPage, 'language-helper');
+    test_util.fakeDataBind(settingsLanguages, languagesPage, 'language-helper');
     document.body.appendChild(languagesPage);
 
     languagesList = languagesPage.$.languagesList;
@@ -89,7 +94,7 @@ suite('languages page', () => {
   });
 
   teardown(function() {
-    Router.getInstance().resetRouteForTesting();
+    settings.Router.getInstance().resetRouteForTesting();
   });
 
   suite('language menu', () => {
@@ -126,7 +131,7 @@ suite('languages page', () => {
       languageHelper.enableLanguage('no');
 
       // Populates the dom-repeat.
-      flush();
+      Polymer.dom.flush();
 
       // Finds the new language item.
       const items = languagesList.querySelectorAll('.list-item');
@@ -147,8 +152,7 @@ suite('languages page', () => {
       assertFalse(actionMenu.open);
 
       assertEquals(
-          initialLanguages,
-          languageHelper.getPref('intl.accept_languages').value);
+          initialLanguages, languageHelper.getPref(languagesPref).value);
     });
 
     test('removes language when starting with 2 languages', () => {
@@ -169,8 +173,7 @@ suite('languages page', () => {
       removeMenuItem.click();
       assertFalse(actionMenu.open);
 
-      assertEquals(
-          'en-US', languageHelper.getPref('intl.accept_languages').value);
+      assertEquals('en-US', languageHelper.getPref(languagesPref).value);
     });
 
     test('the only translate blocked language is not removable', () => {
@@ -199,7 +202,7 @@ suite('languages page', () => {
       // Add 'sw' to translate_blocked_languages.
       languageHelper.setPrefValue(
           'translate_blocked_languages', ['en-US', 'sw']);
-      flush();
+      Polymer.dom.flush();
 
       const items = languagesList.querySelectorAll('.list-item');
       const domRepeat = assert(languagesList.querySelector('dom-repeat'));
@@ -218,14 +221,13 @@ suite('languages page', () => {
       removeMenuItem.click();
       assertFalse(actionMenu.open);
 
-      assertEquals('sw', languageHelper.getPref('intl.accept_languages').value);
+      assertEquals('sw', languageHelper.getPref(languagesPref).value);
     });
 
     test('single preferred language is not removable', () => {
-      languageHelper.setPrefValue('intl.accept_languages', 'sw');
       languageHelper.setPrefValue(
           'settings.language.preferred_languages', 'sw');
-      flush();
+      Polymer.dom.flush();
       const items = languagesList.querySelectorAll('.list-item');
       const domRepeat = assert(languagesList.querySelector('dom-repeat'));
       const item = Array.from(items).find(function(el) {
@@ -260,7 +262,7 @@ suite('languages page', () => {
         languageHelper.enableLanguage(language);
       }
 
-      flush();
+      Polymer.dom.flush();
 
       const menuButtons = languagesList.querySelectorAll(
           '.list-item cr-icon-button.icon-more-vert');
@@ -405,16 +407,19 @@ suite('languages page', () => {
     });
 
     test('Deep link to add language', async () => {
-      const params = new URLSearchParams();
+      loadTimeData.overrideValues({
+        isDeepLinkingEnabled: true,
+      });
+
+      const params = new URLSearchParams;
       params.append('settingId', '1200');
-      Router.getInstance().navigateTo(
-          routes.OS_LANGUAGES_LANGUAGES, params);
+      settings.Router.getInstance().navigateTo(
+          settings.routes.OS_LANGUAGES_LANGUAGES, params);
 
-      flush();
+      Polymer.dom.flush();
 
-      const deepLinkElement =
-          languagesPage.shadowRoot.querySelector('#addLanguages');
-      await waitAfterNextRender(deepLinkElement);
+      const deepLinkElement = languagesPage.$$('#addLanguages');
+      await test_util.waitAfterNextRender(deepLinkElement);
       assertEquals(
           deepLinkElement, getDeepActiveElement(),
           'Add language button should be focused for settingId=1200.');
@@ -427,39 +432,18 @@ suite('languages page', () => {
     let cancelButton;
     let actionButton;
 
-    /**
-     * Returns the list items in the dialog.
-     * @return {!Array<!Element>}
-     */
-    function getListItems() {
-      // If an element (the <iron-list> in this case) is hidden in Polymer,
-      // Polymer will intelligently not update the DOM of the hidden element
-      // to prevent DOM updates that the user can't see. However, this means
-      // that when the <iron-list> is hidden (due to no results), the list
-      // items still exist in the DOM.
-      // This function should return the *visible* items that the user can
-      // select, so if the <iron-list> is hidden we should return an empty
-      // list instead.
-      const dialogEl = dialog.$.dialog;
-      if (dialogEl.querySelector('iron-list').hidden) {
-        return [];
-      }
-      return [...dialogEl.querySelectorAll('.list-item:not([hidden])')];
-    }
-
     setup(() => {
-      assertFalse(!!languagesPage.shadowRoot.querySelector(
-          'os-settings-change-device-language-dialog'));
-      languagesPage.shadowRoot.querySelector('#changeDeviceLanguage').click();
-      flush();
+      assertFalse(
+          !!languagesPage.$$('os-settings-change-device-language-dialog'));
+      languagesPage.$$('#changeDeviceLanguage').click();
+      Polymer.dom.flush();
 
-      dialog = languagesPage.shadowRoot.querySelector(
-          'os-settings-change-device-language-dialog');
+      dialog = languagesPage.$$('os-settings-change-device-language-dialog');
       assertTrue(!!dialog);
 
-      actionButton = dialog.shadowRoot.querySelector('.action-button');
+      actionButton = dialog.$$('.action-button');
       assertTrue(!!actionButton);
-      cancelButton = dialog.shadowRoot.querySelector('.cancel-button');
+      cancelButton = dialog.$$('.cancel-button');
       assertTrue(!!cancelButton);
 
       // The fixed-height dialog's iron-list should stamp far fewer than
@@ -493,7 +477,7 @@ suite('languages page', () => {
       assertEquals(
           'en-CA', await browserProxy.whenCalled('setProspectiveUILanguage'));
       assertEquals(
-          LanguagesPageInteraction.RESTART,
+          settings.LanguagesPageInteraction.RESTART,
           await metricsProxy.whenCalled('recordInteraction'));
       await lifetimeProxy.whenCalled('signOutAndRestart');
     });
@@ -501,7 +485,6 @@ suite('languages page', () => {
     test(
         'setting device language adds it to front of enabled language if not present',
         async () => {
-          languageHelper.setPrefValue('intl.accept_languages', 'en-US,sw');
           languageHelper.setPrefValue(
               'settings.language.preferred_languages', 'en-US,sw');
           // selects a language
@@ -512,18 +495,17 @@ suite('languages page', () => {
           assertEquals(
               'en-CA',
               await browserProxy.whenCalled('setProspectiveUILanguage'));
-          assertTrue(languageHelper.getPref('intl.accept_languages')
-                         .value.startsWith('en-CA'));
+          assertTrue(
+              languageHelper.getPref('settings.language.preferred_languages')
+                  .value.startsWith('en-CA'));
         });
 
     test(
-        'setting device language moves already enabled language to front',
+        'setting device language does not move already enabled language to front',
         async () => {
           languageHelper.setPrefValue(
-              'intl.accept_languages', 'en-US,sw,en-CA');
-          languageHelper.setPrefValue(
               'settings.language.preferred_languages', 'en-US,sw,en-CA');
-          flush();
+          Polymer.dom.flush();
 
           // selects a language
           dialogItems[0].click();  // en-CA
@@ -533,154 +515,78 @@ suite('languages page', () => {
           assertEquals(
               'en-CA',
               await browserProxy.whenCalled('setProspectiveUILanguage'));
-          assertTrue(languageHelper.getPref('intl.accept_languages')
-                         .value.startsWith('en-CA'));
+          assertFalse(
+              languageHelper.getPref('settings.language.preferred_languages')
+                  .value.startsWith('en-CA'));
         });
 
     // Test that searching languages works whether the displayed or native
     // language name is queried.
     test('searches languages', function() {
-      const searchInput = dialog.shadowRoot.querySelector('cr-search-field');
+      const searchInput = dialog.$$('cr-search-field');
+
+      const getItems = function() {
+        return dialog.$.dialog.querySelectorAll('.list-item:not([hidden])');
+      };
 
       // Expecting a few languages to be displayed when no query exists.
-      assertGE(getListItems().length, 1);
+      assertGE(getItems().length, 1);
 
       // Issue query that matches the |displayedName| in lowercase.
       searchInput.setValue('greek');
-      flush();
-      assertEquals(1, getListItems().length);
-      assertTrue(getListItems()[0].textContent.includes('Greek'));
+      Polymer.dom.flush();
+      assertEquals(1, getItems().length);
+      assertTrue(getItems()[0].textContent.includes('Greek'));
 
       // Issue query that matches the |nativeDisplayedName|.
       searchInput.setValue('Ελληνικά');
-      flush();
-      assertEquals(1, getListItems().length);
+      Polymer.dom.flush();
+      assertEquals(1, getItems().length);
 
       // Issue query that does not match any language.
       searchInput.setValue('egaugnal');
-      flush();
-      assertEquals(0, getListItems().length);
+      Polymer.dom.flush();
+      assertEquals(0, getItems().length);
     });
 
     test('has escape key behavior working correctly', function() {
-      const searchInput = dialog.shadowRoot.querySelector('cr-search-field');
+      const searchInput = dialog.$$('cr-search-field');
       searchInput.setValue('dummyquery');
 
       // Test that dialog is not closed if 'Escape' is pressed on the input
       // and a search query exists.
-      keyDownOn(searchInput, 19, [], 'Escape');
+      MockInteractions.keyDownOn(searchInput, 19, [], 'Escape');
       assertTrue(dialog.$.dialog.open);
 
       // Test that dialog is closed if 'Escape' is pressed on the input and no
       // search query exists.
       searchInput.setValue('');
-      keyDownOn(searchInput, 19, [], 'Escape');
+      MockInteractions.keyDownOn(searchInput, 19, [], 'Escape');
       assertFalse(dialog.$.dialog.open);
-    });
-
-    test('languages are sorted on native display name', function() {
-      // See https://crbug.com/1184064 for more details.
-      // We can't test whether the order is *deterministic* w.r.t. device
-      // language, as changing device language is not possible in a test, so we
-      // do the next best thing and check if it's sorted on native display name.
-
-      /**
-       * @param {string} text
-       * @return {string}
-       */
-      function getNativeDisplayName(text) {
-        return text.includes(' - ') ? text.split(' - ')[0] : text;
-      }
-
-      const items = getListItems();
-      const nativeDisplayNames =
-          items.map(item => getNativeDisplayName(item.textContent.trim()));
-
-      const sortedNativeDisplayNames =
-          [...nativeDisplayNames].sort((a, b) => a.localeCompare(b, 'en'));
-      assertDeepEquals(nativeDisplayNames, sortedNativeDisplayNames);
     });
   });
 
   suite('records metrics', () => {
     test('when adding languages', async () => {
-      languagesPage.shadowRoot.querySelector('#addLanguages').click();
-      flush();
+      languagesPage.$$('#addLanguages').click();
+      Polymer.dom.flush();
       await metricsProxy.whenCalled('recordAddLanguages');
     });
 
     test('when disabling translate.enable toggle', async () => {
       languagesPage.setPrefValue('translate.enabled', true);
-      languagesPage.shadowRoot.querySelector('#offerTranslation').click();
-      flush();
+      languagesPage.$$('#offerTranslation').click();
+      Polymer.dom.flush();
 
       assertFalse(await metricsProxy.whenCalled('recordToggleTranslate'));
     });
 
     test('when enabling translate.enable toggle', async () => {
       languagesPage.setPrefValue('translate.enabled', false);
-      languagesPage.shadowRoot.querySelector('#offerTranslation').click();
-      flush();
+      languagesPage.$$('#offerTranslation').click();
+      Polymer.dom.flush();
 
       assertTrue(await metricsProxy.whenCalled('recordToggleTranslate'));
-    });
-
-    test('when clicking on Manage Google Account language', async () => {
-      // This test requires Language Settings V2 Update 2 to be enabled.
-      languagesPage.languageSettingsV2Update2Enabled_ = true;
-      loadTimeData.overrideValues({enableLanguageSettingsV2Update2: true});
-      flush();
-
-      // The below would normally create a new window using `window.open`, which
-      // would change the focus from this test to the new window.
-      // Prevent this from happening by overriding `window.open`.
-      window.open = () => {};
-      languagesPage.shadowRoot.querySelector('#manageGoogleAccountLanguage')
-          .click();
-      flush();
-      assertEquals(
-          await metricsProxy.whenCalled('recordInteraction'),
-          LanguagesPageInteraction.OPEN_MANAGE_GOOGLE_ACCOUNT_LANGUAGE);
-    });
-
-    test('when clicking on "learn more" about web languages', async () => {
-      // This test requires Update 2 to be disabled.
-      languagesPage.languageSettingsV2Update2Enabled_ = false;
-      loadTimeData.overrideValues({enableLanguageSettingsV2Update2: false});
-      flush();
-
-      const anchor =
-          languagesPage.shadowRoot.querySelector('#webLanguagesDescription')
-              .shadowRoot.querySelector('a');
-      // The below would normally create a new window, which would change the
-      // focus from this test to the new window.
-      // Prevent this from happening by adding an event listener on the anchor
-      // element which stops the default behaviour (of opening a new window).
-      anchor.addEventListener('click', (e) => e.preventDefault());
-      anchor.click();
-      assertEquals(
-          await metricsProxy.whenCalled('recordInteraction'),
-          LanguagesPageInteraction.OPEN_WEB_LANGUAGES_LEARN_MORE);
-    });
-
-    test('when clicking on "learn more" about web languages U2', async () => {
-      // This test requires Update 2 to be enabled.
-      languagesPage.languageSettingsV2Update2Enabled_ = true;
-      loadTimeData.overrideValues({enableLanguageSettingsV2Update2: true});
-      flush();
-
-      const anchor =
-          languagesPage.shadowRoot.querySelector('#webLanguagesDescription')
-              .shadowRoot.querySelector('a');
-      // The below would normally create a new window, which would change the
-      // focus from this test to the new window.
-      // Prevent this from happening by adding an event listener on the anchor
-      // element which stops the default behaviour (of opening a new window).
-      anchor.addEventListener('click', (e) => e.preventDefault());
-      anchor.click();
-      assertEquals(
-          await metricsProxy.whenCalled('recordInteraction'),
-          LanguagesPageInteraction.OPEN_WEB_LANGUAGES_LEARN_MORE);
     });
   });
 });
@@ -696,11 +602,10 @@ suite('change device language button', () => {
     });
     const page = document.createElement('os-settings-languages-page-v2');
     document.body.appendChild(page);
-    flush();
+    Polymer.dom.flush();
 
-    assertFalse(!!page.shadowRoot.querySelector('#changeDeviceLanguage'));
-    assertFalse(!!page.shadowRoot.querySelector(
-        '#changeDeviceLanguagePolicyIndicator'));
+    assertFalse(!!page.$$('#changeDeviceLanguage'));
+    assertFalse(!!page.$$('#changeDeviceLanguagePolicyIndicator'));
   });
 
   test('is disabled for secondary users', () => {
@@ -708,15 +613,14 @@ suite('change device language button', () => {
         {isGuest: false, isSecondaryUser: true, primaryUserEmail: 'test.com'});
     const page = document.createElement('os-settings-languages-page-v2');
     document.body.appendChild(page);
-    flush();
+    Polymer.dom.flush();
 
-    const changeDeviceLanguageButton =
-        page.shadowRoot.querySelector('#changeDeviceLanguage');
+    const changeDeviceLanguageButton = page.$$('#changeDeviceLanguage');
     assertTrue(changeDeviceLanguageButton.disabled);
     assertFalse(changeDeviceLanguageButton.hidden);
 
     const changeDeviceLanguagePolicyIndicator =
-        page.shadowRoot.querySelector('#changeDeviceLanguagePolicyIndicator');
+        page.$$('#changeDeviceLanguagePolicyIndicator');
     assertFalse(changeDeviceLanguagePolicyIndicator.hidden);
     assertEquals(
         'test.com', changeDeviceLanguagePolicyIndicator.indicatorSourceName);
@@ -729,14 +633,12 @@ suite('change device language button', () => {
     });
     const page = document.createElement('os-settings-languages-page-v2');
     document.body.appendChild(page);
-    flush();
+    Polymer.dom.flush();
 
-    const changeDeviceLanguageButton =
-        page.shadowRoot.querySelector('#changeDeviceLanguage');
+    const changeDeviceLanguageButton = page.$$('#changeDeviceLanguage');
     assertFalse(changeDeviceLanguageButton.disabled);
     assertFalse(changeDeviceLanguageButton.hidden);
 
-    assertFalse(!!page.shadowRoot.querySelector(
-        '#changeDeviceLanguagePolicyIndicator'));
+    assertFalse(!!page.$$('#changeDeviceLanguagePolicyIndicator'));
   });
 });

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define SERVICES_DEVICE_HID_HID_MANAGER_IMPL_H_
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -25,8 +25,6 @@ namespace device {
 class HidManagerImpl : public mojom::HidManager, public HidService::Observer {
  public:
   HidManagerImpl();
-  HidManagerImpl(HidManagerImpl&) = delete;
-  HidManagerImpl& operator=(HidManagerImpl&) = delete;
   ~HidManagerImpl() override;
 
   // SetHidServiceForTesting only effects the next call to HidManagerImpl's
@@ -50,8 +48,6 @@ class HidManagerImpl : public mojom::HidManager, public HidService::Observer {
       const std::string& device_guid,
       mojo::PendingRemote<mojom::HidConnectionClient> connection_client,
       mojo::PendingRemote<mojom::HidConnectionWatcher> watcher,
-      bool allow_protected_reports,
-      bool allow_fido_reports,
       ConnectCallback callback) override;
 
  private:
@@ -69,15 +65,14 @@ class HidManagerImpl : public mojom::HidManager, public HidService::Observer {
   // HidService::Observer:
   void OnDeviceAdded(mojom::HidDeviceInfoPtr device_info) override;
   void OnDeviceRemoved(mojom::HidDeviceInfoPtr device_info) override;
-  void OnDeviceChanged(mojom::HidDeviceInfoPtr device_info) override;
 
   std::unique_ptr<HidService> hid_service_;
   mojo::ReceiverSet<mojom::HidManager> receivers_;
   mojo::AssociatedRemoteSet<mojom::HidManagerClient> clients_;
-  base::ScopedObservation<HidService, HidService::Observer>
-      hid_service_observation_{this};
+  ScopedObserver<HidService, HidService::Observer> hid_service_observer_;
 
   base::WeakPtrFactory<HidManagerImpl> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(HidManagerImpl);
 };
 
 }  // namespace device

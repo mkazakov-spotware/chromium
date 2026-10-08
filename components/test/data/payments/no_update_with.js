@@ -1,19 +1,17 @@
 /*
- * Copyright 2017 The Chromium Authors
+ * Copyright 2017 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 /**
  * Builds a PaymentRequest that requests a shipping address.
- * @param {sequence<PaymentMethodData>} methodData An array of payment method
- *        objects.
  * @return {PaymentRequest} - A new PaymentRequest object.
  */
-function buildPaymentRequest(methodData) {
+function buildPaymentRequest() {
   try {
     return new PaymentRequest(
-        methodData, {
+        [{supportedMethods: 'basic-card'}], {
           total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
           shippingOptions: [{
             selected: true,
@@ -49,39 +47,18 @@ function showPaymentRequest(pr) {
 }
 
 /**
- * Show a basic-card PaymentRequest that requests a shipping address, but has no
- * listeners.
+ * Show a PaymentRequest that requests a shipping address, but has no listeners.
  */
-function buyWithoutListeners() {
-  buyWithoutListenersWithMethods([{supportedMethods: 'basic-card'}]);
+function buyWithoutListeners() { // eslint-disable-line no-unused-vars
+  showPaymentRequest(buildPaymentRequest());
 }
 
 /**
- * Show a PaymentRequest using methodData that requests a shipping address, but
- * has no listeners.
- * @param {sequence<PaymentMethodData>} methodData An array of payment method
- *        objects.
+ * Show a PaymentRequest that requests a shipping address, but listeners don't
+ * call updateWith().
  */
- function buyWithoutListenersWithMethods(methodData) {
-  showPaymentRequest(buildPaymentRequest(methodData));
-}
-
-/**
- * Show a basic-card PaymentRequest that requests a shipping address, but
- * listeners don't call updateWith().
- */
-function buyWithoutCallingUpdateWith() {
-  buyWithoutCallingUpdateWithWithMethods([{supportedMethods: 'basic-card'}]);
-}
-
-/**
- * Show a PaymentRequest using methodData that requests a shipping address, but
- * listeners don't call updateWith().
- * @param {sequence<PaymentMethodData>} methodData An array of payment method
- *        objects.
- */
- function buyWithoutCallingUpdateWithWithMethods(methodData) {
-  const pr = buildPaymentRequest(methodData);
+function buyWithoutCallingUpdateWith() { // eslint-disable-line no-unused-vars
+  const pr = buildPaymentRequest();
   pr.addEventListener('shippingaddresschange', function(evt) {
     print('shippingaddresschange');
   });
@@ -92,21 +69,11 @@ function buyWithoutCallingUpdateWith() {
 }
 
 /**
- * Show a basic-card PaymentRequest that requests a shipping address, but
- * listeners don't use promises to update the UI.
+ * Show a PaymentRequest that requests a shipping address, but listeners don't
+ * use promises to update the UI.
  */
-function buyWithoutPromises() {
-  buyWithoutPromisesWithMethods([{supportedMethods: 'basic-card'}]);
-}
-
-/**
- * Show a PaymentRequest using methodData that requests a shipping address, but
- * listeners don't use promises to update the UI.
- * @param {sequence<PaymentMethodData>} methodData An array of payment method
- *        objects.
- */
- function buyWithoutPromisesWithMethods(methodData) {
-  const pr = buildPaymentRequest(methodData);
+function buyWithoutPromises() { // eslint-disable-line no-unused-vars
+  const pr = buildPaymentRequest();
   const updatedDetails = {
     total: {label: 'Updated total', amount: {currency: 'USD', value: '10.00'}},
     shippingOptions: [{

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/task_runner_util.h"
 #include "content/browser/renderer_host/pepper/browser_ppapi_host_impl.h"
 #include "content/browser/renderer_host/pepper/pepper_socket_utils.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -39,9 +40,9 @@ bool CanUseNetworkMonitor(bool external_plugin,
 
 void OnGetNetworkList(
     base::OnceCallback<void(const net::NetworkInterfaceList&)> callback,
-    const absl::optional<net::NetworkInterfaceList>& networks) {
+    const base::Optional<net::NetworkInterfaceList>& networks) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  content::GetUIThreadTaskRunner({})->PostTask(
+  GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(std::move(callback), networks.has_value()
                                               ? *networks
@@ -113,7 +114,7 @@ void PepperNetworkMonitorHost::SetNetworkConnectionTracker(
 }
 
 void PepperNetworkMonitorHost::GetAndSendNetworkList() {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(&GetNetworkList,
@@ -123,7 +124,7 @@ void PepperNetworkMonitorHost::GetAndSendNetworkList() {
 
 void PepperNetworkMonitorHost::SendNetworkList(
     const net::NetworkInterfaceList& list) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   std::unique_ptr<ppapi::proxy::SerializedNetworkList> list_copy(
       new ppapi::proxy::SerializedNetworkList(list.size()));

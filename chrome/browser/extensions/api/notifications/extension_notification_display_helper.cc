@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/api/notifications/extension_notification_display_helper.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
@@ -58,8 +59,12 @@ ExtensionNotificationDisplayHelper::GetNotificationIdsForExtension(
 
 bool ExtensionNotificationDisplayHelper::EraseDataForNotificationId(
     const std::string& notification_id) {
-  auto iter = base::ranges::find(notifications_, notification_id,
-                                 &message_center::Notification::id);
+  auto iter = std::find_if(
+      notifications_.begin(), notifications_.end(),
+      [notification_id](
+          const std::unique_ptr<message_center::Notification>& notification) {
+        return notification->id() == notification_id;
+      });
 
   if (iter == notifications_.end())
     return false;

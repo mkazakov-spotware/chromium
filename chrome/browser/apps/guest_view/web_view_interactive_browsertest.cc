@@ -1,22 +1,21 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
 #include <limits>
-#include <memory>
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_timeouts.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
 #include "chrome/browser/profiles/profile.h"
@@ -44,17 +43,12 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test_utils.h"
-#include "content/public/test/hit_test_region_observer.h"
-#include "content/public/test/test_frame_navigation_observer.h"
-#include "content/public/test/test_navigation_observer.h"
 #include "content/public/test/text_input_test_utils.h"
 #include "extensions/browser/api/extensions_api_client.h"
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/test/extension_test_message_listener.h"
-#include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
-#include "third_party/blink/public/common/switches.h"
 #include "ui/base/buildflags.h"
 #include "ui/base/ime/composition_text.h"
 #include "ui/base/ime/ime_text_span.h"
@@ -65,14 +59,6 @@
 #include "ui/gfx/range/range.h"
 #include "ui/touch_selection/touch_selection_menu_runner.h"
 
-#if BUILDFLAG(IS_MAC)
-#include "ui/base/test/scoped_fake_nswindow_fullscreen.h"
-#endif
-
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ui/ozone/buildflags.h"
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
-
 using extensions::AppWindow;
 using extensions::ExtensionsAPIClient;
 using guest_view::GuestViewBase;
@@ -80,22 +66,7 @@ using guest_view::GuestViewManager;
 using guest_view::TestGuestViewManager;
 using guest_view::TestGuestViewManagerFactory;
 
-// The build flag OZONE_PLATFORM_WAYLAND is only available on
-// Linux or ChromeOS, so this simplifies the next set of ifdefs.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
-#if BUILDFLAG(OZONE_PLATFORM_WAYLAND)
-#define OZONE_PLATFORM_WAYLAND
-#endif  // BUILDFLAG(OZONE_PLATFORM_WAYLAND)
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if !defined(OZONE_PLATFORM_WAYLAND)
-// Some test helpers, like ui_test_utils::SendMouseMoveSync, don't work properly
-// on some platforms. Tests that require these helpers need to be skipped for
-// these cases.
-#define SUPPORTS_SYNC_MOUSE_UTILS
-#endif
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // This class observes the RenderWidgetHostViewCocoa corresponding to the outer
 // most WebContents provided for newly added subviews. The added subview
 // corresponds to a NSPopUpButtonCell which will be removed shortly after being
@@ -105,15 +76,13 @@ class NewSubViewAddedObserver : content::RenderWidgetHostViewCocoaObserver {
   explicit NewSubViewAddedObserver(content::WebContents* web_contents)
       : content::RenderWidgetHostViewCocoaObserver(web_contents) {}
 
-  NewSubViewAddedObserver(const NewSubViewAddedObserver&) = delete;
-  NewSubViewAddedObserver& operator=(const NewSubViewAddedObserver&) = delete;
   ~NewSubViewAddedObserver() override {}
 
   void WaitForNextSubView() {
     if (did_receive_rect_)
       return;
 
-    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_.reset(new base::RunLoop());
     run_loop_->Run();
   }
 
@@ -131,13 +100,15 @@ class NewSubViewAddedObserver : content::RenderWidgetHostViewCocoaObserver {
   bool did_receive_rect_ = false;
   gfx::Rect bounds_;
   std::unique_ptr<base::RunLoop> run_loop_;
+
+  DISALLOW_COPY_AND_ASSIGN(NewSubViewAddedObserver);
 };
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
 class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
  public:
   WebViewInteractiveTest()
-      : guest_view_(nullptr),
+      : guest_web_contents_(nullptr),
         embedder_web_contents_(nullptr),
         corner_(gfx::Point()),
         mouse_click_result_(false),
@@ -145,18 +116,11 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
     GuestViewManager::set_factory_for_testing(&factory_);
   }
 
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    extensions::PlatformAppBrowserTest::SetUpCommandLine(command_line);
-    // Some bots are flaky due to slower loading interacting with
-    // deferred commits.
-    command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
-  }
-
   TestGuestViewManager* GetGuestViewManager() {
     TestGuestViewManager* manager = static_cast<TestGuestViewManager*>(
         TestGuestViewManager::FromBrowserContext(browser()->profile()));
-    // Test code may access the TestGuestViewManager before it would be created
-    // during creation of the first guest.
+    // TestGuestViewManager::WaitForSingleGuestCreated may and will get called
+    // before a guest is created.
     if (!manager) {
       manager = static_cast<TestGuestViewManager*>(
           GuestViewManager::CreateWithDelegate(
@@ -169,7 +133,7 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
 
   void MoveMouseInsideWindowWithListener(gfx::Point point,
                                          const std::string& message) {
-    ExtensionTestMessageListener move_listener(message);
+    ExtensionTestMessageListener move_listener(message, false);
     ASSERT_TRUE(ui_test_utils::SendMouseMoveSync(
         gfx::Point(corner_.x() + point.x(), corner_.y() + point.y())));
     ASSERT_TRUE(move_listener.WaitUntilSatisfied());
@@ -177,7 +141,7 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
 
   void SendMouseClickWithListener(ui_controls::MouseButton button,
                                   const std::string& message) {
-    ExtensionTestMessageListener listener(message);
+    ExtensionTestMessageListener listener(message, false);
     SendMouseClick(button);
     ASSERT_TRUE(listener.WaitUntilSatisfied());
   }
@@ -206,7 +170,7 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
 
   void SendCopyKeyPressToPlatformApp() {
     ASSERT_EQ(1U, GetAppWindowCount());
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // Send Cmd+C on MacOSX.
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
         GetPlatformAppWindow(), ui::VKEY_C, false, false, false, true));
@@ -218,7 +182,7 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
   }
 
   void SendStartOfLineKeyPressToPlatformApp() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // Send Cmd+Left on MacOSX.
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
         GetPlatformAppWindow(), ui::VKEY_LEFT, false, false, false, true));
@@ -230,43 +194,47 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
   }
 
   void SendBackShortcutToPlatformApp() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // Send Cmd+[ on MacOSX.
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
         GetPlatformAppWindow(), ui::VKEY_OEM_4, false, false, false, true));
 #else
     // Send browser back key on Linux/Windows.
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
-        GetPlatformAppWindow(), ui::VKEY_BROWSER_BACK, false, false, false,
-        false));
+        GetPlatformAppWindow(), ui::VKEY_BROWSER_BACK,
+        false, false, false, false));
 #endif
   }
 
   void SendForwardShortcutToPlatformApp() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // Send Cmd+] on MacOSX.
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
         GetPlatformAppWindow(), ui::VKEY_OEM_6, false, false, false, true));
 #else
     // Send browser back key on Linux/Windows.
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
-        GetPlatformAppWindow(), ui::VKEY_BROWSER_FORWARD, false, false, false,
-        false));
+        GetPlatformAppWindow(), ui::VKEY_BROWSER_FORWARD,
+        false, false, false, false));
 #endif
   }
 
   void SendMouseEvent(ui_controls::MouseButton button,
                       ui_controls::MouseButtonState state) {
     if (first_click_) {
-      mouse_click_result_ = ui_test_utils::SendMouseEventsSync(button, state);
+      mouse_click_result_ = ui_test_utils::SendMouseEventsSync(button,
+                                                                state);
       first_click_ = false;
     } else {
-      ASSERT_EQ(mouse_click_result_,
-                ui_test_utils::SendMouseEventsSync(button, state));
+      ASSERT_EQ(mouse_click_result_, ui_test_utils::SendMouseEventsSync(
+          button, state));
     }
   }
 
-  enum TestServer { NEEDS_TEST_SERVER, NO_TEST_SERVER };
+  enum TestServer {
+    NEEDS_TEST_SERVER,
+    NO_TEST_SERVER
+  };
 
   std::unique_ptr<ExtensionTestMessageListener> RunAppHelper(
       const std::string& test_name,
@@ -276,13 +244,13 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
     // For serving guest pages.
     if ((test_server == NEEDS_TEST_SERVER) && !StartEmbeddedTestServer()) {
       LOG(ERROR) << "FAILED TO START TEST SERVER.";
-      return nullptr;
+      return std::unique_ptr<ExtensionTestMessageListener>();
     }
 
     LoadAndLaunchPlatformApp(app_location.c_str(), "Launched");
     if (!ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow())) {
       LOG(ERROR) << "UNABLE TO FOCUS TEST WINDOW.";
-      return nullptr;
+      return std::unique_ptr<ExtensionTestMessageListener>();
     }
 
     // Flush any pending events to make sure we start with a clean slate.
@@ -290,14 +258,14 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
 
     *embedder_web_contents = GetFirstAppWindowWebContents();
 
-    auto done_listener =
-        std::make_unique<ExtensionTestMessageListener>("TEST_PASSED");
+    std::unique_ptr<ExtensionTestMessageListener> done_listener(
+        new ExtensionTestMessageListener("TEST_PASSED", false));
     done_listener->set_failure_message("TEST_FAILED");
     if (!content::ExecuteScript(
             *embedder_web_contents,
             base::StringPrintf("runTest('%s')", test_name.c_str()))) {
       LOG(ERROR) << "UNABLE TO START TEST";
-      return nullptr;
+      return std::unique_ptr<ExtensionTestMessageListener>();
     }
 
     return done_listener;
@@ -306,7 +274,7 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
   void TestHelper(const std::string& test_name,
                   const std::string& app_location,
                   TestServer test_server) {
-    content::WebContents* embedder_web_contents = nullptr;
+    content::WebContents* embedder_web_contents = NULL;
     std::unique_ptr<ExtensionTestMessageListener> done_listener(RunAppHelper(
         test_name, app_location, test_server, &embedder_web_contents));
 
@@ -314,7 +282,7 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
     ASSERT_TRUE(done_listener->WaitUntilSatisfied());
 
     embedder_web_contents_ = embedder_web_contents;
-    guest_view_ = GetGuestViewManager()->WaitForSingleGuestViewCreated();
+    guest_web_contents_ = GetGuestViewManager()->WaitForSingleGuestCreated();
   }
 
   void SendMessageToEmbedder(const std::string& message) {
@@ -326,34 +294,55 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
   void SetupTest(const std::string& app_name,
                  const std::string& guest_url_spec) {
     ASSERT_TRUE(StartEmbeddedTestServer());
+    GURL::Replacements replace_host;
+    replace_host.SetHostStr("localhost");
+
+    GURL guest_url = embedded_test_server()->GetURL(guest_url_spec);
+    guest_url = guest_url.ReplaceComponents(replace_host);
+
+    ui_test_utils::UrlLoadObserver guest_observer(
+        guest_url, content::NotificationService::AllSources());
 
     LoadAndLaunchPlatformApp(app_name.c_str(), "connected");
 
-    guest_view_ = GetGuestViewManager()->WaitForSingleGuestViewCreated();
-    ASSERT_TRUE(
-        guest_view_->GetGuestMainFrame()->GetProcess()->IsForGuestsOnly());
+    guest_observer.Wait();
+    content::Source<content::NavigationController> source =
+        guest_observer.source();
+    EXPECT_TRUE(source->GetWebContents()
+                    ->GetMainFrame()
+                    ->GetProcess()
+                    ->IsForGuestsOnly());
 
-    embedder_web_contents_ = guest_view_->embedder_web_contents();
+    guest_web_contents_ = source->GetWebContents();
+    embedder_web_contents_ =
+        GuestViewBase::FromWebContents(guest_web_contents_)->
+            embedder_web_contents();
 
     gfx::Rect offset = embedder_web_contents_->GetContainerBounds();
     corner_ = offset.origin();
+
+    const testing::TestInfo* const test_info =
+            testing::UnitTest::GetInstance()->current_test_info();
+    const char* prefix = "DragDropWithinWebView";
+    if (!strncmp(test_info->name(), prefix, strlen(prefix))) {
+      // In the drag drop test we add 20px padding to the page body because on
+      // windows if we get too close to the edge of the window the resize cursor
+      // appears and we start dragging the window edge.
+      corner_.Offset(20, 20);
+    }
   }
 
-  content::WebContents* DeprecatedGuestWebContents() {
-    return guest_view_->web_contents();
-  }
-
-  guest_view::GuestViewBase* GetGuestView() { return guest_view_; }
-
-  content::RenderFrameHost* GetGuestRenderFrameHost() {
-    return guest_view_->GetGuestMainFrame();
+  content::WebContents* guest_web_contents() {
+    return guest_web_contents_;
   }
 
   content::WebContents* embedder_web_contents() {
     return embedder_web_contents_;
   }
 
-  gfx::Point corner() { return corner_; }
+  gfx::Point corner() {
+    return corner_;
+  }
 
   void SimulateRWHMouseClick(content::RenderWidgetHost* rwh,
                              blink::WebMouseEvent::Button button,
@@ -375,35 +364,30 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
 
   class PopupCreatedObserver {
    public:
-    PopupCreatedObserver() = default;
-    PopupCreatedObserver(const PopupCreatedObserver&) = delete;
-    PopupCreatedObserver& operator=(const PopupCreatedObserver&) = delete;
+    PopupCreatedObserver()
+        : initial_widget_count_(0), last_render_widget_host_(nullptr) {}
 
-    ~PopupCreatedObserver() = default;
+    ~PopupCreatedObserver() {}
 
-    void Wait(int wait_retry_left = 10) {
-      if (wait_retry_left <= 0) {
-        LOG(ERROR) << "Wait failed";
-        return;
-      }
+    void Wait() {
       if (CountWidgets() == initial_widget_count_ + 1 &&
           last_render_widget_host_->GetView()->GetNativeView()) {
         gfx::Rect popup_bounds =
             last_render_widget_host_->GetView()->GetViewBounds();
         if (!popup_bounds.size().IsEmpty()) {
-          if (run_loop_)
-            run_loop_->Quit();
+          if (message_loop_.get())
+            message_loop_->Quit();
           return;
         }
       }
 
       // If we haven't seen any new widget or we get 0 size widget, we need to
       // schedule waiting.
-      ScheduleWait(wait_retry_left - 1);
+      ScheduleWait();
 
-      if (!run_loop_) {
-        run_loop_ = std::make_unique<base::RunLoop>();
-        run_loop_->Run();
+      if (!message_loop_.get()) {
+        message_loop_ = new content::MessageLoopRunner;
+        message_loop_->Run();
       }
     }
 
@@ -415,12 +399,11 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
     }
 
    private:
-    void ScheduleWait(int wait_retry_left) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    void ScheduleWait() {
+      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
           FROM_HERE,
-          base::BindOnce(&PopupCreatedObserver::Wait, base::Unretained(this),
-                         wait_retry_left),
-          base::Milliseconds(200));
+          base::BindOnce(&PopupCreatedObserver::Wait, base::Unretained(this)),
+          base::TimeDelta::FromMilliseconds(200));
     }
 
     size_t CountWidgets() {
@@ -436,18 +419,19 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
       return num_widgets;
     }
 
-    size_t initial_widget_count_ = 0;
-    content::RenderWidgetHost* last_render_widget_host_ = nullptr;
-    std::unique_ptr<base::RunLoop> run_loop_;
+    size_t initial_widget_count_;
+    content::RenderWidgetHost* last_render_widget_host_;
+    scoped_refptr<content::MessageLoopRunner> message_loop_;
+
+    DISALLOW_COPY_AND_ASSIGN(PopupCreatedObserver);
   };
 
   void PopupTestHelper(const gfx::Point& padding) {
     PopupCreatedObserver popup_observer;
     popup_observer.Init();
-    ASSERT_TRUE(embedder_web_contents());
     // Press alt+DOWN to open popup.
     bool alt = true;
-    content::SimulateKeyPress(embedder_web_contents(), ui::DomKey::ARROW_DOWN,
+    content::SimulateKeyPress(guest_web_contents(), ui::DomKey::ARROW_DOWN,
                               ui::DomCode::ARROW_DOWN, ui::VKEY_DOWN, false,
                               false, alt, false);
     popup_observer.Wait();
@@ -456,8 +440,10 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
         popup_observer.last_render_widget_host();
     gfx::Rect popup_bounds = popup_rwh->GetView()->GetViewBounds();
 
+    content::RenderViewHost* embedder_rvh =
+        GetFirstAppWindowWebContents()->GetMainFrame()->GetRenderViewHost();
     gfx::Rect embedder_bounds =
-        embedder_web_contents()->GetRenderWidgetHostView()->GetViewBounds();
+        embedder_rvh->GetWidget()->GetView()->GetViewBounds();
     gfx::Vector2d diff = popup_bounds.origin() - embedder_bounds.origin();
     LOG(INFO) << "DIFF: x = " << diff.x() << ", y = " << diff.y();
 
@@ -473,9 +459,61 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
     EXPECT_LE(std::abs(diff.y() - top_spacing), threshold_px);
 
     // Close the popup.
-    content::SimulateKeyPress(embedder_web_contents(), ui::DomKey::ESCAPE,
+    content::SimulateKeyPress(guest_web_contents(), ui::DomKey::ESCAPE,
                               ui::DomCode::ESCAPE, ui::VKEY_ESCAPE, false,
                               false, false, false);
+  }
+
+  void DragTestStep1() {
+    // Move mouse to start of text.
+    MoveMouseInsideWindow(gfx::Point(45, 8));
+    MoveMouseInsideWindow(gfx::Point(45, 9));
+    SendMouseEvent(ui_controls::LEFT, ui_controls::DOWN);
+
+    MoveMouseInsideWindow(gfx::Point(74, 12));
+    MoveMouseInsideWindow(gfx::Point(78, 12));
+
+    // Now wait a bit before moving mouse to initiate drag/drop.
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&WebViewInteractiveTest::DragTestStep2,
+                       base::Unretained(this)),
+        base::TimeDelta::FromMilliseconds(200));
+  }
+
+  void DragTestStep2() {
+    // Drag source over target.
+    MoveMouseInsideWindow(gfx::Point(76, 76));
+
+    // Create a second mouse over the source to trigger the drag over event.
+    MoveMouseInsideWindow(gfx::Point(76, 77));
+
+    // Release mouse to drop.
+    SendMouseEvent(ui_controls::LEFT, ui_controls::UP);
+    SendMouseClick(ui_controls::LEFT);
+
+    quit_closure_.Run();
+
+    // Note that following ExtensionTestMessageListener and ExecuteScript*
+    // call must be after we quit |quit_closure_|. Otherwise the class
+    // here won't be able to receive messages sent by chrome.test.sendMessage.
+    // This is because of the nature of drag and drop code (esp. the
+    // MessageLoop) in it.
+
+    // Now check if we got a drop and read the drop data.
+    embedder_web_contents_ = GetFirstAppWindowWebContents();
+    ExtensionTestMessageListener drop_listener("guest-got-drop", false);
+    EXPECT_TRUE(content::ExecuteScript(embedder_web_contents_,
+                                       "window.checkIfGuestGotDrop()"));
+    EXPECT_TRUE(drop_listener.WaitUntilSatisfied());
+
+    std::string last_drop_data;
+    EXPECT_TRUE(content::ExecuteScriptAndExtractString(
+                    embedder_web_contents_,
+                    "window.domAutomationController.send(getLastDropData())",
+                    &last_drop_data));
+
+    last_drop_data_ = last_drop_data;
   }
 
   void FullscreenTestHelper(const std::string& test_name,
@@ -484,31 +522,27 @@ class WebViewInteractiveTest : public extensions::PlatformAppBrowserTest {
     content::WebContents* embedder_web_contents =
         GetFirstAppWindowWebContents();
     ASSERT_TRUE(embedder_web_contents);
-    ASSERT_TRUE(GetGuestView());
-
+    ASSERT_TRUE(guest_web_contents());
     // Click the guest to request fullscreen.
-    ExtensionTestMessageListener passed_listener("FULLSCREEN_STEP_PASSED");
+    ExtensionTestMessageListener passed_listener(
+        "FULLSCREEN_STEP_PASSED", false);
     passed_listener.set_failure_message("TEST_FAILED");
-
-    WaitForHitTestData(GetGuestRenderFrameHost());
-
-    content::SimulateMouseClickAt(
-        embedder_web_contents, 0, blink::WebMouseEvent::Button::kLeft,
-        GetGuestRenderFrameHost()->GetView()->TransformPointToRootCoordSpace(
-            gfx::Point(20, 20)));
-
+    content::SimulateMouseClickAt(guest_web_contents(), 0,
+                                  blink::WebMouseEvent::Button::kLeft,
+                                  gfx::Point(20, 20));
     ASSERT_TRUE(passed_listener.WaitUntilSatisfied());
   }
 
  protected:
   TestGuestViewManagerFactory factory_;
-  // Only set if `SetupTest` or `TestHelper` are called.
-  raw_ptr<guest_view::GuestViewBase, DanglingUntriaged> guest_view_;
-  raw_ptr<content::WebContents, DanglingUntriaged> embedder_web_contents_;
-
+  content::WebContents* guest_web_contents_;
+  content::WebContents* embedder_web_contents_;
   gfx::Point corner_;
   bool mouse_click_result_;
   bool first_click_;
+  // Only used in drag/drop test.
+  base::Closure quit_closure_;
+  std::string last_drop_data_;
 };
 
 class WebViewImeInteractiveTest : public WebViewInteractiveTest {
@@ -524,11 +558,7 @@ class WebViewImeInteractiveTest : public WebViewInteractiveTest {
           &CompositionRangeUpdateObserver::OnCompositionRangeUpdated,
           base::Unretained(this)));
     }
-    CompositionRangeUpdateObserver(const CompositionRangeUpdateObserver&) =
-        delete;
-    CompositionRangeUpdateObserver& operator=(
-        const CompositionRangeUpdateObserver&) = delete;
-    ~CompositionRangeUpdateObserver() = default;
+    ~CompositionRangeUpdateObserver() {}
 
     // Wait until a composition range update with a range length equal to
     // |length| is received.
@@ -537,7 +567,7 @@ class WebViewImeInteractiveTest : public WebViewInteractiveTest {
           last_composition_range_length_.value() == length)
         return;
       expected_length_ = length;
-      run_loop_ = std::make_unique<base::RunLoop>();
+      run_loop_.reset(new base::RunLoop());
       run_loop_->Run();
     }
 
@@ -553,11 +583,14 @@ class WebViewImeInteractiveTest : public WebViewInteractiveTest {
 
     content::TextInputManagerTester tester_;
     std::unique_ptr<base::RunLoop> run_loop_;
-    absl::optional<uint32_t> last_composition_range_length_;
+    base::Optional<uint32_t> last_composition_range_length_;
     uint32_t expected_length_ = 0;
+
+    DISALLOW_COPY_AND_ASSIGN(CompositionRangeUpdateObserver);
   };
 };
 
+class WebViewDragDropInteractiveTest : public WebViewInteractiveTest {};
 class WebViewNewWindowInteractiveTest : public WebViewInteractiveTest {};
 class WebViewFocusInteractiveTest : public WebViewInteractiveTest {};
 class WebViewPointerLockInteractiveTest : public WebViewInteractiveTest {};
@@ -567,14 +600,18 @@ class WebViewPointerLockInteractiveTest : public WebViewInteractiveTest {};
 // with WebViewInteractiveTest (see crbug.com/582562).
 class DISABLED_WebViewPopupInteractiveTest : public WebViewInteractiveTest {};
 
+// ui_test_utils::SendMouseMoveSync doesn't seem to work on OS_MAC, and
+// likely won't work on many other platforms as well, so for now this test
+// is for Windows and Linux only. As of Sept 17th, 2013 this test is disabled
+// on Windows due to flakines, see http://crbug.com/293445.
+
+// Disabled on Linux Aura because pointer lock does not work on Linux Aura.
+// crbug.com/341876
+
 // Timeouts flakily: crbug.com/1003345
-#if defined(SUPPORTS_SYNC_MOUSE_UTILS) && !BUILDFLAG(IS_CHROMEOS) && \
-    !BUILDFLAG(IS_MAC) && defined(NDEBUG)
-#define MAYBE_PointerLock PointerLock
-#else
-#define MAYBE_PointerLock DISABLED_PointerLock
-#endif
-IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest, MAYBE_PointerLock) {
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest,
+                       DISABLED_PointerLock) {
   SetupTest("web_view/pointer_lock",
             "/extensions/platform_apps/web_view/pointer_lock/guest.html");
 
@@ -584,7 +621,7 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest, MAYBE_PointerLock) {
 
   // Click the Lock Pointer button. The first two times the button is clicked
   // the permission API will deny the request (intentional).
-  ExtensionTestMessageListener exception_listener("request exception");
+  ExtensionTestMessageListener exception_listener("request exception", false);
   SendMouseClickWithListener(ui_controls::LEFT, "lock error");
   ASSERT_TRUE(exception_listener.WaitUntilSatisfied());
   SendMouseClickWithListener(ui_controls::LEFT, "lock error");
@@ -598,7 +635,16 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest, MAYBE_PointerLock) {
       gfx::Point(corner().x() + 74, corner().y() + 74)));
   MoveMouseInsideWindowWithListener(gfx::Point(75, 75), "mouse-move");
 
-  ExtensionTestMessageListener unlocked_listener("unlocked");
+#if defined(OS_WIN)
+  // When the mouse is unlocked on win aura, sending a test mouse click clicks
+  // where the mouse moved to while locked. I was unable to figure out why, and
+  // since the issue only occurs with the test mouse events, just fix it with
+  // a simple workaround - moving the mouse back to where it should be.
+  // TODO(mthiesse): Fix Win Aura simulated mouse events while mouse locked.
+  MoveMouseInsideWindowWithListener(gfx::Point(75, 25), "mouse-move");
+#endif
+
+  ExtensionTestMessageListener unlocked_listener("unlocked", false);
   // Send a key press to unlock the mouse.
   SendKeyPressToPlatformApp(ui::VKEY_ESCAPE);
 
@@ -609,8 +655,8 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest, MAYBE_PointerLock) {
   // webview object. main.js then removes the div containing the webview, which
   // should unlock, and leave the mouse over the mousemove-capture-container
   // div. We then move the mouse over that div to ensure the mouse was properly
-  // unlocked and that the div receives the message.
-  ExtensionTestMessageListener move_captured_listener("move-captured");
+  // unlocked and that the div receieves the message.
+  ExtensionTestMessageListener move_captured_listener("move-captured", false);
   move_captured_listener.set_failure_message("timeout");
 
   // Mouse should already be over lock button (since we just unlocked), so send
@@ -629,7 +675,7 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest, MAYBE_PointerLock) {
     fprintf(stderr, "TIMEOUT - retrying\n");
     // About 1 in 40 tests fail to detect mouse moves at this point (why?).
     // Sending a right click seems to fix this (why?).
-    ExtensionTestMessageListener move_listener2("move-captured");
+    ExtensionTestMessageListener move_listener2("move-captured", false);
     SendMouseClick(ui_controls::RIGHT);
     ASSERT_TRUE(ui_test_utils::SendMouseMoveSync(
         gfx::Point(corner().x() + 51, corner().y() + 11)));
@@ -638,13 +684,8 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest, MAYBE_PointerLock) {
 }
 
 // flaky http://crbug.com/412086
-#if defined(SUPPORTS_SYNC_MOUSE_UTILS) && !BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_PointerLockFocus PointerLockFocus
-#else
-#define MAYBE_PointerLockFocus DISABLED_PointerLockFocus
-#endif
 IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest,
-                       MAYBE_PointerLockFocus) {
+                       DISABLED_PointerLockFocus) {
   SetupTest("web_view/pointer_lock_focus",
             "/extensions/platform_apps/web_view/pointer_lock_focus/guest.html");
 
@@ -657,7 +698,7 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest,
   SendMouseClickWithListener(ui_controls::LEFT, "locked");
 
   // Try to unlock the mouse now that the focus is outside of the BrowserPlugin
-  ExtensionTestMessageListener unlocked_listener("unlocked");
+  ExtensionTestMessageListener unlocked_listener("unlocked", false);
   // Send a key press to unlock the mouse.
   SendKeyPressToPlatformApp(ui::VKEY_ESCAPE);
 
@@ -665,10 +706,13 @@ IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest,
   ASSERT_TRUE(unlocked_listener.WaitUntilSatisfied());
 }
 
+#endif  // defined(OS_LINUX) && !defined(OS_CHROMEOS)
+
 // Tests that if a <webview> is focused before navigation then the guest starts
 // off focused.
+// Flaky. https://crbug.com/1013552
 IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest,
-                       Focus_FocusBeforeNavigation) {
+                       DISABLED_Focus_FocusBeforeNavigation) {
   TestHelper("testFocusBeforeNavigation", "web_view/focus", NO_TEST_SERVER);
 }
 
@@ -679,7 +723,6 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusEvent) {
 
 IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusTakeFocus) {
   TestHelper("testFocusTakeFocus", "web_view/focus", NO_TEST_SERVER);
-  ASSERT_TRUE(GetGuestRenderFrameHost());
 
   // Compute where to click in the window to focus the guest input box.
   int clickX, clickY;
@@ -690,13 +733,11 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusTakeFocus) {
       embedder_web_contents(),
       "domAutomationController.send(Math.floor(window.clickY));", &clickY));
 
-  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED");
+  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED", false);
   next_step_listener.set_failure_message("TEST_STEP_FAILED");
-  WaitForHitTestData(GetGuestRenderFrameHost());
-  content::SimulateMouseClickAt(
-      embedder_web_contents(), 0, blink::WebMouseEvent::Button::kLeft,
-      GetGuestRenderFrameHost()->GetView()->TransformPointToRootCoordSpace(
-          gfx::Point(clickX, clickY)));
+  content::SimulateMouseClickAt(guest_web_contents(), 0,
+                                blink::WebMouseEvent::Button::kLeft,
+                                gfx::Point(clickX, clickY));
   ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
 
   // TAB back out to the embedder's input.
@@ -708,7 +749,7 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusTakeFocus) {
 }
 
 // Flaky on Mac and Linux - https://crbug.com/707648
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 #define MAYBE_Focus_FocusTracksEmbedder DISABLED_Focus_FocusTracksEmbedder
 #else
 #define MAYBE_Focus_FocusTracksEmbedder Focus_FocusTracksEmbedder
@@ -716,21 +757,21 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusTakeFocus) {
 
 IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest,
                        MAYBE_Focus_FocusTracksEmbedder) {
-  content::WebContents* embedder_web_contents = nullptr;
+  content::WebContents* embedder_web_contents = NULL;
 
   std::unique_ptr<ExtensionTestMessageListener> done_listener(
       RunAppHelper("testFocusTracksEmbedder", "web_view/focus", NO_TEST_SERVER,
                    &embedder_web_contents));
   EXPECT_TRUE(done_listener->WaitUntilSatisfied());
 
-  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED");
+  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED", false);
   next_step_listener.set_failure_message("TEST_STEP_FAILED");
   EXPECT_TRUE(content::ExecuteScript(
-      embedder_web_contents,
-      "window.runCommand('testFocusTracksEmbedderRunNextStep');"));
+                  embedder_web_contents,
+                  "window.runCommand('testFocusTracksEmbedderRunNextStep');"));
 
   // Blur the embedder.
-  embedder_web_contents->GetPrimaryMainFrame()
+  embedder_web_contents->GetMainFrame()
       ->GetRenderViewHost()
       ->GetWidget()
       ->Blur();
@@ -739,7 +780,7 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest,
 }
 
 IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_AdvanceFocus) {
-  content::WebContents* embedder_web_contents = nullptr;
+  content::WebContents* embedder_web_contents = NULL;
 
   {
     std::unique_ptr<ExtensionTestMessageListener> done_listener(
@@ -749,15 +790,16 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_AdvanceFocus) {
   }
 
   {
-    ExtensionTestMessageListener listener("button1-focused");
+    ExtensionTestMessageListener listener("button1-focused", false);
     listener.set_failure_message("TEST_FAILED");
 
     // In oopif-webview, the click it directly routed to the guest.
-    content::RenderFrameHost* guest_rfh =
-        GetGuestViewManager()->WaitForSingleGuestRenderFrameHostCreated();
+    content::WebContents* guest =
+        GetGuestViewManager()->WaitForSingleGuestCreated();
 
-    SimulateRWHMouseClick(guest_rfh->GetRenderWidgetHost(),
-                          blink::WebMouseEvent::Button::kLeft, 200, 20);
+    SimulateRWHMouseClick(
+        guest->GetMainFrame()->GetRenderViewHost()->GetWidget(),
+        blink::WebMouseEvent::Button::kLeft, 200, 20);
     content::SimulateKeyPress(embedder_web_contents, ui::DomKey::TAB,
                               ui::DomCode::TAB, ui::VKEY_TAB, false, false,
                               false, false);
@@ -767,7 +809,7 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_AdvanceFocus) {
   {
     // Wait for button1 to be focused again, this means we were asked to
     // move the focus to the next focusable element.
-    ExtensionTestMessageListener listener("button1-advance-focus");
+    ExtensionTestMessageListener listener("button1-advance-focus", false);
     listener.set_failure_message("TEST_FAILED");
     content::SimulateKeyPress(embedder_web_contents, ui::DomKey::TAB,
                               ui::DomCode::TAB, ui::VKEY_TAB, false, false,
@@ -790,70 +832,64 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest,
   LoadAndLaunchPlatformApp("web_view/simple", "WebViewTest.LAUNCHED");
 
   content::WebContents* embedder_web_contents = GetFirstAppWindowWebContents();
-  content::RenderFrameHost* guest_rfh =
-      GetGuestViewManager()->WaitForSingleGuestRenderFrameHostCreated();
-  content::RenderWidgetHost* guest_rwh = guest_rfh->GetRenderWidgetHost();
-  content::RenderFrameHost* embedder_rfh =
-      embedder_web_contents->GetPrimaryMainFrame();
-  content::RenderWidgetHost* embedder_rwh = embedder_rfh->GetRenderWidgetHost();
+  content::WebContents* guest_web_contents =
+      GetGuestViewManager()->WaitForSingleGuestCreated();
+
+  content::MainThreadFrameObserver embedder_observer(
+      embedder_web_contents->GetMainFrame()->GetView()->GetRenderWidgetHost());
+  content::MainThreadFrameObserver guest_observer(
+      guest_web_contents->GetMainFrame()->GetView()->GetRenderWidgetHost());
 
   // Embedder should be focused initially.
-  EXPECT_TRUE(content::IsRenderWidgetHostFocused(embedder_rwh));
-  EXPECT_FALSE(content::IsRenderWidgetHostFocused(guest_rwh));
-  EXPECT_NE(guest_rfh, embedder_rfh);
+  EXPECT_EQ(content::GetFocusedWebContents(guest_web_contents),
+            embedder_web_contents);
 
   // Try to focus an iframe in the guest.
-  content::MainThreadFrameObserver embedder_observer(embedder_rwh);
-  content::MainThreadFrameObserver guest_observer(guest_rwh);
   EXPECT_TRUE(content::ExecuteScript(
-      guest_rfh,
+      guest_web_contents,
       "document.body.appendChild(document.createElement('iframe')); "
       "document.querySelector('iframe').focus()"));
   embedder_observer.Wait();
   guest_observer.Wait();
-  //  Embedder should still be focused.
-  EXPECT_TRUE(content::IsRenderWidgetHostFocused(embedder_rwh));
-  EXPECT_FALSE(content::IsRenderWidgetHostFocused(guest_rwh));
-  EXPECT_NE(guest_rfh, embedder_web_contents->GetFocusedFrame());
+
+  // Embedder should still be focused.
+  EXPECT_EQ(content::GetFocusedWebContents(guest_web_contents),
+            embedder_web_contents);
 
   // Try to focus the guest from the embedder.
   EXPECT_TRUE(content::ExecuteScript(
       embedder_web_contents, "document.querySelector('webview').focus()"));
   embedder_observer.Wait();
   guest_observer.Wait();
+
   // Guest should be focused.
-  EXPECT_FALSE(content::IsRenderWidgetHostFocused(embedder_rwh));
-  EXPECT_TRUE(content::IsRenderWidgetHostFocused(guest_rwh));
-  content::RenderFrameHost* iframe_inside_guest = ChildFrameAt(guest_rfh, 0);
-  ASSERT_TRUE(
-      (guest_rfh == embedder_web_contents->GetFocusedFrame()) ||
-      (iframe_inside_guest == embedder_web_contents->GetFocusedFrame()));
+  EXPECT_EQ(content::GetFocusedWebContents(guest_web_contents),
+            guest_web_contents);
 
   // Try to focus an iframe in the embedder.
   EXPECT_TRUE(content::ExecuteScript(
       embedder_web_contents,
-      "document.body.appendChild(document.createElement('iframe'))"));
-  content::RenderFrameHost* iframe_rfh = ChildFrameAt(embedder_rfh, 1);
-  content::FrameFocusedObserver iframe_focus_observer(iframe_rfh);
-  EXPECT_TRUE(content::ExecuteScript(
-      embedder_web_contents, "document.querySelector('iframe').focus()"));
+      "document.body.appendChild(document.createElement('iframe')); "
+      "document.querySelector('iframe').focus()"));
+  embedder_observer.Wait();
+  guest_observer.Wait();
+
   // Embedder is allowed to steal focus from guest.
-  iframe_focus_observer.Wait();
-  EXPECT_TRUE(content::IsRenderWidgetHostFocused(embedder_rwh));
-  EXPECT_FALSE(content::IsRenderWidgetHostFocused(guest_rwh));
-  EXPECT_EQ(iframe_rfh, embedder_web_contents->GetFocusedFrame());
+  EXPECT_EQ(content::GetFocusedWebContents(guest_web_contents),
+            embedder_web_contents);
 }
 
 // Tests that guests receive edit commands and respond appropriately.
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, EditCommands) {
   LoadAndLaunchPlatformApp("web_view/edit_commands", "connected");
 
-  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow()));
+  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(
+      GetPlatformAppWindow()));
 
   // Flush any pending events to make sure we start with a clean slate.
   content::RunAllPendingInMessageLoop();
 
-  ExtensionTestMessageListener copy_listener("copy");
+  ExtensionTestMessageListener copy_listener("copy", false);
   SendCopyKeyPressToPlatformApp();
 
   // Wait for the guest to receive a 'copy' edit command.
@@ -861,21 +897,21 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, EditCommands) {
 }
 
 // Tests that guests receive edit commands and respond appropriately.
-IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, EditCommandsNoMenu) {
-  ExtensionTestMessageListener focus_listener("Focused");
+// Flaky test - crbug.com/859478
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, DISABLED_EditCommandsNoMenu) {
   SetupTest("web_view/edit_commands_no_menu",
-            "/extensions/platform_apps/web_view/edit_commands_no_menu/"
-            "guest.html");
-  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow()));
-  // Ensure that an input gets focused before sending a key event.
-  ASSERT_TRUE(focus_listener.WaitUntilSatisfied());
+      "/extensions/platform_apps/web_view/edit_commands_no_menu/"
+      "guest.html");
+
+  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(
+      GetPlatformAppWindow()));
 
   // Flush any pending events to make sure we start with a clean slate.
   content::RunAllPendingInMessageLoop();
 
-  ExtensionTestMessageListener start_of_line_listener("StartOfLine");
+  ExtensionTestMessageListener start_of_line_listener("StartOfLine", false);
   SendStartOfLineKeyPressToPlatformApp();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // On macOS, sending an accelerator [key-down] will also cause the subsequent
   // key-up to be swallowed. The implementation of guest.html is waiting for a
   // key-up to send the caret-position message. So we send a key-down/key-up of
@@ -887,43 +923,192 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, EditCommandsNoMenu) {
   ASSERT_TRUE(start_of_line_listener.WaitUntilSatisfied());
 }
 
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_AttachAfterOpenerDestroyed) {
+  TestHelper("testNewWindowAttachAfterOpenerDestroyed",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_NewWindowNameTakesPrecedence) {
+  TestHelper("testNewWindowNameTakesPrecedence",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_WebViewNameTakesPrecedence) {
+  TestHelper("testNewWindowWebViewNameTakesPrecedence", "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest, NewWindow_NoName) {
+  TestHelper("testNewWindowNoName",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest, NewWindow_Redirect) {
+  TestHelper("testNewWindowRedirect",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest, NewWindow_Close) {
+  TestHelper("testNewWindowClose",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_DeferredAttachment) {
+  TestHelper("testNewWindowDeferredAttachment",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_ExecuteScript) {
+  TestHelper("testNewWindowExecuteScript",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_DeclarativeWebRequest) {
+  TestHelper("testNewWindowDeclarativeWebRequest",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_DiscardAfterOpenerDestroyed) {
+  TestHelper("testNewWindowDiscardAfterOpenerDestroyed",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest, NewWindow_WebRequest) {
+  TestHelper("testNewWindowWebRequest",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+// A custom elements bug needs to be addressed to enable this test:
+// See http://crbug.com/282477 for more information.
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
+                       DISABLED_NewWindow_WebRequestCloseWindow) {
+  TestHelper("testNewWindowWebRequestCloseWindow",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_WebRequestRemoveElement) {
+  TestHelper("testNewWindowWebRequestRemoveElement",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+}
+
+// Ensure that when one <webview> makes a window.open() call that references
+// another <webview> by name, the opener is updated without a crash. Regression
+// test for https://crbug.com/1013553.
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_UpdateOpener) {
+  TestHelper("testNewWindowAndUpdateOpener", "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+
+  // The first <webview> tag in the test will run window.open(), which the
+  // embedder will translate into an injected second <webview> tag, after which
+  // test control will return here.  Wait until there are two guests; i.e.,
+  // until the second <webview>'s guest is also created.
+  GetGuestViewManager()->WaitForNumGuestsCreated(2);
+
+  std::vector<content::WebContents*> guest_contents_list;
+  GetGuestViewManager()->GetGuestWebContentsList(&guest_contents_list);
+  ASSERT_EQ(2u, guest_contents_list.size());
+  content::WebContents* guest1 = guest_contents_list[0];
+  content::WebContents* guest2 = guest_contents_list[1];
+  EXPECT_TRUE(content::WaitForLoadStop(guest1));
+  EXPECT_TRUE(content::WaitForLoadStop(guest2));
+  ASSERT_NE(guest1, guest2);
+
+  // Change first guest's window.name to "foo" and check that it does not
+  // have an opener to start with.
+  EXPECT_TRUE(content::ExecJs(guest1, "window.name = 'foo'"));
+  EXPECT_EQ("foo", content::EvalJs(guest1, "window.name"));
+  EXPECT_EQ(true, content::EvalJs(guest1, "window.opener == null"));
+
+  // Create a subframe in the second guest.  This is needed because the crash
+  // in crbug.com/1013553 only happened when trying to incorrectly create
+  // proxies for a subframe.
+  EXPECT_TRUE(content::ExecuteScript(
+      guest2, "document.body.appendChild(document.createElement('iframe'));"));
+
+  // Update the opener of |guest1| to point to |guest2|.  This triggers
+  // creation of proxies on the new opener chain, which should not crash.
+  EXPECT_TRUE(content::ExecuteScript(guest2, "window.open('', 'foo');"));
+
+  // Ensure both guests have the proper opener relationship set up.  Namely,
+  // each guest's opener should point to the other guest, creating a cycle.
+  EXPECT_EQ(true, content::EvalJs(guest1, "window.opener.opener === window"));
+  EXPECT_EQ(true, content::EvalJs(guest2, "window.opener.opener === window"));
+}
+
 // There is a problem of missing keyup events with the command key after
 // the NSEvent is sent to NSApplication in ui/base/test/ui_controls_mac.mm .
 // This test is disabled on only the Mac until the problem is resolved.
 // See http://crbug.com/425859 for more information.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_NewWindow_OpenInNewTab DISABLED_NewWindow_OpenInNewTab
-#else
-#define MAYBE_NewWindow_OpenInNewTab NewWindow_OpenInNewTab
-#endif
+#if !defined(OS_MAC)
 // Tests that Ctrl+Click/Cmd+Click on a link fires up the newwindow API.
-IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_NewWindow_OpenInNewTab) {
-  content::WebContents* embedder_web_contents = nullptr;
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, NewWindow_OpenInNewTab) {
+  content::WebContents* embedder_web_contents = NULL;
 
-  ExtensionTestMessageListener loaded_listener("Loaded");
+  ExtensionTestMessageListener loaded_listener("Loaded", false);
   std::unique_ptr<ExtensionTestMessageListener> done_listener(
       RunAppHelper("testNewWindowOpenInNewTab", "web_view/newwindow",
                    NEEDS_TEST_SERVER, &embedder_web_contents));
 
   EXPECT_TRUE(loaded_listener.WaitUntilSatisfied());
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
-      GetPlatformAppWindow(), ui::VKEY_RETURN, false, false, false,
-      true /* cmd */));
+      GetPlatformAppWindow(), ui::VKEY_RETURN,
+      false, false, false, true /* cmd */));
 #else
   ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
-      GetPlatformAppWindow(), ui::VKEY_RETURN, true /* ctrl */, false, false,
-      false));
+      GetPlatformAppWindow(), ui::VKEY_RETURN,
+      true /* ctrl */, false, false, false));
 #endif
 
   // Wait for the embedder to receive a 'newwindow' event.
   ASSERT_TRUE(done_listener->WaitUntilSatisfied());
 }
+#endif
+
+IN_PROC_BROWSER_TEST_F(WebViewNewWindowInteractiveTest,
+                       NewWindow_OpenerDestroyedWhileUnattached) {
+  TestHelper("testNewWindowOpenerDestroyedWhileUnattached",
+             "web_view/newwindow",
+             NEEDS_TEST_SERVER);
+  ASSERT_EQ(2u, GetGuestViewManager()->num_guests_created());
+
+  // We have two guests in this test, one is the intial one, the other
+  // is the newwindow one.
+  // Before the embedder goes away, both the guests should go away.
+  // This ensures that unattached guests are gone if opener is gone.
+  GetGuestViewManager()->WaitForAllGuestsDeleted();
+}
+
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, ExecuteCode) {
+  ASSERT_TRUE(RunPlatformAppTestWithArg(
+      "platform_apps/web_view/common", "execute_code")) << message_;
+}
 
 IN_PROC_BROWSER_TEST_F(DISABLED_WebViewPopupInteractiveTest,
                        PopupPositioningBasic) {
   TestHelper("testBasic", "web_view/popup_positioning", NO_TEST_SERVER);
-  ASSERT_TRUE(GetGuestView());
+  ASSERT_TRUE(guest_web_contents());
   PopupTestHelper(gfx::Point());
 
   // TODO(lazyboy): Move the embedder window to a random location and
@@ -938,7 +1123,7 @@ IN_PROC_BROWSER_TEST_F(DISABLED_WebViewPopupInteractiveTest,
 IN_PROC_BROWSER_TEST_F(DISABLED_WebViewPopupInteractiveTest,
                        PopupPositioningMoved) {
   TestHelper("testMoved", "web_view/popup_positioning", NO_TEST_SERVER);
-  ASSERT_TRUE(GetGuestView());
+  ASSERT_TRUE(guest_web_contents());
   PopupTestHelper(gfx::Point(20, 0));
 }
 
@@ -948,20 +1133,25 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, Navigation) {
 
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, Navigation_BackForwardKeys) {
   LoadAndLaunchPlatformApp("web_view/navigation", "Launched");
-  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow()));
+  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(
+      GetPlatformAppWindow()));
   // Flush any pending events to make sure we start with a clean slate.
   content::RunAllPendingInMessageLoop();
 
   content::WebContents* embedder_web_contents = GetFirstAppWindowWebContents();
   ASSERT_TRUE(embedder_web_contents);
 
-  ExtensionTestMessageListener done_listener("TEST_PASSED");
+  ExtensionTestMessageListener done_listener(
+      "TEST_PASSED", false);
   done_listener.set_failure_message("TEST_FAILED");
-  ExtensionTestMessageListener ready_back_key_listener("ReadyForBackKey");
-  ExtensionTestMessageListener ready_forward_key_listener("ReadyForForwardKey");
+  ExtensionTestMessageListener ready_back_key_listener(
+      "ReadyForBackKey", false);
+  ExtensionTestMessageListener ready_forward_key_listener(
+      "ReadyForForwardKey", false);
 
-  EXPECT_TRUE(content::ExecuteScript(embedder_web_contents,
-                                     "runTest('testBackForwardKeys')"));
+  EXPECT_TRUE(content::ExecuteScript(
+                  embedder_web_contents,
+                  "runTest('testBackForwardKeys')"));
 
   ASSERT_TRUE(ready_back_key_listener.WaitUntilSatisfied());
   SendBackShortcutToPlatformApp();
@@ -974,7 +1164,7 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, Navigation_BackForwardKeys) {
 
 // Trips over a DCHECK in content::MouseLockDispatcher::OnLockMouseACK; see
 // https://crbug.com/761783.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_PointerLock_PointerLockLostWithFocus \
   PointerLock_PointerLockLostWithFocus
 #else
@@ -983,34 +1173,69 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, Navigation_BackForwardKeys) {
 #endif
 IN_PROC_BROWSER_TEST_F(WebViewPointerLockInteractiveTest,
                        MAYBE_PointerLock_PointerLockLostWithFocus) {
-  TestHelper("testPointerLockLostWithFocus", "web_view/pointerlock",
+  TestHelper("testPointerLockLostWithFocus",
+             "web_view/pointerlock",
              NO_TEST_SERVER);
 }
 
-IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
-                       FullscreenAllow_EmbedderHasPermission) {
-#if BUILDFLAG(IS_MAC)
-  ui::test::ScopedFakeNSWindowFullscreen fake_fullscreen;
+// Disable this on mac, throws an assertion failure on teardown which
+// will result in flakiness:
+//
+// "not is fullscreen state"
+// "*** Assertion failure in -[_NSWindowFullScreenTransition
+//     transitionedWindowFrame],"
+// See similar bug: http://crbug.com/169820.
+//
+// In addition to the above, these tests are flaky on some platforms:
+// http://crbug.com/468660
+#if defined(OS_WIN)
+#define MAYBE_FullscreenAllow_EmbedderHasPermission \
+  FullscreenAllow_EmbedderHasPermission
+#else
+#define MAYBE_FullscreenAllow_EmbedderHasPermission \
+  DISABLED_FullscreenAllow_EmbedderHasPermission
 #endif
-
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
+                       MAYBE_FullscreenAllow_EmbedderHasPermission) {
   FullscreenTestHelper("testFullscreenAllow",
                        "web_view/fullscreen/embedder_has_permission");
 }
 
+#if defined(OS_WIN)
+#define MAYBE_FullscreenDeny_EmbedderHasPermission \
+  FullscreenDeny_EmbedderHasPermission
+#else
+#define MAYBE_FullscreenDeny_EmbedderHasPermission \
+  DISABLED_FullscreenDeny_EmbedderHasPermission
+#endif
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
-                       FullscreenDeny_EmbedderHasPermission) {
+                       MAYBE_FullscreenDeny_EmbedderHasPermission) {
   FullscreenTestHelper("testFullscreenDeny",
                        "web_view/fullscreen/embedder_has_permission");
 }
 
+#if defined(OS_WIN)
+#define MAYBE_FullscreenAllow_EmbedderHasNoPermission \
+  FullscreenAllow_EmbedderHasNoPermission
+#else
+#define MAYBE_FullscreenAllow_EmbedderHasNoPermission \
+  DISABLED_FullscreenAllow_EmbedderHasNoPermission
+#endif
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
-                       FullscreenAllow_EmbedderHasNoPermission) {
+                       MAYBE_FullscreenAllow_EmbedderHasNoPermission) {
   FullscreenTestHelper("testFullscreenAllow",
                        "web_view/fullscreen/embedder_has_no_permission");
 }
 
+#if defined(OS_WIN)
+#define MAYBE_FullscreenDeny_EmbedderHasNoPermission \
+  FullscreenDeny_EmbedderHasNoPermission
+#else
+#define MAYBE_FullscreenDeny_EmbedderHasNoPermission \
+  DISABLED_FullscreenDeny_EmbedderHasNoPermission
+#endif
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
-                       FullscreenDeny_EmbedderHasNoPermission) {
+                       MAYBE_FullscreenDeny_EmbedderHasNoPermission) {
   FullscreenTestHelper("testFullscreenDeny",
                        "web_view/fullscreen/embedder_has_no_permission");
 }
@@ -1027,21 +1252,18 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusRestored) {
   TestHelper("testFocusRestored", "web_view/focus", NO_TEST_SERVER);
   content::WebContents* embedder_web_contents = GetFirstAppWindowWebContents();
   ASSERT_TRUE(embedder_web_contents);
-  content::RenderFrameHost* guest_rfh = GetGuestRenderFrameHost();
-  ASSERT_TRUE(guest_rfh);
+  ASSERT_TRUE(guest_web_contents());
 
   // 1) We click on the guest so that we get a focus event.
-  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED");
+  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED", false);
   next_step_listener.set_failure_message("TEST_STEP_FAILED");
   {
-    WaitForHitTestData(guest_rfh);
-    content::SimulateMouseClickAt(
-        embedder_web_contents, 0, blink::WebMouseEvent::Button::kLeft,
-        guest_rfh->GetView()->TransformPointToRootCoordSpace(
-            gfx::Point(10, 10)));
+    content::SimulateMouseClickAt(guest_web_contents(), 0,
+                                  blink::WebMouseEvent::Button::kLeft,
+                                  gfx::Point(10, 10));
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents,
-        "window.runCommand('testFocusRestoredRunNextStep', 1);"));
+                    embedder_web_contents,
+                    "window.runCommand('testFocusRestoredRunNextStep', 1);"));
   }
   // Wait for the next step to complete.
   ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
@@ -1054,8 +1276,8 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusRestored) {
                                   blink::WebMouseEvent::Button::kLeft,
                                   gfx::Point(200, 20));
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents,
-        "window.runCommand('testFocusRestoredRunNextStep', 2);"));
+                    embedder_web_contents,
+                    "window.runCommand('testFocusRestoredRunNextStep', 2);"));
   }
   // Wait for the next step to complete.
   ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
@@ -1064,26 +1286,23 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusRestored) {
   // input element, then we ensure text_input_type is properly set.
   next_step_listener.Reset();
   {
-    WaitForHitTestData(guest_rfh);
-    content::SimulateMouseClickAt(
-        embedder_web_contents, 0, blink::WebMouseEvent::Button::kLeft,
-        guest_rfh->GetView()->TransformPointToRootCoordSpace(
-            gfx::Point(10, 10)));
+    content::SimulateMouseClickAt(guest_web_contents(), 0,
+                                  blink::WebMouseEvent::Button::kLeft,
+                                  gfx::Point(10, 10));
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents,
-        "window.runCommand('testFocusRestoredRunNextStep', 3)"));
+                    embedder_web_contents,
+                    "window.runCommand('testFocusRestoredRunNextStep', 3)"));
   }
   // Wait for the next step to complete.
   ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
 
   // |text_input_client| is not available for mac and android.
-#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID)
-  ui::TextInputClient* text_input_client =
-      embedder_web_contents->GetPrimaryMainFrame()
-          ->GetRenderViewHost()
-          ->GetWidget()
-          ->GetView()
-          ->GetTextInputClient();
+#if !defined(OS_MAC) && !defined(OS_ANDROID)
+  ui::TextInputClient* text_input_client = embedder_web_contents->GetMainFrame()
+                                               ->GetRenderViewHost()
+                                               ->GetWidget()
+                                               ->GetView()
+                                               ->GetTextInputClient();
   ASSERT_TRUE(text_input_client);
   ASSERT_TRUE(text_input_client->GetTextInputType() !=
               ui::TEXT_INPUT_TYPE_NONE);
@@ -1091,39 +1310,38 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, Focus_FocusRestored) {
 }
 
 // ui::TextInputClient is NULL for mac and android.
-#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID)
-#if defined(ADDRESS_SANITIZER) || BUILDFLAG(IS_WIN)
+#if !defined(OS_MAC) && !defined(OS_ANDROID)
+#if defined(ADDRESS_SANITIZER) || defined(OS_WIN)
 #define MAYBE_Focus_InputMethod DISABLED_Focus_InputMethod
 #else
 #define MAYBE_Focus_InputMethod Focus_InputMethod
 #endif
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_Focus_InputMethod) {
-  content::WebContents* embedder_web_contents = nullptr;
+  content::WebContents* embedder_web_contents = NULL;
   std::unique_ptr<ExtensionTestMessageListener> done_listener(
       RunAppHelper("testInputMethod", "web_view/focus", NO_TEST_SERVER,
                    &embedder_web_contents));
   ASSERT_TRUE(done_listener->WaitUntilSatisfied());
 
-  ui::TextInputClient* text_input_client =
-      embedder_web_contents->GetPrimaryMainFrame()
-          ->GetRenderViewHost()
-          ->GetWidget()
-          ->GetView()
-          ->GetTextInputClient();
+  ui::TextInputClient* text_input_client = embedder_web_contents->GetMainFrame()
+                                               ->GetRenderViewHost()
+                                               ->GetWidget()
+                                               ->GetView()
+                                               ->GetTextInputClient();
   ASSERT_TRUE(text_input_client);
 
-  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED");
+  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED", false);
   next_step_listener.set_failure_message("TEST_STEP_FAILED");
 
   // An input element inside the <webview> gets focus and is given some
   // user input via IME.
   {
     ui::CompositionText composition;
-    composition.text = u"InputTest123";
+    composition.text = base::UTF8ToUTF16("InputTest123");
     text_input_client->SetCompositionText(composition);
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents,
-        "window.runCommand('testInputMethodRunNextStep', 1);"));
+                    embedder_web_contents,
+                    "window.runCommand('testInputMethodRunNextStep', 1);"));
 
     // Wait for the next step to complete.
     ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
@@ -1134,12 +1352,12 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_Focus_InputMethod) {
     next_step_listener.Reset();
 
     ui::CompositionText composition;
-    composition.text = u"InputTest456";
+    composition.text = base::UTF8ToUTF16("InputTest456");
     text_input_client->SetCompositionText(composition);
     text_input_client->ConfirmCompositionText(/* keep_selection */ false);
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents,
-        "window.runCommand('testInputMethodRunNextStep', 2);"));
+                  embedder_web_contents,
+                  "window.runCommand('testInputMethodRunNextStep', 2);"));
 
     // Wait for the next step to complete.
     ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
@@ -1164,8 +1382,8 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_Focus_InputMethod) {
     // delete before 1 character ('T') and after 3 characters ('est').
     text_input_client->ExtendSelectionAndDelete(1, 3);
     EXPECT_TRUE(content::ExecuteScript(
-        embedder_web_contents,
-        "window.runCommand('testInputMethodRunNextStep', 3);"));
+                    embedder_web_contents,
+                    "window.runCommand('testInputMethodRunNextStep', 3);"));
 
     // Wait for the next step to complete.
     ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
@@ -1173,36 +1391,38 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_Focus_InputMethod) {
 }
 #endif
 
-#if BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)  // TODO(https://crbug.com/801552): Flaky.
+#if defined(OS_LINUX) || \
+    defined(OS_CHROMEOS)  // TODO(https://crbug.com/801552): Flaky.
 #define MAYBE_LongPressSelection DISABLED_LongPressSelection
 #else
 #define MAYBE_LongPressSelection LongPressSelection
 #endif
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_LongPressSelection) {
   SetupTest("web_view/text_selection",
             "/extensions/platform_apps/web_view/text_selection/guest.html");
-  ASSERT_TRUE(GetGuestView());
+  ASSERT_TRUE(guest_web_contents());
   ASSERT_TRUE(embedder_web_contents());
   ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow()));
 
   blink::WebInputEvent::Type context_menu_gesture_event_type =
       blink::WebInputEvent::Type::kGestureLongPress;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   context_menu_gesture_event_type = blink::WebInputEvent::Type::kGestureLongTap;
 #endif
   auto filter = std::make_unique<content::InputMsgWatcher>(
-      GetGuestRenderFrameHost()->GetRenderWidgetHost(),
+      guest_web_contents()->GetRenderWidgetHostView()->GetRenderWidgetHost(),
       context_menu_gesture_event_type);
 
   // Wait for guest to load (without this the events never reach the guest).
-  std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, run_loop->QuitClosure(), base::Milliseconds(200));
-  run_loop->Run();
+  scoped_refptr<content::MessageLoopRunner> message_loop_runner =
+      new content::MessageLoopRunner;
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, message_loop_runner->QuitClosure(),
+      base::TimeDelta::FromMilliseconds(200));
+  message_loop_runner->Run();
 
-  gfx::Rect guest_rect = GetGuestRenderFrameHost()->GetView()->GetViewBounds();
+  gfx::Rect guest_rect = guest_web_contents()->GetContainerBounds();
   gfx::Point embedder_origin =
       embedder_web_contents()->GetContainerBounds().origin();
   guest_rect.Offset(-embedder_origin.x(), -embedder_origin.y());
@@ -1217,39 +1437,40 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_LongPressSelection) {
             filter->GetAckStateWaitIfNecessary());
 
   // Give enough time for the quick menu to fire.
-  run_loop = std::make_unique<base::RunLoop>();
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, run_loop->QuitClosure(), base::Milliseconds(200));
-  run_loop->Run();
+  message_loop_runner = new content::MessageLoopRunner;
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, message_loop_runner->QuitClosure(),
+      base::TimeDelta::FromMilliseconds(200));
+  message_loop_runner->Run();
 
 // TODO: Fix quick menu opening on Windows.
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   EXPECT_TRUE(ui::TouchSelectionMenuRunner::GetInstance()->IsRunning());
 #endif
 
-  EXPECT_FALSE(GetGuestView()->web_contents()->IsShowingContextMenu());
+  EXPECT_FALSE(guest_web_contents()->IsShowingContextMenu());
 }
 #endif
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, TextSelection) {
   SetupTest("web_view/text_selection",
             "/extensions/platform_apps/web_view/text_selection/guest.html");
-  ASSERT_TRUE(GetGuestView());
+  ASSERT_TRUE(guest_web_contents());
   ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(
       GetPlatformAppWindow()));
 
   // Wait until guest sees a context menu.
-  ExtensionTestMessageListener ctx_listener("MSG_CONTEXTMENU");
+  ExtensionTestMessageListener ctx_listener("MSG_CONTEXTMENU", false);
   ContextMenuWaiter menu_observer;
-  SimulateRWHMouseClick(GetGuestRenderFrameHost()->GetRenderWidgetHost(),
+  SimulateRWHMouseClick(guest_web_contents()->GetRenderViewHost()->GetWidget(),
                         blink::WebMouseEvent::Button::kRight, 20, 20);
   menu_observer.WaitForMenuOpenAndClose();
   ASSERT_TRUE(ctx_listener.WaitUntilSatisfied());
 
   // Now verify that the selection text propagates properly to RWHV.
   content::RenderWidgetHostView* guest_rwhv =
-      GetGuestRenderFrameHost()->GetView();
+      guest_web_contents()->GetRenderWidgetHostView();
   ASSERT_TRUE(guest_rwhv);
   std::string selected_text = base::UTF16ToUTF8(guest_rwhv->GetSelectedText());
   ASSERT_GE(selected_text.size(), 10u);
@@ -1261,17 +1482,17 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, TextSelection) {
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, WordLookup) {
   SetupTest("web_view/text_selection",
             "/extensions/platform_apps/web_view/text_selection/guest.html");
-  ASSERT_TRUE(GetGuestView());
+  ASSERT_TRUE(guest_web_contents());
   ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow()));
 
   content::TextInputTestLocalFrame text_input_local_frame;
-  text_input_local_frame.SetUp(GetGuestRenderFrameHost());
+  text_input_local_frame.SetUp(guest_web_contents()->GetMainFrame());
 
   // Lookup some string through context menu.
   ContextMenuNotificationObserver menu_observer(IDC_CONTENT_CONTEXT_LOOK_UP);
   // Simulating a mouse click at a position to highlight text in guest and
   // showing the context menu.
-  SimulateRWHMouseClick(GetGuestRenderFrameHost()->GetRenderWidgetHost(),
+  SimulateRWHMouseClick(guest_web_contents()->GetRenderViewHost()->GetWidget(),
                         blink::WebMouseEvent::Button::kRight, 20, 20);
   // Wait for the response form the guest renderer.
   text_input_local_frame.WaitForGetStringForRange();
@@ -1283,8 +1504,8 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, WordLookup) {
 
 // Flaky on Mac: http://crbug.com/811893
 // Flaky on Linux/ChromeOS/Windows: http://crbug.com/845638
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_WIN)
+#if defined(OS_MAC) || defined(OS_LINUX) || defined(OS_CHROMEOS) || \
+    defined(OS_WIN)
 #define MAYBE_FocusAndVisibility DISABLED_FocusAndVisibility
 #else
 #define MAYBE_FocusAndVisibility FocusAndVisibility
@@ -1295,15 +1516,15 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, MAYBE_FocusAndVisibility) {
   LoadAndLaunchPlatformApp("web_view/focus_visibility",
                            "WebViewInteractiveTest.LOADED");
   ExtensionTestMessageListener test_init_listener(
-      "WebViewInteractiveTest.WebViewInitialized");
+      "WebViewInteractiveTest.WebViewInitialized", false);
   SendMessageToEmbedder("init-oopif");
   EXPECT_TRUE(test_init_listener.WaitUntilSatisfied());
 
   // Send several tab-keys. The button inside webview should receive focus at
   // least once.
   ExtensionTestMessageListener key_processed_listener(
-      "WebViewInteractiveTest.KeyUp");
-#if BUILDFLAG(IS_MAC)
+      "WebViewInteractiveTest.KeyUp", false);
+#if defined(OS_MAC)
   // On mac, the event listener seems one key event behind and deadlocks. Send
   // an extra tab to get things unblocked. See http://crbug.com/685281 when
   // fixed, this can be removed.
@@ -1317,19 +1538,19 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, MAYBE_FocusAndVisibility) {
 
   // Verify that the button in the guest receives focus.
   ExtensionTestMessageListener webview_button_focused_listener(
-      "WebViewInteractiveTest.WebViewButtonWasFocused");
+      "WebViewInteractiveTest.WebViewButtonWasFocused", false);
   webview_button_focused_listener.set_failure_message(
       "WebViewInteractiveTest.WebViewButtonWasNotFocused");
   SendMessageToEmbedder("verify");
   EXPECT_TRUE(webview_button_focused_listener.WaitUntilSatisfied());
 
   // Reset the test and now make the <webview> invisible.
-  ExtensionTestMessageListener reset_listener(
-      "WebViewInteractiveTest.DidReset");
+  ExtensionTestMessageListener reset_listener("WebViewInteractiveTest.DidReset",
+                                              false);
   SendMessageToEmbedder("reset");
   EXPECT_TRUE(reset_listener.WaitUntilSatisfied());
   ExtensionTestMessageListener did_hide_webview_listener(
-      "WebViewInteractiveTest.DidHideWebView");
+      "WebViewInteractiveTest.DidHideWebView", false);
   SendMessageToEmbedder("hide-webview");
   EXPECT_TRUE(did_hide_webview_listener.WaitUntilSatisfied());
 
@@ -1341,16 +1562,18 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest, MAYBE_FocusAndVisibility) {
     EXPECT_TRUE(key_processed_listener.WaitUntilSatisfied());
   }
   ExtensionTestMessageListener webview_button_not_focused_listener(
-      "WebViewInteractiveTest.WebViewButtonWasNotFocused");
+      "WebViewInteractiveTest.WebViewButtonWasNotFocused", false);
   webview_button_not_focused_listener.set_failure_message(
       "WebViewInteractiveTest.WebViewButtonWasFocused");
   SendMessageToEmbedder("verify");
   EXPECT_TRUE(webview_button_not_focused_listener.WaitUntilSatisfied());
 }
 
+// Flaky on MacOSX, crbug.com/817066.
 // Flaky timeouts on Linux. https://crbug.com/709202
 // Flaky timeouts on Win. https://crbug.com/846695
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC) || \
+    defined(OS_WIN)
 #define MAYBE_KeyboardFocusSimple DISABLED_KeyboardFocusSimple
 #else
 #define MAYBE_KeyboardFocusSimple KeyboardFocusSimple
@@ -1359,8 +1582,8 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_KeyboardFocusSimple) {
   TestHelper("testKeyboardFocusSimple", "web_view/focus", NO_TEST_SERVER);
 
   EXPECT_EQ(embedder_web_contents()->GetFocusedFrame(),
-            embedder_web_contents()->GetPrimaryMainFrame());
-  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED");
+            embedder_web_contents()->GetMainFrame());
+  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED", false);
   next_step_listener.set_failure_message("TEST_STEP_FAILED");
   {
     gfx::Rect offset = embedder_web_contents()->GetContainerBounds();
@@ -1395,8 +1618,8 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_KeyboardFocusSimple) {
 // Flaky on MacOSX, crbug.com/817067.
 // Flaky on linux, crbug.com/706830.
 // Flaky on Windows, crbug.com/847201.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || \
-    BUILDFLAG(IS_WIN)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC) || \
+    defined(OS_WIN)
 #define MAYBE_KeyboardFocusWindowCycle DISABLED_KeyboardFocusWindowCycle
 #else
 #define MAYBE_KeyboardFocusWindowCycle KeyboardFocusWindowCycle
@@ -1406,8 +1629,8 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_KeyboardFocusWindowCycle) {
              NO_TEST_SERVER);
 
   EXPECT_EQ(embedder_web_contents()->GetFocusedFrame(),
-            embedder_web_contents()->GetPrimaryMainFrame());
-  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED");
+            embedder_web_contents()->GetMainFrame());
+  ExtensionTestMessageListener next_step_listener("TEST_STEP_PASSED", false);
   next_step_listener.set_failure_message("TEST_STEP_FAILED");
   {
     gfx::Rect offset = embedder_web_contents()->GetContainerBounds();
@@ -1465,39 +1688,7 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_KeyboardFocusWindowCycle) {
   ASSERT_TRUE(next_step_listener.WaitUntilSatisfied());
 }
 
-// Ensure that destroying a <webview> with a pending mouse lock request doesn't
-// leave a stale mouse lock widget pointer in the embedder WebContents. See
-// https://crbug.com/1346245.
-IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest,
-                       DestroyGuestWithPendingPointerLock) {
-  LoadAndLaunchPlatformApp("web_view/pointer_lock_pending",
-                           "WebViewTest.LAUNCHED");
-
-  content::WebContents* embedder_web_contents = GetFirstAppWindowWebContents();
-  content::RenderFrameHost* guest_rfh =
-      GetGuestViewManager()->WaitForSingleGuestRenderFrameHostCreated();
-
-  // The embedder is configured to remove the <webview> as soon as it receives
-  // the pointer lock permission request from the guest, without responding to
-  // it.  Hence, have the guest request pointer lock and wait for its
-  // destruction.
-  content::RenderFrameDeletedObserver observer(guest_rfh);
-  EXPECT_TRUE(content::ExecuteScript(
-      guest_rfh, "document.querySelector('div').requestPointerLock()"));
-  observer.WaitUntilDeleted();
-
-  // The embedder WebContents shouldn't have a mouse lock widget.
-  EXPECT_FALSE(GetMouseLockWidget(embedder_web_contents));
-
-  // Close the embedder app and ensure that this doesn't crash, which used to
-  // be the case if the mouse lock widget (now destroyed) hadn't been cleared
-  // in the embedder.
-  content::WebContentsDestroyedWatcher destroyed_watcher(embedder_web_contents);
-  CloseAppWindow(GetFirstAppWindow());
-  destroyed_watcher.Wait();
-}
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // This test verifies that replacement range for IME works with <webview>s. To
 // verify this, a <webview> with an <input> inside is loaded. Then the <input>
 // is focused and  populated with some text. The test then sends an IPC to
@@ -1511,23 +1702,24 @@ IN_PROC_BROWSER_TEST_F(WebViewImeInteractiveTest,
   // Flush any pending events to make sure we start with a clean slate.
   content::RunAllPendingInMessageLoop();
 
-  auto* guest_rfh = GetGuestViewManager()->GetLastGuestRenderFrameHostCreated();
+  content::WebContents* guest_web_contents =
+      GetGuestViewManager()->GetLastGuestCreated();
 
   // Click the <input> element inside the <webview>. In its focus handle, the
   // <input> inside the <webview> initializes its value to "A B X D".
-  ExtensionTestMessageListener focus_listener("WebViewImeTest.InputFocused");
-  WaitForHitTestData(guest_rfh);
+  ExtensionTestMessageListener focus_listener("WebViewImeTest.InputFocused",
+                                              false);
+  content::WebContents* target_web_contents = guest_web_contents;
 
   // The guest page has a large input box and (50, 50) lies inside the box.
-  content::SimulateMouseClickAt(
-      GetGuestViewManager()->GetLastGuestViewCreated()->embedder_web_contents(),
-      0, blink::WebMouseEvent::Button::kLeft,
-      guest_rfh->GetView()->TransformPointToRootCoordSpace(gfx::Point(50, 50)));
+  content::SimulateMouseClickAt(target_web_contents, 0,
+                                blink::WebMouseEvent::Button::kLeft,
+                                gfx::Point(50, 50));
   EXPECT_TRUE(focus_listener.WaitUntilSatisfied());
 
   // Verify the text inside the <input> is "A B X D".
   std::string value;
-  ASSERT_TRUE(ExecuteScriptAndExtractString(guest_rfh,
+  ASSERT_TRUE(ExecuteScriptAndExtractString(guest_web_contents,
                                             "window.domAutomationController."
                                             "send(document.querySelector('"
                                             "input').value)",
@@ -1537,22 +1729,25 @@ IN_PROC_BROWSER_TEST_F(WebViewImeInteractiveTest,
   // Now commit "C" to to replace the range (4, 5).
   // For OOPIF guests, the target for IME is the RWH for the guest's main frame.
   // For BrowserPlugin-based guests, input always goes to the embedder.
-  ExtensionTestMessageListener input_listener("WebViewImetest.InputReceived");
-  content::SendImeCommitTextToWidget(guest_rfh->GetRenderWidgetHost(), u"C",
-                                     std::vector<ui::ImeTextSpan>(),
-                                     gfx::Range(4, 5), 0);
+  ExtensionTestMessageListener input_listener("WebViewImetest.InputReceived",
+                                              false);
+  content::RenderWidgetHost* target_rwh_for_input =
+      target_web_contents->GetRenderWidgetHostView()->GetRenderWidgetHost();
+  content::SendImeCommitTextToWidget(
+      target_rwh_for_input, base::UTF8ToUTF16("C"),
+      std::vector<ui::ImeTextSpan>(), gfx::Range(4, 5), 0);
   EXPECT_TRUE(input_listener.WaitUntilSatisfied());
 
   // Get the input value from the guest.
   value.clear();
-  ASSERT_TRUE(ExecuteScriptAndExtractString(guest_rfh,
+  ASSERT_TRUE(ExecuteScriptAndExtractString(guest_web_contents,
                                             "window.domAutomationController."
                                             "send(document.querySelector('"
                                             "input').value)",
                                             &value));
   EXPECT_EQ("A B C D", value);
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  //  OS_MAC
 
 // This test verifies that focusing an input inside a <webview> will put the
 // guest process's render widget into a monitoring mode for composition range
@@ -1565,30 +1760,34 @@ IN_PROC_BROWSER_TEST_F(WebViewImeInteractiveTest, CompositionRangeUpdates) {
   // Flush any pending events to make sure we start with a clean slate.
   content::RunAllPendingInMessageLoop();
 
-  guest_view::GuestViewBase* guest_view =
-      GetGuestViewManager()->GetLastGuestViewCreated();
+  content::WebContents* guest_web_contents =
+      GetGuestViewManager()->GetLastGuestCreated();
 
   // Click the <input> element inside the <webview>. In its focus handle, the
   // <input> inside the <webview> initializes its value to "A B X D".
-  ExtensionTestMessageListener focus_listener("WebViewImeTest.InputFocused");
+  ExtensionTestMessageListener focus_listener("WebViewImeTest.InputFocused",
+                                              false);
   content::WebContents* embedder_web_contents =
-      guest_view->embedder_web_contents();
+      guest_view::GuestViewBase::FromWebContents(guest_web_contents)
+          ->embedder_web_contents();
 
-  WaitForHitTestData(guest_view->GetGuestMainFrame());
+  // Event routing in OOPIF and non-OOPIF <webview> is different. With OOPIF,
+  // input is directly routed to the guest process as opposed to the non OOPIF
+  // mode where input is always sent to the embedder process first (then hops
+  // back to the browser and then to the guest).
+  content::WebContents* target_web_contents = guest_web_contents;
 
   // The guest page has a large input box and (50, 50) lies inside the box.
-  content::SimulateMouseClickAt(
-      embedder_web_contents, 0, blink::WebMouseEvent::Button::kLeft,
-      guest_view->GetGuestMainFrame()
-          ->GetView()
-          ->TransformPointToRootCoordSpace(gfx::Point(50, 50)));
+  content::SimulateMouseClickAt(target_web_contents, 0,
+                                blink::WebMouseEvent::Button::kLeft,
+                                gfx::Point(50, 50));
   EXPECT_TRUE(focus_listener.WaitUntilSatisfied());
 
   // Clear the string as it already contains some text. Then verify the text in
   // the <input> is empty.
   std::string value;
   ASSERT_TRUE(ExecuteScriptAndExtractString(
-      guest_view->GetGuestMainFrame(),
+      guest_web_contents,
       "var input = document.querySelector('input');"
       "input.value = '';"
       "window.domAutomationController.send("
@@ -1600,12 +1799,13 @@ IN_PROC_BROWSER_TEST_F(WebViewImeInteractiveTest, CompositionRangeUpdates) {
   // range information.
   CompositionRangeUpdateObserver observer(embedder_web_contents);
   content::SendImeSetCompositionTextToWidget(
-      guest_view->GetGuestMainFrame()->GetRenderWidgetHost(), u"ABC",
-      std::vector<ui::ImeTextSpan>(), gfx::Range::InvalidRange(), 0, 3);
+      target_web_contents->GetRenderWidgetHostView()->GetRenderWidgetHost(),
+      base::UTF8ToUTF16("ABC"), std::vector<ui::ImeTextSpan>(),
+      gfx::Range::InvalidRange(), 0, 3);
   observer.WaitForCompositionRangeLength(3U);
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // This test verifies that drop-down lists appear correctly inside OOPIF-based
 // webviews which have offset inside embedder. This is a test for all guest
 // views as the logic for showing such popups is inside content/ layer. For more
@@ -1613,18 +1813,18 @@ IN_PROC_BROWSER_TEST_F(WebViewImeInteractiveTest, CompositionRangeUpdates) {
 IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest,
                        DropDownPopupInCorrectPosition) {
   TestHelper("testSelectPopupPositionInMac", "web_view/shim", NO_TEST_SERVER);
-  ASSERT_TRUE(GetGuestRenderFrameHost());
+  ASSERT_TRUE(guest_web_contents_);
 
   // This is set in javascript.
   const float distance_from_root_view_origin = 250.0;
   // Verify that the view is offset inside root view as expected.
   content::RenderWidgetHostView* guest_rwhv =
-      GetGuestRenderFrameHost()->GetView();
+      guest_web_contents_->GetRenderWidgetHostView();
   while (guest_rwhv->TransformPointToRootCoordSpace(gfx::Point())
              .OffsetFromOrigin()
              .Length() < distance_from_root_view_origin) {
     base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, run_loop.QuitClosure(), TestTimeouts::tiny_timeout());
     run_loop.Run();
   }
@@ -1652,81 +1852,3 @@ IN_PROC_BROWSER_TEST_F(WebViewFocusInteractiveTest,
       << popup_observer.view_bounds_in_screen().ToString();
 }
 #endif
-
-// Base class for interactive tests that enable site isolation in <webview>
-// guests.
-class SitePerProcessWebViewInteractiveTest : public WebViewInteractiveTest {
- public:
-  SitePerProcessWebViewInteractiveTest() = default;
-  ~SitePerProcessWebViewInteractiveTest() override = default;
-  SitePerProcessWebViewInteractiveTest(
-      const SitePerProcessWebViewInteractiveTest&) = delete;
-  SitePerProcessWebViewInteractiveTest& operator=(
-      const SitePerProcessWebViewInteractiveTest&) = delete;
-
-  void SetUp() override {
-    feature_list_.InitAndEnableFeature(features::kSiteIsolationForGuests);
-    WebViewInteractiveTest::SetUp();
-  }
-
-  void SetUpOnMainThread() override {
-    host_resolver()->AddRule("*", "127.0.0.1");
-    WebViewInteractiveTest::SetUpOnMainThread();
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-// Check that when a focused <webview> navigates cross-process, the focus
-// is preserved in the new page. See https://crbug.com/1358210.
-IN_PROC_BROWSER_TEST_F(SitePerProcessWebViewInteractiveTest,
-                       FocusPreservedAfterCrossProcessNavigation) {
-  // Load and show a platform app with a <webview> on a data: URL.
-  ASSERT_TRUE(StartEmbeddedTestServer());
-  LoadAndLaunchPlatformApp("web_view/simple", "WebViewTest.LAUNCHED");
-  ASSERT_TRUE(ui_test_utils::ShowAndFocusNativeWindow(GetPlatformAppWindow()));
-  content::WebContents* embedder_web_contents = GetFirstAppWindowWebContents();
-  embedder_web_contents->Focus();
-
-  // Ensure that the guest is focused before the next navigation.  To do so,
-  // have the embedder focus the <webview> element.
-  content::RenderFrameHost* guest_rfh =
-      GetGuestViewManager()->WaitForSingleGuestRenderFrameHostCreated();
-  content::FrameFocusedObserver focus_observer(guest_rfh);
-  EXPECT_TRUE(content::ExecuteScript(
-      embedder_web_contents, "document.querySelector('webview').focus()"));
-  focus_observer.Wait();
-  ASSERT_TRUE(
-      content::IsRenderWidgetHostFocused(guest_rfh->GetRenderWidgetHost()));
-  EXPECT_EQ(guest_rfh, embedder_web_contents->GetFocusedFrame());
-
-  // Wait for guest's document to consider itself focused. This avoids
-  // flakiness on some platforms.
-  while (!content::EvalJs(guest_rfh, "document.hasFocus()").ExtractBool()) {
-    base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, run_loop.QuitClosure(), TestTimeouts::tiny_timeout());
-    run_loop.Run();
-  }
-
-  // Perform a cross-process navigation in the <webview> and verify that the
-  // new RenderFrameHost's RenderWidgetHost remains focused.
-  const GURL guest_url =
-      embedded_test_server()->GetURL("a.test", "/title1.html");
-  content::TestFrameNavigationObserver observer(guest_rfh);
-  EXPECT_TRUE(
-      ExecuteScript(guest_rfh, "location.href = '" + guest_url.spec() + "';"));
-  observer.Wait();
-  EXPECT_TRUE(observer.last_navigation_succeeded());
-
-  content::RenderFrameHost* guest_rfh2 =
-      GetGuestViewManager()->GetLastGuestRenderFrameHostCreated();
-  EXPECT_NE(guest_rfh, guest_rfh2);
-  EXPECT_EQ(guest_url, guest_rfh2->GetLastCommittedURL());
-
-  EXPECT_TRUE(
-      content::IsRenderWidgetHostFocused(guest_rfh2->GetRenderWidgetHost()));
-  EXPECT_EQ(true, content::EvalJs(guest_rfh2, "document.hasFocus()"));
-  EXPECT_EQ(guest_rfh2, embedder_web_contents->GetFocusedFrame());
-}

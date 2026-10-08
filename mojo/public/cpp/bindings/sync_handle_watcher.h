@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 #define MOJO_PUBLIC_CPP_BINDINGS_SYNC_HANDLE_WATCHER_H_
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
 #include "mojo/public/cpp/bindings/sync_handle_registry.h"
+#include "mojo/public/cpp/system/core.h"
 
 namespace mojo {
 
@@ -30,9 +32,6 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) SyncHandleWatcher {
   SyncHandleWatcher(const Handle& handle,
                     MojoHandleSignals handle_signals,
                     const SyncHandleRegistry::HandleCallback& callback);
-
-  SyncHandleWatcher(const SyncHandleWatcher&) = delete;
-  SyncHandleWatcher& operator=(const SyncHandleWatcher&) = delete;
 
   ~SyncHandleWatcher();
 
@@ -67,6 +66,8 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) SyncHandleWatcher {
   scoped_refptr<base::RefCountedData<bool>> destroyed_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(SyncHandleWatcher);
 };
 
 }  // namespace mojo

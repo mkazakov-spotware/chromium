@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define COMPONENTS_BOOKMARKS_BROWSER_BOOKMARK_MODEL_OBSERVER_H_
 
 #include <set>
-
-#include <stddef.h>
 
 class GURL;
 
@@ -37,13 +35,10 @@ class BookmarkModelObserver {
                                  const BookmarkNode* new_parent,
                                  size_t new_index) = 0;
 
-  // Invoked when a node has been added. `added_by_user` is true when a new
-  // bookmark was added by the user and false when a node is added by sync
-  // or duplicated.
+  // Invoked when a node has been added.
   virtual void BookmarkNodeAdded(BookmarkModel* model,
                                  const BookmarkNode* parent,
-                                 size_t index,
-                                 bool added_by_user) = 0;
+                                 size_t index) = 0;
 
   // Invoked prior to removing a node from the model. When a node is removed
   // it's descendants are implicitly removed from the model as

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,13 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_pending_task.h"
 #include "base/threading/thread_checker_impl.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/clock.h"
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
@@ -43,9 +42,7 @@ class ThreadTaskRunnerHandle;
 //
 //   - Methods RunsTasksInCurrentSequence() and Post[Delayed]Task() can be
 //     called from any thread, but the rest of the methods must be called on
-//     the same thread the TestMockTimeTaskRunner was created on unless a call
-//     is made to DetachFromThread(), in which case usage can switch to a
-//     different thread.
+//     the same thread the TestMockTimeTaskRunner was created on.
 //   - It allows for reentrancy, in that it handles the running of tasks that in
 //     turn call back into it (e.g., to post more tasks).
 //   - Tasks are stored in a priority queue, and executed in the increasing
@@ -117,15 +114,11 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
     // pending tasks (the contrary would break the SequencedTaskRunner
     // contract).
     explicit ScopedContext(scoped_refptr<TestMockTimeTaskRunner> scope);
-
-    ScopedContext(const ScopedContext&) = delete;
-    ScopedContext& operator=(const ScopedContext&) = delete;
-
     ~ScopedContext();
 
    private:
-    ThreadTaskRunnerHandleOverrideForTesting
-        thread_task_runner_handle_override_;
+    ScopedClosureRunner on_destroy_;
+    DISALLOW_COPY_AND_ASSIGN(ScopedContext);
   };
 
   enum class Type {
@@ -148,9 +141,6 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
                          TimeTicks start_ticks,
                          Type type = Type::kStandalone);
 
-  TestMockTimeTaskRunner(const TestMockTimeTaskRunner&) = delete;
-  TestMockTimeTaskRunner& operator=(const TestMockTimeTaskRunner&) = delete;
-
   // Fast-forwards virtual time by |delta|, causing all tasks with a remaining
   // delay less than or equal to |delta| to be executed. |delta| must be
   // non-negative.
@@ -172,13 +162,6 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
   // delay greater than zero will remain enqueued, and no virtual time will
   // elapse.
   void RunUntilIdle();
-
-  // Processes the next |n| pending tasks in the order that they would normally
-  // be processed advancing the virtual time as needed. Cancelled tasks are not
-  // run but they still count towards |n|. If |n| is negative, this is
-  // equivalent to FastForwardUntilNoTasksRemain(). If we run out of pending
-  // tasks before reaching |n|, we early out.
-  void ProcessNextNTasks(int n);
 
   // Clears the queue of pending tasks without running them.
   void ClearPendingTasks();
@@ -203,20 +186,11 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
   size_t GetPendingTaskCount();
   TimeDelta NextPendingTaskDelay();
 
-  // Allow invoking methods from different threads.
-  // It is the caller's responsibility to ensure there are no data races.
-  void DetachFromThread();
-
   // SingleThreadTaskRunner:
   bool RunsTasksInCurrentSequence() const override;
   bool PostDelayedTask(const Location& from_here,
                        OnceClosure task,
                        TimeDelta delay) override;
-  bool PostDelayedTaskAt(subtle::PostDelayedTaskPassKey,
-                         const Location& from_here,
-                         OnceClosure task,
-                         TimeTicks delayed_run_time,
-                         subtle::DelayPolicy deadline_policy) override;
   bool PostNonNestableDelayedTask(const Location& from_here,
                                   OnceClosure task,
                                   TimeDelta delay) override;
@@ -246,9 +220,6 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
     explicit MockClock(TestMockTimeTaskRunner* task_runner)
         : task_runner_(task_runner) {}
 
-    MockClock(const MockClock&) = delete;
-    MockClock& operator=(const MockClock&) = delete;
-
     // TickClock:
     TimeTicks NowTicks() const override;
 
@@ -256,7 +227,9 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
     Time Now() const override;
 
    private:
-    raw_ptr<TestMockTimeTaskRunner> task_runner_;
+    TestMockTimeTaskRunner* task_runner_;
+
+    DISALLOW_COPY_AND_ASSIGN(MockClock);
   };
 
   struct TestOrderedPendingTask;
@@ -273,13 +246,10 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
                               TemporalOrder> TaskPriorityQueue;
 
   // Core of the implementation for all flavors of fast-forward methods. Given a
-  // non-negative |max_delta|, processes up to |limit| tasks with a remaining
-  // delay less than or equal to |max_delta|, and moves virtual time forward as
-  // needed for each processed task. Cancelled tasks count towards |limit|. If
-  // |limit| is negative, no limit on the number of processed tasks is imposed.
-  // Pass in TimeDelta::Max() as |max_delta| and a negative |limit| to run all
-  // tasks.
-  void ProcessTasksNoLaterThan(TimeDelta max_delta, int limit = -1);
+  // non-negative |max_delta|, runs all tasks with a remaining delay less than
+  // or equal to |max_delta|, and moves virtual time forward as needed for each
+  // processed task. Pass in TimeDelta::Max() as |max_delta| to run all tasks.
+  void ProcessAllTasksNoLaterThan(TimeDelta max_delta);
 
   // Forwards |now_ticks_| until it equals |later_ticks|, and forwards |now_| by
   // the same amount. Calls OnAfterTimePassed() if |later_ticks| > |now_ticks_|.
@@ -317,14 +287,15 @@ class TestMockTimeTaskRunner : public SingleThreadTaskRunner,
   ConditionVariable tasks_lock_cv_;
 
   const scoped_refptr<NonOwningProxyTaskRunner> proxy_task_runner_;
-  std::unique_ptr<SingleThreadTaskRunner::CurrentDefaultHandle>
-      thread_task_runner_handle_;
+  std::unique_ptr<ThreadTaskRunnerHandle> thread_task_runner_handle_;
 
   // Set to true in RunLoop::Delegate::Quit() to signal the topmost
   // RunLoop::Delegate::Run() instance to stop, reset to false when it does.
   bool quit_run_loop_ = false;
 
   mutable MockClock mock_clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMockTimeTaskRunner);
 };
 
 }  // namespace base

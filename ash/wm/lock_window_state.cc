@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@
 #include "ash/wm/wm_event.h"
 #include "ash/wm/work_area_insets.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/wm/core/coordinate_conversion.h"
 
@@ -43,7 +42,6 @@ void LockWindowState::OnWMEvent(WindowState* window_state,
       UpdateWindow(window_state, WindowStateType::kFullscreen);
       break;
     case WM_EVENT_PIP:
-    case WM_EVENT_FLOAT:
     case WM_EVENT_PIN:
     case WM_EVENT_TRUSTED_PIN:
       NOTREACHED();
@@ -52,13 +50,12 @@ void LockWindowState::OnWMEvent(WindowState* window_state,
     case WM_EVENT_TOGGLE_VERTICAL_MAXIMIZE:
     case WM_EVENT_TOGGLE_HORIZONTAL_MAXIMIZE:
     case WM_EVENT_TOGGLE_MAXIMIZE:
-    case WM_EVENT_CYCLE_SNAP_PRIMARY:
-    case WM_EVENT_CYCLE_SNAP_SECONDARY:
+    case WM_EVENT_CYCLE_SNAP_LEFT:
+    case WM_EVENT_CYCLE_SNAP_RIGHT:
     case WM_EVENT_CENTER:
-    case WM_EVENT_SNAP_PRIMARY:
-    case WM_EVENT_SNAP_SECONDARY:
+    case WM_EVENT_SNAP_LEFT:
+    case WM_EVENT_SNAP_RIGHT:
     case WM_EVENT_NORMAL:
-    case WM_EVENT_RESTORE:
     case WM_EVENT_MAXIMIZE:
       UpdateWindow(window_state,
                    GetMaximizedOrCenteredWindowType(window_state));

@@ -1,13 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_NAVIGATOR_DELEGATE_H_
 #define CONTENT_BROWSER_RENDERER_HOST_NAVIGATOR_DELEGATE_H_
 
-#include "content/common/navigation_client.mojom.h"
 #include "content/public/browser/allow_service_worker_result.h"
-#include "content/public/browser/commit_deferring_condition.h"
 #include "content/public/browser/cookie_access_details.h"
 #include "content/public/browser/invalidate_type.h"
 #include "content/public/browser/navigation_controller.h"
@@ -16,6 +14,7 @@
 #include "content/public/browser/reload_type.h"
 
 class GURL;
+struct FrameHostMsg_DidCommitProvisionalLoad_Params;
 
 namespace blink {
 struct UserAgentOverride;
@@ -23,7 +22,7 @@ struct UserAgentOverride;
 
 namespace content {
 
-class CommitDeferringCondition;
+class FrameTreeNode;
 class NavigationHandle;
 class NavigationRequest;
 class RenderFrameHostImpl;
@@ -32,7 +31,7 @@ struct OpenURLParams;
 
 // A delegate API used by Navigator to notify its embedder of navigation
 // related events.
-class NavigatorDelegate {
+class CONTENT_EXPORT NavigatorDelegate {
  public:
   // Called when a navigation started. The same NavigationHandle will be
   // provided for events related to the same navigation.
@@ -52,10 +51,14 @@ class NavigatorDelegate {
   // TODO(clamy): all methods below that are related to navigation
   // events should go away in favor of the ones above.
 
+  // Document load in |render_frame_host| failed.
+  virtual void DidFailLoadWithError(RenderFrameHostImpl* render_frame_host,
+                                    const GURL& url,
+                                    int error_code) = 0;
+
   // Handles post-navigation tasks in navigation BEFORE the entry has been
   // committed to the NavigationController.
   virtual void DidNavigateMainFramePreCommit(
-      FrameTreeNode* frame_tree_node,
       bool navigation_is_within_page) = 0;
 
   // Handles post-navigation tasks in navigation AFTER the entry has been
@@ -64,10 +67,14 @@ class NavigatorDelegate {
   // NavigationController's last committed entry is for this navigation.
   virtual void DidNavigateMainFramePostCommit(
       RenderFrameHostImpl* render_frame_host,
-      const LoadCommittedDetails& details) = 0;
+      const LoadCommittedDetails& details,
+      const FrameHostMsg_DidCommitProvisionalLoad_Params& params) = 0;
   virtual void DidNavigateAnyFramePostCommit(
       RenderFrameHostImpl* render_frame_host,
-      const LoadCommittedDetails& details) = 0;
+      const LoadCommittedDetails& details,
+      const FrameHostMsg_DidCommitProvisionalLoad_Params& params) = 0;
+
+  virtual bool CanOverscrollContent() const = 0;
 
   // Notification to the Navigator embedder that navigation state has
   // changed. This method corresponds to
@@ -80,8 +87,7 @@ class NavigatorDelegate {
 
   // Returns whether to continue a navigation that needs to transfer to a
   // different process between the load start and commit.
-  virtual bool ShouldAllowRendererInitiatedCrossProcessNavigation(
-      bool is_outermost_main_frame_navigation) = 0;
+  virtual bool ShouldTransferNavigation(bool is_main_frame_navigation) = 0;
 
   // Returns the overridden user agent string if it's set.
   virtual const blink::UserAgentOverride& GetUserAgentOverride() = 0;
@@ -90,17 +96,25 @@ class NavigatorDelegate {
   // a renderer initiated navigation.
   virtual bool ShouldOverrideUserAgentForRendererInitiatedNavigation() = 0;
 
+  // A RenderFrameHost in the specified |frame_tree_node| started loading a new
+  // document. This corresponds to Blink's notion of the throbber starting.
+  // |to_different_document| will be true unless the load is a fragment
+  // navigation, or triggered by history.pushState/replaceState.
+  virtual void DidStartLoading(FrameTreeNode* frame_tree_node,
+                               bool to_different_document) = 0;
+
+  // A document stopped loading. This corresponds to Blink's notion of the
+  // throbber stopping.
+  virtual void DidStopLoading() = 0;
+
+  // The load progress was changed.
+  virtual void DidChangeLoadProgress() = 0;
+
   // Returns the NavigationThrottles to add to this navigation. Normally these
   // are defined by the content/ embedder, except in the case of interstitials
   // where no NavigationThrottles are added to the navigation.
   virtual std::vector<std::unique_ptr<NavigationThrottle>>
   CreateThrottlesForNavigation(NavigationHandle* navigation_handle) = 0;
-
-  // Returns commit deferring conditions to add to this navigation.
-  virtual std::vector<std::unique_ptr<CommitDeferringCondition>>
-  CreateDeferringConditionsForNavigationCommit(
-      NavigationHandle& navigation_handle,
-      CommitDeferringCondition::NavigationType type) = 0;
 
   // Called at the start of the navigation to get opaque data the embedder
   // wants to see passed to the corresponding URLRequest on the IO thread.
@@ -125,7 +139,7 @@ class NavigatorDelegate {
   // BrowsingInstances. |navigation_request_to_exclude| allows the
   // NavigationRequest that initiates this process to avoid marking itself as
   // non-opted-in before it gets the chance to opt-in.
-  virtual void RegisterExistingOriginAsHavingDefaultIsolation(
+  virtual void RegisterExistingOriginToPreventOptInIsolation(
       const url::Origin& origin,
       NavigationRequest* navigation_request_to_exclude) = 0;
 };

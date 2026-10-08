@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,9 @@ import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.browser.omaha.UpdateConfigs;
+import org.chromium.chrome.browser.omaha.UpdateStatusProvider.UpdateInteractionSource;
+import org.chromium.chrome.browser.omaha.UpdateStatusProvider.UpdateState;
+import org.chromium.chrome.browser.omaha.UpdateStatusProvider.UpdateStatus;
 import org.chromium.chrome.browser.omaha.metrics.UpdateProtos.Tracking;
 import org.chromium.chrome.browser.omaha.metrics.UpdateProtos.Tracking.Source;
 import org.chromium.chrome.browser.omaha.metrics.UpdateProtos.Tracking.Type;
@@ -24,7 +27,15 @@ import java.lang.annotation.RetentionPolicy;
  */
 public class UpdateSuccessMetrics {
     /** The type of update currently running.  Used for identifying which metric to tag. */
-    public static int INTENT_UPDATE_TYPE = 1;
+    @IntDef({UpdateType.INTENT, UpdateType.INLINE})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface UpdateType {
+        /** The update is using the intent mechanism. */
+        int INTENT = 0;
+
+        /** The update is using the inline mechanism. */
+        int INLINE = 1;
+    }
 
     /** How we are attributing the success. */
     @IntDef({AttributionType.SESSION, AttributionType.TIME_WINDOW})
@@ -65,8 +76,11 @@ public class UpdateSuccessMetrics {
 
     /**
      * To be called right before we are about to interact with the Play Store for an update.
+     * @param type   The type of update (see {@link #UpdateType}).
+     * @param source The source of the update (see {@link
+     *         UpdateStatusProvider#UpdateInteractionSource}).
      */
-    public void startUpdate() {
+    public void startUpdate(@UpdateType int type, @UpdateInteractionSource int source) {
         mProvider.get().then(state -> {
             HistogramUtils.recordStartedUpdateHistogram(state != null);
 
@@ -74,8 +88,8 @@ public class UpdateSuccessMetrics {
             Tracking info = Tracking.newBuilder()
                                     .setTimestampMs(System.currentTimeMillis())
                                     .setVersion(VersionConstants.PRODUCT_VERSION)
-                                    .setType(Type.INTENT)
-                                    .setSource(Source.FROM_MENU)
+                                    .setType(getProtoType(type))
+                                    .setSource(getProtoSource(source))
                                     .setRecordedSession(false)
                                     .build();
 
@@ -86,9 +100,12 @@ public class UpdateSuccessMetrics {
     /**
      * To be called when Chrome first loads and determines the current update status.  This will
      * determine update success or failure based on previously persisted state and calls to
-     * {@link #startUpdate()}.
+     * {@link #startUpdate(int, int)}.
+     * @param status The current {@link UpdateStatus}.
      */
-    public void analyzeFirstStatus() {
+    public void analyzeFirstStatus(UpdateStatus status) {
+        if (isUpdateInProgress(status.updateState)) return;
+
         mProvider.get().then(state -> {
             if (state == null) return;
 
@@ -112,5 +129,39 @@ public class UpdateSuccessMetrics {
                 mProvider.put(state.toBuilder().setRecordedSession(true).build());
             }
         });
+    }
+
+    private static boolean isUpdateInProgress(@UpdateState int state) {
+        switch (state) {
+            case UpdateState.INLINE_UPDATE_DOWNLOADING:
+            case UpdateState.INLINE_UPDATE_READY: // Intentional fallthrough.
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static Type getProtoType(@UpdateType int type) {
+        switch (type) {
+            case UpdateType.INTENT:
+                return Type.INTENT;
+            case UpdateType.INLINE:
+                return Type.INLINE;
+            default:
+                return Type.UNKNOWN_TYPE;
+        }
+    }
+
+    private static Source getProtoSource(@UpdateInteractionSource int source) {
+        switch (source) {
+            case UpdateInteractionSource.FROM_MENU:
+                return Source.FROM_MENU;
+            case UpdateInteractionSource.FROM_INFOBAR:
+                return Source.FROM_INFOBAR;
+            case UpdateInteractionSource.FROM_NOTIFICATION:
+                return Source.FROM_NOTIFICATION;
+            default:
+                return Source.UNKNOWN_SOURCE;
+        }
     }
 }

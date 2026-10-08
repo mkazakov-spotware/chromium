@@ -1,11 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_PAINT_PAINT_WORKLET_JOB_H_
 #define CC_PAINT_PAINT_WORKLET_JOB_H_
-
-#include <vector>
 
 #include "base/containers/flat_map.h"
 #include "base/memory/scoped_refptr.h"
@@ -26,8 +24,7 @@ class CC_PAINT_EXPORT PaintWorkletJob {
   // For a custom property, its name is sufficient to uniquely identify it.
   // TODO(xidachen): support more property types such as color.
   using AnimatedPropertyValues =
-      base::flat_map<PaintWorkletInput::PropertyKey,
-                     PaintWorkletInput::PropertyValue>;
+      base::flat_map<std::string, PaintWorkletInput::PropertyValue>;
   PaintWorkletJob(int layer_id,
                   scoped_refptr<const PaintWorkletInput> input,
                   AnimatedPropertyValues animated_property_values);

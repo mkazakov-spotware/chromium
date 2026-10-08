@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Fetches a copy of the latest state of a W3C test repository and commits.
@@ -11,6 +11,7 @@ If this script is given the argument --auto-update, it will also:
 """
 
 import argparse
+import datetime
 import json
 import logging
 import re
@@ -30,15 +31,15 @@ from blinkpy.w3c.wpt_expectations_updater import WPTExpectationsUpdater
 from blinkpy.w3c.wpt_github import WPTGitHub
 from blinkpy.w3c.wpt_manifest import WPTManifest, BASE_MANIFEST_NAME
 from blinkpy.web_tests.port.base import Port
+from blinkpy.web_tests.models.test_expectations import TestExpectations
 
 # Settings for how often to check try job results and how long to wait.
 POLL_DELAY_SECONDS = 2 * 60
 TIMEOUT_SECONDS = 210 * 60
 
-# Sheriff calendar URL, used for getting the ecosystem infra sheriff to cc.
-ROTATIONS_URL = 'https://chrome-ops-rotation-proxy.appspot.com/current/grotation:chromium-wpt-two-way-sync'
-SHERIFF_EMAIL_FALLBACK = 'weizhong@google.com'
-RUBBER_STAMPER_BOT = 'rubber-stamper@appspot.gserviceaccount.com'
+# Sheriff calendar URL, used for getting the ecosystem infra sheriff to TBR.
+ROTATIONS_URL = 'https://chrome-ops-rotation-proxy.appspot.com/current/grotation:chrome-ecosystem-infra'
+TBR_FALLBACK = 'robertma@google.com'
 
 _log = logging.getLogger(__file__)
 
@@ -47,6 +48,7 @@ class TestImporter(object):
     def __init__(self, host, wpt_github=None, wpt_manifests=None):
         self.host = host
         self.wpt_github = wpt_github
+        self.port = host.port_factory.get()
 
         self.executive = host.executive
         self.fs = host.filesystem
@@ -67,9 +69,6 @@ class TestImporter(object):
         # wpt_expectations_updater.SimpleTestResult.
         self.rebaselined_tests = set()
         self.new_test_expectations = {}
-        # New override expectations for Android targets. A dictionary mapping
-        # products to dictionary that maps test names to test expectation lines
-        self.new_override_expectations = {}
         self.verbose = False
 
         args = ['--clean-up-affected-tests-only',
@@ -107,7 +106,7 @@ class TestImporter(object):
                          'script may fail with a network error when making '
                          'an API request to GitHub.')
             _log.warning('See https://chromium.googlesource.com/chromium/src'
-                         '/+/main/docs/testing/web_platform_tests.md'
+                         '/+/master/docs/testing/web_platform_tests.md'
                          '#GitHub-credentials for instructions on how to set '
                          'your credentials up.')
         self.wpt_github = self.wpt_github or WPTGitHub(self.host, gh_user,
@@ -158,9 +157,8 @@ class TestImporter(object):
         # TODO(robertma): Implement `add --all` in Git (it is different from `commit --all`).
         self.chromium_git.run(['add', '--all', self.dest_path])
 
-        # Remove expectations for tests that were deleted and rename tests in
-        # expectations for renamed tests. This requires the old WPT manifest, so
-        # must happen before we regenerate it.
+        # Remove expectations for tests that were deleted and rename tests
+        # in expectations for renamed tests.
         self._expectations_updater.cleanup_test_expectations_files()
 
         self._generate_manifest()
@@ -168,12 +166,13 @@ class TestImporter(object):
         # TODO(crbug.com/800570 robertma): Re-enable it once we fix the bug.
         # self._delete_orphaned_baselines()
 
+
         if not self.chromium_git.has_working_directory_changes():
             _log.info('Done: no changes to import.')
             return 0
 
-        if not self._has_wpt_changes():
-            _log.info('Only manifest or expectations was updated; skipping the import.')
+        if self._only_wpt_manifest_changed():
+            _log.info('Only manifest was updated; skipping the import.')
             return 0
 
         self._commit_changes(commit_message)
@@ -211,7 +210,8 @@ class TestImporter(object):
 
         Returns True if everything is OK to continue, or False on failure.
         """
-        self._trigger_try_jobs()
+        _log.info('Triggering try jobs for updating expectations.')
+        self.git_cl.trigger_try_jobs(self.blink_try_bots())
         cl_status = self.git_cl.wait_for_try_jobs(
             poll_delay_seconds=POLL_DELAY_SECONDS,
             timeout_seconds=TIMEOUT_SECONDS)
@@ -231,36 +231,11 @@ class TestImporter(object):
         if try_results and self.git_cl.some_failed(try_results):
             self.fetch_new_expectations_and_baselines()
             if self.chromium_git.has_working_directory_changes():
-                # Skip slow and timeout tests so that presubmit check passes
-                port = self.host.port_factory.get()
-                if self._expectations_updater.skip_slow_timeout_tests(port):
-                    path = port.path_to_generic_test_expectations_file()
-                    self.chromium_git.add_list([path])
-
                 self._generate_manifest()
                 message = 'Update test expectations and baselines.'
                 self._commit_changes(message)
                 self._upload_patchset(message)
         return True
-
-    def _trigger_try_jobs(self):
-        _log.info('Triggering try jobs for updating expectations.')
-        try_bots = set(self.blink_try_bots())
-        wptrunner_builders = {
-            builder
-            for builder in try_bots
-            if self.host.builders.is_wpt_builder(builder)
-        }
-        rebaselining_builders = try_bots - wptrunner_builders
-        if rebaselining_builders:
-            _log.info('For rebaselining:')
-            for builder in sorted(rebaselining_builders):
-                _log.info('  %s', builder)
-        if wptrunner_builders:
-            _log.info('For updating WPT metadata:')
-            for builder in sorted(wptrunner_builders):
-                _log.info('  %s', builder)
-        self.git_cl.trigger_try_jobs(try_bots)
 
     def run_commit_queue_for_cl(self):
         """Triggers CQ and either commits or aborts; returns True on success."""
@@ -293,33 +268,11 @@ class TestImporter(object):
             self.git_cl.run(['set-close'])
             return False
 
-        # `--send-mail` is required to take the CL out of WIP mode.
-        if self._need_sheriff_attention():
-            _log.info(
-                'CQ appears to have passed; sending to the sheriff for '
-                'CR+1 and commit. The sheriff has one hour to respond.')
-            self.git_cl.run([
-                'upload', '-f', '--send-mail', '--enable-auto-submit',
-                '--cc', self.sheriff_email()
-            ])
-            timeout = 3600
-        else:
-            _log.info(
-                'CQ appears to have passed; sending to the rubber-stamper bot for '
-                'CR+1 and commit.')
-            _log.info(
-                'If the rubber-stamper bot rejects the CL, you either need to '
-                'modify the benign file patterns, or manually CR+1 and land the '
-                'import yourself if it touches code files. See https://chromium.'
-                'googlesource.com/infra/infra/+/refs/heads/main/go/src/infra/'
-                'appengine/rubber-stamper/README.md')
-            self.git_cl.run([
-                'upload', '-f', '--send-mail', '--enable-auto-submit',
-                '--reviewers', RUBBER_STAMPER_BOT
-            ])
-            timeout = 1800
+        _log.info('CQ appears to have passed; trying to commit.')
+        self.git_cl.run(['upload', '-f', '--send-mail'])  # Turn off WIP mode.
+        self.git_cl.run(['set-commit'])
 
-        if self.git_cl.wait_for_closed_status(timeout_seconds=timeout):
+        if self.git_cl.wait_for_closed_status():
             _log.info('Update completed.')
             return True
 
@@ -336,7 +289,8 @@ class TestImporter(object):
 
     def blink_try_bots(self):
         """Returns the collection of builders used for updating expectations."""
-        return self.host.builders.filter_builders(is_try=True)
+        return self.host.builders.filter_builders(
+            is_try=True, exclude_specifiers={'android'})
 
     def parse_args(self, argv):
         parser = argparse.ArgumentParser()
@@ -385,7 +339,7 @@ class TestImporter(object):
             return False
         # TODO(robertma): Add a method in Git to query a range of commits.
         local_commits = self.chromium_git.run(
-            ['log', '--oneline', 'origin/main..HEAD'])
+            ['log', '--oneline', 'origin/master..HEAD'])
         if local_commits:
             _log.warning('Checkout has local commits before import.')
         return True
@@ -451,8 +405,7 @@ class TestImporter(object):
         stages the generated MANIFEST.json in the git index, ready to commit.
         """
         _log.info('Generating MANIFEST.json')
-        WPTManifest.generate_manifest(self.host.port_factory.get(),
-                                      self.dest_path)
+        WPTManifest.generate_manifest(self.host, self.dest_path)
         manifest_path = self.fs.join(self.dest_path, 'MANIFEST.json')
         assert self.fs.exists(manifest_path)
         manifest_base_path = self.fs.normpath(
@@ -478,25 +431,12 @@ class TestImporter(object):
         _log.info('Committing changes.')
         self.chromium_git.commit_locally_with_message(commit_message)
 
-    def _has_wpt_changes(self):
+    def _only_wpt_manifest_changed(self):
         changed_files = self.chromium_git.changed_files()
-        rel_dest_path = self.fs.relpath(self.dest_path,
-                                        self.finder.chromium_base())
-        for cf in changed_files:
-            if cf.startswith(rel_dest_path):
-                return True
-        return False
-
-    def _need_sheriff_attention(self):
-        # Per the rules defined for the rubber-stamper, it can not auto approve
-        # a CL that has .bat, .sh or .py files. Request the sheriff on rotation
-        # to approve the CL.
-        changed_files = self.chromium_git.changed_files()
-        for cf in changed_files:
-            extension = self.fs.splitext(cf)[1]
-            if extension in ['.bat', '.sh', '.py']:
-                return True
-        return False
+        wpt_base_manifest = self.fs.relpath(
+            self.fs.join(self.dest_path, '..', BASE_MANIFEST_NAME),
+            self.finder.chromium_base())
+        return changed_files == [wpt_base_manifest]
 
     def _commit_message(self,
                         chromium_commit_sha,
@@ -525,7 +465,7 @@ class TestImporter(object):
         # and the Port class.
         manifest_path = self.finder.path_from_web_tests(
             'external', 'wpt', 'MANIFEST.json')
-        manifest = WPTManifest(self.host, manifest_path)
+        manifest = WPTManifest(self.fs.read_text_file(manifest_path))
         wpt_urls = manifest.all_urls()
 
         # Currently baselines for tests with query strings are merged,
@@ -556,12 +496,13 @@ class TestImporter(object):
         self.fs.remove(dest)
 
     def _upload_patchset(self, message):
-        self.git_cl.run(['upload', '--bypass-hooks', '-f', '-t', message])
+        self.git_cl.run(['upload', '-f', '-t', message])
 
     def _upload_cl(self):
         _log.info('Uploading change list.')
         directory_owners = self.get_directory_owners()
         description = self._cl_description(directory_owners)
+        sheriff_email = self.tbr_reviewer()
 
         temp_file, temp_path = self.fs.open_text_tempfile()
         temp_file.write(description)
@@ -569,10 +510,15 @@ class TestImporter(object):
 
         self.git_cl.run([
             'upload',
-            '--bypass-hooks',
             '-f',
             '--message-file',
-            temp_path
+            temp_path,
+            '--tbrs',
+            sheriff_email,
+            # Note: we used to CC all the directory owners, but have stopped
+            # in search of a better notification mechanism. (crbug.com/765334)
+            '--cc',
+            'robertma@chromium.org',
         ])
 
         self.fs.remove(temp_path)
@@ -598,7 +544,7 @@ class TestImporter(object):
             'a few new failures, please fix the failures by adding new\n'
             'lines to TestExpectations rather than reverting. See:\n'
             'https://chromium.googlesource.com'
-            '/chromium/src/+/main/docs/testing/web_platform_tests.md\n\n')
+            '/chromium/src/+/master/docs/testing/web_platform_tests.md\n\n')
 
         if directory_owners:
             description += self._format_directory_owners(
@@ -617,10 +563,9 @@ class TestImporter(object):
         #
         # If this starts blocking the importer unnecessarily, revert
         # https://chromium-review.googlesource.com/c/chromium/src/+/2451504
-        # Try linux-blink-rel to make sure no breakage in webdriver tests
         description += (
             'Cq-Include-Trybots: luci.chromium.try:linux-wpt-identity-fyi-rel,'
-            'linux-wpt-input-fyi-rel,linux-blink-rel')
+            'linux-wpt-payments-fyi-rel')
 
         return description
 
@@ -632,8 +577,8 @@ class TestImporter(object):
             message_lines.extend('  ' + d for d in directories)
         return '\n'.join(message_lines)
 
-    def sheriff_email(self):
-        """Returns the sheriff email address to cc.
+    def tbr_reviewer(self):
+        """Returns the email address to use as the reviewer.
 
         This tries to fetch the current ecosystem infra sheriff, but falls back
         in case of error.
@@ -643,7 +588,10 @@ class TestImporter(object):
             email = self._fetch_ecosystem_infra_sheriff_email()
         except (IOError, KeyError, ValueError) as error:
             _log.error('Exception while fetching current sheriff: %s', error)
-        return email or SHERIFF_EMAIL_FALLBACK
+        if email in ['kyleju@google.com']:
+            _log.warning('Cannot TBR by %s: not a committer', email)
+            email = ''
+        return email or TBR_FALLBACK
 
     def _fetch_ecosystem_infra_sheriff_email(self):
         try:
@@ -669,33 +617,8 @@ class TestImporter(object):
         This is the same as invoking the `wpt-update-expectations` script.
         """
         _log.info('Adding test expectations lines to TestExpectations.')
-        tests_to_rebaseline = set()
-
-        to_rebaseline, self.new_test_expectations = (
+        self.rebaselined_tests, self.new_test_expectations = (
             self._expectations_updater.update_expectations())
-        tests_to_rebaseline.update(to_rebaseline)
-
-        _log.info('Adding test expectations lines for disable-layout-ng')
-        to_rebaseline, _ = (
-            self._expectations_updater.update_expectations_for_flag_specific(
-                'disable-layout-ng'))
-        tests_to_rebaseline.update(to_rebaseline)
-
-        _log.info('Adding test expectations lines for disable-site-isolation-trials')
-        to_rebaseline, _ = (
-            self._expectations_updater.update_expectations_for_flag_specific(
-                'disable-site-isolation-trials'))
-        tests_to_rebaseline.update(to_rebaseline)
-
-        # commit local changes so that rebaseline tool will be happy
-        if self.chromium_git.has_working_directory_changes():
-            message = 'Update test expectations'
-            self._commit_changes(message)
-
-        self._expectations_updater.download_text_baselines(
-            list(tests_to_rebaseline))
-
-        self.rebaselined_tests = sorted(tests_to_rebaseline)
 
     def _get_last_imported_wpt_revision(self):
         """Finds the last imported WPT revision."""
@@ -721,7 +644,6 @@ class TestImporter(object):
             self.wpt_revision,
             self.rebaselined_tests,
             self.new_test_expectations,
-            self.new_override_expectations,
             issue,
             patchset,
             dry_run=not auto_file_bugs,

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/profiler/process_type.h"
 #include "chrome/common/profiler/thread_profiler_platform_configuration.h"
-#include "chrome/common/profiler/unwind_util.h"
 #include "components/version_info/version_info.h"
 
 namespace {
@@ -34,11 +33,11 @@ bool IsBrowserTestModeEnabled() {
 // Returns the channel if this is a Chrome release, otherwise returns nullopt. A
 // build is considered to be a Chrome release if it's official and has Chrome
 // branding.
-absl::optional<version_info::Channel> GetReleaseChannel() {
+base::Optional<version_info::Channel> GetReleaseChannel() {
 #if defined(OFFICIAL_BUILD) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
   return chrome::GetChannel();
 #else
-  return absl::nullopt;
+  return base::nullopt;
 #endif
 }
 
@@ -54,13 +53,13 @@ ThreadProfilerConfiguration* ThreadProfilerConfiguration::Get() {
 base::StackSamplingProfiler::SamplingParams
 ThreadProfilerConfiguration::GetSamplingParams() const {
   base::StackSamplingProfiler::SamplingParams params;
-  params.initial_delay = base::Milliseconds(0);
+  params.initial_delay = base::TimeDelta::FromMilliseconds(0);
   // Trim the sampling duration when testing the profiler using browser tests.
   // The standard 30 second duration risks flaky timeouts since it's close to
   // the test timeout of 45 seconds.
   const base::TimeDelta duration =
-      base::Seconds(IsBrowserTestModeEnabled() ? 1 : 30);
-  params.sampling_interval = base::Milliseconds(100);
+      base::TimeDelta::FromSeconds(IsBrowserTestModeEnabled() ? 1 : 30);
+  params.sampling_interval = base::TimeDelta::FromMilliseconds(100);
   params.samples_per_profile = duration / params.sampling_interval;
 
   return params;
@@ -72,7 +71,7 @@ bool ThreadProfilerConfiguration::IsProfilerEnabledForCurrentProcess() const {
     return *child_process_configuration == kChildProcessProfileEnabled;
   }
 
-  const absl::optional<VariationGroup>& variation_group =
+  const base::Optional<VariationGroup>& variation_group =
       absl::get<BrowserProcessConfiguration>(configuration_);
 
   return EnableForVariationGroup(variation_group);
@@ -90,7 +89,7 @@ bool ThreadProfilerConfiguration::GetSyntheticFieldTrial(
     std::string* trial_name,
     std::string* group_name) const {
   DCHECK(absl::holds_alternative<BrowserProcessConfiguration>(configuration_));
-  const absl::optional<VariationGroup>& variation_group =
+  const base::Optional<VariationGroup>& variation_group =
       absl::get<BrowserProcessConfiguration>(configuration_);
 
   if (!variation_group.has_value())
@@ -122,7 +121,7 @@ bool ThreadProfilerConfiguration::GetSyntheticFieldTrial(
 void ThreadProfilerConfiguration::AppendCommandLineSwitchForChildProcess(
     base::CommandLine* child_process_command_line) const {
   DCHECK(absl::holds_alternative<BrowserProcessConfiguration>(configuration_));
-  const absl::optional<VariationGroup>& variation_group =
+  const base::Optional<VariationGroup>& variation_group =
       absl::get<BrowserProcessConfiguration>(configuration_);
 
   if (!EnableForVariationGroup(variation_group))
@@ -154,7 +153,7 @@ ThreadProfilerConfiguration::ThreadProfilerConfiguration()
 
 // static
 bool ThreadProfilerConfiguration::EnableForVariationGroup(
-    absl::optional<VariationGroup> variation_group) {
+    base::Optional<VariationGroup> variation_group) {
   // Enable if assigned to a variation group, and the group is one of the groups
   // that are to be enabled.
   return variation_group.has_value() && (*variation_group == kProfileEnabled ||
@@ -187,23 +186,24 @@ ThreadProfilerConfiguration::ChooseVariationGroup(
 ThreadProfilerConfiguration::BrowserProcessConfiguration
 ThreadProfilerConfiguration::GenerateBrowserProcessConfiguration(
     const ThreadProfilerPlatformConfiguration& platform_configuration) {
-  const base::CommandLine* command_line =
-      base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kDisableStackProfiler))
-    return absl::nullopt;
-
-  const absl::optional<version_info::Channel> release_channel =
+  const base::Optional<version_info::Channel> release_channel =
       GetReleaseChannel();
 
   if (!platform_configuration.IsSupported(release_channel))
-    return absl::nullopt;
+    return base::nullopt;
 
-  // We pass `version_info::Channel::UNKNOWN` instead of `absl::nullopt` here
-  // because `AreUnwindPrerequisitesAvailable` accounts for official build
-  // status internally.
-  if (!AreUnwindPrerequisitesAvailable(
-          release_channel.value_or(version_info::Channel::UNKNOWN))) {
-    return kProfileDisabledModuleNotInstalled;
+  using RuntimeModuleState =
+      ThreadProfilerPlatformConfiguration::RuntimeModuleState;
+  switch (platform_configuration.GetRuntimeModuleState(release_channel)) {
+    case RuntimeModuleState::kModuleAbsentButAvailable:
+      platform_configuration.RequestRuntimeModuleInstall();
+      FALLTHROUGH;
+    case RuntimeModuleState::kModuleNotAvailable:
+      return kProfileDisabledModuleNotInstalled;
+
+    case RuntimeModuleState::kModuleNotRequired:
+    case RuntimeModuleState::kModulePresent:
+      break;
   }
 
   ThreadProfilerPlatformConfiguration::RelativePopulations
@@ -235,7 +235,7 @@ ThreadProfilerConfiguration::Configuration
 ThreadProfilerConfiguration::GenerateConfiguration(
     metrics::CallStackProfileParams::Process process,
     const ThreadProfilerPlatformConfiguration& platform_configuration) {
-  if (process == metrics::CallStackProfileParams::Process::kBrowser)
+  if (process == metrics::CallStackProfileParams::BROWSER_PROCESS)
     return GenerateBrowserProcessConfiguration(platform_configuration);
 
   return GenerateChildProcessConfiguration(

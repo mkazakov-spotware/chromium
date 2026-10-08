@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/controls/menu/menu_config.h"
 
-#include "build/chromeos_buildflags.h"
 #include "ui/views/controls/menu/menu_image_util.h"
 
 namespace views {
@@ -23,13 +22,8 @@ void MenuConfig::Init() {
   offset_context_menus = true;
   corner_radius = 2;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // TODO(crbug/1129012): Change to false once pop-up menus have shadows.
-  use_outer_border = true;
-#else
   // In Ash, the border is provided by the shadow.
   use_outer_border = false;
-#endif
 }
 
 }  // namespace views

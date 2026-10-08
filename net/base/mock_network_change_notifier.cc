@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include "net/dns/dns_config_service.h"
 #include "net/dns/system_dns_config_change_notifier.h"
 
-namespace net::test {
+namespace net {
+namespace test {
 
 // static
 std::unique_ptr<MockNetworkChangeNotifier> MockNetworkChangeNotifier::Create() {
@@ -51,41 +52,37 @@ void MockNetworkChangeNotifier::GetCurrentConnectedNetworks(
 }
 
 void MockNetworkChangeNotifier::NotifyNetworkMadeDefault(
-    handles::NetworkHandle network) {
+    NetworkChangeNotifier::NetworkHandle network) {
   QueueNetworkMadeDefault(network);
   // Spin the message loop so the notification is delivered.
   base::RunLoop().RunUntilIdle();
 }
 
 void MockNetworkChangeNotifier::QueueNetworkMadeDefault(
-    handles::NetworkHandle network) {
+    NetworkChangeNotifier::NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeNotifier::NetworkChangeType::kMadeDefault, network);
+      NetworkChangeNotifier::MADE_DEFAULT, network);
 }
 
 void MockNetworkChangeNotifier::NotifyNetworkDisconnected(
-    handles::NetworkHandle network) {
+    NetworkChangeNotifier::NetworkHandle network) {
   QueueNetworkDisconnected(network);
   // Spin the message loop so the notification is delivered.
   base::RunLoop().RunUntilIdle();
 }
 
 void MockNetworkChangeNotifier::QueueNetworkDisconnected(
-    handles::NetworkHandle network) {
+    NetworkChangeNotifier::NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeNotifier::NetworkChangeType::kDisconnected, network);
+      NetworkChangeNotifier::DISCONNECTED, network);
 }
 
 void MockNetworkChangeNotifier::NotifyNetworkConnected(
-    handles::NetworkHandle network) {
+    NetworkChangeNotifier::NetworkHandle network) {
   NetworkChangeNotifier::NotifyObserversOfSpecificNetworkChange(
-      NetworkChangeNotifier::NetworkChangeType::kConnected, network);
+      NetworkChangeNotifier::CONNECTED, network);
   // Spin the message loop so the notification is delivered.
   base::RunLoop().RunUntilIdle();
-}
-
-bool MockNetworkChangeNotifier::IsDefaultNetworkActiveInternal() {
-  return is_default_network_active_;
 }
 
 void MockNetworkChangeNotifier::SetConnectionTypeAndNotifyObservers(
@@ -96,22 +93,17 @@ void MockNetworkChangeNotifier::SetConnectionTypeAndNotifyObservers(
   base::RunLoop().RunUntilIdle();
 }
 
-MockNetworkChangeNotifier::ConnectionCost
-MockNetworkChangeNotifier::GetCurrentConnectionCost() {
-  if (use_default_connection_cost_implementation_)
-    return NetworkChangeNotifier::GetCurrentConnectionCost();
-  return connection_cost_;
-}
-
 MockNetworkChangeNotifier::MockNetworkChangeNotifier(
     std::unique_ptr<SystemDnsConfigChangeNotifier> dns_config_notifier)
     : NetworkChangeNotifier(NetworkChangeCalculatorParams(),
                             dns_config_notifier.get()),
+      force_network_handles_supported_(false),
+      connection_type_(CONNECTION_UNKNOWN),
       dns_config_notifier_(std::move(dns_config_notifier)) {}
 
 ScopedMockNetworkChangeNotifier::ScopedMockNetworkChangeNotifier()
     : disable_network_change_notifier_for_tests_(
-          std::make_unique<NetworkChangeNotifier::DisableForTest>()),
+          new NetworkChangeNotifier::DisableForTest()),
       mock_network_change_notifier_(MockNetworkChangeNotifier::Create()) {}
 
 ScopedMockNetworkChangeNotifier::~ScopedMockNetworkChangeNotifier() = default;
@@ -121,4 +113,5 @@ ScopedMockNetworkChangeNotifier::mock_network_change_notifier() {
   return mock_network_change_notifier_.get();
 }
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net

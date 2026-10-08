@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,24 +26,32 @@ bool CascadeResolver::AllowSubstitution(CSSVariableData* data) const {
   return true;
 }
 
+void CascadeResolver::MarkUnapplied(CascadePriority* priority) const {
+  DCHECK(priority);
+  *priority = CascadePriority(*priority, 0);
+}
+
+void CascadeResolver::MarkApplied(CascadePriority* priority) const {
+  DCHECK(priority);
+  *priority = CascadePriority(*priority, generation_);
+}
+
 bool CascadeResolver::DetectCycle(const CSSProperty& property) {
   wtf_size_t index = Find(property);
   if (index == kNotFound)
     return false;
-  cycle_start_ = std::min(cycle_start_, index);
-  cycle_end_ = stack_.size();
-  DCHECK(InCycle());
+  cycle_depth_ = std::min(cycle_depth_, index);
   return true;
 }
 
 bool CascadeResolver::InCycle() const {
-  return stack_.size() > cycle_start_ && stack_.size() <= cycle_end_;
+  return cycle_depth_ != kNotFound;
 }
 
 wtf_size_t CascadeResolver::Find(const CSSProperty& property) const {
   wtf_size_t index = 0;
   for (const CSSProperty* p : stack_) {
-    if (p->HasEqualCSSPropertyName(property))
+    if (p->GetCSSPropertyName() == property.GetCSSPropertyName())
       return index;
     ++index;
   }
@@ -59,14 +67,8 @@ CascadeResolver::AutoLock::AutoLock(const CSSProperty& property,
 
 CascadeResolver::AutoLock::~AutoLock() {
   resolver_.stack_.pop_back();
-  if (resolver_.cycle_end_ != kNotFound) {
-    resolver_.cycle_end_ =
-        std::min(resolver_.cycle_end_, resolver_.stack_.size());
-  }
-  if (resolver_.cycle_end_ <= resolver_.cycle_start_) {
-    resolver_.cycle_start_ = kNotFound;
-    resolver_.cycle_end_ = kNotFound;
-  }
+  if (resolver_.stack_.size() <= resolver_.cycle_depth_)
+    resolver_.cycle_depth_ = kNotFound;
 }
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "services/tracing/perfetto/test_utils.h"
@@ -7,7 +7,6 @@
 
 #include "base/bind.h"
 #include "base/run_loop.h"
-#include "base/tracing/perfetto_platform.h"
 #include "services/tracing/public/cpp/perfetto/shared_memory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/perfetto/include/perfetto/ext/tracing/core/commit_data_request.h"
@@ -20,7 +19,6 @@
 
 namespace tracing {
 namespace {
-
 perfetto::TraceConfig GetDefaultTraceConfig(
     const std::vector<std::string>& data_sources) {
   perfetto::TraceConfig trace_config;
@@ -32,9 +30,7 @@ perfetto::TraceConfig GetDefaultTraceConfig(
   }
   return trace_config;
 }
-
 }  // namespace
-
 // static
 std::unique_ptr<TestDataSource> TestDataSource::CreateAndRegisterDataSource(
     const std::string& data_source_name,
@@ -65,10 +61,9 @@ void TestDataSource::WritePacketBigly() {
                                                        kLargeMessageSize);
 }
 
-void TestDataSource::StartTracingImpl(
+void TestDataSource::StartTracing(
     PerfettoProducer* producer,
     const perfetto::DataSourceConfig& data_source_config) {
-  producer_ = producer;
   config_ = data_source_config;
 
   if (send_packet_count_ > 0) {
@@ -85,7 +80,7 @@ void TestDataSource::StartTracingImpl(
   }
 }
 
-void TestDataSource::StopTracingImpl(base::OnceClosure stop_complete_callback) {
+void TestDataSource::StopTracing(base::OnceClosure stop_complete_callback) {
   CHECK(producer_);
   producer_ = nullptr;
   std::move(stop_complete_callback).Run();
@@ -351,9 +346,9 @@ MockProducerHost::MockProducerHost(
   mojo::PendingRemote<mojom::ProducerHost> host_remote;
   auto client_receiver = client.InitWithNewPipeAndPassReceiver();
   Initialize(std::move(client), service->GetService(), producer_name_,
-             static_cast<ChromeBaseSharedMemory*>(
+             static_cast<MojoSharedMemory*>(
                  producer_client->shared_memory_for_testing())
-                 ->CloneRegion(),
+                 ->Clone(),
              PerfettoProducer::kSMBPageSizeBytes);
   receiver_.Bind(host_remote.InitWithNewPipeAndPassReceiver());
   producer_client->BindClientAndHostPipesForTesting(std::move(client_receiver),
@@ -415,6 +410,9 @@ MockProducer::MockProducer(const std::string& producer_name,
 
 MockProducer::~MockProducer() = default;
 
+RebindableTaskRunner::RebindableTaskRunner() = default;
+RebindableTaskRunner::~RebindableTaskRunner() = default;
+
 void MockProducer::WritePacketBigly(base::OnceClosure on_write_complete) {
   PerfettoTracedProcess::Get()
       ->GetTaskRunner()
@@ -425,46 +423,22 @@ void MockProducer::WritePacketBigly(base::OnceClosure on_write_complete) {
                          std::move(on_write_complete));
 }
 
-TracingUnitTest::TracingUnitTest()
-    : task_environment_(std::make_unique<base::test::TaskEnvironment>(
-          base::test::TaskEnvironment::MainThreadType::IO)),
-      tracing_environment_(std::make_unique<base::test::TracingEnvironment>(
-          *task_environment_,
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
-          PerfettoTracedProcess::Get()->perfetto_platform_for_testing())) {}
-
-TracingUnitTest::~TracingUnitTest() {
-  CHECK(setup_called_ && teardown_called_);
+bool RebindableTaskRunner::PostDelayedTask(const base::Location& from_here,
+                                           base::OnceClosure task,
+                                           base::TimeDelta delay) {
+  return task_runner_->PostDelayedTask(from_here, std::move(task), delay);
 }
 
-void TracingUnitTest::SetUp() {
-  setup_called_ = true;
-
-  // Also tell PerfettoTracedProcess to use the current task environment.
-  test_handle_ = PerfettoTracedProcess::SetupForTesting(
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-  PerfettoTracedProcess::Get()->OnThreadPoolAvailable(
-      /* enable_consumer */ true);
-
-  // Wait for any posted construction tasks to execute.
-  RunUntilIdle();
+bool RebindableTaskRunner::PostNonNestableDelayedTask(
+    const base::Location& from_here,
+    base::OnceClosure task,
+    base::TimeDelta delay) {
+  return task_runner_->PostNonNestableDelayedTask(from_here, std::move(task),
+                                                  delay);
 }
 
-void TracingUnitTest::TearDown() {
-  teardown_called_ = true;
-  tracing_environment_.reset();
-
-  // Wait for any posted destruction tasks to execute.
-  RunUntilIdle();
-
-  // From here on, no more tasks should be posted.
-  task_environment_.reset();
-
-  // Clear task runner and data sources.
-  PerfettoTracedProcess::Get()->GetTaskRunner()->ResetTaskRunnerForTesting(
-      nullptr);
-  PerfettoTracedProcess::Get()->ClearDataSourcesForTesting();
-  test_handle_.reset();
+bool RebindableTaskRunner::RunsTasksInCurrentSequence() const {
+  return task_runner_->RunsTasksInCurrentSequence();
 }
 
 }  // namespace tracing

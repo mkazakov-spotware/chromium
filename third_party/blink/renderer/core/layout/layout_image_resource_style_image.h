@@ -44,16 +44,15 @@ class LayoutImageResourceStyleImage final : public LayoutImageResource {
   void Shutdown() override;
 
   bool HasImage() const override { return true; }
-  scoped_refptr<Image> GetImage(const gfx::SizeF&) const override;
+  scoped_refptr<Image> GetImage(const FloatSize&) const override;
   bool ErrorOccurred() const override { return style_image_->ErrorOccurred(); }
 
   bool HasIntrinsicSize() const override {
     return style_image_->HasIntrinsicSize();
   }
-  gfx::SizeF ImageSize(float multiplier) const override;
-  gfx::SizeF ImageSizeWithDefaultSize(float multiplier,
-                                      const gfx::SizeF&) const override;
-  RespectImageOrientationEnum ImageOrientation() const override;
+  FloatSize ImageSize(float multiplier) const override;
+  FloatSize ImageSizeWithDefaultSize(float multiplier,
+                                     const FloatSize&) const override;
   WrappedImagePtr ImagePtr() const override { return style_image_->Data(); }
 
   void Trace(Visitor*) const override;
@@ -64,4 +63,4 @@ class LayoutImageResourceStyleImage final : public LayoutImageResource {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_IMAGE_RESOURCE_STYLE_IMAGE_H_
+#endif  // LayoutImageStyleImage_h

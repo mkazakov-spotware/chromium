@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 #include <vector>
 
 #include "base/json/json_reader.h"
-#include "base/json/values_util.h"
+#include "base/macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
+#include "base/util/values/values_util.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
@@ -21,8 +22,6 @@
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/permissions/permission_set.h"
-
-using extensions::mojom::APIPermissionID;
 
 namespace extensions {
 namespace {
@@ -51,10 +50,6 @@ class ExtensionInstallStatusTest : public BrowserWithTestWindowTest {
  public:
   ExtensionInstallStatusTest() = default;
 
-  ExtensionInstallStatusTest(const ExtensionInstallStatusTest&) = delete;
-  ExtensionInstallStatusTest& operator=(const ExtensionInstallStatusTest&) =
-      delete;
-
   std::string GenerateArgs(const char* id) {
     return base::StringPrintf(R"(["%s"])", id);
   }
@@ -64,7 +59,7 @@ class ExtensionInstallStatusTest : public BrowserWithTestWindowTest {
   }
 
   void SetExtensionSettings(const std::string& settings_string) {
-    absl::optional<base::Value> settings =
+    base::Optional<base::Value> settings =
         base::JSONReader::Read(settings_string);
     ASSERT_TRUE(settings);
     SetPolicy(pref_names::kExtensionManagement,
@@ -83,12 +78,15 @@ class ExtensionInstallStatusTest : public BrowserWithTestWindowTest {
     for (const auto& id : ids) {
       base::Value request_data(base::Value::Type::DICTIONARY);
       request_data.SetKey(extension_misc::kExtensionRequestTimestamp,
-                          ::base::TimeToValue(base::Time::Now()));
+                          ::util::TimeToValue(base::Time::Now()));
       id_values->SetKey(id, std::move(request_data));
     }
     profile()->GetTestingPrefService()->SetUserPref(
         prefs::kCloudExtensionRequestIds, std::move(id_values));
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInstallStatusTest);
 };
 
 TEST_F(ExtensionInstallStatusTest, ExtensionEnabled) {
@@ -358,13 +356,13 @@ TEST_F(ExtensionInstallStatusTest, ExtensionBlockedByPermissions) {
 
   // Extension with audio permission is still installable but not with storage.
   APIPermissionSet api_permissions;
-  api_permissions.insert(APIPermissionID::kAudio);
+  api_permissions.insert(APIPermission::kAudio);
   EXPECT_EQ(ExtensionInstallStatus::kInstallable,
             GetWebstoreExtensionInstallStatus(
                 kExtensionId, profile(), Manifest::Type::TYPE_EXTENSION,
                 PermissionSet(api_permissions.Clone(), ManifestPermissionSet(),
                               URLPatternSet(), URLPatternSet())));
-  api_permissions.insert(APIPermissionID::kStorage);
+  api_permissions.insert(APIPermission::kStorage);
   EXPECT_EQ(ExtensionInstallStatus::kBlockedByPolicy,
             GetWebstoreExtensionInstallStatus(
                 kExtensionId, profile(), Manifest::Type::TYPE_EXTENSION,
@@ -433,13 +431,13 @@ TEST_F(ExtensionInstallStatusTest, ExtensionBlockedByPermissionsWithUpdateUrl) {
   })");
 
   APIPermissionSet api_permissions;
-  api_permissions.insert(APIPermissionID::kAudio);
+  api_permissions.insert(APIPermission::kAudio);
   EXPECT_EQ(ExtensionInstallStatus::kInstallable,
             GetWebstoreExtensionInstallStatus(
                 kExtensionId, profile(), Manifest::Type::TYPE_EXTENSION,
                 PermissionSet(api_permissions.Clone(), ManifestPermissionSet(),
                               URLPatternSet(), URLPatternSet())));
-  api_permissions.insert(APIPermissionID::kDownloads);
+  api_permissions.insert(APIPermission::kDownloads);
   EXPECT_EQ(ExtensionInstallStatus::kBlockedByPolicy,
             GetWebstoreExtensionInstallStatus(
                 kExtensionId, profile(), Manifest::Type::TYPE_EXTENSION,
@@ -510,7 +508,7 @@ TEST_F(ExtensionInstallStatusTest,
 
   // Per-id allowlisted has higher priority than blocked permissions.
   APIPermissionSet api_permissions;
-  api_permissions.insert(APIPermissionID::kStorage);
+  api_permissions.insert(APIPermission::kStorage);
   EXPECT_EQ(ExtensionInstallStatus::kInstallable,
             GetWebstoreExtensionInstallStatus(
                 kExtensionId, profile(), Manifest::Type::TYPE_EXTENSION,
@@ -535,7 +533,7 @@ TEST_F(ExtensionInstallStatusTest, NonWebstoreUpdateUrlPolicy) {
     }
   })");
   APIPermissionSet api_permissions;
-  api_permissions.insert(APIPermissionID::kDownloads);
+  api_permissions.insert(APIPermission::kDownloads);
   EXPECT_EQ(ExtensionInstallStatus::kInstallable,
             GetWebstoreExtensionInstallStatus(
                 kExtensionId, profile(), Manifest::Type::TYPE_EXTENSION,

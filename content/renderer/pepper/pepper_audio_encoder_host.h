@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/numerics/safe_math.h"
+#include "content/common/content_export.h"
 #include "ppapi/c/pp_codecs.h"
 #include "ppapi/host/host_message_context.h"
 #include "ppapi/host/resource_host.h"
@@ -22,17 +24,13 @@ namespace content {
 
 class RendererPpapiHost;
 
-class PepperAudioEncoderHost
+class CONTENT_EXPORT PepperAudioEncoderHost
     : public ppapi::host::ResourceHost,
       public ppapi::MediaStreamBufferManager::Delegate {
  public:
   PepperAudioEncoderHost(RendererPpapiHost* host,
                          PP_Instance instance,
                          PP_Resource resource);
-
-  PepperAudioEncoderHost(const PepperAudioEncoderHost&) = delete;
-  PepperAudioEncoderHost& operator=(const PepperAudioEncoderHost&) = delete;
-
   ~PepperAudioEncoderHost() override;
 
  private:
@@ -106,6 +104,8 @@ class PepperAudioEncoderHost
   std::unique_ptr<AudioEncoderImpl> encoder_;
 
   base::WeakPtrFactory<PepperAudioEncoderHost> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PepperAudioEncoderHost);
 };
 
 }  // namespace content

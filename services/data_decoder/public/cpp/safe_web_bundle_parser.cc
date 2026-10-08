@@ -1,12 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/data_decoder/public/cpp/safe_web_bundle_parser.h"
 
 #include "base/bind.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "url/gurl.h"
 
 namespace data_decoder {
 
@@ -15,8 +13,7 @@ constexpr char kConnectionError[] =
     "Cannot connect to the remote parser service";
 }  // namespace
 
-SafeWebBundleParser::SafeWebBundleParser(const absl::optional<GURL>& base_url)
-    : base_url_(base_url) {}
+SafeWebBundleParser::SafeWebBundleParser() = default;
 
 SafeWebBundleParser::~SafeWebBundleParser() = default;
 
@@ -27,7 +24,7 @@ base::File::Error SafeWebBundleParser::OpenFile(base::File file) {
     return file.error_details();
 
   GetFactory()->GetParserForFile(parser_.BindNewPipeAndPassReceiver(),
-                                 base_url_, std::move(file));
+                                 std::move(file));
   parser_.set_disconnect_handler(base::BindOnce(
       &SafeWebBundleParser::OnDisconnect, base::Unretained(this)));
 
@@ -40,32 +37,14 @@ void SafeWebBundleParser::OpenDataSource(
     mojo::PendingRemote<web_package::mojom::BundleDataSource> data_source) {
   DCHECK(disconnected_);
   GetFactory()->GetParserForDataSource(parser_.BindNewPipeAndPassReceiver(),
-                                       base_url_, std::move(data_source));
+                                       std::move(data_source));
   parser_.set_disconnect_handler(base::BindOnce(
       &SafeWebBundleParser::OnDisconnect, base::Unretained(this)));
 
   disconnected_ = false;
 }
 
-void SafeWebBundleParser::ParseIntegrityBlock(
-    web_package::mojom::WebBundleParser::ParseIntegrityBlockCallback callback) {
-  // This method is designed to be called once. So, allowing only once
-  // simultaneous request is fine enough.
-  if (disconnected_ || !integrity_block_callback_.is_null()) {
-    std::move(callback).Run(
-        nullptr,
-        web_package::mojom::BundleIntegrityBlockParseError::New(
-            web_package::mojom::BundleParseErrorType::kParserInternalError,
-            kConnectionError));
-    return;
-  }
-  integrity_block_callback_ = std::move(callback);
-  parser_->ParseIntegrityBlock(base::BindOnce(
-      &SafeWebBundleParser::OnIntegrityBlockParsed, base::Unretained(this)));
-}
-
 void SafeWebBundleParser::ParseMetadata(
-    int64_t offset,
     web_package::mojom::WebBundleParser::ParseMetadataCallback callback) {
   // This method is designed to be called once. So, allowing only once
   // simultaneous request is fine enough.
@@ -74,12 +53,11 @@ void SafeWebBundleParser::ParseMetadata(
         nullptr,
         web_package::mojom::BundleMetadataParseError::New(
             web_package::mojom::BundleParseErrorType::kParserInternalError,
-            kConnectionError));
+            GURL() /* fallback_url */, kConnectionError));
     return;
   }
   metadata_callback_ = std::move(callback);
-  parser_->ParseMetadata(offset,
-                         base::BindOnce(&SafeWebBundleParser::OnMetadataParsed,
+  parser_->ParseMetadata(base::BindOnce(&SafeWebBundleParser::OnMetadataParsed,
                                         base::Unretained(this)));
 }
 
@@ -122,44 +100,21 @@ void SafeWebBundleParser::SetDisconnectCallback(base::OnceClosure callback) {
 
 void SafeWebBundleParser::OnDisconnect() {
   disconnected_ = true;
-  // Any of these callbacks could delete `this`, hence we need to make sure to
-  // not access any instance variables after we run any of these callbacks.
-  auto integrity_block_callback = std::move(integrity_block_callback_);
-  auto metadata_callback = std::move(metadata_callback_);
-  auto response_callbacks = std::exchange(response_callbacks_, {});
-  auto disconnect_callback = std::move(disconnect_callback_);
-
-  if (!integrity_block_callback.is_null()) {
-    std::move(integrity_block_callback)
-        .Run(nullptr,
-             web_package::mojom::BundleIntegrityBlockParseError::New(
-                 web_package::mojom::BundleParseErrorType::kParserInternalError,
-                 kConnectionError));
-  }
-  if (!metadata_callback.is_null()) {
-    std::move(metadata_callback)
+  if (!metadata_callback_.is_null())
+    std::move(metadata_callback_)
         .Run(nullptr,
              web_package::mojom::BundleMetadataParseError::New(
                  web_package::mojom::BundleParseErrorType::kParserInternalError,
+                 GURL() /* fallback_url */, kConnectionError));
+  for (auto& callback : response_callbacks_)
+    std::move(callback.second)
+        .Run(nullptr,
+             web_package::mojom::BundleResponseParseError::New(
+                 web_package::mojom::BundleParseErrorType::kParserInternalError,
                  kConnectionError));
-  }
-  for (auto& [callback_id, callback] : response_callbacks) {
-    std::move(callback).Run(
-        nullptr,
-        web_package::mojom::BundleResponseParseError::New(
-            web_package::mojom::BundleParseErrorType::kParserInternalError,
-            kConnectionError));
-  }
-  if (!disconnect_callback.is_null())
-    std::move(disconnect_callback).Run();
-}
-
-void SafeWebBundleParser::OnIntegrityBlockParsed(
-    web_package::mojom::BundleIntegrityBlockPtr integrity_block,
-    web_package::mojom::BundleIntegrityBlockParseErrorPtr error) {
-  DCHECK(!integrity_block_callback_.is_null());
-  std::move(integrity_block_callback_)
-      .Run(std::move(integrity_block), std::move(error));
+  response_callbacks_.clear();
+  if (disconnect_callback_)
+    std::move(disconnect_callback_).Run();
 }
 
 void SafeWebBundleParser::OnMetadataParsed(

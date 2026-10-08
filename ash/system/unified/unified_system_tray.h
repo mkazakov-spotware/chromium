@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,10 @@
 
 #include <list>
 #include <memory>
-#include <string>
 
 #include "ash/ash_export.h"
-#include "ash/public/cpp/accelerators.h"
 #include "ash/public/cpp/shelf_config.h"
-#include "ash/public/cpp/tablet_mode_observer.h"
-#include "ash/system/status_area_widget.h"
-#include "ash/system/time/time_view.h"
 #include "ash/system/tray/tray_background_view.h"
-#include "ash/system/unified/unified_system_tray_controller.h"
-#include "ash/system/unified/unified_system_tray_model.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 
@@ -27,36 +18,25 @@ namespace message_center {
 class MessagePopupView;
 }  // namespace message_center
 
-namespace ui {
-class Event;
-}  // namespace ui
-
-namespace views {
-class Widget;
-}  // namespace views
-
 namespace ash {
 
-class AutozoomToastController;
-class AshMessagePopupCollection;
-class CameraMicTrayItemView;
-class ChannelIndicatorView;
+namespace tray {
+class NetworkTrayView;
+class TimeTrayItemView;
+}  // namespace tray
+
 class CurrentLocaleView;
 class ImeModeView;
 class ManagedDeviceTrayItemView;
-class NetworkTrayView;
-class NotificationGroupingController;
-class NotificationIconsController;
-class PrivacyIndicatorsTrayItemView;
-class PrivacyScreenToastController;
+class NotificationCounterView;
 class QuietModeView;
-class Shelf;
-class TrayBubbleView;
+class PrivacyScreenToastController;
 class TrayItemView;
-class TimeTrayItemView;
 class UnifiedSliderBubbleController;
 class UnifiedSystemTrayBubble;
+class UnifiedSystemTrayModel;
 class UnifiedMessageCenterBubble;
+class CameraMicTrayItemView;
 
 // The UnifiedSystemTray is the system menu of Chromium OS, which is a clickable
 // rounded rectangle typically located on the bottom right corner of the screen,
@@ -70,33 +50,11 @@ class UnifiedMessageCenterBubble;
 // UnifiedSystemTrayBubble is the actual menu bubble shown above the system tray
 // after the user clicks on it. The UnifiedSystemTrayBubble is created and owned
 // by this class.
-class ASH_EXPORT UnifiedSystemTray
-    : public TrayBackgroundView,
-      public ShelfConfig::Observer,
-      public UnifiedSystemTrayController::Observer,
-      public TabletModeObserver {
+class ASH_EXPORT UnifiedSystemTray : public TrayBackgroundView,
+                                     public ShelfConfig::Observer {
  public:
-  class Observer : public base::CheckedObserver {
-   public:
-    // Gets called when showing calendar view.
-    virtual void OnOpeningCalendarView() {}
-
-    // Gets called when leaving from the calendar view.
-    virtual void OnLeavingCalendarView() {}
-  };
-
   explicit UnifiedSystemTray(Shelf* shelf);
-
-  UnifiedSystemTray(const UnifiedSystemTray&) = delete;
-  UnifiedSystemTray& operator=(const UnifiedSystemTray&) = delete;
-
   ~UnifiedSystemTray() override;
-
-  void AddObserver(Observer* observer);
-  void RemoveObserver(Observer* observer);
-
-  // Callback called when this is pressed.
-  void OnButtonPressed(const ui::Event& event);
 
   // True if the bubble is shown. It does not include slider bubbles, and when
   // they're shown it still returns false.
@@ -139,7 +97,7 @@ class ASH_EXPORT UnifiedSystemTray
   void ShowAudioDetailedViewBubble();
 
   // Shows main bubble with network settings detailed view.
-  void ShowNetworkDetailedViewBubble();
+  void ShowNetworkDetailedViewBubble(bool show_by_click);
 
   // Return the bounds of the bubble in the screen.
   gfx::Rect GetBubbleBoundsInScreen() const;
@@ -157,20 +115,14 @@ class ASH_EXPORT UnifiedSystemTray
   // bubble is shown.
   void SetTrayBubbleHeight(int height);
 
-  // Transfer focus to the message center bubble. Will focus only on the message
-  // center if vox is enabled. Otherwise, will focus on the first element in the
-  // message center while honoring the `reverse` attribute that is passed in.
-  bool FocusMessageCenter(bool reverse, bool collapse_quick_settings = false);
+  // Focus the first notification in the message center.
+  void FocusFirstNotification();
 
-  // Transfer focus to the quick settings bubble. Will focus only on the quick
-  // settings bubble if vox is enabled. Otherwise, will focus on the first
-  // element in the quick settings while honoring the `reverse` attribute that
-  // is passed in.
+  // Transfer focus to the message center bubble.
+  bool FocusMessageCenter(bool reverse);
+
+  // Transfer focus to the quick settings bubble.
   bool FocusQuickSettings(bool reverse);
-
-  // Called by `UnifiedSystemTrayBubble` when it is destroyed with the calendar
-  // view in the foreground.
-  void NotifyLeavingCalendarView();
 
   // Returns true if the user manually expanded the quick settings.
   bool IsQuickSettingsExplicitlyExpanded() const;
@@ -188,10 +140,11 @@ class ASH_EXPORT UnifiedSystemTray
   void MaybeRecordFirstInteraction(FirstInteractionType type);
 
   // TrayBackgroundView:
-  void ShowBubble() override;
+  bool PerformAction(const ui::Event& event) override;
+  void ShowBubble(bool show_by_click) override;
   void CloseBubble() override;
-  std::u16string GetAccessibleNameForBubble() override;
-  std::u16string GetAccessibleNameForTray() override;
+  base::string16 GetAccessibleNameForBubble() override;
+  base::string16 GetAccessibleNameForTray() override;
   void HandleLocaleChange() override;
   void HideBubble(const TrayBubbleView* bubble_view) override;
   void HideBubbleWithView(const TrayBubbleView* bubble_view) override;
@@ -199,92 +152,51 @@ class ASH_EXPORT UnifiedSystemTray
   void UpdateLayout() override;
   void UpdateAfterLoginStatusChange() override;
   bool ShouldEnableExtraKeyboardAccessibility() override;
-  views::Widget* GetBubbleWidget() const override;
   const char* GetClassName() const override;
-  absl::optional<AcceleratorAction> GetAcceleratorAction() const override;
-  void OnAnyBubbleVisibilityChanged(views::Widget* bubble_widget,
-                                    bool visible) override;
 
   // ShelfConfig::Observer:
   void OnShelfConfigUpdated() override;
 
-  // UnifiedSystemTrayController::Observer:
-  void OnOpeningCalendarView() override;
-  void OnTransitioningFromCalendarToMainView() override;
+  base::string16 GetAccessibleNameForQuickSettingsBubble();
 
-  // TabletModeObserver:
-  void OnTabletModeStarted() override;
-  void OnTabletModeEnded() override;
-
-  // Gets called when an action is performed on the `DateTray`.
-  void OnDateTrayActionPerformed(const ui::Event& event);
-
-  // Whether the bubble is currently showing the calendar view.
-  bool IsShowingCalendarView() const;
-
-  // Returns whether the channel indicator should be shown.
-  bool ShouldChannelIndicatorBeShown() const;
-
-  std::u16string GetAccessibleNameForQuickSettingsBubble();
-
-  AshMessagePopupCollection* GetMessagePopupCollection();
-
-  NotificationGroupingController* GetNotificationGroupingController();
-
-  scoped_refptr<UnifiedSystemTrayModel> model() { return model_; }
+  UnifiedSystemTrayModel* model() { return model_.get(); }
   UnifiedSystemTrayBubble* bubble() { return bubble_.get(); }
 
   UnifiedMessageCenterBubble* message_center_bubble() {
     return message_center_bubble_.get();
   }
 
-  PrivacyIndicatorsTrayItemView* privacy_indicators_view() {
-    return privacy_indicators_view_;
-  }
-
-  ChannelIndicatorView* channel_indicator_view() {
-    return channel_indicator_view_;
-  }
-
  private:
   static const base::TimeDelta kNotificationCountUpdateDelay;
 
-  friend class NotificationCounterViewTest;
-  friend class NotificationGroupingControllerTest;
-  friend class NotificationIconsControllerTest;
   friend class SystemTrayTestApi;
   friend class UnifiedSystemTrayTest;
 
-  // Private class implements `MessageCenterUiDelegate`.
+  // Private class implements MessageCenterUiDelegate.
   class UiDelegate;
 
-  // Forwarded from `UiDelegate`.
-  void ShowBubbleInternal();
+  // Forwarded from UiDelegate.
+  void ShowBubbleInternal(bool show_by_click);
   void HideBubbleInternal();
   void UpdateNotificationInternal();
   void UpdateNotificationAfterDelay();
 
-  // Forwarded to `UiDelegate`.
+  // Forwarded to UiDelegate.
   message_center::MessagePopupView* GetPopupViewForNotificationID(
       const std::string& notification_id);
 
-  // Adds the tray item to the the unified system tray container. An unowned
-  // pointer is stored in `tray_items_`.
-  template <typename T>
-  T* AddTrayItemToContainer(std::unique_ptr<T> tray_item_view);
+  // Adds the tray item to the the unified system tray container.
+  // The container takes the ownership of |tray_item|.
+  void AddTrayItemToContainer(TrayItemView* tray_item);
 
-  // Destroys the `bubble_` and the `message_center_bubble_`, also handles
-  // removing bubble related observers.
-  void DestroyBubbles();
-
-  std::unique_ptr<UiDelegate> ui_delegate_;
+  const std::unique_ptr<UiDelegate> ui_delegate_;
 
   std::unique_ptr<UnifiedSystemTrayBubble> bubble_;
 
   std::unique_ptr<UnifiedMessageCenterBubble> message_center_bubble_;
 
-  // Model class that stores `UnifiedSystemTray`'s UI specific variables.
-  scoped_refptr<UnifiedSystemTrayModel> model_;
+  // Model class that stores UnifiedSystemTray's UI specific variables.
+  const std::unique_ptr<UnifiedSystemTrayModel> model_;
 
   const std::unique_ptr<UnifiedSliderBubbleController>
       slider_bubble_controller_;
@@ -292,24 +204,16 @@ class ASH_EXPORT UnifiedSystemTray
   const std::unique_ptr<PrivacyScreenToastController>
       privacy_screen_toast_controller_;
 
-  std::unique_ptr<AutozoomToastController> autozoom_toast_controller_;
+  CurrentLocaleView* const current_locale_view_;
+  ImeModeView* const ime_mode_view_;
+  ManagedDeviceTrayItemView* const managed_device_view_;
+  CameraMicTrayItemView* const camera_view_;
+  CameraMicTrayItemView* const mic_view_;
+  NotificationCounterView* const notification_counter_item_;
+  QuietModeView* const quiet_mode_view_;
+  tray::TimeTrayItemView* const time_view_;
 
-  // Manages showing notification icons in the tray.
-  const std::unique_ptr<NotificationIconsController>
-      notification_icons_controller_;
-
-  // Owned by the views hierarchy.
-  CurrentLocaleView* current_locale_view_ = nullptr;
-  ImeModeView* ime_mode_view_ = nullptr;
-  ManagedDeviceTrayItemView* managed_device_view_ = nullptr;
-  CameraMicTrayItemView* camera_view_ = nullptr;
-  CameraMicTrayItemView* mic_view_ = nullptr;
-  TimeTrayItemView* time_view_ = nullptr;
-  PrivacyIndicatorsTrayItemView* privacy_indicators_view_ = nullptr;
-
-  NetworkTrayView* network_tray_view_ = nullptr;
-  ChannelIndicatorView* channel_indicator_view_ = nullptr;
-  QuietModeView* quiet_mode_view_ = nullptr;
+  tray::NetworkTrayView* network_tray_view_ = nullptr;
 
   // Contains all tray items views added to tray_container().
   std::list<TrayItemView*> tray_items_;
@@ -318,12 +222,7 @@ class ASH_EXPORT UnifiedSystemTray
 
   bool first_interaction_recorded_ = false;
 
-  base::ObserverList<Observer> observers_;
-
-  // Records time the QS bubble was shown. Used for metrics.
-  base::TimeTicks time_opened_;
-
-  base::WeakPtrFactory<UnifiedSystemTray> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(UnifiedSystemTray);
 };
 
 }  // namespace ash

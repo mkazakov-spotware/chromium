@@ -1,21 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_ACTIVE_SCRIPT_WRAPPABLE_MANAGER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_ACTIVE_SCRIPT_WRAPPABLE_MANAGER_H_
 
-#include <cstddef>
-#include <utility>
-
 #include "third_party/blink/renderer/platform/bindings/active_script_wrappable_base.h"
-#include "third_party/blink/renderer/platform/bindings/name_client.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
-#include "third_party/blink/renderer/platform/platform_export.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
+
+class LivenessBroker;
 
 // ActiveScriptWrappableManager (ASWM) is integrated into the garbage collector
 // and keeps ActiveScriptWrappable alive as long as they have
@@ -25,8 +21,7 @@ namespace blink {
 // ASWM integrates with the GC through prologue and weakness callbacks which are
 // not allowed to allocate.
 class PLATFORM_EXPORT ActiveScriptWrappableManager final
-    : public GarbageCollected<ActiveScriptWrappableManager>,
-      public NameClient {
+    : public GarbageCollected<ActiveScriptWrappableManager> {
  public:
   enum class RecomputeMode { kOpportunistic, kRequired };
 
@@ -51,10 +46,12 @@ class PLATFORM_EXPORT ActiveScriptWrappableManager final
   // Called during GC prologue. Not allowed to allocate.
   void RecomputeActiveScriptWrappables(RecomputeMode);
 
-  void Trace(Visitor* visitor) const;
+  // Iterate the current set of active ScriptWrappable objects.
+  //
+  // Does not allocate.
+  void IterateActiveScriptWrappables(Visitor*);
 
-  // NameClient implementation.
-  const char* NameInHeapSnapshot() const final { return "Pending activities"; }
+  void Trace(Visitor* visitor) const;
 
  private:
   // Called during weakness processing. Not allowed to allocate. The next Add()

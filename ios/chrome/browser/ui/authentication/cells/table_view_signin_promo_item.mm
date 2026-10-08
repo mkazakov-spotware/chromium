@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/authentication/cells/table_view_signin_promo_item.h"
 
-#import "base/mac/foundation_util.h"
+#include "base/mac/foundation_util.h"
 #import "ios/chrome/browser/ui/authentication/cells/signin_promo_view.h"
 #import "ios/chrome/browser/ui/authentication/cells/signin_promo_view_configurator.h"
-#import "ios/chrome/browser/ui/authentication/cells/signin_promo_view_constants.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -39,10 +38,19 @@ const CGFloat kMargin = 16;
   cell.signinPromoView.delegate = self.delegate;
   cell.signinPromoView.textLabel.text = self.text;
   [cell setSelectionStyle:UITableViewCellSelectionStyleNone];
-  [self.configurator configureSigninPromoView:cell.signinPromoView
-                                    withStyle:SigninPromoViewStyleStandard];
+  [self.configurator configureSigninPromoView:cell.signinPromoView];
   if (styler.cellTitleColor)
     cell.signinPromoView.textLabel.textColor = styler.cellTitleColor;
+  if (styler.tintColor) {
+    cell.signinPromoView.primaryButton.backgroundColor = styler.tintColor;
+    [cell.signinPromoView.secondaryButton setTitleColor:styler.tintColor
+                                               forState:UIControlStateNormal];
+  }
+  if (styler.solidButtonTextColor) {
+    [cell.signinPromoView.primaryButton
+        setTitleColor:styler.solidButtonTextColor
+             forState:UIControlStateNormal];
+  }
 }
 
 @end

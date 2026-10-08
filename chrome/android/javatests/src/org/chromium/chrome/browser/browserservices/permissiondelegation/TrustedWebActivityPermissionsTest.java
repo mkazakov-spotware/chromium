@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,6 @@ package org.chromium.chrome.browser.browserservices.permissiondelegation;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import static org.chromium.base.test.util.Batch.PER_CLASS;
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
 
 import android.support.test.InstrumentationRegistry;
 
@@ -23,19 +20,18 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.ShortcutHelper;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
-import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
+import org.chromium.chrome.browser.customtabs.CustomTabsTestUtils;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.webapps.WebappRegistry;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.components.embedder_support.util.Origin;
+import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
 import org.chromium.ui.test.util.UiDisableIf;
@@ -50,7 +46,6 @@ import java.util.concurrent.TimeoutException;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 // See: https://crbug.com/1120707
 @DisableIf.Device(type = {UiDisableIf.TABLET})
-@Batch(PER_CLASS)
 public class TrustedWebActivityPermissionsTest {
     @Rule
     public CustomTabActivityTestRule mCustomTabActivityTestRule = new CustomTabActivityTestRule();
@@ -63,11 +58,10 @@ public class TrustedWebActivityPermissionsTest {
     private String mTestPage;
     private Origin mOrigin;
     private String mPackage;
-    private InstalledWebappPermissionManager mPermissionManager;
+    private TrustedWebActivityPermissionManager mPermissionManager;
 
     @Before
     public void setUp() throws TimeoutException {
-        mCustomTabActivityTestRule.setFinishActivity(true);
         // Native needs to be initialized to start the test server.
         LibraryLoader.getInstance().ensureInitialized();
 
@@ -80,10 +74,10 @@ public class TrustedWebActivityPermissionsTest {
         mPackage = InstrumentationRegistry.getTargetContext().getPackageName();
 
         mCustomTabActivityTestRule.startCustomTabActivityWithIntent(
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
+                CustomTabsTestUtils.createMinimalCustomTabIntent(
                         InstrumentationRegistry.getTargetContext(), mTestPage));
 
-        mPermissionManager = ChromeApplicationImpl.getComponent().resolvePermissionManager();
+        mPermissionManager = ChromeApplication.getComponent().resolveTwaPermissionManager();
         mPermissionManager.clearForTesting();
         assertEquals("\"default\"", getNotificationPermission());
     }
@@ -97,59 +91,61 @@ public class TrustedWebActivityPermissionsTest {
     @Test
     @MediumTest
     public void allowNotifications() throws TimeoutException {
-        runOnUiThreadBlocking(() -> mPermissionManager.updatePermission(mOrigin, mPackage,
-                                            NOTIFICATIONS, ContentSettingValues.ALLOW));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mPermissionManager.updatePermission(mOrigin, mPackage, NOTIFICATIONS, true));
         assertEquals("\"granted\"", getNotificationPermission());
     }
 
     @Test
     @MediumTest
     public void blockNotifications() throws TimeoutException {
-        runOnUiThreadBlocking(() -> mPermissionManager.updatePermission(mOrigin, mPackage,
-                                            NOTIFICATIONS, ContentSettingValues.BLOCK));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mPermissionManager.updatePermission(mOrigin, mPackage, NOTIFICATIONS, false));
         assertEquals("\"denied\"", getNotificationPermission());
     }
 
     @Test
     @MediumTest
     public void unregisterTwa() throws TimeoutException {
-        runOnUiThreadBlocking(() -> mPermissionManager.updatePermission(mOrigin, mPackage,
-                                            NOTIFICATIONS, ContentSettingValues.ALLOW));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mPermissionManager.updatePermission(mOrigin, mPackage, NOTIFICATIONS, true));
         assertEquals("\"granted\"", getNotificationPermission());
 
-        runOnUiThreadBlocking(() -> mPermissionManager.unregister(mOrigin));
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
+            mPermissionManager.unregister(mOrigin);
+        });
         assertEquals("\"default\"", getNotificationPermission());
     }
 
     @Test
     @SmallTest
     public void detectTwa() {
-        runOnUiThreadBlocking(() -> mPermissionManager.updatePermission(mOrigin, mPackage,
-                                            NOTIFICATIONS, ContentSettingValues.ALLOW));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mPermissionManager.updatePermission(mOrigin, mPackage, NOTIFICATIONS, true));
         assertTrue(ShortcutHelper.doesOriginContainAnyInstalledTwa(mOrigin.toString()));
 
-        runOnUiThreadBlocking(() -> mPermissionManager.unregister(mOrigin));
+        TestThreadUtils.runOnUiThreadBlocking(() -> { mPermissionManager.unregister(mOrigin); });
         assertFalse(ShortcutHelper.doesOriginContainAnyInstalledTwa(mOrigin.toString()));
     }
 
     @Test
     @SmallTest
     public void allowGeolocation() {
-        runOnUiThreadBlocking(() -> mPermissionManager.updatePermission(mOrigin, mPackage,
-                                            GEOLOCATION, ContentSettingValues.ALLOW));
-        assertEquals(Integer.valueOf(ContentSettingValues.ALLOW),
-                WebappRegistry.getInstance().getPermissionStore().getPermission(
-                        GEOLOCATION, mOrigin));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mPermissionManager.updatePermission(mOrigin, mPackage, GEOLOCATION, true));
+        assertTrue(WebappRegistry.getInstance()
+                           .getTrustedWebActivityPermissionStore()
+                           .arePermissionEnabled(GEOLOCATION, mOrigin));
     }
 
     @Test
     @SmallTest
     public void blockGeolocation() {
-        runOnUiThreadBlocking(() -> mPermissionManager.updatePermission(mOrigin, mPackage,
-                                            GEOLOCATION, ContentSettingValues.BLOCK));
-        assertEquals(Integer.valueOf(ContentSettingValues.BLOCK),
-                WebappRegistry.getInstance().getPermissionStore().getPermission(
-                        GEOLOCATION, mOrigin));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mPermissionManager.updatePermission(mOrigin, mPackage, GEOLOCATION, false));
+        assertFalse(WebappRegistry.getInstance()
+                            .getTrustedWebActivityPermissionStore()
+                            .arePermissionEnabled(GEOLOCATION, mOrigin));
     }
 
     private String getNotificationPermission() throws TimeoutException {

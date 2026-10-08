@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <algorithm>
 
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
+#include "base/stl_util.h"
 #include "ui/base/clipboard/clipboard_constants.h"
 
 namespace ui {
@@ -19,8 +19,8 @@ namespace ui {
 ZwpPrimarySelectionOffer::ZwpPrimarySelectionOffer(
     zwp_primary_selection_offer_v1* data_offer)
     : data_offer_(data_offer) {
-  static constexpr zwp_primary_selection_offer_v1_listener kListener = {
-      &OnOffer};
+  static const struct zwp_primary_selection_offer_v1_listener kListener = {
+      ZwpPrimarySelectionOffer::OnOffer};
   zwp_primary_selection_offer_v1_add_listener(data_offer, &kListener, this);
 }
 

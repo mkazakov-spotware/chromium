@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/time/time.h"
@@ -16,8 +15,6 @@
 #include "ui/aura/env.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_targeter.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect.h"
@@ -199,14 +196,13 @@ using EditingHandleView = TouchSelectionControllerImpl::EditingHandleView;
 // A View that displays the text selection handle.
 class TouchSelectionControllerImpl::EditingHandleView : public View {
  public:
-  METADATA_HEADER(EditingHandleView);
   EditingHandleView(TouchSelectionControllerImpl* controller,
                     gfx::NativeView parent,
                     bool is_cursor_handle)
       : controller_(controller),
         image_(GetCenterHandleImage()),
         is_cursor_handle_(is_cursor_handle),
-
+        draw_invisible_(false),
         widget_(new views::Widget) {
     // Create a widget to host EditingHandleView.
     views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
@@ -229,7 +225,7 @@ class TouchSelectionControllerImpl::EditingHandleView : public View {
     widget_->CloseNow();
   }
 
-  gfx::SelectionBound::Type GetSelectionBoundType() const {
+  gfx::SelectionBound::Type selection_bound_type() {
     return selection_bound_.type();
   }
 
@@ -281,7 +277,7 @@ class TouchSelectionControllerImpl::EditingHandleView : public View {
     return GetSelectionWidgetBounds(selection_bound_).size();
   }
 
-  bool GetWidgetVisible() const { return widget_->IsVisible(); }
+  bool IsWidgetVisible() const { return widget_->IsVisible(); }
 
   void SetWidgetVisible(bool visible) {
     if (widget_->IsVisible() == visible)
@@ -290,7 +286,6 @@ class TouchSelectionControllerImpl::EditingHandleView : public View {
       widget_->Show();
     else
       widget_->Hide();
-    OnPropertyChanged(&widget_, kPropertyEffectsNone);
   }
 
   // If |is_visible| is true, this will update the widget and trigger a repaint
@@ -331,7 +326,7 @@ class TouchSelectionControllerImpl::EditingHandleView : public View {
       selection_bound_.SetEdge(gfx::PointF(edge_start), gfx::PointF(edge_end));
     }
 
-    const auto insets = gfx::Insets::TLBR(
+    const gfx::Insets insets(
         selection_bound_.GetHeight() + kSelectionHandleVerticalVisualOffset, 0,
         0, 0);
 
@@ -344,16 +339,15 @@ class TouchSelectionControllerImpl::EditingHandleView : public View {
     if (draw_invisible_ == draw_invisible)
       return;
     draw_invisible_ = draw_invisible;
-    OnPropertyChanged(&draw_invisible_, kPropertyEffectsPaint);
+    SchedulePaint();
   }
-  bool GetDrawInvisible() const { return draw_invisible_; }
 
  private:
-  raw_ptr<TouchSelectionControllerImpl> controller_;
+  TouchSelectionControllerImpl* controller_;
 
   // In local coordinates
   gfx::SelectionBound selection_bound_;
-  raw_ptr<gfx::Image> image_;
+  gfx::Image* image_;
 
   // If true, this is a handle corresponding to the single cursor, otherwise it
   // is a handle corresponding to one of the two selection bounds.
@@ -368,17 +362,11 @@ class TouchSelectionControllerImpl::EditingHandleView : public View {
   // widget. We need this because we may want to stop showing the handle while
   // it is being dragged. Since it is being dragged, we cannot destroy the
   // handle.
-  bool draw_invisible_ = false;
+  bool draw_invisible_;
 
   // Owning widget.
   Widget* widget_ = nullptr;
 };
-
-BEGIN_METADATA(TouchSelectionControllerImpl, EditingHandleView, View)
-ADD_READONLY_PROPERTY_METADATA(gfx::SelectionBound::Type, SelectionBoundType)
-ADD_PROPERTY_METADATA(bool, WidgetVisible)
-ADD_PROPERTY_METADATA(bool, DrawInvisible)
-END_METADATA
 
 TouchSelectionControllerImpl::TouchSelectionControllerImpl(
     ui::TouchEditable* client_view)
@@ -556,7 +544,7 @@ void TouchSelectionControllerImpl::SetHandleBound(
     const gfx::SelectionBound& bound,
     const gfx::SelectionBound& bound_in_screen) {
   handle->SetWidgetVisible(ShouldShowHandleFor(bound));
-  handle->SetBoundInScreen(bound_in_screen, handle->GetWidgetVisible());
+  handle->SetBoundInScreen(bound_in_screen, handle->IsWidgetVisible());
 }
 
 bool TouchSelectionControllerImpl::ShouldShowHandleFor(
@@ -564,8 +552,7 @@ bool TouchSelectionControllerImpl::ShouldShowHandleFor(
   if (bound.GetHeight() < kSelectionHandleBarMinHeight)
     return false;
   gfx::Rect client_bounds = client_view_->GetBounds();
-  client_bounds.Inset(
-      gfx::Insets::TLBR(0, 0, -kSelectionHandleBarBottomAllowance, 0));
+  client_bounds.Inset(0, 0, 0, -kSelectionHandleBarBottomAllowance);
   return client_bounds.Contains(BoundToRect(bound));
 }
 
@@ -580,7 +567,8 @@ void TouchSelectionControllerImpl::ExecuteCommand(int command_id,
   // Note that we only log the duration stats for the 'successful' selections,
   // i.e. selections ending with the execution of a command.
   UMA_HISTOGRAM_CUSTOM_TIMES("Event.TouchSelection.Duration", duration,
-                             base::Milliseconds(500), base::Seconds(60), 60);
+                             base::TimeDelta::FromMilliseconds(500),
+                             base::TimeDelta::FromSeconds(60), 60);
   client_view_->ExecuteCommand(command_id, event_flags);
 }
 
@@ -595,11 +583,11 @@ bool TouchSelectionControllerImpl::ShouldShowQuickMenu() {
   return false;
 }
 
-std::u16string TouchSelectionControllerImpl::GetSelectedText() {
-  return std::u16string();
+base::string16 TouchSelectionControllerImpl::GetSelectedText() {
+  return base::string16();
 }
 
-void TouchSelectionControllerImpl::OnWidgetDestroying(Widget* widget) {
+void TouchSelectionControllerImpl::OnWidgetClosing(Widget* widget) {
   DCHECK_EQ(client_widget_, widget);
   client_widget_->RemoveObserver(this);
   client_widget_ = nullptr;
@@ -622,7 +610,7 @@ void TouchSelectionControllerImpl::OnEvent(const ui::Event& event) {
     // Windows OS unhandled WM_POINTER* may be redispatched as WM_MOUSE*.
     // Avoid adjusting the handles on synthesized events or events generated
     // from touch as this can clear an active selection generated by the pen.
-    if ((event.flags() & (int{ui::EF_IS_SYNTHESIZED} | ui::EF_FROM_TOUCH)) ||
+    if ((event.flags() & (ui::EF_IS_SYNTHESIZED | ui::EF_FROM_TOUCH)) ||
         event.AsMouseEvent()->pointer_details().pointer_type ==
             ui::EventPointerType::kPen) {
       return;
@@ -638,14 +626,15 @@ void TouchSelectionControllerImpl::QuickMenuTimerFired() {
     return;
 
   ui::TouchSelectionMenuRunner::GetInstance()->OpenMenu(
-      GetWeakPtr(), menu_anchor, GetMaxHandleImageSize(),
+      this, menu_anchor, GetMaxHandleImageSize(),
       client_view_->GetNativeView());
 }
 
 void TouchSelectionControllerImpl::StartQuickMenuTimer() {
   if (quick_menu_timer_.IsRunning())
     return;
-  quick_menu_timer_.Start(FROM_HERE, base::Milliseconds(200), this,
+  quick_menu_timer_.Start(FROM_HERE, base::TimeDelta::FromMilliseconds(200),
+                          this,
                           &TouchSelectionControllerImpl::QuickMenuTimerFired);
 }
 
@@ -664,7 +653,7 @@ void TouchSelectionControllerImpl::HideQuickMenu() {
 gfx::Rect TouchSelectionControllerImpl::GetQuickMenuAnchorRect() const {
   // Get selection end points in client_view's space.
   gfx::SelectionBound b1_in_screen = selection_bound_1_clipped_;
-  gfx::SelectionBound b2_in_screen = cursor_handle_->GetWidgetVisible()
+  gfx::SelectionBound b2_in_screen = cursor_handle_->IsWidgetVisible()
                                          ? b1_in_screen
                                          : selection_bound_2_clipped_;
   // Convert from screen to client.
@@ -686,7 +675,7 @@ gfx::Rect TouchSelectionControllerImpl::GetQuickMenuAnchorRect() const {
 
   // Enlarge the anchor rect so that the menu is offset from the text at least
   // by the same distance the handles are offset from the text.
-  menu_anchor.Inset(gfx::Insets::VH(-kSelectionHandleVerticalVisualOffset, 0));
+  menu_anchor.Inset(0, -kSelectionHandleVerticalVisualOffset);
 
   return menu_anchor;
 }
@@ -697,7 +686,7 @@ gfx::NativeView TouchSelectionControllerImpl::GetCursorHandleNativeView() {
 
 gfx::SelectionBound::Type
 TouchSelectionControllerImpl::GetSelectionHandle1Type() {
-  return selection_handle_1_->GetSelectionBoundType();
+  return selection_handle_1_->selection_bound_type();
 }
 
 gfx::Rect TouchSelectionControllerImpl::GetSelectionHandle1Bounds() {
@@ -713,15 +702,15 @@ gfx::Rect TouchSelectionControllerImpl::GetCursorHandleBounds() {
 }
 
 bool TouchSelectionControllerImpl::IsSelectionHandle1Visible() {
-  return selection_handle_1_->GetWidgetVisible();
+  return selection_handle_1_->IsWidgetVisible();
 }
 
 bool TouchSelectionControllerImpl::IsSelectionHandle2Visible() {
-  return selection_handle_2_->GetWidgetVisible();
+  return selection_handle_2_->IsWidgetVisible();
 }
 
 bool TouchSelectionControllerImpl::IsCursorHandleVisible() {
-  return cursor_handle_->GetWidgetVisible();
+  return cursor_handle_->IsWidgetVisible();
 }
 
 gfx::Rect TouchSelectionControllerImpl::GetExpectedHandleBounds(
@@ -738,9 +727,3 @@ View* TouchSelectionControllerImpl::GetHandle2View() {
 }
 
 }  // namespace views
-
-DEFINE_ENUM_CONVERTERS(gfx::SelectionBound::Type,
-                       {gfx::SelectionBound::Type::LEFT, u"LEFT"},
-                       {gfx::SelectionBound::Type::RIGHT, u"RIGHT"},
-                       {gfx::SelectionBound::Type::CENTER, u"CENTER"},
-                       {gfx::SelectionBound::Type::EMPTY, u"EMPTY"})

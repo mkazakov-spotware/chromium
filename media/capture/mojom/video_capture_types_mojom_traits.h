@@ -1,15 +1,16 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_CAPTURE_MOJOM_VIDEO_CAPTURE_TYPES_MOJOM_TRAITS_H_
 #define MEDIA_CAPTURE_MOJOM_VIDEO_CAPTURE_TYPES_MOJOM_TRAITS_H_
 
+#include "base/optional.h"
 #include "media/base/video_facing.h"
+#include "media/base/video_frame_feedback.h"
 #include "media/capture/mojom/video_capture_types.mojom-shared.h"
 #include "media/capture/video/video_capture_device_descriptor.h"
 #include "media/capture/video/video_capture_device_info.h"
-#include "media/capture/video/video_capture_feedback.h"
 #include "media/capture/video_capture_types.h"
 
 namespace mojo {
@@ -239,41 +240,23 @@ struct COMPONENT_EXPORT(MEDIA_CAPTURE_MOJOM_TRAITS)
 
 template <>
 struct COMPONENT_EXPORT(MEDIA_CAPTURE_MOJOM_TRAITS)
-    StructTraits<media::mojom::VideoCaptureFeedbackDataView,
-                 media::VideoCaptureFeedback> {
+    StructTraits<media::mojom::VideoFrameFeedbackDataView,
+                 media::VideoFrameFeedback> {
   static double resource_utilization(
-      const media::VideoCaptureFeedback& feedback) {
+      const media::VideoFrameFeedback& feedback) {
     return feedback.resource_utilization;
   }
 
-  static float max_framerate_fps(const media::VideoCaptureFeedback& feedback) {
+  static float max_framerate_fps(const media::VideoFrameFeedback& feedback) {
     return feedback.max_framerate_fps;
   }
 
-  static int max_pixels(const media::VideoCaptureFeedback& feedback) {
+  static int max_pixels(const media::VideoFrameFeedback& feedback) {
     return feedback.max_pixels;
   }
 
-  static bool require_mapped_frame(
-      const media::VideoCaptureFeedback& feedback) {
-    return feedback.require_mapped_frame;
-  }
-
-  static const std::vector<gfx::Size>& mapped_sizes(
-      const media::VideoCaptureFeedback& feedback) {
-    return feedback.mapped_sizes;
-  }
-
-  static bool has_frame_id(const media::VideoCaptureFeedback& feedback) {
-    return feedback.frame_id.has_value();
-  }
-
-  static int frame_id(const media::VideoCaptureFeedback& feedback) {
-    return feedback.frame_id.value_or(0);
-  }
-
-  static bool Read(media::mojom::VideoCaptureFeedbackDataView data,
-                   media::VideoCaptureFeedback* output);
+  static bool Read(media::mojom::VideoFrameFeedbackDataView data,
+                   media::VideoFrameFeedback* output);
 };
 }  // namespace mojo
 

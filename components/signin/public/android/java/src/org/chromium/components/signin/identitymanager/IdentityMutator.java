@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,29 +44,19 @@ public class IdentityMutator {
      *   - the account username is allowed by policy,
      *   - there is not already a primary account set.
      */
-    public @PrimaryAccountError int setPrimaryAccount(
-            CoreAccountId accountId, @ConsentLevel int consentLevel) {
+    public boolean setPrimaryAccount(CoreAccountId accountId, @ConsentLevel int consentLevel) {
         return IdentityMutatorJni.get().setPrimaryAccount(
                 mNativeIdentityMutator, accountId, consentLevel);
     }
 
     /**
-     * Clears the primary account, revokes all consent, removes all accounts and returns whether the
-     * operation succeeded .
+     * Clears the primary account, and returns whether the operation succeeded or not. Depending on
+     * |action|, the other accounts known to the IdentityManager may be deleted.
      */
-    public boolean clearPrimaryAccount(
+    public boolean clearPrimaryAccount(@ClearAccountsAction int action,
             @SignoutReason int sourceMetric, @SignoutDelete int deleteMetric) {
         return IdentityMutatorJni.get().clearPrimaryAccount(
-                mNativeIdentityMutator, sourceMetric, deleteMetric);
-    }
-
-    /**
-     * Revokes sync consent for the primary account.
-     */
-    public void revokeSyncConsent(
-            @SignoutReason int sourceMetric, @SignoutDelete int deleteMetric) {
-        IdentityMutatorJni.get().revokeSyncConsent(
-                mNativeIdentityMutator, sourceMetric, deleteMetric);
+                mNativeIdentityMutator, action, sourceMetric, deleteMetric);
     }
 
     /**
@@ -80,12 +70,11 @@ public class IdentityMutator {
 
     @NativeMethods
     interface Natives {
-        public @PrimaryAccountError int setPrimaryAccount(long nativeJniIdentityMutator,
-                CoreAccountId accountId, @ConsentLevel int consentLevel);
+        public boolean setPrimaryAccount(long nativeJniIdentityMutator, CoreAccountId accountId,
+                @ConsentLevel int consentLevel);
         public boolean clearPrimaryAccount(long nativeJniIdentityMutator,
-                @SignoutReason int sourceMetric, @SignoutDelete int deleteMetric);
-        public void revokeSyncConsent(long nativeJniIdentityMutator,
-                @SignoutReason int sourceMetric, @SignoutDelete int deleteMetric);
+                @ClearAccountsAction int action, @SignoutReason int sourceMetric,
+                @SignoutDelete int deleteMetric);
         public void reloadAllAccountsFromSystemWithPrimaryAccount(
                 long nativeJniIdentityMutator, @Nullable CoreAccountId accountId);
     }

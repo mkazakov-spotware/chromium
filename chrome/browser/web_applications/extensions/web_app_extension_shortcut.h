@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 #define CHROME_BROWSER_WEB_APPLICATIONS_EXTENSIONS_WEB_APP_EXTENSION_SHORTCUT_H_
 
 #include <memory>
-#include <string>
 
 #include "base/callback_forward.h"
+#include "base/files/file_path.h"
+#include "base/strings/string16.h"
 #include "build/build_config.h"
-#include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
-#include "chrome/browser/web_applications/web_app_id.h"
+#include "chrome/browser/web_applications/components/web_app_shortcut.h"
 
 class Profile;
 
@@ -72,17 +72,12 @@ void CreateShortcutsForWebApp(ShortcutCreationReason reason,
 // extension.
 void DeleteAllShortcuts(Profile* profile, const extensions::Extension* app);
 
-// Register a callback that will be run once |app_id|'s shortcuts have been
-// deleted.
-void WaitForExtensionShortcutsDeleted(const AppId& app_id,
-                                      base::OnceClosure callback);
-
 // Updates shortcuts for |app|, but does not create new ones if shortcuts are
 // not present in user-facing locations. Some platforms may still (re)create
 // hidden shortcuts to interact correctly with the system shelf.
 // |old_app_title| contains the title of the app prior to this update.
 // |callback| is invoked once the FILE thread tasks have completed.
-void UpdateAllShortcuts(const std::u16string& old_app_title,
+void UpdateAllShortcuts(const base::string16& old_app_title,
                         Profile* profile,
                         const extensions::Extension* app,
                         base::OnceClosure callback);
@@ -91,13 +86,13 @@ void UpdateAllShortcuts(const std::u16string& old_app_title,
 // on the UI thread.
 void UpdateShortcutsForAllApps(Profile* profile, base::OnceClosure callback);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Update the relaunch details for the given app's window, making the taskbar
 // group's "Pin to the taskbar" button function correctly.
 void UpdateRelaunchDetailsForApp(Profile* profile,
                                  const extensions::Extension* extension,
                                  HWND hwnd);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace web_app
 

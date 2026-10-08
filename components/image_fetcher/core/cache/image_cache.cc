@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,10 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/hash/sha1.h"
+#include "base/task/post_task.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
@@ -180,7 +182,7 @@ void ImageCache::OnImageMetadataLoadedForLoadImage(
     const std::string& key,
     ImageDataCallback callback,
     base::TimeTicks start_time,
-    absl::optional<CachedImageMetadataProto> metadata) {
+    base::Optional<CachedImageMetadataProto> metadata) {
   // Record time spent to load metadata.
   ImageFetcherMetricsReporter::ReportLoadImageMetadata(start_time);
 
@@ -208,7 +210,8 @@ void ImageCache::RunEvictionOnStartup() {
       pref_service_->GetTime(kPrefLastStartupEviction);
   // If we've already garbage collected in the past interval, bail out.
   if (last_eviction_time >
-      clock_->Now() - base::Hours(kImageCacheEvictionIntervalHours)) {
+      clock_->Now() -
+          base::TimeDelta::FromHours(kImageCacheEvictionIntervalHours)) {
     return;
   }
 
@@ -244,7 +247,8 @@ void ImageCache::RunEvictionWhenFull() {
 void ImageCache::RunEviction(size_t bytes_left,
                              base::OnceClosure on_completion) {
   metadata_store_->EvictImageMetadata(
-      clock_->Now() - base::Days(kCacheItemsTimeToLiveDays), bytes_left,
+      clock_->Now() - base::TimeDelta::FromDays(kCacheItemsTimeToLiveDays),
+      bytes_left,
       base::BindOnce(&ImageCache::OnKeysEvicted, weak_ptr_factory_.GetWeakPtr(),
                      std::move(on_completion)));
 }

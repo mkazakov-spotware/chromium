@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@
 #include "base/bind.h"
 #include "base/file_version_info.h"
 #include "base/files/file_path.h"
-#include "base/logging.h"
 #include "base/path_service.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -37,7 +36,7 @@ MemoryDetails::MemoryDetails() {
 
   ProcessData process;
   process.name = l10n_util::GetStringUTF16(IDS_PRODUCT_NAME);
-  process.process_name = browser_process_path.BaseName().AsUTF16Unsafe();
+  process.process_name = browser_process_path.BaseName().value();
   process_data_.push_back(process);
 }
 
@@ -70,7 +69,7 @@ void MemoryDetails::CollectProcessData(
         PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid));
     if (!process_handle.IsValid())
       continue;
-    if (_wcsicmp(base::as_wcstr(process_data_[0].process_name),
+    if (_wcsicmp(process_data_[0].process_name.c_str(),
                  process_entry.szExeFile) != 0) {
       continue;
     }

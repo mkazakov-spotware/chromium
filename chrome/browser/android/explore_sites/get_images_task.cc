@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,7 +51,8 @@ EncodedImageList GetCategoryImagesSync(int category_id,
 
   EncodedImageList result;
   while (category_statement.Step()) {
-    result.push_back(std::make_unique<std::vector<uint8_t>>());
+    int byte_length = category_statement.ColumnByteLength(0);
+    result.push_back(std::make_unique<std::vector<uint8_t>>(byte_length));
     category_statement.ColumnBlobAsVector(0, result.back().get());
   }
   if (!category_statement.Succeeded())
@@ -80,7 +81,8 @@ EncodedImageList GetSummaryImagesSync(int max_images, sql::Database* db) {
 
   EncodedImageList result;
   while (category_statement.Step()) {
-    result.push_back(std::make_unique<std::vector<uint8_t>>());
+    int byte_length = category_statement.ColumnByteLength(0);
+    result.push_back(std::make_unique<std::vector<uint8_t>>(byte_length));
     category_statement.ColumnBlobAsVector(0, result.back().get());
   }
   if (!category_statement.Succeeded())
@@ -97,7 +99,8 @@ EncodedImageList GetSiteImageSync(int site_id, sql::Database* db) {
 
   EncodedImageList result;
   while (site_statement.Step()) {
-    result.push_back(std::make_unique<std::vector<uint8_t>>());
+    int byte_length = site_statement.ColumnByteLength(0);
+    result.push_back(std::make_unique<std::vector<uint8_t>>(byte_length));
     site_statement.ColumnBlobAsVector(0, result.back().get());
   }
   if (!site_statement.Succeeded())

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,12 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/optional.h"
+#include "base/sequenced_task_runner.h"
 #include "net/base/net_export.h"
 #include "net/dns/dns_config.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace net {
 
@@ -33,9 +34,9 @@ class NET_EXPORT_PRIVATE SystemDnsConfigChangeNotifier {
    public:
     // Called on loading new config, including the initial read once the first
     // valid config has been read. If a config read encounters errors or an
-    // invalid config is read, will be invoked with |absl::nullopt|. Only
+    // invalid config is read, will be invoked with |base::nullopt|. Only
     // invoked when |config| changes.
-    virtual void OnSystemDnsConfigChanged(absl::optional<DnsConfig> config) = 0;
+    virtual void OnSystemDnsConfigChanged(base::Optional<DnsConfig> config) = 0;
   };
 
   SystemDnsConfigChangeNotifier();
@@ -51,11 +52,6 @@ class NET_EXPORT_PRIVATE SystemDnsConfigChangeNotifier {
   SystemDnsConfigChangeNotifier(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
       std::unique_ptr<DnsConfigService> dns_config_service);
-
-  SystemDnsConfigChangeNotifier(const SystemDnsConfigChangeNotifier&) = delete;
-  SystemDnsConfigChangeNotifier& operator=(
-      const SystemDnsConfigChangeNotifier&) = delete;
-
   ~SystemDnsConfigChangeNotifier();
 
   // An added Observer will receive notifications on the sequence where
@@ -81,6 +77,8 @@ class NET_EXPORT_PRIVATE SystemDnsConfigChangeNotifier {
   class Core;
 
   std::unique_ptr<Core, base::OnTaskRunnerDeleter> core_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemDnsConfigChangeNotifier);
 };
 
 }  // namespace net

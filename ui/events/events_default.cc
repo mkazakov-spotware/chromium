@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,6 @@ namespace ui {
 base::TimeTicks EventTimeFromNative(const PlatformEvent& native_event) {
   const ui::Event* event = static_cast<const ui::Event*>(native_event);
   return event->time_stamp();
-}
-
-base::TimeTicks EventLatencyTimeFromNative(const PlatformEvent& native_event,
-                                           base::TimeTicks current_time) {
-  return EventTimeFromNative(native_event);
 }
 
 int EventFlagsFromNative(const PlatformEvent& native_event) {

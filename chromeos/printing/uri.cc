@@ -1,13 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromeos/printing/uri.h"
 
+#include <algorithm>
+
 #include "base/check_op.h"
 #include "base/containers/flat_map.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "chromeos/printing/uri_impl.h"
@@ -97,8 +98,9 @@ class Encoder {
 
 // Returns true if given string has characters outside ASCII (outside 0x00-07F).
 bool HasNonASCII(const std::string& str) {
-  return base::ranges::any_of(
-      str, [](char c) { return static_cast<unsigned char>(c) > 0x7f; });
+  return std::any_of(str.begin(), str.end(), [](char c) {
+    return static_cast<unsigned char>(c) > 0x7f;
+  });
 }
 
 // The map with pairs scheme -> default_port.
@@ -178,8 +180,7 @@ std::string Uri::GetNormalized(bool always_print_port) const {
 
   // Output string. Adds Scheme.
   std::string out = pim_->scheme();
-  if (!out.empty())
-    out.push_back(':');
+  out.push_back(':');
 
   // Adds authority (Userinfo + Host + Port) if non-empty.
   Encoder enc("+&=:");
@@ -283,14 +284,6 @@ std::vector<std::pair<std::string, std::string>> Uri::GetQuery() const {
 }
 std::string Uri::GetFragment() const {
   return pim_->fragment();
-}
-base::flat_map<std::string, std::vector<std::string>> Uri::GetQueryAsMap()
-    const {
-  base::flat_map<std::string, std::vector<std::string>> output;
-  for (const auto& [key, value] : pim_->query()) {
-    output[key].push_back(value);
-  }
-  return output;
 }
 
 std::string Uri::GetUserinfoEncoded() const {

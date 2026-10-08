@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,6 +28,7 @@ public class PrefetchBackgroundTask extends NativeBackgroundTask {
     private static final int MINIMUM_BATTERY_PERCENTAGE_FOR_PREFETCHING = 50;
 
     private static boolean sSkipConditionCheckingForTesting;
+    private static boolean sAlwaysSupportServiceManagerOnlyForTesting;
     private static boolean sSkipCachingFlagForTesting;
 
     private long mNativeTask;
@@ -84,6 +85,10 @@ public class PrefetchBackgroundTask extends NativeBackgroundTask {
         sSkipConditionCheckingForTesting = true;
     }
 
+    @VisibleForTesting
+    static void alwaysSupportServiceManagerOnlyForTesting() {
+        sAlwaysSupportServiceManagerOnlyForTesting = true;
+    }
 
     @Override
     protected void onStartTaskWithNative(
@@ -95,7 +100,7 @@ public class PrefetchBackgroundTask extends NativeBackgroundTask {
     }
 
     private boolean isBrowserRunningInReducedMode() {
-        return getBrowserStartupController().isRunningInMinimalBrowserMode();
+        return getBrowserStartupController().isRunningInServiceManagerMode();
     }
 
     @Override
@@ -182,8 +187,12 @@ public class PrefetchBackgroundTask extends NativeBackgroundTask {
     }
 
     @Override
-    protected boolean supportsMinimalBrowser() {
-        return true;
+    protected boolean supportsServiceManagerOnly() {
+        if (sAlwaysSupportServiceManagerOnlyForTesting) {
+            return true;
+        }
+
+        return PrefetchConfiguration.isServiceManagerForBackgroundPrefetchEnabled();
     }
 
     @NativeMethods

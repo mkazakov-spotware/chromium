@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,9 +57,6 @@ extern const CGFloat kDimmedToolbarSpotlightAlpha;
 // Adaptive toolbar position constants.
 extern const CGFloat kExpandedLocationBarHorizontalMargin;
 extern const CGFloat kContractedLocationBarHorizontalMargin;
-// Location bar leading margin with kIOSOmniboxUpdatedPopupUI flag. Should be
-// used instead of kExpandedLocationBarHorizontalMargin.
-extern const CGFloat kExpandedLocationBarLeadingMarginRefreshedPopup;
 
 // Adaptive Location bar constants.
 extern const CGFloat kAdaptiveLocationBarBackgroundAlpha;

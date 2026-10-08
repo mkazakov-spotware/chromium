@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2006 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Low level handling of XMLHttpRequest.
@@ -17,7 +25,6 @@ goog.provide('goog.net.XmlHttpDefines');
 goog.require('goog.asserts');
 goog.require('goog.net.WrapperXmlHttpFactory');
 goog.require('goog.net.XmlHttpFactory');
-goog.requireType('goog.net.XhrLike');
 
 
 /**
@@ -25,7 +32,6 @@ goog.requireType('goog.net.XhrLike');
  * @return {!goog.net.XhrLike.OrNative} A new XMLHttpRequest object.
  */
 goog.net.XmlHttp = function() {
-  'use strict';
   return goog.net.XmlHttp.factory_.createInstance();
 };
 
@@ -60,7 +66,6 @@ goog.net.XmlHttpDefines.ASSUME_NATIVE_XHR =
  * @return {Object} The options.
  */
 goog.net.XmlHttp.getOptions = function() {
-  'use strict';
   return goog.net.XmlHttp.factory_.getOptions();
 };
 
@@ -133,9 +138,9 @@ goog.net.XmlHttp.factory_;
  * @deprecated Use setGlobalFactory instead.
  */
 goog.net.XmlHttp.setFactory = function(factory, optionsFactory) {
-  'use strict';
-  goog.net.XmlHttp.setGlobalFactory(new goog.net.WrapperXmlHttpFactory(
-      goog.asserts.assert(factory), goog.asserts.assert(optionsFactory)));
+  goog.net.XmlHttp.setGlobalFactory(
+      new goog.net.WrapperXmlHttpFactory(
+          goog.asserts.assert(factory), goog.asserts.assert(optionsFactory)));
 };
 
 
@@ -144,7 +149,6 @@ goog.net.XmlHttp.setFactory = function(factory, optionsFactory) {
  * @param {!goog.net.XmlHttpFactory} factory New global factory object.
  */
 goog.net.XmlHttp.setGlobalFactory = function(factory) {
-  'use strict';
   goog.net.XmlHttp.factory_ = factory;
 };
 
@@ -157,7 +161,6 @@ goog.net.XmlHttp.setGlobalFactory = function(factory) {
  * @constructor
  */
 goog.net.DefaultXmlHttpFactory = function() {
-  'use strict';
   goog.net.XmlHttpFactory.call(this);
 };
 goog.inherits(goog.net.DefaultXmlHttpFactory, goog.net.XmlHttpFactory);
@@ -165,8 +168,7 @@ goog.inherits(goog.net.DefaultXmlHttpFactory, goog.net.XmlHttpFactory);
 
 /** @override */
 goog.net.DefaultXmlHttpFactory.prototype.createInstance = function() {
-  'use strict';
-  const progId = this.getProgId_();
+  var progId = this.getProgId_();
   if (progId) {
     return new ActiveXObject(progId);
   } else {
@@ -177,9 +179,8 @@ goog.net.DefaultXmlHttpFactory.prototype.createInstance = function() {
 
 /** @override */
 goog.net.DefaultXmlHttpFactory.prototype.internalGetOptions = function() {
-  'use strict';
-  const progId = this.getProgId_();
-  const options = {};
+  var progId = this.getProgId_();
+  var options = {};
   if (progId) {
     options[goog.net.XmlHttp.OptionType.USE_NULL_FUNCTION] = true;
     options[goog.net.XmlHttp.OptionType.LOCAL_REQUEST_ERROR] = true;
@@ -202,7 +203,6 @@ goog.net.DefaultXmlHttpFactory.prototype.ieProgId_;
  * @private
  */
 goog.net.DefaultXmlHttpFactory.prototype.getProgId_ = function() {
-  'use strict';
   if (goog.net.XmlHttp.ASSUME_NATIVE_XHR ||
       goog.net.XmlHttpDefines.ASSUME_NATIVE_XHR) {
     return '';
@@ -216,14 +216,14 @@ goog.net.DefaultXmlHttpFactory.prototype.getProgId_ = function() {
   if (!this.ieProgId_ && typeof XMLHttpRequest == 'undefined' &&
       typeof ActiveXObject != 'undefined') {
     // Candidate Active X types.
-    const ACTIVE_X_IDENTS = [
+    var ACTIVE_X_IDENTS = [
       'MSXML2.XMLHTTP.6.0',
       'MSXML2.XMLHTTP.3.0',
       'MSXML2.XMLHTTP',
       'Microsoft.XMLHTTP',
     ];
-    for (let i = 0; i < ACTIVE_X_IDENTS.length; i++) {
-      const candidate = ACTIVE_X_IDENTS[i];
+    for (var i = 0; i < ACTIVE_X_IDENTS.length; i++) {
+      var candidate = ACTIVE_X_IDENTS[i];
 
       try {
         new ActiveXObject(candidate);

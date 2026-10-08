@@ -23,10 +23,9 @@
 
 #include "third_party/blink/renderer/platform/graphics/filters/filter_effect.h"
 
-#include "base/types/optional_util.h"
 #include "third_party/blink/renderer/platform/graphics/filters/filter.h"
 #include "third_party/skia/include/core/SkColorFilter.h"
-#include "ui/gfx/geometry/skia_conversions.h"
+#include "third_party/skia/include/effects/SkColorFilterImageFilter.h"
 
 namespace blink {
 
@@ -45,41 +44,41 @@ void FilterEffect::Trace(Visitor* visitor) const {
   visitor->Trace(filter_);
 }
 
-gfx::RectF FilterEffect::AbsoluteBounds() const {
-  gfx::RectF computed_bounds = GetFilter()->FilterRegion();
+FloatRect FilterEffect::AbsoluteBounds() const {
+  FloatRect computed_bounds = GetFilter()->FilterRegion();
   if (!FilterPrimitiveSubregion().IsEmpty())
     computed_bounds.Intersect(FilterPrimitiveSubregion());
   return GetFilter()->MapLocalRectToAbsoluteRect(computed_bounds);
 }
 
-gfx::RectF FilterEffect::MapInputs(const gfx::RectF& rect) const {
+FloatRect FilterEffect::MapInputs(const FloatRect& rect) const {
   if (!input_effects_.size()) {
     if (ClipsToBounds())
       return AbsoluteBounds();
     return rect;
   }
-  gfx::RectF input_union;
+  FloatRect input_union;
   for (const auto& effect : input_effects_)
-    input_union.Union(effect->MapRect(rect));
+    input_union.Unite(effect->MapRect(rect));
   return input_union;
 }
 
-gfx::RectF FilterEffect::MapEffect(const gfx::RectF& rect) const {
+FloatRect FilterEffect::MapEffect(const FloatRect& rect) const {
   return rect;
 }
 
-gfx::RectF FilterEffect::ApplyBounds(const gfx::RectF& rect) const {
+FloatRect FilterEffect::ApplyBounds(const FloatRect& rect) const {
   // Filters in SVG clip to primitive subregion, while CSS doesn't.
   if (!ClipsToBounds())
     return rect;
-  gfx::RectF bounds = AbsoluteBounds();
+  FloatRect bounds = AbsoluteBounds();
   if (AffectsTransparentPixels())
     return bounds;
-  return IntersectRects(rect, bounds);
+  return Intersection(rect, bounds);
 }
 
-gfx::RectF FilterEffect::MapRect(const gfx::RectF& rect) const {
-  gfx::RectF result = MapInputs(rect);
+FloatRect FilterEffect::MapRect(const FloatRect& rect) const {
+  FloatRect result = MapInputs(rect);
   result = MapEffect(result);
   return ApplyBounds(result);
 }
@@ -134,23 +133,24 @@ bool FilterEffect::InputsTaintOrigin() const {
 }
 
 sk_sp<PaintFilter> FilterEffect::CreateTransparentBlack() const {
+  PaintFilter::CropRect rect = GetCropRect();
   sk_sp<SkColorFilter> color_filter =
       SkColorFilters::Blend(0, SkBlendMode::kClear);
   return sk_make_sp<ColorFilterPaintFilter>(std::move(color_filter), nullptr,
-                                            base::OptionalToPtr(GetCropRect()));
+                                            &rect);
 }
 
-absl::optional<PaintFilter::CropRect> FilterEffect::GetCropRect() const {
+PaintFilter::CropRect FilterEffect::GetCropRect() const {
   if (!ClipsToBounds())
-    return {};
-  gfx::RectF computed_bounds = FilterPrimitiveSubregion();
+    return PaintFilter::CropRect(SkRect::MakeEmpty(), 0);
+  FloatRect computed_bounds = FilterPrimitiveSubregion();
   // This and the filter region check is a workaround for crbug.com/512453.
   if (computed_bounds.IsEmpty())
-    return {};
-  gfx::RectF filter_region = GetFilter()->FilterRegion();
+    return PaintFilter::CropRect(SkRect::MakeEmpty(), 0);
+  FloatRect filter_region = GetFilter()->FilterRegion();
   if (!filter_region.IsEmpty())
     computed_bounds.Intersect(filter_region);
-  return gfx::RectFToSkRect(
+  return PaintFilter::CropRect(
       GetFilter()->MapLocalRectToAbsoluteRect(computed_bounds));
 }
 

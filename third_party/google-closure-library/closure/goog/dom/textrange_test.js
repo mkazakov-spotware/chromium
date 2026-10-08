@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.dom.TextRangeTest');
 goog.setTestOnly();
@@ -36,6 +44,11 @@ function getTest3ElementTopLeft() {
     // On IE the selection is as tall as its tallest element.
     const logoPosition = style.getPageOffset(logo3);
     topLeft.y = logoPosition.y;
+
+    if (!userAgent.isVersionOrHigher('8')) {
+      topLeft.x += 2;
+      topLeft.y += 2;
+    }
   }
   return topLeft;
 }
@@ -46,6 +59,10 @@ function getTest3ElementBottomRight() {
       pageOffset.x + test3.lastChild.offsetWidth,
       pageOffset.y + test3.lastChild.offsetHeight);
 
+  if (userAgent.IE && !userAgent.isVersionOrHigher('8')) {
+    bottomRight.x += 6;
+    bottomRight.y += 2;
+  }
   return bottomRight;
 }
 
@@ -134,6 +151,9 @@ testSuite({
   },
 
   testGetStartPosition() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+
     // The start node is in the top left.
     const range = DomTextRange.createFromNodeContents(test3);
 
@@ -146,6 +166,11 @@ testSuite({
   },
 
   testGetStartPositionNotInDocument() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+    expectedFailures.expectFailureFor(
+        userAgent.IE && !userAgent.isVersionOrHigher('8'));
+
     const range = DomTextRange.createFromNodeContents(test3);
 
     dom.removeNode(test3);
@@ -160,6 +185,9 @@ testSuite({
   },
 
   testGetStartPositionReversed() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+
     // Simulate the user selecting backwards from right-to-left.
     // The start node is now in the bottom right.
     const firstNode = test3.firstChild.firstChild;
@@ -177,10 +205,13 @@ testSuite({
 
   testGetStartPositionRightToLeft() {
     if (product.SAFARI) {
-      // TODO(user): Disabled so we can get the rest of the Closure test
+      // TODO(b/20733468): Disabled so we can get the rest of the Closure test
       // suite running in a continuous build. Will investigate later.
       return;
     }
+
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
 
     // Even in RTL content the start node is still in the top left.
     const range = DomTextRange.createFromNodeContents(test3Rtl);
@@ -190,6 +221,11 @@ testSuite({
       // On IE the selection is as tall as its tallest element.
       const logoPosition = style.getPageOffset(logo3Rtl);
       topLeft.y = logoPosition.y;
+
+      if (!userAgent.isVersionOrHigher('8')) {
+        topLeft.x += 2;
+        topLeft.y += 2;
+      }
     }
 
     try {
@@ -201,6 +237,9 @@ testSuite({
   },
 
   testGetEndPosition() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+
     // The end node is in the bottom right.
     const range = DomTextRange.createFromNodeContents(test3);
     const expected = getTest3ElementBottomRight();
@@ -214,6 +253,11 @@ testSuite({
   },
 
   testGetEndPositionNotInDocument() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+    expectedFailures.expectFailureFor(
+        userAgent.IE && !userAgent.isVersionOrHigher('8'));
+
     const range = DomTextRange.createFromNodeContents(test3);
 
     dom.removeNode(test3);
@@ -228,6 +272,9 @@ testSuite({
   },
 
   testGetEndPositionReversed() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+
     // Simulate the user selecting backwards from right-to-left.
     // The end node is still in the lower right.
     const range = DomTextRange.createFromNodeContents(test3, true);
@@ -237,7 +284,8 @@ testSuite({
       const result = assertNotThrows(goog.bind(range.getEndPosition, range));
 
       // For some reason, ie7 is further off than other browsers.
-      const estimate = 1;
+      const estimate =
+          (userAgent.IE && !userAgent.isVersionOrHigher('8')) ? 4 : 1;
       assertObjectRoughlyEquals(expected, result, estimate);
     } catch (e) {
       expectedFailures.handleException(e);
@@ -245,6 +293,11 @@ testSuite({
   },
 
   testGetEndPositionRightToLeft() {
+    expectedFailures.expectFailureFor(
+        userAgent.GECKO && !userAgent.isVersionOrHigher('2'));
+    expectedFailures.expectFailureFor(
+        userAgent.IE && !userAgent.isVersionOrHigher('8'));
+
     // Even in RTL content the end node is still in the bottom right.
     const range = DomTextRange.createFromNodeContents(test3Rtl);
     const pageOffset = style.getPageOffset(test3Rtl.lastChild);
@@ -252,7 +305,10 @@ testSuite({
         pageOffset.x + test3Rtl.lastChild.offsetWidth,
         pageOffset.y + test3Rtl.lastChild.offsetHeight);
 
-
+    if (userAgent.IE && !userAgent.isVersionOrHigher('8')) {
+      bottomRight.x += 2;
+      bottomRight.y += 2;
+    }
 
     try {
       const result = assertNotThrows(goog.bind(range.getEndPosition, range));
@@ -262,7 +318,6 @@ testSuite({
     }
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testCloneRangeDeep() {
     const range = DomTextRange.createFromNodeContents(logo);
     assertFalse(range.isCollapsed());

@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,8 +13,7 @@ source_set("qrcode_generator") {
   deps = [
     "//base",
     "//chrome:strings",
-    "//components/qr_code_generator",
-    "//components/vector_icons",
+    "//chrome/common/qr_code_generator",
     "//mojo/public/cpp/bindings",
     "//net",
     "//ui/gfx",

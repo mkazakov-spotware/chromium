@@ -1,1 +1,1 @@
-AXValueChanged on AXIncrementor AXValue=1
+AXValueChanged on AXIncrementor

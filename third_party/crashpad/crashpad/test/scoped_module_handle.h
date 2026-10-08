@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,12 @@
 #ifndef CRASHPAD_TEST_SCOPED_MODULE_HANDLE_H_
 #define CRASHPAD_TEST_SCOPED_MODULE_HANDLE_H_
 
+#include "base/macros.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <dlfcn.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -32,17 +33,13 @@ class ScopedModuleHandle {
  private:
   class Impl {
    public:
-    Impl() = delete;
-    Impl(const Impl&) = delete;
-    Impl& operator=(const Impl&) = delete;
-
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
     using ModuleHandle = void*;
 
     static void* LookUpSymbol(ModuleHandle handle, const char* symbol_name) {
       return dlsym(handle, symbol_name);
     }
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
     using ModuleHandle = HMODULE;
 
     static void* LookUpSymbol(ModuleHandle handle, const char* symbol_name) {
@@ -51,6 +48,9 @@ class ScopedModuleHandle {
 #endif
 
     static void Close(ModuleHandle handle);
+
+   private:
+    DISALLOW_IMPLICIT_CONSTRUCTORS(Impl);
   };
 
  public:
@@ -58,10 +58,6 @@ class ScopedModuleHandle {
 
   explicit ScopedModuleHandle(ModuleHandle handle);
   ScopedModuleHandle(ScopedModuleHandle&& handle);
-
-  ScopedModuleHandle(const ScopedModuleHandle&) = delete;
-  ScopedModuleHandle& operator=(const ScopedModuleHandle&) = delete;
-
   ~ScopedModuleHandle();
 
   //! \return The module handle being managed.
@@ -79,6 +75,8 @@ class ScopedModuleHandle {
 
  private:
   ModuleHandle handle_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedModuleHandle);
 };
 
 }  // namespace test

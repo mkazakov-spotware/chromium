@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/files/file_util.h"
-#include "base/logging.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 
@@ -31,36 +30,15 @@ DataSource<T>::DataSource(T* data_source,
 
 template <typename T>
 void DataSource<T>::HandleFinishEvent(bool completed) {
-  delegate_->OnDataSourceFinish(completed);
-}
-
-// Writes |data_str| to file descriptor |fd| assuming it is flagged as
-// O_NONBLOCK, which implies in handling EAGAIN, besides EINTR. Returns true
-// iff data is fully written to the given file descriptor. See the link below
-// for more details about non-blocking behavior for 'write' syscall.
-// https://pubs.opengroup.org/onlinepubs/007904975/functions/write.html
-bool WriteDataNonBlocking(int fd, const std::string& data_str) {
-  const char* data = data_str.data();
-  const ssize_t size = base::checked_cast<ssize_t>(data_str.size());
-  ssize_t written = 0;
-  while (written < size) {
-    ssize_t result = write(fd, data + written, size - written);
-    if (result == -1) {
-      if (errno == EINTR || errno == EAGAIN)
-        continue;
-      return false;
-    }
-    written += result;
-  }
-  return true;
+  delegate_->OnDataSourceFinish(/*completed=*/false);
 }
 
 template <typename T>
 void DataSource<T>::HandleSendEvent(const std::string& mime_type, int32_t fd) {
   std::string contents;
   delegate_->OnDataSourceSend(mime_type, &contents);
-  bool done = WriteDataNonBlocking(fd, contents);
-  VPLOG_IF(1, !done) << "Failed to write";
+  bool done = base::WriteFileDescriptor(fd, contents.data(), contents.length());
+  DCHECK(done);
   close(fd);
 }
 
@@ -108,9 +86,13 @@ void DataSource<T>::OnDnDDropPerformed(void* data, T* source) {
 
 template <>
 void DataSource<wl_data_source>::Initialize() {
-  static constexpr wl_data_source_listener kDataSourceListener = {
-      &OnTarget,           &OnSend,        &OnCancel,
-      &OnDnDDropPerformed, &OnDnDFinished, &OnAction};
+  static const struct wl_data_source_listener kDataSourceListener = {
+      DataSource<wl_data_source>::OnTarget,
+      DataSource<wl_data_source>::OnSend,
+      DataSource<wl_data_source>::OnCancel,
+      DataSource<wl_data_source>::OnDnDDropPerformed,
+      DataSource<wl_data_source>::OnDnDFinished,
+      DataSource<wl_data_source>::OnAction};
   wl_data_source_add_listener(data_source_.get(), &kDataSourceListener, this);
 }
 
@@ -119,18 +101,23 @@ void DataSource<wl_data_source>::Offer(
     const std::vector<std::string>& mime_types) {
   for (auto& mime_type : mime_types)
     wl_data_source_offer(data_source_.get(), mime_type.c_str());
-  connection_->Flush();
+  connection_->ScheduleFlush();
 }
 
 template <typename T>
-void DataSource<T>::SetDndActions(uint32_t dnd_actions) {
+void DataSource<T>::SetAction(int operation) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 
 template <>
-void DataSource<wl_data_source>::SetDndActions(uint32_t dnd_actions) {
+void DataSource<wl_data_source>::SetAction(int operation) {
   if (wl::get_version_of_object(data_source_.get()) >=
       WL_DATA_SOURCE_SET_ACTIONS_SINCE_VERSION) {
+    uint32_t dnd_actions = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
+    if (operation & ui::DragDropTypes::DRAG_COPY)
+      dnd_actions |= WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY;
+    if (operation & ui::DragDropTypes::DRAG_MOVE)
+      dnd_actions |= WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE;
     wl_data_source_set_actions(data_source_.get(), dnd_actions);
   }
 }
@@ -143,8 +130,10 @@ template class DataSource<wl_data_source>;
 
 template <>
 void DataSource<gtk_primary_selection_source>::Initialize() {
-  static constexpr gtk_primary_selection_source_listener kDataSourceListener = {
-      &OnSend, &OnCancel};
+  static const struct gtk_primary_selection_source_listener
+      kDataSourceListener = {
+          DataSource<gtk_primary_selection_source>::OnSend,
+          DataSource<gtk_primary_selection_source>::OnCancel};
   gtk_primary_selection_source_add_listener(data_source_.get(),
                                             &kDataSourceListener, this);
 }
@@ -154,12 +143,12 @@ void DataSource<gtk_primary_selection_source>::Offer(
     const std::vector<std::string>& mime_types) {
   for (const auto& mime_type : mime_types)
     gtk_primary_selection_source_offer(data_source_.get(), mime_type.c_str());
-  connection_->Flush();
+  connection_->ScheduleFlush();
 }
 
 template <>
 void DataSource<zwp_primary_selection_source_v1>::Initialize() {
-  static constexpr zwp_primary_selection_source_v1_listener
+  static const struct zwp_primary_selection_source_v1_listener
       kDataSourceListener = {
           DataSource<zwp_primary_selection_source_v1>::OnSend,
           DataSource<zwp_primary_selection_source_v1>::OnCancel};
@@ -173,7 +162,7 @@ void DataSource<zwp_primary_selection_source_v1>::Offer(
   for (const auto& mime_type : mime_types)
     zwp_primary_selection_source_v1_offer(data_source_.get(),
                                           mime_type.c_str());
-  connection_->Flush();
+  connection_->ScheduleFlush();
 }
 
 template class DataSource<gtk_primary_selection_source>;

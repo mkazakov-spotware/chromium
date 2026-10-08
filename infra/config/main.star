@@ -1,5 +1,5 @@
 #!/usr/bin/env lucicfg
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,35 +10,33 @@ load("//lib/branches.star", "branches")
 load("//project.star", "settings")
 
 lucicfg.check_version(
-    min = "1.33.7",
+    min = "1.19.0",
     message = "Update depot_tools",
 )
 
-# Use LUCI Scheduler BBv2 names and add Scheduler realms configs.
-lucicfg.enable_experiment("crbug.com/1182002")
+# Enable LUCI Realms support.
+lucicfg.enable_experiment("crbug.com/1085650")
+
+# Enable tree closing.
+lucicfg.enable_experiment("crbug.com/1054172")
 
 # Tell lucicfg what files it is allowed to touch
 lucicfg.config(
     config_dir = "generated",
     tracked_files = [
-        "builders/*/*/*",
+        "commit-queue.cfg",
         "cq-builders.md",
-        "cq-usage/default.cfg",
-        "cq-usage/full.cfg",
-        "luci/commit-queue.cfg",
-        "luci/cr-buildbucket.cfg",
-        "luci/luci-analysis.cfg",
-        "luci/luci-logdog.cfg",
-        "luci/luci-milo.cfg",
-        "luci/luci-notify.cfg",
-        "luci/luci-notify/email-templates/*.template",
-        "luci/luci-scheduler.cfg",
-        "luci/project.cfg",
-        "luci/realms.cfg",
-        "luci/tricium-prod.cfg",
+        "cr-buildbucket.cfg",
+        "luci-logdog.cfg",
+        "luci-milo.cfg",
+        "luci-notify.cfg",
+        "luci-notify/email-templates/*.template",
+        "luci-scheduler.cfg",
         "outages.pyl",
-        "sheriff-rotations/*.txt",
+        "project.cfg",
         "project.pyl",
+        "realms.cfg",
+        "tricium-prod.cfg",
     ],
     fail_on_warnings = True,
     lint_checks = [
@@ -54,19 +52,12 @@ lucicfg.config(
 
 # Just copy tricium-prod.cfg to the generated outputs
 lucicfg.emit(
-    dest = "luci/tricium-prod.cfg",
+    dest = "tricium-prod.cfg",
     data = io.read_file("tricium-prod.cfg"),
-)
-
-# Just copy LUCI Analysis config to generated outputs.
-lucicfg.emit(
-    dest = "luci/luci-analysis.cfg",
-    data = io.read_file("luci-analysis.cfg"),
 )
 
 luci.project(
     name = settings.project,
-    config_dir = "luci",
     buildbucket = "cr-buildbucket.appspot.com",
     logdog = "luci-logdog.appspot.com",
     milo = "luci-milo.appspot.com",
@@ -89,28 +80,6 @@ luci.project(
         acl.entry(
             roles = acl.SCHEDULER_OWNER,
             groups = "project-chromium-admins",
-        ),
-    ],
-    bindings = [
-        luci.binding(
-            roles = "role/configs.validator",
-            groups = [
-                "project-chromium-try-task-accounts",
-                "project-chromium-ci-task-accounts",
-            ],
-        ),
-        # Roles for LUCI Analysis.
-        luci.binding(
-            roles = "role/analysis.reader",
-            groups = "all",
-        ),
-        luci.binding(
-            roles = "role/analysis.queryUser",
-            groups = "authenticated-users",
-        ),
-        luci.binding(
-            roles = "role/analysis.editor",
-            groups = ["project-chromium-committers", "googlers"],
         ),
     ],
 )
@@ -149,50 +118,8 @@ luci.realm(
     ],
 )
 
-luci.realm(
-    name = "ci",
-    bindings = [
-        # Allow CI builders to create invocations in their own builds.
-        luci.binding(
-            roles = "role/resultdb.invocationCreator",
-            groups = "project-chromium-ci-task-accounts",
-        ),
-    ],
-)
-
-luci.realm(
-    name = "try",
-    bindings = [
-        # Allow try builders to create invocations in their own builds.
-        luci.binding(
-            roles = "role/resultdb.invocationCreator",
-            groups = [
-                "project-chromium-try-task-accounts",
-                # In order to be able to reproduce test tasks that have
-                # ResultDB enabled (at this point that should be all
-                # tests), a realm must be provided. The ability to
-                # trigger machines in the test pool is associated with
-                # the try realm, so allow those who can trigger swarming
-                # tasks in that pool tasks to create invocations.
-                "chromium-led-users",
-                "project-chromium-tryjob-access",
-            ],
-        ),
-    ],
-)
-
-luci.realm(
-    name = "webrtc",
-    bindings = [
-        # Allow WebRTC builders to create invocations in their own builds.
-        luci.binding(
-            roles = "role/resultdb.invocationCreator",
-            groups = "project-chromium-ci-task-accounts",
-        ),
-    ],
-)
-
-luci.builder.defaults.test_presentation.set(resultdb.test_presentation(grouping_keys = ["status", "v.test_suite"]))
+# Launch Swarming tasks in "realms-aware mode", crbug.com/1136313.
+luci.builder.defaults.experiments.set({"luci.use_realms": 100})
 
 exec("//swarming.star")
 
@@ -203,15 +130,12 @@ exec("//notifiers.star")
 exec("//subprojects/chromium/subproject.star")
 branches.exec("//subprojects/codesearch/subproject.star")
 branches.exec("//subprojects/findit/subproject.star")
-branches.exec("//subprojects/flakiness/subproject.star")
 branches.exec("//subprojects/goma/subproject.star")
-branches.exec("//subprojects/reclient/subproject.star")
-branches.exec("//subprojects/reviver/subproject.star")
 branches.exec("//subprojects/webrtc/subproject.star")
 
-exec("//generators/cq-usage.star")
 branches.exec("//generators/cq-builders-md.star")
 
+exec("//generators/scheduler-noop-jobs.star")
 exec("//generators/sort-consoles.star")
 
 exec("//validators/builders-in-consoles.star")

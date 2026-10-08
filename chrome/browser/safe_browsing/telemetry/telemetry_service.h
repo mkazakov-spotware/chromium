@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,6 @@ namespace safe_browsing {
 class TelemetryService {
  public:
   TelemetryService();
-
-  TelemetryService(const TelemetryService&) = delete;
-  TelemetryService& operator=(const TelemetryService&) = delete;
-
   virtual ~TelemetryService();
 
   base::WeakPtr<TelemetryService> GetWeakPtr() {
@@ -27,6 +23,7 @@ class TelemetryService {
 
  private:
   base::WeakPtrFactory<TelemetryService> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(TelemetryService);
 };
 
 }  // namespace safe_browsing

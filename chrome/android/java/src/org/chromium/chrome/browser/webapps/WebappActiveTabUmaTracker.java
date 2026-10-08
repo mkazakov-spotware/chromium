@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityTabProvider.ActivityTabTabObserver;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.metrics.WebApkUmaRecorder;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier.VerificationState;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier.VerificationStatus;
+import org.chromium.chrome.browser.metrics.WebApkUma;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
 import org.chromium.content_public.browser.NavigationHandle;
@@ -37,8 +37,9 @@ public class WebappActiveTabUmaTracker extends ActivityTabTabObserver {
     }
 
     @Override
-    public void onDidFinishNavigationInPrimaryMainFrame(Tab tab, NavigationHandle navigation) {
-        if (navigation.hasCommitted() && !navigation.isSameDocument()) {
+    public void onDidFinishNavigation(Tab tab, NavigationHandle navigation) {
+        if (navigation.hasCommitted() && navigation.isInMainFrame()
+                && !navigation.isSameDocument()) {
             RecordHistogram.recordBooleanHistogram(
                     HISTOGRAM_NAVIGATION_STATUS, !navigation.isErrorPage());
 
@@ -47,13 +48,8 @@ public class WebappActiveTabUmaTracker extends ActivityTabTabObserver {
                 VerificationState verificationState = mCurrentPageVerifier.getState();
                 boolean isNavigationInScope = (verificationState == null
                         || verificationState.status != VerificationStatus.FAILURE);
-                WebApkUmaRecorder.recordNavigation(isNavigationInScope);
+                WebApkUma.recordNavigation(isNavigationInScope);
             }
         }
-    }
-
-    @Override
-    public void onDidFinishNavigationNoop(Tab tab, NavigationHandle navigation) {
-        if (!navigation.isInPrimaryMainFrame()) return;
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,22 +13,12 @@
 #include <string>
 
 #include "base/check.h"
-#include "base/check_op.h"
 #include "sandbox/linux/syscall_broker/broker_command.h"
 
 namespace sandbox {
 namespace syscall_broker {
 
-BrokerFilePermission::BrokerFilePermission(BrokerFilePermission&&) = default;
-BrokerFilePermission& BrokerFilePermission::operator=(BrokerFilePermission&&) =
-    default;
-BrokerFilePermission::BrokerFilePermission(const BrokerFilePermission&) =
-    default;
-BrokerFilePermission& BrokerFilePermission::operator=(
-    const BrokerFilePermission&) = default;
-
-BrokerFilePermission::~BrokerFilePermission() = default;
-
+// Async signal safe
 bool BrokerFilePermission::ValidatePath(const char* path) {
   if (!path)
     return false;
@@ -75,7 +65,7 @@ bool BrokerFilePermission::MatchPath(const char* requested_filename) const {
   // the system needs to ensure symlinks can not be created!
   // That said if an attacker can convert any of the absolute paths
   // to a symlink they can control any file on the system also.
-  return recursive()
+  return recursive_
              ? strncmp(requested_filename, path_.c_str(), path_.length()) == 0
              : strcmp(requested_filename, path_.c_str()) == 0;
 }
@@ -108,16 +98,16 @@ bool BrokerFilePermission::CheckAccessInternal(
   bool allowed = false;
   switch (mode) {
     case F_OK:
-      allowed = allow_read() || allow_write();
+      allowed = allow_read_ || allow_write_;
       break;
     case R_OK:
-      allowed = allow_read();
+      allowed = allow_read_;
       break;
     case W_OK:
-      allowed = allow_write();
+      allowed = allow_write_;
       break;
     case R_OK | W_OK:
-      allowed = allow_read() && allow_write();
+      allowed = allow_read_ && allow_write_;
       break;
     default:
       break;
@@ -126,7 +116,7 @@ bool BrokerFilePermission::CheckAccessInternal(
     return false;
 
   if (file_to_access)
-    *file_to_access = recursive() ? requested_filename : path_.c_str();
+    *file_to_access = recursive_ ? requested_filename : path_.c_str();
 
   return true;
 }
@@ -153,23 +143,23 @@ bool BrokerFilePermission::CheckOpen(const char* requested_filename,
   }
 
   // Check if read is allowed.
-  if (!allow_read() && (access_mode == O_RDONLY || access_mode == O_RDWR)) {
+  if (!allow_read_ && (access_mode == O_RDONLY || access_mode == O_RDWR)) {
     return false;
   }
 
   // Check if write is allowed.
-  if (!allow_write() && (access_mode == O_WRONLY || access_mode == O_RDWR)) {
+  if (!allow_write_ && (access_mode == O_WRONLY || access_mode == O_RDWR)) {
     return false;
   }
 
   // Check if file creation is allowed.
-  if (!allow_create() && (flags & O_CREAT)) {
+  if (!allow_create_ && (flags & O_CREAT)) {
     return false;
   }
 
   // If this file is to be temporary, ensure it is created, not pre-existing.
   // See https://crbug.com/415681#c17
-  if (temporary_only() && (!(flags & O_CREAT) || !(flags & O_EXCL))) {
+  if (temporary_only_ && (!(flags & O_CREAT) || !(flags & O_EXCL))) {
     return false;
   }
 
@@ -198,10 +188,10 @@ bool BrokerFilePermission::CheckOpen(const char* requested_filename,
     return false;
 
   if (file_to_open)
-    *file_to_open = recursive() ? requested_filename : path_.c_str();
+    *file_to_open = recursive_ ? requested_filename : path_.c_str();
 
   if (unlink_after_open)
-    *unlink_after_open = temporary_only();
+    *unlink_after_open = temporary_only_;
 
   return true;
 }
@@ -216,7 +206,7 @@ bool BrokerFilePermission::CheckStat(const char* requested_filename,
     return true;
 
   // Allow stat() on leading directories if have create or stat() permission.
-  if (!(allow_create() || allow_stat_with_intermediates()))
+  if (!(allow_create_ || allow_stat_with_intermediates_))
     return false;
 
   // NOTE: ValidatePath proved requested_length != 0;
@@ -225,10 +215,10 @@ bool BrokerFilePermission::CheckStat(const char* requested_filename,
 
   // Special case for root: only one slash, otherwise must have a second
   // slash in the right spot to avoid substring matches.
-  // |allow_stat_with_intermediates()| can match on the full path, and
-  // |allow_create()| only matches a leading directory.
+  // |allow_stat_with_intermediates_| can match on the full path, and
+  // |allow_create_| only matches a leading directory.
   if ((requested_length == 1 && requested_filename[0] == '/') ||
-      (allow_stat_with_intermediates() && path_ == requested_filename) ||
+      (allow_stat_with_intermediates_ && path_ == requested_filename) ||
       (requested_length < path_.length() &&
        memcmp(path_.c_str(), requested_filename, requested_length) == 0 &&
        path_.c_str()[requested_length] == '/')) {
@@ -245,49 +235,39 @@ const char* BrokerFilePermission::GetErrorMessageForTests() {
   return "Invalid BrokerFilePermission";
 }
 
-void BrokerFilePermission::DieOnInvalidPermission() {
-  // Must have enough length for a '/'
-  CHECK(path_.length() > 0) << GetErrorMessageForTests();
-
-  // Allowlisted paths must be absolute.
-  CHECK(path_[0] == '/') << GetErrorMessageForTests();
-
-  // Don't allow temporary creation without create permission.
-  if (temporary_only())
-    CHECK(allow_create()) << GetErrorMessageForTests();
-
-  // Recursive paths must have a trailing slash, absolutes must not.
-  const char last_char = *(path_.rbegin());
-  if (recursive())
-    CHECK(last_char == '/') << GetErrorMessageForTests();
-  else
-    CHECK(last_char != '/') << GetErrorMessageForTests();
-}
-
-BrokerFilePermission::BrokerFilePermission(std::string path, uint64_t flags)
-    : path_(std::move(path)), flags_(flags) {
-  DieOnInvalidPermission();
-}
-
 BrokerFilePermission::BrokerFilePermission(
-    std::string path,
+    const std::string& path,
     RecursionOption recurse_opt,
     PersistenceOption persist_opt,
     ReadPermission read_perm,
     WritePermission write_perm,
     CreatePermission create_perm,
     StatWithIntermediatesPermission stat_perm)
-    : path_(std::move(path)) {
-  flags_[kRecursiveBitPos] = recurse_opt == RecursionOption::kRecursive;
-  flags_[kTemporaryOnlyBitPos] =
-      persist_opt == PersistenceOption::kTemporaryOnly;
-  flags_[kAllowReadBitPos] = read_perm == ReadPermission::kAllowRead;
-  flags_[kAllowWriteBitPos] = write_perm == WritePermission::kAllowWrite;
-  flags_[kAllowCreateBitPos] = create_perm == CreatePermission::kAllowCreate;
-  flags_[kAllowStatWithIntermediatesBitPos] =
-      stat_perm == StatWithIntermediatesPermission::kAllowStatWithIntermediates;
+    : path_(path),
+      recursive_(recurse_opt == RecursionOption::kRecursive),
+      temporary_only_(persist_opt == PersistenceOption::kTemporaryOnly),
+      allow_read_(read_perm == ReadPermission::kAllowRead),
+      allow_write_(write_perm == WritePermission::kAllowWrite),
+      allow_create_(create_perm == CreatePermission::kAllowCreate),
+      allow_stat_with_intermediates_(
+          stat_perm ==
+          StatWithIntermediatesPermission::kAllowStatWithIntermediates) {
+  // Must have enough length for a '/'
+  CHECK(path_.length() > 0) << GetErrorMessageForTests();
 
-  DieOnInvalidPermission();
+  // Allowlisted paths must be absolute.
+  CHECK(path_[0] == '/') << GetErrorMessageForTests();
+
+  // Don't allow temporary creation without create permission
+  if (temporary_only_)
+    CHECK(allow_create_) << GetErrorMessageForTests();
+
+  // Recursive paths must have a trailing slash, absolutes must not.
+  const char last_char = *(path_.rbegin());
+  if (recursive_)
+    CHECK(last_char == '/') << GetErrorMessageForTests();
+  else
+    CHECK(last_char != '/') << GetErrorMessageForTests();
 }
 
 }  // namespace syscall_broker

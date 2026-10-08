@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,15 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/sequence_checker.h"
 #include "base/threading/thread_checker.h"
 #include "components/drive/service/drive_service_interface.h"
-#include "google_apis/common/auth_service_interface.h"
-#include "google_apis/common/auth_service_observer.h"
+#include "google_apis/drive/auth_service_interface.h"
+#include "google_apis/drive/auth_service_observer.h"
 #include "google_apis/drive/drive_api_url_generator.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 
@@ -27,7 +27,7 @@ class GURL;
 namespace base {
 class FilePath;
 class SequencedTaskRunner;
-}  // namespace base
+}
 
 namespace google_apis {
 class FilesListRequestRunner;
@@ -55,15 +55,11 @@ class BatchRequestConfigurator : public BatchRequestConfiguratorInterface {
           batch_request,
       base::SequencedTaskRunner* task_runner,
       const google_apis::DriveApiUrlGenerator& url_generator,
-      const google_apis::CancelCallbackRepeating& cancel_callback);
-
-  BatchRequestConfigurator(const BatchRequestConfigurator&) = delete;
-  BatchRequestConfigurator& operator=(const BatchRequestConfigurator&) = delete;
-
+      const google_apis::CancelCallback& cancel_callback);
   ~BatchRequestConfigurator() override;
 
   // BatchRequestConfiguratorInterface overrides.
-  google_apis::CancelCallbackOnce MultipartUploadNewFile(
+  google_apis::CancelCallbackRepeating MultipartUploadNewFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& parent_resource_id,
@@ -72,7 +68,7 @@ class BatchRequestConfigurator : public BatchRequestConfiguratorInterface {
       const UploadNewFileOptions& options,
       google_apis::FileResourceCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce MultipartUploadExistingFile(
+  google_apis::CancelCallbackRepeating MultipartUploadExistingFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& resource_id,
@@ -90,6 +86,8 @@ class BatchRequestConfigurator : public BatchRequestConfiguratorInterface {
   google_apis::CancelCallbackRepeating cancel_callback_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(BatchRequestConfigurator);
 };
 
 // This class provides Drive request calls using Drive V2 API.
@@ -118,10 +116,6 @@ class DriveAPIService : public DriveServiceInterface,
       const GURL& base_thumbnail_url,
       const std::string& custom_user_agent,
       const net::NetworkTrafficAnnotationTag& traffic_annotation);
-
-  DriveAPIService(const DriveAPIService&) = delete;
-  DriveAPIService& operator=(const DriveAPIService&) = delete;
-
   ~DriveAPIService() override;
 
   // DriveServiceInterface Overrides
@@ -143,21 +137,21 @@ class DriveAPIService : public DriveServiceInterface,
   google_apis::CancelCallbackOnce GetFileListInDirectory(
       const std::string& directory_resource_id,
       google_apis::FileListCallback callback) override;
-  google_apis::CancelCallbackOnce Search(
+  google_apis::CancelCallback Search(
       const std::string& search_query,
       google_apis::FileListCallback callback) override;
   google_apis::CancelCallbackOnce SearchByTitle(
       const std::string& title,
       const std::string& directory_resource_id,
       google_apis::FileListCallback callback) override;
-  google_apis::CancelCallbackOnce GetChangeList(
+  google_apis::CancelCallback GetChangeList(
       int64_t start_changestamp,
       google_apis::ChangeListCallback callback) override;
-  google_apis::CancelCallbackOnce GetChangeListByToken(
+  google_apis::CancelCallback GetChangeListByToken(
       const std::string& team_drive_id,
       const std::string& start_page_token,
       google_apis::ChangeListCallback callback) override;
-  google_apis::CancelCallbackOnce GetRemainingTeamDriveList(
+  google_apis::CancelCallback GetRemainingTeamDriveList(
       const std::string& page_token,
       google_apis::TeamDriveListCallback callback) override;
   google_apis::CancelCallbackOnce GetRemainingChangeList(
@@ -166,34 +160,34 @@ class DriveAPIService : public DriveServiceInterface,
   google_apis::CancelCallbackOnce GetRemainingFileList(
       const GURL& next_link,
       google_apis::FileListCallback callback) override;
-  google_apis::CancelCallbackOnce GetFileResource(
+  google_apis::CancelCallback GetFileResource(
       const std::string& resource_id,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce GetAboutResource(
+  google_apis::CancelCallback GetAboutResource(
       google_apis::AboutResourceCallback callback) override;
-  google_apis::CancelCallbackOnce GetStartPageToken(
+  google_apis::CancelCallback GetStartPageToken(
       const std::string& team_drive_id,
       google_apis::StartPageTokenCallback callback) override;
-  google_apis::CancelCallbackOnce DeleteResource(
+  google_apis::CancelCallback DeleteResource(
       const std::string& resource_id,
       const std::string& etag,
       google_apis::EntryActionCallback callback) override;
-  google_apis::CancelCallbackOnce TrashResource(
+  google_apis::CancelCallback TrashResource(
       const std::string& resource_id,
       google_apis::EntryActionCallback callback) override;
   google_apis::CancelCallbackOnce DownloadFile(
       const base::FilePath& local_cache_path,
       const std::string& resource_id,
-      google_apis::DownloadActionCallback download_action_callback,
+      const google_apis::DownloadActionCallback& download_action_callback,
       const google_apis::GetContentCallback& get_content_callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce CopyResource(
+  google_apis::CancelCallback CopyResource(
       const std::string& resource_id,
       const std::string& parent_resource_id,
       const std::string& new_title,
       const base::Time& last_modified,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce UpdateResource(
+  google_apis::CancelCallback UpdateResource(
       const std::string& resource_id,
       const std::string& parent_resource_id,
       const std::string& new_title,
@@ -201,7 +195,7 @@ class DriveAPIService : public DriveServiceInterface,
       const base::Time& last_viewed_by_me,
       const google_apis::drive::Properties& properties,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce AddResourceToDirectory(
+  google_apis::CancelCallback AddResourceToDirectory(
       const std::string& parent_resource_id,
       const std::string& resource_id,
       google_apis::EntryActionCallback callback) override;
@@ -214,20 +208,20 @@ class DriveAPIService : public DriveServiceInterface,
       const std::string& directory_title,
       const AddNewDirectoryOptions& options,
       google_apis::FileResourceCallback callback) override;
-  google_apis::CancelCallbackOnce InitiateUploadNewFile(
+  google_apis::CancelCallback InitiateUploadNewFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& parent_resource_id,
       const std::string& title,
       const UploadNewFileOptions& options,
-      google_apis::InitiateUploadCallback callback) override;
-  google_apis::CancelCallbackOnce InitiateUploadExistingFile(
+      const google_apis::InitiateUploadCallback& callback) override;
+  google_apis::CancelCallback InitiateUploadExistingFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& resource_id,
       const UploadExistingFileOptions& options,
-      google_apis::InitiateUploadCallback callback) override;
-  google_apis::CancelCallbackOnce ResumeUpload(
+      const google_apis::InitiateUploadCallback& callback) override;
+  google_apis::CancelCallback ResumeUpload(
       const GURL& upload_url,
       int64_t start_position,
       int64_t end_position,
@@ -236,11 +230,11 @@ class DriveAPIService : public DriveServiceInterface,
       const base::FilePath& local_file_path,
       google_apis::drive::UploadRangeCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce GetUploadStatus(
+  google_apis::CancelCallback GetUploadStatus(
       const GURL& upload_url,
       int64_t content_length,
       google_apis::drive::UploadRangeCallback callback) override;
-  google_apis::CancelCallbackOnce MultipartUploadNewFile(
+  google_apis::CancelCallbackRepeating MultipartUploadNewFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& parent_resource_id,
@@ -249,7 +243,7 @@ class DriveAPIService : public DriveServiceInterface,
       const drive::UploadNewFileOptions& options,
       google_apis::FileResourceCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce MultipartUploadExistingFile(
+  google_apis::CancelCallbackRepeating MultipartUploadExistingFile(
       const std::string& content_type,
       int64_t content_length,
       const std::string& resource_id,
@@ -257,7 +251,7 @@ class DriveAPIService : public DriveServiceInterface,
       const drive::UploadExistingFileOptions& options,
       google_apis::FileResourceCallback callback,
       google_apis::ProgressCallback progress_callback) override;
-  google_apis::CancelCallbackOnce AddPermission(
+  google_apis::CancelCallback AddPermission(
       const std::string& resource_id,
       const std::string& email,
       google_apis::drive::PermissionRole role,
@@ -272,7 +266,7 @@ class DriveAPIService : public DriveServiceInterface,
   // The class is expected to run on UI thread.
   base::ThreadChecker thread_checker_;
 
-  raw_ptr<signin::IdentityManager> identity_manager_;
+  signin::IdentityManager* identity_manager_;
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   scoped_refptr<base::SequencedTaskRunner> blocking_task_runner_;
   std::unique_ptr<google_apis::RequestSender> sender_;
@@ -282,6 +276,8 @@ class DriveAPIService : public DriveServiceInterface,
   google_apis::DriveApiUrlGenerator url_generator_;
   const std::string custom_user_agent_;
   const net::NetworkTrafficAnnotationTag traffic_annotation_;
+
+  DISALLOW_COPY_AND_ASSIGN(DriveAPIService);
 };
 
 }  // namespace drive

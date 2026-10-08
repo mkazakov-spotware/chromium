@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,18 +12,18 @@
 #include "ui/compositor/compositor.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace ui {
 
-// TODO(avallee): Use macros in ui/gfx/geometry/test/geometry_util.h.
+//TODO(avallee): Make this into a predicate and add some matrix pretty printing.
 void CheckApproximatelyEqual(const gfx::Transform& lhs,
                              const gfx::Transform& rhs) {
   unsigned int errors = 0;
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < 4; ++j) {
-      EXPECT_FLOAT_EQ(lhs.rc(i, j), rhs.rc(i, j))
-          << "(i, j) = (" << i << ", " << j << "), error count: " << ++errors;
+      EXPECT_FLOAT_EQ(lhs.matrix().get(i, j), rhs.matrix().get(i, j))
+        << "(i, j) = (" << i << ", " << j << "), error count: " << ++errors;
     }
   }
 
@@ -51,18 +51,19 @@ void CheckApproximatelyEqual(const gfx::RoundedCornersF& lhs,
 }
 
 bool WaitForNextFrameToBePresented(ui::Compositor* compositor,
-                                   absl::optional<base::TimeDelta> timeout) {
+                                   base::Optional<base::TimeDelta> timeout) {
   bool frames_presented = false;
   base::RunLoop runloop;
-  base::CancelableOnceCallback<void(base::TimeTicks)> cancelable_callback(
-      base::BindLambdaForTesting([&](base::TimeTicks presentation_timestamp) {
-        frames_presented = true;
-        runloop.Quit();
-      }));
-  compositor->RequestSuccessfulPresentationTimeForNextFrame(
+  base::CancelableOnceCallback<void(const gfx::PresentationFeedback&)>
+      cancelable_callback(base::BindLambdaForTesting(
+          [&](const gfx::PresentationFeedback& feedback) {
+            frames_presented = true;
+            runloop.Quit();
+          }));
+  compositor->RequestPresentationTimeForNextFrame(
       cancelable_callback.callback());
 
-  absl::optional<base::OneShotTimer> timer;
+  base::Optional<base::OneShotTimer> timer;
   if (timeout.has_value()) {
     timer.emplace();
     timer->Start(FROM_HERE, timeout.value(), runloop.QuitClosure());

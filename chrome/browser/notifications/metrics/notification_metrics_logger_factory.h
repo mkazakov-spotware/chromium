@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 
 #include "base/memory/singleton.h"
 #include "chrome/browser/notifications/metrics/notification_metrics_logger.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "content/public/browser/browser_context.h"
 
 class NotificationMetricsLogger;
 
-class NotificationMetricsLoggerFactory : public ProfileKeyedServiceFactory {
+class NotificationMetricsLoggerFactory
+    : public BrowserContextKeyedServiceFactory {
  public:
   static NotificationMetricsLogger* GetForBrowserContext(
       content::BrowserContext* browser_context);
@@ -30,6 +31,8 @@ class NotificationMetricsLoggerFactory : public ProfileKeyedServiceFactory {
 
   // BrowserContextKeyedServiceFactory implementation.
   KeyedService* BuildServiceInstanceFor(
+      content::BrowserContext* context) const override;
+  content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
 };
 

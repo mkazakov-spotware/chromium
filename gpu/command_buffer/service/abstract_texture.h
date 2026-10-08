@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define GPU_COMMAND_BUFFER_SERVICE_ABSTRACT_TEXTURE_H_
 
 #include "base/callback.h"
-#include "build/build_config.h"
 #include "gpu/command_buffer/service/texture_base.h"
 #include "gpu/gpu_gles2_export.h"
 
@@ -67,30 +66,18 @@ class GPU_GLES2_EXPORT AbstractTexture {
   virtual void BindStreamTextureImage(gl::GLImage* image,
                                       GLuint service_id) = 0;
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  // Attaches |image| to the AbstractTexture. The decoder will call
-  // GLImage::Copy/Bind. Further, the decoder guarantees that
-  // ScheduleOverlayPlane will be called if the texture is ever promoted to an
-  // overlay.
+  // Attaches |image| to the AbstractTexture.  If |client_managed| is true, then
+  // the decoder does not call GLImage::Copy/Bind.  Further, the decoder
+  // guarantees that ScheduleOverlayPlane will be called if the texture is ever
+  // promoted to an overlay.
   //
   // It is not required to SetCleared() if one binds an image.
   //
   // The context must be current.
-  virtual void SetUnboundImage(gl::GLImage* image) = 0;
-#else
-  // Attaches |image| to the AbstractTexture. The decoder does not call
-  // GLImage::Copy/Bind. Further, the decoder guarantees that
-  // ScheduleOverlayPlane will be called if the texture is ever promoted to an
-  // overlay.
-  //
-  // It is not required to SetCleared() if one binds an image.
-  //
-  // The context must be current.
-  virtual void SetBoundImage(gl::GLImage* image) = 0;
-#endif
+  virtual void BindImage(gl::GLImage* image, bool client_managed) = 0;
 
-  // Return the image, if any, for testing purposes.
-  virtual gl::GLImage* GetImageForTesting() const = 0;
+  // Return the image, if any.
+  virtual gl::GLImage* GetImage() const = 0;
 
   // Marks the texture as cleared, to help prevent sending an uninitialized
   // texture to the (untrusted) renderer.  One should call this only when one
@@ -105,9 +92,6 @@ class GPU_GLES2_EXPORT AbstractTexture {
   // the current context during this callback.  Also, do not assume that one
   // has a current context.
   virtual void SetCleanupCallback(CleanupCallback cleanup_callback) = 0;
-
-  // Used to notify the AbstractTexture if the context is lost.
-  virtual void NotifyOnContextLost() = 0;
 
   unsigned int service_id() const { return GetTextureBase()->service_id(); }
 };

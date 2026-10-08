@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,21 @@
 #include "base/json/json_file_value_serializer.h"
 #include "base/json/json_reader.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 using base::Value;
 
 namespace signin {
 namespace test {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 std::string kPlatform = "win";
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
 std::string kPlatform = "mac";
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(OS_CHROMEOS)
 std::string kPlatform = "chromeos";
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif defined(OS_LINUX)
 std::string kPlatform = "linux";
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 std::string kPlatform = "android";
 #else
 std::string kPlatform = "all_platform";

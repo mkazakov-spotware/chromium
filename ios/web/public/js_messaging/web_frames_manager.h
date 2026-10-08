@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_WEB_PUBLIC_JS_MESSAGING_WEB_FRAMES_MANAGER_H_
 #define IOS_WEB_PUBLIC_JS_MESSAGING_WEB_FRAMES_MANAGER_H_
 
-#import <set>
-#import <string>
+#include <set>
+#include <string>
 
-#import "base/observer_list_types.h"
+#include "base/macros.h"
 
 namespace web {
 
@@ -23,36 +23,7 @@ class WebFrame;
 // process crashed, etc.).
 class WebFramesManager {
  public:
-  // Observer class to notify objects when WebFrames are added or removed.
-  class Observer : public base::CheckedObserver {
-   public:
-    Observer() = default;
-    ~Observer() override = default;
-
-    // Called when a frame is created or the user navigates to a new document.
-    // Receivers can keep references to `web_frame` only until
-    // `WebFrameWillBecomeUnavailable` at which point the pointer will become
-    // invalid.
-    virtual void WebFrameDidBecomeAvailable(
-        WebFramesManager* web_frames_manager,
-        WebFrame* web_frame) {}
-
-    // Called when a frame is deleted or the user navigates away from
-    // `web_frame` before it is removed from the WebFramesManager. Receivers of
-    // this callback must clear any stored references to `web_frame`.
-    virtual void WebFrameWillBecomeUnavailable(
-        WebFramesManager* web_frames_manager,
-        const std::string frame_id) {}
-  };
-
-  WebFramesManager(const WebFramesManager&) = delete;
-  WebFramesManager& operator=(const WebFramesManager&) = delete;
-
   virtual ~WebFramesManager() {}
-
-  // Adds and removes observers of WebFrame availability.
-  virtual void AddObserver(Observer* observer) = 0;
-  virtual void RemoveObserver(Observer* observer) = 0;
 
   // Returns a list of all the web frames associated with WebState.
   // NOTE: Due to the asynchronous nature of renderer, this list may be
@@ -63,7 +34,7 @@ class WebFramesManager {
   // NOTE: Due to the asynchronous nature of JavaScript to native messsaging,
   // this object may be outdated.
   virtual WebFrame* GetMainWebFrame() = 0;
-  // Returns the web frame with `frame_id`, if one exists.
+  // Returns the web frame with |frame_id|, if one exists.
   // NOTE: Due to the asynchronous nature of JavaScript to native messsaging,
   // this object may be outdated and the WebFrame returned by this method may
   // not back a real frame in the web page.
@@ -71,6 +42,8 @@ class WebFramesManager {
 
  protected:
   WebFramesManager() {}
+
+  DISALLOW_COPY_AND_ASSIGN(WebFramesManager);
 };
 
 }  // namespace web

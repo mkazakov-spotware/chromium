@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "base/logging.h"
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_cftyperef.h"
+#include "base/macros.h"
 #include "base/strings/sys_string_conversions.h"
 #include "build/branding_buildflags.h"
 #include "components/policy/policy_constants.h"
@@ -60,7 +61,7 @@ base::FilePath::StringType ExpandPathVariables(
       NSArray* searchpaths = NSSearchPathForDirectoriesInDomains(
           mapping.id, NSAllDomainsMask, true);
       if ([searchpaths count] > 0) {
-        NSString* variable_value = searchpaths[0];
+        NSString *variable_value = [searchpaths objectAtIndex:0];
         result.replace(position, strlen(mapping.name),
                        base::SysNSStringToUTF8(variable_value));
       }

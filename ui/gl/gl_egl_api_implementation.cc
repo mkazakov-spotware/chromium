@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,6 @@ void InitializeStaticGLBindingsEGL() {
   }
 
   g_current_egl_context = g_egl_wrapper->api();
-  g_driver_egl.client_ext.InitializeClientExtensionSettings();
 }
 
 void ClearBindingsEGL() {
@@ -135,8 +134,8 @@ void SetDisabledExtensionsEGL(const std::string& disabled_extensions) {
   g_current_egl_context->SetDisabledExtensions(disabled_extensions);
 }
 
-bool InitializeExtensionSettingsOneOffEGL(GLDisplayEGL* display) {
-  return display->InitializeExtensionSettings();
+bool InitializeExtensionSettingsOneOffEGL() {
+  return GLSurfaceEGL::InitializeExtensionSettingsOneOff();
 }
 
 }  // namespace gl

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 #include "third_party/webrtc/api/candidate.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class ContentDescription;
 
@@ -152,6 +153,7 @@ struct IceTransportInfo {
   std::list<NamedCandidate> candidates;
 };
 
-}  // namespace remoting::protocol
+}  // protocol
+}  // remoting
 
 #endif  // REMOTING_PROTOCOL_JINGLE_MESSAGES_H_

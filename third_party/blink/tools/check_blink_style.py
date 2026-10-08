@@ -1,4 +1,4 @@
-#!/usr/bin/env vpython3
+#!/usr/bin/env vpython
 #
 # Copyright (C) 2011 Google Inc. All rights reserved.
 # Copyright (C) 2010 Chris Jerdonek (chris.jerdonek@gmail.com)
@@ -38,6 +38,7 @@ find is legitimately a problem."""
 
 import sys
 
+from blinkpy.common import version_check  # pylint: disable=unused-import
 from blinkpy.style.main import CheckBlinkStyle
 
 if __name__ == "__main__":

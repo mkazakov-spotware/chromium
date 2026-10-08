@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@ package org.chromium.base.test.util;
 
 import android.content.SharedPreferences;
 
-import java.util.ArrayList;
+import org.chromium.base.ObserverList;
+
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -23,7 +23,8 @@ public class InMemorySharedPreferences implements SharedPreferences {
 
     // Guarded on its own monitor.
     private final Map<String, Object> mData;
-    private final List<OnSharedPreferenceChangeListener> mObservers = new ArrayList<>();
+    private final ObserverList<OnSharedPreferenceChangeListener> mObservers =
+            new ObserverList<OnSharedPreferenceChangeListener>();
 
     public InMemorySharedPreferences() {
         mData = new HashMap<String, Object>();
@@ -106,7 +107,7 @@ public class InMemorySharedPreferences implements SharedPreferences {
             SharedPreferences.OnSharedPreferenceChangeListener
                     listener) {
         synchronized (mObservers) {
-            mObservers.add(listener);
+            mObservers.addObserver(listener);
         }
     }
 
@@ -114,7 +115,7 @@ public class InMemorySharedPreferences implements SharedPreferences {
     public void unregisterOnSharedPreferenceChangeListener(
             SharedPreferences.OnSharedPreferenceChangeListener listener) {
         synchronized (mObservers) {
-            mObservers.remove(listener);
+            mObservers.removeObserver(listener);
         }
     }
 

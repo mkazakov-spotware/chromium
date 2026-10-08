@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define CC_LAYERS_SCROLLBAR_LAYER_BASE_H_
 
 #include "cc/cc_export.h"
-#include "cc/input/scrollbar.h"
 #include "cc/layers/layer.h"
 
 namespace cc {
@@ -18,16 +17,14 @@ class CC_EXPORT ScrollbarLayerBase : public Layer {
       ScrollbarLayerBase* existing_layer);
 
   void SetScrollElementId(ElementId element_id);
-  ElementId scroll_element_id() const { return scroll_element_id_.Read(*this); }
+  ElementId scroll_element_id() const { return scroll_element_id_; }
 
   ScrollbarOrientation orientation() const { return orientation_; }
   bool is_left_side_vertical_scrollbar() const {
     return is_left_side_vertical_scrollbar_;
   }
 
-  void PushPropertiesTo(LayerImpl* layer,
-                        const CommitState& commit_state,
-                        const ThreadUnsafeCommitState& unsafe_state) override;
+  void PushPropertiesTo(LayerImpl* layer) override;
 
   enum ScrollbarLayerType {
     kSolidColor,
@@ -46,7 +43,7 @@ class CC_EXPORT ScrollbarLayerBase : public Layer {
 
   const ScrollbarOrientation orientation_;
   const bool is_left_side_vertical_scrollbar_;
-  ProtectedSequenceReadable<ElementId> scroll_element_id_;
+  ElementId scroll_element_id_;
 };
 
 }  // namespace cc

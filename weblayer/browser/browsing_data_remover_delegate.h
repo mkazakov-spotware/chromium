@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define WEBLAYER_BROWSER_BROWSING_DATA_REMOVER_DELEGATE_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/browsing_data_remover.h"
@@ -33,7 +32,6 @@ class BrowsingDataRemoverDelegate : public content::BrowsingDataRemoverDelegate,
     DATA_TYPE_ISOLATED_ORIGINS = DATA_TYPE_EMBEDDER_BEGIN,
     DATA_TYPE_FAVICONS = DATA_TYPE_EMBEDDER_BEGIN << 1,
     DATA_TYPE_SITE_SETTINGS = DATA_TYPE_EMBEDDER_BEGIN << 2,
-    DATA_TYPE_AD_INTERVENTIONS = DATA_TYPE_EMBEDDER_BEGIN << 4,
   };
 
   explicit BrowsingDataRemoverDelegate(
@@ -63,7 +61,7 @@ class BrowsingDataRemoverDelegate : public content::BrowsingDataRemoverDelegate,
 
   void RunCallbackIfDone();
 
-  raw_ptr<content::BrowserContext> browser_context_ = nullptr;
+  content::BrowserContext* browser_context_ = nullptr;
 
   int pending_tasks_ = 0;
 

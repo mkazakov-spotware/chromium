@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include "net/test/embedded_test_server/controllable_http_response.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/base/resource/resource_scale_factor.h"
+#include "ui/base/resource/scale_factor.h"
 
 namespace dom_distiller {
 namespace {
@@ -86,8 +86,8 @@ void FakeDistilledPage::Load(EmbeddedTestServer* server,
 }
 
 std::string FakeDistilledPage::GetPageHtmlWithScripts() {
-  std::string html = GetArticleTemplateHtml(
-      mojom::Theme::kLight, mojom::FontFamily::kSansSerif, std::string());
+  std::string html = GetArticleTemplateHtml(mojom::Theme::kLight,
+                                            mojom::FontFamily::kSansSerif);
   for (const std::string& file : scripts_) {
     StrAppend(&html, {JsReplace("<script src=$1></script>", file)});
   }
@@ -113,18 +113,16 @@ std::unique_ptr<FakeDistilledPage> SetUpTestServerWithDistilledPage(
 void AddComponentsResources() {
   FilePath pak_file;
   FilePath pak_dir;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   CHECK(PathService::Get(base::DIR_ANDROID_APP_DATA, &pak_dir));
   pak_dir = pak_dir.Append(FILE_PATH_LITERAL("paks"));
-#elif BUILDFLAG(IS_MAC)
-  PathService::Get(base::DIR_MODULE, &pak_dir);
 #else
-  PathService::Get(base::DIR_ASSETS, &pak_dir);
-#endif  // BUILDFLAG(IS_ANDROID)
+  PathService::Get(base::DIR_MODULE, &pak_dir);
+#endif  // OS_ANDROID
   pak_file =
       pak_dir.Append(FILE_PATH_LITERAL("components_tests_resources.pak"));
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-      pak_file, ui::kScaleFactorNone);
+      pak_file, ui::SCALE_FACTOR_NONE);
 }
 
 }  // namespace dom_distiller

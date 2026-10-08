@@ -32,7 +32,7 @@ function _getPixel(canvas, x,y)
     return [ imgdata.data[0], imgdata.data[1], imgdata.data[2], imgdata.data[3] ];
 }
 
-function _assertPixel(canvas, x, y, r, g, b, a)
+function _assertPixel(canvas, x,y, r,g,b,a, pos, colour)
 {
     var c = _getPixel(canvas, x,y);
     assert_equals(c[0], r, 'Red channel of the pixel at (' + x + ', ' + y + ')');
@@ -41,7 +41,7 @@ function _assertPixel(canvas, x, y, r, g, b, a)
     assert_equals(c[3], a, 'Alpha channel of the pixel at (' + x + ', ' + y + ')');
 }
 
-function _assertPixelApprox(canvas, x, y, r, g, b, a, tolerance)
+function _assertPixelApprox(canvas, x,y, r,g,b,a, pos, colour, tolerance)
 {
     var c = _getPixel(canvas, x,y);
     assert_approx_equals(c[0], r, tolerance, 'Red channel of the pixel at (' + x + ', ' + y + ')');
@@ -50,37 +50,19 @@ function _assertPixelApprox(canvas, x, y, r, g, b, a, tolerance)
     assert_approx_equals(c[3], a, tolerance, 'Alpha channel of the pixel at (' + x + ', ' + y + ')');
 }
 
-function _assertMatricesApproxEqual(matA, matB)
-{
-  A = matA.toFloat32Array();
-  B = matB.toFloat32Array();
-  assert_equals(A.length, B.length);
-  for (var i = 0; i < A.length; i++) {
-    assert_approx_equals(A[i], B[i], 10e-6);
-  }
-}
-
-function rad2deg(angle_in_radians) {
-  return angle_in_radians / Math.PI * 180;
-}
-
-function deg2rad(angle_in_degrees) {
-  return angle_in_degrees / 180 * Math.PI;
-}
-
 let _deferred = false;
 
 function deferTest() {
   _deferred = true;
 }
 
-function _addTest(testFn, attributes={})
+function _addTest(testFn)
 {
     on_event(window, "load", function()
     {
         t.step(function() {
             var canvas = document.getElementById('c');
-            var ctx = canvas.getContext('2d', attributes);
+            var ctx = canvas.getContext('2d');
             t.step(testFn, window, canvas, ctx);
         });
 

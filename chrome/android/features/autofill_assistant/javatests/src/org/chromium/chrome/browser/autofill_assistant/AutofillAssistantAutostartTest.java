@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,13 +12,13 @@ import static org.chromium.chrome.browser.autofill_assistant.AutofillAssistantUi
 
 import androidx.test.filters.MediumTest;
 
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.autofill_assistant.proto.ActionProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ChipProto;
 import org.chromium.chrome.browser.autofill_assistant.proto.ChipType;
@@ -37,23 +37,30 @@ import java.util.Collections;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class AutofillAssistantAutostartTest {
-    private final CustomTabActivityTestRule mTestRule = new CustomTabActivityTestRule();
-
     @Rule
-    public final TestRule mRulesChain =
-            RuleChain.outerRule(mTestRule).around(new AutofillAssistantCustomTabTestRule(
-                    mTestRule, "autofill_assistant_target_website.html"));
+    public CustomTabActivityTestRule mTestRule = new CustomTabActivityTestRule();
+
+    @Before
+    public void setUp() {
+        AutofillAssistantPreferencesUtil.setInitialPreferences(true);
+    }
 
     /**
      * Launches autofill assistant with a single autostartable script.
      */
     @Test
     @MediumTest
+    @DisabledTest(message = "https://crbug.com/1134118")
     public void testAutostart() {
+        mTestRule.startCustomTabActivityWithIntent(
+                AutofillAssistantUiTestUtil.createMinimalCustomTabIntentForAutobot(
+                        "http://www.example.com", /* startImmediately = */ true));
+
         AutofillAssistantTestScript script = new AutofillAssistantTestScript(
                 SupportedScriptProto.newBuilder()
                         .setPath("example.com/hello")
-                        .setPresentation(PresentationProto.newBuilder().setAutostart(true))
+                        .setPresentation(PresentationProto.newBuilder().setAutostart(true).setChip(
+                                ChipProto.newBuilder().setText("Autostart")))
                         .build(),
                 Collections.singletonList(
                         ActionProto.newBuilder()

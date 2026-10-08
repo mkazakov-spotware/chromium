@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,6 @@ import org.chromium.android_webview.WebMessageListener;
 import org.chromium.android_webview.test.AwActivityTestRule.PopupInfo;
 import org.chromium.android_webview.test.TestAwContentsClient.ShouldInterceptRequestHelper;
 import org.chromium.android_webview.test.util.CommonResources;
-import org.chromium.android_webview.test.util.JSUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -116,21 +115,21 @@ public class PopupWindowTest {
         TestAwContentsClient popupContentsClient = popupInfo.popupContentsClient;
         final AwContents popupContents = popupInfo.popupContents;
 
-        class TestJavaScriptInterface {
+        class DummyJavaScriptInterface {
             @JavascriptInterface
             public int test() {
                 return 42;
             }
         }
-        final TestJavaScriptInterface obj = new TestJavaScriptInterface();
+        final DummyJavaScriptInterface obj = new DummyJavaScriptInterface();
 
-        AwActivityTestRule.addJavascriptInterfaceOnUiThread(popupContents, obj, "interface");
+        AwActivityTestRule.addJavascriptInterfaceOnUiThread(popupContents, obj, "dummy");
 
         mActivityTestRule.loadPopupContents(mParentContents, popupInfo, null);
 
         AwActivityTestRule.pollInstrumentationThread(() -> {
             String ans = mActivityTestRule.executeJavaScriptAndWaitForResult(
-                    popupContents, popupContentsClient, "interface.test()");
+                    popupContents, popupContentsClient, "dummy.test()");
 
             return ans.equals("42");
         });
@@ -219,8 +218,7 @@ public class PopupWindowTest {
     @Test
     @SmallTest
     @Feature({"AndroidWebView"})
-    public void testSynthesizedOnPageFinishedCalledOnceAfterDomModificationDuringNavigation()
-            throws Throwable {
+    public void testOnPageFinishedCalledOnDomModificationAfterNavigation() throws Throwable {
         final String popupPath = "/popup.html";
         final String parentPageHtml = CommonResources.makeHtmlPageFrom("",
                 "<script>"
@@ -256,23 +254,21 @@ public class PopupWindowTest {
         mActivityTestRule.loadPopupContents(mParentContents, popupInfo, null);
         shouldInterceptRequestHelper.waitForCallback(shouldInterceptRequestCount);
         // Modifying DOM in the middle while loading a popup window - this causes navigation state
-        // change from NavigationControllerImpl::DidAccessInitialMainDocument() eventually calling
-        // AwWebContentsDelegateAdapter#navigationStateChanged(), resulting in an additional
-        // onPageFinished() callback. Also, the navigation eventually will commit and trigger an
-        // onPageFinished() call. However, no additional synthesized onPageFinished() calls from
-        // the commits are expected as we only synthesize an onPageFinished() call at most once.
-        // See also https://crbug.com/458569 and b/19325392 for context.
-        onPageFinishedHelper.waitForCallback(onPageFinishedCount, 2);
+        // change through AwWebContentsDelegateAdapter#navigationStateChanged(), resulting in an
+        // additional onPageFinished() callback. Also, this eventually affects commit stage of the
+        // navigation which creates additional navigationStateChanged() and one additional
+        // onPageFinished() callback.
+        onPageFinishedHelper.waitForCallback(onPageFinishedCount, 4);
+        // This is the URL that gets shown to the user because parent changed DOM of the popup
+        // window.
         List<String> urlList = onPageFinishedHelper.getUrlList();
-
-        // This is the URL that gets shown to the user (instead of the pending navigation's URL)
-        // because the parent changed DOM of the popup window.
         Assert.assertEquals("about:blank", urlList.get(onPageFinishedCount));
         // Note that in this test we do not stop the navigation and we still navigate to the page
         // that we wanted. The loaded page does not have the changed DOM. This is slightly different
         // from the original workflow in b/19325392 as there is no good hook to stop navigation and
         // trigger DidAccessInitialDocument at the same time.
-        Assert.assertTrue(urlList.get(onPageFinishedCount + 1).endsWith(popupPath));
+        Assert.assertTrue(urlList.get(onPageFinishedCount + 2).endsWith(popupPath));
+        Assert.assertTrue(urlList.get(onPageFinishedCount + 3).endsWith(popupPath));
     }
 
     @Test
@@ -355,7 +351,7 @@ public class PopupWindowTest {
         TestAwContentsClient.OnCreateWindowHelper onCreateWindowHelper =
                 mParentContentsClient.getOnCreateWindowHelper();
         int currentCallCount = onCreateWindowHelper.getCallCount();
-        JSUtils.clickNodeWithUserGesture(mParentContents.getWebContents(), "link");
+        DOMUtils.clickNode(mParentContents.getWebContents(), "link");
         onCreateWindowHelper.waitForCallback(
                 currentCallCount, 1, AwActivityTestRule.WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
@@ -510,13 +506,6 @@ public class PopupWindowTest {
         Assert.assertNotNull("rect should not be null", rect);
         Assert.assertNotNull("mainFrameReplyProxy should not be null.", mainFrameReplyProxy);
         Assert.assertNotNull("iframeReplyProxy should not be null.", iframeReplyProxy);
-
-        // Wait for the page to finish rendering entirely before
-        // attempting to click the iframe_link
-        // We need this because we're using the DOMUtils
-        // Long term we plan to switch to JSUtils to avoid this
-        // https://crbug.com/1334843
-        mParentContentsClient.getOnPageCommitVisibleHelper().waitForFirst();
 
         // Step 4. Click iframe_link to give user gesture.
         DOMUtils.clickRect(mParentContents.getWebContents(), rect);

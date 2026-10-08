@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/callback_forward.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "services/network/conditional_cache_deletion_helper.h"
@@ -44,9 +45,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) HttpCacheDataRemover {
       base::Time delete_end,
       HttpCacheDataRemoverCallback done_callback);
 
-  HttpCacheDataRemover(const HttpCacheDataRemover&) = delete;
-  HttpCacheDataRemover& operator=(const HttpCacheDataRemover&) = delete;
-
   ~HttpCacheDataRemover();
 
  private:
@@ -69,6 +67,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) HttpCacheDataRemover {
   std::unique_ptr<ConditionalCacheDeletionHelper> deletion_helper_;
 
   base::WeakPtrFactory<HttpCacheDataRemover> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(HttpCacheDataRemover);
 };
 
 }  // namespace network

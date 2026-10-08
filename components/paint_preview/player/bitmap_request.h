@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/callback.h"
 #include "base/unguessable_token.h"
 #include "components/services/paint_preview_compositor/public/mojom/paint_preview_compositor.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -19,21 +18,19 @@ struct BitmapRequest {
       base::OnceCallback<void(mojom::PaintPreviewCompositor::BitmapStatus,
                               const SkBitmap&)>;
 
-  BitmapRequest(const absl::optional<base::UnguessableToken>& frame_guid,
+  BitmapRequest(const base::UnguessableToken& frame_guid,
                 const gfx::Rect& clip_rect,
                 float scale_factor,
-                BitmapRequestCallback callback,
-                bool run_callback_on_default_task_runner);
+                BitmapRequestCallback callback);
   ~BitmapRequest();
 
   BitmapRequest& operator=(BitmapRequest&& other) noexcept;
   BitmapRequest(BitmapRequest&& other) noexcept;
 
-  absl::optional<base::UnguessableToken> frame_guid;
+  base::UnguessableToken frame_guid;
   gfx::Rect clip_rect;
   float scale_factor;
   BitmapRequestCallback callback;
-  bool run_callback_on_default_task_runner;
 };
 
 }  // namespace paint_preview

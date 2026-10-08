@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 #include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/scoped_observer.h"
 #include "base/threading/thread_checker.h"
-#include "base/values.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_event_histogram_value.h"
@@ -37,15 +38,12 @@ class HidDeviceManager : public BrowserContextKeyedAPI,
                          public device::mojom::HidManagerClient,
                          public EventRouter::Observer {
  public:
-  using GetApiDevicesCallback = base::OnceCallback<void(base::Value::List)>;
+  typedef base::Callback<void(std::unique_ptr<base::ListValue>)>
+      GetApiDevicesCallback;
 
   using ConnectCallback = device::mojom::HidManager::ConnectCallback;
 
   explicit HidDeviceManager(content::BrowserContext* context);
-
-  HidDeviceManager(const HidDeviceManager&) = delete;
-  HidDeviceManager& operator=(const HidDeviceManager&) = delete;
-
   ~HidDeviceManager() override;
 
   // BrowserContextKeyedAPI implementation.
@@ -62,11 +60,11 @@ class HidDeviceManager : public BrowserContextKeyedAPI,
   // objects.
   void GetApiDevices(const Extension* extension,
                      const std::vector<device::HidDeviceFilter>& filters,
-                     GetApiDevicesCallback callback);
+                     const GetApiDevicesCallback& callback);
 
   // Converts a list of device::mojom::HidDeviceInfo objects into a value that
   // can be returned through the API.
-  base::Value::List GetApiDevicesFromList(
+  std::unique_ptr<base::ListValue> GetApiDevicesFromList(
       std::vector<device::mojom::HidDeviceInfoPtr> devices);
 
   const device::mojom::HidDeviceInfo* GetDeviceInfo(int resource_id);
@@ -110,12 +108,11 @@ class HidDeviceManager : public BrowserContextKeyedAPI,
   // device::mojom::HidManagerClient implementation:
   void DeviceAdded(device::mojom::HidDeviceInfoPtr device) override;
   void DeviceRemoved(device::mojom::HidDeviceInfoPtr device) override;
-  void DeviceChanged(device::mojom::HidDeviceInfoPtr device) override;
 
   // Builds a list of device info objects representing the currently enumerated
   // devices, taking into account the permissions held by the given extension
   // and the filters provided.
-  base::Value::List CreateApiDeviceList(
+  std::unique_ptr<base::ListValue> CreateApiDeviceList(
       const Extension* extension,
       const std::vector<device::HidDeviceFilter>& filters);
   void OnEnumerationComplete(
@@ -123,12 +120,12 @@ class HidDeviceManager : public BrowserContextKeyedAPI,
 
   void DispatchEvent(events::HistogramValue histogram_value,
                      const std::string& event_name,
-                     base::Value::List event_args,
+                     std::unique_ptr<base::ListValue> event_args,
                      const device::mojom::HidDeviceInfo& device_info);
 
   base::ThreadChecker thread_checker_;
-  raw_ptr<content::BrowserContext> browser_context_ = nullptr;
-  raw_ptr<EventRouter> event_router_ = nullptr;
+  content::BrowserContext* browser_context_ = nullptr;
+  EventRouter* event_router_ = nullptr;
   bool initialized_ = false;
   mojo::Remote<device::mojom::HidManager> hid_manager_;
   mojo::AssociatedReceiver<device::mojom::HidManagerClient> receiver_{this};
@@ -138,6 +135,8 @@ class HidDeviceManager : public BrowserContextKeyedAPI,
   ResourceIdToDeviceInfoMap devices_;
   DeviceIdToResourceIdMap resource_ids_;
   base::WeakPtrFactory<HidDeviceManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(HidDeviceManager);
 };
 
 }  // namespace extensions

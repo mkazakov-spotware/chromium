@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -156,11 +156,11 @@ function buildImportingModuleBytes() {
 
   builder.addFunction("main", kSig_i_i)
     .addBody([
-      kExprLocalGet, 0,
+      kExprGetLocal, 0,
       kExprI32LoadMem, 0, 0,
       kExprI32Const, 1,
       kExprCallIndirect, signature, kTableZero,
-      kExprLocalGet,0,
+      kExprGetLocal,0,
       kExprI32LoadMem,0, 0,
       kExprCallFunction, 0,
       kExprI32Add
@@ -170,7 +170,7 @@ function buildImportingModuleBytes() {
   // return mem[i] + some_value();
   builder.addFunction("_wrap_writer", signature)
     .addBody([
-      kExprLocalGet, 0,
+      kExprGetLocal, 0,
       kExprCallFunction, 1]);
   builder.appendToTable([2, 3]);
 

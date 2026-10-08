@@ -26,7 +26,7 @@
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_radial_gradient.h"
 #include "third_party/blink/renderer/core/svg/radial_gradient_attributes.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_length.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -85,8 +85,7 @@ void SVGRadialGradientElement::Trace(Visitor* visitor) const {
 }
 
 void SVGRadialGradientElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kCxAttr || attr_name == svg_names::kCyAttr ||
       attr_name == svg_names::kFxAttr || attr_name == svg_names::kFyAttr ||
       attr_name == svg_names::kRAttr || attr_name == svg_names::kFrAttr) {
@@ -96,12 +95,12 @@ void SVGRadialGradientElement::SvgAttributeChanged(
     return;
   }
 
-  SVGGradientElement::SvgAttributeChanged(params);
+  SVGGradientElement::SvgAttributeChanged(attr_name);
 }
 
 LayoutObject* SVGRadialGradientElement::CreateLayoutObject(const ComputedStyle&,
                                                            LegacyLayout) {
-  return MakeGarbageCollected<LayoutSVGResourceRadialGradient>(this);
+  return new LayoutSVGResourceRadialGradient(this);
 }
 
 static void SetGradientAttributes(const SVGGradientElement& element,

@@ -1,7 +1,6 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 
 import atexit
 import sys
@@ -9,16 +8,14 @@ import sys
 
 # Force all displays to use an sRGB color profile. By default, restore
 # them at exit.
-def ForceUntilExitSRGB(skip_restoring_color_profile: bool = False) -> None:
+def ForceUntilExitSRGB(skip_restoring_color_profile=False):
   if not sys.platform.startswith('darwin'):
     return
   if ForceUntilExitSRGB.has_forced_srgb:
     return
   ForceUntilExitSRGB.has_forced_srgb = True
 
-  # pylint: disable=import-outside-toplevel
   from gpu_tests import color_profile_manager_mac
-  # pylint: enable=import-outside-toplevel
   # Record the current color profiles.
   display_profile_url_map = \
       color_profile_manager_mac.GetDisplaysToProfileURLMap()
@@ -29,7 +26,7 @@ def ForceUntilExitSRGB(skip_restoring_color_profile: bool = False) -> None:
   # Register an atexit handler to restore the previous color profiles.
   def Restore():
     if skip_restoring_color_profile:
-      print('Skipping restoring the original color profile')
+      print "Skipping restoring the original color profile"
       return
     for display_id in display_profile_url_map:
       color_profile_manager_mac.SetDisplayCustomProfile(

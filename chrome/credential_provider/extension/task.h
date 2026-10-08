@@ -1,27 +1,15 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_EXTENSION_TASK_H_
 #define CHROME_CREDENTIAL_PROVIDER_EXTENSION_TASK_H_
 
-#include "base/time/time.h"
 #include "base/win/windows_types.h"
 #include "chrome/credential_provider/extension/user_device_context.h"
 
 namespace credential_provider {
 namespace extension {
-
-// Configuration the task needs to run on. A way to tell task manager on how
-// to run the task.
-struct Config {
-  // Set a default execution period in case it isn't defined by individual
-  // tasks.
-  Config() : execution_period(base::Hours(1)) {}
-
-  // The period that the task will be executed on.
-  base::TimeDelta execution_period;
-};
 
 // An interface that can be implemented by individual GCPW tasks to be executed
 // during periodic polling by GCPW extension service. Methods are called in the
@@ -45,7 +33,6 @@ class Task {
   // ESA calls execute function to perform the actual task.
   virtual HRESULT Execute() = 0;
 };
-
 }  // namespace extension
 }  // namespace credential_provider
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,18 @@
 
 #import <AppKit/AppKit.h>
 
-#include <string.h>
-
+#include "base/compiler_specific.h"
 #include "base/mac/scoped_nsobject.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_ptr.h"
+#include "chrome/browser/buildflags.h"
 #include "chrome/browser/ui/webui/help/version_updater.h"
-#include "chrome/updater/update_service.h"
-#include "chrome/updater/updater_scope.h"
+
+#if BUILDFLAG(ENABLE_CHROMIUM_UPDATER)
+#include "chrome/updater/update_service.h"  // nogncheck
+
+class BrowserUpdaterClient;
+#endif  // BUILDFLAG(ENABLE_CHROMIUM_UPDATER)
 
 @class KeystoneObserver;
 
@@ -22,13 +26,10 @@
 // About/Help page.
 class VersionUpdaterMac : public VersionUpdater {
  public:
-  VersionUpdaterMac(const VersionUpdaterMac&) = delete;
-  VersionUpdaterMac& operator=(const VersionUpdaterMac&) = delete;
-
   // VersionUpdater implementation.
-  void CheckForUpdate(StatusCallback status_callback,
-                      PromoteCallback promote_callback) override;
-  void PromoteUpdater() override;
+  void CheckForUpdate(const StatusCallback& status_callback,
+                      const PromoteCallback& promote_callback) override;
+  void PromoteUpdater() const override;
 
   // Process status updates received from Keystone. The dictionary will contain
   // an AutoupdateStatus value as an intValue at key kAutoupdateStatusStatus. If
@@ -47,11 +48,6 @@ class VersionUpdaterMac : public VersionUpdater {
   // Update the visibility state of promote button.
   void UpdateShowPromoteButton();
 
-  // Updates the status from the Chromium Updater.
-  void UpdateStatusFromChromiumUpdater(
-      VersionUpdater::StatusCallback status_callback,
-      const updater::UpdateService::UpdateState& update_state);
-
   // Callback used to communicate update status to the client.
   StatusCallback status_callback_;
 
@@ -64,7 +60,14 @@ class VersionUpdaterMac : public VersionUpdater {
   // The observer that will receive keystone status updates.
   base::scoped_nsobject<KeystoneObserver> keystone_observer_;
 
-  base::WeakPtrFactory<VersionUpdaterMac> weak_factory_{this};
+#if BUILDFLAG(ENABLE_CHROMIUM_UPDATER)
+  // Instance of the BrowserUpdaterClient used to update the browser with the
+  // new updater.
+  scoped_refptr<BrowserUpdaterClient> update_client_;
+#endif  // BUILDFLAG(ENABLE_CHROMIUM_UPDATER)
+
+  DISALLOW_COPY_AND_ASSIGN(VersionUpdaterMac);
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_HELP_VERSION_UPDATER_MAC_H_
+

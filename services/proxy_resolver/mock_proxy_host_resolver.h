@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 #include "services/proxy_resolver/proxy_host_resolver.h"
 
 namespace net {
-class NetworkAnonymizationKey;
+class NetworkIsolationKey;
 }  // namespace net
 
 namespace proxy_resolver {
@@ -36,15 +36,15 @@ class MockProxyHostResolver : public ProxyHostResolver {
   std::unique_ptr<Request> CreateRequest(
       const std::string& hostname,
       net::ProxyResolveDnsOperation operation,
-      const net::NetworkAnonymizationKey& network_anonymization_key) override;
+      const net::NetworkIsolationKey& network_isolation_key) override;
 
   void SetError(const std::string& hostname,
                 net::ProxyResolveDnsOperation operation,
-                const net::NetworkAnonymizationKey& network_anonymization_key);
+                const net::NetworkIsolationKey& network_isolation_key);
 
   void SetResult(const std::string& hostname,
                  net::ProxyResolveDnsOperation operation,
-                 const net::NetworkAnonymizationKey& network_anonymization_key,
+                 const net::NetworkIsolationKey& network_isolation_key,
                  std::vector<net::IPAddress> result);
 
   void FailAll();
@@ -54,7 +54,7 @@ class MockProxyHostResolver : public ProxyHostResolver {
  private:
   using ResultKey = std::tuple<std::string,
                                net::ProxyResolveDnsOperation,
-                               net::NetworkAnonymizationKey>;
+                               net::NetworkIsolationKey>;
 
   class RequestImpl;
 
@@ -76,7 +76,7 @@ class HangingProxyHostResolver : public ProxyHostResolver {
   std::unique_ptr<Request> CreateRequest(
       const std::string& hostname,
       net::ProxyResolveDnsOperation operation,
-      const net::NetworkAnonymizationKey& network_anonymization_key) override;
+      const net::NetworkIsolationKey& network_isolation_key) override;
 
   int num_cancelled_requests() const { return num_cancelled_requests_; }
 

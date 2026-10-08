@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,34 +7,34 @@
 
 struct WebPoint {
   WebPoint();
-  WebPoint(double x, double y);
+  WebPoint(int x, int y);
   ~WebPoint();
 
-  void Offset(double x_, double y_);
+  void Offset(int x_, int y_);
 
-  double x;
-  double y;
+  int x;
+  int y;
 };
 
 struct WebSize {
   WebSize();
-  WebSize(double width, double height);
+  WebSize(int width, int height);
   ~WebSize();
 
-  double width;
-  double height;
+  int width;
+  int height;
 };
 
 struct WebRect {
   WebRect();
-  WebRect(double x, double y, double width, double height);
+  WebRect(int x, int y, int width, int height);
   WebRect(const WebPoint& origin, const WebSize& size);
   ~WebRect();
 
-  double X() const;
-  double Y() const;
-  double Width() const;
-  double Height() const;
+  int X() const;
+  int Y() const;
+  int Width() const;
+  int Height() const;
 
   WebPoint origin;
   WebSize size;

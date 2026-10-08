@@ -1,18 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/snapshots/snapshot_browser_agent.h"
 
-#import "base/base_paths.h"
-#import "base/files/file_path.h"
-#import "base/ios/ios_util.h"
-#import "base/path_service.h"
-#import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/sessions/scene_util.h"
+#include "base/base_paths.h"
+#include "base/files/file_path.h"
+#include "base/path_service.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/snapshots/snapshot_cache.h"
 #import "ios/chrome/browser/snapshots/snapshot_tab_helper.h"
+#import "ios/chrome/browser/ui/util/multi_window_support.h"
+#import "ios/chrome/browser/web/tab_id_tab_helper.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -21,8 +20,9 @@
 
 namespace {
 
-const base::FilePath::CharType kLegacyBaseDirectory[] =
-    FILE_PATH_LITERAL("Chromium");
+const std::string kLegacyBaseDirectory = "Chromium";
+const std::string kSessionsDirectory = "Sessions";
+const std::string kSnapshotsDirectory = "Snapshots";
 
 }  // namespace
 
@@ -83,13 +83,13 @@ void SnapshotBrowserAgent::BatchOperationEnded(WebStateList* web_state_list) {
   }
 }
 
-void SnapshotBrowserAgent::SetSessionID(NSString* session_identifier) {
-  // It is incorrect to call this method twice.
-  DCHECK(!snapshot_cache_);
-  const base::FilePath storage_path =
-      SessionPathForDirectory(browser_->GetBrowserState()->GetStatePath(),
-                              session_identifier, kSnapshotsDirectoryName);
-  snapshot_cache_ = [[SnapshotCache alloc] initWithStoragePath:storage_path];
+void SnapshotBrowserAgent::SetSessionID(const std::string& session_identifier) {
+  // It's probably incorrect to set this more than once.
+  DCHECK(session_identifier_.empty() ||
+         session_identifier_ == session_identifier);
+  session_identifier_ = session_identifier;
+  snapshot_cache_ =
+      [[SnapshotCache alloc] initWithStoragePath:GetStoragePath()];
 }
 
 void SnapshotBrowserAgent::PerformStorageMaintenance() {
@@ -105,8 +105,8 @@ void SnapshotBrowserAgent::MigrateStorageIfNecessary() {
   DCHECK(snapshot_cache_);
   base::FilePath legacy_directory;
   DCHECK(base::PathService::Get(base::DIR_CACHE, &legacy_directory));
-  legacy_directory = legacy_directory.Append(kLegacyBaseDirectory)
-                         .Append(kSnapshotsDirectoryName);
+  legacy_directory =
+      legacy_directory.Append(kLegacyBaseDirectory).Append(kSnapshotsDirectory);
   // The legacy directory is deleted in migration, and migration is NO-OP if
   // directory does not exist.
   [snapshot_cache_ migrateSnapshotsWithIDs:GetTabIDs()
@@ -118,8 +118,24 @@ void SnapshotBrowserAgent::PurgeUnusedSnapshots() {
   NSSet<NSString*>* snapshot_ids = GetTabIDs();
   // Keep snapshots that are less than one minute old, to prevent a concurrency
   // issue if they are created while the purge is running.
-  const base::Time one_minute_ago = base::Time::Now() - base::Minutes(1);
+  const base::Time one_minute_ago =
+      base::Time::Now() - base::TimeDelta::FromMinutes(1);
   [snapshot_cache_ purgeCacheOlderThan:one_minute_ago keeping:snapshot_ids];
+}
+
+base::FilePath SnapshotBrowserAgent::GetStoragePath() {
+  // TODO(crbug.com/1117317): This method should only need to append the
+  // snapshots folder to a base path that already includes the browser state
+  // path, sessions directory, and the session identifier.
+  base::FilePath path = browser_->GetBrowserState()->GetStatePath();
+  if (IsSceneStartupSupported() && !session_identifier_.empty()) {
+    path = path.Append(kSessionsDirectory)
+               .Append(session_identifier_)
+               .Append(kSnapshotsDirectory);
+  } else {
+    path = path.Append(kSnapshotsDirectory);
+  }
+  return path;
 }
 
 NSSet<NSString*>* SnapshotBrowserAgent::GetTabIDs() {
@@ -128,7 +144,7 @@ NSSet<NSString*>* SnapshotBrowserAgent::GetTabIDs() {
       [NSMutableSet setWithCapacity:web_state_list->count()];
   for (int index = 0; index < web_state_list->count(); ++index) {
     web::WebState* web_state = web_state_list->GetWebStateAt(index);
-    [tab_ids addObject:web_state->GetStableIdentifier()];
+    [tab_ids addObject:TabIdTabHelper::FromWebState(web_state)->tab_id()];
   }
   return tab_ids;
 }

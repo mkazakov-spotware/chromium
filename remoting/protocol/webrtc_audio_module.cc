@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,13 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 namespace {
 
@@ -22,7 +24,7 @@ const int kFrameLengthMs = 10;
 const int kSamplesPerFrame = kSamplingRate * kFrameLengthMs / 1000;
 
 constexpr base::TimeDelta kPollInterval =
-    base::Milliseconds(5 * kFrameLengthMs);
+    base::TimeDelta::FromMilliseconds(5 * kFrameLengthMs);
 const int kChannels = 2;
 const int kBytesPerSample = 2;
 
@@ -378,4 +380,5 @@ void WebrtcAudioModule::PollFromSource() {
   }
 }
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting

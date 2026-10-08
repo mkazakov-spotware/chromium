@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/renderer/chrome_content_settings_agent_delegate.h"
-
 #include "chrome/test/base/chrome_render_view_test.h"
 #include "content/public/renderer/render_frame.h"
+#include "content/public/renderer/render_view.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 
@@ -21,8 +21,9 @@ class ChromeContentSettingsAgentDelegateBrowserTest
 
     // Unbind the ContentSettingsAgent interface that would be registered by
     // the ChromeContentSettingsAgent created when the render frame is created.
-    GetMainRenderFrame()->GetAssociatedInterfaceRegistry()->RemoveInterface(
-        content_settings::mojom::ContentSettingsAgent::Name_);
+    view_->GetMainRenderFrame()
+        ->GetAssociatedInterfaceRegistry()
+        ->RemoveInterface(content_settings::mojom::ContentSettingsAgent::Name_);
   }
 };
 
@@ -35,7 +36,7 @@ TEST_F(ChromeContentSettingsAgentDelegateBrowserTest,
   std::string bar_plugin = "bar";
 
   auto* delegate =
-      ChromeContentSettingsAgentDelegate::Get(GetMainRenderFrame());
+      ChromeContentSettingsAgentDelegate::Get(view_->GetMainRenderFrame());
   EXPECT_FALSE(delegate->IsPluginTemporarilyAllowed(foo_plugin));
 
   // Temporarily allow the "foo" plugin.

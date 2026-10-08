@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_PERFORMANCE_LONG_TASK_TIMING_H_
 
 #include "third_party/blink/renderer/core/timing/performance_entry.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
@@ -20,21 +19,15 @@ class PerformanceLongTaskTiming final : public PerformanceEntry {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  // This constructor uses int for |duration| on purpose: to avoid exposing a
-  // high resolution value in its entry. Having it be int ensures 1 ms
-  // granularity, even though it is ultimately stored as a double in
-  // PerformanceEntry.
   PerformanceLongTaskTiming(double start_time,
-                            int duration,
+                            double end_time,
                             const AtomicString& name,
                             const AtomicString& culprit_type,
-                            const AtomicString& culprit_src,
-                            const AtomicString& culprit_id,
-                            const AtomicString& culprit_name,
-                            const uint32_t navigation_id);
-  ~PerformanceLongTaskTiming() override;
+                            const String& culprit_src,
+                            const String& culprit_id,
+                            const String& culprit_name);
 
-  const AtomicString& entryType() const override;
+  AtomicString entryType() const override;
   PerformanceEntryType EntryTypeEnum() const override;
 
   TaskAttributionVector attribution() const;
@@ -42,6 +35,8 @@ class PerformanceLongTaskTiming final : public PerformanceEntry {
   void Trace(Visitor*) const override;
 
  private:
+  ~PerformanceLongTaskTiming() override;
+
   void BuildJSONValue(V8ObjectBuilder&) const override;
 
   TaskAttributionVector attribution_;

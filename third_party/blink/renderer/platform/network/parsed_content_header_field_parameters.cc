@@ -1,11 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/network/parsed_content_header_field_parameters.h"
 
-#include "base/containers/adapters.h"
-#include "base/logging.h"
 #include "third_party/blink/renderer/platform/network/header_field_tokenizer.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -34,14 +32,14 @@ namespace blink {
 //               "/" / "[" / "]" / "?" / "="
 //               ; Must be in quoted-string,
 //               ; to use within parameter values
-absl::optional<ParsedContentHeaderFieldParameters>
+base::Optional<ParsedContentHeaderFieldParameters>
 ParsedContentHeaderFieldParameters::Parse(HeaderFieldTokenizer tokenizer,
                                           Mode mode) {
   NameValuePairs parameters;
   while (!tokenizer.IsConsumed()) {
     if (!tokenizer.Consume(';')) {
       DVLOG(1) << "Failed to find ';'";
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     StringView key;
@@ -49,16 +47,16 @@ ParsedContentHeaderFieldParameters::Parse(HeaderFieldTokenizer tokenizer,
     if (!tokenizer.ConsumeToken(Mode::kNormal, key)) {
       DVLOG(1) << "Invalid content parameter name. (at " << tokenizer.Index()
                << ")";
-      return absl::nullopt;
+      return base::nullopt;
     }
     if (!tokenizer.Consume('=')) {
       DVLOG(1) << "Failed to find '='";
-      return absl::nullopt;
+      return base::nullopt;
     }
     if (!tokenizer.ConsumeTokenOrQuotedString(mode, value)) {
       DVLOG(1) << "Invalid content parameter value (at " << tokenizer.Index()
                << ", for '" << key.ToString() << "').";
-      return absl::nullopt;
+      return base::nullopt;
     }
     parameters.emplace_back(key.ToString(), value);
   }
@@ -72,9 +70,9 @@ String ParsedContentHeaderFieldParameters::ParameterValueForName(
     return String();
   String lower_name = name.LowerASCII();
 
-  for (const NameValue& param : base::Reversed(*this)) {
-    if (param.name.LowerASCII() == lower_name)
-      return param.value;
+  for (auto i = rbegin(); i != rend(); ++i) {
+    if (i->name.LowerASCII() == lower_name)
+      return i->value;
   }
   return String();
 }

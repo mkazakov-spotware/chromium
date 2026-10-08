@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_source_code.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/v8_script_value_serializer.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -43,7 +44,7 @@ TEST_F(MessageEventTest, AccountForStringMemory) {
   ASSERT_LE(initial + string_size, size_with_event);
 
   ThreadState::Current()->CollectAllGarbageForTesting(
-      ThreadState::StackState::kNoHeapPointers);
+      BlinkGC::kNoHeapPointersOnStack);
 
   int64_t size_after_gc =
       scope.GetIsolate()->AdjustAmountOfExternalAllocatedMemory(0);
@@ -89,7 +90,7 @@ TEST_F(MessageEventTest, AccountForArrayBufferMemory) {
   ASSERT_LE(initial + buffer_size, size_with_event);
 
   ThreadState::Current()->CollectAllGarbageForTesting(
-      ThreadState::StackState::kNoHeapPointers);
+      BlinkGC::kNoHeapPointersOnStack);
 
   int64_t size_after_gc =
       scope.GetIsolate()->AdjustAmountOfExternalAllocatedMemory(0);

@@ -1,9 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
-import {addSingletonGetter} from 'chrome://resources/ash/common/cr_deprecated.js';
+import {addSingletonGetter, sendWithPromise} from 'chrome://resources/js/cr.m.js';
 import {LogMessage} from './types.js';
 
 /**
@@ -16,13 +15,6 @@ export class NearbyLogsBrowserProxy {
    */
   getLogMessages() {
     return sendWithPromise('getLogMessages');
-  }
-
-  /**
-   * @return {!Promise<!Array<!LogMessage>>}
-   */
-  getQuickPairLogMessages() {
-    return sendWithPromise('getQuickPairLogMessages');
   }
 }
 

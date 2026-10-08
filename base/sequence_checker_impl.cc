@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,12 @@
 #include <utility>
 
 #include "base/check.h"
-#include "base/debug/stack_trace.h"
 #include "base/memory/ptr_util.h"
 #include "base/sequence_token.h"
-#include "base/threading/thread_checker.h"
 #include "base/threading/thread_checker_impl.h"
 #include "base/threading/thread_local_storage.h"
 
 namespace base {
-
-// static
-void SequenceCheckerImpl::EnableStackLogging() {
-  ThreadChecker::EnableStackLogging();
-}
 
 class SequenceCheckerImpl::Core {
  public:
@@ -27,8 +20,7 @@ class SequenceCheckerImpl::Core {
 
   ~Core() = default;
 
-  bool CalledOnValidSequence(
-      std::unique_ptr<debug::StackTrace>* out_bound_at) const {
+  bool CalledOnValidSequence() const {
     // SequenceToken::GetForCurrentThread() accesses thread-local storage.
     // During destruction the state of thread-local storage is not guaranteed to
     // be in a consistent state. Further, task-runner only installs the
@@ -36,21 +28,16 @@ class SequenceCheckerImpl::Core {
     // not checked during thread destruction.
     if (!SequenceCheckerImpl::HasThreadLocalStorageBeenDestroyed() &&
         sequence_token_.IsValid()) {
-      if (sequence_token_ != SequenceToken::GetForCurrentThread()) {
-        if (out_bound_at)
-          *out_bound_at = thread_checker_.GetBoundAt();
-        return false;
-      }
-      return true;
+      return sequence_token_ == SequenceToken::GetForCurrentThread();
     }
 
     // SequenceChecker behaves as a ThreadChecker when it is not bound to a
     // valid sequence token.
-    return thread_checker_.CalledOnValidThread(out_bound_at);
+    return thread_checker_.CalledOnValidThread();
   }
 
  private:
-  SequenceToken sequence_token_{SequenceToken::GetForCurrentThread()};
+  SequenceToken sequence_token_;
 
   // Used when |sequence_token_| is invalid, or during thread destruction.
   ThreadCheckerImpl thread_checker_;
@@ -86,12 +73,11 @@ SequenceCheckerImpl& SequenceCheckerImpl::operator=(
   return *this;
 }
 
-bool SequenceCheckerImpl::CalledOnValidSequence(
-    std::unique_ptr<debug::StackTrace>* bound_at) const {
+bool SequenceCheckerImpl::CalledOnValidSequence() const {
   AutoLock auto_lock(lock_);
   if (!core_)
     core_ = std::make_unique<Core>();
-  return core_->CalledOnValidSequence(bound_at);
+  return core_->CalledOnValidSequence();
 }
 
 void SequenceCheckerImpl::DetachFromSequence() {

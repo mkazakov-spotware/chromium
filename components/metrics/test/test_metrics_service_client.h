@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 
 #include <stdint.h>
 
-#include <set>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/metrics/metrics_log_store.h"
 #include "components/metrics/metrics_log_uploader.h"
 #include "components/metrics/metrics_service_client.h"
@@ -25,21 +24,15 @@ class TestMetricsServiceClient : public MetricsServiceClient {
   static const char kBrandForTesting[];
 
   TestMetricsServiceClient();
-  TestMetricsServiceClient(const TestMetricsServiceClient&) = delete;
-  TestMetricsServiceClient& operator=(const TestMetricsServiceClient&) = delete;
   ~TestMetricsServiceClient() override;
 
   // MetricsServiceClient:
-  variations::SyntheticTrialRegistry* GetSyntheticTrialRegistry() override;
   metrics::MetricsService* GetMetricsService() override;
   void SetMetricsClientId(const std::string& client_id) override;
-  bool ShouldUploadMetricsForUserId(uint64_t user_id) override;
   int32_t GetProduct() override;
   std::string GetApplicationLocale() override;
-  const network_time::NetworkTimeTracker* GetNetworkTimeTracker() override;
   bool GetBrand(std::string* brand_code) override;
   SystemProfileProto::Channel GetChannel() override;
-  bool IsExtendedStableChannel() override;
   std::string GetVersionString() override;
   void CollectFinalMetricsForLog(base::OnceClosure done_callback) override;
   std::unique_ptr<MetricsLogUploader> CreateUploader(
@@ -51,14 +44,9 @@ class TestMetricsServiceClient : public MetricsServiceClient {
   base::TimeDelta GetStandardUploadInterval() override;
   bool IsReportingPolicyManaged() override;
   EnableMetricsDefault GetMetricsReportingDefaultState() override;
-  std::string GetAppPackageNameIfLoggable() override;
+  std::string GetAppPackageName() override;
   bool ShouldResetClientIdsOnClonedInstall() override;
   MetricsLogStore::StorageLimits GetStorageLimits() const override;
-
-  // Adds/removes |user_id| from the set of user ids that have metrics consent
-  // as true.
-  void AllowMetricUploadForUserId(uint64_t user_id);
-  void RemoveMetricUploadForUserId(uint64_t user_id);
 
   const std::string& get_client_id() const { return client_id_; }
   // Returns a weak ref to the last created uploader.
@@ -67,9 +55,6 @@ class TestMetricsServiceClient : public MetricsServiceClient {
   void set_product(int32_t product) { product_ = product; }
   void set_reporting_is_managed(bool managed) {
     reporting_is_managed_ = managed;
-  }
-  void set_is_extended_stable_channel(bool is_extended_stable_channel) {
-    is_extended_stable_channel_ = is_extended_stable_channel;
   }
   void set_enable_default(EnableMetricsDefault enable_default) {
     enable_default_ = enable_default;
@@ -80,27 +65,20 @@ class TestMetricsServiceClient : public MetricsServiceClient {
   void set_max_ongoing_log_size(size_t bytes) {
     storage_limits_.max_ongoing_log_size = bytes;
   }
-  void set_min_ongoing_log_queue_count(size_t log_count) {
-    storage_limits_.min_ongoing_log_queue_count = log_count;
-  }
-  void set_min_ongoing_log_queue_size(size_t bytes) {
-    storage_limits_.min_ongoing_log_queue_size = bytes;
-  }
 
  private:
   std::string client_id_;
-  std::string version_string_{"5.0.322.0-64-devel"};
-  int32_t product_ = ChromeUserMetricsExtension::CHROME;
-  bool reporting_is_managed_ = false;
-  bool is_extended_stable_channel_ = false;
-  EnableMetricsDefault enable_default_ = EnableMetricsDefault::DEFAULT_UNKNOWN;
+  std::string version_string_;
+  int32_t product_;
+  bool reporting_is_managed_;
+  EnableMetricsDefault enable_default_;
   bool should_reset_client_ids_on_cloned_install_ = false;
-  MetricsLogStore::StorageLimits storage_limits_ =
-      MetricsServiceClient::GetStorageLimits();
-  std::set<uint64_t> allowed_user_ids_;
+  MetricsLogStore::StorageLimits storage_limits_;
 
   // A weak ref to the last created TestMetricsLogUploader.
-  raw_ptr<TestMetricsLogUploader> uploader_ = nullptr;
+  TestMetricsLogUploader* uploader_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMetricsServiceClient);
 };
 
 }  // namespace metrics

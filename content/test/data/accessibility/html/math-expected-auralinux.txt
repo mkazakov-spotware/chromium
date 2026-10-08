@@ -2,15 +2,12 @@
 ++[section]
 ++++[math]
 ++++++[section]
-++++++++[section]
-++++++++++[static]
-++++++++++++[static] name='%F0%9D%90%B4'
-++++++++++[static]
-++++++++++++[static] name='2'
-++++++++[static]
-++++++++++[static] name='+'
-++++++++[section]
-++++++++++[static]
-++++++++++++[static] name='%F0%9D%90%B5'
-++++++++++[static]
-++++++++++++[static] name='2'
+++++++++[static] name='𝐴'
+++++++[section]
+++++++++[static] name='2'
+++++++[section]
+++++++++[static] name='+'
+++++++[section]
+++++++++[static] name='𝐵'
+++++++[section]
+++++++++[static] name='2'

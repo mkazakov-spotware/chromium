@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/containers/contains.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
@@ -29,6 +28,7 @@
 #include "components/prefs/pref_service_factory.h"
 #include "components/prefs/pref_store.h"
 #include "components/prefs/testing_pref_service.h"
+#include "content/public/common/service_names.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "services/preferences/public/cpp/tracked/configuration.h"
@@ -45,6 +45,18 @@ using PrefTrackingStrategy =
     prefs::mojom::TrackedPreferenceMetadata::PrefTrackingStrategy;
 using ValueType = prefs::mojom::TrackedPreferenceMetadata::ValueType;
 
+class FirstEqualsPredicate {
+ public:
+  explicit FirstEqualsPredicate(const std::string& expected)
+      : expected_(expected) {}
+  bool operator()(const PrefValueMap::Map::value_type& pair) {
+    return pair.first == expected_;
+  }
+
+ private:
+  const std::string expected_;
+};
+
 // Observes changes to the PrefStore and verifies that only registered prefs are
 // written.
 class RegistryVerifier : public PrefStore::Observer {
@@ -54,8 +66,10 @@ class RegistryVerifier : public PrefStore::Observer {
 
   // PrefStore::Observer implementation
   void OnPrefValueChanged(const std::string& key) override {
-    EXPECT_TRUE(base::Contains(*pref_registry_, key,
-                               &PrefValueMap::Map::value_type::first))
+    EXPECT_TRUE(pref_registry_->end() !=
+                std::find_if(pref_registry_->begin(),
+                             pref_registry_->end(),
+                             FirstEqualsPredicate(key)))
         << "Unregistered key " << key << " was changed.";
   }
 
@@ -72,9 +86,6 @@ class PrefStoreReadObserver : public PrefStore::Observer {
     pref_store_->AddObserver(this);
   }
 
-  PrefStoreReadObserver(const PrefStoreReadObserver&) = delete;
-  PrefStoreReadObserver& operator=(const PrefStoreReadObserver&) = delete;
-
   ~PrefStoreReadObserver() override { pref_store_->RemoveObserver(this); }
 
   PersistentPrefStore::PrefReadError Read() {
@@ -89,14 +100,16 @@ class PrefStoreReadObserver : public PrefStore::Observer {
   void OnPrefValueChanged(const std::string& key) override {}
 
   void OnInitializationCompleted(bool succeeded) override {
-    if (stop_waiting_) {
+    if (!stop_waiting_.is_null()) {
       std::move(stop_waiting_).Run();
     }
   }
 
  private:
   scoped_refptr<PersistentPrefStore> pref_store_;
-  base::OnceClosure stop_waiting_;
+  base::Closure stop_waiting_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefStoreReadObserver);
 };
 
 const char kUnprotectedPref[] = "unprotected_pref";
@@ -136,7 +149,7 @@ class ProfilePrefStoreManagerTest : public testing::Test,
 
     ProfilePrefStoreManager::RegisterProfilePrefs(profile_pref_registry_.get());
     for (const prefs::TrackedPreferenceMetadata* it = kConfiguration;
-         it != kConfiguration + std::size(kConfiguration); ++it) {
+         it != kConfiguration + base::size(kConfiguration); ++it) {
       if (it->strategy == PrefTrackingStrategy::ATOMIC) {
         profile_pref_registry_->RegisterStringPref(it->name, std::string());
       } else {
@@ -151,7 +164,7 @@ class ProfilePrefStoreManagerTest : public testing::Test,
     // registered above for this test as kPreferenceResetTime is already
     // registered in ProfilePrefStoreManager::RegisterProfilePrefs.
     prefs::TrackedPreferenceMetadata pref_reset_time_config = {
-        static_cast<size_t>((*configuration_.rbegin())->reporting_id + 1),
+        (*configuration_.rbegin())->reporting_id + 1,
         user_prefs::kPreferenceResetTime, EnforcementLevel::ENFORCE_ON_LOAD,
         PrefTrackingStrategy::ATOMIC};
     configuration_.push_back(
@@ -162,8 +175,8 @@ class ProfilePrefStoreManagerTest : public testing::Test,
   }
 
   void ReloadConfiguration() {
-    manager_ = std::make_unique<ProfilePrefStoreManager>(profile_dir_.GetPath(),
-                                                         seed_, "device_id");
+    manager_.reset(new ProfilePrefStoreManager(profile_dir_.GetPath(), seed_,
+                                               "device_id"));
   }
 
   void TearDown() override {
@@ -214,8 +227,8 @@ class ProfilePrefStoreManagerTest : public testing::Test,
     scoped_refptr<PersistentPrefStore> pref_store =
         manager_->CreateProfilePrefStore(
             prefs::CloneTrackedConfiguration(configuration_), kReportingIdCount,
-            base::SingleThreadTaskRunner::GetCurrentDefault(),
-            std::move(observer), std::move(validation_delegate));
+            base::ThreadTaskRunnerHandle::Get(), std::move(observer),
+            std::move(validation_delegate));
     InitializePrefStore(pref_store.get());
     pref_store = nullptr;
   }
@@ -242,11 +255,13 @@ class ProfilePrefStoreManagerTest : public testing::Test,
     PrefStoreReadObserver read_observer(pref_store);
     PersistentPrefStore::PrefReadError error = read_observer.Read();
     EXPECT_EQ(PersistentPrefStore::PREF_READ_ERROR_NO_FILE, error);
-    pref_store->SetValue(kTrackedAtomic, base::Value(kFoobar),
+    pref_store->SetValue(kTrackedAtomic, std::make_unique<base::Value>(kFoobar),
                          WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
-    pref_store->SetValue(kProtectedAtomic, base::Value(kHelloWorld),
+    pref_store->SetValue(kProtectedAtomic,
+                         std::make_unique<base::Value>(kHelloWorld),
                          WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
-    pref_store->SetValue(kUnprotectedPref, base::Value(kFoobar),
+    pref_store->SetValue(kUnprotectedPref,
+                         std::make_unique<base::Value>(kFoobar),
                          WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
     pref_store->RemoveObserver(&registry_verifier_);
     base::RunLoop run_loop;
@@ -266,7 +281,7 @@ class ProfilePrefStoreManagerTest : public testing::Test,
         validation_delegate.InitWithNewPipeAndPassReceiver());
     pref_store_ = manager_->CreateProfilePrefStore(
         prefs::CloneTrackedConfiguration(configuration_), kReportingIdCount,
-        base::SingleThreadTaskRunner::GetCurrentDefault(), std::move(observer),
+        base::ThreadTaskRunnerHandle::Get(), std::move(observer),
         std::move(validation_delegate));
     pref_store_->AddObserver(&registry_verifier_);
     PrefStoreReadObserver read_observer(pref_store_);
@@ -291,13 +306,14 @@ class ProfilePrefStoreManagerTest : public testing::Test,
 
   void ExpectStringValueEquals(const std::string& name,
                                const std::string& expected) {
-    const base::Value* value = nullptr;
+    const base::Value* value = NULL;
+    std::string as_string;
     if (!pref_store_->GetValue(name, &value)) {
       ADD_FAILURE() << name << " is not a defined value.";
-    } else if (!value->is_string()) {
+    } else if (!value->GetAsString(&as_string)) {
       ADD_FAILURE() << name << " could not be coerced to a string.";
     } else {
-      EXPECT_EQ(expected, value->GetString());
+      EXPECT_EQ(expected, as_string);
     }
   }
 
@@ -365,7 +381,7 @@ TEST_F(ProfilePrefStoreManagerTest, ProtectValues) {
   // If preference tracking is supported, the tampered value of kProtectedAtomic
   // will be discarded at load time, leaving this preference undefined.
   EXPECT_NE(ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking,
-            pref_store_->GetValue(kProtectedAtomic, nullptr));
+            pref_store_->GetValue(kProtectedAtomic, NULL));
   VerifyResetRecorded(
       ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking);
 
@@ -432,7 +448,7 @@ TEST_F(ProfilePrefStoreManagerTest, UnprotectedToProtected) {
   ReplaceStringInPrefs(kBarfoo, kFoobar);
   LoadExistingPrefs();
   EXPECT_NE(ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking,
-            pref_store_->GetValue(kUnprotectedPref, nullptr));
+            pref_store_->GetValue(kUnprotectedPref, NULL));
   VerifyResetRecorded(
       ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking);
 }
@@ -493,7 +509,7 @@ TEST_F(ProfilePrefStoreManagerTest, UnprotectedToProtectedWithoutTrust) {
   // If preference tracking is supported, kUnprotectedPref will have been
   // discarded because new values are not accepted without a valid super MAC.
   EXPECT_NE(ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking,
-            pref_store_->GetValue(kUnprotectedPref, nullptr));
+            pref_store_->GetValue(kUnprotectedPref, NULL));
   VerifyResetRecorded(
       ProfilePrefStoreManager::kPlatformSupportsPreferenceTracking);
 }
@@ -532,7 +548,8 @@ TEST_F(ProfilePrefStoreManagerTest, ProtectedToUnprotected) {
 
   // Trigger the logic that migrates it back to the unprotected preferences
   // file.
-  pref_store_->SetValue(kProtectedAtomic, base::Value(kGoodbyeWorld),
+  pref_store_->SetValue(kProtectedAtomic,
+                        std::make_unique<base::Value>(kGoodbyeWorld),
                         WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
   LoadExistingPrefs();
   ExpectStringValueEquals(kProtectedAtomic, kGoodbyeWorld);

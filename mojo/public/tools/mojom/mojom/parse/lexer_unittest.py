@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -146,6 +146,7 @@ class LexerTest(unittest.TestCase):
         self._SingleTokenForInput("+"), _MakeLexToken("PLUS", "+"))
     self.assertEquals(
         self._SingleTokenForInput("-"), _MakeLexToken("MINUS", "-"))
+    self.assertEquals(self._SingleTokenForInput("&"), _MakeLexToken("AMP", "&"))
     self.assertEquals(
         self._SingleTokenForInput("?"), _MakeLexToken("QSTN", "?"))
     self.assertEquals(

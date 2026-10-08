@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 # builder to be used with mb.py for creating a zip archive of the WebLayer
 # instrumentation tests.
 {
-  'builder_groups': {
+  'masters': {
     'dummy.group': {
       'dummy.builder.google_webview_pkg_name': 'android_weblayer_with_google_webview_pkg_name',
       'dummy.builder.aosp_webview_pkg_name': 'android_weblayer_with_aosp_webview_pkg_name',

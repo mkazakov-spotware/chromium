@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_POLICY_DEVELOPER_TOOLS_POLICY_HANDLER_H_
 #define CHROME_BROWSER_POLICY_DEVELOPER_TOOLS_POLICY_HANDLER_H_
 
+#include "base/macros.h"
 #include "components/policy/core/browser/configuration_policy_handler.h"
 
 class PrefService;
@@ -21,9 +22,6 @@ namespace policy {
 class DeveloperToolsPolicyHandler : public ConfigurationPolicyHandler {
  public:
   DeveloperToolsPolicyHandler();
-  DeveloperToolsPolicyHandler(const DeveloperToolsPolicyHandler&) = delete;
-  DeveloperToolsPolicyHandler& operator=(const DeveloperToolsPolicyHandler&) =
-      delete;
   ~DeveloperToolsPolicyHandler() override;
 
   // Developer tools availability as set by policy. The values must match the
@@ -66,6 +64,9 @@ class DeveloperToolsPolicyHandler : public ConfigurationPolicyHandler {
   static Availability GetMostRestrictiveAvailability(
       Availability availability_1,
       Availability availability_2);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DeveloperToolsPolicyHandler);
 };
 
 }  // namespace policy

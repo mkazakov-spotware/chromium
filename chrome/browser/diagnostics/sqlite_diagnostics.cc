@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
@@ -19,7 +20,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/history/core/browser/history_constants.h"
@@ -30,9 +30,9 @@
 #include "storage/browser/database/database_tracker.h"
 #include "third_party/sqlite/sqlite3.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_constants.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
+#include "chromeos/constants/chromeos_constants.h"
+#endif  // defined(OS_CHROMEOS)
 
 namespace diagnostics {
 
@@ -52,9 +52,6 @@ class SqliteIntegrityTest : public DiagnosticsTest {
                       DiagnosticsTestId id,
                       const base::FilePath& db_path)
       : DiagnosticsTest(id), flags_(flags), db_path_(db_path) {}
-
-  SqliteIntegrityTest(const SqliteIntegrityTest&) = delete;
-  SqliteIntegrityTest& operator=(const SqliteIntegrityTest&) = delete;
 
   bool RecoveryImpl(DiagnosticsModel::Observer* observer) override {
     int outcome_code = GetOutcomeCode();
@@ -105,8 +102,8 @@ class SqliteIntegrityTest : public DiagnosticsTest {
 
     int errors = 0;
     {  // Scope the statement and database so they close properly.
-      sql::Database database(
-          {.exclusive_locking = true, .page_size = 4096, .cache_size = 500});
+      sql::Database database;
+      database.set_exclusive_locking();
       scoped_refptr<ErrorRecorder> recorder(new ErrorRecorder);
 
       // Set the error callback so that we can get useful results in a debug
@@ -174,9 +171,6 @@ class SqliteIntegrityTest : public DiagnosticsTest {
    public:
     ErrorRecorder() : has_error_(false), sqlite_error_(0), last_errno_(0) {}
 
-    ErrorRecorder(const ErrorRecorder&) = delete;
-    ErrorRecorder& operator=(const ErrorRecorder&) = delete;
-
     void RecordSqliteError(sql::Database* connection,
                            int sqlite_error,
                            sql::Statement* statement) {
@@ -203,10 +197,13 @@ class SqliteIntegrityTest : public DiagnosticsTest {
     int sqlite_error_;
     int last_errno_;
     std::string message_;
+
+    DISALLOW_COPY_AND_ASSIGN(ErrorRecorder);
   };
 
   uint32_t flags_;
   base::FilePath db_path_;
+  DISALLOW_COPY_AND_ASSIGN(SqliteIntegrityTest);
 };
 
 }  // namespace
@@ -232,14 +229,14 @@ std::unique_ptr<DiagnosticsTest> MakeSqliteHistoryDbTest() {
       base::FilePath(history::kHistoryFilename));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 std::unique_ptr<DiagnosticsTest> MakeSqliteNssCertDbTest() {
   base::FilePath home_dir;
   base::PathService::Get(base::DIR_HOME, &home_dir);
   return std::make_unique<SqliteIntegrityTest>(
       SqliteIntegrityTest::REMOVE_IF_CORRUPT,
       DIAGNOSTICS_SQLITE_INTEGRITY_NSS_CERT_TEST,
-      home_dir.Append(ash::kNssCertDbPath));
+      home_dir.Append(chromeos::kNssCertDbPath));
 }
 
 std::unique_ptr<DiagnosticsTest> MakeSqliteNssKeyDbTest() {
@@ -248,9 +245,9 @@ std::unique_ptr<DiagnosticsTest> MakeSqliteNssKeyDbTest() {
   return std::make_unique<SqliteIntegrityTest>(
       SqliteIntegrityTest::REMOVE_IF_CORRUPT,
       DIAGNOSTICS_SQLITE_INTEGRITY_NSS_KEY_TEST,
-      home_dir.Append(ash::kNssKeyDbPath));
+      home_dir.Append(chromeos::kNssKeyDbPath));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 std::unique_ptr<DiagnosticsTest> MakeSqliteFaviconsDbTest() {
   return std::make_unique<SqliteIntegrityTest>(

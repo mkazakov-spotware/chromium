@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <!--
-Copyright The Closure Library Authors. All Rights Reserved.
+Copyright 2008 The Closure Library Authors. All Rights Reserved.
 
 Use of this source code is governed by the Apache License, Version 2.0.
 See the COPYING file for details.
@@ -26,12 +26,12 @@ See the COPYING file for details.
   </p>
   <div id="perfTable"></div>
   <hr>
-  <div id="renderElement"></div>
-  <div id="decorateElement"></div>
+  <div id="renderSandbox"></div>
+  <div id="decorateSandbox"></div>
   <script>
     // The sandboxen.
-    var renderElement = goog.dom.getElement('renderElement');
-    var decorateElement = goog.dom.getElement('decorateElement');
+    var renderSandbox = goog.dom.getElement('renderSandbox');
+    var decorateSandbox = goog.dom.getElement('decorateSandbox');
 
     // Arrays of rendered/decorated controls (so we can dispose of them).
     var renderedControls;
@@ -62,17 +62,17 @@ See the COPYING file for details.
         renderedControls[i].dispose();
       }
       renderedControls = null;
-      goog.dom.removeChildren(renderElement);
+      goog.dom.removeChildren(renderSandbox);
     }
 
     // Sets up a decorate test.
     function setUpDecorateTest(opt_count) {
       var count = opt_count || 1000;
       for (var i = 0; i < count; i++) {
-        decorateElement.appendChild(goog.dom.createDom(goog.dom.TagName.DIV, 'goog-control',
+        decorateSandbox.appendChild(goog.dom.createDom(goog.dom.TagName.DIV, 'goog-control',
             'W00t!'));
       }
-      elementToDecorate = decorateElement.firstChild;
+      elementToDecorate = decorateSandbox.firstChild;
       decoratedControls = [];
       decorateIndex = 0;
     }
@@ -83,7 +83,7 @@ See the COPYING file for details.
         decoratedControls[i].dispose();
       }
       decoratedControls = null;
-      goog.dom.removeChildren(decorateElement);
+      goog.dom.removeChildren(decorateSandbox);
     }
 
     // Renders the given number of controls.  Since children are appended to
@@ -95,7 +95,7 @@ See the COPYING file for details.
         if (!autoDetectBiDi) {
           control.setRightToLeft(false);
         }
-        control.render(renderElement);
+        control.render(renderSandbox);
         renderedControls[renderIndex++] = control;
       }
     }

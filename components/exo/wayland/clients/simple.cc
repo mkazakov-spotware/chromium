@@ -1,16 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/wayland/clients/simple.h"
 
 #include <presentation-time-client-protocol.h>
-
 #include <iostream>
 
 #include "base/command_line.h"
 #include "base/containers/circular_deque.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/time/time.h"
 #include "components/exo/wayland/clients/client_helper.h"
 #include "third_party/skia/include/core/SkCanvas.h"
@@ -61,7 +60,7 @@ void FeedbackPresented(void* data,
   int64_t microseconds = seconds * base::Time::kMicrosecondsPerSecond +
                          tv_nsec / base::Time::kNanosecondsPerMicrosecond;
   base::TimeTicks presentation_time =
-      base::TimeTicks() + base::Microseconds(microseconds);
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(microseconds);
   presentation->feedback.total_presentation_latency +=
       presentation_time - frame.submit_time;
   ++presentation->feedback.num_frames_presented;
@@ -71,9 +70,10 @@ void FeedbackPresented(void* data,
 void FeedbackDiscarded(void* data, struct wp_presentation_feedback* feedback) {
   Presentation* presentation = static_cast<Presentation*>(data);
   DCHECK_GT(presentation->submitted_frames.size(), 0u);
-  auto it =
-      base::ranges::find(presentation->submitted_frames, feedback,
-                         [](Frame& frame) { return frame.feedback.get(); });
+  auto it = std::find_if(
+      presentation->submitted_frames.begin(),
+      presentation->submitted_frames.end(),
+      [feedback](Frame& frame) { return frame.feedback.get() == feedback; });
   DCHECK(it != presentation->submitted_frames.end());
   presentation->submitted_frames.erase(it);
 }
@@ -97,10 +97,6 @@ Simple::Simple() = default;
 void Simple::Run(int frames,
                  const bool log_vsync_timing_updates,
                  PresentationFeedback* feedback) {
-  wl_display_roundtrip(display_.get());
-  // We always send this bug fix ID as a sanity check.
-  DCHECK(bug_fix_ids_.find(1151508) != bug_fix_ids_.end());
-
   wl_callback_listener frame_listener = {FrameCallback};
   wp_presentation_feedback_listener feedback_listener = {
       FeedbackSyncOutput, FeedbackPresented, FeedbackDiscarded};
@@ -141,7 +137,7 @@ void Simple::Run(int frames,
     SkCanvas* canvas = buffer->sk_surface->getCanvas();
 
     static const SkColor kColors[] = {SK_ColorRED, SK_ColorBLACK};
-    canvas->clear(kColors[++frame_count % std::size(kColors)]);
+    canvas->clear(kColors[++frame_count % base::size(kColors)]);
 
     if (gr_context_) {
       gr_context_->flushAndSubmit();

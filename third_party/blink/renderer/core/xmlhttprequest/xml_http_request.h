@@ -26,25 +26,22 @@
 #include <memory>
 
 #include "base/memory/scoped_refptr.h"
-#include "base/time/time.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/network/public/mojom/trust_tokens.mojom-blink.h"
 #include "services/network/public/mojom/url_loader_factory.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_trust_token.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_typedefs.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/document_parser_client.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/core/loader/threadable_loader_client.h"
-#include "third_party/blink/renderer/core/probe/async_task_context.h"
+#include "third_party/blink/renderer/core/probe/async_task_id.h"
 #include "third_party/blink/renderer/core/xmlhttprequest/xml_http_request_event_target.h"
 #include "third_party/blink/renderer/core/xmlhttprequest/xml_http_request_progress_event_throttle.h"
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_string.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
 #include "third_party/blink/renderer/platform/network/encoded_form_data.h"
 #include "third_party/blink/renderer/platform/network/http_header_map.h"
@@ -57,6 +54,8 @@
 
 namespace blink {
 
+class
+    DocumentOrBlobOrArrayBufferOrArrayBufferViewOrFormDataOrURLSearchParamsOrUSVString;
 class Blob;
 class BlobDataHandle;
 class DOMArrayBuffer;
@@ -73,12 +72,11 @@ class ThreadableLoader;
 class URLSearchParams;
 class XMLHttpRequestUpload;
 
-class CORE_EXPORT XMLHttpRequest final
-    : public XMLHttpRequestEventTarget,
-      public ThreadableLoaderClient,
-      public DocumentParserClient,
-      public ActiveScriptWrappable<XMLHttpRequest>,
-      public ExecutionContextLifecycleObserver {
+class XMLHttpRequest final : public XMLHttpRequestEventTarget,
+                             public ThreadableLoaderClient,
+                             public DocumentParserClient,
+                             public ActiveScriptWrappable<XMLHttpRequest>,
+                             public ExecutionContextLifecycleObserver {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -136,8 +134,9 @@ class CORE_EXPORT XMLHttpRequest final
             const KURL&,
             bool async,
             ExceptionState&);
-  void send(const V8UnionDocumentOrXMLHttpRequestBodyInit* body,
-            ExceptionState& exception_state);
+  void send(
+      const DocumentOrBlobOrArrayBufferOrArrayBufferViewOrFormDataOrURLSearchParamsOrUSVString&,
+      ExceptionState&);
   void abort();
   void Dispose();
   void setRequestHeader(const AtomicString& name,
@@ -171,14 +170,12 @@ class CORE_EXPORT XMLHttpRequest final
   XMLHttpRequestUpload* upload();
   bool IsAsync() { return async_; }
 
-  probe::AsyncTaskContext* async_task_context() { return &async_task_context_; }
+  probe::AsyncTaskId* async_task_id() { return &async_task_id_; }
 
   DEFINE_ATTRIBUTE_EVENT_LISTENER(readystatechange, kReadystatechange)
 
   void Trace(Visitor*) const override;
   const char* NameInHeapSnapshot() const override { return "XMLHttpRequest"; }
-
-  bool HasRequestHeaderForTesting(AtomicString name) const;
 
  private:
   class BlobLoader;
@@ -193,8 +190,8 @@ class CORE_EXPORT XMLHttpRequest final
   void DidDownloadData(uint64_t data_length) override;
   void DidDownloadToBlob(scoped_refptr<BlobDataHandle>) override;
   void DidFinishLoading(uint64_t identifier) override;
-  void DidFail(uint64_t, const ResourceError&) override;
-  void DidFailRedirectCheck(uint64_t) override;
+  void DidFail(const ResourceError&) override;
+  void DidFailRedirectCheck() override;
 
   // BlobLoader notifications.
   void DidFinishLoadingInternal();
@@ -278,7 +275,10 @@ class CORE_EXPORT XMLHttpRequest final
   // Handles didFail() call for timeout.
   void HandleDidTimeout();
 
-  void HandleRequestError(DOMExceptionCode, const AtomicString&);
+  void HandleRequestError(DOMExceptionCode,
+                          const AtomicString&,
+                          int64_t,
+                          int64_t);
 
   void UpdateContentTypeAndCharset(const AtomicString& content_type,
                                    const String& charset);
@@ -322,7 +322,7 @@ class CORE_EXPORT XMLHttpRequest final
 
   // Avoid using a flat WTF::String here and rather use a traced v8::String
   // which internally builds a string rope.
-  TraceWrapperV8String response_text_;
+  GC_PLUGIN_IGNORE("crbug.com/841830") TraceWrapperV8String response_text_;
   Member<Document> response_document_;
   Member<DocumentParser> response_document_parser_;
 
@@ -380,7 +380,7 @@ class CORE_EXPORT XMLHttpRequest final
   bool send_flag_ = false;
   bool response_array_buffer_failure_ = false;
 
-  probe::AsyncTaskContext async_task_context_;
+  probe::AsyncTaskId async_task_id_;
 };
 
 std::ostream& operator<<(std::ostream&, const XMLHttpRequest*);

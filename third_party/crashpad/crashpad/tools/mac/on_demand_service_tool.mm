@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ namespace crashpad {
 namespace {
 
 void Usage(const std::string& me) {
-  // clang-format off
   fprintf(stderr,
 "Usage: %s -L -l LABEL [OPTION]... COMMAND [ARG]...\n"
 "       %s -U -l LABEL\n"
@@ -49,7 +48,6 @@ void Usage(const std::string& me) {
 "      --version               output version information and exit\n",
           me.c_str(),
           me.c_str());
-  // clang-format on
   ToolSupport::UsageTail(me);
 }
 
@@ -154,12 +152,13 @@ int OnDemandServiceToolMain(int argc, char* argv[]) {
               dictionaryWithCapacity:options.mach_services.size()];
           for (std::string mach_service : options.mach_services) {
             NSString* mach_service_ns = base::SysUTF8ToNSString(mach_service);
-            mach_services[mach_service_ns] = @YES;
+            [mach_services setObject:@YES forKey:mach_service_ns];
           }
 
           NSMutableDictionary* mutable_job_dictionary =
               [[job_dictionary mutableCopy] autorelease];
-          mutable_job_dictionary[@LAUNCH_JOBKEY_MACHSERVICES] = mach_services;
+          [mutable_job_dictionary setObject:mach_services
+                                     forKey:@LAUNCH_JOBKEY_MACHSERVICES];
           job_dictionary = mutable_job_dictionary;
         }
 

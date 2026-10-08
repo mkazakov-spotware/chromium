@@ -1,4 +1,4 @@
-from urllib.parse import parse_qs
+from six.moves.urllib.parse import parse_qs
 
 from wptserve.utils import isomorphic_encode
 

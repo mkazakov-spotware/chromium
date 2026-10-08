@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <vector>
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/observer_list_types.h"
-#include "chromeos/ash/services/libassistant/public/cpp/assistant_suggestion.h"
+#include "chromeos/services/assistant/public/cpp/assistant_service.h"
 
 namespace ash {
 
@@ -18,7 +19,7 @@ namespace ash {
 class COMPONENT_EXPORT(ASSISTANT_MODEL) AssistantSuggestionsModelObserver
     : public base::CheckedObserver {
  public:
-  using AssistantSuggestion = assistant::AssistantSuggestion;
+  using AssistantSuggestion = chromeos::assistant::AssistantSuggestion;
 
   // Invoked when the cache of conversation starters has changed.
   virtual void OnConversationStartersChanged(

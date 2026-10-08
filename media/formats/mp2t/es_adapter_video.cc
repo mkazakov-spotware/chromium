@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,8 @@ EsAdapterVideo::EsAdapterVideo(NewVideoConfigCB new_video_config_cb,
       emit_buffer_cb_(std::move(emit_buffer_cb)),
       has_valid_config_(false),
       has_valid_frame_(false),
-      last_frame_duration_(base::Milliseconds(kDefaultFrameDurationMs)),
+      last_frame_duration_(
+          base::TimeDelta::FromMilliseconds(kDefaultFrameDurationMs)),
       buffer_index_(0),
       has_valid_initial_timestamp_(false),
       discarded_frame_count_(0) {}
@@ -48,7 +49,8 @@ void EsAdapterVideo::Reset() {
   has_valid_config_ = false;
   has_valid_frame_ = false;
 
-  last_frame_duration_ = base::Milliseconds(kDefaultFrameDurationMs);
+  last_frame_duration_ =
+      base::TimeDelta::FromMilliseconds(kDefaultFrameDurationMs);
 
   config_list_.clear();
   buffer_index_ = 0;

@@ -1,9 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef GIN_V8_FOREGROUND_TASK_RUNNER_BASE_H_
-#define GIN_V8_FOREGROUND_TASK_RUNNER_BASE_H_
+#ifndef V8_FOREGROUND_TASK_RUNNER_BASE_H
+#define V8_FOREGROUND_TASK_RUNNER_BASE_H
 
 #include "v8/include/v8-platform.h"
 
@@ -33,4 +33,4 @@ class V8ForegroundTaskRunnerBase : public v8::TaskRunner {
 
 }  // namespace gin
 
-#endif  // GIN_V8_FOREGROUND_TASK_RUNNER_BASE_H_
+#endif /* !V8_FOREGROUND_TASK_RUNNER_BASE_H */

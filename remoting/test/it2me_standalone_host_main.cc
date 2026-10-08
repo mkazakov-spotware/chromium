@@ -1,28 +1,27 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/at_exit.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
-#include "build/build_config.h"
 #include "remoting/host/resources.h"
 #include "remoting/proto/event.pb.h"
 #include "remoting/test/it2me_standalone_host.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include <gtk/gtk.h>
 
 #include "base/linux_util.h"
 #include "ui/events/platform/x11/x11_event_source.h"
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 int main(int argc, const char** argv) {
   base::AtExitManager at_exit_manager;
   base::CommandLine::Init(argc, argv);
   remoting::test::It2MeStandaloneHost host;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Create an X11EventSource so the global X11 connection
   // (x11::Connection::Get()) can dispatch X events.
   auto event_source =
@@ -40,7 +39,7 @@ int main(int argc, const char** argv) {
   // Need to prime the host OS version value for linux to prevent IO on the
   // network thread. base::GetLinuxDistro() caches the result.
   base::GetLinuxDistro();
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
   remoting::LoadResources("");
   host.StartOutputTimer();
   host.Run();

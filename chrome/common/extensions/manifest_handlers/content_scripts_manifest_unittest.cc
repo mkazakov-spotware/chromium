@@ -1,10 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/path_service.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/common/chrome_paths.h"
@@ -39,10 +40,9 @@ TEST_F(ContentScriptsManifestTest, MatchPattern) {
 
       // Match paterns must be strings.
       Testcase("content_script_match_pattern_not_string.json",
-               "Error at key 'content_scripts'. Parsing array failed at index "
-               "0: Error at key 'matches': Parsing array failed at index 0: "
-               "expected string, got integer")};
-  RunTestcases(testcases, std::size(testcases), EXPECT_TYPE_ERROR);
+               "Error at key 'content_scripts'. Parsing array failed: expected "
+               "string, got integer; unable to populate array 'matches'.")};
+  RunTestcases(testcases, base::size(testcases), EXPECT_TYPE_ERROR);
 
   LoadAndExpectSuccess("ports_in_content_scripts.json");
 }
@@ -79,13 +79,12 @@ TEST_F(ContentScriptsManifestTest, ContentScriptIds) {
   const UserScriptList& user_scripts1 =
       ContentScriptsInfo::GetContentScripts(extension1.get());
   ASSERT_EQ(1u, user_scripts1.size());
-
+  int id = user_scripts1[0]->id();
   const UserScriptList& user_scripts2 =
       ContentScriptsInfo::GetContentScripts(extension2.get());
   ASSERT_EQ(1u, user_scripts2.size());
-
-  // The two content scripts should have different ids.
-  EXPECT_NE(user_scripts2[0]->id(), user_scripts1[0]->id());
+  // The id of the content script should be one higher than the previous.
+  EXPECT_EQ(id + 1, user_scripts2[0]->id());
 }
 
 TEST_F(ContentScriptsManifestTest, FailLoadingNonUTF8Scripts) {
@@ -96,10 +95,9 @@ TEST_F(ContentScriptsManifestTest, FailLoadingNonUTF8Scripts) {
                     .AppendASCII("bad_encoding");
 
   std::string error;
-  scoped_refptr<Extension> extension(
-      file_util::LoadExtension(install_dir, mojom::ManifestLocation::kUnpacked,
-                               Extension::NO_FLAGS, &error));
-  ASSERT_TRUE(extension.get() == nullptr);
+  scoped_refptr<Extension> extension(file_util::LoadExtension(
+      install_dir, Manifest::UNPACKED, Extension::NO_FLAGS, &error));
+  ASSERT_TRUE(extension.get() == NULL);
   ASSERT_STREQ(
       "Could not load file 'bad_encoding.js' for content script. "
       "It isn't UTF-8 encoded.",
@@ -141,19 +139,6 @@ TEST_F(ContentScriptsManifestTest, MatchOriginAsFallback_FeatureEnabled) {
   // The seventh and final does not specify a value for either.
   EXPECT_EQ(MatchOriginAsFallbackBehavior::kNever,
             user_scripts[6]->match_origin_as_fallback());
-}
-
-TEST_F(ContentScriptsManifestTest, MatchOriginAsFallback_InvalidCases) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(
-      extensions_features::kContentScriptsMatchOriginAsFallback);
-
-  LoadAndExpectWarning(
-      "content_script_match_origin_as_fallback_warning_for_mv2.json",
-      errors::kMatchOriginAsFallbackRestrictedToMV3);
-  LoadAndExpectError(
-      "content_script_match_origin_as_fallback_invalid_with_paths.json",
-      errors::kMatchOriginAsFallbackCantHavePaths);
 }
 
 TEST_F(ContentScriptsManifestTest, MatchOriginAsFallback_FeatureDisabled) {

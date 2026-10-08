@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -37,30 +37,28 @@
 #include "base/debug/profiler.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/threading/thread.h"
 #include "base/time/tick_clock.h"
-#include "base/time/time.h"
 #include "media/base/audio_bus.h"
 #include "media/base/fake_single_thread_task_runner.h"
 #include "media/base/video_frame.h"
 #include "media/cast/cast_config.h"
 #include "media/cast/cast_environment.h"
+#include "media/cast/cast_receiver.h"
 #include "media/cast/cast_sender.h"
-#include "media/cast/common/encoded_frame.h"
 #include "media/cast/logging/simple_event_subscriber.h"
 #include "media/cast/net/cast_transport.h"
 #include "media/cast/net/cast_transport_config.h"
 #include "media/cast/net/cast_transport_defines.h"
 #include "media/cast/net/cast_transport_impl.h"
 #include "media/cast/test/loopback_transport.h"
-#include "media/cast/test/receiver/cast_receiver.h"
 #include "media/cast/test/skewed_single_thread_task_runner.h"
 #include "media/cast/test/skewed_tick_clock.h"
 #include "media/cast/test/utility/audio_utility.h"
@@ -172,13 +170,13 @@ class CastTransportWrapper : public CastTransport {
     transport_->SendRtcpFromRtpReceiver();
   }
 
-  void SetOptions(const base::Value::Dict& options) final {}
+  void SetOptions(const base::DictionaryValue& options) final {}
 
  private:
   std::unique_ptr<CastTransport> transport_;
   uint32_t audio_ssrc_, video_ssrc_;
-  raw_ptr<uint64_t> encoded_video_bytes_;
-  raw_ptr<uint64_t> encoded_audio_bytes_;
+  uint64_t* encoded_video_bytes_;
+  uint64_t* encoded_audio_bytes_;
 };
 
 struct MeasuringPoint {
@@ -227,7 +225,8 @@ class RunOneBenchmark {
         video_bytes_encoded_(0),
         audio_bytes_encoded_(0),
         frames_sent_(0) {
-    testing_clock_.Advance(base::Milliseconds(kStartMillisecond));
+    testing_clock_.Advance(
+        base::TimeDelta::FromMilliseconds(kStartMillisecond));
   }
 
   void Configure(Codec video_codec,
@@ -235,7 +234,7 @@ class RunOneBenchmark {
     audio_sender_config_ = GetDefaultAudioSenderConfig();
     audio_sender_config_.min_playout_delay =
         audio_sender_config_.max_playout_delay =
-            base::Milliseconds(kTargetPlayoutDelayMs);
+            base::TimeDelta::FromMilliseconds(kTargetPlayoutDelayMs);
     audio_sender_config_.codec = audio_codec;
 
     audio_receiver_config_ = GetDefaultAudioReceiverConfig();
@@ -246,7 +245,7 @@ class RunOneBenchmark {
     video_sender_config_ = GetDefaultVideoSenderConfig();
     video_sender_config_.min_playout_delay =
         video_sender_config_.max_playout_delay =
-            base::Milliseconds(kTargetPlayoutDelayMs);
+            base::TimeDelta::FromMilliseconds(kTargetPlayoutDelayMs);
     video_sender_config_.max_bitrate = 4000000;
     video_sender_config_.min_bitrate = 4000000;
     video_sender_config_.start_bitrate = 4000000;
@@ -257,7 +256,8 @@ class RunOneBenchmark {
     video_receiver_config_.codec = video_codec;
 
     DCHECK_GT(video_sender_config_.max_frame_rate, 0);
-    frame_duration_ = base::Seconds(1.0 / video_sender_config_.max_frame_rate);
+    frame_duration_ = base::TimeDelta::FromSecondsD(
+        1.0 / video_sender_config_.max_frame_rate);
   }
 
   void SetSenderClockSkew(double skew, base::TimeDelta offset) {
@@ -283,8 +283,8 @@ class RunOneBenchmark {
   }
 
   base::TimeDelta VideoTimestamp(int frame_number) {
-    return frame_number *
-           base::Seconds(1.0 / video_sender_config_.max_frame_rate);
+    return frame_number * base::TimeDelta::FromSecondsD(
+                              1.0 / video_sender_config_.max_frame_rate);
   }
 
   void SendFakeVideoFrame() {
@@ -427,10 +427,8 @@ class RunOneBenchmark {
   scoped_refptr<CastEnvironment> cast_environment_sender_;
   scoped_refptr<CastEnvironment> cast_environment_receiver_;
 
-  raw_ptr<LoopBackTransport>
-      receiver_to_sender_;  // Owned by CastTransportImpl.
-  raw_ptr<LoopBackTransport>
-      sender_to_receiver_;  // Owned by CastTransportImpl.
+  LoopBackTransport* receiver_to_sender_;  // Owned by CastTransportImpl.
+  LoopBackTransport* sender_to_receiver_;  // Owned by CastTransportImpl.
   CastTransportWrapper transport_sender_;
   std::unique_ptr<CastTransport> transport_receiver_;
   uint64_t video_bytes_encoded_;
@@ -453,9 +451,6 @@ class TransportClient : public CastTransport::Client {
   explicit TransportClient(RunOneBenchmark* run_one_benchmark)
       : run_one_benchmark_(run_one_benchmark) {}
 
-  TransportClient(const TransportClient&) = delete;
-  TransportClient& operator=(const TransportClient&) = delete;
-
   void OnStatusChanged(CastTransportStatus status) final {
     EXPECT_EQ(TRANSPORT_STREAM_INITIALIZED, status);
   }
@@ -468,25 +463,27 @@ class TransportClient : public CastTransport::Client {
   }
 
  private:
-  const raw_ptr<RunOneBenchmark> run_one_benchmark_;
+  RunOneBenchmark* const run_one_benchmark_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransportClient);
 };
 
-}  // namespace
+}  // namepspace
 
 void RunOneBenchmark::Create(const MeasuringPoint& p) {
   sender_to_receiver_ = new LoopBackTransport(cast_environment_sender_);
   transport_sender_.Init(
-      new CastTransportImpl(&testing_clock_sender_, base::Seconds(1),
-                            std::make_unique<TransportClient>(nullptr),
-                            base::WrapUnique(sender_to_receiver_.get()),
-                            task_runner_sender_),
+      new CastTransportImpl(
+          &testing_clock_sender_, base::TimeDelta::FromSeconds(1),
+          std::make_unique<TransportClient>(nullptr),
+          base::WrapUnique(sender_to_receiver_), task_runner_sender_),
       &video_bytes_encoded_, &audio_bytes_encoded_);
 
   receiver_to_sender_ = new LoopBackTransport(cast_environment_receiver_);
-  transport_receiver_ = std::make_unique<CastTransportImpl>(
-      &testing_clock_receiver_, base::Seconds(1),
+  transport_receiver_.reset(new CastTransportImpl(
+      &testing_clock_receiver_, base::TimeDelta::FromSeconds(1),
       std::make_unique<TransportClient>(this),
-      base::WrapUnique(receiver_to_sender_.get()), task_runner_receiver_);
+      base::WrapUnique(receiver_to_sender_), task_runner_receiver_));
 
   cast_receiver_ =
       CastReceiver::Create(cast_environment_receiver_, audio_receiver_config_,
@@ -499,7 +496,8 @@ void RunOneBenchmark::Create(const MeasuringPoint& p) {
                                 base::BindOnce(&ExpectAudioSuccess));
   cast_sender_->InitializeVideo(video_sender_config_,
                                 base::BindRepeating(&ExpectVideoSuccess),
-                                base::DoNothing());
+                                CreateDefaultVideoEncodeAcceleratorCallback(),
+                                CreateDefaultVideoEncodeMemoryCallback());
 
   receiver_to_sender_->Initialize(CreateSimplePipe(p),
                                   transport_sender_.PacketReceiverForTesting(),

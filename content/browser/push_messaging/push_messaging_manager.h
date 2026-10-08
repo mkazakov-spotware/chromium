@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,12 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ref.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/push_messaging_service.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
-#include "third_party/blink/public/mojom/permissions/permission_status.mojom.h"
 #include "third_party/blink/public/mojom/push_messaging/push_messaging.mojom.h"
 #include "url/gurl.h"
 
@@ -29,33 +27,19 @@ enum class PushUnregistrationStatus;
 }  // namespace mojom
 }  // namespace blink
 
-namespace url {
-class Origin;
-}  // namespace url
-
 namespace content {
 
-class RenderProcessHost;
 class ServiceWorkerContextWrapper;
 
 // Documented at definition.
 extern const char kPushSenderIdServiceWorkerKey[];
 extern const char kPushRegistrationIdServiceWorkerKey[];
 
-// Owned by RenderFrameHostImpl (if `this` handles requests from a document) or
-// RenderProcessHostImpl (if `this` handles requests from a service worker).
-// Lives on the UI thread.
 class PushMessagingManager : public blink::mojom::PushMessaging {
  public:
-  PushMessagingManager(
-      RenderProcessHost& render_process_host,
-      int render_frame_id,
-      scoped_refptr<ServiceWorkerContextWrapper> service_worker_context);
-
-  PushMessagingManager(const PushMessagingManager&) = delete;
-  PushMessagingManager& operator=(const PushMessagingManager&) = delete;
-
-  ~PushMessagingManager() override;
+  PushMessagingManager(int render_process_id,
+                       int render_frame_id,
+                       ServiceWorkerContextWrapper* service_worker_context);
 
   void AddPushMessagingReceiver(
       mojo::PendingReceiver<blink::mojom::PushMessaging> receiver);
@@ -64,7 +48,7 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
     return weak_factory_.GetWeakPtr();
   }
 
-  // blink::mojom::PushMessaging impl.
+  // blink::mojom::PushMessaging impl, run on service worker core thread.
   void Subscribe(int64_t service_worker_registration_id,
                  blink::mojom::PushSubscriptionOptionsPtr options,
                  bool user_gesture,
@@ -76,17 +60,12 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
 
  private:
   struct RegisterData;
+  class Core;
 
-  void Register(RegisterData data);
-  void DidRegister(RegisterData data,
-                   const std::string& push_subscription_id,
-                   const GURL& endpoint,
-                   const absl::optional<base::Time>& expiration_time,
-                   const std::vector<uint8_t>& p256dh,
-                   const std::vector<uint8_t>& auth,
-                   blink::mojom::PushRegistrationStatus status);
-  void DidRequestPermissionInIncognito(RegisterData data,
-                                       blink::mojom::PermissionStatus status);
+  friend class BrowserThread;
+  friend class base::DeleteHelper<PushMessagingManager>;
+
+  ~PushMessagingManager() override;
 
   void DidCheckForExistingRegistration(
       RegisterData data,
@@ -98,63 +77,45 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
       const std::vector<std::string>& sender_id,
       blink::ServiceWorkerStatusCode service_worker_status);
 
-  void PersistRegistration(RegisterData data,
-                           const std::string& push_subscription_id,
-                           const GURL& endpoint,
-                           const absl::optional<base::Time>& expiration_time,
-                           const std::vector<uint8_t>& p256dh,
-                           const std::vector<uint8_t>& auth,
-                           blink::mojom::PushRegistrationStatus status);
+  // Called via PostTask from UI thread.
+  void PersistRegistrationOnSW(
+      RegisterData data,
+      const std::string& push_subscription_id,
+      const GURL& endpoint,
+      const base::Optional<base::Time>& expiration_time,
+      const std::vector<uint8_t>& p256dh,
+      const std::vector<uint8_t>& auth,
+      blink::mojom::PushRegistrationStatus status);
 
-  void DidPersistRegistration(
+  void DidPersistRegistrationOnSW(
       RegisterData data,
       const GURL& endpoint,
-      const absl::optional<base::Time>& expiration_time,
+      const base::Optional<base::Time>& expiration_time,
       const std::vector<uint8_t>& p256dh,
       const std::vector<uint8_t>& auth,
       blink::mojom::PushRegistrationStatus push_registration_status,
       blink::ServiceWorkerStatusCode service_worker_status);
 
+  // Called both from "SW core" thread, and via PostTask from UI thread.
   void SendSubscriptionError(RegisterData data,
                              blink::mojom::PushRegistrationStatus status);
+  // Called both from "SW core" thread, and via PostTask from UI thread.
   void SendSubscriptionSuccess(
       RegisterData data,
       blink::mojom::PushRegistrationStatus status,
       const GURL& endpoint,
-      const absl::optional<base::Time>& expiration_time,
+      const base::Optional<base::Time>& expiration_time,
       const std::vector<uint8_t>& p256dh,
       const std::vector<uint8_t>& auth);
-
-  void GetSubscriptionDidUnsubscribe(
-      GetSubscriptionCallback callback,
-      blink::mojom::PushGetRegistrationStatus get_status,
-      blink::mojom::PushUnregistrationStatus unsubscribe_status);
-
-  void GetSubscriptionDidGetInfo(
-      GetSubscriptionCallback callback,
-      const url::Origin& origin,
-      int64_t service_worker_registration_id,
-      const std::string& application_server_key,
-      bool is_valid,
-      const GURL& endpoint,
-      const absl::optional<base::Time>& expiration_time,
-      const std::vector<uint8_t>& p256dh,
-      const std::vector<uint8_t>& auth);
-
-  void GetSubscriptionInfo(
-      const url::Origin& origin,
-      int64_t service_worker_registration_id,
-      const std::string& sender_id,
-      const std::string& push_subscription_id,
-      PushMessagingService::SubscriptionInfoCallback callback);
 
   void UnsubscribeHavingGottenSenderId(
       UnsubscribeCallback callback,
       int64_t service_worker_registration_id,
-      const url::Origin& requesting_origin,
+      const GURL& requesting_origin,
       const std::vector<std::string>& sender_id,
       blink::ServiceWorkerStatusCode service_worker_status);
 
+  // Called both from "SW core" thread, and via PostTask from UI thread.
   void DidUnregister(
       UnsubscribeCallback callback,
       blink::mojom::PushUnregistrationStatus unregistration_status);
@@ -165,23 +126,28 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
       const std::vector<std::string>& push_subscription_id_and_sender_info,
       blink::ServiceWorkerStatusCode service_worker_status);
 
-  PushMessagingService* GetService();
+  // Helper methods on either thread -------------------------------------------
 
-  const raw_ref<RenderProcessHost> render_process_host_;
+  // Inner core of this message filter which lives on the UI thread.
+  std::unique_ptr<Core, BrowserThread::DeleteOnUIThread> ui_core_;
 
-  // Will be ChildProcessHost::kInvalidUniqueID in requests from Service Worker.
-  const int render_frame_id_;
+  // Can be used on the SW core thread as the |this| parameter when binding a
+  // callback that will be called on the UI thread (an SW -> UI -> UI chain).
+  base::WeakPtr<Core> ui_core_weak_ptr_;
 
   scoped_refptr<ServiceWorkerContextWrapper> service_worker_context_;
 
-  const bool is_incognito_;
-
   // Whether the PushMessagingService was available when constructed.
-  const bool service_available_;
+  bool service_available_;
+
+  // Will be ChildProcessHost::kInvalidUniqueID in requests from Service Worker.
+  int render_frame_id_;
 
   mojo::ReceiverSet<blink::mojom::PushMessaging> receivers_;
 
   base::WeakPtrFactory<PushMessagingManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PushMessagingManager);
 };
 
 }  // namespace content

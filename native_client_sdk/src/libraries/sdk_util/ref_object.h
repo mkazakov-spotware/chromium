@@ -1,9 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef LIBRARIES_SDK_UTIL_REF_OBJECT_H_
-#define LIBRARIES_SDK_UTIL_REF_OBJECT_H_
+#ifndef LIBRARIES_SDK_UTIL_REF_OBJECT
+#define LIBRARIES_SDK_UTIL_REF_OBJECT
 
 #include <stdlib.h>
 #include "pthread.h"
@@ -70,5 +70,5 @@ class RefObject {
 
 }  // namespace sdk_util
 
-#endif  // LIBRARIES_SDK_UTIL_REF_OBJECT_H_
+#endif  // LIBRARIES_SDK_UTIL_REF_OBJECT
 

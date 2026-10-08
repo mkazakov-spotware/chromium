@@ -27,9 +27,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import logging
-import random
 import time
-import requests.exceptions
+import urllib2
 
 _log = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ class NetworkTransaction(object):
     def __init__(self,
                  initial_backoff_seconds=10,
                  grown_factor=1.5,
-                 timeout_seconds=60,
+                 timeout_seconds=(10 * 60),
                  return_none_on_404=False):
         self._initial_backoff_seconds = initial_backoff_seconds
         self._grown_factor = grown_factor
@@ -58,19 +57,13 @@ class NetworkTransaction(object):
         while True:
             try:
                 return request()
-            except requests.exceptions.RequestException as error:
-                response = getattr(error, 'response', None)
-                if response is not None:
-                    if self._return_none_on_404 and response.status_code == 404:
-                        return None
-                    _log.warning('Received HTTP status %s loading "%s": %s. ',
-                                 response.status_code, response.url,
-                                 response.reason)
-                else:
-                    _log.warning('Received RequestException: %s ...', error)
-                _log.warning('Retrying in %.3f seconds...',
-                             self._backoff_seconds)
+            except urllib2.HTTPError as error:
+                if self._return_none_on_404 and error.code == 404:
+                    return None
                 self._check_for_timeout()
+                _log.warning(
+                    'Received HTTP status %s loading "%s".  Retrying in %s seconds...',
+                    error.code, error.filename, self._backoff_seconds)
                 self._sleep()
 
     def _check_for_timeout(self):
@@ -78,8 +71,6 @@ class NetworkTransaction(object):
             raise NetworkTimeout()
 
     def _sleep(self):
-        # Add jitter to avoid resource contention:
-        #   https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-        time.sleep(random.uniform(0.5, 1) * self._backoff_seconds)
+        time.sleep(self._backoff_seconds)
         self._total_sleep += self._backoff_seconds
         self._backoff_seconds *= self._grown_factor

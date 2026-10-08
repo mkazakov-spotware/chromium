@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,7 @@ void SlotAssignmentEngine::Disconnected(ShadowRoot& shadow_root) {
 }
 
 void SlotAssignmentEngine::RecalcSlotAssignments() {
-  if (shadow_roots_needing_recalc_.empty())
+  if (shadow_roots_needing_recalc_.IsEmpty())
     return;
   TRACE_EVENT0("blink", "SlotAssignmentEngine::RecalcSlotAssignments");
   for (auto& shadow_root :
@@ -52,7 +52,7 @@ void SlotAssignmentEngine::RecalcSlotAssignments() {
     // shadow_roots_needing_recalc_.
     shadow_root->GetSlotAssignment().RecalcAssignment();
   }
-  DCHECK(shadow_roots_needing_recalc_.empty());
+  DCHECK(shadow_roots_needing_recalc_.IsEmpty());
 }
 
 void SlotAssignmentEngine::Trace(Visitor* visitor) const {

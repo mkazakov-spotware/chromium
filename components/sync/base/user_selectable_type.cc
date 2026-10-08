@@ -1,14 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/base/user_selectable_type.h"
 
+#include <type_traits>
+
 #include "base/notreached.h"
-#include "build/chromeos_buildflags.h"
-#include "components/sync/base/features.h"
+#include "base/optional.h"
 #include "components/sync/base/model_type.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "components/sync/base/pref_names.h"
+
+#if defined(OS_CHROMEOS)
+#include "chromeos/constants/chromeos_features.h"
+#endif
 
 namespace syncer {
 
@@ -25,87 +30,84 @@ constexpr char kPreferencesTypeName[] = "preferences";
 constexpr char kPasswordsTypeName[] = "passwords";
 constexpr char kAutofillTypeName[] = "autofill";
 constexpr char kThemesTypeName[] = "themes";
-// Note: The type name for History is "typedUrls" for historic reasons. This
-// name is used in JS (sync settings) and in the SyncTypesListDisabled policy,
-// so it's fairly hard to change.
-constexpr char kHistoryTypeName[] = "typedUrls";
+constexpr char kTypedUrlsTypeName[] = "typedUrls";
 constexpr char kExtensionsTypeName[] = "extensions";
 constexpr char kAppsTypeName[] = "apps";
 constexpr char kReadingListTypeName[] = "readingList";
 constexpr char kTabsTypeName[] = "tabs";
 constexpr char kWifiConfigurationsTypeName[] = "wifiConfigurations";
-constexpr char kSavedTabGroupsTypeName[] = "savedTabGroups";
 
 UserSelectableTypeInfo GetUserSelectableTypeInfo(UserSelectableType type) {
-  static_assert(44 == syncer::GetNumModelTypes(),
-                "Almost always when adding a new ModelType, you must tie it to "
-                "a UserSelectableType below (new or existing) so the user can "
-                "disable syncing of that data. Today you must also update the "
-                "UI code yourself; crbug.com/1067282 and related bugs will "
-                "improve that");
   // UserSelectableTypeInfo::type_name is used in js code and shouldn't be
   // changed without updating js part.
   switch (type) {
     case UserSelectableType::kBookmarks:
       return {kBookmarksTypeName, BOOKMARKS, {BOOKMARKS}};
-    case UserSelectableType::kPreferences:
-      // TODO(crbug.com/1369259): Add GetPreconditionState() logic to check
-      // history state as a precondition for SEGMENTATION.
-      return {kPreferencesTypeName,
-              PREFERENCES,
-              {PREFERENCES, DICTIONARY, PRIORITY_PREFERENCES, SEARCH_ENGINES,
-               SEGMENTATION}};
+    case UserSelectableType::kPreferences: {
+      ModelTypeSet model_types = {PREFERENCES, DICTIONARY, PRIORITY_PREFERENCES,
+                                  SEARCH_ENGINES};
+#if defined(OS_CHROMEOS)
+      // SplitSettingsSync makes Printers a separate OS setting.
+      if (!chromeos::features::IsSplitSettingsSyncEnabled())
+        model_types.Put(PRINTERS);
+#endif
+      return {kPreferencesTypeName, PREFERENCES, model_types};
+    }
     case UserSelectableType::kPasswords:
       return {kPasswordsTypeName, PASSWORDS, {PASSWORDS}};
     case UserSelectableType::kAutofill:
       return {kAutofillTypeName,
               AUTOFILL,
               {AUTOFILL, AUTOFILL_PROFILE, AUTOFILL_WALLET_DATA,
-               AUTOFILL_WALLET_METADATA, AUTOFILL_WALLET_OFFER,
-               AUTOFILL_WALLET_USAGE, CONTACT_INFO}};
+               AUTOFILL_WALLET_METADATA, AUTOFILL_WALLET_OFFER}};
     case UserSelectableType::kThemes:
       return {kThemesTypeName, THEMES, {THEMES}};
-    case UserSelectableType::kHistory: {
-      // TODO(crbug.com/1365291): After HISTORY has launched, remove TYPED_URLS
-      // from here.
-      ModelTypeSet types = {TYPED_URLS, HISTORY, HISTORY_DELETE_DIRECTIVES,
-                            SESSIONS, USER_EVENTS};
-      if (base::FeatureList::IsEnabled(kSyncEnableHistoryDataType)) {
-        types.Remove(SESSIONS);
-      }
-      return {kHistoryTypeName, TYPED_URLS, types};
-    }
+    case UserSelectableType::kHistory:
+      return {kTypedUrlsTypeName,
+              TYPED_URLS,
+              {TYPED_URLS, HISTORY_DELETE_DIRECTIVES, SESSIONS,
+               DEPRECATED_FAVICON_IMAGES, DEPRECATED_FAVICON_TRACKING,
+               USER_EVENTS}};
     case UserSelectableType::kExtensions:
       return {
           kExtensionsTypeName, EXTENSIONS, {EXTENSIONS, EXTENSION_SETTINGS}};
-    case UserSelectableType::kApps:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-      // In Ash, "Apps" part of Chrome OS settings.
-      return {kAppsTypeName, UNSPECIFIED};
+    case UserSelectableType::kApps: {
+#if defined(OS_CHROMEOS)
+      // SplitSettingsSync moves apps to Chrome OS settings.
+      if (chromeos::features::IsSplitSettingsSyncEnabled()) {
+        return {kAppsTypeName, UNSPECIFIED};
+      } else {
+        return {kAppsTypeName,
+                APPS,
+                {APP_LIST, APPS, APP_SETTINGS, ARC_PACKAGE, WEB_APPS}};
+      }
 #else
       return {kAppsTypeName, APPS, {APPS, APP_SETTINGS, WEB_APPS}};
 #endif
+    }
     case UserSelectableType::kReadingList:
       return {kReadingListTypeName, READING_LIST, {READING_LIST}};
     case UserSelectableType::kTabs:
-      return {kTabsTypeName, PROXY_TABS, {PROXY_TABS, SESSIONS}};
-    case UserSelectableType::kWifiConfigurations:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-      // In Ash, "Wi-Fi configurations" is part of Chrome OS settings.
-      return {kWifiConfigurationsTypeName, UNSPECIFIED};
-#else
+      return {kTabsTypeName,
+              PROXY_TABS,
+              {PROXY_TABS, SESSIONS, DEPRECATED_FAVICON_IMAGES,
+               DEPRECATED_FAVICON_TRACKING, SEND_TAB_TO_SELF}};
+    case UserSelectableType::kWifiConfigurations: {
+#if defined(OS_CHROMEOS)
+      // SplitSettingsSync moves Wi-Fi configurations to Chrome OS settings.
+      if (chromeos::features::IsSplitSettingsSyncEnabled())
+        return {kWifiConfigurationsTypeName, UNSPECIFIED};
+#endif
       return {kWifiConfigurationsTypeName,
               WIFI_CONFIGURATIONS,
               {WIFI_CONFIGURATIONS}};
-#endif
-    case UserSelectableType::kSavedTabGroups:
-      return {kSavedTabGroupsTypeName, SAVED_TAB_GROUP, {SAVED_TAB_GROUP}};
+    }
   }
   NOTREACHED();
-  return {nullptr, UNSPECIFIED, {}};
+  return {nullptr, UNSPECIFIED};
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 constexpr char kOsAppsTypeName[] = "osApps";
 constexpr char kOsPreferencesTypeName[] = "osPreferences";
 constexpr char kOsWifiConfigurationsTypeName[] = "osWifiConfigurations";
@@ -121,15 +123,14 @@ UserSelectableTypeInfo GetUserSelectableOsTypeInfo(UserSelectableOsType type) {
     case UserSelectableOsType::kOsPreferences:
       return {kOsPreferencesTypeName,
               OS_PREFERENCES,
-              {OS_PREFERENCES, OS_PRIORITY_PREFERENCES, PRINTERS,
-               PRINTERS_AUTHORIZATION_SERVERS, WORKSPACE_DESK}};
+              {OS_PREFERENCES, OS_PRIORITY_PREFERENCES, PRINTERS}};
     case UserSelectableOsType::kOsWifiConfigurations:
       return {kOsWifiConfigurationsTypeName,
               WIFI_CONFIGURATIONS,
               {WIFI_CONFIGURATIONS}};
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace
 
@@ -137,7 +138,7 @@ const char* GetUserSelectableTypeName(UserSelectableType type) {
   return GetUserSelectableTypeInfo(type).type_name;
 }
 
-absl::optional<UserSelectableType> GetUserSelectableTypeFromString(
+base::Optional<UserSelectableType> GetUserSelectableTypeFromString(
     const std::string& type) {
   if (type == kBookmarksTypeName) {
     return UserSelectableType::kBookmarks;
@@ -154,7 +155,7 @@ absl::optional<UserSelectableType> GetUserSelectableTypeFromString(
   if (type == kThemesTypeName) {
     return UserSelectableType::kThemes;
   }
-  if (type == kHistoryTypeName) {
+  if (type == kTypedUrlsTypeName) {
     return UserSelectableType::kHistory;
   }
   if (type == kExtensionsTypeName) {
@@ -172,10 +173,7 @@ absl::optional<UserSelectableType> GetUserSelectableTypeFromString(
   if (type == kWifiConfigurationsTypeName) {
     return UserSelectableType::kWifiConfigurations;
   }
-  if (type == kSavedTabGroupsTypeName) {
-    return UserSelectableType::kSavedTabGroups;
-  }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 std::string UserSelectableTypeSetToString(UserSelectableTypeSet types) {
@@ -197,23 +195,19 @@ ModelType UserSelectableTypeToCanonicalModelType(UserSelectableType type) {
   return GetUserSelectableTypeInfo(type).canonical_model_type;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+int UserSelectableTypeToHistogramInt(UserSelectableType type) {
+  // TODO(crbug.com/1007293): Use ModelTypeHistogramValue instead of casting to
+  // int.
+  return static_cast<int>(
+      ModelTypeHistogramValue(UserSelectableTypeToCanonicalModelType(type)));
+}
+
+#if defined(OS_CHROMEOS)
 const char* GetUserSelectableOsTypeName(UserSelectableOsType type) {
   return GetUserSelectableOsTypeInfo(type).type_name;
 }
 
-std::string UserSelectableOsTypeSetToString(UserSelectableOsTypeSet types) {
-  std::string result;
-  for (UserSelectableOsType type : types) {
-    if (!result.empty()) {
-      result += ", ";
-    }
-    result += GetUserSelectableOsTypeName(type);
-  }
-  return result;
-}
-
-absl::optional<UserSelectableOsType> GetUserSelectableOsTypeFromString(
+base::Optional<UserSelectableOsType> GetUserSelectableOsTypeFromString(
     const std::string& type) {
   if (type == kOsAppsTypeName) {
     return UserSelectableOsType::kOsApps;
@@ -227,10 +221,10 @@ absl::optional<UserSelectableOsType> GetUserSelectableOsTypeFromString(
 
   // Some pref types migrated from browser prefs to OS prefs. Map the browser
   // type name to the OS type so that enterprise policy SyncTypesListDisabled
-  // still applies to the migrated names.
+  // still applies to the migrated names during SplitSettingsSync roll-out.
   // TODO(https://crbug.com/1059309): Rename "osApps" to "apps" and
-  // "osWifiConfigurations" to "wifiConfigurations", and remove the mapping for
-  // "preferences".
+  // "osWifiConfigurations" to "wifiConfigurations" after SplitSettingsSync is
+  // the default, and remove the mapping for "preferences".
   if (type == kAppsTypeName) {
     return UserSelectableOsType::kOsApps;
   }
@@ -240,7 +234,7 @@ absl::optional<UserSelectableOsType> GetUserSelectableOsTypeFromString(
   if (type == kPreferencesTypeName) {
     return UserSelectableOsType::kOsPreferences;
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 ModelTypeSet UserSelectableOsTypeToAllModelTypes(UserSelectableOsType type) {
@@ -250,6 +244,6 @@ ModelTypeSet UserSelectableOsTypeToAllModelTypes(UserSelectableOsType type) {
 ModelType UserSelectableOsTypeToCanonicalModelType(UserSelectableOsType type) {
   return GetUserSelectableOsTypeInfo(type).canonical_model_type;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // defined(OS_CHROMEOS)
 
 }  // namespace syncer

@@ -1,18 +1,18 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/background_fetch/service_worker_registration_background_fetch.h"
 
 #include "third_party/blink/renderer/modules/background_fetch/background_fetch_manager.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
 ServiceWorkerRegistrationBackgroundFetch::
     ServiceWorkerRegistrationBackgroundFetch(
         ServiceWorkerRegistration* registration)
-    : Supplement(*registration) {}
+    : registration_(registration) {}
 
 ServiceWorkerRegistrationBackgroundFetch::
     ~ServiceWorkerRegistrationBackgroundFetch() = default;
@@ -47,13 +47,14 @@ BackgroundFetchManager*
 ServiceWorkerRegistrationBackgroundFetch::backgroundFetch() {
   if (!background_fetch_manager_) {
     background_fetch_manager_ =
-        MakeGarbageCollected<BackgroundFetchManager>(GetSupplementable());
+        MakeGarbageCollected<BackgroundFetchManager>(registration_);
   }
 
   return background_fetch_manager_.Get();
 }
 
 void ServiceWorkerRegistrationBackgroundFetch::Trace(Visitor* visitor) const {
+  visitor->Trace(registration_);
   visitor->Trace(background_fetch_manager_);
   Supplement<ServiceWorkerRegistration>::Trace(visitor);
 }

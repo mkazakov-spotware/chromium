@@ -1,8 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.gcm_driver.instance_id;
+
+import android.os.Bundle;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
@@ -98,20 +100,24 @@ public class InstanceIDBridge {
         }.execute();
     }
 
-    /**
-     * Async wrapper for {@link InstanceID#getToken(String, String)}.
+    /** Async wrapper for {@link InstanceID#getToken(String, String, Bundle)}.
      * |isLazy| isn't part of the InstanceID.getToken() call and not sent to the
      * FCM server. It's used to mark the subscription as lazy such that incoming
-     * messages are deferred until there are visible activities.
-     */
+     * messages are deferred until there are visible activities.*/
     @CalledByNative
-    private void getToken(
-            final int requestId, final String authorizedEntity, final String scope, int flags) {
+    private void getToken(final int requestId, final String authorizedEntity, final String scope,
+            String[] extrasStrings, int flags) {
+        final Bundle extras = new Bundle();
+        assert extrasStrings.length % 2 == 0;
+        for (int i = 0; i < extrasStrings.length; i += 2) {
+            extras.putString(extrasStrings[i], extrasStrings[i + 1]);
+        }
+
         new BridgeAsyncTask<String>() {
             @Override
             protected String doBackgroundWork() {
                 try {
-                    // TODO(crbug.com/1247170): Migrate stored LazySubscriptionsManager data to
+                    // TODO(knollr): Migrate stored LazySubscriptionsManager data to
                     // SubscriptionFlagManager.
                     LazySubscriptionsManager.storeLazinessInformation(
                             LazySubscriptionsManager.buildSubscriptionUniqueId(
@@ -121,7 +127,7 @@ public class InstanceIDBridge {
                             SubscriptionFlagManager.buildSubscriptionUniqueId(
                                     mSubtype, authorizedEntity),
                             flags);
-                    return mInstanceID.getToken(authorizedEntity, scope);
+                    return mInstanceID.getToken(authorizedEntity, scope, extras);
                 } catch (IOException ex) {
                     return "";
                 }

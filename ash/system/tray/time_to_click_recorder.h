@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,10 +27,6 @@ class TimeToClickRecorder : public ui::EventHandler {
   };
 
   TimeToClickRecorder(Delegate* delegate, views::View* target_view);
-
-  TimeToClickRecorder(const TimeToClickRecorder&) = delete;
-  TimeToClickRecorder& operator=(const TimeToClickRecorder&) = delete;
-
   ~TimeToClickRecorder() override = default;
 
  private:
@@ -38,6 +34,8 @@ class TimeToClickRecorder : public ui::EventHandler {
   void OnEvent(ui::Event* event) override;
 
   Delegate* const delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(TimeToClickRecorder);
 };
 
 }  // namespace ash

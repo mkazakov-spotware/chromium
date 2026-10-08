@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,9 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -25,8 +24,6 @@
 #include "content/public/browser/notification_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
-#include "extensions/browser/allowlist_state.h"
-#include "extensions/browser/blocklist_state.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
@@ -34,9 +31,9 @@
 #include "extensions/browser/mock_extension_system.h"
 #include "extensions/browser/notification_types.h"
 #include "extensions/browser/test_extensions_browser_client.h"
+#include "extensions/browser/uninstall_ping_sender.h"
 #include "extensions/browser/updater/extension_downloader.h"
 #include "extensions/browser/updater/extension_update_data.h"
-#include "extensions/browser/updater/uninstall_ping_sender.h"
 #include "extensions/browser/updater/update_service.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
@@ -45,7 +42,6 @@
 #include "extensions/common/value_builder.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -55,12 +51,9 @@ class FakeUpdateClient : public update_client::UpdateClient {
  public:
   FakeUpdateClient();
 
-  FakeUpdateClient(const FakeUpdateClient&) = delete;
-  FakeUpdateClient& operator=(const FakeUpdateClient&) = delete;
-
   // Returns the data we've gotten from the CrxDataCallback for ids passed to
   // the Update function.
-  std::vector<absl::optional<update_client::CrxComponent>>* data() {
+  std::vector<base::Optional<update_client::CrxComponent>>* data() {
     return &data_;
   }
 
@@ -87,13 +80,10 @@ class FakeUpdateClient : public update_client::UpdateClient {
       observers_.push_back(observer);
   }
   void RemoveObserver(Observer* observer) override {}
-  base::RepeatingClosure Install(
-      const std::string& id,
-      CrxDataCallback crx_data_callback,
-      CrxStateChangeCallback crx_state_change_callback,
-      update_client::Callback callback) override {
-    return base::DoNothing();
-  }
+  void Install(const std::string& id,
+               CrxDataCallback crx_data_callback,
+               CrxStateChangeCallback crx_state_change_callback,
+               update_client::Callback callback) override {}
   void Update(const std::vector<std::string>& ids,
               CrxDataCallback crx_data_callback,
               CrxStateChangeCallback crx_state_change_callback,
@@ -103,27 +93,25 @@ class FakeUpdateClient : public update_client::UpdateClient {
       const std::string& id,
       update_client::CrxUpdateItem* update_item) const override {
     update_item->next_version = base::Version("2.0");
-    std::map<std::string, std::string> custom_attributes;
-    if (is_malware_update_item_)
-      custom_attributes["_malware"] = "true";
-    if (allowlist_state == extensions::ALLOWLIST_ALLOWLISTED)
-      custom_attributes["_esbAllowlist"] = "true";
-    else if (allowlist_state == extensions::ALLOWLIST_NOT_ALLOWLISTED)
-      custom_attributes["_esbAllowlist"] = "true";
-
-    if (!custom_attributes.empty())
+    if (is_malware_update_item_) {
+      std::map<std::string, std::string> custom_attributes = {
+          {"_malware", "true"},
+      };
       update_item->custom_updatecheck_data = custom_attributes;
+    }
     return true;
   }
   bool IsUpdating(const std::string& id) const override { return false; }
   void Stop() override {}
-  void SendUninstallPing(const update_client::CrxComponent& crx_component,
+  void SendUninstallPing(const std::string& id,
+                         const base::Version& version,
                          int reason,
                          update_client::Callback callback) override {
-    uninstall_pings_.emplace_back(crx_component.app_id, crx_component.version,
-                                  reason);
+    uninstall_pings_.emplace_back(id, version, reason);
   }
-
+  void SendRegistrationPing(const std::string& id,
+                            const base::Version& version,
+                            update_client::Callback Callback) override {}
   void FireEvent(Observer::Events event, const std::string& extension_id) {
     for (Observer* observer : observers_)
       observer->OnEvent(event, extension_id);
@@ -132,10 +120,6 @@ class FakeUpdateClient : public update_client::UpdateClient {
   void set_delay_update() { delay_update_ = true; }
 
   void set_is_malware_update_item() { is_malware_update_item_ = true; }
-
-  void set_allowlist_state(extensions::AllowlistState state) {
-    allowlist_state = state;
-  }
 
   bool delay_update() const { return delay_update_; }
 
@@ -156,14 +140,16 @@ class FakeUpdateClient : public update_client::UpdateClient {
  protected:
   ~FakeUpdateClient() override = default;
 
-  std::vector<absl::optional<update_client::CrxComponent>> data_;
+  std::vector<base::Optional<update_client::CrxComponent>> data_;
   std::vector<UninstallPing> uninstall_pings_;
   std::vector<Observer*> observers_;
 
   bool delay_update_;
   bool is_malware_update_item_ = false;
-  extensions::AllowlistState allowlist_state = extensions::ALLOWLIST_UNDEFINED;
   std::vector<UpdateRequest> delayed_requests_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FakeUpdateClient);
 };
 
 FakeUpdateClient::FakeUpdateClient() : delay_update_(false) {}
@@ -277,7 +263,7 @@ class FakeExtensionSystem : public MockExtensionSystem {
     if (!next_install_callback_.is_null()) {
       std::move(next_install_callback_).Run();
     }
-    std::move(install_update_callback).Run(absl::nullopt);
+    std::move(install_update_callback).Run(base::nullopt);
   }
 
   void PerformActionBasedOnOmahaAttributes(
@@ -291,13 +277,6 @@ class FakeExtensionSystem : public MockExtensionSystem {
       registry->AddDisabled(extension1);
     else
       registry->AddEnabled(extension1);
-
-    const base::Value* allowlist_value = attributes.FindKey("_esbAllowlist");
-    if (allowlist_value) {
-      bool is_allowlisted = allowlist_value->GetBool();
-      extension_allowlist_states_[extension_id] =
-          is_allowlisted ? ALLOWLIST_ALLOWLISTED : ALLOWLIST_NOT_ALLOWLISTED;
-    }
   }
 
   bool FinishDelayedInstallationIfReady(const std::string& extension_id,
@@ -305,17 +284,9 @@ class FakeExtensionSystem : public MockExtensionSystem {
     return false;
   }
 
-  AllowlistState GetExtensionAllowlistState(const std::string& extension_id) {
-    if (!base::Contains(extension_allowlist_states_, extension_id))
-      return ALLOWLIST_UNDEFINED;
-
-    return extension_allowlist_states_[extension_id];
-  }
-
  private:
   std::vector<InstallUpdateRequest> install_requests_;
   base::OnceClosure next_install_callback_;
-  base::flat_map<std::string, AllowlistState> extension_allowlist_states_;
 };
 
 class UpdateServiceTest : public ExtensionsTest {
@@ -454,7 +425,7 @@ class UpdateServiceTest : public ExtensionsTest {
   }
 
  private:
-  raw_ptr<UpdateService> update_service_ = nullptr;
+  UpdateService* update_service_ = nullptr;
   scoped_refptr<FakeUpdateClient> update_client_;
   MockExtensionSystemFactory<FakeExtensionSystem>
       fake_extension_system_factory_;
@@ -527,7 +498,10 @@ TEST_F(UpdateServiceTest, UninstallPings) {
 }
 
 TEST_F(UpdateServiceTest, NoPerformAction) {
-  std::string extension_id = crx_file::id_util::GenerateId("id");
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
+      extensions_features::kDisableMalwareExtensionsRemotely);
+  std::string extension_id = "lpcaedmchfhocbbapmcbpinfpgnhiddi";
   ExtensionRegistry* registry = ExtensionRegistry::Get(browser_context());
   scoped_refptr<const Extension> extension1 =
       ExtensionBuilder("1").SetVersion("1.2").SetID(extension_id).Build();
@@ -551,12 +525,13 @@ TEST_F(UpdateServiceTest, NoPerformAction) {
   update_client()->RunDelayedUpdate(
       0, UpdateClientEvents::COMPONENT_CHECKING_FOR_UPDATES);
   EXPECT_FALSE(registry->disabled_extensions().GetByID(extension_id));
-  EXPECT_EQ(extensions::ALLOWLIST_UNDEFINED,
-            extension_system()->GetExtensionAllowlistState(extension_id));
 }
 
-TEST_F(UpdateServiceTest, CheckOmahaMalwareAttributes) {
-  std::string extension_id = crx_file::id_util::GenerateId("id");
+TEST_F(UpdateServiceTest, CheckOmahaAttributes) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
+      extensions_features::kDisableMalwareExtensionsRemotely);
+  std::string extension_id = "lpcaedmchfhocbbapmcbpinfpgnhiddi";
   ExtensionRegistry* registry = ExtensionRegistry::Get(browser_context());
   scoped_refptr<const Extension> extension1 =
       ExtensionBuilder("1").SetVersion("1.2").SetID(extension_id).Build();
@@ -577,39 +552,16 @@ TEST_F(UpdateServiceTest, CheckOmahaMalwareAttributes) {
   const auto& request = update_client()->update_request(0);
   EXPECT_THAT(request.extension_ids, testing::ElementsAre(extension_id));
 
-  update_client()->RunDelayedUpdate(
-      0, UpdateClientEvents::COMPONENT_ALREADY_UP_TO_DATE);
+  update_client()->RunDelayedUpdate(0,
+                                    UpdateClientEvents::COMPONENT_NOT_UPDATED);
   EXPECT_TRUE(registry->disabled_extensions().GetByID(extension_id));
 }
 
-TEST_F(UpdateServiceTest, CheckOmahaAllowlistAttributes) {
-  std::string extension_id = crx_file::id_util::GenerateId("id");
-  scoped_refptr<const Extension> extension1 =
-      ExtensionBuilder("1").SetVersion("1.2").SetID(extension_id).Build();
-
-  update_client()->set_allowlist_state(extensions::ALLOWLIST_ALLOWLISTED);
-  update_client()->set_delay_update();
-
-  ExtensionUpdateCheckParams update_check_params;
-  update_check_params.update_info[extension_id] = ExtensionUpdateData();
-
-  bool executed = false;
-  update_service()->StartUpdateCheck(
-      update_check_params,
-      base::BindOnce([](bool* executed) { *executed = true; }, &executed));
-  EXPECT_FALSE(executed);
-
-  const auto& request = update_client()->update_request(0);
-  EXPECT_THAT(request.extension_ids, testing::ElementsAre(extension_id));
-
-  update_client()->RunDelayedUpdate(0,
-                                    UpdateClientEvents::COMPONENT_UPDATE_FOUND);
-  EXPECT_EQ(extensions::ALLOWLIST_ALLOWLISTED,
-            extension_system()->GetExtensionAllowlistState(extension_id));
-}
-
 TEST_F(UpdateServiceTest, CheckNoOmahaAttributes) {
-  std::string extension_id = crx_file::id_util::GenerateId("id");
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
+      extensions_features::kDisableMalwareExtensionsRemotely);
+  std::string extension_id = "lpcaedmchfhocbbapmcbpinfpgnhiddi";
   ExtensionRegistry* registry = ExtensionRegistry::Get(browser_context());
   scoped_refptr<const Extension> extension1 =
       ExtensionBuilder("1").SetVersion("1.2").SetID(extension_id).Build();
@@ -629,26 +581,22 @@ TEST_F(UpdateServiceTest, CheckNoOmahaAttributes) {
   const auto& request = update_client()->update_request(0);
   EXPECT_THAT(request.extension_ids, testing::ElementsAre(extension_id));
 
-  update_client()->RunDelayedUpdate(
-      0, UpdateClientEvents::COMPONENT_ALREADY_UP_TO_DATE);
+  update_client()->RunDelayedUpdate(0,
+                                    UpdateClientEvents::COMPONENT_NOT_UPDATED);
   EXPECT_TRUE(registry->enabled_extensions().GetByID(extension_id));
-  EXPECT_EQ(extensions::ALLOWLIST_UNDEFINED,
-            extension_system()->GetExtensionAllowlistState(extension_id));
 }
 
 TEST_F(UpdateServiceTest, UpdateFoundNotification) {
-  std::string extension_id = crx_file::id_util::GenerateId("id");
-  UpdateFoundNotificationObserver notification_observer(extension_id, "2.0");
+  UpdateFoundNotificationObserver notification_observer("id", "2.0");
 
   // Fire UpdateClientEvents::COMPONENT_UPDATE_FOUND and verify that
   // NOTIFICATION_EXTENSION_UPDATE_FOUND notification is sent.
-  update_client()->FireEvent(UpdateClientEvents::COMPONENT_UPDATE_FOUND,
-                             extension_id);
+  update_client()->FireEvent(UpdateClientEvents::COMPONENT_UPDATE_FOUND, "id");
   EXPECT_TRUE(notification_observer.found_notification());
 
   notification_observer.reset();
   update_client()->FireEvent(UpdateClientEvents::COMPONENT_CHECKING_FOR_UPDATES,
-                             extension_id);
+                             "id");
   EXPECT_FALSE(notification_observer.found_notification());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,8 @@ void IndexedDBExternalObjectChangeRecord ::SetExternalObjects(
 
 std::unique_ptr<IndexedDBExternalObjectChangeRecord>
 IndexedDBExternalObjectChangeRecord ::Clone() const {
-  auto record = std::make_unique<IndexedDBExternalObjectChangeRecord>(
-      object_store_data_key_);
+  std::unique_ptr<IndexedDBExternalObjectChangeRecord> record(
+      new IndexedDBExternalObjectChangeRecord(object_store_data_key_));
   record->external_objects_ = external_objects_;
 
   return record;

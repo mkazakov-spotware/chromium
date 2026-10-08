@@ -26,9 +26,7 @@ self.onload = () => {
         assert_equals(self[index].location.host, location.host)
         assert_equals(self[index].location.port, location.port)
         t.done()
-        // Experimentally, 4 seconds is long enough for the navigation to
-        // complete, if it happens.
-      }, 4000)
+      }, 500)
     }, "Set location.protocol to " + val)
   })
 }

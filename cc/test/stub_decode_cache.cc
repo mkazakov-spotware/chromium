@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 namespace cc {
 
 ImageDecodeCache::TaskResult StubDecodeCache::GetTaskForImageAndRef(
-    ClientId client_id,
     const DrawImage& image,
     const TracingInfo& tracing_info) {
   return TaskResult(/*need_unref=*/true, /*is_at_raster_decode=*/false,
@@ -16,7 +15,6 @@ ImageDecodeCache::TaskResult StubDecodeCache::GetTaskForImageAndRef(
 
 ImageDecodeCache::TaskResult
 StubDecodeCache::GetOutOfRasterDecodeTaskForImageAndRef(
-    ClientId client_id,
     const DrawImage& image) {
   return TaskResult(/*need_unref=*/true, /*is_at_raster_decode=*/false,
                     /*can_do_hardware_accelerated_decode=*/false);

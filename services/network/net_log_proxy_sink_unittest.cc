@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/net_log_proxy_sink.h"
 
 #include "base/run_loop.h"
-#include "base/task/thread_pool.h"
 #include "base/test/task_environment.h"
 #include "net/log/test_net_log.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -87,16 +86,10 @@ TEST(NetLogProxySink, TestMultipleObservers) {
       net_log_proxy_source.WaitForUpdateCaptureModes());
 
   std::unique_ptr<net::RecordingNetLogObserver> net_log_observer2;
-  {
-    // Create observer2 on a different thread.
-    base::RunLoop run_loop;
-    base::ThreadPool::PostTaskAndReply(
-        FROM_HERE,
-        base::BindOnce(&CreateObserver, &net_log_observer2,
-                       net::NetLogCaptureMode::kDefault),
-        run_loop.QuitClosure());
-    run_loop.Run();
-  }
+  // Create observer2 on a different thread.
+  base::ThreadPool::PostTask(FROM_HERE,
+                             base::BindOnce(&CreateObserver, &net_log_observer2,
+                                            net::NetLogCaptureMode::kDefault));
   EXPECT_EQ(
       net::NetLogCaptureModeToBit(net::NetLogCaptureMode::kIncludeSensitive) |
           net::NetLogCaptureModeToBit(net::NetLogCaptureMode::kDefault),
@@ -107,9 +100,9 @@ TEST(NetLogProxySink, TestMultipleObservers) {
       add_entry_runloop.QuitClosure());
 
   base::TimeTicks source1_start_time =
-      base::TimeTicks() + base::Milliseconds(10);
+      base::TimeTicks() + base::TimeDelta::FromMilliseconds(10);
   base::TimeTicks source1_event0_time =
-      source1_start_time + base::Milliseconds(1);
+      source1_start_time + base::TimeDelta::FromMilliseconds(1);
   base::Value source1_event0_params(base::Value::Type::DICTIONARY);
   source1_event0_params.SetStringKey("hello", "world");
   proxy_sink_remote->AddEntry(

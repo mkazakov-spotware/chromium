@@ -10,7 +10,7 @@ After setting suggestedValue:
 |     <div>
 |       id="placeholder"
 |       pseudo="-internal-input-suggested"
-|       style="display: block !important; user-select: none !important;"
+|       style="display: block !important;"
 |       shadow:pseudoId="-internal-input-suggested"
 |       "suggested value"
 |     <div>

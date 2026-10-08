@@ -1,15 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/security/wk_web_view_security_util.h"
 
-#import "base/mac/scoped_cftyperef.h"
-#import "base/notreached.h"
-#import "base/strings/sys_string_conversions.h"
-#import "net/cert/x509_certificate.h"
-#import "net/cert/x509_util_apple.h"
-#import "net/ssl/ssl_info.h"
+#include "base/mac/scoped_cftyperef.h"
+#include "base/notreached.h"
+#include "base/strings/sys_string_conversions.h"
+#include "net/cert/x509_certificate.h"
+#include "net/cert/x509_util_ios.h"
+#include "net/ssl/ssl_info.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -52,16 +52,14 @@ namespace web {
 scoped_refptr<net::X509Certificate> CreateCertFromChain(NSArray* certs) {
   if (certs.count == 0)
     return nullptr;
-  std::vector<base::ScopedCFTypeRef<SecCertificateRef>> intermediates;
+  std::vector<SecCertificateRef> intermediates;
   for (NSUInteger i = 1; i < certs.count; i++) {
-    base::ScopedCFTypeRef<SecCertificateRef> cert(
-        (__bridge SecCertificateRef)certs[i], base::scoped_policy::RETAIN);
+    SecCertificateRef cert = (__bridge SecCertificateRef)certs[i];
     intermediates.push_back(cert);
   }
-  base::ScopedCFTypeRef<SecCertificateRef> root_cert(
-      (__bridge SecCertificateRef)certs[0], base::scoped_policy::RETAIN);
+  SecCertificateRef root_cert = (__bridge SecCertificateRef)certs[0];
   return net::x509_util::CreateX509CertificateFromSecCertificate(
-      std::move(root_cert), intermediates);
+      reinterpret_cast<SecCertificateRef>(root_cert), intermediates);
 }
 
 scoped_refptr<net::X509Certificate> CreateCertFromTrust(SecTrustRef trust) {
@@ -74,15 +72,12 @@ scoped_refptr<net::X509Certificate> CreateCertFromTrust(SecTrustRef trust) {
     return nullptr;
   }
 
-  std::vector<base::ScopedCFTypeRef<SecCertificateRef>> intermediates;
+  std::vector<SecCertificateRef> intermediates;
   for (CFIndex i = 1; i < cert_count; i++) {
-    intermediates.emplace_back(SecTrustGetCertificateAtIndex(trust, i),
-                               base::scoped_policy::RETAIN);
+    intermediates.push_back(SecTrustGetCertificateAtIndex(trust, i));
   }
   return net::x509_util::CreateX509CertificateFromSecCertificate(
-      base::ScopedCFTypeRef<SecCertificateRef>(
-          SecTrustGetCertificateAtIndex(trust, 0), base::scoped_policy::RETAIN),
-      intermediates);
+      SecTrustGetCertificateAtIndex(trust, 0), intermediates);
 }
 
 base::ScopedCFTypeRef<SecTrustRef> CreateServerTrustFromChain(NSArray* certs,

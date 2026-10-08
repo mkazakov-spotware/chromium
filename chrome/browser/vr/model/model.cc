@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/vr/model/model.h"
-
-#include "base/containers/adapters.h"
 
 namespace vr {
 
@@ -72,9 +70,9 @@ UiMode Model::get_mode() const {
 }
 
 UiMode Model::get_last_opaque_mode() const {
-  for (const UiMode& ui_mode : base::Reversed(ui_modes)) {
-    if (IsOpaqueUiMode(ui_mode))
-      return ui_mode;
+  for (auto iter = ui_modes.rbegin(); iter != ui_modes.rend(); ++iter) {
+    if (IsOpaqueUiMode(*iter))
+      return *iter;
   }
   DCHECK(false) << "get_last_opaque_mode should only be called with at least "
                    "one opaque mode.";

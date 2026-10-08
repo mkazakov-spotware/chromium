@@ -1,13 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/android/vr/autocomplete_controller.h"
 
-#include <string>
-#include <utility>
-
 #include "base/bind.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
@@ -63,10 +61,10 @@ void AutocompleteController::Stop() {
 }
 
 std::tuple<GURL, bool> AutocompleteController::GetUrlFromVoiceInput(
-    const std::u16string& input) {
+    const base::string16& input) {
   AutocompleteMatch match;
-  std::u16string culled_input;
-  base::RemoveChars(input, u" ", &culled_input);
+  base::string16 culled_input;
+  base::RemoveChars(input, base::ASCIIToUTF16(" "), &culled_input);
   client_->Classify(culled_input, false, false,
                     metrics::OmniboxEventProto::INVALID_SPEC, &match, nullptr);
   if (match.destination_url.is_valid() &&
@@ -98,11 +96,11 @@ void AutocompleteController::OnResultChanged(
   suggestions_timeout_.Cancel();
 
   if (suggestions.size() < kMaxNumberOfSuggestions) {
-    suggestions_timeout_.Reset(
-        base::BindOnce(suggestion_callback_, std::move(suggestions)));
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    suggestions_timeout_.Reset(base::BindRepeating(
+        suggestion_callback_, base::Passed(std::move(suggestions))));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, suggestions_timeout_.callback(),
-        base::Milliseconds(kSuggestionThrottlingDelayMs));
+        base::TimeDelta::FromMilliseconds(kSuggestionThrottlingDelayMs));
   } else {
     suggestion_callback_.Run(std::move(suggestions));
   }

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/win/windows_version.h"
 #include "media/gpu/test/fake_command_buffer_helper.h"
@@ -17,6 +16,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gl/gl_context_egl.h"
 #include "ui/gl/gl_egl_api_implementation.h"
+#include "ui/gl/gl_image.h"
 #include "ui/gl/gl_share_group.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/init/gl_factory.h"
@@ -44,9 +44,9 @@ class D3D11TextureWrapperUnittest : public ::testing::Test {
 
     task_runner_ = task_environment_.GetMainThreadTaskRunner();
 
-    display_ = gl::GLSurfaceTestSupport::InitializeOneOffImplementation(
-        gl::GLImplementationParts(gl::ANGLEImplementation::kD3D11), false);
-    surface_ = gl::init::CreateOffscreenGLSurface(display_, gfx::Size());
+    gl::GLSurfaceTestSupport::InitializeOneOffImplementation(
+        gl::kGLImplementationEGLANGLE, false);
+    surface_ = gl::init::CreateOffscreenGLSurface(gfx::Size());
     share_group_ = new gl::GLShareGroup();
     context_ = gl::init::CreateGLContext(share_group_.get(), surface_.get(),
                                          gl::GLContextAttribs());
@@ -66,7 +66,7 @@ class D3D11TextureWrapperUnittest : public ::testing::Test {
     context_ = nullptr;
     share_group_ = nullptr;
     surface_ = nullptr;
-    gl::GLSurfaceTestSupport::ShutdownGL(display_);
+    gl::init::ShutdownGL(false);
   }
 
   base::test::TaskEnvironment task_environment_;
@@ -83,18 +83,18 @@ class D3D11TextureWrapperUnittest : public ::testing::Test {
   // a wrapper.
   scoped_refptr<FakeCommandBufferHelper> fake_command_buffer_helper_;
   GetCommandBufferHelperCB get_helper_cb_;
-
-  raw_ptr<gl::GLDisplay> display_ = nullptr;
 };
 
 TEST_F(D3D11TextureWrapperUnittest, NV12InitSucceeds) {
   STOP_IF_WIN7();
   const DXGI_FORMAT dxgi_format = DXGI_FORMAT_NV12;
+  const VideoPixelFormat pixel_format = PIXEL_FORMAT_NV12;
 
-  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format);
-  const D3D11Status init_result = wrapper->Init(
+  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format,
+                                                           pixel_format);
+  const Status init_result = wrapper->Init(
       task_runner_, get_helper_cb_, /*texture_d3d=*/nullptr, /*array_slice=*/0);
-  EXPECT_EQ(init_result.code(), D3D11Status::Codes::kOk);
+  EXPECT_TRUE(init_result.is_ok());
 
   // TODO: verify that ProcessTexture processes both textures.
 }
@@ -102,41 +102,49 @@ TEST_F(D3D11TextureWrapperUnittest, NV12InitSucceeds) {
 TEST_F(D3D11TextureWrapperUnittest, BGRA8InitSucceeds) {
   STOP_IF_WIN7();
   const DXGI_FORMAT dxgi_format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  const VideoPixelFormat pixel_format = PIXEL_FORMAT_ARGB;
 
-  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format);
-  const D3D11Status init_result = wrapper->Init(
+  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format,
+                                                           pixel_format);
+  const Status init_result = wrapper->Init(
       task_runner_, get_helper_cb_, /*texture_d3d=*/nullptr, /*array_slice=*/0);
-  EXPECT_EQ(init_result.code(), D3D11Status::Codes::kOk);
+  EXPECT_TRUE(init_result.is_ok());
 }
 
 TEST_F(D3D11TextureWrapperUnittest, FP16InitSucceeds) {
   STOP_IF_WIN7();
   const DXGI_FORMAT dxgi_format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+  const VideoPixelFormat pixel_format = PIXEL_FORMAT_ARGB;
 
-  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format);
-  const D3D11Status init_result = wrapper->Init(
+  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format,
+                                                           pixel_format);
+  const Status init_result = wrapper->Init(
       task_runner_, get_helper_cb_, /*texture_d3d=*/nullptr, /*array_slice=*/0);
-  EXPECT_EQ(init_result.code(), D3D11Status::Codes::kOk);
+  EXPECT_TRUE(init_result.is_ok());
 }
 
 TEST_F(D3D11TextureWrapperUnittest, P010InitSucceeds) {
   STOP_IF_WIN7();
   const DXGI_FORMAT dxgi_format = DXGI_FORMAT_P010;
+  const VideoPixelFormat pixel_format = PIXEL_FORMAT_NV12;
 
-  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format);
-  const D3D11Status init_result = wrapper->Init(
+  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format,
+                                                           pixel_format);
+  const Status init_result = wrapper->Init(
       task_runner_, get_helper_cb_, /*texture_d3d=*/nullptr, /*array_slice=*/0);
-  EXPECT_EQ(init_result.code(), D3D11Status::Codes::kOk);
+  EXPECT_TRUE(init_result.is_ok());
 }
 
 TEST_F(D3D11TextureWrapperUnittest, UnknownInitFails) {
   STOP_IF_WIN7();
   const DXGI_FORMAT dxgi_format = DXGI_FORMAT_UNKNOWN;
+  const VideoPixelFormat pixel_format = PIXEL_FORMAT_UNKNOWN;
 
-  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format);
-  const D3D11Status init_result = wrapper->Init(
+  auto wrapper = std::make_unique<DefaultTexture2DWrapper>(size_, dxgi_format,
+                                                           pixel_format);
+  const Status init_result = wrapper->Init(
       task_runner_, get_helper_cb_, /*texture_d3d=*/nullptr, /*array_slice=*/0);
-  EXPECT_NE(init_result.code(), D3D11Status::Codes::kOk);
+  EXPECT_FALSE(init_result.is_ok());
 }
 
 }  // namespace media

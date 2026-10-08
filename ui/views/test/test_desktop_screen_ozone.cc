@@ -1,37 +1,26 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/views/test/test_desktop_screen_ozone.h"
 
-namespace views::test {
-namespace {
-TestDesktopScreenOzone* g_instance = nullptr;
-}
+#include <memory>
 
-// static
-std::unique_ptr<display::Screen> TestDesktopScreenOzone::Create() {
-  auto screen = std::make_unique<TestDesktopScreenOzone>();
-  screen->Initialize();
-  return screen;
-}
+#include "base/memory/singleton.h"
+
+namespace views {
+namespace test {
 
 TestDesktopScreenOzone* TestDesktopScreenOzone::GetInstance() {
-  DCHECK_EQ(display::Screen::GetScreen(), g_instance);
-  return g_instance;
+  return base::Singleton<TestDesktopScreenOzone>::get();
 }
 
 gfx::Point TestDesktopScreenOzone::GetCursorScreenPoint() {
   return cursor_screen_point_;
 }
 
-TestDesktopScreenOzone::TestDesktopScreenOzone() {
-  DCHECK(!g_instance);
-  g_instance = this;
-}
+TestDesktopScreenOzone::TestDesktopScreenOzone() = default;
+TestDesktopScreenOzone::~TestDesktopScreenOzone() = default;
 
-TestDesktopScreenOzone::~TestDesktopScreenOzone() {
-  g_instance = nullptr;
-}
-
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

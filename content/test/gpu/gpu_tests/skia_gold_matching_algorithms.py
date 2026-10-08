@@ -1,12 +1,10 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Classes related to the possible matching algorithms for Skia Gold."""
 
-from typing import List, Union
 
-
-class Parameters():
+class Parameters(object):
   """Constants for Skia Gold algorithm parameters.
 
   These correspond to the constants defined in goldctl's
@@ -32,11 +30,11 @@ class Parameters():
   EDGE_THRESHOLD = 'sobel_edge_threshold'
 
 
-class SkiaGoldMatchingAlgorithm():
+class SkiaGoldMatchingAlgorithm(object):
   ALGORITHM_KEY = 'image_matching_algorithm'
   """Abstract base class for all algorithms."""
 
-  def GetCmdline(self) -> List[str]:
+  def GetCmdline(self):
     """Gets command line parameters for the algorithm.
 
     Returns:
@@ -48,7 +46,7 @@ class SkiaGoldMatchingAlgorithm():
     return _GenerateOptionalKey(SkiaGoldMatchingAlgorithm.ALGORITHM_KEY,
                                 self.Name())
 
-  def Name(self) -> str:
+  def Name(self):
     """Returns a string representation of the algorithm."""
     raise NotImplementedError()
 
@@ -56,10 +54,10 @@ class SkiaGoldMatchingAlgorithm():
 class ExactMatchingAlgorithm(SkiaGoldMatchingAlgorithm):
   """Class for the default exact matching algorithm in Gold."""
 
-  def GetCmdline(self) -> List[str]:
+  def GetCmdline(self):
     return []
 
-  def Name(self) -> str:
+  def Name(self):
     return 'exact'
 
 
@@ -67,10 +65,10 @@ class FuzzyMatchingAlgorithm(SkiaGoldMatchingAlgorithm):
   """Class for the fuzzy matching algorithm in Gold."""
 
   def __init__(self,
-               max_different_pixels: int,
-               pixel_delta_threshold: int,
-               ignored_border_thickness: int = 0):
-    super().__init__()
+               max_different_pixels,
+               pixel_delta_threshold,
+               ignored_border_thickness=0):
+    super(FuzzyMatchingAlgorithm, self).__init__()
     assert int(max_different_pixels) >= 0
     assert int(pixel_delta_threshold) >= 0
     assert int(ignored_border_thickness) >= 0
@@ -78,8 +76,8 @@ class FuzzyMatchingAlgorithm(SkiaGoldMatchingAlgorithm):
     self._pixel_delta_threshold = pixel_delta_threshold
     self._ignored_border_thickness = ignored_border_thickness
 
-  def GetCmdline(self) -> List[str]:
-    retval = super().GetCmdline()
+  def GetCmdline(self):
+    retval = super(FuzzyMatchingAlgorithm, self).GetCmdline()
     retval.extend(
         _GenerateOptionalKey(Parameters.MAX_DIFFERENT_PIXELS,
                              self._max_different_pixels))
@@ -91,7 +89,7 @@ class FuzzyMatchingAlgorithm(SkiaGoldMatchingAlgorithm):
                              self._ignored_border_thickness))
     return retval
 
-  def Name(self) -> str:
+  def Name(self):
     return 'fuzzy'
 
 
@@ -102,12 +100,13 @@ class SobelMatchingAlgorithm(FuzzyMatchingAlgorithm):
   """
 
   def __init__(self,
-               max_different_pixels: int,
-               pixel_delta_threshold: int,
-               edge_threshold: int,
-               ignored_border_thickness: int = 0):
-    super().__init__(max_different_pixels, pixel_delta_threshold,
-                     ignored_border_thickness)
+               max_different_pixels,
+               pixel_delta_threshold,
+               edge_threshold,
+               ignored_border_thickness=0):
+    super(SobelMatchingAlgorithm,
+          self).__init__(max_different_pixels, pixel_delta_threshold,
+                         ignored_border_thickness)
     assert int(edge_threshold) >= 0
     assert int(edge_threshold) <= 255
     if edge_threshold == 255:
@@ -116,15 +115,15 @@ class SobelMatchingAlgorithm(FuzzyMatchingAlgorithm):
           'matching.')
     self._edge_threshold = edge_threshold
 
-  def GetCmdline(self) -> List[str]:
-    retval = super().GetCmdline()
+  def GetCmdline(self):
+    retval = super(SobelMatchingAlgorithm, self).GetCmdline()
     retval.extend(
         _GenerateOptionalKey(Parameters.EDGE_THRESHOLD, self._edge_threshold))
     return retval
 
-  def Name(self) -> str:
+  def Name(self):
     return 'sobel'
 
 
-def _GenerateOptionalKey(key: str, value: Union[int, str]) -> List[str]:
+def _GenerateOptionalKey(key, value):
   return ['--add-test-optional-key', '%s:%s' % (key, value)]

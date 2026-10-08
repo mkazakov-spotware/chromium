@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,11 @@ namespace extensions {
 
 // Constants used for the Tab Groups API.
 namespace tab_groups_constants {
+
+// Keys used in serializing group data & events.
+extern const char kCollapsedKey[];
+extern const char kColorKey[];
+extern const char kTitleKey[];
 
 // Error messages.
 extern const char kCannotMoveGroupIntoMiddleOfOtherGroupError[];

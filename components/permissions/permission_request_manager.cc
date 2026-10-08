@@ -1,47 +1,39 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/permissions/permission_request_manager.h"
 
-#include <string>
+#include <algorithm>
 
 #include "base/auto_reset.h"
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/containers/circular_deque.h"
+#include "base/feature_list.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
-#include "base/observer_list.h"
-#include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
+#include "base/threading/sequenced_task_runner_handle.h"
+#include "build/build_config.h"
 #include "components/autofill_assistant/browser/public/runtime_manager.h"
-#include "components/back_forward_cache/back_forward_cache_disable.h"
 #include "components/permissions/features.h"
-#include "components/permissions/origin_keyed_permission_action_service.h"
 #include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_prompt.h"
 #include "components/permissions/permission_request.h"
-#include "components/permissions/permission_util.h"
+#include "components/permissions/permission_request_id.h"
 #include "components/permissions/permissions_client.h"
-#include "components/permissions/request_type.h"
 #include "components/permissions/switches.h"
 #include "content/public/browser/back_forward_cache.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/disallow_activation_reason.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 #include "url/origin.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "components/permissions/android/android_permission_util.h"
-#endif
 
 namespace permissions {
 
@@ -73,45 +65,42 @@ constexpr char kAbusiveNotificationContentWarningMessage[] =
     "possible and submit your site for another review. Learn more at "
     "https://support.google.com/webtools/answer/9799048";
 
-constexpr char kDisruptiveNotificationBehaviorEnforcementMessage[] =
-    "Chrome is blocking notification permission requests on this site because "
-    "the site exhibits behaviors that may be disruptive to users.";
-
 namespace {
 
-// In case of multiple permission requests that use chip UI, a newly added
-// request will preempt the currently showing request, which is put back to the
-// queue, and will be shown later. To reduce user annoyance, if a quiet chip
-// permission prompt was displayed longer than `kQuietChipIgnoreTimeout`, we
-// consider it as shown long enough and it will not be shown again after it is
-// preempted.
-// TODO(crbug.com/1221083): If a user switched tabs, do not include that time as
-// "shown".
-bool ShouldShowQuietRequestAgainIfPreempted(
-    absl::optional<base::Time> request_display_start_time) {
-  if (request_display_start_time->is_null()) {
+bool IsMessageTextEqual(PermissionRequest* a, PermissionRequest* b) {
+  if (a == b)
+    return true;
+  if (a->GetMessageTextFragment() == b->GetMessageTextFragment() &&
+      a->GetOrigin() == b->GetOrigin()) {
     return true;
   }
-
-  static constexpr base::TimeDelta kQuietChipIgnoreTimeout = base::Seconds(8.5);
-  return base::Time::Now() - request_display_start_time.value() <
-         kQuietChipIgnoreTimeout;
+  return false;
 }
 
-bool IsMediaRequest(RequestType type) {
-#if !BUILDFLAG(IS_ANDROID)
-  if (type == RequestType::kCameraPanTiltZoom)
-    return true;
-#endif
-  return type == RequestType::kMicStream || type == RequestType::kCameraStream;
+bool isMediaRequest(PermissionRequestType type) {
+  return type == PermissionRequestType::PERMISSION_MEDIASTREAM_MIC ||
+         type == PermissionRequestType::PERMISSION_MEDIASTREAM_CAMERA ||
+         type == PermissionRequestType::PERMISSION_CAMERA_PAN_TILT_ZOOM;
+}
+
+bool isArOrCameraRequest(PermissionRequestType type) {
+  return type == PermissionRequestType::PERMISSION_AR ||
+         type == PermissionRequestType::PERMISSION_MEDIASTREAM_CAMERA;
 }
 
 bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) {
-  if (a->requesting_origin() != b->requesting_origin())
+  if (a->GetOrigin() != b->GetOrigin())
     return false;
 
   // Group if both requests are media requests.
-  if (IsMediaRequest(a->request_type()) && IsMediaRequest(b->request_type())) {
+  if (isMediaRequest(a->GetPermissionRequestType()) &&
+      isMediaRequest(b->GetPermissionRequestType())) {
+    return true;
+  }
+
+  // Group if the requests are an AR and a Camera Access request.
+  if (isArOrCameraRequest(a->GetPermissionRequestType()) &&
+      isArOrCameraRequest(b->GetPermissionRequestType())) {
     return true;
   }
 
@@ -123,21 +112,16 @@ bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) {
 // PermissionRequestManager ----------------------------------------------------
 
 bool PermissionRequestManager::PermissionRequestSource::
-    IsSourceFrameInactiveAndDisallowActivation() const {
+    IsSourceFrameInactiveAndDisallowReactivation() const {
   content::RenderFrameHost* rfh =
-      content::RenderFrameHost::FromID(requesting_frame_id);
-  return !rfh ||
-         rfh->IsInactiveAndDisallowActivation(
-             content::DisallowActivationReasonId::kPermissionRequestSource);
+      content::RenderFrameHost::FromID(render_process_id, render_frame_id);
+  return !rfh || rfh->IsInactiveAndDisallowReactivation();
 }
 
 PermissionRequestManager::~PermissionRequestManager() {
   DCHECK(!IsRequestInProgress());
   DCHECK(duplicate_requests_.empty());
-  DCHECK(pending_permission_requests_.IsEmpty());
-
-  for (Observer& observer : observer_list_)
-    observer.OnPermissionRequestManagerDestructed();
+  DCHECK(queued_requests_.empty());
 }
 
 void PermissionRequestManager::AddRequest(
@@ -153,41 +137,6 @@ void PermissionRequestManager::AddRequest(
     request->RequestFinished();
     return;
   }
-
-  if (source_frame->IsInactiveAndDisallowActivation(
-          content::DisallowActivationReasonId::kPermissionAddRequest)) {
-    request->Cancelled();
-    request->RequestFinished();
-    return;
-  }
-
-  if (source_frame->IsNestedWithinFencedFrame()) {
-    request->Cancelled();
-    request->RequestFinished();
-    return;
-  }
-
-#if BUILDFLAG(IS_ANDROID)
-  if (request->GetContentSettingsType() == ContentSettingsType::NOTIFICATIONS) {
-    bool app_level_settings_allow_site_notifications =
-        enabled_app_level_notification_permission_for_testing_.has_value()
-            ? enabled_app_level_notification_permission_for_testing_.value()
-            : DoesAppLevelSettingsAllowSiteNotifications();
-    base::UmaHistogramBoolean(
-        "Permissions.Prompt.Notifications.EnabledAppLevel",
-        app_level_settings_allow_site_notifications);
-
-    if (!app_level_settings_allow_site_notifications &&
-        base::FeatureList::IsEnabled(
-            features::kBlockNotificationPromptsIfDisabledOnAppLevel)) {
-      // Automatically cancel site Notification requests when Chrome is not able
-      // to send notifications in an app level.
-      request->Cancelled();
-      request->RequestFinished();
-      return;
-    }
-  }
-#endif  // BUILDFLAG(IS_ANDROID)
 
   if (is_notification_prompt_cooldown_active_ &&
       request->GetContentSettingsType() == ContentSettingsType::NOTIFICATIONS) {
@@ -205,7 +154,7 @@ void PermissionRequestManager::AddRequest(
     return;
   }
 
-  // TODO(tsergeant): change the UMA to no longer mention bubble.
+  // TODO(tsergeant): change the UMA to no longer mention bubbles.
   base::RecordAction(base::UserMetricsAction("PermissionBubbleRequest"));
 
   // TODO(gbillock): is there a race between an early request on a
@@ -214,16 +163,15 @@ void PermissionRequestManager::AddRequest(
   // any other renderer-side nav initiations?). Double-check this for
   // correct behavior on interstitials -- we probably want to basically queue
   // any request for which GetVisibleURL != GetLastCommittedURL.
-  CHECK(source_frame->GetMainFrame()->IsInPrimaryMainFrame());
-  const GURL main_frame_origin =
-      PermissionUtil::GetLastCommittedOriginAsURL(source_frame->GetMainFrame());
+  const GURL& main_frame_url_ = web_contents()->GetLastCommittedURL();
   bool is_main_frame =
-      url::IsSameOriginWith(main_frame_origin, request->requesting_origin());
+      url::Origin::Create(main_frame_url_)
+          .IsSameOriginWith(url::Origin::Create(request->GetOrigin()));
 
-  absl::optional<url::Origin> auto_approval_origin =
+  base::Optional<url::Origin> auto_approval_origin =
       PermissionsClient::Get()->GetAutoApprovalOrigin();
   if (auto_approval_origin) {
-    if (url::Origin::Create(request->requesting_origin()) ==
+    if (url::Origin::Create(request->GetOrigin()) ==
         auto_approval_origin.value()) {
       request->PermissionGranted(/*is_one_time=*/false);
     }
@@ -267,144 +215,39 @@ void PermissionRequestManager::AddRequest(
         base::UserMetricsAction("PermissionBubbleIFrameRequestQueued"));
   }
 
-  request->set_requesting_frame_id(source_frame->GetGlobalId());
-
-  QueueRequest(source_frame, request);
-
-  if (!IsRequestInProgress()) {
-    ScheduleDequeueRequestIfNeeded();
-    return;
+  if (base::FeatureList::IsEnabled(features::kPermissionChip)) {
+    // Because the requests are shown in a different order for Chip, pending
+    // requests are returned back to queued_requests_ to process them after the
+    // new requests.
+    ResetViewStateForCurrentRequest();
+    for (auto* request : requests_)
+      queued_requests_.push_back(request);
+    requests_.clear();
   }
 
-  ReprioritizeCurrentRequestIfNeeded();
-}
-
-bool PermissionRequestManager::ReprioritizeCurrentRequestIfNeeded() {
-  if (pending_permission_requests_.IsEmpty() || !IsRequestInProgress())
-    return true;
-
-  auto current_request_fate = CurrentRequestFate::kKeepCurrent;
-
-  if (base::FeatureList::IsEnabled(features::kPermissionQuietChip)) {
-    if (ShouldCurrentRequestUseQuietUI() &&
-        !ShouldShowQuietRequestAgainIfPreempted(
-            current_request_first_display_time_)) {
-      current_request_fate = CurrentRequestFate::kFinalize;
-    } else if (base::FeatureList::IsEnabled(features::kPermissionChip)) {
-      // Preempt current request if it is a quiet UI request.
-      if (ShouldCurrentRequestUseQuietUI()) {
-        current_request_fate = CurrentRequestFate::kPreempt;
-      } else {
-        // Pop out all invalid requests in front of the queue.
-        while (!pending_permission_requests_.IsEmpty() &&
-               !ValidateRequest(pending_permission_requests_.Peek())) {
-          pending_permission_requests_.Pop();
-        }
-
-        // Here we also try to prioritise the requests. If there's a valid high
-        // priority request (high acceptance rate request) in the pending queue,
-        // preempt the current request. The valid high priority request, if
-        // there's any, is always the front of the queue.
-        if (!pending_permission_requests_.IsEmpty() &&
-            !PermissionUtil::IsLowPriorityPermissionRequest(
-                pending_permission_requests_.Peek())) {
-          current_request_fate = CurrentRequestFate::kPreempt;
-        }
-      }
-    } else if (ShouldCurrentRequestUseQuietUI()) {
-      current_request_fate = CurrentRequestFate::kPreempt;
-    }
-  } else {
-    if (base::FeatureList::IsEnabled(features::kPermissionChip)) {
-      current_request_fate = CurrentRequestFate::kPreempt;
-    } else if (ShouldCurrentRequestUseQuietUI()) {
-      // If we're displaying a quiet permission request, ignore it in favor of a
-      // new permission request.
-      current_request_fate = CurrentRequestFate::kFinalize;
-    }
-  }
-
-  switch (current_request_fate) {
-    case CurrentRequestFate::kKeepCurrent:
-      return true;
-    case CurrentRequestFate::kPreempt: {
-      DCHECK(!pending_permission_requests_.IsEmpty());
-      auto* next_candidate = pending_permission_requests_.Peek();
-
-      // Consider a case of infinite loop here (eg: 2 low priority requests can
-      // preempt each other, causing a loop). We only preempt the current
-      // request if the next candidate has just been added to pending queue but
-      // not validated yet.
-      if (validated_requests_set_.find(next_candidate) !=
-          validated_requests_set_.end()) {
-        return true;
-      }
-
-      pending_permission_requests_.Pop();
-      PreemptAndRequeueCurrentRequest();
-      pending_permission_requests_.Push(next_candidate);
-      ScheduleDequeueRequestIfNeeded();
-      return false;
-    }
-    case CurrentRequestFate::kFinalize:
-      // FinalizeCurrentRequests will call ScheduleDequeueRequestIfNeeded on its
-      // own.
-      FinalizeCurrentRequests(PermissionAction::IGNORED);
-      return false;
-  }
-
-  return true;
-}
-
-bool PermissionRequestManager::ValidateRequest(PermissionRequest* request) {
-  const auto iter = request_sources_map_.find(request);
-  if (iter == request_sources_map_.end())
-    return false;
-
-  if (!iter->second.IsSourceFrameInactiveAndDisallowActivation())
-    return true;
-
-  request->Cancelled();
-  request->RequestFinished();
-  validated_requests_set_.erase(request);
-  request_sources_map_.erase(request);
-  return false;
-}
-
-void PermissionRequestManager::QueueRequest(
-    content::RenderFrameHost* source_frame,
-    PermissionRequest* request) {
-  pending_permission_requests_.Push(request,
-                                    true /*reorder_based_on_priority*/);
+  queued_requests_.push_back(request);
   request_sources_map_.emplace(
-      request, PermissionRequestSource({source_frame->GetGlobalId()}));
+      request, PermissionRequestSource({source_frame->GetProcess()->GetID(),
+                                        source_frame->GetRoutingID()}));
+
+  // If we're displaying a quiet permission request, kill it in favor of this
+  // permission request.
+  if (ShouldCurrentRequestUseQuietUI()) {
+    // FinalizeCurrentRequests will call ScheduleDequeueRequest on its own.
+    FinalizeCurrentRequests(PermissionAction::IGNORED);
+  } else {
+    ScheduleDequeueRequestIfNeeded();
+  }
 }
 
-void PermissionRequestManager::PreemptAndRequeueCurrentRequest() {
-  ResetViewStateForCurrentRequest();
-  for (auto* current_request : requests_) {
-    pending_permission_requests_.Push(current_request);
-  }
-  requests_.clear();
-}
-
-void PermissionRequestManager::UpdateAnchor() {
-  if (view_) {
-    // When the prompt's anchor is being updated, the prompt view can be
-    // recreated for the new browser. Because of that, ignore prompt callbacks
-    // while doing that.
-    base::AutoReset<bool> ignore(&ignore_callbacks_from_prompt_, true);
-    if (!view_->UpdateAnchor())
-      RecreateView();
-  }
+void PermissionRequestManager::UpdateAnchorPosition() {
+  if (view_)
+    view_->UpdateAnchorPosition();
 }
 
 void PermissionRequestManager::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
-  for (Observer& observer : observer_list_)
-    observer.OnNavigation(navigation_handle);
-
-  if (!navigation_handle->IsInPrimaryMainFrame() ||
+  if (!navigation_handle->IsInMainFrame() ||
       navigation_handle->IsSameDocument()) {
     return;
   }
@@ -414,8 +257,7 @@ void PermissionRequestManager::DidStartNavigation(
   // browser-initiated navigation.
   //
   // TODO(crbug.com/952347): This check has to be done at DidStartNavigation
-  // time, the HasUserGesture state is lost by the time the navigation
-  // commits.
+  // time, the HasUserGesture state is lost by the time the navigation commits.
   if (!navigation_handle->IsRendererInitiated() ||
       navigation_handle->HasUserGesture()) {
     is_notification_prompt_cooldown_active_ = false;
@@ -424,32 +266,35 @@ void PermissionRequestManager::DidStartNavigation(
 
 void PermissionRequestManager::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!navigation_handle->IsInPrimaryMainFrame() ||
+  if (!navigation_handle->IsInMainFrame() ||
       !navigation_handle->HasCommitted() ||
       navigation_handle->IsSameDocument()) {
     return;
   }
 
-  if (!pending_permission_requests_.IsEmpty() || IsRequestInProgress()) {
-    // |pending_permission_requests_| and |requests_| will be deleted below,
-    // which might be a problem for back-forward cache — the page might be
-    // restored later, but the requests won't be. Disable bfcache here if we
-    // have any requests here to prevent this from happening.
-    content::BackForwardCache::DisableForRenderFrameHost(
-        navigation_handle->GetPreviousRenderFrameHostId(),
-        back_forward_cache::DisabledReason(
-            back_forward_cache::DisabledReasonId::kPermissionRequestManager));
+  if (!queued_requests_.empty() || IsRequestInProgress()) {
+    // |queued_requests_| and |requests_| will be deleted below, which
+    // might be a problem for back-forward cache — the page might be restored
+    // later, but the requests won't be.
+    // Disable bfcache here if we have any requests here to prevent this
+    // from happening.
+    web_contents()
+        ->GetController()
+        .GetBackForwardCache()
+        .DisableForRenderFrameHost(
+            navigation_handle->GetPreviousRenderFrameHostId(),
+            "PermissionRequestManager");
   }
 
   CleanUpRequests();
 }
 
-void PermissionRequestManager::DocumentOnLoadCompletedInPrimaryMainFrame() {
+void PermissionRequestManager::DocumentOnLoadCompletedInMainFrame() {
   // This is scheduled because while all calls to the browser have been
   // issued at DOMContentLoaded, they may be bouncing around in scheduled
   // callbacks finding the UI thread still. This makes sure we allow those
   // scheduled calls to AddRequest to complete before we show the page-load
-  // permissions prompt.
+  // permissions bubble.
   ScheduleDequeueRequestIfNeeded();
 }
 
@@ -459,12 +304,12 @@ void PermissionRequestManager::DOMContentLoaded(
 }
 
 void PermissionRequestManager::WebContentsDestroyed() {
-  // If the web contents has been destroyed, treat the prompt as cancelled.
+  // If the web contents has been destroyed, treat the bubble as cancelled.
   CleanUpRequests();
 
   // The WebContents is going away; be aggressively paranoid and delete
-  // ourselves lest other parts of the system attempt to add permission
-  // prompts or use us otherwise during the destruction.
+  // ourselves lest other parts of the system attempt to add permission bubbles
+  // or use us otherwise during the destruction.
   web_contents()->RemoveUserData(UserDataKey());
   // That was the equivalent of "delete this". This object is now destroyed;
   // returning from this function is the only safe thing to do.
@@ -482,7 +327,7 @@ void PermissionRequestManager::OnVisibilityChanged(
       switch (view_->GetTabSwitchingBehavior()) {
         case PermissionPrompt::TabSwitchingBehavior::
             kDestroyPromptButKeepRequestPending:
-          DeletePrompt();
+          DeleteBubble();
           break;
         case PermissionPrompt::TabSwitchingBehavior::
             kDestroyPromptAndIgnoreRequest:
@@ -496,7 +341,7 @@ void PermissionRequestManager::OnVisibilityChanged(
     return;
   }
 
-  if (!web_contents()->IsDocumentOnLoadCompletedInPrimaryMainFrame())
+  if (!web_contents()->IsDocumentOnLoadCompletedInMainFrame())
     return;
 
   if (!IsRequestInProgress()) {
@@ -509,7 +354,7 @@ void PermissionRequestManager::OnVisibilityChanged(
     DCHECK_EQ(view_->GetTabSwitchingBehavior(),
               PermissionPrompt::TabSwitchingBehavior::kKeepPromptAlive);
   } else if (current_request_ui_to_use_.has_value()) {
-    ShowPrompt();
+    ShowBubble();
   }
 }
 
@@ -519,222 +364,127 @@ const std::vector<PermissionRequest*>& PermissionRequestManager::Requests() {
 
 GURL PermissionRequestManager::GetRequestingOrigin() const {
   CHECK(!requests_.empty());
-  GURL origin = requests_.front()->requesting_origin();
+  GURL origin = requests_.front()->GetOrigin();
   if (DCHECK_IS_ON()) {
     for (auto* request : requests_)
-      DCHECK_EQ(origin, request->requesting_origin());
+      DCHECK_EQ(origin, request->GetOrigin());
   }
   return origin;
 }
 
 GURL PermissionRequestManager::GetEmbeddingOrigin() const {
-  return PermissionUtil::GetLastCommittedOriginAsURL(
-      web_contents()->GetPrimaryMainFrame());
+  return web_contents()->GetLastCommittedURL().GetOrigin();
 }
 
 void PermissionRequestManager::Accept() {
-  if (ignore_callbacks_from_prompt_)
+  if (deleting_bubble_)
     return;
   DCHECK(view_);
   std::vector<PermissionRequest*>::iterator requests_iter;
   for (requests_iter = requests_.begin(); requests_iter != requests_.end();
        requests_iter++) {
-    StorePermissionActionForUMA((*requests_iter)->requesting_origin(),
-                                (*requests_iter)->request_type(),
-                                PermissionAction::GRANTED);
-    PermissionGrantedIncludingDuplicates(*requests_iter,
-                                         /*is_one_time=*/false);
+    PermissionGrantedIncludingDuplicates(*requests_iter, /*is_one_time=*/false);
   }
-
-  NotifyRequestDecided(PermissionAction::GRANTED);
   FinalizeCurrentRequests(PermissionAction::GRANTED);
 }
 
 void PermissionRequestManager::AcceptThisTime() {
-  if (ignore_callbacks_from_prompt_)
+  if (deleting_bubble_)
     return;
   DCHECK(view_);
   std::vector<PermissionRequest*>::iterator requests_iter;
   for (requests_iter = requests_.begin(); requests_iter != requests_.end();
        requests_iter++) {
-    StorePermissionActionForUMA((*requests_iter)->requesting_origin(),
-                                (*requests_iter)->request_type(),
-                                PermissionAction::GRANTED_ONCE);
-    PermissionGrantedIncludingDuplicates(*requests_iter,
-                                         /*is_one_time=*/true);
+    PermissionGrantedIncludingDuplicates(*requests_iter, /*is_one_time=*/true);
   }
-
-  NotifyRequestDecided(PermissionAction::GRANTED_ONCE);
   FinalizeCurrentRequests(PermissionAction::GRANTED_ONCE);
 }
 
 void PermissionRequestManager::Deny() {
-  if (ignore_callbacks_from_prompt_)
+  if (deleting_bubble_)
     return;
   DCHECK(view_);
 
   // Suppress any further prompts in this WebContents, from any origin, until
-  // there is a user-initiated navigation. This stops users from getting
-  // trapped in request loops where the website automatically navigates
-  // cross-origin (e.g. to another subdomain) to be able to prompt again after
-  // a rejection.
+  // there is a user-initiated navigation. This stops users from getting trapped
+  // in request loops where the website automatically navigates cross-origin
+  // (e.g. to another subdomain) to be able to prompt again after a rejection.
   if (base::FeatureList::IsEnabled(
           features::kBlockRepeatedNotificationPermissionPrompts) &&
-      base::Contains(requests_, ContentSettingsType::NOTIFICATIONS,
-                     &PermissionRequest::GetContentSettingsType)) {
+      std::any_of(requests_.begin(), requests_.end(), [](const auto* request) {
+        return request->GetContentSettingsType() ==
+               ContentSettingsType::NOTIFICATIONS;
+      })) {
     is_notification_prompt_cooldown_active_ = true;
   }
 
   std::vector<PermissionRequest*>::iterator requests_iter;
   for (requests_iter = requests_.begin(); requests_iter != requests_.end();
        requests_iter++) {
-    StorePermissionActionForUMA((*requests_iter)->requesting_origin(),
-                                (*requests_iter)->request_type(),
-                                PermissionAction::DENIED);
     PermissionDeniedIncludingDuplicates(*requests_iter);
   }
-
-  NotifyRequestDecided(PermissionAction::DENIED);
   FinalizeCurrentRequests(PermissionAction::DENIED);
 }
 
-void PermissionRequestManager::Dismiss() {
-  if (ignore_callbacks_from_prompt_)
+void PermissionRequestManager::Closing() {
+  if (deleting_bubble_)
     return;
   DCHECK(view_);
   std::vector<PermissionRequest*>::iterator requests_iter;
   for (requests_iter = requests_.begin(); requests_iter != requests_.end();
        requests_iter++) {
-    StorePermissionActionForUMA((*requests_iter)->requesting_origin(),
-                                (*requests_iter)->request_type(),
-                                PermissionAction::DISMISSED);
     CancelledIncludingDuplicates(*requests_iter);
   }
-
-  NotifyRequestDecided(PermissionAction::DISMISSED);
   FinalizeCurrentRequests(PermissionAction::DISMISSED);
-}
-
-void PermissionRequestManager::Ignore() {
-  if (ignore_callbacks_from_prompt_)
-    return;
-  DCHECK(view_);
-  std::vector<PermissionRequest*>::iterator requests_iter;
-  for (requests_iter = requests_.begin(); requests_iter != requests_.end();
-       requests_iter++) {
-    StorePermissionActionForUMA((*requests_iter)->requesting_origin(),
-                                (*requests_iter)->request_type(),
-                                PermissionAction::IGNORED);
-    CancelledIncludingDuplicates(*requests_iter);
-  }
-
-  NotifyRequestDecided(PermissionAction::IGNORED);
-  FinalizeCurrentRequests(PermissionAction::IGNORED);
-}
-
-void PermissionRequestManager::PreIgnoreQuietPrompt() {
-  // Random number of seconds in the range [1.0, 2.0).
-  double delay_seconds = 1.0 + 1.0 * base::RandDouble();
-  preignore_timer_.Start(
-      FROM_HERE, base::Seconds(delay_seconds), this,
-      &PermissionRequestManager::PreIgnoreQuietPromptInternal);
-}
-
-void PermissionRequestManager::PreIgnoreQuietPromptInternal() {
-  DCHECK(!requests_.empty());
-
-  std::vector<PermissionRequest*>::iterator requests_iter;
-  for (requests_iter = requests_.begin(); requests_iter != requests_.end();
-       requests_iter++) {
-    CancelledIncludingDuplicates(*requests_iter, /*is_final_decision=*/false);
-  }
-
-  blink::PermissionType permission;
-  bool success = PermissionUtil::GetPermissionType(
-      requests_[0]->GetContentSettingsType(), &permission);
-  DCHECK(success);
-
-  PermissionUmaUtil::PermissionRequestPreignored(permission);
 }
 
 bool PermissionRequestManager::WasCurrentRequestAlreadyDisplayed() {
   return current_request_already_displayed_;
 }
 
-void PermissionRequestManager::SetDismissOnTabClose() {
-  should_dismiss_current_request_ = true;
-}
-
-void PermissionRequestManager::SetPromptShown() {
-  did_show_prompt_ = true;
-}
-
-void PermissionRequestManager::SetDecisionTime() {
-  current_request_decision_time_ = base::Time::Now();
-}
-
-void PermissionRequestManager::SetManageClicked() {
-  set_manage_clicked();
-}
-
-void PermissionRequestManager::SetLearnMoreClicked() {
-  set_learn_more_clicked();
-}
-
-base::WeakPtr<PermissionPrompt::Delegate>
-PermissionRequestManager::GetWeakPtr() {
-  return weak_factory_.GetWeakPtr();
-}
-
-bool PermissionRequestManager::RecreateView() {
-  view_ = view_factory_.Run(web_contents(), this);
-  if (!view_) {
-    current_request_prompt_disposition_ =
-        PermissionPromptDisposition::NONE_VISIBLE;
-    if (ShouldDropCurrentRequestIfCannotShowQuietly()) {
-      FinalizeCurrentRequests(PermissionAction::IGNORED);
-    }
-    NotifyPromptRecreateFailed();
-    return false;
-  }
-
-  current_request_prompt_disposition_ = view_->GetPromptDisposition();
-  return true;
-}
-
 PermissionRequestManager::PermissionRequestManager(
     content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<PermissionRequestManager>(*web_contents),
-      view_factory_(base::BindRepeating(&PermissionPrompt::Create)),
+      view_factory_(base::Bind(&PermissionPrompt::Create)),
+      view_(nullptr),
       tab_is_hidden_(web_contents->GetVisibility() ==
                      content::Visibility::HIDDEN),
       auto_response_for_test_(NONE),
-      permission_ui_selectors_(
-          PermissionsClient::Get()->CreatePermissionUiSelectors(
+      notification_permission_ui_selectors_(
+          PermissionsClient::Get()->CreateNotificationPermissionUiSelectors(
               web_contents->GetBrowserContext())) {}
+
+void PermissionRequestManager::ScheduleShowBubble() {
+  base::RecordAction(base::UserMetricsAction("PermissionBubbleRequest"));
+  content::GetUIThreadTaskRunner({})->PostTask(
+      FROM_HERE, base::BindOnce(&PermissionRequestManager::ShowBubble,
+                                weak_factory_.GetWeakPtr()));
+}
 
 void PermissionRequestManager::DequeueRequestIfNeeded() {
   // TODO(olesiamarukhno): Media requests block other media requests from
-  // pre-empting them. For example, when a camera request is pending and mic
-  // is requested, the camera request remains pending and mic request appears
-  // only after the camera request is resolved. This is caused by code in
+  // pre-empting them. For example, when a camera request is pending and mic is
+  // requested, the camera request remains pending and mic request appears only
+  // after the camera request is resolved. This is caused by code in
   // PermissionBubbleMediaAccessHandler and UserMediaClient. We probably don't
   // need two permission queues, so resolve the duplication.
 
-  if (!web_contents()->IsDocumentOnLoadCompletedInPrimaryMainFrame() || view_ ||
+  if (!web_contents()->IsDocumentOnLoadCompletedInMainFrame() || view_ ||
       IsRequestInProgress()) {
     return;
   }
 
   // Find first valid request.
-  while (!pending_permission_requests_.IsEmpty()) {
-    auto* next = pending_permission_requests_.Pop();
-    if (ValidateRequest(next)) {
-      validated_requests_set_.insert(next);
+  while (!queued_requests_.empty()) {
+    PermissionRequest* next = PopNextQueuedRequest();
+    PermissionRequestSource& source = request_sources_map_.find(next)->second;
+    if (!source.IsSourceFrameInactiveAndDisallowReactivation()) {
       requests_.push_back(next);
       break;
     }
+    next->Cancelled();
+    next->RequestFinished();
+    request_sources_map_.erase(request_sources_map_.find(next));
   }
 
   if (requests_.empty()) {
@@ -742,100 +492,77 @@ void PermissionRequestManager::DequeueRequestIfNeeded() {
   }
 
   // Find additional requests that can be grouped with the first one.
-  for (; !pending_permission_requests_.IsEmpty();
-       pending_permission_requests_.Pop()) {
-    auto* front = pending_permission_requests_.Peek();
-    if (!ValidateRequest(front))
-      continue;
-
-    validated_requests_set_.insert(front);
-    if (!ShouldGroupRequests(requests_.front(), front))
+  for (; !queued_requests_.empty(); PopNextQueuedRequest()) {
+    PermissionRequest* front = PeekNextQueuedRequest();
+    PermissionRequestSource& source = request_sources_map_.find(front)->second;
+    if (source.IsSourceFrameInactiveAndDisallowReactivation()) {
+      front->Cancelled();
+      front->RequestFinished();
+      request_sources_map_.erase(request_sources_map_.find(front));
+    } else if (ShouldGroupRequests(requests_.front(), front)) {
+      requests_.push_back(front);
+    } else {
       break;
-
-    requests_.push_back(front);
+    }
   }
 
-  // Mark the remaining pending requests as validated, so only the "new and has
-  // not been validated" requests added to the queue could have effect to
-  // priority order
-  for (auto* request : pending_permission_requests_) {
-    if (ValidateRequest(request))
-      validated_requests_set_.insert(request);
-  }
+  if (!notification_permission_ui_selectors_.empty() &&
+      requests_.front()->GetPermissionRequestType() ==
+          PermissionRequestType::PERMISSION_NOTIFICATIONS) {
+    DCHECK(!current_request_ui_to_use_.has_value());
+    // Initialize the selector decisions vector.
+    DCHECK(selector_decisions_.empty());
+    selector_decisions_.resize(notification_permission_ui_selectors_.size());
 
-  if (permission_ui_selectors_.empty()) {
+    for (size_t selector_index = 0;
+         selector_index < notification_permission_ui_selectors_.size();
+         ++selector_index) {
+      notification_permission_ui_selectors_[selector_index]->SelectUiToUse(
+          requests_.front(),
+          base::BindOnce(
+              &PermissionRequestManager::OnNotificationPermissionUiSelectorDone,
+              weak_factory_.GetWeakPtr(), selector_index));
+    }
+  } else {
     current_request_ui_to_use_ =
         UiDecision(UiDecision::UseNormalUi(), UiDecision::ShowNoWarning());
-    ShowPrompt();
-    return;
-  }
-
-  DCHECK(!current_request_ui_to_use_.has_value());
-  // Initialize the selector decisions vector.
-  DCHECK(selector_decisions_.empty());
-  selector_decisions_.resize(permission_ui_selectors_.size());
-
-  for (size_t selector_index = 0;
-       selector_index < permission_ui_selectors_.size(); ++selector_index) {
-    // Skip if we have already made a decision due to a higher priority
-    // selector
-    if (current_request_ui_to_use_.has_value())
-      break;
-
-    if (permission_ui_selectors_[selector_index]->IsPermissionRequestSupported(
-            requests_.front()->request_type())) {
-      permission_ui_selectors_[selector_index]->SelectUiToUse(
-          requests_.front(),
-          base::BindOnce(&PermissionRequestManager::OnPermissionUiSelectorDone,
-                         weak_factory_.GetWeakPtr(), selector_index));
-      continue;
-    }
-
-    OnPermissionUiSelectorDone(
-        selector_index,
-        PermissionUiSelector::Decision::UseNormalUiAndShowNoWarning());
+    ScheduleShowBubble();
   }
 }
 
 void PermissionRequestManager::ScheduleDequeueRequestIfNeeded() {
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&PermissionRequestManager::DequeueRequestIfNeeded,
                      weak_factory_.GetWeakPtr()));
 }
 
-void PermissionRequestManager::ShowPrompt() {
-  // There is a race condition where the request might have been removed
-  // already so double-checking that there is a request in progress.
-  //
-  // There is no need to show a new prompt if the previous one still exists.
-  if (!IsRequestInProgress() || view_)
+void PermissionRequestManager::ShowBubble() {
+  // There is a race condition where the request might have been removed already
+  // so double-checking that there is a request in progress (crbug.com/1041222).
+  if (!IsRequestInProgress())
     return;
 
-  DCHECK(web_contents()->IsDocumentOnLoadCompletedInPrimaryMainFrame());
+  DCHECK(!requests_.empty());
+  DCHECK(!view_);
+  DCHECK(web_contents()->IsDocumentOnLoadCompletedInMainFrame());
   DCHECK(current_request_ui_to_use_);
 
-  if (tab_is_hidden_) {
-    NotifyPromptCreationFailedHiddenTab();
-    return;
-  }
-
-  if (!ReprioritizeCurrentRequestIfNeeded())
+  if (tab_is_hidden_)
     return;
 
-  if (!RecreateView())
+  view_ = view_factory_.Run(web_contents(), this);
+  if (!view_)
     return;
 
   if (!current_request_already_displayed_) {
     PermissionUmaUtil::PermissionPromptShown(requests_);
 
-    auto quiet_ui_reason = ReasonForUsingQuietUi();
-    if (quiet_ui_reason) {
-      switch (*quiet_ui_reason) {
+    if (ShouldCurrentRequestUseQuietUI()) {
+      switch (ReasonForUsingQuietUi()) {
         case QuietUiReason::kEnabledInPrefs:
         case QuietUiReason::kTriggeredByCrowdDeny:
-        case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
-        case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
+        case QuietUiReason::kPredictedVeryUnlikelyGrant:
           break;
         case QuietUiReason::kTriggeredDueToAbusiveRequests:
           LogWarningToConsole(kAbusiveNotificationRequestsEnforcementMessage);
@@ -843,77 +570,49 @@ void PermissionRequestManager::ShowPrompt() {
         case QuietUiReason::kTriggeredDueToAbusiveContent:
           LogWarningToConsole(kAbusiveNotificationContentEnforcementMessage);
           break;
-        case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
-          LogWarningToConsole(
-              kDisruptiveNotificationBehaviorEnforcementMessage);
-          break;
       }
       base::RecordAction(base::UserMetricsAction(
           "Notifications.Quiet.PermissionRequestShown"));
     }
   }
   current_request_already_displayed_ = true;
-  current_request_first_display_time_ = base::Time::Now();
-  NotifyPromptAdded();
+  NotifyBubbleAdded();
+
   // If in testing mode, automatically respond to the bubble that was shown.
   if (auto_response_for_test_ != NONE)
     DoAutoResponseForTesting();
 }
 
-void PermissionRequestManager::DeletePrompt() {
+void PermissionRequestManager::DeleteBubble() {
   DCHECK(view_);
   {
-    base::AutoReset<bool> deleting(&ignore_callbacks_from_prompt_, true);
+    base::AutoReset<bool> deleting(&deleting_bubble_, true);
     view_.reset();
   }
-  NotifyPromptRemoved();
+  NotifyBubbleRemoved();
 }
 
 void PermissionRequestManager::ResetViewStateForCurrentRequest() {
-  for (const auto& selector : permission_ui_selectors_)
+  for (const auto& selector : notification_permission_ui_selectors_)
     selector->Cancel();
 
   current_request_already_displayed_ = false;
-  current_request_first_display_time_ = base::Time();
-  current_request_decision_time_ = base::Time();
-  current_request_prompt_disposition_.reset();
   prediction_grant_likelihood_.reset();
   current_request_ui_to_use_.reset();
-  was_decision_held_back_.reset();
   selector_decisions_.clear();
-  should_dismiss_current_request_ = false;
-  did_show_prompt_ = false;
-  did_click_manage_ = false;
-  did_click_learn_more_ = false;
 
   if (view_)
-    DeletePrompt();
+    DeleteBubble();
 }
 
 void PermissionRequestManager::FinalizeCurrentRequests(
     PermissionAction permission_action) {
   DCHECK(IsRequestInProgress());
-  base::TimeDelta time_to_decision;
-  if (!current_request_first_display_time_.is_null() &&
-      permission_action != PermissionAction::IGNORED) {
-    if (current_request_decision_time_.is_null()) {
-      current_request_decision_time_ = base::Time::Now();
-    }
-    time_to_decision =
-        current_request_decision_time_ - current_request_first_display_time_;
-  }
-
-  if (time_to_decision_for_test_.has_value()) {
-    time_to_decision = time_to_decision_for_test_.value();
-    time_to_decision_for_test_.reset();
-  }
-
   PermissionUmaUtil::PermissionPromptResolved(
-      requests_, web_contents(), permission_action, time_to_decision,
-      DetermineCurrentRequestUIDisposition(),
+      requests_, web_contents(), permission_action,
+      DetermineCurrentRequestUIDispositionForUMA(),
       DetermineCurrentRequestUIDispositionReasonForUMA(),
-      prediction_grant_likelihood_, was_decision_held_back_, did_show_prompt_,
-      did_click_manage_, did_click_learn_more_);
+      prediction_grant_likelihood_);
 
   content::BrowserContext* browser_context =
       web_contents()->GetBrowserContext();
@@ -921,34 +620,32 @@ void PermissionRequestManager::FinalizeCurrentRequests(
       PermissionsClient::Get()->GetPermissionDecisionAutoBlocker(
           browser_context);
 
-  absl::optional<QuietUiReason> quiet_ui_reason;
+  base::Optional<QuietUiReason> quiet_ui_reason;
   if (ShouldCurrentRequestUseQuietUI())
     quiet_ui_reason = ReasonForUsingQuietUi();
 
   for (PermissionRequest* request : requests_) {
-    // TODO(timloh): We only support dismiss and ignore embargo for
-    // permissions which use PermissionRequestImpl as the other subclasses
-    // don't support GetContentSettingsType.
+    // TODO(timloh): We only support dismiss and ignore embargo for permissions
+    // which use PermissionRequestImpl as the other subclasses don't support
+    // GetContentSettingsType.
     if (request->GetContentSettingsType() == ContentSettingsType::DEFAULT)
       continue;
 
     PermissionsClient::Get()->OnPromptResolved(
-        browser_context, request->request_type(), permission_action,
-        request->requesting_origin(), DetermineCurrentRequestUIDisposition(),
-        DetermineCurrentRequestUIDispositionReasonForUMA(),
-        request->GetGestureType(), quiet_ui_reason);
+        browser_context, request->GetPermissionRequestType(), permission_action,
+        request->GetOrigin(), quiet_ui_reason);
 
     PermissionEmbargoStatus embargo_status =
         PermissionEmbargoStatus::NOT_EMBARGOED;
     if (permission_action == PermissionAction::DISMISSED) {
       if (autoblocker->RecordDismissAndEmbargo(
-              request->requesting_origin(), request->GetContentSettingsType(),
+              request->GetOrigin(), request->GetContentSettingsType(),
               ShouldCurrentRequestUseQuietUI())) {
         embargo_status = PermissionEmbargoStatus::REPEATED_DISMISSALS;
       }
     } else if (permission_action == PermissionAction::IGNORED) {
       if (autoblocker->RecordIgnoreAndEmbargo(
-              request->requesting_origin(), request->GetContentSettingsType(),
+              request->GetOrigin(), request->GetContentSettingsType(),
               ShouldCurrentRequestUseQuietUI())) {
         embargo_status = PermissionEmbargoStatus::REPEATED_IGNORES;
       }
@@ -960,30 +657,20 @@ void PermissionRequestManager::FinalizeCurrentRequests(
   for (requests_iter = requests_.begin(); requests_iter != requests_.end();
        requests_iter++) {
     RequestFinishedIncludingDuplicates(*requests_iter);
-    validated_requests_set_.erase(*requests_iter);
-    request_sources_map_.erase(*requests_iter);
+    request_sources_map_.erase(request_sources_map_.find(*requests_iter));
   }
   requests_.clear();
-
-  for (Observer& observer : observer_list_)
-    observer.OnRequestsFinalized();
 
   ScheduleDequeueRequestIfNeeded();
 }
 
 void PermissionRequestManager::CleanUpRequests() {
-  // No need to execute the preignore logic as we canceling currently active
-  // requests anyway.
-  preignore_timer_.AbandonAndStop();
-
-  for (; !pending_permission_requests_.IsEmpty();
-       pending_permission_requests_.Pop()) {
-    auto* pending_request = pending_permission_requests_.Peek();
-    CancelledIncludingDuplicates(pending_request);
-    RequestFinishedIncludingDuplicates(pending_request);
-    validated_requests_set_.erase(pending_request);
-    request_sources_map_.erase(pending_request);
+  for (auto* queued_request : queued_requests_) {
+    CancelledIncludingDuplicates(queued_request);
+    RequestFinishedIncludingDuplicates(queued_request);
+    request_sources_map_.erase(request_sources_map_.find(queued_request));
   }
+  queued_requests_.clear();
 
   if (IsRequestInProgress()) {
     std::vector<PermissionRequest*>::iterator requests_iter;
@@ -991,29 +678,29 @@ void PermissionRequestManager::CleanUpRequests() {
          requests_iter++) {
       CancelledIncludingDuplicates(*requests_iter);
     }
-
-    FinalizeCurrentRequests(should_dismiss_current_request_
-                                ? PermissionAction::DISMISSED
-                                : PermissionAction::IGNORED);
-    should_dismiss_current_request_ = false;
+    FinalizeCurrentRequests(PermissionAction::IGNORED);
   }
 }
 
 PermissionRequest* PermissionRequestManager::GetExistingRequest(
-    PermissionRequest* request) const {
+    PermissionRequest* request) {
   for (PermissionRequest* existing_request : requests_) {
-    if (request->IsDuplicateOf(existing_request))
+    if (IsMessageTextEqual(existing_request, request))
       return existing_request;
   }
-  return pending_permission_requests_.FindDuplicate(request);
+  for (PermissionRequest* queued_request : queued_requests_) {
+    if (IsMessageTextEqual(queued_request, request))
+      return queued_request;
+  }
+  return nullptr;
 }
 
 void PermissionRequestManager::PermissionGrantedIncludingDuplicates(
     PermissionRequest* request,
     bool is_one_time) {
-  DCHECK_EQ(1ul, base::ranges::count(requests_, request) +
-                     pending_permission_requests_.Count(request))
-      << "Only requests in [pending_permission_]requests_ can have duplicates";
+  DCHECK_EQ(1, base::STLCount(requests_, request) +
+                   base::STLCount(queued_requests_, request))
+      << "Only requests in [queued_[frame_]]requests_ can have duplicates";
   request->PermissionGranted(is_one_time);
   auto range = duplicate_requests_.equal_range(request);
   for (auto it = range.first; it != range.second; ++it)
@@ -1022,9 +709,9 @@ void PermissionRequestManager::PermissionGrantedIncludingDuplicates(
 
 void PermissionRequestManager::PermissionDeniedIncludingDuplicates(
     PermissionRequest* request) {
-  DCHECK_EQ(1ul, base::ranges::count(requests_, request) +
-                     pending_permission_requests_.Count(request))
-      << "Only requests in [pending_permission_]requests_ can have duplicates";
+  DCHECK_EQ(1, base::STLCount(requests_, request) +
+                   base::STLCount(queued_requests_, request))
+      << "Only requests in [queued_]requests_ can have duplicates";
   request->PermissionDenied();
   auto range = duplicate_requests_.equal_range(request);
   for (auto it = range.first; it != range.second; ++it)
@@ -1032,22 +719,21 @@ void PermissionRequestManager::PermissionDeniedIncludingDuplicates(
 }
 
 void PermissionRequestManager::CancelledIncludingDuplicates(
-    PermissionRequest* request,
-    bool is_final_decision) {
-  DCHECK_EQ(1ul, base::ranges::count(requests_, request) +
-                     pending_permission_requests_.Count(request))
-      << "Only requests in [pending_permission_]requests_ can have duplicates";
-  request->Cancelled(is_final_decision);
+    PermissionRequest* request) {
+  DCHECK_EQ(1, base::STLCount(requests_, request) +
+                   base::STLCount(queued_requests_, request))
+      << "Only requests in [queued_]requests_ can have duplicates";
+  request->Cancelled();
   auto range = duplicate_requests_.equal_range(request);
   for (auto it = range.first; it != range.second; ++it)
-    it->second->Cancelled(is_final_decision);
+    it->second->Cancelled();
 }
 
 void PermissionRequestManager::RequestFinishedIncludingDuplicates(
     PermissionRequest* request) {
-  DCHECK_EQ(1ul, base::ranges::count(requests_, request) +
-                     pending_permission_requests_.Count(request))
-      << "Only requests in [pending_permission_]requests_ can have duplicates";
+  DCHECK_EQ(1, base::STLCount(requests_, request) +
+                   base::STLCount(queued_requests_, request))
+      << "Only requests in [queued_]requests_ can have duplicates";
   request->RequestFinished();
   // Beyond this point, |request| has probably been deleted.
   auto range = duplicate_requests_.equal_range(request);
@@ -1066,18 +752,17 @@ void PermissionRequestManager::RemoveObserver(Observer* observer) {
 }
 
 bool PermissionRequestManager::ShouldCurrentRequestUseQuietUI() const {
+  if (!IsRequestInProgress())
+    return false;
+
   // ContentSettingImageModel might call into this method if the user switches
-  // between tabs while the |notification_permission_ui_selectors_| are
-  // pending.
-  return ReasonForUsingQuietUi() != absl::nullopt;
+  // between tabs while the |notification_permission_ui_selectors_| are pending.
+  return current_request_ui_to_use_ &&
+         current_request_ui_to_use_->quiet_ui_reason;
 }
 
-absl::optional<PermissionRequestManager::QuietUiReason>
+PermissionRequestManager::QuietUiReason
 PermissionRequestManager::ReasonForUsingQuietUi() const {
-  if (!IsRequestInProgress() || !current_request_ui_to_use_ ||
-      !current_request_ui_to_use_->quiet_ui_reason)
-    return absl::nullopt;
-
   return *(current_request_ui_to_use_->quiet_ui_reason);
 }
 
@@ -1085,83 +770,17 @@ bool PermissionRequestManager::IsRequestInProgress() const {
   return !requests_.empty();
 }
 
-bool PermissionRequestManager::CanRestorePrompt() {
-#if BUILDFLAG(IS_ANDROID)
-  return false;
-#else
-  return IsRequestInProgress() &&
-         current_request_prompt_disposition_.has_value() && !view_;
-#endif
-}
-
-void PermissionRequestManager::RestorePrompt() {
-  if (CanRestorePrompt())
-    ShowPrompt();
-}
-
-bool PermissionRequestManager::ShouldDropCurrentRequestIfCannotShowQuietly()
-    const {
-  absl::optional<QuietUiReason> quiet_ui_reason = ReasonForUsingQuietUi();
-  if (quiet_ui_reason.has_value()) {
-    switch (quiet_ui_reason.value()) {
-      case QuietUiReason::kEnabledInPrefs:
-      case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
-      case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
-      case QuietUiReason::kTriggeredByCrowdDeny:
-        return false;
-      case QuietUiReason::kTriggeredDueToAbusiveRequests:
-      case QuietUiReason::kTriggeredDueToAbusiveContent:
-      case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
-        return true;
-    }
-  }
-
-  return false;
-}
-
-void PermissionRequestManager::NotifyPromptAdded() {
+void PermissionRequestManager::NotifyBubbleAdded() {
   for (Observer& observer : observer_list_)
-    observer.OnPromptAdded();
+    observer.OnBubbleAdded();
 }
 
-void PermissionRequestManager::NotifyPromptRemoved() {
+void PermissionRequestManager::NotifyBubbleRemoved() {
   for (Observer& observer : observer_list_)
-    observer.OnPromptRemoved();
+    observer.OnBubbleRemoved();
 }
 
-void PermissionRequestManager::NotifyPromptRecreateFailed() {
-  for (Observer& observer : observer_list_)
-    observer.OnPromptRecreateViewFailed();
-}
-
-void PermissionRequestManager::NotifyPromptCreationFailedHiddenTab() {
-  for (Observer& observer : observer_list_)
-    observer.OnPromptCreationFailedHiddenTab();
-}
-
-void PermissionRequestManager::NotifyRequestDecided(
-    permissions::PermissionAction permission_action) {
-  for (Observer& observer : observer_list_)
-    observer.OnRequestDecided(permission_action);
-}
-
-void PermissionRequestManager::StorePermissionActionForUMA(
-    const GURL& origin,
-    RequestType request_type,
-    PermissionAction permission_action) {
-  absl::optional<ContentSettingsType> content_settings_type =
-      RequestTypeToContentSettingsType(request_type);
-  if (content_settings_type.has_value()) {
-    PermissionsClient::Get()
-        ->GetOriginKeyedPermissionActionService(
-            web_contents()->GetBrowserContext())
-        ->RecordAction(PermissionUtil::GetLastCommittedOriginAsURL(
-                           web_contents()->GetPrimaryMainFrame()),
-                       content_settings_type.value(), permission_action);
-  }
-}
-
-void PermissionRequestManager::OnPermissionUiSelectorDone(
+void PermissionRequestManager::OnNotificationPermissionUiSelectorDone(
     size_t selector_index,
     const UiDecision& decision) {
   if (decision.warning_reason) {
@@ -1172,9 +791,13 @@ void PermissionRequestManager::OnPermissionUiSelectorDone(
       case WarningReason::kAbusiveContent:
         LogWarningToConsole(kAbusiveNotificationContentWarningMessage);
         break;
-      case WarningReason::kDisruptiveBehavior:
-        break;
     }
+  }
+
+  if (!prediction_grant_likelihood_.has_value()) {
+    prediction_grant_likelihood_ =
+        notification_permission_ui_selectors_[selector_index]
+            ->PredictedGrantLikelihoodForUKM();
   }
 
   // We have already made a decision because of a higher priority selector
@@ -1189,24 +812,12 @@ void PermissionRequestManager::OnPermissionUiSelectorDone(
   while (decision_index < selector_decisions_.size() &&
          selector_decisions_[decision_index].has_value()) {
     const UiDecision& current_decision =
-        selector_decisions_[decision_index].value();
-
-    if (!prediction_grant_likelihood_.has_value()) {
-      prediction_grant_likelihood_ = permission_ui_selectors_[decision_index]
-                                         ->PredictedGrantLikelihoodForUKM();
-    }
-
-    if (!was_decision_held_back_.has_value()) {
-      was_decision_held_back_ = permission_ui_selectors_[decision_index]
-                                    ->WasSelectorDecisionHeldback();
-    }
+        selector_decisions_[decision_index++].value();
 
     if (current_decision.quiet_ui_reason.has_value()) {
       current_request_ui_to_use_ = current_decision;
       break;
     }
-
-    ++decision_index;
   }
 
   // All decisions have been considered and none was conclusive.
@@ -1216,47 +827,42 @@ void PermissionRequestManager::OnPermissionUiSelectorDone(
   }
 
   if (current_request_ui_to_use_.has_value()) {
-    ShowPrompt();
+    ScheduleShowBubble();
   }
 }
 
 PermissionPromptDisposition
-PermissionRequestManager::DetermineCurrentRequestUIDisposition() {
-  if (current_request_prompt_disposition_.has_value())
-    return current_request_prompt_disposition_.value();
+PermissionRequestManager::DetermineCurrentRequestUIDispositionForUMA() {
+  if (view_)
+    return view_->GetPromptDisposition();
   return PermissionPromptDisposition::NONE_VISIBLE;
 }
 
 PermissionPromptDispositionReason
 PermissionRequestManager::DetermineCurrentRequestUIDispositionReasonForUMA() {
-  auto quiet_ui_reason = ReasonForUsingQuietUi();
-  if (!quiet_ui_reason)
+  if (!ShouldCurrentRequestUseQuietUI()) {
     return PermissionPromptDispositionReason::DEFAULT_FALLBACK;
-  switch (*quiet_ui_reason) {
+  }
+
+  switch (ReasonForUsingQuietUi()) {
     case QuietUiReason::kEnabledInPrefs:
       return PermissionPromptDispositionReason::USER_PREFERENCE_IN_SETTINGS;
     case QuietUiReason::kTriggeredByCrowdDeny:
     case QuietUiReason::kTriggeredDueToAbusiveRequests:
     case QuietUiReason::kTriggeredDueToAbusiveContent:
-    case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
       return PermissionPromptDispositionReason::SAFE_BROWSING_VERDICT;
-    case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
+    case QuietUiReason::kPredictedVeryUnlikelyGrant:
       return PermissionPromptDispositionReason::PREDICTION_SERVICE;
-    case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
-      return PermissionPromptDispositionReason::ON_DEVICE_PREDICTION_MODEL;
   }
 }
 
 void PermissionRequestManager::LogWarningToConsole(const char* message) {
-  web_contents()->GetPrimaryMainFrame()->AddMessageToConsole(
+  web_contents()->GetMainFrame()->AddMessageToConsole(
       blink::mojom::ConsoleMessageLevel::kWarning, message);
 }
 
 void PermissionRequestManager::DoAutoResponseForTesting() {
   switch (auto_response_for_test_) {
-    case ACCEPT_ONCE:
-      AcceptThisTime();
-      break;
     case ACCEPT_ALL:
       Accept();
       break;
@@ -1264,13 +870,28 @@ void PermissionRequestManager::DoAutoResponseForTesting() {
       Deny();
       break;
     case DISMISS:
-      Dismiss();
+      Closing();
       break;
     case NONE:
       NOTREACHED();
   }
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(PermissionRequestManager);
+PermissionRequest* PermissionRequestManager::PeekNextQueuedRequest() {
+  return base::FeatureList::IsEnabled(features::kPermissionChip)
+             ? queued_requests_.back()
+             : queued_requests_.front();
+}
+
+PermissionRequest* PermissionRequestManager::PopNextQueuedRequest() {
+  PermissionRequest* next = PeekNextQueuedRequest();
+  if (base::FeatureList::IsEnabled(features::kPermissionChip))
+    queued_requests_.pop_back();
+  else
+    queued_requests_.pop_front();
+  return next;
+}
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(PermissionRequestManager)
 
 }  // namespace permissions

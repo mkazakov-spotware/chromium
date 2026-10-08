@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "net/base/auth.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -28,9 +28,6 @@ class LoginHandler;
 class LoginTabHelper : public content::WebContentsObserver,
                        public content::WebContentsUserData<LoginTabHelper> {
  public:
-  LoginTabHelper(const LoginTabHelper&) = delete;
-  LoginTabHelper& operator=(const LoginTabHelper&) = delete;
-
   ~LoginTabHelper() override;
 
   std::unique_ptr<content::LoginDelegate> CreateAndStartMainFrameLoginDelegate(
@@ -76,7 +73,7 @@ class LoginTabHelper : public content::WebContentsObserver,
   explicit LoginTabHelper(content::WebContents* web_contents);
 
   void HandleCredentials(
-      const absl::optional<net::AuthCredentials>& credentials);
+      const base::Optional<net::AuthCredentials>& credentials);
 
   void RegisterExtensionCancelledNavigation(
       const content::GlobalRequestID& request_id);
@@ -91,7 +88,7 @@ class LoginTabHelper : public content::WebContentsObserver,
   GURL url_for_login_handler_;
 
   net::AuthChallengeInfo challenge_;
-  net::NetworkAnonymizationKey network_anonymization_key_;
+  net::NetworkIsolationKey network_isolation_key_;
 
   // Stores the navigation entry ID for a pending refresh due to a user
   // cancelling a login prompt. This is set to the visible navigation entry ID
@@ -123,6 +120,8 @@ class LoginTabHelper : public content::WebContentsObserver,
   base::WeakPtrFactory<LoginTabHelper> weak_ptr_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(LoginTabHelper);
 };
 
 #endif  // CHROME_BROWSER_UI_LOGIN_LOGIN_TAB_HELPER_H_

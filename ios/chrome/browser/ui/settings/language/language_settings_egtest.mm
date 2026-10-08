@@ -1,24 +1,23 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <XCTest/XCTest.h>
 
-#import <memory>
+#include <memory>
 
-#import "components/translate/core/browser/translate_pref_names.h"
+#include "components/translate/core/browser/translate_pref_names.h"
 #import "ios/chrome/browser/ui/settings/language/language_settings_app_interface.h"
 #import "ios/chrome/browser/ui/settings/language/language_settings_ui_constants.h"
-#import "ios/chrome/browser/ui/settings/settings_root_table_constants.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ios/chrome/test/earl_grey/accessibility_util.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ios/chrome/test/earl_grey/accessibility_util.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#import "ui/strings/grit/ui_strings.h"
+#include "ui/strings/grit/ui_strings.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -26,10 +25,10 @@
 
 using chrome_test_util::ButtonWithAccessibilityLabel;
 using chrome_test_util::ButtonWithAccessibilityLabelId;
+using chrome_test_util::NavigationBarDoneButton;
 using chrome_test_util::SettingsMenuBackButton;
-using chrome_test_util::TabGridEditButton;
-using chrome_test_util::TableViewSwitchCell;
-using chrome_test_util::TurnTableViewSwitchOn;
+using chrome_test_util::SettingsSwitchCell;
+using chrome_test_util::TurnSettingsSwitchOn;
 
 namespace {
 
@@ -94,7 +93,7 @@ id<GREYMatcher> SearchBarScrim() {
 }
 
 // Matcher for a language entry with the given accessibility label. Matches a
-// button if `tappable` is true.
+// button if |tappable| is true.
 id<GREYMatcher> LanguageEntry(NSString* label, BOOL tappable = YES) {
   return grey_allOf(tappable ? ButtonWithAccessibilityLabel(label)
                              : grey_accessibilityLabel(label),
@@ -116,7 +115,7 @@ id<GREYMatcher> OfferToTranslateButton() {
 }
 
 // Matcher for an element with or without the
-// UIAccessibilityTraitSelected accessibility trait depending on `selected`.
+// UIAccessibilityTraitSelected accessibility trait depending on |selected|.
 id<GREYMatcher> ElementIsSelected(BOOL selected) {
   return selected
              ? grey_accessibilityTrait(UIAccessibilityTraitSelected)
@@ -130,9 +129,13 @@ id<GREYMatcher> LanguageEntryDeleteButton() {
                     grey_sufficientlyVisible(), nil);
 }
 
-// Matcher for the toolbar's edit button.
-id<GREYMatcher> SettingToolbarEditButton() {
-  return grey_accessibilityID(kSettingsToolbarEditButtonId);
+// Matcher for the nav bar's edit button.
+id<GREYMatcher> NavigationBarEditButton() {
+  return grey_allOf(
+      ButtonWithAccessibilityLabelId(IDS_IOS_NAVIGATION_BAR_EDIT_BUTTON),
+      grey_kindOfClass([UIButton class]),
+      grey_ancestor(grey_kindOfClass([UINavigationBar class])),
+      grey_sufficientlyVisible(), nil);
 }
 
 }  // namespace
@@ -145,8 +148,7 @@ id<GREYMatcher> SettingToolbarEditButton() {
 - (void)setUp {
   [super setUp];
 
-  [ChromeEarlGrey setBoolValue:YES
-                   forUserPref:translate::prefs::kOfferTranslateEnabled];
+  [ChromeEarlGrey setBoolValue:YES forUserPref:prefs::kOfferTranslateEnabled];
   [LanguageSettingsAppInterface removeAllLanguages];
   [LanguageSettingsAppInterface addLanguage:@"en"];
 }
@@ -201,10 +203,10 @@ id<GREYMatcher> SettingToolbarEditButton() {
 
   // Verify that the Translate switch is on and enabled. Toggle it off.
   [[EarlGrey
-      selectElementWithMatcher:TableViewSwitchCell(
+      selectElementWithMatcher:SettingsSwitchCell(
                                    kTranslateSwitchAccessibilityIdentifier, YES,
                                    YES)]
-      performAction:TurnTableViewSwitchOn(NO)];
+      performAction:TurnSettingsSwitchOn(NO)];
 
   // Verify the prefs are up-to-date.
   GREYAssertFalse([LanguageSettingsAppInterface offersTranslation],
@@ -221,10 +223,10 @@ id<GREYMatcher> SettingToolbarEditButton() {
 
   // Verify that the Translate switch is off and enabled. Toggle it on.
   [[EarlGrey
-      selectElementWithMatcher:TableViewSwitchCell(
+      selectElementWithMatcher:SettingsSwitchCell(
                                    kTranslateSwitchAccessibilityIdentifier, NO,
                                    YES)]
-      performAction:TurnTableViewSwitchOn(YES)];
+      performAction:TurnSettingsSwitchOn(YES)];
 
   // Verify the prefs are up-to-date.
   GREYAssertTrue([LanguageSettingsAppInterface offersTranslation],
@@ -493,7 +495,7 @@ id<GREYMatcher> SettingToolbarEditButton() {
   [ChromeEarlGreyUI tapSettingsMenuButton:LanguageSettingsButton()];
 
   // Switch on edit mode.
-  [[EarlGrey selectElementWithMatcher:SettingToolbarEditButton()]
+  [[EarlGrey selectElementWithMatcher:NavigationBarEditButton()]
       performAction:grey_tap()];
 
   // Verify that the Add Language button is disabled.
@@ -502,7 +504,7 @@ id<GREYMatcher> SettingToolbarEditButton() {
 
   // Verify that the Translate switch is on and disabled.
   [[EarlGrey
-      selectElementWithMatcher:TableViewSwitchCell(
+      selectElementWithMatcher:SettingsSwitchCell(
                                    kTranslateSwitchAccessibilityIdentifier, YES,
                                    NO)] assertWithMatcher:grey_notNil()];
 }

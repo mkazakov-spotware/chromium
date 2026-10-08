@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "base/mac/scoped_nsobject.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/base/cocoa/views_hostable.h"
 #include "ui/views/controls/native/native_view_host_wrapper.h"
 #include "ui/views/views_export.h"
@@ -32,10 +32,6 @@ class NativeViewHostMac : public NativeViewHostWrapper,
                           public ui::ViewsHostableView::Host {
  public:
   explicit NativeViewHostMac(NativeViewHost* host);
-
-  NativeViewHostMac(const NativeViewHostMac&) = delete;
-  NativeViewHostMac& operator=(const NativeViewHostMac&) = delete;
-
   ~NativeViewHostMac() override;
 
   // ViewsHostableView::Host:
@@ -62,7 +58,7 @@ class NativeViewHostMac : public NativeViewHostWrapper,
   void SetFocus() override;
   gfx::NativeView GetNativeViewContainer() const override;
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
-  ui::Cursor GetCursor(int x, int y) override;
+  gfx::NativeCursor GetCursor(int x, int y) override;
   void SetVisible(bool visible) override;
   void SetParentAccessible(gfx::NativeViewAccessible) override;
   gfx::NativeViewAccessible GetParentAccessible() override;
@@ -72,7 +68,7 @@ class NativeViewHostMac : public NativeViewHostWrapper,
   NativeWidgetMacNSWindowHost* GetNSWindowHost() const;
 
   // Our associated NativeViewHost. Owns this.
-  raw_ptr<NativeViewHost> host_;
+  NativeViewHost* host_;
 
   // Retain the native view as it may be destroyed at an unpredictable time.
   base::scoped_nsobject<NSView> native_view_;
@@ -80,7 +76,9 @@ class NativeViewHostMac : public NativeViewHostWrapper,
   // If |native_view| supports the ViewsHostable protocol, then this is the
   // the corresponding ViewsHostableView interface (which is implemeted only
   // by WebContents and tests).
-  raw_ptr<ui::ViewsHostableView> native_view_hostable_ = nullptr;
+  ui::ViewsHostableView* native_view_hostable_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeViewHostMac);
 };
 
 }  // namespace views

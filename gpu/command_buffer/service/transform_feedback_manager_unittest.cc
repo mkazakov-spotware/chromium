@@ -1,8 +1,6 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include <memory>
 
 #include "gpu/command_buffer/service/gpu_service_test.h"
 #include "gpu/command_buffer/service/test_helper.h"
@@ -30,8 +28,8 @@ class TransformFeedbackManagerTest : public GpuServiceTest {
   void SetUp() override {
     const GLuint kMaxTransformFeedbackSeparateAttribs = 16;
     GpuServiceTest::SetUpWithGLVersion("4.1", "");
-    manager_ = std::make_unique<TransformFeedbackManager>(
-        kMaxTransformFeedbackSeparateAttribs, true);
+    manager_.reset(new TransformFeedbackManager(
+        kMaxTransformFeedbackSeparateAttribs, true));
   }
 
   void TearDown() override {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Chromium Authors
+ * Copyright 2020 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -13,7 +13,7 @@ const kDetails = {
  * @param {string} method - The payment method identifier to check.
  * @return {string} - 'true', 'false', or error message on failure.
  */
-async function canMakePayment(method) {
+async function canMakePayment(method) { // eslint-disable-line no-unused-vars, max-len
   try {
     const request = new PaymentRequest([{supportedMethods: method}], kDetails);
     const result = await request.canMakePayment();
@@ -28,7 +28,7 @@ async function canMakePayment(method) {
  * @param {object} methodData - The payment method data to build the request.
  * @return {string} - 'true', 'false', or error message on failure.
  */
-async function canMakePaymentForMethodData(methodData) {
+async function canMakePaymentForMethodData(methodData) { // eslint-disable-line no-unused-vars, max-len
   try {
     const request = new PaymentRequest(methodData, kDetails);
     const result = await request.canMakePayment();
@@ -44,7 +44,7 @@ async function canMakePaymentForMethodData(methodData) {
  * @param {object} methodData - The payment method data to build the request.
  * @return {string} - 'true', 'false', or error message on failure.
  */
-async function canMakePaymentForMethodDataTwice(methodData) {
+async function canMakePaymentForMethodDataTwice(methodData) { // eslint-disable-line no-unused-vars, max-len
   try {
     const request = new PaymentRequest(methodData, kDetails);
     await request.canMakePayment(); // Discard first result.

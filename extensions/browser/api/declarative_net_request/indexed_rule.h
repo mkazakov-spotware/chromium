@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,11 @@
 
 #include <stdint.h>
 #include <string>
+#include <vector>
 
-#include "base/containers/flat_set.h"
+#include "base/macros.h"
 #include "components/url_pattern_index/flat/url_pattern_index_generated.h"
 #include "extensions/common/api/declarative_net_request.h"
-#include "extensions/common/api/declarative_net_request/constants.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 
@@ -26,18 +25,13 @@ enum class ParseResult;
 // UrlRule as specified by the url_pattern_index component.
 struct IndexedRule {
   IndexedRule();
-  IndexedRule(const IndexedRule&) = delete;
-  IndexedRule(IndexedRule&& other);
-
-  IndexedRule& operator=(const IndexedRule&) = delete;
-  IndexedRule& operator=(IndexedRule&& other);
-
   ~IndexedRule();
+  IndexedRule(IndexedRule&& other);
+  IndexedRule& operator=(IndexedRule&& other);
 
   static ParseResult CreateIndexedRule(
       extensions::api::declarative_net_request::Rule parsed_rule,
       const GURL& base_url,
-      RulesetID ruleset_id,
       IndexedRule* indexed_rule);
 
   api::declarative_net_request::RuleActionType action_type =
@@ -49,7 +43,6 @@ struct IndexedRule {
   uint32_t priority = 0;
   uint8_t options = url_pattern_index::flat::OptionFlag_NONE;
   uint16_t element_types = url_pattern_index::flat::ElementType_NONE;
-  uint16_t request_methods = url_pattern_index::flat::RequestMethod_NONE;
   uint8_t activation_types = url_pattern_index::flat::ActivationType_NONE;
   url_pattern_index::flat::UrlPatternType url_pattern_type =
       url_pattern_index::flat::UrlPatternType_SUBSTRING;
@@ -60,19 +53,17 @@ struct IndexedRule {
   std::string url_pattern;
 
   // Lower-cased and sorted as required by the url_pattern_index component.
-  std::vector<std::string> initiator_domains;
-  std::vector<std::string> excluded_initiator_domains;
-  std::vector<std::string> request_domains;
-  std::vector<std::string> excluded_request_domains;
+  std::vector<std::string> domains;
+  std::vector<std::string> excluded_domains;
 
   // Note: For redirect rules, exactly one of |redirect_url|,
   // |regex_substitution| or |url_transform|  will be set.
   // The redirect url for the rule.
-  absl::optional<std::string> redirect_url;
+  base::Optional<std::string> redirect_url;
   // The regex substitution for this rule.
-  absl::optional<std::string> regex_substitution;
+  base::Optional<std::string> regex_substitution;
   // UrlTransform for this rule.
-  absl::optional<api::declarative_net_request::URLTransform> url_transform;
+  std::unique_ptr<api::declarative_net_request::URLTransform> url_transform;
 
   // List of request headers to modify. Valid iff this is a modify headers rule.
   std::vector<api::declarative_net_request::ModifyHeaderInfo> request_headers;
@@ -81,11 +72,7 @@ struct IndexedRule {
   // rule.
   std::vector<api::declarative_net_request::ModifyHeaderInfo> response_headers;
 
-  // Set of tab IDs this rule applies to.
-  base::flat_set<int> tab_ids;
-
-  // Set of tab IDs this rule doesn't apply to.
-  base::flat_set<int> excluded_tab_ids;
+  DISALLOW_COPY_AND_ASSIGN(IndexedRule);
 };
 
 // Compute the rule priority for indexing, by combining the priority from

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/favicon/core/favicon_driver.h"
 #include "components/favicon/core/favicon_handler.h"
 
@@ -29,9 +29,6 @@ struct FaviconURL;
 class FaviconDriverImpl : public FaviconDriver,
                           public FaviconHandler::Delegate {
  public:
-  FaviconDriverImpl(const FaviconDriverImpl&) = delete;
-  FaviconDriverImpl& operator=(const FaviconDriverImpl&) = delete;
-
   // FaviconDriver implementation.
   void FetchFavicon(const GURL& page_url, bool is_same_document) override;
 
@@ -61,10 +58,12 @@ class FaviconDriverImpl : public FaviconDriver,
 
   // KeyedService used by FaviconDriverImpl. It may be null during testing,
   // but if it is defined, it must outlive the FaviconDriverImpl.
-  raw_ptr<CoreFaviconService> favicon_service_;
+  CoreFaviconService* favicon_service_;
 
   // FaviconHandlers used to download the different kind of favicons.
   std::vector<std::unique_ptr<FaviconHandler>> handlers_;
+
+  DISALLOW_COPY_AND_ASSIGN(FaviconDriverImpl);
 };
 
 }  // namespace favicon

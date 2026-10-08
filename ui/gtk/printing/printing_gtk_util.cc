@@ -1,18 +1,19 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/gtk/printing/printing_gtk_util.h"
 
-#include <string>
+#include <gtk/gtk.h>
+#include <gtk/gtkunixprint.h>
 
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
 #include "printing/print_settings.h"
 #include "printing/printing_context_linux.h"
 #include "printing/units.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/size_f.h"
-#include "ui/gtk/gtk_compat.h"
 
 namespace {
 
@@ -47,8 +48,8 @@ void InitPrintSettingsGtk(GtkPrintSettings* settings,
   DCHECK(print_settings);
 
   const char* printer_name = gtk_print_settings_get_printer(settings);
-  std::u16string name =
-      printer_name ? base::UTF8ToUTF16(printer_name) : std::u16string();
+  base::string16 name =
+      printer_name ? base::UTF8ToUTF16(printer_name) : base::string16();
   print_settings->set_device_name(name);
 
   gfx::Size physical_size_device_units;

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ package org.chromium.chrome.browser.crash;
 import android.annotation.SuppressLint;
 import android.content.Context;
 
-import org.chromium.base.ThreadUtils.ThreadChecker;
+import org.chromium.base.NonThreadSafe;
 import org.chromium.base.task.PostTask;
 import org.chromium.components.minidump_uploader.util.CrashReportingPermissionManager;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
@@ -25,7 +25,7 @@ class MinidumpUploadRetry implements NetworkChangeNotifier.ConnectionTypeObserve
     private static MinidumpUploadRetry sSingleton;
 
     private static class Scheduler implements Runnable {
-        private static ThreadChecker sThreadChecker;
+        private static NonThreadSafe sThreadCheck;
         private final Context mContext;
         private final CrashReportingPermissionManager mPermissionManager;
 
@@ -36,11 +36,11 @@ class MinidumpUploadRetry implements NetworkChangeNotifier.ConnectionTypeObserve
 
         @Override
         public void run() {
-            if (sThreadChecker == null) {
-                sThreadChecker = new ThreadChecker();
+            if (sThreadCheck == null) {
+                sThreadCheck = new NonThreadSafe();
             }
             // Make sure this is called on the same thread all the time.
-            sThreadChecker.assertOnValidThread();
+            assert sThreadCheck.calledOnValidThread();
             if (!NetworkChangeNotifier.isInitialized()) {
                 return;
             }

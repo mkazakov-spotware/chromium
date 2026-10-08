@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "remoting/host/client_session_control.h"
 #include "remoting/host/input_monitor/local_hotkey_input_monitor.h"
 #include "remoting/host/input_monitor/local_keyboard_input_monitor.h"
@@ -24,10 +24,6 @@ class LocalInputMonitorImpl : public LocalInputMonitor {
       scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner);
-
-  LocalInputMonitorImpl(const LocalInputMonitorImpl&) = delete;
-  LocalInputMonitorImpl& operator=(const LocalInputMonitorImpl&) = delete;
-
   ~LocalInputMonitorImpl() override;
 
   // LocalInputMonitor implementation.
@@ -50,6 +46,8 @@ class LocalInputMonitorImpl : public LocalInputMonitor {
 
   // Indicates whether the instance is actively monitoring local input.
   bool monitoring_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(LocalInputMonitorImpl);
 };
 
 LocalInputMonitorImpl::LocalInputMonitorImpl(

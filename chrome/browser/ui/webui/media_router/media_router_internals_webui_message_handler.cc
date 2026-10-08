@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,14 @@ namespace media_router {
 
 namespace {
 
-base::Value::List CastProviderStateToValue(
-    const mojom::CastProviderState& state) {
-  base::Value::List result;
+base::Value CastProviderStateToValue(const mojom::CastProviderState& state) {
+  base::Value result(base::Value::Type::LIST);
   for (const mojom::CastSessionStatePtr& session : state.session_state) {
-    base::Value::Dict session_value;
-    session_value.Set("sink_id", session->sink_id);
-    session_value.Set("app_id", session->app_id);
-    session_value.Set("session_id", session->session_id);
-    session_value.Set("route_description", session->route_description);
+    base::Value session_value(base::Value::Type::DICTIONARY);
+    session_value.SetStringKey("sink_id", session->sink_id);
+    session_value.SetStringKey("app_id", session->app_id);
+    session_value.SetStringKey("session_id", session->session_id);
+    session_value.SetStringKey("route_description", session->route_description);
     result.Append(std::move(session_value));
   }
   return result;
@@ -53,52 +52,48 @@ void MediaRouterInternalsWebUIMessageHandler::RegisterMessages() {
 }
 
 void MediaRouterInternalsWebUIMessageHandler::HandleGetState(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
-  const base::Value& callback_id = args[0];
+  const base::Value& callback_id = args->GetList()[0];
   ResolveJavascriptCallback(callback_id, router_->GetState());
 }
 
 void MediaRouterInternalsWebUIMessageHandler::HandleGetProviderState(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
-  base::Value callback_id = args[0].Clone();
-  if (args.size() != 2 || !args[1].is_string()) {
+  base::Value callback_id = args->GetList()[0].Clone();
+  if (args->GetList().size() != 2 || !args->GetList()[1].is_string()) {
     RejectJavascriptCallback(callback_id, base::Value("Invalid arguments"));
-    return;
   }
 
-  absl::optional<mojom::MediaRouteProviderId> provider_id =
-      ProviderIdFromString(args[1].GetString());
-  if (!provider_id) {
+  MediaRouteProviderId provider_id =
+      ProviderIdFromString(args->GetList()[1].GetString());
+  if (provider_id == MediaRouteProviderId::UNKNOWN) {
     RejectJavascriptCallback(callback_id,
                              base::Value("Unknown MediaRouteProviderId"));
-    return;
   }
   router_->GetProviderState(
-      *provider_id,
+      provider_id,
       base::BindOnce(&MediaRouterInternalsWebUIMessageHandler::OnProviderState,
                      weak_factory_.GetWeakPtr(), std::move(callback_id)));
 }
 
 void MediaRouterInternalsWebUIMessageHandler::HandleGetLogs(
-    const base::Value::List& args) {
+    const base::ListValue* args) {
   AllowJavascript();
-  const base::Value& callback_id = args[0];
+  const base::Value& callback_id = args->GetList()[0];
   ResolveJavascriptCallback(callback_id, router_->GetLogs());
 }
 
 void MediaRouterInternalsWebUIMessageHandler::OnProviderState(
     base::Value callback_id,
     mojom::ProviderStatePtr state) {
+  base::Value result;
   if (state && state->is_cast_provider_state() &&
       state->get_cast_provider_state()) {
-    ResolveJavascriptCallback(
-        callback_id,
-        CastProviderStateToValue(*(state->get_cast_provider_state())));
-  } else {
-    ResolveJavascriptCallback(callback_id, base::Value());
+    result = CastProviderStateToValue(*(state->get_cast_provider_state()));
   }
+  ResolveJavascriptCallback(callback_id, result);
 }
 
 }  // namespace media_router

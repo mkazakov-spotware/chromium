@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import org.json.JSONException;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.StrictModeContext;
-import org.chromium.chrome.browser.browserservices.intents.WebApkShareTarget;
 import org.chromium.net.MimeTypeFilter;
 
 import java.util.ArrayList;
@@ -74,8 +73,8 @@ public class WebApkShareTargetUtil {
             try (Cursor cursor = ContextUtils.getApplicationContext().getContentResolver().query(
                          uri, null, null, null, null)) {
                 if (cursor != null && cursor.moveToFirst()) {
-                    String result = cursor.getString(
-                            cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME));
+                    String result =
+                            cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
                     if (result != null) {
                         return result;
                     }

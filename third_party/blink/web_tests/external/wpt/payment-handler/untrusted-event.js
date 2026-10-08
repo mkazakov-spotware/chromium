@@ -6,23 +6,23 @@ self.addEventListener('message', e => {
   if (e.data == 'paymentrequest') {
     self.dispatchEvent(new PaymentRequestEvent('paymentrequest', {
       methodData: [{
-        supportedMethods: 'https://example.com/pay'
+        supportedMethods: 'basic-card'
       }],
       total: {
         currency: 'USD',
         value: '100'
       },
       modifiers: [{
-        supportedMethods: 'https://example.com/pay'
+        supportedMethods: 'basic-card'
       }]
     }));
   } else if (e.data == 'canmakepayment') {
     self.dispatchEvent(new CanMakePaymentEvent('canmakepayment', {
       methodData: [{
-        supportedMethods: 'https://example.com/pay'
+        supportedMethods: 'basic-card'
       }],
       modifiers: [{
-        supportedMethods: 'https://example.com/pay'
+        supportedMethods: 'basic-card'
       }]
     }));
   }

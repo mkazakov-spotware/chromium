@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "build/branding_buildflags.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -124,7 +123,7 @@ class ChromeCleanerRebootFlowTest : public InProcessBrowserTest {
   StrictMock<MockChromeCleanerController> mock_cleaner_controller_;
   std::unique_ptr<MockPromptDelegate> mock_prompt_delegate_;
 
-  raw_ptr<ChromeCleanerRebootDialogControllerImpl> dialog_controller_ = nullptr;
+  ChromeCleanerRebootDialogControllerImpl* dialog_controller_ = nullptr;
   bool close_required_ = false;
   bool reboot_prompt_started_ = false;
   std::unique_ptr<base::RunLoop> run_loop_;

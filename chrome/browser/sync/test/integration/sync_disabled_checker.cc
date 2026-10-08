@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync/test/integration/sync_disabled_checker.h"
 
-SyncDisabledChecker::SyncDisabledChecker(syncer::SyncServiceImpl* service)
+SyncDisabledChecker::SyncDisabledChecker(syncer::ProfileSyncService* service)
     : SingleClientStatusChangeChecker(service) {}
 
 SyncDisabledChecker::~SyncDisabledChecker() = default;

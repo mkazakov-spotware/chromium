@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,14 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/files/file_error_or.h"
 #include "base/files/file_path.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/types/pass_key.h"
+#include "base/sequenced_task_runner.h"
+#include "base/util/type_safety/pass_key.h"
+#include "components/services/storage/public/cpp/filesystem/file_error_or.h"
 #include "components/services/storage/public/mojom/filesystem/directory.mojom.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace storage {
 
@@ -80,14 +79,14 @@ class COMPONENT_EXPORT(STORAGE_SERVICE_FILESYSTEM_SUPPORT) FilesystemProxy {
     kFilesOnly,
     kFilesAndDirectories,
   };
-  base::FileErrorOr<std::vector<base::FilePath>> GetDirectoryEntries(
+  FileErrorOr<std::vector<base::FilePath>> GetDirectoryEntries(
       const base::FilePath& path,
       DirectoryEntryType type);
 
   // Opens a file at |path| with the given |flags|. If successful, the newly
   // opened file is returned. |flags| may be any bitwise union of
   // base::File::Flags values.
-  base::FileErrorOr<base::File> OpenFile(const base::FilePath& path, int flags);
+  FileErrorOr<base::File> OpenFile(const base::FilePath& path, int flags);
 
   // Writes a file atomically using the ImportantFileWriter.
   bool WriteFileAtomically(const base::FilePath& path,
@@ -108,7 +107,7 @@ class COMPONENT_EXPORT(STORAGE_SERVICE_FILESYSTEM_SUPPORT) FilesystemProxy {
 
   // Retrieves information about a file or directory at |path|. Returns a valid
   // base::File::Info value on success, or null on failure.
-  absl::optional<base::File::Info> GetFileInfo(const base::FilePath& path);
+  base::Optional<base::File::Info> GetFileInfo(const base::FilePath& path);
 
   // Retrieves information about access rights for a path in the filesystem.
   // Returns a valid PathAccessInfo on success, or null on failure.
@@ -116,11 +115,11 @@ class COMPONENT_EXPORT(STORAGE_SERVICE_FILESYSTEM_SUPPORT) FilesystemProxy {
     bool can_read = false;
     bool can_write = false;
   };
-  absl::optional<PathAccessInfo> GetPathAccess(const base::FilePath& path);
+  base::Optional<PathAccessInfo> GetPathAccess(const base::FilePath& path);
 
   // Returns the maximum length of path component on the volume containing the
   // directory |path|, in the number of FilePath::CharType, or -1 on failure.
-  absl::optional<int> GetMaximumPathComponentLength(const base::FilePath& path);
+  base::Optional<int> GetMaximumPathComponentLength(const base::FilePath& path);
 
   // Renames a file from |old_path| to |new_path|. Must be atomic.
   base::File::Error RenameFile(const base::FilePath& old_path,
@@ -139,8 +138,7 @@ class COMPONENT_EXPORT(STORAGE_SERVICE_FILESYSTEM_SUPPORT) FilesystemProxy {
     // no-op.
     virtual base::File::Error Release() = 0;
   };
-  base::FileErrorOr<std::unique_ptr<FileLock>> LockFile(
-      const base::FilePath& path);
+  FileErrorOr<std::unique_ptr<FileLock>> LockFile(const base::FilePath& path);
 
   // Sets the length of the given file to |length| bytes.
   bool SetOpenedFileLength(base::File* file, uint64_t length);

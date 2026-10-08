@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,17 +22,24 @@ public class AudioFocusGrabberActivity extends Activity {
 
     public void onButtonClicked(View view) {
         Intent intent = new Intent(this, AudioFocusGrabberListenerService.class);
-        int viewId = view.getId();
-        if (viewId == R.id.button_gain) {
-            intent.setAction(AudioFocusGrabberListenerService.ACTION_GAIN);
-        } else if (viewId == R.id.button_transient_pause) {
-            intent.setAction(AudioFocusGrabberListenerService.ACTION_TRANSIENT_PAUSE);
-        } else if (viewId == R.id.button_transient_duck) {
-            intent.setAction(AudioFocusGrabberListenerService.ACTION_TRANSIENT_DUCK);
-        } else if (viewId == R.id.button_show_notification) {
-            intent.setAction(AudioFocusGrabberListenerService.ACTION_SHOW_NOTIFICATION);
-        } else if (viewId == R.id.button_hide_notification) {
-            intent.setAction(AudioFocusGrabberListenerService.ACTION_HIDE_NOTIFICATION);
+        switch (view.getId()) {
+            case R.id.button_gain:
+                intent.setAction(AudioFocusGrabberListenerService.ACTION_GAIN);
+                break;
+            case R.id.button_transient_pause:
+                intent.setAction(AudioFocusGrabberListenerService.ACTION_TRANSIENT_PAUSE);
+                break;
+            case R.id.button_transient_duck:
+                intent.setAction(AudioFocusGrabberListenerService.ACTION_TRANSIENT_DUCK);
+                break;
+            case R.id.button_show_notification:
+                intent.setAction(AudioFocusGrabberListenerService.ACTION_SHOW_NOTIFICATION);
+                break;
+            case R.id.button_hide_notification:
+                intent.setAction(AudioFocusGrabberListenerService.ACTION_HIDE_NOTIFICATION);
+                break;
+            default:
+                break;
         }
         startService(intent);
     }

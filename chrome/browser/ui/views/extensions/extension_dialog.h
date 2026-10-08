@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,15 @@
 #define CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSION_DIALOG_H_
 
 #include <memory>
-#include <string>
 
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/scoped_observation.h"
-#include "build/chromeos_buildflags.h"
-#include "extensions/browser/extension_host.h"
-#include "extensions/browser/extension_host_observer.h"
-#include "extensions/browser/process_manager.h"
-#include "extensions/browser/process_manager_observer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/color/color_id.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
+#include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/window/dialog_delegate.h"
 
@@ -39,8 +35,7 @@ class ExtensionViewHost;
 // Dialog is automatically centered in the owning window and has fixed size.
 // For example, used by the Chrome OS file browser.
 class ExtensionDialog : public views::DialogDelegate,
-                        public extensions::ExtensionHostObserver,
-                        public extensions::ProcessManagerObserver,
+                        public content::NotificationObserver,
                         public base::RefCounted<ExtensionDialog> {
  public:
   struct InitParams {
@@ -59,20 +54,16 @@ class ExtensionDialog : public views::DialogDelegate,
     gfx::Size min_size;
 
     // Text for the dialog title, it should be already localized.
-    std::u16string title;
+    base::string16 title;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
     // |title_color| customizes the color of the window title.
-    absl::optional<ui::ColorId> title_color;
+    base::Optional<SkColor> title_color;
     // |title_inactive_color| customizes the color of the window title when
     // window is inactive.
-    absl::optional<ui::ColorId> title_inactive_color;
+    base::Optional<SkColor> title_inactive_color;
 #endif
   };
-
-  ExtensionDialog(const ExtensionDialog&) = delete;
-  ExtensionDialog& operator=(const ExtensionDialog&) = delete;
-
   // Create and show a dialog with |url| centered over the provided window.
   // |parent_window| is the parent window to which the pop-up will be attached.
   // |profile| is the profile that the extension is registered with.
@@ -88,22 +79,26 @@ class ExtensionDialog : public views::DialogDelegate,
   // be sent notifications.
   void ObserverDestroyed();
 
-  // Focus to the renderer if possible.
-  void MaybeFocusRenderer();
+  // Focus to the render view if possible.
+  void MaybeFocusRenderView();
 
   // Sets minimum contents size in pixels and makes the window resizable.
   void SetMinimumContentsSize(int width, int height);
 
   extensions::ExtensionViewHost* host() const { return host_.get(); }
 
-  // extensions::ExtensionHostObserver:
-  void OnExtensionHostDidStopFirstLoad(
-      const extensions::ExtensionHost* host) override;
+  // views::DialogDelegate:
+  ui::ModalType GetModalType() const override;
+  void WindowClosing() override;
+  void DeleteDelegate() override;
+  views::Widget* GetWidget() override;
+  const views::Widget* GetWidget() const override;
+  views::View* GetContentsView() override;
 
-  // extensions::ProcessManagerObserver:
-  void OnExtensionProcessTerminated(
-      const extensions::Extension* extension) override;
-  void OnProcessManagerShutdown(extensions::ProcessManager* manager) override;
+  // content::NotificationObserver:
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
  protected:
   ~ExtensionDialog() override;
@@ -117,29 +112,20 @@ class ExtensionDialog : public views::DialogDelegate,
                   gfx::NativeWindow parent_window,
                   const InitParams& init_params);
 
-  void OnWindowClosing();
-
-  // Handles a signal from the `host` to close.
-  void HandleCloseExtensionHost(extensions::ExtensionHost* host);
-
   // Window Title
-  std::u16string window_title_;
+  base::string16 window_title_;
 
   // The contained host for the view.
   std::unique_ptr<extensions::ExtensionViewHost> host_;
 
-  raw_ptr<ExtensionViewViews> extension_view_ = nullptr;
+  ExtensionViewViews* extension_view_ = nullptr;
 
-  base::ScopedObservation<extensions::ExtensionHost,
-                          extensions::ExtensionHostObserver>
-      extension_host_observation_{this};
-
-  base::ScopedObservation<extensions::ProcessManager,
-                          extensions::ProcessManagerObserver>
-      process_manager_observation_{this};
+  content::NotificationRegistrar registrar_;
 
   // The observer of this popup.
-  raw_ptr<ExtensionDialogObserver> observer_;
+  ExtensionDialogObserver* observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionDialog);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSION_DIALOG_H_

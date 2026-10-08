@@ -1,16 +1,16 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/tabs/tab_strip_model_stats_recorder.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/check.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/supports_user_data.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -115,7 +115,8 @@ void TabStripModelStatsRecorder::OnActiveTabChanged(
   // A UMA Histogram must be bounded by some number.
   // We chose 64 as our bound as 99.5% of the users open <64 tabs.
   const int kMaxTabHistory = 64;
-  auto it = base::ranges::find(active_tab_history_, new_contents);
+  auto it = std::find(active_tab_history_.cbegin(), active_tab_history_.cend(),
+                      new_contents);
   int age = (it != active_tab_history_.cend()) ?
       (it - active_tab_history_.cbegin()) : (kMaxTabHistory - 1);
   if (was_inactive) {
@@ -143,11 +144,10 @@ void TabStripModelStatsRecorder::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-  if (change.type() == TabStripModelChange::kRemoved) {
-    for (const auto& contents : change.GetRemove()->contents) {
-      if (contents.remove_reason == TabStripModelChange::RemoveReason::kDeleted)
-        OnTabClosing(contents.contents);
-    }
+  if (change.type() == TabStripModelChange::kRemoved &&
+      change.GetRemove()->will_be_deleted) {
+    for (const auto& contents : change.GetRemove()->contents)
+      OnTabClosing(contents.contents);
   } else if (change.type() == TabStripModelChange::kReplaced) {
     auto* replace = change.GetReplace();
     OnTabReplaced(replace->old_contents, replace->new_contents);

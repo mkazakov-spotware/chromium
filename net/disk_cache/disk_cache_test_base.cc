@@ -1,18 +1,18 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/disk_cache/disk_cache_test_base.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/base/request_priority.h"
@@ -60,7 +60,7 @@ bool DiskCacheTest::CleanupCacheDir() {
 }
 
 void DiskCacheTest::TearDown() {
-  RunUntilIdle();
+  base::RunLoop().RunUntilIdle();
 }
 
 DiskCacheTestWithCache::TestIterator::TestIterator(
@@ -79,7 +79,21 @@ int DiskCacheTestWithCache::TestIterator::OpenNextEntry(
   return rv;
 }
 
-DiskCacheTestWithCache::DiskCacheTestWithCache() = default;
+DiskCacheTestWithCache::DiskCacheTestWithCache()
+    : cache_impl_(nullptr),
+      simple_cache_impl_(nullptr),
+      mem_cache_(nullptr),
+      mask_(0),
+      size_(0),
+      type_(net::DISK_CACHE),
+      memory_only_(false),
+      simple_cache_mode_(false),
+      simple_cache_wait_for_index_(true),
+      force_creation_(false),
+      new_eviction_(false),
+      first_cleanup_(true),
+      integrity_(true),
+      use_current_thread_(false) {}
 
 DiskCacheTestWithCache::~DiskCacheTestWithCache() = default;
 
@@ -215,7 +229,8 @@ int64_t DiskCacheTestWithCache::CalculateSizeOfEntriesBetween(
 
 std::unique_ptr<DiskCacheTestWithCache::TestIterator>
 DiskCacheTestWithCache::CreateIterator() {
-  return std::make_unique<TestIterator>(cache_->CreateIterator());
+  return std::unique_ptr<TestIterator>(
+      new TestIterator(cache_->CreateIterator()));
 }
 
 void DiskCacheTestWithCache::FlushQueueForTest() {
@@ -223,7 +238,7 @@ void DiskCacheTestWithCache::FlushQueueForTest() {
     return;
 
   if (simple_cache_impl_) {
-    disk_cache::FlushCacheThreadForTesting();
+    simple_cache_impl_->FlushWorkerPoolForTesting();
     return;
   }
 
@@ -287,15 +302,9 @@ int DiskCacheTestWithCache::GetAvailableRange(disk_cache::Entry* entry,
                                               int64_t offset,
                                               int len,
                                               int64_t* start) {
-  TestRangeResultCompletionCallback cb;
-  disk_cache::RangeResult result =
-      cb.GetResult(entry->GetAvailableRange(offset, len, cb.callback()));
-
-  if (result.net_error == net::OK) {
-    *start = result.start;
-    return result.available_len;
-  }
-  return result.net_error;
+  net::TestCompletionCallback cb;
+  int rv = entry->GetAvailableRange(offset, len, start, cb.callback());
+  return cb.GetResult(rv);
 }
 
 void DiskCacheTestWithCache::TrimForTest(bool empty) {
@@ -323,12 +332,13 @@ void DiskCacheTestWithCache::AddDelay() {
     const base::Time initial_time = base::Time::Now();
     do {
       base::PlatformThread::YieldCurrentThread();
-    } while (base::Time::Now() - initial_time < base::Seconds(1));
+    } while (base::Time::Now() - initial_time <
+             base::TimeDelta::FromSeconds(1));
   }
 
   base::Time initial = base::Time::Now();
   while (base::Time::Now() <= initial) {
-    base::PlatformThread::Sleep(base::Milliseconds(1));
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(1));
   };
 }
 
@@ -351,9 +361,8 @@ void DiskCacheTestWithCache::TearDown() {
 }
 
 void DiskCacheTestWithCache::InitMemoryCache() {
-  auto cache = std::make_unique<disk_cache::MemBackendImpl>(nullptr);
-  mem_cache_ = cache.get();
-  cache_ = std::move(cache);
+  mem_cache_ = new disk_cache::MemBackendImpl(nullptr);
+  cache_.reset(mem_cache_);
   ASSERT_TRUE(cache_);
 
   if (size_)
@@ -372,7 +381,7 @@ void DiskCacheTestWithCache::InitDiskCache() {
 void DiskCacheTestWithCache::CreateBackend(uint32_t flags) {
   scoped_refptr<base::SingleThreadTaskRunner> runner;
   if (use_current_thread_)
-    runner = base::SingleThreadTaskRunner::GetCurrentDefault();
+    runner = base::ThreadTaskRunnerHandle::Get();
   else
     runner = nullptr;  // let the backend sort it out.
 
@@ -387,35 +396,30 @@ void DiskCacheTestWithCache::CreateBackend(uint32_t flags) {
           std::make_unique<disk_cache::SimpleFileTracker>(64);
     std::unique_ptr<disk_cache::SimpleBackendImpl> simple_backend =
         std::make_unique<disk_cache::SimpleBackendImpl>(
-            /*file_operations=*/nullptr, cache_path_,
-            /* cleanup_tracker = */ nullptr, simple_file_tracker_.get(), size_,
-            type_, /*net_log = */ nullptr);
-    simple_backend->Init(cb.callback());
-    ASSERT_THAT(cb.WaitForResult(), IsOk());
+            cache_path_, /* cleanup_tracker = */ nullptr,
+            simple_file_tracker_.get(), size_, type_, /*net_log = */ nullptr);
+    int rv = simple_backend->Init(cb.callback());
+    ASSERT_THAT(cb.GetResult(rv), IsOk());
     simple_cache_impl_ = simple_backend.get();
     cache_ = std::move(simple_backend);
     if (simple_cache_wait_for_index_) {
       net::TestCompletionCallback wait_for_index_cb;
       simple_cache_impl_->index()->ExecuteWhenReady(
           wait_for_index_cb.callback());
-      int rv = wait_for_index_cb.WaitForResult();
+      rv = wait_for_index_cb.WaitForResult();
       ASSERT_THAT(rv, IsOk());
     }
     return;
   }
 
-  std::unique_ptr<disk_cache::BackendImpl> cache;
-  if (mask_) {
-    cache = std::make_unique<disk_cache::BackendImpl>(cache_path_, mask_,
-                                                      runner, type_,
-                                                      /* net_log = */ nullptr);
-  } else {
-    cache = std::make_unique<disk_cache::BackendImpl>(
+  if (mask_)
+    cache_impl_ = new disk_cache::BackendImpl(cache_path_, mask_, runner, type_,
+                                              /* net_log = */ nullptr);
+  else
+    cache_impl_ = new disk_cache::BackendImpl(
         cache_path_, /* cleanup_tracker = */ nullptr, runner, type_,
         /* net_log = */ nullptr);
-  }
-  cache_impl_ = cache.get();
-  cache_ = std::move(cache);
+  cache_.reset(cache_impl_);
   ASSERT_TRUE(cache_);
   if (size_)
     EXPECT_TRUE(cache_impl_->SetMaxSize(size_));
@@ -423,6 +427,6 @@ void DiskCacheTestWithCache::CreateBackend(uint32_t flags) {
     cache_impl_->SetNewEviction();
   cache_impl_->SetFlags(flags);
   net::TestCompletionCallback cb;
-  cache_impl_->Init(cb.callback());
-  ASSERT_THAT(cb.WaitForResult(), IsOk());
+  int rv = cache_impl_->Init(cb.callback());
+  ASSERT_THAT(cb.GetResult(rv), IsOk());
 }

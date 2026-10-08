@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <ostream>
 #include <type_traits>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace updater {
 
@@ -37,19 +37,19 @@ namespace updater {
 template <typename T>
 struct EnumTraits {};
 
-// Returns an optional value of an enum type T if the conversion from an
+// Returns an optional value of an enun type T if the conversion from an
 // integral type V is safe, meaning that |v| is within the bounds of the enum.
 // The enum type must be annotated with traits to specify the lower and upper
 // bounds of the enum values.
 template <typename T, typename V>
-absl::optional<T> CheckedCastToEnum(V v) {
+base::Optional<T> CheckedCastToEnum(V v) {
   static_assert(std::is_enum<T>::value, "T must be an enum type.");
   static_assert(std::is_integral<V>::value, "V must be an integral type.");
   using Traits = EnumTraits<T>;
   return (static_cast<V>(Traits::first_elem) <= v &&
           v <= static_cast<V>(Traits::last_elem))
-             ? absl::make_optional(static_cast<T>(v))
-             : absl::nullopt;
+             ? base::make_optional(static_cast<T>(v))
+             : base::nullopt;
 }
 
 }  // namespace updater

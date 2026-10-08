@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/public/media/cast_decoder_buffer.h"
 #include "media/base/timestamp_constants.h"
 
@@ -64,7 +64,7 @@ MediaPipelineBackend::BufferStatus MediaSinkDesktop::PushBuffer(
   //    Those tests are wrong should be fixed.
   // TODO(alokp): Fix these issues when the next version of CMA backend is
   // scheduled to roll out. crbug.com/678394
-  auto timestamp = base::Microseconds(buffer->timestamp());
+  auto timestamp = base::TimeDelta::FromMicroseconds(buffer->timestamp());
   if (timestamp != ::media::kNoTimestamp) {
     last_frame_pts_ = timestamp;
     time_interpolator_.SetUpperBound(last_frame_pts_);
@@ -84,7 +84,7 @@ void MediaSinkDesktop::ScheduleEndOfStreamTask() {
       base::BindOnce(&MediaPipelineBackend::Decoder::Delegate::OnEndOfStream,
                      base::Unretained(delegate_)));
   base::TimeDelta delay = (last_frame_pts_ - GetCurrentPts()) / playback_rate_;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, eos_task_.callback(), delay);
 }
 

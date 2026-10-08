@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,13 +36,13 @@ import org.robolectric.shadows.ShadowLog;
 import org.chromium.android_webview.AwDisplayCutoutController;
 import org.chromium.android_webview.AwDisplayCutoutController.Insets;
 import org.chromium.base.Log;
-import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
+import org.chromium.testing.local.LocalRobolectricTestRunner;
 
 /**
  * JUnit tests for AwDisplayCutoutController.
  */
-@RunWith(BaseRobolectricTestRunner.class)
+@RunWith(LocalRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class AwDisplayCutoutControllerTest {
     private static final String TAG = "DisplayCutoutTest";
@@ -93,8 +93,24 @@ public class AwDisplayCutoutControllerTest {
         // Set up default values.
         setWindowInsets(new Rect(20, 40, 60, 80));
         mDipScale = 2.0f;
+        mViewWidth = 300;
+        mViewHeight = 400;
+        mDisplayWidth = 300;
+        mDisplayHeight = 400;
+        mGlobalTransformMatrix = new Matrix(); // identity matrix
 
         // Set up the view.
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                int[] loc = (int[]) (invocation.getArguments()[0]);
+                loc[0] = mLocationOnScreen[0];
+                loc[1] = mLocationOnScreen[1];
+                return null;
+            }
+        })
+                .when(mView)
+                .getLocationOnScreen(any(int[].class));
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -114,8 +130,39 @@ public class AwDisplayCutoutControllerTest {
                 .when(mView)
                 .requestApplyInsets();
 
+        when(mView.getMeasuredWidth()).thenReturn(mViewWidth);
+        when(mView.getMeasuredHeight()).thenReturn(mViewHeight);
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Matrix matrix = (Matrix) (invocation.getArguments()[0]);
+                matrix.set(mGlobalTransformMatrix);
+                return null;
+            }
+        })
+                .when(mView)
+                .transformMatrixToGlobal(any(Matrix.class));
+
+        // Set up the root view.
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                int[] loc = (int[]) (invocation.getArguments()[0]);
+                loc[0] = mLocationOnScreen[0];
+                loc[1] = mLocationOnScreen[1];
+                return null;
+            }
+        })
+                .when(mRootView)
+                .getLocationOnScreen(any(int[].class));
+        when(mRootView.getMeasuredWidth()).thenReturn(mViewWidth);
+        when(mRootView.getMeasuredHeight()).thenReturn(mViewHeight);
+        when(mView.getRootView()).thenReturn(mRootView);
+
         // Set up the delegate.
         when(mDelegate.getDipScale()).thenReturn(mDipScale);
+        when(mDelegate.getDisplayWidth()).thenReturn(mDisplayWidth);
+        when(mDelegate.getDisplayHeight()).thenReturn(mDisplayHeight);
 
         mInOrder = inOrder(mDelegate, mView, mAnotherView);
 
@@ -148,10 +195,68 @@ public class AwDisplayCutoutControllerTest {
     public void testOnApplyWindowInsets() {
         mController.onApplyWindowInsets(mWindowInsets);
 
+        mInOrder.verify(mView).getLocationOnScreen(any(int[].class));
+        mInOrder.verify(mView).getMeasuredWidth();
+        mInOrder.verify(mView).getMeasuredHeight();
+        mInOrder.verify(mDelegate).getDisplayWidth();
+        mInOrder.verify(mDelegate).getDisplayHeight();
         mInOrder.verify(mDelegate).getDipScale();
 
         // Note that DIP of 2.0 is applied, so the values are halved.
         mInOrder.verify(mDelegate).setDisplayCutoutSafeArea(eq(new Insets(10, 20, 30, 40)));
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView"})
+    public void testOnApplyWindowInsets_NotOccupyingFullDisplay() {
+        // View is not occupying the entire display, so no insets applied.
+        when(mView.getMeasuredHeight()).thenReturn(mDisplayHeight / 2);
+
+        mController.onApplyWindowInsets(mWindowInsets);
+
+        mInOrder.verify(mView).getLocationOnScreen(any(int[].class));
+        mInOrder.verify(mView).getMeasuredWidth();
+        mInOrder.verify(mView).getMeasuredHeight();
+        mInOrder.verify(mDelegate).getDisplayWidth();
+        mInOrder.verify(mDelegate).getDisplayHeight();
+
+        mInOrder.verify(mDelegate).setDisplayCutoutSafeArea(eq(new Insets(0, 0, 0, 0)));
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView"})
+    public void testOnApplyWindowInsets_NotOccupyingFullWindow() {
+        // View is not occupying the entire window, so no insets applied.
+        when(mRootView.getMeasuredHeight()).thenReturn(mViewHeight / 2);
+
+        mController.onApplyWindowInsets(mWindowInsets);
+
+        mInOrder.verify(mView).getLocationOnScreen(any(int[].class));
+        mInOrder.verify(mView).getMeasuredWidth();
+        mInOrder.verify(mView).getMeasuredHeight();
+        mInOrder.verify(mDelegate).getDisplayWidth();
+        mInOrder.verify(mDelegate).getDisplayHeight();
+
+        mInOrder.verify(mDelegate).setDisplayCutoutSafeArea(eq(new Insets(0, 0, 0, 0)));
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView"})
+    public void testOnApplyWindowInsets_ParentLayoutRotated() {
+        mGlobalTransformMatrix.postRotate(30.0f);
+
+        mController.onApplyWindowInsets(mWindowInsets);
+
+        mInOrder.verify(mView).getLocationOnScreen(any(int[].class));
+        mInOrder.verify(mView).getMeasuredWidth();
+        mInOrder.verify(mView).getMeasuredHeight();
+        mInOrder.verify(mDelegate).getDisplayWidth();
+        mInOrder.verify(mDelegate).getDisplayHeight();
+
+        mInOrder.verify(mDelegate).setDisplayCutoutSafeArea(eq(new Insets(0, 0, 0, 0)));
     }
 
     @Test
@@ -162,6 +267,11 @@ public class AwDisplayCutoutControllerTest {
 
         mInOrder.verify(mView).requestApplyInsets();
 
+        mInOrder.verify(mView).getLocationOnScreen(any(int[].class));
+        mInOrder.verify(mView).getMeasuredWidth();
+        mInOrder.verify(mView).getMeasuredHeight();
+        mInOrder.verify(mDelegate).getDisplayWidth();
+        mInOrder.verify(mDelegate).getDisplayHeight();
         mInOrder.verify(mDelegate).getDipScale();
 
         // Note that DIP of 2.0 is applied, so the values are halved.
@@ -176,6 +286,11 @@ public class AwDisplayCutoutControllerTest {
 
         mInOrder.verify(mView).requestApplyInsets();
 
+        mInOrder.verify(mView).getLocationOnScreen(any(int[].class));
+        mInOrder.verify(mView).getMeasuredWidth();
+        mInOrder.verify(mView).getMeasuredHeight();
+        mInOrder.verify(mDelegate).getDisplayWidth();
+        mInOrder.verify(mDelegate).getDisplayHeight();
         mInOrder.verify(mDelegate).getDipScale();
 
         // Note that DIP of 2.0 is applied, so the values are halved.

@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -136,11 +136,16 @@ source_set("unit_tests") {
     "titled_url_match_unittest.cc",
   ]
 
+  if (toolkit_views) {
+    sources += [ "bookmark_node_data_unittest.cc" ]
+  }
+
+  configs += [ "//build/config/compiler:no_size_t_to_int_warning" ]
+
   deps = [
     ":browser",
     ":unit_tests_bundle_data",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//components/bookmarks/common",
     "//components/bookmarks/test",
     "//components/favicon_base",
@@ -154,11 +159,6 @@ source_set("unit_tests") {
     "//ui/base/clipboard",
     "//url",
   ]
-
-  if (toolkit_views) {
-    sources += [ "bookmark_node_data_unittest.cc" ]
-    deps += [ "//build:chromeos_buildflags" ]
-  }
 }
 
 # The fuzzer depends on code that is not built on Mac.

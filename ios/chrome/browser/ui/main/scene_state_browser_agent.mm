@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,16 @@
 #endif
 
 BROWSER_USER_DATA_KEY_IMPL(SceneStateBrowserAgent)
+
+void SceneStateBrowserAgent::CreateForBrowser(Browser* browser,
+                                              SceneState* scene_state) {
+  DCHECK(browser);
+  if (!FromBrowser(browser)) {
+    browser->SetUserData(
+        UserDataKey(),
+        base::WrapUnique(new SceneStateBrowserAgent(browser, scene_state)));
+  }
+}
 
 SceneStateBrowserAgent::~SceneStateBrowserAgent() {}
 

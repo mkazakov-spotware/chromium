@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "snapshot/annotation_snapshot.h"
 #include "snapshot/mac/process_types.h"
 
@@ -57,10 +58,6 @@ class MachOImageAnnotationsReader {
                               const MachOImageReader* image_reader,
                               const std::string& name);
 
-  MachOImageAnnotationsReader(const MachOImageAnnotationsReader&) = delete;
-  MachOImageAnnotationsReader& operator=(const MachOImageAnnotationsReader&) =
-      delete;
-
   ~MachOImageAnnotationsReader() {}
 
   //! \brief Returns the module’s annotations that are organized as a vector of
@@ -96,6 +93,8 @@ class MachOImageAnnotationsReader {
   std::string name_;
   ProcessReaderMac* process_reader_;  // weak
   const MachOImageReader* image_reader_;  // weak
+
+  DISALLOW_COPY_AND_ASSIGN(MachOImageAnnotationsReader);
 };
 
 }  // namespace crashpad

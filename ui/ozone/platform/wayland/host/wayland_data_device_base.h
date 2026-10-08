@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,9 @@
 
 #include "base/callback.h"
 #include "base/files/scoped_file.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_offer_base.h"
-#include "ui/ozone/public/platform_clipboard.h"
 
 namespace ui {
 
@@ -21,28 +20,14 @@ class WaylandConnection;
 // Implements high level (protocol-agnostic) interface to a Wayland data device.
 class WaylandDataDeviceBase {
  public:
-  using SelectionOfferCallback =
-      base::RepeatingCallback<void(WaylandDataOfferBase*)>;
-
   explicit WaylandDataDeviceBase(WaylandConnection* connection);
-
-  WaylandDataDeviceBase(const WaylandDataDeviceBase&) = delete;
-  WaylandDataDeviceBase& operator=(const WaylandDataDeviceBase&) = delete;
-
   virtual ~WaylandDataDeviceBase();
-
-  // Sets the callback responsible for handling selection events.
-  void set_selection_offer_callback(SelectionOfferCallback callback) {
-    DCHECK(!selection_offer_callback_ || !callback);
-    selection_offer_callback_ = callback;
-  }
 
   // Returns MIME types given by the current data offer.
   const std::vector<std::string>& GetAvailableMimeTypes() const;
 
-  // Synchronously reads and returns selection data with |mime_type| format.
-  // TODO(crbug.com/443355): Drop once Clipboard API becomes async.
-  PlatformClipboard::Data ReadSelectionData(const std::string& mime_type);
+  // Extracts data of the specified MIME type from the data offer.
+  bool RequestSelectionData(const std::string& mime_type);
 
  protected:
   WaylandConnection* connection() const { return connection_; }
@@ -53,9 +38,9 @@ class WaylandDataDeviceBase {
 
   // Resets the data offer.
   void ResetDataOffer();
-
-  // Reads selection data from the file descriptor |fd|.
-  PlatformClipboard::Data ReadFromFD(base::ScopedFD fd) const;
+  // Reads data of the requested MIME type from the data offer and gives it to
+  // the clipboard linked to the Wayland connection.
+  void ReadClipboardDataFromFD(base::ScopedFD fd, const std::string& mime_type);
 
   // Registers DeferredReadCallback as display sync callback listener, to
   // ensure there is no pending operation to be performed by the compositor,
@@ -65,8 +50,6 @@ class WaylandDataDeviceBase {
 
   void RegisterDeferredReadClosure(base::OnceClosure closure);
 
-  void NotifySelectionOffer(WaylandDataOfferBase* offer) const;
-
  private:
   // wl_callback_listener callback
   static void DeferredReadCallback(void* data,
@@ -75,11 +58,9 @@ class WaylandDataDeviceBase {
 
   void DeferredReadCallbackInternal(struct wl_callback* cb, uint32_t time);
 
-  SelectionOfferCallback selection_offer_callback_;
-
-  // Used to call out to WaylandConnection once clipboard data has been
-  // successfully read.
-  const raw_ptr<WaylandConnection> connection_;
+  // Used to call out to WaylandConnection once clipboard data
+  // has been successfully read.
+  WaylandConnection* const connection_ = nullptr;
 
   // Offer that holds the most-recent clipboard selection, or null if no
   // clipboard data is available.
@@ -88,6 +69,8 @@ class WaylandDataDeviceBase {
   // Before blocking on read(), make sure server has written data on the pipe.
   base::OnceClosure deferred_read_closure_;
   wl::Object<wl_callback> deferred_read_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandDataDeviceBase);
 };
 
 }  // namespace ui

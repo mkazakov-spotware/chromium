@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "ash/assistant/model/assistant_query_history.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/observer_list.h"
 
@@ -46,11 +47,6 @@ enum class MicState {
 class COMPONENT_EXPORT(ASSISTANT_MODEL) AssistantInteractionModel {
  public:
   AssistantInteractionModel();
-
-  AssistantInteractionModel(const AssistantInteractionModel&) = delete;
-  AssistantInteractionModel& operator=(const AssistantInteractionModel&) =
-      delete;
-
   ~AssistantInteractionModel();
 
   // Adds/removes the specified interaction model |observer|.
@@ -156,6 +152,8 @@ class COMPONENT_EXPORT(ASSISTANT_MODEL) AssistantInteractionModel {
   scoped_refptr<AssistantResponse> response_;
 
   mutable base::ObserverList<AssistantInteractionModelObserver> observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssistantInteractionModel);
 };
 
 }  // namespace ash

@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython3
-# Copyright 2016 The Chromium Authors
+#!/usr/bin/env vpython
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -27,7 +27,6 @@ import sys
 import tempfile
 import textwrap
 
-from chrome_telemetry_build import android_browser_types
 from core import benchmark_finders
 from core import benchmark_utils
 from core import bot_platforms
@@ -95,57 +94,11 @@ class TEST_TYPES(object):
 # The perf data will be handled on a separated 'processor' VM.
 # This list will be removed or replace by an opt-out list.
 LIGHTWEIGHT_TESTERS = [
-    'android-go-perf',
-    'android-pixel2-perf',
-    'android-pixel2_webview-perf',
-    'linux-perf',
-    'win-10-perf',
-    'win-10_laptop_low_end-perf',
-    'mac-laptop_high_end-perf',
-    'mac-laptop_low_end-perf',
+    'android-go-perf', 'android-pixel2-perf', 'android-pixel2_webview-perf',
+    'linux-perf', 'mac-10_12_laptop_low_end-perf',
+    'mac-10_13_laptop_high_end-perf', 'win-10-perf',
+    'win-10_laptop_low_end-perf'
 ]
-
-# This is an opt-in list for builders which uses dynamic sharding.
-DYNAMIC_SHARDING_TESTERS = [
-    'android-pixel2-perf', 'android-pixel2-perf-fyi',
-    'android-pixel2-perf-calibration', 'linux-perf-calibration'
-]
-
-CALIBRATION_BUILDERS = {
-    'linux-perf-calibration': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'linux',
-        'dimension': {
-            'gpu': '10de:1cb3-440.100',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests.perf',
-            'synthetic_product_name': 'PowerEdge R230 (Dell Inc.)'
-        },
-    },
-    'android-pixel2-perf-calibration': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_monochrome_64_32_bundle',
-        }],
-        'platform':
-        'android-chrome-64-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'walleye',
-            'device_os': 'OPM1.171019.021',
-            'device_os_flavor': 'google',
-        },
-    },
-}
 
 FYI_BUILDERS = {
     'android-cfi-builder-perf-fyi': {
@@ -154,15 +107,35 @@ FYI_BUILDERS = {
             'cc_perftests',
             'chrome_public_apk',
             'chromium_builder_perf',
+            'gpu_perftests',
             'push_apps_to_background_apk',
             'system_webview_apk',
             'system_webview_shell_apk',
         ],
     },
+    'android-nexus5x-perf-fyi': {
+        'tests': [{
+            'isolate':
+            'performance_test_suite',
+            'extra_args': [
+                '--output-format=histograms',
+                '--experimental-tbmv3-metrics',
+            ],
+        }],
+        'platform':
+        'android-chrome',
+        'dimension': {
+            'pool': 'chrome.tests.perf-fyi',
+            'os': 'Android',
+            'device_type': 'bullhead',
+            'device_os': 'MMB29Q',
+            'device_os_flavor': 'google',
+        },
+    },
     'android-pixel2-perf-fyi': {
         'tests': [{
             'isolate':
-            'performance_test_suite_android_clank_chrome',
+            'performance_test_suite',
             'extra_args': [
                 '--output-format=histograms',
                 '--experimental-tbmv3-metrics',
@@ -182,11 +155,9 @@ FYI_BUILDERS = {
     },
     'android-pixel2-perf-aab-fyi': {
         'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_monochrome_bundle',
+            'isolate': 'performance_test_suite',
         }],
-        'platform':
-        'android-chrome-bundle',
+        'platform': 'android-chrome-bundle',
         'dimension': {
             'pool': 'chrome.tests.perf-fyi',
             'os': 'Android',
@@ -201,6 +172,7 @@ FYI_BUILDERS = {
             'cc_perftests',
             'chrome_public_apk',
             'chromium_builder_perf',
+            'gpu_perftests',
             'push_apps_to_background_apk',
             'system_webview_apk',
             'system_webview_shell_apk',
@@ -220,103 +192,8 @@ FYI_BUILDERS = {
         'dimension': {
             'gpu': '10de',
             'id': 'build186-b7',
-            'os': 'Ubuntu-18.04',
+            'os': 'Ubuntu-14.04',
             'pool': 'chrome.tests.perf-fyi',
-        },
-    },
-    'fuchsia-perf-fyi': {
-        'tests': [{
-            'isolate':
-            'performance_web_engine_test_suite',
-            'extra_args':
-            ['--output-format=histograms', '--experimental-tbmv3-metrics'] +
-            bot_platforms.FUCHSIA_EXEC_ARGS['astro'],
-            'type':
-            TEST_TYPES.TELEMETRY,
-        }],
-        'platform':
-        'fuchsia-wes',
-        'dimension': {
-            'cpu': None,
-            'device_type': 'Astro',
-            'os': 'Fuchsia',
-            'pool': 'chrome.tests',
-        },
-    },
-    'fuchsia-perf-atlas-fyi': {
-        'tests': [{
-            'isolate':
-            'performance_web_engine_test_suite',
-            'extra_args':
-            ['--output-format=histograms', '--experimental-tbmv3-metrics'] +
-            bot_platforms.FUCHSIA_EXEC_ARGS['atlas'],
-            'type':
-            TEST_TYPES.TELEMETRY,
-        }],
-        'platform':
-        'fuchsia-chrome',
-        'dimension': {
-            'cpu': None,
-            'device_type': 'Atlas',
-            'os': 'Fuchsia',
-            'pool': 'chrome.tests',
-        },
-    },
-    'fuchsia-perf-sherlock-fyi': {
-        'tests': [{
-            'isolate':
-            'performance_web_engine_test_suite',
-            'extra_args':
-            ['--output-format=histograms', '--experimental-tbmv3-metrics'] +
-            bot_platforms.FUCHSIA_EXEC_ARGS['sherlock'],
-            'type':
-            TEST_TYPES.TELEMETRY,
-        }],
-        'platform':
-        'fuchsia-wes',
-        'dimension': {
-            'cpu': None,
-            'device_type': 'Sherlock',
-            'os': 'Fuchsia',
-            'pool': 'chrome.tests',
-        },
-    },
-    'fuchsia-perf-ast': {
-        'tests': [{
-            'isolate':
-            'performance_web_engine_test_suite',
-            'extra_args':
-            ['--output-format=histograms', '--experimental-tbmv3-metrics'] +
-            bot_platforms.FUCHSIA_EXEC_ARGS['astro'],
-            'type':
-            TEST_TYPES.TELEMETRY,
-        }],
-        'platform':
-        'fuchsia-wes',
-        'dimension': {
-            'cpu': None,
-            'device_type': 'Astro',
-            'os': 'Fuchsia',
-            'pool': 'chrome.tests',
-        },
-    },
-    'fuchsia-perf-shk': {
-        'tests': [{
-            'isolate':
-            'performance_web_engine_test_suite',
-            'extra_args':
-            ['--output-format=histograms', '--experimental-tbmv3-metrics'] +
-            bot_platforms.FUCHSIA_EXEC_ARGS['sherlock'],
-            'type':
-            TEST_TYPES.TELEMETRY,
-        }],
-        'platform':
-        'fuchsia-wes',
-        'dimension': {
-            'cpu': None,
-            'device_type': 'Sherlock',
-            'os': 'Fuchsia',
-            'pool': 'chrome.tests',
         },
     },
     'win-10_laptop_low_end-perf_HP-Candidate': {
@@ -370,15 +247,6 @@ FYI_BUILDERS = {
             'device_type': 'kevin',
         },
     },
-    'fuchsia-builder-perf-arm64': {
-        'additional_compile_targets': [
-            'web_engine_shell_pkg', 'cast_runner_pkg', 'web_runner_pkg',
-            'chromium_builder_perf', 'base_perftests'
-        ],
-    },
-    'fuchsia-builder-perf-x64': {
-        'additional_compile_targets': ['chrome_pkg', 'base_perftests'],
-    },
 }
 
 # These configurations are taken from chromium_perf.py in
@@ -407,6 +275,7 @@ BUILDERS = {
             'chrome_public_apk',
             'chromium_builder_perf',
             'dump_syms',
+            'gpu_perftests',
             'push_apps_to_background_apk',
             'system_webview_apk',
             'system_webview_shell_apk',
@@ -416,84 +285,41 @@ BUILDERS = {
                 'name': 'resource_sizes_monochrome_minimal_apks',
                 'isolate': 'resource_sizes_monochrome_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_monochrome_public_minimal_apks',
                 'isolate': 'resource_sizes_monochrome_public_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_chrome_modern_minimal_apks',
                 'isolate': 'resource_sizes_chrome_modern_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_chrome_modern_public_minimal_apks',
                 'isolate': 'resource_sizes_chrome_modern_public_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_trichrome_google',
                 'isolate': 'resource_sizes_trichrome_google',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_system_webview_bundle',
                 'isolate': 'resource_sizes_system_webview_bundle',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_system_webview_google_bundle',
                 'isolate': 'resource_sizes_system_webview_google_bundle',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
         ],
         'dimension': {
             'cpu': 'x86',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'android-builder-perf-pgo': {
-        'additional_compile_targets': [
-            'microdump_stackwalk',
-            'chrome_apk',
-            'system_webview_google_apk',
-            'android_tools',
-            'cc_perftests',
-            'chrome_public_apk',
-            'chromium_builder_perf',
-            'dump_syms',
-            'push_apps_to_background_apk',
-            'system_webview_apk',
-            'system_webview_shell_apk',
-        ],
-        'dimension': {
-            'cpu': 'x86',
-            'os': 'Ubuntu-18.04',
+            'os': 'Ubuntu-16.04',
             'pool': 'chrome.tests',
         },
         'perf_trigger':
@@ -508,100 +334,57 @@ BUILDERS = {
             'cc_perftests',
             'chrome_public_apk',
             'chromium_builder_perf',
+            'gpu_perftests',
             'push_apps_to_background_apk',
             'system_webview_apk',
             'system_webview_shell_apk',
+            'telemetry_weblayer_apks',
         ],
         'tests': [
             {
                 'name': 'resource_sizes_monochrome_minimal_apks',
                 'isolate': 'resource_sizes_monochrome_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_monochrome_public_minimal_apks',
                 'isolate': 'resource_sizes_monochrome_public_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_chrome_modern_minimal_apks',
                 'isolate': 'resource_sizes_chrome_modern_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_chrome_modern_public_minimal_apks',
                 'isolate': 'resource_sizes_chrome_modern_public_minimal_apks',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_trichrome',
                 'isolate': 'resource_sizes_trichrome',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_trichrome_google',
                 'isolate': 'resource_sizes_trichrome_google',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_system_webview_bundle',
                 'isolate': 'resource_sizes_system_webview_bundle',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
             {
                 'name': 'resource_sizes_system_webview_google_bundle',
                 'isolate': 'resource_sizes_system_webview_google_bundle',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
             },
         ],
         'dimension': {
             'cpu': 'x86',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'android_arm64-builder-perf-pgo': {
-        'additional_compile_targets': [
-            'microdump_stackwalk',
-            'chrome_apk',
-            'system_webview_google_apk',
-            'android_tools',
-            'cc_perftests',
-            'chrome_public_apk',
-            'chromium_builder_perf',
-            'push_apps_to_background_apk',
-            'system_webview_apk',
-            'system_webview_shell_apk',
-        ],
-        'dimension': {
-            'cpu': 'x86',
-            'os': 'Ubuntu-18.04',
+            'os': 'Ubuntu-16.04',
             'pool': 'chrome.tests',
         },
         'perf_trigger':
@@ -609,134 +392,23 @@ BUILDERS = {
     },
     'linux-builder-perf': {
         'additional_compile_targets': ['chromedriver', 'chromium_builder_perf'],
-        'tests': [{
-            'name': 'chrome_sizes',
-            'isolate': 'chrome_sizes',
-            'type': TEST_TYPES.GENERIC,
-            'resultdb': {
-                'has_native_resultdb_integration': True,
-            },
-        }],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'linux-builder-perf-pgo': {
-        'additional_compile_targets': ['chromium_builder_perf'],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger': False,
-    },
-    'linux-builder-perf-rel': {
-        'additional_compile_targets': ['chromium_builder_perf'],
     },
     'mac-builder-perf': {
         'additional_compile_targets': ['chromedriver', 'chromium_builder_perf'],
-        'tests': [{
-            'name': 'chrome_sizes',
-            'isolate': 'chrome_sizes',
-            'type': TEST_TYPES.GENERIC,
-            'resultdb': {
-                'has_native_resultdb_integration': True,
-            },
-        }],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Mac',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'mac-builder-perf-pgo': {
-        'additional_compile_targets': ['chromium_builder_perf'],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Mac',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger': False,
     },
     'mac-arm-builder-perf': {
         'additional_compile_targets': ['chromedriver', 'chromium_builder_perf'],
-        'tests': [{
-            'name': 'chrome_sizes',
-            'isolate': 'chrome_sizes',
-            'type': TEST_TYPES.GENERIC,
-            'resultdb': {
-                'has_native_resultdb_integration': True,
-            },
-        }],
-        'dimension': {
-            'cpu': 'x86',
-            'os': 'Mac',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
     },
-    'mac-arm-builder-perf-pgo': {
-        'additional_compile_targets': ['chromium_builder_perf'],
-        'dimension': {
-            'cpu': 'x86',
-            'os': 'Mac',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger': False,
+    'win32-builder-perf': {
+        'additional_compile_targets': ['chromedriver', 'chromium_builder_perf'],
     },
     'win64-builder-perf': {
         'additional_compile_targets': ['chromedriver', 'chromium_builder_perf'],
-        'tests': [{
-            'name': 'chrome_sizes',
-            'isolate': 'chrome_sizes',
-            'type': TEST_TYPES.GENERIC,
-            'resultdb': {
-                'has_native_resultdb_integration': True,
-            },
-        }],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Windows-10',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'win64-builder-perf-pgo': {
-        'additional_compile_targets': ['chromium_builder_perf'],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Windows-10',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger': False,
     },
     'android-go-perf': {
         'tests': [{
             'name': 'performance_test_suite',
-            'isolate': 'performance_test_suite_android_clank_chrome',
-        }],
-        'platform':
-        'android-chrome',
-        'dimension': {
-            'device_os': 'OMB1.180119.001',
-            'device_type': 'gobo',
-            'device_os_flavor': 'google',
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-        },
-    },
-    'android-go-perf-pgo': {
-        'tests': [{
-            'name': 'performance_test_suite',
-            'isolate': 'performance_test_suite_android_clank_chrome',
+            'isolate': 'performance_test_suite',
         }],
         'platform':
         'android-chrome',
@@ -761,6 +433,42 @@ BUILDERS = {
             'device_os_flavor': 'google',
         },
     },
+    'Android Nexus5 Perf': {
+        'tests': [
+            {
+                'isolate': 'performance_test_suite',
+                'extra_args': [
+                    '--assert-gpu-compositing',
+                ],
+            },
+        ],
+        'platform':
+        'android',
+        'dimension': {
+            'pool': 'chrome.tests.perf',
+            'os': 'Android',
+            'device_type': 'hammerhead',
+            'device_os': 'M4B30Z',
+            'device_os_flavor': 'google',
+        },
+    },
+    'Android Nexus5X WebView Perf': {
+        'tests': [{
+            'isolate': 'performance_webview_test_suite',
+            'extra_args': [
+                '--assert-gpu-compositing',
+            ],
+        }],
+        'platform':
+        'android-webview',
+        'dimension': {
+            'pool': 'chrome.tests.perf-webview',
+            'os': 'Android',
+            'device_type': 'bullhead',
+            'device_os': 'MOB30K',
+            'device_os_flavor': 'aosp',
+        },
+    },
     'android-pixel2_webview-perf': {
         'tests': [{
             'isolate': 'performance_webview_test_suite',
@@ -774,13 +482,13 @@ BUILDERS = {
             'device_os_flavor': 'google',
         },
     },
-    'android-pixel2_webview-perf-pgo': {
+    'android-pixel2_weblayer-perf': {
         'tests': [{
-            'isolate': 'performance_webview_test_suite',
+            'isolate': 'performance_weblayer_test_suite',
         }],
-        'platform': 'android-webview-google',
+        'platform': 'android-weblayer',
         'dimension': {
-            'pool': 'chrome.tests.perf-webview',
+            'pool': 'chrome.tests.perf-weblayer',
             'os': 'Android',
             'device_type': 'walleye',
             'device_os': 'OPM1.171019.021',
@@ -789,80 +497,20 @@ BUILDERS = {
     },
     'android-pixel2-perf': {
         'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_monochrome_64_32_bundle',
+            'isolate': 'performance_test_suite',
         }],
-        'platform':
-        'android-chrome-64-bundle',
+        'platform': 'android-chrome-64-bundle',
         'dimension': {
             'pool': 'chrome.tests.perf',
             'os': 'Android',
             'device_type': 'walleye',
             'device_os': 'OPM1.171019.021',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-pixel2-perf-pgo': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_monochrome_64_32_bundle',
-        }],
-        'platform':
-        'android-chrome-64-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'walleye',
-            'device_os': 'OPM1.171019.021',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-pixel4_webview-perf': {
-        'tests': [{
-            'isolate': 'performance_webview_test_suite',
-        }],
-        'platform': 'android-webview-trichrome-google-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf-webview',
-            'os': 'Android',
-            'device_type': 'flame',
-            'device_os': 'RP1A.201105.002',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-pixel4-perf': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_bundle',
-        }],
-        'platform':
-        'android-trichrome-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'flame',
-            'device_os': 'RP1A.201105.002',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-pixel4-perf-pgo': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_bundle',
-        }],
-        'platform':
-        'android-trichrome-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'flame',
-            'device_os': 'RP1A.201105.002',
             'device_os_flavor': 'google',
         },
     },
     'android-pixel4a_power-perf': {
         'tests': [{
-            'isolate': 'performance_test_suite_android_clank_chrome',
+            'isolate': 'performance_test_suite',
             'extra_args': [
                 '--experimental-tbmv3-metrics',
             ],
@@ -873,77 +521,9 @@ BUILDERS = {
             'pool': 'chrome.tests.pinpoint',  # Sharing Pinpoint pool
             'os': 'Android',
             'device_type': 'sunfish',
-            'device_os': 'RQ1D.201205.012',
+            'device_os': 'QD4A.200102.001.A1',
             'device_os_flavor': 'google',
         },
-    },
-    'android-pixel4a_power-perf-pgo': {
-        'tests': [{
-            'isolate': 'performance_test_suite_android_clank_chrome',
-            'extra_args': [
-                '--experimental-tbmv3-metrics',
-            ],
-        }],
-        'platform':
-        'android-chrome',
-        'dimension': {
-            'pool': 'chrome.tests.pinpoint',  # Sharing Pinpoint pool
-            'os': 'Android',
-            'device_type': 'sunfish',
-            'device_os': 'RQ1D.201205.012',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-go-wembley-perf': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_bundle',
-        }],
-        'platform':
-        'android-trichrome-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'wembley',
-            'device_os': 'MASTER',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-new-pixel-perf': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_chrome_google_64_32_bundle',
-        }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
-        'dimension': {},
-    },
-    'android-new-pixel-perf-pgo': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_chrome_google_64_32_bundle',
-        }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
-        'dimension': {},
-    },
-    'android-new-pixel-pro-perf': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_chrome_google_64_32_bundle',
-        }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
-        'dimension': {},
-    },
-    'android-new-pixel-pro-perf-pgo': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_clank_trichrome_chrome_google_64_32_bundle',
-        }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
-        'dimension': {},
     },
     'win-10_laptop_low_end-perf': {
         'tests': [
@@ -971,25 +551,6 @@ BUILDERS = {
             # they are since in pool 'unassigned'.
         },
     },
-    'win-10_laptop_low_end-perf-pgo': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'win',
-        'target_bits':
-        64,
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Windows-10-18363.476',
-            'gpu': '8086:1616-20.19.15.5070',
-        },
-    },
     'win-10-perf': {
         'tests': [
             {
@@ -1009,12 +570,27 @@ BUILDERS = {
             # that we can be informed if this
             # version ever changes or becomes inconsistent. It is important
             # that bots are homogeneous. See crbug.com/988045 for history.
-            'os': 'Windows-10-18363.476',
-            'gpu': '8086:5912-27.20.100.8681',
+            'os': 'Windows-10-16299.309',
+            'gpu': '8086:5912-23.20.16.4877',
             'synthetic_product_name': 'OptiPlex 7050 (Dell Inc.)'
         },
     },
-    'win-10-perf-pgo': {
+    'Win 7 Perf': {
+        'tests': [
+            {
+                'isolate': 'performance_test_suite',
+            },
+        ],
+        'platform': 'win',
+        'target_bits': 32,
+        'dimension': {
+            'gpu': '102b:0532-6.1.7600.16385',
+            'os': 'Windows-2008ServerR2-SP1',
+            'pool': 'chrome.tests.perf',
+            'synthetic_product_name': 'PowerEdge R210 II (Dell Inc.)',
+        },
+    },
+    'Win 7 Nvidia GPU Perf': {
         'tests': [
             {
                 'isolate': 'performance_test_suite',
@@ -1028,65 +604,13 @@ BUILDERS = {
         'target_bits':
         64,
         'dimension': {
+            'gpu': '10de:1cb3-23.21.13.8792',
+            'os': 'Windows-2008ServerR2-SP1',
             'pool': 'chrome.tests.perf',
-            # Explicitly set GPU driver version and Windows OS version such
-            # that we can be informed if this
-            # version ever changes or becomes inconsistent. It is important
-            # that bots are homogeneous. See crbug.com/988045 for history.
-            'os': 'Windows-10-18363.476',
-            'gpu': '8086:5912-27.20.100.8681',
-            'synthetic_product_name': 'OptiPlex 7050 (Dell Inc.)'
+            'synthetic_product_name': 'PowerEdge R220 [01] (Dell Inc.)'
         },
     },
-    'win-10_amd_laptop-perf': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'win',
-        'target_bits':
-        64,
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            # Explicitly set GPU driver version and Windows OS version such
-            # that we can be informed if this
-            # version ever changes or becomes inconsistent. It is important
-            # that bots are homogeneous. See crbug.com/988045 for history.
-            'os': 'Windows-10-19043.1052',
-            'gpu': '1002:1638-30.0.13033.1000',
-            'synthetic_product_name': 'OMEN by HP Laptop 16-c0xxx [ ] (HP)',
-        },
-    },
-    'win-10_amd_laptop-perf-pgo': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'win',
-        'target_bits':
-        64,
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            # Explicitly set GPU driver version and Windows OS version such
-            # that we can be informed if this
-            # version ever changes or becomes inconsistent. It is important
-            # that bots are homogeneous. See crbug.com/988045 for history.
-            'os': 'Windows-10-19043.1052',
-            'gpu': '1002:1638-30.0.13033.1000',
-            'synthetic_product_name': 'OMEN by HP Laptop 16-c0xxx [ ] (HP)',
-        },
-    },
-    'mac-laptop_low_end-perf': {
+    'mac-10_12_laptop_low_end-perf': {
         'tests': [
             {
                 'isolate': 'performance_test_suite',
@@ -1098,43 +622,17 @@ BUILDERS = {
         'platform':
         'mac',
         'dimension': {
-            'cpu':
-            'x86-64',
             'gpu':
             '8086:1626',
             'os':
-            'Mac-12.6.1',
+            'Mac-10.12.6',
             'pool':
             'chrome.tests.perf',
             'synthetic_product_name':
             'MacBookAir7,2_x86-64-i5-5350U_Intel Broadwell HD Graphics 6000_8192_APPLE SSD SM0128G'
         },
     },
-    'mac-laptop_low_end-perf-pgo': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'mac',
-        'dimension': {
-            'cpu':
-            'x86-64',
-            'gpu':
-            '8086:1626',
-            'os':
-            'Mac-12.6.1',
-            'pool':
-            'chrome.tests.perf',
-            'synthetic_product_name':
-            'MacBookAir7,2_x86-64-i5-5350U_Intel Broadwell HD Graphics 6000_8192_APPLE SSD SM0128G'
-        },
-    },
-    'mac-m1_mini_2020-perf': {
+    'mac-arm_dtk_x86-perf': {
         'tests': [
             {
                 'isolate': 'performance_test_suite',
@@ -1147,12 +645,11 @@ BUILDERS = {
         'mac',
         'dimension': {
             'cpu': 'arm',
-            'mac_model': 'Macmini9,1',
             'os': 'Mac',
             'pool': 'chrome.tests.perf',
         },
     },
-    'mac-m1_mini_2020-perf-pgo': {
+    'mac-arm_dtk_arm-perf': {
         'tests': [
             {
                 'isolate': 'performance_test_suite',
@@ -1165,7 +662,6 @@ BUILDERS = {
         'mac',
         'dimension': {
             'cpu': 'arm',
-            'mac_model': 'Macmini9,1',
             'os': 'Mac',
             'pool': 'chrome.tests.perf',
         },
@@ -1182,49 +678,13 @@ BUILDERS = {
         'platform':
         'linux',
         'dimension': {
-            'gpu': '10de:1cb3-440.100',
-            'os': 'Ubuntu-18.04',
+            'gpu': '10de:1cb3-384.90',
+            'os': 'Ubuntu-14.04',
             'pool': 'chrome.tests.perf',
             'synthetic_product_name': 'PowerEdge R230 (Dell Inc.)'
         },
     },
-    'linux-perf-pgo': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'linux',
-        'dimension': {
-            'gpu': '10de:1cb3-440.100',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests.perf',
-            'synthetic_product_name': 'PowerEdge R230 (Dell Inc.)'
-        },
-    },
-    'linux-perf-rel': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'linux',
-        'dimension': {
-            'gpu': '10de:1cb3-440.100',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests.perf',
-            'synthetic_product_name': 'PowerEdge R230 (Dell Inc.)'
-        },
-    },
-    'mac-laptop_high_end-perf': {
+    'mac-10_13_laptop_high_end-perf': {
         'tests': [
             {
                 'isolate': 'performance_test_suite',
@@ -1236,36 +696,10 @@ BUILDERS = {
         'platform':
         'mac',
         'dimension': {
-            'cpu':
-            'x86-64',
             'gpu':
             '1002:6821-4.0.20-3.2.8',
             'os':
-            'Mac-12.6.1',
-            'pool':
-            'chrome.tests.perf',
-            'synthetic_product_name':
-            'MacBookPro11,5_x86-64-i7-4870HQ_AMD Radeon R8 M370X 4.0.20 [3.2.8]_Intel Haswell Iris Pro Graphics 5200 4.0.20 [3.2.8]_16384_APPLE SSD SM0512G',
-        },
-    },
-    'mac-laptop_high_end-perf-pgo': {
-        'tests': [
-            {
-                'isolate': 'performance_test_suite',
-                'extra_args': [
-                    '--assert-gpu-compositing',
-                ],
-            },
-        ],
-        'platform':
-        'mac',
-        'dimension': {
-            'cpu':
-            'x86-64',
-            'gpu':
-            '1002:6821-4.0.20-3.2.8',
-            'os':
-            'Mac-12.6.1',
+            'Mac-10.13.3',
             'pool':
             'chrome.tests.perf',
             'synthetic_product_name':
@@ -1296,33 +730,13 @@ BUILDERS = {
         'platform': 'linux',
         'perf_processor': True,
     },
-    'mac-laptop_low_end-processor-perf': {
+    'mac-10_12_laptop_low_end-processor-perf': {
         'platform': 'linux',
         'perf_processor': True,
     },
-    'mac-laptop_high_end-processor-perf': {
+    'mac-10_13_laptop_high_end-processor-perf': {
         'platform': 'linux',
         'perf_processor': True,
-    },
-    'chromecast-linux-builder-perf': {
-        'additional_compile_targets': ['cast_shell'],
-        'tests': [
-            {
-                'name': 'resource_sizes_chromecast',
-                'isolate': 'resource_sizes_chromecast',
-                'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
-            },
-        ],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
     },
     'chromeos-amd64-generic-lacros-builder-perf': {
         'additional_compile_targets': ['chrome'],
@@ -1331,120 +745,16 @@ BUILDERS = {
                 'name': 'resource_sizes_lacros_chrome',
                 'isolate': 'resource_sizes_lacros_chrome',
                 'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
-                'extra_args': [
-                    '--arch=amd64',
-                ],
             },
         ],
         'dimension': {
             'cpu': 'x86-64',
-            'os': 'Ubuntu-18.04',
+            'os': 'Ubuntu-16.04',
             'pool': 'chrome.tests',
         },
         'perf_trigger':
         False,
-    },
-    'chromeos-arm-generic-lacros-builder-perf': {
-        'additional_compile_targets': ['chrome'],
-        'tests': [
-            {
-                'name': 'resource_sizes_lacros_chrome',
-                'isolate': 'resource_sizes_lacros_chrome',
-                'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
-                'extra_args': [
-                    '--arch=arm32',
-                ],
-            },
-        ],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'chromeos-arm64-generic-lacros-builder-perf': {
-        'additional_compile_targets': ['chrome'],
-        'tests': [
-            {
-                'name': 'resource_sizes_lacros_chrome',
-                'isolate': 'resource_sizes_lacros_chrome',
-                'type': TEST_TYPES.GENERIC,
-                'resultdb': {
-                    'has_native_resultdb_integration': True,
-                },
-                'extra_args': [
-                    '--arch=arm64',
-                ],
-            },
-        ],
-        'dimension': {
-            'cpu': 'x86-64',
-            'os': 'Ubuntu-18.04',
-            'pool': 'chrome.tests',
-        },
-        'perf_trigger':
-        False,
-    },
-    'lacros-eve-perf': {
-        'tests': [
-            {
-                'isolate':
-                'performance_test_suite_eve',
-                'extra_args': [
-                    # The magic hostname that resolves to a CrOS device in the test lab
-                    '--remote=variable_chromeos_device_hostname',
-                ],
-                'timeout':
-                12 * 60 * 60,  # 12 hours, due to small number of devices
-            },
-        ],
-        'platform':
-        'lacros',
-        'target_bits':
-        64,
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            # TODO(crbug.com/971204): Explicitly set the gpu to None to make
-            # chromium_swarming recipe_module ignore this dimension.
-            'gpu': None,
-            'os': 'ChromeOS',
-            'device_status': 'available',
-            'device_type': 'eve',
-        },
-    },
-    'lacros-x86-perf': {
-        'tests': [
-            {
-                'isolate':
-                'performance_test_suite_octopus',
-                'extra_args': [
-                    # The magic hostname that resolves to a CrOS device in the test lab
-                    '--remote=variable_chromeos_device_hostname',
-                ],
-            },
-        ],
-        'platform':
-        'lacros',
-        'target_bits':
-        64,
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            # TODO(crbug.com/971204): Explicitly set the gpu to None to make
-            # chromium_swarming recipe_module ignore this dimension.
-            'gpu': None,
-            'os': 'ChromeOS',
-            'device_status': 'available',
-            'device_type': 'octopus',
-        },
-    },
+    }
 }
 
 # pylint: enable=line-too-long
@@ -1462,21 +772,15 @@ def update_all_fyi_builders(file_path):
   return _update_builders(FYI_BUILDERS, file_path)
 
 
-def update_all_calibration_builders(file_path):
-  return _update_builders(CALIBRATION_BUILDERS, file_path)
-
-
 def _update_builders(builders_dict, file_path):
   tests = {}
   tests['AAAAA1 AUTOGENERATED FILE DO NOT EDIT'] = {}
   tests['AAAAA2 See //tools/perf/generate_perf_data to make changes'] = {}
 
-  for name, config in builders_dict.items():
+  for name, config in builders_dict.iteritems():
     tests[name] = generate_builder_config(config, name)
 
-  with open(file_path, 'w',
-            newline='') if sys.version_info.major == 3 else open(
-                file_path, 'wb') as fp:
+  with open(file_path, 'w') as fp:
     json.dump(tests, fp, indent=2, separators=(',', ': '), sort_keys=True)
     fp.write('\n')
   return True
@@ -1523,6 +827,10 @@ GTEST_BENCHMARKS = {
         'skyostil@chromium.org, gab@chromium.org', 'Internals>SequenceManager',
         ('https://chromium.googlesource.com/chromium/src/+/HEAD/base/' +
          'README.md#performance-testing')),
+    'gpu_perftests':
+    BenchmarkMetadata(
+        'reveman@chromium.org, chrome-gpu-perf-owners@chromium.org',
+        'Internals>GPU'),
     'tracing_perftests':
     BenchmarkMetadata('eseckler@chromium.org, oysteine@chromium.org',
                       'Speed>Tracing'),
@@ -1530,8 +838,10 @@ GTEST_BENCHMARKS = {
     BenchmarkMetadata('xhwang@chromium.org, jrummell@chromium.org',
                       'Internals>Media>Encrypted'),
     'performance_browser_tests':
-    BenchmarkMetadata('johnchen@chromium.org, jophba@chromium.org',
-                      'Internals>Media>ScreenCapture'),
+    BenchmarkMetadata('miu@chromium.org', 'Internals>Media>ScreenCapture'),
+    'media_perftests':
+    BenchmarkMetadata('liberato@chromium.org, dalecurtis@chromium.org',
+                      'Internals>Media'),
     'views_perftests':
     BenchmarkMetadata('tapted@chromium.org', 'Internals>Views'),
     'components_perftests':
@@ -1565,31 +875,9 @@ OTHER_BENCHMARKS = {
 
 
 OTHER_BENCHMARKS.update({
-    'chrome_sizes':
-    BenchmarkMetadata(
-        emails='johnchen@chromium.org',
-        component='Build',
-        documentation_url=(
-            'https://chromium.googlesource.com/chromium/'
-            'src/+/HEAD/tools/binary_size/README.md#resource_sizes_py'),
-    ),
-})
-
-OTHER_BENCHMARKS.update({
-    'resource_sizes_chromecast':
-    BenchmarkMetadata(
-        emails='juke@chromium.org, eliribble@chromium.org',
-        component='Chromecast',
-        documentation_url=(
-            'https://chromium.googlesource.com/chromium/'
-            'src/+/HEAD/tools/binary_size/README.md#resource_sizes_py'),
-    ),
-})
-
-OTHER_BENCHMARKS.update({
     'resource_sizes_lacros_chrome':
     BenchmarkMetadata(
-        emails='erikchen@chromium.org, huangs@chromium.org',
+        emails='erikchen@chromium.org, huangs@chormium.org',
         component='OS>LaCrOS',
         documentation_url=(
             'https://chromium.googlesource.com/chromium/'
@@ -1626,16 +914,6 @@ def _get_telemetry_perf_benchmarks_metadata():
 
 TELEMETRY_PERF_BENCHMARKS = _get_telemetry_perf_benchmarks_metadata()
 
-PERFORMANCE_TEST_SUITES = [
-    'performance_test_suite',
-    'performance_test_suite_eve',
-    'performance_test_suite_octopus',
-    'performance_webview_test_suite',
-    'performance_web_engine_test_suite',
-]
-for suffix in android_browser_types.TELEMETRY_ANDROID_BROWSER_TARGET_SUFFIXES:
-  PERFORMANCE_TEST_SUITES.append('performance_test_suite' + suffix)
-
 
 def get_scheduled_non_telemetry_benchmarks(perf_waterfall_file):
   test_names = set()
@@ -1655,7 +933,9 @@ def get_scheduled_non_telemetry_benchmarks(perf_waterfall_file):
     # TODO(eyaich): Determine new way to generate ownership based
     # on the benchmark bot map instead of on the generated tests
     # for new perf recipe.
-    if not name in PERFORMANCE_TEST_SUITES:
+    if not name in ('performance_test_suite',
+                    'performance_webview_test_suite',
+                    'performance_weblayer_test_suite'):
       test_names.add(name)
 
   for platform in bot_platforms.ALL_PLATFORMS:
@@ -1713,13 +993,6 @@ def _verify_benchmark_owners(benchmark_metadatas):
   assert not unowned_benchmarks, (
       'All benchmarks must have owners. Please add owners for the following '
       'benchmarks:\n%s' % '\n'.join(unowned_benchmarks))
-
-
-# Open a CSV file for writing, handling the differences between Python 2 and 3.
-def _create_csv(file_path):
-  if sys.version_info.major == 2:
-    return open(file_path, 'wb')
-  return open(file_path, 'w', newline='')
 
 
 def update_benchmark_csv(file_path):
@@ -1785,7 +1058,7 @@ def update_benchmark_csv(file_path):
   csv_data = sorted(csv_data, key=lambda b: b[0])
   csv_data = header_data + csv_data
 
-  with _create_csv(file_path) as f:
+  with open(file_path, 'wb') as f:
     writer = csv.writer(f, lineterminator='\n')
     writer.writerows(csv_data)
   return True
@@ -1816,7 +1089,7 @@ def update_system_health_stories(filepath):
         stories[story.name]['platforms'].add(platform)
         stories[story.name]['tags'].update(story.tags)
 
-  with _create_csv(filepath) as f:
+  with open(filepath, 'wb') as f:
     writer = csv.writer(f, lineterminator='\n')
     for row in header_data:
       writer.writerow(row)
@@ -1830,11 +1103,10 @@ def update_system_health_stories(filepath):
 def update_labs_docs_md(filepath):
   configs = collections.defaultdict(list)
   for tester in bot_platforms.ALL_PLATFORMS:
-    if not tester.is_fyi and not tester.pinpoint_only:
+    if not tester.is_fyi:
       configs[tester.platform].append(tester)
 
-  with open(filepath, 'w', newline='') if sys.version_info.major == 3 else open(
-      filepath, 'wb') as f:
+  with open(filepath, 'w') as f:
     f.write("""
 [comment]: # (AUTOGENERATED FILE DO NOT EDIT)
 [comment]: # (See //tools/perf/generate_perf_data to make changes)
@@ -1842,7 +1114,7 @@ def update_labs_docs_md(filepath):
 # Platforms tested in the Performance Lab
 
 """)
-    for platform, testers in sorted(configs.items()):
+    for platform, testers in sorted(configs.iteritems()):
       f.write('## %s\n\n' % platform.title())
       testers.sort()
       for tester in testers:
@@ -1866,15 +1138,9 @@ def generate_telemetry_args(tester_config, platform):
     browser_name = tester_config['platform']
   elif tester_config['platform'] == 'chromeos':
     browser_name = 'cros-chrome'
-  elif tester_config['platform'] == 'lacros':
-    browser_name = 'lacros-chrome'
   elif (tester_config['platform'] == 'win'
     and tester_config['target_bits'] == 64):
     browser_name = 'release_x64'
-  elif tester_config['platform'] == 'fuchsia-wes':
-    browser_name = 'web-engine-shell'
-  elif tester_config['platform'] == 'fuchsia-chrome':
-    browser_name = 'fuchsia-chrome'
   else:
     browser_name ='release'
   test_args = [
@@ -1931,16 +1197,6 @@ def generate_performance_test(tester_config, test, builder_name):
     ]
   }
 
-  if test.get('resultdb'):
-    result['resultdb'] = test['resultdb'].copy()
-  elif 'builder-perf' not in builder_name:
-    # Enable Result DB on all perf test bots. Builders with names including
-    # "builder-perf" are used for compiling only, and do not run perf tests.
-    # TODO(crbug.com/1135718): Replace the following line by specifying either
-    # "result_format" for GTests, or "has_native_resultdb_integration" for all
-    # other tests.
-    result['resultdb'] = {'enable': True}
-
   # For now we either get shards from the number of devices specified
   # or a test entry needs to specify the num shards if it supports
   # soft device affinity.
@@ -1954,8 +1210,6 @@ def generate_performance_test(tester_config, test, builder_name):
             'True'
         ],
     }
-    if builder_name in DYNAMIC_SHARDING_TESTERS:
-      result['trigger_script']['args'].append('--use-dynamic-shards')
 
   result['merge'] = {
       'script': '//tools/perf/process_perf_results.py',
@@ -1975,12 +1229,13 @@ def generate_performance_test(tester_config, test, builder_name):
       # (crbug.com/1036447), so we must timeout the shards within ~6 hours to
       # allow for other overhead. If the overall builder times out then we
       # don't get data even from the passing shards.
-      'hard_timeout': test.get('timeout', 6 * 60 * 60),  # default 6 hours
-      # This is effectively the timeout for a
+      'hard_timeout': int(6 * 60 * 60),  # 6 hours timeout for full suite
+      'ignore_task_failure': False,
+      # 5.5 hour timeout. Note that this is effectively the timeout for a
       # benchmarking subprocess to run since we intentionally do not stream
       # subprocess output to the task stdout.
       # TODO(crbug.com/865538): Reduce this once we can reduce hard_timeout.
-      'io_timeout': test.get('timeout', 6 * 60 * 60),
+      'io_timeout': int(6 * 60 * 60),
       'dimension_sets': [tester_config['dimension']],
       'service_account': _TESTER_SERVICE_ACCOUNT,
   }
@@ -2036,13 +1291,11 @@ def generate_builder_config(condensed_config, builder_name):
 # functions must return True on success and False otherwise. File paths are
 # relative to chromium src and should use posix path separators (i.e. '/').
 ALL_UPDATERS_AND_FILES = [
-    (update_all_builders, 'testing/buildbot/chromium.perf.json'),
-    (update_all_fyi_builders, 'testing/buildbot/chromium.perf.fyi.json'),
-    (update_all_calibration_builders,
-     'testing/buildbot/chromium.perf.calibration.json'),
-    (update_benchmark_csv, 'tools/perf/benchmark.csv'),
-    (update_system_health_stories, 'tools/perf/system_health_stories.csv'),
-    (update_labs_docs_md, 'docs/speed/perf_lab_platforms.md'),
+  (update_all_builders, 'testing/buildbot/chromium.perf.json'),
+  (update_all_fyi_builders, 'testing/buildbot/chromium.perf.fyi.json'),
+  (update_benchmark_csv, 'tools/perf/benchmark.csv'),
+  (update_system_health_stories, 'tools/perf/system_health_stories.csv'),
+  (update_labs_docs_md, 'docs/speed/perf_lab_platforms.md'),
 ]
 
 
@@ -2092,7 +1345,9 @@ def main(args):
     if validate_all_files():
       print('All the perf config files are up-to-date. \\o/')
       return 0
-    print('Not all perf config files are up-to-date. Please run %s '
-          'to update them.' % sys.argv[0])
-    return 1
-  return 0 if update_all_files() else 1
+    else:
+      print('Not all perf config files are up-to-date. Please run %s '
+            'to update them.' % sys.argv[0])
+      return 1
+  else:
+    return 0 if update_all_files() else 1

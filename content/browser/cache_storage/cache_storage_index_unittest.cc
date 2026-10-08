@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,30 @@
 
 namespace content {
 
-TEST(CacheStorageIndexTest, TestDefaultConstructor) {
+class CacheStorageIndexTest : public testing::Test {
+ public:
+  void SetUp() override {}
+  void TearDown() override {}
+  CacheStorageIndexTest() : padding_key_("abcd1234") {}
+
+  const std::string padding_key_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CacheStorageIndexTest);
+};
+
+TEST_F(CacheStorageIndexTest, TestDefaultConstructor) {
   CacheStorageIndex index;
   EXPECT_EQ(0u, index.num_entries());
   EXPECT_TRUE(index.ordered_cache_metadata().empty());
   EXPECT_EQ(0u, index.GetPaddedStorageSize());
 }
 
-TEST(CacheStorageIndexTest, TestSetCacheSize) {
+TEST_F(CacheStorageIndexTest, TestSetCacheSize) {
   CacheStorageIndex index;
-  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2));
-  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3));
-  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4));
+  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4, padding_key_));
   EXPECT_EQ(3u, index.num_entries());
   ASSERT_EQ(3u, index.ordered_cache_metadata().size());
   EXPECT_EQ(12 + 2 + 19 + 3 + 1000 + 4, index.GetPaddedStorageSize());
@@ -37,11 +49,11 @@ TEST(CacheStorageIndexTest, TestSetCacheSize) {
             index.GetCacheSizeForTesting("<not-present>"));
 }
 
-TEST(CacheStorageIndexTest, TestSetCachePadding) {
+TEST_F(CacheStorageIndexTest, TestSetCachePadding) {
   CacheStorageIndex index;
-  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2));
-  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3));
-  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4));
+  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4, padding_key_));
   EXPECT_EQ(3u, index.num_entries());
   ASSERT_EQ(3u, index.ordered_cache_metadata().size());
   EXPECT_EQ(12 + 2 + 19 + 3 + 1000 + 4, index.GetPaddedStorageSize());
@@ -57,11 +69,11 @@ TEST(CacheStorageIndexTest, TestSetCachePadding) {
             index.GetCachePaddingForTesting("<not-present>"));
 }
 
-TEST(CacheStorageIndexTest, TestDoomCache) {
+TEST_F(CacheStorageIndexTest, TestDoomCache) {
   CacheStorageIndex index;
-  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2));
-  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3));
-  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4));
+  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4, padding_key_));
   EXPECT_EQ(3u, index.num_entries());
   ASSERT_EQ(3u, index.ordered_cache_metadata().size());
   EXPECT_EQ(12 + 2 + 19 + 3 + 1000 + 4, index.GetPaddedStorageSize());
@@ -89,11 +101,11 @@ TEST(CacheStorageIndexTest, TestDoomCache) {
   EXPECT_EQ(19 + 3 + 1000 + 4, index.GetPaddedStorageSize());
 }
 
-TEST(CacheStorageIndexTest, TestDelete) {
+TEST_F(CacheStorageIndexTest, TestDelete) {
   CacheStorageIndex index;
-  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 2));
-  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 3));
-  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4));
+  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 2, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 3, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4, padding_key_));
   EXPECT_EQ(3u, index.num_entries());
   ASSERT_EQ(3u, index.ordered_cache_metadata().size());
   EXPECT_EQ(19 + 2 + 12 + 3 + 1000 + 4, index.GetPaddedStorageSize());
@@ -136,21 +148,21 @@ TEST(CacheStorageIndexTest, TestDelete) {
   EXPECT_EQ(3u, it->padding);
 }
 
-TEST(CacheStorageIndexTest, TestInsert) {
+TEST_F(CacheStorageIndexTest, TestInsert) {
   CacheStorageIndex index;
-  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2));
-  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3));
-  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4));
+  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4, padding_key_));
   EXPECT_EQ(3u, index.num_entries());
   ASSERT_EQ(3u, index.ordered_cache_metadata().size());
   EXPECT_EQ(12 + 2 + 19 + 3 + 1000 + 4, index.GetPaddedStorageSize());
 }
 
-TEST(CacheStorageIndexTest, TestMoveOperator) {
+TEST_F(CacheStorageIndexTest, TestMoveOperator) {
   CacheStorageIndex index;
-  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2));
-  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3));
-  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4));
+  index.Insert(CacheStorageIndex::CacheMetadata("foo", 12, 2, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("bar", 19, 3, padding_key_));
+  index.Insert(CacheStorageIndex::CacheMetadata("baz", 1000, 4, padding_key_));
 
   CacheStorageIndex index2;
   index2 = std::move(index);

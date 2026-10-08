@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <linux-dmabuf-unstable-v1-server-protocol.h>
 
+#include "base/macros.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/ozone/platform/wayland/test/global_object.h"
 
@@ -23,10 +24,6 @@ class TestZwpLinuxBufferParamsV1;
 class MockZwpLinuxDmabufV1 : public GlobalObject {
  public:
   MockZwpLinuxDmabufV1();
-
-  MockZwpLinuxDmabufV1(const MockZwpLinuxDmabufV1&) = delete;
-  MockZwpLinuxDmabufV1& operator=(const MockZwpLinuxDmabufV1&) = delete;
-
   ~MockZwpLinuxDmabufV1() override;
 
   MOCK_METHOD2(Destroy, void(wl_client* client, wl_resource* resource));
@@ -45,6 +42,8 @@ class MockZwpLinuxDmabufV1 : public GlobalObject {
 
  private:
   std::vector<TestZwpLinuxBufferParamsV1*> buffer_params_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockZwpLinuxDmabufV1);
 };
 
 }  // namespace wl

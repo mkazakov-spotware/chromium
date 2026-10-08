@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,17 +11,21 @@ namespace crosapi {
 // trailing "." is intentional.
 const char kLacrosAppIdPrefix[] = "org.chromium.lacros.";
 
+// Path to the ash-side primary user profile directory, which is a hard link to
+// a directory in the encrypted user data partition.
+const char kHomeChronosUserPath[] = "/home/chronos/user";
+
+// The "MyFiles" directory for the ash-side primary user.
+const char kMyFilesPath[] = "/home/chronos/user/MyFiles";
+
+// The "Downloads" directory for the ash-side primary user. Note that the user
+// can choose to download files to a different directory, see DownloadPrefs.
+const char kDefaultDownloadsPath[] = "/home/chronos/user/MyFiles/Downloads";
+
 // The default user-data-directory for Lacros.
 // NOTE: This is security sensitive. The directory must be inside the encrypted
 // user data partition.
 const char kLacrosUserDataPath[] = "/home/chronos/user/lacros";
-
-// The file name of shared resource file.
-const char kSharedResourcesPackName[] = "resources_for_sharing.rspak";
-const char kSharedChrome100PercentPackName[] =
-    "chrome_100_percent_for_sharing.rspak";
-const char kSharedChrome200PercentPackName[] =
-    "chrome_200_percent_for_sharing.rspak";
 
 // Release channel key in /etc/lsb-release.
 const char kChromeOSReleaseTrack[] = "CHROMEOS_RELEASE_TRACK";
@@ -31,9 +35,5 @@ const char kReleaseChannelCanary[] = "canary-channel";
 const char kReleaseChannelDev[] = "dev-channel";
 const char kReleaseChannelBeta[] = "beta-channel";
 const char kReleaseChannelStable[] = "stable-channel";
-
-// Commandline flag whose value is the FD connected to Crosapi.
-const char kCrosapiMojoPlatformChannelHandle[] =
-    "crosapi-mojo-platform-channel-handle";
 
 }  // namespace crosapi

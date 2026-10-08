@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/strings/string_util.h"
 
 namespace subresource_filter {
@@ -80,8 +81,8 @@ url_pattern_index::proto::UrlRule UrlRule::ToProtobuf() const {
   url_pattern_index::proto::UrlRule result;
 
   result.set_semantics(
-      is_allowlist ? url_pattern_index::proto::RULE_SEMANTICS_ALLOWLIST
-                   : url_pattern_index::proto::RULE_SEMANTICS_BLOCKLIST);
+      is_allowlist ? url_pattern_index::proto::RULE_SEMANTICS_WHITELIST
+                   : url_pattern_index::proto::RULE_SEMANTICS_BLACKLIST);
   switch (is_third_party) {
     case TriState::DONT_CARE:
       result.set_source_type(url_pattern_index::proto::SOURCE_TYPE_ANY);
@@ -105,8 +106,7 @@ url_pattern_index::proto::UrlRule UrlRule::ToProtobuf() const {
   }
 
   for (const std::string& domain : domains) {
-    url_pattern_index::proto::DomainListItem* list_item =
-        result.add_initiator_domains();
+    url_pattern_index::proto::DomainListItem* list_item = result.add_domains();
     if (domain.empty())
       continue;
     if (domain[0] == '~') {
@@ -151,8 +151,8 @@ url_pattern_index::proto::CssRule CssRule::ToProtobuf() const {
   url_pattern_index::proto::CssRule result;
 
   result.set_semantics(
-      is_allowlist ? url_pattern_index::proto::RULE_SEMANTICS_ALLOWLIST
-                   : url_pattern_index::proto::RULE_SEMANTICS_BLOCKLIST);
+      is_allowlist ? url_pattern_index::proto::RULE_SEMANTICS_WHITELIST
+                   : url_pattern_index::proto::RULE_SEMANTICS_BLACKLIST);
 
   for (const std::string& domain : domains) {
     url_pattern_index::proto::DomainListItem* list_item = result.add_domains();
@@ -206,9 +206,9 @@ std::string ToString(const url_pattern_index::proto::UrlRule& rule) {
   std::string result;
 
   switch (rule.semantics()) {
-    case url_pattern_index::proto::RULE_SEMANTICS_BLOCKLIST:
+    case url_pattern_index::proto::RULE_SEMANTICS_BLACKLIST:
       break;
-    case url_pattern_index::proto::RULE_SEMANTICS_ALLOWLIST:
+    case url_pattern_index::proto::RULE_SEMANTICS_WHITELIST:
       result += "@@";
       break;
     default:
@@ -295,7 +295,7 @@ std::string ToString(const url_pattern_index::proto::UrlRule& rule) {
       break;
     case url_pattern_index::proto::SOURCE_TYPE_FIRST_PARTY:
       source_type_string = "~";
-      [[fallthrough]];
+      FALLTHROUGH;
     case url_pattern_index::proto::SOURCE_TYPE_THIRD_PARTY:
       source_type_string += "third-party";
       options.push_back(std::move(source_type_string));
@@ -307,9 +307,9 @@ std::string ToString(const url_pattern_index::proto::UrlRule& rule) {
   if (rule.match_case())
     options.push_back("match-case");
 
-  if (rule.initiator_domains_size()) {
+  if (rule.domains_size()) {
     std::string domains = "domain=";
-    DomainListJoin(rule.initiator_domains(), '|', &domains);
+    DomainListJoin(rule.domains(), '|', &domains);
     options.push_back(std::move(domains));
   }
 
@@ -327,10 +327,10 @@ std::string ToString(const url_pattern_index::proto::CssRule& rule) {
     DomainListJoin(rule.domains(), ',', &result);
 
   switch (rule.semantics()) {
-    case url_pattern_index::proto::RULE_SEMANTICS_BLOCKLIST:
+    case url_pattern_index::proto::RULE_SEMANTICS_BLACKLIST:
       result += "##";
       break;
-    case url_pattern_index::proto::RULE_SEMANTICS_ALLOWLIST:
+    case url_pattern_index::proto::RULE_SEMANTICS_WHITELIST:
       result += "#@#";
       break;
     default:

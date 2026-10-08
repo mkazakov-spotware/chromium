@@ -1,13 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_INVALIDATION_IMPL_FCM_INVALIDATION_SERVICE_H_
 #define COMPONENTS_INVALIDATION_IMPL_FCM_INVALIDATION_SERVICE_H_
 
-#include "base/memory/raw_ptr.h"
-#include "base/sequence_checker.h"
-#include "base/time/time.h"
+#include "base/macros.h"
 #include "components/invalidation/impl/fcm_invalidation_service_base.h"
 #include "components/invalidation/public/identity_provider.h"
 
@@ -26,15 +24,13 @@ class FCMInvalidationService : public FCMInvalidationServiceBase,
                          instance_id::InstanceIDDriver* instance_id_driver,
                          PrefService* pref_service,
                          const std::string& sender_id = {});
-  FCMInvalidationService(const FCMInvalidationService& other) = delete;
-  FCMInvalidationService& operator=(const FCMInvalidationService& other) =
-      delete;
   ~FCMInvalidationService() override;
 
   void Init() override;
 
   void RequestDetailedStatus(
-      base::RepeatingCallback<void(base::Value::Dict)> caller) const override;
+      base::RepeatingCallback<void(const base::DictionaryValue&)> caller)
+      const override;
 
   // IdentityProvider::Observer implementation.
   void OnActiveAccountRefreshTokenUpdated() override;
@@ -44,7 +40,7 @@ class FCMInvalidationService : public FCMInvalidationServiceBase,
  protected:
   friend class FCMInvalidationServiceTestDelegate;
 
-  base::Value::Dict CollectDebugData() const override;
+  base::DictionaryValue CollectDebugData() const override;
 
  private:
   struct Diagnostics {
@@ -58,10 +54,12 @@ class FCMInvalidationService : public FCMInvalidationServiceBase,
 
   bool IsReadyToStart();
 
-  const raw_ptr<IdentityProvider> identity_provider_;
+  IdentityProvider* const identity_provider_;
   Diagnostics diagnostic_info_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(FCMInvalidationService);
 };
 
 }  // namespace invalidation

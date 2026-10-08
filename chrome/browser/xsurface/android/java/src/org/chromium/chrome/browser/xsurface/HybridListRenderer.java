@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.xsurface;
 
 import android.view.View;
-import android.view.ViewGroup;
 
 import androidx.annotation.Nullable;
 
@@ -22,23 +21,6 @@ public interface HybridListRenderer {
     @Nullable
     default View bind(ListContentManager manager) {
         return null;
-    }
-
-    /**
-     * Binds a contentmanager with this renderer.
-     *
-     * @param manager the ListContentManager responsible for populating views
-     * @param viewport the ViewGroup containing the content. Views within the
-     *   bounds of this ViewGroup will be considered for view actions. If null,
-     *   the returned View will be used as the viewport.
-     * @param shouldUseStaggeredLayout whether to use Staggered layout for list. Column count should
-     *         be set via ListLayoutHelper#setSpanCount()
-     * @return
-     */
-    @Nullable
-    default View bind(ListContentManager manager, @Nullable ViewGroup viewport,
-            boolean shouldUseStaggeredLayout) {
-        return bind(manager);
     }
 
     /**
@@ -73,17 +55,4 @@ public interface HybridListRenderer {
      * Updates the renderer with templates and initializing data.
      */
     default void update(byte[] data) {}
-
-    /**
-     * Called when a pull to refresh is initiated by the user.
-     */
-    default void onPullToRefreshStarted() {}
-
-    /**
-     * Returns helper to manager the list layout.
-     * @return @{@link ListLayoutHelper} instance.
-     */
-    default ListLayoutHelper getListLayoutHelper() {
-        return null;
-    }
 }

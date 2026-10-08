@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,8 +9,6 @@
 #include <vector>
 
 #include "content/common/content_export.h"
-#include "net/base/isolation_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "url/origin.h"
 
@@ -29,12 +27,7 @@ struct CONTENT_EXPORT BackgroundFetchDescription {
                              uint64_t download_total_bytes,
                              uint64_t upload_total_bytes,
                              std::vector<std::string> outstanding_guids,
-                             bool start_paused,
-                             absl::optional<net::IsolationInfo> isolation_info);
-  BackgroundFetchDescription(const BackgroundFetchDescription&) = delete;
-  BackgroundFetchDescription& operator=(const BackgroundFetchDescription&) =
-      delete;
-
+                             bool start_paused);
   ~BackgroundFetchDescription();
 
   // Fetch identifiers.
@@ -57,12 +50,10 @@ struct CONTENT_EXPORT BackgroundFetchDescription {
   std::vector<std::string> outstanding_guids;
   bool start_paused;
 
-  // Network params.
-  // Generally expected to have a value but passed as an optional for
-  // compatibility with fetches that were started before this was added.
-  absl::optional<net::IsolationInfo> isolation_info;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BackgroundFetchDescription);
 };
 
 }  // namespace content
 
-#endif  // CONTENT_PUBLIC_BROWSER_BACKGROUND_FETCH_DESCRIPTION_H_
+#endif  // CONTENT_PUBLIC_BROWSER_BACKGROUND_FETCH_DESCRIPTION_H

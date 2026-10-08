@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,36 +14,26 @@
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
-#include "third_party/blink/renderer/platform/supplementable.h"
 
 namespace blink {
 
 class ExceptionState;
-class NavigatorBase;
 class ScriptPromiseResolver;
 class ScriptState;
 class USBDevice;
 class USBDeviceRequestOptions;
 
 class USB final : public EventTargetWithInlineData,
-                  public Supplement<NavigatorBase>,
                   public ExecutionContextLifecycleObserver,
                   public device::mojom::blink::UsbDeviceManagerClient {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static const char kSupplementName[];
-
-  // Getter for navigator.usb
-  static USB* usb(NavigatorBase&);
-
-  explicit USB(NavigatorBase&);
+  explicit USB(ExecutionContext&);
   ~USB() override;
 
   // USB.idl
@@ -66,9 +56,6 @@ class USB final : public EventTargetWithInlineData,
   mojom::blink::WebUsbService* GetWebUsbService() const {
     return service_.get();
   }
-
-  void ForgetDevice(const String& device_guid,
-                    mojom::blink::WebUsbService::ForgetDeviceCallback callback);
 
   void OnGetDevices(ScriptPromiseResolver*,
                     Vector<device::mojom::blink::UsbDeviceInfoPtr>);
@@ -97,7 +84,9 @@ class USB final : public EventTargetWithInlineData,
   HeapMojoRemote<mojom::blink::WebUsbService> service_;
   HeapHashSet<Member<ScriptPromiseResolver>> get_devices_requests_;
   HeapHashSet<Member<ScriptPromiseResolver>> get_permission_requests_;
-  HeapMojoAssociatedReceiver<device::mojom::blink::UsbDeviceManagerClient, USB>
+  HeapMojoAssociatedReceiver<device::mojom::blink::UsbDeviceManagerClient,
+                             USB,
+                             HeapMojoWrapperMode::kWithoutContextObserver>
       client_receiver_;
   HeapHashMap<String, WeakMember<USBDevice>> device_cache_;
 };

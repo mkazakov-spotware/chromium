@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "base/containers/contains.h"
-#include "base/memory/raw_ptr.h"
-#include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "components/media_router/browser/media_router.h"
 #include "components/media_router/browser/media_sinks_observer.h"
 #include "content/public/browser/browser_thread.h"
@@ -53,11 +50,13 @@ class QueryResultManager::MediaSourceMediaSinksObserver
     *sink_ids = latest_sink_ids_;
   }
 
+  MediaCastMode cast_mode() const { return cast_mode_; }
+
  private:
   const MediaCastMode cast_mode_;
   const MediaSource source_;
   std::vector<MediaSink::Id> latest_sink_ids_;
-  const raw_ptr<QueryResultManager> result_manager_;
+  QueryResultManager* const result_manager_;
 };
 
 // Observes for all the available sinks.
@@ -75,30 +74,27 @@ class QueryResultManager::AnyMediaSinksObserver : public MediaSinksObserver {
   }
 
  private:
-  const raw_ptr<QueryResultManager> result_manager_;
+  QueryResultManager* const result_manager_;
 };
 
 QueryResultManager::QueryResultManager(MediaRouter* router) : router_(router) {
   DCHECK(router_);
   auto observer = std::make_unique<AnyMediaSinksObserver>(router_, this);
   observer->Init();
-  sinks_observers_[absl::nullopt] = std::move(observer);
+  sinks_observers_[MediaSource()] = std::move(observer);
 }
 
 QueryResultManager::~QueryResultManager() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 
-void QueryResultManager::AddObserver(MediaSinkWithCastModesObserver* observer) {
+void QueryResultManager::AddObserver(Observer* observer) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK(observer);
   observers_.AddObserver(observer);
-  // Make sure observer knows about any pre-existing sinks
-  NotifyOnResultsUpdated();
 }
 
-void QueryResultManager::RemoveObserver(
-    MediaSinkWithCastModesObserver* observer) {
+void QueryResultManager::RemoveObserver(Observer* observer) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK(observer);
   observers_.RemoveObserver(observer);
@@ -159,22 +155,6 @@ std::vector<MediaSource> QueryResultManager::GetSourcesForCastMode(
   const auto& cast_mode_it = cast_mode_sources_.find(cast_mode);
   return cast_mode_it == cast_mode_sources_.end() ? std::vector<MediaSource>()
                                                   : cast_mode_it->second;
-}
-
-std::vector<MediaSinkWithCastModes> QueryResultManager::GetSinksWithCastModes()
-    const {
-  std::vector<MediaSinkWithCastModes> sinks;
-  for (const auto& sink_pair : sinks_with_sources_) {
-    MediaSinkWithCastModes sink_with_cast_modes(sink_pair.second.sink());
-    sink_with_cast_modes.cast_modes = sink_pair.second.GetCastModes();
-    sinks.push_back(sink_with_cast_modes);
-  }
-  for (const auto& sink : all_sinks_) {
-    if (!base::Contains(sinks_with_sources_, sink.id()))
-      sinks.push_back(MediaSinkWithCastModes(sink));
-  }
-
-  return sinks;
 }
 
 void QueryResultManager::RemoveOldSourcesForCastMode(
@@ -269,16 +249,27 @@ bool QueryResultManager::AreSourcesValidForCastMode(
   bool has_cast_mode = cast_mode_it != cast_mode_sources_.end();
   // If a source has already been registered, then it must be associated with
   // |cast_mode|.
-  return base::ranges::none_of(sources, [=](const MediaSource& source) {
-    return base::Contains(sinks_observers_, source) &&
-           (!has_cast_mode || !base::Contains(cast_mode_it->second, source));
-  });
+  return std::find_if(sources.begin(), sources.end(),
+                      [=](const MediaSource& source) {
+                        return base::Contains(sinks_observers_, source) &&
+                               (!has_cast_mode ||
+                                !base::Contains(cast_mode_it->second, source));
+                      }) == sources.end();
 }
 
 void QueryResultManager::NotifyOnResultsUpdated() {
-  std::vector<MediaSinkWithCastModes> sinks = GetSinksWithCastModes();
-  for (MediaSinkWithCastModesObserver& observer : observers_)
-    observer.OnSinksUpdated(sinks);
+  std::vector<MediaSinkWithCastModes> sinks;
+  for (const auto& sink_pair : sinks_with_sources_) {
+    MediaSinkWithCastModes sink_with_cast_modes(sink_pair.second.sink());
+    sink_with_cast_modes.cast_modes = sink_pair.second.GetCastModes();
+    sinks.push_back(sink_with_cast_modes);
+  }
+  for (const auto& sink : all_sinks_) {
+    if (!base::Contains(sinks_with_sources_, sink.id()))
+      sinks.push_back(MediaSinkWithCastModes(sink));
+  }
+  for (QueryResultManager::Observer& observer : observers_)
+    observer.OnResultsUpdated(sinks);
 }
 
 }  // namespace media_router

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,12 @@ import android.content.Context;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.base.Callback;
-import org.chromium.base.Log;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.StateChangeReason;
+import org.chromium.chrome.browser.contextualsearch.ContextualSearchFieldTrial.ContextualSearchSwitch;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.locale.LocaleManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
@@ -30,13 +27,10 @@ import org.chromium.content_public.browser.SelectionPopupController;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 
 /** Manages the enabling and disabling and gesture listeners for ContextualSearch on a given Tab. */
 public class ContextualSearchTabHelper
         extends EmptyTabObserver implements NetworkChangeNotifier.ConnectionTypeObserver {
-    private static final String TAG = "ContextualSearch";
-
     /** The Tab that this helper tracks. */
     private final Tab mTab;
 
@@ -71,8 +65,6 @@ public class ContextualSearchTabHelper
     /** Whether the current default search engine is Google.  Is {@code null} if not inited. */
     private Boolean mIsDefaultSearchEngineGoogle;
 
-    private Callback<ContextualSearchManager> mManagerCallback;
-
     /**
      * Creates a contextual search tab helper for the given tab.
      * @param tab The tab whose contextual search actions will be handled by this helper.
@@ -96,7 +88,6 @@ public class ContextualSearchTabHelper
         Context context = tab != null ? tab.getContext() : null;
         if (context != null) scaleFactor /= context.getResources().getDisplayMetrics().density;
         mPxToDp = scaleFactor;
-        mManagerCallback = (ContextualSearchManager manager) -> updateHooksForTab(mTab);
     }
 
     // ============================================================================================
@@ -104,7 +95,7 @@ public class ContextualSearchTabHelper
     // ============================================================================================
 
     @Override
-    public void onPageLoadStarted(Tab tab, GURL url) {
+    public void onPageLoadStarted(Tab tab, String url) {
         updateHooksForTab(tab);
         ContextualSearchManager manager = getContextualSearchManager(tab);
         if (manager != null) manager.onBasePageLoadStarted();
@@ -159,11 +150,6 @@ public class ContextualSearchTabHelper
         mContextualSearchManager = null;
         mSelectionClientManager = null;
         mGestureStateListener = null;
-        ObservableSupplier<ContextualSearchManager> supplier =
-                getContextualSearchManagerSupplier(mTab);
-        if (supplier != null) {
-            supplier.removeObserver(mManagerCallback);
-        }
     }
 
     @Override
@@ -204,19 +190,13 @@ public class ContextualSearchTabHelper
      */
     private void updateHooksForTab(Tab tab) {
         WebContents currentWebContents = tab.getWebContents();
-        boolean webContentsChanged = currentWebContents != mWebContents;
-        if (webContentsChanged || mContextualSearchManager != getContextualSearchManager(tab)) {
-            mContextualSearchManager = getContextualSearchManager(tab);
-            if (webContentsChanged) {
-                // Ensure the hooks are cleared on the old web contents before proceeding. All of
-                // the objects associated with the web content need to be recreated in order for
-                // selection to continue working. See https://crbug.com/1076326 for more details.
-                removeContextualSearchHooks(mWebContents);
-                mSelectionClientManager = currentWebContents != null
-                        ? new SelectionClientManager(currentWebContents)
-                        : null;
-            }
+        if (currentWebContents != mWebContents
+                || mContextualSearchManager != getContextualSearchManager(tab)) {
             mWebContents = currentWebContents;
+            mContextualSearchManager = getContextualSearchManager(tab);
+            if (mWebContents != null && mSelectionClientManager == null) {
+                mSelectionClientManager = new SelectionClientManager(mWebContents);
+            }
             updateContextualSearchHooks(mWebContents);
         }
     }
@@ -261,7 +241,7 @@ public class ContextualSearchTabHelper
      * Removes Contextual Search hooks for its client and listener from the given WebContents.
      * @param webContents The WebContents to detach the gesture state listener from.
      */
-    private void removeContextualSearchHooks(@Nullable WebContents webContents) {
+    private void removeContextualSearchHooks(WebContents webContents) {
         if (webContents == null) return;
 
         if (mGestureStateListener != null) {
@@ -287,20 +267,11 @@ public class ContextualSearchTabHelper
     /** @return whether Contextual Search is enabled and active in this tab. */
     private boolean isContextualSearchActive(WebContents webContents) {
         assert mTab.getWebContents() == null || mTab.getWebContents() == webContents;
-        boolean isCct = mTab.isCustomTab();
         ContextualSearchManager manager = getContextualSearchManager(mTab);
-        if (manager == null) {
-            if (isCct) Log.w(TAG, "No manager!");
-            ObservableSupplier<ContextualSearchManager> supplier =
-                    getContextualSearchManagerSupplier(mTab);
-            if (supplier != null) {
-                supplier.addObserver(mManagerCallback);
-            }
-            return false;
-        }
+        if (manager == null) return false;
 
-        boolean isActive = !webContents.isIncognito() && FirstRunStatus.getFirstRunFlowComplete()
-                && !ContextualSearchPolicy.isContextualSearchDisabled()
+        return !webContents.isIncognito() && FirstRunStatus.getFirstRunFlowComplete()
+                && !ContextualSearchManager.isContextualSearchDisabled()
                 && TemplateUrlServiceFactory.get().isDefaultSearchEngineGoogle()
                 && !LocaleManager.getInstance().needToCheckForSearchEnginePromo()
                 // Svelte and Accessibility devices are incompatible with the first-run flow and
@@ -308,30 +279,12 @@ public class ContextualSearchTabHelper
                 // and http://crbug.com/396934).
                 && !manager.isRunningInCompatibilityMode() && !(mTab.isShowingErrorPage())
                 && isDeviceOnline(manager);
-        if (isCct && !isActive) {
-            // TODO(donnd): remove after https://crbug.com/1192143 is resolved.
-            Log.w(TAG, "Not allowed to be active! Checking reasons:");
-            Log.w(TAG,
-                    "!isIncognito: " + !webContents.isIncognito() + " getFirstRunFlowComplete: "
-                            + FirstRunStatus.getFirstRunFlowComplete()
-                            + " !isContextualSearchDisabled: "
-                            + !ContextualSearchManager.isContextualSearchDisabled()
-                            + " isDefaultSearchEngineGoogle: "
-                            + TemplateUrlServiceFactory.get().isDefaultSearchEngineGoogle()
-                            + " !needToCheckForSearchEnginePromo: "
-                            + !LocaleManager.getInstance().needToCheckForSearchEnginePromo()
-                            + " !isRunningInCompatibilityMode: "
-                            + !manager.isRunningInCompatibilityMode()
-                            + " !isShowingErrorPage: " + !mTab.isShowingErrorPage()
-                            + " isDeviceOnline: " + isDeviceOnline(manager));
-        }
-        return isActive;
     }
 
     /** @return Whether the device is online, or we have disabled online-detection. */
     private boolean isDeviceOnline(ContextualSearchManager manager) {
-        return ChromeFeatureList.isEnabled(
-                       ChromeFeatureList.CONTEXTUAL_SEARCH_DISABLE_ONLINE_DETECTION)
+        return ContextualSearchFieldTrial.getSwitch(
+                       ContextualSearchSwitch.IS_ONLINE_DETECTION_DISABLED)
                 ? true
                 : manager.isDeviceOnline();
     }
@@ -342,21 +295,9 @@ public class ContextualSearchTabHelper
      * @return The Contextual Search manager controlling that Tab.
      */
     private ContextualSearchManager getContextualSearchManager(Tab tab) {
-        ObservableSupplier<ContextualSearchManager> supplier =
-                getContextualSearchManagerSupplier(tab);
-        if (supplier == null) return null;
-        return supplier.get();
-    }
-
-    private ObservableSupplier<ContextualSearchManager> getContextualSearchManagerSupplier(
-            Tab tab) {
-        // Window may be null in tests.
-        if (tab.getWindowAndroid() == null) return null;
-        // TODO(crbug.com/1192143): This shouldn't have a reference to ChromeActivity, find a way to
-        // inject the supplier instead.
         Activity activity = tab.getWindowAndroid().getActivity().get();
         if (activity instanceof ChromeActivity) {
-            return ((ChromeActivity) activity).getContextualSearchManagerSupplier();
+            return ((ChromeActivity) activity).getContextualSearchManager();
         }
         return null;
     }
@@ -371,7 +312,9 @@ public class ContextualSearchTabHelper
 
         ContextualSearchManager manager = getContextualSearchManager(mTab);
         if (manager != null) {
-            manager.onContextualSearchPrefChanged();
+            boolean isEnabled = !ContextualSearchManager.isContextualSearchDisabled()
+                    && !ContextualSearchManager.isContextualSearchUninitialized();
+            manager.onContextualSearchPrefChanged(isEnabled);
         }
     }
 
@@ -380,10 +323,11 @@ public class ContextualSearchTabHelper
      * coordinates.
      */
     @CalledByNative
-    void onShowUnhandledTapUIIfNeeded(int x, int y) {
+    void onShowUnhandledTapUIIfNeeded(int x, int y, int fontSizeDips, int textRunLength) {
         // Only notify the manager if we currently have a valid listener.
         if (mGestureStateListener != null && getContextualSearchManager(mTab) != null) {
-            getContextualSearchManager(mTab).onShowUnhandledTapUIIfNeeded(x, y);
+            getContextualSearchManager(mTab).onShowUnhandledTapUIIfNeeded(
+                    x, y, fontSizeDips, textRunLength);
         }
     }
 

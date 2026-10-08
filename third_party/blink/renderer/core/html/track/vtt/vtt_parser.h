@@ -38,12 +38,13 @@
 #include "third_party/blink/renderer/core/html/track/vtt/vtt_cue.h"
 #include "third_party/blink/renderer/core/html/track/vtt/vtt_tokenizer.h"
 #include "third_party/blink/renderer/core/html_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
 
 class Document;
+class DoublePoint;
 class VTTScanner;
 
 class VTTParserClient : public GarbageCollectedMixin {
@@ -96,7 +97,7 @@ class VTTParser final : public GarbageCollected<VTTParser> {
   // Useful functions for parsing percentage settings.
   static bool ParsePercentageValue(VTTScanner& value_scanner,
                                    double& percentage);
-  static bool ParsePercentageValuePair(VTTScanner&, char, gfx::PointF&);
+  static bool ParsePercentageValuePair(VTTScanner&, char, DoublePoint&);
 
   // Create the DocumentFragment representation of the WebVTT cue text.
   static DocumentFragment* CreateDocumentFragmentFromCueText(Document&,
@@ -159,4 +160,4 @@ class VTTParser final : public GarbageCollected<VTTParser> {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_HTML_TRACK_VTT_VTT_PARSER_H_
+#endif

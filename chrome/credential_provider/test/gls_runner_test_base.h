@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,14 +37,15 @@ class GlsRunnerTestBase : public ::testing::Test {
   // Gets a command line that runs a fake GLS that produces the desired output.
   // |default_exit_code| is the default value that will be written unless the
   // other command line arguments require a specific error code to be returned.
-  static HRESULT GetFakeGlsCommandline(UiExitCodes default_exit_code,
-                                       const std::string& gls_email,
-                                       const std::string& gaia_id_override,
-                                       const std::string& gaia_password,
-                                       const std::string& full_name_override,
-                                       const std::wstring& start_gls_event_name,
-                                       bool ignore_expected_gaia_id,
-                                       base::CommandLine* command_line);
+  static HRESULT GetFakeGlsCommandline(
+      UiExitCodes default_exit_code,
+      const std::string& gls_email,
+      const std::string& gaia_id_override,
+      const std::string& gaia_password,
+      const std::string& full_name_override,
+      const base::string16& start_gls_event_name,
+      bool ignore_expected_gaia_id,
+      base::CommandLine* command_line);
 
  protected:
   GlsRunnerTestBase();
@@ -87,7 +88,7 @@ class GlsRunnerTestBase : public ::testing::Test {
     return gaia_provider_;
   }
 
-  void SetSidLockingWorkstation(const std::wstring& sid) {
+  void SetSidLockingWorkstation(const base::string16& sid) {
     sid_locking_workstation_ = sid;
   }
 
@@ -166,7 +167,7 @@ class GlsRunnerTestBase : public ::testing::Test {
                              int expected_error_message);
   HRESULT FinishLogonProcess(bool expected_success,
                              bool expected_credentials_change_fired,
-                             const std::wstring& expected_error_message);
+                             const base::string16& expected_error_message);
   HRESULT FinishLogonProcessWithCred(
       bool expected_success,
       bool expected_credentials_change_fired,
@@ -176,7 +177,7 @@ class GlsRunnerTestBase : public ::testing::Test {
   HRESULT FinishLogonProcessWithCred(
       bool expected_success,
       bool expected_credentials_change_fired,
-      const std::wstring& expected_error_message,
+      const base::string16& expected_error_message,
       const Microsoft::WRL::ComPtr<ICredentialProviderCredential>&
           local_testing_cred);
   HRESULT ReportLogonProcessResult(
@@ -212,7 +213,7 @@ class GlsRunnerTestBase : public ::testing::Test {
 
   // SID of the user that is considered to be locking the workstation. This is
   // only relevant for CPUS_UNLOCK_WORKSTATION usage.
-  std::wstring sid_locking_workstation_;
+  base::string16 sid_locking_workstation_;
 
   // Reference to the provider that is created and owned by this class.
   Microsoft::WRL::ComPtr<ICredentialProvider> gaia_provider_;

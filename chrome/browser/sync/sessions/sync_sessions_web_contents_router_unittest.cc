@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/ui/sync/browser_synced_tab_delegate.h"
@@ -16,8 +15,8 @@ namespace sync_sessions {
 
 class StartSyncFlareMock {
  public:
-  StartSyncFlareMock() = default;
-  ~StartSyncFlareMock() = default;
+  StartSyncFlareMock() {}
+  ~StartSyncFlareMock() {}
 
   void StartSyncFlare(syncer::ModelType type) { was_run_ = true; }
 
@@ -29,12 +28,6 @@ class StartSyncFlareMock {
 
 class SyncSessionsWebContentsRouterTest
     : public ChromeRenderViewHostTestHarness {
- public:
-  SyncSessionsWebContentsRouterTest(const SyncSessionsWebContentsRouterTest&) =
-      delete;
-  SyncSessionsWebContentsRouterTest& operator=(
-      const SyncSessionsWebContentsRouterTest&) = delete;
-
  protected:
   SyncSessionsWebContentsRouterTest() = default;
   ~SyncSessionsWebContentsRouterTest() override = default;
@@ -49,13 +42,15 @@ class SyncSessionsWebContentsRouterTest
   SyncSessionsWebContentsRouter* router() { return router_; }
 
  private:
-  raw_ptr<SyncSessionsWebContentsRouter> router_;
+  SyncSessionsWebContentsRouter* router_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyncSessionsWebContentsRouterTest);
 };
 
 // Disabled on android due to complexity of creating a full TabAndroid object
 // for a unit test. The logic being tested here isn't directly affected by
 // platform-specific peculiarities.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 TEST_F(SyncSessionsWebContentsRouterTest, FlareNotRun) {
   StartSyncFlareMock mock;
   router()->InjectStartSyncFlare(base::BindRepeating(
@@ -91,6 +86,6 @@ TEST_F(SyncSessionsWebContentsRouterTest, FlareRunsForLoadCompleted) {
   router()->NotifyTabModified(web_contents(), true);
   EXPECT_TRUE(mock.was_run());
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 }  // namespace sync_sessions

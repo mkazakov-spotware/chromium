@@ -1,10 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/public/cpp/external_arc/message_center/arc_notification_surface_impl.h"
 
 #include "base/check_op.h"
+#include "base/feature_list.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "components/exo/notification_surface.h"
 #include "components/exo/surface.h"
 #include "ui/aura/client/aura_constants.h"
@@ -24,10 +26,6 @@ class CustomWindowDelegate : public aura::WindowDelegate {
  public:
   explicit CustomWindowDelegate(exo::NotificationSurface* notification_surface)
       : notification_surface_(notification_surface) {}
-
-  CustomWindowDelegate(const CustomWindowDelegate&) = delete;
-  CustomWindowDelegate& operator=(const CustomWindowDelegate&) = delete;
-
   ~CustomWindowDelegate() override {}
 
   // Overridden from aura::WindowDelegate:
@@ -76,6 +74,8 @@ class CustomWindowDelegate : public aura::WindowDelegate {
 
  private:
   exo::NotificationSurface* const notification_surface_;
+
+  DISALLOW_COPY_AND_ASSIGN(CustomWindowDelegate);
 };
 
 }  // namespace
@@ -92,7 +92,11 @@ ArcNotificationSurfaceImpl::ArcNotificationSurfaceImpl(
   native_view_->SetName("ArcNotificationSurface");
   native_view_->AddChild(surface_->host_window());
 
-  surface_->host_window()->SetProperty(aura::client::kSkipImeProcessing, true);
+  if (base::FeatureList::IsEnabled(
+          chromeos::features::kArcPreImeKeyEventSupport)) {
+    surface_->root_surface()->window()->SetProperty(
+        aura::client::kSkipImeProcessing, true);
+  }
 
   native_view_->Show();
 }

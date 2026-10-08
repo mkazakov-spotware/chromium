@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,15 @@
 #include <vector>
 
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/nearby_sharing/contacts/nearby_share_contact_manager.h"
 #include "chrome/browser/nearby_sharing/proto/rpc_resources.pb.h"
 #include "content/public/browser/web_ui_message_handler.h"
+
+namespace base {
+class ListValue;
+}  // namespace base
 
 namespace content {
 class BrowserContext;
@@ -38,7 +43,7 @@ class NearbyInternalsContactHandler
 
  private:
   // Message handler callback that initializes JavaScript.
-  void InitializeContents(const base::Value::List& args);
+  void InitializeContents(const base::ListValue* args);
 
   // NearbyShareContactManager::Observer:
   void OnContactsDownloaded(
@@ -49,12 +54,11 @@ class NearbyInternalsContactHandler
 
   // Message handler callback that requests a contacts download from the contact
   // manager.
-  void HandleDownloadContacts(const base::Value::List& args);
+  void HandleDownloadContacts(const base::ListValue* args);
 
   content::BrowserContext* context_;
-  base::ScopedObservation<NearbyShareContactManager,
-                          NearbyShareContactManager::Observer>
-      observation_{this};
+  ScopedObserver<NearbyShareContactManager, NearbyShareContactManager::Observer>
+      observer_{this};
   base::WeakPtrFactory<NearbyInternalsContactHandler> weak_ptr_factory_{this};
 };
 

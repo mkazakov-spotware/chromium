@@ -1,16 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_CHROME_BROWSER_FIELD_TRIALS_H_
 #define CHROME_BROWSER_CHROME_BROWSER_FIELD_TRIALS_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/variations/platform_field_trials.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "components/variations/variations_associated_data.h"
-#endif
 
 class PrefService;
 
@@ -21,17 +17,13 @@ class FeatureList;
 class ChromeBrowserFieldTrials : public variations::PlatformFieldTrials {
  public:
   explicit ChromeBrowserFieldTrials(PrefService* local_state);
-
-  ChromeBrowserFieldTrials(const ChromeBrowserFieldTrials&) = delete;
-  ChromeBrowserFieldTrials& operator=(const ChromeBrowserFieldTrials&) = delete;
-
   ~ChromeBrowserFieldTrials() override;
 
   // variations::PlatformFieldTrials:
-  void OnVariationsSetupComplete() override;
-  void SetUpClientSideFieldTrials(
+  void SetupFieldTrials() override;
+  void SetupFeatureControllingFieldTrials(
       bool has_seed,
-      const variations::EntropyProviders& entropy_providers,
+      const base::FieldTrial::EntropyProvider& low_entropy_provider,
       base::FeatureList* feature_list) override;
   void RegisterSyntheticTrials() override;
 
@@ -41,15 +33,9 @@ class ChromeBrowserFieldTrials : public variations::PlatformFieldTrials {
   void InstantiateDynamicTrials();
 
   // Weak pointer to the local state prefs store.
-  const raw_ptr<PrefService> local_state_;
+  PrefService* const local_state_;
 
-#if BUILDFLAG(IS_ANDROID)
-  // VariationID to be used for FREMobileIdentityConsistencySynthetic.
-  // Set by SetUpClientSideTrials(...) and then used by
-  // RegisterSyntheticTrials().
-  variations::VariationID fre_consistency_trial_variation_id_ =
-      variations::EMPTY_ID;
-#endif  // BUILDFLAG(IS_ANDROID)
+  DISALLOW_COPY_AND_ASSIGN(ChromeBrowserFieldTrials);
 };
 
 #endif  // CHROME_BROWSER_CHROME_BROWSER_FIELD_TRIALS_H_

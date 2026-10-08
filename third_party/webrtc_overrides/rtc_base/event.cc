@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,12 +28,13 @@ void Event::Reset() {
   event_.Reset();
 }
 
-bool Event::Wait(webrtc::TimeDelta give_up_after) {
-  if (give_up_after.IsPlusInfinity()) {
+bool Event::Wait(int give_up_after_ms) {
+  if (give_up_after_ms == kForever) {
     event_.Wait();
     return true;
   }
-  return event_.TimedWait(base::Microseconds(give_up_after.us()));
+
+  return event_.TimedWait(base::TimeDelta::FromMilliseconds(give_up_after_ms));
 }
 
 }  // namespace rtc

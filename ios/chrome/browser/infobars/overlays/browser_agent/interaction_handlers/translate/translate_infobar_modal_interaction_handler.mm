@@ -1,18 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/translate/translate_infobar_modal_interaction_handler.h"
 
-#import "base/metrics/histogram_macros.h"
-#import "base/metrics/sparse_histogram.h"
-#import "components/metrics/metrics_log.h"
-#import "components/translate/core/browser/translate_infobar_delegate.h"
-#import "ios/chrome/browser/infobars/infobar_ios.h"
-#import "ios/chrome/browser/infobars/infobar_manager_impl.h"
+#include "base/metrics/histogram_macros.h"
+#include "base/metrics/sparse_histogram.h"
+#include "components/metrics/metrics_log.h"
+#include "components/translate/core/browser/translate_infobar_delegate.h"
+#include "ios/chrome/browser/infobars/infobar_ios.h"
+#include "ios/chrome/browser/infobars/infobar_manager_impl.h"
 #import "ios/chrome/browser/infobars/overlays/browser_agent/interaction_handlers/translate/translate_infobar_modal_overlay_request_callback_installer.h"
 #import "ios/chrome/browser/infobars/overlays/infobar_overlay_request_inserter.h"
-#import "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
+#include "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
 #import "ios/chrome/browser/infobars/overlays/translate_infobar_placeholder_overlay_request_cancel_handler.h"
 #import "ios/chrome/browser/infobars/overlays/translate_overlay_tab_helper.h"
 #import "ios/chrome/browser/overlays/public/infobar_banner/infobar_banner_placeholder_request_config.h"
@@ -29,7 +29,7 @@ using translate_infobar_overlays::PlaceholderRequestCancelHandler;
 using translate_infobar_overlay::ModalRequestCallbackInstaller;
 
 namespace {
-// Records a histogram of `histogram` for `langCode`. This is used to log the
+// Records a histogram of |histogram| for |langCode|. This is used to log the
 // language distribution of certain Translate events.
 void RecordLanguageDataHistogram(const std::string& histogram_name,
                                  const std::string& lang_code) {
@@ -55,7 +55,7 @@ void TranslateInfobarModalInteractionHandler::ToggleAlwaysTranslate(
   bool enabling_always_translate = !delegate->ShouldAlwaysTranslate();
   delegate->ToggleAlwaysTranslate();
   RecordLanguageDataHistogram(kLanguageHistogramAlwaysTranslate,
-                              delegate->source_language_code());
+                              delegate->original_language_code());
   if (enabling_always_translate) {
     StartTranslation(infobar);
   }
@@ -67,7 +67,7 @@ void TranslateInfobarModalInteractionHandler::ToggleNeverTranslateLanguage(
   bool should_remove_infobar = delegate->IsTranslatableLanguageByPrefs();
   delegate->ToggleTranslatableLanguageByPrefs();
   RecordLanguageDataHistogram(kLanguageHistogramNeverTranslate,
-                              delegate->source_language_code());
+                              delegate->original_language_code());
   // Remove infobar if turning it on.
   if (should_remove_infobar)
     infobar->RemoveSelf();
@@ -76,8 +76,8 @@ void TranslateInfobarModalInteractionHandler::ToggleNeverTranslateLanguage(
 void TranslateInfobarModalInteractionHandler::ToggleNeverTranslateSite(
     InfoBarIOS* infobar) {
   translate::TranslateInfoBarDelegate* delegate = GetDelegate(infobar);
-  bool should_remove_infobar = !delegate->IsSiteOnNeverPromptList();
-  delegate->ToggleNeverPromptSite();
+  bool should_remove_infobar = !delegate->IsSiteBlacklisted();
+  delegate->ToggleSiteBlacklist();
   // Remove infobar if turning it on.
   if (should_remove_infobar)
     infobar->RemoveSelf();
@@ -97,8 +97,8 @@ void TranslateInfobarModalInteractionHandler::UpdateLanguages(
   if (source_language_index != -1) {
     std::string source_language_code =
         delegate->language_code_at(source_language_index);
-    if (delegate->source_language_code() != source_language_code) {
-      delegate->UpdateSourceLanguage(source_language_code);
+    if (delegate->original_language_code() != source_language_code) {
+      delegate->UpdateOriginalLanguage(source_language_code);
     }
   }
 

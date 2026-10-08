@@ -25,7 +25,8 @@
 
 #include "third_party/blink/renderer/core/svg/animation/smil_animation_sandwich.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "third_party/blink/renderer/core/svg/animation/smil_animation_value.h"
 #include "third_party/blink/renderer/core/svg/svg_animation_element.h"
 
@@ -52,12 +53,12 @@ void SMILAnimationSandwich::Add(SVGAnimationElement* animation) {
 }
 
 void SMILAnimationSandwich::Remove(SVGAnimationElement* animation) {
-  auto* position = base::ranges::find(sandwich_, animation);
+  auto* position = std::find(sandwich_.begin(), sandwich_.end(), animation);
   DCHECK(sandwich_.end() != position);
   sandwich_.erase(position);
   // Clear the animated value when there are active animation elements but the
   // sandwich is empty.
-  if (!active_.empty() && sandwich_.empty()) {
+  if (!active_.IsEmpty() && sandwich_.IsEmpty()) {
     animation->ClearAnimationValue();
     active_.Shrink(0);
   }
@@ -71,9 +72,9 @@ void SMILAnimationSandwich::UpdateActiveAnimationStack(
               PriorityCompare(presentation_time));
   }
 
-  const bool was_active = !active_.empty();
+  const bool was_active = !active_.IsEmpty();
   active_.Shrink(0);
-  active_.reserve(sandwich_.size());
+  active_.ReserveCapacity(sandwich_.size());
   // Build the contributing/active sandwich.
   for (auto& animation : sandwich_) {
     if (!animation->IsContributing(presentation_time))
@@ -83,12 +84,12 @@ void SMILAnimationSandwich::UpdateActiveAnimationStack(
   }
   // If the sandwich was previously active but no longer is, clear any animated
   // value.
-  if (was_active && active_.empty())
+  if (was_active && active_.IsEmpty())
     sandwich_.front()->ClearAnimationValue();
 }
 
 bool SMILAnimationSandwich::ApplyAnimationValues() {
-  if (active_.empty())
+  if (active_.IsEmpty())
     return false;
 
   // Animations have to be applied lowest to highest prio.

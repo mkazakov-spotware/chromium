@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 ConfirmBubbleModel::ConfirmBubbleModel() = default;
 ConfirmBubbleModel::~ConfirmBubbleModel() = default;
 
-std::u16string ConfirmBubbleModel::GetButtonLabel(
+base::string16 ConfirmBubbleModel::GetButtonLabel(
     ui::DialogButton button) const {
   return l10n_util::GetStringUTF16(
       (button == ui::DIALOG_BUTTON_OK) ? IDS_OK : IDS_CANCEL);
@@ -21,8 +21,8 @@ void ConfirmBubbleModel::Accept() {}
 
 void ConfirmBubbleModel::Cancel() {}
 
-std::u16string ConfirmBubbleModel::GetLinkText() const {
-  return std::u16string();
+base::string16 ConfirmBubbleModel::GetLinkText() const {
+  return base::string16();
 }
 
 GURL ConfirmBubbleModel::GetHelpPageURL() const {

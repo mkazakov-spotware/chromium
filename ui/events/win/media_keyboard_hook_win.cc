@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,6 @@ class MediaKeyboardHookWinImpl : public KeyboardHookWinBase {
  public:
   MediaKeyboardHookWinImpl(KeyEventCallback callback,
                            bool enable_hook_registration);
-
-  MediaKeyboardHookWinImpl(const MediaKeyboardHookWinImpl&) = delete;
-  MediaKeyboardHookWinImpl& operator=(const MediaKeyboardHookWinImpl&) = delete;
-
   ~MediaKeyboardHookWinImpl() override;
 
   // KeyboardHookWinBase implementation.
@@ -45,6 +41,8 @@ class MediaKeyboardHookWinImpl : public KeyboardHookWinBase {
   // Tracks the last non-located key down seen in order to determine if the
   // current key event should be marked as a repeated key press.
   DWORD last_key_down_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(MediaKeyboardHookWinImpl);
 };
 
 // static
@@ -54,7 +52,7 @@ MediaKeyboardHookWinImpl::MediaKeyboardHookWinImpl(
     KeyEventCallback callback,
     bool enable_hook_registration)
     : KeyboardHookWinBase(
-          absl::optional<base::flat_set<DomCode>>(
+          base::Optional<base::flat_set<DomCode>>(
               {DomCode::MEDIA_PLAY_PAUSE, DomCode::MEDIA_STOP,
                DomCode::MEDIA_TRACK_NEXT, DomCode::MEDIA_TRACK_PREVIOUS}),
           std::move(callback),
@@ -93,8 +91,8 @@ bool MediaKeyboardHookWinImpl::ProcessKeyEventMessage(WPARAM w_param,
     return false;
 
   bool is_repeat = false;
-  CHROME_MSG msg = {nullptr, static_cast<UINT>(w_param), vk,
-                    GetLParamFromScanCode(scan_code), time_stamp};
+  MSG msg = {nullptr, w_param, vk, GetLParamFromScanCode(scan_code),
+             time_stamp};
   EventType event_type = EventTypeFromMSG(msg);
   if (event_type == ET_KEY_PRESSED) {
     is_repeat = (last_key_down_ == vk);

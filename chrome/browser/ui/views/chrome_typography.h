@@ -1,23 +1,22 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_CHROME_TYPOGRAPHY_H_
 #define CHROME_BROWSER_UI_VIEWS_CHROME_TYPOGRAPHY_H_
 
-#include "build/chromeos_buildflags.h"
-#include "ui/base/resource/resource_bundle.h"
+#include "base/macros.h"
 #include "ui/gfx/font.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/style/typography_provider.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 // gn check complains on Linux Ozone.
 #include "ash/public/cpp/ash_typography.h"  // nogncheck
 #endif
 
 enum ChromeTextContext {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   CHROME_TEXT_CONTEXT_START = ash::ASH_TEXT_CONTEXT_END,
 #else
   CHROME_TEXT_CONTEXT_START = views::style::VIEWS_TEXT_CONTEXT_END,
@@ -60,15 +59,18 @@ enum ChromeTextContext {
   // Title label in the IPH bubble. Usually 18pt.
   CONTEXT_IPH_BUBBLE_TITLE,
 
-  // Body text label in the IPH bubble. Usually 14pt.
-  CONTEXT_IPH_BUBBLE_BODY,
+  // Body text label in the IPH bubble when a title exists. Usually 13pt.
+  CONTEXT_IPH_BUBBLE_BODY_WITH_TITLE,
 
-  // Title label in the browser side panel. Usually 13pt.
-  CONTEXT_SIDE_PANEL_TITLE,
+  // Body text label in the IPH bubble when no title exists. Usually 14pt.
+  CONTEXT_IPH_BUBBLE_BODY_WITHOUT_TITLE,
+
+  // Button label in the IPH bubble. Usually 13pt.
+  CONTEXT_IPH_BUBBLE_BUTTON
 };
 
 enum ChromeTextStyle {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   CHROME_TEXT_STYLE_START = ash::ASH_TEXT_STYLE_END,
 #else
   CHROME_TEXT_STYLE_START = views::style::VIEWS_TEXT_STYLE_END,
@@ -85,6 +87,14 @@ enum ChromeTextStyle {
 
   // A solid shade of green.
   STYLE_GREEN,
+
+  // Used to draw attention to a section of body text such as an extension name
+  // or hostname.
+  STYLE_EMPHASIZED,
+
+  // Emphasized secondary style. Like STYLE_EMPHASIZED but styled to match
+  // surrounding STYLE_SECONDARY text.
+  STYLE_EMPHASIZED_SECONDARY,
 };
 
 // Takes a desired font size and returns the size delta to request from
@@ -99,9 +109,11 @@ int GetFontSizeDeltaBoundedByAvailableHeight(int available_height,
 // out any font size changes made to account for locale or user settings.
 int GetFontSizeDeltaIgnoringUserOrLocaleSettings(int desired_font_size);
 
-// Sets the |details| for text that should not be affected by the Harmony spec.
+// Sets the |size_delta| and |font_weight| for text that should not be affected
+// by the Harmony spec.
 void ApplyCommonFontStyles(int context,
                            int style,
-                           ui::ResourceBundle::FontDetails& details);
+                           int* size_delta,
+                           gfx::Font::Weight* weight);
 
 #endif  // CHROME_BROWSER_UI_VIEWS_CHROME_TYPOGRAPHY_H_

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "chrome/browser/ui/views/payments/payment_request_sheet_controller.h"
 
 namespace views {
@@ -27,23 +28,20 @@ class ErrorMessageViewController : public PaymentRequestSheetController {
   ErrorMessageViewController(base::WeakPtr<PaymentRequestSpec> spec,
                              base::WeakPtr<PaymentRequestState> state,
                              base::WeakPtr<PaymentRequestDialogView> dialog);
-
-  ErrorMessageViewController(const ErrorMessageViewController&) = delete;
-  ErrorMessageViewController& operator=(const ErrorMessageViewController&) =
-      delete;
-
   ~ErrorMessageViewController() override;
 
  private:
   // PaymentRequestSheetController:
-  std::u16string GetPrimaryButtonLabel() override;
-  ButtonCallback GetPrimaryButtonCallback() override;
+  base::string16 GetPrimaryButtonLabel() override;
+  views::Button::PressedCallback GetPrimaryButtonCallback() override;
   int GetPrimaryButtonId() override;
   bool GetPrimaryButtonEnabled() override;
   bool ShouldShowHeaderBackArrow() override;
   bool ShouldShowSecondaryButton() override;
-  std::u16string GetSheetTitle() override;
+  base::string16 GetSheetTitle() override;
   void FillContentView(views::View* content_view) override;
+
+  DISALLOW_COPY_AND_ASSIGN(ErrorMessageViewController);
 };
 
 }  // namespace payments

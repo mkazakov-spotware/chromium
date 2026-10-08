@@ -1,3 +1,2 @@
 file://chromeos/LACROS_OWNERS
 
-per-file BUILD.gn=svenzheng@chromium.org

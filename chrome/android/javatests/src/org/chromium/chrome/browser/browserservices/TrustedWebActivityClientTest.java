@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,13 +30,11 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.dependency_injection.ChromeAppComponent;
 import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
 import org.chromium.chrome.browser.notifications.StandardNotificationBuilder;
-import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
 
@@ -60,13 +58,8 @@ import java.util.concurrent.TimeoutException;
  * 2. This calls through to TestTrustedWebActivityService.
  * 3. This calls a method on MessengerService.
  * 4. This sends a Message to ResponseHandler in this class.
- *
- * In order for this test to work on Android S+, Digital Asset Link verification must pass for
- * org.chromium.chrome.tests.support and www.example.com. This is accomplished with the
- * `--approve-app-links` command passed to the test target.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@DoNotBatch(reason = "Test TWA start up behaviors.")
 public class TrustedWebActivityClientTest {
     private static final Uri SCOPE = Uri.parse("https://www.example.com/notifications");
     private static final Origin ORIGIN = Origin.create(SCOPE);
@@ -136,11 +129,11 @@ public class TrustedWebActivityClientTest {
         mTargetContext = InstrumentationRegistry.getTargetContext();
         mBuilder = new StandardNotificationBuilder(mTargetContext);
 
-        ChromeAppComponent component = ChromeApplicationImpl.getComponent();
+        ChromeAppComponent component = ChromeApplication.getComponent();
         mClient = component.resolveTrustedWebActivityClient();
 
         // TestTrustedWebActivityService is in the test support apk.
-        component.resolvePermissionManager().addDelegateApp(ORIGIN, TEST_SUPPORT_PACKAGE);
+        component.resolveTwaPermissionManager().addDelegateApp(ORIGIN, TEST_SUPPORT_PACKAGE);
 
         // The MessengerService lives in the same package as the TestTrustedWebActivityService.
         // We use it as a side channel to verify what the TestTrustedWebActivityService does.
@@ -215,21 +208,20 @@ public class TrustedWebActivityClientTest {
     @Test
     @SmallTest
     public void testNoClientFound() throws TimeoutException {
-        String scope = "https://www.websitewithouttwa.com/";
+        Origin scope = Origin.createOrThrow("https://www.websitewithouttwa.com/");
 
         CallbackHelper noTwaFound = new CallbackHelper();
 
-        TrustedWebActivityClient.PermissionCallback callback =
-                new TrustedWebActivityClient.PermissionCallback() {
-                    @Override
-                    public void onPermission(
-                            ComponentName app, @ContentSettingValues int settingValue) {}
+        TrustedWebActivityClient.PermissionCheckCallback callback =
+                new TrustedWebActivityClient.PermissionCheckCallback() {
+            @Override
+            public void onPermissionCheck(ComponentName answeringApp, boolean enabled) { }
 
-                    @Override
-                    public void onNoTwaFound() {
-                        noTwaFound.notifyCalled();
-                    }
-                };
+            @Override
+            public void onNoTwaFound() {
+                noTwaFound.notifyCalled();
+            }
+        };
 
         PostTask.runOrPostTask(UiThreadTaskTraits.DEFAULT,
                 () -> mClient.checkNotificationPermission(scope, callback));
@@ -266,8 +258,8 @@ public class TrustedWebActivityClientTest {
         Assert.assertNull(TrustedWebActivityClient.createLaunchIntentForTwa(
                 context, SCOPE.toString(), Collections.singletonList(resolveInfo)));
 
-        ChromeApplicationImpl.getComponent().resolvePermissionManager().addDelegateApp(
-                Origin.create(SCOPE), targetPackageName);
+        ChromeApplication.getComponent().resolveTwaPermissionManager()
+                .addDelegateApp(Origin.create(SCOPE), targetPackageName);
 
         Assert.assertNotNull(TrustedWebActivityClient.createLaunchIntentForTwa(
                 context, SCOPE.toString(), Collections.singletonList(resolveInfo)));

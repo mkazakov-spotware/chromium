@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,8 +46,6 @@ class CC_EXPORT PrioritizedTile {
   }
 
   void AsValueInto(base::trace_event::TracedValue* value) const;
-
-  const PictureLayerTiling* source_tiling() const { return source_tiling_; }
 
  private:
   Tile* tile_ = nullptr;

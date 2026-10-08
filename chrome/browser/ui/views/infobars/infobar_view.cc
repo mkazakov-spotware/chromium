@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/themes/theme_properties.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -23,10 +22,7 @@
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/class_property.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/theme_provider.h"
-#include "ui/base/window_open_disposition_utils.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/image/image.h"
@@ -44,15 +40,32 @@
 #include "ui/views/controls/link.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/view_class_properties.h"
-#include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/non_client_view.h"
 
 // Helpers --------------------------------------------------------------------
 
+// Used to mark children that are Labels, so we can update their background
+// colors on a theme change.
+enum class LabelType {
+  kNone,
+  kLabel,
+  kLink,
+};
+DEFINE_UI_CLASS_PROPERTY_TYPE(LabelType)
+
 namespace {
 
-constexpr int kSeparatorHeightDip = 1;
+DEFINE_UI_CLASS_PROPERTY_KEY(LabelType, kLabelType, LabelType::kNone)
+
+// IDs of the colors to use for infobar elements.
+constexpr int kInfoBarLabelBackgroundColor = ThemeProperties::COLOR_INFOBAR;
+constexpr int kInfoBarLabelTextColor = ThemeProperties::COLOR_BOOKMARK_TEXT;
+
+bool SortViewsByDecreasingWidth(views::View* view_1, views::View* view_2) {
+  return view_1->GetPreferredSize().width() >
+         view_2->GetPreferredSize().width();
+}
 
 int GetElementSpacing() {
   return ChromeLayoutProvider::Get()->GetDistanceMetric(
@@ -63,7 +76,7 @@ gfx::Insets GetCloseButtonSpacing() {
   auto* provider = ChromeLayoutProvider::Get();
   const gfx::Insets vector_button_insets =
       provider->GetInsetsMetric(views::INSETS_VECTOR_IMAGE_BUTTON);
-  return gfx::Insets::VH(
+  return gfx::Insets(
              provider->GetDistanceMetric(DISTANCE_TOAST_CONTROL_VERTICAL),
              GetElementSpacing()) -
          vector_button_insets;
@@ -89,17 +102,17 @@ InfoBarView::InfoBarView(std::unique_ptr<infobars::InfoBarDelegate> delegate)
   SetPaintToLayer();
   layer()->SetMasksToBounds(true);
 
-  const ui::ImageModel& image = this->delegate()->GetIcon();
+  gfx::Image image = this->delegate()->GetIcon();
   if (!image.IsEmpty()) {
     icon_ = new views::ImageView;
-    icon_->SetImage(image);
+    icon_->SetImage(image.ToImageSkia());
     icon_->SizeToPreferredSize();
     icon_->SetProperty(
         views::kMarginsKey,
-        gfx::Insets::VH(ChromeLayoutProvider::Get()->GetDistanceMetric(
-                            DISTANCE_TOAST_LABEL_VERTICAL),
-                        0));
-    AddChildView(icon_.get());
+        gfx::Insets(ChromeLayoutProvider::Get()->GetDistanceMetric(
+                        DISTANCE_TOAST_LABEL_VERTICAL),
+                    0));
+    AddChildView(icon_);
   }
 
   if (this->delegate()->IsCloseable()) {
@@ -107,15 +120,15 @@ InfoBarView::InfoBarView(std::unique_ptr<infobars::InfoBarDelegate> delegate)
         &InfoBarView::CloseButtonPressed, base::Unretained(this)));
     // This is the wrong color, but allows the button's size to be computed
     // correctly.  We'll reset this with the correct color in OnThemeChanged().
-    views::SetImageFromVectorIconWithColor(
-        close_button.get(), vector_icons::kCloseRoundedIcon,
-        gfx::kPlaceholderColor, gfx::kPlaceholderColor);
-    close_button->SetTooltipText(l10n_util::GetStringUTF16(IDS_ACCNAME_CLOSE));
+    views::SetImageFromVectorIcon(close_button.get(),
+                                  vector_icons::kCloseRoundedIcon,
+                                  gfx::kPlaceholderColor);
+    close_button->SetAccessibleName(
+        l10n_util::GetStringUTF16(IDS_ACCNAME_CLOSE));
     gfx::Insets close_button_spacing = GetCloseButtonSpacing();
-    close_button->SetProperty(
-        views::kMarginsKey,
-        gfx::Insets::TLBR(close_button_spacing.top(), 0,
-                          close_button_spacing.bottom(), 0));
+    close_button->SetProperty(views::kMarginsKey,
+                              gfx::Insets(close_button_spacing.top(), 0,
+                                          close_button_spacing.bottom(), 0));
     close_button_ = AddChildView(std::move(close_button));
   }
 }
@@ -135,7 +148,7 @@ void InfoBarView::RecalculateHeight() {
     const int margin_height = margins ? margins->height() : 0;
     height = std::max(height, child->height() + margin_height);
   }
-  SetTargetHeight(height + kSeparatorHeightDip);
+  SetTargetHeight(height + GetSeparatorHeight());
 }
 
 void InfoBarView::Layout() {
@@ -146,7 +159,7 @@ void InfoBarView::Layout() {
     start_x = icon_->bounds().right();
   }
 
-  const int content_minimum_width = GetContentMinimumWidth();
+  const int content_minimum_width = ContentMinimumWidth();
   if (content_minimum_width > 0)
     start_x += spacing + content_minimum_width;
 
@@ -165,8 +178,8 @@ void InfoBarView::Layout() {
 }
 
 void InfoBarView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
+  node_data->SetName(l10n_util::GetStringUTF8(IDS_ACCNAME_INFOBAR));
   node_data->role = ax::mojom::Role::kAlertDialog;
-  node_data->SetNameChecked(l10n_util::GetStringUTF8(IDS_ACCNAME_INFOBAR));
   node_data->AddStringAttribute(ax::mojom::StringAttribute::kKeyShortcuts,
                                 "Alt+Shift+A");
 }
@@ -178,7 +191,7 @@ gfx::Size InfoBarView::CalculatePreferredSize() const {
   if (icon_)
     width += spacing + icon_->width();
 
-  const int content_width = GetContentMinimumWidth();
+  const int content_width = ContentMinimumWidth();
   if (content_width)
     width += spacing + content_width;
 
@@ -195,7 +208,7 @@ void InfoBarView::ViewHierarchyChanged(
   // Anything that needs to happen once after all subclasses add their children.
   if (details.is_add && (details.child == this)) {
     if (close_button_)
-      ReorderChildView(close_button_, children().size());
+      ReorderChildView(close_button_, -1);
     RecalculateHeight();
   }
 }
@@ -203,38 +216,33 @@ void InfoBarView::ViewHierarchyChanged(
 void InfoBarView::OnPaint(gfx::Canvas* canvas) {
   views::View::OnPaint(canvas);
 
-  const SkColor color =
-      GetColorProvider()->GetColor(kColorInfoBarContentAreaSeparator);
-  const gfx::RectF local_bounds(GetLocalBounds());
-  const gfx::Vector2d separator_offset(0, kSeparatorHeightDip);
-  canvas->DrawSharpLine(local_bounds.bottom_left() - separator_offset,
-                        local_bounds.bottom_right() - separator_offset, color);
+  if (ShouldDrawSeparator()) {
+    const SkColor color =
+        GetColor(ThemeProperties::COLOR_TOOLBAR_CONTENT_AREA_SEPARATOR);
+    const gfx::Rect local_bounds = GetLocalBounds();
+    canvas->DrawSharpLine({local_bounds.x(), local_bounds.y()},
+                          {local_bounds.right(), local_bounds.y()}, color);
+  }
 }
 
 void InfoBarView::OnThemeChanged() {
   views::View::OnThemeChanged();
-  const auto* cp = GetColorProvider();
-  const SkColor background_color = cp->GetColor(kColorInfoBarBackground);
+  const SkColor background_color = GetColor(kInfoBarLabelBackgroundColor);
   SetBackground(views::CreateSolidBackground(background_color));
 
-  const SkColor text_color = cp->GetColor(kColorInfoBarForeground);
-  const SkColor icon_color = cp->GetColor(kColorInfoBarButtonIcon);
-  const SkColor icon_disabled_color =
-      cp->GetColor(kColorInfoBarButtonIconDisabled);
+  const SkColor text_color = GetColor(kInfoBarLabelTextColor);
   if (close_button_) {
-    views::SetImageFromVectorIconWithColor(close_button_,
-                                           vector_icons::kCloseRoundedIcon,
-                                           icon_color, icon_disabled_color);
+    views::SetImageFromVectorIcon(close_button_,
+                                  vector_icons::kCloseRoundedIcon, text_color);
   }
 
   for (views::View* child : children()) {
-    auto* label = views::AsViewClass<views::Label>(child);
-    if (label) {
+    LabelType label_type = child->GetProperty(kLabelType);
+    if (label_type != LabelType::kNone) {
+      auto* label = static_cast<views::Label*>(child);
       label->SetBackgroundColor(background_color);
-      if (!views::IsViewClass<views::Link>(child)) {
+      if (label_type == LabelType::kLabel)
         label->SetEnabledColor(text_color);
-        label->SetAutoColorReadabilityEnabled(false);
-      }
     }
   }
 
@@ -253,54 +261,51 @@ void InfoBarView::OnWillChangeFocus(View* focused_before, View* focused_now) {
   }
 }
 
-std::unique_ptr<views::Label> InfoBarView::CreateLabel(
-    const std::u16string& text) const {
-  auto label = std::make_unique<views::Label>(
-      text, views::style::CONTEXT_DIALOG_BODY_TEXT);
-  SetLabelDetails(label.get());
+views::Label* InfoBarView::CreateLabel(const base::string16& text) const {
+  views::Label* label =
+      new views::Label(text, views::style::CONTEXT_DIALOG_BODY_TEXT);
+  SetLabelDetails(label);
+  label->SetEnabledColor(GetColor(kInfoBarLabelTextColor));
+  label->SetProperty(kLabelType, LabelType::kLabel);
   return label;
 }
 
-std::unique_ptr<views::Link> InfoBarView::CreateLink(
-    const std::u16string& text) {
-  auto link = std::make_unique<views::Link>(
-      text, views::style::CONTEXT_DIALOG_BODY_TEXT);
-  SetLabelDetails(link.get());
+views::Link* InfoBarView::CreateLink(const base::string16& text) {
+  views::Link* link =
+      new views::Link(text, views::style::CONTEXT_DIALOG_BODY_TEXT);
+  SetLabelDetails(link);
   link->SetCallback(
       base::BindRepeating(&InfoBarView::LinkClicked, base::Unretained(this)));
+  link->SetProperty(kLabelType, LabelType::kLink);
   return link;
 }
 
 // static
 void InfoBarView::AssignWidths(Views* views, int available_width) {
-  // Sort by width decreasing.
-  std::sort(views->begin(), views->end(),
-            [](views::View* view_1, views::View* view_2) {
-              return view_1->GetPreferredSize().width() >
-                     view_2->GetPreferredSize().width();
-            });
+  std::sort(views->begin(), views->end(), SortViewsByDecreasingWidth);
   AssignWidthsSorted(views, available_width);
 }
 
-int InfoBarView::GetContentMinimumWidth() const {
+int InfoBarView::ContentMinimumWidth() const {
   return 0;
 }
 
-int InfoBarView::GetStartX() const {
-  // Ensure we don't return a value greater than GetEndX(), so children can
-  // safely set something's width to "GetEndX() - GetStartX()" without risking
-  // that being negative.
+int InfoBarView::StartX() const {
+  // Ensure we don't return a value greater than EndX(), so children can safely
+  // set something's width to "EndX() - StartX()" without risking that being
+  // negative.
   return std::min((icon_ ? icon_->bounds().right() : 0) + GetElementSpacing(),
-                  GetEndX());
+                  EndX());
 }
 
-int InfoBarView::GetEndX() const {
+int InfoBarView::EndX() const {
   return close_button_ ? close_button_->x() - GetCloseButtonSpacing().left()
                        : width() - GetElementSpacing();
 }
 
 int InfoBarView::OffsetY(views::View* view) const {
-  return std::max((target_height() - view->height()) / 2, 0) -
+  return GetSeparatorHeight() +
+         std::max((target_height() - view->height()) / 2, 0) -
          (target_height() - height());
 }
 
@@ -322,7 +327,7 @@ void InfoBarView::PlatformSpecificHide(bool animate) {
 
   // It's possible to be called twice (once with |animate| true and once with it
   // false); in this case the second SetFocusManager() call will silently no-op.
-  SetFocusManager(nullptr);
+  SetFocusManager(NULL);
 
   if (!animate)
     return;
@@ -353,14 +358,38 @@ void InfoBarView::AssignWidthsSorted(Views* views, int available_width) {
   AssignWidthsSorted(views, available_width - back_view_size.width());
 }
 
+bool InfoBarView::ShouldDrawSeparator() const {
+  // There will be no parent when this infobar is not in a container, e.g. if
+  // it's in a background tab.  It's still possible to reach here in that case,
+  // e.g. if ElevationIconSetter triggers a Layout().
+  return parent() && parent()->children().front() != this;
+}
+
+int InfoBarView::GetSeparatorHeight() const {
+  // We only need a separator for infobars after the first; the topmost infobar
+  // uses the toolbar as its top separator.
+  //
+  // This only works because all infobars have padding at the top; if we
+  // actually draw all the way to the top, we'd risk drawing a separator atop
+  // some infobar content.
+  return ShouldDrawSeparator() ? 1 : 0;
+}
+
+SkColor InfoBarView::GetColor(int id) const {
+  const auto* theme_provider = GetThemeProvider();
+  // When there's no theme provider, this color will never be used; it will be
+  // reset due to the OnThemeChanged() override.
+  return theme_provider ? theme_provider->GetColor(id) : gfx::kPlaceholderColor;
+}
+
 void InfoBarView::SetLabelDetails(views::Label* label) const {
   label->SizeToPreferredSize();
+  label->SetBackgroundColor(GetColor(kInfoBarLabelBackgroundColor));
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  label->SetProperty(
-      views::kMarginsKey,
-      gfx::Insets::VH(ChromeLayoutProvider::Get()->GetDistanceMetric(
-                          DISTANCE_TOAST_LABEL_VERTICAL),
-                      0));
+  label->SetProperty(views::kMarginsKey,
+                     gfx::Insets(ChromeLayoutProvider::Get()->GetDistanceMetric(
+                                     DISTANCE_TOAST_LABEL_VERTICAL),
+                                 0));
 }
 
 void InfoBarView::LinkClicked(const ui::Event& event) {
@@ -376,9 +405,3 @@ void InfoBarView::CloseButtonPressed() {
   delegate()->InfoBarDismissed();
   RemoveSelf();
 }
-
-BEGIN_METADATA(InfoBarView, views::View)
-ADD_READONLY_PROPERTY_METADATA(int, ContentMinimumWidth)
-ADD_READONLY_PROPERTY_METADATA(int, StartX)
-ADD_READONLY_PROPERTY_METADATA(int, EndX)
-END_METADATA

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,13 +21,13 @@ void TestNotifierSettingsController::GetNotifiers() {
   if (!no_notifiers_) {
     notifiers.emplace_back(message_center::NotifierId(
                                message_center::NotifierType::APPLICATION, "id"),
-                           u"title", true /* enabled */, false /* enforced */,
-                           gfx::ImageSkia());
+                           base::ASCIIToUTF16("title"), true /* enabled */,
+                           false /* enforced */, gfx::ImageSkia());
     notifiers.emplace_back(
         message_center::NotifierId(message_center::NotifierType::APPLICATION,
                                    "id2"),
-        u"other title", false /* enabled */, false /* enforced */,
-        gfx::ImageSkia());
+        base::ASCIIToUTF16("other title"), false /* enabled */,
+        false /* enforced */, gfx::ImageSkia());
   }
 
   for (auto& observer : observers_)

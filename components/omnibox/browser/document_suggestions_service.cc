@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,11 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/feature_list.h"
 #include "base/i18n/rtl.h"
 #include "base/json/json_writer.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/strings/stringprintf.h"
 #include "base/values.h"
 #include "components/omnibox/browser/document_provider.h"
 #include "components/omnibox/common/omnibox_features.h"
@@ -20,6 +20,7 @@
 #include "components/signin/public/identity_manager/primary_account_access_token_fetcher.h"
 #include "components/signin/public/identity_manager/scope_set.h"
 #include "components/variations/net/variations_http_headers.h"
+#include "components/variations/variations_associated_data.h"
 #include "net/base/load_flags.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -27,9 +28,6 @@
 #include "services/network/public/cpp/simple_url_loader.h"
 
 namespace {
-
-// 6 refers to CHROME_OMNIBOX in the ClientId enum.
-constexpr int chromeOmniboxClientId = 6;
 
 // Builds a document search request body. Inputs that affect the request are:
 //   |query|: Current omnibox query text, passed as an argument.
@@ -41,15 +39,10 @@ constexpr int chromeOmniboxClientId = 6;
 //       pageSize: 10,
 //       requestOptions: {
 //            searchApplicationId: "searchapplications/chrome",
-//            clientId: 6,
 //            languageCode: "|locale|",
-//            debugOptions: {
-//              optsParams: "enable_aso_search:|ASO enabled|"
-//            }
 //       }
 //     }
-std::string BuildDocumentSuggestionRequest(const std::u16string& query,
-                                           bool enable_aso_search) {
+std::string BuildDocumentSuggestionRequest(const base::string16& query) {
   base::Value root(base::Value::Type::DICTIONARY);
   root.SetKey("query", base::Value(query));
   // The API supports pagination. We're always concerned with the first N
@@ -60,17 +53,8 @@ std::string BuildDocumentSuggestionRequest(const std::u16string& query,
   base::Value request_options(base::Value::Type::DICTIONARY);
   request_options.SetKey("searchApplicationId",
                          base::Value("searchapplications/chrome"));
-  // While the searchApplicationId is a specific config being used by a client
-  // and can be shared among multiple clients in some instances, clientId
-  // identifies a client uniquely.
-  request_options.SetKey("clientId", base::Value(chromeOmniboxClientId));
   request_options.SetKey("languageCode",
                          base::Value(base::i18n::GetConfiguredLocale()));
-  base::Value debug_options(base::Value::Type::DICTIONARY);
-  debug_options.SetStringKey(
-      "optsParams", base::StringPrintf("enable_aso_search:%s",
-                                       enable_aso_search ? "true" : "false"));
-  request_options.SetKey("debugOptions", std::move(debug_options));
   root.SetKey("requestOptions", std::move(request_options));
 
   std::string result;
@@ -92,7 +76,7 @@ DocumentSuggestionsService::DocumentSuggestionsService(
 DocumentSuggestionsService::~DocumentSuggestionsService() {}
 
 void DocumentSuggestionsService::CreateDocumentSuggestionsRequest(
-    const std::u16string& query,
+    const base::string16& query,
     bool is_incognito,
     StartCallback start_callback,
     CompletionCallback completion_callback) {
@@ -130,8 +114,7 @@ void DocumentSuggestionsService::CreateDocumentSuggestionsRequest(
   auto request = std::make_unique<network::ResourceRequest>();
   request->url = suggest_url;
   request->method = "POST";
-  std::string request_body = BuildDocumentSuggestionRequest(
-      query, base::FeatureList::IsEnabled(omnibox::kDocumentProviderAso));
+  std::string request_body = BuildDocumentSuggestionRequest(query);
   request->load_flags = net::LOAD_DO_NOT_SAVE_COOKIES;
   // It is expected that the user is signed in here. But we only care about
   // experiment IDs from the variations server, which do not require the

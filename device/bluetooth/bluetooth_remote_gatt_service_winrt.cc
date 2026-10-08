@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -116,21 +116,21 @@ BluetoothRemoteGattServiceWinrt::GetDeviceServiceForTesting() {
 uint8_t BluetoothRemoteGattServiceWinrt::ToProtocolError(
     GattErrorCode error_code) {
   switch (error_code) {
-    case GattErrorCode::kUnknown:
+    case GATT_ERROR_UNKNOWN:
       return 0xF0;
-    case GattErrorCode::kFailed:
+    case GATT_ERROR_FAILED:
       return 0x01;
-    case GattErrorCode::kInProgress:
+    case GATT_ERROR_IN_PROGRESS:
       return 0x09;
-    case GattErrorCode::kInvalidLength:
+    case GATT_ERROR_INVALID_LENGTH:
       return 0x0D;
-    case GattErrorCode::kNotPermitted:
+    case GATT_ERROR_NOT_PERMITTED:
       return 0x02;
-    case GattErrorCode::kNotAuthorized:
+    case GATT_ERROR_NOT_AUTHORIZED:
       return 0x08;
-    case GattErrorCode::kNotPaired:
+    case GATT_ERROR_NOT_PAIRED:
       return 0x0F;
-    case GattErrorCode::kNotSupported:
+    case GATT_ERROR_NOT_SUPPORTED:
       return 0x06;
   }
 

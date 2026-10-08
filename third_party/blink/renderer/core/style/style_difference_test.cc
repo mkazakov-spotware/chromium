@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,9 @@ TEST(StyleDifferenceTest, StreamOutputDefault) {
   string_stream << diff;
   EXPECT_EQ(
       "StyleDifference{layoutType=NoLayout, "
-      "reshape=0, paintInvalidation=0, recomputeVisualOverflow=0, "
-      "propertySpecificDifferences=, "
+      "reshape=0, "
+      "paintInvalidation=0, recomputeVisualOverflow=0, "
+      "visualRectUpdate=0, propertySpecificDifferences=, "
       "scrollAnchorDisablingPropertyChanged=0}",
       string_stream.str());
 }
@@ -28,15 +29,15 @@ TEST(StyleDifferenceTest, StreamOutputAllFieldsMutated) {
   diff.SetNeedsPositionedMovementLayout();
   diff.SetNeedsReshape();
   diff.SetNeedsRecomputeVisualOverflow();
-  diff.SetTransformPropertyChanged();
-  diff.SetOtherTransformPropertyChanged();
+  diff.SetNeedsVisualRectUpdate();
+  diff.SetTransformChanged();
   diff.SetScrollAnchorDisablingPropertyChanged();
   string_stream << diff;
   EXPECT_EQ(
       "StyleDifference{layoutType=PositionedMovement, "
-      "reshape=1, paintInvalidation=1, recomputeVisualOverflow=1, "
-      "propertySpecificDifferences="
-      "TransformPropertyChanged|OtherTransformPropertyChanged, "
+      "reshape=1, paintInvalidation=1, "
+      "recomputeVisualOverflow=1, visualRectUpdate=1, "
+      "propertySpecificDifferences=TransformChanged, "
       "scrollAnchorDisablingPropertyChanged=1}",
       string_stream.str());
 }
@@ -44,8 +45,7 @@ TEST(StyleDifferenceTest, StreamOutputAllFieldsMutated) {
 TEST(StyleDifferenceTest, StreamOutputSetAllProperties) {
   std::stringstream string_stream;
   StyleDifference diff;
-  diff.SetTransformPropertyChanged();
-  diff.SetOtherTransformPropertyChanged();
+  diff.SetTransformChanged();
   diff.SetOpacityChanged();
   diff.SetZIndexChanged();
   diff.SetFilterChanged();
@@ -55,9 +55,9 @@ TEST(StyleDifferenceTest, StreamOutputSetAllProperties) {
   string_stream << diff;
   EXPECT_EQ(
       "StyleDifference{layoutType=NoLayout, "
-      "reshape=0, paintInvalidation=0, recomputeVisualOverflow=0, "
-      "propertySpecificDifferences=TransformPropertyChanged|"
-      "OtherTransformPropertyChanged|OpacityChanged|"
+      "reshape=0, paintInvalidation=0, "
+      "recomputeVisualOverflow=0, visualRectUpdate=0, "
+      "propertySpecificDifferences=TransformChanged|OpacityChanged|"
       "ZIndexChanged|FilterChanged|CSSClipChanged|"
       "TextDecorationOrColorChanged|BlendModeChanged, "
       "scrollAnchorDisablingPropertyChanged=0}",

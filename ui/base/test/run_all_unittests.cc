@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/test/launcher/unit_test_launcher.h"
 #include "base/test/test_suite.h"
@@ -12,12 +13,12 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/bundle_locations.h"
 #include "base/test/mock_chrome_application_mac.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/display/win/dpi.h"
 #endif
 
@@ -27,13 +28,13 @@ class UIBaseTestSuite : public base::TestSuite {
  public:
   UIBaseTestSuite(int argc, char** argv);
 
-  UIBaseTestSuite(const UIBaseTestSuite&) = delete;
-  UIBaseTestSuite& operator=(const UIBaseTestSuite&) = delete;
-
  protected:
   // base::TestSuite:
   void Initialize() override;
   void Shutdown() override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UIBaseTestSuite);
 };
 
 UIBaseTestSuite::UIBaseTestSuite(int argc, char** argv)
@@ -42,13 +43,13 @@ UIBaseTestSuite::UIBaseTestSuite(int argc, char** argv)
 void UIBaseTestSuite::Initialize() {
   base::TestSuite::Initialize();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   display::win::SetDefaultDeviceScaleFactor(1.0);
 #endif
 
   ui::RegisterPathProvider();
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   base::FilePath exe_path;
   base::PathService::Get(base::DIR_EXE, &exe_path);
 
@@ -61,7 +62,7 @@ void UIBaseTestSuite::Initialize() {
   ui::ResourceBundle::InitSharedInstanceWithLocale(
       "en-US", NULL, ui::ResourceBundle::LOAD_COMMON_RESOURCES);
 
-#elif BUILDFLAG(IS_IOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_IOS) || defined(OS_ANDROID)
   // On iOS, the ui_base_unittests binary is itself a mini bundle, with
   // resources built in. On Android, ui_base_unittests_apk provides the
   // necessary framework.
@@ -84,10 +85,10 @@ void UIBaseTestSuite::Initialize() {
 
   base::FilePath dir_resources;
   bool result;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   result =
       base::PathService::Get(ui::DIR_RESOURCE_PAKS_ANDROID, &dir_resources);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   result = base::PathService::Get(base::DIR_MODULE, &dir_resources);
 #else
   dir_resources = assets_path;
@@ -97,13 +98,13 @@ void UIBaseTestSuite::Initialize() {
   base::FilePath ui_base_test_resources_pak =
       dir_resources.Append(FILE_PATH_LITERAL("ui_base_test_resources.pak"));
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-      ui_base_test_resources_pak, ui::kScaleFactorNone);
+      ui_base_test_resources_pak, ui::SCALE_FACTOR_NONE);
 }
 
 void UIBaseTestSuite::Shutdown() {
   ui::ResourceBundle::CleanupSharedInstance();
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   base::mac::SetOverrideFrameworkBundle(NULL);
 #endif
   base::TestSuite::Shutdown();

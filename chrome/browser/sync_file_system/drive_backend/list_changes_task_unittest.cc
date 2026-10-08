@@ -1,20 +1,19 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sync_file_system/drive_backend/list_changes_task.h"
 
 #include <stddef.h>
-
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/format_macros.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/sync_file_system/drive_backend/drive_backend_constants.h"
 #include "chrome/browser/sync_file_system/drive_backend/fake_drive_service_helper.h"
 #include "chrome/browser/sync_file_system/drive_backend/metadata_database.h"
@@ -43,10 +42,6 @@ class ListChangesTaskTest : public testing::Test {
  public:
   ListChangesTaskTest()
       : task_environment_(content::BrowserTaskEnvironment::IO_MAINLOOP) {}
-
-  ListChangesTaskTest(const ListChangesTaskTest&) = delete;
-  ListChangesTaskTest& operator=(const ListChangesTaskTest&) = delete;
-
   ~ListChangesTaskTest() override {}
 
   void SetUp() override {
@@ -57,25 +52,24 @@ class ListChangesTaskTest : public testing::Test {
         new drive::FakeDriveService);
 
     std::unique_ptr<drive::DriveUploaderInterface> drive_uploader(
-        new drive::DriveUploader(
-            fake_drive_service.get(),
-            base::SingleThreadTaskRunner::GetCurrentDefault(),
-            mojo::NullRemote()));
+        new drive::DriveUploader(fake_drive_service.get(),
+                                 base::ThreadTaskRunnerHandle::Get(),
+                                 mojo::NullRemote()));
 
-    fake_drive_service_helper_ = std::make_unique<FakeDriveServiceHelper>(
-        fake_drive_service.get(), drive_uploader.get(), kSyncRootFolderTitle);
+    fake_drive_service_helper_.reset(
+        new FakeDriveServiceHelper(fake_drive_service.get(),
+                                   drive_uploader.get(),
+                                   kSyncRootFolderTitle));
 
-    sync_task_manager_ = std::make_unique<SyncTaskManager>(
+    sync_task_manager_.reset(new SyncTaskManager(
         base::WeakPtr<SyncTaskManager::Client>(),
-        10 /* maximum_background_task */,
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        10 /* maximum_background_task */, base::ThreadTaskRunnerHandle::Get()));
     sync_task_manager_->Initialize(SYNC_STATUS_OK);
 
-    context_ = std::make_unique<SyncEngineContext>(
+    context_.reset(new SyncEngineContext(
         std::move(fake_drive_service), std::move(drive_uploader),
-        nullptr /* task_logger */,
-        base::SingleThreadTaskRunner::GetCurrentDefault(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        nullptr /* task_logger */, base::ThreadTaskRunnerHandle::Get(),
+        base::ThreadTaskRunnerHandle::Get()));
 
     SetUpRemoteFolders();
 
@@ -180,8 +174,8 @@ class ListChangesTaskTest : public testing::Test {
     sync_task_manager_->ScheduleSyncTask(
         FROM_HERE, std::unique_ptr<SyncTask>(initializer),
         SyncTaskManager::PRIORITY_MED,
-        base::BindOnce(&ListChangesTaskTest::DidInitializeMetadataDatabase,
-                       base::Unretained(this), initializer, &status));
+        base::Bind(&ListChangesTaskTest::DidInitializeMetadataDatabase,
+                   base::Unretained(this), initializer, &status));
 
     base::RunLoop().RunUntilIdle();
 
@@ -214,6 +208,8 @@ class ListChangesTaskTest : public testing::Test {
   std::unique_ptr<FakeDriveServiceHelper> fake_drive_service_helper_;
 
   std::unique_ptr<SyncTaskManager> sync_task_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(ListChangesTaskTest);
 };
 
 TEST_F(ListChangesTaskTest, NoChange) {

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 #include <memory>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_pref_names.h"
 #include "ash/detachable_base/detachable_base_pairing_status.h"
 #include "ash/ime/ime_controller_impl.h"
 #include "ash/login/login_screen_controller.h"
@@ -22,8 +20,6 @@
 #include "ash/login/ui/views_utils.h"
 #include "ash/public/cpp/kiosk_app_menu.h"
 #include "ash/public/cpp/login_types.h"
-#include "ash/public/cpp/smartlock_state.h"
-#include "ash/public/cpp/style/dark_light_mode_controller.h"
 #include "ash/shelf/login_shelf_view.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shelf/shelf_widget.h"
@@ -32,11 +28,11 @@
 #include "ash/wallpaper/wallpaper_controller_impl.h"
 #include "base/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/optional.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "components/user_manager/known_user.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/base/ime/ash/ime_keyboard.h"
+#include "ui/base/ime/chromeos/ime_keyboard.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/scrollbar/overlay_scroll_bar.h"
@@ -66,34 +62,11 @@ constexpr const char kDebugEnterpriseInfo[] = "Asset ID: 1111";
 constexpr const char kDebugBluetoothName[] = "Bluetooth adapter";
 
 constexpr const char kDebugKioskAppId[] = "asdf1234";
-constexpr const char16_t kDebugKioskAppName[] = u"Test App Name";
+constexpr const char kDebugKioskAppName[] = "Test App Name";
 
 constexpr const char kDebugDefaultLocaleCode[] = "en-GB";
 constexpr const char kDebugDefaultLocaleTitle[] = "English";
 constexpr const char kDebugEnterpriseDomain[] = "library.com";
-
-enum class DebugAuthEnabledState {
-  kAuthEnabled,
-
-  // The auth disabled message is displayed because of unicorn account
-  // restrictions.
-  kTimeLimitOverride,
-  kTimeUsageLimit,
-  kTimeWindowLimit,
-
-  // The auth disabled message is displayed because of multiprofile policy.
-  // Note that this would only be displayed on the secondary login screen.
-  kMultiProfilePrimaryOnly,
-  kMultiProfileNotAllowed,
-  kMultiProfileOwnerPrimaryOnly,
-
-  // The auth disabled message is displayed because the force online
-  // sign in is unavailable on the secondary login screen.
-  // Note that this would only be displayed on the secondary login screen.
-  kForceOnlineSignIn,
-
-  kMaxValue = kForceOnlineSignIn,
-};
 
 // Additional state for a user that the debug UI needs to reference.
 struct UserMetadata {
@@ -105,15 +78,12 @@ struct UserMetadata {
   AccountId account_id;
   std::string display_name;
   bool enable_pin = false;
-  bool pin_autosubmit = false;
   bool enable_tap_to_unlock = false;
   bool enable_challenge_response = false;  // Smart Card
   bool enable_auth = true;
   user_manager::UserType type = user_manager::USER_TYPE_REGULAR;
-  EasyUnlockIconState easy_unlock_icon_state = EasyUnlockIconState::NONE;
-  SmartLockState smart_lock_state = SmartLockState::kInactive;
+  EasyUnlockIconId easy_unlock_id = EasyUnlockIconId::NONE;
   FingerprintState fingerprint_state = FingerprintState::UNAVAILABLE;
-  DebugAuthEnabledState auth_enable_state = DebugAuthEnabledState::kAuthEnabled;
 };
 
 std::string DetachableBasePairingStatusToString(
@@ -144,8 +114,8 @@ LoginUserInfo PopulateUserData(const LoginUserInfo& user,
   result.basic_user_info.display_name =
       is_public_account
           ? kDebugPublicAccountNames[user_index %
-                                     std::size(kDebugPublicAccountNames)]
-          : kDebugUserNames[user_index % std::size(kDebugUserNames)];
+                                     base::size(kDebugPublicAccountNames)]
+          : kDebugUserNames[user_index % base::size(kDebugUserNames)];
   result.basic_user_info.display_email =
       result.basic_user_info.account_id.GetUserEmail();
 
@@ -195,12 +165,6 @@ class LockDebugView::DebugDataDispatcherTransformer
         lock_debug_view_(lock_debug_view) {
     root_dispatcher_->AddObserver(this);
   }
-
-  DebugDataDispatcherTransformer(const DebugDataDispatcherTransformer&) =
-      delete;
-  DebugDataDispatcherTransformer& operator=(
-      const DebugDataDispatcherTransformer&) = delete;
-
   ~DebugDataDispatcherTransformer() override {
     root_dispatcher_->RemoveObserver(this);
   }
@@ -217,12 +181,12 @@ class LockDebugView::DebugDataDispatcherTransformer
     count = std::max(count, 0);
 
     // Trim any extra debug users.
-    if (debug_users_.size() > static_cast<size_t>(count))
+    if (debug_users_.size() > size_t{count})
       debug_users_.erase(debug_users_.begin() + count, debug_users_.end());
 
     // Build |users|, add any new users to |debug_users|.
     std::vector<LoginUserInfo> users;
-    for (size_t i = 0; i < static_cast<size_t>(count); ++i) {
+    for (size_t i = 0; i < size_t{count}; ++i) {
       users.push_back(root_users_[i % root_users_.size()]);
       if (i >= root_users_.size()) {
         users[i].basic_user_info.account_id = AccountId::FromUserEmailGaiaId(
@@ -255,7 +219,7 @@ class LockDebugView::DebugDataDispatcherTransformer
 
   int GetUserCount() const { return debug_users_.size(); }
 
-  std::u16string GetDisplayNameForUserIndex(size_t user_index) {
+  base::string16 GetDisplayNameForUserIndex(size_t user_index) {
     DCHECK(user_index >= 0 && user_index < debug_users_.size());
     return base::UTF8ToUTF16(debug_users_[user_index].display_name);
   }
@@ -270,33 +234,9 @@ class LockDebugView::DebugDataDispatcherTransformer
   void TogglePinStateForUserIndex(size_t user_index) {
     DCHECK(user_index >= 0 && user_index < debug_users_.size());
     UserMetadata* debug_user = &debug_users_[user_index];
-    if (!debug_user->enable_pin) {
-      debug_user->enable_pin = true;
-      debug_user->pin_autosubmit = false;
-      user_manager::KnownUser(Shell::Get()->local_state())
-          .SetUserPinLength(debug_user->account_id, 0);
-    } else if (!debug_user->pin_autosubmit) {
-      debug_user->pin_autosubmit = true;
-      user_manager::KnownUser(Shell::Get()->local_state())
-          .SetUserPinLength(debug_user->account_id, 6);
-    } else {
-      debug_user->enable_pin = false;
-      debug_user->pin_autosubmit = false;
-      user_manager::KnownUser(Shell::Get()->local_state())
-          .SetUserPinLength(debug_user->account_id, 0);
-    }
+    debug_user->enable_pin = !debug_user->enable_pin;
     debug_dispatcher_.SetPinEnabledForUser(debug_user->account_id,
                                            debug_user->enable_pin);
-  }
-
-  void ToggleDarkLigntModeForUserIndex(size_t user_index) {
-    UserMetadata* debug_user = &debug_users_[user_index];
-    user_manager::KnownUser(Shell::Get()->local_state())
-        .SetBooleanPref(
-            debug_user->account_id, prefs::kDarkModeEnabled,
-            !ash::DarkLightModeController::Get()->IsDarkModeEnabled());
-    Shell::Get()->login_screen_controller()->data_dispatcher()->NotifyFocusPod(
-        debug_user->account_id);
   }
 
   // Activates or deactivates challenge response for the user at
@@ -320,110 +260,60 @@ class LockDebugView::DebugDataDispatcherTransformer
   }
 
   // Enables click to auth for the user at |user_index|.
-  void CycleSmartLockForUserIndex(size_t user_index) {
+  void CycleEasyUnlockForUserIndex(size_t user_index) {
     DCHECK(user_index >= 0 && user_index < debug_users_.size());
     UserMetadata* debug_user = &debug_users_[user_index];
 
-    if (base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp)) {
-      // SmartLockState transition.
-      auto get_next_state = [](SmartLockState state) {
-        switch (state) {
-          case SmartLockState::kInactive:
-            return SmartLockState::kConnectingToPhone;
-          case SmartLockState::kConnectingToPhone:
-            return SmartLockState::kPhoneNotFound;
-          case SmartLockState::kPhoneNotFound:
-            return SmartLockState::kPhoneFoundLockedAndDistant;
-          case SmartLockState::kPhoneFoundLockedAndDistant:
-            return SmartLockState::kPhoneFoundUnlockedAndDistant;
-          case SmartLockState::kPhoneFoundUnlockedAndDistant:
-            return SmartLockState::kPhoneFoundLockedAndProximate;
-          case SmartLockState::kPhoneFoundLockedAndProximate:
-            return SmartLockState::kPhoneAuthenticated;
-          case SmartLockState::kPhoneAuthenticated:
-            return SmartLockState::kPhoneNotLockable;
-          case SmartLockState::kPhoneNotLockable:
-            return SmartLockState::kBluetoothDisabled;
-          case SmartLockState::kBluetoothDisabled:
-            return SmartLockState::kPhoneNotAuthenticated;
-          case SmartLockState::kPhoneNotAuthenticated:
-            return SmartLockState::kPasswordReentryRequired;
-          case SmartLockState::kPasswordReentryRequired:
-            return SmartLockState::kPrimaryUserAbsent;
-          case SmartLockState::kPrimaryUserAbsent:
-            return SmartLockState::kDisabled;
-          case SmartLockState::kDisabled:
-            return SmartLockState::kInactive;
-        }
-      };
-      debug_user->smart_lock_state =
-          get_next_state(debug_user->smart_lock_state);
-
-      // Enable/disable click to unlock.
-      debug_user->enable_tap_to_unlock =
-          debug_user->smart_lock_state == SmartLockState::kPhoneAuthenticated;
-
-      // Set Smart Lock state and enable/disable click to unlock.
-      debug_dispatcher_.SetSmartLockState(debug_user->account_id,
-                                          debug_user->smart_lock_state);
-
-      // TODO(crbug.com/1233614): Remove this call once "Click to enter" button
-      // no longer depends on user view tap.
-      debug_dispatcher_.SetTapToUnlockEnabledForUser(
-          debug_user->account_id, debug_user->enable_tap_to_unlock);
-    } else {
-      // EasyUnlockIconState transition.
-      auto get_next_state = [](EasyUnlockIconState icon_state) {
-        switch (icon_state) {
-          case EasyUnlockIconState::NONE:
-            return EasyUnlockIconState::SPINNER;
-          case EasyUnlockIconState::SPINNER:
-            return EasyUnlockIconState::LOCKED;
-          case EasyUnlockIconState::LOCKED:
-            return EasyUnlockIconState::LOCKED_TO_BE_ACTIVATED;
-          case EasyUnlockIconState::LOCKED_TO_BE_ACTIVATED:
-            return EasyUnlockIconState::LOCKED_WITH_PROXIMITY_HINT;
-          case EasyUnlockIconState::LOCKED_WITH_PROXIMITY_HINT:
-            return EasyUnlockIconState::HARDLOCKED;
-          case EasyUnlockIconState::HARDLOCKED:
-            return EasyUnlockIconState::UNLOCKED;
-          case EasyUnlockIconState::UNLOCKED:
-            return EasyUnlockIconState::NONE;
-        }
-        return EasyUnlockIconState::NONE;
-      };
-      debug_user->easy_unlock_icon_state =
-          get_next_state(debug_user->easy_unlock_icon_state);
-
-      // Enable/disable click to unlock.
-      debug_user->enable_tap_to_unlock =
-          debug_user->easy_unlock_icon_state == EasyUnlockIconState::UNLOCKED;
-
-      // Prepare icon that we will show.
-      EasyUnlockIconInfo icon_info;
-      icon_info.icon_state = debug_user->easy_unlock_icon_state;
-      if (icon_info.icon_state == EasyUnlockIconState::SPINNER) {
-        icon_info.aria_label = u"Icon is spinning";
-      } else if (icon_info.icon_state == EasyUnlockIconState::LOCKED ||
-                 icon_info.icon_state ==
-                     EasyUnlockIconState::LOCKED_TO_BE_ACTIVATED) {
-        icon_info.autoshow_tooltip = true;
-        icon_info.tooltip = base::ASCIIToUTF16(
-            "This is a long message to trigger overflow. This should show up "
-            "automatically. icon_state=" +
-            base::NumberToString(static_cast<int>(icon_info.icon_state)));
-      } else {
-        icon_info.tooltip = u"This should not show up automatically.";
+    // EasyUnlockIconId state transition.
+    auto get_next_id = [](EasyUnlockIconId id) {
+      switch (id) {
+        case EasyUnlockIconId::NONE:
+          return EasyUnlockIconId::SPINNER;
+        case EasyUnlockIconId::SPINNER:
+          return EasyUnlockIconId::LOCKED;
+        case EasyUnlockIconId::LOCKED:
+          return EasyUnlockIconId::LOCKED_TO_BE_ACTIVATED;
+        case EasyUnlockIconId::LOCKED_TO_BE_ACTIVATED:
+          return EasyUnlockIconId::LOCKED_WITH_PROXIMITY_HINT;
+        case EasyUnlockIconId::LOCKED_WITH_PROXIMITY_HINT:
+          return EasyUnlockIconId::HARDLOCKED;
+        case EasyUnlockIconId::HARDLOCKED:
+          return EasyUnlockIconId::UNLOCKED;
+        case EasyUnlockIconId::UNLOCKED:
+          return EasyUnlockIconId::NONE;
       }
+      return EasyUnlockIconId::NONE;
+    };
+    debug_user->easy_unlock_id = get_next_id(debug_user->easy_unlock_id);
 
-      // Show icon and enable/disable click to unlock.
-      debug_dispatcher_.ShowEasyUnlockIcon(debug_user->account_id, icon_info);
-      debug_dispatcher_.SetTapToUnlockEnabledForUser(
-          debug_user->account_id, debug_user->enable_tap_to_unlock);
+    // Enable/disable click to unlock.
+    debug_user->enable_tap_to_unlock =
+        debug_user->easy_unlock_id == EasyUnlockIconId::UNLOCKED;
+
+    // Prepare icon that we will show.
+    EasyUnlockIconOptions icon;
+    icon.icon = debug_user->easy_unlock_id;
+    if (icon.icon == EasyUnlockIconId::SPINNER) {
+      icon.aria_label = base::ASCIIToUTF16("Icon is spinning");
+    } else if (icon.icon == EasyUnlockIconId::LOCKED ||
+               icon.icon == EasyUnlockIconId::LOCKED_TO_BE_ACTIVATED) {
+      icon.autoshow_tooltip = true;
+      icon.tooltip = base::ASCIIToUTF16(
+          "This is a long message to trigger overflow. This should show up "
+          "automatically. icon_id=" +
+          base::NumberToString(static_cast<int>(icon.icon)));
+    } else {
+      icon.tooltip =
+          base::ASCIIToUTF16("This should not show up automatically.");
     }
+
+    // Show icon and enable/disable click to unlock.
+    debug_dispatcher_.ShowEasyUnlockIcon(debug_user->account_id, icon);
+    debug_dispatcher_.SetTapToUnlockEnabledForUser(
+        debug_user->account_id, debug_user->enable_tap_to_unlock);
   }
 
-  // Cycles fingerprint state for the user at |user_index|.
+  // Enables fingerprint auth for the user at |user_index|.
   void CycleFingerprintStateForUserIndex(size_t user_index) {
     DCHECK(user_index >= 0 && user_index < debug_users_.size());
     UserMetadata* debug_user = &debug_users_[user_index];
@@ -434,14 +324,6 @@ class LockDebugView::DebugDataDispatcherTransformer
     debug_dispatcher_.SetFingerprintState(debug_user->account_id,
                                           debug_user->fingerprint_state);
   }
-
-  void AuthenticateSmartLockForUserIndex(size_t user_index, bool success) {
-    DCHECK(user_index >= 0 && user_index < debug_users_.size());
-    UserMetadata* debug_user = &debug_users_[user_index];
-    debug_dispatcher_.NotifySmartLockAuthResult(debug_user->account_id,
-                                                success);
-  }
-
   void AuthenticateFingerprintForUserIndex(size_t user_index, bool success) {
     DCHECK(user_index >= 0 && user_index < debug_users_.size());
     UserMetadata* debug_user = &debug_users_[user_index];
@@ -449,10 +331,10 @@ class LockDebugView::DebugDataDispatcherTransformer
                                                   success);
   }
 
-  // Toggles force online sign-in for the user at |user_index|.
-  void ToggleForceOnlineSignInForUserIndex(size_t user_index) {
+  // Force online sign-in for the user at |user_index|.
+  void ForceOnlineSignInForUserIndex(size_t user_index) {
     DCHECK(user_index >= 0 && user_index < debug_users_.size());
-    lock_debug_view_->lock()->ToggleForceOnlineSignInForUserForDebug(
+    debug_dispatcher_.ForceOnlineSignInForUser(
         debug_users_[user_index].account_id);
   }
 
@@ -463,74 +345,39 @@ class LockDebugView::DebugDataDispatcherTransformer
         debug_users_[user_index].account_id);
   }
 
-  // Cycles disabled auth message for the user at |user_index|.
-  void CycleDisabledAuthMessageForUserIndex(size_t user_index) {
-    DCHECK(user_index >= 0 && user_index < debug_users_.size());
-    UserMetadata* debug_user = &debug_users_[user_index];
-
-    debug_user->auth_enable_state = static_cast<DebugAuthEnabledState>(
-        (static_cast<int>(debug_user->auth_enable_state) + 1) %
-        (static_cast<int>(DebugAuthEnabledState::kMaxValue) + 1));
-
-    debug_user->enable_auth = true;
-    AuthDisabledReason reason;
-    MultiProfileUserBehavior behavior = MultiProfileUserBehavior::UNRESTRICTED;
-
-    switch (debug_user->auth_enable_state) {
-      case DebugAuthEnabledState::kAuthEnabled:
-        debug_user->enable_auth = true;
+  // Updates |auth_disabled_reason_| with the next enum value in a cyclic
+  // manner.
+  void UpdateAuthDisabledReason() {
+    switch (auth_disabled_reason_) {
+      case AuthDisabledReason::kTimeLimitOverride:
+        auth_disabled_reason_ = AuthDisabledReason::kTimeUsageLimit;
         break;
-      case DebugAuthEnabledState::kTimeLimitOverride:
-        reason = AuthDisabledReason::kTimeLimitOverride;
+      case AuthDisabledReason::kTimeUsageLimit:
+        auth_disabled_reason_ = AuthDisabledReason::kTimeWindowLimit;
         break;
-      case DebugAuthEnabledState::kTimeUsageLimit:
-        reason = AuthDisabledReason::kTimeUsageLimit;
-        break;
-      case DebugAuthEnabledState::kTimeWindowLimit:
-        reason = AuthDisabledReason::kTimeWindowLimit;
-        break;
-      case DebugAuthEnabledState::kMultiProfilePrimaryOnly:
-        behavior = MultiProfileUserBehavior::PRIMARY_ONLY;
-        break;
-      case DebugAuthEnabledState::kMultiProfileNotAllowed:
-        behavior = MultiProfileUserBehavior::NOT_ALLOWED;
-        break;
-      case DebugAuthEnabledState::kMultiProfileOwnerPrimaryOnly:
-        behavior = MultiProfileUserBehavior::OWNER_PRIMARY_ONLY;
-        break;
-      case DebugAuthEnabledState::kForceOnlineSignIn:
+      case AuthDisabledReason::kTimeWindowLimit:
+        auth_disabled_reason_ = AuthDisabledReason::kTimeLimitOverride;
         break;
     }
+  }
 
-    debug_dispatcher_.EnableAuthForUser(debug_user->account_id);
-    lock_debug_view_->lock()->SetMultiprofilePolicyForUserForDebug(
-        debug_users_[user_index].account_id, behavior);
-    lock_debug_view_->lock()->UndoForceOnlineSignInForUserForDebug(
-        debug_users_[user_index].account_id);
-
-    switch (debug_user->auth_enable_state) {
-      case DebugAuthEnabledState::kAuthEnabled:
-        break;
-      case DebugAuthEnabledState::kTimeLimitOverride:
-      case DebugAuthEnabledState::kTimeUsageLimit:
-      case DebugAuthEnabledState::kTimeWindowLimit:
-        debug_dispatcher_.DisableAuthForUser(
-            debug_user->account_id,
-            AuthDisabledData(
-                reason,
-                base::Time::Now() + base::Hours(user_index) + base::Hours(8),
-                base::Minutes(15), true /*bool disable_lock_screen_media*/));
-        break;
-      case DebugAuthEnabledState::kMultiProfilePrimaryOnly:
-      case DebugAuthEnabledState::kMultiProfileNotAllowed:
-      case DebugAuthEnabledState::kMultiProfileOwnerPrimaryOnly:
-        lock_debug_view_->lock()->SetMultiprofilePolicyForUserForDebug(
-            debug_users_[user_index].account_id, behavior);
-        break;
-      case DebugAuthEnabledState::kForceOnlineSignIn:
-        debug_dispatcher_.ForceOnlineSignInForUser(
-            debug_users_[user_index].account_id);
-        break;
+  // Toggle the unlock allowed state for the user at |user_index|.
+  void ToggleAuthEnabledForUserIndex(size_t user_index) {
+    DCHECK(user_index >= 0 && user_index < debug_users_.size());
+    UserMetadata& user = debug_users_[user_index];
+    user.enable_auth = !user.enable_auth;
+    if (user.enable_auth) {
+      debug_dispatcher_.EnableAuthForUser(user.account_id);
+    } else {
+      debug_dispatcher_.DisableAuthForUser(
+          user.account_id,
+          AuthDisabledData(auth_disabled_reason_,
+                           base::Time::Now() +
+                               base::TimeDelta::FromHours(user_index) +
+                               base::TimeDelta::FromHours(8),
+                           base::TimeDelta::FromMinutes(15),
+                           true /*bool disable_lock_screen_media*/));
+      UpdateAuthDisabledReason();
     }
   }
 
@@ -563,16 +410,16 @@ class LockDebugView::DebugDataDispatcherTransformer
   void AddKioskApp(ShelfWidget* shelf_widget) {
     KioskAppMenuEntry menu_item;
     menu_item.app_id = kDebugKioskAppId;
-    menu_item.name = kDebugKioskAppName;
+    menu_item.name = base::UTF8ToUTF16(kDebugKioskAppName);
     kiosk_apps_.push_back(std::move(menu_item));
-    shelf_widget->GetLoginShelfView()->SetKioskApps(kiosk_apps_);
+    shelf_widget->login_shelf_view()->SetKioskApps(kiosk_apps_, {}, {});
   }
 
   void RemoveKioskApp(ShelfWidget* shelf_widget) {
     if (kiosk_apps_.empty())
       return;
     kiosk_apps_.pop_back();
-    shelf_widget->GetLoginShelfView()->SetKioskApps(kiosk_apps_);
+    shelf_widget->login_shelf_view()->SetKioskApps(kiosk_apps_, {}, {});
   }
 
   void AddSystemInfo(const std::string& os_version,
@@ -584,7 +431,7 @@ class LockDebugView::DebugDataDispatcherTransformer
                                     adb_sideloading_enabled);
   }
 
-  void UpdateWarningMessage(const std::u16string& message) {
+  void UpdateWarningMessage(const base::string16& message) {
     debug_dispatcher_.UpdateWarningMessage(message);
   }
 
@@ -627,8 +474,8 @@ class LockDebugView::DebugDataDispatcherTransformer
     debug_dispatcher_.SetLockScreenNoteState(state);
   }
   void OnShowEasyUnlockIcon(const AccountId& user,
-                            const EasyUnlockIconInfo& icon_info) override {
-    debug_dispatcher_.ShowEasyUnlockIcon(user, icon_info);
+                            const EasyUnlockIconOptions& icon) override {
+    debug_dispatcher_.ShowEasyUnlockIcon(user, icon);
   }
   void OnDetachableBasePairingStatusChanged(
       DetachableBasePairingStatus pairing_status) override {
@@ -676,6 +523,13 @@ class LockDebugView::DebugDataDispatcherTransformer
   // direct calls to the lock screen. We need either an instance of
   // LockDebugView or LockContentsView in order to do so.
   LockDebugView* const lock_debug_view_;
+
+  // When auth is disabled, this property is used to define the reason, which
+  // customizes the UI accordingly.
+  AuthDisabledReason auth_disabled_reason_ =
+      AuthDisabledReason::kTimeLimitOverride;
+
+  DISALLOW_COPY_AND_ASSIGN(DebugDataDispatcherTransformer);
 };
 
 // In-memory wrapper around LoginDetachableBaseModel used by lock UI.
@@ -687,11 +541,6 @@ class LockDebugView::DebugLoginDetachableBaseModel
   static constexpr int kNullBaseId = -1;
 
   DebugLoginDetachableBaseModel() = default;
-
-  DebugLoginDetachableBaseModel(const DebugLoginDetachableBaseModel&) = delete;
-  DebugLoginDetachableBaseModel& operator=(
-      const DebugLoginDetachableBaseModel&) = delete;
-
   ~DebugLoginDetachableBaseModel() override = default;
 
   bool debugging_pairing_state() const { return pairing_status_.has_value(); }
@@ -719,7 +568,7 @@ class LockDebugView::DebugLoginDetachableBaseModel
   // Calculates the debugging detachable base ID that should become the paired
   // base in the model when the button for cycling paired bases is clicked.
   int NextBaseId() const {
-    return (base_id_ + 1) % std::size(kDebugDetachableBases);
+    return (base_id_ + 1) % base::size(kDebugDetachableBases);
   }
 
   // Gets the descripting text for currently paired base, if any.
@@ -738,7 +587,7 @@ class LockDebugView::DebugLoginDetachableBaseModel
     pairing_status_ = pairing_status;
     if (pairing_status == DetachableBasePairingStatus::kAuthenticated) {
       CHECK_GE(base_id, 0);
-      CHECK_LT(base_id, static_cast<int>(std::size(kDebugDetachableBases)));
+      CHECK_LT(base_id, static_cast<int>(base::size(kDebugDetachableBases)));
       base_id_ = base_id;
     } else {
       base_id_ = kNullBaseId;
@@ -766,7 +615,7 @@ class LockDebugView::DebugLoginDetachableBaseModel
 
   // Clears all in-memory pairing state.
   void ClearDebugPairingState() {
-    pairing_status_ = absl::nullopt;
+    pairing_status_ = base::nullopt;
     base_id_ = kNullBaseId;
     last_used_bases_.clear();
 
@@ -800,11 +649,13 @@ class LockDebugView::DebugLoginDetachableBaseModel
 
  private:
   // In-memory detachable base pairing state.
-  absl::optional<DetachableBasePairingStatus> pairing_status_;
+  base::Optional<DetachableBasePairingStatus> pairing_status_;
   int base_id_ = kNullBaseId;
   // Maps user account to the last used detachable base ID (base ID being the
   // base's index in kDebugDetachableBases array).
   std::map<AccountId, int> last_used_bases_;
+
+  DISALLOW_COPY_AND_ASSIGN(DebugLoginDetachableBaseModel);
 };
 
 LockDebugView::LockDebugView(mojom::TrayActionState initial_note_action_state,
@@ -947,7 +798,7 @@ LockDebugView::LockDebugView(mojom::TrayActionState initial_note_action_state,
         views::ScrollView::CreateScrollViewWithBorder();
     scroll->SetPreferredSize(gfx::Size(600, height));
     scroll->SetContents(base::WrapUnique(content));
-    scroll->SetBackgroundColor(absl::nullopt);
+    scroll->SetBackgroundColor(base::nullopt);
     scroll->SetVerticalScrollBar(
         std::make_unique<views::OverlayScrollBar>(false));
     scroll->SetHorizontalScrollBar(
@@ -975,14 +826,6 @@ void LockDebugView::Layout() {
   lock_->SetBoundsRect(GetLocalBounds());
   container_->SetPosition(gfx::Point());
   container_->SizeToPreferredSize();
-
-  for (views::View* child : container_->children())
-    child->Layout();
-}
-
-void LockDebugView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-  UpdatePerUserActionContainerAndLayout();
 }
 
 void LockDebugView::AddOrRemoveUsersButtonPressed(int delta) {
@@ -1083,8 +926,9 @@ void LockDebugView::CycleDetachableBaseIdButtonPressed() {
 void LockDebugView::ToggleWarningBannerButtonPressed() {
   debug_data_dispatcher_->UpdateWarningMessage(
       is_warning_banner_shown_
-          ? std::u16string()
-          : u"A critical update is ready to install. Sign in to get started.");
+          ? base::string16()
+          : base::ASCIIToUTF16("A critical update is ready to install. Sign "
+                               "in to get started."));
   is_warning_banner_shown_ = !is_warning_banner_shown_;
 }
 
@@ -1146,7 +990,8 @@ void LockDebugView::CycleAuthErrorMessage() {
 }
 
 void LockDebugView::UpdatePerUserActionContainer() {
-  per_user_action_view_container_->RemoveAllChildViews();
+  per_user_action_view_container_->RemoveAllChildViews(
+      true /*delete_children*/);
 
   int num_users = debug_data_dispatcher_->GetUserCount();
   for (int i = 0; i < num_users; ++i) {
@@ -1168,13 +1013,6 @@ void LockDebugView::UpdatePerUserActionContainer() {
                   base::Unretained(debug_data_dispatcher_.get()), i),
               row);
     AddButton(
-        "Toggle Dark/Light mode",
-        base::BindRepeating(
-            &DebugDataDispatcherTransformer::ToggleDarkLigntModeForUserIndex,
-            base::Unretained(debug_data_dispatcher_.get()), i),
-        row);
-
-    AddButton(
         "Toggle Smart card",
         base::BindRepeating(&DebugDataDispatcherTransformer::
                                 ToggleChallengeResponseStateForUserIndex,
@@ -1185,24 +1023,11 @@ void LockDebugView::UpdatePerUserActionContainer() {
                   &DebugDataDispatcherTransformer::ToggleTapStateForUserIndex,
                   base::Unretained(debug_data_dispatcher_.get()), i),
               row);
-    AddButton("Cycle Smart Lock",
+    AddButton("Cycle easy unlock",
               base::BindRepeating(
-                  &DebugDataDispatcherTransformer::CycleSmartLockForUserIndex,
+                  &DebugDataDispatcherTransformer::CycleEasyUnlockForUserIndex,
                   base::Unretained(debug_data_dispatcher_.get()), i),
               row);
-    if (base::FeatureList::IsEnabled(ash::features::kSmartLockUIRevamp)) {
-      for (bool success : {true, false}) {
-        std::string button_label = "Send Smart Lock auth ";
-        button_label += (success ? "success" : "fail");
-        AddButton(
-            std::move(button_label),
-            base::BindRepeating(&DebugDataDispatcherTransformer::
-                                    AuthenticateSmartLockForUserIndex,
-                                base::Unretained(debug_data_dispatcher_.get()),
-                                i, success),
-            row);
-      }
-    }
     AddButton(
         "Cycle fingerprint state",
         base::BindRepeating(
@@ -1222,10 +1047,10 @@ void LockDebugView::UpdatePerUserActionContainer() {
                   base::Unretained(debug_data_dispatcher_.get()), i, false),
               row);
     AddButton(
-        "Toggle force online sign-in",
-        base::BindRepeating(&DebugDataDispatcherTransformer::
-                                ToggleForceOnlineSignInForUserIndex,
-                            base::Unretained(debug_data_dispatcher_.get()), i),
+        "Force online sign-in",
+        base::BindRepeating(
+            &DebugDataDispatcherTransformer::ForceOnlineSignInForUserIndex,
+            base::Unretained(debug_data_dispatcher_.get()), i),
         row);
     AddButton("Toggle user is managed",
               base::BindRepeating(
@@ -1233,10 +1058,10 @@ void LockDebugView::UpdatePerUserActionContainer() {
                   base::Unretained(debug_data_dispatcher_.get()), i),
               row);
     AddButton(
-        "Cycle disabled auth",
-        base::BindRepeating(&DebugDataDispatcherTransformer::
-                                CycleDisabledAuthMessageForUserIndex,
-                            base::Unretained(debug_data_dispatcher_.get()), i),
+        "Toggle auth enabled",
+        base::BindRepeating(
+            &DebugDataDispatcherTransformer::ToggleAuthEnabledForUserIndex,
+            base::Unretained(debug_data_dispatcher_.get()), i),
         row);
 
     if (debug_detachable_base_model_->debugging_pairing_state() &&
@@ -1266,7 +1091,8 @@ void LockDebugView::UpdatePerUserActionContainerAndLayout() {
 }
 
 void LockDebugView::UpdateDetachableBaseColumn() {
-  global_action_detachable_base_group_->RemoveAllChildViews();
+  global_action_detachable_base_group_->RemoveAllChildViews(
+      true /*delete_children*/);
 
   AddButton("Debug detachable base",
             base::BindRepeating(

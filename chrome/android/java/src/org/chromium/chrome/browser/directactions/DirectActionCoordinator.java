@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.directactions;
 
+import android.annotation.TargetApi;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
@@ -25,7 +25,7 @@ import java.util.function.Consumer;
  * aware of them to make use of them. For this to work, if you add a new action here, please list it
  * and document it in http://go.ext.google.com/chrome-direct-action-list
  */
-@RequiresApi(29)
+@TargetApi(29)
 public abstract class DirectActionCoordinator {
     private final Set<DirectActionHandler> mHandlers = new LinkedHashSet<>();
 

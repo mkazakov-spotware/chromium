@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,48 +11,29 @@
 namespace mojo {
 
 template <>
-struct EnumTraits<gfx::mojom::HDRMode, gfx::HDRMode> {
-  static gfx::mojom::HDRMode ToMojom(gfx::HDRMode input) {
-    switch (input) {
-      case gfx::HDRMode::kDefault:
-        return gfx::mojom::HDRMode::kDefault;
-      case gfx::HDRMode::kExtended:
-        return gfx::mojom::HDRMode::kExtended;
-    }
-    NOTREACHED();
-    return gfx::mojom::HDRMode::kDefault;
+struct StructTraits<gfx::mojom::MasteringMetadataDataView,
+                    gfx::MasteringMetadata> {
+  static const gfx::PointF& primary_r(const gfx::MasteringMetadata& input) {
+    return input.primary_r;
   }
-
-  static bool FromMojom(gfx::mojom::HDRMode input, gfx::HDRMode* out) {
-    switch (input) {
-      case gfx::mojom::HDRMode::kDefault:
-        *out = gfx::HDRMode::kDefault;
-        return true;
-      case gfx::mojom::HDRMode::kExtended:
-        *out = gfx::HDRMode::kExtended;
-        return true;
-    }
-    NOTREACHED();
-    return false;
+  static const gfx::PointF& primary_g(const gfx::MasteringMetadata& input) {
+    return input.primary_g;
   }
-};
-
-template <>
-struct StructTraits<gfx::mojom::ColorVolumeMetadataDataView,
-                    gfx::ColorVolumeMetadata> {
-  static const SkColorSpacePrimaries& primaries(
-      const gfx::ColorVolumeMetadata& input) {
-    return input.primaries;
+  static const gfx::PointF& primary_b(const gfx::MasteringMetadata& input) {
+    return input.primary_b;
   }
-  static float luminance_max(const gfx::ColorVolumeMetadata& input) {
+  static const gfx::PointF& white_point(const gfx::MasteringMetadata& input) {
+    return input.white_point;
+  }
+  static float luminance_max(const gfx::MasteringMetadata& input) {
     return input.luminance_max;
   }
-  static float luminance_min(const gfx::ColorVolumeMetadata& input) {
+  static float luminance_min(const gfx::MasteringMetadata& input) {
     return input.luminance_min;
   }
 
-  static bool Read(gfx::mojom::ColorVolumeMetadataDataView data,
-                   gfx::ColorVolumeMetadata* output);
+  static bool Read(gfx::mojom::MasteringMetadataDataView data,
+                   gfx::MasteringMetadata* output);
 };
 
 template <>
@@ -63,9 +44,9 @@ struct StructTraits<gfx::mojom::HDRMetadataDataView, gfx::HDRMetadata> {
   static unsigned max_frame_average_light_level(const gfx::HDRMetadata& input) {
     return input.max_frame_average_light_level;
   }
-  static const gfx::ColorVolumeMetadata& color_volume_metadata(
+  static const gfx::MasteringMetadata& mastering_metadata(
       const gfx::HDRMetadata& input) {
-    return input.color_volume_metadata;
+    return input.mastering_metadata;
   }
 
   static bool Read(gfx::mojom::HDRMetadataDataView data,

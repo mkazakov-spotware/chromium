@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@ package org.chromium.chrome.browser.tasks.tab_management;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.areAnimatorsEnabled;
 
@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.CommandLine;
 import org.chromium.base.MathUtils;
 import org.chromium.base.test.UiThreadTest;
@@ -32,26 +33,24 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivity;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.DummyUiActivity;
+import org.chromium.ui.test.util.DummyUiActivityTestCase;
 
 /**
  * Tests for {@link TabListRecyclerView} and {@link TabListContainerViewBinder}
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Features.EnableFeatures({ChromeFeatureList.TAB_GRID_LAYOUT_ANDROID})
-public class TabListContainerViewBinderTest extends BlankUiTestActivityTestCase {
+public class TabListContainerViewBinderTest extends DummyUiActivityTestCase {
     /**
-     * BlankUiTestActivityTestCase also needs {@link ChromeFeatureList}'s
+     * DummyUiActivityTestCase also needs {@link ChromeFeatureList}'s
      * internal test-only feature map, not the {@link CommandLine} provided by
      * {@link Features.InstrumentationProcessor}.
      */
@@ -96,7 +95,7 @@ public class TabListContainerViewBinderTest extends BlankUiTestActivityTestCase 
 
     @BeforeClass
     public static void setUpBeforeActivityLaunched() {
-        BlankUiTestActivity.setTestLayout(R.layout.tab_list_recycler_view_layout);
+        DummyUiActivity.setTestLayout(R.layout.tab_list_recycler_view_layout);
     }
 
     @Override
@@ -111,12 +110,10 @@ public class TabListContainerViewBinderTest extends BlankUiTestActivityTestCase 
         mStartedHidingCallback = new CallbackHelper();
         mFinishedHidingCallback = new CallbackHelper();
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mContainerModel = new PropertyModel(TabListContainerProperties.ALL_KEYS);
+        mContainerModel = new PropertyModel(TabListContainerProperties.ALL_KEYS);
 
-            mMCP = PropertyModelChangeProcessor.create(
-                    mContainerModel, mRecyclerView, TabListContainerViewBinder::bind);
-        });
+        mMCP = PropertyModelChangeProcessor.create(
+                mContainerModel, mRecyclerView, TabListContainerViewBinder::bind);
     }
 
     @Test
@@ -166,7 +163,6 @@ public class TabListContainerViewBinderTest extends BlankUiTestActivityTestCase 
     @Test
     @MediumTest
     @Features.EnableFeatures(ChromeFeatureList.TAB_TO_GTS_ANIMATION)
-    @DisabledTest(message = "https://crbug.com/1182554")
     public void testHidesWithAnimation() {
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             mContainerModel.set(
@@ -227,12 +223,14 @@ public class TabListContainerViewBinderTest extends BlankUiTestActivityTestCase 
         mContainerModel.set(TabListContainerProperties.IS_INCOGNITO, true);
         assertThat(mRecyclerView.getBackground(), instanceOf(ColorDrawable.class));
         assertThat(((ColorDrawable) mRecyclerView.getBackground()).getColor(),
-                equalTo(mRecyclerView.getContext().getColor(R.color.default_bg_color_dark)));
+                equalTo(ApiCompatibilityUtils.getColor(
+                        mRecyclerView.getResources(), R.color.default_bg_color_dark)));
 
         mContainerModel.set(TabListContainerProperties.IS_INCOGNITO, false);
         assertThat(mRecyclerView.getBackground(), instanceOf(ColorDrawable.class));
         assertThat(((ColorDrawable) mRecyclerView.getBackground()).getColor(),
-                equalTo(SemanticColorUtils.getDefaultBgColor(mRecyclerView.getContext())));
+                equalTo(ApiCompatibilityUtils.getColor(
+                        mRecyclerView.getResources(), R.color.default_bg_color)));
     }
 
     @Test
@@ -293,7 +291,7 @@ public class TabListContainerViewBinderTest extends BlankUiTestActivityTestCase 
 
     @Override
     public void tearDownTest() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
+        mMCP.destroy();
         super.tearDownTest();
     }
 }

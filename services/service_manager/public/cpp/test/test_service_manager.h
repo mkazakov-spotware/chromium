@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "services/service_manager/public/cpp/identity.h"
 #include "services/service_manager/public/cpp/manifest.h"
@@ -32,9 +33,6 @@ class TestServiceManager {
   // manifests.
   explicit TestServiceManager(const std::vector<Manifest>& manifests);
 
-  TestServiceManager(const TestServiceManager&) = delete;
-  TestServiceManager& operator=(const TestServiceManager&) = delete;
-
   ~TestServiceManager();
 
   // Registers a new service instance with a random Identity including
@@ -56,6 +54,8 @@ class TestServiceManager {
 
  private:
   const std::unique_ptr<BackgroundServiceManager> background_service_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestServiceManager);
 };
 
 }  // namespace service_manager

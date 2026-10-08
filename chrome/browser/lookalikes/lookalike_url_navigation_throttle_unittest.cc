@@ -1,10 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/lookalikes/lookalike_url_navigation_throttle.h"
 
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "components/lookalikes/core/features.h"
 #include "components/reputation/core/safety_tip_test_utils.h"
 #include "components/url_formatter/spoof_checks/idn_spoof_checker.h"
 #include "components/url_formatter/url_formatter.h"
@@ -13,10 +16,12 @@
 
 namespace lookalikes {
 
-using LookalikeThrottleTest = ChromeRenderViewHostTestHarness;
+class LookalikeThrottleTest : public ChromeRenderViewHostTestHarness {};
 
 // Tests that spoofy hostnames are properly handled in the throttle.
 TEST_F(LookalikeThrottleTest, SpoofsBlocked) {
+  base::HistogramTester test;
+
   reputation::InitializeSafetyTipConfig();
 
   const struct TestCase {
@@ -60,6 +65,10 @@ TEST_F(LookalikeThrottleTest, SpoofsBlocked) {
        url_formatter::IDNSpoofChecker::Result::kDeviationCharacters},
   };
 
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
+      lookalikes::features::kLookalikeInterstitialForPunycode);
+
   for (const TestCase& test_case : kTestCases) {
     url_formatter::IDNConversionResult idn_result =
         url_formatter::UnsafeIDNToUnicodeWithDetails(test_case.hostname);
@@ -68,7 +77,7 @@ TEST_F(LookalikeThrottleTest, SpoofsBlocked) {
         << test_case.hostname;
 
     GURL url(std::string("http://") + test_case.hostname);
-    ::testing::NiceMock<content::MockNavigationHandle> handle(url, main_rfh());
+    content::MockNavigationHandle handle(url, main_rfh());
     handle.set_redirect_chain({url});
     handle.set_page_transition(ui::PAGE_TRANSITION_TYPED);
 

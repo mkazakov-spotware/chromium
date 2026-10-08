@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include <iomanip>
 #include <map>
-#include <string>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/json/json_reader.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
+#include "base/strings/string16.h"
+#include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/common/chrome_version.h"
@@ -46,7 +46,7 @@ static const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR g_field_desc[] = {
      CPFG_CREDENTIAL_PROVIDER_LABEL},
 };
 
-static_assert(std::size(g_field_desc) == FIELD_COUNT,
+static_assert(base::size(g_field_desc) == FIELD_COUNT,
               "g_field_desc does not match FIELDID enum");
 
 namespace {
@@ -54,9 +54,9 @@ namespace {
 // Initializes an object that implements IReauthCredential.
 HRESULT InitializeReauthCredential(
     CGaiaCredentialProvider* provider,
-    const std::wstring& sid,
-    const std::wstring& domain,
-    const std::wstring& username,
+    const base::string16& sid,
+    const base::string16& domain,
+    const base::string16& username,
     const Microsoft::WRL::ComPtr<IGaiaCredential>& gaia_cred) {
   Microsoft::WRL::ComPtr<IReauthCredential> reauth;
   HRESULT hr = gaia_cred.As(&reauth);
@@ -75,7 +75,7 @@ HRESULT InitializeReauthCredential(
   // effect is that the user will need to enter their email address manually
   // instead of it being pre-filled.
   wchar_t email[64];
-  ULONG email_length = std::size(email);
+  ULONG email_length = base::size(email);
   hr = GetUserProperty(sid.c_str(), kUserEmail, email, &email_length);
   if (FAILED(hr))
     email[0] = 0;
@@ -122,7 +122,7 @@ class BackgroundTokenHandleUpdater {
  public:
   explicit BackgroundTokenHandleUpdater(
       ICredentialUpdateEventsHandler* event_handler,
-      const std::vector<std::wstring>* reauth_sids);
+      const std::vector<base::string16>* reauth_sids);
   ~BackgroundTokenHandleUpdater();
 
  private:
@@ -133,8 +133,8 @@ class BackgroundTokenHandleUpdater {
   // to notify that token handle validity has changed. Any instance of this
   // class should be owned by the CGaiaCredentialProvider to ensure that
   // this pointer outlives the updater.
-  raw_ptr<ICredentialUpdateEventsHandler> event_handler_;
-  raw_ptr<const std::vector<std::wstring>> reauth_sids_;
+  ICredentialUpdateEventsHandler* event_handler_;
+  const std::vector<base::string16>* reauth_sids_;
 
   base::win::ScopedHandle token_update_thread_;
   base::WaitableEvent token_update_quit_event_;
@@ -142,7 +142,7 @@ class BackgroundTokenHandleUpdater {
 
 BackgroundTokenHandleUpdater::BackgroundTokenHandleUpdater(
     ICredentialUpdateEventsHandler* event_handler,
-    const std::vector<std::wstring>* reauth_sids)
+    const std::vector<base::string16>* reauth_sids)
     : event_handler_(event_handler), reauth_sids_(reauth_sids) {
   unsigned wait_thread_id;
   uintptr_t wait_thread =
@@ -164,7 +164,7 @@ BackgroundTokenHandleUpdater::~BackgroundTokenHandleUpdater() {
 }
 
 bool BackgroundTokenHandleUpdater::IsAuthEnforcedOnAssociatedUsers() {
-  std::map<std::wstring, UserTokenHandleInfo> sids_to_handle_info;
+  std::map<base::string16, UserTokenHandleInfo> sids_to_handle_info;
   HRESULT hr = GetUserTokenHandles(&sids_to_handle_info);
   if (FAILED(hr)) {
     LOGFN(ERROR) << "GetUserTokenHandles hr=" << putHR(hr);
@@ -172,10 +172,12 @@ bool BackgroundTokenHandleUpdater::IsAuthEnforcedOnAssociatedUsers() {
   }
 
   for (const auto& sid_to_association : sids_to_handle_info) {
-    const std::wstring& sid = sid_to_association.first;
+    const base::string16& sid = sid_to_association.first;
     // Checks if the login UI was already refreshed due to
     // auth enforcements on this sid.
-    if (reauth_sids_ != nullptr && base::Contains(*reauth_sids_, sid))
+    if (reauth_sids_ != nullptr &&
+        (std::find(reauth_sids_->begin(), reauth_sids_->end(), sid) !=
+         reauth_sids_->end()))
       continue;
 
     // Return true if the associated user sid has auth enforced.
@@ -372,7 +374,7 @@ HRESULT CGaiaCredentialProvider::CreateAnonymousCredentialIfNeeded(
   if (SUCCEEDED(hr)) {
     hr = cred.gaia_cred->Initialize(this);
     if (SUCCEEDED(hr)) {
-      AddCredentialAndCheckAutoLogon(cred.gaia_cred, std::wstring(), nullptr);
+      AddCredentialAndCheckAutoLogon(cred.gaia_cred, base::string16(), nullptr);
     } else {
       LOG(ERROR) << "Could not create credential hr=" << putHR(hr);
     }
@@ -384,7 +386,10 @@ HRESULT CGaiaCredentialProvider::CreateAnonymousCredentialIfNeeded(
 HRESULT CGaiaCredentialProvider::CreateReauthCredentials(
     ICredentialProviderUserArray* users,
     GaiaCredentialComPtrStorage* auto_logon_credential) {
-  std::map<std::wstring, std::pair<std::wstring, std::wstring>> sid_to_username;
+  std::map<base::string16, std::pair<base::string16, base::string16>>
+      sid_to_username;
+
+  OSUserManager* manager = OSUserManager::Get();
 
   // Get the SIDs of all users being shown in the logon UI.
   if (!users) {
@@ -424,14 +429,14 @@ HRESULT CGaiaCredentialProvider::CreateReauthCredentials(
       continue;
     }
 
-    std::wstring sid = sid_buffer;
+    base::string16 sid = sid_buffer;
     ::CoTaskMemFree(sid_buffer);
 
     wchar_t username[kWindowsUsernameBufferLength];
     wchar_t domain[kWindowsDomainBufferLength];
 
-    hr = OSUserManager::Get()->FindUserBySidWithFallback(
-        sid.c_str(), username, std::size(username), domain, std::size(domain));
+    hr = manager->FindUserBySID(sid.c_str(), username, base::size(username),
+                                domain, base::size(domain));
     if (FAILED(hr)) {
       LOGFN(ERROR) << "Can't get sid or username hr=" << putHR(hr);
       continue;
@@ -440,7 +445,7 @@ HRESULT CGaiaCredentialProvider::CreateReauthCredentials(
     // Get the user's gaia id from registry stored against the sid if it
     // exists.
     wchar_t user_id[64];
-    ULONG user_id_length = std::size(user_id);
+    ULONG user_id_length = base::size(user_id);
     hr = GetUserProperty(sid.c_str(), kUserId, user_id, &user_id_length);
     if (FAILED(hr))
       user_id[0] = L'\0';
@@ -473,7 +478,8 @@ HRESULT CGaiaCredentialProvider::CreateReauthCredentials(
     }
 
     GaiaCredentialComPtrStorage cred;
-    hr = CreateCredentialObject<CReauthCredential>(reauth_cred_creator_, &cred);
+    HRESULT hr =
+        CreateCredentialObject<CReauthCredential>(reauth_cred_creator_, &cred);
     if (FAILED(hr)) {
       LOG(ERROR) << "Could not create credential hr=" << putHR(hr);
       return hr;
@@ -504,7 +510,7 @@ HRESULT CGaiaCredentialProvider::CreateReauthCredentials(
 
 void CGaiaCredentialProvider::AddCredentialAndCheckAutoLogon(
     const Microsoft::WRL::ComPtr<IGaiaCredential>& cred,
-    const std::wstring& sid,
+    const base::string16& sid,
     GaiaCredentialComPtrStorage* auto_logon_credential) {
   USES_CONVERSION;
   users_.emplace_back(cred);
@@ -742,8 +748,6 @@ HRESULT CGaiaCredentialProvider::Advise(ICredentialProviderEvents* pcpe,
 }
 
 HRESULT CGaiaCredentialProvider::UnAdvise() {
-  LOGFN(VERBOSE);
-
   // Kill the updater thread (if any).
   token_handle_updater_.reset();
 
@@ -793,7 +797,7 @@ HRESULT CGaiaCredentialProvider::GetFieldDescriptorAt(
       // calls to ICredentialProviderCredential::GetStringValue so we need to
       // localize it manually here.
       if (index == FID_CURRENT_PASSWORD_FIELD) {
-        std::wstring password_label(
+        base::string16 password_label(
             GetStringResource(IDS_WINDOWS_PASSWORD_FIELD_LABEL_BASE));
         hr = ::SHStrDupW(password_label.c_str(), &(*ppcpfd)->pszLabel);
       } else if ((*ppcpfd)->pszLabel) {

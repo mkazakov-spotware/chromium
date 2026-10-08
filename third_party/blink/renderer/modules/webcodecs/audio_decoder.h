@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,18 @@
 #include <memory>
 
 #include "media/base/audio_decoder.h"
-#include "media/base/media_types.h"
 #include "media/base/status.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_webcodecs_error_callback.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_video_frame_output_callback.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_web_codecs_error_callback.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
+#include "third_party/blink/renderer/modules/webcodecs/codec_config_eval.h"
 #include "third_party/blink/renderer/modules/webcodecs/decoder_template.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/heap_allocator.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
 
 namespace media {
@@ -30,22 +33,21 @@ class MediaLog;
 
 namespace blink {
 
-class AudioData;
-class AudioDecoderConfig;
+class AudioFrame;
 class EncodedAudioChunk;
+class EncodedAudioConfig;
 class ExceptionState;
 class AudioDecoderInit;
-class ScriptPromise;
-class V8AudioDataOutputCallback;
+class V8AudioFrameOutputCallback;
 
 class MODULES_EXPORT AudioDecoderTraits {
  public:
   using InitType = AudioDecoderInit;
-  using OutputType = AudioData;
+  using OutputType = AudioFrame;
   using MediaOutputType = media::AudioBuffer;
   using MediaDecoderType = media::AudioDecoder;
-  using OutputCallbackType = V8AudioDataOutputCallback;
-  using ConfigType = AudioDecoderConfig;
+  using OutputCallbackType = V8AudioFrameOutputCallback;
+  using ConfigType = EncodedAudioConfig;
   using MediaConfigType = media::AudioDecoderConfig;
   using InputType = EncodedAudioChunk;
 
@@ -56,7 +58,6 @@ class MODULES_EXPORT AudioDecoderTraits {
       media::GpuVideoAcceleratorFactories* gpu_factories,
       media::MediaLog* media_log);
   static void InitializeDecoder(MediaDecoderType& decoder,
-                                bool low_delay,
                                 const MediaConfigType& media_config,
                                 MediaDecoderType::InitCB init_cb,
                                 MediaDecoderType::OutputCB output_cb);
@@ -64,7 +65,6 @@ class MODULES_EXPORT AudioDecoderTraits {
   static void UpdateDecoderLog(const MediaDecoderType& decoder,
                                const MediaConfigType& media_config,
                                media::MediaLog* media_log);
-  static const char* GetName();
 };
 
 class MODULES_EXPORT AudioDecoder : public DecoderTemplate<AudioDecoderTraits> {
@@ -75,38 +75,15 @@ class MODULES_EXPORT AudioDecoder : public DecoderTemplate<AudioDecoderTraits> {
                               const AudioDecoderInit*,
                               ExceptionState&);
 
-  static ScriptPromise isConfigSupported(ScriptState*,
-                                         const AudioDecoderConfig*,
-                                         ExceptionState&);
-
-  // Returns parsed AudioType if the configuration is valid.
-  static absl::optional<media::AudioType> IsValidAudioDecoderConfig(
-      const AudioDecoderConfig& config,
-      String* js_error_message);
-
-  // For use by MediaSource and by ::MakeMediaConfig.
-  static absl::optional<media::AudioDecoderConfig> MakeMediaAudioDecoderConfig(
-      const ConfigType& config,
-      String* js_error_message);
-
   AudioDecoder(ScriptState*, const AudioDecoderInit*, ExceptionState&);
   ~AudioDecoder() override = default;
 
-  // EventTarget interface
-  const AtomicString& InterfaceName() const override;
-
  protected:
-  bool IsValidConfig(const ConfigType& config,
-                     String* js_error_message) override;
-  absl::optional<media::AudioDecoderConfig> MakeMediaConfig(
-      const ConfigType& config,
-      String* js_error_message) override;
-  media::DecoderStatus::Or<scoped_refptr<media::DecoderBuffer>> MakeInput(
-      const InputType& chunk,
-      bool verify_key_frame) override;
-  media::DecoderStatus::Or<OutputType*> MakeOutput(
-      scoped_refptr<MediaOutputType> output,
-      ExecutionContext* context) override;
+  CodecConfigEval MakeMediaConfig(const ConfigType& config,
+                                  MediaConfigType* out_media_config,
+                                  String* out_console_message) override;
+  media::StatusOr<scoped_refptr<media::DecoderBuffer>> MakeDecoderBuffer(
+      const InputType& chunk) override;
 };
 
 }  // namespace blink

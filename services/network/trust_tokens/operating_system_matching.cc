@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,15 @@
 namespace network {
 
 bool IsCurrentOperatingSystem(mojom::TrustTokenKeyCommitmentResult::Os os) {
-#if BUILDFLAG(IS_ANDROID)
-  return os == mojom::TrustTokenKeyCommitmentResult::Os::kAndroid;
-#else
+  switch (os) {
+    case mojom::TrustTokenKeyCommitmentResult::Os::kAndroid:
+#if defined(OS_ANDROID)
+      return true;
+#endif  // defined(OS_ANDROID)
+      break;
+  }
+
   return false;
-#endif
 }
 
 }  // namespace network

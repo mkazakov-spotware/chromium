@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import org.chromium.base.annotations.UsedByReflection;
 import org.chromium.base.task.PostTask;
 import org.chromium.components.safe_browsing.SafeBrowsingApiHandler;
 import org.chromium.content_public.browser.UiThreadTaskTraits;
@@ -18,6 +19,7 @@ import java.util.Map;
 /**
  * SafeBrowsingApiHandler that vends fake responses.
  */
+@UsedByReflection("SafeBrowsingApiBridge.java")
 public class MockSafeBrowsingApiHandler implements SafeBrowsingApiHandler {
     private Observer mObserver;
     // Mock time it takes for a lookup request to complete.
@@ -26,12 +28,16 @@ public class MockSafeBrowsingApiHandler implements SafeBrowsingApiHandler {
 
     // Global url -> metadataResponse map. In practice there is only one SafeBrowsingApiHandler, but
     // it is cumbersome for tests to reach into the singleton instance directly. So just make this
-    // static and modifiable from java tests using a static method.
-    private static final Map<String, String> sResponseMap = new HashMap<>();
+    // static and modifiable from java tests using a static method. This map is copied into the
+    // instance during |init|.
+    private static Map<String, String> sResponseMap = new HashMap<>();
+
+    private HashMap<String, String> mResponseMap;
 
     @Override
     public boolean init(Observer observer) {
         mObserver = observer;
+        mResponseMap = new HashMap<String, String>(sResponseMap);
         return true;
     }
 
@@ -51,10 +57,10 @@ public class MockSafeBrowsingApiHandler implements SafeBrowsingApiHandler {
     }
 
     private String getMetadata(String uri, int[] threatsOfInterest) {
-        if (sResponseMap.containsKey(uri)) {
+        if (mResponseMap.containsKey(uri)) {
             try {
                 // Make sure this is a threat of interest.
-                String metaCandidate = sResponseMap.get(uri);
+                String metaCandidate = mResponseMap.get(uri);
                 JSONObject json = new JSONObject(metaCandidate);
                 JSONArray matches = json.getJSONArray("matches");
                 for (int i = 0; i < matches.length(); i++) {
@@ -73,7 +79,7 @@ public class MockSafeBrowsingApiHandler implements SafeBrowsingApiHandler {
 
     /*
      * Adds a mock response to the static map.
-     * Should be called before the main activity starts up, to avoid thread-unsafe behavior.
+     * Should be called before the main activity starts up, to avoid thread upsafe behavior.
      */
     public static void addMockResponse(String uri, String metadata) {
         sResponseMap.put(uri, metadata);

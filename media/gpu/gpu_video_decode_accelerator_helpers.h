@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include "base/callback.h"
 #include "base/memory/weak_ptr.h"
-#include "media/base/supported_video_decoder_config.h"
 #include "media/gpu/media_gpu_export.h"
+#include "media/video/supported_video_decoder_config.h"
 #include "media/video/video_decode_accelerator.h"
 
 namespace gl {
@@ -41,14 +41,15 @@ using GetGLContextCallback = base::RepeatingCallback<gl::GLContext*(void)>;
 // executing any GL calls. Return true on success, false otherwise.
 using MakeGLContextCurrentCallback = base::RepeatingCallback<bool(void)>;
 
-// Bind |image| to |client_texture_id| given |texture_target|. On Win/Mac,
-// marks the texture as needing binding by the decoder; on other platforms,
-// marks the texture as *not* needing binding by the decoder.
+// Bind |image| to |client_texture_id| given |texture_target|. If
+// |can_bind_to_sampler| is true, then the image may be used as a sampler
+// directly, otherwise a copy to a staging buffer is required.
 // Return true on success, false otherwise.
 using BindGLImageCallback =
     base::RepeatingCallback<bool(uint32_t client_texture_id,
                                  uint32_t texture_target,
-                                 const scoped_refptr<gl::GLImage>& image)>;
+                                 const scoped_refptr<gl::GLImage>& image,
+                                 bool can_bind_to_sampler)>;
 
 // Return a ContextGroup*, if one is available.
 using GetContextGroupCallback =
@@ -80,14 +81,15 @@ struct MEDIA_GPU_EXPORT GpuVideoDecodeGLClient {
   // executing any GL calls. Return true on success, false otherwise.
   using MakeGLContextCurrentCallback = base::RepeatingCallback<bool(void)>;
 
-  // Bind |image| to |client_texture_id| given |texture_target|. On Win/Mac,
-  // marks the texture as needing binding by the decoder; on other platforms,
-  // marks the texture as *not* needing binding by the decoder.
+  // Bind |image| to |client_texture_id| given |texture_target|. If
+  // |can_bind_to_sampler| is true, then the image may be used as a sampler
+  // directly, otherwise a copy to a staging buffer is required.
   // Return true on success, false otherwise.
   using BindGLImageCallback =
       base::RepeatingCallback<bool(uint32_t client_texture_id,
                                    uint32_t texture_target,
-                                   const scoped_refptr<gl::GLImage>& image)>;
+                                   const scoped_refptr<gl::GLImage>& image,
+                                   bool can_bind_to_sampler)>;
 
   // Return a ContextGroup*, if one is available.
   using GetContextGroupCallback =

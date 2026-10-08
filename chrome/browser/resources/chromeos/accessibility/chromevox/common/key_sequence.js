@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,13 @@
  * @fileoverview A JavaScript class that represents a sequence of keys entered
  * by the user.
  */
+
+
+goog.provide('KeySequence');
+
+goog.require('ChromeVox');
+goog.require('KeyCode');
+
 
 /**
  * A class to represent a sequence of keys entered by a user or affiliated with
@@ -24,10 +31,7 @@
  * - Whether or not a prefix key was entered before the discrete keys.
  * - Whether sticky mode was active.
  */
-
-import {KeyCode} from '../../common/key_code.js';
-
-export class KeySequence {
+KeySequence = class {
   /**
    * @param {Event|Object} originalEvent The original key event entered by a
    *     user.
@@ -46,21 +50,21 @@ export class KeySequence {
       originalEvent, opt_cvoxModifier, opt_doubleTap, opt_skipStripping,
       opt_requireStickyMode) {
     /** @type {boolean} */
-    this.doubleTap = Boolean(opt_doubleTap);
+    this.doubleTap = !!opt_doubleTap;
 
     /** @type {boolean} */
-    this.requireStickyMode = Boolean(opt_requireStickyMode);
+    this.requireStickyMode = !!opt_requireStickyMode;
 
     /** @type {boolean} */
-    this.skipStripping = Boolean(opt_skipStripping);
+    this.skipStripping = !!opt_skipStripping;
 
     if (opt_cvoxModifier === undefined) {
       this.cvoxModifier = this.isCVoxModifierActive(originalEvent);
     } else {
       this.cvoxModifier = opt_cvoxModifier;
     }
-    this.stickyMode = Boolean(originalEvent['stickyMode']);
-    this.prefixKey = Boolean(originalEvent['keyPrefix']);
+    this.stickyMode = !!originalEvent['stickyMode'];
+    this.prefixKey = !!originalEvent['keyPrefix'];
 
     if (this.stickyMode && this.prefixKey) {
       throw 'Prefix key and sticky mode cannot both be enabled: ' +
@@ -91,7 +95,7 @@ export class KeySequence {
       altGraphKey: [],
       shiftKey: [],
       metaKey: [],
-      keyCode: [],
+      keyCode: []
     };
 
     this.extractKey_(originalEvent);
@@ -214,7 +218,7 @@ export class KeySequence {
 
     // TODO (rshearer): This is a hack. When the modifier key becomes
     // customizable then we will not have to deal with strings here.
-    const modifierKeyCombo = KeySequence.modKeyStr.split(/\+/g);
+    const modifierKeyCombo = ChromeVox.modKeyStr.split(/\+/g);
 
     const index = this.keys.keyCode.length - 1;
     // For each modifier that is part of the CVox modifier, remove it from keys.
@@ -231,6 +235,8 @@ export class KeySequence {
     if (modifierKeyCombo.indexOf(metaKeyName) !== -1) {
       if (metaKeyName === 'Search') {
         this.keys.searchKeyHeld[index] = false;
+        // TODO(dmazzoni): http://crbug.com/404763 Get rid of the code that
+        // tracks the search key and just use meta everywhere.
         this.keys.metaKey[index] = false;
       } else if (metaKeyName === 'Cmd' || metaKeyName === 'Win') {
         this.keys.metaKey[index] = false;
@@ -307,27 +313,31 @@ export class KeySequence {
    */
   isCVoxModifierActive(keyEvent) {
     // TODO (rshearer): Update this when the modifier key becomes customizable
-    let modifierKeyCombo = KeySequence.modKeyStr.split(/\+/g);
+    let modifierKeyCombo = ChromeVox.modKeyStr.split(/\+/g);
 
     // For each modifier that is held down, remove it from the combo.
     // If the combo string becomes empty, then the user has activated the combo.
     if (this.isKeyModifierActive(keyEvent, 'ctrlKey')) {
-      modifierKeyCombo =
-          modifierKeyCombo.filter(modifier => modifier !== 'Ctrl');
+      modifierKeyCombo = modifierKeyCombo.filter(function(modifier) {
+        return modifier !== 'Ctrl';
+      });
     }
     if (this.isKeyModifierActive(keyEvent, 'altKey')) {
-      modifierKeyCombo =
-          modifierKeyCombo.filter(modifier => modifier !== 'Alt');
+      modifierKeyCombo = modifierKeyCombo.filter(function(modifier) {
+        return modifier !== 'Alt';
+      });
     }
     if (this.isKeyModifierActive(keyEvent, 'shiftKey')) {
-      modifierKeyCombo =
-          modifierKeyCombo.filter(modifier => modifier !== 'Shift');
+      modifierKeyCombo = modifierKeyCombo.filter(function(modifier) {
+        return modifier !== 'Shift';
+      });
     }
     if (this.isKeyModifierActive(keyEvent, 'metaKey') ||
         this.isKeyModifierActive(keyEvent, 'searchKeyHeld')) {
       const metaKeyName = this.getMetaKeyName_();
-      modifierKeyCombo =
-          modifierKeyCombo.filter(modifier => modifier !== metaKeyName);
+      modifierKeyCombo = modifierKeyCombo.filter(function(modifier) {
+        return modifier !== metaKeyName;
+      });
     }
     return (modifierKeyCombo.length === 0);
   }
@@ -412,7 +422,7 @@ export class KeySequence {
         sequenceObject.doubleTap, skipStripping,
         sequenceObject.requireStickyMode);
     if (secondKeyPressed) {
-      KeySequence.sequenceSwitchKeyCodes.push(
+      ChromeVox.sequenceSwitchKeyCodes.push(
           new KeySequence(firstSequenceEvent, sequenceObject.cvoxModifier));
       keySeq.addKeyEvent(secondSequenceEvent);
     }
@@ -520,7 +530,8 @@ export class KeySequence {
       seqEvent['keyCode'] = KeyCode.INSERT;
     }
   }
-}
+};
+
 
 // TODO(dtseng): This is incomplete; pull once we have appropriate libs.
 /**
@@ -536,7 +547,7 @@ KeySequence.KEY_PRESS_CODE = {
   59: 186,
   91: 219,
   92: 220,
-  93: 221,
+  93: 221
 };
 
 /**
@@ -546,14 +557,3 @@ KeySequence.KEY_PRESS_CODE = {
  * @type {!Array<KeySequence>}
  */
 KeySequence.doubleTapCache = [];
-
-/**
- * If any of these keys is pressed with the modifier key, we go in sequence mode
- * where the subsequent independent key downs (while modifier keys are down)
- * are a part of the same shortcut.
- * @public {!Array<KeySequence>}
- */
-KeySequence.sequenceSwitchKeyCodes = [];
-
-/** @public {string} */
-KeySequence.modKeyStr = 'Search';

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -142,7 +142,7 @@ TEST_F(DatabaseStringTableTest, Prune) {
   // Wrap the lookups in a transaction to improve performance.
   sql::Transaction transaction(&db_);
 
-  ASSERT_TRUE(transaction.Begin());
+  transaction.Begin();
   for (int i = 0; i < 2000; i++) {
     int64_t id;
     ASSERT_TRUE(table.StringToInt(&db_, base::StringPrintf("value-%d", i),

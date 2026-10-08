@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,6 @@ struct Point3F {
   float z;
 };
 
-[Stable]
 struct Size {
   int32 width;
   int32 height;
@@ -33,7 +32,6 @@ struct SizeF {
   float height;
 };
 
-[Stable]
 struct Rect {
   int32 x;
   int32 y;
@@ -41,7 +39,6 @@ struct Rect {
   int32 height;
 };
 
-[Stable]
 struct RectF {
   float x;
   float y;
@@ -49,7 +46,6 @@ struct RectF {
   float height;
 };
 
-[Stable]
 struct Insets {
   int32 top;
   int32 left;
@@ -78,6 +74,11 @@ struct Vector3dF {
   float x;
   float y;
   float z;
+};
+
+struct ScrollOffset {
+  float x;
+  float y;
 };
 
 struct Quaternion {

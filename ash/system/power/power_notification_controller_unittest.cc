@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 
 #include "ash/test/ash_test_base.h"
-#include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chromeos/dbus/power_manager/power_supply_properties.pb.h"
 #include "ui/message_center/fake_message_center.h"
@@ -22,10 +21,6 @@ namespace {
 class MockMessageCenter : public message_center::FakeMessageCenter {
  public:
   MockMessageCenter() : add_count_(0), remove_count_(0), update_count_(0) {}
-
-  MockMessageCenter(const MockMessageCenter&) = delete;
-  MockMessageCenter& operator=(const MockMessageCenter&) = delete;
-
   ~MockMessageCenter() override = default;
 
   int add_count() const { return add_count_; }
@@ -66,6 +61,8 @@ class MockMessageCenter : public message_center::FakeMessageCenter {
   int remove_count_;
   int update_count_;
   std::map<std::string, std::unique_ptr<Notification>> notifications_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockMessageCenter);
 };
 
 }  // namespace
@@ -75,12 +72,6 @@ namespace ash {
 class PowerNotificationControllerTest : public AshTestBase {
  public:
   PowerNotificationControllerTest() = default;
-
-  PowerNotificationControllerTest(const PowerNotificationControllerTest&) =
-      delete;
-  PowerNotificationControllerTest& operator=(
-      const PowerNotificationControllerTest&) = delete;
-
   ~PowerNotificationControllerTest() override = default;
 
   MockMessageCenter* message_center() { return message_center_.get(); }
@@ -89,9 +80,8 @@ class PowerNotificationControllerTest : public AshTestBase {
   // AshTestBase:
   void SetUp() override {
     AshTestBase::SetUp();
-    message_center_ = std::make_unique<MockMessageCenter>();
-    controller_ =
-        std::make_unique<PowerNotificationController>(message_center_.get());
+    message_center_.reset(new MockMessageCenter());
+    controller_.reset(new PowerNotificationController(message_center_.get()));
   }
 
   void TearDown() override {
@@ -152,6 +142,8 @@ class PowerNotificationControllerTest : public AshTestBase {
  private:
   std::unique_ptr<MockMessageCenter> message_center_;
   std::unique_ptr<PowerNotificationController> controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(PowerNotificationControllerTest);
 };
 
 TEST_F(PowerNotificationControllerTest, MaybeShowUsbChargerNotification) {
@@ -299,7 +291,8 @@ TEST_F(PowerNotificationControllerTest,
   ASSERT_TRUE(notification);
   EXPECT_TRUE(notification->never_timeout());
   EXPECT_FALSE(notification->pinned());
-  EXPECT_NE(std::string::npos, notification->message().find(u"60W"))
+  EXPECT_NE(std::string::npos,
+            notification->message().find(base::ASCIIToUTF16("60W")))
       << notification->message();
 }
 

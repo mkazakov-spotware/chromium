@@ -1,14 +1,15 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_ITERABLE_H_
 #define THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_ITERABLE_H_
 
-#include "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_for_each_iterator_callback.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_iterator_result_value.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_script_runner.h"
 #include "third_party/blink/renderer/core/dom/iterator.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 
 namespace blink {
@@ -16,18 +17,13 @@ namespace blink {
 // Typically, you should use PairIterable<> (below) instead.
 // Also, note that value iterators are set up automatically by the bindings
 // code and the operations below come directly from V8.
-// KeyType and ValueType define the key and value types correspondingly.
-// IDLKey and IDLValue only define the types of
-// ToV8Traits<IDLKey>::ToV8 and ToV8Traits<IDLValue>::ToV8 converters.
-template <typename KeyType,
-          typename IDLKeyType,
-          typename ValueType,
-          typename IDLValueType>
+template <typename KeyType, typename ValueType>
 class Iterable {
  public:
   Iterator* keysForBinding(ScriptState* script_state,
                            ExceptionState& exception_state) {
-    IterationSource* source = StartIteration(script_state, exception_state);
+    IterationSource* source =
+        this->StartIteration(script_state, exception_state);
     if (!source)
       return nullptr;
     return MakeGarbageCollected<IterableIterator<KeySelector>>(source);
@@ -35,7 +31,8 @@ class Iterable {
 
   Iterator* valuesForBinding(ScriptState* script_state,
                              ExceptionState& exception_state) {
-    IterationSource* source = StartIteration(script_state, exception_state);
+    IterationSource* source =
+        this->StartIteration(script_state, exception_state);
     if (!source)
       return nullptr;
     return MakeGarbageCollected<IterableIterator<ValueSelector>>(source);
@@ -43,7 +40,8 @@ class Iterable {
 
   Iterator* entriesForBinding(ScriptState* script_state,
                               ExceptionState& exception_state) {
-    IterationSource* source = StartIteration(script_state, exception_state);
+    IterationSource* source =
+        this->StartIteration(script_state, exception_state);
     if (!source)
       return nullptr;
     return MakeGarbageCollected<IterableIterator<EntrySelector>>(source);
@@ -54,7 +52,8 @@ class Iterable {
                          V8ForEachIteratorCallback* callback,
                          const ScriptValue& this_arg,
                          ExceptionState& exception_state) {
-    IterationSource* source = StartIteration(script_state, exception_state);
+    IterationSource* source =
+        this->StartIteration(script_state, exception_state);
 
     v8::TryCatch try_catch(script_state->GetIsolate());
 
@@ -71,9 +70,8 @@ class Iterable {
 
       DCHECK(!exception_state.HadException());
 
-      v8_value =
-          ToV8Traits<IDLValueType>::ToV8(script_state, value).ToLocalChecked();
-      v8_key = ToV8Traits<IDLKeyType>::ToV8(script_state, key).ToLocalChecked();
+      v8_value = ToV8(value, script_state);
+      v8_key = ToV8(key, script_state);
       if (try_catch.HasCaught()) {
         exception_state.RethrowV8Exception(try_catch.Exception());
         return;
@@ -172,17 +170,10 @@ class Iterable {
   };
 };
 
-// Utility mixin base-class for classes implementing IDL interfaces with
-// "iterable<Key, IDLKey, Value, IDLValue>" or
-// "maplike<Key, IDLKey, Value, IDLValue>".
-// IDLKey and IDLValue define the types of ToV8Traits<IDLKey>::ToV8 and
-// ToV8Traits<IDLValue>::ToV8 converters.
-template <typename KeyType,
-          typename IDLKeyType,
-          typename ValueType,
-          typename IDLValueType>
-class PairIterable
-    : public Iterable<KeyType, IDLKeyType, ValueType, IDLValueType> {
+// Utiltity mixin base-class for classes implementing IDL interfaces with
+// "iterable<T1, T2>" or "maplike<T1, T2>".
+template <typename KeyType, typename ValueType>
+class PairIterable : public Iterable<KeyType, ValueType> {
  public:
   Iterator* GetIterator(ScriptState* script_state,
                         ExceptionState& exception_state) {
@@ -190,16 +181,13 @@ class PairIterable
   }
 };
 
-// Utility mixin base-class for classes implementing IDL interfaces with
+// Utiltity mixin base-class for classes implementing IDL interfaces with
 // "setlike<V>" (not "iterable<V>").
 // IDL interfaces with "iterable<V>" (value iterators) inherit @@iterator,
 // values(), entries(), keys() and forEach() from the %ArrayPrototype%
 // intrinsic object automatically.
-// IDLKey and IDLValue define the types of ToV8Traits<IDLKey>::ToV8 and
-// ToV8Traits<IDLValue>::ToV8 converters.
-template <typename ValueType, typename IDLValueType>
-class SetlikeIterable
-    : public Iterable<ValueType, IDLValueType, ValueType, IDLValueType> {
+template <typename ValueType>
+class SetlikeIterable : public Iterable<ValueType, ValueType> {
  public:
   Iterator* GetIterator(ScriptState* script_state,
                         ExceptionState& exception_state) {

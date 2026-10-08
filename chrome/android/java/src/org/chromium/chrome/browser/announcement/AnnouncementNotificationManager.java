@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,7 +88,7 @@ public class AnnouncementNotificationManager {
             };
 
             // Try to load native.
-            ChromeBrowserInitializer.getInstance().handlePreNativeStartupAndLoadLibraries(parts);
+            ChromeBrowserInitializer.getInstance().handlePreNativeStartup(parts);
             ChromeBrowserInitializer.getInstance().handlePostNativeStartup(true, parts);
         }
     }
@@ -118,8 +118,9 @@ public class AnnouncementNotificationManager {
         Context context = ContextUtils.getApplicationContext();
         NotificationWrapperBuilder builder =
                 NotificationWrapperBuilderFactory
-                        .createNotificationWrapperBuilder(
+                        .createNotificationWrapperBuilder(true /* preferCompat */,
                                 ChromeChannelDefinitions.ChannelId.ANNOUNCEMENT,
+                                null /* remoteAppPackageName */,
                                 new NotificationMetadata(
                                         NotificationUmaTracker.SystemNotificationType.ANNOUNCEMENT,
                                         ANNOUNCEMENT_NOTIFICATION_TAG,

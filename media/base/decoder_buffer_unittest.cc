@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/unsafe_shared_memory_region.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -37,7 +38,7 @@ TEST(DecoderBufferTest, CreateEOSBuffer) {
 
 TEST(DecoderBufferTest, CopyFrom) {
   const uint8_t kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
 
   scoped_refptr<DecoderBuffer> buffer2(DecoderBuffer::CopyFrom(
       reinterpret_cast<const uint8_t*>(&kData), kDataSize));
@@ -64,8 +65,8 @@ TEST(DecoderBufferTest, CopyFrom) {
 
 TEST(DecoderBufferTest, FromArray) {
   const uint8_t kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
-  auto ptr = std::make_unique<uint8_t[]>(kDataSize);
+  const size_t kDataSize = base::size(kData);
+  std::unique_ptr<uint8_t[]> ptr(new uint8_t[kDataSize]);
   memcpy(ptr.get(), kData, kDataSize);
 
   scoped_refptr<DecoderBuffer> buffer(
@@ -79,15 +80,17 @@ TEST(DecoderBufferTest, FromArray) {
 
 TEST(DecoderBufferTest, FromPlatformSharedMemoryRegion) {
   const uint8_t kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
 
   auto region = base::UnsafeSharedMemoryRegion::Create(kDataSize);
   auto mapping = region.Map();
   ASSERT_TRUE(mapping.IsValid());
   memcpy(mapping.GetMemoryAs<uint8_t>(), kData, kDataSize);
 
-  scoped_refptr<DecoderBuffer> buffer(
-      DecoderBuffer::FromSharedMemoryRegion(std::move(region), 0, kDataSize));
+  scoped_refptr<DecoderBuffer> buffer(DecoderBuffer::FromSharedMemoryRegion(
+      base::UnsafeSharedMemoryRegion::TakeHandleForSerialization(
+          std::move(region)),
+      0, kDataSize));
   ASSERT_TRUE(buffer.get());
   EXPECT_EQ(buffer->data_size(), kDataSize);
   EXPECT_EQ(0, memcmp(buffer->data(), kData, kDataSize));
@@ -97,7 +100,7 @@ TEST(DecoderBufferTest, FromPlatformSharedMemoryRegion) {
 
 TEST(DecoderBufferTest, FromPlatformSharedMemoryRegion_Unaligned) {
   const uint8_t kData[] = "XXXhello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
   const off_t kDataOffset = 3;
 
   auto region = base::UnsafeSharedMemoryRegion::Create(kDataSize);
@@ -106,7 +109,9 @@ TEST(DecoderBufferTest, FromPlatformSharedMemoryRegion_Unaligned) {
   memcpy(mapping.GetMemoryAs<uint8_t>(), kData, kDataSize);
 
   scoped_refptr<DecoderBuffer> buffer(DecoderBuffer::FromSharedMemoryRegion(
-      std::move(region), kDataOffset, kDataSize - kDataOffset));
+      base::UnsafeSharedMemoryRegion::TakeHandleForSerialization(
+          std::move(region)),
+      kDataOffset, kDataSize - kDataOffset));
   ASSERT_TRUE(buffer.get());
   EXPECT_EQ(buffer->data_size(), kDataSize - kDataOffset);
   EXPECT_EQ(
@@ -117,21 +122,23 @@ TEST(DecoderBufferTest, FromPlatformSharedMemoryRegion_Unaligned) {
 
 TEST(DecoderBufferTest, FromPlatformSharedMemoryRegion_ZeroSize) {
   const uint8_t kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
 
   auto region = base::UnsafeSharedMemoryRegion::Create(kDataSize);
   auto mapping = region.Map();
   ASSERT_TRUE(mapping.IsValid());
   memcpy(mapping.memory(), kData, kDataSize);
 
-  scoped_refptr<DecoderBuffer> buffer(
-      DecoderBuffer::FromSharedMemoryRegion(std::move(region), 0, 0));
+  scoped_refptr<DecoderBuffer> buffer(DecoderBuffer::FromSharedMemoryRegion(
+      base::UnsafeSharedMemoryRegion::TakeHandleForSerialization(
+          std::move(region)),
+      0, 0));
   ASSERT_FALSE(buffer.get());
 }
 
 TEST(DecoderBufferTest, FromSharedMemoryRegion) {
   const uint8_t kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
 
   auto mapping_region = base::ReadOnlySharedMemoryRegion::Create(kDataSize);
   ASSERT_TRUE(mapping_region.IsValid());
@@ -148,7 +155,7 @@ TEST(DecoderBufferTest, FromSharedMemoryRegion) {
 
 TEST(DecoderBufferTest, FromSharedMemoryRegion_Unaligned) {
   const uint8_t kData[] = "XXXhello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
   const off_t kDataOffset = 3;
 
   auto mapping_region = base::ReadOnlySharedMemoryRegion::Create(kDataSize);
@@ -168,7 +175,7 @@ TEST(DecoderBufferTest, FromSharedMemoryRegion_Unaligned) {
 
 TEST(DecoderBufferTest, FromSharedMemoryRegion_ZeroSize) {
   const uint8_t kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
 
   auto mapping_region = base::ReadOnlySharedMemoryRegion::Create(kDataSize);
   memcpy(mapping_region.mapping.GetMemoryAs<uint8_t>(), kData, kDataSize);
@@ -179,22 +186,9 @@ TEST(DecoderBufferTest, FromSharedMemoryRegion_ZeroSize) {
   ASSERT_FALSE(buffer.get());
 }
 
-TEST(DecoderBufferTest, FromExternalMemory) {
-  constexpr uint8_t kData[] = "hello";
-  constexpr size_t kDataSize = std::size(kData);
-  auto external_memory = std::make_unique<DecoderBuffer::ExternalMemory>(
-      base::make_span(kData, kDataSize));
-  auto buffer = DecoderBuffer::FromExternalMemory(std::move(external_memory));
-  ASSERT_TRUE(buffer.get());
-  EXPECT_EQ(buffer->data_size(), kDataSize);
-  EXPECT_EQ(0, memcmp(buffer->data(), kData, kDataSize));
-  EXPECT_FALSE(buffer->end_of_stream());
-  EXPECT_FALSE(buffer->is_key_frame());
-}
-
 TEST(DecoderBufferTest, ReadingWriting) {
   const char kData[] = "hello";
-  const size_t kDataSize = std::size(kData);
+  const size_t kDataSize = base::size(kData);
 
   scoped_refptr<DecoderBuffer> buffer(new DecoderBuffer(kDataSize));
   ASSERT_TRUE(buffer.get());

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 
 namespace chrome_cleaner {
@@ -25,10 +26,6 @@ class UserAgent {
   // @param product_version The product version.
   UserAgent(base::WStringPiece product_name,
             base::WStringPiece product_version);
-
-  UserAgent(const UserAgent&) = delete;
-  UserAgent& operator=(const UserAgent&) = delete;
-
   ~UserAgent();
 
   // @returns A string suitable for use as the value of a User-Agent header, and
@@ -62,6 +59,8 @@ class UserAgent {
   int32_t os_minor_version_;
   Architecture architecture_;
   std::wstring winhttp_version_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserAgent);
 };
 
 }  // namespace chrome_cleaner

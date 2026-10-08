@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/callback.h"
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/threading/thread_checker.h"
@@ -37,10 +38,6 @@ class LogoCache {
   // Constructs a logo cache that stores data in |cache_directory|.
   // |cache_directory| will be created if it does not already exist.
   explicit LogoCache(const base::FilePath& cache_directory);
-
-  LogoCache(const LogoCache&) = delete;
-  LogoCache& operator=(const LogoCache&) = delete;
-
   virtual ~LogoCache();
 
   // Updates the metadata for the cached logo.
@@ -126,6 +123,8 @@ class LogoCache {
 
   // Ensure LogoCache is only used sequentially.
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(LogoCache);
 };
 
 }  // namespace search_provider_logos

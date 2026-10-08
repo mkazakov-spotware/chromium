@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "base/timer/lap_timer.h"
 #include "testing/perf/perf_test.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/test/draw_waiter_for_test.h"
 
 namespace ash {
@@ -21,12 +20,6 @@ namespace {
 class AshBackgroundFilterBlurPerfTest : public AshTestBase {
  public:
   AshBackgroundFilterBlurPerfTest() : timer_(0, base::TimeDelta(), 1) {}
-
-  AshBackgroundFilterBlurPerfTest(const AshBackgroundFilterBlurPerfTest&) =
-      delete;
-  AshBackgroundFilterBlurPerfTest& operator=(
-      const AshBackgroundFilterBlurPerfTest&) = delete;
-
   ~AshBackgroundFilterBlurPerfTest() override = default;
 
   // AshTestBase:
@@ -53,6 +46,8 @@ class AshBackgroundFilterBlurPerfTest : public AshTestBase {
   ui::Compositor* compositor_ = nullptr;
 
   base::LapTimer timer_;
+
+  DISALLOW_COPY_AND_ASSIGN(AshBackgroundFilterBlurPerfTest);
 };
 
 void AshBackgroundFilterBlurPerfTest::SetUp() {

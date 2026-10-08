@@ -34,4 +34,4 @@ namespace blink {
 enum class ClientRedirectPolicy { kNotClientRedirect, kClientRedirect };
 }
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_FRAME_TYPES_H_
+#endif

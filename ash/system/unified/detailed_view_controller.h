@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_UNIFIED_DETAILED_VIEW_CONTROLLER_H_
 #define ASH_SYSTEM_UNIFIED_DETAILED_VIEW_CONTROLLER_H_
 
-#include <memory>
-#include <string>
+#include "base/strings/string16.h"
 
 namespace views {
 class View;
@@ -23,9 +22,8 @@ class DetailedViewController {
 
   // Create the detailed view. The view will be owned by views hierarchy. The
   // view will be always deleted after the controller is destructed.
-  virtual std::unique_ptr<views::View> CreateView() = 0;
-
-  virtual std::u16string GetAccessibleName() const = 0;
+  virtual views::View* CreateView() = 0;
+  virtual base::string16 GetAccessibleName() const = 0;
 };
 
 }  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,8 @@ constexpr const char* kSuccessfulMerchantResponseExpectedOutput =
     "PaymentRequest.show(): changeShipping[Address|Option]() returned: "
     "{\"error\":\"Error for "
     "test\",\"modifiers\":[{\"data\":{\"soup\":\"potato\"},"
-    "\"supportedMethods\":\"https://a.com"
-    "\",\"total\":{\"amount\":{\"currency\":\"EUR\",\"value\":\"0.03\"},"
+    "\"supportedMethods\":\"https://127.0.0.1/"
+    "pay\",\"total\":{\"amount\":{\"currency\":\"EUR\",\"value\":\"0.03\"},"
     "\"label\":\"\",\"pending\":false}}],\"paymentMethodErrors\":{\"country\":"
     "\"Unsupported "
     "country\"},\"shippingAddressErrors\":{\"addressLine\":\"\",\"city\":\"\","
@@ -61,7 +61,7 @@ class PaymentHandlerChangeShippingAddressOptionTest
 
   void SetUpOnMainThread() override {
     PaymentRequestPlatformBrowserTestBase::SetUpOnMainThread();
-    NavigateTo("a.com", "/change_shipping_address_option.html");
+    NavigateTo("/change_shipping_address_option.html");
   }
 
   std::string getTestType() {
@@ -71,20 +71,18 @@ class PaymentHandlerChangeShippingAddressOptionTest
 };
 
 IN_PROC_BROWSER_TEST_P(PaymentHandlerChangeShippingAddressOptionTest, Test) {
-  std::string method_name;
-  InstallPaymentApp("a.com", "/change_shipping_" + getTestType() + "_app.js",
-                    &method_name);
-
-  EXPECT_TRUE(content::ExecJs(GetActiveWebContents(),
-                              "delegateShippingAddressToPaymentHandler()"));
+  EXPECT_EQ("instruments.set(): Payment handler installed.",
+            content::EvalJsWithManualReply(
+                GetActiveWebContents(),
+                "install('change_shipping_" + getTestType() + "_app.js');"));
 
   EXPECT_TRUE(
       content::ExecJs(GetActiveWebContents(), GetParam().init_test_code));
 
   std::string actual_output =
-      content::EvalJs(GetActiveWebContents(),
-                      "outputChangeShippingAddressOptionReturnValue(request);",
-                      content::EXECUTE_SCRIPT_USE_MANUAL_REPLY)
+      content::EvalJsWithManualReply(
+          GetActiveWebContents(),
+          "outputChangeShippingAddressOptionReturnValue(request);")
           .ExtractString();
 
   // The test expectations are hard-coded, but the embedded test server changes
@@ -93,9 +91,6 @@ IN_PROC_BROWSER_TEST_P(PaymentHandlerChangeShippingAddressOptionTest, Test) {
       << "When executing " << GetParam().init_test_code;
 }
 
-// If the merchant does not have a "shipping(address|option)change" event
-// handler, then calling PaymentRequestEvent.changeShipping(Address|Option)() in
-// the payment handler will return null.
 INSTANTIATE_TEST_SUITE_P(
     NoMerchantResponse,
     PaymentHandlerChangeShippingAddressOptionTest,
@@ -106,9 +101,6 @@ INSTANTIATE_TEST_SUITE_P(
                              kNoMerchantResponseExpectedOutput,
                              ChangeType::kOptionChange)));
 
-// If the merchant responds to the "payment(address|option)change" event with a
-// rejected promise or throws an "Error" inside the promise, then
-// PaymentRequest.show() gets rejected.
 INSTANTIATE_TEST_SUITE_P(
     ErrorCases,
     PaymentHandlerChangeShippingAddressOptionTest,
@@ -125,10 +117,6 @@ INSTANTIATE_TEST_SUITE_P(
                              kExeptionThrownExpectedOutput,
                              ChangeType::kOptionChange)));
 
-// If the merchant responds to a "payment(address|option)change" event with
-// updated details, including modifiers for multiple payment method
-// names, then the invoked payment handler receives the updated details,
-// except the modifiers for non-matching payment method names.
 INSTANTIATE_TEST_SUITE_P(
     MerchantResponse,
     PaymentHandlerChangeShippingAddressOptionTest,

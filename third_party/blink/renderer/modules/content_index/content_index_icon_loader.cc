@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,12 +21,11 @@ namespace blink {
 
 namespace {
 
-constexpr base::TimeDelta kIconFetchTimeout = base::Seconds(30);
+constexpr base::TimeDelta kIconFetchTimeout = base::TimeDelta::FromSeconds(30);
 
 void FetchIcon(ExecutionContext* execution_context,
                const KURL& icon_url,
                const gfx::Size& icon_size,
-               ThreadedIconLoader* threaded_icon_loader,
                ThreadedIconLoader::IconCallback callback) {
   ResourceRequest resource_request(icon_url);
   resource_request.SetRequestContext(mojom::blink::RequestContextType::IMAGE);
@@ -35,6 +34,7 @@ void FetchIcon(ExecutionContext* execution_context,
   resource_request.SetPriority(ResourceLoadPriority::kMedium);
   resource_request.SetTimeoutInterval(kIconFetchTimeout);
 
+  auto* threaded_icon_loader = MakeGarbageCollected<ThreadedIconLoader>();
   threaded_icon_loader->Start(execution_context, resource_request, icon_size,
                               std::move(callback));
 }
@@ -45,8 +45,7 @@ WebVector<Manifest::ImageResource> ToImageResource(
   WebVector<Manifest::ImageResource> image_resources;
   for (const auto& icon_definition : icon_definitions) {
     Manifest::ImageResource image_resource;
-    image_resource.src =
-        GURL(execution_context->CompleteURL(icon_definition->src));
+    image_resource.src = execution_context->CompleteURL(icon_definition->src);
     image_resource.type = WebString(icon_definition->type).Utf16();
     for (const auto& size :
          WebIconSizesParser::ParseIconSizes(icon_definition->sizes)) {
@@ -80,19 +79,18 @@ void ContentIndexIconLoader::Start(
     mojom::blink::ContentDescriptionPtr description,
     const Vector<gfx::Size>& icon_sizes,
     IconsCallback callback) {
-  DCHECK(!description->icons.empty());
-  DCHECK(!icon_sizes.empty());
+  DCHECK(!description->icons.IsEmpty());
+  DCHECK(!icon_sizes.IsEmpty());
 
   auto image_resources = ToImageResource(execution_context, description->icons);
 
   auto icons = std::make_unique<Vector<SkBitmap>>();
-  icons->reserve(icon_sizes.size());
+  icons->ReserveCapacity(icon_sizes.size());
   Vector<SkBitmap>* icons_ptr = icons.get();
   auto barrier_closure = base::BarrierClosure(
       icon_sizes.size(),
-      WTF::BindOnce(&ContentIndexIconLoader::DidGetIcons, WrapPersistent(this),
-                    std::move(description), std::move(icons),
-                    std::move(callback)));
+      WTF::Bind(&ContentIndexIconLoader::DidGetIcons, WrapPersistent(this),
+                std::move(description), std::move(icons), std::move(callback)));
 
   for (const auto& icon_size : icon_sizes) {
     // TODO(crbug.com/973844): The same `src` may be chosen more than once.
@@ -102,21 +100,16 @@ void ContentIndexIconLoader::Start(
     if (icon_url.IsEmpty())
       icon_url = KURL(image_resources[0].src);
 
-    auto* threaded_icon_loader = MakeGarbageCollected<ThreadedIconLoader>();
     // |icons_ptr| is safe to use since it is owned by |barrier_closure|.
     FetchIcon(
-        execution_context, icon_url, icon_size, threaded_icon_loader,
-        WTF::BindOnce(
+        execution_context, icon_url, icon_size,
+        WTF::Bind(
             [](base::OnceClosure done_closure, Vector<SkBitmap>* icons_ptr,
-               ThreadedIconLoader* icon_loader, SkBitmap icon,
-               double resize_scale) {
+               SkBitmap icon, double resize_scale) {
               icons_ptr->push_back(std::move(icon));
               std::move(done_closure).Run();
             },
-            barrier_closure, WTF::Unretained(icons_ptr),
-            // Pass |threaded_icon_loader| to the callback to make sure it
-            // doesn't get destroyed.
-            WrapPersistent(threaded_icon_loader)));
+            barrier_closure, WTF::Unretained(icons_ptr)));
   }
 }
 

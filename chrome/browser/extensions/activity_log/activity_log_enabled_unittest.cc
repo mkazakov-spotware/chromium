@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include "base/test/scoped_command_line.h"
 #include "chrome/browser/extensions/activity_log/activity_log.h"
 #include "chrome/browser/extensions/activity_log/activity_log_task_runner.h"
+#include "chrome/browser/extensions/api/activity_log_private/activity_log_private_api.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/common/chrome_switches.h"
@@ -26,7 +27,7 @@ class ActivityLogEnabledTest : public ChromeRenderViewHostTestHarness {
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
     SetActivityLogTaskRunnerForTesting(
-        base::SingleThreadTaskRunner::GetCurrentDefault().get());
+        base::ThreadTaskRunnerHandle::Get().get());
   }
 
   void TearDown() override {
@@ -169,13 +170,10 @@ TEST_F(ActivityLogEnabledTest, WatchdogSwitch) {
   EXPECT_TRUE(activity_log1->IsDatabaseEnabled());
   EXPECT_FALSE(activity_log2->IsDatabaseEnabled());
 
-  // Wait for UninstallExtension to complete to avoid race condition with data
-  // cleanup at TearDown.
-  base::RunLoop loop;
   extension_service1->UninstallExtension(
-      kExtensionID, extensions::UNINSTALL_REASON_FOR_TESTING, nullptr,
-      loop.QuitClosure());
-  loop.Run();
+      kExtensionID,
+      extensions::UNINSTALL_REASON_FOR_TESTING,
+      NULL);
 
   EXPECT_EQ(0,
       profile1->GetPrefs()->GetInteger(prefs::kWatchdogExtensionActive));
@@ -249,13 +247,10 @@ TEST_F(ActivityLogEnabledTest, AppAndCommandLine) {
       profile->GetPrefs()->GetInteger(prefs::kWatchdogExtensionActive));
   EXPECT_TRUE(activity_log->IsWatchdogAppActive());
 
-  // Wait for UninstallExtension to complete to avoid race condition with data
-  // cleanup at TearDown.
-  base::RunLoop loop;
   extension_service->UninstallExtension(
-      kExtensionID, extensions::UNINSTALL_REASON_FOR_TESTING, nullptr,
-      loop.QuitClosure());
-  loop.Run();
+      kExtensionID,
+      extensions::UNINSTALL_REASON_FOR_TESTING,
+      NULL);
 
   EXPECT_TRUE(activity_log->IsDatabaseEnabled());
   EXPECT_EQ(0,

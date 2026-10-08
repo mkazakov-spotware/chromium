@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_COMPONENTS_SECURITY_INTERSTITIALS_LOOKALIKES_LOOKALIKE_URL_TAB_HELPER_H_
 #define IOS_COMPONENTS_SECURITY_INTERSTITIALS_LOOKALIKES_LOOKALIKE_URL_TAB_HELPER_H_
 
+#include "base/macros.h"
 #import "ios/web/public/navigation/web_state_policy_decider.h"
 #import "ios/web/public/web_state_user_data.h"
 
@@ -25,7 +26,7 @@ class LookalikeUrlTabHelper
   // web::WebStatePolicyDecider implementation
   void ShouldAllowResponse(
       NSURLResponse* response,
-      web::WebStatePolicyDecider::ResponseInfo response_info,
+      bool for_main_frame,
       web::WebStatePolicyDecider::PolicyDecisionCallback callback) override;
 };
 

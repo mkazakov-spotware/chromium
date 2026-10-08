@@ -1,15 +1,13 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/command_buffer/service/validating_abstract_texture_impl.h"
 
-#include "build/build_config.h"
 #include "gpu/command_buffer/service/context_group.h"
 #include "gpu/command_buffer/service/error_state.h"
 #include "gpu/command_buffer/service/texture_manager.h"
 #include "ui/gl/gl_context.h"
-#include "ui/gl/gl_image.h"
 #include "ui/gl/scoped_binders.h"
 #include "ui/gl/scoped_make_current.h"
 
@@ -52,24 +50,8 @@ void ValidatingAbstractTextureImpl::SetParameteri(GLenum pname, GLint param) {
                                      texture_ref_.get(), pname, param);
 }
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-void ValidatingAbstractTextureImpl::SetUnboundImage(gl::GLImage* image) {
-  BindImageInternal(image, /*client_managed=*/false);
-}
-#else
-void ValidatingAbstractTextureImpl::SetBoundImage(gl::GLImage* image) {
-  BindImageInternal(image, /*client_managed=*/true);
-}
-#endif
-
-void ValidatingAbstractTextureImpl::BindImageInternal(gl::GLImage* image,
-                                                      bool client_managed) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  CHECK(!client_managed);
-#else
-  CHECK(client_managed);
-#endif
-
+void ValidatingAbstractTextureImpl::BindImage(gl::GLImage* image,
+                                              bool client_managed) {
   if (!texture_ref_)
     return;
 
@@ -114,7 +96,7 @@ void ValidatingAbstractTextureImpl::BindStreamTextureImage(gl::GLImage* image,
   SetCleared();
 }
 
-gl::GLImage* ValidatingAbstractTextureImpl::GetImageForTesting() const {
+gl::GLImage* ValidatingAbstractTextureImpl::GetImage() const {
   if (!texture_ref_)
     return nullptr;
 
@@ -149,10 +131,6 @@ ContextGroup* ValidatingAbstractTextureImpl::GetContextGroup() const {
 ErrorState* ValidatingAbstractTextureImpl::GetErrorState() const {
   DCHECK(decoder_context_);
   return decoder_context_->GetErrorState();
-}
-
-void ValidatingAbstractTextureImpl::NotifyOnContextLost() {
-  NOTIMPLEMENTED();
 }
 
 void ValidatingAbstractTextureImpl::OnDecoderWillDestroy(bool have_context) {

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/touch/ash_touch_transform_controller.h"
 #include "ash/touch/touch_devices_controller.h"
+#include "base/macros.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/manager/test/touch_transform_controller_test_api.h"
@@ -30,12 +31,10 @@ namespace {
 class TestObserver : public ScreenBacklightObserver {
  public:
   explicit TestObserver(BacklightsForcedOffSetter* backlights_forced_off_setter)
-      : backlights_forced_off_setter_(backlights_forced_off_setter) {
-    scoped_observation_.Observe(backlights_forced_off_setter);
+      : backlights_forced_off_setter_(backlights_forced_off_setter),
+        scoped_observer_(this) {
+    scoped_observer_.Add(backlights_forced_off_setter);
   }
-
-  TestObserver(const TestObserver&) = delete;
-  TestObserver& operator=(const TestObserver&) = delete;
 
   ~TestObserver() override = default;
 
@@ -57,8 +56,10 @@ class TestObserver : public ScreenBacklightObserver {
 
   std::vector<bool> forced_off_states_;
 
-  base::ScopedObservation<BacklightsForcedOffSetter, ScreenBacklightObserver>
-      scoped_observation_{this};
+  ScopedObserver<BacklightsForcedOffSetter, ScreenBacklightObserver>
+      scoped_observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestObserver);
 };
 
 }  // namespace
@@ -66,11 +67,6 @@ class TestObserver : public ScreenBacklightObserver {
 class BacklightsForcedOffSetterTest : public AshTestBase {
  public:
   BacklightsForcedOffSetterTest() = default;
-
-  BacklightsForcedOffSetterTest(const BacklightsForcedOffSetterTest&) = delete;
-  BacklightsForcedOffSetterTest& operator=(
-      const BacklightsForcedOffSetterTest&) = delete;
-
   ~BacklightsForcedOffSetterTest() override = default;
 
   void SetUp() override {
@@ -101,6 +97,9 @@ class BacklightsForcedOffSetterTest : public AshTestBase {
       screen_backlight_resetter_;
   std::unique_ptr<BacklightsForcedOffSetter> backlights_forced_off_setter_;
   std::unique_ptr<TestObserver> backlights_forced_off_observer_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BacklightsForcedOffSetterTest);
 };
 
 TEST_F(BacklightsForcedOffSetterTest, SingleForcedOffRequest) {
@@ -209,7 +208,7 @@ TEST_F(BacklightsForcedOffSetterTest,
           .SetFirstDisplayAsInternalDisplay();
 
   display::DisplayIdList display_id_list =
-      display_manager()->GetConnectedDisplayIdList();
+      display_manager()->GetCurrentDisplayIdList();
 
   // Pick the non internal display Id.
   const int64_t kExternalDisplayId = display_id_list[0] == kInternalDisplayId
@@ -265,7 +264,7 @@ TEST_F(BacklightsForcedOffSetterTest, TouchscreensDisableOnBrightnessChange) {
           .SetFirstDisplayAsInternalDisplay();
 
   display::DisplayIdList display_id_list =
-      display_manager()->GetConnectedDisplayIdList();
+      display_manager()->GetCurrentDisplayIdList();
 
   ui::TouchscreenDevice internal_touchdevice(
       234, ui::InputDeviceType::INPUT_DEVICE_INTERNAL,

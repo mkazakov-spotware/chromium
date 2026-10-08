@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,14 +15,13 @@ ShellAppViewGuestDelegate::~ShellAppViewGuestDelegate() {
 }
 
 bool ShellAppViewGuestDelegate::HandleContextMenu(
-    content::RenderFrameHost& render_frame_host,
+    content::WebContents* web_contents,
     const content::ContextMenuParams& params) {
   // Eat the context menu request, as AppShell doesn't show context menus.
   return true;
 }
 
-AppDelegate* ShellAppViewGuestDelegate::CreateAppDelegate(
-    content::WebContents* web_contents) {
+AppDelegate* ShellAppViewGuestDelegate::CreateAppDelegate() {
   return new ShellAppDelegate();
 }
 

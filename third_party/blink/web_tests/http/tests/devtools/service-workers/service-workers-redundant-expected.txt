@@ -19,25 +19,6 @@ Sync
 Sync
 Periodic Sync
 Periodic Sync
-Update Cycle
-Version
-Update Activity
-Timeline
-#N
-Install
-​
-Start time
-End time
-#N
-Wait
-​
-Start time
-End time
-#N
-Activate
-​
-Start time
-End time
 ============================
 The second Serviceworker is installed.
 ==== ServiceWorkersView ====
@@ -55,31 +36,14 @@ stop
 skipWaiting
 Received
 Clients
+http://127.0.0.1:8000/devtools/resources/inspected-page.html
+focus
 Push
 Push
 Sync
 Sync
 Periodic Sync
 Periodic Sync
-Update Cycle
-Version
-Update Activity
-Timeline
-#N
-Install
-​
-Start time
-End time
-#N
-Wait
-​
-Start time
-End time
-#N
-Activate
-​
-Start time
-End time
 ============================
 The first ServiceWorker worker became redundant and stopped.
 ==== ServiceWorkersView ====
@@ -100,24 +64,5 @@ Sync
 Sync
 Periodic Sync
 Periodic Sync
-Update Cycle
-Version
-Update Activity
-Timeline
-#N
-Install
-​
-Start time
-End time
-#N
-Wait
-​
-Start time
-End time
-#N
-Activate
-​
-Start time
-End time
 ============================
 

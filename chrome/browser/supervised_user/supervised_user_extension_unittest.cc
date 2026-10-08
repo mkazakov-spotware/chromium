@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,14 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/extensions/api/webstore_private/webstore_private_api.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_with_install.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/supervised_user/supervised_user_constants.h"
 #include "chrome/browser/supervised_user/supervised_user_extensions_metrics_recorder.h"
+#include "chrome/browser/supervised_user/supervised_user_features.h"
 #include "chrome/browser/supervised_user/supervised_user_service.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/common/pref_names.h"
@@ -36,6 +39,34 @@ class SupervisedUserExtensionTest : public ExtensionServiceTestWithInstall {
   SupervisedUserExtensionTest() = default;
 
  protected:
+  // These enum values represent various feature flags for enabling supervised
+  // users to install extensions.
+  enum class ExtensionInstallMode {
+    // Turn off all the feature flags.
+    kNone,
+    // Refers to the full extensions feature where each install has be approved
+    // through the parent permissions dialog.
+    kFull
+  };
+
+  // Enables or disables features for allowing supervised users to install
+  // extensions.
+  void InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode mode) {
+    std::vector<base::Feature> enabled_features;
+    std::vector<base::Feature> disabled_features;
+    switch (mode) {
+      case ExtensionInstallMode::kNone:
+        disabled_features.push_back(
+            supervised_users::kSupervisedUserInitiatedExtensionInstall);
+        break;
+      case ExtensionInstallMode::kFull:
+        enabled_features.push_back(
+            supervised_users::kSupervisedUserInitiatedExtensionInstall);
+        break;
+    }
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
+  }
+
   void SetSupervisedUserExtensionsMayRequestPermissionsPref(bool enabled) {
     supervised_user_service()
         ->SetSupervisedUserExtensionsMayRequestPermissionsPrefForTesting(
@@ -150,9 +181,12 @@ class SupervisedUserExtensionTest : public ExtensionServiceTestWithInstall {
     auto function = base::MakeRefCounted<
         WebstorePrivateIsPendingCustodianApprovalFunction>();
 
-    absl::optional<base::Value> result(RunFunctionAndReturnSingleResult(
+    std::unique_ptr<base::Value> result(RunFunctionAndReturnSingleResult(
         function.get(), "[\"" + extension_id + "\"]", browser_context()));
-    return result->GetBool();
+
+    bool copy_bool_result = false;
+    EXPECT_TRUE(result->GetAsBoolean(&copy_bool_result));
+    return copy_bool_result;
   }
 
   base::FilePath base_path() const {
@@ -164,7 +198,21 @@ class SupervisedUserExtensionTest : public ExtensionServiceTestWithInstall {
   base::FilePath pem_path() const {
     return base_path().AppendASCII("permissions.pem");
   }
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
+
+// Tests that extension installation is blocked for child accounts without any
+// features.
+TEST_F(SupervisedUserExtensionTest, InstallBlocked) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kNone);
+  InitServices(/*profile_is_supervised=*/true);
+
+  base::FilePath path = data_dir().AppendASCII("good.crx");
+  const Extension* extension = InstallCRX(path, INSTALL_FAILED);
+  // The extension should not have been installed.
+  EXPECT_FALSE(extension);
+}
 
 // Tests that regular users are not affecting supervised user UMA metrics.
 TEST_F(SupervisedUserExtensionTest,
@@ -192,6 +240,7 @@ TEST_F(SupervisedUserExtensionTest,
 // unexpected behavior.
 TEST_F(SupervisedUserExtensionTest,
        CustodianApprovalDoesNotAffectRegularUsers) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/false);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(false);
 
@@ -213,6 +262,7 @@ TEST_F(SupervisedUserExtensionTest,
 // Tests that adding supervision to a regular account (Gellerization) disables
 // previously installed extensions.
 TEST_F(SupervisedUserExtensionTest, ExtensionsDisabledAfterGellerization) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/false);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -225,7 +275,8 @@ TEST_F(SupervisedUserExtensionTest, ExtensionsDisabledAfterGellerization) {
   CheckEnabled(id);
 
   // Now make the profile supervised.
-  profile()->AsTestingProfile()->SetIsSupervisedProfile();
+  profile()->AsTestingProfile()->SetSupervisedUserId(
+      supervised_users::kChildAccountSUID);
 
   // The extension should be disabled now pending custodian approval.
   CheckDisabledForCustodianApproval(id);
@@ -248,6 +299,7 @@ TEST_F(SupervisedUserExtensionTest, ExtensionsDisabledAfterGellerization) {
 // newly-installed extensions are disabled until approved by the parent.
 TEST_F(SupervisedUserExtensionTest,
        InstallAllowedButDisabledForSupervisedUser) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -275,6 +327,7 @@ TEST_F(SupervisedUserExtensionTest,
 // Tests that supervised users may approve permission updates without parent
 // approval if kSupervisedUserExtensionsMayRequestPermissions is true.
 TEST_F(SupervisedUserExtensionTest, UpdateWithPermissionsIncrease) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -351,6 +404,7 @@ TEST_F(SupervisedUserExtensionTest, UpdateWithPermissionsIncrease) {
 // cannot approve permission updates.
 TEST_F(SupervisedUserExtensionTest,
        ChildUserCannotApproveAdditionalPermissions) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   // Keep the toggle on initially just to install the extension.
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
@@ -407,6 +461,7 @@ TEST_F(SupervisedUserExtensionTest,
 // Tests that if an approved extension is updated to a newer version that
 // doesn't require additional permissions, it is still enabled.
 TEST_F(SupervisedUserExtensionTest, UpdateWithoutPermissionIncrease) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -444,14 +499,15 @@ TEST_F(SupervisedUserExtensionTest, UpdateWithoutPermissionIncrease) {
   // Prefs are updated via sync.
   PrefService* pref_service = profile()->GetPrefs();
   ASSERT_TRUE(pref_service);
-  const base::Value::Dict& approved_extensions =
-      pref_service->GetDict(prefs::kSupervisedUserApprovedExtensions);
-  EXPECT_TRUE(approved_extensions.FindString(id));
+  const base::DictionaryValue* approved_extensions =
+      pref_service->GetDictionary(prefs::kSupervisedUserApprovedExtensions);
+  EXPECT_TRUE(approved_extensions->FindStringKey(id));
 }
 
 // Tests that the kApprovalGranted UMA metric only increments once without
 // duplication for the same extension id.
 TEST_F(SupervisedUserExtensionTest, DontTriggerMetricsIfAlreadyApproved) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -509,6 +565,7 @@ TEST_F(SupervisedUserExtensionTest, DontTriggerMetricsIfAlreadyApproved) {
 // kSupervisedUserExtensionsMayRequestPermissions set to false, then child users
 // cannot install new extensions.
 TEST_F(SupervisedUserExtensionTest, SupervisedUserCannotInstallExtension) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(false);
 
@@ -521,6 +578,7 @@ TEST_F(SupervisedUserExtensionTest, SupervisedUserCannotInstallExtension) {
 // Tests that disabling the "Permissions for sites, apps and extensions" toggle
 // has no effect on regular users.
 TEST_F(SupervisedUserExtensionTest, RegularUserCanInstallExtension) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/false);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(false);
 
@@ -536,6 +594,7 @@ TEST_F(SupervisedUserExtensionTest, RegularUserCanInstallExtension) {
 // kSupervisedUserExtensionsMayRequestPermissions set to false, previously
 // approved extensions are still enabled.
 TEST_F(SupervisedUserExtensionTest, ToggleOffDoesNotAffectAlreadyEnabled) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -560,6 +619,7 @@ TEST_F(SupervisedUserExtensionTest, ToggleOffDoesNotAffectAlreadyEnabled) {
 // Tests the case when the extension approval arrives through sync before the
 // extension itself is installed.
 TEST_F(SupervisedUserExtensionTest, ExtensionApprovalBeforeInstallation) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 
@@ -578,6 +638,7 @@ TEST_F(SupervisedUserExtensionTest, ExtensionApprovalBeforeInstallation) {
 // extensions when both disable reasons custodian_approval_required and
 // permissions_increase are present.
 TEST_F(SupervisedUserExtensionTest, ParentApprovalNecessaryButNotSufficient) {
+  InitSupervisedUserExtensionInstallFeatures(ExtensionInstallMode::kFull);
   InitServices(/*profile_is_supervised=*/true);
   SetSupervisedUserExtensionsMayRequestPermissionsPref(true);
 

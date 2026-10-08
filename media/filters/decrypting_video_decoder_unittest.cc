@@ -1,8 +1,6 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "media/filters/decrypting_video_decoder.h"
 
 #include <stdint.h>
 
@@ -12,8 +10,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/test/gmock_callback_support.h"
-#include "base/test/gmock_move_support.h"
 #include "base/test/task_environment.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/decrypt_config.h"
@@ -21,12 +19,15 @@
 #include "media/base/mock_filters.h"
 #include "media/base/test_helpers.h"
 #include "media/base/video_frame.h"
+#include "media/filters/decrypting_video_decoder.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
+using ::base::test::RunCallback;
 using ::base::test::RunOnceCallback;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::Return;
+using ::testing::SaveArg;
 using ::testing::StrictMock;
 using ::testing::WithArg;
 
@@ -42,8 +43,8 @@ static scoped_refptr<DecoderBuffer> CreateFakeEncryptedBuffer() {
   scoped_refptr<DecoderBuffer> buffer(new DecoderBuffer(buffer_size));
   buffer->set_decrypt_config(DecryptConfig::CreateCencConfig(
       std::string(reinterpret_cast<const char*>(kFakeKeyId),
-                  std::size(kFakeKeyId)),
-      std::string(reinterpret_cast<const char*>(kFakeIv), std::size(kFakeIv)),
+                  base::size(kFakeKeyId)),
+      std::string(reinterpret_cast<const char*>(kFakeIv), base::size(kFakeIv)),
       {}));
   return buffer;
 }
@@ -63,10 +64,6 @@ class DecryptingVideoDecoderTest : public testing::Test {
             VideoFrame::CreateBlackFrame(TestVideoConfig::NormalCodedSize())),
         null_video_frame_(scoped_refptr<VideoFrame>()) {}
 
-  DecryptingVideoDecoderTest(const DecryptingVideoDecoderTest&) = delete;
-  DecryptingVideoDecoderTest& operator=(const DecryptingVideoDecoderTest&) =
-      delete;
-
   ~DecryptingVideoDecoderTest() override { Destroy(); }
 
   enum CdmType { CDM_WITHOUT_DECRYPTOR, CDM_WITH_DECRYPTOR };
@@ -84,7 +81,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
     decoder_->Initialize(
         config, false, cdm_context_.get(),
         base::BindOnce(
-            [](bool success, DecoderStatus status) {
+            [](bool success, Status status) {
               EXPECT_EQ(status.is_ok(), success);
             },
             success),
@@ -118,8 +115,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
   }
 
   // Decode |buffer| and expect DecodeDone to get called with |status|.
-  void DecodeAndExpect(scoped_refptr<DecoderBuffer> buffer,
-                       DecoderStatus::Codes status) {
+  void DecodeAndExpect(scoped_refptr<DecoderBuffer> buffer, StatusCode status) {
     EXPECT_CALL(*this, DecodeDone(HasStatusCode(status)));
     decoder_->Decode(buffer,
                      base::BindOnce(&DecryptingVideoDecoderTest::DecodeDone,
@@ -139,20 +135,20 @@ class DecryptingVideoDecoderTest : public testing::Test {
   // Helper function to simulate the decrypting and decoding process in the
   // |decryptor_| with a decoding delay of kDecodingDelay buffers.
   void DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
-                             Decryptor::VideoDecodeCB video_decode_cb) {
+                             const Decryptor::VideoDecodeCB& video_decode_cb) {
     num_decrypt_and_decode_calls_++;
     if (!encrypted->end_of_stream())
       num_frames_in_decryptor_++;
 
     if (num_decrypt_and_decode_calls_ <= kDecodingDelay ||
         num_frames_in_decryptor_ == 0) {
-      std::move(video_decode_cb)
-          .Run(Decryptor::kNeedMoreData, scoped_refptr<VideoFrame>());
+      video_decode_cb.Run(Decryptor::kNeedMoreData,
+                          scoped_refptr<VideoFrame>());
       return;
     }
 
     num_frames_in_decryptor_--;
-    std::move(video_decode_cb).Run(Decryptor::kSuccess, decoded_video_frame_);
+    video_decode_cb.Run(Decryptor::kSuccess, decoded_video_frame_);
   }
 
   // Sets up expectations and actions to put DecryptingVideoDecoder in an
@@ -163,7 +159,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
             Invoke(this, &DecryptingVideoDecoderTest::DecryptAndDecodeVideo));
     EXPECT_CALL(*this, FrameReady(decoded_video_frame_));
     for (int i = 0; i < kDecodingDelay + 1; ++i)
-      DecodeAndExpect(encrypted_buffer_, DecoderStatus::Codes::kOk);
+      DecodeAndExpect(encrypted_buffer_, DecodeStatus::OK);
   }
 
   // Sets up expectations and actions to put DecryptingVideoDecoder in an end
@@ -172,8 +168,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
   void EnterEndOfStreamState() {
     // The codec in the |decryptor_| will be flushed.
     EXPECT_CALL(*this, FrameReady(decoded_video_frame_)).Times(kDecodingDelay);
-    DecodeAndExpect(DecoderBuffer::CreateEOSBuffer(),
-                    DecoderStatus::Codes::kOk);
+    DecodeAndExpect(DecoderBuffer::CreateEOSBuffer(), DecodeStatus::OK);
     EXPECT_EQ(0, num_frames_in_decryptor_);
   }
 
@@ -181,7 +176,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
   void EnterPendingDecodeState() {
     EXPECT_TRUE(!pending_video_decode_cb_);
     EXPECT_CALL(*decryptor_, DecryptAndDecodeVideo(encrypted_buffer_, _))
-        .WillOnce(MoveArg<1>(&pending_video_decode_cb_));
+        .WillOnce(SaveArg<1>(&pending_video_decode_cb_));
 
     decoder_->Decode(encrypted_buffer_,
                      base::BindOnce(&DecryptingVideoDecoderTest::DecodeDone,
@@ -194,8 +189,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
 
   void EnterWaitingForKeyState() {
     EXPECT_CALL(*decryptor_, DecryptAndDecodeVideo(_, _))
-        .WillRepeatedly(
-            RunOnceCallback<1>(Decryptor::kNoKey, null_video_frame_));
+        .WillRepeatedly(RunCallback<1>(Decryptor::kNoKey, null_video_frame_));
     EXPECT_CALL(*this, OnWaiting(WaitingReason::kNoDecryptionKey));
     decoder_->Decode(encrypted_buffer_,
                      base::BindOnce(&DecryptingVideoDecoderTest::DecodeDone,
@@ -239,7 +233,7 @@ class DecryptingVideoDecoderTest : public testing::Test {
   }
 
   MOCK_METHOD1(FrameReady, void(scoped_refptr<VideoFrame>));
-  MOCK_METHOD1(DecodeDone, void(DecoderStatus));
+  MOCK_METHOD1(DecodeDone, void(Status));
 
   MOCK_METHOD1(OnWaiting, void(WaitingReason));
 
@@ -261,6 +255,9 @@ class DecryptingVideoDecoderTest : public testing::Test {
   scoped_refptr<DecoderBuffer> encrypted_buffer_;
   scoped_refptr<VideoFrame> decoded_video_frame_;
   scoped_refptr<VideoFrame> null_video_frame_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DecryptingVideoDecoderTest);
 };
 
 TEST_F(DecryptingVideoDecoderTest, Initialize_Normal) {
@@ -322,8 +319,8 @@ TEST_F(DecryptingVideoDecoderTest, DecryptAndDecode_DecodeError) {
   Initialize();
 
   EXPECT_CALL(*decryptor_, DecryptAndDecodeVideo(_, _))
-      .WillRepeatedly(RunOnceCallback<1>(Decryptor::kError,
-                                         scoped_refptr<VideoFrame>(nullptr)));
+      .WillRepeatedly(RunCallback<1>(Decryptor::kError,
+                                     scoped_refptr<VideoFrame>(nullptr)));
 
   DecodeAndExpectError(encrypted_buffer_);
 
@@ -346,7 +343,7 @@ TEST_F(DecryptingVideoDecoderTest, KeyAdded_DuringWaitingForKey) {
 
   EXPECT_CALL(*decryptor_, DecryptAndDecodeVideo(_, _))
       .WillRepeatedly(
-          RunOnceCallback<1>(Decryptor::kSuccess, decoded_video_frame_));
+          RunCallback<1>(Decryptor::kSuccess, decoded_video_frame_));
   EXPECT_CALL(*this, FrameReady(decoded_video_frame_));
   EXPECT_CALL(*this, DecodeDone(IsOkStatus()));
   event_cb_.Run(CdmContext::Event::kHasAdditionalUsableKey);
@@ -361,7 +358,7 @@ TEST_F(DecryptingVideoDecoderTest, KeyAdded_DuringPendingDecode) {
 
   EXPECT_CALL(*decryptor_, DecryptAndDecodeVideo(_, _))
       .WillRepeatedly(
-          RunOnceCallback<1>(Decryptor::kSuccess, decoded_video_frame_));
+          RunCallback<1>(Decryptor::kSuccess, decoded_video_frame_));
   EXPECT_CALL(*this, FrameReady(decoded_video_frame_));
   EXPECT_CALL(*this, DecodeDone(IsOkStatus()));
   // The video decode callback is returned after the correct decryption key is
@@ -391,7 +388,7 @@ TEST_F(DecryptingVideoDecoderTest, Reset_DuringPendingDecode) {
   Initialize();
   EnterPendingDecodeState();
 
-  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(StatusCode::kAborted)));
 
   Reset();
 }
@@ -401,7 +398,7 @@ TEST_F(DecryptingVideoDecoderTest, Reset_DuringWaitingForKey) {
   Initialize();
   EnterWaitingForKeyState();
 
-  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(StatusCode::kAborted)));
 
   Reset();
 }
@@ -461,7 +458,7 @@ TEST_F(DecryptingVideoDecoderTest, Destroy_DuringPendingDecode) {
   Initialize();
   EnterPendingDecodeState();
 
-  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(StatusCode::kAborted)));
 
   Destroy();
 }
@@ -471,7 +468,7 @@ TEST_F(DecryptingVideoDecoderTest, Destroy_DuringWaitingForKey) {
   Initialize();
   EnterWaitingForKeyState();
 
-  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(StatusCode::kAborted)));
 
   Destroy();
 }
@@ -493,7 +490,7 @@ TEST_F(DecryptingVideoDecoderTest, Destroy_DuringPendingReset) {
   EnterPendingDecodeState();
 
   EXPECT_CALL(*decryptor_, ResetDecoder(Decryptor::kVideo));
-  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(StatusCode::kAborted)));
 
   decoder_->Reset(NewExpectedClosure());
   Destroy();

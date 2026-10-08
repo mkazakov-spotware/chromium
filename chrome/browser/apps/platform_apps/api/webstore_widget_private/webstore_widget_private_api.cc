@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,19 @@
 
 #include "base/bind.h"
 #include "chrome/browser/apps/platform_apps/api/webstore_widget_private/app_installer.h"
+#include "chrome/browser/chromeos/file_manager/app_id.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/apps/platform_apps/api/webstore_widget_private.h"
 #include "extensions/browser/extension_function_constants.h"
 
 namespace chrome_apps {
 namespace api {
+
+namespace {
+
+const char kGoogleCastApiExtensionId[] = "mafeflapfdfljijmlienjedomfjfmhpd";
+
+}  // namespace
 
 WebstoreWidgetPrivateInstallWebstoreItemFunction::
     WebstoreWidgetPrivateInstallWebstoreItemFunction() {}
@@ -26,13 +33,16 @@ ExtensionFunction::ResponseAction
 WebstoreWidgetPrivateInstallWebstoreItemFunction::Run() {
   const std::unique_ptr<webstore_widget_private::InstallWebstoreItem::Params>
       params(
-          webstore_widget_private::InstallWebstoreItem::Params::Create(args()));
+          webstore_widget_private::InstallWebstoreItem::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params);
 
   if (params->item_id.empty())
     return RespondNow(Error("App ID empty."));
 
-  if (params->silent_installation)
+  bool allow_silent_install =
+      extension()->id() == file_manager::kVideoPlayerAppId &&
+      params->item_id == kGoogleCastApiExtensionId;
+  if (params->silent_installation && !allow_silent_install)
     return RespondNow(Error("Silent installation not allowed."));
 
   content::WebContents* web_contents = GetSenderWebContents();

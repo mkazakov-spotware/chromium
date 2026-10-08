@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,6 @@ package org.chromium.base;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-
-import org.chromium.build.BuildConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -138,8 +136,6 @@ public final class UnownedUserDataKey<T extends UnownedUserData> {
     /**
      * Detaches the {@link UnownedUserData} from all hosts that it is currently attached to with
      * this key. It is OK to call this for already detached objects.
-     *
-     * @param object The object to detach from all hosts.
      */
     public final void detachFromAllHosts(@NonNull T object) {
         assertNoDestroyedAttachments();
@@ -186,7 +182,7 @@ public final class UnownedUserDataKey<T extends UnownedUserData> {
     }
 
     private void assertNoDestroyedAttachments() {
-        if (BuildConfig.ENABLE_ASSERTS) {
+        if (BuildConfig.DCHECK_IS_ON) {
             for (UnownedUserDataHost attachedHost : mWeakHostAttachments) {
                 if (attachedHost.isDestroyed()) {
                     assert false : "Host should have been removed already.";

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,17 +23,15 @@ bool ShowPageInfoDialog(content::WebContents* web_contents,
 
   content::NavigationEntry* entry =
       web_contents->GetController().GetVisibleEntry();
-  if (entry->IsInitialEntry())
+  if (!entry)
     return false;
 
-  auto initialized_callback =
-      GetPageInfoDialogCreatedCallbackForTesting()
-          ? std::move(GetPageInfoDialogCreatedCallbackForTesting())
-          : base::DoNothing();
-
   ShowPageInfoDialogImpl(browser, web_contents, entry->GetVirtualURL(), anchor,
-                         std::move(initialized_callback),
                          std::move(closing_callback));
+
+  if (GetPageInfoDialogCreatedCallbackForTesting())
+    std::move(GetPageInfoDialogCreatedCallbackForTesting()).Run();
+
   return true;
 }
 

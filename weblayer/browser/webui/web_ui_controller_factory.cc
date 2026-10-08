@@ -1,14 +1,12 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/webui/web_ui_controller_factory.h"
 
 #include "base/memory/ptr_util.h"
-#include "base/no_destructor.h"
 #include "content/public/browser/web_ui.h"
 #include "url/gurl.h"
-#include "weblayer/browser/webui/net_export_ui.h"
 #include "weblayer/browser/webui/weblayer_internals_ui.h"
 
 namespace weblayer {
@@ -31,16 +29,12 @@ WebUIFactoryFunctionPointer GetWebUIFactoryFunctionPointer(const GURL& url) {
   if (url.host() == kChromeUIWebLayerHost) {
     return &NewWebUI<WebLayerInternalsUI>;
   }
-  if (url.host() == kChromeUINetExportHost) {
-    return &NewWebUI<NetExportUI>;
-  }
 
   return nullptr;
 }
 
 content::WebUI::TypeID GetWebUITypeID(const GURL& url) {
-  if (url.host() == kChromeUIWebLayerHost ||
-      url.host() == kChromeUINetExportHost) {
+  if (url.host() == kChromeUIWebLayerHost) {
     return kWebLayerID;
   }
 
@@ -69,6 +63,12 @@ bool WebUIControllerFactory::UseWebUIForURL(
     content::BrowserContext* browser_context,
     const GURL& url) {
   return GetWebUIType(browser_context, url) != content::WebUI::kNoWebUI;
+}
+
+bool WebUIControllerFactory::UseWebUIBindingsForURL(
+    content::BrowserContext* browser_context,
+    const GURL& url) {
+  return UseWebUIForURL(browser_context, url);
 }
 
 std::unique_ptr<content::WebUIController>

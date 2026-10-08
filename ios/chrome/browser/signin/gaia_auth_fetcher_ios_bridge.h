@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "google_apis/gaia/gaia_auth_fetcher.h"
 #include "net/base/net_errors.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -22,12 +23,6 @@ class GaiaAuthFetcherIOSBridge {
   class GaiaAuthFetcherIOSBridgeDelegate {
    public:
     GaiaAuthFetcherIOSBridgeDelegate();
-
-    GaiaAuthFetcherIOSBridgeDelegate(const GaiaAuthFetcherIOSBridgeDelegate&) =
-        delete;
-    GaiaAuthFetcherIOSBridgeDelegate& operator=(
-        const GaiaAuthFetcherIOSBridgeDelegate&) = delete;
-
     virtual ~GaiaAuthFetcherIOSBridgeDelegate();
 
     // Called when the request is done.
@@ -35,20 +30,18 @@ class GaiaAuthFetcherIOSBridge {
                                  const std::string& data,
                                  net::Error net_error,
                                  int response_code) = 0;
+
+    DISALLOW_COPY_AND_ASSIGN(GaiaAuthFetcherIOSBridgeDelegate);
   };
 
   // Initializes the instance.
   GaiaAuthFetcherIOSBridge(GaiaAuthFetcherIOSBridgeDelegate* delegate);
-
-  GaiaAuthFetcherIOSBridge(const GaiaAuthFetcherIOSBridge&) = delete;
-  GaiaAuthFetcherIOSBridge& operator=(const GaiaAuthFetcherIOSBridge&) = delete;
-
   virtual ~GaiaAuthFetcherIOSBridge();
 
   // Starts a network fetch.
-  // * `url` is the URL to fetch.
-  // * `headers` are the HTTP headers to add to the request.
-  // * `body` is the HTTP body to add to the request. If not empty, the fetch
+  // * |url| is the URL to fetch.
+  // * |headers| are the HTTP headers to add to the request.
+  // * |body| is the HTTP body to add to the request. If not empty, the fetch
   //   will be a POST request.
   //
   // Implementations are expected to call
@@ -63,7 +56,7 @@ class GaiaAuthFetcherIOSBridge {
   //
   // Implementations are expected to call
   // GaiaAuthFetcherIOSBridgeDelegate::OnFetchComplete() with error
-  // `net::ERR_ABORTED`.
+  // |net::ERR_ABORTED|.
   virtual void Cancel() = 0;
 
  protected:
@@ -71,6 +64,8 @@ class GaiaAuthFetcherIOSBridge {
 
  private:
   GaiaAuthFetcherIOSBridgeDelegate* delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(GaiaAuthFetcherIOSBridge);
 };
 
 #endif  // IOS_CHROME_BROWSER_SIGNIN_GAIA_AUTH_FETCHER_IOS_BRIDGE_H_

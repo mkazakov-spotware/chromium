@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/macros.h"
 #include "chromecast/media/base/slew_volume.h"
 #include "media/base/audio_bus.h"
 #include "media/base/vector_math.h"
@@ -79,10 +80,6 @@ void CompareDataPartial(const std::vector<float*>& expected,
 }  // namespace
 
 class SlewVolumeBaseTest : public ::testing::Test {
- public:
-  SlewVolumeBaseTest(const SlewVolumeBaseTest&) = delete;
-  SlewVolumeBaseTest& operator=(const SlewVolumeBaseTest&) = delete;
-
  protected:
   SlewVolumeBaseTest() = default;
   ~SlewVolumeBaseTest() override = default;
@@ -129,6 +126,9 @@ class SlewVolumeBaseTest : public ::testing::Test {
   std::vector<float*> data_;
   std::vector<float*> data_2_;
   std::vector<float*> expected_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SlewVolumeBaseTest);
 };
 
 // ASSERT_DEATH isn't implemented on Fuchsia.
@@ -187,11 +187,6 @@ TEST_F(SlewVolumeBaseTest, InstantVolumeIncreasing) {
 }
 
 class SlewVolumeSteadyStateTest : public SlewVolumeBaseTest {
- public:
-  SlewVolumeSteadyStateTest(const SlewVolumeSteadyStateTest&) = delete;
-  SlewVolumeSteadyStateTest& operator=(const SlewVolumeSteadyStateTest&) =
-      delete;
-
  protected:
   SlewVolumeSteadyStateTest() = default;
   ~SlewVolumeSteadyStateTest() override = default;
@@ -200,6 +195,9 @@ class SlewVolumeSteadyStateTest : public SlewVolumeBaseTest {
     SlewVolumeBaseTest::SetUp();
     slew_volume_->Interrupted();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SlewVolumeSteadyStateTest);
 };
 
 TEST_F(SlewVolumeSteadyStateTest, FMULNoOp) {
@@ -255,10 +253,6 @@ TEST_F(SlewVolumeSteadyStateTest, FMACNoOp) {
 class SlewVolumeDynamicTest
     : public SlewVolumeBaseTest,
       public ::testing::WithParamInterface<std::tuple<int, int>> {
- public:
-  SlewVolumeDynamicTest(const SlewVolumeDynamicTest&) = delete;
-  SlewVolumeDynamicTest& operator=(const SlewVolumeDynamicTest&) = delete;
-
  protected:
   SlewVolumeDynamicTest() = default;
   ~SlewVolumeDynamicTest() override = default;
@@ -345,6 +339,9 @@ class SlewVolumeDynamicTest
   int slew_time_frames_;
   int channels_;
   int max_frame_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SlewVolumeDynamicTest);
 };
 
 TEST_P(SlewVolumeDynamicTest, FMULRampUp) {
@@ -449,11 +446,6 @@ INSTANTIATE_TEST_SUITE_P(SingleBufferSlew,
                                             ::testing::Values(0, 15, 100)));
 
 class SlewVolumeInterleavedTest : public SlewVolumeDynamicTest {
- public:
-  SlewVolumeInterleavedTest(const SlewVolumeInterleavedTest&) = delete;
-  SlewVolumeInterleavedTest& operator=(const SlewVolumeInterleavedTest&) =
-      delete;
-
  protected:
   SlewVolumeInterleavedTest() = default;
   ~SlewVolumeInterleavedTest() override = default;
@@ -484,6 +476,9 @@ class SlewVolumeInterleavedTest : public SlewVolumeDynamicTest {
   float Expected(int channel, int frame) override {
     return expected_[0][channels_ * frame + channel];
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SlewVolumeInterleavedTest);
 };
 
 TEST_P(SlewVolumeInterleavedTest, FMACRampDown) {

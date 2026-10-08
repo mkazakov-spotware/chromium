@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_FORMS_HIDDEN_INPUT_TYPE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_FORMS_HIDDEN_INPUT_TYPE_H_
 
-#include "third_party/blink/renderer/core/dom/events/simulated_click_options.h"
 #include "third_party/blink/renderer/core/html/forms/input_type.h"
 #include "third_party/blink/renderer/core/html/forms/input_type_view.h"
 
@@ -40,7 +39,7 @@ namespace blink {
 class HiddenInputType final : public InputType, private InputTypeView {
  public:
   HiddenInputType(HTMLInputElement& element)
-      : InputType(Type::kHidden, element), InputTypeView(element) {}
+      : InputType(element), InputTypeView(element) {}
 
   void Trace(Visitor*) const override;
   using InputType::GetElement;
@@ -53,7 +52,7 @@ class HiddenInputType final : public InputType, private InputTypeView {
   bool SupportsValidation() const override;
   LayoutObject* CreateLayoutObject(const ComputedStyle&,
                                    LegacyLayout) const override;
-  void AccessKeyAction(SimulatedClickCreationScope creation_scope) override;
+  void AccessKeyAction(bool send_mouse_events) override;
   bool LayoutObjectIsNeeded() override;
   ValueMode GetValueMode() const override;
   bool IsInteractiveContent() const override { return false; }
@@ -64,13 +63,6 @@ class HiddenInputType final : public InputType, private InputTypeView {
                 TextControlSetValueSelection) override;
   void AppendToFormData(FormData&) const override;
   bool NeedsShadowSubtree() const override { return false; }
-};
-
-template <>
-struct DowncastTraits<HiddenInputType> {
-  static bool AllowFrom(const InputType& type) {
-    return type.IsHiddenInputType();
-  }
 };
 
 }  // namespace blink

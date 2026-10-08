@@ -1,14 +1,23 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2014 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.pubsub.TypedPubSubTest');
 goog.setTestOnly();
 
 const TopicId = goog.require('goog.pubsub.TopicId');
 const TypedPubSub = goog.require('goog.pubsub.TypedPubSub');
+const googArray = goog.require('goog.array');
 const testSuite = goog.require('goog.testing.testSuite');
 
 let pubsub;
@@ -342,7 +351,7 @@ testSuite({
     assertEquals(
         'Topic "Z" must not have any subscribers', 0, pubsub.getCount(TOPIC_Z));
 
-    [TOPIC_X, TOPIC_Y, TOPIC_Z].forEach(topic => {
+    googArray.forEach([TOPIC_X, TOPIC_Y, TOPIC_Z], (topic) => {
       pubsub.subscribe(topic, foo);
     });
     assertEquals(
@@ -352,7 +361,7 @@ testSuite({
     assertEquals(
         'Topic "Z" must have 1 subscriber', 1, pubsub.getCount(TOPIC_Z));
 
-    [TOPIC_X, TOPIC_Y, TOPIC_Z].forEach(topic => {
+    googArray.forEach([TOPIC_X, TOPIC_Y, TOPIC_Z], (topic) => {
       pubsub.subscribe(topic, bar, context);
     });
     assertEquals(
@@ -366,7 +375,7 @@ testSuite({
         'Pubsub channel must have a total of 6 subscribers', 6,
         pubsub.getCount());
 
-    [TOPIC_X, TOPIC_Y, TOPIC_Z].forEach(topic => {
+    googArray.forEach([TOPIC_X, TOPIC_Y, TOPIC_Z], (topic) => {
       pubsub.unsubscribe(topic, foo);
     });
     assertEquals(
@@ -376,7 +385,7 @@ testSuite({
     assertEquals(
         'Topic "Z" must have 1 subscriber', 1, pubsub.getCount(TOPIC_Z));
 
-    [TOPIC_X, TOPIC_Y, TOPIC_Z].forEach(topic => {
+    googArray.forEach([TOPIC_X, TOPIC_Y, TOPIC_Z], (topic) => {
       pubsub.unsubscribe(topic, bar, context);
     });
     assertEquals(
@@ -640,7 +649,7 @@ testSuite({
       new TopicId('Z'),
     ];
 
-    topics.forEach(topic => {
+    googArray.forEach(topics, (topic) => {
       pubsub.subscribe(topic, fn);
     });
     assertEquals(

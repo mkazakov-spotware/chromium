@@ -1,16 +1,16 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/cast/net/udp_transport_impl.h"
 
-#include <memory>
+#include <algorithm>
 #include <string>
 #include <vector>
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
@@ -30,9 +30,6 @@ class MockPacketReceiver final : public UdpTransportReceiver {
   MockPacketReceiver(const base::RepeatingClosure& callback)
       : packet_callback_(callback) {}
 
-  MockPacketReceiver(const MockPacketReceiver&) = delete;
-  MockPacketReceiver& operator=(const MockPacketReceiver&) = delete;
-
   bool ReceivedPacket(std::unique_ptr<Packet> packet) {
     packet_ = std::move(packet);
     packet_callback_.Run();
@@ -42,7 +39,7 @@ class MockPacketReceiver final : public UdpTransportReceiver {
   // UdpTransportReceiver implementation.
   void OnPacketReceived(const std::vector<uint8_t>& packet) override {
     EXPECT_GT(packet.size(), 0u);
-    packet_ = std::make_unique<Packet>(packet);
+    packet_.reset(new Packet(packet));
     packet_callback_.Run();
   }
 
@@ -56,6 +53,8 @@ class MockPacketReceiver final : public UdpTransportReceiver {
  private:
   base::RepeatingClosure packet_callback_;
   std::unique_ptr<Packet> packet_;
+
+  DISALLOW_COPY_AND_ASSIGN(MockPacketReceiver);
 };
 
 void SendPacket(UdpTransportImpl* transport, Packet packet) {
@@ -87,9 +86,6 @@ class UdpTransportImplTest : public ::testing::Test {
     recv_transport_->SetSendBufferSize(65536);
   }
 
-  UdpTransportImplTest(const UdpTransportImplTest&) = delete;
-  UdpTransportImplTest& operator=(const UdpTransportImplTest&) = delete;
-
   ~UdpTransportImplTest() override = default;
 
  protected:
@@ -99,6 +95,9 @@ class UdpTransportImplTest : public ::testing::Test {
 
   // A receiver side transport to receiver/send packets from/to sender.
   std::unique_ptr<UdpTransportImpl> recv_transport_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(UdpTransportImplTest);
 };
 
 // Test the sending/receiving functions as a PacketSender.
@@ -119,10 +118,12 @@ TEST_F(UdpTransportImplTest, PacketSenderSendAndReceive) {
   std::unique_ptr<Packet> received_packet =
       packet_receiver_on_sender.TakePacket();
   EXPECT_TRUE(received_packet);
-  EXPECT_TRUE(base::ranges::equal(packet, *received_packet));
+  EXPECT_TRUE(
+      std::equal(packet.begin(), packet.end(), received_packet->begin()));
   received_packet = packet_receiver_on_receiver.TakePacket();
   EXPECT_TRUE(received_packet);
-  EXPECT_TRUE(base::ranges::equal(packet, *received_packet));
+  EXPECT_TRUE(
+      std::equal(packet.begin(), packet.end(), (*received_packet).begin()));
 }
 
 // Test the sending/receiving functions as a UdpTransport.
@@ -138,12 +139,9 @@ TEST_F(UdpTransportImplTest, UdpTransportSendAndReceive) {
   recv_transport_->StartReceiving(
       packet_receiver_on_receiver.packet_receiver());
 
-  mojo::ScopedDataPipeProducerHandle producer_handle;
-  mojo::ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(mojo::CreateDataPipe(5, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  send_transport_->StartSending(std::move(consumer_handle));
-  UdpPacketPipeWriter writer(std::move(producer_handle));
+  mojo::DataPipe data_pipe(5);
+  send_transport_->StartSending(std::move(data_pipe.consumer_handle));
+  UdpPacketPipeWriter writer(std::move(data_pipe.producer_handle));
   base::MockCallback<base::OnceClosure> done_callback;
   EXPECT_CALL(done_callback, Run()).Times(1);
   writer.Write(new base::RefCountedData<Packet>(packet), done_callback.Get());
@@ -151,10 +149,12 @@ TEST_F(UdpTransportImplTest, UdpTransportSendAndReceive) {
   std::unique_ptr<Packet> received_packet =
       packet_receiver_on_sender.TakePacket();
   EXPECT_TRUE(received_packet);
-  EXPECT_TRUE(base::ranges::equal(packet, *received_packet));
+  EXPECT_TRUE(
+      std::equal(packet.begin(), packet.end(), received_packet->begin()));
   received_packet = packet_receiver_on_receiver.TakePacket();
   EXPECT_TRUE(received_packet);
-  EXPECT_TRUE(base::ranges::equal(packet, *received_packet));
+  EXPECT_TRUE(
+      std::equal(packet.begin(), packet.end(), (*received_packet).begin()));
 }
 
 }  // namespace cast

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,6 @@ class OpenScreenListener
       local_discovery::ServiceDiscoveryDeviceLister::Delegate {
  public:
   explicit OpenScreenListener(std::string service_type);
-
-  OpenScreenListener(const OpenScreenListener&) = delete;
-  OpenScreenListener& operator=(const OpenScreenListener&) = delete;
 
   // ServiceListener overrides
   ~OpenScreenListener() override;
@@ -53,6 +50,8 @@ class OpenScreenListener
   bool is_running_ = false;
   const std::string service_type_;
   std::vector<openscreen::osp::ServiceInfo> receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(OpenScreenListener);
 };
 
 }  // namespace media_router

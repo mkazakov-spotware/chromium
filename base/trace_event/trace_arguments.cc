@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 #include <string.h>
 
 #include <cmath>
-#include <ostream>
 
 #include "base/check_op.h"
 #include "base/json/string_escape.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -35,10 +35,8 @@ void CopyTraceEventParameter(char** buffer,
                              const char** member,
                              const char* end) {
   if (*member) {
-    DCHECK_GE(end, *buffer);
-    size_t written =
-        strlcpy(*buffer, *member, static_cast<size_t>(end - *buffer)) + 1;
-    DCHECK_LE(static_cast<ptrdiff_t>(written), end - *buffer);
+    size_t written = strlcpy(*buffer, *member, end - *buffer) + 1;
+    DCHECK_LE(static_cast<int>(written), end - *buffer);
     *member = *buffer;
     *buffer += written;
   }
@@ -79,7 +77,7 @@ void AppendDouble(double val, bool as_json, std::string* out) {
   StringAppendF(out, "%s", real.c_str());
 }
 
-const char* TypeToString(unsigned char arg_type) {
+const char* TypeToString(char arg_type) {
   switch (arg_type) {
     case TRACE_VALUE_TYPE_INT:
       return "int";
@@ -185,11 +183,6 @@ void TraceValue::Append(unsigned char type,
     case TRACE_VALUE_TYPE_CONVERTABLE:
       this->as_convertable->AppendAsTraceFormat(out);
       break;
-    case TRACE_VALUE_TYPE_PROTO:
-      DCHECK(as_json);
-      // Typed protobuf arguments aren't representable in JSON.
-      *out += "\"Unsupported (crbug.com/1225176)\"";
-      break;
     default:
       NOTREACHED() << "Don't know how to print this value";
       break;
@@ -290,15 +283,6 @@ void TraceArguments::AppendDebugString(std::string* out) {
   }
   *out += ")";
 }
-
-#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
-void ConvertableToTraceFormat::Add(
-    perfetto::protos::pbzero::DebugAnnotation* annotation) const {
-  std::string json;
-  AppendAsTraceFormat(&json);
-  annotation->set_legacy_json_value(json);
-}
-#endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
 
 }  // namespace trace_event
 }  // namespace base

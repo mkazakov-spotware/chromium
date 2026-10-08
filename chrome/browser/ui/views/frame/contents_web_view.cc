@@ -1,20 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
 
 #include "chrome/browser/themes/theme_properties.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/status_bubble_views.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/skia/include/core/SkColor.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/theme_provider.h"
-#include "ui/color/color_provider.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/views/background.h"
 
@@ -36,17 +30,6 @@ void ContentsWebView::SetStatusBubble(StatusBubbleViews* status_bubble) {
   DCHECK(!status_bubble_ || status_bubble_->base_view() == this);
   if (status_bubble_)
     status_bubble_->Reposition();
-  OnPropertyChanged(&status_bubble_, views::kPropertyEffectsNone);
-}
-
-StatusBubbleViews* ContentsWebView::GetStatusBubble() const {
-  return status_bubble_;
-}
-
-void ContentsWebView::SetBackgroundVisible(bool background_visible) {
-  background_visible_ = background_visible;
-  if (GetWidget())
-    UpdateBackgroundColor();
 }
 
 bool ContentsWebView::GetNeedsNotificationWhenVisibleBoundsChange() const {
@@ -58,30 +41,54 @@ void ContentsWebView::OnVisibleBoundsChanged() {
     status_bubble_->Reposition();
 }
 
+void ContentsWebView::ViewHierarchyChanged(
+    const views::ViewHierarchyChangedDetails& details) {
+  WebView::ViewHierarchyChanged(details);
+  if (details.is_add)
+    UpdateBackgroundColor();
+}
+
 void ContentsWebView::OnThemeChanged() {
   views::WebView::OnThemeChanged();
   UpdateBackgroundColor();
 }
 
 void ContentsWebView::OnLetterboxingChanged() {
-  if (GetWidget())
-    UpdateBackgroundColor();
+  UpdateBackgroundColor();
 }
 
 void ContentsWebView::UpdateBackgroundColor() {
-  SkColor color = GetColorProvider()->GetColor(
-      is_letterboxing() ? kColorWebContentsBackgroundLetterboxing
-                        : kColorWebContentsBackground);
-  SetBackground(background_visible_ ? views::CreateSolidBackground(color)
-                                    : nullptr);
+  const ui::ThemeProvider* const theme = GetThemeProvider();
+  if (!theme)
+    return;
+
+  const SkColor ntp_background = color_utils::GetResultingPaintColor(
+      theme->GetColor(ThemeProperties::COLOR_NTP_BACKGROUND), SK_ColorWHITE);
+  if (is_letterboxing()) {
+    // Set the background color to a dark tint of the new tab page's background
+    // color.  This is the color filled within the WebView's bounds when its
+    // child view is sized specially for fullscreen tab capture.  See WebView
+    // header file comments for more details.
+    const int kBackgroundBrightness = 0x33;  // 20%
+    // Make sure the background is opaque.
+    const SkColor dimmed_ntp_background = SkColorSetARGB(
+        SkColorGetA(ntp_background),
+        SkColorGetR(ntp_background) * kBackgroundBrightness / 0xFF,
+        SkColorGetG(ntp_background) * kBackgroundBrightness / 0xFF,
+        SkColorGetB(ntp_background) * kBackgroundBrightness / 0xFF);
+    SetBackground(views::CreateSolidBackground(dimmed_ntp_background));
+  } else {
+    SetBackground(views::CreateSolidBackground(ntp_background));
+  }
+  // Changing a view's background does not necessarily schedule the view to be
+  // redrawn.
+  SchedulePaint();
 
   if (web_contents()) {
     content::RenderWidgetHostView* rwhv =
         web_contents()->GetRenderWidgetHostView();
-    if (rwhv) {
-      rwhv->SetBackgroundColor(background_visible_ ? color
-                                                   : SK_ColorTRANSPARENT);
-    }
+    if (rwhv)
+      rwhv->SetBackgroundColor(ntp_background);
   }
 }
 
@@ -123,8 +130,7 @@ void ContentsWebView::CloneWebContentsLayer() {
   // is now the new parent of the cloned layer). Convert coordinates so that the
   // cloned layer appears at the right location.
   gfx::PointF origin;
-  ui::Layer::ConvertPointToLayer(cloned_layer_tree_->root(), layer(),
-                                 /*use_target_transform=*/true, &origin);
+  ui::Layer::ConvertPointToLayer(cloned_layer_tree_->root(), layer(), &origin);
   cloned_layer_tree_->root()->SetBounds(
       gfx::Rect(gfx::ToFlooredPoint(origin),
                 cloned_layer_tree_->root()->bounds().size()));
@@ -138,11 +144,6 @@ void ContentsWebView::DestroyClonedLayer() {
 
 void ContentsWebView::RenderViewReady() {
   // Set the background color to be the theme's ntp background on startup.
-  if (GetWidget())
-    UpdateBackgroundColor();
+  UpdateBackgroundColor();
   WebView::RenderViewReady();
 }
-
-BEGIN_METADATA(ContentsWebView, views::WebView)
-ADD_PROPERTY_METADATA(StatusBubbleViews*, StatusBubble)
-END_METADATA

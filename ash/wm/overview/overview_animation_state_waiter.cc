@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,8 @@
 
 #include "ash/shell.h"
 #include "ash/wm/overview/overview_controller.h"
+#include "base/threading/sequenced_task_runner_handle.h"
+#include "base/time/time.h"
 
 namespace ash {
 

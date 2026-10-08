@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,15 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "components/sync/model/metadata_batch.h"
-#include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/model_type_state.pb.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace syncer {
 
-// Matcher for absl::optional<ModelError>: verifies that it contains no error.
+// Matcher for base::Optional<ModelError>: verifies that it contains no error.
 MATCHER(NoModelError, "") {
   if (arg.has_value()) {
     *result_listener << "which represents error: " << arg->ToString();
@@ -49,11 +49,12 @@ MATCHER_P2(MetadataBatchContains, state, entities, "") {
 
   // We need to convert the map values to non-pointers in order to make them
   // copyable and use gmock.
-  std::map<std::string, std::unique_ptr<sync_pb::EntityMetadata>>
-      metadata_by_storage_key = arg->TakeAllMetadata();
+  std::map<std::string, std::unique_ptr<sync_pb::EntityMetadata>> metadata =
+      arg->TakeAllMetadata();
   std::map<std::string, sync_pb::EntityMetadata> copyable_metadata;
-  for (auto& [storage_key, metadata] : metadata_by_storage_key) {
-    copyable_metadata[storage_key] = std::move(*metadata);
+  for (std::pair<const std::string, std::unique_ptr<sync_pb::EntityMetadata>>&
+           kv : metadata) {
+    copyable_metadata[kv.first] = std::move(*(kv.second));
   }
 
   return ExplainMatchResult(

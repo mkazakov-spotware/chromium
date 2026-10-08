@@ -1,16 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_LAYOUT_NG_TABLE_ROW_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_LAYOUT_NG_TABLE_ROW_H_
 
-#include "base/dcheck_is_on.h"
-#include "base/notreached.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_block.h"
-#include "third_party/blink/renderer/core/layout/ng/table/layout_ng_table_row_interface.h"
-#include "third_party/blink/renderer/core/layout/ng/table/layout_ng_table_section_interface.h"
+#include "third_party/blink/renderer/core/layout/layout_block.h"
+#include "third_party/blink/renderer/core/layout/ng/layout_ng_mixin.h"
 
 namespace blink {
 
@@ -20,7 +17,7 @@ class LayoutNGTable;
 // NOTE:
 // Legacy table row inherits from LayoutBox, not LayoutBlock.
 // Every child of LayoutNGTableRow must be LayoutNGTableCell.
-class CORE_EXPORT LayoutNGTableRow : public LayoutNGBlock,
+class CORE_EXPORT LayoutNGTableRow : public LayoutNGMixin<LayoutBlock>,
                                      public LayoutNGTableRowInterface {
  public:
   explicit LayoutNGTableRow(Element*);
@@ -31,10 +28,7 @@ class CORE_EXPORT LayoutNGTableRow : public LayoutNGBlock,
 
   // LayoutBlock methods start.
 
-  void UpdateBlockLayout(bool relayout_children) override {
-    NOT_DESTROYED();
-    NOTREACHED();
-  }
+  void UpdateBlockLayout(bool relayout_children) override { NOTREACHED(); }
 
   const char* GetName() const override {
     NOT_DESTROYED();
@@ -46,46 +40,32 @@ class CORE_EXPORT LayoutNGTableRow : public LayoutNGBlock,
 
   void RemoveChild(LayoutObject*) override;
 
-  void WillBeRemovedFromTree() override;
-
   void StyleDidChange(StyleDifference diff,
                       const ComputedStyle* old_style) override;
 
   LayoutBox* CreateAnonymousBoxWithSameTypeAs(
       const LayoutObject* parent) const override;
 
-  LayoutBlock* StickyContainer() const override;
-
   // Whether a row has opaque background depends on many factors, e.g. border
   // spacing, border collapsing, missing cells, etc.
   // For simplicity, just conservatively assume all table rows are not opaque.
   // Copied from Legacy's LayoutTableRow
-  bool ForegroundIsKnownToBeOpaqueInRect(const PhysicalRect&,
-                                         unsigned) const override {
-    NOT_DESTROYED();
-    return false;
-  }
-
   bool BackgroundIsKnownToBeOpaqueInRect(const PhysicalRect&) const override {
     NOT_DESTROYED();
     return false;
   }
 
-  bool RespectsCSSOverflow() const override {
+  bool AllowsNonVisibleOverflow() const override {
     NOT_DESTROYED();
     return false;
   }
 
-#if DCHECK_IS_ON()
   void AddVisualOverflowFromBlockChildren() override;
-#endif
 
   bool VisualRectRespectsVisibility() const final {
     NOT_DESTROYED();
     return false;
   }
-
-  PositionWithAffinity PositionForPoint(const PhysicalOffset&) const override;
 
   // LayoutBlock methods end.
 
@@ -94,6 +74,11 @@ class CORE_EXPORT LayoutNGTableRow : public LayoutNGBlock,
   const LayoutObject* ToLayoutObject() const final {
     NOT_DESTROYED();
     return this;
+  }
+
+  const LayoutTableRow* ToLayoutTableRow() const final {
+    NOTREACHED();
+    return nullptr;
   }
 
   const LayoutNGTableRowInterface* ToLayoutNGTableRowInterface() const final {

@@ -1,15 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_APPS_APP_SHIM_APP_SHIM_HOST_BOOTSTRAP_MAC_H_
 #define CHROME_BROWSER_APPS_APP_SHIM_APP_SHIM_HOST_BOOTSTRAP_MAC_H_
 
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/process/process_handle.h"
 #include "base/threading/thread_checker.h"
 #include "chrome/browser/apps/app_shim/app_shim_host_mac.h"
@@ -44,8 +44,6 @@ class AppShimHostBootstrap : public chrome::mojom::AppShimHostBootstrap {
   static void CreateForChannelAndPeerID(mojo::PlatformChannelEndpoint endpoint,
                                         base::ProcessId peer_pid);
 
-  AppShimHostBootstrap(const AppShimHostBootstrap&) = delete;
-  AppShimHostBootstrap& operator=(const AppShimHostBootstrap&) = delete;
   ~AppShimHostBootstrap() override;
 
   // Called in response to connecting (or failing to connect to) an
@@ -67,12 +65,6 @@ class AppShimHostBootstrap : public chrome::mojom::AppShimHostBootstrap {
   // If non-empty, holds an array of file paths given as arguments, or dragged
   // onto the app bundle or dock icon.
   const std::vector<base::FilePath>& GetLaunchFiles() const;
-
-  // Indicates if the app launched during OS login.
-  chrome::mojom::AppShimLoginItemRestoreState GetLoginItemRestoreState() const;
-
-  // If non-empty, holds an array of urls given as arguments.
-  const std::vector<GURL>& GetLaunchUrls() const;
 
   // Returns true if this app supports multiple profiles. If so, it will not be
   // required that GetProfilePath be a valid profile path.
@@ -102,6 +94,7 @@ class AppShimHostBootstrap : public chrome::mojom::AppShimHostBootstrap {
   OnShimConnectedCallback shim_connected_callback_;
 
   THREAD_CHECKER(thread_checker_);
+  DISALLOW_COPY_AND_ASSIGN(AppShimHostBootstrap);
 };
 
 #endif  // CHROME_BROWSER_APPS_APP_SHIM_APP_SHIM_HOST_BOOTSTRAP_MAC_H_

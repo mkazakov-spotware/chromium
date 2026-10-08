@@ -1,4 +1,4 @@
-/* Copyright 2013 The Chromium Authors
+/* Copyright (c) 2013 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
@@ -11,15 +11,10 @@
     font-weight: bold;
 }
 
-.metadata-list-item {
-    border-inline-start: solid 1px black;
-    padding-inline-start: 5px;
-    margin-inline-start: 20px;
-    margin-top: 5px;
-}
-
-indexeddb-bucket {
-    display: block;
+.indexeddb-item {
+    margin-bottom: 15px;
+    margin-top: 6px;
+    position: relative;
 }
 
 .indexeddb-url {
@@ -31,20 +26,19 @@ indexeddb-bucket {
     padding-top: 4px;
     text-decoration: none;
     text-overflow: ellipsis;
-    vertical-align: text-bottom;
     white-space: nowrap;
 }
 
 .indexeddb-database {
     margin-bottom: 6px;
     margin-top: 6px;
-    margin-inline-start: 12px;
+    margin-left: 12px;
 
     position: relative;
 }
 
 .indexeddb-database > div {
-    margin-inline-start: 12px;
+    margin-left: 12px;
 }
 
 .indexeddb-connection-count {
@@ -56,11 +50,11 @@ indexeddb-bucket {
 
 .indexeddb-path {
     display: block;
-    margin-inline-start: 1em;
+    margin-left: 1em;
 }
 
 .indexeddb-transaction-list {
-    margin-inline-start: 10px;
+    margin-left: 10px;
     border-collapse: collapse;
 }
 
@@ -80,7 +74,7 @@ td.indexeddb-transaction-scope {
     background-color: rgb(249, 249, 249);
     border: 1px solid rgb(156, 194, 239);
     font-weight: normal;
-    text-align: start;
+    text-align: left;
 }
 
 .indexeddb-transaction {
@@ -116,9 +110,7 @@ td.indexeddb-transaction-scope {
     background-color: rgb(249, 235, 235);
 }
 
-.controls .control {
+.controls a {
+    -webkit-margin-end: 16px;
     color: #777;
-    cursor: pointer;
-    margin-block-end: 16px;
-    text-decoration: underline;
 }

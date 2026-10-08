@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #include <stdint.h>
 
 #include <fuzzer/FuzzedDataProvider.h>
-
-#include <tuple>
 
 #include "base/strings/utf_string_conversions.h"
 #include "content/browser/indexed_db/indexed_db_leveldb_coding.h"
@@ -35,7 +33,7 @@ IndexedDBKeyPath GetKeyPath(FuzzedDataProvider* fuzzed_data) {
 
   // Create and add string16s to |paths| until |vector_size| is reached or the
   // end of |data| is reached.
-  std::vector<std::u16string> paths;
+  std::vector<base::string16> paths;
   for (size_t i = 0; i < vector_size && fuzzed_data->remaining_bytes() > 0;
        ++i) {
     // Consume sizeof(size_t) bytes to determine the size of the string to
@@ -57,7 +55,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // Ensure that |result| can be decoded back into the original key path.
   IndexedDBKeyPath decoded_key_path;
   auto result_str_piece = base::StringPiece(result);
-  std::ignore = content::DecodeIDBKeyPath(&result_str_piece, &decoded_key_path);
+  ignore_result(
+      content::DecodeIDBKeyPath(&result_str_piece, &decoded_key_path));
   assert(decoded_key_path == key_path);
   return 0;
 }

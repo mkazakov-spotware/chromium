@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,7 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/metrics/histogram_macros_local.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "sql/database.h"
 #include "sql/error_delegate_util.h"
@@ -28,18 +27,15 @@ SQLitePersistentStoreBackendBase::SQLitePersistentStoreBackendBase(
     scoped_refptr<base::SequencedTaskRunner> client_task_runner)
     : path_(path),
       histogram_tag_(std::move(histogram_tag)),
+      initialized_(false),
+      corruption_detected_(false),
       current_version_number_(current_version_number),
       compatible_version_number_(compatible_version_number),
       background_task_runner_(std::move(background_task_runner)),
       client_task_runner_(std::move(client_task_runner)) {}
 
 SQLitePersistentStoreBackendBase::~SQLitePersistentStoreBackendBase() {
-  // If `db_` hasn't been reset by the time this destructor is called,
-  // a use-after-free could occur if the `db_` error callback is ever
-  // invoked. To guard against this, crash if `db_` hasn't been reset
-  // so that this use-after-free doesn't happen and so that we'll be
-  // alerted to the fact that a closer look at this code is needed.
-  CHECK(!db_.get()) << "Close should already have been called.";
+  DCHECK(!db_.get()) << "Close should already have been called.";
 }
 
 void SQLitePersistentStoreBackendBase::Flush(base::OnceClosure callback) {
@@ -78,6 +74,8 @@ bool SQLitePersistentStoreBackendBase::InitializeDatabase() {
     return db_ != nullptr;
   }
 
+  base::Time start = base::Time::Now();
+
   const base::FilePath dir = path_.DirName();
   if (!base::PathExists(dir) && !base::CreateDirectory(dir)) {
     RecordPathDoesNotExistProblem();
@@ -110,6 +108,11 @@ bool SQLitePersistentStoreBackendBase::InitializeDatabase() {
     Reset();
     return false;
   }
+
+  base::UmaHistogramCustomTimes(histogram_tag_ + ".TimeInitializeDB",
+                                base::Time::Now() - start,
+                                base::TimeDelta::FromMilliseconds(1),
+                                base::TimeDelta::FromMinutes(1), 50);
 
   initialized_ = DoInitializeDatabase();
 
@@ -184,19 +187,20 @@ bool SQLitePersistentStoreBackendBase::MigrateDatabaseSchema() {
 
   // |cur_version| is the version that the database ends up at, after all the
   // database upgrade statements.
-  absl::optional<int> cur_version = DoMigrateDatabaseSchema();
+  base::Optional<int> cur_version = DoMigrateDatabaseSchema();
   if (!cur_version.has_value())
     return false;
 
-  // Metatable is corrupted. Try to recover.
   if (cur_version.value() < current_version_number_) {
+    base::UmaHistogramCounts100(histogram_tag_ + ".CorruptMetaTable", 1);
+
     meta_table_.Reset();
     db_ = std::make_unique<sql::Database>();
-    bool recovered = sql::Database::Delete(path_) && db()->Open(path_) &&
-                     meta_table_.Init(db(), current_version_number_,
-                                      compatible_version_number_);
-    LOCAL_HISTOGRAM_BOOLEAN("Net.SQLite.CorruptMetaTableRecovered", recovered);
-    if (!recovered) {
+    if (!sql::Database::Delete(path_) || !db()->Open(path_) ||
+        !meta_table_.Init(db(), current_version_number_,
+                          compatible_version_number_)) {
+      base::UmaHistogramCounts100(
+          histogram_tag_ + ".CorruptMetaTableRecoveryFailed", 1);
       NOTREACHED() << "Unable to reset the " << histogram_tag_ << " DB.";
       meta_table_.Reset();
       db_.reset();
@@ -256,7 +260,8 @@ void SQLitePersistentStoreBackendBase::KillDatabase() {
   if (db_) {
     // This Backend will now be in-memory only. In a future run we will recreate
     // the database. Hopefully things go better then!
-    db_->RazeAndClose();
+    bool success = db_->RazeAndClose();
+    base::UmaHistogramBoolean(histogram_tag_ + ".KillDatabaseResult", success);
     meta_table_.Reset();
     db_.reset();
   }

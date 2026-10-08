@@ -1,6 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+#include "components/spellcheck/browser/spelling_service_client.h"
 
 #include <stddef.h>
 
@@ -10,6 +12,7 @@
 
 #include "base/bind.h"
 #include "base/json/json_reader.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -17,14 +20,12 @@
 #include "chrome/test/base/testing_profile.h"
 #include "components/prefs/pref_service.h"
 #include "components/spellcheck/browser/pref_names.h"
-#include "components/spellcheck/browser/spelling_service_client.h"
 #include "components/spellcheck/common/spellcheck_result.h"
 #include "content/public/test/browser_task_environment.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_util.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -65,10 +66,10 @@ class TestingSpellingServiceClient : public SpellingServiceClient {
   }
 
   void VerifyResponse(bool success,
-                      const std::u16string& request_text,
+                      const base::string16& request_text,
                       const std::vector<SpellCheckResult>& results) {
     EXPECT_EQ(success_, success);
-    std::u16string text(base::UTF8ToUTF16(sanitized_request_text_));
+    base::string16 text(base::UTF8ToUTF16(sanitized_request_text_));
     for (auto it = results.begin(); it != results.end(); ++it) {
       text.replace(it->location, it->length, it->replacements[0]);
     }
@@ -87,7 +88,7 @@ class TestingSpellingServiceClient : public SpellingServiceClient {
  private:
   bool success_;
   std::string sanitized_request_text_;
-  std::u16string corrected_text_;
+  base::string16 corrected_text_;
   network::TestURLLoaderFactory test_url_loader_factory_;
   scoped_refptr<network::SharedURLLoaderFactory> test_shared_loader_factory_;
 };
@@ -100,7 +101,7 @@ class SpellingServiceClientTest
  public:
   void OnTextCheckComplete(int tag,
                            bool success,
-                           const std::u16string& text,
+                           const base::string16& text,
                            const std::vector<SpellCheckResult>& results) {
     client_.VerifyResponse(success, text, results);
   }
@@ -113,7 +114,7 @@ class SpellingServiceClientTest
     } kCountries[] = {
         {"af", "ZAF"}, {"en", "USA"},
     };
-    for (size_t i = 0; i < std::size(kCountries); ++i) {
+    for (size_t i = 0; i < base::size(kCountries); ++i) {
       if (!language.compare(kCountries[i].language)) {
         country->assign(kCountries[i].country);
         return true;
@@ -185,7 +186,7 @@ TEST_P(SpellingServiceClientTest, RequestTextCheck) {
                                      test_case.corrected_text);
 
   base::ListValue dictionary;
-  dictionary.Append(test_case.language);
+  dictionary.AppendString(test_case.language);
   pref->Set(spellcheck::prefs::kSpellCheckDictionaries, dictionary);
 
   client_.RequestTextCheck(
@@ -206,27 +207,30 @@ TEST_P(SpellingServiceClientTest, RequestTextCheck) {
   EXPECT_EQ("application/json", request_content_type);
 
   // Parse the JSON sent to the service, and verify its parameters.
-  absl::optional<base::Value> value = base::JSONReader::Read(
-      intercepted_body, base::JSON_ALLOW_TRAILING_COMMAS);
-  ASSERT_TRUE(value);
-  ASSERT_TRUE(value->is_dict());
-  const base::Value::Dict& dict = value->GetDict();
+  std::unique_ptr<base::DictionaryValue> value(
+      static_cast<base::DictionaryValue*>(
+          base::JSONReader::ReadDeprecated(intercepted_body,
+                                           base::JSON_ALLOW_TRAILING_COMMAS)
+              .release()));
+  ASSERT_TRUE(value.get());
 
-  EXPECT_FALSE(dict.FindString("method"));
-  EXPECT_FALSE(dict.FindString("apiVersion"));
-  const std::string* sanitized_text = dict.FindString("text");
-  EXPECT_TRUE(sanitized_text);
-  EXPECT_EQ(test_case.sanitized_request_text, *sanitized_text);
-  const std::string* language = dict.FindString("language");
-  EXPECT_TRUE(language);
+  std::string method;
+  EXPECT_FALSE(value->GetString("method", &method));
+  std::string version;
+  EXPECT_FALSE(value->GetString("apiVersion", &version));
+  std::string sanitized_text;
+  EXPECT_TRUE(value->GetString("text", &sanitized_text));
+  EXPECT_EQ(test_case.sanitized_request_text, sanitized_text);
+  std::string language;
+  EXPECT_TRUE(value->GetString("language", &language));
   std::string expected_language =
       test_case.language.empty() ? std::string("en") : test_case.language;
-  EXPECT_EQ(expected_language, *language);
+  EXPECT_EQ(expected_language, language);
   std::string expected_country;
-  ASSERT_TRUE(GetExpectedCountry(*language, &expected_country));
-  const std::string* country = dict.FindString("originCountry");
-  EXPECT_TRUE(country);
-  EXPECT_EQ(expected_country, *country);
+  ASSERT_TRUE(GetExpectedCountry(language, &expected_country));
+  std::string country;
+  EXPECT_TRUE(value->GetString("originCountry", &country));
+  EXPECT_EQ(expected_country, country);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -367,9 +371,9 @@ TEST_F(SpellingServiceClientTest, AvailableServices) {
   };
   // If spellcheck is allowed, then suggest is not since spellcheck is a
   // superset of suggest.
-  for (size_t i = 0; i < std::size(kSupported); ++i) {
+  for (size_t i = 0; i < base::size(kSupported); ++i) {
     base::ListValue dictionary;
-    dictionary.Append(kSupported[i]);
+    dictionary.AppendString(kSupported[i]);
     pref->Set(spellcheck::prefs::kSpellCheckDictionaries, dictionary);
 
     EXPECT_FALSE(client_.IsAvailable(&profile_, kSuggest));
@@ -384,10 +388,10 @@ TEST_F(SpellingServiceClientTest, AvailableServices) {
       "lv-LV", "nb-NO", "nl-NL", "pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU",
       "sk-SK", "sl-SI", "sh",    "sr",    "sv-SE", "tr-TR", "uk-UA", "vi-VN",
   };
-  for (size_t i = 0; i < std::size(kUnsupported); ++i) {
+  for (size_t i = 0; i < base::size(kUnsupported); ++i) {
     SCOPED_TRACE(std::string("Expected language ") + kUnsupported[i]);
     base::ListValue dictionary;
-    dictionary.Append(kUnsupported[i]);
+    dictionary.AppendString(kUnsupported[i]);
     pref->Set(spellcheck::prefs::kSpellCheckDictionaries, dictionary);
 
     EXPECT_TRUE(client_.IsAvailable(&profile_, kSuggest));

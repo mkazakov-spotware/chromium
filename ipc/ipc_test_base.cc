@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel_mojo.h"
 
@@ -19,6 +20,8 @@ IPCChannelMojoTestBase::~IPCChannelMojoTestBase() = default;
 
 void IPCChannelMojoTestBase::Init(const std::string& test_client_name) {
   handle_ = helper_.StartChild(test_client_name);
+  task_environment_ =
+      std::make_unique<base::test::SingleThreadTaskEnvironment>();
 }
 
 bool IPCChannelMojoTestBase::WaitForClientShutdown() {
@@ -26,14 +29,15 @@ bool IPCChannelMojoTestBase::WaitForClientShutdown() {
 }
 
 void IPCChannelMojoTestBase::TearDown() {
-  base::RunLoop().RunUntilIdle();
+  if (task_environment_)
+    base::RunLoop().RunUntilIdle();
 }
 
 void IPCChannelMojoTestBase::CreateChannel(IPC::Listener* listener) {
-  channel_ = IPC::ChannelMojo::Create(
-      TakeHandle(), IPC::Channel::MODE_SERVER, listener,
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), nullptr);
+  channel_ =
+      IPC::ChannelMojo::Create(TakeHandle(), IPC::Channel::MODE_SERVER,
+                               listener, base::ThreadTaskRunnerHandle::Get(),
+                               base::ThreadTaskRunnerHandle::Get(), nullptr);
 }
 
 bool IPCChannelMojoTestBase::ConnectChannel() {
@@ -57,10 +61,10 @@ void IpcChannelMojoTestClient::Init(mojo::ScopedMessagePipeHandle handle) {
 }
 
 void IpcChannelMojoTestClient::Connect(IPC::Listener* listener) {
-  channel_ = IPC::ChannelMojo::Create(
-      std::move(handle_), IPC::Channel::MODE_CLIENT, listener,
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), nullptr);
+  channel_ =
+      IPC::ChannelMojo::Create(std::move(handle_), IPC::Channel::MODE_CLIENT,
+                               listener, base::ThreadTaskRunnerHandle::Get(),
+                               base::ThreadTaskRunnerHandle::Get(), nullptr);
   CHECK(channel_->Connect());
 }
 
@@ -68,7 +72,7 @@ void IpcChannelMojoTestClient::Close() {
   channel_->Close();
 
   base::RunLoop run_loop;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, run_loop.QuitClosure());
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                run_loop.QuitClosure());
   run_loop.Run();
 }

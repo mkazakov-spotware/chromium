@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/check.h"
 #include "base/feature_list.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
@@ -21,22 +20,6 @@
 namespace metrics {
 
 namespace {
-
-constexpr base::FeatureState kSamplingProfilerReportingDefaultState =
-    base::FEATURE_ENABLED_BY_DEFAULT;
-
-bool SamplingProfilerReportingEnabled() {
-  // TODO(crbug.com/1384179): Do not call this function before the FeatureList
-  // is registered.
-  if (!base::FeatureList::GetInstance()) {
-    // The FeatureList is not registered: use the feature's default state. This
-    // means that any override from the command line or variations service is
-    // ignored.
-    return kSamplingProfilerReportingDefaultState ==
-           base::FEATURE_ENABLED_BY_DEFAULT;
-  }
-  return base::FeatureList::IsEnabled(kSamplingProfilerReporting);
-}
 
 // Cap the number of pending profiles to avoid excessive performance overhead
 // due to profile deserialization when profile uploads are delayed (e.g. due to
@@ -71,9 +54,6 @@ class PendingProfiles {
  public:
   static PendingProfiles* GetInstance();
 
-  PendingProfiles(const PendingProfiles&) = delete;
-  PendingProfiles& operator=(const PendingProfiles&) = delete;
-
   // Retrieves all the pending profiles.
   std::vector<SampledProfile> RetrieveProfiles();
 
@@ -90,21 +70,10 @@ class PendingProfiles {
 
   // Collects |serialized_profile|. It may be ignored depending on the
   // pre-defined storage capacity and whether collection is enabled.
-  // |serialized_profile| must be passed with std::move because it could be very
-  // large.
+  // |serialized_profile| is not const& because it must be passed with
+  // std::move.
   void MaybeCollectSerializedProfile(base::TimeTicks profile_start_time,
-                                     std::string&& serialized_profile);
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Returns all the serialized profiles that have been collected but not yet
-  // retrieved. For thread-safety reasons, returns a copy, so this is an
-  // expensive function. Fortunately, it's only called during ChromeOS tast
-  // integration tests.
-  std::vector<std::string> GetUnretrievedProfiles() {
-    base::AutoLock scoped_lock(lock_);
-    return serialized_profiles_;
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+                                     std::string serialized_profile);
 
   // Allows testing against the initial state multiple times.
   void ResetToDefaultStateForTesting();
@@ -142,6 +111,8 @@ class PendingProfiles {
 
   // The set of completed serialized profiles that should be reported.
   std::vector<std::string> serialized_profiles_ GUARDED_BY(lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(PendingProfiles);
 };
 
 // static
@@ -164,7 +135,8 @@ std::vector<SampledProfile> PendingProfiles::RetrieveProfiles() {
   profiles.reserve(serialized_profiles.size());
   for (const auto& serialized_profile : serialized_profiles) {
     SampledProfile profile;
-    if (profile.ParseFromString(serialized_profile)) {
+    if (profile.ParseFromArray(serialized_profile.data(),
+                               serialized_profile.size())) {
       profiles.push_back(std::move(profile));
     }
   }
@@ -231,7 +203,7 @@ void PendingProfiles::MaybeCollectProfile(base::TimeTicks profile_start_time,
 
 void PendingProfiles::MaybeCollectSerializedProfile(
     base::TimeTicks profile_start_time,
-    std::string&& serialized_profile) {
+    std::string serialized_profile) {
   base::AutoLock scoped_lock(lock_);
 
   // There is no room for additional profiles.
@@ -253,124 +225,16 @@ void PendingProfiles::ResetToDefaultStateForTesting() {
 
 PendingProfiles::PendingProfiles() = default;
 
-#if BUILDFLAG(IS_CHROMEOS)
-// A class that records the number of minimally-successful profiles received
-// over time. In ChromeOS, this is used by the ui.StackSampledMetrics tast
-// integration test to confirm that stack-sampled metrics are working on
-// all the various ChromeOS boards.
-class ReceivedProfileCounter {
- public:
-  static ReceivedProfileCounter* GetInstance();
-
-  ReceivedProfileCounter(const ReceivedProfileCounter&) = delete;
-  ReceivedProfileCounter& operator=(const ReceivedProfileCounter&) = delete;
-  ~ReceivedProfileCounter() = delete;
-
-  // Gets the counts of all successfully collected profiles, broken down by
-  // process type and thread type. "Successfully collected" is defined pretty
-  // minimally (we got a couple of frames).
-  CallStackProfileMetricsProvider::ProcessThreadCount
-  GetSuccessfullyCollectedCounts();
-
-  // Given a list of profiles returned from PendingProfiles::RetrieveProfiles(),
-  // add counts from all the successful profiles in the list to our counts for
-  // later.
-  void OnRetrieveProfiles(const std::vector<SampledProfile>& profiles);
-
-  // Allows testing against the initial state multiple times.
-  void ResetToDefaultStateForTesting();  // IN-TEST
-
- private:
-  friend class base::NoDestructor<ReceivedProfileCounter>;
-
-  ReceivedProfileCounter() = default;
-
-  // Returns true if the given profile was success enough to be counted in
-  // retrieved_successful_counts_.
-  static bool WasMinimallySuccessful(const SampledProfile& profile);
-
-  mutable base::Lock lock_;
-
-  // Count of successfully-stack-walked SampledProfiles retrieved since startup.
-  // "success" is defined by WasMinimallySuccessful().
-  CallStackProfileMetricsProvider::ProcessThreadCount
-      retrieved_successful_counts_ GUARDED_BY(lock_);
-};
-
-// static
-ReceivedProfileCounter* ReceivedProfileCounter::GetInstance() {
-  static base::NoDestructor<ReceivedProfileCounter> instance;
-  return instance.get();
-}
-
-// static
-bool ReceivedProfileCounter::WasMinimallySuccessful(
-    const SampledProfile& profile) {
-  // If we don't have a process or thread, we don't understand the profile.
-  if (!profile.has_process() || !profile.has_thread()) {
-    return false;
-  }
-
-  // Since we can't symbolize the stacks, "successful" here just means that the
-  // stack has at least 2 frames. (The current instruction pointer should always
-  // count as one, so two means we had some luck walking the stack.)
-  const auto& stacks = profile.call_stack_profile().stack();
-  return base::ranges::find_if(stacks,
-                               [](const CallStackProfile::Stack& stack) {
-                                 return stack.frame_size() >= 2;
-                               }) != stacks.end();
-}
-
-void ReceivedProfileCounter::OnRetrieveProfiles(
-    const std::vector<SampledProfile>& profiles) {
-  base::AutoLock scoped_lock(lock_);
-  for (const auto& profile : profiles) {
-    if (WasMinimallySuccessful(profile)) {
-      ++retrieved_successful_counts_[profile.process()][profile.thread()];
-    }
-  }
-}
-
-CallStackProfileMetricsProvider::ProcessThreadCount
-ReceivedProfileCounter::GetSuccessfullyCollectedCounts() {
-  CallStackProfileMetricsProvider::ProcessThreadCount successful_counts;
-
-  {
-    base::AutoLock scoped_lock(lock_);
-    // Start with count of profiles we've already sent
-    successful_counts = retrieved_successful_counts_;
-  }
-
-  // And then add in any pending ones. Copying and then deserializing all the
-  // profiles is expensive, but again, this should only be called during tast
-  // integration tests.
-  std::vector<std::string> unretrieved_profiles(
-      PendingProfiles::GetInstance()->GetUnretrievedProfiles());
-  for (const std::string& serialized_profile : unretrieved_profiles) {
-    SampledProfile profile;
-    if (profile.ParseFromString(serialized_profile)) {
-      if (WasMinimallySuccessful(profile)) {
-        ++successful_counts[profile.process()][profile.thread()];
-      }
-    }
-  }
-
-  return successful_counts;
-}
-
-void ReceivedProfileCounter::ResetToDefaultStateForTesting() {
-  base::AutoLock scoped_lock(lock_);
-  retrieved_successful_counts_.clear();
-}
-
-#endif  // BUILDFLAG(IS_CHROMEOS)
 }  // namespace
 
 // CallStackProfileMetricsProvider --------------------------------------------
 
-BASE_FEATURE(kSamplingProfilerReporting,
-             "SamplingProfilerReporting",
-             kSamplingProfilerReportingDefaultState);
+const base::Feature
+    CallStackProfileMetricsProvider::kSamplingProfilerReporting = {
+        "SamplingProfilerReporting", base::FEATURE_ENABLED_BY_DEFAULT};
+
+const base::Feature CallStackProfileMetricsProvider::kHeapProfilerReporting{
+    "HeapProfilerReporting", base::FEATURE_DISABLED_BY_DEFAULT};
 
 CallStackProfileMetricsProvider::CallStackProfileMetricsProvider() = default;
 CallStackProfileMetricsProvider::~CallStackProfileMetricsProvider() = default;
@@ -386,10 +250,12 @@ void CallStackProfileMetricsProvider::ReceiveProfile(
     return;
   }
 
-  if (profile.trigger_event() != SampledProfile::PERIODIC_HEAP_COLLECTION &&
-      !SamplingProfilerReportingEnabled()) {
+  const base::Feature& feature =
+      profile.trigger_event() == SampledProfile::PERIODIC_HEAP_COLLECTION
+          ? kHeapProfilerReporting
+          : kSamplingProfilerReporting;
+  if (!base::FeatureList::IsEnabled(feature))
     return;
-  }
   PendingProfiles::GetInstance()->MaybeCollectProfile(profile_start_time,
                                                       std::move(profile));
 }
@@ -397,16 +263,13 @@ void CallStackProfileMetricsProvider::ReceiveProfile(
 // static
 void CallStackProfileMetricsProvider::ReceiveSerializedProfile(
     base::TimeTicks profile_start_time,
-    bool is_heap_profile,
-    std::string&& serialized_profile) {
-  // Note: All parameters of this function come from a Mojo message from an
-  // untrusted process.
+    std::string serialized_profile) {
+  // Heap profiler does not use this path as it only reports profiles
+  // from the browser process.
   if (GetCpuInterceptorCallbackInstance()) {
-    // GetCpuInterceptorCallbackInstance() is set only in tests, so it's safe to
-    // trust `is_heap_profile` and `serialized_profile` here.
-    DCHECK(!is_heap_profile);
     SampledProfile profile;
-    if (profile.ParseFromString(serialized_profile)) {
+    if (profile.ParseFromArray(serialized_profile.data(),
+                               serialized_profile.size())) {
       DCHECK(profile.trigger_event() == SampledProfile::PROCESS_STARTUP ||
              profile.trigger_event() == SampledProfile::PERIODIC_COLLECTION);
       GetCpuInterceptorCallbackInstance().Run(std::move(profile));
@@ -414,12 +277,8 @@ void CallStackProfileMetricsProvider::ReceiveSerializedProfile(
     return;
   }
 
-  // If an attacker spoofs `is_heap_profile` or `profile_start_time`, the worst
-  // they can do is cause `serialized_profile` to be sent to UMA when profile
-  // reporting should be disabled.
-  if (!is_heap_profile && !SamplingProfilerReportingEnabled()) {
+  if (!base::FeatureList::IsEnabled(kSamplingProfilerReporting))
     return;
-  }
   PendingProfiles::GetInstance()->MaybeCollectSerializedProfile(
       profile_start_time, std::move(serialized_profile));
 }
@@ -429,15 +288,6 @@ void CallStackProfileMetricsProvider::SetCpuInterceptorCallbackForTesting(
     InterceptorCallback callback) {
   GetCpuInterceptorCallbackInstance() = std::move(callback);
 }
-
-#if BUILDFLAG(IS_CHROMEOS)
-// static
-CallStackProfileMetricsProvider::ProcessThreadCount
-CallStackProfileMetricsProvider::GetSuccessfullyCollectedCounts() {
-  return ReceivedProfileCounter::GetInstance()
-      ->GetSuccessfullyCollectedCounts();
-}
-#endif
 
 void CallStackProfileMetricsProvider::OnRecordingEnabled() {
   PendingProfiles::GetInstance()->SetCollectionEnabled(true);
@@ -451,26 +301,18 @@ void CallStackProfileMetricsProvider::ProvideCurrentSessionData(
     ChromeUserMetricsExtension* uma_proto) {
   std::vector<SampledProfile> profiles =
       PendingProfiles::GetInstance()->RetrieveProfiles();
-#if BUILDFLAG(IS_CHROMEOS)
-  ReceivedProfileCounter::GetInstance()->OnRetrieveProfiles(profiles);
-#endif
 
-  for (auto& profile : profiles) {
-    // Only heap samples should ever be received if SamplingProfilerReporting is
-    // disabled.
-    DCHECK(SamplingProfilerReportingEnabled() ||
-           profile.trigger_event() == SampledProfile::PERIODIC_HEAP_COLLECTION);
+  DCHECK(base::FeatureList::IsEnabled(kSamplingProfilerReporting) ||
+         base::FeatureList::IsEnabled(kHeapProfilerReporting) ||
+         profiles.empty());
+
+  for (auto& profile : profiles)
     *uma_proto->add_sampled_profile() = std::move(profile);
-  }
 }
 
 // static
 void CallStackProfileMetricsProvider::ResetStaticStateForTesting() {
   PendingProfiles::GetInstance()->ResetToDefaultStateForTesting();
-#if BUILDFLAG(IS_CHROMEOS)
-  ReceivedProfileCounter::GetInstance()
-      ->ResetToDefaultStateForTesting();  // IN-TEST
-#endif
 }
 
 }  // namespace metrics

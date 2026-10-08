@@ -40,4 +40,4 @@ class HTMLNameCollection : public HTMLCollection {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_HTML_HTML_NAME_COLLECTION_H_
+#endif

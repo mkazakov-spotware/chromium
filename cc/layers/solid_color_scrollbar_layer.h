@@ -1,11 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_LAYERS_SOLID_COLOR_SCROLLBAR_LAYER_H_
 #define CC_LAYERS_SOLID_COLOR_SCROLLBAR_LAYER_H_
-
-#include <memory>
 
 #include "cc/cc_export.h"
 #include "cc/layers/layer.h"
@@ -17,8 +15,7 @@ namespace cc {
 // practice, this is used for overlay scrollbars on Android.
 class CC_EXPORT SolidColorScrollbarLayer : public ScrollbarLayerBase {
  public:
-  std::unique_ptr<LayerImpl> CreateLayerImpl(
-      LayerTreeImpl* tree_impl) const override;
+  std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
 
   static scoped_refptr<SolidColorScrollbarLayer> CreateOrReuse(
       scoped_refptr<Scrollbar>,

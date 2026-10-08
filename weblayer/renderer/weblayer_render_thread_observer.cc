@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,7 @@ WebLayerRenderThreadObserver::~WebLayerRenderThreadObserver() = default;
 
 void WebLayerRenderThreadObserver::RegisterMojoInterfaces(
     blink::AssociatedInterfaceRegistry* associated_interfaces) {
-  associated_interfaces->AddInterface<
-      mojom::RendererConfiguration>(base::BindRepeating(
+  associated_interfaces->AddInterface(base::BindRepeating(
       &WebLayerRenderThreadObserver::OnRendererConfigurationAssociatedRequest,
       base::Unretained(this)));
 }
@@ -26,11 +25,9 @@ void WebLayerRenderThreadObserver::UnregisterMojoInterfaces(
 }
 
 // weblayer::mojom::RendererConfiguration:
-void WebLayerRenderThreadObserver::SetInitialConfiguration(
-    mojo::PendingRemote<content_settings::mojom::ContentSettingsManager>
-        content_settings_manager) {
-  if (content_settings_manager)
-    content_settings_manager_.Bind(std::move(content_settings_manager));
+void WebLayerRenderThreadObserver::SetContentSettingRules(
+    const RendererContentSettingRules& rules) {
+  content_setting_rules_ = rules;
 }
 
 void WebLayerRenderThreadObserver::OnRendererConfigurationAssociatedRequest(

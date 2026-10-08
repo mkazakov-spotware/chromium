@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,21 @@
 
 #include <utility>
 
-#include <Foundation/Foundation.h>
-
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/enterprise_util.h"
+#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/mac/foundation_util.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/sequenced_task_runner.h"
 #include "base/strings/sys_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/policy/core/common/external_data_fetcher.h"
+#include "components/policy/core/common/features.h"
 #include "components/policy/core/common/mac_util.h"
 #include "components/policy/core/common/policy_bundle.h"
 #include "components/policy/core/common/policy_load_status.h"
@@ -38,10 +38,16 @@ namespace {
 
 // Encapsulates logic to determine if enterprise policies should be honored.
 bool ShouldHonorPolicies() {
-  // Only honor sensitive policies if the Mac is managed or connected to an
-  // enterprise.
-  // TODO (crbug.com/1322121): Use PlatformManagementService instead.
-  return base::IsManagedOrEnterpriseDevice();
+  base::DeviceUserDomainJoinState join_state =
+      base::AreDeviceAndUserJoinedToDomain();
+  // IsDeviceRegisteredWithManagementNew is only available after 10.13.4.
+  // Eventually switch to it when that is the minimum OS required by Chromium.
+  base::MacDeviceManagementStateOld mdm_state =
+      base::IsDeviceRegisteredWithManagementOld();
+
+  // Only honor sensitive policies if the Mac is managed externally.
+  return join_state.device_joined ||
+         mdm_state == base::MacDeviceManagementStateOld::kMDMEnrollment;
 }
 
 }  // namespace
@@ -60,7 +66,7 @@ PolicyLoaderMac::PolicyLoaderMac(
     const base::FilePath& managed_policy_path,
     MacPreferences* preferences,
     CFStringRef application_id)
-    : AsyncPolicyLoader(task_runner, /*periodic_updates=*/true),
+    : AsyncPolicyLoader(task_runner),
       preferences_(preferences),
       managed_policy_path_(managed_policy_path),
       application_id_(CFStringCreateCopy(kCFAllocatorDefault, application_id)) {
@@ -71,8 +77,7 @@ PolicyLoaderMac::~PolicyLoaderMac() {
 
 void PolicyLoaderMac::InitOnBackgroundThread() {
   if (!managed_policy_path_.empty()) {
-    watcher_.Watch(managed_policy_path_,
-                   base::FilePathWatcher::Type::kNonRecursive,
+    watcher_.Watch(managed_policy_path_, false,
                    base::BindRepeating(&PolicyLoaderMac::OnFileUpdated,
                                        base::Unretained(this)));
   }
@@ -84,13 +89,10 @@ void PolicyLoaderMac::InitOnBackgroundThread() {
     managed_policy_file_exists = true;
   }
 
-  base::UmaHistogramBoolean("EnterpriseCheck.IsManagedOrEnterpriseDevice",
-                            base::IsManagedOrEnterpriseDevice());
-
   base::UmaHistogramBoolean("EnterpriseCheck.IsManaged2",
                             managed_policy_file_exists);
   base::UmaHistogramBoolean("EnterpriseCheck.IsEnterpriseUser",
-                            base::IsEnterpriseDevice());
+                            base::IsMachineExternallyManaged());
 
   base::UmaHistogramEnumeration("EnterpriseCheck.Mac.IsDeviceMDMEnrolledOld",
                                 base::IsDeviceRegisteredWithManagementOld());
@@ -104,13 +106,13 @@ void PolicyLoaderMac::InitOnBackgroundThread() {
                             state.user_joined);
 }
 
-PolicyBundle PolicyLoaderMac::Load() {
+std::unique_ptr<PolicyBundle> PolicyLoaderMac::Load() {
   preferences_->AppSynchronize(application_id_);
-  PolicyBundle bundle;
+  std::unique_ptr<PolicyBundle> bundle(new PolicyBundle());
 
   // Load Chrome's policy.
   PolicyMap& chrome_policy =
-      bundle.Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string()));
+      bundle->Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string()));
 
   PolicyLoadStatusUmaReporter status;
   bool policy_present = false;
@@ -128,16 +130,11 @@ PolicyBundle PolicyLoaderMac::Load() {
     bool forced = preferences_->AppValueIsForced(name, application_id_);
     PolicyLevel level =
         forced ? POLICY_LEVEL_MANDATORY : POLICY_LEVEL_RECOMMENDED;
-    PolicyScope scope = POLICY_SCOPE_USER;
-    if (forced) {
-      scope = preferences_->IsManagedPolicyAvailableForMachineScope(name)
-                  ? POLICY_SCOPE_MACHINE
-                  : POLICY_SCOPE_USER;
-    }
+    // TODO(joaodasilva): figure the policy scope.
     std::unique_ptr<base::Value> policy = PropertyToValue(value);
     if (policy) {
-      chrome_policy.Set(it.key(), level, scope, POLICY_SOURCE_PLATFORM,
-                        std::move(*policy), nullptr);
+      chrome_policy.Set(it.key(), level, POLICY_SCOPE_MACHINE,
+                        POLICY_SOURCE_PLATFORM, std::move(*policy), nullptr);
     } else {
       status.Add(POLICY_LOAD_STATUS_PARSE_ERROR);
     }
@@ -147,7 +144,7 @@ PolicyBundle PolicyLoaderMac::Load() {
     status.Add(POLICY_LOAD_STATUS_NO_POLICY);
 
   // Load policy for the registered components.
-  LoadPolicyForDomain(POLICY_DOMAIN_EXTENSIONS, "extensions", &bundle);
+  LoadPolicyForDomain(POLICY_DOMAIN_EXTENSIONS, "extensions", bundle.get());
 
   if (!ShouldHonorPolicies())
     FilterSensitivePolicies(&chrome_policy);
@@ -165,7 +162,7 @@ base::Time PolicyLoaderMac::LastModificationTime() {
   return file_info.last_modified;
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 
 base::FilePath PolicyLoaderMac::GetManagedPolicyPath(CFStringRef bundle_id) {
   // This constructs the path to the plist file in which Mac OS X stores the
@@ -190,7 +187,7 @@ base::FilePath PolicyLoaderMac::GetManagedPolicyPath(CFStringRef bundle_id) {
 void PolicyLoaderMac::LoadPolicyForDomain(PolicyDomain domain,
                                           const std::string& domain_name,
                                           PolicyBundle* bundle) {
-  std::string id_prefix(base::SysCFStringRefToUTF8(application_id_));
+  std::string id_prefix(base::mac::BaseBundleID());
   id_prefix.append(".").append(domain_name).append(".");
 
   const ComponentMap* components = schema_map()->GetComponents(domain);
@@ -231,15 +228,9 @@ void PolicyLoaderMac::LoadPolicyForComponent(
     bool forced = preferences_->AppValueIsForced(pref_name, bundle_id);
     PolicyLevel level =
         forced ? POLICY_LEVEL_MANDATORY : POLICY_LEVEL_RECOMMENDED;
-    PolicyScope scope = POLICY_SCOPE_USER;
-    if (forced) {
-      scope = preferences_->IsManagedPolicyAvailableForMachineScope(pref_name)
-                  ? POLICY_SCOPE_MACHINE
-                  : POLICY_SCOPE_USER;
-    }
     std::unique_ptr<base::Value> policy_value = PropertyToValue(value);
     if (policy_value) {
-      policy->Set(it.key(), level, scope, POLICY_SOURCE_PLATFORM,
+      policy->Set(it.key(), level, POLICY_SCOPE_MACHINE, POLICY_SOURCE_PLATFORM,
                   std::move(*policy_value), nullptr);
     }
   }

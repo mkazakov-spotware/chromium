@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 
 #include <string>
 
+#include "base/macros.h"
+
 // A helper class for use by unit tests that need some registry space and data.
 // BEWARE: Instances of this class irrevocably and recursively delete keys and
 // values from the registry.  Carefully read the comments for Initialize and
@@ -16,10 +18,6 @@
 class RegistryTestData {
  public:
   RegistryTestData();
-
-  RegistryTestData(const RegistryTestData&) = delete;
-  RegistryTestData& operator=(const RegistryTestData&) = delete;
-
   // Invokes Reset() on its way out.
   ~RegistryTestData();
 
@@ -53,6 +51,8 @@ class RegistryTestData {
   std::wstring base_path_;
   std::wstring empty_key_path_;
   std::wstring non_empty_key_path_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegistryTestData);
 };
 
 #endif  // CHROME_INSTALLER_UTIL_REGISTRY_TEST_DATA_H_

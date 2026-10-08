@@ -1,9 +1,10 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/browser/ssl_status.h"
 
+#include "net/cert/sct_status_flags.h"
 #include "net/ssl/ssl_info.h"
 
 namespace content {
@@ -39,7 +40,8 @@ SSLStatus::SSLStatus(const SSLStatus& other)
       connection_status(other.connection_status),
       content_status(other.content_status),
       pkp_bypassed(other.pkp_bypassed),
-      ct_policy_compliance(other.ct_policy_compliance) {}
+      ct_policy_compliance(other.ct_policy_compliance),
+      user_data(other.user_data ? other.user_data->Clone() : nullptr) {}
 
 SSLStatus& SSLStatus::operator=(SSLStatus other) {
   initialized = other.initialized;
@@ -51,6 +53,7 @@ SSLStatus& SSLStatus::operator=(SSLStatus other) {
   content_status = other.content_status;
   pkp_bypassed = other.pkp_bypassed;
   ct_policy_compliance = other.ct_policy_compliance;
+  user_data = other.user_data ? other.user_data->Clone() : nullptr;
   return *this;
 }
 

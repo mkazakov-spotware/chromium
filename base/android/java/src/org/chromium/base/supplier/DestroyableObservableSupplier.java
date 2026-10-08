@@ -1,10 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base.supplier;
-
-import org.chromium.base.lifetime.Destroyable;
 
 /**
  * An {@link ObservableSupplier} that may be destroyed by anyone with a reference to the object.
@@ -14,4 +12,9 @@ import org.chromium.base.lifetime.Destroyable;
  *
  * @param <E> The type of the wrapped object.
  */
-public interface DestroyableObservableSupplier<E> extends ObservableSupplier<E>, Destroyable {}
+public interface DestroyableObservableSupplier<E> extends ObservableSupplier<E> {
+    /**
+     * Destroy the supplier and the object it holds.
+     */
+    void destroy();
+}

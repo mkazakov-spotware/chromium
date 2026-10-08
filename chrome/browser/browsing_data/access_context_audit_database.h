@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
-#include "base/time/time.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
-#include "content/public/browser/storage_partition.h"
 #include "net/cookies/canonical_cookie.h"
 #include "sql/database.h"
 #include "sql/init_status.h"
@@ -33,8 +31,8 @@ class AccessContextAuditDatabase
     kServiceWorker = 5,
     kCacheStorage = 6,
     kIndexedDB = 7,
-    kAppCacheDeprecated = 8,
-    kMaxValue = kAppCacheDeprecated
+    kAppCache = 8,
+    kMaxValue = kAppCache
   };
 
   // An individual record of a Storage API access, associating the individual
@@ -84,12 +82,6 @@ class AccessContextAuditDatabase
   // Persists the provided list of |records| in the database.
   void AddRecords(const std::vector<AccessRecord>& records);
 
-  // Returns all cookie entries in the database. No ordering is enforced.
-  std::vector<AccessRecord> GetCookieRecords();
-
-  // Returns all storage entries in the database. No ordering is enforced.
-  std::vector<AccessRecord> GetStorageRecords();
-
   // Returns all entries in the database. No ordering is enforced.
   std::vector<AccessRecord> GetAllRecords();
 
@@ -99,21 +91,8 @@ class AccessContextAuditDatabase
   // Removes all records from the the database.
   void RemoveAllRecords();
 
-  // Remove all records from the database from a history deletion.
-  // Unlike RemoveAllRecords, this method keeps a record of cross-site storage
-  // access but replaces the top-level origin with an opaque origin. This is due
-  // to the fact that we use cross-site storage access records to clear
-  // third-party storage when a user manually clears third-party cookies.
-  void RemoveAllRecordsHistory();
-
   // Removes all records where |begin| <= record.last_access_time <= |end|.
   void RemoveAllRecordsForTimeRange(base::Time begin, base::Time end);
-
-  // Removes all records where |begin| <= record.last_access_time <= |end| from
-  // a history deletion. Like RemoveAllRecordsHistory, we keep cross-site
-  // storage access records and make the top-level origin opaque when user
-  // controls for third-party data clearing is enabled.
-  void RemoveAllRecordsForTimeRangeHistory(base::Time begin, base::Time end);
 
   // Removes all records that match the provided cookie details.
   void RemoveAllRecordsForCookie(const std::string& name,
@@ -135,11 +114,11 @@ class AccessContextAuditDatabase
       const ContentSettingsForOneType& content_settings);
 
   // Remove storage API access records for which the storage type is a member of
-  // `storage_api_types`, the timestamp is between `begin` and `end`, and the
-  // `storage_key_matcher` callback, if set, returns true for the storage key.
+  // |storage_api_types|, the timestamp is between |begin| and |end|, and the
+  // |origin_matcher| callback, if set, returns true for the storage origin.
   void RemoveStorageApiRecords(
       const std::set<StorageAPIType>& storage_api_types,
-      content::StoragePartition::StorageKeyMatcherFunction storage_key_matcher,
+      base::RepeatingCallback<bool(const url::Origin&)> origin_matcher,
       base::Time begin,
       base::Time end);
 
@@ -149,11 +128,6 @@ class AccessContextAuditDatabase
  private:
   friend class base::RefCountedThreadSafe<AccessContextAuditDatabase>;
   bool InitializeSchema();
-
-  std::vector<AccessRecord> GetStorageRecordsForTopFrameOrigins(
-      const std::vector<url::Origin>& origins);
-  std::vector<AccessRecord> GetStorageRecordsForTimeRange(base::Time begin,
-                                                          base::Time end);
 
   sql::Database db_;
   sql::MetaTable meta_table_;

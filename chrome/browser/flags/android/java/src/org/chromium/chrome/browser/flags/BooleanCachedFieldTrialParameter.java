@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,12 @@ public class BooleanCachedFieldTrialParameter extends CachedFieldTrialParameter 
 
     public BooleanCachedFieldTrialParameter(
             String featureName, String variationName, boolean defaultValue) {
-        super(featureName, variationName, FieldTrialParameterType.BOOLEAN);
+        this(featureName, variationName, defaultValue, null);
+    }
+
+    public BooleanCachedFieldTrialParameter(String featureName, String variationName,
+            boolean defaultValue, String preferenceKeyOverride) {
+        super(featureName, variationName, FieldTrialParameterType.BOOLEAN, preferenceKeyOverride);
         mDefaultValue = defaultValue;
     }
 

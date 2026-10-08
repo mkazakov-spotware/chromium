@@ -1,9 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_TEST_MOVE_ONLY_INT_H_
 #define BASE_TEST_MOVE_ONLY_INT_H_
+
+#include "base/macros.h"
 
 namespace base {
 
@@ -13,10 +15,6 @@ class MoveOnlyInt {
  public:
   explicit MoveOnlyInt(int data = 1) : data_(data) {}
   MoveOnlyInt(MoveOnlyInt&& other) : data_(other.data_) { other.data_ = 0; }
-
-  MoveOnlyInt(const MoveOnlyInt&) = delete;
-  MoveOnlyInt& operator=(const MoveOnlyInt&) = delete;
-
   ~MoveOnlyInt() { data_ = 0; }
 
   MoveOnlyInt& operator=(MoveOnlyInt&& other) {
@@ -61,6 +59,8 @@ class MoveOnlyInt {
 
  private:
   volatile int data_;
+
+  DISALLOW_COPY_AND_ASSIGN(MoveOnlyInt);
 };
 
 }  // namespace base

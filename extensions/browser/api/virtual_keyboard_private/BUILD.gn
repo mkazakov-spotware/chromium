@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,24 +9,12 @@ assert(enable_extensions,
 
 source_set("virtual_keyboard_private") {
   sources = [
+    "virtual_keyboard_delegate.h",
     "virtual_keyboard_private_api.cc",
     "virtual_keyboard_private_api.h",
   ]
 
   deps = [ "//extensions/common/api" ]
 
-  public_deps = [
-    ":virtual_keyboard_delegate",
-    "//extensions/browser:browser_sources",
-  ]
-}
-
-source_set("virtual_keyboard_delegate") {
-  sources = [ "virtual_keyboard_delegate.h" ]
-
-  deps = [
-    "//content/public/browser",
-    "//extensions/common/api",
-    "//ui/gfx/geometry",
-  ]
+  public_deps = [ "//extensions/browser:browser_sources" ]
 }

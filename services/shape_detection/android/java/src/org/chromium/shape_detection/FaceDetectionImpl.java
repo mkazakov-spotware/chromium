@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,8 +36,7 @@ public class FaceDetectionImpl implements FaceDetection {
     }
 
     @Override
-    public void detect(
-            org.chromium.skia.mojom.BitmapN32 bitmapData, final Detect_Response callback) {
+    public void detect(org.chromium.skia.mojom.Bitmap bitmapData, final DetectResponse callback) {
         Bitmap bitmap = BitmapUtils.convertToBitmap(bitmapData);
         if (bitmap == null) {
             Log.e(TAG, "Error converting Mojom Bitmap to Android Bitmap");

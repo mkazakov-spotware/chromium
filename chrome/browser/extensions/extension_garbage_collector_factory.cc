@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,13 @@
 
 #include "base/memory/singleton.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_garbage_collector.h"
 #include "chrome/browser/extensions/extension_system_factory.h"
 #include "chrome/browser/extensions/install_tracker_factory.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "extensions/browser/extensions_browser_client.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chrome/browser/extensions/extension_garbage_collector_chromeos.h"
 #endif
 
@@ -35,7 +35,9 @@ ExtensionGarbageCollectorFactory::GetInstance() {
 }
 
 ExtensionGarbageCollectorFactory::ExtensionGarbageCollectorFactory()
-    : ProfileKeyedServiceFactory("ExtensionGarbageCollector") {
+    : BrowserContextKeyedServiceFactory(
+          "ExtensionGarbageCollector",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(InstallTrackerFactory::GetInstance());
 }
@@ -46,7 +48,7 @@ ExtensionGarbageCollectorFactory::~ExtensionGarbageCollectorFactory() {}
 std::unique_ptr<KeyedService>
 ExtensionGarbageCollectorFactory::BuildInstanceFor(
     content::BrowserContext* context) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   return std::make_unique<ExtensionGarbageCollectorChromeOS>(context);
 #else
   return std::make_unique<ExtensionGarbageCollector>(context);

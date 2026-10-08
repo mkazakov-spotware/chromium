@@ -1,96 +1,38 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/power_monitor/power_monitor.h"
 
+#include <atomic>
 #include <utility>
 
 #include "base/logging.h"
-#include "base/no_destructor.h"
 #include "base/power_monitor/power_monitor_source.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
 
 namespace base {
 
+namespace {
+std::atomic_bool g_is_process_suspended{false};
+}
+
 void PowerMonitor::Initialize(std::unique_ptr<PowerMonitorSource> source) {
   DCHECK(!IsInitialized());
-  PowerMonitor* power_monitor = GetInstance();
-  power_monitor->source_ = std::move(source);
-
-  // When a power source is associated with the power monitor, ensure the
-  // initial state is propagated to observers, if needed.
-  PowerMonitor::NotifyPowerStateChange(
-      PowerMonitor::Source()->IsOnBatteryPower());
-
-  PowerMonitor::PowerMonitor::NotifyThermalStateChange(
-      PowerMonitor::Source()->GetCurrentThermalState());
-
-  PowerMonitor::PowerMonitor::NotifySpeedLimitChange(
-      PowerMonitor::Source()->GetInitialSpeedLimit());
+  GetInstance()->source_ = std::move(source);
 }
 
 bool PowerMonitor::IsInitialized() {
   return GetInstance()->source_.get() != nullptr;
 }
 
-// static
-void PowerMonitor::AddPowerSuspendObserver(PowerSuspendObserver* obs) {
-  GetInstance()->power_suspend_observers_->AddObserver(obs);
+void PowerMonitor::AddObserver(PowerObserver* obs) {
+  GetInstance()->observers_->AddObserver(obs);
 }
 
-// static
-void PowerMonitor::RemovePowerSuspendObserver(PowerSuspendObserver* obs) {
-  GetInstance()->power_suspend_observers_->RemoveObserver(obs);
-}
-
-// static
-void PowerMonitor::AddPowerStateObserver(PowerStateObserver* obs) {
-  GetInstance()->power_state_observers_->AddObserver(obs);
-}
-
-// static
-void PowerMonitor::RemovePowerStateObserver(PowerStateObserver* obs) {
-  GetInstance()->power_state_observers_->RemoveObserver(obs);
-}
-
-// static
-void PowerMonitor::AddPowerThermalObserver(PowerThermalObserver* obs) {
-  GetInstance()->thermal_state_observers_->AddObserver(obs);
-}
-
-// static
-void PowerMonitor::RemovePowerThermalObserver(PowerThermalObserver* obs) {
-  GetInstance()->thermal_state_observers_->RemoveObserver(obs);
-}
-
-// static
-bool PowerMonitor::AddPowerSuspendObserverAndReturnSuspendedState(
-    PowerSuspendObserver* obs) {
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->is_system_suspended_lock_);
-  power_monitor->power_suspend_observers_->AddObserver(obs);
-  return power_monitor->is_system_suspended_;
-}
-
-// static
-bool PowerMonitor::AddPowerStateObserverAndReturnOnBatteryState(
-    PowerStateObserver* obs) {
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->on_battery_power_lock_);
-  power_monitor->power_state_observers_->AddObserver(obs);
-  return power_monitor->on_battery_power_;
-}
-
-// static
-PowerThermalObserver::DeviceThermalState
-PowerMonitor::AddPowerStateObserverAndReturnPowerThermalState(
-    PowerThermalObserver* obs) {
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->power_thermal_state_lock_);
-  power_monitor->thermal_state_observers_->AddObserver(obs);
-  return power_monitor->power_thermal_state_;
+void PowerMonitor::RemoveObserver(PowerObserver* obs) {
+  GetInstance()->observers_->RemoveObserver(obs);
 }
 
 PowerMonitorSource* PowerMonitor::Source() {
@@ -99,70 +41,36 @@ PowerMonitorSource* PowerMonitor::Source() {
 
 bool PowerMonitor::IsOnBatteryPower() {
   DCHECK(IsInitialized());
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->on_battery_power_lock_);
-  return power_monitor->on_battery_power_;
-}
-
-TimeTicks PowerMonitor::GetLastSystemResumeTime() {
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->is_system_suspended_lock_);
-  return power_monitor->last_system_resume_time_;
+  return GetInstance()->source_->IsOnBatteryPower();
 }
 
 void PowerMonitor::ShutdownForTesting() {
   GetInstance()->source_ = nullptr;
-
-  PowerMonitor* power_monitor = GetInstance();
-  {
-    AutoLock auto_lock(power_monitor->is_system_suspended_lock_);
-    power_monitor->is_system_suspended_ = false;
-    power_monitor->last_system_resume_time_ = TimeTicks();
-  }
-  {
-    AutoLock auto_lock(power_monitor->on_battery_power_lock_);
-    power_monitor->on_battery_power_ = false;
-  }
-  {
-    AutoLock auto_lock(power_monitor->power_thermal_state_lock_);
-    power_monitor->power_thermal_state_ =
-        PowerThermalObserver::DeviceThermalState::kUnknown;
-  }
+  g_is_process_suspended.store(false, std::memory_order_relaxed);
 }
 
-// static
-PowerThermalObserver::DeviceThermalState
-PowerMonitor::GetCurrentThermalState() {
+bool PowerMonitor::IsProcessSuspended() {
+  return g_is_process_suspended.load(std::memory_order_relaxed);
+}
+
+PowerObserver::DeviceThermalState PowerMonitor::GetCurrentThermalState() {
   DCHECK(IsInitialized());
   return GetInstance()->source_->GetCurrentThermalState();
 }
 
-// static
-void PowerMonitor::SetCurrentThermalState(
-    PowerThermalObserver::DeviceThermalState state) {
-  DCHECK(IsInitialized());
-  GetInstance()->source_->SetCurrentThermalState(state);
-}
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 int PowerMonitor::GetRemainingBatteryCapacity() {
   DCHECK(IsInitialized());
-  return PowerMonitor::Source()->GetRemainingBatteryCapacity();
+  return GetInstance()->source_->GetRemainingBatteryCapacity();
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
-void PowerMonitor::NotifyPowerStateChange(bool on_battery_power) {
+void PowerMonitor::NotifyPowerStateChange(bool battery_in_use) {
   DCHECK(IsInitialized());
-  DVLOG(1) << "PowerStateChange: " << (on_battery_power ? "On" : "Off")
+  DVLOG(1) << "PowerStateChange: " << (battery_in_use ? "On" : "Off")
            << " battery";
-
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->on_battery_power_lock_);
-  if (power_monitor->on_battery_power_ != on_battery_power) {
-    power_monitor->on_battery_power_ = on_battery_power;
-    GetInstance()->power_state_observers_->Notify(
-        FROM_HERE, &PowerStateObserver::OnPowerStateChange, on_battery_power);
-  }
+  GetInstance()->observers_->Notify(
+      FROM_HERE, &PowerObserver::OnPowerStateChange, battery_in_use);
 }
 
 void PowerMonitor::NotifySuspend() {
@@ -170,15 +78,8 @@ void PowerMonitor::NotifySuspend() {
   TRACE_EVENT_INSTANT0("base", "PowerMonitor::NotifySuspend",
                        TRACE_EVENT_SCOPE_PROCESS);
   DVLOG(1) << "Power Suspending";
-
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->is_system_suspended_lock_);
-  if (!power_monitor->is_system_suspended_) {
-    power_monitor->is_system_suspended_ = true;
-    power_monitor->last_system_resume_time_ = TimeTicks::Max();
-    GetInstance()->power_suspend_observers_->Notify(
-        FROM_HERE, &PowerSuspendObserver::OnSuspend);
-  }
+  g_is_process_suspended.store(true, std::memory_order_relaxed);
+  GetInstance()->observers_->Notify(FROM_HERE, &PowerObserver::OnSuspend);
 }
 
 void PowerMonitor::NotifyResume() {
@@ -186,45 +87,17 @@ void PowerMonitor::NotifyResume() {
   TRACE_EVENT_INSTANT0("base", "PowerMonitor::NotifyResume",
                        TRACE_EVENT_SCOPE_PROCESS);
   DVLOG(1) << "Power Resuming";
-
-  TimeTicks resume_time = TimeTicks::Now();
-
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->is_system_suspended_lock_);
-  if (power_monitor->is_system_suspended_) {
-    power_monitor->is_system_suspended_ = false;
-    power_monitor->last_system_resume_time_ = resume_time;
-    GetInstance()->power_suspend_observers_->Notify(
-        FROM_HERE, &PowerSuspendObserver::OnResume);
-  }
+  g_is_process_suspended.store(false, std::memory_order_relaxed);
+  GetInstance()->observers_->Notify(FROM_HERE, &PowerObserver::OnResume);
 }
 
 void PowerMonitor::NotifyThermalStateChange(
-    PowerThermalObserver::DeviceThermalState new_state) {
+    PowerObserver::DeviceThermalState new_state) {
   DCHECK(IsInitialized());
   DVLOG(1) << "ThermalStateChange: "
            << PowerMonitorSource::DeviceThermalStateToString(new_state);
-
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->power_thermal_state_lock_);
-  if (power_monitor->power_thermal_state_ != new_state) {
-    power_monitor->power_thermal_state_ = new_state;
-    GetInstance()->thermal_state_observers_->Notify(
-        FROM_HERE, &PowerThermalObserver::OnThermalStateChange, new_state);
-  }
-}
-
-void PowerMonitor::NotifySpeedLimitChange(int speed_limit) {
-  DCHECK(IsInitialized());
-  DVLOG(1) << "SpeedLimitChange: " << speed_limit;
-
-  PowerMonitor* power_monitor = GetInstance();
-  AutoLock auto_lock(power_monitor->power_thermal_state_lock_);
-  if (power_monitor->speed_limit_ != speed_limit) {
-    power_monitor->speed_limit_ = speed_limit;
-    GetInstance()->thermal_state_observers_->Notify(
-        FROM_HERE, &PowerThermalObserver::OnSpeedLimitChange, speed_limit);
-  }
+  GetInstance()->observers_->Notify(
+      FROM_HERE, &PowerObserver::OnThermalStateChange, new_state);
 }
 
 PowerMonitor* PowerMonitor::GetInstance() {
@@ -233,13 +106,8 @@ PowerMonitor* PowerMonitor::GetInstance() {
 }
 
 PowerMonitor::PowerMonitor()
-    : power_state_observers_(
-          base::MakeRefCounted<ObserverListThreadSafe<PowerStateObserver>>()),
-      power_suspend_observers_(
-          base::MakeRefCounted<ObserverListThreadSafe<PowerSuspendObserver>>()),
-      thermal_state_observers_(
-          base::MakeRefCounted<
-              ObserverListThreadSafe<PowerThermalObserver>>()) {}
+    : observers_(
+          base::MakeRefCounted<ObserverListThreadSafe<PowerObserver>>()) {}
 
 PowerMonitor::~PowerMonitor() = default;
 

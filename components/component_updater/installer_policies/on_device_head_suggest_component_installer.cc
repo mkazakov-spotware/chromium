@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file_util.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/path_service.h"
@@ -68,9 +67,9 @@ OnDeviceHeadSuggestInstallerPolicy::~OnDeviceHeadSuggestInstallerPolicy() =
     default;
 
 bool OnDeviceHeadSuggestInstallerPolicy::VerifyInstallation(
-    const base::Value& manifest,
+    const base::DictionaryValue& manifest,
     const base::FilePath& install_dir) const {
-  const std::string* name = manifest.FindStringKey("name");
+  const std::string* name = manifest.FindStringPath("name");
 
   if (!name || *name != ("OnDeviceHeadSuggest" + accept_locale_))
     return false;
@@ -85,7 +84,7 @@ bool OnDeviceHeadSuggestInstallerPolicy::VerifyInstallation(
 
 bool OnDeviceHeadSuggestInstallerPolicy::
     SupportsGroupPolicyEnabledComponentUpdates() const {
-  return true;
+  return false;
 }
 
 bool OnDeviceHeadSuggestInstallerPolicy::RequiresNetworkEncryption() const {
@@ -94,7 +93,7 @@ bool OnDeviceHeadSuggestInstallerPolicy::RequiresNetworkEncryption() const {
 
 update_client::CrxInstaller::Result
 OnDeviceHeadSuggestInstallerPolicy::OnCustomInstall(
-    const base::Value& manifest,
+    const base::DictionaryValue& manifest,
     const base::FilePath& install_dir) {
   return update_client::CrxInstaller::Result(0);  // Nothing custom here.
 }
@@ -104,10 +103,10 @@ void OnDeviceHeadSuggestInstallerPolicy::OnCustomUninstall() {}
 void OnDeviceHeadSuggestInstallerPolicy::ComponentReady(
     const base::Version& version,
     const base::FilePath& install_dir,
-    base::Value manifest) {
+    std::unique_ptr<base::DictionaryValue> manifest) {
   auto* listener = OnDeviceModelUpdateListener::GetInstance();
   if (listener)
-    listener->OnHeadModelUpdate(install_dir);
+    listener->OnModelUpdate(install_dir);
 }
 
 base::FilePath OnDeviceHeadSuggestInstallerPolicy::GetRelativeInstallDir()
@@ -128,6 +127,11 @@ std::string OnDeviceHeadSuggestInstallerPolicy::GetName() const {
 update_client::InstallerAttributes
 OnDeviceHeadSuggestInstallerPolicy::GetInstallerAttributes() const {
   return {{"accept_locale", accept_locale_}};
+}
+
+std::vector<std::string> OnDeviceHeadSuggestInstallerPolicy::GetMimeTypes()
+    const {
+  return std::vector<std::string>();
 }
 
 void RegisterOnDeviceHeadSuggestComponent(ComponentUpdateService* cus,

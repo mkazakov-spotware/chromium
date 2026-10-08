@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_TRANSLATE_FAKE_TRANSLATE_INFOBAR_DELEGATE_H_
 #define IOS_CHROME_BROWSER_TRANSLATE_FAKE_TRANSLATE_INFOBAR_DELEGATE_H_
 
-#include <string>
+#include "components/translate/core/browser/translate_infobar_delegate.h"
 
 #include "components/translate/core/browser/mock_translate_driver.h"
-#include "components/translate/core/browser/translate_infobar_delegate.h"
 
 namespace sync_preferences {
 class TestingPrefServiceSyncable;
@@ -29,10 +28,11 @@ class FakeTranslateInfoBarDelegate
  public:
   FakeTranslateInfoBarDelegate(
       const base::WeakPtr<translate::TranslateManager>& translate_manager,
+      bool is_off_the_record,
       translate::TranslateStep step,
-      const std::string& source_language,
+      const std::string& original_language,
       const std::string& target_language,
-      translate::TranslateErrors error_type,
+      translate::TranslateErrors::Type error_type,
       bool triggered_from_menu);
   ~FakeTranslateInfoBarDelegate() override;
 
@@ -40,18 +40,19 @@ class FakeTranslateInfoBarDelegate
   void RemoveObserver(Observer* observer) override;
 
   // Call the OnTranslateStepChanged() observer method on all
-  // `OnTranslateStepChanged`.
-  void TriggerOnTranslateStepChanged(translate::TranslateStep step,
-                                     translate::TranslateErrors error_type);
+  // |OnTranslateStepChanged|.
+  void TriggerOnTranslateStepChanged(
+      translate::TranslateStep step,
+      translate::TranslateErrors::Type error_type);
 
-  std::u16string source_language_name() const override;
+  base::string16 original_language_name() const override;
 
-  std::u16string target_language_name() const override;
+  base::string16 target_language_name() const override;
 
  private:
   base::ObserverList<Observer> observers_;
-  std::u16string source_language_;
-  std::u16string target_language_;
+  base::string16 original_language_;
+  base::string16 target_language_;
 };
 
 // Factory class to create instances of FakeTranslateInfoBarDelegate.
@@ -61,14 +62,10 @@ class FakeTranslateInfoBarDelegateFactory {
   ~FakeTranslateInfoBarDelegateFactory();
 
   // Create a FakeTranslateInfoBarDelegate unique_ptr with
-  // `source_language`, `target_language`, `translate_step` and `error_type`.
+  // |original_language|and |target_language|.
   std::unique_ptr<FakeTranslateInfoBarDelegate>
-  CreateFakeTranslateInfoBarDelegate(
-      const std::string& source_language,
-      const std::string& target_language,
-      translate::TranslateStep translate_step =
-          translate::TranslateStep::TRANSLATE_STEP_BEFORE_TRANSLATE,
-      translate::TranslateErrors error_type = translate::TranslateErrors::NONE);
+  CreateFakeTranslateInfoBarDelegate(const std::string& original_language,
+                                     const std::string& target_language);
 
  private:
   translate::testing::MockTranslateDriver driver_;

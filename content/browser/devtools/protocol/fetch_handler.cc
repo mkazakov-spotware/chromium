@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "content/browser/devtools/protocol/fetch_handler.h"
@@ -8,7 +8,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/browser/devtools/devtools_agent_host_impl.h"
 #include "content/browser/devtools/devtools_io_context.h"
@@ -41,7 +40,7 @@ FetchHandler::FetchHandler(
 FetchHandler::~FetchHandler() = default;
 
 void FetchHandler::Wire(UberDispatcher* dispatcher) {
-  frontend_ = std::make_unique<Fetch::Frontend>(dispatcher->channel());
+  frontend_.reset(new Fetch::Frontend(dispatcher->channel()));
   Fetch::Dispatcher::wire(dispatcher, this);
 }
 
@@ -85,15 +84,14 @@ Response ToInterceptionPatterns(
 }
 
 bool FetchHandler::MaybeCreateProxyForInterception(
-    int process_id,
-    StoragePartition* storage_partition,
+    RenderProcessHost* rph,
     const base::UnguessableToken& frame_token,
     bool is_navigation,
     bool is_download,
     network::mojom::URLLoaderFactoryOverride* intercepting_factory) {
   return interceptor_ && interceptor_->CreateProxyForInterception(
-                             process_id, storage_partition, frame_token,
-                             is_navigation, is_download, intercepting_factory);
+                             rph, frame_token, is_navigation, is_download,
+                             intercepting_factory);
 }
 
 void FetchHandler::Enable(Maybe<Array<Fetch::RequestPattern>> patterns,
@@ -253,7 +251,6 @@ void FetchHandler::ContinueRequest(
     Maybe<String> method,
     Maybe<protocol::Binary> postData,
     Maybe<Array<Fetch::HeaderEntry>> headers,
-    Maybe<bool> interceptResponse,
     std::unique_ptr<ContinueRequestCallback> callback) {
   if (!interceptor_) {
     callback->sendFailure(Response::ServerError("Fetch domain is not enabled"));
@@ -274,7 +271,7 @@ void FetchHandler::ContinueRequest(
   auto modifications =
       std::make_unique<DevToolsURLLoaderInterceptor::Modifications>(
           std::move(url), std::move(method), std::move(postData),
-          std::move(request_headers), std::move(interceptResponse));
+          std::move(request_headers));
   interceptor_->ContinueInterceptedRequest(requestId, std::move(modifications),
                                            WrapCallback(std::move(callback)));
 }
@@ -315,39 +312,6 @@ void FetchHandler::ContinueWithAuth(
                                            WrapCallback(std::move(callback)));
 }
 
-void FetchHandler::ContinueResponse(
-    const String& requestId,
-    Maybe<int> responseCode,
-    Maybe<String> responsePhrase,
-    Maybe<Array<Fetch::HeaderEntry>> responseHeaders,
-    Maybe<Binary> binaryResponseHeaders,
-    std::unique_ptr<ContinueResponseCallback> callback) {
-  if (!interceptor_) {
-    callback->sendFailure(Response::ServerError("Fetch domain is not enabled"));
-    return;
-  }
-  if (responseCode.isJust() &&
-      (responseHeaders.isJust() || binaryResponseHeaders.isJust())) {
-    auto wrapped_callback = std::make_unique<
-        CallbackWrapper<ContinueResponseCallback, FulfillRequestCallback>>(
-        std::move(callback));
-    FulfillRequest(requestId, responseCode.fromJust(),
-                   std::move(responseHeaders), std::move(binaryResponseHeaders),
-                   {}, std::move(responsePhrase), std::move(wrapped_callback));
-    return;
-  }
-  if (!responseCode.isJust() && !responsePhrase.isJust() &&
-      !responseHeaders.isJust() && !binaryResponseHeaders.isJust()) {
-    interceptor_->ContinueInterceptedRequest(
-        requestId,
-        std::make_unique<DevToolsURLLoaderInterceptor::Modifications>(),
-        WrapCallback(std::move(callback)));
-    return;
-  }
-  callback->sendFailure(Response::ServerError(
-      "Cannot override only status or headers, both should be provided"));
-}
-
 void FetchHandler::GetResponseBody(
     const String& requestId,
     std::unique_ptr<GetResponseBodyCallback> callback) {
@@ -355,11 +319,11 @@ void FetchHandler::GetResponseBody(
     callback->sendFailure(Response::ServerError("Fetch domain is not enabled"));
     return;
   }
-  auto wrapped_callback = std::make_unique<CallbackWrapper<
+  auto weapped_callback = std::make_unique<CallbackWrapper<
       GetResponseBodyCallback,
       DevToolsURLLoaderInterceptor::GetResponseBodyForInterceptionCallback,
       const std::string&, bool>>(std::move(callback));
-  interceptor_->GetResponseBody(requestId, std::move(wrapped_callback));
+  interceptor_->GetResponseBody(requestId, std::move(weapped_callback));
 }
 
 void FetchHandler::TakeResponseBodyAsStream(
@@ -417,11 +381,9 @@ void FetchHandler::RequestIntercepted(
     error_reason = NetworkHandler::NetErrorToString(info->response_error_code);
 
   Maybe<int> status_code;
-  Maybe<std::string> status_text;
   Maybe<Array<Fetch::HeaderEntry>> response_headers;
   if (info->response_headers) {
     status_code = info->response_headers->response_code();
-    status_text = info->response_headers->GetStatusText();
     response_headers = ToHeaderEntryArray(info->response_headers);
   }
 
@@ -446,9 +408,8 @@ void FetchHandler::RequestIntercepted(
       info->interception_id, std::move(info->network_request),
       info->frame_id.ToString(),
       NetworkHandler::ResourceTypeToString(info->resource_type),
-      std::move(error_reason), std::move(status_code), std::move(status_text),
-      std::move(response_headers), std::move(info->renderer_request_id),
-      std::move(info->redirected_request_id));
+      std::move(error_reason), std::move(status_code),
+      std::move(response_headers), std::move(info->renderer_request_id));
 }
 
 }  // namespace protocol

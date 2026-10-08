@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<!--
-Copyright 2019 The Chromium Authors
-Use of this source code is governed by a BSD-style license that can be
-found in the LICENSE file.
--->
+<!-- Copyright 2019 The Chromium Authors. All rights reserved.
 
+     Use of this source code is governed by a BSD-style license that can be
+     found in the LICENSE file.
+ -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.chromium.webengine.tests">
+    package="org.chromium.weblayer.tests">
   <uses-permission android:name="android.permission.RUN_INSTRUMENTATION" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <!-- We add an application tag here just so that we can indicate that this
@@ -21,6 +20,6 @@ found in the LICENSE file.
   </application>
 
   <instrumentation android:name="org.chromium.base.test.BaseChromiumAndroidJUnitRunner"
-      android:targetPackage="org.chromium.webengine.shell"
-      android:label="JUnit4-based tests for org.chromium.webengine.shell" />
+      android:targetPackage="org.chromium.weblayer.shell"
+      android:label="JUnit4-based tests for org.chromium.weblayer.shell" />
 </manifest>

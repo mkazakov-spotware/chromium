@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,19 +55,15 @@ PostProcessingPipelineImpl::PostProcessingPipelineImpl(
   if (!filter_description_list) {
     return;  // Warning logged.
   }
-
-  LOG(INFO) << "Create pipeline for " << channels << " input channels";
-  for (const base::Value& processor_description_value :
+  for (const base::Value& processor_description_dict :
        filter_description_list->GetList()) {
-    DCHECK(processor_description_value.is_dict());
-    const base::Value::Dict& processor_description_dict =
-        processor_description_value.GetDict();
+    DCHECK(processor_description_dict.is_dict());
 
     std::string processor_name;
-    const std::string* name_val =
-        processor_description_dict.FindString(kJsonKeyName);
+    const base::Value* name_val = processor_description_dict.FindKeyOfType(
+        kJsonKeyName, base::Value::Type::STRING);
     if (name_val) {
-      processor_name = *name_val;
+      processor_name = name_val->GetString();
     }
 
     if (!processor_name.empty()) {
@@ -83,48 +79,48 @@ PostProcessingPipelineImpl::PostProcessingPipelineImpl(
     std::string library_path;
 
     // Keys for AudioPostProcessor2:
-    const std::string* library_val =
-        processor_description_dict.FindString(kJsonKeyLib);
+    const base::Value* library_val = processor_description_dict.FindKeyOfType(
+        kJsonKeyLib, base::Value::Type::STRING);
     if (library_val) {
-      library_path = *library_val;
+      library_path = library_val->GetString();
     } else {
       // Keys for AudioPostProcessor
       // TODO(bshaya): Remove when AudioPostProcessor support is removed.
-      library_val = processor_description_dict.FindString(kJsonKeyProcessor);
+      library_val = processor_description_dict.FindKeyOfType(
+          kJsonKeyProcessor, base::Value::Type::STRING);
       DCHECK(library_val) << "Post processor description is missing key "
                           << kJsonKeyLib;
-      library_path = *library_val;
+      library_path = library_val->GetString();
     }
 
     std::string processor_config_string;
     const base::Value* processor_config_val =
-        processor_description_dict.Find(kJsonKeyConfig);
+        processor_description_dict.FindKey(kJsonKeyConfig);
     if (processor_config_val) {
       DCHECK(processor_config_val->is_dict() ||
              processor_config_val->is_string());
       base::JSONWriter::Write(*processor_config_val, &processor_config_string);
     }
 
-    LOG(INFO) << "Creating '" << processor_name << "', an instance of "
-              << library_path << ", for " << channels << " channels";
+    LOG(INFO) << "Creating an instance of " << library_path << "("
+              << processor_config_string << ")";
 
     processors_.emplace_back(PostProcessorInfo{
         factory_.CreatePostProcessor(library_path, processor_config_string,
                                      channels),
-        1 /* output_frames_per_input_frame */, processor_name});
+        1.0 /* output_frames_per_input_frame */, processor_name});
     channels = processors_.back().ptr->GetStatus().output_channels;
   }
   num_output_channels_ = channels;
-  LOG(INFO) << "Created pipeline with " << channels << " output channels";
 }
 
 PostProcessingPipelineImpl::~PostProcessingPipelineImpl() = default;
 
-void PostProcessingPipelineImpl::ProcessFrames(float* data,
-                                               int num_input_frames,
-                                               float current_multiplier,
-                                               float target_multiplier,
-                                               bool is_silence) {
+double PostProcessingPipelineImpl::ProcessFrames(float* data,
+                                                 int num_input_frames,
+                                                 float current_multiplier,
+                                                 float target_multiplier,
+                                                 bool is_silence) {
   DCHECK_GT(input_sample_rate_, 0);
   DCHECK(data);
   if (processors_.size() > 0) {
@@ -144,7 +140,7 @@ void PostProcessingPipelineImpl::ProcessFrames(float* data,
         std::fill_n(silence_buffer_.data(), silence_buffer_.size(), 0.0);
         output_buffer_ = silence_buffer_.data();
       }
-      return;
+      return delay_s_;
     }
     silence_frames_processed_ += num_input_frames;
   } else {
@@ -164,6 +160,7 @@ void PostProcessingPipelineImpl::ProcessFrames(float* data,
                 status.input_sample_rate;
     output_buffer_ = status.output_buffer;
   }
+  return delay_s_;
 }
 
 int PostProcessingPipelineImpl::NumOutputChannels() const {
@@ -172,6 +169,7 @@ int PostProcessingPipelineImpl::NumOutputChannels() const {
 
 float* PostProcessingPipelineImpl::GetOutputBuffer() {
   DCHECK(output_buffer_);
+
   return output_buffer_;
 }
 
@@ -205,13 +203,6 @@ bool PostProcessingPipelineImpl::SetOutputConfig(
                           processors_[0].input_frames_per_write *
                           output_sample_rate_ / input_sample_rate_;
     silence_buffer_.resize(silence_size);
-  }
-
-  delay_s_ = 0;
-  for (auto& processor : processors_) {
-    const auto& status = processor.ptr->GetStatus();
-    delay_s_ += static_cast<double>(status.rendering_delay_frames) /
-                status.input_sample_rate;
   }
 
   return true;
@@ -283,10 +274,6 @@ void PostProcessingPipelineImpl::UpdatePlayoutChannel(int channel) {
   for (auto& processor : processors_) {
     processor.ptr->SetPlayoutChannel(channel);
   }
-}
-
-double PostProcessingPipelineImpl::GetDelaySeconds() {
-  return delay_s_;
 }
 
 }  // namespace media

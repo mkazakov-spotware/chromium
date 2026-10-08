@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 
 namespace {
 static constexpr int kFingerprintSize = 120;
+static constexpr SkColor kFingerprintColor = SkColorSetRGB(66, 133, 224);
 static constexpr int kRingSize = 228;
 
 double CalculateProgressFor(double samples_remaining, double max_samples) {
@@ -36,8 +37,11 @@ AuthenticatorBioEnrollmentSheetView::AuthenticatorBioEnrollmentSheetView(
 AuthenticatorBioEnrollmentSheetView::~AuthenticatorBioEnrollmentSheetView() =
     default;
 
-std::pair<std::unique_ptr<views::View>,
-          AuthenticatorRequestSheetView::AutoFocus>
+views::View* AuthenticatorBioEnrollmentSheetView::GetInitiallyFocusedView() {
+  return nullptr;
+}
+
+std::unique_ptr<views::View>
 AuthenticatorBioEnrollmentSheetView::BuildStepSpecificContent() {
   auto* bio_model = static_cast<AuthenticatorBioEnrollmentSheetModel*>(model());
   double target = CalculateProgressFor(bio_model->bio_samples_remaining(),
@@ -55,9 +59,10 @@ AuthenticatorBioEnrollmentSheetView::BuildStepSpecificContent() {
 
   auto image_view = std::make_unique<NonAccessibleImageView>();
   image_view->SetVerticalAlignment(views::ImageView::Alignment::kCenter);
-  image_view->SetImage(ui::ImageModel::FromVectorIcon(
-      target >= 1 ? views::kMenuCheckIcon : kFingerprintIcon, ui::kColorAccent,
-      kFingerprintSize));
+  gfx::IconDescription icon_description(
+      target >= 1 ? views::kMenuCheckIcon : kFingerprintIcon, kFingerprintSize,
+      kFingerprintColor);
+  image_view->SetImage(gfx::CreateVectorIcon(icon_description));
   animation_container->AddChildView(std::move(image_view));
 
   auto ring_progress_bar = std::make_unique<RingProgressBar>();
@@ -66,7 +71,7 @@ AuthenticatorBioEnrollmentSheetView::BuildStepSpecificContent() {
   ring_progress_bar->SetValue(initial, target);
   animation_container->AddChildView(std::move(ring_progress_bar));
 
-  return std::make_pair(std::move(animation_container), AutoFocus::kNo);
+  return animation_container;
 }
 
 bool AuthenticatorBioEnrollmentSheetView::AcceleratorPressed(

@@ -1,4 +1,4 @@
-CONSOLE MESSAGE: PASS
+CONSOLE MESSAGE: line 8: PASS
 This test requires DumpRenderTree to see the log of what resources are loaded.
 
 <img src=resources/image1.png>

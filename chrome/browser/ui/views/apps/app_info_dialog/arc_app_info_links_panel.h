@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 
 #include <string>
 
-#include "base/scoped_observation.h"
+#include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ui/views/apps/app_info_dialog/app_info_panel.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/views/metadata/view_factory.h"
 
 class Profile;
 
@@ -29,10 +28,7 @@ class Link;
 class ArcAppInfoLinksPanel : public AppInfoPanel,
                              public ArcAppListPrefs::Observer {
  public:
-  METADATA_HEADER(ArcAppInfoLinksPanel);
   ArcAppInfoLinksPanel(Profile* profile, const extensions::Extension* app);
-  ArcAppInfoLinksPanel(const ArcAppInfoLinksPanel&) = delete;
-  ArcAppInfoLinksPanel& operator=(const ArcAppInfoLinksPanel&) = delete;
   ~ArcAppInfoLinksPanel() override;
 
  private:
@@ -46,14 +42,11 @@ class ArcAppInfoLinksPanel : public AppInfoPanel,
   void UpdateLink(bool enabled);
   void LinkClicked();
 
-  base::ScopedObservation<ArcAppListPrefs, ArcAppListPrefs::Observer>
-      app_list_observation_{this};
+  ScopedObserver<ArcAppListPrefs, ArcAppListPrefs::Observer> app_list_observer_{
+      this};
   views::Link* manage_link_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(ArcAppInfoLinksPanel);
 };
-
-BEGIN_VIEW_BUILDER(/* no export */, ArcAppInfoLinksPanel, AppInfoPanel)
-END_VIEW_BUILDER
-
-DEFINE_VIEW_BUILDER(/* no export */, ArcAppInfoLinksPanel)
 
 #endif  // CHROME_BROWSER_UI_VIEWS_APPS_APP_INFO_DIALOG_ARC_APP_INFO_LINKS_PANEL_H_

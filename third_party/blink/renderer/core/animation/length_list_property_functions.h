@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,22 +12,19 @@
 namespace blink {
 
 class ComputedStyle;
-class ComputedStyleBuilder;
 class CSSProperty;
 
 class LengthListPropertyFunctions {
   STATIC_ONLY(LengthListPropertyFunctions);
 
  public:
-  static Length::ValueRange GetValueRange(const CSSProperty&);
-  static bool GetInitialLengthList(const CSSProperty&,
-                                   const ComputedStyle& initial_style,
-                                   Vector<Length>& result);
+  static ValueRange GetValueRange(const CSSProperty&);
+  static bool GetInitialLengthList(const CSSProperty&, Vector<Length>& result);
   static bool GetLengthList(const CSSProperty&,
                             const ComputedStyle&,
                             Vector<Length>& result);
   static void SetLengthList(const CSSProperty&,
-                            ComputedStyleBuilder&,
+                            ComputedStyle&,
                             Vector<Length>&& length_list);
 };
 

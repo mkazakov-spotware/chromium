@@ -1,12 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/media/session/media_session_controllers_manager.h"
 
-#include "base/containers/cxx20_erase.h"
+#include "base/stl_util.h"
 #include "content/browser/media/session/media_session_controller.h"
-#include "content/browser/web_contents/web_contents_impl.h"
 #include "media/base/media_switches.h"
 #include "services/media_session/public/cpp/features.h"
 
@@ -23,7 +22,7 @@ bool IsMediaSessionEnabled() {
 }  // namespace
 
 MediaSessionControllersManager::MediaSessionControllersManager(
-    WebContentsImpl* web_contents)
+    WebContents* web_contents)
     : web_contents_(web_contents) {}
 
 MediaSessionControllersManager::~MediaSessionControllersManager() = default;
@@ -36,8 +35,7 @@ void MediaSessionControllersManager::RenderFrameDeleted(
   base::EraseIf(
       controllers_map_,
       [render_frame_host](const ControllersMap::value_type& id_and_controller) {
-        return render_frame_host->GetGlobalId() ==
-               id_and_controller.first.frame_routing_id;
+        return render_frame_host == id_and_controller.first.render_frame_host;
       });
 }
 
@@ -104,16 +102,6 @@ void MediaSessionControllersManager::WebContentsMutedStateChanged(bool muted) {
     entry.second->WebContentsMutedStateChanged(muted);
 }
 
-void MediaSessionControllersManager::OnMediaMutedStatusChanged(
-    const MediaPlayerId& id,
-    bool mute) {
-  if (!IsMediaSessionEnabled())
-    return;
-
-  MediaSessionController* const controller = FindOrCreateController(id);
-  controller->OnMediaMutedStatusChanged(mute);
-}
-
 void MediaSessionControllersManager::OnPictureInPictureAvailabilityChanged(
     const MediaPlayerId& id,
     bool available) {
@@ -141,14 +129,6 @@ void MediaSessionControllersManager::OnAudioOutputSinkChangingDisabled(
 
   MediaSessionController* const controller = FindOrCreateController(id);
   controller->OnAudioOutputSinkChangingDisabled();
-}
-
-void MediaSessionControllersManager::OnRemotePlaybackMetadataChange(
-    const MediaPlayerId& id,
-    media_session::mojom::RemotePlaybackMetadataPtr remote_playback_metadata) {
-  MediaSessionController* const controller = FindOrCreateController(id);
-  controller->OnRemotePlaybackMetadataChanged(
-      std::move(remote_playback_metadata));
 }
 
 MediaSessionController* MediaSessionControllersManager::FindOrCreateController(

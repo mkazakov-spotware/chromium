@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,8 @@ import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.settings.MainSettings;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
-import org.chromium.chrome.browser.sync.SyncService;
+import org.chromium.chrome.browser.sync.AndroidSyncSettings;
+import org.chromium.chrome.browser.sync.ProfileSyncService;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
 import org.chromium.components.browser_ui.settings.ChromeBasePreference;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
@@ -49,8 +50,9 @@ public class PasswordViewingTypeTest {
     public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private ChromeBasePreference mPasswordsPref;
+    private String mAuthority;
     @Mock
-    private SyncService mSyncService;
+    private AndroidSyncSettings mAndroidSyncSettings;
 
     @Before
     public void setUp() {
@@ -59,7 +61,41 @@ public class PasswordViewingTypeTest {
         MainSettings mainSettings = mSettingsActivityTestRule.getFragment();
         mPasswordsPref =
                 (ChromeBasePreference) mainSettings.findPreference(MainSettings.PREF_PASSWORDS);
-        TestThreadUtils.runOnUiThreadBlocking(() -> SyncService.overrideForTests(mSyncService));
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
+            AndroidSyncSettings.overrideForTests(mAndroidSyncSettings);
+            setSyncability(false);
+            mAuthority = AndroidSyncSettings.getContractAuthority();
+        });
+    }
+
+    /**
+     * Override ProfileSyncService using FakeProfileSyncService.
+     */
+    private void overrideProfileSyncService(final boolean usingPassphrase) {
+        class FakeProfileSyncService extends ProfileSyncService {
+            @Override
+            public boolean isUsingSecondaryPassphrase() {
+                return usingPassphrase;
+            }
+
+            @Override
+            public boolean isEngineInitialized() {
+                return true;
+            }
+        }
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> { ProfileSyncService.overrideForTests(new FakeProfileSyncService()); });
+    }
+
+    /**
+     * Turn syncability on/off.
+     */
+    private void setSyncability(boolean syncState) {
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
+            when(mAndroidSyncSettings.isSyncEnabled()).thenReturn(syncState);
+            when(mAndroidSyncSettings.isChromeSyncEnabled()).thenReturn(syncState);
+            when(mAndroidSyncSettings.doesMasterSyncSettingAllowChromeSync()).thenReturn(true);
+        });
     }
 
     /**
@@ -70,10 +106,13 @@ public class PasswordViewingTypeTest {
     @SmallTest
     @Feature({"Sync"})
     public void testUserRedirectSyncSettings() {
-        when(mSyncService.isSyncFeatureEnabled()).thenReturn(true);
-        when(mSyncService.isEngineInitialized()).thenReturn(true);
-        when(mSyncService.isUsingExplicitPassphrase()).thenReturn(false);
-
+        setSyncability(true);
+        overrideProfileSyncService(false);
+        TestThreadUtils.runOnUiThreadBlocking(() -> {
+            Assert.assertTrue(AndroidSyncSettings.get().isSyncEnabled());
+            Assert.assertTrue(ProfileSyncService.get().isEngineInitialized());
+            Assert.assertFalse(ProfileSyncService.get().isUsingSecondaryPassphrase());
+        });
         Assert.assertEquals(
                 PasswordSettings.class.getCanonicalName(), mPasswordsPref.getFragment());
     }
@@ -85,10 +124,8 @@ public class PasswordViewingTypeTest {
     @Test
     @SmallTest
     public void testSyncingNativePasswordView() {
-        when(mSyncService.isSyncFeatureEnabled()).thenReturn(true);
-        when(mSyncService.isEngineInitialized()).thenReturn(true);
-        when(mSyncService.isUsingExplicitPassphrase()).thenReturn(true);
-
+        setSyncability(true);
+        overrideProfileSyncService(true);
         Assert.assertEquals(
                 PasswordSettings.class.getCanonicalName(), mPasswordsPref.getFragment());
         Assert.assertNotNull(mSettingsActivityTestRule.getActivity().getIntent());
@@ -100,10 +137,7 @@ public class PasswordViewingTypeTest {
     @Test
     @SmallTest
     public void testNonSyncingNativePasswordView() {
-        when(mSyncService.isSyncFeatureEnabled()).thenReturn(false);
-        when(mSyncService.isEngineInitialized()).thenReturn(false);
-        when(mSyncService.isUsingExplicitPassphrase()).thenReturn(false);
-
+        setSyncability(false);
         Assert.assertEquals(
                 PasswordSettings.class.getCanonicalName(), mPasswordsPref.getFragment());
     }

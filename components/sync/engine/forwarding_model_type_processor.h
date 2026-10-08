@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 #define COMPONENTS_SYNC_ENGINE_FORWARDING_MODEL_TYPE_PROCESSOR_H_
 
 #include <memory>
-#include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/sync/engine/model_type_processor.h"
 
 namespace syncer {
@@ -21,11 +20,6 @@ class ForwardingModelTypeProcessor : public ModelTypeProcessor {
  public:
   // |processor| must not be null and must outlive this object.
   explicit ForwardingModelTypeProcessor(ModelTypeProcessor* processor);
-
-  ForwardingModelTypeProcessor(const ForwardingModelTypeProcessor&) = delete;
-  ForwardingModelTypeProcessor& operator=(const ForwardingModelTypeProcessor&) =
-      delete;
-
   ~ForwardingModelTypeProcessor() override;
 
   void ConnectSync(std::unique_ptr<CommitQueue> worker) override;
@@ -38,15 +32,12 @@ class ForwardingModelTypeProcessor : public ModelTypeProcessor {
       const FailedCommitResponseDataList& error_response_list) override;
   void OnCommitFailed(SyncCommitError commit_error) override;
   void OnUpdateReceived(const sync_pb::ModelTypeState& type_state,
-                        UpdateResponseDataList updates,
-                        absl::optional<sync_pb::GarbageCollectionDirective>
-                            gc_directive) override;
-  void StorePendingInvalidations(
-      std::vector<sync_pb::ModelTypeState::Invalidation> invalidations_to_store)
-      override;
+                        UpdateResponseDataList updates) override;
 
  private:
-  const raw_ptr<ModelTypeProcessor> processor_;
+  ModelTypeProcessor* const processor_;
+
+  DISALLOW_COPY_AND_ASSIGN(ForwardingModelTypeProcessor);
 };
 
 }  // namespace syncer

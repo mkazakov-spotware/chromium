@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "components/services/storage/indexed_db/leveldb/leveldb_state.h"
@@ -28,33 +30,32 @@ class LevelDBScopesTask {
  public:
   explicit LevelDBScopesTask(scoped_refptr<LevelDBState> level_db,
                              size_t max_write_batch_size_bytes);
-
-  LevelDBScopesTask(const LevelDBScopesTask&) = delete;
-  LevelDBScopesTask& operator=(const LevelDBScopesTask&) = delete;
-
   ~LevelDBScopesTask();
 
  protected:
   // Submits the in-progress WriteBatch to LevelDB, no matter what size the
   // batch is.
-  [[nodiscard]] leveldb::Status SubmitWriteBatch(
-      const leveldb::WriteOptions& options);
+  leveldb::Status SubmitWriteBatch(const leveldb::WriteOptions& options)
+      WARN_UNUSED_RESULT;
   // Submits thein-progress WriteBatch to LevelDB only if the approximate size
   // of the batch is > |max_write_batch_size_|.
-  [[nodiscard]] leveldb::Status MaybeSubmitWriteBatch(
-      const leveldb::WriteOptions& options);
+  leveldb::Status MaybeSubmitWriteBatch(const leveldb::WriteOptions& options)
+      WARN_UNUSED_RESULT;
 
-  [[nodiscard]] leveldb::Status DeleteRange(
-      leveldb::Slice range_start,
-      leveldb::Slice range_end,
-      const leveldb::ReadOptions& read_options,
-      const leveldb::WriteOptions& write_options);
+  leveldb::Status DeleteRange(leveldb::Slice range_start,
+                              leveldb::Slice range_end,
+                              const leveldb::ReadOptions& read_options,
+                              const leveldb::WriteOptions& write_options)
+      WARN_UNUSED_RESULT;
 
   SEQUENCE_CHECKER(sequence_checker_);
 
   const scoped_refptr<LevelDBState> level_db_;
   const size_t max_write_batch_size_bytes_;
   leveldb::WriteBatch write_batch_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LevelDBScopesTask);
 };
 
 // Deletes the undo log for a given scope, and optionally executes the cleanup
@@ -78,16 +79,16 @@ class CleanupScopeTask : private LevelDBScopesTask {
                    size_t max_write_batch_size_bytes);
   ~CleanupScopeTask();
 
-  [[nodiscard]] leveldb::Status Run();
+  leveldb::Status Run() WARN_UNUSED_RESULT;
 
  private:
-  [[nodiscard]] leveldb::Status ExecuteAndDeleteCleanupTasks(
+  leveldb::Status ExecuteAndDeleteCleanupTasks(
       const leveldb::ReadOptions& read_options,
-      const leveldb::WriteOptions& write_options);
-  [[nodiscard]] leveldb::Status DeletePrefixedRange(
+      const leveldb::WriteOptions& write_options) WARN_UNUSED_RESULT;
+  leveldb::Status DeletePrefixedRange(
       leveldb::Slice prefix,
       const leveldb::ReadOptions& read_options,
-      const leveldb::WriteOptions& write_options);
+      const leveldb::WriteOptions& write_options) WARN_UNUSED_RESULT;
 
   const std::vector<uint8_t> metadata_prefix_;
   const int64_t scope_number_;
@@ -108,7 +109,7 @@ class RevertScopeTask : private LevelDBScopesTask {
                   size_t max_write_batch_size_bytes);
   ~RevertScopeTask();
 
-  [[nodiscard]] leveldb::Status Run();
+  leveldb::Status Run() WARN_UNUSED_RESULT;
 
  private:
   const std::vector<uint8_t> metadata_prefix_;

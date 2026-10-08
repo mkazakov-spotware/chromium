@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "cc/trees/layer_tree_host_impl.h"
 #include "cc/trees/layer_tree_impl.h"
 #include "cc/trees/scroll_node.h"
-#include "ui/gfx/geometry/point_conversions.h"
+#include "ui/gfx/geometry/vector2d_conversions.h"
 #include "ui/gfx/geometry/vector2d_f.h"
 
 namespace cc {
@@ -32,7 +32,7 @@ void Viewport::Pan(const gfx::Vector2dF& delta) {
   DCHECK(InnerScrollNode());
   gfx::Vector2dF pending_delta = delta;
   float page_scale = host_impl_->active_tree()->current_page_scale_factor();
-  pending_delta.InvScale(page_scale);
+  pending_delta.Scale(1 / page_scale);
   scroll_tree().ScrollBy(*InnerScrollNode(), pending_delta,
                          host_impl_->active_tree());
 }
@@ -102,7 +102,7 @@ gfx::Vector2dF Viewport::ComputeClampedDelta(
 
   float page_scale = host_impl_->active_tree()->page_scale_factor_for_scroll();
   gfx::Vector2dF unscaled_delta = scroll_delta;
-  unscaled_delta.InvScale(page_scale);
+  unscaled_delta.Scale(1.f / page_scale);
 
   gfx::Vector2dF remaining_delta = unscaled_delta - inner_delta;
   remaining_delta.Scale(page_scale);
@@ -166,7 +166,7 @@ gfx::Vector2dF Viewport::ScrollAnimated(const gfx::Vector2dF& delta,
 
   float scale_factor = host_impl_->active_tree()->current_page_scale_factor();
   gfx::Vector2dF scaled_delta = delta;
-  scaled_delta.InvScale(scale_factor);
+  scaled_delta.Scale(1.f / scale_factor);
 
   ScrollNode* inner_node = InnerScrollNode();
   gfx::Vector2dF inner_delta =
@@ -256,7 +256,7 @@ void Viewport::PinchEnd(const gfx::Point& anchor, bool snap_to_min) {
     DCHECK(active_tree->InnerViewportScrollNode());
     const float kMaxZoomForSnapToMin = 1.05f;
     const base::TimeDelta kSnapToMinZoomAnimationDuration =
-        base::Milliseconds(200);
+        base::TimeDelta::FromMilliseconds(200);
     float page_scale = active_tree->current_page_scale_factor();
     float min_scale = active_tree->min_page_scale_factor();
 
@@ -267,10 +267,10 @@ void Viewport::PinchEnd(const gfx::Point& anchor, bool snap_to_min) {
           gfx::PointF(anchor + pinch_anchor_adjustment_);
       adjusted_anchor =
           gfx::ScalePoint(adjusted_anchor, min_scale / page_scale);
-      adjusted_anchor += TotalScrollOffset().OffsetFromOrigin();
-      host_impl_->StartPageScaleAnimation(gfx::ToRoundedPoint(adjusted_anchor),
-                                          true, min_scale,
-                                          kSnapToMinZoomAnimationDuration);
+      adjusted_anchor += ScrollOffsetToVector2dF(TotalScrollOffset());
+      host_impl_->StartPageScaleAnimation(
+          ToRoundedVector2d(adjusted_anchor.OffsetFromOrigin()), true,
+          min_scale, kSnapToMinZoomAnimationDuration);
     }
   }
 
@@ -305,8 +305,7 @@ bool Viewport::ShouldBrowserControlsConsumeScroll(
   if (scroll_delta.y() < 0)
     return true;
 
-  const float kEpsilon = 0.1f;
-  if (TotalScrollOffset().y() + kEpsilon < MaxUserReachableTotalScrollOffsetY())
+  if (TotalScrollOffset().y() < MaxTotalScrollOffset().y())
     return true;
 
   return false;
@@ -326,35 +325,29 @@ gfx::Vector2dF Viewport::AdjustOverscroll(const gfx::Vector2dF& delta) const {
   return adjusted;
 }
 
-float Viewport::MaxUserReachableTotalScrollOffsetY() const {
-  auto& tree = scroll_tree();
-  float y_offset = tree.MaxScrollOffset(InnerScrollNode()->id).y();
+gfx::ScrollOffset Viewport::MaxTotalScrollOffset() const {
+  gfx::ScrollOffset offset;
 
-  if (auto* outer_node = OuterScrollNode()) {
-    if (outer_node->user_scrollable_vertical)
-      y_offset += tree.MaxScrollOffset(outer_node->id).y();
-    else
-      y_offset += tree.current_scroll_offset(outer_node->element_id).y();
-  }
-  return y_offset;
+  offset += scroll_tree().MaxScrollOffset(InnerScrollNode()->id);
+
+  if (auto* outer_node = OuterScrollNode())
+    offset += scroll_tree().MaxScrollOffset(outer_node->id);
+
+  return offset;
 }
 
-gfx::PointF Viewport::TotalScrollOffset() const {
+gfx::ScrollOffset Viewport::TotalScrollOffset() const {
+  gfx::ScrollOffset offset;
+
   if (!InnerScrollNode())
-    return gfx::PointF();
+    return offset;
 
-  gfx::Vector2dF offset =
-      scroll_tree()
-          .current_scroll_offset(InnerScrollNode()->element_id)
-          .OffsetFromOrigin();
+  offset += scroll_tree().current_scroll_offset(InnerScrollNode()->element_id);
 
-  if (auto* outer_node = OuterScrollNode()) {
-    offset += scroll_tree()
-                  .current_scroll_offset(outer_node->element_id)
-                  .OffsetFromOrigin();
-  }
+  if (auto* outer_node = OuterScrollNode())
+    offset += scroll_tree().current_scroll_offset(outer_node->element_id);
 
-  return gfx::PointAtOffsetFromOrigin(offset);
+  return offset;
 }
 
 ScrollNode* Viewport::InnerScrollNode() const {
@@ -366,7 +359,7 @@ ScrollNode* Viewport::OuterScrollNode() const {
 }
 
 ScrollTree& Viewport::scroll_tree() const {
-  return host_impl_->active_tree()->property_trees()->scroll_tree_mutable();
+  return host_impl_->active_tree()->property_trees()->scroll_tree;
 }
 
 }  // namespace cc

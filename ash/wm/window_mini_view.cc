@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,6 @@
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/compositor/layer.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -34,9 +32,9 @@ constexpr int kLabelFontDelta = 2;
 // Values of the backdrop.
 constexpr int kBackdropBorderRoundingDp = 4;
 
-std::u16string GetWindowTitle(aura::Window* window) {
+base::string16 GetWindowTitle(aura::Window* window) {
   aura::Window* transient_root = wm::GetTransientRoot(window);
-  const std::u16string* overview_title =
+  const base::string16* overview_title =
       transient_root->GetProperty(chromeos::kWindowOverviewTitleKey);
   return (overview_title && !overview_title->empty())
              ? *overview_title
@@ -98,9 +96,9 @@ void WindowMiniView::UpdatePreviewRoundedCorners(bool show) {
 
   ui::Layer* layer = preview_view()->layer();
   DCHECK(layer);
-  const float scale = layer->transform().To2dScale().x();
-  const float rounding = views::LayoutProvider::Get()->GetCornerRadiusMetric(
-      views::Emphasis::kLow);
+  const float scale = layer->transform().Scale2d().x();
+  const float rounding =
+      views::LayoutProvider::Get()->GetCornerRadiusMetric(views::EMPHASIS_LOW);
   const gfx::RoundedCornersF radii(show ? rounding / scale : 0.0f);
   layer->SetRoundedCornerRadius(radii);
   layer->SetIsFastRoundedCorner(true);
@@ -122,12 +120,17 @@ gfx::Size WindowMiniView::GetPreviewViewSize() const {
   return preview_view_->GetPreferredSize();
 }
 
+gfx::ImageSkia WindowMiniView::ModifyIcon(gfx::ImageSkia* image) const {
+  return gfx::ImageSkiaOperations::CreateResizedImage(
+      *image, skia::ImageOperations::RESIZE_BEST, kIconSize);
+}
+
 WindowMiniView::WindowMiniView(aura::Window* source_window)
     : source_window_(source_window) {
   SetPaintToLayer();
   layer()->SetFillsBoundsOpaquely(false);
 
-  window_observation_.Observe(source_window);
+  window_observer_.Add(source_window);
 
   header_view_ = AddChildView(std::make_unique<views::View>());
   header_view_->SetPaintToLayer();
@@ -153,7 +156,6 @@ WindowMiniView::WindowMiniView(aura::Window* source_window)
 }
 
 void WindowMiniView::UpdateIconView() {
-  DCHECK(source_window_);
   aura::Window* transient_root = wm::GetTransientRoot(source_window_);
   // Prefer kAppIconKey over kWindowIconKey as the app icon is typically larger.
   gfx::ImageSkia* icon = transient_root->GetProperty(aura::client::kAppIconKey);
@@ -167,13 +169,12 @@ void WindowMiniView::UpdateIconView() {
         header_view_->AddChildViewAt(std::make_unique<views::ImageView>(), 0);
   }
 
-  icon_view_->SetImage(gfx::ImageSkiaOperations::CreateResizedImage(
-      *icon, skia::ImageOperations::RESIZE_BEST, kIconSize));
+  icon_view_->SetImage(ModifyIcon(icon));
 }
 
 gfx::Rect WindowMiniView::GetContentAreaBounds() const {
   gfx::Rect bounds(GetContentsBounds());
-  bounds.Inset(gfx::Insets::TLBR(kHeaderHeightDp, 0, 0, 0));
+  bounds.Inset(0, kHeaderHeightDp, 0, 0);
   return bounds;
 }
 
@@ -192,13 +193,6 @@ void WindowMiniView::Layout() {
 }
 
 void WindowMiniView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  // This may be called after `OnWindowDestroying`. `this` should be destroyed
-  // shortly by the owner (OverviewItem/WindowCycleView) but there may be a
-  // small window where `source_window_` is null. Speculative fix for
-  // https://crbug.com/1274775.
-  if (!source_window_)
-    return;
-
   node_data->role = ax::mojom::Role::kWindow;
   node_data->SetName(wm::GetTransientRoot(source_window_)->GetTitle());
 }
@@ -224,7 +218,7 @@ void WindowMiniView::OnWindowDestroying(aura::Window* window) {
   if (window != source_window_)
     return;
 
-  window_observation_.Reset();
+  window_observer_.RemoveAll();
   source_window_ = nullptr;
   SetShowPreview(false);
 }
@@ -232,8 +226,5 @@ void WindowMiniView::OnWindowDestroying(aura::Window* window) {
 void WindowMiniView::OnWindowTitleChanged(aura::Window* window) {
   title_label_->SetText(GetWindowTitle(window));
 }
-
-BEGIN_METADATA(WindowMiniView, views::View)
-END_METADATA
 
 }  // namespace ash

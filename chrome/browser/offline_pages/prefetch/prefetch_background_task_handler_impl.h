@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/offline_pages/core/prefetch/prefetch_background_task_handler.h"
 
 class PrefService;
@@ -40,12 +40,6 @@ namespace offline_pages {
 class PrefetchBackgroundTaskHandlerImpl : public PrefetchBackgroundTaskHandler {
  public:
   explicit PrefetchBackgroundTaskHandlerImpl(PrefService* profile);
-
-  PrefetchBackgroundTaskHandlerImpl(const PrefetchBackgroundTaskHandlerImpl&) =
-      delete;
-  PrefetchBackgroundTaskHandlerImpl& operator=(
-      const PrefetchBackgroundTaskHandlerImpl&) = delete;
-
   ~PrefetchBackgroundTaskHandlerImpl() override;
 
   // PrefetchBackgroundTaskHandler implementation.
@@ -67,8 +61,10 @@ class PrefetchBackgroundTaskHandlerImpl : public PrefetchBackgroundTaskHandler {
   std::unique_ptr<net::BackoffEntry> GetCurrentBackoff() const;
   void UpdateBackoff(net::BackoffEntry* backoff);
 
-  raw_ptr<PrefService> prefs_;
-  raw_ptr<const base::TickClock> tick_clock_;
+  PrefService* prefs_;
+  const base::TickClock* tick_clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchBackgroundTaskHandlerImpl);
 };
 
 }  // namespace offline_pages

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Writes Java module descriptor to srcjar file."""
@@ -22,7 +22,7 @@ _TEMPLATE = """\
 
 package org.chromium.components.module_installer.builder;
 
-import org.chromium.build.annotations.UsedByReflection;
+import org.chromium.base.annotations.UsedByReflection;
 
 @UsedByReflection("Module.java")
 public class ModuleDescriptor_{MODULE} implements ModuleDescriptor {{

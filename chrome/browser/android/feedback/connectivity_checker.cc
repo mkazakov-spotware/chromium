@@ -1,16 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include <memory>
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/memory/raw_ref.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/android/chrome_jni_headers/ConnectivityChecker_jni.h"
@@ -53,7 +51,7 @@ void JNI_ConnectivityChecker_PostCallback(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& j_callback,
     ConnectivityCheckResult result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&ExecuteCallback,
                      base::android::ScopedJavaGlobalRef<jobject>(j_callback),
@@ -83,7 +81,7 @@ class ConnectivityChecker {
   scoped_refptr<network::SharedURLLoaderFactory> shared_url_loader_factory_;
 
   // The URL to connect to.
-  const raw_ref<const GURL> url_;
+  const GURL& url_;
 
   // How long to wait for a response before giving up.
   const base::TimeDelta timeout_;
@@ -114,8 +112,7 @@ void ConnectivityChecker::OnURLLoadComplete(
   else
     ExecuteCallback(java_callback_, CONNECTIVITY_CHECK_RESULT_NOT_CONNECTED);
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                this);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
 ConnectivityChecker::ConnectivityChecker(
@@ -123,8 +120,9 @@ ConnectivityChecker::ConnectivityChecker(
     const GURL& url,
     const base::TimeDelta& timeout,
     const base::android::JavaRef<jobject>& java_callback)
-    : shared_url_loader_factory_(profile->GetDefaultStoragePartition()
-                                     ->GetURLLoaderFactoryForBrowserProcess()),
+    : shared_url_loader_factory_(
+          content::BrowserContext::GetDefaultStoragePartition(profile)
+              ->GetURLLoaderFactoryForBrowserProcess()),
       url_(url),
       timeout_(timeout),
       java_callback_(java_callback),
@@ -132,16 +130,16 @@ ConnectivityChecker::ConnectivityChecker(
 
 void ConnectivityChecker::StartAsyncCheck() {
   auto request = std::make_unique<network::ResourceRequest>();
-  request->url = *url_;
+  request->url = url_;
   request->credentials_mode = network::mojom::CredentialsMode::kOmit;
   request->load_flags = net::LOAD_BYPASS_CACHE | net::LOAD_DISABLE_CACHE;
   url_loader_ = network::SimpleURLLoader::Create(std::move(request),
-                                                 MISSING_TRAFFIC_ANNOTATION);
+                                                 NO_TRAFFIC_ANNOTATION_YET);
   url_loader_->DownloadHeadersOnly(
       shared_url_loader_factory_.get(),
       base::BindOnce(&ConnectivityChecker::OnURLLoadComplete,
                      base::Unretained(this)));
-  expiration_timer_ = std::make_unique<base::OneShotTimer>();
+  expiration_timer_.reset(new base::OneShotTimer());
   expiration_timer_->Start(FROM_HERE, timeout_, this,
                            &ConnectivityChecker::OnTimeout);
 }
@@ -152,8 +150,7 @@ void ConnectivityChecker::OnTimeout() {
   is_being_destroyed_ = true;
   url_loader_.reset();
   ExecuteCallback(java_callback_, CONNECTIVITY_CHECK_RESULT_TIMEOUT);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                this);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
 }  // namespace
@@ -179,7 +176,8 @@ void JNI_ConnectivityChecker_CheckConnectivity(
 
   // This object will be deleted when the connectivity check has completed.
   ConnectivityChecker* connectivity_checker = new ConnectivityChecker(
-      profile, url, base::Milliseconds(j_timeout_ms), j_callback);
+      profile, url, base::TimeDelta::FromMilliseconds(j_timeout_ms),
+      j_callback);
   connectivity_checker->StartAsyncCheck();
 }
 

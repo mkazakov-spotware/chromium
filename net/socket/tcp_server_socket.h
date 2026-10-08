@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_export.h"
@@ -26,9 +27,6 @@ class NET_EXPORT TCPServerSocket : public ServerSocket {
 
   // Adopts the provided socket, which must not be a connected socket.
   explicit TCPServerSocket(std::unique_ptr<TCPSocket> socket);
-
-  TCPServerSocket(const TCPServerSocket&) = delete;
-  TCPServerSocket& operator=(const TCPServerSocket&) = delete;
 
   ~TCPServerSocket() override;
 
@@ -71,7 +69,9 @@ class NET_EXPORT TCPServerSocket : public ServerSocket {
 
   std::unique_ptr<TCPSocket> accepted_socket_;
   IPEndPoint accepted_address_;
-  bool pending_accept_ = false;
+  bool pending_accept_;
+
+  DISALLOW_COPY_AND_ASSIGN(TCPServerSocket);
 };
 
 }  // namespace net

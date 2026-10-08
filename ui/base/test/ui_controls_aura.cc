@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include "base/callback.h"
 #include "base/check.h"
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace ui_controls {
 namespace {
@@ -80,13 +78,13 @@ bool SendMouseClick(MouseButton type) {
   return instance_->SendMouseClick(type);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // static
 bool SendTouchEvents(int action, int num, int x, int y) {
   CHECK(g_ui_controls_enabled);
   return instance_->SendTouchEvents(action, num, x, y);
 }
-#elif BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_CHROMEOS)
 // static
 bool SendTouchEvents(int action, int id, int x, int y) {
   CHECK(g_ui_controls_enabled);

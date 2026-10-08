@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,19 +10,18 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/strings/string_split.h"
-#include "base/time/time.h"
 
 namespace media {
 
 class DecoderBuffer;
 
 // Common test results.
-extern const char kFailedTitle[];
-extern const char kEndedTitle[];
-extern const char kErrorEventTitle[];
-extern const char kErrorTitle[];
+extern const char kFailed[];
+extern const char kEnded[];
+extern const char kErrorEvent[];
+extern const char kError[];
 
 // Returns a file path for a file in the media/test/data directory.
 base::FilePath GetTestDataFilePath(const std::string& name);
@@ -44,11 +43,6 @@ std::string GetURLQueryString(const base::StringPairs& query_params);
 //  |name| - The name of the file.
 //  |buffer| - The contents of the file.
 scoped_refptr<DecoderBuffer> ReadTestDataFile(const std::string& name);
-
-// Reads a decoder buffer from a file as well, but also sets the presentation
-// timestamp on it.
-scoped_refptr<DecoderBuffer> ReadTestDataFile(const std::string& name,
-                                              base::TimeDelta pts);
 
 // If the provided |key_id| is that of a test key, returns true and fills the
 // |key|, otherwise returns false. If |allowRotation| is true, then other valid

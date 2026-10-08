@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,11 +21,11 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
-import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.util.browser.Features;
+import org.chromium.testing.local.LocalRobolectricTestRunner;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
  * Test TabSuggestionsClientFetcher
  */
 @SuppressWarnings("ResultOfMethodCallIgnored")
-@RunWith(BaseRobolectricTestRunner.class)
+@RunWith(LocalRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class TabSuggestionsClientFetcherTest {
     @Rule
@@ -56,7 +56,7 @@ public class TabSuggestionsClientFetcherTest {
     private TabContext.TabInfo getMockTab(int id, String title, String url, String originalUrl,
             String referrer, long timestamp, double siteEngagementScore) {
         TabContext.TabInfo tabInfo =
-                spy(new TabContext.TabInfo(id, title, url, originalUrl, timestamp, ""));
+                spy(new TabContext.TabInfo(id, title, url, originalUrl, referrer, timestamp, ""));
         doReturn(siteEngagementScore).when(tabInfo).getSiteEngagementScore();
         return tabInfo;
     }

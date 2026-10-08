@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #import "base/mac/scoped_nsobject.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/vector_icons/vector_icons.h"
-#include "chrome/browser/autofill/autofill_popup_controller_utils.h"
 #include "chrome/browser/ui/autofill/autofill_popup_controller.h"
+#include "chrome/browser/ui/autofill/autofill_popup_controller_utils.h"
 #include "components/autofill/core/browser/ui/popup_item_ids.h"
 #include "components/autofill/core/browser/ui/popup_types.h"
 #include "components/autofill/core/browser/ui/suggestion.h"
@@ -79,7 +79,8 @@ NSImage* GetCreditCardTouchBarImage(int iconId) {
 }
 
 - (NSTouchBarItem*)touchBar:(NSTouchBar*)touchBar
-      makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier {
+      makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier
+    API_AVAILABLE(macos(10.12.2)) {
   if (![identifier hasSuffix:kCreditCardItemsTouchId])
     return nil;
 
@@ -114,16 +115,9 @@ NSImage* GetCreditCardTouchBarImage(int iconId) {
 
 - (NSButton*)createCreditCardButtonAtRow:(int)row {
   NSString* label =
-      base::SysUTF16ToNSString(_controller->GetSuggestionMainTextAt(row));
-  NSString* subtext = nil;
-  std::vector<std::vector<autofill::Suggestion::Text>> suggestion_labels =
-      _controller->GetSuggestionLabelsAt(row);
-  if (!suggestion_labels.empty()) {
-    DCHECK_EQ(suggestion_labels.size(), 1U);
-    DCHECK_EQ(suggestion_labels[0].size(), 1U);
-    subtext =
-        base::SysUTF16ToNSString(std::move(suggestion_labels[0][0].value));
-  }
+      base::SysUTF16ToNSString(_controller->GetSuggestionValueAt(row));
+  NSString* subtext =
+      base::SysUTF16ToNSString(_controller->GetSuggestionLabelAt(row));
 
   // Create the button title based on the text direction.
   NSString* buttonTitle =
@@ -177,6 +171,7 @@ NSImage* GetCreditCardTouchBarImage(int iconId) {
 }
 
 - (void)acceptCreditCard:(id)sender {
+  ui::LogTouchBarUMA(ui::TouchBarAction::CREDIT_CARD_AUTOFILL);
   _controller->AcceptSuggestion([sender tag]);
 }
 

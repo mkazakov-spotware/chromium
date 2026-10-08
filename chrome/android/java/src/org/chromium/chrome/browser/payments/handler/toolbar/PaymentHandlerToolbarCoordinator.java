@@ -1,20 +1,18 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.payments.handler.toolbar;
 
-import android.app.Activity;
 import android.view.View;
 
 import androidx.annotation.DrawableRes;
-import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.supplier.Supplier;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.page_info.ChromePageInfoControllerDelegate;
-import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
+import org.chromium.chrome.browser.page_info.ChromePermissionParamsListBuilderDelegate;
 import org.chromium.chrome.browser.payments.handler.toolbar.PaymentHandlerToolbarMediator.PaymentHandlerToolbarMediatorDelegate;
 import org.chromium.components.omnibox.SecurityStatusIcon;
 import org.chromium.components.page_info.PageInfoController;
@@ -22,7 +20,6 @@ import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.DeviceFormFactor;
-import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.url.GURL;
@@ -34,13 +31,12 @@ import org.chromium.url.GURL;
  * to interact with another component does that through this coordinator.
  */
 public class PaymentHandlerToolbarCoordinator implements PaymentHandlerToolbarMediatorDelegate {
+    private PaymentHandlerToolbarView mToolbarView;
+    private PaymentHandlerToolbarMediator mMediator;
     private final WebContents mWebContents;
-    private final Activity mActivity;
+    private final ChromeActivity mActivity;
     private final boolean mIsSmallDevice;
     private final PropertyModel mModel;
-    private final PaymentHandlerToolbarView mToolbarView;
-    private final PaymentHandlerToolbarMediator mMediator;
-    private final Supplier<ModalDialogManager> mModalDialogManagerSupplier;
 
     /**
      * Observer for the error of the payment handler toolbar.
@@ -52,21 +48,19 @@ public class PaymentHandlerToolbarCoordinator implements PaymentHandlerToolbarMe
 
     /**
      * Constructs the payment-handler toolbar component coordinator.
-     * @param activity The main activity.
-     * @param webContents The {@link WebContents} of the payment handler app.
+     * @param context The main activity. Not allowed to be null.
+     * @param webContents The {@link WebContents} of the payment handler app. Not allowed to be
+     *         null.
      * @param url The url of the payment handler app, i.e., that of
-     *         "PaymentRequestEvent.openWindow(url)".
-     * @param modalDialogManagerSupplier Supplies the {@link ModalDialogManager}.
+     *         "PaymentRequestEvent.openWindow(url)". Not allowed to be null.
      */
-    public PaymentHandlerToolbarCoordinator(@NonNull Activity activity,
-            @NonNull WebContents webContents, @NonNull GURL url,
-            @NonNull Supplier<ModalDialogManager> modalDialogManagerSupplier) {
-        assert activity != null;
+    public PaymentHandlerToolbarCoordinator(
+            ChromeActivity context, WebContents webContents, GURL url) {
+        assert context != null;
         assert webContents != null;
         assert url != null;
         mWebContents = webContents;
-        mActivity = activity;
-        mModalDialogManagerSupplier = modalDialogManagerSupplier;
+        mActivity = context;
         int defaultSecurityLevel = ConnectionSecurityLevel.NONE;
         mModel = new PropertyModel.Builder(PaymentHandlerToolbarProperties.ALL_KEYS)
                          .with(PaymentHandlerToolbarProperties.PROGRESS_VISIBLE, true)
@@ -80,9 +74,9 @@ public class PaymentHandlerToolbarCoordinator implements PaymentHandlerToolbarMe
                          .with(PaymentHandlerToolbarProperties.SECURITY_ICON_ON_CLICK_CALLBACK,
                                  this::showPageInfoDialog)
                          .build();
-        mIsSmallDevice = !DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
+        mIsSmallDevice = !DeviceFormFactor.isNonMultiDisplayContextOnTablet(context);
         mMediator = new PaymentHandlerToolbarMediator(mModel, webContents, /*delegate=*/this);
-        mToolbarView = new PaymentHandlerToolbarView(mActivity);
+        mToolbarView = new PaymentHandlerToolbarView(context);
         webContents.addObserver(mMediator);
         PropertyModelChangeProcessor.create(
                 mModel, mToolbarView, PaymentHandlerToolbarViewBinder::bind);
@@ -131,9 +125,9 @@ public class PaymentHandlerToolbarCoordinator implements PaymentHandlerToolbarMe
     @Override
     @DrawableRes
     public int getSecurityIconResource(@ConnectionSecurityLevel int securityLevel) {
-        return SecurityStatusIcon.getSecurityIconResource(securityLevel, mIsSmallDevice,
-                /*skipIconForNeutralState=*/false,
-                /*useUpdatedConnectionSecurityIndicators=*/false);
+        return SecurityStatusIcon.getSecurityIconResource(securityLevel,
+                SecurityStateModel.shouldShowDangerTriangleForWarningLevel(), mIsSmallDevice,
+                /*skipIconForNeutralState=*/false);
     }
 
     // Implement PaymentHandlerToolbarMediatorDelegate.
@@ -145,19 +139,12 @@ public class PaymentHandlerToolbarCoordinator implements PaymentHandlerToolbarMe
     }
 
     private void showPageInfoDialog() {
-        // When creating the {@link ChromePageInfoControllerDelegate} here, we don't need
-        // storeInfoActionHandlerSupplier or ephemeralTabCoordinatorSupplier and don't show
-        // "store info" row because this UI is already in a bottom sheet and clicking "store info"
-        // row would trigger another bottom sheet.
         PageInfoController.show(mActivity, mWebContents, null,
                 PageInfoController.OpenedFromSource.TOOLBAR,
                 new ChromePageInfoControllerDelegate(mActivity, mWebContents,
-                        mModalDialogManagerSupplier,
+                        mActivity::getModalDialogManager,
                         /*offlinePageLoadUrlDelegate=*/
-                        new OfflinePageUtils.WebContentsOfflinePageLoadUrlDelegate(mWebContents),
-                        /*storeInfoActionHandlerSupplier=*/null,
-                        /*ephemeralTabCoordinatorSupplier=*/null,
-                        ChromePageInfoHighlight.noHighlight()),
-                ChromePageInfoHighlight.noHighlight());
+                        new OfflinePageUtils.WebContentsOfflinePageLoadUrlDelegate(mWebContents)),
+                new ChromePermissionParamsListBuilderDelegate());
     }
 }

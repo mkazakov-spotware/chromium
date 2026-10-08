@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 
+#include "services/network/public/cpp/session_cookie_delete_predicate.h"
 #include "storage/browser/quota/special_storage_policy.h"
 #include "url/gurl.h"
 
@@ -23,6 +24,7 @@ class MockSpecialStoragePolicy : public SpecialStoragePolicy {
   bool HasIsolatedStorage(const GURL& origin) override;
   bool HasSessionOnlyOrigins() override;
   bool IsStorageDurable(const GURL& origin) override;
+  network::DeleteCookiePredicate CreateDeleteCookieOnExitPredicate() override;
 
   void AddProtected(const GURL& origin) { protected_.insert(origin); }
 
@@ -31,7 +33,6 @@ class MockSpecialStoragePolicy : public SpecialStoragePolicy {
   void RemoveUnlimited(const GURL& origin) { unlimited_.erase(origin); }
 
   void AddSessionOnly(const GURL& origin) { session_only_.insert(origin); }
-  void RemoveSessionOnly(const GURL& origin) { session_only_.erase(origin); }
 
   void AddIsolated(const GURL& origin) { isolated_.insert(origin); }
 
@@ -66,6 +67,8 @@ class MockSpecialStoragePolicy : public SpecialStoragePolicy {
   ~MockSpecialStoragePolicy() override;
 
  private:
+  bool ShouldDeleteCookieOnExit(const std::string& domain, bool is_https);
+
   std::set<GURL> protected_;
   std::set<GURL> unlimited_;
   std::set<GURL> session_only_;

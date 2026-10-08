@@ -38,10 +38,8 @@ class PLATFORM_EXPORT PNGImageDecoder final : public ImageDecoder {
   PNGImageDecoder(AlphaOption,
                   HighBitDepthDecodingOption,
                   const ColorBehavior&,
-                  wtf_size_t max_decoded_bytes,
-                  wtf_size_t offset = 0);
-  PNGImageDecoder(const PNGImageDecoder&) = delete;
-  PNGImageDecoder& operator=(const PNGImageDecoder&) = delete;
+                  size_t max_decoded_bytes,
+                  size_t offset = 0);
   ~PNGImageDecoder() override;
 
   // ImageDecoder:
@@ -49,8 +47,8 @@ class PLATFORM_EXPORT PNGImageDecoder final : public ImageDecoder {
   bool SetSize(unsigned, unsigned) override;
   int RepetitionCount() const override;
   bool ImageIsHighBitDepth() override;
-  bool FrameIsReceivedAtIndex(wtf_size_t) const override;
-  base::TimeDelta FrameDurationAtIndex(wtf_size_t) const override;
+  bool FrameIsReceivedAtIndex(size_t) const override;
+  base::TimeDelta FrameDurationAtIndex(size_t) const override;
   bool SetFailed() override;
 
   // Callbacks from libpng
@@ -67,24 +65,26 @@ class PLATFORM_EXPORT PNGImageDecoder final : public ImageDecoder {
 
   // ImageDecoder:
   void DecodeSize() override { Parse(ParseQuery::kSize); }
-  void Decode(wtf_size_t) override;
+  void Decode(size_t) override;
   void Parse(ParseQuery);
-  wtf_size_t DecodeFrameCount() override;
-  void InitializeNewFrame(wtf_size_t) override;
-  void ClearFrameBuffer(wtf_size_t) override;
-  bool CanReusePreviousFrameBuffer(wtf_size_t) const override;
+  size_t DecodeFrameCount() override;
+  void InitializeNewFrame(size_t) override;
+  void ClearFrameBuffer(size_t) override;
+  bool CanReusePreviousFrameBuffer(size_t) const override;
 
   std::unique_ptr<PNGImageReader> reader_;
   const unsigned offset_;
-  wtf_size_t current_frame_;
+  size_t current_frame_;
   int repetition_count_;
   bool has_alpha_channel_;
   bool current_buffer_saw_alpha_;
   bool decode_to_half_float_;
-  wtf_size_t bit_depth_;
+  size_t bit_depth_;
   std::unique_ptr<ImageFrame::PixelData[]> color_transform_scanline_;
+
+  DISALLOW_COPY_AND_ASSIGN(PNGImageDecoder);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_IMAGE_DECODERS_PNG_PNG_IMAGE_DECODER_H_
+#endif

@@ -1,14 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_ROOT_WINDOW_SETTINGS_H_
 #define ASH_ROOT_WINDOW_SETTINGS_H_
 
-#include <cstdint>
+#include <stdint.h>
 
 #include "ash/ash_export.h"
-#include "base/memory/raw_ptr.h"
 
 namespace aura {
 class Window;
@@ -29,7 +28,7 @@ struct RootWindowSettings {
 
   // RootWindowController for the root window. This may be NULL
   // for the root window used for mirroring.
-  raw_ptr<RootWindowController> controller;
+  RootWindowController* controller;
 };
 
 // Initializes and returns RootWindowSettings for |root|.

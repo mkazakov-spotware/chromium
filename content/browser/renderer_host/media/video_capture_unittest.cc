@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,12 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/no_destructor.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "content/browser/renderer_host/media/fake_video_capture_provider.h"
 #include "content/browser/renderer_host/media/media_stream_manager.h"
@@ -67,9 +70,9 @@ void VideoInputDevicesEnumerated(base::OnceClosure quit_closure,
 // Id used to identify the capture session between renderer and
 // video_capture_host. This is an arbitrary value.
 const base::UnguessableToken& DeviceId() {
-  static const base::UnguessableToken device_id(
+  static const base::NoDestructor<base::UnguessableToken> device_id(
       base::UnguessableToken::Deserialize(555, 555));
-  return device_id;
+  return *device_id;
 }
 
 }  // namespace
@@ -97,24 +100,21 @@ class VideoCaptureTest : public testing::Test,
             std::make_unique<media::TestAudioThread>())),
         audio_system_(
             std::make_unique<media::AudioSystemImpl>(audio_manager_.get())),
-        task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
-
-  VideoCaptureTest(const VideoCaptureTest&) = delete;
-  VideoCaptureTest& operator=(const VideoCaptureTest&) = delete;
-
+        task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
   ~VideoCaptureTest() override { audio_manager_->Shutdown(); }
 
   void SetUp() override {
     SetBrowserClientForTesting(&browser_client_);
 
     media_stream_manager_ = std::make_unique<MediaStreamManager>(
-        audio_system_.get(), std::make_unique<FakeVideoCaptureProvider>());
+        audio_system_.get(), audio_manager_->GetTaskRunner(),
+        std::make_unique<FakeVideoCaptureProvider>());
     media_stream_manager_->UseFakeUIFactoryForTests(base::BindRepeating(
         &VideoCaptureTest::CreateFakeUI, base::Unretained(this)));
 
     // Create a Host and connect it to a simulated IPC channel.
-    host_ = std::make_unique<VideoCaptureHost>(0 /* render_process_id */,
-                                               media_stream_manager_.get());
+    host_.reset(new VideoCaptureHost(0 /* render_process_id */,
+                                     media_stream_manager_.get()));
 
     OpenSession();
   }
@@ -184,28 +184,18 @@ class VideoCaptureTest : public testing::Test,
 
  protected:
   // media::mojom::VideoCaptureObserver implementation.
-  void OnStateChanged(media::mojom::VideoCaptureResultPtr result) override {
-    if (result->which() == media::mojom::VideoCaptureResult::Tag::kState)
-      DoOnStateChanged(result->get_state());
-    else
-      DoOnVideoCaptureError(result->get_error_code());
-  }
-  MOCK_METHOD1(DoOnStateChanged, void(media::mojom::VideoCaptureState));
-  MOCK_METHOD1(DoOnVideoCaptureError, void(media::VideoCaptureError));
-
+  MOCK_METHOD1(OnStateChanged, void(media::mojom::VideoCaptureState));
   void OnNewBuffer(int32_t buffer_id,
                    media::mojom::VideoBufferHandlePtr buffer_handle) override {
     DoOnNewBuffer(buffer_id);
   }
   MOCK_METHOD1(DoOnNewBuffer, void(int32_t));
-  void OnBufferReady(
-      media::mojom::ReadyBufferPtr buffer,
-      std::vector<media::mojom::ReadyBufferPtr> scaled_buffers) override {
-    DoOnBufferReady(buffer->buffer_id);
+  void OnBufferReady(int32_t buffer_id,
+                     media::mojom::VideoFrameInfoPtr info) override {
+    DoOnBufferReady(buffer_id);
   }
   MOCK_METHOD1(DoOnBufferReady, void(int32_t));
   MOCK_METHOD1(OnBufferDestroyed, void(int32_t));
-  MOCK_METHOD1(OnNewCropVersion, void(uint32_t));
 
   void StartCapture() {
     base::RunLoop run_loop;
@@ -214,7 +204,7 @@ class VideoCaptureTest : public testing::Test,
         gfx::Size(352, 288), 30, media::PIXEL_FORMAT_I420);
 
     EXPECT_CALL(*this,
-                DoOnStateChanged(media::mojom::VideoCaptureState::STARTED));
+                OnStateChanged(media::mojom::VideoCaptureState::STARTED));
     EXPECT_CALL(*this, DoOnNewBuffer(_))
         .Times(AnyNumber())
         .WillRepeatedly(Return());
@@ -226,21 +216,6 @@ class VideoCaptureTest : public testing::Test,
                  observer_receiver_.BindNewPipeAndPassRemote());
 
     run_loop.Run();
-  }
-
-  void StartCaptureWithInvalidSession() {
-    media::VideoCaptureParams params;
-    params.requested_format = media::VideoCaptureFormat(
-        gfx::Size(352, 288), 30, media::PIXEL_FORMAT_I420);
-
-    EXPECT_CALL(
-        *this,
-        DoOnVideoCaptureError(
-            media::VideoCaptureError::
-                kVideoCaptureControllerInvalidOrUnsupportedVideoCaptureParametersRequested))
-        .Times(1);
-    host_->Start(DeviceId(), base::UnguessableToken(), params,
-                 observer_receiver_.BindNewPipeAndPassRemote());
   }
 
   void StartAndImmediateStopCapture() {
@@ -255,14 +230,13 @@ class VideoCaptureTest : public testing::Test,
 
     // |STARTED| is reported asynchronously, which may not be received if
     // capture is stopped immediately.
-    EXPECT_CALL(*this,
-                DoOnStateChanged(media::mojom::VideoCaptureState::STARTED))
+    EXPECT_CALL(*this, OnStateChanged(media::mojom::VideoCaptureState::STARTED))
         .Times(AtMost(1));
     host_->Start(DeviceId(), opened_session_id_, params,
                  observer_receiver_.BindNewPipeAndPassRemote());
 
     EXPECT_CALL(*this,
-                DoOnStateChanged(media::mojom::VideoCaptureState::STOPPED));
+                OnStateChanged(media::mojom::VideoCaptureState::STOPPED));
     host_->Stop(DeviceId());
     run_loop.RunUntilIdle();
   }
@@ -271,8 +245,7 @@ class VideoCaptureTest : public testing::Test,
     InSequence s;
     base::RunLoop run_loop;
 
-    EXPECT_CALL(*this,
-                DoOnStateChanged(media::mojom::VideoCaptureState::PAUSED));
+    EXPECT_CALL(*this, OnStateChanged(media::mojom::VideoCaptureState::PAUSED));
     host_->Pause(DeviceId());
 
     media::VideoCaptureParams params;
@@ -280,7 +253,7 @@ class VideoCaptureTest : public testing::Test,
         gfx::Size(352, 288), 30, media::PIXEL_FORMAT_I420);
 
     EXPECT_CALL(*this,
-                DoOnStateChanged(media::mojom::VideoCaptureState::RESUMED));
+                OnStateChanged(media::mojom::VideoCaptureState::RESUMED));
     host_->Resume(DeviceId(), opened_session_id_, params);
     run_loop.RunUntilIdle();
   }
@@ -288,8 +261,7 @@ class VideoCaptureTest : public testing::Test,
   void StopCapture() {
     base::RunLoop run_loop;
 
-    EXPECT_CALL(*this,
-                DoOnStateChanged(media::mojom::VideoCaptureState::STOPPED))
+    EXPECT_CALL(*this, OnStateChanged(media::mojom::VideoCaptureState::STOPPED))
         .WillOnce(ExitMessageLoop(task_runner_, run_loop.QuitClosure()));
     host_->Stop(DeviceId());
 
@@ -309,10 +281,7 @@ class VideoCaptureTest : public testing::Test,
   }
 
   void SimulateError() {
-    EXPECT_CALL(
-        *this,
-        DoOnVideoCaptureError(
-            media::VideoCaptureError::kIntentionalErrorRaisedByUnitTest));
+    EXPECT_CALL(*this, OnStateChanged(media::mojom::VideoCaptureState::FAILED));
     host_->OnError(DeviceId(),
                    media::VideoCaptureError::kIntentionalErrorRaisedByUnitTest);
     base::RunLoop().RunUntilIdle();
@@ -349,6 +318,8 @@ class VideoCaptureTest : public testing::Test,
 
   std::unique_ptr<VideoCaptureHost> host_;
   mojo::Receiver<media::mojom::VideoCaptureObserver> observer_receiver_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureTest);
 };
 
 // Construct and destruct all objects. This is a non trivial sequence.
@@ -371,18 +342,13 @@ TEST_F(VideoCaptureTest, StartAndErrorAndStop) {
   StopCapture();
 }
 
-TEST_F(VideoCaptureTest, StartWithInvalidSessionId) {
-  StartCaptureWithInvalidSession();
-  StopCapture();
-}
-
 TEST_F(VideoCaptureTest, StartAndCaptureAndError) {
-  EXPECT_CALL(*this, DoOnStateChanged(media::mojom::VideoCaptureState::STOPPED))
+  EXPECT_CALL(*this, OnStateChanged(media::mojom::VideoCaptureState::STOPPED))
       .Times(0);
   StartCapture();
   WaitForOneCapturedBuffer();
   SimulateError();
-  base::PlatformThread::Sleep(base::Milliseconds(200));
+  base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(200));
 }
 
 TEST_F(VideoCaptureTest, StartAndPauseAndResumeAndStop) {
@@ -396,7 +362,7 @@ TEST_F(VideoCaptureTest, CloseSessionWithoutStopping) {
 
   // When the session is closed via the stream without stopping capture, the
   // ENDED event is sent.
-  EXPECT_CALL(*this, DoOnStateChanged(media::mojom::VideoCaptureState::ENDED));
+  EXPECT_CALL(*this, OnStateChanged(media::mojom::VideoCaptureState::ENDED));
   CloseSession();
   base::RunLoop().RunUntilIdle();
 }

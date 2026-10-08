@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,12 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/callback_forward.h"
 #include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 
@@ -23,13 +25,9 @@ class TranslateURLFetcher;
 
 class TranslateScript {
  public:
-  using RequestCallback = base::OnceCallback<void(bool)>;
+  using RequestCallback = base::OnceCallback<void(bool, const std::string&)>;
 
   TranslateScript();
-
-  TranslateScript(const TranslateScript&) = delete;
-  TranslateScript& operator=(const TranslateScript&) = delete;
-
   virtual ~TranslateScript();
 
   // Returns the fetched translate script.
@@ -39,7 +37,7 @@ class TranslateScript {
   // Delay after which the translate script is fetched again from the
   // translation server.
   void set_expiration_delay(int delay_ms) {
-    expiration_delay_ = base::Milliseconds(delay_ms);
+    expiration_delay_ = base::TimeDelta::FromMilliseconds(delay_ms);
   }
 
   // Clears the translate script, so it will be fetched next time we translate.
@@ -100,6 +98,8 @@ class TranslateScript {
   RequestCallbackList callback_list_;
 
   base::WeakPtrFactory<TranslateScript> weak_method_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TranslateScript);
 };
 
 }  // namespace translate

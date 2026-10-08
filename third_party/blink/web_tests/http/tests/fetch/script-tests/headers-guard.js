@@ -125,15 +125,8 @@ test(function() {
                 testIgnoreHeaderName(headers, header);
               });
 
-          // Take into account overlapping forbidden header names.
-          var lower = FORBIDDEN_HEADER_NAMES.map(header => {
-            return header.toLowerCase();
-          });
-          var non_overlapping_headers =
-              FORBIDDEN_RESPONSE_HEADER_NAMES.filter(x => !lower.includes(x.toLowerCase()));
-
           // Other header names must be accepted.
-          non_overlapping_headers
+          FORBIDDEN_RESPONSE_HEADER_NAMES
             .concat(SIMPLE_HEADER_NAMES)
             .concat([CONTENT_TYPE])
             .concat(NON_SIMPLE_HEADER_NAMES)
@@ -161,15 +154,8 @@ test(function() {
                             header + ' must be ignored (2)');
             });
 
-        // Take into account overlapping forbidden header names.
-        var lower = FORBIDDEN_HEADER_NAMES.map(header => {
-          return header.toLowerCase();
-        });
-        var non_overlapping_headers =
-            FORBIDDEN_RESPONSE_HEADER_NAMES.filter(x => !lower.includes(x.toLowerCase()));
-
         // Other header names must be accepted.
-        non_overlapping_headers
+        FORBIDDEN_RESPONSE_HEADER_NAMES
           .concat(SIMPLE_HEADER_NAMES)
           .concat([CONTENT_TYPE])
           .concat(NON_SIMPLE_HEADER_NAMES)
@@ -330,15 +316,8 @@ test(function() {
                 testIgnoreHeaderName(headers, header);
               });
 
-          // Take into account overlapping forbidden header names.
-          var lower = FORBIDDEN_RESPONSE_HEADER_NAMES.map(header => {
-            return header.toLowerCase();
-          });
-          var non_overlapping_headers =
-              FORBIDDEN_HEADER_NAMES.filter(x => !lower.includes(x.toLowerCase()));
-
           // Other header names must be accepted.
-          non_overlapping_headers
+          FORBIDDEN_HEADER_NAMES
             .concat(SIMPLE_HEADER_NAMES)
             .concat([CONTENT_TYPE])
             .concat(NON_SIMPLE_HEADER_NAMES)
@@ -364,15 +343,8 @@ test(function() {
                         header + ' must be ignored (2)');
         });
 
-    // Take into account overlapping forbidden header names.
-    var lower = FORBIDDEN_RESPONSE_HEADER_NAMES.map(header => {
-      return header.toLowerCase();
-    });
-    var non_overlapping_headers =
-        FORBIDDEN_HEADER_NAMES.filter(x => !lower.includes(x.toLowerCase()));
-
     // Other header names must be accepted.
-    non_overlapping_headers
+    FORBIDDEN_HEADER_NAMES
       .concat(SIMPLE_HEADER_NAMES)
       .concat([CONTENT_TYPE])
       .concat(NON_SIMPLE_HEADER_NAMES)

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.build.BuildConfig;
+import org.chromium.base.BuildConfig;
 import org.chromium.chrome.browser.tasks.tab_groups.TabGroupUtils;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 
@@ -25,7 +25,7 @@ public class AssertsTest {
     @SmallTest
     @SuppressWarnings("UseCorrectAssertInTests")
     public void assertInTests() {
-        if (BuildConfig.ENABLE_ASSERTS) {
+        if (BuildConfig.DCHECK_IS_ON) {
             try {
                 assert false;
             } catch (AssertionError e) {
@@ -43,7 +43,7 @@ public class AssertsTest {
     @SmallTest
     @SuppressWarnings("UseCorrectAssertInTests")
     public void assertInModule() {
-        if (BuildConfig.ENABLE_ASSERTS) {
+        if (BuildConfig.DCHECK_IS_ON) {
             try {
                 TabGroupUtils.triggerAssertionForTesting();
             } catch (AssertionError e) {

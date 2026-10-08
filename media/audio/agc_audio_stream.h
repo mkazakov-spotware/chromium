@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <atomic>
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/timer/timer.h"
 #include "media/audio/audio_io.h"
@@ -68,15 +69,11 @@ template <typename AudioInterface>
 class MEDIA_EXPORT AgcAudioStream : public AudioInterface {
  public:
   // Time between two successive timer events.
-  static constexpr base::TimeDelta kIntervalBetweenVolumeUpdates =
-      base::Milliseconds(1000);
+  static const int kIntervalBetweenVolumeUpdatesMs = 1000;
 
   AgcAudioStream()
       : agc_is_enabled_(false), max_volume_(0.0), normalized_volume_(0.0) {
   }
-
-  AgcAudioStream(const AgcAudioStream&) = delete;
-  AgcAudioStream& operator=(const AgcAudioStream&) = delete;
 
   virtual ~AgcAudioStream() {
     DCHECK(thread_checker_.CalledOnValidThread());
@@ -104,8 +101,9 @@ class MEDIA_EXPORT AgcAudioStream : public AudioInterface {
     // volume from 0.
     QueryAndStoreNewMicrophoneVolume();
 
-    timer_.Start(FROM_HERE, kIntervalBetweenVolumeUpdates, this,
-                 &AgcAudioStream::QueryAndStoreNewMicrophoneVolume);
+    timer_.Start(FROM_HERE,
+        base::TimeDelta::FromMilliseconds(kIntervalBetweenVolumeUpdatesMs),
+        this, &AgcAudioStream::QueryAndStoreNewMicrophoneVolume);
   }
 
   // Stops the periodic timer which periodically checks and updates the
@@ -195,6 +193,8 @@ class MEDIA_EXPORT AgcAudioStream : public AudioInterface {
   // by not querying the capture volume for each callback. The range is
   // normalized to [0.0, 1.0].
   std::atomic<double> normalized_volume_;
+
+  DISALLOW_COPY_AND_ASSIGN(AgcAudioStream<AudioInterface>);
 };
 
 }  // namespace media

@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/platform/web_document_subresource_filter.h"
 
-#include "base/containers/contains.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
@@ -32,7 +31,9 @@ class TestDocumentSubresourceFilter : public WebDocumentSubresourceFilter {
   LoadPolicy GetLoadPolicy(const WebURL& resource_url,
                            mojom::blink::RequestContextType) override {
     String resource_path = KURL(resource_url).GetPath();
-    if (!base::Contains(queried_subresource_paths_, resource_path)) {
+    if (std::find(queried_subresource_paths_.begin(),
+                  queried_subresource_paths_.end(),
+                  resource_path) == queried_subresource_paths_.end()) {
       queried_subresource_paths_.push_back(resource_path);
     }
     String resource_string = resource_url.GetString();
@@ -44,10 +45,6 @@ class TestDocumentSubresourceFilter : public WebDocumentSubresourceFilter {
   }
 
   LoadPolicy GetLoadPolicyForWebSocketConnect(const WebURL& url) override {
-    return kAllow;
-  }
-
-  LoadPolicy GetLoadPolicyForWebTransportConnect(const WebURL&) override {
     return kAllow;
   }
 
@@ -73,11 +70,9 @@ class TestDocumentSubresourceFilter : public WebDocumentSubresourceFilter {
 class SubresourceFilteringWebFrameClient
     : public frame_test_helpers::TestWebFrameClient {
  public:
-  void DidCommitNavigation(
-      WebHistoryCommitType commit_type,
-      bool should_reset_browser_interface_broker,
-      const ParsedPermissionsPolicy& permissions_policy_header,
-      const DocumentPolicyFeatureState& document_policy_header) override {
+  void DidCommitNavigation(const WebHistoryItem&,
+                           WebHistoryCommitType,
+                           bool) override {
     subresource_filter_ =
         new TestDocumentSubresourceFilter(load_policy_for_next_load_);
     subresource_filter_->AddToBlocklist("1x1.png");

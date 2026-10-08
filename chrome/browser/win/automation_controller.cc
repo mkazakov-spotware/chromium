@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include "base/sequence_checker.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/win/atl.h"
 #include "base/win/scoped_variant.h"
@@ -47,9 +48,6 @@ class RefCountedDelegate : public base::RefCounted<RefCountedDelegate> {
   explicit RefCountedDelegate(
       std::unique_ptr<AutomationController::Delegate> delegate);
 
-  RefCountedDelegate(const RefCountedDelegate&) = delete;
-  RefCountedDelegate& operator=(const RefCountedDelegate&) = delete;
-
   // These are forwarded to |delegate_|.
   void OnInitialized(HRESULT result);
   void ConfigureCacheRequest(IUIAutomationCacheRequest* cache_request);
@@ -64,6 +62,8 @@ class RefCountedDelegate : public base::RefCounted<RefCountedDelegate> {
   ~RefCountedDelegate();
 
   const std::unique_ptr<AutomationController::Delegate> delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(RefCountedDelegate);
 };
 
 RefCountedDelegate::RefCountedDelegate(
@@ -101,9 +101,6 @@ class AutomationController::Context {
   // Returns a new instance ready for initialization and use in another
   // sequence.
   static base::WeakPtr<Context> Create();
-
-  Context(const Context&) = delete;
-  Context& operator=(const Context&) = delete;
 
   // Deletes the instance.
   void DeleteInAutomationSequence();
@@ -148,6 +145,8 @@ class AutomationController::Context {
 
   // Weak pointers to the context are given to event handlers.
   base::WeakPtrFactory<Context> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(Context);
 };
 
 class AutomationController::Context::EventHandler
@@ -161,10 +160,6 @@ class AutomationController::Context::EventHandler
   END_COM_MAP()
 
   EventHandler();
-
-  EventHandler(const EventHandler&) = delete;
-  EventHandler& operator=(const EventHandler&) = delete;
-
   ~EventHandler();
 
   // Initializes the object. Events will be dispatched back to |context| via
@@ -184,6 +179,8 @@ class AutomationController::Context::EventHandler
 
   // Pointer to the delegate.
   scoped_refptr<RefCountedDelegate> ref_counted_delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventHandler);
 };
 
 AutomationController::Context::EventHandler::EventHandler() = default;
@@ -197,8 +194,7 @@ void AutomationController::Context::EventHandler::Initialize(
   ref_counted_delegate_ = std::move(ref_counted_delegate);
 }
 
-STDMETHODIMP
-AutomationController::Context::EventHandler::HandleAutomationEvent(
+HRESULT AutomationController::Context::EventHandler::HandleAutomationEvent(
     IUIAutomationElement* sender,
     EVENTID event_id) {
   DVLOG(1)
@@ -221,8 +217,7 @@ AutomationController::Context::EventHandler::HandleAutomationEvent(
   return S_OK;
 }
 
-STDMETHODIMP
-AutomationController::Context::EventHandler::HandleFocusChangedEvent(
+HRESULT AutomationController::Context::EventHandler::HandleFocusChangedEvent(
     IUIAutomationElement* sender) {
   DVLOG(1)
       << "focus changed for automation id: "

@@ -1,13 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "headless/test/test_network_interceptor.h"
 
-#include <memory>
-
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -44,7 +41,7 @@ class RedirectLoader : public network::mojom::URLLoader {
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      const absl::optional<GURL>& new_url) override;
+      const base::Optional<GURL>& new_url) override;
 
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {}
@@ -71,12 +68,12 @@ class RedirectLoader : public network::mojom::URLLoader {
     client_->OnReceiveRedirect(redirect_info, std::move(head));
   }
 
-  const raw_ptr<TestNetworkInterceptor::Impl> interceptor_impl_;
+  TestNetworkInterceptor::Impl* const interceptor_impl_;
 
   mojo::Receiver<network::mojom::URLLoader> receiver_;
   mojo::Remote<network::mojom::URLLoaderClient> client_;
   network::ResourceRequest url_request_;
-  raw_ptr<TestNetworkInterceptor::Response> response_;
+  TestNetworkInterceptor::Response* response_;
   GURL url_;
   std::string method_;
 };
@@ -132,7 +129,7 @@ void RedirectLoader::FollowRedirect(
     const std::vector<std::string>& removed_headers /* unused */,
     const net::HttpRequestHeaders& modified_headers /* unused */,
     const net::HttpRequestHeaders& modified_cors_exempt_headers /* unused */,
-    const absl::optional<GURL>& new_url) {
+    const base::Optional<GURL>& new_url) {
   response_ = interceptor_impl_->FindResponse(method_, url_.spec());
   CHECK(response_) << "No content for " << url_.spec();
   std::string location;
@@ -169,7 +166,7 @@ TestNetworkInterceptor::Response::Response(Response&& r) = default;
 TestNetworkInterceptor::Response::~Response() {}
 
 TestNetworkInterceptor::TestNetworkInterceptor() {
-  impl_ = std::make_unique<Impl>(weak_factory_.GetWeakPtr());
+  impl_.reset(new Impl(weak_factory_.GetWeakPtr()));
   interceptor_ = std::make_unique<content::URLLoaderInterceptor>(
       base::BindRepeating(&TestNetworkInterceptor::Impl::RequestHandler,
                           base::Unretained(impl_.get())));

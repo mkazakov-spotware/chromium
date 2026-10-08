@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,9 +71,9 @@ void RecentTabsPagePrefs::SetSyncPromoCollapsed(
 jboolean RecentTabsPagePrefs::GetForeignSessionCollapsed(
     JNIEnv* env,
     const JavaParamRef<jstring>& session_tag) {
-  const base::Value::Dict& dict =
-      profile_->GetPrefs()->GetDict(prefs::kNtpCollapsedForeignSessions);
-  return dict.contains(ConvertJavaStringToUTF8(env, session_tag));
+  const base::DictionaryValue* dict =
+      profile_->GetPrefs()->GetDictionary(prefs::kNtpCollapsedForeignSessions);
+  return dict && dict->HasKey(ConvertJavaStringToUTF8(env, session_tag));
 }
 
 void RecentTabsPagePrefs::SetForeignSessionCollapsed(
@@ -83,11 +83,11 @@ void RecentTabsPagePrefs::SetForeignSessionCollapsed(
   // Store session tags for collapsed sessions in a preference so that the
   // collapsed state persists.
   PrefService* prefs = profile_->GetPrefs();
-  ScopedDictPrefUpdate update(prefs, prefs::kNtpCollapsedForeignSessions);
+  DictionaryPrefUpdate update(prefs, prefs::kNtpCollapsedForeignSessions);
   if (is_collapsed)
-    update->Set(ConvertJavaStringToUTF8(env, session_tag), true);
+    update.Get()->SetBoolean(ConvertJavaStringToUTF8(env, session_tag), true);
   else
-    update->Remove(ConvertJavaStringToUTF8(env, session_tag));
+    update.Get()->Remove(ConvertJavaStringToUTF8(env, session_tag), NULL);
 }
 
 // static

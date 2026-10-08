@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -164,12 +164,6 @@ class PLATFORM_EXPORT FontMatchingMetrics {
       FontDescription::GenericFamilyType generic_family_type,
       const AtomicString& resulting_font_name);
 
-  // Reports for each shaped emoji segment the number of total clusters and the
-  // number of clusters that either contain a .notdef/tofu glyph or that is
-  // shaped as multiple glyphs, which means the emoji displays incorrectly.
-  void ReportEmojiSegmentGlyphCoverage(unsigned num_clusters,
-                                       unsigned num_broken_clusters);
-
   // Called on page unload and forces metrics to be flushed.
   void PublishAllMetrics();
 
@@ -184,11 +178,6 @@ class PLATFORM_EXPORT FontMatchingMetrics {
   // Publishes the number of font family matches attempted (both successful
   // and otherwise) to UKM. Recorded on page unload.
   void PublishUkmMetrics();
-
-  // Publishes the ratio of correctly shaped to incorrectly shaped emoji
-  // segments during the lifetime of this metrics recorder, which usually is
-  // coupled to the lifetime of a document or WorkerGlobalContext.
-  void PublishEmojiGlyphMetrics();
 
  private:
   void IdentifiabilityMetricsTimerFired(TimerBase*);
@@ -262,9 +251,6 @@ class PLATFORM_EXPORT FontMatchingMetrics {
   TokenToTokenHashMap generic_font_lookups_;
   TokenToTokenHashMap font_load_postscript_name_;
   TokenToTokenHashMap local_font_existence_by_unique_name_only_;
-
-  uint64_t total_emoji_clusters_shaped_ = 0;
-  uint64_t total_broken_emoji_clusters_ = 0;
 
   ukm::UkmRecorder* const ukm_recorder_;
   const ukm::SourceId source_id_;

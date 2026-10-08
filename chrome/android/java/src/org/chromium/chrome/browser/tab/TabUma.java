@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,11 @@ package org.chromium.chrome.browser.tab;
 import android.os.SystemClock;
 import android.text.format.DateUtils;
 
-import androidx.annotation.Nullable;
-
 import org.chromium.base.UserData;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.net.NetError;
-import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 
 /**
  * Centralizes UMA data collection for Tab management.
@@ -110,8 +106,8 @@ public class TabUma extends EmptyTabObserver implements UserData {
         if (errorCode == NetError.OK) {
             RecordHistogram.recordEnumeratedHistogram(
                     "Tab.RestoreResult", TAB_RESTORE_RESULT_SUCCESS, TAB_RESTORE_RESULT_COUNT);
-            RecordHistogram.recordCount1MHistogram("Tab.RestoreTime", (int) time);
-            RecordHistogram.recordCount1MHistogram("Tab.PerceivedRestoreTime", (int) perceivedTime);
+            RecordHistogram.recordCountHistogram("Tab.RestoreTime", (int) time);
+            RecordHistogram.recordCountHistogram("Tab.PerceivedRestoreTime", (int) perceivedTime);
         } else {
             switch (errorCode) {
                 case NetError.ERR_INTERNET_DISCONNECTED:
@@ -173,7 +169,7 @@ public class TabUma extends EmptyTabObserver implements UserData {
         // incognito tab and the current normal mode tab is shown).
         if (mLastShownTimestamp != -1 && selectionType == TabSelectionType.FROM_USER) {
             long age = now - mLastShownTimestamp;
-            RecordHistogram.recordCount1MHistogram("Tab.SwitchedToForegroundAge", (int) age);
+            RecordHistogram.recordCountHistogram("Tab.SwitchedToForegroundAge", (int) age);
         }
 
         increaseTabShowCount();
@@ -216,10 +212,10 @@ public class TabUma extends EmptyTabObserver implements UserData {
         if (mLastShownTimestamp == -1 && previousTimestampMillis > 0) {
             long duration = System.currentTimeMillis() - previousTimestampMillis;
             if (isOnBrowserStartup) {
-                RecordHistogram.recordCount1MHistogram("Tabs.ForegroundTabAgeAtStartup",
+                RecordHistogram.recordCountHistogram("Tabs.ForegroundTabAgeAtStartup",
                         (int) (duration / DateUtils.MINUTE_IN_MILLIS));
             } else if (selectionType == TabSelectionType.FROM_USER) {
-                RecordHistogram.recordCount1MHistogram("Tab.AgeUponRestoreFromColdStart",
+                RecordHistogram.recordCountHistogram("Tab.AgeUponRestoreFromColdStart",
                         (int) (duration / DateUtils.MINUTE_IN_MILLIS));
             }
         }
@@ -264,7 +260,7 @@ public class TabUma extends EmptyTabObserver implements UserData {
 
     /** Called when the corresponding tab completes a page load. */
     @Override
-    public void onPageLoadFinished(Tab tab, GURL url) {
+    public void onPageLoadFinished(Tab tab, String url) {
         // Record only tab restores that the user became aware of. If the restore is triggered
         // speculatively and completes before the user switches to the tab, then this case is
         // reflected in Tab.StatusWhenSwitchedBackToForeground metric.
@@ -296,11 +292,6 @@ public class TabUma extends EmptyTabObserver implements UserData {
             //            renderer crashes and start to track that.
             mRestoreStartedAtMillis = -1;
         }
-    }
-
-    @Override
-    public void onActivityAttachmentChanged(Tab tab, @Nullable WindowAndroid window) {
-        // Intentionally do nothing to prevent automatic observer removal on detachment.
     }
 
     private static void increaseTabShowCount() {

@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - filtered.",
   "background": {
-    "scripts": ["test_filtered.js"],
-    "persistent": true
+    "page": "test_filtered.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

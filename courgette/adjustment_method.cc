@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,8 +15,7 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
+#include "base/macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "courgette/assembly_program.h"
@@ -42,7 +41,7 @@ class NullAdjustmentMethod : public AdjustmentMethod {
 //
 class LabelInfo {
  public:
-  raw_ptr<Label> label_;  // The label that this info a surrogate for.
+  Label* label_;              // The label that this info a surrogate for.
 
   // Information used only in debugging messages.
   uint32_t is_model_ : 1;      // Is the label in the model?
@@ -50,13 +49,12 @@ class LabelInfo {
 
   uint32_t refs_;  // Number of times this Label is referenced.
 
-  raw_ptr<LabelInfo>
-      assignment_;  // Label from other program corresponding to this.
+  LabelInfo* assignment_;     // Label from other program corresponding to this.
 
   // LabelInfos are in a doubly linked list ordered by address (label_->rva_) so
   // we can quickly find Labels adjacent in address order.
-  raw_ptr<LabelInfo> next_addr_;  // Label(Info) at next highest address.
-  raw_ptr<LabelInfo> prev_addr_;  // Label(Info) at next lowest address.
+  LabelInfo* next_addr_;      // Label(Info) at next highest address.
+  LabelInfo* prev_addr_;      // Label(Info) at next lowest address.
 
   std::vector<uint32_t> positions_;  // Offsets into the trace of references.
 
@@ -145,8 +143,8 @@ struct Node {
         in_queue_(false) {
     length_ = 1 + (prev_ ? prev_->length_ : 0);
   }
-  raw_ptr<LabelInfo> in_edge_;  //
-  raw_ptr<Node> prev_;          // Node at shorter length.
+  LabelInfo* in_edge_;  //
+  Node* prev_;          // Node at shorter length.
   int count_;           // Frequency of this path in Trie.
   int length_;
   typedef std::map<LabelInfo*, Node*> Edges;
@@ -216,17 +214,14 @@ class AssignmentProblem {
         m_root_(nullptr),
         p_root_(nullptr) {}
 
-  AssignmentProblem(const AssignmentProblem&) = delete;
-  AssignmentProblem& operator=(const AssignmentProblem&) = delete;
-
   ~AssignmentProblem() {
     for (size_t i = 0;  i < all_nodes_.size();  ++i)
       delete all_nodes_[i];
   }
 
   bool Solve() {
-    m_root_ = MakeRootNode(*m_trace_);
-    p_root_ = MakeRootNode(*p_trace_);
+    m_root_ = MakeRootNode(m_trace_);
+    p_root_ = MakeRootNode(p_trace_);
     AddToQueue(p_root_);
 
     while (!worklist_.empty()) {
@@ -251,7 +246,7 @@ class AssignmentProblem {
       return;
     }
     // just to be sure data for prioritizing is available
-    ExtendNode(node, *p_trace_);
+    ExtendNode(node, p_trace_);
     // SkipCommittedLabels(node);
     if (node->edges_in_frequency_order.empty())
       return;
@@ -260,7 +255,7 @@ class AssignmentProblem {
   }
 
   void SkipCommittedLabels(Node* node) {
-    ExtendNode(node, *p_trace_);
+    ExtendNode(node, p_trace_);
     uint32_t skipped = 0;
     while (!node->edges_in_frequency_order.empty() &&
            node->edges_in_frequency_order.front()->in_edge_->assignment_) {
@@ -290,7 +285,7 @@ class AssignmentProblem {
       unsolved_.insert(p_node);
       return;
     }
-    ExtendNode(m_node, *m_trace_);
+    ExtendNode(m_node, m_trace_);
 
     // Lets just try greedy
 
@@ -432,9 +427,9 @@ class AssignmentProblem {
     uint32_t p_pos = p_pos_start + 1;
     uint32_t m_pos = m_pos_start + 1;
 
-    while (p_pos < p_trace_->size() && m_pos < m_trace_->size()) {
-      LabelInfo* p_info = (*p_trace_)[p_pos];
-      LabelInfo* m_info = (*m_trace_)[m_pos];
+    while (p_pos < p_trace_.size()  &&  m_pos < m_trace_.size()) {
+      LabelInfo* p_info = p_trace_[p_pos];
+      LabelInfo* m_info = m_trace_[m_pos];
 
       // To match, either (1) both are assigned or (2) both are unassigned.
       if ((p_info->assignment_ == nullptr) != (m_info->assignment_ == nullptr))
@@ -472,8 +467,8 @@ class AssignmentProblem {
     uint32_t m_pos = m_pos_start - 1;
 
     while (p_pos > 0  &&  m_pos > 0) {
-      LabelInfo* p_info = (*p_trace_)[p_pos];
-      LabelInfo* m_info = (*m_trace_)[m_pos];
+      LabelInfo* p_info = p_trace_[p_pos];
+      LabelInfo* m_info = m_trace_[m_pos];
 
       if ((p_info->assignment_ == nullptr) != (m_info->assignment_ == nullptr))
         break;
@@ -509,7 +504,7 @@ class AssignmentProblem {
       return nullptr;
     }
 
-    ExtendNode(m_parent, *m_trace_);
+    ExtendNode(m_parent, m_trace_);
 
     LabelInfo* p_label = node->in_edge_;
     LabelInfo* m_label = p_label->assignment_;
@@ -558,25 +553,23 @@ class AssignmentProblem {
     node->edges_in_frequency_order.sort(OrderNodeByCountDecreasing());
   }
 
-  const raw_ref<const Trace> m_trace_;
-  const raw_ref<const Trace> p_trace_;
-  raw_ptr<Node> m_root_;
-  raw_ptr<Node> p_root_;
+  const Trace& m_trace_;
+  const Trace& p_trace_;
+  Node* m_root_;
+  Node* p_root_;
 
   NodeQueue worklist_;
   NodeQueue unsolved_;
 
   std::vector<Node*> all_nodes_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssignmentProblem);
 };
 
 class GraphAdjuster : public AdjustmentMethod {
  public:
   GraphAdjuster()
       : prog_(nullptr), model_(nullptr), debug_label_index_gen_(0) {}
-
-  GraphAdjuster(const GraphAdjuster&) = delete;
-  GraphAdjuster& operator=(const GraphAdjuster&) = delete;
-
   ~GraphAdjuster() = default;
 
   bool Adjust(const AssemblyProgram& model, AssemblyProgram* program) {
@@ -653,9 +646,8 @@ class GraphAdjuster : public AdjustmentMethod {
     return &slot;
   }
 
-  raw_ptr<AssemblyProgram> prog_;  // Program to be adjusted, owned by caller.
-  raw_ptr<const AssemblyProgram>
-      model_;  // Program to be mimicked, owned by caller.
+  AssemblyProgram* prog_;         // Program to be adjusted, owned by caller.
+  const AssemblyProgram* model_;  // Program to be mimicked, owned by caller.
 
   Trace model_abs32_;
   Trace model_rel32_;
@@ -667,6 +659,9 @@ class GraphAdjuster : public AdjustmentMethod {
   // Note LabelInfo is allocated inside map, so the LabelInfo lifetimes are
   // managed by the map.
   std::map<Label*, LabelInfo> label_infos_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GraphAdjuster);
 };
 
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/memory/ptr_util.h"
 #include "services/device/geolocation/location_api_adapter_android.h"
 
 namespace device {
 
-class GeolocationManager;
-
-LocationProviderAndroid::LocationProviderAndroid() = default;
+// LocationProviderAndroid
+LocationProviderAndroid::LocationProviderAndroid() {}
 
 LocationProviderAndroid::~LocationProviderAndroid() {
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -57,10 +57,9 @@ void LocationProviderAndroid::OnPermissionGranted() {
   // Nothing to do here.
 }
 
-std::unique_ptr<LocationProvider> NewSystemLocationProvider(
-    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
-    GeolocationManager* geolocation_manager) {
-  return std::make_unique<LocationProviderAndroid>();
+// static
+std::unique_ptr<LocationProvider> NewSystemLocationProvider() {
+  return base::WrapUnique(new LocationProviderAndroid);
 }
 
 }  // namespace device

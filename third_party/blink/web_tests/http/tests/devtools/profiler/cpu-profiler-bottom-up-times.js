@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests bottom-up view self and total time calculation in CPU profiler.\n`);
-  await TestRunner.loadLegacyModule('profiler'); await TestRunner.loadTestModule('cpu_profiler_test_runner');
+  await TestRunner.loadModule('cpu_profiler_test_runner');
 
   var profileAndExpectations = {
     'title': 'profile1',
@@ -73,7 +73,7 @@
   };
   var view = new Profiler.CPUProfileView(profileAndExpectations);
   view.viewSelectComboBox.setSelectedIndex(1);
-  view.changeView();
+  view._changeView();
   var tree = view.profileDataGridTree;
   if (!tree)
     TestRunner.addResult('no tree');

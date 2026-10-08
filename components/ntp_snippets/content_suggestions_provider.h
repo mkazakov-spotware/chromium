@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
 #include "components/ntp_snippets/callbacks.h"
 #include "components/ntp_snippets/category.h"
 #include "components/ntp_snippets/category_info.h"
@@ -167,7 +166,7 @@ class ContentSuggestionsProvider {
   Observer* observer() const { return observer_; }
 
  private:
-  raw_ptr<Observer> observer_;
+  Observer* observer_;
 };
 
 }  // namespace ntp_snippets

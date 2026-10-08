@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ bool CheckReadOnlyPlatformSharedMemoryRegionForTesting(
 // be wrapped with {Writable,Unsafe,ReadOnly}SharedMemoryRegion.
 WritableSharedMemoryMapping MapAtForTesting(
     subtle::PlatformSharedMemoryRegion* region,
-    uint64_t offset,
+    off_t offset,
     size_t size);
 
 WritableSharedMemoryMapping MapForTesting(

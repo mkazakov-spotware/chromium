@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "ui/aura/env.h"
 #include "ui/aura/window_event_dispatcher.h"
-#include "ui/compositor/compositor.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/wm/core/window_util.h"
 
@@ -21,7 +20,8 @@ namespace ash {
 namespace {
 
 // How long to wait before attempting to re-establish a lost connection.
-constexpr base::TimeDelta kReEstablishConnectionDelay = base::Milliseconds(100);
+constexpr base::TimeDelta kReEstablishConnectionDelay =
+    base::TimeDelta::FromMilliseconds(100);
 
 }  // namespace
 
@@ -48,19 +48,19 @@ void VideoDetector::RemoveObserver(Observer* observer) {
 }
 
 void VideoDetector::OnWindowInitialized(aura::Window* window) {
-  window_observations_manager_.AddObservation(window);
+  window_observer_manager_.Add(window);
 }
 
 void VideoDetector::OnWindowDestroying(aura::Window* window) {
   if (fullscreen_desks_containers_.count(window)) {
-    window_observations_manager_.RemoveObservation(window);
+    window_observer_manager_.Remove(window);
     fullscreen_desks_containers_.erase(window);
     UpdateState();
   }
 }
 
 void VideoDetector::OnWindowDestroyed(aura::Window* window) {
-  window_observations_manager_.RemoveObservation(window);
+  window_observer_manager_.Remove(window);
 }
 
 void VideoDetector::OnChromeTerminating() {
@@ -75,12 +75,12 @@ void VideoDetector::OnFullscreenStateChanged(bool is_fullscreen,
       fullscreen_desks_containers_.count(container);
   if (is_fullscreen && !has_fullscreen_in_container) {
     fullscreen_desks_containers_.insert(container);
-    if (!window_observations_manager_.IsObservingSource(container))
-      window_observations_manager_.AddObservation(container);
+    if (!window_observer_manager_.IsObserving(container))
+      window_observer_manager_.Add(container);
     UpdateState();
   } else if (!is_fullscreen && has_fullscreen_in_container) {
     fullscreen_desks_containers_.erase(container);
-    window_observations_manager_.RemoveObservation(container);
+    window_observer_manager_.Remove(container);
     UpdateState();
   }
 }
@@ -128,7 +128,7 @@ void VideoDetector::EstablishConnectionToViz() {
 void VideoDetector::OnConnectionError() {
   if (video_is_playing_)
     OnVideoActivityEnded();
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&VideoDetector::EstablishConnectionToViz,
                      weak_factory_.GetWeakPtr()),

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -166,13 +166,13 @@ void ResumeAppleEventAndSendReply(NSAppleEventManagerSuspensionID suspension_id,
   if (!entry)
     return nil;
 
-  std::u16string title = entry ? entry->GetTitle() : std::u16string();
+  base::string16 title = entry ? entry->GetTitle() : base::string16();
   return base::SysUTF16ToNSString(title);
 }
 
 - (NSNumber*)loading {
   BOOL loadingValue = _webContents->IsLoading() ? YES : NO;
-  return @(loadingValue);
+  return [NSNumber numberWithBool:loadingValue];
 }
 
 - (void)handlesUndoScriptCommand:(NSScriptCommand*)command {
@@ -236,7 +236,7 @@ void ResumeAppleEventAndSendReply(NSAppleEventManagerSuspensionID suspension_id,
 - (void)handlesPrintScriptCommand:(NSScriptCommand*)command {
   AppleScript::LogAppleScriptUMA(AppleScript::AppleScriptCommand::TAB_PRINT);
   bool initiated = printing::PrintViewManager::FromWebContents(_webContents)
-                       ->PrintNow(_webContents->GetPrimaryMainFrame());
+                       ->PrintNow(_webContents->GetMainFrame());
   if (!initiated) {
     AppleScript::SetError(AppleScript::errInitiatePrinting);
   }
@@ -246,7 +246,7 @@ void ResumeAppleEventAndSendReply(NSAppleEventManagerSuspensionID suspension_id,
   AppleScript::LogAppleScriptUMA(AppleScript::AppleScriptCommand::TAB_SAVE);
   NSDictionary* dictionary = [command evaluatedArguments];
 
-  NSURL* fileURL = dictionary[@"File"];
+  NSURL* fileURL = [dictionary objectForKey:@"File"];
   // Scripter has not specifed the location at which to save, so we prompt for
   // it.
   if (!fileURL) {
@@ -261,7 +261,7 @@ void ResumeAppleEventAndSendReply(NSAppleEventManagerSuspensionID suspension_id,
   base::FilePath directoryPath = mainFile.RemoveExtension();
   directoryPath = directoryPath.InsertBeforeExtension(std::string("_files/"));
 
-  NSString* saveType = dictionary[@"FileType"];
+  NSString* saveType = [dictionary objectForKey:@"FileType"];
 
   content::SavePageType savePageType = content::SAVE_PAGE_TYPE_AS_COMPLETE_HTML;
   if (saveType) {
@@ -306,7 +306,7 @@ void ResumeAppleEventAndSendReply(NSAppleEventManagerSuspensionID suspension_id,
     return nil;
   }
 
-  content::RenderFrameHost* frame = _webContents->GetPrimaryMainFrame();
+  content::RenderFrameHost* frame = _webContents->GetMainFrame();
   if (!frame) {
     NOTREACHED();
     return nil;
@@ -318,8 +318,8 @@ void ResumeAppleEventAndSendReply(NSAppleEventManagerSuspensionID suspension_id,
   content::RenderFrameHost::JavaScriptResultCallback callback =
       base::BindOnce(&ResumeAppleEventAndSendReply, suspensionID);
 
-  std::u16string script =
-      base::SysNSStringToUTF16([command evaluatedArguments][@"javascript"]);
+  base::string16 script = base::SysNSStringToUTF16(
+      [[command evaluatedArguments] objectForKey:@"javascript"]);
   frame->ExecuteJavaScriptInIsolatedWorld(script, std::move(callback),
                                           ISOLATED_WORLD_ID_APPLESCRIPT);
 

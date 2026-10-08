@@ -1,13 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_EVENTS_LAZY_EVENT_DISPATCH_UTIL_H_
 #define EXTENSIONS_BROWSER_EVENTS_LAZY_EVENT_DISPATCH_UTIL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/uninstall_reason.h"
@@ -41,10 +40,6 @@ class LazyEventDispatchUtil : public ExtensionRegistryObserver {
   };
 
   explicit LazyEventDispatchUtil(content::BrowserContext* browser_context);
-
-  LazyEventDispatchUtil(const LazyEventDispatchUtil&) = delete;
-  LazyEventDispatchUtil& operator=(const LazyEventDispatchUtil&) = delete;
-
   ~LazyEventDispatchUtil() override;
 
   void AddObserver(Observer* observer);
@@ -67,10 +62,12 @@ class LazyEventDispatchUtil : public ExtensionRegistryObserver {
   void RemovePendingOnInstallInfoFromPref(const ExtensionId& extension_id);
   void StorePendingOnInstallInfoToPref(const Extension* extension);
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
   base::ObserverList<Observer>::Unchecked observers_;
-  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
-      extension_registry_observation_{this};
+  ScopedObserver<ExtensionRegistry, ExtensionRegistryObserver>
+      extension_registry_observer_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(LazyEventDispatchUtil);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 
 namespace exo {
 namespace wayland {
@@ -24,10 +24,10 @@ struct EventRecorder {
     data.emplace(event_name, version);
   }
 
-  absl::optional<uint32_t> MaybeGetReceivedAtVersion(
+  base::Optional<uint32_t> MaybeGetReceivedAtVersion(
       const char* event_name) const noexcept {
     auto it = data.find(event_name);
-    return it != data.end() ? absl::make_optional(it->second) : absl::nullopt;
+    return it != data.end() ? base::make_optional(it->second) : base::nullopt;
   }
 
   std::unordered_map<std::string, uint32_t> data;

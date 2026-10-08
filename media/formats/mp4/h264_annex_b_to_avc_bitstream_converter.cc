@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ H264AnnexBToAvcBitstreamConverter::GetCurrentConfig() {
   return config_;
 }
 
-MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
+Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
     const base::span<const uint8_t> input,
     base::span<uint8_t> output,
     bool* config_changed_out,
@@ -51,10 +51,11 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
   parser_.SetStream(input.data(), input.size());
   while ((result = parser_.AdvanceToNextNALU(&nalu)) != H264Parser::kEOStream) {
     if (result == H264Parser::kUnsupportedStream)
-      return MP4Status::Codes::kUnsupportedStream;
+      return Status(StatusCode::kH264ParsingError, "Unsupported H.264 stream");
 
     if (result != H264Parser::kOk)
-      return MP4Status::Codes::kFailedToParse;
+      return Status(StatusCode::kH264ParsingError,
+                    "Failed to parse H.264 stream");
 
     switch (nalu.nal_unit_type) {
       case H264NALU::kAUD: {
@@ -64,10 +65,10 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
         int sps_id = -1;
         result = parser_.ParseSPS(&sps_id);
         if (result == H264Parser::kUnsupportedStream)
-          return MP4Status::Codes::kInvalidSPS;
+          return Status(StatusCode::kH264ParsingError, "Unsupported SPS");
 
         if (result != H264Parser::kOk)
-          return MP4Status::Codes::kInvalidSPS;
+          return Status(StatusCode::kH264ParsingError, "Could not parse SPS");
 
         id2sps_.insert_or_assign(sps_id,
                                  blob(nalu.data, nalu.data + nalu.size));
@@ -77,7 +78,7 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
       }
 
       case H264NALU::kSPSExt: {
-        // SPS extensions are not supported yet.
+        NOTREACHED() << "SPS extensions are not supported yet.";
         break;
       }
 
@@ -85,16 +86,16 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
         int pps_id = -1;
         result = parser_.ParsePPS(&pps_id);
         if (result == H264Parser::kUnsupportedStream)
-          return MP4Status::Codes::kInvalidPPS;
+          return Status(StatusCode::kH264ParsingError, "Unsupported PPS");
 
         if (result != H264Parser::kOk)
-          return MP4Status::Codes::kInvalidPPS;
+          return Status(StatusCode::kH264ParsingError, "Could not parse PPS");
 
         id2pps_.insert_or_assign(pps_id,
                                  blob(nalu.data, nalu.data + nalu.size));
         pps_to_include.insert(pps_id);
         if (auto* pps = parser_.GetPPS(pps_id))
-          sps_to_include.insert(pps->seq_parameter_set_id);
+          pps_to_include.insert(pps->seq_parameter_set_id);
         config_changed = true;
         break;
       }
@@ -107,32 +108,31 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
         H264SliceHeader slice_hdr;
         result = parser_.ParseSliceHeader(nalu, &slice_hdr);
         if (result != H264Parser::kOk) {
-          return MP4Status::Codes::kInvalidSliceHeader;
+          return Status(StatusCode::kH264ParsingError,
+                        "Could not parse slice header");
         }
 
         const H264PPS* pps = parser_.GetPPS(slice_hdr.pic_parameter_set_id);
         if (!pps) {
-          return MP4Status::Codes::kFailedToLookupPPS;
+          return Status(StatusCode::kH264ParsingError,
+                        "PPS requested by slice not found");
         }
 
         const H264SPS* sps = parser_.GetSPS(pps->seq_parameter_set_id);
         if (!sps) {
-          return MP4Status::Codes::kFailedToLookupSPS;
+          return Status(StatusCode::kH264ParsingError,
+                        "SPS requested by PPS not found");
         }
         new_active_pps_id = pps->pic_parameter_set_id;
         new_active_sps_id = sps->seq_parameter_set_id;
-        pps_to_include.insert(new_active_pps_id);
-        sps_to_include.insert(new_active_sps_id);
-
-        if (new_active_sps_id != active_sps_id_) {
-          if (!config_changed) {
-            DCHECK(nalu.nal_unit_type == H264NALU::kIDRSlice)
-                << "SPS shouldn't change in non-IDR slice";
-          }
+        if (new_active_sps_id != active_sps_id_ ||
+            new_active_pps_id != active_pps_id_) {
+          pps_to_include.insert(new_active_pps_id);
+          sps_to_include.insert(new_active_sps_id);
           config_changed = true;
         }
       }
-        [[fallthrough]];
+        FALLTHROUGH;
       default:
         slice_units.push_back(nalu);
         data_size += config_.length_size + nalu.size;
@@ -143,7 +143,8 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
   if (size_out)
     *size_out = data_size;
   if (data_size > output.size()) {
-    return MP4Status::Codes::kBufferTooSmall;
+    return Status(StatusCode::kH264BufferTooSmall,
+                  "Not enough space in the output buffer.");
   }
 
   // Write slice NALUs from the input buffer to the output buffer
@@ -154,7 +155,8 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
     bool written_ok =
         writer.WriteU32(unit.size) && writer.WriteBytes(unit.data, unit.size);
     if (!written_ok) {
-      return MP4Status::Codes::kBufferTooSmall;
+      return Status(StatusCode::kH264BufferTooSmall,
+                    "Not enough space in the output buffer.");
     }
   }
 
@@ -172,7 +174,8 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
 
     const H264SPS* active_sps = parser_.GetSPS(new_active_sps_id);
     if (!active_sps) {
-      return MP4Status::Codes::kFailedToLookupSPS;
+      return Status(StatusCode::kH264ParsingError,
+                    "No slices referring to SPS. No way to know configuration");
     }
 
     active_pps_id_ = new_active_pps_id;
@@ -200,7 +203,7 @@ MP4Status H264AnnexBToAvcBitstreamConverter::ConvertChunk(
   if (config_changed_out)
     *config_changed_out = config_changed;
 
-  return OkStatus();
+  return Status();
 }
 
 }  // namespace media

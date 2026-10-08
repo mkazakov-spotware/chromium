@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include <memory>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
 #include "gpu/command_buffer/common/activity_flags.h"
 #include "gpu/command_buffer/common/gles2_cmd_format.h"
 #include "gpu/command_buffer/service/gl_utils.h"
@@ -91,12 +89,9 @@ class MemoryProgramCacheTest : public GpuServiceTest, public DecoderClient {
   ~MemoryProgramCacheTest() override { shader_manager_.Destroy(false); }
 
   void OnConsoleMessage(int32_t id, const std::string& message) override {}
-  void CacheBlob(gpu::GpuDiskCacheType type,
-                 const std::string& key,
-                 const std::string& blob) override {
-    ASSERT_EQ(type, gpu::GpuDiskCacheType::kGlShaders);
+  void CacheShader(const std::string& key, const std::string& shader) override {
     shader_cache_count_++;
-    shader_cache_shader_ = blob;
+    shader_cache_shader_ = shader;
   }
   void OnFenceSyncRelease(uint64_t release) override {}
   void OnDescheduleUntilFinished() override {}
@@ -204,8 +199,8 @@ class MemoryProgramCacheTest : public GpuServiceTest, public DecoderClient {
   GpuProcessActivityFlags activity_flags_;
   std::unique_ptr<MemoryProgramCache> cache_;
   ShaderManager shader_manager_;
-  raw_ptr<Shader> vertex_shader_;
-  raw_ptr<Shader> fragment_shader_;
+  Shader* vertex_shader_;
+  Shader* fragment_shader_;
   int32_t shader_cache_count_;
   std::string shader_cache_shader_;
   std::vector<std::string> varyings_;
@@ -308,7 +303,7 @@ TEST_F(MemoryProgramCacheTest, CacheLoadMatchesSave) {
 
   // apparently the hash_map implementation on android doesn't have the
   // equality operator
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   EXPECT_EQ(vertex_attrib_map, vertex_shader_->attrib_map());
   EXPECT_EQ(vertex_uniform_map, vertex_shader_->uniform_map());
   EXPECT_EQ(vertex_varying_map, vertex_shader_->varying_map());
@@ -370,7 +365,7 @@ TEST_F(MemoryProgramCacheTest, LoadProgramMatchesSave) {
 
   // apparently the hash_map implementation on android doesn't have the
   // equality operator
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   EXPECT_EQ(vertex_attrib_map, vertex_shader_->attrib_map());
   EXPECT_EQ(vertex_uniform_map, vertex_shader_->uniform_map());
   EXPECT_EQ(vertex_varying_map, vertex_shader_->varying_map());

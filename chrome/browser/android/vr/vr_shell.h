@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,14 @@
 #include <jni.h>
 
 #include <memory>
-#include <string>
 
 #include "base/android/scoped_java_ref.h"
 #include "base/callback.h"
 #include "base/cancelable_callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/strings/string16.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h"
 #include "chrome/browser/vr/assets_load_status.h"
@@ -29,7 +28,6 @@
 #include "chrome/browser/vr/ui_unsupported_mode.h"
 #include "components/page_info/page_info_ui.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "device/vr/public/mojom/isolated_xr_service.mojom-forward.h"
 #include "device/vr/public/mojom/vr_service.mojom.h"
 #include "device/vr/vr_device.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -81,10 +79,6 @@ class VrShell : VoiceResultDelegate,
           int display_height_pixels,
           bool pause_content,
           bool low_density);
-
-  VrShell(const VrShell&) = delete;
-  VrShell& operator=(const VrShell&) = delete;
-
   bool HasUiFinishedLoading(JNIEnv* env,
                             const base::android::JavaParamRef<jobject>& obj);
   void SwapContents(JNIEnv* env,
@@ -243,13 +237,14 @@ class VrShell : VoiceResultDelegate,
                    const base::android::JavaParamRef<jobject>& obj);
 
   void ConnectPresentingService(
+      device::mojom::VRDisplayInfoPtr display_info,
       device::mojom::XRRuntimeSessionOptionsPtr options);
 
   // ChromeLocationBarModelDelegate implementation.
   content::WebContents* GetActiveWebContents() const override;
   bool ShouldDisplayURL() const override;
 
-  void OnVoiceResults(const std::u16string& result) override;
+  void OnVoiceResults(const base::string16& result) override;
 
   void OnAssetsLoaded(AssetsLoadStatus status,
                       std::unique_ptr<Assets> assets,
@@ -321,7 +316,7 @@ class VrShell : VoiceResultDelegate,
 
   bool webvr_mode_ = false;
 
-  raw_ptr<content::WebContents> web_contents_ = nullptr;
+  content::WebContents* web_contents_ = nullptr;
   bool web_contents_is_native_page_ = false;
   base::android::ScopedJavaGlobalRef<jobject> j_motion_event_synthesizer_;
 
@@ -331,7 +326,7 @@ class VrShell : VoiceResultDelegate,
   // and uses the pointer on GL thread.
   std::unique_ptr<VrInputConnection> vr_input_connection_;
 
-  raw_ptr<VrShellDelegate> delegate_provider_ = nullptr;
+  VrShellDelegate* delegate_provider_ = nullptr;
   base::android::ScopedJavaGlobalRef<jobject> j_vr_shell_;
 
   std::unique_ptr<AndroidUiGestureTarget> android_ui_gesture_target_;
@@ -339,7 +334,7 @@ class VrShell : VoiceResultDelegate,
 
   scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
   std::unique_ptr<VrGLThread> gl_thread_;
-  raw_ptr<BrowserUiInterface> ui_;
+  BrowserUiInterface* ui_;
 
   // These instances make use of ui_ (provided by gl_thread_), and hence must be
   // destroyed before gl_thread_;
@@ -351,7 +346,7 @@ class VrShell : VoiceResultDelegate,
 
   mojo::Remote<device::mojom::GeolocationConfig> geolocation_config_;
 
-  base::CancelableOnceClosure poll_capturing_state_task_;
+  base::CancelableClosure poll_capturing_state_task_;
   CapturingStateModel active_capturing_;
   CapturingStateModel background_capturing_;
   CapturingStateModel potential_capturing_;
@@ -368,9 +363,9 @@ class VrShell : VoiceResultDelegate,
   gfx::SizeF display_size_meters_;
   gfx::Size display_size_pixels_;
 
-  raw_ptr<gl::SurfaceTexture> content_surface_texture_ = nullptr;
-  raw_ptr<gl::SurfaceTexture> overlay_surface_texture_ = nullptr;
-  raw_ptr<gl::SurfaceTexture> ui_surface_texture_ = nullptr;
+  gl::SurfaceTexture* content_surface_texture_ = nullptr;
+  gl::SurfaceTexture* overlay_surface_texture_ = nullptr;
+  gl::SurfaceTexture* ui_surface_texture_ = nullptr;
 
   base::OneShotTimer waiting_for_assets_component_timer_;
   bool can_load_new_assets_ = false;
@@ -383,6 +378,8 @@ class VrShell : VoiceResultDelegate,
   std::set<int> incognito_tab_ids_;
 
   base::WeakPtrFactory<VrShell> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VrShell);
 };
 
 }  // namespace vr

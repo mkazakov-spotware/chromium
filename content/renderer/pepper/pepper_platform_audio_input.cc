@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,19 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "content/child/child_process.h"
 #include "content/renderer/pepper/pepper_audio_input_host.h"
 #include "content/renderer/pepper/pepper_media_device_manager.h"
 #include "content/renderer/render_frame_impl.h"
+#include "content/renderer/render_thread_impl.h"
+#include "content/renderer/render_view_impl.h"
 #include "media/audio/audio_device_description.h"
 #include "media/audio/audio_source_parameters.h"
 #include "ppapi/shared_impl/ppb_audio_config_shared.h"
 #include "third_party/blink/public/platform/task_type.h"
-#include "third_party/blink/public/web/modules/media/audio/audio_input_ipc_factory.h"
+#include "third_party/blink/public/web/modules/media/audio/web_audio_input_ipc_factory.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 
 namespace content {
@@ -80,7 +82,7 @@ void PepperPlatformAudioInput::OnStreamCreated(
     base::SyncSocket::ScopedHandle socket_handle,
     bool initially_muted) {
   DCHECK(shared_memory_region.IsValid());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DCHECK(socket_handle.IsValid());
 #else
   DCHECK(socket_handle.is_valid());
@@ -88,8 +90,8 @@ void PepperPlatformAudioInput::OnStreamCreated(
   DCHECK_GT(shared_memory_region.GetSize(), 0u);
 
   // If we're not on the main thread then bounce over to it. Don't use
-  // base::SingleThreadTaskRunner::GetCurrentDefault() as |main_task_runner_|
-  // will never match that. See crbug.com/1150822.
+  // base::ThreadTaskRunnerHandle::Get() as |main_task_runner_| will never
+  // match that. See crbug.com/1150822.
   if (!main_task_runner_->BelongsToCurrentThread()) {
     // If shutdown has occurred, |client_| will be NULL and the handles will be
     // cleaned up on the main thread.
@@ -107,8 +109,7 @@ void PepperPlatformAudioInput::OnStreamCreated(
   }
 }
 
-void PepperPlatformAudioInput::OnError(
-    media::AudioCapturerSource::ErrorCode code) {}
+void PepperPlatformAudioInput::OnError() {}
 
 void PepperPlatformAudioInput::OnMuted(bool is_muted) {}
 
@@ -150,8 +151,10 @@ bool PepperPlatformAudioInput::Initialize(
   if (!GetMediaDeviceManager())
     return false;
 
+
   params_.Reset(media::AudioParameters::AUDIO_PCM_LINEAR,
-                media::ChannelLayoutConfig::Mono(), sample_rate,
+                media::CHANNEL_LAYOUT_MONO,
+                sample_rate,
                 frames_per_buffer);
 
   // We need to open the device and obtain the label and session ID before
@@ -171,11 +174,9 @@ void PepperPlatformAudioInput::InitializeOnIOThread(
     const base::UnguessableToken& session_id) {
   DCHECK(io_task_runner_->BelongsToCurrentThread());
 
-  if (ipc_startup_state_ != kStopped) {
-    ipc_ = blink::AudioInputIPCFactory::CreateAudioInputIPC(
-        render_frame_token_, main_task_runner_,
-        media::AudioSourceParameters(session_id));
-  }
+  if (ipc_startup_state_ != kStopped)
+    ipc_ = blink::WebAudioInputIPCFactory::GetInstance().CreateAudioInputIPC(
+        render_frame_token_, media::AudioSourceParameters(session_id));
   if (!ipc_)
     return;
 

@@ -55,6 +55,9 @@ import struct
 import sys
 import weakref
 
+import six
+from six.moves import range
+
 # We use "as" to avoid name collisions with variables.
 from google.protobuf.internal import api_implementation
 from google.protobuf.internal import containers
@@ -121,15 +124,8 @@ class GeneratedProtocolMessageType(type):
 
     Returns:
       Newly-allocated class.
-
-    Raises:
-      RuntimeError: Generated code only work with python cpp extension.
     """
     descriptor = dictionary[GeneratedProtocolMessageType._DESCRIPTOR_KEY]
-
-    if isinstance(descriptor, str):
-      raise RuntimeError('The generated code only work with python cpp '
-                         'extension, but it is using pure python runtime.')
 
     # If a concrete class already exists for this descriptor, don't try to
     # create another.  Doing so will break any messages that already exist with
@@ -281,11 +277,17 @@ def _IsMessageMapField(field):
   return value_type.cpp_type == _FieldDescriptor.CPPTYPE_MESSAGE
 
 
+def _IsStrictUtf8Check(field):
+  if field.containing_type.syntax != 'proto3':
+    return False
+  enforce_utf8 = True
+  return enforce_utf8
+
+
 def _AttachFieldHelpers(cls, field_descriptor):
   is_repeated = (field_descriptor.label == _FieldDescriptor.LABEL_REPEATED)
   is_packable = (is_repeated and
                  wire_format.IsTypePackable(field_descriptor.type))
-  is_proto3 = field_descriptor.containing_type.syntax == 'proto3'
   if not is_packable:
     is_packed = False
   elif field_descriptor.containing_type.syntax == 'proto2':
@@ -324,12 +326,8 @@ def _AttachFieldHelpers(cls, field_descriptor):
       decode_type = _FieldDescriptor.TYPE_INT32
 
     oneof_descriptor = None
-    clear_if_default = False
     if field_descriptor.containing_oneof is not None:
       oneof_descriptor = field_descriptor
-    elif (is_proto3 and not is_repeated and
-          field_descriptor.cpp_type != _FieldDescriptor.CPPTYPE_MESSAGE):
-      clear_if_default = True
 
     if is_map_entry:
       is_message_map = _IsMessageMapField(field_descriptor)
@@ -338,20 +336,15 @@ def _AttachFieldHelpers(cls, field_descriptor):
           field_descriptor, _GetInitializeDefaultForMap(field_descriptor),
           is_message_map)
     elif decode_type == _FieldDescriptor.TYPE_STRING:
+      is_strict_utf8_check = _IsStrictUtf8Check(field_descriptor)
       field_decoder = decoder.StringDecoder(
           field_descriptor.number, is_repeated, is_packed,
           field_descriptor, field_descriptor._default_constructor,
-          clear_if_default)
-    elif field_descriptor.cpp_type == _FieldDescriptor.CPPTYPE_MESSAGE:
-      field_decoder = type_checkers.TYPE_TO_DECODER[decode_type](
-          field_descriptor.number, is_repeated, is_packed,
-          field_descriptor, field_descriptor._default_constructor)
+          is_strict_utf8_check)
     else:
       field_decoder = type_checkers.TYPE_TO_DECODER[decode_type](
           field_descriptor.number, is_repeated, is_packed,
-          # pylint: disable=protected-access
-          field_descriptor, field_descriptor._default_constructor,
-          clear_if_default)
+          field_descriptor, field_descriptor._default_constructor)
 
     cls._decoders_by_tag[tag_bytes] = (field_decoder, oneof_descriptor)
 
@@ -474,7 +467,7 @@ def _ReraiseTypeErrorWithFieldName(message_name, field_name):
     exc = TypeError('%s for field %s.%s' % (str(exc), message_name, field_name))
 
   # re-raise possibly-amended exception with original traceback:
-  raise exc.with_traceback(sys.exc_info()[2])
+  six.reraise(type(exc), exc, sys.exc_info()[2])
 
 
 def _AddInitMethod(message_descriptor, cls):
@@ -487,7 +480,7 @@ def _AddInitMethod(message_descriptor, cls):
     enum_type with the same name.  If the value is not a string, it's
     returned as-is.  (No conversion or bounds-checking is done.)
     """
-    if isinstance(value, str):
+    if isinstance(value, six.string_types):
       try:
         return enum_type.values_by_name[value].number
       except KeyError:
@@ -627,7 +620,7 @@ class _FieldProperty(property):
 def _AddPropertiesForRepeatedField(field, cls):
   """Adds a public property for a "repeated" protocol message field.  Clients
   can use this property to get the value of the field, which will be either a
-  RepeatedScalarFieldContainer or RepeatedCompositeFieldContainer (see
+  _RepeatedScalarFieldContainer or _RepeatedCompositeFieldContainer (see
   below).
 
   Note that when clients add values to these containers, we perform
@@ -683,6 +676,7 @@ def _AddPropertiesForNonRepeatedScalarField(field, cls):
   property_name = _PropertyName(proto_field_name)
   type_checker = type_checkers.GetTypeChecker(field)
   default_value = field.default_value
+  valid_values = set()
   is_proto3 = field.containing_type.syntax == 'proto3'
 
   def getter(self):
@@ -791,8 +785,7 @@ def _AddStaticMethods(cls):
   def RegisterExtension(extension_handle):
     extension_handle.containing_type = cls.DESCRIPTOR
     # TODO(amauryfa): Use cls.MESSAGE_FACTORY.pool when available.
-    # pylint: disable=protected-access
-    cls.DESCRIPTOR.file.pool._AddExtensionDescriptor(extension_handle)
+    cls.DESCRIPTOR.file.pool.AddExtensionDescriptor(extension_handle)
     _AttachFieldHelpers(cls, extension_handle)
   cls.RegisterExtension = staticmethod(RegisterExtension)
 
@@ -826,8 +819,7 @@ def _AddListFieldsMethod(message_descriptor, cls):
   cls.ListFields = ListFields
 
 _PROTO3_ERROR_TEMPLATE = \
-  ('Protocol message %s has no non-repeated submessage field "%s" '
-   'nor marked as optional')
+  'Protocol message %s has no non-repeated submessage field "%s"'
 _PROTO2_ERROR_TEMPLATE = 'Protocol message %s has no non-repeated field "%s"'
 
 def _AddHasFieldMethod(message_descriptor, cls):
@@ -846,9 +838,10 @@ def _AddHasFieldMethod(message_descriptor, cls):
       continue
     hassable_fields[field.name] = field
 
-  # Has methods are supported for oneof descriptors.
-  for oneof in message_descriptor.oneofs:
-    hassable_fields[oneof.name] = oneof
+  if not is_proto3:
+    # Fields inside oneofs are never repeated (enforced by the compiler).
+    for oneof in message_descriptor.oneofs:
+      hassable_fields[oneof.name] = oneof
 
   def HasField(self, field_name):
     try:
@@ -1079,6 +1072,7 @@ def _AddSerializeToStringMethod(message_descriptor, cls):
 
   def SerializeToString(self, **kwargs):
     # Check if the message has all of its required fields set.
+    errors = []
     if not self.IsInitialized():
       raise message_mod.EncodeError(
           'Message %s is missing required fields: %s' % (
@@ -1122,6 +1116,12 @@ def _AddSerializePartialToStringMethod(message_descriptor, cls):
 def _AddMergeFromStringMethod(message_descriptor, cls):
   """Helper for _AddMessageMethods()."""
   def MergeFromString(self, serialized):
+    if isinstance(serialized, memoryview) and six.PY2:
+      raise TypeError(
+          'memoryview not supported in Python 2 with the pure Python proto '
+          'implementation: this is to maintain compatibility with the C++ '
+          'implementation')
+
     serialized = memoryview(serialized)
     length = len(serialized)
     try:
@@ -1174,8 +1174,6 @@ def _AddMergeFromStringMethod(message_descriptor, cls):
         # pylint: disable=protected-access
         (tag, _) = decoder._DecodeVarint(tag_bytes, 0)
         field_number, wire_type = wire_format.UnpackTag(tag)
-        if field_number == 0:
-          raise message_mod.DecodeError('Field number 0 is illegal.')
         # TODO(jieluo): remove old_pos.
         old_pos = new_pos
         (data, new_pos) = decoder._DecodeUnknownField(
@@ -1294,14 +1292,6 @@ def _AddIsInitializedMethod(message_descriptor, cls):
   cls.FindInitializationErrors = FindInitializationErrors
 
 
-def _FullyQualifiedClassName(klass):
-  module = klass.__module__
-  name = getattr(klass, '__qualname__', klass.__name__)
-  if module in (None, 'builtins', '__builtin__'):
-    return name
-  return module + '.' + name
-
-
 def _AddMergeFromMethod(cls):
   LABEL_REPEATED = _FieldDescriptor.LABEL_REPEATED
   CPPTYPE_MESSAGE = _FieldDescriptor.CPPTYPE_MESSAGE
@@ -1310,8 +1300,7 @@ def _AddMergeFromMethod(cls):
     if not isinstance(msg, cls):
       raise TypeError(
           'Parameter to MergeFrom() must be instance of same class: '
-          'expected %s got %s.' % (_FullyQualifiedClassName(cls),
-                                   _FullyQualifiedClassName(msg.__class__)))
+          'expected %s got %s.' % (cls.__name__, msg.__class__.__name__))
 
     assert msg is not self
     self._Modified()
@@ -1367,6 +1356,12 @@ def _AddWhichOneofMethod(message_descriptor, cls):
       return None
 
   cls.WhichOneof = WhichOneof
+
+
+def _AddReduceMethod(cls):
+  def __reduce__(self):  # pylint: disable=invalid-name
+    return (type(self), (), self.__getstate__())
+  cls.__reduce__ = __reduce__
 
 
 def _Clear(self):
@@ -1431,6 +1426,7 @@ def _AddMessageMethods(message_descriptor, cls):
   _AddIsInitializedMethod(message_descriptor, cls)
   _AddMergeFromMethod(cls)
   _AddWhichOneofMethod(message_descriptor, cls)
+  _AddReduceMethod(cls)
   # Adds methods which do not depend on cls.
   cls.Clear = _Clear
   cls.UnknownFields = _UnknownFields

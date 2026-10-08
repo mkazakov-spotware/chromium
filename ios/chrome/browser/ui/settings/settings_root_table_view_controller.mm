@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/settings_root_table_view_controller.h"
 
 #import "base/mac/foundation_util.h"
-#import "base/notreached.h"
-#import "ios/chrome/browser/net/crurl.h"
+#include "base/notreached.h"
 #import "ios/chrome/browser/ui/commands/application_commands.h"
 #import "ios/chrome/browser/ui/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/ui/settings/bar_button_activity_indicator.h"
@@ -14,12 +13,12 @@
 #import "ios/chrome/browser/ui/settings/settings_navigation_controller.h"
 #import "ios/chrome/browser/ui/settings/settings_root_table_constants.h"
 #import "ios/chrome/browser/ui/table_view/chrome_table_view_styler.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
+#include "ios/chrome/browser/ui/ui_feature_flags.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/device_form_factor.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -27,7 +26,7 @@
 
 namespace {
 // Height of the space used by header/footer when none is set. Default is
-// `estimatedSection{Header|Footer}Height`.
+// |estimatedSection{Header|Footer}Height|.
 const CGFloat kDefaultHeaderFooterHeight = 10;
 // Estimated height of the header/footer, used to speed the constraints.
 const CGFloat kEstimatedHeaderFooterHeight = 50;
@@ -52,10 +51,6 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
 // store the item while the interaction is prevented.
 @property(nonatomic, strong) UIBarButtonItem* savedBarButtonItem;
 
-// Back button on navigation panel. This is used to store back button while it
-// is replaced with Cancel during editing.
-@property(nonatomic, strong) UIBarButtonItem* backButtonItem;
-
 // Veil preventing interactions with the TableView.
 @property(nonatomic, strong) UIView* veil;
 
@@ -77,56 +72,12 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
                                      animated:YES];
 
   // Update edit button.
-  if ([self shouldShowEditDoneButton] && self.tableView.editing) {
-    self.navigationItem.rightBarButtonItem =
-        [self createEditModeDoneButtonForToolbar:NO];
+  if (self.tableView.editing) {
+    self.navigationItem.rightBarButtonItem = [self createEditModeDoneButton];
   } else if (self.shouldShowEditButton) {
-    self.navigationItem.rightBarButtonItem =
-        [self createEditButtonForToolbar:NO];
+    self.navigationItem.rightBarButtonItem = [self createEditButton];
   } else {
     self.navigationItem.rightBarButtonItem = [self doneButtonIfNeeded];
-  }
-
-  // Update Cancel/Back button.
-  if (self.showCancelDuringEditing) {
-    self.navigationItem.leftBarButtonItem =
-        self.tableView.editing ? [self createEditModeCancelButton]
-                               : self.backButtonItem;
-  }
-}
-
-- (void)updatedToolbarForEditState {
-  if (self.shouldHideToolbar) {
-    return;
-  }
-
-  UIBarButtonItem* flexibleSpace = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
-                           target:nil
-                           action:nil];
-
-  UIBarButtonItem* toolbarLeftButton = flexibleSpace;
-  if (self.customLeftToolbarButton) {
-    toolbarLeftButton = self.customLeftToolbarButton;
-  } else if (self.tableView.editing && self.shouldShowDeleteButtonInToolbar) {
-    toolbarLeftButton = self.deleteButton;
-  }
-
-  UIBarButtonItem* toolbarRightButton = flexibleSpace;
-  if (self.customRightToolbarButton) {
-    toolbarRightButton = self.customRightToolbarButton;
-  } else if (self.tableView.editing) {
-    toolbarRightButton = [self createEditModeDoneButtonForToolbar:YES];
-  } else {
-    toolbarRightButton = [self createEditButtonForToolbar:YES];
-  }
-
-  [self
-      setToolbarItems:@[ toolbarLeftButton, flexibleSpace, toolbarRightButton ]
-             animated:YES];
-
-  if (self.tableView.editing) {
-    self.deleteButton.enabled = NO;
   }
 }
 
@@ -159,11 +110,19 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
                            action:nil];
   [self setToolbarItems:@[ flexibleSpace, self.deleteButton, flexibleSpace ]
                animated:YES];
-
+  if (base::FeatureList::IsEnabled(kSettingsRefresh)) {
+    self.styler.tableViewBackgroundColor = UIColor.cr_systemBackgroundColor;
+  } else {
+    self.styler.tableViewBackgroundColor =
+        UIColor.cr_systemGroupedBackgroundColor;
+  }
   [super viewDidLoad];
+  if (base::FeatureList::IsEnabled(kSettingsRefresh)) {
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+  }
   self.styler.cellBackgroundColor =
-      [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
-  self.styler.cellTitleColor = [UIColor colorNamed:kTextPrimaryColor];
+      UIColor.cr_secondarySystemGroupedBackgroundColor;
+  self.styler.cellTitleColor = UIColor.cr_labelColor;
   self.tableView.estimatedSectionHeaderHeight = kEstimatedHeaderFooterHeight;
   self.tableView.estimatedRowHeight = kSettingsCellDefaultHeight;
   self.tableView.estimatedSectionFooterHeight = kEstimatedHeaderFooterHeight;
@@ -172,10 +131,6 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
 
   self.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
-
-  self.backButtonItem = self.navigationItem.leftBarButtonItem;
-  self.shouldShowDeleteButtonInToolbar = YES;
-  self.extendedLayoutIncludesOpaqueBars = YES;
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -200,6 +155,12 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
+  if (@available(iOS 13, *)) {
+  } else {
+    // This is a workaround to fix the vertical alignment of the back button.
+    // The bug has been fixed in iOS 13. See crbug.com/931173 if needed.
+    [self.navigationController.navigationBar setNeedsLayout];
+  }
 }
 
 #pragma mark - UITableViewDelegate
@@ -225,25 +186,36 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
 
 - (CGFloat)tableView:(UITableView*)tableView
     heightForHeaderInSection:(NSInteger)section {
-  if ([self.tableViewModel headerForSectionIndex:section])
-    return UITableViewAutomaticDimension;
-  return ChromeTableViewHeightForHeaderInSection(section);
-}
-
-- (CGFloat)tableView:(UITableView*)tableView
-    heightForFooterInSection:(NSInteger)section {
-  if ([self.tableViewModel footerForSectionIndex:section])
+  if ([self.tableViewModel headerForSection:section])
     return UITableViewAutomaticDimension;
   return kDefaultHeaderFooterHeight;
 }
 
+- (CGFloat)tableView:(UITableView*)tableView
+    heightForFooterInSection:(NSInteger)section {
+  if ([self.tableViewModel footerForSection:section])
+    return UITableViewAutomaticDimension;
+  return kDefaultHeaderFooterHeight;
+}
+
+#pragma mark - UITableViewDataSource
+
+- (UITableViewCell*)tableView:(UITableView*)tableView
+        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
+  if (base::FeatureList::IsEnabled(kSettingsRefresh)) {
+    TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+    item.useCustomSeparator = YES;
+  }
+
+  return [super tableView:tableView cellForRowAtIndexPath:indexPath];
+}
+
 #pragma mark - TableViewLinkHeaderFooterItemDelegate
 
-- (void)view:(TableViewLinkHeaderFooterView*)view didTapLinkURL:(CrURL*)URL {
+- (void)view:(TableViewLinkHeaderFooterView*)view didTapLinkURL:(GURL)URL {
   // Subclass must have a valid dispatcher assigned.
   DCHECK(self.dispatcher);
-  OpenNewTabCommand* command =
-      [OpenNewTabCommand commandWithURLFromChrome:URL.gurl];
+  OpenNewTabCommand* command = [OpenNewTabCommand commandWithURLFromChrome:URL];
   [self.dispatcher closeSettingsUIAndOpenURL:command];
 }
 
@@ -260,51 +232,29 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
   SettingsNavigationController* navigationController =
       base::mac::ObjCCast<SettingsNavigationController>(
           self.navigationController);
-  UIBarButtonItem* doneButton = [navigationController doneButton];
-  if (_shouldDisableDoneButtonOnEdit) {
-    doneButton.enabled = !self.tableView.editing;
-  }
-  return doneButton;
+  return [navigationController doneButton];
 }
 
-- (UIBarButtonItem*)createEditButtonForToolbar:(BOOL)toolbar {
+- (UIBarButtonItem*)createEditButton {
   // Create a custom Edit bar button item, as Material Navigation Bar does not
   // handle a system UIBarButtonSystemItemEdit item.
   UIBarButtonItem* button = [[UIBarButtonItem alloc]
       initWithTitle:l10n_util::GetNSString(IDS_IOS_NAVIGATION_BAR_EDIT_BUTTON)
-              style:(toolbar ? UIBarButtonItemStylePlain
-                             : UIBarButtonItemStyleDone)target:self
+              style:UIBarButtonItemStyleDone
+             target:self
              action:@selector(editButtonPressed)];
   [button setEnabled:[self editButtonEnabled]];
-  button.accessibilityIdentifier = kSettingsToolbarEditButtonId;
   return button;
 }
 
-- (UIBarButtonItem*)createEditModeDoneButtonForToolbar:(BOOL)toolbar {
+- (UIBarButtonItem*)createEditModeDoneButton {
   // Create a custom Done bar button item, as Material Navigation Bar does not
   // handle a system UIBarButtonSystemItemDone item.
-  UIBarButtonItem* button = [[UIBarButtonItem alloc]
-      initWithTitle:l10n_util::GetNSString(IDS_IOS_NAVIGATION_BAR_DONE_BUTTON)
-              style:(toolbar ? UIBarButtonItemStylePlain
-                             : UIBarButtonItemStyleDone)target:self
-             action:@selector(editButtonPressed)];
-  button.accessibilityIdentifier = kSettingsToolbarEditDoneButtonId;
-  return button;
-}
-
-- (UIBarButtonItem*)createEditModeCancelButton {
-  // Create a custom Cancel bar button item.
   return [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                           target:self
-                           action:@selector(cancelEditing)];
-}
-
-// Quits editing mode and reloads data to the state before editing.
-- (void)cancelEditing {
-  [self setEditing:!self.tableView.editing animated:YES];
-  [self updateUIForEditState];
-  [self reloadData];
+      initWithTitle:l10n_util::GetNSString(IDS_IOS_NAVIGATION_BAR_DONE_BUTTON)
+              style:UIBarButtonItemStyleDone
+             target:self
+             action:@selector(editButtonPressed)];
 }
 
 #pragma mark - Subclassing
@@ -319,14 +269,6 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
 
 - (BOOL)editButtonEnabled {
   return NO;
-}
-
-- (BOOL)showCancelDuringEditing {
-  return NO;
-}
-
-- (BOOL)shouldShowEditDoneButton {
-  return YES;
 }
 
 - (void)editButtonPressed {
@@ -349,13 +291,12 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
   DCHECK(!self.savedBarButtonItem);
   DCHECK_EQ(kUndefinedBarButtonItemPosition, self.savedBarButtonItemPosition);
 
-  // Create `waitButton`.
+  // Create |waitButton|.
   BOOL displayActivityIndicatorOnTheRight =
       self.navigationItem.rightBarButtonItem != nil;
-  CGFloat activityIndicatorDimension =
-      (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
-          ? kActivityIndicatorDimensionIPad
-          : kActivityIndicatorDimensionIPhone;
+  CGFloat activityIndicatorDimension = IsIPadIdiom()
+                                           ? kActivityIndicatorDimensionIPad
+                                           : kActivityIndicatorDimensionIPhone;
   BarButtonActivityIndicator* indicator = [[BarButtonActivityIndicator alloc]
       initWithFrame:CGRectMake(0.0, 0.0, activityIndicatorDimension,
                                activityIndicatorDimension)];
@@ -391,7 +332,7 @@ const CGFloat kActivityIndicatorDimensionIPhone = 56;
 
 - (void)allowUserInteraction {
   DCHECK(self.navigationController)
-      << "`allowUserInteraction` should always be called before this settings"
+      << "|allowUserInteraction| should always be called before this settings"
          " controller is popped or dismissed.";
   [self.navigationController.view setUserInteractionEnabled:YES];
 

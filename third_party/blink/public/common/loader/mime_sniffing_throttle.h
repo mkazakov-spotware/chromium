@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,12 +28,10 @@ class BLINK_COMMON_EXPORT MimeSniffingThrottle : public URLLoaderThrottle {
   void WillProcessResponse(const GURL& response_url,
                            network::mojom::URLResponseHead* response_head,
                            bool* defer) override;
-  const char* NameForLoggingWillProcessResponse() override;
 
   // Called from MimeSniffingURLLoader once mime type is ready.
   void ResumeWithNewResponseHead(
-      network::mojom::URLResponseHeadPtr new_response_head,
-      mojo::ScopedDataPipeConsumerHandle body);
+      network::mojom::URLResponseHeadPtr new_response_head);
 
  private:
   scoped_refptr<base::SequencedTaskRunner> task_runner_;

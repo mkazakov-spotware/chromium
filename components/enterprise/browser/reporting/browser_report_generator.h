@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,11 @@
 #define COMPONENTS_ENTERPRISE_BROWSER_REPORTING_BROWSER_REPORT_GENERATOR_H_
 
 #include <memory>
-#include <string>
-#include <vector>
 
-#include "base/callback_forward.h"
+#include "base/callback.h"
 #include "components/enterprise/browser/reporting/report_type.h"
-
-namespace enterprise_management {
-class BrowserReport;
-}  // namespace enterprise_management
-
-namespace version_info {
-enum class Channel;
-}  // namespace version_info
+#include "components/policy/proto/device_management_backend.pb.h"
+#include "components/version_info/channel.h"
 
 namespace enterprise_reporting {
 
@@ -30,11 +22,6 @@ class BrowserReportGenerator {
   using ReportCallback = base::OnceCallback<void(
       std::unique_ptr<enterprise_management::BrowserReport>)>;
 
-  struct ReportedProfileData {
-    std::string id;
-    std::string name;
-  };
-
   class Delegate {
    public:
     Delegate() = default;
@@ -44,9 +31,10 @@ class BrowserReportGenerator {
 
     virtual std::string GetExecutablePath() = 0;
     virtual version_info::Channel GetChannel() = 0;
-    virtual std::vector<ReportedProfileData> GetReportedProfiles() = 0;
-    virtual bool IsExtendedStableChannel() = 0;
     virtual void GenerateBuildStateInfo(
+        enterprise_management::BrowserReport* report) = 0;
+    virtual void GenerateProfileInfo(
+        ReportType report_type,
         enterprise_management::BrowserReport* report) = 0;
     virtual void GeneratePluginsIfNeeded(
         ReportCallback callback,
@@ -60,20 +48,16 @@ class BrowserReportGenerator {
 
   // Generates a BrowserReport with the following fields:
   // - browser_version, channel, executable_path
-  // - user profiles: id, name, is_detail_available (always be false).
+  // - user profiles: id, name, is_full_report (always be false).
   // - plugins: name, version, filename, description.
   void Generate(ReportType report_type, ReportCallback callback);
-
-  // Generates user profiles info in the given report instance.
-  void GenerateProfileInfo(enterprise_management::BrowserReport* report);
 
  private:
   std::unique_ptr<Delegate> delegate_;
 
   // Generates browser_version, channel, executable_path info in the given
   // report instance.
-  void GenerateBasicInfo(enterprise_management::BrowserReport* report,
-                         ReportType report_type);
+  void GenerateBasicInfo(enterprise_management::BrowserReport* report);
 };
 
 }  // namespace enterprise_reporting

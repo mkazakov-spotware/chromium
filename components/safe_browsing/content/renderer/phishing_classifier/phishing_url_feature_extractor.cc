@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/timer/elapsed_timer.h"
@@ -110,7 +109,7 @@ void PhishingUrlFeatureExtractor::SplitStringIntoLongAlphanumTokens(
     // Copy over only the splits that are 3 or more chars long.
     // TODO(bryner): Determine a meaningful min size.
     if (token.length() >= kMinPathComponentLength)
-      tokens->push_back(std::string(token));
+      tokens->push_back(token.as_string());
   }
 }
 

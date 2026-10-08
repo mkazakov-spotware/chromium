@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,12 @@
 namespace blink {
 
 scoped_refptr<const NGTableBorders> NGTableNode::GetTableBorders() const {
-  LayoutNGTable* layout_table = To<LayoutNGTable>(box_.Get());
+  LayoutNGTable* layout_table = To<LayoutNGTable>(box_);
   scoped_refptr<const NGTableBorders> table_borders =
       layout_table->GetCachedTableBorders();
   if (!table_borders) {
     table_borders = NGTableBorders::ComputeTableBorders(*this);
     layout_table->SetCachedTableBorders(table_borders.get());
-  } else {
-#if DCHECK_IS_ON()
-    // TODO(crbug.com/1191742) remove these DCHECKs as soon as bug is found.
-    auto duplicate_table_borders = NGTableBorders::ComputeTableBorders(*this);
-    DCHECK(*duplicate_table_borders == *table_borders);
-#endif
   }
   return table_borders;
 }
@@ -34,7 +28,7 @@ const NGBoxStrut& NGTableNode::GetTableBordersStrut() const {
 scoped_refptr<const NGTableTypes::Columns> NGTableNode::GetColumnConstraints(
     const NGTableGroupedChildren& grouped_children,
     const NGBoxStrut& border_padding) const {
-  LayoutNGTable* layout_table = To<LayoutNGTable>(box_.Get());
+  LayoutNGTable* layout_table = To<LayoutNGTable>(box_);
   scoped_refptr<const NGTableTypes::Columns> column_constraints =
       layout_table->GetCachedTableColumnConstraints();
   if (!column_constraints) {
@@ -50,36 +44,6 @@ LayoutUnit NGTableNode::ComputeTableInlineSize(
     const NGBoxStrut& border_padding) const {
   return NGTableLayoutAlgorithm::ComputeTableInlineSize(*this, space,
                                                         border_padding);
-}
-
-LayoutUnit NGTableNode::ComputeCaptionBlockSize(
-    const NGConstraintSpace& space) const {
-  LayoutUnit table_inline_size =
-      CalculateInitialFragmentGeometry(space, *this, /* break_token */ nullptr)
-          .border_box_size.inline_size;
-  return NGTableLayoutAlgorithm::ComputeCaptionBlockSize(*this, space,
-                                                         table_inline_size);
-}
-
-bool NGTableNode::AllowColumnPercentages(bool is_layout_pass) const {
-  if (Style().LogicalWidth().IsMaxContent())
-    return false;
-  if (is_layout_pass)
-    return true;
-  // TODO(layout-dev): This function breaks the rule of "no tree-walks".
-  // However for this specific case it adds a lot of overhead for little gain.
-  // In the future, we could have a bit on a LayoutObject which indicates if we
-  // should allow column percentages, and maintain this when adding/removing
-  // from the tree.
-  const LayoutBlock* block = box_->ContainingBlock();
-  while (!block->IsLayoutView()) {
-    if (block->IsTableCell() || block->IsFlexibleBoxIncludingNG() ||
-        block->IsLayoutGridIncludingNG())
-      return false;
-
-    block = block->ContainingBlock();
-  }
-  return true;
 }
 
 }  // namespace blink

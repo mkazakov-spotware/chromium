@@ -19,16 +19,16 @@
 
 #include "third_party/blink/renderer/core/svg/svg_fe_drop_shadow_element.h"
 
-#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
+#include "third_party/blink/renderer/core/style/svg_computed_style.h"
 #include "third_party/blink/renderer/core/svg/graphics/filters/svg_filter_builder.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_number.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_number_optional_number.h"
 #include "third_party/blink/renderer/core/svg/svg_animated_string.h"
 #include "third_party/blink/renderer/core/svg_names.h"
 #include "third_party/blink/renderer/platform/graphics/filters/fe_drop_shadow.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -82,7 +82,7 @@ bool SVGFEDropShadowElement::SetFilterEffectAttribute(
     return true;
   }
   if (attr_name == svg_names::kFloodOpacityAttr) {
-    drop_shadow->SetShadowOpacity(style.FloodOpacity());
+    drop_shadow->SetShadowOpacity(style.SvgStyle().FloodOpacity());
     return true;
   }
   return SVGFilterPrimitiveStandardAttributes::SetFilterEffectAttribute(
@@ -90,8 +90,7 @@ bool SVGFEDropShadowElement::SetFilterEffectAttribute(
 }
 
 void SVGFEDropShadowElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+    const QualifiedName& attr_name) {
   if (attr_name == svg_names::kInAttr ||
       attr_name == svg_names::kStdDeviationAttr ||
       attr_name == svg_names::kDxAttr || attr_name == svg_names::kDyAttr) {
@@ -100,7 +99,7 @@ void SVGFEDropShadowElement::SvgAttributeChanged(
     return;
   }
 
-  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(params);
+  SVGFilterPrimitiveStandardAttributes::SvgAttributeChanged(attr_name);
 }
 
 FilterEffect* SVGFEDropShadowElement::Build(SVGFilterBuilder* filter_builder,
@@ -110,7 +109,7 @@ FilterEffect* SVGFEDropShadowElement::Build(SVGFilterBuilder* filter_builder,
     return nullptr;
 
   Color color = style->VisitedDependentColor(GetCSSPropertyFloodColor());
-  float opacity = style->FloodOpacity();
+  float opacity = style->SvgStyle().FloodOpacity();
 
   FilterEffect* input1 = filter_builder->GetEffectById(
       AtomicString(in1_->CurrentValue()->Value()));
@@ -131,7 +130,7 @@ bool SVGFEDropShadowElement::TaintsOrigin() const {
   // TaintsOrigin() is only called after a successful call to Build()
   // (see above), so we should have a ComputedStyle here.
   DCHECK(style);
-  return style->FloodColor().IsCurrentColor();
+  return style->SvgStyle().FloodColor().IsCurrentColor();
 }
 
 }  // namespace blink

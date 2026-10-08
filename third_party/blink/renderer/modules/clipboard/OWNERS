@@ -1,6 +1,10 @@
 # Primary:
-asully@chromium.org
+huangdarwin@chromium.org
 
 # Secondary:
-ayui@chromium.org
 garykac@chromium.org
+pwnall@chromium.org
+jsbell@chromium.org
+
+# TEAM: storage-dev@chromium.org
+# COMPONENT: Blink>DataTransfer

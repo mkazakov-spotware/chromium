@@ -1,6 +1,0 @@
-include_rules = [
-  "+ui/aura",
-  "+ui/display",
-  "+ui/gl",
-  "+ui/lottie",
-]

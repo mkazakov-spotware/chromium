@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -39,14 +38,11 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.chrome.test.util.browser.Features.EnableFeatures;
 import org.chromium.components.embedder_support.view.ContentView;
-import org.chromium.ui.util.TokenHolder;
 
 /**
  * Unit tests for {@link BrowserControlsManager}.
@@ -274,30 +270,5 @@ public class BrowserControlsManagerUnitTest {
                 minHeightOffset, mBrowserControlsManager.getTopControlsMinHeightOffset());
 
         verify(mBrowserControlsStateProviderObserver).onTopControlsHeightChanged(TOOLBAR_HEIGHT, 0);
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES})
-    public void testShowAndroidControlsObserver() {
-        BrowserControlsManager browserControlsManager =
-                new BrowserControlsManager(mActivity, BrowserControlsManager.ControlsPosition.TOP);
-        browserControlsManager.initialize(mControlContainer, mActivityTabProvider,
-                mTabModelSelector, R.dimen.control_container_height);
-        browserControlsManager.addObserver(mBrowserControlsStateProviderObserver);
-
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArguments()[0]).run();
-            return null;
-        })
-                .when(mContainerView)
-                .postOnAnimation(any());
-
-        int token = browserControlsManager.hideAndroidControlsAndClearOldToken(
-                TokenHolder.INVALID_TOKEN);
-        verify(mBrowserControlsStateProviderObserver).onAndroidVisibilityChanged(View.INVISIBLE);
-
-        when(mContainerView.getVisibility()).thenReturn(View.INVISIBLE);
-        browserControlsManager.releaseAndroidControlsHidingToken(token);
-        verify(mBrowserControlsStateProviderObserver).onAndroidVisibilityChanged(View.VISIBLE);
     }
 }

@@ -31,11 +31,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBSOCKETS_DOM_WEBSOCKET_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBSOCKETS_DOM_WEBSOCKET_H_
 
-#include <cstddef>
-#include <cstdint>
-
+#include <stddef.h>
+#include <stdint.h>
+#include <memory>
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
-#include "third_party/blink/renderer/bindings/core/v8/capture_source_location.h"
 #include "third_party/blink/renderer/core/dom/events/event_listener.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_state_observer.h"
@@ -47,7 +46,7 @@
 #include "third_party/blink/renderer/modules/websockets/websocket_channel_impl.h"
 #include "third_party/blink/renderer/modules/websockets/websocket_common.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/timer.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/deque.h"
@@ -61,7 +60,7 @@ class DOMArrayBuffer;
 class DOMArrayBufferView;
 class ExceptionState;
 class ExecutionContext;
-class V8UnionStringOrStringSequence;
+class StringOrStringSequence;
 
 class MODULES_EXPORT DOMWebSocket
     : public EventTargetWithInlineData,
@@ -83,10 +82,10 @@ class MODULES_EXPORT DOMWebSocket
   static DOMWebSocket* Create(ExecutionContext*,
                               const String& url,
                               ExceptionState&);
-  static DOMWebSocket* Create(ExecutionContext* execution_context,
+  static DOMWebSocket* Create(ExecutionContext*,
                               const String& url,
-                              const V8UnionStringOrStringSequence* protocols,
-                              ExceptionState& exception_state);
+                              const StringOrStringSequence& protocols,
+                              ExceptionState&);
 
   explicit DOMWebSocket(ExecutionContext*);
   ~DOMWebSocket() override;
@@ -209,7 +208,7 @@ class MODULES_EXPORT DOMWebSocket
   virtual WebSocketChannel* CreateChannel(ExecutionContext* context,
                                           WebSocketChannelClient* client) {
     return WebSocketChannelImpl::Create(context, client,
-                                        CaptureSourceLocation(context));
+                                        SourceLocation::Capture(context));
   }
 
   // Adds a console message with JSMessageSource and ErrorMessageLevel.

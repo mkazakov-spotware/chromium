@@ -1,10 +1,4 @@
 specific_include_rules = {
- "back_forward_cache_disabling_feature_tracker_unittest.cc": [
-  "+third_party/blink/renderer/platform/bindings/source_location.h",
- ],
- "frame_or_worker_scheduler.cc": [
-  "+third_party/blink/renderer/platform/bindings/source_location.h",
- ],
  "idle_helper.h": [
   "+base/task/task_observer.h",
  ],
@@ -18,4 +12,5 @@ specific_include_rules = {
   "+base/message_loop/message_pump_type.h",
  ],
 }
+
 

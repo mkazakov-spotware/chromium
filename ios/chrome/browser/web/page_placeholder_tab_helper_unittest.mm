@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,17 @@
 
 #import <Foundation/Foundation.h>
 
-#import <memory>
+#include <memory>
 
 #import "base/test/ios/wait_util.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
 #import "ios/chrome/browser/snapshots/snapshot_tab_helper.h"
 #import "ios/chrome/browser/ui/util/named_guide.h"
 #import "ios/chrome/test/scoped_key_window.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -30,7 +30,7 @@ class PagePlaceholderTabHelperTest : public PlatformTest {
  protected:
   PagePlaceholderTabHelperTest() {
     browser_state_ = TestChromeBrowserState::Builder().Build();
-    web_state_ = std::make_unique<web::FakeWebState>();
+    web_state_ = std::make_unique<web::TestWebState>();
     web_state_->SetBrowserState(browser_state_.get());
 
     CGRect frame = {CGPointZero, CGSizeMake(400, 300)};
@@ -46,7 +46,8 @@ class PagePlaceholderTabHelperTest : public PlatformTest {
 
     // PagePlaceholderTabHelper uses SnapshotTabHelper, so ensure it has been
     // created.
-    SnapshotTabHelper::CreateForWebState(web_state_.get());
+    SnapshotTabHelper::CreateForWebState(web_state_.get(),
+                                         [[NSUUID UUID] UUIDString]);
     PagePlaceholderTabHelper::CreateForWebState(web_state_.get());
   }
 
@@ -57,7 +58,7 @@ class PagePlaceholderTabHelperTest : public PlatformTest {
   web::WebTaskEnvironment task_environment_;
   ScopedKeyWindow scoped_key_window_;
   std::unique_ptr<ChromeBrowserState> browser_state_;
-  std::unique_ptr<web::FakeWebState> web_state_;
+  std::unique_ptr<web::TestWebState> web_state_;
   UIView* web_state_view_ = nil;
 };
 

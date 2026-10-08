@@ -1,23 +1,11 @@
 web_tests/FlagExpectations stores flag-specific test expectations.
-Please see [1] for details, and see [2] to see if a flag-specific test
-configuration is suitable for you.
-
 To run layout tests with a flag passed to content_shell, use:
 
-  run_web_tests.py --flag-specific=config-name
+  run_web_tests.py --additional-driver-flag=--name-of-flag
 
-It requires web_tests/FlagSpecificConfig to contain an entry for "config-name",
-e.g.:
-  {
-    "name": "config-name",
-    "args": ["--flag1", "--flag2"]
-  }
+Create a new file:
 
-run_web_tests.py will pass "--flag1 --flag2" to content_shell.
-
-You can create a new file:
-
-  FlagExpectations/config-name
+  FlagExpectations/name-of-flag
 
 The entries in the file is the same as the main TestExpectations file, e.g.
   crbug.com/123456 path/to/your/test.html [ Expectation ]
@@ -25,5 +13,14 @@ The entries in the file is the same as the main TestExpectations file, e.g.
 This file will override the main TestExpectations file when the above command
 is run.
 
-[1] https://chromium.googlesource.com/chromium/src/+/main/docs/testing/web_tests.md#flag_specific-or-additional_driver_flag
-[2] https://chromium.googlesource.com/chromium/src/+/main/docs/testing/web_tests.md#Choosing-between-flag_specific-and-virtual-test-suite
+If the name-of-flag is too long, or when multiple additional flags are needed,
+you can add an entry in web_tests/FlagSpecificConfig, like
+  {
+    "name": "short-name",
+    "args": ["--name-of-flag1", "--name-of-flag2"]
+  }
+
+And create a new file in the same format of the above
+FlagExpectations/name-of-flag file:
+
+  FlagExpectations/short-name

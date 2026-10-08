@@ -1,10 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_VIZ_SERVICE_DISPLAY_OVERLAY_CANDIDATE_TEMPORAL_TRACKER_H_
 #define COMPONENTS_VIZ_SERVICE_DISPLAY_OVERLAY_CANDIDATE_TEMPORAL_TRACKER_H_
 
+#include <vector>
+
+#include "base/macros.h"
+#include "base/time/time.h"
 #include "components/viz/common/resources/resource_id.h"
 #include "components/viz/service/viz_service_export.h"
 
@@ -17,67 +21,66 @@ namespace viz {
 // purpose is to temporally stabilize the result.
 class VIZ_SERVICE_EXPORT OverlayCandidateTemporalTracker {
  public:
-  OverlayCandidateTemporalTracker();
-
   // The |Config| contains values that are derived as part of a heuristic. This
   // |Config| allows for the potential of platform specific variations or
   // experiments.
-  struct VIZ_SERVICE_EXPORT Config {
-    // This is the only heuristic input constant to our power model. It
-    // effectively determines the threshold for positive power gain.
-    float damage_rate_threshold = 0.3f;
+  class VIZ_SERVICE_EXPORT Config {
+   public:
+    // Mean damage above |kDamageHighThreshold| is considered significant. An
+    // example of this is a youtube video.
+    float damage_high_threshold = 0.3f;
+    // Mean damage below |kDamageLowThreshold| is considered insignificant. An
+    // example of this is a blinking cursor.
+    float damage_low_threshold = 0.1f;
 
-    // |max_num_frames_avg| is the number of frames that are averaged before
-    // exponential averaging starts.
-    // https://en.wikipedia.org/wiki/Exponential_smoothing It is also the frame
-    // count cutoff for when an unchanging candidate is considered to be
-    // inactive. see 'IsActivelyChanging()'
-    int max_num_frames_avg = 10;
+    // |sMaxMsActive| is a millisecond the cutoff for when an unchanging
+    // candidate is considered to be inactive. see 'IsActivelyChanging()'
+    int64_t max_ms_active = 100;
   };
 
-  // This function returns an opaque but comparable value representing the
-  // power improvement by promoting the tracked candidate to an overlay.
-  // Negative values indicate that the model suggests a power degradation if the
-  // candidate is promoted to overlay.
-  int GetModeledPowerGain(uint64_t curr_frame,
-                          const OverlayCandidateTemporalTracker::Config& config,
-                          int display_area);
+  enum FrameRateCategory { kFrameRate60fps, kFrameRate30fps, kFrameRateLow };
+  enum DamageCategory { kDamageHigh, kDamageLow };
 
   // This function returns true when the time since the |resource_id| changed
   // exceeds a specific threshold.
-  bool IsActivelyChanging(uint64_t curr_frame, const Config& config) const;
-
-  void Reset();
+  bool IsActivelyChanging(base::TimeTicks curr_tick, const Config& config);
 
   // This function adds a new record to the tracker if the |resource_id| has
   // changed since last update.
-  // The |force_resource_update| flag has been added for the case when the
-  // resource has been updated but the |resource_id| has not changed. The case
-  // for when this occurs is a low latency surface (ink). Fortunately, we can
-  // use surface damage to ascertain when these surfaces have changed despite
-  // the |resource_id| remaining constant.
-  void AddRecord(uint64_t curr_frame,
+  void AddRecord(base::TimeTicks curr_tick,
                  float damage_area_ratio,
-                 ResourceId resource_id,
-                 const Config& config,
-                 bool force_resource_update = false);
+                 unsigned resource_id,
+                 const Config& config);
 
   // This function returns true when this tracker's 'AddRecord' was not called
   // in the previous frame. We require this behavior in order to know when an
   // overlay candidate is no longer present since we are tracking across frames.
   bool IsAbsent();
 
+  void Reset();
+
+  FrameRateCategory GetFPSCategory() const { return fps_category; }
+  bool HasSignificantDamage() { return damage_category == kDamageHigh; }
+
   // The functions and data below are used internally but also can be used for
   // diagnosis and testing.
-  float MeanFrameRatioRate(const Config& config) const;
-  float GetDamageRatioRate() const { return ratio_rate_category_; }
-  uint64_t LastChangeFrameCount(uint64_t curr_frame) const;
+  int64_t MeanFrameMs() const;
+  float MeanDamageAreaRatio() const;
+  int64_t LastChangeMs(base::TimeTicks curr_tick) const;
+
+  // Categorization can happen over a series of |KNumRecords| frames.
+  // The more records the smoother the categorization but the worse the latency.
+  static constexpr int kNumRecords = 6;
 
  private:
-  void CategorizeDamageRatioRate(uint64_t curr_frame, const Config& config);
-  ResourceId prev_resource_id_ = kInvalidResourceId;
+  void CategorizeFrameRate(base::TimeTicks curr_tick);
+  void CategorizeDamageRatio(const Config& config);
 
-  float ratio_rate_category_ = 0.0f;
+  unsigned prev_resource_id = kInvalidResourceId;
+  FrameRateCategory fps_category = kFrameRateLow;
+  DamageCategory damage_category = kDamageLow;
+  // Next empty slot index
+  int next_index = 0;
 
   // The state of this absent bool is as follows:
   // In the normal flow 'IsAbsent()' is tested which sets |absent| = true. Then
@@ -86,10 +89,9 @@ class VIZ_SERVICE_EXPORT OverlayCandidateTemporalTracker {
   // 'IsAbsent()' is tested which sets |absent| = true but on the next frame
   // 'IsAbsent()' returns true  because |absent| was never reset to false. This
   // indicating this tracker should be removed.
-  bool absent_ = false;
-  uint64_t frame_record_prev_ = 0;
-  float damage_record_avg_ = 0.f;
-  int num_samples_ = 0;
+  bool absent = false;
+  base::TimeTicks tick_record[kNumRecords] = {};
+  float damage_record[kNumRecords] = {};
 };
 
 }  // namespace viz

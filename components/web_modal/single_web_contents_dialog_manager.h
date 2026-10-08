@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_WEB_MODAL_SINGLE_WEB_CONTENTS_DIALOG_MANAGER_H_
 #define COMPONENTS_WEB_MODAL_SINGLE_WEB_CONTENTS_DIALOG_MANAGER_H_
 
+#include "base/macros.h"
 #include "ui/gfx/native_widget_types.h"
 
 namespace content {
@@ -20,12 +21,6 @@ class WebContentsModalDialogHost;
 class SingleWebContentsDialogManagerDelegate {
  public:
   SingleWebContentsDialogManagerDelegate() {}
-
-  SingleWebContentsDialogManagerDelegate(
-      const SingleWebContentsDialogManagerDelegate&) = delete;
-  SingleWebContentsDialogManagerDelegate& operator=(
-      const SingleWebContentsDialogManagerDelegate&) = delete;
-
   virtual ~SingleWebContentsDialogManagerDelegate() {}
 
   virtual content::WebContents* GetWebContents() const = 0;
@@ -33,6 +28,9 @@ class SingleWebContentsDialogManagerDelegate {
   // Notify the delegate that the dialog is closing. The native
   // manager will be deleted before the end of this call.
   virtual void WillClose(gfx::NativeWindow dialog) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SingleWebContentsDialogManagerDelegate);
 };
 
 // Provides an interface for platform-specific UI implementation for the web
@@ -44,11 +42,6 @@ class SingleWebContentsDialogManagerDelegate {
 // notify its delegate (WillClose method).
 class SingleWebContentsDialogManager {
  public:
-  SingleWebContentsDialogManager(const SingleWebContentsDialogManager&) =
-      delete;
-  SingleWebContentsDialogManager& operator=(
-      const SingleWebContentsDialogManager&) = delete;
-
   virtual ~SingleWebContentsDialogManager() {}
 
   // Makes the web contents modal dialog visible. Only one web contents modal
@@ -77,6 +70,9 @@ class SingleWebContentsDialogManager {
 
  protected:
   SingleWebContentsDialogManager() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SingleWebContentsDialogManager);
 };
 
 }  // namespace web_modal

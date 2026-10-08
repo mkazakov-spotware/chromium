@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "sandbox/linux/tests/sandbox_test_runner.h"
 
 namespace sandbox {
@@ -21,10 +22,6 @@ class Policy;
 class BPFTesterDelegate {
  public:
   BPFTesterDelegate() {}
-
-  BPFTesterDelegate(const BPFTesterDelegate&) = delete;
-  BPFTesterDelegate& operator=(const BPFTesterDelegate&) = delete;
-
   virtual ~BPFTesterDelegate() {}
 
   // This will instanciate a policy suitable for the test we want to run. It is
@@ -33,6 +30,9 @@ class BPFTesterDelegate {
   virtual std::unique_ptr<bpf_dsl::Policy> GetSandboxBPFPolicy() = 0;
   // This will be called from a child process with the BPF sandbox turned on.
   virtual void RunTestFunction() = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BPFTesterDelegate);
 };
 
 // This class implements the SandboxTestRunner interface and Run() will
@@ -46,10 +46,6 @@ class SandboxBPFTestRunner : public SandboxTestRunner {
   // This constructor takes ownership of the |bpf_tester_delegate| object.
   // (It doesn't take a std::unique_ptr since they make polymorphism verbose).
   explicit SandboxBPFTestRunner(BPFTesterDelegate* bpf_tester_delegate);
-
-  SandboxBPFTestRunner(const SandboxBPFTestRunner&) = delete;
-  SandboxBPFTestRunner& operator=(const SandboxBPFTestRunner&) = delete;
-
   ~SandboxBPFTestRunner() override;
 
   void Run() override;
@@ -58,6 +54,7 @@ class SandboxBPFTestRunner : public SandboxTestRunner {
 
  private:
   std::unique_ptr<BPFTesterDelegate> bpf_tester_delegate_;
+  DISALLOW_COPY_AND_ASSIGN(SandboxBPFTestRunner);
 };
 
 }  // namespace sandbox

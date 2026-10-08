@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,7 +51,8 @@ FakeLayerTreeHostImpl::FakeLayerTreeHostImpl(
   active_tree()->SetDeviceViewportRect(gfx::Rect(100, 100));
 
   // Start an impl frame so tests have a valid frame_time to work with.
-  base::TimeTicks time_ticks = base::TimeTicks() + base::Microseconds(1);
+  base::TimeTicks time_ticks =
+      base::TimeTicks() + base::TimeDelta::FromMicroseconds(1);
   WillBeginImplFrame(viz::CreateBeginFrameArgsForTesting(BEGINFRAME_FROM_HERE,
                                                          0, 1, time_ticks));
 }

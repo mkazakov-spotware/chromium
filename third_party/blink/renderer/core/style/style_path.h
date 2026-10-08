@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,13 +32,12 @@ class StylePath final : public BasicShape {
 
   CSSValue* ComputedCSSValue() const;
 
-  void GetPath(Path&, const gfx::RectF&, float zoom) override;
+  void GetPath(Path&, const FloatRect&, float zoom) override;
   WindRule GetWindRule() const override { return wind_rule_; }
 
-  ShapeType GetType() const override { return kStylePathType; }
+  bool operator==(const BasicShape&) const override;
 
- protected:
-  bool IsEqualAssumingSameType(const BasicShape&) const override;
+  ShapeType GetType() const override { return kStylePathType; }
 
  private:
   explicit StylePath(std::unique_ptr<SVGPathByteStream>, WindRule wind_rule);

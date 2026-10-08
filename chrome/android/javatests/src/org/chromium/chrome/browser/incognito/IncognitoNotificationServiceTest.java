@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,16 @@ package org.chromium.chrome.browser.incognito;
 
 import static org.junit.Assert.assertTrue;
 
+import android.annotation.TargetApi;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.PendingIntent.CanceledException;
 import android.content.Context;
-import android.content.Intent;
 import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import android.support.test.InstrumentationRegistry;
 import android.util.Pair;
 
-import androidx.annotation.RequiresApi;
 import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matchers;
@@ -33,19 +32,15 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
-import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
-import org.chromium.chrome.browser.customtabs.IncognitoCustomTabActivityTestRule;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.TabLaunchType;
+import org.chromium.chrome.browser.tab.TabStateFileManager;
 import org.chromium.chrome.browser.tabmodel.TestTabModelDirectory;
 import org.chromium.chrome.browser.tabmodel.TestTabModelDirectory.TabStateInfo;
 import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
-import org.chromium.chrome.browser.tabpersistence.TabStateFileManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
@@ -60,10 +55,6 @@ import java.util.concurrent.Callable;
 public class IncognitoNotificationServiceTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
-
-    @Rule
-    public IncognitoCustomTabActivityTestRule mCustomTabActivityTestRule =
-            new IncognitoCustomTabActivityTestRule();
 
     private void createTabOnUiThread() {
         TestThreadUtils.runOnUiThreadBlocking(
@@ -80,28 +71,6 @@ public class IncognitoNotificationServiceTest {
         clearIntent.send();
     }
 
-    private void launchIncognitoTabAndEnsureNotificationDisplayed() {
-        mActivityTestRule.startMainActivityOnBlankPage();
-        createTabOnUiThread();
-        CriteriaHelper.pollUiThread(() -> {
-            Criteria.checkThat(
-                    mActivityTestRule.getActivity().getTabModelSelector().getModel(true).getCount(),
-                    Matchers.greaterThanOrEqualTo(1));
-        });
-
-        Context context = ContextUtils.getApplicationContext();
-        NotificationManager nm =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        boolean isIncognitoNotificationDisplayed = false;
-        for (StatusBarNotification statusBarNotification : nm.getActiveNotifications()) {
-            if (IncognitoNotificationManager.INCOGNITO_TABS_OPEN_TAG.equals(
-                        statusBarNotification.getTag())) {
-                isIncognitoNotificationDisplayed = true;
-            }
-        }
-        assertTrue(isIncognitoNotificationDisplayed);
-    }
-
     @Test
     @Feature("Incognito")
     @MediumTest
@@ -112,7 +81,11 @@ public class IncognitoNotificationServiceTest {
         createTabOnUiThread();
         createTabOnUiThread();
 
-        pollUiThreadForChromeActivityIncognitoTabCount(2);
+        CriteriaHelper.pollUiThread(() -> {
+            Criteria.checkThat(
+                    mActivityTestRule.getActivity().getTabModelSelector().getModel(true).getCount(),
+                    Matchers.is(2));
+        });
 
         final Profile incognitoProfile =
                 TestThreadUtils.runOnUiThreadBlockingNoException(new Callable<Profile>() {
@@ -131,14 +104,19 @@ public class IncognitoNotificationServiceTest {
 
         sendClearIncognitoIntent();
 
-        pollUiThreadForChromeActivityIncognitoTabCount(0);
+        CriteriaHelper.pollUiThread(() -> {
+            Criteria.checkThat(
+                    mActivityTestRule.getActivity().getTabModelSelector().getModel(true).getCount(),
+                    Matchers.is(0));
+        });
         CriteriaHelper.pollUiThread(() -> !incognitoProfile.isNativeInitialized());
     }
 
     @Test
     @Feature("Incognito")
     @MediumTest
-    @DisabledTest(message = "crbug.com/1033835")
+    @DisabledTest
+    // https://crbug.com/1033835
     public void testNoAliveProcess() throws Exception {
         Context context = InstrumentationRegistry.getTargetContext();
         final TestTabModelDirectory tabbedModeDirectory = new TestTabModelDirectory(
@@ -212,55 +190,27 @@ public class IncognitoNotificationServiceTest {
     @Test
     @MediumTest
     @Feature("Incognito")
-    @RequiresApi(Build.VERSION_CODES.M)
+    @TargetApi(Build.VERSION_CODES.M)
     @MinAndroidSdkLevel(Build.VERSION_CODES.M)
     public void testCloseAllIncognitoNotificationIsDisplayed() {
-        launchIncognitoTabAndEnsureNotificationDisplayed();
-    }
-
-    @Test
-    @MediumTest
-    @Feature("Incognito")
-    @RequiresApi(Build.VERSION_CODES.M)
-    @MinAndroidSdkLevel(Build.VERSION_CODES.M)
-    @Features.EnableFeatures(ChromeFeatureList.CCT_INCOGNITO)
-    public void testCloseAllIncognitoNotificationForIncognitoCCT_DoesNotCloseCCT()
-            throws PendingIntent.CanceledException {
-        launchIncognitoTabAndEnsureNotificationDisplayed();
-
-        // Create an Incognito CCT now.
-        Intent customTabIntent = CustomTabsIntentTestUtils.createMinimalIncognitoCustomTabIntent(
-                InstrumentationRegistry.getContext(), "about:blank");
-        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(customTabIntent);
-
-        // Click on "Close all Incognito tabs" notification.
-        PendingIntent clearIntent =
-                IncognitoNotificationServiceImpl
-                        .getRemoveAllIncognitoTabsIntent(InstrumentationRegistry.getTargetContext())
-                        .getPendingIntent();
-        clearIntent.send();
-
-        pollUiThreadForChromeActivityIncognitoTabCount(0);
-
-        // Verify the Incognito CCT is not closed.
-        pollUiThreadForCustomIncognitoTabCount(1);
-    }
-
-    private void pollUiThreadForChromeActivityIncognitoTabCount(int expectedCount) {
+        mActivityTestRule.startMainActivityOnBlankPage();
+        createTabOnUiThread();
         CriteriaHelper.pollUiThread(() -> {
             Criteria.checkThat(
                     mActivityTestRule.getActivity().getTabModelSelector().getModel(true).getCount(),
-                    Matchers.is(expectedCount));
+                    Matchers.is(1));
         });
-    }
 
-    private void pollUiThreadForCustomIncognitoTabCount(int expectedCount) {
-        CriteriaHelper.pollUiThread(() -> {
-            Criteria.checkThat(mCustomTabActivityTestRule.getActivity()
-                                       .getTabModelSelector()
-                                       .getModel(true)
-                                       .getCount(),
-                    Matchers.is(expectedCount));
-        });
+        Context context = ContextUtils.getApplicationContext();
+        NotificationManager nm =
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        boolean isIncognitoNotificationDisplayed = false;
+        for (StatusBarNotification statusBarNotification : nm.getActiveNotifications()) {
+            if (IncognitoNotificationManager.INCOGNITO_TABS_OPEN_TAG.equals(
+                        statusBarNotification.getTag())) {
+                isIncognitoNotificationDisplayed = true;
+            }
+        }
+        assertTrue(isIncognitoNotificationDisplayed);
     }
 }

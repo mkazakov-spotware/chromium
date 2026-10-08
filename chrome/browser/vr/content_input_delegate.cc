@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -108,7 +108,7 @@ void ContentInputDelegate::ClearTextInputState() {
 
 void ContentInputDelegate::OnWebInputTextChanged(
     TextInputInfo pending_input_info,
-    const std::u16string& text) {
+    const base::string16& text) {
   pending_input_info.text = text;
   DCHECK(!update_state_callbacks_.empty());
 

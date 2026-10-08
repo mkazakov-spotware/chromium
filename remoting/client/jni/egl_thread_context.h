@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <EGL/egl.h>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 
 namespace remoting {
@@ -24,10 +25,6 @@ class EglThreadContext {
   };
 
   EglThreadContext();
-
-  EglThreadContext(const EglThreadContext&) = delete;
-  EglThreadContext& operator=(const EglThreadContext&) = delete;
-
   ~EglThreadContext();
 
   // Creates a surface on the given window and binds the context to the surface.
@@ -63,6 +60,8 @@ class EglThreadContext {
   GlVersion client_version_ = GlVersion::UNKNOWN;
 
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(EglThreadContext);
 };
 
 }  // namespace remoting

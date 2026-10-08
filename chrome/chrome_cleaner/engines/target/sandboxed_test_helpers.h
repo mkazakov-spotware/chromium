@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -70,7 +70,7 @@ class MaybeSandboxedParentProcess : public BaseClass {
           std::make_unique<chrome_cleaner::FileRemover>(
               verifier, /*archiver=*/nullptr,
               chrome_cleaner::LayeredServiceProviderWrapper(),
-              base::DoNothing());
+              base::DoNothing::Repeatedly());
       cleaner_impl_ = std::make_unique<CleanerEngineRequestsImpl>(
           this->mojo_task_runner(), metadata_observer, std::move(file_remover));
       cleanup_results_impl_ =
@@ -94,16 +94,19 @@ class MaybeSandboxedParentProcess : public BaseClass {
     if (requests_to_setup_ == CallbacksToSetup::kScanAndCleanupRequests ||
         requests_to_setup_ == CallbacksToSetup::kCleanupRequests) {
       scanner_impl_->Bind(&scanner);
-      scan_results_impl_->BindToCallbacks(&scanner_results, base::DoNothing(),
-                                          base::DoNothing());
+      scan_results_impl_->BindToCallbacks(
+          &scanner_results,
+          base::BindRepeating(
+              base::DoNothing::Repeatedly<UwSId, const PUPData::PUP&>()),
+          base::BindOnce(base::DoNothing::Once<uint32_t>()));
     }
 
     mojo::PendingAssociatedRemote<mojom::CleanerEngineRequests> cleaner;
     mojo::PendingAssociatedRemote<mojom::EngineCleanupResults> cleanup_results;
     if (requests_to_setup_ == CallbacksToSetup::kCleanupRequests) {
       cleaner_impl_->Bind(&cleaner);
-      cleanup_results_impl_->BindToCallbacks(&cleanup_results,
-                                             base::DoNothing());
+      cleanup_results_impl_->BindToCallbacks(
+          &cleanup_results, base::BindOnce(base::DoNothing::Once<uint32_t>()));
     }
 
     // Now call the target process to signal that setup is finished.

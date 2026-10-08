@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "third_party/blink/renderer/core/editing/markers/suggestion_marker_replacement_scope.h"
 #include "third_party/blink/renderer/core/editing/markers/unsorted_document_marker_list_editor.h"
-#include "third_party/blink/renderer/platform/wtf/text/unicode.h"
 
 namespace blink {
 
@@ -18,7 +17,7 @@ UChar32 GetCodePointAt(const String& text, wtf_size_t index) {
   return c;
 }
 
-absl::optional<DocumentMarker::MarkerOffsets>
+base::Optional<DocumentMarker::MarkerOffsets>
 ComputeOffsetsAfterNonSuggestionEditingOperating(const DocumentMarker& marker,
                                                  const String& node_text,
                                                  unsigned offset,
@@ -59,7 +58,7 @@ DocumentMarker::MarkerType SuggestionMarkerListImpl::MarkerType() const {
 }
 
 bool SuggestionMarkerListImpl::IsEmpty() const {
-  return markers_.empty();
+  return markers_.IsEmpty();
 }
 
 void SuggestionMarkerListImpl::Add(DocumentMarker* marker) {
@@ -137,9 +136,9 @@ bool SuggestionMarkerListImpl::ShiftMarkersForSuggestionReplacement(
       continue;
     }
 
-    absl::optional<DocumentMarker::MarkerOffsets> result =
+    base::Optional<DocumentMarker::MarkerOffsets> result =
         marker->ComputeOffsetsAfterShift(offset, old_length, new_length);
-    if (result == absl::nullopt) {
+    if (result == base::nullopt) {
       did_shift_marker = true;
       continue;
     }
@@ -169,7 +168,7 @@ bool SuggestionMarkerListImpl::ShiftMarkersForNonSuggestionEditingOperation(
   bool did_shift_marker = false;
   HeapVector<Member<DocumentMarker>> unremoved_markers;
   for (const Member<DocumentMarker>& marker : markers_) {
-    absl::optional<DocumentMarker::MarkerOffsets> result =
+    base::Optional<DocumentMarker::MarkerOffsets> result =
         ComputeOffsetsAfterNonSuggestionEditingOperating(
             *marker, node_text, offset, old_length, new_length);
     if (!result) {

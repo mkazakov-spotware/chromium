@@ -1,11 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TREES_PAINT_HOLDING_COMMIT_TRIGGER_H_
 #define CC_TREES_PAINT_HOLDING_COMMIT_TRIGGER_H_
-
-#include "cc/trees/paint_holding_reason.h"
 
 namespace cc {
 
@@ -20,18 +18,12 @@ enum class PaintHoldingCommitTrigger {
   // The commit was triggered by first contentful paint (FCP)
   kFirstContentfulPaint = 2,
   // The commit was triggered by a timeout waiting for FCP
-  kTimeoutFCP = 3,
+  kTimeout = 3,
   // The timeout was never set, probably due to non-main frame
   kNotDeferred = 4,
-  // The commit was triggered by a view transition start
-  kViewTransition = 5,
-  // The commit was triggered by a timeout waiting for view transition start
-  kTimeoutViewTransition = 6,
   // Required for UMA enum
-  kMaxValue = kTimeoutViewTransition
+  kMaxValue = kNotDeferred
 };
-
-PaintHoldingCommitTrigger ReasonToTimeoutTrigger(PaintHoldingReason reason);
 
 }  // namespace cc
 

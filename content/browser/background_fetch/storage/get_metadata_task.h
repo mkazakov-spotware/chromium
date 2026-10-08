@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,7 @@
 #include "content/browser/background_fetch/background_fetch.pb.h"
 #include "content/browser/background_fetch/storage/database_task.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
-
-namespace blink {
-class StorageKey;
-}  // namespace blink
+#include "url/origin.h"
 
 namespace content {
 namespace background_fetch {
@@ -30,12 +27,9 @@ class GetMetadataTask : public DatabaseTask {
 
   GetMetadataTask(DatabaseTaskHost* host,
                   int64_t service_worker_registration_id,
-                  const blink::StorageKey& storage_key,
+                  const url::Origin& origin,
                   const std::string& developer_id,
                   GetMetadataCallback callback);
-
-  GetMetadataTask(const GetMetadataTask&) = delete;
-  GetMetadataTask& operator=(const GetMetadataTask&) = delete;
 
   ~GetMetadataTask() override;
 
@@ -54,7 +48,7 @@ class GetMetadataTask : public DatabaseTask {
   void FinishWithError(blink::mojom::BackgroundFetchError error) override;
 
   int64_t service_worker_registration_id_;
-  blink::StorageKey storage_key_;
+  url::Origin origin_;
   std::string developer_id_;
 
   GetMetadataCallback callback_;
@@ -62,6 +56,8 @@ class GetMetadataTask : public DatabaseTask {
   std::unique_ptr<proto::BackgroundFetchMetadata> metadata_proto_;
 
   base::WeakPtrFactory<GetMetadataTask> weak_factory_{this};  // Keep as last.
+
+  DISALLOW_COPY_AND_ASSIGN(GetMetadataTask);
 };
 
 }  // namespace background_fetch

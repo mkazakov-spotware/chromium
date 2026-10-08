@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,8 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/observer_list.h"
 #include "build/build_config.h"
 #include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/page_user_data.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -19,30 +17,6 @@
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
 namespace dom_distiller {
-namespace {
-class DistillabilityResultPageData
-    : public content::PageUserData<DistillabilityResultPageData> {
- public:
-  explicit DistillabilityResultPageData(content::Page& page);
-
-  DistillabilityResultPageData(const DistillabilityResultPageData&) = delete;
-  DistillabilityResultPageData& operator=(const DistillabilityResultPageData&) =
-      delete;
-
-  ~DistillabilityResultPageData() override;
-
-  DistillabilityResult distillability_result;
-
-  PAGE_USER_DATA_KEY_DECL();
-};
-
-DistillabilityResultPageData::DistillabilityResultPageData(content::Page& page)
-    : PageUserData<DistillabilityResultPageData>(page) {}
-DistillabilityResultPageData::~DistillabilityResultPageData() = default;
-
-PAGE_USER_DATA_KEY_IMPL(DistillabilityResultPageData);
-
-}  // namespace
 
 // Implementation of the Mojo DistillabilityService. This is called by the
 // renderer to notify the browser that a page is distillable.
@@ -73,8 +47,10 @@ class DistillabilityServiceImpl : public mojom::DistillabilityService {
 };
 
 DistillabilityDriver::DistillabilityDriver(content::WebContents* web_contents)
-    : content::WebContentsUserData<DistillabilityDriver>(*web_contents),
-      content::WebContentsObserver(web_contents) {}
+    : latest_result_(base::nullopt), web_contents_(web_contents) {
+  if (!web_contents)
+    return;
+}
 
 DistillabilityDriver::~DistillabilityDriver() = default;
 
@@ -90,19 +66,11 @@ void DistillabilityDriver::SetIsSecureCallback(
   is_secure_check_ = std::move(is_secure_check);
 }
 
-void DistillabilityDriver::PrimaryPageChanged(content::Page& page) {
-  DistillabilityResultPageData* page_data =
-      DistillabilityResultPageData::GetForPage(page);
-  if (page_data) {
-    OnDistillability(page_data->distillability_result);
-  }
-}
-
 void DistillabilityDriver::OnDistillability(
     const DistillabilityResult& result) {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   if (result.is_distillable) {
-    if (!is_secure_check_ || !is_secure_check_.Run(&GetWebContents())) {
+    if (!is_secure_check_ || !is_secure_check_.Run(web_contents_)) {
       DistillabilityResult not_distillable;
       not_distillable.is_distillable = false;
       not_distillable.is_last = result.is_last;
@@ -113,19 +81,12 @@ void DistillabilityDriver::OnDistillability(
       return;
     }
   }
-#endif  // !BUILDFLAG(IS_ANDROID)
-
-  DistillabilityResultPageData::CreateForPage(
-      GetWebContents().GetPrimaryPage());
-  DistillabilityResultPageData* page_data =
-      DistillabilityResultPageData::GetForPage(
-          GetWebContents().GetPrimaryPage());
-  page_data->distillability_result = result;
+#endif  // !defined(OS_ANDROID)
   latest_result_ = result;
   for (auto& observer : observers_)
     observer.OnResult(result);
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(DistillabilityDriver);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(DistillabilityDriver)
 
 }  // namespace dom_distiller

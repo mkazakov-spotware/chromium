@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 
 namespace autofill {
 
-TestAutofillTickClock::TestAutofillTickClock(base::TimeTicks now_ticks) {
+TestAutofillTickClock::TestAutofillTickClock() {
   AutofillTickClock::SetTestTickClock(&test_tick_clock_);
-  SetNowTicks(now_ticks);
 }
 
 TestAutofillTickClock::~TestAutofillTickClock() {

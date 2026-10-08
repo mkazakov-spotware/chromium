@@ -1,22 +1,24 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IPC_IPC_CHANNEL_HANDLE_H_
 #define IPC_IPC_CHANNEL_HANDLE_H_
 
+#include <string>
+
 #include "build/build_config.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
 #include "base/file_descriptor_posix.h"
-#endif  // defined (OS_NACL)
+#endif  // defined (OS_NACL_SFI)
 
 namespace IPC {
 
 // Note that serialization for this object is defined in the ParamTraits
 // template specialization in ipc_message_utils.h.
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL_SFI)
 struct ChannelHandle {
   ChannelHandle() {}
   explicit ChannelHandle(const base::FileDescriptor& s) : socket(s) {}
@@ -32,7 +34,7 @@ struct ChannelHandle {
 
   mojo::MessagePipeHandle mojo_handle;
 };
-#endif  // BUILDFLAG(IS_NACL)
+#endif  // defined(OS_NACL_SFI)
 
 }  // namespace IPC
 

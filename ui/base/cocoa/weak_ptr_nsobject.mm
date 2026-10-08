@@ -1,8 +1,6 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "base/memory/raw_ptr.h"
 
 #import "ui/base/cocoa/weak_ptr_nsobject.h"
 
@@ -10,7 +8,7 @@
 
 @interface WeakPtrNSObject : NSObject {
  @public
-  raw_ptr<void> weak_ptr;
+  void* weak_ptr;
 }
 @end
 @implementation WeakPtrNSObject

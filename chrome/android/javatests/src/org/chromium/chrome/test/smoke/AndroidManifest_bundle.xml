@@ -1,5 +1,5 @@
 <!--
- * Copyright 2019 The Chromium Authors
+ * Copyright 2019 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
 -->
@@ -24,17 +24,4 @@
     <instrumentation android:name="org.chromium.base.test.BaseChromiumAndroidJUnitRunner"
         android:targetPackage="org.chromium.chrome.test.smoke.bundle"
         android:label="Runner for org.chromium.chrome.test.smoke.bundle"/>
-
-    <!-- In Android-11 or newer, apks need to have the <queries> element when
-         querying and interfacting with other packages. See
-         https://developer.android.com/training/basics/intents/package-visibility#package-name
-         for more details. -->
-    <queries>
-      <package android:name="org.chromium.chrome" />
-      <package android:name="com.google.android.apps.chrome" />
-      <package android:name="com.chrome.canary" />
-      <package android:name="com.chrome.dev" />
-      <package android:name="com.chrome.beta" />
-      <package android:name="com.android.chrome" />
-    </queries>
 </manifest>

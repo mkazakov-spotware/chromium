@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.compositor;
 
+import android.content.res.Resources;
 import android.graphics.Rect;
 import android.view.SurfaceView;
 import android.view.View;
@@ -11,18 +12,16 @@ import android.view.View;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
-import org.junit.ClassRule;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.ui.resources.ResourceManager;
 
 /**
@@ -30,15 +29,9 @@ import org.chromium.ui.resources.ResourceManager;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class CompositorVisibilityTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private CompositorView mCompositorView;
 
@@ -62,6 +55,14 @@ public class CompositorVisibilityTest {
         public void pushDebugRect(Rect rect, int color) {}
 
         @Override
+        public void loadPersitentTextureDataIfNeeded() {}
+
+        @Override
+        public int getBrowserControlsBackgroundColor(Resources res) {
+            return 0;
+        }
+
+        @Override
         public ResourceManager getResourceManager() {
             return null;
         }
@@ -70,6 +71,11 @@ public class CompositorVisibilityTest {
         public void invalidateAccessibilityProvider() {}
     };
 
+    @Before
+    public void setUp() throws InterruptedException {
+        mActivityTestRule.startMainActivityOnBlankPage();
+    }
+
     // Verify that setVisibility on |mCompositorView| is transferred to its children.  Otherwise,
     // the underlying surface is not destroyed.  This can interfere with VR, which hides the
     // CompositorView and creates its own surfaces.  The compositor surfaces can show up when the VR
@@ -77,10 +83,10 @@ public class CompositorVisibilityTest {
     @Test
     @SmallTest
     public void testSetVisibilityHidesSurfaces() throws Throwable {
-        sActivityTestRule.runOnUiThread(new Runnable() {
+        mActivityTestRule.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mCompositorView = new CompositorView(sActivityTestRule.getActivity(), mRenderHost);
+                mCompositorView = new CompositorView(mActivityTestRule.getActivity(), mRenderHost);
                 mCompositorView.setVisibility(View.VISIBLE);
                 Assert.assertEquals(View.VISIBLE, mCompositorView.getChildAt(0).getVisibility());
                 mCompositorView.setVisibility(View.INVISIBLE);
@@ -96,10 +102,10 @@ public class CompositorVisibilityTest {
     @Test
     @SmallTest
     public void testSurfaceViewIsAttachedImmediately() throws Throwable {
-        sActivityTestRule.runOnUiThread(new Runnable() {
+        mActivityTestRule.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mCompositorView = new CompositorView(sActivityTestRule.getActivity(), mRenderHost);
+                mCompositorView = new CompositorView(mActivityTestRule.getActivity(), mRenderHost);
                 Assert.assertEquals(mCompositorView.getChildCount(), 1);
                 Assert.assertTrue(mCompositorView.getChildAt(0) instanceof SurfaceView);
             }
@@ -112,10 +118,10 @@ public class CompositorVisibilityTest {
     @Test
     @SmallTest
     public void testInitialVisibility() throws Throwable {
-        sActivityTestRule.runOnUiThread(new Runnable() {
+        mActivityTestRule.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mCompositorView = new CompositorView(sActivityTestRule.getActivity(), mRenderHost);
+                mCompositorView = new CompositorView(mActivityTestRule.getActivity(), mRenderHost);
                 Assert.assertEquals(View.VISIBLE, mCompositorView.getVisibility());
                 Assert.assertEquals(View.INVISIBLE, mCompositorView.getChildAt(0).getVisibility());
             }

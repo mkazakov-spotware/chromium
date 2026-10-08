@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@ MockChromeCleanerController::MockChromeCleanerController() = default;
 MockChromeCleanerController::~MockChromeCleanerController() = default;
 
 void MockChromeCleanerController::OnSwReporterReady(
-    const std::string& prompt_seed,
     SwReporterInvocationSequence&& sequence) {
-  MockedOnSwReporterReady(prompt_seed, sequence);
+  MockedOnSwReporterReady(sequence);
 }
 
 }  // namespace safe_browsing

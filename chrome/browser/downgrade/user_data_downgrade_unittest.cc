@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
+#include "base/optional.h"
+#include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/downgrade/snapshot_file_collector.h"
 #include "chrome/common/chrome_constants.h"
 #include "content/public/browser/browsing_data_remover.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace downgrade {
 
@@ -82,7 +82,7 @@ TEST(UserDataDowngradeTests, GetSnapshotToRestore) {
   }
 
   EXPECT_EQ(GetSnapshotToRestore(base::Version("9"), user_data_dir.GetPath()),
-            absl::nullopt);
+            base::nullopt);
   EXPECT_EQ(
       *GetSnapshotToRestore(base::Version("10.1.0"), user_data_dir.GetPath()),
       base::Version("10.0.0"));
@@ -142,10 +142,10 @@ TEST(UserDataDowngradeTests, RemoveDataForProfile) {
   // Nothing should be deleted from |profile_path_default| since delete_begin
   // is after the snapshot has been created.
   RemoveDataForProfile(base::Time::Max(), profile_path_default,
-                       chrome_browsing_data_remover::DATA_TYPE_BOOKMARKS);
+                       ChromeBrowsingDataRemoverDelegate::DATA_TYPE_BOOKMARKS);
   // Only the bookmarks should be deleted.
   RemoveDataForProfile(base::Time::Min(), profile_path_1,
-                       chrome_browsing_data_remover::DATA_TYPE_BOOKMARKS);
+                       ChromeBrowsingDataRemoverDelegate::DATA_TYPE_BOOKMARKS);
   EXPECT_TRUE(base::PathExists(
       snapshot_profile_path_default.Append(chrome::kPreferencesFilename)));
   EXPECT_TRUE(base::PathExists(
@@ -159,17 +159,17 @@ TEST(UserDataDowngradeTests, RemoveDataForProfile) {
     EXPECT_TRUE(
         base::PathExists(snapshot_profile_path_default.Append(item.path)));
     EXPECT_EQ((item.data_types &
-               chrome_browsing_data_remover::DATA_TYPE_BOOKMARKS) == 0ULL,
+               ChromeBrowsingDataRemoverDelegate::DATA_TYPE_BOOKMARKS) == 0ULL,
               base::PathExists(snapshot_profile_path_1.Append(item.path)));
   }
 
   const auto remove_mask =
       content::BrowsingDataRemover::DATA_TYPE_COOKIES |
-      chrome_browsing_data_remover::DATA_TYPE_ISOLATED_ORIGINS |
-      chrome_browsing_data_remover::DATA_TYPE_HISTORY |
-      chrome_browsing_data_remover::DATA_TYPE_CONTENT_SETTINGS |
-      chrome_browsing_data_remover::DATA_TYPE_PASSWORDS |
-      chrome_browsing_data_remover::DATA_TYPE_FORM_DATA;
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_ISOLATED_ORIGINS |
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_HISTORY |
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_CONTENT_SETTINGS |
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_PASSWORDS |
+      ChromeBrowsingDataRemoverDelegate::DATA_TYPE_FORM_DATA;
 
   // Delete some data from default profile.
   RemoveDataForProfile(base::Time::Min(), profile_path_default, remove_mask);
@@ -180,7 +180,7 @@ TEST(UserDataDowngradeTests, RemoveDataForProfile) {
   }
   // Wipe profile 1
   RemoveDataForProfile(base::Time(), profile_path_1,
-                       chrome_browsing_data_remover::WIPE_PROFILE);
+                       ChromeBrowsingDataRemoverDelegate::WIPE_PROFILE);
   EXPECT_FALSE(base::PathExists(snapshot_profile_path_1));
 }
 

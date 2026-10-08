@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,15 +43,14 @@ std::string TestManagementPolicyProvider::GetDebugPolicyProviderName() const {
 }
 
 bool TestManagementPolicyProvider::UserMayLoad(const Extension* extension,
-                                               std::u16string* error) const {
+                                               base::string16* error) const {
   if (error && !may_load_)
     *error = error_message_;
   return may_load_;
 }
 
 bool TestManagementPolicyProvider::UserMayModifySettings(
-    const Extension* extension,
-    std::u16string* error) const {
+    const Extension* extension, base::string16* error) const {
   if (error && !may_modify_status_)
     *error = error_message_;
   return may_modify_status_;
@@ -60,15 +59,15 @@ bool TestManagementPolicyProvider::UserMayModifySettings(
 bool TestManagementPolicyProvider::ExtensionMayModifySettings(
     const Extension* source_extension,
     const Extension* extension,
-    std::u16string* error) const {
+    base::string16* error) const {
   if (error && !may_modify_status_)
     *error = error_message_;
   return may_modify_status_;
 }
 
-bool TestManagementPolicyProvider::MustRemainEnabled(
-    const Extension* extension,
-    std::u16string* error) const {
+bool TestManagementPolicyProvider::MustRemainEnabled(const Extension* extension,
+                                                     base::string16* error)
+    const {
   if (error && must_remain_enabled_)
     *error = error_message_;
   return must_remain_enabled_;
@@ -77,7 +76,7 @@ bool TestManagementPolicyProvider::MustRemainEnabled(
 bool TestManagementPolicyProvider::MustRemainDisabled(
     const Extension* extension,
     disable_reason::DisableReason* reason,
-    std::u16string* error) const {
+    base::string16* error) const {
   if (must_remain_disabled_) {
     if (error)
       *error = error_message_;
@@ -89,7 +88,7 @@ bool TestManagementPolicyProvider::MustRemainDisabled(
 
 bool TestManagementPolicyProvider::MustRemainInstalled(
     const Extension* extension,
-    std::u16string* error) const {
+    base::string16* error) const {
   if (error && must_remain_installed_)
     *error = error_message_;
   return must_remain_installed_;

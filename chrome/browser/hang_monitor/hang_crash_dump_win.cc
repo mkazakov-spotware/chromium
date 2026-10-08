@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/hang_monitor/hang_crash_dump.h"
 
 #include <windows.h>
-
-#include <ostream>
 
 #include "base/check.h"
 #include "components/crash/core/app/crash_export_thunks.h"

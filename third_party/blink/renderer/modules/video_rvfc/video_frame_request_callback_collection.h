@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 #include "third_party/blink/renderer/core/dom/dom_high_res_time_stamp.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -25,11 +24,10 @@ class MODULES_EXPORT VideoFrameRequestCallbackCollection final
       public NameClient {
  public:
   explicit VideoFrameRequestCallbackCollection(ExecutionContext*);
-  ~VideoFrameRequestCallbackCollection() final = default;
 
   using CallbackId = int;
 
-  // Abstract class that generalizes a video.rVFC callback.
+  // Abstract class that generalizes a video.rAF callback.
   class MODULES_EXPORT VideoFrameCallback
       : public GarbageCollected<VideoFrameCallback>,
         public NameClient {
@@ -38,7 +36,7 @@ class MODULES_EXPORT VideoFrameRequestCallbackCollection final
     const char* NameInHeapSnapshot() const override {
       return "VideoFrameCallback";
     }
-    ~VideoFrameCallback() override = default;
+    virtual ~VideoFrameCallback() = default;
 
     virtual void Invoke(double, const VideoFrameMetadata*) = 0;
 

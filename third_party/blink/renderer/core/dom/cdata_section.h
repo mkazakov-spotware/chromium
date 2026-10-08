@@ -38,6 +38,7 @@ class CDATASection final : public Text {
 
  private:
   String nodeName() const override;
+  NodeType getNodeType() const override;
   Text* CloneWithData(Document&, const String&) const override;
 };
 

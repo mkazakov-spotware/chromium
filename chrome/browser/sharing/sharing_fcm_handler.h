@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,14 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "chrome/browser/sharing/proto/sharing_message.pb.h"
 #include "chrome/browser/sharing/sharing_send_message_result.h"
 #include "components/gcm_driver/gcm_app_handler.h"
 #include "components/sync_device_info/device_info.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace gcm {
 class GCMDriver;
@@ -40,10 +40,6 @@ class SharingFCMHandler : public gcm::GCMAppHandler {
                     syncer::DeviceInfoTracker* device_info_tracker,
                     SharingFCMSender* sharing_fcm_sender,
                     SharingHandlerRegistry* handler_registry);
-
-  SharingFCMHandler(const SharingFCMHandler&) = delete;
-  SharingFCMHandler& operator=(const SharingFCMHandler&) = delete;
-
   ~SharingFCMHandler() override;
 
   // Registers itself as app handler for sharing messages.
@@ -71,10 +67,10 @@ class SharingFCMHandler : public gcm::GCMAppHandler {
   void OnMessagesDeleted(const std::string& app_id) override;
 
  private:
-  absl::optional<chrome_browser_sharing::FCMChannelConfiguration> GetFCMChannel(
+  base::Optional<chrome_browser_sharing::FCMChannelConfiguration> GetFCMChannel(
       const chrome_browser_sharing::SharingMessage& original_message);
 
-  absl::optional<chrome_browser_sharing::ServerChannelConfiguration>
+  base::Optional<chrome_browser_sharing::ServerChannelConfiguration>
   GetServerChannel(
       const chrome_browser_sharing::SharingMessage& original_message);
 
@@ -85,9 +81,9 @@ class SharingFCMHandler : public gcm::GCMAppHandler {
   void SendAckMessage(
       std::string original_message_id,
       chrome_browser_sharing::MessageType original_message_type,
-      absl::optional<chrome_browser_sharing::FCMChannelConfiguration>
+      base::Optional<chrome_browser_sharing::FCMChannelConfiguration>
           fcm_channel,
-      absl::optional<chrome_browser_sharing::ServerChannelConfiguration>
+      base::Optional<chrome_browser_sharing::ServerChannelConfiguration>
           server_channel,
       SharingDevicePlatform sender_device_type,
       base::TimeTicks message_received_time,
@@ -99,17 +95,19 @@ class SharingFCMHandler : public gcm::GCMAppHandler {
       SharingDevicePlatform sender_device_type,
       int trace_id,
       SharingSendMessageResult result,
-      absl::optional<std::string> message_id,
+      base::Optional<std::string> message_id,
       SharingChannelType channel_type);
 
-  const raw_ptr<gcm::GCMDriver, DanglingUntriaged> gcm_driver_;
-  raw_ptr<syncer::DeviceInfoTracker, DanglingUntriaged> device_info_tracker_;
-  raw_ptr<SharingFCMSender, DanglingUntriaged> sharing_fcm_sender_;
-  raw_ptr<SharingHandlerRegistry, DanglingUntriaged> handler_registry_;
+  gcm::GCMDriver* const gcm_driver_;
+  syncer::DeviceInfoTracker* device_info_tracker_;
+  SharingFCMSender* sharing_fcm_sender_;
+  SharingHandlerRegistry* handler_registry_;
 
   bool is_listening_ = false;
 
   base::WeakPtrFactory<SharingFCMHandler> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SharingFCMHandler);
 };
 
 #endif  // CHROME_BROWSER_SHARING_SHARING_FCM_HANDLER_H_

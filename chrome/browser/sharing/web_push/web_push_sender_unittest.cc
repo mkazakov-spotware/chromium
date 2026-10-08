@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "net/http/http_request_headers.h"
 #include "services/network/public/cpp/data_element.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -47,9 +46,9 @@ class WebPushSenderTest : public testing::Test {
   network::TestURLLoaderFactory& loader() { return test_url_loader_factory_; }
 
   void OnMessageSent(SendWebPushMessageResult* result_out,
-                     absl::optional<std::string>* message_id_out,
+                     base::Optional<std::string>* message_id_out,
                      SendWebPushMessageResult result,
-                     absl::optional<std::string> message_id) {
+                     base::Optional<std::string> message_id) {
     *result_out = result;
     *message_id_out = message_id;
   }
@@ -79,7 +78,7 @@ TEST_F(WebPushSenderTest, SendMessageTest) {
   ASSERT_TRUE(private_key);
 
   SendWebPushMessageResult result;
-  absl::optional<std::string> message_id;
+  base::Optional<std::string> message_id;
   sender()->SendMessage(
       "fcm_token", private_key.get(), CreateMessage(),
       base::BindOnce(&WebPushSenderTest::OnMessageSent, base::Unretained(this),
@@ -115,7 +114,7 @@ TEST_F(WebPushSenderTest, SendMessageTest) {
   ASSERT_TRUE(base::Base64UrlDecode(data.substr(data_dot_position + 1),
                                     base::Base64UrlDecodePolicy::IGNORE_PADDING,
                                     &payload_decoded));
-  absl::optional<base::Value> payload_value =
+  base::Optional<base::Value> payload_value =
       base::JSONReader::Read(payload_decoded);
   ASSERT_TRUE(payload_value);
   ASSERT_TRUE(payload_value->is_dict());
@@ -142,8 +141,7 @@ TEST_F(WebPushSenderTest, SendMessageTest) {
       pendingRequest->request.request_body->elements();
   ASSERT_EQ(1UL, body_elements->size());
   const network::DataElement& body = body_elements->back();
-  ASSERT_EQ(network::DataElement::Tag::kBytes, body.type());
-  EXPECT_EQ("payload", body.As<network::DataElementBytes>().AsStringPiece());
+  EXPECT_EQ("payload", std::string(body.bytes(), body.length()));
 
   auto response_head = network::CreateURLResponseHead(net::HTTP_OK);
   response_head->headers->AddHeader("location",
@@ -177,7 +175,7 @@ TEST_P(WebPushUrgencyTest, SetUrgencyTest) {
   std::unique_ptr<crypto::ECPrivateKey> private_key =
       crypto::ECPrivateKey::CreateFromPrivateKeyInfo(std::vector<uint8_t>(
           private_key_info.begin(), private_key_info.end()));
-  absl::optional<std::string> message_id;
+  base::Optional<std::string> message_id;
   std::string urgency;
 
   WebPushMessage message = CreateMessage();
@@ -231,7 +229,7 @@ TEST_P(WebPushHttpStatusTest, HttpStatusTest) {
   ASSERT_TRUE(private_key);
 
   SendWebPushMessageResult result;
-  absl::optional<std::string> message_id;
+  base::Optional<std::string> message_id;
   sender()->SendMessage(
       "fcm_token", private_key.get(), CreateMessage(),
       base::BindOnce(&WebPushSenderTest::OnMessageSent, base::Unretained(this),

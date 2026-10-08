@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,31 +11,18 @@
 
 #include "base/containers/flat_map.h"
 #include "chrome/common/extensions/api/passwords_private.h"
-#include "url/gurl.h"
-
-class Profile;
 
 namespace password_manager {
-struct CredentialUIEntry;
+struct PasswordForm;
 }  // namespace password_manager
 
 namespace extensions {
 
-// Obtains a collection of URLs from the passed in |credential|. This includes
-// an origin URL used for internal logic, a human friendly string shown to the
-// user as well as a URL that is linked to.
-api::passwords_private::UrlCollection CreateUrlCollectionFromCredential(
-    const password_manager::CredentialUIEntry& credential);
-
-// Obtains a collection of URLs from the passed in |url|. This includes an
-// origin URL used for internal logic, a human friendly string shown to the user
-// as well as a URL that is linked to.
-api::passwords_private::UrlCollection CreateUrlCollectionFromGURL(
-    const GURL& url);
-
-// Returns PasswordStoreSet for |credential|.
-extensions::api::passwords_private::PasswordStoreSet StoreSetFromCredential(
-    const password_manager::CredentialUIEntry& credential);
+// Obtains a collection of URLs from the passed in form. This includes an origin
+// URL used for internal logic, a human friendly string shown to the user as
+// well as a URL that is linked to.
+api::passwords_private::UrlCollection CreateUrlCollectionFromForm(
+    const password_manager::PasswordForm& form);
 
 // This class is an id generator for an arbitrary key type. It is used by both
 // PasswordManagerPresenter and PasswordCheckDelegate to create ids send to the
@@ -43,8 +30,8 @@ extensions::api::passwords_private::PasswordStoreSet StoreSetFromCredential(
 // differences:
 // - IdGenerator owns a copy of the key data, so that clients don't need to
 //   worry about dangling pointers.
-// - Repeated calls to GenerateId with the same |key| return the same ids and
-//   replace the |key|.
+// - Repeated calls to GenerateId with the same |key| are no-ops, and return the
+//   same ids.
 template <typename KeyT,
           typename IdT = int32_t,
           typename KeyCompare = std::less<>>
@@ -57,7 +44,6 @@ class IdGenerator {
   // a == b.
   IdT GenerateId(const KeyT& key) {
     auto result = key_cache_.emplace(key, next_id_);
-    IdT id_for_key = result.first->second;
     if (result.second) {
       // In case we haven't seen |key| before, add a pointer to the inserted key
       // and the corresponding id to the |id_cache_|. This insertion should
@@ -66,15 +52,9 @@ class IdGenerator {
                                          &result.first->first);
       DCHECK_EQ(&result.first->first, iter->second);
       ++next_id_;
-    } else {
-      // Refresh the |key| in the caches, as the |result.first->first| may
-      // compare the same due to |KeyCompare|.
-      key_cache_.erase(result.first);
-      auto new_result = key_cache_.emplace(key, id_for_key);
-      id_cache_[id_for_key] = &new_result.first->first;
     }
 
-    return id_for_key;
+    return result.first->second;
   }
 
   // This method tries to return the key corresponding to |id|. In case |id| was

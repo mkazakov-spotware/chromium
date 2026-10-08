@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,9 @@
 
 #include <set>
 
-#include "base/containers/contains.h"
 #include "base/i18n/icu_string_conversions.h"
-#include "base/memory/ref_counted_memory.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -22,21 +20,25 @@
 namespace ui {
 
 std::vector<x11::Atom> GetTextAtomsFrom() {
-  static const std::vector<x11::Atom> atoms = {
-      x11::GetAtom(kMimeTypeLinuxUtf8String),
-      x11::GetAtom(kMimeTypeLinuxString), x11::GetAtom(kMimeTypeLinuxText),
-      x11::GetAtom(kMimeTypeText), x11::GetAtom(kMimeTypeTextUtf8)};
+  std::vector<x11::Atom> atoms;
+  atoms.push_back(gfx::GetAtom(kMimeTypeLinuxUtf8String));
+  atoms.push_back(gfx::GetAtom(kMimeTypeLinuxString));
+  atoms.push_back(gfx::GetAtom(kMimeTypeLinuxText));
+  atoms.push_back(gfx::GetAtom(kMimeTypeText));
+  atoms.push_back(gfx::GetAtom(kMimeTypeTextUtf8));
   return atoms;
 }
 
 std::vector<x11::Atom> GetURLAtomsFrom() {
-  static const std::vector<x11::Atom> atoms = {
-      x11::GetAtom(kMimeTypeURIList), x11::GetAtom(kMimeTypeMozillaURL)};
+  std::vector<x11::Atom> atoms;
+  atoms.push_back(gfx::GetAtom(kMimeTypeURIList));
+  atoms.push_back(gfx::GetAtom(kMimeTypeMozillaURL));
   return atoms;
 }
 
 std::vector<x11::Atom> GetURIListAtomsFrom() {
-  static const std::vector<x11::Atom> atoms = {x11::GetAtom(kMimeTypeURIList)};
+  std::vector<x11::Atom> atoms;
+  atoms.push_back(gfx::GetAtom(kMimeTypeURIList));
   return atoms;
 }
 
@@ -49,7 +51,7 @@ void GetAtomIntersection(const std::vector<x11::Atom>& desired,
   }
 }
 
-void AddString16ToVector(const std::u16string& str,
+void AddString16ToVector(const base::string16& str,
                          std::vector<unsigned char>* bytes) {
   const unsigned char* front =
       reinterpret_cast<const unsigned char*>(str.data());
@@ -79,19 +81,19 @@ std::string RefCountedMemoryToString(
   return std::string(reinterpret_cast<const char*>(front), size);
 }
 
-std::u16string RefCountedMemoryToString16(
+base::string16 RefCountedMemoryToString16(
     const scoped_refptr<base::RefCountedMemory>& memory) {
   if (!memory.get()) {
     NOTREACHED();
-    return std::u16string();
+    return base::string16();
   }
 
   size_t size = memory->size();
   if (!size)
-    return std::u16string();
+    return base::string16();
 
   const unsigned char* front = memory->front();
-  return std::u16string(reinterpret_cast<const char16_t*>(front), size / 2);
+  return base::string16(reinterpret_cast<const base::char16*>(front), size / 2);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -168,12 +170,12 @@ size_t SelectionData::GetSize() const {
 }
 
 std::string SelectionData::GetText() const {
-  if (type_ == x11::GetAtom(kMimeTypeLinuxUtf8String) ||
-      type_ == x11::GetAtom(kMimeTypeLinuxText) ||
-      type_ == x11::GetAtom(kMimeTypeTextUtf8)) {
+  if (type_ == gfx::GetAtom(kMimeTypeLinuxUtf8String) ||
+      type_ == gfx::GetAtom(kMimeTypeLinuxText) ||
+      type_ == gfx::GetAtom(kMimeTypeTextUtf8)) {
     return RefCountedMemoryToString(memory_);
-  } else if (type_ == x11::GetAtom(kMimeTypeLinuxString) ||
-             type_ == x11::GetAtom(kMimeTypeText)) {
+  } else if (type_ == gfx::GetAtom(kMimeTypeLinuxString) ||
+             type_ == gfx::GetAtom(kMimeTypeText)) {
     std::string result;
     base::ConvertToUtf8AndNormalize(RefCountedMemoryToString(memory_),
                                     base::kCodepageLatin1, &result);
@@ -186,17 +188,17 @@ std::string SelectionData::GetText() const {
   }
 }
 
-std::u16string SelectionData::GetHtml() const {
-  std::u16string markup;
+base::string16 SelectionData::GetHtml() const {
+  base::string16 markup;
 
-  if (type_ == x11::GetAtom(kMimeTypeHTML)) {
+  if (type_ == gfx::GetAtom(kMimeTypeHTML)) {
     const unsigned char* data = GetData();
     size_t size = GetSize();
 
-    // If the data starts with U+FEFF, i.e., Byte Order Mark, assume it is
+    // If the data starts with 0xFEFF, i.e., Byte Order Mark, assume it is
     // UTF-16, otherwise assume UTF-8.
-    if (size >= 2 && reinterpret_cast<const char16_t*>(data)[0] == u'\uFEFF') {
-      markup.assign(reinterpret_cast<const char16_t*>(data) + 1,
+    if (size >= 2 && reinterpret_cast<const uint16_t*>(data)[0] == 0xFEFF) {
+      markup.assign(reinterpret_cast<const uint16_t*>(data) + 1,
                     (size / 2) - 1);
     } else {
       base::UTF8ToUTF16(reinterpret_cast<const char*>(data), size, &markup);
@@ -217,17 +219,8 @@ void SelectionData::AssignTo(std::string* result) const {
   *result = RefCountedMemoryToString(memory_);
 }
 
-void SelectionData::AssignTo(std::u16string* result) const {
+void SelectionData::AssignTo(base::string16* result) const {
   *result = RefCountedMemoryToString16(memory_);
-}
-
-scoped_refptr<base::RefCountedBytes> SelectionData::TakeBytes() {
-  if (!memory_.get())
-    return nullptr;
-
-  auto* memory = memory_.release();
-  return base::MakeRefCounted<base::RefCountedBytes>(memory->data(),
-                                                     memory->size());
 }
 
 }  // namespace ui

@@ -1,26 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_VECTOR_BACKED_LINKED_LIST_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_VECTOR_BACKED_LINKED_LIST_H_
 
-#include "base/check_op.h"
-#include "base/dcheck_is_on.h"
-#include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/partition_allocator.h"
 #include "third_party/blink/renderer/platform/wtf/hash_traits.h"
 #include "third_party/blink/renderer/platform/wtf/sanitizers.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace WTF {
-
-// VectorBackedLinkedList iterators are not invalidated by mutation of the
-// collection, unless they point to removed items. This means, for example, that
-// you can safely modify the container while iterating over it generally, as
-// long as you don't remove the current item. Moving items does not invalidate
-// iterator, so that it may cause unexpected behavior (i.e. loop unexpectedly
-// ends when moving the current item to last).
 
 template <typename VectorBackedLinkedListType>
 class VectorBackedLinkedListIterator;
@@ -107,8 +98,7 @@ class ConstructTraits<VectorBackedLinkedListNode<ValueType, Allocator>,
  public:
   template <typename... Args>
   static Node* Construct(void* location, Args&&... args) {
-    return new (NotNullTag::kNotNull, location)
-        Node(std::forward<Args>(args)...);
+    return new (NotNull, location) Node(std::forward<Args>(args)...);
   }
 
   static void NotifyNewElement(Node* element) {
@@ -144,7 +134,7 @@ class ConstructTraits<VectorBackedLinkedListNode<ValueType, Allocator>,
       static_assert(VectorTraits<Node>::kCanMoveWithMemcpy,
                     "Garbage collected types used in VectorBackedLinkedList "
                     "should be movable with memcpy");
-      AtomicWriteMemcpy<sizeof(Node), alignof(Node)>(location, &element);
+      AtomicWriteMemcpy<sizeof(Node)>(location, &element);
       return reinterpret_cast<Node*>(location);
     }
   };
@@ -243,6 +233,7 @@ class VectorBackedLinkedList {
 
   // Removes all elements in a linked list.
   void clear() {
+    RegisterModification();
     // Keep anchor so that we can insert elements after this operation.
     nodes_.ShrinkCapacity(1);
     nodes_[anchor_index_].prev_index_ = anchor_index_;
@@ -261,6 +252,20 @@ class VectorBackedLinkedList {
           &VectorBackedLinkedList::ProcessCustomWeakness>(this);
     }
   }
+
+#if DCHECK_IS_ON()
+  int64_t Modifications() const { return modifications_; }
+  void RegisterModification() { modifications_++; }
+  void CheckModifications(int64_t mods) const {
+    // VectorBackedLinkedList iterators get invalidated when the container is
+    // modified.
+    DCHECK_EQ(mods, modifications_);
+  }
+#else
+  ALWAYS_INLINE int64_t Modifications() const { return 0; }
+  ALWAYS_INLINE void RegisterModification() {}
+  ALWAYS_INLINE void CheckModifications() const {}
+#endif
 
  private:
   // The constructors are private, because the class is used only by
@@ -286,15 +291,17 @@ class VectorBackedLinkedList {
   }
   wtf_size_t UsedLastIndex() const { return nodes_[anchor_index_].prev_index_; }
 
-  iterator MakeIterator(wtf_size_t index) { return iterator(index, this); }
+  iterator MakeIterator(wtf_size_t index) {
+    return iterator(&nodes_[index], this);
+  }
   const_iterator MakeConstIterator(wtf_size_t index) const {
-    return const_iterator(index, this);
+    return const_iterator(&nodes_[index], this);
   }
   reverse_iterator MakeReverseIterator(wtf_size_t index) {
-    return reverse_iterator(index, this);
+    return reverse_iterator(&nodes_[index], this);
   }
   const_reverse_iterator MakeConstReverseIterator(wtf_size_t index) const {
-    return const_reverse_iterator(index, this);
+    return const_reverse_iterator(&nodes_[index], this);
   }
 
   bool IsIndexValid(wtf_size_t index) const {
@@ -327,8 +334,11 @@ class VectorBackedLinkedList {
   // terminator.
   wtf_size_t free_head_index_ = anchor_index_;
   wtf_size_t size_ = 0;
+#if DCHECK_IS_ON()
+  int64_t modifications_ = 0;
+#endif
 
-  template <typename T, typename U, typename V, typename W>
+  template <typename T, typename U, typename V>
   friend class LinkedHashSet;
   FRIEND_TEST_ALL_PREFIXES(VectorBackedLinkedListTest, Insert);
   FRIEND_TEST_ALL_PREFIXES(VectorBackedLinkedListTest, PushFront);
@@ -382,9 +392,9 @@ class VectorBackedLinkedListIterator {
   operator const_iterator() const { return iterator_; }
 
  private:
-  VectorBackedLinkedListIterator(const wtf_size_t index,
+  VectorBackedLinkedListIterator(const Node* node,
                                  VectorBackedLinkedListType* container)
-      : iterator_(index, container) {}
+      : iterator_(node, container) {}
 
   PointerType Get() const { return const_cast<PointerType>(iterator_.Get()); }
   wtf_size_t GetIndex() const { return iterator_.GetIndex(); }
@@ -405,25 +415,30 @@ class VectorBackedLinkedListConstIterator {
  public:
   PointerType Get() const {
     DCHECK(!container_->IsAnchor(GetIndex()));
-    return &container_->nodes_[index_].value_;
+    CheckModifications();
+    return &node_->value_;
   }
 
   ReferenceType operator*() const { return *Get(); }
   PointerType operator->() const { return Get(); }
 
-  wtf_size_t GetIndex() const { return index_; }
+  wtf_size_t GetIndex() const {
+    return static_cast<wtf_size_t>(node_ - &container_->nodes_[0]);
+  }
 
   VectorBackedLinkedListConstIterator& operator++() {
-    wtf_size_t next_index = container_->nodes_[index_].next_index_;
+    CheckModifications();
+    wtf_size_t next_index = node_->next_index_;
     DCHECK(container_->IsIndexValid(next_index));
-    index_ = next_index;
+    node_ = &container_->nodes_[next_index];
     return *this;
   }
 
   VectorBackedLinkedListConstIterator& operator--() {
-    wtf_size_t prev_index = container_->nodes_[index_].prev_index_;
+    CheckModifications();
+    wtf_size_t prev_index = node_->prev_index_;
     DCHECK(container_->IsIndexValid(prev_index));
-    index_ = prev_index;
+    node_ = &container_->nodes_[prev_index];
     return *this;
   }
 
@@ -432,7 +447,7 @@ class VectorBackedLinkedListConstIterator {
 
   bool operator==(const VectorBackedLinkedListConstIterator& other) const {
     DCHECK_EQ(container_, other.container_);
-    return index_ == other.index_;
+    return node_ == other.node_;
   }
 
   bool operator!=(const VectorBackedLinkedListConstIterator& other) const {
@@ -441,15 +456,30 @@ class VectorBackedLinkedListConstIterator {
 
  protected:
   VectorBackedLinkedListConstIterator(
-      const wtf_size_t index,
+      const Node* node,
       const VectorBackedLinkedListType* container)
-      : index_(index), container_(container) {}
+      : node_(node),
+        container_(container)
+#if DCHECK_IS_ON()
+        ,
+        container_modifications_(container->modifications_)
+#endif
+  {
+  }
 
  private:
-  // The conservative stack scanning will strongly trace container_ and it
-  // ensures that the container is kept alive during iteration.
-  wtf_size_t index_;
+  // The raw pointer is safe here because the conservative stack scanning will
+  // strongly trace container_ and thus trace all the nodes including node_.
+  const Node* node_;
   const VectorBackedLinkedListType* container_;
+#if DCHECK_IS_ON()
+  void CheckModifications() const {
+    container_->CheckModifications(container_modifications_);
+  }
+  int64_t container_modifications_;
+#else
+  void CheckModifications() const {}
+#endif
 
   template <typename T, typename Allocator>
   friend class VectorBackedLinkedList;
@@ -493,9 +523,9 @@ class VectorBackedLinkedListReverseIterator {
   operator const_reverse_iterator() const { return iterator_; }
 
  private:
-  VectorBackedLinkedListReverseIterator(const wtf_size_t index,
+  VectorBackedLinkedListReverseIterator(const Node* node,
                                         VectorBackedLinkedListType* container)
-      : iterator_(index, container) {}
+      : iterator_(node, container) {}
 
   PointerType Get() const { return const_cast<PointerType>(iterator_.Get()); }
   wtf_size_t GetIndex() const { return iterator_.GetIndex(); }
@@ -529,9 +559,9 @@ class VectorBackedLinkedListConstReverseIterator
 
  private:
   VectorBackedLinkedListConstReverseIterator(
-      const wtf_size_t index,
+      const Node* node,
       const VectorBackedLinkedListType* container)
-      : Superclass(index, container) {}
+      : Superclass(node, container) {}
 
   template <typename T, typename Allocator>
   friend class VectorBackedLinkedList;
@@ -552,6 +582,9 @@ inline void VectorBackedLinkedList<T, Allocator>::swap(
   nodes_.swap(other.nodes_);
   std::swap(free_head_index_, other.free_head_index_);
   std::swap(size_, other.size_);
+#if DCHECK_IS_ON()
+  std::swap(modifications_, other.modifications_);
+#endif
 }
 
 template <typename T, typename Allocator>
@@ -583,6 +616,7 @@ template <typename IncomingValueType>
 typename VectorBackedLinkedList<T, Allocator>::iterator
 VectorBackedLinkedList<T, Allocator>::insert(const_iterator position,
                                              IncomingValueType&& value) {
+  RegisterModification();
   wtf_size_t position_index = position.GetIndex();
   wtf_size_t prev_index = nodes_[position_index].prev_index_;
 
@@ -609,6 +643,7 @@ typename VectorBackedLinkedList<T, Allocator>::iterator
 VectorBackedLinkedList<T, Allocator>::MoveTo(const_iterator target,
                                              const_iterator new_position) {
   DCHECK(target != end());
+  RegisterModification();
 
   wtf_size_t target_index = target.GetIndex();
   if (target == new_position)
@@ -635,6 +670,7 @@ template <typename T, typename Allocator>
 typename VectorBackedLinkedList<T, Allocator>::iterator
 VectorBackedLinkedList<T, Allocator>::erase(const_iterator position) {
   DCHECK(position != end());
+  RegisterModification();
   wtf_size_t position_index = position.GetIndex();
   Node& node = nodes_[position_index];
   wtf_size_t next_index = node.next_index_;

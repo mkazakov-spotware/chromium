@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,6 @@ class CAPTURE_EXPORT GpuMemoryBufferTrackerMac final
   GpuMemoryBufferTrackerMac();
   explicit GpuMemoryBufferTrackerMac(
       base::ScopedCFTypeRef<IOSurfaceRef> io_surface);
-
-  GpuMemoryBufferTrackerMac(const GpuMemoryBufferTrackerMac&) = delete;
-  GpuMemoryBufferTrackerMac& operator=(const GpuMemoryBufferTrackerMac&) =
-      delete;
-
   ~GpuMemoryBufferTrackerMac() override;
 
   // VideoCaptureBufferTracker
@@ -49,6 +44,8 @@ class CAPTURE_EXPORT GpuMemoryBufferTrackerMac final
   // false. To prevent reuse while consumers are accessing the IOSurface, use
   // |in_use_for_consumers_| to maintain IOSurfaceIsInUse as true.
   gfx::ScopedInUseIOSurface in_use_for_consumers_;
+
+  DISALLOW_COPY_AND_ASSIGN(GpuMemoryBufferTrackerMac);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -138,7 +138,7 @@ function outputPythonTestCode() {
       'is_pwd_creation=' + IS_PWD_CREATION_VALUE + ')\n';
   test += '\n';
 
-  console.info(test);
+  console.log(test);
   allTests += test;
   steps = [];
 }
@@ -147,7 +147,7 @@ function outputPythonTestCode() {
  * Moves the current tab to the next site.
  */
 function visitNextSite() {
-  console.info(
+  console.log(
       'next site: ' + sitesToVisit[lastVisitedSiteIndex] + ' ' +
       lastVisitedSiteIndex);
   chrome.tabs.update({url: 'http://' + sitesToVisit[lastVisitedSiteIndex]});

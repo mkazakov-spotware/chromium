@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/mac/foundation_util.h"
 #import "ui/accessibility/platform/ax_platform_node_mac.h"
-#include "ui/compositor/layer.h"
 #import "ui/views/cocoa/native_widget_mac_ns_window_host.h"
 #include "ui/views/controls/native/native_view_host.h"
 #include "ui/views/widget/native_widget_mac.h"
@@ -38,7 +37,8 @@ NativeViewHostMac::NativeViewHostMac(NativeViewHost* host) : host_(host) {
   host_->SetPaintToLayer(ui::LAYER_NOT_DRAWN);
 }
 
-NativeViewHostMac::~NativeViewHostMac() = default;
+NativeViewHostMac::~NativeViewHostMac() {
+}
 
 NativeWidgetMacNSWindowHost* NativeViewHostMac::GetNSWindowHost() const {
   return NativeWidgetMacNSWindowHost::GetFromNativeWindow(
@@ -155,11 +155,8 @@ void NativeViewHostMac::RemovedFromWidget() {
 
 bool NativeViewHostMac::SetCornerRadii(
     const gfx::RoundedCornersF& corner_radii) {
-  ui::Layer* layer = GetUiLayer();
-  DCHECK(layer);
-  layer->SetRoundedCornerRadius(corner_radii);
-  layer->SetIsFastRoundedCorner(true);
-  return true;
+  NOTIMPLEMENTED();
+  return false;
 }
 
 bool NativeViewHostMac::SetCustomMask(std::unique_ptr<ui::LayerOwner> mask) {
@@ -244,7 +241,7 @@ gfx::NativeViewAccessible NativeViewHostMac::GetNativeViewAccessible() {
     return native_view_;
 }
 
-ui::Cursor NativeViewHostMac::GetCursor(int x, int y) {
+gfx::NativeCursor NativeViewHostMac::GetCursor(int x, int y) {
   // Intentionally not implemented: Not required on non-aura Mac because OSX
   // will query the native view for the cursor directly. For NativeViewHostMac
   // in practice, OSX will retrieve the cursor that was last set by
@@ -255,7 +252,7 @@ ui::Cursor NativeViewHostMac::GetCursor(int x, int y) {
   // cleared (see -[NativeWidgetMacNSWindow cursorUpdate:]). However, while the
   // pointer is over a RenderWidgetHostViewCocoa, OSX won't ask for the fallback
   // cursor.
-  return ui::Cursor();
+  return gfx::kNullCursor;
 }
 
 void NativeViewHostMac::SetVisible(bool visible) {

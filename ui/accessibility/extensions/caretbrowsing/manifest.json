@@ -2,16 +2,18 @@
   "name": "__MSG_CARET_BROWSING_APPNAME__",
   "version": "1.0.2",
   "description": "__MSG_CARET_BROWSING_APPDESC__",
-  "manifest_version": 3,
+  "manifest_version": 2,
   "permissions": [
-    "scripting",
-    "storage"
+    "<all_urls>",
+    "storage",
+    "tabs"
   ],
-  "host_permissions": [ "<all_urls>" ],
   "background": {
-    "service_worker": "background.js"
+    "scripts": [
+      "background.js"
+    ]
   },
-  "action": {
+  "browser_action": {
     "default_icon": "caret_19.png",
     "default_title": "__MSG_CARET_BROWSING_APPNAME__"
   },
@@ -27,9 +29,6 @@
       "js": [
         "axs_testing.js",
         "traverse_util.js",
-	"node_util.js",
-	"selection_util.js",
-	"storage.js",
         "caretbrowsing.js"
       ]
     }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,8 @@ class CreateElementFlags {
   bool IsCreatedByParser() const { return created_by_parser_; }
   Document* ParserDocument() const { return parser_document_; }
   bool IsAsyncCustomElements() const { return async_custom_elements_; }
-  bool IsCustomElements() const { return custom_elements_; }
+  bool IsCustomElementsV1() const { return custom_elements_v1_; }
+  bool IsCustomElementsV0() const { return custom_elements_v0_; }
   bool WasAlreadyStarted() const { return already_started_; }
 
   // https://html.spec.whatwg.org/C/#create-an-element-for-the-token
@@ -33,6 +34,12 @@ class CreateElementFlags {
 
   // https://dom.spec.whatwg.org/#dom-document-createelement
   static CreateElementFlags ByCreateElement() { return CreateElementFlags(); }
+  static CreateElementFlags ByCreateElementV1() {
+    return CreateElementFlags().SetCustomElementsV1Only();
+  }
+  static CreateElementFlags ByCreateElementV0() {
+    return CreateElementFlags().SetCustomElementsV0Only();
+  }
 
   // https://html.spec.whatwg.org/C/#create-an-element-for-the-token
   static CreateElementFlags ByFragmentParser(Document* document) {
@@ -45,7 +52,8 @@ class CreateElementFlags {
   CreateElementFlags()
       : created_by_parser_(false),
         async_custom_elements_(false),
-        custom_elements_(true),
+        custom_elements_v1_(true),
+        custom_elements_v0_(true),
         already_started_(false) {}
 
   CreateElementFlags& SetCreatedByParser(bool flag, Document* document) {
@@ -67,6 +75,18 @@ class CreateElementFlags {
     return *this;
   }
 
+  CreateElementFlags& SetCustomElementsV1Only() {
+    custom_elements_v1_ = true;
+    custom_elements_v0_ = false;
+    return *this;
+  }
+
+  CreateElementFlags& SetCustomElementsV0Only() {
+    custom_elements_v0_ = true;
+    custom_elements_v1_ = false;
+    return *this;
+  }
+
   bool created_by_parser_ : 1;
   // This implements the HTML Standard concept of a "parser document" [1].
   // Contrary to the spec, this member can be null even when
@@ -81,7 +101,8 @@ class CreateElementFlags {
   Document* parser_document_;
 
   bool async_custom_elements_ : 1;
-  bool custom_elements_ : 1;
+  bool custom_elements_v1_ : 1;
+  bool custom_elements_v0_ : 1;
 
   bool already_started_ : 1;
 };

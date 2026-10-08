@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,10 @@ static constexpr float kContentBoundsPropagationThreshold = 0.2f;
 static constexpr float kContentAspectRatioPropagationThreshold = 0.01f;
 
 gfx::Vector3dF GetNormalFromTransform(const gfx::Transform& transform) {
-  gfx::Vector3dF x_axis = transform.MapVector(gfx::Vector3dF(1, 0, 0));
-  gfx::Vector3dF y_axis = transform.MapVector(gfx::Vector3dF(0, 1, 0));
+  gfx::Vector3dF x_axis(1, 0, 0);
+  gfx::Vector3dF y_axis(0, 1, 0);
+  transform.TransformVector(&x_axis);
+  transform.TransformVector(&y_axis);
   gfx::Vector3dF normal = CrossProduct(x_axis, y_axis);
   normal.GetNormalized(&normal);
   return normal;
@@ -129,13 +131,13 @@ void ContentElement::UpdateInput(const EditedText& info) {
     text_input_delegate_->UpdateInput(info.current);
 }
 
-void ContentElement::OnSizeAnimated(const gfx::SizeF& size,
-                                    int target_property_id,
-                                    gfx::KeyframeModel* animation) {
+void ContentElement::NotifyClientSizeAnimated(const gfx::SizeF& size,
+                                              int target_property_id,
+                                              cc::KeyframeModel* animation) {
   if (target_property_id == BOUNDS && on_size_changed_callback_) {
     on_size_changed_callback_.Run(size);
   }
-  UiElement::OnSizeAnimated(size, target_property_id, animation);
+  UiElement::NotifyClientSizeAnimated(size, target_property_id, animation);
 }
 
 bool ContentElement::OnBeginFrame(const gfx::Transform& head_pose) {
@@ -162,7 +164,8 @@ bool ContentElement::OnBeginFrame(const gfx::Transform& head_pose) {
   // set of animated properties.
   gfx::Transform target_transform = ComputeTargetWorldSpaceTransform();
 
-  gfx::Point3F target_center = target_transform.MapPoint(gfx::Point3F());
+  gfx::Point3F target_center;
+  target_transform.TransformPoint(&target_center);
   gfx::Vector3dF target_normal = GetNormalFromTransform(target_transform);
   float distance = gfx::DotProduct(target_center - kOrigin, -target_normal);
   gfx::SizeF screen_size =

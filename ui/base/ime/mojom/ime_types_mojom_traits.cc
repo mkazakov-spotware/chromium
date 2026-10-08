@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -209,8 +209,6 @@ EnumTraits<ui::mojom::ImeTextSpanType, ui::ImeTextSpan::Type>::ToMojom(
       return ui::mojom::ImeTextSpanType::kMisspellingSuggestion;
     case ui::ImeTextSpan::Type::kAutocorrect:
       return ui::mojom::ImeTextSpanType::kAutocorrect;
-    case ui::ImeTextSpan::Type::kGrammarSuggestion:
-      return ui::mojom::ImeTextSpanType::kGrammarSuggestion;
   }
 
   NOTREACHED();
@@ -233,9 +231,6 @@ bool EnumTraits<ui::mojom::ImeTextSpanType, ui::ImeTextSpan::Type>::FromMojom(
       return true;
     case ui::mojom::ImeTextSpanType::kAutocorrect:
       *out = ui::ImeTextSpan::Type::kAutocorrect;
-      return true;
-    case ui::mojom::ImeTextSpanType::kGrammarSuggestion:
-      *out = ui::ImeTextSpan::Type::kGrammarSuggestion;
       return true;
   }
 

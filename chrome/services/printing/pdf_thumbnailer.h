@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,12 @@ class PdfThumbnailer : public printing::mojom::PdfThumbnailer {
   PdfThumbnailer(const PdfThumbnailer&) = delete;
   PdfThumbnailer& operator=(const PdfThumbnailer&) = delete;
 
+#if defined(OS_CHROMEOS)
   // printing::mojom::PdfThumbnailer:
   void GetThumbnail(printing::mojom::ThumbParamsPtr params,
                     base::ReadOnlySharedMemoryRegion pdf_region,
                     GetThumbnailCallback callback) override;
+#endif  // defined(OS_CHROMEOS)
 
   // The maximum width of a thumbnail we accept. If the specified width
   // exceeds the maximum, an empty, invalid bitmap is returned.

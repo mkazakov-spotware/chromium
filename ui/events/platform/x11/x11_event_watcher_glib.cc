@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <glib.h>
 
-#include "base/memory/raw_ptr.h"
 
 namespace ui {
 
@@ -15,55 +14,33 @@ namespace {
 struct GLibX11Source : public GSource {
   // Note: The GLibX11Source is created and destroyed by GLib. So its
   // constructor/destructor may or may not get called.
-  raw_ptr<x11::Connection> connection;
-  raw_ptr<GPollFD> poll_fd;
+  x11::Connection* connection;
+  GPollFD* poll_fd;
 };
 
 gboolean XSourcePrepare(GSource* source, gint* timeout_ms) {
-  // Set an infinite timeout.
+  GLibX11Source* gxsource = static_cast<GLibX11Source*>(source);
+  gxsource->connection->Flush();
+  gxsource->connection->ReadResponses();
+  if (gxsource->connection->HasPendingResponses())
+    return TRUE;
   *timeout_ms = -1;
-
-  // This function is called before polling the FD, so a flush is mandatory
-  // in case:
-  //   1. This is the first message loop iteration and we have unflushed
-  //      requests.
-  //   2. A request was made after XSourceDispatch() when running tasks from
-  //      the task queue.
-  auto* connection = static_cast<GLibX11Source*>(source)->connection.get();
-  connection->Flush();
-
-  // Read a pre-buffered response if available to prevent a deadlock where we
-  // poll() for data that will never arrive since we already have data in our
-  // read buffer.
-  connection->ReadResponse(true);
-
-  // Return true if we can determine that event processing is necessary without
-  // polling the FD.
-  return connection->HasPendingResponses();
+  return FALSE;
 }
 
 gboolean XSourceCheck(GSource* source) {
-  // Only read a response if poll() determined the FD is readable.
   GLibX11Source* gxsource = static_cast<GLibX11Source*>(source);
-  if (gxsource->poll_fd->revents & G_IO_IN)
-    gxsource->connection->ReadResponse(false);
+  gxsource->connection->Flush();
+  gxsource->connection->ReadResponses();
   return gxsource->connection->HasPendingResponses();
 }
 
 gboolean XSourceDispatch(GSource* source,
                          GSourceFunc unused_func,
                          gpointer data) {
-  auto* connection = static_cast<GLibX11Source*>(source)->connection.get();
-  connection->Dispatch();
-
-  // Flushing here is not strictly required, but when this function returns,
-  // tasks from the task queue will be run, which may take some time.  Flushing
-  // now will ensure screen updates occur right away.  Fortunately, this won't
-  // do any syscalls if it's not necessary.
-  connection->Flush();
-
-  // Don't remove the GLibX11Source from the main loop.
-  return G_SOURCE_CONTINUE;
+  X11EventSource* x11_source = static_cast<X11EventSource*>(data);
+  x11_source->DispatchXEvents();
+  return TRUE;
 }
 
 GSourceFuncs XSourceFuncs = {XSourcePrepare, XSourceCheck, XSourceDispatch,
@@ -112,11 +89,7 @@ void X11EventWatcherGlib::StopWatching() {
     return;
 
   g_source_destroy(x_source_);
-  // `g_source_unref` decreases the reference count on `x_source_`. The
-  // underlying memory is freed if the reference count goes to zero. We use
-  // ExtractAsDangling() here to avoid holding a briefly dangling ptr in case
-  // the memory is freed.
-  g_source_unref(x_source_.ExtractAsDangling());
+  g_source_unref(x_source_);
   started_ = false;
 }
 

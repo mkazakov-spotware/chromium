@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/base/bind_to_current_loop.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "url/gurl.h"
@@ -43,7 +44,7 @@ namespace content {
 
 MediaPermissionDispatcher::MediaPermissionDispatcher(
     RenderFrameImpl* render_frame)
-    : task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+    : task_runner_(base::ThreadTaskRunnerHandle::Get()),
       next_request_id_(0),
       render_frame_(render_frame) {
   DCHECK(render_frame_);
@@ -114,6 +115,10 @@ bool MediaPermissionDispatcher::IsEncryptedMediaEnabled() {
   return render_frame_->GetRendererPreferences().enable_encrypted_media;
 }
 
+void MediaPermissionDispatcher::NotifyUnsupportedPlatform() {
+  GetCdmInfobarService()->NotifyUnsupportedPlatform();
+}
+
 uint32_t MediaPermissionDispatcher::RegisterCallback(
     PermissionStatusCB permission_status_cb) {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
@@ -135,6 +140,16 @@ MediaPermissionDispatcher::GetPermissionService() {
   }
 
   return permission_service_.get();
+}
+
+media::mojom::CdmInfobarService*
+MediaPermissionDispatcher::GetCdmInfobarService() {
+  if (!cdm_infobar_service_) {
+    render_frame_->GetBrowserInterfaceBroker()->GetInterface(
+        cdm_infobar_service_.BindNewPipeAndPassReceiver());
+  }
+
+  return cdm_infobar_service_.get();
 }
 
 void MediaPermissionDispatcher::OnPermissionStatus(

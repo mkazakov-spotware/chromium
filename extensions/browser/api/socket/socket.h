@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 
 #include "base/callback.h"
 #include "base/containers/queue.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "content/public/browser/browser_thread.h"
@@ -56,7 +56,7 @@ using ListenCallback =
 using AcceptCompletionCallback = base::OnceCallback<void(
     int,
     mojo::PendingRemote<network::mojom::TCPConnectedSocket>,
-    const absl::optional<net::IPEndPoint>&,
+    const base::Optional<net::IPEndPoint>&,
     mojo::ScopedDataPipeConsumerHandle,
     mojo::ScopedDataPipeProducerHandle)>;
 
@@ -64,9 +64,6 @@ using AcceptCompletionCallback = base::OnceCallback<void(
 // we need to manage it in the context of an extension.
 class Socket : public ApiResource {
  public:
-  static const content::BrowserThread::ID kThreadId =
-      content::BrowserThread::UI;
-
   enum SocketType { TYPE_TCP, TYPE_UDP, TYPE_TLS };
 
   ~Socket() override;
@@ -83,7 +80,9 @@ class Socket : public ApiResource {
   void set_hostname(const std::string& hostname) { hostname_ = hostname; }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-  void set_firewall_hole(std::unique_ptr<AppFirewallHole> firewall_hole) {
+  void set_firewall_hole(
+      std::unique_ptr<AppFirewallHole, content::BrowserThread::DeleteOnUIThread>
+          firewall_hole) {
     firewall_hole_ = std::move(firewall_hole);
   }
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
@@ -176,7 +175,8 @@ class Socket : public ApiResource {
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   // Represents a hole punched in the system firewall for this socket.
-  std::unique_ptr<AppFirewallHole> firewall_hole_;
+  std::unique_ptr<AppFirewallHole, content::BrowserThread::DeleteOnUIThread>
+      firewall_hole_;
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 };
 

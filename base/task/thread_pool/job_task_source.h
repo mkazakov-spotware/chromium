@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 
 #include "base/base_export.h"
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/post_job.h"
@@ -71,11 +71,10 @@ class BASE_EXPORT JobTaskSource : public TaskSource {
   // TaskSource:
   ExecutionEnvironment GetExecutionEnvironment() override;
   size_t GetRemainingConcurrency() const override;
-  TaskSourceSortKey GetSortKey() const override;
-  TimeTicks GetDelayedSortKey() const override;
-  bool HasReadyTasks(TimeTicks now) const override;
+  TaskSourceSortKey GetSortKey(
+      bool disable_fair_scheduling = false) const override;
 
-  bool IsActive() const;
+  bool IsCompleted() const;
   size_t GetWorkerCount() const;
 
   // Returns the maximum number of tasks from this TaskSource that can run
@@ -98,15 +97,12 @@ class BASE_EXPORT JobTaskSource : public TaskSource {
   // ever modified under a lock or read atomically (optimistic read).
   class State {
    public:
-    static constexpr uint32_t kCanceledMask = 1;
-    static constexpr int kWorkerCountBitOffset = 1;
-    static constexpr uint32_t kWorkerCountIncrement = 1
-                                                      << kWorkerCountBitOffset;
+    static constexpr size_t kCanceledMask = 1;
+    static constexpr size_t kWorkerCountBitOffset = 1;
+    static constexpr size_t kWorkerCountIncrement = 1 << kWorkerCountBitOffset;
 
     struct Value {
-      uint8_t worker_count() const {
-        return static_cast<uint8_t>(value >> kWorkerCountBitOffset);
-      }
+      size_t worker_count() const { return value >> kWorkerCountBitOffset; }
       // Returns true if canceled.
       bool is_canceled() const { return value & kCanceledMask; }
 
@@ -155,9 +151,6 @@ class BASE_EXPORT JobTaskSource : public TaskSource {
       return value_.load(std::memory_order_relaxed) != kNotWaiting;
     }
 
-    // Resets the status as kNotWaiting  using std::memory_order_relaxed.
-    void Reset();
-
     // Sets the status as kWaitingForWorkerToYield using
     // std::memory_order_relaxed.
     void SetWaiting();
@@ -194,9 +187,6 @@ class BASE_EXPORT JobTaskSource : public TaskSource {
   Task TakeTask(TaskSource::Transaction* transaction) override;
   Task Clear(TaskSource::Transaction* transaction) override;
   bool DidProcessTask(TaskSource::Transaction* transaction) override;
-  bool WillReEnqueue(TimeTicks now,
-                     TaskSource::Transaction* transaction) override;
-  bool OnBecomeReady() override;
 
   // Synchronizes access to workers state.
   mutable CheckedLock worker_lock_{UniversalSuccessor()};
@@ -222,7 +212,7 @@ class BASE_EXPORT JobTaskSource : public TaskSource {
   RepeatingClosure primary_task_;
 
   const TimeTicks ready_time_;
-  raw_ptr<PooledTaskRunnerDelegate> delegate_;
+  PooledTaskRunnerDelegate* delegate_;
 };
 
 }  // namespace internal

@@ -1,15 +1,15 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/renderer/pepper/pepper_audio_encoder_host.h"
 
 #include <stddef.h>
-
 #include <utility>
 
 #include "base/bind.h"
 #include "base/memory/unsafe_shared_memory_region.h"
+#include "base/stl_util.h"
 #include "content/public/renderer/renderer_ppapi_host.h"
 #include "content/renderer/pepper/host_globals.h"
 #include "content/renderer/render_thread_impl.h"
@@ -56,10 +56,6 @@ class PepperAudioEncoderHost::AudioEncoderImpl {
   using BitstreamBufferReadyCB = base::OnceCallback<void(int32_t size)>;
 
   AudioEncoderImpl();
-
-  AudioEncoderImpl(const AudioEncoderImpl&) = delete;
-  AudioEncoderImpl& operator=(const AudioEncoderImpl&) = delete;
-
   ~AudioEncoderImpl();
 
   // Used on the renderer thread.
@@ -82,6 +78,8 @@ class PepperAudioEncoderHost::AudioEncoderImpl {
   // Initialization parameters, only valid if |encoder_memory_| is not
   // nullptr.
   ppapi::proxy::PPB_AudioEncodeParameters parameters_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioEncoderImpl);
 };
 
 PepperAudioEncoderHost::AudioEncoderImpl::AudioEncoderImpl()
@@ -95,7 +93,7 @@ PepperAudioEncoderHost::AudioEncoderImpl::GetSupportedProfiles() {
   std::vector<PP_AudioProfileDescription> profiles;
   static const uint32_t sampling_rates[] = {8000, 12000, 16000, 24000, 48000};
 
-  for (uint32_t i = 0; i < std::size(sampling_rates); ++i) {
+  for (uint32_t i = 0; i < base::size(sampling_rates); ++i) {
     PP_AudioProfileDescription profile;
     profile.profile = PP_AUDIOPROFILE_OPUS;
     profile.max_channels = 2;

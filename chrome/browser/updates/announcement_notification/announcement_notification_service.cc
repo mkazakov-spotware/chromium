@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,14 @@
 
 #include "base/bind.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/clock.h"
-#include "base/time/time.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/profiles/profile_attributes_entry.h"    // nogncheck
-#include "chrome/browser/profiles/profile_attributes_storage.h"  // nogncheck
-#include "chrome/browser/profiles/profile_manager.h"             // nogncheck
+#include "chrome/browser/profiles/profile_attributes_entry.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -78,11 +76,6 @@ class AnnouncementNotificationServiceImpl
     if (!success)
       skip_first_run_after_ = base::Time();
   }
-
-  AnnouncementNotificationServiceImpl(
-      const AnnouncementNotificationServiceImpl&) = delete;
-  AnnouncementNotificationServiceImpl& operator=(
-      const AnnouncementNotificationServiceImpl&) = delete;
 
   ~AnnouncementNotificationServiceImpl() override = default;
 
@@ -188,15 +181,17 @@ class AnnouncementNotificationServiceImpl
 
     // Can't find the profile path, assume the user is not signed in.
     DCHECK(profile_);
-    ProfileAttributesEntry* entry =
-        storage.GetProfileAttributesWithPath(profile_->GetPath());
-    return entry && entry->GetSigninState() != SigninState::kNotSignedIn;
+    ProfileAttributesEntry* entry = nullptr;
+    if (!storage.GetProfileAttributesWithPath(profile_->GetPath(), &entry))
+      return false;
+
+    return entry->GetSigninState() != SigninState::kNotSignedIn;
   }
 
-  raw_ptr<Profile> profile_;
-  raw_ptr<PrefService> pref_service_;
+  Profile* profile_;
+  PrefService* pref_service_;
   std::unique_ptr<Delegate> delegate_;
-  raw_ptr<base::Clock> clock_;
+  base::Clock* clock_;
 
   // Whether to skip first Chrome launch. Parsed from Finch.
   bool skip_first_run_;
@@ -226,11 +221,12 @@ class AnnouncementNotificationServiceImpl
 
   base::WeakPtrFactory<AnnouncementNotificationServiceImpl> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(AnnouncementNotificationServiceImpl);
 };
 
-BASE_FEATURE(kAnnouncementNotification,
-             "AnnouncementNotificationService",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kAnnouncementNotification{
+    "AnnouncementNotificationService", base::FEATURE_DISABLED_BY_DEFAULT};
 
 // static
 void AnnouncementNotificationService::RegisterProfilePrefs(
@@ -267,7 +263,8 @@ bool AnnouncementNotificationService::CanOpenAnnouncement(Profile* profile) {
   if (!profile)
     return false;
 
-  return !profile->IsGuestSession() && !profile->IsSystemProfile();
+  return !(profile->IsGuestSession() || profile->IsEphemeralGuestProfile() ||
+           profile->IsSystemProfile());
 }
 
 AnnouncementNotificationService::AnnouncementNotificationService() = default;

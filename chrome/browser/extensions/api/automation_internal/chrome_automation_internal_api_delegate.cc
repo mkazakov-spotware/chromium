@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/tabs/tabs_constants.h"
 #include "chrome/browser/extensions/chrome_extension_function_details.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
@@ -25,11 +24,8 @@
 #include "chrome/browser/ui/aura/accessibility/automation_manager_aura.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/crosapi/automation_ash.h"
-#include "chrome/browser/ash/crosapi/crosapi_ash.h"
-#include "chrome/browser/ash/crosapi/crosapi_manager.h"
-#include "chrome/browser/ash/arc/accessibility/arc_accessibility_helper_bridge.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/arc/accessibility/arc_accessibility_helper_bridge.h"
 #endif
 
 namespace extensions {
@@ -84,35 +80,17 @@ content::WebContents* ChromeAutomationInternalApiDelegate::GetActiveWebContents(
 
 bool ChromeAutomationInternalApiDelegate::EnableTree(
     const ui::AXTreeID& tree_id) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // CrosapiManager may not be initialized on unit testing.
-  // Propagate the EnableTree signal to crosapi clients.
-  if (crosapi::CrosapiManager::IsInitialized()) {
-    crosapi::CrosapiManager::Get()->crosapi_ash()->automation_ash()->EnableTree(
-        tree_id);
-  }
-
+#if defined(OS_CHROMEOS)
   arc::ArcAccessibilityHelperBridge* bridge =
       arc::ArcAccessibilityHelperBridge::GetForBrowserContext(
           GetActiveUserContext());
   if (bridge)
-    return bridge->EnableTree(tree_id);
+    return bridge->RefreshTreeIfInActiveWindow(tree_id);
 #endif
   return false;
 }
 
 void ChromeAutomationInternalApiDelegate::EnableDesktop() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // CrosapiManager may not be initialized on unit testing.
-  // Propagate the EnableDesktop signal to crosapi clients.
-  if (crosapi::CrosapiManager::IsInitialized()) {
-    crosapi::CrosapiManager::Get()
-        ->crosapi_ash()
-        ->automation_ash()
-        ->EnableDesktop();
-  }
-#endif
-
 #if defined(USE_AURA)
   AutomationManagerAura::GetInstance()->Enable();
 #else
@@ -129,11 +107,10 @@ ui::AXTreeID ChromeAutomationInternalApiDelegate::GetAXTreeID() {
 #endif
 }
 
-void ChromeAutomationInternalApiDelegate::SetAutomationEventRouterInterface(
-    AutomationEventRouterInterface* router) {
+void ChromeAutomationInternalApiDelegate::SetEventBundleSink(
+    ui::AXEventBundleSink* sink) {
 #if defined(USE_AURA)
-  AutomationManagerAura::GetInstance()->set_automation_event_router_interface(
-      router);
+  AutomationManagerAura::GetInstance()->set_event_bundle_sink(sink);
 #else
   NOTIMPLEMENTED();
 #endif
@@ -141,13 +118,7 @@ void ChromeAutomationInternalApiDelegate::SetAutomationEventRouterInterface(
 
 content::BrowserContext*
 ChromeAutomationInternalApiDelegate::GetActiveUserContext() {
-  // Use the main profile on ChromeOS. Desktop platforms don't have the concept
-  // of a "main" profile, so pick the "last used" profile instead.
-#if BUILDFLAG(IS_CHROMEOS)
   return ProfileManager::GetActiveUserProfile();
-#else
-  return ProfileManager::GetLastUsedProfile();
-#endif
 }
 
 }  // namespace extensions

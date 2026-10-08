@@ -4,5 +4,8 @@ file://media/OWNERS
 guidou@chromium.org
 tommi@chromium.org
 olka@chromium.org
-eladalon@chromium.org
-toprice@chromium.org
+
+# Original (legacy) owners.
+per-file *video*=chfremer@chromium.org
+per-file *video*=emircan@chromium.org
+per-file *video*=mcasas@chromium.org

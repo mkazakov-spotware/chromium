@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define REMOTING_BASE_SOCKET_READER_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 
 namespace net {
@@ -30,10 +30,6 @@ class SocketReader {
       ReadResultCallback;
 
   SocketReader();
-
-  SocketReader(const SocketReader&) = delete;
-  SocketReader& operator=(const SocketReader&) = delete;
-
   ~SocketReader();
 
   // Starts reading from |socket|. |read_result_callback| is called for each
@@ -47,11 +43,13 @@ class SocketReader {
   void HandleReadResult(int result);
   void CallCallback(scoped_refptr<net::IOBuffer> data, int result);
 
-  raw_ptr<net::Socket> socket_;
+  net::Socket* socket_;
   ReadResultCallback read_result_callback_;
   scoped_refptr<net::IOBuffer> read_buffer_;
 
   base::WeakPtrFactory<SocketReader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SocketReader);
 };
 
 }  // namespace remoting

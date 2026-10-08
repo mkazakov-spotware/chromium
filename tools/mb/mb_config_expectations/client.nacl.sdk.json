@@ -1,7 +1,6 @@
 {
   "linux-sdk-asan-multi": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -9,7 +8,6 @@
   },
   "linux-sdk-multi": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -17,7 +15,6 @@
   },
   "linux-sdk-multirel": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -25,7 +22,6 @@
   },
   "mac-sdk-multi": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -33,7 +29,6 @@
   },
   "mac-sdk-multirel": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "use_goma": true
@@ -41,7 +36,6 @@
   },
   "windows-sdk-multi": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "symbol_level": 1,
@@ -51,7 +45,6 @@
   },
   "windows-sdk-multirel": {
     "gn_args": {
-      "dcheck_always_on": false,
       "is_component_build": false,
       "is_debug": false,
       "symbol_level": 1,

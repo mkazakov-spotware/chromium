@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,7 +40,7 @@ class ScopedNTRegistryTestingOverride {
     EXPECT_TRUE(nt::SetTestingOverride(root_, path));
   }
   ~ScopedNTRegistryTestingOverride() {
-    nt::SetTestingOverride(root_, std::wstring());
+    nt::SetTestingOverride(root_, base::string16());
   }
 
  private:
@@ -71,7 +71,7 @@ TEST(UserDataDir, RegistrySettingsInHKLMOverrides) {
   // Override the registry to say one value in HKLM, and confirm it takes
   // precedence over the command line in both implementations.
   registry_util::RegistryOverrideManager override_manager;
-  std::wstring temp;
+  base::string16 temp;
   ASSERT_NO_FATAL_FAILURE(
       override_manager.OverrideRegistry(HKEY_LOCAL_MACHINE, &temp));
   ScopedNTRegistryTestingOverride nt_override(nt::HKLM, temp);
@@ -93,7 +93,7 @@ TEST(UserDataDir, RegistrySettingsInHKCUOverrides) {
   // Override the registry to say one value in HKCU, and confirm it takes
   // precedence over the command line in both implementations.
   registry_util::RegistryOverrideManager override_manager;
-  std::wstring temp;
+  base::string16 temp;
   ASSERT_NO_FATAL_FAILURE(
       override_manager.OverrideRegistry(HKEY_CURRENT_USER, &temp));
   ScopedNTRegistryTestingOverride nt_override(nt::HKCU, temp);
@@ -115,7 +115,7 @@ TEST(UserDataDir, RegistrySettingsInHKLMTakesPrecedenceOverHKCU) {
   // Override the registry in both HKLM and HKCU, and confirm HKLM takes
   // precedence.
   registry_util::RegistryOverrideManager override_manager;
-  std::wstring temp;
+  base::string16 temp;
   ASSERT_NO_FATAL_FAILURE(
       override_manager.OverrideRegistry(HKEY_LOCAL_MACHINE, &temp));
   ScopedNTRegistryTestingOverride nt_override(nt::HKLM, temp);
@@ -142,7 +142,7 @@ TEST(UserDataDir, RegistrySettingWithPathExpansionHKCU) {
   std::wstring result, invalid;
 
   registry_util::RegistryOverrideManager override_manager;
-  std::wstring temp;
+  base::string16 temp;
   ASSERT_NO_FATAL_FAILURE(
       override_manager.OverrideRegistry(HKEY_CURRENT_USER, &temp));
   ScopedNTRegistryTestingOverride nt_override(nt::HKCU, temp);

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,13 @@ import org.chromium.base.annotations.NativeMethods;
  */
 @JNINamespace("ui")
 public class ClipboardAndroidTestSupport {
+    /**
+     * Cleans up clipboard on native side.
+     */
+    public static void cleanup() {
+        ClipboardAndroidTestSupportJni.get().cleanup();
+    }
+
     /**
      * Writes HTML to the native side clipboard.
      * @param htmlText the htmlText to write.
@@ -30,6 +37,7 @@ public class ClipboardAndroidTestSupport {
 
     @NativeMethods
     interface Natives {
+        void cleanup();
         boolean nativeWriteHtml(String htmlText);
         boolean nativeClipboardContains(String text);
     }

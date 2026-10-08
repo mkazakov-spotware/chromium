@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,9 +36,9 @@ class LayoutNGTextControlSingleLine final : public LayoutNGBlockFlow {
   bool NodeAtPoint(HitTestResult& result,
                    const HitTestLocation& hit_test_location,
                    const PhysicalOffset& accumulated_offset,
-                   HitTestPhase phase) override;
+                   HitTestAction hit_test_action) override;
 
-  bool RespectsCSSOverflow() const override;
+  bool AllowsNonVisibleOverflow() const override;
 };
 
 }  // namespace blink

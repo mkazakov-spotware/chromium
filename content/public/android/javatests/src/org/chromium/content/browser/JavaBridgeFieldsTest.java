@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.content.browser;
-
-import android.webkit.JavascriptInterface;
 
 import androidx.test.filters.SmallTest;
 
@@ -37,13 +35,11 @@ public class JavaBridgeFieldsTest {
     private static class TestObject extends Controller {
         private String mStringValue;
 
-        @JavascriptInterface
         // These methods are used to control the test.
         public synchronized void setStringValue(String x) {
             mStringValue = x;
             notifyResultIsReady();
         }
-        @JavascriptInterface
         public synchronized String waitForStringValue() {
             waitForResult();
             return mStringValue;

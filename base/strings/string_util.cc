@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,14 +16,14 @@
 #include <wchar.h>
 #include <wctype.h>
 
+#include <algorithm>
 #include <limits>
 #include <type_traits>
 #include <vector>
 
 #include "base/check_op.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
-#include "base/strings/string_util_impl_helpers.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util_internal.h"
 #include "base/strings/utf_string_conversion_utils.h"
 #include "base/strings/utf_string_conversions.h"
@@ -71,7 +71,7 @@ std::string ToLowerASCII(StringPiece str) {
   return internal::ToLowerASCIIImpl(str);
 }
 
-std::u16string ToLowerASCII(StringPiece16 str) {
+string16 ToLowerASCII(StringPiece16 str) {
   return internal::ToLowerASCIIImpl(str);
 }
 
@@ -79,8 +79,26 @@ std::string ToUpperASCII(StringPiece str) {
   return internal::ToUpperASCIIImpl(str);
 }
 
-std::u16string ToUpperASCII(StringPiece16 str) {
+string16 ToUpperASCII(StringPiece16 str) {
   return internal::ToUpperASCIIImpl(str);
+}
+
+int CompareCaseInsensitiveASCII(StringPiece a, StringPiece b) {
+  return internal::CompareCaseInsensitiveASCIIT(a, b);
+}
+
+int CompareCaseInsensitiveASCII(StringPiece16 a, StringPiece16 b) {
+  return internal::CompareCaseInsensitiveASCIIT(a, b);
+}
+
+bool EqualsCaseInsensitiveASCII(StringPiece a, StringPiece b) {
+  return a.size() == b.size() &&
+         internal::CompareCaseInsensitiveASCIIT(a, b) == 0;
+}
+
+bool EqualsCaseInsensitiveASCII(StringPiece16 a, StringPiece16 b) {
+  return a.size() == b.size() &&
+         internal::CompareCaseInsensitiveASCIIT(a, b) == 0;
 }
 
 const std::string& EmptyString() {
@@ -88,15 +106,15 @@ const std::string& EmptyString() {
   return *s;
 }
 
-const std::u16string& EmptyString16() {
-  static const base::NoDestructor<std::u16string> s16;
+const string16& EmptyString16() {
+  static const base::NoDestructor<string16> s16;
   return *s16;
 }
 
 bool ReplaceChars(StringPiece16 input,
                   StringPiece16 replace_chars,
                   StringPiece16 replace_with,
-                  std::u16string* output) {
+                  string16* output) {
   return internal::ReplaceCharsT(input, replace_chars, replace_with, output);
 }
 
@@ -109,7 +127,7 @@ bool ReplaceChars(StringPiece input,
 
 bool RemoveChars(StringPiece16 input,
                  StringPiece16 remove_chars,
-                 std::u16string* output) {
+                 string16* output) {
   return internal::ReplaceCharsT(input, remove_chars, StringPiece16(), output);
 }
 
@@ -121,7 +139,7 @@ bool RemoveChars(StringPiece input,
 
 bool TrimString(StringPiece16 input,
                 StringPiece16 trim_chars,
-                std::u16string* output) {
+                string16* output) {
   return internal::TrimStringT(input, trim_chars, TRIM_ALL, output) !=
          TRIM_NONE;
 }
@@ -167,9 +185,9 @@ void TruncateUTF8ToByteSize(const std::string& input,
   while (char_index >= 0) {
     int32_t prev = char_index;
     base_icu::UChar32 code_point = 0;
-    CBU8_NEXT(reinterpret_cast<const uint8_t*>(data), char_index,
-              truncation_length, code_point);
-    if (!IsValidCharacter(code_point)) {
+    CBU8_NEXT(data, char_index, truncation_length, code_point);
+    if (!IsValidCharacter(code_point) ||
+        !IsValidCodepoint(code_point)) {
       char_index = prev - 1;
     } else {
       break;
@@ -177,14 +195,14 @@ void TruncateUTF8ToByteSize(const std::string& input,
   }
 
   if (char_index >= 0 )
-    *output = input.substr(0, static_cast<size_t>(char_index));
+    *output = input.substr(0, char_index);
   else
     output->clear();
 }
 
 TrimPositions TrimWhitespace(StringPiece16 input,
                              TrimPositions positions,
-                             std::u16string* output) {
+                             string16* output) {
   return internal::TrimStringT(input, StringPiece16(kWhitespaceUTF16),
                                positions, output);
 }
@@ -207,8 +225,8 @@ StringPiece TrimWhitespaceASCII(StringPiece input, TrimPositions positions) {
                                     positions);
 }
 
-std::u16string CollapseWhitespace(StringPiece16 text,
-                                  bool trim_sequences_with_line_breaks) {
+string16 CollapseWhitespace(StringPiece16 text,
+                            bool trim_sequences_with_line_breaks) {
   return internal::CollapseWhitespaceT(text, trim_sequences_with_line_breaks);
 }
 
@@ -248,8 +266,16 @@ bool IsStringUTF8AllowingNoncharacters(StringPiece str) {
   return internal::DoIsStringUTF8<IsValidCodepoint>(str);
 }
 
+bool LowerCaseEqualsASCII(StringPiece str, StringPiece lowercase_ascii) {
+  return internal::DoLowerCaseEqualsASCII(str, lowercase_ascii);
+}
+
+bool LowerCaseEqualsASCII(StringPiece16 str, StringPiece lowercase_ascii) {
+  return internal::DoLowerCaseEqualsASCII(str, lowercase_ascii);
+}
+
 bool EqualsASCII(StringPiece16 str, StringPiece ascii) {
-  return ranges::equal(ascii, str);
+  return std::equal(ascii.begin(), ascii.end(), str.begin(), str.end());
 }
 
 bool StartsWith(StringPiece str,
@@ -276,12 +302,24 @@ bool EndsWith(StringPiece16 str,
   return internal::EndsWithT(str, search_for, case_sensitivity);
 }
 
-char HexDigitToInt(char c) {
+char HexDigitToInt(wchar_t c) {
   DCHECK(IsHexDigit(c));
   if (c >= '0' && c <= '9')
     return static_cast<char>(c - '0');
-  return (c >= 'A' && c <= 'F') ? static_cast<char>(c - 'A' + 10)
-                                : static_cast<char>(c - 'a' + 10);
+  if (c >= 'A' && c <= 'F')
+    return static_cast<char>(c - 'A' + 10);
+  if (c >= 'a' && c <= 'f')
+    return static_cast<char>(c - 'a' + 10);
+  return 0;
+}
+
+bool IsUnicodeWhitespace(wchar_t c) {
+  // kWhitespaceWide is a NULL-terminated string
+  for (const wchar_t* cur = kWhitespaceWide; *cur; ++cur) {
+    if (*cur == c)
+      return true;
+  }
+  return false;
 }
 
 static const char* const kByteStringsUnlocalized[] = {
@@ -293,34 +331,34 @@ static const char* const kByteStringsUnlocalized[] = {
   " PB"
 };
 
-std::u16string FormatBytesUnlocalized(int64_t bytes) {
+string16 FormatBytesUnlocalized(int64_t bytes) {
   double unit_amount = static_cast<double>(bytes);
   size_t dimension = 0;
   const int kKilo = 1024;
   while (unit_amount >= kKilo &&
-         dimension < std::size(kByteStringsUnlocalized) - 1) {
+         dimension < base::size(kByteStringsUnlocalized) - 1) {
     unit_amount /= kKilo;
     dimension++;
   }
 
   char buf[64];
   if (bytes != 0 && dimension > 0 && unit_amount < 100) {
-    base::snprintf(buf, std::size(buf), "%.1lf%s", unit_amount,
+    base::snprintf(buf, base::size(buf), "%.1lf%s", unit_amount,
                    kByteStringsUnlocalized[dimension]);
   } else {
-    base::snprintf(buf, std::size(buf), "%.0lf%s", unit_amount,
+    base::snprintf(buf, base::size(buf), "%.0lf%s", unit_amount,
                    kByteStringsUnlocalized[dimension]);
   }
 
   return ASCIIToUTF16(buf);
 }
 
-void ReplaceFirstSubstringAfterOffset(std::u16string* str,
+void ReplaceFirstSubstringAfterOffset(string16* str,
                                       size_t start_offset,
                                       StringPiece16 find_this,
                                       StringPiece16 replace_with) {
   internal::DoReplaceMatchesAfterOffset(
-      str, start_offset, internal::MakeSubstringMatcher(find_this),
+      str, start_offset, internal::SubstringMatcher<string16>{find_this},
       replace_with, internal::ReplaceType::REPLACE_FIRST);
 }
 
@@ -329,16 +367,16 @@ void ReplaceFirstSubstringAfterOffset(std::string* str,
                                       StringPiece find_this,
                                       StringPiece replace_with) {
   internal::DoReplaceMatchesAfterOffset(
-      str, start_offset, internal::MakeSubstringMatcher(find_this),
+      str, start_offset, internal::SubstringMatcher<std::string>{find_this},
       replace_with, internal::ReplaceType::REPLACE_FIRST);
 }
 
-void ReplaceSubstringsAfterOffset(std::u16string* str,
+void ReplaceSubstringsAfterOffset(string16* str,
                                   size_t start_offset,
                                   StringPiece16 find_this,
                                   StringPiece16 replace_with) {
   internal::DoReplaceMatchesAfterOffset(
-      str, start_offset, internal::MakeSubstringMatcher(find_this),
+      str, start_offset, internal::SubstringMatcher<string16>{find_this},
       replace_with, internal::ReplaceType::REPLACE_ALL);
 }
 
@@ -347,7 +385,7 @@ void ReplaceSubstringsAfterOffset(std::string* str,
                                   StringPiece find_this,
                                   StringPiece replace_with) {
   internal::DoReplaceMatchesAfterOffset(
-      str, start_offset, internal::MakeSubstringMatcher(find_this),
+      str, start_offset, internal::SubstringMatcher<std::string>{find_this},
       replace_with, internal::ReplaceType::REPLACE_ALL);
 }
 
@@ -355,7 +393,7 @@ char* WriteInto(std::string* str, size_t length_with_null) {
   return internal::WriteIntoT(str, length_with_null);
 }
 
-char16_t* WriteInto(std::u16string* str, size_t length_with_null) {
+char16* WriteInto(string16* str, size_t length_with_null) {
   return internal::WriteIntoT(str, length_with_null);
 }
 
@@ -363,8 +401,7 @@ std::string JoinString(span<const std::string> parts, StringPiece separator) {
   return internal::JoinStringT(parts, separator);
 }
 
-std::u16string JoinString(span<const std::u16string> parts,
-                          StringPiece16 separator) {
+string16 JoinString(span<const string16> parts, StringPiece16 separator) {
   return internal::JoinStringT(parts, separator);
 }
 
@@ -372,8 +409,7 @@ std::string JoinString(span<const StringPiece> parts, StringPiece separator) {
   return internal::JoinStringT(parts, separator);
 }
 
-std::u16string JoinString(span<const StringPiece16> parts,
-                          StringPiece16 separator) {
+string16 JoinString(span<const StringPiece16> parts, StringPiece16 separator) {
   return internal::JoinStringT(parts, separator);
 }
 
@@ -382,15 +418,14 @@ std::string JoinString(std::initializer_list<StringPiece> parts,
   return internal::JoinStringT(parts, separator);
 }
 
-std::u16string JoinString(std::initializer_list<StringPiece16> parts,
-                          StringPiece16 separator) {
+string16 JoinString(std::initializer_list<StringPiece16> parts,
+                    StringPiece16 separator) {
   return internal::JoinStringT(parts, separator);
 }
 
-std::u16string ReplaceStringPlaceholders(
-    StringPiece16 format_string,
-    const std::vector<std::u16string>& subst,
-    std::vector<size_t>* offsets) {
+string16 ReplaceStringPlaceholders(StringPiece16 format_string,
+                                   const std::vector<string16>& subst,
+                                   std::vector<size_t>* offsets) {
   return internal::DoReplaceStringPlaceholders(format_string, subst, offsets);
 }
 
@@ -400,12 +435,11 @@ std::string ReplaceStringPlaceholders(StringPiece format_string,
   return internal::DoReplaceStringPlaceholders(format_string, subst, offsets);
 }
 
-std::u16string ReplaceStringPlaceholders(const std::u16string& format_string,
-                                         const std::u16string& a,
-                                         size_t* offset) {
+string16 ReplaceStringPlaceholders(const string16& format_string,
+                                   const string16& a,
+                                   size_t* offset) {
   std::vector<size_t> offsets;
-  std::u16string result =
-      ReplaceStringPlaceholders(format_string, {a}, &offsets);
+  string16 result = ReplaceStringPlaceholders(format_string, {a}, &offsets);
 
   DCHECK_EQ(1U, offsets.size());
   if (offset)

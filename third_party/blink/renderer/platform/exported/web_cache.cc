@@ -30,8 +30,6 @@
 
 #include "third_party/blink/public/platform/web_cache.h"
 
-#include "base/feature_list.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/platform/loader/fetch/memory_cache.h"
 
 namespace blink {
@@ -46,23 +44,21 @@ static void ToResourceTypeStat(const MemoryCache::TypeStatistic& from,
 }
 
 void WebCache::SetCapacity(size_t capacity) {
-  MemoryCache* cache = MemoryCache::Get();
+  MemoryCache* cache = GetMemoryCache();
   if (cache)
     cache->SetCapacity(static_cast<unsigned>(capacity));
 }
 
 void WebCache::Clear() {
-  MemoryCache* cache = MemoryCache::Get();
+  MemoryCache* cache = GetMemoryCache();
   if (cache)
     cache->EvictResources();
 }
 
 void WebCache::GetUsageStats(UsageStats* result) {
-  DCHECK(
-      !base::FeatureList::IsEnabled(features::kNoCentralWebCacheLimitControl));
   DCHECK(result);
 
-  MemoryCache* cache = MemoryCache::Get();
+  MemoryCache* cache = GetMemoryCache();
   if (cache) {
     result->capacity = cache->Capacity();
     result->size = cache->size();
@@ -72,7 +68,7 @@ void WebCache::GetUsageStats(UsageStats* result) {
 }
 
 void WebCache::GetResourceTypeStats(WebCacheResourceTypeStats* result) {
-  MemoryCache* cache = MemoryCache::Get();
+  MemoryCache* cache = GetMemoryCache();
   if (cache) {
     MemoryCache::Statistics stats = cache->GetStatistics();
     ToResourceTypeStat(stats.images, result->images);

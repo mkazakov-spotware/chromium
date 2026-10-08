@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,9 @@ bool CheckDerivationParameters(SymmetricKey::Algorithm algorithm,
                                size_t key_size_in_bits) {
   switch (algorithm) {
     case SymmetricKey::AES:
-      // Check for supported key sizes. Historically, NSS supported AES-192
-      // while BoringSSL did not and this check aligned their behavior.
+      // Whitelist supported key sizes to avoid accidentally relying on
+      // algorithms available in NSS but not BoringSSL and vice
+      // versa. Note that BoringSSL does not support AES-192.
       return key_size_in_bits == 128 || key_size_in_bits == 256;
     case SymmetricKey::HMAC_SHA1:
       return key_size_in_bits % 8 == 0 && key_size_in_bits != 0;
@@ -48,8 +49,9 @@ std::unique_ptr<SymmetricKey> SymmetricKey::GenerateRandomKey(
     size_t key_size_in_bits) {
   DCHECK_EQ(AES, algorithm);
 
-  // Check for supported key sizes. Historically, NSS supported AES-192 while
-  // BoringSSL did not and this check aligned their behavior.
+  // Whitelist supported key sizes to avoid accidentaly relying on
+  // algorithms available in NSS but not BoringSSL and vice
+  // versa. Note that BoringSSL does not support AES-192.
   if (key_size_in_bits != 128 && key_size_in_bits != 256)
     return nullptr;
 
@@ -125,8 +127,9 @@ std::unique_ptr<SymmetricKey> SymmetricKey::DeriveKeyFromPasswordUsingScrypt(
 std::unique_ptr<SymmetricKey> SymmetricKey::Import(Algorithm algorithm,
                                                    const std::string& raw_key) {
   if (algorithm == AES) {
-    // Check for supported key sizes. Historically, NSS supported AES-192 while
-    // BoringSSL did not and this check aligned their behavior.
+    // Whitelist supported key sizes to avoid accidentaly relying on
+    // algorithms available in NSS but not BoringSSL and vice
+    // versa. Note that BoringSSL does not support AES-192.
     if (raw_key.size() != 128/8 && raw_key.size() != 256/8)
       return nullptr;
   }

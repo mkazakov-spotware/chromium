@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <memory>
 #include <string>
 
-#include "base/task/single_thread_task_runner.h"
-#include "chromecast/external_mojo/external_service_support/external_connector.h"
+#include "base/single_thread_task_runner.h"
 #include "chromecast/media/audio/cast_audio_manager_helper.h"
 #include "media/audio/android/audio_manager_android.h"
+#include "services/service_manager/public/cpp/connector.h"
 
 namespace chromecast {
 namespace media {
@@ -21,10 +21,10 @@ class CastAudioManagerAndroid : public ::media::AudioManagerAndroid {
   CastAudioManagerAndroid(
       std::unique_ptr<::media::AudioThread> audio_thread,
       ::media::AudioLogFactory* audio_log_factory,
-      CastAudioManagerHelper::Delegate* delegate,
       base::RepeatingCallback<CmaBackendFactory*()> backend_factory_getter,
+      CastAudioManagerHelper::GetSessionIdCallback get_session_id_callback,
       scoped_refptr<base::SingleThreadTaskRunner> media_task_runner,
-      external_service_support::ExternalConnector* connector);
+      mojo::PendingRemote<chromecast::mojom::ServiceConnector> connector);
   ~CastAudioManagerAndroid() override;
 
   // AudioManager implementation.

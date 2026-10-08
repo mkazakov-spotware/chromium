@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,11 +25,6 @@ namespace explore_sites {
 class ExploreSitesClearCatalogTest : public TaskTestBase {
  public:
   ExploreSitesClearCatalogTest() = default;
-
-  ExploreSitesClearCatalogTest(const ExploreSitesClearCatalogTest&) = delete;
-  ExploreSitesClearCatalogTest& operator=(const ExploreSitesClearCatalogTest&) =
-      delete;
-
   ~ExploreSitesClearCatalogTest() override = default;
 
   void SetUp() override {
@@ -60,28 +55,21 @@ class ExploreSitesClearCatalogTest : public TaskTestBase {
       ExploreSitesSchema::InitMetaTable(db, &meta_table);
       meta_table.SetValue("current_catalog", "5678");
       meta_table.SetValue("downloading_catalog", "9101112");
-
-      static constexpr char kCategoriesSql[] =
-          // clang-format off
-          "INSERT INTO categories"
-              "(category_id, version_token, type, label)"
-              "VALUES"
-                  "(3, '5678', 1, 'label_1'),"  // current catalog
-                  "(4, '5678', 2, 'label_2')";  // current catalog
-      // clang-format on
-      sql::Statement insert_categories(db->GetUniqueStatement(kCategoriesSql));
-      if (!insert_categories.Run())
+      sql::Statement insert(db->GetUniqueStatement(R"(
+INSERT INTO categories
+(category_id, version_token, type, label)
+VALUES
+(3, "5678", 1, "label_1"), -- current catalog
+(4, "5678", 2, "label_2"); -- current catalog)"));
+      if (!insert.Run())
         return false;
 
-      static constexpr char kSitesSql[] =
-          // clang-format off
-          "INSERT INTO sites"
-              "(site_id, url, category_id, title)"
-              "VALUES"
-                  "(3, 'https://www.example.com/1', 3, 'example_1'),"
-                  "(4, 'https://www.example.com/2', 4, 'example_2')";
-      // clang-format on
-      sql::Statement insert_sites(db->GetUniqueStatement(kSitesSql));
+      sql::Statement insert_sites(db->GetUniqueStatement(R"(
+INSERT INTO sites
+(site_id, url, category_id, title)
+VALUES
+(3, "https://www.example.com/1", 3, "example_1"),
+(4, "https://www.example.com/2", 4, "example_2");)"));
       return insert_sites.Run();
     }));
     ASSERT_NE(std::make_pair(std::string(), std::string()),
@@ -130,6 +118,8 @@ class ExploreSitesClearCatalogTest : public TaskTestBase {
 
  private:
   std::unique_ptr<ExploreSitesStore> store_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExploreSitesClearCatalogTest);
 };
 
 TEST_F(ExploreSitesClearCatalogTest, StoreFailure) {

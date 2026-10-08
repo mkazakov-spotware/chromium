@@ -186,7 +186,7 @@ class CORE_EXPORT InvalidationSet
 
   bool IsAlive() const { return is_alive_; }
 
-  void WriteIntoTrace(perfetto::TracedValue context) const;
+  void ToTracedValue(TracedValue*) const;
 
   // Format the InvalidationSet for debugging purposes.
   //
@@ -216,6 +216,10 @@ class CORE_EXPORT InvalidationSet
   //  ~ - Max direct siblings is kDirectAdjacentMax.
   //  <integer> - Max direct siblings is specified number (omitted if 1).
   String ToString() const;
+
+#ifndef NDEBUG
+  void Show() const;
+#endif
 
   void Combine(const InvalidationSet& other);
 

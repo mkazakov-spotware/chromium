@@ -1,17 +1,17 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/policy/device_management_service_configuration_ios.h"
+#include "ios/chrome/browser/policy/device_management_service_configuration_ios.h"
 
-#import <stdint.h>
+#include <stdint.h>
 
-#import "base/logging.h"
-#import "base/strings/stringprintf.h"
-#import "base/system/sys_info.h"
-#import "build/build_config.h"
-#import "components/policy/core/browser/browser_policy_connector.h"
-#import "components/version_info/version_info.h"
+#include "base/logging.h"
+#include "base/strings/stringprintf.h"
+#include "base/system/sys_info.h"
+#include "build/build_config.h"
+#include "components/policy/core/browser/browser_policy_connector.h"
+#include "components/version_info/version_info.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -31,18 +31,17 @@ DeviceManagementServiceConfigurationIOS::
 DeviceManagementServiceConfigurationIOS::
     ~DeviceManagementServiceConfigurationIOS() = default;
 
-std::string DeviceManagementServiceConfigurationIOS::GetDMServerUrl() const {
+std::string DeviceManagementServiceConfigurationIOS::GetDMServerUrl() {
   return dm_server_url_;
 }
 
-std::string DeviceManagementServiceConfigurationIOS::GetAgentParameter() const {
+std::string DeviceManagementServiceConfigurationIOS::GetAgentParameter() {
   return base::StringPrintf("%s %s(%s)", version_info::GetProductName().c_str(),
                             version_info::GetVersionNumber().c_str(),
                             version_info::GetLastChange().c_str());
 }
 
-std::string DeviceManagementServiceConfigurationIOS::GetPlatformParameter()
-    const {
+std::string DeviceManagementServiceConfigurationIOS::GetPlatformParameter() {
   std::string os_name = base::SysInfo::OperatingSystemName();
   std::string os_hardware = base::SysInfo::OperatingSystemArchitecture();
 
@@ -61,19 +60,17 @@ std::string DeviceManagementServiceConfigurationIOS::GetPlatformParameter()
 }
 
 std::string
-DeviceManagementServiceConfigurationIOS::GetRealtimeReportingServerUrl() const {
+DeviceManagementServiceConfigurationIOS::GetRealtimeReportingServerUrl() {
   return realtime_reporting_server_url_;
 }
 
 std::string
-DeviceManagementServiceConfigurationIOS::GetEncryptedReportingServerUrl()
-    const {
+DeviceManagementServiceConfigurationIOS::GetEncryptedReportingServerUrl() {
   return encrypted_reporting_server_url_;
 }
 
 std::string
-DeviceManagementServiceConfigurationIOS::GetReportingConnectorServerUrl(
-    content::BrowserContext* context) const {
+DeviceManagementServiceConfigurationIOS::GetReportingConnectorServerUrl() {
   return std::string();
 }
 

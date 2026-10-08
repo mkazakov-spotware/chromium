@@ -1,12 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_TASK_RUNNER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_TASK_RUNNER_H_
 
-#include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/thread_annotations.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -14,6 +14,7 @@
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/thread_safe_ref_counted.h"
+#include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -34,31 +35,22 @@ class CORE_EXPORT InspectorTaskRunner final
     return base::AdoptRef(new InspectorTaskRunner(isolate_task_runner));
   }
 
-  InspectorTaskRunner(const InspectorTaskRunner&) = delete;
-  InspectorTaskRunner& operator=(const InspectorTaskRunner&) = delete;
-
   // Must be called on the isolate's thread.
-  void InitIsolate(v8::Isolate*) LOCKS_EXCLUDED(lock_);
+  void InitIsolate(v8::Isolate*) LOCKS_EXCLUDED(mutex_);
   // Can be disposed from any thread.
-  void Dispose() LOCKS_EXCLUDED(lock_);
+  void Dispose() LOCKS_EXCLUDED(mutex_);
 
   // Can be called from any thread other than isolate's thread.
   // This method appends a task, and both posts to the isolate's task runner
   // and requests interrupt. Whatever comes first - executes the task.
-  // Returns if the task has been appended or discarded if this runner has
-  // already been disposed. Note that successfully appending a task does not
-  // guarantee that it'll run, e.g. if Dispose() is called before it runs.
   using Task = CrossThreadOnceClosure;
-  bool AppendTask(Task) LOCKS_EXCLUDED(lock_);
+  void AppendTask(Task) LOCKS_EXCLUDED(mutex_);
 
   // Can be called from any thread other than isolate's thread.
   // This method appends a task and posts to the isolate's task runner to
   // request that the next task be executed, but does not interrupt V8
   // execution.
-  // Returns if the task has been appended or discarded if this runner has
-  // already been disposed. Note that successfully appending a task does not
-  // guarantee that it'll run, e.g. if Dispose() is called before it runs.
-  bool AppendTaskDontInterrupt(Task) LOCKS_EXCLUDED(lock_);
+  void AppendTaskDontInterrupt(Task) LOCKS_EXCLUDED(mutex_);
 
   scoped_refptr<base::SingleThreadTaskRunner> isolate_task_runner() {
     return isolate_task_runner_;
@@ -71,17 +63,18 @@ class CORE_EXPORT InspectorTaskRunner final
   ~InspectorTaskRunner();
 
   // All these methods are run on the isolate's thread.
-  Task TakeNextInterruptingTask() LOCKS_EXCLUDED(lock_);
-  void PerformSingleInterruptingTaskDontWait() LOCKS_EXCLUDED(lock_);
+  Task TakeNextInterruptingTask() LOCKS_EXCLUDED(mutex_);
+  void PerformSingleInterruptingTaskDontWait() LOCKS_EXCLUDED(mutex_);
   static void V8InterruptCallback(v8::Isolate*, void* data);
 
-  base::Lock lock_;
+  Mutex mutex_;
   scoped_refptr<base::SingleThreadTaskRunner> isolate_task_runner_;
-  v8::Isolate* isolate_ GUARDED_BY(lock_) = nullptr;
+  v8::Isolate* isolate_ GUARDED_BY(mutex_) = nullptr;
   Deque<Task> interrupting_task_queue_;
-  bool disposed_ GUARDED_BY(lock_) = false;
+  bool disposed_ GUARDED_BY(mutex_) = false;
+  DISALLOW_COPY_AND_ASSIGN(InspectorTaskRunner);
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_TASK_RUNNER_H_
+#endif  // !defined(InspectorTaskRunner_h)

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.components.browser_ui.http_auth.LoginPrompt;
-import org.chromium.url.GURL;
 
 /**
  * Handles showing http auth prompt.
@@ -21,8 +20,9 @@ public final class HttpAuthHandlerImpl implements LoginPrompt.Observer {
     private LoginPrompt mLoginPrompt;
 
     @CalledByNative
-    public static HttpAuthHandlerImpl create(long nativeAuthHandler, TabImpl tab, GURL url) {
-        return new HttpAuthHandlerImpl(nativeAuthHandler, tab.getBrowser().getContext(), url);
+    public static HttpAuthHandlerImpl create(
+            long nativeAuthHandler, TabImpl tab, String host, String url) {
+        return new HttpAuthHandlerImpl(nativeAuthHandler, tab.getBrowser().getContext(), host, url);
     }
 
     @CalledByNative
@@ -35,10 +35,11 @@ public final class HttpAuthHandlerImpl implements LoginPrompt.Observer {
         if (mLoginPrompt != null) mLoginPrompt.dismiss();
     }
 
-    private HttpAuthHandlerImpl(long nativeHttpAuthHandlerImpl, Context context, GURL url) {
+    private HttpAuthHandlerImpl(
+            long nativeHttpAuthHandlerImpl, Context context, String host, String url) {
         mNativeHttpAuthHandlerImpl = nativeHttpAuthHandlerImpl;
 
-        mLoginPrompt = new LoginPrompt(context, url.getHost(), url, this);
+        mLoginPrompt = new LoginPrompt(context, host, url, this);
         mLoginPrompt.show();
     }
 

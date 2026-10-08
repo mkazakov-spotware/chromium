@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
+#include "base/time/time.h"
 #include "base/timer/elapsed_timer.h"
 #include "chrome/browser/ui/global_error/global_error_observer.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
@@ -21,7 +21,7 @@
 
 class BookmarkMenuDelegate;
 class Browser;
-class ScopedNewBadgeTracker;
+class ExtensionToolbarMenuView;
 
 namespace views {
 class MenuButtonController;
@@ -35,7 +35,7 @@ class AppMenu : public views::MenuDelegate,
                 public GlobalErrorObserver,
                 public base::SupportsWeakPtr<AppMenu> {
  public:
-  AppMenu(Browser* browser, int run_types);
+  AppMenu(Browser* browser, int run_types, bool alert_reopen_tab_items);
   AppMenu(const AppMenu&) = delete;
   AppMenu& operator=(const AppMenu&) = delete;
   ~AppMenu() override;
@@ -58,9 +58,8 @@ class AppMenu : public views::MenuDelegate,
   views::MenuItemView* root_menu_item() { return root_; }
 
   // MenuDelegate overrides:
-  const gfx::FontList* GetLabelFontList(int command_id) const override;
-  absl::optional<SkColor> GetLabelColor(int command_id) const override;
-  std::u16string GetTooltipText(int command_id,
+  void GetLabelStyle(int command_id, LabelStyle* style) const override;
+  base::string16 GetTooltipText(int command_id,
                                 const gfx::Point& p) const override;
   bool IsTriggerableEvent(views::MenuItemView* menu,
                           const ui::Event& e) override;
@@ -70,13 +69,12 @@ class AppMenu : public views::MenuDelegate,
   bool AreDropTypesRequired(views::MenuItemView* menu) override;
   bool CanDrop(views::MenuItemView* menu,
                const ui::OSExchangeData& data) override;
-  ui::mojom::DragOperation GetDropOperation(views::MenuItemView* item,
-                                            const ui::DropTargetEvent& event,
-                                            DropPosition* position) override;
-  views::View::DropCallback GetDropCallback(
-      views::MenuItemView* menu,
-      DropPosition position,
-      const ui::DropTargetEvent& event) override;
+  int GetDropOperation(views::MenuItemView* item,
+                       const ui::DropTargetEvent& event,
+                       DropPosition* position) override;
+  int OnPerformDrop(views::MenuItemView* menu,
+                    DropPosition position,
+                    const ui::DropTargetEvent& event) override;
   bool ShowContextMenu(views::MenuItemView* source,
                        int command_id,
                        const gfx::Point& p,
@@ -104,12 +102,16 @@ class AppMenu : public views::MenuDelegate,
   // GlobalErrorObserver:
   void OnGlobalErrorsChanged() override;
 
+  ExtensionToolbarMenuView* extension_toolbar_for_testing() {
+    return extension_toolbar_;
+  }
+
  private:
   class CutCopyPasteView;
   class RecentTabsMenuModelDelegate;
   class ZoomView;
 
-  typedef std::pair<ui::MenuModel*, size_t> Entry;
+  typedef std::pair<ui::MenuModel*,int> Entry;
   typedef std::map<int,Entry> CommandIDToEntry;
 
   // Populates |parent| with all the child menus in |model|. Recursively invokes
@@ -125,14 +127,14 @@ class AppMenu : public views::MenuDelegate,
   // The returned item's MenuItemView::GetCommand() is the same as that of
   // |model|->GetCommandIdAt(|model_index|).
   views::MenuItemView* AddMenuItem(views::MenuItemView* parent,
-                                   size_t menu_index,
+                                   int menu_index,
                                    ui::MenuModel* model,
-                                   size_t model_index,
+                                   int model_index,
                                    ui::MenuModel::ItemType menu_type);
 
   // Invoked from the cut/copy/paste menus. Cancels the current active menu and
   // activates the menu item in |model| at |index|.
-  void CancelAndEvaluate(ui::ButtonMenuItemModel* model, size_t index);
+  void CancelAndEvaluate(ui::ButtonMenuItemModel* model, int index);
 
   // Creates the bookmark menu if necessary. Does nothing if already created or
   // the bookmark model isn't loaded.
@@ -140,10 +142,10 @@ class AppMenu : public views::MenuDelegate,
 
   // Returns the index of the MenuModel/index pair representing the |command_id|
   // in |command_id_to_entry_|.
-  size_t ModelIndexFromCommandId(int command_id) const;
+  int ModelIndexFromCommandId(int command_id) const;
 
   // The views menu. Owned by |menu_runner_|.
-  raw_ptr<views::MenuItemView, DanglingUntriaged> root_ = nullptr;
+  views::MenuItemView* root_ = nullptr;
 
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
@@ -152,42 +154,45 @@ class AppMenu : public views::MenuDelegate,
   CommandIDToEntry command_id_to_entry_;
 
   // Browser the menu is being shown for.
-  const raw_ptr<Browser, DanglingUntriaged> browser_;
+  Browser* const browser_;
 
   // |CancelAndEvaluate| sets |selected_menu_model_| and |selected_index_|.
   // If |selected_menu_model_| is non-null after the menu completes
   // ActivatedAt is invoked. This is done so that ActivatedAt isn't invoked
   // while the message loop is nested.
-  raw_ptr<ui::ButtonMenuItemModel, DanglingUntriaged> selected_menu_model_ =
-      nullptr;
-  size_t selected_index_ = 0;
+  ui::ButtonMenuItemModel* selected_menu_model_ = nullptr;
+  int selected_index_ = 0;
 
   // Used for managing the bookmark menu items.
   std::unique_ptr<BookmarkMenuDelegate> bookmark_menu_delegate_;
 
   // Menu corresponding to IDC_BOOKMARKS_MENU.
-  raw_ptr<views::MenuItemView, DanglingUntriaged> bookmark_menu_ = nullptr;
+  views::MenuItemView* bookmark_menu_ = nullptr;
 
   // Menu corresponding to IDC_FEEDBACK.
-  raw_ptr<views::MenuItemView, DanglingUntriaged> feedback_menu_item_ = nullptr;
+  views::MenuItemView* feedback_menu_item_ = nullptr;
 
   // Menu corresponding to IDC_TAKE_SCREENSHOT.
-  raw_ptr<views::MenuItemView, DanglingUntriaged> screenshot_menu_item_ =
-      nullptr;
+  views::MenuItemView* screenshot_menu_item_ = nullptr;
+
+  // The view within the IDC_EXTENSIONS_OVERFLOW_MENU item (only present with
+  // the toolbar action redesign enabled).
+  ExtensionToolbarMenuView* extension_toolbar_ = nullptr;
 
   // Used for managing "Recent tabs" menu items.
   std::unique_ptr<RecentTabsMenuModelDelegate> recent_tabs_menu_model_delegate_;
 
-  base::ScopedObservation<GlobalErrorService, GlobalErrorObserver>
-      global_error_observation_{this};
+  ScopedObserver<GlobalErrorService, GlobalErrorObserver>
+      global_error_observer_{this};
 
   // The bit mask of views::MenuRunner::RunTypes.
   const int run_types_;
 
+  // Whether to show items relating to reopening the last-closed tab as alerted.
+  const bool alert_reopen_tab_items_;
+
   // Records the time from when menu opens to when the user selects a menu item.
   base::ElapsedTimer menu_opened_timer_;
-
-  std::unique_ptr<ScopedNewBadgeTracker> new_badge_tracker_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_APP_MENU_H_

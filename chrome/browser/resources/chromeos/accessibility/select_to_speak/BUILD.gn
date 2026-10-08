@@ -1,17 +1,16 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
 import(
-    "//chrome/browser/resources/chromeos/accessibility/tools/run_jsbundler.gni")
+    "//chrome/browser/resources/chromeos/accessibility/common/run_jsbundler.gni")
 import("//chrome/common/features.gni")
 import("//chrome/test/base/js2gtest.gni")
 import("//testing/test.gni")
 import("//third_party/closure_compiler/compile_js.gni")
 
-assert(is_chromeos_ash)
+assert(is_chromeos)
 
 select_to_speak_out_dir =
     "$root_out_dir/resources/chromeos/accessibility/select_to_speak"
@@ -26,25 +25,22 @@ run_jsbundler("select_to_speak_copied_files") {
   mode = "copy"
   dest_dir = select_to_speak_out_dir
   sources = [
-    "background.html",
     "checked.png",
     "earcons/null_selection.ogg",
     "input_handler.js",
     "metrics_utils.js",
+    "node_utils.js",
     "options.css",
     "options.html",
+    "paragraph_utils.js",
     "prefs_manager.js",
     "select_to_speak-2x.svg",
     "select_to_speak.js",
-    "select_to_speak_constants.js",
+    "select_to_speak_gdocs_script.js",
     "select_to_speak_main.js",
     "select_to_speak_options.js",
-    "sts-icon-128.png",
-    "sts-icon-16.png",
-    "sts-icon-48.png",
-    "tts_manager.js",
-    "ui_manager.js",
     "unchecked.png",
+    "word_utils.js",
   ]
   rewrite_rules = [
     rebase_path(".", root_build_dir) + ":",
@@ -70,6 +66,7 @@ source_set("browser_tests") {
     # The test uses data from the original location, not the copied one.
     "//chrome/browser/resources/chromeos/accessibility/common/",
     "//chrome/browser/resources/chromeos/accessibility/select_to_speak/",
+    "//ui/webui/resources/js/cr.js",
   ]
   data += js2gtest_js_libraries
 }
@@ -77,32 +74,22 @@ source_set("browser_tests") {
 js2gtest("select_to_speak_extjs_tests") {
   test_type = "extension"
   sources = [
-    # These are end-to-end tests.
-    "select_to_speak_context_menu_tests.js",
-    "select_to_speak_enhanced_voices_test.js",
+    "paragraph_utils_overflow_test.js",
     "select_to_speak_keystroke_selection_test.js",
     "select_to_speak_mouse_selection_test.js",
-    "select_to_speak_navigation_control_test.js",
-    "select_to_speak_options_test.js",
     "select_to_speak_prefs_test.js",
   ]
-
-  # These are unit tests run under an extension environment to get ES6 module support.
-  sources += [
-    "select_to_speak_unittest.js",
-    "tts_manager_unittest.js",
-    "ui_manager_unittest.js",
-  ]
   gen_include_files = [
-    "../common/testing/accessibility_test_base.js",
     "../common/testing/callback_helper.js",
     "../common/testing/e2e_test_base.js",
-    "../common/testing/fake_chrome_event.js",
-    "../common/testing/fake_settings_private.js",
-    "../common/testing/mock_storage.js",
-    "../common/testing/mock_tts.js",
+    "mock_storage.js",
+    "mock_tts.js",
     "select_to_speak_e2e_test_base.js",
     "pipe.jpg",
+  ]
+  extra_js_files = [
+    "//chrome/test/data/webui/settings/fake_settings_private.js",
+    "//chrome/test/data/webui/fake_chrome_event.js",
   ]
 
   # The test base classes generate C++ code with these deps.
@@ -110,8 +97,7 @@ js2gtest("select_to_speak_extjs_tests") {
     "//ash",
     "//ash/keyboard/ui",
     "//base",
-    "//chrome/browser/ash",
-    "//chrome/browser/ash/crosapi",
+    "//chrome/browser/chromeos",
     "//chrome/common",
   ]
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
@@ -121,24 +107,19 @@ js_type_check("closure_compile") {
   deps = [
     ":input_handler",
     ":metrics_utils",
+    ":node_utils",
+    ":paragraph_utils",
     ":prefs_manager",
     ":select_to_speak",
-    ":select_to_speak_constants",
     ":select_to_speak_options",
-    ":tts_manager",
-    ":ui_manager",
+    ":word_utils",
     "../common:automation_predicate",
     "../common:automation_util",
     "../common:closure_shim",
     "../common:constants",
     "../common:key_code",
-    "../common:node_navigation_utils",
-    "../common:node_utils",
-    "../common:paragraph_utils",
     "../common:rect_util",
-    "../common:sentence_utils",
     "../common:tree_walker",
-    "../common:word_utils",
   ]
 }
 
@@ -146,25 +127,21 @@ js_library("select_to_speak") {
   deps = [
     ":input_handler",
     ":metrics_utils",
+    ":node_utils",
+    ":paragraph_utils",
     ":prefs_manager",
-    ":tts_manager",
-    ":ui_manager",
+    ":word_utils",
     "../common:automation_util",
     "../common:constants",
-    "../common:node_navigation_utils",
-    "../common:node_utils",
-    "../common:paragraph_utils",
     "../common:rect_util",
-    "../common:sentence_utils",
-    "../common:word_utils",
   ]
   externs_list = [
     "$externs_path/accessibility_private.js",
     "$externs_path/automation.js",
+    "$externs_path/chrome_extensions.js",
     "$externs_path/clipboard.js",
     "$externs_path/command_line_private.js",
     "$externs_path/pending.js",
-    "$externs_path/tts.js",
   ]
 }
 
@@ -173,8 +150,29 @@ js_library("select_to_speak_options") {
   externs_list = [
     "$externs_path/accessibility_private.js",
     "$externs_path/automation.js",
+    "$externs_path/chrome_extensions.js",
     "$externs_path/metrics_private.js",
-    "$externs_path/tts.js",
+  ]
+}
+
+js_library("node_utils") {
+  deps = [
+    ":paragraph_utils",
+    "../common:rect_util",
+  ]
+  externs_list = [ "$externs_path/automation.js" ]
+}
+
+js_library("word_utils") {
+  deps = [ ":paragraph_utils" ]
+  externs_list = [ "$externs_path/automation.js" ]
+}
+
+js_library("paragraph_utils") {
+  externs_list = [
+    "$externs_path/accessibility_private.js",
+    "$externs_path/automation.js",
+    "$externs_path/chrome_extensions.js",
   ]
 }
 
@@ -188,23 +186,5 @@ js_library("prefs_manager") {
 
 js_library("metrics_utils") {
   deps = [ ":prefs_manager" ]
-  externs_list = [
-    "$externs_path/metrics_private.js",
-    "$externs_path/tts.js",
-  ]
-}
-
-js_library("select_to_speak_constants") {
-}
-
-js_library("ui_manager") {
-  deps = [
-    ":prefs_manager",
-    "../common:paragraph_utils",
-  ]
-  externs_list = [ "$externs_path/accessibility_private.js" ]
-}
-
-js_library("tts_manager") {
-  externs_list = [ "$externs_path/tts.js" ]
+  externs_list = [ "$externs_path/metrics_private.js" ]
 }

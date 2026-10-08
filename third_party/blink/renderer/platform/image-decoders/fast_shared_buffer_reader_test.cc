@@ -29,10 +29,10 @@
  */
 
 #include "third_party/blink/renderer/platform/image-decoders/fast_shared_buffer_reader.h"
-#include "third_party/blink/renderer/platform/graphics/rw_buffer.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder_test_helpers.h"
 #include "third_party/blink/renderer/platform/image-decoders/segment_reader.h"
 #include "third_party/skia/include/core/SkData.h"
+#include "third_party/skia/include/core/SkRWBuffer.h"
 
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -42,14 +42,14 @@ namespace {
 
 scoped_refptr<SegmentReader> CopyToROBufferSegmentReader(
     scoped_refptr<SegmentReader> input) {
-  RWBuffer rw_buffer;
+  SkRWBuffer rw_buffer;
   const char* segment = nullptr;
   size_t position = 0;
   while (size_t length = input->GetSomeData(segment, position)) {
-    rw_buffer.Append(segment, length);
+    rw_buffer.append(segment, length);
     position += length;
   }
-  return SegmentReader::CreateFromROBuffer(rw_buffer.MakeROBufferSnapshot());
+  return SegmentReader::CreateFromSkROBuffer(rw_buffer.makeROBufferSnapshot());
 }
 
 scoped_refptr<SegmentReader> CopyToDataSegmentReader(
@@ -60,7 +60,7 @@ scoped_refptr<SegmentReader> CopyToDataSegmentReader(
 struct SegmentReaders {
   scoped_refptr<SegmentReader> segment_readers[3];
 
-  explicit SegmentReaders(scoped_refptr<SharedBuffer> input) {
+  SegmentReaders(scoped_refptr<SharedBuffer> input) {
     segment_readers[0] =
         SegmentReader::CreateFromSharedBuffer(std::move(input));
     segment_readers[1] = CopyToROBufferSegmentReader(segment_readers[0]);
@@ -201,21 +201,21 @@ TEST(SegmentReaderTest, variableSegments) {
   scoped_refptr<SegmentReader> segment_reader;
   {
     // Create a SegmentReader with difference sized segments, to test that
-    // the ROBuffer implementation works when two consecutive segments
+    // the SkROBuffer implementation works when two consecutive segments
     // are not the same size. This test relies on knowledge of the
-    // internals of RWBuffer: it ensures that each segment is at least
+    // internals of SkRWBuffer: it ensures that each segment is at least
     // 4096 (though the actual data may be smaller, if it has not been
     // written to yet), but when appending a larger amount it may create a
     // larger segment.
-    RWBuffer rw_buffer;
-    rw_buffer.Append(reference_data, SharedBuffer::kSegmentSize);
-    rw_buffer.Append(reference_data + SharedBuffer::kSegmentSize,
+    SkRWBuffer rw_buffer;
+    rw_buffer.append(reference_data, SharedBuffer::kSegmentSize);
+    rw_buffer.append(reference_data + SharedBuffer::kSegmentSize,
                      2 * SharedBuffer::kSegmentSize);
-    rw_buffer.Append(reference_data + 3 * SharedBuffer::kSegmentSize,
+    rw_buffer.append(reference_data + 3 * SharedBuffer::kSegmentSize,
                      .5 * SharedBuffer::kSegmentSize);
 
     segment_reader =
-        SegmentReader::CreateFromROBuffer(rw_buffer.MakeROBufferSnapshot());
+        SegmentReader::CreateFromSkROBuffer(rw_buffer.makeROBufferSnapshot());
   }
 
   const char* segment;

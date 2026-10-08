@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
@@ -27,31 +28,28 @@
 #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
 #include "gpu/command_buffer/service/gpu_switches.h"
 #include "gpu/command_buffer/service/gpu_tracer.h"
+#include "gpu/command_buffer/service/image_manager.h"
 #include "gpu/command_buffer/service/logger.h"
 #include "gpu/command_buffer/service/mailbox_manager_impl.h"
 #include "gpu/command_buffer/service/passthrough_discardable_manager.h"
 #include "gpu/command_buffer/service/raster_decoder.h"
 #include "gpu/command_buffer/service/service_discardable_manager.h"
 #include "gpu/command_buffer/service/shared_context_state.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_factory.h"
-#include "gpu/command_buffer/service/shared_image/shared_image_manager.h"
+#include "gpu/command_buffer/service/shared_image_factory.h"
+#include "gpu/command_buffer/service/shared_image_manager.h"
 #include "gpu/command_buffer/service/transfer_buffer_manager.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_context_egl.h"
 #include "ui/gl/gl_context_stub.h"
+#include "ui/gl/gl_image_ref_counted_memory.h"
 #include "ui/gl/gl_share_group.h"
 #include "ui/gl/gl_stub_api.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/gl_surface_egl.h"
 #include "ui/gl/gl_surface_stub.h"
-#include "ui/gl/gl_utils.h"
 #include "ui/gl/init/gl_factory.h"
 #include "ui/gl/test/gl_surface_test_support.h"
-
-#if BUILDFLAG(IS_OZONE)
-#include "ui/ozone/public/ozone_platform.h"
-#endif
 
 namespace gpu {
 namespace {
@@ -61,7 +59,8 @@ const uint32_t kTransferBufferSize = 16384;
 const uint32_t kSmallTransferBufferSize = 16;
 const uint32_t kTinyTransferBufferSize = 3;
 
-#if !defined(GPU_FUZZER_USE_ANGLE) && !defined(GPU_FUZZER_USE_SWANGLE)
+#if !defined(GPU_FUZZER_USE_ANGLE) && !defined(GPU_FUZZER_USE_SWIFTSHADER) && \
+    !defined(GPU_FUZZER_USE_SWANGLE)
 #define GPU_FUZZER_USE_STUB
 #endif
 
@@ -185,7 +184,7 @@ constexpr const char* kExtensions[] = {
     "GL_OES_texture_half_float_linear",
     "GL_OES_texture_npot",
     "GL_OES_vertex_array_object"};
-constexpr size_t kExtensionCount = std::size(kExtensions);
+constexpr size_t kExtensionCount = base::size(kExtensions);
 
 #if defined(GPU_FUZZER_USE_STUB)
 constexpr const char* kDriverVersions[] = {"OpenGL ES 2.0", "OpenGL ES 3.1",
@@ -239,17 +238,13 @@ struct Config {
     attrib_helper.buffer_preserved = it.GetBit();
     attrib_helper.bind_generates_resource = it.GetBit();
     attrib_helper.single_buffer = it.GetBit();
-    [[maybe_unused]] bool es3 = it.GetBit();
+    bool es3 = it.GetBit();
 #if defined(GPU_FUZZER_USE_RASTER_DECODER)
+    ALLOW_UNUSED_LOCAL(es3);
     attrib_helper.context_type = CONTEXT_TYPE_OPENGLES2;
 #else
-    bool es31 = it.GetBit();
-    if (es3) {
-      attrib_helper.context_type =
-          es31 ? CONTEXT_TYPE_OPENGLES31_FOR_TESTING : CONTEXT_TYPE_OPENGLES3;
-    } else {
-      attrib_helper.context_type = CONTEXT_TYPE_OPENGLES2;
-    }
+    attrib_helper.context_type =
+        es3 ? CONTEXT_TYPE_OPENGLES3 : CONTEXT_TYPE_OPENGLES2;
 #endif
     attrib_helper.enable_oop_rasterization = it.GetBit();
 
@@ -285,9 +280,8 @@ struct Config {
     gl_context_attribs.robust_resource_initialization = true;
     gl_context_attribs.robust_buffer_access = true;
     gl_context_attribs.client_major_es_version =
-        IsWebGL2OrES3OrHigherContextType(attrib_helper.context_type) ? 3 : 2;
-    gl_context_attribs.client_minor_es_version =
-        IsES31ForTestingContextType(attrib_helper.context_type) ? 1 : 0;
+        IsWebGL2OrES3ContextType(attrib_helper.context_type) ? 3 : 2;
+    gl_context_attribs.client_minor_es_version = 0;
 #endif
 
     return it.consumed_bytes();
@@ -321,12 +315,8 @@ class CommandBufferSetup {
     CHECK(base::i18n::InitializeICU());
     base::CommandLine::Init(0, nullptr);
 
-    [[maybe_unused]] auto* command_line =
-        base::CommandLine::ForCurrentProcess();
-
-#if BUILDFLAG(IS_OZONE)
-    ui::OzonePlatform::InitializeForGPU(ui::OzonePlatform::InitParams());
-#endif
+    auto* command_line = base::CommandLine::ForCurrentProcess();
+    ALLOW_UNUSED_LOCAL(command_line);
 
 #if defined(GPU_FUZZER_USE_ANGLE)
     command_line->AppendSwitchASCII(switches::kUseGL,
@@ -340,13 +330,16 @@ class CommandBufferSetup {
 #endif
 
     CHECK(gl::init::InitializeStaticGLBindingsImplementation(
-        gl::GLImplementationParts(gl::kGLImplementationEGLANGLE), false));
-    display_ = gl::init::InitializeGLOneOffPlatformImplementation(
-        /*fallback_to_software_gl=*/false,
-        /*disable_gl_drawing=*/false,
-        /*init_extensions=*/true,
-        /*system_device_id=*/0);
-    CHECK(display_);
+        gl::kGLImplementationEGLANGLE, false));
+    CHECK(
+        gl::init::InitializeGLOneOffPlatformImplementation(false, false, true));
+#elif defined(GPU_FUZZER_USE_SWIFTSHADER)
+    command_line->AppendSwitchASCII(switches::kUseGL,
+                                    gl::kGLImplementationSwiftShaderName);
+    CHECK(gl::init::InitializeStaticGLBindingsImplementation(
+        gl::kGLImplementationSwiftShaderGL, false));
+    CHECK(
+        gl::init::InitializeGLOneOffPlatformImplementation(false, false, true));
 #elif defined(GPU_FUZZER_USE_STUB)
     gl::GLSurfaceTestSupport::InitializeOneOffWithStubBindings();
     // Because the context depends on configuration bits, we want to recreate
@@ -363,16 +356,9 @@ class CommandBufferSetup {
     if (gpu_preferences_.use_passthrough_cmd_decoder)
       recreate_context_ = true;
 
-    surface_ = gl::init::CreateOffscreenGLSurface(display_, gfx::Size());
+    surface_ = gl::init::CreateOffscreenGLSurface(gfx::Size());
     if (!recreate_context_) {
       InitContext();
-    }
-  }
-
-  ~CommandBufferSetup() {
-    if (display_) {
-      gl::init::ShutdownGL(display_, false);
-      display_ = nullptr;
     }
   }
 
@@ -384,7 +370,8 @@ class CommandBufferSetup {
     context_->MakeCurrent(surface_.get());
     GpuFeatureInfo gpu_feature_info;
 #if defined(GPU_FUZZER_USE_RASTER_DECODER)
-    gpu_feature_info.status_values[GPU_FEATURE_TYPE_GPU_RASTERIZATION] =
+    // Cause feature_info's |chromium_raster_transport| to be enabled.
+    gpu_feature_info.status_values[GPU_FEATURE_TYPE_OOP_RASTERIZATION] =
         kGpuFeatureStatusEnabled;
 #endif
     auto feature_info = base::MakeRefCounted<gles2::FeatureInfo>(
@@ -414,11 +401,11 @@ class CommandBufferSetup {
     shared_image_manager_ = std::make_unique<SharedImageManager>();
     shared_image_factory_ = std::make_unique<SharedImageFactory>(
         gpu_preferences_, config_.workarounds, gpu_feature_info,
-        context_state_.get(), shared_image_manager_.get(),
-        /*image_factory=*/nullptr, /*memory_tracker=*/nullptr,
-        /*is_for_display_compositor=*/false);
-    for (uint32_t usage = SHARED_IMAGE_USAGE_GLES2; usage <= LAST_CLIENT_USAGE;
-         usage <<= 1) {
+        context_state_.get(), &mailbox_manager_, shared_image_manager_.get(),
+        nullptr /* image_factory */, nullptr /* memory_tracker */,
+        false /* enable_wrapped_sk_image */);
+    for (uint32_t usage = SHARED_IMAGE_USAGE_GLES2;
+         usage <= SHARED_IMAGE_USAGE_RGB_EMULATION; usage <<= 1) {
       Mailbox::Name name;
       memset(name, 0, sizeof(name));
       name[0] = usage;
@@ -430,23 +417,20 @@ class CommandBufferSetup {
 
       Mailbox mailbox;
       mailbox.SetName(name);
-      viz::SharedImageFormat si_format =
-          viz::SharedImageFormat::SinglePlane(viz::RGBA_8888);
-
       shared_image_factory_->CreateSharedImage(
-          mailbox, si_format, gfx::Size(256, 256),
+          mailbox, viz::RGBA_8888, gfx::Size(256, 256),
           gfx::ColorSpace::CreateSRGB(), kTopLeft_GrSurfaceOrigin,
           kPremul_SkAlphaType, gfx::kNullAcceleratedWidget, usage);
     }
 
 #if defined(GPU_FUZZER_USE_RASTER_DECODER)
+    CHECK(feature_info->feature_flags().chromium_raster_transport);
     context_state_->MakeCurrent(nullptr);
     auto* context = context_state_->context();
     decoder_.reset(raster::RasterDecoder::Create(
         command_buffer_.get(), command_buffer_->service(), &outputter_,
         gpu_feature_info, gpu_preferences_, nullptr /* memory_tracker */,
-        shared_image_manager_.get(), /*image_factory=*/nullptr, context_state_,
-        true /* is_privileged */));
+        shared_image_manager_.get(), context_state_, true /* is_privileged */));
 #else
     context_->MakeCurrent(surface_.get());
     // GLES2Decoder may Initialize feature_info differently than
@@ -456,7 +440,7 @@ class CommandBufferSetup {
     scoped_refptr<gles2::ContextGroup> context_group = new gles2::ContextGroup(
         gpu_preferences_, true, &mailbox_manager_, nullptr /* memory_tracker */,
         &translator_cache_, &completeness_cache_, decoder_feature_info,
-        config_.attrib_helper.bind_generates_resource,
+        config_.attrib_helper.bind_generates_resource, &image_manager_,
         nullptr /* image_factory */, nullptr /* progress_reporter */,
         gpu_feature_info, discardable_manager_.get(),
         passthrough_discardable_manager_.get(), shared_image_manager_.get());
@@ -640,6 +624,7 @@ class CommandBufferSetup {
   gles2::MailboxManagerImpl mailbox_manager_;
   gles2::TraceOutputter outputter_;
   scoped_refptr<gl::GLShareGroup> share_group_;
+  gles2::ImageManager image_manager_;
   std::unique_ptr<ServiceDiscardableManager> discardable_manager_;
   std::unique_ptr<PassthroughDiscardableManager>
       passthrough_discardable_manager_;
@@ -647,7 +632,6 @@ class CommandBufferSetup {
   std::unique_ptr<SharedImageFactory> shared_image_factory_;
 
   bool recreate_context_ = false;
-  gl::GLDisplay* display_ = nullptr;
   scoped_refptr<gl::GLSurface> surface_;
   scoped_refptr<gl::GLContext> context_;
   scoped_refptr<SharedContextState> context_state_;

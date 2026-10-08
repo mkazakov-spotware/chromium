@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,10 +33,7 @@ struct StructTraits<ax::mojom::AXTreeUpdateDataView, ui::AXTreeUpdate> {
   static ax::mojom::EventFrom event_from(const ui::AXTreeUpdate& p) {
     return p.event_from;
   }
-  static ax::mojom::Action event_from_action(const ui::AXTreeUpdate& p) {
-    return p.event_from_action;
-  }
-  static const std::vector<ui::AXEventIntent>& event_intents(
+  static std::vector<ui::AXEventIntent> event_intents(
       const ui::AXTreeUpdate& p) {
     return p.event_intents;
   }

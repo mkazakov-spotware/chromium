@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,6 @@
 #include "base/run_loop.h"
 #include "base/task/current_thread.h"
 #include "build/build_config.h"
-#include "build/chromecast_buildflags.h"
-#include "build/chromeos_buildflags.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/common/content_paths.h"
@@ -24,17 +22,15 @@
 #include "content/test/test_content_client.h"
 #include "ui/events/platform/platform_event_source.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/foundation_util.h"
 #endif
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_CHROMEOS_LACROS) || BUILDFLAG(IS_LINUX)
+#if !defined(OS_CHROMEOS) && defined(OS_LINUX)
 #include "ui/base/ime/init/input_method_initializer.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 #include "content/public/test/network_connection_change_simulator.h"
 #endif
 
@@ -45,7 +41,7 @@
 namespace content {
 
 ContentBrowserTest::ContentBrowserTest() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   base::mac::SetOverrideAmIBundled(true);
 
   // See comment in InProcessBrowserTest::InProcessBrowserTest().
@@ -70,7 +66,7 @@ void ContentBrowserTest::SetUp() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   SetUpCommandLine(command_line);
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // See InProcessBrowserTest::PrepareTestCommandLine().
   base::FilePath subprocess_path;
   base::PathService::Get(base::FILE_EXE, &subprocess_path);
@@ -83,7 +79,7 @@ void ContentBrowserTest::SetUp() {
                                  subprocess_path);
 #endif
 
-#if defined(USE_AURA) && defined(TOOLKIT_VIEWS) && !BUILDFLAG(IS_CASTOS)
+#if defined(USE_AURA) && defined(TOOLKIT_VIEWS)
   // https://crbug.com/695054: Ignore window activation/deactivation to make
   // the Chrome-internal focus unaffected by OS events caused by running tests
   // in parallel.
@@ -91,9 +87,7 @@ void ContentBrowserTest::SetUp() {
 #endif
 
   // LinuxInputMethodContextFactory has to be initialized.
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_CHROMEOS_LACROS) || BUILDFLAG(IS_LINUX)
+#if !defined(OS_CHROMEOS) && defined(OS_LINUX)
   ui::InitializeInputMethodForTesting();
 #endif
 
@@ -106,15 +100,13 @@ void ContentBrowserTest::TearDown() {
   BrowserTestBase::TearDown();
 
   // LinuxInputMethodContextFactory has to be shutdown.
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_CHROMEOS_LACROS) || BUILDFLAG(IS_LINUX)
+#if !defined(OS_CHROMEOS) && defined(OS_LINUX)
   ui::ShutdownInputMethodForTesting();
 #endif
 }
 
 void ContentBrowserTest::PreRunTestOnMainThread() {
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
   NetworkConnectionChangeSimulator network_change_simulator;
   network_change_simulator.InitializeChromeosConnectionType();
 #endif
@@ -123,7 +115,7 @@ void ContentBrowserTest::PreRunTestOnMainThread() {
   shell_ = Shell::windows()[0];
   SetInitialWebContents(shell_->web_contents());
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // On Mac, without the following autorelease pool, code which is directly
   // executed (as opposed to executed inside a message loop) would autorelease
   // objects into a higher-level pool. This pool is not recycled in-sync with
@@ -138,7 +130,7 @@ void ContentBrowserTest::PreRunTestOnMainThread() {
   DCHECK(base::CurrentUIThread::IsSet());
   base::RunLoop().RunUntilIdle();
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   pool_->Recycle();
 #endif
 
@@ -151,7 +143,7 @@ void ContentBrowserTest::PostRunTestOnMainThread() {
   // This is a common error causing a crash on MAC.
   DCHECK(pre_run_test_executed_);
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   pool_->Recycle();
 #endif
 
@@ -160,7 +152,7 @@ void ContentBrowserTest::PostRunTestOnMainThread() {
     i.GetCurrentValue()->FastShutdownIfPossible();
   }
 
-  Shell::Shutdown();
+  Shell::CloseAllWindows();
 }
 
 Shell* ContentBrowserTest::CreateBrowser() {

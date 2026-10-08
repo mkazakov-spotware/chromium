@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@ import android.view.ViewGroup;
 import android.widget.ExpandableListView;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.compositor.layouts.content.InvalidationAwareThumbnailProvider;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
@@ -61,10 +62,9 @@ public class RecentTabsPage
      * @param activity The activity this view belongs to.
      * @param recentTabsManager The RecentTabsManager which provides the model data.
      * @param pageHost The NativePageHost used to provide a history navigation delegate object.
-     * @param browserControlsManager The BrowserControlsManager used to provide offset values.
      */
-    public RecentTabsPage(Activity activity, RecentTabsManager recentTabsManager,
-            NativePageHost pageHost, BrowserControlsStateProvider browserControlsStateProvider) {
+    public RecentTabsPage(
+            ChromeActivity activity, RecentTabsManager recentTabsManager, NativePageHost pageHost) {
         mActivity = activity;
         mRecentTabsManager = recentTabsManager;
         mPageHost = pageHost;
@@ -86,7 +86,7 @@ public class RecentTabsPage
         mView.addOnAttachStateChangeListener(this);
 
         if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity)) {
-            mBrowserControlsStateProvider = browserControlsStateProvider;
+            mBrowserControlsStateProvider = activity.getBrowserControlsManager();
             mBrowserControlsStateProvider.addObserver(this);
             onBottomControlsHeightChanged(mBrowserControlsStateProvider.getBottomControlsHeight(),
                     mBrowserControlsStateProvider.getBottomControlsMinHeight());
@@ -159,7 +159,7 @@ public class RecentTabsPage
         // Work around a bug on Samsung devices where the recent tabs page does not appear after
         // toggling the Sync quick setting.  For some reason, the layout is being dropped on the
         // flow and we need to force a root level layout to get the UI to appear.
-        ViewUtils.requestLayout(view.getRootView(), "RecentTabsPage.onViewAttachedToWindow");
+        view.getRootView().requestLayout();
     }
 
     @Override

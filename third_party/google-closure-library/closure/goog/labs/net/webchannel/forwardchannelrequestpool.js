@@ -1,23 +1,31 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview A pool of forward channel requests to enable real-time
  * messaging from the client to server.
- *
  */
 
 goog.module('goog.labs.net.webChannel.ForwardChannelRequestPool');
 
 goog.module.declareLegacyNamespace();
 
-const ChannelRequest = goog.require('goog.labs.net.webChannel.ChannelRequest');
-const Wire = goog.require('goog.labs.net.webChannel.Wire');
-const array = goog.require('goog.array');
-const googString = goog.require('goog.string');
+var ChannelRequest = goog.require('goog.labs.net.webChannel.ChannelRequest');
+var Set = goog.require('goog.structs.Set');
+var Wire = goog.require('goog.labs.net.webChannel.Wire');
+var array = goog.require('goog.array');
+var googString = goog.require('goog.string');
 
 
 /**
@@ -27,7 +35,7 @@ const googString = goog.require('goog.string');
  *
  * @struct @constructor @final
  */
-const ForwardChannelRequestPool = function(opt_maxPoolSize) {
+var ForwardChannelRequestPool = function(opt_maxPoolSize) {
   /**
    * The max pool size as configured.
    *
@@ -92,7 +100,7 @@ ForwardChannelRequestPool.MAX_POOL_SIZE_ = 10;
  */
 ForwardChannelRequestPool.isSpdyOrHttp2Enabled_ = function() {
   if (goog.global.PerformanceNavigationTiming) {
-    const entrys = /** @type {!Array<!PerformanceNavigationTiming>} */ (
+    var entrys = /** @type {!Array<!PerformanceNavigationTiming>} */ (
         goog.global.performance.getEntriesByType('navigation'));
     return entrys.length > 0 &&
         (entrys[0].nextHopProtocol == 'hq' ||
@@ -140,7 +148,7 @@ ForwardChannelRequestPool.prototype.isFull = function() {
   }
 
   if (this.requestPool_) {
-    return this.requestPool_.size >= this.maxSize_;
+    return this.requestPool_.getCount() >= this.maxSize_;
   }
 
   return false;
@@ -164,7 +172,7 @@ ForwardChannelRequestPool.prototype.getRequestCount = function() {
   }
 
   if (this.requestPool_) {
-    return this.requestPool_.size;
+    return this.requestPool_.getCount();
   }
 
   return 0;
@@ -181,7 +189,7 @@ ForwardChannelRequestPool.prototype.hasRequest = function(req) {
   }
 
   if (this.requestPool_) {
-    return this.requestPool_.has(req);
+    return this.requestPool_.contains(req);
   }
 
   return false;
@@ -214,8 +222,8 @@ ForwardChannelRequestPool.prototype.removeRequest = function(req) {
     return true;
   }
 
-  if (this.requestPool_ && this.requestPool_.has(req)) {
-    this.requestPool_.delete(req);
+  if (this.requestPool_ && this.requestPool_.contains(req)) {
+    this.requestPool_.remove(req);
     return true;
   }
 
@@ -236,10 +244,10 @@ ForwardChannelRequestPool.prototype.cancel = function() {
     return;
   }
 
-  if (this.requestPool_ && this.requestPool_.size !== 0) {
-    for (const val of this.requestPool_.values()) {
+  if (this.requestPool_ && !this.requestPool_.isEmpty()) {
+    array.forEach(this.requestPool_.getValues(), function(val) {
       val.cancel();
-    }
+    });
     this.requestPool_.clear();
   }
 };
@@ -250,7 +258,7 @@ ForwardChannelRequestPool.prototype.cancel = function() {
  */
 ForwardChannelRequestPool.prototype.hasPendingRequest = function() {
   return (this.request_ != null) ||
-      (this.requestPool_ != null && this.requestPool_.size !== 0);
+      (this.requestPool_ != null && !this.requestPool_.isEmpty());
 };
 
 
@@ -263,11 +271,11 @@ ForwardChannelRequestPool.prototype.getPendingMessages = function() {
     return this.pendingMessages_.concat(this.request_.getPendingMessages());
   }
 
-  if (this.requestPool_ != null && this.requestPool_.size !== 0) {
-    let result = this.pendingMessages_;
-    for (const val of this.requestPool_.values()) {
+  if (this.requestPool_ != null && !this.requestPool_.isEmpty()) {
+    var result = this.pendingMessages_;
+    array.forEach(this.requestPool_.getValues(), function(val) {
       result = result.concat(val.getPendingMessages());
-    }
+    });
     return result;
   }
 
@@ -309,11 +317,11 @@ ForwardChannelRequestPool.prototype.forceComplete = function(onComplete) {
     return true;
   }
 
-  if (this.requestPool_ && this.requestPool_.size !== 0) {
-    for (const val of this.requestPool_.values()) {
+  if (this.requestPool_ && !this.requestPool_.isEmpty()) {
+    array.forEach(this.requestPool_.getValues(), function(val) {
       val.cancel();
       onComplete(val);
-    }
+    });
     return true;
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,8 +27,6 @@ ConfigurationPolicyPrefStoreTest::ConfigurationPolicyPrefStoreTest()
                                         base::Unretained(this)),
                     GetChromePolicyDetailsCallback(),
                     /* allow_all_future_policies*/ true) {
-  provider_.SetDefaultReturns(false /* is_initialization_complete_return */,
-                              false /* is_first_policy_load_complete_return */);
   EXPECT_CALL(provider_, IsInitializationComplete(_))
       .WillRepeatedly(Return(false));
   provider_.Init();

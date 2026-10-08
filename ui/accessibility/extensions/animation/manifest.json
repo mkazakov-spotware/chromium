@@ -6,10 +6,10 @@
 	"accessibilityFeatures.read",
 	"accessibilityFeatures.modify"
         ],
-  "action": {
+  "browser_action": {
      "default_icon": "animation.png",
      "default_popup": "popup.html"
   },
-  "manifest_version": 3,
+  "manifest_version": 2,
   "default_locale": "en"
 }

@@ -5,8 +5,8 @@
 'use strict';
 
 idl_test(
-  ['web-animations', 'web-animations-2'],
-  ['dom', 'html', 'scroll-animations'],
+  ['web-animations'],
+  ['dom', 'html'],
   idl_array => {
     idl_array.add_objects({
       Animation: ['new Animation()'],

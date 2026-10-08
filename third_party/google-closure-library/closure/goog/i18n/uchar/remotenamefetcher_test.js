@@ -1,13 +1,17 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-/**
- * @fileoverview
- * @suppress {missingRequire} Swapping XhrIo
- */
 goog.module('goog.i18n.uChar.RemoteNameFetcherTest');
 goog.setTestOnly();
 
@@ -22,7 +26,6 @@ let nameFetcher = null;
 testSuite({
   setUp() {
     // This will fail when XhrIo is converted to goog.module.
-    /** @suppress {checkTypes} suppression added to enable type checking */
     goog.net.XhrIo = NetXhrIo;
     nameFetcher = new RemoteNameFetcher('http://www.example.com');
   },
@@ -31,24 +34,17 @@ testSuite({
     nameFetcher.dispose();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetName_remote() {
-    const callback =
-        recordFunction(/**
-                          @suppress {visibility} suppression added to enable
-                          type checking
-                        */
-                       (name) => {
-                         assertEquals('Latin Capital Letter P', name);
-                         assertTrue(nameFetcher.charNames_.has('50'));
-                       });
+    const callback = recordFunction((name) => {
+      assertEquals('Latin Capital Letter P', name);
+      assertTrue(nameFetcher.charNames_.has('50'));
+    });
     nameFetcher.getName('P', callback);
     const responseJsonText = '{"50":{"name":"Latin Capital Letter P"}}';
     nameFetcher.getNameXhrIo_.simulateResponse(200, responseJsonText);
     assertEquals(1, callback.getCallCount());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetName_existing() {
     nameFetcher.charNames_.set('1049d', 'OSYMANYA LETTER OO');
     const callback = recordFunction((name) => {
@@ -58,7 +54,6 @@ testSuite({
     assertEquals(1, callback.getCallCount());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetName_fail() {
     const callback = recordFunction((name) => {
       assertNull(name);
@@ -71,7 +66,6 @@ testSuite({
     assertEquals(1, callback.getCallCount());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testGetName_abort() {
     const callback1 = recordFunction((name) => {
       assertNull(name);
@@ -90,7 +84,6 @@ testSuite({
     assertEquals(1, callback2.getCallCount());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testPrefetch() {
     nameFetcher.prefetch('ÿI\uD801\uDC9D');
     assertEquals(
@@ -107,7 +100,6 @@ testSuite({
     assertEquals('OSMYANA OO', nameFetcher.charNames_.get('1049d'));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testPrefetch_abort() {
     nameFetcher.prefetch('I\uD801\uDC9D');
     nameFetcher.prefetch('ÿ');

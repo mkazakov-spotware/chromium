@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,6 +55,20 @@ void ProtoChromePromptIPC::PostPromptUserTask(
       base::BindOnce(&ProtoChromePromptIPC::RunPromptUserTask,
                      base::Unretained(this), files_to_delete, registry_keys,
                      extension_ids, std::move(callback)));
+}
+
+void ProtoChromePromptIPC::PostDisableExtensionsTask(
+    const std::vector<std::wstring>& extension_ids,
+    DisableExtensionsCallback callback) {
+  NOTIMPLEMENTED();
+  OnConnectionError();
+}
+
+void ProtoChromePromptIPC::TryDeleteExtensions(
+    base::OnceClosure delete_allowed_callback,
+    base::OnceClosure delete_not_allowed_callback) {
+  NOTIMPLEMENTED();
+  OnConnectionError();
 }
 
 void ProtoChromePromptIPC::InitializeImpl() {

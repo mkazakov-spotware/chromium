@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ MediaContentType DurationToMediaContentType(base::TimeDelta duration) {
   // A zero duration indicates that the duration is unknown. "Persistent" type
   // should be used in this case.
   return (duration.is_zero() ||
-          duration > base::Seconds(kMinimumContentDurationSecs))
+          duration > base::TimeDelta::FromSeconds(kMinimumContentDurationSecs))
              ? MediaContentType::Persistent
              : MediaContentType::Transient;
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-#include "net/log/net_log_entry.h"
+#include "net/log/net_log.h"
 
 namespace net {
 
@@ -40,8 +40,8 @@ size_t GetIndex(const std::vector<NetLogEntry>& entries, int offset) {
   const NetLogEntry& entry = entries[index];
   if (expected_event != entry.type) {
     return ::testing::AssertionFailure()
-           << "Actual event: " << NetLogEventTypeToString(entry.type)
-           << ". Expected event: " << NetLogEventTypeToString(expected_event)
+           << "Actual event: " << NetLog::EventTypeToString(entry.type)
+           << ". Expected event: " << NetLog::EventTypeToString(expected_event)
            << ".";
   }
   if (expected_phase != entry.phase) {
@@ -123,35 +123,34 @@ size_t ExpectLogContainsSomewhereAfter(const std::vector<NetLogEntry>& entries,
   return i;
 }
 
-absl::optional<std::string> GetOptionalStringValueFromParams(
+base::Optional<std::string> GetOptionalStringValueFromParams(
     const NetLogEntry& entry,
     base::StringPiece path) {
   if (!entry.params.is_dict())
-    return absl::nullopt;
+    return base::nullopt;
 
-  const std::string* result =
-      entry.params.GetDict().FindStringByDottedPath(path);
+  const std::string* result = entry.params.FindStringPath(path);
   if (!result)
-    return absl::nullopt;
+    return base::nullopt;
 
   return *result;
 }
 
-absl::optional<bool> GetOptionalBooleanValueFromParams(const NetLogEntry& entry,
+base::Optional<bool> GetOptionalBooleanValueFromParams(const NetLogEntry& entry,
                                                        base::StringPiece path) {
   if (!entry.params.is_dict())
-    return absl::nullopt;
-  return entry.params.GetDict().FindBoolByDottedPath(path);
+    return base::nullopt;
+  return entry.params.FindBoolPath(path);
 }
 
-absl::optional<int> GetOptionalIntegerValueFromParams(const NetLogEntry& entry,
+base::Optional<int> GetOptionalIntegerValueFromParams(const NetLogEntry& entry,
                                                       base::StringPiece path) {
   if (!entry.params.is_dict())
-    return absl::nullopt;
-  return entry.params.GetDict().FindIntByDottedPath(path);
+    return base::nullopt;
+  return entry.params.FindIntPath(path);
 }
 
-absl::optional<int> GetOptionalNetErrorCodeFromParams(
+base::Optional<int> GetOptionalNetErrorCodeFromParams(
     const NetLogEntry& entry) {
   return GetOptionalIntegerValueFromParams(entry, "net_error");
 }
@@ -193,6 +192,19 @@ int GetNetErrorCodeFromParams(const NetLogEntry& entry) {
     return -1;
   }
   return *result;
+}
+
+bool GetListValueFromParams(const NetLogEntry& entry,
+                            base::StringPiece path,
+                            const base::ListValue** value) {
+  if (!entry.params.is_dict())
+    return false;
+
+  const base::Value* list = entry.params.FindListPath(path);
+  if (!list)
+    return false;
+
+  return list->GetAsList(value);
 }
 
 }  // namespace net

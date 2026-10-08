@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/callback_forward.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/launch_util.h"
@@ -16,16 +17,15 @@
 #include "chrome/browser/ui/views/apps/app_info_dialog/app_info_label.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/app_constants/constants.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/path_util.h"
+#include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_handlers/shared_module_info.h"
 #include "extensions/common/manifest_url_handlers.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/combobox_model.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/controls/combobox/combobox.h"
@@ -45,8 +45,8 @@ class LaunchOptionsComboboxModel : public ui::ComboboxModel {
   int GetIndexForLaunchType(extensions::LaunchType launch_type) const;
 
   // Overridden from ui::ComboboxModel:
-  size_t GetItemCount() const override;
-  std::u16string GetItemAt(size_t index) const override;
+  int GetItemCount() const override;
+  base::string16 GetItemAt(int index) const override;
 
  private:
   // A list of the launch types available in the combobox, in order.
@@ -54,7 +54,7 @@ class LaunchOptionsComboboxModel : public ui::ComboboxModel {
 
   // A list of the messages to display in the combobox, in order. The indexes in
   // this list correspond to the indexes in launch_types_.
-  std::vector<std::u16string> launch_type_messages_;
+  std::vector<base::string16> launch_type_messages_;
 };
 
 LaunchOptionsComboboxModel::LaunchOptionsComboboxModel() {
@@ -88,11 +88,11 @@ int LaunchOptionsComboboxModel::GetIndexForLaunchType(
   return 0;
 }
 
-size_t LaunchOptionsComboboxModel::GetItemCount() const {
+int LaunchOptionsComboboxModel::GetItemCount() const {
   return launch_types_.size();
 }
 
-std::u16string LaunchOptionsComboboxModel::GetItemAt(size_t index) const {
+base::string16 LaunchOptionsComboboxModel::GetItemAt(int index) const {
   return launch_type_messages_[index];
 }
 
@@ -109,7 +109,7 @@ AppInfoSummaryPanel::AppInfoSummaryPanel(Profile* profile,
 
 AppInfoSummaryPanel::~AppInfoSummaryPanel() {
   // Destroy view children before their models.
-  RemoveAllChildViews();
+  RemoveAllChildViews(true);
 }
 
 void AppInfoSummaryPanel::AddDescriptionAndLinksControl(
@@ -123,10 +123,10 @@ void AppInfoSummaryPanel::AddDescriptionAndLinksControl(
 
   if (!app_->description().empty()) {
     constexpr size_t kMaxLength = 400;
-    std::u16string text = base::UTF8ToUTF16(app_->description());
+    base::string16 text = base::UTF8ToUTF16(app_->description());
     if (text.length() > kMaxLength) {
       text = text.substr(0, kMaxLength - 5);
-      text += u" ... ";
+      text += base::ASCIIToUTF16(" ... ");
     }
 
     auto description_label = std::make_unique<AppInfoLabel>(text);
@@ -156,7 +156,7 @@ void AppInfoSummaryPanel::AddDescriptionAndLinksControl(
 
 void AppInfoSummaryPanel::AddDetailsControl(views::View* vertical_stack) {
   // Component apps have no details.
-  if (app_->location() == extensions::mojom::ManifestLocation::kComponent)
+  if (app_->location() == extensions::Manifest::COMPONENT)
     return;
 
   std::unique_ptr<views::View> details_list =
@@ -175,14 +175,17 @@ void AppInfoSummaryPanel::AddDetailsControl(views::View* vertical_stack) {
   details_list->AddChildView(
       CreateKeyValueField(std::move(size_title), std::move(size_value)));
 
-  auto version_title = std::make_unique<AppInfoLabel>(
-      l10n_util::GetStringUTF16(IDS_APPLICATION_INFO_VERSION_LABEL));
+  // The version doesn't make sense for bookmark apps.
+  if (!app_->from_bookmark()) {
+    auto version_title = std::make_unique<AppInfoLabel>(
+        l10n_util::GetStringUTF16(IDS_APPLICATION_INFO_VERSION_LABEL));
 
-  auto version_value = std::make_unique<AppInfoLabel>(
-      base::UTF8ToUTF16(app_->GetVersionForDisplay()));
+    auto version_value = std::make_unique<AppInfoLabel>(
+        base::UTF8ToUTF16(app_->GetVersionForDisplay()));
 
-  details_list->AddChildView(
-      CreateKeyValueField(std::move(version_title), std::move(version_value)));
+    details_list->AddChildView(CreateKeyValueField(std::move(version_title),
+                                                   std::move(version_value)));
+  }
 
   vertical_stack->AddChildView(std::move(details_list));
 }
@@ -223,7 +226,7 @@ void AppInfoSummaryPanel::AddSubviews() {
 
 void AppInfoSummaryPanel::LaunchOptionsChanged() {
   SetLaunchType(launch_options_combobox_model_->GetLaunchTypeAtIndex(
-      launch_options_combobox_->GetSelectedIndex().value()));
+      launch_options_combobox_->GetSelectedIndex()));
 }
 
 void AppInfoSummaryPanel::StartCalculatingAppSize() {
@@ -237,7 +240,7 @@ void AppInfoSummaryPanel::StartCalculatingAppSize() {
   }
 }
 
-void AppInfoSummaryPanel::OnAppSizeCalculated(const std::u16string& size) {
+void AppInfoSummaryPanel::OnAppSizeCalculated(const base::string16& size) {
   size_value_->SetText(size);
 }
 
@@ -256,7 +259,7 @@ bool AppInfoSummaryPanel::CanSetLaunchType() const {
   // V2 apps and extensions don't have a launch type, and neither does the
   // Chrome app.
   return !app_->is_platform_app() && !app_->is_extension() &&
-         app_->id() != app_constants::kChromeAppId;
+         app_->id() != extension_misc::kChromeAppId;
 }
 
 void AppInfoSummaryPanel::ShowAppHomePage() {
@@ -280,7 +283,7 @@ bool AppInfoSummaryPanel::CanDisplayLicenses() const {
   return !GetLicenseUrls().empty();
 }
 
-std::vector<GURL> AppInfoSummaryPanel::GetLicenseUrls() const {
+const std::vector<GURL> AppInfoSummaryPanel::GetLicenseUrls() const {
   if (!extensions::SharedModuleInfo::ImportsModules(app_))
     return std::vector<GURL>();
 
@@ -302,6 +305,3 @@ std::vector<GURL> AppInfoSummaryPanel::GetLicenseUrls() const {
   }
   return license_urls;
 }
-
-BEGIN_METADATA(AppInfoSummaryPanel, AppInfoPanel)
-END_METADATA

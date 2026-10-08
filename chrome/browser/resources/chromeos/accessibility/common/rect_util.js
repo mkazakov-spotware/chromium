@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 let ScreenRect;
 
 /** A collection of helper functions when dealing with rects. */
-export const RectUtil = {
+const RectUtil = {
   /** @type {!ScreenRect} */
   ZERO_RECT: {top: 0, left: 0, width: 0, height: 0},
 
@@ -57,14 +57,14 @@ export const RectUtil = {
    * @param {ScreenRect|undefined} rect
    * @return {number}
    */
-  area: rect => (rect ? rect.width * rect.height : 0),
+  area: (rect) => rect ? rect.width * rect.height : 0,
 
   /**
    * Finds the bottom of a rect.
    * @param {!ScreenRect} rect
    * @return {number}
    */
-  bottom: rect => rect.top + rect.height,
+  bottom: (rect) => rect.top + rect.height,
 
   /**
    * Returns the point at the center of the rectangle.
@@ -72,7 +72,7 @@ export const RectUtil = {
    * @return {!{x: number, y: number}} an object containing the x and y
    *     coordinates of the center.
    */
-  center: rect => {
+  center: (rect) => {
     const x = rect.left + Math.round(rect.width / 2);
     const y = rect.top + Math.round(rect.height / 2);
     return {x, y};
@@ -118,7 +118,7 @@ export const RectUtil = {
    * @param {!ScreenRect} rect
    * @return {!ScreenRect}
    */
-  deepCopy: rect => /** @type {!ScreenRect} */ (Object.assign({}, rect)),
+  deepCopy: (rect) => /** @type {!ScreenRect} */ (Object.assign({}, rect)),
 
   /**
    * Returns the largest rectangle contained within the outer rect that does not
@@ -143,17 +143,14 @@ export const RectUtil = {
       return RectUtil.ZERO_RECT;
     }
 
-    let above;
-    let below;
-    let toTheLeft;
-    let toTheRight;
+    let above, below, toTheLeft, toTheRight;
 
     if (outer.top < subtrahend.top) {
       above = {
         top: outer.top,
         left: outer.left,
         width: outer.width,
-        height: (subtrahend.top - outer.top),
+        height: (subtrahend.top - outer.top)
       };
     }
 
@@ -162,7 +159,7 @@ export const RectUtil = {
         top: RectUtil.bottom(subtrahend),
         left: outer.left,
         width: outer.width,
-        height: (RectUtil.bottom(outer) - RectUtil.bottom(subtrahend)),
+        height: (RectUtil.bottom(outer) - RectUtil.bottom(subtrahend))
       };
     }
 
@@ -171,7 +168,7 @@ export const RectUtil = {
         top: outer.top,
         left: outer.left,
         width: (subtrahend.left - outer.left),
-        height: outer.height,
+        height: outer.height
       };
     }
 
@@ -180,7 +177,7 @@ export const RectUtil = {
         top: outer.top,
         left: RectUtil.right(subtrahend),
         width: (RectUtil.right(outer) - RectUtil.right(subtrahend)),
-        height: outer.height,
+        height: outer.height
       };
     }
 
@@ -298,7 +295,7 @@ export const RectUtil = {
    * @param {!ScreenRect} rect
    * @return {number}
    */
-  right: rect => rect.left + rect.width,
+  right: (rect) => rect.left + rect.width,
 
   /*
    * @param {ScreenRect=} rect1
@@ -320,7 +317,7 @@ export const RectUtil = {
    * @param {ScreenRect|undefined} rect
    * @return {string}
    */
-  toString: rect => {
+  toString: (rect) => {
     let str = '';
     if (rect) {
       str = rect.left + ',' + rect.top + ' ';
@@ -358,7 +355,7 @@ export const RectUtil = {
    * @param {!Array<!ScreenRect>} rects
    * @return {!ScreenRect}
    */
-  unionAll: rects => {
+  unionAll: (rects) => {
     if (rects.length < 1) {
       return RectUtil.ZERO_RECT;
     }
@@ -368,5 +365,5 @@ export const RectUtil = {
       result = RectUtil.union(result, rects[i]);
     }
     return result;
-  },
+  }
 };

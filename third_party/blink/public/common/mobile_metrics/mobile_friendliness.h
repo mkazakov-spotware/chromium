@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,9 @@ namespace blink {
 // This structure contains extracted mobile friendliness metrics from the page.
 // Used for UKM logging.
 struct BLINK_COMMON_EXPORT MobileFriendliness {
+  MobileFriendliness() = default;
+  MobileFriendliness(const MobileFriendliness&) = default;
+
   bool operator==(const MobileFriendliness& other) const;
   bool operator!=(const MobileFriendliness& other) const {
     return !(*this == other);
@@ -23,26 +26,15 @@ struct BLINK_COMMON_EXPORT MobileFriendliness {
 
   // The value specified in meta tag like <meta name="viewport"
   // content="initial-scale=1.0">.
-  // Default -1 means "Unknown" and should not be sent as UKM.
-  int viewport_initial_scale_x10 = -1;
+  double viewport_initial_scale = 0;
 
   // The value specified in meta tag like <meta name="viewport"
   // content="width=500">.
-  // Default -1 means "Unknown" and should not be sent as UKM.
-  int viewport_hardcoded_width = -1;
+  int viewport_hardcoded_width = 0;
 
   // Whether the page allows user to zoom in/out.
   // It is specified like <meta name="viewport" content="user-scalable=no">.
   bool allow_user_zoom = true;
-
-  // Percentage of small font size text area in all text area.
-  // Default -1 means "Unknown" and should not be sent as UKM.
-  int small_text_ratio = -1;
-
-  // Percentage of pixels of text and images horizontally outside the viewport,
-  // relative to the frame width.
-  // Default -1 means "Unknown" and should not be sent as UKM.
-  int text_content_outside_viewport_percentage = -1;
 };
 
 }  // namespace blink

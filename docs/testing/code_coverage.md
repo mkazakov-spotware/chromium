@@ -1,6 +1,6 @@
 # Code Coverage in Chromium
 
-### Coverage Dashboard: [link](https://analysis.chromium.org/coverage/p/chromium)
+### Coverage Dashboard: [link](https://analysis.chromium.org/p/chromium/coverage)
 
 Table of contents:
 
@@ -17,13 +17,17 @@ Table of contents:
 - [Contacts](#contacts)
 - [FAQ](#faq)
 
+Chromium uses source-based code coverage for clang-compiled languages such as
+C++. This [documentation] explains how to use Clang’s source-based coverage
+features in general.
 
-This document is divided into two parts. 
-- The first part introduces the code coverage infrastructure that
+In this document, we first introduce the code coverage infrastructure that
 continuously generates code coverage information for the whole codebase and for
 specific CLs in Gerrit. For the latter, refer to
 [code\_coverage\_in\_gerrit.md](code_coverage_in_gerrit.md).
-- The second part talks about how to generate code coverage locally for Clang-compiled languages like C++. Refer to [android code coverage instructions] for instructions for java code.
+We then present a script that can be used to locally generate code coverage
+reports with one command, and finally we provide a description of the
+process of producing these reports.
 
 ## Coverage Infrastructure
 
@@ -117,12 +121,10 @@ by CQ bot. Or see this
 [15-second video tutorial](https://www.youtube.com/watch?v=cxXlYcSgIPE).
 
 ## Local Coverage Script
-This [documentation] explains how to use Clang’s source-based coverage
-features in general. The [coverage script] automates the process described below and provides a
+The [coverage script] automates the process described below and provides a
 one-stop service to generate code coverage reports locally in just one command.
 
-This script is currently supported on Android, Linux, Mac, iOS and ChromeOS
-platforms.
+This script is currently supported on Linux, Mac, iOS and ChromeOS platforms.
 
 Here is an example usage:
 
@@ -157,9 +159,9 @@ process.
 
 ### Step 0 Download Tooling
 Generating code coverage reports requires llvm-profdata and llvm-cov tools.
-You can get them by adding `"checkout_clang_coverage_tools": True,` to 
-`custom_vars` in the `.gclient` config and run `gclient runhooks`. You can also
-download the tools manually ([tools link])
+Currently, these two tools are not part of Chromium’s Clang bundle,
+[coverage script] downloads and updates them automatically, you can also
+download the tools manually ([tools link]).
 
 ### Step 1 Build
 In Chromium, to compile code with coverage enabled, one needs to add
@@ -183,11 +185,10 @@ hundred, resulting in the generation of a few hundred gigabytes’ raw
 profiles. To limit the number of raw profiles, `%Nm` pattern in
 `LLVM_PROFILE_FILE` environment variable is used to run tests in multi-process
 mode, where `N` is the number of raw profiles. With `N = 4`, the total size of
-the raw profiles are limited to a few gigabytes. (If working on Android, the
-.profraw files will be located in ./out/coverage/coverage by default.)
+the raw profiles are limited to a few gigabytes.
 
 ```
-$ export LLVM_PROFILE_FILE="out/report/crypto_unittests.%4m.profraw"
+$ export LLVM_PROFILE_FILE=”out/report/crypto_unittests.%4m.profraw”
 $ ./out/coverage/crypto_unittests
 $ ls out/report/
 crypto_unittests.3657994905831792357_0.profraw
@@ -228,13 +229,9 @@ code coverage report:
 ```
 $ llvm-cov show -output-dir=out/report -format=html \
     -instr-profile=out/report/coverage.profdata \
-    -compilation-dir=out/coverage \
     -object=out/coverage/url_unittests \
     out/coverage/crypto_unittests
 ```
-
-If creating a report for Android, the -object arg would be the lib.unstripped
-file, ie out/coverage/lib.unstripped/libcrypto_unittests__library.so
 
 For more information on how to use llvm-cov, please refer to the [guide].
 
@@ -303,12 +300,12 @@ reported usually grows after that.
 ### How can I improve [coverage dashboard]?
 
 The code for the service and dashboard currently lives along with findit at
-[this location](https://chromium.googlesource.com/infra/infra/+/main/appengine/findit/)
+[this location](https://chromium.googlesource.com/infra/infra/+/master/appengine/findit/)
 because of significant shared logic.
 
 The code used by the bots that generate the coverage data lives (among other
 places) in the
-[code coverage recipe module](https://chromium.googlesource.com/chromium/tools/build/+/main/scripts/slave/recipe_modules/code_coverage/).
+[code coverage recipe module](https://chromium.googlesource.com/chromium/tools/build/+/master/scripts/slave/recipe_modules/code_coverage/).
 
 ### Why is coverage for X not reported or unreasonably low, even though there is a test for X?
 
@@ -332,7 +329,7 @@ Yes!
 [assert]: http://man7.org/linux/man-pages/man3/assert.3.html
 [code-coverage group]: https://groups.google.com/a/chromium.org/forum/#!forum/code-coverage
 [code-coverage repository]: https://chrome-internal.googlesource.com/chrome/tools/code-coverage
-[coverage dashboard]: https://analysis.chromium.org/coverage/p/chromium
+[coverage dashboard]: https://analysis.chromium.org/p/chromium/coverage
 [coverage script]: https://cs.chromium.org/chromium/src/tools/code_coverage/coverage.py
 [coverage infra diagram]: images/code_coverage_infra_diagram.png
 [coverage dashboard file view]: images/code_coverage_dashboard_file_view.png
@@ -353,4 +350,3 @@ Yes!
 [How do crashes affect code coverage?]: #how-do-crashes-affect-code-coverage
 [known issues]: https://bugs.chromium.org/p/chromium/issues/list?q=component:Infra%3ETest%3ECodeCoverage
 [tools link]: https://storage.googleapis.com/chromium-browser-clang-staging/
-[android code coverage instructions]: https://chromium.googlesource.com/chromium/src/+/HEAD/build/android/docs/coverage.md

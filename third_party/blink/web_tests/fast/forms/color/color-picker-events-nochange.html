@@ -3,8 +3,6 @@
 <head>
 <script src='../../../resources/testharness.js'></script>
 <script src='../../../resources/testharnessreport.js'></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src='../../../fast/forms/resources/picker-common.js'></script>
 </head>
 <body>
@@ -17,7 +15,7 @@ var changeEventCount = 0;
 
 promise_test(() => {
   let colorControl = document.getElementById('color1');
-  return openPicker(colorControl)
+  return openPickerWithPromise(colorControl)
   .then(() => {
     internals.pagePopupWindow.focus();
     eventSender.keyDown('Enter');

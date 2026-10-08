@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,7 +63,8 @@ void PopupMenuHelper::ShowPopupMenu(
   // dealloced if my Destroy() method is called while the pop-up's up (which
   // would in turn delete me, causing a crash once the -runMenuInView
   // call returns. That's what was happening in <http://crbug.com/33250>).
-  RenderWidgetHostViewMac* rwhvm = GetRenderWidgetHostView();
+  RenderWidgetHostViewMac* rwhvm =
+      static_cast<RenderWidgetHostViewMac*>(GetRenderWidgetHostView());
   base::scoped_nsobject<RenderWidgetHostViewCocoa> cocoa_view(
       [rwhvm->GetInProcessNSView() retain]);
 
@@ -80,7 +81,7 @@ void PopupMenuHelper::ShowPopupMenu(
 
   {
     // Make sure events can be pumped while the menu is up.
-    base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
+    base::CurrentThread::ScopedNestableTaskAllower allow;
 
     // One of the events that could be pumped is |window.close()|.
     // User-initiated event-tracking loops protect against this by
@@ -143,7 +144,11 @@ void PopupMenuHelper::DontShowPopupMenuForTesting() {
 
 RenderWidgetHostViewMac* PopupMenuHelper::GetRenderWidgetHostView() const {
   return static_cast<RenderWidgetHostViewMac*>(
-      render_frame_host_->GetOutermostMainFrameOrEmbedder()->GetView());
+      render_frame_host_->frame_tree_node()
+          ->frame_tree()
+          ->root()
+          ->current_frame_host()
+          ->GetView());
 }
 
 void PopupMenuHelper::RenderWidgetHostVisibilityChanged(
@@ -155,7 +160,7 @@ void PopupMenuHelper::RenderWidgetHostVisibilityChanged(
 
 void PopupMenuHelper::RenderWidgetHostDestroyed(RenderWidgetHost* widget_host) {
   DCHECK(observation_.IsObservingSource(widget_host));
-  observation_.Reset();
+  observation_.RemoveObservation();
 }
 
 }  // namespace content

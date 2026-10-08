@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/graphics/animation_worklet_mutators_state.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 
 namespace blink {
@@ -74,27 +73,19 @@ class MODULES_EXPORT AnimationWorkletGlobalScope : public WorkletGlobalScope {
 
  private:
   void RegisterWithProxyClientIfNeeded();
-
-  // TODO(crbug.com/1286242): Return a proper destination for AnimationWorklet.
-  network::mojom::RequestDestination GetDestination() const override {
-    return network::mojom::RequestDestination::kScript;
-  }
-
   Animator* CreateInstance(
       const String& name,
       WorkletAnimationOptions options,
       scoped_refptr<SerializedScriptValue> serialized_state,
-      const Vector<absl::optional<base::TimeDelta>>& local_times,
-      const Vector<Timing>& timings,
-      const Vector<Timing::NormalizedTiming>& normalized_timings);
+      const Vector<base::Optional<base::TimeDelta>>& local_times,
+      const Vector<Timing>& timings);
   Animator* CreateAnimatorFor(
       int animation_id,
       const String& name,
       WorkletAnimationOptions options,
       scoped_refptr<SerializedScriptValue> serialized_state,
-      const Vector<absl::optional<base::TimeDelta>>& local_times,
-      const Vector<Timing>& timings,
-      const Vector<Timing::NormalizedTiming>& normalized_timings);
+      const Vector<base::Optional<base::TimeDelta>>& local_times,
+      const Vector<Timing>& timings);
   typedef HeapHashMap<String, Member<AnimatorDefinition>> DefinitionMap;
   DefinitionMap animator_definitions_;
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,13 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/debug/leak_annotations.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/no_destructor.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner.h"
 #include "base/threading/sequence_bound.h"
 #include "content/browser/speech/tts_platform_impl.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -91,7 +91,7 @@ class TtsPlatformImplBackgroundWorker {
                                 char* index_mark);
 
   LibSpeechdLoader libspeechd_loader_;
-  raw_ptr<SPDConnection> conn_ = nullptr;
+  SPDConnection* conn_ = nullptr;
   int msg_uid_ = kInvalidMessageUid;
 
   // These apply to the current utterance only that is currently being
@@ -188,12 +188,6 @@ void TtsPlatformImplBackgroundWorker::ProcessSpeech(
     float pitch,
     SPDChromeVoice voice,
     base::OnceCallback<void(bool)> on_speak_finished) {
-  if (!conn_) {
-    GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(std::move(on_speak_finished), false));
-    return;
-  }
-
   libspeechd_loader_.spd_set_output_module(conn_, voice.module.c_str());
   libspeechd_loader_.spd_set_synthesis_voice(conn_, voice.name.c_str());
 
@@ -222,17 +216,17 @@ void TtsPlatformImplBackgroundWorker::ProcessSpeech(
 }
 
 void TtsPlatformImplBackgroundWorker::Pause() {
-  if (conn_ && msg_uid_ != kInvalidMessageUid)
+  if (msg_uid_ != kInvalidMessageUid)
     libspeechd_loader_.spd_pause(conn_);
 }
 
 void TtsPlatformImplBackgroundWorker::Resume() {
-  if (conn_ && msg_uid_ != kInvalidMessageUid)
+  if (msg_uid_ != kInvalidMessageUid)
     libspeechd_loader_.spd_resume(conn_);
 }
 
 void TtsPlatformImplBackgroundWorker::StopSpeaking() {
-  if (conn_ && msg_uid_ != kInvalidMessageUid) {
+  if (msg_uid_ != kInvalidMessageUid) {
     int result = libspeechd_loader_.spd_stop(conn_);
     if (result == -1) {
       CloseConnection();
@@ -318,7 +312,7 @@ void TtsPlatformImplBackgroundWorker::CloseConnection() {
 void TtsPlatformImplBackgroundWorker::OnSpeechEvent(int msg_id,
                                                     SPDNotificationType type) {
   DCHECK(BrowserThread::CurrentlyOn(content::BrowserThread::UI));
-  if (!conn_ || msg_id != msg_uid_)
+  if (msg_id != msg_uid_)
     return;
 
   switch (type) {
@@ -374,10 +368,8 @@ void TtsPlatformImplBackgroundWorker::NotificationCallback(
     size_t msg_id,
     size_t client_id,
     SPDNotificationType type) {
-  TtsPlatformImplLinux::GetInstance()
-      ->worker()
-      ->AsyncCall(&TtsPlatformImplBackgroundWorker::OnSpeechEvent)
-      .WithArgs(msg_id, type);
+  TtsPlatformImplLinux::GetInstance()->worker()->Post(
+      FROM_HERE, &TtsPlatformImplBackgroundWorker::OnSpeechEvent, msg_id, type);
 }
 
 // static
@@ -389,10 +381,8 @@ void TtsPlatformImplBackgroundWorker::IndexMarkCallback(
   // TODO(dtseng): index_mark appears to specify an index type supplied by a
   // client. Need to explore how this is used before hooking it up with existing
   // word, sentence events.
-  TtsPlatformImplLinux::GetInstance()
-      ->worker()
-      ->AsyncCall(&TtsPlatformImplBackgroundWorker::OnSpeechEvent)
-      .WithArgs(msg_id, type);
+  TtsPlatformImplLinux::GetInstance()->worker()->Post(
+      FROM_HERE, &TtsPlatformImplBackgroundWorker::OnSpeechEvent, msg_id, type);
 }
 
 //
@@ -410,7 +400,7 @@ TtsPlatformImplLinux::TtsPlatformImplLinux()
   // The TTS platform is supported. The Tts platform initialisation will happen
   // on a worker thread and it will become initialized.
   is_supported_ = true;
-  worker_.AsyncCall(&TtsPlatformImplBackgroundWorker::Initialize);
+  worker_.Post(FROM_HERE, &TtsPlatformImplBackgroundWorker::Initialize);
 }
 
 bool TtsPlatformImplLinux::PlatformImplSupported() {
@@ -456,7 +446,7 @@ bool TtsPlatformImplLinux::StopSpeaking() {
   DCHECK(BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   DCHECK(PlatformImplInitialized());
 
-  worker_.AsyncCall(&TtsPlatformImplBackgroundWorker::StopSpeaking);
+  worker_.Post(FROM_HERE, &TtsPlatformImplBackgroundWorker::StopSpeaking);
   paused_ = false;
 
   is_speaking_ = false;
@@ -472,7 +462,7 @@ void TtsPlatformImplLinux::Pause() {
   if (paused_ || !is_speaking_)
     return;
 
-  worker_.AsyncCall(&TtsPlatformImplBackgroundWorker::Pause);
+  worker_.Post(FROM_HERE, &TtsPlatformImplBackgroundWorker::Pause);
   paused_ = true;
 }
 
@@ -483,7 +473,7 @@ void TtsPlatformImplLinux::Resume() {
   if (!paused_ || !is_speaking_)
     return;
 
-  worker_.AsyncCall(&TtsPlatformImplBackgroundWorker::Resume);
+  worker_.Post(FROM_HERE, &TtsPlatformImplBackgroundWorker::Resume);
   paused_ = false;
 }
 
@@ -511,7 +501,7 @@ void TtsPlatformImplLinux::GetVoices(std::vector<VoiceData>* out_voices) {
 }
 
 void TtsPlatformImplLinux::Shutdown() {
-  worker_.AsyncCall(&TtsPlatformImplBackgroundWorker::Shutdown);
+  worker_.Post(FROM_HERE, &TtsPlatformImplBackgroundWorker::Shutdown);
 }
 
 void TtsPlatformImplLinux::OnInitialized(bool success, PlatformVoices voices) {
@@ -570,9 +560,9 @@ void TtsPlatformImplLinux::ProcessSpeech(
   if (it != voices_.end())
     matched_voice = it->second;
 
-  worker_.AsyncCall(&TtsPlatformImplBackgroundWorker::ProcessSpeech)
-      .WithArgs(utterance_id, parsed_utterance, lang, rate, pitch,
-                matched_voice, std::move(on_speak_finished));
+  worker_.Post(FROM_HERE, &TtsPlatformImplBackgroundWorker::ProcessSpeech,
+               utterance_id, parsed_utterance, lang, rate, pitch, matched_voice,
+               std::move(on_speak_finished));
 }
 
 // static

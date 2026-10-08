@@ -1,25 +1,27 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/infobars/overlays/translate_overlay_tab_helper.h"
 
-#import "ios/chrome/browser/infobars/infobar_ios.h"
-#import "ios/chrome/browser/infobars/infobar_manager_impl.h"
-#import "ios/chrome/browser/infobars/overlays/default_infobar_overlay_request_factory.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/infobars/core/infobar_feature.h"
+#include "ios/chrome/browser/infobars/infobar_ios.h"
+#include "ios/chrome/browser/infobars/infobar_manager_impl.h"
 #import "ios/chrome/browser/infobars/overlays/infobar_overlay_request_inserter.h"
-#import "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
+#include "ios/chrome/browser/infobars/overlays/infobar_overlay_util.h"
 #import "ios/chrome/browser/infobars/test/fake_infobar_ios.h"
 #import "ios/chrome/browser/overlays/public/infobar_banner/infobar_banner_placeholder_request_config.h"
 #import "ios/chrome/browser/overlays/public/infobar_banner/translate_infobar_banner_overlay_request_config.h"
 #import "ios/chrome/browser/overlays/public/overlay_request_queue.h"
-#import "ios/chrome/browser/overlays/public/overlay_request_queue_util.h"
-#import "ios/chrome/browser/overlays/test/overlay_test_macros.h"
+#include "ios/chrome/browser/overlays/public/overlay_request_queue_util.h"
+#include "ios/chrome/browser/overlays/test/overlay_test_macros.h"
 #import "ios/chrome/browser/passwords/test/mock_ios_chrome_save_passwords_infobar_delegate.h"
 #import "ios/chrome/browser/translate/fake_translate_infobar_delegate.h"
-#import "ios/web/public/test/fakes/fake_navigation_manager.h"
-#import "ios/web/public/test/fakes/fake_web_state.h"
-#import "testing/platform_test.h"
+#import "ios/chrome/browser/ui/infobars/infobar_feature.h"
+#import "ios/web/public/test/fakes/test_navigation_manager.h"
+#import "ios/web/public/test/fakes/test_web_state.h"
+#include "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -48,11 +50,12 @@ class TranslateInfobarOverlayTranslateOverlayTabHelperTest
     : public PlatformTest {
  public:
   TranslateInfobarOverlayTranslateOverlayTabHelperTest() {
+    scoped_feature_list_.InitWithFeatures({kIOSInfobarUIReboot},
+                                          {kInfobarUIRebootOnlyiOS13});
     web_state_.SetNavigationManager(
-        std::make_unique<web::FakeNavigationManager>());
+        std::make_unique<web::TestNavigationManager>());
     InfoBarManagerImpl::CreateForWebState(&web_state_);
-    InfobarOverlayRequestInserter::CreateForWebState(
-        &web_state_, &DefaultInfobarOverlayRequestFactory);
+    InfobarOverlayRequestInserter::CreateForWebState(&web_state_);
     TranslateOverlayTabHelper::CreateForWebState(&web_state_);
 
     std::unique_ptr<FakeTranslateInfoBarDelegate> delegate =
@@ -65,11 +68,7 @@ class TranslateInfobarOverlayTranslateOverlayTabHelperTest
         ->AddInfoBar(std::move(infobar));
   }
 
-  ~TranslateInfobarOverlayTranslateOverlayTabHelperTest() override {
-    InfoBarManagerImpl::FromWebState(&web_state_)->ShutDown();
-  }
-
-  // Returns the front request of `web_state_`'s OverlayRequestQueue.
+  // Returns the front request of |web_state_|'s OverlayRequestQueue.
   OverlayRequest* front_request() {
     return OverlayRequestQueue::FromWebState(&web_state_,
                                              OverlayModality::kInfobarBanner)
@@ -77,7 +76,8 @@ class TranslateInfobarOverlayTranslateOverlayTabHelperTest
   }
 
  protected:
-  web::FakeWebState web_state_;
+  base::test::ScopedFeatureList scoped_feature_list_;
+  web::TestWebState web_state_;
   FakeTranslateInfoBarDelegateFactory delegate_factory_;
   FakeTranslateInfoBarDelegate* delegate_ = nullptr;
   InfoBarIOS* infobar_ = nullptr;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,14 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/strings/stringprintf.h"
+#include "cc/test/geometry_test_utils.h"
 #include "chrome/browser/vr/test/animation_utils.h"
 #include "chrome/browser/vr/test/constants.h"
 #include "chrome/browser/vr/ui_scene.h"
 #include "chrome/browser/vr/ui_scene_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/transform.h"
 
 namespace vr {
 
@@ -34,23 +35,22 @@ class ResizerTest : public testing::Test {
   void Move(const gfx::PointF& from, const gfx::PointF& to) {
     resizer_->set_touch_position(from);
     resizer_->SetTouchingTouchpad(true);
-    scene_.OnBeginFrame(gfx::MsToTicks(1), gfx::Transform());
+    scene_.OnBeginFrame(MsToTicks(1), gfx::Transform());
     resizer_->set_touch_position(to);
-    scene_.OnBeginFrame(gfx::MsToTicks(1), gfx::Transform());
+    scene_.OnBeginFrame(MsToTicks(1), gfx::Transform());
     resizer_->SetTouchingTouchpad(false);
   }
 
   float ComputeScale() {
-    return static_cast<UiElement*>(resizer_)
-        ->LocalTransform()
-        .MapVector(gfx::Vector3dF(1.0f, 0.0f, 0.0f))
-        .x();
+    gfx::Vector3dF v = {1.0f, 0.0f, 0.0f};
+    static_cast<UiElement*>(resizer_)->LocalTransform().TransformVector(&v);
+    return v.x();
   }
 
   void CheckScale(float scale) { EXPECT_FLOAT_EQ(scale, ComputeScale()); }
 
  protected:
-  raw_ptr<Resizer> resizer_ = nullptr;
+  Resizer* resizer_ = nullptr;
   UiScene scene_;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/system/system_monitor.h"
 #include "base/time/time.h"
@@ -32,27 +32,27 @@ namespace device {
 
 class GamepadDataFetcher;
 
-class DEVICE_GAMEPAD_EXPORT GamepadChangeClient {
+class DEVICE_GAMEPAD_EXPORT GamepadConnectionChangeClient {
  public:
   virtual void OnGamepadConnectionChange(bool connected,
                                          uint32_t index,
                                          const Gamepad& pad) = 0;
-  virtual void OnGamepadChange(mojom::GamepadChangesPtr changes) = 0;
 };
 
 class DEVICE_GAMEPAD_EXPORT GamepadProvider
     : public GamepadPadStateProvider,
       public base::SystemMonitor::DevicesChangedObserver {
  public:
-  explicit GamepadProvider(GamepadChangeClient* gamepad_change_client);
+  explicit GamepadProvider(
+      GamepadConnectionChangeClient* connection_change_client);
 
   // Manually specifies the data fetcher and polling thread. The polling thread
   // will be created normally if |polling_thread| is nullptr. Used for testing.
-  GamepadProvider(GamepadChangeClient* gamepad_change_client,
-                  std::unique_ptr<GamepadDataFetcher> fetcher,
-                  std::unique_ptr<base::Thread> polling_thread);
-  GamepadProvider(const GamepadProvider&) = delete;
-  GamepadProvider& operator=(const GamepadProvider&) = delete;
+  GamepadProvider(
+      GamepadConnectionChangeClient* connection_change_client,
+      std::unique_ptr<GamepadDataFetcher> fetcher,
+      std::unique_ptr<base::Thread> polling_thread);
+
   ~GamepadProvider() override;
 
   // Returns a duplicate of the shared memory region of the gamepad data.
@@ -107,8 +107,6 @@ class DEVICE_GAMEPAD_EXPORT GamepadProvider
   // Method for polling a GamepadDataFetcher. Runs on the polling_thread_.
   void DoPoll();
   void ScheduleDoPoll();
-
-  void SendChangeEvents(mojom::GamepadChangesPtr changes);
 
   void OnGamepadConnectionChange(bool connected,
                                  uint32_t index,
@@ -179,9 +177,9 @@ class DEVICE_GAMEPAD_EXPORT GamepadProvider
   // Polling is done on this background thread.
   std::unique_ptr<base::Thread> polling_thread_;
 
-  scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
+  GamepadConnectionChangeClient* connection_change_client_;
 
-  raw_ptr<GamepadChangeClient> gamepad_change_client_;
+  DISALLOW_COPY_AND_ASSIGN(GamepadProvider);
 };
 
 }  // namespace device

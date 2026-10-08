@@ -29,27 +29,26 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
-#include "ui/gfx/geometry/point_f.h"
+#include "third_party/blink/renderer/platform/geometry/float_point.h"
 
 namespace blink {
 
 namespace {
 
-gfx::Vector2dF ContentsOffset(LocalFrame* frame) {
+FloatPoint ContentsOffset(LocalFrame* frame) {
   if (!frame)
-    return gfx::Vector2dF();
+    return FloatPoint();
   LocalFrameView* frame_view = frame->View();
   if (!frame_view)
-    return gfx::Vector2dF();
+    return FloatPoint();
   float scale = 1.0f / frame->PageZoomFactor();
-  gfx::Vector2dF offset = frame_view->LayoutViewport()->GetScrollOffset();
-  offset.Scale(scale);
-  return offset;
+  return FloatPoint(frame_view->LayoutViewport()->GetScrollOffset())
+      .ScaledBy(scale);
 }
 
-LayoutPoint PageToAbsolute(LocalFrame* frame, const gfx::PointF& page_pos) {
+LayoutPoint PageToAbsolute(LocalFrame* frame, const FloatPoint& page_pos) {
   float scale_factor = frame ? frame->PageZoomFactor() : 1.0f;
-  gfx::PointF converted_point = gfx::ScalePoint(page_pos, scale_factor);
+  FloatPoint converted_point = page_pos.ScaledBy(scale_factor);
 
   if (frame && frame->View())
     converted_point = frame->View()->DocumentToFrame(converted_point);
@@ -62,11 +61,12 @@ LayoutPoint PageToAbsolute(LocalFrame* frame, const gfx::PointF& page_pos) {
 Touch::Touch(LocalFrame* frame,
              EventTarget* target,
              int identifier,
-             const gfx::PointF& screen_pos,
-             const gfx::PointF& page_pos,
-             const gfx::SizeF& radius,
+             const FloatPoint& screen_pos,
+             const FloatPoint& page_pos,
+             const FloatSize& radius,
              float rotation_angle,
-             float force)
+             float force,
+             String region)
     : target_(target),
       identifier_(identifier),
       client_pos_(page_pos - ContentsOffset(frame)),
@@ -75,16 +75,18 @@ Touch::Touch(LocalFrame* frame,
       radius_(radius),
       rotation_angle_(rotation_angle),
       force_(force),
+      region_(region),
       absolute_location_(PageToAbsolute(frame, page_pos)) {}
 
 Touch::Touch(EventTarget* target,
              int identifier,
-             const gfx::PointF& client_pos,
-             const gfx::PointF& screen_pos,
-             const gfx::PointF& page_pos,
-             const gfx::SizeF& radius,
+             const FloatPoint& client_pos,
+             const FloatPoint& screen_pos,
+             const FloatPoint& page_pos,
+             const FloatSize& radius,
              float rotation_angle,
              float force,
+             String region,
              LayoutPoint absolute_location)
     : target_(target),
       identifier_(identifier),
@@ -94,23 +96,25 @@ Touch::Touch(EventTarget* target,
       radius_(radius),
       rotation_angle_(rotation_angle),
       force_(force),
+      region_(region),
       absolute_location_(absolute_location) {}
 
 Touch::Touch(LocalFrame* frame, const TouchInit* initializer)
     : target_(initializer->target()),
       identifier_(initializer->identifier()),
-      client_pos_(initializer->clientX(), initializer->clientY()),
-      screen_pos_(initializer->screenX(), initializer->screenY()),
-      page_pos_(initializer->pageX(), initializer->pageY()),
-      radius_(initializer->radiusX(), initializer->radiusY()),
+      client_pos_(FloatPoint(initializer->clientX(), initializer->clientY())),
+      screen_pos_(FloatPoint(initializer->screenX(), initializer->screenY())),
+      page_pos_(FloatPoint(initializer->pageX(), initializer->pageY())),
+      radius_(FloatSize(initializer->radiusX(), initializer->radiusY())),
       rotation_angle_(initializer->rotationAngle()),
       force_(initializer->force()),
+      region_(initializer->region()),
       absolute_location_(PageToAbsolute(frame, page_pos_)) {}
 
 Touch* Touch::CloneWithNewTarget(EventTarget* event_target) const {
   return MakeGarbageCollected<Touch>(
       event_target, identifier_, client_pos_, screen_pos_, page_pos_, radius_,
-      rotation_angle_, force_, absolute_location_);
+      rotation_angle_, force_, region_, absolute_location_);
 }
 
 void Touch::Trace(Visitor* visitor) const {

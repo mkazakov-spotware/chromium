@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 
-#import "ios/chrome/common/ui/util/ui_util.h"
-#import "ui/base/device_form_factor.h"
+#import "ios/chrome/browser/ui/util/ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -41,7 +40,7 @@ const CGFloat kViewportBorderShadowRadius = 10.0;
   // A container for the viewport border to draw a shadow under the border.
   // Sublayer of PreviewOverlayView's layer.
   CALayer* _viewportBorderContainer;
-  // The preview viewport border. Sublayer of `_viewportBorderContainer`.
+  // The preview viewport border. Sublayer of |_viewportBorderContainer|.
   CAShapeLayer* _viewportBorder;
   // The current viewport size.
   CGSize _viewportSize;
@@ -126,9 +125,8 @@ const CGFloat kViewportBorderShadowRadius = 10.0;
 // Creates a mask to only draw the corners of the viewport border.
 - (CAShapeLayer*)viewportBorderMaskWithFrameSize:(CGSize)frameSize {
   CGFloat viewportBorderCornerLength =
-      (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
-          ? kViewportBorderLengthFromCornerIPad
-          : kViewportBorderLengthFromCornerIPhone;
+      IsIPadIdiom() ? kViewportBorderLengthFromCornerIPad
+                    : kViewportBorderLengthFromCornerIPhone;
   CGRect maskRect = CGRectMakeCenteredRectInFrame(
       frameSize,
       CGSizeMake(_viewportSize.width - 2 * viewportBorderCornerLength,

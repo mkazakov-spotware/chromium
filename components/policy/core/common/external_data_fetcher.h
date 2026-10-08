@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,8 +21,9 @@ class ExternalDataManager;
 // data for a policy.
 class POLICY_EXPORT ExternalDataFetcher {
  public:
-  using FetchCallback = base::OnceCallback<void(std::unique_ptr<std::string>,
-                                                const base::FilePath&)>;
+  typedef base::OnceCallback<void(std::unique_ptr<std::string>,
+                                  const base::FilePath&)>
+      FetchCallback;
 
   // This instance's Fetch() method will instruct the |manager| to retrieve the
   // external data referenced by the given |policy|.
@@ -44,12 +45,6 @@ class POLICY_EXPORT ExternalDataFetcher {
   // retrieval is permanently impossible (e.g. |policy_| references data that
   // does not exist on the server), the |callback| will never be invoked.
   void Fetch(FetchCallback callback) const;
-
-  // Same as above, except there might be multiple pieces of data associated
-  // with the |policy_|. |field_name| specifies which specific data should be
-  // fetched. The relation between |field_name| and the policy value is
-  // policy-specific.
-  void Fetch(const std::string& field_name, FetchCallback callback) const;
 
  private:
   base::WeakPtr<ExternalDataManager> manager_;

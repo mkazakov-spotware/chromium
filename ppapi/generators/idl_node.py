@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -277,8 +277,8 @@ class IDLNode(IDLRelease):
         my_releases = set([my_min])
 
       r = self.GetRelease(self.GetProperty('version'))
-      if r is not None and r not in my_releases:
-        my_releases.add(r)
+      if not r in my_releases:
+        my_releases |= set([r])
 
       # Break cycle if we reference ourselves
       if self in visited:
@@ -315,7 +315,7 @@ class IDLNode(IDLRelease):
 
       for rel in child_releases | type_releases:
         if rel >= my_min and rel <= my_max:
-          my_releases.add(rel)
+          my_releases |= set([rel])
 
       self.releases = sorted(my_releases)
     return self.releases

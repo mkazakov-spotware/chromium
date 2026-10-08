@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define ASH_PUBLIC_CPP_SYSTEM_TRAY_TEST_API_H_
 
 #include <memory>
-#include <string>
 
 #include "ash/ash_export.h"
+#include "base/strings/string16.h"
 
 namespace message_center {
 class MessagePopupView;
@@ -51,19 +51,16 @@ class ASH_EXPORT SystemTrayTestApi {
   // If |open_tray| is true, it also opens system tray bubble.
   bool IsBubbleViewVisible(int view_id, bool open_tray);
 
-  // If the view is in a scroll contents, scrolls the bubble to shown the view.
-  void ScrollToShowView(int view_id);
-
   // Clicks the view |view_id|.
   void ClickBubbleView(int view_id);
 
   // Returns the tooltip for a bubble view, or the empty string if the view
   // does not exist.
-  std::u16string GetBubbleViewTooltip(int view_id);
+  base::string16 GetBubbleViewTooltip(int view_id);
 
   // Returns the text for a bubble view, or the empty string if the view
   // does not exist. This method only works if the bubble view is a label.
-  std::u16string GetBubbleViewText(int view_id);
+  base::string16 GetBubbleViewText(int view_id);
 
   // Get the notification pop up view based on the notification id.
   message_center::MessagePopupView* GetPopupViewForNotificationID(

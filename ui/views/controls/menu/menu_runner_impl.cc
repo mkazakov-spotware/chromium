@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "build/build_config.h"
+#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/platform/ax_platform_node_base.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -18,11 +19,15 @@
 #include "ui/views/controls/menu/menu_runner_impl_adapter.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/events/win/system_event_state_lookup.h"
 #endif
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_X11)
+#include "ui/events/x/events_x_utils.h"  // nogncheck
+#endif
+
+#if defined(USE_OZONE)
 #include "ui/base/ui_base_features.h"
 #include "ui/events/event_constants.h"
 #include "ui/ozone/public/ozone_platform.h"
@@ -46,22 +51,30 @@ void FireFocusAfterMenuClose(base::WeakPtr<Widget> widget) {
   }
 }
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_X11) || defined(USE_OZONE)
 bool IsAltPressed() {
-  if (const auto* const platorm_menu_utils =
-          ui::OzonePlatform::GetInstance()->GetPlatformMenuUtils()) {
-    return (platorm_menu_utils->GetCurrentKeyModifiers() & ui::EF_ALT_DOWN) !=
-           0;
+#if defined(USE_OZONE)
+  if (features::IsUsingOzonePlatform()) {
+    const auto* const platorm_menu_utils =
+        ui::OzonePlatform::GetInstance()->GetPlatformMenuUtils();
+    if (platorm_menu_utils)
+      return (platorm_menu_utils->GetCurrentKeyModifiers() & ui::EF_ALT_DOWN) !=
+             0;
   }
+#endif
+#if defined(USE_X11)
+  return ui::IsAltPressed();
+#else
   return false;
+#endif
 }
-#endif  // BUILDFLAG(IS_OZONE)
+#endif  // defined(USE_X11) || degined(USE_OZONE)
 
 }  // namespace
 
 namespace internal {
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_APPLE)
 MenuRunnerImplInterface* MenuRunnerImplInterface::Create(
     ui::MenuModel* menu_model,
     int32_t run_types,
@@ -73,8 +86,11 @@ MenuRunnerImplInterface* MenuRunnerImplInterface::Create(
 
 MenuRunnerImpl::MenuRunnerImpl(MenuItemView* menu)
     : menu_(menu),
-
-      controller_(nullptr) {}
+      running_(false),
+      delete_after_run_(false),
+      for_drop_(false),
+      controller_(nullptr),
+      owns_controller_(false) {}
 
 bool MenuRunnerImpl::IsRunning() const {
   return running_;
@@ -115,9 +131,7 @@ void MenuRunnerImpl::RunMenuAt(Widget* parent,
                                MenuButtonController* button_controller,
                                const gfx::Rect& bounds,
                                MenuAnchorPosition anchor,
-                               int32_t run_types,
-                               gfx::NativeView native_view_for_gestures,
-                               absl::optional<gfx::RoundedCornersF> corners) {
+                               int32_t run_types) {
   closing_event_time_ = base::TimeTicks();
   if (running_) {
     // Ignore requests to show the menu while it's already showing. MenuItemView
@@ -127,7 +141,6 @@ void MenuRunnerImpl::RunMenuAt(Widget* parent,
 
   MenuController* controller = MenuController::GetActiveInstance();
   if (controller) {
-    controller->SetMenuRoundedCorners(corners);
     if ((run_types & MenuRunner::IS_NESTED) != 0) {
       if (controller->for_drop()) {
         controller->Cancel(MenuController::ExitType::kAll);
@@ -161,7 +174,6 @@ void MenuRunnerImpl::RunMenuAt(Widget* parent,
     // No menus are showing, show one.
     controller = new MenuController(for_drop_, this);
     owns_controller_ = true;
-    controller->SetMenuRoundedCorners(corners);
   }
   DCHECK((run_types & MenuRunner::COMBOBOX) == 0 ||
          (run_types & MenuRunner::EDITABLE_COMBOBOX) == 0);
@@ -174,8 +186,8 @@ void MenuRunnerImpl::RunMenuAt(Widget* parent,
     controller->set_combobox_type(ComboboxType::kNone);
   controller->set_send_gesture_events_to_owner(
       (run_types & MenuRunner::SEND_GESTURE_EVENTS_TO_OWNER) != 0);
-  controller->set_use_ash_system_ui_layout(
-      (run_types & MenuRunner::USE_ASH_SYS_UI_LAYOUT) != 0);
+  controller->set_use_touchable_layout(
+      (run_types & MenuRunner::USE_TOUCHABLE_LAYOUT) != 0);
   controller_ = controller->AsWeakPtr();
   menu_->set_controller(controller_.get());
   menu_->PrepareForRun(owns_controller_, has_mnemonics,
@@ -183,8 +195,7 @@ void MenuRunnerImpl::RunMenuAt(Widget* parent,
 
   controller->Run(parent, button_controller, menu_, bounds, anchor,
                   (run_types & MenuRunner::CONTEXT_MENU) != 0,
-                  (run_types & MenuRunner::NESTED_DRAG) != 0,
-                  native_view_for_gestures);
+                  (run_types & MenuRunner::NESTED_DRAG) != 0);
 }
 
 void MenuRunnerImpl::Cancel() {
@@ -254,11 +265,11 @@ MenuRunnerImpl::~MenuRunnerImpl() {
 bool MenuRunnerImpl::ShouldShowMnemonics(int32_t run_types) {
   bool show_mnemonics = run_types & MenuRunner::SHOULD_SHOW_MNEMONICS;
   // Show mnemonics if the button has focus or alt is pressed.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   show_mnemonics |= ui::win::IsAltPressed();
-#elif BUILDFLAG(IS_OZONE)
+#elif defined(USE_X11) || defined(USE_OZONE)
   show_mnemonics |= IsAltPressed();
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
   show_mnemonics = false;
 #endif
   return show_mnemonics;

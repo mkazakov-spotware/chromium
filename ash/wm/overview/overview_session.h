@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,14 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/shelf_types.h"
-#include "ash/public/cpp/tablet_mode_observer.h"
 #include "ash/shell_observer.h"
-#include "ash/wm/desks/desks_controller.h"
 #include "ash/wm/overview/overview_types.h"
 #include "ash/wm/overview/scoped_overview_hide_windows.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/splitview/split_view_drag_indicators.h"
 #include "ash/wm/splitview/split_view_observer.h"
 #include "base/containers/flat_set.h"
-#include "base/guid.h"
-#include "base/scoped_observation.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "ui/aura/window_observer.h"
 #include "ui/display/display_observer.h"
@@ -43,14 +40,12 @@ class Widget;
 }  // namespace views
 
 namespace ash {
-
 class OverviewDelegate;
 class OverviewGrid;
 class OverviewHighlightController;
 class OverviewItem;
 class OverviewWindowDragController;
-class SavedDeskDialogController;
-class SavedDeskPresenter;
+class RoundedLabelWidget;
 
 // The Overview shows a grid of all of your windows, allowing to select
 // one by clicking or tapping on it.
@@ -58,17 +53,11 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
                                    public aura::WindowObserver,
                                    public ui::EventHandler,
                                    public ShellObserver,
-                                   public SplitViewObserver,
-                                   public TabletModeObserver,
-                                   public DesksController::Observer {
+                                   public SplitViewObserver {
  public:
   using WindowList = std::vector<aura::Window*>;
 
   explicit OverviewSession(OverviewDelegate* delegate);
-
-  OverviewSession(const OverviewSession&) = delete;
-  OverviewSession& operator=(const OverviewSession&) = delete;
-
   ~OverviewSession() override;
 
   // Initialize with the windows that can be selected.
@@ -143,8 +132,7 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   void AddItemInMruOrder(aura::Window* window,
                          bool reposition,
                          bool animate,
-                         bool restack,
-                         bool use_spawn_animation);
+                         bool restack);
 
   // Removes |overview_item| from the corresponding grid.
   void RemoveItem(OverviewItem* overview_item);
@@ -187,12 +175,6 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   // resumes dragging, hides overview windows.
   void SetVisibleDuringWindowDragging(bool visible, bool animate);
 
-  // This is called on drag end for WebUI Tab Strip similar to
-  // OnWindowDragEnded. Since WebUI tab strip tab dragging only creates new
-  // window on drag end, both OnWindowDragStarted and OnWindowDragContinued are
-  // not being called.
-  void MergeWindowIntoOverviewForWebUITabStrip(aura::Window* dragged_window);
-
   // Positions all overview items except those in |ignored_items|.
   void PositionWindows(bool animate,
                        const base::flat_set<OverviewItem*>& ignored_items = {});
@@ -232,10 +214,6 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
       aura::Window* gained_active,
       aura::Window* lost_active);
 
-  // Returns true when either the `DesksTemplatesGridWidget` or
-  // `SavedDeskDialog` is the window that is losing activation.
-  bool IsTemplatesUiLosingActivation(aura::Window* lost_active);
-
   // Gets the window which keeps focus for the duration of overview mode.
   aura::Window* GetOverviewFocusWindow();
 
@@ -249,12 +227,9 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   // Returns true if all its window grids don't have any window item.
   bool IsEmpty() const;
 
-  // If |restore| is true, activate window |active_window_before_overview_|.
-  // This is usually called when exiting overview to restore window activation
-  // to the window that was active before entering overview. If |restore| is
-  // false, reset |active_window_before_overview_| to nullptr so that window
-  // activation will not be restore when overview is ended.
-  void RestoreWindowActivation(bool restore);
+  // If |focus| is true, restores focus to |restore_focus_window_|. Sets
+  // |restore_focus_window_| to null regardless of |focus|.
+  void ResetFocusRestoreWindow(bool focus);
 
   // Handles requests to active or close the currently highlighted |item|.
   void OnHighlightedItemActivated(OverviewItem* item);
@@ -286,29 +261,6 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   bool CanProcessEvent() const;
   bool CanProcessEvent(OverviewItem* sender, bool from_touch_gesture) const;
 
-  // Returns true if |window| is not nullptr and equals
-  // |active_window_before_overview_|.
-  bool IsWindowActiveWindowBeforeOverview(aura::Window* window) const;
-
-  // Shows the desks templates grids on all displays. This will expand desk bars
-  // if they are not already expanded. Focuses the item which matches
-  // `item_to_focus` on the display associated with `root_window`.
-  void ShowDesksTemplatesGrids(const base::GUID& item_to_focus,
-                               const std::u16string& saved_desk_name,
-                               aura::Window* const root_window);
-
-  void HideDesksTemplatesGrids();
-  bool IsShowingDesksTemplatesGrid() const;
-
-  // Updates the focusable overview widgets so that they point to the correct
-  // next and previous widgets for a11y purposes. Needs to be updated when a
-  // piece of UI is shown or hidden.
-  void UpdateAccessibilityFocus();
-
-  // DesksController::Observer:
-  void OnDeskActivationChanged(const Desk* activated,
-                               const Desk* deactivated) override;
-
   // display::DisplayObserver:
   void OnDisplayAdded(const display::Display& display) override;
   void OnDisplayMetricsChanged(const display::Display& display,
@@ -316,34 +268,21 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   // aura::WindowObserver:
   void OnWindowDestroying(aura::Window* window) override;
-  void OnWindowAdded(aura::Window* new_window) override;
 
-  // ui::EventHandler:
-  void OnKeyEvent(ui::KeyEvent* event) override;
-
-  // ShellObserver:
+  // ShelObserver:
   void OnShellDestroying() override;
   void OnShelfAlignmentChanged(aura::Window* root_window,
                                ShelfAlignment old_alignment) override;
-  void OnUserWorkAreaInsetsChanged(aura::Window* root_window) override;
+
+  // ui::EventHandler:
+  void OnKeyEvent(ui::KeyEvent* event) override;
 
   // SplitViewObserver:
   void OnSplitViewStateChanged(SplitViewController::State previous_state,
                                SplitViewController::State state) override;
   void OnSplitViewDividerPositionChanged() override;
 
-  // TabletModeObserver:
-  void OnTabletModeStarted() override;
-  void OnTabletModeEnded() override;
-
-  void UpdateFrameThrottling();
-
   OverviewDelegate* delegate() { return delegate_; }
-
-  bool ignore_activations() const { return ignore_activations_; }
-  void set_ignore_activations(bool ignore_activations) {
-    ignore_activations_ = ignore_activations;
-  }
 
   bool is_shutting_down() const { return is_shutting_down_; }
   void set_is_shutting_down(bool is_shutting_down) {
@@ -367,36 +306,18 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
     return window_drag_controller_.get();
   }
 
-  ScopedOverviewHideWindows* hide_windows_for_saved_desks_grid() {
-    return hide_windows_for_saved_desks_grid_.get();
-  }
-
   OverviewHighlightController* highlight_controller() {
     return highlight_controller_.get();
   }
 
-  SavedDeskPresenter* saved_desk_presenter() {
-    return saved_desk_presenter_.get();
-  }
-
-  SavedDeskDialogController* saved_desk_dialog_controller() {
-    return saved_desk_dialog_controller_.get();
-  }
-
-  void set_auto_add_windows_enabled(bool enabled) {
-    auto_add_windows_enabled_ = enabled;
-  }
-
-  void set_allow_empty_desk_without_exiting(bool enabled) {
-    allow_empty_desk_without_exiting_ = enabled;
+  RoundedLabelWidget* no_windows_widget_for_testing() {
+    return no_windows_widget_.get();
   }
 
  private:
   friend class DesksAcceleratorsTest;
-  friend class OverviewTestBase;
-
-  // Called when tablet mode changes.
-  void OnTabletModeChanged();
+  friend class OverviewSessionTest;
+  class AccessibilityFocusAnnotator;
 
   // Helper function that moves the highlight forward or backward on the
   // corresponding window grid.
@@ -410,27 +331,19 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   // initialization.
   void RemoveAllObservers();
 
-  // Updates the no windows widget on each OverviewGrid.
-  void UpdateNoWindowsWidgetOnEachGrid();
+  void UpdateNoWindowsWidget();
 
-  // Refreshes the bounds of the no windows widget on each OverviewGrid.
-  void RefreshNoWindowsWidgetBoundsOnEachGrid(bool animate);
+  void RefreshNoWindowsWidgetBounds(bool animate);
 
   void OnItemAdded(aura::Window* window);
-
-  // Called when a window is activated or deactivated and the saved desk feature
-  // is enabled. Returns true if we should keep overview open. Overview should
-  // be kept open if `gained_active` or `lost_active` is a saved desk dialog.
-  bool ShouldKeepOverviewOpenForSavedDeskDialog(aura::Window* gained_active,
-                                                aura::Window* lost_active);
 
   // Weak pointer to the overview delegate which will be called when a selection
   // is made.
   OverviewDelegate* delegate_;
 
-  // A weak pointer to the window which was active on starting overview. If
-  // overview is canceled the activation should be restored to this window.
-  aura::Window* active_window_before_overview_ = nullptr;
+  // A weak pointer to the window which was focused on starting overview. If
+  // overview is canceled the focus should be restored to this window.
+  aura::Window* restore_focus_window_ = nullptr;
 
   // A hidden window that receives focus while in overview mode. It is needed
   // because accessibility needs something focused for it to work and we cannot
@@ -440,6 +353,9 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   // we may be able to add some mechanism to trigger accessibility events
   // without a focused window.
   std::unique_ptr<views::Widget> overview_focus_widget_;
+
+  // A widget that is shown if we entered overview without any windows opened.
+  std::unique_ptr<RoundedLabelWidget> no_windows_widget_;
 
   // True when performing operations that may cause window activations. This is
   // used to prevent handling the resulting expected activation. This is
@@ -481,48 +397,13 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   std::unique_ptr<ScopedOverviewHideWindows> hide_overview_windows_;
 
-  // Scoped windows to hide for saved desks grid. For now, this contains the
-  // overview item window and its corresponding real window to make sure such
-  // windows are not shown via other events for saved desks grid.
-  std::unique_ptr<ScopedOverviewHideWindows> hide_windows_for_saved_desks_grid_;
-
   std::unique_ptr<OverviewHighlightController> highlight_controller_;
 
-  // The object responsible to talking to the desk model.
-  std::unique_ptr<SavedDeskPresenter> saved_desk_presenter_;
+  // Updates accessibility with the correct focus order among all overview
+  // widgets.
+  std::unique_ptr<AccessibilityFocusAnnotator> accessibility_focus_annotator_;
 
-  // Controls showing and hiding dialogs associated with the saved desks
-  // feature.
-  std::unique_ptr<SavedDeskDialogController> saved_desk_dialog_controller_;
-
-  absl::optional<display::ScopedDisplayObserver> display_observer_;
-
-  // Boolean to indicate whether chromeVox is enabled or not.
-  bool chromevox_enabled_;
-
-  // When non-null, windows changes on this desk are observed.
-  const Desk* observing_desk_ = nullptr;
-
-  // This is true *while* an overview item is being dynamically added. It is
-  // used to avoid recursively adding overview items.
-  bool is_adding_new_item_ = false;
-
-  // When true, windows added to the observed desk are automatically added to
-  // the overview session.
-  bool auto_add_windows_enabled_ = true;
-
-  // When true, the overview session is not exited when the last window is
-  // removed.
-  bool allow_empty_desk_without_exiting_ = false;
-
-  base::ScopedObservation<TabletModeController, TabletModeObserver>
-      tablet_mode_observation_{this};
-
-  base::ScopedObservation<DesksController, DesksController::Observer>
-      desks_controller_observation_{this};
-
-  base::ScopedObservation<aura::Window, aura::WindowObserver>
-      active_window_before_overview_observation_{this};
+  DISALLOW_COPY_AND_ASSIGN(OverviewSession);
 };
 
 }  // namespace ash

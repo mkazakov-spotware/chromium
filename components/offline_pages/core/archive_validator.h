@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 
 namespace base {
@@ -25,10 +26,6 @@ namespace offline_pages {
 class ArchiveValidator {
  public:
   ArchiveValidator();
-
-  ArchiveValidator(const ArchiveValidator&) = delete;
-  ArchiveValidator& operator=(const ArchiveValidator&) = delete;
-
   virtual ~ArchiveValidator();
 
   void Update(const char* input, size_t len);
@@ -54,6 +51,8 @@ class ArchiveValidator {
 
  private:
   std::unique_ptr<crypto::SecureHash> secure_hash_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArchiveValidator);
 };
 
 }  // namespace offline_pages

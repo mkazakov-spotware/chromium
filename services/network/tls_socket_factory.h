@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,20 @@
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/unique_receiver_set.h"
+#include "net/http/http_network_session.h"
 #include "net/socket/ssl_client_socket.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "services/network/public/mojom/tcp_socket.mojom.h"
-#include "services/network/public/mojom/tls_socket.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "services/network/public/mojom/network_service.mojom.h"
+#include "services/network/public/mojom/tls_socket.mojom.h"
 
 namespace net {
 class ClientSocketFactory;
 class SSLConfigService;
 class StreamSocket;
-class URLRequestContext;
 }  // namespace net
 
 namespace network {
@@ -43,19 +42,17 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) TLSSocketFactory {
       base::OnceCallback<void(int32_t net_error,
                               mojo::ScopedDataPipeConsumerHandle receive_stream,
                               mojo::ScopedDataPipeProducerHandle send_stream,
-                              const absl::optional<net::SSLInfo>& ssl_info)>;
+                              const base::Optional<net::SSLInfo>& ssl_info)>;
 
   // Constructs a TLSSocketFactory. If |net_log| is non-null, it is used to
   // log NetLog events when logging is enabled. |net_log| used to must outlive
   // |this|.  Sockets will be created using, the earliest available from:
-  // 1) A ClientSocketFactory set on |url_request_context|'s
+  // 1) A ClientSocketFactory set on a non-null |http_context|.
+  // 2) A ClientSocketFactory set on |url_request_context|'s
   //    HttpNetworkSession::Context
-  // 2) The default ClientSocketFactory.
-  explicit TLSSocketFactory(net::URLRequestContext* url_request_context);
-
-  TLSSocketFactory(const TLSSocketFactory&) = delete;
-  TLSSocketFactory& operator=(const TLSSocketFactory&) = delete;
-
+  // 3) The default ClientSocketFactory.
+  TLSSocketFactory(net::URLRequestContext* url_request_context,
+                   const net::HttpNetworkSession::Context* http_context);
   virtual ~TLSSocketFactory();
 
   // Upgrades an existing socket to TLS. The previous pipes and data pump
@@ -85,14 +82,17 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) TLSSocketFactory {
   std::unique_ptr<net::CertVerifier> no_verification_cert_verifier_;
   std::unique_ptr<net::TransportSecurityState>
       no_verification_transport_security_state_;
+  std::unique_ptr<net::CTVerifier> no_verification_cert_transparency_verifier_;
   std::unique_ptr<net::CTPolicyEnforcer> no_verification_ct_policy_enforcer_;
 
   net::SSLClientContext ssl_client_context_;
-  raw_ptr<net::ClientSocketFactory> client_socket_factory_;
-  const raw_ptr<net::SSLConfigService> ssl_config_service_;
+  net::ClientSocketFactory* client_socket_factory_;
+  net::SSLConfigService* const ssl_config_service_;
   mojo::UniqueReceiverSet<mojom::TLSClientSocket> tls_socket_receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(TLSSocketFactory);
 };
 
 }  // namespace network
 
-#endif  // SERVICES_NETWORK_TLS_SOCKET_FACTORY_H_
+#endif  // SERVICES_NETWORK_SOCKET_FACTORY_H_

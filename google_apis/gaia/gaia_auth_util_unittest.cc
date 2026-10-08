@@ -1,13 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "google_apis/gaia/gaia_auth_util.h"
 
 #include "base/base64url.h"
+#include "base/optional.h"
 #include "google_apis/gaia/oauth2_mint_token_consent_result.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace gaia {
@@ -17,9 +17,9 @@ namespace {
 const char kGaiaId[] = "fake_gaia_id";
 
 std::string GenerateOAuth2MintTokenConsentResult(
-    absl::optional<bool> approved,
-    const absl::optional<std::string>& encrypted_approval_data,
-    const absl::optional<std::string>& obfuscated_id,
+    base::Optional<bool> approved,
+    const base::Optional<std::string>& encrypted_approval_data,
+    const base::Optional<std::string>& obfuscated_id,
     base::Base64UrlEncodePolicy encode_policy =
         base::Base64UrlEncodePolicy::OMIT_PADDING) {
   OAuth2MintTokenConsentResult consent_result;
@@ -135,54 +135,24 @@ TEST(GaiaAuthUtilTest, AreEmailsSame) {
   EXPECT_FALSE(AreEmailsSame("user@gmail.com", "foo@gmail.com"));
 }
 
-TEST(GaiaAuthUtilTest, IsGoogleRobotAccountEmail) {
-  EXPECT_FALSE(IsGoogleRobotAccountEmail(""));
-  EXPECT_FALSE(IsGoogleRobotAccountEmail("foo"));
-  EXPECT_FALSE(IsGoogleRobotAccountEmail("1234567890"));
-  EXPECT_FALSE(IsGoogleRobotAccountEmail("foo@gmail.com"));
-  EXPECT_FALSE(IsGoogleRobotAccountEmail("system.gserviceaccount.com"));
-  EXPECT_TRUE(IsGoogleRobotAccountEmail("foo@system.gserviceaccount.com"));
-  EXPECT_TRUE(IsGoogleRobotAccountEmail("foo@system.googleusercontent.com"));
-  EXPECT_TRUE(IsGoogleRobotAccountEmail("foo@System.Gserviceaccount.com"));
-  EXPECT_TRUE(IsGoogleRobotAccountEmail("foo@System.Googleusercontent.com"));
-}
-
 TEST(GaiaAuthUtilTest, GmailAndGooglemailAreSame) {
   EXPECT_TRUE(AreEmailsSame("foo@gmail.com", "foo@googlemail.com"));
   EXPECT_FALSE(AreEmailsSame("bar@gmail.com", "foo@googlemail.com"));
 }
 
-TEST(GaiaAuthUtilTest, HasGaiaSchemeHostPort) {
-  EXPECT_TRUE(HasGaiaSchemeHostPort(GURL("https://accounts.google.com/")));
+TEST(GaiaAuthUtilTest, IsGaiaSignonRealm) {
+  // Only https versions of Gaia URLs should be considered valid.
+  EXPECT_TRUE(IsGaiaSignonRealm(GURL("https://accounts.google.com/")));
+  EXPECT_FALSE(IsGaiaSignonRealm(GURL("http://accounts.google.com/")));
 
-  // Paths and queries should be ignored.
-  EXPECT_TRUE(HasGaiaSchemeHostPort(GURL("https://accounts.google.com/foo")));
-  EXPECT_TRUE(
-      HasGaiaSchemeHostPort(GURL("https://accounts.google.com/foo?bar=1#baz")));
+  // Other Google URLs are not valid.
+  EXPECT_FALSE(IsGaiaSignonRealm(GURL("https://www.google.com/")));
+  EXPECT_FALSE(IsGaiaSignonRealm(GURL("http://www.google.com/")));
+  EXPECT_FALSE(IsGaiaSignonRealm(GURL("https://google.com/")));
+  EXPECT_FALSE(IsGaiaSignonRealm(GURL("https://mail.google.com/")));
 
-  // Scheme mismatch should lead to false.
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("http://accounts.google.com/")));
-
-  // Port mismatch should lead to false.
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("https://accounts.google.com:123/")));
-
-  // Host mismatch should lead to false, including Google URLs.
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("https://example.com/")));
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("https://www.example.com/")));
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("https://www.google.com/")));
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("https://google.com/")));
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("https://mail.google.com/")));
-
-  // about: scheme.
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("about:blank")));
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL("about:srcdoc")));
-
-  // blob: scheme.
-  EXPECT_FALSE(HasGaiaSchemeHostPort(
-      GURL("blob:https://accounts.google.com/mocked-blob-guid")));
-
-  // Invalid/empty URL.
-  EXPECT_FALSE(HasGaiaSchemeHostPort(GURL()));
+  // Other https URLs are not valid.
+  EXPECT_FALSE(IsGaiaSignonRealm(GURL("https://www.example.com/")));
 }
 
 TEST(GaiaAuthUtilTest, ParseListAccountsData) {
@@ -394,7 +364,7 @@ TEST(GaiaAuthUtilTest, ParseConsentResultApproved) {
 TEST(GaiaAuthUtilTest, ParseConsentResultApprovedEmptyData) {
   const char kApprovedConsent[] = "CAEaDGZha2VfZ2FpYV9pZA";
   EXPECT_EQ(kApprovedConsent,
-            GenerateOAuth2MintTokenConsentResult(true, absl::nullopt, kGaiaId));
+            GenerateOAuth2MintTokenConsentResult(true, base::nullopt, kGaiaId));
   bool approved = false;
   std::string gaia_id;
   ASSERT_TRUE(
@@ -406,7 +376,7 @@ TEST(GaiaAuthUtilTest, ParseConsentResultApprovedEmptyData) {
 TEST(GaiaAuthUtilTest, ParseConsentResultApprovedEmptyGaiaId) {
   const char kApprovedConsent[] = "CAESCUVOQ1JZUFRFRA";
   EXPECT_EQ(kApprovedConsent, GenerateOAuth2MintTokenConsentResult(
-                                  true, "ENCRYPTED", absl::nullopt));
+                                  true, "ENCRYPTED", base::nullopt));
   bool approved = false;
   std::string gaia_id;
   ASSERT_TRUE(
@@ -418,7 +388,7 @@ TEST(GaiaAuthUtilTest, ParseConsentResultApprovedEmptyGaiaId) {
 TEST(GaiaAuthUtilTest, ParseConsentResultNotApproved) {
   const char kNoGrantConsent[] = "CAAaDGZha2VfZ2FpYV9pZA";
   EXPECT_EQ(kNoGrantConsent, GenerateOAuth2MintTokenConsentResult(
-                                 false, absl::nullopt, kGaiaId));
+                                 false, base::nullopt, kGaiaId));
   bool approved = false;
   std::string gaia_id;
   ASSERT_TRUE(
@@ -429,7 +399,7 @@ TEST(GaiaAuthUtilTest, ParseConsentResultNotApproved) {
 
 TEST(GaiaAuthUtilTest, ParseConsentResultEmpty) {
   EXPECT_EQ("", GenerateOAuth2MintTokenConsentResult(
-                    absl::nullopt, absl::nullopt, absl::nullopt));
+                    base::nullopt, base::nullopt, base::nullopt));
   bool approved = false;
   std::string gaia_id;
   ASSERT_TRUE(ParseOAuth2MintTokenConsentResult("", &approved, &gaia_id));
@@ -443,7 +413,7 @@ TEST(GaiaAuthUtilTest, ParseConsentResultBase64UrlDisallowedPadding) {
   const char kApprovedConsentWithPadding[] = "CAE=";
   EXPECT_EQ(kApprovedConsentWithPadding,
             GenerateOAuth2MintTokenConsentResult(
-                true, absl::nullopt, absl::nullopt,
+                true, base::nullopt, base::nullopt,
                 base::Base64UrlEncodePolicy::INCLUDE_PADDING));
   bool approved = false;
   std::string gaia_id;

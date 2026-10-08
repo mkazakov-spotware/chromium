@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include "base/debug/debugger.h"
 #include "base/process/launch.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/launcher/unit_test_launcher.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/exo/wayland/clients/test/wayland_client_test.h"
 #include "components/viz/test/test_gpu_service_holder.h"
@@ -38,19 +38,12 @@ int WaylandClientTestSuiteServer::Run() {
   base::Thread client_thread("ClientThread");
   client_thread.Start();
 
-  // |task_environment_| main thread will be ClientThread while running tests.
-  task_environment_->DetachFromThread();
-
   base::RunLoop run_loop;
   client_thread.task_runner()->PostTask(
       FROM_HERE,
       base::BindOnce(&WaylandClientTestSuiteServer::RunTestsOnClientThread,
                      base::Unretained(this), run_loop.QuitWhenIdleClosure()));
   run_loop.Run();
-
-  // |task_environment_| destruction will be performed on the test suite's main
-  // thread, detach from the ClientThread.
-  task_environment_->DetachFromThread();
 
   Shutdown();
   return result_;
@@ -78,7 +71,7 @@ void WaylandClientTestSuiteServer::Initialize() {
     // Set the UI thread task runner to WaylandClientTest, so all tests can
     // post tasks to UI thread.
     WaylandClientTest::SetUIThreadTaskRunner(
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        base::ThreadTaskRunnerHandle::Get());
   }
 }
 

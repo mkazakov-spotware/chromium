@@ -1,19 +1,17 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """WPT WebDriver tests runner."""
 
-import argparse
-import json
-import logging
+import pytest
 import os
+import argparse
 import sys
+import json
 import tempfile
 import time
-import zlib
-
-import pytest
+import logging
 
 _log = logging.getLogger(__name__)
 
@@ -36,20 +34,13 @@ sys.path.insert(0, BLINK_TOOLS_ABS_PATH)
 from blinkpy.common import exit_codes
 from blinkpy.common.host import Host
 from blinkpy.common.path_finder import PathFinder
-from blinkpy.common.path_finder import RELATIVE_WPT_TESTS
 from blinkpy.common.system.log_utils import configure_logging
+from blinkpy.w3c.common import CHROMIUM_WPT_DIR
 from blinkpy.web_tests.models.test_expectations import TestExpectations
 from blinkpy.web_tests.models.typ_types import ResultType
 
-WPT_TOOLS_PATH = 'third_party/wpt_tools/wpt/tools'
-WPT_TOOLS_ABSPATH = os.path.join(SRC_DIR, WPT_TOOLS_PATH)
-sys.path.insert(0, WPT_TOOLS_ABSPATH)
-# Importing localpaths allows us to use vendored-in dependencies from the
-# wpt_tools/wpt/tools/third_party directory.
-import localpaths  # noqa: F401
-
-WD_CLIENT_PATH = os.path.join(WPT_TOOLS_PATH, 'webdriver')
-WEBDRIVER_CLIENT_ABS_PATH = os.path.join(SRC_DIR, WD_CLIENT_PATH)
+WD_CLIENT_PATH = 'blinkpy/third_party/wpt/wpt/tools/webdriver'
+WEBDRIVER_CLIENT_ABS_PATH = os.path.join(BLINK_TOOLS_ABS_PATH, WD_CLIENT_PATH)
 
 
 class TestShard(object):
@@ -67,11 +58,7 @@ class TestShard(object):
     if self.total_shards == 1:
       return True
 
-    # zlip.adler32 doesn't have perfect distribution, but should suffice for our
-    # needs. Note that the built-in string __hash__ in Python is
-    # non-deterministic between runs of Python so cannot be used for sharding!
-    hashed_path = zlib.adler32(test_path.encode('utf-8')) & 0xFFFFFFFF
-    return (hashed_path % self.total_shards) == self.shard_index
+    return (hash(test_path) % self.total_shards) == self.shard_index
 
 class WebDriverTestResult(object):
   def __init__(self, test_name, test_status, messsage=None):
@@ -91,7 +78,7 @@ def prepare_filtered_tests(isolated_script_test_filter, finder, shard, port):
   filter_list = isolated_script_test_filter.split('::')
   filtered_tests = [get_relative_subtest_path(
       test, finder, shard, port) for test in filter_list]
-  return [_f for _f in filtered_tests if _f]
+  return filter(None, filtered_tests)
 
 def get_relative_subtest_path(external_test_path, finder, shard, port):
   test_name, subtest_suffix = port.split_webdriver_test_name(
@@ -174,12 +161,9 @@ class SubtestResultRecorder(object):
 
 def set_up_config(path_finder, chromedriver_server):
   # These envs are used to create a WebDriver session in the fixture.py file.
-  config_path = os.path.join(tempfile.mkdtemp(), "wd_config.json")
-  os.environ["WDSPEC_CONFIG_FILE"] = config_path
-
-  wd_host = chromedriver_server.GetHost()
-  wd_port = str(chromedriver_server.GetPort())
-  wd_capabilities = {
+  os.environ["WD_HOST"] = chromedriver_server.GetHost()
+  os.environ["WD_PORT"] = str(chromedriver_server.GetPort())
+  os.environ["WD_CAPABILITIES"] = json.dumps({
       "goog:chromeOptions": {
           "w3c": True,
           "prefs": {
@@ -196,31 +180,21 @@ def set_up_config(path_finder, chromedriver_server):
           ]
 
       }
-  }
-  config = {
-    "host": wd_host,
-    "port": wd_port,
-    "capabilities": wd_capabilities
-  }
+  })
 
   # Port numbers are defined at
   # https://cs.chromium.org/chromium/src/third_party/blink/tools
   # /blinkpy/web_tests/servers/wptserve.py?l=23&rcl=375b34c6ba64
   # 5d00c1413e4c6106c7bb74581c85
-  server_config_dict = {
-    "doc_root": path_finder.path_from_chromium_base(RELATIVE_WPT_TESTS),
+  os.environ["WD_SERVER_CONFIG"] = json.dumps({
+    "doc_root": path_finder.path_from_chromium_base(CHROMIUM_WPT_DIR),
     "browser_host": "web-platform.test",
     "domains": {"": {"": "web-platform.test",
                      "www": "www.web-platform.test",
                      "www.www": "www.www.web-platform.test",
                      "www1": "www1.web-platform.test",
                      "www2": "www2.web-platform.test"}},
-    "ports": {"ws": [9001], "wss": [9444], "http": [8001], "https": [8444]}}
-  config["wptserve"] = server_config_dict
-
-  with open(config_path, "w") as f:
-    json.dump(config, f)
-
+    "ports": {"ws": [9001], "wss": [9444], "http": [8001], "https": [8444]}})
 
 def run_test(path, path_finder, port, skipped_tests=[]):
   abs_path = os.path.abspath(path)

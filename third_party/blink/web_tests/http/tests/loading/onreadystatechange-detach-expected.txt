@@ -6,11 +6,11 @@ frame "iframe" - DidStartNavigation
 main frame - didFinishDocumentLoadForFrame
 frame "iframe" - ReadyToCommitNavigation
 frame "iframe" - didCommitLoadForFrame
-CONSOLE MESSAGE: iframe: clicking
+CONSOLE MESSAGE: line 12: iframe: clicking
 frame "iframe" - BeginNavigation request to 'http://127.0.0.1:8000/loading/resources/onreadystatechange-detach-iframe.html?done', http method GET
-CONSOLE MESSAGE: iframe: onreadystatechange
+CONSOLE MESSAGE: line 5: iframe: onreadystatechange
 frame "iframe" - DidFailLoad
 main frame - didHandleOnloadEventsForFrame
 main frame - didFinishLoadForFrame
-CONSOLE MESSAGE: main frame: iframe is done
+CONSOLE MESSAGE: line 8: main frame: iframe is done
 This test passes if it does not crash.

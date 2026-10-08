@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,8 @@ namespace rtc {
 struct PacketTimeUpdateParams;
 }  // namespace rtc
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 // Helper class to process packets from and to the StreamPacketSocket.
 class StreamPacketProcessor {
@@ -45,6 +46,7 @@ class StreamPacketProcessor {
       const rtc::PacketTimeUpdateParams& packet_time_params) const = 0;
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_STREAM_PACKET_PROCESSOR_H_

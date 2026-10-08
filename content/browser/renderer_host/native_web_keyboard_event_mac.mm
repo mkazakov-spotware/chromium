@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,19 +17,19 @@ namespace {
 int modifiersForEvent(int modifiers) {
   int flags = 0;
   if (modifiers & blink::WebInputEvent::kControlKey)
-    flags |= NSEventModifierFlagControl;
+    flags |= NSControlKeyMask;
   if (modifiers & blink::WebInputEvent::kShiftKey)
-    flags |= NSEventModifierFlagShift;
+    flags |= NSShiftKeyMask;
   if (modifiers & blink::WebInputEvent::kAltKey)
-    flags |= NSEventModifierFlagOption;
+    flags |= NSAlternateKeyMask;
   if (modifiers & blink::WebInputEvent::kMetaKey)
-    flags |= NSEventModifierFlagCommand;
+    flags |= NSCommandKeyMask;
   if (modifiers & blink::WebInputEvent::kCapsLockOn)
-    flags |= NSEventModifierFlagCapsLock;
+    flags |= NSAlphaShiftKeyMask;
   return flags;
 }
 
-size_t WebKeyboardEventTextLength(const char16_t* text) {
+size_t WebKeyboardEventTextLength(const base::char16* text) {
   size_t text_length = 0;
   while (text_length < blink::WebKeyboardEvent::kTextLengthCap &&
          text[text_length]) {
@@ -51,12 +51,12 @@ NativeWebKeyboardEvent::NativeWebKeyboardEvent(
     const blink::WebKeyboardEvent& web_event,
     gfx::NativeView native_view)
     : WebKeyboardEvent(web_event), os_event(nullptr), skip_in_browser(false) {
-  NSEventType type = NSEventTypeKeyUp;
+  NSEventType type = NSKeyUp;
   int flags = modifiersForEvent(web_event.GetModifiers());
   if (web_event.GetType() == blink::WebInputEvent::Type::kChar ||
       web_event.GetType() == blink::WebInputEvent::Type::kRawKeyDown ||
       web_event.GetType() == blink::WebInputEvent::Type::kKeyDown) {
-    type = NSEventTypeKeyDown;
+    type = NSKeyDown;
   }
   size_t text_length = WebKeyboardEventTextLength(web_event.text);
   size_t unmod_text_length =
@@ -67,14 +67,13 @@ NativeWebKeyboardEvent::NativeWebKeyboardEvent(
   // cause Mac to set [NSEvent characters] to "\0" which for us is
   // indistinguishable from "".
   if (unmod_text_length == 0)
-    type = NSEventTypeFlagsChanged;
+    type = NSFlagsChanged;
 
-  NSString* text = [[[NSString alloc]
-      initWithCharacters:reinterpret_cast<const UniChar*>(web_event.text)
-                  length:text_length] autorelease];
+  NSString* text =
+      [[[NSString alloc] initWithCharacters:web_event.text length:text_length]
+          autorelease];
   NSString* unmodified_text =
-      [[[NSString alloc] initWithCharacters:reinterpret_cast<const UniChar*>(
-                                                web_event.unmodified_text)
+      [[[NSString alloc] initWithCharacters:web_event.unmodified_text
                                      length:unmod_text_length] autorelease];
 
   os_event = [[NSEvent keyEventWithType:type
@@ -97,8 +96,23 @@ NativeWebKeyboardEvent::NativeWebKeyboardEvent(
   [os_event eventRef];
 }
 
+// static
+NativeWebKeyboardEvent NativeWebKeyboardEvent::CreateForRenderer(
+    gfx::NativeEvent native_event) {
+  return NativeWebKeyboardEvent(native_event, true);
+}
+
+NativeWebKeyboardEvent::NativeWebKeyboardEvent(gfx::NativeEvent native_event,
+                                               bool record_debug_uma)
+    : WebKeyboardEvent(
+          WebKeyboardEventBuilder::Build(native_event, record_debug_uma)),
+      os_event([native_event retain]),
+      skip_in_browser(false) {}
+
 NativeWebKeyboardEvent::NativeWebKeyboardEvent(gfx::NativeEvent native_event)
-    : WebKeyboardEvent(WebKeyboardEventBuilder::Build(native_event)),
+    : WebKeyboardEvent(
+          WebKeyboardEventBuilder::Build(native_event,
+                                         /*record_debug_uma=*/false)),
       os_event([native_event retain]),
       skip_in_browser(false) {}
 

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,15 @@
 
 #include "base/files/file_path.h"
 #include "base/files/scoped_file.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump_for_io.h"
 #include "base/process/process_handle.h"
 #include "base/synchronization/atomic_flag.h"
 #include "base/synchronization/lock.h"
 #include "base/task/current_thread.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "components/crash/core/app/breakpad_linux_impl.h"
 #endif
 
@@ -30,7 +30,7 @@ class SequencedTaskRunner;
 class Thread;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 
 namespace breakpad {
 
@@ -49,10 +49,6 @@ class CrashHandlerHostLinux : public base::MessagePumpForIO::FdWatcher,
   CrashHandlerHostLinux(const std::string& process_type,
                         const base::FilePath& dumps_path,
                         bool upload);
-
-  CrashHandlerHostLinux(const CrashHandlerHostLinux&) = delete;
-  CrashHandlerHostLinux& operator=(const CrashHandlerHostLinux&) = delete;
-
   ~CrashHandlerHostLinux() override;
 
   // Starts the uploader thread. Must be called immediately after creating the
@@ -103,7 +99,7 @@ class CrashHandlerHostLinux : public base::MessagePumpForIO::FdWatcher,
 
   const std::string process_type_;
   const base::FilePath dumps_path_;
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   const bool upload_;
 #endif
 
@@ -115,13 +111,15 @@ class CrashHandlerHostLinux : public base::MessagePumpForIO::FdWatcher,
   base::AtomicFlag shutting_down_;
 
   scoped_refptr<base::SequencedTaskRunner> blocking_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(CrashHandlerHostLinux);
 };
 
 }  // namespace breakpad
 
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !defined(OS_CHROMEOS)
 
 namespace crashpad {
 
@@ -145,9 +143,6 @@ class CrashHandlerHost : public base::MessagePumpForIO::FdWatcher,
   // Return a pointer to the global CrashHandlerHost instance, which is created
   // by the first call to this method.
   static CrashHandlerHost* Get();
-
-  CrashHandlerHost(const CrashHandlerHost&) = delete;
-  CrashHandlerHost& operator=(const CrashHandlerHost&) = delete;
 
   // Get the file descriptor which processes should be given in order to signal
   // crashes to the browser.
@@ -177,10 +172,12 @@ class CrashHandlerHost : public base::MessagePumpForIO::FdWatcher,
   base::MessagePumpForIO::FdWatchController fd_watch_controller_;
   base::ScopedFD process_socket_;
   base::ScopedFD browser_socket_;
+
+  DISALLOW_COPY_AND_ASSIGN(CrashHandlerHost);
 };
 
 }  // namespace crashpad
 
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !defined(OS_CHROMEOS)
 
 #endif  // COMPONENTS_CRASH_CONTENT_BROWSER_CRASH_HANDLER_HOST_LINUX_H_

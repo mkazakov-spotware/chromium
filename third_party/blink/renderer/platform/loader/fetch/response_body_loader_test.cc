@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,10 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include "base/strings/string_number_conversions.h"
 #include "base/test/scoped_feature_list.h"
-#include "services/network/public/cpp/features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/platform/web_runtime_features.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
-#include "third_party/blink/renderer/platform/loader/fetch/back_forward_cache_loader_helper.h"
 #include "third_party/blink/renderer/platform/loader/fetch/data_pipe_bytes_consumer.h"
 #include "third_party/blink/renderer/platform/loader/testing/bytes_consumer_test_reader.h"
 #include "third_party/blink/renderer/platform/loader/testing/replaying_bytes_consumer.h"
@@ -25,24 +21,11 @@ namespace blink {
 
 namespace {
 
-class TestBackForwardCacheLoaderHelper : public BackForwardCacheLoaderHelper {
- public:
-  TestBackForwardCacheLoaderHelper() = default;
-
-  void EvictFromBackForwardCache(
-      mojom::RendererEvictionReason reason) override {}
-
-  void DidBufferLoadWhileInBackForwardCache(size_t num_bytes) override {}
-
-  void Detach() override {}
-};
-
 class ResponseBodyLoaderTest : public testing::Test {
  protected:
   using Command = ReplayingBytesConsumer::Command;
   using PublicState = BytesConsumer::PublicState;
   using Result = BytesConsumer::Result;
-
   class TestClient final : public GarbageCollected<TestClient>,
                            public ResponseBodyLoaderClient {
    public:
@@ -64,7 +47,7 @@ class ResponseBodyLoaderTest : public testing::Test {
     void DidReceiveData(base::span<const char> data) override {
       DCHECK(!finished_);
       DCHECK(!failed_);
-      data_.Append(data.data(), static_cast<wtf_size_t>(data.size()));
+      data_.Append(data.data(), data.size());
       switch (option_) {
         case Option::kNone:
           break;
@@ -72,13 +55,10 @@ class ResponseBodyLoaderTest : public testing::Test {
           loader_->Abort();
           break;
         case Option::kSuspendOnDidReceiveData:
-          loader_->Suspend(LoaderFreezeMode::kStrict);
+          loader_->Suspend(WebURLLoader::DeferType::kDeferred);
           break;
       }
     }
-    void DidReceiveDecodedData(
-        const String& data,
-        std::unique_ptr<Resource::DecodedDataInfo> info) override {}
     void DidFinishLoadingBody() override {
       DCHECK(!finished_);
       DCHECK(!failed_);
@@ -94,6 +74,7 @@ class ResponseBodyLoaderTest : public testing::Test {
       DCHECK(!failed_);
       cancelled_ = true;
     }
+    void EvictFromBackForwardCache(mojom::RendererEvictionReason) override {}
 
     void SetLoader(ResponseBodyLoader& loader) { loader_ = loader; }
     void Trace(Visitor* visitor) const override { visitor->Trace(loader_); }
@@ -153,18 +134,6 @@ class ResponseBodyLoaderTest : public testing::Test {
     const Member<BytesConsumer> bytes_consumer_;
     const Member<TestClient> test_response_body_loader_client_;
   };
-
-  ResponseBodyLoader* MakeResponseBodyLoader(
-      BytesConsumer& bytes_consumer,
-      ResponseBodyLoaderClient& client,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
-    return MakeGarbageCollected<ResponseBodyLoader>(
-        bytes_consumer, client, task_runner,
-        MakeGarbageCollected<TestBackForwardCacheLoaderHelper>());
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 class ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest
@@ -182,11 +151,12 @@ TEST_F(ResponseBodyLoaderTest, Load) {
   consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
 
   body_loader->Start();
 
@@ -210,11 +180,12 @@ TEST_F(ResponseBodyLoaderTest, LoadFailure) {
   consumer->Add(Command(Command::kError));
 
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
 
   body_loader->Start();
 
@@ -237,11 +208,12 @@ TEST_F(ResponseBodyLoaderTest, LoadWithDataAndDone) {
   consumer->Add(Command(Command::kDataAndDone, "llo"));
 
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
 
   body_loader->Start();
 
@@ -266,12 +238,13 @@ TEST_F(ResponseBodyLoaderTest, Abort) {
 
   auto* client = MakeGarbageCollected<TestClient>(
       TestClient::Option::kAbortOnDidReceiveData);
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
   client->SetLoader(*body_loader);
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
   EXPECT_FALSE(body_loader->IsAborted());
 
   body_loader->Start();
@@ -297,12 +270,13 @@ TEST_F(ResponseBodyLoaderTest, Suspend) {
 
   auto* client = MakeGarbageCollected<TestClient>(
       TestClient::Option::kSuspendOnDidReceiveData);
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
   client->SetLoader(*body_loader);
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
   EXPECT_FALSE(body_loader->IsSuspended());
 
   body_loader->Start();
@@ -351,7 +325,7 @@ TEST_F(ResponseBodyLoaderTest, Suspend) {
 TEST_F(ResponseBodyLoaderTest, ReadTooBigBuffer) {
   auto task_runner = base::MakeRefCounted<scheduler::FakeTaskRunner>();
   auto* consumer = MakeGarbageCollected<ReplayingBytesConsumer>(task_runner);
-  const uint32_t kMax = network::features::GetLoaderChunkSize();
+  constexpr auto kMax = ResponseBodyLoader::kMaxNumConsumedBytesInTask;
 
   consumer->Add(Command(Command::kData, std::string(kMax - 1, 'a').data()));
   consumer->Add(Command(Command::kData, std::string(2, 'b').data()));
@@ -361,11 +335,12 @@ TEST_F(ResponseBodyLoaderTest, ReadTooBigBuffer) {
   consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
 
   body_loader->Start();
 
@@ -392,7 +367,8 @@ TEST_F(ResponseBodyLoaderTest, NotDrainable) {
   consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   ResponseBodyLoaderClient* intermediate_client = nullptr;
   auto data_pipe = body_loader->DrainAsDataPipe(&intermediate_client);
@@ -405,7 +381,7 @@ TEST_F(ResponseBodyLoaderTest, NotDrainable) {
 
   EXPECT_FALSE(client->LoadingIsFinished());
   EXPECT_FALSE(client->LoadingIsFailed());
-  EXPECT_TRUE(client->GetData().empty());
+  EXPECT_TRUE(client->GetData().IsEmpty());
 
   body_loader->Start();
 
@@ -423,7 +399,7 @@ TEST_F(ResponseBodyLoaderTest, NotDrainable) {
 TEST_F(ResponseBodyLoaderTest, DrainAsDataPipe) {
   mojo::ScopedDataPipeConsumerHandle consumer_end;
   mojo::ScopedDataPipeProducerHandle producer_end;
-  auto result = mojo::CreateDataPipe(nullptr, producer_end, consumer_end);
+  auto result = mojo::CreateDataPipe(nullptr, &producer_end, &consumer_end);
 
   ASSERT_EQ(result, MOJO_RESULT_OK);
 
@@ -434,7 +410,8 @@ TEST_F(ResponseBodyLoaderTest, DrainAsDataPipe) {
       task_runner, std::move(consumer_end), &completion_notifier);
   auto* client = MakeGarbageCollected<TestClient>();
 
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   ResponseBodyLoaderClient* client_for_draining = nullptr;
   auto data_pipe = body_loader->DrainAsDataPipe(&client_for_draining);
@@ -466,8 +443,6 @@ class ResponseBodyLoaderLoadingTasksUnfreezableTest
       scoped_feature_list_.InitAndEnableFeature(
           features::kLoadingTasksUnfreezable);
     }
-    WebRuntimeFeatures::EnableBackForwardCache(
-        DeferWithBackForwardCacheEnabled());
   }
 
   bool DeferWithBackForwardCacheEnabled() { return GetParam(); }
@@ -483,7 +458,8 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   auto task_runner = base::MakeRefCounted<scheduler::FakeTaskRunner>();
   auto* consumer = MakeGarbageCollected<ReplayingBytesConsumer>(task_runner);
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
   consumer->Add(Command(Command::kData, "he"));
   body_loader->Start();
   task_runner->RunUntilIdle();
@@ -492,7 +468,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   EXPECT_FALSE(client->LoadingIsFailed());
 
   // Suspend (not for back-forward cache), then add some data to |consumer|.
-  body_loader->Suspend(LoaderFreezeMode::kStrict);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferred);
   consumer->Add(Command(Command::kData, "llo"));
   EXPECT_FALSE(consumer->IsCommandsEmpty());
   // Simulate the "readable again" signal.
@@ -507,7 +483,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   EXPECT_FALSE(client->LoadingIsFailed());
 
   // Suspend for back-forward cache, then add some more data to |consumer|.
-  body_loader->Suspend(LoaderFreezeMode::kBufferIncoming);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferredWithBackForwardCache);
   consumer->Add(Command(Command::kData, "w"));
   consumer->Add(Command(Command::kWait));
   consumer->Add(Command(Command::kData, "o"));
@@ -541,7 +517,8 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   auto task_runner = base::MakeRefCounted<scheduler::FakeTaskRunner>();
   auto* consumer = MakeGarbageCollected<ReplayingBytesConsumer>(task_runner);
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
   consumer->Add(Command(Command::kData, "he"));
   body_loader->Start();
   task_runner->RunUntilIdle();
@@ -551,7 +528,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
 
   // Suspend (not for back-forward cache), then add some data to |consumer| with
   // the finish signal at the end.
-  body_loader->Suspend(LoaderFreezeMode::kStrict);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferred);
   consumer->Add(Command(Command::kData, "llo"));
   consumer->Add(Command(Command::kDone));
   // Simulate the "readable again" signal.
@@ -567,7 +544,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   EXPECT_FALSE(client->LoadingIsFailed());
 
   // Suspend for back-forward cache.
-  body_loader->Suspend(LoaderFreezeMode::kBufferIncoming);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferredWithBackForwardCache);
   // ResponseBodyLoader will buffer data when deferred for back-forward cache,
   // but won't notify the client until it's resumed.
   EXPECT_FALSE(consumer->IsCommandsEmpty());
@@ -594,7 +571,8 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   auto task_runner = base::MakeRefCounted<scheduler::FakeTaskRunner>();
   auto* consumer = MakeGarbageCollected<ReplayingBytesConsumer>(task_runner);
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
   consumer->Add(Command(Command::kData, "he"));
   body_loader->Start();
   task_runner->RunUntilIdle();
@@ -604,7 +582,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   EXPECT_FALSE(client->LoadingIsFailed());
 
   // Suspend for back-forward cache, then add some more data to |consumer|.
-  body_loader->Suspend(LoaderFreezeMode::kBufferIncoming);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferredWithBackForwardCache);
   consumer->Add(Command(Command::kData, "llo"));
   EXPECT_FALSE(consumer->IsCommandsEmpty());
   // Simulate the "readable again" signal.
@@ -621,7 +599,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   EXPECT_FALSE(client->LoadingIsFailed());
 
   // Suspend (not for back-forward cache), then add some data to |consumer|.
-  body_loader->Suspend(LoaderFreezeMode::kStrict);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferred);
   consumer->Add(Command(Command::kData, "w"));
   consumer->Add(Command(Command::kWait));
   consumer->Add(Command(Command::kData, "o"));
@@ -656,7 +634,8 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   auto task_runner = base::MakeRefCounted<scheduler::FakeTaskRunner>();
   auto* consumer = MakeGarbageCollected<ReplayingBytesConsumer>(task_runner);
   auto* client = MakeGarbageCollected<TestClient>();
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
   body_loader->Start();
   task_runner->RunUntilIdle();
   EXPECT_EQ("", client->GetData());
@@ -664,7 +643,7 @@ TEST_P(ResponseBodyLoaderLoadingTasksUnfreezableTest,
   EXPECT_FALSE(client->LoadingIsFailed());
 
   // Suspend, then add a long response body to |consumer|.
-  body_loader->Suspend(LoaderFreezeMode::kBufferIncoming);
+  body_loader->Suspend(WebURLLoader::DeferType::kDeferredWithBackForwardCache);
   std::string body(70000, '*');
   consumer->Add(Command(Command::kDataAndDone, body.c_str()));
 
@@ -696,7 +675,7 @@ INSTANTIATE_TEST_SUITE_P(All,
 TEST_F(ResponseBodyLoaderTest, DrainAsDataPipeAndReportError) {
   mojo::ScopedDataPipeConsumerHandle consumer_end;
   mojo::ScopedDataPipeProducerHandle producer_end;
-  auto result = mojo::CreateDataPipe(nullptr, producer_end, consumer_end);
+  auto result = mojo::CreateDataPipe(nullptr, &producer_end, &consumer_end);
 
   ASSERT_EQ(result, MOJO_RESULT_OK);
 
@@ -707,7 +686,8 @@ TEST_F(ResponseBodyLoaderTest, DrainAsDataPipeAndReportError) {
       task_runner, std::move(consumer_end), &completion_notifier);
   auto* client = MakeGarbageCollected<TestClient>();
 
-  auto* body_loader = MakeResponseBodyLoader(*consumer, *client, task_runner);
+  auto* body_loader =
+      MakeGarbageCollected<ResponseBodyLoader>(*consumer, *client, task_runner);
 
   ResponseBodyLoaderClient* client_for_draining = nullptr;
   auto data_pipe = body_loader->DrainAsDataPipe(&client_for_draining);
@@ -741,9 +721,8 @@ TEST_F(ResponseBodyLoaderTest, DrainAsBytesConsumer) {
   original_consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
@@ -771,9 +750,8 @@ TEST_F(ResponseBodyLoaderTest, CancelDrainedBytesConsumer) {
   original_consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
@@ -808,9 +786,8 @@ TEST_F(ResponseBodyLoaderTest, DrainAsBytesConsumerWithError) {
   original_consumer->Add(Command(Command::kError));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
@@ -837,9 +814,8 @@ TEST_F(ResponseBodyLoaderTest, AbortAfterBytesConsumerIsDrained) {
   original_consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
   auto* bytes_consumer_client =
@@ -868,9 +844,8 @@ TEST_F(ResponseBodyLoaderTest, AbortAfterBytesConsumerIsDrainedIsNotified) {
       MakeGarbageCollected<ReplayingBytesConsumer>(task_runner);
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
@@ -898,9 +873,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest,
   original_consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
   const char* buffer = nullptr;
@@ -946,9 +920,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest,
   original_consumer->Add(Command(Command::kError));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
   const char* buffer = nullptr;
@@ -999,9 +972,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest,
   original_consumer->Add(Command(Command::kDataAndDone, "hello"));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
   const char* buffer = nullptr;
@@ -1047,7 +1019,7 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest,
        DrainAsDataPipe) {
   mojo::ScopedDataPipeConsumerHandle consumer_end;
   mojo::ScopedDataPipeProducerHandle producer_end;
-  auto result = mojo::CreateDataPipe(nullptr, producer_end, consumer_end);
+  auto result = mojo::CreateDataPipe(nullptr, &producer_end, &consumer_end);
 
   ASSERT_EQ(result, MOJO_RESULT_OK);
 
@@ -1058,8 +1030,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest,
       task_runner, std::move(consumer_end), &completion_notifier);
   auto* client = MakeGarbageCollected<TestClient>();
 
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
@@ -1086,9 +1058,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationOutOfOnStateChangeTest,
   original_consumer->Add(Command(Command::kWait));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
 
   task_runner->RunUntilIdle();
@@ -1116,9 +1087,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationInOnStateChangeTest,
   original_consumer->Add(Command(Command::kDone));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
   auto* reading_client = MakeGarbageCollected<ReadingClient>(consumer, *client);
@@ -1157,9 +1127,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationInOnStateChangeTest,
   original_consumer->Add(Command(Command::kError));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
   auto* reading_client = MakeGarbageCollected<ReadingClient>(consumer, *client);
@@ -1198,9 +1167,8 @@ TEST_F(ResponseBodyLoaderDrainedBytesConsumerNotificationInOnStateChangeTest,
   original_consumer->Add(Command(Command::kDataAndDone, "hahaha"));
 
   auto* client = MakeGarbageCollected<TestClient>();
-
-  auto* body_loader =
-      MakeResponseBodyLoader(*original_consumer, *client, task_runner);
+  auto* body_loader = MakeGarbageCollected<ResponseBodyLoader>(
+      *original_consumer, *client, task_runner);
 
   BytesConsumer& consumer = body_loader->DrainAsBytesConsumer();
   auto* reading_client = MakeGarbageCollected<ReadingClient>(consumer, *client);

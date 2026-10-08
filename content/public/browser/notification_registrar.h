@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "content/common/content_export.h"
 
@@ -22,13 +23,11 @@ class NotificationSource;
 // class and use it to register your notifications instead of going through the
 // notification service directly. It will automatically unregister them for
 // you.
-class CONTENT_EXPORT NotificationRegistrar final {
+class CONTENT_EXPORT NotificationRegistrar {
  public:
+  // This class must not be derived from (we don't have a virtual destructor so
+  // it won't work). Instead, use it as a member in your class.
   NotificationRegistrar();
-
-  NotificationRegistrar(const NotificationRegistrar&) = delete;
-  NotificationRegistrar& operator=(const NotificationRegistrar&) = delete;
-
   ~NotificationRegistrar();
 
   // Wrappers around NotificationService::[Add|Remove]Observer.
@@ -64,6 +63,8 @@ class CONTENT_EXPORT NotificationRegistrar final {
   RecordVector registered_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(NotificationRegistrar);
 };
 
 }  // namespace content

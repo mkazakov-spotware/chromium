@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <jni.h>
 #include <stddef.h>
 
-#include <string>
-
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/weak_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view.h"
 #include "ui/android/view_android.h"
 
@@ -21,12 +20,7 @@ class AutofillPopupController;
 
 class AutofillPopupViewAndroid : public AutofillPopupView {
  public:
-  explicit AutofillPopupViewAndroid(
-      base::WeakPtr<AutofillPopupController> controller);
-
-  AutofillPopupViewAndroid(const AutofillPopupViewAndroid&) = delete;
-  AutofillPopupViewAndroid& operator=(const AutofillPopupViewAndroid&) = delete;
-
+  explicit AutofillPopupViewAndroid(AutofillPopupController* controller);
   ~AutofillPopupViewAndroid() override;
 
   // --------------------------------------------------------------------------
@@ -51,11 +45,10 @@ class AutofillPopupViewAndroid : public AutofillPopupView {
   // AutofillPopupView implementation.
   void Show() override;
   void Hide() override;
-  void OnSelectedRowChanged(absl::optional<int> previous_row_selection,
-                            absl::optional<int> current_row_selection) override;
+  void OnSelectedRowChanged(base::Optional<int> previous_row_selection,
+                            base::Optional<int> current_row_selection) override;
   void OnSuggestionsChanged() override;
-  void AxAnnounce(const std::u16string& text) override {}
-  absl::optional<int32_t> GetAxUniqueId() override;
+  base::Optional<int32_t> GetAxUniqueId() override;
 
  private:
   friend class AutofillPopupView;
@@ -65,7 +58,7 @@ class AutofillPopupViewAndroid : public AutofillPopupView {
   // screen space available).
   bool WasSuppressed();
 
-  base::WeakPtr<AutofillPopupController> controller_;  // weak.
+  AutofillPopupController* controller_;  // weak.
 
   // The index of the last item the user long-pressed (they will be shown a
   // confirmation dialog).
@@ -76,6 +69,8 @@ class AutofillPopupViewAndroid : public AutofillPopupView {
 
   // Popup view
   ui::ViewAndroid::ScopedAnchorView popup_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(AutofillPopupViewAndroid);
 };
 
 }  // namespace autofill

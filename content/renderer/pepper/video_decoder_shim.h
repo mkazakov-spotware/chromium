@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,12 +13,15 @@
 #include <vector>
 
 #include "base/containers/queue.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
 #include "media/base/video_decoder_config.h"
-#include "media/renderers/paint_canvas_video_renderer.h"
 #include "media/video/video_decode_accelerator.h"
 #include "ppapi/c/pp_codecs.h"
+
+namespace base {
+class SingleThreadTaskRunner;
+}
 
 namespace viz {
 class ContextProviderCommandBuffer;
@@ -34,13 +37,7 @@ class PepperVideoDecoderHost;
 // thread.
 class VideoDecoderShim : public media::VideoDecodeAccelerator {
  public:
-  static std::unique_ptr<VideoDecoderShim> Create(PepperVideoDecoderHost* host,
-                                                  uint32_t texture_pool_size,
-                                                  bool use_hw_decoder);
-
-  VideoDecoderShim(const VideoDecoderShim&) = delete;
-  VideoDecoderShim& operator=(const VideoDecoderShim&) = delete;
-
+  VideoDecoderShim(PepperVideoDecoderHost* host, uint32_t texture_pool_size);
   ~VideoDecoderShim() override;
 
   // media::VideoDecodeAccelerator implementation.
@@ -65,14 +62,6 @@ class VideoDecoderShim : public media::VideoDecodeAccelerator {
   struct PendingFrame;
   class DecoderImpl;
 
-  VideoDecoderShim(PepperVideoDecoderHost* host,
-                   uint32_t texture_pool_size,
-                   bool use_hw_decoder,
-                   scoped_refptr<viz::ContextProviderCommandBuffer>
-                       shared_main_thread_context_provider,
-                   scoped_refptr<viz::ContextProviderCommandBuffer>
-                       pepper_video_decode_context_provider);
-
   void OnInitializeFailed();
   void OnDecodeComplete(int32_t result, uint32_t decode_id);
   void OnOutputComplete(std::unique_ptr<PendingFrame> frame);
@@ -89,11 +78,8 @@ class VideoDecoderShim : public media::VideoDecodeAccelerator {
   State state_;
 
   PepperVideoDecoderHost* host_;
-  scoped_refptr<base::SequencedTaskRunner> media_task_runner_;
-  scoped_refptr<viz::ContextProviderCommandBuffer>
-      shared_main_thread_context_provider_;
-  scoped_refptr<viz::ContextProviderCommandBuffer>
-      pepper_video_decode_context_provider_;
+  scoped_refptr<base::SingleThreadTaskRunner> media_task_runner_;
+  scoped_refptr<viz::ContextProviderCommandBuffer> context_provider_;
 
   // The current decoded frame size.
   gfx::Size texture_size_;
@@ -119,11 +105,9 @@ class VideoDecoderShim : public media::VideoDecodeAccelerator {
 
   uint32_t num_pending_decodes_;
 
-  const bool use_hw_decoder_;
-
-  std::unique_ptr<media::PaintCanvasVideoRenderer> video_renderer_;
-
   base::WeakPtrFactory<VideoDecoderShim> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VideoDecoderShim);
 };
 
 }  // namespace content

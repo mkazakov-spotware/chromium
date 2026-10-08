@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <tuple>
 
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_registration.mojom.h"
 
 namespace content {
@@ -17,11 +16,11 @@ BackgroundFetchRegistrationId::BackgroundFetchRegistrationId()
 
 BackgroundFetchRegistrationId::BackgroundFetchRegistrationId(
     int64_t service_worker_registration_id,
-    const blink::StorageKey& storage_key,
+    const url::Origin& origin,
     const std::string& developer_id,
     const std::string& unique_id)
     : service_worker_registration_id_(service_worker_registration_id),
-      storage_key_(storage_key),
+      origin_(origin),
       developer_id_(developer_id),
       unique_id_(unique_id) {
   DCHECK_NE(blink::mojom::kInvalidServiceWorkerRegistrationId,

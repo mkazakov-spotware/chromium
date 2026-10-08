@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <set>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
 #include "base/trace_event/memory_dump_provider.h"
@@ -17,7 +17,6 @@
 #include "components/sessions/core/session_types.h"
 #include "components/sessions/core/sessions_export.h"
 #include "components/sessions/core/tab_restore_service.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace sessions {
 
@@ -38,7 +37,6 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   typedef TabRestoreService::Tab Tab;
   typedef TabRestoreService::TimeFactory TimeFactory;
   typedef TabRestoreService::Window Window;
-  typedef TabRestoreService::Group Group;
 
   // Provides a way for the client to add behavior to the tab restore service
   // helper (e.g. implementing tabs persistence).
@@ -63,8 +61,8 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   };
 
   enum {
-  // Max number of entries we'll keep around.
-#if BUILDFLAG(IS_ANDROID)
+    // Max number of entries we'll keep around.
+#if defined(OS_ANDROID)
     // Android keeps at most 5 recent tabs.
     kMaxEntries = 5,
 #else
@@ -79,9 +77,6 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
                           TabRestoreServiceClient* client,
                           TimeFactory* time_factory);
 
-  TabRestoreServiceHelper(const TabRestoreServiceHelper&) = delete;
-  TabRestoreServiceHelper& operator=(const TabRestoreServiceHelper&) = delete;
-
   ~TabRestoreServiceHelper() override;
 
   void SetHelperObserver(Observer* observer);
@@ -89,19 +84,15 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   // Helper methods used to implement TabRestoreService.
   void AddObserver(TabRestoreServiceObserver* observer);
   void RemoveObserver(TabRestoreServiceObserver* observer);
-  absl::optional<SessionID> CreateHistoricalTab(LiveTab* live_tab, int index);
+  void CreateHistoricalTab(LiveTab* live_tab, int index);
   void BrowserClosing(LiveTabContext* context);
   void BrowserClosed(LiveTabContext* context);
-  void CreateHistoricalGroup(LiveTabContext* context,
-                             const tab_groups::TabGroupId& id);
-  void GroupClosed(const tab_groups::TabGroupId& group);
-  void GroupCloseStopped(const tab_groups::TabGroupId& group);
   void ClearEntries();
   void DeleteNavigationEntries(const DeletionPredicate& predicate);
 
   const Entries& entries() const;
   std::vector<LiveTab*> RestoreMostRecentEntry(LiveTabContext* context);
-  void RemoveTabEntryById(SessionID id);
+  std::unique_ptr<Tab> RemoveTabEntryById(SessionID id);
   std::vector<LiveTab*> RestoreEntryById(LiveTabContext* context,
                                          SessionID id,
                                          WindowOpenDisposition disposition);
@@ -123,17 +114,17 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   // entries.
   void PruneEntries();
 
-  // Returns an iterator into |entries_| whose id or original_id matches |id|.
-  // If |id| identifies a Window, then its iterator position will be returned.
-  // If it identifies a tab, then the iterator position of the Window in which
-  // the Tab resides is returned.
+  // Returns an iterator into |entries_| whose id matches |id|. If |id|
+  // identifies a Window, then its iterator position will be returned. If it
+  // identifies a tab, then the iterator position of the Window in which the Tab
+  // resides is returned.
   Entries::iterator GetEntryIteratorById(SessionID id);
 
   // From base::trace_event::MemoryDumpProvider
   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
                     base::trace_event::ProcessMemoryDump* pmd) override;
 
-  // Calls ValidateTab, ValidateWindow, or ValidateGroup as appropriate.
+  // Calls either ValidateTab or ValidateWindow as appropriate.
   static bool ValidateEntry(const Entry& entry);
 
  private:
@@ -165,9 +156,6 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   // Validates all the tabs in a window, plus the window's active tab index.
   static bool ValidateWindow(const Window& window);
 
-  // Validates all the tabs in a group.
-  static bool ValidateGroup(const Group& group);
-
   // Removes all navigation entries matching |predicate| from |tab|.
   // Returns true if |tab| should be deleted because it is empty.
   static bool DeleteFromTab(const DeletionPredicate& predicate, Tab* tab);
@@ -177,20 +165,12 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   static bool DeleteFromWindow(const DeletionPredicate& predicate,
                                Window* window);
 
-  // Removes all navigation entries matching |predicate| from tabs in |group|.
-  // Returns true if |group| should be deleted because it is empty.
-  static bool DeleteFromGroup(const DeletionPredicate& predicate, Group* group);
-
   // Returns true if |tab| is one we care about restoring.
   bool IsTabInteresting(const Tab& tab);
 
   // Checks whether |window| is interesting --- if it only contains a single,
   // uninteresting tab, it's not interesting.
   bool IsWindowInteresting(const Window& window);
-
-  // Checks whether |group| is interesting -- as long as it contains tabs,
-  // it is.
-  bool IsGroupInteresting(const Group& group);
 
   // Validates and checks |entry| for interesting.
   bool FilterEntry(const Entry& entry);
@@ -201,11 +181,11 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   // Gets the current time. This uses the time_factory_ if there is one.
   base::Time TimeNow() const;
 
-  const raw_ptr<TabRestoreService> tab_restore_service_;
+  TabRestoreService* const tab_restore_service_;
 
-  raw_ptr<Observer> observer_;
+  Observer* observer_;
 
-  raw_ptr<TabRestoreServiceClient> client_;
+  TabRestoreServiceClient* client_;
 
   // Set of entries. They are ordered from most to least recent.
   Entries entries_;
@@ -221,12 +201,9 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   // avoid creating historical tabs for them.
   std::set<LiveTabContext*> closing_contexts_;
 
-  // Set of groups that we've received a CreateHistoricalGroup method for but no
-  // corresponding GroupClosed. We cache the set of groups closing to avoid
-  // creating historical tabs for them.
-  std::set<tab_groups::TabGroupId> closing_groups_;
+  TimeFactory* const time_factory_;
 
-  const raw_ptr<TimeFactory> time_factory_;
+  DISALLOW_COPY_AND_ASSIGN(TabRestoreServiceHelper);
 };
 
 }  // namespace sessions

@@ -143,12 +143,6 @@ dictionary MediaStreamTrackEventInit : EventInit {
   required MediaStreamTrack track;
 };
 
-[Exposed=Window]
-interface OverconstrainedError : DOMException {
-  constructor(DOMString constraint, optional DOMString message = "");
-  readonly attribute DOMString constraint;
-};
-
 partial interface Navigator {
   [SameObject, SecureContext] readonly attribute MediaDevices mediaDevices;
 };
@@ -174,9 +168,15 @@ enum MediaDeviceKind {
   "videoinput"
 };
 
-[Exposed=Window, SecureContext]
+[Exposed=Window]
 interface InputDeviceInfo : MediaDeviceInfo {
   MediaTrackCapabilities getCapabilities();
+};
+
+partial interface Navigator {
+  [SecureContext] undefined getUserMedia(MediaStreamConstraints constraints,
+                                    NavigatorUserMediaSuccessCallback successCallback,
+                                    NavigatorUserMediaErrorCallback errorCallback);
 };
 
 partial interface MediaDevices {
@@ -189,15 +189,11 @@ dictionary MediaStreamConstraints {
   (boolean or MediaTrackConstraints) audio = false;
 };
 
-partial interface Navigator {
-  [SecureContext] undefined getUserMedia(MediaStreamConstraints constraints,
-                                    NavigatorUserMediaSuccessCallback successCallback,
-                                    NavigatorUserMediaErrorCallback errorCallback);
-};
-
 callback NavigatorUserMediaSuccessCallback = undefined (MediaStream stream);
 
-callback NavigatorUserMediaErrorCallback = undefined (DOMException error);
+callback NavigatorUserMediaErrorCallback = undefined (MediaStreamError error);
+
+typedef object MediaStreamError;
 
 dictionary DoubleRange {
   double max;
@@ -239,10 +235,12 @@ typedef (DOMString or
 sequence<DOMString> or
 ConstrainDOMStringParameters) ConstrainDOMString;
 
-dictionary DevicePermissionDescriptor : PermissionDescriptor {
-  DOMString deviceId;
-};
+dictionary Capabilities {};
 
-dictionary CameraDevicePermissionDescriptor : DevicePermissionDescriptor {
-  boolean panTiltZoom = false;
+dictionary Settings {};
+
+dictionary ConstraintSet {};
+
+dictionary Constraints : ConstraintSet {
+  sequence<ConstraintSet> advanced;
 };

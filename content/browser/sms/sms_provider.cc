@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,12 @@
 
 #include "base/command_line.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/observer_list.h"
 #include "build/build_config.h"
 #include "content/browser/sms/sms_provider.h"
 #include "content/public/common/content_switches.h"
 #include "url/gurl.h"
 #include "url/origin.h"
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "content/browser/sms/sms_provider_gms.h"
 #endif
 
@@ -23,7 +22,7 @@ SmsProvider::~SmsProvider() = default;
 
 // static
 std::unique_ptr<SmsProvider> SmsProvider::Create() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return std::make_unique<SmsProviderGms>();
 #else
   return nullptr;
@@ -38,30 +37,25 @@ void SmsProvider::RemoveObserver(const Observer* observer) {
   observers_.RemoveObserver(observer);
 }
 
-void SmsProvider::NotifyReceive(const std::string& sms,
-                                UserConsent consent_requirement) {
+void SmsProvider::NotifyReceive(const std::string& sms) {
   SmsParser::Result result = SmsParser::Parse(sms);
   if (result.IsValid())
-    NotifyReceive(result.GetOriginList(), result.one_time_code,
-                  consent_requirement);
+    NotifyReceive(result.origin, result.one_time_code);
   RecordParsingStatus(result.parsing_status);
 }
 
-void SmsProvider::NotifyReceive(const OriginList& origin_list,
-                                const std::string& one_time_code,
-                                UserConsent consent_requirement) {
+void SmsProvider::NotifyReceive(const url::Origin& origin,
+                                const std::string& one_time_code) {
   for (Observer& obs : observers_) {
-    bool handled =
-        obs.OnReceive(origin_list, one_time_code, consent_requirement);
+    bool handled = obs.OnReceive(origin, one_time_code);
     if (handled) {
       break;
     }
   }
 }
 
-void SmsProvider::NotifyReceiveForTesting(const std::string& sms,
-                                          UserConsent requirement) {
-  NotifyReceive(sms, requirement);
+void SmsProvider::NotifyReceiveForTesting(const std::string& sms) {
+  NotifyReceive(sms);
 }
 
 void SmsProvider::NotifyFailure(FailureType failure_type) {
@@ -93,7 +87,7 @@ void SmsProvider::RecordParsingStatus(SmsParsingStatus status) {
 }
 
 bool SmsProvider::HasObservers() {
-  return !observers_.empty();
+  return observers_.might_have_observers();
 }
 
 }  // namespace content

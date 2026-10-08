@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,21 +25,23 @@ sk_sp<SkImage> CreateImage(int width, int height) {
   return SkImage::MakeFromBitmap(bitmap);
 }
 
-SkM44 CreateMatrix(const SkSize& scale) {
-  return SkM44::Scale(scale.width(), scale.height());
+SkMatrix CreateMatrix(const SkSize& scale) {
+  SkMatrix matrix;
+  matrix.setScale(scale.width(), scale.height());
+  return matrix;
 }
 
 class SoftwareImageDecodeCachePerfTest : public testing::Test {
  public:
   SoftwareImageDecodeCachePerfTest()
       : timer_(kWarmupRuns,
-               base::Milliseconds(kTimeLimitMillis),
+               base::TimeDelta::FromMilliseconds(kTimeLimitMillis),
                kTimeCheckInterval) {}
 
   void RunFromImage() {
-    PaintFlags::FilterQuality qualities[] = {
-        PaintFlags::FilterQuality::kNone, PaintFlags::FilterQuality::kLow,
-        PaintFlags::FilterQuality::kMedium, PaintFlags::FilterQuality::kHigh};
+    SkFilterQuality qualities[] = {kNone_SkFilterQuality, kLow_SkFilterQuality,
+                                   kMedium_SkFilterQuality,
+                                   kHigh_SkFilterQuality};
     std::pair<SkIRect, SkIRect> image_rect_subrect[] = {
         std::make_pair(SkIRect::MakeWH(100, 100), SkIRect::MakeWH(100, 100)),
         std::make_pair(SkIRect::MakeWH(100, 100), SkIRect::MakeWH(50, 50)),
@@ -62,7 +64,7 @@ class SoftwareImageDecodeCachePerfTest : public testing::Test {
                   .TakePaintImage(),
               false, subrect, quality,
               CreateMatrix(SkSize::Make(scale.first, scale.second)), 0u,
-              TargetColorParams());
+              gfx::ColorSpace());
         }
       }
     }

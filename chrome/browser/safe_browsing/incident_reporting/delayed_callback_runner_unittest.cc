@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,9 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -24,14 +25,12 @@ class CallbackArgument {
  public:
   explicit CallbackArgument(base::OnceClosure on_delete)
       : on_delete_(std::move(on_delete)) {}
-
-  CallbackArgument(const CallbackArgument&) = delete;
-  CallbackArgument& operator=(const CallbackArgument&) = delete;
-
   ~CallbackArgument() { std::move(on_delete_).Run(); }
 
  private:
   base::OnceClosure on_delete_;
+
+  DISALLOW_COPY_AND_ASSIGN(CallbackArgument);
 };
 
 }  // namespace
@@ -51,8 +50,8 @@ class DelayedCallbackRunnerTest : public testing::Test {
   DelayedCallbackRunnerTest() {}
 
   void SetUp() override {
-    instance_ = std::make_unique<safe_browsing::DelayedCallbackRunner>(
-        base::TimeDelta(), base::SingleThreadTaskRunner::GetCurrentDefault());
+    instance_.reset(new safe_browsing::DelayedCallbackRunner(
+        base::TimeDelta(), base::ThreadTaskRunnerHandle::Get()));
   }
 
   void TearDown() override { instance_.reset(); }
@@ -128,7 +127,7 @@ TEST_F(DelayedCallbackRunnerTest, AddWhileRunningRun) {
   const std::string name2("two");
 
   // Post a task to register a new callback after Start() is called.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&DelayedCallbackRunnerTest::RegisterTestCallback,
                      base::Unretained(this), name2));

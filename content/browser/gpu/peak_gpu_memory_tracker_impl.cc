@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/strcat.h"
+#include "base/task/post_task.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "content/browser/gpu/gpu_process_host.h"
 #include "content/public/browser/gpu_data_manager.h"
@@ -31,17 +32,15 @@ constexpr int kAllocationSourceTypeCount =
 constexpr int kAllocationSourceHistogramIndex =
     kUsageTypeCount * kAllocationSourceTypeCount;
 
-// Histogram values based on MEMORY_METRICS_HISTOGRAM_MB, allowing this to match
-// Memory.Gpu.PrivateMemoryFootprint. Previously this was reported in KB, with a
-// maximum of 500 MB. However that maximum is too low for Mac.
-constexpr int kMemoryHistogramMin = 1;
-constexpr int kMemoryHistogramMax = 64000;
-constexpr int kMemoryHistogramBucketCount = 100;
+// Histogram values based on UMA_HISTOGRAM_MEMORY_KB
+constexpr int kMemoryHistogramMin = 1000;
+constexpr int kMemoryHistogramMax = 500000;
+constexpr int kMemoryHistogramBucketCount = 50;
 
 constexpr const char* GetUsageName(PeakGpuMemoryTracker::Usage usage) {
   switch (usage) {
     case PeakGpuMemoryTracker::Usage::CHANGE_TAB:
-      return "ChangeTab2";
+      return "ChangeTab";
     case PeakGpuMemoryTracker::Usage::PAGE_LOAD:
       return "PageLoad";
     case PeakGpuMemoryTracker::Usage::SCROLL:
@@ -66,13 +65,13 @@ constexpr const char* GetAllocationSourceName(
 }
 
 std::string GetPeakMemoryUsageUMAName(PeakGpuMemoryTracker::Usage usage) {
-  return base::StrCat({"Memory.GPU.PeakMemoryUsage2.", GetUsageName(usage)});
+  return base::StrCat({"Memory.GPU.PeakMemoryUsage.", GetUsageName(usage)});
 }
 
 std::string GetPeakMemoryAllocationSourceUMAName(
     PeakGpuMemoryTracker::Usage usage,
     gpu::GpuPeakMemoryAllocationSource source) {
-  return base::StrCat({"Memory.GPU.PeakMemoryAllocationSource2.",
+  return base::StrCat({"Memory.GPU.PeakMemoryAllocationSource.",
                        GetUsageName(usage), ".",
                        GetAllocationSourceName(source)});
 }
@@ -86,22 +85,22 @@ void PeakMemoryCallback(PeakGpuMemoryTracker::Usage usage,
                         const uint64_t peak_memory,
                         const base::flat_map<gpu::GpuPeakMemoryAllocationSource,
                                              uint64_t>& allocation_per_source) {
-  uint64_t memory_in_mb = peak_memory / 1048576u;
+  uint64_t memory_in_kb = peak_memory / 1024u;
   STATIC_HISTOGRAM_POINTER_GROUP(
       GetPeakMemoryUsageUMAName(usage), static_cast<int>(usage),
-      kUsageTypeCount, Add(memory_in_mb),
+      kUsageTypeCount, Add(memory_in_kb),
       base::Histogram::FactoryGet(
           GetPeakMemoryUsageUMAName(usage), kMemoryHistogramMin,
           kMemoryHistogramMax, kMemoryHistogramBucketCount,
           base::HistogramBase::kUmaTargetedHistogramFlag));
 
   for (auto& source : allocation_per_source) {
-    uint64_t source_memory_in_mb = source.second / 1048576u;
+    uint64_t source_memory_in_kb = source.second / 1024u;
     STATIC_HISTOGRAM_POINTER_GROUP(
         GetPeakMemoryAllocationSourceUMAName(usage, source.first),
         static_cast<int>(usage) * kAllocationSourceTypeCount +
             static_cast<int>(source.first),
-        kAllocationSourceHistogramIndex, Add(source_memory_in_mb),
+        kAllocationSourceHistogramIndex, Add(source_memory_in_kb),
         base::Histogram::FactoryGet(
             GetPeakMemoryAllocationSourceUMAName(usage, source.first),
             kMemoryHistogramMin, kMemoryHistogramMax,
@@ -130,7 +129,7 @@ PeakGpuMemoryTrackerImpl::PeakGpuMemoryTrackerImpl(
   // |sequence_number_|. This will normally be created from the UI thread, so
   // repost to the IO thread.
   GpuProcessHost::CallOnIO(
-      FROM_HERE, GPU_PROCESS_KIND_SANDBOXED, /* force_create=*/false,
+      GPU_PROCESS_KIND_SANDBOXED, /* force_create=*/false,
       base::BindOnce(
           [](uint32_t sequence_num, GpuProcessHost* host) {
             // There may be no host nor service available. This may occur during
@@ -150,7 +149,7 @@ PeakGpuMemoryTrackerImpl::~PeakGpuMemoryTrackerImpl() {
     return;
 
   GpuProcessHost::CallOnIO(
-      FROM_HERE, GPU_PROCESS_KIND_SANDBOXED, /* force_create=*/false,
+      GPU_PROCESS_KIND_SANDBOXED, /* force_create=*/false,
       base::BindOnce(
           [](uint32_t sequence_num, PeakGpuMemoryTracker::Usage usage,
              base::OnceClosure testing_callback, GpuProcessHost* host) {
@@ -175,8 +174,7 @@ PeakGpuMemoryTrackerImpl::~PeakGpuMemoryTrackerImpl() {
 void PeakGpuMemoryTrackerImpl::Cancel() {
   canceled_ = true;
   // Notify the GpuProcessHost that we are done observing this sequence.
-  GpuProcessHost::CallOnIO(FROM_HERE, GPU_PROCESS_KIND_SANDBOXED,
-                           /* force_create=*/false,
+  GpuProcessHost::CallOnIO(GPU_PROCESS_KIND_SANDBOXED, /* force_create=*/false,
                            base::BindOnce(
                                [](uint32_t sequence_num, GpuProcessHost* host) {
                                  if (!host)

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import java.util.List;
 import org.chromium.weblayer_private.interfaces.IContextMenuParams;
 import org.chromium.weblayer_private.interfaces.IDownloadCallbackClient;
 import org.chromium.weblayer_private.interfaces.IErrorPageCallbackClient;
-import org.chromium.weblayer_private.interfaces.IExternalIntentInIncognitoCallbackClient;
 import org.chromium.weblayer_private.interfaces.IFaviconFetcher;
 import org.chromium.weblayer_private.interfaces.IFaviconFetcherClient;
 import org.chromium.weblayer_private.interfaces.IFindInPageCallbackClient;
@@ -27,7 +26,8 @@ interface ITab {
 
   INavigationController createNavigationController(in INavigationControllerClient client) = 1;
 
-  // ID 2 was setDownloadCallbackClient and was removed in M89.
+  // Deprecated, use Profile.setDownloadCallbackClient.
+  void setDownloadCallbackClient(IDownloadCallbackClient client) = 2;
 
   void setErrorPageCallbackClient(IErrorPageCallbackClient client) = 3;
 
@@ -56,8 +56,10 @@ interface ITab {
   void setMediaCaptureCallbackClient(in IMediaCaptureCallbackClient client) = 14;
   void stopMediaCapturing() = 15;
 
+  // Added in 84
   void captureScreenShot(in float scale, in IObjectWrapper resultCallback) = 16;
 
+  // Added in 85
   boolean setData(in Map data) = 17;
   Map getData() = 18;
   void registerWebMessageCallback(in String jsObjectName,
@@ -67,10 +69,12 @@ interface ITab {
   boolean canTranslate() = 21;
   void showTranslateUi() = 22;
 
+  // Added in 86
   void setGoogleAccountsCallbackClient(IGoogleAccountsCallbackClient client) = 23;
   IFaviconFetcher createFaviconFetcher(IFaviconFetcherClient client) = 24;
   void setTranslateTargetLanguage(in String targetLanguage) = 25;
 
+  // Added in 87
   void setScrollOffsetsEnabled(in boolean enabled) = 26;
 
   // Added in 88
@@ -79,10 +83,4 @@ interface ITab {
   void setDesktopUserAgentEnabled(in boolean enable) = 29;
   boolean isDesktopUserAgentEnabled() = 30;
   void download(in IContextMenuParams contextMenuParams) = 31;
-
-  // Added in 90
-  void addToHomescreen() = 32;
-
-  // Added in 93
-  void setExternalIntentInIncognitoCallbackClient(IExternalIntentInIncognitoCallbackClient client) = 33;
 }

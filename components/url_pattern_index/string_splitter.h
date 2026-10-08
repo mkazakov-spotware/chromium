@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <iterator>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
 #include "base/strings/string_piece.h"
 
 namespace url_pattern_index {
@@ -23,14 +22,9 @@ namespace url_pattern_index {
 template <typename IsSeparator>
 class StringSplitter {
  public:
-  class Iterator {
+  class Iterator
+      : public std::iterator<std::input_iterator_tag, base::StringPiece> {
    public:
-    using iterator_category = std::input_iterator_tag;
-    using value_type = base::StringPiece;
-    using difference_type = std::ptrdiff_t;
-    using pointer = base::StringPiece*;
-    using reference = base::StringPiece&;
-
     // Creates an iterator, which points to the leftmost token within the
     // |splitter|'s |text|, starting from |head|.
     Iterator(const StringSplitter& splitter,
@@ -73,7 +67,7 @@ class StringSplitter {
       current_ = base::StringPiece(begin, end - begin);
     }
 
-    raw_ptr<const StringSplitter<IsSeparator>> splitter_;
+    const StringSplitter* splitter_;
 
     // Contains the token currently pointed to by the iterator.
     base::StringPiece current_;

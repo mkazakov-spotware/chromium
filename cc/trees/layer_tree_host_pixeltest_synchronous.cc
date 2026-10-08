@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "cc/test/pixel_comparator.h"
 #include "components/viz/test/test_types.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 
 namespace cc {
 namespace {
@@ -56,10 +56,6 @@ INSTANTIATE_TEST_SUITE_P(All,
                          ::testing::ValuesIn(viz::GetGpuRendererTypes()),
                          ::testing::PrintToStringParamName());
 
-// viz::GetGpuRendererTypes() can return an empty list on some platforms.
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(
-    LayerTreeHostSynchronousPixelTest);
-
 TEST_P(LayerTreeHostSynchronousPixelTest, OneContentLayerZeroCopy) {
   set_raster_type(TestRasterType::kZeroCopy);
   DoContentLayerTest();
@@ -73,4 +69,4 @@ TEST_P(LayerTreeHostSynchronousPixelTest, OneContentLayerGpuRasterization) {
 }  // namespace
 }  // namespace cc
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // OS_ANDROID

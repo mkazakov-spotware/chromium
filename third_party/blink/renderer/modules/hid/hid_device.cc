@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,12 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_hid_report_info.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
-#include "third_party/blink/renderer/core/typed_arrays/dom_array_piece.h"
+#include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_data_view.h"
 #include "third_party/blink/renderer/modules/event_target_modules.h"
+#include "third_party/blink/renderer/modules/hid/hid.h"
 #include "third_party/blink/renderer/modules/hid/hid_input_report_event.h"
-#include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
@@ -24,7 +24,6 @@ namespace {
 
 const char kDeviceStateChangeInProgress[] =
     "An operation that changes the device state is in progress.";
-const char kDeviceIsForgotten[] = "The device is forgotten.";
 const char kOpenRequired[] = "The device must be opened first.";
 const char kOpenFailed[] = "Failed to open the device.";
 const char kSendReportFailed[] = "Failed to write the report.";
@@ -34,7 +33,23 @@ const char kReceiveFeatureReportFailed[] =
 const char kUnexpectedClose[] = "The device was closed unexpectedly.";
 const char kArrayBufferTooBig[] =
     "The provided ArrayBuffer exceeds the maximum allowed size.";
-const char kContextGone[] = "Script context has shut down.";
+
+Vector<uint8_t> ConvertBufferSource(
+    const ArrayBufferOrArrayBufferView& buffer) {
+  DCHECK(!buffer.IsNull());
+  Vector<uint8_t> vector;
+  if (buffer.IsArrayBuffer()) {
+    vector.Append(static_cast<uint8_t*>(buffer.GetAsArrayBuffer()->Data()),
+                  base::checked_cast<wtf_size_t>(
+                      buffer.GetAsArrayBuffer()->ByteLength()));
+  } else {
+    vector.Append(static_cast<uint8_t*>(
+                      buffer.GetAsArrayBufferView().View()->BaseAddress()),
+                  base::checked_cast<wtf_size_t>(
+                      buffer.GetAsArrayBufferView().View()->byteLength()));
+  }
+  return vector;
+}
 
 bool IsProtected(
     const device::mojom::blink::HidUsageAndPage& hid_usage_and_page) {
@@ -127,7 +142,7 @@ int8_t UnitFactorExponentToInt(uint8_t unit_factor_exponent) {
   DCHECK_LE(unit_factor_exponent, 0x0f);
   // Values from 0x08 to 0x0f encode negative exponents.
   if (unit_factor_exponent > 0x08)
-    return static_cast<int8_t>(unit_factor_exponent) - 16;
+    return int8_t{unit_factor_exponent} - 16;
   return unit_factor_exponent;
 }
 
@@ -169,7 +184,6 @@ HIDCollectionInfo* ToHIDCollectionInfo(
   HIDCollectionInfo* result = HIDCollectionInfo::Create();
   result->setUsage(collection.usage->usage);
   result->setUsagePage(collection.usage->usage_page);
-  result->setType(collection.collection_type);
 
   HeapVector<Member<HIDReportInfo>> input_reports;
   for (const auto& report : collection.input_reports)
@@ -196,18 +210,24 @@ HIDCollectionInfo* ToHIDCollectionInfo(
 
 }  // namespace
 
-HIDDevice::HIDDevice(ServiceInterface* parent,
+HIDDevice::HIDDevice(HID* parent,
                      device::mojom::blink::HidDeviceInfoPtr info,
                      ExecutionContext* context)
     : ExecutionContextLifecycleObserver(context),
       parent_(parent),
+      device_info_(std::move(info)),
       connection_(context),
       receiver_(this, context) {
-  UpdateDeviceInfo(std::move(info));
+  DCHECK(device_info_);
+  for (const auto& collection : device_info_->collections) {
+    // Omit information about top-level collections with protected usages.
+    if (!IsProtected(*collection->usage))
+      collections_.push_back(ToHIDCollectionInfo(*collection));
+  }
 }
 
 HIDDevice::~HIDDevice() {
-  DCHECK(device_requests_.empty());
+  DCHECK(device_requests_.IsEmpty());
 }
 
 ExecutionContext* HIDDevice::GetExecutionContext() const {
@@ -244,21 +264,12 @@ const HeapVector<Member<HIDCollectionInfo>>& HIDDevice::collections() const {
   return collections_;
 }
 
-ScriptPromise HIDDevice::open(ScriptState* script_state,
-                              ExceptionState& exception_state) {
-  if (!GetExecutionContext()) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kNotSupportedError,
-                                      kContextGone);
-    return ScriptPromise();
-  }
-
+ScriptPromise HIDDevice::open(ScriptState* script_state) {
   ScriptPromiseResolver* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
-  if (!EnsureNoDeviceChangeInProgress(resolver) ||
-      !EnsureDeviceIsNotForgotten(resolver)) {
+  if (!EnsureNoDeviceChangeInProgress(resolver))
     return promise;
-  }
 
   if (opened()) {
     resolver->Reject(MakeGarbageCollected<DOMException>(
@@ -274,8 +285,8 @@ ScriptPromise HIDDevice::open(ScriptState* script_state,
   device_state_change_in_progress_ = true;
   device_requests_.insert(resolver);
   parent_->Connect(device_info_->guid, std::move(client),
-                   WTF::BindOnce(&HIDDevice::FinishOpen, WrapPersistent(this),
-                                 WrapPersistent(resolver)));
+                   WTF::Bind(&HIDDevice::FinishOpen, WrapPersistent(this),
+                             WrapPersistent(resolver)));
   return promise;
 }
 
@@ -283,82 +294,55 @@ ScriptPromise HIDDevice::close(ScriptState* script_state) {
   ScriptPromiseResolver* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
-  if (!EnsureNoDeviceChangeInProgress(resolver) ||
-      !EnsureDeviceIsNotForgotten(resolver)) {
+  if (!EnsureNoDeviceChangeInProgress(resolver))
     return promise;
-  }
 
   connection_.reset();
-  receiver_.reset();
   resolver->Resolve();
   return promise;
 }
 
-ScriptPromise HIDDevice::forget(ScriptState* script_state,
-                                ExceptionState& exception_state) {
-  if (!GetExecutionContext()) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kNotSupportedError,
-                                      kContextGone);
-    return ScriptPromise();
-  }
-
+ScriptPromise HIDDevice::sendReport(ScriptState* script_state,
+                                    uint8_t report_id,
+                                    const ArrayBufferOrArrayBufferView& data) {
   ScriptPromiseResolver* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
   if (!EnsureNoDeviceChangeInProgress(resolver))
     return promise;
 
-  device_state_change_in_progress_ = true;
-  parent_->Forget(device_info_.Clone(),
-                  WTF::BindOnce(&HIDDevice::FinishForget, WrapPersistent(this),
-                                WrapPersistent(resolver)));
-  return promise;
-}
-
-ScriptPromise HIDDevice::sendReport(ScriptState* script_state,
-                                    uint8_t report_id,
-                                    const DOMArrayPiece& data) {
-  ScriptPromiseResolver* resolver =
-      MakeGarbageCollected<ScriptPromiseResolver>(script_state);
-  ScriptPromise promise = resolver->Promise();
-  if (!EnsureNoDeviceChangeInProgress(resolver) ||
-      !EnsureDeviceIsNotForgotten(resolver)) {
-    return promise;
-  }
-
   if (!opened()) {
     resolver->Reject(MakeGarbageCollected<DOMException>(
         DOMExceptionCode::kInvalidStateError, kOpenRequired));
     return promise;
   }
 
-  if (!base::CheckedNumeric<wtf_size_t>(data.ByteLength()).IsValid()) {
+  size_t data_size = data.IsArrayBuffer()
+                         ? data.GetAsArrayBuffer()->ByteLength()
+                         : data.GetAsArrayBufferView().View()->byteLength();
+
+  if (!base::CheckedNumeric<wtf_size_t>(data_size).IsValid()) {
     resolver->Reject(MakeGarbageCollected<DOMException>(
         DOMExceptionCode::kNotSupportedError, kArrayBufferTooBig));
     return promise;
   }
-
-  Vector<uint8_t> vector;
-  vector.Append(data.Bytes(), static_cast<wtf_size_t>(data.ByteLength()));
 
   device_requests_.insert(resolver);
-  connection_->Write(
-      report_id, vector,
-      WTF::BindOnce(&HIDDevice::FinishSendReport, WrapPersistent(this),
-                    WrapPersistent(resolver)));
+  connection_->Write(report_id, ConvertBufferSource(data),
+                     WTF::Bind(&HIDDevice::FinishSendReport,
+                               WrapPersistent(this), WrapPersistent(resolver)));
   return promise;
 }
 
-ScriptPromise HIDDevice::sendFeatureReport(ScriptState* script_state,
-                                           uint8_t report_id,
-                                           const DOMArrayPiece& data) {
+ScriptPromise HIDDevice::sendFeatureReport(
+    ScriptState* script_state,
+    uint8_t report_id,
+    const ArrayBufferOrArrayBufferView& data) {
   ScriptPromiseResolver* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
-  if (!EnsureNoDeviceChangeInProgress(resolver) ||
-      !EnsureDeviceIsNotForgotten(resolver)) {
+  if (!EnsureNoDeviceChangeInProgress(resolver))
     return promise;
-  }
 
   if (!opened()) {
     resolver->Reject(MakeGarbageCollected<DOMException>(
@@ -366,20 +350,21 @@ ScriptPromise HIDDevice::sendFeatureReport(ScriptState* script_state,
     return promise;
   }
 
-  if (!base::CheckedNumeric<wtf_size_t>(data.ByteLength()).IsValid()) {
+  size_t data_size = data.IsArrayBuffer()
+                         ? data.GetAsArrayBuffer()->ByteLength()
+                         : data.GetAsArrayBufferView().View()->byteLength();
+
+  if (!base::CheckedNumeric<wtf_size_t>(data_size).IsValid()) {
     resolver->Reject(MakeGarbageCollected<DOMException>(
         DOMExceptionCode::kNotSupportedError, kArrayBufferTooBig));
     return promise;
   }
-
-  Vector<uint8_t> vector;
-  vector.Append(data.Bytes(), static_cast<wtf_size_t>(data.ByteLength()));
 
   device_requests_.insert(resolver);
   connection_->SendFeatureReport(
-      report_id, vector,
-      WTF::BindOnce(&HIDDevice::FinishSendFeatureReport, WrapPersistent(this),
-                    WrapPersistent(resolver)));
+      report_id, ConvertBufferSource(data),
+      WTF::Bind(&HIDDevice::FinishSendFeatureReport, WrapPersistent(this),
+                WrapPersistent(resolver)));
   return promise;
 }
 
@@ -388,10 +373,8 @@ ScriptPromise HIDDevice::receiveFeatureReport(ScriptState* script_state,
   ScriptPromiseResolver* resolver =
       MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
-  if (!EnsureNoDeviceChangeInProgress(resolver) ||
-      !EnsureDeviceIsNotForgotten(resolver)) {
+  if (!EnsureNoDeviceChangeInProgress(resolver))
     return promise;
-  }
 
   if (!opened()) {
     resolver->Reject(MakeGarbageCollected<DOMException>(
@@ -401,33 +384,13 @@ ScriptPromise HIDDevice::receiveFeatureReport(ScriptState* script_state,
 
   device_requests_.insert(resolver);
   connection_->GetFeatureReport(
-      report_id, WTF::BindOnce(&HIDDevice::FinishReceiveFeatureReport,
-                               WrapPersistent(this), WrapPersistent(resolver)));
+      report_id, WTF::Bind(&HIDDevice::FinishReceiveFeatureReport,
+                           WrapPersistent(this), WrapPersistent(resolver)));
   return promise;
 }
 
 void HIDDevice::ContextDestroyed() {
   device_requests_.clear();
-}
-
-bool HIDDevice::HasPendingActivity() const {
-  // The object should be considered active if it is connected and has at least
-  // one event listener.
-  return connection_.is_bound() && HasEventListeners();
-}
-
-void HIDDevice::UpdateDeviceInfo(device::mojom::blink::HidDeviceInfoPtr info) {
-  device_info_ = std::move(info);
-  collections_.clear();
-  for (const auto& collection : device_info_->collections) {
-    // Omit information about top-level collections with protected usages.
-    if (!IsProtected(*collection->usage))
-      collections_.push_back(ToHIDCollectionInfo(*collection));
-  }
-}
-
-void HIDDevice::ResetIsForgotten() {
-  device_is_forgotten_ = false;
 }
 
 void HIDDevice::Trace(Visitor* visitor) const {
@@ -451,43 +414,24 @@ bool HIDDevice::EnsureNoDeviceChangeInProgress(
   return true;
 }
 
-bool HIDDevice::EnsureDeviceIsNotForgotten(
-    ScriptPromiseResolver* resolver) const {
-  if (device_is_forgotten_) {
-    resolver->Reject(MakeGarbageCollected<DOMException>(
-        DOMExceptionCode::kInvalidStateError, kDeviceIsForgotten));
-    return false;
-  }
-  return true;
-}
-
 void HIDDevice::FinishOpen(
     ScriptPromiseResolver* resolver,
     mojo::PendingRemote<device::mojom::blink::HidConnection> connection) {
   MarkRequestComplete(resolver);
   device_state_change_in_progress_ = false;
 
-  if (connection && GetExecutionContext()) {
+  if (connection) {
     connection_.Bind(
         std::move(connection),
         GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI));
-    connection_.set_disconnect_handler(WTF::BindOnce(
+    connection_.set_disconnect_handler(WTF::Bind(
         &HIDDevice::OnServiceConnectionError, WrapWeakPersistent(this)));
     resolver->Resolve();
   } else {
-    // If the connection or the context is null, the open failed.
-    receiver_.reset();
+    // If the connection is null, the open failed.
     resolver->Reject(MakeGarbageCollected<DOMException>(
         DOMExceptionCode::kNotAllowedError, kOpenFailed));
   }
-}
-
-void HIDDevice::FinishForget(ScriptPromiseResolver* resolver) {
-  device_state_change_in_progress_ = false;
-  device_is_forgotten_ = true;
-  connection_.reset();
-  receiver_.reset();
-  resolver->Resolve();
 }
 
 void HIDDevice::OnServiceConnectionError() {
@@ -496,6 +440,12 @@ void HIDDevice::OnServiceConnectionError() {
         DOMExceptionCode::kInvalidStateError, kUnexpectedClose));
   }
   device_requests_.clear();
+}
+
+void HIDDevice::FinishClose(ScriptPromiseResolver* resolver) {
+  MarkRequestComplete(resolver);
+  connection_.reset();
+  resolver->Resolve();
 }
 
 void HIDDevice::FinishSendReport(ScriptPromiseResolver* resolver,
@@ -523,7 +473,7 @@ void HIDDevice::FinishSendFeatureReport(ScriptPromiseResolver* resolver,
 void HIDDevice::FinishReceiveFeatureReport(
     ScriptPromiseResolver* resolver,
     bool success,
-    const absl::optional<Vector<uint8_t>>& data) {
+    const base::Optional<Vector<uint8_t>>& data) {
   MarkRequestComplete(resolver);
   if (success && data) {
     DOMArrayBuffer* dom_buffer =
@@ -548,14 +498,8 @@ HIDReportItem* HIDDevice::ToHIDReportItem(
   HIDReportItem* result = HIDReportItem::Create();
   result->setIsAbsolute(!report_item.is_relative);
   result->setIsArray(!report_item.is_variable);
-  result->setIsBufferedBytes(report_item.is_buffered_bytes);
-  result->setIsConstant(report_item.is_constant);
-  result->setIsLinear(!report_item.is_non_linear);
   result->setIsRange(report_item.is_range);
-  result->setIsVolatile(report_item.is_volatile);
   result->setHasNull(report_item.has_null_position);
-  result->setHasPreferredState(!report_item.no_preferred_state);
-  result->setWrap(report_item.wrap);
   result->setReportSize(report_item.report_size);
   result->setReportCount(report_item.report_count);
   result->setUnitExponent(
@@ -565,17 +509,15 @@ HIDReportItem* HIDDevice::ToHIDReportItem(
   result->setPhysicalMinimum(report_item.physical_minimum);
   result->setPhysicalMaximum(report_item.physical_maximum);
 
-  if (report_item.is_range) {
-    result->setUsageMinimum(
-        ConvertHidUsageAndPageToUint32(*report_item.usage_minimum));
-    result->setUsageMaximum(
-        ConvertHidUsageAndPageToUint32(*report_item.usage_maximum));
-  } else {
-    Vector<uint32_t> usages;
-    for (const auto& usage : report_item.usages)
-      usages.push_back(ConvertHidUsageAndPageToUint32(*usage));
-    result->setUsages(usages);
-  }
+  Vector<uint32_t> usages;
+  for (const auto& usage : report_item.usages)
+    usages.push_back(ConvertHidUsageAndPageToUint32(*usage));
+  result->setUsages(usages);
+
+  result->setUsageMinimum(
+      ConvertHidUsageAndPageToUint32(*report_item.usage_minimum));
+  result->setUsageMaximum(
+      ConvertHidUsageAndPageToUint32(*report_item.usage_maximum));
 
   String unit_system;
   int8_t unit_factor_length_exponent;

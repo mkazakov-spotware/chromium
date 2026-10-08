@@ -24,12 +24,8 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "base/numerics/clamped_math.h"
-#include "third_party/blink/renderer/core/css/counter_style.h"
-#include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
-#include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/pseudo_element.h"
 #include "third_party/blink/renderer/core/html/html_olist_element.h"
@@ -37,6 +33,7 @@
 #include "third_party/blink/renderer/core/layout/counter_node.h"
 #include "third_party/blink/renderer/core/layout/layout_list_item.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
+#include "third_party/blink/renderer/core/layout/list_marker_text.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 
@@ -46,8 +43,7 @@
 
 namespace blink {
 
-typedef HeapHashMap<WeakMember<const LayoutObject>, Member<CounterMap>>
-    CounterMaps;
+typedef HashMap<const LayoutObject*, std::unique_ptr<CounterMap>> CounterMaps;
 
 namespace {
 
@@ -57,14 +53,13 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject&,
 
 // See class definition as to why we have this map.
 CounterMaps& GetCounterMaps() {
-  DEFINE_STATIC_LOCAL(Persistent<CounterMaps>, static_counter_maps,
-                      (MakeGarbageCollected<CounterMaps>()));
-  return *static_counter_maps;
+  DEFINE_STATIC_LOCAL(CounterMaps, static_counter_maps, ());
+  return static_counter_maps;
 }
 
 Element* AncestorStyleContainmentObject(const Element& element) {
-  for (Element* ancestor = element.GetStyleRecalcParent(); ancestor;
-       ancestor = ancestor->GetStyleRecalcParent()) {
+  for (Element* ancestor = FlatTreeTraversal::ParentElement(element); ancestor;
+       ancestor = FlatTreeTraversal::ParentElement(*ancestor)) {
     if (const ComputedStyle* style = ancestor->GetComputedStyle()) {
       if (style->ContainsStyle())
         return ancestor;
@@ -208,8 +203,8 @@ bool PlanCounter(LayoutObject& object,
         return true;
       }
       if (auto* olist = DynamicTo<HTMLOListElement>(*e)) {
-        value = base::ClampAdd(olist->StartConsideringItemCount(),
-                               olist->IsReversed() ? 1 : -1);
+        value =
+            olist->StartConsideringItemCount() + (olist->IsReversed() ? 1 : -1);
         type_mask = CounterNode::kResetType;
         return true;
       }
@@ -243,18 +238,18 @@ bool PlanCounter(LayoutObject& object,
 bool FindPlaceForCounter(LayoutObject& counter_owner,
                          const AtomicString& identifier,
                          bool is_reset,
-                         CounterNode** parent,
-                         CounterNode** previous_sibling) {
-  // We cannot stop searching for counters with the same identifier before
-  // we also check this layout object, because it may affect the positioning
-  // in the tree of our counter.
+                         scoped_refptr<CounterNode>& parent,
+                         scoped_refptr<CounterNode>& previous_sibling) {
+  // We cannot stop searching for counters with the same identifier before we
+  // also check this layout object, because it may affect the positioning in the
+  // tree of our counter.
   auto* counter_owner_element = To<Element>(counter_owner.GetNode());
   Element* search_end_element =
       PreviousSiblingOrParentRespectingContainment(*counter_owner_element);
   Element* current_element =
       PreviousInPreOrderRespectingContainment(*counter_owner_element);
-  *previous_sibling = nullptr;
-  CounterNode* previous_sibling_protector = nullptr;
+  previous_sibling = nullptr;
+  scoped_refptr<CounterNode> previous_sibling_protector = nullptr;
   while (current_element) {
     CounterNode* current_counter = nullptr;
     if (LayoutObject* current_layout_object =
@@ -277,14 +272,14 @@ bool FindPlaceForCounter(LayoutObject& counter_owner,
               // sibling layout object hence we are the next sibling of that
               // counter if that reset is not a root or we are a root node if
               // that reset is a root.
-              *parent = current_counter->Parent();
-              *previous_sibling = *parent ? current_counter : nullptr;
-              return *parent;
+              parent = current_counter->Parent();
+              previous_sibling = parent ? current_counter : nullptr;
+              return parent.get();
             }
             // We are not a reset node or the previous reset must be on an
             // ancestor of our owner layout object hence we must be a child of
             // that reset counter.
-            *parent = current_counter;
+            parent = current_counter;
             // In some cases layout objects can be reparented (ex. nodes inside
             // a table but not in a column or row). In these cases the
             // identified previous_sibling will be invalid as its parent is
@@ -292,7 +287,7 @@ bool FindPlaceForCounter(LayoutObject& counter_owner,
             if (previous_sibling_protector->Parent() != current_counter)
               previous_sibling_protector = nullptr;
 
-            *previous_sibling = previous_sibling_protector;
+            previous_sibling = previous_sibling_protector.get();
             return true;
           }
           // CurrentCounter, the counter at the EndSearchLayoutObject, is not
@@ -306,8 +301,8 @@ bool FindPlaceForCounter(LayoutObject& counter_owner,
                 previous_sibling_protector->Parent())
               return false;
 
-            *parent = current_counter->Parent();
-            *previous_sibling = previous_sibling_protector;
+            parent = current_counter->Parent();
+            previous_sibling = previous_sibling_protector.get();
             return true;
           }
         } else {
@@ -319,18 +314,18 @@ bool FindPlaceForCounter(LayoutObject& counter_owner,
           if (current_counter->ActsAsReset()) {
             if (is_reset &&
                 AreElementsSiblings(*current_element, *counter_owner_element)) {
-              *parent = current_counter->Parent();
-              *previous_sibling = current_counter;
-              return *parent;
+              parent = current_counter->Parent();
+              previous_sibling = current_counter;
+              return parent.get();
             }
-            *parent = current_counter;
-            *previous_sibling = previous_sibling_protector;
+            parent = current_counter;
+            previous_sibling = previous_sibling_protector.get();
             return true;
           }
           if (!is_reset ||
               !AreElementsSiblings(*current_element, *counter_owner_element)) {
-            *parent = current_counter->Parent();
-            *previous_sibling = current_counter;
+            parent = current_counter->Parent();
+            previous_sibling = current_counter;
             return true;
           }
           previous_sibling_protector = current_counter;
@@ -394,11 +389,9 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject& object,
                                      const AtomicString& identifier,
                                      bool always_create_counter) {
   if (object.HasCounterNodeMap()) {
-    auto it_counter = GetCounterMaps().find(&object);
-    if (it_counter != GetCounterMaps().end()) {
-      auto it_node = it_counter->value->find(identifier);
-      if (it_node != it_counter->value->end())
-        return &*it_node->value;
+    if (CounterMap* node_map = GetCounterMaps().at(&object)) {
+      if (CounterNode* node = node_map->at(identifier))
+        return node;
     }
   }
 
@@ -408,19 +401,19 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject& object,
       !always_create_counter)
     return nullptr;
 
-  CounterNode* new_parent = nullptr;
-  CounterNode* new_previous_sibling = nullptr;
-  CounterNode* new_node =
-      MakeGarbageCollected<CounterNode>(object, type_mask, value);
+  scoped_refptr<CounterNode> new_parent = nullptr;
+  scoped_refptr<CounterNode> new_previous_sibling = nullptr;
+  scoped_refptr<CounterNode> new_node =
+      CounterNode::Create(object, type_mask, value);
 
   if (type_mask & CounterNode::kResetType) {
     // Find the place where we would've inserted the new node if it was a
     // non-reset node. We have to move every non-reset sibling after the
     // insertion point to a child of the new node.
-    CounterNode* old_parent = nullptr;
-    CounterNode* old_previous_sibling = nullptr;
-    if (FindPlaceForCounter(object, identifier, false, &old_parent,
-                            &old_previous_sibling)) {
+    scoped_refptr<CounterNode> old_parent = nullptr;
+    scoped_refptr<CounterNode> old_previous_sibling = nullptr;
+    if (FindPlaceForCounter(object, identifier, false, old_parent,
+                            old_previous_sibling)) {
       if (!object.IsDescendantOf(&old_parent->Owner())) {
         CounterNode* first_node_to_move =
             old_previous_sibling ? old_previous_sibling->NextSibling()
@@ -432,15 +425,16 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject& object,
   }
 
   if (FindPlaceForCounter(object, identifier,
-                          type_mask & CounterNode::kResetType, &new_parent,
-                          &new_previous_sibling))
-    new_parent->InsertAfter(new_node, new_previous_sibling, identifier);
-  CounterMap* node_map = nullptr;
+                          type_mask & CounterNode::kResetType, new_parent,
+                          new_previous_sibling))
+    new_parent->InsertAfter(new_node.get(), new_previous_sibling.get(),
+                            identifier);
+  CounterMap* node_map;
   if (object.HasCounterNodeMap()) {
     node_map = GetCounterMaps().at(&object);
   } else {
-    node_map = MakeGarbageCollected<CounterMap>();
-    GetCounterMaps().Set(&object, node_map);
+    node_map = new CounterMap;
+    GetCounterMaps().Set(&object, base::WrapUnique(node_map));
     object.SetHasCounterNodeMap(true);
   }
   node_map->Set(identifier, new_node);
@@ -449,7 +443,7 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject& object,
   // don't need to update descendants. Likewise, if the object has style
   // containment, any descendant should not become parented across the boundary.
   if (new_node->Parent() || object.ShouldApplyStyleContainment())
-    return new_node;
+    return new_node.get();
 
   // Checking if some nodes that were previously counter tree root nodes
   // should become children of this node now.
@@ -468,10 +462,8 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject& object,
     skip_descendants = current_layout_object->ShouldApplyStyleContainment();
     if (!current_layout_object->HasCounterNodeMap())
       continue;
-    auto* current_object = maps.at(current_layout_object);
-    auto it = current_object->find(identifier);
     CounterNode* current_counter =
-        it != current_object->end() ? &*it->value : nullptr;
+        maps.at(current_layout_object)->at(identifier);
     if (!current_counter)
       continue;
     // At this point we found a counter to reparent. So we don't need to descend
@@ -485,20 +477,13 @@ CounterNode* MakeCounterNodeIfNeeded(LayoutObject& object,
       break;
     new_node->InsertAfter(current_counter, new_node->LastChild(), identifier);
   }
-  return new_node;
-}
-
-String GenerateCounterText(const CounterStyle* counter_style,
-                           int value) {
-  if (!counter_style)
-    return g_empty_string;
-  return counter_style->GenerateRepresentation(value);
+  return new_node.get();
 }
 
 }  // namespace
 
 LayoutCounter::LayoutCounter(PseudoElement& pseudo,
-                             const CounterContentData& counter)
+                             const CounterContent& counter)
     : LayoutText(nullptr, StringImpl::empty_),
       counter_(counter),
       counter_node_(nullptr),
@@ -508,13 +493,6 @@ LayoutCounter::LayoutCounter(PseudoElement& pseudo,
 }
 
 LayoutCounter::~LayoutCounter() = default;
-
-void LayoutCounter::Trace(Visitor* visitor) const {
-  visitor->Trace(counter_);
-  visitor->Trace(counter_node_);
-  visitor->Trace(next_for_same_counter_);
-  LayoutText::Trace(visitor);
-}
 
 void LayoutCounter::WillBeDestroyed() {
   NOT_DESTROYED();
@@ -535,7 +513,7 @@ scoped_refptr<StringImpl> LayoutCounter::OriginalText() const {
 
   // Find a container on which to create the counter if one needs creating.
   LayoutObject* container = Parent();
-  bool should_create_counter = counter_->Separator().IsNull();
+  bool should_create_counter = counter_.Separator().IsNull();
   // Optimization: the only reason we need a proper container is if we might not
   // need to create a counter (in which case, we navigate container's
   // ancestors), or if we don't have a counter_node_ (in which case we need to
@@ -572,7 +550,7 @@ scoped_refptr<StringImpl> LayoutCounter::OriginalText() const {
       if (style.ContainsStyle())
         break;
       const CounterDirectives directives =
-          style.GetCounterDirectives(counter_->Identifier());
+          style.GetCounterDirectives(counter_.Identifier());
       if (directives.IsDefined()) {
         should_create_counter = true;
         break;
@@ -585,7 +563,7 @@ scoped_refptr<StringImpl> LayoutCounter::OriginalText() const {
     // as the child, without needing to create a counter on `this`. If we don't
     // have such an ancestor, we need to create a `counter_node_` on `this`.
     if (auto* node = CounterNode::AncestorNodeAcrossStyleContainment(
-            *this, counter_->Identifier())) {
+            *this, counter_.Identifier())) {
       child = node;
     } else {
       should_create_counter = true;
@@ -594,7 +572,7 @@ scoped_refptr<StringImpl> LayoutCounter::OriginalText() const {
 
   if (should_create_counter) {
     if (!counter_node_) {
-      MakeCounterNodeIfNeeded(*container, counter_->Identifier(), true)
+      MakeCounterNodeIfNeeded(*container, counter_.Identifier(), true)
           ->AddLayoutObject(const_cast<LayoutCounter*>(this));
       DCHECK(counter_node_);
     }
@@ -606,28 +584,20 @@ scoped_refptr<StringImpl> LayoutCounter::OriginalText() const {
   DCHECK(child);
 
   int value = ValueForText(child);
-  const CounterStyle* counter_style = nullptr;
-  // Note: CSS3 spec doesn't allow 'none' but CSS2.1 allows it. We currently
-  // allow it for backward compatibility.
-  // See https://github.com/w3c/csswg-drafts/issues/5795 for details.
-  if (counter_->ListStyle() != "none") {
-    counter_style =
-        &GetDocument().GetStyleEngine().FindCounterStyleAcrossScopes(
-            counter_->ListStyle(), counter_->GetTreeScope());
-  }
-  String text = GenerateCounterText(counter_style, value);
+  String text = list_marker_text::GetText(counter_.ListStyle(), value);
   // If the separator exists, we need to append all of the parent values as well,
   // including the ones that cross the style containment boundary.
-  if (!counter_->Separator().IsNull()) {
+  if (!counter_.Separator().IsNull()) {
     if (!child->ActsAsReset())
-      child = child->ParentCrossingStyleContainment(counter_->Identifier());
+      child = child->ParentCrossingStyleContainment(counter_.Identifier());
     bool next_result_uses_parent_value = !child->Parent();
     while (CounterNode* parent =
-               child->ParentCrossingStyleContainment(counter_->Identifier())) {
-      int next_value = next_result_uses_parent_value ? ValueForText(parent)
-                                                     : child->CountInParent();
-      text = GenerateCounterText(counter_style, next_value) +
-             counter_->Separator() + text;
+               child->ParentCrossingStyleContainment(counter_.Identifier())) {
+      text = list_marker_text::GetText(counter_.ListStyle(),
+                                       next_result_uses_parent_value
+                                           ? ValueForText(parent)
+                                           : child->CountInParent()) +
+             counter_.Separator() + text;
       child = parent;
       next_result_uses_parent_value = !child->Parent();
     }
@@ -653,18 +623,16 @@ void LayoutCounter::Invalidate() {
 
 static void DestroyCounterNodeWithoutMapRemoval(const AtomicString& identifier,
                                                 CounterNode* node) {
-  CounterNode* previous = nullptr;
-  for (CounterNode* child = node->LastDescendant(); child && child != node;
-       child = previous) {
+  CounterNode* previous;
+  for (scoped_refptr<CounterNode> child = node->LastDescendant();
+       child && child != node; child = previous) {
     previous = child->PreviousInPreOrder();
-    child->Parent()->RemoveChild(child);
+    child->Parent()->RemoveChild(child.get());
     DCHECK(GetCounterMaps().at(&child->Owner())->at(identifier) == child);
-    GetCounterMaps().at(&child->Owner())->Take(identifier)->Destroy();
+    GetCounterMaps().at(&child->Owner())->erase(identifier);
   }
-  if (CounterNode* parent = node->Parent()) {
+  if (CounterNode* parent = node->Parent())
     parent->RemoveChild(node);
-  }
-  node->Destroy();
 }
 
 void LayoutCounter::DestroyCounterNodes(LayoutObject& owner) {
@@ -672,27 +640,26 @@ void LayoutCounter::DestroyCounterNodes(LayoutObject& owner) {
   CounterMaps::iterator maps_iterator = maps.find(&owner);
   if (maps_iterator == maps.end())
     return;
-  CounterMap* map = maps_iterator->value;
+  CounterMap* map = maps_iterator->value.get();
   CounterMap::const_iterator end = map->end();
   for (CounterMap::const_iterator it = map->begin(); it != end; ++it) {
-    DestroyCounterNodeWithoutMapRemoval(it->key, it->value);
+    DestroyCounterNodeWithoutMapRemoval(it->key, it->value.get());
   }
   maps.erase(maps_iterator);
   owner.SetHasCounterNodeMap(false);
   if (owner.View())
-    owner.View()->SetNeedsMarkerOrCounterUpdate();
+    owner.View()->SetNeedsCounterUpdate();
 }
 
 void LayoutCounter::DestroyCounterNode(LayoutObject& owner,
                                        const AtomicString& identifier) {
-  auto it = GetCounterMaps().find(&owner);
-  CounterMap* map = it != GetCounterMaps().end() ? &*it->value : nullptr;
+  CounterMap* map = GetCounterMaps().at(&owner);
   if (!map)
     return;
   CounterMap::iterator map_iterator = map->find(identifier);
   if (map_iterator == map->end())
     return;
-  DestroyCounterNodeWithoutMapRemoval(identifier, map_iterator->value);
+  DestroyCounterNodeWithoutMapRemoval(identifier, map_iterator->value.get());
   map->erase(map_iterator);
   // We do not delete "map" here even if empty because we expect to reuse
   // it soon. In order for a layout object to lose all its counters permanently,
@@ -739,34 +706,29 @@ static void UpdateCounters(LayoutObject& layout_object) {
       MakeCounterNodeIfNeeded(layout_object, it->key, false);
     return;
   }
-  auto it_counter = GetCounterMaps().find(&layout_object);
-  CounterMap* counter_map =
-      it_counter != GetCounterMaps().end() ? &*it_counter->value : nullptr;
+  CounterMap* counter_map = GetCounterMaps().at(&layout_object);
   DCHECK(counter_map);
   for (CounterDirectiveMap::const_iterator it = directive_map->begin();
        it != end; ++it) {
-    auto it_node = counter_map->find(it->key);
-    CounterNode* node =
-        it_node != counter_map->end() ? it_node->value : nullptr;
+    scoped_refptr<CounterNode> node = counter_map->at(it->key);
     if (!node) {
       MakeCounterNodeIfNeeded(layout_object, it->key, false);
       continue;
     }
-    CounterNode* new_parent = nullptr;
-    CounterNode* new_previous_sibling = nullptr;
+    scoped_refptr<CounterNode> new_parent = nullptr;
+    scoped_refptr<CounterNode> new_previous_sibling = nullptr;
 
     FindPlaceForCounter(layout_object, it->key, node->HasResetType(),
-                        &new_parent, &new_previous_sibling);
-    auto it_node2 = counter_map->find(it->key);
-    if (it_node2 == counter_map->end() || (node != it_node2->value))
+                        new_parent, new_previous_sibling);
+    if (node != counter_map->at(it->key))
       continue;
     CounterNode* parent = node->Parent();
     if (new_parent == parent && new_previous_sibling == node->PreviousSibling())
       continue;
     if (parent)
-      parent->RemoveChild(node);
+      parent->RemoveChild(node.get());
     if (new_parent)
-      new_parent->InsertAfter(node, new_previous_sibling, it->key);
+      new_parent->InsertAfter(node.get(), new_previous_sibling.get(), it->key);
   }
 }
 
@@ -803,8 +765,6 @@ void LayoutCounter::LayoutObjectSubtreeAttached(LayoutObject* layout_object) {
 void LayoutCounter::LayoutObjectStyleChanged(LayoutObject& layout_object,
                                              const ComputedStyle* old_style,
                                              const ComputedStyle& new_style) {
-  if (layout_object.IsListItemIncludingNG())
-    ListItemOrdinal::ItemCounterStyleUpdated(layout_object);
   Node* node = layout_object.GeneratingNode();
   if (!node || node->NeedsReattachLayoutTree())
     return;  // cannot have generated content or if it can have, it will be
@@ -875,7 +835,7 @@ CounterMap* LayoutCounter::GetCounterMap(LayoutObject* object) {
 
 #if DCHECK_IS_ON()
 
-void ShowCounterLayoutTree(const blink::LayoutObject* layout_object,
+void showCounterLayoutTree(const blink::LayoutObject* layout_object,
                            const char* counter_name) {
   if (!layout_object)
     return;

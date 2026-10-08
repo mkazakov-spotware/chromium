@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/run_loop.h"
 #include "base/test/scoped_run_loop_timeout.h"
 #include "base/test/task_environment.h"
-#include "base/time/time.h"
 #include "media/audio/clockless_audio_sink.h"
 #include "media/audio/null_audio_sink.h"
 #include "media/base/demuxer.h"
@@ -57,11 +56,6 @@ extern const char kNullAudioHash[];
 class PipelineIntegrationTestBase : public Pipeline::Client {
  public:
   PipelineIntegrationTestBase();
-
-  PipelineIntegrationTestBase(const PipelineIntegrationTestBase&) = delete;
-  PipelineIntegrationTestBase& operator=(const PipelineIntegrationTestBase&) =
-      delete;
-
   virtual ~PipelineIntegrationTestBase();
 
   // Test types for advanced testing and benchmarking (e.g., underflow is
@@ -138,13 +132,13 @@ class PipelineIntegrationTestBase : public Pipeline::Client {
   }
 
   // Saves a test callback, ownership of which will be transferred to the next
-  // AudioRendererImpl created by CreateRendererImpl().
+  // AudioRendererImpl created by CreateDefaultRenderer().
   void set_audio_play_delay_cb(AudioRendererImpl::PlayDelayCBForTesting cb) {
     audio_play_delay_cb_ = std::move(cb);
   }
 
   std::unique_ptr<Renderer> CreateRenderer(
-      absl::optional<RendererType> renderer_type);
+      base::Optional<RendererFactoryType> factory_type);
 
  protected:
   NiceMock<MockMediaLog> media_log_;
@@ -175,18 +169,18 @@ class PipelineIntegrationTestBase : public Pipeline::Client {
   base::TimeDelta current_duration_;
   AudioRendererImpl::PlayDelayCBForTesting audio_play_delay_cb_;
 
-  // By default RendererImpl will be created using CreateRendererImpl(). But
+  // By default RendererImpl will be created using CreateDefaultRenderer(). But
   // if |create_renderer_cb_| is set, it'll be used to create the Renderer
   // instead.
   using CreateRendererCB = base::RepeatingCallback<std::unique_ptr<Renderer>(
-      absl::optional<RendererType> renderer_type)>;
+      base::Optional<RendererFactoryType> factory_type)>;
   CreateRendererCB create_renderer_cb_;
 
-  std::unique_ptr<Renderer> CreateRendererImpl(
-      absl::optional<RendererType> renderer_type);
+  std::unique_ptr<Renderer> CreateDefaultRenderer(
+      base::Optional<RendererFactoryType> factory_type);
 
   // Sets |create_renderer_cb_| which will be used to wrap the Renderer created
-  // by CreateRendererImpl().
+  // by CreateDefaultRenderer().
   void SetCreateRendererCB(CreateRendererCB create_renderer_cb);
 
   PipelineStatus StartInternal(
@@ -213,10 +207,6 @@ class PipelineIntegrationTestBase : public Pipeline::Client {
       TestMediaSource* source,
       uint8_t test_type,
       FakeEncryptedMedia* encrypted_media);
-  PipelineStatus StartPipelineWithMediaSource(
-      TestMediaSource* source,
-      uint8_t test_type,
-      CreateAudioDecodersCB prepend_audio_decoders_cb);
 
   void OnSeeked(base::TimeDelta seek_time, PipelineStatus status);
   void OnStatusCallback(const base::RepeatingClosure& quit_run_loop_closure,
@@ -243,7 +233,6 @@ class PipelineIntegrationTestBase : public Pipeline::Client {
 
   // Pipeline::Client overrides.
   void OnError(PipelineStatus status) override;
-  void OnFallback(PipelineStatus status) override;
   void OnEnded() override;
   MOCK_METHOD1(OnMetadata, void(const PipelineMetadata&));
   MOCK_METHOD2(OnBufferingStateChange,
@@ -256,10 +245,10 @@ class PipelineIntegrationTestBase : public Pipeline::Client {
   MOCK_METHOD1(OnVideoConfigChange, void(const VideoDecoderConfig&));
   MOCK_METHOD1(OnAudioConfigChange, void(const AudioDecoderConfig&));
   MOCK_METHOD1(OnVideoOpacityChange, void(bool));
-  MOCK_METHOD1(OnVideoFrameRateChange, void(absl::optional<int>));
+  MOCK_METHOD1(OnVideoFrameRateChange, void(base::Optional<int>));
   MOCK_METHOD0(OnVideoAverageKeyframeDistanceUpdate, void());
-  MOCK_METHOD1(OnAudioPipelineInfoChange, void(const AudioPipelineInfo&));
-  MOCK_METHOD1(OnVideoPipelineInfoChange, void(const VideoPipelineInfo&));
+  MOCK_METHOD1(OnAudioDecoderChange, void(const PipelineDecoderInfo&));
+  MOCK_METHOD1(OnVideoDecoderChange, void(const PipelineDecoderInfo&));
   MOCK_METHOD1(OnRemotePlayStateChange, void(MediaStatus::State state));
 
  private:
@@ -278,6 +267,8 @@ class PipelineIntegrationTestBase : public Pipeline::Client {
 
   base::OnceClosure on_ended_closure_;
   base::OnceClosure on_error_closure_;
+
+  DISALLOW_COPY_AND_ASSIGN(PipelineIntegrationTestBase);
 };
 
 }  // namespace media

@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -52,6 +52,22 @@ chrome_cleaner_mojom("footprints_interface") {
   ]
 }
 
+chrome_cleaner_mojom("wstring") {
+  sources = [ "wstring.mojom" ]
+  cpp_typemaps = [
+    {
+      types = [
+        {
+          mojom = "chrome_cleaner.mojom.WString"
+          cpp = "::std::wstring"
+        },
+      ]
+      traits_headers = [ "typemaps/wstring_mojom_traits.h" ]
+      traits_sources = [ "typemaps/wstring_mojom_traits.cc" ]
+    },
+  ]
+}
+
 chrome_cleaner_mojom("engine_sandbox_interface") {
   sources = [
     "cleaner_engine_requests.mojom",
@@ -62,8 +78,11 @@ chrome_cleaner_mojom("engine_sandbox_interface") {
     "windows_handle.mojom",
     "wstring_embedded_nulls.mojom",
   ]
-  public_deps = [ "//mojo/public/mojom/base" ]
-  deps = [ ":footprints_interface" ]
+  deps = [
+    ":footprints_interface",
+    ":wstring",
+    "//mojo/public/mojom/base",
+  ]
   cpp_typemaps = [
     {
       types = [
@@ -116,7 +135,10 @@ chrome_cleaner_mojom("engine_sandbox_interface") {
 
 chrome_cleaner_mojom("parser_interface") {
   sources = [ "parser_interface.mojom" ]
-  public_deps = [ "//mojo/public/mojom/base" ]
+  deps = [
+    ":wstring",
+    "//mojo/public/mojom/base",
+  ]
 }
 
 chrome_cleaner_mojom("zip_archiver_interface") {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,20 +6,17 @@
 #define ASH_SYSTEM_MEDIA_MEDIA_TRAY_H_
 
 #include "ash/ash_export.h"
+#include "ash/public/cpp/media_notification_provider_observer.h"
 #include "ash/public/cpp/session/session_observer.h"
-#include "ash/style/icon_button.h"
-#include "ash/system/media/media_notification_provider_observer.h"
 #include "ash/system/tray/tray_background_view.h"
+#include "ash/system/unified/top_shortcut_button.h"
 
 class PrefChangeRegistrar;
 class PrefRegistrySimple;
 class PrefService;
 
 namespace views {
-class Button;
 class ImageView;
-class View;
-class Widget;
 }  // namespace views
 
 namespace ash {
@@ -31,22 +28,20 @@ class ASH_EXPORT MediaTray : public MediaNotificationProviderObserver,
                              public TrayBackgroundView,
                              public SessionObserver {
  public:
-  // Register `prefs::kGlobalMediaControlsPinned`.
+  // Register prefs::kGlobalMediaControlsPinned.
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
   // Returns if global media controls is pinned to shelf.
   static bool IsPinnedToShelf();
 
-  // Set `kGlobalMediaControlsPinned`.
+  // Set kGlobalMediaControlsPinned.
   static void SetPinnedToShelf(bool pinned);
 
-  // Pin button shown in `GlobalMediaControlsTitleView` and
-  // `UnifiedMediaControlsDetailedView`.
-  class PinButton : public IconButton {
+  // Pin button showed in media tray bubble's title view and media controls
+  // detailed view's title view.
+  class PinButton : public TopShortcutButton {
    public:
     PinButton();
-    PinButton(const PinButton&) = delete;
-    PinButton& operator=(const PinButton&) = delete;
     ~PinButton() override = default;
 
    private:
@@ -54,8 +49,6 @@ class ASH_EXPORT MediaTray : public MediaNotificationProviderObserver,
   };
 
   explicit MediaTray(Shelf* shelf);
-  MediaTray(const MediaTray&) = delete;
-  MediaTray& operator=(const MediaTray&) = delete;
   ~MediaTray() override;
 
   // MediaNotificationProviderObserver implementations.
@@ -63,11 +56,11 @@ class ASH_EXPORT MediaTray : public MediaNotificationProviderObserver,
   void OnNotificationListViewSizeChanged() override;
 
   // TrayBackgroundview implementations.
-  std::u16string GetAccessibleNameForTray() override;
+  base::string16 GetAccessibleNameForTray() override;
   void UpdateAfterLoginStatusChange() override;
   void HandleLocaleChange() override;
-  views::Widget* GetBubbleWidget() const override;
-  void ShowBubble() override;
+  bool PerformAction(const ui::Event& event) override;
+  void ShowBubble(bool show_by_click) override;
   void CloseBubble() override;
   void HideBubbleWithView(const TrayBubbleView* bubble_view) override;
   void ClickedOutsideBubble() override;
@@ -88,7 +81,7 @@ class ASH_EXPORT MediaTray : public MediaNotificationProviderObserver,
   friend class MediaTrayTest;
 
   // TrayBubbleView::Delegate implementation.
-  std::u16string GetAccessibleNameForBubble() override;
+  base::string16 GetAccessibleNameForBubble() override;
 
   // Called when theme change, set colors for media notification view.
   void SetNotificationColorTheme();

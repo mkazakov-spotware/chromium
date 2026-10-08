@@ -1,15 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/grid/plus_sign_cell.h"
 
-#import "ios/chrome/browser/ui/icons/symbols.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/grid/grid_constants.h"
-#import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -21,17 +19,14 @@
 
 @implementation PlusSignCell
 
-// `-dequeueReusableCellWithReuseIdentifier:forIndexPath:` calls this method to
+// |-dequeueReusableCellWithReuseIdentifier:forIndexPath:| calls this method to
 // initialize a cell.
 - (instancetype)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
   if (self) {
-    if (UseSymbols()) {
-      self.layer.cornerRadius = kGridCellCornerRadius;
-    } else {
-      self.layer.cornerRadius = kLegacyGridCellCornerRadius;
-    }
-    self.layer.masksToBounds = YES;
+    UIView* contentView = self.contentView;
+    contentView.layer.cornerRadius = kGridCellCornerRadius;
+    contentView.layer.masksToBounds = YES;
     UIImageView* plusSignView = [[UIImageView alloc]
         initWithImage:[UIImage imageNamed:@"grid_cell_plus_sign"]];
     [self.contentView addSubview:plusSignView];
@@ -39,9 +34,6 @@
     _plusSignView = plusSignView;
 
     AddSameCenterConstraints(plusSignView, self.contentView);
-
-    self.accessibilityTraits |= UIAccessibilityTraitButton;
-    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
   }
   return self;
 }
@@ -72,16 +64,34 @@
       break;
   }
 
-  self.backgroundView = [[UIView alloc] init];
-  self.backgroundView.backgroundColor =
-      [UIColor colorNamed:kPlusSignCellBackgroundColor];
+  switch (theme) {
+    // This is necessary for iOS 13 because on iOS 13, this will return
+    // the dynamic color (which will then be colored with the user
+    // interface style).
+    // On iOS 12, this will always return the dynamic color in the light
+    // variant.
+    case GridThemeLight:
+      self.contentView.backgroundColor =
+          [UIColor colorNamed:kPlusSignCellBackgroundColor];
+      break;
+    // These dark-theme specific colorsets should only be used for iOS 12
+    // dark theme, as they will be removed along with iOS 12.
+    // TODO (crbug.com/981889): The following lines will be removed
+    // along with iOS 12
+    case GridThemeDark:
+      self.contentView.backgroundColor =
+          [UIColor colorNamed:kPlusSignCellBackgroundDarkColor];
+      break;
+  }
 
-  // selectedBackgroundView is used for highlighting as well.
-  self.selectedBackgroundView = [[UIView alloc] init];
-  UIColor* highlightedBackgroundColor =
-      [UIColor colorNamed:kTertiaryBackgroundColor];
-  self.selectedBackgroundView.backgroundColor = highlightedBackgroundColor;
-
+  if (@available(iOS 13, *)) {
+    // When iOS 12 is dropped, only the next line is needed for styling.
+    // Every other check for |GridThemeDark| can be removed, as well as
+    // the dark theme specific assets.
+    self.overrideUserInterfaceStyle = (theme == GridThemeDark)
+                                          ? UIUserInterfaceStyleDark
+                                          : UIUserInterfaceStyleUnspecified;
+  }
   _theme = theme;
 }
 

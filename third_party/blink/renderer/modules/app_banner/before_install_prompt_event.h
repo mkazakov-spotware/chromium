@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -80,8 +80,12 @@ class BeforeInstallPromptEvent final
   void BannerAccepted(const String& platform) override;
   void BannerDismissed() override;
 
-  HeapMojoRemote<mojom::blink::AppBannerService> banner_service_remote_;
-  HeapMojoReceiver<mojom::blink::AppBannerEvent, BeforeInstallPromptEvent>
+  HeapMojoRemote<mojom::blink::AppBannerService,
+                 HeapMojoWrapperMode::kWithoutContextObserver>
+      banner_service_remote_;
+  HeapMojoReceiver<mojom::blink::AppBannerEvent,
+                   BeforeInstallPromptEvent,
+                   HeapMojoWrapperMode::kWithoutContextObserver>
       receiver_;
   Vector<String> platforms_;
   Member<UserChoiceProperty> user_choice_;

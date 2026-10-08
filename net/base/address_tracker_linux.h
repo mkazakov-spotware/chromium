@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,7 @@
 #define NET_BASE_ADDRESS_TRACKER_LINUX_H_
 
 #include <sys/socket.h>  // Needed to include netlink.
-
 // Mask superfluous definition of |struct net|. This is fixed in Linux 2.6.38.
-
 #define net net_kernel
 #include <linux/rtnetlink.h>
 #undef net
@@ -23,8 +21,6 @@
 #include "base/compiler_specific.h"
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "base/files/scoped_file.h"
-#include "base/gtest_prod_util.h"
-#include "base/memory/raw_ref.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/thread_checker.h"
@@ -32,7 +28,8 @@
 #include "net/base/net_export.h"
 #include "net/base/network_change_notifier.h"
 
-namespace net::internal {
+namespace net {
+namespace internal {
 
 // Keeps track of network interface addresses using rtnetlink. Used by
 // NetworkChangeNotifier to provide signals to registered IPAddressObservers.
@@ -72,7 +69,7 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux {
 
   AddressMap GetAddressMap() const;
 
-  // Returns set of interface indices for online interfaces.
+  // Returns set of interface indicies for online interfaces.
   std::unordered_set<int> GetOnlineLinks() const;
 
   // Implementation of NetworkChangeNotifierLinux::GetCurrentConnectionType().
@@ -91,11 +88,6 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux {
 
  private:
   friend class AddressTrackerLinuxTest;
-  FRIEND_TEST_ALL_PREFIXES(AddressTrackerLinuxNetlinkTest,
-                           TestInitializeTwoTrackers);
-  FRIEND_TEST_ALL_PREFIXES(AddressTrackerLinuxNetlinkTest,
-                           TestInitializeTwoTrackersInPidNamespaces);
-  friend int ChildProcessInitializeTrackerForTesting();
 
   // In tracking mode, holds |lock| while alive. In non-tracking mode,
   // enforces single-threaded access.
@@ -108,8 +100,8 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux {
     ~AddressTrackerAutoLock();
 
    private:
-    const raw_ref<const AddressTrackerLinux> tracker_;
-    const raw_ref<base::Lock> lock_;
+    const AddressTrackerLinux& tracker_;
+    base::Lock& lock_;
   };
 
   // A function that returns the name of an interface given the interface index
@@ -154,10 +146,6 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux {
   // for |connection_type_initialized_cv_|.
   int GetThreadsWaitingForConnectionTypeInitForTesting();
 
-  // Used by AddressTrackerLinuxNetlinkTest, returns true iff `Init` succeeded.
-  // Undefined for non-tracking mode.
-  bool DidTrackingInitSucceedForTesting() const;
-
   // Gets the name of an interface given the interface index |interface_index|.
   // May return empty string if it fails but should not return NULL. This is
   // overridden by tests.
@@ -182,17 +170,17 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux {
   const std::unordered_set<std::string> ignored_interfaces_;
 
   base::Lock connection_type_lock_;
-  bool connection_type_initialized_ = false;
+  bool connection_type_initialized_;
   base::ConditionVariable connection_type_initialized_cv_;
-  NetworkChangeNotifier::ConnectionType current_connection_type_ =
-      NetworkChangeNotifier::CONNECTION_NONE;
+  NetworkChangeNotifier::ConnectionType current_connection_type_;
   bool tracking_;
-  int threads_waiting_for_connection_type_initialization_ = 0;
+  int threads_waiting_for_connection_type_initialization_;
 
   // Used to verify single-threaded access in non-tracking mode.
   base::ThreadChecker thread_checker_;
 };
 
-}  // namespace net::internal
+}  // namespace internal
+}  // namespace net
 
 #endif  // NET_BASE_ADDRESS_TRACKER_LINUX_H_

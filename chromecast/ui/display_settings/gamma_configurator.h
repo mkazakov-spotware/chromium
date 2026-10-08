@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,16 @@
 
 namespace chromecast {
 
+class CastWindowManager;
+
 namespace shell {
 class CastDisplayConfigurator;
 }  // namespace shell
 
 class GammaConfigurator {
  public:
-  explicit GammaConfigurator(
-      shell::CastDisplayConfigurator* display_configurator);
+  GammaConfigurator(CastWindowManager* window_manager,
+                    shell::CastDisplayConfigurator* display_configurator);
   GammaConfigurator(const GammaConfigurator&) = delete;
   GammaConfigurator& operator=(const GammaConfigurator&) = delete;
   ~GammaConfigurator();
@@ -31,6 +33,7 @@ class GammaConfigurator {
  private:
   void ApplyGammaLut();
 
+  CastWindowManager* const window_manager_;
   shell::CastDisplayConfigurator* display_configurator_;
 
   bool is_initialized_ = false;

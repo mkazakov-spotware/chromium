@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ import java.util.List;
  */
 class MessagePipeHandleImpl extends HandleBase implements MessagePipeHandle {
     /**
-     * @see HandleBase#HandleBase(CoreImpl, long)
+     * @see HandleBase#HandleBase(CoreImpl, int)
      */
-    MessagePipeHandleImpl(CoreImpl core, long mojoHandle) {
+    MessagePipeHandleImpl(CoreImpl core, int mojoHandle) {
         super(core, mojoHandle);
     }
 

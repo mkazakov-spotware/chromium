@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,25 +6,20 @@
 #define BASE_THREADING_SCOPED_BLOCKING_CALL_INTERNAL_H_
 
 #include "base/base_export.h"
-#include "base/callback_forward.h"
 #include "base/debug/activity_tracker.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
-#include "base/types/strong_alias.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 
 // Forward-declare types from scoped_blocking_call.h to break cyclic dependency.
 enum class BlockingType;
 using IOJankReportingCallback = RepeatingCallback<void(int, int)>;
-using OnlyObservedThreadsForTest =
-    StrongAlias<class OnlyObservedThreadsTag, bool>;
-void BASE_EXPORT EnableIOJankMonitoringForProcess(IOJankReportingCallback,
-                                                  OnlyObservedThreadsForTest);
+void BASE_EXPORT EnableIOJankMonitoringForProcess(IOJankReportingCallback);
 
 // Implementation details of types in scoped_blocking_call.h and classes for a
 // few key //base types to observe and react to blocking calls.
@@ -89,26 +84,18 @@ class BASE_EXPORT IOJankMonitoringWindow
     void Cancel();
 
    private:
-    TimeTicks call_start_;
+    const TimeTicks call_start_;
     scoped_refptr<IOJankMonitoringWindow> assigned_jank_window_;
   };
 
-  static constexpr TimeDelta kIOJankInterval = Seconds(1);
-  static constexpr TimeDelta kMonitoringWindow = Minutes(1);
+  static constexpr TimeDelta kIOJankInterval = TimeDelta::FromSeconds(1);
+  static constexpr TimeDelta kMonitoringWindow = TimeDelta::FromMinutes(1);
   static constexpr TimeDelta kTimeDiscrepancyTimeout = kIOJankInterval * 10;
   static constexpr int kNumIntervals = kMonitoringWindow / kIOJankInterval;
 
-  // kIOJankIntervals must integrally fill kMonitoringWindow
-  static_assert((kMonitoringWindow % kIOJankInterval).is_zero(), "");
-
-  // Cancelation is simple because it can only affect the current window.
-  static_assert(kTimeDiscrepancyTimeout < kMonitoringWindow, "");
-
  private:
   friend class base::RefCountedThreadSafe<IOJankMonitoringWindow>;
-  friend void base::EnableIOJankMonitoringForProcess(
-      IOJankReportingCallback,
-      OnlyObservedThreadsForTest);
+  friend void base::EnableIOJankMonitoringForProcess(IOJankReportingCallback);
 
   // No-op if reporting_callback_storage() is null (i.e. unless
   // EnableIOJankMonitoringForProcess() was called).
@@ -179,18 +166,13 @@ class BASE_EXPORT UncheckedScopedBlockingCall {
   explicit UncheckedScopedBlockingCall(const Location& from_here,
                                        BlockingType blocking_type,
                                        BlockingCallType blocking_call_type);
-
-  UncheckedScopedBlockingCall(const UncheckedScopedBlockingCall&) = delete;
-  UncheckedScopedBlockingCall& operator=(const UncheckedScopedBlockingCall&) =
-      delete;
-
   ~UncheckedScopedBlockingCall();
 
  private:
-  const raw_ptr<BlockingObserver> blocking_observer_;
+  BlockingObserver* const blocking_observer_;
 
   // Previous ScopedBlockingCall instantiated on this thread.
-  const raw_ptr<UncheckedScopedBlockingCall> previous_scoped_blocking_call_;
+  UncheckedScopedBlockingCall* const previous_scoped_blocking_call_;
 
   // Whether the BlockingType of the current thread was WILL_BLOCK after this
   // ScopedBlockingCall was instantiated.
@@ -200,7 +182,9 @@ class BASE_EXPORT UncheckedScopedBlockingCall {
 
   // Non-nullopt for non-nested blocking calls of type MAY_BLOCK on foreground
   // threads which we monitor for I/O jank.
-  absl::optional<IOJankMonitoringWindow::ScopedMonitoredCall> monitored_call_;
+  Optional<IOJankMonitoringWindow::ScopedMonitoredCall> monitored_call_;
+
+  DISALLOW_COPY_AND_ASSIGN(UncheckedScopedBlockingCall);
 };
 
 }  // namespace internal

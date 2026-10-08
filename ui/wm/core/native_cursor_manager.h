@@ -1,12 +1,14 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_WM_CORE_NATIVE_CURSOR_MANAGER_H_
 #define UI_WM_CORE_NATIVE_CURSOR_MANAGER_H_
 
-#include "base/component_export.h"
+#include "base/strings/string16.h"
+#include "ui/base/cursor/cursor.h"
 #include "ui/wm/core/native_cursor_manager_delegate.h"
+#include "ui/wm/core/wm_core_export.h"
 
 namespace display {
 class Display;
@@ -22,7 +24,7 @@ namespace wm {
 // requested changes to cursor state. When requested, implementer should tell
 // the CursorManager of any actual state changes performed through the
 // delegate.
-class COMPONENT_EXPORT(UI_WM) NativeCursorManager {
+class WM_CORE_EXPORT NativeCursorManager {
  public:
   virtual ~NativeCursorManager() {}
 

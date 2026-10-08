@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,19 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/test_message_loop.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
+#include "chromeos/audio/cras_audio_handler.h"
+#include "chromeos/dbus/audio/fake_cras_audio_client.h"
 #include "media/audio/audio_device_description.h"
-#include "media/audio/cras/audio_manager_cras.h"
+#include "media/audio/cras/audio_manager_chromeos.h"
 #include "media/audio/fake_audio_log_factory.h"
 #include "media/audio/test_audio_thread.h"
-#include "media/base/audio_parameters.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -41,28 +43,11 @@ class MockAudioInputCallback : public AudioInputStream::AudioInputCallback {
   MOCK_METHOD0(OnError, void());
 };
 
-class MockAudioManagerCrasInput : public AudioManagerCrasBase {
+class MockAudioManagerCrasInput : public AudioManagerChromeOS {
  public:
   MockAudioManagerCrasInput()
-      : AudioManagerCrasBase(std::make_unique<TestAudioThread>(),
+      : AudioManagerChromeOS(std::make_unique<TestAudioThread>(),
                              &fake_audio_log_factory_) {}
-
-  MOCK_METHOD1(RegisterSystemAecDumpSource, void(AecdumpRecordingSource*));
-
-  MOCK_METHOD1(DeregisterSystemAecDumpSource, void(AecdumpRecordingSource*));
-
-  bool HasAudioOutputDevices() { return true; }
-  bool HasAudioInputDevices() { return true; }
-  AudioParameters GetPreferredOutputStreamParameters(
-      const std::string& output_device_id,
-      const AudioParameters& input_params) {
-    return AudioParameters(AudioParameters::AUDIO_PCM_LINEAR,
-                           ChannelLayoutConfig::Stereo(), 44100, 1000);
-  }
-  bool IsDefault(const std::string& device_id, bool is_input) override {
-    return true;
-  }
-  enum CRAS_CLIENT_TYPE GetClientType() { return CRAS_CLIENT_TYPE_LACROS; }
 
   // We need to override this function in order to skip checking the number
   // of active output streams. It is because the number of active streams
@@ -80,26 +65,29 @@ class MockAudioManagerCrasInput : public AudioManagerCrasBase {
 class CrasInputStreamTest : public testing::Test {
  protected:
   CrasInputStreamTest() {
+    chromeos::CrasAudioClient::InitializeFake();
+    chromeos::CrasAudioHandler::InitializeForTesting();
     mock_manager_.reset(new StrictMock<MockAudioManagerCrasInput>());
     base::RunLoop().RunUntilIdle();
   }
 
-  CrasInputStreamTest(const CrasInputStreamTest&) = delete;
-  CrasInputStreamTest& operator=(const CrasInputStreamTest&) = delete;
+  ~CrasInputStreamTest() override {
+    mock_manager_->Shutdown();
+    chromeos::CrasAudioHandler::Shutdown();
+    chromeos::CrasAudioClient::Shutdown();
+  }
 
-  ~CrasInputStreamTest() override { mock_manager_->Shutdown(); }
-
-  CrasInputStream* CreateStream(ChannelLayoutConfig layout) {
+  CrasInputStream* CreateStream(ChannelLayout layout) {
     return CreateStream(layout, kTestFramesPerPacket);
   }
 
-  CrasInputStream* CreateStream(ChannelLayoutConfig layout,
+  CrasInputStream* CreateStream(ChannelLayout layout,
                                 int32_t samples_per_packet) {
     return CreateStream(layout, samples_per_packet,
                         AudioDeviceDescription::kDefaultDeviceId);
   }
 
-  CrasInputStream* CreateStream(ChannelLayoutConfig layout,
+  CrasInputStream* CreateStream(ChannelLayout layout,
                                 int32_t samples_per_packet,
                                 const std::string& device_id) {
     AudioParameters params(kTestFormat,
@@ -114,10 +102,7 @@ class CrasInputStreamTest : public testing::Test {
     CrasInputStream* test_stream = new CrasInputStream(
         params, mock_manager_.get(), AudioDeviceDescription::kDefaultDeviceId);
 
-    EXPECT_CALL(*mock_manager_.get(), RegisterSystemAecDumpSource(_));
-    EXPECT_CALL(*mock_manager_.get(), DeregisterSystemAecDumpSource(_));
-
-    EXPECT_EQ(test_stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+    ASSERT_TRUE(test_stream->Open());
 
     // Allow 8 frames variance for SRC in the callback.  Different numbers of
     // samples can be provided when doing non-integer SRC.  For example
@@ -146,10 +131,13 @@ class CrasInputStreamTest : public testing::Test {
 
   base::TestMessageLoop message_loop_;
   std::unique_ptr<StrictMock<MockAudioManagerCrasInput>> mock_manager_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CrasInputStreamTest);
 };
 
 const unsigned int CrasInputStreamTest::kTestCaptureDurationMs = 250;
-constexpr ChannelLayout CrasInputStreamTest::kTestChannelLayout =
+const ChannelLayout CrasInputStreamTest::kTestChannelLayout =
     CHANNEL_LAYOUT_STEREO;
 const AudioParameters::Format CrasInputStreamTest::kTestFormat =
     AudioParameters::AUDIO_PCM_LINEAR;
@@ -157,31 +145,32 @@ const uint32_t CrasInputStreamTest::kTestFramesPerPacket = 1000;
 const int CrasInputStreamTest::kTestSampleRate = 44100;
 
 TEST_F(CrasInputStreamTest, OpenMono) {
-  CrasInputStream* test_stream = CreateStream(ChannelLayoutConfig::Mono());
-  EXPECT_EQ(test_stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+  CrasInputStream* test_stream = CreateStream(CHANNEL_LAYOUT_MONO);
+  EXPECT_TRUE(test_stream->Open());
   test_stream->Close();
 }
 
 TEST_F(CrasInputStreamTest, OpenStereo) {
-  CrasInputStream* test_stream = CreateStream(ChannelLayoutConfig::Stereo());
-  EXPECT_EQ(test_stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+  CrasInputStream* test_stream = CreateStream(CHANNEL_LAYOUT_STEREO);
+  EXPECT_TRUE(test_stream->Open());
   test_stream->Close();
 }
 
 TEST_F(CrasInputStreamTest, BadSampleRate) {
-  AudioParameters bad_rate_params(
-      kTestFormat, ChannelLayoutConfig::FromLayout<kTestChannelLayout>(), 0,
-      kTestFramesPerPacket);
+  AudioParameters bad_rate_params(kTestFormat,
+                                  kTestChannelLayout,
+                                  0,
+                                  kTestFramesPerPacket);
   CrasInputStream* test_stream =
       new CrasInputStream(bad_rate_params, mock_manager_.get(),
                           AudioDeviceDescription::kDefaultDeviceId);
-  EXPECT_EQ(test_stream->Open(), AudioInputStream::OpenOutcome::kFailed);
+  EXPECT_FALSE(test_stream->Open());
   test_stream->Close();
 }
 
 TEST_F(CrasInputStreamTest, SetGetVolume) {
-  CrasInputStream* test_stream = CreateStream(ChannelLayoutConfig::Mono());
-  EXPECT_EQ(test_stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+  CrasInputStream* test_stream = CreateStream(CHANNEL_LAYOUT_MONO);
+  EXPECT_TRUE(test_stream->Open());
 
   double max_volume = test_stream->GetMaxVolume();
   EXPECT_GE(max_volume, 1.0);
@@ -202,24 +191,28 @@ TEST_F(CrasInputStreamTest, CaptureFrames) {
 
   for (unsigned int i = 0; i < ARRAY_SIZE(rates); i++) {
     SCOPED_TRACE(testing::Message() << "Mono " << rates[i] << "Hz");
-    AudioParameters params_mono(kTestFormat, ChannelLayoutConfig::Mono(),
-                                rates[i], kTestFramesPerPacket);
+    AudioParameters params_mono(kTestFormat,
+                                CHANNEL_LAYOUT_MONO,
+                                rates[i],
+                                kTestFramesPerPacket);
     CaptureSomeFrames(params_mono, kTestCaptureDurationMs);
   }
 
   for (unsigned int i = 0; i < ARRAY_SIZE(rates); i++) {
     SCOPED_TRACE(testing::Message() << "Stereo " << rates[i] << "Hz");
-    AudioParameters params_stereo(kTestFormat, ChannelLayoutConfig::Stereo(),
-                                  rates[i], kTestFramesPerPacket);
+    AudioParameters params_stereo(kTestFormat,
+                                  CHANNEL_LAYOUT_STEREO,
+                                  rates[i],
+                                  kTestFramesPerPacket);
     CaptureSomeFrames(params_stereo, kTestCaptureDurationMs);
   }
 }
 
 TEST_F(CrasInputStreamTest, CaptureLoopback) {
   CrasInputStream* test_stream =
-      CreateStream(ChannelLayoutConfig::Stereo(), kTestFramesPerPacket,
+      CreateStream(CHANNEL_LAYOUT_STEREO, kTestFramesPerPacket,
                    AudioDeviceDescription::kLoopbackInputDeviceId);
-  EXPECT_EQ(test_stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+  EXPECT_TRUE(test_stream->Open());
   test_stream->Close();
 }
 

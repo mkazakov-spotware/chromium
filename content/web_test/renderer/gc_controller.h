@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_WEB_TEST_RENDERER_GC_CONTROLLER_H_
 #define CONTENT_WEB_TEST_RENDERER_GC_CONTROLLER_H_
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "gin/wrappable.h"
 
@@ -21,10 +22,6 @@ namespace content {
 class GCController : public gin::Wrappable<GCController> {
  public:
   static gin::WrapperInfo kWrapperInfo;
-
-  GCController(const GCController&) = delete;
-  GCController& operator=(const GCController&) = delete;
-
   static void Install(blink::WebLocalFrame* frame);
 
  private:
@@ -53,6 +50,8 @@ class GCController : public gin::Wrappable<GCController> {
 
   blink::WebLocalFrame* const frame_;
   base::WeakPtrFactory<GCController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GCController);
 };
 
 }  // namespace content

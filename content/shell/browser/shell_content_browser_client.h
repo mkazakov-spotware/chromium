@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,18 +9,12 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/shell/browser/shell_speech_recognition_manager_delegate.h"
 #include "services/network/public/mojom/network_context.mojom-forward.h"
-
-class PrefService;
-
-namespace device {
-class FakeGeolocationManager;
-}
 
 namespace content {
 class ShellBrowserContext;
@@ -47,26 +41,18 @@ class ShellContentBrowserClient : public ContentBrowserClient {
 
   // ContentBrowserClient overrides.
   std::unique_ptr<BrowserMainParts> CreateBrowserMainParts(
-      bool is_integration_test) override;
+      const MainFunctionParams& parameters) override;
   bool IsHandledURL(const GURL& url) override;
-  bool HasCustomSchemeHandler(content::BrowserContext* browser_context,
-                              const std::string& scheme) override;
-  std::vector<std::unique_ptr<blink::URLLoaderThrottle>>
-  CreateURLLoaderThrottles(
-      const network::ResourceRequest& request,
-      BrowserContext* browser_context,
-      const base::RepeatingCallback<WebContents*()>& wc_getter,
-      NavigationUIData* navigation_ui_data,
-      int frame_tree_node_id) override;
+  bool ShouldTerminateOnServiceQuit(
+      const service_manager::Identity& id) override;
   void AppendExtraCommandLineSwitches(base::CommandLine* command_line,
                                       int child_process_id) override;
   std::string GetAcceptLangs(BrowserContext* context) override;
   std::string GetDefaultDownloadName() override;
-  std::unique_ptr<WebContentsViewDelegate> GetWebContentsViewDelegate(
+  WebContentsViewDelegate* GetWebContentsViewDelegate(
       WebContents* web_contents) override;
-  bool ShouldUrlUseApplicationIsolationLevel(BrowserContext* browser_context,
-                                             const GURL& url,
-                                             bool origin_matches_flag) override;
+  scoped_refptr<content::QuotaPermissionContext> CreateQuotaPermissionContext()
+      override;
   GeneratedCodeCacheSettings GetGeneratedCodeCacheSettings(
       content::BrowserContext* context) override;
   base::OnceClosure SelectClientCertificate(
@@ -76,11 +62,10 @@ class ShellContentBrowserClient : public ContentBrowserClient {
       std::unique_ptr<ClientCertificateDelegate> delegate) override;
   SpeechRecognitionManagerDelegate* CreateSpeechRecognitionManagerDelegate()
       override;
-  void OverrideWebkitPrefs(WebContents* web_contents,
+  void OverrideWebkitPrefs(RenderViewHost* render_view_host,
                            blink::web_pref::WebPreferences* prefs) override;
   base::FilePath GetFontLookupTableCacheDir() override;
-  std::unique_ptr<content::DevToolsManagerDelegate>
-  CreateDevToolsManagerDelegate() override;
+  DevToolsManagerDelegate* GetDevToolsManagerDelegate() override;
   void ExposeInterfacesToRenderer(
       service_manager::BinderRegistry* registry,
       blink::AssociatedInterfaceRegistry* associated_registry,
@@ -104,49 +89,33 @@ class ShellContentBrowserClient : public ContentBrowserClient {
       scoped_refptr<net::HttpResponseHeaders> response_headers,
       bool first_auth_attempt,
       LoginAuthRequiredCallback auth_required_callback) override;
-  base::Value::Dict GetNetLogConstants() override;
+  base::DictionaryValue GetNetLogConstants() override;
   base::FilePath GetSandboxedStorageServiceDataDirectory() override;
-  base::FilePath GetFirstPartySetsDirectory() override;
   std::string GetUserAgent() override;
-  std::string GetFullUserAgent() override;
-  std::string GetReducedUserAgent() override;
   blink::UserAgentMetadata GetUserAgentMetadata() override;
   void OverrideURLLoaderFactoryParams(
       BrowserContext* browser_context,
       const url::Origin& origin,
       bool is_for_isolated_world,
       network::mojom::URLLoaderFactoryParams* factory_params) override;
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
   void GetAdditionalMappedFilesForChildProcess(
       const base::CommandLine& command_line,
       int child_process_id,
       content::PosixFileDescriptorInfo* mappings) override;
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
-        // BUILDFLAG(IS_ANDROID)
-  device::GeolocationManager* GetGeolocationManager() override;
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
   void ConfigureNetworkContextParams(
       BrowserContext* context,
       bool in_memory,
       const base::FilePath& relative_partition_path,
       network::mojom::NetworkContextParams* network_context_params,
-      cert_verifier::mojom::CertVerifierCreationParams*
-          cert_verifier_creation_params) override;
+      network::mojom::CertVerifierCreationParams* cert_verifier_creation_params)
+      override;
   std::vector<base::FilePath> GetNetworkContextsParentDirectory() override;
   void BindBrowserControlInterface(mojo::ScopedMessagePipeHandle pipe) override;
   void GetHyphenationDictionary(
       base::OnceCallback<void(const base::FilePath&)>) override;
   bool HasErrorPage(int http_status_code) override;
-  void OnNetworkServiceCreated(
-      network::mojom::NetworkService* network_service) override;
-
-  // Turns on features via permissions policy for Isolated App
-  // Web Platform Tests.
-  absl::optional<blink::ParsedPermissionsPolicy>
-  GetPermissionsPolicyForIsolatedWebApp(
-      content::BrowserContext* browser_context,
-      const url::Origin& app_origin) override;
-
-  void CreateFeatureListAndFieldTrials();
 
   ShellBrowserContext* browser_context();
   ShellBrowserContext* off_the_record_browser_context();
@@ -155,20 +124,17 @@ class ShellContentBrowserClient : public ContentBrowserClient {
   }
 
   // Used for content_browsertests.
-  using SelectClientCertificateCallback = base::OnceCallback<base::OnceClosure(
-      content::WebContents* web_contents,
-      net::SSLCertRequestInfo* cert_request_info,
-      net::ClientCertIdentityList client_certs,
-      std::unique_ptr<content::ClientCertificateDelegate> delegate)>;
-
   void set_select_client_certificate_callback(
-      SelectClientCertificateCallback select_client_certificate_callback) {
+      base::OnceClosure select_client_certificate_callback) {
     select_client_certificate_callback_ =
         std::move(select_client_certificate_callback);
   }
+  void set_should_terminate_on_service_quit_callback(
+      base::OnceCallback<bool(const service_manager::Identity&)> callback) {
+    should_terminate_on_service_quit_callback_ = std::move(callback);
+  }
   void set_login_request_callback(
-      base::OnceCallback<void(bool is_primary_main_frame)>
-          login_request_callback) {
+      base::OnceCallback<void(bool is_main_frame)> login_request_callback) {
     login_request_callback_ = std::move(login_request_callback);
   }
   void set_url_loader_factory_params_callback(
@@ -210,17 +176,15 @@ class ShellContentBrowserClient : public ContentBrowserClient {
   virtual void ConfigureNetworkContextParamsForShell(
       BrowserContext* context,
       network::mojom::NetworkContextParams* context_params,
-      cert_verifier::mojom::CertVerifierCreationParams*
+      network::mojom::CertVerifierCreationParams*
           cert_verifier_creation_params);
 
  private:
-  std::unique_ptr<PrefService> CreateLocalState();
-  // Needed so that content_shell can use fieldtrial_testing_config.
-  void SetUpFieldTrials();
-
   static bool allow_any_cors_exempt_header_for_browser_;
 
-  SelectClientCertificateCallback select_client_certificate_callback_;
+  base::OnceClosure select_client_certificate_callback_;
+  base::OnceCallback<bool(const service_manager::Identity&)>
+      should_terminate_on_service_quit_callback_;
   base::OnceCallback<void(bool is_main_frame)> login_request_callback_;
   base::RepeatingCallback<void(const network::mojom::URLLoaderFactoryParams*,
                                const url::Origin&,
@@ -231,20 +195,14 @@ class ShellContentBrowserClient : public ContentBrowserClient {
       create_throttles_for_navigation_callback_;
   base::RepeatingCallback<void(blink::web_pref::WebPreferences*)>
       override_web_preferences_callback_;
-#if BUILDFLAG(IS_MAC)
-  std::unique_ptr<device::FakeGeolocationManager> location_manager_;
-#endif
 
   // Owned by content::BrowserMainLoop.
-  raw_ptr<ShellBrowserMainParts, DanglingUntriaged> shell_browser_main_parts_ =
-      nullptr;
-
-  std::unique_ptr<PrefService> local_state_;
+  ShellBrowserMainParts* shell_browser_main_parts_ = nullptr;
 };
 
 // The delay for sending reports when running with --run-web-tests
 constexpr base::TimeDelta kReportingDeliveryIntervalTimeForWebTests =
-    base::Milliseconds(100);
+    base::TimeDelta::FromMilliseconds(100);
 
 }  // namespace content
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include "components/autofill_assistant/browser/actions/action_delegate.h"
 #include "components/autofill_assistant/browser/client_status.h"
-#include "components/autofill_assistant/browser/web/element_finder_result.h"
-#include "components/autofill_assistant/browser/web/web_controller.h"
+#include "components/autofill_assistant/browser/web/element_finder.h"
 
 namespace autofill_assistant {
 
@@ -29,7 +28,7 @@ void WaitForDocumentAction::InternalProcessAction(
     WaitForReadyState();
     return;
   }
-  delegate_->ShortWaitForElementWithSlowWarning(
+  delegate_->ShortWaitForElement(
       frame_selector,
       base::BindOnce(
           &WaitForDocumentAction::OnWaitForElementTimed,
@@ -53,7 +52,7 @@ void WaitForDocumentAction::OnShortWaitForElement(
 
 void WaitForDocumentAction::OnFindElement(
     const ClientStatus& status,
-    std::unique_ptr<ElementFinderResult> element) {
+    std::unique_ptr<ElementFinder::Result> element) {
   if (!status.ok()) {
     SendResult(status, DOCUMENT_UNKNOWN_READY_STATE);
     return;
@@ -64,9 +63,9 @@ void WaitForDocumentAction::OnFindElement(
 }
 
 void WaitForDocumentAction::WaitForReadyState() {
-  delegate_->GetWebController()->GetDocumentReadyState(
+  delegate_->GetDocumentReadyState(
       optional_frame_element_ ? *optional_frame_element_
-                              : ElementFinderResult(),
+                              : ElementFinder::Result(),
       base::BindOnce(&WaitForDocumentAction::OnGetStartState,
                      weak_ptr_factory_.GetWeakPtr()));
 }
@@ -86,8 +85,8 @@ void WaitForDocumentAction::OnGetStartState(const ClientStatus& status,
     return;
   }
 
-  base::TimeDelta timeout =
-      base::Milliseconds(proto_.wait_for_document().timeout_ms());
+  base::TimeDelta timeout = base::TimeDelta::FromMilliseconds(
+      proto_.wait_for_document().timeout_ms());
   if (timeout.is_zero()) {
     SendResult(ClientStatus(TIMED_OUT), start_state);
     return;
@@ -96,7 +95,7 @@ void WaitForDocumentAction::OnGetStartState(const ClientStatus& status,
   delegate_->WaitForDocumentReadyState(
       timeout, proto_.wait_for_document().min_ready_state(),
       optional_frame_element_ ? *optional_frame_element_
-                              : ElementFinderResult(),
+                              : ElementFinder::Result(),
       base::BindOnce(&WaitForDocumentAction::OnWaitForStartState,
                      weak_ptr_factory_.GetWeakPtr()));
 }
@@ -108,9 +107,9 @@ void WaitForDocumentAction::OnWaitForStartState(
   action_stopwatch_.TransferToWaitTime(wait_time);
 
   if (status.proto_status() == TIMED_OUT) {
-    delegate_->GetWebController()->GetDocumentReadyState(
+    delegate_->GetDocumentReadyState(
         optional_frame_element_ ? *optional_frame_element_
-                                : ElementFinderResult(),
+                                : ElementFinder::Result(),
         base::BindOnce(&WaitForDocumentAction::OnTimeoutInState,
                        weak_ptr_factory_.GetWeakPtr(), status));
     return;

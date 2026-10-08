@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/task/single_thread_task_executor.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -32,9 +33,6 @@ class PackagedApp : public service_manager::Service,
     registry_.AddInterface<service_manager::test::mojom::LifecycleControl>(
         base::BindRepeating(&PackagedApp::Create, base::Unretained(this)));
   }
-
-  PackagedApp(const PackagedApp&) = delete;
-  PackagedApp& operator=(const PackagedApp&) = delete;
 
   ~PackagedApp() override = default;
 
@@ -96,6 +94,8 @@ class PackagedApp : public service_manager::Service,
   base::OnceClosure service_manager_connection_closed_callback_;
   // Run when this object is destructed.
   base::OnceClosure destruct_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(PackagedApp);
 };
 
 class Package : public service_manager::Service {
@@ -107,9 +107,6 @@ class Package : public service_manager::Service {
     app_client_.set_termination_closure(
         base::BindOnce(&Package::Terminate, base::Unretained(this)));
   }
-
-  Package(const Package&) = delete;
-  Package& operator=(const Package&) = delete;
 
   ~Package() override = default;
 
@@ -155,6 +152,8 @@ class Package : public service_manager::Service {
 
   int next_id_ = 0;
   std::map<int, std::unique_ptr<PackagedApp>> app_instances_;
+
+  DISALLOW_COPY_AND_ASSIGN(Package);
 };
 
 }  // namespace

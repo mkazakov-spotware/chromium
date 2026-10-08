@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,14 +21,11 @@ public class DnsStatus {
 
     private final String mPrivateDnsServerName;
 
-    private final String mSearchDomains;
-
-    public DnsStatus(List<InetAddress> dnsServers, boolean privateDnsActive,
-            String privateDnsServerName, String searchDomains) {
+    public DnsStatus(
+            List<InetAddress> dnsServers, boolean privateDnsActive, String privateDnsServerName) {
         mDnsServers = dnsServers;
         mPrivateDnsActive = privateDnsActive;
         mPrivateDnsServerName = (privateDnsServerName != null) ? privateDnsServerName : "";
-        mSearchDomains = (searchDomains != null) ? searchDomains : "";
     }
 
     @CalledByNative
@@ -48,10 +45,5 @@ public class DnsStatus {
     @CalledByNative
     public String getPrivateDnsServerName() {
         return mPrivateDnsServerName;
-    }
-
-    @CalledByNative
-    public String getSearchDomains() {
-        return mSearchDomains;
     }
 }

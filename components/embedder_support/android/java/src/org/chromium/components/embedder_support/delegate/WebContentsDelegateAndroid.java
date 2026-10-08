@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,8 @@ import android.view.KeyEvent;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
-import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.common.ResourceRequestBody;
-import org.chromium.url.GURL;
 
 /**
  * Java peer of the native class of the same name.
@@ -28,13 +26,12 @@ public class WebContentsDelegateAndroid {
     public static final int LOG_LEVEL_ERROR = 3;
 
     /**
-     * @param url
      * @param disposition         The new tab disposition, defined in
      *                            //ui/base/mojo/window_open_disposition.mojom.
      * @param isRendererInitiated Whether or not the renderer initiated this action.
      */
     @CalledByNative
-    public void openNewTab(GURL url, String extraHeaders, ResourceRequestBody postData,
+    public void openNewTab(String url, String extraHeaders, ResourceRequestBody postData,
             int disposition, boolean isRendererInitiated) {}
 
     @CalledByNative
@@ -44,7 +41,7 @@ public class WebContentsDelegateAndroid {
     public void closeContents() {}
 
     @CalledByNative
-    public void loadingStateChanged(boolean shouldShowLoadingUI) {}
+    public void loadingStateChanged(boolean toDifferentDocument) {}
 
     @CalledByNative
     public void navigationStateChanged(int flags) {}
@@ -66,16 +63,16 @@ public class WebContentsDelegateAndroid {
 
     @CalledByNative
     public void webContentsCreated(WebContents sourceWebContents, long openerRenderProcessId,
-            long openerRenderFrameId, String frameName, GURL targetUrl,
+            long openerRenderFrameId, String frameName, String targetUrl,
             WebContents newWebContents) {}
 
     @CalledByNative
-    public boolean shouldCreateWebContents(GURL targetUrl) {
+    public boolean shouldCreateWebContents(String targetUrl) {
         return true;
     }
 
     @CalledByNative
-    public void onUpdateUrl(GURL url) {}
+    public void onUpdateUrl(String url) {}
 
     @CalledByNative
     public boolean takeFocus(boolean reverse) {
@@ -111,11 +108,7 @@ public class WebContentsDelegateAndroid {
     public void showRepostFormWarningDialog() {}
 
     @CalledByNative
-    public void enterFullscreenModeForTab(boolean prefersNavigationBar, boolean prefersStatusBar) {}
-
-    @CalledByNative
-    public void fullscreenStateChangedForTab(
-            boolean prefersNavigationBar, boolean prefersStatusBar) {}
+    public void enterFullscreenModeForTab(boolean prefersNavigationBar) {}
 
     @CalledByNative
     public void exitFullscreenModeForTab() {}
@@ -131,7 +124,7 @@ public class WebContentsDelegateAndroid {
      * @return true to prevent the resource from being loaded.
      */
     @CalledByNative
-    public boolean shouldBlockMediaRequest(GURL url) {
+    public boolean shouldBlockMediaRequest(String url) {
         return false;
     }
 
@@ -173,41 +166,5 @@ public class WebContentsDelegateAndroid {
     @CalledByNative
     public boolean shouldAnimateBrowserControlsHeightChanges() {
         return false;
-    }
-
-    /**
-     * @return Whether or not the browser controls resize Blink's view size.
-     */
-    @CalledByNative
-    public boolean controlsResizeView() {
-        return false;
-    }
-
-    /**
-     * @return If shown, returns the height of the virtual keyboard in physical pixels. Otherwise,
-     *         returns 0.
-     */
-    @CalledByNative
-    public int getVirtualKeyboardHeight() {
-        return 0;
-    }
-
-    /**
-     * Check and return the {@link DisplayMode} value.
-     *
-     * @return The {@link DisplayMode} value.
-     */
-    @CalledByNative
-    protected final int getDisplayModeChecked() {
-        int displayMode = getDisplayMode();
-        assert DisplayMode.isKnownValue(displayMode);
-        return displayMode;
-    }
-
-    /**
-     * @return The {@link DisplayMode} value.
-     */
-    public int getDisplayMode() {
-        return DisplayMode.UNDEFINED;
     }
 }

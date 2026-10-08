@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,9 @@ namespace password_manager {
 CredentialCache::CredentialCache() = default;
 CredentialCache::~CredentialCache() = default;
 
-void CredentialCache::SaveCredentialsAndBlocklistedForOrigin(
+void CredentialCache::SaveCredentialsAndBlacklistedForOrigin(
     const std::vector<const PasswordForm*>& best_matches,
-    IsOriginBlocklisted is_blocklisted,
+    IsOriginBlacklisted is_blacklisted,
     const url::Origin& origin) {
   std::vector<UiCredential> credentials;
   credentials.reserve(best_matches.size());
@@ -41,8 +41,8 @@ void CredentialCache::SaveCredentialsAndBlocklistedForOrigin(
                           return credential.origin() == origin;
                         });
   GetOrCreateCredentialStore(origin).SaveCredentials(std::move(credentials));
-  GetOrCreateCredentialStore(origin).SetBlocklistedStatus(
-      is_blocklisted.value());
+  GetOrCreateCredentialStore(origin).SetBlacklistedStatus(
+      is_blacklisted.value());
 }
 
 const OriginCredentialStore& CredentialCache::GetCredentialStore(

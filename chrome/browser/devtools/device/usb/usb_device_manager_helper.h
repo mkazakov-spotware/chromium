@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,10 +57,6 @@ class UsbDeviceManagerHelper {
   // Please do not create UsbDeviceManagerHelper instance from this constructor
   // directly, use static method GetInstance() instead.
   UsbDeviceManagerHelper();
-
-  UsbDeviceManagerHelper(const UsbDeviceManagerHelper&) = delete;
-  UsbDeviceManagerHelper& operator=(const UsbDeviceManagerHelper&) = delete;
-
   virtual ~UsbDeviceManagerHelper();
 
   void GetAndroidDevices(AndroidDeviceInfoListCallback callback);
@@ -83,6 +79,8 @@ class UsbDeviceManagerHelper {
   THREAD_CHECKER(thread_checker_);
 
   base::WeakPtrFactory<UsbDeviceManagerHelper> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UsbDeviceManagerHelper);
 };
 
 #endif  // CHROME_BROWSER_DEVTOOLS_DEVICE_USB_USB_DEVICE_MANAGER_HELPER_H_

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,7 +50,19 @@ final class WebViewCompatibilityHelper {
             // matches what Android does when constructing class loaders, see
             // android.app.ApplicationLoaders.
             return new PathClassLoader(
-                    dexPath, librarySearchPath, ClassLoader.getSystemClassLoader().getParent());
+                    dexPath, librarySearchPath, ClassLoader.getSystemClassLoader().getParent()) {
+                @Override
+                public Class<?> loadClass(String name) throws ClassNotFoundException {
+                    // TODO(crbug.com/1112001): Investigate why loading classes causes strict mode
+                    // violations in some situations.
+                    StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
+                    try {
+                        return super.loadClass(name);
+                    } finally {
+                        StrictMode.setThreadPolicy(oldPolicy);
+                    }
+                }
+            };
         } finally {
             StrictMode.setThreadPolicy(oldPolicy);
         }
@@ -69,31 +81,17 @@ final class WebViewCompatibilityHelper {
     private static String getAllApkPaths(ApplicationInfo info) {
         // The OS version of this method also includes resourceDirs, but this is not available in
         // the SDK.
+        final String[][] inputLists = {info.sharedLibraryFiles, info.splitSourceDirs};
         final List<String> output = new ArrayList<>(10);
-        // First add the base APK path, since this is always needed.
+        for (String[] inputList : inputLists) {
+            if (inputList != null) {
+                for (String input : inputList) {
+                    output.add(input);
+                }
+            }
+        }
         if (info.sourceDir != null) {
             output.add(info.sourceDir);
-        }
-        // Next add split paths that are used by WebLayer.
-        if (info.splitSourceDirs != null) {
-            String[] splitNames = null;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                splitNames = WebLayer.ApiHelperForO.getSplitNames(info);
-            }
-            for (int i = 0; i < info.splitSourceDirs.length; i++) {
-                // WebLayer only uses the "chrome" and "weblayer" splits.
-                if (splitNames != null && !splitNames[i].equals("chrome")
-                        && !splitNames[i].equals("weblayer")) {
-                    continue;
-                }
-                output.add(info.splitSourceDirs[i]);
-            }
-        }
-        // Last, add shared library paths.
-        if (info.sharedLibraryFiles != null) {
-            for (String input : info.sharedLibraryFiles) {
-                output.add(input);
-            }
         }
         return TextUtils.join(File.pathSeparator, output);
     }

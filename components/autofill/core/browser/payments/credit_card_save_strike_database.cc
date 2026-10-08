@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,23 +14,22 @@ CreditCardSaveStrikeDatabase::CreditCardSaveStrikeDatabase(
   RemoveExpiredStrikes();
 }
 
-CreditCardSaveStrikeDatabase::~CreditCardSaveStrikeDatabase() = default;
+CreditCardSaveStrikeDatabase::~CreditCardSaveStrikeDatabase() {}
 
-std::string CreditCardSaveStrikeDatabase::GetProjectPrefix() const {
+std::string CreditCardSaveStrikeDatabase::GetProjectPrefix() {
   return "CreditCardSave";
 }
 
-int CreditCardSaveStrikeDatabase::GetMaxStrikesLimit() const {
+int CreditCardSaveStrikeDatabase::GetMaxStrikesLimit() {
   return 3;
 }
 
-absl::optional<base::TimeDelta>
-CreditCardSaveStrikeDatabase::GetExpiryTimeDelta() const {
+int64_t CreditCardSaveStrikeDatabase::GetExpiryTimeMicros() {
   // Expiry time is 6 months.
-  return base::Days(183);
+  return (int64_t)1000000 * 60 * 60 * 24 * 180;
 }
 
-bool CreditCardSaveStrikeDatabase::UniqueIdsRequired() const {
+bool CreditCardSaveStrikeDatabase::UniqueIdsRequired() {
   return true;
 }
 

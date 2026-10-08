@@ -1,12 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_TEST_UTIL_H_
 #define COMPONENTS_AUTOFILL_ASSISTANT_BROWSER_TEST_UTIL_H_
-
-#include <string>
-#include <utility>
 
 #include "components/autofill_assistant/browser/service.pb.h"
 
@@ -16,9 +13,6 @@ namespace autofill_assistant {
 // tests, not for comparing protos received externally.
 bool operator==(const google::protobuf::MessageLite& proto_a,
                 const google::protobuf::MessageLite& proto_b);
-
-bool operator==(const autofill_assistant::ScriptParameterProto& proto,
-                const std::pair<std::string, std::string>& pair);
 
 }  // namespace autofill_assistant
 

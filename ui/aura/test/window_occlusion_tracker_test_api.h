@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace aura {
 
@@ -18,11 +18,6 @@ namespace test {
 class WindowOcclusionTrackerTestApi {
  public:
   explicit WindowOcclusionTrackerTestApi(WindowOcclusionTracker* tracker);
-
-  WindowOcclusionTrackerTestApi(const WindowOcclusionTrackerTestApi&) = delete;
-  WindowOcclusionTrackerTestApi& operator=(
-      const WindowOcclusionTrackerTestApi&) = delete;
-
   ~WindowOcclusionTrackerTestApi();
 
   // Creates a WindowOcclusionTracker for TestWindowTreeClientSetup to simulate
@@ -39,7 +34,9 @@ class WindowOcclusionTrackerTestApi {
   bool IsPaused() const;
 
  private:
-  const raw_ptr<WindowOcclusionTracker> tracker_;
+  WindowOcclusionTracker* const tracker_;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowOcclusionTrackerTestApi);
 };
 
 }  // namespace test

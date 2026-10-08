@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,11 @@
 #include "ash/assistant/test/assistant_ash_test_base.h"
 #include "ash/fast_ink/fast_ink_points.h"
 #include "ash/highlighter/highlighter_controller_test_api.h"
-#include "ash/public/cpp/stylus_utils.h"
 #include "ash/shell.h"
 #include "ash/system/palette/mock_palette_tool_delegate.h"
 #include "ash/system/palette/palette_tool.h"
 #include "ash/system/palette/tools/metalayer_mode.h"
 #include "base/strings/stringprintf.h"
-#include "build/build_config.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/compositor/test/draw_waiter_for_test.h"
 #include "ui/events/test/event_generator.h"
@@ -26,10 +24,6 @@ namespace {
 class TestHighlighterObserver : public HighlighterController::Observer {
  public:
   TestHighlighterObserver() = default;
-
-  TestHighlighterObserver(const TestHighlighterObserver&) = delete;
-  TestHighlighterObserver& operator=(const TestHighlighterObserver&) = delete;
-
   ~TestHighlighterObserver() override = default;
 
   // HighlighterController::Observer:
@@ -59,16 +53,14 @@ class TestHighlighterObserver : public HighlighterController::Observer {
   int disabled_by_session_abort_ = 0;
   int disabled_by_session_complete_ = 0;
   gfx::Rect last_recognized_rect_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestHighlighterObserver);
 };
 
 class HighlighterControllerTest : public AssistantAshTestBase {
  public:
   HighlighterControllerTest() = default;
-
-  HighlighterControllerTest(const HighlighterControllerTest&) = delete;
-  HighlighterControllerTest& operator=(const HighlighterControllerTest&) =
-      delete;
-
   ~HighlighterControllerTest() override = default;
 
   void SetUp() override {
@@ -118,6 +110,9 @@ class HighlighterControllerTest : public AssistantAshTestBase {
   std::unique_ptr<PaletteTool> tool_;
 
   HighlighterController* controller_ = nullptr;  // Not owned.
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HighlighterControllerTest);
 };
 
 }  // namespace
@@ -125,8 +120,6 @@ class HighlighterControllerTest : public AssistantAshTestBase {
 // Test to ensure the class responsible for drawing the highlighter pointer
 // receives points from stylus movements as expected.
 TEST_F(HighlighterControllerTest, HighlighterRenderer) {
-  ash::stylus_utils::SetHasStylusInputForTesting();
-
   // The highlighter pointer mode only works with stylus.
   ui::test::EventGenerator* event_generator = GetEventGenerator();
   event_generator->EnterPenPointerMode();
@@ -228,12 +221,7 @@ TEST_F(HighlighterControllerTest, HighlighterPrediction) {
 }
 
 // Test that stylus gestures are correctly recognized by HighlighterController.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#define MAYBE_HighlighterGestures DISABLED_HighlighterGestures
-#else
-#define MAYBE_HighlighterGestures HighlighterGestures
-#endif
-TEST_F(HighlighterControllerTest, MAYBE_HighlighterGestures) {
+TEST_F(HighlighterControllerTest, HighlighterGestures) {
   controller_test_api_->SetEnabled(true);
   ui::test::EventGenerator* event_generator = GetEventGenerator();
   event_generator->EnterPenPointerMode();
@@ -306,14 +294,7 @@ TEST_F(HighlighterControllerTest, MAYBE_HighlighterGestures) {
   controller_->RemoveObserver(&observer);
 }
 
-// TODO(1346951): Disable HighlighterGesturesScaled on Linux Chromium OS Asan
-// Lsan Tests.
-#if defined(LEAK_SANITIZER) && BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_HighlighterGesturesScaled DISABLED_HighlighterGesturesScaled
-#else
-#define MAYBE_HighlighterGesturesScaled HighlighterGesturesScaled
-#endif
-TEST_F(HighlighterControllerTest, MAYBE_HighlighterGesturesScaled) {
+TEST_F(HighlighterControllerTest, HighlighterGesturesScaled) {
   controller_test_api_->SetEnabled(true);
   ui::test::EventGenerator* event_generator = GetEventGenerator();
   event_generator->EnterPenPointerMode();
@@ -348,7 +329,7 @@ TEST_F(HighlighterControllerTest, MAYBE_HighlighterGesturesScaled) {
       gfx::Rect inflated_px(original_px);
       // Allow for rounding errors within 1dp.
       const int error_margin = static_cast<int>(std::ceil(combined_scale));
-      inflated_px.Inset(-error_margin);
+      inflated_px.Inset(-error_margin, -error_margin);
       EXPECT_TRUE(inflated_px.Contains(selection_px));
     }
   }
@@ -391,16 +372,9 @@ TEST_F(HighlighterControllerTest, HighlighterGesturesRotated) {
   EXPECT_EQ("600,200 300x400", controller_test_api_->selection().ToString());
 }
 
-// Flaky on Linux Chromium OS ASan LSan. https://crbug.com/1315061
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_InterruptedStroke DISABLED_InterruptedStroke
-#else
-#define MAYBE_InterruptedStroke InterruptedStroke
-#endif
-
 // Test that a stroke interrupted close to the screen edge is treated as
 // contiguous.
-TEST_F(HighlighterControllerTest, MAYBE_InterruptedStroke) {
+TEST_F(HighlighterControllerTest, InterruptedStroke) {
   controller_test_api_->SetEnabled(true);
   ui::test::EventGenerator* event_generator = GetEventGenerator();
   event_generator->EnterPenPointerMode();
@@ -444,8 +418,7 @@ TEST_F(HighlighterControllerTest, MAYBE_InterruptedStroke) {
 }
 
 // Test that the selection is never crossing the screen bounds.
-// Flaky, https://crbug.com/1311772
-TEST_F(HighlighterControllerTest, DISABLED_SelectionInsideScreen) {
+TEST_F(HighlighterControllerTest, SelectionInsideScreen) {
   controller_test_api_->SetEnabled(true);
   ui::test::EventGenerator* event_generator = GetEventGenerator();
   event_generator->EnterPenPointerMode();
@@ -455,11 +428,11 @@ TEST_F(HighlighterControllerTest, DISABLED_SelectionInsideScreen) {
   for (size_t i = 0; i < sizeof(display_scales) / sizeof(float); ++i) {
     // 2nd display is for offscreen test.
     std::string display_spec = base::StringPrintf(
-        "1000x999*%.2f,500x1000*%.2f", display_scales[i], display_scales[i]);
+        "1000x1000*%.2f,500x1000*%.2f", display_scales[i], display_scales[i]);
     SCOPED_TRACE(display_spec);
     UpdateDisplayAndWaitForCompositingEnded(display_spec);
 
-    const gfx::Rect screen(0, 0, 1000, 999);
+    const gfx::Rect screen(0, 0, 1000, 1000);
 
     // Rectangle completely offscreen.
     controller_test_api_->ResetSelection();

@@ -1,16 +1,21 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_METRICS_PERF_WINDOWED_INCOGNITO_OBSERVER_H_
 #define CHROME_BROWSER_METRICS_PERF_WINDOWED_INCOGNITO_OBSERVER_H_
 
-#include "base/no_destructor.h"
+#include "base/macros.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/lock.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 
 class Browser;
+
+namespace base {
+template <class T>
+class NoDestructor;
+}  // namespace base
 
 namespace metrics {
 
@@ -37,11 +42,6 @@ class WindowedIncognitoObserver {
  public:
   explicit WindowedIncognitoObserver(WindowedIncognitoMonitor* monitor,
                                      uint64_t incognito_open_count);
-
-  WindowedIncognitoObserver(const WindowedIncognitoObserver&) = delete;
-  WindowedIncognitoObserver& operator=(const WindowedIncognitoObserver&) =
-      delete;
-
   virtual ~WindowedIncognitoObserver() = default;
 
   // Made virtual for override in test.
@@ -54,6 +54,8 @@ class WindowedIncognitoObserver {
   // The number of incognito windows that has been opened when the observer is
   // created.
   uint64_t num_incognito_window_opened_;
+
+  DISALLOW_COPY_AND_ASSIGN(WindowedIncognitoObserver);
 };
 
 // WindowedIncognitoMonitor watches for any incognito window being opened or
@@ -69,9 +71,6 @@ class WindowedIncognitoMonitor : public BrowserListObserver {
   // Returns an instance of WindowedIncognitoObserver that represents the
   // request for monitoring any incognito window launches from now on.
   static std::unique_ptr<WindowedIncognitoObserver> CreateObserver();
-
-  WindowedIncognitoMonitor(const WindowedIncognitoMonitor&) = delete;
-  WindowedIncognitoMonitor& operator=(const WindowedIncognitoMonitor&) = delete;
 
  protected:
   static WindowedIncognitoMonitor* Get();
@@ -122,6 +121,8 @@ class WindowedIncognitoMonitor : public BrowserListObserver {
   uint64_t num_incognito_window_opened_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(WindowedIncognitoMonitor);
 };
 
 }  // namespace metrics

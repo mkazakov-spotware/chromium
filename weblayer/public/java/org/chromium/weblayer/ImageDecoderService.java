@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,9 @@ import org.chromium.weblayer_private.interfaces.ObjectWrapper;
 
 /**
  * A service used internally by WebLayer for decoding images on the local device.
+ * @since 87
  */
-class ImageDecoderService extends Service {
+public class ImageDecoderService extends Service {
     private IBinder mImageDecoder;
 
     @Override

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "components/infobars/core/infobar_manager.h"
 #include "components/translate/core/browser/translate_infobar_delegate.h"
 #include "ios/web/public/web_state_observer.h"
@@ -58,14 +58,15 @@ class TranslateOverlayTabHelper
     TranslateStepObserver(TranslateOverlayTabHelper* tab_helper);
     ~TranslateStepObserver() override;
 
-    // Starts observing `infobar`'s delegate, stores `infobar` for
+    // Starts observing |infobar|'s delegate, stores |infobar| for
     // TranslateDid[Start/Finish]
     void SetTranslateInfoBar(InfoBarIOS* infobar);
 
    private:
     // translate::TranslateInfoBarDelegate::Observer.
-    void OnTranslateStepChanged(translate::TranslateStep step,
-                                translate::TranslateErrors error_type) override;
+    void OnTranslateStepChanged(
+        translate::TranslateStep step,
+        translate::TranslateErrors::Type error_type) override;
     void OnTargetLanguageChanged(
         const std::string& target_language_code) override;
     bool IsDeclinedByUser() override;
@@ -73,9 +74,9 @@ class TranslateOverlayTabHelper
         translate::TranslateInfoBarDelegate* delegate) override;
 
     // Scoped observer that facilitates observing a TranslateInfoBarDelegate.
-    base::ScopedObservation<translate::TranslateInfoBarDelegate,
-                            translate::TranslateInfoBarDelegate::Observer>
-        translate_scoped_observation_{this};
+    ScopedObserver<translate::TranslateInfoBarDelegate,
+                   translate::TranslateInfoBarDelegate::Observer>
+        translate_scoped_observer_;
     // TranslateOverlayTabHelper instance.
     TranslateOverlayTabHelper* tab_helper_;
     infobars::InfoBar* translate_infobar_ = nil;
@@ -94,9 +95,8 @@ class TranslateOverlayTabHelper
     void OnManagerShuttingDown(infobars::InfoBarManager* manager) override;
 
     // Scoped observer that facilitates observing an InfoBarManager
-    base::ScopedObservation<infobars::InfoBarManager,
-                            infobars::InfoBarManager::Observer>
-        infobar_manager_scoped_observation_{this};
+    ScopedObserver<infobars::InfoBarManager, infobars::InfoBarManager::Observer>
+        infobar_manager_scoped_observer_;
     // TranslateOverlayTabHelper instance.
     TranslateOverlayTabHelper* tab_helper_;
   };
@@ -114,8 +114,8 @@ class TranslateOverlayTabHelper
     void WebStateDestroyed(web::WebState* web_state) override;
 
     // Scoped observer that facilitates observing an InfoBarManager
-    base::ScopedObservation<web::WebState, web::WebStateObserver>
-        web_state_scoped_observation_{this};
+    ScopedObserver<web::WebState, web::WebStateObserver>
+        web_state_scoped_observer_;
     // TranslateOverlayTabHelper instance.
     TranslateOverlayTabHelper* tab_helper_;
   };

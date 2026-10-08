@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,6 +21,11 @@ constexpr char kInternalAppIdSettings[] = "dhnmfjegnohoakobpikffnelcemaplkm";
 // app placehoder for continuous reading in Chrome.
 constexpr char kInternalAppIdContinueReading[] =
     "fbokpncipdhffndmljhhidahghagaonp";
+
+// Generated as
+// web_app::GenerateAppIdFromURL(GURL(
+// "https://google.com/chromebook/whatsnew/embedded/")).
+constexpr char kReleaseNotesAppId[] = "kddjchdmnnpakappplfnloipgcbioilo";
 
 }  // namespace ash
 

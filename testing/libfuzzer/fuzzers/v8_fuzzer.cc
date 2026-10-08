@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
-#include <tuple>
 
 #include "base/compiler_specific.h"
 #include "v8/include/libplatform/libplatform.h"
@@ -49,12 +48,8 @@ class MockArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
       : v8::ArrayBuffer::Allocator(), currently_allocated_(0) {}
 
   void* Allocate(size_t length) override {
-    lock_guard<mutex> mtx_locker(mtx_);
-    if (length + currently_allocated_ > kAllocationLimit) {
-      return nullptr;
-    }
-    currently_allocated_ += length;
-    return allocator_->Allocate(length);
+    void* data = AllocateUninitialized(length);
+    return data == nullptr ? data : memset(data, 0, length);
   }
 
   void* AllocateUninitialized(size_t length) override {
@@ -63,13 +58,15 @@ class MockArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
       return nullptr;
     }
     currently_allocated_ += length;
-    return allocator_->AllocateUninitialized(length);
+    return malloc(length);
   }
 
   void Free(void* ptr, size_t length) override {
     lock_guard<mutex> mtx_locker(mtx_);
     currently_allocated_ -= length;
-    return allocator_->Free(ptr, length);
+    // We need to free before we unlock, otherwise currently_allocated_ will
+    // be innacurate.
+    free(ptr);
   }
 };
 
@@ -102,14 +99,12 @@ struct Environment {
     v8::V8::Initialize();
     v8::Isolate::CreateParams create_params;
 
-    mock_arraybuffer_allocator = std::make_unique<MockArrayBufferAllocator>();
-
-    create_params.array_buffer_allocator = mock_arraybuffer_allocator.get();
+    create_params.array_buffer_allocator = &mock_arraybuffer_allocator;
     isolate = v8::Isolate::New(create_params);
     terminator_thread = std::thread(terminate_execution, isolate, ref(mtx),
                                     ref(is_running), ref(start_time));
   }
-  std::unique_ptr<MockArrayBufferAllocator> mock_arraybuffer_allocator;
+  MockArrayBufferAllocator mock_arraybuffer_allocator;
   mutex mtx;
   std::thread terminator_thread;
   v8::Isolate* isolate;
@@ -161,7 +156,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   env->start_time = steady_clock::now();
   env->mtx.unlock();
 
-  std::ignore = local_script->Run(context);
+  ALLOW_UNUSED_LOCAL(local_script->Run(context));
 
   lock_guard<mutex> mtx_locker(env->mtx);
   env->is_running = false;

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/offline_pages/request_coordinator_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -31,7 +31,7 @@ const char kLogTag[] = "EvaluationTestScheduler";
 void StartProcessing();
 
 void ProcessingDoneCallback(bool result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&StartProcessing));
 }
 
@@ -50,8 +50,9 @@ void StartProcessing() {
   // If there's no network connection then try in 2 seconds.
   if (net::NetworkChangeNotifier::GetConnectionType() ==
       net::NetworkChangeNotifier::ConnectionType::CONNECTION_NONE) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, base::BindOnce(&StartProcessing), base::Seconds(2));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&StartProcessing),
+        base::TimeDelta::FromSeconds(2));
     return;
   }
   Profile* profile = ProfileManager::GetLastUsedProfile();
@@ -82,7 +83,7 @@ void EvaluationTestScheduler::Schedule(
   }
   coordinator_->GetLogger()->RecordActivity(std::string(kLogTag) +
                                             " Start schedule!");
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&StartProcessing));
 }
 
@@ -109,7 +110,7 @@ DeviceConditions& EvaluationTestScheduler::GetCurrentDeviceConditions() {
 }
 
 void EvaluationTestScheduler::ImmediateScheduleCallback(bool result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&StartProcessing));
 }
 

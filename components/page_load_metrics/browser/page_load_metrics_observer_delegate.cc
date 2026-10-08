@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,25 +7,10 @@
 namespace page_load_metrics {
 
 PageLoadMetricsObserverDelegate::BackForwardCacheRestore::
-    BackForwardCacheRestore(bool was_in_foreground,
-                            base::TimeTicks navigation_start_time)
-    : navigation_start_time(navigation_start_time),
-      was_in_foreground(was_in_foreground) {}
+    BackForwardCacheRestore(bool was_in_foreground)
+    : was_in_foreground(was_in_foreground) {}
 
 PageLoadMetricsObserverDelegate::BackForwardCacheRestore::
     BackForwardCacheRestore(const BackForwardCacheRestore&) = default;
-
-bool PageLoadMetricsObserverDelegate::IsInPrerenderingBeforeActivationStart()
-    const {
-  switch (GetPrerenderingState()) {
-    case PrerenderingState::kNoPrerendering:
-      return false;
-    case PrerenderingState::kInPrerendering:
-    case PrerenderingState::kActivatedNoActivationStart:
-      return true;
-    case PrerenderingState::kActivated:
-      return false;
-  }
-}
 
 }  // namespace page_load_metrics

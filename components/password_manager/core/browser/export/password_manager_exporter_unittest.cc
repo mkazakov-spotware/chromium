@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,12 +15,10 @@
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "components/password_manager/core/browser/export/password_csv_writer.h"
+#include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
-#include "components/password_manager/core/browser/site_affiliation/mock_affiliation_service.h"
-#include "components/password_manager/core/browser/test_password_store.h"
-#include "components/password_manager/core/browser/ui/credential_ui_entry.h"
+#include "components/password_manager/core/browser/ui/credential_provider_interface.h"
 #include "components/password_manager/core/browser/ui/export_progress_status.h"
-#include "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -46,58 +44,69 @@ using DeleteCallback = PasswordManagerExporter::DeleteCallback;
 using SetPosixFilePermissionsCallback =
     PasswordManagerExporter::SetPosixFilePermissionsCallback;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 const base::FilePath::CharType kNullFileName[] = FILE_PATH_LITERAL("/nul");
 #else
 const base::FilePath::CharType kNullFileName[] = FILE_PATH_LITERAL("/dev/null");
 #endif
 
+// Provides a predetermined set of credentials
+class FakeCredentialProvider : public CredentialProviderInterface {
+ public:
+  FakeCredentialProvider() = default;
+
+  void SetPasswordList(
+      const std::vector<std::unique_ptr<PasswordForm>>& password_list) {
+    password_list_.clear();
+    for (const auto& form : password_list) {
+      password_list_.push_back(std::make_unique<PasswordForm>(*form));
+    }
+  }
+
+  // CredentialProviderInterface:
+  std::vector<std::unique_ptr<PasswordForm>> GetAllPasswords() override {
+    std::vector<std::unique_ptr<PasswordForm>> ret_val;
+    for (const auto& form : password_list_) {
+      ret_val.push_back(std::make_unique<PasswordForm>(*form));
+    }
+    return ret_val;
+  }
+
+ private:
+  std::vector<std::unique_ptr<PasswordForm>> password_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeCredentialProvider);
+};
+
 // Creates a hardcoded set of credentials for tests.
-PasswordForm CreateTestPassword() {
-  PasswordForm password_form;
-  password_form.url = GURL("http://accounts.google.com/a/LoginAuth");
-  password_form.username_value = u"test@gmail.com";
-  password_form.password_value = u"test1";
-  password_form.in_store = PasswordForm::Store::kProfileStore;
-  return password_form;
+std::vector<std::unique_ptr<PasswordForm>> CreatePasswordList() {
+  auto password_form = std::make_unique<PasswordForm>();
+  password_form->url = GURL("http://accounts.google.com/a/LoginAuth");
+  password_form->username_value = base::ASCIIToUTF16("test@gmail.com");
+  password_form->password_value = base::ASCIIToUTF16("test1");
+
+  std::vector<std::unique_ptr<PasswordForm>> password_forms;
+  password_forms.push_back(std::move(password_form));
+  return password_forms;
 }
 
 class PasswordManagerExporterTest : public testing::Test {
  public:
   PasswordManagerExporterTest()
       : task_environment_(base::test::TaskEnvironment::MainThreadType::UI),
-        exporter_(&presenter_, mock_on_progress_.Get()),
+        exporter_(&fake_credential_provider_, mock_on_progress_.Get()),
         destination_path_(kNullFileName) {
     exporter_.SetWriteForTesting(mock_write_file_.Get());
     exporter_.SetDeleteForTesting(mock_delete_file_.Get());
     exporter_.SetSetPosixFilePermissionsForTesting(
         mock_set_posix_file_permissions_.Get());
-    store_->Init(/*prefs=*/nullptr, /*affiliated_match_helper=*/nullptr);
   }
 
-  PasswordManagerExporterTest(const PasswordManagerExporterTest&) = delete;
-  PasswordManagerExporterTest& operator=(const PasswordManagerExporterTest&) =
-      delete;
-
-  ~PasswordManagerExporterTest() override {
-    store_->ShutdownOnUIThread();
-    task_environment_.RunUntilIdle();
-  }
-
-  void SetPasswordList(const std::vector<PasswordForm>& forms) {
-    for (const auto& form : forms) {
-      store_->AddLogin(form);
-    }
-    task_environment_.RunUntilIdle();
-  }
+  ~PasswordManagerExporterTest() override = default;
 
  protected:
   base::test::TaskEnvironment task_environment_;
-  scoped_refptr<TestPasswordStore> store_ =
-      base::MakeRefCounted<TestPasswordStore>();
-  MockAffiliationService affiliation_service_;
-  SavedPasswordsPresenter presenter_{&affiliation_service_, store_,
-                                     /*account_store=*/nullptr};
+  FakeCredentialProvider fake_credential_provider_;
   base::MockCallback<
       base::RepeatingCallback<void(ExportProgressStatus, const std::string&)>>
       mock_on_progress_;
@@ -108,13 +117,17 @@ class PasswordManagerExporterTest : public testing::Test {
       mock_set_posix_file_permissions_;
   base::FilePath destination_path_;
   base::HistogramTester histogram_tester_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PasswordManagerExporterTest);
 };
 
 TEST_F(PasswordManagerExporterTest, PasswordExportSetPasswordListFirst) {
-  PasswordForm form = CreateTestPassword();
-  SetPasswordList({form});
+  std::vector<std::unique_ptr<PasswordForm>> password_list =
+      CreatePasswordList();
+  fake_credential_provider_.SetPasswordList(password_list);
   const std::string serialised(
-      PasswordCSVWriter::SerializePasswords({CredentialUIEntry(form)}));
+      PasswordCSVWriter::SerializePasswords(password_list));
 
   EXPECT_CALL(mock_write_file_, Run(destination_path_, StrEq(serialised)))
       .WillOnce(Return(true));
@@ -132,7 +145,7 @@ TEST_F(PasswordManagerExporterTest, PasswordExportSetPasswordListFirst) {
 // When writing fails, we should notify the UI of the failure and try to cleanup
 // a possibly partial passwords file.
 TEST_F(PasswordManagerExporterTest, WriteFileFailed) {
-  SetPasswordList({CreateTestPassword()});
+  fake_credential_provider_.SetPasswordList(CreatePasswordList());
   const std::string destination_folder_name(
       destination_path_.DirName().BaseName().AsUTF8Unsafe());
 
@@ -152,10 +165,11 @@ TEST_F(PasswordManagerExporterTest, WriteFileFailed) {
 // Test that GetProgressStatus() returns the last ExportProgressStatus sent
 // to the callback.
 TEST_F(PasswordManagerExporterTest, GetProgressReturnsLastCallbackStatus) {
-  PasswordForm form = CreateTestPassword();
-  SetPasswordList({form});
+  std::vector<std::unique_ptr<PasswordForm>> password_list =
+      CreatePasswordList();
+  fake_credential_provider_.SetPasswordList(password_list);
   const std::string serialised(
-      PasswordCSVWriter::SerializePasswords({CredentialUIEntry(form)}));
+      PasswordCSVWriter::SerializePasswords(password_list));
   const std::string destination_folder_name(
       destination_path_.DirName().BaseName().AsUTF8Unsafe());
 
@@ -175,7 +189,7 @@ TEST_F(PasswordManagerExporterTest, GetProgressReturnsLastCallbackStatus) {
 }
 
 TEST_F(PasswordManagerExporterTest, DontExportWithOnlyDestination) {
-  SetPasswordList({CreateTestPassword()});
+  fake_credential_provider_.SetPasswordList(CreatePasswordList());
 
   EXPECT_CALL(mock_write_file_, Run(_, _)).Times(0);
   EXPECT_CALL(mock_on_progress_,
@@ -187,7 +201,7 @@ TEST_F(PasswordManagerExporterTest, DontExportWithOnlyDestination) {
 }
 
 TEST_F(PasswordManagerExporterTest, CancelAfterPasswords) {
-  SetPasswordList({CreateTestPassword()});
+  fake_credential_provider_.SetPasswordList(CreatePasswordList());
 
   EXPECT_CALL(mock_write_file_, Run(_, _)).Times(0);
   EXPECT_CALL(mock_on_progress_,
@@ -200,7 +214,7 @@ TEST_F(PasswordManagerExporterTest, CancelAfterPasswords) {
 }
 
 TEST_F(PasswordManagerExporterTest, CancelWhileExporting) {
-  SetPasswordList({CreateTestPassword()});
+  fake_credential_provider_.SetPasswordList(CreatePasswordList());
 
   EXPECT_CALL(mock_write_file_, Run(_, _)).Times(0);
   EXPECT_CALL(mock_delete_file_, Run(destination_path_));
@@ -219,7 +233,7 @@ TEST_F(PasswordManagerExporterTest, CancelWhileExporting) {
 // The "Cancel" button may still be visible on the UI after we've completed
 // exporting. If they choose to cancel, we should clear the file.
 TEST_F(PasswordManagerExporterTest, CancelAfterExporting) {
-  SetPasswordList({CreateTestPassword()});
+  fake_credential_provider_.SetPasswordList(CreatePasswordList());
 
   EXPECT_CALL(mock_write_file_, Run(_, _)).WillOnce(Return(true));
   EXPECT_CALL(mock_delete_file_, Run(destination_path_));
@@ -239,11 +253,11 @@ TEST_F(PasswordManagerExporterTest, CancelAfterExporting) {
   task_environment_.RunUntilIdle();
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 // Chrome creates files using the broadest permissions allowed. Passwords are
 // sensitive and should be explicitly limited to the owner.
 TEST_F(PasswordManagerExporterTest, OutputHasRestrictedPermissions) {
-  SetPasswordList({CreateTestPassword()});
+  fake_credential_provider_.SetPasswordList(CreatePasswordList());
 
   EXPECT_CALL(mock_write_file_, Run(_, _)).WillOnce(Return(true));
   EXPECT_CALL(mock_set_posix_file_permissions_, Run(destination_path_, 0600))
@@ -258,18 +272,21 @@ TEST_F(PasswordManagerExporterTest, OutputHasRestrictedPermissions) {
 #endif
 
 TEST_F(PasswordManagerExporterTest, DeduplicatesAcrossPasswordStores) {
-  PasswordForm password;
-  password.in_store = PasswordForm::Store::kProfileStore;
-  password.url = GURL("http://g.com/auth");
-  password.username_value = u"user";
-  password.password_value = u"password";
+  auto password = std::make_unique<PasswordForm>();
+  password->in_store = PasswordForm::Store::kProfileStore;
+  password->url = GURL("http://g.com/auth");
+  password->username_value = base::ASCIIToUTF16("user");
+  password->password_value = base::ASCIIToUTF16("password");
 
-  PasswordForm password_duplicate = password;
-  password_duplicate.in_store = PasswordForm::Store::kAccountStore;
+  auto password_duplicate = std::make_unique<PasswordForm>(*password);
+  password_duplicate->in_store = PasswordForm::Store::kAccountStore;
 
+  std::vector<std::unique_ptr<PasswordForm>> password_list;
+  password_list.push_back(std::move(password));
   const std::string single_password_serialised(
-      PasswordCSVWriter::SerializePasswords({CredentialUIEntry(password)}));
-  SetPasswordList({password, password_duplicate});
+      PasswordCSVWriter::SerializePasswords(password_list));
+  password_list.push_back(std::move(password_duplicate));
+  fake_credential_provider_.SetPasswordList(password_list);
 
   // The content written to the file should be the same as what would be
   // computed before the duplicated password was added.

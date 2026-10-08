@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,27 +13,28 @@
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "ui/gfx/buffer_types.h"
 
+class SkSurfaceProps;
+
 namespace gfx {
 class ColorSpace;
 }
 
 namespace blink {
 
-// Return the gfx::ColorSpace for the specified `predefined_color_space`.
-gfx::ColorSpace PLATFORM_EXPORT
-PredefinedColorSpaceToGfxColorSpace(PredefinedColorSpace color_space);
+enum class CanvasColorSpace {
+  kSRGB,
+  kRec2020,
+  kP3,
+};
 
-// Return the SkColorSpace for the specified |color_space|.
+enum class CanvasPixelFormat {
+  kRGBA8,
+  kBGRA8,
+  kF16,
+};
+
 sk_sp<SkColorSpace> PLATFORM_EXPORT
-PredefinedColorSpaceToSkColorSpace(PredefinedColorSpace color_space);
-
-// Return the named PredefinedColorSpace that best matches |sk_color_space|.
-PredefinedColorSpace PLATFORM_EXPORT
-PredefinedColorSpaceFromSkColorSpace(const SkColorSpace* sk_color_space);
-
-// Return the SkColorType that best matches the specified CanvasPixelFormat.
-SkColorType PLATFORM_EXPORT
-CanvasPixelFormatToSkColorType(CanvasPixelFormat pixel_format);
+CanvasColorSpaceToSkColorSpace(CanvasColorSpace color_space);
 
 class PLATFORM_EXPORT CanvasColorParams {
   DISALLOW_NEW();
@@ -41,30 +42,53 @@ class PLATFORM_EXPORT CanvasColorParams {
  public:
   // The default constructor will create an output-blended 8-bit surface.
   CanvasColorParams();
-  CanvasColorParams(PredefinedColorSpace, CanvasPixelFormat, OpacityMode);
-  CanvasColorParams(PredefinedColorSpace, CanvasPixelFormat, bool has_alpha);
+  CanvasColorParams(CanvasColorSpace, CanvasPixelFormat, OpacityMode);
+  explicit CanvasColorParams(const SkImageInfo&);
 
-  PredefinedColorSpace ColorSpace() const { return color_space_; }
+  static CanvasPixelFormat GetNativeCanvasPixelFormat() {
+    if (kN32_SkColorType == kRGBA_8888_SkColorType)
+      return CanvasPixelFormat::kRGBA8;
+    else if (kN32_SkColorType == kBGRA_8888_SkColorType)
+      return CanvasPixelFormat::kBGRA8;
+  }
+
+  CanvasColorSpace ColorSpace() const { return color_space_; }
   CanvasPixelFormat PixelFormat() const { return pixel_format_; }
   OpacityMode GetOpacityMode() const { return opacity_mode_; }
 
-  String GetColorSpaceAsString() const;
-  String GetPixelFormatAsString() const;
-
-  SkColorInfo GetSkColorInfo() const;
+  void SetCanvasColorSpace(CanvasColorSpace c) { color_space_ = c; }
+  void SetCanvasPixelFormat(CanvasPixelFormat f) { pixel_format_ = f; }
+  void SetOpacityMode(OpacityMode m) { opacity_mode_ = m; }
 
   // The pixel format to use for allocating SkSurfaces.
   SkColorType GetSkColorType() const;
+  uint8_t BytesPerPixel() const;
+
+  // The color space in which pixels read from the canvas via a shader will be
+  // returned. Note that for canvases with linear pixel math, these will be
+  // converted from their storage space into a linear space.
+  gfx::ColorSpace GetSamplerGfxColorSpace() const;
 
   // Return the color space of the underlying data for the canvas.
   gfx::ColorSpace GetStorageGfxColorSpace() const;
   sk_sp<SkColorSpace> GetSkColorSpace() const;
+  SkAlphaType GetSkAlphaType() const;
+  const SkSurfaceProps* GetSkSurfaceProps() const;
 
-  uint8_t BytesPerPixel() const;
+  // Gpu memory buffer parameters
+  gfx::BufferFormat GetBufferFormat() const;
+  uint32_t GLSizedInternalFormat() const;  // For GLES2, use Unsized
+  uint32_t GLUnsizedInternalFormat() const;
+  uint32_t GLType() const;
+
+  viz::ResourceFormat TransferableResourceFormat() const;
 
  private:
-  PredefinedColorSpace color_space_ = PredefinedColorSpace::kSRGB;
-  CanvasPixelFormat pixel_format_ = CanvasPixelFormat::kUint8;
+  CanvasColorParams(const sk_sp<SkColorSpace> color_space,
+                    SkColorType color_type);
+
+  CanvasColorSpace color_space_ = CanvasColorSpace::kSRGB;
+  CanvasPixelFormat pixel_format_ = GetNativeCanvasPixelFormat();
   OpacityMode opacity_mode_ = kNonOpaque;
 };
 

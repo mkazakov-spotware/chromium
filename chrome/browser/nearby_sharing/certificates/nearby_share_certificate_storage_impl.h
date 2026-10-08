@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include "base/containers/flat_set.h"
 #include "base/containers/queue.h"
 #include "base/files/file_path.h"
-#include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "chrome/browser/nearby_sharing/certificates/nearby_share_certificate_storage.h"
 #include "components/leveldb_proto/public/proto_database.h"
 
@@ -28,9 +26,8 @@ class PublicCertificate;
 
 // Implements NearbyShareCertificateStorage using Prefs to store private
 // certificates and LevelDB Proto to store public certificates. Must be
-// initialized by calling Initialize before retrieving or storing certificates.
-// Callbacks are guaranteed to not be invoked after
-// NearbyShareCertificateStorageImpl is destroyed.
+// initialized by calling Initialize before retrieving or storing
+// certificates.
 class NearbyShareCertificateStorageImpl : public NearbyShareCertificateStorage {
  public:
   class Factory {
@@ -65,33 +62,50 @@ class NearbyShareCertificateStorageImpl : public NearbyShareCertificateStorage {
   void operator=(NearbyShareCertificateStorageImpl&) = delete;
 
   // NearbyShareCertificateStorage
+  std::vector<std::string> GetPublicCertificateIds() const override;
   void GetPublicCertificates(PublicCertificateCallback callback) override;
-  absl::optional<std::vector<NearbySharePrivateCertificate>>
+  base::Optional<std::vector<NearbySharePrivateCertificate>>
   GetPrivateCertificates() const override;
-  absl::optional<base::Time> NextPublicCertificateExpirationTime()
+  base::Optional<base::Time> NextPublicCertificateExpirationTime()
       const override;
   void ReplacePrivateCertificates(
       const std::vector<NearbySharePrivateCertificate>& private_certificates)
       override;
+  void ReplacePublicCertificates(
+      const std::vector<nearbyshare::proto::PublicCertificate>&
+          public_certificates,
+      ResultCallback callback) override;
   void AddPublicCertificates(
       const std::vector<nearbyshare::proto::PublicCertificate>&
           public_certificates,
       ResultCallback callback) override;
   void RemoveExpiredPublicCertificates(base::Time now,
                                        ResultCallback callback) override;
+  void ClearPublicCertificates(ResultCallback callback) override;
 
  private:
   enum class InitStatus { kUninitialized, kInitialized, kFailed };
 
   void Initialize();
-  void OnDatabaseInitialized(base::TimeTicks initialize_start_time,
-                             leveldb_proto::Enums::InitStatus status);
+  void OnDatabaseInitialized(leveldb_proto::Enums::InitStatus status);
   void FinishInitialization(bool success);
 
   void OnDatabaseDestroyedReinitialize(bool success);
+  void OnDatabaseDestroyed(ResultCallback callback, bool success);
 
   void DestroyAndReinitialize();
 
+  void ReplacePublicCertificatesDestroyCallback(
+      std::unique_ptr<std::vector<
+          std::pair<std::string, nearbyshare::proto::PublicCertificate>>>
+          public_certificates,
+      std::unique_ptr<ExpirationList> expirations,
+      ResultCallback callback,
+      bool proceed);
+  void ReplacePublicCertificatesUpdateEntriesCallback(
+      std::unique_ptr<ExpirationList> expirations,
+      ResultCallback callback,
+      bool proceed);
   void AddPublicCertificatesCallback(
       std::unique_ptr<ExpirationList> new_expirations,
       ResultCallback callback,
@@ -105,15 +119,17 @@ class NearbyShareCertificateStorageImpl : public NearbyShareCertificateStorage {
   void SavePublicCertificateExpirations();
 
   InitStatus init_status_ = InitStatus::kUninitialized;
+
   size_t num_initialize_attempts_ = 0;
+
   PrefService* pref_service_;
+
   std::unique_ptr<
       leveldb_proto::ProtoDatabase<nearbyshare::proto::PublicCertificate>>
       db_;
+
   ExpirationList public_certificate_expirations_;
   base::queue<base::OnceClosure> deferred_callbacks_;
-  base::WeakPtrFactory<NearbyShareCertificateStorageImpl> weak_ptr_factory_{
-      this};
 };
 
 #endif  // CHROME_BROWSER_NEARBY_SHARING_CERTIFICATES_NEARBY_SHARE_CERTIFICATE_STORAGE_IMPL_H_

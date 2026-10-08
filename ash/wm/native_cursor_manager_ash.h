@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,13 @@
 #define ASH_WM_NATIVE_CURSOR_MANAGER_ASH_H_
 
 #include "ash/ash_export.h"
+#include "base/macros.h"
 #include "ui/display/display.h"
-#include "ui/wm/core/cursor_loader.h"
 #include "ui/wm/core/native_cursor_manager.h"
+
+namespace ui {
+class CursorLoader;
+}
 
 namespace ash {
 
@@ -19,19 +23,16 @@ namespace ash {
 class ASH_EXPORT NativeCursorManagerAsh : public ::wm::NativeCursorManager {
  public:
   NativeCursorManagerAsh();
-
-  NativeCursorManagerAsh(const NativeCursorManagerAsh&) = delete;
-  NativeCursorManagerAsh& operator=(const NativeCursorManagerAsh&) = delete;
-
   ~NativeCursorManagerAsh() override;
 
   // Toggle native cursor enabled/disabled.
   // The native cursor is enabled by default. When disabled, we hide the native
-  // cursor regardless of visibility state, and let CursorWindowController draw
+  // cursor regardless of visibility state, and let CursorWindowManager draw
   // the cursor.
   void SetNativeCursorEnabled(bool enabled);
 
-  // Returns the rotation of the currently loaded cursor.
+  // Returns the scale and rotation of the currently loaded cursor.
+  float GetScale() const;
   display::Display::Rotation GetRotation() const;
 
   // Overridden from ::wm::NativeCursorManager:
@@ -55,7 +56,9 @@ class ASH_EXPORT NativeCursorManagerAsh : public ::wm::NativeCursorManager {
 
   bool native_cursor_enabled_;
 
-  wm::CursorLoader cursor_loader_{/*use_platform_cursors=*/false};
+  std::unique_ptr<ui::CursorLoader> cursor_loader_;
+
+  DISALLOW_COPY_AND_ASSIGN(NativeCursorManagerAsh);
 };
 
 }  // namespace ash

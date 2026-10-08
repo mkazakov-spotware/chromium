@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests that console viewport reveals messages on searching.\n`);
 
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('console');
   await TestRunner.evaluateInPagePromise(`
     for (var i = 0; i < 200; ++i)
@@ -14,7 +14,7 @@
   `);
 
   var consoleView = Console.ConsoleView.instance();
-  var viewport = consoleView.viewport;
+  var viewport = consoleView._viewport;
   const maximumViewportMessagesCount = 150;
   TestRunner.runTestSuite([
     function waitForMessages(next) {
@@ -25,7 +25,7 @@
 
     function verifyViewportIsTallEnough(next) {
       viewport.invalidate();
-      var viewportMessagesCount = viewport.lastVisibleIndex - viewport.firstVisibleIndex;
+      var viewportMessagesCount = viewport._lastVisibleIndex - viewport._firstVisibleIndex;
       if (viewportMessagesCount > maximumViewportMessagesCount) {
         TestRunner.addResult(
           String.sprintf(
@@ -47,12 +47,12 @@
     },
 
     function testFindLastMessage(next) {
-      TestRunner.addSniffer(consoleView, 'searchFinishedForTests', callback);
-      consoleView.searchableView().searchInputElement.value = 'LAST MESSAGE';
-      consoleView.searchableView().showSearchField();
+      TestRunner.addSniffer(consoleView, '_searchFinishedForTests', callback);
+      consoleView._searchableView._searchInputElement.value = 'LAST MESSAGE';
+      consoleView._searchableView.showSearchField();
 
       function callback() {
-        consoleView.searchableView().handleFindNextShortcut();
+        consoleView._searchableView.handleFindNextShortcut();
         dumpBottom();
         next();
       }

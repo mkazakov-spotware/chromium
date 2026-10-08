@@ -1,17 +1,12 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BROWSER_SYNC_ACTIVE_DEVICES_PROVIDER_IMPL_H_
 #define COMPONENTS_BROWSER_SYNC_ACTIVE_DEVICES_PROVIDER_IMPL_H_
 
-#include <memory>
-#include <string>
-#include <vector>
-
-#include "base/memory/raw_ptr.h"
 #include "base/sequence_checker.h"
-#include "base/time/clock.h"
+#include "base/time/default_clock.h"
 #include "components/sync/driver/active_devices_provider.h"
 #include "components/sync_device_info/device_info_tracker.h"
 
@@ -29,8 +24,7 @@ class ActiveDevicesProviderImpl : public syncer::ActiveDevicesProvider,
   ~ActiveDevicesProviderImpl() override;
 
   // syncer::ActiveDevicesProvider implementation.
-  syncer::ActiveDevicesInvalidationInfo CalculateInvalidationInfo(
-      const std::string& local_cache_guid) const override;
+  size_t CountActiveDevicesIfAvailable() override;
 
   void SetActiveDevicesChangedCallback(
       ActiveDevicesChangedCallback callback) override;
@@ -39,11 +33,8 @@ class ActiveDevicesProviderImpl : public syncer::ActiveDevicesProvider,
   void OnDeviceInfoChange() override;
 
  private:
-  std::vector<std::unique_ptr<syncer::DeviceInfo>>
-  GetActiveDevicesSortedByUpdateTime() const;
-
-  const raw_ptr<syncer::DeviceInfoTracker> device_info_tracker_;
-  const raw_ptr<const base::Clock> clock_;
+  syncer::DeviceInfoTracker* const device_info_tracker_;
+  const base::Clock* const clock_;
   ActiveDevicesChangedCallback callback_;
 
   SEQUENCE_CHECKER(sequence_checker_);

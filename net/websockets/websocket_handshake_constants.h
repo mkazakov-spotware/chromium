@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,8 @@
 
 // This file plases constants inside the ::net::websockets namespace to avoid
 // risk of collisions with other symbols in libnet.
-namespace net::websockets {
+namespace net {
+namespace websockets {
 
 // "HTTP/1.1"
 // RFC6455 only requires HTTP/1.1 "or better" but in practice an HTTP version
@@ -59,6 +60,7 @@ extern const char NET_EXPORT kWebSocketGuid[];
 // (except in obsolete versions of the protocol).
 extern const char kWebSocketLowercase[];
 
-}  // namespace net::websockets
+}  // namespace websockets
+}  // namespace net
 
 #endif  // NET_WEBSOCKETS_WEBSOCKET_HANDSHAKE_CONSTANTS_H_

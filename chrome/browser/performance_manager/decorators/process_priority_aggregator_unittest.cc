@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/performance_manager/decorators/process_priority_aggregator.h"
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
+#include "components/performance_manager/execution_context/execution_context_registry_impl.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
 #include "components/performance_manager/graph/process_node_impl.h"
 #include "components/performance_manager/test_support/graph_test_harness.h"
@@ -22,13 +22,11 @@ static const char* kReason = FrameNodeImpl::kDefaultPriorityReason;
 
 class ProcessPriorityAggregatorTest : public GraphTestHarness {
  public:
-  using Super = GraphTestHarness;
-
   void SetUp() override {
-    GetGraphFeatures().EnableExecutionContextRegistry();
-    Super::SetUp();
+    graph()->PassToGraph(
+        std::make_unique<execution_context::ExecutionContextRegistryImpl>());
     ppa_ = new ProcessPriorityAggregator();
-    graph()->PassToGraph(base::WrapUnique(ppa_.get()));
+    graph()->PassToGraph(base::WrapUnique(ppa_));
   }
 
   void ExpectPriorityCounts(ProcessNodeImpl* process_node,
@@ -37,20 +35,9 @@ class ProcessPriorityAggregatorTest : public GraphTestHarness {
     auto* data = ProcessPriorityAggregator::Data::GetForTesting(process_node);
     EXPECT_EQ(user_visible_count, data->user_visible_count_for_testing());
     EXPECT_EQ(user_blocking_count, data->user_blocking_count_for_testing());
-#if DCHECK_IS_ON()
-    // In DCHECK mode the exact number of lowest priority contexts is tracked,
-    // so IsEmpty only returns true when no ExecutionContexts exist. This is
-    // only true during graph shutdown.
-    EXPECT_FALSE(data->IsEmpty());
-#else
-    // In non-DCHECK builds only the user visible and user blocking contexts
-    // are counted.
-    EXPECT_EQ(user_visible_count == 0 && user_blocking_count == 0,
-              data->IsEmpty());
-#endif
   }
 
-  raw_ptr<ProcessPriorityAggregator> ppa_ = nullptr;
+  ProcessPriorityAggregator* ppa_ = nullptr;
 };
 
 }  // namespace

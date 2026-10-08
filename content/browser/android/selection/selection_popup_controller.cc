@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,7 @@
 #include "content/public/android/content_jni_headers/SelectionPopupControllerImpl_jni.h"
 #include "content/public/browser/context_menu_params.h"
 #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
-#include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
-#include "third_party/blink/public/mojom/input/input_handler.mojom-blink.h"
+#include "third_party/blink/public/common/context_menu_data/input_field_type.h"
 #include "ui/gfx/geometry/point_conversions.h"
 
 using base::android::AttachCurrentThread;
@@ -134,16 +133,14 @@ void SelectionPopupController::OnSelectionEvent(
       selection_rect.right(), selection_rect.bottom());
 }
 
-void SelectionPopupController::OnDragUpdate(
-    const ui::TouchSelectionDraggable::Type type,
-    const gfx::PointF& position) {
+void SelectionPopupController::OnDragUpdate(const gfx::PointF& position) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> obj = java_obj_.get(env);
   if (obj.is_null())
     return;
 
-  Java_SelectionPopupControllerImpl_onDragUpdate(
-      env, obj, static_cast<int>(type), position.x(), position.y());
+  Java_SelectionPopupControllerImpl_onDragUpdate(env, obj, position.x(),
+                                                 position.y());
 }
 
 void SelectionPopupController::OnSelectionChanged(const std::string& text) {
@@ -156,7 +153,6 @@ void SelectionPopupController::OnSelectionChanged(const std::string& text) {
 }
 
 bool SelectionPopupController::ShowSelectionMenu(
-    RenderFrameHost* render_frame_host,
     const ContextMenuParams& params,
     int handle_height) {
   JNIEnv* env = AttachCurrentThread();
@@ -186,9 +182,8 @@ bool SelectionPopupController::ShowSelectionMenu(
       !!(params.edit_flags & blink::ContextMenuDataEditFlags::kCanSelectAll);
   const bool can_edit_richly =
       !!(params.edit_flags & blink::ContextMenuDataEditFlags::kCanEditRichly);
-  const bool is_password_type =
-      params.input_field_type ==
-      blink::mojom::ContextMenuDataInputFieldType::kPassword;
+  const bool is_password_type = params.input_field_type ==
+                                blink::ContextMenuDataInputFieldType::kPassword;
   const ScopedJavaLocalRef<jstring> jselected_text =
       ConvertUTF16ToJavaString(env, params.selection_text);
   const bool should_suggest = params.source_type == ui::MENU_SOURCE_TOUCH ||
@@ -199,24 +194,19 @@ bool SelectionPopupController::ShowSelectionMenu(
       params.selection_rect.right(), params.selection_rect.bottom(),
       handle_height, params.is_editable, is_password_type, jselected_text,
       params.selection_start_offset, can_select_all, can_edit_richly,
-      should_suggest, params.source_type,
-      render_frame_host->GetJavaRenderFrameHost());
+      should_suggest, params.source_type);
   return true;
 }
 
-void SelectionPopupController::OnSelectAroundCaretAck(
-    blink::mojom::SelectAroundCaretResultPtr result) {
+void SelectionPopupController::OnSelectWordAroundCaretAck(bool did_select,
+                                                          int start_adjust,
+                                                          int end_adjust) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> obj = java_obj_.get(env);
   if (obj.is_null())
     return;
-  if (result.is_null()) {
-    Java_SelectionPopupControllerImpl_onSelectAroundCaretFailure(env, obj);
-  } else {
-    Java_SelectionPopupControllerImpl_onSelectAroundCaretSuccess(
-        env, obj, result->extended_start_adjust, result->extended_end_adjust,
-        result->word_start_adjust, result->word_end_adjust);
-  }
+  Java_SelectionPopupControllerImpl_onSelectWordAroundCaretAck(
+      env, obj, did_select, start_adjust, end_adjust);
 }
 
 void SelectionPopupController::HidePopupsAndPreserveSelection() {

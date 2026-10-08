@@ -1,109 +1,117 @@
-// Copyright 2021 The Chromium Authors
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+/*
+ * Copyright 2017 The Chromium Authors. All rights reserved.
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ */
 
 #include "third_party/blink/renderer/platform/heap/heap_test_utilities.h"
-#include <memory>
 
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "v8/include/cppgc/platform.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/heap/impl/heap_compact.h"
 
 namespace blink {
 
-namespace {
+std::atomic_int IntegerObject::destructor_calls{0};
 
-bool IsGCInProgress() {
-  return cppgc::subtle::HeapState::IsMarking(
-             ThreadState::Current()->heap_handle()) ||
-         cppgc::subtle::HeapState::IsSweeping(
-             ThreadState::Current()->heap_handle());
+// static
+void TestSupportingGC::PreciselyCollectGarbage(
+    BlinkGC::SweepingType sweeping_type) {
+  ThreadState::Current()->CollectGarbageForTesting(
+      BlinkGC::CollectionType::kMajor, BlinkGC::kNoHeapPointersOnStack,
+      BlinkGC::kAtomicMarking, sweeping_type,
+      BlinkGC::GCReason::kForcedGCForTesting);
 }
 
-}  // namespace
+// static
+void TestSupportingGC::ConservativelyCollectGarbage(
+    BlinkGC::SweepingType sweeping_type) {
+  ThreadState::Current()->CollectGarbageForTesting(
+      BlinkGC::CollectionType::kMajor, BlinkGC::kHeapPointersOnStack,
+      BlinkGC::kAtomicMarking, sweeping_type,
+      BlinkGC::GCReason::kForcedGCForTesting);
+}
 
 TestSupportingGC::~TestSupportingGC() {
-  PreciselyCollectGarbage();
+  // Complete sweeping before |task_environment_| is destroyed.
+  CompleteSweepingIfNeeded();
 }
 
-// static
-void TestSupportingGC::PreciselyCollectGarbage() {
-  ThreadState::Current()->CollectAllGarbageForTesting(
-      ThreadState::StackState::kNoHeapPointers);
-}
-
-// static
-void TestSupportingGC::ConservativelyCollectGarbage() {
-  ThreadState::Current()->CollectAllGarbageForTesting(
-      ThreadState::StackState::kMayContainHeapPointers);
-}
-
-// static
 void TestSupportingGC::ClearOutOldGarbage() {
   PreciselyCollectGarbage();
-  auto& cpp_heap = ThreadState::Current()->cpp_heap();
-  size_t old_used = cpp_heap.CollectStatistics(cppgc::HeapStatistics::kDetailed)
-                        .used_size_bytes;
+  ThreadHeap& heap = ThreadState::Current()->Heap();
   while (true) {
+    size_t used = heap.ObjectPayloadSizeForTesting();
     PreciselyCollectGarbage();
-    size_t used = cpp_heap.CollectStatistics(cppgc::HeapStatistics::kDetailed)
-                      .used_size_bytes;
-    if (used >= old_used)
+    if (heap.ObjectPayloadSizeForTesting() >= used)
       break;
-    old_used = used;
   }
 }
 
-CompactionTestDriver::CompactionTestDriver(ThreadState* thread_state)
-    : heap_(thread_state->heap_handle()) {}
-
-void CompactionTestDriver::ForceCompactionForNextGC() {
-  heap_.ForceCompactionForNextGarbageCollection();
+void TestSupportingGC::CompleteSweepingIfNeeded() {
+  if (ThreadState::Current()->IsSweepingInProgress())
+    ThreadState::Current()->CompleteSweep();
 }
-
-IncrementalMarkingTestDriver::IncrementalMarkingTestDriver(
-    ThreadState* thread_state)
-    : heap_(thread_state->heap_handle()) {}
 
 IncrementalMarkingTestDriver::~IncrementalMarkingTestDriver() {
-  if (IsGCInProgress())
-    heap_.FinalizeGarbageCollection(cppgc::EmbedderStackState::kNoHeapPointers);
+  if (thread_state_->IsIncrementalMarking())
+    FinishGC();
 }
 
-void IncrementalMarkingTestDriver::StartGC() {
-  heap_.StartGarbageCollection();
+void IncrementalMarkingTestDriver::Start() {
+  thread_state_->IncrementalMarkingStartForTesting();
 }
 
-void IncrementalMarkingTestDriver::TriggerMarkingSteps(
-    ThreadState::StackState stack_state) {
-  CHECK(ThreadState::Current()->IsIncrementalMarking());
-  while (!heap_.PerformMarkingStep(stack_state)) {
+bool IncrementalMarkingTestDriver::SingleStep(BlinkGC::StackState stack_state) {
+  CHECK(thread_state_->IsIncrementalMarking());
+  if (thread_state_->GetGCState() ==
+      ThreadState::kIncrementalMarkingStepScheduled) {
+    thread_state_->IncrementalMarkingStep(stack_state);
+    return true;
+  }
+  return false;
+}
+
+void IncrementalMarkingTestDriver::FinishSteps(
+    BlinkGC::StackState stack_state) {
+  CHECK(thread_state_->IsIncrementalMarking());
+  while (SingleStep(stack_state)) {
   }
 }
 
-void IncrementalMarkingTestDriver::FinishGC() {
-  CHECK(ThreadState::Current()->IsIncrementalMarking());
-  heap_.FinalizeGarbageCollection(cppgc::EmbedderStackState::kNoHeapPointers);
-  CHECK(!ThreadState::Current()->IsIncrementalMarking());
+bool IncrementalMarkingTestDriver::SingleConcurrentStep(
+    BlinkGC::StackState stack_state) {
+  CHECK(thread_state_->IsIncrementalMarking());
+  if (thread_state_->GetGCState() ==
+      ThreadState::kIncrementalMarkingStepScheduled) {
+    thread_state_->SkipIncrementalMarkingForTesting();
+    thread_state_->IncrementalMarkingStep(stack_state);
+    return true;
+  }
+  return false;
 }
 
-ConcurrentMarkingTestDriver::ConcurrentMarkingTestDriver(
-    ThreadState* thread_state)
-    : IncrementalMarkingTestDriver(thread_state) {}
-
-void ConcurrentMarkingTestDriver::StartGC() {
-  IncrementalMarkingTestDriver::StartGC();
-  heap_.ToggleMainThreadMarking(false);
+void IncrementalMarkingTestDriver::FinishConcurrentSteps(
+    BlinkGC::StackState stack_state) {
+  CHECK(thread_state_->IsIncrementalMarking());
+  while (SingleConcurrentStep(stack_state)) {
+  }
 }
 
-void ConcurrentMarkingTestDriver::TriggerMarkingSteps(
-    ThreadState::StackState stack_state) {
-  CHECK(ThreadState::Current()->IsIncrementalMarking());
-  heap_.PerformMarkingStep(stack_state);
+void IncrementalMarkingTestDriver::FinishGC(bool complete_sweep) {
+  CHECK(thread_state_->IsIncrementalMarking());
+  FinishSteps(BlinkGC::StackState::kNoHeapPointersOnStack);
+  CHECK_EQ(ThreadState::kIncrementalMarkingFinalizeScheduled,
+           thread_state_->GetGCState());
+  thread_state_->IncrementalMarkingFinalize();
+  CHECK(!thread_state_->IsIncrementalMarking());
+  if (complete_sweep) {
+    thread_state_->CompleteSweep();
+  }
 }
 
-void ConcurrentMarkingTestDriver::FinishGC() {
-  heap_.ToggleMainThreadMarking(true);
-  IncrementalMarkingTestDriver::FinishGC();
+size_t IncrementalMarkingTestDriver::GetHeapCompactLastFixupCount() const {
+  HeapCompact* compaction = ThreadState::Current()->Heap().Compaction();
+  return compaction->LastFixupCountForTesting();
 }
 
 }  // namespace blink

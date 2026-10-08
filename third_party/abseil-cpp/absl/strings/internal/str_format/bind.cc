@@ -32,8 +32,7 @@ inline bool BindFromPosition(int position, int* value,
     return false;
   }
   // -1 because positions are 1-based
-  return FormatArgImplFriend::ToInt(pack[static_cast<size_t>(position) - 1],
-                                    value);
+  return FormatArgImplFriend::ToInt(pack[position - 1], value);
 }
 
 class ArgContext {
@@ -57,9 +56,9 @@ inline bool ArgContext::Bind(const UnboundConversion* unbound,
   const FormatArgImpl* arg = nullptr;
   int arg_position = unbound->arg_position;
   if (static_cast<size_t>(arg_position - 1) >= pack_.size()) return false;
-  arg = &pack_[static_cast<size_t>(arg_position - 1)];  // 1-based
+  arg = &pack_[arg_position - 1];  // 1-based
 
-  if (unbound->flags != Flags::kBasic) {
+  if (!unbound->flags.basic) {
     int width = unbound->width.value();
     bool force_left = false;
     if (unbound->width.is_from_arg()) {
@@ -85,8 +84,9 @@ inline bool ArgContext::Bind(const UnboundConversion* unbound,
     FormatConversionSpecImplFriend::SetPrecision(precision, bound);
 
     if (force_left) {
-      FormatConversionSpecImplFriend::SetFlags(unbound->flags | Flags::kLeft,
-                                               bound);
+      Flags flags = unbound->flags;
+      flags.left = true;
+      FormatConversionSpecImplFriend::SetFlags(flags, bound);
     } else {
       FormatConversionSpecImplFriend::SetFlags(unbound->flags, bound);
     }

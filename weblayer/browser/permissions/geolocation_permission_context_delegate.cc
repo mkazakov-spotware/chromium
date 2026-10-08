@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/permissions/geolocation_permission_context_delegate.h"
 
 #include "build/build_config.h"
+#include "weblayer/browser/default_search_engine.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "weblayer/browser/android/permission_request_utils.h"
 #include "weblayer/browser/browser_context_impl.h"
 #include "weblayer/browser/tab_impl.h"
@@ -15,6 +16,7 @@
 namespace weblayer {
 
 bool GeolocationPermissionContextDelegate::DecidePermission(
+    content::WebContents* web_contents,
     const permissions::PermissionRequestID& id,
     const GURL& requesting_origin,
     bool user_gesture,
@@ -23,7 +25,7 @@ bool GeolocationPermissionContextDelegate::DecidePermission(
   return false;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 bool GeolocationPermissionContextDelegate::IsInteractable(
     content::WebContents* web_contents) {
   auto* tab = TabImpl::FromWebContents(web_contents);
@@ -38,8 +40,14 @@ PrefService* GeolocationPermissionContextDelegate::GetPrefs(
 bool GeolocationPermissionContextDelegate::IsRequestingOriginDSE(
     content::BrowserContext* browser_context,
     const GURL& requesting_origin) {
-  return false;
+  return IsPermissionControlledByDse(ContentSettingsType::GEOLOCATION,
+                                     url::Origin::Create(requesting_origin));
 }
+
+void GeolocationPermissionContextDelegate::FinishNotifyPermissionSet(
+    const permissions::PermissionRequestID& id,
+    const GURL& requesting_origin,
+    const GURL& embedding_origin) {}
 #endif
 
 }  // namespace weblayer

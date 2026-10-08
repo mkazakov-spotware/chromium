@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <dispatch/dispatch.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 #include <condition_variable>
 #include <mutex>
 #else
@@ -76,11 +76,11 @@ class Semaphore {
   void Signal();
 
  private:
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   dispatch_semaphore_t semaphore_;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   HANDLE semaphore_;
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   std::condition_variable cv_;
   std::mutex mutex_;
   int value_;

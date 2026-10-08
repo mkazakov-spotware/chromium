@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,22 @@
 
 #include <string>
 
-#include "base/values.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/login/login_export.h"
+
+namespace base {
+class DictionaryValue;
+}
 
 namespace login {
 
 // Class that collects Localized Values for translation.
 class LOGIN_EXPORT LocalizedValuesBuilder {
  public:
-  explicit LocalizedValuesBuilder(base::Value::Dict* dict);
+  explicit LocalizedValuesBuilder(base::DictionaryValue* dict);
+  explicit LocalizedValuesBuilder(const std::string& prefix,
+                                  base::DictionaryValue* dict);
 
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message| is text of the message.
@@ -23,7 +30,7 @@ class LOGIN_EXPORT LocalizedValuesBuilder {
 
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message| is text of the message.
-  void Add(const std::string& key, const std::u16string& message);
+  void Add(const std::string& key, const base::string16& message);
 
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message_id| is a resource id of message.
@@ -32,24 +39,24 @@ class LOGIN_EXPORT LocalizedValuesBuilder {
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message_id| is a resource id of message. Message is expected to have
   // one format parameter subsituted by |a|.
-  void AddF(const std::string& key, int message_id, const std::u16string& a);
+  void AddF(const std::string& key, int message_id, const base::string16& a);
 
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message_id| is a resource id of message. Message is expected to have
   // two format parameters subsituted by |a| and |b| respectively.
   void AddF(const std::string& key,
             int message_id,
-            const std::u16string& a,
-            const std::u16string& b);
+            const base::string16& a,
+            const base::string16& b);
 
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message_id| is a resource id of message. Message is expected to have
   // two format parameters subsituted by |a|, |b| and |c| respectively.
   void AddF(const std::string& key,
             int message_id,
-            const std::u16string& a,
-            const std::u16string& b,
-            const std::u16string& c);
+            const base::string16& a,
+            const base::string16& b,
+            const base::string16& c);
 
   // Method to declare localized value. |key| is the i18n key used in html.
   // |message_id| is a resource id of message. Message is expected to have
@@ -79,7 +86,7 @@ class LOGIN_EXPORT LocalizedValuesBuilder {
   std::string prefix_;
 
   // Not owned.
-  base::Value::Dict* dict_;
+  base::DictionaryValue* dict_;
 };
 
 }  // namespace login

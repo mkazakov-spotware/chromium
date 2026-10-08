@@ -32,10 +32,8 @@ var aScriptTagShouldntBreakAnything = '<script>hello</script>world';
 
 
 
-/** @unrestricted */
-class test {
-  constructor() {}
-}
+/** @constructor */
+var test = function() {};
 
 // Verify that when this module loads the script tag is not modified by
 // escaping code in base.js.

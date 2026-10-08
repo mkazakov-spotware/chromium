@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,9 +49,9 @@ class IncognitoModePolicyHandlerTest
   }
 
   void VerifyValues(IncognitoModePrefs::Availability availability) {
-    const base::Value* value = nullptr;
+    const base::Value* value = NULL;
     EXPECT_TRUE(store_->GetValue(prefs::kIncognitoModeAvailability, &value));
-    EXPECT_EQ(base::Value(static_cast<int>(availability)), *value);
+    EXPECT_TRUE(base::Value(availability).Equals(value));
   }
 };
 
@@ -60,29 +60,26 @@ class IncognitoModePolicyHandlerTest
 // from IncognitoModeAvailability policy to pref "as is".
 TEST_F(IncognitoModePolicyHandlerTest,
        NoObsoletePolicyAndIncognitoEnabled) {
-  SetPolicies(INCOGNITO_ENABLED_UNKNOWN,
-              static_cast<int>(IncognitoModePrefs::Availability::kEnabled));
-  VerifyValues(IncognitoModePrefs::Availability::kEnabled);
+  SetPolicies(INCOGNITO_ENABLED_UNKNOWN, IncognitoModePrefs::ENABLED);
+  VerifyValues(IncognitoModePrefs::ENABLED);
 }
 
 TEST_F(IncognitoModePolicyHandlerTest,
        NoObsoletePolicyAndIncognitoDisabled) {
-  SetPolicies(INCOGNITO_ENABLED_UNKNOWN,
-              static_cast<int>(IncognitoModePrefs::Availability::kDisabled));
-  VerifyValues(IncognitoModePrefs::Availability::kDisabled);
+  SetPolicies(INCOGNITO_ENABLED_UNKNOWN, IncognitoModePrefs::DISABLED);
+  VerifyValues(IncognitoModePrefs::DISABLED);
 }
 
 TEST_F(IncognitoModePolicyHandlerTest,
        NoObsoletePolicyAndIncognitoForced) {
-  SetPolicies(INCOGNITO_ENABLED_UNKNOWN,
-              static_cast<int>(IncognitoModePrefs::Availability::kForced));
-  VerifyValues(IncognitoModePrefs::Availability::kForced);
+  SetPolicies(INCOGNITO_ENABLED_UNKNOWN, IncognitoModePrefs::FORCED);
+  VerifyValues(IncognitoModePrefs::FORCED);
 }
 
 TEST_F(IncognitoModePolicyHandlerTest,
        NoObsoletePolicyAndNoIncognitoAvailability) {
   SetPolicies(INCOGNITO_ENABLED_UNKNOWN, kIncognitoModeAvailabilityNotSet);
-  const base::Value* value = nullptr;
+  const base::Value* value = NULL;
   EXPECT_FALSE(store_->GetValue(prefs::kIncognitoModeAvailability, &value));
 }
 
@@ -91,28 +88,26 @@ TEST_F(IncognitoModePolicyHandlerTest,
 // the IncognitoModeAvailability policy is not specified.
 TEST_F(IncognitoModePolicyHandlerTest,
        ObsoletePolicyDoesNotAffectAvailabilityEnabled) {
-  SetPolicies(INCOGNITO_ENABLED_FALSE,
-              static_cast<int>(IncognitoModePrefs::Availability::kEnabled));
-  VerifyValues(IncognitoModePrefs::Availability::kEnabled);
+  SetPolicies(INCOGNITO_ENABLED_FALSE, IncognitoModePrefs::ENABLED);
+  VerifyValues(IncognitoModePrefs::ENABLED);
 }
 
 TEST_F(IncognitoModePolicyHandlerTest,
        ObsoletePolicyDoesNotAffectAvailabilityForced) {
-  SetPolicies(INCOGNITO_ENABLED_TRUE,
-              static_cast<int>(IncognitoModePrefs::Availability::kForced));
-  VerifyValues(IncognitoModePrefs::Availability::kForced);
+  SetPolicies(INCOGNITO_ENABLED_TRUE, IncognitoModePrefs::FORCED);
+  VerifyValues(IncognitoModePrefs::FORCED);
 }
 
 TEST_F(IncognitoModePolicyHandlerTest,
        ObsoletePolicySetsPreferenceToEnabled) {
   SetPolicies(INCOGNITO_ENABLED_TRUE, kIncognitoModeAvailabilityNotSet);
-  VerifyValues(IncognitoModePrefs::Availability::kEnabled);
+  VerifyValues(IncognitoModePrefs::ENABLED);
 }
 
 TEST_F(IncognitoModePolicyHandlerTest,
        ObsoletePolicySetsPreferenceToDisabled) {
   SetPolicies(INCOGNITO_ENABLED_FALSE, kIncognitoModeAvailabilityNotSet);
-  VerifyValues(IncognitoModePrefs::Availability::kDisabled);
+  VerifyValues(IncognitoModePrefs::DISABLED);
 }
 
 }  // namespace policy

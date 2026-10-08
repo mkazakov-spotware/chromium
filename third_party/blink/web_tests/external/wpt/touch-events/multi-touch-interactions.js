@@ -86,8 +86,6 @@ function run() {
     var last_targetTouches={};
     var last_changedTouches={};
 
-    var actions_promise;
-
     on_event(window, "touchstart", function onTouchStart(ev) {
         // process event only if it's targeted at target0 or target1
         if(ev.target != target0 && ev.target != target1 )
@@ -350,7 +348,7 @@ function run() {
 
         debug_print("touchend #" + touchend_received + ": done<br>");
         if(ev.touches.length==0)
-            actions_promise.then( () => done() );
+            done();
     });
 
     on_event(target0, "mousedown", function onMouseDown(ev) {
@@ -370,23 +368,4 @@ function run() {
             done();
         }
     });
-
-    actions_promise = new test_driver.Actions()
-          .addPointer("touchPointer1", "touch")
-          .addPointer("touchPointer2", "touch")
-          .addPointer("touchPointer3", "touch")
-          .pointerMove(0, 0, {origin: target0, sourceName: "touchPointer1"})
-          .pointerMove(3, 0, {origin: target0, sourceName: "touchPointer2"})
-          .pointerDown({sourceName: "touchPointer1"})
-          .pointerDown({sourceName: "touchPointer2"})
-          .pointerMove(0, 10, {origin: target0, sourceName: "touchPointer1"})
-          .pointerMove(3, 10, {origin: target0, sourceName: "touchPointer2"})
-          .pointerMove(0, 0, {origin: target1, sourceName: "touchPointer1"})
-          .pointerMove(3, 0, {origin: target1, sourceName: "touchPointer2"})
-          .pointerMove(6, 0, {origin: target0, sourceName: "touchPointer3"})
-          .pointerDown({sourceName: "touchPointer3"})
-          .pointerUp({sourceName: "touchPointer1"})
-          .pointerUp({sourceName: "touchPointer2"})
-          .pointerUp({sourceName: "touchPointer3"})
-          .send();
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,6 +55,36 @@ unsigned int GLDataType(uint32_t buffer_format) {
 
 }  // namespace
 
+class GLImageAHardwareBuffer::ScopedHardwareBufferFenceSyncImpl
+    : public base::android::ScopedHardwareBufferFenceSync {
+ public:
+  ScopedHardwareBufferFenceSyncImpl(
+      scoped_refptr<GLImageAHardwareBuffer> image,
+      base::android::ScopedHardwareBufferHandle handle)
+      : ScopedHardwareBufferFenceSync(std::move(handle),
+                                      base::ScopedFD(),
+                                      base::ScopedFD(),
+                                      false /* is_video */),
+        image_(std::move(image)) {}
+  ~ScopedHardwareBufferFenceSyncImpl() override = default;
+
+  void SetReadFence(base::ScopedFD fence_fd, bool has_context) override {
+    DCHECK(fence_fd.is_valid());
+
+    if (!has_context)
+      return;
+
+    gfx::GpuFenceHandle handle;
+    handle.owned_fd = std::move(fence_fd);
+    gfx::GpuFence gpu_fence(std::move(handle));
+    auto gl_fence = GLFence::CreateFromGpuFence(gpu_fence);
+    gl_fence->ServerWait();
+  }
+
+ private:
+  scoped_refptr<GLImageAHardwareBuffer> image_;
+};
+
 GLImageAHardwareBuffer::GLImageAHardwareBuffer(const gfx::Size& size)
     : GLImageEGL(size) {}
 
@@ -95,9 +125,28 @@ bool GLImageAHardwareBuffer::CopyTexSubImage(unsigned target,
   return false;
 }
 
+bool GLImageAHardwareBuffer::ScheduleOverlayPlane(
+    gfx::AcceleratedWidget widget,
+    int z_order,
+    gfx::OverlayTransform transform,
+    const gfx::Rect& bounds_rect,
+    const gfx::RectF& crop_rect,
+    bool enable_blend,
+    std::unique_ptr<gfx::GpuFence> gpu_fence) {
+  return false;
+}
+
+void GLImageAHardwareBuffer::Flush() {}
+
 void GLImageAHardwareBuffer::OnMemoryDump(
     base::trace_event::ProcessMemoryDump* pmd,
     uint64_t process_tracing_id,
     const std::string& dump_name) {}
+
+std::unique_ptr<base::android::ScopedHardwareBufferFenceSync>
+GLImageAHardwareBuffer::GetAHardwareBuffer() {
+  return std::make_unique<ScopedHardwareBufferFenceSyncImpl>(
+      this, base::android::ScopedHardwareBufferHandle::Create(handle_.get()));
+}
 
 }  // namespace gl

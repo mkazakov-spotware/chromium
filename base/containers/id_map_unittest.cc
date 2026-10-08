@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/test/gtest_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -25,7 +24,7 @@ class DestructorCounter {
   ~DestructorCounter() { ++(*counter_); }
 
  private:
-  raw_ptr<int> counter_;
+  int* counter_;
 };
 
 }  // namespace
@@ -145,6 +144,7 @@ TEST(IDMapTest, IteratorRemainsValidWhenRemovingOtherElements) {
         break;
       default:
         FAIL() << "should not have that many elements";
+        break;
     }
 
     counter++;
@@ -248,6 +248,7 @@ TEST(IDMapTest, IteratorRemainsValidWhenClearing) {
         break;
       default:
         FAIL() << "should not have that many elements";
+        break;
     }
     counter++;
   }

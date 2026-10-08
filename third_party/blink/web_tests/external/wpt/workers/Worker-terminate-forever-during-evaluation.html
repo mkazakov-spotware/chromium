@@ -38,11 +38,6 @@ for (const test of [
     url: 'support/Worker-run-forever-during-dynamic-import.js',
     options: {type: 'module'},
     description: 'Worker is terminated during dynamic import() (module)'
-  },
-  {
-    url: 'support/Worker-run-forever-during-top-level-await.js',
-    options: {type: 'module'},
-    description: 'Worker is terminated during top-level await'
   }
 ]) {
   async_test((t) => {

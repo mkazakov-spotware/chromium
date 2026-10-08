@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,14 +39,13 @@ bool RecentlyAudibleHelper::WasRecentlyAudible() const {
   return tick_clock_->NowTicks() < recently_audible_time_limit;
 }
 
-base::CallbackListSubscription
-RecentlyAudibleHelper::RegisterCallbackForTesting(const Callback& callback) {
+std::unique_ptr<RecentlyAudibleHelper::Subscription>
+RecentlyAudibleHelper::RegisterCallback(const Callback& callback) {
   return callback_list_.Add(callback);
 }
 
 RecentlyAudibleHelper::RecentlyAudibleHelper(content::WebContents* contents)
     : content::WebContentsObserver(contents),
-      content::WebContentsUserData<RecentlyAudibleHelper>(*contents),
       tick_clock_(GetDefaultTickClock()) {
   if (contents->IsCurrentlyAudible())
     last_audible_time_ = base::TimeTicks::Max();
@@ -118,4 +117,4 @@ void RecentlyAudibleHelper::SetNotRecentlyAudibleForTesting() {
   recently_audible_timer_.Stop();
 }
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(RecentlyAudibleHelper);
+WEB_CONTENTS_USER_DATA_KEY_IMPL(RecentlyAudibleHelper)

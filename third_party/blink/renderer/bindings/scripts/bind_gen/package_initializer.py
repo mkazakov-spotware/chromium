@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -58,7 +58,7 @@ class PackageInitializer(object):
         return cls._the_instance
 
     def __init__(self, web_idl_database_path, root_src_dir, root_gen_dir,
-                 component_reldirs, enable_style_format):
+                 component_reldirs):
         """
         Args:
             web_idl_database_path: File path to the web_idl.Database.
@@ -67,15 +67,12 @@ class PackageInitializer(object):
             root_gen_dir: Root directory of generated files, which corresponds
                 to "//out/Default/gen" in GN.
             component_reldirs: Pairs of component and output directory.
-            enable_style_format: Enable style formatting of the generated
-                files.
         """
 
         self._web_idl_database_path = web_idl_database_path
         self._root_src_dir = root_src_dir
         self._root_gen_dir = root_gen_dir
         self._component_reldirs = component_reldirs
-        self._enable_style_format = enable_style_format
 
     def init(self):
         if PackageInitializer._the_instance:
@@ -91,8 +88,7 @@ class PackageInitializer(object):
         PackageInitializer._the_web_idl_database = (
             web_idl.Database.read_from_file(self._web_idl_database_path))
 
-        style_format.init(root_src_dir=self._root_src_dir,
-                          enable_style_format=self._enable_style_format)
+        style_format.init(self._root_src_dir)
 
         PathManager.init(
             root_src_dir=self._root_src_dir,

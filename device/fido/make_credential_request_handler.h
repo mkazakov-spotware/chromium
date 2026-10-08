@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,20 +12,21 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "device/fido/auth_token_requester.h"
 #include "device/fido/authenticator_make_credential_response.h"
 #include "device/fido/authenticator_selection_criteria.h"
 #include "device/fido/bio/enroller.h"
+#include "device/fido/client_data.h"
 #include "device/fido/ctap_make_credential_request.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_request_handler_base.h"
 #include "device/fido/fido_transport_protocol.h"
 #include "device/fido/fido_types.h"
 #include "device/fido/pin.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class ElapsedTimer;
@@ -68,20 +69,67 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialRequestHandler
  public:
   using CompletionCallback = base::OnceCallback<void(
       MakeCredentialStatus,
-      absl::optional<AuthenticatorMakeCredentialResponse>,
+      base::Optional<AuthenticatorMakeCredentialResponse>,
       const FidoAuthenticator*)>;
+
+  // Options contains higher-level request parameters that aren't part of the
+  // makeCredential request itself, or that need to be combined with knowledge
+  // of the specific authenticator, thus don't live in
+  // |CtapMakeCredentialRequest|.
+  struct COMPONENT_EXPORT(DEVICE_FIDO) Options {
+    Options();
+    explicit Options(
+        const AuthenticatorSelectionCriteria& authenticator_selection_criteria);
+    ~Options();
+    Options(const Options&);
+    Options(Options&&);
+    Options& operator=(const Options&);
+    Options& operator=(Options&&);
+
+    // authenticator_attachment is a constraint on the type of authenticator
+    // that a credential should be created on.
+    AuthenticatorAttachment authenticator_attachment =
+        AuthenticatorAttachment::kAny;
+
+    // resident_key indicates whether the request should result in the creation
+    // of a client-side discoverable credential (aka resident key).
+    ResidentKeyRequirement resident_key = ResidentKeyRequirement::kDiscouraged;
+
+    // user_verification indicates whether the authenticator should (or must)
+    // perform user verficiation before creating the credential.
+    UserVerificationRequirement user_verification =
+        UserVerificationRequirement::kPreferred;
+
+    // cred_protect_request extends |CredProtect| to include information that
+    // applies at request-routing time. The second element is true if the
+    // indicated protection level must be provided by the target authenticator
+    // for the MakeCredential request to be sent.
+    base::Optional<std::pair<CredProtectRequest, bool>> cred_protect_request;
+
+    // allow_skipping_pin_touch causes the handler to forego the first
+    // "touch-only" step to collect a PIN if exactly one authenticator is
+    // discovered.
+    bool allow_skipping_pin_touch = false;
+
+    // android_client_data_ext is a compatibility hack to support the Clank
+    // caBLEv2 authenticator.
+    base::Optional<AndroidClientDataExtensionInput> android_client_data_ext;
+
+    // large_blob_support indicates whether the request should select for
+    // authenticators supporting the largeBlobs extension (kRequired), merely
+    // indicate support on the response (kPreferred), or ignore it
+    // (kNotRequested).
+    // Values other than kNotRequested will attempt to initialize the large blob
+    // on the authenticator.
+    LargeBlobSupport large_blob_support = LargeBlobSupport::kNotRequested;
+  };
 
   MakeCredentialRequestHandler(
       FidoDiscoveryFactory* fido_discovery_factory,
       const base::flat_set<FidoTransportProtocol>& supported_transports,
       CtapMakeCredentialRequest request_parameter,
-      const MakeCredentialOptions& options,
+      const Options& options,
       CompletionCallback completion_callback);
-
-  MakeCredentialRequestHandler(const MakeCredentialRequestHandler&) = delete;
-  MakeCredentialRequestHandler& operator=(const MakeCredentialRequestHandler&) =
-      delete;
-
   ~MakeCredentialRequestHandler() override;
 
  private:
@@ -100,44 +148,38 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialRequestHandler
                             FidoAuthenticator* authenticator) override;
 
   // AuthTokenRequester::Delegate:
-  bool AuthenticatorSelectedForPINUVAuthToken(
+  void AuthenticatorSelectedForPINUVAuthToken(
       FidoAuthenticator* authenticator) override;
-  void CollectPIN(pin::PINEntryReason reason,
-                  pin::PINEntryError error,
-                  uint32_t min_pin_length,
-                  int attempts,
-                  ProvidePINCallback provide_pin_cb) override;
+  void CollectNewPIN(ProvidePINCallback provide_pin_cb) override;
+  void CollectExistingPIN(int attempts,
+                          ProvidePINCallback provide_pin_cb) override;
   void PromptForInternalUVRetry(int attempts) override;
+  void InternalUVLockedForAuthToken() override;
   void HavePINUVAuthTokenResultForAuthenticator(
       FidoAuthenticator* authenticator,
       AuthTokenRequester::Result result,
-      absl::optional<pin::TokenResponse> response) override;
+      base::Optional<pin::TokenResponse> response) override;
 
   // BioEnroller::Delegate:
   void OnSampleCollected(BioEnrollmentSampleStatus status,
                          int samples_remaining) override;
   void OnEnrollmentDone(
-      absl::optional<std::vector<uint8_t>> template_id) override;
+      base::Optional<std::vector<uint8_t>> template_id) override;
   void OnEnrollmentError(CtapDeviceResponseCode status) override;
 
   void ObtainPINUVAuthToken(FidoAuthenticator* authenticator,
-                            bool skip_pin_touch,
-                            bool internal_uv_locked);
+                            bool skip_pin_touch);
 
-  void DispatchRequestAfterAppIdExclude(
-      std::unique_ptr<CtapMakeCredentialRequest> request,
-      FidoAuthenticator* authenticator,
-      CtapDeviceResponseCode status,
-      absl::optional<bool> unused);
   void HandleResponse(
       FidoAuthenticator* authenticator,
       std::unique_ptr<CtapMakeCredentialRequest> request,
       base::ElapsedTimer request_timer,
       CtapDeviceResponseCode response_code,
-      absl::optional<AuthenticatorMakeCredentialResponse> response);
-  void HandleExcludedAuthenticator(FidoAuthenticator* authenticator);
-  void HandleInapplicableAuthenticator(FidoAuthenticator* authenticator,
-                                       MakeCredentialStatus status);
+      base::Optional<AuthenticatorMakeCredentialResponse> response);
+  void HandleInternalUvLocked(FidoAuthenticator* authenticator);
+  void HandleInapplicableAuthenticator(
+      FidoAuthenticator* authenticator,
+      std::unique_ptr<CtapMakeCredentialRequest> request);
   void OnEnrollmentComplete(std::unique_ptr<CtapMakeCredentialRequest> request);
   void OnEnrollmentDismissed();
   void DispatchRequestWithToken(
@@ -151,10 +193,9 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialRequestHandler
 
   CompletionCallback completion_callback_;
   State state_ = State::kWaitingForTouch;
-  bool suppress_attestation_ = false;
   CtapMakeCredentialRequest request_;
-  absl::optional<base::RepeatingClosure> bio_enrollment_complete_barrier_;
-  const MakeCredentialOptions options_;
+  base::Optional<base::RepeatingClosure> bio_enrollment_complete_barrier_;
+  const Options options_;
 
   std::map<FidoAuthenticator*, std::unique_ptr<AuthTokenRequester>>
       auth_token_requester_map_;
@@ -163,19 +204,13 @@ class COMPONENT_EXPORT(DEVICE_FIDO) MakeCredentialRequestHandler
   // that was tapped by the user while requesting a pinUvAuthToken from
   // connected authenticators. The object is owned by the underlying discovery
   // object and this pointer is cleared if it's removed during processing.
-  raw_ptr<FidoAuthenticator> selected_authenticator_for_pin_uv_auth_token_ =
-      nullptr;
-  absl::optional<pin::TokenResponse> token_;
+  FidoAuthenticator* selected_authenticator_for_pin_uv_auth_token_ = nullptr;
+  base::Optional<pin::TokenResponse> token_;
   std::unique_ptr<BioEnroller> bio_enroller_;
-
-  // On ChromeOS, non-U2F cross-platform requests may be dispatched to the
-  // platform authenticator if the request is user-presence-only and the
-  // authenticator has been configured for user-presence-only mode via an
-  // enterprise policy. For such requests, this field will be true.
-  bool allow_platform_authenticator_for_cross_platform_request_ = false;
-
   SEQUENCE_CHECKER(my_sequence_checker_);
   base::WeakPtrFactory<MakeCredentialRequestHandler> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(MakeCredentialRequestHandler);
 };
 
 }  // namespace device

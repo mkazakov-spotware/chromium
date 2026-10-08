@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "build/chromeos_buildflags.h"
+#include "base/macros.h"
 #include "components/javascript_dialogs/app_modal_dialog_view.h"
 #include "ui/views/window/dialog_delegate.h"
 
@@ -20,18 +19,10 @@ namespace javascript_dialogs {
 
 class AppModalDialogController;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-class LayerDimmer;
-#endif  // IS_CHROMEOS_LACROS
-
 class AppModalDialogViewViews : public AppModalDialogView,
                                 public views::DialogDelegate {
  public:
   explicit AppModalDialogViewViews(AppModalDialogController* controller);
-
-  AppModalDialogViewViews(const AppModalDialogViewViews&) = delete;
-  AppModalDialogViewViews& operator=(const AppModalDialogViewViews&) = delete;
-
   ~AppModalDialogViewViews() override;
 
   // AppModalDialogView:
@@ -43,7 +34,7 @@ class AppModalDialogViewViews : public AppModalDialogView,
   bool IsShowing() const override;
 
   // views::DialogDelegate:
-  std::u16string GetWindowTitle() const override;
+  base::string16 GetWindowTitle() const override;
   ui::ModalType GetModalType() const override;
   views::View* GetContentsView() override;
   views::View* GetInitiallyFocusedView() override;
@@ -55,12 +46,10 @@ class AppModalDialogViewViews : public AppModalDialogView,
  private:
   std::unique_ptr<AppModalDialogController> controller_;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  std::unique_ptr<LayerDimmer> layerDimmer_;
-#endif  // IS_CHROMEOS_LACROS
-
   // The message box view whose commands we handle.
-  raw_ptr<views::MessageBoxView> message_box_view_;
+  views::MessageBoxView* message_box_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppModalDialogViewViews);
 };
 
 }  // namespace javascript_dialogs

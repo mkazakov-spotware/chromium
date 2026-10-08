@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "base/callback_helpers.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/extensions/extensions_dialogs.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "content/public/browser/web_contents.h"
@@ -19,8 +19,8 @@ class ExtensionInstallBlockedDialogViewTest : public DialogBrowserTest {
   ~ExtensionInstallBlockedDialogViewTest() override = default;
 
   void ShowUi(const std::string& name) override {
-    extensions::ShowExtensionInstallBlockedDialog(
-        "extension_id", "extension_name", message_, CreateExtensionIcon(),
+    chrome::ShowExtensionInstallBlockedDialog(
+        "extension_name", message_, CreateExtensionIcon(),
         browser()->tab_strip_model()->GetWebContentsAt(0), base::DoNothing());
   }
 
@@ -32,10 +32,10 @@ class ExtensionInstallBlockedDialogViewTest : public DialogBrowserTest {
     return gfx::ImageSkia::CreateFrom1xBitmap(icon);
   }
 
-  void set_message(const std::u16string& message) { message_ = message; }
+  void set_message(const base::string16& message) { message_ = message; }
 
  private:
-  std::u16string message_;
+  base::string16 message_;
 };
 
 IN_PROC_BROWSER_TEST_F(ExtensionInstallBlockedDialogViewTest,
@@ -45,12 +45,13 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallBlockedDialogViewTest,
 
 IN_PROC_BROWSER_TEST_F(ExtensionInstallBlockedDialogViewTest,
                        InvokeUi_WithCustomMessage) {
-  set_message(u"message");
+  set_message(base::ASCIIToUTF16("message"));
   ShowAndVerifyUi();
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionInstallBlockedDialogViewTest,
                        InvokeUi_WithLongCustomMessage) {
-  set_message(u"long\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nmessage");
+  set_message(
+      base::ASCIIToUTF16("long\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nmessage"));
   ShowAndVerifyUi();
 }

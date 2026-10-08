@@ -1,14 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_ASYNC_API_FUNCTION_H_
 #define EXTENSIONS_BROWSER_API_ASYNC_API_FUNCTION_H_
 
-#include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/memory/ref_counted.h"
+#include "base/sequenced_task_runner.h"
 #include "extensions/browser/extension_function.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace extensions {
 
@@ -56,10 +55,10 @@ class AsyncApiFunction : public ExtensionFunction {
   void AsyncWorkCompleted();
 
   // Sets a single Value as the results of the function.
-  void SetResult(base::Value result);
+  void SetResult(std::unique_ptr<base::Value> result);
 
   // Sets multiple Values as the results of the function.
-  void SetResultList(base::Value::List results);
+  void SetResultList(std::unique_ptr<base::ListValue> results);
 
   void SetError(const std::string& error);
   const std::string& GetError() const override;
@@ -73,7 +72,7 @@ class AsyncApiFunction : public ExtensionFunction {
   // These need to keep the same name to avoid breaking existing
   // implementations, but this should be temporary with https://crbug.com/648275
   // and https://crbug.com/634140.
-  absl::optional<base::Value::List> results_;
+  std::unique_ptr<base::ListValue> results_;
   std::string error_;
 
  private:

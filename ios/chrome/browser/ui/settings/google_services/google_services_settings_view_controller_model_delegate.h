@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,6 @@
 // Called when the model should be loaded.
 - (void)googleServicesSettingsViewControllerLoadModel:
     (GoogleServicesSettingsViewController*)controller;
-
-// Called to know if the table item is of the type for allow sign-in.
-- (BOOL)isAllowChromeSigninItem:(int)type;
 
 @end
 

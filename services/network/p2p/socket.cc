@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "services/network/p2p/socket_tcp.h"
+#include "services/network/p2p/socket_tcp_server.h"
 #include "services/network/p2p/socket_udp.h"
 #include "services/network/proxy_resolving_client_socket_factory.h"
 
@@ -74,30 +75,50 @@ P2PSocket::P2PSocket(Delegate* delegate,
       base::BindOnce(&P2PSocket::OnError, base::Unretained(this)));
 }
 
-P2PSocket::~P2PSocket() = default;
+P2PSocket::~P2PSocket() {
+  if (protocol_type_ == P2PSocket::UDP) {
+    UMA_HISTOGRAM_COUNTS_10000("WebRTC.SystemMaxConsecutiveBytesDelayed_UDP",
+                               send_bytes_delayed_max_);
+  } else {
+    UMA_HISTOGRAM_COUNTS_10000("WebRTC.SystemMaxConsecutiveBytesDelayed_TCP",
+                               send_bytes_delayed_max_);
+  }
+
+  if (send_packets_total_ > 0) {
+    int delay_rate = (send_packets_delayed_total_ * 100) / send_packets_total_;
+    if (protocol_type_ == P2PSocket::UDP) {
+      UMA_HISTOGRAM_PERCENTAGE("WebRTC.SystemPercentPacketsDelayed_UDP",
+                               delay_rate);
+    } else {
+      UMA_HISTOGRAM_PERCENTAGE("WebRTC.SystemPercentPacketsDelayed_TCP",
+                               delay_rate);
+    }
+  }
+}
 
 // Verifies that the packet |data| has a valid STUN header.
 // static
-bool P2PSocket::GetStunPacketType(base::span<const uint8_t> data,
+bool P2PSocket::GetStunPacketType(const uint8_t* data,
+                                  int data_size,
                                   StunMessageType* type) {
-  if (data.size() < kStunHeaderSize) {
+  if (data_size < kStunHeaderSize) {
     return false;
   }
 
   uint32_t cookie =
-      base::NetToHost32(*reinterpret_cast<const uint32_t*>(data.data() + 4));
+      base::NetToHost32(*reinterpret_cast<const uint32_t*>(data + 4));
   if (cookie != kStunMagicCookie) {
     return false;
   }
 
   uint16_t length =
-      base::NetToHost16(*reinterpret_cast<const uint16_t*>(data.data() + 2));
-  if (length != data.size() - kStunHeaderSize) {
+      base::NetToHost16(*reinterpret_cast<const uint16_t*>(data + 2));
+  if (length != data_size - kStunHeaderSize) {
     return false;
   }
 
   int message_type =
-      base::NetToHost16(*reinterpret_cast<const uint16_t*>(data.data()));
+      base::NetToHost16(*reinterpret_cast<const uint16_t*>(data));
 
   // Verify that the type is known:
   switch (message_type) {
@@ -141,28 +162,36 @@ std::unique_ptr<P2PSocket> P2PSocket::Create(
     mojo::PendingRemote<mojom::P2PSocketClient> client,
     mojo::PendingReceiver<mojom::P2PSocket> socket,
     P2PSocketType type,
-    const net::NetworkTrafficAnnotationTag& traffic_annotation,
     net::NetLog* net_log,
     ProxyResolvingClientSocketFactory* proxy_resolving_socket_factory,
     P2PMessageThrottler* throttler) {
   switch (type) {
     case P2P_SOCKET_UDP:
-      return std::make_unique<P2PSocketUdp>(delegate, std::move(client),
-                                            std::move(socket), throttler,
-                                            traffic_annotation, net_log);
+      return std::make_unique<P2PSocketUdp>(
+          delegate, std::move(client), std::move(socket), throttler, net_log);
+    case P2P_SOCKET_TCP_SERVER:
+      return std::make_unique<P2PSocketTcpServer>(delegate, std::move(client),
+                                                  std::move(socket),
+                                                  P2P_SOCKET_TCP_CLIENT);
+
+    case P2P_SOCKET_STUN_TCP_SERVER:
+      return std::make_unique<P2PSocketTcpServer>(delegate, std::move(client),
+                                                  std::move(socket),
+                                                  P2P_SOCKET_STUN_TCP_CLIENT);
+
     case P2P_SOCKET_TCP_CLIENT:
     case P2P_SOCKET_SSLTCP_CLIENT:
     case P2P_SOCKET_TLS_CLIENT:
-      return std::make_unique<P2PSocketTcp>(
-          delegate, std::move(client), std::move(socket), type,
-          traffic_annotation, proxy_resolving_socket_factory);
+      return std::make_unique<P2PSocketTcp>(delegate, std::move(client),
+                                            std::move(socket), type,
+                                            proxy_resolving_socket_factory);
 
     case P2P_SOCKET_STUN_TCP_CLIENT:
     case P2P_SOCKET_STUN_SSLTCP_CLIENT:
     case P2P_SOCKET_STUN_TLS_CLIENT:
-      return std::make_unique<P2PSocketStunTcp>(
-          delegate, std::move(client), std::move(socket), type,
-          traffic_annotation, proxy_resolving_socket_factory);
+      return std::make_unique<P2PSocketStunTcp>(delegate, std::move(client),
+                                                std::move(socket), type,
+                                                proxy_resolving_socket_factory);
   }
 
   NOTREACHED();
@@ -176,6 +205,26 @@ P2PSocket::ReleaseClientForTesting() {
 
 mojo::PendingReceiver<mojom::P2PSocket> P2PSocket::ReleaseReceiverForTesting() {
   return receiver_.Unbind();
+}
+
+void P2PSocket::IncrementDelayedPackets() {
+  send_packets_delayed_total_++;
+}
+
+void P2PSocket::IncrementTotalSentPackets() {
+  send_packets_total_++;
+}
+
+void P2PSocket::IncrementDelayedBytes(uint32_t size) {
+  send_bytes_delayed_cur_ += size;
+  if (send_bytes_delayed_cur_ > send_bytes_delayed_max_) {
+    send_bytes_delayed_max_ = send_bytes_delayed_cur_;
+  }
+}
+
+void P2PSocket::DecrementDelayedBytes(uint32_t size) {
+  send_bytes_delayed_cur_ -= size;
+  DCHECK_GE(send_bytes_delayed_cur_, 0);
 }
 
 void P2PSocket::OnError() {

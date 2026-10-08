@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/web_applications/web_app_registry_update.h"
 
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
+#include "base/stl_util.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 
@@ -21,7 +21,7 @@ bool RegistryUpdateData::IsEmpty() const {
 }
 
 WebAppRegistryUpdate::WebAppRegistryUpdate(const WebAppRegistrar* registrar,
-                                           base::PassKey<WebAppSyncBridge>)
+                                           util::PassKey<WebAppSyncBridge>)
     : registrar_(registrar) {
   DCHECK(registrar_);
   update_data_ = std::make_unique<RegistryUpdateData>();
@@ -73,11 +73,8 @@ std::unique_ptr<RegistryUpdateData> WebAppRegistryUpdate::TakeUpdateData() {
 ScopedRegistryUpdate::ScopedRegistryUpdate(WebAppSyncBridge* sync_bridge)
     : update_(sync_bridge->BeginUpdate()), sync_bridge_(sync_bridge) {}
 
-ScopedRegistryUpdate::ScopedRegistryUpdate(ScopedRegistryUpdate&&) = default;
-
 ScopedRegistryUpdate::~ScopedRegistryUpdate() {
-  if (update_)
-    sync_bridge_->CommitUpdate(std::move(update_), base::DoNothing());
+  sync_bridge_->CommitUpdate(std::move(update_), base::DoNothing());
 }
 
 }  // namespace web_app

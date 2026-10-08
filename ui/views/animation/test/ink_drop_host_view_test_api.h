@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,24 +8,21 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/ink_drop_host_view.h"
 
-namespace views::test {
+namespace views {
+namespace test {
 
-// Test API to provide internal access to an InkDropHost instance.
-class InkDropHostTestApi {
+// Test API to provide internal access to an InkDropHostView instance.
+class InkDropHostViewTestApi {
  public:
-  // Make the protected enum accessible.
-  using InkDropMode = views::InkDropHost::InkDropMode;
+  // Make the protected enum accessbile.
+  using InkDropMode = InkDropHostView::InkDropMode;
 
-  explicit InkDropHostTestApi(InkDropHost* ink_drop_host);
-
-  InkDropHostTestApi(const InkDropHostTestApi&) = delete;
-  InkDropHostTestApi& operator=(const InkDropHostTestApi&) = delete;
-
-  ~InkDropHostTestApi();
+  explicit InkDropHostViewTestApi(InkDropHostView* host_view);
+  ~InkDropHostViewTestApi();
 
   void SetInkDropMode(InkDropMode ink_drop_mode);
 
@@ -33,28 +30,34 @@ class InkDropHostTestApi {
                   bool handles_gesture_events);
   void SetInkDrop(std::unique_ptr<InkDrop> ink_drop);
 
-  InkDrop* ink_drop() { return ink_drop_host_->ink_drop_.get(); }
+  InkDrop* ink_drop() { return host_view_->ink_drop_.get(); }
 
-  // Wrapper for InkDropHost::HasInkDrop().
+  // Wrapper for InkDropHostView::HasInkDrop().
   bool HasInkDrop() const;
 
-  // Wrapper for InkDropHost::GetInkDrop() which lazily creates the ink drop
+  // Wrapper for InkDropHostView::GetInkDrop() which lazily creates the ink drop
   // instance if it doesn't already exist. If you need direct access to
-  // InkDropHost::ink_drop_ use ink_drop() instead.
+  // InkDropHostView::ink_drop_ use ink_drop() instead.
   InkDrop* GetInkDrop();
 
   bool HasInkdropEventHandler() const;
 
-  // Wrapper for InkDropHost::AnimateToState().
-  void AnimateToState(InkDropState state, const ui::LocatedEvent* event);
+  // Wrapper for InkDropHostView::GetInkDropCenterBasedOnLastEvent().
+  gfx::Point GetInkDropCenterBasedOnLastEvent() const;
 
-  InkDropMode ink_drop_mode() const { return ink_drop_host_->ink_drop_mode_; }
+  // Wrapper for InkDropHostView::AnimateInkDrop().
+  void AnimateInkDrop(InkDropState state, const ui::LocatedEvent* event);
+
+  InkDropMode ink_drop_mode() const { return host_view_->ink_drop_mode_; }
 
  private:
-  // The InkDropHost to provide internal access to.
-  raw_ptr<InkDropHost, DanglingUntriaged> ink_drop_host_;
+  // The InkDropHostView to provide internal access to.
+  InkDropHostView* host_view_;
+
+  DISALLOW_COPY_AND_ASSIGN(InkDropHostViewTestApi);
 };
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views
 
 #endif  // UI_VIEWS_ANIMATION_TEST_INK_DROP_HOST_VIEW_TEST_API_H_

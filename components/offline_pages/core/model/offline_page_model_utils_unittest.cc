@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,42 +39,51 @@ TEST(OfflinePageModelUtilsTest, ToNamespaceEnum) {
 }
 
 struct GenerateUniqueFilenameTestCase {
-  const std::u16string page_title;
+  const base::string16 page_title;
   const GURL page_url;
   const base::FilePath::CharType* expected_basename;
 };
 
 const std::vector<GenerateUniqueFilenameTestCase>& UniqueFilenameCases() {
   static base::NoDestructor<std::vector<GenerateUniqueFilenameTestCase>> cases{{
-      {u"wikipedia.org-Main_Page", GURL("http://www.wikipedia.org/Main_Page"),
+      {base::ASCIIToUTF16("wikipedia.org-Main_Page"),
+       GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org-Main_Page.mhtml")},
-      {u"wikipedia.org-Main_Page", GURL("http://www.wikipedia.org/Main_Page"),
+      {base::ASCIIToUTF16("wikipedia.org-Main_Page"),
+       GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org-Main_Page (1).mhtml")},
-      {u"wikipedia.org-Main_Page", GURL("http://www.wikipedia.org/Main_Page"),
+      {base::ASCIIToUTF16("wikipedia.org-Main_Page"),
+       GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org-Main_Page (2).mhtml")},
-      {u"wikipedia.org-Main_Page.mhtml",
+      {base::ASCIIToUTF16("wikipedia.org-Main_Page.mhtml"),
        GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org-Main_Page (3).mhtml")},
-      {u"wikipedia.org-Main_Page", GURL("http://www.wikipedia.org/Main_Page"),
+      {base::ASCIIToUTF16("wikipedia.org-Main_Page"),
+       GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org-Main_Page (4).mhtml")},
-      {u"wikipedia.org", GURL("http://www.wikipedia.org/Main_Page"),
+      {base::ASCIIToUTF16("wikipedia.org"),
+       GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org.mhtml")},
-      {u"wikipedia.org", GURL("http://www.wikipedia.org/Main_Page"),
+      {base::ASCIIToUTF16("wikipedia.org"),
+       GURL("http://www.wikipedia.org/Main_Page"),
        FILE_PATH_LITERAL("wikipedia.org (1).mhtml")},
-      {u"bücher.com", GURL("http://xn--bcher-kva.com"),
+      {base::UTF8ToUTF16("bücher.com"), GURL("http://xn--bcher-kva.com"),
        FILE_PATH_LITERAL("bücher.com.mhtml")},
-      {u"http://foo.com/path/title.html", GURL("http://foo.com"),
+      {base::ASCIIToUTF16("http://foo.com/path/title.html"),
+       GURL("http://foo.com"),
        FILE_PATH_LITERAL("http___foo.com_path_title.html.mhtml")},
-      {u"foo.com/foo-%40.html", GURL("http://foo.com/foo-%40.html"),
+      {base::ASCIIToUTF16("foo.com/foo-%40.html"),
+       GURL("http://foo.com/foo-%40.html"),
        FILE_PATH_LITERAL("foo-@.html.mhtml")},
-      {u"Viva%40%40%40-TestTitle", GURL("http://foo.com/%40.html"),
+      {base::ASCIIToUTF16("Viva%40%40%40-TestTitle"),
+       GURL("http://foo.com/%40.html"),
        FILE_PATH_LITERAL("Viva%40%40%40-TestTitle.mhtml")},
   }};
   return *cases;
 }
 
 // Crashing on Windows, see http://crbug.com/79365
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_TestGenerateUniqueFilename DISABLED_TestGenerateUniqueFilename
 #else
 #define MAYBE_TestGenerateUniqueFilename TestGenerateUniqueFilename

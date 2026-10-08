@@ -1,17 +1,17 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <XCTest/XCTest.h>
 
-#import <memory>
+#include <memory>
 
 #import "base/ios/ios_util.h"
-#import "base/strings/stringprintf.h"
-#import "base/strings/sys_string_conversions.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#import "components/strings/grit/components_strings.h"
-#import "components/url_formatter/url_formatter.h"
+#include "components/strings/grit/components_strings.h"
+#include "components/url_formatter/url_formatter.h"
 #import "ios/chrome/browser/ui/popup_menu/popup_menu_constants.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
@@ -21,16 +21,15 @@
 #import "ios/chrome/test/scoped_eg_synchronization_disabler.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/testing/earl_grey/matchers.h"
-#import "ios/web/public/test/element_selector.h"
-#import "ios/web/public/test/http_server/data_response_provider.h"
+#include "ios/web/public/test/element_selector.h"
+#include "ios/web/public/test/http_server/data_response_provider.h"
 #import "ios/web/public/test/http_server/http_server.h"
-#import "ios/web/public/test/http_server/http_server_util.h"
+#include "ios/web/public/test/http_server/http_server_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-using base::test::ios::kWaitForActionTimeout;
 using chrome_test_util::ButtonWithAccessibilityLabelId;
 using chrome_test_util::OmniboxText;
 using chrome_test_util::TapWebElement;
@@ -40,10 +39,10 @@ using testing::ElementToDismissAlert;
 
 namespace {
 
-// Response shown on the page of `GetDestinationUrl`.
+// Response shown on the page of |GetDestinationUrl|.
 const char kDestinationText[] = "bar!";
 
-// Response shown on the page of `GetGenericUrl`.
+// Response shown on the page of |GetGenericUrl|.
 const char kGenericText[] = "A generic page";
 
 // Label for the button in the form.
@@ -61,29 +60,29 @@ const GURL GetGenericUrl() {
   return web::test::HttpServer::MakeUrl("http://generic");
 }
 
-// GURL of a page with a form that posts data to `GetDestinationUrl`.
+// GURL of a page with a form that posts data to |GetDestinationUrl|.
 const GURL GetFormUrl() {
   return web::test::HttpServer::MakeUrl("http://form");
 }
 
-// GURL of a page with a form that posts data to `GetDestinationUrl`.
+// GURL of a page with a form that posts data to |GetDestinationUrl|.
 const GURL GetFormPostOnSamePageUrl() {
   return web::test::HttpServer::MakeUrl("http://form");
 }
 
-// GURL of the page to which the `GetFormUrl` posts data to.
+// GURL of the page to which the |GetFormUrl| posts data to.
 const GURL GetDestinationUrl() {
   return web::test::HttpServer::MakeUrl("http://destination");
 }
 
 #pragma mark - TestFormResponseProvider
 
-// URL that redirects to `GetDestinationUrl` with a 302.
+// URL that redirects to |GetDestinationUrl| with a 302.
 const GURL GetRedirectUrl() {
   return web::test::HttpServer::MakeUrl("http://redirect");
 }
 
-// URL to return a page that posts to `GetRedirectUrl`.
+// URL to return a page that posts to |GetRedirectUrl|.
 const GURL GetRedirectFormUrl() {
   return web::test::HttpServer::MakeUrl("http://formRedirect");
 }
@@ -145,16 +144,6 @@ void TestFormResponseProvider::GetResponseHeadersAndBody(
   NOTREACHED();
 }
 
-// Waits for the keyboard to appear. Returns NO on timeout.
-BOOL WaitForKeyboardToAppear() {
-  GREYCondition* waitForKeyboard = [GREYCondition
-      conditionWithName:@"Wait for keyboard"
-                  block:^BOOL {
-                    return [EarlGrey isKeyboardShownWithError:nil];
-                  }];
-  return [waitForKeyboard waitWithTimeout:kWaitForActionTimeout.InSecondsF()];
-}
-
 }  // namespace
 
 // Tests submition of HTTP forms POST data including cases involving navigation.
@@ -188,8 +177,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
                     return error == nil;
                   }];
   GREYAssert(
-      [condition waitWithTimeout:base::test::ios::kWaitForUIElementTimeout
-                                     .InSecondsF()],
+      [condition waitWithTimeout:base::test::ios::kWaitForUIElementTimeout],
       @"Tab History View not displayed.");
 }
 
@@ -206,7 +194,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
 }
 
 // Sets up a basic simple http server for form test with a form located at
-// `GetFormUrl`, and posts data to `GetDestinationUrl` upon submission.
+// |GetFormUrl|, and posts data to |GetDestinationUrl| upon submission.
 - (void)setUpFormTestSimpleHttpServer {
   std::map<GURL, std::string> responses;
   responses[GetGenericUrl()] = kGenericText;
@@ -242,7 +230,8 @@ id<GREYMatcher> ResendPostButtonMatcher() {
         std::make_unique<ScopedSynchronizationDisabler>();
     // TODO(crbug.com/989615): Investigate why this is necessary even with a
     // visible check below.
-    base::test::ios::SpinRunLoopWithMinDelay(base::Seconds(0.5));
+    base::test::ios::SpinRunLoopWithMinDelay(
+        base::TimeDelta::FromSecondsD(0.5));
 
     [ChromeEarlGrey
         waitForSufficientlyVisibleElementWithMatcher:ResendPostButtonMatcher()];
@@ -270,7 +259,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
   [ChromeEarlGrey loadURL:GetGenericUrl()];
   [ChromeEarlGrey goBack];
 
-  // NavigationManager doesn't trigger repost on `goForward` due to WKWebView's
+  // NavigationManager doesn't trigger repost on |goForward| due to WKWebView's
   // back-forward cache. Force reload to trigger repost. Not waiting because
   // NavigationManager presents repost confirmation dialog before loading stops.
   [ChromeEarlGrey reloadAndWaitForCompletion:NO];
@@ -286,7 +275,8 @@ id<GREYMatcher> ResendPostButtonMatcher() {
         std::make_unique<ScopedSynchronizationDisabler>();
       // TODO(crbug.com/989615): Investigate why this is necessary even with a
       // visible check below.
-    base::test::ios::SpinRunLoopWithMinDelay(base::Seconds(0.5));
+      base::test::ios::SpinRunLoopWithMinDelay(
+          base::TimeDelta::FromSecondsD(0.5));
 
     [ChromeEarlGrey
         waitForSufficientlyVisibleElementWithMatcher:ResendPostButtonMatcher()];
@@ -313,7 +303,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
   [ChromeEarlGrey goBack];
   [ChromeEarlGrey goForward];
 
-  // NavigationManager doesn't trigger repost on `goForward` due to WKWebView's
+  // NavigationManager doesn't trigger repost on |goForward| due to WKWebView's
   // back-forward cache. Force reload to trigger repost. Not waiting because
   // NavigationManager presents repost confirmation dialog before loading stops.
   [ChromeEarlGrey reloadAndWaitForCompletion:NO];
@@ -329,7 +319,8 @@ id<GREYMatcher> ResendPostButtonMatcher() {
         std::make_unique<ScopedSynchronizationDisabler>();
       // TODO(crbug.com/989615): Investigate why this is necessary even with a
       // visible check below.
-    base::test::ios::SpinRunLoopWithMinDelay(base::Seconds(0.5));
+      base::test::ios::SpinRunLoopWithMinDelay(
+          base::TimeDelta::FromSecondsD(0.5));
 
     [ChromeEarlGrey
         waitForSufficientlyVisibleElementWithMatcher:ResendPostButtonMatcher()];
@@ -358,9 +349,9 @@ id<GREYMatcher> ResendPostButtonMatcher() {
   [self openBackHistory];
   [self waitForTabHistoryView];
 
-  // Mimic `web::GetDisplayTitleForUrl` behavior which uses FormatUrl
+  // Mimic |web::GetDisplayTitleForUrl| behavior which uses FormatUrl
   // internally. It can't be called directly from the EarlGrey 2 test process.
-  std::u16string title = url_formatter::FormatUrl(destinationURL);
+  base::string16 title = url_formatter::FormatUrl(destinationURL);
   id<GREYMatcher> historyItem = grey_text(base::SysUTF16ToNSString(title));
   [[EarlGrey selectElementWithMatcher:historyItem] performAction:grey_tap()];
   [ChromeEarlGrey waitForPageToFinishLoading];
@@ -386,7 +377,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
   [ChromeEarlGrey goBack];
   [ChromeEarlGrey goForward];
 
-  // NavigationManager doesn't trigger repost on `goForward` due to WKWebView's
+  // NavigationManager doesn't trigger repost on |goForward| due to WKWebView's
   // back-forward cache. Force reload to trigger repost. Not waiting because
   // NavigationManager presents repost confirmation dialog before loading stops.
   [ChromeEarlGrey reloadAndWaitForCompletion:NO];
@@ -409,13 +400,14 @@ id<GREYMatcher> ResendPostButtonMatcher() {
 
   [ChromeEarlGrey waitForPageToFinishLoading];
 
-  // NavigationManagerImpl displays repost on `reload`. So after
-  // cancelling, web view should show `destinationURL`.
-  [ChromeEarlGrey waitForWebStateContainingText:kDestinationText];
-  [[EarlGrey selectElementWithMatcher:OmniboxText(destinationURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::BackButton()]
-      assertWithMatcher:grey_interactable()];
+    // WKBasedNavigationManager displays repost on |reload|. So after
+    // cancelling, web view should show |destinationURL|.
+    [ChromeEarlGrey waitForWebStateContainingText:kDestinationText];
+    [[EarlGrey
+        selectElementWithMatcher:OmniboxText(destinationURL.GetContent())]
+        assertWithMatcher:grey_notNil()];
+    [[EarlGrey selectElementWithMatcher:chrome_test_util::BackButton()]
+        assertWithMatcher:grey_interactable()];
 }
 
 // A new navigation dismisses the repost dialog.
@@ -536,10 +528,17 @@ id<GREYMatcher> ResendPostButtonMatcher() {
 // Tests that submitting a POST-based form by tapping the 'Go' button on the
 // keyboard navigates to the correct URL and the back button works as expected
 // afterwards.
-// TODO:(crbug.com/1147654): re-enable after figuring out why it is failing.
-- (void)DISABLE_testPostFormEntryWithKeyboard {
+// TODO:(crbug.com/1147654): re-enable after figuring out why it is failing on
+// simulator
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_testPostFormEntryWithKeyboard \
+  DISABLE_testPostFormEntryWithKeyboard
+#else
+#define MAYBE_testPostFormEntryWithKeyboard testPostFormEntryWithKeyboard
+#endif
+- (void)MAYBE_testPostFormEntryWithKeyboard {
   // Test fails on iPad Air 2 13.4 crbug.com/1102608.
-  if ([ChromeEarlGrey isIPadIdiom]) {
+  if ([ChromeEarlGrey isIPadIdiom] && base::ios::IsRunningOnOrLater(13, 0, 0)) {
     EARL_GREY_TEST_DISABLED(@"Fails in iOS 13 on iPads.");
   }
 
@@ -560,7 +559,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
       assertWithMatcher:grey_notNil()];
 }
 
-// Tap the text field indicated by `ID` to open the keyboard, and then
+// Tap the text field indicated by |ID| to open the keyboard, and then
 // press the keyboard's "Go" button to submit the form.
 - (void)submitFormUsingKeyboardGoButtonWithInputID:(const std::string&)ID {
   // Disable EarlGrey's synchronization since it is blocked by opening the
@@ -579,25 +578,29 @@ id<GREYMatcher> ResendPostButtonMatcher() {
                       return !error;
                     }];
     GREYAssert([interactableCondition
-                   waitWithTimeout:base::test::ios::kWaitForUIElementTimeout
-                                       .InSecondsF()],
+                   waitWithTimeout:base::test::ios::kWaitForUIElementTimeout],
                @"Web view did not become interactable.");
 
     [[EarlGrey selectElementWithMatcher:WebViewMatcher()]
         performAction:TapWebElement(
                           [ElementSelector selectorWithElementID:ID])];
 
-    // Wait for the accessory icon to appear.
-    GREYAssert(WaitForKeyboardToAppear(), @"Keyboard didn't appear.");
+    // Wait until the keyboard shows up before tapping.
+    GREYCondition* condition = [GREYCondition
+        conditionWithName:@"Wait for the keyboard to show up."
+                    block:^BOOL {
+                      NSError* error = nil;
+                      [[EarlGrey selectElementWithMatcher:GoButtonMatcher()]
+                          assertWithMatcher:grey_notNil()
+                                      error:&error];
+                      return (error == nil);
+                    }];
+    GREYAssert(
+        [condition waitWithTimeout:base::test::ios::kWaitForUIElementTimeout],
+        @"No keyboard with 'Go' button showed up.");
 
-    if (@available(iOS 16, *)) {
-      // TODO(crbug.com/1331347): Move this logic into EG.
-      XCUIApplication* app = [[XCUIApplication alloc] init];
-      [[[app keyboards] buttons][@"go"] tap];
-    } else {
-      [[EarlGrey selectElementWithMatcher:grey_accessibilityID(@"Go")]
-          performAction:grey_tap()];
-    }
+    [[EarlGrey selectElementWithMatcher:grey_accessibilityID(@"Go")]
+        performAction:grey_tap()];
   }
 }
 

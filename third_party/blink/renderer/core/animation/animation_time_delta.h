@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,10 @@
 
 #include "third_party/blink/renderer/core/animation/buildflags.h"
 
+#if BUILDFLAG(BLINK_ANIMATION_USE_TIME_DELTA)
 #include "base/time/time.h"
+#endif
+
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
@@ -38,14 +41,15 @@ class CORE_EXPORT AnimationTimeDelta {
 
  public:
   constexpr AnimationTimeDelta() : delta_(0) {}
-  constexpr explicit AnimationTimeDelta(base::TimeDelta time_delta)
-      : delta_(time_delta.InSecondsF()) {}
 
-  // Do not use this directly -- use the macros below.
-  constexpr explicit AnimationTimeDelta(double delta) : delta_(delta) {}
-
-#define ANIMATION_TIME_DELTA_FROM_SECONDS(x) AnimationTimeDelta(x)
-#define ANIMATION_TIME_DELTA_FROM_MILLISECONDS(x) AnimationTimeDelta(x / 1000.0)
+  static AnimationTimeDelta FromSecondsD(double time_s) {
+    DCHECK(!std::isnan(time_s));
+    return AnimationTimeDelta(time_s);
+  }
+  static AnimationTimeDelta FromMillisecondsD(double time_ms) {
+    DCHECK(!std::isnan(time_ms));
+    return AnimationTimeDelta(time_ms / 1000);
+  }
 
   static constexpr AnimationTimeDelta Max() {
     return AnimationTimeDelta(std::numeric_limits<double>::infinity());
@@ -57,9 +61,6 @@ class CORE_EXPORT AnimationTimeDelta {
   bool is_max() const {
     return delta_ == std::numeric_limits<double>::infinity();
   }
-
-  bool is_inf() const { return std::isinf(delta_); }
-
   bool is_zero() const { return delta_ == 0; }
 
   AnimationTimeDelta operator+(AnimationTimeDelta other) const {
@@ -71,7 +72,6 @@ class CORE_EXPORT AnimationTimeDelta {
   AnimationTimeDelta operator-(AnimationTimeDelta other) const {
     return AnimationTimeDelta(delta_ - other.delta_);
   }
-  AnimationTimeDelta operator-() { return AnimationTimeDelta(-delta_); }
   template <typename T>
   AnimationTimeDelta operator*(T a) const {
     return AnimationTimeDelta(delta_ * a);
@@ -88,13 +88,10 @@ class CORE_EXPORT AnimationTimeDelta {
   AnimationTimeDelta& operator/=(T a) {
     return *this = (*this / a);
   }
-  double operator/(AnimationTimeDelta a) const {
-    CHECK(!a.is_zero());
-    CHECK(!is_inf() || !a.is_inf());
-    return delta_ / a.delta_;
-  }
 
  protected:
+  constexpr explicit AnimationTimeDelta(double delta) : delta_(delta) {}
+
   // The time delta represented by this |AnimationTimeDelta|, in seconds. May be
   // negative, in which case the end of the delta is before the start.
   double delta_;
@@ -128,9 +125,6 @@ CORE_EXPORT std::ostream& operator<<(std::ostream& os,
 // When compiling in TimeDelta-based mode, AnimationTimeDelta is equivalent to
 // base::TimeDelta.
 using AnimationTimeDelta = base::TimeDelta;
-
-#define ANIMATION_TIME_DELTA_FROM_SECONDS(x) base::Seconds(x)
-#define ANIMATION_TIME_DELTA_FROM_MILLISECONDS(x) base::Milliseconds(x)
 
 #endif
 

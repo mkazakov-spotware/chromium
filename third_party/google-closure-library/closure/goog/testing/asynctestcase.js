@@ -1,8 +1,17 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2010 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// All Rights Reserved.
 
 /**
  * @fileoverview A class representing a set of test functions that use
@@ -115,7 +124,6 @@ goog.require('goog.testing.asserts');
  *    supports async testing using promises.
  */
 goog.testing.AsyncTestCase = function(opt_name) {
-  'use strict';
   goog.testing.TestCase.call(this, opt_name);
 };
 goog.inherits(goog.testing.AsyncTestCase, goog.testing.TestCase);
@@ -138,7 +146,6 @@ goog.testing.AsyncTestCase.TopStackFuncResult_;
  * @final
  */
 goog.testing.AsyncTestCase.ControlBreakingException = function(opt_message) {
-  'use strict';
   goog.testing.AsyncTestCase.ControlBreakingException.base(
       this, 'constructor', opt_message);
 
@@ -170,7 +177,6 @@ goog.testing.AsyncTestCase.ControlBreakingException.prototype
 /** @override */
 goog.testing.AsyncTestCase.ControlBreakingException.prototype.toString =
     function() {
-  'use strict';
   // This shows up in the console when the exception is not caught.
   return goog.testing.AsyncTestCase.ControlBreakingException.TO_STRING;
 };
@@ -339,7 +345,6 @@ goog.testing.AsyncTestCase.prototype.numControlExceptionsExpected_ = 0;
  * @protected
  */
 goog.testing.AsyncTestCase.prototype.getCurrentStepName = function() {
-  'use strict';
   return this.curStepName_;
 };
 
@@ -351,7 +356,6 @@ goog.testing.AsyncTestCase.prototype.getCurrentStepName = function() {
  * @return {!goog.testing.AsyncTestCase} The created AsyncTestCase.
  */
 goog.testing.AsyncTestCase.createAndInstall = function(opt_name) {
-  'use strict';
   var asyncTestCase = new goog.testing.AsyncTestCase(opt_name);
   goog.testing.TestCase.initializeTestRunner(asyncTestCase);
   return asyncTestCase;
@@ -364,7 +368,6 @@ goog.testing.AsyncTestCase.createAndInstall = function(opt_name) {
  * @param {string=} opt_name A description of what we are waiting for.
  */
 goog.testing.AsyncTestCase.prototype.waitForAsync = function(opt_name) {
-  'use strict';
   this.isReady_ = false;
   this.curStepName_ = opt_name || this.curStepName_;
 
@@ -378,7 +381,6 @@ goog.testing.AsyncTestCase.prototype.waitForAsync = function(opt_name) {
  * Continue with the next step in the test cycle.
  */
 goog.testing.AsyncTestCase.prototype.continueTesting = function() {
-  'use strict';
   if (this.receivedSignalCount_ < this.expectedSignalCount_) {
     var remaining = this.expectedSignalCount_ - this.receivedSignalCount_;
     throw new Error('Still waiting for ' + remaining + ' signals.');
@@ -392,7 +394,6 @@ goog.testing.AsyncTestCase.prototype.continueTesting = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.endCurrentStep_ = function() {
-  'use strict';
   if (!this.isReady_) {
     // We are a potential entry point, so we pump.
     this.isReady_ = true;
@@ -416,7 +417,6 @@ goog.testing.AsyncTestCase.prototype.endCurrentStep_ = function() {
  */
 goog.testing.AsyncTestCase.prototype.waitForSignals = function(
     times, opt_name) {
-  'use strict';
   this.expectedSignalCount_ += times;
   if (this.receivedSignalCount_ < this.expectedSignalCount_) {
     this.waitForAsync(opt_name);
@@ -429,7 +429,6 @@ goog.testing.AsyncTestCase.prototype.waitForSignals = function(
  * test was waiting on, call continueTesting.
  */
 goog.testing.AsyncTestCase.prototype.signal = function() {
-  'use strict';
   if (++this.receivedSignalCount_ === this.expectedSignalCount_ &&
       this.expectedSignalCount_ > 0) {
     this.endCurrentStep_();
@@ -444,7 +443,6 @@ goog.testing.AsyncTestCase.prototype.signal = function() {
  * @throws Always throws a ControlBreakingException.
  */
 goog.testing.AsyncTestCase.prototype.doAsyncError = function(opt_e) {
-  'use strict';
   // If we've caught an exception that we threw, then just pass it along. This
   // can happen if doAsyncError() was called from a call to assert and then
   // again by pump_().
@@ -506,7 +504,6 @@ goog.testing.AsyncTestCase.prototype.doAsyncError = function(opt_e) {
  * @override
  */
 goog.testing.AsyncTestCase.prototype.runTests = function() {
-  'use strict';
   this.hookAssert_();
   this.hookOnError_();
 
@@ -522,7 +519,6 @@ goog.testing.AsyncTestCase.prototype.runTests = function() {
  * @override
  */
 goog.testing.AsyncTestCase.prototype.cycleTests = function() {
-  'use strict';
   // We are an entry point, so we pump.
   this.saveMessage('Start');
   this.setNextStep_(this.doIteration_, 'doIteration');
@@ -535,7 +531,6 @@ goog.testing.AsyncTestCase.prototype.cycleTests = function() {
  * @override
  */
 goog.testing.AsyncTestCase.prototype.finalize = function() {
-  'use strict';
   this.unhookAll_();
   this.setNextStep_(null, 'finalized');
   goog.testing.AsyncTestCase.superClass_.finalize.call(this);
@@ -546,7 +541,6 @@ goog.testing.AsyncTestCase.prototype.finalize = function() {
  * Enables verbose logging of what is happening inside of the AsyncTestCase.
  */
 goog.testing.AsyncTestCase.prototype.enableDebugLogging = function() {
-  'use strict';
   this.enableDebugLogs_ = true;
 };
 
@@ -557,7 +551,6 @@ goog.testing.AsyncTestCase.prototype.enableDebugLogging = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.dbgLog_ = function(message) {
-  'use strict';
   if (this.enableDebugLogs_) {
     this.log('AsyncTestCase - ' + message);
   }
@@ -572,7 +565,7 @@ goog.testing.AsyncTestCase.prototype.dbgLog_ = function(message) {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doTopOfStackAsyncError_ = function(opt_e) {
-  'use strict';
+
   try {
     this.doAsyncError(opt_e);
   } catch (e) {
@@ -596,7 +589,6 @@ goog.testing.AsyncTestCase.prototype.doTopOfStackAsyncError_ = function(opt_e) {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doAsyncErrorTearDown_ = function() {
-  'use strict';
   if (this.inException_) {
     // We get here if tearDown is throwing the error.
     // Upon calling continueTesting, the inline function 'doAsyncError' (set
@@ -617,7 +609,6 @@ goog.testing.AsyncTestCase.prototype.doAsyncErrorTearDown_ = function() {
 
     // We must set the next step before calling tearDown.
     this.setNextStep_(function() {
-      'use strict';
       this.inException_ = false;
       // This is null when an error happens in setUpPage.
       this.setNextStep_(stepFuncAfterError, stepNameAfterError);
@@ -638,14 +629,12 @@ goog.testing.AsyncTestCase.prototype.doAsyncErrorTearDown_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.hookAssert_ = function() {
-  'use strict';
   if (!this.origAssert_) {
     this.origAssert_ = _assert;
     this.origFail_ = fail;
     var self = this;
 
     _assert = function() {
-      'use strict';
       var expectedUnknownThis = /** @type {?} */ (this);
       try {
         self.origAssert_.apply(expectedUnknownThis, arguments);
@@ -657,7 +646,6 @@ goog.testing.AsyncTestCase.prototype.hookAssert_ = function() {
 
     /** @suppress {const} */
     fail = function() {
-      'use strict';
       var expectedUnknownThis = /** @type {?} */ (this);
       try {
         self.origFail_.apply(expectedUnknownThis, arguments);
@@ -676,12 +664,10 @@ goog.testing.AsyncTestCase.prototype.hookAssert_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.hookOnError_ = function() {
-  'use strict';
   if (!this.origOnError_) {
     this.origOnError_ = window.onerror;
     var self = this;
     window.onerror = function(error, url, line) {
-      'use strict';
       // Ignore exceptions that we threw on purpose.
       var cbe = goog.testing.AsyncTestCase.ControlBreakingException.TO_STRING;
       if (String(error).indexOf(cbe) != -1 &&
@@ -710,7 +696,6 @@ goog.testing.AsyncTestCase.prototype.hookOnError_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.unhookAll_ = function() {
-  'use strict';
   if (this.origOnError_) {
     window.onerror = this.origOnError_;
     this.origOnError_ = null;
@@ -731,10 +716,8 @@ goog.testing.AsyncTestCase.prototype.unhookAll_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.startTimeoutTimer_ = function() {
-  'use strict';
   if (!this.timeoutHandle_ && this.stepTimeout > 0) {
     this.timeoutHandle_ = this.timeout(goog.bind(function() {
-      'use strict';
       this.dbgLog_('Timeout timer fired with id ' + this.timeoutHandle_);
       this.timeoutHandle_ = 0;
 
@@ -752,7 +735,6 @@ goog.testing.AsyncTestCase.prototype.startTimeoutTimer_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.stopTimeoutTimer_ = function() {
-  'use strict';
   if (this.timeoutHandle_) {
     this.dbgLog_('Clearing timeout timer with id ' + this.timeoutHandle_);
     this.clearTimeout(this.timeoutHandle_);
@@ -769,7 +751,6 @@ goog.testing.AsyncTestCase.prototype.stopTimeoutTimer_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.setNextStep_ = function(func, name) {
-  'use strict';
   this.nextStepFunc_ = func && goog.bind(func, this);
   this.nextStepName_ = name;
 };
@@ -783,7 +764,7 @@ goog.testing.AsyncTestCase.prototype.setNextStep_ = function(func, name) {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.callTopOfStackFunc_ = function(func) {
-  'use strict';
+
   try {
     func.call(this);
     return {controlBreakingExceptionThrown: false, message: ''};
@@ -810,7 +791,6 @@ goog.testing.AsyncTestCase.prototype.callTopOfStackFunc_ = function(func) {
  * @throws Throws a ControlBreakingException if there were any failing steps.
  */
 goog.testing.AsyncTestCase.prototype.pump_ = function(opt_doFirst) {
-  'use strict';
   // If this function is already above us in the call-stack, then we should
   // return rather than pumping in order to minimize call-stack depth.
   if (!this.returnWillPump_) {
@@ -844,10 +824,7 @@ goog.testing.AsyncTestCase.prototype.pump_ = function(opt_doFirst) {
           !topFuncResult.controlBreakingExceptionThrown) {
         this.saveMessage('Breaking async');
         var self = this;
-        this.timeout(function() {
-          'use strict';
-          self.pump_();
-        }, 100);
+        this.timeout(function() { self.pump_(); }, 100);
         break;
       }
     }
@@ -864,7 +841,6 @@ goog.testing.AsyncTestCase.prototype.pump_ = function(opt_doFirst) {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doSetUpPage_ = function() {
-  'use strict';
   this.setNextStep_(this.execute, 'TestCase.execute');
   this.setUpPage();
 };
@@ -875,7 +851,6 @@ goog.testing.AsyncTestCase.prototype.doSetUpPage_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doIteration_ = function() {
-  'use strict';
   this.expectedSignalCount_ = 0;
   this.receivedSignalCount_ = 0;
   this.activeTest = this.next();
@@ -902,7 +877,6 @@ goog.testing.AsyncTestCase.prototype.doIteration_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doSetUp_ = function() {
-  'use strict';
   this.log('Running test: ' + this.activeTest.name);
   this.cleanedUp_ = false;
   this.setNextStep_(this.doExecute_, this.activeTest.name);
@@ -915,7 +889,6 @@ goog.testing.AsyncTestCase.prototype.doSetUp_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doExecute_ = function() {
-  'use strict';
   this.setNextStep_(this.doTearDown_, 'tearDown');
   this.activeTest.execute();
 };
@@ -926,7 +899,6 @@ goog.testing.AsyncTestCase.prototype.doExecute_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doTearDown_ = function() {
-  'use strict';
   this.cleanedUp_ = true;
   this.setNextStep_(this.doNext_, 'doNext');
   this.tearDown();
@@ -938,7 +910,6 @@ goog.testing.AsyncTestCase.prototype.doTearDown_ = function() {
  * @private
  */
 goog.testing.AsyncTestCase.prototype.doNext_ = function() {
-  'use strict';
   this.setNextStep_(this.doIteration_, 'doIteration');
   this.doSuccess(/** @type {goog.testing.TestCase.Test} */ (this.activeTest));
 };

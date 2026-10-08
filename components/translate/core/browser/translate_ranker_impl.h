@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include <vector>
 
 #include "base/feature_list.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "components/assist_ranker/ranker_model_loader.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/translate/core/browser/translate_ranker.h"
@@ -25,10 +25,6 @@ class GURL;
 namespace assist_ranker {
 class RankerModel;
 }  // namespace assist_ranker
-
-namespace base {
-class FilePath;
-}
 
 namespace ukm {
 class UkmRecorder;
@@ -46,9 +42,9 @@ extern const char kDefaultTranslateRankerModelURL[];
 
 // Features used to enable ranker query, enforcement and logging. Note that
 // enabling enforcement implies (forces) enabling queries.
-BASE_DECLARE_FEATURE(kTranslateRankerQuery);
-BASE_DECLARE_FEATURE(kTranslateRankerEnforcement);
-BASE_DECLARE_FEATURE(kTranslateRankerPreviousLanguageMatchesOverride);
+extern const base::Feature kTranslateRankerQuery;
+extern const base::Feature kTranslateRankerEnforcement;
+extern const base::Feature kTranslateRankerPreviousLanguageMatchesOverride;
 
 struct TranslateRankerFeatures {
   TranslateRankerFeatures();
@@ -90,10 +86,6 @@ class TranslateRankerImpl : public TranslateRanker {
   TranslateRankerImpl(const base::FilePath& model_path,
                       const GURL& model_url,
                       ukm::UkmRecorder* ukm_recorder);
-
-  TranslateRankerImpl(const TranslateRankerImpl&) = delete;
-  TranslateRankerImpl& operator=(const TranslateRankerImpl&) = delete;
-
   ~TranslateRankerImpl() override;
 
   // Get the file path of the translate ranker model, by default with a fixed
@@ -116,7 +108,8 @@ class TranslateRankerImpl : public TranslateRanker {
       int event_type,
       ukm::SourceId ukm_source_id,
       metrics::TranslateEventProto* translate_event) override;
-  bool ShouldOverrideMatchesPreviousLanguageDecision(
+  bool ShouldOverrideDecision(
+      int event_type,
       ukm::SourceId ukm_source_id,
       metrics::TranslateEventProto* translate_event) override;
 
@@ -139,10 +132,10 @@ class TranslateRankerImpl : public TranslateRanker {
                          ukm::SourceId ukm_source_id);
 
   // Used to log URL-keyed metrics. This pointer will outlive |this|.
-  raw_ptr<ukm::UkmRecorder> ukm_recorder_;
+  ukm::UkmRecorder* ukm_recorder_;
 
   // Used to sanity check the threading of this ranker.
-  SEQUENCE_CHECKER(sequence_checker_);
+  base::SequenceChecker sequence_checker_;
 
   // A helper to load the translate ranker model from disk cache or a URL.
   std::unique_ptr<assist_ranker::RankerModelLoader> model_loader_;
@@ -168,6 +161,8 @@ class TranslateRankerImpl : public TranslateRanker {
   std::vector<metrics::TranslateEventProto> event_cache_;
 
   base::WeakPtrFactory<TranslateRankerImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(TranslateRankerImpl);
 };
 
 }  // namespace translate

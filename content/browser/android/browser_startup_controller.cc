@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,9 @@ void BrowserStartupComplete(int result) {
   Java_BrowserStartupControllerImpl_browserStartupComplete(env, result);
 }
 
-void MinimalBrowserStartupComplete() {
+void ServiceManagerStartupComplete() {
   JNIEnv* env = base::android::AttachCurrentThread();
-  Java_BrowserStartupControllerImpl_minimalBrowserStartupComplete(env);
+  Java_BrowserStartupControllerImpl_serviceManagerStartupComplete(env);
 }
 
 bool ShouldStartGpuProcessOnBrowserStartup() {

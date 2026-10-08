@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stddef.h>
 
-#include <memory>
 #include <sstream>
 #include <string>
 
@@ -20,9 +19,9 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/gcm_driver/common/gcm_message.h"
 #include "components/gcm_driver/crypto/gcm_decryption_result.h"
 #include "components/gcm_driver/crypto/gcm_encryption_result.h"
@@ -65,10 +64,9 @@ class GCMEncryptionProviderTest : public ::testing::Test {
   void SetUp() override {
     ASSERT_TRUE(scoped_temp_dir_.CreateUniqueTempDir());
 
-    encryption_provider_ = std::make_unique<GCMEncryptionProvider>();
-    encryption_provider_->Init(
-        scoped_temp_dir_.GetPath(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+    encryption_provider_.reset(new GCMEncryptionProvider);
+    encryption_provider_->Init(scoped_temp_dir_.GetPath(),
+                               base::ThreadTaskRunnerHandle::Get());
   }
 
   void TearDown() override {

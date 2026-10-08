@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,12 @@
 #include "media/base/flinging_controller.h"
 #include "third_party/blink/public/mojom/presentation/presentation.mojom.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "components/media_router/browser/logger_impl.h"
 #include "components/media_router/common/mojom/media_controller.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 namespace content {
 class WebContents;
@@ -50,18 +50,19 @@ class MediaSinksObserver;
 class PresentationConnectionStateObserver;
 class RouteRequestResult;
 
-// Commandline flag to disable the default media route providers for tests that
-// are sensitive to the presence of sinks e.g. on the local network.
-constexpr char kDisableMediaRouteProvidersForTestSwitch[] =
-    "disable-media-route-providers-for-test";
-
-// Type of callback used in |CreateRoute()| and |JoinRoute()|.  Callback is
-// invoked when the route request either succeeded or failed.  |connection| is
-// set depending on whether the MRP chooses to setup the PresentationConnections
-// itself.
+// Type of callback used in |CreateRoute()|, |JoinRoute()|, and
+// |ConnectRouteByRouteId()|. Callback is invoked when the route request either
+// succeeded or failed.  |connection| is set depending on whether the MRP
+// chooses to setup the PresentationConnections itself.
 using MediaRouteResponseCallback =
     base::OnceCallback<void(mojom::RoutePresentationConnectionPtr connection,
                             const RouteRequestResult& result)>;
+
+// Subscription object returned by calling
+// |AddPresentationConnectionStateChangedCallback|. See the method comments for
+// details.
+using PresentationConnectionStateSubscription = base::CallbackList<void(
+    const content::PresentationConnectionStateChangeInfo&)>::Subscription;
 
 // An interface for handling resources related to media routing.
 // Responsible for registering observers for receiving sink availability
@@ -71,9 +72,6 @@ using MediaRouteResponseCallback =
 class MediaRouter : public KeyedService {
  public:
   ~MediaRouter() override = default;
-
-  // Must be called before invoking any other method.
-  virtual void Initialize() = 0;
 
   // Creates a media route from |source_id| to |sink_id|.
   // |origin| is the origin of requestor's page.
@@ -95,6 +93,27 @@ class MediaRouter : public KeyedService {
                            MediaRouteResponseCallback callback,
                            base::TimeDelta timeout,
                            bool incognito) = 0;
+
+  // Creates a route and connects it to an existing route identified by
+  // |route_id|. |route_id| must refer to a non-local route, unnassociated with
+  // a Presentation ID, because a new Presentation ID will be created.
+  // |source|: The source to route to the existing route.
+  // |route_id|: Route ID of the existing route.
+  // |origin|, |web_contents|: Origin and WebContents of the join route request.
+  // Used for validation when enforcing same-origin and/or same-tab scope.
+  // (See CreateRoute documentation).
+  // Each callback in |callbacks| is invoked with a response indicating
+  // success or failure, in the order they are listed.
+  // If |timeout| is positive, then any un-invoked |callbacks| will be invoked
+  // with a timeout error after the timeout expires.
+  // If |incognito| is true, the request was made by an incognito profile.
+  virtual void ConnectRouteByRouteId(const MediaSource::Id& source_id,
+                                     const MediaRoute::Id& route_id,
+                                     const url::Origin& origin,
+                                     content::WebContents* web_contents,
+                                     MediaRouteResponseCallback callback,
+                                     base::TimeDelta timeout,
+                                     bool incognito) = 0;
 
   // Joins an existing route identified by |presentation_id|.
   // |source|: The source to route to the existing route.
@@ -120,7 +139,7 @@ class MediaRouter : public KeyedService {
 
   // Detaches the media route specified by |route_id|. The request might come
   // from the page or from an event like navigation or garbage collection.
-  virtual void DetachRoute(MediaRoute::Id route_id) = 0;
+  virtual void DetachRoute(const MediaRoute::Id& route_id) = 0;
 
   // Posts |message| to a MediaSink connected via MediaRoute with |route_id|.
   virtual void SendRouteMessage(const MediaRoute::Id& route_id,
@@ -132,19 +151,27 @@ class MediaRouter : public KeyedService {
       const MediaRoute::Id& route_id,
       std::unique_ptr<std::vector<uint8_t>> data) = 0;
 
+  // Returns the IssueManager owned by the MediaRouter. Guaranteed to be
+  // non-null.
+  virtual IssueManager* GetIssueManager() = 0;
+
   // Notifies the Media Router that the user has taken an action involving the
   // Media Router. This can be used to perform any initialization that is not
   // approriate to be done at construction.
   virtual void OnUserGesture() = 0;
 
   // Adds |callback| to listen for state changes for presentation connected to
-  // |route_id|. The returned subscription is owned by the caller. |callback|
-  // will be invoked whenever there are state changes, until the caller destroys
-  // the subscription.
-  virtual base::CallbackListSubscription
+  // |route_id|. The returned Subscription object is owned by the caller.
+  // |callback| will be invoked whenever there are state changes, until the
+  // caller destroys the Subscription object.
+  virtual std::unique_ptr<PresentationConnectionStateSubscription>
   AddPresentationConnectionStateChangedCallback(
       const MediaRoute::Id& route_id,
       const content::PresentationConnectionStateChangedCallback& callback) = 0;
+
+  // Called when the incognito profile for this instance is being shut down.
+  // This will terminate all incognito media routes.
+  virtual void OnIncognitoProfileShutdown() = 0;
 
   // Returns the media routes that currently exist. To get notified whenever
   // there is a change to the media routes, subclass MediaRoutesObserver.
@@ -156,11 +183,7 @@ class MediaRouter : public KeyedService {
   virtual std::unique_ptr<media::FlingingController> GetFlingingController(
       const MediaRoute::Id& route_id) = 0;
 
-#if !BUILDFLAG(IS_ANDROID)
-  // Returns the IssueManager owned by the MediaRouter. Guaranteed to be
-  // non-null.
-  virtual IssueManager* GetIssueManager() = 0;
-
+#if !defined(OS_ANDROID)
   // Binds |controller| for sending media commands to a route. The controller
   // will notify |observer| whenever there is a change to the status of the
   // media. It may invalidate bindings from previous calls to this method.
@@ -169,25 +192,24 @@ class MediaRouter : public KeyedService {
       mojo::PendingReceiver<mojom::MediaController> controller,
       mojo::PendingRemote<mojom::MediaStatusObserver> observer) = 0;
 
+  // Returns a pointer to LoggerImpl that can be used to add logging messages.
+  virtual LoggerImpl* GetLogger() = 0;
+
   // Returns logs collected from Media Router components.
-  // Used by chrome://media-router-internals.
   virtual base::Value GetLogs() const = 0;
+#endif  // !defined(OS_ANDROID)
 
   // Returns media router state as a JSON string represented by base::Value.
   // Includes known sinks and sink compatibility with media sources.
   // Used by chrome://media-router-internals.
-  virtual base::Value::Dict GetState() const = 0;
+  virtual base::Value GetState() const = 0;
 
   // Returns the media route provider state for |provider_id| via |callback|.
   // Includes details about routes/sessions owned by the MRP.
   // Used by chrome://media-router-internals.
   virtual void GetProviderState(
-      mojom::MediaRouteProviderId provider_id,
+      MediaRouteProviderId provider_id,
       mojom::MediaRouteProvider::GetStateCallback callback) const = 0;
-
-  // Returns a pointer to LoggerImpl that can be used to add logging messages.
-  virtual LoggerImpl* GetLogger() = 0;
-#endif  // !BUILDFLAG(IS_ANDROID)
 
  private:
   friend class IssuesObserver;

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,31 +10,37 @@
 #include <vector>
 
 #include "base/feature_list.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/extensions/extension_sync_service.h"
-#include "chrome/browser/extensions/install_tracker.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/web_applications/components/web_app_id.h"
+#include "chrome/browser/web_applications/components/web_app_provider_base.h"
 #include "chrome/browser/web_applications/web_app.h"
-#include "chrome/browser/web_applications/web_app_id.h"
-#include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "components/app_constants/constants.h"
+#include "content/public/browser/notification_service.h"
 #include "extensions/browser/extension_prefs.h"
+#include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/extensions/default_app_order.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/extensions/default_app_order.h"
+#include "chrome/browser/ui/app_list/page_break_constants.h"
 #endif
 
 namespace extensions {
 
 namespace {
+
+bool AreWebAppsOffExtensions() {
+  return base::FeatureList::IsEnabled(features::kDesktopPWAsWithoutExtensions);
+}
 
 template <typename Multimap, typename Key, typename Value>
 bool DoesMultimapContainKeyAndValue(const Multimap& map,
@@ -186,16 +192,17 @@ void ChromeAppSorting::MigrateAppIndex(
 }
 
 void ChromeAppSorting::InitializePageOrdinalMapFromWebApps() {
+  if (!AreWebAppsOffExtensions())
+    return;
   auto* profile = Profile::FromBrowserContext(browser_context_);
   DCHECK(profile);
-  auto* web_app_provider = web_app::WebAppProvider::GetForWebApps(profile);
-  if (!web_app_provider)
-    return;
-
-  web_app_registrar_ = &web_app_provider->registrar();
-  web_app_sync_bridge_ = &web_app_provider->sync_bridge();
-  app_registrar_observation_.Observe(&web_app_provider->registrar());
-  install_manager_observation_.Observe(&web_app_provider->install_manager());
+  auto* web_app_provider =
+      web_app::WebAppProviderBase::GetProviderBase(profile);
+  DCHECK(web_app_provider);
+  web_app_registrar_ = web_app_provider->registrar().AsWebAppRegistrar();
+  web_app_sync_bridge_ =
+      web_app_provider->registry_controller().AsWebAppSyncBridge();
+  app_registrar_observer_.Add(&web_app_provider->registrar());
   InitializePageOrdinalMap(web_app_registrar_->GetAppIds());
 }
 
@@ -249,7 +256,11 @@ void ChromeAppSorting::FixNTPOrdinalCollisions() {
       }
     }
   }
-  InstallTracker::Get(browser_context_)->OnAppsReordered(absl::nullopt);
+
+  content::NotificationService::current()->Notify(
+      chrome::NOTIFICATION_APP_LAUNCHER_REORDERED,
+      content::Source<ChromeAppSorting>(this),
+      content::NotificationService::NoDetails());
 }
 
 void ChromeAppSorting::EnsureValidOrdinals(
@@ -260,8 +271,8 @@ void ChromeAppSorting::EnsureValidOrdinals(
     // There is no page ordinal yet.
     if (suggested_page.IsValid()) {
       page_ordinal = suggested_page;
-    } else if (!GetDefaultOrdinals(extension_id, &page_ordinal, nullptr) ||
-               !page_ordinal.IsValid()) {
+    } else if (!GetDefaultOrdinals(extension_id, &page_ordinal, NULL) ||
+        !page_ordinal.IsValid()) {
       // If the extension is a default, then set |page_ordinal| to what the
       // default mandates. Otherwise, use the next natural app page.
       page_ordinal = GetNaturalAppPageOrdinal();
@@ -273,7 +284,7 @@ void ChromeAppSorting::EnsureValidOrdinals(
   syncer::StringOrdinal app_launch_ordinal = GetAppLaunchOrdinal(extension_id);
   if (!app_launch_ordinal.IsValid()) {
     // If using default app launcher ordinal, make sure there is no collision.
-    if (GetDefaultOrdinals(extension_id, nullptr, &app_launch_ordinal) &&
+    if (GetDefaultOrdinals(extension_id, NULL, &app_launch_ordinal) &&
         app_launch_ordinal.IsValid())
       app_launch_ordinal = ResolveCollision(page_ordinal, app_launch_ordinal);
     else
@@ -328,7 +339,10 @@ void ChromeAppSorting::OnExtensionMoved(
 
   SyncIfNeeded(moved_extension_id);
 
-  InstallTracker::Get(browser_context_)->OnAppsReordered(moved_extension_id);
+  content::NotificationService::current()->Notify(
+      chrome::NOTIFICATION_APP_LAUNCHER_REORDERED,
+      content::Source<ChromeAppSorting>(this),
+      content::Details<const std::string>(&moved_extension_id));
 }
 
 syncer::StringOrdinal ChromeAppSorting::GetAppLaunchOrdinal(
@@ -516,10 +530,6 @@ void ChromeAppSorting::OnWebAppInstalled(const web_app::AppId& app_id) {
   }
 }
 
-void ChromeAppSorting::OnWebAppInstallManagerDestroyed() {
-  install_manager_observation_.Reset();
-}
-
 void ChromeAppSorting::OnWebAppsWillBeUpdatedFromSync(
     const std::vector<const web_app::WebApp*>& updated_apps_state) {
   DCHECK(web_app_registrar_);
@@ -555,14 +565,14 @@ void ChromeAppSorting::OnWebAppsWillBeUpdatedFromSync(
   // returned from GetPageOrdinal() and GetAppLaunchOrdinal() match what is in
   // the internal map representation in this class.
   if (fix_ntp) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&ChromeAppSorting::FixNTPOrdinalCollisions,
                                   weak_factory_.GetWeakPtr()));
   }
 }
 
 void ChromeAppSorting::OnAppRegistrarDestroyed() {
-  app_registrar_observation_.Reset();
+  app_registrar_observer_.RemoveAll();
 }
 
 syncer::StringOrdinal ChromeAppSorting::GetMinOrMaxAppLaunchOrdinalsOnPage(
@@ -599,7 +609,7 @@ void ChromeAppSorting::InitializePageOrdinalMap(
     // Ensure that the web store app still isn't found in this list, since
     // it is added after this loop.
     DCHECK(*ext_it != extensions::kWebStoreAppId);
-    DCHECK(*ext_it != app_constants::kChromeAppId);
+    DCHECK(*ext_it != extension_misc::kChromeAppId);
   }
 
   // Include the Web Store App since it is displayed on the NTP.
@@ -612,10 +622,11 @@ void ChromeAppSorting::InitializePageOrdinalMap(
   }
   // Include the Chrome App since it is displayed in the app launcher.
   syncer::StringOrdinal chrome_app_page =
-      GetPageOrdinal(app_constants::kChromeAppId);
+      GetPageOrdinal(extension_misc::kChromeAppId);
   if (chrome_app_page.IsValid()) {
-    AddOrdinalMapping(app_constants::kChromeAppId, chrome_app_page,
-                      GetAppLaunchOrdinal(app_constants::kChromeAppId));
+    AddOrdinalMapping(extension_misc::kChromeAppId,
+                      chrome_app_page,
+                      GetAppLaunchOrdinal(extension_misc::kChromeAppId));
   }
 }
 
@@ -682,16 +693,16 @@ void ChromeAppSorting::CreateDefaultOrdinals() {
   default_ordinals_created_ = true;
 
   // The following defines the default order of apps.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   std::vector<std::string> app_ids;
   chromeos::default_app_order::Get(&app_ids);
 #else
   const char* const kDefaultAppOrder[] = {
-      app_constants::kChromeAppId,
-      extensions::kWebStoreAppId,
+    extension_misc::kChromeAppId,
+    extensions::kWebStoreAppId,
   };
   const std::vector<const char*> app_ids(
-      kDefaultAppOrder, kDefaultAppOrder + std::size(kDefaultAppOrder));
+      kDefaultAppOrder, kDefaultAppOrder + base::size(kDefaultAppOrder));
 #endif
 
   syncer::StringOrdinal page_ordinal = CreateFirstAppPageOrdinal();
@@ -702,6 +713,15 @@ void ChromeAppSorting::CreateDefaultOrdinals() {
     default_ordinals_[extension_id].page_ordinal = page_ordinal;
     default_ordinals_[extension_id].app_launch_ordinal = app_launch_ordinal;
     app_launch_ordinal = app_launch_ordinal.CreateAfter();
+#if defined(OS_CHROMEOS)
+    // Default page breaks are installed by default for first-time users so that
+    // we can make default apps span multiple pages in the Launcher without
+    // fully filling those pages. If |extension_id| is of a default page break,
+    // then apps that follow it in the order should have an incremented page
+    // ordinal.
+    if (app_list::IsDefaultPageBreakItem(extension_id))
+      page_ordinal = page_ordinal.CreateAfter();
+#endif  // defined(OS_CHROMEOS)
   }
 }
 

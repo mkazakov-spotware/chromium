@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,13 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
 #include "base/memory/memory_pressure_listener.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/process/process_handle.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/optional.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
-#include "base/unguessable_token.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/common/activity_flags.h"
 #include "gpu/command_buffer/common/constants.h"
@@ -29,16 +27,13 @@
 #include "gpu/command_buffer/service/memory_tracking.h"
 #include "gpu/command_buffer/service/passthrough_discardable_manager.h"
 #include "gpu/command_buffer/service/service_discardable_manager.h"
-#include "gpu/command_buffer/service/service_utils.h"
 #include "gpu/command_buffer/service/shader_translator_cache.h"
 #include "gpu/command_buffer/service/shared_context_state.h"
 #include "gpu/config/gpu_driver_bug_workarounds.h"
 #include "gpu/config/gpu_feature_info.h"
 #include "gpu/config/gpu_preferences.h"
-#include "gpu/ipc/common/gpu_disk_cache_type.h"
 #include "gpu/ipc/common/gpu_peak_memory.h"
 #include "gpu/ipc/service/gpu_ipc_service_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/gpu_memory_buffer.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gl/gl_surface.h"
@@ -75,22 +70,12 @@ class Outputter;
 class ProgramCache;
 }  // namespace gles2
 
-namespace webgpu {
-class DawnCachingInterfaceFactory;
-}  // namespace webgpu
-
 // A GpuChannelManager is a thread responsible for issuing rendering commands
 // managing the lifetimes of GPU channels and forwarding IPC requests from the
 // browser process to them based on the corresponding renderer ID.
 class GPU_IPC_SERVICE_EXPORT GpuChannelManager
     : public raster::GrShaderCache::Client {
  public:
-  using OnMemoryAllocatedChangeCallback =
-      base::OnceCallback<void(gpu::CommandBufferId id,
-                              uint64_t old_size,
-                              uint64_t new_size,
-                              gpu::GpuPeakMemoryAllocationSource source)>;
-
   GpuChannelManager(
       const GpuPreferences& gpu_preferences,
       GpuChannelManagerDelegate* delegate,
@@ -108,32 +93,23 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
       viz::VulkanContextProvider* vulkan_context_provider = nullptr,
       viz::MetalContextProvider* metal_context_provider = nullptr,
       viz::DawnContextProvider* dawn_context_provider = nullptr);
-
-  GpuChannelManager(const GpuChannelManager&) = delete;
-  GpuChannelManager& operator=(const GpuChannelManager&) = delete;
-
   ~GpuChannelManager() override;
 
   GpuChannelManagerDelegate* delegate() const { return delegate_; }
   GpuWatchdogThread* watchdog() const { return watchdog_; }
 
-  GpuChannel* EstablishChannel(const base::UnguessableToken& channel_token,
-                               int client_id,
+  GpuChannel* EstablishChannel(int client_id,
                                uint64_t client_tracing_id,
-                               bool is_gpu_host);
+                               bool is_gpu_host,
+                               bool cache_shaders_on_disk);
 
-  void SetChannelClientPid(int client_id, base::ProcessId client_pid);
-  void SetChannelDiskCacheHandle(int client_id,
-                                 const gpu::GpuDiskCacheHandle& handle);
-  void OnDiskCacheHandleDestoyed(const gpu::GpuDiskCacheHandle& handle);
-
-  void PopulateCache(const gpu::GpuDiskCacheHandle& handle,
-                     const std::string& key,
-                     const std::string& program);
+  void PopulateShaderCache(int32_t client_id,
+                           const std::string& key,
+                           const std::string& program);
   void DestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id,
                               int client_id,
                               const SyncToken& sync_token);
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void WakeUpGpu();
 #endif
   void DestroyAllChannels();
@@ -141,7 +117,7 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
   // Remove the channel for a particular renderer.
   void RemoveChannel(int client_id);
 
-  void OnContextLost(int context_lost_count, bool synthetic_loss);
+  void OnContextLost(bool synthetic_loss);
 
   const GpuPreferences& gpu_preferences() const { return gpu_preferences_; }
   const GpuDriverBugWorkarounds& gpu_driver_bug_workarounds() const {
@@ -177,29 +153,20 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
     return &peak_memory_monitor_;
   }
 
-  GpuProcessActivityFlags* activity_flags() { return &activity_flags_; }
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void DidAccessGpu();
   void OnBackgroundCleanup();
 #endif
 
   void OnApplicationBackgrounded();
 
-  MailboxManager* mailbox_manager() const { return mailbox_manager_.get(); }
+  MailboxManager* mailbox_manager() { return mailbox_manager_.get(); }
 
   gl::GLShareGroup* share_group() const { return share_group_.get(); }
 
   SyncPointManager* sync_point_manager() const { return sync_point_manager_; }
 
-  SharedImageManager* shared_image_manager() const {
-    return shared_image_manager_;
-  }
-
-  bool use_passthrough_cmd_decoder() const {
-    return gpu_preferences_.use_passthrough_cmd_decoder &&
-           gles2::PassthroughCommandDecoderSupported();
-  }
+  SharedImageManager* shared_image_manager() { return shared_image_manager_; }
 
   // Retrieve GPU Resource consumption statistics for the task manager
   void GetVideoMemoryUsageStats(
@@ -222,16 +189,6 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
     return gr_shader_cache_ ? &*gr_shader_cache_ : nullptr;
   }
 
-#if BUILDFLAG(USE_DAWN)
-  webgpu::DawnCachingInterfaceFactory* dawn_caching_interface_factory() {
-    return dawn_caching_interface_factory_.get();
-  }
-#else
-  webgpu::DawnCachingInterfaceFactory* dawn_caching_interface_factory() {
-    return nullptr;
-  }
-#endif
-
   // raster::GrShaderCache::Client implementation.
   void StoreShader(const std::string& key, const std::string& shader) override;
 
@@ -239,10 +196,6 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
       ImageDecodeAcceleratorWorker* worker);
 
   void LoseAllContexts();
-
-  SharedContextState::ContextLostCallback GetContextLostCallback();
-  GpuChannelManager::OnMemoryAllocatedChangeCallback
-  GetOnMemoryAllocatedChangeCallback();
 
  private:
   friend class GpuChannelManagerTest;
@@ -256,10 +209,6 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
     GpuPeakMemoryMonitor(
         GpuChannelManager* channel_manager,
         scoped_refptr<base::SingleThreadTaskRunner> task_runner);
-
-    GpuPeakMemoryMonitor(const GpuPeakMemoryMonitor&) = delete;
-    GpuPeakMemoryMonitor& operator=(const GpuPeakMemoryMonitor&) = delete;
-
     ~GpuPeakMemoryMonitor() override;
 
     base::flat_map<GpuPeakMemoryAllocationSource, uint64_t> GetPeakMemoryUsage(
@@ -309,11 +258,12 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
 
     std::unique_ptr<GpuMemoryAblationExperiment> ablation_experiment_;
     base::WeakPtrFactory<GpuPeakMemoryMonitor> weak_factory_;
+    DISALLOW_COPY_AND_ASSIGN(GpuPeakMemoryMonitor);
   };
 
   void InternalDestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id, int client_id);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   void ScheduleWakeUpGpu();
   void DoWakeUpGpu();
 #endif
@@ -332,35 +282,34 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
   const GpuPreferences gpu_preferences_;
   const GpuDriverBugWorkarounds gpu_driver_bug_workarounds_;
 
-  const raw_ptr<GpuChannelManagerDelegate> delegate_;
+  GpuChannelManagerDelegate* const delegate_;
 
-  raw_ptr<GpuWatchdogThread> watchdog_;
+  GpuWatchdogThread* watchdog_;
 
   scoped_refptr<gl::GLShareGroup> share_group_;
 
   std::unique_ptr<MailboxManager> mailbox_manager_;
   std::unique_ptr<gles2::Outputter> outputter_;
-  raw_ptr<Scheduler> scheduler_;
+  Scheduler* scheduler_;
   // SyncPointManager guaranteed to outlive running MessageLoop.
-  const raw_ptr<SyncPointManager> sync_point_manager_;
-  const raw_ptr<SharedImageManager> shared_image_manager_;
+  SyncPointManager* const sync_point_manager_;
+  SharedImageManager* const shared_image_manager_;
   std::unique_ptr<gles2::ProgramCache> program_cache_;
   gles2::ShaderTranslatorCache shader_translator_cache_;
   gles2::FramebufferCompletenessCache framebuffer_completeness_cache_;
   scoped_refptr<gl::GLSurface> default_offscreen_surface_;
-  const raw_ptr<GpuMemoryBufferFactory> gpu_memory_buffer_factory_;
+  GpuMemoryBufferFactory* const gpu_memory_buffer_factory_;
   GpuFeatureInfo gpu_feature_info_;
   ServiceDiscardableManager discardable_manager_;
   PassthroughDiscardableManager passthrough_discardable_manager_;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Last time we know the GPU was powered on. Global for tracking across all
   // transport surfaces.
   base::TimeTicks last_gpu_access_time_;
   base::TimeTicks begin_wake_up_time_;
 #endif
 
-  raw_ptr<ImageDecodeAcceleratorWorker> image_decode_accelerator_worker_ =
-      nullptr;
+  ImageDecodeAcceleratorWorker* image_decode_accelerator_worker_ = nullptr;
 
   // Flags which indicate GPU process activity. Read by the browser process
   // on GPU process crash.
@@ -378,37 +327,24 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
   // order to avoid having the GpuChannelManager keep the lost context state
   // alive until all clients have recovered, we use a ref-counted object and
   // allow the decoders to manage its lifetime.
-  absl::optional<raster::GrShaderCache> gr_shader_cache_;
+  base::Optional<raster::GrShaderCache> gr_shader_cache_;
+  base::Optional<raster::GrCacheController> gr_cache_controller_;
   scoped_refptr<SharedContextState> shared_context_state_;
-
-#if BUILDFLAG(USE_DAWN)
-  std::unique_ptr<webgpu::DawnCachingInterfaceFactory>
-      dawn_caching_interface_factory_;
-#endif
 
   // With --enable-vulkan, |vulkan_context_provider_| will be set from
   // viz::GpuServiceImpl. The raster decoders will use it for rasterization if
   // features::Vulkan is used.
-  raw_ptr<viz::VulkanContextProvider> vulkan_context_provider_ = nullptr;
+  viz::VulkanContextProvider* vulkan_context_provider_ = nullptr;
 
   // If features::Metal, |metal_context_provider_| will be set from
   // viz::GpuServiceImpl. The raster decoders will use it for rasterization.
-  raw_ptr<viz::MetalContextProvider> metal_context_provider_ = nullptr;
+  viz::MetalContextProvider* metal_context_provider_ = nullptr;
 
   // With features::SkiaDawn, |dawn_context_provider_| will be set from
   // viz::GpuServiceImpl. The raster decoders will use it for rasterization.
-  raw_ptr<viz::DawnContextProvider> dawn_context_provider_ = nullptr;
+  viz::DawnContextProvider* dawn_context_provider_ = nullptr;
 
   GpuPeakMemoryMonitor peak_memory_monitor_;
-
-  // Creation time of GpuChannelManger.
-  const base::TimeTicks creation_time_ = base::TimeTicks::Now();
-
-  // Context lost time since creation of |GpuChannelManger|.
-  base::TimeDelta context_lost_time_;
-
-  // Count of context lost.
-  int context_lost_count_ = 0;
 
   THREAD_CHECKER(thread_checker_);
 
@@ -416,6 +352,8 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
   // that any WeakPtrs to Controller are invalidated before its members
   // variable's destructors are executed, rendering them invalid.
   base::WeakPtrFactory<GpuChannelManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GpuChannelManager);
 };
 
 }  // namespace gpu

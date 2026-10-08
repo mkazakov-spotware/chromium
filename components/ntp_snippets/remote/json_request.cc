@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,6 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/icu/source/common/unicode/uloc.h"
 #include "third_party/icu/source/common/unicode/utypes.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -98,11 +97,11 @@ std::string ISO639FromPosixLocale(const std::string& locale) {
   return language;
 }
 
-void AppendLanguageInfoToList(base::Value::List* list,
+void AppendLanguageInfoToList(base::ListValue* list,
                               const UrlLanguageHistogram::LanguageInfo& info) {
-  base::Value::Dict lang;
-  lang.Set("language", info.language_code);
-  lang.Set("frequency", info.frequency);
+  auto lang = std::make_unique<base::DictionaryValue>();
+  lang->SetString("language", info.language_code);
+  lang->SetDouble("frequency", info.frequency);
   list->Append(std::move(lang));
 }
 
@@ -122,7 +121,7 @@ std::string GetUserClassString(UserClassifier::UserClass user_class) {
 }  // namespace
 
 JsonRequest::JsonRequest(
-    absl::optional<Category> exclusive_category,
+    base::Optional<Category> exclusive_category,
     const base::Clock* clock,  // Needed until destruction of the request.
     const ParseJSONCallback& callback)
     : exclusive_category_(exclusive_category),
@@ -306,58 +305,60 @@ JsonRequest::Builder::BuildResourceRequest() const {
 }
 
 std::string JsonRequest::Builder::BuildBody() const {
-  base::Value::Dict request;
+  auto request = std::make_unique<base::DictionaryValue>();
   std::string user_locale = PosixLocaleFromBCP47Language(params_.language_code);
   if (!user_locale.empty()) {
-    request.Set("uiLanguage", user_locale);
+    request->SetString("uiLanguage", user_locale);
   }
 
-  request.Set("priority", params_.interactive_request ? "USER_ACTION"
-                                                      : "BACKGROUND_PREFETCH");
+  request->SetString("priority", params_.interactive_request
+                                     ? "USER_ACTION"
+                                     : "BACKGROUND_PREFETCH");
 
-  base::Value::List excluded;
+  auto excluded = std::make_unique<base::ListValue>();
   for (const auto& id : params_.excluded_ids) {
-    excluded.Append(id);
+    excluded->AppendString(id);
   }
-  request.Set("excludedSuggestionIds", std::move(excluded));
+  request->Set("excludedSuggestionIds", std::move(excluded));
 
   if (!user_class_.empty()) {
-    request.Set("userActivenessClass", user_class_);
+    request->SetString("userActivenessClass", user_class_);
   }
 
   if (!display_capability_.empty()) {
-    request.Set("displayCapability", display_capability_);
+    request->SetString("displayCapability", display_capability_);
   }
 
   language::UrlLanguageHistogram::LanguageInfo ui_language;
   language::UrlLanguageHistogram::LanguageInfo other_top_language;
   PrepareLanguages(&ui_language, &other_top_language);
   if (ui_language.frequency != 0 || other_top_language.frequency != 0) {
-    base::Value::List language_list;
+    auto language_list = std::make_unique<base::ListValue>();
     if (ui_language.frequency > 0) {
-      AppendLanguageInfoToList(&language_list, ui_language);
+      AppendLanguageInfoToList(language_list.get(), ui_language);
     }
     if (other_top_language.frequency > 0) {
-      AppendLanguageInfoToList(&language_list, other_top_language);
+      AppendLanguageInfoToList(language_list.get(), other_top_language);
     }
-    request.Set("topLanguages", std::move(language_list));
+    request->Set("topLanguages", std::move(language_list));
   }
 
   // TODO(vitaliii): Support count_to_fetch without requiring
   // |exclusive_category|.
   if (params_.exclusive_category.has_value()) {
-    base::Value::Dict exclusive_category_parameters;
-    exclusive_category_parameters.Set("id",
-                                      params_.exclusive_category->remote_id());
-    exclusive_category_parameters.Set("numSuggestions", params_.count_to_fetch);
-    base::Value::List category_parameters;
+    base::DictionaryValue exclusive_category_parameters;
+    exclusive_category_parameters.SetInteger(
+        "id", params_.exclusive_category->remote_id());
+    exclusive_category_parameters.SetInteger("numSuggestions",
+                                             params_.count_to_fetch);
+    base::ListValue category_parameters;
     category_parameters.Append(std::move(exclusive_category_parameters));
-    request.Set("categoryParameters", std::move(category_parameters));
+    request->SetKey("categoryParameters", std::move(category_parameters));
   }
 
   std::string request_json;
   bool success = base::JSONWriter::WriteWithOptions(
-      request, base::JSONWriter::OPTIONS_PRETTY_PRINT, &request_json);
+      *request, base::JSONWriter::OPTIONS_PRETTY_PRINT, &request_json);
   DCHECK(success);
   return request_json;
 }

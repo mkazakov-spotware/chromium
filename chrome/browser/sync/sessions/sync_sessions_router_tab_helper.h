@@ -1,15 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_SESSIONS_SYNC_SESSIONS_ROUTER_TAB_HELPER_H_
 #define CHROME_BROWSER_SYNC_SESSIONS_SYNC_SESSIONS_ROUTER_TAB_HELPER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "components/favicon/core/favicon_driver_observer.h"
 #include "components/sessions/core/session_id.h"
-#include "components/translate/core/browser/translate_driver.h"
+#include "components/translate/content/browser/content_translate_driver.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
@@ -26,18 +25,18 @@ class SyncSessionsWebContentsRouter;
 // these events to sessions sync.
 // A TabHelper is a WebContentsObserver tied to the top level WebContents for a
 // browser tab.
-// https://chromium.googlesource.com/chromium/src/+/main/docs/tab_helpers.md
+// https://chromium.googlesource.com/chromium/src/+/master/docs/tab_helpers.md
 class SyncSessionsRouterTabHelper
     : public content::WebContentsUserData<SyncSessionsRouterTabHelper>,
       public content::WebContentsObserver,
-      public translate::TranslateDriver::LanguageDetectionObserver,
+      public translate::ContentTranslateDriver::Observer,
       public favicon::FaviconDriverObserver {
  public:
-  SyncSessionsRouterTabHelper(const SyncSessionsRouterTabHelper&) = delete;
-  SyncSessionsRouterTabHelper& operator=(const SyncSessionsRouterTabHelper&) =
-      delete;
-
   ~SyncSessionsRouterTabHelper() override;
+
+  static void CreateForWebContents(
+      content::WebContents* web_contents,
+      SyncSessionsWebContentsRouter* session_router);
 
   // WebContentsObserver implementation.
   void DidFinishNavigation(
@@ -55,7 +54,7 @@ class SyncSessionsRouterTabHelper
                            bool started_from_context_menu,
                            bool renderer_initiated) override;
 
-  // TranslateDriver::LanguageDetectionObserver implementation.
+  // ContentTranslateDriver::Observer implementation.
   void OnLanguageDetermined(
       const translate::LanguageDetectionDetails& details) override;
 
@@ -76,13 +75,15 @@ class SyncSessionsRouterTabHelper
   void NotifyRouter(bool page_load_completed = false);
 
   // |router_| is a KeyedService and is guaranteed to outlive |this|.
-  raw_ptr<SyncSessionsWebContentsRouter, DanglingUntriaged> router_;
+  SyncSessionsWebContentsRouter* router_;
 
-  raw_ptr<ChromeTranslateClient, DanglingUntriaged> chrome_translate_client_;
+  ChromeTranslateClient* chrome_translate_client_;
 
-  raw_ptr<favicon::FaviconDriver, DanglingUntriaged> favicon_driver_;
+  favicon::FaviconDriver* favicon_driver_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(SyncSessionsRouterTabHelper);
 };
 
 }  // namespace sync_sessions

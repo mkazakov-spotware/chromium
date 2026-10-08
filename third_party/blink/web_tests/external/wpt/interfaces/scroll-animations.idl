@@ -3,40 +3,50 @@
 // (https://github.com/w3c/webref)
 // Source: Scroll-linked Animations (https://drafts.csswg.org/scroll-animations-1/)
 
-enum ScrollAxis {
+enum ScrollDirection {
   "block",
   "inline",
   "horizontal",
   "vertical"
 };
 
+enum ScrollTimelineAutoKeyword { "auto" };
+
+typedef (CSSNumericValue or CSSKeywordish) ContainerBasedOffset;
+typedef (ContainerBasedOffset or ElementBasedOffset) ScrollTimelineOffset;
+
 dictionary ScrollTimelineOptions {
   Element? source;
-  ScrollAxis axis = "block";
+  ScrollDirection orientation = "block";
+  ScrollTimelineOffset start = "auto";
+  ScrollTimelineOffset end = "auto";
+  (double or ScrollTimelineAutoKeyword) timeRange = "auto";
 };
 
 [Exposed=Window]
 interface ScrollTimeline : AnimationTimeline {
   constructor(optional ScrollTimelineOptions options = {});
   readonly attribute Element? source;
-  readonly attribute ScrollAxis axis;
+  readonly attribute ScrollDirection orientation;
+  readonly attribute ScrollTimelineOffset start;
+  readonly attribute ScrollTimelineOffset end;
+  readonly attribute (double or ScrollTimelineAutoKeyword) timeRange;
 };
 
-dictionary ViewTimelineOptions {
-  Element subject;
-  ScrollAxis axis = "block";
+enum Edge { "start", "end" };
+
+dictionary ElementBasedOffset {
+  Element target;
+  Edge edge = "start";
+  double threshold = 0.0;
 };
 
 [Exposed=Window]
-interface ViewTimeline : ScrollTimeline {
-  constructor(optional ViewTimelineOptions options = {});
-  readonly attribute Element subject;
-  readonly attribute CSSNumericValue startOffset;
-  readonly attribute CSSNumericValue endOffset;
-};
-
-[Exposed=Window]
-interface AnimationTimeline {
-  readonly attribute CSSNumberish? currentTime;
-  CSSNumericValue? getCurrentTime(optional CSSOMString rangeName);
+interface CSSScrollTimelineRule : CSSRule {
+    readonly attribute CSSOMString name;
+    readonly attribute CSSOMString source;
+    readonly attribute CSSOMString orientation;
+    readonly attribute CSSOMString start;
+    readonly attribute CSSOMString end;
+    readonly attribute CSSOMString timeRange;
 };

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,6 @@ void CursorController::SetCursorConfigForWindow(
 
 void CursorController::ClearCursorConfigForWindow(
     gfx::AcceleratedWidget widget) {
-  base::AutoLock lock(window_to_cursor_configuration_map_lock_);
   window_to_cursor_configuration_map_.erase(widget);
 }
 

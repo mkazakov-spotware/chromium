@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ class COMPONENT_EXPORT(GCPW_POLICIES) DevicePoliciesManager {
   // Creates an Omaha policy with the list of allowed |domains| for GCPW to be
   // used in tests.
   bool SetAllowedDomainsOmahaPolicyForTesting(
-      const std::vector<std::wstring>& domains);
+      const std::vector<base::string16>& domains);
 
  protected:
   // Returns the storage used for the instance pointer.

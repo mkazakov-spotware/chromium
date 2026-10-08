@@ -1,9 +1,8 @@
-// META: global=window,worker
+// META: global=window,worker,jsshell
 // META: script=../resources/test-utils.js
-// META: script=/common/gc.js
 'use strict';
 
-promise_test(async () => {
+promise_test(() => {
 
   let controller;
   new ReadableStream({
@@ -12,7 +11,7 @@ promise_test(async () => {
     }
   });
 
-  await garbageCollect();
+  garbageCollect();
 
   return delay(50).then(() => {
     controller.close();
@@ -23,7 +22,7 @@ promise_test(async () => {
 }, 'ReadableStreamController methods should continue working properly when scripts lose their reference to the ' +
    'readable stream');
 
-promise_test(async () => {
+promise_test(() => {
 
   let controller;
 
@@ -33,13 +32,13 @@ promise_test(async () => {
     }
   }).getReader().closed;
 
-  await garbageCollect();
+  garbageCollect();
 
   return delay(50).then(() => controller.close()).then(() => closedPromise);
 
 }, 'ReadableStream closed promise should fulfill even if the stream and reader JS references are lost');
 
-promise_test(async t => {
+promise_test(t => {
 
   const theError = new Error('boo');
   let controller;
@@ -50,20 +49,20 @@ promise_test(async t => {
     }
   }).getReader().closed;
 
-  await garbageCollect();
+  garbageCollect();
 
   return delay(50).then(() => controller.error(theError))
                   .then(() => promise_rejects_exactly(t, theError, closedPromise));
 
 }, 'ReadableStream closed promise should reject even if stream and reader JS references are lost');
 
-promise_test(async () => {
+promise_test(() => {
 
   const rs = new ReadableStream({});
 
   rs.getReader();
 
-  await garbageCollect();
+  garbageCollect();
 
   return delay(50).then(() => assert_throws_js(TypeError, () => rs.getReader(),
     'old reader should still be locking the stream even after garbage collection'));

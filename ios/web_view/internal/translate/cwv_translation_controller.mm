@@ -1,27 +1,28 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web_view/internal/translate/cwv_translation_controller_internal.h"
 
-#import <memory>
-#import <string>
+#include <memory>
+#include <string>
 
-#import "base/check_op.h"
-#import "base/memory/ptr_util.h"
-#import "base/notreached.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/time/time.h"
-#import "components/translate/core/browser/translate_download_manager.h"
+#include "base/check_op.h"
+#include "base/memory/ptr_util.h"
+#include "base/notreached.h"
+#include "base/strings/string16.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/time/time.h"
+#include "components/translate/core/browser/translate_download_manager.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/web_state_observer_bridge.h"
 #import "ios/web_view/internal/cwv_web_view_configuration_internal.h"
 #import "ios/web_view/internal/translate/cwv_translation_language_internal.h"
 #import "ios/web_view/internal/translate/web_view_translate_client.h"
-#import "ios/web_view/internal/web_view_browser_state.h"
+#include "ios/web_view/internal/web_view_browser_state.h"
 #import "ios/web_view/public/cwv_translation_controller_delegate.h"
 #import "ios/web_view/public/cwv_translation_policy.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -31,8 +32,9 @@ NSErrorDomain const CWVTranslationErrorDomain =
     @"org.chromium.chromewebview.TranslationErrorDomain";
 
 namespace {
-// Converts a |translate::TranslateErrors| to a |CWVTranslationError|.
-CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
+// Converts a |translate::TranslateErrors::Type| to a |CWVTranslationError|.
+CWVTranslationError CWVConvertTranslateError(
+    translate::TranslateErrors::Type type) {
   switch (type) {
     case translate::TranslateErrors::NONE:
       return CWVTranslationErrorNone;
@@ -116,12 +118,8 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
 - (void)updateTranslateStep:(translate::TranslateStep)step
              sourceLanguage:(const std::string&)sourceLanguage
              targetLanguage:(const std::string&)targetLanguage
-                  errorType:(translate::TranslateErrors)errorType
+                  errorType:(translate::TranslateErrors::Type)errorType
           triggeredFromMenu:(bool)triggeredFromMenu {
-  if (_webState->IsBeingDestroyed()) {
-    return;
-  }
-
   CWVTranslationLanguage* source = [self languageWithCode:sourceLanguage];
   CWVTranslationLanguage* target = [self languageWithCode:targetLanguage];
 
@@ -201,8 +199,8 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
   switch (policy.type) {
     case CWVTranslationPolicyAsk: {
       _translatePrefs->UnblockLanguage(languageCode);
-      _translatePrefs->RemoveLanguagePairFromAlwaysTranslateList(languageCode,
-                                                                 std::string());
+      _translatePrefs->RemoveLanguagePairFromWhitelist(languageCode,
+                                                       std::string());
       break;
     }
     case CWVTranslationPolicyNever: {
@@ -212,7 +210,7 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
     }
     case CWVTranslationPolicyAuto: {
       _translatePrefs->UnblockLanguage(languageCode);
-      _translatePrefs->AddLanguagePairToAlwaysTranslateList(
+      _translatePrefs->WhitelistLanguagePair(
           languageCode, base::SysNSStringToUTF8(policy.language.languageCode));
       break;
     }
@@ -244,13 +242,12 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
   DCHECK(pageHost.length);
   switch (policy.type) {
     case CWVTranslationPolicyAsk: {
-      _translatePrefs->RemoveSiteFromNeverPromptList(
+      _translatePrefs->RemoveSiteFromBlacklist(
           base::SysNSStringToUTF8(pageHost));
       break;
     }
     case CWVTranslationPolicyNever: {
-      _translatePrefs->AddSiteToNeverPromptList(
-          base::SysNSStringToUTF8(pageHost));
+      _translatePrefs->BlacklistSite(base::SysNSStringToUTF8(pageHost));
       break;
     }
     case CWVTranslationPolicyAuto: {
@@ -263,9 +260,9 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
 
 - (CWVTranslationPolicy*)translationPolicyForPageHost:(NSString*)pageHost {
   // TODO(crbug.com/706289): Return translationPolicyAuto when implemented.
-  bool isSiteOnNeverPromptList = _translatePrefs->IsSiteOnNeverPromptList(
-      base::SysNSStringToUTF8(pageHost));
-  if (isSiteOnNeverPromptList) {
+  bool isSiteBlackListed =
+      _translatePrefs->IsSiteBlacklisted(base::SysNSStringToUTF8(pageHost));
+  if (isSiteBlackListed) {
     return [CWVTranslationPolicy translationPolicyNever];
   }
   return [CWVTranslationPolicy translationPolicyAsk];
@@ -297,9 +294,9 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
     std::string locale = translate::TranslateDownloadManager::GetInstance()
                              ->application_locale();
     for (const std::string& languageCode : languageCodes) {
-      std::u16string localizedName =
+      base::string16 localizedName =
           l10n_util::GetDisplayNameForLocale(languageCode, locale, true);
-      std::u16string nativeName =
+      base::string16 nativeName =
           l10n_util::GetDisplayNameForLocale(languageCode, languageCode, true);
       CWVTranslationLanguage* language =
           [[CWVTranslationLanguage alloc] initWithLanguageCode:languageCode

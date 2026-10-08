@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,6 @@
 #include "components/viz/common/quads/solid_color_draw_quad.h"
 #include "components/viz/common/quads/texture_draw_quad.h"
 #include "components/viz/common/quads/yuv_video_draw_quad.h"
-#include "media/base/limits.h"
 #include "media/base/video_frame.h"
 #include "media/renderers/video_resource_updater.h"
 #include "third_party/blink/public/platform/web_vector.h"
@@ -44,7 +43,8 @@ void VideoFrameResourceProvider::Initialize(
     max_texture_size =
         context_provider_->ContextCapabilities().max_texture_size;
   } else {
-    max_texture_size = media::limits::kMaxDimension;
+    // Pick an arbitrary limit here similar to what hardware might.
+    max_texture_size = 16 * 1024;
   }
 
   resource_updater_ = std::make_unique<media::VideoResourceUpdater>(
@@ -66,7 +66,7 @@ void VideoFrameResourceProvider::OnContextLost() {
 void VideoFrameResourceProvider::AppendQuads(
     viz::CompositorRenderPass* render_pass,
     scoped_refptr<media::VideoFrame> frame,
-    media::VideoTransformation media_transform,
+    media::VideoRotation rotation,
     bool is_opaque) {
   TRACE_EVENT0("media", "VideoFrameResourceProvider::AppendQuads");
   DCHECK(resource_updater_);
@@ -86,43 +86,39 @@ void VideoFrameResourceProvider::AppendQuads(
     resource_updater_->ObtainFrameResources(frame);
   }
 
-  auto transform = gfx::Transform();
-
+  gfx::Transform transform = gfx::Transform();
   // The quad's rect is in pre-transform space so that applying the transform on
   // it will produce the bounds in target space.
-  auto quad_rect = gfx::Rect(frame->natural_size());
+  gfx::Rect quad_rect = gfx::Rect(frame->natural_size());
 
-  switch (media_transform.rotation) {
+  switch (rotation) {
     case media::VIDEO_ROTATION_90:
-      transform.RotateAboutZAxis(90.0);
-      transform.Translate(0, -quad_rect.height());
+      transform.Rotate(90.0);
+      transform.Translate(0.0, -quad_rect.height());
       break;
     case media::VIDEO_ROTATION_180:
-      transform.RotateAboutZAxis(180.0);
+      transform.Rotate(180.0);
       transform.Translate(-quad_rect.width(), -quad_rect.height());
       break;
     case media::VIDEO_ROTATION_270:
-      transform.RotateAboutZAxis(270.0);
+      transform.Rotate(270.0);
       transform.Translate(-quad_rect.width(), 0);
       break;
     case media::VIDEO_ROTATION_0:
       break;
   }
 
-  if (media_transform.mirrored) {
-    transform.RotateAboutYAxis(180.0);
-    transform.Translate(-quad_rect.width(), 0);
-  }
-
   gfx::Rect visible_quad_rect = quad_rect;
+  gfx::Rect clip_rect;
   gfx::MaskFilterInfo mask_filter_info;
+  bool is_clipped = false;
   float draw_opacity = 1.0f;
   int sorting_context_id = 0;
 
   resource_updater_->AppendQuads(render_pass, std::move(frame), transform,
                                  quad_rect, visible_quad_rect, mask_filter_info,
-                                 /*clip_rect=*/absl::nullopt, is_opaque,
-                                 draw_opacity, sorting_context_id);
+                                 clip_rect, is_clipped, is_opaque, draw_opacity,
+                                 sorting_context_id);
 }
 
 void VideoFrameResourceProvider::ReleaseFrameResources() {
@@ -140,11 +136,9 @@ void VideoFrameResourceProvider::PrepareSendToParent(
 }
 
 void VideoFrameResourceProvider::ReceiveReturnsFromParent(
-    Vector<viz::ReturnedResource> transferable_resources) {
-  std::vector<viz::ReturnedResource> returned_resources(
-      std::make_move_iterator(transferable_resources.begin()),
-      std::make_move_iterator(transferable_resources.end()));
-  resource_provider_->ReceiveReturnsFromParent(std::move(returned_resources));
+    const Vector<viz::ReturnedResource>& transferable_resources) {
+  resource_provider_->ReceiveReturnsFromParent(
+      WebVector<viz::ReturnedResource>(transferable_resources).ReleaseVector());
 }
 
 }  // namespace blink

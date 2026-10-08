@@ -1,13 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "build/build_config.h"
 #include "remoting/host/setup/test_util.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
@@ -15,7 +15,7 @@ namespace remoting {
 
 bool MakePipe(base::File* read_file,
               base::File* write_file) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::PlatformFile read_handle;
   base::PlatformFile write_handle;
   if (!CreatePipe(&read_handle, &write_handle, nullptr, 0))
@@ -23,7 +23,7 @@ bool MakePipe(base::File* read_file,
   *read_file = base::File(read_handle);
   *write_file = base::File(write_handle);
   return true;
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   int fds[2];
   if (pipe(fds) == 0) {
     *read_file = base::File(fds[0]);
@@ -36,4 +36,4 @@ bool MakePipe(base::File* read_file,
 #endif
 }
 
-}  // namespace remoting
+}  // namepsace remoting

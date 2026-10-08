@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "content/browser/renderer_host/input/synthetic_gesture_target_base.h"
 #include "content/browser/renderer_host/render_widget_host_view_android.h"
 #include "content/public/browser/android/motion_event_action.h"
@@ -25,11 +24,6 @@ class SyntheticGestureTargetAndroid : public SyntheticGestureTargetBase {
  public:
   SyntheticGestureTargetAndroid(RenderWidgetHostImpl* host,
                                 ui::ViewAndroid* view);
-
-  SyntheticGestureTargetAndroid(const SyntheticGestureTargetAndroid&) = delete;
-  SyntheticGestureTargetAndroid& operator=(
-      const SyntheticGestureTargetAndroid&) = delete;
-
   ~SyntheticGestureTargetAndroid() override;
 
   // SyntheticGestureTargetBase:
@@ -47,8 +41,8 @@ class SyntheticGestureTargetAndroid : public SyntheticGestureTargetBase {
       const ui::LatencyInfo& latency_info) override;
 
   // SyntheticGestureTarget:
-  content::mojom::GestureSourceType GetDefaultSyntheticGestureSourceType()
-      const override;
+  SyntheticGestureParams::GestureSourceType
+  GetDefaultSyntheticGestureSourceType() const override;
   float GetTouchSlopInDips() const override;
   float GetMinScalingSpanInDips() const override;
 
@@ -61,8 +55,10 @@ class SyntheticGestureTargetAndroid : public SyntheticGestureTargetBase {
 
   RenderWidgetHostViewAndroid* GetView() const;
 
-  const raw_ptr<ui::ViewAndroid> view_;
+  ui::ViewAndroid* const view_;
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;
+
+  DISALLOW_COPY_AND_ASSIGN(SyntheticGestureTargetAndroid);
 };
 
 }  // namespace content

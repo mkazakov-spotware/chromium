@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 
 namespace {
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 struct HybridSpellCheckTestCase {
   size_t language_count;
   size_t enabled_language_count;
@@ -43,7 +43,7 @@ std::ostream& operator<<(std::ostream& out,
       << "\", use_spelling_service=" << test_case.use_spelling_service;
   return out;
 }
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 class SpellCheckProviderCacheTest : public SpellCheckProviderTest {
  protected:
@@ -57,7 +57,7 @@ class SpellCheckProviderCacheTest : public SpellCheckProviderTest {
   }
 };
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 // Test fixture for testing hybrid check cases.
 class HybridSpellCheckTest
     : public testing::TestWithParam<HybridSpellCheckTestCase> {
@@ -109,15 +109,16 @@ class CombineSpellCheckResultsTest
   spellcheck::EmptyLocalInterfaceProvider embedder_provider_;
   TestingSpellCheckProvider provider_;
 };
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 TEST_F(SpellCheckProviderCacheTest, SubstringWithoutMisspellings) {
   FakeTextCheckingResult result;
   FakeTextCheckingCompletion completion(&result);
 
   blink::WebVector<blink::WebTextCheckingResult> last_results;
-  provider_.SetLastResults(u"This is a test", last_results);
-  EXPECT_TRUE(provider_.SatisfyRequestFromCache(u"This is a", &completion));
+  provider_.SetLastResults(base::ASCIIToUTF16("This is a test"), last_results);
+  EXPECT_TRUE(provider_.SatisfyRequestFromCache(base::ASCIIToUTF16("This is a"),
+                                                &completion));
   EXPECT_EQ(result.completion_count_, 1U);
 }
 
@@ -131,8 +132,9 @@ TEST_F(SpellCheckProviderCacheTest, SubstringWithMisspellings) {
       blink::WebTextCheckingResult(blink::kWebTextDecorationTypeSpelling, 5, 3,
                                    std::vector<blink::WebString>({"isq"})));
   last_results.Assign(results);
-  provider_.SetLastResults(u"This isq a test", last_results);
-  EXPECT_TRUE(provider_.SatisfyRequestFromCache(u"This isq a", &completion));
+  provider_.SetLastResults(base::ASCIIToUTF16("This isq a test"), last_results);
+  EXPECT_TRUE(provider_.SatisfyRequestFromCache(
+      base::ASCIIToUTF16("This isq a"), &completion));
   EXPECT_EQ(result.completion_count_, 1U);
 }
 
@@ -141,8 +143,9 @@ TEST_F(SpellCheckProviderCacheTest, ShorterTextNotSubstring) {
   FakeTextCheckingCompletion completion(&result);
 
   blink::WebVector<blink::WebTextCheckingResult> last_results;
-  provider_.SetLastResults(u"This is a test", last_results);
-  EXPECT_FALSE(provider_.SatisfyRequestFromCache(u"That is a", &completion));
+  provider_.SetLastResults(base::ASCIIToUTF16("This is a test"), last_results);
+  EXPECT_FALSE(provider_.SatisfyRequestFromCache(
+      base::ASCIIToUTF16("That is a"), &completion));
   EXPECT_EQ(result.completion_count_, 0U);
 }
 
@@ -151,15 +154,16 @@ TEST_F(SpellCheckProviderCacheTest, ResetCacheOnCustomDictionaryUpdate) {
   FakeTextCheckingCompletion completion(&result);
 
   blink::WebVector<blink::WebTextCheckingResult> last_results;
-  provider_.SetLastResults(u"This is a test", last_results);
+  provider_.SetLastResults(base::ASCIIToUTF16("This is a test"), last_results);
 
   UpdateCustomDictionary();
 
-  EXPECT_FALSE(provider_.SatisfyRequestFromCache(u"This is a", &completion));
+  EXPECT_FALSE(provider_.SatisfyRequestFromCache(
+      base::ASCIIToUTF16("This is a"), &completion));
   EXPECT_EQ(result.completion_count_, 0U);
 }
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 // Tests that the SpellCheckProvider does not call into the native spell checker
 // on Windows when the native spell checker flags are disabled.
 TEST_F(SpellCheckProviderTest, ShouldNotUseBrowserSpellCheck) {
@@ -167,7 +171,7 @@ TEST_F(SpellCheckProviderTest, ShouldNotUseBrowserSpellCheck) {
   local_feature.InitAndDisableFeature(spellcheck::kWinUseBrowserSpellChecker);
 
   FakeTextCheckingResult completion;
-  std::u16string text = u"This is a test";
+  base::string16 text = base::ASCIIToUTF16("This is a test");
   provider_.RequestTextChecking(
       text, std::make_unique<FakeTextCheckingCompletion>(&completion));
 
@@ -215,7 +219,7 @@ void HybridSpellCheckTest::RunShouldUseBrowserSpellCheckOnlyWhenNeededTest() {
   provider_.spellcheck()->SetFakeLanguageCounts(
       test_case.language_count, test_case.enabled_language_count);
   provider_.RequestTextChecking(
-      u"This is a test",
+      base::ASCIIToUTF16("This is a test"),
       std::make_unique<FakeTextCheckingCompletion>(&completion));
 
   EXPECT_EQ(provider_.spelling_service_call_count_,
@@ -263,11 +267,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               9,
                               4,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             false,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -294,27 +298,27 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               9,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               14,
                               5,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               20,
                               2,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               23,
                               5,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               29,
                               6,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             false,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -336,11 +340,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               9,
                               4,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             true,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -363,11 +367,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::GRAMMAR,
                               9,
                               4,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             true,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -397,11 +401,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               9,
                               4,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             false,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -425,19 +429,19 @@ INSTANTIATE_TEST_SUITE_P(
                 SpellCheckResult(SpellCheckResult::SPELLING,
                                  0,
                                  4,
-                                 {std::u16string(u"foo")}),
+                                 {base::ASCIIToUTF16("foo")}),
                 SpellCheckResult(SpellCheckResult::SPELLING,
                                  5,
                                  3,
-                                 {std::u16string(u"foo")}),
+                                 {base::ASCIIToUTF16("foo")}),
                 SpellCheckResult(SpellCheckResult::SPELLING,
                                  9,
                                  4,
-                                 {std::u16string(u"foo")}),
+                                 {base::ASCIIToUTF16("foo")}),
                 SpellCheckResult(SpellCheckResult::SPELLING,
                                  14,
                                  12,
-                                 {std::u16string(u"foo")}),
+                                 {base::ASCIIToUTF16("foo")}),
             },
             false,
             blink::WebVector<blink::WebTextCheckingResult>(
@@ -461,11 +465,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               5,
                               3,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               14,
                               12,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             false,
             blink::WebVector<blink::WebTextCheckingResult>()},
 
@@ -480,15 +484,15 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               5,
                               3,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               35,
                               6,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             false,
             blink::WebVector<blink::WebTextCheckingResult>(
                 std::vector<blink::WebTextCheckingResult>(
@@ -508,15 +512,15 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               5,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               36,
                               6,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             false,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -539,11 +543,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::GRAMMAR,
                               9,
                               4,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             true,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(
@@ -566,11 +570,11 @@ INSTANTIATE_TEST_SUITE_P(
             {SpellCheckResult(SpellCheckResult::SPELLING,
                               0,
                               4,
-                              {std::u16string(u"foo")}),
+                              {base::ASCIIToUTF16("foo")}),
              SpellCheckResult(SpellCheckResult::SPELLING,
                               9,
                               4,
-                              {std::u16string(u"foo")})},
+                              {base::ASCIIToUTF16("foo")})},
             true,
             blink::WebVector<blink::WebTextCheckingResult>(
                 {blink::WebTextCheckingResult(blink::WebTextDecorationType::
@@ -617,7 +621,7 @@ TEST_P(CombineSpellCheckResultsTest, ShouldCorrectlyCombineHybridResults) {
 
   int check_id = provider_.AddCompletionForTest(
       std::make_unique<FakeTextCheckingCompletion>(&completion), request_info);
-  provider_.OnRespondTextCheck(check_id, base::WideToUTF16(test_case.text),
+  provider_.OnRespondTextCheck(check_id, test_case.text,
                                test_case.browser_results);
 
   // Should have called the completion callback without cancellation, and should
@@ -648,6 +652,6 @@ TEST_P(CombineSpellCheckResultsTest, ShouldCorrectlyCombineHybridResults) {
     }
   }
 }
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 }  // namespace

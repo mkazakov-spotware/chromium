@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,10 @@ import android.view.MotionEvent;
 import android.view.ViewGroup;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.layouts.components.LayoutTab;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.layouts.EventFilter;
@@ -36,7 +38,8 @@ import java.util.List;
  * This layout also pass through all the events that may happen.
  */
 
-public abstract class Layout {
+public abstract class Layout implements TabContentManager.ThumbnailChangeListener {
+
     /**
      * The orientation of the device.
      */
@@ -63,6 +66,12 @@ public abstract class Layout {
         /** Use a viewport that accounts for the browser controls state in the previous layout. */
         int USE_PREVIOUS_BROWSER_CONTROLS_STATE = 3;
     }
+
+    // Defines to make the code easier to read.
+    public static final boolean NEED_TITLE = true;
+    public static final boolean NO_TITLE = false;
+    public static final boolean SHOW_CLOSE_BUTTON = true;
+    public static final boolean NO_CLOSE_BUTTON = false;
 
     /** Length of the unstalling animation. **/
     public static final long UNSTALLED_ANIMATION_DURATION_MS = 500;
@@ -165,26 +174,31 @@ public abstract class Layout {
      * Creates a {@link LayoutTab}.
      * @param id              The id of the reference {@link Tab} in the {@link TabModel}.
      * @param isIncognito     Whether the new tab is incognito.
+     * @param showCloseButton True to show and activate a close button on the border.
+     * @param isTitleNeeded   Whether a title will be shown.
      * @return                The newly created {@link LayoutTab}.
      */
-    public LayoutTab createLayoutTab(int id, boolean isIncognito) {
-        return createLayoutTab(id, isIncognito, -1.f, -1.f);
+    public LayoutTab createLayoutTab(
+            int id, boolean isIncognito, boolean showCloseButton, boolean isTitleNeeded) {
+        return createLayoutTab(id, isIncognito, showCloseButton, isTitleNeeded, -1.f, -1.f);
     }
 
     /**
      * Creates a {@link LayoutTab}.
      * @param id               The id of the reference {@link Tab} in the {@link TabModel}.
      * @param isIncognito      Whether the new tab is incognito.
+     * @param showCloseButton  True to show and activate a close button on the border.
+     * @param isTitleNeeded    Whether a title will be shown.
      * @param maxContentWidth  The max content width of the tab.  Negative numbers will use the
      *                         original content width.
      * @param maxContentHeight The max content height of the tab.  Negative numbers will use the
      *                         original content height.
      * @return                 The newly created {@link LayoutTab}.
      */
-    public LayoutTab createLayoutTab(
-            int id, boolean isIncognito, float maxContentWidth, float maxContentHeight) {
-        LayoutTab layoutTab =
-                mUpdateHost.createLayoutTab(id, isIncognito, maxContentWidth, maxContentHeight);
+    public LayoutTab createLayoutTab(int id, boolean isIncognito, boolean showCloseButton,
+            boolean isTitleNeeded, float maxContentWidth, float maxContentHeight) {
+        LayoutTab layoutTab = mUpdateHost.createLayoutTab(
+                id, isIncognito, showCloseButton, isTitleNeeded, maxContentWidth, maxContentHeight);
         initLayoutTabFromHost(layoutTab);
         return layoutTab;
     }
@@ -357,7 +371,9 @@ public abstract class Layout {
     protected void setTabContentManager(TabContentManager manager) {
         if (manager == null) return;
 
+        if (mTabContentManager != null) mTabContentManager.removeThumbnailChangeListener(this);
         mTabContentManager = manager;
+        mTabContentManager.addThumbnailChangeListener(this);
     }
 
     /**
@@ -438,8 +454,7 @@ public abstract class Layout {
         if (mNextTabId != Tab.INVALID_TAB_ID) {
             TabModel model = mTabModelSelector.getModelForTabId(mNextTabId);
             if (model != null) {
-                TabModelUtils.setIndex(
-                        model, TabModelUtils.getTabIndexById(model, mNextTabId), false);
+                TabModelUtils.setIndex(model, TabModelUtils.getTabIndexById(model, mNextTabId));
             }
             mNextTabId = Tab.INVALID_TAB_ID;
         }
@@ -586,11 +601,13 @@ public abstract class Layout {
     }
 
     /**
-     * Called when all the tabs in the current stack will be closed.
+     * Called when all the tabs in the current stack need to be closed.
      * When called, the tabs will still be part of the model.
-     * @param incognito True if this is the incognito tab model.
+     * @param time      The current time of the app in ms.
+     * @param incognito True if this the incognito tab model should close all tabs, false otherwise.
      */
-    public void onTabsAllClosing(boolean incognito) {}
+    public void onTabsAllClosing(long time, boolean incognito) {
+    }
 
     /**
      * Called before a tab is created from the top left button.
@@ -639,6 +656,11 @@ public abstract class Layout {
      */
     public void onTabClosureCommitted(long time, int id, boolean incognito) { }
 
+    @Override
+    public void onThumbnailChange(int id) {
+        requestUpdate();
+    }
+
     /**
      * Steps the animation forward and updates all the animated values.
      * @param time      The current time of the app in ms.
@@ -647,6 +669,14 @@ public abstract class Layout {
      */
     protected boolean onUpdateAnimation(long time, boolean jumpToEnd) {
         return true;
+    }
+
+    /**
+     * @return Whether or not there is an animation currently being driven by this {@link Layout}.
+     */
+    @VisibleForTesting
+    public boolean isLayoutAnimating() {
+        return false;
     }
 
     /**
@@ -682,6 +712,21 @@ public abstract class Layout {
     public boolean handlesTabCreating() {
         if (mLayoutTabs == null || mLayoutTabs.length != 1) return false;
         return false;
+    }
+
+    /**
+     * @return Whether the layout is handling the model updates when closing all the tabs.
+     */
+    public boolean handlesCloseAll() {
+        return false;
+    }
+
+    /**
+     * Whether or not the toolbar IncognitoToggleButton (if present) should be enabled. E.g., it can
+     * be disabled while animating a tab selection to avoid odd behavior.
+     */
+    public boolean shouldAllowIncognitoSwitching() {
+        return true;
     }
 
     /**
@@ -725,6 +770,7 @@ public abstract class Layout {
      *
      * @param viewport          A viewport in which to display content in px.
      * @param visibleViewport   The visible section of the viewport in px.
+     * @param layerTitleCache   A layer title cache.
      * @param tabContentManager A tab content manager.
      * @param resourceManager   A resource manager.
      * @param browserControls   A browser controls state provider.
@@ -732,10 +778,10 @@ public abstract class Layout {
      *                          {@link Layout}.
      */
     public final SceneLayer getUpdatedSceneLayer(RectF viewport, RectF visibleViewport,
-            TabContentManager tabContentManager, ResourceManager resourceManager,
-            BrowserControlsStateProvider browserControls) {
-        updateSceneLayer(
-                viewport, visibleViewport, tabContentManager, resourceManager, browserControls);
+            LayerTitleCache layerTitleCache, TabContentManager tabContentManager,
+            ResourceManager resourceManager, BrowserControlsStateProvider browserControls) {
+        updateSceneLayer(viewport, visibleViewport, layerTitleCache, tabContentManager,
+                resourceManager, browserControls);
         return getSceneLayer();
     }
 
@@ -771,8 +817,8 @@ public abstract class Layout {
      * should override this function in order for other functions to work.
      */
     protected void updateSceneLayer(RectF viewport, RectF contentViewport,
-            TabContentManager tabContentManager, ResourceManager resourceManager,
-            BrowserControlsStateProvider browserControls) {}
+            LayerTitleCache layerTitleCache, TabContentManager tabContentManager,
+            ResourceManager resourceManager, BrowserControlsStateProvider browserControls) {}
 
     /**
      * @return The {@link LayoutType}.

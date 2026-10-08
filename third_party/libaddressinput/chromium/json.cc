@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 
 #include "base/check.h"
 #include "base/json/json_reader.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/values.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace i18n {
 namespace addressinput {
@@ -20,18 +20,23 @@ namespace {
 
 // Returns |json| parsed into a JSON dictionary. Sets |parser_error| to true if
 // parsing failed.
-base::Value::Dict Parse(const std::string& json, bool* parser_error) {
+::std::unique_ptr<const base::DictionaryValue> Parse(const std::string& json,
+                                                     bool* parser_error) {
   DCHECK(parser_error);
+  ::std::unique_ptr<const base::DictionaryValue> result;
 
   // |json| is converted to a |c_str()| here because rapidjson and other parts
   // of the standalone library use char* rather than std::string.
-  absl::optional<base::Value> parsed(base::JSONReader::Read(json.c_str()));
+  ::std::unique_ptr<const base::Value> parsed(
+      base::JSONReader::ReadDeprecated(json.c_str()));
   *parser_error = !parsed || !parsed->is_dict();
 
   if (*parser_error)
-    return base::Value::Dict();
+    result.reset(new base::DictionaryValue);
   else
-    return std::move(*parsed).TakeDict();
+    result.reset(static_cast<const base::DictionaryValue*>(parsed.release()));
+
+  return result;
 }
 
 }  // namespace
@@ -41,10 +46,8 @@ base::Value::Dict Parse(const std::string& json, bool* parser_error) {
 class Json::JsonImpl {
  public:
   explicit JsonImpl(const std::string& json)
-      : owned_(Parse(json, &parser_error_)), dict_(owned_) {}
-
-  JsonImpl(const JsonImpl&) = delete;
-  JsonImpl& operator=(const JsonImpl&) = delete;
+      : owned_(Parse(json, &parser_error_)),
+        dict_(*owned_) {}
 
   ~JsonImpl() {}
 
@@ -52,10 +55,13 @@ class Json::JsonImpl {
 
   const std::vector<const Json*>& GetSubDictionaries() {
     if (sub_dicts_.empty()) {
-      for (auto kv : dict_) {
-        if (kv.second.is_dict()) {
+      for (base::DictionaryValue::Iterator it(dict_); !it.IsAtEnd();
+           it.Advance()) {
+        if (it.value().is_dict()) {
+          const base::DictionaryValue* sub_dict = NULL;
+          it.value().GetAsDictionary(&sub_dict);
           owned_sub_dicts_.push_back(
-              base::WrapUnique(new Json(new JsonImpl(kv.second.GetDict()))));
+              base::WrapUnique(new Json(new JsonImpl(*sub_dict))));
           sub_dicts_.push_back(owned_sub_dicts_.back().get());
         }
       }
@@ -64,24 +70,20 @@ class Json::JsonImpl {
   }
 
   bool GetStringValueForKey(const std::string& key, std::string* value) const {
-    const std::string* value_str = dict_.FindString(key);
-    if (!value_str)
-      return false;
-
-    DCHECK(value);
-    *value = *value_str;
-    return true;
+    return dict_.GetStringWithoutPathExpansion(key, value);
   }
 
  private:
-  explicit JsonImpl(const base::Value::Dict& dict)
+  explicit JsonImpl(const base::DictionaryValue& dict)
       : parser_error_(false), dict_(dict) {}
 
-  base::Value::Dict owned_;
+  const ::std::unique_ptr<const base::DictionaryValue> owned_;
   bool parser_error_;
-  const base::Value::Dict& dict_;
+  const base::DictionaryValue& dict_;
   std::vector<const Json*> sub_dicts_;
   std::vector<std::unique_ptr<Json>> owned_sub_dicts_;
+
+  DISALLOW_COPY_AND_ASSIGN(JsonImpl);
 };
 
 Json::Json() {}

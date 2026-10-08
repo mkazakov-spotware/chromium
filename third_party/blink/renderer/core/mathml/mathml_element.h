@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_MATHML_MATHML_ELEMENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_MATHML_MATHML_ELEMENT_H_
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/mathml_names.h"
@@ -32,10 +32,8 @@ class CORE_EXPORT MathMLElement : public Element {
 
   bool IsMathMLElement() const =
       delete;  // This will catch anyone doing an unnecessary check.
-  bool IsStyledElement() const =
-      delete;  // This will catch anyone doing an unnecessary check.
 
-  virtual bool IsGroupingElement() const { return false; }
+  bool IsTokenElement() const;
 
  protected:
   bool IsPresentationAttribute(const QualifiedName&) const override;
@@ -45,18 +43,15 @@ class CORE_EXPORT MathMLElement : public Element {
       MutableCSSPropertyValueSet*) override;
 
   enum class AllowPercentages { kYes, kNo };
-  absl::optional<Length> AddMathLengthToComputedStyle(
+  base::Optional<Length> AddMathLengthToComputedStyle(
       const CSSToLengthConversionData&,
       const QualifiedName&,
       AllowPercentages allow_percentages = AllowPercentages::kYes);
 
   void ParseAttribute(const AttributeModificationParams&) override;
 
-  // https://w3c.github.io/mathml-core/#dfn-boolean
-  absl::optional<bool> BooleanAttribute(const QualifiedName& name) const;
-
-  LayoutObject* CreateLayoutObject(const ComputedStyle&,
-                                   LegacyLayout legacy) override;
+  // https://mathml-refresh.github.io/mathml-core/#dfn-boolean
+  base::Optional<bool> BooleanAttribute(const QualifiedName& name) const;
 };
 
 template <typename T>

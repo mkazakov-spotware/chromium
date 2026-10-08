@@ -1,16 +1,19 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_CHROMEOS_EXTENSIONS_LOGIN_SCREEN_LOGIN_STATE_SESSION_STATE_CHANGED_EVENT_DISPATCHER_H_
 #define CHROME_BROWSER_CHROMEOS_EXTENSIONS_LOGIN_SCREEN_LOGIN_STATE_SESSION_STATE_CHANGED_EVENT_DISPATCHER_H_
 
-#include "base/memory/raw_ptr.h"
-#include "chromeos/crosapi/mojom/login_state.mojom.h"
+#include <memory>
+
+#include "base/macros.h"
+#include "base/scoped_observer.h"
+#include "chrome/common/extensions/api/login_state.h"
+#include "components/session_manager/core/session_manager.h"
+#include "components/session_manager/core/session_manager_observer.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router_factory.h"
-#include "mojo/public/cpp/bindings/receiver.h"
-#include "mojo/public/cpp/bindings/remote.h"
 
 namespace content {
 class BrowserContext;
@@ -20,10 +23,11 @@ namespace extensions {
 
 class EventRouter;
 
-// |SessionStateChangedEventDispatcher| dispatches changes in the session state
-// to extensions listening on the |loginState.onSessionStateChanged| event.
+// |SessionStateChangedEventDispatcher| observes changes in the session state
+// and dispatches them to extensions listening on the
+// |loginState.onSessionStateChanged| event.
 class SessionStateChangedEventDispatcher
-    : public crosapi::mojom::SessionStateChangedEventObserver,
+    : public session_manager::SessionManagerObserver,
       public BrowserContextKeyedAPI {
  public:
   // BrowserContextKeyedAPI implementation.
@@ -33,19 +37,12 @@ class SessionStateChangedEventDispatcher
 
   explicit SessionStateChangedEventDispatcher(
       content::BrowserContext* browser_context_);
-
-  SessionStateChangedEventDispatcher(
-      const SessionStateChangedEventDispatcher&) = delete;
-  SessionStateChangedEventDispatcher& operator=(
-      const SessionStateChangedEventDispatcher&) = delete;
-
   ~SessionStateChangedEventDispatcher() override;
 
-  bool IsBoundForTesting();
-  void SetEventRouterForTesting(EventRouter* event_router);
+  // SessionManagerObserver implementation.
+  void OnSessionStateChanged() override;
 
-  // crosapi::mojom::SessionStateChangedEventObserver:
-  void OnSessionStateChanged(crosapi::mojom::SessionState state) override;
+  void SetEventRouterForTesting(EventRouter* event_router);
 
  private:
   // Needed for BrowserContextKeyedAPI implementation.
@@ -58,12 +55,14 @@ class SessionStateChangedEventDispatcher
   }
   static const bool kServiceIsNULLWhileTesting = true;
 
-  raw_ptr<content::BrowserContext> browser_context_;
-  raw_ptr<EventRouter> event_router_;
+  ScopedObserver<session_manager::SessionManager,
+                 session_manager::SessionManagerObserver>
+      session_manager_observer_;
+  content::BrowserContext* browser_context_;
+  EventRouter* event_router_;
+  api::login_state::SessionState session_state_;
 
-  // Receives mojo messages from ash.
-  mojo::Receiver<crosapi::mojom::SessionStateChangedEventObserver> receiver_{
-      this};
+  DISALLOW_COPY_AND_ASSIGN(SessionStateChangedEventDispatcher);
 };
 
 template <>

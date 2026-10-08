@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,6 @@ GURL GetBaseSecureUrl();
 // payment instruments (credit cards) or addresses, respectively.
 GURL GetManageInstrumentsUrl();
 GURL GetManageAddressesUrl();
-
-// Returns the support URL for users to learn more about virtual cards during
-// the virtual card enrollment bubble.
-GURL GetVirtualCardEnrollmentSupportUrl();
 
 }  // namespace payments
 }  // namespace autofill

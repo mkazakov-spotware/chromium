@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,7 @@
 #include <string>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/test/task_environment.h"
-#include "components/performance_manager/embedder/graph_features.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
 #include "components/performance_manager/graph/graph_impl.h"
 #include "components/performance_manager/graph/node_base.h"
@@ -80,14 +78,14 @@ struct TestNodeWrapper<FrameNodeImpl>::Factory {
       ProcessNodeImpl* process_node,
       PageNodeImpl* page_node,
       FrameNodeImpl* parent_frame_node,
+      int frame_tree_node_id,
       int render_frame_id,
       const blink::LocalFrameToken& frame_token = blink::LocalFrameToken(),
-      content::BrowsingInstanceId browsing_instance_id =
-          content::BrowsingInstanceId(0),
-      content::SiteInstanceId site_instance_id = content::SiteInstanceId(0)) {
+      int32_t browsing_instance_id = 0,
+      int32_t site_instance_id = 0) {
     return std::make_unique<FrameNodeImpl>(
-        process_node, page_node, parent_frame_node, render_frame_id,
-        frame_token, browsing_instance_id, site_instance_id);
+        process_node, page_node, parent_frame_node, frame_tree_node_id,
+        render_frame_id, frame_token, browsing_instance_id, site_instance_id);
   }
 };
 
@@ -113,11 +111,10 @@ struct TestNodeWrapper<PageNodeImpl>::Factory {
       const GURL& url = GURL(),
       bool is_visible = false,
       bool is_audible = false,
-      base::TimeTicks visibility_change_time = base::TimeTicks::Now(),
-      PageNode::PageState page_state = PageNode::PageState::kActive) {
+      base::TimeTicks visibility_change_time = base::TimeTicks::Now()) {
     return std::make_unique<PageNodeImpl>(wc_proxy, browser_context_id, url,
                                           is_visible, is_audible,
-                                          visibility_change_time, page_state);
+                                          visibility_change_time);
   }
 };
 
@@ -154,15 +151,11 @@ template <>
 class TestNodeWrapper<SystemNodeImpl> {
  public:
   static TestNodeWrapper<SystemNodeImpl> Create(GraphImpl* graph) {
-    return TestNodeWrapper<SystemNodeImpl>(graph->GetSystemNodeImpl());
+    return TestNodeWrapper<SystemNodeImpl>(graph->FindOrCreateSystemNodeImpl());
   }
 
   explicit TestNodeWrapper(SystemNodeImpl* impl) : impl_(impl) {}
   TestNodeWrapper(TestNodeWrapper&& other) : impl_(other.impl_) {}
-
-  TestNodeWrapper(const TestNodeWrapper&) = delete;
-  TestNodeWrapper& operator=(const TestNodeWrapper&) = delete;
-
   ~TestNodeWrapper() { reset(); }
 
   SystemNodeImpl* operator->() const { return impl_; }
@@ -171,7 +164,9 @@ class TestNodeWrapper<SystemNodeImpl> {
   void reset() { impl_ = nullptr; }
 
  private:
-  raw_ptr<SystemNodeImpl> impl_;
+  SystemNodeImpl* impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestNodeWrapper);
 };
 
 class TestGraphImpl : public GraphImpl {
@@ -187,7 +182,8 @@ class TestGraphImpl : public GraphImpl {
   TestNodeWrapper<FrameNodeImpl> CreateFrameNodeAutoId(
       ProcessNodeImpl* process_node,
       PageNodeImpl* page_node,
-      FrameNodeImpl* parent_frame_node = nullptr);
+      FrameNodeImpl* parent_frame_node = nullptr,
+      int frame_tree_node_id = 0);
 
  private:
   int next_frame_routing_id_ = 0;
@@ -228,30 +224,19 @@ class GraphTestHarness : public ::testing::Test {
   TestNodeWrapper<FrameNodeImpl> CreateFrameNodeAutoId(
       ProcessNodeImpl* process_node,
       PageNodeImpl* page_node,
-      FrameNodeImpl* parent_frame_node = nullptr) {
-    return graph()->CreateFrameNodeAutoId(process_node, page_node,
-                                          parent_frame_node);
+      FrameNodeImpl* parent_frame_node = nullptr,
+      int frame_tree_node_id = 0) {
+    return graph()->CreateFrameNodeAutoId(
+        process_node, page_node, parent_frame_node, frame_tree_node_id);
   }
 
   TestNodeWrapper<SystemNodeImpl> GetSystemNode() {
-    return TestNodeWrapper<SystemNodeImpl>(graph()->GetSystemNodeImpl());
+    return TestNodeWrapper<SystemNodeImpl>(
+        graph()->FindOrCreateSystemNodeImpl());
   }
 
   // testing::Test:
-  void SetUp() override;
   void TearDown() override;
-
-  // Allows configuring which Graph features are initialized during "SetUp".
-  // This defaults to initializing no features. Features will be initialized
-  // before "OnGraphCreated" is called.
-  GraphFeatures& GetGraphFeatures() { return graph_features_; }
-
-  // A callback that will be invoked as part of the graph initialization
-  // during "SetUp". The same effect can be had by overriding "SetUp" in this
-  // case, because the graph lives on the same sequence as this fixture.
-  // However, to keep the various PM and Graph test fixtures similar in usage,
-  // this seam has been exposed.
-  virtual void OnGraphCreated(GraphImpl* graph) {}
 
  protected:
   void AdvanceClock(base::TimeDelta delta) { task_env_.FastForwardBy(delta); }
@@ -267,13 +252,8 @@ class GraphTestHarness : public ::testing::Test {
   void TearDownAndDestroyGraph();
 
  private:
-  GraphFeatures graph_features_;
   content::BrowserTaskEnvironment task_env_;
   std::unique_ptr<TestGraphImpl> graph_;
-
-  // Detects when the test fixture is being misused.
-  bool setup_called_ = false;
-  bool teardown_called_ = false;
 };
 
 }  // namespace performance_manager

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,10 +19,7 @@ runTests([
         details: {
           type: 'xmlhttprequest',
           url,
-          documentId: 2,
           frameId: 1,
-          frameType: 'sub_frame',
-          parentDocumentId: 1,
           parentFrameId: 0,
           frameUrl: 'unknown frame URL',
           initiator: initiator
@@ -33,10 +30,7 @@ runTests([
         details: {
           type: 'xmlhttprequest',
           url,
-          documentId: 2,
           frameId: 1,
-          frameType: 'sub_frame',
-          parentDocumentId: 1,
           parentFrameId: 0,
           initiator: initiator
         },
@@ -46,10 +40,7 @@ runTests([
         details: {
           type: 'xmlhttprequest',
           url,
-          documentId: 2,
           frameId: 1,
-          frameType: 'sub_frame',
-          parentDocumentId: 1,
           parentFrameId: 0,
           initiator: initiator
         },
@@ -59,10 +50,7 @@ runTests([
         details: {
           type: 'xmlhttprequest',
           url,
-          documentId: 2,
           frameId: 1,
-          frameType: 'sub_frame',
-          parentDocumentId: 1,
           parentFrameId: 0,
           fromCache: false,
           error: 'net::ERR_ABORTED',
@@ -104,8 +92,7 @@ runTests([
           url,
           frameUrl: 'unknown frame URL',
           tabId: 1,
-          initiator: initiator,
-          documentId: 1
+          initiator: initiator
         }
       },
       { label: 'onBeforeSendHeaders',
@@ -114,8 +101,7 @@ runTests([
           type: 'xmlhttprequest',
           url,
           tabId: 1,
-          initiator: initiator,
-          documentId: 1
+          initiator: initiator
         },
       },
       { label: 'onSendHeaders',
@@ -124,8 +110,7 @@ runTests([
           type: 'xmlhttprequest',
           url,
           tabId: 1,
-          initiator: initiator,
-          documentId: 1
+          initiator: initiator
         },
       },
       { label: 'onErrorOccurred',
@@ -136,8 +121,7 @@ runTests([
           fromCache: false,
           error: 'net::ERR_ABORTED',
           tabId: 1,
-          initiator: initiator,
-          documentId: 1
+          initiator: initiator
         },
       }],
       [['onBeforeRequest', 'onBeforeSendHeaders', 'onSendHeaders',

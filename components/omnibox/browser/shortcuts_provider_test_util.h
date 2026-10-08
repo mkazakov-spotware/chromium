@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,18 +64,10 @@ void PopulateShortcutsBackendWithTestData(
 // |top_result_inline_autocompletion|.
 void RunShortcutsProviderTest(
     scoped_refptr<ShortcutsProvider> provider,
-    const std::u16string text,
+    const base::string16 text,
     bool prevent_inline_autocomplete,
     const std::vector<ExpectedURLAndAllowedToBeDefault>& expected_urls,
     std::string expected_top_result,
-    std::u16string top_result_inline_autocompletion);
-
-// Like above, but with a custom `input`.
-void RunShortcutsProviderTest(
-    scoped_refptr<ShortcutsProvider> provider,
-    const AutocompleteInput& input,
-    const std::vector<ExpectedURLAndAllowedToBeDefault>& expected_urls,
-    std::string expected_top_result,
-    std::u16string top_result_inline_autocompletion);
+    base::string16 top_result_inline_autocompletion);
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_SHORTCUTS_PROVIDER_TEST_UTIL_H_

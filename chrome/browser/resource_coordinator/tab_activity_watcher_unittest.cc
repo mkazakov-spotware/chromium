@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,13 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_tick_clock.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/engagement/site_engagement_service.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit.h"
+#include "chrome/browser/resource_coordinator/tab_activity_watcher.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
 #include "chrome/browser/resource_coordinator/tab_manager_features.h"
@@ -18,13 +20,11 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_activity_simulator.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_ukm_test_helper.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/test_browser_window.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/site_engagement/content/site_engagement_service.h"
 #include "components/ukm/content/source_url_recorder.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
@@ -83,17 +83,11 @@ class TabActivityWatcherTest : public ChromeRenderViewHostTestHarness {
  public:
   TabActivityWatcherTest() = default;
   // Reset TabActivityWatcher with given |params|.
-  // This should only be called from test constructors, to avoid tsan data races
-  // with the  FeatureList.
   void SetParams(const base::FieldTrialParams& params) {
     feature_list_.InitAndEnableFeatureWithParameters(features::kTabRanker,
                                                      params);
     TabActivityWatcher::GetInstance()->ResetForTesting();
   }
-
-  TabActivityWatcherTest(const TabActivityWatcherTest&) = delete;
-  TabActivityWatcherTest& operator=(const TabActivityWatcherTest&) = delete;
-
   ~TabActivityWatcherTest() override = default;
 
   LifecycleUnit* AddNewTab(TabStripModel* tab_strip_model, int i) {
@@ -109,7 +103,7 @@ class TabActivityWatcherTest : public ChromeRenderViewHostTestHarness {
   }
 
   // Calculate reactivation score of the |lifecycle_unit| using tab_ranker.
-  absl::optional<float> GetReactivationScore(
+  base::Optional<float> GetReactivationScore(
       LifecycleUnit* const lifecycle_unit) {
     return TabActivityWatcher::GetInstance()->CalculateReactivationScore(
         lifecycle_unit->AsTabLifecycleUnitExternal()->GetWebContents());
@@ -119,16 +113,14 @@ class TabActivityWatcherTest : public ChromeRenderViewHostTestHarness {
   UkmEntryChecker ukm_entry_checker_;
   TabActivitySimulator tab_activity_simulator_;
   base::test::ScopedFeatureList feature_list_;
-};
 
-class TabActivityWatcherScorerType0Test : public TabActivityWatcherTest {
- public:
-  TabActivityWatcherScorerType0Test() { SetParams({{"scorer_type", "0"}}); }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TabActivityWatcherTest);
 };
 
 // Test that lifecycleunits are sorted with high activation score first order.
-TEST_F(TabActivityWatcherScorerType0Test,
-       LogAndMaybeSortLifecycleUnitWithTabRanker) {
+TEST_F(TabActivityWatcherTest, LogAndMaybeSortLifecycleUnitWithTabRanker) {
+  SetParams({{"scorer_type", "0"}});
   Browser::CreateParams params(profile(), true);
   std::unique_ptr<Browser> browser =
       CreateBrowserWithTestWindowForParams(params);
@@ -152,13 +144,9 @@ TEST_F(TabActivityWatcherScorerType0Test,
   tab_strip_model->CloseAllTabs();
 }
 
-class TabActivityWatcherScorerType3Test : public TabActivityWatcherTest {
- public:
-  TabActivityWatcherScorerType3Test() { SetParams({{"scorer_type", "3"}}); }
-};
-
 // Test that lifecycleunits are sorted with high frecency score first order.
-TEST_F(TabActivityWatcherScorerType3Test, SortLifecycleUnitWithFrecencyScorer) {
+TEST_F(TabActivityWatcherTest, SortLifecycleUnitWithFrecencyScorer) {
+  SetParams({{"scorer_type", "3"}});
   Browser::CreateParams params(profile(), true);
   std::unique_ptr<Browser> browser =
       CreateBrowserWithTestWindowForParams(params);
@@ -192,7 +180,8 @@ TEST_F(TabActivityWatcherScorerType3Test, SortLifecycleUnitWithFrecencyScorer) {
 }
 
 // Test that frecency scores are calculated correctly.
-TEST_F(TabActivityWatcherScorerType3Test, GetFrecencyScore) {
+TEST_F(TabActivityWatcherTest, GetFrecencyScore) {
+  SetParams({{"scorer_type", "3"}});
   Browser::CreateParams params(profile(), true);
   std::unique_ptr<Browser> browser =
       CreateBrowserWithTestWindowForParams(params);
@@ -228,17 +217,11 @@ TEST_F(TabActivityWatcherScorerType3Test, GetFrecencyScore) {
   tab_strip_model->CloseAllTabs();
 }
 
-class TabActiveWatcherDisableBackgroundLogTest : public TabActivityWatcherTest {
- public:
-  TabActiveWatcherDisableBackgroundLogTest() {
-    SetParams({{"disable_background_log_with_TabRanker", "true"}});
-  }
-};
-
 // Test that lifecycleunits are correctly logged inside
 // LogAndMaybeSortLifecycleUnitWithTabRanker.
-TEST_F(TabActiveWatcherDisableBackgroundLogTest,
+TEST_F(TabActivityWatcherTest,
        LogInsideLogAndMaybeSortLifecycleUnitWithTabRanker) {
+  SetParams({{"disable_background_log_with_TabRanker", "true"}});
   Browser::CreateParams params(profile(), true);
   std::unique_ptr<Browser> browser =
       CreateBrowserWithTestWindowForParams(params);
@@ -324,10 +307,6 @@ class TabMetricsTest : public TabActivityWatcherTest {
     SetParams({{"scorer_type", "0"},
                {"disable_background_log_with_TabRanker", "false"}});
   }
-
-  TabMetricsTest(const TabMetricsTest&) = delete;
-  TabMetricsTest& operator=(const TabMetricsTest&) = delete;
-
   ~TabMetricsTest() override = default;
 
  protected:
@@ -344,6 +323,9 @@ class TabMetricsTest : public TabActivityWatcherTest {
  protected:
   const char* kEntryName = TabManager_TabMetrics::kEntryName;
   size_t num_previous_entries = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TabMetricsTest);
 };
 
 TEST_F(TabMetricsTest, Basic) {
@@ -383,7 +365,8 @@ TEST_F(TabMetricsTest, Basic) {
   }
 
   // Closing the tabs destroys the WebContentses but should not trigger logging.
-  // We verify in TearDown() that no logging occurred.
+  // The TestWebContentsObserver simulates hiding these tabs as they are closed;
+  // we verify in TearDown() that no logging occurred.
   tab_strip_model->CloseAllTabs();
 }
 
@@ -475,8 +458,8 @@ TEST_F(TabMetricsTest, TabMetrics) {
   }
 
   // Site engagement score should round down to the nearest 10.
-  site_engagement::SiteEngagementService::Get(profile())->ResetBaseScoreForURL(
-      TestUrls()[1], 45);
+  SiteEngagementService::Get(profile())->ResetBaseScoreForURL(TestUrls()[1],
+                                                              45);
   expected_metrics[TabManager_TabMetrics::kSiteEngagementScoreName] = 40;
 
   auto* audible_helper_2 =
@@ -543,7 +526,7 @@ TEST_F(TabMetricsTest, InputEvents) {
 
   // Fake some input events.
   content::RenderWidgetHost* widget_1 =
-      test_contents_1->GetPrimaryMainFrame()->GetRenderViewHost()->GetWidget();
+      test_contents_1->GetMainFrame()->GetRenderViewHost()->GetWidget();
   widget_1->ForwardMouseEvent(
       CreateMouseEvent(WebInputEvent::Type::kMouseDown));
   widget_1->ForwardMouseEvent(CreateMouseEvent(WebInputEvent::Type::kMouseUp));
@@ -560,7 +543,7 @@ TEST_F(TabMetricsTest, InputEvents) {
 
   // The second tab's counts are independent of the other's.
   content::RenderWidgetHost* widget_2 =
-      test_contents_2->GetPrimaryMainFrame()->GetRenderViewHost()->GetWidget();
+      test_contents_2->GetMainFrame()->GetRenderViewHost()->GetWidget();
   widget_2->ForwardMouseEvent(
       CreateMouseEvent(WebInputEvent::Type::kMouseMove));
   expected_metrics_2[TabManager_TabMetrics::kMouseEventCountName] = 1;
@@ -592,8 +575,7 @@ TEST_F(TabMetricsTest, InputEvents) {
   // After a navigation, test that the counts are reset.
   WebContentsTester::For(test_contents_1)->NavigateAndCommit(TestUrls()[2]);
   // The widget may have been invalidated by the navigation.
-  widget_1 =
-      test_contents_1->GetPrimaryMainFrame()->GetRenderViewHost()->GetWidget();
+  widget_1 = test_contents_1->GetMainFrame()->GetRenderViewHost()->GetWidget();
   widget_1->ForwardMouseEvent(
       CreateMouseEvent(WebInputEvent::Type::kMouseMove));
   expected_metrics_1[TabManager_TabMetrics::kMouseEventCountName] = 1;
@@ -654,7 +636,7 @@ TEST_F(TabMetricsTest, Navigations) {
                                     ui::PAGE_TRANSITION_FROM_ADDRESS_BAR));
   WebContentsTester::For(test_contents)->TestSetIsLoading(false);
   expected_metrics[TabManager_TabMetrics::kPageTransitionCoreTypeName] =
-      absl::nullopt;
+      base::nullopt;
   expected_metrics[TabManager_TabMetrics::kPageTransitionFromAddressBarName] =
       true;
   expected_metrics[TabManager_TabMetrics::kPageTransitionIsRedirectName] =
@@ -703,7 +685,7 @@ TEST_F(TabMetricsTest, Navigations) {
   WebContentsTester::For(test_contents)->TestSetIsLoading(false);
   expected_metrics[TabManager_TabMetrics::kPageTransitionCoreTypeName] =
       ui::PAGE_TRANSITION_RELOAD;
-  expected_metrics[TabManager_TabMetrics::kNavigationEntryCountName].value();
+  expected_metrics[TabManager_TabMetrics::kNavigationEntryCountName].value()++;
   expected_metrics[TabManager_TabMetrics::kPageTransitionFromAddressBarName] =
       false;
   expected_metrics[TabManager_TabMetrics::kPageTransitionIsRedirectName] =
@@ -731,7 +713,7 @@ TEST_F(TabMetricsTest, Navigations) {
   WebContentsTester::For(test_contents)->TestSetIsLoading(false);
   expected_metrics[TabManager_TabMetrics::kPageTransitionCoreTypeName] =
       ui::PAGE_TRANSITION_FORM_SUBMIT;
-  expected_metrics[TabManager_TabMetrics::kNavigationEntryCountName].value();
+  expected_metrics[TabManager_TabMetrics::kNavigationEntryCountName].value()++;
   {
     SCOPED_TRACE("");
     ExpectNewEntry(TestUrls()[1], expected_metrics);
@@ -744,7 +726,7 @@ TEST_F(TabMetricsTest, Navigations) {
                                 ui::PAGE_TRANSITION_FROM_ADDRESS_BAR));
   WebContentsTester::For(test_contents)->TestSetIsLoading(false);
   expected_metrics[TabManager_TabMetrics::kPageTransitionCoreTypeName] =
-      absl::nullopt;
+      base::nullopt;
   expected_metrics[TabManager_TabMetrics::kPageTransitionFromAddressBarName] =
       true;
   expected_metrics[TabManager_TabMetrics::kNavigationEntryCountName].value()++;
@@ -815,26 +797,24 @@ class ForegroundedOrClosedTest : public TabActivityWatcherTest {
     SetParams({{"scorer_type", "0"},
                {"disable_background_log_with_TabRanker", "false"}});
   }
-
-  ForegroundedOrClosedTest(const ForegroundedOrClosedTest&) = delete;
-  ForegroundedOrClosedTest& operator=(const ForegroundedOrClosedTest&) = delete;
-
   ~ForegroundedOrClosedTest() override = default;
 
  protected:
   const char* kEntryName = ForegroundedOrClosed::kEntryName;
 
-  void AdvanceClock() { test_clock_.Advance(base::Seconds(1)); }
+  void AdvanceClock() { test_clock_.Advance(base::TimeDelta::FromSeconds(1)); }
 
  private:
   base::SimpleTestTickClock test_clock_;
   resource_coordinator::ScopedSetTickClockForTesting
       scoped_set_tick_clock_for_testing_;
+
+  DISALLOW_COPY_AND_ASSIGN(ForegroundedOrClosedTest);
 };
 
 // Tests TabManager.Backgrounded.ForegroundedOrClosed UKM logging.
 // Flaky on ChromeOS. http://crbug.com/924864
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #define MAYBE_SingleTab DISABLED_SingleTab
 #else
 #define MAYBE_SingleTab SingleTab
@@ -849,7 +829,7 @@ TEST_F(ForegroundedOrClosedTest, MAYBE_SingleTab) {
                                                     TestUrls()[0]);
 
   // The tab is in the foreground, so it isn't logged as a background tab.
-  tab_strip_model->CloseWebContentsAt(0, TabCloseTypes::CLOSE_USER_GESTURE);
+  tab_strip_model->CloseWebContentsAt(0, TabStripModel::CLOSE_USER_GESTURE);
   EXPECT_EQ(0, ukm_entry_checker_.NumNewEntriesRecorded(kEntryName));
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/posix/safe_strerror.h"
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include <string.h>
 #include <windows.h>
 #endif
@@ -31,10 +31,10 @@ namespace crashpad {
 namespace test {
 
 std::string ErrnoMessage(int err, const std::string& base) {
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   std::string err_as_string = base::safe_strerror(errno);
   const char* err_string = err_as_string.c_str();
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   char err_string[256];
   strerror_s(err_string, errno);
 #endif
@@ -49,7 +49,7 @@ std::string ErrnoMessage(const std::string& base) {
   return ErrnoMessage(errno, base);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 std::string ErrorMessage(const std::string& base) {
   return base::StringPrintf(
       "%s%s%s",

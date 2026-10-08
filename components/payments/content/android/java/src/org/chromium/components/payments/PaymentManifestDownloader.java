@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,21 +55,17 @@ public class PaymentManifestDownloader {
     }
 
     private long mNativeObject;
-    private CSPCheckerBridge mCSPCheckerBridge;
 
     /**
      * Initializes the native downloader.
      *
      * @param webContents The web contents to use as the context for the downloads. If this goes
      *                    away, pending downloads are cancelled.
-     * @param cspChecker The Content-Security-Policy (CSP) checker.
      */
-    public void initialize(WebContents webContents, CSPChecker cspChecker) {
+    public void initialize(WebContents webContents) {
         ThreadUtils.assertOnUiThread();
         assert mNativeObject == 0;
-        mCSPCheckerBridge = new CSPCheckerBridge(cspChecker);
-        mNativeObject = PaymentManifestDownloaderJni.get().init(
-                webContents, mCSPCheckerBridge.getNativeCSPChecker());
+        mNativeObject = PaymentManifestDownloaderJni.get().init(webContents);
     }
 
     /** @return Whether the native downloader is initialized. */
@@ -118,7 +114,6 @@ public class PaymentManifestDownloader {
         assert mNativeObject != 0;
         PaymentManifestDownloaderJni.get().destroy(mNativeObject, PaymentManifestDownloader.this);
         mNativeObject = 0;
-        if (mCSPCheckerBridge != null) mCSPCheckerBridge.destroy();
     }
 
     /** @return An opaque origin to be used in tests. */
@@ -129,7 +124,7 @@ public class PaymentManifestDownloader {
 
     @NativeMethods
     interface Natives {
-        long init(WebContents webContents, long nativeCSPCheckerAndroid);
+        long init(WebContents webContents);
         void downloadPaymentMethodManifest(long nativePaymentManifestDownloaderAndroid,
                 PaymentManifestDownloader caller, Origin merchantOrigin, GURL methodName,
                 ManifestDownloadCallback callback);

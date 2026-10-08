@@ -1,12 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/filters/video_renderer_algorithm.h"
 
+#include <algorithm>
 #include <limits>
 
-#include "base/ranges/algorithm.h"
 #include "media/base/media_log.h"
 
 namespace media {
@@ -35,8 +35,8 @@ VideoRendererAlgorithm::VideoRendererAlgorithm(
     const TimeSource::WallClockTimeCB& wall_clock_time_cb,
     MediaLog* media_log)
     : media_log_(media_log),
-      cadence_estimator_(
-          base::Seconds(kMinimumAcceptableTimeBetweenGlitchesSecs)),
+      cadence_estimator_(base::TimeDelta::FromSeconds(
+          kMinimumAcceptableTimeBetweenGlitchesSecs)),
       wall_clock_time_cb_(wall_clock_time_cb),
       frame_duration_calculator_(kMovingAverageSamples),
       frame_dropping_disabled_(false) {
@@ -71,7 +71,7 @@ scoped_refptr<VideoFrame> VideoRendererAlgorithm::Render(
   // Step 3: Update the wall clock timestamps and frame duration estimates for
   // all frames currently in the |frame_queue_|.
   UpdateFrameStatistics();
-  const bool have_known_duration = average_frame_duration_.is_positive();
+  const bool have_known_duration = average_frame_duration_ > base::TimeDelta();
   if (!was_time_moving_ || !have_known_duration || render_interval_.is_zero()) {
     ReadyFrame& ready_frame = frame_queue_.front();
     DCHECK(ready_frame.frame);
@@ -252,23 +252,18 @@ size_t VideoRendererAlgorithm::RemoveExpiredFrames(base::TimeTicks deadline) {
 
   DCHECK_GT(average_frame_duration_, base::TimeDelta());
 
-  // Expire everything before the first good frame or everything but the last
-  // frame if there is no good frame.
-  const int first_good_frame = FindFirstGoodFrame();
-  const size_t frames_to_expire =
-      first_good_frame < 0 ? frame_queue_.size() - 1 : first_good_frame;
+  // Finds and removes all frames which are too old to be used.
+  size_t frames_dropped_without_rendering = 0;
+  size_t frames_to_expire = std::min(
+      frame_queue_.size() - 1, frame_queue_.size() - effective_frames_queued_);
+
   if (!frames_to_expire)
     return 0;
 
-  size_t frames_dropped_without_rendering = 0;
   for (size_t i = 0; i < frames_to_expire; ++i) {
     const ReadyFrame& frame = frame_queue_[i];
-
-    // Don't count frames that are intentionally dropped by cadence as dropped.
-    if (frame.render_count == frame.drop_count &&
-        (!cadence_estimator_.has_cadence() || frame.ideal_render_count)) {
+    if (frame.render_count == frame.drop_count)
       ++frames_dropped_without_rendering;
-    }
   }
 
   cadence_frame_counter_ += frames_to_expire;
@@ -313,7 +308,7 @@ void VideoRendererAlgorithm::Reset(ResetFlag reset_flag) {
 
   // Default to ATSC IS/191 recommendations for maximum acceptable drift before
   // we have enough frames to base the maximum on frame duration.
-  max_acceptable_drift_ = base::Milliseconds(15);
+  max_acceptable_drift_ = base::TimeDelta::FromMilliseconds(15);
 }
 
 int64_t VideoRendererAlgorithm::GetMemoryUsage() const {
@@ -327,12 +322,12 @@ int64_t VideoRendererAlgorithm::GetMemoryUsage() const {
 
 void VideoRendererAlgorithm::EnqueueFrame(scoped_refptr<VideoFrame> frame) {
   DCHECK(frame);
-  DCHECK(!frame->metadata().end_of_stream);
+  DCHECK(!frame->metadata()->end_of_stream);
 
   // Note: Not all frames have duration. E.g., this class is used with WebRTC
   // which does not provide duration information for its frames.
   base::TimeDelta metadata_frame_duration =
-      frame->metadata().frame_duration.value_or(base::TimeDelta());
+      frame->metadata()->frame_duration.value_or(base::TimeDelta());
   auto timestamp = frame->timestamp();
   ReadyFrame ready_frame(std::move(frame));
   auto it = frame_queue_.empty()
@@ -364,7 +359,7 @@ void VideoRendererAlgorithm::EnqueueFrame(scoped_refptr<VideoFrame> frame) {
       new_frame_index > 0
           ? timestamp - frame_queue_[new_frame_index - 1].frame->timestamp()
           : base::TimeDelta::Max());
-  if (delta < base::Milliseconds(1)) {
+  if (delta < base::TimeDelta::FromMilliseconds(1)) {
     DVLOG(2) << "Dropping frame too close to an already enqueued frame: "
              << delta.InMicroseconds() << " us";
     ++frames_dropped_during_enqueue_;
@@ -383,7 +378,7 @@ void VideoRendererAlgorithm::EnqueueFrame(scoped_refptr<VideoFrame> frame) {
   // Note: This duration value is not compensated for playback rate and
   // thus is different than |average_frame_duration_| which is compensated.
   if (!frame_duration_calculator_.count() &&
-      metadata_frame_duration.is_positive()) {
+      metadata_frame_duration > base::TimeDelta()) {
     media_timestamps.push_back(timestamp + metadata_frame_duration);
   }
 
@@ -399,7 +394,7 @@ void VideoRendererAlgorithm::EnqueueFrame(scoped_refptr<VideoFrame> frame) {
     wallclock_duration = ready_frame.end_time - ready_frame.start_time;
   }
 
-  ready_frame.frame->metadata().wallclock_frame_duration = wallclock_duration;
+  ready_frame.frame->metadata()->wallclock_frame_duration = wallclock_duration;
 
   // The vast majority of cases should always append to the back, but in rare
   // circumstance we get out of order timestamps, http://crbug.com/386551.
@@ -481,8 +476,8 @@ void VideoRendererAlgorithm::UpdateFrameStatistics() {
   {
     const auto& last_frame = frame_queue_.back().frame;
     base::TimeDelta metadata_frame_duration =
-        last_frame->metadata().frame_duration.value_or(base::TimeDelta());
-    if (metadata_frame_duration.is_positive()) {
+        last_frame->metadata()->frame_duration.value_or(base::TimeDelta());
+    if (metadata_frame_duration > base::TimeDelta()) {
       have_metadata_duration = true;
       media_timestamps.push_back(last_frame->timestamp() +
                                  metadata_frame_duration);
@@ -559,8 +554,8 @@ void VideoRendererAlgorithm::UpdateFrameStatistics() {
   // We'll always allow at least 16.66ms of drift since literature suggests it's
   // well below the floor of detection and is high enough to ensure stability
   // for 60fps content.
-  max_acceptable_drift_ =
-      std::max(average_frame_duration_ / 2, base::Seconds(1.0 / 60));
+  max_acceptable_drift_ = std::max(average_frame_duration_ / 2,
+                                   base::TimeDelta::FromSecondsD(1.0 / 60));
 
   // If we were called via RemoveExpiredFrames() and Render() was never called,
   // we may not have a render interval yet.
@@ -661,7 +656,7 @@ int VideoRendererAlgorithm::FindBestFrameByCoverage(
   if (best_frame_by_coverage >= 0) {
     coverage[best_frame_by_coverage] = base::TimeDelta();
     auto it = std::max_element(coverage.begin(), coverage.end());
-    if (it->is_positive())
+    if (*it > base::TimeDelta())
       *second_best = it - coverage.begin();
   }
 
@@ -670,7 +665,8 @@ int VideoRendererAlgorithm::FindBestFrameByCoverage(
   // ensure proper coverage calculation for 24fps in 60Hz where +/- 100us of
   // jitter is present within the |render_interval_|. At 60Hz this works out to
   // an allowed jitter of 3%.
-  const base::TimeDelta kAllowableJitter = base::Microseconds(500);
+  const base::TimeDelta kAllowableJitter =
+      base::TimeDelta::FromMicroseconds(500);
   if (*second_best >= 0 && best_frame_by_coverage > *second_best &&
       (best_coverage - coverage[*second_best]).magnitude() <=
           kAllowableJitter) {
@@ -743,8 +739,9 @@ void VideoRendererAlgorithm::UpdateEffectiveFramesQueued() {
   // If frame dropping is disabled, the lower bound is the number of frames
   // that were not rendered yet.
   if (frame_dropping_disabled_) {
-    min_frames_queued =
-        base::ranges::count(frame_queue_, 0, &ReadyFrame::render_count);
+    min_frames_queued = std::count_if(
+        frame_queue_.cbegin(), frame_queue_.cend(),
+        [](const ReadyFrame& frame) { return frame.render_count == 0; });
   }
 
   // Next, see if can report more frames as queued.
@@ -752,38 +749,33 @@ void VideoRendererAlgorithm::UpdateEffectiveFramesQueued() {
       std::max(min_frames_queued, CountEffectiveFramesQueued());
 }
 
-int VideoRendererAlgorithm::FindFirstGoodFrame() const {
-  const auto minimum_start_time =
-      cadence_estimator_.has_cadence()
-          ? last_deadline_max_ - max_acceptable_drift_
-          : last_deadline_max_;
-
-  size_t start_index = 0;
-  for (; start_index < frame_queue_.size(); ++start_index) {
-    const ReadyFrame& frame = frame_queue_[start_index];
-    if ((!cadence_estimator_.has_cadence() ||
-         frame.render_count < frame.ideal_render_count) &&
-        (frame.end_time.is_null() || frame.end_time > minimum_start_time)) {
-      break;
+size_t VideoRendererAlgorithm::CountEffectiveFramesQueued() const {
+  // If we don't have cadence, subtract off any frames which are before
+  // the last rendered frame or are past their expected rendering time.
+  if (!cadence_estimator_.has_cadence()) {
+    size_t expired_frames = 0;
+    for (; expired_frames < frame_queue_.size(); ++expired_frames) {
+      const ReadyFrame& frame = frame_queue_[expired_frames];
+      if (frame.end_time.is_null() || frame.end_time > last_deadline_max_)
+        break;
     }
+    return frame_queue_.size() - expired_frames;
   }
 
-  return start_index == frame_queue_.size() ? -1 : start_index;
-}
-
-size_t VideoRendererAlgorithm::CountEffectiveFramesQueued() const {
-  const int start_index = FindFirstGoodFrame();
+  // Find the first usable frame to start counting from.
+  const int start_index = FindBestFrameByCadence();
   if (start_index < 0)
     return 0;
 
-  if (!cadence_estimator_.has_cadence())
-    return frame_queue_.size() - start_index;
-
-  // We should ignore zero cadence frames in our effective frame count.
+  const base::TimeTicks minimum_start_time =
+      last_deadline_max_ - max_acceptable_drift_;
   size_t renderable_frame_count = 0;
   for (size_t i = start_index; i < frame_queue_.size(); ++i) {
-    if (frame_queue_[i].ideal_render_count)
+    const ReadyFrame& frame = frame_queue_[i];
+    if (frame.render_count < frame.ideal_render_count &&
+        (frame.end_time.is_null() || frame.end_time > minimum_start_time)) {
       ++renderable_frame_count;
+    }
   }
   return renderable_frame_count;
 }

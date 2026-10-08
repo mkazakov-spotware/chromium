@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,6 @@
 
 #include <set>
 
-#include "base/containers/contains.h"
-#include "base/containers/cxx20_erase.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/media_session/audio_focus_request.h"
@@ -42,9 +39,6 @@ class MediaController::ImageObserverHolder {
     ImagesChanged(current_images);
   }
 
-  ImageObserverHolder(const ImageObserverHolder&) = delete;
-  ImageObserverHolder& operator=(const ImageObserverHolder&) = delete;
-
   ~ImageObserverHolder() = default;
 
   bool is_valid() const { return observer_.is_connected(); }
@@ -52,7 +46,7 @@ class MediaController::ImageObserverHolder {
   mojom::MediaSessionImageType type() const { return type_; }
 
   void ImagesChanged(const std::vector<MediaImage>& images) {
-    absl::optional<MediaImage> image = manager_.SelectImage(images);
+    base::Optional<MediaImage> image = manager_.SelectImage(images);
 
     // If we could not find an image then we should call with an empty image to
     // flush the observer.
@@ -69,9 +63,7 @@ class MediaController::ImageObserverHolder {
   }
 
   void ClearImage() {
-    // If the last thing we sent was a ClearImage, don't send another one. If we
-    // haven't sent anything before, then send a ClearImage.
-    if (!did_send_image_last_.value_or(true))
+    if (!did_send_image_last_)
       return;
     did_send_image_last_ = false;
     observer_->MediaControllerImageChanged(type_, SkBitmap());
@@ -85,7 +77,7 @@ class MediaController::ImageObserverHolder {
 
   media_session::MediaImageManager manager_;
 
-  const raw_ptr<MediaController> owner_;
+  MediaController* const owner_;
 
   mojom::MediaSessionImageType const type_;
 
@@ -96,10 +88,11 @@ class MediaController::ImageObserverHolder {
   mojo::Remote<mojom::MediaControllerImageObserver> observer_;
 
   // Whether the last information sent to the observer was an image.
-  // Empty if we have not yet sent anything.
-  absl::optional<bool> did_send_image_last_;
+  bool did_send_image_last_ = false;
 
   base::WeakPtrFactory<ImageObserverHolder> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ImageObserverHolder);
 };
 
 MediaController::MediaController() {
@@ -154,7 +147,7 @@ void MediaController::AddObserver(
   if (session_) {
     media_controller_observer->MediaSessionChanged(session_->id());
   } else {
-    media_controller_observer->MediaSessionChanged(absl::nullopt);
+    media_controller_observer->MediaSessionChanged(base::nullopt);
   }
 
   // Flush the new observer with the current state.
@@ -176,7 +169,7 @@ void MediaController::MediaSessionInfoChanged(mojom::MediaSessionInfoPtr info) {
 }
 
 void MediaController::MediaSessionMetadataChanged(
-    const absl::optional<MediaMetadata>& metadata) {
+    const base::Optional<MediaMetadata>& metadata) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   for (auto& observer : observers_)
@@ -196,7 +189,7 @@ void MediaController::MediaSessionActionsChanged(
 }
 
 void MediaController::MediaSessionPositionChanged(
-    const absl::optional<media_session::MediaPosition>& position) {
+    const base::Optional<media_session::MediaPosition>& position) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   for (auto& observer : observers_)
@@ -298,53 +291,11 @@ void MediaController::ExitPictureInPicture() {
     session_->ipc()->ExitPictureInPicture();
 }
 
-void MediaController::SetAudioSinkId(const absl::optional<std::string>& id) {
+void MediaController::SetAudioSinkId(const base::Optional<std::string>& id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (session_)
     session_->ipc()->SetAudioSinkId(id);
-}
-
-void MediaController::ToggleMicrophone() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (session_)
-    session_->ipc()->ToggleMicrophone();
-}
-
-void MediaController::ToggleCamera() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (session_)
-    session_->ipc()->ToggleCamera();
-}
-
-void MediaController::HangUp() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (session_)
-    session_->ipc()->HangUp();
-}
-
-void MediaController::Raise() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (session_)
-    session_->ipc()->Raise();
-}
-
-void MediaController::SetMute(bool mute) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (session_)
-    session_->ipc()->SetMute(mute);
-}
-
-void MediaController::RequestMediaRemoting() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (session_)
-    session_->ipc()->RequestMediaRemoting();
 }
 
 void MediaController::SetMediaSession(AudioFocusRequest* session) {
@@ -378,12 +329,12 @@ void MediaController::ClearMediaSession() {
   // If we are no longer bound to a session we should flush the observers
   // with empty data.
   for (auto& observer : observers_) {
-    observer->MediaSessionChanged(absl::nullopt);
+    observer->MediaSessionChanged(base::nullopt);
     observer->MediaSessionInfoChanged(nullptr);
-    observer->MediaSessionMetadataChanged(absl::nullopt);
+    observer->MediaSessionMetadataChanged(base::nullopt);
     observer->MediaSessionActionsChanged(
         std::vector<mojom::MediaSessionAction>());
-    observer->MediaSessionPositionChanged(absl::nullopt);
+    observer->MediaSessionPositionChanged(base::nullopt);
   }
 
   for (auto& holder : image_observers_)

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,19 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+#include "base/macros.h"
+
 namespace gfx {
 
 class ScopedUIGraphicsPushContext {
  public:
   explicit ScopedUIGraphicsPushContext(CGContextRef context);
-
-  ScopedUIGraphicsPushContext(const ScopedUIGraphicsPushContext&) = delete;
-  ScopedUIGraphicsPushContext& operator=(const ScopedUIGraphicsPushContext&) =
-      delete;
-
   ~ScopedUIGraphicsPushContext();
 
  private:
   CGContextRef context_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedUIGraphicsPushContext);
 };
 
 }  // namespace gfx

@@ -7,10 +7,7 @@
 <script src="/common/media.js"></script>
 <script>
 
-promise_test(async function(t) {
-    let done;
-    const promise = new Promise(resolve => done = resolve);
-
+async_test(function(t) {
     let video = document.createElement('video');
     document.body.appendChild(video);
 
@@ -27,23 +24,18 @@ promise_test(async function(t) {
 
       // Queue up a second callback, and make sure it's called at the same time
       // as the one we just queued up.
-      video.requestVideoFrameCallback(t.step_func((time) => {
+      video.requestVideoFrameCallback(t.step_func_done((time) => {
         assert_equals(time, secondTime, "Callbacks queued together should be called at the same time");
-        done();
       }))
 
     }));
 
     video.src = getVideoURI('/media/movie_5');
-    await video.play();
+    video.play();
 
-    return promise;
 }, 'Test new callbacks are only called on the next frame.');
 
-promise_test(async function(t) {
-    let done;
-    const promise = new Promise(resolve => done = resolve);
-
+async_test(function(t) {
     let video = document.createElement('video');
     document.body.appendChild(video);
 
@@ -72,7 +64,7 @@ promise_test(async function(t) {
       lastMetadata = metadata;
 
       if (++currentCallNumber > maxNumberOfCalls) {
-        done()
+        t.done()
       } else {
         video.requestVideoFrameCallback(t.step_func(repeatingCallback));
       }
@@ -81,9 +73,8 @@ promise_test(async function(t) {
     video.requestVideoFrameCallback(t.step_func(repeatingCallback));
 
     video.src = getVideoURI('/media/movie_5');
-    await video.play();
+    video.play();
 
-    return promise;
 }, 'Test chaining calls to video.rVFC, and verify the required parameters.');
 </script>
 </html>

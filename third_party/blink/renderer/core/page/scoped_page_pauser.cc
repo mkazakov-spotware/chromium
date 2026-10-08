@@ -24,6 +24,7 @@
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
 #include "third_party/blink/renderer/core/page/page.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -41,11 +42,7 @@ ScopedPagePauser::ScopedPagePauser() {
     return;
 
   SetPaused(true);
-  pause_handle_ = ThreadScheduler::Current()->ToMainThreadScheduler()
-                      ? ThreadScheduler::Current()
-                            ->ToMainThreadScheduler()
-                            ->PauseScheduler()
-                      : nullptr;
+  pause_handle_ = ThreadScheduler::Current()->PauseScheduler();
 }
 
 ScopedPagePauser::~ScopedPagePauser() {
@@ -58,7 +55,8 @@ ScopedPagePauser::~ScopedPagePauser() {
 void ScopedPagePauser::SetPaused(bool paused) {
   // Make a copy of the collection. Undeferring loads can cause script to run,
   // which would mutate ordinaryPages() in the middle of iteration.
-  HeapVector<Member<Page>> pages(Page::OrdinaryPages());
+  HeapVector<Member<Page>> pages;
+  CopyToVector(Page::OrdinaryPages(), pages);
 
   for (const auto& page : pages)
     page->SetPaused(paused);

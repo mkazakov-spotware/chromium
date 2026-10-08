@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,9 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/browser/notifications/notification_image_retainer.h"
 #include "chrome/browser/notifications/win/notification_launch_id.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/notifications/notification_image_retainer.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/url_formatter/elide_url.h"
@@ -87,7 +87,7 @@ const char kXmlVersionHeader[] = "<?xml version=\"1.0\"?>\n";
 
 // Formats the |origin| for display in the notification template.
 std::string FormatOrigin(const GURL& origin) {
-  std::u16string origin_string = url_formatter::FormatOriginForSecurityDisplay(
+  base::string16 origin_string = url_formatter::FormatOriginForSecurityDisplay(
       url::Origin::Create(origin),
       url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
   DCHECK(origin_string.size());
@@ -193,7 +193,7 @@ void WriteImageElement(XmlWriter* xml_writer,
   if (!path.empty()) {
     xml_writer->StartElement(kImageElement);
     xml_writer->AddAttribute(kPlacement, placement);
-    xml_writer->AddAttribute(kSrc, base::WideToUTF8(path.value()));
+    xml_writer->AddAttribute(kSrc, base::UTF16ToUTF8(path.value()));
     if (!hint_crop.empty())
       xml_writer->AddAttribute(kHintCrop, hint_crop);
     xml_writer->EndElement();
@@ -204,8 +204,7 @@ void WriteImageElement(XmlWriter* xml_writer,
 void WriteIconElement(XmlWriter* xml_writer,
                       NotificationImageRetainer* image_retainer,
                       const message_center::Notification& notification) {
-  WriteImageElement(xml_writer, image_retainer,
-                    gfx::Image(notification.icon().Rasterize(nullptr)),
+  WriteImageElement(xml_writer, image_retainer, notification.icon(),
                     kPlacementAppLogoOverride, kHintCropNone);
 }
 
@@ -358,7 +357,7 @@ const char kNotificationLaunchAttribute[] = "launch";
 // to use) for building the XML template because it is used frequently in
 // Chrome, is nicer to use and has already been vetted.
 // https://docs.microsoft.com/en-us/windows/uwp/controls-and-patterns/tiles-and-notifications-adaptive-interactive-toasts
-std::wstring BuildNotificationTemplate(
+base::string16 BuildNotificationTemplate(
     NotificationImageRetainer* image_retainer,
     const NotificationLaunchId& launch_id,
     const message_center::Notification& notification) {
@@ -437,7 +436,7 @@ std::wstring BuildNotificationTemplate(
 
   // The |kXmlVersionHeader| is automatically appended by libxml, but the toast
   // system in the Windows Action Center expects it to be absent.
-  return base::UTF8ToWide(
+  return base::UTF8ToUTF16(
       base::StringPiece(template_xml).substr(sizeof(kXmlVersionHeader) - 1));
 }
 

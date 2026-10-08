@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,13 @@
 namespace lookalikes {
 namespace features {
 
-// This feature enables warnings for Combo Squatting heuristic.
+// This feature enables interstitial warnings for target embedding lookalikes.
 COMPONENT_EXPORT(LOOKALIKES_FEATURES)
-BASE_DECLARE_FEATURE(kDetectComboSquattingLookalikes);
+extern const base::Feature kDetectTargetEmbeddingLookalikes;
+
+// This feature enables interstitial warnings for certain punycode domains.
+COMPONENT_EXPORT(LOOKALIKES_FEATURES)
+extern const base::Feature kLookalikeInterstitialForPunycode;
 
 }  // namespace features
 }  // namespace lookalikes

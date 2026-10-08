@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,9 @@
 #include <string>
 #include <tuple>
 
-#include "build/build_config.h"
 #include "ui/gfx/geometry/geometry_export.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/vector2d_f.h"
-
-#if BUILDFLAG(IS_APPLE)
-struct CGPoint;
-#endif
 
 namespace gfx {
 
@@ -28,11 +23,6 @@ class GEOMETRY_EXPORT PointF {
 
   constexpr explicit PointF(const Point& p)
       : PointF(static_cast<float>(p.x()), static_cast<float>(p.y())) {}
-
-#if BUILDFLAG(IS_APPLE)
-  explicit PointF(const CGPoint&);
-  CGPoint ToCGPoint() const;
-#endif
 
   constexpr float x() const { return x_; }
   constexpr float y() const { return y_; }
@@ -49,12 +39,12 @@ class GEOMETRY_EXPORT PointF {
     y_ += delta_y;
   }
 
-  constexpr void operator+=(const Vector2dF& vector) {
+  void operator+=(const Vector2dF& vector) {
     x_ += vector.x();
     y_ += vector.y();
   }
 
-  constexpr void operator-=(const Vector2dF& vector) {
+  void operator-=(const Vector2dF& vector) {
     x_ -= vector.x();
     y_ -= vector.y();
   }
@@ -64,7 +54,7 @@ class GEOMETRY_EXPORT PointF {
 
   bool IsOrigin() const { return x_ == 0 && y_ == 0; }
 
-  constexpr Vector2dF OffsetFromOrigin() const { return Vector2dF(x_, y_); }
+  Vector2dF OffsetFromOrigin() const { return Vector2dF(x_, y_); }
 
   // A point is less than another point if its y-value is closer
   // to the origin. If the y-values are the same, then point with
@@ -84,25 +74,6 @@ class GEOMETRY_EXPORT PointF {
     SetPoint(x() * x_scale, y() * y_scale);
   }
 
-  // Scales the point by the inverse of the given scale.
-  void InvScale(float inv_scale) { InvScale(inv_scale, inv_scale); }
-
-  // Scales each component by the inverse of the given scales.
-  void InvScale(float inv_x_scale, float inv_y_scale) {
-    x_ /= inv_x_scale;
-    y_ /= inv_y_scale;
-  }
-
-  void Transpose() {
-    using std::swap;
-    swap(x_, y_);
-  }
-
-  // Uses the Pythagorean theorem to determine the straight line distance
-  // between the two points, and returns true if it is less than
-  // |allowed_distance|.
-  bool IsWithinDistance(const PointF& rhs, const float allowed_distance) const;
-
   // Returns a string representation of point.
   std::string ToString() const;
 
@@ -111,21 +82,21 @@ class GEOMETRY_EXPORT PointF {
   float y_;
 };
 
-constexpr bool operator==(const PointF& lhs, const PointF& rhs) {
+inline bool operator==(const PointF& lhs, const PointF& rhs) {
   return lhs.x() == rhs.x() && lhs.y() == rhs.y();
 }
 
-constexpr bool operator!=(const PointF& lhs, const PointF& rhs) {
+inline bool operator!=(const PointF& lhs, const PointF& rhs) {
   return !(lhs == rhs);
 }
 
-constexpr PointF operator+(const PointF& lhs, const Vector2dF& rhs) {
+inline PointF operator+(const PointF& lhs, const Vector2dF& rhs) {
   PointF result(lhs);
   result += rhs;
   return result;
 }
 
-constexpr PointF operator-(const PointF& lhs, const Vector2dF& rhs) {
+inline PointF operator-(const PointF& lhs, const Vector2dF& rhs) {
   PointF result(lhs);
   result -= rhs;
   return result;
@@ -145,10 +116,6 @@ GEOMETRY_EXPORT PointF ScalePoint(const PointF& p,
 
 inline PointF ScalePoint(const PointF& p, float scale) {
   return ScalePoint(p, scale, scale);
-}
-
-inline PointF TransposePoint(const PointF& p) {
-  return PointF(p.y(), p.x());
 }
 
 // This is declared here for use in gtest-based unit tests but is defined in

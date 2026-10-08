@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -134,14 +134,6 @@ void FakeSensorProvider::GetSensor(mojom::SensorType type,
             linear_acceleration_sensor_reading_);
       }
       break;
-    case mojom::SensorType::GRAVITY:
-      if (gravity_sensor_is_available_) {
-        sensor =
-            std::make_unique<FakeSensor>(mojom::SensorType::GRAVITY, buffer);
-        gravity_sensor_ = sensor.get();
-        gravity_sensor_->SetReading(gravity_sensor_reading_);
-      }
-      break;
     case mojom::SensorType::GYROSCOPE:
       if (gyroscope_is_available_) {
         sensor =
@@ -175,7 +167,8 @@ void FakeSensorProvider::GetSensor(mojom::SensorType type,
   if (sensor) {
     auto init_params = mojom::SensorInitParams::New();
     init_params->client_receiver = sensor->GetClient();
-    init_params->memory = mapped_region_.region.Duplicate();
+    init_params->memory = shared_buffer_handle_->Clone(
+        mojo::SharedBufferHandle::AccessMode::READ_ONLY);
     init_params->buffer_offset = sensor->GetBufferOffset();
     init_params->default_configuration = sensor->GetDefaultConfiguration();
     init_params->maximum_frequency = sensor->GetMaximumSupportedFrequency();
@@ -195,10 +188,6 @@ void FakeSensorProvider::GetSensor(mojom::SensorType type,
 void FakeSensorProvider::Bind(
     mojo::PendingReceiver<mojom::SensorProvider> receiver) {
   receivers_.Add(this, std::move(receiver));
-}
-
-bool FakeSensorProvider::is_bound() const {
-  return !receivers_.empty();
 }
 
 void FakeSensorProvider::SetAmbientLightSensorData(double value) {
@@ -223,14 +212,6 @@ void FakeSensorProvider::SetLinearAccelerationSensorData(double x,
   linear_acceleration_sensor_reading_.accel.x = x;
   linear_acceleration_sensor_reading_.accel.y = y;
   linear_acceleration_sensor_reading_.accel.z = z;
-}
-
-void FakeSensorProvider::SetGravitySensorData(double x, double y, double z) {
-  gravity_sensor_reading_.raw.timestamp =
-      (base::TimeTicks::Now() - base::TimeTicks()).InSecondsF();
-  gravity_sensor_reading_.accel.x = x;
-  gravity_sensor_reading_.accel.y = y;
-  gravity_sensor_reading_.accel.z = z;
 }
 
 void FakeSensorProvider::SetGyroscopeData(double x, double y, double z) {
@@ -281,12 +262,6 @@ void FakeSensorProvider::UpdateLinearAccelerationSensorData(double x,
   linear_acceleration_sensor_->SetReading(linear_acceleration_sensor_reading_);
 }
 
-void FakeSensorProvider::UpdateGravitySensorData(double x, double y, double z) {
-  SetGravitySensorData(x, y, z);
-  EXPECT_TRUE(gravity_sensor_);
-  gravity_sensor_->SetReading(gravity_sensor_reading_);
-}
-
 void FakeSensorProvider::UpdateGyroscopeData(double x, double y, double z) {
   SetGyroscopeData(x, y, z);
   EXPECT_TRUE(gyroscope_);
@@ -312,18 +287,26 @@ void FakeSensorProvider::UpdateAbsoluteOrientationSensorData(double alpha,
 }
 
 bool FakeSensorProvider::CreateSharedBufferIfNeeded() {
-  if (mapped_region_.IsValid())
+  if (shared_buffer_mapping_.get())
     return true;
 
-  mapped_region_ =
-      base::ReadOnlySharedMemoryRegion::Create(kSharedBufferSizeInBytes);
-  return mapped_region_.IsValid();
+  if (!shared_buffer_handle_.is_valid()) {
+    shared_buffer_handle_ =
+        mojo::SharedBufferHandle::Create(kSharedBufferSizeInBytes);
+    if (!shared_buffer_handle_.is_valid())
+      return false;
+  }
+
+  // Create read/write mapping now, to ensure it is kept writable
+  // after the region is sealed read-only on Android.
+  shared_buffer_mapping_ = shared_buffer_handle_->Map(kSharedBufferSizeInBytes);
+  return shared_buffer_mapping_.get() != nullptr;
 }
 
 SensorReadingSharedBuffer*
 FakeSensorProvider::GetSensorReadingSharedBufferForType(
     mojom::SensorType type) {
-  auto* ptr = static_cast<char*>(mapped_region_.mapping.memory());
+  auto* ptr = static_cast<char*>(shared_buffer_mapping_.get());
   if (!ptr)
     return nullptr;
 

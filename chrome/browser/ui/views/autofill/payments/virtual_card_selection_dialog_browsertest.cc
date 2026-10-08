@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,6 @@ constexpr char kTwoCardsTest[] = "TwoCards";
 class VirtualCardSelectionDialogBrowserTest : public DialogBrowserTest {
  public:
   VirtualCardSelectionDialogBrowserTest() = default;
-
-  VirtualCardSelectionDialogBrowserTest(
-      const VirtualCardSelectionDialogBrowserTest&) = delete;
-  VirtualCardSelectionDialogBrowserTest& operator=(
-      const VirtualCardSelectionDialogBrowserTest&) = delete;
 
   // DialogBrowserTest:
   void ShowUi(const std::string& name) override {
@@ -67,6 +62,9 @@ class VirtualCardSelectionDialogBrowserTest : public DialogBrowserTest {
     return VirtualCardSelectionDialogControllerImpl::FromWebContents(
         browser()->tab_strip_model()->GetActiveWebContents());
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(VirtualCardSelectionDialogBrowserTest);
 };
 
 IN_PROC_BROWSER_TEST_F(VirtualCardSelectionDialogBrowserTest,

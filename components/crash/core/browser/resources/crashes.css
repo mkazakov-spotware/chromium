@@ -1,4 +1,4 @@
-/* Copyright 2012 The Chromium Authors
+/* Copyright (c) 2012 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
@@ -7,8 +7,8 @@ body {
 }
 
 h1 {
-  padding-inline-start: 75px;
-  background-image: url(./sadtab.svg);
+  -webkit-padding-start: 75px;
+  background-image: url(../../../../resources/sadtab.svg);
   background-position: left;
   background-repeat: no-repeat;
   font-size: 156%;
@@ -27,9 +27,10 @@ html[dir=rtl] h1 {
   background-color: rgb(235, 239, 250);
   border: 1px solid #bbb;
   border-radius: 2px;
-  display: flex;
   font-size: 100%;
   padding: 4px;
+
+  display: flex;
 }
 
 #countBanner #crashesCount {
@@ -40,7 +41,7 @@ html[dir=rtl] h1 {
   font-size: 100%;
 }
 
-.crash-row > * {
+.crashRow > * {
   margin: 0.75em 0;
 }
 
@@ -48,27 +49,27 @@ html[dir=rtl] h1 {
   color: #666;
 }
 
-.crash-row {
+.crashRow {
   padding-bottom: 0.75em;
 }
 
-.crash-row:not(:last-child) {
+.crashRow:not(:last-child) {
   border-bottom: 1px solid #bbb;
 }
 
-#crashList .crash-row .dev-detail {
+#crashList .crashRow .devDetail {
   display: none;
 }
 
-#crashList.showing-dev-details .crash-row .dev-detail {
+#crashList.showingDevDetails .crashRow .devDetail {
   display: table-row;
 }
 
-.crash-detail {
+.crashDetail {
   margin: 10px 0;
 }
 
-.crash-detail td {
+.crashDetail td {
   padding: 0 4px;
 }
 
@@ -77,6 +78,6 @@ html[dir=rtl] h1 {
   font-size: 125%;
 }
 
-.not-uploaded {
+.notUploaded {
   color: #a0a0a0;
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 
 #include "base/test/mock_callback.h"
 #include "base/test/simple_test_tick_clock.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/browser/web_contents.h"
@@ -36,7 +34,7 @@ class TestTabStripModelDelegateNoUnloadListener
   }
 };
 
-constexpr base::TimeDelta kTimeStep = base::Seconds(1);
+constexpr base::TimeDelta kTimeStep = base::TimeDelta::FromSeconds(1);
 
 }  // namespace
 
@@ -55,7 +53,8 @@ class ActiveTabTrackerTest : public ::testing::Test {
   }
 
   void CloseTabAt(TabStripModel* model, int index) {
-    model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_USER_GESTURE);
+    model->CloseWebContentsAt(index,
+                              TabStripModel::CloseTypes::CLOSE_USER_GESTURE);
   }
 
   Profile* profile() { return profile_.get(); }
@@ -81,8 +80,7 @@ TEST_F(ActiveTabTrackerTest, NotifiesOnActiveTabClosed) {
   AddTab(&model);
   clock()->Advance(kTimeStep);
 
-  model.ActivateTabAt(0, TabStripUserGestureDetails(
-                             TabStripUserGestureDetails::GestureType::kOther));
+  model.ActivateTabAt(0, {TabStripModel::GestureType::kOther});
 
   clock()->Advance(kTimeStep);
 
@@ -91,7 +89,7 @@ TEST_F(ActiveTabTrackerTest, NotifiesOnActiveTabClosed) {
 
   tracker.RemoveTabStripModel(&model);
 
-  model.DetachAndDeleteWebContentsAt(0);
+  model.DetachWebContentsAt(0);
 }
 
 TEST_F(ActiveTabTrackerTest, UpdatesTimes) {
@@ -104,22 +102,19 @@ TEST_F(ActiveTabTrackerTest, UpdatesTimes) {
 
   AddTab(&model);
   AddTab(&model);
-  model.ActivateTabAt(0, TabStripUserGestureDetails(
-                             TabStripUserGestureDetails::GestureType::kOther));
+  model.ActivateTabAt(0, {TabStripModel::GestureType::kOther});
 
   clock()->Advance(kTimeStep);
 
-  model.ActivateTabAt(1, TabStripUserGestureDetails(
-                             TabStripUserGestureDetails::GestureType::kOther));
-  model.ActivateTabAt(0, TabStripUserGestureDetails(
-                             TabStripUserGestureDetails::GestureType::kOther));
+  model.ActivateTabAt(1, {TabStripModel::GestureType::kOther});
+  model.ActivateTabAt(0, {TabStripModel::GestureType::kOther});
 
   EXPECT_CALL(cb, Run(&model, base::TimeDelta())).Times(1);
   CloseTabAt(&model, 0);
 
   tracker.RemoveTabStripModel(&model);
 
-  model.DetachAndDeleteWebContentsAt(0);
+  model.DetachWebContentsAt(0);
 }
 
 TEST_F(ActiveTabTrackerTest, IgnoresInactiveTabs) {
@@ -132,15 +127,14 @@ TEST_F(ActiveTabTrackerTest, IgnoresInactiveTabs) {
 
   AddTab(&model);
   AddTab(&model);
-  model.ActivateTabAt(0, TabStripUserGestureDetails(
-                             TabStripUserGestureDetails::GestureType::kOther));
+  model.ActivateTabAt(0, {TabStripModel::GestureType::kOther});
 
   EXPECT_CALL(cb, Run(_, _)).Times(0);
   CloseTabAt(&model, 1);
 
   tracker.RemoveTabStripModel(&model);
 
-  model.DetachAndDeleteWebContentsAt(0);
+  model.DetachWebContentsAt(0);
 }
 
 TEST_F(ActiveTabTrackerTest, TracksMultipleTabStripModels) {
@@ -159,14 +153,10 @@ TEST_F(ActiveTabTrackerTest, TracksMultipleTabStripModels) {
   AddTab(&model_2);
 
   clock()->Advance(kTimeStep);
-  model_1.ActivateTabAt(0,
-                        TabStripUserGestureDetails(
-                            TabStripUserGestureDetails::GestureType::kOther));
+  model_1.ActivateTabAt(0, {TabStripModel::GestureType::kOther});
 
   clock()->Advance(kTimeStep);
-  model_2.ActivateTabAt(0,
-                        TabStripUserGestureDetails(
-                            TabStripUserGestureDetails::GestureType::kOther));
+  model_2.ActivateTabAt(0, {TabStripModel::GestureType::kOther});
 
   {
     InSequence seq;
@@ -180,8 +170,8 @@ TEST_F(ActiveTabTrackerTest, TracksMultipleTabStripModels) {
   tracker.RemoveTabStripModel(&model_1);
   tracker.RemoveTabStripModel(&model_2);
 
-  model_1.DetachAndDeleteWebContentsAt(0);
-  model_2.DetachAndDeleteWebContentsAt(0);
+  model_1.DetachWebContentsAt(0);
+  model_2.DetachWebContentsAt(0);
 }
 
 TEST_F(ActiveTabTrackerTest, StopsObservingUponRemove) {
@@ -200,5 +190,5 @@ TEST_F(ActiveTabTrackerTest, StopsObservingUponRemove) {
   EXPECT_CALL(cb, Run(_, _)).Times(0);
   CloseTabAt(&model, 0);
 
-  model.DetachAndDeleteWebContentsAt(0);
+  model.DetachWebContentsAt(0);
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "components/prefs/pref_member.h"
 
@@ -22,11 +22,7 @@ class IdentityManager;
 // username changes).
 class ProfileInfoWatcher : public ProfileAttributesStorage::Observer {
  public:
-  ProfileInfoWatcher(Profile* profile, base::RepeatingClosure callback);
-
-  ProfileInfoWatcher(const ProfileInfoWatcher&) = delete;
-  ProfileInfoWatcher& operator=(const ProfileInfoWatcher&) = delete;
-
+  ProfileInfoWatcher(Profile* profile, const base::Closure& callback);
   ~ProfileInfoWatcher() override;
 
   // Gets the authenticated username (e.g. username@gmail.com) for |profile_|.
@@ -44,12 +40,14 @@ class ProfileInfoWatcher : public ProfileAttributesStorage::Observer {
   void RunCallback();
 
   // Weak reference to the profile this class observes.
-  const raw_ptr<Profile> profile_;
+  Profile* const profile_;
 
   // Called when the authenticated username changes.
-  base::RepeatingClosure callback_;
+  base::Closure callback_;
 
   BooleanPrefMember signin_allowed_pref_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProfileInfoWatcher);
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_PROFILE_INFO_WATCHER_H_

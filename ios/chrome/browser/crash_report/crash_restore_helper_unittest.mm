@@ -1,31 +1,36 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/crash_report/crash_restore_helper.h"
-
 #import <Foundation/Foundation.h>
 
-#import <memory>
+#include <memory>
 
-#import "base/strings/sys_string_conversions.h"
-#import "base/threading/thread_task_runner_handle.h"
-#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "base/stl_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#include "ios/chrome/browser/crash_report/crash_restore_helper.h"
 #import "ios/chrome/browser/main/test_browser.h"
 #import "ios/chrome/browser/sessions/session_service_ios.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/gmock/include/gmock/gmock.h"
-#import "testing/gtest/include/gtest/gtest.h"
-#import "testing/platform_test.h"
+#import "ios/chrome/browser/ui/util/multi_window_support.h"
+#include "ios/web/public/test/web_task_environment.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-#import "third_party/ocmock/gtest_support.h"
+#include "third_party/ocmock/gtest_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 using testing::Return;
+
+@interface CrashRestoreHelper (Test)
++ (NSString*)backupPathForSessionID:(NSString*)sessionID;
+@end
 
 namespace {
 
@@ -41,22 +46,22 @@ class CrashRestoreHelperTest : public PlatformTest {
   }
 
  protected:
-  // Creates the session for `session_id`, if `session_id` is nil a session
+  // Creates the session for |session_id|, if |session_id| is nil a session
   // will be created in the default location.
-  // Returns `true` if the creation was successful.
+  // Returns |true| if the creation was successful.
   bool CreateSession(NSString* session_id) {
     NSFileManager* file_manager = [NSFileManager defaultManager];
     ChromeBrowserState* browser_states[] = {
         chrome_browser_state_.get(),
         off_the_record_chrome_browser_state_,
     };
+    NSString* backup_path =
+        [CrashRestoreHelper backupPathForSessionID:session_id];
+    [file_manager removeItemAtPath:backup_path error:nil];
     NSData* data = [NSData dataWithBytes:"hello" length:5];
-    for (size_t index = 0; index < std::size(browser_states); ++index) {
-      const base::FilePath& state_path = browser_states[index]->GetStatePath();
-      NSString* backup_path =
-          [CrashRestoreHelper backupPathForSessionID:session_id
-                                           directory:state_path];
-      [file_manager removeItemAtPath:backup_path error:nil];
+    for (size_t index = 0; index < base::size(browser_states); ++index) {
+      NSString* state_path = base::SysUTF8ToNSString(
+          browser_states[index]->GetStatePath().value());
       NSString* session_path =
           [SessionServiceIOS sessionPathForSessionID:session_id
                                            directory:state_path];
@@ -74,8 +79,8 @@ class CrashRestoreHelperTest : public PlatformTest {
     return true;
   }
 
-  // Returns `true` if session for `session_id` was erased from its default
-  // location. if `session_id` is nil, the default session location is used.
+  // Returns |true| if session for |session_id| was erased from its default
+  // location. if |session_id| is nil, the default session location is used.
   bool IsSessionErased(NSString* session_id) {
     NSFileManager* file_manager = [NSFileManager defaultManager];
     ChromeBrowserState* browser_states[] = {
@@ -83,8 +88,9 @@ class CrashRestoreHelperTest : public PlatformTest {
         off_the_record_chrome_browser_state_,
     };
 
-    for (size_t index = 0; index < std::size(browser_states); ++index) {
-      const base::FilePath& state_path = browser_states[index]->GetStatePath();
+    for (size_t index = 0; index < base::size(browser_states); ++index) {
+      NSString* state_path = base::SysUTF8ToNSString(
+          browser_states[index]->GetStatePath().value());
       NSString* session_path =
           [SessionServiceIOS sessionPathForSessionID:session_id
                                            directory:state_path];
@@ -94,15 +100,13 @@ class CrashRestoreHelperTest : public PlatformTest {
     return true;
   }
 
-  // Returns `true` if the session with `session_id` was backed up correctly,
-  // and deletes the backup file. if `session_id` is nil, the default backup
+  // Returns |true| if the session with |session_id| was backed up correctly,
+  // and deletes the backup file. if |session_id| is nil, the default backup
   // session location is used.
-  bool CheckAndDeleteSessionBackedUp(NSString* session_id,
-                                     ChromeBrowserState* browser_state) {
+  bool CheckAndDeleteSessionBackedUp(NSString* session_id) {
     NSFileManager* file_manager = [NSFileManager defaultManager];
-    NSString* backup_path = [CrashRestoreHelper
-        backupPathForSessionID:session_id
-                     directory:browser_state->GetStatePath()];
+    NSString* backup_path =
+        [CrashRestoreHelper backupPathForSessionID:session_id];
     if (![file_manager fileExistsAtPath:backup_path])
       return false;
     [file_manager removeItemAtPath:backup_path error:nil];
@@ -116,6 +120,19 @@ class CrashRestoreHelperTest : public PlatformTest {
   CrashRestoreHelper* helper_;
 };
 
+// Tests that moving session work correctly when multiple windows are not
+// supported.
+TEST_F(CrashRestoreHelperTest, MoveAsideSingleSession) {
+  // This test is only enabled when multi-window is disabled.
+  if (IsMultiwindowSupported())
+    return;
+  ASSERT_TRUE(CreateSession(nil));
+  [CrashRestoreHelper
+      moveAsideSessionInformationForBrowserState:chrome_browser_state_.get()];
+  EXPECT_TRUE(IsSessionErased(nil));
+  EXPECT_EQ(YES, CheckAndDeleteSessionBackedUp(nil));
+}
+
 // Tests that moving session work correctly when multiple windows are supported.
 TEST_F(CrashRestoreHelperTest, MoveAsideMultipleSessions) {
   NSSet<NSString*>* session_ids =
@@ -128,8 +145,7 @@ TEST_F(CrashRestoreHelperTest, MoveAsideMultipleSessions) {
                         forBrowserState:chrome_browser_state_.get()];
   for (NSString* session_id in session_ids) {
     EXPECT_TRUE(IsSessionErased(session_id));
-    EXPECT_EQ(YES, CheckAndDeleteSessionBackedUp(session_id,
-                                                 chrome_browser_state_.get()));
+    EXPECT_EQ(YES, CheckAndDeleteSessionBackedUp(session_id));
   }
 }
 

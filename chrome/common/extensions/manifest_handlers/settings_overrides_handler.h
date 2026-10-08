@@ -1,14 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_COMMON_EXTENSIONS_MANIFEST_HANDLERS_SETTINGS_OVERRIDES_HANDLER_H_
 #define CHROME_COMMON_EXTENSIONS_MANIFEST_HANDLERS_SETTINGS_OVERRIDES_HANDLER_H_
 
+#include <memory>
+
+#include "base/macros.h"
 #include "chrome/common/extensions/api/manifest_types.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_handler.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace extensions {
 
@@ -23,33 +25,30 @@ enum SettingsApiOverrideType {
 // homepage and append a startup page to the list.
 struct SettingsOverrides : public Extension::ManifestData {
   SettingsOverrides();
-
-  SettingsOverrides(const SettingsOverrides&) = delete;
-  SettingsOverrides& operator=(const SettingsOverrides&) = delete;
-
   ~SettingsOverrides() override;
 
   static const SettingsOverrides* Get(const Extension* extension);
 
-  absl::optional<api::manifest_types::ChromeSettingsOverrides::SearchProvider>
+  std::unique_ptr<api::manifest_types::ChromeSettingsOverrides::SearchProvider>
       search_engine;
-  absl::optional<GURL> homepage;
+  std::unique_ptr<GURL> homepage;
   std::vector<GURL> startup_pages;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SettingsOverrides);
 };
 
 class SettingsOverridesHandler : public ManifestHandler {
  public:
   SettingsOverridesHandler();
-
-  SettingsOverridesHandler(const SettingsOverridesHandler&) = delete;
-  SettingsOverridesHandler& operator=(const SettingsOverridesHandler&) = delete;
-
   ~SettingsOverridesHandler() override;
 
-  bool Parse(Extension* extension, std::u16string* error) override;
+  bool Parse(Extension* extension, base::string16* error) override;
 
  private:
   base::span<const char* const> Keys() const override;
+
+  DISALLOW_COPY_AND_ASSIGN(SettingsOverridesHandler);
 };
 
 }  // namespace extensions

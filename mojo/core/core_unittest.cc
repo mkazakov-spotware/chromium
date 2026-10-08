@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,11 @@
 #include <limits>
 
 #include "base/bind.h"
-#include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "mojo/core/core_test_base.h"
-#include "mojo/core/embedder/embedder.h"
 #include "mojo/public/cpp/system/wait.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
@@ -36,7 +34,7 @@ TEST_F(CoreTest, GetTimeTicksNow) {
   const MojoTimeTicks start = core()->GetTimeTicksNow();
   ASSERT_NE(static_cast<MojoTimeTicks>(0), start)
       << "GetTimeTicksNow should return nonzero value";
-  base::PlatformThread::Sleep(base::Milliseconds(15));
+  base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(15));
   const MojoTimeTicks finish = core()->GetTimeTicksNow();
   // Allow for some fuzz in sleep.
   ASSERT_GE((finish - start), static_cast<MojoTimeTicks>(8000))
@@ -44,10 +42,6 @@ TEST_F(CoreTest, GetTimeTicksNow) {
 }
 
 TEST_F(CoreTest, Basic) {
-  if (IsMojoIpczEnabled()) {
-    GTEST_SKIP() << "Not relevant when MojoIpcz is enabled.";
-  }
-
   MockHandleInfo info;
 
   ASSERT_EQ(0u, info.GetCtorCallCount());
@@ -103,10 +97,6 @@ TEST_F(CoreTest, Basic) {
 }
 
 TEST_F(CoreTest, InvalidArguments) {
-  if (IsMojoIpczEnabled()) {
-    GTEST_SKIP() << "Not relevant when MojoIpcz is enabled.";
-  }
-
   // |Close()|:
   {
     ASSERT_EQ(MOJO_RESULT_INVALID_ARGUMENT, core()->Close(MOJO_HANDLE_INVALID));
@@ -149,10 +139,6 @@ TEST_F(CoreTest, InvalidArguments) {
 }
 
 TEST_F(CoreTest, MessagePipe) {
-  if (IsMojoIpczEnabled()) {
-    GTEST_SKIP() << "Not relevant when MojoIpcz is enabled.";
-  }
-
   MojoHandle h[2];
   MojoHandleSignalsState hss[2];
 
@@ -253,10 +239,6 @@ TEST_F(CoreTest, MessagePipe) {
 
 // Tests passing a message pipe handle.
 TEST_F(CoreTest, MessagePipeBasicLocalHandlePassing1) {
-  if (IsMojoIpczEnabled()) {
-    GTEST_SKIP() << "Not relevant when MojoIpcz is enabled.";
-  }
-
   MojoHandleSignalsState hss;
   MojoHandle h_passing[2];
   ASSERT_EQ(MOJO_RESULT_OK,
@@ -293,10 +275,6 @@ TEST_F(CoreTest, MessagePipeBasicLocalHandlePassing1) {
 }
 
 TEST_F(CoreTest, DataPipe) {
-  if (IsMojoIpczEnabled()) {
-    GTEST_SKIP() << "Not relevant when MojoIpcz is enabled.";
-  }
-
   MojoHandle ph, ch;  // p is for producer and c is for consumer.
   MojoHandleSignalsState hss;
 

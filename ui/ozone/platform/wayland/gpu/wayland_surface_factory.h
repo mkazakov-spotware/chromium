@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/ozone/platform/wayland/common/wayland_util.h"
@@ -24,31 +24,27 @@ class WaylandSurfaceFactory : public SurfaceFactoryOzone {
  public:
   WaylandSurfaceFactory(WaylandConnection* connection,
                         WaylandBufferManagerGpu* buffer_manager);
-
-  WaylandSurfaceFactory(const WaylandSurfaceFactory&) = delete;
-  WaylandSurfaceFactory& operator=(const WaylandSurfaceFactory&) = delete;
-
   ~WaylandSurfaceFactory() override;
 
   // SurfaceFactoryOzone overrides:
-  std::vector<gl::GLImplementationParts> GetAllowedGLImplementations() override;
-  GLOzone* GetGLOzone(const gl::GLImplementationParts& implementation) override;
+  std::vector<gl::GLImplementation> GetAllowedGLImplementations() override;
+  GLOzone* GetGLOzone(gl::GLImplementation implementation) override;
 #if BUILDFLAG(ENABLE_VULKAN)
   std::unique_ptr<gpu::VulkanImplementation> CreateVulkanImplementation(
-      bool use_swiftshader,
-      bool allow_protected_memory) override;
+      bool allow_protected_memory,
+      bool enforce_protected_memory) override;
 #endif
   std::unique_ptr<SurfaceOzoneCanvas> CreateCanvasForWidget(
       gfx::AcceleratedWidget widget) override;
   scoped_refptr<gfx::NativePixmap> CreateNativePixmap(
       gfx::AcceleratedWidget widget,
-      gpu::VulkanDeviceQueue* device_queue,
+      VkDevice vk_device,
       gfx::Size size,
       gfx::BufferFormat format,
       gfx::BufferUsage usage,
-      absl::optional<gfx::Size> framebuffer_size = absl::nullopt) override;
+      base::Optional<gfx::Size> framebuffer_size = base::nullopt) override;
   void CreateNativePixmapAsync(gfx::AcceleratedWidget widget,
-                               gpu::VulkanDeviceQueue* device_queue,
+                               VkDevice vk_device,
                                gfx::Size size,
                                gfx::BufferFormat format,
                                gfx::BufferUsage usage,
@@ -58,15 +54,13 @@ class WaylandSurfaceFactory : public SurfaceFactoryOzone {
       gfx::Size size,
       gfx::BufferFormat format,
       gfx::NativePixmapHandle handle) override;
-  absl::optional<gfx::BufferFormat> GetPreferredFormatForSolidColor()
-      const override;
-
-  bool SupportsNativePixmaps() const;
 
  private:
-  const raw_ptr<WaylandConnection> connection_;
-  const raw_ptr<WaylandBufferManagerGpu> buffer_manager_;
+  WaylandConnection* const connection_;
+  WaylandBufferManagerGpu* const buffer_manager_;
   std::unique_ptr<GLOzone> egl_implementation_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandSurfaceFactory);
 };
 
 }  // namespace ui

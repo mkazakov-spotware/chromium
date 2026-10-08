@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/passwords/credential_manager_dialog_controller.h"
-#include "chrome/browser/ui/passwords/ui_utils.h"
+#include "chrome/browser/ui/passwords/manage_passwords_view_utils.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/browser/ui/views/passwords/credentials_item_view.h"
@@ -22,7 +23,6 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/strings/grit/ui_strings.h"
@@ -47,7 +47,6 @@ AccountChooserDialogView::AccountChooserDialogView(
       ui::DIALOG_BUTTON_OK,
       l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_ACCOUNT_CHOOSER_SIGN_IN));
   set_close_on_deactivate(false);
-  SetModalType(ui::MODAL_TYPE_CHILD);
   if (controller_->ShouldShowFooter()) {
     auto* label = SetFootnoteView(std::make_unique<views::Label>(
         l10n_util::GetStringUTF16(IDS_SAVE_PASSWORD_FOOTER),
@@ -57,7 +56,8 @@ AccountChooserDialogView::AccountChooserDialogView(
     label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   }
   SetArrow(views::BubbleBorder::NONE);
-  set_margins(gfx::Insets::TLBR(margins().top(), 0, margins().bottom(), 0));
+  set_margins(gfx::Insets(margins().top(), 0, margins().bottom(), 0));
+  chrome::RecordDialogCreation(chrome::DialogIdentifier::ACCOUNT_CHOOSER);
 }
 
 AccountChooserDialogView::~AccountChooserDialogView() = default;
@@ -80,7 +80,11 @@ void AccountChooserDialogView::ControllerGone() {
   controller_ = nullptr;
 }
 
-std::u16string AccountChooserDialogView::GetWindowTitle() const {
+ui::ModalType AccountChooserDialogView::GetModalType() const {
+  return ui::MODAL_TYPE_CHILD;
+}
+
+base::string16 AccountChooserDialogView::GetWindowTitle() const {
   return controller_->GetAccoutChooserTitle();
 }
 
@@ -117,16 +121,18 @@ void AccountChooserDialogView::InitWindow() {
                 &AccountChooserDialogView::CredentialsItemPressed,
                 base::Unretained(this), base::Unretained(form.get())),
             titles.first, titles.second, form.get(),
-            GetURLLoaderForMainFrame(web_contents_).get(),
-            web_contents_->GetPrimaryMainFrame()->GetLastCommittedOrigin()));
+            content::BrowserContext::GetDefaultStoragePartition(
+                Profile::FromBrowserContext(web_contents_->GetBrowserContext()))
+                ->GetURLLoaderFactoryForBrowserProcess()
+                .get()));
     credential_view->SetStoreIndicatorIcon(form->in_store);
     ChromeLayoutProvider* layout_provider = ChromeLayoutProvider::Get();
     gfx::Insets insets =
         layout_provider->GetInsetsMetric(views::INSETS_DIALOG_SUBSECTION);
     const int vertical_padding = layout_provider->GetDistanceMetric(
         views::DISTANCE_RELATED_CONTROL_VERTICAL);
-    credential_view->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
-        vertical_padding, insets.left(), vertical_padding, insets.right())));
+    credential_view->SetBorder(views::CreateEmptyBorder(
+        vertical_padding, insets.left(), vertical_padding, insets.right()));
     item_height = std::max(item_height, credential_view->GetPreferredHeight());
   }
   constexpr float kMaxVisibleItems = 3.5;
@@ -142,9 +148,6 @@ void AccountChooserDialogView::CredentialsItemPressed(
         *form, password_manager::CredentialType::CREDENTIAL_TYPE_PASSWORD);
   }
 }
-
-BEGIN_METADATA(AccountChooserDialogView, views::BubbleDialogDelegateView)
-END_METADATA
 
 AccountChooserPrompt* CreateAccountChooserPromptView(
     CredentialManagerDialogController* controller,

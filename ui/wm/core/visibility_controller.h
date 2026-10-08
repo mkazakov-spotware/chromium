@@ -1,24 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_WM_CORE_VISIBILITY_CONTROLLER_H_
 #define UI_WM_CORE_VISIBILITY_CONTROLLER_H_
 
-#include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/aura/client/visibility_client.h"
+#include "ui/wm/core/wm_core_export.h"
 
 namespace wm {
 
-class COMPONENT_EXPORT(UI_WM) VisibilityController
+class WM_CORE_EXPORT VisibilityController
     : public aura::client::VisibilityClient {
  public:
   VisibilityController();
-
-  VisibilityController(const VisibilityController&) = delete;
-  VisibilityController& operator=(const VisibilityController&) = delete;
-
   ~VisibilityController() override;
 
  protected:
@@ -32,6 +29,8 @@ class COMPONENT_EXPORT(UI_WM) VisibilityController
  private:
   // Overridden from aura::client::VisibilityClient:
   void UpdateLayerVisibility(aura::Window* window, bool visible) override;
+
+  DISALLOW_COPY_AND_ASSIGN(VisibilityController);
 };
 
 // Suspends the animations for visibility changes during the lifetime of an
@@ -47,25 +46,22 @@ class COMPONENT_EXPORT(UI_WM) VisibilityController
 //   // previous state.
 // }
 //
-class COMPONENT_EXPORT(UI_WM) SuspendChildWindowVisibilityAnimations {
+class WM_CORE_EXPORT SuspendChildWindowVisibilityAnimations {
  public:
   // Suspend visibility animations of child windows.
   explicit SuspendChildWindowVisibilityAnimations(aura::Window* window);
-
-  SuspendChildWindowVisibilityAnimations(
-      const SuspendChildWindowVisibilityAnimations&) = delete;
-  SuspendChildWindowVisibilityAnimations& operator=(
-      const SuspendChildWindowVisibilityAnimations&) = delete;
 
   // Restore visibility animations to their original state.
   ~SuspendChildWindowVisibilityAnimations();
 
  private:
   // The window to manage.
-  raw_ptr<aura::Window> window_;
+  aura::Window* window_;
 
   // Whether the visibility animations on child windows were originally enabled.
   const bool original_enabled_;
+
+  DISALLOW_COPY_AND_ASSIGN(SuspendChildWindowVisibilityAnimations);
 };
 
 // Enable visibility change animation for specific |window|. Use this if
@@ -74,14 +70,13 @@ class COMPONENT_EXPORT(UI_WM) SuspendChildWindowVisibilityAnimations {
 // whose animation is already enabled either by this function, or
 // via SetChildWindowVisibilityChangesAnimatedbelow below is allowed and
 // the animation stays enabled.
-COMPONENT_EXPORT(UI_WM)
-void SetWindowVisibilityChangesAnimated(aura::Window* window);
+void WM_CORE_EXPORT SetWindowVisibilityChangesAnimated(aura::Window* window);
 
 // Enable visibility change animation for all children of the |window|.
 // Typically applied to a container whose child windows should be animated
 // when their visibility changes.
-COMPONENT_EXPORT(UI_WM)
-void SetChildWindowVisibilityChangesAnimated(aura::Window* window);
+void WM_CORE_EXPORT
+SetChildWindowVisibilityChangesAnimated(aura::Window* window);
 
 }  // namespace wm
 

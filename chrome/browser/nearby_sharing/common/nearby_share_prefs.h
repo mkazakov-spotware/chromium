@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,13 +17,10 @@ extern const char kNearbySharingDataUsageName[];
 extern const char kNearbySharingDeviceIdPrefName[];
 extern const char kNearbySharingDeviceNamePrefName[];
 extern const char kNearbySharingEnabledPrefName[];
-extern const char kNearbySharingFastInitiationNotificationStatePrefName[];
 extern const char kNearbySharingOnboardingCompletePrefName[];
 extern const char kNearbySharingFullNamePrefName[];
 extern const char kNearbySharingIconUrlPrefName[];
-extern const char kNearbySharingIconTokenPrefName[];
-extern const char
-    kNearbySharingNearbyDeviceTryingToShareDismissedTimePrefName[];
+extern const char kNearbySharingOnboardingDismissedTimePrefName[];
 extern const char kNearbySharingPrivateCertificateListPrefName[];
 extern const char kNearbySharingPublicCertificateExpirationDictPrefName[];
 extern const char kNearbySharingSchedulerContactDownloadAndUploadPrefName[];
@@ -35,7 +32,6 @@ extern const char kNearbySharingSchedulerPublicCertificateExpirationPrefName[];
 extern const char kNearbySharingSchedulerUploadDeviceNamePrefName[];
 extern const char
     kNearbySharingSchedulerUploadLocalDeviceCertificatesPrefName[];
-extern const char kNearbySharingNextVisibilityReminderTimePrefName[];
 
 }  // namespace prefs
 

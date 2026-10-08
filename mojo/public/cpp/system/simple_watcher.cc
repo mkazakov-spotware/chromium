@@ -1,15 +1,16 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "mojo/public/cpp/system/simple_watcher.h"
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
 #include "base/task/common/task_annotator.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/heap_profiler.h"
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/typed_macros.h"
@@ -52,9 +53,6 @@ class SimpleWatcher::Context : public base::RefCountedThreadSafe<Context> {
 
     return context;
   }
-
-  Context(const Context&) = delete;
-  Context& operator=(const Context&) = delete;
 
   static void CallNotify(const MojoTrapEvent* event) {
     auto* context = reinterpret_cast<Context*>(event->trigger_context);
@@ -109,6 +107,8 @@ class SimpleWatcher::Context : public base::RefCountedThreadSafe<Context> {
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
   const int watch_id_;
   const char* handler_tag_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(Context);
 };
 
 SimpleWatcher::SimpleWatcher(const base::Location& from_here,
@@ -117,9 +117,9 @@ SimpleWatcher::SimpleWatcher(const base::Location& from_here,
                              const char* handler_tag)
     : arming_policy_(arming_policy),
       task_runner_(std::move(runner)),
-      is_default_task_runner_(
-          base::SingleThreadTaskRunner::HasCurrentDefault() &&
-          task_runner_ == base::SingleThreadTaskRunner::GetCurrentDefault()),
+      is_default_task_runner_(base::ThreadTaskRunnerHandle::IsSet() &&
+                              task_runner_ ==
+                                  base::ThreadTaskRunnerHandle::Get()),
       handler_tag_(handler_tag ? handler_tag : from_here.file_name()) {
   MojoResult rv = CreateTrap(&Context::CallNotify, &trap_handle_);
   DCHECK_EQ(MOJO_RESULT_OK, rv);

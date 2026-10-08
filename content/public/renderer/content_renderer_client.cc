@@ -1,13 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/renderer/content_renderer_client.h"
 
-#include "base/command_line.h"
 #include "build/build_config.h"
-#include "build/chromecast_buildflags.h"
-#include "content/public/common/content_switches.h"
 #include "media/base/demuxer.h"
 #include "media/base/renderer_factory.h"
 #include "third_party/blink/public/common/security/protocol_handler_security_level.h"
@@ -58,10 +55,8 @@ void ContentRendererClient::PrepareErrorPageForHttpStatusError(
     const blink::WebURLError& error,
     const std::string& http_method,
     int http_status,
-    mojom::AlternativeErrorPageOverrideInfoPtr alternative_error_page_info,
     std::string* error_html) {
-  PrepareErrorPage(render_frame, error, http_method,
-                   std::move(alternative_error_page_info), error_html);
+  PrepareErrorPage(render_frame, error, http_method, error_html);
 }
 
 bool ContentRendererClient::DeferMediaLoad(RenderFrame* render_frame,
@@ -74,11 +69,15 @@ bool ContentRendererClient::DeferMediaLoad(RenderFrame* render_frame,
 std::unique_ptr<media::Demuxer> ContentRendererClient::OverrideDemuxerForUrl(
     RenderFrame* render_frame,
     const GURL& url,
-    scoped_refptr<base::SequencedTaskRunner> task_runner) {
+    scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
   return nullptr;
 }
 
-std::unique_ptr<blink::WebSocketHandshakeThrottleProvider>
+blink::WebThemeEngine* ContentRendererClient::OverrideThemeEngine() {
+  return nullptr;
+}
+
+std::unique_ptr<WebSocketHandshakeThrottleProvider>
 ContentRendererClient::CreateWebSocketHandshakeThrottleProvider() {
   return nullptr;
 }
@@ -102,9 +101,11 @@ ContentRendererClient::GetProtocolHandlerSecurityLevel() {
   return blink::ProtocolHandlerSecurityLevel::kStrict;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 bool ContentRendererClient::HandleNavigation(
     RenderFrame* render_frame,
+    bool is_content_initiated,
+    bool render_view_was_created_by_renderer,
     blink::WebFrame* frame,
     const blink::WebURLRequest& request,
     blink::WebNavigationType type,
@@ -120,9 +121,12 @@ void ContentRendererClient::WillSendRequest(
     const blink::WebURL& url,
     const net::SiteForCookies& site_for_cookies,
     const url::Origin* initiator_origin,
-    GURL* new_url) {}
+    GURL* new_url,
+    bool* force_ignore_site_for_cookies) {}
 
-bool ContentRendererClient::IsPrefetchOnly(RenderFrame* render_frame) {
+bool ContentRendererClient::IsPrefetchOnly(
+    RenderFrame* render_frame,
+    const blink::WebURLRequest& request) {
   return false;
 }
 
@@ -147,18 +151,14 @@ bool ContentRendererClient::IsExternalPepperPlugin(
 
 bool ContentRendererClient::IsOriginIsolatedPepperPlugin(
     const base::FilePath& plugin_path) {
-  // Hosting plugins in-process is inherently incompatible with attempting to
-  // process-isolate plugins from different origins.
-  auto* cmdline = base::CommandLine::ForCurrentProcess();
-  if (cmdline->HasSwitch(switches::kPpapiInProcess))
-    return false;
-
-  return true;
+  return false;
 }
 
-void ContentRendererClient::GetSupportedKeySystems(
-    media::GetSupportedKeySystemsCB cb) {
-  std::move(cb).Run({});
+void ContentRendererClient::AddSupportedKeySystems(
+    std::vector<std::unique_ptr<media::KeySystemProperties>>* key_systems) {}
+
+bool ContentRendererClient::IsKeySystemsUpdateNeeded() {
+  return false;
 }
 
 bool ContentRendererClient::IsSupportedAudioType(const media::AudioType& type) {
@@ -173,19 +173,11 @@ bool ContentRendererClient::IsSupportedVideoType(const media::VideoType& type) {
 
 bool ContentRendererClient::IsSupportedBitstreamAudioCodec(
     media::AudioCodec codec) {
-  switch (codec) {
-#if BUILDFLAG(ENABLE_PLATFORM_DTS_AUDIO)
-    case media::AudioCodec::kDTS:
-    case media::AudioCodec::kDTSXP2:
-      return true;
-#endif  // BUILDFLAG(ENABLE_PLATFORM_DTS_AUDIO)
-    default:
-      return false;
-  }
+  return false;
 }
 
 bool ContentRendererClient::ShouldReportDetailedMessageForSource(
-    const std::u16string& source) {
+    const base::string16& source) {
   return false;
 }
 
@@ -195,7 +187,7 @@ ContentRendererClient::CreateWorkerContentSettingsClient(
   return nullptr;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 std::unique_ptr<media::SpeechRecognitionClient>
 ContentRendererClient::CreateSpeechRecognitionClient(
     RenderFrame* render_frame,
@@ -214,8 +206,18 @@ bool ContentRendererClient::AllowScriptExtensionForServiceWorker(
   return false;
 }
 
+bool ContentRendererClient::IsExcludedHeaderForServiceWorkerFetchEvent(
+    const std::string& header_name) {
+  return false;
+}
+
 bool ContentRendererClient::ShouldEnforceWebRTCRoutingPreferences() {
   return true;
+}
+
+base::Optional<std::string>
+ContentRendererClient::WebRTCPlatformSpecificAudioProcessingConfiguration() {
+  return base::Optional<std::string>();
 }
 
 GURL ContentRendererClient::OverrideFlashEmbedWithHTML(const GURL& url) {
@@ -226,9 +228,9 @@ bool ContentRendererClient::IsIdleMediaSuspendEnabled() {
   return true;
 }
 
-std::unique_ptr<blink::URLLoaderThrottleProvider>
+std::unique_ptr<URLLoaderThrottleProvider>
 ContentRendererClient::CreateURLLoaderThrottleProvider(
-    blink::URLLoaderThrottleProviderType provider_type) {
+    URLLoaderThrottleProviderType provider_type) {
   return nullptr;
 }
 
@@ -238,38 +240,25 @@ blink::WebFrame* ContentRendererClient::FindFrame(
   return nullptr;
 }
 
-bool ContentRendererClient::IsSafeRedirectTarget(const GURL& from_url,
-                                                 const GURL& to_url) {
+bool ContentRendererClient::IsSafeRedirectTarget(const GURL& url) {
   return true;
 }
 
 void ContentRendererClient::DidSetUserAgent(const std::string& user_agent) {}
 
-absl::optional<::media::AudioRendererAlgorithmParameters>
+bool ContentRendererClient::RequiresHtmlImports(const GURL& url) {
+  return false;
+}
+
+base::Optional<::media::AudioRendererAlgorithmParameters>
 ContentRendererClient::GetAudioRendererAlgorithmParameters(
     media::AudioParameters audio_parameters) {
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-void ContentRendererClient::AppendContentSecurityPolicy(
-    const blink::WebURL& url,
-    blink::WebVector<blink::WebContentSecurityPolicyHeader>* csp) {}
-
-std::unique_ptr<media::RendererFactory>
-ContentRendererClient::GetBaseRendererFactory(
-    content::RenderFrame* render_frame,
-    media::MediaLog* media_log,
-    media::DecoderFactory* decoder_factory,
-    base::RepeatingCallback<media::GpuVideoAcceleratorFactories*()>
-        get_gpu_factories_cb) {
-  return nullptr;
+void ContentRendererClient::MaybeProxyURLLoaderFactory(
+    RenderFrame* render_frame,
+    mojo::PendingReceiver<network::mojom::URLLoaderFactory>* factory_receiver) {
 }
-
-#if BUILDFLAG(ENABLE_CAST_RECEIVER)
-std::unique_ptr<cast_streaming::ResourceProvider>
-ContentRendererClient::CreateCastStreamingResourceProvider() {
-  return nullptr;
-}
-#endif
 
 }  // namespace content

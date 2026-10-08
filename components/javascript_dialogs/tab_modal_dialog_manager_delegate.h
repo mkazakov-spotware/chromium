@@ -1,14 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_JAVASCRIPT_DIALOGS_TAB_MODAL_DIALOG_MANAGER_DELEGATE_H_
 #define COMPONENTS_JAVASCRIPT_DIALOGS_TAB_MODAL_DIALOG_MANAGER_DELEGATE_H_
 
-#include <string>
-
 #include "base/callback_forward.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "content/public/browser/javascript_dialog_manager.h"
 
 namespace javascript_dialogs {
@@ -24,10 +23,10 @@ class TabModalDialogManagerDelegate {
   // Factory function for creating a tab modal view.
   virtual base::WeakPtr<TabModalDialogView> CreateNewDialog(
       content::WebContents* alerting_web_contents,
-      const std::u16string& title,
+      const base::string16& title,
       content::JavaScriptDialogType dialog_type,
-      const std::u16string& message_text,
-      const std::u16string& default_prompt_text,
+      const base::string16& message_text,
+      const base::string16& default_prompt_text,
       content::JavaScriptDialogManager::DialogClosedCallback dialog_callback,
       base::OnceClosure dialog_closed_callback) = 0;
 

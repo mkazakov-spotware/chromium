@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <ostream>
 
 #include "base/notreached.h"
+#include "ppapi/shared_impl/ppapi_constants.h"
 
 namespace ppapi {
 
@@ -27,6 +28,8 @@ std::string IsolatedFileSystemTypeToRootName(
   switch (type) {
     case PP_ISOLATEDFILESYSTEMTYPE_PRIVATE_CRX:
       return "crxfs";
+    case PP_ISOLATEDFILESYSTEMTYPE_PRIVATE_PLUGINPRIVATE:
+      return kPluginPrivateRootName;
     default:
       NOTREACHED() << type;
       return std::string();

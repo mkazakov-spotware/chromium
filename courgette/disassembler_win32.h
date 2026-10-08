@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "courgette/disassembler.h"
 #include "courgette/image_utils.h"
 #include "courgette/instruction_utils.h"
@@ -25,9 +25,6 @@ class AssemblyProgram;
 
 class DisassemblerWin32 : public Disassembler {
  public:
-  DisassemblerWin32(const DisassemblerWin32&) = delete;
-  DisassemblerWin32& operator=(const DisassemblerWin32&) = delete;
-
   virtual ~DisassemblerWin32() = default;
 
   // Disassembler interfaces.
@@ -75,19 +72,20 @@ class DisassemblerWin32 : public Disassembler {
 
   DisassemblerWin32(const uint8_t* start, size_t length);
 
-  [[nodiscard]] CheckBool ParseFile(AssemblyProgram* target,
-                                    InstructionReceptor* receptor) const;
+  CheckBool ParseFile(AssemblyProgram* target,
+                      InstructionReceptor* receptor) const WARN_UNUSED_RESULT;
   virtual void ParseRel32RelocsFromSection(const Section* section) = 0;
 
-  [[nodiscard]] CheckBool ParseNonSectionFileRegion(
-      FileOffset start_file_offset,
-      FileOffset end_file_offset,
-      InstructionReceptor* receptor) const;
-  [[nodiscard]] CheckBool ParseFileRegion(const Section* section,
-                                          FileOffset start_file_offset,
-                                          FileOffset end_file_offset,
-                                          AssemblyProgram* program,
-                                          InstructionReceptor* receptor) const;
+  CheckBool ParseNonSectionFileRegion(FileOffset start_file_offset,
+                                      FileOffset end_file_offset,
+                                      InstructionReceptor* receptor) const
+      WARN_UNUSED_RESULT;
+  CheckBool ParseFileRegion(const Section* section,
+                            FileOffset start_file_offset,
+                            FileOffset end_file_offset,
+                            AssemblyProgram* program,
+                            InstructionReceptor* receptor) const
+      WARN_UNUSED_RESULT;
 
   // Returns address width in byte count.
   virtual int AbsVAWidth() const = 0;
@@ -127,7 +125,7 @@ class DisassemblerWin32 : public Disassembler {
 
   uint16_t machine_type_ = 0;
   uint16_t number_of_sections_ = 0;
-  raw_ptr<const Section> sections_ = nullptr;
+  const Section* sections_ = nullptr;
   bool has_text_section_ = false;
 
   uint32_t size_of_code_ = 0;
@@ -155,6 +153,9 @@ class DisassemblerWin32 : public Disassembler {
   std::map<RVA, int> abs32_target_rvas_;
   std::map<RVA, int> rel32_target_rvas_;
 #endif
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerWin32);
 };
 
 }  // namespace courgette

@@ -40,7 +40,7 @@ class KeyboardEvent;
 class PasswordInputType final : public BaseTextInputType {
  public:
   explicit PasswordInputType(HTMLInputElement& element)
-      : BaseTextInputType(Type::kPassword, element) {}
+      : BaseTextInputType(element) {}
 
  private:
   void CountUsage() override;
@@ -69,13 +69,6 @@ class PasswordInputType final : public BaseTextInputType {
 
   bool should_draw_caps_lock_indicator_ = false;
   bool should_show_reveal_button_ = false;
-};
-
-template <>
-struct DowncastTraits<PasswordInputType> {
-  static bool AllowFrom(const InputType& type) {
-    return type.IsPasswordInputType();
-  }
 };
 
 }  // namespace blink

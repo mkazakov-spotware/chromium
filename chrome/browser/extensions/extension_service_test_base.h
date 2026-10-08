@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,11 @@
 #include <memory>
 #include <string>
 
+#include "base/at_exit.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
-#include "base/test/scoped_feature_list.h"
+#include "base/macros.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/core/common/policy_service.h"
@@ -26,14 +25,10 @@
 #include "extensions/common/extension.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/users/scoped_test_user_manager.h"
-#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/login/users/scoped_test_user_manager.h"
+#include "chrome/browser/chromeos/settings/scoped_cros_settings_test_helper.h"
 #endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_test_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 class Profile;
 class TestingProfile;
@@ -68,20 +63,15 @@ class ExtensionServiceTestBase : public testing::Test {
     bool extensions_enabled = true;
     bool is_first_run = true;
     bool profile_is_supervised = false;
-    bool profile_is_guest = false;
     bool enable_bookmark_model = false;
-    bool enable_install_limiter = false;
 
-    raw_ptr<policy::PolicyService> policy_service = nullptr;
+    policy::PolicyService* policy_service = nullptr;
 
     // Though you could use this constructor, you probably want to use
     // CreateDefaultInitParams(), and then make a change or two.
     ExtensionServiceInitParams();
     ExtensionServiceInitParams(const ExtensionServiceInitParams& other);
   };
-
-  ExtensionServiceTestBase(const ExtensionServiceTestBase&) = delete;
-  ExtensionServiceTestBase& operator=(const ExtensionServiceTestBase&) = delete;
 
   // Public because parameterized test cases need it to be, or else the compiler
   // barfs.
@@ -113,9 +103,7 @@ class ExtensionServiceTestBase : public testing::Test {
   // |source_install_dir|.
   void InitializeInstalledExtensionService(
       const base::FilePath& prefs_file,
-      const base::FilePath& source_install_dir,
-      const ExtensionServiceInitParams& additional_params =
-          ExtensionServiceInitParams{});
+      const base::FilePath& source_install_dir);
 
   // Initialize an ExtensionService with a few already-installed extensions.
   void InitializeGoodInstalledExtensionService();
@@ -161,19 +149,15 @@ class ExtensionServiceTestBase : public testing::Test {
   policy::MockConfigurationPolicyProvider* policy_provider() {
     return &policy_provider_;
   }
-  policy::PolicyService* policy_service() { return policy_service_.get(); }
-
-  // If a test uses a feature list, it should be destroyed after
-  // |task_environment_|, to avoid tsan data races between the ScopedFeatureList
-  // destructor, and any tasks running on different threads that check if a
-  // feature is enabled. ~BrowserTaskEnvironment will make sure those tasks
-  // finish before |feature_list_| is destroyed.
-  base::test::ScopedFeatureList feature_list_;
 
  private:
   // Must be declared before anything that may make use of the
   // directory so as to ensure files are closed before cleanup.
   base::ScopedTempDir temp_dir_;
+
+  // Destroying at_exit_manager_ will delete all LazyInstances, so it must come
+  // after task_environment_ in the destruction order.
+  base::ShadowingAtExitManager at_exit_manager_;
 
   // The MessageLoop is used by RenderViewHostTestEnabler, so this must be
   // created before it.
@@ -184,7 +168,7 @@ class ExtensionServiceTestBase : public testing::Test {
 
   // Provides policies for the PolicyService below, so this must be created
   // before it.
-  testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
+  policy::MockConfigurationPolicyProvider policy_provider_;
 
   // PolicyService for the testing profile, so unit tests can use custom
   // policies.
@@ -200,7 +184,7 @@ class ExtensionServiceTestBase : public testing::Test {
 
   // The ExtensionService, whose lifetime is managed by |profile|'s
   // ExtensionSystem.
-  raw_ptr<ExtensionService> service_;
+  ExtensionService* service_;
   ScopedTestingLocalState testing_local_state_;
 
  private:
@@ -215,20 +199,18 @@ class ExtensionServiceTestBase : public testing::Test {
   content::InProcessUtilityThreadHelper in_process_utility_thread_helper_;
 
   // The associated ExtensionRegistry, for convenience.
-  raw_ptr<extensions::ExtensionRegistry> registry_;
+  extensions::ExtensionRegistry* registry_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
-  ash::ScopedTestUserManager test_user_manager_;
+#if defined OS_CHROMEOS
+  chromeos::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
+  chromeos::ScopedTestUserManager test_user_manager_;
 #endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  chromeos::ScopedLacrosServiceTestHelper lacros_service_test_helper_;
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
   // An override that ignores CRX3 publisher signatures.
   SandboxedUnpacker::ScopedVerifierFormatOverrideForTest
       verifier_format_override_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionServiceTestBase);
 };
 
 }  // namespace extensions

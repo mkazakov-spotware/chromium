@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ namespace {
 
 class OverlayCandidatesScenic : public OverlayCandidatesOzone {
  public:
-  OverlayCandidatesScenic() = default;
+  OverlayCandidatesScenic(gfx::AcceleratedWidget widget) : widget_(widget) {}
 
   void CheckOverlaySupport(OverlaySurfaceCandidateList* candidates) override {
     for (auto& candidate : *candidates) {
@@ -21,23 +21,24 @@ class OverlayCandidatesScenic : public OverlayCandidatesOzone {
         continue;
       SysmemNativePixmap* sysmem_native_pixmap =
           reinterpret_cast<SysmemNativePixmap*>(candidate.native_pixmap.get());
-      candidate.overlay_handled = sysmem_native_pixmap->SupportsOverlayPlane();
+      candidate.overlay_handled =
+          sysmem_native_pixmap->SupportsOverlayPlane(widget_);
     }
   }
+
+ private:
+  const gfx::AcceleratedWidget widget_;
 };
 
 }  // namespace
 
-OverlayManagerScenic::OverlayManagerScenic() {
-  // Fuchsia overlays rely on ShouldUseRealBuffersForPageFlipTest.
-  allow_sync_and_real_buffer_page_flip_testing_ = true;
-}
+OverlayManagerScenic::OverlayManagerScenic() {}
 
 OverlayManagerScenic::~OverlayManagerScenic() = default;
 
 std::unique_ptr<OverlayCandidatesOzone>
 OverlayManagerScenic::CreateOverlayCandidates(gfx::AcceleratedWidget widget) {
-  return std::make_unique<OverlayCandidatesScenic>();
+  return std::make_unique<OverlayCandidatesScenic>(widget);
 }
 
 }  // namespace ui

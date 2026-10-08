@@ -22,7 +22,6 @@
 
 #include "third_party/blink/renderer/core/html/html_li_element.h"
 
-#include "third_party/blink/renderer/core/css/css_custom_ident_value.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css_value_keywords.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -42,24 +41,26 @@ bool HTMLLIElement::IsPresentationAttribute(const QualifiedName& name) const {
   return HTMLElement::IsPresentationAttribute(name);
 }
 
-AtomicString ListTypeAttributeToStyleName(const AtomicString& value) {
+CSSValueID ListTypeToCSSValueID(const AtomicString& value) {
   if (value == "a")
-    return "lower-alpha";
+    return CSSValueID::kLowerAlpha;
   if (value == "A")
-    return "upper-alpha";
+    return CSSValueID::kUpperAlpha;
   if (value == "i")
-    return "lower-roman";
+    return CSSValueID::kLowerRoman;
   if (value == "I")
-    return "upper-roman";
+    return CSSValueID::kUpperRoman;
   if (value == "1")
-    return "decimal";
+    return CSSValueID::kDecimal;
   if (EqualIgnoringASCIICase(value, "disc"))
-    return "disc";
+    return CSSValueID::kDisc;
   if (EqualIgnoringASCIICase(value, "circle"))
-    return "circle";
+    return CSSValueID::kCircle;
   if (EqualIgnoringASCIICase(value, "square"))
-    return "square";
-  return g_null_atom;
+    return CSSValueID::kSquare;
+  if (EqualIgnoringASCIICase(value, "none"))
+    return CSSValueID::kNone;
+  return CSSValueID::kInvalid;
 }
 
 void HTMLLIElement::CollectStyleForPresentationAttribute(
@@ -67,16 +68,10 @@ void HTMLLIElement::CollectStyleForPresentationAttribute(
     const AtomicString& value,
     MutableCSSPropertyValueSet* style) {
   if (name == html_names::kTypeAttr) {
-    if (EqualIgnoringASCIICase(value, "none")) {
+    CSSValueID type_value = ListTypeToCSSValueID(value);
+    if (IsValidCSSValueID(type_value)) {
       AddPropertyToPresentationAttributeStyle(
-          style, CSSPropertyID::kListStyleType, CSSValueID::kNone);
-    } else {
-      AtomicString list_style_type_name = ListTypeAttributeToStyleName(value);
-      if (!list_style_type_name.IsNull()) {
-        AddPropertyToPresentationAttributeStyle(
-            style, CSSPropertyID::kListStyleType,
-            *MakeGarbageCollected<CSSCustomIdentValue>(list_style_type_name));
-      }
+          style, CSSPropertyID::kListStyleType, type_value);
     }
   } else {
     HTMLElement::CollectStyleForPresentationAttribute(name, value, style);
@@ -96,6 +91,7 @@ void HTMLLIElement::AttachLayoutTree(AttachContext& context) {
   HTMLElement::AttachLayoutTree(context);
 
   if (ListItemOrdinal* ordinal = ListItemOrdinal::Get(*this)) {
+    DCHECK(!GetDocument().ChildNeedsDistributionRecalc());
     ParseValue(FastGetAttribute(html_names::kValueAttr), ordinal);
   }
 }

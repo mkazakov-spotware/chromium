@@ -30,8 +30,7 @@ A sample invocation to use during development would be:
 The `--disable-packaging` flag skips the creation of DMG and PKG files, which
 speeds up the signing process when one is only interested in a signed .app
 bundle. The `--development` flag skips over code signing requirements and checks
-that do not work without the official Google signing identity, and it injects
-the `com.apple.security.get-task-allow` that lets the app be debugged.
+that do not work without the official Google signing identity.
 
 ## The Installer Identity
 
@@ -69,17 +68,8 @@ tied to the official Google signing identity.
 In addition, the Chromium [code sign
 config](https://cs.chromium.org/chromium/src/chrome/installer/mac/signing/chromium_config.py)
 only produces one Distribution to sign just the .app. An
-`is_chrome_branded=true` build produces several Distributions for the official
+`is_chrome_build=true` build produces several Distributions for the official
 release system.
-
-## Google Chrome
-
-If you attempt to sign an `is_chrome_branded=true` build locally, the app will
-fail to launch because certain entitlements are tied to the official Google code
-signing identity/certificate. To test an `is_chrome_branded=true` build locally,
-build with `include_branded_entitlements=false` or replace the contents of
-[`app-entitlements-chrome.plist`](../../../app/app-entitlements-chrome.plist)
-with an empty plist.
 
 ### System Detached Signatures
 

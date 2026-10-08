@@ -1,5 +1,5 @@
 'use strict';
-// Copyright 2019 The Chromium Authors
+// Copyright (C) 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,9 +14,9 @@ function initializeMonthPicker(config) {
   if (global.params.isBorderTransparent) {
     main.style.borderColor = 'transparent';
   }
-  main.style.height = (MonthPicker.HEIGHT - 2) + 'px';
-  main.style.width = (MonthPicker.WIDTH - 2) + 'px';
-  resizeWindow(MonthPicker.WIDTH, MonthPicker.HEIGHT);
+  main.style.height = (MonthPicker.Height - 2) + 'px';
+  main.style.width = (MonthPicker.Width - 2) + 'px';
+  resizeWindow(MonthPicker.Width, MonthPicker.Height);
 }
 
 /**
@@ -35,10 +35,6 @@ class MonthPicker extends HTMLElement {
         new YearListView(this.minimumMonth_, this.maximumMonth_, config);
     this.append(this.yearListView_.element);
     this.initializeYearListView_();
-
-    this.clearButton_ = new ClearButton();
-    this.append(this.clearButton_.element);
-    this.initializeClearButton_();
 
     this.todayButton_ = new CalendarNavigationButton();
     this.append(this.todayButton_.element);
@@ -60,18 +56,18 @@ class MonthPicker extends HTMLElement {
   };
 
   initializeYearListView_ = () => {
-    this.yearListView_.setWidth(MonthPicker.YEAR_WIDTH);
-    this.yearListView_.setHeight(MonthPicker.YEAR_HEIGHT);
+    this.yearListView_.setWidth(MonthPicker.YearWidth);
+    this.yearListView_.setHeight(MonthPicker.YearHeight);
     if (global.params.isLocaleRTL) {
-      this.yearListView_.element.style.right = MonthPicker.YEAR_PADDING + 'px';
+      this.yearListView_.element.style.right = MonthPicker.YearPadding + 'px';
       this.yearListView_.scrubbyScrollBar.element.style.right =
-          MonthPicker.YEAR_WIDTH + 'px';
+          MonthPicker.YearWidth + 'px';
     } else {
-      this.yearListView_.element.style.left = MonthPicker.YEAR_PADDING + 'px';
+      this.yearListView_.element.style.left = MonthPicker.YearPadding + 'px';
       this.yearListView_.scrubbyScrollBar.element.style.left =
-          MonthPicker.YEAR_WIDTH + 'px';
+          MonthPicker.YearWidth + 'px';
     }
-    this.yearListView_.element.style.top = MonthPicker.YEAR_PADDING + 'px';
+    this.yearListView_.element.style.top = MonthPicker.YearPadding + 'px';
 
     let yearForInitialScroll = this.selectedMonth ?
         this.selectedMonth.year - 1 :
@@ -89,24 +85,11 @@ class MonthPicker extends HTMLElement {
     window.pagePopupController.setValueAndClosePopup(0, selectedValue);
   };
 
-  initializeClearButton_ = () => {
-    this.clearButton_.element.textContent = global.params.clearLabel;
-    this.clearButton_.element.setAttribute(
-        'aria-label', global.params.clearLabel);
-    this.clearButton_.on(
-        ClearButton.EventTypeButtonClick, this.onClearButtonClick_);
-  };
-
-  onClearButtonClick_ = () => {
-    window.pagePopupController.setValueAndClosePopup(0, '');
-  };
-
   initializeTodayButton_ = () => {
     this.todayButton_.element.textContent = global.params.todayLabel;
     this.todayButton_.element.setAttribute(
         'aria-label', global.params.todayLabel);
-    this.todayButton_.element.classList.add(
-        MonthPicker.CLASS_NAME_TODAY_BUTTON);
+    this.todayButton_.element.classList.add(MonthPicker.ClassNameTodayButton);
     const monthContainingToday = Month.createFromToday();
     this.todayButton_.setDisabled(
         !this.yearListView_.isValid(monthContainingToday));
@@ -123,11 +106,9 @@ class MonthPicker extends HTMLElement {
   onKeyDown_ = (event) => {
     switch (event.key) {
       case 'Enter':
-        // Don't do anything here if user has hit Enter on 'Clear' or
-        // 'This month' buttons. We'll handle that respectively in
-        // this.onClearButtonClick_ and this.onTodayButtonClick_.
-        if (!event.target.matches(
-                '.calendar-navigation-button, .clear-button')) {
+        // Don't do anything here if user has hit Enter on 'This month'
+        // button.  We'll handle that in this.onTodayButtonClick_.
+        if (!event.target.matches('.calendar-navigation-button')) {
           if (this.selectedMonth) {
             window.pagePopupController.setValueAndClosePopup(
                 0, this.selectedMonth.toString());
@@ -184,10 +165,10 @@ class MonthPicker extends HTMLElement {
     return this.yearListView_._hadValidValueWhenOpened;
   };
 }
-MonthPicker.WIDTH = 232;
-MonthPicker.YEAR_WIDTH = 194;
-MonthPicker.YEAR_HEIGHT = 128;
-MonthPicker.YEAR_PADDING = 12;
-MonthPicker.HEIGHT = 182;
-MonthPicker.CLASS_NAME_TODAY_BUTTON = 'today-button';
+MonthPicker.Width = 232;
+MonthPicker.YearWidth = 194;
+MonthPicker.YearHeight = 128;
+MonthPicker.YearPadding = 12;
+MonthPicker.Height = 182;
+MonthPicker.ClassNameTodayButton = 'today-button-refresh';
 window.customElements.define('month-picker', MonthPicker);

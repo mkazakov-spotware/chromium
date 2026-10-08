@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/css/css_font_selector.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
@@ -19,7 +18,7 @@ namespace blink {
 class FontBuilderTest {
  public:
   FontBuilderTest()
-      : dummy_(std::make_unique<DummyPageHolder>(gfx::Size(800, 600))) {
+      : dummy_(std::make_unique<DummyPageHolder>(IntSize(800, 600))) {
     GetSettings().SetDefaultFontSize(16.0f);
   }
 
@@ -46,16 +45,13 @@ class FontBuilderAdditiveTest : public FontBuilderTest,
                                 public testing::TestWithParam<FunctionPair> {};
 
 TEST_F(FontBuilderInitTest, InitialFontSizeNotScaled) {
-  scoped_refptr<const ComputedStyle> parent_style =
-      GetDocument().GetStyleResolver().CreateComputedStyle();
-  ComputedStyleBuilder style_builder =
-      GetDocument().GetStyleResolver().CreateComputedStyleBuilder();
+  scoped_refptr<ComputedStyle> initial = ComputedStyle::Create();
 
-  FontBuilder font_builder(&GetDocument());
-  font_builder.SetSize(FontBuilder::InitialSize());
-  font_builder.CreateFont(style_builder, parent_style.get());
+  FontBuilder builder(&GetDocument());
+  builder.SetInitial(1.0f);  // FIXME: Remove unused param.
+  builder.CreateFont(*initial, initial.get());
 
-  EXPECT_EQ(16.0f, style_builder.GetFontDescription().ComputedSize());
+  EXPECT_EQ(16.0f, initial->GetFontDescription().ComputedSize());
 }
 
 TEST_F(FontBuilderInitTest, NotDirty) {
@@ -72,19 +68,16 @@ TEST_P(FontBuilderAdditiveTest, OnlySetValueIsModified) {
   FontDescription parent_description;
   funcs.set_base_value(parent_description);
 
-  ComputedStyleBuilder builder =
-      GetDocument().GetStyleResolver().CreateComputedStyleBuilder();
-  builder.SetFontDescription(parent_description);
-  scoped_refptr<const ComputedStyle> parent_style = builder.TakeStyle();
+  scoped_refptr<ComputedStyle> parent_style = ComputedStyle::Create();
+  parent_style->SetFontDescription(parent_description);
 
-  builder = GetDocument().GetStyleResolver().CreateComputedStyleBuilder();
-  builder.InheritFrom(*parent_style);
+  scoped_refptr<ComputedStyle> style = ComputedStyle::Create();
+  style->InheritFrom(*parent_style);
 
   FontBuilder font_builder(&GetDocument());
   funcs.set_value(font_builder);
-  font_builder.CreateFont(builder, parent_style.get());
+  font_builder.CreateFont(*style, parent_style.get());
 
-  scoped_refptr<const ComputedStyle> style = builder.TakeStyle();
   FontDescription output_description = style->GetFontDescription();
 
   // FontBuilder should have overwritten our base value set in the parent,
@@ -161,27 +154,6 @@ static void FontVariantNumericValue(FontBuilder& b) {
   b.SetVariantNumeric(variant_numeric);
 }
 
-static void FontSynthesisWeightBase(FontDescription& d) {
-  d.SetFontSynthesisWeight(FontDescription::kAutoFontSynthesisWeight);
-}
-static void FontSynthesisWeightValue(FontBuilder& b) {
-  b.SetFontSynthesisWeight(FontDescription::kNoneFontSynthesisWeight);
-}
-
-static void FontSynthesisStyleBase(FontDescription& d) {
-  d.SetFontSynthesisStyle(FontDescription::kAutoFontSynthesisStyle);
-}
-static void FontSynthesisStyleValue(FontBuilder& b) {
-  b.SetFontSynthesisStyle(FontDescription::kNoneFontSynthesisStyle);
-}
-
-static void FontSynthesisSmallCapsBase(FontDescription& d) {
-  d.SetFontSynthesisSmallCaps(FontDescription::kAutoFontSynthesisSmallCaps);
-}
-static void FontSynthesisSmallCapsValue(FontBuilder& b) {
-  b.SetFontSynthesisSmallCaps(FontDescription::kNoneFontSynthesisSmallCaps);
-}
-
 static void FontTextRenderingBase(FontDescription& d) {
   d.SetTextRendering(kGeometricPrecision);
 }
@@ -239,9 +211,6 @@ INSTANTIATE_TEST_SUITE_P(
         FunctionPair(FontVariantCapsBase, FontVariantCapsValue),
         FunctionPair(FontVariantLigaturesBase, FontVariantLigaturesValue),
         FunctionPair(FontVariantNumericBase, FontVariantNumericValue),
-        FunctionPair(FontSynthesisWeightBase, FontSynthesisWeightValue),
-        FunctionPair(FontSynthesisStyleBase, FontSynthesisStyleValue),
-        FunctionPair(FontSynthesisSmallCapsBase, FontSynthesisSmallCapsValue),
         FunctionPair(FontTextRenderingBase, FontTextRenderingValue),
         FunctionPair(FontKerningBase, FontKerningValue),
         FunctionPair(FontFontSmoothingBase, FontFontSmoothingValue),

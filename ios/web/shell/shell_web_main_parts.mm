@@ -1,14 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/web/shell/shell_web_main_parts.h"
+#include "ios/web/shell/shell_web_main_parts.h"
 
-#import "ios/web/shell/shell_browser_state.h"
-
-#if DCHECK_IS_ON()
-#import "ui/display/screen_base.h"
-#endif
+#include "ios/web/shell/shell_browser_state.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -20,13 +16,6 @@ ShellWebMainParts::ShellWebMainParts() {
 }
 
 ShellWebMainParts::~ShellWebMainParts() {
-#if DCHECK_IS_ON()
-  // The screen object is never deleted on IOS. Make sure that all display
-  // observers are removed at the end.
-  display::ScreenBase* screen =
-      static_cast<display::ScreenBase*>(display::Screen::GetScreen());
-  DCHECK(!screen->HasDisplayObservers());
-#endif
 }
 
 void ShellWebMainParts::PreMainMessageLoopRun() {

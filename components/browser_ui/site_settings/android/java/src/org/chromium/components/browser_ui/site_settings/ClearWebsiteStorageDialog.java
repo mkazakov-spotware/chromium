@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceDialogFragmentCompat;
 
 import org.chromium.base.Callback;
-import org.chromium.ui.base.ViewUtils;
 
 /**
  * The fragment used to display the clear website storage confirmation dialog.
@@ -55,10 +54,7 @@ public class ClearWebsiteStorageDialog extends PreferenceDialogFragmentCompat {
             // When the device switches to multi-window in landscape mode, the height of the
             // offlineTextView is not calculated correctly (its height gets truncated) and a layout
             // pass is needed to fix it. See https://crbug.com/1072922.
-            mDialogView.getHandler().post(() -> {
-                ViewUtils.requestLayout(
-                        mDialogView, "ClearWebsiteStorageDialog.onConfigurationChanged Runnable");
-            });
+            mDialogView.getHandler().post(mDialogView::requestLayout);
         }
     }
 

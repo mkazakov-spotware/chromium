@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,19 +10,19 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/sync/browser_synced_tab_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/sync_sessions/switches.h"
 
 BrowserSyncedWindowDelegate::BrowserSyncedWindowDelegate(Browser* browser)
     : browser_(browser) {}
 
-BrowserSyncedWindowDelegate::~BrowserSyncedWindowDelegate() = default;
+BrowserSyncedWindowDelegate::~BrowserSyncedWindowDelegate() {}
 
 bool BrowserSyncedWindowDelegate::IsTabPinned(
     const sync_sessions::SyncedTabDelegate* tab) const {
   for (int i = 0; i < browser_->tab_strip_model()->count(); i++) {
     sync_sessions::SyncedTabDelegate* current = GetTabAt(i);
-    if (tab == current) {
+    if (tab == current)
       return browser_->tab_strip_model()->IsTabPinned(i);
-    }
   }
   // The window and tab are not always updated atomically, so it's possible
   // one of the values was stale. We'll retry later, just ignore for now.
@@ -40,7 +40,7 @@ SessionID BrowserSyncedWindowDelegate::GetTabIdAt(int index) const {
 }
 
 bool BrowserSyncedWindowDelegate::HasWindow() const {
-  return browser_->window() != nullptr;
+  return browser_->window() != NULL;
 }
 
 SessionID BrowserSyncedWindowDelegate::GetSessionId() const {
@@ -73,5 +73,7 @@ bool BrowserSyncedWindowDelegate::ShouldSync() const {
   }
 
   // Do not sync windows which are about to be closed.
-  return !browser_->IsAttemptingToCloseBrowser();
+  return !browser_->IsAttemptingToCloseBrowser() ||
+         !base::FeatureList::IsEnabled(
+             switches::kSyncConsiderEmptyWindowsSyncable);
 }

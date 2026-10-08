@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/platform/blob/blob_data.h"
 #include "third_party/blink/renderer/platform/file_metadata.h"
 
 namespace blink {
@@ -46,8 +44,8 @@ TEST(FileListTest, pathsForUserVisibleFiles) {
         "filesystem:http://example.com/isolated/hash/visible-non-native-file");
     FileMetadata metadata;
     metadata.length = 0;
-    file_list->Append(File::CreateForFileSystemFile(
-        url, metadata, File::kIsUserVisible, BlobDataHandle::Create()));
+    file_list->Append(
+        File::CreateForFileSystemFile(url, metadata, File::kIsUserVisible));
   }
 
   // Not user visible file system URL file.
@@ -57,8 +55,8 @@ TEST(FileListTest, pathsForUserVisibleFiles) {
         "not-visible-non-native-file");
     FileMetadata metadata;
     metadata.length = 0;
-    file_list->Append(File::CreateForFileSystemFile(
-        url, metadata, File::kIsNotUserVisible, BlobDataHandle::Create()));
+    file_list->Append(
+        File::CreateForFileSystemFile(url, metadata, File::kIsNotUserVisible));
   }
 
   Vector<base::FilePath> paths = file_list->PathsForUserVisibleFiles();

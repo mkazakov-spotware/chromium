@@ -1,19 +1,20 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_DEVICE_BLUETOOTH_LE_LE_SCAN_MANAGER_H_
 #define CHROMECAST_DEVICE_BLUETOOTH_LE_LE_SCAN_MANAGER_H_
 
+#include <list>
 #include <map>
 #include <memory>
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "chromecast/device/bluetooth/le/le_scan_result.h"
 #include "chromecast/device/bluetooth/le/scan_filter.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -45,21 +46,18 @@ class LeScanManager {
 
   class ScanHandle {
    public:
-    ScanHandle(const ScanHandle&) = delete;
-    ScanHandle& operator=(const ScanHandle&) = delete;
-
     virtual ~ScanHandle() = default;
 
    protected:
     ScanHandle() = default;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ScanHandle);
   };
 
   static std::unique_ptr<LeScanManager> Create(
       BluetoothManagerPlatform* bluetooth_manager,
       bluetooth_v2_shlib::LeScannerImpl* le_scanner);
-
-  LeScanManager(const LeScanManager&) = delete;
-  LeScanManager& operator=(const LeScanManager&) = delete;
 
   virtual ~LeScanManager() = default;
 
@@ -82,7 +80,7 @@ class LeScanManager {
       base::OnceCallback<void(std::vector<LeScanResult>)>;
   virtual void GetScanResults(
       GetScanResultsCallback cb,
-      absl::optional<ScanFilter> scan_filter = absl::nullopt) = 0;
+      base::Optional<ScanFilter> scan_filter = base::nullopt) = 0;
 
   virtual void ClearScanResults() = 0;
 
@@ -94,6 +92,9 @@ class LeScanManager {
 
  protected:
   LeScanManager() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LeScanManager);
 };
 
 }  // namespace bluetooth

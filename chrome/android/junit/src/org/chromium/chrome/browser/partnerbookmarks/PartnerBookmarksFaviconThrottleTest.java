@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,7 @@ public class PartnerBookmarksFaviconThrottleTest {
     private static final String TEST_PREFERENCES_NAME = "partner_bookmarks_favicon_throttle_test";
 
     private PartnerBookmarksFaviconThrottle mFaviconThrottle;
+
 
     @Before
     public void setUp() {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 namespace blink {
 
 namespace {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 constexpr float kEdgeThreshold = 10.0f;
 #endif
 }  // namespace
@@ -28,7 +28,7 @@ RenderFrameMetadataObserverImpl::RenderFrameMetadataObserverImpl(
 
 RenderFrameMetadataObserverImpl::~RenderFrameMetadataObserverImpl() {}
 
-void RenderFrameMetadataObserverImpl::BindToCurrentSequence() {
+void RenderFrameMetadataObserverImpl::BindToCurrentThread() {
   DCHECK(receiver_.is_valid());
   render_frame_metadata_observer_receiver_.Bind(std::move(receiver_));
   render_frame_metadata_observer_client_.Bind(std::move(client_remote_));
@@ -60,7 +60,7 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
     send_metadata |= force_send;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   const bool send_root_scroll_offset_changed =
       report_all_root_scrolls_enabled_ && !send_metadata &&
       render_frame_metadata_observer_client_ && last_render_frame_metadata_ &&
@@ -80,12 +80,12 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
   // value to all the observers.
   if (send_metadata && render_frame_metadata_observer_client_) {
     auto metadata_copy = render_frame_metadata;
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     // On non-Android, sending |root_scroll_offset| outside of tests would
     // leave the browser process with out of date information. It is an
     // optional parameter which we clear here.
     if (!report_all_frame_submissions_for_testing_enabled_)
-      metadata_copy.root_scroll_offset = absl::nullopt;
+      metadata_copy.root_scroll_offset = base::nullopt;
 #endif
 
     last_frame_token_ = compositor_frame_metadata->frame_token;
@@ -107,7 +107,7 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
             : "null");
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   if (send_root_scroll_offset_changed) {
     render_frame_metadata_observer_client_->OnRootScrollOffsetChanged(
         *render_frame_metadata.root_scroll_offset);
@@ -123,7 +123,7 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
   }
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void RenderFrameMetadataObserverImpl::ReportAllRootScrolls(bool enabled) {
   report_all_root_scrolls_enabled_ = enabled;
 
@@ -161,7 +161,7 @@ bool RenderFrameMetadataObserverImpl::ShouldSendRenderFrameMetadata(
       rfm1.page_scale_factor != rfm2.page_scale_factor ||
       rfm1.external_page_scale_factor != rfm2.external_page_scale_factor ||
       rfm1.is_mobile_optimized != rfm2.is_mobile_optimized ||
-      rfm1.delegated_ink_metadata != rfm2.delegated_ink_metadata ||
+      rfm1.has_delegated_ink_metadata != rfm2.has_delegated_ink_metadata ||
       rfm1.device_scale_factor != rfm2.device_scale_factor ||
       rfm1.viewport_size_in_pixels != rfm2.viewport_size_in_pixels ||
       rfm1.top_controls_height != rfm2.top_controls_height ||
@@ -173,7 +173,7 @@ bool RenderFrameMetadataObserverImpl::ShouldSendRenderFrameMetadata(
     return true;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   if (rfm1.bottom_controls_height != rfm2.bottom_controls_height ||
       rfm1.bottom_controls_shown_ratio != rfm2.bottom_controls_shown_ratio ||
       rfm1.top_controls_min_height_offset !=
@@ -190,10 +190,10 @@ bool RenderFrameMetadataObserverImpl::ShouldSendRenderFrameMetadata(
     return true;
   }
 
-  gfx::PointF old_root_scroll_offset =
-      rfm1.root_scroll_offset.value_or(gfx::PointF());
-  gfx::PointF new_root_scroll_offset =
-      rfm2.root_scroll_offset.value_or(gfx::PointF());
+  gfx::Vector2dF old_root_scroll_offset =
+      rfm1.root_scroll_offset.value_or(gfx::Vector2dF());
+  gfx::Vector2dF new_root_scroll_offset =
+      rfm2.root_scroll_offset.value_or(gfx::Vector2dF());
   gfx::RectF old_viewport_rect(
       gfx::PointF(old_root_scroll_offset.x(), old_root_scroll_offset.y()),
       rfm1.scrollable_viewport_size);

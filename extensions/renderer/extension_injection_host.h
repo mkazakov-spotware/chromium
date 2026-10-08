@@ -1,10 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_RENDERER_EXTENSION_INJECTION_HOST_H_
 #define EXTENSIONS_RENDERER_EXTENSION_INJECTION_HOST_H_
 
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "extensions/common/extension.h"
 #include "extensions/renderer/injection_host.h"
 
@@ -15,10 +17,6 @@ namespace extensions {
 class ExtensionInjectionHost : public InjectionHost {
  public:
   ExtensionInjectionHost(const Extension* extension);
-
-  ExtensionInjectionHost(const ExtensionInjectionHost&) = delete;
-  ExtensionInjectionHost& operator=(const ExtensionInjectionHost&) = delete;
-
   ~ExtensionInjectionHost() override;
 
   // Create an ExtensionInjectionHost object. If the extension is gone, returns
@@ -38,6 +36,8 @@ class ExtensionInjectionHost : public InjectionHost {
       bool is_declarative) const override;
 
   const Extension* extension_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInjectionHost);
 };
 
 }  // namespace extesions

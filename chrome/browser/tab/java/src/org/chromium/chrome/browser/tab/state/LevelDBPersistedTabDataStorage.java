@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@ import androidx.annotation.MainThread;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
+import org.chromium.base.annotations.CalledByNative;
+import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 
-import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -21,62 +22,42 @@ import java.util.Locale;
 public class LevelDBPersistedTabDataStorage implements PersistedTabDataStorage {
     // In a mock environment, the native code will not be running so we should not
     // make assertions about mNativePersistedStateDB
-    // LevelDBPersistedTabDataStorage needs to have an empty namespace for backwards compatibility.
-    // LevelDBPersitsedDataStorage is a generalization of the original
-    // LevelDBPersistedTabDataStorage which introduced namespaces to avoid collisions between
-    // clients.
-    private static String sNamespace = "";
-    private LevelDBPersistedDataStorage mPersistedDataStorage;
+    private static boolean sSkipNativeAssertionsForTesting;
+    private long mNativePersistedStateDB;
     // Callback is only used for synchronization of save and delete in testing.
     // Otherwise it is a no-op.
-    // TODO(crbug.com/1146799) Apply tricks like @CheckDiscard or proguard rules to improve
+    private Runnable mOnCompleteForTesting;
+    // TODO(crbug.com/1146799) Apply tricks like @CheckDiscard or @RemovableInRelease to improve
     // performance
     private boolean mIsDestroyed;
 
     LevelDBPersistedTabDataStorage(Profile profile) {
         assert !profile.isOffTheRecord()
             : "LevelDBPersistedTabDataStorage is not supported for incognito profiles";
-        mPersistedDataStorage = new LevelDBPersistedDataStorage(profile, sNamespace);
+        LevelDBPersistedTabDataStorageJni.get().init(this, profile);
+        makeNativeAssertion();
     }
 
-    @MainThread
-    @Override
-    public void save(int tabId, String dataId, Serializer<ByteBuffer> serializer) {
-        // TODO(crbug.com/1221571) update LevelDB storage in native to use ByteBuffer instead
-        // of byte[] to avoid conversion
-        serializer.preSerialize();
-        mPersistedDataStorage.save(getKey(tabId, dataId), toByteArray(serializer.get()));
-    }
-
-    @Override
-    public void save(int tabId, String dataId, Serializer<ByteBuffer> serializer,
-            Callback<Integer> callback) {
-        assert false : "save with callback unused in LevelDBPersistedTabDataStorage";
-    }
-
-    private static byte[] toByteArray(ByteBuffer buffer) {
-        if (buffer == null) {
-            return null;
+    private void makeNativeAssertion() {
+        if (!sSkipNativeAssertionsForTesting) {
+            assert mNativePersistedStateDB != 0;
         }
-        if (buffer.hasArray() && buffer.arrayOffset() == 0) {
-            return buffer.array();
-        }
-        byte[] bytes = new byte[buffer.limit()];
-        buffer.rewind();
-        buffer.get(bytes);
-        return bytes;
-    }
-
-    @MainThread
-    public void saveForTesting(int tabId, String dataId, byte[] data, Runnable onComplete) {
-        mPersistedDataStorage.saveForTesting(getKey(tabId, dataId), data, onComplete); // IN-TEST
     }
 
     @MainThread
     @Override
-    public void restore(int tabId, String dataId, Callback<ByteBuffer> callback) {
-        mPersistedDataStorage.load(getKey(tabId, dataId),
-                (res) -> { callback.onResult(res == null ? null : ByteBuffer.wrap(res)); });
+    public void save(int tabId, String dataId, byte[] data) {
+        makeNativeAssertion();
+        LevelDBPersistedTabDataStorageJni.get().save(
+                mNativePersistedStateDB, getKey(tabId, dataId), data, mOnCompleteForTesting);
+    }
+
+    @MainThread
+    @Override
+    public void restore(int tabId, String dataId, Callback<byte[]> callback) {
+        makeNativeAssertion();
+        LevelDBPersistedTabDataStorageJni.get().load(
+                mNativePersistedStateDB, getKey(tabId, dataId), callback);
     }
 
     /**
@@ -86,60 +67,22 @@ public class LevelDBPersistedTabDataStorage implements PersistedTabDataStorage {
     @Deprecated
     @MainThread
     @Override
-    public ByteBuffer restore(int tabId, String dataId) {
+    public byte[] restore(int tabId, String dataId) {
         assert false : "Synchronous restore is not supported for LevelDBPersistedTabDataStorage";
         return null;
     }
 
     @MainThread
     @Override
-    public <U extends PersistedTabDataResult> U restore(
-            int tabId, String dataId, PersistedTabDataMapper<U> mapper) {
-        assert false : "Restore with mapper currently unused in LevelDBPersistedTabDataStorage";
-        return null;
-    }
-
-    @MainThread
-    @Override
-    public <U extends PersistedTabDataResult> void restore(
-            int tabId, String dataId, Callback<U> callback, PersistedTabDataMapper<U> mapper) {
-        assert false : "Restore with mapper currently unused in LevelDBPersistedTabDataStorage";
-    }
-
-    @MainThread
-    @Override
     public void delete(int tabId, String dataId) {
-        mPersistedDataStorage.delete(getKey(tabId, dataId));
-    }
-
-    @MainThread
-    public void deleteForTesting(int tabId, String dataId, Runnable onComplete) {
-        mPersistedDataStorage.deleteForTesting(getKey(tabId, dataId), onComplete); // IN-TEST
+        makeNativeAssertion();
+        LevelDBPersistedTabDataStorageJni.get().delete(
+                mNativePersistedStateDB, getKey(tabId, dataId), mOnCompleteForTesting);
     }
 
     @Override
     public String getUmaTag() {
         return "LevelDB";
-    }
-
-    @Override
-    public void performMaintenance(List<Integer> tabIds, String dataId) {
-        mPersistedDataStorage.performMaintenance(getKeysToKeep(tabIds, dataId), dataId);
-    }
-
-    @VisibleForTesting
-    public void performMaintenanceForTesting(
-            List<Integer> tabIds, String dataId, Runnable onComplete) {
-        mPersistedDataStorage.performMaintenanceForTesting(
-                getKeysToKeep(tabIds, dataId), dataId, onComplete); // IN-TEST
-    }
-
-    private static String[] getKeysToKeep(List<Integer> tabIds, String dataId) {
-        String[] keysToKeep = new String[tabIds.size()];
-        for (int i = 0; i < tabIds.size(); i++) {
-            keysToKeep[i] = getKey(tabIds.get(i), dataId);
-        }
-        return keysToKeep;
     }
 
     // TODO(crbug.com/1145785) Implement URL -> byte[] mapping rather
@@ -153,7 +96,11 @@ public class LevelDBPersistedTabDataStorage implements PersistedTabDataStorage {
      * Destroy native instance of persisted_tab_state
      */
     public void destroy() {
-        mPersistedDataStorage.destroy();
+        if (!sSkipNativeAssertionsForTesting) {
+            assert mNativePersistedStateDB != 0;
+        }
+        LevelDBPersistedTabDataStorageJni.get().destroy(mNativePersistedStateDB);
+        mNativePersistedStateDB = 0;
         mIsDestroyed = true;
     }
 
@@ -162,4 +109,31 @@ public class LevelDBPersistedTabDataStorage implements PersistedTabDataStorage {
         return mIsDestroyed;
     }
 
+    @CalledByNative
+    private void setNativePtr(long nativePtr) {
+        if (!sSkipNativeAssertionsForTesting) {
+            assert nativePtr != 0;
+            assert mNativePersistedStateDB == 0;
+        }
+        mNativePersistedStateDB = nativePtr;
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    protected void setOnCompleteForTesting(Runnable onComplete) {
+        mOnCompleteForTesting = onComplete;
+    }
+
+    @VisibleForTesting
+    public static void setSkipNativeAssertionsForTesting(boolean skipNativeAssertionsForTesting) {
+        sSkipNativeAssertionsForTesting = skipNativeAssertionsForTesting;
+    }
+
+    @NativeMethods
+    public interface Natives {
+        void init(LevelDBPersistedTabDataStorage caller, BrowserContextHandle handle);
+        void destroy(long nativePersistedStateDB);
+        void save(long nativePersistedStateDB, String key, byte[] data, Runnable onComplete);
+        void load(long nativePersistedStateDB, String key, Callback<byte[]> callback);
+        void delete(long nativePersistedStateDB, String key, Runnable onComplete);
+    }
 }

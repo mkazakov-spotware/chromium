@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "chromecast/common/mojom/queryable_data_store.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -25,10 +26,6 @@ class QueryableDataStore : public shell::mojom::QueryableDataStore {
  public:
   explicit QueryableDataStore(
       const scoped_refptr<base::TaskRunner> render_main_thread);
-
-  QueryableDataStore(const QueryableDataStore&) = delete;
-  QueryableDataStore& operator=(const QueryableDataStore&) = delete;
-
   ~QueryableDataStore() override;
 
   void BindQueryableDataStoreReceiver(
@@ -41,6 +38,8 @@ class QueryableDataStore : public shell::mojom::QueryableDataStore {
   const scoped_refptr<base::TaskRunner> render_main_thread_;
 
   mojo::ReceiverSet<shell::mojom::QueryableDataStore> queryable_data_receivers_;
+
+  DISALLOW_COPY_AND_ASSIGN(QueryableDataStore);
 };
 
 }  // namespace chromecast

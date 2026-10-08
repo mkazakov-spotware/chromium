@@ -11,7 +11,7 @@
     ],
     "functions": [
       {
-        "name": "supportsPromises",
+        "name": "returnsObject",
         "description": "Returns an object.",
         "type": "function",
         "returns_async": {
@@ -28,28 +28,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "doesNotSupportPromises",
-        "description": "Returns an object via callback.",
-        "type": "function",
-        "parameters": [
-          {
-            "name": "callback",
-            "type": "function",
-            "parameters": [
-              {
-                "name": "someObject",
-                "type": "object",
-                "properties": {
-                  "state": {
-                    "$ref": "Enumeration"
-                  }
-                }
-              }
-            ]
-          }
-        ]
       }
     ]
   }

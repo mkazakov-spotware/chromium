@@ -1,4 +1,4 @@
-// Copyright 2019 The Crashpad Authors
+// Copyright 2019 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,8 @@
 
 #include <string.h>
 
-#include <iterator>
-
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "minidump/minidump_context.h"
 
 namespace crashpad {
@@ -148,7 +147,7 @@ bool MinidumpContextConverter::Initialize(
       return false;
     }
 
-    for (size_t i = 0; i < std::size(src->regs); i++) {
+    for (size_t i = 0; i < base::size(src->regs); i++) {
       context_.arm->regs[i] = src->regs[i];
     }
 
@@ -160,7 +159,7 @@ bool MinidumpContextConverter::Initialize(
     context_.arm->cpsr = src->cpsr;
     context_.arm->vfp_regs.fpscr = src->fpscr;
 
-    for (size_t i = 0; i < std::size(src->vfp); i++) {
+    for (size_t i = 0; i < base::size(src->vfp); i++) {
       context_.arm->vfp_regs.vfp[i] = src->vfp[i];
     }
 
@@ -180,14 +179,14 @@ bool MinidumpContextConverter::Initialize(
       return false;
     }
 
-    for (size_t i = 0; i < std::size(src->regs); i++) {
+    for (size_t i = 0; i < base::size(src->regs); i++) {
       context_.arm64->regs[i] = src->regs[i];
     }
 
     context_.arm64->regs[29] = src->fp;
     context_.arm64->regs[30] = src->lr;
 
-    for (size_t i = 0; i < std::size(src->fpsimd); i++) {
+    for (size_t i = 0; i < base::size(src->fpsimd); i++) {
       context_.arm64->fpsimd[i] = src->fpsimd[i];
     }
 
@@ -209,7 +208,7 @@ bool MinidumpContextConverter::Initialize(
       return false;
     }
 
-    for (size_t i = 0; i < std::size(src->regs); i++) {
+    for (size_t i = 0; i < base::size(src->regs); i++) {
       context_.mipsel->regs[i] = src->regs[i];
     }
 
@@ -217,7 +216,7 @@ bool MinidumpContextConverter::Initialize(
     context_.mipsel->mdlo = static_cast<uint32_t>(src->mdlo);
     context_.mipsel->dsp_control = src->dsp_control;
 
-    for (size_t i = 0; i < std::size(src->hi); i++) {
+    for (size_t i = 0; i < base::size(src->hi); i++) {
       context_.mipsel->hi[i] = src->hi[i];
       context_.mipsel->lo[i] = src->lo[i];
     }
@@ -245,7 +244,7 @@ bool MinidumpContextConverter::Initialize(
       return false;
     }
 
-    for (size_t i = 0; i < std::size(src->regs); i++) {
+    for (size_t i = 0; i < base::size(src->regs); i++) {
       context_.mips64->regs[i] = src->regs[i];
     }
 
@@ -253,7 +252,7 @@ bool MinidumpContextConverter::Initialize(
     context_.mips64->mdlo = src->mdlo;
     context_.mips64->dsp_control = src->dsp_control;
 
-    for (size_t i = 0; i < std::size(src->hi); i++) {
+    for (size_t i = 0; i < base::size(src->hi); i++) {
       context_.mips64->hi[i] = src->hi[i];
       context_.mips64->lo[i] = src->lo[i];
     }

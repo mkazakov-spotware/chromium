@@ -7,6 +7,6 @@ PASS Item-based blockification of pseudo-elements
 PASS Item-based blockification of nonexistent pseudo-elements
 PASS display: contents on pseudo-elements
 PASS Dynamically change to display: contents on pseudo-elements
-FAIL Unknown pseudo-elements assert_true: Should return an empty style for unknown pseudo-elements starting with double-colon expected true got false
+FAIL Unknown pseudo-elements throw assert_throws_js: getComputedStyle with an unknown pseudo-element throws function "() => getComputedStyle(div, "totallynotapseudo")" did not throw
 Harness: the test ran to completion.
 

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.testing.ContinuationTestCaseTest');
 goog.setTestOnly();
@@ -45,14 +53,14 @@ function installMockClock() {
 }
 
 /**
- * @return {!ContinuationTestCase.Step} A generic step in a continuation test.
+ * @return {ContinuationTestCase.Step} A generic step in a continuation test.
  */
 function getSampleStep() {
   return new ContinuationTestCase.Step('test', () => {});
 }
 
 /**
- * @return {!ContinuationTestCase.ContinuationTest} A simple continuation test
+ * @return {ContinuationTestCase.ContinuationTest} A simple continuation test
  *     with generic setUp, test, and tearDown functions.
  */
 function getSampleTest() {
@@ -72,7 +80,6 @@ function getSampleTest() {
 
 let testObj;
 
-/** @suppress {undefinedVars} waitForTimeout is an exported function */
 function handleTimeout() {
   testObj.steps++;
   assertEquals('handleTimeout should be called first.', 1, testObj.steps);
@@ -128,16 +135,10 @@ testCase.setTestObj({
     clock.uninstall();
     stubs.reset();
 
-    waitForTimeout(/**
-                      @suppress {visibility} suppression added to enable type
-                      checking
-                    */
-                   () => {
-                     // Pointless assertion to verify that tearDown methods can
-                     // contain waits.
-                     assertTrue(testCase.now() >= testCase.startTime_);
-                   },
-                   0);
+    waitForTimeout(() => {
+      // Pointless assertion to verify that tearDown methods can contain waits.
+      assertTrue(testCase.now() >= testCase.startTime_);
+    }, 0);
   },
 
   testStepWaiting() {
@@ -239,7 +240,6 @@ testCase.setTestObj({
     assertEquals('teardown', test.getCurrentPhase()[0].name);
   },
 
-  /** @suppress {undefinedVars} waitForTimeout is an exported function */
   testWaitForTimeout() {
     let reachedA = false;
     let reachedB = false;
@@ -274,7 +274,6 @@ testCase.setTestObj({
     assertFalse('c', reachedC);
   },
 
-  /** @suppress {undefinedVars} waitForCondition is exported */
   testWaitForEvent() {
     const et = new GoogEventTarget();
 
@@ -291,7 +290,6 @@ testCase.setTestObj({
     et.dispatchEvent('testPrefire');
   },
 
-  /** @suppress {undefinedVars} waitForCondition is exported */
   testWaitForCondition() {
     let counter = 0;
 

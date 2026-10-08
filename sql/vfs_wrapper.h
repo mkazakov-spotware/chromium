@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,9 @@ sqlite3_vfs* VFSWrapper();
 struct VfsFile {
   const sqlite3_io_methods* methods;
   sqlite3_file* wrapped_file;
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   std::string file_name;
+  int lock_level;
 #endif
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@ package org.chromium.chrome.browser;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.Log;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.DestroyObserver;
+import org.chromium.chrome.browser.lifecycle.Destroyable;
 import org.chromium.chrome.browser.lifecycle.PauseResumeWithNativeObserver;
 import org.chromium.chrome.browser.lifecycle.StartStopWithNativeObserver;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
@@ -19,12 +17,8 @@ import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
  * TODO(crbug.com/1081453): Split ChromeInactivityTracker out from ChromeTabbedActivity.
  */
 public class ChromeInactivityTracker
-        implements StartStopWithNativeObserver, PauseResumeWithNativeObserver, DestroyObserver {
+        implements StartStopWithNativeObserver, PauseResumeWithNativeObserver, Destroyable {
     private static final String TAG = "InactivityTracker";
-    private static final String UMA_DURATION_SINCE_LAST_BACKGROUND_TIME =
-            "Startup.Android.DurationSinceLastBackgroundTime";
-    private static final String UMA_IS_LAST_BACKGROUND_TIME_LOGGED =
-            "Startup.Android.IsLastBackgroundTimeLogged";
 
     private static final long UNKNOWN_LAST_BACKGROUNDED_TIME = -1;
 
@@ -60,15 +54,6 @@ public class ChromeInactivityTracker
     }
 
     /**
-     * Updates the shared preferences to contain the given time synchronously. Used only in shutdown
-     * or moving Chrome to the background.
-     * @param timeInMillis the time to record.
-     */
-    public void setLastBackgroundedTimeInPrefsSync(long timeInMillis) {
-        SharedPreferencesManager.getInstance().writeLongSync(mPrefName, timeInMillis);
-    }
-
-    /**
      * @return The last backgrounded time in millis.
      */
     public long getLastBackgroundedTimeMs() {
@@ -96,30 +81,20 @@ public class ChromeInactivityTracker
         // handlers the chance to respond to inactivity during any onStartWithNative handler
         // regardless of ordering. onResume is always called after onStart, and it should be fine to
         // consider Chrome active if it reaches onResume.
-        long lastBackgroundTime = SharedPreferencesManager.getInstance().readLong(
-                mPrefName, UNKNOWN_LAST_BACKGROUNDED_TIME);
         setLastBackgroundedTimeInPrefs(UNKNOWN_LAST_BACKGROUNDED_TIME);
-
-        Log.i(TAG,
-                "Last background time read from the SharedPreference is:" + lastBackgroundTime
-                        + ".");
-        RecordHistogram.recordBooleanHistogram(UMA_IS_LAST_BACKGROUND_TIME_LOGGED,
-                lastBackgroundTime != UNKNOWN_LAST_BACKGROUNDED_TIME);
-
-        if (lastBackgroundTime != UNKNOWN_LAST_BACKGROUNDED_TIME) {
-            RecordHistogram.recordLongTimesHistogram100(UMA_DURATION_SINCE_LAST_BACKGROUND_TIME,
-                    System.currentTimeMillis() - lastBackgroundTime);
-        }
     }
 
     @Override
     public void onPauseWithNative() {}
 
     @Override
-    public void onStopWithNative() {}
+    public void onStopWithNative() {
+        // Always track the last backgrounded time in case others are using the pref.
+        setLastBackgroundedTimeInPrefs(System.currentTimeMillis());
+    }
 
     @Override
-    public void onDestroy() {
+    public void destroy() {
         mLifecycleDispatcher.unregister(this);
     }
 }

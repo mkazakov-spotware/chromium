@@ -1,26 +1,27 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <UIKit/UIKit.h>
 #import <XCTest/XCTest.h>
 
-#import "base/ios/ios_util.h"
-#import "base/mac/foundation_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/strings/grit/components_strings.h"
+#include "base/ios/ios_util.h"
+#include "base/mac/foundation_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_earl_grey.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_earl_grey_ui.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_ui_constants.h"
-#import "ios/chrome/grit/ios_strings.h"
+#import "ios/chrome/browser/ui/table_view/feature_flags.h"
+#include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#import "net/test/embedded_test_server/embedded_test_server.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "net/test/embedded_test_server/embedded_test_server.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -36,7 +37,6 @@ using chrome_test_util::ButtonWithAccessibilityLabelId;
 using chrome_test_util::ContextBarLeadingButtonWithLabel;
 using chrome_test_util::OmniboxText;
 using chrome_test_util::ScrollToTop;
-using chrome_test_util::TabGridEditButton;
 using chrome_test_util::TappableBookmarkNodeWithLabel;
 
 // Bookmark folders integration tests for Chrome.
@@ -183,9 +183,7 @@ using chrome_test_util::TappableBookmarkNodeWithLabel;
   // Swipe action to try to delete the newly created folder while its name its
   // being edited.
   [[EarlGrey
-      selectElementWithMatcher:grey_allOf(grey_accessibilityID(@"New Folder"),
-                                          grey_minimumVisiblePercent(0.7),
-                                          nil)]
+      selectElementWithMatcher:TappableBookmarkNodeWithLabel(@"New Folder")]
       performAction:grey_swipeFastInDirection(kGREYDirectionLeft)];
 
   // Verify the delete confirmation button doesn't show up.
@@ -222,10 +220,7 @@ using chrome_test_util::TappableBookmarkNodeWithLabel;
   [BookmarkEarlGreyUI scrollToBottom];
 
   // Folder should still be in Edit mode, because of this match for Value.
-  [[EarlGrey
-      selectElementWithMatcher:grey_allOf(
-                                   grey_accessibilityValue(@"New Folder"),
-                                   grey_sufficientlyVisible(), nil)]
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityValue(@"New Folder")]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -268,6 +263,13 @@ using chrome_test_util::TappableBookmarkNodeWithLabel;
 }
 
 - (void)testSwipeDownToDismissFromEditFolder {
+  if (!base::ios::IsRunningOnOrLater(13, 0, 0)) {
+    EARL_GREY_TEST_SKIPPED(@"Test disabled on iOS 12 and lower.");
+  }
+  if (!IsCollectionsCardPresentationStyleEnabled()) {
+    EARL_GREY_TEST_SKIPPED(@"Test disabled on when feature flag is off.");
+  }
+
   [BookmarkEarlGrey setupStandardBookmarks];
   [BookmarkEarlGreyUI openBookmarks];
   [BookmarkEarlGreyUI openMobileBookmarks];
@@ -378,11 +380,19 @@ using chrome_test_util::TappableBookmarkNodeWithLabel;
                                           @"Mobile Bookmarks")]
       performAction:grey_longPress()];
 
-  // We cannot locate new context menus any way, therefore we'll use the
-  // 'Edit' action presence as proxy.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::
-                                          BookmarksContextMenuEditButton()]
-      assertWithMatcher:grey_nil()];
+  // Verify it doesn't show the context menu. (long press is disabled on
+  // permanent node.)
+  if ([ChromeEarlGrey isNativeContextMenusEnabled]) {
+    // We cannot locate new context menus any way, therefore we'll use the
+    // 'Edit' action presence as proxy.
+    [[EarlGrey selectElementWithMatcher:chrome_test_util::
+                                            BookmarksContextMenuEditButton()]
+        assertWithMatcher:grey_nil()];
+  } else {
+    [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                            kBookmarkHomeContextMenuIdentifier)]
+        assertWithMatcher:grey_nil()];
+  }
 }
 
 // Verify Edit functionality for single folder selection.
@@ -399,7 +409,10 @@ using chrome_test_util::TappableBookmarkNodeWithLabel;
       performAction:grey_longPress()];
 
   id<GREYMatcher> editFolderMatcher =
-      chrome_test_util::BookmarksContextMenuEditButton();
+      [ChromeEarlGrey isNativeContextMenusEnabled]
+          ? chrome_test_util::BookmarksContextMenuEditButton()
+          : ButtonWithAccessibilityLabelId(
+                IDS_IOS_BOOKMARK_CONTEXT_MENU_EDIT_FOLDER);
   [[EarlGrey selectElementWithMatcher:editFolderMatcher]
       performAction:grey_tap()];
 
@@ -975,11 +988,7 @@ using chrome_test_util::TappableBookmarkNodeWithLabel;
   // Tap on the snackbar.
   NSString* snackbarLabel =
       l10n_util::GetNSString(IDS_IOS_NAVIGATION_BAR_EDIT_BUTTON);
-  [[EarlGrey
-      selectElementWithMatcher:grey_allOf(
-                                   grey_accessibilityLabel(snackbarLabel),
-                                   grey_userInteractionEnabled(),
-                                   grey_not(TabGridEditButton()), nil)]
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityLabel(snackbarLabel)]
       performAction:grey_tap()];
 
   // Verify that the newly-created bookmark is in the BookmarkModel.

@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "gtest/gtest.h"
 #include "minidump/minidump_file_writer.h"
 #include "minidump/test/minidump_file_writer_test_util.h"
@@ -38,7 +39,8 @@ void GetSystemInfoStream(const std::string& file_contents,
                          const MINIDUMP_SYSTEM_INFO** system_info,
                          const MINIDUMP_STRING** csd_version) {
   // The expected number of bytes for the CSD version’s MINIDUMP_STRING::Buffer.
-  [[maybe_unused]] MINIDUMP_STRING* tmp;
+  MINIDUMP_STRING* tmp;
+  ALLOW_UNUSED_LOCAL(tmp);
   const size_t kCSDVersionBytes = csd_version_length * sizeof(tmp->Buffer[0]);
   const size_t kCSDVersionBytesWithNUL =
       kCSDVersionBytes + sizeof(tmp->Buffer[0]);
@@ -107,11 +109,8 @@ TEST(MinidumpSystemInfoWriter, Empty) {
   EXPECT_EQ(system_info->Cpu.X86CpuInfo.VersionInformation, 0u);
   EXPECT_EQ(system_info->Cpu.X86CpuInfo.FeatureInformation, 0u);
   EXPECT_EQ(system_info->Cpu.X86CpuInfo.AMDExtendedCpuFeatures, 0u);
-
-  CPU_INFORMATION other_cpu_info;
-  memcpy(&other_cpu_info, &system_info->Cpu, sizeof(other_cpu_info));
-  EXPECT_EQ(other_cpu_info.OtherCpuInfo.ProcessorFeatures[0], 0u);
-  EXPECT_EQ(other_cpu_info.OtherCpuInfo.ProcessorFeatures[1], 0u);
+  EXPECT_EQ(system_info->Cpu.OtherCpuInfo.ProcessorFeatures[0], 0u);
+  EXPECT_EQ(system_info->Cpu.OtherCpuInfo.ProcessorFeatures[1], 0u);
 
   EXPECT_EQ(csd_version->Buffer[0], '\0');
 }
@@ -235,11 +234,10 @@ TEST(MinidumpSystemInfoWriter, AMD64_Mac) {
   EXPECT_EQ(system_info->BuildNumber, kOSVersionBuild);
   EXPECT_EQ(system_info->PlatformId, kOS);
   EXPECT_EQ(system_info->SuiteMask, 0u);
-
-  CPU_INFORMATION other_cpu_info;
-  memcpy(&other_cpu_info, &system_info->Cpu, sizeof(other_cpu_info));
-  EXPECT_EQ(other_cpu_info.OtherCpuInfo.ProcessorFeatures[0], kCPUFeatures[0]);
-  EXPECT_EQ(other_cpu_info.OtherCpuInfo.ProcessorFeatures[1], kCPUFeatures[1]);
+  EXPECT_EQ(system_info->Cpu.OtherCpuInfo.ProcessorFeatures[0],
+            kCPUFeatures[0]);
+  EXPECT_EQ(system_info->Cpu.OtherCpuInfo.ProcessorFeatures[1],
+            kCPUFeatures[1]);
 }
 
 TEST(MinidumpSystemInfoWriter, X86_CPUVendorFromRegisters) {
@@ -459,12 +457,9 @@ TEST(MinidumpSystemInfoWriter, InitializeFromSnapshot_AMD64) {
   EXPECT_EQ(system_info->BuildNumber, expect_system_info.BuildNumber);
   EXPECT_EQ(system_info->PlatformId, expect_system_info.PlatformId);
   EXPECT_EQ(system_info->SuiteMask, expect_system_info.SuiteMask);
-
-  CPU_INFORMATION other_cpu_info;
-  memcpy(&other_cpu_info, &system_info->Cpu, sizeof(other_cpu_info));
-  EXPECT_EQ(other_cpu_info.OtherCpuInfo.ProcessorFeatures[0],
+  EXPECT_EQ(system_info->Cpu.OtherCpuInfo.ProcessorFeatures[0],
             expect_system_info.Cpu.OtherCpuInfo.ProcessorFeatures[0]);
-  EXPECT_EQ(other_cpu_info.OtherCpuInfo.ProcessorFeatures[1],
+  EXPECT_EQ(system_info->Cpu.OtherCpuInfo.ProcessorFeatures[1],
             expect_system_info.Cpu.OtherCpuInfo.ProcessorFeatures[1]);
 
   for (size_t index = 0; index < strlen(kOSVersionBuild); ++index) {

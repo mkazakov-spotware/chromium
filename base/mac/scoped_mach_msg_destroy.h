@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <mach/message.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace base {
 
@@ -16,9 +16,6 @@ namespace base {
 class ScopedMachMsgDestroy {
  public:
   explicit ScopedMachMsgDestroy(mach_msg_header_t* header) : header_(header) {}
-
-  ScopedMachMsgDestroy(const ScopedMachMsgDestroy&) = delete;
-  ScopedMachMsgDestroy& operator=(const ScopedMachMsgDestroy&) = delete;
 
   ~ScopedMachMsgDestroy() {
     if (header_) {
@@ -30,7 +27,9 @@ class ScopedMachMsgDestroy {
   void Disarm() { header_ = nullptr; }
 
  private:
-  raw_ptr<mach_msg_header_t> header_;
+  mach_msg_header_t* header_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedMachMsgDestroy);
 };
 
 }  // namespace base

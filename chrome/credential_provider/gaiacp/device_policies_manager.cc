@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -100,7 +100,7 @@ std::unique_ptr<PolicyFetchResponse> ReadOmahaPolicyFromDisk() {
 // Get the list of domains allowed to login as defined by the cloud policy
 // fetched by Omaha.
 bool GetAllowedDomainsToLoginFromCloudPolicy(
-    std::vector<std::wstring>* domains) {
+    std::vector<base::string16>* domains) {
   DCHECK(domains);
 
   std::unique_ptr<PolicyFetchResponse> policy_fetch_response =
@@ -123,7 +123,7 @@ bool GetAllowedDomainsToLoginFromCloudPolicy(
   bool found_gcpw_settings = false;
   for (const ApplicationSettings& app_setting :
        omaha_settings.application_settings()) {
-    if (app_setting.app_guid() == base::WideToUTF8(kGcpwUpdateClientGuid) &&
+    if (app_setting.app_guid() == base::UTF16ToUTF8(kGcpwUpdateClientGuid) &&
         app_setting.has_gcpw_application_settings()) {
       found_gcpw_settings = true;
       const GcpwSpecificApplicationSettings& gcpw_settings =
@@ -132,7 +132,7 @@ bool GetAllowedDomainsToLoginFromCloudPolicy(
       domains->clear();
       for (const std::string& domain :
            gcpw_settings.domains_allowed_to_login()) {
-        domains->push_back(base::UTF8ToWide(domain));
+        domains->push_back(base::UTF8ToUTF16(domain));
       }
       LOGFN(VERBOSE) << "Cloud policy domains: "
                      << base::JoinString(*domains, L",");
@@ -170,17 +170,13 @@ void DevicePoliciesManager::GetDevicePolicies(DevicePolicies* device_policies) {
   UserPoliciesManager* user_policies_manager = UserPoliciesManager::Get();
   base::win::RegistryKeyIterator iter(HKEY_LOCAL_MACHINE, kGcpUsersRootKeyName);
   for (; iter.Valid(); ++iter) {
-    std::wstring sid(iter.Name());
-    wchar_t found_username[kWindowsUsernameBufferLength];
-    wchar_t found_domain[kWindowsDomainBufferLength];
-
+    base::string16 sid(iter.Name());
     // Check if this account with this sid exists on device.
-    HRESULT hr = OSUserManager::Get()->FindUserBySidWithFallback(
-        sid.c_str(), found_username, std::size(found_username), found_domain,
-        std::size(found_domain));
+    HRESULT hr = OSUserManager::Get()->FindUserBySID(sid.c_str(), nullptr, 0,
+                                                     nullptr, 0);
     if (hr != S_OK) {
       if (hr != HRESULT_FROM_WIN32(ERROR_NONE_MAPPED)) {
-        LOGFN(ERROR) << "FindUserBySidWithRegistryFallback hr=" << putHR(hr);
+        LOGFN(ERROR) << "FindUserBySID hr=" << putHR(hr);
       } else {
         LOGFN(WARNING) << sid << " is not a valid sid";
       }
@@ -206,14 +202,9 @@ void DevicePoliciesManager::GetDevicePolicies(DevicePolicies* device_policies) {
   }
 
   // Read allowed domains cloud policy.
-  std::vector<std::wstring> domains_from_policy;
+  std::vector<base::string16> domains_from_policy;
   if (GetAllowedDomainsToLoginFromCloudPolicy(&domains_from_policy)) {
-    if (!domains_from_policy.empty()) {
-      device_policies->domains_allowed_to_login = domains_from_policy;
-    } else {
-      LOGFN(VERBOSE) << "Allowed domains cloud policy is empty. Falling back "
-                        "to device registry settings.";
-    }
+    device_policies->domains_allowed_to_login = domains_from_policy;
   } else {
     LOGFN(VERBOSE) << "Allowed domains cloud policy not found";
   }
@@ -233,13 +224,13 @@ void DevicePoliciesManager::EnforceGcpwUpdatePolicy() {
     return;
   }
 
-  std::wstring update_channel;  // Empty value indicates the stable channel.
+  base::string16 update_channel;  // Empty value indicates the stable channel.
   std::wstring ap_value;
   LONG ap_status = key.ReadValue(kRegUpdateTracksName, &ap_value);
-  GcpwVersion current_pinned_version(base::WideToUTF8(ap_value));
+  GcpwVersion current_pinned_version(base::UTF16ToUTF8(ap_value));
 
   if (ap_status == ERROR_SUCCESS && !current_pinned_version.IsValid()) {
-    std::vector<std::wstring> ap_components =
+    std::vector<base::string16> ap_components =
         base::SplitString(ap_value, kChannelAndVersionSeparator,
                           base::WhitespaceHandling::TRIM_WHITESPACE,
                           base::SplitResult::SPLIT_WANT_NONEMPTY);
@@ -267,12 +258,12 @@ void DevicePoliciesManager::EnforceGcpwUpdatePolicy() {
       }
     }
   } else {
-    std::wstring gcpw_version;
+    base::string16 gcpw_version;
     if (device_policies.enable_gcpw_auto_update &&
         device_policies.gcpw_pinned_version.IsValid()) {
       // Auto update enabled with pinning so set it to the pinned track.
       gcpw_version =
-          base::UTF8ToWide(device_policies.gcpw_pinned_version.ToString());
+          base::UTF8ToUTF16(device_policies.gcpw_pinned_version.ToString());
     } else {
       // Auto update is disabled so make sure we stay on the installed
       // version.
@@ -281,10 +272,10 @@ void DevicePoliciesManager::EnforceGcpwUpdatePolicy() {
         LOGFN(ERROR) << "Could not read currently installed version";
         return;
       }
-      gcpw_version = base::UTF8ToWide(version.ToString());
+      gcpw_version = base::UTF8ToUTF16(version.ToString());
     }
 
-    ap_value = gcpw_version;
+    base::string16 ap_value = gcpw_version;
     if (!update_channel.empty())
       ap_value = update_channel + kChannelAndVersionSeparator + gcpw_version;
 
@@ -297,15 +288,15 @@ void DevicePoliciesManager::EnforceGcpwUpdatePolicy() {
 }
 
 bool DevicePoliciesManager::SetAllowedDomainsOmahaPolicyForTesting(
-    const std::vector<std::wstring>& domains) {
+    const std::vector<base::string16>& domains) {
   OmahaSettingsClientProto omaha_settings;
   ApplicationSettings* app_settings = omaha_settings.add_application_settings();
-  app_settings->set_app_guid(base::WideToUTF8(kGcpwUpdateClientGuid));
+  app_settings->set_app_guid(base::UTF16ToUTF8(kGcpwUpdateClientGuid));
   GcpwSpecificApplicationSettings* gcpw_settings =
       app_settings->mutable_gcpw_application_settings();
 
-  for (const std::wstring& domain : domains) {
-    gcpw_settings->add_domains_allowed_to_login(base::WideToUTF8(domain));
+  for (const base::string16& domain : domains) {
+    gcpw_settings->add_domains_allowed_to_login(base::UTF16ToUTF8(domain));
   }
 
   PolicyData policy_data;

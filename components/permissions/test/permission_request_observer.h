@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,20 +22,12 @@ class PermissionRequestObserver : public PermissionRequestManager::Observer {
   ~PermissionRequestObserver() override;
 
   bool request_shown() const { return request_shown_; }
-  bool is_view_recreate_failed() const { return is_view_recreate_failed_; }
-  bool is_prompt_show_failed_hidden_tab() const {
-    return is_prompt_show_failed_hidden_tab_;
-  }
 
   // Blocks until a request is shown.
   void Wait();
 
   // PermissionRequestManager::Observer:
-  void OnPromptAdded() override;
-  void OnRequestsFinalized() override;
-  void OnPromptRecreateViewFailed() override;
-  void OnPromptCreationFailedHiddenTab() override;
-  void OnPermissionRequestManagerDestructed() override;
+  void OnBubbleAdded() override;
 
  private:
   base::ScopedObservation<PermissionRequestManager,
@@ -43,8 +35,6 @@ class PermissionRequestObserver : public PermissionRequestManager::Observer {
       observation_{this};
   base::RunLoop loop_;
   bool request_shown_ = false;
-  bool is_view_recreate_failed_ = false;
-  bool is_prompt_show_failed_hidden_tab_ = false;
 };
 
 }  // namespace permissions

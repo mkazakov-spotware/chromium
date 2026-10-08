@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "base/task/sequenced_task_runner.h"
+#include "base/macros.h"
+#include "base/observer_list.h"
+#include "base/sequenced_task_runner.h"
 #include "device/bluetooth/bluetooth_device.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/bluetooth_task_manager_win.h"
@@ -35,10 +37,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin
       const BluetoothTaskManagerWin::DeviceState& device_state,
       scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
       scoped_refptr<BluetoothSocketThread> socket_thread);
-
-  BluetoothDeviceWin(const BluetoothDeviceWin&) = delete;
-  BluetoothDeviceWin& operator=(const BluetoothDeviceWin&) = delete;
-
   ~BluetoothDeviceWin() override;
 
   // BluetoothDevice override
@@ -50,15 +48,15 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin
   uint16_t GetProductID() const override;
   uint16_t GetDeviceID() const override;
   uint16_t GetAppearance() const override;
-  absl::optional<std::string> GetName() const override;
+  base::Optional<std::string> GetName() const override;
   bool IsPaired() const override;
   bool IsConnected() const override;
   bool IsGattConnected() const override;
   bool IsConnectable() const override;
   bool IsConnecting() const override;
   UUIDSet GetUUIDs() const override;
-  absl::optional<int8_t> GetInquiryRSSI() const override;
-  absl::optional<int8_t> GetInquiryTxPower() const override;
+  base::Optional<int8_t> GetInquiryRSSI() const override;
+  base::Optional<int8_t> GetInquiryTxPower() const override;
   bool ExpectingPinCode() const override;
   bool ExpectingPasskey() const override;
   bool ExpectingConfirmation() const override;
@@ -67,7 +65,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin
                             base::OnceClosure callback,
                             ErrorCallback error_callback) override;
   void Connect(PairingDelegate* pairing_delegate,
-               ConnectCallback callback) override;
+               base::OnceClosure callback,
+               ConnectErrorCallback error_callback) override;
   void SetPinCode(const std::string& pincode) override;
   void SetPasskey(uint32_t passkey) override;
   void ConfirmPairing() override;
@@ -105,7 +104,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin
  protected:
   // BluetoothDevice override
   void CreateGattConnectionImpl(
-      absl::optional<BluetoothUUID> service_uuid) override;
+      base::Optional<BluetoothUUID> service_uuid) override;
   void DisconnectGatt() override;
 
  private:
@@ -144,7 +143,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin
   uint32_t bluetooth_class_;
 
   // The name of the device, as supplied by the remote device.
-  absl::optional<std::string> name_;
+  base::Optional<std::string> name_;
 
   // The Bluetooth address of the device.
   std::string address_;
@@ -169,6 +168,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin
   // BluetoothRemoteGattServiceWin instance.
   std::set<std::pair<BluetoothUUID, uint16_t>>
       discovery_completed_included_services_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothDeviceWin);
 };
 
 }  // namespace device

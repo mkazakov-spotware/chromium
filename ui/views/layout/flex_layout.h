@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,13 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "ui/base/class_property.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/layout/flex_layout_types.h"
@@ -73,10 +75,6 @@ class View;
 class VIEWS_EXPORT FlexLayout : public LayoutManagerBase {
  public:
   FlexLayout();
-
-  FlexLayout(const FlexLayout&) = delete;
-  FlexLayout& operator=(const FlexLayout&) = delete;
-
   ~FlexLayout() override;
 
   // Note: setters provide a Builder-style interface, so you can type:
@@ -151,7 +149,7 @@ class VIEWS_EXPORT FlexLayout : public LayoutManagerBase {
     void AfterPropertyChange(const void* key, int64_t old_value) override;
 
    private:
-    const raw_ptr<FlexLayout> layout_;
+    FlexLayout* const layout_;
   };
 
   using ChildIndices = std::list<size_t>;
@@ -204,8 +202,8 @@ class VIEWS_EXPORT FlexLayout : public LayoutManagerBase {
   // Calculates the preferred spacing between two child views, or between a
   // view edge and the first or last visible child views.
   int CalculateChildSpacing(const FlexLayoutData& layout,
-                            absl::optional<size_t> child1_index,
-                            absl::optional<size_t> child2_index) const;
+                            base::Optional<size_t> child1_index,
+                            base::Optional<size_t> child2_index) const;
 
   // Calculates the position of each child view and the size of the overall
   // layout based on tentative visibilities and sizes for each child.
@@ -382,6 +380,8 @@ class VIEWS_EXPORT FlexLayout : public LayoutManagerBase {
   // Default properties for any views that don't have them explicitly set for
   // this layout.
   PropertyHandler layout_defaults_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(FlexLayout);
 };
 
 }  // namespace views

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.editor.plugins.UndoRedoManagerTest');
 goog.setTestOnly();
@@ -72,19 +80,11 @@ testSuite({
     mockState3 = new StrictMock(UndoRedoState);
     states = [mockState1, mockState2, mockState3];
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     mockState1.equals = mockState2.equals =
         mockState3.equals = function(state) {
           return this == state;
         };
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     mockState1.isAsynchronous = mockState2.isAsynchronous =
         mockState3.isAsynchronous = () => false;
   },
@@ -94,7 +94,6 @@ testSuite({
     manager.dispose();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testSetMaxUndoDepth() {
     manager.setMaxUndoDepth(2);
     addStatesToManager();
@@ -103,7 +102,6 @@ testSuite({
         [mockState2, mockState3], manager.undoStack_);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testAddState() {
     let stateAddedCount = 0;
     events.listen(manager, UndoRedoManager.EventType.STATE_ADDED, () => {
@@ -192,7 +190,6 @@ testSuite({
         stateChangeCount);
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testUndo() {
     addStatesToManager();
 
@@ -229,10 +226,6 @@ testSuite({
     mockState1.$verify();
   },
 
-  /**
-     @suppress {missingProperties,checkTypes} suppression added to enable type
-     checking
-   */
   testUndo_Asynchronous() {
     // Using a stub instead of a mock here so that the state can behave as an
     // EventTarget and dispatch events.
@@ -284,7 +277,6 @@ testSuite({
         'Third undo must cause before action to dispatch', 3, beforeUndoCount);
   },
 
-  /** @suppress {missingProperties} suppression added to enable type checking */
   testRedo() {
     addStatesToManager();
     manager.undo();
@@ -338,10 +330,6 @@ testSuite({
     mockState3.$verify();
   },
 
-  /**
-     @suppress {checkTypes,missingProperties} suppression added to enable type
-     checking
-   */
   testRedo_Asynchronous() {
     const stubState = new UndoRedoState(true);
     let redoCalled = false;
@@ -388,7 +376,6 @@ testSuite({
     mockState2.$verify();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testUndoAndRedoPeek() {
     addStatesToManager();
     manager.undo();

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,12 @@
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
-#include "components/cdm/renderer/external_clear_key_key_system_info.h"
-#include "components/network_hints/renderer/web_prescient_networking_impl.h"
+#include "components/cdm/renderer/external_clear_key_key_system_properties.h"
 #include "components/web_cache/renderer/web_cache_impl.h"
-#include "content/public/common/web_identity.h"
-#include "content/public/renderer/render_frame.h"
-#include "content/public/renderer/render_thread.h"
 #include "content/public/test/test_service.mojom.h"
-#include "content/shell/common/main_frame_counter_test_impl.h"
 #include "content/shell/common/power_monitor_test_impl.h"
 #include "content/shell/common/shell_switches.h"
 #include "content/shell/renderer/shell_render_frame_observer.h"
@@ -29,10 +25,7 @@
 #include "net/base/net_errors.h"
 #include "ppapi/buildflags/buildflags.h"
 #include "sandbox/policy/sandbox.h"
-#include "third_party/blink/public/platform/url_loader_throttle_provider.h"
 #include "third_party/blink/public/platform/web_url_error.h"
-#include "third_party/blink/public/web/modules/credentialmanagement/throttle_helper.h"
-#include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_testing_support.h"
 #include "third_party/blink/public/web/web_view.h"
 #include "v8/include/v8.h"
@@ -60,9 +53,6 @@ class TestRendererServiceImpl : public mojom::TestService {
         &TestRendererServiceImpl::OnConnectionError, base::Unretained(this)));
   }
 
-  TestRendererServiceImpl(const TestRendererServiceImpl&) = delete;
-  TestRendererServiceImpl& operator=(const TestRendererServiceImpl&) = delete;
-
   ~TestRendererServiceImpl() override {}
 
  private:
@@ -88,10 +78,7 @@ class TestRendererServiceImpl : public mojom::TestService {
   }
 
   void DoCrashImmediately(DoCrashImmediatelyCallback callback) override {
-    // This intentionally crashes the process and needs to be fatal regardless
-    // of DCHECK level. It's intended to get called. This is unlike the other
-    // NOTREACHED()s which are not expected to get called at all.
-    CHECK(false);
+    NOTREACHED();
   }
 
   void CreateFolder(CreateFolderCallback callback) override { NOTREACHED(); }
@@ -118,48 +105,13 @@ class TestRendererServiceImpl : public mojom::TestService {
     NOTREACHED();
   }
 
-  void CloneSharedMemoryContents(
-      base::ReadOnlySharedMemoryRegion region,
-      CloneSharedMemoryContentsCallback callback) override {
-    NOTREACHED();
-  }
-
   void IsProcessSandboxed(IsProcessSandboxedCallback callback) override {
     std::move(callback).Run(sandbox::policy::Sandbox::IsProcessSandboxed());
   }
 
   mojo::Receiver<mojom::TestService> receiver_;
-};
 
-class ShellContentRendererUrlLoaderThrottleProvider
-    : public blink::URLLoaderThrottleProvider {
- public:
-  std::unique_ptr<URLLoaderThrottleProvider> Clone() override {
-    return std::make_unique<ShellContentRendererUrlLoaderThrottleProvider>();
-  }
-
-  blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>> CreateThrottles(
-      int render_frame_id,
-      const blink::WebURLRequest& request) override {
-    blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>> throttles;
-    // Workers can call us on a background thread. We don't care about such
-    // requests because we purposefully only look at resources from frames
-    // that the user can interact with.`
-    content::RenderFrame* frame =
-        RenderThread::IsMainThread()
-            ? content::RenderFrame::FromRoutingID(render_frame_id)
-            : nullptr;
-    if (frame) {
-      auto throttle = content::MaybeCreateIdentityUrlLoaderThrottle(
-          base::BindRepeating(blink::SetIdpSigninStatus, frame->GetWebFrame()));
-      if (throttle)
-        throttles.push_back(std::move(throttle));
-    }
-
-    return throttles;
-  }
-
-  void SetOnline(bool is_online) override {}
+  DISALLOW_COPY_AND_ASSIGN(TestRendererServiceImpl);
 };
 
 void CreateRendererTestService(
@@ -181,19 +133,14 @@ void ShellContentRendererClient::RenderThreadStarted() {
 
 void ShellContentRendererClient::ExposeInterfacesToBrowser(
     mojo::BinderMap* binders) {
-  binders->Add<mojom::TestService>(
-      base::BindRepeating(&CreateRendererTestService),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-  binders->Add<mojom::PowerMonitorTest>(
+  binders->Add(base::BindRepeating(&CreateRendererTestService),
+               base::ThreadTaskRunnerHandle::Get());
+  binders->Add(
       base::BindRepeating(&PowerMonitorTestImpl::MakeSelfOwnedReceiver),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-  binders->Add<mojom::MainFrameCounterTest>(
-      base::BindRepeating(&MainFrameCounterTestImpl::Bind),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-  binders->Add<web_cache::mojom::WebCache>(
-      base::BindRepeating(&web_cache::WebCacheImpl::BindReceiver,
-                          base::Unretained(web_cache_impl_.get())),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::ThreadTaskRunnerHandle::Get());
+  binders->Add(base::BindRepeating(&web_cache::WebCacheImpl::BindReceiver,
+                                   base::Unretained(web_cache_impl_.get())),
+               base::ThreadTaskRunnerHandle::Get());
 }
 
 void ShellContentRendererClient::RenderFrameCreated(RenderFrame* render_frame) {
@@ -207,8 +154,6 @@ void ShellContentRendererClient::PrepareErrorPage(
     RenderFrame* render_frame,
     const blink::WebURLError& error,
     const std::string& http_method,
-    content::mojom::AlternativeErrorPageOverrideInfoPtr
-        alternative_error_page_info,
     std::string* error_html) {
   if (error_html && error_html->empty()) {
     *error_html =
@@ -226,8 +171,6 @@ void ShellContentRendererClient::PrepareErrorPageForHttpStatusError(
     const blink::WebURLError& error,
     const std::string& http_method,
     int http_status,
-    content::mojom::AlternativeErrorPageOverrideInfoPtr
-        alternative_error_page_info,
     std::string* error_html) {
   if (error_html) {
     *error_html =
@@ -244,27 +187,17 @@ void ShellContentRendererClient::DidInitializeWorkerContextOnWorkerThread(
   }
 }
 
-std::unique_ptr<blink::URLLoaderThrottleProvider>
-ShellContentRendererClient::CreateURLLoaderThrottleProvider(
-    blink::URLLoaderThrottleProviderType provider_type) {
-  return std::make_unique<ShellContentRendererUrlLoaderThrottleProvider>();
-}
-
 #if BUILDFLAG(ENABLE_MOJO_CDM)
-void ShellContentRendererClient::GetSupportedKeySystems(
-    media::GetSupportedKeySystemsCB cb) {
-  media::KeySystemInfos key_systems;
-  if (base::FeatureList::IsEnabled(media::kExternalClearKeyForTesting))
-    key_systems.push_back(std::make_unique<cdm::ExternalClearKeySystemInfo>());
-  std::move(cb).Run(std::move(key_systems));
+void ShellContentRendererClient::AddSupportedKeySystems(
+    std::vector<std::unique_ptr<media::KeySystemProperties>>* key_systems) {
+  if (!base::FeatureList::IsEnabled(media::kExternalClearKeyForTesting))
+    return;
+
+  static const char kExternalClearKeyKeySystem[] =
+      "org.chromium.externalclearkey";
+  key_systems->emplace_back(
+      new cdm::ExternalClearKeyProperties(kExternalClearKeyKeySystem));
 }
 #endif
-
-std::unique_ptr<blink::WebPrescientNetworking>
-ShellContentRendererClient::CreatePrescientNetworking(
-    RenderFrame* render_frame) {
-  return std::make_unique<network_hints::WebPrescientNetworkingImpl>(
-      render_frame);
-}
 
 }  // namespace content

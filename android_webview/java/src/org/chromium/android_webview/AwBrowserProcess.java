@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.ApplicationInfo;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
@@ -18,15 +17,11 @@ import androidx.annotation.IntDef;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.chromium.android_webview.common.AwFeatures;
 import org.chromium.android_webview.common.AwSwitches;
 import org.chromium.android_webview.common.PlatformServiceBridge;
 import org.chromium.android_webview.common.services.ICrashReceiverService;
 import org.chromium.android_webview.common.services.IMetricsBridgeService;
-import org.chromium.android_webview.common.services.ServiceConnectionDelayRecorder;
-import org.chromium.android_webview.common.services.ServiceHelper;
 import org.chromium.android_webview.common.services.ServiceNames;
-import org.chromium.android_webview.metrics.AwMetricsLogUploader;
 import org.chromium.android_webview.metrics.AwMetricsServiceClient;
 import org.chromium.android_webview.metrics.AwNonembeddedUmaReplayer;
 import org.chromium.android_webview.policy.AwPolicyProvider;
@@ -50,23 +45,17 @@ import org.chromium.base.metrics.ScopedSysTraceEvent;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskRunner;
 import org.chromium.base.task.TaskTraits;
-import org.chromium.components.component_updater.ComponentLoaderPolicyBridge;
-import org.chromium.components.component_updater.EmbeddedComponentLoader;
-import org.chromium.components.metrics.AndroidMetricsLogUploader;
 import org.chromium.components.minidump_uploader.CrashFileManager;
 import org.chromium.components.policy.CombinedPolicyProvider;
 import org.chromium.content_public.browser.BrowserStartupController;
 import org.chromium.content_public.browser.ChildProcessCreationParams;
 import org.chromium.content_public.browser.ChildProcessLauncherHelper;
-import org.chromium.content_public.browser.trusttokens.TrustTokenFulfillerManager;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -88,7 +77,6 @@ public final class AwBrowserProcess {
             PostTask.createSequencedTaskRunner(TaskTraits.BEST_EFFORT_MAY_BLOCK);
 
     private static String sWebViewPackageName;
-    private static @ApkType int sApkType;
 
     /**
      * Loads the native library, and performs basic static construction of objects needed
@@ -159,17 +147,13 @@ public final class AwBrowserProcess {
                 // Check android settings but only when safebrowsing is enabled.
                 try (ScopedSysTraceEvent e2 =
                                 ScopedSysTraceEvent.scoped("AwBrowserProcess.maybeEnable")) {
-                    AwSafeBrowsingConfigHelper.maybeEnableSafeBrowsingFromManifest();
+                    AwSafeBrowsingConfigHelper.maybeEnableSafeBrowsingFromManifest(appContext);
                 }
-
-                TrustTokenFulfillerManager.setFactory(
-                        PlatformServiceBridge.getInstance().getLocalTrustTokenFulfillerFactory());
 
                 try (ScopedSysTraceEvent e2 = ScopedSysTraceEvent.scoped(
                              "AwBrowserProcess.startBrowserProcessesSync")) {
                     BrowserStartupController.getInstance().startBrowserProcessesSync(
-                            LibraryProcessType.PROCESS_WEBVIEW, !multiProcess,
-                            /*startGpuProcess=*/false);
+                            LibraryProcessType.PROCESS_WEBVIEW, !multiProcess);
                 }
 
                 PowerMonitor.create();
@@ -185,27 +169,6 @@ public final class AwBrowserProcess {
     public static String getWebViewPackageName() {
         if (sWebViewPackageName == null) return ""; // May be null in testing.
         return sWebViewPackageName;
-    }
-
-    public static void initializeApkType(ApplicationInfo info) {
-        if (info.sharedLibraryFiles != null && info.sharedLibraryFiles.length > 0) {
-            // Only Trichrome uses shared library files.
-            sApkType = ApkType.TRICHROME;
-        } else if (info.className.toLowerCase(Locale.ROOT).contains("monochrome")) {
-            // Only Monochrome has "monochrome" in the application class name.
-            sApkType = ApkType.MONOCHROME;
-        } else {
-            // Everything else must be standalone.
-            sApkType = ApkType.STANDALONE;
-        }
-    }
-
-    /**
-     * Returns the WebView APK type.
-     */
-    @CalledByNative
-    public static @ApkType int getApkType() {
-        return sApkType;
     }
 
     /**
@@ -233,13 +196,13 @@ public final class AwBrowserProcess {
 
             PlatformServiceBridge.getInstance().queryMetricsSetting(enabled -> {
                 ThreadUtils.assertOnUiThread();
-                boolean userApproved = Boolean.TRUE.equals(enabled);
                 if (updateMetricsConsent) {
-                    AwMetricsServiceClient.setConsentSetting(userApproved);
+                    AwMetricsServiceClient.setConsentSetting(
+                            ContextUtils.getApplicationContext(), enabled);
                 }
 
                 if (!enableMinidumpUploadingForTesting) {
-                    handleMinidumps(userApproved);
+                    handleMinidumps(enabled);
                 }
             });
         }
@@ -295,21 +258,20 @@ public final class AwBrowserProcess {
         // again if anything goes wrong. This makes sense given that a failure
         // to copy a file usually means that retrying won't succeed either,
         // because e.g. the disk is full, or the file system is corrupted.
-        final List<ParcelFileDescriptor> minidumpFds = new ArrayList<>(minidumpFiles.length);
+        final ParcelFileDescriptor[] minidumpFds = new ParcelFileDescriptor[minidumpFiles.length];
         try {
             for (int i = 0; i < minidumpFiles.length; ++i) {
                 try {
-                    minidumpFds.add(ParcelFileDescriptor.open(
-                            minidumpFiles[i], ParcelFileDescriptor.MODE_READ_ONLY));
+                    minidumpFds[i] = ParcelFileDescriptor.open(
+                            minidumpFiles[i], ParcelFileDescriptor.MODE_READ_ONLY);
                 } catch (FileNotFoundException e) {
-                    // Don't add null file descriptors to the array.
+                    minidumpFds[i] = null; // This is slightly ugly :)
                 }
             }
             try {
                 List<Map<String, String>> crashesInfoList =
                         getCrashKeysForCrashFiles(minidumpFiles, crashesInfoMap);
-                service.transmitCrashes(
-                        minidumpFds.toArray(new ParcelFileDescriptor[0]), crashesInfoList);
+                service.transmitCrashes(minidumpFds, crashesInfoList);
             } catch (RemoteException e) {
                 // TODO(gsennton): add a UMA metric here to ensure we aren't losing
                 // too many minidumps because of this.
@@ -317,9 +279,9 @@ public final class AwBrowserProcess {
         } finally {
             deleteMinidumps(minidumpFiles);
             // Close FDs
-            for (ParcelFileDescriptor fd : minidumpFds) {
+            for (int i = 0; i < minidumpFds.length; ++i) {
                 try {
-                    fd.close();
+                    if (minidumpFds[i] != null) minidumpFds[i].close();
                 } catch (IOException e) {
                 }
             }
@@ -335,56 +297,49 @@ public final class AwBrowserProcess {
      */
     public static void handleMinidumps(final boolean userApproved) {
         sSequencedTaskRunner.postTask(() -> {
-            try {
-                final Context appContext = ContextUtils.getApplicationContext();
-                final File cacheDir = new File(PathUtils.getCacheDirectory());
-                final CrashFileManager crashFileManager = new CrashFileManager(cacheDir);
+            final Context appContext = ContextUtils.getApplicationContext();
+            final File crashSpoolDir = new File(appContext.getCacheDir().getPath(), "WebView");
+            if (!crashSpoolDir.isDirectory()) return;
+            final CrashFileManager crashFileManager = new CrashFileManager(crashSpoolDir);
 
-                // The lifecycle of a minidump in the app directory is very simple: foo.dmpNNNNN --
-                // where NNNNN is a Process ID (PID) -- gets created, and is either deleted or
-                // copied over to the shared crash directory for all WebView-using apps.
-                Map<String, Map<String, String>> crashesInfoMap =
-                        crashFileManager.importMinidumpsCrashKeys();
-                final File[] minidumpFiles = crashFileManager.getCurrentMinidumpsSansLogcat();
-                if (minidumpFiles.length == 0) return;
+            // The lifecycle of a minidump in the app directory is very simple: foo.dmpNNNNN --
+            // where NNNNN is a Process ID (PID) -- gets created, and is either deleted or
+            // copied over to the shared crash directory for all WebView-using apps.
+            Map<String, Map<String, String>> crashesInfoMap =
+                    crashFileManager.importMinidumpsCrashKeys();
+            final File[] minidumpFiles = crashFileManager.getCurrentMinidumpsSansLogcat();
+            if (minidumpFiles.length == 0) return;
 
-                // Delete the minidumps if the user doesn't allow crash data uploading.
-                if (!userApproved) {
-                    deleteMinidumps(minidumpFiles);
-                    return;
+            // Delete the minidumps if the user doesn't allow crash data uploading.
+            if (!userApproved) {
+                deleteMinidumps(minidumpFiles);
+                return;
+            }
+
+            final Intent intent = new Intent();
+            intent.setClassName(getWebViewPackageName(), ServiceNames.CRASH_RECEIVER_SERVICE);
+
+            ServiceConnection connection = new ServiceConnection() {
+                private boolean mHasConnected;
+
+                @Override
+                public void onServiceConnected(ComponentName className, IBinder service) {
+                    if (mHasConnected) return;
+                    mHasConnected = true;
+                    // onServiceConnected is called on the UI thread, so punt this back to
+                    // the background thread.
+                    sSequencedTaskRunner.postTask(() -> {
+                        transmitMinidumps(minidumpFiles, crashesInfoMap,
+                                ICrashReceiverService.Stub.asInterface(service));
+                        appContext.unbindService(this);
+                    });
                 }
 
-                final Intent intent = new Intent();
-                intent.setClassName(getWebViewPackageName(), ServiceNames.CRASH_RECEIVER_SERVICE);
-
-                ServiceConnection connection = new ServiceConnection() {
-                    private boolean mHasConnected;
-
-                    @Override
-                    public void onServiceConnected(ComponentName className, IBinder service) {
-                        if (mHasConnected) return;
-                        mHasConnected = true;
-                        // onServiceConnected is called on the UI thread, so punt this back to
-                        // the background thread.
-                        sSequencedTaskRunner.postTask(() -> {
-                            transmitMinidumps(minidumpFiles, crashesInfoMap,
-                                    ICrashReceiverService.Stub.asInterface(service));
-                            appContext.unbindService(this);
-                        });
-                    }
-
-                    @Override
-                    public void onServiceDisconnected(ComponentName className) {}
-                };
-                if (!ServiceHelper.bindService(
-                            appContext, intent, connection, Context.BIND_AUTO_CREATE)) {
-                    Log.w(TAG, "Could not bind to Minidump-copying Service " + intent);
-                }
-            } catch (RuntimeException e) {
-                // We don't want to crash the app if we hit an unexpected exception during minidump
-                // uploading as this could potentially put the app into a persistently bad state.
-                // Just log it.
-                Log.e(TAG, "Exception during minidump uploading process!", e);
+                @Override
+                public void onServiceDisconnected(ComponentName className) {}
+            };
+            if (!appContext.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+                Log.w(TAG, "Could not bind to Minidump-copying Service " + intent);
             }
         });
     }
@@ -433,7 +388,7 @@ public final class AwBrowserProcess {
      */
     public static void collectNonembeddedMetrics() {
         final Context appContext = ContextUtils.getApplicationContext();
-        if (ManifestMetadataUtil.isAppOptedOutFromMetricsCollection()) {
+        if (AwMetricsServiceClient.isAppOptedOut(appContext)) {
             Log.d(TAG, "App opted out from metrics collection, not connecting to metrics service");
             return;
         }
@@ -441,11 +396,11 @@ public final class AwBrowserProcess {
         final Intent intent = new Intent();
         intent.setClassName(getWebViewPackageName(), ServiceNames.METRICS_BRIDGE_SERVICE);
 
-        ServiceConnectionDelayRecorder connection = new ServiceConnectionDelayRecorder() {
+        ServiceConnection connection = new ServiceConnection() {
             private boolean mHasConnected;
 
             @Override
-            public void onServiceConnectedImpl(ComponentName className, IBinder service) {
+            public void onServiceConnected(ComponentName className, IBinder service) {
                 if (mHasConnected) return;
                 mHasConnected = true;
                 // onServiceConnected is called on the UI thread, so punt this back to the
@@ -489,45 +444,8 @@ public final class AwBrowserProcess {
             @Override
             public void onServiceDisconnected(ComponentName className) {}
         };
-
-        if (!connection.bind(appContext, intent, Context.BIND_AUTO_CREATE)) {
+        if (!appContext.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
             Log.d(TAG, "Could not bind to MetricsBridgeService " + intent);
-        }
-    }
-
-    /**
-     * Load components files from {@link
-     * org.chromium.android_webview.services.ComponentsProviderService}.
-     */
-    public static void loadComponents() {
-        ComponentLoaderPolicyBridge[] componentPolicies =
-                AwBrowserProcessJni.get().getComponentLoaderPolicies();
-        // Don't connect to the service if there are no components to load.
-        if (componentPolicies.length == 0) {
-            return;
-        }
-        EmbeddedComponentLoader loader =
-                new EmbeddedComponentLoader(Arrays.asList(componentPolicies));
-        final Intent intent = new Intent();
-        intent.setClassName(
-                getWebViewPackageName(), EmbeddedComponentLoader.AW_COMPONENTS_PROVIDER_SERVICE);
-        loader.connect(intent);
-    }
-
-    /**
-     * Initialize the metrics uploader.
-     */
-    public static void initializeMetricsLogUploader() {
-        if (AwFeatureList.isEnabled(AwFeatures.WEBVIEW_USE_METRICS_UPLOAD_SERVICE)) {
-            AwMetricsLogUploader uploader = new AwMetricsLogUploader();
-            // Open a connection during startup while connecting to other services such as
-            // ComponentsProviderService and VariationSeedServer to try to avoid spinning the
-            // nonembedded ":webview_service" twice.
-            uploader.initialize();
-            AndroidMetricsLogUploader.setUploader(uploader);
-        } else {
-            AndroidMetricsLogUploader.setUploader(
-                    (byte[] data) -> { PlatformServiceBridge.getInstance().logMetrics(data); });
         }
     }
 
@@ -537,6 +455,5 @@ public final class AwBrowserProcess {
     @NativeMethods
     interface Natives {
         void setProcessNameCrashKey(String processName);
-        ComponentLoaderPolicyBridge[] getComponentLoaderPolicies();
     }
 }

@@ -49,14 +49,6 @@
 
 }
 
-%code {
-#if defined(__clang__)
-// Clang warns that the variable 'yynerrs_' is set but not used.
-#pragma clang diagnostic ignored "-Wunused-but-set-variable"
-#endif
-}
-
-
 %{
 
 #include "third_party/blink/renderer/core/xml/xpath_functions.h"
@@ -277,7 +269,7 @@ NodeTest:
 OptionalPredicateList:
     /* empty */
     {
-      $$ = nullptr;
+      $$ = 0;
     }
     |
     PredicateList

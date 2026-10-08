@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,11 +55,7 @@ class PerformanceManagerTestHarness
       const PerformanceManagerTestHarness&) = delete;
   ~PerformanceManagerTestHarness() override;
 
-  // Setup returns once the PM is fully initialized and OnGraphCreated has
-  // returned.
   void SetUp() override;
-
-  // Teards down the PM. Blocks until it is fully torn down.
   void TearDown() override;
 
   // Creates a test web contents with performance manager tab helpers
@@ -68,18 +64,8 @@ class PerformanceManagerTestHarness
   std::unique_ptr<content::WebContents> CreateTestWebContents();
 
   // Allows a test to cause the PM to be torn down early, so it can explicitly
-  // test TearDown logic. This may only be called once, and no other functions
-  // (except "TearDown") may be called afterwards.
+  // test TearDown logic. This may only be called once.
   void TearDownNow();
-
-  // An additional seam that gets invoked as part of the PM initialization. This
-  // will be invoked on the PM sequence as part of "SetUp". This will be called
-  // after graph features have been configured (see "GetGraphFeatures").
-  virtual void OnGraphCreated(GraphImpl* graph) {}
-
-  // Allows configuring which Graph features are initialized during "SetUp".
-  // This defaults to initializing no features.
-  GraphFeatures& GetGraphFeatures() { return helper_->GetGraphFeatures(); }
 
  private:
   std::unique_ptr<PerformanceManagerTestHarnessHelper> helper_;

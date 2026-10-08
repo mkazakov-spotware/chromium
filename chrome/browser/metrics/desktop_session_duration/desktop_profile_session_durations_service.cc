@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,9 +25,8 @@ DesktopProfileSessionDurationsService::DesktopProfileSessionDurationsService(
               password_manager::PasswordSessionDurationsMetricsRecorder>(
               pref_service,
               sync_service)),
-      download_metrics_recorder_(
-          std::make_unique<DownloadSessionDurationsMetricsRecorder>()) {
-  session_duration_observation_.Observe(tracker);
+      session_duration_observer_(this) {
+  session_duration_observer_.Add(tracker);
   if (tracker->in_session()) {
     // The session was started before this service was created. Let's start
     // tracking now.
@@ -49,22 +48,12 @@ void DesktopProfileSessionDurationsService::Shutdown() {
 
   password_metrics_recorder_.reset();
   sync_metrics_recorder_.reset();
-  download_metrics_recorder_.reset();
-}
-
-bool DesktopProfileSessionDurationsService::IsSignedIn() const {
-  return sync_metrics_recorder_->IsSignedIn();
-}
-
-bool DesktopProfileSessionDurationsService::IsSyncing() const {
-  return sync_metrics_recorder_->IsSyncing();
 }
 
 void DesktopProfileSessionDurationsService::OnSessionStarted(
     base::TimeTicks session_start) {
   sync_metrics_recorder_->OnSessionStarted(session_start);
   password_metrics_recorder_->OnSessionStarted(session_start);
-  download_metrics_recorder_->OnSessionStarted(session_start);
 }
 
 void DesktopProfileSessionDurationsService::OnSessionEnded(
@@ -72,7 +61,6 @@ void DesktopProfileSessionDurationsService::OnSessionEnded(
     base::TimeTicks session_end) {
   sync_metrics_recorder_->OnSessionEnded(session_length);
   password_metrics_recorder_->OnSessionEnded(session_length);
-  download_metrics_recorder_->OnSessionEnded(session_end);
 }
 
 }  // namespace metrics

@@ -1,18 +1,29 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2012 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview An interface for a listenable JavaScript object.
  */
 
 goog.provide('goog.events.Listenable');
+goog.provide('goog.events.ListenableKey');
 
-goog.requireType('goog.events.EventId');
-goog.requireType('goog.events.EventLike');
-goog.requireType('goog.events.ListenableKey');
+goog.forwardDeclare('goog.events.EventLike');
+goog.forwardDeclare('goog.events.EventTarget');
+/** @suppress {extraRequire} */
+goog.require('goog.events.EventId');
+
 
 
 /**
@@ -66,18 +77,16 @@ goog.events.Listenable.IMPLEMENTED_BY_PROP =
  *     The corresponding class must have already implemented the interface.
  */
 goog.events.Listenable.addImplementation = function(cls) {
-  'use strict';
   cls.prototype[goog.events.Listenable.IMPLEMENTED_BY_PROP] = true;
 };
 
 
 /**
- * @param {?Object} obj The object to check.
+ * @param {Object} obj The object to check.
  * @return {boolean} Whether a given instance implements Listenable. The
  *     class/superclass of the instance must call addImplementation.
  */
 goog.events.Listenable.isImplementedBy = function(obj) {
-  'use strict';
   return !!(obj && obj[goog.events.Listenable.IMPLEMENTED_BY_PROP]);
 };
 
@@ -99,8 +108,7 @@ goog.events.Listenable.isImplementedBy = function(obj) {
  * @return {!goog.events.ListenableKey} Unique key for the listener.
  * @template SCOPE,EVENTOBJ
  */
-goog.events.Listenable.prototype.listen = function(
-    type, listener, opt_useCapture, opt_listenerScope) {};
+goog.events.Listenable.prototype.listen;
 
 
 /**
@@ -124,8 +132,7 @@ goog.events.Listenable.prototype.listen = function(
  * @return {!goog.events.ListenableKey} Unique key for the listener.
  * @template SCOPE,EVENTOBJ
  */
-goog.events.Listenable.prototype.listenOnce = function(
-    type, listener, opt_useCapture, opt_listenerScope) {};
+goog.events.Listenable.prototype.listenOnce;
 
 
 /**
@@ -141,8 +148,7 @@ goog.events.Listenable.prototype.listenOnce = function(
  * @return {boolean} Whether any listener was removed.
  * @template SCOPE,EVENTOBJ
  */
-goog.events.Listenable.prototype.unlisten = function(
-    type, listener, opt_useCapture, opt_listenerScope) {};
+goog.events.Listenable.prototype.unlisten;
 
 
 /**
@@ -153,7 +159,7 @@ goog.events.Listenable.prototype.unlisten = function(
  *     listen() or listenOnce().
  * @return {boolean} Whether any listener was removed.
  */
-goog.events.Listenable.prototype.unlistenByKey = function(key) {};
+goog.events.Listenable.prototype.unlistenByKey;
 
 
 /**
@@ -165,11 +171,11 @@ goog.events.Listenable.prototype.unlistenByKey = function(key) {};
  * function will return false.  If one of the capture listeners calls
  * stopPropagation, then the bubble listeners won't fire.
  *
- * @param {?goog.events.EventLike} e Event object.
+ * @param {goog.events.EventLike} e Event object.
  * @return {boolean} If anyone called preventDefault on the event object (or
  *     if any of the listeners returns false) this will also return false.
  */
-goog.events.Listenable.prototype.dispatchEvent = function(e) {};
+goog.events.Listenable.prototype.dispatchEvent;
 
 
 /**
@@ -177,11 +183,11 @@ goog.events.Listenable.prototype.dispatchEvent = function(e) {};
  * it will only remove listeners of the particular type. otherwise all
  * registered listeners will be removed.
  *
- * @param {string|!goog.events.EventId=} opt_type Type of event to remove,
- *     default is to remove all types.
+ * @param {string=} opt_type Type of event to remove, default is to
+ *     remove all types.
  * @return {number} Number of listeners removed.
  */
-goog.events.Listenable.prototype.removeAllListeners = function(opt_type) {};
+goog.events.Listenable.prototype.removeAllListeners;
 
 
 /**
@@ -192,10 +198,10 @@ goog.events.Listenable.prototype.removeAllListeners = function(opt_type) {};
  * custom event target (`goog.events.EventTarget`). We decided
  * that changing the name is not worth it.
  *
- * @return {?goog.events.Listenable} The parent EventTarget or null if
+ * @return {goog.events.Listenable} The parent EventTarget or null if
  *     there is no parent.
  */
-goog.events.Listenable.prototype.getParentEventTarget = function() {};
+goog.events.Listenable.prototype.getParentEventTarget;
 
 
 /**
@@ -214,8 +220,7 @@ goog.events.Listenable.prototype.getParentEventTarget = function() {};
  *     false.
  * @template EVENTOBJ
  */
-goog.events.Listenable.prototype.fireListeners = function(
-    type, capture, eventObject) {};
+goog.events.Listenable.prototype.fireListeners;
 
 
 /**
@@ -228,7 +233,7 @@ goog.events.Listenable.prototype.fireListeners = function(
  *     listeners.
  * @template EVENTOBJ
  */
-goog.events.Listenable.prototype.getListeners = function(type, capture) {};
+goog.events.Listenable.prototype.getListeners;
 
 
 /**
@@ -242,11 +247,10 @@ goog.events.Listenable.prototype.getListeners = function(type, capture) {};
  * @param {boolean} capture Whether the listener is a capturing listener.
  * @param {SCOPE=} opt_listenerScope Object in whose scope to call the
  *     listener.
- * @return {?goog.events.ListenableKey} the found listener or null if not found.
+ * @return {goog.events.ListenableKey} the found listener or null if not found.
  * @template SCOPE,EVENTOBJ
  */
-goog.events.Listenable.prototype.getListener = function(
-    type, listener, capture, opt_listenerScope) {};
+goog.events.Listenable.prototype.getListener;
 
 
 /**
@@ -261,5 +265,72 @@ goog.events.Listenable.prototype.getListener = function(
  *     the requested type and/or capture phase.
  * @template EVENTOBJ
  */
-goog.events.Listenable.prototype.hasListener = function(
-    opt_type, opt_capture) {};
+goog.events.Listenable.prototype.hasListener;
+
+
+
+/**
+ * An interface that describes a single registered listener.
+ * @interface
+ */
+goog.events.ListenableKey = function() {};
+
+
+/**
+ * Counter used to create a unique key
+ * @type {number}
+ * @private
+ */
+goog.events.ListenableKey.counter_ = 0;
+
+
+/**
+ * Reserves a key to be used for ListenableKey#key field.
+ * @return {number} A number to be used to fill ListenableKey#key
+ *     field.
+ */
+goog.events.ListenableKey.reserveKey = function() {
+  return ++goog.events.ListenableKey.counter_;
+};
+
+
+/**
+ * The source event target.
+ * @type {Object|goog.events.Listenable|goog.events.EventTarget}
+ */
+goog.events.ListenableKey.prototype.src;
+
+
+/**
+ * The event type the listener is listening to.
+ * @type {string}
+ */
+goog.events.ListenableKey.prototype.type;
+
+
+/**
+ * The listener function.
+ * @type {function(?):?|{handleEvent:function(?):?}|null}
+ */
+goog.events.ListenableKey.prototype.listener;
+
+
+/**
+ * Whether the listener works on capture phase.
+ * @type {boolean}
+ */
+goog.events.ListenableKey.prototype.capture;
+
+
+/**
+ * The 'this' object for the listener function's scope.
+ * @type {Object|undefined}
+ */
+goog.events.ListenableKey.prototype.handler;
+
+
+/**
+ * A globally unique number to identify the key.
+ * @type {number}
+ */
+goog.events.ListenableKey.prototype.key;

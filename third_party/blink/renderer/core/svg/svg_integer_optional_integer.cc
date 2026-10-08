@@ -31,8 +31,7 @@
 #include "third_party/blink/renderer/core/svg/svg_integer_optional_integer.h"
 
 #include "third_party/blink/renderer/core/svg/svg_parser_utilities.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -77,8 +76,8 @@ SVGParsingError SVGIntegerOptionalInteger::SetValueAsString(
     x = y = 0;
   }
 
-  first_integer_->SetValue(ClampTo<int>(x));
-  second_integer_->SetValue(ClampTo<int>(y));
+  first_integer_->SetValue(clampTo<int>(x));
+  second_integer_->SetValue(clampTo<int>(y));
   return parse_status;
 }
 

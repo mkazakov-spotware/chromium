@@ -1,11 +1,11 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_POLICY_CLOUD_USER_CLOUD_POLICY_INVALIDATOR_H_
 #define CHROME_BROWSER_POLICY_CLOUD_USER_CLOUD_POLICY_INVALIDATOR_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/policy/cloud/cloud_policy_invalidator.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/notification_observer.h"
@@ -30,9 +30,6 @@ class UserCloudPolicyInvalidator : public CloudPolicyInvalidator,
   // valid until Shutdown is called.
   UserCloudPolicyInvalidator(Profile* profile,
                              CloudPolicyManager* policy_manager);
-  UserCloudPolicyInvalidator(const UserCloudPolicyInvalidator&) = delete;
-  UserCloudPolicyInvalidator& operator=(const UserCloudPolicyInvalidator&) =
-      delete;
 
   // KeyedService:
   void Shutdown() override;
@@ -44,10 +41,12 @@ class UserCloudPolicyInvalidator : public CloudPolicyInvalidator,
 
  private:
   // The profile associated with the invalidator.
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 
   // Used to register for notification that profile creation is complete.
   content::NotificationRegistrar registrar_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserCloudPolicyInvalidator);
 };
 
 }  // namespace policy

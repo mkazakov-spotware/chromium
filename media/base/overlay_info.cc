@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ namespace media {
 
 OverlayInfo::OverlayInfo() = default;
 OverlayInfo::OverlayInfo(const OverlayInfo&) = default;
-OverlayInfo& OverlayInfo::operator=(const OverlayInfo&) = default;
 
 bool OverlayInfo::HasValidRoutingToken() const {
   return routing_token.has_value();

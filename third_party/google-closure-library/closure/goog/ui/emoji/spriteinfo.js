@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview SpriteInfo implementation. This is a simple wrapper class to
@@ -35,7 +43,6 @@ goog.provide('goog.ui.emoji.SpriteInfo');
 goog.ui.emoji.SpriteInfo = function(
     cssClass, opt_url, opt_width, opt_height, opt_xOffset, opt_yOffset,
     opt_animated) {
-  'use strict';
   if (cssClass != null) {
     this.cssClass_ = cssClass;
   } else {
@@ -118,7 +125,6 @@ goog.ui.emoji.SpriteInfo.prototype.animated_;
  *     image.
  */
 goog.ui.emoji.SpriteInfo.prototype.getCssClass = function() {
-  'use strict';
   return this.cssClass_ || null;
 };
 
@@ -128,7 +134,6 @@ goog.ui.emoji.SpriteInfo.prototype.getCssClass = function() {
  * @return {?string} Url of the sprite image.
  */
 goog.ui.emoji.SpriteInfo.prototype.getUrl = function() {
-  'use strict';
   return this.url_ || null;
 };
 
@@ -138,7 +143,6 @@ goog.ui.emoji.SpriteInfo.prototype.getUrl = function() {
  * @return {boolean} Whether the emoji is animated.
  */
 goog.ui.emoji.SpriteInfo.prototype.isAnimated = function() {
-  'use strict';
   return this.animated_;
 };
 
@@ -148,7 +152,6 @@ goog.ui.emoji.SpriteInfo.prototype.isAnimated = function() {
  * @return {string} The width of the image being sprited.
  */
 goog.ui.emoji.SpriteInfo.prototype.getWidthCssValue = function() {
-  'use strict';
   return goog.ui.emoji.SpriteInfo.getCssPixelValue_(this.width_);
 };
 
@@ -158,7 +161,6 @@ goog.ui.emoji.SpriteInfo.prototype.getWidthCssValue = function() {
  * @return {string} The height of the image being sprited.
  */
 goog.ui.emoji.SpriteInfo.prototype.getHeightCssValue = function() {
-  'use strict';
   return goog.ui.emoji.SpriteInfo.getCssPixelValue_(this.height_);
 };
 
@@ -169,7 +171,6 @@ goog.ui.emoji.SpriteInfo.prototype.getHeightCssValue = function() {
  * @return {string} The x offset of the image being sprited within the sprite.
  */
 goog.ui.emoji.SpriteInfo.prototype.getXOffsetCssValue = function() {
-  'use strict';
   return goog.ui.emoji.SpriteInfo.getOffsetCssValue_(this.xOffset_);
 };
 
@@ -180,7 +181,6 @@ goog.ui.emoji.SpriteInfo.prototype.getXOffsetCssValue = function() {
  * @return {string} The y offset of the image being sprited within the sprite.
  */
 goog.ui.emoji.SpriteInfo.prototype.getYOffsetCssValue = function() {
-  'use strict';
   return goog.ui.emoji.SpriteInfo.getOffsetCssValue_(this.yOffset_);
 };
 
@@ -195,7 +195,6 @@ goog.ui.emoji.SpriteInfo.prototype.getYOffsetCssValue = function() {
  * @private
  */
 goog.ui.emoji.SpriteInfo.getCssPixelValue_ = function(value) {
-  'use strict';
   return !value ? '0' : value + 'px';
 };
 
@@ -209,7 +208,6 @@ goog.ui.emoji.SpriteInfo.getCssPixelValue_ = function(value) {
  * @private
  */
 goog.ui.emoji.SpriteInfo.getOffsetCssValue_ = function(posOffset) {
-  'use strict';
   const offset = goog.ui.emoji.SpriteInfo.getCssPixelValue_(posOffset);
   return offset == '0' ? offset : '-' + offset;
 };

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,7 +49,7 @@ int32_t DeviceEnumerationResourceHelper::EnumerateDevices(
   PpapiHostMsg_DeviceEnumeration_EnumerateDevices msg;
   owner_->Call<PpapiPluginMsg_DeviceEnumeration_EnumerateDevicesReply>(
       PluginResource::RENDERER, msg,
-      base::BindOnce(
+      base::Bind(
           &DeviceEnumerationResourceHelper::OnPluginMsgEnumerateDevicesReply,
           AsWeakPtr(), output, callback));
   return PP_OK_COMPLETIONPENDING;

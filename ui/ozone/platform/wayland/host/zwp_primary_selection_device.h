@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef UI_OZONE_PLATFORM_WAYLAND_HOST_ZWP_PRIMARY_SELECTION_DEVICE_H_
-#define UI_OZONE_PLATFORM_WAYLAND_HOST_ZWP_PRIMARY_SELECTION_DEVICE_H_
-
-#include <cstdint>
+#ifndef UI_OZONE_PLATFORM_WAYLAND_HOST_PRIMARY_SELECTION_DEVICE_H_
+#define UI_OZONE_PLATFORM_WAYLAND_HOST_PRIMARY_SELECTION_DEVICE_H_
 
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_device_base.h"
@@ -21,11 +19,10 @@ class WaylandConnection;
 class ZwpPrimarySelectionDevice : public WaylandDataDeviceBase {
  public:
   ZwpPrimarySelectionDevice(WaylandConnection* connection,
-                            zwp_primary_selection_device_v1* data_device);
+                         zwp_primary_selection_device_v1* data_device);
 
   ZwpPrimarySelectionDevice(const ZwpPrimarySelectionDevice&) = delete;
-  ZwpPrimarySelectionDevice& operator=(const ZwpPrimarySelectionDevice&) =
-      delete;
+  ZwpPrimarySelectionDevice& operator =(const ZwpPrimarySelectionDevice&) = delete;
 
   ~ZwpPrimarySelectionDevice() override;
 
@@ -33,7 +30,7 @@ class ZwpPrimarySelectionDevice : public WaylandDataDeviceBase {
     return data_device_.get();
   }
 
-  void SetSelectionSource(ZwpPrimarySelectionSource* source, uint32_t serial);
+  void SetSelectionSource(ZwpPrimarySelectionSource* source);
 
  private:
   // primary_selection_device_listener callbacks
@@ -50,4 +47,4 @@ class ZwpPrimarySelectionDevice : public WaylandDataDeviceBase {
 
 }  // namespace ui
 
-#endif  // UI_OZONE_PLATFORM_WAYLAND_HOST_ZWP_PRIMARY_SELECTION_DEVICE_H_
+#endif  // UI_OZONE_PLATFORM_WAYLAND_HOST_PRIMARY_SELECTION_DEVICE_H_

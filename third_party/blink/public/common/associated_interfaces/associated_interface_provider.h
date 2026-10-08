@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <string>
 
 #include "base/callback.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
@@ -50,10 +51,6 @@ class BLINK_COMMON_EXPORT AssociatedInterfaceProvider {
   explicit AssociatedInterfaceProvider(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
 
-  AssociatedInterfaceProvider(const AssociatedInterfaceProvider&) = delete;
-  AssociatedInterfaceProvider& operator=(const AssociatedInterfaceProvider&) =
-      delete;
-
   ~AssociatedInterfaceProvider();
 
   // Passes an associated endpoint handle to the remote end to be bound to a
@@ -87,6 +84,8 @@ class BLINK_COMMON_EXPORT AssociatedInterfaceProvider {
 
   std::unique_ptr<LocalProvider> local_provider_;
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(AssociatedInterfaceProvider);
 };
 
 }  // namespace blink

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_agent_host_client_channel.h"
 #include "content/public/browser/web_contents.h"
+#include "headless/grit/headless_lib_resources.h"
 #include "headless/lib/browser/headless_browser_context_impl.h"
 #include "headless/lib/browser/headless_browser_impl.h"
 #include "headless/lib/browser/headless_web_contents_impl.h"
@@ -44,6 +45,11 @@ HeadlessDevToolsManagerDelegate::CreateNewTarget(const GURL& url) {
           .Build());
   return content::DevToolsAgentHost::GetOrCreateFor(
       web_contents_impl->web_contents());
+}
+
+std::string HeadlessDevToolsManagerDelegate::GetDiscoveryPageHTML() {
+  return ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
+      IDR_HEADLESS_LIB_DEVTOOLS_DISCOVERY_PAGE);
 }
 
 bool HeadlessDevToolsManagerDelegate::HasBundledFrontendResources() {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,12 @@
 
 #include "build/build_config.h"
 #include "chrome/browser/ui/passwords/credential_leak_dialog_controller.h"
-#include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
+#include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/theme_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/password_manager/core/browser/leak_detection_dialog_utils.h"
 #include "content/public/browser/web_contents.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/border.h"
@@ -22,6 +21,23 @@
 #include "ui/views/layout/fill_layout.h"
 
 namespace {
+
+// Updates the image displayed on the illustration based on the current theme.
+void UpdateImageView(NonAccessibleImageView* image_view,
+                     bool dark_mode_enabled) {
+  image_view->SetImage(
+      *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+          dark_mode_enabled ? IDR_PASSWORD_CHECK_DARK : IDR_PASSWORD_CHECK));
+}
+
+// Creates the illustration which is rendered on top of the dialog.
+std::unique_ptr<NonAccessibleImageView> CreateIllustration(
+    bool dark_mode_enabled) {
+  auto image_view = std::make_unique<NonAccessibleImageView>();
+  UpdateImageView(image_view.get(), dark_mode_enabled);
+  image_view->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
+  return image_view;
+}
 
 std::unique_ptr<views::TooltipIcon> CreateInfoIcon() {
   auto explanation_tooltip = std::make_unique<views::TooltipIcon>(
@@ -49,12 +65,7 @@ CredentialLeakDialogView::CredentialLeakDialogView(
   SetButtonLabel(ui::DIALOG_BUTTON_OK, controller_->GetAcceptButtonLabel());
   SetButtonLabel(ui::DIALOG_BUTTON_CANCEL, controller_->GetCancelButtonLabel());
 
-  SetModalType(ui::MODAL_TYPE_CHILD);
-  SetShowCloseButton(false);
-  set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
-      views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH));
-
-  using ControllerClosureFn = void (CredentialLeakDialogController::*)();
+  using ControllerClosureFn = void (CredentialLeakDialogController::*)(void);
   auto close_callback = [](CredentialLeakDialogController** controller,
                            ControllerClosureFn fn) {
     // Null out the controller pointer stored in the parent object, to avoid any
@@ -78,10 +89,7 @@ CredentialLeakDialogView::CredentialLeakDialogView(
                      &CredentialLeakDialogController::OnCloseDialog));
 }
 
-CredentialLeakDialogView::~CredentialLeakDialogView() {
-  if (controller_)
-    std::exchange(controller_, nullptr)->ResetDialog();
-}
+CredentialLeakDialogView::~CredentialLeakDialogView() = default;
 
 void CredentialLeakDialogView::ShowCredentialLeakPrompt() {
   InitWindow();
@@ -98,45 +106,38 @@ void CredentialLeakDialogView::ControllerGone() {
     GetWidget()->Close();
 }
 
-void CredentialLeakDialogView::AddedToWidget() {
-  // Set the header image.
-  ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
-  auto image_view = std::make_unique<ThemeTrackingNonAccessibleImageView>(
-      *bundle.GetImageSkiaNamed(IDR_PASSWORD_CHECK),
-      *bundle.GetImageSkiaNamed(IDR_PASSWORD_CHECK_DARK),
-      base::BindRepeating(&views::BubbleFrameView::GetBackgroundColor,
-                          base::Unretained(GetBubbleFrameView())));
-
-  gfx::Size preferred_size = image_view->GetPreferredSize();
-  if (!preferred_size.IsEmpty()) {
-    float max_width =
-        static_cast<float>(ChromeLayoutProvider::Get()->GetDistanceMetric(
-            views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH));
-    // Reduce width by a pixel on each side. This enforces that the banner image
-    // is rescaled during the ImageView::OnPaint step. Without the rescaling,
-    // the image will display compression artifacts due to the size mismatch.
-    // TODO(crbug.com/1171763): Remove once the scaling works automatically.
-    max_width -= 2;
-    const float scale = max_width / preferred_size.width();
-    preferred_size = gfx::ScaleToRoundedSize(preferred_size, scale);
-    image_view->SetImageSize(preferred_size);
-  }
-  image_view->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
-  GetBubbleFrameView()->SetHeaderView(std::move(image_view));
+ui::ModalType CredentialLeakDialogView::GetModalType() const {
+  return ui::MODAL_TYPE_CHILD;
 }
 
-std::u16string CredentialLeakDialogView::GetWindowTitle() const {
+gfx::Size CredentialLeakDialogView::CalculatePreferredSize() const {
+  const int width = ChromeLayoutProvider::Get()->GetDistanceMetric(
+                        views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH) -
+                    margins().width();
+  return gfx::Size(width, GetHeightForWidth(width));
+}
+
+bool CredentialLeakDialogView::ShouldShowCloseButton() const {
+  return false;
+}
+
+void CredentialLeakDialogView::OnThemeChanged() {
+  views::DialogDelegateView::OnThemeChanged();
+  GetBubbleFrameView()->SetHeaderView(
+      CreateIllustration(GetNativeTheme()->ShouldUseDarkColors()));
+}
+
+base::string16 CredentialLeakDialogView::GetWindowTitle() const {
   // |controller_| can be nullptr when the framework calls this method after a
   // button click.
-  return controller_ ? controller_->GetTitle() : std::u16string();
+  return controller_ ? controller_->GetTitle() : base::string16();
 }
 
 void CredentialLeakDialogView::InitWindow() {
   SetLayoutManager(std::make_unique<views::FillLayout>());
   SetBorder(views::CreateEmptyBorder(
       views::LayoutProvider::Get()->GetDialogInsetsForContentType(
-          views::DialogContentType::kControl,
-          views::DialogContentType::kControl)));
+          views::CONTROL, views::CONTROL)));
 
   auto description_label = std::make_unique<views::Label>(
       controller_->GetDescription(), views::style::CONTEXT_LABEL,
@@ -146,9 +147,6 @@ void CredentialLeakDialogView::InitWindow() {
   AddChildView(std::move(description_label));
   SetExtraView(CreateInfoIcon());
 }
-
-BEGIN_METADATA(CredentialLeakDialogView, views::DialogDelegateView)
-END_METADATA
 
 CredentialLeakPrompt* CreateCredentialLeakPromptView(
     CredentialLeakDialogController* controller,

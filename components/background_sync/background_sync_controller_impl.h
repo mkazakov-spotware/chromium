@@ -1,17 +1,17 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BACKGROUND_SYNC_BACKGROUND_SYNC_CONTROLLER_IMPL_H_
 #define COMPONENTS_BACKGROUND_SYNC_BACKGROUND_SYNC_CONTROLLER_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/background_sync_controller.h"
 
 #include <stdint.h>
 
 #include <set>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/background_sync/background_sync_delegate.h"
@@ -50,14 +50,21 @@ class BackgroundSyncControllerImpl : public content::BackgroundSyncController,
   static const char kMaxSyncEventDurationName[];
   static const char kMinPeriodicSyncEventsInterval[];
 
+#if !defined(OS_ANDROID)
+  class BackgroundSyncEventKeepAliveImpl : public BackgroundSyncEventKeepAlive {
+   public:
+    ~BackgroundSyncEventKeepAliveImpl() override;
+    BackgroundSyncEventKeepAliveImpl();
+
+   private:
+    std::unique_ptr<ScopedKeepAlive, content::BrowserThread::DeleteOnUIThread>
+        keepalive_ = nullptr;
+  };
+#endif
+
   BackgroundSyncControllerImpl(
       content::BrowserContext* browser_context,
       std::unique_ptr<background_sync::BackgroundSyncDelegate> delegate);
-
-  BackgroundSyncControllerImpl(const BackgroundSyncControllerImpl&) = delete;
-  BackgroundSyncControllerImpl& operator=(const BackgroundSyncControllerImpl&) =
-      delete;
-
   ~BackgroundSyncControllerImpl() override;
 
   // content::BackgroundSyncController overrides.
@@ -99,10 +106,9 @@ class BackgroundSyncControllerImpl : public content::BackgroundSyncController,
   void RemoveFromTrackedOrigins(const url::Origin& origin) override;
 
   // content_settings::Observer overrides.
-  void OnContentSettingChanged(
-      const ContentSettingsPattern& primary_pattern,
-      const ContentSettingsPattern& secondary_pattern,
-      ContentSettingsTypeSet content_type_set) override;
+  void OnContentSettingChanged(const ContentSettingsPattern& primary_pattern,
+                               const ContentSettingsPattern& secondary_pattern,
+                               ContentSettingsType content_type) override;
 
   bool IsOriginTracked(const url::Origin& origin) {
     return periodic_sync_origins_.find(origin) != periodic_sync_origins_.end();
@@ -127,12 +133,14 @@ class BackgroundSyncControllerImpl : public content::BackgroundSyncController,
   // KeyedService implementation.
   void Shutdown() override;
 
-  raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* browser_context_;
 
   std::unique_ptr<background_sync::BackgroundSyncDelegate> delegate_;
   std::unique_ptr<BackgroundSyncMetrics> background_sync_metrics_;
 
   std::set<url::Origin> periodic_sync_origins_;
+
+  DISALLOW_COPY_AND_ASSIGN(BackgroundSyncControllerImpl);
 };
 
 #endif  // COMPONENTS_BACKGROUND_SYNC_BACKGROUND_SYNC_CONTROLLER_IMPL_H_

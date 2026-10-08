@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,15 +27,16 @@ namespace {
 // SY = LOCAL_SYSTEM
 // BA = BUILTIN_ADMINISTRATORS
 // OW = OWNER_RIGHTS
-constexpr wchar_t kDefaultSecurityDescriptor[] =
+constexpr base::char16 kDefaultSecurityDescriptor[] =
     L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;OW)";
 
 NamedPlatformChannel::ServerName GenerateRandomServerName() {
-  return base::StringPrintf(L"%lu.%lu.%I64u", ::GetCurrentProcessId(),
-                            ::GetCurrentThreadId(), base::RandUint64());
+  return base::UTF8ToUTF16(
+      base::StringPrintf("%lu.%lu.%I64u", ::GetCurrentProcessId(),
+                         ::GetCurrentThreadId(), base::RandUint64()));
 }
 
-std::wstring GetPipeNameFromServerName(
+base::string16 GetPipeNameFromServerName(
     const NamedPlatformChannel::ServerName& server_name) {
   return L"\\\\.\\pipe\\mojo." + server_name;
 }
@@ -67,7 +68,7 @@ PlatformChannelServerEndpoint NamedPlatformChannel::CreateServerEndpoint(
   const DWORD kPipeMode =
       PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_REJECT_REMOTE_CLIENTS;
 
-  std::wstring pipe_name = GetPipeNameFromServerName(name);
+  base::string16 pipe_name = GetPipeNameFromServerName(name);
   PlatformHandle handle(base::win::ScopedHandle(::CreateNamedPipeW(
       pipe_name.c_str(), kOpenMode, kPipeMode,
       options.enforce_uniqueness ? 1 : 255,  // Max instances.
@@ -82,8 +83,8 @@ PlatformChannelServerEndpoint NamedPlatformChannel::CreateServerEndpoint(
 
 // static
 PlatformChannelEndpoint NamedPlatformChannel::CreateClientEndpoint(
-    const Options& options) {
-  std::wstring pipe_name = GetPipeNameFromServerName(options.server_name);
+    const ServerName& server_name) {
+  base::string16 pipe_name = GetPipeNameFromServerName(server_name);
 
   // Note: This may block.
   if (!::WaitNamedPipeW(pipe_name.c_str(), NMPWAIT_USE_DEFAULT_WAIT))

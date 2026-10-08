@@ -1,12 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 module network.mojom;
 
-import "mojo/public/mojom/base/unguessable_token.mojom";
 import "services/network/public/mojom/site_for_cookies.mojom";
-import "services/network/public/mojom/schemeful_site.mojom";
 import "url/mojom/origin.mojom";
 
 // Mapped to net::IsolationInfo::RequestType, which is what consumers should
@@ -24,7 +22,6 @@ struct IsolationInfo {
   IsolationInfoRequestType request_type;
   url.mojom.Origin? top_frame_origin;
   url.mojom.Origin? frame_origin;
-  mojo_base.mojom.UnguessableToken? nonce;
+  bool opaque_and_non_transient;
   SiteForCookies site_for_cookies;
-  array<SchemefulSite>? party_context;
 };

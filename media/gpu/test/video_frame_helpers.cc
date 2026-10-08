@@ -1,18 +1,17 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/gpu/test/video_frame_helpers.h"
 
-#include <sys/mman.h>
 #include <utility>
 #include <vector>
 
-#include "base/bits.h"
 #include "base/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "gpu/ipc/common/gpu_memory_buffer_support.h"
+#include "gpu/ipc/service/gpu_memory_buffer_factory.h"
 #include "media/base/color_plane_layout.h"
 #include "media/base/format_utils.h"
 #include "media/base/video_frame.h"
@@ -89,41 +88,40 @@ bool ConvertVideoFrameToI420(const VideoFrame* src_frame,
                         false);
   ASSERT_TRUE_OR_RETURN(dst_frame->format() == PIXEL_FORMAT_I420, false);
 
-  // Convert the visible area.
   const auto& visible_rect = src_frame->visible_rect();
   const int width = visible_rect.width();
   const int height = visible_rect.height();
-  uint8_t* const dst_y = dst_frame->GetWritableVisibleData(VideoFrame::kYPlane);
-  uint8_t* const dst_u = dst_frame->GetWritableVisibleData(VideoFrame::kUPlane);
-  uint8_t* const dst_v = dst_frame->GetWritableVisibleData(VideoFrame::kVPlane);
+  uint8_t* const dst_y = dst_frame->data(VideoFrame::kYPlane);
+  uint8_t* const dst_u = dst_frame->data(VideoFrame::kUPlane);
+  uint8_t* const dst_v = dst_frame->data(VideoFrame::kVPlane);
   const int dst_stride_y = dst_frame->stride(VideoFrame::kYPlane);
   const int dst_stride_u = dst_frame->stride(VideoFrame::kUPlane);
   const int dst_stride_v = dst_frame->stride(VideoFrame::kVPlane);
 
   switch (src_frame->format()) {
     case PIXEL_FORMAT_I420:
-      return libyuv::I420Copy(src_frame->visible_data(VideoFrame::kYPlane),
+      return libyuv::I420Copy(src_frame->data(VideoFrame::kYPlane),
                               src_frame->stride(VideoFrame::kYPlane),
-                              src_frame->visible_data(VideoFrame::kUPlane),
+                              src_frame->data(VideoFrame::kUPlane),
                               src_frame->stride(VideoFrame::kUPlane),
-                              src_frame->visible_data(VideoFrame::kVPlane),
+                              src_frame->data(VideoFrame::kVPlane),
                               src_frame->stride(VideoFrame::kVPlane), dst_y,
                               dst_stride_y, dst_u, dst_stride_u, dst_v,
                               dst_stride_v, width, height) == 0;
     case PIXEL_FORMAT_NV12:
-      return libyuv::NV12ToI420(src_frame->visible_data(VideoFrame::kYPlane),
+      return libyuv::NV12ToI420(src_frame->data(VideoFrame::kYPlane),
                                 src_frame->stride(VideoFrame::kYPlane),
-                                src_frame->visible_data(VideoFrame::kUVPlane),
+                                src_frame->data(VideoFrame::kUVPlane),
                                 src_frame->stride(VideoFrame::kUVPlane), dst_y,
                                 dst_stride_y, dst_u, dst_stride_u, dst_v,
                                 dst_stride_v, width, height) == 0;
     case PIXEL_FORMAT_YV12:
       // Swap U and V planes.
-      return libyuv::I420Copy(src_frame->visible_data(VideoFrame::kYPlane),
+      return libyuv::I420Copy(src_frame->data(VideoFrame::kYPlane),
                               src_frame->stride(VideoFrame::kYPlane),
-                              src_frame->visible_data(VideoFrame::kVPlane),
+                              src_frame->data(VideoFrame::kVPlane),
                               src_frame->stride(VideoFrame::kVPlane),
-                              src_frame->visible_data(VideoFrame::kUPlane),
+                              src_frame->data(VideoFrame::kUPlane),
                               src_frame->stride(VideoFrame::kUPlane), dst_y,
                               dst_stride_y, dst_u, dst_stride_u, dst_v,
                               dst_stride_v, width, height) == 0;
@@ -141,19 +139,18 @@ bool ConvertVideoFrameToYUV420P10(const VideoFrame* src_frame,
     return false;
   }
 
-  // Convert the visible area.
   const auto& visible_rect = src_frame->visible_rect();
   const int width = visible_rect.width();
   const int height = visible_rect.height();
-  uint8_t* const dst_y = dst_frame->GetWritableVisibleData(VideoFrame::kYPlane);
-  uint8_t* const dst_u = dst_frame->GetWritableVisibleData(VideoFrame::kUPlane);
-  uint8_t* const dst_v = dst_frame->GetWritableVisibleData(VideoFrame::kVPlane);
+  uint8_t* const dst_y = dst_frame->data(VideoFrame::kYPlane);
+  uint8_t* const dst_u = dst_frame->data(VideoFrame::kUPlane);
+  uint8_t* const dst_v = dst_frame->data(VideoFrame::kVPlane);
   const int dst_stride_y = dst_frame->stride(VideoFrame::kYPlane);
   const int dst_stride_u = dst_frame->stride(VideoFrame::kUPlane);
   const int dst_stride_v = dst_frame->stride(VideoFrame::kVPlane);
-  P016LEToI420P016(src_frame->visible_data(VideoFrame::kYPlane),
+  P016LEToI420P016(src_frame->data(VideoFrame::kYPlane),
                    src_frame->stride(VideoFrame::kYPlane),
-                   src_frame->visible_data(VideoFrame::kUVPlane),
+                   src_frame->data(VideoFrame::kUVPlane),
                    src_frame->stride(VideoFrame::kUVPlane), dst_y, dst_stride_y,
                    dst_u, dst_stride_u, dst_v, dst_stride_v, width, height);
   return true;
@@ -165,40 +162,39 @@ bool ConvertVideoFrameToARGB(const VideoFrame* src_frame,
                         false);
   ASSERT_TRUE_OR_RETURN(dst_frame->format() == PIXEL_FORMAT_ARGB, false);
 
-  // Convert the visible area.
   const auto& visible_rect = src_frame->visible_rect();
   const int width = visible_rect.width();
   const int height = visible_rect.height();
-  uint8_t* const dst_argb =
-      dst_frame->GetWritableVisibleData(VideoFrame::kARGBPlane);
+  uint8_t* const dst_argb = dst_frame->data(VideoFrame::kARGBPlane);
   const int dst_stride = dst_frame->stride(VideoFrame::kARGBPlane);
 
   switch (src_frame->format()) {
     case PIXEL_FORMAT_I420:
       // Note that we use J420ToARGB instead of I420ToARGB so that the
       // kYuvJPEGConstants YUV-to-RGB conversion matrix is used.
-      return libyuv::J420ToARGB(src_frame->visible_data(VideoFrame::kYPlane),
+      return libyuv::J420ToARGB(src_frame->data(VideoFrame::kYPlane),
                                 src_frame->stride(VideoFrame::kYPlane),
-                                src_frame->visible_data(VideoFrame::kUPlane),
+                                src_frame->data(VideoFrame::kUPlane),
                                 src_frame->stride(VideoFrame::kUPlane),
-                                src_frame->visible_data(VideoFrame::kVPlane),
+                                src_frame->data(VideoFrame::kVPlane),
                                 src_frame->stride(VideoFrame::kVPlane),
                                 dst_argb, dst_stride, width, height) == 0;
     case PIXEL_FORMAT_NV12:
-      return libyuv::NV12ToARGB(src_frame->visible_data(VideoFrame::kYPlane),
+      return libyuv::NV12ToARGB(src_frame->data(VideoFrame::kYPlane),
                                 src_frame->stride(VideoFrame::kYPlane),
-                                src_frame->visible_data(VideoFrame::kUVPlane),
+                                src_frame->data(VideoFrame::kUVPlane),
                                 src_frame->stride(VideoFrame::kUVPlane),
                                 dst_argb, dst_stride, width, height) == 0;
     case PIXEL_FORMAT_YV12:
       // Same as I420, but U and V planes are swapped.
-      return libyuv::J420ToARGB(src_frame->visible_data(VideoFrame::kYPlane),
+      return libyuv::J420ToARGB(src_frame->data(VideoFrame::kYPlane),
                                 src_frame->stride(VideoFrame::kYPlane),
-                                src_frame->visible_data(VideoFrame::kVPlane),
+                                src_frame->data(VideoFrame::kVPlane),
                                 src_frame->stride(VideoFrame::kVPlane),
-                                src_frame->visible_data(VideoFrame::kUPlane),
+                                src_frame->data(VideoFrame::kUPlane),
                                 src_frame->stride(VideoFrame::kUPlane),
                                 dst_argb, dst_stride, width, height) == 0;
+      break;
     default:
       LOG(ERROR) << "Unsupported input format: " << src_frame->format();
       return false;
@@ -217,8 +213,7 @@ bool CopyVideoFrame(const VideoFrame* src_frame,
     auto video_frame_mapper = VideoFrameMapperFactory::CreateMapper(
         dst_frame->format(), VideoFrame::STORAGE_DMABUFS, true);
     ASSERT_TRUE_OR_RETURN(video_frame_mapper, false);
-    dst_frame =
-        video_frame_mapper->Map(std::move(dst_frame), PROT_READ | PROT_WRITE);
+    dst_frame = video_frame_mapper->Map(std::move(dst_frame));
     if (!dst_frame) {
       LOG(ERROR) << "Failed to map DMABuf video frame.";
       return false;
@@ -240,7 +235,7 @@ bool CopyVideoFrame(const VideoFrame* src_frame,
         VideoFrame::PlaneSize(dst_frame->format(), i, dst_frame->coded_size());
     libyuv::CopyPlane(
         src_frame->data(i), src_frame->layout().planes()[i].stride,
-        dst_frame->writable_data(i), dst_frame->layout().planes()[i].stride,
+        dst_frame->data(i), dst_frame->layout().planes()[i].stride,
         plane_size.width(), plane_size.height());
   }
   return true;
@@ -274,9 +269,10 @@ bool ConvertVideoFrame(const VideoFrame* src_frame, VideoFrame* dst_frame) {
 
 scoped_refptr<VideoFrame> ConvertVideoFrame(const VideoFrame* src_frame,
                                             VideoPixelFormat dst_pixel_format) {
+  gfx::Rect visible_rect = src_frame->visible_rect();
   auto dst_frame = VideoFrame::CreateFrame(
-      dst_pixel_format, src_frame->coded_size(), src_frame->visible_rect(),
-      src_frame->natural_size(), src_frame->timestamp());
+      dst_pixel_format, visible_rect.size(), visible_rect, visible_rect.size(),
+      base::TimeDelta());
   if (!dst_frame) {
     LOG(ERROR) << "Failed to convert video frame to " << dst_frame->format();
     return nullptr;
@@ -289,38 +285,12 @@ scoped_refptr<VideoFrame> ConvertVideoFrame(const VideoFrame* src_frame,
   return dst_frame;
 }
 
-scoped_refptr<VideoFrame> ScaleVideoFrame(const VideoFrame* src_frame,
-                                          const gfx::Size& dst_resolution) {
-  if (src_frame->format() != PIXEL_FORMAT_NV12) {
-    LOG(ERROR) << src_frame->format() << " is not supported";
-    return nullptr;
-  }
-  auto scaled_frame = VideoFrame::CreateFrame(
-      PIXEL_FORMAT_NV12, dst_resolution, gfx::Rect(dst_resolution),
-      dst_resolution, src_frame->timestamp());
-  const int fail_scaling = libyuv::NV12Scale(
-      src_frame->visible_data(VideoFrame::kYPlane),
-      src_frame->stride(VideoFrame::kYPlane),
-      src_frame->visible_data(VideoFrame::kUVPlane),
-      src_frame->stride(VideoFrame::kUVPlane),
-      src_frame->visible_rect().width(), src_frame->visible_rect().height(),
-      scaled_frame->GetWritableVisibleData(VideoFrame::kYPlane),
-      scaled_frame->stride(VideoFrame::kYPlane),
-      scaled_frame->GetWritableVisibleData(VideoFrame::kUVPlane),
-      scaled_frame->stride(VideoFrame::kUVPlane), dst_resolution.width(),
-      dst_resolution.height(), libyuv::FilterMode::kFilterBilinear);
-  if (fail_scaling) {
-    LOG(ERROR) << "Failed scaling the source frame";
-    return nullptr;
-  }
-  return scaled_frame;
-}
-
 scoped_refptr<VideoFrame> CloneVideoFrame(
+    gpu::GpuMemoryBufferFactory* gpu_memory_buffer_factory,
     const VideoFrame* const src_frame,
     const VideoFrameLayout& dst_layout,
     VideoFrame::StorageType dst_storage_type,
-    absl::optional<gfx::BufferUsage> dst_buffer_usage) {
+    base::Optional<gfx::BufferUsage> dst_buffer_usage) {
   if (!src_frame)
     return nullptr;
   if (!src_frame->IsMappable()) {
@@ -338,9 +308,9 @@ scoped_refptr<VideoFrame> CloneVideoFrame(
         return nullptr;
       }
       dst_frame = CreatePlatformVideoFrame(
-          dst_layout.format(), dst_layout.coded_size(),
-          src_frame->visible_rect(), src_frame->natural_size(),
-          src_frame->timestamp(), *dst_buffer_usage);
+          gpu_memory_buffer_factory, dst_layout.format(),
+          dst_layout.coded_size(), src_frame->visible_rect(),
+          src_frame->natural_size(), src_frame->timestamp(), *dst_buffer_usage);
       break;
 #endif  // BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
     case VideoFrame::STORAGE_OWNED_MEMORY:
@@ -368,8 +338,8 @@ scoped_refptr<VideoFrame> CloneVideoFrame(
     // Here, the content in |src_frame| is already copied to |dst_frame|, which
     // is a DMABUF based VideoFrame.
     // Create GpuMemoryBuffer based VideoFrame from |dst_frame|.
-    dst_frame =
-        CreateGpuMemoryBufferVideoFrame(dst_frame.get(), *dst_buffer_usage);
+    dst_frame = CreateGpuMemoryBufferVideoFrame(
+        gpu_memory_buffer_factory, dst_frame.get(), *dst_buffer_usage);
   }
 
   return dst_frame;
@@ -398,6 +368,7 @@ scoped_refptr<VideoFrame> CreateDmabufVideoFrame(
 }
 
 scoped_refptr<VideoFrame> CreateGpuMemoryBufferVideoFrame(
+    gpu::GpuMemoryBufferFactory* gpu_memory_buffer_factory,
     const VideoFrame* const frame,
     gfx::BufferUsage buffer_usage) {
   gfx::GpuMemoryBufferHandle gmb_handle;
@@ -409,7 +380,7 @@ scoped_refptr<VideoFrame> CreateGpuMemoryBufferVideoFrame(
     return nullptr;
   }
 
-  absl::optional<gfx::BufferFormat> buffer_format =
+  base::Optional<gfx::BufferFormat> buffer_format =
       VideoPixelFormatToGfxBufferFormat(frame->format());
   if (!buffer_format) {
     LOG(ERROR) << "Unexpected format: " << frame->format();
@@ -430,8 +401,8 @@ scoped_refptr<VideoFrame> CreateGpuMemoryBufferVideoFrame(
   gpu::MailboxHolder dummy_mailbox[media::VideoFrame::kMaxPlanes];
   return media::VideoFrame::WrapExternalGpuMemoryBuffer(
       frame->visible_rect(), frame->natural_size(),
-      std::move(gpu_memory_buffer), dummy_mailbox, base::NullCallback(),
-      frame->timestamp());
+      std::move(gpu_memory_buffer), dummy_mailbox,
+      base::DoNothing() /* mailbox_holder_release_cb_ */, frame->timestamp());
 }
 
 scoped_refptr<const VideoFrame> CreateVideoFrameFromImage(const Image& image) {
@@ -443,8 +414,8 @@ scoped_refptr<const VideoFrame> CreateVideoFrameFromImage(const Image& image) {
 
   // Create planes for layout. We cannot use WrapExternalData() because it
   // calls GetDefaultLayout() and it supports only a few pixel formats.
-  absl::optional<VideoFrameLayout> layout =
-      CreateVideoFrameLayout(format, image_size, /*alignment=*/1u);
+  base::Optional<VideoFrameLayout> layout =
+      CreateVideoFrameLayout(format, image_size);
   if (!layout) {
     LOG(ERROR) << "Failed to create VideoFrameLayout";
     return nullptr;
@@ -462,7 +433,7 @@ scoped_refptr<const VideoFrame> CreateVideoFrameFromImage(const Image& image) {
   return video_frame;
 }
 
-absl::optional<VideoFrameLayout> CreateVideoFrameLayout(
+base::Optional<VideoFrameLayout> CreateVideoFrameLayout(
     VideoPixelFormat pixel_format,
     const gfx::Size& dimension,
     const uint32_t alignment,
@@ -478,8 +449,7 @@ absl::optional<VideoFrameLayout> CreateVideoFrameLayout(
         VideoFrame::RowBytes(i, pixel_format, dimension.width());
     const size_t rows = VideoFrame::Rows(i, pixel_format, dimension.height());
     const size_t plane_size = stride * rows;
-    const size_t aligned_size =
-        base::bits::AlignUp(plane_size, size_t{alignment});
+    const size_t aligned_size = base::bits::Align(plane_size, alignment);
     planes[i].stride = stride;
     planes[i].offset = offset;
     planes[i].size = aligned_size;

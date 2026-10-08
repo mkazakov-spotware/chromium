@@ -1,15 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.notifications;
 
+import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
 import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 
 import java.util.List;
 
@@ -27,17 +26,17 @@ public interface NotificationManagerProxy {
     void cancel(int id);
     void cancel(String tag, int id);
     void cancelAll();
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     void createNotificationChannel(NotificationChannel channel);
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     void createNotificationChannelGroup(NotificationChannelGroup channelGroup);
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     List<NotificationChannel> getNotificationChannels();
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     List<NotificationChannelGroup> getNotificationChannelGroups();
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     void deleteNotificationChannel(String id);
 
     @Deprecated
@@ -47,9 +46,9 @@ public interface NotificationManagerProxy {
 
     void notify(NotificationWrapper notification);
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     NotificationChannel getNotificationChannel(String channelId);
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @TargetApi(Build.VERSION_CODES.O)
     void deleteNotificationChannelGroup(String groupId);
 }

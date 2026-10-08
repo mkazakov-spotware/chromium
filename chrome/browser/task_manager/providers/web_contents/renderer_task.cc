@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <string>
 #include <utility>
 
-#include "base/callback_helpers.h"
 #include "base/i18n/rtl.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -41,7 +40,7 @@ ProcessResourceUsage* CreateRendererResourcesSampler(
 
 // Gets the profile name associated with the browser context of the given
 // |render_process_host| from the profile info cache.
-std::u16string GetRendererProfileName(
+base::string16 GetRendererProfileName(
     content::RenderProcessHost* render_process_host) {
   Profile* profile =
       Profile::FromBrowserContext(render_process_host->GetBrowserContext());
@@ -54,15 +53,15 @@ bool IsRendererResourceSamplingDisabled(int64_t flags) {
 
 }  // namespace
 
-RendererTask::RendererTask(const std::u16string& title,
+RendererTask::RendererTask(const base::string16& title,
                            const gfx::ImageSkia* icon,
                            content::WebContents* web_contents)
     : RendererTask(title,
                    icon,
                    web_contents,
-                   web_contents->GetPrimaryMainFrame()->GetProcess()) {}
+                   web_contents->GetMainFrame()->GetProcess()) {}
 
-RendererTask::RendererTask(const std::u16string& title,
+RendererTask::RendererTask(const base::string16& title,
                            const gfx::ImageSkia* icon,
                            content::RenderFrameHost* subframe)
     : RendererTask(title,
@@ -70,11 +69,13 @@ RendererTask::RendererTask(const std::u16string& title,
                    content::WebContents::FromRenderFrameHost(subframe),
                    subframe->GetProcess()) {}
 
-RendererTask::RendererTask(const std::u16string& title,
+RendererTask::RendererTask(const base::string16& title,
                            const gfx::ImageSkia* icon,
                            content::WebContents* web_contents,
                            content::RenderProcessHost* render_process_host)
-    : Task(title, icon, render_process_host->GetProcess().Handle()),
+    : Task(title,
+           icon,
+           render_process_host->GetProcess().Handle()),
       web_contents_(web_contents),
       render_process_host_(render_process_host),
       renderer_resources_sampler_(
@@ -144,7 +145,7 @@ void RendererTask::GetTerminationStatus(base::TerminationStatus* out_status,
   *out_error_code = termination_error_code_;
 }
 
-std::u16string RendererTask::GetProfileName() const {
+base::string16 RendererTask::GetProfileName() const {
   return profile_name_;
 }
 
@@ -178,12 +179,12 @@ void RendererTask::OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
 }
 
 // static
-std::u16string RendererTask::GetTitleFromWebContents(
+base::string16 RendererTask::GetTitleFromWebContents(
     content::WebContents* web_contents) {
   DCHECK(web_contents);
-  std::u16string title = web_contents->GetTitle();
+  base::string16 title = web_contents->GetTitle();
   if (title.empty()) {
-    GURL url = web_contents->GetLastCommittedURL();
+    GURL url = web_contents->GetURL();
     title = base::UTF8ToUTF16(url.spec());
     // Force URL to be LTR.
     title = base::i18n::GetDisplayStringInLTRDirectionality(title);
@@ -220,8 +221,8 @@ const gfx::ImageSkia* RendererTask::GetFaviconFromWebContents(
 }
 
 // static
-const std::u16string RendererTask::PrefixRendererTitle(
-    const std::u16string& title,
+const base::string16 RendererTask::PrefixRendererTitle(
+    const base::string16& title,
     bool is_app,
     bool is_extension,
     bool is_incognito,

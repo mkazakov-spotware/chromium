@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
-#include "base/time/time.h"
+#include "base/scoped_observer.h"
 #include "components/browsing_data/core/browsing_data_utils.h"
 #include "components/signin/core/browser/account_reconcilor.h"
 #include "content/public/browser/browsing_data_filter_builder.h"
@@ -31,6 +29,7 @@ extern const char kDataToRemoveKey[];
 extern const char kOptionsKey[];
 
 // Type keys.
+extern const char kAppCacheKey[];
 extern const char kCacheKey[];
 extern const char kCookiesKey[];
 extern const char kDownloadsKey[];
@@ -76,8 +75,8 @@ class BrowsingDataSettingsFunction : public ExtensionFunction {
   // indicating whether the data type is both selected and permitted to be
   // removed; and a value in the |permitted_dict| with the |data_type| as a
   // key, indicating only whether the data type is permitted to be removed.
-  void SetDetails(base::Value::Dict* selected_dict,
-                  base::Value::Dict* permitted_dict,
+  void SetDetails(base::DictionaryValue* selected_dict,
+                  base::DictionaryValue* permitted_dict,
                   const char* data_type,
                   bool is_selected);
 
@@ -85,7 +84,7 @@ class BrowsingDataSettingsFunction : public ExtensionFunction {
   bool isDataTypeSelected(browsing_data::BrowsingDataType data_type,
                           browsing_data::ClearBrowsingDataTab tab);
 
-  raw_ptr<PrefService> prefs_ = nullptr;
+  PrefService* prefs_ = nullptr;
 };
 
 // This serves as a base class from which the browsing data API removal
@@ -126,14 +125,13 @@ class BrowsingDataRemoverFunction
   // Parse the developer-provided |origin_types| object into |origin_type_mask|
   // that can be used with the BrowsingDataRemover.
   // Returns true if parsing was successful.
-  // Pre-condition: `options` is a dictionary.
-  bool ParseOriginTypeMask(const base::Value::Dict& options,
+  bool ParseOriginTypeMask(const base::DictionaryValue& options,
                            uint64_t* origin_type_mask);
 
   // Parses the developer-provided list of origins into |result|.
   // Returns whether or not parsing was successful. In case of parse failure,
   // |error_response| will contain the error response.
-  bool ParseOrigins(const base::Value::List& list_value,
+  bool ParseOrigins(const base::Value& list_value,
                     std::vector<url::Origin>* result,
                     ResponseValue* error_response);
 
@@ -151,9 +149,9 @@ class BrowsingDataRemoverFunction
   content::BrowsingDataFilterBuilder::Mode mode_ =
       content::BrowsingDataFilterBuilder::Mode::kPreserve;
   int pending_tasks_ = 0;
-  base::ScopedObservation<content::BrowsingDataRemover,
-                          content::BrowsingDataRemover::Observer>
-      observation_{this};
+  ScopedObserver<content::BrowsingDataRemover,
+                 content::BrowsingDataRemover::Observer>
+      observer_;
   std::unique_ptr<AccountReconcilor::ScopedSyncedDataDeletion>
       synced_data_deletion_;
 };

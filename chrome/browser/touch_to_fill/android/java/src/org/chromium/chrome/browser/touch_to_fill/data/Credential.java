@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@ public class Credential {
     private final String mOriginUrl;
     private final boolean mIsPublicSuffixMatch;
     private final boolean mIsAffiliationBasedMatch;
-    private final long mLastUsedMsSinceEpoch;
 
     /**
      * @param username Username shown to the user.
@@ -25,12 +24,9 @@ public class Credential {
      * @param isPublicSuffixMatch Indicating whether the credential is a PSL match.
      * @param isAffiliationBasedMatch Indicating whether the credential is an affiliation based
      * match (i.e. whether it is an Android credential).
-     * @param lastUsedMsSinceEpoch Elapsed number of milliseconds from the unix epoch when the
-     * credential was used the last time.
      */
     public Credential(String username, String password, String formattedUsername, String originUrl,
-            boolean isPublicSuffixMatch, boolean isAffiliationBasedMatch,
-            long lastUsedMsSinceEpoch) {
+            boolean isPublicSuffixMatch, boolean isAffiliationBasedMatch) {
         assert originUrl != null : "Credential origin is null! Pass an empty one instead.";
         mUsername = username;
         mPassword = password;
@@ -38,7 +34,6 @@ public class Credential {
         mOriginUrl = originUrl;
         mIsPublicSuffixMatch = isPublicSuffixMatch;
         mIsAffiliationBasedMatch = isAffiliationBasedMatch;
-        mLastUsedMsSinceEpoch = lastUsedMsSinceEpoch;
     }
 
     @CalledByNative
@@ -68,14 +63,5 @@ public class Credential {
     @CalledByNative
     public boolean isAffiliationBasedMatch() {
         return mIsAffiliationBasedMatch;
-    }
-
-    @CalledByNative
-    public long lastUsedMsSinceEpoch() {
-        return mLastUsedMsSinceEpoch;
-    }
-
-    public boolean isExactMatch() {
-        return !mIsPublicSuffixMatch && !mIsAffiliationBasedMatch;
     }
 }

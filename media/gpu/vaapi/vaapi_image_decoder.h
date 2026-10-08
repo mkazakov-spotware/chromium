@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@
 
 #include "base/callback_forward.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "gpu/config/gpu_info.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
@@ -58,9 +59,6 @@ enum class VaapiImageDecodeStatus : uint32_t {
 // call the methods on any thread, but calls must be synchronized externally.
 class VaapiImageDecoder {
  public:
-  VaapiImageDecoder(const VaapiImageDecoder&) = delete;
-  VaapiImageDecoder& operator=(const VaapiImageDecoder&) = delete;
-
   virtual ~VaapiImageDecoder();
 
   // Initializes |vaapi_wrapper_| in kDecode mode with the
@@ -115,6 +113,8 @@ class VaapiImageDecoder {
 
   // The VA profile used for the current image decoder.
   const VAProfile va_profile_;
+
+  DISALLOW_COPY_AND_ASSIGN(VaapiImageDecoder);
 };
 
 }  // namespace media

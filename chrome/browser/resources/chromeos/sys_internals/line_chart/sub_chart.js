@@ -1,27 +1,26 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {GRID_COLOR, MIN_LABEL_HORIZONTAL_SPACING, SAMPLE_RATE, TEXT_COLOR, UnitLabelAlign, Y_AXIS_TICK_LENGTH} from './constants.js';
-import {DataSeries} from './data_series.js';
-import {UnitLabel} from './unit_label.js';
+(function() {
+'use strict';
 
 /**
- * Create by |LineChart|.
- * Maintains data series which share the same |UnitLabel|, that is,
+ * Create by |LineChart.LineChart|.
+ * Maintains data series which share the same |LineChart.UnitLable|, that is,
  * share the same unit set. Also, this object is responsible for drawing the
  * line and the unit label on the line chart.
  * @const
  */
-export class SubChart {
-  constructor(/** UnitLabel */ label, /** number */ labelAlign) {
-    /** @const {UnitLabel} */
+LineChart.SubChart = class {
+  constructor(/** LineChart.UnitLabel */ label, /** number */ labelAlign) {
+    /** @const {LineChart.UnitLabel} */
     this.label_ = label;
 
     /** @const {number} */
     this.labelAlign_ = labelAlign;
 
-    /** @type {Array<DataSeries>} */
+    /** @type {Array<LineChart.DataSeries>} */
     this.dataSeriesList_ = [];
 
     /**
@@ -40,8 +39,8 @@ export class SubChart {
 
     /**
      * The offset of the current visible range. To make sure we draw the data
-     * points at the same absolute position. See also
-     * |renderSubCharts_()|.
+     * points at the same absolute postition. See also
+     * |LineChart.renderSubCharts_()|.
      * @type {number}
      */
     this.offset_ = 0;
@@ -74,13 +73,13 @@ export class SubChart {
    * @param {number} fontHeight
    * @param {number} visibleStartTime
    * @param {number} scale
-   * @param {number} offset - See |renderSubChart_()|.
+   * @param {number} offset - See |LineChart.LineChart.renderSubChart_()|.
    */
   setLayout(width, height, fontHeight, visibleStartTime, scale, offset) {
     this.width_ = width;
     this.height_ = height;
     this.offset_ = offset;
-    const /** number */ sampleRate = SAMPLE_RATE;
+    const /** number */ sampleRate = LineChart.SAMPLE_RATE;
 
     /* Draw a data point on every |sampleRate| pixels. */
     this.stepSize_ = scale * sampleRate;
@@ -113,7 +112,8 @@ export class SubChart {
    * Calculate the max value for the current layout.
    */
   updateMaxValue_() {
-    const /** Array<DataSeries> */ dataSeriesList = this.dataSeriesList_;
+    const /** Array<LineChart.DataSeries> */ dataSeriesList =
+        this.dataSeriesList_;
     if (this.maxValue_ != null) {
       this.label_.setMaxValue(this.maxValue_);
       return;
@@ -128,20 +128,19 @@ export class SubChart {
 
   /**
    * Query the max value of the query range from the data series.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    * @return {number}
    */
   getMaxValueFromDataSeries_(dataSeries) {
-    if (!dataSeries.isVisible()) {
+    if (!dataSeries.isVisible())
       return 0;
-    }
     return dataSeries.getMaxValue(
         this.queryStartTime_, this.stepSize_, this.numOfPoint_);
   }
 
   /**
    * Add a data series to this sub chart.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    */
   addDataSeries(dataSeries) {
     this.dataSeriesList_.push(dataSeries);
@@ -149,7 +148,7 @@ export class SubChart {
 
   /**
    * Get all data series of this sub chart.
-   * @return {Array<DataSeries>}
+   * @return {Array<LineChart.DataSeries>}
    */
   getDataSeriesList() {
     return this.dataSeriesList_;
@@ -160,33 +159,32 @@ export class SubChart {
    * @param {CanvasRenderingContext2D} context
    */
   renderLines(context) {
-    const /** Array<DataSeries> */ dataSeriesList = this.dataSeriesList_;
+    const /** Array<LineChart.DataSeries> */ dataSeriesList =
+        this.dataSeriesList_;
     for (let /** number */ i = 0; i < dataSeriesList.length; ++i) {
       const /** Array<number> */ values =
           this.getValuesFromDataSeries_(dataSeriesList[i]);
-      if (!values) {
+      if (!values)
         continue;
-      }
       this.renderLineOfDataSeries_(context, dataSeriesList[i], values);
     }
   }
 
   /**
    * Query the the data points' values from the data series.
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    * @return {Array<number>}
    */
   getValuesFromDataSeries_(dataSeries) {
-    if (!dataSeries.isVisible()) {
+    if (!dataSeries.isVisible())
       return [];
-    }
     return dataSeries.getValues(
         this.queryStartTime_, this.stepSize_, this.numOfPoint_);
   }
 
   /**
    * @param {CanvasRenderingContext2D} context
-   * @param {DataSeries} dataSeries
+   * @param {LineChart.DataSeries} dataSeries
    * @param {Array<number>} values
    */
   renderLineOfDataSeries_(context, dataSeries, values) {
@@ -194,7 +192,7 @@ export class SubChart {
     context.fillStyle = dataSeries.getColor();
     context.beginPath();
 
-    const /** number */ sampleRate = SAMPLE_RATE;
+    const /** number */ sampleRate = LineChart.SAMPLE_RATE;
     const /** number */ valueScale = this.label_.getScale();
     let /** number */ firstXCoord = this.width_;
     let /** number */ xCoord = -this.offset_;
@@ -230,23 +228,22 @@ export class SubChart {
    */
   renderUnitLabels(context) {
     const /** Array<string> */ labelTexts = this.label_.getLabels();
-    if (labelTexts.length == 0) {
+    if (labelTexts.length == 0)
       return;
-    }
 
     let /** number */ tickStartX;
     let /** number */ tickEndX;
     let /** number */ textXCoord;
-    if (this.labelAlign_ == UnitLabelAlign.LEFT) {
+    if (this.labelAlign_ == LineChart.UnitLabelAlign.LEFT) {
       context.textAlign = 'left';
       tickStartX = 0;
-      tickEndX = Y_AXIS_TICK_LENGTH;
-      textXCoord = MIN_LABEL_HORIZONTAL_SPACING;
-    } else if (this.labelAlign_ == UnitLabelAlign.RIGHT) {
+      tickEndX = LineChart.Y_AXIS_TICK_LENGTH;
+      textXCoord = LineChart.MIN_LABEL_HORIZONTAL_SPACING;
+    } else if (this.labelAlign_ == LineChart.UnitLabelAlign.RIGHT) {
       context.textAlign = 'right';
       tickStartX = this.width_ - 1;
-      tickEndX = this.width_ - 1 - Y_AXIS_TICK_LENGTH;
-      textXCoord = this.width_ - MIN_LABEL_HORIZONTAL_SPACING;
+      tickEndX = this.width_ - 1 - LineChart.Y_AXIS_TICK_LENGTH;
+      textXCoord = this.width_ - LineChart.MIN_LABEL_HORIZONTAL_SPACING;
     } else {
       console.warn('Unknown label align.');
       return;
@@ -266,7 +263,7 @@ export class SubChart {
    * @param {number} tickEndX
    */
   renderLabelTicks_(context, labelTexts, labelYStep, tickStartX, tickEndX) {
-    context.strokeStyle = GRID_COLOR;
+    context.strokeStyle = LineChart.GRID_COLOR;
     context.beginPath();
     /* First and last tick are the top and the bottom of the line chart, so
      * don't draw them again. */
@@ -288,7 +285,7 @@ export class SubChart {
   renderLabelTexts_(context, labelTexts, labelYStep, textXCoord) {
     /* The first label cannot align the bottom of the tick or it will go outside
      * the canvas. */
-    context.fillStyle = TEXT_COLOR;
+    context.fillStyle = LineChart.TEXT_COLOR;
     context.textBaseline = 'top';
     context.fillText(labelTexts[0], textXCoord, 0);
 
@@ -307,4 +304,6 @@ export class SubChart {
   shouldRender() {
     return this.dataSeriesList_.length > 0;
   }
-}
+};
+
+})();

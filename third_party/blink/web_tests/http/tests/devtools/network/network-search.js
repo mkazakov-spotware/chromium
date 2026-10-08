@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Tests search in network requests\n`);
-  await TestRunner.loadTestModule('network_test_runner');
-  await TestRunner.loadLegacyModule('console'); await TestRunner.loadTestModule('console_test_runner');
+  await TestRunner.loadModule('network_test_runner');
+  await TestRunner.loadModule('console_test_runner');
   await TestRunner.showPanel('network');
 
   function initArgs(method, url, async, payload) {
@@ -30,12 +30,12 @@
   async function search(label, isRegex, ignoreCase, query = 'd.search') {
     TestRunner.addResult(label);
     const view = await Network.SearchNetworkView.openSearch(query);
-    view.matchCaseButton.setToggled(!ignoreCase);
-    view.regexButton.setToggled(isRegex);
-    const promise = TestRunner.addSnifferPromise(view, 'searchFinished');
-    view.onAction();
+    view._matchCaseButton.setToggled(!ignoreCase);
+    view._regexButton.setToggled(isRegex);
+    const promise = TestRunner.addSnifferPromise(view, '_searchFinished');
+    view._onAction();
     await promise;
-    const element = printSubtree(view.visiblePane.treeOutline.rootElement());
+    const element = printSubtree(view._visiblePane._treeOutline.rootElement());
     TestRunner.addResult('');
     return element;
   }
@@ -43,8 +43,8 @@
   function networkItemSelected() {
     return new Promise(resolve => {
       function checkSelected() {
-        if (UI.panels.network.networkLogView.dataGrid.selectedNode)
-          resolve(UI.panels.network.networkLogView.dataGrid.selectedNode);
+        if (UI.panels.network._networkLogView._dataGrid.selectedNode)
+          resolve(UI.panels.network._networkLogView._dataGrid.selectedNode);
         else
           setTimeout(checkSelected, 0);
       }
@@ -81,8 +81,7 @@
     const link = lastResult.listItemElement.getElementsByClassName('devtools-link')[0];
     link.click();
     const requestNode = await networkItemSelected();
-    const requestName = requestNode.request().name();
-    TestRunner.addResult(`Selected Node Name: ${requestName.substr(requestName.length - 100)}, URL: ${requestNode.request().url()}`);
+    TestRunner.addResult(`Selected Node Name: ${requestNode._request.name().trimMiddle(100)}, URL: ${requestNode._request.url()}`);
     TestRunner.completeTest();
   }
 })();

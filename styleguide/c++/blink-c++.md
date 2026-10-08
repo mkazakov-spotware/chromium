@@ -65,7 +65,7 @@ void DocumentLoader::SetHistoryItemStateForCommit() {
 ```c++
 class BodyStreamBuffer {
  public:
-  using PassKey = base::PassKey<BodyStreamBuffer>;
+  using PassKey = util::PassKey<BodyStreamBuffer>;
   static BodyStreamBuffer* Create();
 
   BodyStreamBuffer(PassKey);
@@ -130,8 +130,6 @@ class Document {
 ```
 
 ### Precede boolean values with words like “is” and “did”
-
-**Good:**
 ```c++
 bool is_valid;
 bool did_send_data;
@@ -238,9 +236,9 @@ class Node {
 ## Prefer enums or StrongAliases to bare bools for function parameters
 Prefer enums to bools for function parameters if callers are likely to be
 passing constants, since named constants are easier to read at the call site.
-Alternatively, you can use `base::StrongAlias<Tag, bool>`. An exception to this
-rule is a setter function, where the name of the function already makes clear
-what the boolean is.
+Alternatively, you can use base::util::StrongAlias<Tag, bool>. An exception to
+this rule is a setter function, where the name of the function already makes
+clear what the boolean is.
 
 **Good:**
 ```c++
@@ -273,7 +271,7 @@ if (frame_->Loader().ShouldClose(FrameLoader::CloseType::kNotForReload)) {
 ```c++
 class FrameLoader {
 public:
-  using ForReload = base::StrongAlias<class ForReloadTag, bool>;
+  using ForReload = base::util::StrongAlias<class ForReloadTag, bool>;
 
   bool ShouldClose(ForReload) {
     // A StrongAlias<_, bool> can be tested like a bool.

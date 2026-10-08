@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ using content::BrowserThread;
 
 namespace extensions {
 
-ExternalLoader::ExternalLoader() = default;
+ExternalLoader::ExternalLoader() : owner_(nullptr) {}
 
 void ExternalLoader::Init(ExternalProviderImpl* owner) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -33,15 +33,18 @@ void ExternalLoader::OwnerShutdown() {
   owner_ = nullptr;
 }
 
-ExternalLoader::~ExternalLoader() = default;
+ExternalLoader::~ExternalLoader() {}
 
-void ExternalLoader::LoadFinished(base::Value::Dict prefs) {
+void ExternalLoader::LoadFinished(
+    std::unique_ptr<base::DictionaryValue> prefs) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  if (owner_)
+  if (owner_) {
     owner_->SetPrefs(std::move(prefs));
+  }
 }
 
-void ExternalLoader::OnUpdated(base::Value::Dict updated_prefs) {
+void ExternalLoader::OnUpdated(
+    std::unique_ptr<base::DictionaryValue> updated_prefs) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (owner_)
     owner_->UpdatePrefs(std::move(updated_prefs));

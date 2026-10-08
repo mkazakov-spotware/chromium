@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,22 +13,22 @@
 #include "base/callback.h"
 #include "base/location.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
-#include "build/build_config.h"
 #include "ipc/ipc_channel.h"
+#include "ipc/ipc_message.h"
+#include "ipc/ipc_message_macros.h"
 #include "mojo/public/cpp/system/isolated_connection.h"
 #include "remoting/base/logging.h"
+#include "remoting/host/chromoting_messages.h"
 #include "remoting/host/client_session_details.h"
 
-#if BUILDFLAG(IS_WIN)
-#include <windows.h>
-
+#if defined(OS_WIN)
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/win_util.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace {
 
@@ -74,7 +74,7 @@ bool SecurityKeyIpcServerImpl::CreateChannel(
 
   mojo::NamedPlatformChannel::Options options;
   options.server_name = server_name;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   options.enforce_uniqueness = false;
   // Create a named pipe owned by the current user (the LocalService account
   // (SID: S-1-5-19) when running in the network process) which is available to
@@ -84,27 +84,19 @@ bool SecurityKeyIpcServerImpl::CreateChannel(
   if (!base::win::GetUserSidString(&user_sid)) {
     return false;
   }
-  options.security_descriptor = base::StringPrintf(
-      L"O:%lsG:%lsD:(A;;GA;;;AU)", user_sid.c_str(), user_sid.c_str());
+  std::string user_sid_utf8 = base::WideToUTF8(user_sid);
+  options.security_descriptor = base::UTF8ToUTF16(base::StringPrintf(
+      "O:%sG:%sD:(A;;GA;;;AU)", user_sid_utf8.c_str(), user_sid_utf8.c_str()));
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   mojo::NamedPlatformChannel channel(options);
 
   mojo_connection_ = std::make_unique<mojo::IsolatedConnection>();
   ipc_channel_ = IPC::Channel::CreateServer(
       mojo_connection_->Connect(channel.TakeServerEndpoint()).release(), this,
-      base::SingleThreadTaskRunner::GetCurrentDefault());
-
-  auto* associated_interface_support =
-      ipc_channel_->GetAssociatedInterfaceSupport();
-
-  associated_interface_support->AddGenericAssociatedInterface(
-      mojom::SecurityKeyForwarder::Name_,
-      base::BindRepeating(&SecurityKeyIpcServerImpl::BindAssociatedInterface,
-                          base::Unretained(this)));
+      base::ThreadTaskRunnerHandle::Get());
 
   if (!ipc_channel_->Connect()) {
-    LOG(ERROR) << "IPC connection failed.";
     ipc_channel_.reset();
     return false;
   }
@@ -127,46 +119,65 @@ bool SecurityKeyIpcServerImpl::SendResponse(const std::string& response) {
                base::BindOnce(&SecurityKeyIpcServerImpl::OnChannelError,
                               base::Unretained(this)));
 
-  std::move(response_callback_).Run(response);
-  return true;
+  return ipc_channel_->Send(
+      new ChromotingNetworkToRemoteSecurityKeyMsg_Response(response));
 }
 
 bool SecurityKeyIpcServerImpl::OnMessageReceived(const IPC::Message& message) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  CHECK(false) << "Unexpected call to OnMessageReceived: " << message.type();
-  return false;
+
+  if (connection_close_pending_) {
+    LOG(WARNING) << "IPC Message ignored because channel is being closed.";
+    return false;
+  }
+
+  bool handled = true;
+  IPC_BEGIN_MESSAGE_MAP(SecurityKeyIpcServerImpl, message)
+    IPC_MESSAGE_HANDLER(ChromotingRemoteSecurityKeyToNetworkMsg_Request,
+                        OnSecurityKeyRequest)
+    IPC_MESSAGE_UNHANDLED(handled = false)
+  IPC_END_MESSAGE_MAP()
+
+  CHECK(handled) << "Received unexpected IPC type: " << message.type();
+  return handled;
 }
 
 void SecurityKeyIpcServerImpl::OnChannelConnected(int32_t peer_pid) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-#if BUILDFLAG(IS_WIN)
-  bool channel_error = false;
-  DWORD peer_session_id;
-  if (!ProcessIdToSessionId(peer_pid, &peer_session_id)) {
-    PLOG(ERROR) << "ProcessIdToSessionId() failed";
-    channel_error = true;
-  } else if (peer_session_id != client_session_details_->desktop_session_id()) {
-    LOG(ERROR) << "Ignoring connection attempt from outside remoted session.";
-    channel_error = true;
-  }
-
-  if (channel_error) {
-    OnChannelError();
-    return;
-  }
-#else   // !BUILDFLAG(IS_WIN)
-  CHECK_EQ(client_session_details_->desktop_session_id(), UINT32_MAX);
-#endif  // !BUILDFLAG(IS_WIN)
-
   if (connect_callback_) {
     std::move(connect_callback_).Run();
   }
+
+#if defined(OS_WIN)
+  DWORD peer_session_id;
+  if (!ProcessIdToSessionId(peer_pid, &peer_session_id)) {
+    PLOG(ERROR) << "ProcessIdToSessionId() failed";
+    connection_close_pending_ = true;
+  } else if (peer_session_id != client_session_details_->desktop_session_id()) {
+    LOG(ERROR) << "Ignoring connection attempt from outside remoted session.";
+    connection_close_pending_ = true;
+  }
+  if (connection_close_pending_) {
+    ipc_channel_->Send(
+        new ChromotingNetworkToRemoteSecurityKeyMsg_InvalidSession());
+
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE, base::BindOnce(&SecurityKeyIpcServerImpl::OnChannelError,
+                                  weak_factory_.GetWeakPtr()));
+    return;
+  }
+#else   // !defined(OS_WIN)
+  CHECK_EQ(client_session_details_->desktop_session_id(), UINT32_MAX);
+#endif  // !defined(OS_WIN)
 
   // Reset the timer to give the client a chance to send the request.
   timer_.Start(FROM_HERE, initial_connect_timeout_,
                base::BindOnce(&SecurityKeyIpcServerImpl::OnChannelError,
                               base::Unretained(this)));
+
+  ipc_channel_->Send(
+      new ChromotingNetworkToRemoteSecurityKeyMsg_ConnectionReady());
 }
 
 void SecurityKeyIpcServerImpl::OnChannelError() {
@@ -182,34 +193,9 @@ void SecurityKeyIpcServerImpl::OnChannelError() {
   }
 }
 
-void SecurityKeyIpcServerImpl::BindAssociatedInterface(
-    mojo::ScopedInterfaceEndpointHandle handle) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-
-  if (security_key_forwarder_.is_bound()) {
-    LOG(ERROR) << "Receiver already bound for associated interface: "
-               << mojom::SecurityKeyForwarder::Name_;
-    CloseChannel();
-    return;
-  }
-
-  mojo::PendingAssociatedReceiver<mojom::SecurityKeyForwarder> pending_receiver(
-      std::move(handle));
-  security_key_forwarder_.Bind(std::move(pending_receiver));
-}
-
 void SecurityKeyIpcServerImpl::OnSecurityKeyRequest(
-    const std::string& request_data,
-    OnSecurityKeyRequestCallback callback) {
+    const std::string& request_data) {
   DCHECK(thread_checker_.CalledOnValidThread());
-
-  if (response_callback_) {
-    LOG(ERROR) << "Received security key request while waiting for a response";
-    CloseChannel();
-    return;
-  }
-
-  response_callback_ = std::move(callback);
 
   // Reset the timer to give the client a chance to send the response.
   timer_.Start(FROM_HERE, security_key_request_timeout_,
@@ -223,10 +209,8 @@ void SecurityKeyIpcServerImpl::OnSecurityKeyRequest(
 void SecurityKeyIpcServerImpl::CloseChannel() {
   if (ipc_channel_) {
     ipc_channel_->Close();
+    connection_close_pending_ = false;
   }
-  ipc_channel_.reset();
-  security_key_forwarder_.reset();
-
   mojo_connection_.reset();
 }
 

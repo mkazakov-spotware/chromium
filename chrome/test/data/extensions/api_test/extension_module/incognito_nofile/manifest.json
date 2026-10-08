@@ -4,7 +4,6 @@
   "manifest_version": 2,
   "description": "end-to-end browser test for some chrome.extension API: incognito mode",
   "background": {
-    "scripts": ["test.js"],
-    "persistent": true
+    "page": "test.html"
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "pdf/pdf_engine.h"
 
 namespace chrome_pdf {
@@ -32,11 +31,13 @@ class TestClient : public PDFEngine::Client {
                      const std::string& default_answer) override;
   std::string GetURL() override;
   std::unique_ptr<UrlLoader> CreateUrlLoader() override;
-  std::vector<SearchStringResult> SearchString(const char16_t* string,
-                                               const char16_t* term,
+  std::vector<SearchStringResult> SearchString(const base::char16* string,
+                                               const base::char16* term,
                                                bool case_sensitive) override;
-  bool IsPrintPreview() const override;
-  SkColor GetBackgroundColor() const override;
+  pp::Instance* GetPluginInstance() override;
+  bool IsPrintPreview() override;
+  uint32_t GetBackgroundColor() override;
+  float GetToolbarHeightInScreenCoords() override;
   void SetSelectedText(const std::string& selected_text) override;
   void SetLinkUnderCursor(const std::string& link_under_cursor) override;
   bool IsValidLink(const std::string& url) override;
@@ -44,7 +45,7 @@ class TestClient : public PDFEngine::Client {
  private:
   // Not owned. Expected to dangle briefly, as the engine usually is destroyed
   // before the client.
-  raw_ptr<PDFEngine> engine_ = nullptr;
+  PDFEngine* engine_ = nullptr;
 };
 
 }  // namespace chrome_pdf

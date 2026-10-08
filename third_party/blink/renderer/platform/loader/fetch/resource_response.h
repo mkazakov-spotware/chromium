@@ -31,15 +31,12 @@
 #include <utility>
 
 #include "base/memory/scoped_refptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "net/base/ip_endpoint.h"
-#include "net/ssl/ssl_info.h"
-#include "services/network/public/mojom/alternate_protocol_usage.mojom-shared.h"
 #include "services/network/public/mojom/cross_origin_embedder_policy.mojom-shared.h"
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/ip_address_space.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/mojom/timing/resource_timing.mojom-blink.h"
 #include "third_party/blink/public/platform/web_url_response.h"
 #include "third_party/blink/renderer/platform/network/http_header_map.h"
 #include "third_party/blink/renderer/platform/network/http_parsers.h"
@@ -47,11 +44,13 @@
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/ref_counted.h"
+
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
 
 class ResourceLoadTiming;
+struct ResourceLoadInfo;
 
 // A ResourceResponse is a "response" object used in blink. Conceptually
 // it is https://fetch.spec.whatwg.org/#concept-response, but it contains
@@ -71,6 +70,97 @@ class PLATFORM_EXPORT ResourceResponse final {
     kHTTPVersion_2_0
   };
 
+  enum CTPolicyCompliance {
+    kCTPolicyComplianceDetailsNotAvailable,
+    kCTPolicyComplies,
+    kCTPolicyDoesNotComply
+  };
+
+  class PLATFORM_EXPORT SignedCertificateTimestamp final {
+    DISALLOW_NEW();
+
+   public:
+    SignedCertificateTimestamp(String status,
+                               String origin,
+                               String log_description,
+                               String log_id,
+                               int64_t timestamp,
+                               String hash_algorithm,
+                               String signature_algorithm,
+                               String signature_data)
+        : status_(status),
+          origin_(origin),
+          log_description_(log_description),
+          log_id_(log_id),
+          timestamp_(timestamp),
+          hash_algorithm_(hash_algorithm),
+          signature_algorithm_(signature_algorithm),
+          signature_data_(signature_data) {}
+    explicit SignedCertificateTimestamp(
+        const struct blink::WebURLResponse::SignedCertificateTimestamp&);
+    SignedCertificateTimestamp IsolatedCopy() const;
+
+    String status_;
+    String origin_;
+    String log_description_;
+    String log_id_;
+    int64_t timestamp_;
+    String hash_algorithm_;
+    String signature_algorithm_;
+    String signature_data_;
+  };
+
+  using SignedCertificateTimestampList =
+      WTF::Vector<SignedCertificateTimestamp>;
+
+  struct SecurityDetails {
+    DISALLOW_NEW();
+    SecurityDetails(const String& protocol,
+                    const String& key_exchange,
+                    const String& key_exchange_group,
+                    const String& cipher,
+                    const String& mac,
+                    const String& subject_name,
+                    const Vector<String>& san_list,
+                    const String& issuer,
+                    time_t valid_from,
+                    time_t valid_to,
+                    const Vector<AtomicString>& certificate,
+                    const SignedCertificateTimestampList& sct_list)
+        : protocol(protocol),
+          key_exchange(key_exchange),
+          key_exchange_group(key_exchange_group),
+          cipher(cipher),
+          mac(mac),
+          subject_name(subject_name),
+          san_list(san_list),
+          issuer(issuer),
+          valid_from(valid_from),
+          valid_to(valid_to),
+          certificate(certificate),
+          sct_list(sct_list) {}
+    // All strings are human-readable values.
+    String protocol;
+    // keyExchange is the empty string if not applicable for the connection's
+    // protocol.
+    String key_exchange;
+    // keyExchangeGroup is the empty string if not applicable for the
+    // connection's key exchange.
+    String key_exchange_group;
+    String cipher;
+    // mac is the empty string when the connection cipher suite does not
+    // have a separate MAC value (i.e. if the cipher suite is AEAD).
+    String mac;
+    String subject_name;
+    Vector<String> san_list;
+    String issuer;
+    time_t valid_from;
+    time_t valid_to;
+    // DER-encoded X509Certificate certificate chain.
+    Vector<AtomicString> certificate;
+    SignedCertificateTimestampList sct_list;
+  };
+
   ResourceResponse();
   explicit ResourceResponse(const KURL& current_request_url);
   ResourceResponse(const ResourceResponse&);
@@ -79,12 +169,6 @@ class PLATFORM_EXPORT ResourceResponse final {
 
   bool IsNull() const { return is_null_; }
   bool IsHTTP() const;
-
-  // When serving resources from a WebBundle, we might have resources whose
-  // source isn't a URL (like urn:uuid), but we still need to create and
-  // populate ResourceTiming entries for them, so we need to check that either
-  // response has a proper request URL or a WebBundleURL.
-  bool ShouldPopulateResourceTiming() const;
 
   // The current request URL for this resource (the URL after redirects).
   // Corresponds to:
@@ -158,11 +242,11 @@ class PLATFORM_EXPORT ResourceResponse final {
   bool CacheControlContainsNoStore() const;
   bool CacheControlContainsMustRevalidate() const;
   bool HasCacheValidatorFields() const;
-  absl::optional<base::TimeDelta> CacheControlMaxAge() const;
-  absl::optional<base::Time> Date() const;
-  absl::optional<base::TimeDelta> Age() const;
-  absl::optional<base::Time> Expires() const;
-  absl::optional<base::Time> LastModified() const;
+  base::Optional<base::TimeDelta> CacheControlMaxAge() const;
+  base::Optional<base::Time> Date() const;
+  base::Optional<base::TimeDelta> Age() const;
+  base::Optional<base::Time> Expires() const;
+  base::Optional<base::Time> LastModified() const;
   // Will always return values >= 0.
   base::TimeDelta CacheControlStaleWhileRevalidate() const;
 
@@ -178,6 +262,9 @@ class PLATFORM_EXPORT ResourceResponse final {
   ResourceLoadTiming* GetResourceLoadTiming() const;
   void SetResourceLoadTiming(scoped_refptr<ResourceLoadTiming>);
 
+  scoped_refptr<ResourceLoadInfo> GetResourceLoadInfo() const;
+  void SetResourceLoadInfo(scoped_refptr<ResourceLoadInfo>);
+
   HTTPVersion HttpVersion() const { return http_version_; }
   void SetHttpVersion(HTTPVersion version) { http_version_ = version; }
 
@@ -190,6 +277,11 @@ class PLATFORM_EXPORT ResourceResponse final {
   void SetHasMajorCertificateErrors(bool has_major_certificate_errors) {
     has_major_certificate_errors_ = has_major_certificate_errors;
   }
+
+  CTPolicyCompliance GetCTPolicyCompliance() const {
+    return ct_policy_compliance_;
+  }
+  void SetCTPolicyCompliance(CTPolicyCompliance);
 
   bool IsLegacyTLSVersion() const { return is_legacy_tls_version_; }
   void SetIsLegacyTLSVersion(bool value) { is_legacy_tls_version_ = value; }
@@ -205,33 +297,39 @@ class PLATFORM_EXPORT ResourceResponse final {
     security_style_ = security_style;
   }
 
-  const absl::optional<net::SSLInfo>& GetSSLInfo() const { return ssl_info_; }
-  void SetSSLInfo(const net::SSLInfo& ssl_info);
+  const base::Optional<SecurityDetails>& GetSecurityDetails() const {
+    return security_details_;
+  }
+  void SetSecurityDetails(const String& protocol,
+                          const String& key_exchange,
+                          const String& key_exchange_group,
+                          const String& cipher,
+                          const String& mac,
+                          const String& subject_name,
+                          const Vector<String>& san_list,
+                          const String& issuer,
+                          time_t valid_from,
+                          time_t valid_to,
+                          const Vector<AtomicString>& certificate,
+                          const SignedCertificateTimestampList& sct_list);
 
-  const KURL& WebBundleURL() const { return web_bundle_url_; }
-  void SetWebBundleURL(const KURL& url) { web_bundle_url_ = url; }
+  int64_t AppCacheID() const { return app_cache_id_; }
+  void SetAppCacheID(int64_t id) { app_cache_id_ = id; }
 
-  bool EmittedExtraInfo() const { return emitted_extra_info_; }
-  void SetEmittedExtraInfo(bool emitted_extra_info) {
-    emitted_extra_info_ = emitted_extra_info;
+  const KURL& AppCacheManifestURL() const { return app_cache_manifest_url_; }
+  void SetAppCacheManifestURL(const KURL& url) {
+    app_cache_manifest_url_ = url;
   }
 
   bool WasFetchedViaSPDY() const { return was_fetched_via_spdy_; }
   void SetWasFetchedViaSPDY(bool value) { was_fetched_via_spdy_ = value; }
 
-  // See network.mojom.URLResponseHead.was_fetched_via_service_worker.
+  // See network::ResourceResponseInfo::was_fetched_via_service_worker.
   bool WasFetchedViaServiceWorker() const {
     return was_fetched_via_service_worker_;
   }
   void SetWasFetchedViaServiceWorker(bool value) {
     was_fetched_via_service_worker_ = value;
-  }
-
-  base::TimeTicks ArrivalTimeAtRenderer() const {
-    return arrival_time_at_renderer_;
-  }
-  void SetArrivalTimeAtRenderer(base::TimeTicks value) {
-    arrival_time_at_renderer_ = value;
   }
 
   network::mojom::FetchResponseSource GetServiceWorkerResponseSource() const {
@@ -243,6 +341,14 @@ class PLATFORM_EXPORT ResourceResponse final {
     service_worker_response_source_ = value;
   }
 
+  // See network::ResourceResponseInfo::was_fallback_required_by_service_worker.
+  bool WasFallbackRequiredByServiceWorker() const {
+    return was_fallback_required_by_service_worker_;
+  }
+  void SetWasFallbackRequiredByServiceWorker(bool value) {
+    was_fallback_required_by_service_worker_ = value;
+  }
+
   network::mojom::FetchResponseType GetType() const { return response_type_; }
   void SetType(network::mojom::FetchResponseType value) {
     response_type_ = value;
@@ -252,10 +358,7 @@ class PLATFORM_EXPORT ResourceResponse final {
   // https://html.spec.whatwg.org/C/#cors-cross-origin
   bool IsCorsCrossOrigin() const;
 
-  int64_t GetPadding() const { return padding_; }
-  void SetPadding(int64_t padding) { padding_ = padding; }
-
-  // See network.mojom.URLResponseHead.url_list_via_service_worker.
+  // See network::ResourceResponseInfo::url_list_via_service_worker.
   const Vector<KURL>& UrlListViaServiceWorker() const {
     return url_list_via_service_worker_;
   }
@@ -301,23 +404,9 @@ class PLATFORM_EXPORT ResourceResponse final {
     address_space_ = value;
   }
 
-  network::mojom::IPAddressSpace ClientAddressSpace() const {
-    return client_address_space_;
-  }
-  void SetClientAddressSpace(network::mojom::IPAddressSpace value) {
-    client_address_space_ = value;
-  }
-
   bool WasAlpnNegotiated() const { return was_alpn_negotiated_; }
   void SetWasAlpnNegotiated(bool was_alpn_negotiated) {
     was_alpn_negotiated_ = was_alpn_negotiated;
-  }
-
-  bool HasAuthorizationCoveredByWildcardOnPreflight() const {
-    return has_authorization_covered_by_wildcard_on_preflight_;
-  }
-  void SetHasAuthorizationCoveredByWildcardOnPreflight(bool b) {
-    has_authorization_covered_by_wildcard_on_preflight_ = b;
   }
 
   const AtomicString& AlpnNegotiatedProtocol() const {
@@ -325,13 +414,6 @@ class PLATFORM_EXPORT ResourceResponse final {
   }
   void SetAlpnNegotiatedProtocol(const AtomicString& value) {
     alpn_negotiated_protocol_ = value;
-  }
-
-  net::AlternateProtocolUsage AlternateProtocolUsage() const {
-    return alternate_protocol_usage_;
-  }
-  void SetAlternateProtocolUsage(net::AlternateProtocolUsage value) {
-    alternate_protocol_usage_ = value;
   }
 
   net::HttpResponseInfo::ConnectionInfo ConnectionInfo() const {
@@ -343,9 +425,6 @@ class PLATFORM_EXPORT ResourceResponse final {
 
   AtomicString ConnectionInfoString() const;
 
-  mojom::blink::CacheState CacheState() const;
-  void SetIsValidated(bool is_validated);
-
   int64_t EncodedDataLength() const { return encoded_data_length_; }
   void SetEncodedDataLength(int64_t value);
 
@@ -355,11 +434,11 @@ class PLATFORM_EXPORT ResourceResponse final {
   int64_t DecodedBodyLength() const { return decoded_body_length_; }
   void SetDecodedBodyLength(int64_t value);
 
-  const absl::optional<base::UnguessableToken>& RecursivePrefetchToken() const {
+  const base::Optional<base::UnguessableToken>& RecursivePrefetchToken() const {
     return recursive_prefetch_token_;
   }
   void SetRecursivePrefetchToken(
-      const absl::optional<base::UnguessableToken>& token) {
+      const base::Optional<base::UnguessableToken>& token) {
     recursive_prefetch_token_ = token;
   }
 
@@ -415,29 +494,8 @@ class PLATFORM_EXPORT ResourceResponse final {
     was_cookie_in_request_ = was_cookie_in_request;
   }
 
-  const Vector<String>& DnsAliases() const { return dns_aliases_; }
-
-  void SetDnsAliases(Vector<String> aliases) {
-    dns_aliases_ = std::move(aliases);
-  }
-
   network::mojom::CrossOriginEmbedderPolicyValue GetCrossOriginEmbedderPolicy()
       const;
-
-  const absl::optional<net::AuthChallengeInfo>& AuthChallengeInfo() const {
-    return auth_challenge_info_;
-  }
-  void SetAuthChallengeInfo(
-      const absl::optional<net::AuthChallengeInfo>& value) {
-    auth_challenge_info_ = value;
-  }
-
-  bool RequestIncludeCredentials() const {
-    return request_include_credentials_;
-  }
-  void SetRequestIncludeCredentials(bool request_include_credentials) {
-    request_include_credentials_ = request_include_credentials;
-  }
 
  private:
   void UpdateHeaderParsedState(const AtomicString& name);
@@ -456,102 +514,84 @@ class PLATFORM_EXPORT ResourceResponse final {
   net::IPEndPoint remote_ip_endpoint_;
 
   // The address space from which this resource was fetched.
-  // https://wicg.github.io/private-network-access/#response-ip-address-space
   network::mojom::IPAddressSpace address_space_ =
       network::mojom::IPAddressSpace::kUnknown;
 
-  // The address space of the request client.
-  // https://wicg.github.io/private-network-access/#policy-container-ip-address-space
-  network::mojom::IPAddressSpace client_address_space_ =
-      network::mojom::IPAddressSpace::kUnknown;
-
-  bool was_cached_ : 1;
-  bool connection_reused_ : 1;
-  bool is_null_ : 1;
-  mutable bool have_parsed_age_header_ : 1;
-  mutable bool have_parsed_date_header_ : 1;
-  mutable bool have_parsed_expires_header_ : 1;
-  mutable bool have_parsed_last_modified_header_ : 1;
+  bool was_cached_ = false;
+  bool connection_reused_ = false;
+  bool is_null_ = false;
+  mutable bool have_parsed_age_header_ = false;
+  mutable bool have_parsed_date_header_ = false;
+  mutable bool have_parsed_expires_header_ = false;
+  mutable bool have_parsed_last_modified_header_ = false;
 
   // True if the resource was retrieved by the embedder in spite of
   // certificate errors.
-  bool has_major_certificate_errors_ : 1;
+  bool has_major_certificate_errors_ = false;
+
+  // The Certificate Transparency policy compliance status of the resource.
+  CTPolicyCompliance ct_policy_compliance_ =
+      kCTPolicyComplianceDetailsNotAvailable;
 
   // True if the response was sent over TLS 1.0 or 1.1, which are deprecated and
   // will be removed in the future.
-  bool is_legacy_tls_version_ : 1;
+  bool is_legacy_tls_version_ = false;
 
   // This corresponds to the range-requested flag in the Fetch spec:
   // https://fetch.spec.whatwg.org/#concept-response-range-requested-flag
-  bool has_range_requested_ : 1;
+  bool has_range_requested_ = false;
 
   // True if the Timing-Allow-Origin check passes.
   // https://fetch.spec.whatwg.org/#concept-response-timing-allow-passed
-  bool timing_allow_passed_ : 1;
-
-  // Was the resource fetched over SPDY.  See http://dev.chromium.org/spdy
-  bool was_fetched_via_spdy_ : 1;
-
-  // Was the resource fetched over a ServiceWorker.
-  bool was_fetched_via_service_worker_ : 1;
-
-  // True if service worker navigation preload was performed due to
-  // the request for this resource.
-  bool did_service_worker_navigation_preload_ : 1;
-
-  // True if this resource is stale and needs async revalidation. Will only
-  // possibly be set if the load_flags indicated SUPPORT_ASYNC_REVALIDATION.
-  bool async_revalidation_requested_ : 1;
-
-  // True if this resource is from an inner response of a signed exchange.
-  // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html
-  bool is_signed_exchange_inner_response_ : 1;
-
-  // True if this resource is served from the prefetch cache.
-  bool was_in_prefetch_cache_ : 1;
-
-  // True if a cookie was sent in the request for this resource.
-  bool was_cookie_in_request_ : 1;
-
-  // True if this resource was loaded from the network.
-  bool network_accessed_ : 1;
-
-  // True if this resource was loaded from a MHTML archive.
-  bool from_archive_ : 1;
-
-  // True if response could use alternate protocol.
-  bool was_alternate_protocol_available_ : 1;
-
-  // True if the response was delivered after ALPN is negotiated.
-  bool was_alpn_negotiated_ : 1;
-
-  // True when there is an "authorization" header on the request and it is
-  // covered by the wildcard in the preflight response.
-  // TODO(crbug.com/1176753): Remove this once the investigation is done.
-  bool has_authorization_covered_by_wildcard_on_preflight_ : 1;
-
-  // Whether the resource came from the cache and validated over the network.
-  bool is_validated_ : 1;
-
-  // [spec] https://fetch.spec.whatwg.org/#response-request-includes-credentials
-  // The request's |includeCredentials| value from the "HTTP-network fetch"
-  // algorithm.
-  // See: https://fetch.spec.whatwg.org/#concept-http-network-fetch
-  bool request_include_credentials_ : 1;
-
-  // Pre-computed padding.  This should only be non-zero if |response_type| is
-  // set to kOpaque.  In addition, it is only set if the response was provided
-  // by a service worker FetchEvent handler.
-  int64_t padding_ = 0;
+  bool timing_allow_passed_ = false;
 
   // The time at which the resource's certificate expires. Null if there was no
   // certificate.
   base::Time cert_validity_start_;
 
+  // Was the resource fetched over SPDY.  See http://dev.chromium.org/spdy
+  bool was_fetched_via_spdy_ = false;
+
+  // Was the resource fetched over a ServiceWorker.
+  bool was_fetched_via_service_worker_ = false;
+
   // The source of the resource, if it was fetched via ServiceWorker. This is
   // kUnspecified if |was_fetched_via_service_worker| is false.
   network::mojom::FetchResponseSource service_worker_response_source_ =
       network::mojom::FetchResponseSource::kUnspecified;
+
+  // Was the fallback request with skip service worker flag required.
+  bool was_fallback_required_by_service_worker_ = false;
+
+  // True if service worker navigation preload was performed due to
+  // the request for this resource.
+  bool did_service_worker_navigation_preload_ = false;
+
+  // True if this resource is stale and needs async revalidation. Will only
+  // possibly be set if the load_flags indicated SUPPORT_ASYNC_REVALIDATION.
+  bool async_revalidation_requested_ = false;
+
+  // True if this resource is from an inner response of a signed exchange.
+  // https://wicg.github.io/webpackage/draft-yasskin-http-origin-signed-responses.html
+  bool is_signed_exchange_inner_response_ = false;
+
+  // True if this resource is served from the prefetch cache.
+  bool was_in_prefetch_cache_ = false;
+
+  // True if a cookie was sent in the request for this resource.
+  bool was_cookie_in_request_ = false;
+
+  // True if this resource was loaded from the network.
+  bool network_accessed_ = false;
+
+  // True if this resource was loaded from a MHTML archive.
+  bool from_archive_ = false;
+
+  // True if response could use alternate protocol.
+  bool was_alternate_protocol_available_ = false;
+
+  // True if the response was delivered after ALPN is negotiated.
+  bool was_alpn_negotiated_ = false;
 
   // https://fetch.spec.whatwg.org/#concept-response-type
   network::mojom::FetchResponseType response_type_ =
@@ -569,16 +609,25 @@ class PLATFORM_EXPORT ResourceResponse final {
   SecurityStyle security_style_ = SecurityStyle::kUnknown;
 
   // Security details of this request's connection.
-  absl::optional<net::SSLInfo> ssl_info_;
+  base::Optional<SecurityDetails> security_details_;
 
   scoped_refptr<ResourceLoadTiming> resource_load_timing_;
+  scoped_refptr<ResourceLoadInfo> resource_load_info_;
 
   mutable CacheControlHeader cache_control_header_;
 
-  mutable absl::optional<base::TimeDelta> age_;
-  mutable absl::optional<base::Time> date_;
-  mutable absl::optional<base::Time> expires_;
-  mutable absl::optional<base::Time> last_modified_;
+  mutable base::Optional<base::TimeDelta> age_;
+  mutable base::Optional<base::Time> date_;
+  mutable base::Optional<base::Time> expires_;
+  mutable base::Optional<base::Time> last_modified_;
+
+  // The id of the appcache this response was retrieved from, or zero if
+  // the response was not retrieved from an appcache.
+  int64_t app_cache_id_ = 0;
+
+  // The manifest url of the appcache this response was retrieved from, if any.
+  // Note: only valid for main resource responses.
+  KURL app_cache_manifest_url_;
 
   // The URL list of the response which was fetched by the ServiceWorker.
   // This is empty if the response was created inside the ServiceWorker.
@@ -599,11 +648,6 @@ class PLATFORM_EXPORT ResourceResponse final {
   // ALPN negotiated protocol of the socket which fetched this resource.
   AtomicString alpn_negotiated_protocol_;
 
-  // The reason why Chrome uses a specific transport protocol for HTTP
-  // semantics.
-  net::AlternateProtocolUsage alternate_protocol_usage_ =
-      net::AlternateProtocolUsage::ALTERNATE_PROTOCOL_USAGE_UNSPECIFIED_REASON;
-
   // Information about the type of connection used to fetch this resource.
   net::HttpResponseInfo::ConnectionInfo connection_info_ =
       net::HttpResponseInfo::ConnectionInfo::CONNECTION_INFO_UNKNOWN;
@@ -618,26 +662,10 @@ class PLATFORM_EXPORT ResourceResponse final {
   // removed.
   int64_t decoded_body_length_ = 0;
 
-  // Represents when the response arrives at the renderer.
-  base::TimeTicks arrival_time_at_renderer_;
-
   // This is propagated from the browser process's PrefetchURLLoader on
   // cross-origin prefetch responses. It is used to pass the token along to
   // preload header requests from these responses.
-  absl::optional<base::UnguessableToken> recursive_prefetch_token_;
-
-  // Any DNS aliases for the requested URL, as read from CNAME records.
-  // Includes all known aliases, e.g. from A, AAAA, or HTTPS, not just from the
-  // address used for the connection, in no particular order.
-  Vector<String> dns_aliases_;
-
-  // The URL of WebBundle this response was loaded from. This value is only
-  // populated for resources loaded from a WebBundle.
-  KURL web_bundle_url_;
-
-  absl::optional<net::AuthChallengeInfo> auth_challenge_info_;
-
-  bool emitted_extra_info_ = false;
+  base::Optional<base::UnguessableToken> recursive_prefetch_token_;
 };
 
 }  // namespace blink

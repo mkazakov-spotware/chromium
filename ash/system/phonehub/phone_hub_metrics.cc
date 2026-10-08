@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,22 +14,22 @@ namespace {
 
 std::string GetInterstitialScreenEventHistogramName(Screen screen) {
   switch (screen) {
-    case Screen::kPhoneDisconnected:
-      return "PhoneHub.InterstitialScreenEvent.PhoneDisconnected";
+    case Screen::kConnectionError:
+      return "Ash.PhoneHub.InterstitialScreenEvent.ConnectionError";
     case Screen::kBluetoothOrWifiDisabled:
-      return "PhoneHub.InterstitialScreenEvent.BluetoothOrWifiDisabled";
-    case Screen::kPhoneConnecting:
-      return "PhoneHub.InterstitialScreenEvent.PhoneConnecting";
-    case Screen::kTetherConnectionPending:
-      return "PhoneHub.InterstitialScreenEvent.TetherConnectionPending";
+      return "Ash.PhoneHub.InterstitialScreenEvent.BluetoothOrWifiDisabled";
+    case Screen::kReconnecting:
+      return "Ash.PhoneHub.InterstitialScreenEvent.Reconnecting";
+    case Screen::kInitialConnecting:
+      return "Ash.PhoneHub.InterstitialScreenEvent.InitialConnecting";
     case Screen::kOnboardingExistingMultideviceUser:
-      return "PhoneHub.InterstitialScreenEvent.Onboarding."
-             "ExistingMultideviceUser2";
+      return "Ash.PhoneHub.InterstitialScreenEvent.Onboarding."
+             "ExistingMultideviceUser";
     case Screen::kOnboardingNewMultideviceUser:
-      return "PhoneHub.InterstitialScreenEvent.Onboarding."
-             "NewMultideviceUser2";
+      return "Ash.PhoneHub.InterstitialScreenEvent.Onboarding."
+             "NewMultideviceUser";
     case Screen::kOnboardingDismissPrompt:
-      return "PhoneHub.InterstitialScreenEvent.OnboardingDismissPrompt";
+      return "Ash.PhoneHub.InterstitialScreenEvent.OnboardingDismissPrompt";
     default:
       DCHECK(false) << "Invalid interstitial screen";
       return "";
@@ -41,167 +41,41 @@ std::string GetInterstitialScreenEventHistogramName(Screen screen) {
 void LogInterstitialScreenEvent(Screen screen, InterstitialScreenEvent event) {
   base::UmaHistogramEnumeration(GetInterstitialScreenEventHistogramName(screen),
                                 event);
-
-  // NOTE(https://crbug.com/1187255): The new- and existing-user metrics were
-  // previously reversed. For continuity, we continue logging the old metrics in
-  // reverse. The new metrics
-  // "PhoneHub.InterstitialScreenEvent.Onboarding.NewMultideviceUser2" and
-  // "PhoneHub.InterstitialScreenEvent.Onboarding.ExistingMultideviceUser2" are
-  // logged correctly.
-  if (screen == Screen::kOnboardingExistingMultideviceUser) {
-    base::UmaHistogramEnumeration(
-        "PhoneHub.InterstitialScreenEvent.Onboarding.NewMultideviceUser",
-        event);
-  } else if (screen == Screen::kOnboardingNewMultideviceUser) {
-    base::UmaHistogramEnumeration(
-        "PhoneHub.InterstitialScreenEvent.Onboarding.ExistingMultideviceUser",
-        event);
-  }
 }
 
 void LogScreenOnBubbleOpen(Screen screen) {
-  base::UmaHistogramEnumeration("PhoneHub.ScreenOnBubbleOpen", screen);
+  base::UmaHistogramEnumeration("Ash.PhoneHub.ScreenOnBubbleOpen", screen);
 }
 
 void LogScreenOnBubbleClose(Screen screen) {
-  base::UmaHistogramEnumeration("PhoneHub.ScreenOnBubbleClose", screen);
+  base::UmaHistogramEnumeration("Ash.PhoneHub.ScreenOnBubbleClose", screen);
 }
 
 void LogScreenOnSettingsButtonClicked(Screen screen) {
-  base::UmaHistogramEnumeration("PhoneHub.ScreenOnSettingsButtonClicked",
+  base::UmaHistogramEnumeration("Ash.PhoneHub.Screen.OnSettingsButtonClicked",
                                 screen);
 }
 
+void LogNotificationOptInEvent(InterstitialScreenEvent event) {
+  base::UmaHistogramEnumeration("Ash.PhoneHub.NotificationOptIn", event);
+}
+
 void LogTabContinuationChipClicked(int tab_index) {
-  base::UmaHistogramCounts100("PhoneHub.TabContinuationChipClicked", tab_index);
+  base::UmaHistogramCounts100("Ash.PhoneHub.TabContinuationChipClicked",
+                              tab_index);
 }
 
 void LogQuickActionClick(QuickAction action) {
-  base::UmaHistogramEnumeration("PhoneHub.QuickActionClicked", action);
+  base::UmaHistogramEnumeration("Ash.PhoneHub.QuickActionClicked", action);
 }
 
 void LogNotificationCount(int count) {
-  base::UmaHistogramCounts100("PhoneHub.NotificationCount", count);
+  base::UmaHistogramCounts100("Ash.PhoneHub.NotificationCount", count);
 }
 
 void LogNotificationInteraction(NotificationInteraction interaction) {
   base::UmaHistogramEnumeration("PhoneHub.NotificationInteraction",
                                 interaction);
-}
-
-void LogNotificationMessageLength(int length) {
-  base::UmaHistogramCounts10000("PhoneHub.NotificationMessageLength", length);
-}
-
-std::string GetCameraRollMediaTypeSubcategoryName(
-    CameraRollMediaType mediaType) {
-  switch (mediaType) {
-    case CameraRollMediaType::kPhoto:
-      return ".Photo";
-    case CameraRollMediaType::kVideo:
-      return ".Video";
-    default:
-      DCHECK(false) << "Invalid Camera Roll media type";
-      return "";
-  }
-}
-
-void LogCameraRollContentShown(int index, CameraRollMediaType mediaType) {
-  std::string subcategory = GetCameraRollMediaTypeSubcategoryName(mediaType);
-  switch (index) {
-    case 0:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Shown" + subcategory,
-          static_cast<int>(CameraRollContentShown::kContentShown1));
-      break;
-    case 1:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Shown" + subcategory,
-          static_cast<int>(CameraRollContentShown::kContentShown2));
-      break;
-    case 2:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Shown" + subcategory,
-          static_cast<int>(CameraRollContentShown::kContentShown3));
-      break;
-    case 3:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Shown" + subcategory,
-          static_cast<int>(CameraRollContentShown::kContentShown4));
-      break;
-    default:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Shown" + subcategory,
-          static_cast<int>(CameraRollContentShown::kContentShownGTE5));
-      break;
-  }
-}
-
-void LogCameraRollContentClicked(int index, CameraRollMediaType mediaType) {
-  std::string subcategory = GetCameraRollMediaTypeSubcategoryName(mediaType);
-  switch (index) {
-    case 0:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Clicked" + subcategory,
-          static_cast<int>(CameraRollContentClicked::kContentClicked1));
-      break;
-    case 1:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Clicked" + subcategory,
-          static_cast<int>(CameraRollContentClicked::kContentClicked2));
-      break;
-    case 2:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Clicked" + subcategory,
-          static_cast<int>(CameraRollContentClicked::kContentClicked3));
-      break;
-    case 3:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Clicked" + subcategory,
-          static_cast<int>(CameraRollContentClicked::kContentClicked4));
-      break;
-    default:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.Content.Clicked" + subcategory,
-          static_cast<int>(CameraRollContentClicked::kContentClickedGTE5));
-      break;
-  }
-}
-
-void LogCameraRollContextMenuDownload(int index,
-                                      CameraRollMediaType mediaType) {
-  std::string subcategory = GetCameraRollMediaTypeSubcategoryName(mediaType);
-  switch (index) {
-    case 0:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.ContextMenu.Download" + subcategory,
-          static_cast<int>(CameraRollContextMenuDownload::kDownload1));
-      break;
-    case 1:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.ContextMenu.Download" + subcategory,
-          static_cast<int>(CameraRollContextMenuDownload::kDownload2));
-      break;
-    case 2:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.ContextMenu.Download" + subcategory,
-          static_cast<int>(CameraRollContextMenuDownload::kDownload3));
-      break;
-    case 3:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.ContextMenu.Download" + subcategory,
-          static_cast<int>(CameraRollContextMenuDownload::kDownload4));
-      break;
-    default:
-      base::UmaHistogramSparse(
-          "PhoneHub.CameraRoll.ContextMenu.Download" + subcategory,
-          static_cast<int>(CameraRollContextMenuDownload::kDownloadGTE5));
-      break;
-  }
-}
-
-void LogCameraRollContentPresent() {
-  base::UmaHistogramBoolean("PhoneHub.CameraRoll.Content.Present", true);
 }
 
 }  // namespace phone_hub_metrics

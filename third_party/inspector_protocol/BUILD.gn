@@ -1,4 +1,4 @@
-# Copyright 2018 The Chromium Authors
+# Copyright 2018 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,8 +6,6 @@ component("crdtp") {
   sources = [
     "crdtp/cbor.cc",
     "crdtp/cbor.h",
-    "crdtp/chromium/protocol_traits.cc",
-    "crdtp/chromium/protocol_traits.h",
     "crdtp/dispatch.cc",
     "crdtp/dispatch.h",
     "crdtp/error_support.cc",
@@ -22,6 +20,7 @@ component("crdtp") {
     "crdtp/protocol_core.h",
     "crdtp/serializable.cc",
     "crdtp/serializable.h",
+    "crdtp/serializer_traits.h",
     "crdtp/span.cc",
     "crdtp/span.h",
     "crdtp/status.cc",
@@ -30,16 +29,11 @@ component("crdtp") {
 
   defines = [ "CRDTP_IMPLEMENTATION" ]
 
-  # Disable max speed optimizations for size-sensitive platforms.
-  if (!is_debug && !is_fuchsia) {
+  if (!is_debug) {
     configs -= [ "//build/config/compiler:default_optimization" ]
     configs += [ "//build/config/compiler:optimize_max" ]
   }
-
-  deps = [
-    ":crdtp_platform",
-    "//base",
-  ]
+  deps = [ ":crdtp_platform" ]
 }
 
 # A small adapter library which only :crdtp may depend on.
@@ -57,7 +51,6 @@ source_set("crdtp_test") {
   testonly = true
   sources = [
     "crdtp/cbor_test.cc",
-    "crdtp/chromium/protocol_traits_test.cc",
     "crdtp/dispatch_test.cc",
     "crdtp/error_support_test.cc",
     "crdtp/find_by_first_test.cc",
@@ -65,15 +58,13 @@ source_set("crdtp_test") {
     "crdtp/maybe_test.cc",
     "crdtp/protocol_core_test.cc",
     "crdtp/serializable_test.cc",
+    "crdtp/serializer_traits_test.cc",
     "crdtp/span_test.cc",
     "crdtp/status_test.cc",
     "crdtp/status_test_support.cc",
     "crdtp/status_test_support.h",
   ]
-  deps = [
-    ":crdtp_test_platform",
-    "//base/test:test_support",
-  ]
+  deps = [ ":crdtp_test_platform" ]
 }
 
 # A small adapter library which only :crdtp_test may depend on.

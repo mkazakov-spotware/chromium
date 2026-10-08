@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,12 @@
 
 #include <string>
 
+#include "base/optional.h"
 #include "chrome/browser/ui/webui/nearby_share/nearby_share.mojom.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 // Metadata about an ongoing transfer. Wraps transient data like status and
-// progress. This is used to refresh the UI with error messages and show
-// notifications so additions should be explicitly handled on the frontend.
+// progress.
 class TransferMetadata {
  public:
   enum class Status {
@@ -33,31 +32,10 @@ class TransferMetadata {
     kNotEnoughSpace,
     kUnsupportedAttachmentType,
     kExternalProviderLaunched,
-    kDecodeAdvertisementFailed,
-    kMissingTransferUpdateCallback,
-    kMissingShareTarget,
-    kMissingEndpointId,
-    kMissingPayloads,
-    kPairedKeyVerificationFailed,
-    kInvalidIntroductionFrame,
-    kIncompletePayloads,
-    kFailedToCreateShareTarget,
-    kFailedToInitiateOutgoingConnection,
-    kFailedToReadOutgoingConnectionResponse,
-    kUnexpectedDisconnection,
-    kMaxValue = kUnexpectedDisconnection
-  };
-
-  enum class Result {
-    kIndeterminate,
-    kSuccess,
-    kFailure,
-    kMaxValue = kFailure
+    kMaxValue = kExternalProviderLaunched
   };
 
   static bool IsFinalStatus(Status status);
-
-  static Result ToResult(Status status);
 
   static std::string StatusToString(TransferMetadata::Status status);
 
@@ -65,7 +43,7 @@ class TransferMetadata {
 
   TransferMetadata(Status status,
                    float progress,
-                   absl::optional<std::string> token,
+                   base::Optional<std::string> token,
                    bool is_original,
                    bool is_final_status);
   ~TransferMetadata();
@@ -77,9 +55,9 @@ class TransferMetadata {
   // Returns transfer progress as percentage.
   float progress() const { return progress_; }
 
-  // Represents the UKey2 token from Nearby Connection. absl::nullopt if no
+  // Represents the UKey2 token from Nearby Connection. base::nullopt if no
   // UKey2 comparison is needed for this transfer.
-  const absl::optional<std::string>& token() const { return token_; }
+  const base::Optional<std::string>& token() const { return token_; }
 
   // True if this |TransferMetadata| has not been seen.
   bool is_original() const { return is_original_; }
@@ -92,7 +70,7 @@ class TransferMetadata {
  private:
   Status status_;
   float progress_;
-  absl::optional<std::string> token_;
+  base::Optional<std::string> token_;
   bool is_original_;
   bool is_final_status_;
 };

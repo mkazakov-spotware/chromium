@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,10 @@
 
 #include "base/no_destructor.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "components/permissions/permission_request_enums.h"
-#include "components/permissions/permission_uma_util.h"
 #include "components/permissions/permissions_client.h"
 
 class ChromePermissionsClient : public permissions::PermissionsClient {
  public:
-  ChromePermissionsClient(const ChromePermissionsClient&) = delete;
-  ChromePermissionsClient& operator=(const ChromePermissionsClient&) = delete;
-
   static ChromePermissionsClient* GetInstance();
 
   // PermissionsClient:
@@ -26,14 +20,11 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       content::BrowserContext* browser_context) override;
   bool IsSubresourceFilterActivated(content::BrowserContext* browser_context,
                                     const GURL& url) override;
-  permissions::OriginKeyedPermissionActionService*
-  GetOriginKeyedPermissionActionService(
-      content::BrowserContext* browser_context) override;
-  permissions::PermissionActionsHistory* GetPermissionActionsHistory(
-      content::BrowserContext* browser_context) override;
   permissions::PermissionDecisionAutoBlocker* GetPermissionDecisionAutoBlocker(
       content::BrowserContext* browser_context) override;
-  permissions::ObjectPermissionContextBase* GetChooserContext(
+  permissions::PermissionManager* GetPermissionManager(
+      content::BrowserContext* browser_context) override;
+  permissions::ChooserContextBase* GetChooserContext(
       content::BrowserContext* browser_context,
       ContentSettingsType type) override;
   double GetSiteEngagementScore(content::BrowserContext* browser_context,
@@ -41,63 +32,53 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
   void AreSitesImportant(
       content::BrowserContext* browser_context,
       std::vector<std::pair<url::Origin, bool>>* urls) override;
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_ANDROID) || defined(OS_CHROMEOS)
   bool IsCookieDeletionDisabled(content::BrowserContext* browser_context,
                                 const GURL& origin) override;
 #endif
   void GetUkmSourceId(content::BrowserContext* browser_context,
-                      content::WebContents* web_contents,
+                      const content::WebContents* web_contents,
                       const GURL& requesting_origin,
                       GetUkmSourceIdCallback callback) override;
-  permissions::IconId GetOverrideIconId(
-      permissions::RequestType request_type) override;
-  std::vector<std::unique_ptr<permissions::PermissionUiSelector>>
-  CreatePermissionUiSelectors(
+  permissions::PermissionRequest::IconId GetOverrideIconId(
+      ContentSettingsType type) override;
+  std::vector<std::unique_ptr<permissions::NotificationPermissionUiSelector>>
+  CreateNotificationPermissionUiSelectors(
       content::BrowserContext* browser_context) override;
-  void OnPromptResolved(
-      content::BrowserContext* browser_context,
-      permissions::RequestType request_type,
-      permissions::PermissionAction action,
-      const GURL& origin,
-      permissions::PermissionPromptDisposition prompt_disposition,
-      permissions::PermissionPromptDispositionReason prompt_disposition_reason,
-      permissions::PermissionRequestGestureType gesture_type,
-      absl::optional<QuietUiReason> quiet_ui_reason) override;
-  absl::optional<bool> HadThreeConsecutiveNotificationPermissionDenies(
+  void OnPromptResolved(content::BrowserContext* browser_context,
+                        permissions::PermissionRequestType request_type,
+                        permissions::PermissionAction action,
+                        const GURL& origin,
+                        base::Optional<QuietUiReason> quiet_ui_reason) override;
+  base::Optional<bool> HadThreeConsecutiveNotificationPermissionDenies(
       content::BrowserContext* browser_context) override;
-  absl::optional<bool> HasPreviouslyAutoRevokedPermission(
+  base::Optional<bool> HasPreviouslyAutoRevokedPermission(
       content::BrowserContext* browser_context,
       const GURL& origin,
       ContentSettingsType permission) override;
-  absl::optional<url::Origin> GetAutoApprovalOrigin() override;
+  base::Optional<url::Origin> GetAutoApprovalOrigin() override;
   bool CanBypassEmbeddingOriginCheck(const GURL& requesting_origin,
                                      const GURL& embedding_origin) override;
-  absl::optional<GURL> OverrideCanonicalOrigin(
+  base::Optional<GURL> OverrideCanonicalOrigin(
       const GURL& requesting_origin,
       const GURL& embedding_origin) override;
-  // Checks if `requesting_origin` and `embedding_origin` are the new tab page
-  // origins.
-  bool DoURLsMatchNewTabPage(const GURL& requesting_origin,
-                             const GURL& embedding_origin) override;
-#if BUILDFLAG(IS_ANDROID)
-  bool IsDseOrigin(content::BrowserContext* browser_context,
-                   const url::Origin& origin) override;
+#if defined(OS_ANDROID)
+  bool IsPermissionControlledByDse(content::BrowserContext* browser_context,
+                                   ContentSettingsType type,
+                                   const url::Origin& origin) override;
+  bool ResetPermissionIfControlledByDse(
+      content::BrowserContext* browser_context,
+      ContentSettingsType type,
+      const url::Origin& origin) override;
   infobars::InfoBarManager* GetInfoBarManager(
       content::WebContents* web_contents) override;
   infobars::InfoBar* MaybeCreateInfoBar(
       content::WebContents* web_contents,
       ContentSettingsType type,
       base::WeakPtr<permissions::PermissionPromptAndroid> prompt) override;
-  std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI(
-      content::WebContents* web_contents,
-      ContentSettingsType type,
-      base::WeakPtr<permissions::PermissionPromptAndroid> prompt) override;
   void RepromptForAndroidPermissions(
       content::WebContents* web_contents,
       const std::vector<ContentSettingsType>& content_settings_types,
-      const std::vector<ContentSettingsType>& filtered_content_settings_types,
-      const std::vector<std::string>& required_permissions,
-      const std::vector<std::string>& optional_permissions,
       PermissionsUpdatedCallback callback) override;
   int MapToJavaDrawableId(int resource_id) override;
 #else
@@ -110,6 +91,9 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
   friend base::NoDestructor<ChromePermissionsClient>;
 
   ChromePermissionsClient() = default;
+
+  ChromePermissionsClient(const ChromePermissionsClient&) = delete;
+  ChromePermissionsClient& operator=(const ChromePermissionsClient&) = delete;
 };
 
 #endif  // CHROME_BROWSER_PERMISSIONS_CHROME_PERMISSIONS_CLIENT_H_

@@ -9,7 +9,7 @@ curl 'http://example.org/path' --compressed
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path"
+Invoke-WebRequest -Uri "http://example.org/path"
 
 
 fetch (for browser):
@@ -22,7 +22,8 @@ fetch("http://example.org/path", {
 
 fetch (for nodejs):
 fetch("http://example.org/path", {
-  "method": "GET"
+  "method": "GET",
+  "mode": "cors"
 });
 
 
@@ -39,7 +40,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -Body "123"
 
@@ -56,14 +57,15 @@ fetch("http://example.org/path", {
 fetch (for nodejs):
 fetch("http://example.org/path", {
   "body": "123",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
 cURL Windows:
 curl "http://example.org/path" ^
   -H "Content-Type: application/x-www-form-urlencoded" ^
-  --data-raw "1&b" ^
+  --data-raw "1^&b" ^
   --compressed
 
 
@@ -75,7 +77,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/x-www-form-urlencoded" `
 -Body "1&b"
@@ -99,7 +101,8 @@ fetch("http://example.org/path", {
     "content-type": "application/x-www-form-urlencoded"
   },
   "body": "1&b",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -118,7 +121,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/json" `
 -Body "{`"a`":1}"
@@ -142,7 +145,8 @@ fetch("http://example.org/path", {
     "content-type": "application/json"
   },
   "body": "{\"a\":1}",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -163,7 +167,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/binary" `
 -Body ([System.Text.Encoding]::UTF8.GetBytes("1234$([char]13)$([char]10)00$([char]2)$([char]3)$([char]4)$([char]5)'`"!"))
@@ -187,7 +191,8 @@ fetch("http://example.org/path", {
     "content-type": "application/binary"
   },
   "body": "1234\r\n00\u0002\u0003\u0004\u0005'\"!",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -208,7 +213,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/binary" `
 -Body ([System.Text.Encoding]::UTF8.GetBytes("1234$([char]13)$([char]10)$([char]1)00$([char]2)$([char]3)$([char]4)$([char]5)'`"!"))
@@ -232,7 +237,8 @@ fetch("http://example.org/path", {
     "content-type": "application/binary"
   },
   "body": "1234\r\n\u000100\u0002\u0003\u0004\u0005'\"!",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -243,7 +249,7 @@ curl "http://example.org/path" ^
 
 ^%^%^OS^%^%^
 
-^\^"^\^\^\^"'^$&^!^" ^
+^\^"^\^\^\^"'^$^&^!^" ^
   --compressed
 
 
@@ -255,7 +261,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/binary" `
 -Body ([System.Text.Encoding]::UTF8.GetBytes("%OS%$([char]13)$([char]10)%%OS%%$([char]13)$([char]10)`"\`"'`$&!"))
@@ -279,14 +285,17 @@ fetch("http://example.org/path", {
     "content-type": "application/binary"
   },
   "body": "%OS%\r\n%%OS%%\r\n\"\\\"'$&!",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
 cURL Windows:
 curl "http://example.org/path" ^
   -H "Content-Type: application/binary" ^
-  --data-raw ^"^!^@^#^$^%^^&*()_+~`1234567890-=^[^]^{^};':^\^",./^<^>?^
+  --data-raw ^"^!^@^#^$^%^^^&*()_+~`1234567890-=^[^]^{^};':^\^",./^
+
+^<^>?^
 
 qwer^
 
@@ -306,7 +315,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/binary" `
 -Body ([System.Text.Encoding]::UTF8.GetBytes("!@#`$%^&*()_+~``1234567890-=[]{};':`",./$([char]13)<>?$([char]13)$([char]10)qwer$([char]10)t$([char]10)$([char]10)yuiopasdfghjklmnbvcxzQWERTYUIOPLKJHGFDSAZXCVBNM"))
@@ -330,7 +339,8 @@ fetch("http://example.org/path", {
     "content-type": "application/binary"
   },
   "body": "!@#$%^&*()_+~`1234567890-=[]{};':\",./\r<>?\r\nqwer\nt\n\nyuiopasdfghjklmnbvcxzQWERTYUIOPLKJHGFDSAZXCVBNM",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -349,7 +359,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/binary" `
 -Body ([System.Text.Encoding]::UTF8.GetBytes("$([char]127)$([char]128)$([char]144)$([char]255)$([char]9)$([char]1792)"))
@@ -373,7 +383,8 @@ fetch("http://example.org/path", {
     "content-type": "application/binary"
   },
   "body": "ÿ\t܀",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -386,7 +397,7 @@ curl 'http://labs.ft.com/?querystring=\[\]\{\}' --compressed
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://labs.ft.com/?querystring=[]{}"
+Invoke-WebRequest -Uri "http://labs.ft.com/?querystring=[]{}"
 
 
 fetch (for browser):
@@ -401,7 +412,8 @@ fetch("http://labs.ft.com/?querystring=[]{}", {
 fetch (for nodejs):
 fetch("http://labs.ft.com/?querystring=[]{}", {
   "body": null,
-  "method": "GET"
+  "method": "GET",
+  "mode": "cors"
 });
 
 
@@ -420,7 +432,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/binary" `
 -Body "%PATH%`$PATH"
@@ -444,7 +456,8 @@ fetch("http://example.org/path", {
     "content-type": "application/binary"
   },
   "body": "%PATH%$PATH",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -457,7 +470,7 @@ curl 'http://example.org/path' --compressed
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" -Headers @{
+Invoke-WebRequest -Uri "http://example.org/path" -Headers @{
 "version"="v"
 }
 
@@ -472,7 +485,8 @@ fetch("http://example.org/path", {
 
 fetch (for nodejs):
 fetch("http://example.org/path", {
-  "method": "GET"
+  "method": "GET",
+  "mode": "cors"
 });
 
 
@@ -489,7 +503,9 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path"
+Invoke-WebRequest -Uri "http://example.org/path" -Headers @{
+"Cookie"="_x=fdsfs; aA=fdsfdsf; FOO=ID=BAR:BAZ=FOO:F=d:AO=21.212.2.212-:A=dsadas8d9as8d9a8sd9sa8d9a; AAA=117"
+}
 
 
 fetch (for browser):
@@ -505,7 +521,8 @@ fetch("http://example.org/path", {
   "headers": {
     "cookie": "_x=fdsfs; aA=fdsfdsf; FOO=ID=BAR:BAZ=FOO:F=d:AO=21.212.2.212-:A=dsadas8d9as8d9a8sd9sa8d9a; AAA=117"
   },
-  "method": "GET"
+  "method": "GET",
+  "mode": "cors"
 });
 
 
@@ -522,7 +539,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" -Method "|evilcommand|"
+Invoke-WebRequest -Uri "http://example.org/path" -Method "|evilcommand|"
 
 
 fetch (for browser):
@@ -537,7 +554,8 @@ fetch("http://example.org/path", {
 fetch (for nodejs):
 fetch("http://example.org/path", {
   "body": null,
-  "method": "|evilcommand|"
+  "method": "|evilcommand|",
+  "mode": "cors"
 });
 
 
@@ -556,7 +574,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "application/x-www-form-urlencoded" `
 -Body "@/etc/passwd"
@@ -580,81 +598,8 @@ fetch("http://example.org/path", {
     "content-type": "application/x-www-form-urlencoded"
   },
   "body": "@/etc/passwd",
-  "method": "POST"
-});
-
-
-cURL Windows:
-curl "http://example.org/path" ^
-  -H "Referer: https://example.com" ^
-  --compressed
-
-
-cURL Unix:
-curl 'http://example.org/path' \
-  -H 'Referer: https://example.com' \
-  --compressed
-
-
-Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" -Headers @{
-"Referer"="https://example.com"
-}
-
-
-fetch (for browser):
-fetch("http://example.org/path", {
-  "referrer": "https://example.com",
-  "method": "GET",
-  "mode": "cors",
-  "credentials": "omit"
-});
-
-
-fetch (for nodejs):
-fetch("http://example.org/path", {
-  "headers": {
-    "Referer": "https://example.com"
-  },
-  "method": "GET"
-});
-
-
-cURL Windows:
-curl "http://example.org/path" ^
-  -H "No-Value-Header;" ^
-  --compressed
-
-
-cURL Unix:
-curl 'http://example.org/path' \
-  -H 'No-Value-Header;' \
-  --compressed
-
-
-Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" -Headers @{
-"No-Value-Header"=""
-}
-
-
-fetch (for browser):
-fetch("http://example.org/path", {
-  "headers": {
-    "no-value-header": ""
-  },
-  "method": "GET",
-  "mode": "cors",
-  "credentials": "omit"
-});
-
-
-fetch (for nodejs):
-fetch("http://example.org/path", {
-  "headers": {
-    "no-value-header": ""
-  },
-  "method": "GET"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -733,7 +678,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "foo/bar" `
 -Body "baz"
@@ -757,7 +702,8 @@ fetch("http://example.org/path", {
     "content-type": "foo/bar"
   },
   "body": "baz",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 
@@ -776,7 +722,7 @@ curl 'http://example.org/path' \
 
 
 Powershell:
-Invoke-WebRequest -UseBasicParsing -Uri "http://example.org/path" `
+Invoke-WebRequest -Uri "http://example.org/path" `
 -Method "POST" `
 -ContentType "foo/bar" `
 -Body "baz"
@@ -800,7 +746,8 @@ fetch("http://example.org/path", {
     "content-type": "foo/bar"
   },
   "body": "baz",
-  "method": "POST"
+  "method": "POST",
+  "mode": "cors"
 });
 
 

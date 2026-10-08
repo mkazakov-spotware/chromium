@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 
 #include <stddef.h>
 
-#include <algorithm>
 #include <utility>
 
-#include "base/at_exit.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/memory/singleton.h"
+#include "base/stl_util.h"
 #include "base/system/sys_info.h"
 #include "base/version.h"
 #include "build/build_config.h"
@@ -26,7 +25,6 @@
 #include "ui/events/event_switches.h"
 #include "ui/events/keycodes/keyboard_code_conversion_x.h"
 #include "ui/gfx/geometry/point3_f.h"
-#include "ui/gfx/x/future.h"
 #include "ui/gfx/x/x11_atom_cache.h"
 
 // XIScrollClass was introduced in XI 2.1 so we need to define it here
@@ -69,13 +67,6 @@
 #define AXIS_LABEL_ABS_MT_TRACKING_ID "Abs MT Tracking ID"
 #define AXIS_LABEL_TOUCH_TIMESTAMP "Touch Timestamp"
 
-// Stylus with absolute x y pressure and tilt info
-#define AXIS_LABEL_PROP_ABS_X "Abs X"
-#define AXIS_LABEL_PROP_ABS_Y "Abs Y"
-#define AXIS_LABEL_PROP_ABS_PRESSURE "Abs Pressure"
-#define AXIS_LABEL_PROP_ABS_TILT_X "Abs Tilt X"
-#define AXIS_LABEL_PROP_ABS_TILT_Y "Abs Tilt Y"
-
 // When you add new data types, please make sure the order here is aligned
 // with the order in the DataType enum in the header file because we assume
 // they are in sync when updating the device list (see UpdateDeviceList).
@@ -101,15 +92,10 @@ constexpr const char* kCachedAtoms[] = {
     AXIS_LABEL_ABS_MT_POSITION_Y,
     AXIS_LABEL_ABS_MT_TRACKING_ID,
     AXIS_LABEL_TOUCH_TIMESTAMP,
-    AXIS_LABEL_PROP_ABS_X,
-    AXIS_LABEL_PROP_ABS_Y,
-    AXIS_LABEL_PROP_ABS_PRESSURE,
-    AXIS_LABEL_PROP_ABS_TILT_X,
-    AXIS_LABEL_PROP_ABS_TILT_Y,
 };
 
 // Make sure the sizes of enum and |kCachedAtoms| are aligned.
-static_assert(std::size(kCachedAtoms) ==
+static_assert(base::size(kCachedAtoms) ==
                   ui::DeviceDataManagerX11::DT_LAST_ENTRY,
               "kCachedAtoms count / enum mismatch");
 
@@ -119,8 +105,6 @@ const int kCMTDataTypeStart = ui::DeviceDataManagerX11::DT_CMT_SCROLL_X;
 const int kCMTDataTypeEnd = ui::DeviceDataManagerX11::DT_CMT_FINGER_COUNT;
 const int kTouchDataTypeStart = ui::DeviceDataManagerX11::DT_TOUCH_MAJOR;
 const int kTouchDataTypeEnd = ui::DeviceDataManagerX11::DT_TOUCH_RAW_TIMESTAMP;
-const int kStylusDataTypeStart = ui::DeviceDataManagerX11::DT_STYLUS_POSITION_X;
-const int kStylusDataTypeEnd = ui::DeviceDataManagerX11::DT_STYLUS_TILT_Y;
 
 namespace ui {
 
@@ -194,10 +178,6 @@ bool DeviceDataManagerX11::IsTouchDataType(const int type) {
   return (type >= kTouchDataTypeStart) && (type <= kTouchDataTypeEnd);
 }
 
-bool DeviceDataManagerX11::IsStylusDataType(const int type) {
-  return (type >= kStylusDataTypeStart) && (type <= kStylusDataTypeEnd);
-}
-
 // static
 void DeviceDataManagerX11::CreateInstance() {
   if (HasInstance())
@@ -265,7 +245,6 @@ bool DeviceDataManagerX11::IsXInput2Available() const {
 void DeviceDataManagerX11::UpdateDeviceList(x11::Connection* connection) {
   cmt_devices_.reset();
   touchpads_.reset();
-  stylus_.reset();
   master_pointers_.clear();
   for (int i = 0; i < kMaxDeviceNum; ++i) {
     valuator_count_[i] = 0;
@@ -282,7 +261,7 @@ void DeviceDataManagerX11::UpdateDeviceList(x11::Connection* connection) {
   // Find all the touchpad devices.
   const XDeviceList& dev_list =
       ui::DeviceListCacheX11::GetInstance()->GetXDeviceList(connection);
-  x11::Atom xi_touchpad = x11::GetAtom("TOUCHPAD");
+  x11::Atom xi_touchpad = gfx::GetAtom("TOUCHPAD");
   for (const auto& device : dev_list) {
     if (device.device_type == xi_touchpad)
       touchpads_[device.device_id] = true;
@@ -296,7 +275,7 @@ void DeviceDataManagerX11::UpdateDeviceList(x11::Connection* connection) {
       ui::DeviceListCacheX11::GetInstance()->GetXI2DeviceList(connection);
   x11::Atom atoms[DT_LAST_ENTRY];
   for (int data_type = 0; data_type < DT_LAST_ENTRY; ++data_type)
-    atoms[data_type] = x11::GetAtom(kCachedAtoms[data_type]);
+    atoms[data_type] = gfx::GetAtom(kCachedAtoms[data_type]);
 
   for (const auto& info : info_list) {
     if (info.type == x11::Input::DeviceType::MasterPointer)
@@ -308,7 +287,6 @@ void DeviceDataManagerX11::UpdateDeviceList(x11::Connection* connection) {
       continue;
     }
 
-    bool possible_stylus = false;
     bool possible_cmt = false;
     bool not_cmt = false;
     const auto deviceid = static_cast<uint16_t>(info.deviceid);
@@ -331,19 +309,14 @@ void DeviceDataManagerX11::UpdateDeviceList(x11::Connection* connection) {
       last_seen_valuator_[deviceid][j].resize(DT_LAST_ENTRY, 0);
     for (const auto& device_class : info.classes) {
       if (device_class.valuator.has_value()) {
-        auto dt =
-            UpdateValuatorClassDevice(*device_class.valuator, atoms, deviceid);
-        if (IsStylusDataType(dt))
-          possible_stylus = true;
-        if (IsCMTDataType(dt))
+        if (UpdateValuatorClassDevice(*device_class.valuator, atoms,
+                                      deviceid)) {
           possible_cmt = true;
+        }
       } else if (device_class.scroll.has_value()) {
         UpdateScrollClassDevice(*device_class.scroll, deviceid);
       }
     }
-
-    if (possible_stylus)
-      stylus_[deviceid] = true;
 
     if (possible_cmt && !not_cmt)
       cmt_devices_[deviceid] = true;
@@ -442,14 +415,6 @@ bool DeviceDataManagerX11::GetEventData(const x11::Event& x11_event,
 
 bool DeviceDataManagerX11::IsXIDeviceEvent(const x11::Event& x11_event) const {
   return x11_event.As<x11::Input::DeviceEvent>();
-}
-
-bool DeviceDataManagerX11::IsStylusXInputEvent(
-    const x11::Event& x11_event) const {
-  uint16_t source;
-  if (!GetSourceId(x11_event, &source))
-    return false;
-  return stylus_[source];
 }
 
 bool DeviceDataManagerX11::IsTouchpadXInputEvent(
@@ -690,7 +655,7 @@ int DeviceDataManagerX11::GetMappedButton(int button) {
 }
 
 void DeviceDataManagerX11::UpdateButtonMap() {
-  if (auto reply = x11::Connection::Get()->GetPointerMapping().Sync())
+  if (auto reply = x11::Connection::Get()->GetPointerMapping({}).Sync())
     button_map_ = std::move(reply->map);
 }
 
@@ -812,7 +777,7 @@ void DeviceDataManagerX11::InitializeValuatorsForTest(int deviceid,
   }
 }
 
-DeviceDataManagerX11::DataType DeviceDataManagerX11::UpdateValuatorClassDevice(
+bool DeviceDataManagerX11::UpdateValuatorClassDevice(
     const x11::Input::DeviceClass::Valuator& valuator_class_info,
     x11::Atom* atoms,
     uint16_t deviceid) {
@@ -820,7 +785,7 @@ DeviceDataManagerX11::DataType DeviceDataManagerX11::UpdateValuatorClassDevice(
   x11::Atom* label =
       std::find(atoms, atoms + DT_LAST_ENTRY, valuator_class_info.label);
   if (label == atoms + DT_LAST_ENTRY)
-    return DT_LAST_ENTRY;
+    return false;
   int data_type = label - atoms;
   DCHECK_GE(data_type, 0);
   DCHECK_LT(data_type, DT_LAST_ENTRY);
@@ -830,7 +795,7 @@ DeviceDataManagerX11::DataType DeviceDataManagerX11::UpdateValuatorClassDevice(
   valuator_info.min = Fp3232ToDouble(valuator_class_info.min);
   valuator_info.max = Fp3232ToDouble(valuator_class_info.max);
   data_type_lookup_[deviceid][valuator_class_info.number] = data_type;
-  return static_cast<DataType>(data_type);
+  return IsCMTDataType(data_type);
 }
 
 void DeviceDataManagerX11::UpdateScrollClassDevice(

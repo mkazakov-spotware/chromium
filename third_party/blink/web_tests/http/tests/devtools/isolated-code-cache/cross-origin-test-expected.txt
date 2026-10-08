@@ -7,6 +7,7 @@ v8.compile Properties:
     data : {
         columnNumber : 0
         lineNumber : 0
+        notStreamedReason : "script too small"
         streamed : <boolean>
         url : .../devtools/resources/v8-cache-script.js
     }
@@ -29,22 +30,25 @@ v8.compile Properties:
     type : "v8.compile"
 }
 Text details for v8.compile: v8-cache-script.js:1
-v8.produceCache Properties:
+v8.compile Properties:
 {
     data : {
         columnNumber : 0
         lineNumber : 0
+        notStreamedReason : "already used streamed data"
         producedCacheSize : <number>
+        streamed : <boolean>
         url : .../devtools/resources/v8-cache-script.js
     }
     endTime : <number>
     startTime : <number>
-    type : "v8.produceCache"
+    type : "v8.compile"
 }
-Text details for v8.produceCache: v8-cache-script.js:1
+Text details for v8.compile: v8-cache-script.js:1
 v8.compile Properties:
 {
     data : {
+        cacheConsumeOptions : "code"
         cacheRejected : false
         columnNumber : 0
         consumedCacheSize : <number>
@@ -64,8 +68,12 @@ Text details for v8.compile: v8-cache-script.js:1
 v8.compile Properties:
 {
     data : {
+        cacheConsumeOptions : "code"
+        cacheRejected : false
         columnNumber : 0
+        consumedCacheSize : <number>
         lineNumber : 0
+        notStreamedReason : "script too small"
         streamed : <boolean>
         url : .../devtools/resources/v8-cache-script.js
     }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,13 +16,12 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/path_service.h"
-#include "base/strings/escape.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -41,8 +40,6 @@
 #include "chrome/credential_provider/gaiacp/auth_utils.h"
 #include "chrome/credential_provider/gaiacp/device_policies_manager.h"
 #include "chrome/credential_provider/gaiacp/event_logs_upload_manager.h"
-#include "chrome/credential_provider/gaiacp/experiments_fetcher.h"
-#include "chrome/credential_provider/gaiacp/experiments_manager.h"
 #include "chrome/credential_provider/gaiacp/gaia_credential_provider.h"
 #include "chrome/credential_provider/gaiacp/gaia_credential_provider_i.h"
 #include "chrome/credential_provider/gaiacp/gaia_resources.h"
@@ -66,6 +63,7 @@
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "google_apis/gaia/gaia_switches.h"
 #include "google_apis/gaia/gaia_urls.h"
+#include "net/base/escape.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "third_party/re2/src/re2/re2.h"
 
@@ -100,8 +98,8 @@ constexpr UINT kPasswordErrors[] = {IDS_PASSWORD_COMPLEXITY_ERROR_BASE,
                                     IDS_USER_NOT_FOUND_PASSWORD_ERROR_BASE,
                                     IDS_AD_PASSWORD_CHANGE_DENIED_BASE};
 
-std::vector<std::wstring> GetPermittedAccounts() {
-  std::wstring permitted_accounts_reg =
+std::vector<base::string16> GetPermittedAccounts() {
+  base::string16 permitted_accounts_reg =
       GetGlobalFlagOrDefault(kPermittedAccounts, L"");
 
   return base::SplitString(base::ToLowerASCII(permitted_accounts_reg),
@@ -110,11 +108,12 @@ std::vector<std::wstring> GetPermittedAccounts() {
                            base::SplitResult::SPLIT_WANT_NONEMPTY);
 }
 
-std::wstring GetEmailDomains(const std::wstring restricted_domains_reg_key) {
+base::string16 GetEmailDomains(
+    const base::string16 restricted_domains_reg_key) {
   return GetGlobalFlagOrDefault(restricted_domains_reg_key, L"");
 }
 
-std::wstring GetEmailDomains() {
+base::string16 GetEmailDomains() {
   if (DevicePoliciesManager::Get()->CloudPoliciesEnabled()) {
     DevicePolicies device_policies;
     DevicePoliciesManager::Get()->GetDevicePolicies(&device_policies);
@@ -123,28 +122,20 @@ std::wstring GetEmailDomains() {
 
   // TODO (crbug.com/1135458): Clean up directly reading from registry after
   // cloud policies is launched.
-  std::wstring email_domains_reg = GetEmailDomains(kEmailDomainsKey);
-  std::wstring email_domains_reg_new = GetEmailDomains(kEmailDomainsKeyNew);
+  base::string16 email_domains_reg = GetEmailDomains(kEmailDomainsKey);
+  base::string16 email_domains_reg_new = GetEmailDomains(kEmailDomainsKeyNew);
   return email_domains_reg.empty() ? email_domains_reg_new : email_domains_reg;
-}
-
-std::vector<std::wstring> GetEmailDomainsList() {
-  return base::SplitString(base::ToLowerASCII(GetEmailDomains()),
-                           kPermittedAccountsSeparator,
-                           base::WhitespaceHandling::TRIM_WHITESPACE,
-                           base::SplitResult::SPLIT_WANT_NONEMPTY);
 }
 
 // Use WinHttpUrlFetcher to communicate with the admin sdk and fetch the active
 // directory samAccountName if available and list of local account name mapping
 // configured as custom attributes.
 HRESULT GetExistingAccountMappingFromCD(
-    const std::wstring& email,
+    const base::string16& email,
     const std::string& access_token,
     std::string* sam_account_name,
     std::vector<std::string>* local_account_names,
     BSTR* error_text) {
-  LOGFN(VERBOSE);
   DCHECK(email.size() > 0);
   DCHECK(access_token.size() > 0);
   DCHECK(sam_account_name);
@@ -153,7 +144,7 @@ HRESULT GetExistingAccountMappingFromCD(
   *error_text = nullptr;
 
   std::string escape_url_encoded_email =
-      base::EscapeUrlEncodedData(base::WideToUTF8(email), true);
+      net::EscapeUrlEncodedData(base::UTF16ToUTF8(email), true);
   std::string get_cd_user_url = base::StringPrintf(
       "https://www.googleapis.com/admin/directory/v1/users/"
       "%s?projection=full&viewType=domain_public",
@@ -215,15 +206,15 @@ HRESULT RequestDownscopedAccessToken(const std::string& refresh_token,
 
   GaiaUrls* gaia_urls = GaiaUrls::GetInstance();
   std::string enc_client_id =
-      base::EscapeUrlEncodedData(gaia_urls->oauth2_chrome_client_id(), true);
-  std::string enc_client_secret = base::EscapeUrlEncodedData(
-      gaia_urls->oauth2_chrome_client_secret(), true);
+      net::EscapeUrlEncodedData(gaia_urls->oauth2_chrome_client_id(), true);
+  std::string enc_client_secret =
+      net::EscapeUrlEncodedData(gaia_urls->oauth2_chrome_client_secret(), true);
   std::string enc_refresh_token =
-      base::EscapeUrlEncodedData(refresh_token, true);
+      net::EscapeUrlEncodedData(refresh_token, true);
   std::string get_access_token_body = base::StringPrintf(
       kGetAccessTokenBodyWithScopeFormat, enc_client_id.c_str(),
       enc_client_secret.c_str(), enc_refresh_token.c_str(),
-      base::EscapeUrlEncodedData(kAccessScopes, true).c_str());
+      net::EscapeUrlEncodedData(kAccessScopes, true).c_str());
   std::string get_oauth_token_url =
       base::StringPrintf("%s", gaia_urls->oauth2_token_url().spec().c_str());
 
@@ -258,16 +249,15 @@ HRESULT RequestDownscopedAccessToken(const std::string& refresh_token,
 HRESULT GetUserAndDomainInfo(
     const std::string& sam_account_name,
     const std::vector<std::string>& local_account_names,
-    std::wstring* existing_sid,
+    base::string16* existing_sid,
     BSTR* error_text) {
-  std::wstring user_name;
-  std::wstring domain_name;
+  base::string16 user_name;
+  base::string16 domain_name;
   OSUserManager* os_user_manager = OSUserManager::Get();
   DCHECK(os_user_manager);
 
   bool is_ad_user =
       os_user_manager->IsDeviceDomainJoined() && !sam_account_name.empty();
-  LOGFN(VERBOSE) << "is_ad_user=" << is_ad_user;
   // Login via existing AD account mapping when the device is domain joined if
   // the AD account mapping is available.
   if (is_ad_user) {
@@ -275,9 +265,9 @@ HRESULT GetUserAndDomainInfo(
     // Note that admin configures it as "domainName\userName" but admin
     // sdk stores it with another escape backslash character in it leading
     // multiple backslashes.
-    const wchar_t kSlashDelimiter[] = L"\\";
-    std::vector<std::wstring> tokens =
-        base::SplitString(base::UTF8ToWide(sam_account_name), kSlashDelimiter,
+    const base::char16 kSlashDelimiter[] = STRING16_LITERAL("\\");
+    std::vector<base::string16> tokens =
+        base::SplitString(base::UTF8ToUTF16(sam_account_name), kSlashDelimiter,
                           base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 
     // Values fetched from custom attribute shouldn't be empty.
@@ -302,11 +292,11 @@ HRESULT GetUserAndDomainInfo(
 
     // The variable that holds all the local accounts which has
     // a matching serial number of the device.
-    std::vector<std::wstring> filtered_local_account_names;
+    std::vector<base::string16> filtered_local_account_names;
 
     // The variable that holds all the local accounts which doesn't have
     // any serial_number mapping in custom attributes.
-    std::vector<std::wstring> filtered_local_account_names_no_sn;
+    std::vector<base::string16> filtered_local_account_names_no_sn;
 
     for (auto local_account_name : local_account_names) {
       LOGFN(VERBOSE) << "CD local account name : " << local_account_name;
@@ -321,10 +311,10 @@ HRESULT GetUserAndDomainInfo(
                           &username, &serial_number);
 
       // Only collect those user names that exist on the windows device.
-      std::wstring ignore;
+      base::string16 existing_sid;
       HRESULT hr = os_user_manager->GetUserSID(
           OSUserManager::GetLocalDomain().c_str(),
-          base::UTF8ToWide(username).c_str(), &ignore);
+          base::UTF8ToUTF16(username).c_str(), &existing_sid);
       if (FAILED(hr))
         continue;
 
@@ -333,14 +323,14 @@ HRESULT GetUserAndDomainInfo(
 
       if (!username.empty() && !serial_number.empty()) {
         std::string device_serial_number =
-            base::WideToUTF8(GetSerialNumber().c_str());
+            base::UTF16ToUTF8(GetSerialNumber().c_str());
         LOGFN(VERBOSE) << "Device serial_number : " << device_serial_number;
         if (base::EqualsCaseInsensitiveASCII(serial_number,
                                              device_serial_number))
-          filtered_local_account_names.push_back(base::UTF8ToWide(username));
+          filtered_local_account_names.push_back(base::UTF8ToUTF16(username));
       } else if (!username.empty()) {
         filtered_local_account_names_no_sn.push_back(
-            base::UTF8ToWide(username));
+            base::UTF8ToUTF16(username));
       }
     }
 
@@ -411,7 +401,7 @@ HRESULT GetUserAndDomainInfo(
 // (5) If an AD user mapping exists but the extracted domainname/username
 //     combination doesn't have a valid SID.
 HRESULT FindExistingUserSidIfAvailable(const std::string& refresh_token,
-                                       const std::wstring& email,
+                                       const base::string16& email,
                                        wchar_t* sid,
                                        const DWORD sid_length,
                                        BSTR* error_text) {
@@ -439,9 +429,8 @@ HRESULT FindExistingUserSidIfAvailable(const std::string& refresh_token,
     LOGFN(ERROR) << "GetExistingAccountMappingFromCD hr=" << putHR(hr);
     return hr;
   }
-  LOGFN(VERBOSE) << "sam_account_name=" << sam_account_name;
 
-  std::wstring existing_sid = std::wstring();
+  base::string16 existing_sid = base::string16();
   hr = GetUserAndDomainInfo(sam_account_name, local_account_names,
                             &existing_sid, error_text);
 
@@ -460,7 +449,7 @@ HRESULT FindExistingUserSidIfAvailable(const std::string& refresh_token,
 // created later on. |is_consumer_account| will be set to true if the email used
 // to sign in is gmail or googlemail.
 HRESULT MakeUsernameForAccount(const base::Value& result,
-                               std::wstring* gaia_id,
+                               base::string16* gaia_id,
                                wchar_t* username,
                                DWORD username_length,
                                wchar_t* domain,
@@ -477,13 +466,13 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
   DCHECK(error_text);
 
   // Determine if the email is a consumer domain (gmail.com or googlemail.com).
-  std::wstring email = GetDictString(result, kKeyEmail);
+  base::string16 email = GetDictString(result, kKeyEmail);
   std::transform(email.begin(), email.end(), email.begin(), ::tolower);
-  std::wstring::size_type consumer_domain_pos = email.find(L"@gmail.com");
-  if (consumer_domain_pos == std::wstring::npos)
+  base::string16::size_type consumer_domain_pos = email.find(L"@gmail.com");
+  if (consumer_domain_pos == base::string16::npos)
     consumer_domain_pos = email.find(L"@googlemail.com");
 
-  *is_consumer_account = consumer_domain_pos != std::wstring::npos;
+  *is_consumer_account = consumer_domain_pos != base::string16::npos;
 
   *gaia_id = GetDictString(result, kKeyId);
 
@@ -499,6 +488,7 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
       LOGFN(VERBOSE) << "Failed fetching Sid from email : " << putHR(hr);
   }
 
+  bool has_existing_user_sid = false;
   // Check if the machine is domain joined and get the domain name if domain
   // joined.
   if (SUCCEEDED(hr)) {
@@ -507,15 +497,7 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
     // GCPW.
     LOGFN(VERBOSE) << "Found existing SID created in GCPW registry entry = "
                    << sid;
-
-    hr = OSUserManager::Get()->FindUserBySidWithFallback(
-        sid, username, username_length, domain, domain_length);
-    if (FAILED(hr)) {
-      *error_text =
-          CGaiaCredentialBase::AllocErrorString(IDS_INVALID_AD_UPN_BASE);
-    }
-    return hr;
-
+    has_existing_user_sid = true;
   } else if (CGaiaCredentialBase::IsCloudAssociationEnabled()) {
     LOGFN(VERBOSE) << "Lookup cloud association.";
 
@@ -523,18 +505,12 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
     hr = FindExistingUserSidIfAvailable(refresh_token, email, sid, sid_length,
                                         error_text);
 
-    if (SUCCEEDED(hr)) {
-      hr = OSUserManager::Get()->FindUserBySidWithFallback(
-          sid, username, username_length, domain, domain_length);
-      if (FAILED(hr)) {
-        *error_text =
-            CGaiaCredentialBase::AllocErrorString(IDS_INVALID_AD_UPN_BASE);
-      }
-      return hr;
-    } else if (hr == NTE_NOT_FOUND) {
+    has_existing_user_sid = true;
+    if (hr == NTE_NOT_FOUND) {
       LOGFN(ERROR) << "No valid sid mapping found."
                    << "Fallback to create a new local user account. hr="
                    << putHR(hr);
+      has_existing_user_sid = false;
     } else if (FAILED(hr)) {
       LOGFN(ERROR) << "Failed finding existing user sid for GCPW user. hr="
                    << putHR(hr);
@@ -543,6 +519,15 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
 
   } else {
     LOGFN(VERBOSE) << "Fallback to create a new local user account";
+  }
+
+  if (has_existing_user_sid) {
+    HRESULT hr = OSUserManager::Get()->FindUserBySID(
+        sid, username, username_length, domain, domain_length);
+    if (FAILED(hr))
+      *error_text =
+          CGaiaCredentialBase::AllocErrorString(IDS_INTERNAL_ERROR_BASE);
+    return hr;
   }
 
   LOGFN(VERBOSE) << "No existing user found associated to gaia id:" << *gaia_id;
@@ -555,15 +540,15 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
   // to preserve the email as much as possible in the username while respecting
   // Windows username rules.  See remarks in
   // https://docs.microsoft.com/en-us/windows/desktop/api/lmaccess/ns-lmaccess-_user_info_0
-  std::wstring os_username = email;
+  base::string16 os_username = email;
 
   // If the email is a consumer domain, strip it.
-  if (consumer_domain_pos != std::wstring::npos) {
+  if (consumer_domain_pos != base::string16::npos) {
     os_username.resize(consumer_domain_pos);
   } else {
     // Strip off well known TLDs.
     std::string username_utf8 =
-        gaia::SanitizeEmail(base::WideToUTF8(os_username));
+        gaia::SanitizeEmail(base::UTF16ToUTF8(os_username));
 
     if (GetGlobalFlagOrDefault(kRegUseShorterAccountName, 0)) {
       size_t separator_pos = username_utf8.find('@');
@@ -572,7 +557,7 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
       // email.
       if (separator_pos != username_utf8.npos) {
         username_utf8 = username_utf8.substr(0, separator_pos);
-        os_username = base::UTF8ToWide(username_utf8);
+        os_username = base::UTF8ToUTF16(username_utf8);
       }
     } else {
       size_t tld_length =
@@ -585,7 +570,7 @@ HRESULT MakeUsernameForAccount(const base::Value& result,
       // too.
       if (tld_length > 0) {
         username_utf8.resize(username_utf8.length() - tld_length - 1);
-        os_username = base::UTF8ToWide(username_utf8);
+        os_username = base::UTF8ToUTF16(username_utf8);
       }
     }
   }
@@ -663,7 +648,7 @@ HRESULT ValidateResult(const base::Value& result, BSTR* status_text) {
   DCHECK(status_text);
 
   // Check the exit_code to see if any errors were detected by the GLS.
-  absl::optional<int> exit_code = result.FindIntKey(kKeyExitCode);
+  base::Optional<int> exit_code = result.FindIntKey(kKeyExitCode);
   if (exit_code.value() != kUiecSuccess) {
     switch (exit_code.value()) {
       case kUiecAbort:
@@ -774,7 +759,7 @@ HRESULT CreateNewUser(OSUserManager* manager,
   DCHECK(final_username);
   DCHECK(sid);
   wchar_t new_username[kWindowsUsernameBufferLength];
-  errno_t err = wcscpy_s(new_username, std::size(new_username), base_username);
+  errno_t err = wcscpy_s(new_username, base::size(new_username), base_username);
   if (err != 0) {
     LOGFN(ERROR) << "wcscpy_s errno=" << err;
     return E_FAIL;
@@ -788,9 +773,9 @@ HRESULT CreateNewUser(OSUserManager* manager,
     HRESULT hr = manager->AddUser(new_username, password, fullname, comment,
                                   add_to_users_group, &new_sid, &error);
     if (hr == HRESULT_FROM_WIN32(NERR_UserExists)) {
-      std::wstring next_username = base_username;
-      std::wstring next_username_suffix =
-          base::NumberToWString(i + kInitialDuplicateUsernameIndex);
+      base::string16 next_username = base_username;
+      base::string16 next_username_suffix =
+          base::NumberToString16(i + kInitialDuplicateUsernameIndex);
       // Create a new user name that fits in |kWindowsUsernameBufferLength|
       if (next_username.size() + next_username_suffix.size() >
           (kWindowsUsernameBufferLength - 1)) {
@@ -804,8 +789,8 @@ HRESULT CreateNewUser(OSUserManager* manager,
       LOGFN(VERBOSE) << "Username '" << new_username
                      << "' already exists. Trying '" << next_username << "'";
 
-      err = wcscpy_s(new_username, std::size(new_username),
-                     next_username.c_str());
+      errno_t err = wcscpy_s(new_username, base::size(new_username),
+                             next_username.c_str());
       if (err != 0) {
         LOGFN(ERROR) << "wcscpy_s errno=" << err;
         return E_FAIL;
@@ -823,44 +808,6 @@ HRESULT CreateNewUser(OSUserManager* manager,
   }
 
   return HRESULT_FROM_WIN32(NERR_UserExists);
-}
-
-// If GCPW user policies or experiments are stale, make sure to fetch them
-// before proceeding with the login.
-void GetUserConfigsIfStale(const std::wstring& sid,
-                           const std::wstring& gaia_id,
-                           const std::wstring& access_token) {
-  if (UserPoliciesManager::Get()->CloudPoliciesEnabled() &&
-      UserPoliciesManager::Get()->IsUserPolicyStaleOrMissing(sid)) {
-    // Save gaia id since it is needed for the cloud policies server request.
-    HRESULT hr = SetUserProperty(sid, kUserId, gaia_id);
-    if (FAILED(hr)) {
-      LOGFN(ERROR) << "SetUserProperty(id) hr=" << putHR(hr);
-    }
-
-    hr = UserPoliciesManager::Get()->FetchAndStoreCloudUserPolicies(
-        sid, base::WideToUTF8(access_token));
-    if (FAILED(hr)) {
-      LOGFN(ERROR) << "Failed fetching user policies for user " << sid
-                   << " Error: " << putHR(hr);
-    }
-  }
-
-  if (ExperimentsManager::Get()->ExperimentsEnabled() &&
-      GetTimeDeltaSinceLastFetch(sid, kLastUserExperimentsRefreshTimeRegKey) >
-          kMaxTimeDeltaSinceLastExperimentsFetch) {
-    HRESULT hr = SetUserProperty(sid, kUserId, gaia_id);
-    if (FAILED(hr)) {
-      LOGFN(ERROR) << "SetUserProperty(id) hr=" << putHR(hr);
-    }
-
-    hr = ExperimentsFetcher::Get()->FetchAndStoreExperiments(
-        sid, base::WideToUTF8(access_token));
-    if (FAILED(hr)) {
-      LOGFN(ERROR) << "Failed fetching experiments for user " << sid
-                   << " Error: " << putHR(hr);
-    }
-  }
 }
 
 }  // namespace
@@ -892,15 +839,15 @@ HRESULT CGaiaCredentialBase::OnDllRegisterServer() {
   // step fails, assume that a new user needs to be created.
   wchar_t gaia_username[kWindowsUsernameBufferLength];
   HRESULT hr = policy->RetrievePrivateData(kLsaKeyGaiaUsername, gaia_username,
-                                           std::size(gaia_username));
+                                           base::size(gaia_username));
 
   if (SUCCEEDED(hr)) {
     LOGFN(VERBOSE) << "Expecting gaia user '" << gaia_username << "' to exist.";
     wchar_t password[32];
-    hr = policy->RetrievePrivateData(kLsaKeyGaiaPassword, password,
-                                     std::size(password));
+    HRESULT hr = policy->RetrievePrivateData(kLsaKeyGaiaPassword, password,
+                                             base::size(password));
     if (SUCCEEDED(hr)) {
-      std::wstring local_domain = OSUserManager::GetLocalDomain();
+      base::string16 local_domain = OSUserManager::GetLocalDomain();
       base::win::ScopedHandle token;
       hr = OSUserManager::Get()->CreateLogonToken(
           local_domain.c_str(), gaia_username, password,
@@ -920,7 +867,7 @@ HRESULT CGaiaCredentialBase::OnDllRegisterServer() {
   if (sid == nullptr) {
     // No valid existing user found, reset to default name and start generating
     // from there.
-    errno_t err = wcscpy_s(gaia_username, std::size(gaia_username),
+    errno_t err = wcscpy_s(gaia_username, base::size(gaia_username),
                            kDefaultGaiaAccountName);
     if (err != 0) {
       LOGFN(ERROR) << "wcscpy_s errno=" << err;
@@ -929,14 +876,15 @@ HRESULT CGaiaCredentialBase::OnDllRegisterServer() {
 
     // Generate a random password for the new gaia account.
     wchar_t password[32];
-    hr = manager->GenerateRandomPassword(password, std::size(password));
+    HRESULT hr =
+        manager->GenerateRandomPassword(password, base::size(password));
     if (FAILED(hr)) {
       LOGFN(ERROR) << "GenerateRandomPassword hr=" << putHR(hr);
       return hr;
     }
 
     CComBSTR sid_string;
-    CComBSTR gaia_username_bstr;
+    CComBSTR gaia_username;
     // Keep trying to create the special Gaia account used to run the UI until
     // an unused username can be found or kMaxUsernameAttempts has been reached.
     hr =
@@ -944,7 +892,7 @@ HRESULT CGaiaCredentialBase::OnDllRegisterServer() {
                       GetStringResource(IDS_GAIA_ACCOUNT_FULLNAME_BASE).c_str(),
                       GetStringResource(IDS_GAIA_ACCOUNT_COMMENT_BASE).c_str(),
                       /*add_to_users_group=*/false, kMaxUsernameAttempts,
-                      &gaia_username_bstr, &sid_string);
+                      &gaia_username, &sid_string);
 
     if (FAILED(hr)) {
       LOGFN(ERROR) << "CreateNewUser hr=" << putHR(hr);
@@ -966,7 +914,7 @@ HRESULT CGaiaCredentialBase::OnDllRegisterServer() {
     }
 
     // Save the gaia username in a machine secret area.
-    hr = policy->StorePrivateData(kLsaKeyGaiaUsername, gaia_username_bstr);
+    hr = policy->StorePrivateData(kLsaKeyGaiaUsername, gaia_username);
     if (FAILED(hr)) {
       LOGFN(ERROR) << "Failed to store gaia user name in LSA hr=" << putHR(hr);
       return hr;
@@ -979,7 +927,7 @@ HRESULT CGaiaCredentialBase::OnDllRegisterServer() {
   }
 
   // Add "logon as batch" right.
-  std::vector<std::wstring> rights{SE_BATCH_LOGON_NAME};
+  std::vector<base::string16> rights{SE_BATCH_LOGON_NAME};
   hr = policy->AddAccountRights(sid, rights);
   ::LocalFree(sid);
   if (FAILED(hr)) {
@@ -996,7 +944,7 @@ HRESULT CGaiaCredentialBase::OnDllUnregisterServer() {
     wchar_t password[32];
 
     HRESULT hr = policy->RetrievePrivateData(kLsaKeyGaiaPassword, password,
-                                             std::size(password));
+                                             base::size(password));
     if (FAILED(hr))
       LOGFN(ERROR) << "policy.RetrievePrivateData hr=" << putHR(hr);
 
@@ -1009,11 +957,11 @@ HRESULT CGaiaCredentialBase::OnDllUnregisterServer() {
 
     wchar_t gaia_username[kWindowsUsernameBufferLength];
     hr = policy->RetrievePrivateData(kLsaKeyGaiaUsername, gaia_username,
-                                     std::size(gaia_username));
+                                     base::size(gaia_username));
 
     if (SUCCEEDED(hr)) {
       hr = policy->RemovePrivateData(kLsaKeyGaiaUsername);
-      std::wstring local_domain = OSUserManager::GetLocalDomain();
+      base::string16 local_domain = OSUserManager::GetLocalDomain();
 
       hr = manager->GetUserSID(local_domain.c_str(), gaia_username, &sid);
       if (FAILED(hr)) {
@@ -1072,13 +1020,13 @@ HRESULT CGaiaCredentialBase::GetStringValueImpl(DWORD field_id,
   HRESULT hr = E_INVALIDARG;
   switch (field_id) {
     case FID_DESCRIPTION: {
-      std::wstring description(
+      base::string16 description(
           GetStringResource(IDS_AUTH_FID_DESCRIPTION_BASE));
       hr = ::SHStrDupW(description.c_str(), value);
       break;
     }
     case FID_PROVIDER_LABEL: {
-      std::wstring label(GetStringResource(IDS_AUTH_FID_PROVIDER_LABEL_BASE));
+      base::string16 label(GetStringResource(IDS_AUTH_FID_PROVIDER_LABEL_BASE));
       hr = ::SHStrDupW(label.c_str(), value);
       break;
     }
@@ -1090,7 +1038,7 @@ HRESULT CGaiaCredentialBase::GetStringValueImpl(DWORD field_id,
       break;
     }
     case FID_FORGOT_PASSWORD_LINK: {
-      std::wstring forgot_password(
+      base::string16 forgot_password(
           GetStringResource(IDS_FORGOT_PASSWORD_LINK_BASE));
       hr = ::SHStrDupW(forgot_password.c_str(), value);
       break;
@@ -1199,12 +1147,10 @@ HRESULT CGaiaCredentialBase::GetGlsCommandline(
     return hr;
   }
 
-  // If email domains are specified, only pass them to the GLS if the size is
-  // exactly 1 so that it can be pre-populated in the sign-in screen.
-  std::vector<std::wstring> email_domains_list = GetEmailDomainsList();
-  if (GetEmailDomainsList().size() == 1)
-    command_line->AppendSwitchNative(kEmailDomainsSwitch,
-                                     email_domains_list[0]);
+  // If email domains are specified, pass them to the GLS.
+  base::string16 email_domains = GetEmailDomains();
+  if (email_domains[0])
+    command_line->AppendSwitchNative(kEmailDomainsSwitch, email_domains);
 
   hr = GetUserGlsCommandline(command_line);
   if (FAILED(hr)) {
@@ -1394,9 +1340,9 @@ void CGaiaCredentialBase::TellOmahaDidRun() {
 
 void CGaiaCredentialBase::PreventDenyAccessUpdate() {
   if (!token_update_locker_) {
-    token_update_locker_ =
-        std::make_unique<AssociatedUserValidator::ScopedBlockDenyAccessUpdate>(
-            AssociatedUserValidator::Get());
+    token_update_locker_.reset(
+        new AssociatedUserValidator::ScopedBlockDenyAccessUpdate(
+            AssociatedUserValidator::Get()));
   }
 }
 
@@ -1409,7 +1355,7 @@ BSTR CGaiaCredentialBase::AllocErrorString(UINT id) {
 // static
 BSTR CGaiaCredentialBase::AllocErrorString(
     UINT id,
-    const std::vector<std::wstring>& replacements) {
+    const std::vector<base::string16>& replacements) {
   CComBSTR str(GetStringResource(id, replacements).c_str());
   return str.Detach();
 }
@@ -1593,7 +1539,7 @@ bool CGaiaCredentialBase::CanProceedToLogonStub(wchar_t** status_text) {
   BSTR error_message;
 
   // Restricted domains key must be set to proceed with logon stub.
-  std::wstring restricted_domains = GetEmailDomains();
+  base::string16 restricted_domains = GetEmailDomains();
   if (restricted_domains.empty()) {
     can_proceed_to_logon_stub = false;
     error_message = AllocErrorString(IDS_EMAIL_MISMATCH_BASE);
@@ -1696,7 +1642,7 @@ HRESULT CGaiaCredentialBase::GetSerialization(
         // provider_->OnUserAuthenticated().
         hr = CreateAndRunLogonStub();
         if (FAILED(hr)) {
-          std::wstring error_message(
+          base::string16 error_message(
               GetStringResource(IDS_FAILED_CREATE_LOGON_STUB_BASE));
           ::SHStrDupW(OLE2CW(error_message.c_str()), status_text);
 
@@ -1793,7 +1739,7 @@ HRESULT CGaiaCredentialBase::CreateAndRunLogonStub() {
     LOGFN(VERBOSE) << "Started wait thread id=" << wait_thread_id;
     ::CloseHandle(reinterpret_cast<HANDLE>(wait_thread));
   } else {
-    hr = HRESULT_FROM_WIN32(::GetLastError());
+    HRESULT hr = HRESULT_FROM_WIN32(::GetLastError());
     LOGFN(ERROR) << "Unable to start wait thread hr=" << putHR(hr);
     ::TerminateProcess(puiprocinfo->procinfo.process_handle(), kUiecKilled);
     delete puiprocinfo;
@@ -1824,7 +1770,7 @@ HRESULT CGaiaCredentialBase::CreateGaiaLogonToken(
 
   wchar_t gaia_username[kWindowsUsernameBufferLength];
   HRESULT hr = policy->RetrievePrivateData(kLsaKeyGaiaUsername, gaia_username,
-                                           std::size(gaia_username));
+                                           base::size(gaia_username));
 
   if (FAILED(hr)) {
     LOGFN(ERROR) << "Retrieve gaia username hr=" << putHR(hr);
@@ -1832,14 +1778,14 @@ HRESULT CGaiaCredentialBase::CreateGaiaLogonToken(
   }
   wchar_t password[32];
   hr = policy->RetrievePrivateData(kLsaKeyGaiaPassword, password,
-                                   std::size(password));
+                                   base::size(password));
   if (FAILED(hr)) {
     LOGFN(ERROR) << "Retrieve password for gaia user '" << gaia_username
                  << "' hr=" << putHR(hr);
     return hr;
   }
 
-  std::wstring local_domain = OSUserManager::GetLocalDomain();
+  base::string16 local_domain = OSUserManager::GetLocalDomain();
   hr = OSUserManager::Get()->CreateLogonToken(local_domain.c_str(),
                                               gaia_username, password,
                                               /*interactive=*/false, token);
@@ -1911,7 +1857,7 @@ HRESULT CGaiaCredentialBase::ForkGaiaLogonStub(
   // Environment is fully set up for UI, so let it go.
   if (::ResumeThread(uiprocinfo->procinfo.thread_handle()) ==
       static_cast<DWORD>(-1)) {
-    hr = HRESULT_FROM_WIN32(::GetLastError());
+    HRESULT hr = HRESULT_FROM_WIN32(::GetLastError());
     LOGFN(ERROR) << "ResumeThread hr=" << putHR(hr);
     ::TerminateProcess(uiprocinfo->procinfo.process_handle(), kUiecKilled);
     return hr;
@@ -2036,7 +1982,7 @@ unsigned __stdcall CGaiaCredentialBase::WaitForLoginUI(void* param) {
     // CGaiaCredentialBase::Advise() call. Seems to work for now though, but I
     // suspect there could be a problem if this call races with a call to
     // CGaiaCredentialBase::Unadvise().
-    std::wstring json_result16 = base::UTF8ToWide(json_result);
+    base::string16 json_result16 = base::UTF8ToUTF16(json_result);
     CComBSTR result_string(W2COLE(json_result16.c_str()));
     SecurelyClearString(json_result16);
 
@@ -2074,25 +2020,25 @@ unsigned __stdcall CGaiaCredentialBase::WaitForLoginUI(void* param) {
 HRESULT CGaiaCredentialBase::PerformActions(const base::Value& properties) {
   LOGFN(VERBOSE);
 
-  std::wstring sid = GetDictString(properties, kKeySID);
+  base::string16 sid = GetDictString(properties, kKeySID);
   if (sid.empty()) {
     LOGFN(ERROR) << "SID is empty";
     return E_INVALIDARG;
   }
 
-  std::wstring username = GetDictString(properties, kKeyUsername);
+  base::string16 username = GetDictString(properties, kKeyUsername);
   if (username.empty()) {
     LOGFN(ERROR) << "Username is empty";
     return E_INVALIDARG;
   }
 
-  std::wstring password = GetDictString(properties, kKeyPassword);
+  base::string16 password = GetDictString(properties, kKeyPassword);
   if (password.empty()) {
     LOGFN(ERROR) << "Password is empty";
     return E_INVALIDARG;
   }
 
-  std::wstring domain = GetDictString(properties, kKeyDomain);
+  base::string16 domain = GetDictString(properties, kKeyDomain);
 
   // Load the user's profile so that their registry hive is available.
   auto profile = ScopedUserProfile::Create(sid, domain, username, password);
@@ -2192,12 +2138,10 @@ HRESULT CGaiaCredentialBase::PerformPostSigninActions(
 // Registers OS user - gaia user association in HKEY_LOCAL_MACHINE registry
 // hive.
 HRESULT
-RegisterAssociation(const std::wstring& sid,
-                    const std::wstring& id,
-                    const std::wstring& email,
-                    const std::wstring& domain,
-                    const std::wstring& username,
-                    const std::wstring& token_handle) {
+RegisterAssociation(const base::string16& sid,
+                    const base::string16& id,
+                    const base::string16& email,
+                    const base::string16& token_handle) {
   // Save token handle.  This handle will be used later to determine if the
   // the user has changed their password since the account was created.
   HRESULT hr = SetUserProperty(sid, kUserTokenHandle, token_handle);
@@ -2215,18 +2159,6 @@ RegisterAssociation(const std::wstring& sid,
   hr = SetUserProperty(sid, kUserEmail, email);
   if (FAILED(hr)) {
     LOGFN(ERROR) << "SetUserProperty(email) hr=" << putHR(hr);
-    return hr;
-  }
-
-  hr = SetUserProperty(sid, base::UTF8ToWide(kKeyDomain), domain);
-  if (FAILED(hr)) {
-    LOGFN(ERROR) << "SetUserProperty(domain) hr=" << putHR(hr);
-    return hr;
-  }
-
-  hr = SetUserProperty(sid, base::UTF8ToWide(kKeyUsername), username);
-  if (FAILED(hr)) {
-    LOGFN(ERROR) << "SetUserProperty(user) hr=" << putHR(hr);
     return hr;
   }
 
@@ -2255,21 +2187,21 @@ HRESULT CGaiaCredentialBase::ReportResult(
     // so that the PerformPostSigninActions process can correctly sign in to the
     // user account.
     authentication_results_->SetKey(
-        kKeySID, base::Value(base::WideToUTF8((BSTR)user_sid_)));
+        kKeySID, base::Value(base::UTF16ToUTF8((BSTR)user_sid_)));
     authentication_results_->SetKey(
-        kKeyDomain, base::Value(base::WideToUTF8((BSTR)domain_)));
+        kKeyDomain, base::Value(base::UTF16ToUTF8((BSTR)domain_)));
     authentication_results_->SetKey(
-        kKeyUsername, base::Value(base::WideToUTF8((BSTR)username_)));
+        kKeyUsername, base::Value(base::UTF16ToUTF8((BSTR)username_)));
     authentication_results_->SetKey(
-        kKeyPassword, base::Value(base::WideToUTF8((BSTR)password_)));
+        kKeyPassword, base::Value(base::UTF16ToUTF8((BSTR)password_)));
 
-    std::wstring gaia_id = GetDictString(*authentication_results_, kKeyId);
+    base::string16 gaia_id = GetDictString(*authentication_results_, kKeyId);
     if (gaia_id.empty()) {
       LOGFN(ERROR) << "Id is empty";
       return E_INVALIDARG;
     }
 
-    std::wstring email = GetDictString(*authentication_results_, kKeyEmail);
+    base::string16 email = GetDictString(*authentication_results_, kKeyEmail);
     if (email.empty()) {
       LOGFN(ERROR) << "Email is empty";
       return E_INVALIDARG;
@@ -2281,9 +2213,8 @@ HRESULT CGaiaCredentialBase::ReportResult(
     // handle. Token handle is saved as empty here, so that if for any reason
     // forked process fails to save association, it will enforce re-auth due to
     // invalid token handle.
-    std::wstring sid = OLE2CW(user_sid_);
-    HRESULT hr = RegisterAssociation(sid, gaia_id, email, (BSTR)domain_,
-                                     (BSTR)username_, /*token_handle*/ L"");
+    base::string16 sid = OLE2CW(user_sid_);
+    HRESULT hr = RegisterAssociation(sid, gaia_id, email, L"");
     if (FAILED(hr))
       return hr;
 
@@ -2351,11 +2282,12 @@ HRESULT CGaiaCredentialBase::ValidateOrCreateUser(const base::Value& result,
   wchar_t found_domain[kWindowsDomainBufferLength];
   wchar_t found_sid[kWindowsSidBufferLength];
   bool is_consumer_account = false;
-  std::wstring gaia_id;
+  base::string16 gaia_id;
   HRESULT hr = MakeUsernameForAccount(
-      result, &gaia_id, found_username, std::size(found_username), found_domain,
-      std::size(found_domain), found_sid, std::size(found_sid),
+      result, &gaia_id, found_username, base::size(found_username),
+      found_domain, base::size(found_domain), found_sid, base::size(found_sid),
       &is_consumer_account, error_text);
+
   if (FAILED(hr)) {
     LOGFN(ERROR) << "MakeUsernameForAccount hr=" << putHR(hr);
     return hr;
@@ -2405,11 +2337,11 @@ HRESULT CGaiaCredentialBase::ValidateOrCreateUser(const base::Value& result,
   if (found_sid[0]) {
     // Update the name on the OS account if authenticated user has a different
     // name.
-    std::wstring os_account_fullname;
+    base::string16 os_account_fullname;
     hr = OSUserManager::Get()->GetUserFullname(found_domain, found_username,
                                                &os_account_fullname);
     if (SUCCEEDED(hr)) {
-      std::wstring profile_fullname = GetDictString(result, kKeyFullname);
+      base::string16 profile_fullname = GetDictString(result, kKeyFullname);
       if (os_account_fullname.compare(profile_fullname.c_str()) != 0) {
         hr = OSUserManager::Get()->SetUserFullname(found_domain, found_username,
                                                    profile_fullname.c_str());
@@ -2455,9 +2387,9 @@ HRESULT CGaiaCredentialBase::ValidateOrCreateUser(const base::Value& result,
     return HRESULT_FROM_WIN32(ERROR_LOGON_TYPE_NOT_GRANTED);
   }
 
-  std::wstring local_password = GetDictString(result, kKeyPassword);
-  std::wstring local_fullname = GetDictString(result, kKeyFullname);
-  std::wstring comment(GetStringResource(IDS_USER_ACCOUNT_COMMENT_BASE));
+  base::string16 local_password = GetDictString(result, kKeyPassword);
+  base::string16 local_fullname = GetDictString(result, kKeyFullname);
+  base::string16 comment(GetStringResource(IDS_USER_ACCOUNT_COMMENT_BASE));
   hr = CreateNewUser(
       OSUserManager::Get(), found_username, local_password.c_str(),
       local_fullname.c_str(), comment.c_str(),
@@ -2502,10 +2434,10 @@ HRESULT CGaiaCredentialBase::OnUserAuthenticated(BSTR authentication_info,
   // Convert the string to a base::Dictionary and add the calculated username
   // to it to be passed to the PerformPostSigninActions process.
   std::string json_string;
-  base::WideToUTF8(OLE2CW(authentication_info),
-                   ::SysStringLen(authentication_info), &json_string);
+  base::UTF16ToUTF8(OLE2CW(authentication_info),
+                    ::SysStringLen(authentication_info), &json_string);
 
-  absl::optional<base::Value> properties =
+  base::Optional<base::Value> properties =
       base::JSONReader::Read(json_string, base::JSON_ALLOW_TRAILING_COMMAS);
 
   SecurelyClearString(json_string);
@@ -2527,21 +2459,11 @@ HRESULT CGaiaCredentialBase::OnUserAuthenticated(BSTR authentication_info,
       return hr;
     }
 
-    const std::wstring email = GetDictString(*properties, kKeyEmail);
-    const std::wstring email_domain = email.substr(email.find(L"@") + 1);
-    const std::vector<std::wstring> allowed_domains = GetEmailDomainsList();
-
-    if (!base::Contains(allowed_domains, email_domain)) {
-      LOGFN(VERBOSE) << "Account " << email
-                     << " isn't in a domain from allowed domains.";
-      *status_text =
-          CGaiaCredentialBase::AllocErrorString(IDS_INVALID_EMAIL_DOMAIN_BASE);
-      return E_FAIL;
-    }
-
-    std::vector<std::wstring> permitted_accounts = GetPermittedAccounts();
+    base::string16 email = GetDictString(*properties, kKeyEmail);
+    std::vector<base::string16> permitted_accounts = GetPermittedAccounts();
     if (!permitted_accounts.empty() &&
-        !base::Contains(permitted_accounts, email)) {
+        std::find(permitted_accounts.begin(), permitted_accounts.end(),
+                  email) == permitted_accounts.end()) {
       *status_text = AllocErrorString(IDS_EMAIL_MISMATCH_BASE);
       return E_FAIL;
     }
@@ -2563,21 +2485,36 @@ HRESULT CGaiaCredentialBase::OnUserAuthenticated(BSTR authentication_info,
     base::IgnoreResult(zero_dict_on_exit.Release());
     authentication_results_ = std::move(properties);
     // Update the info whether the user is an AD joined user or local user.
-    std::wstring sid = OLE2CW(user_sid_);
+    base::string16 sid = OLE2CW(user_sid_);
     authentication_results_->SetKey(
         kKeyIsAdJoinedUser,
         base::Value(OSUserManager::Get()->IsUserDomainJoined(sid) ? "true"
                                                                   : "false"));
   }
 
-  std::wstring gaia_id = GetDictString(*authentication_results_, kKeyId);
-  // TODO(crbug.com/976744) Use downscoped token here.
-  std::wstring access_token =
-      GetDictString(*authentication_results_, kKeyAccessToken);
-  GetUserConfigsIfStale(OLE2CW(user_sid_), gaia_id, access_token);
-  SecurelyClearString(access_token);
+  base::string16 sid = OLE2CW(user_sid_);
+  if (UserPoliciesManager::Get()->CloudPoliciesEnabled() &&
+      UserPoliciesManager::Get()->IsUserPolicyStaleOrMissing(sid)) {
+    // Save gaia id since it is needed for the cloud policies server request.
+    base::string16 gaia_id = GetDictString(*authentication_results_, kKeyId);
+    HRESULT hr = SetUserProperty(sid, kUserId, gaia_id);
+    if (FAILED(hr)) {
+      LOGFN(ERROR) << "SetUserProperty(id) hr=" << putHR(hr);
+    }
 
-  std::wstring local_password =
+    // TODO(crbug.com/976744) Use downscoped token here.
+    base::string16 access_token =
+        GetDictString(*authentication_results_, kKeyAccessToken);
+    hr = UserPoliciesManager::Get()->FetchAndStoreCloudUserPolicies(
+        sid, base::UTF16ToUTF8(access_token));
+    SecurelyClearString(access_token);
+    if (FAILED(hr)) {
+      LOGFN(ERROR) << "Failed fetching user policies for user " << sid
+                   << " Error: " << putHR(hr);
+    }
+  }
+
+  base::string16 local_password =
       GetDictString(*authentication_results_, kKeyPassword);
   password_ = ::SysAllocString(local_password.c_str());
   SecurelyClearString(local_password);
@@ -2592,7 +2529,7 @@ HRESULT CGaiaCredentialBase::OnUserAuthenticated(BSTR authentication_info,
   // password update prompt and continue without authenticating on the provider.
   if (!AreCredentialsValid()) {
     // Change UI into a mode where it expects to have the old password entered.
-    std::wstring old_windows_password;
+    base::string16 old_windows_password;
     needs_windows_password_ = true;
 
     // Pre-fill the old password if possible so that the sign in will proceed to
@@ -2701,15 +2638,16 @@ void CGaiaCredentialBase::DisplayPasswordField(int password_message) {
   }
 }
 
-HRESULT CGaiaCredentialBase::ValidateExistingUser(const std::wstring& username,
-                                                  const std::wstring& domain,
-                                                  const std::wstring& sid,
-                                                  BSTR* error_text) {
+HRESULT CGaiaCredentialBase::ValidateExistingUser(
+    const base::string16& username,
+    const base::string16& domain,
+    const base::string16& sid,
+    BSTR* error_text) {
   return S_OK;
 }
 
 HRESULT CGaiaCredentialBase::RecoverWindowsPasswordIfPossible(
-    std::wstring* recovered_password) {
+    base::string16* recovered_password) {
   DCHECK(recovered_password);
 
   if (!authentication_results_) {

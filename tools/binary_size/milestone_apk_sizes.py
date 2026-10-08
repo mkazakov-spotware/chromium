@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -37,7 +37,7 @@ _KEYSTORE_PASSWORD = 'chromium'
 _KEYSTORE_ALIAS = 'chromiumdebugkey'
 
 
-class _Artifact:
+class _Artifact(object):
   def __init__(self, prefix, name, staging_dir):
     self.name = name
     self._gs_url = posixpath.join(prefix, name)
@@ -94,14 +94,10 @@ class _Artifact:
     metrics[self.name + ' (method count)'] = self._resource_sizes_json[
         'charts']['Dex']['unique methods']['value']
 
-  def AddDfmSizes(self, metrics, base_name):
+  def AddDfmSizes(self, metrics):
     for k, v in sorted(self._resource_sizes_json['charts'].items()):
-      if k.startswith('DFM_') and k != 'DFM_test_dummy':
-        if k == 'DFM_base':
-          name = 'base ({})'.format(base_name)
-        else:
-          name = k[4:]
-        metrics['DFM: ' + name] = v['Size with hindi']['value']
+      if k.startswith('DFM_'):
+        metrics['DFM: ' + k[4:]] = v['Size with hindi']['value']
 
   def PrintLibraryCompression(self):
     with zipfile.ZipFile(self._path) as z:
@@ -128,6 +124,8 @@ def _DownloadAndAnalyze(signed_prefix, unsigned_prefix, staging_dir):
 
   webview = make_artifact('arm/AndroidWebviewStable.aab')
   webview64 = make_artifact('arm_64/AndroidWebviewStable.aab')
+  chrome_modern = make_artifact('arm/ChromeModernStable.aab')
+  chrome_modern64 = make_artifact('arm_64/ChromeModernStable.aab')
   monochrome = make_artifact('arm/MonochromeStable.aab')
   monochrome64 = make_artifact('arm_64/MonochromeStable.aab')
   trichrome_chrome = make_artifact('arm/TrichromeChromeGoogleStable.aab')
@@ -142,13 +140,6 @@ def _DownloadAndAnalyze(signed_prefix, unsigned_prefix, staging_dir):
       make_artifact('arm/TrichromeLibraryGoogleSystemStable.apk'),
       make_artifact(
           'arm/for-signing-only/TrichromeChromeGoogleSystemStable.apk',
-          prefix=unsigned_prefix),
-  ]
-  trichrome64_system_apks = [
-      make_artifact('arm_64/TrichromeWebViewGoogleSystemStable.apk'),
-      make_artifact('arm_64/TrichromeLibraryGoogleSystemStable.apk'),
-      make_artifact(
-          'arm_64/for-signing-only/TrichromeChromeGoogleSystemStable.apk',
           prefix=unsigned_prefix),
   ]
   trichrome_system_stubs = [
@@ -166,6 +157,8 @@ def _DownloadAndAnalyze(signed_prefix, unsigned_prefix, staging_dir):
 
   # Add metrics in the order that we want them in the .csv output.
   metrics = collections.OrderedDict()
+  chrome_modern.AddSize(metrics)
+  chrome_modern64.AddSize(metrics)
   webview.AddSize(metrics)
   webview64.AddSize(metrics)
   monochrome.AddSize(metrics)
@@ -186,21 +179,16 @@ def _DownloadAndAnalyze(signed_prefix, unsigned_prefix, staging_dir):
 
   webview.PrintLibraryCompression()
 
-  metrics['System Image Size (arm32)'] = sum(x.GetApkSize()
-                                             for x in trichrome_system_apks)
-  metrics['System Image Size (arm64)'] = sum(x.GetApkSize()
-                                             for x in trichrome64_system_apks)
-
-  go_install_size = (trichrome_chrome.GetAndroidGoSize() +
-                     trichrome_webview.GetAndroidGoSize() +
-                     trichrome_library.GetAndroidGoSize())
+  # AndroidGo size exists only for webview & library.
+  go_install_size = (
+      trichrome_chrome.GetApkSize() + trichrome_webview.GetAndroidGoSize() +
+      trichrome_library.GetAndroidGoSize())
   metrics['Android Go (TriChrome) Install Size'] = go_install_size
 
-  compressed_system_apks_size = sum(x.GetCompressedSize()
-                                    for x in trichrome_system_apks)
+  system_apks_size = sum(x.GetCompressedSize() for x in trichrome_system_apks)
   stubs_sizes = sum(x.GetApkSize() for x in trichrome_system_stubs)
   metrics['Android Go (Trichrome) Compressed System Image'] = (
-      compressed_system_apks_size + stubs_sizes)
+      system_apks_size + stubs_sizes)
 
   monochrome.AddMethodCount(metrics)
 
@@ -208,8 +196,7 @@ def _DownloadAndAnalyze(signed_prefix, unsigned_prefix, staging_dir):
   _DumpCsv(metrics)
   metrics = collections.OrderedDict()
 
-  trichrome_chrome.AddDfmSizes(metrics, 'Chrome')
-  trichrome_webview.AddDfmSizes(metrics, 'WebView')
+  trichrome_chrome.AddDfmSizes(metrics)
   _DumpCsv(metrics)
 
 

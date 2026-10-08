@@ -1,4 +1,4 @@
-// META: script=resources/support-promises.js
+// META: script=support-promises.js
 
 setup({allow_uncaught_exception:true});
 

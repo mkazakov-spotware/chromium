@@ -1,11 +1,10 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/presentation/presentation_connection_close_event.h"
 
 #include "third_party/blink/renderer/bindings/modules/v8/v8_presentation_connection_close_event_init.h"
-#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 
 namespace blink {
 
@@ -22,8 +21,7 @@ PresentationConnectionCloseEvent::PresentationConnectionCloseEvent(
     const PresentationConnectionCloseEventInit* initializer)
     : Event(event_type, initializer),
       reason_(initializer->reason()),
-      message_(initializer->hasMessage() ? initializer->message()
-                                         : g_empty_string) {}
+      message_(initializer->message()) {}
 
 const AtomicString& PresentationConnectionCloseEvent::InterfaceName() const {
   return event_interface_names::kPresentationConnectionCloseEvent;

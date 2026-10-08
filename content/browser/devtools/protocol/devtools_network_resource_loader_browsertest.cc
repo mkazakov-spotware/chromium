@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,7 @@ class DevtoolsNetworkResourceLoaderTest : public ContentBrowserTest {
   }
 
   RenderFrameHostImpl* current_frame_host() {
-    return web_contents()->GetPrimaryFrameTree().root()->current_frame_host();
+    return web_contents()->GetFrameTree()->root()->current_frame_host();
   }
 
   mojo::Remote<network::mojom::URLLoaderFactory> CreateURLLoaderFactory() {
@@ -73,11 +73,9 @@ class DevtoolsNetworkResourceLoaderTest : public ContentBrowserTest {
     auto* frame = current_frame_host();
     auto params = URLLoaderFactoryParamsHelper::CreateForFrame(
         frame, frame->GetLastCommittedOrigin(),
-        frame->GetIsolationInfoForSubresources(),
-        frame->BuildClientSecurityState(),
+        mojo::Clone(frame->last_committed_client_security_state()),
         /**coep_reporter=*/mojo::NullRemote(), frame->GetProcess(),
-        network::mojom::TrustTokenRedemptionPolicy::kForbid,
-        "DevtoolsNetworkResourceLoaderTest");
+        network::mojom::TrustTokenRedemptionPolicy::kForbid);
     // Let DevTools fetch resources without CORS and CORB. Source maps are valid
     // JSON and would otherwise require a CORS fetch + correct response headers.
     // See BUG(chromium:1076435) for more context.
@@ -131,7 +129,7 @@ class DevtoolsNetworkResourceLoaderTest : public ContentBrowserTest {
         current_frame_host()->GetLastCommittedOrigin(),
         current_frame_host()->ComputeSiteForCookies(), caching,
         protocol::DevToolsNetworkResourceLoader::Credentials::kInclude,
-        std::move(callback));
+        MSG_ROUTING_NONE, std::move(callback));
   }
 
  protected:
@@ -183,7 +181,7 @@ IN_PROC_BROWSER_TEST_F(DevtoolsNetworkResourceLoaderTest,
       source_map_url, protocol::DevToolsNetworkResourceLoader::Caching::kBypass,
       base::BindOnce(CheckSuccess, this, &run_loop));
   run_loop.Run();
-  absl::optional<network::ResourceRequest> request =
+  base::Optional<network::ResourceRequest> request =
       monitor.GetRequestInfo(source_map_url);
   EXPECT_TRUE(request->load_flags & net::LOAD_BYPASS_CACHE);
 }
@@ -283,7 +281,7 @@ IN_PROC_BROWSER_TEST_F(DevtoolsNetworkResourceLoaderTest,
                    base::BindOnce(CheckSuccess, this, &run_loop));
   run_loop.Run();
 
-  absl::optional<network::ResourceRequest> request =
+  base::Optional<network::ResourceRequest> request =
       monitor.GetRequestInfo(source_map_url);
   EXPECT_TRUE(
       frame->ComputeSiteForCookies().IsEquivalent(request->site_for_cookies));

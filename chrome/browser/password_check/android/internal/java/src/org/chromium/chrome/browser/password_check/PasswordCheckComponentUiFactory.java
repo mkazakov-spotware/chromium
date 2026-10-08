@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import androidx.preference.PreferenceFragmentCompat;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.password_check.PasswordCheckComponentUi.CustomTabIntentHelper;
 import org.chromium.chrome.browser.password_check.PasswordCheckComponentUi.TrustedIntentHelper;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 
 /**
  * Use {@link #create()} to instantiate a {@link PasswordCheckComponentUi}.

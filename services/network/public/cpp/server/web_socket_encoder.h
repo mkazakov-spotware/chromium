@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,8 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
-#include "base/component_export.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "net/websockets/websocket_deflater.h"
 #include "net/websockets/websocket_inflater.h"
@@ -24,12 +23,9 @@ namespace network {
 
 namespace server {
 
-class COMPONENT_EXPORT(NETWORK_CPP) WebSocketEncoder final {
+class WebSocketEncoder final {
  public:
   static const char kClientExtensions[];
-
-  WebSocketEncoder(const WebSocketEncoder&) = delete;
-  WebSocketEncoder& operator=(const WebSocketEncoder&) = delete;
 
   ~WebSocketEncoder();
 
@@ -47,12 +43,9 @@ class COMPONENT_EXPORT(NETWORK_CPP) WebSocketEncoder final {
   WebSocket::ParseResult DecodeFrame(const base::StringPiece& frame,
                                      int* bytes_consumed,
                                      std::string* output);
-  void EncodeTextFrame(base::StringPiece frame,
-                       int masking_key,
-                       std::string* output);
-  void EncodePongFrame(base::StringPiece frame,
-                       int masking_key,
-                       std::string* output);
+  void EncodeFrame(base::StringPiece frame,
+                   int masking_key,
+                   std::string* output);
 
   bool deflate_enabled() const { return !!deflater_; }
 
@@ -66,15 +59,14 @@ class COMPONENT_EXPORT(NETWORK_CPP) WebSocketEncoder final {
                    std::unique_ptr<net::WebSocketDeflater> deflater,
                    std::unique_ptr<net::WebSocketInflater> inflater);
 
-  std::vector<std::string> continuation_message_frames_;
-  bool is_current_message_compressed_ = false;
-
   bool Inflate(std::string* message);
   bool Deflate(base::StringPiece message, std::string* output);
 
   Type type_;
   std::unique_ptr<net::WebSocketDeflater> deflater_;
   std::unique_ptr<net::WebSocketInflater> inflater_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebSocketEncoder);
 };
 
 }  // namespace server

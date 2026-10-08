@@ -1,13 +1,13 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef APPS_UI_VIEWS_APP_WINDOW_FRAME_VIEW_H_
 #define APPS_UI_VIEWS_APP_WINDOW_FRAME_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include <string>
+
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/controls/button/button.h"
@@ -32,7 +32,7 @@ namespace apps {
 // A frameless or non-Ash, non-panel NonClientFrameView for app windows.
 class AppWindowFrameView : public views::NonClientFrameView {
  public:
-  METADATA_HEADER(AppWindowFrameView);
+  static const char kViewClassName[];
 
   // AppWindowFrameView is used to draw frames for app windows when a non
   // standard frame is needed. This occurs if there is no frame needed, or if
@@ -73,6 +73,7 @@ class AppWindowFrameView : public views::NonClientFrameView {
   // views::View implementation.
   gfx::Size CalculatePreferredSize() const override;
   void Layout() override;
+  const char* GetClassName() const override;
   void OnPaint(gfx::Canvas* canvas) override;
   gfx::Size GetMinimumSize() const override;
   gfx::Size GetMaximumSize() const override;
@@ -84,15 +85,15 @@ class AppWindowFrameView : public views::NonClientFrameView {
   // Return the current frame color based on the active state of the window.
   SkColor CurrentFrameColor();
 
-  raw_ptr<views::Widget, DanglingUntriaged> widget_;
-  raw_ptr<extensions::NativeAppWindow, DanglingUntriaged> window_;
+  views::Widget* widget_;
+  extensions::NativeAppWindow* window_;
   bool draw_frame_;
   SkColor active_frame_color_;
   SkColor inactive_frame_color_;
-  raw_ptr<views::ImageButton, DanglingUntriaged> close_button_ = nullptr;
-  raw_ptr<views::ImageButton, DanglingUntriaged> maximize_button_ = nullptr;
-  raw_ptr<views::ImageButton, DanglingUntriaged> restore_button_ = nullptr;
-  raw_ptr<views::ImageButton, DanglingUntriaged> minimize_button_ = nullptr;
+  views::ImageButton* close_button_ = nullptr;
+  views::ImageButton* maximize_button_ = nullptr;
+  views::ImageButton* restore_button_ = nullptr;
+  views::ImageButton* minimize_button_ = nullptr;
 
   // Allow resize for clicks this many pixels inside the bounds.
   int resize_inside_bounds_size_ = 5;

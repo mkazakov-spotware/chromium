@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ ExtensionModelTypeController::ExtensionModelTypeController(
          type == syncer::THEMES);
 }
 
-ExtensionModelTypeController::~ExtensionModelTypeController() = default;
+ExtensionModelTypeController::~ExtensionModelTypeController() {}
 
 void ExtensionModelTypeController::LoadModels(
     const syncer::ConfigureContext& configure_context,

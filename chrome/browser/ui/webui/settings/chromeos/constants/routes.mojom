@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,31 +43,24 @@ enum Subpage {
   kCellularDetails = 5,
   kTetherDetails = 6,
   kVpnDetails = 7,
-  kApn = 8,
-  kHotspotDetails = 9,
 
   // Bluetooth section.
   kBluetoothDevices = 100,
-  kBluetoothDeviceDetail = 101,
-  kBluetoothSavedDevices = 102,
 
   // MultiDevice section.
   kMultiDeviceFeatures = 200,
-  // Note: Value 201 was for deprecated SmartLock subpage - see b/227674947.
-  // Do not reuse.
+  kSmartLock = 201,
   kNearbyShare = 202,
 
   // People section.
   kMyAccounts = 300,
   kSync = 301,
-  kSyncSetup = 302,
+  kSyncDeprecated = 302,  // Used if split-sync flag is off.
   kSyncDeprecatedAdvanced = 303,  // Used if split-sync flag is off.
-  // Note: Value 304 was for kSecurityAndSignIn. Do not reuse.
-  // Note: Value 305 was for kFingerprint. Do not reuse.
-  // Note: Value 306 was for kManageOtherPeople. Do not reuse.
-
-  // Note: Value 307 was for Kerberos Accounts Subpage, which has been migrated
-  // to a separate section - see https://crbug.com/1186190. Do not reuse.
+  kSecurityAndSignIn = 304,
+  kFingerprint = 305,
+  kManageOtherPeople = 306,
+  kKerberosAccounts = 307,
 
   // Device section.
   kPointers = 400,
@@ -79,21 +72,16 @@ enum Subpage {
   // Note: Value 406 was for deprecated DLC Subpage - see
   // https://crbug.com/1108093. Do not reuse.
   kPower = 407,
-  kAudio = 408,
 
   // Personalization section.
-  // 500 was used for kChangePicture. Do not reuse.
-  // 501 was used for kAmbientMode. Do not reuse.
+  kChangePicture = 500,
+  kAmbientMode = 501,
   // Note: Value 502 was for deprecated kAmbientModePhotos. Do not reuse.
-  // 503 was used for kAmbientModeGooglePhotosAlbum. Do not reuse.
-  // 504 was used for kAmbientModeArtGalleryAlbum. Do not reuse.
-  // 505 was used for kWallpaper. Do not reuse.
-  // 506 was used for kWallpaperImages. Do not reuse.
-  // 507 was used for kDarkMode. Do not reuse.
+  kAmbientModeGooglePhotosAlbum = 503,
+  kAmbientModeArtGalleryAlbum = 504,
 
   // Search and Assistant section.
   kAssistant = 600,
-  kSearch = 601,
 
   // Apps section.
   kAppManagement = 700,
@@ -101,9 +89,6 @@ enum Subpage {
   kGooglePlayStore = 702,
   kPluginVmSharedPaths = 703,
   kPluginVmUsbPreferences = 704,
-  // Note: Value 705 was for deprecated kOnStartup. Do not reuse.
-  kAppNotifications = 706,
-  kArcVmUsbPreferences = 707,
 
   // Crostini section.
   kCrostiniDetails = 800,
@@ -112,32 +97,22 @@ enum Subpage {
   kCrostiniBackupAndRestore = 803,
   kCrostiniDevelopAndroidApps = 804,
   kCrostiniPortForwarding = 805,
-  kCrostiniExtraContainers = 806,
-  kBruschettaDetails = 850,
-  kBruschettaUsbPreferences = 851,
-  kBruschettaManageSharedFolders = 852,
 
   // Note: Deprecated Plugin VM section has no subpages.
 
   // Date and Time section.
   kTimeZone = 1000,
 
-  // Privacy section.
-  kManageOtherPeopleV2 = 1100,
-  kSecurityAndSignInV2 = 1101,
-  kFingerprintV2 = 1102,
-  kSmartPrivacy = 1103,
-  kPrivacyHub = 1104,
+  // Note: Privacy section has no subpages.
 
   // Languages and Input section.
-  // 1200 was used for kLanguagesAndInputDetails. Do not reuse.
-  // 1201 was used for kManageInputMethods. Do not reuse.
+  kLanguagesAndInputDetails = 1200,
+  kManageInputMethods = 1201,
   kSmartInputs = 1202,
   kInputMethodOptions = 1203,
   kLanguages = 1204,
   kInput = 1205,
   kEditDictionary = 1206,
-  kJapaneseManageUserDictionary = 1207,
 
   // Files section.
   kNetworkFileShares = 1300,
@@ -149,13 +124,7 @@ enum Subpage {
   kManageAccessibility = 1500,
   kTextToSpeech = 1502,
   kSwitchAccessOptions = 1503,
-  // 1504 was used for kCaptions. Do not reuse.
-  kTextToSpeechPage = 1505,
-  kDisplayAndMagnification = 1506,
-  kKeyboardAndTextInput = 1507,
-  kCursorAndTouchpad = 1508,
-  kAudioAndCaptions = 1509,
-  kSelectToSpeak = 1510,
+  kCaptions = 1504,
 
   // Note: Reset section has no subpages.
 
@@ -173,19 +142,14 @@ const string kEthernetDetailsSubpagePath = "networkDetail";
 const string kWifiNetworksSubpagePath = "networks?type=WiFi";
 const string kWifiDetailsSubpagePath = "networkDetail";
 const string kKnownNetworksSubpagePath = "knownNetworks";
-const string kCellularNetworksSubpagePath = "networks?type=Cellular";
 const string kMobileDataNetworksSubpagePath = "networks?type=Tether";
 const string kCellularDetailsSubpagePath = "networkDetail";
 const string kTetherDetailsSubpagePath = "networkDetail";
 const string kVpnDetailsSubpagePath = "networkDetail";
-const string kApnSubpagePath = "apn";
-const string kHotspotSubpagePath = "hotspotDetail";
 
 // Bluetooth section.
 const string kBluetoothSectionPath = "bluetooth";
 const string kBluetoothDevicesSubpagePath = "bluetoothDevices";
-const string kBluetoothDeviceDetailSubpagePath = "bluetoothDeviceDetail";
-const string kBluetoothSavedDevicesSubpagePath = "bluetoothSavedDevices";
 
 // MultiDevice section.
 const string kMultiDeviceSectionPath = "multidevice";
@@ -197,8 +161,12 @@ const string kNearbyShareSubpagePath = "multidevice/nearbyshare";
 const string kPeopleSectionPath = "osPeople";
 const string kMyAccountsSubpagePath = "accountManager";
 const string kSyncSubpagePath = "osSync";
-const string kSyncSetupSubpagePath = "osSyncSetup";
+const string kSyncDeprecatedSubpagePath = "syncSetup";
 const string kSyncDeprecatedAdvancedSubpagePath = "syncSetup/advanced";
+const string kSecurityAndSignInSubpagePath = "lockScreen";
+const string kFingerprintSubpagePath = "lockScreen/fingerprint";
+const string kManageOtherPeopleSubpagePath = "accounts";
+const string kKerberosAccountsSubpagePath = "kerberosAccounts";
 
 // Device section.
 const string kDeviceSectionPath = "device";
@@ -206,31 +174,32 @@ const string kPointersSubpagePath = "pointer-overlay";
 const string kKeyboardSubpagePath = "keyboard-overlay";
 const string kStylusSubpagePath = "stylus";
 const string kDisplaySubpagePath = "display";
-const string kAudioSubpagePath = "audio";
 const string kStorageSubpagePath = "storage";
 const string kExternalStorageSubpagePath = "storage/externalStoragePreferences";
 const string kPowerSubpagePath = "power";
 
 // Personalization section.
 const string kPersonalizationSectionPath = "personalization";
+const string kChangePictureSubpagePath = "changePicture";
+const string kAmbientModeSubpagePath = "ambientMode";
+const string kAmbientModeGooglePhotosAlbumSubpagePath =
+    "ambientMode/photos?topicSource=0";
+const string kAmbientModeArtGalleryAlbumSubpagePath =
+    "ambientMode/photos?topicSource=1";
 
 // Search and Assistant section.
 const string kSearchAndAssistantSectionPath = "osSearch";
 const string kAssistantSubpagePath = "googleAssistant";
-const string kSearchSubpagePath = "osSearch/search";
 
 // Apps section.
 const string kAppsSectionPath = "apps";
 const string kAppManagementSubpagePath = "app-management";
-const string kAppNotificationsSubpagePath = "app-notifications";
 const string kAppDetailsSubpagePath = "app-management/detail";
 const string kGooglePlayStoreSubpagePath = "androidAppsDetails";
 const string kPluginVmSharedPathsSubpagePath =
     "app-management/pluginVm/sharedPaths";
 const string kPluginVmUsbPreferencesSubpagePath =
     "app-management/pluginVm/sharedUsbDevices";
-const string kArcVmUsbPreferencesSubpagePath =
-     "androidAppsDetails/sharedUsbDevices";
 
 // Crostini section.
 const string kCrostiniSectionPath = "crostini";
@@ -240,12 +209,6 @@ const string kCrostiniUsbPreferencesSubpagePath = "crostini/sharedUsbDevices";
 const string kCrostiniBackupAndRestoreSubpagePath = "crostini/exportImport";
 const string kCrostiniDevelopAndroidAppsSubpagePath = "crostini/androidAdb";
 const string kCrostiniPortForwardingSubpagePath = "crostini/portForwarding";
-const string kCrostiniExtraContainersSubpagePath = "crostini/extraContainers";
-const string kBruschettaDetailsSubpagePath = "bruschetta/details";
-const string kBruschettaUsbPreferencesSubpagePath =
-     "bruschetta/sharedUsbDevices";
-const string kBruschettaManageSharedFoldersSubpagePath =
-     "bruschetta/sharedPaths";
 
 // Date and Time section.
 const string kDateAndTimeSectionPath = "dateTime";
@@ -253,21 +216,16 @@ const string kTimeZoneSubpagePath = "dateTime/timeZone";
 
 // Privacy and Security section.
 const string kPrivacyAndSecuritySectionPath = "osPrivacy";
-const string kManageOtherPeopleSubpagePathV2 = "osPrivacy/accounts";
-const string kSecurityAndSignInSubpagePathV2 = "osPrivacy/lockScreen";
-const string kFingerprintSubpagePathV2 = "osPrivacy/lockScreen/fingerprint";
-const string kSmartPrivacySubpagePath = "osPrivacy/smartPrivacy";
-const string kPrivacyHubSubpagePath = "osPrivacy/privacyHub";
 
 // Languages and Input section.
 const string kLanguagesAndInputSectionPath = "osLanguages";
+const string kLanguagesAndInputDetailsSubpagePath = "osLanguages/details";
+const string kManageInputMethodsSubpagePath = "osLanguages/inputMethods";
 const string kSmartInputsSubpagePath = "osLanguages/smartInputs";
 const string kInputMethodOptionsSubpagePath = "osLanguages/inputMethodOptions";
 const string kLanguagesSubpagePath = "osLanguages/languages";
 const string kInputSubpagePath = "osLanguages/input";
 const string kEditDictionarySubpagePath = "osLanguages/editDictionary";
-const string kJapaneseManageUserDictionarySubpagePath =
-    "osLanguages/japaneseManageUserDictionary";
 
 // Files section.
 const string kFilesSectionPath = "files";
@@ -280,15 +238,10 @@ const string kPrintingDetailsSubpagePath = "cupsPrinters";
 // Accessibility section.
 const string kAccessibilitySectionPath = "osAccessibility";
 const string kManageAccessibilitySubpagePath = "manageAccessibility";
-const string kTextToSpeechPagePath = "textToSpeech";
-const string kDisplayAndMagnificationSubpagePath = "displayAndMagnification";
-const string kKeyboardAndTextInputSubpagePath = "keyboardAndTextInput";
-const string kCursorAndTouchpadSubpagePath = "cursorAndTouchpad";
-const string kSelectToSpeakSubpagePath = "textToSpeech/selectToSpeak";
-const string kAudioAndCaptionsSubpagePath = "audioAndCaptions";
 const string kTextToSpeechSubpagePath = "manageAccessibility/tts";
 const string kSwitchAccessOptionsSubpagePath =
     "manageAccessibility/switchAccess";
+const string kCaptionsSubpagePath = "manageAccessibility/captions";
 
 // Reset section.
 const string kResetSectionPath = "osReset";

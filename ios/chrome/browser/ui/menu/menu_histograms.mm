@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,63 +29,27 @@ const char kHistoryEntryActionsHistogram[] =
     "Mobile.ContextMenu.HistoryEntry.Actions";
 const char kMostVisitedEntryActionsHistogram[] =
     "Mobile.ContextMenu.MostVisitedEntry.Actions";
-const char kTabGridActionsHistogram[] = "Mobile.ContextMenu.TabGrid.Actions";
-const char kTabGridAddToActionsHistogram[] =
-    "Mobile.ContextMenu.TabGridAddTo.Actions";
-const char kTabGridEditActionsHistogram[] =
-    "Mobile.ContextMenu.TabGridEdit.Actions";
-const char kTabGridSearchResultHistogram[] =
-    "Mobile.ContextMenu.TabGridSearchResult.Actions";
-const char KContextMenuImageActionsHistogram[] =
-    "Mobile.ContextMenu.WebImage.Actions";
-const char KContextMenuImageLinkActionsHistogram[] =
-    "Mobile.ContextMenu.WebImageLink.Actions";
-const char KContextMenuLinkActionsHistogram[] =
-    "Mobile.ContextMenu.WebLink.Actions";
-const char kToolbarMenuActionsHistogram[] =
-    "Mobile.ContextMenu.Toolbar.Actions";
-const char kOmniboxMostVisitedEntryActionsHistogram[] =
-    "Mobile.ContextMenu.OmniboxMostVisitedEntry.Actions";
 }  // namespace
 
-void RecordMenuShown(MenuScenarioHistogram scenario) {
+void RecordMenuShown(MenuScenario scenario) {
   base::UmaHistogramEnumeration(kMenuEntryPointsHistogram, scenario);
 }
 
-const char* GetActionsHistogramName(MenuScenarioHistogram scenario) {
+const char* GetActionsHistogramName(MenuScenario scenario) {
   switch (scenario) {
-    case MenuScenarioHistogram::kHistoryEntry:
+    case MenuScenario::kHistoryEntry:
       return kHistoryEntryActionsHistogram;
-    case MenuScenarioHistogram::kBookmarkEntry:
+    case MenuScenario::kBookmarkEntry:
       return kBookmarkEntryActionsHistogram;
-    case MenuScenarioHistogram::kReadingListEntry:
+    case MenuScenario::kReadingListEntry:
       return kReadingListEntryActionsHistogram;
-    case MenuScenarioHistogram::kRecentTabsEntry:
+    case MenuScenario::kRecentTabsEntry:
       return kRecentTabsEntryActionsHistogram;
-    case MenuScenarioHistogram::kRecentTabsHeader:
+    case MenuScenario::kRecentTabsHeader:
       return kRecentTabsHeaderActionsHistogram;
-    case MenuScenarioHistogram::kMostVisitedEntry:
+    case MenuScenario::kMostVisitedEntry:
       return kMostVisitedEntryActionsHistogram;
-    case MenuScenarioHistogram::kBookmarkFolder:
+    case MenuScenario::kBookmarkFolder:
       return kBookmarkFolderActionsHistogram;
-    case MenuScenarioHistogram::kContextMenuImage:
-      return KContextMenuImageActionsHistogram;
-    case MenuScenarioHistogram::kContextMenuImageLink:
-      return KContextMenuImageLinkActionsHistogram;
-    case MenuScenarioHistogram::kContextMenuLink:
-      return KContextMenuLinkActionsHistogram;
-    case MenuScenarioHistogram::kTabGridEntry:
-    case MenuScenarioHistogram::kThumbStrip:
-      return kTabGridActionsHistogram;
-    case MenuScenarioHistogram::kTabGridAddTo:
-      return kTabGridAddToActionsHistogram;
-    case MenuScenarioHistogram::kTabGridEdit:
-      return kTabGridEditActionsHistogram;
-    case MenuScenarioHistogram::kTabGridSearchResult:
-      return kTabGridSearchResultHistogram;
-    case MenuScenarioHistogram::kToolbarMenu:
-      return kToolbarMenuActionsHistogram;
-    case MenuScenarioHistogram::kOmniboxMostVisitedEntry:
-      return kOmniboxMostVisitedEntryActionsHistogram;
   }
 }

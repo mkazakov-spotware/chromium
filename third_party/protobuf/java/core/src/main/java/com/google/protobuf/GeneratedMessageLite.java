@@ -115,17 +115,12 @@ public abstract class GeneratedMessageLite<
 
   @SuppressWarnings("unchecked") // Guaranteed by isInstance + runtime
   @Override
-  public boolean equals(
-          Object other) {
+  public boolean equals(Object other) {
     if (this == other) {
       return true;
     }
 
-    if (other == null) {
-      return false;
-    }
-
-    if (this.getClass() != other.getClass()) {
+    if (!getDefaultInstanceForType().getClass().isInstance(other)) {
       return false;
     }
 
@@ -223,7 +218,7 @@ public abstract class GeneratedMessageLite<
 
   /**
    * A method that implements different types of operations described in {@link MethodToInvoke}.
-   * These different kinds of operations are required to implement message-level operations for
+   * Theses different kinds of operations are required to implement message-level operations for
    * builders in the runtime. This method bundles those operations to reduce the generated methods
    * count.
    *
@@ -234,7 +229,7 @@ public abstract class GeneratedMessageLite<
    *       It doesn't use or modify any memoized value.
    *   <li>{@code GET_MEMOIZED_IS_INITIALIZED} returns the memoized {@code isInitialized} byte
    *       value.
-   *   <li>{@code SET_MEMOIZED_IS_INITIALIZED} sets the memoized {@code isInitialized} byte value to
+   *   <li>{@code SET_MEMOIZED_IS_INITIALIZED} sets the memoized {@code isInitilaized} byte value to
    *       1 if the first parameter is not null, or to 0 if the first parameter is null.
    *   <li>{@code NEW_BUILDER} returns a {@code BuilderType} instance.
    * </ul>
@@ -266,14 +261,12 @@ public abstract class GeneratedMessageLite<
     memoizedSerializedSize = size;
   }
 
-  @Override
   public void writeTo(CodedOutputStream output) throws IOException {
     Protobuf.getInstance()
         .schemaFor(this)
         .writeTo(this, CodedOutputStreamWriter.forCodedOutput(output));
   }
 
-  @Override
   public int getSerializedSize() {
     if (memoizedSerializedSize == -1) {
       memoizedSerializedSize = Protobuf.getInstance().schemaFor(this).getSerializedSize(this);
@@ -355,18 +348,14 @@ public abstract class GeneratedMessageLite<
      * Called before any method that would mutate the builder to ensure that it correctly copies any
      * state before the write happens to preserve immutability guarantees.
      */
-    protected final void copyOnWrite() {
+    protected void copyOnWrite() {
       if (isBuilt) {
-        copyOnWriteInternal();
+        MessageType newInstance =
+            (MessageType) instance.dynamicMethod(MethodToInvoke.NEW_MUTABLE_INSTANCE);
+        mergeFromInstance(newInstance, instance);
+        instance = newInstance;
         isBuilt = false;
       }
-    }
-
-    protected void copyOnWriteInternal() {
-      MessageType newInstance =
-          (MessageType) instance.dynamicMethod(MethodToInvoke.NEW_MUTABLE_INSTANCE);
-      mergeFromInstance(newInstance, instance);
-      instance = newInstance;
     }
 
     @Override
@@ -463,7 +452,7 @@ public abstract class GeneratedMessageLite<
         throws IOException {
       copyOnWrite();
       try {
-        // TODO(yilunchong): Try to make input with type CodedInputStream.ArrayDecoder use
+        // TODO(yilunchong): Try to make input with type CodedInpuStream.ArrayDecoder use
         // fast path.
         Protobuf.getInstance().schemaFor(instance).mergeFrom(
             instance, CodedInputStreamReader.forCodedInput(input), extensionRegistry);
@@ -692,7 +681,7 @@ public abstract class GeneratedMessageLite<
       // The wire format for MessageSet is:
       //   message MessageSet {
       //     repeated group Item = 1 {
-      //       required uint32 typeId = 2;
+      //       required int32 typeId = 2;
       //       required bytes message = 3;
       //     }
       //   }
@@ -930,8 +919,12 @@ public abstract class GeneratedMessageLite<
     }
 
     @Override
-    protected void copyOnWriteInternal() {
-      super.copyOnWriteInternal();
+    protected void copyOnWrite() {
+      if (!isBuilt) {
+        return;
+      }
+
+      super.copyOnWrite();
       instance.extensions = instance.extensions.clone();
     }
 
@@ -985,6 +978,7 @@ public abstract class GeneratedMessageLite<
 
     /** Get one element of a repeated extension. */
     @Override
+    @SuppressWarnings("unchecked")
     public final <Type> Type getExtension(
         final ExtensionLite<MessageType, List<Type>> extension, final int index) {
       return instance.getExtension(extension, index);
@@ -1028,7 +1022,7 @@ public abstract class GeneratedMessageLite<
     }
 
     /** Clear an extension. */
-    public final BuilderType clearExtension(final ExtensionLite<MessageType, ?> extension) {
+    public final <Type> BuilderType clearExtension(final ExtensionLite<MessageType, ?> extension) {
       GeneratedExtension<MessageType, ?> extensionLite = checkIsLite(extension);
 
       verifyExtensionContainingType(extensionLite);
@@ -1244,7 +1238,7 @@ public abstract class GeneratedMessageLite<
     Object fromFieldSetType(final Object value) {
       if (descriptor.isRepeated()) {
         if (descriptor.getLiteJavaType() == WireFormat.JavaType.ENUM) {
-          final List result = new ArrayList<>();
+          final List result = new ArrayList();
           for (final Object element : (List) value) {
             result.add(singularFromFieldSetType(element));
           }
@@ -1269,7 +1263,7 @@ public abstract class GeneratedMessageLite<
     Object toFieldSetType(final Object value) {
       if (descriptor.isRepeated()) {
         if (descriptor.getLiteJavaType() == WireFormat.JavaType.ENUM) {
-          final List result = new ArrayList<>();
+          final List result = new ArrayList();
           for (final Object element : (List) value) {
             result.add(singularToFieldSetType(element));
           }
@@ -1341,6 +1335,7 @@ public abstract class GeneratedMessageLite<
      *
      * @return a GeneratedMessage of the type that was serialized
      */
+    @SuppressWarnings("unchecked")
     protected Object readResolve() throws ObjectStreamException {
       try {
         Class<?> messageClass = resolveMessageClass();
@@ -1535,18 +1530,11 @@ public abstract class GeneratedMessageLite<
       Schema<T> schema = Protobuf.getInstance().schemaFor(result);
       schema.mergeFrom(result, CodedInputStreamReader.forCodedInput(input), extensionRegistry);
       schema.makeImmutable(result);
-    } catch (InvalidProtocolBufferException e) {
-      if (e.getThrownFromInputStream()) {
-        e = new InvalidProtocolBufferException(e);
-      }
-      throw e.setUnfinishedMessage(result);
-    } catch (UninitializedMessageException e) {
-      throw e.asInvalidProtocolBufferException().setUnfinishedMessage(result);
     } catch (IOException e) {
       if (e.getCause() instanceof InvalidProtocolBufferException) {
         throw (InvalidProtocolBufferException) e.getCause();
       }
-      throw new InvalidProtocolBufferException(e).setUnfinishedMessage(result);
+      throw new InvalidProtocolBufferException(e.getMessage()).setUnfinishedMessage(result);
     } catch (RuntimeException e) {
       if (e.getCause() instanceof InvalidProtocolBufferException) {
         throw (InvalidProtocolBufferException) e.getCause();
@@ -1557,7 +1545,7 @@ public abstract class GeneratedMessageLite<
   }
 
   /** A static helper method for parsing a partial from byte array. */
-  private static <T extends GeneratedMessageLite<T, ?>> T parsePartialFrom(
+  static <T extends GeneratedMessageLite<T, ?>> T parsePartialFrom(
       T instance, byte[] input, int offset, int length, ExtensionRegistryLite extensionRegistry)
       throws InvalidProtocolBufferException {
     @SuppressWarnings("unchecked") // Guaranteed by protoc
@@ -1570,18 +1558,11 @@ public abstract class GeneratedMessageLite<
       if (result.memoizedHashCode != 0) {
         throw new RuntimeException();
       }
-    } catch (InvalidProtocolBufferException e) {
-      if (e.getThrownFromInputStream()) {
-        e = new InvalidProtocolBufferException(e);
-      }
-      throw e.setUnfinishedMessage(result);
-    } catch (UninitializedMessageException e) {
-      throw e.asInvalidProtocolBufferException().setUnfinishedMessage(result);
     } catch (IOException e) {
       if (e.getCause() instanceof InvalidProtocolBufferException) {
         throw (InvalidProtocolBufferException) e.getCause();
       }
-      throw new InvalidProtocolBufferException(e).setUnfinishedMessage(result);
+      throw new InvalidProtocolBufferException(e.getMessage()).setUnfinishedMessage(result);
     } catch (IndexOutOfBoundsException e) {
       throw InvalidProtocolBufferException.truncatedMessage().setUnfinishedMessage(result);
     }
@@ -1643,14 +1624,28 @@ public abstract class GeneratedMessageLite<
   private static <T extends GeneratedMessageLite<T, ?>> T parsePartialFrom(
       T defaultInstance, ByteString data, ExtensionRegistryLite extensionRegistry)
       throws InvalidProtocolBufferException {
-    CodedInputStream input = data.newCodedInput();
-    T message = parsePartialFrom(defaultInstance, input, extensionRegistry);
+    T message;
     try {
-      input.checkLastTagWas(0);
+      CodedInputStream input = data.newCodedInput();
+      message = parsePartialFrom(defaultInstance, input, extensionRegistry);
+      try {
+        input.checkLastTagWas(0);
+      } catch (InvalidProtocolBufferException e) {
+        throw e.setUnfinishedMessage(message);
+      }
+      return message;
     } catch (InvalidProtocolBufferException e) {
-      throw e.setUnfinishedMessage(message);
+      throw e;
     }
-    return message;
+  }
+
+  // This is a special case since we want to verify that the last tag is 0. We assume we exhaust the
+  // ByteString.
+  private static <T extends GeneratedMessageLite<T, ?>> T parsePartialFrom(
+      T defaultInstance, byte[] data, ExtensionRegistryLite extensionRegistry)
+      throws InvalidProtocolBufferException {
+    return checkMessageInitialized(
+        parsePartialFrom(defaultInstance, data, 0, data.length, extensionRegistry));
   }
 
   // Validates last tag.
@@ -1725,13 +1720,8 @@ public abstract class GeneratedMessageLite<
         return null;
       }
       size = CodedInputStream.readRawVarint32(firstByte, input);
-    } catch (InvalidProtocolBufferException e) {
-      if (e.getThrownFromInputStream()) {
-        e = new InvalidProtocolBufferException(e);
-      }
-      throw e;
     } catch (IOException e) {
-      throw new InvalidProtocolBufferException(e);
+      throw new InvalidProtocolBufferException(e.getMessage());
     }
     InputStream limitedInput = new LimitedInputStream(input, size);
     CodedInputStream codedInput = CodedInputStream.newInstance(limitedInput);

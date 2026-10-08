@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,8 @@
 namespace wl {
 
 namespace {
+
+constexpr uint32_t kCompositorVersion = 4;
 
 void CreateSurface(wl_client* client,
                    wl_resource* compositor_resource,
@@ -39,13 +41,12 @@ const struct wl_compositor_interface kTestCompositorImpl = {
     CreateRegion,   // create_region
 };
 
-TestCompositor::TestCompositor(uint32_t intended_version)
+TestCompositor::TestCompositor()
     : GlobalObject(&wl_compositor_interface,
                    &kTestCompositorImpl,
-                   intended_version),
-      version_(intended_version) {}
+                   kCompositorVersion) {}
 
-TestCompositor::~TestCompositor() = default;
+TestCompositor::~TestCompositor() {}
 
 void TestCompositor::AddSurface(MockSurface* surface) {
   surfaces_.push_back(surface);

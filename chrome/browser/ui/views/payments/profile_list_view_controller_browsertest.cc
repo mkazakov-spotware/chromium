@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,27 +17,22 @@ namespace payments {
 
 autofill::AutofillProfile CreateProfileWithPartialAddress() {
   autofill::AutofillProfile profile = autofill::test::GetFullProfile2();
-  profile.SetRawInfo(autofill::ADDRESS_HOME_ADDRESS, u"");
-  profile.SetRawInfo(autofill::ADDRESS_HOME_STREET_ADDRESS, u"");
-  profile.SetRawInfo(autofill::ADDRESS_HOME_LINE1, u"");
-  profile.SetRawInfo(autofill::ADDRESS_HOME_LINE2, u"");
-  profile.SetRawInfo(autofill::ADDRESS_HOME_CITY, u"");
-  profile.SetRawInfo(autofill::ADDRESS_HOME_STATE, u"");
+  profile.SetRawInfo(autofill::ADDRESS_HOME_LINE1, base::ASCIIToUTF16(""));
+  profile.SetRawInfo(autofill::ADDRESS_HOME_LINE2, base::ASCIIToUTF16(""));
+  profile.SetRawInfo(autofill::ADDRESS_HOME_CITY, base::ASCIIToUTF16(""));
+  profile.SetRawInfo(autofill::ADDRESS_HOME_STATE, base::ASCIIToUTF16(""));
   return profile;
 }
 
-using PaymentRequestProfileListTest = PaymentRequestBrowserTestBase;
+class PaymentRequestProfileListTest : public PaymentRequestBrowserTestBase {
+ protected:
+  PaymentRequestProfileListTest() {}
+};
 
 IN_PROC_BROWSER_TEST_F(PaymentRequestProfileListTest, PrioritizeCompleteness) {
-  std::string payment_method_name;
-  InstallPaymentApp("a.com", "/payment_request_success_responder.js",
-                    &payment_method_name);
-
   NavigateTo("/payment_request_free_shipping_test.html");
   autofill::AutofillProfile complete = autofill::test::GetFullProfile();
   autofill::AutofillProfile partial = CreateProfileWithPartialAddress();
-  complete.FinalizeAfterImport();
-  partial.FinalizeAfterImport();
   partial.set_use_count(1000);
 
   AddAutofillProfile(complete);
@@ -51,10 +46,9 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestProfileListTest, PrioritizeCompleteness) {
   EXPECT_EQ(partial, *profiles[0]);
   EXPECT_EQ(complete, *profiles[1]);
 
-  InvokePaymentRequestUIWithJs("buyWithMethods([{supportedMethods:'" +
-                               payment_method_name + "'}]);");
+  InvokePaymentRequestUI();
 
-  PaymentRequest* request = GetPaymentRequests().front();
+  PaymentRequest* request = GetPaymentRequests(GetActiveWebContents()).front();
 
   // The complete profile should be selected.
   ASSERT_TRUE(request->state()->selected_shipping_profile());
@@ -74,8 +68,8 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestProfileListTest, PrioritizeCompleteness) {
     constexpr int kId = static_cast<int>(DialogViewID::PROFILE_LABEL_LINE_1);
     return static_cast<views::Label*>(sheet->children()[num]->GetViewByID(kId));
   };
-  EXPECT_EQ(u"John H. Doe", get_label(0)->GetText());
-  EXPECT_EQ(u"Jane A. Smith", get_label(1)->GetText());
+  EXPECT_EQ(base::ASCIIToUTF16("John H. Doe"), get_label(0)->GetText());
+  EXPECT_EQ(base::ASCIIToUTF16("Jane A. Smith"), get_label(1)->GetText());
 }
 
 }  // namespace payments

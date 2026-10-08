@@ -1,19 +1,18 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef REMOTING_HOST_CHROMEOS_CLIPBOARD_AURA_H_
-#define REMOTING_HOST_CHROMEOS_CLIPBOARD_AURA_H_
+#ifndef REMOTING_HOST_CLIPBOARD_AURA_H_
+#define REMOTING_HOST_CLIPBOARD_AURA_H_
 
 #include <stdint.h>
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
-#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "remoting/host/clipboard.h"
-#include "ui/base/clipboard/clipboard.h"
 
 namespace remoting {
 
@@ -34,10 +33,6 @@ class ClipboardStub;
 class ClipboardAura : public Clipboard {
  public:
   explicit ClipboardAura();
-
-  ClipboardAura(const ClipboardAura&) = delete;
-  ClipboardAura& operator=(const ClipboardAura&) = delete;
-
   ~ClipboardAura() override;
 
   // Clipboard interface.
@@ -54,10 +49,12 @@ class ClipboardAura : public Clipboard {
   base::ThreadChecker thread_checker_;
   std::unique_ptr<protocol::ClipboardStub> client_clipboard_;
   base::RepeatingTimer clipboard_polling_timer_;
-  ui::ClipboardSequenceNumberToken current_change_token_;
+  uint64_t current_change_count_;
   base::TimeDelta polling_interval_;
+
+  DISALLOW_COPY_AND_ASSIGN(ClipboardAura);
 };
 
 }  // namespace remoting
 
-#endif  // REMOTING_HOST_CHROMEOS_CLIPBOARD_AURA_H_
+#endif  // REMOTING_HOST_CLIPBOARD_AURA_H_

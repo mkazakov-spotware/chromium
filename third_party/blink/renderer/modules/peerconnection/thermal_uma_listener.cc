@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,14 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
-#include "base/task/sequenced_task_runner.h"
-#include "third_party/blink/public/mojom/peerconnection/peer_connection_tracker.mojom-blink.h"
+#include "base/power_monitor/power_observer.h"
+#include "base/sequenced_task_runner.h"
 
 namespace blink {
 
 namespace {
 
-const base::TimeDelta kStatsReportingPeriod = base::Minutes(1);
+const base::TimeDelta kStatsReportingPeriod = base::TimeDelta::FromMinutes(1);
 
 enum class ThermalStateUMA {
   kNominal = 0,
@@ -27,15 +27,16 @@ enum class ThermalStateUMA {
   kMaxValue = kCritical,
 };
 
-ThermalStateUMA ToThermalStateUMA(mojom::blink::DeviceThermalState state) {
+ThermalStateUMA ToThermalStateUMA(
+    base::PowerObserver::DeviceThermalState state) {
   switch (state) {
-    case mojom::blink::DeviceThermalState::kNominal:
+    case base::PowerObserver::DeviceThermalState::kNominal:
       return ThermalStateUMA::kNominal;
-    case mojom::blink::DeviceThermalState::kFair:
+    case base::PowerObserver::DeviceThermalState::kFair:
       return ThermalStateUMA::kFair;
-    case mojom::blink::DeviceThermalState::kSerious:
+    case base::PowerObserver::DeviceThermalState::kSerious:
       return ThermalStateUMA::kSerious;
-    case mojom::blink::DeviceThermalState::kCritical:
+    case base::PowerObserver::DeviceThermalState::kCritical:
       return ThermalStateUMA::kCritical;
     default:
       NOTREACHED();
@@ -57,13 +58,13 @@ std::unique_ptr<ThermalUmaListener> ThermalUmaListener::Create(
 ThermalUmaListener::ThermalUmaListener(
     scoped_refptr<base::SequencedTaskRunner> task_runner)
     : task_runner_(std::move(task_runner)),
-      current_thermal_state_(mojom::blink::DeviceThermalState::kUnknown),
+      current_thermal_state_(base::PowerObserver::DeviceThermalState::kUnknown),
       weak_ptr_factor_(this) {
   DCHECK(task_runner_);
 }
 
 void ThermalUmaListener::OnThermalMeasurement(
-    mojom::blink::DeviceThermalState measurement) {
+    base::PowerObserver::DeviceThermalState measurement) {
   base::AutoLock crit(lock_);
   current_thermal_state_ = measurement;
 }
@@ -78,7 +79,8 @@ void ThermalUmaListener::ScheduleReport() {
 void ThermalUmaListener::ReportStats() {
   {
     base::AutoLock crit(lock_);
-    if (current_thermal_state_ != mojom::blink::DeviceThermalState::kUnknown) {
+    if (current_thermal_state_ !=
+        base::PowerObserver::DeviceThermalState::kUnknown) {
       UMA_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.ThermalState",
                                 ToThermalStateUMA(current_thermal_state_));
     }

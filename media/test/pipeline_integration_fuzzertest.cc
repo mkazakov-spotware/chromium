@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_timeouts.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/eme_constants.h"
 #include "media/base/media.h"
@@ -118,7 +118,7 @@ namespace media {
 
 // Limit the amount of initial (or post-seek) audio silence padding allowed in
 // rendering of fuzzed input.
-constexpr base::TimeDelta kMaxPlayDelay = base::Seconds(10);
+constexpr base::TimeDelta kMaxPlayDelay = base::TimeDelta::FromSeconds(10);
 
 void OnEncryptedMediaInitData(media::PipelineIntegrationTestBase* test,
                               media::EmeInitDataType /* type */,
@@ -130,7 +130,7 @@ void OnEncryptedMediaInitData(media::PipelineIntegrationTestBase* test,
   // Note: Since the callback is on the media task runner but the test is on
   // the main task runner, this must be posted.
   // TODO(xhwang): Support encrypted media in this fuzzer test.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&PipelineIntegrationTestBase::FailTest,
                                 base::Unretained(test),
                                 media::PIPELINE_ERROR_INITIALIZATION_FAILED));
@@ -142,7 +142,7 @@ void OnAudioPlayDelay(media::PipelineIntegrationTestBase* test,
   if (play_delay > kMaxPlayDelay) {
     // Note: Since the callback is on the media task runner but the test is on
     // the main task runner, this must be posted.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&PipelineIntegrationTestBase::FailTest,
                                   base::Unretained(test),
                                   media::PIPELINE_ERROR_INITIALIZATION_FAILED));

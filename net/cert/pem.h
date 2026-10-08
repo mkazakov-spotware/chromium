@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "net/base/net_export.h"
 
@@ -24,12 +25,8 @@ class NET_EXPORT_PRIVATE PEMTokenizer {
   // Create a new PEMTokenizer that iterates through |str| searching for
   // instances of PEM encoded blocks that are of the |allowed_block_types|.
   // |str| must remain valid for the duration of the PEMTokenizer.
-  PEMTokenizer(base::StringPiece str,
+  PEMTokenizer(const base::StringPiece& str,
                const std::vector<std::string>& allowed_block_types);
-
-  PEMTokenizer(const PEMTokenizer&) = delete;
-  PEMTokenizer& operator=(const PEMTokenizer&) = delete;
-
   ~PEMTokenizer();
 
   // Attempts to decode the next PEM block in the string. Returns false if no
@@ -48,7 +45,7 @@ class NET_EXPORT_PRIVATE PEMTokenizer {
   const std::string& data() const { return data_; }
 
  private:
-  void Init(base::StringPiece str,
+  void Init(const base::StringPiece& str,
             const std::vector<std::string>& allowed_block_types);
 
   // A simple cache of the allowed PEM header and footer for a given PEM
@@ -74,6 +71,8 @@ class NET_EXPORT_PRIVATE PEMTokenizer {
 
   // The raw (Base64-decoded) data of the last successfully decoded block.
   std::string data_;
+
+  DISALLOW_COPY_AND_ASSIGN(PEMTokenizer);
 };
 
 // Encodes |data| in the encapsulated message format described in RFC 1421,

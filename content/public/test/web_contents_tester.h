@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/time/time.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
-#include "third_party/blink/public/mojom/favicon/favicon_url.mojom-forward.h"
+#include "third_party/blink/public/mojom/loader/pause_subresource_loading_handle.mojom.h"
 #include "ui/base/page_transition_types.h"
 
 class GURL;
@@ -27,7 +26,7 @@ class Size;
 namespace content {
 
 class BrowserContext;
-class NavigationSimulator;
+class RenderFrameHost;
 
 // This interface allows embedders of content/ to write tests that depend on a
 // test version of WebContents.  This interface can be retrieved from any
@@ -74,9 +73,8 @@ class WebContentsTester {
   static WebContents* CreateTestWebContents(
       const WebContents::CreateParams& params);
 
-  // Simulates the appropriate `blink::WebView` (pending if any, current
-  // otherwise) sending a navigate notification for the NavigationController
-  // pending entry.
+  // Simulates the appropriate RenderView (pending if any, current otherwise)
+  // sending a navigate notification for the NavigationController pending entry.
   virtual void CommitPendingNavigation() = 0;
 
   // Creates a pending navigation to the given URL with the default parameters
@@ -95,19 +93,31 @@ class WebContentsTester {
   // Sets the loading state to the given value.
   virtual void TestSetIsLoading(bool value) = 0;
 
+  // Simulates a navigation with the given information.
+  //
+  // Guidance for calling these:
+  // - nav_entry_id should be 0 if simulating a renderer-initiated navigation;
+  //   if simulating a browser-initiated one, pass the GetUniqueID() value of
+  //   the NavigationController's PendingEntry.
+  // - did_create_new_entry should be true if simulating a navigation that
+  //   created a new navigation entry; false for history navigations, reloads,
+  //   and other navigations that don't affect the history list.
+  virtual void TestDidNavigate(RenderFrameHost* render_frame_host,
+                               int nav_entry_id,
+                               bool did_create_new_entry,
+                               const GURL& url,
+                               ui::PageTransition transition) = 0;
+
   // Simulate this WebContents' main frame having an opener that points to the
   // main frame of |opener|.
   virtual void SetOpener(WebContents* opener) = 0;
-
-  // Sets the process state for the primary main frame renderer.
-  virtual void SetIsCrashed(base::TerminationStatus status, int error_code) = 0;
 
   // Returns headers that were passed in the previous SaveFrameWithHeaders(...)
   // call.
   virtual const std::string& GetSaveFrameHeaders() = 0;
 
   // Returns the suggested file name passed in the SaveFrameWithHeaders call.
-  virtual const std::u16string& GetSuggestedFileName() = 0;
+  virtual const base::string16& GetSuggestedFileName() = 0;
 
   // Returns whether a download request triggered via DownloadImage() is in
   // progress for |url|.
@@ -121,20 +131,12 @@ class WebContentsTester {
       const std::vector<SkBitmap>& bitmaps,
       const std::vector<gfx::Size>& original_bitmap_sizes) = 0;
 
-  // Simulates initial favicon urls set.
-  virtual void TestSetFaviconURL(
-      const std::vector<blink::mojom::FaviconURLPtr>& favicon_urls) = 0;
-
-  // Simulates favicon urls update.
-  virtual void TestUpdateFaviconURL(
-      const std::vector<blink::mojom::FaviconURLPtr>& favicon_urls) = 0;
-
   // Sets the return value of GetLastCommittedUrl() of TestWebContents.
   virtual void SetLastCommittedURL(const GURL& url) = 0;
 
   // Sets the return value of GetTitle() of TestWebContents. Once set, the real
   // title will never be returned.
-  virtual void SetTitle(const std::u16string& new_title) = 0;
+  virtual void SetTitle(const base::string16& new_title) = 0;
 
   // Sets the return value of GetContentsMimeType().
   virtual void SetMainFrameMimeType(const std::string& mime_type) = 0;
@@ -161,10 +163,6 @@ class WebContentsTester {
   // Sets the last active time.
   virtual void SetLastActiveTime(base::TimeTicks last_active_time) = 0;
 
-  // Increments/decrements the number of frames with connected USB devices.
-  virtual void TestIncrementUsbActiveFrameCount() = 0;
-  virtual void TestDecrementUsbActiveFrameCount() = 0;
-
   // Increments/decrements the number of connected Bluetooth devices.
   virtual void TestIncrementBluetoothConnectedDeviceCount() = 0;
   virtual void TestDecrementBluetoothConnectedDeviceCount() = 0;
@@ -174,29 +172,6 @@ class WebContentsTester {
       std::unique_ptr<WebContents> portal_web_contents) = 0;
   virtual WebContents* GetPortalContents(
       const blink::PortalToken& portal_token) = 0;
-
-  // Indicates if this WebContents has been frozen via a call to
-  // SetPageFrozen().
-  virtual bool IsPageFrozen() = 0;
-
-  // Starts prerendering a page with |url|, and returns the root frame tree node
-  // id of the page. The page has a pending navigation in the root frame tree
-  // node when this method returns.
-  virtual int AddPrerender(const GURL& url) = 0;
-  // Starts prerendering a page, simulates a navigation to |url| in the main
-  // frame and returns the main frame of the page after the navigation is
-  // complete.
-  virtual RenderFrameHost* AddPrerenderAndCommitNavigation(const GURL& url) = 0;
-  // Starts prerendering a page, simulates a navigation to |url| in the main
-  // frame and returns the simulator after the navigation is started.
-  virtual std::unique_ptr<NavigationSimulator> AddPrerenderAndStartNavigation(
-      const GURL& url) = 0;
-  // Activates a prerendered page.
-  virtual void ActivatePrerenderedPage(const GURL& url) = 0;
-
-  // Returns the time that was set with SetTabSwitchStartTime, or a null
-  // TimeTicks if it was never called.
-  virtual base::TimeTicks GetTabSwitchStartTime() = 0;
 };
 
 }  // namespace content

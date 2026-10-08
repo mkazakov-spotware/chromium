@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.DimensionPickerTest');
 goog.setTestOnly();
@@ -125,13 +133,11 @@ testSuite({
     assertEquals('Should have 5 rows visible', 5, size.height);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testHandleMove() {
     picker.render(render);
     const renderer = picker.getRenderer();
     const mouseMoveElem = renderer.getMouseMoveElement(picker);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     picker.rightToLeft_ = false;
     const e = {
       target: mouseMoveElem,
@@ -144,7 +150,6 @@ testSuite({
     assertEquals('Should have 1 column highlighted', 1, size.width);
     assertEquals('Should have 2 rows highlighted', 2, size.height);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     picker.rightToLeft_ = true;
 
     picker.handleMouseMove(e);
@@ -160,7 +165,6 @@ testSuite({
   testHandleKeyboardEvents() {
     picker.render(render);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     picker.rightToLeft_ = false;
 
     let result = picker.handleKeyEvent({keyCode: KeyCodes.DOWN});
@@ -202,7 +206,6 @@ testSuite({
         'Should not handle LEFT key event when there is only one column',
         result);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     picker.rightToLeft_ = true;
 
     // In RTL the roles of the LEFT and RIGHT keys are swapped.
@@ -263,7 +266,6 @@ testSuite({
     const renderer = picker.getRenderer();
     const mouseMoveElem = renderer.getMouseMoveElement(picker);
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const e = new BrowserEvent({
       target: mouseMoveElem,
       offsetX: 18,  // Each grid square currently a magic 18px.
@@ -288,7 +290,6 @@ testSuite({
     const renderer = picker.getRenderer();
     const mouseMoveElem = renderer.getMouseMoveElement(picker);
 
-    /** @suppress {checkTypes} suppression added to enable type checking */
     const e = new BrowserEvent({
       target: mouseMoveElem,
       offsetX: 18,   // Each grid square currently a magic 18px.

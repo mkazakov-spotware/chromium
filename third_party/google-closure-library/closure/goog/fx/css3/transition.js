@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2011 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview CSS3 transition base library.
@@ -63,7 +71,6 @@ goog.require('goog.style.transition');
  */
 goog.fx.css3.Transition = function(
     element, duration, initialStyle, finalStyle, transitions) {
-  'use strict';
   goog.fx.css3.Transition.base(this, 'constructor');
 
   /**
@@ -100,14 +107,13 @@ goog.fx.css3.Transition = function(
    * @type {Array<goog.style.transition.Css3Property>}
    * @private
    */
-  this.transitions_ = Array.isArray(transitions) ? transitions : [transitions];
+  this.transitions_ = goog.isArray(transitions) ? transitions : [transitions];
 };
 goog.inherits(goog.fx.css3.Transition, goog.fx.TransitionBase);
 
 
 /** @override */
 goog.fx.css3.Transition.prototype.play = function() {
-  'use strict';
   if (this.isPlaying()) {
     return false;
   }
@@ -136,7 +142,6 @@ goog.fx.css3.Transition.prototype.play = function() {
  * @private
  */
 goog.fx.css3.Transition.prototype.play_ = function() {
-  'use strict';
   // This measurement of the DOM element causes the browser to recalculate its
   // initial state before the transition starts.
   goog.style.getSize(this.element_);
@@ -149,7 +154,6 @@ goog.fx.css3.Transition.prototype.play_ = function() {
 
 /** @override */
 goog.fx.css3.Transition.prototype.stop = function() {
-  'use strict';
   if (!this.isPlaying()) return;
 
   this.stop_(true);
@@ -162,7 +166,6 @@ goog.fx.css3.Transition.prototype.stop = function() {
  * @private
  */
 goog.fx.css3.Transition.prototype.stop_ = function(stopped) {
-  'use strict';
   goog.style.transition.removeAll(this.element_);
 
   // Clear the timer.
@@ -185,7 +188,6 @@ goog.fx.css3.Transition.prototype.stop_ = function(stopped) {
 
 /** @override */
 goog.fx.css3.Transition.prototype.disposeInternal = function() {
-  'use strict';
   this.stop();
   goog.fx.css3.Transition.base(this, 'disposeInternal');
 };
@@ -196,6 +198,5 @@ goog.fx.css3.Transition.prototype.disposeInternal = function() {
  * @override
  */
 goog.fx.css3.Transition.prototype.pause = function() {
-  'use strict';
   goog.asserts.assert(false, 'Css3 transitions does not support pause action.');
 };

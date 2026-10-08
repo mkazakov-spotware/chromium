@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -80,11 +80,6 @@ public class WebApkInitializationTest {
         public boolean isNativeInitializationFinished() {
             return true;
         }
-
-        @Override
-        public boolean isActivityFinishingOrDestroyed() {
-            return mRealActivityLifecycleDispatcher.isActivityFinishingOrDestroyed();
-        }
     }
 
     private final TrackingActivityLifecycleDispatcher mTrackingActivityLifecycleDispatcher =
@@ -99,11 +94,7 @@ public class WebApkInitializationTest {
                     activityWindowAndroid, compositorViewHolderSupplier, tabCreatorManager,
                     tabCreatorSupplier, isPromotableToTabSupplier, statusBarColorController,
                     screenOrientationProvider, notificationManagerProxySupplier,
-                    tabContentManagerSupplier, activityTabStartupMetricsTrackerSupplier,
-                    compositorViewHolderInitializer, chromeActivityNativeDelegate,
-                    modalDialogManagerSupplier, browserControlsStateProvider,
-                    savedInstanceStateSupplier, autofillUiBottomInsetSupplier,
-                    shareDelegateSupplier, tabModelInitializer, activityType) -> {
+                    tabContentManagerSupplier, compositorViewHolderInitializer) -> {
                 mTrackingActivityLifecycleDispatcher.init(lifecycleDispatcher);
                 return new ChromeActivityCommonsModule(activity, bottomSheetControllerSupplier,
                         tabModelSelectorSupplier, browserControlsManager,
@@ -113,11 +104,7 @@ public class WebApkInitializationTest {
                         activityWindowAndroid, compositorViewHolderSupplier, tabCreatorManager,
                         tabCreatorSupplier, isPromotableToTabSupplier, statusBarColorController,
                         screenOrientationProvider, notificationManagerProxySupplier,
-                        tabContentManagerSupplier, activityTabStartupMetricsTrackerSupplier,
-                        compositorViewHolderInitializer, chromeActivityNativeDelegate,
-                        modalDialogManagerSupplier, browserControlsStateProvider,
-                        savedInstanceStateSupplier, autofillUiBottomInsetSupplier,
-                        shareDelegateSupplier, tabModelInitializer, activityType);
+                        tabContentManagerSupplier, compositorViewHolderInitializer);
             });
 
     private final WebApkActivityTestRule mActivityRule = new WebApkActivityTestRule();

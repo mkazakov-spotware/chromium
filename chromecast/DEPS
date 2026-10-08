@@ -10,5 +10,4 @@ include_rules = [
   "+chromecast/chromecast_buildflags.h",
   "+chromecast/public",
   "+third_party/boringssl/src/include",
-  "+third_party/widevine/cdm",
 ]

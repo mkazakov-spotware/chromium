@@ -1,3 +1,12 @@
-file://ash/login/OOBE_WEBUI_OWNERS
+# (in PST)
+achuith@chromium.org
+alemate@chromium.org
+tbarzic@chromium.org
+
+# (in CET)
+antrim@chromium.org
+rsorokin@chromium.org
 
 per-file *security_token*=emaxx@chromium.org
+
+# COMPONENT: UI>Shell>OOBE

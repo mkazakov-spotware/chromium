@@ -1,11 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/cert/ev_root_ca_metadata.h"
 
 #include "build/build_config.h"
-#include "net/base/hash_value.h"
+#include "net/cert/x509_cert_types.h"
 #include "net/der/input.h"
 #include "net/test/cert_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 const char kFakePolicyStr[] = "2.16.840.1.42";
 const char kCabEvPolicyStr[] = "2.23.140.1.1";
 const char kStarfieldPolicyStr[] = "2.16.840.1.114414.1.7.23.3";
@@ -55,7 +55,7 @@ class EVOidData {
 
 #endif  // defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 EVOidData::EVOidData()
     : fake_policy(kFakePolicyStr),

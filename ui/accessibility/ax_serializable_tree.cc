@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
 #include "ui/accessibility/ax_node.h"
 
 namespace ui {
@@ -17,10 +16,11 @@ namespace ui {
 // AXTreeSource abstraction and doesn't need to actually know about
 // AXTree directly. Another AXTreeSource is used to abstract the Blink
 // accessibility tree.
-class AX_EXPORT AXTreeSourceAdapter : public AXTreeSource<const AXNode*> {
+class AX_EXPORT AXTreeSourceAdapter
+    : public AXTreeSource<const AXNode*, AXNodeData, AXTreeData> {
  public:
-  explicit AXTreeSourceAdapter(AXTree* tree) : tree_(tree) {}
-  ~AXTreeSourceAdapter() override = default;
+  AXTreeSourceAdapter(AXTree* tree) : tree_(tree) {}
+  ~AXTreeSourceAdapter() override {}
 
   // AXTreeSource implementation.
   bool GetTreeData(AXTreeData* data) const override {
@@ -30,9 +30,9 @@ class AX_EXPORT AXTreeSourceAdapter : public AXTreeSource<const AXNode*> {
 
   AXNode* GetRoot() const override { return tree_->root(); }
 
-  AXNode* GetFromId(AXNodeID id) const override { return tree_->GetFromId(id); }
+  AXNode* GetFromId(int32_t id) const override { return tree_->GetFromId(id); }
 
-  AXNodeID GetId(const AXNode* node) const override { return node->id(); }
+  int32_t GetId(const AXNode* node) const override { return node->id(); }
 
   void GetChildren(const AXNode* node,
                    std::vector<const AXNode*>* out_children) const override {
@@ -61,7 +61,7 @@ class AX_EXPORT AXTreeSourceAdapter : public AXTreeSource<const AXNode*> {
   }
 
  private:
-  raw_ptr<AXTree> tree_;
+  AXTree* tree_;
 };
 
 AXSerializableTree::AXSerializableTree()
@@ -75,7 +75,8 @@ AXSerializableTree::AXSerializableTree(
 AXSerializableTree::~AXSerializableTree() {
 }
 
-AXTreeSource<const AXNode*>* AXSerializableTree::CreateTreeSource() {
+AXTreeSource<const AXNode*, AXNodeData, AXTreeData>*
+AXSerializableTree::CreateTreeSource() {
   return new AXTreeSourceAdapter(this);
 }
 

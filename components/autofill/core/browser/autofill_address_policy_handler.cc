@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,12 @@ AutofillAddressPolicyHandler::~AutofillAddressPolicyHandler() {}
 void AutofillAddressPolicyHandler::ApplyPolicySettings(
     const policy::PolicyMap& policies,
     PrefValueMap* prefs) {
-  const base::Value* value =
-      policies.GetValue(policy_name(), base::Value::Type::BOOLEAN);
-  if (value && !value->GetBool())
-    prefs->SetBoolean(prefs::kAutofillProfileEnabled, false);
+  const base::Value* value = policies.GetValue(policy_name());
+  bool autofill_profile_enabled;
+  if (value && value->GetAsBoolean(&autofill_profile_enabled) &&
+      !autofill_profile_enabled) {
+    prefs->SetBoolean(autofill::prefs::kAutofillProfileEnabled, false);
+  }
 }
 
 }  // namespace autofill

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,13 @@
 namespace net {
 
 ClientSocketHandle::ClientSocketHandle()
-    : resolve_error_info_(ResolveErrorInfo(OK)) {}
+    : is_initialized_(false),
+      pool_(nullptr),
+      higher_pool_(nullptr),
+      reuse_type_(ClientSocketHandle::UNUSED),
+      group_generation_(-1),
+      resolve_error_info_(ResolveErrorInfo(OK)),
+      is_ssl_error_(false) {}
 
 ClientSocketHandle::~ClientSocketHandle() {
   Reset();
@@ -30,7 +36,7 @@ ClientSocketHandle::~ClientSocketHandle() {
 int ClientSocketHandle::Init(
     const ClientSocketPool::GroupId& group_id,
     scoped_refptr<ClientSocketPool::SocketParams> socket_params,
-    const absl::optional<NetworkTrafficAnnotationTag>& proxy_annotation_tag,
+    const base::Optional<NetworkTrafficAnnotationTag>& proxy_annotation_tag,
     RequestPriority priority,
     const SocketTag& socket_tag,
     ClientSocketPool::RespectLimits respect_limits,
@@ -40,7 +46,7 @@ int ClientSocketHandle::Init(
     const NetLogWithSource& net_log) {
   requesting_source_ = net_log.source();
 
-  CHECK(group_id.destination().IsValid());
+  CHECK(!group_id.destination().IsEmpty());
   ResetInternal(true /* cancel */, false /* cancel_connect_job */);
   ResetErrorState();
   pool_ = pool;
@@ -84,7 +90,7 @@ void ClientSocketHandle::ResetAndCloseSocket() {
 
 LoadState ClientSocketHandle::GetLoadState() const {
   CHECK(!is_initialized());
-  CHECK(group_id_.destination().IsValid());
+  CHECK(!group_id_.destination().IsEmpty());
   // Because of http://crbug.com/37810  we may not have a pool, but have
   // just a raw socket.
   if (!pool_)
@@ -146,6 +152,13 @@ bool ClientSocketHandle::GetLoadTimingInfo(
   return true;
 }
 
+void ClientSocketHandle::DumpMemoryStats(
+    StreamSocket::SocketMemoryStats* stats) const {
+  if (!socket_)
+    return;
+  socket_->DumpMemoryStats(stats);
+}
+
 void ClientSocketHandle::SetSocket(std::unique_ptr<StreamSocket> s) {
   socket_ = std::move(s);
 }
@@ -198,7 +211,7 @@ void ClientSocketHandle::ResetInternal(bool cancel, bool cancel_connect_job) {
   DCHECK(cancel || !cancel_connect_job);
 
   // Was Init called?
-  if (group_id_.destination().IsValid()) {
+  if (!group_id_.destination().IsEmpty()) {
     // If so, we must have a pool.
     CHECK(pool_);
     if (is_initialized()) {

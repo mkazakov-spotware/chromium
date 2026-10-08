@@ -1,9 +1,9 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef REMOTING_HOST_MAC_CONSTANTS_MAC_H_
-#define REMOTING_HOST_MAC_CONSTANTS_MAC_H_
+#ifndef REMOTING_HOST_CONSTANTS_MAC_H_
+#define REMOTING_HOST_CONSTANTS_MAC_H_
 
 namespace remoting {
 
@@ -16,10 +16,6 @@ extern const char kServiceName[];
 // knowledge of which keys belong in which files.
 extern const char kHostConfigFileName[];
 extern const char kHostConfigFilePath[];
-
-// File that stores lightweight host settings as key-value pairs. See
-// HostSettings for more info.
-extern const char kHostSettingsFilePath[];
 
 // This helper script is executed as root to enable/disable/configure the host
 // service.
@@ -60,4 +56,4 @@ extern const char kUnbrandedUninstallerPath[];
 
 }  // namespace remoting
 
-#endif  // REMOTING_HOST_MAC_CONSTANTS_MAC_H_
+#endif  // REMOTING_HOST_CONSTANTS_MAC_H_

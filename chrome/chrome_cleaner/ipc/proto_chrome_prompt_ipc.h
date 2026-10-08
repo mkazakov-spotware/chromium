@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <windows.h>
 
 #include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/win/scoped_handle.h"
 #include "chrome/chrome_cleaner/ipc/chrome_prompt_ipc.h"
@@ -30,6 +31,13 @@ class ProtoChromePromptIPC : public ChromePromptIPC {
                           const std::vector<std::wstring>& registry_keys,
                           const std::vector<std::wstring>& extension_ids,
                           PromptUserCallback callback) override;
+
+  void PostDisableExtensionsTask(const std::vector<std::wstring>& extension_ids,
+                                 DisableExtensionsCallback callback) override;
+
+  void TryDeleteExtensions(
+      base::OnceClosure delete_allowed_callback,
+      base::OnceClosure delete_not_allowed_callback) override;
 
  private:
   // Implements the initialization that needs to happen on the task_runner

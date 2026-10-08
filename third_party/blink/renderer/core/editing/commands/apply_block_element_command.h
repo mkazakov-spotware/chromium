@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_COMMANDS_APPLY_BLOCK_ELEMENT_COMMAND_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_COMMANDS_APPLY_BLOCK_ELEMENT_COMMAND_H_
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/qualified_name.h"
 #include "third_party/blink/renderer/core/editing/commands/composite_edit_command.h"
 
@@ -74,4 +73,4 @@ class CORE_EXPORT ApplyBlockElementCommand : public CompositeEditCommand {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_COMMANDS_APPLY_BLOCK_ELEMENT_COMMAND_H_
+#endif

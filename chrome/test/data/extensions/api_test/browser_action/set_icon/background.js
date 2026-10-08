@@ -1,9 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 function getImageData() {
-  var canvas = new OffscreenCanvas(10, 100);
+  var canvas = document.createElement("canvas");
   var ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "green";

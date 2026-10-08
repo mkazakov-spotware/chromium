@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
 #include "build/build_config.h"
-#include "chrome/browser/accuracy_tips/accuracy_service_factory.h"
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
 #include "chrome/browser/profiles/profile.h"
@@ -18,15 +17,12 @@
 #include "chrome/browser/ui/login/login_tab_helper.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
-#include "components/accuracy_tips/accuracy_service.h"
 #include "components/google/core/common/google_util.h"
 #include "components/offline_pages/buildflags/buildflags.h"
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
-#include "components/omnibox/common/omnibox_features.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/core/common/features.h"
 #include "components/search/ntp_features.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
 #include "components/security_state/core/security_state.h"
@@ -37,9 +33,9 @@
 #include "content/public/common/url_constants.h"
 #include "extensions/common/constants.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 #include "components/omnibox/browser/vector_icons.h"  // nogncheck
-#endif
+#endif                                                // !defined(OS_ANDROID)
 
 #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
 #include "chrome/browser/offline_pages/offline_page_utils.h"
@@ -62,10 +58,10 @@ content::NavigationEntry* ChromeLocationBarModelDelegate::GetNavigationEntry()
   return controller ? controller->GetVisibleEntry() : nullptr;
 }
 
-std::u16string
+base::string16
 ChromeLocationBarModelDelegate::FormattedStringWithEquivalentMeaning(
     const GURL& url,
-    const std::u16string& formatted_url) const {
+    const base::string16& formatted_url) const {
   return AutocompleteInput::FormattedStringWithEquivalentMeaning(
       url, formatted_url, ChromeAutocompleteSchemeClassifier(GetProfile()),
       nullptr);
@@ -74,7 +70,7 @@ ChromeLocationBarModelDelegate::FormattedStringWithEquivalentMeaning(
 bool ChromeLocationBarModelDelegate::GetURL(GURL* url) const {
   DCHECK(url);
   content::NavigationEntry* entry = GetNavigationEntry();
-  if (!entry || entry->IsInitialEntry())
+  if (!entry)
     return false;
 
   *url = entry->GetVirtualURL();
@@ -85,8 +81,7 @@ bool ChromeLocationBarModelDelegate::ShouldPreventElision() {
   if (GetElisionConfig() != ELISION_CONFIG_DEFAULT) {
     return true;
   }
-
-  return net::IsCertStatusError(GetVisibleSecurityState()->cert_status);
+  return false;
 }
 
 bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {
@@ -98,7 +93,7 @@ bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {
   //   of view-source:chrome://newtab, which should display its URL despite what
   //   chrome://newtab says.
   content::NavigationEntry* entry = GetNavigationEntry();
-  if (!entry || entry->IsInitialEntry())
+  if (!entry)
     return true;
 
   security_interstitials::SecurityInterstitialTabHelper*
@@ -114,8 +109,10 @@ bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {
   if (login_tab_helper && login_tab_helper->IsShowingPrompt())
     return login_tab_helper->ShouldDisplayURL();
 
-  if (entry->IsViewSourceMode())
+  if (entry->IsViewSourceMode() ||
+      entry->GetPageType() == content::PAGE_TYPE_INTERSTITIAL) {
     return true;
+  }
 
   const auto is_ntp = [](const GURL& url) {
     return url.SchemeIs(content::kChromeUIScheme) &&
@@ -130,12 +127,6 @@ bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {
   return !profile || !search::IsInstantNTPURL(url, profile);
 }
 
-bool ChromeLocationBarModelDelegate::
-    ShouldUseUpdatedConnectionSecurityIndicators() const {
-  return base::FeatureList::IsEnabled(
-      omnibox::kUpdatedConnectionSecurityIndicators);
-}
-
 security_state::SecurityLevel ChromeLocationBarModelDelegate::GetSecurityLevel()
     const {
   content::WebContents* web_contents = GetActiveWebContents();
@@ -146,17 +137,6 @@ security_state::SecurityLevel ChromeLocationBarModelDelegate::GetSecurityLevel()
   }
   auto* helper = SecurityStateTabHelper::FromWebContents(web_contents);
   return helper->GetSecurityLevel();
-}
-
-net::CertStatus ChromeLocationBarModelDelegate::GetCertStatus() const {
-  content::WebContents* web_contents = GetActiveWebContents();
-  // If there is no active WebContents (which can happen during toolbar
-  // initialization), assume no cert status.
-  if (!web_contents) {
-    return 0;
-  }
-  auto* helper = SecurityStateTabHelper::FromWebContents(web_contents);
-  return helper->GetVisibleSecurityState()->cert_status;
 }
 
 std::unique_ptr<security_state::VisibleSecurityState>
@@ -174,14 +154,14 @@ ChromeLocationBarModelDelegate::GetVisibleSecurityState() const {
 scoped_refptr<net::X509Certificate>
 ChromeLocationBarModelDelegate::GetCertificate() const {
   content::NavigationEntry* entry = GetNavigationEntry();
-  if (!entry || entry->IsInitialEntry())
+  if (!entry)
     return scoped_refptr<net::X509Certificate>();
   return entry->GetSSL().certificate;
 }
 
 const gfx::VectorIcon* ChromeLocationBarModelDelegate::GetVectorIconOverride()
     const {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   GURL url;
   GetURL(&url);
 
@@ -208,7 +188,7 @@ bool ChromeLocationBarModelDelegate::IsOfflinePage() const {
 
 bool ChromeLocationBarModelDelegate::IsNewTabPage() const {
   content::NavigationEntry* const entry = GetNavigationEntry();
-  if (!entry || entry->IsInitialEntry())
+  if (!entry)
     return false;
 
   Profile* const profile = GetProfile();
@@ -218,7 +198,9 @@ bool ChromeLocationBarModelDelegate::IsNewTabPage() const {
   if (!search::DefaultSearchProviderIsGoogle(profile))
     return false;
 
-  GURL ntp_url(chrome::kChromeUINewTabPageURL);
+  GURL ntp_url(base::FeatureList::IsEnabled(ntp_features::kWebUI)
+                   ? chrome::kChromeUINewTabPageURL
+                   : chrome::kChromeSearchLocalNtpUrl);
   return ntp_url.scheme_piece() == entry->GetURL().scheme_piece() &&
          ntp_url.host_piece() == entry->GetURL().host_piece();
 }
@@ -233,28 +215,6 @@ bool ChromeLocationBarModelDelegate::IsHomePage(const GURL& url) const {
     return false;
 
   return url.spec() == profile->GetPrefs()->GetString(prefs::kHomePage);
-}
-
-bool ChromeLocationBarModelDelegate::IsShowingAccuracyTip() const {
-#if !BUILDFLAG(IS_ANDROID)
-  Profile* const profile = GetProfile();
-  if (!profile) {
-    return false;
-  }
-
-  content::WebContents* web_contents = GetActiveWebContents();
-  if (!web_contents) {
-    return false;
-  }
-
-  if (base::FeatureList::IsEnabled(safe_browsing::kAccuracyTipsFeature)) {
-    if (auto* accuracy_service =
-            AccuracyServiceFactory::GetForProfile(profile)) {
-      return accuracy_service->IsShowingAccuracyTip(web_contents);
-    }
-  }
-#endif
-  return false;
 }
 
 content::NavigationController*

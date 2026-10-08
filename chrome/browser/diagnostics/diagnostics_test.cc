@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 
@@ -37,7 +36,7 @@ bool DiagnosticsTest::Recover(DiagnosticsModel::Observer* observer,
   bool keep_going = RecoveryImpl(observer);
   result_ = keep_going ? DiagnosticsModel::RECOVERY_OK
                        : DiagnosticsModel::RECOVERY_FAIL_STOP;
-#if BUILDFLAG(IS_CHROMEOS_ASH)  // Only collecting UMA stats on ChromeOS
+#if defined(OS_CHROMEOS)  // Only collecting UMA stats on ChromeOS
   if (result_ == DiagnosticsModel::RECOVERY_OK) {
     RecordUMARecoveryResult(static_cast<DiagnosticsTestId>(GetId()),
                             RESULT_SUCCESS);
@@ -58,7 +57,7 @@ void DiagnosticsTest::RecordOutcome(int outcome_code,
   outcome_code_ = outcome_code;
   additional_info_ = additional_info;
   result_ = result;
-#if BUILDFLAG(IS_CHROMEOS_ASH)  // Only collecting UMA stats on ChromeOS
+#if defined(OS_CHROMEOS)  // Only collecting UMA stats on ChromeOS
   DiagnosticsTestId id = static_cast<DiagnosticsTestId>(GetId());
   if (result_ == DiagnosticsModel::TEST_OK) {
     // Record individual test success.

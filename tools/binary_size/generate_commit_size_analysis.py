@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -76,44 +76,71 @@ def _generate_supersize_archive(supersize_input_file, make_chromium_output_path,
 def main():
   parser = argparse.ArgumentParser()
 
-  # Schema for android_size_bot_config:
-  #   name: The name of the path to the generated size config JSON file.
-  #   archive_files: List of files to archive after building, and make available
-  #     to trybot_commit_size_checker.py.
-  #   mapping_files: A list of .mapping files.
-  #     Used by trybot_commit_size_checker.py to look for ForTesting symbols.
-  #   supersize_input_file: Main input for SuperSize, and can be {.apk,
-  #     .minimal.apks, .ssargs}.
-  #   to_resource_sizes_py: Scope containing data to pass to resource_sizes.py.
-  #      Its fields are:
-  #        * resource_size_args: A dict of arguments for resource_sizes.py. Its
-  #          sub-fields are:
-  #          * apk_name: Required main input, although for Trichrome this can be
-  #            a placeholder name.
-  #          * trichrome_library: --trichrome-library param (Trichrome only).
-  #          * trichrome_chrome: --trichrome-chrome param (Trichrome only).
-  #          * trichrome_webview: --trichrome-webview param (Trichrome only).
-  #        * supersize_input_file: Main input for SuperSize.
+  # A size config JSON specifies files relative to --chromium-output-directory.
+  # Its fields are:
+  # * mapping_files: A list of .mapping files, to be copied to --staging-dir for
+  #   SuperSize and trybot_commit_size_checker.py (indirectly). SuperSize
+  #   deduces mapping filenames; there's no need to pass these to it directly.
+  # * resource_size_args: A dict of arguments for resource_sizes.py. Its
+  #   sub-fields are:
+  #   * apk_name: Required main input, although for Trichrome this can be a
+  #     placeholder name.
+  #   * trichrome_library: --trichrome-library param (Trichrome only).
+  #   * trichrome_chrome: --trichrome-chrome param (Trichrome only).
+  #   * trichrome_webview: --trichrome-webview param (Trichrome only).
+  # * supersize_input_file: Main input for SuperSize, and can be {.apk,
+  #   .minimal.apks, .ssargs}. If .ssargs, then the file is copied to the
+  #   staging dir.
+  # * version: (Unused by this script) Used by build bots to determine whether
+  #   significant binary package restructure has occurred.
 
+  # --size-config-json will replace {--apk-name, --mapping-name}.
   parser.add_argument('--size-config-json',
-                      required=True,
-                      help='Path to android_size_bot_config JSON')
-  parser.add_argument('--chromium-output-directory',
-                      required=True,
-                      help='Location of the build artifacts.')
-  parser.add_argument('--staging-dir',
-                      required=True,
-                      help='Directory to write generated files to.')
+                      help='Path to JSON file with configs for binary size '
+                      'measurement.')
+
+  # Deprecated.
+  parser.add_argument(
+      '--apk-name',
+      help='Name of the apk (ex. Name.apk)',
+  )
+  # Deprecated.
+  parser.add_argument(
+      '--mapping-name',
+      action='append',
+      help='Filename of the proguard mapping file.',
+  )
+
+  parser.add_argument(
+      '--chromium-output-directory',
+      required=True,
+      help='Location of the build artifacts.',
+  )
+  parser.add_argument(
+      '--staging-dir',
+      required=True,
+      help='Directory to write generated files to.',
+  )
+
   args = parser.parse_args()
 
-  with open(args.size_config_json, 'rt') as fh:
-    config = json.load(fh)
-  to_resource_sizes_py = config['to_resource_sizes_py']
-  mapping_files = config['mapping_files']
-  supersize_input_file = config['supersize_input_file']
-  # TODO(agrieve): Remove fallback to mapping_files once archive_files is added
-  #     to all files.
-  archive_files = config.get('archive_files', mapping_files)
+  assert bool(args.size_config_json) != bool(
+      args.apk_name), ('Require exactly one of --size-config-json or the'
+                       ' {--apk-name, --mapping-name} group.')
+  assert bool(args.apk_name) == bool(args.mapping_name), (
+      'Require {--apk-name, --mapping-name} to be specified together.')
+
+  if args.size_config_json:
+    with open(args.size_config_json, 'rt') as fh:
+      config = json.load(fh)
+    to_resource_sizes_py = config['to_resource_sizes_py']
+    mapping_files = config['mapping_files']
+    supersize_input_file = config['supersize_input_file']
+  else:
+    # Deprecated flow. Add 'apks/' prefix for compatibility.
+    to_resource_sizes_py = {'apk_name': os.path.join('apks', args.apk_name)}
+    mapping_files = [os.path.join('apks', name) for name in args.mapping_name]
+    supersize_input_file = os.path.join('apks', args.apk_name)
 
   def make_chromium_output_path(path_rel_to_output=None):
     if path_rel_to_output is None:
@@ -126,17 +153,24 @@ def main():
       return args.staging_dir
     return os.path.join(args.staging_dir, os.path.basename(path_rel_to_output))
 
-  files_to_copy = [make_chromium_output_path(f) for f in archive_files]
-
-  # Copy size config JSON to staging dir to save settings used.
+  files_to_copy = [make_chromium_output_path(f) for f in mapping_files]
+  # Copy size config JSON and .ssargs to staging dir to save settings used.
   if args.size_config_json:
     files_to_copy.append(args.size_config_json)
+  if supersize_input_file.endswith('.ssargs'):
+    files_to_copy.append(make_chromium_output_path(supersize_input_file))
   _copy_files_to_staging_dir(files_to_copy, make_staging_path)
 
-  _generate_resource_sizes(to_resource_sizes_py, make_chromium_output_path,
-                           make_staging_path)
-  _generate_supersize_archive(supersize_input_file, make_chromium_output_path,
-                              make_staging_path)
+  _generate_resource_sizes(
+      to_resource_sizes_py,
+      make_chromium_output_path,
+      make_staging_path,
+  )
+  _generate_supersize_archive(
+      supersize_input_file,
+      make_chromium_output_path,
+      make_staging_path,
+  )
 
 
 if __name__ == '__main__':

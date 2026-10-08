@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.view.ActionMode;
 import android.view.textclassifier.TextClassifier;
 
-import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.content.browser.selection.SelectionPopupControllerImpl;
 import org.chromium.ui.base.WindowAndroid;
 
@@ -52,7 +51,7 @@ public interface SelectionPopupController {
      * Set {@link ActionMode.Callback} used by {@link SelectionPopupController}.
      * @param callback ActionMode.Callback instance.
      */
-    void setActionModeCallback(ActionMode.Callback2 callback);
+    void setActionModeCallback(ActionMode.Callback callback);
 
     /**
      * Set {@link ActionMode.Callback} used by {@link SelectionPopupController} when no text is
@@ -87,12 +86,6 @@ public interface SelectionPopupController {
     void destroySelectActionMode();
 
     boolean isSelectActionBarShowing();
-
-    /**
-     * @return An {@link ObservableSupplier<Boolean>} which holds true when a selection action bar
-     *         is showing; otherwise, it holds false.
-     */
-    ObservableSupplier<Boolean> isSelectActionBarShowingSupplier();
 
     /**
      * @return {@link ActionModeCallbackHelper} object.

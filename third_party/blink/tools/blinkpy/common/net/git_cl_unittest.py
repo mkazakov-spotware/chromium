@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors
+# Copyright 2016 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,10 +6,9 @@ import unittest
 
 from blinkpy.common.host_mock import MockHost
 from blinkpy.common.net.results_fetcher import Build
-from blinkpy.common.net.rpc import (RESPONSE_PREFIX as
-                                    SEARCHBUILDS_RESPONSE_PREFIX)
 from blinkpy.common.net.git_cl import CLStatus
 from blinkpy.common.net.git_cl import GitCL
+from blinkpy.common.net.git_cl import SEARCHBUILDS_RESPONSE_PREFIX
 from blinkpy.common.net.git_cl import TryJobStatus
 from blinkpy.common.net.web_mock import MockWeb
 from blinkpy.common.system.executive_mock import MockExecutive
@@ -109,11 +108,13 @@ class GitCLTest(unittest.TestCase):
         self.assertEqual(git_cl.get_issue_number(), 'None')
 
     def test_wait_for_try_jobs_timeout(self):
+        host = MockHost()
+        git_cl = GitCL(host)
         response = {
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                 "builds": [
                     {
                         "status": "STARTED",
@@ -126,9 +127,7 @@ class GitCLTest(unittest.TestCase):
             }"""
         }
         # Specify the same response 10 times to ensure each poll gets ones.
-        web = MockWeb(responses=[response] * 10)
-        host = MockHost(web=web)
-        git_cl = GitCL(host)
+        git_cl._host.web = MockWeb(responses=[response] * 10)
         self.assertIsNone(git_cl.wait_for_try_jobs())
         self.assertEqual(
             host.stdout.getvalue(),
@@ -142,14 +141,15 @@ class GitCLTest(unittest.TestCase):
             'Timed out waiting for try jobs.\n')
 
     def test_wait_for_try_jobs_no_results_not_considered_finished(self):
+        host = MockHost()
+        git_cl = GitCL(host)
+        # git_cl.fetch_raw_try_job_results = lambda **_: []
         response = {
             'status_code': 200,
-            'body': SEARCHBUILDS_RESPONSE_PREFIX + b"{}"
+            'body': SEARCHBUILDS_RESPONSE_PREFIX + "{}"
         }
         # Specify the same response 10 times to ensure each poll gets ones.
-        web = MockWeb(responses=[response] * 10)
-        host = MockHost(web=web)
-        git_cl = GitCL(host)
+        git_cl._host.web = MockWeb(responses=[response] * 10)
         self.assertIsNone(git_cl.wait_for_try_jobs())
         self.assertEqual(
             host.stdout.getvalue(),
@@ -163,11 +163,14 @@ class GitCLTest(unittest.TestCase):
             'Timed out waiting for try jobs.\n')
 
     def test_wait_for_try_jobs_cl_closed(self):
-        web = MockWeb(responses=[{
+        host = MockHost()
+        host.executive = MockExecutive(output='closed')
+        git_cl = GitCL(host)
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "STARTED",
@@ -178,9 +181,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        host = MockHost(web=web)
-        host.executive = MockExecutive(output='closed')
-        git_cl = GitCL(host)
         self.assertEqual(
             git_cl.wait_for_try_jobs(),
             CLStatus(
@@ -193,11 +193,14 @@ class GitCLTest(unittest.TestCase):
                          'Waiting for try jobs, timeout: 7200 seconds.\n')
 
     def test_wait_for_try_jobs_done(self):
-        web = MockWeb(responses=[{
+        host = MockHost()
+        host.executive = MockExecutive(output='lgtm')
+        git_cl = GitCL(host)
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "FAILURE",
@@ -209,9 +212,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        host = MockHost(web=web)
-        host.executive = MockExecutive(output='lgtm')
-        git_cl = GitCL(host)
         self.assertEqual(
             git_cl.wait_for_try_jobs(),
             CLStatus(
@@ -290,11 +290,12 @@ class GitCLTest(unittest.TestCase):
             }))
 
     def test_latest_try_jobs_cq_only(self):
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "SCHEDULED",
@@ -367,7 +368,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         self.assertEqual(
             git_cl.latest_try_jobs(cq_only=True), {
                 Build('cq-a'): TryJobStatus('SCHEDULED'),
@@ -378,27 +378,26 @@ class GitCLTest(unittest.TestCase):
     def test_latest_try_jobs(self):
         # Here we have multiple builds with the same name, but we only take the
         # latest one (based on build number).
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "SUCCESS",
                             "builder": {
                                 "builder": "builder-b"
                             },
-                            "number": 100,
-                            "id": "100"
+                            "number": 100
                         },
                         {
                             "status": "SUCCESS",
                             "builder": {
                                 "builder": "builder-b"
                             },
-                            "number": 90,
-                            "id": "90"
+                            "number": 90
                         },
                         {
                             "status": "SCHEDULED",
@@ -411,25 +410,24 @@ class GitCLTest(unittest.TestCase):
                             "builder": {
                                 "builder": "builder-c"
                             },
-                            "number": 123,
-                            "id": "123"
+                            "number": 123
                         }
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         self.assertEqual(
             git_cl.latest_try_jobs(builder_names=['builder-a', 'builder-b']), {
                 Build('builder-a'): TryJobStatus('SCHEDULED'),
-                Build('builder-b', 100, "100"): TryJobStatus('COMPLETED', 'SUCCESS'),
+                Build('builder-b', 100): TryJobStatus('COMPLETED', 'SUCCESS'),
             })
 
     def test_latest_try_jobs_started(self):
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "STARTED",
@@ -441,17 +439,17 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         self.assertEqual(
             git_cl.latest_try_jobs(builder_names=['builder-a']),
             {Build('builder-a', 100): TryJobStatus('STARTED')})
 
     def test_latest_try_jobs_failures(self):
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "FAILURE",
@@ -470,7 +468,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         self.assertEqual(
             git_cl.latest_try_jobs(builder_names=['builder-a', 'builder-b']), {
                 Build('builder-a', 100): TryJobStatus('COMPLETED', 'FAILURE'),
@@ -493,11 +490,12 @@ class GitCLTest(unittest.TestCase):
         self.assertIsNone(GitCL.filter_latest(None))
 
     def test_try_job_results_with_other_builder(self):
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "FAILURE",
@@ -512,7 +510,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         # We ignore builders that we explicitly don't care about;
         # so if we only care about other-builder, not builder-a,
         # then no exception is raised.
@@ -520,11 +517,12 @@ class GitCLTest(unittest.TestCase):
             git_cl.try_job_results(builder_names=['other-builder']), {})
 
     def test_try_job_results(self):
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "SUCCESS",
@@ -553,7 +551,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         self.assertEqual(
             git_cl.try_job_results(issue_number=None),
             {
@@ -567,11 +564,12 @@ class GitCLTest(unittest.TestCase):
             })
 
     def test_try_job_results_skip_experimental_cq(self):
-        web = MockWeb(responses=[{
+        git_cl = GitCL(MockHost())
+        git_cl._host.web = MockWeb(responses=[{
             'status_code':
             200,
             'body':
-            SEARCHBUILDS_RESPONSE_PREFIX + b"""{
+            SEARCHBUILDS_RESPONSE_PREFIX + """{
                     "builds": [
                         {
                             "status": "SUCCESS",
@@ -597,7 +595,6 @@ class GitCLTest(unittest.TestCase):
                     ]
                 }"""
         }])
-        git_cl = GitCL(MockHost(web=web))
         self.assertEqual(
             # Only one build appears - builder-b is ignored because it is
             # experimental.

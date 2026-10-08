@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,13 @@
 
 #include <stdint.h>
 
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "content/browser/renderer_host/render_view_host_factory.h"
 
 namespace content {
 
-class AgentSchedulingGroupHostFactory;
-class SiteInstanceGroup;
+class SiteInstance;
 class RenderViewHostDelegate;
 class RenderProcessHostFactory;
 
@@ -22,27 +23,22 @@ class RenderProcessHostFactory;
 // registered at a time, you can only have one of these objects at a time.
 class TestRenderViewHostFactory : public RenderViewHostFactory {
  public:
-  TestRenderViewHostFactory(RenderProcessHostFactory* rph_factory,
-                            AgentSchedulingGroupHostFactory* asgh_factory);
-
-  TestRenderViewHostFactory(const TestRenderViewHostFactory&) = delete;
-  TestRenderViewHostFactory& operator=(const TestRenderViewHostFactory&) =
-      delete;
-
+  explicit TestRenderViewHostFactory(RenderProcessHostFactory* rph_factory);
   ~TestRenderViewHostFactory() override;
 
   virtual void set_render_process_host_factory(
       RenderProcessHostFactory* rph_factory);
   RenderViewHost* CreateRenderViewHost(
-      FrameTree* frame_tree,
-      SiteInstanceGroup* group,
-      const StoragePartitionConfig& storage_partition_config,
+      SiteInstance* instance,
       RenderViewHostDelegate* delegate,
       RenderWidgetHostDelegate* widget_delegate,
       int32_t routing_id,
       int32_t main_frame_routing_id,
       int32_t widget_routing_id,
-      scoped_refptr<BrowsingContextState> main_browsing_context_state) override;
+      bool swapped_out) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestRenderViewHostFactory);
 };
 
 }  // namespace content

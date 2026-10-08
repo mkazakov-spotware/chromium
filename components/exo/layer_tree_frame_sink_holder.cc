@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/layer_tree_frame_sink_holder.h"
 
-#include "base/containers/contains.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "cc/trees/layer_tree_frame_sink.h"
 #include "components/exo/surface_tree_host.h"
 #include "components/viz/common/frame_timing_details.h"
@@ -62,7 +62,8 @@ void LayerTreeFrameSinkHolder::DeleteWhenLastResourceHasBeenReclaimed(
   frame.render_pass_list.push_back(std::move(pass));
   holder->last_frame_resources_.clear();
   holder->frame_sink_->SubmitCompositorFrame(std::move(frame),
-                                             /*hit_test_data_changed=*/true);
+                                             /*hit_test_data_changed=*/true,
+                                             /*show_hit_test_borders=*/false);
 
   // Delete sink holder immediately if not waiting for resources to be
   // reclaimed.
@@ -91,32 +92,33 @@ void LayerTreeFrameSinkHolder::SubmitCompositorFrame(
   for (auto& resource : frame.resource_list)
     last_frame_resources_.push_back(resource.id);
   frame_sink_->SubmitCompositorFrame(std::move(frame),
-                                     /*hit_test_data_changed=*/true);
+                                     /*hit_test_data_changed=*/true,
+                                     /*show_hit_test_borders=*/false);
 }
 
 void LayerTreeFrameSinkHolder::DidNotProduceFrame(
     const viz::BeginFrameAck& ack) {
   DCHECK(!is_lost_);
-  frame_sink_->DidNotProduceFrame(ack, cc::FrameSkippedReason::kNoDamage);
+  frame_sink_->DidNotProduceFrame(ack);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // cc::LayerTreeFrameSinkClient overrides:
 
-absl::optional<viz::HitTestRegionList>
+base::Optional<viz::HitTestRegionList>
 LayerTreeFrameSinkHolder::BuildHitTestData() {
   return {};
 }
 
 void LayerTreeFrameSinkHolder::ReclaimResources(
-    std::vector<viz::ReturnedResource> resources) {
+    const std::vector<viz::ReturnedResource>& resources) {
   for (auto& resource : resources) {
     // Skip resources that are also in last frame. This can happen if
     // the frame sink id changed.
     if (base::Contains(last_frame_resources_, resource.id)) {
       continue;
     }
-    resource_manager_.ReclaimResource(std::move(resource));
+    resource_manager_.ReclaimResource(resource);
   }
 
   if (lifetime_manager_ && resource_manager_.HasNoCallbacks())
@@ -153,8 +155,7 @@ void LayerTreeFrameSinkHolder::ScheduleDelete() {
   if (delete_pending_)
     return;
   delete_pending_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                this);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, this);
 }
 
 void LayerTreeFrameSinkHolder::OnDestroyed() {

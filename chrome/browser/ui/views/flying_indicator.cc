@@ -1,15 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/flying_indicator.h"
 
-#include "base/memory/ptr_util.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/themes/theme_properties.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "ui/accessibility/ax_enums.mojom-shared.h"
-#include "ui/color/color_provider.h"
+#include "ui/base/theme_provider.h"
 #include "ui/gfx/geometry/cubic_bezier.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
@@ -19,9 +17,12 @@
 #include "ui/views/window/dialog_delegate.h"
 
 namespace {
-static constexpr base::TimeDelta kFadeInDuration = base::Milliseconds(100);
-static constexpr base::TimeDelta kFlyDuration = base::Milliseconds(580);
-static constexpr base::TimeDelta kFadeOutDuration = base::Milliseconds(100);
+static constexpr base::TimeDelta kFadeInDuration =
+    base::TimeDelta::FromMilliseconds(100);
+static constexpr base::TimeDelta kFlyDuration =
+    base::TimeDelta::FromMilliseconds(580);
+static constexpr base::TimeDelta kFadeOutDuration =
+    base::TimeDelta::FromMilliseconds(100);
 }  // namespace
 
 // static
@@ -40,11 +41,14 @@ FlyingIndicator::FlyingIndicator(const gfx::VectorIcon& icon,
                                  base::OnceClosure done_callback)
     : start_(start),
       target_(target),
-      animation_(std::vector<gfx::MultiAnimation::Part>{
-          gfx::MultiAnimation::Part(kFadeInDuration, gfx::Tween::Type::LINEAR),
-          gfx::MultiAnimation::Part(kFlyDuration, gfx::Tween::Type::LINEAR),
-          gfx::MultiAnimation::Part(kFadeOutDuration,
-                                    gfx::Tween::Type::LINEAR)}),
+      animation_(
+          std::vector<gfx::MultiAnimation::Part>{
+              gfx::MultiAnimation::Part(kFadeInDuration,
+                                        gfx::Tween::Type::LINEAR),
+              gfx::MultiAnimation::Part(kFlyDuration, gfx::Tween::Type::LINEAR),
+              gfx::MultiAnimation::Part(kFadeOutDuration,
+                                        gfx::Tween::Type::LINEAR)},
+          gfx::MultiAnimation::kDefaultTimerInterval),
       done_callback_(std::move(done_callback)) {
   animation_.set_delegate(this);
   animation_.set_continuous(false);
@@ -52,13 +56,13 @@ FlyingIndicator::FlyingIndicator(const gfx::VectorIcon& icon,
   std::unique_ptr<views::BubbleDialogDelegateView> bubble_view =
       std::make_unique<views::BubbleDialogDelegateView>(
           target, views::BubbleBorder::Arrow::FLOAT,
-          views::BubbleBorder::Shadow::STANDARD_SHADOW);
+          views::BubbleBorder::Shadow::SMALL_SHADOW);
 
-  const auto* color_provider = target_->GetColorProvider();
+  const ui::ThemeProvider* theme_provider = target_->GetThemeProvider();
   const SkColor foreground_color =
-      color_provider->GetColor(kColorFlyingIndicatorForeground);
+      theme_provider->GetColor(ThemeProperties::COLOR_TOOLBAR_BUTTON_ICON);
   const SkColor background_color =
-      color_provider->GetColor(kColorFlyingIndicatorBackground);
+      theme_provider->GetColor(ThemeProperties::COLOR_TOOLBAR);
 
   // Set the bubble properties.
   bubble_view->SetAccessibleRole(ax::mojom::Role::kNone);
@@ -80,14 +84,14 @@ FlyingIndicator::FlyingIndicator(const gfx::VectorIcon& icon,
       gfx::CreateVectorIcon(kWebIcon, kIconSize, foreground_color));
   link_image->SetPreferredSize(gfx::Size(kBubbleSize, kBubbleSize));
 
-  // Use the default fill layout because there's only one child view.
-  bubble_view->SetUseDefaultFillLayout(true);
+  // Use a fill layout because there's only one child view.
+  bubble_view->SetLayoutManager(std::make_unique<views::FillLayout>());
 
   // Create the bubble.
   views::BubbleDialogDelegateView* const bubble_view_ptr = bubble_view.get();
   widget_ =
       views::BubbleDialogDelegateView::CreateBubble(std::move(bubble_view));
-  scoped_observation_.Observe(widget_.get());
+  scoped_observer_.Add(widget_);
 
   // Set required frame properties.
   views::BubbleFrameView* const frame_view =
@@ -107,7 +111,7 @@ FlyingIndicator::FlyingIndicator(const gfx::VectorIcon& icon,
 FlyingIndicator::~FlyingIndicator() {
   // Kill the callback before deleting the widget so we don't call it.
   done_callback_.Reset();
-  scoped_observation_.Reset();
+  scoped_observer_.RemoveAll();
   if (widget_)
     widget_->Close();
 }
@@ -115,8 +119,7 @@ FlyingIndicator::~FlyingIndicator() {
 void FlyingIndicator::OnWidgetDestroyed(views::Widget* widget) {
   if (widget != widget_)
     return;
-  DCHECK(scoped_observation_.IsObserving());
-  scoped_observation_.Reset();
+  scoped_observer_.Remove(widget_);
   widget_ = nullptr;
   animation_.Stop();
   if (done_callback_)
@@ -179,8 +182,7 @@ void FlyingIndicator::AnimationEnded(const gfx::Animation* animation) {
   if (done_callback_)
     std::move(done_callback_).Run();
   if (widget_) {
-    DCHECK(scoped_observation_.IsObserving());
-    scoped_observation_.Reset();
+    scoped_observer_.Remove(widget_);
     widget_->Close();
     widget_ = nullptr;
   }

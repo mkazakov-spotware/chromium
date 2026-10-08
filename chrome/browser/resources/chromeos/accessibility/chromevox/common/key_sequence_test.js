@@ -1,13 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-GEN_INCLUDE(['../../common/testing/accessibility_test_base.js']);
 
 /**
  * Test fixture.
  */
-ChromeVoxKeySequenceUnitTest = class extends AccessibilityTestBase {
+ChromeVoxKeySequenceUnitTest = class extends testing.Test {
   /**
    * Create mock event object.
    * @param {number} keyCode The event key code (i.e. 13 for Enter).
@@ -66,15 +64,9 @@ ChromeVoxKeySequenceUnitTest = class extends AccessibilityTestBase {
   }
 
   /** @override */
-  async setUpDeferred() {
-    await super.setUpDeferred();
-
-    // Alphabetical based on file path.
-    await importModule('KeyCode', '/common/key_code.js');
-    await importModule('KeySequence', '/chromevox/common/key_sequence.js');
-
+  setUp() {
     // Set up mock ChromeVox modifier
-    KeySequence.modKeyStr = 'Alt';
+    ChromeVox.modKeyStr = 'Alt';
 
     // Use these mock events in the tests:
 
@@ -156,7 +148,10 @@ ChromeVoxKeySequenceUnitTest = class extends AccessibilityTestBase {
 ChromeVoxKeySequenceUnitTest.prototype.extraLibraries = [
   '../../common/testing/assert_additions.js',
   '../../common/closure_shim.js',
+  '../../common/key_code.js',
   '../testing/fake_dom.js',
+  '../common/chromevox.js',
+  'key_sequence.js',
 ];
 
 TEST_F('ChromeVoxKeySequenceUnitTest', 'SimpleSequenceNoModifier', function() {
@@ -443,8 +438,8 @@ TEST_F('ChromeVoxKeySequenceUnitTest', 'Deserialize', function() {
       'altGraphKey': [false],
       'shiftKey': [false],
       'metaKey': [false],
-      'keyCode': [KeyCode.DOWN],
-    },
+      'keyCode': [KeyCode.DOWN]
+    }
   });
   assertTrue(forwardSequence.cvoxModifier);
   assertEqualsJSON(forwardSequence.keys.keyCode, [KeyCode.DOWN]);
@@ -460,8 +455,8 @@ TEST_F('ChromeVoxKeySequenceUnitTest', 'Deserialize', function() {
       'altGraphKey': [false],
       'shiftKey': [false],
       'metaKey': [false],
-      'keyCode': [KeyCode.CONTROL],
-    },
+      'keyCode': [KeyCode.CONTROL]
+    }
   });
   assertEqualsJSON(ctrlSequence.keys.ctrlKey, [true]);
   assertEqualsJSON(ctrlSequence.keys.keyCode, [KeyCode.CONTROL]);
@@ -469,7 +464,7 @@ TEST_F('ChromeVoxKeySequenceUnitTest', 'Deserialize', function() {
 
 TEST_F(
     'ChromeVoxKeySequenceUnitTest', 'DeserializeAltShiftCvoxMod', function() {
-      KeySequence.modKeyStr = 'Alt+Shift';
+      ChromeVox.modKeyStr = 'Alt+Shift';
 
       // Build a key sequence that does not strip modifiers when deserializing.
       // This feature is important for sequences that contain part or all of the
@@ -493,7 +488,7 @@ TEST_F('ChromeVoxKeySequenceUnitTest', 'DeserializeSearchCvoxMod', function() {
   // runtime both contain the bare cvox modifier as a key code such as in the
   // case of the Search sticky key and Search cvox modifier. Stripping happens
   // by default for key events at runtime.
-  KeySequence.modKeyStr = 'Search';
+  ChromeVox.modKeyStr = 'Search';
 
   // First, assert that unstripped seqs imply various modifier fields get set.
   let stickySeq = KeySequence.deserialize({keys: {keyCode: [KeyCode.SEARCH]}});

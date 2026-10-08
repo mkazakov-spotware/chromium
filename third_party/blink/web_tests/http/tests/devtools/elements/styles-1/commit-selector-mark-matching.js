@@ -1,11 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(
       `Tests that matching selectors are marked properly after new rule creation and selector change.\n`);
-  await TestRunner.loadLegacyModule('elements'); await TestRunner.loadTestModule('elements_test_runner');
+  await TestRunner.loadModule('elements_test_runner');
   await TestRunner.showPanel('elements');
   await TestRunner.loadHTML(`
       <div id="inspected"></div>
@@ -24,7 +24,7 @@
 
       function nodeCallback(node) {
         nodeId = node.id;
-        stylesPane = UI.panels.elements.stylesWidget;
+        stylesPane = UI.panels.elements._stylesWidget;
         ElementsTestRunner.addNewRule('foo, #inspected, .bar, #inspected', callback);
       }
 
@@ -37,7 +37,7 @@
     function changeSelector(next) {
       var section = ElementsTestRunner.firstMatchedStyleSection();
       section.startEditingSelector();
-      var selectorElement = section.selectorElement;
+      var selectorElement = section._selectorElement;
       selectorElement.textContent = '#inspected, a, hr';
       ElementsTestRunner.waitForSelectorCommitted(callback);
       selectorElement.dispatchEvent(TestRunner.createKeyEvent('Enter'));

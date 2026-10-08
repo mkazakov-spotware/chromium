@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,17 +27,16 @@ void ForceYouTubeSafetyModePolicyHandler::ApplyPolicySettings(
     PrefValueMap* prefs) {
   // If only the deprecated ForceYouTubeSafetyMode policy is set,
   // but not ForceYouTubeRestrict, set ForceYouTubeRestrict to Moderate.
-  if (policies.GetValue(key::kForceYouTubeRestrict, base::Value::Type::INTEGER))
+  if (policies.GetValue(key::kForceYouTubeRestrict))
     return;
 
-  const base::Value* value =
-      policies.GetValue(policy_name(), base::Value::Type::BOOLEAN);
-  if (value) {
+  const base::Value* value = policies.GetValue(policy_name());
+  bool enabled;
+  if (value && value->GetAsBoolean(&enabled)) {
     prefs->SetValue(
         prefs::kForceYouTubeRestrict,
-        base::Value(value->GetBool()
-                        ? safe_search_util::YOUTUBE_RESTRICT_MODERATE
-                        : safe_search_util::YOUTUBE_RESTRICT_OFF));
+        base::Value(enabled ? safe_search_util::YOUTUBE_RESTRICT_MODERATE
+                            : safe_search_util::YOUTUBE_RESTRICT_OFF));
   }
 }
 

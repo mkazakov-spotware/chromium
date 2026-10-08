@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -13,6 +21,7 @@
 goog.provide('goog.graphics.VmlGraphics');
 
 
+goog.require('goog.array');
 goog.require('goog.dom.TagName');
 goog.require('goog.dom.safe');
 goog.require('goog.events');
@@ -37,19 +46,6 @@ goog.require('goog.string');
 goog.require('goog.string.Const');
 goog.require('goog.style');
 goog.require('goog.userAgent');
-goog.requireType('goog.dom.DomHelper');
-goog.requireType('goog.events.BrowserEvent');
-goog.requireType('goog.graphics.AffineTransform');
-goog.requireType('goog.graphics.Element');
-goog.requireType('goog.graphics.EllipseElement');
-goog.requireType('goog.graphics.Fill');
-goog.requireType('goog.graphics.GroupElement');
-goog.requireType('goog.graphics.ImageElement');
-goog.requireType('goog.graphics.PathElement');
-goog.requireType('goog.graphics.RectElement');
-goog.requireType('goog.graphics.Stroke');
-goog.requireType('goog.graphics.StrokeAndFillElement');
-goog.requireType('goog.graphics.TextElement');
 
 
 
@@ -74,7 +70,6 @@ goog.requireType('goog.graphics.TextElement');
  */
 goog.graphics.VmlGraphics = function(
     width, height, opt_coordWidth, opt_coordHeight, opt_domHelper) {
-  'use strict';
   goog.graphics.AbstractGraphics.call(
       this, width, height, opt_coordWidth, opt_coordHeight, opt_domHelper);
   this.handler_ = new goog.events.EventHandler(this);
@@ -131,7 +126,6 @@ goog.graphics.VmlGraphics.COORD_MULTIPLIER = 100;
  * @return {string} The position adjusted for COORD_MULTIPLIER.
  */
 goog.graphics.VmlGraphics.toCssSize = function(size) {
-  'use strict';
   return typeof size === 'string' && goog.string.endsWith(size, '%') ?
       size :
       parseFloat(size.toString()) + 'px';
@@ -149,7 +143,6 @@ goog.graphics.VmlGraphics.toCssSize = function(size) {
  * @return {number} The position adjusted for COORD_MULTIPLIER.
  */
 goog.graphics.VmlGraphics.toPosCoord = function(number) {
-  'use strict';
   return Math.round(
       (parseFloat(number.toString()) - 0.5) *
       goog.graphics.VmlGraphics.COORD_MULTIPLIER);
@@ -167,7 +160,6 @@ goog.graphics.VmlGraphics.toPosCoord = function(number) {
  * @return {string} The position with suffix 'px'.
  */
 goog.graphics.VmlGraphics.toPosPx = function(number) {
-  'use strict';
   return goog.graphics.VmlGraphics.toPosCoord(number) + 'px';
 };
 
@@ -183,7 +175,6 @@ goog.graphics.VmlGraphics.toPosPx = function(number) {
  * @return {number} The size multiplied by the correct factor.
  */
 goog.graphics.VmlGraphics.toSizeCoord = function(number) {
-  'use strict';
   return Math.round(
       parseFloat(number.toString()) *
       goog.graphics.VmlGraphics.COORD_MULTIPLIER);
@@ -201,7 +192,6 @@ goog.graphics.VmlGraphics.toSizeCoord = function(number) {
  * @return {string} The size with suffix 'px'.
  */
 goog.graphics.VmlGraphics.toSizePx = function(number) {
-  'use strict';
   return goog.graphics.VmlGraphics.toSizeCoord(number) + 'px';
 };
 
@@ -215,7 +205,6 @@ goog.graphics.VmlGraphics.toSizePx = function(number) {
  * @param {string} value The value to set it to.
  */
 goog.graphics.VmlGraphics.setAttribute = function(element, name, value) {
-  'use strict';
   if (goog.graphics.VmlGraphics.IE8_MODE_) {
     element[name] = value;
   } else {
@@ -238,7 +227,6 @@ goog.graphics.VmlGraphics.prototype.handler_;
  * @return {!Element} The created element.
  */
 goog.graphics.VmlGraphics.prototype.createVmlElement = function(tagName) {
-  'use strict';
   var element = this.dom_.createElement(
       goog.graphics.VmlGraphics.VML_PREFIX_ + ':' + tagName);
   element.id = goog.string.createUniqueString();
@@ -254,7 +242,6 @@ goog.graphics.VmlGraphics.prototype.createVmlElement = function(tagName) {
  * @return {Element} The element with the given id, or null if none is found.
  */
 goog.graphics.VmlGraphics.prototype.getVmlElement = function(id) {
-  'use strict';
   return this.dom_.getElement(id);
 };
 
@@ -265,7 +252,6 @@ goog.graphics.VmlGraphics.prototype.getVmlElement = function(id) {
  * @private
  */
 goog.graphics.VmlGraphics.prototype.updateGraphics_ = function() {
-  'use strict';
   if (goog.graphics.VmlGraphics.IE8_MODE_ && this.isInDocument()) {
     // There's a risk of mXSS here, as the browser is not guaranteed to
     // return the HTML that was originally written, when innerHTML is read.
@@ -290,9 +276,8 @@ goog.graphics.VmlGraphics.prototype.updateGraphics_ = function() {
  * @private
  */
 goog.graphics.VmlGraphics.prototype.append_ = function(element, opt_group) {
-  'use strict';
   var parent = opt_group || this.canvasElement;
-  parent.getElement().appendChild(/** @type {!Node} */ (element.getElement()));
+  parent.getElement().appendChild(element.getElement());
   this.updateGraphics_();
 };
 
@@ -305,7 +290,6 @@ goog.graphics.VmlGraphics.prototype.append_ = function(element, opt_group) {
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 goog.graphics.VmlGraphics.prototype.setElementFill = function(element, fill) {
-  'use strict';
   var vmlElement = element.getElement();
   goog.graphics.VmlGraphics.removeFill_(vmlElement);
   if (fill instanceof goog.graphics.SolidFill) {
@@ -360,7 +344,6 @@ goog.graphics.VmlGraphics.prototype.setElementFill = function(element, fill) {
  */
 goog.graphics.VmlGraphics.prototype.setElementStroke = function(
     element, stroke) {
-  'use strict';
   var vmlElement = element.getElement();
   if (stroke) {
     vmlElement.stroked = true;
@@ -402,7 +385,6 @@ goog.graphics.VmlGraphics.prototype.setElementStroke = function(
  */
 goog.graphics.VmlGraphics.prototype.setElementTransform = function(
     element, x, y, angle, centerX, centerY) {
-  'use strict';
   var el = element.getElement();
 
   el.style.left = goog.graphics.VmlGraphics.toPosPx(x);
@@ -425,7 +407,6 @@ goog.graphics.VmlGraphics.prototype.setElementTransform = function(
  */
 goog.graphics.VmlGraphics.prototype.setElementAffineTransform = function(
     element, affineTransform) {
-  'use strict';
   var t = affineTransform;
   var vmlElement = element.getElement();
   goog.graphics.VmlGraphics.removeSkew_(vmlElement);
@@ -454,19 +435,12 @@ goog.graphics.VmlGraphics.prototype.setElementAffineTransform = function(
  * @private
  */
 goog.graphics.VmlGraphics.removeSkew_ = function(element) {
-  'use strict';
-  Array.prototype.forEach.call(
-      element.childNodes,
-      /**
-        @suppress {strictMissingProperties} Part of the
-        go/strict_warnings_migration
-      */
-      function(child) {
-        'use strict';
-        if (child.tagName == 'skew') {
-          element.removeChild(child);
-        }
-      });
+  goog.array.forEach(element.childNodes, /** @suppress {strictMissingProperties} Part of the go/strict_warnings_migration */
+                                         function(child) {
+    if (child.tagName == 'skew') {
+      element.removeChild(child);
+    }
+  });
 };
 
 
@@ -476,20 +450,13 @@ goog.graphics.VmlGraphics.removeSkew_ = function(element) {
  * @private
  */
 goog.graphics.VmlGraphics.removeFill_ = function(element) {
-  'use strict';
   element.fillcolor = '';
-  Array.prototype.forEach.call(
-      element.childNodes,
-      /**
-         @suppress {strictMissingProperties} Part of the
-         go/strict_warnings_migration
-       */
-      function(child) {
-        'use strict';
-        if (child.tagName == 'fill') {
-          element.removeChild(child);
-        }
-      });
+  goog.array.forEach(element.childNodes, /** @suppress {strictMissingProperties} Part of the go/strict_warnings_migration */
+                                         function(child) {
+    if (child.tagName == 'fill') {
+      element.removeChild(child);
+    }
+  });
 };
 
 
@@ -506,7 +473,6 @@ goog.graphics.VmlGraphics.removeFill_ = function(element) {
  */
 goog.graphics.VmlGraphics.setPositionAndSize = function(
     element, left, top, width, height) {
-  'use strict';
   var style = element.style;
   style.position = 'absolute';
   style.left = goog.graphics.VmlGraphics.toPosPx(left);
@@ -529,7 +495,6 @@ goog.graphics.VmlGraphics.setPositionAndSize = function(
  * @private
  */
 goog.graphics.VmlGraphics.prototype.createFullSizeElement_ = function(type) {
-  'use strict';
   var element = this.createVmlElement(type);
   var size = this.getCoordSize();
   goog.graphics.VmlGraphics.setPositionAndSize(
@@ -560,7 +525,6 @@ if (goog.userAgent.IE) {
  * @override
  */
 goog.graphics.VmlGraphics.prototype.createDom = function() {
-  'use strict';
   var doc = this.dom_.getDocument();
 
   // Add the namespace.
@@ -633,7 +597,6 @@ goog.graphics.VmlGraphics.prototype.createDom = function() {
  * @private
  */
 goog.graphics.VmlGraphics.prototype.handleContainerResize_ = function() {
-  'use strict';
   var size = goog.style.getSize(this.getElement());
   var style = this.canvasElement.getElement().style;
 
@@ -662,7 +625,6 @@ goog.graphics.VmlGraphics.prototype.handleContainerResize_ = function() {
  * @private
  */
 goog.graphics.VmlGraphics.prototype.handlePropertyChange_ = function(e) {
-  'use strict';
   var prop = e.getBrowserEvent().propertyName;
   if (prop == 'display' || prop == 'className') {
     this.handler_.unlisten(
@@ -680,7 +642,6 @@ goog.graphics.VmlGraphics.prototype.handlePropertyChange_ = function(e) {
  * @override
  */
 goog.graphics.VmlGraphics.prototype.setCoordOrigin = function(left, top) {
-  'use strict';
   this.coordLeft = left;
   this.coordTop = top;
 
@@ -698,7 +659,6 @@ goog.graphics.VmlGraphics.prototype.setCoordOrigin = function(left, top) {
  */
 goog.graphics.VmlGraphics.prototype.setCoordSize = function(
     coordWidth, coordHeight) {
-  'use strict';
   goog.graphics.VmlGraphics.superClass_.setCoordSize.apply(this, arguments);
 
   this.canvasElement.getElement().coordsize =
@@ -715,7 +675,6 @@ goog.graphics.VmlGraphics.prototype.setCoordSize = function(
  */
 goog.graphics.VmlGraphics.prototype.setSize = function(
     pixelWidth, pixelHeight) {
-  'use strict';
   goog.style.setSize(this.getElement(), pixelWidth, pixelHeight);
 };
 
@@ -727,7 +686,6 @@ goog.graphics.VmlGraphics.prototype.setSize = function(
  * @suppress {strictMissingProperties} Part of the go/strict_warnings_migration
  */
 goog.graphics.VmlGraphics.prototype.getPixelSize = function() {
-  'use strict';
   var el = this.getElement();
   // The following relies on the fact that the size can never be 0.
   return new goog.math.Size(
@@ -741,7 +699,6 @@ goog.graphics.VmlGraphics.prototype.getPixelSize = function() {
  * @override
  */
 goog.graphics.VmlGraphics.prototype.clear = function() {
-  'use strict';
   this.canvasElement.clear();
 };
 
@@ -764,7 +721,6 @@ goog.graphics.VmlGraphics.prototype.clear = function() {
  */
 goog.graphics.VmlGraphics.prototype.drawEllipse = function(
     cx, cy, rx, ry, stroke, fill, opt_group) {
-  'use strict';
   var element = this.createVmlElement('oval');
   goog.graphics.VmlGraphics.setPositionAndSize(
       element, cx - rx, cy - ry, rx * 2, ry * 2);
@@ -793,7 +749,6 @@ goog.graphics.VmlGraphics.prototype.drawEllipse = function(
  */
 goog.graphics.VmlGraphics.prototype.drawRect = function(
     x, y, width, height, stroke, fill, opt_group) {
-  'use strict';
   var element = this.createVmlElement('rect');
   goog.graphics.VmlGraphics.setPositionAndSize(element, x, y, width, height);
   var wrapper = new goog.graphics.VmlRectElement(element, this, stroke, fill);
@@ -817,7 +772,6 @@ goog.graphics.VmlGraphics.prototype.drawRect = function(
  */
 goog.graphics.VmlGraphics.prototype.drawImage = function(
     x, y, width, height, src, opt_group) {
-  'use strict';
   var element = this.createVmlElement('image');
   goog.graphics.VmlGraphics.setPositionAndSize(element, x, y, width, height);
   goog.graphics.VmlGraphics.setAttribute(element, 'src', src);
@@ -847,7 +801,6 @@ goog.graphics.VmlGraphics.prototype.drawImage = function(
  */
 goog.graphics.VmlGraphics.prototype.drawTextOnLine = function(
     text, x1, y1, x2, y2, align, font, stroke, fill, opt_group) {
-  'use strict';
   var shape = this.createFullSizeElement_('shape');
 
   var pathElement = this.createVmlElement('path');
@@ -896,7 +849,6 @@ goog.graphics.VmlGraphics.prototype.drawTextOnLine = function(
  */
 goog.graphics.VmlGraphics.prototype.drawPath = function(
     path, stroke, fill, opt_group) {
-  'use strict';
   var element = this.createFullSizeElement_('shape');
   goog.graphics.VmlGraphics.setAttribute(
       element, 'path', goog.graphics.VmlGraphics.getVmlPath(path));
@@ -916,25 +868,23 @@ goog.graphics.VmlGraphics.prototype.drawPath = function(
  * @suppress {deprecated} goog.graphics is deprecated.
  */
 goog.graphics.VmlGraphics.getVmlPath = function(path) {
-  'use strict';
   var list = [];
   path.forEachSegment(function(segment, args) {
-    'use strict';
     switch (segment) {
       case goog.graphics.Path.Segment.MOVETO:
         list.push('m');
         Array.prototype.push.apply(
-            list, args.map(goog.graphics.VmlGraphics.toSizeCoord));
+            list, goog.array.map(args, goog.graphics.VmlGraphics.toSizeCoord));
         break;
       case goog.graphics.Path.Segment.LINETO:
         list.push('l');
         Array.prototype.push.apply(
-            list, args.map(goog.graphics.VmlGraphics.toSizeCoord));
+            list, goog.array.map(args, goog.graphics.VmlGraphics.toSizeCoord));
         break;
       case goog.graphics.Path.Segment.CURVETO:
         list.push('c');
         Array.prototype.push.apply(
-            list, args.map(goog.graphics.VmlGraphics.toSizeCoord));
+            list, goog.array.map(args, goog.graphics.VmlGraphics.toSizeCoord));
         break;
       case goog.graphics.Path.Segment.CLOSE:
         list.push('x');
@@ -969,7 +919,6 @@ goog.graphics.VmlGraphics.getVmlPath = function(path) {
  * @override
  */
 goog.graphics.VmlGraphics.prototype.createGroup = function(opt_group) {
-  'use strict';
   var element = this.createFullSizeElement_('group');
   var parent = opt_group || this.canvasElement;
   parent.getElement().appendChild(element);
@@ -991,7 +940,6 @@ goog.graphics.VmlGraphics.prototype.createGroup = function(opt_group) {
  * @override
  */
 goog.graphics.VmlGraphics.prototype.getTextWidth = function(text, font) {
-  'use strict';
   // TODO(arv): Implement
   return 0;
 };
@@ -999,7 +947,6 @@ goog.graphics.VmlGraphics.prototype.getTextWidth = function(text, font) {
 
 /** @override */
 goog.graphics.VmlGraphics.prototype.enterDocument = function() {
-  'use strict';
   goog.graphics.VmlGraphics.superClass_.enterDocument.call(this);
   this.handleContainerResize_();
   this.updateGraphics_();
@@ -1013,7 +960,6 @@ goog.graphics.VmlGraphics.prototype.enterDocument = function() {
  * @protected
  */
 goog.graphics.VmlGraphics.prototype.disposeInternal = function() {
-  'use strict';
   this.canvasElement = null;
   goog.graphics.VmlGraphics.superClass_.disposeInternal.call(this);
 };

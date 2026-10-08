@@ -1,42 +1,37 @@
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [800, 600],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
     },
     {
       "name": "LayoutNGBlockFlow (positioned) DIV id='outer'",
-      "bounds": [285, 285],
-      "drawsContent": false,
+      "bounds": [300, 300],
       "transform": 1
     },
     {
-      "name": "HorizontalScrollbar",
+      "name": "ContentsLayer for Horizontal Scrollbar Layer",
       "position": [0, 285],
       "bounds": [285, 15],
-      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [285, 0],
       "bounds": [15, 285],
-      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "Scroll corner of LayoutNGBlockFlow (positioned) DIV id='outer'",
+      "name": "Scroll Corner Layer",
       "position": [285, 285],
       "bounds": [15, 15],
-      "contentsOpaqueForText": true,
       "transform": 1
     },
     {
-      "name": "LayoutNGBlockFlow (positioned) DIV id='outer'",
+      "name": "Scrolling Contents Layer",
       "bounds": [650, 600],
-      "contentsOpaqueForText": true,
       "backgroundColor": "#0000FF80",
       "transform": 2
     },

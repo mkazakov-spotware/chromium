@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 #include <windows.h>
-
 #include <memory>
 #include <string>
 
@@ -24,6 +23,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   chrome_cleaner::ParsedLnkFile parsed_shortcut;
 
-  chrome_cleaner::internal::ParseLnkBytes(file_buffer, &parsed_shortcut);
+  (void)chrome_cleaner::internal::ParseLnkBytes(file_buffer, &parsed_shortcut);
   return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,8 +34,12 @@
   //   | openssl sha256 -binary \
   //   | openssl base64
 
-  await virtualTimeController.initialize(1000);
+  await virtualTimeController.grantInitialTime(500, 1000,
+    null,
+    async () => {
+      testRunner.completeTest();
+    }
+  );
+
   await frameNavigationHelper.navigate('http://example.com/');
-  await virtualTimeController.grantTime(500);
-  testRunner.completeTest();
 })

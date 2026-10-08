@@ -2,8 +2,7 @@ Tests that rules could be added to the existing and newly created stylesheets.
 Style sheet added: regular (stylesheet.css)
 Dumping matched rules: 
 *#inspected* {    regular
-    color: red; @[1:4-1:15]
-    color: red; @[undefined-undefined]
+    color: red;
 }
 Dumping inherited rules: 
 Adding a rule to the existing stylesheet.
@@ -15,8 +14,7 @@ Dumping matched rules:
 *#inspected* {    regular
 }
 *#inspected* {    regular
-    color: red; @[1:4-1:15]
-    color: red; @[undefined-undefined]
+    color: red;
 }
 Dumping inherited rules: 
 Creating inspector stylesheet.
@@ -28,8 +26,7 @@ Dumping matched rules:
 *#inspected* {    regular
 }
 *#inspected* {    regular
-    color: red; @[1:4-1:15]
-    color: red; @[undefined-undefined]
+    color: red;
 }
 *#inspected* {    inspector
 }

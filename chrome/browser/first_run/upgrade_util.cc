@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 
 namespace {
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 base::CommandLine* command_line = nullptr;
 #endif
 
@@ -37,7 +37,7 @@ bool RelaunchChromeBrowser(const base::CommandLine& command_line) {
   return RelaunchChromeBrowserImpl(command_line);
 }
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
 
 void SetNewCommandLine(std::unique_ptr<base::CommandLine> new_command_line) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -57,7 +57,7 @@ void RelaunchChromeBrowserWithNewCommandLineIfNeeded() {
   }
 }
 
-#endif  // !BUILDFLAG(IS_MAC)
+#endif  // !defined(OS_MAC)
 
 RelaunchChromeBrowserCallback SetRelaunchChromeBrowserCallbackForTesting(
     RelaunchChromeBrowserCallback callback) {

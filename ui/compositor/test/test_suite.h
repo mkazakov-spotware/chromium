@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "base/test/test_suite.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -18,10 +18,6 @@ namespace test {
 class CompositorTestSuite : public base::TestSuite {
  public:
   CompositorTestSuite(int argc, char** argv);
-
-  CompositorTestSuite(const CompositorTestSuite&) = delete;
-  CompositorTestSuite& operator=(const CompositorTestSuite&) = delete;
-
   ~CompositorTestSuite() override;
 
  protected:
@@ -29,9 +25,11 @@ class CompositorTestSuite : public base::TestSuite {
   void Initialize() override;
 
  private:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   base::win::ScopedCOMInitializer com_initializer_;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(CompositorTestSuite);
 };
 
 }  // namespace test

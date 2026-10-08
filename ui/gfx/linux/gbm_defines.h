@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,6 @@
 #define GBM_BO_USE_HW_VIDEO_DECODER 0
 #define GBM_BO_USE_HW_VIDEO_ENCODER 0
 #define GBM_BO_USE_PROTECTED 0
-#define GBM_BO_USE_SW_READ_OFTEN 0
-#define GBM_BO_USE_FRONT_RENDERING 0
 #endif
 
 #endif  // UI_GFX_LINUX_GBM_DEFINES_H_

@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -20,13 +20,13 @@ component("fingerprint") {
     "//mojo/public/cpp/bindings",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_ash) {
     sources += [
       "fingerprint_chromeos.cc",
       "fingerprint_chromeos.h",
     ]
     deps += [
-      "//chromeos/ash/components/dbus/biod",
+      "//chromeos/dbus/biod",
       "//dbus",
       "//third_party/protobuf:protobuf_lite",
     ]

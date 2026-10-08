@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/threading/thread_checker.h"
@@ -21,19 +22,17 @@
 #include "remoting/protocol/session_config.h"
 #include "remoting/signaling/iq_sender.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class JingleSessionManager;
 class Transport;
 
-// JingleSessionManager and JingleSession implement the subset of the Jingle
-// protocol used in Chromoting. Instances of this class are created by the
-// JingleSessionManager.
+// JingleSessionManager and JingleSession implement the subset of the
+// Jingle protocol used in Chromoting. Instances of this class are
+// created by the JingleSessionManager.
 class JingleSession : public Session {
  public:
-  JingleSession(const JingleSession&) = delete;
-  JingleSession& operator=(const JingleSession&) = delete;
-
   ~JingleSession() override;
 
   // Session interface.
@@ -48,7 +47,8 @@ class JingleSession : public Session {
  private:
   friend class JingleSessionManager;
 
-  using ReplyCallback = base::OnceCallback<void(JingleMessageReply::ErrorType)>;
+  typedef base::RepeatingCallback<void(JingleMessageReply::ErrorType)>
+      ReplyCallback;
 
   explicit JingleSession(JingleSessionManager* session_manager);
 
@@ -86,22 +86,22 @@ class JingleSession : public Session {
   // messages.
   void OnIncomingMessage(const std::string& id,
                          std::unique_ptr<JingleMessage> message,
-                         ReplyCallback reply_callback);
+                         const ReplyCallback& reply_callback);
 
   // Called by OnIncomingMessage() to process the incoming Jingle messages
   // in the same order that they are sent.
   void ProcessIncomingMessage(std::unique_ptr<JingleMessage> message,
-                              ReplyCallback reply_callback);
+                              const ReplyCallback& reply_callback);
 
   // Message handlers for incoming messages.
   void OnAccept(std::unique_ptr<JingleMessage> message,
-                ReplyCallback reply_callback);
+                const ReplyCallback& reply_callback);
   void OnSessionInfo(std::unique_ptr<JingleMessage> message,
-                     ReplyCallback reply_callback);
+                     const ReplyCallback& reply_callback);
   void OnTransportInfo(std::unique_ptr<JingleMessage> message,
-                       ReplyCallback reply_callback);
+                       const ReplyCallback& reply_callback);
   void OnTerminate(std::unique_ptr<JingleMessage> message,
-                   ReplyCallback reply_callback);
+                   const ReplyCallback& reply_callback);
 
   // Called from OnAccept() to initialize session config.
   bool InitializeConfigFromDescription(const ContentDescription* description);
@@ -134,9 +134,11 @@ class JingleSession : public Session {
   // sequence ID encoded.
   std::string GetNextOutgoingId();
 
-  raw_ptr<JingleSessionManager> session_manager_;
+  base::ThreadChecker thread_checker_;
+
+  JingleSessionManager* session_manager_;
   SignalingAddress peer_address_;
-  raw_ptr<Session::EventHandler> event_handler_;
+  Session::EventHandler* event_handler_;
 
   std::string session_id_;
   State state_;
@@ -146,7 +148,7 @@ class JingleSession : public Session {
 
   std::unique_ptr<Authenticator> authenticator_;
 
-  raw_ptr<Transport> transport_ = nullptr;
+  Transport* transport_ = nullptr;
 
   // Pending Iq requests. Used for all messages except transport-info.
   std::vector<std::unique_ptr<IqRequest>> pending_requests_;
@@ -158,7 +160,7 @@ class JingleSession : public Session {
     PendingMessage();
     PendingMessage(PendingMessage&& moved);
     PendingMessage(std::unique_ptr<JingleMessage> message,
-                   ReplyCallback reply_callback);
+                   const ReplyCallback& reply_callback);
     ~PendingMessage();
     PendingMessage& operator=(PendingMessage&& moved);
     std::unique_ptr<JingleMessage> message;
@@ -181,11 +183,12 @@ class JingleSession : public Session {
   // The SessionPlugins attached to this session.
   std::vector<SessionPlugin*> plugins_;
 
-  THREAD_CHECKER(thread_checker_);
-
   base::WeakPtrFactory<JingleSession> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(JingleSession);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_JINGLE_SESSION_H_

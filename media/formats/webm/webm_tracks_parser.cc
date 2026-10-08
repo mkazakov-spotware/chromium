@@ -1,10 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/formats/webm/webm_tracks_parser.h"
-
-#include <memory>
 
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
@@ -57,7 +55,7 @@ base::TimeDelta WebMTracksParser::PrecisionCappedDefaultDuration(
   if (result_us == 0)
     return kNoTimestamp;
 
-  return base::Microseconds(result_us);
+  return base::TimeDelta::FromMicroseconds(result_us);
 }
 
 void WebMTracksParser::Reset() {
@@ -74,7 +72,7 @@ void WebMTracksParser::Reset() {
   detected_audio_track_count_ = 0;
   detected_video_track_count_ = 0;
   detected_text_track_count_ = 0;
-  media_tracks_ = std::make_unique<MediaTracks>();
+  media_tracks_.reset(new MediaTracks());
 }
 
 void WebMTracksParser::ResetTrackEntry() {
@@ -126,8 +124,8 @@ WebMParserClient* WebMTracksParser::OnListStart(int id) {
       return NULL;
     }
 
-    track_content_encodings_client_ =
-        std::make_unique<WebMContentEncodingsClient>(media_log_);
+    track_content_encodings_client_.reset(
+        new WebMContentEncodingsClient(media_log_));
     return track_content_encodings_client_->OnListStart(id);
   }
 

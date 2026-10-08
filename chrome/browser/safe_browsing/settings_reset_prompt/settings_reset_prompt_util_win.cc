@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,21 +79,18 @@ void MaybeShowSettingsResetPrompt(
     return;
 
   DefaultSettingsFetcher::FetchDefaultSettings(
-      base::BindOnce(&TryToShowSettingsResetPrompt, std::move(model)));
+      base::BindOnce(&TryToShowSettingsResetPrompt, base::Passed(&model)));
 }
 
 class SettingsResetPromptDelegateImpl : public SettingsResetPromptDelegate {
  public:
   SettingsResetPromptDelegateImpl();
-
-  SettingsResetPromptDelegateImpl(const SettingsResetPromptDelegateImpl&) =
-      delete;
-  SettingsResetPromptDelegateImpl& operator=(
-      const SettingsResetPromptDelegateImpl&) = delete;
-
   ~SettingsResetPromptDelegateImpl() override;
 
   void ShowSettingsResetPromptWithDelay() const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SettingsResetPromptDelegateImpl);
 };
 
 SettingsResetPromptDelegateImpl::SettingsResetPromptDelegateImpl() = default;

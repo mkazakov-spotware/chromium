@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,8 @@
 namespace account_manager {
 
 // Type of an account, based on the authentication backend of the account.
-// Loosely based on //components/account_manager_core/chromeos/tokens.proto.
-enum class AccountType : int {
+// Loosely based on //chromeos/components/account_manager/tokens.proto
+enum class COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) AccountType : int {
   // Gaia account (aka Google account) - including enterprise and consumer
   // accounts.
   kGaia = 1,
@@ -23,25 +23,18 @@ enum class AccountType : int {
 };
 
 // Uniquely identifies an account.
-class COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) AccountKey {
- public:
-  // `id` cannot be empty.
-  AccountKey(const std::string& id, AccountType type);
-
-  // |id| is obfuscated GAIA id for |AccountType::kGaia|, and cannot be empty.
+struct COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) AccountKey {
+  // |id| is obfuscated GAIA id for |AccountType::kGaia|.
   // |id| is object GUID (|AccountId::GetObjGuid|) for
   // |AccountType::kActiveDirectory|.
-  const std::string& id() const { return id_; }
-  AccountType account_type() const { return account_type_; }
+  std::string id;
+  AccountType account_type;
+
+  bool IsValid() const;
 
   bool operator<(const AccountKey& other) const;
   bool operator==(const AccountKey& other) const;
   bool operator!=(const AccountKey& other) const;
-
- private:
-  // Fields are not const to allow assignment operator.
-  std::string id_;
-  AccountType account_type_;
 };
 
 // Publicly viewable information about an account.
@@ -51,10 +44,6 @@ struct COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) Account {
 
   // The raw, un-canonicalized email id for this account.
   std::string raw_email;
-
-  bool operator<(const Account& other) const;
-  bool operator==(const Account& other) const;
-  bool operator!=(const Account& other) const;
 };
 
 // For logging.

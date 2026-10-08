@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/component_export.h"
-#include "base/containers/flat_map.h"
+#include "chromeos/chromeos_export.h"
 
 namespace chromeos {
 
@@ -51,7 +50,7 @@ namespace chromeos {
 //
 // 1. The grammar is simplified:
 //
-//    uri = [ Scheme ":" ] [ authority ] [ Path ] [ "?" Query ] [ "#" Fragment ]
+//    uri = Scheme ":" [ authority ] [ Path ] [ "?" Query ] [ "#" Fragment ]
 //
 //    authority = "//" [ Userinfo "@" ] Host [ ":" Port ]
 //
@@ -194,8 +193,7 @@ namespace chromeos {
 //   Query = [ pairs [ "&" ] ]
 //   pairs = pair [ "&" pairs ]
 //   pair = name [ "=" value ]
-// All " " (spaces) in parsed Name and Value can be encoded as "+". However, in
-// the normalized form all " " (spaces) are always encoded as %20.
+// The parser replaces all occurrences of "+" in Name and Value by " " (space).
 // Name cannot be empty. When Value is empty, the separator "=" is omitted in
 // the normalized form.
 // Name and Value are strings with the following properties:
@@ -210,14 +208,14 @@ namespace chromeos {
 // Case-sensitive      : YES
 //
 
-class COMPONENT_EXPORT(CHROMEOS_PRINTING) Uri {
+class CHROMEOS_EXPORT Uri {
  public:
   enum class ParserStatus {
     kNoErrors,
     kInvalidPercentEncoding,    // cannot parse hex number after % sign
     kDisallowedASCIICharacter,  // non-printable ASCII character
     kInvalidUTF8Character,      // error when tried to parse UTF-8 character
-    kInvalidScheme,             // invalid Scheme format
+    kInvalidScheme,             // invalid Scheme format or no ':' in input
     kInvalidPortNumber,
     kRelativePathsNotAllowed,  // non-empty Path that does not start with '/'
     kEmptySegmentInPath,
@@ -281,12 +279,12 @@ class COMPONENT_EXPORT(CHROMEOS_PRINTING) Uri {
   // - Set*Encoded(...) methods
   const ParserError& GetLastParsingError() const;
 
-  // Returns the URL in the normalized form. It returns empty string if and only
-  // if all components are empty (see the grammar).
+  // Returns the URL in the normalized form. It never returns empty string!
+  // When all components are empty, this method returns ":" (see the grammar).
   // If the Port is specified (GetPort() != -1) and |always_print_port| is set
   // to true, a Port number is always included in the returned URI (even when
   // it equals to a Scheme's default port number).
-  std::string GetNormalized(bool always_print_port = true) const;
+  std::string GetNormalized(bool always_print_port = false) const;
 
   // Returns true <=> whole URL has no UTF-8 characters.
   bool IsASCII() const;
@@ -321,8 +319,6 @@ class COMPONENT_EXPORT(CHROMEOS_PRINTING) Uri {
   std::vector<std::string> GetPath() const;
   std::vector<std::pair<std::string, std::string>> GetQuery() const;
   std::string GetFragment() const;
-  // In the returned flat_map, vectors are never empty.
-  base::flat_map<std::string, std::vector<std::string>> GetQueryAsMap() const;
 
   // These methods are similar to aforementioned Get* methods. The only
   // difference is that all strings are %-escaped according to the

@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/omnibox/browser/query_tile_provider.h"
 
 #include "base/strings/string_util.h"
-#include "base/strings/utf_string_conversions.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/autocomplete_provider_listener.h"
 #include "components/query_tiles/tile_service.h"
@@ -18,19 +17,19 @@ namespace {
 const int kQueryTilesMatchRelevanceScore = 1599;
 
 // Helper function to determine if the omnibox text matches the previously
-// selected |tile_query_text|. If |tile_query_text| is empty, empty input
+// selected query tile, if any. If there is no query tile selected, empty input
 // text is considered a match.
-bool TextMatchesTileQueryText(const std::u16string& input_text,
-                              const std::string& tile_query_text) {
+bool TextMatchesQueryTile(base::string16 input_text,
+                          base::Optional<query_tiles::Tile> tile) {
   auto trimmed_input =
       base::TrimWhitespace(input_text, base::TrimPositions::TRIM_TRAILING);
-  auto tile_text = base::UTF8ToUTF16(tile_query_text);
+  auto tile_text = base::UTF8ToUTF16(tile.has_value() ? tile->query_text : "");
   auto trimmed_tile_text =
       base::TrimWhitespace(tile_text, base::TrimPositions::TRIM_TRAILING);
   return trimmed_input == trimmed_tile_text;
 }
 
-// Helper function to determine if we are currently showing a URL and the
+// Helper function to determine if we are currently showing an URL and the
 // omnibox text matches this URL.
 bool TextMatchesPageURL(const AutocompleteInput& input) {
   const GURL fixed_url(url_formatter::FixupURL(base::UTF16ToUTF8(input.text()),
@@ -51,15 +50,14 @@ QueryTileProvider::QueryTileProvider(AutocompleteProviderClient* client,
                                      AutocompleteProviderListener* listener)
     : AutocompleteProvider(AutocompleteProvider::TYPE_QUERY_TILE),
       client_(client),
-      tile_service_(client_->GetQueryTileService()) {
-  AddListener(listener);
-}
+      listener_(listener),
+      tile_service_(client_->GetQueryTileService()) {}
 
 QueryTileProvider::~QueryTileProvider() = default;
 
 void QueryTileProvider::Start(const AutocompleteInput& input,
                               bool minimal_changes) {
-  done_ = input.omit_asynchronous_matches();
+  done_ = !input.want_asynchronous_matches();
   matches_.clear();
   if (!AllowQueryTileSuggestions(input)) {
     done_ = true;
@@ -82,7 +80,7 @@ void QueryTileProvider::Start(const AutocompleteInput& input,
 
 void QueryTileProvider::Stop(bool clear_cached_results,
                              bool due_to_user_inactivity) {
-  AutocompleteProvider::Stop(clear_cached_results, due_to_user_inactivity);
+  done_ = true;
 
   // The request was stopped. Cancel any in-flight requests for fetching query
   // tiles from TileService.
@@ -124,23 +122,24 @@ bool QueryTileProvider::AllowQueryTileSuggestions(
 void QueryTileProvider::OnTopLevelTilesFetched(
     const AutocompleteInput& input,
     std::vector<query_tiles::Tile> tiles) {
-  BuildSuggestion(input, /*tile_query_text=*/"", std::move(tiles));
+  BuildSuggestion(input, base::nullopt, std::move(tiles));
 }
 
 void QueryTileProvider::OnSubTilesFetched(
     const AutocompleteInput& input,
-    absl::optional<query_tiles::Tile> tile) {
+    base::Optional<query_tiles::Tile> tile) {
   DCHECK(tile.has_value());
   std::vector<query_tiles::Tile> sub_tiles;
   for (const auto& sub_tile : std::move(tile->sub_tiles))
     sub_tiles.emplace_back(std::move(*sub_tile.get()));
 
-  BuildSuggestion(input, tile->query_text, std::move(sub_tiles));
+  BuildSuggestion(input, tile, std::move(sub_tiles));
 }
 
-void QueryTileProvider::BuildSuggestion(const AutocompleteInput& input,
-                                        const std::string& tile_query_text,
-                                        std::vector<query_tiles::Tile> tiles) {
+void QueryTileProvider::BuildSuggestion(
+    const AutocompleteInput& input,
+    base::Optional<query_tiles::Tile> parent,
+    std::vector<query_tiles::Tile> tiles) {
   if (done_)
     return;
 
@@ -149,8 +148,7 @@ void QueryTileProvider::BuildSuggestion(const AutocompleteInput& input,
   if (tiles.empty())
     return;
 
-  bool is_showing_tile_text =
-      TextMatchesTileQueryText(input.text(), tile_query_text);
+  bool is_showing_tile_text = TextMatchesQueryTile(input.text(), parent);
   bool is_showing_url = input.type() == metrics::OmniboxInputType::URL &&
                         TextMatchesPageURL(input);
   bool show_query_tiles = is_showing_tile_text || is_showing_url;
@@ -163,8 +161,8 @@ void QueryTileProvider::BuildSuggestion(const AutocompleteInput& input,
       std::make_unique<TemplateURLRef::SearchTermsArgs>(input.text());
   const TemplateURL* default_provider = GetDefaultSearchProvider(client_);
   match.keyword =
-      default_provider ? default_provider->keyword() : std::u16string();
-  match.query_tiles = std::move(tiles);
+      default_provider ? default_provider->keyword() : base::string16();
+  match.query_tiles = tiles;
 
   // The query tiles suggestion is shown as the default suggestion, unless there
   // is an edit URL suggestion which is shown as the first suggestion.
@@ -172,5 +170,5 @@ void QueryTileProvider::BuildSuggestion(const AutocompleteInput& input,
     match.SetAllowedToBeDefault(input);
 
   matches_.push_back(match);
-  NotifyListeners(true);
+  listener_->OnProviderUpdate(true);
 }

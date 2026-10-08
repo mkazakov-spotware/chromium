@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/values.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
@@ -38,7 +38,7 @@ using V8ContextData = internal::V8ContextData;
 
 // A function that can be bound to as a mojo::ReportBadMessage
 // callback. Only used in testing.
-void FakeReportBadMessageForTesting(base::StringPiece error) {
+void FakeReportBadMessageForTesting(const std::string& error) {
   // This is used in DCHECK death tests, so must use a DCHECK.
   DCHECK(false) << "Bad mojo message: " << error;
 }
@@ -87,7 +87,7 @@ const V8ContextTracker::V8ContextState* V8ContextTracker::GetV8ContextState(
 }
 
 void V8ContextTracker::OnV8ContextCreated(
-    base::PassKey<ProcessNodeImpl> key,
+    util::PassKey<ProcessNodeImpl> key,
     ProcessNodeImpl* process_node,
     const mojom::V8ContextDescription& description,
     mojom::IframeAttributionDataPtr iframe_attribution_data) {
@@ -105,7 +105,7 @@ void V8ContextTracker::OnV8ContextCreated(
 
   // Validate the |iframe_attribution_data|.
   {
-    absl::optional<bool> result =
+    base::Optional<bool> result =
         ExpectIframeAttributionDataForV8ContextDescription(
             description, process_node->graph());
     if (result) {
@@ -162,7 +162,7 @@ void V8ContextTracker::OnV8ContextCreated(
 }
 
 void V8ContextTracker::OnV8ContextDetached(
-    base::PassKey<ProcessNodeImpl> key,
+    util::PassKey<ProcessNodeImpl> key,
     ProcessNodeImpl* process_node,
     const blink::V8ContextToken& v8_context_token) {
   DCHECK_ON_GRAPH_SEQUENCE(process_node->graph());
@@ -181,7 +181,7 @@ void V8ContextTracker::OnV8ContextDetached(
 }
 
 void V8ContextTracker::OnV8ContextDestroyed(
-    base::PassKey<ProcessNodeImpl> key,
+    util::PassKey<ProcessNodeImpl> key,
     ProcessNodeImpl* process_node,
     const blink::V8ContextToken& v8_context_token) {
   DCHECK_ON_GRAPH_SEQUENCE(process_node->graph());
@@ -196,11 +196,10 @@ void V8ContextTracker::OnV8ContextDestroyed(
 }
 
 void V8ContextTracker::OnRemoteIframeAttached(
-    base::PassKey<ProcessNodeImpl> key,
+    util::PassKey<FrameNodeImpl> key,
     FrameNodeImpl* parent_frame_node,
     const blink::RemoteFrameToken& remote_frame_token,
     mojom::IframeAttributionDataPtr iframe_attribution_data) {
-  DCHECK(parent_frame_node);
   DCHECK_ON_GRAPH_SEQUENCE(parent_frame_node->graph());
 
   // RemoteFrameTokens are issued by the browser to a renderer, so if we receive
@@ -219,43 +218,21 @@ void V8ContextTracker::OnRemoteIframeAttached(
     blink::RemoteFrameToken remote_frame_token;
     mojom::IframeAttributionDataPtr iframe_attribution_data;
     base::WeakPtr<FrameNode> frame_node;
-    base::WeakPtr<FrameNode> parent_frame_node;
   };
   std::unique_ptr<Data> data(
       new Data{mojo::GetBadMessageCallback(), remote_frame_token,
-               std::move(iframe_attribution_data), nullptr,
-               parent_frame_node->GetWeakPtr()});
+               std::move(iframe_attribution_data), nullptr});
 
   auto on_pm_seq = base::BindOnce([](std::unique_ptr<Data> data, Graph* graph) {
     DCHECK(data);
     DCHECK(graph);
     DCHECK_ON_GRAPH_SEQUENCE(graph);
-    // Only dispatch if the frame and its parent still exist after the
-    // round-trip through the UI thread. If the frame still exists but now has
-    // no parent, we don't need to record IframeAttribution data for it since
-    // it's now unreachable.
-    //
-    // An example of this is the custom <webview> element used in Chrome UI
-    // (extensions/renderer/resources/guest_view/web_view/web_view.js). This
-    // element has an inner web contents with an opener relationship to the
-    // webview, but no parent-child relationship. However since it is a custom
-    // element implemented on top of <iframe>, the renderer has no way to
-    // distinguish it from a regular iframe. At the moment the contents is
-    // attached it has a transient parent frame, which is reported through
-    // OnRemoteIframeAttached, but the parent frame disappears shortly
-    // afterward.
-    //
-    // TODO(crbug.com/1085129): Write an end-to-end browsertest that covers
-    // this case once all parts of the measure memory API are hooked up.
-    if (data->frame_node && data->parent_frame_node) {
+    if (data->frame_node) {
       auto* frame_node = FrameNodeImpl::FromNode(data->frame_node.get());
-      auto* parent_frame_node =
-          FrameNodeImpl::FromNode(data->parent_frame_node.get());
       if (auto* tracker = V8ContextTracker::GetFromGraph(graph)) {
         tracker->OnRemoteIframeAttachedImpl(
             std::move(data->bad_message_callback), frame_node,
-            parent_frame_node, data->remote_frame_token,
-            std::move(data->iframe_attribution_data));
+            data->remote_frame_token, std::move(data->iframe_attribution_data));
       }
     }
   });
@@ -268,7 +245,7 @@ void V8ContextTracker::OnRemoteIframeAttached(
     DCHECK(on_pm_seq);
     DCHECK(data);
     if (auto* rfh = content::RenderFrameHost::FromPlaceholderToken(
-            rph_id.value(), data->remote_frame_token)) {
+            rph_id.value(), data->remote_frame_token.value())) {
       data->frame_node =
           PerformanceManager::GetFrameNodeForRenderFrameHost(rfh);
       PerformanceManager::CallOnGraph(
@@ -286,7 +263,7 @@ void V8ContextTracker::OnRemoteIframeAttached(
 }
 
 void V8ContextTracker::OnRemoteIframeDetached(
-    base::PassKey<ProcessNodeImpl> key,
+    util::PassKey<FrameNodeImpl> key,
     FrameNodeImpl* parent_frame_node,
     const blink::RemoteFrameToken& remote_frame_token) {
   DCHECK_ON_GRAPH_SEQUENCE(parent_frame_node->graph());
@@ -329,11 +306,10 @@ void V8ContextTracker::OnRemoteIframeDetached(
 
 void V8ContextTracker::OnRemoteIframeAttachedForTesting(
     FrameNodeImpl* frame_node,
-    FrameNodeImpl* parent_frame_node,
     const blink::RemoteFrameToken& remote_frame_token,
     mojom::IframeAttributionDataPtr iframe_attribution_data) {
   OnRemoteIframeAttachedImpl(base::BindOnce(&FakeReportBadMessageForTesting),
-                             frame_node, parent_frame_node, remote_frame_token,
+                             frame_node, remote_frame_token,
                              std::move(iframe_attribution_data));
 }
 
@@ -473,22 +449,10 @@ void V8ContextTracker::OnBeforeProcessNodeRemoved(const ProcessNode* node) {
 void V8ContextTracker::OnRemoteIframeAttachedImpl(
     mojo::ReportBadMessageCallback bad_message_callback,
     FrameNodeImpl* frame_node,
-    FrameNodeImpl* parent_frame_node,
     const blink::RemoteFrameToken& remote_frame_token,
     mojom::IframeAttributionDataPtr iframe_attribution_data) {
   DCHECK(bad_message_callback);
   DCHECK_ON_GRAPH_SEQUENCE(frame_node->graph());
-
-  if (!frame_node->parent_frame_node()) {
-    // This may happen for custom HTML elements. Ignore such calls.
-    return;
-  }
-
-  if (frame_node->parent_frame_node() != parent_frame_node) {
-    std::move(bad_message_callback)
-        .Run("OnRemoteIframeAttached has wrong parent frame");
-    return;
-  }
 
   if (data_store_->Get(remote_frame_token)) {
     std::move(bad_message_callback).Run("repeated OnRemoteIframeAttached");
@@ -507,26 +471,14 @@ void V8ContextTracker::OnRemoteIframeAttachedImpl(
     raw_ec_data = ec_data.get();
   }
 
-  if (raw_ec_data->remote_frame_data()) {
+  if (raw_ec_data->remote_frame_data() ||
+      raw_ec_data->iframe_attribution_data) {
     std::move(bad_message_callback).Run("unexpected OnRemoteIframeAttached");
     return;
   }
 
-  // This used to assert that `raw_ec_data` had no `iframe_attribution_data`
-  // already attached. In general, the renderer should not send multiple updates
-  // for a given RenderFrameHost parent <-> RenderFrameProxyHost child pairing.
-  // However, when //content needs to undo a `CommitNavigation()` sent to a
-  // speculative RenderFrameHost, the renderer ends up swapping in a
-  // RenderFrameProxy with the same RemoteFrameToken back in. Allow it as an
-  // unfortunate exception--but ignore the update to retain the previous
-  // behavior. See https://crbug.com/1221955 for more background.
-  if (!raw_ec_data->iframe_attribution_data) {
-    // Attach the iframe data to the ExecutionContextData.
-    // If there was already iframe data, keep the original data, to be
-    // consistent with the behaviour of all other paths that ignore changes to
-    // the `src` and `id` attributes.
-    raw_ec_data->iframe_attribution_data = std::move(iframe_attribution_data);
-  }
+  // Attach the iframe data to the ExecutionContextData.
+  raw_ec_data->iframe_attribution_data = std::move(iframe_attribution_data);
 
   // Create the RemoteFrameData reference to this context.
   auto* parent_process_data =

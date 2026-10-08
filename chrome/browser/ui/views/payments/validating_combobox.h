@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "chrome/browser/ui/views/payments/validation_delegate.h"
 #include "ui/base/models/combobox_model_observer.h"
 #include "ui/views/controls/combobox/combobox.h"
@@ -17,10 +18,6 @@ class ValidatingCombobox : public views::Combobox {
  public:
   ValidatingCombobox(std::unique_ptr<ui::ComboboxModel> model,
                      std::unique_ptr<ValidationDelegate> delegate);
-
-  ValidatingCombobox(const ValidatingCombobox&) = delete;
-  ValidatingCombobox& operator=(const ValidatingCombobox&) = delete;
-
   ~ValidatingCombobox() override;
 
   // Combobox:
@@ -46,6 +43,8 @@ class ValidatingCombobox : public views::Combobox {
 
   std::unique_ptr<ValidationDelegate> delegate_;
   bool being_removed_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ValidatingCombobox);
 };
 
 }  // namespace payments

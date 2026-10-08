@@ -1,12 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/spellchecker/spellcheck_factory.h"
 
-#include "build/build_config.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
 #include "chrome/grit/locale_settings.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/spellcheck/browser/pref_names.h"
@@ -28,9 +29,9 @@ SpellcheckServiceFactory* SpellcheckServiceFactory::GetInstance() {
 }
 
 SpellcheckServiceFactory::SpellcheckServiceFactory()
-    : ProfileKeyedServiceFactory(
-          "SpellcheckService",
-          ProfileSelections::BuildRedirectedInIncognito()) {
+    : BrowserContextKeyedServiceFactory(
+        "SpellcheckService",
+        BrowserContextDependencyManager::GetInstance()) {
   // TODO(erg): Uncomment these as they are initialized.
   // DependsOn(RequestContextFactory::GetInstance());
 }
@@ -59,13 +60,18 @@ void SpellcheckServiceFactory::RegisterProfilePrefs(
       l10n_util::GetStringUTF8(IDS_SPELLCHECK_DICTIONARY));
   user_prefs->RegisterBooleanPref(
       spellcheck::prefs::kSpellCheckUseSpellingService, false);
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   uint32_t flags = PrefRegistry::NO_REGISTRATION_FLAGS;
 #else
   uint32_t flags = user_prefs::PrefRegistrySyncable::SYNCABLE_PREF;
 #endif
   user_prefs->RegisterBooleanPref(spellcheck::prefs::kSpellCheckEnable, true,
                                   flags);
+}
+
+content::BrowserContext* SpellcheckServiceFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextRedirectedInIncognito(context);
 }
 
 bool SpellcheckServiceFactory::ServiceIsNULLWhileTesting() const {

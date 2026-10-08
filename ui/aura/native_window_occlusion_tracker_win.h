@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,12 +16,10 @@
 #include "base/callback_forward.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
-#include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/skia/include/core/SkRegion.h"
 #include "ui/aura/aura_export.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
@@ -36,6 +34,8 @@ namespace gfx {
 class Rect;
 }
 
+struct IVirtualDesktopManagerInternal;
+
 namespace aura {
 
 // This class keeps track of whether any HWNDs are occluding any app windows.
@@ -48,11 +48,6 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
   static NativeWindowOcclusionTrackerWin* GetOrCreateInstance();
 
   static void DeleteInstanceForTesting();
-
-  NativeWindowOcclusionTrackerWin(const NativeWindowOcclusionTrackerWin&) =
-      delete;
-  NativeWindowOcclusionTrackerWin& operator=(
-      const NativeWindowOcclusionTrackerWin&) = delete;
 
   // Enables notifying the host of |window| via SetNativeWindowOcclusionState()
   // when the occlusion state has been computed.
@@ -70,30 +65,15 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
 
  private:
   friend class NativeWindowOcclusionTrackerTest;
-  FRIEND_TEST_ALL_PREFIXES(NativeWindowOcclusionTrackerTest,
-                           DisplayOnOffHandling);
-
-  // Tracks the occlusion state of HWNDs registered via Enable().
-  struct RootOcclusionState {
-    Window::OcclusionState occlusion_state = Window::OcclusionState::UNKNOWN;
-    absl::optional<bool> on_current_workspace;
-    // If `occlusion_state` is VISIBLE, this gives the occluded region. It may
-    // be empty (which indicates the the window is entirely visible). This is
-    // relative to the origin of the HWND. In other words, it's in window
-    // coordinates (not client coordinates).
-    SkRegion occluded_region_pixels;
-  };
-
-  using HwndToRootOcclusionStateMap = base::flat_map<HWND, RootOcclusionState>;
 
   // This class computes the occlusion state of the tracked windows.
   // It runs on a separate thread, and notifies the main thread of
   // the occlusion state of the tracked windows.
   class WindowOcclusionCalculator {
    public:
-    using UpdateOcclusionStateCallback =
-        base::RepeatingCallback<void(const HwndToRootOcclusionStateMap&,
-                                     bool show_all_windows)>;
+    using UpdateOcclusionStateCallback = base::RepeatingCallback<void(
+        const base::flat_map<HWND, Window::OcclusionState>&,
+        bool show_all_windows)>;
 
     // Creates WindowOcclusionCalculator instance. Must be called on UI thread.
     static void CreateInstance(
@@ -108,21 +88,11 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
     // thread.
     static void DeleteInstanceForTesting(base::WaitableEvent* done_event);
 
-    WindowOcclusionCalculator(const WindowOcclusionCalculator&) = delete;
-    WindowOcclusionCalculator& operator=(const WindowOcclusionCalculator&) =
-        delete;
-
     void EnableOcclusionTrackingForWindow(HWND hwnd);
     void DisableOcclusionTrackingForWindow(HWND hwnd);
 
-    // Forces a recalculation of occlusion
-    void ForceRecalculation();
-
     // If a window becomes visible, makes sure event hooks are registered.
     void HandleVisibilityChanged(bool visible);
-
-    // Special handling for when the device is going to sleep or waking up.
-    void HandleResumeSuspend();
 
    private:
     WindowOcclusionCalculator(
@@ -165,6 +135,10 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
     // windows in |root_window_hwnds_occlusion_state_| and notifies them if
     // their occlusion status has changed.
     void ComputeNativeWindowOcclusionStatus();
+
+    // Computes if virtual desktops are used. This is used as an optimization
+    // since IsWindowOnCurrentVirtualDesktop is a slow call.
+    void ComputeVirtualDesktopUsed();
 
     // Schedules an occlusion calculation |update_occlusion_delay_| time in the
     // future, if one isn't already scheduled.
@@ -215,7 +189,7 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
     // Returns true if |hwnd| is definitely on the current virtual desktop,
     // false if it's definitely not on the current virtual desktop, and nullopt
     // if we we can't tell for sure.
-    absl::optional<bool> IsWindowOnCurrentVirtualDesktop(HWND hwnd);
+    base::Optional<bool> IsWindowOnCurrentVirtualDesktop(HWND hwnd);
 
     static WindowOcclusionCalculator* instance_;
 
@@ -226,16 +200,13 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
     // task is posted to this task runner.
     const scoped_refptr<base::SequencedTaskRunner> ui_thread_task_runner_;
 
-    // True if the occluded region should be tracked. This caches the value of
-    // the feature `kApplyNativeOccludedRegionToWindowTracker`.
-    const bool calculate_occluded_region_;
-
     // Callback used to update occlusion state on UI thread.
     UpdateOcclusionStateCallback update_occlusion_state_callback_;
 
     // Map of root app window hwnds and their occlusion state. This contains
     // both visible and hidden windows.
-    HwndToRootOcclusionStateMap root_window_hwnds_occlusion_state_;
+    base::flat_map<HWND, Window::OcclusionState>
+        root_window_hwnds_occlusion_state_;
 
     // Values returned by SetWinEventHook are stored so that hooks can be
     // unregistered when necessary.
@@ -251,6 +222,9 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
 
     // Timer to delay occlusion update.
     base::OneShotTimer occlusion_update_timer_;
+
+    // Timer to check how many virtual desktops are present.
+    base::OneShotTimer virtual_desktop_update_timer_;
 
     // Used to keep track of whether we're in the middle of getting window move
     // events, in order to wait until the window move is complete before
@@ -274,17 +248,23 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
     // showing.
     bool showing_thumbnails_ = false;
 
-    // Used to keep track of the window that's currently moving. That window
-    // is ignored for calculation occlusion so that tab dragging won't
-    // ignore windows occluded by the dragged window.
-    HWND moving_window_ = 0;
+    // By caching if virtual desktops are in use or not we can avoid calling
+    // IsWindowOnCurrentVirtualDesktop which is slow. Start with an initial
+    // value of true so that we only optimize after we get confirmation that
+    // there are no virtual desktops.
+    bool virtual_desktops_used_ = true;
 
     // Only used on Win10+.
     Microsoft::WRL::ComPtr<IVirtualDesktopManager> virtual_desktop_manager_;
 
+    Microsoft::WRL::ComPtr<IVirtualDesktopManagerInternal>
+        virtual_desktop_manager_internal_;
+
     SEQUENCE_CHECKER(sequence_checker_);
 
     base::WeakPtrFactory<WindowOcclusionCalculator> weak_factory_{this};
+
+    DISALLOW_COPY_AND_ASSIGN(WindowOcclusionCalculator);
   };
 
   NativeWindowOcclusionTrackerWin();
@@ -292,16 +272,16 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
 
   // Returns true if we are interested in |hwnd| for purposes of occlusion
   // calculation. We are interested in |hwnd| if it is a window that is
-  // visible, opaque, bounded, and not a popup or floating window. If we are
-  // interested in |hwnd|, stores the window rectangle in |window_rect|.
+  // visible, opaque, and bounded. If we are interested in |hwnd|, stores the
+  // window rectangle in |window_rect|.
   static bool IsWindowVisibleAndFullyOpaque(HWND hwnd, gfx::Rect* window_rect);
 
   // Updates root windows occclusion state. If |show_all_windows| is true,
   // all non-hidden windows will be marked visible.  This is used to force
   // rendering of thumbnails.
-  void UpdateOcclusionState(
-      const HwndToRootOcclusionStateMap& root_window_hwnds_occlusion_state,
-      bool show_all_windows);
+  void UpdateOcclusionState(const base::flat_map<HWND, Window::OcclusionState>&
+                                root_window_hwnds_occlusion_state,
+                            bool show_all_windows);
 
   // This is called with session changed notifications. If the screen is locked
   // by the current session, it marks app windows as occluded.
@@ -310,12 +290,6 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
   // This is called when the display is put to sleep. If the display is sleeping
   // it marks app windows as occluded.
   void OnDisplayStateChanged(bool display_on) override;
-
-  // Called when the device resumes from sleep.
-  void OnResume() override;
-
-  // Called before the device goes to sleep.
-  void OnSuspend() override;
 
   // Marks all root windows as either occluded, or if hwnd IsIconic, hidden.
   void MarkNonIconicWindowsOccluded();
@@ -345,6 +319,8 @@ class AURA_EXPORT NativeWindowOcclusionTrackerWin
   bool display_on_ = true;
 
   base::WeakPtrFactory<NativeWindowOcclusionTrackerWin> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(NativeWindowOcclusionTrackerWin);
 };
 
 }  // namespace aura

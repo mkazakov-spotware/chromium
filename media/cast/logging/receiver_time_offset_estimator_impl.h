@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <map>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "media/cast/common/mod_util.h"
@@ -39,11 +40,6 @@ class ReceiverTimeOffsetEstimatorImpl final
     : public ReceiverTimeOffsetEstimator {
  public:
   ReceiverTimeOffsetEstimatorImpl();
-
-  ReceiverTimeOffsetEstimatorImpl(const ReceiverTimeOffsetEstimatorImpl&) =
-      delete;
-  ReceiverTimeOffsetEstimatorImpl& operator=(
-      const ReceiverTimeOffsetEstimatorImpl&) = delete;
 
   ~ReceiverTimeOffsetEstimatorImpl() final;
 
@@ -99,6 +95,7 @@ class ReceiverTimeOffsetEstimatorImpl final
   BoundCalculator lower_bound_;
 
   base::ThreadChecker thread_checker_;
+  DISALLOW_COPY_AND_ASSIGN(ReceiverTimeOffsetEstimatorImpl);
 };
 
 }  // namespace cast

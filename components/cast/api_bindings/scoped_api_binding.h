@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <memory>
 
+#include "base/callback_forward.h"
 #include "base/check.h"
+#include "base/optional.h"
 #include "base/strings/string_piece.h"
 #include "components/cast/cast_component_export.h"
 #include "components/cast/message_port/message_port.h"
@@ -19,7 +21,7 @@ class Manager;
 // Manages the registration of bindings Javascript and establishment of
 // communication channels, as well as unregistration on object teardown, using
 // RAII semantics.
-class CAST_COMPONENT_EXPORT ScopedApiBinding final
+class CAST_COMPONENT_EXPORT ScopedApiBinding
     : public cast_api_bindings::MessagePort::Receiver {
  public:
   // Methods for handling message I/O with bindings scripts.
@@ -58,7 +60,7 @@ class CAST_COMPONENT_EXPORT ScopedApiBinding final
                    Delegate* delegate,
                    base::StringPiece js_bindings_id,
                    base::StringPiece js_bindings);
-  ~ScopedApiBinding() override;
+  ~ScopedApiBinding() final;
 
   ScopedApiBinding(const ScopedApiBinding&) = delete;
   ScopedApiBinding& operator=(const ScopedApiBinding&) = delete;
@@ -72,10 +74,10 @@ class CAST_COMPONENT_EXPORT ScopedApiBinding final
   void OnPortConnected(std::unique_ptr<cast_api_bindings::MessagePort> port);
 
   // cast_api_bindings::MessagePort::Receiver implementation:
-  bool OnMessage(base::StringPiece message,
-                 std::vector<std::unique_ptr<cast_api_bindings::MessagePort>>
-                     ports) override;
-  void OnPipeError() override;
+  bool OnMessage(
+      base::StringPiece message,
+      std::vector<std::unique_ptr<cast_api_bindings::MessagePort>> ports) final;
+  void OnPipeError() final;
 
   Manager* const bindings_manager_;
   Delegate* const delegate_;

@@ -2,7 +2,6 @@
 <script src="../../resources/testharness.js"></script>
 <script src="../../resources/testharnessreport.js"></script>
 <script src="../../resources/gesture-util.js"></script>
-<script src="../../virtual/percent-based-scrolling/resources/percent-based-util.js"></script>
 <style>
 .outer {
   height: 400px;
@@ -53,15 +52,14 @@ async function test_boundary_prevents_y(source_type) {
 
   const x = 200;
   const y = 500;
-  const distanceUp = calculatePixelsToScroll(container, 0, 200).y;
+  const distance = 200;
 
-  await smoothScroll(distanceUp, x, y, source_type, 'up', SPEED_INSTANT);
+  await smoothScroll(distance, x, y, source_type, 'up', SPEED_INSTANT);
   await waitForAnimationEnd(() => { return window.scrollY; }, 500, 5);
   assert_equals(window.scrollY, 100);
   assert_equals(container.scrollTop, 0);
 
-  const distanceLeft = calculatePixelsToScroll(container, 200, 0).x;
-  await smoothScroll(distanceLeft, x, y, source_type, 'left', SPEED_INSTANT);
+  await smoothScroll(distance, x, y, source_type, 'left', SPEED_INSTANT);
   // TODO(bokan): Wait for 10 frames without change. This is a bit long but
   // otherwise we affect the next test because window.scrollX goes to 0 while
   // the animation is still ticking. SPEED_INSTANT isn't as instant as it
@@ -79,15 +77,14 @@ async function test_boundary_prevents_x(source_type) {
 
   const x = 200;
   const y = 500;
-  const distanceLeft = calculatePixelsToScroll(container, 200, 0).x;
+  const distance = 200;
 
-  await smoothScroll(distanceLeft, x, y, source_type, 'left', SPEED_INSTANT);
+  await smoothScroll(distance, x, y, source_type, 'left', SPEED_INSTANT);
   await waitForAnimationEnd(() => { return window.scrollX; }, 500, 5);
   assert_equals(window.scrollX, 100);
   assert_equals(container.scrollTop, 0);
 
-  const distanceUp = calculatePixelsToScroll(container, 0, 200).y;
-  await smoothScroll(distanceUp, x, y, source_type, 'up', SPEED_INSTANT);
+  await smoothScroll(distance, x, y, source_type, 'up', SPEED_INSTANT);
   await waitForAnimationEnd(() => { return window.scrollY; }, 500, 10);
   assert_equals(window.scrollY, 0);
   assert_equals(container.scrollLeft, 0);
@@ -101,11 +98,7 @@ async function test_boundary_allows_inner(source_type) {
 
   const x = 200;
   const y = 500;
-  const pixelsToScroll = 200;
-  const {x: pixelsToScrollX, y: pixelsToScrollY} = calculatePixelsToScroll(
-    container, pixelsToScroll, pixelsToScroll
-  );
-  const distance = Math.max(pixelsToScrollX, pixelsToScrollY);
+  const distance = 200;
 
   await smoothScroll(distance, x, y, source_type, "upleft", SPEED_INSTANT);
   await waitForAnimationEnd(() => { return container.scrollLeft; }, 500, 5);
@@ -122,14 +115,13 @@ async function test_boundary_on_nonscrollable_allows_propagation(source_type) {
 
   const x = 200;
   const y = 300;
+  const distance = 200;
 
-  const distanceRight = calculatePixelsToScroll(container, 200, 0).x;
-  await smoothScroll(distanceRight, x, y, source_type, "right", SPEED_INSTANT);
+  await smoothScroll(distance, x, y, source_type, "right", SPEED_INSTANT);
   await waitForAnimationEnd(() => { return window.scrollX; }, 500, 5);
   assert_greater_than(window.scrollX, 100);
 
-  const distanceDown = calculatePixelsToScroll(container, 0, 200).y;
-  await smoothScroll(distanceDown, x, y, source_type, "down", SPEED_INSTANT);
+  await smoothScroll(distance, x, y, source_type, "down", SPEED_INSTANT);
   await waitForAnimationEnd(() => { return window.scrollY; }, 500, 10);
   assert_greater_than(window.scrollY, 100);
 

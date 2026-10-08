@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -101,11 +101,6 @@ class GathererBase(object):
     '''Returns the MessageClique objects for all translateable portions.'''
     return []
 
-  def GetAbsoluteInputPath(self):
-    if os.path.isabs(self.GetInputPath()):
-      return self.GetInputPath()
-    return self.grd_node.ToRealPath(self.GetInputPath())
-
   def GetInputPath(self):
     return self.rc_file
 
@@ -168,6 +163,10 @@ class GathererBase(object):
     input file.
     '''
     if isinstance(self.rc_file, six.string_types):
-      return util.ReadFile(self.GetAbsoluteInputPath(), self.encoding)
+      path = self.GetInputPath()
+      # Hack: some unit tests supply an absolute path and no root node.
+      if not os.path.isabs(path):
+        path = self.grd_node.ToRealPath(path)
+      return util.ReadFile(path, self.encoding)
     else:
       return self.rc_file.read()

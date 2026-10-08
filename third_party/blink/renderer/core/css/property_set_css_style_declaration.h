@@ -27,12 +27,13 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PROPERTY_SET_CSS_STYLE_DECLARATION_H_
 
 #include "third_party/blink/renderer/core/css/abstract_property_set_css_style_declaration.h"
+#include "third_party/blink/renderer/platform/wtf/hash_map.h"
 
 namespace blink {
 
 class MutableCSSPropertyValueSet;
 
-class CORE_EXPORT PropertySetCSSStyleDeclaration
+class PropertySetCSSStyleDeclaration
     : public AbstractPropertySetCSSStyleDeclaration {
  public:
   PropertySetCSSStyleDeclaration(ExecutionContext* execution_context,
@@ -53,4 +54,4 @@ class CORE_EXPORT PropertySetCSSStyleDeclaration
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PROPERTY_SET_CSS_STYLE_DECLARATION_H_
+#endif

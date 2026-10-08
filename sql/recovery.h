@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "sql/database.h"
 #include "sql/internal_api_token.h"
 
@@ -66,8 +66,6 @@ namespace sql {
 
 class COMPONENT_EXPORT(SQL) Recovery {
  public:
-  Recovery(const Recovery&) = delete;
-  Recovery& operator=(const Recovery&) = delete;
   ~Recovery();
 
   // Begin the recovery process by opening a temporary database handle
@@ -81,9 +79,9 @@ class COMPONENT_EXPORT(SQL) Recovery {
   // TODO(shess): Later versions of SQLite allow extracting the path
   // from the database.
   // TODO(shess): Allow specifying the connection point?
-  [[nodiscard]] static std::unique_ptr<Recovery> Begin(
-      Database* database,
-      const base::FilePath& db_path);
+  static std::unique_ptr<Recovery> Begin(Database* database,
+                                         const base::FilePath& db_path)
+      WARN_UNUSED_RESULT;
 
   // Mark recovery completed by replicating the recovery database over
   // the original database, then closing the recovery database.  The
@@ -96,7 +94,7 @@ class COMPONENT_EXPORT(SQL) Recovery {
   // TODO(shess): At this time, this function can fail while leaving
   // the original database intact.  Figure out which failure cases
   // should go to RazeAndClose() instead.
-  [[nodiscard]] static bool Recovered(std::unique_ptr<Recovery> r);
+  static bool Recovered(std::unique_ptr<Recovery> r) WARN_UNUSED_RESULT;
 
   // Indicate that the database is unrecoverable.  The original
   // database is razed, and the handle poisoned.
@@ -156,9 +154,9 @@ class COMPONENT_EXPORT(SQL) Recovery {
   // such as validating constraints not expressed in the schema.
   //
   // In case of SQLITE_NOTADB, the database is deemed unrecoverable and deleted.
-  [[nodiscard]] static std::unique_ptr<Recovery> BeginRecoverDatabase(
+  static std::unique_ptr<Recovery> BeginRecoverDatabase(
       Database* db,
-      const base::FilePath& db_path);
+      const base::FilePath& db_path) WARN_UNUSED_RESULT;
 
   // Call BeginRecoverDatabase() to recover the database, then commit the
   // changes using Recovered().  After this call, the |db| handle will be
@@ -188,10 +186,10 @@ class COMPONENT_EXPORT(SQL) Recovery {
 
   // Setup the recovery database handle for Begin().  Returns false in
   // case anything failed.
-  [[nodiscard]] bool Init(const base::FilePath& db_path);
+  bool Init(const base::FilePath& db_path) WARN_UNUSED_RESULT;
 
   // Copy the recovered database over the original database.
-  [[nodiscard]] bool Backup();
+  bool Backup() WARN_UNUSED_RESULT;
 
   // Close the recovery database, and poison the original handle.
   // |raze| controls whether the original database is razed or just
@@ -202,8 +200,10 @@ class COMPONENT_EXPORT(SQL) Recovery {
   };
   void Shutdown(Disposition raze);
 
-  raw_ptr<Database> db_;  // Original Database connection.
+  Database* db_;         // Original Database connection.
   Database recover_db_;  // Recovery Database connection.
+
+  DISALLOW_COPY_AND_ASSIGN(Recovery);
 };
 
 }  // namespace sql

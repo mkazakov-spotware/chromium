@@ -1,12 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/commander_frontend_views.h"
 
-#include <tuple>
-
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/commander/commander_backend.h"
 #include "chrome/browser/ui/commander/commander_view_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -22,7 +20,7 @@ class CommanderFrontendViewsTest : public InProcessBrowserTest {
   // modifications. If we need it one more time, extract to a common file.
   class TestBackend : public commander::CommanderBackend {
    public:
-    void OnTextChanged(const std::u16string& text, Browser* browser) override {
+    void OnTextChanged(const base::string16& text, Browser* browser) override {
       text_changed_invocations_.push_back(text);
     }
     void OnCommandSelected(size_t command_index, int result_set_id) override {
@@ -44,7 +42,7 @@ class CommanderFrontendViewsTest : public InProcessBrowserTest {
 
     void CallCallback(commander::CommanderViewModel vm) { callback_.Run(vm); }
 
-    const std::vector<std::u16string> text_changed_invocations() {
+    const std::vector<base::string16> text_changed_invocations() {
       return text_changed_invocations_;
     }
     const std::vector<size_t> command_selected_invocations() {
@@ -58,7 +56,7 @@ class CommanderFrontendViewsTest : public InProcessBrowserTest {
 
    private:
     commander::CommanderBackend::ViewModelUpdateCallback callback_;
-    std::vector<std::u16string> text_changed_invocations_;
+    std::vector<base::string16> text_changed_invocations_;
     std::vector<size_t> command_selected_invocations_;
     int composite_command_cancelled_invocation_count_ = 0;
     int reset_invocation_count_ = 0;
@@ -105,7 +103,7 @@ class CommanderFrontendViewsTest : public InProcessBrowserTest {
   }
 
   void OnWidgetShown(views::Widget* widget) {
-    if (widget->GetName() == "Quick Commands") {
+    if (widget->GetName() == "Commander") {
       active_widget_ = widget;
       if (IsWidgetAttachedToBrowser(expected_browser_)) {
         expected_browser_ = nullptr;
@@ -132,8 +130,8 @@ class CommanderFrontendViewsTest : public InProcessBrowserTest {
   }
 
   std::unique_ptr<views::AnyWidgetObserver> observer_;
-  raw_ptr<views::Widget> active_widget_ = nullptr;
-  raw_ptr<Browser> expected_browser_ = nullptr;
+  views::Widget* active_widget_ = nullptr;
+  Browser* expected_browser_ = nullptr;
   std::unique_ptr<base::RunLoop> run_loop_;
 };
 
@@ -215,6 +213,24 @@ IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, ToggleTogglesWidget) {
   EXPECT_EQ(backend_->reset_invocation_count(), 1);
 }
 
+// When a commander widget is showing on browser A, toggling it on browser B
+// should hide it on browser A and show it on browser B.
+IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, ToggleReplacesWidget) {
+  auto frontend = std::make_unique<CommanderFrontendViews>(backend_.get());
+
+  frontend->ToggleForBrowser(browser());
+  views::Widget* commander_widget = WaitForCommanderWidgetAttachedTo(browser());
+
+  Browser* other_browser = CreateBrowser(browser()->profile());
+  views::test::WidgetDestroyedWaiter destroyed_waiter(commander_widget);
+  frontend->ToggleForBrowser(other_browser);
+  destroyed_waiter.Wait();
+  EXPECT_EQ(backend_->reset_invocation_count(), 1);
+  EXPECT_TRUE(WaitForCommanderWidgetAttachedTo(other_browser));
+
+  frontend->Hide();
+}
+
 IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, OnHeightChangedSizesWidget) {
   auto frontend = std::make_unique<CommanderFrontendViews>(backend_.get());
 
@@ -235,7 +251,7 @@ IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, PassesOnOptionSelected) {
   auto frontend = std::make_unique<CommanderFrontendViews>(backend_.get());
 
   frontend->Show(browser());
-  std::ignore = WaitForCommanderWidgetAttachedTo(browser());
+  ignore_result(WaitForCommanderWidgetAttachedTo(browser()));
 
   frontend->OnOptionSelected(8, 13);
   ASSERT_EQ(backend_->command_selected_invocations().size(), 1u);
@@ -246,9 +262,9 @@ IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, PassesOnOptionSelected) {
 IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, PassesOnTextChanged) {
   auto frontend = std::make_unique<CommanderFrontendViews>(backend_.get());
   frontend->Show(browser());
-  std::ignore = WaitForCommanderWidgetAttachedTo(browser());
+  ignore_result(WaitForCommanderWidgetAttachedTo(browser()));
 
-  const std::u16string input = u"orange";
+  const base::string16 input = base::ASCIIToUTF16("orange");
   frontend->OnTextChanged(input);
   ASSERT_EQ(backend_->text_changed_invocations().size(), 1u);
   EXPECT_EQ(backend_->text_changed_invocations().back(), input);
@@ -259,23 +275,10 @@ IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest,
                        PassesOnCompositeCommandCancelled) {
   auto frontend = std::make_unique<CommanderFrontendViews>(backend_.get());
   frontend->Show(browser());
-  std::ignore = WaitForCommanderWidgetAttachedTo(browser());
+  ignore_result(WaitForCommanderWidgetAttachedTo(browser()));
 
   EXPECT_EQ(backend_->composite_command_cancelled_invocation_count(), 0);
   frontend->OnCompositeCommandCancelled();
   EXPECT_EQ(backend_->composite_command_cancelled_invocation_count(), 1);
   frontend->Hide();
-}
-IN_PROC_BROWSER_TEST_F(CommanderFrontendViewsTest, HidesOnFocusLoss) {
-  auto frontend = std::make_unique<CommanderFrontendViews>(backend_.get());
-
-  frontend->Show(browser());
-  views::Widget* widget = WaitForCommanderWidgetAttachedTo(browser());
-  EXPECT_TRUE(widget);
-  EXPECT_EQ(backend_->reset_invocation_count(), 0);
-
-  // Activate the main browser window.
-  widget->parent()->Activate();
-  WaitForCommanderWidgetToClose();
-  EXPECT_EQ(backend_->reset_invocation_count(), 1);
 }

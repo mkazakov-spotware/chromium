@@ -20,8 +20,8 @@
 #include "third_party/blink/renderer/core/layout/svg/svg_text_metrics.h"
 
 #include "third_party/blink/renderer/platform/fonts/font_orientation.h"
+#include "third_party/blink/renderer/platform/geometry/float_size.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "ui/gfx/geometry/size_f.h"
 
 namespace blink {
 
@@ -31,11 +31,10 @@ SVGTextMetrics::SVGTextMetrics(unsigned length, float width, float height)
 SVGTextMetrics::SVGTextMetrics(SVGTextMetrics::MetricsType)
     : SVGTextMetrics(1, 0, 0) {}
 
-gfx::SizeF SVGTextMetrics::Extents() const {
+FloatSize SVGTextMetrics::Extents() const {
   // TODO(fs): Negative glyph extents seems kind of weird to have, but
   // presently it can occur in some cases (like Arabic.)
-  // gfx::SizeF clamps negative values to zeros.
-  return gfx::SizeF(width_, height_);
+  return FloatSize(std::max<float>(width_, 0), std::max<float>(height_, 0));
 }
 
 float SVGTextMetrics::Advance(FontOrientation orientation) const {

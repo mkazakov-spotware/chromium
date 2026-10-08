@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "third_party/blink/renderer/platform/loader/fetch/cross_origin_attribute_value.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
 #include "third_party/blink/renderer/platform/loader/fetch/integrity_metadata.h"
-#include "third_party/blink/renderer/platform/loader/fetch/render_blocking_behavior.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_loader_options.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -30,11 +29,6 @@ class PLATFORM_EXPORT ScriptFetchOptions final {
   DISALLOW_NEW();
 
  public:
-  enum class AttributionReportingEligibility {
-    kIneligible,
-    kEligible,
-  };
-
   // https://html.spec.whatwg.org/C/#default-classic-script-fetch-options
   // "The default classic script fetch options are a script fetch options whose
   // cryptographic nonce is the empty string, integrity metadata is the empty
@@ -44,7 +38,7 @@ class PLATFORM_EXPORT ScriptFetchOptions final {
       : parser_state_(ParserDisposition::kNotParserInserted),
         credentials_mode_(network::mojom::CredentialsMode::kSameOrigin),
         referrer_policy_(network::mojom::ReferrerPolicy::kDefault),
-        fetch_priority_hint_(mojom::blink::FetchPriorityHint::kAuto) {}
+        importance_(mojom::FetchImportanceMode::kImportanceAuto) {}
 
   ScriptFetchOptions(const String& nonce,
                      const IntegrityMetadataSet& integrity_metadata,
@@ -52,8 +46,7 @@ class PLATFORM_EXPORT ScriptFetchOptions final {
                      ParserDisposition parser_state,
                      network::mojom::CredentialsMode credentials_mode,
                      network::mojom::ReferrerPolicy referrer_policy,
-                     mojom::blink::FetchPriorityHint fetch_priority_hint,
-                     RenderBlockingBehavior render_blocking_behavior,
+                     mojom::FetchImportanceMode importance,
                      RejectCoepUnsafeNone reject_coep_unsafe_none =
                          RejectCoepUnsafeNone(false))
       : nonce_(nonce),
@@ -62,8 +55,7 @@ class PLATFORM_EXPORT ScriptFetchOptions final {
         parser_state_(parser_state),
         credentials_mode_(credentials_mode),
         referrer_policy_(referrer_policy),
-        fetch_priority_hint_(fetch_priority_hint),
-        render_blocking_behavior_(render_blocking_behavior),
+        importance_(importance),
         reject_coep_unsafe_none_(reject_coep_unsafe_none) {}
   ~ScriptFetchOptions() = default;
 
@@ -81,19 +73,9 @@ class PLATFORM_EXPORT ScriptFetchOptions final {
   network::mojom::ReferrerPolicy GetReferrerPolicy() const {
     return referrer_policy_;
   }
-  mojom::blink::FetchPriorityHint FetchPriorityHint() const {
-    return fetch_priority_hint_;
-  }
+  mojom::FetchImportanceMode Importance() const { return importance_; }
   RejectCoepUnsafeNone GetRejectCoepUnsafeNone() const {
     return reject_coep_unsafe_none_;
-  }
-  RenderBlockingBehavior GetRenderBlockingBehavior() const {
-    return render_blocking_behavior_;
-  }
-
-  void SetAttributionReportingEligibility(
-      AttributionReportingEligibility eligibility) {
-    attribution_reporting_eligibility_ = eligibility;
   }
 
   // https://html.spec.whatwg.org/C/#fetch-a-classic-script
@@ -123,25 +105,20 @@ class PLATFORM_EXPORT ScriptFetchOptions final {
   // https://html.spec.whatwg.org/C/#concept-script-fetch-options-referrer-policy
   const network::mojom::ReferrerPolicy referrer_policy_;
 
-  // https://wicg.github.io/priority-hints/#script
-  const mojom::blink::FetchPriorityHint fetch_priority_hint_;
+  // Priority Hints and a request's "importance" mode are currently
+  // non-standard. See https://crbug.com/821464, and the HTML Standard issue
+  // https://github.com/whatwg/html/issues/3670 for some discussion on adding an
+  // "importance" member to the script fetch options struct.
+  const mojom::FetchImportanceMode importance_;
 
-  const RenderBlockingBehavior render_blocking_behavior_ =
-      RenderBlockingBehavior::kUnset;
   // True when we should reject a response with COEP: none.
   // https://wicg.github.io/cross-origin-embedder-policy/#integration-html
   // This is for dedicated workers.
   // TODO(crbug.com/1064920): Remove this once PlzDedicatedWorker ships.
   const RejectCoepUnsafeNone reject_coep_unsafe_none_ =
       RejectCoepUnsafeNone(false);
-
-  // https://wicg.github.io/attribution-reporting-api
-  // TODO(crbug.com/1338976): make this member const once the attributionsrc
-  // spec is drafted.
-  AttributionReportingEligibility attribution_reporting_eligibility_ =
-      AttributionReportingEligibility::kIneligible;
 };
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_SCRIPT_FETCH_OPTIONS_H_
+#endif

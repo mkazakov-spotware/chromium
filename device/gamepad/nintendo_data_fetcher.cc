@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,12 +96,6 @@ void NintendoDataFetcher::DeviceRemoved(mojom::HidDeviceInfoPtr device_info) {
   }
 }
 
-void NintendoDataFetcher::DeviceChanged(mojom::HidDeviceInfoPtr device_info) {
-  // Ignore updated device info. NintendoController will retain the old
-  // HidDeviceInfo. This is fine since it does not rely on any HidDeviceInfo
-  // members that could change.
-}
-
 bool NintendoDataFetcher::AddDevice(mojom::HidDeviceInfoPtr device_info) {
   DCHECK(hid_manager_);
   GamepadId gamepad_id = GamepadIdList::Get().GetGamepadId(
@@ -176,7 +170,7 @@ NintendoDataFetcher::ExtractAssociatedDevice(const NintendoController* device) {
   if (associated_device) {
     PadState* state = GetPadState(associated_device->GetSourceId());
     if (state)
-      state->source = GamepadSource::kNone;
+      state->source = GAMEPAD_SOURCE_NONE;
   }
 
   return associated_device;

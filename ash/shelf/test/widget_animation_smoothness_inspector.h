@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ namespace ash {
 // the new API for layer aimation sequence observers lands.
 class WidgetAnimationSmoothnessInspector : ui::LayerAnimationObserver {
  public:
-  explicit WidgetAnimationSmoothnessInspector(views::Widget* widget);
+  WidgetAnimationSmoothnessInspector(views::Widget* widget);
   ~WidgetAnimationSmoothnessInspector() override;
 
   // Returns whether the animation had at least |min_steps| steps (including

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,8 @@
     this.remainingBudget_ = 0;
     this.lastGrantedChunk_ = 0;
     this.totalElapsedTime_ = 0;
-    this.chunkExpired_ = null;
+    this.onInstalled_ = null;
+    this.onExpired_ = null;
 
     this.dp_.Emulation.onVirtualTimeBudgetExpired(async data => {
       this.totalElapsedTime_ += this.lastGrantedChunk_;
@@ -41,10 +42,14 @@
 
   /**
    * Grants initial portion of virtual time.
+   * @param {number} budget Virtual time budget in milliseconds.
    * @param {number} initialVirtualTime Initial virtual time in milliseconds.
-   * @return {number} virtual time base
+   * @param {?function()} onInstalled Called when initial virtual time is
+   *     granted, parameter specifies virtual time base.
+   * @param {?function()} onExpired Called when granted virtual time is expired,
+   *     parameter specifies total elapsed virtual time.
    */
-  async initialize(initialVirtualTime) {
+  async grantInitialTime(budget, initialVirtualTime, onInstalled, onExpired) {
     // Pause for the first time and remember base virtual time.
     this.virtualTimeBase_ = (await this.dp_.Emulation.setVirtualTimePolicy(
         {initialVirtualTime, policy: 'pause'}))
@@ -54,20 +59,20 @@
         noDisplayUpdates: false,
         frameTimeTicks: this.virtualTimeBase_});
 
-    return this.virtualTimeBase_;
+    this.onInstalled_ = onInstalled;
+    await this.grantTime(budget, onExpired);
   }
 
   /**
    * Grants additional virtual time.
    * @param {number} budget Virtual time budget in milliseconds.
-   * @return {Promise} promise that resolves when chunk expires
+   * @param {?function()} onExpired Called when granted virtual time is expired,
+   *     parameter specifies total elapsed virtual time.
    */
-  async grantTime(budget) {
+  async grantTime(budget, onExpired) {
     this.remainingBudget_ = budget;
-    const chunkExpired = new Promise(fulfill => {this.onExpired_ = fulfill});
+    this.onExpired_ = onExpired;
     await this.issueAnimationFrameAndScheduleNextChunk_();
-    await chunkExpired;
-    return this.totalElapsedTime_;
   }
 
   /**
@@ -135,8 +140,13 @@
     const chunk = Math.min(nextAnimationFrame, this.remainingBudget_);
     await this.dp_.Emulation.setVirtualTimePolicy(
         {policy: 'pauseIfNetworkFetchesPending', budget: chunk,
-        maxVirtualTimeTaskStarvationCount: this.maxTaskStarvationCount_});
-    this._chunkExpired = this.dp_.Emulation.onceVirtualTimeBudgetExpired();
+        maxVirtualTimeTaskStarvationCount: this.maxTaskStarvationCount_,
+        waitForNavigation: this.totalElapsedTime_ === 0});
     this.lastGrantedChunk_ = chunk;
+
+    if (this.onInstalled_) {
+      this.onInstalled_(this.virtualTimeBase_);
+      this.onInstalled_ = null;
+    }
   }
 });

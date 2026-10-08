@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string.h>
 
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/icu/source/common/unicode/ucnv.h"
 #include "third_party/icu/source/common/unicode/ucnv_cb.h"
 #include "third_party/icu/source/common/unicode/utypes.h"
@@ -67,7 +66,7 @@ class AppendHandlerInstaller {
   }
 
  private:
-  raw_ptr<UConverter> converter_;
+  UConverter* converter_;
 
   UConverterFromUCallback old_callback_;
   const void* old_context_;
@@ -81,7 +80,7 @@ ICUCharsetConverter::ICUCharsetConverter(UConverter* converter)
 
 ICUCharsetConverter::~ICUCharsetConverter() = default;
 
-void ICUCharsetConverter::ConvertFromUTF16(const char16_t* input,
+void ICUCharsetConverter::ConvertFromUTF16(const base::char16* input,
                                            int input_len,
                                            CanonOutput* output) {
   // Install our error handler. It will be called for character that can not

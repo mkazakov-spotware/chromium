@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/offline_pages/core/offline_page_metadata_store.h"
 #include "components/offline_pages/core/offline_page_model.h"
@@ -58,9 +58,6 @@ class DeletePageTask : public Task {
       DeletePageTask::DeletePageTaskCallback callback,
       const OfflinePageItem& page);
 
-  DeletePageTask(const DeletePageTask&) = delete;
-  DeletePageTask& operator=(const DeletePageTask&) = delete;
-
   ~DeletePageTask() override;
 
   // Deletes a single page from the database. This function reads
@@ -94,12 +91,13 @@ class DeletePageTask : public Task {
   void InformDeletePageDone(DeletePageResult result);
 
   // The store to delete pages from. Not owned.
-  raw_ptr<OfflinePageMetadataStore> store_;
+  OfflinePageMetadataStore* store_;
   // The function which will delete pages.
   DeleteFunction func_;
   DeletePageTaskCallback callback_;
 
   base::WeakPtrFactory<DeletePageTask> weak_ptr_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(DeletePageTask);
 };
 
 }  // namespace offline_pages

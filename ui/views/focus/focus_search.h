@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define UI_VIEWS_FOCUS_FOCUS_SEARCH_H_
 
 #include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
 #include "ui/views/view.h"
 
 namespace views {
@@ -149,7 +148,7 @@ class VIEWS_EXPORT FocusSearch {
       FocusTraversable** focus_traversable,
       View** focus_traversable_view);
 
-  raw_ptr<View> root_;
+  View* root_;
   bool cycle_;
   bool accessibility_mode_;
 };

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2009 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.net.BrowserChannelTest');
 goog.setTestOnly();
@@ -19,7 +27,6 @@ const functions = goog.require('goog.functions');
 const googArray = goog.require('goog.array');
 const googJson = goog.require('goog.json');
 const recordFunction = goog.require('goog.testing.recordFunction');
-const stats = goog.require('goog.net.browserchannelinternal.stats');
 const testSuite = goog.require('goog.testing.testSuite');
 const tmpnetwork = goog.require('goog.net.tmpnetwork');
 
@@ -99,23 +106,23 @@ class MockChannelRequest {
   xmlHttpPost(uri, postData, decodeChunks) {
     this.channelDebug_.debug(`---> POST: ${uri}, ${postData}, ${decodeChunks}`);
     this.postData_ = postData;
-    this.requestStartTime_ = Date.now();
+    this.requestStartTime_ = goog.now();
   }
 
   xmlHttpGet(uri, decodeChunks, noClose = undefined) {
     this.channelDebug_.debug(`<--- GET: ${uri}, ${decodeChunks}, ${noClose}`);
     this.requestUri_ = uri;
-    this.requestStartTime_ = Date.now();
+    this.requestStartTime_ = goog.now();
   }
 
   tridentGet(uri, usingSecondaryDomain) {
     this.channelDebug_.debug('<---GET (T): ' + uri);
     this.requestUri_ = uri;
-    this.requestStartTime_ = Date.now();
+    this.requestStartTime_ = goog.now();
   }
 
   sendUsingImgTag(uri) {
-    this.requestStartTime_ = Date.now();
+    this.requestStartTime_ = goog.now();
   }
 
   cancel() {
@@ -194,7 +201,6 @@ function completeTestConnection() {
   assertEquals(BrowserChannel.State.OPENING, browserChannel.getState());
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function completeForwardTestConnection() {
   browserChannel.connectionTest_.onRequestData(
       browserChannel.connectionTest_, '["b"]');
@@ -203,14 +209,12 @@ function completeForwardTestConnection() {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function completeBackTestConnection() {
   browserChannel.connectionTest_.onRequestData(
       browserChannel.connectionTest_, '11111');
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function completeForwardChannel(
     serverVersion = undefined, hostPrefix = undefined) {
   const responseData = '[[0,["c","1234567890ABCDEF",' +
@@ -222,7 +226,6 @@ function completeForwardChannel(
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function completeBackChannel() {
   browserChannel.onRequestData(
       browserChannel.backChannelRequest_, '[[1,["foo"]]]');
@@ -230,7 +233,6 @@ function completeBackChannel() {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function responseVersion7() {
   browserChannel.onRequestData(
       browserChannel.forwardChannelRequest_,
@@ -239,7 +241,6 @@ function responseVersion7() {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function responseNoBackchannel(lastArrayIdSentFromServer, outstandingDataSize) {
   const responseData =
       googJson.serialize([0, lastArrayIdSentFromServer, outstandingDataSize]);
@@ -249,7 +250,6 @@ function responseNoBackchannel(lastArrayIdSentFromServer, outstandingDataSize) {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function response(lastArrayIdSentFromServer, outstandingDataSize) {
   const responseData =
       googJson.serialize([1, lastArrayIdSentFromServer, outstandingDataSize]);
@@ -259,7 +259,6 @@ function response(lastArrayIdSentFromServer, outstandingDataSize) {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function receive(data) {
   browserChannel.onRequestData(
       browserChannel.backChannelRequest_, `[[1,${data}]]`);
@@ -267,7 +266,6 @@ function receive(data) {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function responseTimeout() {
   Object.assign(
       browserChannel.forwardChannelRequest_,
@@ -276,7 +274,6 @@ function responseTimeout() {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function responseRequestFailed(statusCode = undefined) {
   Object.assign(browserChannel.forwardChannelRequest_, {
     lastError_: ChannelRequest.Error.STATUS,
@@ -287,7 +284,6 @@ function responseRequestFailed(statusCode = undefined) {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function responseUnknownSessionId() {
   Object.assign(browserChannel.forwardChannelRequest_, {
     lastError_: ChannelRequest.Error.UNKNOWN_SESSION_ID,
@@ -297,7 +293,6 @@ function responseUnknownSessionId() {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function responseActiveXBlocked() {
   Object.assign(
       browserChannel.backChannelRequest_,
@@ -313,17 +308,14 @@ function sendMap(key, value, context = undefined) {
   mockClock.tick(0);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function hasForwardChannel() {
   return !!browserChannel.forwardChannelRequest_;
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function hasBackChannel() {
   return !!browserChannel.backChannelRequest_;
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function hasDeadBackChannelTimer() {
   return browserChannel.deadBackChannelTimerId_ != null;
 }
@@ -339,15 +331,14 @@ function assertHasBackChannel() {
 testSuite({
   setUpPage() {
     // Use our MockChannelRequests instead of the real ones.
-    /** @suppress {checkTypes} suppression added to enable type checking */
-    ChannelRequest.createChannelRequest =
+    BrowserChannel.createChannelRequest =
         (channel, channelDebug, opt_sessionId, opt_requestId, opt_retryId) =>
             new MockChannelRequest(
                 channel, channelDebug, opt_sessionId, opt_requestId,
                 opt_retryId);
 
     // Mock out the stat notification code.
-    stats.notifyStatEvent = (stat) => {
+    BrowserChannel.notifyStatEvent = (stat) => {
       numStatEvents++;
       lastStatEvent = stat;
     };
@@ -395,7 +386,6 @@ testSuite({
     browserChannel.setHandler(handler);
 
     // Provide a predictable retry time for testing.
-    /** @suppress {visibility} suppression added to enable type checking */
     browserChannel.getRetryTime_ = (retryCount) => RETRY_TIME;
 
     const channelDebug = new ChannelDebug();
@@ -414,7 +404,6 @@ testSuite({
     debugToWindow('<hr>');
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testFormatArrayOfMaps() {
     // This function is used in a non-trivial test, so let's verify that it
     // works.
@@ -447,7 +436,6 @@ testSuite({
     assertEquals('k1:v1:c1, k2:v2:c1', formatArrayOfMaps(c));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConnect() {
     connect();
     assertEquals(BrowserChannel.State.OPENED, browserChannel.getState());
@@ -461,27 +449,23 @@ testSuite({
     assertHasBackChannel();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConnect_withServerHostPrefix() {
     connect(undefined, 'serverHostPrefix');
     assertEquals('serverHostPrefix', browserChannel.hostPrefix_);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConnect_withClientHostPrefix() {
     handler.correctHostPrefix = (hostPrefix) => 'clientHostPrefix';
     connect();
     assertEquals('clientHostPrefix', browserChannel.hostPrefix_);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConnect_overrideServerHostPrefix() {
     handler.correctHostPrefix = (hostPrefix) => 'clientHostPrefix';
     connect(undefined, 'serverHostPrefix');
     assertEquals('clientHostPrefix', browserChannel.hostPrefix_);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testConnect_withServerVersion() {
     connect(8);
     assertEquals(8, browserChannel.channelVersion_);
@@ -578,7 +562,6 @@ testSuite({
     sendMap('', '');
     assertEquals(1, numTimingEvents);
     mockClock.tick(20);
-    /** @suppress {visibility} suppression added to enable type checking */
     let expSize = browserChannel.forwardChannelRequest_.getPostData().length;
     responseVersion7();
 
@@ -588,7 +571,6 @@ testSuite({
     assertEquals(0, lastPostRetryCount);
 
     sendMap('abcdefg', '123456');
-    /** @suppress {visibility} suppression added to enable type checking */
     expSize = browserChannel.forwardChannelRequest_.getPostData().length;
     responseTimeout();
     assertEquals(2, numTimingEvents);
@@ -603,7 +585,6 @@ testSuite({
   /**
    * Make sure that dropping the forward channel retry limit below the retry
    * count reports an error, and prevents another request from firing.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testSetFailFastWhileWaitingForRetry() {
     stubTmpnetwork();
@@ -654,7 +635,6 @@ testSuite({
   /**
    * Make sure that dropping the forward channel retry limit below the retry
    * count reports an error, and prevents another request from firing.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testSetFailFastWhileRetryXhrIsInFlight() {
     stubTmpnetwork();
@@ -715,9 +695,8 @@ testSuite({
   },
 
   /**
-   * Makes sure that setting fail fast while not retrying doesn't cause a
-   *      failure.
-   * @suppress {visibility} suppression added to enable type checking
+     Makes sure that setting fail fast while not retrying doesn't cause a
+     failure.
    */
   testSetFailFastAtRetryCount() {
     stubTmpnetwork();
@@ -833,7 +812,6 @@ testSuite({
     assertEquals(BrowserChannel.Stat.ERROR_NETWORK, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testStatEventReportedOnlyOnce_onNetworkDown() {
     stubTmpnetwork();
 
@@ -856,7 +834,6 @@ testSuite({
     assertEquals(BrowserChannel.Stat.ERROR_OTHER, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testOutgoingMapsAwaitsResponse() {
     connect();
     assertEquals(0, browserChannel.outgoingMaps_.length);
@@ -904,7 +881,6 @@ testSuite({
     disconnect();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testUndeliveredMaps_clearsPendingMapsAfterNotifying() {
     connect();
     sendMap('foo1', 'bar1');
@@ -920,10 +896,6 @@ testSuite({
     assertEquals(0, browserChannel.outgoingMaps_.length);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testUndeliveredMaps_notifiesWithContext() {
     connect();
 
@@ -950,10 +922,6 @@ testSuite({
         handler.undeliveredMapsString);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testUndeliveredMaps_serviceUnavailable() {
     // Send a few maps, and let one fail.
     connect();
@@ -969,10 +937,6 @@ testSuite({
     assertEquals('', handler.undeliveredMapsString);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testUndeliveredMaps_onPingTimeout() {
     stubTmpnetwork();
 
@@ -995,10 +959,6 @@ testSuite({
     assertEquals('', handler.undeliveredMapsString);
   },
 
-  /**
-     @suppress {visibility,checkTypes} suppression added to enable type
-     checking
-   */
   testResponseNoBackchannelPostNotBeforeBackchannel() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1011,10 +971,6 @@ testSuite({
     assertNotEquals(BrowserChannel.Stat.BACKCHANNEL_MISSING, lastStatEvent);
   },
 
-  /**
-     @suppress {visibility,checkTypes} suppression added to enable type
-     checking
-   */
   testResponseNoBackchannel() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1029,39 +985,27 @@ testSuite({
     assertEquals(BrowserChannel.Stat.BACKCHANNEL_MISSING, lastStatEvent);
   },
 
-  /**
-     @suppress {visibility,checkTypes} suppression added to enable type
-     checking
-   */
   testResponseNoBackchannelWithNoBackchannel() {
     connect(8);
     sendMap('foo1', 'bar1');
     assertNull(browserChannel.backChannelTimerId_);
     browserChannel.backChannelRequest_.cancel();
-    /** @suppress {visibility} suppression added to enable type checking */
     browserChannel.backChannelRequest_ = null;
     responseNoBackchannel();
     assertEquals(BrowserChannel.Stat.BACKCHANNEL_MISSING, lastStatEvent);
   },
 
-  /**
-     @suppress {visibility,checkTypes} suppression added to enable type
-     checking
-   */
   testResponseNoBackchannelWithStartTimer() {
     connect(8);
     sendMap('foo1', 'bar1');
 
     browserChannel.backChannelRequest_.cancel();
-    /** @suppress {visibility} suppression added to enable type checking */
     browserChannel.backChannelRequest_ = null;
-    /** @suppress {visibility} suppression added to enable type checking */
     browserChannel.backChannelTimerId_ = 123;
     responseNoBackchannel();
     assertNotEquals(BrowserChannel.Stat.BACKCHANNEL_MISSING, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseWithNoArraySent() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1074,7 +1018,6 @@ testSuite({
     assertEquals(-1, browserChannel.lastPostResponseArrayId_);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseWithArraysMissing() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1089,7 +1032,6 @@ testSuite({
     assertEquals(BrowserChannel.Stat.BACKCHANNEL_DEAD, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testMultipleResponsesWithArraysMissing() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1108,7 +1050,6 @@ testSuite({
     assertEquals(BrowserChannel.Stat.BACKCHANNEL_DEAD, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testOnlyRetryOnceBasedOnResponse() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1130,7 +1071,6 @@ testSuite({
     assertFalse(hasDeadBackChannelTimer());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseWithArraysMissingAndLiveChannel() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1149,7 +1089,6 @@ testSuite({
     assertNotEquals(BrowserChannel.Stat.BACKCHANNEL_DEAD, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseWithBigOutstandingData() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1165,10 +1104,8 @@ testSuite({
     assertNotEquals(BrowserChannel.Stat.BACKCHANNEL_DEAD, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseInBufferedMode() {
     connect(8);
-    /** @suppress {visibility} suppression added to enable type checking */
     browserChannel.useChunked_ = false;
     sendMap('foo1', 'bar1');
     assertEquals(-1, browserChannel.lastPostResponseArrayId_);
@@ -1181,7 +1118,6 @@ testSuite({
     assertNotEquals(BrowserChannel.Stat.BACKCHANNEL_DEAD, lastStatEvent);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseWithGarbage() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1190,7 +1126,6 @@ testSuite({
     assertEquals(BrowserChannel.State.CLOSED, browserChannel.getState());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testResponseWithGarbageInArray() {
     connect(8);
     sendMap('foo1', 'bar1');
@@ -1199,23 +1134,18 @@ testSuite({
     assertEquals(BrowserChannel.State.CLOSED, browserChannel.getState());
   },
 
-  /**
-     @suppress {visibility,missingProperties} suppression added to enable type
-     checking
-   */
   testResponseWithEvilData() {
     connect(8);
     sendMap('foo1', 'bar1');
     browserChannel.onRequestData(
         browserChannel.forwardChannelRequest_,
         BrowserChannel.LAST_ARRAY_ID_RESPONSE_PREFIX +
-            '=<script>evil()<\/script>&' +
+            '=<script>evil()\<\/script>&' +
             BrowserChannel.OUTSTANDING_DATA_RESPONSE_PREFIX +
-            '=<script>moreEvil()<\/script>');
+            '=<script>moreEvil()\<\/script>');
     assertEquals(BrowserChannel.State.CLOSED, browserChannel.getState());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testPathAbsolute() {
     connect(8, undefined, '/talkgadget');
     assertEquals(
@@ -1225,7 +1155,6 @@ testSuite({
         window.location.hostname);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testPathRelative() {
     connect(8, undefined, 'talkgadget');
     assertEquals(
@@ -1235,7 +1164,6 @@ testSuite({
         window.location.hostname);
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testPathWithHost() {
     connect(8, undefined, 'https://example.com');
     assertEquals(browserChannel.backChannelUri_.getScheme(), 'https');
@@ -1284,9 +1212,7 @@ testSuite({
     assertEquals('[[1,["foo"]]]', call3.getArgument(0));
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testAsyncTest() {
-    /** @suppress {visibility} suppression added to enable type checking */
     browserChannel.asyncTest_ = true;
     browserChannel.connect('/test', '/bind');
     mockClock.tick(0);

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 #include "base/memory/ref_counted_memory.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/image/image.h"
-#include "ui/native_theme/native_theme.h"
 
-CustomThemeSupplier::~CustomThemeSupplier() = default;
+CustomThemeSupplier::CustomThemeSupplier(ThemeType theme_type)
+    : theme_type_(theme_type) {}
+
+CustomThemeSupplier::~CustomThemeSupplier() {}
 
 void CustomThemeSupplier::StartUsingTheme() {}
 
@@ -33,8 +35,8 @@ gfx::Image CustomThemeSupplier::GetImageNamed(int id) const {
 
 base::RefCountedMemory* CustomThemeSupplier::GetRawData(
     int idr_id,
-    ui::ResourceScaleFactor scale_factor) const {
-  return nullptr;
+    ui::ScaleFactor scale_factor) const {
+  return NULL;
 }
 
 bool CustomThemeSupplier::HasCustomImage(int id) const {
@@ -43,8 +45,4 @@ bool CustomThemeSupplier::HasCustomImage(int id) const {
 
 bool CustomThemeSupplier::CanUseIncognitoColors() const {
   return true;
-}
-
-ui::NativeTheme* CustomThemeSupplier::GetNativeTheme() const {
-  return ui::NativeTheme::GetInstanceForNativeUi();
 }

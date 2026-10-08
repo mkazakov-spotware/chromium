@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
 #include "ui/views/controls/button/button.h"
@@ -27,8 +27,6 @@ class PaymentRequestState;
 // views shown in the PaymentRequestDialog.
 class PaymentRequestSheetController {
  public:
-  using ButtonCallback = base::RepeatingClosure;
-
   // Objects of this class are owned by |dialog|, so it's a non-owned pointer
   // that should be valid throughout this object's lifetime.
   // |state| and |spec| are also not owned by this and are guaranteed to outlive
@@ -36,11 +34,6 @@ class PaymentRequestSheetController {
   PaymentRequestSheetController(base::WeakPtr<PaymentRequestSpec> spec,
                                 base::WeakPtr<PaymentRequestState> state,
                                 base::WeakPtr<PaymentRequestDialogView> dialog);
-
-  PaymentRequestSheetController(const PaymentRequestSheetController&) = delete;
-  PaymentRequestSheetController& operator=(
-      const PaymentRequestSheetController&) = delete;
-
   virtual ~PaymentRequestSheetController();
 
   // Creates a view to be displayed in the PaymentRequestDialog. The header view
@@ -68,7 +61,7 @@ class PaymentRequestSheetController {
   base::WeakPtr<PaymentRequestDialogView> dialog() { return dialog_; }
 
   // Returns the title to be displayed in this sheet's header.
-  virtual std::u16string GetSheetTitle() = 0;
+  virtual base::string16 GetSheetTitle() = 0;
 
   // Stops the controller from controlling the UI. Used when the UI is being
   // destroyed.
@@ -92,16 +85,16 @@ class PaymentRequestSheetController {
   // Methods that control the appearance and behavior of the primary dialog
   // button.  By default the dialog shows a "pay" button.
   virtual bool ShouldShowPrimaryButton();
-  virtual std::u16string GetPrimaryButtonLabel();
-  virtual ButtonCallback GetPrimaryButtonCallback();
+  virtual base::string16 GetPrimaryButtonLabel();
+  virtual views::Button::PressedCallback GetPrimaryButtonCallback();
   virtual int GetPrimaryButtonId();
   virtual bool GetPrimaryButtonEnabled();
 
   // Methods that control the appearance and behavior of the secondary dialog
   // button.  By default the dialog shows a "cancel payment" button.
   virtual bool ShouldShowSecondaryButton();
-  virtual std::u16string GetSecondaryButtonLabel();
-  virtual ButtonCallback GetSecondaryButtonCallback();
+  virtual base::string16 GetSecondaryButtonLabel();
+  virtual views::Button::PressedCallback GetSecondaryButtonCallback();
   virtual int GetSecondaryButtonId();
 
   // Returns whether this sheet should display a back arrow in the header next
@@ -125,21 +118,6 @@ class PaymentRequestSheetController {
   // | EXTRA VIEW | PAY | CANCEL |
   // +---------------------------+
   virtual std::unique_ptr<views::View> CreateExtraFooterView();
-
-  // Creates and returns a header for all the sheets in the PaymentRequest
-  // dialog. The header contains an optional back arrow button (if
-  // |ShouldShowHeaderBackArrow| returns true) and a content view created by
-  // |CreateHeaderContentView|. The background is set based on
-  // |GetHeaderBackground|, and its color is used to decide which color to use
-  // to paint the arrow.
-  //
-  // The passed-in `view` must be the `header_view_` - it is only passed as an
-  // argument because this is required by ViewFactory.
-  //
-  // +---------------------------+
-  // | <- | header_content_view  |
-  // +---------------------------+
-  void PopulateSheetHeaderView(views::View* view);
 
   // Creates and returns the view to be inserted in the header, next to the
   // close/back button. This is typically the sheet's title but it can be
@@ -179,8 +157,6 @@ class PaymentRequestSheetController {
     return header_content_separator_container_;
   }
 
-  views::View* content_view() { return content_view_; }
-
   // Returns whether the controller should be controlling the UI.
   bool is_active() const { return is_active_; }
 
@@ -203,25 +179,26 @@ class PaymentRequestSheetController {
   base::WeakPtr<PaymentRequestDialogView> const dialog_;
 
   // This view is owned by its encompassing ScrollView.
-  raw_ptr<views::View, DanglingUntriaged> pane_ = nullptr;
-  raw_ptr<views::View, DanglingUntriaged> content_view_ = nullptr;
+  views::View* pane_ = nullptr;
+  views::View* content_view_ = nullptr;
 
   // Hold on to the ScrollView because it must be explicitly laid out in some
   // cases.
-  raw_ptr<views::ScrollView, DanglingUntriaged> scroll_ = nullptr;
+  views::ScrollView* scroll_ = nullptr;
 
   // Hold on to the primary and secondary buttons to use them as initial focus
   // targets when subclasses don't want to focus anything else.
-  raw_ptr<views::MdTextButton, DanglingUntriaged> primary_button_ = nullptr;
-  raw_ptr<views::Button, DanglingUntriaged> secondary_button_ = nullptr;
-  raw_ptr<views::View, DanglingUntriaged> header_view_ = nullptr;
-  raw_ptr<views::View, DanglingUntriaged> header_content_separator_container_ =
-      nullptr;
+  views::MdTextButton* primary_button_ = nullptr;
+  views::Button* secondary_button_ = nullptr;
+  views::View* header_view_ = nullptr;
+  views::View* header_content_separator_container_ = nullptr;
 
   // Whether the controller should be controlling the UI.
   bool is_active_ = true;
 
   base::WeakPtrFactory<PaymentRequestSheetController> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentRequestSheetController);
 };
 
 }  // namespace payments

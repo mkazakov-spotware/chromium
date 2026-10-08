@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,15 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/animation/basic_shape_interpolation_functions.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/style/basic_shapes.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
+#include "third_party/blink/renderer/core/style/data_equivalency.h"
 #include "third_party/blink/renderer/core/style/shape_clip_path_operation.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -35,6 +34,8 @@ const BasicShape* GetBasicShape(const CSSProperty& property,
         return nullptr;
       return style.ShapeOutside()->Shape();
     case CSSPropertyID::kClipPath: {
+      if (!style.ClipPath())
+        return nullptr;
       auto* clip_path_operation =
           DynamicTo<ShapeClipPathOperation>(style.ClipPath());
       if (!clip_path_operation)
@@ -47,8 +48,6 @@ const BasicShape* GetBasicShape(const CSSProperty& property,
 
       return shape;
     }
-    case CSSPropertyID::kObjectViewBox:
-      return style.ObjectViewBox();
     default:
       NOTREACHED();
       return nullptr;
@@ -84,8 +83,8 @@ class InheritedShapeChecker
  private:
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue&) const final {
-    return base::ValuesEquivalent(
-        inherited_shape_.get(), GetBasicShape(property_, *state.ParentStyle()));
+    return DataEquivalent(inherited_shape_.get(),
+                          GetBasicShape(property_, *state.ParentStyle()));
   }
 
   const CSSProperty& property_;
@@ -110,12 +109,10 @@ InterpolationValue CSSBasicShapeInterpolationType::MaybeConvertNeutral(
 }
 
 InterpolationValue CSSBasicShapeInterpolationType::MaybeConvertInitial(
-    const StyleResolverState& state,
+    const StyleResolverState&,
     ConversionCheckers&) const {
   return basic_shape_interpolation_functions::MaybeConvertBasicShape(
-      GetBasicShape(CssProperty(),
-                    state.GetDocument().GetStyleResolver().InitialStyle()),
-      1);
+      GetBasicShape(CssProperty(), ComputedStyle::InitialStyle()), 1);
 }
 
 InterpolationValue CSSBasicShapeInterpolationType::MaybeConvertInherit(
@@ -186,15 +183,12 @@ void CSSBasicShapeInterpolationType::ApplyStandardPropertyValue(
           state.CssToLengthConversionData());
   switch (CssProperty().PropertyID()) {
     case CSSPropertyID::kShapeOutside:
-      state.StyleBuilder().SetShapeOutside(MakeGarbageCollected<ShapeValue>(
+      state.Style()->SetShapeOutside(MakeGarbageCollected<ShapeValue>(
           std::move(shape), CSSBoxType::kMissing));
       break;
     case CSSPropertyID::kClipPath:
-      state.StyleBuilder().SetClipPath(
+      state.Style()->SetClipPath(
           ShapeClipPathOperation::Create(std::move(shape)));
-      break;
-    case CSSPropertyID::kObjectViewBox:
-      state.StyleBuilder().SetObjectViewBox(std::move(shape));
       break;
     default:
       NOTREACHED();

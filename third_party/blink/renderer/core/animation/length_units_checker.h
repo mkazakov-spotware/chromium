@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,52 +20,51 @@ class LengthUnitsChecker : public CSSInterpolationType::CSSConversionChecker {
   static std::unique_ptr<LengthUnitsChecker> MaybeCreate(
       const CSSPrimitiveValue::LengthTypeFlags& length_types,
       const StyleResolverState& state) {
-    Vector<UnitLength> unit_lengths;
+    bool create = false;
+    wtf_size_t last_index = 0;
+    CSSLengthArray length_array;
     for (wtf_size_t i = 0; i < length_types.size(); ++i) {
       if (i == CSSPrimitiveValue::kUnitTypePercentage || !length_types[i])
         continue;
-      unit_lengths.push_back(
-          UnitLength(static_cast<CSSPrimitiveValue::LengthUnitType>(i),
-                     state.CssToLengthConversionData()));
+      length_array.values[i] = LengthUnit(i, state.CssToLengthConversionData());
+      length_array.type_flags.set(i);
+      create = true;
+      last_index = i;
     }
-    if (unit_lengths.empty())
+    if (!create)
       return nullptr;
-    return base::WrapUnique(new LengthUnitsChecker(std::move(unit_lengths)));
+    return base::WrapUnique(
+        new LengthUnitsChecker(std::move(length_array), last_index));
   }
 
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
-    for (const UnitLength& unit_length : unit_lengths_) {
-      if (unit_length.length_pixels !=
-          UnitLengthPixels(unit_length.unit,
-                           state.CssToLengthConversionData())) {
+    for (wtf_size_t i = 0; i <= last_index_; i++) {
+      if (i == CSSPrimitiveValue::kUnitTypePercentage ||
+          !length_array_.type_flags[i])
+        continue;
+      if (length_array_.values[i] !=
+          LengthUnit(i, state.CssToLengthConversionData()))
         return false;
-      }
     }
     return true;
   }
 
- private:
-  static double UnitLengthPixels(
-      CSSPrimitiveValue::LengthUnitType length_unit_type,
-      const CSSToLengthConversionData& conversion_data) {
+  static double LengthUnit(wtf_size_t length_unit_type,
+                           const CSSToLengthConversionData& conversion_data) {
     return conversion_data.ZoomedComputedPixels(
-        1, CSSPrimitiveValue::LengthUnitTypeToUnitType(length_unit_type));
+        1,
+        CSSPrimitiveValue::LengthUnitTypeToUnitType(
+            static_cast<CSSPrimitiveValue::LengthUnitType>(length_unit_type)));
   }
 
-  struct UnitLength {
-    explicit UnitLength(CSSPrimitiveValue::LengthUnitType unit,
-                        const CSSToLengthConversionData& conversion_data)
-        : unit(unit), length_pixels(UnitLengthPixels(unit, conversion_data)) {}
+ private:
+  LengthUnitsChecker(CSSPrimitiveValue::CSSLengthArray&& length_array,
+                     wtf_size_t last_index)
+      : length_array_(std::move(length_array)), last_index_(last_index) {}
 
-    const CSSPrimitiveValue::LengthUnitType unit;
-    const double length_pixels;
-  };
-
-  explicit LengthUnitsChecker(Vector<UnitLength> unit_lengths)
-      : unit_lengths_(std::move(unit_lengths)) {}
-
-  Vector<UnitLength> unit_lengths_;
+  const CSSLengthArray length_array_;
+  const wtf_size_t last_index_;
 };
 
 }  // namespace blink

@@ -16,17 +16,11 @@ A high-level overview is provided below and more information can be found here:
     clicking a mouse. See also the
     [testdriver.js extension tutorial](testdriver-extension-tutorial.md) for adding new commands.
 
-  * [idlharness.js](idlharness.md) — A library for testing
+  * [idlharness.js Documentation](idlharness.md) — A library for testing
      IDL interfaces using `testharness.js`.
 
-  * [Message Channels](channels.md) - A way to communicate between
-    different globals, including window globals not in the same
-    browsing context group.
-
-  * [Server features](server-features.md) - Advanced testing features
-    that are commonly used with JavaScript tests.
-
-See also the [general guidelines](general-guidelines.md) for all test types.
+See [server features](server-features.md) for advanced testing features that are commonly used
+with JavaScript tests. See also the [general guidelines](general-guidelines.md) for all test types.
 
 ## Window tests
 
@@ -44,7 +38,7 @@ test(() => {
 }, "Ensure HTML boilerplate uses UTF-8"); // This is the title of the test
 ```
 
-If you only need to test a [single thing](testharness-api.html#single-page-tests), you could also use:
+If you only need to test a [single thing](testharness-api.md#single-page-tests), you could also use:
 ```js
 // META: title=Ensure HTML boilerplate uses UTF-8
 setup({ single_test: true });
@@ -52,8 +46,8 @@ assert_equals(document.characterSet, "UTF-8");
 done();
 ```
 
-See [asynchronous (`async_test()`)](testharness-api.html#asynchronous-tests) and
-[promise tests (`promise_test()`)](testharness-api.html#promise-tests) for more involved setups.
+See [asynchronous (`async_test()`)](testharness-api.md#asynchronous-tests) and
+[promise tests (`promise_test()`)](testharness-api.md#promise-tests) for more involved setups.
 
 ### With HTML boilerplate
 
@@ -146,8 +140,6 @@ It is possible to customize the set of scopes with a metadata comment, such as
 //       ==> would only run in the window and service worker scope
 // META: global=dedicatedworker
 //       ==> would run in the default dedicated worker scope
-// META: global=dedicatedworker-module
-//       ==> would run in the dedicated worker scope as a module
 // META: global=worker
 //       ==> would run in the dedicated, shared, and service worker scopes
 ```
@@ -157,19 +149,11 @@ are:
 
 * `window` (default): to be run at <code><var>x</var>.any.html</code>
 * `dedicatedworker` (default): to be run at <code><var>x</var>.any.worker.html</code>
-* `dedicatedworker-module` to be run at <code><var>x</var>.any.worker-module.html</code>
-* `serviceworker`: to be run at <code><var>x</var>.any.serviceworker.html</code> (`.https` is
-  implied)
-* `serviceworker-module`: to be run at <code><var>x</var>.any.serviceworker-module.html</code>
-  (`.https` is implied)
+* `serviceworker`: to be run at <code><var>x</var>.any.serviceworker.html</code> (`.https` is implied)
 * `sharedworker`: to be run at <code><var>x</var>.any.sharedworker.html</code>
-* `sharedworker-module`: to be run at <code><var>x</var>.any.sharedworker-module.html</code>
 * `jsshell`: to be run in a JavaScript shell, without access to the DOM
   (currently only supported in SpiderMonkey, and skipped in wptrunner)
 * `worker`: shorthand for the dedicated, shared, and service worker scopes
-* `shadowrealm`: runs the test code in a
-  [ShadowRealm](https://github.com/tc39/proposal-shadowrealm) context hosted in
-  an ordinary Window context; to be run at <code><var>x</var>.any.shadowrealm.html</code>
 
 To check if your test is run from a window or worker you can use the following two methods that will
 be made available by the framework:
@@ -198,10 +182,6 @@ Use `// META: script=link/to/resource.js` at the beginning of the resource. For 
 ```
 
 can be used to include both the global and a local `utils.js` in a test.
-
-In window environments, the script will be included using a classic `<script>` tag. In classic
-worker environments, the script will be imported using `importScripts()`. In module worker
-environments, the script will be imported using a static `import`.
 
 ### Specifying a timeout of long
 
@@ -241,7 +221,7 @@ otherwise too many tests to complete inside the timeout. For example:
 <meta name="variant" content="?2001-last">
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
-<script src="/common/subset-tests.js"></script>
+<script src="/common/subset-tests.js">
 <script>
  const tests = [
                  { fn: t => { ... }, name: "..." },

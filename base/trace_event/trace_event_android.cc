@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/thread.h"
 #include "base/trace_event/trace_event.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace trace_event {
@@ -24,8 +23,7 @@ namespace trace_event {
 namespace {
 
 int g_atrace_fd = -1;
-const char kATraceMarkerFile[] = "/sys/kernel/tracing/trace_marker";
-const char kLegacyATraceMarkerFile[] = "/sys/kernel/debug/tracing/trace_marker";
+const char kATraceMarkerFile[] = "/sys/kernel/debug/tracing/trace_marker";
 
 void WriteToATrace(int fd, const char* buffer, size_t size) {
   size_t total_written = 0;
@@ -34,14 +32,14 @@ void WriteToATrace(int fd, const char* buffer, size_t size) {
         fd, buffer + total_written, size - total_written));
     if (written <= 0)
       break;
-    total_written += static_cast<size_t>(written);
+    total_written += written;
   }
   // Tracing might have been disabled before we were notified about it, which
   // triggers EBADF. Since enabling and disabling atrace is racy, ignore the
   // error in that case to avoid logging an error for every trace event.
   if (total_written < size && errno != EBADF) {
     PLOG(WARNING) << "Failed to write buffer '" << std::string(buffer, size)
-                  << "' to trace_marker";
+                  << "' to " << kATraceMarkerFile;
   }
 }
 
@@ -62,34 +60,20 @@ void WriteEvent(char phase,
       out += ';';
     out += arg_names[i];
     out += '=';
-    size_t value_start = out.length();
+    std::string::size_type value_start = out.length();
     args.values()[i].AppendAsJSON(args.types()[i], &out);
 
     // Remove the quotes which may confuse the atrace script.
     ReplaceSubstringsAfterOffset(&out, value_start, "\\\"", "'");
     ReplaceSubstringsAfterOffset(&out, value_start, "\"", "");
     // Replace chars used for separators with similar chars in the value.
-    std::replace(out.begin() + static_cast<ptrdiff_t>(value_start), out.end(),
-                 ';', ',');
-    std::replace(out.begin() + static_cast<ptrdiff_t>(value_start), out.end(),
-                 '|', '!');
+    std::replace(out.begin() + value_start, out.end(), ';', ',');
+    std::replace(out.begin() + value_start, out.end(), '|', '!');
   }
 
   out += '|';
   out += category_group;
   WriteToATrace(g_atrace_fd, out.c_str(), out.size());
-}
-
-int OpenATraceMarkerFile(int mode) {
-  int fd = HANDLE_EINTR(open(kATraceMarkerFile, mode));
-  if (fd == -1)
-    fd = HANDLE_EINTR(open(kLegacyATraceMarkerFile, mode));
-  if (fd == -1) {
-    PLOG(WARNING) << "Couldn't open " << kATraceMarkerFile << " or "
-                  << kLegacyATraceMarkerFile;
-    return -1;
-  }
-  return fd;
 }
 
 }  // namespace
@@ -108,9 +92,11 @@ void TraceLog::StartATrace(const std::string& category_filter) {
   if (g_atrace_fd != -1)
     return;
 
-  g_atrace_fd = OpenATraceMarkerFile(O_WRONLY);
-  if (g_atrace_fd == -1)
+  g_atrace_fd = HANDLE_EINTR(open(kATraceMarkerFile, O_WRONLY));
+  if (g_atrace_fd == -1) {
+    PLOG(WARNING) << "Couldn't open " << kATraceMarkerFile;
     return;
+  }
   TraceConfig trace_config(category_filter);
   trace_config.SetTraceRecordMode(RECORD_CONTINUOUSLY);
   SetEnabled(trace_config, TraceLog::RECORDING_MODE);
@@ -173,9 +159,11 @@ void TraceEvent::SendToATrace() {
 }
 
 void TraceLog::AddClockSyncMetadataEvent() {
-  int atrace_fd = OpenATraceMarkerFile(O_WRONLY | O_APPEND);
-  if (atrace_fd == -1)
+  int atrace_fd = HANDLE_EINTR(open(kATraceMarkerFile, O_WRONLY | O_APPEND));
+  if (atrace_fd == -1) {
+    PLOG(WARNING) << "Couldn't open " << kATraceMarkerFile;
     return;
+  }
 
   // Android's kernel trace system has a trace_marker feature: this is a file on
   // debugfs that takes the written data and pushes it onto the trace
@@ -192,7 +180,7 @@ void TraceLog::SetupATraceStartupTrace(const std::string& category_filter) {
   atrace_startup_config_ = TraceConfig(category_filter);
 }
 
-absl::optional<TraceConfig> TraceLog::TakeATraceStartupConfig() {
+Optional<TraceConfig> TraceLog::TakeATraceStartupConfig() {
   return std::move(atrace_startup_config_);
 }
 

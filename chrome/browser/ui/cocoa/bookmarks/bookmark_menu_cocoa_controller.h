@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 
 #import <Cocoa/Cocoa.h>
 
-#include "base/guid.h"
 #include "ui/base/window_open_disposition.h"
 
 class BookmarkMenuBridge;
-class Profile;
 
 namespace bookmarks {
 class BookmarkNode;
@@ -25,7 +23,7 @@ class BookmarkNode;
 // Make a relevant tooltip string for node.
 + (NSString*)tooltipForNode:(const bookmarks::BookmarkNode*)node;
 
-- (instancetype)initWithBridge:(BookmarkMenuBridge*)bridge;
+- (id)initWithBridge:(BookmarkMenuBridge*)bridge;
 
 // Called by any Bookmark menu item.
 // The menu item's tag is the bookmark ID.
@@ -35,13 +33,10 @@ class BookmarkNode;
 
 
 @interface BookmarkMenuCocoaController (ExposedForUnitTests)
-- (const bookmarks::BookmarkNode*)nodeForGUID:(const base::GUID&)guid
-                                    inProfile:(Profile*)profile;
-- (void)openURLForIdentifier:(base::GUID)guid inProfile:(Profile*)profile;
-- (void)openURLForIdentifier:(base::GUID)guid;
+- (const bookmarks::BookmarkNode*)nodeForIdentifier:(int)identifier;
+- (void)openURLForNode:(const bookmarks::BookmarkNode*)node;
 - (void)openAll:(NSInteger)tag
     withDisposition:(WindowOpenDisposition)disposition;
-- (base::GUID)guidForIdentifier:(int)identifier;
 @end  // BookmarkMenuCocoaController (ExposedForUnitTests)
 
 #endif  // CHROME_BROWSER_UI_COCOA_BOOKMARKS_BOOKMARK_MENU_COCOA_CONTROLLER_H_

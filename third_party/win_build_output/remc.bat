@@ -1,4 +1,4 @@
-@REM Copyright 2017 The Chromium Authors
+@REM Copyright 2017 The Chromium Authors. All rights reserved.
 @REM Use of this source code is governed by a BSD-style license that can be
 @REM found in the LICENSE file.
 

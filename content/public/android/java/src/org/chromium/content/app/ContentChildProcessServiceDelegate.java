@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,31 +14,37 @@ import android.view.Surface;
 
 import org.chromium.base.JNIUtils;
 import org.chromium.base.Log;
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.UnguessableToken;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.library_loader.LibraryLoader;
+import org.chromium.base.library_loader.Linker;
+import org.chromium.base.library_loader.ProcessInitException;
 import org.chromium.base.memory.MemoryPressureUma;
 import org.chromium.base.process_launcher.ChildProcessServiceDelegate;
-import org.chromium.build.annotations.MainDex;
+import org.chromium.base.task.PostTask;
 import org.chromium.content.browser.ChildProcessCreationParamsImpl;
 import org.chromium.content.browser.ContentChildProcessConstants;
 import org.chromium.content.common.IGpuProcessCallback;
 import org.chromium.content.common.SurfaceWrapper;
+import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.common.ContentProcessInfo;
 
 import java.util.List;
 
 /**
- * This implementation of {@link ChildProcessServiceDelegate} loads the native library, provides
- * access to view surfaces.
+ * This implementation of {@link ChildProcessServiceDelegate} loads the native library potentially
+ * using the custom linker, provides access to view surfaces.
  */
 @JNINamespace("content")
 @MainDex
 public class ContentChildProcessServiceDelegate implements ChildProcessServiceDelegate {
     private static final String TAG = "ContentCPSDelegate";
+
+    // Linker-specific parameters for this child process service.
+    private ChromiumLinkerParams mLinkerParams;
 
     private IGpuProcessCallback mGpuCallback;
 
@@ -58,7 +64,7 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
 
     @Override
     public void onServiceBound(Intent intent) {
-        LibraryLoader.getInstance().getMediator().takeLoadAddressFromBundle(intent.getExtras());
+        mLinkerParams = ChromiumLinkerParams.create(intent.getExtras());
         LibraryLoader.getInstance().setLibraryProcessType(
                 ChildProcessCreationParamsImpl.getLibraryProcessType(intent.getExtras()));
     }
@@ -73,15 +79,19 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
         mCpuFeatures = connectionBundle.getLong(ContentChildProcessConstants.EXTRA_CPU_FEATURES);
         assert mCpuCount > 0;
 
-        LibraryLoader.getInstance().getMediator().takeSharedRelrosFromBundle(connectionBundle);
+        if (LibraryLoader.getInstance().useChromiumLinker()
+                && !LibraryLoader.getInstance().isLoadedByZygote()) {
+            Bundle sharedRelros = connectionBundle.getBundle(Linker.EXTRA_LINKER_SHARED_RELROS);
+            if (sharedRelros != null) getLinker().provideSharedRelros(sharedRelros);
+        }
     }
 
     @Override
-    public void preloadNativeLibrary(String packageName) {
+    public void preloadNativeLibrary(Context hostContext) {
         // This function can be called before command line is set. That is fine because
         // preloading explicitly doesn't run any Chromium code, see NativeLibraryPreloader
         // for more info.
-        LibraryLoader.getInstance().preloadNowOverridePackageName(packageName);
+        LibraryLoader.getInstance().preloadNowOverrideApplicationContext(hostContext);
     }
 
     @Override
@@ -93,9 +103,32 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
 
         JNIUtils.enableSelectiveJniRegistration();
 
-        LibraryLoader libraryLoader = LibraryLoader.getInstance();
-        libraryLoader.getMediator().initInChildProcess();
-        libraryLoader.loadNowOverrideApplicationContext(hostContext);
+        Linker linker = null;
+        boolean requestedSharedRelro = false;
+        if (LibraryLoader.getInstance().useChromiumLinker()) {
+            assert mLinkerParams != null;
+            linker = getLinker();
+            if (mLinkerParams.mWaitForSharedRelro) {
+                requestedSharedRelro = true;
+                linker.initServiceProcess(mLinkerParams.mBaseLoadAddress);
+            } else {
+                linker.disableSharedRelros();
+            }
+        }
+        try {
+            LibraryLoader.getInstance().loadNowOverrideApplicationContext(hostContext);
+        } catch (ProcessInitException e) {
+            if (requestedSharedRelro) {
+                Log.w(TAG,
+                        "Failed to load native library with shared RELRO, "
+                                + "retrying without");
+                linker.disableSharedRelros();
+                LibraryLoader.getInstance().loadNowOverrideApplicationContext(hostContext);
+            } else {
+                throw e;
+            }
+        }
+        LibraryLoader.getInstance().registerRendererProcessHistogram();
         initializeLibrary();
     }
 
@@ -110,14 +143,6 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
     }
 
     @Override
-    public void consumeRelroBundle(Bundle bundle) {
-        // Does not block, but may jank slightly. If the library has not been loaded yet, the bundle
-        // will be unpacked and saved for the future. If the library is loaded, the RELRO region
-        // will be replaced, which involves mmap(2) of shared memory and memcpy+memcmp of a few MB.
-        LibraryLoader.getInstance().getMediator().takeSharedRelrosFromBundle(bundle);
-    }
-
-    @Override
     public SparseArray<String> getFileDescriptorsIdsToKeys() {
         assert mFdsIdsToKeys != null;
         return mFdsIdsToKeys;
@@ -127,15 +152,18 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
     public void onBeforeMain() {
         ContentChildProcessServiceDelegateJni.get().initChildProcess(
                 ContentChildProcessServiceDelegate.this, mCpuCount, mCpuFeatures);
-        ThreadUtils.getUiThreadHandler().post(() -> {
-            ContentChildProcessServiceDelegateJni.get().initMemoryPressureListener();
-            MemoryPressureUma.initializeForChildService();
-        });
+        PostTask.postTask(
+                UiThreadTaskTraits.DEFAULT, () -> MemoryPressureUma.initializeForChildService());
     }
 
     @Override
     public void runMain() {
         ContentMain.start(false);
+    }
+
+    // Return a Linker instance. If testing, the Linker needs special setup.
+    private Linker getLinker() {
+        return Linker.getInstance();
     }
 
     @CalledByNative
@@ -193,12 +221,6 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
          */
         void initChildProcess(
                 ContentChildProcessServiceDelegate caller, int cpuCount, long cpuFeatures);
-
-        /**
-         * Initializes the MemoryPressureListener on the same thread callbacks will be
-         * received on.
-         */
-        void initMemoryPressureListener();
 
         // Retrieves the FD IDs to keys map and set it by calling setFileDescriptorsIdsToKeys().
         void retrieveFileDescriptorsIdsToKeys(ContentChildProcessServiceDelegate caller);

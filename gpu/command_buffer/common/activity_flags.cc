@@ -1,11 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright (c) 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/command_buffer/common/activity_flags.h"
-
-#include "base/memory/shared_memory_mapping.h"
-#include "base/memory/unsafe_shared_memory_region.h"
 
 namespace gpu {
 
@@ -13,13 +10,13 @@ ActivityFlagsBase::ActivityFlagsBase() = default;
 ActivityFlagsBase::ActivityFlagsBase(ActivityFlagsBase&& other) = default;
 ActivityFlagsBase::~ActivityFlagsBase() = default;
 
-void ActivityFlagsBase::Initialize(base::UnsafeSharedMemoryRegion region) {
-  region_ = std::move(region);
-  mapping_ = region_.Map();
+void ActivityFlagsBase::Initialize(mojo::ScopedSharedBufferHandle handle) {
+  handle_ = std::move(handle);
+  mapping_ = handle_->Map(sizeof(Flag));
 }
 
 volatile base::subtle::Atomic32* ActivityFlagsBase::AsAtomic() {
-  return reinterpret_cast<volatile base::subtle::Atomic32*>(mapping_.memory());
+  return reinterpret_cast<volatile base::subtle::Atomic32*>(mapping_.get());
 }
 
 GpuProcessActivityFlags::GpuProcessActivityFlags() = default;
@@ -27,13 +24,13 @@ GpuProcessActivityFlags::GpuProcessActivityFlags(
     GpuProcessActivityFlags&& other) = default;
 
 GpuProcessActivityFlags::GpuProcessActivityFlags(
-    base::UnsafeSharedMemoryRegion region) {
+    mojo::ScopedSharedBufferHandle handle) {
   // In cases where we are running without a GpuProcessHost, we may not
   // have a valid handle. In this case, just return.
-  if (!region.IsValid())
+  if (!handle.is_valid())
     return;
 
-  Initialize(std::move(region));
+  Initialize(std::move(handle));
 }
 
 void GpuProcessActivityFlags::SetFlag(Flag flag) {
@@ -48,7 +45,7 @@ void GpuProcessActivityFlags::SetFlag(Flag flag) {
   // These flags are only written by a single process / single thread.
   // We should never double-set them.
   DCHECK(!(old_value & flag));
-  base::subtle::Release_Store(AsAtomic(), new_value);
+  base::subtle::Acquire_Store(AsAtomic(), new_value);
 }
 
 void GpuProcessActivityFlags::UnsetFlag(Flag flag) {
@@ -67,7 +64,7 @@ void GpuProcessActivityFlags::UnsetFlag(Flag flag) {
 }
 
 GpuProcessHostActivityFlags::GpuProcessHostActivityFlags() {
-  Initialize(base::UnsafeSharedMemoryRegion::Create(sizeof(Flag)));
+  Initialize(mojo::SharedBufferHandle::Create(sizeof(Flag)));
 }
 
 bool GpuProcessHostActivityFlags::IsFlagSet(Flag flag) {

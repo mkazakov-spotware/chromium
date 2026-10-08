@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,14 +46,16 @@ std::string CanonicalizeBluetoothAddress(base::StringPiece address) {
   if (!ParseBluetoothAddress(address, bytes))
     return std::string();
 
-  return CanonicalizeBluetoothAddress(bytes);
-}
+  std::string canonicalized;
+  canonicalized.reserve(17);
 
-std::string CanonicalizeBluetoothAddress(
-    const std::array<uint8_t, 6>& address_bytes) {
-  return base::StringPrintf(
-      "%02X:%02X:%02X:%02X:%02X:%02X", address_bytes[0], address_bytes[1],
-      address_bytes[2], address_bytes[3], address_bytes[4], address_bytes[5]);
+  for (size_t i = 0; i < bytes.size(); ++i) {
+    if (i != 0)
+      canonicalized.push_back(':');
+    base::StringAppendF(&canonicalized, "%02X", bytes[i]);
+  }
+
+  return canonicalized;
 }
 
 }  // namespace device

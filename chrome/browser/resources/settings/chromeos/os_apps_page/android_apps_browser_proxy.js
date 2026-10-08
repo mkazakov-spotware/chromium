@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,45 +15,44 @@
  *   playStoreEnabled: boolean,
  *   settingsAppAvailable: boolean,
  * }}
- * @see chrome/browser/ui/webui/settings/ash/android_apps_handler.cc
+ * @see chrome/browser/ui/webui/settings/chromeos/android_apps_handler.cc
  */
-export let AndroidAppsInfo;
+let AndroidAppsInfo;
 
-/** @interface */
-export class AndroidAppsBrowserProxy {
-  requestAndroidAppsInfo() {}
+cr.define('settings', function() {
+  /** @interface */
+  class AndroidAppsBrowserProxy {
+    requestAndroidAppsInfo() {}
+
+    /**
+     * @param {boolean} keyboardAction True if the app was opened using a
+     *     keyboard action.
+     */
+    showAndroidAppsSettings(keyboardAction) {}
+  }
 
   /**
-   * @param {boolean} keyboardAction True if the app was opened using a
-   *     keyboard action.
+   * @implements {settings.AndroidAppsBrowserProxy}
    */
-  showAndroidAppsSettings(keyboardAction) {}
-}
+  class AndroidAppsBrowserProxyImpl {
+    /** @override */
+    requestAndroidAppsInfo() {
+      chrome.send('requestAndroidAppsInfo');
+    }
 
-/** @type {?AndroidAppsBrowserProxy} */
-let instance = null;
-
-/**
- * @implements {AndroidAppsBrowserProxy}
- */
-export class AndroidAppsBrowserProxyImpl {
-  /** @return {!AndroidAppsBrowserProxy} */
-  static getInstance() {
-    return instance || (instance = new AndroidAppsBrowserProxyImpl());
+    /** @override */
+    showAndroidAppsSettings(keyboardAction) {
+      chrome.send('showAndroidAppsSettings', [keyboardAction]);
+    }
   }
 
-  /** @param {!AndroidAppsBrowserProxy} obj */
-  static setInstanceForTesting(obj) {
-    instance = obj;
-  }
+  // The singleton instance_ can be replaced with a test version of this wrapper
+  // during testing.
+  cr.addSingletonGetter(AndroidAppsBrowserProxyImpl);
 
-  /** @override */
-  requestAndroidAppsInfo() {
-    chrome.send('requestAndroidAppsInfo');
-  }
-
-  /** @override */
-  showAndroidAppsSettings(keyboardAction) {
-    chrome.send('showAndroidAppsSettings', [keyboardAction]);
-  }
-}
+  // #cr_define_end
+  return {
+    AndroidAppsBrowserProxy: AndroidAppsBrowserProxy,
+    AndroidAppsBrowserProxyImpl: AndroidAppsBrowserProxyImpl,
+  };
+});

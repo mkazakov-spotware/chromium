@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,16 +23,16 @@ namespace downgrade {
 namespace {
 
 base::Version GetVersionFromFileName(const base::FilePath& path) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // On Windows, for Unicode-aware applications, native pathnames are wchar_t
   // arrays encoded in UTF-16.
-  return base::Version(base::WideToUTF8(path.BaseName().value()));
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+  return base::Version(base::UTF16ToUTF8(path.BaseName().value()));
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   // On most platforms, native pathnames are char arrays, and the encoding
   // may or may not be specified.  On Mac OS X, native pathnames are encoded
   // in UTF-8.
   return base::Version(path.BaseName().value());
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
 bool IsValidSnapshotDirectory(const base::FilePath& path) {
@@ -56,7 +56,7 @@ base::FilePath GetLastVersionFile(const base::FilePath& user_data_dir) {
   return user_data_dir.Append(kDowngradeLastVersionFile);
 }
 
-absl::optional<base::Version> GetLastVersion(
+base::Optional<base::Version> GetLastVersion(
     const base::FilePath& user_data_dir) {
   DCHECK(!user_data_dir.empty());
   std::string last_version_str;
@@ -67,7 +67,7 @@ absl::optional<base::Version> GetLastVersion(
     if (version.IsValid())
       return version;
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 base::FilePath GetDiskCacheDir() {
@@ -108,7 +108,7 @@ std::vector<base::FilePath> GetInvalidSnapshots(
   return result;
 }
 
-absl::optional<base::Version> GetSnapshotToRestore(
+base::Optional<base::Version> GetSnapshotToRestore(
     const base::Version& version,
     const base::FilePath& user_data_dir) {
   DCHECK(version.IsValid());
@@ -118,7 +118,7 @@ absl::optional<base::Version> GetSnapshotToRestore(
   auto upper_bound = available_snapshots.upper_bound(version);
   if (upper_bound != available_snapshots.begin())
     return *--upper_bound;
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void RemoveDataForProfile(base::Time delete_begin,

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,8 @@
 #include "base/files/file_path.h"
 #include "base/i18n/case_conversion.h"
 #include "base/i18n/string_search.h"
-#include "base/memory/raw_ref.h"
 #include "base/notreached.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -39,46 +39,30 @@ namespace {
 // Templatized base::Value::GetAs*().
 template <typename T> bool GetAs(const base::Value& in, T* out);
 template<> bool GetAs(const base::Value& in, bool* out) {
-  if (out && in.is_bool()) {
-    *out = in.GetBool();
-    return true;
-  }
-  return in.is_bool();
+  return in.GetAsBoolean(out);
 }
 template <>
 bool GetAs(const base::Value& in, double* out) {
-  // `GetIfDouble()` incapsulates type verification logic.
-  const absl::optional<double> maybe_value = in.GetIfDouble();
-  if (maybe_value.has_value()) {
-    *out = maybe_value.value();
-    return true;
-  }
-  return false;
+  return in.GetAsDouble(out);
 }
 template<> bool GetAs(const base::Value& in, std::string* out) {
-  auto is_string = in.is_string();
-  if (is_string)
-    *out = in.GetString();
-  return is_string;
+  return in.GetAsString(out);
 }
-template <>
-bool GetAs(const base::Value& in, std::u16string* out) {
-  auto is_string = in.is_string();
-  if (is_string)
-    *out = base::UTF8ToUTF16(in.GetString());
-  return is_string;
+template<> bool GetAs(const base::Value& in, base::string16* out) {
+  return in.GetAsString(out);
 }
-template <>
-bool GetAs(const base::Value& in, std::vector<std::u16string>* out) {
+template<> bool GetAs(const base::Value& in, std::vector<base::string16>* out) {
   out->clear();
-  if (!in.is_list())
+  const base::ListValue* list = NULL;
+  if (!in.GetAsList(&list))
     return false;
-  for (const auto& value : in.GetList()) {
-    if (!value.is_string()) {
+  for (size_t i = 0; i < list->GetSize(); ++i) {
+    base::string16 element;
+    if (!list->GetString(i, &element)) {
       out->clear();
       return false;
     }
-    out->push_back(base::UTF8ToUTF16(value.GetString()));
+    out->push_back(element);
   }
   return true;
 }
@@ -111,7 +95,7 @@ bool GetExists(const DownloadItem& item) {
   return !item.GetFileExternallyRemoved();
 }
 
-std::u16string GetFilename(const DownloadItem& item) {
+base::string16 GetFilename(const DownloadItem& item) {
   // This filename will be compared with strings that could be passed in by the
   // user, who only sees LossyDisplayNames.
   return item.GetTargetFilePath().LossyDisplayName();
@@ -187,7 +171,7 @@ template <typename ValueType> DownloadQuery::FilterCallback BuildFilter(
 // Returns true if |accessor.Run(item)| matches |pattern|.
 bool FindRegex(
     RE2* pattern,
-    const base::RepeatingCallback<std::string(const DownloadItem&)>& accessor,
+    const base::Callback<std::string(const DownloadItem&)>& accessor,
     const DownloadItem& item) {
   return RE2::PartialMatch(accessor.Run(item), *pattern);
 }
@@ -200,17 +184,16 @@ DownloadQuery::FilterCallback BuildRegexFilter(
   if (!GetAs(regex_value, &regex_str)) return DownloadQuery::FilterCallback();
   std::unique_ptr<RE2> pattern(new RE2(regex_str));
   if (!pattern->ok()) return DownloadQuery::FilterCallback();
-  return base::BindRepeating(&FindRegex, base::Owned(pattern.release()),
-                             base::BindRepeating(accessor));
+  return base::Bind(&FindRegex, base::Owned(pattern.release()),
+                    base::Bind(accessor));
 }
 
 // Returns a ComparisonType to indicate whether a field in |left| is less than,
 // greater than or equal to the same field in |right|.
-template <typename ValueType>
+template<typename ValueType>
 ComparisonType Compare(
-    const base::RepeatingCallback<ValueType(const DownloadItem&)>& accessor,
-    const DownloadItem& left,
-    const DownloadItem& right) {
+    const base::Callback<ValueType(const DownloadItem&)>& accessor,
+    const DownloadItem& left, const DownloadItem& right) {
   ValueType left_value = accessor.Run(left);
   ValueType right_value = accessor.Run(right);
   if (left_value > right_value) return GT;
@@ -221,99 +204,37 @@ ComparisonType Compare(
 
 }  // anonymous namespace
 
-// AddSorter() creates a Sorter and pushes it onto sorters_. A Sorter is a
-// direction and a Callback to Compare<>(). After filtering, Search() makes a
-// DownloadComparator functor from the sorters_ and passes the
-// DownloadComparator to std::partial_sort. std::partial_sort calls the
-// DownloadComparator with different pairs of DownloadItems.  DownloadComparator
-// iterates over the sorters until a callback returns ComparisonType LT or GT.
-// DownloadComparator returns true or false depending on that ComparisonType and
-// the sorter's direction in order to indicate to std::partial_sort whether the
-// left item is after or before the right item. If all sorters return EQ, then
-// DownloadComparator compares GetId. A DownloadQuery may have zero or more
-// Sorters, but there is one DownloadComparator per call to Search().
-
-struct DownloadQuery::Sorter {
-  using SortType = base::RepeatingCallback<ComparisonType(const DownloadItem&,
-                                                          const DownloadItem&)>;
-
-  template <typename ValueType>
-  static Sorter Build(DownloadQuery::SortDirection adirection,
-                      ValueType (*accessor)(const DownloadItem&)) {
-    return Sorter(adirection,
-                  base::BindRepeating(&Compare<ValueType>,
-                                      base::BindRepeating(accessor)));
-  }
-
-  Sorter(DownloadQuery::SortDirection adirection, const SortType& asorter)
-      : direction(adirection), sorter(asorter) {}
-  ~Sorter() = default;
-
-  DownloadQuery::SortDirection direction;
-  SortType sorter;
-};
-
-class DownloadQuery::DownloadComparator {
- public:
-  explicit DownloadComparator(const DownloadQuery::SorterVector& terms)
-      : terms_(terms) {}
-
-  // Returns true if |left| sorts before |right|.
-  bool operator()(const DownloadItem* left, const DownloadItem* right);
-
- private:
-  const raw_ref<const DownloadQuery::SorterVector> terms_;
-
-  // std::sort requires this class to be copyable.
-};
-
-bool DownloadQuery::DownloadComparator::operator()(const DownloadItem* left,
-                                                   const DownloadItem* right) {
-  for (auto term = terms_->begin(); term != terms_->end(); ++term) {
-    switch (term->sorter.Run(*left, *right)) {
-      case LT:
-        return term->direction == DownloadQuery::ASCENDING;
-      case GT:
-        return term->direction == DownloadQuery::DESCENDING;
-      case EQ:
-        break;  // break the switch but not the loop
-    }
-  }
-  CHECK_NE(left->GetId(), right->GetId());
-  return left->GetId() < right->GetId();
-}
-
 // static
-bool DownloadQuery::MatchesQuery(const std::vector<std::u16string>& query_terms,
+bool DownloadQuery::MatchesQuery(const std::vector<base::string16>& query_terms,
                                  const DownloadItem& item) {
   if (query_terms.empty())
     return true;
 
-  std::u16string original_url_raw(
+  base::string16 original_url_raw(
       base::UTF8ToUTF16(item.GetOriginalUrl().spec()));
-  std::u16string url_raw(base::UTF8ToUTF16(item.GetURL().spec()));
+  base::string16 url_raw(base::UTF8ToUTF16(item.GetURL().spec()));
   // Try to also match query with above URLs formatted in user display friendly
   // way. This will unescape characters (including spaces) and trim all extra
   // data (like username and password) from raw url so that for example raw url
   // "http://some.server.org/example%20download/file.zip" will be matched with
   // search term "example download".
-  std::u16string original_url_formatted(
+  base::string16 original_url_formatted(
       url_formatter::FormatUrl(item.GetOriginalUrl()));
-  std::u16string url_formatted(url_formatter::FormatUrl(item.GetURL()));
-  std::u16string path(item.GetTargetFilePath().LossyDisplayName());
+  base::string16 url_formatted(url_formatter::FormatUrl(item.GetURL()));
+  base::string16 path(item.GetTargetFilePath().LossyDisplayName());
 
   for (auto it = query_terms.begin(); it != query_terms.end(); ++it) {
-    std::u16string term = base::i18n::ToLower(*it);
-    if (!base::i18n::StringSearchIgnoringCaseAndAccents(term, original_url_raw,
-                                                        nullptr, nullptr) &&
+    base::string16 term = base::i18n::ToLower(*it);
+    if (!base::i18n::StringSearchIgnoringCaseAndAccents(
+            term, original_url_raw, NULL, NULL) &&
         !base::i18n::StringSearchIgnoringCaseAndAccents(
-            term, original_url_formatted, nullptr, nullptr) &&
-        !base::i18n::StringSearchIgnoringCaseAndAccents(term, url_raw, nullptr,
-                                                        nullptr) &&
-        !base::i18n::StringSearchIgnoringCaseAndAccents(term, url_formatted,
-                                                        nullptr, nullptr) &&
-        !base::i18n::StringSearchIgnoringCaseAndAccents(term, path, nullptr,
-                                                        nullptr)) {
+            term, original_url_formatted, NULL, NULL) &&
+        !base::i18n::StringSearchIgnoringCaseAndAccents(
+            term, url_raw, NULL, NULL) &&
+        !base::i18n::StringSearchIgnoringCaseAndAccents(
+            term, url_formatted, NULL, NULL) &&
+        !base::i18n::StringSearchIgnoringCaseAndAccents(
+            term, path, NULL, NULL)) {
       return false;
     }
   }
@@ -354,7 +275,7 @@ bool DownloadQuery::AddFilter(DownloadQuery::FilterType type,
     case FILTER_EXISTS:
       return AddFilter(BuildFilter<bool>(value, EQ, &GetExists));
     case FILTER_FILENAME:
-      return AddFilter(BuildFilter<std::u16string>(value, EQ, &GetFilename));
+      return AddFilter(BuildFilter<base::string16>(value, EQ, &GetFilename));
     case FILTER_FILENAME_REGEX:
       return AddFilter(BuildRegexFilter(value, &GetFilenameUTF8));
     case FILTER_MIME:
@@ -362,7 +283,7 @@ bool DownloadQuery::AddFilter(DownloadQuery::FilterType type,
     case FILTER_PAUSED:
       return AddFilter(BuildFilter<bool>(value, EQ, &IsPaused));
     case FILTER_QUERY: {
-      std::vector<std::u16string> query_terms;
+      std::vector<base::string16> query_terms;
       return GetAs(value, &query_terms) &&
              (query_terms.empty() ||
               AddFilter(base::BindRepeating(&MatchesQuery, query_terms)));
@@ -405,6 +326,69 @@ bool DownloadQuery::Matches(const DownloadItem& item) const {
   return true;
 }
 
+// AddSorter() creates a Sorter and pushes it onto sorters_. A Sorter is a
+// direction and a Callback to Compare<>(). After filtering, Search() makes a
+// DownloadComparator functor from the sorters_ and passes the
+// DownloadComparator to std::partial_sort. std::partial_sort calls the
+// DownloadComparator with different pairs of DownloadItems.  DownloadComparator
+// iterates over the sorters until a callback returns ComparisonType LT or GT.
+// DownloadComparator returns true or false depending on that ComparisonType and
+// the sorter's direction in order to indicate to std::partial_sort whether the
+// left item is after or before the right item. If all sorters return EQ, then
+// DownloadComparator compares GetId. A DownloadQuery may have zero or more
+// Sorters, but there is one DownloadComparator per call to Search().
+
+struct DownloadQuery::Sorter {
+  typedef base::Callback<ComparisonType(
+      const DownloadItem&, const DownloadItem&)> SortType;
+
+  template<typename ValueType>
+  static Sorter Build(DownloadQuery::SortDirection adirection,
+                         ValueType (*accessor)(const DownloadItem&)) {
+    return Sorter(adirection,
+                  base::BindRepeating(&Compare<ValueType>,
+                                      base::BindRepeating(accessor)));
+  }
+
+  Sorter(DownloadQuery::SortDirection adirection,
+            const SortType& asorter)
+    : direction(adirection),
+      sorter(asorter) {
+  }
+  ~Sorter() {}
+
+  DownloadQuery::SortDirection direction;
+  SortType sorter;
+};
+
+class DownloadQuery::DownloadComparator {
+ public:
+  explicit DownloadComparator(const DownloadQuery::SorterVector& terms)
+    : terms_(terms) {
+  }
+
+  // Returns true if |left| sorts before |right|.
+  bool operator() (const DownloadItem* left, const DownloadItem* right);
+
+ private:
+  const DownloadQuery::SorterVector& terms_;
+
+  // std::sort requires this class to be copyable.
+};
+
+bool DownloadQuery::DownloadComparator::operator() (
+    const DownloadItem* left, const DownloadItem* right) {
+  for (auto term = terms_.begin(); term != terms_.end(); ++term) {
+    switch (term->sorter.Run(*left, *right)) {
+      case LT: return term->direction == DownloadQuery::ASCENDING;
+      case GT: return term->direction == DownloadQuery::DESCENDING;
+      case EQ: break;  // break the switch but not the loop
+    }
+  }
+  CHECK_NE(left->GetId(), right->GetId());
+  return left->GetId() < right->GetId();
+}
+
 void DownloadQuery::AddSorter(DownloadQuery::SortType type,
                               DownloadQuery::SortDirection direction) {
   switch (type) {
@@ -424,7 +408,7 @@ void DownloadQuery::AddSorter(DownloadQuery::SortType type,
       break;
     case SORT_FILENAME:
       sorters_.push_back(
-          Sorter::Build<std::u16string>(direction, &GetFilename));
+          Sorter::Build<base::string16>(direction, &GetFilename));
       break;
     case SORT_DANGER:
       sorters_.push_back(Sorter::Build<DownloadDangerType>(

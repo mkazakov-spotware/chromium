@@ -1,11 +1,12 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_EVENTS_TEST_TEST_EVENT_TARGETER_H_
 #define UI_EVENTS_TEST_TEST_EVENT_TARGETER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "ui/events/event_targeter.h"
 
 namespace ui {
@@ -21,10 +22,6 @@ class TestEventTarget;
 class TestEventTargeter : public EventTargeter {
  public:
   TestEventTargeter(TestEventTarget* initial_target, bool should_bubble);
-
-  TestEventTargeter(const TestEventTargeter&) = delete;
-  TestEventTargeter& operator=(const TestEventTargeter&) = delete;
-
   ~TestEventTargeter() override;
 
   void set_target(TestEventTarget* target);
@@ -35,8 +32,10 @@ class TestEventTargeter : public EventTargeter {
   EventTarget* FindNextBestTarget(EventTarget* previous_target,
                                   Event* event) override;
 
-  raw_ptr<TestEventTarget> target_;
+  TestEventTarget* target_;
   bool should_bubble_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEventTargeter);
 };
 
 }  // namespace test

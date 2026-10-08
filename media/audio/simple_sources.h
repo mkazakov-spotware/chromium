@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,7 +47,7 @@ class MEDIA_EXPORT SineWaveAudioSource
   // Implementation of AudioSourceCallback.
   int OnMoreData(base::TimeDelta delay,
                  base::TimeTicks timestamp,
-                 const AudioGlitchInfo& glitch_info,
+                 int prior_frames_skipped,
                  AudioBus* dest) override;
   void OnError(ErrorType type) override;
 
@@ -86,7 +86,7 @@ class MEDIA_EXPORT FileSource : public AudioOutputStream::AudioSourceCallback,
   // Implementation of AudioSourceCallback.
   int OnMoreData(base::TimeDelta delay,
                  base::TimeTicks delay_timestamp,
-                 const AudioGlitchInfo& glitch_info,
+                 int prior_frames_skipped,
                  AudioBus* dest) override;
   void OnError(ErrorType type) override;
 
@@ -106,9 +106,7 @@ class MEDIA_EXPORT FileSource : public AudioOutputStream::AudioSourceCallback,
   bool looping_;
 
   // Provides audio data from wav_audio_handler_ into the file audio converter.
-  double ProvideInput(AudioBus* audio_bus,
-                      uint32_t frames_delayed,
-                      const AudioGlitchInfo& glitch_info) override;
+  double ProvideInput(AudioBus* audio_bus, uint32_t frames_delayed) override;
 
   // Loads the wav file on the first OnMoreData invocation.
   void LoadWavFile(const base::FilePath& path_to_wav_file);
@@ -125,12 +123,11 @@ class BeepingSource : public AudioOutputStream::AudioSourceCallback {
   // Implementation of AudioSourceCallback.
   int OnMoreData(base::TimeDelta delay,
                  base::TimeTicks delay_timestamp,
-                 const AudioGlitchInfo& glitch_info,
+                 int prior_frames_skipped,
                  AudioBus* dest) override;
   void OnError(ErrorType type) override;
 
   static void BeepOnce();
-
  private:
   int buffer_size_;
   std::unique_ptr<uint8_t[]> buffer_;

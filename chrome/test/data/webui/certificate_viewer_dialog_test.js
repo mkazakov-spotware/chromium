@@ -1,8 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {eventToPromise} from 'chrome://webui-test/test_util.js';
+GEN('#include "content/public/test/browser_test.h"');
 
 /**
  * Find the first tree item (in the certificate fields tree) with a value.
@@ -10,8 +10,8 @@ import {eventToPromise} from 'chrome://webui-test/test_util.js';
  * @return {?Element} The first found element with a value, null if not found.
  */
 function getElementWithValue(tree) {
-  for (let i = 0; i < tree.items.length; i++) {
-    let element = tree.items[i];
+  for (var i = 0; i < tree.childNodes.length; i++) {
+    var element = tree.childNodes[i];
     if (element.detail && element.detail.payload &&
         element.detail.payload.val) {
       return element;
@@ -31,56 +31,41 @@ suite('CertificateViewer', function() {
 
   // Tests for the correct common name in the test certificate.
   test('CommonName', function() {
-    assertTrue(document.querySelector('#general-error').hidden);
-    assertFalse(document.querySelector('#general-fields').hidden);
-
-    assertEquals(
-        'www.google.com', document.querySelector('#issued-cn').textContent);
+    assertEquals('www.google.com', $('issued-cn').textContent);
   });
 
+
   test('Details', async function() {
-    const certHierarchy = document.querySelector('#hierarchy');
-    const certFields = document.querySelector('#cert-fields');
-    const certFieldVal = document.querySelector('#cert-field-value');
+    var certHierarchy = $('hierarchy');
+    var certFields = $('cert-fields');
+    var certFieldVal = $('cert-field-value');
 
     // Select the second tab, causing its data to be loaded if needed.
-    document.querySelector('cr-tab-box').setAttribute('selected-index', '1');
+    $('tabbox').selectedIndex = 1;
 
     // There must be at least one certificate in the hierarchy.
-    assertLT(0, certHierarchy.items.length);
+    assertLT(0, certHierarchy.childNodes.length);
 
     // Wait for the '-for-testing' event to fire only if |certFields| is not
     // populated yet, otherwise don't wait, the event has already fired.
-    const whenLoaded = certFields.items.length === 0 ?
-        eventToPromise(
+    const whenLoaded = certFields.childNodes.length === 0 ?
+        test_util.eventToPromise(
             'certificate-fields-updated-for-testing', document.body) :
         Promise.resolve();
 
     // Select the first certificate on the chain and ensure the details show up.
     await whenLoaded;
-    assertLT(0, certFields.items.length);
+    assertLT(0, certFields.childNodes.length);
 
     // Test that a field can be selected to see the details for that
     // field.
-    const item = getElementWithValue(certFields);
+    var item = getElementWithValue(certFields);
     assertNotEquals(null, item);
     certFields.selectedItem = item;
     assertEquals(item.detail.payload.val, certFieldVal.textContent);
 
     // Test that selecting an item without a value empties the field.
-    certFields.selectedItem = certFields.items[0];
+    certFields.selectedItem = certFields.childNodes[0];
     assertEquals('', certFieldVal.textContent);
-  });
-
-  test('InvalidCert', async function() {
-    // Error should be shown instead of cert fields.
-    assertFalse(document.querySelector('#general-error').hidden);
-    assertTrue(document.querySelector('#general-fields').hidden);
-
-    // Cert hash should still be shown.
-    assertEquals(
-        '78 71 88 FF A5 CC A4 82 12 ED 29 1E 62 CB 03 E1\n' +
-            '1C 1F 82 79 DF 07 FE B1 D2 B0 E0 2E 0E 4A A9 E4',
-        document.querySelector('#sha256').textContent);
   });
 });

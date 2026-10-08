@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ enum IdleState {
 };
 
 // For MacOSX, InitIdleMonitor needs to be called first to setup the monitor.
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 COMPONENT_EXPORT(UI_BASE_IDLE) void InitIdleMonitor();
 #endif
 

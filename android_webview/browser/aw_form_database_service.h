@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define ANDROID_WEBVIEW_BROWSER_AW_FORM_DATABASE_SERVICE_H_
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/synchronization/waitable_event.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/webdata/common/web_data_service_consumer.h"
@@ -20,9 +21,6 @@ namespace android_webview {
 class AwFormDatabaseService : public WebDataServiceConsumer {
  public:
   AwFormDatabaseService(const base::FilePath path);
-
-  AwFormDatabaseService(const AwFormDatabaseService&) = delete;
-  AwFormDatabaseService& operator=(const AwFormDatabaseService&) = delete;
 
   ~AwFormDatabaseService() override;
 
@@ -49,6 +47,8 @@ class AwFormDatabaseService : public WebDataServiceConsumer {
 
   scoped_refptr<autofill::AutofillWebDataService> autofill_data_;
   scoped_refptr<WebDatabaseService> web_database_;
+
+  DISALLOW_COPY_AND_ASSIGN(AwFormDatabaseService);
 };
 
 }  // namespace android_webview

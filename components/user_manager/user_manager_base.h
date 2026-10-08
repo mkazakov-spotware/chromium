@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,13 @@
 #include <vector>
 
 #include "base/feature_list.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/synchronization/lock.h"
 #include "base/time/time.h"
-#include "base/values.h"
 #include "components/account_id/account_id.h"
-#include "components/user_manager/remove_user_delegate.h"
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #include "components/user_manager/user_manager_export.h"
@@ -29,52 +27,21 @@
 class PrefRegistrySimple;
 
 namespace base {
+class ListValue;
 class SingleThreadTaskRunner;
 }
 
 namespace user_manager {
 
-// Feature that removes legacy supervised users.
-BASE_DECLARE_FEATURE(kRemoveLegacySupervisedUsersOnStartup);
+class RemoveUserDelegate;
 
 // Base implementation of the UserManager interface.
 class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
  public:
-  // These enum values represent a legacy supervised user's (LSU) status on the
-  // sign in screen.
-  // TODO(crbug/1155729): Remove once all LSUs deleted in the wild. LSUs were
-  // first hidden on the login screen in M74. Assuming a five year AUE, we
-  // should stop supporting devices with LSUs by 2024.
-  // These values are logged to UMA. Entries should not be renumbered and
-  // numeric values should never be reused. Please keep in sync with
-  // "LegacySupervisedUserStatus" in src/tools/metrics/histograms/enums.xml.
-  enum class LegacySupervisedUserStatus {
-    // Non-LSU Gaia user displayed on login screen.
-    kGaiaUserDisplayed = 0,
-    // LSU hidden on login screen. Expect this count to decline to zero over
-    // time as we delete LSUs.
-    kLSUHidden = 1,
-    // LSU attempted to delete cryptohome. Expect this count to decline to zero
-    // over time as we delete LSUs.
-    kLSUDeleted = 2,
-    // Add future entires above this comment, in sync with
-    // "LegacySupervisedUserStatus" in src/tools/metrics/histograms/enums.xml.
-    // Update kMaxValue to the last value.
-    kMaxValue = kLSUDeleted
-  };
-
   // Creates UserManagerBase with |task_runner| for UI thread.
   explicit UserManagerBase(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
-
-  UserManagerBase(const UserManagerBase&) = delete;
-  UserManagerBase& operator=(const UserManagerBase&) = delete;
-
   ~UserManagerBase() override;
-
-  // Histogram for tracking the number of deprecated legacy supervised user
-  // cryptohomes remaining in the wild.
-  static const char kLegacySupervisedUsersHistogramName[];
 
   // Registers UserManagerBase preferences.
   static void RegisterPrefs(PrefRegistrySimple* registry);
@@ -85,7 +52,6 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   const UserList& GetLoggedInUsers() const override;
   const UserList& GetLRULoggedInUsers() const override;
   const AccountId& GetOwnerAccountId() const override;
-  const AccountId& GetLastSessionActiveAccountId() const override;
   void UserLoggedIn(const AccountId& account_id,
                     const std::string& user_id_hash,
                     bool browser_restart,
@@ -94,7 +60,6 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   void SwitchToLastActiveUser() override;
   void OnSessionStarted() override;
   void RemoveUser(const AccountId& account_id,
-                  UserRemovalReason reason,
                   RemoveUserDelegate* delegate) override;
   void RemoveUserFromList(const AccountId& account_id) override;
   bool IsKnownUser(const AccountId& account_id) const override;
@@ -108,14 +73,11 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   void SaveForceOnlineSignin(const AccountId& account_id,
                              bool force_online_signin) override;
   void SaveUserDisplayName(const AccountId& account_id,
-                           const std::u16string& display_name) override;
-  std::u16string GetUserDisplayName(const AccountId& account_id) const override;
+                           const base::string16& display_name) override;
+  base::string16 GetUserDisplayName(const AccountId& account_id) const override;
   void SaveUserDisplayEmail(const AccountId& account_id,
                             const std::string& display_email) override;
-  UserType GetUserType(const AccountId& account_id) override;
   void SaveUserType(const User* user) override;
-  absl::optional<std::string> GetOwnerEmail() override;
-  void RecordOwner(const AccountId& owner) override;
   void UpdateUserAccountData(const AccountId& account_id,
                              const UserAccountData& account_data) override;
   bool IsCurrentUserOwner() const override;
@@ -145,17 +107,11 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
       UserManager::UserSessionStateObserver* obs) override;
   void NotifyLocalStateChanged() override;
   void NotifyUserImageChanged(const User& user) override;
-  void NotifyUserImageIsEnterpriseManagedChanged(
-      const User& user,
-      bool is_enterprise_managed) override;
   void NotifyUserProfileImageUpdateFailed(const User& user) override;
   void NotifyUserProfileImageUpdated(
       const User& user,
       const gfx::ImageSkia& profile_image) override;
   void NotifyUsersSignInConstraintsChanged() override;
-  void NotifyUserToBeRemoved(const AccountId& account_id) override;
-  void NotifyUserRemoved(const AccountId& account_id,
-                         UserRemovalReason reason) override;
   void Initialize() override;
 
   // This method updates "User was added to the device in this session nad is
@@ -165,10 +121,18 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   // Helper function that converts users from |users_list| to |users_vector| and
   // |users_set|. Duplicates and users already present in |existing_users| are
   // skipped.
-  void ParseUserList(const base::Value::List& users_list,
+  void ParseUserList(const base::ListValue& users_list,
                      const std::set<AccountId>& existing_users,
                      std::vector<AccountId>* users_vector,
                      std::set<AccountId>* users_set);
+
+  // Returns true if trusted device policies have successfully been retrieved
+  // and ephemeral users are enabled.
+  virtual bool AreEphemeralUsersEnabled() const = 0;
+
+  void AddUserRecordForTesting(User* user) {
+    return AddUserRecord(user);
+  }
 
   // Returns true if device is enterprise managed.
   virtual bool IsEnterpriseManaged() const = 0;
@@ -220,10 +184,7 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
 
   // Implementation for RemoveUser method. It is synchronous. It is called from
   // RemoveUserInternal after owner check.
-  // Pass |account_id| by value here to avoid use-after-free. Original
-  // |account_id| could be destroyed during the user removal.
-  virtual void RemoveNonOwnerUserInternal(AccountId account_id,
-                                          UserRemovalReason reason,
+  virtual void RemoveNonOwnerUserInternal(const AccountId& account_id,
                                           RemoveUserDelegate* delegate);
 
   // Removes a regular or supervised user from the user list.
@@ -238,7 +199,6 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   // method, that verifies that owner will not get deleted, and calls
   // |RemoveNonOwnerUserInternal|.
   virtual void RemoveUserInternal(const AccountId& account_id,
-                                  UserRemovalReason reason,
                                   RemoveUserDelegate* delegate);
 
   // Removes data stored or cached outside the user's cryptohome (wallpaper,
@@ -247,7 +207,13 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
 
   // Check for a particular user type.
 
+  // Returns true if |account_id| represents demo app.
+  virtual bool IsDemoApp(const AccountId& account_id) const = 0;
+
   // These methods are called when corresponding user type has signed in.
+
+  // Indicates that the demo account has just logged in.
+  virtual void DemoAccountLoggedIn() = 0;
 
   // Indicates that a user just logged in as guest.
   virtual void GuestUserLoggedIn();
@@ -288,11 +254,11 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   // NULL until a user has logged in, then points to one
   // of the User instances in |users_|, the |guest_user_| instance or an
   // ephemeral user instance.
-  raw_ptr<User, DanglingUntriaged> active_user_ = nullptr;
+  User* active_user_ = nullptr;
 
   // The primary user of the current session. It is recorded for the first
   // signed-in user and does not change thereafter.
-  raw_ptr<User, DanglingUntriaged> primary_user_ = nullptr;
+  User* primary_user_ = nullptr;
 
   // List of all known users. User instances are owned by |this|. Regular users
   // are removed by |RemoveUserFromList|, device local accounts by
@@ -362,8 +328,6 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   void DoUpdateAccountLocale(const AccountId& account_id,
                              std::unique_ptr<std::string> resolved_locale);
 
-  void RemoveLegacySupervisedUser(const AccountId& account_id);
-
   // Indicates stage of loading user from prefs.
   UserLoadStage user_loading_stage_ = STAGE_NOT_LOADED;
 
@@ -410,6 +374,8 @@ class USER_MANAGER_EXPORT UserManagerBase : public UserManager {
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
   base::WeakPtrFactory<UserManagerBase> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UserManagerBase);
 };
 
 }  // namespace user_manager

@@ -26,9 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_DICTIONARY_H_
 #define THIRD_PARTY_BLINK_RENDERER_BINDINGS_CORE_V8_DICTIONARY_H_
 
-#include "base/notreached.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -60,7 +57,6 @@ class CORE_EXPORT Dictionary final {
     value_type_ = ValueType::kObject;
   }
 
-  Dictionary(const Dictionary&) = default;
   Dictionary& operator=(const Dictionary&) = default;
 
   bool IsObject() const { return !dictionary_object_.IsEmpty(); }
@@ -103,22 +99,22 @@ class CORE_EXPORT Dictionary final {
   //    where the stored value is |undefined|), returns nothing.
   //  - Otherwise, returns the value.
   template <typename IDLType>
-  absl::optional<typename IDLType::ImplType> Get(
+  base::Optional<typename IDLType::ImplType> Get(
       const StringView& key,
       ExceptionState& exception_state) const {
     v8::Local<v8::Value> v8_value;
     DCHECK(!exception_state.HadException());
     if (!Get(key, v8_value, exception_state))
-      return absl::nullopt;
+      return base::nullopt;
     DCHECK(!exception_state.HadException());
     DCHECK(!v8_value.IsEmpty());
     if (v8_value->IsUndefined())
-      return absl::nullopt;
+      return base::nullopt;
 
     auto value = NativeValueTraits<IDLType>::NativeValue(isolate_, v8_value,
                                                          exception_state);
     if (exception_state.HadException())
-      return absl::nullopt;
+      return base::nullopt;
     return value;
   }
 
@@ -149,6 +145,16 @@ class CORE_EXPORT Dictionary final {
     kObject
   } value_type_ = ValueType::kUndefined;
   v8::Local<v8::Object> dictionary_object_;  // an Object or empty
+};
+
+template <>
+struct NativeValueTraits<Dictionary>
+    : public NativeValueTraitsBase<Dictionary> {
+  static Dictionary NativeValue(v8::Isolate* isolate,
+                                v8::Local<v8::Value> value,
+                                ExceptionState& exception_state) {
+    return Dictionary(isolate, value, exception_state);
+  }
 };
 
 // DictionaryHelper is a collection of static methods for getting or

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,12 @@
 #include "ash/assistant/model/ui/assistant_text_element.h"
 #include "ash/assistant/ui/assistant_ui_constants.h"
 #include "ash/assistant/ui/main_stage/assistant_ui_element_view_animator.h"
-#include "ash/style/ash_color_id.h"
 #include "base/strings/utf_string_conversions.h"
-#include "ui/color/color_provider.h"
-#include "ui/compositor/layer.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/fill_layout.h"
 
 namespace ash {
-
-namespace {
-
-constexpr char kAssistantTextElementHistogram[] =
-    "Ash.Assistant.AnimationSmoothness.TextElement";
-
-}  // namespace
 
 // AssistantTextElementView ----------------------------------------------------
 
@@ -67,6 +57,8 @@ void AssistantTextElementView::InitLayout(const std::string& text) {
   label_ =
       AddChildView(std::make_unique<views::Label>(base::UTF8ToUTF16(text)));
   label_->SetAutoColorReadabilityEnabled(false);
+  label_->SetBackground(views::CreateSolidBackground(SK_ColorWHITE));
+  label_->SetEnabledColor(kTextColorPrimary);
   label_->SetFontList(assistant::ui::GetDefaultFontList()
                           .DeriveWithSizeDelta(2)
                           .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
@@ -76,14 +68,7 @@ void AssistantTextElementView::InitLayout(const std::string& text) {
 
 std::unique_ptr<ElementAnimator> AssistantTextElementView::CreateAnimator() {
   return std::make_unique<AssistantUiElementViewAnimator>(
-      this, kAssistantTextElementHistogram);
-}
-
-void AssistantTextElementView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-
-  label_->SetEnabledColor(
-      GetColorProvider()->GetColor(kColorAshAssistantTextColorPrimary));
+      this, assistant::ui::kAssistantTextElementHistogram);
 }
 
 }  // namespace ash

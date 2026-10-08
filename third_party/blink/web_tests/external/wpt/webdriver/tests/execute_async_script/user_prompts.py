@@ -3,7 +3,16 @@
 import pytest
 
 from tests.support.asserts import assert_dialog_handled, assert_error, assert_success
-from . import execute_async_script
+
+
+def execute_async_script(session, script, args=None):
+    if args is None:
+        args = []
+    body = {"script": script, "args": args}
+
+    return session.transport.send(
+        "POST", "/session/{session_id}/execute/async".format(**vars(session)),
+        body)
 
 
 @pytest.fixture

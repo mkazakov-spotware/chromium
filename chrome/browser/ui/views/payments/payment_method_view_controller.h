@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_PAYMENTS_PAYMENT_METHOD_VIEW_CONTROLLER_H_
 #define CHROME_BROWSER_UI_VIEWS_PAYMENTS_PAYMENT_METHOD_VIEW_CONTROLLER_H_
 
+#include "base/macros.h"
 #include "chrome/browser/ui/views/payments/payment_request_item_list.h"
 #include "chrome/browser/ui/views/payments/payment_request_sheet_controller.h"
 
@@ -22,23 +23,24 @@ class PaymentMethodViewController : public PaymentRequestSheetController {
   PaymentMethodViewController(base::WeakPtr<PaymentRequestSpec> spec,
                               base::WeakPtr<PaymentRequestState> state,
                               base::WeakPtr<PaymentRequestDialogView> dialog);
-
-  PaymentMethodViewController(const PaymentMethodViewController&) = delete;
-  PaymentMethodViewController& operator=(const PaymentMethodViewController&) =
-      delete;
-
   ~PaymentMethodViewController() override;
 
  private:
   // PaymentRequestSheetController:
-  std::u16string GetSheetTitle() override;
+  base::string16 GetSheetTitle() override;
   void FillContentView(views::View* content_view) override;
   bool ShouldShowPrimaryButton() override;
   bool ShouldShowSecondaryButton() override;
-  std::u16string GetSecondaryButtonLabel() override;
+  base::string16 GetSecondaryButtonLabel() override;
+  views::Button::PressedCallback GetSecondaryButtonCallback() override;
   int GetSecondaryButtonId() override;
 
   PaymentRequestItemList payment_method_list_;
+
+  // Whether or not adding a new card is allowed.
+  bool enable_add_card_;
+
+  DISALLOW_COPY_AND_ASSIGN(PaymentMethodViewController);
 };
 
 }  // namespace payments

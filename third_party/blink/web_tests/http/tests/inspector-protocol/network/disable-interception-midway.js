@@ -11,9 +11,6 @@
       'post-echo.pl': event => helper.allowRequest(event),
   };
 
-  // The XHR triggered in the onload handler of the iframe races with the frameStoppedLoading event
-  // for the frame, so don't record it in the trace.
-  helper.setSilentFrameStoppedLoading(true);
   await helper.startInterceptionTest(requestInterceptedDict, 1);
   session.evaluate(`
     var iframe = document.createElement('iframe');

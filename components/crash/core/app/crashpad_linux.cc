@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,27 +9,18 @@
 
 #include <limits>
 
-#include "base/base_switches.h"
 #include "base/command_line.h"
-#include "base/linux_util.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/posix/global_descriptors.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
-#include "base/system/sys_info.h"
 #include "build/branding_buildflags.h"
-#include "build/chromeos_buildflags.h"
 #include "components/crash/core/app/crash_reporter_client.h"
 #include "components/crash/core/app/crash_switches.h"
 #include "content/public/common/content_descriptors.h"
 #include "sandbox/linux/services/namespace_sandbox.h"
 #include "third_party/crashpad/crashpad/client/crashpad_client.h"
-#include "third_party/crashpad/crashpad/client/crashpad_info.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "base/build_time.h"
-#endif
 
 namespace crash_reporter {
 
@@ -59,25 +50,37 @@ void SetFirstChanceExceptionHandler(bool (*handler)(int, siginfo_t*, void*)) {
       FirstChanceHandlerHelper);
 }
 
+// TODO(jperaza): Remove kEnableCrashpad and IsCrashpadEnabled() when Crashpad
+// is fully enabled on Linux.
+const char kEnableCrashpad[] = "enable-crashpad";
+
 bool IsCrashpadEnabled() {
-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      ::switches::kEnableCrashpad);
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(kEnableCrashpad);
 }
 
 bool GetHandlerSocket(int* fd, pid_t* pid) {
   return crashpad::CrashpadClient::GetHandlerSocket(fd, pid);
 }
 
+void SetPtracerAtFork() {
+  pid_t pid;
+  if (!GetHandlerSocket(nullptr, &pid)) {
+    return;
+  }
+  if (pid > 0 && prctl(PR_SET_PTRACER, pid, 0, 0, 0) != 0) {
+    PLOG(ERROR) << "prctl";
+  }
+}
+
 namespace internal {
 
-bool PlatformCrashpadInitialization(
+base::FilePath PlatformCrashpadInitialization(
     bool initial_client,
     bool browser_process,
     bool embedded_handler,
     const std::string& user_data_dir,
     const base::FilePath& exe_path,
-    const std::vector<std::string>& initial_arguments,
-    base::FilePath* database_path) {
+    const std::vector<std::string>& initial_arguments) {
   DCHECK_EQ(initial_client, browser_process);
   DCHECK(initial_arguments.empty());
 
@@ -86,7 +89,7 @@ bool PlatformCrashpadInitialization(
   DCHECK(exe_path.empty());
 
   crashpad::CrashpadClient client;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   std::string crash_loop_before =
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           switches::kCrashLoopBefore);
@@ -101,23 +104,23 @@ bool PlatformCrashpadInitialization(
   }
 #endif
 
-  CrashReporterClient* crash_reporter_client = GetCrashReporterClient();
   if (initial_client) {
-    base::FilePath metrics_path;
-    crash_reporter_client->GetCrashDumpLocation(database_path);
+    CrashReporterClient* crash_reporter_client = GetCrashReporterClient();
+    base::FilePath database_path, metrics_path;
+    crash_reporter_client->GetCrashDumpLocation(&database_path);
     crash_reporter_client->GetCrashMetricsLocation(&metrics_path);
 
     base::FilePath handler_path;
     if (!base::PathService::Get(base::DIR_EXE, &handler_path)) {
-      return false;
+      return database_path;
     }
-    handler_path = handler_path.Append("chrome_crashpad_handler");
+    handler_path = handler_path.Append("crashpad_handler");
 
     // When --use-cros-crash-reporter is set (below), the handler passes dumps
     // to ChromeOS's /sbin/crash_reporter which in turn passes the dump to
     // crash_sender which handles the upload.
     std::string url;
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
     url = crash_reporter_client->GetUploadUrl();
 #else
     url = std::string();
@@ -134,11 +137,6 @@ bool PlatformCrashpadInitialization(
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
     // Empty means stable.
     const bool allow_empty_channel = true;
-    if (channel == "extended") {
-      // Extended stable reports as stable (empty string) with an extra bool.
-      channel.clear();
-      annotations["extended_stable_channel"] = "true";
-    }
 #else
     const bool allow_empty_channel = false;
 #endif
@@ -147,29 +145,6 @@ bool PlatformCrashpadInitialization(
     }
 
     annotations["plat"] = std::string("Linux");
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    // "build_time_millis" is used on LaCros chrome to determine when to stop
-    // sending crash reports (from outdated versions of the browser).
-    int64_t build_time =
-        (base::GetBuildTime() - base::Time::UnixEpoch()).InMilliseconds();
-    annotations["build_time_millis"] = base::NumberToString(build_time);
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
-    // Chromium OS: save board and builder path for 'tast symbolize'.
-    annotations["chromeos-board"] = base::SysInfo::GetLsbReleaseBoard();
-    std::string builder_path;
-    if (base::SysInfo::GetLsbReleaseValue("CHROMEOS_RELEASE_BUILDER_PATH",
-                                          &builder_path)) {
-      annotations["chromeos-builder-path"] = builder_path;
-    }
-
-#else
-    // Other Linux: save lsb-release. This isn't needed on Chromium OS,
-    // where crash_reporter provides it's own values for lsb-release.
-    annotations["lsb-release"] = base::GetLinuxDistro();
-#endif
 
     std::vector<std::string> arguments;
     if (crash_reporter_client->ShouldMonitorCrashHandlerExpensively()) {
@@ -181,50 +156,43 @@ bool PlatformCrashpadInitialization(
     // contain these annotations.
     arguments.push_back("--monitor-self-annotation=ptype=crashpad-handler");
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
     arguments.push_back("--use-cros-crash-reporter");
 
     if (crash_reporter_client->IsRunningUnattended()) {
       arguments.push_back(base::StringPrintf("--minidump-dir-for-tests=%s",
-                                             database_path->value().c_str()));
+                                             database_path.value().c_str()));
       arguments.push_back("--always-allow-feedback");
     }
 #endif
 
-    CHECK(client.StartHandler(handler_path, *database_path, metrics_path, url,
-                              annotations, arguments, false, false));
-  } else {
-    int fd = base::GlobalDescriptors::GetInstance()->Get(kCrashDumpSignal);
+    bool result =
+        client.StartHandler(handler_path, database_path, metrics_path, url,
+                            annotations, arguments, false, false);
+    DCHECK(result);
 
-    pid_t pid = 0;
-    if (!sandbox::NamespaceSandbox::InNewUserNamespace()) {
-      std::string pid_string =
-          base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-              switches::kCrashpadHandlerPid);
-      bool parsed = base::StringToInt(pid_string, &pid);
-      DCHECK(parsed);
-    }
-
-    // SIGSYS handling is reserved for the sandbox.
-    client.SetUnhandledSignals({SIGSYS});
-
-    client.SetHandlerSocket(crashpad::ScopedFileHandle(fd), pid);
-
-    *database_path = base::FilePath();
+    pthread_atfork(nullptr, nullptr, SetPtracerAtFork);
+    return database_path;
   }
 
-  // In the not-large-dumps case record enough extra memory to be able to save
-  // dereferenced memory from all registers on the crashing thread. crashpad may
-  // save 512-bytes per register, and the largest register set (not including
-  // stack pointers) is ARM64 with 32 registers. Hence, 16 KiB.
-  const uint32_t kIndirectMemoryLimit =
-      crash_reporter_client->GetShouldDumpLargerDumps() ? 4 * 1024 * 1024
-                                                        : 16 * 1024;
-  crashpad::CrashpadInfo::GetCrashpadInfo()
-      ->set_gather_indirectly_referenced_memory(crashpad::TriState::kEnabled,
-                                                kIndirectMemoryLimit);
+  int fd = base::GlobalDescriptors::GetInstance()->Get(kCrashDumpSignal);
 
-  return true;
+  pid_t pid = 0;
+  if (!sandbox::NamespaceSandbox::InNewUserNamespace()) {
+    std::string pid_string =
+        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+            switches::kCrashpadHandlerPid);
+    bool parsed = base::StringToInt(pid_string, &pid);
+    DCHECK(parsed);
+  }
+
+  // SIGSYS handling is reserved for the sandbox.
+  client.SetUnhandledSignals({SIGSYS});
+
+  client.SetHandlerSocket(crashpad::ScopedFileHandle(fd), pid);
+
+  pthread_atfork(nullptr, nullptr, SetPtracerAtFork);
+  return base::FilePath();
 }
 
 }  // namespace internal

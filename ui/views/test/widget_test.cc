@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,18 +12,8 @@
 #include "ui/views/test/native_widget_factory.h"
 #include "ui/views/widget/root_view.h"
 
-#if BUILDFLAG(IS_MAC)
-#include "base/test/scoped_run_loop_timeout.h"
-#include "base/test/test_timeouts.h"
-#endif
-
-#if (BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CASTOS)) || \
-    BUILDFLAG(IS_CHROMEOS_LACROS)
-
-#include "ui/views/test/test_desktop_screen_ozone.h"
-#endif
-
-namespace views::test {
+namespace views {
+namespace test {
 
 namespace {
 
@@ -32,8 +22,6 @@ View::Views ShuffledChildren(View* view) {
   base::RandomShuffle(children.begin(), children.end());
   return children;
 }
-
-}  // namespace
 
 View* AnyViewMatchingPredicate(View* view, const ViewPredicate& predicate) {
   if (predicate.Run(view))
@@ -49,6 +37,8 @@ View* AnyViewMatchingPredicate(View* view, const ViewPredicate& predicate) {
   }
   return nullptr;
 }
+
+}  // namespace
 
 View* AnyViewMatchingPredicate(Widget* widget, const ViewPredicate& predicate) {
   return AnyViewMatchingPredicate(widget->GetRootView(), predicate);
@@ -76,17 +66,6 @@ Widget* WidgetTest::CreateTopLevelPlatformWidget() {
   widget->Init(std::move(params));
   return widget;
 }
-
-#if BUILDFLAG(ENABLE_DESKTOP_AURA)
-Widget* WidgetTest::CreateTopLevelPlatformDesktopWidget() {
-  Widget* widget = new Widget;
-  Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
-  params.native_widget = CreatePlatformDesktopNativeWidgetImpl(
-      widget, kStubCapture, base::DoNothing());
-  widget->Init(std::move(params));
-  return widget;
-}
-#endif
 
 Widget* WidgetTest::CreateTopLevelFramelessPlatformWidget() {
   Widget* widget = new Widget;
@@ -126,15 +105,15 @@ Widget* WidgetTest::CreateChildNativeWidgetWithParent(Widget* parent) {
   return child;
 }
 
-View* WidgetTest::GetMousePressedHandler(views::internal::RootView* root_view) {
+View* WidgetTest::GetMousePressedHandler(internal::RootView* root_view) {
   return root_view->mouse_pressed_handler_;
 }
 
-View* WidgetTest::GetMouseMoveHandler(views::internal::RootView* root_view) {
+View* WidgetTest::GetMouseMoveHandler(internal::RootView* root_view) {
   return root_view->mouse_move_handler_;
 }
 
-View* WidgetTest::GetGestureHandler(views::internal::RootView* root_view) {
+View* WidgetTest::GetGestureHandler(internal::RootView* root_view) {
   return root_view->gesture_handler_;
 }
 
@@ -151,20 +130,8 @@ DesktopWidgetTestInteractive::~DesktopWidgetTestInteractive() = default;
 
 void DesktopWidgetTestInteractive::SetUp() {
   SetUpForInteractiveTests();
-#if (BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CASTOS)) || \
-    BUILDFLAG(IS_CHROMEOS_LACROS)
-  screen_ = views::test::TestDesktopScreenOzone::Create();
-#endif
   DesktopWidgetTest::SetUp();
 }
-
-#if (BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CASTOS)) || \
-    BUILDFLAG(IS_CHROMEOS_LACROS)
-void DesktopWidgetTestInteractive::TearDown() {
-  DesktopWidgetTest::TearDown();
-  screen_.reset();
-}
-#endif
 
 TestDesktopWidgetDelegate::TestDesktopWidgetDelegate()
     : TestDesktopWidgetDelegate(nullptr) {}
@@ -200,8 +167,7 @@ const Widget* TestDesktopWidgetDelegate::GetWidget() const {
 }
 
 View* TestDesktopWidgetDelegate::GetContentsView() {
-  return contents_view_ ? contents_view_.get()
-                        : WidgetDelegate::GetContentsView();
+  return contents_view_ ? contents_view_ : WidgetDelegate::GetContentsView();
 }
 
 bool TestDesktopWidgetDelegate::OnCloseRequested(
@@ -219,7 +185,7 @@ TestInitialFocusWidgetDelegate::TestInitialFocusWidgetDelegate(
   params.context = context;
   params.delegate = this;
   GetWidget()->Init(std::move(params));
-  GetWidget()->GetContentsView()->AddChildView(view_.get());
+  GetWidget()->GetContentsView()->AddChildView(view_);
 }
 
 TestInitialFocusWidgetDelegate::~TestInitialFocusWidgetDelegate() = default;
@@ -229,26 +195,19 @@ View* TestInitialFocusWidgetDelegate::GetInitiallyFocusedView() {
 }
 
 WidgetActivationWaiter::WidgetActivationWaiter(Widget* widget, bool active)
-    : active_(active) {
+    : observed_(false), active_(active) {
   if (active == widget->IsActive()) {
     observed_ = true;
     return;
   }
-  widget_observation_.Observe(widget);
+  widget->AddObserver(this);
 }
 
 WidgetActivationWaiter::~WidgetActivationWaiter() = default;
 
 void WidgetActivationWaiter::Wait() {
-  if (!observed_) {
-#if BUILDFLAG(IS_MAC)
-    // Some tests waiting on widget creation + activation are flaky due to
-    // timeout. crbug.com/1327590.
-    const base::test::ScopedRunLoopTimeout increased_run_timeout(
-        FROM_HERE, TestTimeouts::action_max_timeout());
-#endif
+  if (!observed_)
     run_loop_.Run();
-  }
 }
 
 void WidgetActivationWaiter::OnWidgetActivationChanged(Widget* widget,
@@ -257,23 +216,43 @@ void WidgetActivationWaiter::OnWidgetActivationChanged(Widget* widget,
     return;
 
   observed_ = true;
-  widget_observation_.Reset();
+  widget->RemoveObserver(this);
+  if (run_loop_.running())
+    run_loop_.Quit();
+}
+
+WidgetClosingObserver::WidgetClosingObserver(Widget* widget) : widget_(widget) {
+  widget_->AddObserver(this);
+}
+
+WidgetClosingObserver::~WidgetClosingObserver() {
+  if (widget_)
+    widget_->RemoveObserver(this);
+}
+
+void WidgetClosingObserver::Wait() {
+  if (widget_)
+    run_loop_.Run();
+}
+
+void WidgetClosingObserver::OnWidgetClosing(Widget* widget) {
+  DCHECK_EQ(widget_, widget);
+  widget_->RemoveObserver(this);
+  widget_ = nullptr;
   if (run_loop_.running())
     run_loop_.Quit();
 }
 
 WidgetDestroyedWaiter::WidgetDestroyedWaiter(Widget* widget) {
-  widget_observation_.Observe(widget);
+  widget->AddObserver(this);
 }
-
-WidgetDestroyedWaiter::~WidgetDestroyedWaiter() = default;
 
 void WidgetDestroyedWaiter::Wait() {
   run_loop_.Run();
 }
 
 void WidgetDestroyedWaiter::OnWidgetDestroyed(Widget* widget) {
-  widget_observation_.Reset();
+  widget->RemoveObserver(this);
   run_loop_.Quit();
 }
 
@@ -282,7 +261,7 @@ WidgetVisibleWaiter::~WidgetVisibleWaiter() = default;
 
 void WidgetVisibleWaiter::Wait() {
   if (!widget_->IsVisible()) {
-    widget_observation_.Observe(widget_.get());
+    widget_observer_.Add(widget_);
     run_loop_.Run();
   }
 }
@@ -291,8 +270,7 @@ void WidgetVisibleWaiter::OnWidgetVisibilityChanged(Widget* widget,
                                                     bool visible) {
   DCHECK_EQ(widget_, widget);
   if (visible) {
-    DCHECK(widget_observation_.IsObservingSource(widget));
-    widget_observation_.Reset();
+    widget_observer_.Remove(widget);
     run_loop_.Quit();
   }
 }
@@ -302,8 +280,8 @@ void WidgetVisibleWaiter::OnWidgetDestroying(Widget* widget) {
   ADD_FAILURE() << "Widget destroying before it became visible!";
   // Even though the test failed, be polite and remove the observer so we
   // don't crash with a UAF in the destructor.
-  DCHECK(widget_observation_.IsObservingSource(widget));
-  widget_observation_.Reset();
+  widget_observer_.Remove(widget);
 }
 
-}  // namespace views::test
+}  // namespace test
+}  // namespace views

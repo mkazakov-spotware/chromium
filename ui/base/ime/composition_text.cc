@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,12 @@
 
 namespace ui {
 
-CompositionText::CompositionText() = default;
+CompositionText::CompositionText() {
+}
 
 CompositionText::CompositionText(const CompositionText& other) = default;
 
-CompositionText::~CompositionText() = default;
-
-bool CompositionText::operator==(const CompositionText& other) const {
-  return text == other.text && ime_text_spans == other.ime_text_spans &&
-         selection == other.selection;
-}
-
-bool CompositionText::operator!=(const CompositionText& other) const {
-  return !(*this == other);
+CompositionText::~CompositionText() {
 }
 
 }  // namespace ui

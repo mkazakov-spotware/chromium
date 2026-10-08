@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define NET_NQE_EFFECTIVE_CONNECTION_TYPE_OBSERVER_H_
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "net/base/net_export.h"
 #include "net/nqe/effective_connection_type.h"
 
@@ -14,11 +15,6 @@ namespace net {
 // Observes changes in effective connection type.
 class NET_EXPORT_PRIVATE EffectiveConnectionTypeObserver {
  public:
-  EffectiveConnectionTypeObserver(const EffectiveConnectionTypeObserver&) =
-      delete;
-  EffectiveConnectionTypeObserver& operator=(
-      const EffectiveConnectionTypeObserver&) = delete;
-
   // Notifies the observer of a change in the effective connection type.
   // NetworkQualityEstimator computes the effective connection type once in
   // every interval of duration
@@ -33,8 +29,11 @@ class NET_EXPORT_PRIVATE EffectiveConnectionTypeObserver {
       EffectiveConnectionType type) = 0;
 
  protected:
-  EffectiveConnectionTypeObserver() = default;
-  virtual ~EffectiveConnectionTypeObserver() = default;
+  EffectiveConnectionTypeObserver() {}
+  virtual ~EffectiveConnectionTypeObserver() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EffectiveConnectionTypeObserver);
 };
 
 }  // namespace net

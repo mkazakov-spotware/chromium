@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,14 @@
 #include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/offline_pages/core/client_namespace_constants.h"
 #include "components/offline_pages/core/model/offline_page_model_utils.h"
@@ -34,15 +35,17 @@ const char kTestURL[] = "http://example.com/hello.mhtml";
 const char kNonExistentURL[] = "http://example.com/non_existent.mhtml";
 // Size of chrome/test/data/offline_pages/hello.mhtml
 const int64_t kTestFileSize = 471LL;
-const std::u16string kTestTitle = u"a title";
+const base::string16 kTestTitle = base::UTF8ToUTF16("a title");
 // SHA256 Hash of chrome/test/data/offline_pages/hello.mhtml
 const std::string kTestDigest(
     "\x43\x60\x62\x02\x06\x15\x0f\x3e\x77\x99\x3d\xed\xdc\xd4\xe2\x0d\xbe\xbd"
     "\x77\x1a\xfb\x32\x00\x51\x7e\x63\x7d\x3b\x2e\x46\x63\xf6",
     32);
 
-constexpr base::TimeDelta kTimeToSaveMhtml = base::Milliseconds(1000);
-constexpr base::TimeDelta kTimeToComputeDigest = base::Milliseconds(10);
+constexpr base::TimeDelta kTimeToSaveMhtml =
+    base::TimeDelta::FromMilliseconds(1000);
+constexpr base::TimeDelta kTimeToComputeDigest =
+    base::TimeDelta::FromMilliseconds(10);
 
 class TestMHTMLArchiver : public OfflinePageMHTMLArchiver {
  public:
@@ -55,10 +58,6 @@ class TestMHTMLArchiver : public OfflinePageMHTMLArchiver {
   TestMHTMLArchiver(const GURL& url,
                     const TestScenario test_scenario,
                     TestScopedOfflineClock* clock);
-
-  TestMHTMLArchiver(const TestMHTMLArchiver&) = delete;
-  TestMHTMLArchiver& operator=(const TestMHTMLArchiver&) = delete;
-
   ~TestMHTMLArchiver() override;
 
  private:
@@ -69,7 +68,9 @@ class TestMHTMLArchiver : public OfflinePageMHTMLArchiver {
   const GURL url_;
   const TestScenario test_scenario_;
   // Not owned.
-  raw_ptr<TestScopedOfflineClock> clock_;
+  TestScopedOfflineClock* clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestMHTMLArchiver);
 };
 
 TestMHTMLArchiver::TestMHTMLArchiver(const GURL& url,
@@ -97,7 +98,7 @@ void TestMHTMLArchiver::GenerateMHTML(
   EXPECT_EQ(kDownloadNamespace, create_archive_params.name_space);
   base::FilePath archive_file_path =
       archives_dir.AppendASCII(url_.ExtractFileName());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&TestMHTMLArchiver::OnGenerateMHTMLDone,
                      base::Unretained(this), url_, archive_file_path,
@@ -124,11 +125,6 @@ class OfflinePageMHTMLArchiverTest : public testing::Test {
           "OfflinePages.SavePage.ComputeDigestTime");
 
   OfflinePageMHTMLArchiverTest();
-
-  OfflinePageMHTMLArchiverTest(const OfflinePageMHTMLArchiverTest&) = delete;
-  OfflinePageMHTMLArchiverTest& operator=(const OfflinePageMHTMLArchiverTest&) =
-      delete;
-
   ~OfflinePageMHTMLArchiverTest() override;
 
   void SetUp() override;
@@ -161,7 +157,7 @@ class OfflinePageMHTMLArchiverTest : public testing::Test {
   void OnCreateArchiveDone(OfflinePageArchiver::ArchiverResult result,
                            const GURL& url,
                            const base::FilePath& file_path,
-                           const std::u16string& title,
+                           const base::string16& title,
                            int64_t file_size,
                            const std::string& digest);
 
@@ -178,6 +174,8 @@ class OfflinePageMHTMLArchiverTest : public testing::Test {
   base::OnceClosure async_operation_completed_callback_;
 
   TestScopedOfflineClock clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(OfflinePageMHTMLArchiverTest);
 };
 
 OfflinePageMHTMLArchiverTest::OfflinePageMHTMLArchiverTest()
@@ -213,7 +211,7 @@ void OfflinePageMHTMLArchiverTest::OnCreateArchiveDone(
     OfflinePageArchiver::ArchiverResult result,
     const GURL& url,
     const base::FilePath& file_path,
-    const std::u16string& title,
+    const base::string16& title,
     int64_t file_size,
     const std::string& digest) {
   DCHECK(!async_operation_completed_);

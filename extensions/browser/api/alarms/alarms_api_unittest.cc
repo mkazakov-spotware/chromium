@@ -1,34 +1,28 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // This file tests the chrome.alarms extension API.
 
-#include "extensions/browser/api/alarms/alarms_api.h"
-
 #include <stddef.h>
-
-#include <memory>
-#include <string>
-#include <utility>
 
 #include "base/bind.h"
 #include "base/json/json_reader.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
+#include "base/stl_util.h"
 #include "base/test/simple_test_clock.h"
-#include "base/test/values_test_util.h"
 #include "base/values.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/fake_local_frame.h"
 #include "extensions/browser/api/alarms/alarm_manager.h"
+#include "extensions/browser/api/alarms/alarms_api.h"
 #include "extensions/browser/api/alarms/alarms_api_constants.h"
 #include "extensions/browser/api_unittest.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_messages.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 typedef extensions::api::alarms::Alarm JsAlarm;
 
@@ -80,19 +74,16 @@ class ExtensionAlarmsTest : public ApiUnitTest {
 
   // Takes a JSON result from a function and converts it to a vector of
   // JsAlarms.
-  std::vector<std::unique_ptr<JsAlarm>> ToAlarmList(
-      const absl::optional<base::Value>& value) {
+  std::vector<std::unique_ptr<JsAlarm>> ToAlarmList(base::ListValue* value) {
     std::vector<std::unique_ptr<JsAlarm>> list;
-    if (!value)
-      return list;
-    for (const auto& item : value->GetList()) {
+    for (size_t i = 0; i < value->GetSize(); ++i) {
       std::unique_ptr<JsAlarm> alarm(new JsAlarm());
-
-      if (!item.is_dict()) {
+      base::DictionaryValue* alarm_value;
+      if (!value->GetDictionary(i, &alarm_value)) {
         ADD_FAILURE() << "Expected a list of Alarm objects.";
         return list;
       }
-      EXPECT_TRUE(JsAlarm::Populate(item, alarm.get()));
+      EXPECT_TRUE(JsAlarm::Populate(*alarm_value, alarm.get()));
       list.push_back(std::move(alarm));
     }
     return list;
@@ -108,15 +99,16 @@ class ExtensionAlarmsTest : public ApiUnitTest {
         "[\"0\", {\"delayInMinutes\": 0}]",
     };
     for (size_t i = 0; i < num_alarms; ++i) {
-      absl::optional<base::Value> result = RunFunctionAndReturnValue(
-          new AlarmsCreateFunction(&test_clock_), kCreateArgs[i]);
-      EXPECT_FALSE(result);
+      std::unique_ptr<base::DictionaryValue> result(
+          RunFunctionAndReturnDictionary(new AlarmsCreateFunction(&test_clock_),
+                                         kCreateArgs[i]));
+      EXPECT_FALSE(result.get());
     }
   }
 
   base::SimpleTestClock test_clock_;
-  raw_ptr<AlarmManager> alarm_manager_;
-  raw_ptr<AlarmDelegate> alarm_delegate_;
+  AlarmManager* alarm_manager_;
+  AlarmDelegate* alarm_delegate_;
 };
 
 void ExtensionAlarmsTestGetAllAlarmsCallback(
@@ -130,7 +122,7 @@ void ExtensionAlarmsTestGetAlarmCallback(ExtensionAlarmsTest* test,
   ASSERT_TRUE(alarm);
   EXPECT_EQ("", alarm->js_alarm->name);
   EXPECT_DOUBLE_EQ(10000, alarm->js_alarm->scheduled_time);
-  EXPECT_FALSE(alarm->js_alarm->period_in_minutes);
+  EXPECT_FALSE(alarm->js_alarm->period_in_minutes.get());
 
   // Now wait for the alarm to fire. Our test delegate will quit the
   // MessageLoop when that happens.
@@ -161,14 +153,15 @@ void ExtensionAlarmsTestCreateRepeatingGetAlarmCallback(
   ASSERT_TRUE(alarm);
   EXPECT_EQ("", alarm->js_alarm->name);
   EXPECT_DOUBLE_EQ(10060, alarm->js_alarm->scheduled_time);
-  EXPECT_THAT(alarm->js_alarm->period_in_minutes, testing::Eq(0.001));
+  EXPECT_THAT(alarm->js_alarm->period_in_minutes,
+              testing::Pointee(testing::DoubleEq(0.001)));
 
-  test->test_clock_.Advance(base::Seconds(1));
+  test->test_clock_.Advance(base::TimeDelta::FromSeconds(1));
   // Now wait for the alarm to fire. Our test delegate will quit the
   // MessageLoop when that happens.
   base::RunLoop().Run();
 
-  test->test_clock_.Advance(base::Seconds(1));
+  test->test_clock_.Advance(base::TimeDelta::FromSeconds(1));
   // Wait again, and ensure the alarm fires again.
   RunScheduleNextPoll(test->alarm_manager_);
   base::RunLoop().Run();
@@ -203,7 +196,7 @@ void ExtensionAlarmsTestCreateAbsoluteGetAlarm1Callback(
   ASSERT_TRUE(alarm);
   EXPECT_EQ("", alarm->js_alarm->name);
   EXPECT_DOUBLE_EQ(10001, alarm->js_alarm->scheduled_time);
-  EXPECT_FALSE(alarm->js_alarm->period_in_minutes.has_value());
+  EXPECT_THAT(alarm->js_alarm->period_in_minutes, testing::IsNull());
 
   test->test_clock_.SetNow(base::Time::FromDoubleT(10.1));
   // Now wait for the alarm to fire. Our test delegate will quit the
@@ -253,7 +246,8 @@ void ExtensionAlarmsTestCreateRepeatingWithQuickFirstCallGetAlarm1Callback(
   ASSERT_TRUE(alarm);
   EXPECT_EQ("", alarm->js_alarm->name);
   EXPECT_DOUBLE_EQ(10001, alarm->js_alarm->scheduled_time);
-  EXPECT_THAT(alarm->js_alarm->period_in_minutes, testing::Eq(0.001));
+  EXPECT_THAT(alarm->js_alarm->period_in_minutes,
+              testing::Pointee(testing::DoubleEq(0.001)));
 
   test->test_clock_.SetNow(base::Time::FromDoubleT(10.1));
   // Now wait for the alarm to fire. Our test delegate will quit the
@@ -282,7 +276,7 @@ void ExtensionAlarmsTestCreateDupeGetAllAlarmsCallback(
     const AlarmManager::AlarmList* alarms) {
   ASSERT_TRUE(alarms);
   EXPECT_EQ(1u, alarms->size());
-  EXPECT_DOUBLE_EQ(430000, (*alarms)[0].js_alarm->scheduled_time);
+  EXPECT_DOUBLE_EQ(430000, (*alarms)[0]->js_alarm->scheduled_time);
 }
 
 TEST_F(ExtensionAlarmsTest, CreateDupe) {
@@ -314,15 +308,14 @@ class ConsoleLogMessageLocalFrame : public content::FakeLocalFrame {
 
  private:
   unsigned message_count_ = 0;
-  absl::optional<blink::mojom::ConsoleMessageLevel> last_level_;
+  base::Optional<blink::mojom::ConsoleMessageLevel> last_level_;
   std::string last_message_;
 };
 
 TEST_F(ExtensionAlarmsTest, CreateDelayBelowMinimum) {
   // Create an alarm with delay below the minimum accepted value.
   ConsoleLogMessageLocalFrame local_frame;
-  local_frame.Init(
-      contents()->GetPrimaryMainFrame()->GetRemoteAssociatedInterfaces());
+  local_frame.Init(contents()->GetMainFrame()->GetRemoteAssociatedInterfaces());
   base::RunLoop().RunUntilIdle();
   ASSERT_EQ(local_frame.message_count(), 0u);
   CreateAlarm("[\"negative\", {\"delayInMinutes\": -0.2}]");
@@ -344,41 +337,43 @@ TEST_F(ExtensionAlarmsTest, Get) {
   // Get the default one.
   {
     JsAlarm alarm;
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsGetFunction(), "[null]");
-    ASSERT_TRUE(result);
+    std::unique_ptr<base::DictionaryValue> result(
+        RunFunctionAndReturnDictionary(new AlarmsGetFunction(), "[null]"));
+    ASSERT_TRUE(result.get());
     EXPECT_TRUE(JsAlarm::Populate(*result, &alarm));
     EXPECT_EQ("", alarm.name);
     EXPECT_DOUBLE_EQ(4060, alarm.scheduled_time);
-    EXPECT_THAT(alarm.period_in_minutes, testing::Eq(0.001));
+    EXPECT_THAT(alarm.period_in_minutes,
+                testing::Pointee(testing::DoubleEq(0.001)));
   }
 
   // Get "7".
   {
     JsAlarm alarm;
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsGetFunction(), "[\"7\"]");
-    ASSERT_TRUE(result);
+    std::unique_ptr<base::DictionaryValue> result(
+        RunFunctionAndReturnDictionary(new AlarmsGetFunction(), "[\"7\"]"));
+    ASSERT_TRUE(result.get());
     EXPECT_TRUE(JsAlarm::Populate(*result, &alarm));
     EXPECT_EQ("7", alarm.name);
     EXPECT_EQ(424000, alarm.scheduled_time);
-    EXPECT_THAT(alarm.period_in_minutes, testing::Eq(7));
+    EXPECT_THAT(alarm.period_in_minutes, testing::Pointee(7));
   }
 
   // Get a non-existent one.
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsGetFunction(), "[\"nobody\"]");
-    ASSERT_FALSE(result);
+    std::unique_ptr<base::DictionaryValue> result(
+        RunFunctionAndReturnDictionary(new AlarmsGetFunction(),
+                                       "[\"nobody\"]"));
+    ASSERT_FALSE(result.get());
   }
 }
 
 TEST_F(ExtensionAlarmsTest, GetAll) {
   // Test getAll with 0 alarms.
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsGetAllFunction(), "[]");
-    std::vector<std::unique_ptr<JsAlarm>> alarms = ToAlarmList(result);
+    std::unique_ptr<base::ListValue> result(
+        RunFunctionAndReturnList(new AlarmsGetAllFunction(), "[]"));
+    std::vector<std::unique_ptr<JsAlarm>> alarms = ToAlarmList(result.get());
     EXPECT_EQ(0u, alarms.size());
   }
 
@@ -386,9 +381,9 @@ TEST_F(ExtensionAlarmsTest, GetAll) {
   CreateAlarms(2);
 
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsGetAllFunction(), "[null]");
-    std::vector<std::unique_ptr<JsAlarm>> alarms = ToAlarmList(result);
+    std::unique_ptr<base::ListValue> result(
+        RunFunctionAndReturnList(new AlarmsGetAllFunction(), "[null]"));
+    std::vector<std::unique_ptr<JsAlarm>> alarms = ToAlarmList(result.get());
     EXPECT_EQ(2u, alarms.size());
 
     // Test the "7" alarm.
@@ -396,7 +391,7 @@ TEST_F(ExtensionAlarmsTest, GetAll) {
     if (alarm->name != "7")
       alarm = alarms[1].get();
     EXPECT_EQ("7", alarm->name);
-    EXPECT_THAT(alarm->period_in_minutes, testing::Eq(7));
+    EXPECT_THAT(alarm->period_in_minutes, testing::Pointee(7));
   }
 }
 
@@ -405,7 +400,8 @@ void ExtensionAlarmsTestClearGetAllAlarms2Callback(
   // Ensure the 0.001-minute alarm is still there, since it's repeating.
   ASSERT_TRUE(alarms);
   EXPECT_EQ(1u, alarms->size());
-  EXPECT_THAT((*alarms)[0].js_alarm->period_in_minutes, testing::Eq(0.001));
+  EXPECT_THAT((*alarms)[0]->js_alarm->period_in_minutes,
+              testing::Pointee(0.001));
 }
 
 void ExtensionAlarmsTestClearGetAllAlarms1Callback(
@@ -413,11 +409,12 @@ void ExtensionAlarmsTestClearGetAllAlarms1Callback(
     const AlarmManager::AlarmList* alarms) {
   ASSERT_TRUE(alarms);
   EXPECT_EQ(1u, alarms->size());
-  EXPECT_THAT((*alarms)[0].js_alarm->period_in_minutes, testing::Eq(0.001));
+  EXPECT_THAT((*alarms)[0]->js_alarm->period_in_minutes,
+              testing::Pointee(0.001));
 
   // Now wait for the alarms to fire, and ensure the cancelled alarms don't
   // fire.
-  test->test_clock_.Advance(base::Milliseconds(60));
+  test->test_clock_.Advance(base::TimeDelta::FromMilliseconds(60));
   RunScheduleNextPoll(test->alarm_manager_);
   base::RunLoop().Run();
 
@@ -433,10 +430,11 @@ void ExtensionAlarmsTestClearGetAllAlarms1Callback(
 TEST_F(ExtensionAlarmsTest, Clear) {
   // Clear a non-existent one.
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsClearFunction(), "[\"nobody\"]");
-    ASSERT_TRUE(result->is_bool());
-    EXPECT_FALSE(result->GetBool());
+    std::unique_ptr<base::Value> result(
+        RunFunctionAndReturnValue(new AlarmsClearFunction(), "[\"nobody\"]"));
+    bool copy_bool_result = false;
+    ASSERT_TRUE(result->GetAsBoolean(&copy_bool_result));
+    EXPECT_FALSE(copy_bool_result);
   }
 
   // Create 3 alarms.
@@ -444,16 +442,18 @@ TEST_F(ExtensionAlarmsTest, Clear) {
 
   // Clear all but the 0.001-minute alarm.
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsClearFunction(), "[\"7\"]");
-    ASSERT_TRUE(result->is_bool());
-    EXPECT_TRUE(result->GetBool());
+    std::unique_ptr<base::Value> result(
+        RunFunctionAndReturnValue(new AlarmsClearFunction(), "[\"7\"]"));
+    bool copy_bool_result = false;
+    ASSERT_TRUE(result->GetAsBoolean(&copy_bool_result));
+    EXPECT_TRUE(copy_bool_result);
   }
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsClearFunction(), "[\"0\"]");
-    ASSERT_TRUE(result->is_bool());
-    EXPECT_TRUE(result->GetBool());
+    std::unique_ptr<base::Value> result(
+        RunFunctionAndReturnValue(new AlarmsClearFunction(), "[\"0\"]"));
+    bool copy_bool_result = false;
+    ASSERT_TRUE(result->GetAsBoolean(&copy_bool_result));
+    EXPECT_TRUE(copy_bool_result);
   }
 
   alarm_manager_->GetAllAlarms(
@@ -482,10 +482,11 @@ void ExtensionAlarmsTestClearAllGetAllAlarms1Callback(
 TEST_F(ExtensionAlarmsTest, ClearAll) {
   // ClearAll with no alarms set.
   {
-    absl::optional<base::Value> result =
-        RunFunctionAndReturnValue(new AlarmsClearAllFunction(), "[]");
-    ASSERT_TRUE(result->is_bool());
-    EXPECT_TRUE(result->GetBool());
+    std::unique_ptr<base::Value> result(
+        RunFunctionAndReturnValue(new AlarmsClearAllFunction(), "[]"));
+    bool copy_bool_result = false;
+    ASSERT_TRUE(result->GetAsBoolean(&copy_bool_result));
+    EXPECT_TRUE(copy_bool_result);
   }
 
   // Create 3 alarms.
@@ -545,51 +546,52 @@ TEST_F(ExtensionAlarmsSchedulingTest, PollScheduling) {
   {
     test_clock_.SetNow(base::Time::FromDoubleT(10));
     CreateAlarm("[\"a\", {\"periodInMinutes\": 10}]");
-    Alarm alarm;
-    alarm.js_alarm->name = "bb";
-    alarm.js_alarm->scheduled_time = 30 * 60000;
-    alarm.js_alarm->period_in_minutes = 30;
+    std::unique_ptr<Alarm> alarm(new Alarm);
+    alarm->js_alarm->name = "bb";
+    alarm->js_alarm->scheduled_time = 30 * 60000;
+    alarm->js_alarm->period_in_minutes.reset(new double(30));
     alarm_manager_->AddAlarmImpl(extension()->id(), std::move(alarm));
     VerifyScheduledTime("a");
     RemoveAllAlarms();
   }
   {
     test_clock_.SetNow(base::Time::FromDoubleT(3 * 60 + 1));
-    Alarm alarm;
-    alarm.js_alarm->name = "bb";
-    alarm.js_alarm->scheduled_time = 3 * 60000;
-    alarm.js_alarm->period_in_minutes = 3;
+    std::unique_ptr<Alarm> alarm(new Alarm);
+    alarm->js_alarm->name = "bb";
+    alarm->js_alarm->scheduled_time = 3 * 60000;
+    alarm->js_alarm->period_in_minutes.reset(new double(3));
     alarm_manager_->AddAlarmImpl(extension()->id(), std::move(alarm));
     base::RunLoop().Run();
-    EXPECT_EQ(base::Time::FromJsTime(3 * 60000) + base::Minutes(3),
-              alarm_manager_->next_poll_time_);
+    EXPECT_EQ(
+        base::Time::FromJsTime(3 * 60000) + base::TimeDelta::FromMinutes(3),
+        alarm_manager_->next_poll_time_);
     RemoveAllAlarms();
   }
   {
     test_clock_.SetNow(base::Time::FromDoubleT(4 * 60 + 1));
     CreateAlarm("[\"a\", {\"periodInMinutes\": 2}]");
     RemoveAlarm("a");
-    Alarm alarm2;
-    alarm2.js_alarm->name = "bb";
-    alarm2.js_alarm->scheduled_time = 4 * 60000;
-    alarm2.js_alarm->period_in_minutes = 4;
+    std::unique_ptr<Alarm> alarm2(new Alarm);
+    alarm2->js_alarm->name = "bb";
+    alarm2->js_alarm->scheduled_time = 4 * 60000;
+    alarm2->js_alarm->period_in_minutes.reset(new double(4));
     alarm_manager_->AddAlarmImpl(extension()->id(), std::move(alarm2));
-    Alarm alarm3;
-    alarm3.js_alarm->name = "ccc";
-    alarm3.js_alarm->scheduled_time = 25 * 60000;
-    alarm3.js_alarm->period_in_minutes = 25;
+    std::unique_ptr<Alarm> alarm3(new Alarm);
+    alarm3->js_alarm->name = "ccc";
+    alarm3->js_alarm->scheduled_time = 25 * 60000;
+    alarm3->js_alarm->period_in_minutes.reset(new double(25));
     alarm_manager_->AddAlarmImpl(extension()->id(), std::move(alarm3));
     base::RunLoop().Run();
-    EXPECT_EQ(base::Time::FromJsTime(4 * 60000) + base::Minutes(4),
-              alarm_manager_->next_poll_time_);
+    EXPECT_EQ(
+        base::Time::FromJsTime(4 * 60000) + base::TimeDelta::FromMinutes(4),
+        alarm_manager_->next_poll_time_);
     RemoveAllAlarms();
   }
 }
 
 TEST_F(ExtensionAlarmsSchedulingTest, ReleasedExtensionPollsInfrequently) {
-  set_extension(ExtensionBuilder("Test")
-                    .SetLocation(mojom::ManifestLocation::kInternal)
-                    .Build());
+  set_extension(
+      ExtensionBuilder("Test").SetLocation(Manifest::INTERNAL).Build());
   test_clock_.SetNow(base::Time::FromJsTime(300000));
   CreateAlarm("[\"a\", {\"when\": 300010}]");
   CreateAlarm("[\"b\", {\"when\": 340000}]");
@@ -603,16 +605,16 @@ TEST_F(ExtensionAlarmsSchedulingTest, ReleasedExtensionPollsInfrequently) {
   // minute, which makes AddAlarm schedule the next poll after the
   // extension requested.
   alarm_manager_->ScheduleNextPoll();
-  EXPECT_DOUBLE_EQ(
-      (alarm_manager_->last_poll_time_ + base::Minutes(1)).ToJsTime(),
-      alarm_manager_->next_poll_time_.ToJsTime());
+  EXPECT_DOUBLE_EQ((alarm_manager_->last_poll_time_ +
+                    base::TimeDelta::FromMinutes(1)).ToJsTime(),
+                   alarm_manager_->next_poll_time_.ToJsTime());
 }
 
 TEST_F(ExtensionAlarmsSchedulingTest, TimerRunning) {
   EXPECT_FALSE(alarm_manager_->timer_.IsRunning());
   CreateAlarm("[\"a\", {\"delayInMinutes\": 0.001}]");
   EXPECT_TRUE(alarm_manager_->timer_.IsRunning());
-  test_clock_.Advance(base::Milliseconds(60));
+  test_clock_.Advance(base::TimeDelta::FromMilliseconds(60));
   base::RunLoop().Run();
   EXPECT_FALSE(alarm_manager_->timer_.IsRunning());
   CreateAlarm("[\"bb\", {\"delayInMinutes\": 10}]");
@@ -622,23 +624,22 @@ TEST_F(ExtensionAlarmsSchedulingTest, TimerRunning) {
 }
 
 TEST_F(ExtensionAlarmsSchedulingTest, MinimumGranularity) {
-  set_extension(ExtensionBuilder("Test")
-                    .SetLocation(mojom::ManifestLocation::kInternal)
-                    .Build());
+  set_extension(
+      ExtensionBuilder("Test").SetLocation(Manifest::INTERNAL).Build());
   test_clock_.SetNow(base::Time::FromJsTime(0));
   CreateAlarm("[\"a\", {\"periodInMinutes\": 2}]");
-  test_clock_.Advance(base::Seconds(1));
+  test_clock_.Advance(base::TimeDelta::FromSeconds(1));
   CreateAlarm("[\"b\", {\"periodInMinutes\": 2}]");
-  test_clock_.Advance(base::Minutes(2));
+  test_clock_.Advance(base::TimeDelta::FromMinutes(2));
 
   alarm_manager_->last_poll_time_ = base::Time::FromJsTime(2 * 60000);
   // In released extensions, we set the granularity to at least 1
   // minute, which makes scheduler set it to 1 minute, rather than
   // 1 second later (when b is supposed to go off).
   alarm_manager_->ScheduleNextPoll();
-  EXPECT_DOUBLE_EQ(
-      (alarm_manager_->last_poll_time_ + base::Minutes(1)).ToJsTime(),
-      alarm_manager_->next_poll_time_.ToJsTime());
+  EXPECT_DOUBLE_EQ((alarm_manager_->last_poll_time_ +
+                    base::TimeDelta::FromMinutes(1)).ToJsTime(),
+                   alarm_manager_->next_poll_time_.ToJsTime());
 }
 
 TEST_F(ExtensionAlarmsSchedulingTest, DifferentMinimumGranularities) {
@@ -651,9 +652,8 @@ TEST_F(ExtensionAlarmsSchedulingTest, DifferentMinimumGranularities) {
   // CreateAlarm() uses extension_, so keep a ref of the old one around, and
   // repopulate extension_.
   scoped_refptr<const Extension> extension2(extension_ref());
-  set_extension(ExtensionBuilder("Test")
-                    .SetLocation(mojom::ManifestLocation::kInternal)
-                    .Build());
+  set_extension(
+      ExtensionBuilder("Test").SetLocation(Manifest::INTERNAL).Build());
 
   CreateAlarm("[\"b\", {\"periodInMinutes\": 2}]");
 
@@ -662,18 +662,19 @@ TEST_F(ExtensionAlarmsSchedulingTest, DifferentMinimumGranularities) {
 
   // The next poll time should be 12 seconds from now - the time at which the
   // first alarm should go off.
-  EXPECT_DOUBLE_EQ(
-      (alarm_manager_->last_poll_time_ + base::Seconds(12)).ToJsTime(),
-      alarm_manager_->next_poll_time_.ToJsTime());
+  EXPECT_DOUBLE_EQ((alarm_manager_->last_poll_time_ +
+                    base::TimeDelta::FromSeconds(12)).ToJsTime(),
+                   alarm_manager_->next_poll_time_.ToJsTime());
 }
 
 void FrequencyTestGetAlarmsCallback(ExtensionAlarmsTest* test, Alarm* alarm) {
   ASSERT_TRUE(alarm);
   EXPECT_EQ("hello", alarm->js_alarm->name);
   EXPECT_DOUBLE_EQ(10000, alarm->js_alarm->scheduled_time);
-  EXPECT_THAT(alarm->js_alarm->period_in_minutes, testing::Eq(0.0001));
+  EXPECT_THAT(alarm->js_alarm->period_in_minutes,
+              testing::Pointee(testing::DoubleEq(0.0001)));
 
-  test->test_clock_.Advance(base::Milliseconds(10));
+  test->test_clock_.Advance(base::TimeDelta::FromMilliseconds(10));
   // Now wait for the alarm to fire. Our test delegate will quit the
   // MessageLoop when that happens.
   base::RunLoop().Run();
@@ -692,15 +693,17 @@ TEST_F(ExtensionAlarmsSchedulingTest, PollFrequencyFromStoredAlarm) {
   };
 
   // Test once for unpacked and once for crx extension.
-  for (size_t i = 0; i < std::size(test_data); ++i) {
+  for (size_t i = 0; i < base::size(test_data); ++i) {
     test_clock_.SetNow(base::Time::FromDoubleT(10));
 
     // Mimic retrieving an alarm from StateStore.
     std::string alarm_args =
         "[{\"name\": \"hello\", \"scheduledTime\": 10000, "
         "\"periodInMinutes\": 0.0001}]";
+    std::unique_ptr<base::ListValue> value =
+        base::ListValue::From(base::JSONReader::ReadDeprecated(alarm_args));
     alarm_manager_->ReadFromStorage(extension()->id(), test_data[i].is_unpacked,
-                                    base::test::ParseJson(alarm_args));
+                                    std::move(value));
 
     // Let the alarm fire once, we will verify the next polling time afterwards.
     alarm_manager_->GetAlarm(
@@ -712,12 +715,13 @@ TEST_F(ExtensionAlarmsSchedulingTest, PollFrequencyFromStoredAlarm) {
     // alarms_api_constants::kReleaseDelayMinimum). Make sure
     // our next poll time corresponds to our allowed minimum and not to the
     // StateStore specified "periodInMinutes".
-    EXPECT_GE(alarm_manager_->next_poll_time_,
-              // 10s initial clock.
-              base::Time::FromJsTime(10000) +
-                  // 10ms in FrequencyTestGetAlarmsCallback.
-                  base::Milliseconds(10) +
-                  base::Seconds(test_data[i].delay_minimum * 60));
+    EXPECT_GE(
+        alarm_manager_->next_poll_time_,
+        // 10s initial clock.
+        base::Time::FromJsTime(10000) +
+            // 10ms in FrequencyTestGetAlarmsCallback.
+            base::TimeDelta::FromMilliseconds(10) +
+            base::TimeDelta::FromSecondsD(test_data[i].delay_minimum * 60));
     RemoveAlarm("hello");
   }
 }
@@ -732,12 +736,12 @@ TEST_F(ExtensionAlarmsSchedulingTest, RepeatingAlarmsScheduledPredictably) {
   alarm_manager_->ScheduleNextPoll();
 
   // We expect the first poll to happen two minutes from the start.
-  EXPECT_DOUBLE_EQ(
-      (alarm_manager_->last_poll_time_ + base::Seconds(120)).ToJsTime(),
-      alarm_manager_->next_poll_time_.ToJsTime());
+  EXPECT_DOUBLE_EQ((alarm_manager_->last_poll_time_ +
+                    base::TimeDelta::FromSeconds(120)).ToJsTime(),
+                   alarm_manager_->next_poll_time_.ToJsTime());
 
   // Poll more than two minutes later.
-  test_clock_.Advance(base::Seconds(125));
+  test_clock_.Advance(base::TimeDelta::FromSeconds(125));
   alarm_manager_->PollAlarms();
 
   // The alarm should have triggered once.
@@ -746,12 +750,12 @@ TEST_F(ExtensionAlarmsSchedulingTest, RepeatingAlarmsScheduledPredictably) {
   // The next poll should still be scheduled for four minutes from the start,
   // even though this is less than two minutes since the last alarm.
   // Last poll was at 125 seconds; next poll should be at 240 seconds.
-  EXPECT_DOUBLE_EQ(
-      (alarm_manager_->last_poll_time_ + base::Seconds(115)).ToJsTime(),
-      alarm_manager_->next_poll_time_.ToJsTime());
+  EXPECT_DOUBLE_EQ((alarm_manager_->last_poll_time_ +
+                    base::TimeDelta::FromSeconds(115)).ToJsTime(),
+                   alarm_manager_->next_poll_time_.ToJsTime());
 
   // Completely miss a scheduled trigger.
-  test_clock_.Advance(base::Seconds(255));  // Total Time: 380s
+  test_clock_.Advance(base::TimeDelta::FromSeconds(255));  // Total Time: 380s
   alarm_manager_->PollAlarms();
 
   // The alarm should have triggered again at this last poll.
@@ -760,9 +764,9 @@ TEST_F(ExtensionAlarmsSchedulingTest, RepeatingAlarmsScheduledPredictably) {
   // The next poll should be the first poll that hasn't happened and is in-line
   // with the original scheduling.
   // Last poll was at 380 seconds; next poll should be at 480 seconds.
-  EXPECT_DOUBLE_EQ(
-      (alarm_manager_->last_poll_time_ + base::Seconds(100)).ToJsTime(),
-      alarm_manager_->next_poll_time_.ToJsTime());
+  EXPECT_DOUBLE_EQ((alarm_manager_->last_poll_time_ +
+                    base::TimeDelta::FromSeconds(100)).ToJsTime(),
+                   alarm_manager_->next_poll_time_.ToJsTime());
 }
 
 }  // namespace extensions

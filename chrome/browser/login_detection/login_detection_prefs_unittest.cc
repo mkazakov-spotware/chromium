@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/login_detection/login_detection_prefs.h"
 
+#include "base/macros.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/login_detection/login_detection_util.h"
 #include "components/prefs/testing_pref_service.h"

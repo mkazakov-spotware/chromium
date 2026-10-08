@@ -20,6 +20,7 @@
   <body>
     <div><span id="ahem">00000</span></div>
     <div><span id="test">00000</span></div>
+  </body>
 <script>
   setup({ explicit_done: true });
   window.addEventListener("load", () => { document.fonts.ready.then(runTests); });
@@ -31,7 +32,7 @@
   function runTests() {
     let ahem = document.getElementById('ahem');
     let ahem_expected_width = ahem.offsetWidth;
-    let families = kGenericFontFamilyKeywords.map(keyword => `-webkit-${keyword}`).concat(kNonGenericFontFamilyKeywords);
+    let families = kGenericFontFamilyKeywords.map(keyword => `-webkit-${keyword}`).concat(kWebKitPrefixKeywords);
     families.forEach(name => {
       test(function() {
       assert_equals(SetFontFamilyAndMeasure(name), ahem_expected_width);
@@ -40,5 +41,4 @@
     done();
   }
 </script>
-  </body>
 </html>

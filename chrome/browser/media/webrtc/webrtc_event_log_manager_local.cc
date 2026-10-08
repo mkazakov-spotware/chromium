@@ -1,18 +1,17 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/webrtc/webrtc_event_log_manager_local.h"
 
 #include "base/files/file_util.h"
-#include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_thread.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define NumberToStringType base::NumberToString16
 #else
 #define NumberToStringType base::NumberToString
@@ -20,7 +19,7 @@
 
 namespace webrtc_event_logging {
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 const size_t kDefaultMaxLocalLogFileSizeBytes = 10000000;
 const size_t kMaxNumberLocalWebRtcEventLogFiles = 3;
 #else
@@ -41,7 +40,7 @@ WebRtcLocalEventLogManager::~WebRtcLocalEventLogManager() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 
-bool WebRtcLocalEventLogManager::OnPeerConnectionAdded(
+bool WebRtcLocalEventLogManager::PeerConnectionAdded(
     const PeerConnectionKey& key) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(io_task_sequence_checker_);
 
@@ -60,7 +59,7 @@ bool WebRtcLocalEventLogManager::OnPeerConnectionAdded(
   return true;
 }
 
-bool WebRtcLocalEventLogManager::OnPeerConnectionRemoved(
+bool WebRtcLocalEventLogManager::PeerConnectionRemoved(
     const PeerConnectionKey& key) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(io_task_sequence_checker_);
 
@@ -97,8 +96,8 @@ bool WebRtcLocalEventLogManager::EnableLogging(const base::FilePath& base_path,
 
   max_log_file_size_bytes_ =
       (max_file_size_bytes == kWebRtcEventLogManagerUnlimitedFileSize)
-          ? absl::optional<size_t>()
-          : absl::optional<size_t>(max_file_size_bytes);
+          ? base::Optional<size_t>()
+          : base::Optional<size_t>(max_file_size_bytes);
 
   for (const PeerConnectionKey& peer_connection : active_peer_connections_) {
     if (log_files_.size() >= kMaxNumberLocalWebRtcEventLogFiles) {
@@ -239,11 +238,11 @@ base::FilePath WebRtcLocalEventLogManager::GetFilePath(
   // [user_defined]_[date]_[time]_[render_process_id]_[lid].[extension]
   char stamp[100];
   int written =
-      base::snprintf(stamp, std::size(stamp), "%04d%02d%02d_%02d%02d_%d_%d",
+      base::snprintf(stamp, base::size(stamp), "%04d%02d%02d_%02d%02d_%d_%d",
                      now.year, now.month, now.day_of_month, now.hour,
                      now.minute, key.render_process_id, key.lid);
   CHECK_GT(written, 0);
-  CHECK_LT(static_cast<size_t>(written), std::size(stamp));
+  CHECK_LT(static_cast<size_t>(written), base::size(stamp));
 
   return base_path.InsertBeforeExtension(FILE_PATH_LITERAL("_"))
       .AddExtension(log_file_writer_factory_.Extension())

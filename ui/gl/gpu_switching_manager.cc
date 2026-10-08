@@ -1,10 +1,8 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/gl/gpu_switching_manager.h"
-
-#include "base/observer_list.h"
 
 namespace ui {
 
@@ -13,9 +11,9 @@ GpuSwitchingManager* GpuSwitchingManager::GetInstance() {
   return base::Singleton<GpuSwitchingManager>::get();
 }
 
-GpuSwitchingManager::GpuSwitchingManager() = default;
+GpuSwitchingManager::GpuSwitchingManager() {}
 
-GpuSwitchingManager::~GpuSwitchingManager() = default;
+GpuSwitchingManager::~GpuSwitchingManager() {}
 
 void GpuSwitchingManager::AddObserver(GpuSwitchingObserver* observer) {
   observer_list_.AddObserver(observer);

@@ -1,18 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/policy/core/common/async_policy_provider.h"
 
-#include <memory>
-
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "components/policy/core/common/async_policy_loader.h"
 #include "components/policy/core/common/external_data_fetcher.h"
@@ -43,38 +41,41 @@ class MockPolicyLoader : public AsyncPolicyLoader {
  public:
   explicit MockPolicyLoader(
       scoped_refptr<base::SequencedTaskRunner> task_runner);
-  MockPolicyLoader(const MockPolicyLoader&) = delete;
-  MockPolicyLoader& operator=(const MockPolicyLoader&) = delete;
   ~MockPolicyLoader() override;
 
-  // Load() returns a PolicyBundle but it can't be mocked
-  // because PolicyBundle is moveable but not copyable. This override
+  // Load() returns a std::unique_ptr<PolicyBundle> but it can't be mocked
+  // because std::unique_ptr is moveable but not copyable. This override
   // forwards the call to MockLoad() which returns a PolicyBundle*, and returns
-  // a copy wrapped.
-  PolicyBundle Load() override;
+  // a copy wrapped in a std::unique_ptr.
+  std::unique_ptr<PolicyBundle> Load() override;
 
   MOCK_METHOD0(MockLoad, const PolicyBundle*());
   MOCK_METHOD0(InitOnBackgroundThread, void());
   MOCK_METHOD0(LastModificationTime, base::Time());
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MockPolicyLoader);
 };
 
 MockPolicyLoader::MockPolicyLoader(
     scoped_refptr<base::SequencedTaskRunner> task_runner)
-    : AsyncPolicyLoader(task_runner, /*periodic_updates=*/true) {}
+    : AsyncPolicyLoader(task_runner) {}
 
 MockPolicyLoader::~MockPolicyLoader() {}
 
-PolicyBundle MockPolicyLoader::Load() {
-  return MockLoad()->Clone();
+std::unique_ptr<PolicyBundle> MockPolicyLoader::Load() {
+  std::unique_ptr<PolicyBundle> bundle;
+  const PolicyBundle* loaded = MockLoad();
+  if (loaded) {
+    bundle.reset(new PolicyBundle());
+    bundle->CopyFrom(*loaded);
+  }
+  return bundle;
 }
 
 }  // namespace
 
 class AsyncPolicyProviderTest : public testing::Test {
- public:
-  AsyncPolicyProviderTest(const AsyncPolicyProviderTest&) = delete;
-  AsyncPolicyProviderTest& operator=(const AsyncPolicyProviderTest&) = delete;
-
  protected:
   AsyncPolicyProviderTest();
   ~AsyncPolicyProviderTest() override;
@@ -85,8 +86,11 @@ class AsyncPolicyProviderTest : public testing::Test {
   base::test::SingleThreadTaskEnvironment task_environment_;
   SchemaRegistry schema_registry_;
   PolicyBundle initial_bundle_;
-  raw_ptr<MockPolicyLoader> loader_;
+  MockPolicyLoader* loader_;
   std::unique_ptr<AsyncPolicyProvider> provider_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AsyncPolicyProviderTest);
 };
 
 AsyncPolicyProviderTest::AsyncPolicyProviderTest() {}
@@ -95,15 +99,14 @@ AsyncPolicyProviderTest::~AsyncPolicyProviderTest() {}
 
 void AsyncPolicyProviderTest::SetUp() {
   SetPolicy(&initial_bundle_, "policy", "initial");
-  loader_ =
-      new MockPolicyLoader(base::SingleThreadTaskRunner::GetCurrentDefault());
+  loader_ = new MockPolicyLoader(base::ThreadTaskRunnerHandle::Get());
   EXPECT_CALL(*loader_, LastModificationTime())
       .WillRepeatedly(Return(base::Time()));
   EXPECT_CALL(*loader_, InitOnBackgroundThread()).Times(1);
   EXPECT_CALL(*loader_, MockLoad()).WillOnce(Return(&initial_bundle_));
 
-  provider_ = std::make_unique<AsyncPolicyProvider>(
-      &schema_registry_, std::unique_ptr<AsyncPolicyLoader>(loader_));
+  provider_.reset(new AsyncPolicyProvider(
+      &schema_registry_, std::unique_ptr<AsyncPolicyLoader>(loader_)));
   provider_->Init(&schema_registry_);
   // Verify that the initial load is done synchronously:
   EXPECT_TRUE(provider_->policies().Equals(initial_bundle_));

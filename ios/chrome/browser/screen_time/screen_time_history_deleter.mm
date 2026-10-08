@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #import <ScreenTime/ScreenTime.h>
 
-#import "base/time/time.h"
-#import "components/history/core/browser/history_service.h"
-#import "net/base/mac/url_conversions.h"
+#include "base/time/time.h"
+#include "components/history/core/browser/history_service.h"
+#include "net/base/mac/url_conversions.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -25,7 +25,7 @@ ScreenTimeHistoryDeleter::ScreenTimeHistoryDeleter(
     history::HistoryService* history_service)
     : history_service_(history_service) {
   DCHECK(history_service_);
-  history_service_observation_.Observe(history_service_);
+  history_service_->AddObserver(this);
   screen_time_history_ = [[STWebHistory alloc] init];
 }
 
@@ -33,7 +33,7 @@ ScreenTimeHistoryDeleter::~ScreenTimeHistoryDeleter() = default;
 
 void ScreenTimeHistoryDeleter::Shutdown() {
   if (history_service_)
-    history_service_observation_.Reset();
+    history_service_->RemoveObserver(this);
   history_service_ = nullptr;
   screen_time_history_ = nil;
 }

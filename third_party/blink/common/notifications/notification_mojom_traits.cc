@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ bool ValidateVibrationPattern(const std::vector<int>& vibration_pattern) {
 }
 
 bool ValidateActions(
-    const std::vector<blink::mojom::NotificationActionPtr>& actions) {
+    const std::vector<blink::PlatformNotificationAction>& actions) {
   return actions.size() <= kMaximumActions;
 }
 
@@ -43,6 +43,23 @@ bool ValidateData(const std::vector<char>& data) {
 namespace mojo {
 
 // static
+bool StructTraits<blink::mojom::NotificationActionDataView,
+                  blink::PlatformNotificationAction>::
+    Read(blink::mojom::NotificationActionDataView notification_action,
+         blink::PlatformNotificationAction* out) {
+  base::Optional<base::string16> placeholder;
+  if (!notification_action.ReadType(&out->type) ||
+      !notification_action.ReadTitle(&out->title) ||
+      !notification_action.ReadAction(&out->action) ||
+      !notification_action.ReadIcon(&out->icon) ||
+      !notification_action.ReadPlaceholder(&placeholder)) {
+    return false;
+  }
+  out->placeholder = std::move(placeholder);
+  return true;
+}
+
+// static
 bool StructTraits<blink::mojom::NotificationDataDataView,
                   blink::PlatformNotificationData>::
     Read(blink::mojom::NotificationDataDataView notification_data,
@@ -51,7 +68,7 @@ bool StructTraits<blink::mojom::NotificationDataDataView,
   // platform_notification_data.data once it stores a vector of ints not chars.
   std::vector<uint8_t> data;
 
-  absl::optional<std::string> lang;
+  base::Optional<std::string> lang;
   if (!notification_data.ReadTitle(&platform_notification_data->title) ||
       !notification_data.ReadDirection(
           &platform_notification_data->direction) ||
@@ -66,8 +83,7 @@ bool StructTraits<blink::mojom::NotificationDataDataView,
       !notification_data.ReadActions(&platform_notification_data->actions) ||
       !notification_data.ReadData(&data) ||
       !notification_data.ReadShowTriggerTimestamp(
-          &platform_notification_data->show_trigger_timestamp) ||
-      !notification_data.ReadScenario(&platform_notification_data->scenario)) {
+          &platform_notification_data->show_trigger_timestamp)) {
     return false;
   }
 

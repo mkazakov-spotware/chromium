@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ class ExampleTreeViewDrawingProvider : public views::TreeViewDrawingProvider {
   ExampleTreeViewDrawingProvider() = default;
   ~ExampleTreeViewDrawingProvider() override = default;
 
-  std::u16string GetAuxiliaryTextForNode(views::TreeView* tree_view,
+  base::string16 GetAuxiliaryTextForNode(views::TreeView* tree_view,
                                          ui::TreeModelNode* node) override {
     if (tree_view->GetSelectedNode() == node)
       return GetStringUTF16(IDS_TREE_VIEW_SELECTED_LABEL);
@@ -45,7 +45,8 @@ class ExampleTreeViewDrawingProvider : public views::TreeViewDrawingProvider {
 
 }  // namespace
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 TreeViewExample::TreeViewExample()
     : ExampleBase(GetStringUTF8(IDS_TREE_VIEW_SELECT_LABEL).c_str()),
@@ -222,4 +223,5 @@ void TreeViewExample::ExecuteCommand(int command_id, int event_flags) {
   }
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

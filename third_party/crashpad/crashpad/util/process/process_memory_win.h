@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors
+// Copyright 2018 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <windows.h>
 
+#include "base/macros.h"
 #include "util/misc/address_types.h"
 #include "util/misc/initialization_state_dcheck.h"
 #include "util/process/process_memory.h"
@@ -28,10 +29,6 @@ namespace crashpad {
 class ProcessMemoryWin final : public ProcessMemory {
  public:
   ProcessMemoryWin();
-
-  ProcessMemoryWin(const ProcessMemoryWin&) = delete;
-  ProcessMemoryWin& operator=(const ProcessMemoryWin&) = delete;
-
   ~ProcessMemoryWin();
 
   //! \brief Initializes this object to read the memory of a process with the
@@ -60,6 +57,8 @@ class ProcessMemoryWin final : public ProcessMemory {
   HANDLE handle_;
   ProcessInfo process_info_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProcessMemoryWin);
 };
 
 }  // namespace crashpad

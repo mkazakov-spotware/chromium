@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@
 #include <string>
 
 #include "base/containers/queue.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "ppapi/c/pp_file_info.h"
 #include "ppapi/c/pp_resource.h"
 #include "ppapi/c/private/ppb_isolated_file_system_private.h"
@@ -43,10 +44,6 @@ class PPAPI_PROXY_EXPORT FileSystemResource : public PluginResource,
                      int pending_renderer_id,
                      int pending_browser_id,
                      PP_FileSystemType type);
-
-  FileSystemResource(const FileSystemResource&) = delete;
-  FileSystemResource& operator=(const FileSystemResource&) = delete;
-
   ~FileSystemResource() override;
 
   // Resource overrides.
@@ -64,8 +61,7 @@ class PPAPI_PROXY_EXPORT FileSystemResource : public PluginResource,
 
   int32_t InitIsolatedFileSystem(const std::string& fsid,
                                  PP_IsolatedFileSystemType_Private type,
-                                 base::OnceCallback<void(int32_t)> callback);
-
+                                 const base::Callback<void(int32_t)>& callback);
  private:
   struct QuotaRequest {
     QuotaRequest(int64_t amount,
@@ -83,10 +79,9 @@ class PPAPI_PROXY_EXPORT FileSystemResource : public PluginResource,
                     const ResourceMessageReplyParams& params);
 
   // Called when the host has responded to our InitIsolatedFileSystem request.
-  void InitIsolatedFileSystemReply(base::OnceClosure callback,
-                                   const ResourceMessageReplyParams& params);
   void InitIsolatedFileSystemComplete(
-      base::OnceCallback<void(int32_t)> callback);
+      const base::Callback<void(int32_t)>& callback,
+      const ResourceMessageReplyParams& params);
 
   void ReserveQuota(int64_t amount);
   typedef std::map<int32_t, int64_t> OffsetMap;
@@ -103,6 +98,8 @@ class PPAPI_PROXY_EXPORT FileSystemResource : public PluginResource,
   base::queue<QuotaRequest> pending_quota_requests_;
   int64_t reserved_quota_;
   bool reserving_quota_;
+
+  DISALLOW_COPY_AND_ASSIGN(FileSystemResource);
 };
 
 }  // namespace proxy

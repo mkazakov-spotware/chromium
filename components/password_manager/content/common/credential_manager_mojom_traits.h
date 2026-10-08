@@ -1,16 +1,15 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PASSWORD_MANAGER_CONTENT_COMMON_CREDENTIAL_MANAGER_MOJOM_TRAITS_H_
 #define COMPONENTS_PASSWORD_MANAGER_CONTENT_COMMON_CREDENTIAL_MANAGER_MOJOM_TRAITS_H_
 
-#include <string>
-
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "components/password_manager/core/common/credential_manager_types.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/mojom/credentialmanagement/credential_manager.mojom.h"
+#include "third_party/blink/public/mojom/credentialmanager/credential_manager.mojom.h"
 
 namespace mojo {
 
@@ -50,12 +49,12 @@ struct StructTraits<blink::mojom::CredentialInfoDataView,
     return r.type;
   }
 
-  static const absl::optional<std::u16string>& id(
+  static const base::Optional<base::string16>& id(
       const password_manager::CredentialInfo& r) {
     return r.id;
   }
 
-  static const absl::optional<std::u16string>& name(
+  static const base::Optional<base::string16>& name(
       const password_manager::CredentialInfo& r) {
     return r.name;
   }
@@ -64,7 +63,7 @@ struct StructTraits<blink::mojom::CredentialInfoDataView,
     return r.icon;
   }
 
-  static const absl::optional<std::u16string>& password(
+  static const base::Optional<base::string16>& password(
       const password_manager::CredentialInfo& r) {
     return r.password;
   }

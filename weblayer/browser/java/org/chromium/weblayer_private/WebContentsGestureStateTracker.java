@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,8 +64,7 @@ public final class WebContentsGestureStateTracker {
 
         mGestureListener = new GestureStateListener() {
             @Override
-            public void onFlingStartGesture(
-                    int scrollOffsetY, int scrollExtentY, boolean isDirectionUp) {
+            public void onFlingStartGesture(int scrollOffsetY, int scrollExtentY) {
                 onScrollingStateChanged();
             }
 
@@ -75,8 +74,7 @@ public final class WebContentsGestureStateTracker {
             }
 
             @Override
-            public void onScrollStarted(
-                    int scrollOffsetY, int scrollExtentY, boolean isDirectionUp) {
+            public void onScrollStarted(int scrollOffsetY, int scrollExtentY) {
                 onScrollingStateChanged();
             }
 

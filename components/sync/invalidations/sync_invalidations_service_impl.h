@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,19 +32,17 @@ class SyncInvalidationsServiceImpl : public SyncInvalidationsService {
   ~SyncInvalidationsServiceImpl() override;
 
   // SyncInvalidationsService implementation.
+  void SetActive(bool active) override;
   void AddListener(InvalidationsListener* listener) override;
   void RemoveListener(InvalidationsListener* listener) override;
-  void StartListening() override;
-  void StopListening() override;
-  void StopListeningPermanently() override;
   void AddTokenObserver(FCMRegistrationTokenObserver* observer) override;
   void RemoveTokenObserver(FCMRegistrationTokenObserver* observer) override;
-  absl::optional<std::string> GetFCMRegistrationToken() const override;
+  const std::string& GetFCMRegistrationToken() const override;
   void SetInterestedDataTypesHandler(
       InterestedDataTypesHandler* handler) override;
-  absl::optional<ModelTypeSet> GetInterestedDataTypes() const override;
-  void SetInterestedDataTypes(const ModelTypeSet& data_types) override;
-  void SetCommittedAdditionalInterestedDataTypesCallback(
+  const ModelTypeSet& GetInterestedDataTypes() const override;
+  void SetInterestedDataTypes(
+      const ModelTypeSet& data_types,
       InterestedDataTypesAppliedCallback callback) override;
 
   // KeyedService overrides.

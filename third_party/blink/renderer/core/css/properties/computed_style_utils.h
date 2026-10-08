@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_PROPERTIES_COMPUTED_STYLE_UTILS_H_
 
 #include "cc/input/scroll_snap_data.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_border_image_slice_value.h"
 #include "third_party/blink/renderer/core/css/css_function_value.h"
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
@@ -25,11 +23,8 @@ class CSSNumericLiteralValue;
 class CSSStyleValue;
 class CSSValue;
 class ComputedStyle;
-class FontFamily;
 class StyleColor;
-class StyleIntrinsicLength;
 class StylePropertyShorthand;
-class StyleTimeline;
 
 enum class CSSValuePhase { kComputedValue, kUsedValue };
 
@@ -51,8 +46,7 @@ class CORE_EXPORT ComputedStyleUtils {
   static const blink::Color BorderSideColor(const ComputedStyle&,
                                             const StyleColor&,
                                             EBorderStyle,
-                                            bool visited_link,
-                                            bool* is_current_color);
+                                            bool visited_link);
   static CSSValue* ZoomAdjustedPixelValueForLength(const Length&,
                                                    const ComputedStyle&);
   static const CSSValue* BackgroundImageOrWebkitMaskImage(
@@ -111,7 +105,6 @@ class CORE_EXPORT ComputedStyleUtils {
       const StyleContentAlignmentData&);
   static CSSValue* ValueForLineHeight(const ComputedStyle&);
   static CSSValue* ComputedValueForLineHeight(const ComputedStyle&);
-  static CSSValueList* ValueForFontFamily(const FontFamily&);
   static CSSValueList* ValueForFontFamily(const ComputedStyle&);
   static CSSPrimitiveValue* ValueForFontSize(const ComputedStyle&);
   static CSSPrimitiveValue* ValueForFontStretch(const ComputedStyle&);
@@ -122,49 +115,30 @@ class CORE_EXPORT ComputedStyleUtils {
   static CSSValue* ValueForFontVariantNumeric(const ComputedStyle&);
   static CSSValue* ValueForFont(const ComputedStyle&);
   static CSSValue* ValueForFontVariantEastAsian(const ComputedStyle&);
-  static CSSValue* ValueForFontVariantAlternates(const ComputedStyle&);
   static CSSValue* SpecifiedValueForGridTrackSize(const GridTrackSize&,
                                                   const ComputedStyle&);
-  static CSSValue* ValueForGridAutoTrackList(GridTrackSizingDirection,
-                                             const LayoutObject*,
+  static CSSValue* ValueForGridTrackSizeList(GridTrackSizingDirection,
                                              const ComputedStyle&);
   static CSSValue* ValueForGridTrackList(GridTrackSizingDirection,
                                          const LayoutObject*,
                                          const ComputedStyle&);
   static CSSValue* ValueForGridPosition(const GridPosition&);
-  static gfx::SizeF UsedBoxSize(const LayoutObject&);
-  static CSSValue* RenderTextDecorationFlagsToCSSValue(TextDecorationLine);
+  static FloatSize UsedBoxSize(const LayoutObject&);
+  static CSSValue* RenderTextDecorationFlagsToCSSValue(TextDecoration);
   static CSSValue* ValueForTextDecorationStyle(ETextDecorationStyle);
   static CSSValue* ValueForTextDecorationSkipInk(ETextDecorationSkipInk);
   static CSSValue* TouchActionFlagsToCSSValue(TouchAction);
   static CSSValue* ValueForWillChange(const Vector<CSSPropertyID>&,
                                       bool will_change_contents,
                                       bool will_change_scroll_position);
-
-  static CSSValue* ValueForAnimationDelayStart(const Timing::Delay& delay);
-  static CSSValue* ValueForAnimationDelayEnd(const Timing::Delay& delay);
+  static CSSValue* ValueForAnimationDelay(const CSSTimingData*);
   static CSSValue* ValueForAnimationDirection(Timing::PlaybackDirection);
-  static CSSValue* ValueForAnimationDuration(double);
+  static CSSValue* ValueForAnimationDuration(const CSSTimingData*);
   static CSSValue* ValueForAnimationFillMode(Timing::FillMode);
   static CSSValue* ValueForAnimationIterationCount(double iteration_count);
   static CSSValue* ValueForAnimationPlayState(EAnimPlayState);
-  static CSSValue* ValueForAnimationTimingFunction(
-      const scoped_refptr<TimingFunction>&);
-  static CSSValue* ValueForAnimationTimeline(const StyleTimeline&);
-
-  static CSSValue* ValueForAnimationDelayStartList(const CSSTimingData*);
-  static CSSValue* ValueForAnimationDelayEndList(const CSSTimingData*);
-  static CSSValue* ValueForAnimationDirectionList(const CSSAnimationData*);
-  static CSSValue* ValueForAnimationDurationList(const CSSTimingData*);
-  static CSSValue* ValueForAnimationFillModeList(const CSSAnimationData*);
-  static CSSValue* ValueForAnimationIterationCountList(const CSSAnimationData*);
-  static CSSValue* ValueForAnimationPlayStateList(const CSSAnimationData*);
-  static CSSValue* ValueForAnimationTimingFunctionList(const CSSTimingData*);
-  static CSSValue* ValueForAnimationTimelineList(const CSSAnimationData*);
-
-  static CSSValue* SingleValueForViewTimelineShorthand(
-      const ScopedCSSName* name,
-      TimelineAxis);
+  static CSSValue* CreateTimingFunctionValue(const TimingFunction*);
+  static CSSValue* ValueForAnimationTimingFunction(const CSSTimingData*);
   static CSSValueList* ValuesForBorderRadiusCorner(const LengthSize&,
                                                    const ComputedStyle&);
   static CSSValue* ValueForBorderRadiusCorner(const LengthSize&,
@@ -178,27 +152,27 @@ class CORE_EXPORT ComputedStyleUtils {
     kUsePixelSnappedBox,
   };
 
-  // Serializes a gfx::Transform into a matrix() or matrix3d() transform
+  // Serializes a TransformationMatrix into a matrix() or matrix3d() transform
   // function value. If force_matrix3d is true, it will always give a matrix3d
   // value (for serializing a matrix3d in a transform list), otherwise it
   // will give a matrix() where possible (for serializing matrix in transform
   // lists or resolved transformation matrices).
-  static CSSFunctionValue* ValueForTransform(const gfx::Transform&,
-                                             float zoom,
-                                             bool force_matrix3d);
+  static CSSFunctionValue* ValueForTransformationMatrix(
+      const TransformationMatrix&,
+      float zoom,
+      bool force_matrix3d);
   // Values unreperesentable in CSS will be converted to an equivalent matrix()
   // value. The box_size parameter is used for deferred, layout-dependent
   // interpolations and is not needed in the absence of animations.
   static CSSFunctionValue* ValueForTransformOperation(
       const TransformOperation&,
       float zoom,
-      gfx::SizeF box_size = gfx::SizeF(0, 0));
+      FloatSize box_size = FloatSize(0, 0));
   // Serialize a transform list.
   static CSSValue* ValueForTransformList(const TransformOperations&,
                                          float zoom,
-                                         gfx::SizeF box_size = gfx::SizeF(0,
-                                                                          0));
-  static gfx::RectF ReferenceBoxForTransform(
+                                         FloatSize box_size = FloatSize(0, 0));
+  static FloatRect ReferenceBoxForTransform(
       const LayoutObject&,
       UsePixelSnappedBox = kUsePixelSnappedBox);
   // The LayoutObject parameter is only used for converting unreperesentable
@@ -269,30 +243,15 @@ class CORE_EXPORT ComputedStyleUtils {
   static CSSValue* ValuesForFontVariantProperty(const ComputedStyle&,
                                                 const LayoutObject*,
                                                 bool allow_visited_style);
-  static CSSValue* ValuesForFontSynthesisProperty(const ComputedStyle&,
-                                                  const LayoutObject*,
-                                                  bool allow_visited_style);
-  static CSSValueList* ValuesForContainerShorthand(const ComputedStyle&,
-                                                   const LayoutObject*,
-                                                   bool allow_visited_style);
-  static CSSValueList* ValuesForScrollTimelineShorthand(
-      const ComputedStyle&,
-      const LayoutObject*,
-      bool allow_visited_style);
   static CSSValue* ScrollCustomizationFlagsToCSSValue(
       scroll_customization::ScrollDirection);
-  static CSSValue* ValueForGapLength(const absl::optional<Length>&,
+  static CSSValue* ValueForGapLength(const base::Optional<Length>&,
                                      const ComputedStyle&);
   static CSSValue* ValueForStyleName(const StyleName&);
   static CSSValue* ValueForStyleNameOrKeyword(const StyleNameOrKeyword&);
-  static CSSValue* ValueForCustomIdentOrNone(const AtomicString&);
-  static CSSValue* ValueForCustomIdentOrNone(const ScopedCSSName*);
   static const CSSValue* ValueForStyleAutoColor(const ComputedStyle&,
                                                 const StyleAutoColor&,
                                                 CSSValuePhase);
-  static CSSValue* ValueForIntrinsicLength(
-      const ComputedStyle&,
-      const absl::optional<StyleIntrinsicLength>&);
   static std::unique_ptr<CrossThreadStyleValue>
   CrossThreadStyleValueFromCSSStyleValue(CSSStyleValue* style_value);
 
@@ -312,18 +271,6 @@ class CORE_EXPORT ComputedStyleUtils {
   static const CSSValue* ComputedPropertyValue(const CSSProperty&,
                                                const ComputedStyle&,
                                                const LayoutObject* = nullptr);
-
- private:
-  // Returns the CSSValueID for a scale transform operation.
-  static CSSValueID CSSValueIDForScaleOperation(
-      const TransformOperation::OperationType);
-  // Returns the CSSValueID for a translate transform operation.
-
-  static CSSValueID CSSValueIDForTranslateOperation(
-      const TransformOperation::OperationType);
-  // Returns the CSSValueID for a rotate transform operation.
-  static CSSValueID CSSValueIDForRotateOperation(
-      const TransformOperation::OperationType);
 };
 
 }  // namespace blink

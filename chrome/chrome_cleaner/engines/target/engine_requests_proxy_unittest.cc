@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,12 +14,10 @@
 
 #include "base/callback_helpers.h"
 #include "base/command_line.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/test/task_environment.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_com_initializer.h"
-#include "base/win/sid.h"
 #include "chrome/chrome_cleaner/engines/common/registry_util.h"
 #include "chrome/chrome_cleaner/engines/target/sandboxed_test_helpers.h"
 #include "chrome/chrome_cleaner/os/pre_fetched_paths.h"
@@ -29,6 +27,7 @@
 #include "chrome/chrome_cleaner/test/test_native_reg_util.h"
 #include "chrome/chrome_cleaner/test/test_util.h"
 #include "components/chrome_cleaner/test/test_name_helper.h"
+#include "sandbox/win/src/sid.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
 
@@ -217,7 +216,7 @@ MULTIPROCESS_TEST_MAIN(GetProcesses) {
   }
 
   base::ProcessId current_pid = ::GetCurrentProcessId();
-  if (base::ranges::count(processes, current_pid) != 1) {
+  if (std::count(processes.begin(), processes.end(), current_pid) != 1) {
     LOG(ERROR)
         << "Failed to find current process in list of returned processes";
     return 1;
@@ -386,7 +385,8 @@ MULTIPROCESS_TEST_MAIN(GetLoadedModules) {
   // Every process contains its executable as a module.
   const base::FilePath exe_path =
       PreFetchedPaths::GetInstance()->GetExecutablePath();
-  if (base::ranges::count(module_names, exe_path.value()) != 1) {
+  if (std::count(module_names.begin(), module_names.end(), exe_path.value()) !=
+      1) {
     LOG(ERROR) << "Failed to find executable in own process";
     return 1;
   }
@@ -460,12 +460,10 @@ MULTIPROCESS_TEST_MAIN(GetUserInfoFromSID) {
   mojom::UserInformation user_info;
   EXPECT_FALSE(proxy->GetUserInfoFromSID(nullptr, &user_info));
 
-  const absl::optional<base::win::Sid> sid =
-      base::win::Sid::FromKnownSid(base::win::WellKnownSid::kSelf);
-  EXPECT_TRUE(sid);
+  sandbox::Sid sid(WinSelfSid);
   EXPECT_FALSE(
-      proxy->GetUserInfoFromSID(static_cast<SID*>(sid->GetPSID()), nullptr));
-  if (!proxy->GetUserInfoFromSID(static_cast<SID*>(sid->GetPSID()),
+      proxy->GetUserInfoFromSID(static_cast<SID*>(sid.GetPSID()), nullptr));
+  if (!proxy->GetUserInfoFromSID(static_cast<SID*>(sid.GetPSID()),
                                  &user_info)) {
     LOG(ERROR) << "Failed to get user infomation";
     return 1;
@@ -488,12 +486,10 @@ MULTIPROCESS_TEST_MAIN(GetUserInfoFromSIDNoHangs) {
   scoped_refptr<EngineRequestsProxy> proxy(
       child_process->GetEngineRequestsProxy());
 
-  const absl::optional<base::win::Sid> sid =
-      base::win::Sid::FromKnownSid(base::win::WellKnownSid::kSelf);
-  EXPECT_TRUE(sid);
+  sandbox::Sid sid(WinLocalSid);
   mojom::UserInformation user_info;
   EXPECT_FALSE(
-      proxy->GetUserInfoFromSID(static_cast<SID*>(sid->GetPSID()), &user_info));
+      proxy->GetUserInfoFromSID(static_cast<SID*>(sid.GetPSID()), &user_info));
   return ::testing::Test::HasNonfatalFailure();
 }
 

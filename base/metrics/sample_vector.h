@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "base/base_export.h"
+#include "base/atomicops.h"
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/bucket_ranges.h"
 #include "base/metrics/histogram_base.h"
 #include "base/metrics/histogram_samples.h"
@@ -31,6 +28,9 @@ class BucketRanges;
 
 class BASE_EXPORT SampleVectorBase : public HistogramSamples {
  public:
+  SampleVectorBase(uint64_t id,
+                   Metadata* meta,
+                   const BucketRanges* bucket_ranges);
   SampleVectorBase(const SampleVectorBase&) = delete;
   SampleVectorBase& operator=(const SampleVectorBase&) = delete;
   ~SampleVectorBase() override;
@@ -49,13 +49,6 @@ class BASE_EXPORT SampleVectorBase : public HistogramSamples {
   const BucketRanges* bucket_ranges() const { return bucket_ranges_; }
 
  protected:
-  SampleVectorBase(uint64_t id,
-                   Metadata* meta,
-                   const BucketRanges* bucket_ranges);
-  SampleVectorBase(uint64_t id,
-                   std::unique_ptr<Metadata> meta,
-                   const BucketRanges* bucket_ranges);
-
   bool AddSubtractImpl(
       SampleCountIterator* iter,
       HistogramSamples::Operator op) override;  // |op| is ADD or SUBTRACT.
@@ -80,15 +73,17 @@ class BASE_EXPORT SampleVectorBase : public HistogramSamples {
   virtual HistogramBase::Count* CreateCountsStorageWhileLocked() = 0;
 
   HistogramBase::AtomicCount* counts() {
-    return counts_.load(std::memory_order_acquire);
+    return reinterpret_cast<HistogramBase::AtomicCount*>(
+        subtle::Acquire_Load(&counts_));
   }
 
   const HistogramBase::AtomicCount* counts() const {
-    return counts_.load(std::memory_order_acquire);
+    return reinterpret_cast<HistogramBase::AtomicCount*>(
+        subtle::Acquire_Load(&counts_));
   }
 
-  void set_counts(HistogramBase::AtomicCount* counts) const {
-    counts_.store(counts, std::memory_order_release);
+  void set_counts(const HistogramBase::AtomicCount* counts) const {
+    subtle::Release_Store(&counts_, reinterpret_cast<uintptr_t>(counts));
   }
 
   size_t counts_size() const { return bucket_ranges_->bucket_count(); }
@@ -99,8 +94,8 @@ class BASE_EXPORT SampleVectorBase : public HistogramSamples {
   FRIEND_TEST_ALL_PREFIXES(SharedHistogramTest, CorruptSampleCounts);
 
   // |counts_| is actually a pointer to a HistogramBase::AtomicCount array but
-  // is held as an atomic pointer for concurrency reasons. When combined with
-  // the single_sample held in the metadata, there are four possible states:
+  // is held as an AtomicWord for concurrency reasons. When combined with the
+  // single_sample held in the metadata, there are four possible states:
   //   1) single_sample == zero, counts_ == null
   //   2) single_sample != zero, counts_ == null
   //   3) single_sample != zero, counts_ != null BUT IS EMPTY
@@ -109,10 +104,10 @@ class BASE_EXPORT SampleVectorBase : public HistogramSamples {
   // must be moved to this storage. It is mutable because changing it doesn't
   // change the (const) data but must adapt if a non-const object causes the
   // storage to be allocated and updated.
-  mutable std::atomic<HistogramBase::AtomicCount*> counts_{nullptr};
+  mutable subtle::AtomicWord counts_ = 0;
 
   // Shares the same BucketRanges with Histogram object.
-  const raw_ptr<const BucketRanges> bucket_ranges_;
+  const BucketRanges* const bucket_ranges_;
 };
 
 // A sample vector that uses local memory for the counts array.
@@ -125,29 +120,9 @@ class BASE_EXPORT SampleVector : public SampleVectorBase {
   ~SampleVector() override;
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(SampleVectorTest, GetPeakBucketSize);
-
-  // HistogramSamples:
-  std::string GetAsciiBody() const override;
-  std::string GetAsciiHeader(StringPiece histogram_name,
-                             int32_t flags) const override;
-
   // SampleVectorBase:
   bool MountExistingCountsStorage() const override;
   HistogramBase::Count* CreateCountsStorageWhileLocked() override;
-
-  // Writes cumulative percentage information based on the number
-  // of past, current, and remaining bucket samples.
-  void WriteAsciiBucketContext(int64_t past,
-                               HistogramBase::Count current,
-                               int64_t remaining,
-                               uint32_t current_bucket_index,
-                               std::string* output) const;
-
-  // Finds out how large (graphically) the largest bucket will appear to be.
-  double GetPeakBucketSize() const;
-
-  size_t bucket_count() const { return bucket_ranges()->bucket_count(); }
 
   // Simple local storage for counts.
   mutable std::vector<HistogramBase::AtomicCount> local_counts_;
@@ -197,9 +172,9 @@ class BASE_EXPORT SampleVectorIterator : public SampleCountIterator {
  private:
   void SkipEmptyBuckets();
 
-  raw_ptr<const HistogramBase::AtomicCount> counts_;
+  const HistogramBase::AtomicCount* counts_;
   size_t counts_size_;
-  raw_ptr<const BucketRanges> bucket_ranges_;
+  const BucketRanges* bucket_ranges_;
 
   size_t index_;
 };

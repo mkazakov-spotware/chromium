@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,15 +18,15 @@ RTCEncodedAudioFrameDelegate::RTCEncodedAudioFrameDelegate(
     : webrtc_frame_(std::move(webrtc_frame)),
       contributing_sources_(std::move(contributing_sources)) {}
 
-uint32_t RTCEncodedAudioFrameDelegate::Timestamp() const {
-  base::AutoLock lock(lock_);
+uint64_t RTCEncodedAudioFrameDelegate::Timestamp() const {
+  MutexLocker lock(mutex_);
   return webrtc_frame_ ? webrtc_frame_->GetTimestamp() : 0;
 }
 
 DOMArrayBuffer* RTCEncodedAudioFrameDelegate::CreateDataBuffer() const {
   ArrayBufferContents contents;
   {
-    base::AutoLock lock(lock_);
+    MutexLocker lock(mutex_);
     if (!webrtc_frame_)
       return nullptr;
 
@@ -42,33 +42,26 @@ DOMArrayBuffer* RTCEncodedAudioFrameDelegate::CreateDataBuffer() const {
 }
 
 void RTCEncodedAudioFrameDelegate::SetData(const DOMArrayBuffer* data) {
-  base::AutoLock lock(lock_);
+  MutexLocker lock(mutex_);
   if (webrtc_frame_ && data) {
     webrtc_frame_->SetData(rtc::ArrayView<const uint8_t>(
         static_cast<const uint8_t*>(data->Data()), data->ByteLength()));
   }
 }
 
-absl::optional<uint32_t> RTCEncodedAudioFrameDelegate::Ssrc() const {
-  base::AutoLock lock(lock_);
-  return webrtc_frame_ ? absl::make_optional(webrtc_frame_->GetSsrc())
-                       : absl::nullopt;
-}
-
-absl::optional<uint8_t> RTCEncodedAudioFrameDelegate::PayloadType() const {
-  base::AutoLock lock(lock_);
-  return webrtc_frame_ ? absl::make_optional(webrtc_frame_->GetPayloadType())
-                       : absl::nullopt;
+uint32_t RTCEncodedAudioFrameDelegate::Ssrc() const {
+  MutexLocker lock(mutex_);
+  return webrtc_frame_ ? webrtc_frame_->GetSsrc() : 0;
 }
 
 Vector<uint32_t> RTCEncodedAudioFrameDelegate::ContributingSources() const {
-  base::AutoLock lock(lock_);
+  MutexLocker lock(mutex_);
   return contributing_sources_;
 }
 
 std::unique_ptr<webrtc::TransformableFrameInterface>
 RTCEncodedAudioFrameDelegate::PassWebRtcFrame() {
-  base::AutoLock lock(lock_);
+  MutexLocker lock(mutex_);
   return std::move(webrtc_frame_);
 }
 

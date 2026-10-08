@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,20 +24,14 @@ namespace {
 class SpellingOptionsSubMenuObserverTest : public InProcessBrowserTest {
  public:
   SpellingOptionsSubMenuObserverTest() {}
-
-  SpellingOptionsSubMenuObserverTest(
-      const SpellingOptionsSubMenuObserverTest&) = delete;
-  SpellingOptionsSubMenuObserverTest& operator=(
-      const SpellingOptionsSubMenuObserverTest&) = delete;
-
   ~SpellingOptionsSubMenuObserverTest() override {}
 
   void SetUpOnMainThread() override {
-    menu_ = std::make_unique<MockRenderViewContextMenu>(false);
-    observer_ = std::make_unique<SpellingOptionsSubMenuObserver>(
+    menu_.reset(new MockRenderViewContextMenu(false));
+    observer_.reset(
         // Pass nullptr as a delegate so that submenu items do not get put into
         // MockRenderViewContextMenu::items_.
-        menu_.get(), nullptr, 1);
+        new SpellingOptionsSubMenuObserver(menu_.get(), nullptr, 1));
     menu_->SetObserver(observer_.get());
   }
 
@@ -58,12 +52,10 @@ class SpellingOptionsSubMenuObserverTest : public InProcessBrowserTest {
         use_spellchecking_service);
     menu()->GetPrefs()->SetString(language::prefs::kAcceptLanguages,
                                   accept_languages);
-    base::Value::List dictionaries_value;
-    for (const std::string& dict : dictionaries) {
-      dictionaries_value.Append(dict);
-    }
-    menu()->GetPrefs()->SetList(spellcheck::prefs::kSpellCheckDictionaries,
-                                std::move(dictionaries_value));
+    base::ListValue dictionaries_value;
+    dictionaries_value.AppendStrings(dictionaries);
+    menu()->GetPrefs()->Set(spellcheck::prefs::kSpellCheckDictionaries,
+                            dictionaries_value);
     observer()->InitMenu(content::ContextMenuParams());
   }
 
@@ -71,13 +63,10 @@ class SpellingOptionsSubMenuObserverTest : public InProcessBrowserTest {
                          const std::vector<std::string>& dictionaries) {
     EXPECT_EQ(spellcheck_enabled, menu()->GetPrefs()->GetBoolean(
                                       spellcheck::prefs::kSpellCheckEnable));
-    base::Value::List dictionaries_value;
-    for (const std::string& dict : dictionaries) {
-      dictionaries_value.Append(dict);
-    }
-    EXPECT_EQ(dictionaries_value,
-              menu()->GetPrefs()->GetList(
-                  spellcheck::prefs::kSpellCheckDictionaries));
+    base::ListValue dictionaries_value;
+    dictionaries_value.AppendStrings(dictionaries);
+    EXPECT_TRUE(dictionaries_value.Equals(menu()->GetPrefs()->GetList(
+        spellcheck::prefs::kSpellCheckDictionaries)));
   }
 
   MockRenderViewContextMenu* menu() { return menu_.get(); }
@@ -86,6 +75,8 @@ class SpellingOptionsSubMenuObserverTest : public InProcessBrowserTest {
  private:
   std::unique_ptr<MockRenderViewContextMenu> menu_;
   std::unique_ptr<SpellingOptionsSubMenuObserver> observer_;
+
+  DISALLOW_COPY_AND_ASSIGN(SpellingOptionsSubMenuObserverTest);
 };
 
 // Tests that selecting the "Use basic spell check" item toggles the value

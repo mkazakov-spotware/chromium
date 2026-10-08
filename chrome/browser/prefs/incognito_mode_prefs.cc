@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,24 +9,19 @@
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "chrome/browser/win/parental_controls.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/android/partner_browser_customizations.h"
-#endif  // BUILDFLAG(IS_ANDROID)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/startup/browser_params_proxy.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // defined(OS_ANDROID)
 
 // static
 // Sadly, this is required until c++17.
@@ -36,7 +31,7 @@ constexpr IncognitoModePrefs::Availability
 // static
 bool IncognitoModePrefs::IntToAvailability(int in_value,
                                            Availability* out_value) {
-  if (in_value < 0 || in_value >= static_cast<int>(Availability::kNumTypes)) {
+  if (in_value < 0 || in_value >= AVAILABILITY_NUM_TYPES) {
     *out_value = kDefaultAvailability;
     return false;
   }
@@ -53,19 +48,14 @@ IncognitoModePrefs::Availability IncognitoModePrefs::GetAvailability(
 // static
 void IncognitoModePrefs::SetAvailability(PrefService* prefs,
                                          const Availability availability) {
-  prefs->SetInteger(prefs::kIncognitoModeAvailability,
-                    static_cast<int>(availability));
+  prefs->SetInteger(prefs::kIncognitoModeAvailability, availability);
 }
 
 // static
 void IncognitoModePrefs::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterIntegerPref(prefs::kIncognitoModeAvailability,
-                                static_cast<int>(kDefaultAvailability));
-#if BUILDFLAG(IS_ANDROID)
-  registry->RegisterBooleanPref(prefs::kIncognitoReauthenticationForAndroid,
-                                false);
-#endif
+                                kDefaultAvailability);
 }
 
 // static
@@ -76,31 +66,25 @@ bool IncognitoModePrefs::ShouldLaunchIncognito(
   // to launch in incognito mode or if it was forced via prefs. This way,
   // the parental controls check (which can be quite slow) can be avoided
   // most of the time.
-  bool should_use_incognito =
+  const bool should_use_incognito =
       command_line.HasSwitch(switches::kIncognito) ||
       GetAvailabilityInternal(prefs, DONT_CHECK_PARENTAL_CONTROLS) ==
-          IncognitoModePrefs::Availability::kForced;
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  auto* init_params = chromeos::BrowserParamsProxy::Get();
-  should_use_incognito |=
-      init_params->InitialBrowserAction() ==
-      crosapi::mojom::InitialBrowserAction::kOpenIncognitoWindow;
-#endif
+          IncognitoModePrefs::FORCED;
   return should_use_incognito &&
          GetAvailabilityInternal(prefs, CHECK_PARENTAL_CONTROLS) !=
-             IncognitoModePrefs::Availability::kDisabled;
+             IncognitoModePrefs::DISABLED;
 }
 
 // static
 bool IncognitoModePrefs::CanOpenBrowser(Profile* profile) {
   switch (GetAvailability(profile->GetPrefs())) {
-    case IncognitoModePrefs::Availability::kEnabled:
+    case IncognitoModePrefs::ENABLED:
       return true;
 
-    case IncognitoModePrefs::Availability::kDisabled:
+    case IncognitoModePrefs::DISABLED:
       return !profile->IsIncognitoProfile();
 
-    case IncognitoModePrefs::Availability::kForced:
+    case IncognitoModePrefs::FORCED:
       return profile->IsIncognitoProfile();
 
     default:
@@ -110,17 +94,10 @@ bool IncognitoModePrefs::CanOpenBrowser(Profile* profile) {
 }
 
 // static
-bool IncognitoModePrefs::IsIncognitoAllowed(Profile* profile) {
-  return !profile->IsGuestSession() &&
-         IncognitoModePrefs::GetAvailability(profile->GetPrefs()) !=
-             IncognitoModePrefs::Availability::kDisabled;
-}
-
-// static
 bool IncognitoModePrefs::ArePlatformParentalControlsEnabled() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return GetWinParentalControls().logging_required;
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   return chrome::android::PartnerBrowserCustomizations::IsIncognitoDisabled();
 #else
   return false;
@@ -136,11 +113,11 @@ IncognitoModePrefs::Availability IncognitoModePrefs::GetAvailabilityInternal(
   Availability result = kDefaultAvailability;
   bool valid = IntToAvailability(pref_value, &result);
   DCHECK(valid);
-  if (result != IncognitoModePrefs::Availability::kDisabled &&
+  if (result != IncognitoModePrefs::DISABLED &&
       mode == CHECK_PARENTAL_CONTROLS && ArePlatformParentalControlsEnabled()) {
-    if (result == IncognitoModePrefs::Availability::kForced)
+    if (result == IncognitoModePrefs::FORCED)
       LOG(ERROR) << "Ignoring FORCED incognito. Parental control logging on";
-    return IncognitoModePrefs::Availability::kDisabled;
+    return IncognitoModePrefs::DISABLED;
   }
   return result;
 }

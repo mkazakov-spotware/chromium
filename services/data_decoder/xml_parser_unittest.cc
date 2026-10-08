@@ -1,24 +1,24 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
 #include "base/bind.h"
-#include "base/files/file_util.h"
-#include "base/test/values_test_util.h"
+#include "base/json/json_reader.h"
 #include "services/data_decoder/xml_parser.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+#include "base/files/file_util.h"
 
 namespace data_decoder {
 
 namespace {
 
 void TestParseXmlCallback(std::unique_ptr<base::Value>* value_out,
-                          absl::optional<std::string>* error_out,
-                          absl::optional<base::Value> value,
-                          const absl::optional<std::string>& error) {
+                          base::Optional<std::string>* error_out,
+                          base::Optional<base::Value> value,
+                          const base::Optional<std::string>& error) {
   std::unique_ptr<base::Value> value_ptr =
       value ? base::Value::ToUniquePtrValue(std::move(value.value())) : nullptr;
   *value_out = std::move(value_ptr);
@@ -27,34 +27,31 @@ void TestParseXmlCallback(std::unique_ptr<base::Value>* value_out,
 
 // Parses the passed in |xml| and compares the result to |json|.
 // If |json| is empty, the parsing is expected to fail.
-void TestParseXml(const std::string& xml,
-                  const std::string& json,
-                  const std::string& expected_error = "",
-                  mojom::XmlParser::WhitespaceBehavior whitespace_behavior =
-                      mojom::XmlParser::WhitespaceBehavior::kIgnore) {
+void TestParseXml(const std::string& xml, const std::string& json) {
   XmlParser parser_impl;
   // Use a reference to mojom::XmlParser as XmlParser implements the interface
   // privately.
   mojom::XmlParser& parser = parser_impl;
 
   std::unique_ptr<base::Value> actual_value;
-  absl::optional<std::string> error;
-  parser.Parse(xml, whitespace_behavior,
+  base::Optional<std::string> error;
+  parser.Parse(xml,
                base::BindOnce(&TestParseXmlCallback, &actual_value, &error));
   if (json.empty()) {
     EXPECT_TRUE(error);
     EXPECT_FALSE(actual_value)
         << "Unexpected success, value: " << *actual_value;
-    if (!expected_error.empty())
-      EXPECT_THAT(*error, testing::HasSubstr(expected_error));
     return;
   }
 
   EXPECT_FALSE(error) << "Unexpected error: " << *error;
   EXPECT_TRUE(actual_value);
 
-  base::Value expected_value = base::test::ParseJson(json);
-  EXPECT_EQ(expected_value, *actual_value);
+  std::unique_ptr<base::Value> expected_value =
+      base::JSONReader::ReadDeprecated(json);
+  DCHECK(expected_value) << "Bad test, incorrect JSON: " << json;
+
+  EXPECT_EQ(*expected_value, *actual_value);
 }
 
 }  // namespace
@@ -62,22 +59,14 @@ void TestParseXml(const std::string& xml,
 using XmlParserTest = testing::Test;
 
 TEST_F(XmlParserTest, ParseBadXml) {
-  struct {
-    const char* input;
-    const char* expected_error;
-  } test_cases[] = {
-      {"", "Extra content at the end of the document"},
-      {"  ", "Extra content at the end of the document"},
-      {"Awesome possum", "Document is empty"},
-      {R"( ["json", "or", "xml?"] )", "Document is empty"},
-      {"<unbalanced>", "Extra content at the end of the document"},
-      {"<hello>bad tag</goodbye>",
-       "Opening and ending tag mismatch: hello line 1 and goodbye"},
-  };
-  for (auto& test_case : test_cases) {
-    SCOPED_TRACE(test_case.input);
-    TestParseXml(test_case.input, "", test_case.expected_error);
-  }
+  std::string invalid_xml_strings[] = {"",
+                                       "  ",
+                                       "Awesome possum",
+                                       R"( ["json", "or", "xml?"] )",
+                                       "<unbalanced>",
+                                       "<hello>bad tag</goodbye>"};
+  for (auto& xml : invalid_xml_strings)
+    TestParseXml(xml, "");
 }
 
 TEST_F(XmlParserTest, IgnoreComments) {
@@ -397,45 +386,6 @@ TEST_F(XmlParserTest, NamespacesUsed) {
           }
         ]
        } )");
-}
-
-TEST_F(XmlParserTest, WhitespaceBehavior) {
-  constexpr char kInput[] = "<outer><foo>hello</foo> <bar>world</bar></outer>";
-  constexpr char kIgnoreWhitespaceOutput[] =
-      R"({
-           "type": "element",
-           "tag": "outer",
-           "children": [{
-             "type": "element",
-             "tag": "foo",
-             "children": [{"type": "text", "text": "hello"}]
-           }, {
-             "type": "element",
-             "tag": "bar",
-             "children": [{"type": "text", "text": "world"}]
-           }]
-         })";
-  TestParseXml(kInput, kIgnoreWhitespaceOutput, "",
-               mojom::XmlParser::WhitespaceBehavior::kIgnore);
-  constexpr char kPreserveWhitespaceOutput[] =
-      R"({
-           "type": "element",
-           "tag": "outer",
-           "children": [{
-             "type": "element",
-             "tag": "foo",
-             "children": [{"type": "text", "text": "hello"}]
-           }, {
-             "type": "text",
-             "text": " "
-           }, {
-             "type": "element",
-             "tag": "bar",
-             "children": [{"type": "text", "text": "world"}]
-           }]
-         })";
-  TestParseXml(kInput, kPreserveWhitespaceOutput, "",
-               mojom::XmlParser::WhitespaceBehavior::kPreserveSignificant);
 }
 
 TEST_F(XmlParserTest, ParseTypicalXml) {

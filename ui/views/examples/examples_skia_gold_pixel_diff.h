@@ -1,19 +1,19 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_VIEWS_EXAMPLES_EXAMPLES_SKIA_GOLD_PIXEL_DIFF_H_
 #define UI_VIEWS_EXAMPLES_EXAMPLES_SKIA_GOLD_PIXEL_DIFF_H_
 
-#include <string>
+#include "ui/base/test/skia_gold_pixel_diff.h"
 
 #include "base/run_loop.h"
-#include "ui/base/test/skia_gold_pixel_diff.h"
 #include "ui/gfx/image/image.h"
 #include "ui/views/examples/examples_exit_code.h"
 #include "ui/views/widget/widget.h"
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 class ExamplesSkiaGoldPixelDiff : public ui::test::SkiaGoldPixelDiff {
  public:
@@ -33,6 +33,7 @@ class ExamplesSkiaGoldPixelDiff : public ui::test::SkiaGoldPixelDiff {
   ExamplesExitCode result_ = ExamplesExitCode::kNone;
 };
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views
 
 #endif  // UI_VIEWS_EXAMPLES_EXAMPLES_SKIA_GOLD_PIXEL_DIFF_H_

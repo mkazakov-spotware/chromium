@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,8 @@
 #include <stdint.h>
 
 #include "base/containers/circular_deque.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 
 namespace net {
@@ -36,10 +36,6 @@ namespace remoting {
 class CompoundBuffer {
  public:
   CompoundBuffer();
-
-  CompoundBuffer(const CompoundBuffer&) = delete;
-  CompoundBuffer& operator=(const CompoundBuffer&) = delete;
-
   ~CompoundBuffer();
 
   void Clear();
@@ -103,6 +99,8 @@ class CompoundBuffer {
   DataChunkList chunks_;
   int total_bytes_;
   bool locked_;
+
+  DISALLOW_COPY_AND_ASSIGN(CompoundBuffer);
 };
 
 class CompoundBufferInputStream
@@ -121,7 +119,7 @@ class CompoundBufferInputStream
   int64_t ByteCount() const override;
 
  private:
-  raw_ptr<const CompoundBuffer> buffer_;
+  const CompoundBuffer* buffer_;
 
   size_t current_chunk_;
   int current_chunk_position_;

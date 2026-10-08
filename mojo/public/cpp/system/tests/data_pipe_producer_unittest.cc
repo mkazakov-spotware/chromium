@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,9 @@
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
 #include "mojo/public/cpp/system/data_pipe.h"
 #include "mojo/public/cpp/system/data_pipe_producer.h"
@@ -40,16 +39,12 @@ class DataPipeReader {
         on_read_done_(std::move(on_read_done)),
         watcher_(FROM_HERE,
                  SimpleWatcher::ArmingPolicy::AUTOMATIC,
-                 base::SequencedTaskRunner::GetCurrentDefault()) {
+                 base::SequencedTaskRunnerHandle::Get()) {
     watcher_.Watch(consumer_handle_.get(), MOJO_HANDLE_SIGNAL_READABLE,
                    MOJO_WATCH_CONDITION_SATISFIED,
                    base::BindRepeating(&DataPipeReader::OnDataAvailable,
                                        base::Unretained(this)));
   }
-
-  DataPipeReader(const DataPipeReader&) = delete;
-  DataPipeReader& operator=(const DataPipeReader&) = delete;
-
   ~DataPipeReader() = default;
 
   const std::string& data() const { return data_; }
@@ -84,14 +79,13 @@ class DataPipeReader {
   base::OnceClosure on_read_done_;
   SimpleWatcher watcher_;
   std::string data_;
+
+  DISALLOW_COPY_AND_ASSIGN(DataPipeReader);
 };
 
 class DataPipeProducerTest : public testing::Test {
  public:
   DataPipeProducerTest() { CHECK(temp_dir_.CreateUniqueTempDir()); }
-
-  DataPipeProducerTest(const DataPipeProducerTest&) = delete;
-  DataPipeProducerTest& operator=(const DataPipeProducerTest&) = delete;
 
   ~DataPipeProducerTest() override = default;
 
@@ -141,6 +135,8 @@ class DataPipeProducerTest : public testing::Test {
   base::test::TaskEnvironment task_environment_;
   base::ScopedTempDir temp_dir_;
   int tmp_file_id_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(DataPipeProducerTest);
 };
 
 struct DataPipeObserverData {
@@ -153,9 +149,6 @@ class TestObserver : public FilteredDataSource::Filter {
  public:
   explicit TestObserver(DataPipeObserverData* observer_data)
       : observer_data_(observer_data) {}
-
-  TestObserver(const TestObserver&) = delete;
-  TestObserver& operator=(const TestObserver&) = delete;
 
   // FilteredDataSource::Filter:
   void OnRead(base::span<char> buffer,
@@ -173,9 +166,11 @@ class TestObserver : public FilteredDataSource::Filter {
   }
 
  private:
-  raw_ptr<DataPipeObserverData> observer_data_;
+  DataPipeObserverData* observer_data_;
   // Observer may be called on any sequence.
   base::Lock lock_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestObserver);
 };
 
 TEST_F(DataPipeProducerTest, WriteFromFile) {
@@ -188,17 +183,15 @@ TEST_F(DataPipeProducerTest, WriteFromFile) {
   base::FilePath path = CreateTempFileWithContents(test_string);
 
   base::RunLoop loop;
-  ScopedDataPipeProducerHandle producer_handle;
-  ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(CreateDataPipe(16, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  DataPipeReader reader(std::move(consumer_handle), 16, loop.QuitClosure());
+  DataPipe pipe(16);
+  DataPipeReader reader(std::move(pipe.consumer_handle), 16,
+                        loop.QuitClosure());
 
   base::File file(path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   DataPipeObserverData observer_data;
   auto observer = std::make_unique<TestObserver>(&observer_data);
   WriteFromFileThenCloseWriter(
-      std::make_unique<DataPipeProducer>(std::move(producer_handle)),
+      std::make_unique<DataPipeProducer>(std::move(pipe.producer_handle)),
       std::move(observer), std::move(file));
   loop.Run();
 
@@ -214,19 +207,15 @@ TEST_F(DataPipeProducerTest, WriteFromFilePartial) {
   constexpr size_t kBytesToWrite = 7;
 
   base::RunLoop loop;
-  ScopedDataPipeProducerHandle producer_handle;
-  ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(CreateDataPipe(static_cast<uint32_t>(kTestString.size()),
-                           producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  DataPipeReader reader(std::move(consumer_handle), kTestString.size(),
+  DataPipe pipe(static_cast<uint32_t>(kTestString.size()));
+  DataPipeReader reader(std::move(pipe.consumer_handle), kTestString.size(),
                         loop.QuitClosure());
 
   base::File file(path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   DataPipeObserverData observer_data;
   auto observer = std::make_unique<TestObserver>(&observer_data);
   WriteFromFileThenCloseWriter(
-      std::make_unique<DataPipeProducer>(std::move(producer_handle)),
+      std::make_unique<DataPipeProducer>(std::move(pipe.producer_handle)),
       std::move(observer), std::move(file), kBytesToWrite);
   loop.Run();
 
@@ -241,18 +230,15 @@ TEST_F(DataPipeProducerTest, WriteFromInvalidFile) {
   constexpr size_t kBytesToWrite = 7;
 
   base::RunLoop loop;
-  ScopedDataPipeProducerHandle producer_handle;
-  ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(CreateDataPipe(kBytesToWrite, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
+  DataPipe pipe(kBytesToWrite);
   DataPipeObserverData observer_data;
   auto observer = std::make_unique<TestObserver>(&observer_data);
-  DataPipeReader reader(std::move(consumer_handle), kBytesToWrite,
+  DataPipeReader reader(std::move(pipe.consumer_handle), kBytesToWrite,
                         loop.QuitClosure());
 
   base::File file(path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   WriteFromFileThenCloseWriter(
-      std::make_unique<DataPipeProducer>(std::move(producer_handle)),
+      std::make_unique<DataPipeProducer>(std::move(pipe.producer_handle)),
       std::move(observer), std::move(file), kBytesToWrite);
   loop.Run();
 
@@ -266,16 +252,14 @@ TEST_F(DataPipeProducerTest, TinyFile) {
   const std::string kTestString = ".";
   base::FilePath path = CreateTempFileWithContents(kTestString);
   base::RunLoop loop;
-  ScopedDataPipeProducerHandle producer_handle;
-  ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(CreateDataPipe(16, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  DataPipeReader reader(std::move(consumer_handle), 16, loop.QuitClosure());
+  DataPipe pipe(16);
+  DataPipeReader reader(std::move(pipe.consumer_handle), 16,
+                        loop.QuitClosure());
   DataPipeObserverData observer_data;
   auto observer = std::make_unique<TestObserver>(&observer_data);
   base::File file(path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   WriteFromFileThenCloseWriter(
-      std::make_unique<DataPipeProducer>(std::move(producer_handle)),
+      std::make_unique<DataPipeProducer>(std::move(pipe.producer_handle)),
       std::move(observer), std::move(file));
   loop.Run();
 
@@ -300,18 +284,15 @@ TEST_F(DataPipeProducerTest, HugeFile) {
   base::FilePath path = CreateTempFileWithContents(test_string);
 
   base::RunLoop loop;
-  ScopedDataPipeProducerHandle producer_handle;
-  ScopedDataPipeConsumerHandle consumer_handle;
-  ASSERT_EQ(CreateDataPipe(kDataPipeSize, producer_handle, consumer_handle),
-            MOJO_RESULT_OK);
-  DataPipeReader reader(std::move(consumer_handle), kDataPipeSize,
+  DataPipe pipe(kDataPipeSize);
+  DataPipeReader reader(std::move(pipe.consumer_handle), kDataPipeSize,
                         loop.QuitClosure());
 
   DataPipeObserverData observer_data;
   auto observer = std::make_unique<TestObserver>(&observer_data);
   base::File file(path, base::File::FLAG_OPEN | base::File::FLAG_READ);
   WriteFromFileThenCloseWriter(
-      std::make_unique<DataPipeProducer>(std::move(producer_handle)),
+      std::make_unique<DataPipeProducer>(std::move(pipe.producer_handle)),
       std::move(observer), std::move(file));
   loop.Run();
 

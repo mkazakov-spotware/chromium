@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,6 @@
 #include "url/gurl.h"
 
 namespace media_router {
-
-// Default Cast control port to open Cast Socket.
-static constexpr int kCastControlPort = 8009;
-
-// The method by which the cast sink was discovered.
-enum class CastDiscoveryType {
-  kMdns,
-  kDial,
-  kAccessCodeManualEntry,
-  kAccessCodeRememberedDevice,
-};
 
 // Extra data for DIAL media sink.
 struct DialSinkExtraData {
@@ -61,8 +50,8 @@ struct CastSinkExtraData {
   // browser reconnects to a device.
   int cast_channel_id = 0;
 
-  // The method used to discover the cast sink.
-  CastDiscoveryType discovery_type = CastDiscoveryType::kMdns;
+  // True if Cast channel is opened from DIAL sink.
+  bool discovered_by_dial = false;
 
   CastSinkExtraData();
   CastSinkExtraData(const CastSinkExtraData& other);

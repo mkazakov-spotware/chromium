@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,6 @@ import org.chromium.base.ApplicationStatus;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Matchers;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -37,12 +36,12 @@ import org.chromium.webapk.lib.common.WebApkConstants;
 public class ManageTrustedWebActivityDataActivityTest {
     private static final String SETTINGS_ACTIVITY_NAME =
             "org.chromium.chrome.browser.settings.SettingsActivity";
-    private static final String WEBAPK_TEST_URL = "https://pwa-directory.appspot.com/";
-    private static final String TEST_PACKAGE_NAME = "org.chromium.webapk.test";
+    private static final String WEBAPK_TEST_URL = "https://www.example.com";
+    private static final String TEST_PACKAGE_NAME =
+            InstrumentationRegistry.getTargetContext().getPackageName();
 
     @Test
     @MediumTest
-    @DisabledTest(message = "http://crbug.com/1283285")
     public void launchesWebApkSiteSettings() throws Exception {
         WebApkValidator.setDisableValidationForTesting(true);
         ManageTrustedWebActivityDataActivity.setCallingPackageForTesting(TEST_PACKAGE_NAME);
@@ -75,7 +74,7 @@ public class ManageTrustedWebActivityDataActivityTest {
         Intent intent = new Intent();
         intent.setAction(
                 "android.support.customtabs.action.ACTION_MANAGE_TRUSTED_WEB_ACTIVITY_DATA");
-        intent.setPackage(InstrumentationRegistry.getTargetContext().getPackageName());
+        intent.setPackage(packageName);
         intent.setData(uri);
         intent.putExtra(WebApkConstants.EXTRA_IS_WEBAPK, true);
         // The following flag is required because the test starts the intent outside of an activity.

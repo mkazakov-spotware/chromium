@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include "base/macros.h"
 #include "util/file/file_io.h"
 #include "util/linux/exception_handler_protocol.h"
 #include "util/misc/address_types.h"
@@ -115,10 +116,6 @@ class ExceptionHandlerServer {
   };
 
   ExceptionHandlerServer();
-
-  ExceptionHandlerServer(const ExceptionHandlerServer&) = delete;
-  ExceptionHandlerServer& operator=(const ExceptionHandlerServer&) = delete;
-
   ~ExceptionHandlerServer();
 
   //! \brief Sets the handler's PtraceStrategyDecider.
@@ -190,6 +187,8 @@ class ExceptionHandlerServer {
   ScopedFileHandle pollfd_;
   std::atomic<bool> keep_running_;
   InitializationStateDcheck initialized_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExceptionHandlerServer);
 };
 
 }  // namespace crashpad

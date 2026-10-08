@@ -47,7 +47,6 @@ const AtomicString& HTMLParamElement::Value() const {
 // allow the resource's URL to be given by a param of the named "code",
 // "data", "movie", "src" or "url".
 bool HTMLParamElement::IsURLParameter(const String& name) {
-  DCHECK(RuntimeEnabledFeatures::HTMLParamElementUrlSupportEnabled());
   return EqualIgnoringASCIICase(name, "code") ||
          EqualIgnoringASCIICase(name, "data") ||
          EqualIgnoringASCIICase(name, "movie") ||
@@ -56,8 +55,7 @@ bool HTMLParamElement::IsURLParameter(const String& name) {
 }
 
 bool HTMLParamElement::IsURLAttribute(const Attribute& attribute) const {
-  if (RuntimeEnabledFeatures::HTMLParamElementUrlSupportEnabled() &&
-      attribute.GetName() == html_names::kValueAttr &&
+  if (attribute.GetName() == html_names::kValueAttr &&
       IsURLParameter(GetName()))
     return true;
   return HTMLElement::IsURLAttribute(attribute);

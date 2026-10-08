@@ -36,7 +36,7 @@ if (window.testRunner && window.eventSender) {
     setInputAttributes(input, "", enabled);
     eventSender.keyDown("Escape");
     shouldBeEqualToString('input.value', "");
-    shouldBe('searchEventObserved', 'false');
+    shouldBe('searchEventObserved', 'true');
     input.blur();
 
     searchEventObserved = false;

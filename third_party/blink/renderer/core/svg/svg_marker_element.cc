@@ -30,7 +30,7 @@
 #include "third_party/blink/renderer/core/svg/svg_animated_rect.h"
 #include "third_party/blink/renderer/core/svg/svg_enumeration_map.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 
 namespace blink {
 
@@ -99,15 +99,13 @@ void SVGMarkerElement::Trace(Visitor* visitor) const {
 }
 
 AffineTransform SVGMarkerElement::ViewBoxToViewTransform(
-    const gfx::SizeF& viewport_size) const {
+    const FloatSize& viewport_size) const {
   return SVGFitToViewBox::ViewBoxToViewTransform(
-      viewBox()->CurrentValue()->Rect(), preserveAspectRatio()->CurrentValue(),
+      viewBox()->CurrentValue()->Value(), preserveAspectRatio()->CurrentValue(),
       viewport_size);
 }
 
-void SVGMarkerElement::SvgAttributeChanged(
-    const SvgAttributeChangedParams& params) {
-  const QualifiedName& attr_name = params.name;
+void SVGMarkerElement::SvgAttributeChanged(const QualifiedName& attr_name) {
   bool viewbox_attribute_changed = SVGFitToViewBox::IsKnownAttribute(attr_name);
   bool length_attribute_changed = attr_name == svg_names::kRefXAttr ||
                                   attr_name == svg_names::kRefYAttr ||
@@ -133,7 +131,7 @@ void SVGMarkerElement::SvgAttributeChanged(
     return;
   }
 
-  SVGElement::SvgAttributeChanged(params);
+  SVGElement::SvgAttributeChanged(attr_name);
 }
 
 void SVGMarkerElement::ChildrenChanged(const ChildrenChange& change) {
@@ -160,7 +158,7 @@ void SVGMarkerElement::setOrientToAngle(SVGAngleTearOff* angle) {
 
 LayoutObject* SVGMarkerElement::CreateLayoutObject(const ComputedStyle&,
                                                    LegacyLayout) {
-  return MakeGarbageCollected<LayoutSVGResourceMarker>(this);
+  return new LayoutSVGResourceMarker(this);
 }
 
 bool SVGMarkerElement::SelfHasRelativeLengths() const {

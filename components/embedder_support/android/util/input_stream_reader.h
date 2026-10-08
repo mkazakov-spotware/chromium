@@ -1,11 +1,12 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_EMBEDDER_SUPPORT_ANDROID_UTIL_INPUT_STREAM_READER_H_
 #define COMPONENTS_EMBEDDER_SUPPORT_ANDROID_UTIL_INPUT_STREAM_READER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 
 namespace net {
 class HttpByteRange;
@@ -20,10 +21,6 @@ class InputStreamReader {
  public:
   // The constructor is called on the IO thread, not on the worker thread.
   explicit InputStreamReader(InputStream* stream);
-
-  InputStreamReader(const InputStreamReader&) = delete;
-  InputStreamReader& operator=(const InputStreamReader&) = delete;
-
   virtual ~InputStreamReader();
 
   // Perform a seek operation on the InputStream associated with this job.
@@ -53,7 +50,9 @@ class InputStreamReader {
   // net::OK is returned on success, the error code otherwise.
   int SkipToRequestedRange(const net::HttpByteRange& byte_range);
 
-  raw_ptr<InputStream> stream_;
+  InputStream* stream_;
+
+  DISALLOW_COPY_AND_ASSIGN(InputStreamReader);
 };
 
 }  // namespace embedder_support

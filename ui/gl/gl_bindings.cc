@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,15 +16,21 @@
 #endif
 
 #if defined(USE_EGL)
-#include "ui/gl/gl_display.h"
 #include "ui/gl/gl_surface_egl.h"
 #endif
 
 namespace gl {
 
 #if defined(USE_EGL)
-void DisplayExtensionsEGL::UpdateConditionalExtensionSettings(
-    EGLDisplay display) {
+std::string DriverEGL::GetPlatformExtensions() {
+  EGLDisplay display = GLSurfaceEGL::GetHardwareDisplay();
+  if (display == EGL_NO_DISPLAY)
+    return "";
+  const char* str = eglQueryString(display, EGL_EXTENSIONS);
+  return str ? std::string(str) : "";
+}
+
+void DriverEGL::UpdateConditionalExtensionBindings() {
   // For the moment, only two extensions can be conditionally disabled
   // through GPU driver bug workarounds mechanism:
   //   EGL_KHR_fence_sync
@@ -33,25 +39,20 @@ void DisplayExtensionsEGL::UpdateConditionalExtensionSettings(
   // In theory it's OK to allow disabling other EGL extensions, as far as they
   // are not the ones used in GLSurfaceEGL::InitializeOneOff().
 
-  std::string extensions(GetPlatformExtensions(display));
+  std::string extensions(GetPlatformExtensions());
   extensions += " ";
 
-  b_EGL_KHR_fence_sync =
+  ext.b_EGL_KHR_fence_sync =
       extensions.find("EGL_KHR_fence_sync ") != std::string::npos;
-  b_EGL_KHR_wait_sync =
+  ext.b_EGL_KHR_wait_sync =
       extensions.find("EGL_KHR_wait_sync ") != std::string::npos;
+  if (!ext.b_EGL_KHR_wait_sync) {
+    fn.eglWaitSyncKHRFn = nullptr;
+  }
 }
 
 // static
-std::string DisplayExtensionsEGL::GetPlatformExtensions(EGLDisplay display) {
-  if (display == EGL_NO_DISPLAY)
-    return "";
-  const char* str = eglQueryString(display, EGL_EXTENSIONS);
-  return str ? std::string(str) : "";
-}
-
-// static
-std::string ClientExtensionsEGL::GetClientExtensions() {
+std::string DriverEGL::GetClientExtensions() {
   const char* str = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
   return str ? std::string(str) : "";
 }

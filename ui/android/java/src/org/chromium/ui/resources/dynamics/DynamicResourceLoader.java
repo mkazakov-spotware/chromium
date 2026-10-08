@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@ import android.util.SparseArray;
 import org.chromium.ui.resources.ResourceLoader;
 
 /**
- * Handles managing dynamic resources. Because {@link DynamicResource} decide when they are dirty
- * and should return a loaded resource, this class mostly just passes through notifications when
- * render frames are happening, and hands the captured {@link org.chromium.ui.resources.Resource}
- * back in our {@link ResourceLoaderCallback}.
+ * Handles managing dynamic resources.  This is basically a list of dynamic resources that checks
+ * {@link DynamicResource#isDirty()} before notifying the {@link ResourceLoaderCallback}.
  */
 public class DynamicResourceLoader extends ResourceLoader {
     private final SparseArray<DynamicResource> mDynamicResources =
@@ -31,14 +29,12 @@ public class DynamicResourceLoader extends ResourceLoader {
 
     /**
      * Registers a {@link DynamicResource} to be tracked and exposed by this class.
-     * @param resId The Android id to use.  This should be an actual Android id (R.id.some_id).
-     * @param asyncDynamicResource The {@link DynamicResource} to track and expose.
+     * @param resId    The Android id to use.  This should be an actual Android id (R.id.some_id).
+     * @param resource The {@link DynamicResource} to track and expose.
      */
-    public void registerResource(int resId, DynamicResource asyncDynamicResource) {
+    public void registerResource(int resId, DynamicResource resource) {
         assert mDynamicResources.get(resId) == null;
-        mDynamicResources.put(resId, asyncDynamicResource);
-        asyncDynamicResource.setOnResourceReadyCallback(
-                (resource) -> notifyLoadFinished(resId, resource));
+        mDynamicResources.put(resId, resource);
     }
 
     /**
@@ -46,10 +42,7 @@ public class DynamicResourceLoader extends ResourceLoader {
      * @param resId The Android id representing the {@link DynamicResource}.
      */
     public void unregisterResource(int resId) {
-        DynamicResource dynamicResource = mDynamicResources.get(resId);
-        if (dynamicResource == null) return;
         mDynamicResources.remove(resId);
-        dynamicResource.setOnResourceReadyCallback(null);
         notifyResourceUnregistered(resId);
     }
 
@@ -60,9 +53,10 @@ public class DynamicResourceLoader extends ResourceLoader {
      */
     @Override
     public void loadResource(int resId) {
-        DynamicResource dynamicResource = mDynamicResources.get(resId);
-        if (dynamicResource == null) return;
-        dynamicResource.onResourceRequested();
+        DynamicResource resource = mDynamicResources.get(resId);
+        if (resource == null) return;
+
+        if (resource.isDirty()) notifyLoadFinished(resId, resource);
     }
 
     /**

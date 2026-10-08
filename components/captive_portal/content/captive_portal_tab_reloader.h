@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 
 #include "base/callback_forward.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/captive_portal/content/captive_portal_service.h"
-#include "components/captive_portal/core/captive_portal_types.h"
 #include "net/dns/public/resolve_error_info.h"
 
 namespace content {
@@ -24,7 +24,6 @@ class SSLInfo;
 }
 
 class CaptivePortalBrowserTest;
-class CaptivePortalForPrerenderingTest;
 
 namespace captive_portal {
 
@@ -82,9 +81,6 @@ class CaptivePortalTabReloader {
                            content::WebContents* web_contents,
                            const OpenLoginTabCallback& open_login_tab_callback);
 
-  CaptivePortalTabReloader(const CaptivePortalTabReloader&) = delete;
-  CaptivePortalTabReloader& operator=(const CaptivePortalTabReloader&) = delete;
-
   virtual ~CaptivePortalTabReloader();
 
   // The following functions are all invoked by the CaptivePortalTabHelper:
@@ -136,16 +132,17 @@ class CaptivePortalTabReloader {
 
  private:
   friend class ::CaptivePortalBrowserTest;
-  friend class ::CaptivePortalForPrerenderingTest;
 
   // Sets |state_| and takes any action associated with the new state.  Also
   // stops the timer, if needed. If |new_state| is STATE_MAYBE_BROKEN_BY_PORTAL,
   // |probe_trigger| should be specified.
-  void SetState(State new_state);
+  void SetState(
+      State new_state,
+      base::Optional<CaptivePortalProbeReason> probe_reason = base::nullopt);
 
   // Called by a timer when an SSL main frame provisional load is taking a
   // while to commit.
-  void OnSlowSSLConnect();
+  void OnSlowSSLConnect(CaptivePortalProbeReason probe_reason);
 
   // Called when a main frame loads with a secure DNS network error.
   void OnSecureDnsNetworkError();
@@ -166,10 +163,10 @@ class CaptivePortalTabReloader {
   virtual void MaybeOpenCaptivePortalLoginTab();
 
   // Has |captive_portal_service_| (if present) start a captive portal check.
-  virtual void CheckForCaptivePortal();
+  virtual void CheckForCaptivePortal(CaptivePortalProbeReason probe_reason);
 
-  raw_ptr<CaptivePortalService> captive_portal_service_;
-  raw_ptr<content::WebContents> web_contents_;
+  CaptivePortalService* captive_portal_service_;
+  content::WebContents* web_contents_;
 
   State state_;
 
@@ -190,6 +187,8 @@ class CaptivePortalTabReloader {
   const OpenLoginTabCallback open_login_tab_callback_;
 
   base::WeakPtrFactory<CaptivePortalTabReloader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(CaptivePortalTabReloader);
 };
 
 }  // namespace captive_portal

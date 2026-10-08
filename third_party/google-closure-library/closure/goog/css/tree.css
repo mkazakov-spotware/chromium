@@ -5,7 +5,9 @@
  * See the COPYING file for details.
  */
 
-@provide 'goog.css.tree';
+/* Author: arv@google.com (Erik Arvidsson) */
+/* Author: eae@google.com (Emil A Eklund) */
+/* Author: jonp@google.com (Jon Perlow) */
 
 /*
   TODO(arv): Currently the sprite image has the height 16px. We should make the

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include "net/quic/quic_test_packet_printer.h"
 #include "net/socket/socket_test_util.h"
-#include "net/third_party/quiche/src/quiche/quic/core/quic_packets.h"
+#include "net/third_party/quiche/src/quic/core/quic_packets.h"
 
-namespace net::test {
+namespace net {
+namespace test {
 
 // Helper class to encapsulate MockReads and MockWrites for QUIC.
 // Simplify ownership issues and the interaction with the MockSocketFactory.
@@ -67,11 +68,12 @@ class MockQuicData {
   std::unique_ptr<MockConnect> connect_;
   std::vector<MockWrite> writes_;
   std::vector<MockRead> reads_;
-  size_t sequence_number_ = 0;
+  size_t sequence_number_;
   std::unique_ptr<SequencedSocketData> socket_data_;
   QuicPacketPrinter printer_;
 };
 
-}  // namespace net::test
+}  // namespace test
+}  // namespace net
 
 #endif  // NET_QUIC_MOCK_QUIC_DATA_H_

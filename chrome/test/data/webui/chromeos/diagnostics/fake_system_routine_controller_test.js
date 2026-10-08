@@ -1,16 +1,13 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-
+import {RoutineName, RoutineRunner, StandardRoutineResult} from 'chrome://diagnostics/diagnostics_types.js';
 import {FakeSystemRoutineController} from 'chrome://diagnostics/fake_system_routine_controller.js';
-import {RoutineRunnerRemote, RoutineType, StandardRoutineResult} from 'chrome://diagnostics/system_routine_controller.mojom-webui.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.js';
+import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
+import {assertEquals, assertFalse, assertTrue} from '../../chai_assert.js';
 
-import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
-
-suite('fakeSystemRoutineContollerTestSuite', function() {
+export function fakeSystemRoutineContollerTestSuite() {
   /** @type {?FakeSystemRoutineController} */
   let controller = null;
 
@@ -27,36 +24,23 @@ suite('fakeSystemRoutineContollerTestSuite', function() {
    * promise must be forced to resolve either by chaining it with additional
    * promises or returning it from the test.
    *
-   * @param {!RoutineType} expectedType
+   * @param {!RoutineName} expectedName
    * @param {!StandardRoutineResult} expectedResult
    * @return {!Promise}
    */
-  function runRoutineAndAssertStandardResult(expectedType, expectedResult) {
-    const resolver = new PromiseResolver();
+  function runRoutineAndAssertStandardResult(expectedName, expectedResult) {
+    let resolver = new PromiseResolver();
 
-    const routineRunnerRemote = /** @type {!RoutineRunnerRemote} */ ({
+    /** @type {!RoutineRunner} */
+    const routineRunnerRemote = {
       onRoutineResult: (resultInfo) => {
-        assertEquals(expectedType, resultInfo.type);
-
-        if (resultInfo.result.hasOwnProperty('simpleResult')) {
-          assertEquals(expectedResult, resultInfo.result.simpleResult);
-
-          // Can't have both simpleResult and powerResult
-          assertFalse(resultInfo.result.hasOwnProperty('powerResult'));
-        }
-
-        if (resultInfo.result.hasOwnProperty('powerResult')) {
-          assertEquals(expectedResult, resultInfo.result.powerResult.result);
-          // Can't have both simpleResult and powerResult
-
-          assertFalse(resultInfo.result.hasOwnProperty('simpleResult'));
-        }
-
+        assertEquals(expectedName, resultInfo.name);
+        assertEquals(expectedResult, resultInfo.result.simpleResult);
         resolver.resolve();
-      },
-    });
-    controller.runRoutine(expectedType, routineRunnerRemote);
-    return controller.getRunRoutinePromiseForTesting().then(() => {
+      }
+    };
+
+    return controller.runRoutine(expectedName, routineRunnerRemote).then(() => {
       return resolver.promise;
     });
   }
@@ -66,13 +50,13 @@ suite('fakeSystemRoutineContollerTestSuite', function() {
    * promise must be forced to resolve either by chaining it with additional
    * promises or returning it from the test.
    *
-   * @param {!RoutineType} expectedType
+   * @param {!RoutineName} expectedName
    * @param {!StandardRoutineResult} expectedResult
    * @return {!Promise}
    */
   function runRoutineAndAssertStandardResultManualResolve(
-      expectedType, expectedResult) {
-    const resolver = new PromiseResolver();
+      expectedName, expectedResult) {
+    let resolver = new PromiseResolver();
 
     // Nothing should be running yet.
     assertFalse(controller.isRoutineInProgressForTesting());
@@ -80,22 +64,21 @@ suite('fakeSystemRoutineContollerTestSuite', function() {
     // Use this to detect if the routine resolved too early.
     let wasRun = false;
 
-
-    const routineRunnerRemote = /** @type {!RoutineRunnerRemote} */ ({
+    /** @type {!RoutineRunner} */
+    const routineRunnerRemote = {
       onRoutineResult: (resultInfo) => {
         assertTrue(controller.isRoutineInProgressForTesting());
         assertFalse(wasRun);
-        assertEquals(expectedType, resultInfo.type);
+        assertEquals(expectedName, resultInfo.name);
         assertEquals(expectedResult, resultInfo.result.simpleResult);
 
         // Mark that the test completed.
         wasRun = true;
         resolver.resolve();
-      },
-    });
+      }
+    };
 
-    controller.runRoutine(expectedType, routineRunnerRemote);
-    controller.getRunRoutinePromiseForTesting().then(() => {
+    controller.runRoutine(expectedName, routineRunnerRemote).then(() => {
       assertTrue(wasRun);
       assertFalse(controller.isRoutineInProgressForTesting());
     });
@@ -117,72 +100,46 @@ suite('fakeSystemRoutineContollerTestSuite', function() {
   test('NonExistantTest', () => {
     // A routine that hasn't had a fake result set will return kErrorExecuting.
     return runRoutineAndAssertStandardResult(
-        RoutineType.kCpuStress, StandardRoutineResult.kExecutionError);
+        RoutineName.kCpuStress, StandardRoutineResult.kErrorExecuting);
   });
 
   test('ExpectedResultPass', () => {
-    const routineType = RoutineType.kCpuStress;
+    const routineName = RoutineName.kCpuStress;
     const expectedResult = StandardRoutineResult.kTestPassed;
-    controller.setFakeStandardRoutineResult(routineType, expectedResult);
+    controller.setFakeStandardRoutineResult(routineName, expectedResult);
 
-    return runRoutineAndAssertStandardResult(routineType, expectedResult);
+    return runRoutineAndAssertStandardResult(routineName, expectedResult);
   });
 
   test('ExpectedResultFail', () => {
-    const routineType = RoutineType.kCpuStress;
+    const routineName = RoutineName.kCpuStress;
     const expectedResult = StandardRoutineResult.kTestFailed;
-    controller.setFakeStandardRoutineResult(routineType, expectedResult);
+    controller.setFakeStandardRoutineResult(routineName, expectedResult);
 
-    return runRoutineAndAssertStandardResult(routineType, expectedResult);
-  });
-
-  test('ExpectedPowerResultPass', () => {
-    const routineType = RoutineType.kCpuCache;
-    const expectedResult = StandardRoutineResult.kTestPassed;
-    controller.setFakeStandardRoutineResult(routineType, expectedResult);
-
-    return runRoutineAndAssertStandardResult(routineType, expectedResult);
-  });
-
-  test('ExpectedPowerResultFail', () => {
-    const routineType = RoutineType.kCpuCache;
-    const expectedResult = StandardRoutineResult.kTestFailed;
-    controller.setFakeStandardRoutineResult(routineType, expectedResult);
-
-    return runRoutineAndAssertStandardResult(routineType, expectedResult);
+    return runRoutineAndAssertStandardResult(routineName, expectedResult);
   });
 
   test('ExpectedResultPassManualResolve', () => {
-    const routineType = RoutineType.kCpuStress;
+    const routineName = RoutineName.kCpuStress;
     const expectedResult = StandardRoutineResult.kTestPassed;
-    controller.setFakeStandardRoutineResult(routineType, expectedResult);
+    controller.setFakeStandardRoutineResult(routineName, expectedResult);
 
     // Tests will only resolve when done manually.
     controller.setDelayTimeInMillisecondsForTesting(-1);
 
     return runRoutineAndAssertStandardResultManualResolve(
-        routineType, expectedResult);
+        routineName, expectedResult);
   });
 
   test('ExpectedResultFailManualResolve', () => {
-    const routineType = RoutineType.kCpuStress;
+    const routineName = RoutineName.kCpuStress;
     const expectedResult = StandardRoutineResult.kTestFailed;
-    controller.setFakeStandardRoutineResult(routineType, expectedResult);
+    controller.setFakeStandardRoutineResult(routineName, expectedResult);
 
     // Tests will only resolve when done manually.
     controller.setDelayTimeInMillisecondsForTesting(-1);
 
     return runRoutineAndAssertStandardResultManualResolve(
-        routineType, expectedResult);
+        routineName, expectedResult);
   });
-
-  test('GetSupportedRoutines', () => {
-    /** @type {!Array<!RoutineType>} */
-    const expected = [RoutineType.kCpuStress, RoutineType.kCpuCache];
-
-    controller.setFakeSupportedRoutines(expected);
-    return controller.getSupportedRoutines().then((result) => {
-      assertDeepEquals(expected, result.routines);
-    });
-  });
-});
+}

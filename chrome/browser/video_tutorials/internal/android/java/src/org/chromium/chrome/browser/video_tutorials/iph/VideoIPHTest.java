@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.support.test.rule.ActivityTestRule;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
 
@@ -28,15 +29,14 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import org.chromium.base.Callback;
-import org.chromium.base.FeatureList;
-import org.chromium.base.test.BaseActivityTestRule;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.video_tutorials.FeatureType;
 import org.chromium.chrome.browser.video_tutorials.R;
 import org.chromium.chrome.browser.video_tutorials.Tutorial;
 import org.chromium.chrome.browser.video_tutorials.test.TestImageFetcher;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.test.util.BlankUiTestActivity;
+import org.chromium.ui.test.util.DummyUiActivity;
 
 import java.util.HashMap;
 
@@ -46,8 +46,8 @@ import java.util.HashMap;
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class VideoIPHTest {
     @Rule
-    public BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
-            new BaseActivityTestRule<>(BlankUiTestActivity.class);
+    public ActivityTestRule<DummyUiActivity> mActivityTestRule =
+            new ActivityTestRule<>(DummyUiActivity.class);
 
     private Activity mActivity;
     private VideoIPHCoordinator mCoordinator;
@@ -60,7 +60,6 @@ public class VideoIPHTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mActivityTestRule.launchActivity(null);
         mActivity = mActivityTestRule.getActivity();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             FrameLayout parentView = new FrameLayout(mActivity);
@@ -74,7 +73,7 @@ public class VideoIPHTest {
             TestImageFetcher imageFetcher = new TestImageFetcher(testImage);
             mCoordinator = new VideoIPHCoordinatorImpl(
                     viewStub, imageFetcher, mOnClickListener, mOnDismissListener);
-            FeatureList.setTestFeatures(new HashMap<String, Boolean>());
+            ChromeFeatureList.setTestFeatures(new HashMap<>());
         });
     }
 

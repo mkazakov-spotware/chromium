@@ -39,19 +39,18 @@
 
 namespace blink {
 
-SkFont FontPlatformData::CreateSkFont(bool, const FontDescription*) const {
-  SkFont font;
-  font.setSize(SkFloatToScalar(text_size_));
-  font.setTypeface(typeface_);
-  font.setEmbolden(synthetic_bold_);
-  font.setSkewX(synthetic_italic_ ? -SK_Scalar1 / 4 : 0);
+void FontPlatformData::SetupSkFont(SkFont* font, float, const Font*) const {
+  font->setSize(SkFloatToScalar(text_size_));
+  font->setTypeface(typeface_);
+  font->setEmbolden(synthetic_bold_);
+  font->setSkewX(synthetic_italic_ ? -SK_Scalar1 / 4 : 0);
 
   if (style_.use_subpixel_rendering) {
-    font.setEdging(SkFont::Edging::kSubpixelAntiAlias);
+    font->setEdging(SkFont::Edging::kSubpixelAntiAlias);
   } else if (style_.use_anti_alias) {
-    font.setEdging(SkFont::Edging::kAntiAlias);
+    font->setEdging(SkFont::Edging::kAntiAlias);
   } else {
-    font.setEdging(SkFont::Edging::kAlias);
+    font->setEdging(SkFont::Edging::kAlias);
   }
 
   // Only use sub-pixel positioning if anti aliasing is enabled. Otherwise,
@@ -61,14 +60,13 @@ SkFont FontPlatformData::CreateSkFont(bool, const FontDescription*) const {
   // pixel positions, which leads to uneven spacing, either too close or too far
   // away from adjacent glyphs. We avoid this by linking the two flags.
   if (style_.use_anti_alias)
-    font.setSubpixel(true);
+    font->setSubpixel(true);
 
   if (WebTestSupport::IsRunningWebTest() &&
       !WebTestSupport::IsTextSubpixelPositioningAllowedForTest())
-    font.setSubpixel(false);
+    font->setSubpixel(false);
 
-  font.setEmbeddedBitmaps(!avoid_embedded_bitmaps_);
-  return font;
+  font->setEmbeddedBitmaps(!avoid_embedded_bitmaps_);
 }
 
 WebFontRenderStyle FontPlatformData::QuerySystemForRenderStyle() {
@@ -82,9 +80,9 @@ WebFontRenderStyle FontPlatformData::QuerySystemForRenderStyle() {
     return style;
   }
 
-  if (FontCache::Get().AntialiasedTextEnabled()) {
+  if (FontCache::GetFontCache()->AntialiasedTextEnabled()) {
     style.use_anti_alias = 1;
-    if (FontCache::Get().LcdTextEnabled())
+    if (FontCache::GetFontCache()->LcdTextEnabled())
       style.use_subpixel_rendering = 1;
   }
 

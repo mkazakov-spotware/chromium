@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,7 +15,6 @@ import subprocess
 import sys
 import traceback
 
-from device_target import ProvisionDeviceException
 from target import FuchsiaTargetException
 
 def _PrintException(value, trace):
@@ -75,8 +74,5 @@ def HandleExceptionAndReturnExitCode():
       print('Error: qemu-img fuchsia image generation failed.')
       return 82
     return 80
-  elif type is ProvisionDeviceException:
-    print('Error: Failed to pave device')
-    return 90
   else:
     return 1

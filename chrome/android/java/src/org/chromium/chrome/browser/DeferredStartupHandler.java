@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,18 +79,15 @@ public class DeferredStartupHandler {
      * Avoid using CriteriaHelper for waiting for deferred tasks to complete, as the act of polling
      * can prevent the Looper from going idle, preventing the tasks from running.
      *
-     * You should wait until the activity has posted its deferred startup tasks before calling this
-     * function to avoid races.
+     * You must call {@link #setExpectingActivityStartupForTesting()} before calling this.
      *
      * @return Whether deferred startup has been completed before the timeout expires.
      */
     public static boolean waitForDeferredStartupCompleteForTesting(long timeoutMillis) {
         ThreadUtils.assertOnBackgroundThread();
         // sInstance could become null while executing this function, so keep a ref here.
-        DeferredStartupHandler instance = ThreadUtils.runOnUiThreadBlockingNoException(() -> {
-            if (sInstance != null) sInstance.mLatchForTesting = new CountDownLatch(1);
-            return sInstance;
-        });
+        DeferredStartupHandler instance =
+                ThreadUtils.runOnUiThreadBlockingNoException(() -> { return sInstance; });
         // Tasks completed and instance was cleared before we started waiting.
         if (instance == null) return true;
         assert instance.mLatchForTesting != null;
@@ -99,5 +96,10 @@ public class DeferredStartupHandler {
         } catch (InterruptedException e) {
             return false;
         }
+    }
+
+    public static void setExpectingActivityStartupForTesting() {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> { getInstance().mLatchForTesting = new CountDownLatch(1); });
     }
 }

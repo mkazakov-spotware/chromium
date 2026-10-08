@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -164,8 +164,8 @@ GetDefaultTestingOmahaPolicyProto() {
   omaha_settings->mutable_updates_suppressed()->set_start_hour(9);
   omaha_settings->mutable_updates_suppressed()->set_start_minute(30);
   omaha_settings->mutable_updates_suppressed()->set_duration_min(120);
-  omaha_settings->set_download_preference("cacheable");
-  omaha_settings->set_proxy_mode("pac_script");
+  omaha_settings->set_download_preference("test_download_preference");
+  omaha_settings->set_proxy_mode("test_proxy_mode");
   omaha_settings->set_proxy_pac_url("foo.c/proxy.pa");
   omaha_settings->set_install_default(
       ::wireless_android_enterprise_devicemanagement::INSTALL_ENABLED);
@@ -173,7 +173,7 @@ GetDefaultTestingOmahaPolicyProto() {
       ::wireless_android_enterprise_devicemanagement::MANUAL_UPDATES_ONLY);
 
   ::wireless_android_enterprise_devicemanagement::ApplicationSettings app;
-  app.set_app_guid(test::kChromeAppId);
+  app.set_app_guid(kChromeAppId);
   app.set_install(
       ::wireless_android_enterprise_devicemanagement::INSTALL_DISABLED);
   app.set_update(
@@ -182,7 +182,6 @@ GetDefaultTestingOmahaPolicyProto() {
   app.set_rollback_to_target_version(
       ::wireless_android_enterprise_devicemanagement::
           ROLLBACK_TO_TARGET_VERSION_ENABLED);
-  app.set_target_channel("beta");
   omaha_settings->mutable_application_settings()->Add(std::move(app));
 
   return omaha_settings;

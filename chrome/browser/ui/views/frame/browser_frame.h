@@ -1,24 +1,21 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "ui/base/ui_base_types.h"
-#endif
-
+class BrowserDesktopWindowTreeHost;
 class BrowserNonClientFrameView;
 class BrowserRootView;
-enum class BrowserThemeChangeType;
 class BrowserView;
 class NativeBrowserFrame;
 class NonClientFrameView;
@@ -57,19 +54,7 @@ enum class TabDragKind {
 class BrowserFrame : public views::Widget, public views::ContextMenuController {
  public:
   explicit BrowserFrame(BrowserView* browser_view);
-
-  BrowserFrame(const BrowserFrame&) = delete;
-  BrowserFrame& operator=(const BrowserFrame&) = delete;
-
   ~BrowserFrame() override;
-
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Returns which edges of the frame are tiled.
-  const ui::WindowTiledEdges& tiled_edges() const { return tiled_edges_; }
-  void set_tiled_edges(ui::WindowTiledEdges tiled_edges) {
-    tiled_edges_ = tiled_edges;
-  }
-#endif
 
   // Initialize the frame (creates the underlying native window).
   void InitBrowserFrame();
@@ -126,10 +111,6 @@ class BrowserFrame : public views::Widget, public views::ContextMenuController {
   // Called when BrowserView creates all it's child views.
   void OnBrowserViewInitViewsComplete();
 
-  // ThemeService calls this when a user has changed their theme, indicating
-  // that it's time to redraw everything.
-  void UserChangedTheme(BrowserThemeChangeType theme_change_type);
-
   // views::Widget:
   views::internal::RootView* CreateRootView() override;
   std::unique_ptr<views::NonClientFrameView> CreateNonClientFrameView()
@@ -137,9 +118,9 @@ class BrowserFrame : public views::Widget, public views::ContextMenuController {
   bool GetAccelerator(int command_id,
                       ui::Accelerator* accelerator) const override;
   const ui::ThemeProvider* GetThemeProvider() const override;
-  ui::ColorProviderManager::ThemeInitializerSupplier* GetCustomTheme()
-      const override;
+  const ui::NativeTheme* GetNativeTheme() const override;
   void OnNativeWidgetWorkspaceChanged() override;
+  void PropagateNativeThemeChanged() override;
 
   // views::ContextMenuController:
   void ShowContextMenuForViewImpl(views::View* source,
@@ -154,12 +135,13 @@ class BrowserFrame : public views::Widget, public views::ContextMenuController {
     return native_browser_frame_;
   }
 
+  void set_browser_desktop_window_tree_host(
+      BrowserDesktopWindowTreeHost* browser_desktop_window_tree_host) {
+    browser_desktop_window_tree_host_ = browser_desktop_window_tree_host;
+  }
+
   void SetTabDragKind(TabDragKind tab_drag_kind);
   TabDragKind tab_drag_kind() const { return tab_drag_kind_; }
-
- protected:
-  // views::Widget:
-  ui::ColorProviderManager::Key GetColorProviderKey() const override;
 
  private:
   void OnTouchUiChanged();
@@ -167,29 +149,18 @@ class BrowserFrame : public views::Widget, public views::ContextMenuController {
   // Callback for MenuRunner.
   void OnMenuClosed();
 
-  // Select a native theme that is appropriate for the current context.
-  void SelectNativeTheme();
-
-  // Regenerate the frame on theme change if necessary. Returns true if
-  // regenerated.
-  bool RegenerateFrameOnThemeChange(BrowserThemeChangeType theme_change_type);
-
-  // Returns whether the browser should always use the dark theme no matter user
-  // makes any selection.
-  bool ShouldUseDarkTheme() const;
-
-  raw_ptr<NativeBrowserFrame> native_browser_frame_;
+  NativeBrowserFrame* native_browser_frame_;
 
   // A weak reference to the root view associated with the window. We save a
   // copy as a BrowserRootView to avoid evil casting later, when we need to call
   // functions that only exist on BrowserRootView (versus RootView).
-  raw_ptr<BrowserRootView> root_view_;
+  BrowserRootView* root_view_;
 
   // A pointer to our NonClientFrameView as a BrowserNonClientFrameView.
-  raw_ptr<BrowserNonClientFrameView> browser_frame_view_;
+  BrowserNonClientFrameView* browser_frame_view_;
 
   // The BrowserView is our ClientView. This is a pointer to it.
-  raw_ptr<BrowserView> browser_view_;
+  BrowserView* browser_view_;
 
   std::unique_ptr<SystemMenuModelBuilder> menu_model_builder_;
 
@@ -197,10 +168,12 @@ class BrowserFrame : public views::Widget, public views::ContextMenuController {
   // NativeBrowserFrame::UsesNativeSystemMenu() returns false.
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
-  base::CallbackListSubscription subscription_ =
+  std::unique_ptr<ui::TouchUiController::Subscription> subscription_ =
       ui::TouchUiController::Get()->RegisterCallback(
           base::BindRepeating(&BrowserFrame::OnTouchUiChanged,
                               base::Unretained(this)));
+
+  BrowserDesktopWindowTreeHost* browser_desktop_window_tree_host_ = nullptr;
 
   // Indicates the drag state for this window. The value can be kWindowDrag
   // if the accociated browser is the dragged browser or kTabDrag
@@ -210,17 +183,7 @@ class BrowserFrame : public views::Widget, public views::ContextMenuController {
   // contents for smoother dragging.
   TabDragKind tab_drag_kind_ = TabDragKind::kNone;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  ui::WindowTiledEdges tiled_edges_;
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Store the number of virtual desks that currently exist. Used to determine
-  // whether the system menu should be reset. If the value is -1, then either
-  // the ash::DesksHelper does not exist or haven't retrieved the system menu
-  // model yet.
-  int num_desks_ = -1;
-#endif
+  DISALLOW_COPY_AND_ASSIGN(BrowserFrame);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_H_

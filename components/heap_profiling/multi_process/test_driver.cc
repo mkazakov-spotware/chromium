@@ -1,24 +1,25 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/heap_profiling/multi_process/test_driver.h"
 
-#include <memory>
+#include <algorithm>
 #include <string>
 
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/json/json_reader.h"
 #include "base/process/process_handle.h"
 #include "base/run_loop.h"
 #include "base/sampling_heap_profiler/poisson_allocation_sampler.h"
+#include "base/stl_util.h"
 #include "base/test/bind.h"
 #include "base/threading/platform_thread.h"
 #include "base/trace_event/heap_profiler.h"
+#include "base/trace_event/heap_profiler_event_filter.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/heap_profiling/multi_process/supervisor.h"
@@ -196,7 +197,7 @@ bool GetAllocatorSubarray(base::Value* heaps_v2,
                           const char* allocator_name,
                           const char* subarray_name,
                           size_t expected_size,
-                          const base::Value::List*& output) {
+                          base::Value::ConstListView* output) {
   base::Value* subarray =
       heaps_v2->FindPath({"allocators", allocator_name, subarray_name});
   if (!subarray) {
@@ -205,13 +206,13 @@ bool GetAllocatorSubarray(base::Value* heaps_v2,
     return false;
   }
 
-  const base::Value::List& subarray_list = subarray->GetList();
+  base::Value::ConstListView subarray_list = subarray->GetList();
   if (expected_size && subarray_list.size() != expected_size) {
     LOG(ERROR) << subarray_name << " has wrong size";
     return false;
   }
 
-  output = &subarray_list;
+  *output = subarray_list;
   return true;
 }
 
@@ -240,29 +241,30 @@ bool ValidateSamplingAllocations(base::Value* heaps_v2,
   }
 
   // Find the type with the appropriate id.
-  const base::Value::List* types_list = nullptr;
-  if (!GetAllocatorSubarray(heaps_v2, allocator_name, "types", 0, types_list)) {
+  base::Value::ConstListView types_list;
+  if (!GetAllocatorSubarray(heaps_v2, allocator_name, "types", 0,
+                            &types_list)) {
     return false;
   }
 
   // Look up the size.
-  const base::Value::List* sizes = nullptr;
+  base::Value::ConstListView sizes;
   if (!GetAllocatorSubarray(heaps_v2, allocator_name, "sizes",
-                            types_list->size(), sizes)) {
+                            types_list.size(), &sizes)) {
     return false;
   }
 
   // Look up the count.
-  const base::Value::List* counts = nullptr;
+  base::Value::ConstListView counts;
   if (!GetAllocatorSubarray(heaps_v2, allocator_name, "counts",
-                            types_list->size(), counts)) {
+                            types_list.size(), &counts)) {
     return false;
   }
 
   int allocations_with_matching_type = 0;
   size_t index = 0;
-  for (size_t i = 0; i < types_list->size(); ++i) {
-    if ((*types_list)[i].GetInt() == id_of_type) {
+  for (size_t i = 0; i < types_list.size(); ++i) {
+    if (types_list[i].GetInt() == id_of_type) {
       index = i;
       ++allocations_with_matching_type;
     }
@@ -274,17 +276,17 @@ bool ValidateSamplingAllocations(base::Value* heaps_v2,
     return false;
   }
 
-  if ((*sizes)[index].GetInt() < approximate_size / 2 ||
-      (*sizes)[index].GetInt() > approximate_size * 2) {
-    LOG(ERROR) << "sampling size " << (*sizes)[index].GetInt()
+  if (sizes[index].GetInt() < approximate_size / 2 ||
+      sizes[index].GetInt() > approximate_size * 2) {
+    LOG(ERROR) << "sampling size " << sizes[index].GetInt()
                << " was not within a factor of 2 of expected size "
                << approximate_size;
     return false;
   }
 
-  if ((*counts)[index].GetInt() < approximate_count / 2 ||
-      (*counts)[index].GetInt() > approximate_count * 2) {
-    LOG(ERROR) << "sampling size " << (*counts)[index].GetInt()
+  if (counts[index].GetInt() < approximate_count / 2 ||
+      counts[index].GetInt() > approximate_count * 2) {
+    LOG(ERROR) << "sampling size " << counts[index].GetInt()
                << " was not within a factor of 2 of expected count "
                << approximate_count;
     return false;
@@ -340,19 +342,13 @@ void HandleOOM(size_t unsued_size) {
 TestDriver::TestDriver()
     : wait_for_ui_thread_(base::WaitableEvent::ResetPolicy::AUTOMATIC,
                           base::WaitableEvent::InitialState::NOT_SIGNALED) {
-  partition_alloc::PartitionAllocGlobalInit(HandleOOM);
-  partition_allocator_.init({
-      partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
-      partition_alloc::PartitionOptions::ThreadCache::kDisabled,
-      partition_alloc::PartitionOptions::Quarantine::kDisallowed,
-      partition_alloc::PartitionOptions::Cookie::kAllowed,
-      partition_alloc::PartitionOptions::BackupRefPtr::kDisabled,
-      partition_alloc::PartitionOptions::BackupRefPtrZapping::kDisabled,
-      partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
-  });
+  base::PartitionAllocGlobalInit(HandleOOM);
+  partition_allocator_.init({base::PartitionOptions::Alignment::kRegular,
+                             base::PartitionOptions::ThreadCache::kDisabled,
+                             base::PartitionOptions::PCScan::kAlwaysDisabled});
 }
 TestDriver::~TestDriver() {
-  partition_alloc::PartitionAllocGlobalUninitForTesting();
+  base::PartitionAllocGlobalUninitForTesting();
 }
 
 bool TestDriver::RunTest(const Options& options) {
@@ -466,7 +462,7 @@ bool TestDriver::CheckOrStartProfilingOnUIThreadWithAsyncSignalling() {
       bool already_initialized = SetOnInitAllocatorShimCallbackForTesting(
           base::BindOnce(&base::WaitableEvent::Signal,
                          base::Unretained(&wait_for_ui_thread_)),
-          base::SingleThreadTaskRunner::GetCurrentDefault());
+          base::ThreadTaskRunnerHandle::Get());
       if (!already_initialized) {
         wait_for_profiling_to_start_ = true;
       }
@@ -483,7 +479,7 @@ bool TestDriver::CheckOrStartProfilingOnUIThreadWithAsyncSignalling() {
     SetOnInitAllocatorShimCallbackForTesting(
         base::BindOnce(&base::WaitableEvent::Signal,
                        base::Unretained(&wait_for_ui_thread_)),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        base::ThreadTaskRunnerHandle::Get());
   } else {
     start_callback = base::BindOnce(&base::WaitableEvent::Signal,
                                     base::Unretained(&wait_for_ui_thread_));
@@ -521,8 +517,7 @@ bool TestDriver::CheckOrStartProfilingOnUIThreadWithNestedRunLoops() {
   // start. Otherwise, wait for the Supervisor to start.
   if (ShouldProfileBrowser()) {
     SetOnInitAllocatorShimCallbackForTesting(
-        run_loop->QuitClosure(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        run_loop->QuitClosure(), base::ThreadTaskRunnerHandle::Get());
   } else {
     start_callback = run_loop->QuitClosure();
   }
@@ -591,7 +586,7 @@ void TestDriver::CollectResults(bool synchronous) {
   std::unique_ptr<base::RunLoop> run_loop;
 
   if (synchronous) {
-    run_loop = std::make_unique<base::RunLoop>();
+    run_loop.reset(new base::RunLoop);
     finish_tracing_closure = run_loop->QuitClosure();
   } else {
     finish_tracing_closure = base::BindOnce(
@@ -634,13 +629,14 @@ bool TestDriver::ValidateBrowserAllocations(base::Value* dump_json) {
   bool result = false;
 
   bool should_validate_dumps = true;
-#if BUILDFLAG(IS_ANDROID) && !defined(OFFICIAL_BUILD)
+#if defined(OS_ANDROID) && !defined(OFFICIAL_BUILD)
   // TODO(ajwong): This step fails on Nexus 5X devices running kit-kat. It works
   // on Nexus 5X devices running oreo. The problem is that all allocations have
   // the same [an effectively empty] backtrace and get glommed together. More
   // investigation is necessary. For now, I'm turning this off for Android.
   // https://crbug.com/786450.
-  should_validate_dumps = false;
+  if (!HasPseudoFrames())
+    should_validate_dumps = false;
 #endif
 
   std::string thread_name = ShouldIncludeNativeThreadNames() ? kThreadName : "";
@@ -733,9 +729,15 @@ bool TestDriver::ShouldIncludeNativeThreadNames() {
   return options_.stack_mode == mojom::StackMode::NATIVE_WITH_THREAD_NAMES;
 }
 
+bool TestDriver::HasPseudoFrames() {
+  return options_.stack_mode == mojom::StackMode::PSEUDO ||
+         options_.stack_mode == mojom::StackMode::MIXED;
+}
+
 bool TestDriver::HasNativeFrames() {
   return options_.stack_mode == mojom::StackMode::NATIVE_WITH_THREAD_NAMES ||
-         options_.stack_mode == mojom::StackMode::NATIVE_WITHOUT_THREAD_NAMES;
+         options_.stack_mode == mojom::StackMode::NATIVE_WITHOUT_THREAD_NAMES ||
+         options_.stack_mode == mojom::StackMode::MIXED;
 }
 
 void TestDriver::WaitForProfilingToStartForBrowserUIThread() {
@@ -751,7 +753,8 @@ void TestDriver::WaitForProfilingToStartForBrowserUIThread() {
     Supervisor::GetInstance()->GetProfiledPids(std::move(callback));
     run_loop.Run();
 
-    if (base::Contains(profiled_pids, base::GetCurrentProcId())) {
+    if (std::find(profiled_pids.begin(), profiled_pids.end(),
+                  base::GetCurrentProcId()) != profiled_pids.end()) {
       break;
     }
   }
@@ -793,7 +796,7 @@ void TestDriver::WaitForProfilingToStartForAllRenderersUIThreadCallback(
 
   // Brief sleep to prevent spamming the task queue, since this code is called
   // in a tight loop.
-  base::PlatformThread::Sleep(base::Microseconds(100));
+  base::PlatformThread::Sleep(base::TimeDelta::FromMicroseconds(100));
 
   WaitForProfilingToStartForAllRenderersUIThreadAndSignal();
 }

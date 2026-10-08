@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/process/process.h"
 #include "base/time/default_tick_clock.h"
 #include "content/browser/media/audio_log_factory.h"
 #include "content/public/browser/audio_service.h"
@@ -31,18 +30,16 @@ AudioServiceListener::~AudioServiceListener() {
   ServiceProcessHost::RemoveObserver(this);
 }
 
-base::Process AudioServiceListener::GetProcess() const {
+base::ProcessId AudioServiceListener::GetProcessId() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(owning_sequence_);
-  if (!audio_process_.IsValid())
-    return base::Process();
-  return audio_process_.Duplicate();
+  return process_id_;
 }
 
 void AudioServiceListener::Init(
     std::vector<ServiceProcessInfo> running_service_processes) {
   for (const auto& info : running_service_processes) {
     if (info.IsService<audio::mojom::AudioService>()) {
-      audio_process_ = info.GetProcess().Duplicate();
+      process_id_ = info.pid;
       MaybeSetLogFactory();
       break;
     }
@@ -55,7 +52,7 @@ void AudioServiceListener::OnServiceProcessLaunched(
   if (!info.IsService<audio::mojom::AudioService>())
     return;
 
-  audio_process_ = info.GetProcess().Duplicate();
+  process_id_ = info.pid;
   MaybeSetLogFactory();
 }
 
@@ -65,7 +62,7 @@ void AudioServiceListener::OnServiceProcessTerminatedNormally(
   if (!info.IsService<audio::mojom::AudioService>())
     return;
 
-  audio_process_ = base::Process();
+  process_id_ = base::kNullProcessId;
   log_factory_is_set_ = false;
 }
 
@@ -75,7 +72,7 @@ void AudioServiceListener::OnServiceProcessCrashed(
   if (!info.IsService<audio::mojom::AudioService>())
     return;
 
-  audio_process_ = base::Process();
+  process_id_ = base::kNullProcessId;
   log_factory_is_set_ = false;
 }
 

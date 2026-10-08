@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,4 @@ interface INavigateParams {
   void disableNetworkErrorAutoReload() = 2;
   void enableAutoPlay() = 3;
   void setResponse(in IObjectWrapper response) = 4;
-
-  // @since 89
-  void allowIntentLaunchesInBackground() = 5;
 }

@@ -25,6 +25,9 @@
 [Exposed=Window]
 interface SVGElement : Element {
     [MeasureAs=SVGClassName] readonly attribute SVGAnimatedString className;
+    // CSS Object Model (CSSOM)
+    // https://drafts.csswg.org/cssom/#the-elementcssinlinestyle-interface
+    [SameObject, PutForwards=cssText] readonly attribute CSSStyleDeclaration style;
 
     readonly attribute SVGSVGElement? ownerSVGElement;
     readonly attribute SVGElement? viewportElement;
@@ -33,4 +36,3 @@ interface SVGElement : Element {
 SVGElement includes GlobalEventHandlers;
 SVGElement includes DocumentAndElementEventHandlers;
 SVGElement includes HTMLOrForeignElement;
-SVGElement includes ElementCSSInlineStyle;

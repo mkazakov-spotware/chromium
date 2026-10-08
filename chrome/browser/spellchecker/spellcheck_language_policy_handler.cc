@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/syslog_logging.h"
 #include "base/values.h"
@@ -33,11 +32,11 @@ bool SpellcheckLanguagePolicyHandler::CheckPolicySettings(
   const base::Value* value = nullptr;
   bool ok = CheckAndGetValue(policies, errors, &value);
 
-  base::Value::List forced;
+  std::vector<base::Value> forced;
   std::vector<std::string> unknown;
   SortForcedLanguages(policies, &forced, &unknown);
 
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
   for (const auto& language : unknown) {
     errors->AddError(policy_name(), IDS_POLICY_SPELLCHECK_UNKNOWN_LANGUAGE,
                      language);
@@ -51,20 +50,19 @@ void SpellcheckLanguagePolicyHandler::ApplyPolicySettings(
     const policy::PolicyMap& policies,
     PrefValueMap* prefs) {
   // Ignore this policy if the SpellcheckEnabled policy disables spellcheck.
-  const base::Value* spellcheck_enabled_value = policies.GetValue(
-      policy::key::kSpellcheckEnabled, base::Value::Type::BOOLEAN);
-  if (spellcheck_enabled_value && !spellcheck_enabled_value->GetBool())
+  const base::Value* spellcheck_enabled_value =
+      policies.GetValue(policy::key::kSpellcheckEnabled);
+  if (spellcheck_enabled_value && spellcheck_enabled_value->GetBool() == false)
     return;
 
   // If this policy isn't set, don't modify spellcheck languages.
-  const base::Value* value =
-      policies.GetValue(policy_name(), base::Value::Type::LIST);
+  const base::Value* value = policies.GetValue(policy_name());
   if (!value)
     return;
 
   // Set the forced dictionaries preference based on this policy's values,
   // and emit warnings for unknown languages.
-  base::Value::List forced;
+  std::vector<base::Value> forced;
   std::vector<std::string> unknown;
   SortForcedLanguages(policies, &forced, &unknown);
 
@@ -81,24 +79,24 @@ void SpellcheckLanguagePolicyHandler::ApplyPolicySettings(
 
 void SpellcheckLanguagePolicyHandler::SortForcedLanguages(
     const policy::PolicyMap& policies,
-    base::Value::List* const forced,
+    std::vector<base::Value>* const forced,
     std::vector<std::string>* const unknown) {
-  const base::Value* value =
-      policies.GetValue(policy_name(), base::Value::Type::LIST);
+  const base::Value* value = policies.GetValue(policy_name());
   if (!value)
     return;
 
   // Separate the valid languages from the unknown / unsupported languages.
   for (const base::Value& language : value->GetList()) {
-    std::string candidate_language(
-        base::TrimWhitespaceASCII(language.GetString(), base::TRIM_ALL));
+    std::string candidate_language =
+        base::TrimWhitespaceASCII(language.GetString(), base::TRIM_ALL)
+            .as_string();
     std::string current_language =
         SpellcheckService::GetSupportedAcceptLanguageCode(candidate_language);
 
     if (current_language.empty()) {
       unknown->emplace_back(language.GetString());
     } else {
-      forced->Append(std::move(current_language));
+      forced->emplace_back(std::move(current_language));
     }
   }
 }

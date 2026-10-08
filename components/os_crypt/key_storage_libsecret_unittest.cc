@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 #include "base/lazy_instance.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "components/os_crypt/key_storage_libsecret.h"
 #include "components/os_crypt/libsecret_util_linux.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -74,7 +74,7 @@ class MockPasswordStore {
 
   std::unordered_map<GObject*, std::string> mapping_;
   std::vector<GObject*> objects_returned_to_caller_;
-  raw_ptr<GObject> password_ = nullptr;
+  GObject* password_ = nullptr;
 };
 base::LazyInstance<MockPasswordStore>::Leaky g_password_store =
     LAZY_INSTANCE_INITIALIZER;
@@ -225,35 +225,34 @@ void MockLibsecretLoader::TearDown() {
 class LibsecretTest : public testing::Test {
  public:
   LibsecretTest() = default;
-
-  LibsecretTest(const LibsecretTest&) = delete;
-  LibsecretTest& operator=(const LibsecretTest&) = delete;
-
   ~LibsecretTest() override = default;
 
   void SetUp() override { MockLibsecretLoader::ResetForOSCrypt(); }
 
   void TearDown() override { MockLibsecretLoader::TearDown(); }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LibsecretTest);
 };
 
 TEST_F(LibsecretTest, LibsecretRepeats) {
-  KeyStorageLibsecret libsecret("chromium");
+  KeyStorageLibsecret libsecret;
   MockLibsecretLoader::ResetForOSCrypt();
   g_password_store.Pointer()->SetPassword("initial password");
-  absl::optional<std::string> password = libsecret.GetKey();
+  base::Optional<std::string> password = libsecret.GetKey();
   EXPECT_TRUE(password.has_value());
   EXPECT_FALSE(password.value().empty());
-  absl::optional<std::string> password_repeat = libsecret.GetKey();
+  base::Optional<std::string> password_repeat = libsecret.GetKey();
   EXPECT_TRUE(password_repeat.has_value());
   EXPECT_EQ(password.value(), password_repeat.value());
 }
 
 TEST_F(LibsecretTest, LibsecretCreatesRandomised) {
-  KeyStorageLibsecret libsecret("chromium");
+  KeyStorageLibsecret libsecret;
   MockLibsecretLoader::ResetForOSCrypt();
-  absl::optional<std::string> password = libsecret.GetKey();
+  base::Optional<std::string> password = libsecret.GetKey();
   MockLibsecretLoader::ResetForOSCrypt();
-  absl::optional<std::string> password_new = libsecret.GetKey();
+  base::Optional<std::string> password_new = libsecret.GetKey();
   EXPECT_TRUE(password.has_value());
   EXPECT_TRUE(password_new.has_value());
   EXPECT_NE(password.value(), password_new.value());

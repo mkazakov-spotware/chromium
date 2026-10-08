@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -73,7 +73,7 @@ void MenuTestBase::TearDown() {
 std::unique_ptr<views::View> MenuTestBase::CreateContentsView() {
   auto button = std::make_unique<views::MenuButton>(
       base::BindRepeating(&MenuTestBase::ButtonPressed, base::Unretained(this)),
-      u"Menu Test");
+      base::ASCIIToUTF16("Menu Test"));
   button_ = button.get();
   return button;
 }

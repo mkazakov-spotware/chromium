@@ -1,10 +1,9 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/app_list/arc/arc_vpn_provider_manager.h"
 
-#include "base/check.h"
 #include "chrome/browser/ui/app_list/arc/arc_vpn_provider_manager_factory.h"
 
 namespace app_list {
@@ -159,9 +158,5 @@ ArcVpnProviderManager::ArcVpnProvider::ArcVpnProvider(
       last_launch_time(last_launch_time) {}
 
 ArcVpnProviderManager::ArcVpnProvider::~ArcVpnProvider() = default;
-
-ArcVpnProviderManager::Observer::~Observer() {
-  CHECK(!IsInObserverList());
-}
 
 }  // namespace app_list

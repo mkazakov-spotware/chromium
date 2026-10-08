@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromeos/services/network_config/in_process_instance.h"
 
 #include "base/no_destructor.h"
-#include "chromeos/ash/components/network/network_handler.h"
+#include "chromeos/network/network_handler.h"
 #include "chromeos/services/network_config/cros_network_config.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 

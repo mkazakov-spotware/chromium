@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define COMPONENTS_SYNC_BOOKMARKS_BOOKMARK_REMOTE_UPDATES_HANDLER_H_
 
 #include <map>
+#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
 #include "components/sync_bookmarks/synced_bookmark_tracker.h"
 
@@ -27,16 +27,19 @@ namespace sync_bookmarks {
 // server.
 class BookmarkRemoteUpdatesHandler {
  public:
+  enum class DuplicateBookmarkEntityOnRemoteUpdateCondition {
+    kServerIdTombstone = 0,
+    kTempSyncIdTombstone = 1,
+    kBothEntitiesNonTombstone = 2,
+
+    kMaxValue = kBothEntitiesNonTombstone,
+  };
+
   // |bookmark_model|, |favicon_service| and |bookmark_tracker| must not be null
   // and must outlive this object.
   BookmarkRemoteUpdatesHandler(bookmarks::BookmarkModel* bookmark_model,
                                favicon::FaviconService* favicon_service,
                                SyncedBookmarkTracker* bookmark_tracker);
-
-  BookmarkRemoteUpdatesHandler(const BookmarkRemoteUpdatesHandler&) = delete;
-  BookmarkRemoteUpdatesHandler& operator=(const BookmarkRemoteUpdatesHandler&) =
-      delete;
-
   // Processes the updates received from the sync server in |updates| and
   // updates the |bookmark_model_| and |bookmark_tracker_| accordingly. If
   // |got_new_encryption_requirements| is true, it recommits all tracked
@@ -46,8 +49,12 @@ class BookmarkRemoteUpdatesHandler {
                bool got_new_encryption_requirements);
 
   // Public for testing.
-  static std::vector<const syncer::UpdateResponseData*>
-  ReorderValidUpdatesForTest(const syncer::UpdateResponseDataList* updates);
+  static std::vector<const syncer::UpdateResponseData*> ReorderUpdatesForTest(
+      const syncer::UpdateResponseDataList* updates);
+
+  size_t valid_updates_without_full_title_for_uma() const {
+    return valid_updates_without_full_title_;
+  }
 
   static size_t ComputeChildNodeIndexForTest(
       const bookmarks::BookmarkNode* parent,
@@ -58,18 +65,9 @@ class BookmarkRemoteUpdatesHandler {
   // Reorders incoming updates such that parent creation is before child
   // creation and child deletion is before parent deletion, and deletions should
   // come last. The returned pointers point to the elements in the original
-  // |updates|. In this process, invalid updates are filtered out.
-  static std::vector<const syncer::UpdateResponseData*> ReorderValidUpdates(
+  // |updates|.
+  static std::vector<const syncer::UpdateResponseData*> ReorderUpdates(
       const syncer::UpdateResponseDataList* updates);
-
-  // Returns the tracked entity that should be affected by a remote change, or
-  // null if there is none (e.g. indicating a remote creation).
-  // |should_ignore_update| must not be null and it can be marked as true if the
-  // function reports that the update should not be processed further (e.g. it
-  // is invalid).
-  const SyncedBookmarkTrackerEntity* DetermineLocalTrackedEntityToUpdate(
-      const syncer::EntityData& update_entity,
-      bool* should_ignore_update);
 
   // Given a remote update entity, it returns the parent bookmark node of the
   // corresponding node. It returns null if the parent node cannot be found.
@@ -84,7 +82,7 @@ class BookmarkRemoteUpdatesHandler {
   //    registered in |bookmark_tracker_|.
   //
   // Returns the newly tracked entity or null if the creation failed.
-  const SyncedBookmarkTrackerEntity* ProcessCreate(
+  const SyncedBookmarkTracker::Entity* ProcessCreate(
       const syncer::UpdateResponseData& update);
 
   // Processes a remote update of a bookmark node. |update| must not be a
@@ -94,7 +92,7 @@ class BookmarkRemoteUpdatesHandler {
   // of performing a lookup inside ProcessUpdate() to avoid wasting CPU
   // cycles for doing another lookup (this code runs on the UI thread).
   void ProcessUpdate(const syncer::UpdateResponseData& update,
-                     const SyncedBookmarkTrackerEntity* tracked_entity);
+                     const SyncedBookmarkTracker::Entity* tracked_entity);
 
   // Processes a remote delete of a bookmark node. |update_entity| must not be a
   // deletion. |tracked_entity| is the tracked entity for that server_id. It is
@@ -102,20 +100,16 @@ class BookmarkRemoteUpdatesHandler {
   // ProcessDelete() to avoid wasting CPU cycles for doing another lookup
   // (this code runs on the UI thread).
   void ProcessDelete(const syncer::EntityData& update_entity,
-                     const SyncedBookmarkTrackerEntity* tracked_entity);
+                     const SyncedBookmarkTracker::Entity* tracked_entity);
 
   // Processes a conflict where the bookmark has been changed both locally and
   // remotely. It applies the general policy the server wins except in the case
   // of remote deletions in which local wins. |tracked_entity| is the tracked
   // entity for that server_id. It is passed as a dependency instead of
   // performing a lookup inside ProcessDelete() to avoid wasting CPU cycles for
-  // doing another lookup (this code runs on the UI thread). Returns the tracked
-  // entity (if any) as a result of resolving the conflict, which is often the
-  // same as the input |tracked_entity|, but may also be different, including
-  // null (if the conflict led to untracking).
-  [[nodiscard]] const SyncedBookmarkTrackerEntity* ProcessConflict(
-      const syncer::UpdateResponseData& update,
-      const SyncedBookmarkTrackerEntity* tracked_entity);
+  // doing another lookup (this code runs on the UI thread).
+  void ProcessConflict(const syncer::UpdateResponseData& update,
+                       const SyncedBookmarkTracker::Entity* tracked_entity);
 
   // Recursively removes the entities corresponding to |node| and its children
   // from |bookmark_tracker_|.
@@ -125,11 +119,16 @@ class BookmarkRemoteUpdatesHandler {
   // not be nullptr.
   void ReuploadEntityIfNeeded(
       const syncer::EntityData& entity_data,
-      const SyncedBookmarkTrackerEntity* tracked_entity);
+      const SyncedBookmarkTracker::Entity* tracked_entity);
 
-  const raw_ptr<bookmarks::BookmarkModel> bookmark_model_;
-  const raw_ptr<favicon::FaviconService> favicon_service_;
-  const raw_ptr<SyncedBookmarkTracker> bookmark_tracker_;
+  bookmarks::BookmarkModel* const bookmark_model_;
+  favicon::FaviconService* const favicon_service_;
+  SyncedBookmarkTracker* const bookmark_tracker_;
+
+  // Counts number of initiated reuploads.
+  size_t valid_updates_without_full_title_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(BookmarkRemoteUpdatesHandler);
 };
 
 }  // namespace sync_bookmarks

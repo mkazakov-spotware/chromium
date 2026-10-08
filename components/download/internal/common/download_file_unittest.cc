@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -15,11 +14,11 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/location.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_file_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/download/public/common/download_create_info.h"
 #include "components/download/public/common/download_destination_observer.h"
@@ -29,10 +28,6 @@
 #include "net/base/net_errors.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-#if BUILDFLAG(IS_WIN)
-#include "base/win/scoped_com_initializer.h"
-#endif
 
 using ::testing::_;
 using ::testing::AnyNumber;
@@ -119,10 +114,10 @@ class TestDownloadFileImpl : public DownloadFileImpl {
 
  protected:
   base::TimeDelta GetRetryDelayForFailedRename(int attempt_count) override {
-    return base::Milliseconds(0);
+    return base::TimeDelta::FromMilliseconds(0);
   }
 
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
   // On Posix, we don't encounter transient errors during renames, except
   // possibly EAGAIN, which is difficult to replicate reliably. So we resort to
   // simulating a transient error using ACCESS_DENIED instead.
@@ -174,9 +169,6 @@ class DownloadFileTest : public testing::Test {
   }
 
   void SetUp() override {
-#if BUILDFLAG(IS_WIN)
-    ASSERT_TRUE(com_initializer_.Succeeded());
-#endif
     EXPECT_CALL(*(observer_.get()), DestinationUpdate(_, _, _))
         .Times(AnyNumber())
         .WillRepeatedly(Invoke(this, &DownloadFileTest::SetUpdateDownloadInfo));
@@ -246,8 +238,7 @@ class DownloadFileTest : public testing::Test {
       int data_len = strlen(kTestData1);
       while (len > 0) {
         int bytes_to_write = len > data_len ? data_len : len;
-        base::AppendToFile(save_info->file_path,
-                           base::StringPiece(kTestData1, bytes_to_write));
+        base::AppendToFile(save_info->file_path, kTestData1, bytes_to_write);
         len -= bytes_to_write;
       }
     }
@@ -255,10 +246,10 @@ class DownloadFileTest : public testing::Test {
     save_info->offset = 0;
     save_info->file_offset = file_offset;
 
-    download_file_ = std::make_unique<TestDownloadFileImpl>(
+    download_file_.reset(new TestDownloadFileImpl(
         std::move(save_info), download_dir_.GetPath(),
         std::unique_ptr<MockInputStream>(input_stream_),
-        DownloadItem::kInvalidId, observer_factory_.GetWeakPtr());
+        DownloadItem::kInvalidId, observer_factory_.GetWeakPtr()));
 
     EXPECT_CALL(*input_stream_, Read(_, _))
         .WillOnce(Return(InputStream::EMPTY))
@@ -268,12 +259,12 @@ class DownloadFileTest : public testing::Test {
     DownloadInterruptReason result = DOWNLOAD_INTERRUPT_REASON_NONE;
     base::RunLoop loop_runner;
     download_file_->SetTaskRunnerForTesting(
-        base::SequencedTaskRunner::GetCurrentDefault());
+        base::SequencedTaskRunnerHandle::Get());
     download_file_->Initialize(
         base::BindRepeating(&DownloadFileTest::SetInterruptReasonCallback,
                             weak_ptr_factory.GetWeakPtr(),
                             loop_runner.QuitClosure(), &result),
-        DownloadFile::CancelRequestCallback(), received_slices);
+        DownloadFile::CancelRequestCallback(), received_slices, true);
     loop_runner.Run();
 
     ::testing::Mock::VerifyAndClearExpectations(input_stream_);
@@ -482,14 +473,6 @@ class DownloadFileTest : public testing::Test {
     return download_file_->TotalBytesReceived();
   }
 
- private:
-#if BUILDFLAG(IS_WIN)
-  // This must occur early in the member list to ensure COM is initialized first
-  // and uninitialized last.
-  base::win::ScopedCOMInitializer com_initializer_;
-#endif
-
- protected:
   std::unique_ptr<StrictMock<MockDownloadDestinationObserver>> observer_;
   base::WeakPtrFactory<DownloadDestinationObserver> observer_factory_;
 
@@ -725,14 +708,8 @@ TEST_F(DownloadFileTest, RenameRecognizesSelfConflict) {
   EXPECT_EQ(initial_path.value(), new_path.value());
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
-// TODO(crbug.com/1314071): Re-enable when RenameError works on Fuchsia.
-#define MAYBE_RenameError DISABLED_RenameError
-#else
-#define MAYBE_RenameError RenameError
-#endif
 // Test to make sure we get the proper error on failure.
-TEST_P(DownloadFileTestWithRename, MAYBE_RenameError) {
+TEST_P(DownloadFileTestWithRename, RenameError) {
   ASSERT_TRUE(CreateDownloadFile(true));
   base::FilePath initial_path(download_file_->FullPath());
 
@@ -778,13 +755,6 @@ void TestRenameCompletionCallback(base::OnceClosure closure,
 
 }  // namespace
 
-#if BUILDFLAG(IS_FUCHSIA)
-// TODO(crbug.com/1314072): Re-enable when RenameWithErrorRetry works on
-// Fuchsia.
-#define MAYBE_RenameWithErrorRetry DISABLED_RenameWithErrorRetry
-#else
-#define MAYBE_RenameWithErrorRetry RenameWithErrorRetry
-#endif
 // Test that the retry logic works. This test assumes that DownloadFileImpl will
 // post tasks to the current message loop (acting as the download sequence)
 // asynchronously to retry the renames. We will stuff RunLoop::QuitClosures()
@@ -794,7 +764,7 @@ void TestRenameCompletionCallback(base::OnceClosure closure,
 // Note that there is only one queue of tasks to run, and that is in the tests'
 // base::CurrentThread::Get(). Each RunLoop processes that queue until it
 // sees a QuitClosure() targeted at itself, at which point it stops processing.
-TEST_P(DownloadFileTestWithRename, MAYBE_RenameWithErrorRetry) {
+TEST_P(DownloadFileTestWithRename, RenameWithErrorRetry) {
   ASSERT_TRUE(CreateDownloadFile(true));
   base::FilePath initial_path(download_file_->FullPath());
 
@@ -813,7 +783,7 @@ TEST_P(DownloadFileTestWithRename, MAYBE_RenameWithErrorRetry) {
   base::RunLoop succeeding_run;
   {
 // (Scope for the base::File or base::FilePermissionRestorer below.)
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // On Windows we test with an actual transient error, a sharing violation.
     // The rename will fail because we are holding the file open for READ. On
     // Posix this doesn't cause a failure.
@@ -841,7 +811,7 @@ TEST_P(DownloadFileTestWithRename, MAYBE_RenameWithErrorRetry) {
     // Rename() will be in front of the QuitClosure(). Running the message loop
     // now causes the just the first retry task to be run. The rename still
     // fails, so another retry task would get queued behind the QuitClosure().
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, first_failing_run.QuitClosure());
     first_failing_run.Run();
     EXPECT_FALSE(did_run_callback);
@@ -849,7 +819,7 @@ TEST_P(DownloadFileTestWithRename, MAYBE_RenameWithErrorRetry) {
     // Running another loop should have the same effect as the above as long as
     // kMaxRenameRetries is greater than 2.
     base::RunLoop second_failing_run;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, second_failing_run.QuitClosure());
     second_failing_run.Run();
     EXPECT_FALSE(did_run_callback);

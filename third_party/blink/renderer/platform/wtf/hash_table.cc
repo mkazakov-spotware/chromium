@@ -22,14 +22,13 @@
 #if DUMP_HASHTABLE_STATS || DUMP_HASHTABLE_STATS_PER_TABLE
 
 #include <iomanip>
-
-#include "base/synchronization/lock.h"
+#include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 
 namespace WTF {
 
-static base::Locks& HashTableStatsLock() {
-  DEFINE_THREAD_SAFE_STATIC_LOCAL(base::Lock, lock, ());
-  return lock;
+static Mutex& hashTableStatsMutex() {
+  DEFINE_THREAD_SAFE_STATIC_LOCAL(Mutex, mutex, ());
+  return mutex;
 }
 
 HashTableStats& HashTableStats::instance() {
@@ -51,7 +50,7 @@ void HashTableStats::copy(const HashTableStats* other) {
 void HashTableStats::recordCollisionAtCount(int count) {
   // The global hash table singleton needs to be atomically updated.
   if (this == &instance()) {
-    base::AutoLock locker(HashTableStatsLock());
+    MutexLocker locker(hashTableStatsMutex());
     RecordCollisionAtCountWithoutLock(count);
   } else {
     RecordCollisionAtCountWithoutLock(count);
@@ -68,7 +67,7 @@ void HashTableStats::RecordCollisionAtCountWithoutLock(int count) {
 void HashTableStats::DumpStats() {
   // Lock the global hash table singleton while dumping.
   if (this == &instance()) {
-    base::AutoLock locker(HashTableStatsLock());
+    MutexLocker locker(hashTableStatsMutex());
     DumpStatsWithoutLock();
   } else {
     DumpStatsWithoutLock();

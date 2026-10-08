@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/environment.h"
+#include "base/macros.h"
 #include "base/test/test_reg_util_win.h"
 #include "base/win/registry.h"
 #include "build/branding_buildflags.h"
@@ -43,8 +44,8 @@ class TestConfiguration : public Configuration {
     EXPECT_TRUE(ParseCommandLine(command_line));
   }
 
-  TestConfiguration(const TestConfiguration&) = delete;
-  TestConfiguration& operator=(const TestConfiguration&) = delete;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestConfiguration);
 };
 
 }  // namespace
@@ -52,11 +53,6 @@ class TestConfiguration : public Configuration {
 class MiniInstallerConfigurationTest : public ::testing::Test {
  protected:
   MiniInstallerConfigurationTest() = default;
-
-  MiniInstallerConfigurationTest(const MiniInstallerConfigurationTest&) =
-      delete;
-  MiniInstallerConfigurationTest& operator=(
-      const MiniInstallerConfigurationTest&) = delete;
 
   void SetUp() override {
     ASSERT_NO_FATAL_FAILURE(
@@ -67,6 +63,8 @@ class MiniInstallerConfigurationTest : public ::testing::Test {
 
  private:
   registry_util::RegistryOverrideManager registry_overrides_;
+
+  DISALLOW_COPY_AND_ASSIGN(MiniInstallerConfigurationTest);
 };
 
 TEST_F(MiniInstallerConfigurationTest, Program) {

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,10 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "base/test/test_timeouts.h"
-#include "build/build_config.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "content/public/browser/storage_partition.h"
@@ -36,7 +37,8 @@ class UDPSocketUnitTest : public extensions::ExtensionServiceTestBase {
 
   std::unique_ptr<UDPSocket> CreateSocket() {
     network::mojom::NetworkContext* network_context =
-        profile()->GetDefaultStoragePartition()->GetNetworkContext();
+        content::BrowserContext::GetDefaultStoragePartition(profile())
+            ->GetNetworkContext();
     mojo::PendingRemote<network::mojom::UDPSocket> socket;
     mojo::PendingRemote<network::mojom::UDPSocketListener> listener_remote;
     mojo::PendingReceiver<network::mojom::UDPSocketListener> listener_receiver =
@@ -62,7 +64,7 @@ static void OnCompleted(int bytes_read,
 }
 
 static const char kTestMessage[] = "$$TESTMESSAGETESTMESSAGETESTMESSAGETEST$$";
-static const int kTestMessageLength = std::size(kTestMessage);
+static const int kTestMessageLength = base::size(kTestMessage);
 
 net::AddressList CreateAddressList(const char* address_string, int port) {
   net::IPAddress ip;
@@ -138,25 +140,24 @@ TEST_F(UDPSocketUnitTest, TestUDPMulticastLoopbackMode) {
 
 // Send a test multicast packet every second.
 // Once the target socket received the packet, the message loop will exit.
-static void SendMulticastPacket(base::OnceClosure quit_run_loop,
+static void SendMulticastPacket(const base::Closure& quit_run_loop,
                                 UDPSocket* src,
                                 int result) {
   if (result == 0) {
     scoped_refptr<net::IOBuffer> data =
         base::MakeRefCounted<net::WrappedIOBuffer>(kTestMessage);
     src->Write(data, kTestMessageLength, base::BindOnce(&OnSendCompleted));
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
-        base::BindOnce(&SendMulticastPacket, std::move(quit_run_loop), src,
-                       result),
-        base::Seconds(1));
+        base::BindOnce(&SendMulticastPacket, quit_run_loop, src, result),
+        base::TimeDelta::FromSeconds(1));
   } else {
-    std::move(quit_run_loop).Run();
+    quit_run_loop.Run();
     FAIL() << "Failed to connect to multicast address. Error code: " << result;
   }
 }
 
-static void OnMulticastReadCompleted(base::OnceClosure quit_run_loop,
+static void OnMulticastReadCompleted(const base::Closure& quit_run_loop,
                                      bool* packet_received,
                                      int count,
                                      scoped_refptr<net::IOBuffer> io_buffer,
@@ -166,16 +167,10 @@ static void OnMulticastReadCompleted(base::OnceClosure quit_run_loop,
   EXPECT_EQ(kTestMessageLength, count);
   EXPECT_EQ(0, strncmp(io_buffer->data(), kTestMessage, kTestMessageLength));
   *packet_received = true;
-  std::move(quit_run_loop).Run();
+  quit_run_loop.Run();
 }
 
-// TODO(https://crbug.com/1210643): Test is flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_TestUDPMulticastRecv DISABLED_TestUDPMulticastRecv
-#else
-#define MAYBE_TestUDPMulticastRecv TestUDPMulticastRecv
-#endif
-TEST_F(UDPSocketUnitTest, MAYBE_TestUDPMulticastRecv) {
+TEST_F(UDPSocketUnitTest, TestUDPMulticastRecv) {
   const int kPort = 9999;
   const char kGroup[] = "237.132.100.17";
   bool packet_received = false;
@@ -206,7 +201,7 @@ TEST_F(UDPSocketUnitTest, MAYBE_TestUDPMulticastRecv) {
       base::BindOnce(&SendMulticastPacket, run_loop.QuitClosure(), src.get()));
 
   // If not received within the test action timeout, quit the message loop.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, run_loop.QuitClosure(), TestTimeouts::action_timeout());
 
   run_loop.Run();

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ void SlidingTimeDeltaAverage::AddSample(base::TimeDelta value) {
 
 base::TimeDelta SlidingTimeDeltaAverage::GetAverageOrDefault(
     base::TimeDelta default_value) const {
-  return base::Microseconds(
+  return base::TimeDelta::FromMicroseconds(
       sample_microseconds_.GetAverageOrDefault(default_value.InMicroseconds()));
 }
 

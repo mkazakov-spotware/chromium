@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,19 @@
 
 #include "base/i18n/case_conversion.h"
 #include "base/location.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/views/exclusive_access_bubble_views_context.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
+#include "chrome/browser/ui/views/subtle_notification_view.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/fullscreen_control/subtle_notification_view.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -27,12 +28,13 @@
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/canvas.h"
 #include "ui/strings/grit/ui_strings.h"
+#include "ui/views/bubble/bubble_border.h"
 #include "ui/views/controls/link.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "ui/base/l10n/l10n_util_win.h"
 #endif
 
@@ -52,7 +54,7 @@ ExclusiveAccessBubbleViews::ExclusiveAccessBubbleViews(
   auto content_view = std::make_unique<SubtleNotificationView>();
   view_ = content_view.get();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   // Technically the exit fullscreen key on ChromeOS is F11 and the
   // "Fullscreen" key on the keyboard is just translated to F11 or F4 (which
   // is also a toggle-fullscreen command on ChromeOS). However most Chromebooks
@@ -80,10 +82,9 @@ ExclusiveAccessBubbleViews::ExclusiveAccessBubbleViews(
   popup_ = SubtleNotificationView::CreatePopupWidget(
       bubble_view_context_->GetBubbleParentView(), std::move(content_view));
 
-  gfx::Rect popup_rect = GetPopupRect();
-  gfx::Size size = popup_rect.size();
+  gfx::Size size = GetPopupRect(true).size();
   // Bounds are in screen coordinates.
-  popup_->SetBounds(popup_rect);
+  popup_->SetBounds(GetPopupRect(false));
   // Why is this special enough to require the "security surface" level? A
   // decision was made a long time ago to not require confirmation when a site
   // asks to go fullscreen, and that's not changing. However, a site going
@@ -98,9 +99,8 @@ ExclusiveAccessBubbleViews::ExclusiveAccessBubbleViews(
   view_->SetBounds(0, 0, size.width(), size.height());
   popup_->AddObserver(this);
 
-  fullscreen_observation_.Observe(
-      bubble_view_context_->GetExclusiveAccessManager()
-          ->fullscreen_controller());
+  fullscreen_observer_.Add(bubble_view_context_->GetExclusiveAccessManager()
+                               ->fullscreen_controller());
 
   UpdateMouseWatcher();
 }
@@ -120,8 +120,7 @@ ExclusiveAccessBubbleViews::~ExclusiveAccessBubbleViews() {
   // the popup to synchronously hide, and then asynchronously close and delete
   // itself.
   popup_->Close();
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE,
-                                                                popup_.get());
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, popup_);
   CHECK(!views::WidgetObserver::IsInObserverList());
 }
 
@@ -129,19 +128,10 @@ void ExclusiveAccessBubbleViews::UpdateContent(
     const GURL& url,
     ExclusiveAccessBubbleType bubble_type,
     ExclusiveAccessBubbleHideCallback bubble_first_hide_callback,
-    bool notify_download,
     bool force_update) {
-  DCHECK(EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE != bubble_type || notify_download);
+  DCHECK_NE(EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE, bubble_type);
   if (bubble_type_ == bubble_type && url_ == url && !force_update)
     return;
-
-  // Show the notification about overriding only if requesting a download
-  // notification, a notification was visible earlier, and the earlier
-  // notification was either a non-download one, or was one about an override
-  // itself.
-  notify_overridden_ = notify_download && IsVisible() &&
-                       (!notify_download_ || notify_overridden_);
-  notify_download_ = notify_download;
 
   // Bubble maybe be re-used after timeout.
   RunHideCallbackIfNeeded(ExclusiveAccessBubbleHideReason::kInterrupted);
@@ -149,15 +139,12 @@ void ExclusiveAccessBubbleViews::UpdateContent(
   bubble_first_hide_callback_ = std::move(bubble_first_hide_callback);
 
   url_ = url;
-  // When a request to notify about a download is made, the bubble type
-  // should be preserved from the old value, and not be updated.
-  if (!notify_download) {
-    bubble_type_ = bubble_type;
-  }
+  bubble_type_ = bubble_type;
   UpdateViewContent(bubble_type_);
 
-  view_->SizeToPreferredSize();
-  popup_->SetBounds(GetPopupRect());
+  gfx::Size size = GetPopupRect(true).size();
+  view_->SetSize(size);
+  popup_->SetBounds(GetPopupRect(false));
   Show();
 
   // Stop watching the mouse even if UpdateMouseWatcher() will start watching
@@ -169,7 +156,16 @@ void ExclusiveAccessBubbleViews::UpdateContent(
 }
 
 void ExclusiveAccessBubbleViews::RepositionIfVisible() {
-  if (IsVisible())
+#if defined(OS_MAC)
+  // Due to a quirk on the Mac, the popup will not be visible for a short period
+  // of time after it is shown (it's asynchronous) so if we don't check the
+  // value of the animation we'll have a stale version of the bounds when we
+  // show it and it will appear in the wrong place - typically where the window
+  // was located before going to fullscreen.
+  if (popup_->IsVisible() || animation_->GetCurrentValue() > 0.0)
+#else
+  if (popup_->IsVisible())
+#endif
     UpdateBounds();
 }
 
@@ -179,7 +175,7 @@ void ExclusiveAccessBubbleViews::HideImmediately() {
 
   RunHideCallbackIfNeeded(ExclusiveAccessBubbleHideReason::kInterrupted);
 
-  animation_->SetSlideDuration(base::Milliseconds(150));
+  animation_->SetSlideDuration(base::TimeDelta::FromMilliseconds(150));
   animation_->Hide();
 }
 
@@ -204,7 +200,7 @@ void ExclusiveAccessBubbleViews::UpdateMouseWatcher() {
 }
 
 void ExclusiveAccessBubbleViews::UpdateBounds() {
-  gfx::Rect popup_rect(GetPopupRect());
+  gfx::Rect popup_rect(GetPopupRect(false));
   if (!popup_rect.IsEmpty()) {
     popup_->SetBounds(popup_rect);
     view_->SetY(popup_rect.height() - view_->height());
@@ -215,33 +211,22 @@ void ExclusiveAccessBubbleViews::UpdateViewContent(
     ExclusiveAccessBubbleType bubble_type) {
   DCHECK_NE(EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE, bubble_type);
 
-  std::u16string accelerator;
-  if (exclusive_access_bubble::IsExclusiveAccessModeBrowserFullscreen(
-          bubble_type)) {
+  base::string16 accelerator;
+  if (bubble_type ==
+          EXCLUSIVE_ACCESS_BUBBLE_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION ||
+      bubble_type ==
+          EXCLUSIVE_ACCESS_BUBBLE_TYPE_EXTENSION_FULLSCREEN_EXIT_INSTRUCTION) {
     accelerator = browser_fullscreen_exit_accelerator_;
   } else {
     accelerator = l10n_util::GetStringUTF16(IDS_APP_ESC_KEY);
-#if BUILDFLAG(IS_MAC)
-    // Mac keyboards use lowercase for the non-letter keys, and since the key is
-    // placed in a box to make it look like a keyboard key it looks weird to not
-    // follow suit.
-    accelerator = base::i18n::ToLower(accelerator);
-#endif
   }
-  view_->UpdateContent(GetInstructionText(accelerator));
-}
-
-bool ExclusiveAccessBubbleViews::IsVisible() {
-#if BUILDFLAG(IS_MAC)
-  // Due to a quirk on the Mac, the popup will not be visible for a short period
-  // of time after it is shown (it's asynchronous) so if we don't check the
-  // value of the animation we'll have a stale version of the bounds when we
-  // show it and it will appear in the wrong place - typically where the window
-  // was located before going to fullscreen.
-  return (popup_->IsVisible() || animation_->GetCurrentValue() > 0.0);
-#else
-  return (popup_->IsVisible());
+#if defined(OS_MAC)
+  // Mac keyboards use lowercase for everything except function keys, which are
+  // typically reserved for system use. Since |accelerator| is placed in a box
+  // to make it look like a keyboard key it looks weird to not follow suit.
+  accelerator = base::i18n::ToLower(accelerator);
 #endif
+  view_->UpdateContent(GetInstructionText(accelerator));
 }
 
 views::View* ExclusiveAccessBubbleViews::GetBrowserRootView() const {
@@ -266,7 +251,8 @@ void ExclusiveAccessBubbleViews::AnimationEnded(
   AnimationProgressed(animation);
 }
 
-gfx::Rect ExclusiveAccessBubbleViews::GetPopupRect() const {
+gfx::Rect ExclusiveAccessBubbleViews::GetPopupRect(
+    bool ignore_animation_state) const {
   gfx::Size size(view_->GetPreferredSize());
   gfx::Rect widget_bounds = bubble_view_context_->GetClientAreaBoundsInScreen();
   int x = widget_bounds.x() + (widget_bounds.width() - size.width()) / 2;
@@ -286,8 +272,8 @@ gfx::Rect ExclusiveAccessBubbleViews::GetPopupRect() const {
         bubble_view_context_->GetTopContainerBoundsInScreen().bottom();
   }
   // |desired_top| is the top of the bubble area including the shadow.
-  const int desired_top = kSimplifiedPopupTopPx - view_->GetInsets().top();
-  const int y = top_container_bottom + desired_top;
+  int desired_top = kSimplifiedPopupTopPx - view_->border()->GetInsets().top();
+  int y = top_container_bottom + desired_top;
 
   return gfx::Rect(gfx::Point(x, y), size);
 }
@@ -311,14 +297,14 @@ void ExclusiveAccessBubbleViews::Hide() {
   DCHECK(!IsHideTimeoutRunning());
   RunHideCallbackIfNeeded(ExclusiveAccessBubbleHideReason::kTimeout);
 
-  animation_->SetSlideDuration(base::Milliseconds(700));
+  animation_->SetSlideDuration(base::TimeDelta::FromMilliseconds(700));
   animation_->Hide();
 }
 
 void ExclusiveAccessBubbleViews::Show() {
   if (animation_->IsShowing())
     return;
-  animation_->SetSlideDuration(base::Milliseconds(350));
+  animation_->SetSlideDuration(base::TimeDelta::FromMilliseconds(350));
   animation_->Show();
 }
 

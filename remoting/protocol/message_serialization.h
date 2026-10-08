@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 #include "remoting/base/compound_buffer.h"
 #include "third_party/protobuf/src/google/protobuf/message_lite.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 template <class T>
 std::unique_ptr<T> ParseMessage(CompoundBuffer* buffer) {
@@ -34,6 +35,7 @@ std::unique_ptr<T> ParseMessage(CompoundBuffer* buffer) {
 scoped_refptr<net::IOBufferWithSize> SerializeAndFrameMessage(
     const google::protobuf::MessageLite& msg);
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_MESSAGE_SERIALIZATION_H_

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,41 +7,29 @@
 #include <algorithm>
 
 #include "ash/accessibility/accessibility_controller_impl.h"
-#include "ash/constants/tray_background_view_catalog.h"
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
-#include "ash/metrics/user_metrics_recorder.h"
 #include "ash/resources/vector_icons/vector_icons.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
-#include "ash/style/ash_color_id.h"
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_container.h"
+#include "ash/system/tray/tray_utils.h"
+#include "chromeos/constants/chromeos_switches.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/models/image_model.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
-#include "ui/views/border.h"
+#include "ui/gfx/image/image_skia.h"
+#include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/controls/image_view.h"
 
 namespace ash {
 
-VirtualKeyboardTray::VirtualKeyboardTray(
-    Shelf* shelf,
-    TrayBackgroundViewCatalogName catalog_name)
-    : TrayBackgroundView(shelf, catalog_name),
-      icon_(new views::ImageView),
-      shelf_(shelf) {
-  const ui::ImageModel image = ui::ImageModel::FromVectorIcon(
-      kShelfKeyboardNewuiIcon, kColorAshIconColorPrimary);
-  icon_->SetImage(image);
-  icon_->SetTooltipText(l10n_util::GetStringUTF16(
-      IDS_ASH_STATUS_TRAY_ACCESSIBILITY_VIRTUAL_KEYBOARD));
-  const int vertical_padding = (kTrayItemSize - image.Size().height()) / 2;
-  const int horizontal_padding = (kTrayItemSize - image.Size().width()) / 2;
-  icon_->SetBorder(views::CreateEmptyBorder(
-      gfx::Insets::VH(vertical_padding, horizontal_padding)));
+VirtualKeyboardTray::VirtualKeyboardTray(Shelf* shelf)
+    : TrayBackgroundView(shelf), icon_(new views::ImageView), shelf_(shelf) {
+  UpdateIcon();
   tray_container()->AddChildView(icon_);
 
   // The Shell may not exist in some unit tests.
@@ -67,7 +55,7 @@ void VirtualKeyboardTray::Initialize() {
       Shell::Get()->accessibility_controller()->virtual_keyboard().enabled());
 }
 
-std::u16string VirtualKeyboardTray::GetAccessibleNameForTray() {
+base::string16 VirtualKeyboardTray::GetAccessibleNameForTray() {
   return l10n_util::GetStringUTF16(
       IDS_ASH_VIRTUAL_KEYBOARD_TRAY_ACCESSIBLE_NAME);
 }
@@ -120,8 +108,27 @@ void VirtualKeyboardTray::OnKeyboardVisibilityChanged(const bool is_visible) {
   SetIsActive(is_visible);
 }
 
+void VirtualKeyboardTray::OnSessionStateChanged(
+    session_manager::SessionState state) {
+  UpdateIcon();
+}
+
 const char* VirtualKeyboardTray::GetClassName() const {
   return "VirtualKeyboardTray";
+}
+
+void VirtualKeyboardTray::UpdateIcon() {
+  const gfx::VectorIcon& icon = kShelfKeyboardNewuiIcon;
+  gfx::ImageSkia image = gfx::CreateVectorIcon(
+      icon,
+      TrayIconColor(Shell::Get()->session_controller()->GetSessionState()));
+  icon_->SetImage(image);
+  icon_->SetTooltipText(l10n_util::GetStringUTF16(
+      IDS_ASH_STATUS_TRAY_ACCESSIBILITY_VIRTUAL_KEYBOARD));
+  const int vertical_padding = (kTrayItemSize - image.height()) / 2;
+  const int horizontal_padding = (kTrayItemSize - image.width()) / 2;
+  icon_->SetBorder(views::CreateEmptyBorder(
+      gfx::Insets(vertical_padding, horizontal_padding)));
 }
 
 }  // namespace ash

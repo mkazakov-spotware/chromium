@@ -1,9 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/multiprocess_test.h"
@@ -53,22 +52,23 @@ class JsonParserSandboxSetupTest : public base::MultiProcessTest {
 void ParseCallbackExpectedKeyValue(const std::string& expected_key,
                                    const std::string& expected_value,
                                    WaitableEvent* done,
-                                   absl::optional<base::Value> value,
-                                   const absl::optional<std::string>& error) {
+                                   base::Optional<base::Value> value,
+                                   const base::Optional<std::string>& error) {
   ASSERT_FALSE(error.has_value());
   ASSERT_TRUE(value.has_value());
   ASSERT_TRUE(value->is_dict());
-  const base::Value::Dict* dict = value->GetIfDict();
-  ASSERT_TRUE(dict);
+  const base::DictionaryValue* dict;
+  ASSERT_TRUE(value->GetAsDictionary(&dict));
 
-  const std::string* string_value = dict->FindString(expected_key);
-  EXPECT_EQ(expected_value, *string_value);
+  std::string string_value;
+  ASSERT_TRUE(dict->GetString(expected_key, &string_value));
+  EXPECT_EQ(expected_value, string_value);
   done->Signal();
 }
 
 void ParseCallbackExpectedError(WaitableEvent* done,
-                                absl::optional<base::Value> value,
-                                const absl::optional<std::string>& error) {
+                                base::Optional<base::Value> value,
+                                const base::Optional<std::string>& error) {
   ASSERT_TRUE(error.has_value());
   EXPECT_FALSE(error->empty());
   done->Signal();

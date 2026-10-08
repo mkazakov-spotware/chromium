@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "content/common/content_export.h"
 
@@ -41,9 +42,6 @@ class CONTENT_EXPORT SwapMetricsDriver {
   // Delegate class that handles the metrics computed by SwapMetricsDriver.
   class CONTENT_EXPORT Delegate {
    public:
-    Delegate(const Delegate&) = delete;
-    Delegate& operator=(const Delegate&) = delete;
-
     virtual ~Delegate();
 
     virtual void OnSwapInCount(uint64_t count, base::TimeDelta interval) {}
@@ -56,6 +54,9 @@ class CONTENT_EXPORT SwapMetricsDriver {
 
    protected:
     Delegate();
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Delegate);
   };
 
   virtual ~SwapMetricsDriver() {}

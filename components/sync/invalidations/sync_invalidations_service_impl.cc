@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,14 @@
 
 #include <utility>
 
-#include "components/sync/base/features.h"
 #include "components/sync/invalidations/fcm_handler.h"
+#include "components/sync/invalidations/switches.h"
 
 namespace syncer {
 
 namespace {
 
+// TODO(crbug.com/1082115): change to real sync sender id: 8181035976.
 constexpr char kSenderId[] = "361488507004";
 constexpr char kApplicationId[] = "com.google.chrome.sync.invalidations";
 
@@ -26,6 +27,19 @@ SyncInvalidationsServiceImpl::SyncInvalidationsServiceImpl(
 }
 
 SyncInvalidationsServiceImpl::~SyncInvalidationsServiceImpl() = default;
+
+void SyncInvalidationsServiceImpl::SetActive(bool active) {
+  if (!base::FeatureList::IsEnabled(switches::kUseSyncInvalidations) ||
+      fcm_handler_->IsListening() == active) {
+    return;
+  }
+
+  if (active) {
+    fcm_handler_->StartListening();
+  } else {
+    fcm_handler_->StopListeningPermanently();
+  }
+}
 
 void SyncInvalidationsServiceImpl::AddListener(
     InvalidationsListener* listener) {
@@ -47,32 +61,8 @@ void SyncInvalidationsServiceImpl::RemoveTokenObserver(
   fcm_handler_->RemoveTokenObserver(observer);
 }
 
-void SyncInvalidationsServiceImpl::StartListening() {
-  if (!base::FeatureList::IsEnabled(kUseSyncInvalidations) ||
-      fcm_handler_->IsListening()) {
-    return;
-  }
-  fcm_handler_->StartListening();
-}
-
-void SyncInvalidationsServiceImpl::StopListening() {
-  fcm_handler_->StopListening();
-}
-
-void SyncInvalidationsServiceImpl::StopListeningPermanently() {
-  if (!fcm_handler_->IsListening()) {
-    return;
-  }
-  DCHECK(base::FeatureList::IsEnabled(kUseSyncInvalidations));
-  fcm_handler_->StopListeningPermanently();
-}
-
-absl::optional<std::string>
-SyncInvalidationsServiceImpl::GetFCMRegistrationToken() const {
-  // Return empty token if standalone invalidations are off.
-  if (!base::FeatureList::IsEnabled(kUseSyncInvalidations)) {
-    return std::string();
-  }
+const std::string& SyncInvalidationsServiceImpl::GetFCMRegistrationToken()
+    const {
   return fcm_handler_->GetFCMRegistrationToken();
 }
 
@@ -81,21 +71,15 @@ void SyncInvalidationsServiceImpl::SetInterestedDataTypesHandler(
   data_types_manager_.SetInterestedDataTypesHandler(handler);
 }
 
-absl::optional<ModelTypeSet>
-SyncInvalidationsServiceImpl::GetInterestedDataTypes() const {
+const ModelTypeSet& SyncInvalidationsServiceImpl::GetInterestedDataTypes()
+    const {
   return data_types_manager_.GetInterestedDataTypes();
 }
 
 void SyncInvalidationsServiceImpl::SetInterestedDataTypes(
-    const ModelTypeSet& data_types) {
-  data_types_manager_.SetInterestedDataTypes(data_types);
-}
-
-void SyncInvalidationsServiceImpl::
-    SetCommittedAdditionalInterestedDataTypesCallback(
-        InterestedDataTypesAppliedCallback callback) {
-  data_types_manager_.SetCommittedAdditionalInterestedDataTypesCallback(
-      std::move(callback));
+    const ModelTypeSet& data_types,
+    InterestedDataTypesAppliedCallback callback) {
+  data_types_manager_.SetInterestedDataTypes(data_types, std::move(callback));
 }
 
 void SyncInvalidationsServiceImpl::Shutdown() {

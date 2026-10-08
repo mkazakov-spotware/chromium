@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/macros.h"
+#include "base/single_thread_task_runner.h"
 #include "remoting/protocol/channel_dispatcher_base.h"
 #include "remoting/protocol/clipboard_filter.h"
 #include "remoting/protocol/connection_to_host.h"
@@ -18,7 +18,8 @@
 #include "remoting/protocol/session.h"
 #include "remoting/protocol/webrtc_transport.h"
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
 class ClientControlDispatcher;
 class ClientEventDispatcher;
@@ -32,10 +33,6 @@ class WebrtcConnectionToHost : public ConnectionToHost,
                                public ChannelDispatcherBase::EventHandler {
  public:
   WebrtcConnectionToHost();
-
-  WebrtcConnectionToHost(const WebrtcConnectionToHost&) = delete;
-  WebrtcConnectionToHost& operator=(const WebrtcConnectionToHost&) = delete;
-
   ~WebrtcConnectionToHost() override;
 
   // ConnectionToHost interface.
@@ -68,9 +65,9 @@ class WebrtcConnectionToHost : public ConnectionToHost,
       const std::string& name,
       std::unique_ptr<MessagePipe> pipe) override;
   void OnWebrtcTransportMediaStreamAdded(
-      rtc::scoped_refptr<webrtc::MediaStreamInterface> stream) override;
+      scoped_refptr<webrtc::MediaStreamInterface> stream) override;
   void OnWebrtcTransportMediaStreamRemoved(
-      rtc::scoped_refptr<webrtc::MediaStreamInterface> stream) override;
+      scoped_refptr<webrtc::MediaStreamInterface> stream) override;
   void OnWebrtcTransportRouteChanged(const TransportRoute& route) override;
 
   // ChannelDispatcherBase::EventHandler interface.
@@ -89,15 +86,15 @@ class WebrtcConnectionToHost : public ConnectionToHost,
 
   void SetState(State state, ErrorCode error);
 
-  raw_ptr<HostEventCallback> event_callback_ = nullptr;
+  HostEventCallback* event_callback_ = nullptr;
 
   scoped_refptr<base::SingleThreadTaskRunner> audio_decode_task_runner_;
 
   // Stub for incoming messages.
-  raw_ptr<ClientStub> client_stub_ = nullptr;
-  raw_ptr<VideoRenderer> video_renderer_ = nullptr;
+  ClientStub* client_stub_ = nullptr;
+  VideoRenderer* video_renderer_ = nullptr;
   base::WeakPtr<AudioStub> audio_consumer_;
-  raw_ptr<ClipboardStub> clipboard_stub_ = nullptr;
+  ClipboardStub* clipboard_stub_ = nullptr;
 
   std::unique_ptr<Session> session_;
   std::unique_ptr<WebrtcTransport> transport_;
@@ -113,8 +110,11 @@ class WebrtcConnectionToHost : public ConnectionToHost,
   // Internal state of the connection.
   State state_ = INITIALIZING;
   ErrorCode error_ = OK;
+
+  DISALLOW_COPY_AND_ASSIGN(WebrtcConnectionToHost);
 };
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_WEBRTC_CONNECTION_TO_HOST_H_

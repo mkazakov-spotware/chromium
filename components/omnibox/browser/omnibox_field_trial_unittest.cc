@@ -1,16 +1,17 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/omnibox/browser/omnibox_field_trial.h"
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "base/command_line.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_params.h"
+#include "base/strings/string16.h"
+#include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "components/history/core/browser/url_database.h"
@@ -50,7 +51,7 @@ class OmniboxFieldTrialTest : public testing::Test {
                                            const std::string& group_name) {
     base::FieldTrial* trial = base::FieldTrialList::CreateFieldTrial(
         name, group_name);
-    trial->Activate();
+    trial->group();
     return trial;
   }
 
@@ -357,20 +358,35 @@ TEST_F(OmniboxFieldTrialTest, GetValueForRuleInContext) {
 TEST_F(OmniboxFieldTrialTest, LocalZeroSuggestAgeThreshold) {
   base::test::ScopedFeatureList scoped_feature_list_;
 
-  // Verify the default value.
-  const int expected_age_threshold_days = 90;
+  // The default value can be overridden.
+  scoped_feature_list_.InitWithFeaturesAndParameters(
+      {{omnibox::kOmniboxLocalZeroSuggestAgeThreshold,
+        {{OmniboxFieldTrial::kOmniboxLocalZeroSuggestAgeThresholdParam, "7"}}}},
+      {});
   base::Time age_threshold =
       OmniboxFieldTrial::GetLocalHistoryZeroSuggestAgeThreshold();
-  EXPECT_EQ(expected_age_threshold_days,
+  EXPECT_EQ(7, base::TimeDelta(base::Time::Now() - age_threshold).InDays());
+
+  // If the age threshold is not parsable to an unsigned integer, the default
+  // value is used.
+  scoped_feature_list_.Reset();
+  scoped_feature_list_.InitWithFeaturesAndParameters(
+      {{omnibox::kOmniboxLocalZeroSuggestAgeThreshold,
+        {{OmniboxFieldTrial::kOmniboxLocalZeroSuggestAgeThresholdParam, "j"}}}},
+      {});
+  age_threshold = OmniboxFieldTrial::GetLocalHistoryZeroSuggestAgeThreshold();
+  EXPECT_EQ(history::kLowQualityMatchAgeLimitInDays,
             base::TimeDelta(base::Time::Now() - age_threshold).InDays());
 
-  // The default value can be overridden.
-  scoped_feature_list_.InitAndEnableFeatureWithParameters(
-      omnibox::kOmniboxLocalZeroSuggestAgeThreshold,
-      {{OmniboxFieldTrial::kOmniboxLocalZeroSuggestAgeThresholdParam.name,
-        "3"}});
+  // If new search features are disabled, the default value is used.
+  scoped_feature_list_.Reset();
+  scoped_feature_list_.InitWithFeaturesAndParameters(
+      {{omnibox::kOmniboxLocalZeroSuggestAgeThreshold,
+        {{OmniboxFieldTrial::kOmniboxLocalZeroSuggestAgeThresholdParam, "7"}}}},
+      {omnibox::kNewSearchFeatures});
   age_threshold = OmniboxFieldTrial::GetLocalHistoryZeroSuggestAgeThreshold();
-  EXPECT_EQ(3, base::TimeDelta(base::Time::Now() - age_threshold).InDays());
+  EXPECT_EQ(history::kLowQualityMatchAgeLimitInDays,
+            base::TimeDelta(base::Time::Now() - age_threshold).InDays());
 }
 
 TEST_F(OmniboxFieldTrialTest, HUPNewScoringFieldTrial) {
@@ -441,13 +457,13 @@ TEST_F(OmniboxFieldTrialTest, HalfLifeTimeDecay) {
   HUPScoringParams::ScoreBuckets buckets;
 
   // No decay by default.
-  EXPECT_EQ(1.0, buckets.HalfLifeTimeDecay(base::Days(7)));
+  EXPECT_EQ(1.0, buckets.HalfLifeTimeDecay(base::TimeDelta::FromDays(7)));
 
   buckets.set_half_life_days(7);
-  EXPECT_EQ(0.5, buckets.HalfLifeTimeDecay(base::Days(7)));
-  EXPECT_EQ(0.25, buckets.HalfLifeTimeDecay(base::Days(14)));
-  EXPECT_EQ(1.0, buckets.HalfLifeTimeDecay(base::Days(0)));
-  EXPECT_EQ(1.0, buckets.HalfLifeTimeDecay(base::Days(-1)));
+  EXPECT_EQ(0.5, buckets.HalfLifeTimeDecay(base::TimeDelta::FromDays(7)));
+  EXPECT_EQ(0.25, buckets.HalfLifeTimeDecay(base::TimeDelta::FromDays(14)));
+  EXPECT_EQ(1.0, buckets.HalfLifeTimeDecay(base::TimeDelta::FromDays(0)));
+  EXPECT_EQ(1.0, buckets.HalfLifeTimeDecay(base::TimeDelta::FromDays(-1)));
 }
 
 TEST_F(OmniboxFieldTrialTest, GetSuggestPollingStrategy) {

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,30 +9,22 @@
 #include <map>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "printing/backend/cups_printer.h"
-#include "printing/backend/print_backend_utils.h"
 #include "printing/mojom/print.mojom.h"
+#include "printing/printing_features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace printing {
 
-using ::testing::Pointwise;
-
-// Matches the name field to a string.
-MATCHER(AdvancedCapabilityName, "") {
-  *result_listener << "Expected: " << std::get<1>(arg)
-                   << " vs Actual: " << std::get<0>(arg).name;
-  return std::get<0>(arg).name == std::get<1>(arg);
-}
-
 class MockCupsOptionProvider : public CupsOptionProvider {
  public:
-  ~MockCupsOptionProvider() override = default;
+  ~MockCupsOptionProvider() override {}
 
   ipp_attribute_t* GetSupportedOptionValues(
       const char* option_name) const override {
@@ -97,7 +89,7 @@ class PrintBackendCupsIppHelperTest : public ::testing::Test {
     printer_.reset();
   }
 
-  raw_ptr<ipp_t> ipp_;
+  ipp_t* ipp_;
   std::unique_ptr<MockCupsOptionProvider> printer_;
 };
 
@@ -125,12 +117,6 @@ ipp_attribute_t* MakeStringCollection(ipp_t* ipp,
                                       const std::vector<const char*>& strings) {
   return ippAddStrings(ipp, IPP_TAG_PRINTER, IPP_TAG_KEYWORD, "TEST_DATA",
                        strings.size(), nullptr, strings.data());
-}
-
-TEST_F(PrintBackendCupsIppHelperTest, DefaultPaper) {
-  EXPECT_EQ(ParsePaper(""), DefaultPaper(*printer_));
-  printer_->SetOptionDefault("media", MakeString(ipp_, "iso_a4_210x297mm"));
-  EXPECT_EQ(ParsePaper("iso_a4_210x297mm"), DefaultPaper(*printer_));
 }
 
 TEST_F(PrintBackendCupsIppHelperTest, CopiesCapable) {
@@ -212,7 +198,7 @@ TEST_F(PrintBackendCupsIppHelperTest, A4PaperSupported) {
 
   PrinterSemanticCapsAndDefaults::Paper paper = caps.papers[0];
   // media display name localization is handled more fully in
-  // AssemblePrinterSettings().
+  // GetPrinterCapabilitiesOnBlockingTaskRunner().
   EXPECT_EQ("iso a4", paper.display_name);
   EXPECT_EQ("iso_a4_210x297mm", paper.vendor_id);
   EXPECT_EQ(210000, paper.size_um.width());
@@ -225,7 +211,7 @@ TEST_F(PrintBackendCupsIppHelperTest, LegalPaperDefault) {
   PrinterSemanticCapsAndDefaults caps;
   CapsAndDefaultsFromPrinter(*printer_, &caps);
   // media display name localization is handled more fully in
-  // AssemblePrinterSettings().
+  // GetPrinterCapabilitiesOnBlockingTaskRunner().
   EXPECT_EQ("na legal", caps.default_paper.display_name);
   EXPECT_EQ("na_legal_8.5x14in", caps.default_paper.vendor_id);
   EXPECT_EQ(215900, caps.default_paper.size_um.width());
@@ -299,7 +285,7 @@ TEST_F(PrintBackendCupsIppHelperTest, OmitPapersWithSpecialVendorIds) {
                          "iso b0")));
 }
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ASH)
 TEST_F(PrintBackendCupsIppHelperTest, PinSupported) {
   printer_->SetSupportedOptions("job-password", MakeInteger(ipp_, 4));
   printer_->SetSupportedOptions("job-password-encryption",
@@ -341,6 +327,8 @@ TEST_F(PrintBackendCupsIppHelperTest, PinTooShort) {
 
 TEST_F(PrintBackendCupsIppHelperTest, AdvancedCaps) {
   base::HistogramTester histograms;
+  base::test::ScopedFeatureList features;
+  features.InitAndEnableFeature(printing::features::kAdvancedPpdAttributes);
 
   printer_->SetSupportedOptions(
       "job-creation-attributes",
@@ -357,7 +345,7 @@ TEST_F(PrintBackendCupsIppHelperTest, AdvancedCaps) {
   PrinterSemanticCapsAndDefaults caps;
   CapsAndDefaultsFromPrinter(*printer_, &caps);
 
-  ASSERT_EQ(6u, caps.advanced_capabilities.size());
+  EXPECT_EQ(6u, caps.advanced_capabilities.size());
   EXPECT_EQ("confirmation-sheet-print", caps.advanced_capabilities[0].name);
   EXPECT_EQ(AdvancedCapability::Type::kBoolean,
             caps.advanced_capabilities[0].type);
@@ -371,32 +359,11 @@ TEST_F(PrintBackendCupsIppHelperTest, AdvancedCaps) {
   EXPECT_EQ(AdvancedCapability::Type::kString,
             caps.advanced_capabilities[3].type);
   EXPECT_EQ("output-bin", caps.advanced_capabilities[4].name);
-  EXPECT_EQ(AdvancedCapability::Type::kString,
-            caps.advanced_capabilities[4].type);
   EXPECT_EQ(2u, caps.advanced_capabilities[4].values.size());
   EXPECT_EQ("print-quality", caps.advanced_capabilities[5].name);
-  EXPECT_EQ(AdvancedCapability::Type::kString,
-            caps.advanced_capabilities[5].type);
   EXPECT_EQ(3u, caps.advanced_capabilities[5].values.size());
   histograms.ExpectUniqueSample("Printing.CUPS.IppAttributesCount", 5, 1);
 }
-
-TEST_F(PrintBackendCupsIppHelperTest, MediaSource) {
-  printer_->SetSupportedOptions(
-      "media-source",
-      MakeStringCollection(ipp_, {"top", "main", "auto", "tray-3", "tray-4"}));
-
-  PrinterSemanticCapsAndDefaults caps;
-  CapsAndDefaultsFromPrinter(*printer_, &caps);
-
-  ASSERT_EQ(1u, caps.advanced_capabilities.size());
-  const AdvancedCapability& cap = caps.advanced_capabilities[0];
-  EXPECT_EQ("media-source", cap.name);
-  EXPECT_EQ(AdvancedCapability::Type::kString, cap.type);
-  EXPECT_THAT(cap.values,
-              Pointwise(AdvancedCapabilityName(),
-                        {"top", "main", "auto", "tray-3", "tray-4"}));
-}
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_ASH)
 
 }  // namespace printing

@@ -1,10 +1,11 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/tray/tray_event_filter.h"
 
-#include "ash/capture_mode/capture_mode_util.h"
+#include "ash/capture_mode/capture_mode_controller.h"
+#include "ash/public/cpp/ash_features.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/root_window_controller.h"
 #include "ash/shelf/shelf.h"
@@ -14,7 +15,6 @@
 #include "ash/system/status_area_widget.h"
 #include "ash/system/tray/tray_background_view.h"
 #include "ash/system/tray/tray_bubble_base.h"
-#include "ash/system/unified/date_tray.h"
 #include "ash/system/unified/unified_system_tray.h"
 #include "ash/system/unified/unified_system_tray_bubble.h"
 #include "ash/wm/container_finder.h"
@@ -55,15 +55,12 @@ void TrayEventFilter::OnTouchEvent(ui::TouchEvent* event) {
     ProcessPressedEvent(*event);
 }
 
-void TrayEventFilter::OnGestureEvent(ui::GestureEvent* event) {
-  if (event->type() == ui::ET_GESTURE_SCROLL_BEGIN)
-    ProcessPressedEvent(*event);
-}
-
 void TrayEventFilter::ProcessPressedEvent(const ui::LocatedEvent& event) {
   // Users in a capture session may be trying to capture tray bubble(s).
-  if (capture_mode_util::IsCaptureModeActive())
+  if (features::IsCaptureModeEnabled() &&
+      CaptureModeController::Get()->IsActive()) {
     return;
+  }
 
   // The hit target window for the virtual keyboard isn't the same as its
   // views::Widget.
@@ -72,10 +69,8 @@ void TrayEventFilter::ProcessPressedEvent(const ui::LocatedEvent& event) {
       views::Widget::GetTopLevelWidgetForNativeView(target);
   const aura::Window* container =
       target ? GetContainerForWindow(target) : nullptr;
-  // TODO(https://crbug.com/1208083): Replace some of this logic with
-  // bubble_utils::ShouldCloseBubbleForEvent().
   if (target && container) {
-    const int container_id = container->GetId();
+    const int container_id = container->id();
     // Don't process events that occurred inside an embedded menu, for example
     // the right-click menu in a popup notification.
     if (container_id == kShellWindowId_MenuContainer)
@@ -83,7 +78,7 @@ void TrayEventFilter::ProcessPressedEvent(const ui::LocatedEvent& event) {
     // Don't process events that occurred inside a popup notification
     // from message center.
     if (container_id == kShellWindowId_ShelfContainer &&
-        target->GetType() == aura::client::WINDOW_TYPE_POPUP &&
+        target->type() == aura::client::WINDOW_TYPE_POPUP &&
         target_widget->GetName() ==
             AshMessagePopupCollection::kMessagePopupWidgetName) {
       return;
@@ -112,7 +107,7 @@ void TrayEventFilter::ProcessPressedEvent(const ui::LocatedEvent& event) {
     // |bounds| so that events located outside the bubble's visual bounds are
     // treated as outside of the bubble.
     int bubble_container_id =
-        GetContainerForWindow(bubble_widget->GetNativeWindow())->GetId();
+        GetContainerForWindow(bubble_widget->GetNativeWindow())->id();
     if (Shell::Get()->tablet_mode_controller()->InTabletMode() &&
         bubble_container_id == kShellWindowId_SettingBubbleContainer) {
       bounds.Intersect(bubble_widget->GetWorkAreaBoundsInScreen());
@@ -125,19 +120,11 @@ void TrayEventFilter::ProcessPressedEvent(const ui::LocatedEvent& event) {
       int64_t display_id = display::Screen::GetScreen()
                                ->GetDisplayNearestPoint(screen_location)
                                .id();
-      StatusAreaWidget* status_area =
+      UnifiedSystemTray* tray =
           Shell::GetRootWindowControllerWithDisplayId(display_id)
               ->shelf()
-              ->GetStatusAreaWidget();
-      UnifiedSystemTray* tray = status_area->unified_system_tray();
-
-      // When Quick Settings bubble is opened and the date tray is clicked, the
-      // bubble should not be closed since it will transition to show calendar.
-      if (features::IsCalendarViewEnabled() &&
-          status_area->date_tray()->GetBoundsInScreen().Contains(
-              screen_location)) {
-        continue;
-      }
+              ->GetStatusAreaWidget()
+              ->unified_system_tray();
 
       TrayBubbleBase* system_tray_bubble = tray->bubble();
       if (tray->IsBubbleShown() && system_tray_bubble != bubble) {
@@ -153,15 +140,12 @@ void TrayEventFilter::ProcessPressedEvent(const ui::LocatedEvent& event) {
     if (bounds.Contains(screen_location))
       continue;
     if (bubble->GetTray()) {
-      // Maybe close the parent tray if the user drags on it. Otherwise, let the
-      // tray logic handle the event and determine show/hide behavior if the
-      // user clicks on the parent tray.
+      // If the user clicks on the parent tray, don't process the event here,
+      // let the tray logic handle the event and determine show/hide behavior.
       bounds = bubble->GetTray()->GetBoundsInScreen();
-      if (bubble->GetTray()->GetVisible() && bounds.Contains(screen_location) &&
-          event.type() != ui::ET_GESTURE_SCROLL_BEGIN)
+      if (bubble->GetTray()->GetVisible() && bounds.Contains(screen_location))
         continue;
     }
-
     trays.insert(bubble->GetTray());
   }
 

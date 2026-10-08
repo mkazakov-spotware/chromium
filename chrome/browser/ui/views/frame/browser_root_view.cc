@@ -1,31 +1,26 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/frame/browser_root_view.h"
 
 #include <cmath>
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/metrics/user_metrics.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_frame.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
+#include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/touch_uma/touch_uma.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
@@ -38,25 +33,18 @@
 #include "ppapi/buildflags/buildflags.h"
 #include "third_party/blink/public/common/mime_util/mime_util.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
-#include "ui/base/clipboard/clipboard_constants.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/drop_target_event.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/base/hit_test.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_provider.h"
 #include "ui/compositor/paint_recorder.h"
 #include "ui/gfx/scoped_canvas.h"
-#include "ui/views/view.h"
 
 #if BUILDFLAG(ENABLE_PLUGINS)
 #include "content/public/browser/plugin_service.h"
 #endif
 
 namespace {
-
-using ::ui::mojom::DragOperation;
 
 using FileSupportedCallback =
     base::OnceCallback<void(const GURL& url, bool supported)>;
@@ -76,7 +64,8 @@ std::string FindURLMimeType(const GURL& url) {
 }
 
 void OnFindURLMimeType(const GURL& url,
-                       content::BrowserContext* browser_context,
+                       int process_id,
+                       int routing_id,
                        FileSupportedCallback callback,
                        const std::string& mime_type) {
   // Check whether the mime type, if given, is known to be supported or whether
@@ -88,8 +77,8 @@ void OnFindURLMimeType(const GURL& url,
 #if BUILDFLAG(ENABLE_PLUGINS)
   content::WebPluginInfo plugin;
   result = result || content::PluginService::GetInstance()->GetPluginInfo(
-                         browser_context, url, mime_type, false, nullptr,
-                         &plugin, nullptr);
+                         process_id, routing_id, url, url::Origin(), mime_type,
+                         false, nullptr, &plugin, nullptr);
 #endif
 
   std::move(callback).Run(url, result);
@@ -97,19 +86,19 @@ void OnFindURLMimeType(const GURL& url,
 
 bool GetURLForDrop(const ui::DropTargetEvent& event, GURL* url) {
   DCHECK(url);
-  std::u16string title;
+  base::string16 title;
   return event.data().GetURLAndTitle(ui::FilenameToURLPolicy::CONVERT_FILENAMES,
                                      url, &title) &&
          url->is_valid();
 }
 
-DragOperation GetDropEffect(const ui::DropTargetEvent& event, const GURL& url) {
+int GetDropEffect(const ui::DropTargetEvent& event, const GURL& url) {
   const int source_ops = event.source_operations();
   if (source_ops & ui::DragDropTypes::DRAG_COPY)
-    return DragOperation::kCopy;
+    return ui::DragDropTypes::DRAG_COPY;
   if (source_ops & ui::DragDropTypes::DRAG_LINK)
-    return DragOperation::kLink;
-  return DragOperation::kMove;
+    return ui::DragDropTypes::DRAG_LINK;
+  return ui::DragDropTypes::DRAG_MOVE;
 }
 
 }  // namespace
@@ -120,6 +109,9 @@ BrowserRootView::DropInfo::~DropInfo() {
   if (target)
     target->HandleDragExited();
 }
+
+// static
+const char BrowserRootView::kViewClassName[] = "BrowserRootView";
 
 BrowserRootView::BrowserRootView(BrowserView* browser_view,
                                  views::Widget* widget)
@@ -150,22 +142,10 @@ bool BrowserRootView::AreDropTypesRequired() {
 
 bool BrowserRootView::CanDrop(const ui::OSExchangeData& data) {
   // If it's not tabbed browser, we don't have to support drag and drops.
-  if (!browser_view_->GetIsNormalType())
+  if (!browser_view_->IsBrowserTypeNormal())
     return false;
 
   if (!tabstrip()->GetVisible() && !toolbar()->GetVisible())
-    return false;
-
-  // If this is for a fallback window dragging session, return false and let
-  // TabStripRegionView forward drag events to TabDragController. This is
-  // necessary because we don't want to return true if the custom MIME type is
-  // there but the mouse is not over the tab strip region, and we don't know the
-  // current mouse location.
-  // TODO(crbug.com/1307594): This is a smoking gun code smell;
-  // TabStripRegionView and Toolbar have different affordances, so they should
-  // separately override the drag&drop methods.
-  if (data.HasCustomFormat(
-          ui::ClipboardFormatType::GetType(ui::kMimeTypeWindowDrag)))
     return false;
 
   // If there is a URL, we'll allow the drop.
@@ -184,18 +164,15 @@ void BrowserRootView::OnDragEntered(const ui::DropTargetEvent& event) {
 
     // Check if the file is supported.
     if (url.SchemeIsFile()) {
-      // Avoid crashing while the tab strip is being initialized or is empty.
-      content::WebContents* web_contents =
-          browser_view_->browser()->tab_strip_model()->GetActiveWebContents();
-      if (!web_contents) {
-        return;
-      }
-
+      content::RenderFrameHost* rfh = browser_view_->browser()
+                                          ->tab_strip_model()
+                                          ->GetActiveWebContents()
+                                          ->GetMainFrame();
       base::ThreadPool::PostTaskAndReplyWithResult(
           FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
           base::BindOnce(&FindURLMimeType, url),
-          base::BindOnce(&OnFindURLMimeType, url,
-                         browser_view_->browser()->profile(),
+          base::BindOnce(&OnFindURLMimeType, url, rfh->GetProcess()->GetID(),
+                         rfh->GetRoutingID(),
                          base::BindOnce(&BrowserRootView::OnFileSupported,
                                         weak_ptr_factory_.GetWeakPtr())));
     }
@@ -220,9 +197,8 @@ int BrowserRootView::OnDragUpdated(const ui::DropTargetEvent& event) {
     }
 
     drop_target->HandleDragUpdate(drop_info_->index);
-    return drop_info_->index
-               ? static_cast<int>(GetDropEffect(event, drop_info_->url))
-               : ui::DragDropTypes::DRAG_NONE;
+    return drop_info_->index ? GetDropEffect(event, drop_info_->url)
+                             : ui::DragDropTypes::DRAG_NONE;
   }
 
   OnDragExited();
@@ -233,15 +209,54 @@ void BrowserRootView::OnDragExited() {
   drop_info_.reset();
 }
 
-views::View::DropCallback BrowserRootView::GetDropCallback(
-    const ui::DropTargetEvent& event) {
-  if (!drop_info_)
-    return base::DoNothing();
+int BrowserRootView::OnPerformDrop(const ui::DropTargetEvent& event) {
+  using base::UserMetricsAction;
 
-  // Moving `drop_info_` ensures we call HandleDragExited() on |drop_info_|'s
-  // |target| when this function returns.
-  return base::BindOnce(&BrowserRootView::NavigateToDropUrl,
-                        weak_ptr_factory_.GetWeakPtr(), std::move(drop_info_));
+  if (!drop_info_)
+    return ui::DragDropTypes::DRAG_NONE;
+
+  // Ensure we call HandleDragExited() on |drop_info_|'s |target| when this
+  // function returns.
+  std::unique_ptr<DropInfo> drop_info = std::move(drop_info_);
+
+  // Extract the URL and create a new ui::OSExchangeData containing the URL. We
+  // do this as the TabStrip doesn't know about the autocomplete edit and needs
+  // to know about it to handle 'paste and go'.
+  GURL url;
+  if (!GetURLForDrop(event, &url)) {
+    // The url isn't valid. Use the paste and go url.
+    GetPasteAndGoURL(event.data(), &url);
+  }
+
+  // Do nothing if the file was unsupported, the URL is invalid, or this is a
+  // javascript: URL (prevent self-xss). The URL may have been changed after
+  // |drop_info| was created.
+  if (!drop_info->file_supported || !url.is_valid() ||
+      url.SchemeIs(url::kJavaScriptScheme))
+    return ui::DragDropTypes::DRAG_NONE;
+
+  NavigateParams params(browser_view_->browser(), url,
+                        ui::PAGE_TRANSITION_LINK);
+  params.tabstrip_index = drop_info->index->value;
+  if (drop_info->index->drop_before) {
+    base::RecordAction(UserMetricsAction("Tab_DropURLBetweenTabs"));
+    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  } else {
+    base::RecordAction(UserMetricsAction("Tab_DropURLOnTab"));
+    params.disposition = WindowOpenDisposition::CURRENT_TAB;
+    Browser* browser = browser_view_->browser();
+    TabStripModel* model = browser->tab_strip_model();
+    params.source_contents = model->GetWebContentsAt(drop_info->index->value);
+  }
+
+  params.window_action = NavigateParams::SHOW_WINDOW;
+  Navigate(&params);
+
+  return GetDropEffect(event, url);
+}
+
+const char* BrowserRootView::GetClassName() const {
+  return kViewClassName;
 }
 
 bool BrowserRootView::OnMouseWheel(const ui::MouseWheelEvent& event) {
@@ -287,9 +302,7 @@ bool BrowserRootView::OnMouseWheel(const ui::MouseWheelEvent& event) {
       if (whole_scroll_offset < 0 &&
           model->active_index() + 1 < model->count()) {
         chrome::SelectNextTab(
-            browser, TabStripUserGestureDetails(
-                         TabStripUserGestureDetails::GestureType::kWheel,
-                         event.time_stamp()));
+            browser, {TabStripModel::GestureType::kWheel, event.time_stamp()});
         return true;
       }
 
@@ -297,9 +310,7 @@ bool BrowserRootView::OnMouseWheel(const ui::MouseWheelEvent& event) {
       // tab-strip.
       if (whole_scroll_offset > 0 && model->active_index() > 0) {
         chrome::SelectPreviousTab(
-            browser, TabStripUserGestureDetails(
-                         TabStripUserGestureDetails::GestureType::kWheel,
-                         event.time_stamp()));
+            browser, {TabStripModel::GestureType::kWheel, event.time_stamp()});
         return true;
       }
     }
@@ -341,34 +352,19 @@ void BrowserRootView::PaintChildren(const views::PaintInfo& paint_info) {
     const int width = std::round(toolbar_bounds.width() * scale);
 
     gfx::ScopedCanvas scoped_canvas(canvas);
-    const absl::optional<int> active_tab_index = tabstrip()->GetActiveIndex();
-    if (active_tab_index.has_value()) {
-      Tab* active_tab = tabstrip()->tab_at(active_tab_index.value());
+    int active_tab_index = tabstrip()->controller()->GetActiveIndex();
+    if (active_tab_index != ui::ListSelectionModel::kUnselectedIndex) {
+      Tab* active_tab = tabstrip()->tab_at(active_tab_index);
       if (active_tab && active_tab->GetVisible()) {
         gfx::RectF bounds(active_tab->GetMirroredBounds());
-        views::View* tabstrip_root = this;
-#if BUILDFLAG(IS_MAC)
-        // In immersive fullscreen, the top container is hosted in
-        // `overlay_widget`, which has its own root view.
-        if (browser_view_->immersive_mode_controller()->IsRevealed())
-          tabstrip_root = browser_view_->overlay_widget()->GetRootView();
-#endif
-        ConvertRectToTarget(tabstrip(), tabstrip_root, &bounds);
+        ConvertRectToTarget(tabstrip(), this, &bounds);
         canvas->ClipRect(bounds, SkClipOp::kDifference);
       }
     }
     canvas->UndoDeviceScaleFactor();
 
-    const auto* widget = GetWidget();
-    DCHECK(widget);
-    const SkColor toolbar_top_separator_color =
-        widget->GetColorProvider()->GetColor(
-            tabstrip()->ShouldPaintAsActiveFrame()
-                ? kColorToolbarTopSeparatorFrameActive
-                : kColorToolbarTopSeparatorFrameInactive);
-
     cc::PaintFlags flags;
-    flags.setColor(toolbar_top_separator_color);
+    flags.setColor(tabstrip()->GetToolbarTopSeparatorColor());
     flags.setStyle(cc::PaintFlags::kFill_Style);
     flags.setAntiAlias(true);
     canvas->DrawRect(gfx::RectF(x, bottom - scale, width, scale), flags);
@@ -390,23 +386,20 @@ void BrowserRootView::OnEventProcessingStarted(ui::Event* event) {
 
 BrowserRootView::DropTarget* BrowserRootView::GetDropTarget(
     const ui::DropTargetEvent& event) {
-  BrowserRootView::DropTarget* target = nullptr;
-
   // See if we should drop links onto tabstrip first.
-  gfx::Point loc_in_tabstrip(event.location());
-  ConvertPointToTarget(this, tabstrip(), &loc_in_tabstrip);
-  target = tabstrip()->GetDropTarget(loc_in_tabstrip);
-
-  // See if we can drop links onto toolbar.
-  if (!target) {
-    gfx::Point loc_in_toolbar(event.location());
-    ConvertPointToTarget(this, toolbar(), &loc_in_toolbar);
-    target =
-        static_cast<BrowserRootView::DropTarget*>(toolbar())->GetDropTarget(
-            loc_in_toolbar);
+  if (tabstrip()->GetVisible()) {
+    // Allow the drop as long as the mouse is over tabstrip or vertically
+    // before it.
+    gfx::Point tabstrip_loc_in_host;
+    ConvertPointToTarget(tabstrip(), this, &tabstrip_loc_in_host);
+    if (event.y() < tabstrip_loc_in_host.y() + tabstrip()->height())
+      return tabstrip();
   }
 
-  return target;
+  // See if we can drop links onto toolbar.
+  gfx::Point loc_in_toolbar(event.location());
+  ConvertPointToTarget(this, toolbar(), &loc_in_toolbar);
+  return toolbar()->HitTestPoint(loc_in_toolbar) ? toolbar() : nullptr;
 }
 
 BrowserRootView::DropIndex BrowserRootView::GetDropIndexForEvent(
@@ -431,7 +424,7 @@ bool BrowserRootView::GetPasteAndGoURL(const ui::OSExchangeData& data,
   if (!data.HasString())
     return false;
 
-  std::u16string text;
+  base::string16 text;
   if (!data.GetString(&text) || text.empty())
     return false;
   text = AutocompleteMatch::SanitizeString(text);
@@ -448,61 +441,3 @@ bool BrowserRootView::GetPasteAndGoURL(const ui::OSExchangeData& data,
     *url = match.destination_url;
   return true;
 }
-
-void BrowserRootView::NavigateToDropUrl(
-    std::unique_ptr<DropInfo> drop_info,
-    const ui::DropTargetEvent& event,
-    ui::mojom::DragOperation& output_drag_op) {
-  DCHECK(drop_info);
-
-  Browser* const browser = browser_view_->browser();
-  TabStripModel* const model = browser->tab_strip_model();
-
-  // If the browser window is not visible, it's about to be destroyed.
-  if (!browser->window()->IsVisible() || model->empty())
-    return;
-
-  if (drop_info->index->value > model->GetTabCount())
-    return;
-
-  // Extract the URL and create a new ui::OSExchangeData containing the URL. We
-  // do this as the TabStrip doesn't know about the autocomplete edit and needs
-  // to know about it to handle 'paste and go'.
-  GURL url;
-  if (!GetURLForDrop(event, &url)) {
-    // The url isn't valid. Use the paste and go url.
-    GetPasteAndGoURL(event.data(), &url);
-  }
-
-  // Do nothing if the file was unsupported, the URL is invalid, or this is a
-  // javascript: URL (prevent self-xss). The URL may have been changed after
-  // |drop_info| was created.
-  if (!drop_info->file_supported || !url.is_valid() ||
-      url.SchemeIs(url::kJavaScriptScheme)) {
-    output_drag_op = DragOperation::kNone;
-    return;
-  }
-
-  NavigateParams params(browser_view_->browser(), url,
-                        ui::PAGE_TRANSITION_LINK);
-  params.tabstrip_index = drop_info->index->value;
-  if (drop_info->index->drop_before) {
-    base::RecordAction(base::UserMetricsAction("Tab_DropURLBetweenTabs"));
-    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-    if (drop_info->index->drop_in_group &&
-        drop_info->index->value < model->count())
-      params.group = model->GetTabGroupForTab(drop_info->index->value);
-  } else {
-    base::RecordAction(base::UserMetricsAction("Tab_DropURLOnTab"));
-    params.disposition = WindowOpenDisposition::CURRENT_TAB;
-    params.source_contents = model->GetWebContentsAt(drop_info->index->value);
-  }
-
-  params.window_action = NavigateParams::SHOW_WINDOW;
-  Navigate(&params);
-
-  output_drag_op = GetDropEffect(event, url);
-}
-
-BEGIN_METADATA(BrowserRootView, views::internal::RootView)
-END_METADATA

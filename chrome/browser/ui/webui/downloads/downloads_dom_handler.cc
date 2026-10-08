@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,13 +26,11 @@
 #include "chrome/browser/download/download_danger_prompt.h"
 #include "chrome/browser/download/download_history.h"
 #include "chrome/browser/download/download_item_model.h"
-#include "chrome/browser/download/download_item_warning_data.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/download/download_query.h"
 #include "chrome/browser/download/drag_download_item.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/safe_browsing/safe_browsing_service.h"
 #include "chrome/browser/ui/webui/downloads/downloads.mojom.h"
 #include "chrome/browser/ui/webui/fileicon_source.h"
 #include "chrome/common/chrome_switches.h"
@@ -40,13 +38,11 @@
 #include "chrome/common/url_constants.h"
 #include "components/download/public/common/download_item.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
@@ -55,7 +51,6 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "net/base/filename_util.h"
 #include "ui/base/l10n/time_format.h"
-#include "ui/display/screen.h"
 #include "ui/gfx/image/image.h"
 
 using content::BrowserThread;
@@ -77,7 +72,6 @@ enum DownloadsDOMEvent {
   DOWNLOADS_DOM_EVENT_RESUME = 11,
   DOWNLOADS_DOM_EVENT_RETRY_DOWNLOAD = 12,
   DOWNLOADS_DOM_EVENT_OPEN_DURING_SCANNING = 13,
-  DOWNLOADS_DOM_EVENT_REVIEW_DANGEROUS = 14,
   DOWNLOADS_DOM_EVENT_MAX
 };
 
@@ -112,8 +106,7 @@ DownloadsDOMHandler::~DownloadsDOMHandler() {
   FinalizeRemovals();
 }
 
-void DownloadsDOMHandler::PrimaryMainFrameRenderProcessGone(
-    base::TerminationStatus status) {
+void DownloadsDOMHandler::RenderProcessGone(base::TerminationStatus status) {
   // TODO(dbeam): WebUI + WebUIMessageHandler should do this automatically.
   // http://crbug.com/610450
   render_process_gone_ = true;
@@ -131,7 +124,7 @@ void DownloadsDOMHandler::GetDownloads(
 }
 
 void DownloadsDOMHandler::OpenFileRequiringGesture(const std::string& id) {
-  if (!GetWebUIWebContents()->HasRecentInteraction()) {
+  if (!GetWebUIWebContents()->HasRecentInteractiveInputEvent()) {
     LOG(ERROR) << "OpenFileRequiringGesture received without recent "
                   "user interaction";
     return;
@@ -156,20 +149,19 @@ void DownloadsDOMHandler::Drag(const std::string& id) {
 
   if (file->GetState() != download::DownloadItem::COMPLETE)
     return;
-  const display::Screen* const screen = display::Screen::GetScreen();
-  gfx::NativeView view = web_contents->GetNativeView();
+
   gfx::Image* icon = g_browser_process->icon_manager()->LookupIconFromFilepath(
-      file->GetTargetFilePath(), IconLoader::NORMAL,
-      screen->GetDisplayNearestView(view).device_scale_factor());
+      file->GetTargetFilePath(), IconLoader::NORMAL);
+  gfx::NativeView view = web_contents->GetNativeView();
   {
     // Enable nested tasks during DnD, while |DragDownload()| blocks.
-    base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
+    base::CurrentThread::ScopedNestableTaskAllower allow;
     DragDownloadItem(file, icon, view);
   }
 }
 
 void DownloadsDOMHandler::SaveDangerousRequiringGesture(const std::string& id) {
-  if (!GetWebUIWebContents()->HasRecentInteraction()) {
+  if (!GetWebUIWebContents()->HasRecentInteractiveInputEvent()) {
     LOG(ERROR) << "SaveDangerousRequiringGesture received without recent "
                   "user interaction";
     return;
@@ -177,47 +169,12 @@ void DownloadsDOMHandler::SaveDangerousRequiringGesture(const std::string& id) {
 
   CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
   download::DownloadItem* file = GetDownloadByStringId(id);
-  if (file) {
-    DownloadItemWarningData::AddWarningActionEvent(
-        file, DownloadItemWarningData::DOWNLOADS_PAGE,
-        DownloadItemWarningData::KEEP);
+  if (file)
     ShowDangerPrompt(file);
-  }
 }
 
 void DownloadsDOMHandler::DiscardDangerous(const std::string& id) {
   CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_DISCARD_DANGEROUS);
-  download::DownloadItem* download = GetDownloadByStringId(id);
-  if (download) {
-    // The warning action event needs to be added before Safe Browsing report is
-    // sent, because this event should be included in the report.
-    DownloadItemWarningData::AddWarningActionEvent(
-        download, DownloadItemWarningData::DOWNLOADS_PAGE,
-        DownloadItemWarningData::DISCARD);
-    // If this download is no longer dangerous, is already canceled or
-    // completed, don't send any report.
-    // Only sends dangerous download discard report if :
-    // 1. Download is dangerous, and
-    // 2. Download is not canceled or completed, and
-    // 3. Download URL is not empty, and
-    // 4. User is not in incognito mode, and
-    // 5. The new CSBRR trigger feature is enabled.
-    if (download->IsDangerous() && !download->IsDone() &&
-        !download->GetURL().is_empty() &&
-        !GetMainNotifierManager()->GetBrowserContext()->IsOffTheRecord() &&
-        base::FeatureList::IsEnabled(
-            safe_browsing::kSafeBrowsingCsbrrNewDownloadTrigger)) {
-      safe_browsing::SafeBrowsingService* sb_service =
-          g_browser_process->safe_browsing_service();
-      if (sb_service) {
-        sb_service->SendDownloadReport(
-            download,
-            safe_browsing::ClientSafeBrowsingReportRequest::
-                DANGEROUS_DOWNLOAD_RECOVERY,
-            /*did_proceed=*/false, /*show_download_in_folder=*/absl::nullopt);
-      }
-    }
-  }
   RemoveDownloadInArgs(id);
 }
 
@@ -228,8 +185,7 @@ void DownloadsDOMHandler::RetryDownload(const std::string& id) {
   if (!file)
     return;
   content::WebContents* web_contents = GetWebUIWebContents();
-  content::RenderFrameHost* render_frame_host =
-      web_contents->GetPrimaryMainFrame();
+  content::RenderFrameHost* render_frame_host = web_contents->GetMainFrame();
   const GURL url = file->GetURL();
 
   net::NetworkTrafficAnnotationTag traffic_annotation =
@@ -263,8 +219,8 @@ void DownloadsDOMHandler::RetryDownload(const std::string& id) {
   dl_params->set_initiator(url::Origin::Create(GURL("chrome://downloads")));
   dl_params->set_download_source(download::DownloadSource::RETRY);
 
-  web_contents->GetBrowserContext()->GetDownloadManager()->DownloadUrl(
-      std::move(dl_params));
+  content::BrowserContext::GetDownloadManager(web_contents->GetBrowserContext())
+      ->DownloadUrl(std::move(dl_params));
 }
 
 void DownloadsDOMHandler::Show(const std::string& id) {
@@ -382,7 +338,7 @@ void DownloadsDOMHandler::RemoveDownloads(const DownloadVector& to_remove) {
 }
 
 void DownloadsDOMHandler::OpenDownloadsFolderRequiringGesture() {
-  if (!GetWebUIWebContents()->HasRecentInteraction()) {
+  if (!GetWebUIWebContents()->HasRecentInteractiveInputEvent()) {
     LOG(ERROR) << "OpenDownloadsFolderRequiringGesture received without recent "
                   "user interaction";
     return;
@@ -400,7 +356,7 @@ void DownloadsDOMHandler::OpenDownloadsFolderRequiringGesture() {
 
 void DownloadsDOMHandler::OpenDuringScanningRequiringGesture(
     const std::string& id) {
-  if (!GetWebUIWebContents()->HasRecentInteraction()) {
+  if (!GetWebUIWebContents()->HasRecentInteractiveInputEvent()) {
     LOG(ERROR) << "OpenDownloadsFolderRequiringGesture received without recent "
                   "user interaction";
     return;
@@ -411,24 +367,7 @@ void DownloadsDOMHandler::OpenDuringScanningRequiringGesture(
   if (download) {
     DownloadItemModel model(download);
     model.SetOpenWhenComplete(true);
-#if BUILDFLAG(FULL_SAFE_BROWSING)
     model.CompleteSafeBrowsingScan();
-#endif
-  }
-}
-
-void DownloadsDOMHandler::ReviewDangerousRequiringGesture(
-    const std::string& id) {
-  if (!GetWebUIWebContents()->HasRecentInteraction()) {
-    LOG(ERROR) << __func__ << " received without recent user interaction";
-    return;
-  }
-
-  CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_REVIEW_DANGEROUS);
-  download::DownloadItem* download = GetDownloadByStringId(id);
-  if (download) {
-    DownloadItemModel model(download);
-    model.ReviewScanningVerdict(GetWebUIWebContents());
   }
 }
 
@@ -460,8 +399,8 @@ void DownloadsDOMHandler::ShowDangerPrompt(
     download::DownloadItem* dangerous_item) {
   DownloadDangerPrompt* danger_prompt = DownloadDangerPrompt::Create(
       dangerous_item, GetWebUIWebContents(), false,
-      base::BindOnce(&DownloadsDOMHandler::DangerPromptDone,
-                     weak_ptr_factory_.GetWeakPtr(), dangerous_item->GetId()));
+      base::Bind(&DownloadsDOMHandler::DangerPromptDone,
+                 weak_ptr_factory_.GetWeakPtr(), dangerous_item->GetId()));
   // danger_prompt will delete itself.
   DCHECK(danger_prompt);
 }
@@ -471,7 +410,7 @@ void DownloadsDOMHandler::DangerPromptDone(
     DownloadDangerPrompt::Action action) {
   if (action != DownloadDangerPrompt::ACCEPT)
     return;
-  download::DownloadItem* item = nullptr;
+  download::DownloadItem* item = NULL;
   if (GetMainNotifierManager())
     item = GetMainNotifierManager()->GetDownload(download_id);
   if (!item && GetOriginalNotifierManager())
@@ -513,7 +452,7 @@ download::DownloadItem* DownloadsDOMHandler::GetDownloadByStringId(
 }
 
 download::DownloadItem* DownloadsDOMHandler::GetDownloadById(uint32_t id) {
-  download::DownloadItem* item = nullptr;
+  download::DownloadItem* item = NULL;
   if (GetMainNotifierManager())
     item = GetMainNotifierManager()->GetDownload(id);
   if (!item && GetOriginalNotifierManager())

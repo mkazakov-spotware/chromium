@@ -1,10 +1,8 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/renderer/bindings/argument_spec.h"
-
-#include <cmath>
 
 #include "base/check.h"
 #include "base/strings/string_piece.h"
@@ -61,8 +59,8 @@ const char* GetV8ValueTypeString(v8::Local<v8::Value> value) {
 // |maximum|, populating |error| otherwise.
 template <class T>
 bool CheckFundamentalBounds(T value,
-                            const absl::optional<int>& minimum,
-                            const absl::optional<int>& maximum,
+                            const base::Optional<int>& minimum,
+                            const base::Optional<int>& maximum,
                             std::string* error) {
   if (minimum && value < *minimum) {
     *error = api_errors::NumberTooSmall(*minimum);
@@ -77,129 +75,137 @@ bool CheckFundamentalBounds(T value,
 
 }  // namespace
 
-ArgumentSpec::ArgumentSpec(const base::Value& value)
-    : ArgumentSpec(value.GetDict()) {}
-
-ArgumentSpec::ArgumentSpec(const base::Value::Dict& dict) {
-  optional_ = dict.FindBool("optional").value_or(optional_);
-  if (const std::string* name = dict.FindString("name"))
-    name_ = *name;
+ArgumentSpec::ArgumentSpec(const base::Value& value) {
+  const base::DictionaryValue* dict = nullptr;
+  CHECK(value.GetAsDictionary(&dict));
+  dict->GetBoolean("optional", &optional_);
+  dict->GetString("name", &name_);
 
   InitializeType(dict);
 }
 
 ArgumentSpec::ArgumentSpec(ArgumentType type) : type_(type) {}
 
-void ArgumentSpec::InitializeType(const base::Value::Dict& dict) {
-  if (const std::string* ref_string = dict.FindString("$ref")) {
-    ref_ = *ref_string;
+void ArgumentSpec::InitializeType(const base::DictionaryValue* dict) {
+  std::string ref_string;
+  if (dict->GetString("$ref", &ref_string)) {
+    ref_ = std::move(ref_string);
     type_ = ArgumentType::REF;
     return;
   }
 
-  if (const base::Value::List* choices = dict.FindList("choices")) {
-    DCHECK(!choices->empty());
-    type_ = ArgumentType::CHOICES;
-    choices_.reserve(choices->size());
-    for (const auto& choice : *choices)
-      choices_.push_back(std::make_unique<ArgumentSpec>(choice));
-    return;
+  {
+    const base::ListValue* choices = nullptr;
+    if (dict->GetList("choices", &choices)) {
+      DCHECK(!choices->empty());
+      type_ = ArgumentType::CHOICES;
+      choices_.reserve(choices->GetSize());
+      for (const auto& choice : *choices)
+        choices_.push_back(std::make_unique<ArgumentSpec>(choice));
+      return;
+    }
   }
 
-  const std::string* type_string = dict.FindString("type");
-  CHECK(type_string);
-  if (*type_string == "integer")
+  std::string type_string;
+  CHECK(dict->GetString("type", &type_string));
+  if (type_string == "integer")
     type_ = ArgumentType::INTEGER;
-  else if (*type_string == "number")
+  else if (type_string == "number")
     type_ = ArgumentType::DOUBLE;
-  else if (*type_string == "object")
+  else if (type_string == "object")
     type_ = ArgumentType::OBJECT;
-  else if (*type_string == "array")
+  else if (type_string == "array")
     type_ = ArgumentType::LIST;
-  else if (*type_string == "boolean")
+  else if (type_string == "boolean")
     type_ = ArgumentType::BOOLEAN;
-  else if (*type_string == "string")
+  else if (type_string == "string")
     type_ = ArgumentType::STRING;
-  else if (*type_string == "binary")
+  else if (type_string == "binary")
     type_ = ArgumentType::BINARY;
-  else if (*type_string == "any")
+  else if (type_string == "any")
     type_ = ArgumentType::ANY;
-  else if (*type_string == "function")
+  else if (type_string == "function")
     type_ = ArgumentType::FUNCTION;
   else
     NOTREACHED();
 
-  if (absl::optional<int> minimum = dict.FindInt("minimum"))
-    minimum_ = *minimum;
-  if (absl::optional<int> maximum = dict.FindInt("maximum"))
-    maximum_ = *maximum;
+  int min = 0;
+  if (dict->GetInteger("minimum", &min))
+    minimum_ = min;
 
-  absl::optional<int> min_length = dict.FindInt("minLength");
-  if (!min_length)
-    min_length = dict.FindInt("minItems");
-  if (min_length) {
-    DCHECK_GE(*min_length, 0);
-    min_length_ = *min_length;
+  int max = 0;
+  if (dict->GetInteger("maximum", &max))
+    maximum_ = max;
+
+  int min_length = 0;
+  if (dict->GetInteger("minLength", &min_length) ||
+      dict->GetInteger("minItems", &min_length)) {
+    DCHECK_GE(min_length, 0);
+    min_length_ = min_length;
   }
 
-  absl::optional<int> max_length = dict.FindInt("maxLength");
-  if (!max_length)
-    max_length = dict.FindInt("maxItems");
-  if (max_length) {
-    DCHECK_GE(*max_length, 0);
-    max_length_ = *max_length;
+  int max_length = 0;
+  if (dict->GetInteger("maxLength", &max_length) ||
+      dict->GetInteger("maxItems", &max_length)) {
+    DCHECK_GE(max_length, 0);
+    max_length_ = max_length;
   }
 
   if (type_ == ArgumentType::OBJECT) {
-    if (const base::Value::Dict* properties_value =
-            dict.FindDict("properties")) {
-      for (const auto item : *properties_value) {
-        properties_[item.first] = std::make_unique<ArgumentSpec>(item.second);
+    const base::DictionaryValue* properties_value = nullptr;
+    if (dict->GetDictionary("properties", &properties_value)) {
+      for (base::DictionaryValue::Iterator iter(*properties_value);
+           !iter.IsAtEnd(); iter.Advance()) {
+        properties_[iter.key()] = std::make_unique<ArgumentSpec>(iter.value());
       }
     }
-
-    if (const base::Value::Dict* additional_properties_value =
-            dict.FindDict("additionalProperties")) {
+    const base::DictionaryValue* additional_properties_value = nullptr;
+    if (dict->GetDictionary("additionalProperties",
+                            &additional_properties_value)) {
       additional_properties_ =
           std::make_unique<ArgumentSpec>(*additional_properties_value);
       // Additional properties are always optional.
       additional_properties_->optional_ = true;
     }
   } else if (type_ == ArgumentType::LIST) {
-    const base::Value::Dict* item_value = dict.FindDict("items");
-    CHECK(item_value);
+    const base::DictionaryValue* item_value = nullptr;
+    CHECK(dict->GetDictionary("items", &item_value));
     list_element_type_ = std::make_unique<ArgumentSpec>(*item_value);
   } else if (type_ == ArgumentType::STRING) {
     // Technically, there's no reason enums couldn't be other objects (e.g.
     // numbers), but right now they seem to be exclusively strings. We could
     // always update this if need be.
-    if (const base::Value::List* enums = dict.FindList("enum")) {
-      CHECK(!enums->empty());
-      for (const base::Value& value : *enums) {
-        const std::string* enum_str = value.GetIfString();
+    const base::ListValue* enums = nullptr;
+    if (dict->GetList("enum", &enums)) {
+      size_t size = enums->GetSize();
+      CHECK_GT(size, 0u);
+      for (size_t i = 0; i < size; ++i) {
+        std::string enum_value;
         // Enum entries come in two versions: a list of possible strings, and
         // a dictionary with a field 'name'.
-        if (!enum_str) {
-          CHECK(value.is_dict());
-          enum_str = value.FindStringKey("name");
-          CHECK(enum_str);
+        if (!enums->GetString(i, &enum_value)) {
+          const base::DictionaryValue* enum_value_dictionary = nullptr;
+          CHECK(enums->GetDictionary(i, &enum_value_dictionary));
+          CHECK(enum_value_dictionary->GetString("name", &enum_value));
         }
-        enum_values_.insert(*enum_str);
+        enum_values_.insert(std::move(enum_value));
       }
     }
   } else if (type_ == ArgumentType::FUNCTION) {
-    serialize_function_ = dict.FindBool("serializableFunction").value_or(false);
+    serialize_function_ =
+        dict->FindBoolKey("serializableFunction").value_or(false);
   }
 
   // Check if we should preserve null in objects. Right now, this is only used
   // on arguments of type object and any (in fact, it's only used in the storage
   // API), but it could potentially make sense for lists or functions as well.
   if (type_ == ArgumentType::OBJECT || type_ == ArgumentType::ANY)
-    preserve_null_ = dict.FindBool("preserveNull").value_or(preserve_null_);
+    dict->GetBoolean("preserveNull", &preserve_null_);
 
   if (type_ == ArgumentType::OBJECT || type_ == ArgumentType::BINARY) {
-    if (const std::string* instance_of = dict.FindString("isInstanceOf"))
-      instance_of_ = *instance_of;
+    std::string instance_of;
+    if (dict->GetString("isInstanceOf", &instance_of))
+      instance_of_ = instance_of;
   }
 }
 
@@ -403,10 +409,6 @@ bool ArgumentSpec::ParseArgumentToFundamental(
     case ArgumentType::DOUBLE: {
       DCHECK(value->IsNumber());
       double double_val = value.As<v8::Number>()->Value();
-      if (std::isnan(double_val) || std::isinf(double_val)) {
-        *error = api_errors::NumberIsNaNOrInfinity();
-        return false;
-      }
       if (!CheckFundamentalBounds(double_val, minimum_, maximum_, error))
         return false;
       if (out_value)
@@ -562,7 +564,8 @@ bool ArgumentSpec::ParseArgumentToObject(
       }
       if (preserve_null_ && prop_value->IsNull()) {
         if (result) {
-          result->SetKey(*utf8_key, base::Value());
+          result->SetWithoutPathExpansion(*utf8_key,
+                                          std::make_unique<base::Value>());
         }
         if (convert_to_v8)
           v8_result.Set(*utf8_key, prop_value);
@@ -581,8 +584,7 @@ bool ArgumentSpec::ParseArgumentToObject(
       return false;
     }
     if (out_value)
-      result->SetKey(*utf8_key,
-                     base::Value::FromUniquePtrValue(std::move(property)));
+      result->SetWithoutPathExpansion(*utf8_key, std::move(property));
     if (convert_to_v8)
       v8_result.Set(*utf8_key, v8_property);
   }
@@ -697,7 +699,7 @@ bool ArgumentSpec::ParseArgumentToArray(v8::Local<v8::Context> context,
       return false;
     }
     if (out_value)
-      result->Append(base::Value::FromUniquePtrValue(std::move(item)));
+      result->Append(std::move(item));
     if (v8_out_value) {
       // This should never fail, since it's a newly-created array with
       // CreateDataProperty().

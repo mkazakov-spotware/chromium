@@ -1,17 +1,15 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "base/ios/crb_protocol_observers.h"
 
+#include "base/ios/weak_nsobject.h"
+#include "base/mac/scoped_nsobject.h"
 #include "base/notreached.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/gtest_mac.h"
 #include "testing/platform_test.h"
-
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
 
 @protocol TestObserver
 
@@ -54,24 +52,25 @@ class CRBProtocolObserversTest : public PlatformTest {
   void SetUp() override {
     PlatformTest::SetUp();
 
-    observers_ = (CRBProtocolObservers<TestObserver>*)[CRBProtocolObservers
-        observersWithProtocol:@protocol(TestObserver)];
+    observers_.reset([[CRBProtocolObservers observersWithProtocol:
+        @protocol(TestObserver)] retain]);
 
-    partial_observer_ = [[TestPartialObserver alloc] init];
+    partial_observer_.reset([[TestPartialObserver alloc] init]);
     EXPECT_FALSE([partial_observer_ requiredMethodInvoked]);
 
-    complete_observer_ = [[TestCompleteObserver alloc] init];
+    complete_observer_.reset([[TestCompleteObserver alloc] init]);
     EXPECT_FALSE([complete_observer_ requiredMethodInvoked]);
     EXPECT_FALSE([complete_observer_ optionalMethodInvoked]);
 
-    mutate_observer_ = [[TestMutateObserver alloc] initWithObserver:observers_];
+    mutate_observer_.reset(
+        [[TestMutateObserver alloc] initWithObserver:observers_.get()]);
     EXPECT_FALSE([mutate_observer_ requiredMethodInvoked]);
   }
 
-  CRBProtocolObservers<TestObserver>* observers_;
-  TestPartialObserver* partial_observer_;
-  TestCompleteObserver* complete_observer_;
-  TestMutateObserver* mutate_observer_;
+  base::scoped_nsobject<id> observers_;
+  base::scoped_nsobject<TestPartialObserver> partial_observer_;
+  base::scoped_nsobject<TestCompleteObserver> complete_observer_;
+  base::scoped_nsobject<TestMutateObserver> mutate_observer_;
 };
 
 // Verifies basic functionality of -[CRBProtocolObservers addObserver:] and
@@ -117,7 +116,8 @@ TEST_F(CRBProtocolObserversTest, OptionalMethods) {
 // Verifies that CRBProtocolObservers only holds a weak reference to an
 // observer.
 TEST_F(CRBProtocolObserversTest, WeakReference) {
-  __weak TestPartialObserver* weak_observer = partial_observer_;
+  base::WeakNSObject<TestPartialObserver> weak_observer(
+      partial_observer_);
   EXPECT_TRUE(weak_observer);
 
   [observers_ addObserver:partial_observer_];
@@ -128,10 +128,10 @@ TEST_F(CRBProtocolObserversTest, WeakReference) {
   @autoreleasepool {
     [observers_ requiredMethod];
     EXPECT_TRUE([partial_observer_ requiredMethodInvoked]);
-    partial_observer_ = nil;
   }
 
-  EXPECT_FALSE(weak_observer);
+  partial_observer_.reset();
+  EXPECT_FALSE(weak_observer.get());
 }
 
 // Verifies that an observer can safely remove itself as observer while being
@@ -214,27 +214,6 @@ TEST_F(CRBProtocolObserversTest, NestedMutateObservers) {
   EXPECT_FALSE([partial_observer_ requiredMethodInvoked]);
 }
 
-// Verifies that CRBProtocolObservers works if an observer deallocs.
-TEST_F(CRBProtocolObserversTest, IgnoresDeallocedObservers) {
-  __weak TestPartialObserver* weak_observer = partial_observer_;
-  EXPECT_TRUE(weak_observer);
-
-  [observers_ addObserver:partial_observer_];
-
-  // Need an autorelease pool here, because
-  // -[CRBProtocolObservers forwardInvocation:] creates a temporary
-  // autoreleased array that holds all the observers.
-  @autoreleasepool {
-    [observers_ requiredMethod];
-    EXPECT_TRUE([partial_observer_ requiredMethodInvoked]);
-    partial_observer_ = nil;
-  }
-
-  EXPECT_FALSE(weak_observer);
-  // This shouldn't crash.
-  [observers_ requiredMethod];
-}
-
 }  // namespace
 
 @implementation TestPartialObserver {
@@ -275,7 +254,7 @@ TEST_F(CRBProtocolObserversTest, IgnoresDeallocedObservers) {
 @end
 
 @implementation TestMutateObserver {
-  __weak id _observers;
+  id _observers;  // weak
 }
 
 - (instancetype)initWithObserver:(CRBProtocolObservers*)observers {

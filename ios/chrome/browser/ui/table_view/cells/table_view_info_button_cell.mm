@@ -1,17 +1,18 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/table_view/cells/table_view_info_button_cell.h"
 
-#import "ios/chrome/browser/ui/icons/symbols.h"
 #import "ios/chrome/browser/ui/settings/cells/settings_cells_constants.h"
+#include "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
+#import "ios/chrome/browser/ui/table_view/cells/table_view_cells_constants.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/UIColor+cr_semantic_colors.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -19,27 +20,26 @@
 
 namespace {
 
-// Proportion of `textLayoutGuide` and `statusTextLabel`. This guarantees both
+// Padding used between the icon and the text labels.
+const CGFloat kIconTrailingPadding = 12;
+
+// Size of the icon image.
+const CGFloat kIconImageSize = 28;
+
+// Proportion of |textLayoutGuide| and |statusTextLabel|. This guarantees both
 // of them at least occupies 20% of the cell.
 const CGFloat kCellLabelsWidthProportion = 0.2f;
-
-const CGFloat kInfoSymbolSize = 22;
 
 }  // namespace
 
 @interface TableViewInfoButtonCell ()
 
-// Views for the leading icon.
+// The image view for the leading icon.
 @property(nonatomic, readonly, strong) UIImageView* iconImageView;
 
 // Constraints that are used when the iconImageView is visible and hidden.
 @property(nonatomic, strong) NSLayoutConstraint* iconVisibleConstraint;
 @property(nonatomic, strong) NSLayoutConstraint* iconHiddenConstraint;
-
-// Constraint used when the `trailingButton` is visible and hidden.
-@property(nonatomic, strong)
-    NSLayoutConstraint* trailingButtonVisibleConstraint;
-@property(nonatomic, strong) NSLayoutConstraint* trailingButtonHiddenConstraint;
 
 // Constraints that are used when the preferred content size is an
 // "accessibility" category.
@@ -54,9 +54,7 @@ const CGFloat kInfoSymbolSize = 22;
 
 @end
 
-@implementation TableViewInfoButtonCell {
-  UIView* _iconBackground;
-}
+@implementation TableViewInfoButtonCell
 
 @synthesize textLabel = _textLabel;
 @synthesize detailTextLabel = _detailTextLabel;
@@ -66,19 +64,11 @@ const CGFloat kInfoSymbolSize = 22;
   self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
   if (self) {
     self.isAccessibilityElement = YES;
-    _isButtonSelectedForVoiceOver = YES;
-
-    _iconBackground = [[UIView alloc] init];
-    _iconBackground.translatesAutoresizingMaskIntoConstraints = NO;
-    _iconBackground.hidden = YES;
-    [self.contentView addSubview:_iconBackground];
 
     _iconImageView = [[UIImageView alloc] init];
     _iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
-    _iconImageView.contentMode = UIViewContentModeCenter;
-    [_iconBackground addSubview:_iconImageView];
-
-    AddSameCenterConstraints(_iconBackground, _iconImageView);
+    _iconImageView.hidden = YES;
+    [self.contentView addSubview:_iconImageView];
 
     UILayoutGuide* textLayoutGuide = [[UILayoutGuide alloc] init];
     [self.contentView addLayoutGuide:textLayoutGuide];
@@ -87,7 +77,7 @@ const CGFloat kInfoSymbolSize = 22;
     _textLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     _textLabel.adjustsFontForContentSizeCategory = YES;
-    _textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
+    _textLabel.textColor = UIColor.cr_labelColor;
     _textLabel.numberOfLines = 0;
     [self.contentView addSubview:_textLabel];
 
@@ -96,7 +86,7 @@ const CGFloat kInfoSymbolSize = 22;
     _detailTextLabel.font =
         [UIFont preferredFontForTextStyle:kTableViewSublabelFontStyle];
     _detailTextLabel.adjustsFontForContentSizeCategory = YES;
-    _detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+    _detailTextLabel.textColor = UIColor.cr_secondaryLabelColor;
     _detailTextLabel.numberOfLines = 0;
     [self.contentView addSubview:_detailTextLabel];
 
@@ -105,19 +95,14 @@ const CGFloat kInfoSymbolSize = 22;
     _statusTextLabel.font =
         [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     _statusTextLabel.adjustsFontForContentSizeCategory = YES;
-    _statusTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+    _statusTextLabel.textColor = UIColor.cr_secondaryLabelColor;
     [self.contentView addSubview:_statusTextLabel];
 
     _trailingButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIImage* infoImage;
-    if (UseSymbols()) {
-      infoImage = DefaultSymbolTemplateWithPointSize(kInfoCircleSymbol,
-                                                     kInfoSymbolSize);
-    } else {
-      infoImage = [[UIImage imageNamed:@"table_view_cell_info"]
-          imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    }
-    [_trailingButton setImage:infoImage forState:UIControlStateNormal];
+    [_trailingButton
+        setImage:[[UIImage imageNamed:@"table_view_cell_info"]
+                     imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+        forState:UIControlStateNormal];
     _trailingButton.tintColor = [UIColor colorNamed:kBlueColor];
     _trailingButton.translatesAutoresizingMaskIntoConstraints = NO;
     [_trailingButton
@@ -127,23 +112,15 @@ const CGFloat kInfoSymbolSize = 22;
     _trailingButton.accessibilityIdentifier = kTableViewCellInfoButtonViewId;
     [self.contentView addSubview:_trailingButton];
 
-    // Set up the constraint assuming that the button is hidden.
-    _trailingButtonVisibleConstraint = [textLayoutGuide.trailingAnchor
-        constraintLessThanOrEqualToAnchor:_statusTextLabel.leadingAnchor
-                                 constant:-kTableViewHorizontalSpacing];
-    _trailingButtonHiddenConstraint = [textLayoutGuide.trailingAnchor
-        constraintEqualToAnchor:_trailingButton.trailingAnchor
-                       constant:-kTableViewHorizontalSpacing];
-
     // Set up the constraints assuming that the icon image is hidden.
     _iconVisibleConstraint = [textLayoutGuide.leadingAnchor
-        constraintEqualToAnchor:_iconBackground.trailingAnchor
-                       constant:kTableViewImagePadding];
+        constraintEqualToAnchor:_iconImageView.trailingAnchor
+                       constant:kIconTrailingPadding];
     _iconHiddenConstraint = [textLayoutGuide.leadingAnchor
         constraintEqualToAnchor:self.contentView.leadingAnchor
                        constant:kTableViewHorizontalSpacing];
 
-    // Set the constranits of `textLabel` and `statusTextLabel` to make their
+    // Set the constranits of |textLabel| and |statusTextLabel| to make their
     // width >= 20% of the cell to ensure both of them have a space.
     NSLayoutConstraint* widthConstraintStatus = [_statusTextLabel.widthAnchor
         constraintGreaterThanOrEqualToAnchor:self.contentView.widthAnchor
@@ -156,7 +133,7 @@ const CGFloat kInfoSymbolSize = 22;
                                       multiplier:kCellLabelsWidthProportion];
     widthConstraintLayoutGuide.priority = UILayoutPriorityDefaultHigh + 1;
 
-    // Set the content hugging property to `statusTextLabel` to wrap the text
+    // Set the content hugging property to |statusTextLabel| to wrap the text
     // and give other label more space.
     [_statusTextLabel
         setContentHuggingPriority:UILayoutPriorityDefaultHigh + 2
@@ -173,7 +150,9 @@ const CGFloat kInfoSymbolSize = 22;
       [_trailingButton.trailingAnchor
           constraintEqualToAnchor:self.contentView.trailingAnchor
                          constant:-kTableViewHorizontalSpacing],
-      _trailingButtonVisibleConstraint,
+      [textLayoutGuide.trailingAnchor
+          constraintLessThanOrEqualToAnchor:_statusTextLabel.leadingAnchor
+                                   constant:-kTableViewHorizontalSpacing],
       [textLayoutGuide.centerYAnchor
           constraintEqualToAnchor:self.contentView.centerYAnchor],
       [textLayoutGuide.widthAnchor
@@ -217,15 +196,13 @@ const CGFloat kInfoSymbolSize = 22;
                                         kTableViewOneLabelCellVerticalSpacing];
 
     [NSLayoutConstraint activateConstraints:@[
-      [_iconBackground.leadingAnchor
+      [_iconImageView.leadingAnchor
           constraintEqualToAnchor:self.contentView.leadingAnchor
                          constant:kTableViewHorizontalSpacing],
-      [_iconBackground.widthAnchor
-          constraintEqualToConstant:kTableViewIconImageSize],
-      [_iconBackground.heightAnchor
-          constraintEqualToAnchor:_iconBackground.widthAnchor],
+      [_iconImageView.widthAnchor constraintEqualToConstant:kIconImageSize],
+      [_iconImageView.heightAnchor constraintEqualToConstant:kIconImageSize],
 
-      [_iconBackground.centerYAnchor
+      [_iconImageView.centerYAnchor
           constraintEqualToAnchor:textLayoutGuide.centerYAnchor],
 
       _iconHiddenConstraint,
@@ -269,39 +246,26 @@ const CGFloat kInfoSymbolSize = 22;
   }
 }
 
-- (void)setIconImage:(UIImage*)image
-           tintColor:(UIColor*)tintColor
-     backgroundColor:(UIColor*)backgroundColor
-        cornerRadius:(CGFloat)cornerRadius {
-  if (tintColor) {
-    image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+- (void)setIconImage:(UIImage*)image withTintColor:(UIColor*)color {
+  if (color) {
+    self.iconImageView.tintColor = color;
+    self.iconImageView.image =
+        [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+  } else {
+    self.iconImageView.image = image;
   }
 
-  self.iconImageView.image = image;
-  self.iconImageView.tintColor = tintColor;
-  _iconBackground.layer.cornerRadius = cornerRadius;
-  _iconBackground.backgroundColor = backgroundColor;
+  BOOL hidden = !image;
+  if (hidden == self.iconImageView.hidden)
+    return;
 
-  BOOL hidden = (image == nil);
-  _iconBackground.hidden = hidden;
+  self.iconImageView.hidden = hidden;
   if (hidden) {
     self.iconVisibleConstraint.active = NO;
     self.iconHiddenConstraint.active = YES;
   } else {
     self.iconHiddenConstraint.active = NO;
     self.iconVisibleConstraint.active = YES;
-  }
-}
-
-- (void)hideUIButton:(BOOL)isHidden {
-  self.trailingButton.hidden = isHidden;
-  self.trailingButtonHiddenConstraint.active = NO;
-  if (isHidden) {
-    self.trailingButtonHiddenConstraint.active = YES;
-    self.trailingButtonVisibleConstraint.active = NO;
-  } else {
-    self.trailingButtonHiddenConstraint.active = NO;
-    self.trailingButtonVisibleConstraint.active = YES;
   }
 }
 
@@ -334,7 +298,7 @@ const CGFloat kInfoSymbolSize = 22;
   self.detailTextLabel.text = nil;
   self.statusTextLabel.text = nil;
   self.trailingButton.tag = 0;
-  [self setIconImage:nil tintColor:nil backgroundColor:nil cornerRadius:0];
+  [self setIconImage:nil withTintColor:nil];
   [_trailingButton removeTarget:nil
                          action:nil
                forControlEvents:[_trailingButton allControlEvents]];
@@ -344,11 +308,7 @@ const CGFloat kInfoSymbolSize = 22;
 
 - (CGPoint)accessibilityActivationPoint {
   // Center the activation point over the info button, so that double-tapping
-  // triggers to show the popover if `isButtonSelectedForVoiceOver` is
-  // true.
-  if (!self.isButtonSelectedForVoiceOver)
-    return self.center;
-
+  // triggers to show the popover.
   CGRect buttonFrame = UIAccessibilityConvertFrameToScreenCoordinates(
       self.trailingButton.frame, self);
   return CGPointMake(CGRectGetMidX(buttonFrame), CGRectGetMidY(buttonFrame));

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,13 +18,13 @@ namespace task_manager {
 
 namespace {
 
-std::u16string GetCurrentTitle(content::WebContents* web_contents) {
+base::string16 GetCurrentTitle(content::WebContents* web_contents) {
   DCHECK(web_contents);
 
   // Imitate the UI style of Subframe task.
   content::SiteInstance* site_instance =
-      web_contents->GetPrimaryMainFrame()->GetSiteInstance();
-  std::u16string site_url =
+      web_contents->GetMainFrame()->GetSiteInstance();
+  base::string16 site_url =
       base::UTF8ToUTF16(site_instance->GetSiteURL().spec());
   int message_id = site_instance->GetBrowserContext()->IsOffTheRecord()
                        ? IDS_TASK_MANAGER_PORTAL_INCOGNITO_PREFIX
@@ -64,8 +64,7 @@ const Task* PortalTask::GetParentTask() const {
       web_contents()->GetResponsibleWebContents();
   if (responsible_contents == web_contents())
     return nullptr;
-  return task_provider_->GetTaskOfFrame(
-      responsible_contents->GetPrimaryMainFrame());
+  return task_provider_->GetTaskOfFrame(responsible_contents->GetMainFrame());
 }
 
 }  // namespace task_manager

@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/test/chromedriver/net/adb_client_socket.h"
 
 #include <stddef.h>
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -391,7 +390,7 @@ class AdbSendFileSocket : AdbClientSocket {
   }
 
   void SendDone() {
-    int data = time(nullptr);
+    int data = time(NULL);
     SendPayload(kDoneCommand, data, nullptr, 0,
                 base::BindOnce(&AdbSendFileSocket::ReadFinalResponse,
                                base::Unretained(this)));
@@ -407,31 +406,32 @@ class AdbSendFileSocket : AdbClientSocket {
   void SendPayload(const char* command,
                    int data,
                    const char* payload,
-                   size_t payload_length,
+                   size_t payloadLength,
                    net::CompletionOnceCallback callback) {
     std::string buffer(command);
     for (int i = 0; i < 4; i++) {
       buffer.append(1, static_cast<char>(data & 0xff));
       data >>= 8;
     }
-    if (payload_length > 0)
-      buffer.append(payload, payload_length);
+    if (payloadLength > 0)
+      buffer.append(payload, payloadLength);
 
     scoped_refptr<net::StringIOBuffer> request_buffer =
         base::MakeRefCounted<net::StringIOBuffer>(buffer);
 
-    auto split_callback = base::SplitOnceCallback(std::move(callback));
-    int result = socket_->Write(request_buffer.get(), request_buffer->size(),
-                                std::move(split_callback.first),
-                                TRAFFIC_ANNOTATION_FOR_TESTS);
+    net::CompletionRepeatingCallback copyable_callback =
+        base::AdaptCallbackForRepeating(std::move(callback));
+    int result =
+        socket_->Write(request_buffer.get(), request_buffer->size(),
+                       copyable_callback, TRAFFIC_ANNOTATION_FOR_TESTS);
     if (result != net::ERR_IO_PENDING)
-      std::move(split_callback.second).Run(result);
+      copyable_callback.Run(result);
   }
 
   bool CheckNetResultOrDie(int result) {
     if (result >= 0)
       return true;
-    callback_.Run(result, std::string());
+    callback_.Run(result, NULL);
     delete this;
     return false;
   }
@@ -500,19 +500,19 @@ void AdbClientSocket::Connect(net::CompletionOnceCallback callback) {
   // on IPv4. So just try IPv4 first, then fall back to IPv6.
   net::IPAddressList list = {net::IPAddress::IPv4Localhost(),
                              net::IPAddress::IPv6Localhost()};
-  std::vector<std::string> aliases({"localhost"});
-  net::AddressList ip_list =
-      net::AddressList::CreateFromIPAddressList(list, std::move(aliases));
+  net::AddressList ip_list = net::AddressList::CreateFromIPAddressList(
+      list, "localhost");
   net::AddressList address_list = net::AddressList::CopyWithPort(
       ip_list, port_);
 
-  socket_ = std::make_unique<net::TCPClientSocket>(
-      address_list, nullptr, nullptr, nullptr, net::NetLogSource());
+  socket_.reset(new net::TCPClientSocket(address_list, nullptr, nullptr,
+                                         nullptr, net::NetLogSource()));
 
-  auto split_callback = base::SplitOnceCallback(std::move(callback));
-  int result = socket_->Connect(std::move(split_callback.first));
+  net::CompletionRepeatingCallback copyable_callback =
+      base::AdaptCallbackForRepeating(std::move(callback));
+  int result = socket_->Connect(copyable_callback);
   if (result != net::ERR_IO_PENDING)
-    std::move(split_callback.second).Run(result);
+    copyable_callback.Run(result);
 }
 
 void AdbClientSocket::SendCommand(const std::string& command,

@@ -5,8 +5,6 @@
 'use strict';
 
 test(testCase => {
-  reserveAndCleanupCapacitySync(testCase);
-
   const file = createFileSync(testCase, "file_length_zero");
   file.setLength(0);
   const lengthDecreased = file.getLength();
@@ -16,8 +14,6 @@ test(testCase => {
      'the file length to 0.');
 
 test(testCase => {
-  reserveAndCleanupCapacitySync(testCase);
-
   const file = createFileSync(testCase, "file_length_negative");
 
   // Without this assertion, the test passes even if setLength is not defined.

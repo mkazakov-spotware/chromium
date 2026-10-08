@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ ui::TouchscreenDevice CreateTouchscreenDevice(int id,
 TouchDeviceManager::TouchAssociationInfo CreateTouchAssociationInfo(
     int days_old) {
   TouchDeviceManager::TouchAssociationInfo info;
-  info.timestamp = base::Time::Now() - base::Days(days_old);
+  info.timestamp = base::Time::Now() - base::TimeDelta::FromDays(days_old);
   return info;
 }
 
@@ -44,10 +44,6 @@ using DisplayInfoList = std::vector<ManagedDisplayInfo>;
 class TouchAssociationTest : public testing::Test {
  public:
   TouchAssociationTest() {}
-
-  TouchAssociationTest(const TouchAssociationTest&) = delete;
-  TouchAssociationTest& operator=(const TouchAssociationTest&) = delete;
-
   ~TouchAssociationTest() override {}
 
   DisplayManager* display_manager() { return display_manager_.get(); }
@@ -124,6 +120,9 @@ class TouchAssociationTest : public testing::Test {
   DisplayInfoList displays_;
   std::unique_ptr<DisplayManager> display_manager_;
   TouchDeviceManager* touch_device_manager_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TouchAssociationTest);
 };
 
 TEST_F(TouchAssociationTest, NoTouchscreens) {
@@ -358,11 +357,6 @@ TEST_F(TouchAssociationTest,
 class TouchAssociationFromPrefTest : public TouchAssociationTest {
  public:
   TouchAssociationFromPrefTest() {}
-
-  TouchAssociationFromPrefTest(const TouchAssociationFromPrefTest&) = delete;
-  TouchAssociationFromPrefTest& operator=(const TouchAssociationFromPrefTest&) =
-      delete;
-
   ~TouchAssociationFromPrefTest() override {}
 
   void SetUp() override {
@@ -422,6 +416,9 @@ class TouchAssociationFromPrefTest : public TouchAssociationTest {
 
  protected:
   std::vector<ui::TouchscreenDevice> devices_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TouchAssociationFromPrefTest);
 };
 
 TEST_F(TouchAssociationFromPrefTest, CorrectMapping) {
@@ -583,12 +580,6 @@ TEST_F(TouchAssociationFromPrefTest, InternalDisplayIsNotMatched) {
 class TouchAssociationWithDuplicateDeviceTest : public TouchAssociationTest {
  public:
   TouchAssociationWithDuplicateDeviceTest() {}
-
-  TouchAssociationWithDuplicateDeviceTest(
-      const TouchAssociationWithDuplicateDeviceTest&) = delete;
-  TouchAssociationWithDuplicateDeviceTest& operator=(
-      const TouchAssociationWithDuplicateDeviceTest&) = delete;
-
   ~TouchAssociationWithDuplicateDeviceTest() override {}
 
   void SetUp() override {
@@ -716,6 +707,9 @@ class TouchAssociationWithDuplicateDeviceTest : public TouchAssociationTest {
 
  protected:
   std::vector<ui::TouchscreenDevice> devices_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TouchAssociationWithDuplicateDeviceTest);
 };
 
 TEST_F(TouchAssociationWithDuplicateDeviceTest, CorrectMapping) {

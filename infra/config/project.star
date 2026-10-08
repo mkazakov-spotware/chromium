@@ -1,25 +1,17 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-# The value for each attribute should be the corresponding value that can be
-# passed to the --type flag of scripts/branch.py
-branch_type = struct(
-    STANDARD = "standard",
-    DESKTOP_EXTENDED_STABLE = "desktop-extended-stable",
-    CROS_LTS = "cros-lts",
-    FUCHSIA_LTS = "fuchsia-lts",
-)
-
-BRANCH_TYPES = tuple([getattr(branch_type, a) for a in dir(branch_type)])
 
 def _project_settings(
         *,
         project,
-        project_title,
+        branch_title,
+        is_master,
+        is_lts_branch,
         ref,
-        chrome_project,
-        branch_types = []):
+        cq_ref_regexp,
+        try_triggering_projects,
+        tree_status_host):
     """Declare settings for the project.
 
     This provides the central location for what must be modified when
@@ -29,52 +21,73 @@ def _project_settings(
 
     Args:
       * project - The name of the LUCI project.
-      * project_title - A string identifying the project in title contexts (e.g.
-        titles of consoles).
+      * branch_title - A string identifying the branch in console titles.
+      * is_master - Whether this branch is main/master/trunk.
+      * is_lts_branch - Whether this branch is in the LTS channel.
       * ref - The git ref containing the code for this branch.
-      * chrome_project - The name of the corresponding chrome project.
-      * branch_types - Values indicating what type(s) apply to the branch. If no
-        branch types are specified, that indicates main. It is an error for
-        branch_type.STANDARD to appear along with any other values.
-
-    Returns:
-      A struct with attributes set to the input parameters. Additionally, the
-      is_main attribute is set to True if branch_types is empty or False if
-      branch_types is not empty.
+      * cq_ref_regexp - A regular expression determining the git refs that the
+        CQ group for this project should watch.
+      * try_trigger_projects - A list of names of other LUCI projects whose CQ
+        is allowed to trigger this project's try builders. None can also be
+        passed to prohibit other projects' CQ from triggering this project's try
+        builders.
+      * tree_status_host - The host of the tree status app associated with this
+        project. Builders with tree closers configured will notify this host and
+        CQ attempts will block if the host indicates the tree is closed. It also
+        appears at the top of the console header. None indicates there is no
+        associated tree status app for the project.
     """
-    invalid_branch_types = [t for t in branch_types if t not in BRANCH_TYPES]
-    if invalid_branch_types:
-        fail("The following branch types are invalid: {}".format(invalid_branch_types))
-    if branch_type.STANDARD in branch_types and len(branch_types) != 1:
-        fail("STANDARD branch type cannot be specified along with other branch types")
+    if is_master and is_lts_branch:
+        fail("is_master and is_lts_branch can't both be True")
     return struct(
         project = project,
-        project_title = project_title,
+        is_master = is_master,
+        is_lts_branch = is_lts_branch,
         ref = ref,
-        chrome_project = chrome_project,
-        is_main = not branch_types,
-        branch_types = branch_types,
+        cq_ref_regexp = cq_ref_regexp,
+        try_triggering_projects = try_triggering_projects,
+        tree_status_host = tree_status_host,
+        main_console_title = "{} Main Console".format(branch_title),
+        cq_mirrors_console_title = "{} CQ Mirrors Console".format(branch_title),
+        main_list_view_title = "{} CQ Console".format(branch_title),
     )
 
-settings = _project_settings(**json.decode(io.read_file("./settings.json")))
+settings = _project_settings(
+    # Set this to the name of the milestone's project
+    project = "chromium-m88",
+    # Set this to how the branch should be referred to in console titles
+    branch_title = "Chromium M88",
+    # Set this to False for branches
+    is_master = False,
+    # Set this to True for LTC/LTS branches
+    is_lts_branch = False,
+    # Set this to the branch ref for branches
+    ref = "refs/branch-heads/4324",
+    # Set this to the branch ref for branches
+    cq_ref_regexp = "refs/branch-heads/4324",
+    # Set this to None for branches
+    try_triggering_projects = None,
+    # Set this to None for branches
+    tree_status_host = None,
+)
 
 def _generate_project_pyl(ctx):
     ctx.output["project.pyl"] = "\n".join([
         "# This is a non-LUCI generated file",
         "# This is consumed by presubmit checks that need to validate the config",
         repr(dict(
-            # On main, we want to ensure that we don't have source side specs
+            # On master, we want to ensure that we don't have source side specs
             # defined for non-existent builders
             # On branches, we don't want to re-generate the source side specs as
             # that would increase branch day toil and complicate cherry-picks
-            validate_source_side_specs_have_builder = settings.is_main,
+            validate_source_side_specs_have_builder = settings.is_master,
         )),
         "",
     ])
 
 lucicfg.generator(_generate_project_pyl)
 
-def _milestone_details(*, project, ref):
+def _milestone_details(*, project, ref, channel):
     """Define the details for an active milestone.
 
     Args:
@@ -82,19 +95,29 @@ def _milestone_details(*, project, ref):
         milestone.
       * ref - The ref in the git repository that contains the code for the
         milestone.
+      * channel - The name of the release channel the milestone is in (used for
+        identifying the milestone in the console header).
     """
     return struct(
         project = project,
         ref = ref,
+        channel = channel,
     )
 
 # The milestone names and branch numbers of branches that we have builders
 # running for (including milestone-specific projects)
 # Branch numbers and milestones can be viewed in the chromium column at
-# https://chromiumdash.appspot.com/releases
-# The 3rd portion of the version number is the branch number for the associated
-# milestone
+# https://chromiumdash.appspot.com/branches
+# The 2 highest milestones will be the ones with active branches
 ACTIVE_MILESTONES = {
-    m["name"]: _milestone_details(project = m["project"], ref = m["ref"])
-    for m in json.decode(io.read_file("./milestones.json")).values()
+    "m86": _milestone_details(
+        project = "chromium-m86",
+        ref = "refs/branch-heads/4240",
+        channel = "Stable",
+    ),
+    "m87": _milestone_details(
+        project = "chromium-m87",
+        ref = "refs/branch-heads/4280",
+        channel = "Beta",
+    ),
 }

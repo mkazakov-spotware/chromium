@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ bool IsUsernameAllowedByPattern(base::StringPiece username,
   // are not valid regular expressions - they should instead be ".*@foo.com").
   // For convenience, detect these patterns and insert a "." character at the
   // front.
-  std::u16string utf16_pattern = base::UTF8ToUTF16(pattern);
+  base::string16 utf16_pattern = base::UTF8ToUTF16(pattern);
   if (utf16_pattern[0] == L'*')
     utf16_pattern.insert(utf16_pattern.begin(), L'.');
 

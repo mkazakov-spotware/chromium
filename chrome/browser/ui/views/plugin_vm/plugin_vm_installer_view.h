@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 #define CHROME_BROWSER_UI_VIEWS_PLUGIN_VM_PLUGIN_VM_INSTALLER_VIEW_H_
 
 #include "base/callback.h"
-#include "chrome/browser/ash/plugin_vm/plugin_vm_installer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/macros.h"
+#include "chrome/browser/chromeos/plugin_vm/plugin_vm_installer.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 
 namespace views {
@@ -24,12 +24,7 @@ class Profile;
 class PluginVmInstallerView : public views::BubbleDialogDelegateView,
                               public plugin_vm::PluginVmInstaller::Observer {
  public:
-  METADATA_HEADER(PluginVmInstallerView);
-
   explicit PluginVmInstallerView(Profile* profile);
-
-  PluginVmInstallerView(const PluginVmInstallerView&) = delete;
-  PluginVmInstallerView& operator=(const PluginVmInstallerView&) = delete;
 
   static PluginVmInstallerView* GetActiveViewForTesting();
 
@@ -53,8 +48,8 @@ class PluginVmInstallerView : public views::BubbleDialogDelegateView,
   void OnCancelFinished() override;
 
   // Public for testing purposes.
-  std::u16string GetTitle() const;
-  std::u16string GetMessage() const;
+  base::string16 GetTitle() const;
+  base::string16 GetMessage() const;
 
   void SetFinishedCallbackForTesting(
       base::OnceCallback<void(bool success)> callback);
@@ -73,15 +68,14 @@ class PluginVmInstallerView : public views::BubbleDialogDelegateView,
   ~PluginVmInstallerView() override;
 
   int GetCurrentDialogButtons() const;
-  std::u16string GetCurrentDialogButtonLabel(ui::DialogButton button) const;
+  base::string16 GetCurrentDialogButtonLabel(ui::DialogButton button) const;
 
   void OnStateUpdated();
   void OnLinkClicked();
   // views::BubbleDialogDelegateView implementation.
   void AddedToWidget() override;
-  void OnThemeChanged() override;
 
-  std::u16string GetDownloadProgressMessage(uint64_t bytes_downloaded,
+  base::string16 GetDownloadProgressMessage(uint64_t bytes_downloaded,
                                             int64_t content_length) const;
   void SetTitleLabel();
   void SetMessageLabel();
@@ -90,7 +84,7 @@ class PluginVmInstallerView : public views::BubbleDialogDelegateView,
   void StartInstallation();
 
   Profile* profile_ = nullptr;
-  std::u16string app_name_;
+  base::string16 app_name_;
   plugin_vm::PluginVmInstaller* plugin_vm_installer_ = nullptr;
   views::Label* title_label_ = nullptr;
   views::Label* message_label_ = nullptr;
@@ -102,9 +96,11 @@ class PluginVmInstallerView : public views::BubbleDialogDelegateView,
 
   State state_ = State::kConfirmInstall;
   InstallingState installing_state_ = InstallingState::kInactive;
-  absl::optional<plugin_vm::PluginVmInstaller::FailureReason> reason_;
+  base::Optional<plugin_vm::PluginVmInstaller::FailureReason> reason_;
 
   base::OnceCallback<void(bool success)> finished_callback_for_testing_;
+
+  DISALLOW_COPY_AND_ASSIGN(PluginVmInstallerView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PLUGIN_VM_PLUGIN_VM_INSTALLER_VIEW_H_

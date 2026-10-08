@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,18 @@
 #include <stddef.h>
 
 #include "base/bind.h"
-#include "base/memory/ptr_util.h"
 #include "base/memory/unsafe_shared_memory_region.h"
-#include "base/ranges/algorithm.h"
 #include "build/build_config.h"
 #include "content/common/pepper_file_util.h"
 #include "content/public/common/content_client.h"
 #include "content/public/renderer/content_renderer_client.h"
-#include "content/public/renderer/ppapi_gfx_conversion.h"
 #include "content/public/renderer/render_thread.h"
 #include "content/public/renderer/renderer_ppapi_host.h"
+#include "content/renderer/pepper/gfx_conversion.h"
 #include "content/renderer/pepper/ppb_graphics_3d_impl.h"
 #include "content/renderer/pepper/video_decoder_shim.h"
 #include "gpu/ipc/client/command_buffer_proxy_impl.h"
 #include "media/base/limits.h"
-#include "media/base/media_switches.h"
 #include "media/base/media_util.h"
 #include "media/gpu/ipc/client/gpu_video_decode_accelerator_host.h"
 #include "media/video/video_decode_accelerator.h"
@@ -160,30 +157,14 @@ int32_t PepperVideoDecoderHost::OnHostMsgInitialize(
   min_picture_count_ = min_picture_count;
 
   if (acceleration != PP_HARDWAREACCELERATION_NONE) {
-    if (!base::FeatureList::IsEnabled(media::kUseMojoVideoDecoderForPepper)) {
-      // This is not synchronous, but subsequent IPC messages will be buffered,
-      // so it is okay to immediately send IPC messages.
-      if (command_buffer->channel()) {
-        decoder_ = base::WrapUnique<media::VideoDecodeAccelerator>(
-            new media::GpuVideoDecodeAcceleratorHost(command_buffer));
-        media::VideoDecodeAccelerator::Config vda_config(profile_);
-        vda_config.supported_output_formats.assign(
-            {media::PIXEL_FORMAT_XRGB, media::PIXEL_FORMAT_ARGB});
-        if (decoder_->Initialize(vda_config, this)) {
-          initialized_ = true;
-          return PP_OK;
-        }
-      }
-    } else {
-      uint32_t shim_texture_pool_size = media::limits::kMaxVideoFrames + 1;
-      shim_texture_pool_size =
-          std::max(shim_texture_pool_size, min_picture_count_);
-      auto new_decoder = VideoDecoderShim::Create(this, shim_texture_pool_size,
-                                                  /*use_hw_decoder=*/true);
-      if (new_decoder &&
-          new_decoder->Initialize(
-              media::VideoDecodeAccelerator::Config(profile_), this)) {
-        decoder_.reset(new_decoder.release());
+    // This is not synchronous, but subsequent IPC messages will be buffered, so
+    // it is okay to immediately send IPC messages.
+    if (command_buffer->channel()) {
+      decoder_.reset(new media::GpuVideoDecodeAcceleratorHost(command_buffer));
+      media::VideoDecodeAccelerator::Config vda_config(profile_);
+      vda_config.supported_output_formats.assign(
+          {media::PIXEL_FORMAT_XRGB, media::PIXEL_FORMAT_ARGB});
+      if (decoder_->Initialize(vda_config, this)) {
         initialized_ = true;
         return PP_OK;
       }
@@ -193,7 +174,7 @@ int32_t PepperVideoDecoderHost::OnHostMsgInitialize(
       return PP_ERROR_NOTSUPPORTED;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return PP_ERROR_NOTSUPPORTED;
 #else
   if (!TryFallbackToSoftwareDecoder())
@@ -277,7 +258,10 @@ int32_t PepperVideoDecoderHost::OnHostMsgDecode(
 
   shm_buffers_[shm_id].busy = true;
   decoder_->Decode(media::BitstreamBuffer(
-      decode_id, shm_buffers_[shm_id].region.Duplicate(), size));
+      decode_id,
+      base::UnsafeSharedMemoryRegion::TakeHandleForSerialization(
+          shm_buffers_[shm_id].region.Duplicate()),
+      size));
 
   return PP_OK_COMPLETIONPENDING;
 }
@@ -426,6 +410,12 @@ void PepperVideoDecoderHost::PictureReady(const media::Picture& picture) {
   CHECK(it->second == PictureBufferState::ASSIGNED);
   it->second = PictureBufferState::IN_USE;
 
+  if (software_fallback_used_) {
+    media::ReportPepperVideoDecoderOutputPictureCountSW(coded_size_.height());
+  } else {
+    media::ReportPepperVideoDecoderOutputPictureCountHW(coded_size_.height());
+  }
+
   // Don't bother validating the visible rect, since the plugin process is less
   // trusted than the gpu process.
   PP_Rect visible_rect = PP_FromGfxRect(picture.visible_rect());
@@ -515,7 +505,7 @@ const uint8_t* PepperVideoDecoderHost::DecodeIdToAddress(uint32_t decode_id) {
 }
 
 bool PepperVideoDecoderHost::TryFallbackToSoftwareDecoder() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   return false;
 #else
   DCHECK(!software_fallback_used_ && software_fallback_allowed_);
@@ -523,8 +513,8 @@ bool PepperVideoDecoderHost::TryFallbackToSoftwareDecoder() {
   uint32_t shim_texture_pool_size = media::limits::kMaxVideoFrames + 1;
   shim_texture_pool_size = std::max(shim_texture_pool_size,
                                     min_picture_count_);
-  std::unique_ptr<VideoDecoderShim> new_decoder(VideoDecoderShim::Create(
-      this, shim_texture_pool_size, /*use_hw_decoder=*/false));
+  std::unique_ptr<VideoDecoderShim> new_decoder(
+      new VideoDecoderShim(this, shim_texture_pool_size));
   if (!new_decoder->Initialize(media::VideoDecodeAccelerator::Config(profile_),
                                this)) {
     return false;
@@ -568,7 +558,9 @@ bool PepperVideoDecoderHost::TryFallbackToSoftwareDecoder() {
   for (const PendingDecode& decode : pending_decodes_) {
     DCHECK(shm_buffers_[decode.shm_id].busy);
     decoder_->Decode(media::BitstreamBuffer(
-        decode.decode_id, shm_buffers_[decode.shm_id].region.Duplicate(),
+        decode.decode_id,
+        base::UnsafeSharedMemoryRegion::TakeHandleForSerialization(
+            shm_buffers_[decode.shm_id].region.Duplicate()),
         decode.size));
   }
 
@@ -582,8 +574,10 @@ bool PepperVideoDecoderHost::TryFallbackToSoftwareDecoder() {
 
 PepperVideoDecoderHost::PendingDecodeList::iterator
 PepperVideoDecoderHost::GetPendingDecodeById(int32_t decode_id) {
-  return base::ranges::find(pending_decodes_, decode_id,
-                            &PendingDecode::decode_id);
+  return std::find_if(pending_decodes_.begin(), pending_decodes_.end(),
+                      [decode_id](const PendingDecode& item) {
+                        return item.decode_id == decode_id;
+                      });
 }
 
 }  // namespace content

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -151,19 +151,15 @@ TEST(ContentSettingsPatternParserTest, ParsePatterns) {
   content_settings::PatternParser::Parse("www.youtube.com*", &builder);
   ::testing::Mock::VerifyAndClear(&builder);
 
-  // Tests for superfluous dot after domain wildcard
-  {
-    auto real_builder = ContentSettingsPattern::CreateBuilder();
-    content_settings::PatternParser::Parse("[*.].youtube.com",
-                                           real_builder.get());
-    EXPECT_FALSE(real_builder->Build().IsValid());
-  }
-  {
-    auto real_builder = ContentSettingsPattern::CreateBuilder();
-    content_settings::PatternParser::Parse("[*.]%2Eyoutube.com",
-                                           real_builder.get());
-    EXPECT_FALSE(real_builder->Build().IsValid());
-  }
+  // Test for kDomainWildcardWithSuperfluousDot
+  EXPECT_CALL(builder, WithSchemeWildcard())
+      .Times(1)
+      .WillOnce(::testing::Return(&builder));
+  EXPECT_CALL(builder, Invalid())
+      .Times(1)
+      .WillOnce(::testing::Return(&builder));
+  content_settings::PatternParser::Parse("[*.].youtube.com", &builder);
+  ::testing::Mock::VerifyAndClear(&builder);
 }
 
 TEST(ContentSettingsPatternParserTest, ParseFilePatterns) {
@@ -214,25 +210,12 @@ TEST(ContentSettingsPatternParserTest, ParseFilePatterns) {
   ::testing::Mock::VerifyAndClear(&builder);
 
   // Invalid file patterns.
-  EXPECT_CALL(builder, WithScheme("file"))
-      .WillOnce(::testing::Return(&builder));
-  EXPECT_CALL(builder, Invalid()).WillOnce(::testing::Return(&builder));
+  EXPECT_CALL(builder, WithScheme("file")).Times(1).WillOnce(
+      ::testing::Return(&builder));
+  EXPECT_CALL(builder, Invalid()).Times(1).WillOnce(
+      ::testing::Return(&builder));
   content_settings::PatternParser::Parse(
       "file://**", &builder);
-  ::testing::Mock::VerifyAndClear(&builder);
-
-  EXPECT_CALL(builder, WithScheme("file"))
-      .WillOnce(::testing::Return(&builder));
-  EXPECT_CALL(builder, WithHost("foo")).WillOnce(::testing::Return(&builder));
-  EXPECT_CALL(builder, Invalid()).WillOnce(::testing::Return(&builder));
-  content_settings::PatternParser::Parse("file://foo:123", &builder);
-  ::testing::Mock::VerifyAndClear(&builder);
-
-  EXPECT_CALL(builder, WithScheme("file"))
-      .WillOnce(::testing::Return(&builder));
-  EXPECT_CALL(builder, WithHost("foo")).WillOnce(::testing::Return(&builder));
-  EXPECT_CALL(builder, Invalid()).WillOnce(::testing::Return(&builder));
-  content_settings::PatternParser::Parse("file://foo:*", &builder);
   ::testing::Mock::VerifyAndClear(&builder);
 }
 
@@ -375,37 +358,4 @@ TEST(ContentSettingsPatternParserTest, SerializePatterns) {
   parts.host = "peoadpeiejnhkmpaakpnompolbglelel";
   EXPECT_EQ("chrome-extension://peoadpeiejnhkmpaakpnompolbglelel/",
             content_settings::PatternParser::ToString(parts));
-}
-
-TEST(ContentSettingsPatternParserTest, IdempotencyOfCanonicalization) {
-  const std::string pattern_specs[] = {
-      "abc",
-      "https://chromium.org",
-      "file:///foo/",
-      "file:///foo/:/bar/:/baz",
-      "https://foo/:/bar/:/baz",
-      "file://:/path",
-      "file://:/:",  // crbug.com/1196591
-      "file:///C:/Users/a.txt",
-      "filE:///foo/",  // crbug.com/1323130
-  };
-
-  for (const std::string& spec : pattern_specs) {
-    SCOPED_TRACE("spec: " + spec);
-    auto builder = ContentSettingsPattern::CreateBuilder();
-    content_settings::PatternParser::Parse(spec, builder.get());
-    ContentSettingsPattern pattern = builder->Build();
-    EXPECT_TRUE(pattern.IsValid());
-    std::string canonical = pattern.ToString();
-
-    auto builder2 = ContentSettingsPattern::CreateBuilder();
-    content_settings::PatternParser::Parse(canonical, builder2.get());
-    ContentSettingsPattern pattern2 = builder2->Build();
-    EXPECT_TRUE(pattern2.IsValid());
-    std::string canonical2 = pattern2.ToString();
-
-    EXPECT_EQ(canonical, canonical2);
-    EXPECT_EQ(pattern.Compare(pattern2),
-              ContentSettingsPattern::Relation::IDENTITY);
-  }
 }

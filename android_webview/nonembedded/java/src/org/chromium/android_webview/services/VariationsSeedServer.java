@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@ import android.os.RemoteException;
 import org.chromium.android_webview.common.services.IVariationsSeedServer;
 import org.chromium.android_webview.common.services.IVariationsSeedServerCallback;
 import org.chromium.android_webview.common.variations.VariationsServiceMetricsHelper;
-import org.chromium.android_webview.services.ServicesStatsHelper.NonembeddedService;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 
@@ -35,11 +34,6 @@ public class VariationsSeedServer extends Service {
             VariationsSeedHolder.getInstance().writeSeedIfNewer(newSeedFile, oldSeedDate);
         }
     };
-
-    @Override
-    public void onCreate() {
-        ServicesStatsHelper.recordServiceLaunch(NonembeddedService.VARIATIONS_SEED_SERVER);
-    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -68,6 +62,8 @@ public class VariationsSeedServer extends Service {
         // reported a second time.
         metrics.clearJobInterval();
         metrics.clearJobQueueTime();
+        metrics.clearSeedFetchResult();
+        metrics.clearSeedFetchTime();
         if (!metrics.writeMetricsToVariationsSharedPreferences(context)) {
             Log.e(TAG, "Failed to write variations SharedPreferences to disk");
         }

@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_BROWSER_API_BLUETOOTH_SOCKET_BLUETOOTH_SOCKET_EVENT_DISPATCHER_H_
 #define EXTENSIONS_BROWSER_API_BLUETOOTH_SOCKET_BLUETOOTH_SOCKET_EVENT_DISPATCHER_H_
 
-#include "base/memory/raw_ptr.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/api/api_resource_manager.h"
 #include "extensions/browser/api/bluetooth_socket/bluetooth_api_socket.h"
@@ -30,7 +29,9 @@ namespace api {
 
 // Dispatch events related to "bluetooth" sockets from callback on native socket
 // instances. There is one instance per browser context.
-class BluetoothSocketEventDispatcher : public BrowserContextKeyedAPI {
+class BluetoothSocketEventDispatcher
+    : public BrowserContextKeyedAPI,
+      public base::SupportsWeakPtr<BluetoothSocketEventDispatcher> {
  public:
   explicit BluetoothSocketEventDispatcher(content::BrowserContext* context);
   ~BluetoothSocketEventDispatcher() override;
@@ -68,7 +69,7 @@ class BluetoothSocketEventDispatcher : public BrowserContextKeyedAPI {
     ~SocketParams();
 
     content::BrowserThread::ID thread_id;
-    raw_ptr<void> browser_context_id;
+    void* browser_context_id;
     std::string extension_id;
     scoped_refptr<SocketData> sockets;
     int socket_id;
@@ -111,7 +112,7 @@ class BluetoothSocketEventDispatcher : public BrowserContextKeyedAPI {
 
   // Usually FILE thread (except for unit testing).
   content::BrowserThread::ID thread_id_;
-  const raw_ptr<content::BrowserContext> browser_context_;
+  content::BrowserContext* const browser_context_;
   scoped_refptr<SocketData> sockets_;
 };
 

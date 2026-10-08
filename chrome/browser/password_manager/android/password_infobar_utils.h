@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,8 @@ class Profile;
 
 namespace password_manager {
 
-AccountInfo GetAccountInfoForPasswordMessages(Profile* profile);
+base::Optional<AccountInfo> GetAccountInfoForPasswordInfobars(Profile* profile,
+                                                              bool is_syncing);
 
 }  // namespace password_manager
 

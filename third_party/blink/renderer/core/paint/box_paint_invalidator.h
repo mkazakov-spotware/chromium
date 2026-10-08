@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,13 +32,13 @@ class CORE_EXPORT BoxPaintInvalidator {
 
   bool HasEffectiveBackground();
   bool BackgroundGeometryDependsOnLayoutOverflowRect();
-  bool BackgroundPaintsInContentsSpace();
-  bool BackgroundPaintsInBorderBoxSpace();
+  bool BackgroundPaintsOntoScrollingContentsLayer();
+  bool BackgroundPaintsOntoMainGraphicsLayer();
   bool ShouldFullyInvalidateBackgroundOnLayoutOverflowChange(
       const PhysicalRect& old_layout_overflow,
       const PhysicalRect& new_layout_overflow);
 
-  enum class BackgroundInvalidationType { kNone = 0, kIncremental, kFull };
+  enum BackgroundInvalidationType { kNone = 0, kIncremental, kFull };
   BackgroundInvalidationType ComputeViewBackgroundInvalidation();
   BackgroundInvalidationType ComputeBackgroundInvalidation(
       bool& should_invalidate_all_layers);
@@ -56,4 +56,4 @@ class CORE_EXPORT BoxPaintInvalidator {
 
 }  // namespace blink
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_PAINT_BOX_PAINT_INVALIDATOR_H_
+#endif

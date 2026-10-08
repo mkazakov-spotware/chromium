@@ -44,10 +44,9 @@ std::unique_ptr<CrossThreadHTTPHeaderMapData> HTTPHeaderMap::CopyData() const {
   data->ReserveInitialCapacity(size());
 
   HTTPHeaderMap::const_iterator end_it = end();
-  for (HTTPHeaderMap::const_iterator it = begin(); it != end_it; ++it) {
-    data->UncheckedAppend(
-        std::make_pair(it->key.GetString(), it->value.GetString()));
-  }
+  for (HTTPHeaderMap::const_iterator it = begin(); it != end_it; ++it)
+    data->UncheckedAppend(std::make_pair(it->key.GetString().IsolatedCopy(),
+                                         it->value.GetString().IsolatedCopy()));
 
   return data;
 }

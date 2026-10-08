@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,19 @@
 #include <memory>
 #include <vector>
 
-#include "base/files/file_path.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
-#include "components/services/storage/privileged/mojom/indexed_db_control.mojom.h"
-#include "components/services/storage/public/cpp/buckets/bucket_id.h"
-#include "content/browser/indexed_db/indexed_db_internals.mojom.h"
+#include "components/services/storage/public/mojom/indexed_db_control.mojom.h"
 #include "content/public/browser/web_ui_controller.h"
-#include "content/public/browser/webui_config.h"
-#include "content/public/common/url_constants.h"
+
+namespace base {
+class ListValue;
+}
+
+namespace url {
+class Origin;
+}
 
 namespace download {
 class DownloadItem;
@@ -25,61 +30,45 @@ class DownloadItem;
 
 namespace content {
 
-class IndexedDBInternalsUI;
-
-class IndexedDBInternalsUIConfig
-    : public DefaultWebUIConfig<IndexedDBInternalsUI> {
- public:
-  IndexedDBInternalsUIConfig()
-      : DefaultWebUIConfig(kChromeUIScheme, kChromeUIIndexedDBInternalsHost) {}
-};
-
 // The implementation for the chrome://indexeddb-internals page.
-class IndexedDBInternalsUI : public WebUIController,
-                             public storage::mojom::IdbInternalsHandler {
+class IndexedDBInternalsUI : public WebUIController {
  public:
   explicit IndexedDBInternalsUI(WebUI* web_ui);
-
-  IndexedDBInternalsUI(const IndexedDBInternalsUI&) = delete;
-  IndexedDBInternalsUI& operator=(const IndexedDBInternalsUI&) = delete;
-
   ~IndexedDBInternalsUI() override;
 
-  void BindInterface(
-      mojo::PendingReceiver<storage::mojom::IdbInternalsHandler> receiver);
-
-  // WebUIController:
-  void WebUIRenderFrameCreated(RenderFrameHost* rfh) override;
-
-  // storage::mojom::IdbInternalsHandler:
-  void GetAllBucketsAcrossAllStorageKeys(
-      GetAllBucketsAcrossAllStorageKeysCallback callback) override;
-  void DownloadBucketData(storage::BucketId bucket_id,
-                          DownloadBucketDataCallback callback) override;
-  void ForceClose(storage::BucketId bucket_id,
-                  ForceCloseCallback callback) override;
-
  private:
-  void OnDownloadDataReady(DownloadBucketDataCallback callback,
+  void GetAllOrigins(const base::ListValue* args);
+  void OnOriginsReady(const base::Value& origins, const base::FilePath& path);
+
+  void DownloadOriginData(const base::ListValue* args);
+  void OnDownloadDataReady(const base::FilePath& partition_path,
+                           const url::Origin& origin,
                            uint64_t connection_count,
                            bool success,
                            const base::FilePath& temp_path,
                            const base::FilePath& zip_path);
-  void OnDownloadStarted(const base::FilePath& temp_path,
-                         DownloadBucketDataCallback callback,
+  void OnDownloadStarted(const base::FilePath& partition_path,
+                         const url::Origin& origin,
+                         const base::FilePath& temp_path,
                          size_t connection_count,
                          download::DownloadItem* item,
                          download::DownloadInterruptReason interrupt_reason);
 
-  storage::mojom::IndexedDBControl* GetBucketControl(
-      storage::BucketId bucket_id);
+  void ForceCloseOrigin(const base::ListValue* args);
+  void OnForcedClose(const base::FilePath& partition_path,
+                     const url::Origin& origin,
+                     uint64_t connection_count);
 
-  std::map<storage::BucketId, base::FilePath> bucket_to_partition_path_map_;
+  bool GetOriginControl(const base::FilePath& path,
+                        const url::Origin& origin,
+                        storage::mojom::IndexedDBControl** control);
+  bool GetOriginData(const base::ListValue* args,
+                     base::FilePath* path,
+                     url::Origin* origin,
+                     storage::mojom::IndexedDBControl** control);
 
-  std::unique_ptr<mojo::Receiver<storage::mojom::IdbInternalsHandler>>
-      receiver_;
   base::WeakPtrFactory<IndexedDBInternalsUI> weak_factory_{this};
-  WEB_UI_CONTROLLER_TYPE_DECL();
+  DISALLOW_COPY_AND_ASSIGN(IndexedDBInternalsUI);
 };
 
 }  // namespace content

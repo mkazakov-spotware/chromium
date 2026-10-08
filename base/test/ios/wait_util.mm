@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,23 @@ namespace base {
 namespace test {
 namespace ios {
 
-bool WaitUntilConditionOrTimeout(TimeDelta timeout, ConditionBlock condition) {
-  NSDate* deadline = [NSDate dateWithTimeIntervalSinceNow:timeout.InSecondsF()];
+const NSTimeInterval kSpinDelaySeconds = 0.01;
+const NSTimeInterval kWaitForJSCompletionTimeout = 6.0;
+const NSTimeInterval kWaitForUIElementTimeout = 4.0;
+const NSTimeInterval kWaitForDownloadTimeout = 10.0;
+const NSTimeInterval kWaitForPageLoadTimeout = 10.0;
+const NSTimeInterval kWaitForActionTimeout = 10.0;
+const NSTimeInterval kWaitForClearBrowsingDataTimeout = 45.0;
+const NSTimeInterval kWaitForCookiesTimeout = 4.0;
+const NSTimeInterval kWaitForFileOperationTimeout = 2.0;
+
+bool WaitUntilConditionOrTimeout(NSTimeInterval timeout,
+                                 ConditionBlock condition) {
+  NSDate* deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
   bool success = condition();
   while (!success && [[NSDate date] compare:deadline] != NSOrderedDescending) {
-    base::test::ios::SpinRunLoopWithMaxDelay(kSpinDelaySeconds);
+    base::test::ios::SpinRunLoopWithMaxDelay(
+        base::TimeDelta::FromSecondsD(kSpinDelaySeconds));
     success = condition();
   }
   return success;
@@ -35,11 +47,11 @@ TimeDelta TimeUntilCondition(ProceduralBlock action,
     action();
   if (timeout.is_zero())
     timeout = TestTimeouts::action_timeout();
-  constexpr TimeDelta kSpinDelay(Milliseconds(10));
+  const TimeDelta spin_delay(TimeDelta::FromMilliseconds(10));
   bool condition_evaluation_result = false;
   while (timer.Elapsed() < timeout &&
          (!condition || !(condition_evaluation_result = condition()))) {
-    SpinRunLoopWithMaxDelay(kSpinDelay);
+    SpinRunLoopWithMaxDelay(spin_delay);
     if (run_message_loop)
       RunLoop().RunUntilIdle();
   }
@@ -71,7 +83,7 @@ void SpinRunLoopWithMaxDelay(TimeDelta max_delay) {
 void SpinRunLoopWithMinDelay(TimeDelta min_delay) {
   ElapsedTimer timer;
   while (timer.Elapsed() < min_delay) {
-    SpinRunLoopWithMaxDelay(Milliseconds(10));
+    SpinRunLoopWithMaxDelay(TimeDelta::FromMilliseconds(10));
   }
 }
 

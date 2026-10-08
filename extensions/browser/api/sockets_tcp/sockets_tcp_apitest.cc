@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@
 #include "mojo/public/cpp/bindings/sync_call_restrictions.h"
 #include "net/base/features.h"
 #include "net/base/host_port_pair.h"
-#include "net/base/network_anonymization_key.h"
+#include "net/base/network_isolation_key.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "services/network/test/test_dns_util.h"
@@ -39,7 +39,7 @@ class SocketsTcpApiTest : public ShellApiTest {
  public:
   SocketsTcpApiTest() {
     // Enable kSplitHostCacheByNetworkIsolationKey so the test can verify that
-    // the correct NetworkAnonymizationKey was used for the DNS lookup.
+    // the correct NetworkIsolationKey was used for the DNS lookup.
     scoped_feature_list_.InitAndEnableFeature(
         net::features::kSplitHostCacheByNetworkIsolationKey);
 
@@ -64,14 +64,16 @@ IN_PROC_BROWSER_TEST_F(SocketsTcpApiTest, SocketsTcpCreateGood) {
   socket_create_function->set_extension(empty_extension.get());
   socket_create_function->set_has_callback(true);
 
-  absl::optional<base::Value> result(
+  std::unique_ptr<base::Value> result(
       api_test_utils::RunFunctionAndReturnSingleResult(
           socket_create_function.get(), "[]", browser_context()));
-  ASSERT_TRUE(result);
-  ASSERT_TRUE(result->is_dict());
-  absl::optional<int> socket_id = result->GetDict().FindInt("socketId");
-  ASSERT_TRUE(socket_id);
-  ASSERT_GT(*socket_id, 0);
+
+  ASSERT_EQ(base::Value::Type::DICTIONARY, result->type());
+  std::unique_ptr<base::DictionaryValue> value =
+      base::DictionaryValue::From(std::move(result));
+  int socketId = -1;
+  EXPECT_TRUE(value->GetInteger("socketId", &socketId));
+  ASSERT_TRUE(socketId > 0);
 }
 
 IN_PROC_BROWSER_TEST_F(SocketsTcpApiTest, SocketTcpExtension) {
@@ -89,8 +91,7 @@ IN_PROC_BROWSER_TEST_F(SocketsTcpApiTest, SocketTcpExtension) {
   ResultCatcher catcher;
   catcher.RestrictToBrowserContext(browser_context());
 
-  ExtensionTestMessageListener listener("info_please",
-                                        ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("info_please", true);
 
   scoped_refptr<const Extension> test_extension = LoadApp("sockets_tcp/api");
   ASSERT_TRUE(test_extension);
@@ -101,20 +102,20 @@ IN_PROC_BROWSER_TEST_F(SocketsTcpApiTest, SocketTcpExtension) {
 
   EXPECT_TRUE(catcher.GetNextResult()) << catcher.message();
 
-  // Make sure the extension's NetworkAnonymizationKey was used. Do a cache only
-  // DNS lookup using the expected NIK, and make sure the IP address is
-  // retrieved.
+  // Make sure the extension's NetworkIsolationKey was used. Do a cache only DNS
+  // lookup using the expected NIK, and make sure the IP address is retrieved.
   network::mojom::NetworkContext* network_context =
-      browser_context()->GetDefaultStoragePartition()->GetNetworkContext();
+      content::BrowserContext::GetDefaultStoragePartition(browser_context())
+          ->GetNetworkContext();
   network::mojom::ResolveHostParametersPtr params =
       network::mojom::ResolveHostParameters::New();
   // Cache only lookup.
   params->source = net::HostResolverSource::LOCAL_ONLY;
-  net::SchemefulSite site = net::SchemefulSite(test_extension->url());
-  net::NetworkAnonymizationKey network_anonymization_key(site, site);
+  url::Origin origin = url::Origin::Create(test_extension->url());
+  net::NetworkIsolationKey network_isolation_key(origin, origin);
   network::DnsLookupResult result1 =
       network::BlockingDnsLookup(network_context, host_port_pair,
-                                 std::move(params), network_anonymization_key);
+                                 std::move(params), network_isolation_key);
   EXPECT_EQ(net::OK, result1.error);
   ASSERT_TRUE(result1.resolved_addresses.has_value());
   ASSERT_EQ(1u, result1.resolved_addresses->size());
@@ -122,13 +123,13 @@ IN_PROC_BROWSER_TEST_F(SocketsTcpApiTest, SocketTcpExtension) {
             result1.resolved_addresses.value()[0].ToStringWithoutPort());
 
   // Check that the entry isn't present in the cache with the empty
-  // NetworkAnonymizationKey.
+  // NetworkIsolationKey.
   params = network::mojom::ResolveHostParameters::New();
   // Cache only lookup.
   params->source = net::HostResolverSource::LOCAL_ONLY;
-  network::DnsLookupResult result2 = network::BlockingDnsLookup(
-      network_context, host_port_pair, std::move(params),
-      net::NetworkAnonymizationKey());
+  network::DnsLookupResult result2 =
+      network::BlockingDnsLookup(network_context, host_port_pair,
+                                 std::move(params), net::NetworkIsolationKey());
   EXPECT_EQ(net::ERR_NAME_NOT_RESOLVED, result2.error);
 }
 
@@ -155,8 +156,7 @@ IN_PROC_BROWSER_TEST_F(SocketsTcpApiTest, SocketTcpExtensionTLS) {
   ResultCatcher catcher;
   catcher.RestrictToBrowserContext(browser_context());
 
-  ExtensionTestMessageListener listener("info_please",
-                                        ReplyBehavior::kWillReply);
+  ExtensionTestMessageListener listener("info_please", true);
 
   ASSERT_TRUE(LoadApp("sockets_tcp/api"));
   EXPECT_TRUE(listener.WaitUntilSatisfied());

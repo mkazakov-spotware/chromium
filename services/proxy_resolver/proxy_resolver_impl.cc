@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/net_errors.h"
-#include "net/base/network_anonymization_key.h"
-#include "net/base/proxy_string_util.h"
+#include "net/base/network_isolation_key.h"
 #include "net/proxy_resolution/pac_file_data.h"
 #include "net/proxy_resolution/proxy_info.h"
 #include "services/proxy_resolver/mojo_proxy_resolver_v8_tracing_bindings.h"
@@ -24,13 +23,9 @@ class ProxyResolverImpl::Job {
   Job(mojo::PendingRemote<mojom::ProxyResolverRequestClient> client,
       ProxyResolverImpl* resolver,
       const GURL& url);
-
-  Job(const Job&) = delete;
-  Job& operator=(const Job&) = delete;
-
   ~Job();
 
-  void Start(const net::NetworkAnonymizationKey& network_anonymization_key);
+  void Start(const net::NetworkIsolationKey& network_isolation_key);
 
  private:
   // Mojo error handler. This is invoked in response to the client
@@ -39,13 +34,15 @@ class ProxyResolverImpl::Job {
 
   void GetProxyDone(int error);
 
-  raw_ptr<ProxyResolverImpl> resolver_;
+  ProxyResolverImpl* resolver_;
 
   mojo::Remote<mojom::ProxyResolverRequestClient> client_;
   net::ProxyInfo result_;
   GURL url_;
   std::unique_ptr<net::ProxyResolver::Request> request_;
   bool done_;
+
+  DISALLOW_COPY_AND_ASSIGN(Job);
 };
 
 ProxyResolverImpl::ProxyResolverImpl(
@@ -56,14 +53,14 @@ ProxyResolverImpl::~ProxyResolverImpl() = default;
 
 void ProxyResolverImpl::GetProxyForUrl(
     const GURL& url,
-    const net::NetworkAnonymizationKey& network_anonymization_key,
+    const net::NetworkIsolationKey& network_isolation_key,
     mojo::PendingRemote<mojom::ProxyResolverRequestClient> client) {
   DVLOG(1) << "GetProxyForUrl(" << url << ")";
   std::unique_ptr<Job> job =
       std::make_unique<Job>(std::move(client), this, url);
   Job* job_ptr = job.get();
   resolve_jobs_[job_ptr] = std::move(job);
-  job_ptr->Start(network_anonymization_key);
+  job_ptr->Start(network_isolation_key);
 }
 
 void ProxyResolverImpl::DeleteJob(Job* job) {
@@ -83,9 +80,9 @@ ProxyResolverImpl::Job::Job(
 ProxyResolverImpl::Job::~Job() = default;
 
 void ProxyResolverImpl::Job::Start(
-    const net::NetworkAnonymizationKey& network_anonymization_key) {
+    const net::NetworkIsolationKey& network_isolation_key) {
   resolver_->resolver_->GetProxyForURL(
-      url_, network_anonymization_key, &result_,
+      url_, network_isolation_key, &result_,
       base::BindOnce(&Job::GetProxyDone, base::Unretained(this)), &request_,
       std::make_unique<MojoProxyResolverV8TracingBindings<
           mojom::ProxyResolverRequestClient>>(client_.get()));
@@ -98,7 +95,7 @@ void ProxyResolverImpl::Job::GetProxyDone(int error) {
   DVLOG(1) << "GetProxyForUrl(" << url_ << ") finished with error " << error
            << ". " << result_.proxy_list().size() << " Proxies returned:";
   for (const auto& proxy : result_.proxy_list().GetAll()) {
-    DVLOG(1) << net::ProxyServerToProxyUri(proxy);
+    DVLOG(1) << proxy.ToURI();
   }
   if (error == net::OK)
     client_->ReportResult(error, result_);

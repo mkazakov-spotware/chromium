@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "base/values.h"
 #include "dbus/object_path.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/dbus/bluez_dbus_client.h"
@@ -67,10 +69,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothProfileManagerClient
     std::unique_ptr<uint16_t> features;
   };
 
-  BluetoothProfileManagerClient(const BluetoothProfileManagerClient&) = delete;
-  BluetoothProfileManagerClient& operator=(
-      const BluetoothProfileManagerClient&) = delete;
-
   ~BluetoothProfileManagerClient() override;
 
   // The ErrorCallback is used by adapter methods to indicate failure.
@@ -104,6 +102,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothProfileManagerClient
 
  protected:
   BluetoothProfileManagerClient();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BluetoothProfileManagerClient);
 };
 
 }  // namespace bluez

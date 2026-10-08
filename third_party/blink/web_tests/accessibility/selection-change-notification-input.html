@@ -11,8 +11,12 @@
 async_test_after_layout_and_paint((t) => {
   const inputElement = document.getElementById('input');
   const axRootElement = accessibilityController.rootElement;
+  const axInputElement = accessibilityController.accessibleElementById('input');
 
+  let gotDocumentSelectionChanged = false;
+  let gotSelectedTextChanged = false;
   const succeedIfDone = t.step_func(() => {
+    if (gotDocumentSelectionChanged && gotSelectedTextChanged)
       t.done();
   });
 
@@ -20,7 +24,18 @@ async_test_after_layout_and_paint((t) => {
     if (notification == 'DocumentSelectionChanged') {
       assert_array_equals(intents,
                           ['AXEventIntent(setSelection,none,character,forward)']);
+      gotDocumentSelectionChanged = true;
       axRootElement.unsetNotificationListener();
+      succeedIfDone();
+    }
+  });
+
+  axInputElement.setNotificationListener(function(notification, intents) {
+    if (notification == 'SelectedTextChanged') {
+      assert_array_equals(intents,
+                          ['AXEventIntent(setSelection,none,character,forward)']);
+      gotSelectedTextChanged = true;
+      axInputElement.unsetNotificationListener();
       succeedIfDone();
     }
   });

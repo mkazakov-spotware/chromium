@@ -25,8 +25,6 @@
 
 #include "third_party/blink/renderer/core/dom/range.h"
 
-#include "third_party/blink/renderer/core/display_lock/display_lock_document_state.h"
-#include "third_party/blink/renderer/core/display_lock/display_lock_utilities.h"
 #include "third_party/blink/renderer/core/dom/character_data.h"
 #include "third_party/blink/renderer/core/dom/container_node.h"
 #include "third_party/blink/renderer/core/dom/document_fragment.h"
@@ -46,24 +44,22 @@
 #include "third_party/blink/renderer/core/editing/set_selection_options.h"
 #include "third_party/blink/renderer/core/editing/visible_position.h"
 #include "third_party/blink/renderer/core/editing/visible_units.h"
-#include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/geometry/dom_rect.h"
 #include "third_party/blink/renderer/core/geometry/dom_rect_list.h"
-#include "third_party/blink/renderer/core/highlight/highlight_registry.h"
 #include "third_party/blink/renderer/core/html/html_body_element.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
-#include "third_party/blink/renderer/core/layout/deferred_shaping_controller.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
 #include "third_party/blink/renderer/core/svg/svg_svg_element.h"
 #include "third_party/blink/renderer/core/trustedtypes/trusted_types_util.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/geometry/float_quad.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
-#include "ui/gfx/geometry/quad_f.h"
 
 namespace blink {
 
@@ -97,12 +93,6 @@ class RangeUpdateScope {
         !settings->GetDoNotUpdateSelectionOnMutatingSelectionRange()) {
       range_->RemoveFromSelectionIfInDifferentRoot(*old_document_);
       range_->UpdateSelectionIfAddedToSelection();
-    }
-
-    range_->ScheduleVisualUpdateIfInRegisteredHighlight(
-        range_->OwnerDocument());
-    if (*old_document_ != range_->OwnerDocument()) {
-      range_->ScheduleVisualUpdateIfInRegisteredHighlight(*old_document_);
     }
 #if DCHECK_IS_ON()
     current_range_ = nullptr;
@@ -195,6 +185,20 @@ Node* Range::commonAncestorContainer(const Node* container_a,
   return container_a->CommonAncestor(*container_b, NodeTraversal::Parent);
 }
 
+static inline bool CheckForDifferentRootContainer(
+    const RangeBoundaryPoint& start,
+    const RangeBoundaryPoint& end) {
+  Node* end_root_container = &end.Container();
+  while (end_root_container->parentNode())
+    end_root_container = end_root_container->parentNode();
+  Node* start_root_container = &start.Container();
+  while (start_root_container->parentNode())
+    start_root_container = start_root_container->parentNode();
+
+  return start_root_container != end_root_container ||
+         (Range::compareBoundaryPoints(start, end, ASSERT_NO_EXCEPTION) > 0);
+}
+
 void Range::setStart(Node* ref_node,
                      unsigned offset,
                      ExceptionState& exception_state) {
@@ -218,9 +222,7 @@ void Range::setStart(Node* ref_node,
 
   start_.Set(*ref_node, offset, child_node);
 
-  if (did_move_document ||
-      HasDifferentRootContainer(&start_.Container(), &end_.Container()) ||
-      compareBoundaryPoints(start_, end_, ASSERT_NO_EXCEPTION) > 0)
+  if (did_move_document || CheckForDifferentRootContainer(start_, end_))
     collapse(true);
 }
 
@@ -247,9 +249,7 @@ void Range::setEnd(Node* ref_node,
 
   end_.Set(*ref_node, offset, child_node);
 
-  if (did_move_document ||
-      HasDifferentRootContainer(&start_.Container(), &end_.Container()) ||
-      compareBoundaryPoints(start_, end_, ASSERT_NO_EXCEPTION) > 0)
+  if (did_move_document || CheckForDifferentRootContainer(start_, end_))
     collapse(false);
 }
 
@@ -432,7 +432,7 @@ void Range::deleteContents(ExceptionState& exception_state) {
 
   {
     EventQueueScope event_queue_scope;
-    ProcessContents(kDeleteContents, exception_state);
+    ProcessContents(DELETE_CONTENTS, exception_state);
   }
 }
 
@@ -491,10 +491,31 @@ static inline Node* ChildOfCommonRootBeforeOffset(Node* container,
   return container;
 }
 
+static unsigned LengthOfContents(const Node* node) {
+  // This switch statement must be consistent with that of
+  // Range::processContentsBetweenOffsets.
+  switch (node->getNodeType()) {
+    case Node::kTextNode:
+    case Node::kCdataSectionNode:
+    case Node::kCommentNode:
+    case Node::kProcessingInstructionNode:
+      return To<CharacterData>(node)->length();
+    case Node::kElementNode:
+    case Node::kDocumentNode:
+    case Node::kDocumentFragmentNode:
+      return To<ContainerNode>(node)->CountChildren();
+    case Node::kAttributeNode:
+    case Node::kDocumentTypeNode:
+      return 0;
+  }
+  NOTREACHED();
+  return 0;
+}
+
 DocumentFragment* Range::ProcessContents(ActionType action,
                                          ExceptionState& exception_state) {
   DocumentFragment* fragment = nullptr;
-  if (action == kExtractContents || action == kCloneContents)
+  if (action == EXTRACT_CONTENTS || action == CLONE_CONTENTS)
     fragment = DocumentFragment::Create(*owner_document_.Get());
 
   if (collapsed())
@@ -548,8 +569,7 @@ DocumentFragment* Range::ProcessContents(ActionType action,
       common_root->contains(&original_start.Container())) {
     left_contents = ProcessContentsBetweenOffsets(
         action, nullptr, &original_start.Container(), original_start.Offset(),
-        AbstractRange::LengthOfContents(&original_start.Container()),
-        exception_state);
+        LengthOfContents(&original_start.Container()), exception_state);
     left_contents = ProcessAncestorsAndTheirSiblings(
         action, &original_start.Container(), kProcessContentsForward,
         left_contents, common_root, exception_state);
@@ -577,7 +597,7 @@ DocumentFragment* Range::ProcessContents(ActionType action,
 
   // Collapse the range, making sure that the result is not within a node that
   // was partially selected.
-  if (action == kExtractContents || action == kDeleteContents) {
+  if (action == EXTRACT_CONTENTS || action == DELETE_CONTENTS) {
     if (partial_start && common_root->contains(partial_start)) {
       // FIXME: We should not continue if we have an earlier error.
       exception_state.ClearException();
@@ -597,7 +617,7 @@ DocumentFragment* Range::ProcessContents(ActionType action,
   // Now add leftContents, stuff in between, and rightContents to the fragment
   // (or just delete the stuff in between)
 
-  if ((action == kExtractContents || action == kCloneContents) && left_contents)
+  if ((action == EXTRACT_CONTENTS || action == CLONE_CONTENTS) && left_contents)
     fragment->AppendChild(left_contents, exception_state);
 
   if (process_start) {
@@ -607,7 +627,7 @@ DocumentFragment* Range::ProcessContents(ActionType action,
     ProcessNodes(action, nodes, common_root, fragment, exception_state);
   }
 
-  if ((action == kExtractContents || action == kCloneContents) &&
+  if ((action == EXTRACT_CONTENTS || action == CLONE_CONTENTS) &&
       right_contents)
     fragment->AppendChild(right_contents, exception_state);
 
@@ -642,7 +662,7 @@ Node* Range::ProcessContentsBetweenOffsets(ActionType action,
     case Node::kCommentNode:
     case Node::kProcessingInstructionNode:
       end_offset = std::min(end_offset, To<CharacterData>(container)->length());
-      if (action == kExtractContents || action == kCloneContents) {
+      if (action == EXTRACT_CONTENTS || action == CLONE_CONTENTS) {
         CharacterData* c =
             static_cast<CharacterData*>(container->cloneNode(true));
         DeleteCharacterData(c, start_offset, end_offset, exception_state);
@@ -653,7 +673,7 @@ Node* Range::ProcessContentsBetweenOffsets(ActionType action,
           result = c;
         }
       }
-      if (action == kExtractContents || action == kDeleteContents)
+      if (action == EXTRACT_CONTENTS || action == DELETE_CONTENTS)
         To<CharacterData>(container)->deleteData(
             start_offset, end_offset - start_offset, exception_state);
       break;
@@ -663,7 +683,7 @@ Node* Range::ProcessContentsBetweenOffsets(ActionType action,
     case Node::kDocumentTypeNode:
     case Node::kDocumentFragmentNode:
       // FIXME: Should we assert that some nodes never appear here?
-      if (action == kExtractContents || action == kCloneContents) {
+      if (action == EXTRACT_CONTENTS || action == CLONE_CONTENTS) {
         if (fragment)
           result = fragment;
         else
@@ -692,14 +712,14 @@ void Range::ProcessNodes(ActionType action,
                          ExceptionState& exception_state) {
   for (auto& node : nodes) {
     switch (action) {
-      case kDeleteContents:
+      case DELETE_CONTENTS:
         old_container->removeChild(node.Get(), exception_state);
         break;
-      case kExtractContents:
+      case EXTRACT_CONTENTS:
         new_container->appendChild(
             node.Release(), exception_state);  // Will remove n from its parent.
         break;
-      case kCloneContents:
+      case CLONE_CONTENTS:
         new_container->appendChild(node->cloneNode(true), exception_state);
         break;
     }
@@ -724,7 +744,7 @@ Node* Range::ProcessAncestorsAndTheirSiblings(
       direction == kProcessContentsForward ? container->nextSibling()
                                            : container->previousSibling();
   for (const auto& ancestor : ancestors) {
-    if (action == kExtractContents || action == kCloneContents) {
+    if (action == EXTRACT_CONTENTS || action == CLONE_CONTENTS) {
       // Might have been removed already during mutation event.
       if (Node* cloned_ancestor = ancestor->cloneNode(false)) {
         cloned_ancestor->appendChild(cloned_container, exception_state);
@@ -748,21 +768,21 @@ Node* Range::ProcessAncestorsAndTheirSiblings(
     for (const auto& node : nodes) {
       Node* child = node.Get();
       switch (action) {
-        case kDeleteContents:
+        case DELETE_CONTENTS:
           // Prior call of ancestor->removeChild() may cause a tree change due
           // to DOMSubtreeModified event.  Therefore, we need to make sure
           // |ancestor| is still |child|'s parent.
           if (ancestor == child->parentNode())
             ancestor->removeChild(child, exception_state);
           break;
-        case kExtractContents:  // will remove child from ancestor
+        case EXTRACT_CONTENTS:  // will remove child from ancestor
           if (direction == kProcessContentsForward)
             cloned_container->appendChild(child, exception_state);
           else
             cloned_container->insertBefore(
                 child, cloned_container->firstChild(), exception_state);
           break;
-        case kCloneContents:
+        case CLONE_CONTENTS:
           if (direction == kProcessContentsForward)
             cloned_container->appendChild(child->cloneNode(true),
                                           exception_state);
@@ -787,8 +807,8 @@ DocumentFragment* Range::extractContents(ExceptionState& exception_state) {
     return nullptr;
 
   EventQueueScope scope;
-  DocumentFragment* fragment =
-      ProcessContents(kExtractContents, exception_state);
+  DocumentFragment* fragment = ProcessContents(EXTRACT_CONTENTS,
+                                               exception_state);
   // |extractContents| has extended attributes [NewObject, DoNotTestNewObject],
   // so it's better to have a test that exercises the following condition:
   //
@@ -800,7 +820,7 @@ DocumentFragment* Range::extractContents(ExceptionState& exception_state) {
 }
 
 DocumentFragment* Range::cloneContents(ExceptionState& exception_state) {
-  return ProcessContents(kCloneContents, exception_state);
+  return ProcessContents(CLONE_CONTENTS, exception_state);
 }
 
 // https://dom.spec.whatwg.org/#concept-range-insert
@@ -895,15 +915,12 @@ void Range::insertNode(Node* new_node, ExceptionState& exception_state) {
 
   // 10. Let newOffset be parent's length if referenceNode is null, and
   // referenceNode's index otherwise.
-  unsigned new_offset = reference_node
-                            ? reference_node->NodeIndex()
-                            : AbstractRange::LengthOfContents(&parent);
+  unsigned new_offset =
+      reference_node ? reference_node->NodeIndex() : LengthOfContents(&parent);
 
   // 11. Increase newOffset by node's length if node is a DocumentFragment node,
   // and one otherwise.
-  new_offset += new_node->IsDocumentFragment()
-                    ? AbstractRange::LengthOfContents(new_node)
-                    : 1;
+  new_offset += new_node->IsDocumentFragment() ? LengthOfContents(new_node) : 1;
 
   // 12. Pre-insert node into parent before referenceNode.
   parent.insertBefore(new_node, reference_node, exception_state);
@@ -934,7 +951,7 @@ String Range::toString() const {
     }
   }
 
-  return builder.ReleaseString();
+  return builder.ToString();
 }
 
 String Range::GetText() const {
@@ -1355,7 +1372,7 @@ Node* Range::PastLastNode() const {
   return EndPosition().NodeAsRangePastLastNode();
 }
 
-gfx::Rect Range::BoundingBox() const {
+IntRect Range::BoundingBox() const {
   return ComputeTextRect(EphemeralRange(this));
 }
 
@@ -1580,7 +1597,7 @@ void Range::expand(const String& unit, ExceptionState& exception_state) {
     start = StartOfParagraph(start);
     end = EndOfParagraph(end);
   } else if (unit == "document") {
-    start = CreateVisiblePosition(StartOfDocument(start.DeepEquivalent()));
+    start = StartOfDocument(start);
     end = EndOfDocument(end);
   } else {
     return;
@@ -1593,41 +1610,35 @@ void Range::expand(const String& unit, ExceptionState& exception_state) {
 }
 
 DOMRectList* Range::getClientRects() const {
-  if (owner_document_->View()) {
-    DeferredShapingController::From(*owner_document_)
-        ->ReshapeAllDeferred(ReshapeReason::kGeometryApi);
-  }
-  DisplayLockUtilities::ScopedForcedUpdate force_locks(
-      this, DisplayLockContext::ForcedPhase::kLayout);
   owner_document_->UpdateStyleAndLayout(DocumentUpdateReason::kJavaScript);
 
-  Vector<gfx::QuadF> quads;
+  Vector<FloatQuad> quads;
   GetBorderAndTextQuads(quads);
 
   return MakeGarbageCollected<DOMRectList>(quads);
 }
 
 DOMRect* Range::getBoundingClientRect() const {
-  return DOMRect::FromRectF(BoundingRect());
+  return DOMRect::FromFloatRect(BoundingRect());
 }
 
 // TODO(editing-dev): We should make
-// |Document::AdjustQuadsForScrollAndAbsoluteZoom()| as const function
+// |Document::AdjustFloatQuadsForScrollAndAbsoluteZoom()| as const function
 // and takes |const LayoutObject&|.
-static Vector<gfx::QuadF> ComputeTextQuads(const Document& owner_document,
-                                           const LayoutText& layout_text,
-                                           unsigned start_offset,
-                                           unsigned end_offset) {
-  Vector<gfx::QuadF> text_quads;
+static Vector<FloatQuad> ComputeTextQuads(const Document& owner_document,
+                                          const LayoutText& layout_text,
+                                          unsigned start_offset,
+                                          unsigned end_offset) {
+  Vector<FloatQuad> text_quads;
   layout_text.AbsoluteQuadsForRange(text_quads, start_offset, end_offset);
   const_cast<Document&>(owner_document)
-      .AdjustQuadsForScrollAndAbsoluteZoom(
+      .AdjustFloatQuadsForScrollAndAbsoluteZoom(
           text_quads, const_cast<LayoutText&>(layout_text));
   return text_quads;
 }
 
 // https://www.w3.org/TR/cssom-view-1/#dom-range-getclientrects
-void Range::GetBorderAndTextQuads(Vector<gfx::QuadF>& quads) const {
+void Range::GetBorderAndTextQuads(Vector<FloatQuad>& quads) const {
   Node* start_container = &start_.Container();
   Node* end_container = &end_.Container();
   Node* stop_node = PastLastNode();
@@ -1638,8 +1649,7 @@ void Range::GetBorderAndTextQuads(Vector<gfx::QuadF>& quads) const {
        node = NodeTraversal::Next(*node)) {
     if (!node->IsElementNode())
       continue;
-    auto* parent_node = node->parentNode();
-    if ((parent_node && selected_elements.Contains(parent_node)) ||
+    if (selected_elements.Contains(node->parentNode()) ||
         (!node->contains(start_container) && !node->contains(end_container))) {
       DCHECK_LE(StartPosition(), Position::BeforeNode(*node));
       DCHECK_GE(EndPosition(), Position::AfterNode(*node));
@@ -1657,10 +1667,10 @@ void Range::GetBorderAndTextQuads(Vector<gfx::QuadF>& quads) const {
       LayoutObject* const layout_object = element_node->GetLayoutObject();
       if (!layout_object)
         continue;
-      Vector<gfx::QuadF> element_quads;
+      Vector<FloatQuad> element_quads;
       layout_object->AbsoluteQuads(element_quads);
-      owner_document_->AdjustQuadsForScrollAndAbsoluteZoom(element_quads,
-                                                           *layout_object);
+      owner_document_->AdjustFloatQuadsForScrollAndAbsoluteZoom(element_quads,
+                                                                *layout_object);
 
       quads.AppendVector(element_quads);
       continue;
@@ -1719,30 +1729,18 @@ void Range::GetBorderAndTextQuads(Vector<gfx::QuadF>& quads) const {
   }
 }
 
-gfx::RectF Range::BoundingRect() const {
-  if (owner_document_->View()) {
-    DeferredShapingController::From(*owner_document_)
-        ->ReshapeAllDeferred(ReshapeReason::kGeometryApi);
-  }
-  absl::optional<DisplayLockUtilities::ScopedForcedUpdate> force_locks;
-  if (!collapsed()) {
-    force_locks = DisplayLockUtilities::ScopedForcedUpdate(
-        this, DisplayLockContext::ForcedPhase::kLayout);
-  } else {
-    force_locks = DisplayLockUtilities::ScopedForcedUpdate(
-        FirstNode(), DisplayLockContext::ForcedPhase::kLayout);
-  }
+FloatRect Range::BoundingRect() const {
   owner_document_->UpdateStyleAndLayout(DocumentUpdateReason::kJavaScript);
 
-  Vector<gfx::QuadF> quads;
+  Vector<FloatQuad> quads;
   GetBorderAndTextQuads(quads);
 
-  gfx::RectF result;
-  for (const gfx::QuadF& quad : quads)
-    result.Union(quad.BoundingBox());  // Skips empty rects.
+  FloatRect result;
+  for (const FloatQuad& quad : quads)
+    result.Unite(quad.BoundingBox());  // Skips empty rects.
 
   // If all rects are empty, return the first rect.
-  if (result.IsEmpty() && !quads.empty())
+  if (result.IsEmpty() && !quads.IsEmpty())
     return quads.front().BoundingBox();
 
   return result;
@@ -1771,23 +1769,6 @@ void Range::UpdateSelectionIfAddedToSelection() {
   selection.CacheRangeOfDocument(this);
 }
 
-void Range::ScheduleVisualUpdateIfInRegisteredHighlight(Document& document) {
-  if (LocalDOMWindow* window = document.domWindow()) {
-    if (HighlightRegistry* highlight_registry =
-            window->Supplementable<LocalDOMWindow>::RequireSupplement<
-                HighlightRegistry>()) {
-      for (const auto& highlight_registry_map_entry :
-           highlight_registry->GetHighlights()) {
-        const auto& highlight = highlight_registry_map_entry->highlight;
-        if (highlight->Contains(this)) {
-          highlight_registry->ScheduleRepaint();
-          return;
-        }
-      }
-    }
-  }
-}
-
 void Range::RemoveFromSelectionIfInDifferentRoot(Document& old_document) {
   if (!old_document.GetFrame())
     return;
@@ -1812,7 +1793,7 @@ void Range::Trace(Visitor* visitor) const {
 
 #if DCHECK_IS_ON()
 
-void ShowTree(const blink::Range* range) {
+void showTree(const blink::Range* range) {
   if (range && range->BoundaryPointsValid()) {
     LOG(INFO) << "\n"
               << range->startContainer()

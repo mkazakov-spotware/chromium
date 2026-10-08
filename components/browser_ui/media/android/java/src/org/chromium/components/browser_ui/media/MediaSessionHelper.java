@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import android.graphics.Bitmap;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
-import android.os.SystemClock;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
@@ -19,9 +18,9 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.SysUtils;
 import org.chromium.components.browser_ui.media.MediaSessionUma.MediaSessionActionSource;
+import org.chromium.components.embedder_support.browser_context.BrowserContextHandle;
 import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.components.url_formatter.UrlFormatter;
-import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.MediaSession;
 import org.chromium.content_public.browser.MediaSessionObserver;
 import org.chromium.content_public.browser.NavigationHandle;
@@ -32,7 +31,6 @@ import org.chromium.services.media_session.MediaImage;
 import org.chromium.services.media_session.MediaMetadata;
 import org.chromium.services.media_session.MediaPosition;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.url.GURL;
 
 import java.util.Collections;
 import java.util.List;
@@ -213,7 +211,6 @@ public class MediaSessionHelper implements MediaImageCallback {
 
                 mCurrentMetadata = getMetadata();
                 mCurrentMediaImage = getCachedNotificationImage();
-                rebaseMediaPosition(isPaused);
                 mNotificationInfoBuilder =
                         mDelegate.createMediaNotificationInfoBuilder()
                                 .setMetadata(mCurrentMetadata)
@@ -224,8 +221,7 @@ public class MediaSessionHelper implements MediaImageCallback {
                                 .setNotificationLargeIcon(mCurrentMediaImage)
                                 .setMediaSessionImage(mPageMediaImage)
                                 .setActions(MediaNotificationInfo.ACTION_PLAY_PAUSE
-                                        | MediaNotificationInfo.ACTION_SWIPEAWAY
-                                        | MediaNotificationInfo.ACTION_STOP)
+                                        | MediaNotificationInfo.ACTION_SWIPEAWAY)
                                 .setContentIntent(contentIntent)
                                 .setListener(mControlsListener)
                                 .setMediaSessionActions(mMediaSessionActions)
@@ -270,26 +266,6 @@ public class MediaSessionHelper implements MediaImageCallback {
                 mMediaPosition = position;
                 updateNotificationPosition();
             }
-
-            /**
-             * Adjust `mMediaPosition` so that it's unambiguous about what the current media time
-             * is.  Otherwise, when transitioning into the paused state, the platform won't know to
-             * adjust the time from the `getLastUpdatedTime()`.  This is especially bad since the
-             * playback rate in the MediaPosition and `isPaused` don't always agree immediately;
-             * we can find out about `isPaused` before being told of the final, playback rate = 0,
-             * MediaPosition.  To avoid this, we adjust the MediaPosition based on its current
-             * playback rate, and update the playback rate to zero so that it's unambiguous.
-             */
-            private void rebaseMediaPosition(boolean isPaused) {
-                if (mMediaPosition == null) return;
-
-                long now = SystemClock.elapsedRealtime();
-                long rebased_position = mMediaPosition.getPosition()
-                        + (long) ((now - mMediaPosition.getLastUpdatedTime())
-                                * mMediaPosition.getPlaybackRate());
-                mMediaPosition = new MediaPosition(mMediaPosition.getDuration(), rebased_position,
-                        isPaused ? 0 : mMediaPosition.getPlaybackRate(), now);
-            }
         };
     }
 
@@ -301,8 +277,9 @@ public class MediaSessionHelper implements MediaImageCallback {
         if (mWebContentsObserver != null) mWebContentsObserver.destroy();
         mWebContentsObserver = new WebContentsObserver(webContents) {
             @Override
-            public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-                if (!navigation.hasCommitted() || navigation.isSameDocument()) {
+            public void didFinishNavigation(NavigationHandle navigation) {
+                if (!navigation.hasCommitted() || !navigation.isInMainFrame()
+                        || navigation.isSameDocument()) {
                     return;
                 }
 
@@ -328,11 +305,6 @@ public class MediaSessionHelper implements MediaImageCallback {
                 mNotificationInfoBuilder.setMetadata(mCurrentMetadata);
                 mNotificationInfoBuilder.setMediaSessionActions(mMediaSessionActions);
                 showNotification();
-            }
-
-            @Override
-            public void didFinishNavigationNoop(NavigationHandle navigation) {
-                if (!navigation.isInPrimaryMainFrame()) return;
             }
 
             @Override
@@ -468,7 +440,7 @@ public class MediaSessionHelper implements MediaImageCallback {
         // Don't waste time trying to find it.
         if (!mMaybeHasFavicon) return false;
 
-        GURL pageUrl = mWebContents.getLastCommittedUrl();
+        String pageUrl = mWebContents.getLastCommittedUrl();
         int size = MediaNotificationImageUtils.MINIMAL_MEDIA_IMAGE_SIZE_PX;
         if (mLargeIconBridge == null) {
             mLargeIconBridge = new LargeIconBridge(mDelegate.getBrowserContextHandle());
@@ -481,7 +453,7 @@ public class MediaSessionHelper implements MediaImageCallback {
             }
         };
 
-        return mLargeIconBridge.getLargeIconForUrl(pageUrl, size, callback);
+        return mLargeIconBridge.getLargeIconForStringUrl(pageUrl, size, callback);
     }
 
     /**

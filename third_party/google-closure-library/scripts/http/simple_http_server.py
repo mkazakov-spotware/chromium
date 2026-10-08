@@ -16,7 +16,6 @@
 """Simple HTTP server.
 """
 
-from __future__ import print_function
 import SimpleHTTPServer
 import SocketServer
 
@@ -41,5 +40,5 @@ SocketServer.ThreadingTCPServer.allow_reuse_address = True
 
 httpd = SocketServer.TCPServer(("", PORT), Handler)
 
-print("Serving at: http://%s:%s" % ("localhost", PORT))
+print "Serving at: http://%s:%s" % ("localhost", PORT)
 httpd.serve_forever()

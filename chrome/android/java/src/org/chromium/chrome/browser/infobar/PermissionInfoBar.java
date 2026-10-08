@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@ import android.text.Spanned;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.settings.SettingsLauncher;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
 import org.chromium.components.infobars.ConfirmInfoBar;
@@ -133,8 +133,9 @@ public class PermissionInfoBar
         SpannableStringBuilder descriptionMessage = new SpannableStringBuilder(mDescription);
         if (mLearnMoreLinkText != null && !mLearnMoreLinkText.isEmpty()) {
             SpannableString link = new SpannableString(mLearnMoreLinkText);
-            link.setSpan(new NoUnderlineClickableSpan(layout.getContext(), view -> onLinkClicked()),
-                    0, link.length(), Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
+            link.setSpan(
+                    new NoUnderlineClickableSpan(layout.getResources(), view -> onLinkClicked()), 0,
+                    link.length(), Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
             descriptionMessage.append(" ").append(link);
         }
         layout.getMessageLayout().addDescription(descriptionMessage);

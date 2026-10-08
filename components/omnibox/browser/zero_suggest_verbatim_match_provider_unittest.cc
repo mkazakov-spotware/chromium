@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,6 @@
 
 #include "base/feature_list.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/task_environment.h"
-#include "components/omnibox/browser/fake_autocomplete_provider_client.h"
 #include "components/omnibox/browser/mock_autocomplete_provider_client.h"
 #include "components/omnibox/browser/test_scheme_classifier.h"
 #include "components/omnibox/common/omnibox_features.h"
@@ -29,19 +27,23 @@ class ZeroSuggestVerbatimMatchProviderTest
 
  protected:
   bool IsVerbatimMatchEligible() const;
-  base::test::TaskEnvironment task_environment_{
-      base::test::TaskEnvironment::MainThreadType::UI};
   scoped_refptr<ZeroSuggestVerbatimMatchProvider> provider_;
-  FakeAutocompleteProviderClient mock_client_;
+  MockAutocompleteProviderClient mock_client_;
 };
 
 bool ZeroSuggestVerbatimMatchProviderTest::IsVerbatimMatchEligible() const {
-  auto param = GetParam();
-  return param == metrics::OmniboxEventProto::OTHER ||
-         param == metrics::OmniboxEventProto::
-                      SEARCH_RESULT_PAGE_DOING_SEARCH_TERM_REPLACEMENT ||
-         param == metrics::OmniboxEventProto::
-                      SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT;
+  switch (GetParam()) {
+    case metrics::OmniboxEventProto::OTHER:
+      return true;
+    case metrics::OmniboxEventProto::
+        SEARCH_RESULT_PAGE_DOING_SEARCH_TERM_REPLACEMENT:
+    case metrics::OmniboxEventProto::
+        SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT:
+      return base::FeatureList::IsEnabled(
+          omnibox::kOmniboxSearchReadyIncognito);
+    default:
+      return false;
+  }
 }
 
 void ZeroSuggestVerbatimMatchProviderTest::SetUp() {
@@ -49,7 +51,7 @@ void ZeroSuggestVerbatimMatchProviderTest::SetUp() {
   ON_CALL(mock_client_, IsOffTheRecord()).WillByDefault([] { return false; });
   ON_CALL(mock_client_, Classify)
       .WillByDefault(
-          [](const std::u16string& text, bool prefer_keyword,
+          [](const base::string16& text, bool prefer_keyword,
              bool allow_exact_keyword_match,
              metrics::OmniboxEventProto::PageClassification page_classification,
              AutocompleteMatch* match,
@@ -63,7 +65,7 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest,
   AutocompleteInput input(base::ASCIIToUTF16(query), GetParam(),
                           TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_DEFAULT);
+  input.set_focus_type(OmniboxFocusType::DEFAULT);
   provider_->Start(input, false);
 
   // Clobber state should never generate a verbatim match.
@@ -77,7 +79,7 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest,
   AutocompleteInput input(base::ASCIIToUTF16(query), GetParam(),
                           TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_DEFAULT);
+  input.set_focus_type(OmniboxFocusType::DEFAULT);
   ON_CALL(mock_client_, IsOffTheRecord()).WillByDefault([] { return true; });
   provider_->Start(input, false);
 
@@ -90,7 +92,7 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest, OffersVerbatimMatchOnFocus) {
   AutocompleteInput input(base::ASCIIToUTF16(url), GetParam(),
                           TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  input.set_focus_type(OmniboxFocusType::ON_FOCUS);
   provider_->Start(input, false);
   ASSERT_EQ(IsVerbatimMatchEligible(), provider_->matches().size() > 0);
   // Note: we intentionally do not validate the match content here.
@@ -105,7 +107,7 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest,
   AutocompleteInput input(base::ASCIIToUTF16(url), GetParam(),
                           TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  input.set_focus_type(OmniboxFocusType::ON_FOCUS);
   ON_CALL(mock_client_, IsOffTheRecord()).WillByDefault([] { return true; });
   provider_->Start(input, false);
   ASSERT_EQ(IsVerbatimMatchEligible(), provider_->matches().size() > 0);
@@ -117,10 +119,10 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest,
 
 TEST_P(ZeroSuggestVerbatimMatchProviderTest, NoVerbatimMatchWithEmptyInput) {
   std::string url("https://www.wired.com/");
-  AutocompleteInput input(std::u16string(),  // Note: empty input.
+  AutocompleteInput input(base::string16(),  // Note: empty input.
                           GetParam(), TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_DEFAULT);
+  input.set_focus_type(OmniboxFocusType::DEFAULT);
   provider_->Start(input, false);
   ASSERT_TRUE(provider_->matches().empty());
   // Note: we intentionally do not validate the match content here.
@@ -132,10 +134,10 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest, NoVerbatimMatchWithEmptyInput) {
 TEST_P(ZeroSuggestVerbatimMatchProviderTest,
        NoVerbatimMatchWithEmptyInputInIncognito) {
   std::string url("https://www.wired.com/");
-  AutocompleteInput input(std::u16string(),  // Note: empty input.
+  AutocompleteInput input(base::string16(),  // Note: empty input.
                           GetParam(), TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_DEFAULT);
+  input.set_focus_type(OmniboxFocusType::DEFAULT);
   ON_CALL(mock_client_, IsOffTheRecord()).WillByDefault([] { return true; });
   provider_->Start(input, false);
   ASSERT_TRUE(provider_->matches().empty());
@@ -145,14 +147,14 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest,
   // test. As a result, the test would validate what the mocks fill in.
 }
 
-TEST_P(ZeroSuggestVerbatimMatchProviderTest, OffersVerbatimMatchOnClobber) {
+TEST_P(ZeroSuggestVerbatimMatchProviderTest, NoVerbatimMatchOnClearInput) {
   std::string url("https://www.wired.com/");
-  AutocompleteInput input(std::u16string(),  // Note: empty input.
+  AutocompleteInput input(base::string16(),  // Note: empty input.
                           GetParam(), TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_CLOBBER);
+  input.set_focus_type(OmniboxFocusType::DELETED_PERMANENT_TEXT);
   provider_->Start(input, false);
-  ASSERT_EQ(IsVerbatimMatchEligible(), provider_->matches().size() > 0);
+  ASSERT_TRUE(provider_->matches().empty());
   // Note: we intentionally do not validate the match content here.
   // The content is populated either by HistoryURLProvider or
   // AutocompleteProviderClient both of which we would have to mock for this
@@ -160,15 +162,15 @@ TEST_P(ZeroSuggestVerbatimMatchProviderTest, OffersVerbatimMatchOnClobber) {
 }
 
 TEST_P(ZeroSuggestVerbatimMatchProviderTest,
-       OffersVerbatimMatchOnClobberInIncognito) {
+       NoVerbatimMatchOnClearInputInIncognito) {
   std::string url("https://www.wired.com/");
-  AutocompleteInput input(std::u16string(),  // Note: empty input.
+  AutocompleteInput input(base::string16(),  // Note: empty input.
                           GetParam(), TestSchemeClassifier());
   input.set_current_url(GURL(url));
-  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_CLOBBER);
+  input.set_focus_type(OmniboxFocusType::DELETED_PERMANENT_TEXT);
   ON_CALL(mock_client_, IsOffTheRecord()).WillByDefault([] { return true; });
   provider_->Start(input, false);
-  ASSERT_EQ(IsVerbatimMatchEligible(), provider_->matches().size() > 0);
+  ASSERT_TRUE(provider_->matches().empty());
   // Note: we intentionally do not validate the match content here.
   // The content is populated either by HistoryURLProvider or
   // AutocompleteProviderClient both of which we would have to mock for this

@@ -1,6 +1,17 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// <include src="utils.js">
+// <include src="setting_zippy.js">
+// <include src="voice_match_entry.js">
+// <include src="browser_proxy.js">
+// <include src="assistant_get_more.js">
+// <include src="assistant_loading.js">
+// <include src="assistant_related_info.js">
+// <include src="assistant_third_party.js">
+// <include src="assistant_value_prop.js">
+// <include src="assistant_voice_match.js">
 
 /**
  * @fileoverview Polymer element for displaying material design assistant
@@ -8,95 +19,30 @@
  *
  */
 
-import '../components/common_styles/oobe_common_styles.m.js';
-import './assistant_common_styles.m.js';
-import './assistant_icon.m.js';
-import './assistant_loading.js';
-import './assistant_related_info.js';
-import './assistant_voice_match.m.js';
-import './assistant_value_prop.js';
-import './setting_zippy.js';
+Polymer({
+  is: 'assistant-optin-flow',
 
-import {loadTimeData} from '//resources/js/load_time_data.m.js';
-import {html, mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+  behaviors: [OobeI18nBehavior, OobeDialogHostBehavior],
 
-import {MultiStepBehavior, MultiStepBehaviorInterface} from '../components/behaviors/multi_step_behavior.m.js';
-import {OobeDialogHostBehavior} from '../components/behaviors/oobe_dialog_host_behavior.m.js';
-import {OobeI18nBehavior, OobeI18nBehaviorInterface} from '../components/behaviors/oobe_i18n_behavior.m.js';
-
-import {BrowserProxyImpl} from './browser_proxy.m.js';
-
-
-/**
- * UI mode for the dialog.
- * @enum {string}
- */
-const AssistantUIState = {
-  LOADING: 'loading',
-  VALUE_PROP: 'value-prop',
-  RELATED_INFO: 'related-info',
-  VOICE_MATCH: 'voice-match',
-};
-
-/**
- * @constructor
- * @extends {PolymerElement}
- */
-const AssistantOptInFlowBase = mixinBehaviors(
-    [OobeI18nBehavior, OobeDialogHostBehavior, MultiStepBehavior],
-    PolymerElement);
-
-/**
- * @polymer
- */
-class AssistantOptInFlow extends AssistantOptInFlowBase {
-  static get is() {
-    return 'assistant-optin-flow-element';
-  }
-
-  static get template() {
-    return html`{__html_template__}`;
-  }
-
-  constructor() {
-    super();
-
-    this.UI_STEPS = AssistantUIState;
-
-    /** @private {?BrowserProxy} */
-    this.browserProxy_ = BrowserProxyImpl.getInstance();
-  }
+  /** @private {?assistant.BrowserProxy} */
+  browserProxy_: null,
 
   /** @override */
-  attached() {
-    window.addEventListener('orientationchange', () => this.onWindowResized_());
-    window.addEventListener('resize', () => this.onWindowResized_());
-  }
-
-  /** @override */
-  detached() {
-    window.removeEventListener(
-        'orientationchange', () => this.onWindowResized_());
-    window.removeEventListener('resize', () => this.onWindowResized_());
-  }
+  created() {
+    this.browserProxy_ = assistant.BrowserProxyImpl.getInstance();
+  },
 
   /**
    * Indicates the type of the opt-in flow.
    */
-  get FlowType() {
-    return {
-      // The whole consent flow.
-      CONSENT_FLOW: 0,
-      // The voice match enrollment flow.
-      SPEAKER_ID_ENROLLMENT: 1,
-      // The voice match retrain flow.
-      SPEAKER_ID_RETRAIN: 2,
-    };
-  }
-
-  defaultUIStep() {
-    return AssistantUIState.LOADING;
-  }
+  FlowType: {
+    // The whole consent flow.
+    CONSENT_FLOW: 0,
+    // The voice match enrollment flow.
+    SPEAKER_ID_ENROLLMENT: 1,
+    // The voice match retrain flow.
+    SPEAKER_ID_RETRAIN: 2,
+  },
 
   /**
    * Signal from host to show the screen.
@@ -106,10 +52,9 @@ class AssistantOptInFlow extends AssistantOptInFlowBase {
   onShow(type, captionBarHeight) {
     captionBarHeight = captionBarHeight ? captionBarHeight + 'px' : '0px';
     this.style.setProperty('--caption-bar-height', captionBarHeight);
-    this.onWindowResized_();
 
     type = type ? type : this.FlowType.CONSENT_FLOW.toString();
-    const flowType = Number(type);
+    var flowType = Number(type);
     switch (flowType) {
       case this.FlowType.CONSENT_FLOW:
       case this.FlowType.SPEAKER_ID_ENROLLMENT:
@@ -122,24 +67,25 @@ class AssistantOptInFlow extends AssistantOptInFlowBase {
         break;
     }
 
-    this.boundShowLoadingScreen = () => this.showLoadingScreen();
-    this.boundOnScreenLoadingError = () => this.onScreenLoadingError();
-    this.boundOnScreenLoaded = () => this.onScreenLoaded();
+    this.boundShowLoadingScreen = this.showLoadingScreen.bind(this);
+    this.boundOnScreenLoadingError = this.onScreenLoadingError.bind(this);
+    this.boundOnScreenLoaded = this.onScreenLoaded.bind(this);
 
     this.$.loading.onBeforeShow();
-    this.$.loading.addEventListener('reload', () => this.onReload());
+    this.$.loading.addEventListener('reload', this.onReload.bind(this));
 
     switch (this.flowType) {
       case this.FlowType.SPEAKER_ID_ENROLLMENT:
       case this.FlowType.SPEAKER_ID_RETRAIN:
+        this.$.valueProp.hidden = true;
         this.$.voiceMatch.isFirstScreen = true;
-        this.showStep(AssistantUIState.VOICE_MATCH);
+        this.showScreen(this.$.voiceMatch);
         break;
       default:
-        this.showStep(AssistantUIState.VALUE_PROP);
+        this.showScreen(this.$.valueProp);
     }
     this.browserProxy_.initialized([this.flowType]);
-  }
+  },
 
   /**
    * Reloads localized strings.
@@ -147,13 +93,15 @@ class AssistantOptInFlow extends AssistantOptInFlowBase {
    */
   reloadContent(data) {
     this.voiceMatchEnforcedOff = data['voiceMatchEnforcedOff'];
-    this.shouldSkipVoiceMatch = data['shouldSkipVoiceMatch'];
     this.voiceMatchDisabled = loadTimeData.getBoolean('voiceMatchDisabled');
+    this.betterAssistantEnabled =
+        loadTimeData.getBoolean('betterAssistantEnabled');
     data['flowType'] = this.flowType;
     this.$.valueProp.reloadContent(data);
     this.$.relatedInfo.reloadContent(data);
-    this.$.voiceMatch.reloadContent(data);
-  }
+    this.$.thirdParty.reloadContent(data);
+    this.$.getMore.reloadContent(data);
+  },
 
   /**
    * Add a setting zippy object in the corresponding screen.
@@ -165,42 +113,67 @@ class AssistantOptInFlow extends AssistantOptInFlowBase {
       case 'settings':
         this.$.valueProp.addSettingZippy(data);
         break;
+      case 'disclosure':
+        this.$.thirdParty.addSettingZippy(data);
+        break;
+      case 'get-more':
+        this.$.getMore.addSettingZippy(data);
+        break;
       default:
         console.error('Undefined zippy data type: ' + type);
     }
-  }
+  },
 
   /**
    * Show the next screen in the flow.
    */
   showNextScreen() {
-    switch (this.currentStep) {
-      case AssistantUIState.VALUE_PROP:
-        this.showStep(AssistantUIState.RELATED_INFO);
-        break;
-      case AssistantUIState.RELATED_INFO:
-        if (this.voiceMatchEnforcedOff || this.voiceMatchDisabled ||
-            this.shouldSkipVoiceMatch) {
-          this.browserProxy_.flowFinished();
+    switch (this.currentScreen) {
+      case this.$.valueProp:
+        if (this.betterAssistantEnabled) {
+          this.showScreen(this.$.relatedInfo);
         } else {
-          this.showStep(AssistantUIState.VOICE_MATCH);
+          this.showScreen(this.$.thirdParty);
         }
         break;
-      case AssistantUIState.VOICE_MATCH:
+      case this.$.relatedInfo:
+        if (this.voiceMatchEnforcedOff || this.voiceMatchDisabled) {
+          this.browserProxy_.flowFinished();
+        } else {
+          this.showScreen(this.$.voiceMatch);
+        }
+        break;
+      case this.$.thirdParty:
+        if (this.voiceMatchEnforcedOff || this.voiceMatchDisabled) {
+          this.showScreen(this.$.getMore);
+        } else {
+          this.showScreen(this.$.voiceMatch);
+        }
+        break;
+      case this.$.voiceMatch:
+        if (this.flowType == this.FlowType.SPEAKER_ID_ENROLLMENT ||
+            this.flowType == this.FlowType.SPEAKER_ID_RETRAIN ||
+            this.betterAssistantEnabled) {
+          this.browserProxy_.flowFinished();
+        } else {
+          this.showScreen(this.$.getMore);
+        }
+        break;
+      case this.$.getMore:
         this.browserProxy_.flowFinished();
         break;
       default:
         console.error('Undefined');
         this.browserProxy_.dialogClose();
     }
-  }
+  },
 
   /**
    * Called when the Voice match state is updated.
    * @param {string} state the voice match state.
    */
   onVoiceMatchUpdate(state) {
-    if (this.currentStep !== AssistantUIState.VOICE_MATCH) {
+    if (!this.currentScreen == this.$.voiceMatch) {
       return;
     }
     switch (state) {
@@ -219,104 +192,68 @@ class AssistantOptInFlow extends AssistantOptInFlowBase {
       default:
         break;
     }
-  }
+  },
 
   /**
-   * Called to show the next settings when there are multiple unbundled
-   * activity control settings in the Value prop screen.
-   */
-  onValuePropUpdate() {
-    if (this.currentStep !== AssistantUIState.VALUE_PROP) {
-      return;
-    }
-    this.$.valueProp.showNextStep();
-  }
-
-  /**
-   * Show the given step.
+   * Show the given screen.
    *
-   * @param {AssistantUIState} step The step to be shown.
+   * @param {Element} screen The screen to be shown.
    */
-  showStep(step) {
-    if (this.currentStep == step) {
+  showScreen(screen) {
+    if (this.currentScreen == screen) {
       return;
     }
-    if (this.currentStep) {
-      this.applyToStepElements((screen) => {
-        screen.removeEventListener('loading', this.boundShowLoadingScreen);
-        screen.removeEventListener('error', this.boundOnScreenLoadingError);
-        screen.removeEventListener('loaded', this.boundOnScreenLoaded);
-      });
+
+    this.$.loading.hidden = true;
+    screen.hidden = false;
+    screen.addEventListener('loading', this.boundShowLoadingScreen);
+    screen.addEventListener('error', this.boundOnScreenLoadingError);
+    screen.addEventListener('loaded', this.boundOnScreenLoaded);
+    if (this.currentScreen) {
+      this.currentScreen.hidden = true;
+      this.currentScreen.removeEventListener(
+          'loading', this.boundShowLoadingScreen);
+      this.currentScreen.removeEventListener(
+          'error', this.boundOnScreenLoadingError);
+      this.currentScreen.removeEventListener(
+          'loaded', this.boundOnScreenLoaded);
     }
-    this.setUIStep(step);
-    this.currentStep = step;
-    this.applyToStepElements((screen) => {
-      screen.addEventListener('loading', this.boundShowLoadingScreen);
-      screen.addEventListener('error', this.boundOnScreenLoadingError);
-      screen.addEventListener('loaded', this.boundOnScreenLoaded);
-      screen.onShow();
-    });
-  }
+    this.currentScreen = screen;
+    this.currentScreen.onBeforeShow();
+    this.currentScreen.onShow();
+  },
 
   /**
    * Show the loading screen.
    */
   showLoadingScreen() {
-    this.setUIStep(AssistantUIState.LOADING);
+    this.$.loading.hidden = false;
+    this.currentScreen.hidden = true;
     this.$.loading.onShow();
-  }
+  },
 
   /**
    * Called when the screen failed to load.
    */
   onScreenLoadingError() {
-    this.setUIStep(AssistantUIState.LOADING);
+    this.$.loading.hidden = false;
+    this.currentScreen.hidden = true;
     this.$.loading.onErrorOccurred();
-  }
+  },
 
   /**
    * Called when all the content of current screen has been loaded.
    */
   onScreenLoaded() {
-    this.setUIStep(this.currentStep);
+    this.currentScreen.hidden = false;
+    this.$.loading.hidden = true;
     this.$.loading.onPageLoaded();
-  }
+  },
 
   /**
    * Called when user request the screen to be reloaded.
    */
   onReload() {
-    this.applyToStepElements((screen) => {
-      screen.reloadPage();
-    }, this.currentStep);
-  }
-
-  /**
-   * Called during initialization, when the window is resized, or the window's
-   * orientation is updated.
-   */
-  onWindowResized_() {
-    // Dialog size and orientation value needs to be updated for in-session
-    // assistant dialog.
-    if (!document.documentElement.hasAttribute('screen')) {
-      document.documentElement.style.setProperty(
-          '--oobe-oobe-dialog-height-base', window.innerHeight + 'px');
-      document.documentElement.style.setProperty(
-          '--oobe-oobe-dialog-width-base', window.innerWidth + 'px');
-      if (window.innerWidth > window.innerHeight) {
-        document.documentElement.setAttribute('orientation', 'horizontal');
-      } else {
-        document.documentElement.setAttribute('orientation', 'vertical');
-      }
-    }
-    // In landscape mode, animation element should reside in subtitle slot which
-    // is shown at the bottom left of the screen. In portrait mode, animation
-    // element should reside in content slot which allows scrolling with the
-    // rest of the content.
-    const slot = window.innerWidth > window.innerHeight ? 'subtitle' : 'content';
-    this.$.valueProp.getAnimationContainer().slot = slot;
-    this.$.relatedInfo.getAnimationContainer().slot = slot;
-  }
-}
-
-customElements.define(AssistantOptInFlow.is, AssistantOptInFlow);
+    this.currentScreen.reloadPage();
+  },
+});

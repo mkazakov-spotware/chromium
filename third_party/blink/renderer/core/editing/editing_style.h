@@ -37,8 +37,7 @@
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css_value_keywords.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
-#include "third_party/blink/renderer/core/html/html_element.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -153,7 +152,6 @@ class CORE_EXPORT EditingStyle final : public GarbageCollected<EditingStyle> {
   float FontSizeDelta() const { return font_size_delta_; }
   bool HasFontSizeDelta() const { return font_size_delta_ != kNoFontDelta; }
 
-  CSSValueID GetProperty(CSSPropertyID) const;
   void SetProperty(CSSPropertyID,
                    const String& value,
                    bool important,
@@ -172,7 +170,6 @@ class CORE_EXPORT EditingStyle final : public GarbageCollected<EditingStyle> {
                                           CSSComputedStyleDeclaration*);
   void ExtractFontSizeDelta();
   EditingTriState TriStateOfStyle(CSSStyleDeclaration* style_to_compare,
-                                  Node* node,
                                   ShouldIgnoreTextOnlyProperties,
                                   SecureContextMode) const;
   bool ConflictsWithInlineStyleOfElement(
@@ -182,10 +179,6 @@ class CORE_EXPORT EditingStyle final : public GarbageCollected<EditingStyle> {
   void MergeStyle(const CSSPropertyValueSet*, CSSPropertyOverrideMode);
 
   Member<MutableCSSPropertyValueSet> mutable_style_;
-  // This |EditingStyle| is constructed from |node_|. |node_| is null when
-  // this |EditingStyle| is constructed from |CSSPropertyValueSet*| or
-  // |CSSPropertyID|.
-  Member<Node> node_;
   bool is_monospace_font_ = false;
   float font_size_delta_ = kNoFontDelta;
   bool is_vertical_align_ = false;

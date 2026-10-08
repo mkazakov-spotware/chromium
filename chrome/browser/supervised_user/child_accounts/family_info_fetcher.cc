@@ -1,37 +1,34 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/supervised_user/child_accounts/family_info_fetcher.h"
 
 #include <stddef.h>
-
 #include <utility>
 
 #include "base/bind.h"
 #include "base/json/json_reader.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/supervised_user/child_accounts/kids_management_api.h"
 #include "chrome/browser/supervised_user/supervised_user_constants.h"
-#include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
+#include "components/signin/public/identity_manager/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/primary_account_access_token_fetcher.h"
-#include "google_apis/gaia/gaia_constants.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_status_code.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
 
 const char kGetFamilyProfileApiPath[] = "families/mine?alt=json";
 const char kGetFamilyMembersApiPath[] = "families/mine/members?alt=json";
+const char kScope[] = "https://www.googleapis.com/auth/kid.family.readonly";
 const int kNumFamilyInfoFetcherRetries = 1;
 
 const char kIdFamily[] = "family";
@@ -91,6 +88,9 @@ FamilyInfoFetcher::FamilyInfoFetcher(
     signin::IdentityManager* identity_manager,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
     : consumer_(consumer),
+      // This feature doesn't care about browser sync consent.
+      primary_account_id_(identity_manager->GetPrimaryAccountId(
+          signin::ConsentLevel::kNotRequired)),
       identity_manager_(identity_manager),
       url_loader_factory_(std::move(url_loader_factory)),
       access_token_expired_(false) {}
@@ -106,7 +106,7 @@ std::string FamilyInfoFetcher::RoleToString(FamilyMemberRole role) {
 bool FamilyInfoFetcher::StringToRole(
     const std::string& str,
     FamilyInfoFetcher::FamilyMemberRole* role) {
-  for (size_t i = 0; i < std::size(kFamilyMemberRoleStrings); i++) {
+  for (size_t i = 0; i < base::size(kFamilyMemberRoleStrings); i++) {
     if (str == kFamilyMemberRoleStrings[i]) {
       *role = FamilyMemberRole(i);
       return true;
@@ -126,15 +126,15 @@ void FamilyInfoFetcher::StartGetFamilyMembers() {
 }
 
 void FamilyInfoFetcher::StartFetchingAccessToken() {
-  OAuth2AccessTokenManager::ScopeSet scopes{
-      GaiaConstants::kKidFamilyReadonlyOAuth2Scope};
+  OAuth2AccessTokenManager::ScopeSet scopes{kScope};
   access_token_fetcher_ =
       std::make_unique<signin::PrimaryAccountAccessTokenFetcher>(
           "family_info_fetcher", identity_manager_, scopes,
           base::BindOnce(&FamilyInfoFetcher::OnAccessTokenFetchComplete,
                          base::Unretained(this)),
           signin::PrimaryAccountAccessTokenFetcher::Mode::kWaitUntilAvailable,
-          signin::ConsentLevel::kSignin);
+          // This feature doesn't care about browser sync consent.
+          signin::ConsentLevel::kNotRequired);
 }
 
 void FamilyInfoFetcher::OnAccessTokenFetchComplete(
@@ -192,7 +192,6 @@ void FamilyInfoFetcher::OnAccessTokenFetchComplete(
       network::SimpleURLLoader::RETRY_ON_NETWORK_CHANGE);
   // TODO re-add data use measurement once SimpleURLLoader supports it
   // data_use_measurement::DataUseUserData::SUPERVISED_USER
-  simple_url_loader_start_time_ = base::TimeTicks::Now();
   simple_url_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
       url_loader_factory_.get(),
       base::BindOnce(&FamilyInfoFetcher::OnSimpleLoaderComplete,
@@ -222,16 +221,8 @@ void FamilyInfoFetcher::OnSimpleLoaderCompleteInternal(
     DVLOG(1) << "Access token expired, retrying";
     access_token_expired_ = true;
     OAuth2AccessTokenManager::ScopeSet scopes;
-    scopes.insert(GaiaConstants::kKidFamilyReadonlyOAuth2Scope);
-    CoreAccountId primary_account_id =
-        identity_manager_->GetPrimaryAccountId(signin::ConsentLevel::kSignin);
-    if (primary_account_id.empty()) {
-      DLOG(WARNING) << "Primary account removed";
-      consumer_->OnFailure(ErrorCode::kTokenError);
-      return;
-    }
-
-    identity_manager_->RemoveAccessTokenFromCache(primary_account_id, scopes,
+    scopes.insert(kScope);
+    identity_manager_->RemoveAccessTokenFromCache(primary_account_id_, scopes,
                                                   access_token_);
     StartFetchingAccessToken();
     return;
@@ -259,15 +250,12 @@ void FamilyInfoFetcher::OnSimpleLoaderCompleteInternal(
 }
 
 // static
-bool FamilyInfoFetcher::ParseMembers(const base::Value::List& list,
+bool FamilyInfoFetcher::ParseMembers(const base::ListValue* list,
                                      std::vector<FamilyMember>* members) {
-  for (const auto& entry : list) {
+  for (auto it = list->begin(); it != list->end(); ++it) {
     FamilyMember member;
-    if (!entry.is_dict()) {
-      return false;
-    }
-    const base::Value::Dict& dict = entry.GetDict();
-    if (!ParseMember(dict, &member)) {
+    const base::DictionaryValue* dict = NULL;
+    if (!it->GetAsDictionary(&dict) || !ParseMember(dict, &member)) {
       return false;
     }
     members->push_back(member);
@@ -276,99 +264,80 @@ bool FamilyInfoFetcher::ParseMembers(const base::Value::List& list,
 }
 
 // static
-bool FamilyInfoFetcher::ParseMember(const base::Value::Dict& dict,
+bool FamilyInfoFetcher::ParseMember(const base::DictionaryValue* dict,
                                     FamilyMember* member) {
-  const std::string* obfuscated_gaia_id = dict.FindString(kIdUserId);
-  if (!obfuscated_gaia_id)
+  if (!dict->GetString(kIdUserId, &member->obfuscated_gaia_id))
     return false;
-  member->obfuscated_gaia_id = *obfuscated_gaia_id;
-  const std::string* role_str = dict.FindString(kIdRole);
-  if (!role_str)
+  std::string role_str;
+  if (!dict->GetString(kIdRole, &role_str))
     return false;
-  if (!StringToRole(*role_str, &member->role))
+  if (!StringToRole(role_str, &member->role))
     return false;
-  const base::Value::Dict* profile_dict = dict.FindDict(kIdProfile);
-  if (profile_dict)
-    ParseProfile(*profile_dict, member);
+  const base::DictionaryValue* profile_dict = NULL;
+  if (dict->GetDictionary(kIdProfile, &profile_dict))
+    ParseProfile(profile_dict, member);
   return true;
 }
 
 // static
-void FamilyInfoFetcher::ParseProfile(const base::Value::Dict& dict,
+void FamilyInfoFetcher::ParseProfile(const base::DictionaryValue* dict,
                                      FamilyMember* member) {
-  const std::string* display_name = dict.FindString(kIdDisplayName);
-  if (display_name)
-    member->display_name = *display_name;
-  const std::string* email = dict.FindString(kIdEmail);
-  if (email)
-    member->email = *email;
-  const std::string* profile_url = dict.FindString(kIdProfileUrl);
-  if (profile_url)
-    member->profile_url = *profile_url;
-  const std::string* profile_image_url = dict.FindString(kIdProfileImageUrl);
-  if (profile_image_url)
-    member->profile_image_url = *profile_image_url;
-  if (member->profile_image_url.empty()) {
-    const std::string* def_profile_image_url =
-        dict.FindString(kIdDefaultProfileImageUrl);
-    if (def_profile_image_url)
-      member->profile_image_url = *def_profile_image_url;
-  }
+  dict->GetString(kIdDisplayName, &member->display_name);
+  dict->GetString(kIdEmail, &member->email);
+  dict->GetString(kIdProfileUrl, &member->profile_url);
+  dict->GetString(kIdProfileImageUrl, &member->profile_image_url);
+  if (member->profile_image_url.empty())
+    dict->GetString(kIdDefaultProfileImageUrl, &member->profile_image_url);
 }
 
 void FamilyInfoFetcher::FamilyProfileFetched(const std::string& response) {
   std::unique_ptr<base::Value> value =
       base::JSONReader::ReadDeprecated(response);
-  if (!value || !value->is_dict()) {
+  const base::DictionaryValue* dict = NULL;
+  if (!value || !value->GetAsDictionary(&dict)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
-  const base::Value::Dict& dict = value->GetDict();
-  const base::Value::Dict* family_dict = dict.FindDict(kIdFamily);
-  if (!family_dict) {
+  const base::DictionaryValue* family_dict = NULL;
+  if (!dict->GetDictionary(kIdFamily, &family_dict)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
   FamilyProfile family;
-  const std::string* id = family_dict->FindString(kIdFamilyId);
-  if (!id) {
+  if (!family_dict->GetStringWithoutPathExpansion(kIdFamilyId, &family.id)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
-  family.id = *id;
-  const base::Value::Dict* profile_dict = family_dict->FindDict(kIdProfile);
-  if (!profile_dict) {
+  const base::DictionaryValue* profile_dict = NULL;
+  if (!family_dict->GetDictionary(kIdProfile, &profile_dict)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
-  const std::string* name = profile_dict->FindString(kIdFamilyName);
-  if (!name) {
+  if (!profile_dict->GetStringWithoutPathExpansion(kIdFamilyName,
+                                                   &family.name)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
-  family.name = *name;
   consumer_->OnGetFamilyProfileSuccess(family);
 }
 
 void FamilyInfoFetcher::FamilyMembersFetched(const std::string& response) {
-  absl::optional<base::Value> value = base::JSONReader::Read(response);
-  if (!value || !value->is_dict()) {
+  std::unique_ptr<base::Value> value =
+      base::JSONReader::ReadDeprecated(response);
+  const base::DictionaryValue* dict = NULL;
+  if (!value || !value->GetAsDictionary(&dict)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
-  const base::Value::Dict& dict = value->GetDict();
-  const base::Value::List* members_list = dict.FindList(kIdMembers);
-  if (!members_list) {
+  const base::ListValue* members_list = NULL;
+  if (!dict->GetList(kIdMembers, &members_list)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
   std::vector<FamilyMember> members;
-  if (!ParseMembers(*members_list, &members)) {
+  if (!ParseMembers(members_list, &members)) {
     consumer_->OnFailure(ErrorCode::kServiceError);
     return;
   }
-
-  UmaHistogramTimes("Signin.ListFamilyMembersRequest.LegacyNoError.Latency",
-                    base::TimeTicks::Now() - simple_url_loader_start_time_);
   consumer_->OnGetFamilyMembersSuccess(members);
 }

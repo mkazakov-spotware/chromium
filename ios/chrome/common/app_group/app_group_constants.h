@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,21 +27,13 @@ enum ShareExtensionItemType {
   OPEN_IN_CHROME_ITEM
 };
 
-// The key of a preference containing a dictionary of capabilities supported by
-// the current version of Chrome.
-extern NSString* const kChromeCapabilitiesPreference;
-
-// ---- Chrome capabilities -----
-// Show default browser promo capability.
-extern NSString* const kChromeShowDefaultBrowserPromoCapability;
-
 // The x-callback-url indicating that an application in the group requires a
 // command.
 extern const char kChromeAppGroupXCallbackCommand[];
 
 // The key of a preference containing a dictionary of field trial values needed
 // in extensions.
-extern NSString* const kChromeExtensionFieldTrialPreference;
+extern const char kChromeExtensionFieldTrialPreference[];
 
 // The key of a preference containing a dictionary containing app group command
 // parameters.
@@ -52,7 +44,7 @@ extern const char kChromeAppGroupCommandPreference[];
 extern const char kChromeAppGroupCommandAppPreference[];
 
 // The key in kChromeAppGroupCommandPreference containing the command requested
-// by `kChromeAppGroupCommandAppPreference`.
+// by |kChromeAppGroupCommandAppPreference|.
 extern const char kChromeAppGroupCommandCommandPreference[];
 
 // The command to open a URL. Parameter must contain the URL.
@@ -79,11 +71,8 @@ extern const char kChromeAppGroupIncognitoSearchCommand[];
 // The command to open the QR Code scanner.
 extern const char kChromeAppGroupQRScannerCommand[];
 
-// The command to open Lens.
-extern const char kChromeAppGroupLensCommand[];
-
 // The key in kChromeAppGroupCommandPreference containing a NSDate at which
-// `kChromeAppGroupCommandAppPreference` issued the command.
+// |kChromeAppGroupCommandAppPreference| issued the command.
 extern const char kChromeAppGroupCommandTimePreference[];
 
 // The key in kChromeAppGroupCommandPreference containing the text use for the
@@ -101,15 +90,6 @@ extern const char kChromeAppGroupCommandIndexPreference[];
 // The key of a preference containing whether the current default search engine
 // supports Search by Image.
 extern const char kChromeAppGroupSupportsSearchByImage[];
-
-// The key of a preference containing whether Google is the default search
-// engine.
-extern const char kChromeAppGroupIsGoogleDefaultSearchEngine[];
-
-// The key of a preference containing whether the home screen widget should show
-// a shortcut to Lens instead of the QR scanner if Google is the default search
-// provider.
-extern const char kChromeAppGroupEnableLensInWidget[];
 
 // The key of a preference containing Chrome client ID reported in the metrics
 // client ID. If the user does not opt in, this value must be cleared from the
@@ -129,11 +109,11 @@ extern NSString* const kShareItemDate;
 extern NSString* const kShareItemCancel;
 extern NSString* const kShareItemType;
 
-// The value used by Chrome Share extension in `kShareItemSource`.
+// The value used by Chrome Share extension in |kShareItemSource|.
 extern NSString* const kShareItemSourceShareExtension;
 
 // The values used by Chrome extensions in
-// `kChromeAppGroupCommandAppPreference`.
+// |kChromeAppGroupCommandAppPreference|.
 extern NSString* const kOpenCommandSourceTodayExtension;
 extern NSString* const kOpenCommandSourceContentExtension;
 extern NSString* const kOpenCommandSourceSearchExtension;
@@ -170,26 +150,12 @@ NSURL* ExternalCommandsItemsFolder();
 // stored.
 NSURL* ContentWidgetFaviconsFolder();
 
-// Gets the shared folder URL in which favicon attributes used by the credential
-// provider extensions are stored.
-NSURL* SharedFaviconAttributesFolder();
-
-// Gets the shared folder URL in which Crashpad reports are stored.
-NSURL* CrashpadFolder();
-
 // Returns an autoreleased pointer to the shared user defaults if an
-// application group is defined for the application and its extensions.
-// If not (i.e. on simulator, or if entitlements do not allow it) returns
-// [NSUserDefaults standardUserDefaults].
+// application group is defined. If not (i.e. on simulator, or if entitlements
+// do not allow it) returns [NSUserDefaults standardUserDefaults].
 NSUserDefaults* GetGroupUserDefaults();
 
-// Returns an autoreleased pointer to the shared user defaults if a group is
-// defined for the application and other application of the same developer. If
-// not (i.e. on simulator, or if entitlements do not allow it) returns
-// [NSUserDefaults standardUserDefaults].
-NSUserDefaults* GetCommonGroupUserDefaults();
-
-// The application name of `application`.
+// The application name of |application|.
 NSString* ApplicationName(AppGroupApplications application);
 
 }  // namespace app_group

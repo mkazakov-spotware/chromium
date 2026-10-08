@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 #include <tuple>
 
 #include "base/logging.h"
-#include "base/mac/scoped_cftyperef.h"
-#include "build/build_config.h"
+#include "base/test/scoped_feature_list.h"
 #include "media/capture/video/mac/test/pixel_buffer_test_utils_mac.h"
 #include "media/capture/video/mac/video_capture_device_avfoundation_utils_mac.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -119,7 +118,9 @@ auto SupportedOutputFormats() {
 // E.g. ".../yuvsTo420v" instead of ".../4"
 std::string TestParametersOSTypeTupleToString(
     testing::TestParamInfo<std::tuple<OSType, OSType>> info) {
-  auto [input_pixel_format, output_pixel_format] = info.param;
+  OSType input_pixel_format;
+  OSType output_pixel_format;
+  std::tie(input_pixel_format, output_pixel_format) = info.param;
   return MacFourCCToString(input_pixel_format) + std::string("To") +
          MacFourCCToString(output_pixel_format);
 }
@@ -146,111 +147,6 @@ base::ScopedCFTypeRef<CVPixelBufferRef> CreatePixelBuffer(OSType pixel_format,
   return pixel_buffer;
 }
 
-enum class PixelBufferType {
-  kIoSurfaceBacked,
-  kIoSurfaceMissing,
-};
-
-void NonPlanarCvPixelBufferReleaseCallback(void* releaseRef, const void* data) {
-  free(const_cast<void*>(data));
-}
-
-void PlanarCvPixelBufferReleaseCallback(void* releaseRef,
-                                        const void* data,
-                                        size_t size,
-                                        size_t num_planes,
-                                        const void* planes[]) {
-  free(const_cast<void*>(data));
-  for (size_t plane = 0; plane < num_planes; ++plane)
-    free(const_cast<void*>(planes[plane]));
-}
-
-std::pair<uint8_t*, size_t> GetDataAndStride(CVPixelBufferRef pixel_buffer,
-                                             size_t plane) {
-  if (CVPixelBufferIsPlanar(pixel_buffer)) {
-    return {static_cast<uint8_t*>(
-                CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, plane)),
-            CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, plane)};
-  } else {
-    DCHECK_EQ(plane, 0u) << "Non-planar pixel buffers only have 1 plane.";
-    return {static_cast<uint8_t*>(CVPixelBufferGetBaseAddress(pixel_buffer)),
-            CVPixelBufferGetBytesPerRow(pixel_buffer)};
-  }
-}
-
-base::ScopedCFTypeRef<CVPixelBufferRef> AddPadding(
-    CVPixelBufferRef pixel_buffer,
-    OSType pixel_format,
-    int width,
-    int height,
-    int padding) {
-  size_t num_planes = CVPixelBufferGetPlaneCount(pixel_buffer);
-  std::vector<size_t> plane_widths;
-  std::vector<size_t> plane_heights;
-  std::vector<size_t> plane_strides;
-  if (CVPixelBufferIsPlanar(pixel_buffer)) {
-    for (size_t plane = 0; plane < num_planes; ++plane) {
-      size_t plane_stride =
-          CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, plane);
-      size_t padded_stride = plane_stride + padding;
-      size_t h = CVPixelBufferGetHeightOfPlane(pixel_buffer, plane);
-      size_t w = CVPixelBufferGetWidthOfPlane(pixel_buffer, plane);
-      plane_heights.push_back(h);
-      plane_widths.push_back(w);
-      plane_strides.push_back(padded_stride);
-    }
-  } else {
-    // CVPixelBufferGetPlaneCount returns 0 for non-planar buffers.
-    num_planes = 1;
-    size_t plane_stride = CVPixelBufferGetBytesPerRow(pixel_buffer);
-    size_t padded_stride = plane_stride + padding;
-    size_t h = CVPixelBufferGetHeight(pixel_buffer);
-    plane_heights.push_back(h);
-    plane_strides.push_back(padded_stride);
-  }
-  std::vector<void*> plane_address;
-  CHECK_EQ(
-      CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly),
-      kCVReturnSuccess);
-  // Allocate and copy each plane.
-  for (size_t plane = 0; plane < num_planes; ++plane) {
-    plane_address.push_back(
-        calloc(1, plane_strides[plane] * plane_heights[plane]));
-    uint8_t* dst_ptr = static_cast<uint8_t*>(plane_address[plane]);
-    auto [src_ptr, plane_stride] = GetDataAndStride(pixel_buffer, plane);
-    CHECK(dst_ptr);
-    CHECK(src_ptr);
-    for (size_t r = 0; r < plane_heights[plane]; ++r) {
-      memcpy(dst_ptr, src_ptr, plane_stride);
-      src_ptr += plane_stride;
-      dst_ptr += plane_strides[plane];
-    }
-  }
-  CHECK_EQ(
-      CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly),
-      kCVReturnSuccess);
-
-  base::ScopedCFTypeRef<CVPixelBufferRef> padded_pixel_buffer;
-  CVReturn create_buffer_result;
-  if (CVPixelBufferIsPlanar(pixel_buffer)) {
-    // Without some memory block the callback won't be called and we leak the
-    // planar data.
-    void* descriptor = calloc(1, sizeof(CVPlanarPixelBufferInfo_YCbCrPlanar));
-    create_buffer_result = CVPixelBufferCreateWithPlanarBytes(
-        nullptr, width, height, pixel_format, descriptor, 0, num_planes,
-        plane_address.data(), plane_widths.data(), plane_heights.data(),
-        plane_strides.data(), &PlanarCvPixelBufferReleaseCallback,
-        plane_strides.data(), nullptr, padded_pixel_buffer.InitializeInto());
-  } else {
-    create_buffer_result = CVPixelBufferCreateWithBytes(
-        nullptr, width, height, pixel_format, plane_address[0],
-        plane_strides[0], &NonPlanarCvPixelBufferReleaseCallback, nullptr,
-        nullptr, padded_pixel_buffer.InitializeInto());
-  }
-  DCHECK_EQ(create_buffer_result, kCVReturnSuccess);
-  return padded_pixel_buffer;
-}
-
 base::ScopedCFTypeRef<CMSampleBufferRef> CreateSampleBuffer(
     OSType pixel_format,
     int width,
@@ -258,40 +154,19 @@ base::ScopedCFTypeRef<CMSampleBufferRef> CreateSampleBuffer(
     uint8_t r,
     uint8_t g,
     uint8_t b,
-    PixelBufferType pixel_buffer_type,
-    size_t padding = 0) {
-  base::ScopedCFTypeRef<CVPixelBufferRef> pixel_buffer =
-      CreatePixelBuffer(pixel_format, width, height, r, g, b);
-  if (padding != 0) {
-    CHECK_EQ(pixel_buffer_type, PixelBufferType::kIoSurfaceMissing)
-        << "Padding does not work with IOSurfaces.";
-  }
-  if (pixel_buffer_type == PixelBufferType::kIoSurfaceMissing) {
-    // Our pixel buffer currently has an IOSurface. To get rid of it, we perform
-    // a pixel buffer transfer to a destination pixel buffer that is not backed
-    // by an IOSurface. The resulting pixel buffer will have the desired color.
-    base::ScopedCFTypeRef<CVPixelBufferRef> iosurfaceless_pixel_buffer;
-    CVReturn create_buffer_result =
-        CVPixelBufferCreate(nullptr, width, height, pixel_format, nullptr,
-                            iosurfaceless_pixel_buffer.InitializeInto());
-    DCHECK_EQ(create_buffer_result, kCVReturnSuccess);
-    PixelBufferTransferer transferer;
-    bool success =
-        transferer.TransferImage(pixel_buffer, iosurfaceless_pixel_buffer);
-    DCHECK(success);
-    DCHECK(!CVPixelBufferGetIOSurface(iosurfaceless_pixel_buffer));
-    pixel_buffer = iosurfaceless_pixel_buffer;
-
-    if (padding > 0) {
-      pixel_buffer =
-          AddPadding(pixel_buffer, pixel_format, width, height, padding);
-    }
+    bool iosurface_backed = true) {
+  base::ScopedCFTypeRef<CVPixelBufferRef> pixel_buffer;
+  if (iosurface_backed) {
+    pixel_buffer = CreatePixelBuffer(pixel_format, width, height, r, g, b);
+  } else {
+    CVPixelBufferCreate(nullptr, width, height, pixel_format, nullptr,
+                        pixel_buffer.InitializeInto());
   }
 
   // Wrap the pixel buffer in a sample buffer.
-  base::ScopedCFTypeRef<CMFormatDescriptionRef> format_description;
+  CMFormatDescriptionRef format_description;
   OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
-      nil, pixel_buffer, format_description.InitializeInto());
+      nil, pixel_buffer, &format_description);
   DCHECK(status == noErr);
 
   // Dummy information to make CMSampleBufferCreateForImageBuffer() happy.
@@ -314,24 +189,16 @@ base::ScopedCFTypeRef<CMSampleBufferRef> CreateMjpegSampleBuffer(
     size_t mjpeg_data_size,
     size_t width,
     size_t height) {
-  CMBlockBufferCustomBlockSource source = {0};
-  source.FreeBlock = [](void* refcon, void* doomedMemoryBlock,
-                        size_t sizeInBytes) {
-    // Do nothing. The data to be released is not dynamically allocated in this
-    // test code.
-  };
-
-  base::ScopedCFTypeRef<CMBlockBufferRef> data_buffer;
+  CMBlockBufferRef data_buffer;
   OSStatus status = CMBlockBufferCreateWithMemoryBlock(
       nil, const_cast<void*>(static_cast<const void*>(mjpeg_data)),
-      mjpeg_data_size, nil, &source, 0, mjpeg_data_size, 0,
-      data_buffer.InitializeInto());
+      mjpeg_data_size, nil, nil, 0, mjpeg_data_size, 0, &data_buffer);
   DCHECK(status == noErr);
 
-  base::ScopedCFTypeRef<CMFormatDescriptionRef> format_description;
-  status = CMVideoFormatDescriptionCreate(nil, kCMVideoCodecType_JPEG_OpenDML,
-                                          width, height, nil,
-                                          format_description.InitializeInto());
+  CMFormatDescriptionRef format_description;
+  status =
+      CMVideoFormatDescriptionCreate(nil, kCMVideoCodecType_JPEG_OpenDML, width,
+                                     height, nil, &format_description);
   DCHECK(status == noErr);
 
   // Dummy information to make CMSampleBufferCreateReady() happy.
@@ -374,22 +241,21 @@ class SampleBufferTransformerPixelTransferTest
       public ::testing::WithParamInterface<std::tuple<OSType, OSType>> {};
 
 TEST_P(SampleBufferTransformerPixelTransferTest, CanConvertFullScale) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
+  OSType input_pixel_format;
+  OSType output_pixel_format;
+  std::tie(input_pixel_format, output_pixel_format) = GetParam();
 
   base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
       CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceBacked);
+                         kFullResolutionHeight, kColorR, kColorG, kColorB);
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
   transformer->Reconfigure(
       SampleBufferTransformer::Transformer::kPixelBufferTransfer,
-      output_pixel_format,
-      gfx::Size(kFullResolutionWidth, kFullResolutionHeight), 1);
+      output_pixel_format, kFullResolutionWidth, kFullResolutionHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
 
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
   EXPECT_EQ(kFullResolutionWidth, CVPixelBufferGetWidth(output_pixel_buffer));
   EXPECT_EQ(kFullResolutionHeight, CVPixelBufferGetHeight(output_pixel_buffer));
   EXPECT_TRUE(
@@ -397,96 +263,22 @@ TEST_P(SampleBufferTransformerPixelTransferTest, CanConvertFullScale) {
 }
 
 TEST_P(SampleBufferTransformerPixelTransferTest, CanConvertAndScaleDown) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
+  OSType input_pixel_format;
+  OSType output_pixel_format;
+  std::tie(input_pixel_format, output_pixel_format) = GetParam();
 
   base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
       CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceBacked);
+                         kFullResolutionHeight, kColorR, kColorG, kColorB);
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
   transformer->Reconfigure(
       SampleBufferTransformer::Transformer::kPixelBufferTransfer,
-      output_pixel_format,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight), 1);
+      output_pixel_format, kScaledDownResolutionWidth,
+      kScaledDownResolutionHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
 
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionWidth,
-            CVPixelBufferGetWidth(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionHeight,
-            CVPixelBufferGetHeight(output_pixel_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST_P(SampleBufferTransformerPixelTransferTest,
-       CanConvertAndScaleDownWhenIoSurfaceIsMissing) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
-
-  base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
-      CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceMissing);
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kPixelBufferTransfer,
-      output_pixel_format,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight), 1);
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
-      transformer->Transform(input_sample_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionWidth,
-            CVPixelBufferGetWidth(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionHeight,
-            CVPixelBufferGetHeight(output_pixel_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST_P(SampleBufferTransformerPixelTransferTest,
-       CanConvertWithPaddingFullScale) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
-  base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
-      CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceMissing, /*padding*/ 100);
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kPixelBufferTransfer,
-      output_pixel_format,
-      gfx::Size(kFullResolutionWidth, kFullResolutionHeight), 1);
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
-      transformer->Transform(input_sample_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
-  EXPECT_EQ(kFullResolutionWidth, CVPixelBufferGetWidth(output_pixel_buffer));
-  EXPECT_EQ(kFullResolutionHeight, CVPixelBufferGetHeight(output_pixel_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST_P(SampleBufferTransformerPixelTransferTest,
-       CanConvertAndScaleWithPadding) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
-  base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
-      CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceMissing, /*padding*/ 100);
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kPixelBufferTransfer,
-      output_pixel_format,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight), 1);
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
-      transformer->Transform(input_sample_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
   EXPECT_EQ(kScaledDownResolutionWidth,
             CVPixelBufferGetWidth(output_pixel_buffer));
   EXPECT_EQ(kScaledDownResolutionHeight,
@@ -506,21 +298,21 @@ class SampleBufferTransformerLibyuvTest
       public ::testing::WithParamInterface<std::tuple<OSType, OSType>> {};
 
 TEST_P(SampleBufferTransformerLibyuvTest, CanConvertFullScale) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
+  OSType input_pixel_format;
+  OSType output_pixel_format;
+  std::tie(input_pixel_format, output_pixel_format) = GetParam();
 
   base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
       CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceBacked);
+                         kFullResolutionHeight, kColorR, kColorG, kColorB);
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kLibyuv, output_pixel_format,
-      gfx::Size(kFullResolutionWidth, kFullResolutionHeight), 1);
+  transformer->Reconfigure(SampleBufferTransformer::Transformer::kLibyuv,
+                           output_pixel_format, kFullResolutionWidth,
+                           kFullResolutionHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
 
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
   EXPECT_EQ(kFullResolutionWidth, CVPixelBufferGetWidth(output_pixel_buffer));
   EXPECT_EQ(kFullResolutionHeight, CVPixelBufferGetHeight(output_pixel_buffer));
   EXPECT_TRUE(
@@ -528,90 +320,21 @@ TEST_P(SampleBufferTransformerLibyuvTest, CanConvertFullScale) {
 }
 
 TEST_P(SampleBufferTransformerLibyuvTest, CanConvertAndScaleDown) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
+  OSType input_pixel_format;
+  OSType output_pixel_format;
+  std::tie(input_pixel_format, output_pixel_format) = GetParam();
 
   base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
       CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceBacked);
+                         kFullResolutionHeight, kColorR, kColorG, kColorB);
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kLibyuv, output_pixel_format,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight), 1);
+  transformer->Reconfigure(SampleBufferTransformer::Transformer::kLibyuv,
+                           output_pixel_format, kScaledDownResolutionWidth,
+                           kScaledDownResolutionHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
 
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionWidth,
-            CVPixelBufferGetWidth(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionHeight,
-            CVPixelBufferGetHeight(output_pixel_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST_P(SampleBufferTransformerLibyuvTest, CanConvertWithPaddingFullScale) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
-  base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
-      CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceMissing, /*padding*/ 100);
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kLibyuv, output_pixel_format,
-      gfx::Size(kFullResolutionWidth, kFullResolutionHeight), 1);
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
-      transformer->Transform(input_sample_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
-  EXPECT_EQ(kFullResolutionWidth, CVPixelBufferGetWidth(output_pixel_buffer));
-  EXPECT_EQ(kFullResolutionHeight, CVPixelBufferGetHeight(output_pixel_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST_P(SampleBufferTransformerLibyuvTest, CanConvertAndScaleWithPadding) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
-  base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
-      CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceMissing, /*padding*/ 100);
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kLibyuv, output_pixel_format,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight), 1);
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
-      transformer->Transform(input_sample_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionWidth,
-            CVPixelBufferGetWidth(output_pixel_buffer));
-  EXPECT_EQ(kScaledDownResolutionHeight,
-            CVPixelBufferGetHeight(output_pixel_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST_P(SampleBufferTransformerLibyuvTest,
-       CanConvertAndScaleDownWhenIoSurfaceIsMissing) {
-  auto [input_pixel_format, output_pixel_format] = GetParam();
-
-  base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
-      CreateSampleBuffer(input_pixel_format, kFullResolutionWidth,
-                         kFullResolutionHeight, kColorR, kColorG, kColorB,
-                         PixelBufferType::kIoSurfaceMissing);
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kLibyuv, output_pixel_format,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight), 1);
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
-      transformer->Transform(input_sample_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_pixel_buffer));
   EXPECT_EQ(kScaledDownResolutionWidth,
             CVPixelBufferGetWidth(output_pixel_buffer));
   EXPECT_EQ(kScaledDownResolutionHeight,
@@ -638,8 +361,8 @@ TEST_P(SampleBufferTransformerMjpegTest, CanConvertFullScale) {
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
   transformer->Reconfigure(SampleBufferTransformer::Transformer::kLibyuv,
-                           output_pixel_format,
-                           gfx::Size(kExampleJpegWidth, kExampleJpegHeight), 1);
+                           output_pixel_format, kExampleJpegWidth,
+                           kExampleJpegHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
 
@@ -649,22 +372,16 @@ TEST_P(SampleBufferTransformerMjpegTest, CanConvertFullScale) {
       PixelBufferIsSingleColor(output_pixel_buffer, kColorR, kColorG, kColorB));
 }
 
-#if defined(ARCH_CPU_ARM64)
-// Disabled, see https://crbug.com/1354691
-#define MAYBE_CanConvertAndScaleDown DISABLED_CanConvertAndScaleDown
-#else
-#define MAYBE_CanConvertAndScaleDown CanConvertAndScaleDown
-#endif
-TEST_P(SampleBufferTransformerMjpegTest, MAYBE_CanConvertAndScaleDown) {
+TEST_P(SampleBufferTransformerMjpegTest, CanConvertAndScaleDown) {
   OSType output_pixel_format = GetParam();
 
   base::ScopedCFTypeRef<CMSampleBufferRef> input_sample_buffer =
       CreateExampleMjpegSampleBuffer();
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
-  transformer->Reconfigure(
-      SampleBufferTransformer::Transformer::kLibyuv, output_pixel_format,
-      gfx::Size(kExampleJpegScaledDownWidth, kExampleJpegScaledDownHeight), 1);
+  transformer->Reconfigure(SampleBufferTransformer::Transformer::kLibyuv,
+                           output_pixel_format, kExampleJpegScaledDownWidth,
+                           kExampleJpegScaledDownHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
 
@@ -685,8 +402,8 @@ TEST_P(SampleBufferTransformerMjpegTest,
   std::unique_ptr<SampleBufferTransformer> transformer =
       SampleBufferTransformer::Create();
   transformer->Reconfigure(SampleBufferTransformer::Transformer::kLibyuv,
-                           output_pixel_format,
-                           gfx::Size(kExampleJpegWidth, kExampleJpegHeight), 1);
+                           output_pixel_format, kExampleJpegWidth,
+                           kExampleJpegHeight, 1);
   base::ScopedCFTypeRef<CVPixelBufferRef> output_pixel_buffer =
       transformer->Transform(input_sample_buffer);
   EXPECT_FALSE(output_pixel_buffer);
@@ -697,23 +414,28 @@ INSTANTIATE_TEST_SUITE_P(SampleBufferTransformerTest,
                          SupportedOutputFormats(),
                          TestParametersOSTypeToString);
 
-TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
-     SourceAndDestinationResolutionMatches_InputSampleBuffer) {
+TEST(SampleBufferTransformerAutoReconfigureTest,
+     AutoReconfigureIsEnabledByDefault) {
+  EXPECT_TRUE(SampleBufferTransformer::CreateIfAutoReconfigureEnabled());
+}
+
+TEST(SampleBufferTransformerAutoReconfigureTest,
+     SourceAndDestinationResolutionMatches) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(kInCaptureConvertToNv12);
   std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
+      SampleBufferTransformer::CreateIfAutoReconfigureEnabled();
+  ASSERT_TRUE(transformer);
 
   base::ScopedCFTypeRef<CMSampleBufferRef> sample0 = CreateSampleBuffer(
       kPixelFormatNv12, kFullResolutionWidth, kFullResolutionHeight, kColorR,
-      kColorG, kColorB, PixelBufferType::kIoSurfaceMissing);
+      kColorG, kColorB, /*iosurface_backed=*/false);
 
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample0),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample0));
   base::ScopedCFTypeRef<CVPixelBufferRef> output_buffer =
-      transformer->Transform(sample0);
+      transformer->AutoReconfigureAndTransform(sample0);
 
-  EXPECT_EQ(gfx::Size(kFullResolutionWidth, kFullResolutionHeight),
-            transformer->destination_size());
+  EXPECT_EQ(kFullResolutionWidth, transformer->destination_width());
+  EXPECT_EQ(kFullResolutionHeight, transformer->destination_height());
   EXPECT_EQ(kFullResolutionWidth, CVPixelBufferGetWidth(output_buffer));
   EXPECT_EQ(kFullResolutionHeight, CVPixelBufferGetHeight(output_buffer));
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
@@ -723,15 +445,12 @@ TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
 
   base::ScopedCFTypeRef<CMSampleBufferRef> sample1 = CreateSampleBuffer(
       kPixelFormatNv12, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
-      kColorR, kColorG, kColorB, PixelBufferType::kIoSurfaceBacked);
+      kColorR, kColorG, kColorB);
 
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample1),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample1));
-  output_buffer = transformer->Transform(sample1);
+  output_buffer = transformer->AutoReconfigureAndTransform(sample1);
 
-  EXPECT_EQ(gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight),
-            transformer->destination_size());
+  EXPECT_EQ(kScaledDownResolutionWidth, transformer->destination_width());
+  EXPECT_EQ(kScaledDownResolutionHeight, transformer->destination_height());
   EXPECT_EQ(kScaledDownResolutionWidth, CVPixelBufferGetWidth(output_buffer));
   EXPECT_EQ(kScaledDownResolutionHeight, CVPixelBufferGetHeight(output_buffer));
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
@@ -739,194 +458,88 @@ TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
   EXPECT_EQ(output_buffer.get(), CMSampleBufferGetImageBuffer(sample1.get()));
 }
 
-// Same test as above, verifying that Transform() methods work on pixel buffers
-// directly (so that there's no need to have a sample buffer).
-TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
-     SourceAndDestinationResolutionMatches_InputPixelBuffer) {
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-
-  base::ScopedCFTypeRef<CMSampleBufferRef> sample0 = CreateSampleBuffer(
-      kPixelFormatNv12, kFullResolutionWidth, kFullResolutionHeight, kColorR,
-      kColorG, kColorB, PixelBufferType::kIoSurfaceMissing);
-  CVPixelBufferRef pixel0 = CMSampleBufferGetImageBuffer(sample0);
-  ASSERT_TRUE(pixel0);
-
-  transformer->Reconfigure(
-      SampleBufferTransformer::kBestTransformerForPixelBufferToNv12Output,
-      kPixelFormatNv12, media::GetPixelBufferSize(pixel0));
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_buffer =
-      transformer->Transform(pixel0);
-
-  EXPECT_EQ(gfx::Size(kFullResolutionWidth, kFullResolutionHeight),
-            transformer->destination_size());
-  EXPECT_EQ(kFullResolutionWidth, CVPixelBufferGetWidth(output_buffer));
-  EXPECT_EQ(kFullResolutionHeight, CVPixelBufferGetHeight(output_buffer));
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
-  // Because pixel0 has no underlying IOSurface, it should not be returned from
-  // the transformer.
-  EXPECT_NE(output_buffer.get(), pixel0);
-
-  base::ScopedCFTypeRef<CMSampleBufferRef> sample1 = CreateSampleBuffer(
-      kPixelFormatNv12, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
-      kColorR, kColorG, kColorB, PixelBufferType::kIoSurfaceBacked);
-  CVPixelBufferRef pixel1 = CMSampleBufferGetImageBuffer(sample1);
-  ASSERT_TRUE(pixel1);
-
-  transformer->Reconfigure(
-      SampleBufferTransformer::kBestTransformerForPixelBufferToNv12Output,
-      kPixelFormatNv12, media::GetPixelBufferSize(pixel1));
-  output_buffer = transformer->Transform(pixel1);
-
-  EXPECT_EQ(gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight),
-            transformer->destination_size());
-  EXPECT_EQ(kScaledDownResolutionWidth, CVPixelBufferGetWidth(output_buffer));
-  EXPECT_EQ(kScaledDownResolutionHeight, CVPixelBufferGetHeight(output_buffer));
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
-  // Because pixel1 does have an IOSurface, it can be returned directly.
-  EXPECT_EQ(output_buffer.get(), pixel1);
-}
-
-TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
-     CanConvertAndScaleDown_InputPixelBuffer) {
-  std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
-
-  base::ScopedCFTypeRef<CMSampleBufferRef> sample_buffer = CreateSampleBuffer(
-      kPixelFormatNv12, kFullResolutionWidth, kFullResolutionHeight, kColorR,
-      kColorG, kColorB, PixelBufferType::kIoSurfaceBacked);
-  CVPixelBufferRef pixel_buffer = CMSampleBufferGetImageBuffer(sample_buffer);
-  ASSERT_TRUE(pixel_buffer);
-
-  transformer->Reconfigure(
-      SampleBufferTransformer::kBestTransformerForPixelBufferToNv12Output,
-      kPixelFormatNv12,
-      gfx::Size(kScaledDownResolutionWidth, kScaledDownResolutionHeight));
-  base::ScopedCFTypeRef<CVPixelBufferRef> output_buffer =
-      transformer->Transform(pixel_buffer);
-
-  EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
-  EXPECT_EQ(kScaledDownResolutionWidth, CVPixelBufferGetWidth(output_buffer));
-  EXPECT_EQ(kScaledDownResolutionHeight, CVPixelBufferGetHeight(output_buffer));
-  EXPECT_TRUE(
-      PixelBufferIsSingleColor(output_buffer, kColorR, kColorG, kColorB));
-}
-
-TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
+TEST(SampleBufferTransformerAutoReconfigureTest,
      DestinationPixelFormatIsAlwaysNv12) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(kInCaptureConvertToNv12);
   std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
+      SampleBufferTransformer::CreateIfAutoReconfigureEnabled();
+  ASSERT_TRUE(transformer);
 
-  base::ScopedCFTypeRef<CMSampleBufferRef> sample = CreateSampleBuffer(
-      kPixelFormatNv12, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
-      kColorR, kColorG, kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
   base::ScopedCFTypeRef<CVPixelBufferRef> output_buffer =
-      transformer->Transform(sample);
+      transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+          kPixelFormatNv12, kScaledDownResolutionWidth,
+          kScaledDownResolutionHeight, kColorR, kColorG, kColorB));
   EXPECT_EQ(kPixelFormatNv12, transformer->destination_pixel_format());
   EXPECT_EQ(kPixelFormatNv12,
             IOSurfaceGetPixelFormat(CVPixelBufferGetIOSurface(output_buffer)));
 
-  sample = CreateSampleBuffer(kPixelFormatUyvy, kScaledDownResolutionWidth,
-                              kScaledDownResolutionHeight, kColorR, kColorG,
-                              kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+      kPixelFormatUyvy, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
+      kColorR, kColorG, kColorB));
   EXPECT_EQ(kPixelFormatNv12, transformer->destination_pixel_format());
   EXPECT_EQ(kPixelFormatNv12,
             IOSurfaceGetPixelFormat(CVPixelBufferGetIOSurface(output_buffer)));
 
-  sample = CreateSampleBuffer(kPixelFormatYuy2, kScaledDownResolutionWidth,
-                              kScaledDownResolutionHeight, kColorR, kColorG,
-                              kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+      kPixelFormatYuy2, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
+      kColorR, kColorG, kColorB));
   EXPECT_EQ(kPixelFormatNv12, transformer->destination_pixel_format());
   EXPECT_EQ(kPixelFormatNv12,
             IOSurfaceGetPixelFormat(CVPixelBufferGetIOSurface(output_buffer)));
 
-  sample = CreateSampleBuffer(kPixelFormatI420, kScaledDownResolutionWidth,
-                              kScaledDownResolutionHeight, kColorR, kColorG,
-                              kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+      kPixelFormatI420, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
+      kColorR, kColorG, kColorB));
   EXPECT_EQ(kPixelFormatNv12, transformer->destination_pixel_format());
   EXPECT_EQ(kPixelFormatNv12,
             IOSurfaceGetPixelFormat(CVPixelBufferGetIOSurface(output_buffer)));
 
-  sample = CreateExampleMjpegSampleBuffer();
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(
+      CreateExampleMjpegSampleBuffer());
   EXPECT_EQ(kPixelFormatNv12, transformer->destination_pixel_format());
   EXPECT_EQ(kPixelFormatNv12,
             IOSurfaceGetPixelFormat(CVPixelBufferGetIOSurface(output_buffer)));
 }
 
-TEST(SampleBufferTransformerBestTransformerForNv12OutputTest,
-     UsesBestTransformerPaths) {
+TEST(SampleBufferTransformerAutoReconfigureTest, UsesBestTransformerPaths) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(kInCaptureConvertToNv12);
   std::unique_ptr<SampleBufferTransformer> transformer =
-      SampleBufferTransformer::Create();
+      SampleBufferTransformer::CreateIfAutoReconfigureEnabled();
+  ASSERT_TRUE(transformer);
 
-  base::ScopedCFTypeRef<CMSampleBufferRef> sample = CreateSampleBuffer(
-      kPixelFormatNv12, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
-      kColorR, kColorG, kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
   base::ScopedCFTypeRef<CVPixelBufferRef> output_buffer =
-      transformer->Transform(sample);
+      transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+          kPixelFormatNv12, kScaledDownResolutionWidth,
+          kScaledDownResolutionHeight, kColorR, kColorG, kColorB));
   EXPECT_EQ(SampleBufferTransformer::Transformer::kPixelBufferTransfer,
             transformer->transformer());
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
 
-  sample = CreateSampleBuffer(kPixelFormatUyvy, kScaledDownResolutionWidth,
-                              kScaledDownResolutionHeight, kColorR, kColorG,
-                              kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+      kPixelFormatUyvy, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
+      kColorR, kColorG, kColorB));
   EXPECT_EQ(SampleBufferTransformer::Transformer::kPixelBufferTransfer,
             transformer->transformer());
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
 
-  sample = CreateSampleBuffer(kPixelFormatYuy2, kScaledDownResolutionWidth,
-                              kScaledDownResolutionHeight, kColorR, kColorG,
-                              kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+      kPixelFormatYuy2, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
+      kColorR, kColorG, kColorB));
   EXPECT_EQ(SampleBufferTransformer::Transformer::kPixelBufferTransfer,
             transformer->transformer());
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
 
-  sample = CreateSampleBuffer(kPixelFormatI420, kScaledDownResolutionWidth,
-                              kScaledDownResolutionHeight, kColorR, kColorG,
-                              kColorB, PixelBufferType::kIoSurfaceBacked);
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(CreateSampleBuffer(
+      kPixelFormatI420, kScaledDownResolutionWidth, kScaledDownResolutionHeight,
+      kColorR, kColorG, kColorB));
   EXPECT_EQ(SampleBufferTransformer::Transformer::kPixelBufferTransfer,
             transformer->transformer());
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));
 
-  sample = CreateExampleMjpegSampleBuffer();
-  transformer->Reconfigure(
-      SampleBufferTransformer::GetBestTransformerForNv12Output(sample),
-      kPixelFormatNv12, media::GetSampleBufferSize(sample));
-  output_buffer = transformer->Transform(sample);
+  output_buffer = transformer->AutoReconfigureAndTransform(
+      CreateExampleMjpegSampleBuffer());
   EXPECT_EQ(SampleBufferTransformer::Transformer::kLibyuv,
             transformer->transformer());
   EXPECT_TRUE(CVPixelBufferGetIOSurface(output_buffer));

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/aura/scoped_window_targeter.h"
 #include "ui/aura/test/aura_test_base.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/events/event_utils.h"
@@ -23,10 +22,6 @@ namespace aura {
 class StaticWindowTargeter : public WindowTargeter {
  public:
   explicit StaticWindowTargeter(aura::Window* window) : window_(window) {}
-
-  StaticWindowTargeter(const StaticWindowTargeter&) = delete;
-  StaticWindowTargeter& operator=(const StaticWindowTargeter&) = delete;
-
   ~StaticWindowTargeter() override {}
 
  private:
@@ -36,17 +31,21 @@ class StaticWindowTargeter : public WindowTargeter {
     return window_;
   }
 
-  raw_ptr<Window> window_;
+  Window* window_;
+
+  DISALLOW_COPY_AND_ASSIGN(StaticWindowTargeter);
 };
 
 gfx::RectF GetEffectiveVisibleBoundsInRootWindow(Window* window) {
+  gfx::RectF bounds = gfx::RectF(gfx::SizeF(window->bounds().size()));
   Window* root = window->GetRootWindow();
   CHECK(window->layer());
   CHECK(root->layer());
   gfx::Transform transform;
   if (!window->layer()->GetTargetTransformRelativeTo(root->layer(), &transform))
     return gfx::RectF();
-  return transform.MapRect(gfx::RectF(gfx::SizeF(window->bounds().size())));
+  transform.TransformRect(&bounds);
+  return bounds;
 }
 
 using WindowTargeterTest = test::AuraTestBase;
@@ -218,7 +217,7 @@ class IdCheckingEventTargeter : public WindowTargeter {
   // WindowTargeter:
   bool SubtreeShouldBeExploredForEvent(Window* window,
                                        const ui::LocatedEvent& event) override {
-    return (window->GetId() == id_ &&
+    return (window->id() == id_ &&
             WindowTargeter::SubtreeShouldBeExploredForEvent(window, event));
   }
 
@@ -287,43 +286,6 @@ TEST_F(WindowTargeterTest, Bounds) {
   ui::MouseEvent third(ui::ET_MOUSE_MOVED, gfx::Point(8, 8), gfx::Point(8, 8),
                        ui::EventTimeForNow(), ui::EF_NONE, ui::EF_NONE);
   EXPECT_EQ(child_r, targeter->FindTargetForEvent(root_target, &third));
-}
-
-TEST_F(WindowTargeterTest, NonFullyContainedBounds) {
-  test::TestWindowDelegate delegate;
-  std::unique_ptr<Window> parent(
-      CreateNormalWindow(1, root_window(), &delegate));
-  std::unique_ptr<Window> child(CreateNormalWindow(1, parent.get(), &delegate));
-
-  parent->SetBounds(gfx::Rect(0, 0, 30, 30));
-  child->SetBounds(gfx::Rect(15, 15, 5, 100));
-
-  auto* targeter =
-      static_cast<ui::EventTarget*>(root_window())->GetEventTargeter();
-
-  ui::MouseEvent mouse(ui::ET_MOUSE_MOVED, gfx::Point(17, 75),
-                       gfx::Point(17, 75), ui::EventTimeForNow(), ui::EF_NONE,
-                       ui::EF_NONE);
-  EXPECT_EQ(child.get(), targeter->FindTargetForEvent(root_window(), &mouse));
-}
-
-TEST_F(WindowTargeterTest, NonFullyContainedBoundsWithMasksToBounds) {
-  test::TestWindowDelegate delegate;
-  std::unique_ptr<Window> parent(
-      CreateNormalWindow(1, root_window(), &delegate));
-  std::unique_ptr<Window> child(CreateNormalWindow(1, parent.get(), &delegate));
-
-  parent->SetBounds(gfx::Rect(0, 0, 30, 30));
-  parent->layer()->SetMasksToBounds(true);
-  child->SetBounds(gfx::Rect(15, 15, 5, 100));
-
-  auto* targeter =
-      static_cast<ui::EventTarget*>(root_window())->GetEventTargeter();
-
-  ui::MouseEvent mouse(ui::ET_MOUSE_MOVED, gfx::Point(17, 75),
-                       gfx::Point(17, 75), ui::EventTimeForNow(), ui::EF_NONE,
-                       ui::EF_NONE);
-  EXPECT_EQ(root_window(), targeter->FindTargetForEvent(root_window(), &mouse));
 }
 
 class IgnoreWindowTargeter : public WindowTargeter {

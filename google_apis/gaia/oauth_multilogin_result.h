@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,9 @@
 #define GOOGLE_APIS_GAIA_OAUTH_MULTILOGIN_RESULT_H_
 
 #include <string>
+#include <unordered_map>
 
-#include "base/gtest_prod_util.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "net/cookies/canonical_cookie.h"
@@ -70,18 +71,16 @@ class OAuthMultiloginResult {
 
  private:
   FRIEND_TEST_ALL_PREFIXES(OAuthMultiloginResultTest, TryParseCookiesFromValue);
-  FRIEND_TEST_ALL_PREFIXES(OAuthMultiloginResultTest,
-                           ParseRealResponseFromGaia_2021_10);
 
   // Response body that has a form of JSON contains protection characters
   // against XSSI that have to be removed. See go/xssi.
   static base::StringPiece StripXSSICharacters(const std::string& data);
 
-  void TryParseCookiesFromValue(const base::Value::Dict& json_value);
+  void TryParseCookiesFromValue(base::Value* json_value);
 
   // If error is INVALID_GAIA_CREDENTIALS response is expected to have a list of
   // failed accounts for which tokens are not valid.
-  void TryParseFailedAccountsFromValue(const base::Value::Dict& json_value);
+  void TryParseFailedAccountsFromValue(base::Value* json_value);
 
   std::vector<net::CanonicalCookie> cookies_;
   std::vector<std::string> failed_gaia_ids_;

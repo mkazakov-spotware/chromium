@@ -1,16 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/test/test_navigation_observer.h"
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "content/browser/renderer_host/navigation_request.h"
 #include "content/browser/web_contents/web_contents_impl.h"
-#include "content/public/browser/browser_url_handler.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "content/public/test/browser_test_utils.h"
 
 namespace content {
 
@@ -22,9 +19,6 @@ class TestNavigationObserver::TestWebContentsObserver
       : WebContentsObserver(web_contents),
         parent_(parent) {
   }
-
-  TestWebContentsObserver(const TestWebContentsObserver&) = delete;
-  TestWebContentsObserver& operator=(const TestWebContentsObserver&) = delete;
 
  private:
   // WebContentsObserver:
@@ -53,10 +47,15 @@ class TestNavigationObserver::TestWebContentsObserver
   }
 
   void DidFinishNavigation(NavigationHandle* navigation_handle) override {
+    if (!navigation_handle->HasCommitted())
+      return;
+
     parent_->OnDidFinishNavigation(navigation_handle);
   }
 
-  raw_ptr<TestNavigationObserver> parent_;
+  TestNavigationObserver* parent_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWebContentsObserver);
 };
 
 TestNavigationObserver::WebContentsState::WebContentsState() = default;
@@ -69,80 +68,59 @@ TestNavigationObserver::WebContentsState::~WebContentsState() = default;
 
 TestNavigationObserver::TestNavigationObserver(
     WebContents* web_contents,
-    int expected_number_of_navigations,
-    MessageLoopRunner::QuitMode quit_mode,
-    bool ignore_uncommitted_navigations)
+    int number_of_navigations,
+    MessageLoopRunner::QuitMode quit_mode)
     : TestNavigationObserver(web_contents,
-                             expected_number_of_navigations,
-                             absl::nullopt /* target_url */,
-                             absl::nullopt /* target_error */,
-                             quit_mode,
-                             ignore_uncommitted_navigations) {}
+                             number_of_navigations,
+                             base::nullopt /* target_url */,
+                             base::nullopt /* target_error */,
+                             quit_mode) {}
 
 TestNavigationObserver::TestNavigationObserver(
     WebContents* web_contents,
-    MessageLoopRunner::QuitMode quit_mode,
-    bool ignore_uncommitted_navigations)
-    : TestNavigationObserver(web_contents,
-                             1,
-                             quit_mode,
-                             ignore_uncommitted_navigations) {}
+    MessageLoopRunner::QuitMode quit_mode)
+    : TestNavigationObserver(web_contents, 1, quit_mode) {}
 
 TestNavigationObserver::TestNavigationObserver(
-    WebContents* web_contents,
-    net::Error expected_target_error,
-    MessageLoopRunner::QuitMode quit_mode,
-    bool ignore_uncommitted_navigations)
-    : TestNavigationObserver(web_contents,
-                             1 /* num_of_navigations */,
-                             absl::nullopt,
-                             expected_target_error,
-                             quit_mode,
-                             ignore_uncommitted_navigations) {}
-
-TestNavigationObserver::TestNavigationObserver(
-    const GURL& expected_target_url,
-    MessageLoopRunner::QuitMode quit_mode,
-    bool ignore_uncommitted_navigations)
+    const GURL& target_url,
+    MessageLoopRunner::QuitMode quit_mode)
     : TestNavigationObserver(nullptr,
                              1 /* num_of_navigations */,
-                             expected_target_url,
-                             absl::nullopt /* target_error */,
-                             quit_mode,
-                             ignore_uncommitted_navigations) {}
+                             target_url,
+                             base::nullopt /* target_error */,
+                             quit_mode) {}
 
-TestNavigationObserver::~TestNavigationObserver() = default;
+TestNavigationObserver::TestNavigationObserver(
+    WebContents* web_contents,
+    net::Error target_error,
+    MessageLoopRunner::QuitMode quit_mode)
+    : TestNavigationObserver(web_contents,
+                             1 /* num_of_navigations */,
+                             base::nullopt,
+                             target_error,
+                             quit_mode) {}
+
+TestNavigationObserver::~TestNavigationObserver() {
+  StopWatchingNewWebContents();
+}
 
 void TestNavigationObserver::Wait() {
-  was_event_consumed_ = false;
-  TRACE_EVENT1("test", "TestNavigationObserver::Wait", "params",
-               [&](perfetto::TracedValue ctx) {
-                 // TODO(crbug.com/1183371): Replace this with passing more
-                 // parameters to TRACE_EVENT directly when available.
-                 auto dict = std::move(ctx).WriteDictionary();
-                 dict.Add("wait_event", wait_event_);
-                 dict.Add("ignore_uncommitted_navigations",
-                          ignore_uncommitted_navigations_);
-                 dict.Add("expected_target_url", expected_target_url_);
-                 dict.Add("expected_initial_url", expected_initial_url_);
-                 dict.Add("expected_target_error", expected_target_error_);
-               });
   message_loop_runner_->Run();
 }
 
 void TestNavigationObserver::WaitForNavigationFinished() {
   wait_event_ = WaitEvent::kNavigationFinished;
-  Wait();
+  message_loop_runner_->Run();
 }
 
 void TestNavigationObserver::StartWatchingNewWebContents() {
-  creation_subscription_ = RegisterWebContentsCreationCallback(
-      base::BindRepeating(&TestNavigationObserver::OnWebContentsCreated,
-                          base::Unretained(this)));
+  WebContentsImpl::FriendWrapper::AddCreatedCallbackForTesting(
+      web_contents_created_callback_);
 }
 
 void TestNavigationObserver::StopWatchingNewWebContents() {
-  creation_subscription_ = base::CallbackListSubscription();
+  WebContentsImpl::FriendWrapper::RemoveCreatedCallbackForTesting(
+      web_contents_created_callback_);
 }
 
 void TestNavigationObserver::WatchExistingWebContents() {
@@ -157,21 +135,22 @@ void TestNavigationObserver::RegisterAsObserver(WebContents* web_contents) {
 
 TestNavigationObserver::TestNavigationObserver(
     WebContents* web_contents,
-    int expected_number_of_navigations,
-    const absl::optional<GURL>& expected_target_url,
-    absl::optional<net::Error> expected_target_error,
-    MessageLoopRunner::QuitMode quit_mode,
-    bool ignore_uncommitted_navigations)
+    int number_of_navigations,
+    const base::Optional<GURL>& target_url,
+    base::Optional<net::Error> target_error,
+    MessageLoopRunner::QuitMode quit_mode)
     : wait_event_(WaitEvent::kLoadStopped),
       navigations_completed_(0),
-      expected_number_of_navigations_(expected_number_of_navigations),
-      expected_target_url_(expected_target_url),
-      expected_initial_url_(absl::nullopt),
-      expected_target_error_(expected_target_error),
-      ignore_uncommitted_navigations_(ignore_uncommitted_navigations),
+      number_of_navigations_(number_of_navigations),
+      target_url_(target_url),
+      target_error_(target_error),
       last_navigation_succeeded_(false),
       last_net_error_code_(net::OK),
-      message_loop_runner_(new MessageLoopRunner(quit_mode)) {
+      last_navigation_type_(NAVIGATION_TYPE_UNKNOWN),
+      message_loop_runner_(new MessageLoopRunner(quit_mode)),
+      web_contents_created_callback_(
+          base::BindRepeating(&TestNavigationObserver::OnWebContentsCreated,
+                              base::Unretained(this))) {
   if (web_contents)
     RegisterAsObserver(web_contents);
 }
@@ -196,11 +175,13 @@ void TestNavigationObserver::OnNavigationEntryCommitted(
     const LoadCommittedDetails& load_details) {
   WebContentsState* web_contents_state = GetWebContentsState(web_contents);
   web_contents_state->navigation_started = true;
+  web_contents_state->last_navigation_matches_filter = false;
 }
 
 void TestNavigationObserver::OnDidStartLoading(WebContents* web_contents) {
   WebContentsState* web_contents_state = GetWebContentsState(web_contents);
   web_contents_state->navigation_started = true;
+  web_contents_state->last_navigation_matches_filter = false;
 }
 
 void TestNavigationObserver::OnDidStopLoading(WebContents* web_contents) {
@@ -214,12 +195,8 @@ void TestNavigationObserver::OnDidStopLoading(WebContents* web_contents) {
 
 void TestNavigationObserver::OnDidStartNavigation(
     NavigationHandle* navigation_handle) {
-  if (expected_target_url_.has_value() &&
-      expected_target_url_.value() != navigation_handle->GetURL()) {
-    return;
-  }
-  if (!DoesNavigationMatchExpectedInitialUrl(
-          NavigationRequest::From(navigation_handle))) {
+  if (target_url_.has_value() &&
+      target_url_.value() != navigation_handle->GetURL()) {
     return;
   }
 
@@ -233,61 +210,33 @@ void TestNavigationObserver::OnDidStartNavigation(
 
 void TestNavigationObserver::OnDidFinishNavigation(
     NavigationHandle* navigation_handle) {
-  if (ignore_uncommitted_navigations_ && !navigation_handle->HasCommitted())
-    return;
-
-  NavigationRequest* request = NavigationRequest::From(navigation_handle);
-  if (expected_target_url_.has_value() &&
-      expected_target_url_.value() != navigation_handle->GetURL()) {
+  if (target_url_.has_value() &&
+      target_url_.value() != navigation_handle->GetURL()) {
     return;
   }
-  if (!DoesNavigationMatchExpectedInitialUrl(request))
-    return;
-  if (expected_target_error_.has_value() &&
-      expected_target_error_.value() != navigation_handle->GetNetErrorCode()) {
+  if (target_error_.has_value() &&
+      target_error_.value() != navigation_handle->GetNetErrorCode()) {
     return;
   }
 
   WebContentsState* web_contents_state =
       GetWebContentsState(navigation_handle->GetWebContents());
-
-  // TODO(crbug.com/1233764): It is generally the case that we've received load
-  // started events by this point, but we don't send load events for prerendered
-  // pages (by design). It's also the case that frame tree nodes don't report
-  // load start if the tree is already loading. For all of prerendering,
-  // subframes and fenced frames (i.e., the cases where we cannot rely on
-  // navigation_started being set correctly), we're not in the primary main
-  // frame, so the DCHECK has been updated to ignore these cases. We also only
-  // enforce this check if we haven't already called EventTriggered (since this
-  // will reset navigation_started and can cause errors in subsequent
-  // DidFinishNavigation calls). All this being said, we should, in general,
-  // move away from NotificationService and related events.
-  DCHECK(was_event_consumed_ || !navigation_handle->IsInPrimaryMainFrame() ||
-         web_contents_state->navigation_started);
-
+  if (!web_contents_state->navigation_started)
+    return;
   if (HasFilter())
     web_contents_state->last_navigation_matches_filter = true;
 
+  NavigationRequest* request = NavigationRequest::From(navigation_handle);
+
   last_navigation_url_ = navigation_handle->GetURL();
   last_navigation_initiator_origin_ = request->common_params().initiator_origin;
-  last_initiator_frame_token_ = navigation_handle->GetInitiatorFrameToken();
-  last_initiator_process_id_ = navigation_handle->GetInitiatorProcessID();
-  last_navigation_succeeded_ =
-      navigation_handle->HasCommitted() && !navigation_handle->IsErrorPage();
+  last_initiator_routing_id_ = navigation_handle->GetInitiatorRoutingId();
+  last_navigation_succeeded_ = !navigation_handle->IsErrorPage();
   last_net_error_code_ = navigation_handle->GetNetErrorCode();
-  last_nav_entry_id_ =
-      NavigationRequest::From(navigation_handle)->nav_entry_id();
-  last_source_site_instance_ = navigation_handle->GetSourceSiteInstance();
-
-  // Allow extending classes to fetch data available via navigation_handle.
-  NavigationOfInterestDidFinish(navigation_handle);
+  last_navigation_type_ = request->navigation_type();
 
   if (wait_event_ == WaitEvent::kNavigationFinished)
     EventTriggered(web_contents_state);
-}
-
-void TestNavigationObserver::NavigationOfInterestDidFinish(NavigationHandle*) {
-  // Nothing in the base class.
 }
 
 void TestNavigationObserver::EventTriggered(
@@ -297,42 +246,16 @@ void TestNavigationObserver::EventTriggered(
 
   DCHECK_GE(navigations_completed_, 0);
   ++navigations_completed_;
-  if (navigations_completed_ != expected_number_of_navigations_) {
+  if (navigations_completed_ != number_of_navigations_) {
     return;
   }
 
-  was_event_consumed_ = true;
   web_contents_state->navigation_started = false;
   message_loop_runner_->Quit();
 }
 
-bool TestNavigationObserver::DoesNavigationMatchExpectedInitialUrl(
-    NavigationRequest* navigation_request) {
-  if (!expected_initial_url_.has_value())
-    return true;
-
-  // Find the real URL being navigated to (e.g. stripping the "view-source:"
-  // prefix if necessary).
-  GURL expected_url = *expected_initial_url_;
-  BrowserContext* browser_context = navigation_request->frame_tree_node()
-                                        ->navigator()
-                                        .controller()
-                                        .GetBrowserContext();
-  BrowserURLHandler::GetInstance()->RewriteURLIfNecessary(&expected_url,
-                                                          browser_context);
-
-  // Debug URLs do not go through NavigationRequest and therefore cannot be used
-  // as an `expected_url`.
-  DCHECK(!blink::IsRendererDebugURL(expected_url));
-
-  GURL actual_url = navigation_request->GetOriginalRequestURL();
-  return actual_url == expected_url;
-}
-
 bool TestNavigationObserver::HasFilter() {
-  return expected_target_url_.has_value() ||
-         expected_initial_url_.has_value() ||
-         expected_target_error_.has_value();
+  return target_url_.has_value() || target_error_.has_value();
 }
 
 TestNavigationObserver::WebContentsState*

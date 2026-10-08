@@ -1,49 +1,57 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.thumbnail.generator;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.util.Pair;
 import androidx.test.filters.SmallTest;
 
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.FlakyTest;
+import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.util.ConversionUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Unit test for ThumbnailProviderDiskStorage.
+ * Tests ThumbnailProviderDiskStorage.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
 public class ThumbnailDiskStorageTest {
     private static final String TAG = "ThumbnailDiskTest";
     private static final String CONTENT_ID1 = "contentId1";
     private static final String CONTENT_ID2 = "contentId2";
     private static final String CONTENT_ID3 = "contentId3";
+    private static final String FILE_PATH1 = UrlUtils.getTestFilePath("android/google.png");
+    private static final String FILE_PATH2 = UrlUtils.getTestFilePath("android/favicon.png");
+    private static final Bitmap BITMAP1 = BitmapFactory.decodeFile(FILE_PATH1);
+    private static final Bitmap BITMAP2 = BitmapFactory.decodeFile(FILE_PATH2);
     private static final int ICON_WIDTH1 = 50;
     private static final int ICON_WIDTH2 = 70;
-    private static final Bitmap BITMAP1 =
-            Bitmap.createBitmap(ICON_WIDTH1, ICON_WIDTH1, Bitmap.Config.ARGB_8888);
-    private static final Bitmap BITMAP2 =
-            Bitmap.createBitmap(ICON_WIDTH2, ICON_WIDTH2, Bitmap.Config.ARGB_8888);
-    private static final int TEST_MAX_CACHE_BYTES = 10 * ConversionUtils.BYTES_PER_KILOBYTE;
+    private static final int TEST_MAX_CACHE_BYTES = 1 * ConversionUtils.BYTES_PER_MEGABYTE;
 
+    private static final long TIMEOUT_MS = 10000;
+    private static final long INTERVAL_MS = 500;
+
+    private TestThumbnailStorageDelegate mTestThumbnailStorageDelegate;
     private TestThumbnailGenerator mTestThumbnailGenerator;
     private TestThumbnailDiskStorage mTestThumbnailDiskStorage;
 
@@ -79,12 +87,31 @@ public class ThumbnailDiskStorageTest {
         }
     }
 
+    private static class TestThumbnailStorageDelegate implements ThumbnailStorageDelegate {
+        // Accessed by UI and test threads.
+        public final AtomicInteger retrievedCount = new AtomicInteger();
+
+        @Override
+        public void onThumbnailRetrieved(@NonNull String contentId, @Nullable Bitmap bitmap) {
+            retrievedCount.getAndIncrement();
+        }
+    }
+
     private static class TestThumbnailDiskStorage extends ThumbnailDiskStorage {
         // Incremented when adding an existing entry and trimming. Accessed by test and UI threads.
         public AtomicInteger removeCount = new AtomicInteger();
+        // Accessed by test and UI threads.
+        public final AtomicBoolean initialized = new AtomicBoolean();
 
-        public TestThumbnailDiskStorage(TestThumbnailGenerator thumbnailGenerator) {
-            super(new ThumbnailStorageDelegate() {}, thumbnailGenerator, TEST_MAX_CACHE_BYTES);
+        public TestThumbnailDiskStorage(TestThumbnailStorageDelegate delegate,
+                TestThumbnailGenerator thumbnailGenerator, int maxCacheSizeBytes) {
+            super(delegate, thumbnailGenerator, maxCacheSizeBytes);
+        }
+
+        @Override
+        void initDiskCache() {
+            super.initDiskCache();
+            initialized.set(true);
         }
 
         @Override
@@ -132,22 +159,17 @@ public class ThumbnailDiskStorageTest {
 
     @Before
     public void setUp() {
+        mTestThumbnailStorageDelegate = new TestThumbnailStorageDelegate();
         mTestThumbnailGenerator = new TestThumbnailGenerator();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mTestThumbnailDiskStorage = new TestThumbnailDiskStorage(mTestThumbnailGenerator);
+            mTestThumbnailDiskStorage = new TestThumbnailDiskStorage(
+                    mTestThumbnailStorageDelegate, mTestThumbnailGenerator, TEST_MAX_CACHE_BYTES);
             // Clear the disk cache so that cached entries from previous runs won't show up.
             mTestThumbnailDiskStorage.clear();
         });
-        try {
-            // Use .get() to ensure init and clear are completed. Since they have no onPostExecute
-            // they are completely finished once .get() returns.
-            mTestThumbnailDiskStorage.mInitTask.get();
-            mTestThumbnailDiskStorage.mLastClearTask.get();
-        } catch (Exception e) {
-            throw new RuntimeException("Exception occurred while waiting for task.", e);
-        }
+        assertInitialized();
+        assertDiskSizeBytes(0);
         mTestThumbnailDiskStorage.removeCount.set(0);
-        Assert.assertEquals(0, mTestThumbnailDiskStorage.mSizeBytes);
     }
 
     /**
@@ -169,7 +191,7 @@ public class ThumbnailDiskStorageTest {
 
         // Since retrieval re-adds an existing entry, remove was called once already.
         removeThumbnailAndExpectedCount(CONTENT_ID1, 2);
-        Assert.assertEquals(0, mTestThumbnailDiskStorage.mSizeBytes);
+        assertDiskSizeBytes(0);
     }
 
     /**
@@ -189,7 +211,7 @@ public class ThumbnailDiskStorageTest {
 
         // Note: since an existing entry is re-added, remove was called once already
         removeThumbnailAndExpectedCount(CONTENT_ID1, 2);
-        Assert.assertEquals(0, mTestThumbnailDiskStorage.mSizeBytes);
+        assertDiskSizeBytes(0);
     }
 
     /**
@@ -220,7 +242,7 @@ public class ThumbnailDiskStorageTest {
         removeThumbnailAndExpectedCount(CONTENT_ID1, 2);
         removeThumbnailAndExpectedCount(CONTENT_ID2, 3);
         removeThumbnailAndExpectedCount(CONTENT_ID3, 4);
-        Assert.assertEquals(0, mTestThumbnailDiskStorage.mSizeBytes);
+        assertDiskSizeBytes(0);
     }
 
     /**
@@ -246,7 +268,7 @@ public class ThumbnailDiskStorageTest {
         for (int i = 1; i <= count - 1; i++) {
             removeThumbnailAndExpectedCount("contentId" + i, i + 1);
         }
-        Assert.assertEquals(0, mTestThumbnailDiskStorage.mSizeBytes);
+        assertDiskSizeBytes(0);
     }
 
     /**
@@ -255,6 +277,7 @@ public class ThumbnailDiskStorageTest {
      */
     @Test
     @SmallTest
+    @FlakyTest(message = "crbug.com/1075676")
     public void testRemoveAllThumbnailsWithSameContentId() {
         mTestThumbnailDiskStorage.addToDisk(CONTENT_ID1, BITMAP1, ICON_WIDTH1);
         mTestThumbnailDiskStorage.addToDisk(CONTENT_ID1, BITMAP1, ICON_WIDTH2);
@@ -266,7 +289,19 @@ public class ThumbnailDiskStorageTest {
         Assert.assertEquals(0, mTestThumbnailDiskStorage.getCacheCount());
         Assert.assertTrue(getIconSizes(CONTENT_ID1) == null);
 
-        Assert.assertEquals(0, mTestThumbnailDiskStorage.mSizeBytes);
+        assertDiskSizeBytes(0);
+    }
+
+    /**
+     * Checks the internal {@link ThumbnailDiskStorage} state for whether the number of bytes
+     * expected to have been stored on disk matches the given |expectedBytes|.
+     *
+     * @param expectedBytes the expected number of bytes stored on disk.
+     */
+    private void assertDiskSizeBytes(long expectedBytes) {
+        CriteriaHelper.pollInstrumentationThread(() -> {
+            Criteria.checkThat(mTestThumbnailDiskStorage.mSizeBytes, Matchers.is(expectedBytes));
+        }, TIMEOUT_MS, INTERVAL_MS);
     }
 
     /**
@@ -274,22 +309,16 @@ public class ThumbnailDiskStorageTest {
      */
     private void retrieveThumbnailAndAssertRetrieved(final TestThumbnailRequest request) {
         TestThreadUtils.runOnUiThreadBlocking(
-                () -> mTestThumbnailDiskStorage.retrieveThumbnail(request));
+                () -> { mTestThumbnailDiskStorage.retrieveThumbnail(request); });
 
-        try {
-            // This tasks calls onThumbnailRetrieved which creates a CacheThumbnailTask.
-            mTestThumbnailDiskStorage.mLastGetThumbnailTask.get();
-            // Since AsyncTask runs GetThumbnailTask's onPostExecute in a non-blocking way, we need
-            // to ensure that it has finished calling onThumbnailRetrieved and created the cache
-            // task before waiting on it. Use a short poll time since it usually doesn't take very
-            // long to complete onPostExecute.
-            CriteriaHelper.pollInstrumentationThread(
-                    () -> mTestThumbnailDiskStorage.mLastCacheThumbnailTask != null);
-            // Ensure that the cache is up-to-date before considering the thumbnail "retrieved".
-            mTestThumbnailDiskStorage.mLastCacheThumbnailTask.get();
-        } catch (Exception e) {
-            throw new RuntimeException("Exception occurred while waiting for task.", e);
-        }
+        CriteriaHelper.pollInstrumentationThread(() -> {
+            Criteria.checkThat(mTestThumbnailStorageDelegate.retrievedCount.get(), Matchers.is(1));
+        }, TIMEOUT_MS, INTERVAL_MS);
+    }
+
+    private void assertInitialized() {
+        CriteriaHelper.pollInstrumentationThread(
+                () -> mTestThumbnailDiskStorage.initialized.get(), TIMEOUT_MS, INTERVAL_MS);
     }
 
     /**
@@ -299,13 +328,12 @@ public class ThumbnailDiskStorageTest {
      */
     private void removeThumbnailAndExpectedCount(String contentId, int expectedRemoveCount) {
         TestThreadUtils.runOnUiThreadBlocking(
-                () -> mTestThumbnailDiskStorage.removeFromDisk(contentId));
-        try {
-            mTestThumbnailDiskStorage.mLastRemoveThumbnailTask.get();
-        } catch (Exception e) {
-            throw new RuntimeException("Exception occurred while waiting for task.", e);
-        }
-        Assert.assertEquals(expectedRemoveCount, mTestThumbnailDiskStorage.removeCount.get());
+                () -> { mTestThumbnailDiskStorage.removeFromDisk(contentId); });
+
+        CriteriaHelper.pollInstrumentationThread(() -> {
+            Criteria.checkThat(
+                    mTestThumbnailDiskStorage.removeCount.get(), Matchers.is(expectedRemoveCount));
+        }, TIMEOUT_MS, INTERVAL_MS);
     }
 
     private Set<Integer> getIconSizes(String contentId) {

@@ -30,7 +30,6 @@
 
 #include "third_party/blink/renderer/modules/filesystem/dom_file_path.h"
 
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -93,7 +92,7 @@ String DOMFilePath::RemoveExtraParentReferences(const String& path) {
     }
     canonicalized.push_back(component);
   }
-  if (canonicalized.empty())
+  if (canonicalized.IsEmpty())
     return DOMFilePath::kRoot;
   StringBuilder result;
   for (const auto& component : canonicalized) {
@@ -104,7 +103,7 @@ String DOMFilePath::RemoveExtraParentReferences(const String& path) {
 }
 
 bool DOMFilePath::IsValidPath(const String& path) {
-  if (path.empty() || path == DOMFilePath::kRoot)
+  if (path.IsEmpty() || path == DOMFilePath::kRoot)
     return true;
 
   // Embedded NULs are not allowed.
@@ -120,13 +119,14 @@ bool DOMFilePath::IsValidPath(const String& path) {
   // ".." or "." is likely an attempt to break out of the sandbox.
   Vector<String> components;
   path.Split(DOMFilePath::kSeparator, components);
-  return base::ranges::none_of(components, [](const String& component) {
-    return component == "." || component == "..";
-  });
+  return std::none_of(components.begin(), components.end(),
+                      [](const String& component) {
+                        return component == "." || component == "..";
+                      });
 }
 
 bool DOMFilePath::IsValidName(const String& name) {
-  if (name.empty())
+  if (name.IsEmpty())
     return true;
   // '/' is not allowed in name.
   if (name.Contains('/'))

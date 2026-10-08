@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,14 @@
 #include <string>
 #include <unordered_set>
 
-#include "base/callback_list.h"
-#include "base/memory/raw_ptr.h"
-#include "base/task/sequenced_task_runner_helpers.h"
+#include "base/macros.h"
 #include "content/public/browser/browser_message_filter.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/common/activation_sequence.h"
 #include "extensions/common/extension_id.h"
-#include "extensions/common/mojom/frame.mojom-forward.h"
 
 class GURL;
+struct ExtensionHostMsg_Request_Params;
 
 namespace content {
 class BrowserContext;
@@ -29,8 +27,6 @@ namespace extensions {
 class ExtensionFunctionDispatcher;
 
 // IPC handler class for extension service worker.
-//
-// Created and destroyed on the UI thread.
 class ExtensionServiceWorkerMessageFilter
     : public content::BrowserMessageFilter {
  public:
@@ -39,28 +35,16 @@ class ExtensionServiceWorkerMessageFilter
       content::BrowserContext* context,
       content::ServiceWorkerContext* service_worker_context);
 
-  ExtensionServiceWorkerMessageFilter(
-      const ExtensionServiceWorkerMessageFilter&) = delete;
-  ExtensionServiceWorkerMessageFilter& operator=(
-      const ExtensionServiceWorkerMessageFilter&) = delete;
-
   // content::BrowserMessageFilter:
   bool OnMessageReceived(const IPC::Message& message) override;
   void OverrideThreadForMessage(const IPC::Message& message,
                                 content::BrowserThread::ID* thread) override;
-  void OnDestruct() const override;
-
-  static void EnsureShutdownNotifierFactoryBuilt();
 
  private:
-  friend class base::DeleteHelper<ExtensionServiceWorkerMessageFilter>;
-  friend class content::BrowserThread;
   ~ExtensionServiceWorkerMessageFilter() override;
 
-  void ShutdownOnUIThread();
-
   // Message handlers.
-  void OnRequestWorker(const mojom::RequestParams& params);
+  void OnRequestWorker(const ExtensionHostMsg_Request_Params& params);
   void OnResponseWorker(int request_id, int64_t service_worker_version_id);
   void OnIncrementServiceWorkerActivity(int64_t service_worker_version_id,
                                         const std::string& request_uuid);
@@ -86,22 +70,20 @@ class ExtensionServiceWorkerMessageFilter
 
   void DidFailDecrementInflightEvent();
 
-  // Only accessed from the UI thread.
-  raw_ptr<content::BrowserContext, DanglingUntriaged> browser_context_;
+  content::BrowserContext* const browser_context_;
 
   const int render_process_id_;
 
-  base::CallbackListSubscription shutdown_notifier_subscription_;
-
   // Owned by the StoragePartition of our profile.
-  raw_ptr<content::ServiceWorkerContext, DanglingUntriaged>
-      service_worker_context_;
+  content::ServiceWorkerContext* service_worker_context_;
 
   std::unique_ptr<ExtensionFunctionDispatcher,
                   content::BrowserThread::DeleteOnUIThread>
       dispatcher_;
 
   std::unordered_set<std::string> active_request_uuids_;
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionServiceWorkerMessageFilter);
 };
 
 }  // namespace extensions

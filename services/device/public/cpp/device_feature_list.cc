@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/android/jni_string.h"
 #include "base/feature_list.h"
 #include "base/notreached.h"
+#include "base/stl_util.h"
 #include "services/device/device_service_jni_headers/DeviceFeatureList_jni.h"
 #include "services/device/public/cpp/device_features.h"
 
@@ -18,16 +19,15 @@ namespace {
 // Array of features exposed through the Java ContentFeatureList API. Entries in
 // this array may either refer to features defined in the header of this file or
 // in other locations in the code base (e.g. content_features.h).
-const base::Feature* const kFeaturesExposedToJava[] = {
+const base::Feature* kFeaturesExposedToJava[] = {
     &kGenericSensorExtraClasses,
-    &kAsyncSensorCalls,
 };
 
 // TODO(crbug.com/1060097): Removethis once a generalized FeatureList exists.
 const base::Feature* FindFeatureExposedToJava(const std::string& feature_name) {
-  for (const base::Feature* feature : kFeaturesExposedToJava) {
-    if (feature->name == feature_name)
-      return feature;
+  for (size_t i = 0; i < base::size(kFeaturesExposedToJava); ++i) {
+    if (kFeaturesExposedToJava[i]->name == feature_name)
+      return kFeaturesExposedToJava[i];
   }
   NOTREACHED() << "Queried feature cannot be found in DeviceFeatureList: "
                << feature_name;

@@ -1,4 +1,4 @@
-# Copyright 2013 The Chromium Authors
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,7 +15,7 @@ from mojom.generate import module as mojom
 HEADER_SIZE = 8
 
 
-class PackedField:
+class PackedField(object):
   kind_to_size = {
       mojom.BOOL: 1,
       mojom.INT8: 1,
@@ -120,7 +120,7 @@ def GetPayloadSizeUpToField(field):
   return offset + pad
 
 
-class PackedStruct:
+class PackedStruct(object):
   def __init__(self, struct):
     self.struct = struct
     # |packed_fields| contains all the fields, in increasing offset order.
@@ -186,7 +186,7 @@ class PackedStruct:
         dst_fields.append(src_field)
 
 
-class ByteInfo:
+class ByteInfo(object):
   def __init__(self):
     self.is_padding = False
     self.packed_fields = []
@@ -214,7 +214,7 @@ def GetByteLayout(packed_struct):
   return byte_info
 
 
-class VersionInfo:
+class VersionInfo(object):
   def __init__(self, version, num_fields, num_bytes):
     self.version = version
     self.num_fields = num_fields

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Chromium Authors
+ * Copyright 2020 The Chromium Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -34,7 +34,7 @@ function updateLogView(text) {
  * Installs the payment handler.
  * @return {string} - the message about the installation result.
  */
-async function install() {
+async function install() { // eslint-disable-line no-unused-vars
   try {
     let registration =
         await navigator.serviceWorker.getRegistration(swSrcUrl);
@@ -64,7 +64,7 @@ async function install() {
  * Uninstall the payment handler.
  * @return {string} - the message about the uninstallation result.
  */
-async function uninstall() {
+async function uninstall() { // eslint-disable-line no-unused-vars
   let registration = await navigator.serviceWorker.getRegistration(swSrcUrl);
   if (!registration) {
     return 'The Payment handler has not been installed yet.';
@@ -79,7 +79,8 @@ async function uninstall() {
  * @param {string} url - open a specified url in payment handler window.
  * @return {Promise<string>} - the message about the launch result.
  */
-function launchAndWaitUntilReady(url = './payment_handler_window.html') {
+function launchAndWaitUntilReady( // eslint-disable-line no-unused-vars
+    url = './payment_handler_window.html') {
   let appReadyResolver;
   appReadyPromise = new Promise((r) => {
     appReadyResolver = r;
@@ -106,7 +107,7 @@ function launchAndWaitUntilReady(url = './payment_handler_window.html') {
  * @return {Promise<string>} - the payment handler's response to the
  * 'paymentrequest' event.
  */
-async function getResult() {
+async function getResult() { // eslint-disable-line no-unused-vars
   try {
     const response = await resultPromise;
     const result = response.details.status;

@@ -1,9 +1,8 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/cookie_controls/cookie_controls_service.h"
-#include "base/observer_list.h"
 #include "components/content_settings/core/common/cookie_controls_enforcement.h"
 
 #include <utility>
@@ -33,11 +32,11 @@ CookieControlsService::CookieControlsService(Profile* profile)
 CookieControlsService::~CookieControlsService() = default;
 
 void CookieControlsService::Init() {
-  incognito_cookie_settings_ = CookieSettingsFactory::GetForProfile(profile_);
-  cookie_observations_.AddObservation(incognito_cookie_settings_.get());
+  incongito_cookie_settings_ = CookieSettingsFactory::GetForProfile(profile_);
+  cookie_observer_.Add(incongito_cookie_settings_.get());
   regular_cookie_settings_ =
       CookieSettingsFactory::GetForProfile(profile_->GetOriginalProfile());
-  cookie_observations_.AddObservation(regular_cookie_settings_.get());
+  cookie_observer_.Add(regular_cookie_settings_.get());
 
   if (profile_->GetProfilePolicyConnector()) {
     policy_registrar_ = std::make_unique<policy::PolicyChangeRegistrar>(
@@ -52,7 +51,7 @@ void CookieControlsService::Init() {
 }
 
 void CookieControlsService::Shutdown() {
-  cookie_observations_.RemoveAllObservations();
+  cookie_observer_.RemoveAll();
   policy_registrar_.reset();
 }
 
@@ -85,7 +84,7 @@ CookieControlsService::GetCookieControlsEnforcement() {
 }
 
 bool CookieControlsService::GetToggleCheckedValue() {
-  return incognito_cookie_settings_->ShouldBlockThirdPartyCookies();
+  return incongito_cookie_settings_->ShouldBlockThirdPartyCookies();
 }
 
 void CookieControlsService::OnThirdPartyCookieBlockingChanged(

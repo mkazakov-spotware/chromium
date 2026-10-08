@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,19 +48,9 @@ chrome.test.getConfig(function(config) {
       crossOriginLocalhostURLFromPort(config.testServer.port) +
       'handler.html?protocol=%s';
 
-  const MESSAGE_INVALID_URI_SYNTAX =
-      /The scheme name 'ext\+@' is not allowed by URI syntax \(RFC3986\)./;
-
-  const MESSAGE_NOT_SAFELISTED = new RegExp(
-      'The scheme \'unknownscheme\' doesn\'t belong to the scheme allowlist. ' +
-      'Please prefix non-allowlisted schemes with the string \'web\\+\'');
-
-  const MESSAGE_EXT_PLUS_SCHEME = new RegExp(
-      'The scheme name \'ext\\+\' is not allowed. Schemes starting with ' +
-      '\'ext\\+\' must be followed by one or more ASCII letters.');
-
-  const MESSAGE_INVALID_SCHEME =
-      /The scheme of the url provided must be HTTP\(S\)./;
+  const MESSAGE_INVALID_SCHEME = new RegExp(
+      'The scheme of the url provided must be \'https\' or ' +
+      '\'chrome-extension\'.');
 
   const MESSAGE_MISSING_PERCENT =
       /The url provided \(.+\) does not contain '%s'/;
@@ -70,38 +60,10 @@ chrome.test.getConfig(function(config) {
       '\'.+\' is invalid');
 
   chrome.test.runTests([
-    function invalidScheme() {
-      chrome.test.assertThrows(
-          navigator.registerProtocolHandler, navigator,
-          ['ext+@', SAME_ORIGIN_CHROME_EXTENSION_URL, TITLE],
-          MESSAGE_INVALID_URI_SYNTAX);
-      chrome.test.assertThrows(
-          navigator.registerProtocolHandler, navigator,
-          ['unknownscheme', SAME_ORIGIN_CHROME_EXTENSION_URL, TITLE],
-          MESSAGE_NOT_SAFELISTED);
-      chrome.test.assertThrows(
-          navigator.registerProtocolHandler, navigator,
-          ['ext+', SAME_ORIGIN_CHROME_EXTENSION_URL, TITLE],
-          MESSAGE_EXT_PLUS_SCHEME);
-      chrome.test.succeed();
-    },
-
     function invalidURL() {
       chrome.test.assertThrows(
           navigator.registerProtocolHandler, navigator,
           ['mailto', 'invalidurl://%s', TITLE], MESSAGE_INVALID_SCHEME);
-      chrome.test.assertThrows(
-          navigator.registerProtocolHandler, navigator,
-          ['mailto', `blob:${SAME_ORIGIN_CHROME_EXTENSION_URL}`, TITLE],
-          MESSAGE_INVALID_SCHEME);
-      chrome.test.assertThrows(
-          navigator.registerProtocolHandler, navigator,
-          ['mailto', 'data:text/html,Hello?url=%s', TITLE],
-          MESSAGE_INVALID_SCHEME);
-      chrome.test.assertThrows(
-          navigator.registerProtocolHandler, navigator,
-          ['mailto', `filesystem:${SAME_ORIGIN_CHROME_EXTENSION_URL}`, TITLE],
-          MESSAGE_INVALID_SCHEME);
       chrome.test.assertThrows(
           navigator.registerProtocolHandler, navigator,
           ['mailto', chrome.runtime.getURL('xhr.txt'), TITLE],
@@ -117,12 +79,6 @@ chrome.test.getConfig(function(config) {
           SAME_ORIGIN_CHROME_EXTENSION_URL.startsWith('chrome-extension://'));
       await testRegisterProtocolHandler(
           'mailto', SAME_ORIGIN_CHROME_EXTENSION_URL, TITLE);
-      chrome.test.succeed();
-    },
-
-    async function extPlusFooScheme() {
-      await testRegisterProtocolHandler(
-          'ext+foo', SAME_ORIGIN_CHROME_EXTENSION_URL, TITLE);
       chrome.test.succeed();
     },
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/accessibility/platform/ax_platform_node_delegate.h"
@@ -14,7 +14,7 @@
 namespace ui {
 namespace {
 
-absl::optional<int32_t> GetCellAttribute(
+base::Optional<int32_t> GetCellAttribute(
     const ui::AXPlatformNodeDelegate* delegate,
     ax::mojom::IntAttribute attribute) {
   switch (attribute) {
@@ -31,20 +31,20 @@ absl::optional<int32_t> GetCellAttribute(
     case ax::mojom::IntAttribute::kTableCellRowSpan:
       return delegate->GetTableCellRowSpan();
     default:
-      return absl::nullopt;
+      return base::nullopt;
   }
 }
 
-absl::optional<int32_t> GetRowAttribute(
+base::Optional<int32_t> GetRowAttribute(
     const ui::AXPlatformNodeDelegate* delegate,
     ax::mojom::IntAttribute attribute) {
   if (attribute == ax::mojom::IntAttribute::kTableRowIndex) {
     return delegate->GetTableRowRowIndex();
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
-absl::optional<int32_t> GetTableAttribute(
+base::Optional<int32_t> GetTableAttribute(
     const ui::AXPlatformNodeDelegate* delegate,
     ax::mojom::IntAttribute attribute) {
   switch (attribute) {
@@ -57,11 +57,11 @@ absl::optional<int32_t> GetTableAttribute(
     case ax::mojom::IntAttribute::kAriaRowCount:
       return delegate->GetTableAriaRowCount();
     default:
-      return absl::nullopt;
+      return base::nullopt;
   }
 }
 
-absl::optional<int> GetOrderedSetItemAttribute(
+base::Optional<int> GetOrderedSetItemAttribute(
     const ui::AXPlatformNodeDelegate* delegate,
     ax::mojom::IntAttribute attribute) {
   switch (attribute) {
@@ -70,43 +70,36 @@ absl::optional<int> GetOrderedSetItemAttribute(
     case ax::mojom::IntAttribute::kSetSize:
       return delegate->GetSetSize();
     default:
-      return absl::nullopt;
+      return base::nullopt;
   }
 }
 
-absl::optional<int> GetOrderedSetAttribute(
+base::Optional<int> GetOrderedSetAttribute(
     const ui::AXPlatformNodeDelegate* delegate,
     ax::mojom::IntAttribute attribute) {
   switch (attribute) {
     case ax::mojom::IntAttribute::kSetSize:
       return delegate->GetSetSize();
     default:
-      return absl::nullopt;
+      return base::nullopt;
   }
 }
 
-absl::optional<int32_t> GetFromData(const ui::AXPlatformNodeDelegate* delegate,
+base::Optional<int32_t> GetFromData(const ui::AXPlatformNodeDelegate* delegate,
                                     ax::mojom::IntAttribute attribute) {
   int32_t value;
-  if (delegate->GetIntAttribute(attribute, &value)) {
+  if (delegate->GetData().GetIntAttribute(attribute, &value)) {
     return value;
   }
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 }  // namespace
 
-absl::optional<int32_t> ComputeAttribute(
+base::Optional<int32_t> ComputeAttribute(
     const ui::AXPlatformNodeDelegate* delegate,
     ax::mojom::IntAttribute attribute) {
-  absl::optional<int32_t> maybe_value = absl::nullopt;
-
-  // Color-related attributes.
-  if (attribute == ax::mojom::IntAttribute::kColor)
-    return delegate->GetColor();
-  else if (attribute == ax::mojom::IntAttribute::kBackgroundColor)
-    return delegate->GetBackgroundColor();
-
+  base::Optional<int32_t> maybe_value = base::nullopt;
   // Table-related nodes.
   if (delegate->IsTableCellOrHeader())
     maybe_value = GetCellAttribute(delegate, attribute);

@@ -42,7 +42,7 @@
 #include "third_party/blink/renderer/core/html/track/vtt/vtt_element.h"
 #include "third_party/blink/renderer/core/html/track/vtt/vtt_region.h"
 #include "third_party/blink/renderer/core/html/track/vtt/vtt_scanner.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/loader/fetch/text_resource_decoder_options.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
@@ -73,7 +73,7 @@ bool VTTParser::ParsePercentageValue(VTTScanner& value_scanner,
 
 bool VTTParser::ParsePercentageValuePair(VTTScanner& value_scanner,
                                          char delimiter,
-                                         gfx::PointF& value_pair) {
+                                         DoublePoint& value_pair) {
   double first_coord;
   if (!ParsePercentageValue(value_scanner, first_coord))
     return false;
@@ -85,7 +85,7 @@ bool VTTParser::ParsePercentageValuePair(VTTScanner& value_scanner,
   if (!ParsePercentageValue(value_scanner, second_coord))
     return false;
 
-  value_pair = gfx::PointF(first_coord, second_coord);
+  value_pair = DoublePoint(first_coord, second_coord);
   return true;
 }
 
@@ -104,13 +104,13 @@ VTTParser::VTTParser(VTTParserClient* client, Document& document)
 }
 
 void VTTParser::GetNewCues(HeapVector<Member<TextTrackCue>>& output_cues) {
-  DCHECK(output_cues.empty());
+  DCHECK(output_cues.IsEmpty());
   output_cues.swap(cue_list_);
 }
 
 void VTTParser::GetNewStyleSheets(
     HeapVector<Member<CSSStyleSheet>>& output_sheets) {
-  DCHECK(output_sheets.empty());
+  DCHECK(output_sheets.IsEmpty());
   output_sheets.swap(style_sheets_);
 }
 
@@ -168,7 +168,7 @@ void VTTParser::Parse() {
       case kId:
         // Steps 17 - 20 - Allow any number of line terminators, then initialize
         // new cue values.
-        if (line.empty())
+        if (line.IsEmpty())
           break;
 
         // Step 21 - Cue creation (start a new cue).
@@ -181,7 +181,7 @@ void VTTParser::Parse() {
 
       case kTimingsAndSettings:
         // Steps 26 - 27 - Discard current cue if the line is empty.
-        if (line.empty()) {
+        if (line.IsEmpty()) {
           state_ = kId;
           break;
         }
@@ -242,10 +242,11 @@ VTTParser::ParseState VTTParser::CollectRegionSettings(const String& line) {
 }
 
 VTTParser::ParseState VTTParser::CollectStyleSheet(const String& line) {
-  if (line.empty() || line.Contains("-->")) {
+  if (line.IsEmpty() || line.Contains("-->")) {
     auto* parser_context = MakeGarbageCollected<CSSParserContext>(
-        *document_, NullURL(), true /* origin_clean */, Referrer(),
-        UTF8Encoding(), CSSParserContext::kLiveProfile,
+        *document_, NullURL(), true /* origin_clean */,
+        document_->GetReferrerPolicy(), UTF8Encoding(),
+        CSSParserContext::kLiveProfile,
         ResourceFetchRestriction::kOnlyDataUrls);
     auto* style_sheet_contents =
         MakeGarbageCollected<StyleSheetContents>(parser_context);
@@ -261,7 +262,7 @@ VTTParser::ParseState VTTParser::CollectStyleSheet(const String& line) {
     return CheckAndRecoverCue(line);
   }
 
-  if (!current_content_.empty())
+  if (!current_content_.IsEmpty())
     current_content_.Append('\n');
   current_content_.Append(line);
 
@@ -291,7 +292,7 @@ VTTParser::ParseState VTTParser::CollectWebVTTBlock(const String& line) {
   // Handle cue block.
   ParseState state = CheckAndRecoverCue(line);
   if (state != kHeader) {
-    if (!previous_line_.empty() && !previous_line_.Contains("-->"))
+    if (!previous_line_.IsEmpty() && !previous_line_.Contains("-->"))
       current_id_ = AtomicString(previous_line_);
 
     return state;
@@ -299,7 +300,7 @@ VTTParser::ParseState VTTParser::CollectWebVTTBlock(const String& line) {
 
   // store previous line for cue id.
   // length is more than 1 line clear previous_line_ and ignore line.
-  if (previous_line_.empty())
+  if (previous_line_.IsEmpty())
     previous_line_ = line;
   else
     previous_line_ = g_empty_string;
@@ -323,17 +324,17 @@ bool VTTParser::CheckAndCreateRegion(const String& line) {
   // (tab) characters expected other than these characters it is invalid.
   if (line.StartsWith("REGION") && StringView(line, kRegionIdentifierLength)
                                        .IsAllSpecialCharacters<IsASpace>()) {
-    current_region_ = VTTRegion::Create(*document_);
+    current_region_ = VTTRegion::Create();
     return true;
   }
   return false;
 }
 
 bool VTTParser::CheckAndStoreRegion(const String& line) {
-  if (!line.empty() && !line.Contains("-->"))
+  if (!line.IsEmpty() && !line.Contains("-->"))
     return false;
 
-  if (!current_region_->id().empty())
+  if (!current_region_->id().IsEmpty())
     region_map_.Set(current_region_->id(), current_region_);
   current_region_ = nullptr;
   return true;
@@ -383,7 +384,7 @@ VTTParser::ParseState VTTParser::CollectTimingsAndSettings(const String& line) {
 
 VTTParser::ParseState VTTParser::CollectCueText(const String& line) {
   // Step 34.
-  if (line.empty()) {
+  if (line.IsEmpty()) {
     CreateNewCue();
     return kId;
   }
@@ -395,7 +396,7 @@ VTTParser::ParseState VTTParser::CollectCueText(const String& line) {
     // Step 41 - New iteration of the cue loop.
     return RecoverCue(line);
   }
-  if (!current_content_.empty())
+  if (!current_content_.IsEmpty())
     current_content_.Append('\n');
   current_content_.Append(line);
 
@@ -411,7 +412,7 @@ VTTParser::ParseState VTTParser::RecoverCue(const String& line) {
 }
 
 VTTParser::ParseState VTTParser::IgnoreBadCue(const String& line) {
-  if (line.empty())
+  if (line.IsEmpty())
     return kId;
   if (line.Contains("-->"))
     return RecoverCue(line);
@@ -446,7 +447,7 @@ DocumentFragment* VTTTreeBuilder::BuildFromString(const String& cue_text) {
 
   DocumentFragment* fragment = DocumentFragment::Create(GetDocument());
 
-  if (cue_text.empty()) {
+  if (cue_text.IsEmpty()) {
     fragment->ParserAppendChild(Text::Create(GetDocument(), ""));
     return fragment;
   }
@@ -495,7 +496,7 @@ bool VTTParser::CollectTimeStamp(const String& line, double& time_stamp) {
 }
 
 static String SerializeTimeStamp(double time_stamp) {
-  uint64_t value = ClampTo<uint64_t>(time_stamp * 1000);
+  uint64_t value = clampTo<uint64_t>(time_stamp * 1000);
   unsigned milliseconds = value % 1000;
   value /= 1000;
   unsigned seconds = value % 60;
@@ -607,7 +608,7 @@ void VTTTreeBuilder::ConstructTreeFromToken(Document& document) {
       auto* child = MakeGarbageCollected<VTTElement>(node_type, &document);
       child->SetTrack(track_);
 
-      if (!token_.Classes().empty())
+      if (!token_.Classes().IsEmpty())
         child->setAttribute(html_names::kClassAttr, token_.Classes());
 
       if (node_type == kVTTNodeTypeVoice) {
@@ -618,7 +619,7 @@ void VTTTreeBuilder::ConstructTreeFromToken(Document& document) {
         child->setAttribute(VTTElement::LangAttributeName(),
                             language_stack_.back());
       }
-      if (!language_stack_.empty())
+      if (!language_stack_.IsEmpty())
         child->SetLanguage(language_stack_.back());
       current_node_->ParserAppendChild(child);
       current_node_ = child;

@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/capabilities/learning_helper.h"
 
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "media/learning/common/feature_library.h"
 #include "media/learning/common/learning_task.h"

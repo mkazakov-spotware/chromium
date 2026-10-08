@@ -1,1 +1,3 @@
-file://chromeos/ash/components/assistant/OWNERS
+file://chromeos/assistant/OWNERS
+
+# COMPONENT: UI>Shell>Assistant

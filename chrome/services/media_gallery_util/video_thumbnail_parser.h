@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 #define CHROME_SERVICES_MEDIA_GALLERY_UTIL_VIDEO_THUMBNAIL_PARSER_H_
 
 #include <memory>
+#include <string>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "chrome/services/media_gallery_util/media_parser.h"
 
 namespace media {
@@ -20,10 +22,6 @@ class DataSource;
 class VideoThumbnailParser {
  public:
   explicit VideoThumbnailParser(std::unique_ptr<media::DataSource> source);
-
-  VideoThumbnailParser(const VideoThumbnailParser&) = delete;
-  VideoThumbnailParser& operator=(const VideoThumbnailParser&) = delete;
-
   ~VideoThumbnailParser();
 
   void Start(MediaParser::ExtractVideoFrameCallback video_frame_callback);
@@ -35,6 +33,8 @@ class VideoThumbnailParser {
   std::unique_ptr<media::DataSource> data_source_;
 
   scoped_refptr<base::SequencedTaskRunner> media_task_runner_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoThumbnailParser);
 };
 
 #endif  // CHROME_SERVICES_MEDIA_GALLERY_UTIL_VIDEO_THUMBNAIL_PARSER_H_

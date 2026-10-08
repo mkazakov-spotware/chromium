@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,15 @@
 #include "base/files/file_util.h"
 #include "base/files/important_file_writer.h"
 #include "base/logging.h"
-#include "components/os_crypt/os_crypt.h"
+#include "components/sync/base/encryptor.h"
 
 namespace syncer {
 
-NigoriStorageImpl::NigoriStorageImpl(const base::FilePath& path)
-    : path_(path) {}
+NigoriStorageImpl::NigoriStorageImpl(const base::FilePath& path,
+                                     const Encryptor* encryptor)
+    : path_(path), encryptor_(encryptor) {
+  DCHECK(encryptor_);
+}
 
 NigoriStorageImpl::~NigoriStorageImpl() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -30,7 +33,7 @@ void NigoriStorageImpl::StoreData(const sync_pb::NigoriLocalData& data) {
   }
 
   std::string encrypted_data;
-  if (!OSCrypt::EncryptString(serialized_data, &encrypted_data)) {
+  if (!encryptor_->EncryptString(serialized_data, &encrypted_data)) {
     DLOG(ERROR) << "Failed to encrypt NigoriLocalData.";
     return;
   }
@@ -40,28 +43,28 @@ void NigoriStorageImpl::StoreData(const sync_pb::NigoriLocalData& data) {
   }
 }
 
-absl::optional<sync_pb::NigoriLocalData> NigoriStorageImpl::RestoreData() {
+base::Optional<sync_pb::NigoriLocalData> NigoriStorageImpl::RestoreData() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!base::PathExists(path_)) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   std::string encrypted_data;
   if (!base::ReadFileToString(path_, &encrypted_data)) {
     DLOG(ERROR) << "Failed to read NigoriLocalData from file.";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   std::string serialized_data;
-  if (!OSCrypt::DecryptString(encrypted_data, &serialized_data)) {
+  if (!encryptor_->DecryptString(encrypted_data, &serialized_data)) {
     DLOG(ERROR) << "Failed to decrypt NigoriLocalData.";
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   sync_pb::NigoriLocalData data;
   if (!data.ParseFromString(serialized_data)) {
     DLOG(ERROR) << "Failed to parse NigoriLocalData.";
-    return absl::nullopt;
+    return base::nullopt;
   }
   return data;
 }

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,20 +10,17 @@
 #include "base/strings/stringprintf.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/version_info/version_info.h"
-#include "content/public/browser/browser_context.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
 #include "chromeos/system/statistics_provider.h"
 #endif
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) ||           \
-    ((BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && \
-     !BUILDFLAG(IS_ANDROID))
+#if defined(OS_WIN) || defined(OS_MAC) || \
+    ((defined(OS_LINUX) || defined(OS_CHROMEOS)) && !defined(OS_ANDROID))
 #include "chrome/browser/enterprise/connectors/common.h"
-#include "chrome/browser/enterprise/connectors/connectors_service.h"
+#include "chrome/browser/enterprise/connectors/connectors_manager.h"
 #endif
 
 namespace policy {
@@ -39,36 +36,36 @@ DeviceManagementServiceConfiguration::DeviceManagementServiceConfiguration(
 DeviceManagementServiceConfiguration::~DeviceManagementServiceConfiguration() {
 }
 
-std::string DeviceManagementServiceConfiguration::GetDMServerUrl() const {
+std::string DeviceManagementServiceConfiguration::GetDMServerUrl() {
   return dm_server_url_;
 }
 
-std::string DeviceManagementServiceConfiguration::GetAgentParameter() const {
+std::string DeviceManagementServiceConfiguration::GetAgentParameter() {
   return base::StringPrintf("%s %s(%s)",
                             version_info::GetProductName().c_str(),
                             version_info::GetVersionNumber().c_str(),
                             version_info::GetLastChange().c_str());
 }
 
-std::string DeviceManagementServiceConfiguration::GetPlatformParameter() const {
+std::string DeviceManagementServiceConfiguration::GetPlatformParameter() {
   std::string os_name = base::SysInfo::OperatingSystemName();
   std::string os_hardware = base::SysInfo::OperatingSystemArchitecture();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
   chromeos::system::StatisticsProvider* provider =
       chromeos::system::StatisticsProvider::GetInstance();
 
-  const absl::optional<base::StringPiece> hwclass =
-      provider->GetMachineStatistic(chromeos::system::kHardwareClassKey);
-  if (!hwclass) {
+  std::string hwclass;
+  if (!provider->GetMachineStatistic(chromeos::system::kHardwareClassKey,
+                                     &hwclass)) {
     LOG(ERROR) << "Failed to get machine information";
   }
   os_name += ",CrOS," + base::SysInfo::GetLsbReleaseBoard();
-  os_hardware += "," + std::string(hwclass.value_or(""));
+  os_hardware += "," + hwclass;
 #endif
 
   std::string os_version("-");
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_WIN) || defined(OS_MAC) || defined(OS_CHROMEOS)
   int32_t os_major_version = 0;
   int32_t os_minor_version = 0;
   int32_t os_bugfix_version = 0;
@@ -86,29 +83,23 @@ std::string DeviceManagementServiceConfiguration::GetPlatformParameter() const {
 }
 
 std::string
-DeviceManagementServiceConfiguration::GetRealtimeReportingServerUrl() const {
+DeviceManagementServiceConfiguration::GetRealtimeReportingServerUrl() {
   return realtime_reporting_server_url_;
 }
 
 std::string
-DeviceManagementServiceConfiguration::GetEncryptedReportingServerUrl() const {
+DeviceManagementServiceConfiguration::GetEncryptedReportingServerUrl() {
   return encrypted_reporting_server_url_;
 }
 
 std::string
-DeviceManagementServiceConfiguration::GetReportingConnectorServerUrl(
-    content::BrowserContext* context) const {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) ||           \
-    ((BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && \
-     !BUILDFLAG(IS_ANDROID))
-  auto* service =
-      enterprise_connectors::ConnectorsServiceFactory::GetForBrowserContext(
-          context);
-  if (!service)
-    return std::string();
-
-  auto settings = service->GetReportingSettings(
-      enterprise_connectors::ReportingConnector::SECURITY_EVENT);
+DeviceManagementServiceConfiguration::GetReportingConnectorServerUrl() {
+#if defined(OS_WIN) || defined(OS_MAC) || \
+    ((defined(OS_LINUX) || defined(OS_CHROMEOS)) && !defined(OS_ANDROID))
+  auto settings =
+      enterprise_connectors::ConnectorsManager::GetInstance()
+          ->GetReportingSettings(
+              enterprise_connectors::ReportingConnector::SECURITY_EVENT);
   return settings ? settings->reporting_url.spec() : std::string();
 #else
   return std::string();

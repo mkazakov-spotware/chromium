@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,13 +8,10 @@ See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
 for more details on the presubmit API built into depot_tools.
 """
 
-USE_PYTHON3 = True
-
 
 def _CommonChecks(input_api, output_api):
   results = []
-  results.extend(
-      input_api.canned_checks.RunPylint(input_api, output_api, version='2.6'))
+  results.extend(input_api.canned_checks.RunPylint(input_api, output_api))
 
   commands = []
   commands.extend(
@@ -23,10 +20,7 @@ def _CommonChecks(input_api, output_api):
           output_api,
           input_api.os_path.join(input_api.PresubmitLocalPath()),
           files_to_check=[r'.+_unittest\.py$'],
-          files_to_skip=[],
-          run_on_python2=False,
-          run_on_python3=True,
-          skip_shebang_check=True))
+          files_to_skip=[]))
   results.extend(input_api.RunTests(commands))
 
   return results

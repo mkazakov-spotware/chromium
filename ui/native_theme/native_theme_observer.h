@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,13 +16,7 @@ class NATIVE_THEME_EXPORT NativeThemeObserver {
  public:
   // Called when the native theme changes. The observed theme is passed so that
   // observers may handle changes to their associated native theme instances.
-  virtual void OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {}
-
-  // Called when the caption style changes.
-  virtual void OnCaptionStyleUpdated() {}
-
-  // Called when the system Increased Contrast state changes.
-  virtual void OnPreferredContrastChanged() {}
+  virtual void OnNativeThemeUpdated(ui::NativeTheme* observed_theme) = 0;
 
  protected:
   virtual ~NativeThemeObserver();

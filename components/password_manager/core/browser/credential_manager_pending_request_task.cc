@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/cxx20_erase.h"
 #include "base/containers/flat_set.h"
 #include "base/metrics/user_metrics.h"
-#include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "components/password_manager/core/browser/android_affiliation/affiliated_match_helper.h"
 #include "components/password_manager/core/browser/credential_manager_utils.h"
 #include "components/password_manager/core/browser/password_bubble_experiment.h"
@@ -32,25 +31,14 @@
 namespace password_manager {
 namespace {
 
-// Inserts `form` into `set` if no equally comparing element exists yet, or
-// replaces an existing `old_form` if `pred(old_form, form)` evaluates to true.
-// Returns whether `set` contains `form` following this operation.
-template <typename Comp, typename Predicate>
-bool InsertOrReplaceIf(base::flat_set<std::unique_ptr<PasswordForm>, Comp>& set,
-                       std::unique_ptr<PasswordForm> form,
-                       Predicate pred) {
-  auto lower = set.lower_bound(form);
-  if (lower == set.end() || set.key_comp()(form, *lower)) {
-    set.insert(lower, std::move(form));
+// Returns true iff |form1| is better suitable for showing in the account
+// chooser than |form2|. Inspired by PasswordFormManager::ScoreResult.
+bool IsBetterMatch(const PasswordForm& form1, const PasswordForm& form2) {
+  if (!form1.is_public_suffix_match && form2.is_public_suffix_match)
     return true;
-  }
-
-  if (pred(*lower, form)) {
-    *lower = std::move(form);
+  if (form1.date_last_used > form2.date_last_used)
     return true;
-  }
-
-  return false;
+  return form1.date_created > form2.date_created;
 }
 
 // Creates a base::flat_set of std::unique_ptr<PasswordForm> that uses
@@ -71,37 +59,48 @@ void FilterDuplicates(std::vector<std::unique_ptr<PasswordForm>>* forms) {
         return std::make_pair(form->username_value, form->federation_origin);
       });
 
-  std::vector<const PasswordForm*> all_non_federated_forms;
+  // The key is [username, signon_realm, store]. signon_realm is used only for
+  // PSL matches because those entries have it in the UI.
+  auto credentials = MakeFlatSet(/*key_getter=*/[](const auto& form) {
+    return std::make_tuple(
+        form->username_value,
+        form->is_public_suffix_match ? form->signon_realm : std::string(),
+        form->in_store);
+  });
   for (auto& form : *forms) {
     if (!form->federation_origin.opaque()) {
       // |forms| contains credentials from both the profile and account stores.
       // Therefore, it could potentially contains duplicate federated
       // credentials. In case of duplicates, favor the account store version.
-      InsertOrReplaceIf(federated_forms_with_unique_username, std::move(form),
-                        [](const auto& old_form, const auto& new_form) {
-                          return new_form->IsUsingAccountStore();
-                        });
+      auto result =
+          federated_forms_with_unique_username.insert(std::move(form));
+      if (!result.second && form->IsUsingAccountStore())
+        *result.first = std::move(form);
     } else {
-      all_non_federated_forms.push_back(form.get());
+      auto result = credentials.insert(std::move(form));
+      if (!result.second && IsBetterMatch(*form, **result.first))
+        *result.first = std::move(form);
     }
   }
+  // |credentials| contains credentials from both profile and account stores.
+  // There could potentially be duplicate credentials with the same password in
+  // which case it doesn't make sense to show both in the UI. When such
+  // duplicates exist, we favor the account store version to make it clear in
+  // the UI that this credential is available on other devices.
+  auto credentials_with_unique_passwords =
+      MakeFlatSet(/*key_getter=*/[](const auto& form) {
+        return std::make_tuple(
+            form->username_value,
+            form->is_public_suffix_match ? form->signon_realm : std::string(),
+            form->password_value);
+      });
 
-  std::vector<const PasswordForm*> other_matches;
-  std::vector<const PasswordForm*> best_matches;
-  const password_manager::PasswordForm* preferred_match = nullptr;
-  password_manager_util::FindBestMatches(
-      all_non_federated_forms, PasswordForm::Scheme::kHtml, &other_matches,
-      &best_matches, &preferred_match);
-
-  std::vector<std::unique_ptr<PasswordForm>> result;
-  for (const PasswordForm* best_match : best_matches) {
-    auto it = base::ranges::find(*forms, best_match,
-                                 &std::unique_ptr<PasswordForm>::get);
-    DCHECK(it != forms->end());
-    result.push_back(std::move(*it));
+  for (auto& form : std::move(credentials).extract()) {
+    auto result = credentials_with_unique_passwords.insert(std::move(form));
+    if (!result.second && form->IsUsingAccountStore())
+      *result.first = std::move(form);
   }
-
-  *forms = std::move(result);
+  *forms = std::move(credentials_with_unique_passwords).extract();
 
   std::vector<std::unique_ptr<PasswordForm>> federated_forms =
       std::move(federated_forms_with_unique_username).extract();
@@ -147,7 +146,7 @@ CredentialManagerPendingRequestTask::CredentialManagerPendingRequestTask(
 
   for (const GURL& federation : request_federations)
     federations_.insert(
-        url::Origin::Create(federation.DeprecatedGetOriginAsURL()).Serialize());
+        url::Origin::Create(federation.GetOrigin()).Serialize());
 }
 
 CredentialManagerPendingRequestTask::~CredentialManagerPendingRequestTask() =
@@ -162,7 +161,7 @@ void CredentialManagerPendingRequestTask::OnGetPasswordStoreResults(
 }
 
 void CredentialManagerPendingRequestTask::OnGetPasswordStoreResultsFrom(
-    PasswordStoreInterface* store,
+    PasswordStore* store,
     std::vector<std::unique_ptr<PasswordForm>> results) {
   // localhost is a secure origin but not https.
   if (results.empty() && origin_.scheme() == url::kHttpsScheme) {
@@ -172,11 +171,6 @@ void CredentialManagerPendingRequestTask::OnGetPasswordStoreResultsFrom(
     return;
   }
   AggregatePasswordStoreResults(std::move(results));
-}
-
-base::WeakPtr<PasswordStoreConsumer>
-CredentialManagerPendingRequestTask::GetWeakPtr() {
-  return weak_ptr_factory_.GetWeakPtr();
 }
 
 void CredentialManagerPendingRequestTask::ProcessMigratedForms(
@@ -225,11 +219,11 @@ void CredentialManagerPendingRequestTask::ProcessForms(
     // PasswordForm definition: scheme, host, port and path.
     // GURL definition: scheme, host, and port.
     // So we can't compare them directly.
-    if (password_manager_util::GetMatchType(*form) ==
-        password_manager_util::GetLoginMatchType::kPSL) {
-      psl_results.push_back(std::move(form));
-    } else {
+    if (form->is_affiliation_based_match ||
+        url::Origin::Create(form->url) == origin_) {
       local_results.push_back(std::move(form));
+    } else if (form->is_public_suffix_match) {
+      psl_results.push_back(std::move(form));
     }
   }
 
@@ -280,9 +274,8 @@ void CredentialManagerPendingRequestTask::ProcessForms(
           non_federated_matches.emplace_back(result.get());
         }
       }
-      delegate_->client()->PasswordWasAutofilled(
-          non_federated_matches, origin_, &federated_matches,
-          /*was_autofilled_on_pageload=*/false);
+      delegate_->client()->PasswordWasAutofilled(non_federated_matches, origin_,
+                                                 &federated_matches);
     }
     if (can_use_autosignin) {
       // The user had credentials, but either chose not to share them with the
@@ -311,20 +304,20 @@ void CredentialManagerPendingRequestTask::ProcessForms(
     return;
   }
 
-  auto split_send_callback = base::SplitOnceCallback(std::move(send_callback_));
+  auto repeating_send_callback =
+      base::AdaptCallbackForRepeating(std::move(send_callback_));
   if (!delegate_->client()->PromptUserToChooseCredentials(
           std::move(local_results), origin_,
           base::BindOnce(
               &CredentialManagerPendingRequestTaskDelegate::SendPasswordForm,
-              base::Unretained(delegate_), std::move(split_send_callback.first),
+              base::Unretained(delegate_), repeating_send_callback,
               mediation_))) {
     // Since PromptUserToChooseCredentials() does not invoke the callback when
     // returning false, `repeating_send_callback` has not been run in this
     // branch yet.
     LogCredentialManagerGetResult(
         metrics_util::CredentialManagerGetResult::kNone, mediation_);
-    delegate_->SendCredential(std::move(split_send_callback.second),
-                              CredentialInfo());
+    delegate_->SendCredential(repeating_send_callback, CredentialInfo());
   }
 }
 

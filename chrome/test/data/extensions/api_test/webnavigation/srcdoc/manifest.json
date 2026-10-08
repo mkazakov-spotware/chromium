@@ -4,8 +4,7 @@
   "manifest_version": 2,
   "description": "Tests the webNavigation API events - srcdoc.",
   "background": {
-    "scripts": ["test_srcdoc.js"],
-    "persistent": true
+    "page": "test_srcdoc.html"
   },
   "permissions": ["webNavigation", "tabs"]
 }

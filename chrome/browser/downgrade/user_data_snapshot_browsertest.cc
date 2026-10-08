@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,7 +50,7 @@
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(OS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 #include "base/threading/thread_restrictions.h"
 #include "chrome/install_static/install_modes.h"
 #include "chrome/install_static/test/scoped_install_details.h"
@@ -271,14 +271,16 @@ class BookmarksSnapshotTest : public UserDataSnapshotBrowserTestBase {
   const GURL that_other_url_{"https://www.thatotherul.com"};
   const GURL mobile_url_{"https://www.mobile.com"};
 
-  const std::u16string folder_title_ = u"Folder";
-  const std::u16string sub_folder_title_ = u"Sub Folder";
-  const std::u16string sub_folder_url_title_ = u"Sub Folder URL";
-  const std::u16string that_url_title_ = u"That URL";
-  const std::u16string folder_url_title_ = u"Folder URL";
-  const std::u16string other_url_title_ = u"Other URL";
-  const std::u16string that_other_url_title_ = u"That Other URL";
-  const std::u16string mobile_url_title_ = u"Mobile URL";
+  const base::string16 folder_title_ = base::ASCIIToUTF16("Folder");
+  const base::string16 sub_folder_title_ = base::ASCIIToUTF16("Sub Folder");
+  const base::string16 sub_folder_url_title_ =
+      base::ASCIIToUTF16("Sub Folder URL");
+  const base::string16 that_url_title_ = base::ASCIIToUTF16("That URL");
+  const base::string16 folder_url_title_ = base::ASCIIToUTF16("Folder URL");
+  const base::string16 other_url_title_ = base::ASCIIToUTF16("Other URL");
+  const base::string16 that_other_url_title_ =
+      base::ASCIIToUTF16("That Other URL");
+  const base::string16 mobile_url_title_ = base::ASCIIToUTF16("Mobile URL");
 };
 
 IN_PROC_BROWSER_TEST_F(BookmarksSnapshotTest, PRE_PRE_PRE_Test) {}
@@ -298,7 +300,7 @@ class HistorySnapshotTest : public UserDataSnapshotBrowserTestBase {
           source(source) {}
     ~HistoryEntry() = default;
     GURL url;
-    std::u16string title;
+    base::string16 title;
     base::Time time;
     history::VisitSource source;
   };
@@ -321,7 +323,7 @@ class HistorySnapshotTest : public UserDataSnapshotBrowserTestBase {
     base::RunLoop run_loop;
     base::CancelableTaskTracker tracker;
     history_service->QueryHistory(
-        std::u16string(), history::QueryOptions(),
+        base::string16(), history::QueryOptions(),
         base::BindOnce(&HistorySnapshotTest::SetQueryResults,
                        base::Unretained(this), run_loop.QuitClosure()),
         &tracker);
@@ -413,17 +415,14 @@ class TabsSnapshotTest : public UserDataSnapshotBrowserTestBase {
     ASSERT_LE(tab_strip->count(), 3);
     if (tab_strip->count() == 3) {
       EXPECT_TRUE(content::WaitForLoadStop(tab_strip->GetWebContentsAt(2)));
-      EXPECT_EQ(tab_strip->GetWebContentsAt(2)->GetLastCommittedURL(),
-                GURL("about:blank"));
+      EXPECT_EQ(tab_strip->GetWebContentsAt(2)->GetURL(), GURL("about:blank"));
     }
 
     // embedded_test_server() might return a different hostname.
     content::WaitForLoadStop(tab_strip->GetWebContentsAt(0));
-    EXPECT_EQ(tab_strip->GetWebContentsAt(0)->GetLastCommittedURL().path(),
-              "/title1.html");
+    EXPECT_EQ(tab_strip->GetWebContentsAt(0)->GetURL().path(), "/title1.html");
     content::WaitForLoadStop(tab_strip->GetWebContentsAt(1));
-    EXPECT_EQ(tab_strip->GetWebContentsAt(1)->GetLastCommittedURL().path(),
-              "/title2.html");
+    EXPECT_EQ(tab_strip->GetWebContentsAt(1)->GetURL().path(), "/title2.html");
   }
 };
 
@@ -469,7 +468,7 @@ IN_PROC_BROWSER_TEST_F(InProcessBrowserTest, SameMilestoneSnapshot) {
       base::PathExists(user_data_dir.Append(downgrade::kSnapshotsDir)));
 }
 
-#if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if defined(OS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 // Tests that Google Chrome canary takes snapshots on mid-milestone updates.
 IN_PROC_BROWSER_TEST_F(InProcessBrowserTest, CanarySameMilestoneSnapshot) {
   DowngradeManager::EnableSnapshotsForTesting(true);
@@ -507,6 +506,6 @@ IN_PROC_BROWSER_TEST_F(InProcessBrowserTest, CanarySameMilestoneSnapshot) {
       user_data_dir));
   EXPECT_TRUE(base::PathExists(user_data_dir.Append(downgrade::kSnapshotsDir)));
 }
-#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#endif  // defined(OS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
 }  // namespace downgrade

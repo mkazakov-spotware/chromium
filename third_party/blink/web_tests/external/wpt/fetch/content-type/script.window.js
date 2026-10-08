@@ -26,10 +26,10 @@ function runScriptTest(testData, singleHeader) {
       script.onload = t.step_func_done(() => {
         assert_equals(self.stringFromExecutedScript, testData.encoding === "windows-1252" ? "â‚¬" : "€");
       });
-      script.onerror = t.unreached_func("onerror");
+      script.onerror = t.unreached_func();
     } else {
       script.onerror = t.step_func_done();
-      script.onload = t.unreached_func("onload");
+      script.onload = t.unreached_func();
     }
   }, (singleHeader ? "combined" : "separate") + " " + testData.contentType.join(" "));
 }

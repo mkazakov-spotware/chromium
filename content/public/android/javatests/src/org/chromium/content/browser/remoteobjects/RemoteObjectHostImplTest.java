@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -95,7 +95,7 @@ public final class RemoteObjectHostImplTest {
      *
      * This verifies that it is working correctly.
      */
-    private static class HasMethodCapture implements RemoteObject.HasMethod_Response {
+    private static class HasMethodCapture implements RemoteObject.HasMethodResponse {
         public Boolean methodExists;
 
         @Override
@@ -159,28 +159,5 @@ public final class RemoteObjectHostImplTest {
         Assert.assertThat(mRegistry, isIn(mRetainingSet));
         host.close();
         Assert.assertThat(mRegistry, not(isIn(mRetainingSet)));
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"AndroidWebView", "Android-JavaBridge"})
-    public void testClosePipeAfterHostClosesWithoutRelease() {
-        Object o = new Object();
-        int id = mRegistry.getObjectId(o, TestJavascriptInterface.class);
-
-        RemoteObjectHostImpl host = new RemoteObjectHostImpl(
-                /* auditor */ null, mRegistry, /* allowInspection */ true);
-
-        Pair<RemoteObject.Proxy, InterfaceRequest<RemoteObject>> result =
-                RemoteObject.MANAGER.getInterfaceRequest(CoreImpl.getInstance());
-        RemoteObject.Proxy remoteObject = result.first;
-        host.getObject(id, result.second);
-        host.close();
-
-        Assert.assertSame(o, mRegistry.getObjectById(id));
-        remoteObject.close();
-
-        mMojoTestRule.runLoopUntilIdle();
-        Assert.assertNull(mRegistry.getObjectById(id));
     }
 }

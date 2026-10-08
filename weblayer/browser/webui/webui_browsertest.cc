@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/test/weblayer_browser_test.h"
 
-#include "build/build_config.h"
 #include "weblayer/test/weblayer_browser_test_utils.h"
 
 namespace weblayer {
@@ -20,7 +19,7 @@ IN_PROC_BROWSER_TEST_F(WebLayerWebUIBrowserTest, WebUI) {
                     true /* use_separate_isolate */)
           .GetBool();
   // The remote debug checkbox should only be visible on Android.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   EXPECT_FALSE(result);
 #else
   EXPECT_TRUE(result);

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,14 @@
 
 #include "base/logging.h"
 #include "base/mac/scoped_launch_data.h"
-#include "base/numerics/safe_conversions.h"
 
 // This file is written in terms of launch_data_t, which is deprecated but has
 // no replacement. Ignore the deprecation warnings for now.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 // MessageForJob sends a single message to launchd with a simple dictionary
 // mapping |operation| to |job_label|, and returns the result of calling
@@ -73,9 +73,10 @@ pid_t PIDForJob(const std::string& job_label) {
     return -1;
   }
 
-  return checked_cast<pid_t>(launch_data_get_integer(pid_data));
+  return launch_data_get_integer(pid_data);
 }
 
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base
 
 #pragma clang diagnostic pop

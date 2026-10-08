@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 #define MEDIA_GPU_COMMAND_BUFFER_HELPER_H_
 
 #include "base/callback_forward.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/sequenced_task_runner_helpers.h"
-#include "build/build_config.h"
+#include "base/sequenced_task_runner.h"
+#include "base/sequenced_task_runner_helpers.h"
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/command_buffer/common/sync_token.h"
 #include "media/gpu/media_gpu_export.h"
@@ -18,7 +18,6 @@
 
 namespace gpu {
 class CommandBufferStub;
-class DXGISharedHandleManager;
 class SharedImageBacking;
 class SharedImageRepresentationFactoryRef;
 class SharedImageStub;
@@ -48,9 +47,6 @@ class MEDIA_GPU_EXPORT CommandBufferHelper
   static scoped_refptr<CommandBufferHelper> Create(
       gpu::CommandBufferStub* stub);
 
-  CommandBufferHelper(const CommandBufferHelper&) = delete;
-  CommandBufferHelper& operator=(const CommandBufferHelper&) = delete;
-
   // Gets the associated GLContext.
   //
   // Used by DXVAVDA to test for D3D11 support, and by V4L2VDA to create
@@ -59,10 +55,6 @@ class MEDIA_GPU_EXPORT CommandBufferHelper
 
   // Retrieve the interface through which to create shared images.
   virtual gpu::SharedImageStub* GetSharedImageStub() = 0;
-
-#if BUILDFLAG(IS_WIN)
-  virtual gpu::DXGISharedHandleManager* GetDXGISharedHandleManager() = 0;
-#endif
 
   // Checks whether the stub has been destroyed.
   virtual bool HasStub() = 0;
@@ -106,21 +98,14 @@ class MEDIA_GPU_EXPORT CommandBufferHelper
   // Sets the cleared flag on level 0 of the texture.
   virtual void SetCleared(GLuint service_id) = 0;
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-  // Binds level 0 of the texture to an unbound image.
+  // Binds level 0 of the texture to an image.
   //
-  // BindTexImage()/CopyTexImage() will be called when the texture is used.
-  virtual bool BindDecoderManagedImage(GLuint service_id,
-                                       gl::GLImage* image) = 0;
-#else
-  // Binds level 0 of the texture to an image for which the sampler binding
-  // already exists.
-  //
-  // BindTexImage()/CopyTexImage() will *not* be called when the texture is
-  // used.
-  virtual bool BindClientManagedImage(GLuint service_id,
-                                      gl::GLImage* image) = 0;
-#endif
+  // If the sampler binding already exists, set |client_managed| to true.
+  // Otherwise set it to false, and BindTexImage()/CopyTexImage() will be called
+  // when the texture is used.
+  virtual bool BindImage(GLuint service_id,
+                         gl::GLImage* image,
+                         bool client_managed) = 0;
 
   // Creates a mailbox for a texture.
   //
@@ -128,6 +113,11 @@ class MEDIA_GPU_EXPORT CommandBufferHelper
   // current implementation returns an empty (zero) mailbox. One solution would
   // be to add a HasStub() method, and not define behavior when it is false.
   virtual gpu::Mailbox CreateMailbox(GLuint service_id) = 0;
+
+  // Produce a texture into a mailbox.  The context does not have to be current.
+  // However, this will fail if the stub has been destroyed.
+  virtual void ProduceTexture(const gpu::Mailbox& mailbox,
+                              GLuint service_id) = 0;
 
   // Waits for a SyncToken, then runs |done_cb|.
   //
@@ -162,6 +152,8 @@ class MEDIA_GPU_EXPORT CommandBufferHelper
  private:
   friend class base::DeleteHelper<CommandBufferHelper>;
   friend class base::RefCountedDeleteOnSequence<CommandBufferHelper>;
+
+  DISALLOW_COPY_AND_ASSIGN(CommandBufferHelper);
 };
 
 }  // namespace media

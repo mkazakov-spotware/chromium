@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,13 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/icu_test_util.h"
 #include "build/build_config.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/accelerators/test_accelerator_target.h"
 #include "ui/events/keycodes/keyboard_codes.h"
-#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/buildflags.h"
@@ -30,7 +29,6 @@
 #include "ui/views/test/test_platform_native_widget.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/view_class_properties.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 #include "ui/views/widget/widget.h"
 
 #if defined(USE_AURA)
@@ -53,7 +51,6 @@ class SimpleTestView : public View {
   SimpleTestView(std::vector<FocusTestEvent>* event_list, int view_id)
       : event_list_(event_list) {
     SetFocusBehavior(FocusBehavior::ALWAYS);
-    set_suppress_default_focus_handling();
     SetID(view_id);
   }
 
@@ -77,7 +74,7 @@ class SimpleTestView : public View {
   }
 
  private:
-  raw_ptr<std::vector<FocusTestEvent>> event_list_;
+  std::vector<FocusTestEvent>* event_list_;
 };
 
 // Tests that the appropriate Focus related methods are called when a View
@@ -158,18 +155,17 @@ TEST_F(FocusManagerTest, WidgetFocusChangeListener) {
   TestWidgetFocusChangeListener widget_listener;
   AddWidgetFocusChangeListener(&widget_listener);
 
-  Widget::InitParams params1 = CreateParams(Widget::InitParams::TYPE_WINDOW);
-  params1.bounds = gfx::Rect(10, 10, 100, 100);
-  params1.parent = GetWidget()->GetNativeView();
-  UniqueWidgetPtr widget1 = std::make_unique<Widget>();
-  widget1->Init(std::move(params1));
+  Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
+  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+  params.bounds = gfx::Rect(10, 10, 100, 100);
+  params.parent = GetWidget()->GetNativeView();
+
+  std::unique_ptr<Widget> widget1(new Widget);
+  widget1->Init(std::move(params));
   widget1->Show();
 
-  Widget::InitParams params2 = CreateParams(Widget::InitParams::TYPE_WINDOW);
-  params2.bounds = gfx::Rect(10, 10, 100, 100);
-  params2.parent = GetWidget()->GetNativeView();
-  UniqueWidgetPtr widget2 = std::make_unique<Widget>();
-  widget2->Init(std::move(params2));
+  std::unique_ptr<Widget> widget2(new Widget);
+  widget2->Init(std::move(params));
   widget2->Show();
 
   widget_listener.ClearFocusChanges();
@@ -397,7 +393,7 @@ class SelfUnregisteringAcceleratorTarget : public ui::TestAcceleratorTarget {
 
  private:
   ui::Accelerator accelerator_;
-  raw_ptr<FocusManager> focus_manager_;
+  FocusManager* focus_manager_;
 };
 
 TEST_F(FocusManagerTest, CallsSelfDeletingAcceleratorTarget) {
@@ -454,7 +450,7 @@ class FocusInAboutToRequestFocusFromTabTraversalView : public View {
   }
 
  private:
-  raw_ptr<views::View> view_to_focus_ = nullptr;
+  views::View* view_to_focus_ = nullptr;
 };
 }  // namespace
 
@@ -666,60 +662,6 @@ TEST_P(FocusManagerArrowKeyTraversalTest, ArrowKeyTraversal) {
   EXPECT_EQ(v[0], focus_manager->GetFocusedView());
 }
 
-TEST_F(FocusManagerTest, SkipViewsInArrowKeyTraversal) {
-  FocusManager* focus_manager = GetFocusManager();
-
-  // Test the focus on the views which are under same group.
-  std::vector<views::View*> v;
-  for (size_t i = 0; i < 5; ++i) {
-    auto* view =
-        GetContentsView()->AddChildView(std::make_unique<views::View>());
-    view->SetGroup(12345);
-    // Testing both kind of focuses (Always focusable and only accessibility
-    // focusable).
-    view->SetFocusBehavior((i == 0 || i == 4)
-                               ? View::FocusBehavior::ALWAYS
-                               : View::FocusBehavior::ACCESSIBLE_ONLY);
-    v.push_back(view);
-  }
-
-  // Disable view at index 1, and hide view at index 3.
-  v[1]->SetEnabled(false);
-  v[3]->SetVisible(false);
-
-  // Start with focusing on the first view which is always accessible.
-  v[0]->RequestFocus();
-  EXPECT_EQ(v[0], focus_manager->GetFocusedView());
-
-  // Check that focus does not go to a disabled/hidden view.
-  const ui::KeyEvent right_key(ui::ET_KEY_PRESSED, ui::VKEY_RIGHT, ui::EF_NONE);
-  focus_manager->OnKeyEvent(right_key);
-  EXPECT_EQ(v[2], focus_manager->GetFocusedView());
-
-  focus_manager->OnKeyEvent(right_key);
-  EXPECT_EQ(v[4], focus_manager->GetFocusedView());
-
-  const ui::KeyEvent left_key(ui::ET_KEY_PRESSED, ui::VKEY_LEFT, ui::EF_NONE);
-  focus_manager->OnKeyEvent(left_key);
-  EXPECT_EQ(v[2], focus_manager->GetFocusedView());
-
-  focus_manager->OnKeyEvent(left_key);
-  EXPECT_EQ(v[0], focus_manager->GetFocusedView());
-
-  // On making the views visible/enabled, the focus should start appearing.
-  v[1]->SetEnabled(true);
-  v[3]->SetVisible(true);
-
-  focus_manager->OnKeyEvent(right_key);
-  EXPECT_EQ(v[1], focus_manager->GetFocusedView());
-
-  focus_manager->OnKeyEvent(right_key);
-  EXPECT_EQ(v[2], focus_manager->GetFocusedView());
-
-  focus_manager->OnKeyEvent(right_key);
-  EXPECT_EQ(v[3], focus_manager->GetFocusedView());
-}
-
 TEST_F(FocusManagerTest, StoreFocusedView) {
   std::vector<FocusTestEvent> event_list;
   const int kView1ID = 1;
@@ -769,7 +711,7 @@ TEST_F(FocusManagerTest, StoreFocusedView) {
   GetFocusManager()->ClearFocus();
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_APPLE)
 // Test that the correct view is restored if full keyboard access is changed.
 TEST_F(FocusManagerTest, StoreFocusedViewFullKeyboardAccess) {
   View* view1 = new View;
@@ -859,7 +801,7 @@ class AdvanceFocusWidgetDelegate : public WidgetDelegate {
   const Widget* GetWidget() const override { return widget_; }
 
  private:
-  raw_ptr<Widget> widget_;
+  Widget* widget_;
 };
 
 class TestBubbleDialogDelegateView : public BubbleDialogDelegateView {
@@ -916,27 +858,25 @@ TEST_F(FocusManagerTest, AdvanceFocusStaysInWidget) {
   GetContentsView()->AddChildView(widget_view);
 
   // Create a widget with two views, focus the second.
+  std::unique_ptr<AdvanceFocusWidgetDelegate> delegate;
   Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
+  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.child = true;
   params.bounds = gfx::Rect(10, 10, 100, 100);
   params.parent = GetWidget()->GetNativeView();
-  UniqueWidgetPtr child_widget = std::make_unique<Widget>();
-  std::unique_ptr<AdvanceFocusWidgetDelegate> delegate_owned =
-      std::make_unique<AdvanceFocusWidgetDelegate>(child_widget.get());
-  AdvanceFocusWidgetDelegate* delegate = delegate_owned.get();
-  params.delegate = delegate_owned.release();
-  delegate->SetOwnedByWidget(true);
-  child_widget->Init(std::move(params));
-
+  Widget child_widget;
+  delegate = std::make_unique<AdvanceFocusWidgetDelegate>(&child_widget);
+  params.delegate = delegate.get();
+  child_widget.Init(std::move(params));
   View* view1 = new View;
   view1->SetFocusBehavior(View::FocusBehavior::ALWAYS);
   view1->SetBounds(0, 0, 20, 20);
   View* view2 = new View;
   view2->SetFocusBehavior(View::FocusBehavior::ALWAYS);
   view2->SetBounds(20, 0, 20, 20);
-  child_widget->client_view()->AddChildView(view1);
-  child_widget->client_view()->AddChildView(view2);
-  child_widget->Show();
+  child_widget.client_view()->AddChildView(view1);
+  child_widget.client_view()->AddChildView(view2);
+  child_widget.Show();
   view2->RequestFocus();
   EXPECT_EQ(view2, GetFocusManager()->GetFocusedView());
 
@@ -951,6 +891,12 @@ TEST_F(FocusManagerTest, AdvanceFocusStaysInWidget) {
   // And forward again, wrapping back to |view1|.
   GetFocusManager()->AdvanceFocus(true);
   EXPECT_EQ(view1, GetFocusManager()->GetFocusedView());
+
+  // Allow focus to go to the parent, and focus backwards which should now move
+  // up |widget_view| (in the parent).
+  delegate->SetFocusTraversesOut(true);
+  GetFocusManager()->AdvanceFocus(true);
+  EXPECT_EQ(widget_view, GetFocusManager()->GetFocusedView());
 }
 
 TEST_F(FocusManagerTest, NavigateIntoAnchoredDialog) {
@@ -1121,12 +1067,13 @@ class DesktopWidgetFocusManagerTest : public FocusManagerTest {
 };
 
 TEST_F(DesktopWidgetFocusManagerTest, AnchoredDialogInDesktopNativeWidgetAura) {
-  UniqueWidgetPtr widget = std::make_unique<Widget>();
+  Widget widget;
   Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
+  params.ownership = Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.bounds = gfx::Rect(0, 0, 1024, 768);
-  widget->Init(std::move(params));
-  widget->Show();
-  widget->Activate();
+  widget.Init(std::move(params));
+  widget.Show();
+  widget.Activate();
 
   View* parent1 = new View();
   View* parent2 = new View();
@@ -1134,8 +1081,8 @@ TEST_F(DesktopWidgetFocusManagerTest, AnchoredDialogInDesktopNativeWidgetAura) {
   parent1->SetFocusBehavior(View::FocusBehavior::ALWAYS);
   parent2->SetFocusBehavior(View::FocusBehavior::ALWAYS);
 
-  widget->GetRootView()->AddChildView(parent1);
-  widget->GetRootView()->AddChildView(parent2);
+  widget.GetRootView()->AddChildView(parent1);
+  widget.GetRootView()->AddChildView(parent2);
 
   TestBubbleDialogDelegateView* bubble_delegate =
       TestBubbleDialogDelegateView::CreateAndShowBubble(parent2);
@@ -1146,37 +1093,24 @@ TEST_F(DesktopWidgetFocusManagerTest, AnchoredDialogInDesktopNativeWidgetAura) {
   child->SetFocusBehavior(View::FocusBehavior::ALWAYS);
   bubble_widget->GetRootView()->AddChildView(child);
 
-  // In order to pass the accessibility paint checks, focusable views must have
-  // a valid role.
-  parent1->GetViewAccessibility().OverrideRole(ax::mojom::Role::kGroup);
-  parent2->GetViewAccessibility().OverrideRole(ax::mojom::Role::kGroup);
-  child->GetViewAccessibility().OverrideRole(ax::mojom::Role::kButton);
-
-  // In order to pass the accessibility paint checks, focusable views must have
-  // a non-empty accessible name, or have their name set to explicitly empty.
-  parent1->GetViewAccessibility().OverrideName(u"Parent 1");
-  parent2->GetViewAccessibility().OverrideName(
-      u"", ax::mojom::NameFrom::kAttributeExplicitlyEmpty);
-  child->GetViewAccessibility().OverrideName("uChild");
-
-  widget->Activate();
+  widget.Activate();
   parent1->RequestFocus();
   base::RunLoop().RunUntilIdle();
 
   // Initially the outer widget's window is focused.
   aura::client::FocusClient* focus_client =
-      aura::client::GetFocusClient(widget->GetNativeView());
-  ASSERT_EQ(widget->GetNativeView(), focus_client->GetFocusedWindow());
+      aura::client::GetFocusClient(widget.GetNativeView());
+  ASSERT_EQ(widget.GetNativeView(), focus_client->GetFocusedWindow());
 
   // Navigate forwards
-  widget->GetFocusManager()->AdvanceFocus(false);
+  widget.GetFocusManager()->AdvanceFocus(false);
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(parent2->HasFocus());
-  widget->GetFocusManager()->AdvanceFocus(false);
+  widget.GetFocusManager()->AdvanceFocus(false);
   EXPECT_TRUE(child->HasFocus());
 
   // Now the bubble widget's window is focused.
-  ASSERT_NE(widget->GetNativeView(), focus_client->GetFocusedWindow());
+  ASSERT_NE(widget.GetNativeView(), focus_client->GetFocusedWindow());
   ASSERT_EQ(bubble_widget->GetNativeView(), focus_client->GetFocusedWindow());
 
   // Navigate backwards
@@ -1184,7 +1118,7 @@ TEST_F(DesktopWidgetFocusManagerTest, AnchoredDialogInDesktopNativeWidgetAura) {
   EXPECT_TRUE(parent2->HasFocus());
 
   // Finally, the outer widget's window should be focused again.
-  ASSERT_EQ(widget->GetNativeView(), focus_client->GetFocusedWindow());
+  ASSERT_EQ(widget.GetNativeView(), focus_client->GetFocusedWindow());
 }
 #endif
 
@@ -1219,10 +1153,10 @@ class RedirectToParentFocusManagerTest : public FocusManagerTest {
   }
 
  protected:
-  raw_ptr<FocusManager> parent_focus_manager_ = nullptr;
-  raw_ptr<FocusManager> bubble_focus_manager_ = nullptr;
+  FocusManager* parent_focus_manager_ = nullptr;
+  FocusManager* bubble_focus_manager_ = nullptr;
 
-  raw_ptr<BubbleDialogDelegateView> bubble_ = nullptr;
+  BubbleDialogDelegateView* bubble_ = nullptr;
 };
 
 // Test that when an accelerator is sent to a bubble that isn't registered,

@@ -1,11 +1,10 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
-#include "base/callback.h"
-#include "base/ranges/algorithm.h"
+#include "base/macros.h"
 #include "base/strings/pattern.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -17,7 +16,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tab_contents/tab_contents_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/task_manager/task_manager_columns.h"
@@ -40,7 +38,6 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
-#include "ui/events/test/event_generator.h"
 #include "ui/views/controls/table/table_view.h"
 #include "ui/views/test/widget_test.h"
 
@@ -51,14 +48,10 @@ using browsertest_util::WaitForTaskManagerRows;
 class TaskManagerViewTest : public InProcessBrowserTest {
  public:
   TaskManagerViewTest() {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     feature_list_.InitAndEnableFeature(features::kViewsTaskManager);
 #endif
   }
-
-  TaskManagerViewTest(const TaskManagerViewTest&) = delete;
-  TaskManagerViewTest& operator=(const TaskManagerViewTest&) = delete;
-
   ~TaskManagerViewTest() override {}
 
   void SetUpOnMainThread() override {
@@ -78,7 +71,7 @@ class TaskManagerViewTest : public InProcessBrowserTest {
   }
 
   views::TableView* GetTable() const {
-    return GetView() ? GetView()->tab_table_.get() : nullptr;
+    return GetView() ? GetView()->tab_table_ : nullptr;
   }
 
   void PressKillButton() { GetView()->Accept(); }
@@ -88,9 +81,9 @@ class TaskManagerViewTest : public InProcessBrowserTest {
     if (!local_state)
       FAIL();
 
-    ScopedDictPrefUpdate dict_update(local_state,
+    DictionaryPrefUpdate dict_update(local_state,
                                      prefs::kTaskManagerColumnVisibility);
-    dict_update->clear();
+    dict_update->Clear();
   }
 
   void ToggleColumnVisibility(TaskManagerView* view, int col_id) {
@@ -101,22 +94,25 @@ class TaskManagerViewTest : public InProcessBrowserTest {
   // Looks up a tab based on its tab ID.
   content::WebContents* FindWebContentsByTabId(SessionID tab_id) {
     auto& all_tabs = AllTabContentses();
-    auto it = base::ranges::find(all_tabs, tab_id,
-                                 &sessions::SessionTabHelper::IdForTab);
+    auto tab_id_matches = [tab_id](content::WebContents* web_contents) {
+      return sessions::SessionTabHelper::IdForTab(web_contents) == tab_id;
+    };
+    auto it = std::find_if(all_tabs.begin(), all_tabs.end(), tab_id_matches);
+
     return (it == all_tabs.end()) ? nullptr : *it;
   }
 
   // Returns the current TaskManagerTableModel index for a particular tab. Don't
   // cache this value, since it can change whenever the message loop runs.
-  absl::optional<size_t> FindRowForTab(content::WebContents* tab) {
+  int FindRowForTab(content::WebContents* tab) {
     SessionID tab_id = sessions::SessionTabHelper::IdForTab(tab);
     std::unique_ptr<TaskManagerTester> tester =
-        TaskManagerTester::Create(base::RepeatingClosure());
-    for (size_t i = 0; i < tester->GetRowCount(); ++i) {
+        TaskManagerTester::Create(base::Closure());
+    for (int i = 0; i < tester->GetRowCount(); ++i) {
       if (tester->GetTabId(i) == tab_id)
         return i;
     }
-    return absl::nullopt;
+    return -1;
   }
 
   void HideTaskManagerSync() {
@@ -127,6 +123,8 @@ class TaskManagerViewTest : public InProcessBrowserTest {
 
  private:
   base::test::ScopedFeatureList feature_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(TaskManagerViewTest);
 };
 
 // Tests that all defined columns have a corresponding string IDs for keying
@@ -179,8 +177,8 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, ColumnsSettingsAreRestored) {
     const ui::TableColumn& column = table->visible_columns()[i].column;
     if (column.sortable && column.initial_sort_is_ascending) {
       // Toggle the sort twice for a descending sort.
-      table->ToggleSortOrder(i);
-      table->ToggleSortOrder(i);
+      table->ToggleSortOrder(static_cast<int>(i));
+      table->ToggleSortOrder(static_cast<int>(i));
       is_sorted = true;
       sorted_col_id = column.id;
       break;
@@ -217,8 +215,8 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, ColumnsSettingsAreRestored) {
 
 IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, InitialSelection) {
   // Navigate the first tab.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL("a.com", "/title2.html")));
+  ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("a.com", "/title2.html"));
 
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), embedded_test_server()->GetURL("b.com", "/title3.html"),
@@ -235,8 +233,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, InitialSelection) {
 
   // Activate tab 0. The selection should not change.
   browser()->tab_strip_model()->ActivateTabAt(
-      0, TabStripUserGestureDetails(
-             TabStripUserGestureDetails::GestureType::kOther));
+      0, {TabStripModel::GestureType::kOther});
   EXPECT_EQ(1UL, GetTable()->selection_model().size());
   EXPECT_EQ(GetTable()->GetFirstSelectedRow(),
             FindRowForTab(browser()->tab_strip_model()->GetWebContentsAt(1)));
@@ -257,8 +254,8 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, DISABLED_SelectionConsistency) {
   chrome::ShowTaskManager(browser());
 
   // Set up a total of three tabs in different processes.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_test_server()->GetURL("a.com", "/title2.html")));
+  ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("a.com", "/title2.html"));
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), embedded_test_server()->GetURL("b.com", "/title2.html"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
@@ -277,9 +274,9 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, DISABLED_SelectionConsistency) {
   // Find the three tabs we set up, in TaskManager model order. Because we have
   // not sorted the table yet, this should also be their UI display order.
   std::unique_ptr<TaskManagerTester> tester =
-      TaskManagerTester::Create(base::RepeatingClosure());
+      TaskManagerTester::Create(base::Closure());
   std::vector<content::WebContents*> tabs;
-  for (size_t i = 0; i < tester->GetRowCount(); ++i) {
+  for (int i = 0; i < tester->GetRowCount(); ++i) {
     // Filter based on our title.
     if (!base::MatchPattern(tester->GetRowTitle(i), pattern))
       continue;
@@ -290,7 +287,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, DISABLED_SelectionConsistency) {
   EXPECT_EQ(3U, tabs.size());
 
   // Select the middle row, and store its tab id.
-  GetTable()->Select(FindRowForTab(tabs[1]).value());
+  GetTable()->Select(FindRowForTab(tabs[1]));
   EXPECT_EQ(GetTable()->GetFirstSelectedRow(), FindRowForTab(tabs[1]));
   EXPECT_EQ(1UL, GetTable()->selection_model().size());
 
@@ -333,12 +330,11 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, DISABLED_SelectionConsistency) {
   // A later row should now be selected. The selection should be after the 4
   // rows sharing the tabs[0] process, and it should be at or before
   // the tabs[2] row.
-  ASSERT_LT(FindRowForTab(tabs[0]).value() + 3,
-            GetTable()->GetFirstSelectedRow());
+  ASSERT_LT(FindRowForTab(tabs[0]) + 3, GetTable()->GetFirstSelectedRow());
   ASSERT_LE(GetTable()->GetFirstSelectedRow(), FindRowForTab(tabs[2]));
 
   // Now select tabs[2].
-  GetTable()->Select(FindRowForTab(tabs[2]).value());
+  GetTable()->Select(FindRowForTab(tabs[2]));
 
   // Focus and reload one of the sad tabs. It should reappear in the TM. The
   // other sad tab should not reappear.
@@ -385,14 +381,4 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, RestoreBounds) {
   EXPECT_TRUE(display.bounds().Contains(restored_bounds));
 }
 
-IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, CloseByAccelerator) {
-  chrome::ShowTaskManager(browser());
-
-  EXPECT_FALSE(GetView()->GetWidget()->IsClosed());
-
-  GetView()->AcceleratorPressed(
-      ui::Accelerator(ui::VKEY_W, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN));
-
-  EXPECT_TRUE(GetView()->GetWidget()->IsClosed());
-}
 }  // namespace task_manager

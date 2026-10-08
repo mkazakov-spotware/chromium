@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@
 #include "base/files/scoped_file.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/test/bind.h"
 #include "build/build_config.h"
@@ -34,7 +34,6 @@
 #include "sandbox/linux/syscall_broker/broker_file_permission.h"
 #include "sandbox/linux/syscall_broker/broker_process.h"
 #include "sandbox/linux/system_headers/linux_seccomp.h"
-#include "sandbox/linux/system_headers/linux_stat.h"
 #include "sandbox/linux/system_headers/linux_syscalls.h"
 #include "sandbox/linux/tests/scoped_temporary_file.h"
 #include "sandbox/linux/tests/test_utils.h"
@@ -45,9 +44,6 @@
 namespace sandbox {
 
 using bpf_dsl::Allow;
-using bpf_dsl::Arg;
-using bpf_dsl::Error;
-using bpf_dsl::If;
 using bpf_dsl::ResultExpr;
 using bpf_dsl::Trap;
 
@@ -68,20 +64,16 @@ class InitializedOpenBroker {
     std::vector<BrokerFilePermission> permissions = {
         BrokerFilePermission::ReadOnly("/proc/allowed"),
         BrokerFilePermission::ReadOnly("/proc/cpuinfo")};
-    broker_process_ = std::make_unique<BrokerProcess>(
-        syscall_broker::BrokerSandboxConfig(command_set, permissions, EPERM),
-        broker_type);
-    BPF_ASSERT(broker_process_->Fork(base::BindOnce(
-        [](const syscall_broker::BrokerSandboxConfig&) { return true; })));
+    broker_process_ = std::make_unique<BrokerProcess>(EPERM, command_set,
+                                                      permissions, broker_type);
+    BPF_ASSERT(broker_process_->Init(base::BindOnce([]() { return true; })));
   }
-
-  InitializedOpenBroker(const InitializedOpenBroker&) = delete;
-  InitializedOpenBroker& operator=(const InitializedOpenBroker&) = delete;
 
   BrokerProcess* broker_process() const { return broker_process_.get(); }
 
  private:
   std::unique_ptr<BrokerProcess> broker_process_;
+  DISALLOW_COPY_AND_ASSIGN(InitializedOpenBroker);
 };
 
 intptr_t BrokerOpenTrapHandler(const struct arch_seccomp_data& args,
@@ -90,7 +82,6 @@ intptr_t BrokerOpenTrapHandler(const struct arch_seccomp_data& args,
   BrokerProcess* broker_process = static_cast<BrokerProcess*>(aux);
   switch (args.nr) {
     case __NR_faccessat:  // access is a wrapper of faccessat in android
-    case __NR_faccessat2:
       BPF_ASSERT(static_cast<int>(args.args[0]) == AT_FDCWD);
       return broker_process->GetBrokerClientSignalBased()->Access(
           reinterpret_cast<const char*>(args.args[1]),
@@ -123,10 +114,6 @@ intptr_t BrokerOpenTrapHandler(const struct arch_seccomp_data& args,
 class DenyOpenPolicy : public bpf_dsl::Policy {
  public:
   explicit DenyOpenPolicy(InitializedOpenBroker* iob) : iob_(iob) {}
-
-  DenyOpenPolicy(const DenyOpenPolicy&) = delete;
-  DenyOpenPolicy& operator=(const DenyOpenPolicy&) = delete;
-
   ~DenyOpenPolicy() override {}
 
   ResultExpr EvaluateSyscall(int sysno) const override {
@@ -134,7 +121,6 @@ class DenyOpenPolicy : public bpf_dsl::Policy {
 
     switch (sysno) {
       case __NR_faccessat:
-      case __NR_faccessat2:
 #if defined(__NR_access)
       case __NR_access:
 #endif
@@ -151,7 +137,9 @@ class DenyOpenPolicy : public bpf_dsl::Policy {
   }
 
  private:
-  raw_ptr<InitializedOpenBroker> iob_;
+  InitializedOpenBroker* iob_;
+
+  DISALLOW_COPY_AND_ASSIGN(DenyOpenPolicy);
 };
 
 // We use a InitializedOpenBroker class, so that we can run unsandboxed
@@ -214,26 +202,6 @@ namespace {
 // not accept this as a valid error number. E.g. bionic accepts up to 255, glibc
 // and musl up to 4096.
 const int kFakeErrnoSentinel = 254;
-
-void ConvertKernelStatToLibcStat(default_stat_struct& in_stat,
-                                 struct stat& out_stat) {
-  out_stat.st_dev = in_stat.st_dev;
-  out_stat.st_ino = in_stat.st_ino;
-  out_stat.st_mode = in_stat.st_mode;
-  out_stat.st_nlink = in_stat.st_nlink;
-  out_stat.st_uid = in_stat.st_uid;
-  out_stat.st_gid = in_stat.st_gid;
-  out_stat.st_rdev = in_stat.st_rdev;
-  out_stat.st_size = in_stat.st_size;
-  out_stat.st_blksize = in_stat.st_blksize;
-  out_stat.st_blocks = in_stat.st_blocks;
-  out_stat.st_atim.tv_sec = in_stat.st_atime_;
-  out_stat.st_atim.tv_nsec = in_stat.st_atime_nsec_;
-  out_stat.st_mtim.tv_sec = in_stat.st_mtime_;
-  out_stat.st_mtim.tv_nsec = in_stat.st_mtime_nsec_;
-  out_stat.st_ctim.tv_sec = in_stat.st_ctime_;
-  out_stat.st_ctim.tv_nsec = in_stat.st_ctime_nsec_;
-}
 }  // namespace
 
 // There are a variety of ways to make syscalls in a sandboxed process. One is
@@ -249,10 +217,6 @@ class Syscaller {
 
   virtual int Open(const char* filepath, int flags) = 0;
   virtual int Access(const char* filepath, int mode) = 0;
-  // NOTE: we use struct stat instead of default_stat_struct, to make the libc
-  // syscaller simpler. Copying from default_stat_struct (the structure returned
-  // from a stat sycall) to struct stat (the structure exposed by a libc to its
-  // users) is simpler than going in the opposite direction.
   virtual int Stat(const char* filepath,
                    bool follow_links,
                    struct stat* statbuf) = 0;
@@ -279,12 +243,8 @@ class IPCSyscaller : public Syscaller {
   int Stat(const char* filepath,
            bool follow_links,
            struct stat* statbuf) override {
-    default_stat_struct buf;
-    int ret = broker_->GetBrokerClientSignalBased()->DefaultStatForTesting(
-        filepath, follow_links, &buf);
-    if (ret >= 0)
-      ConvertKernelStatToLibcStat(buf, *statbuf);
-    return ret;
+    return broker_->GetBrokerClientSignalBased()->Stat(filepath, follow_links,
+                                                       statbuf);
   }
 
   int Rename(const char* oldpath, const char* newpath) override {
@@ -308,13 +268,12 @@ class IPCSyscaller : public Syscaller {
   }
 
  private:
-  raw_ptr<BrokerProcess> broker_;
+  BrokerProcess* broker_;
 };
 
 // Only use syscall(...) on x64 to avoid having to reimplement a libc-like
 // layer that uses different syscalls on different architectures.
-#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-     BUILDFLAG(IS_ANDROID)) &&                        \
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)) && \
     defined(__x86_64__)
 #define DIRECT_SYSCALLER_ENABLED
 #endif
@@ -341,13 +300,10 @@ class DirectSyscaller : public Syscaller {
   int Stat(const char* filepath,
            bool follow_links,
            struct stat* statbuf) override {
-    struct kernel_stat buf;
-    int ret = syscall(__NR_newfstatat, AT_FDCWD, filepath, &buf,
-                      follow_links ? 0 : AT_SYMLINK_NOFOLLOW);
+    int ret = follow_links ? syscall(__NR_stat, filepath, statbuf)
+                           : syscall(__NR_lstat, filepath, statbuf);
     if (ret < 0)
       return -errno;
-
-    ConvertKernelStatToLibcStat(buf, *statbuf);
     return ret;
   }
 
@@ -503,33 +459,22 @@ class HandleFilesystemViaBrokerPolicy : public bpf_dsl::Policy {
   explicit HandleFilesystemViaBrokerPolicy(BrokerProcess* broker_process,
                                            int denied_errno)
       : broker_process_(broker_process), denied_errno_(denied_errno) {}
-
-  HandleFilesystemViaBrokerPolicy(const HandleFilesystemViaBrokerPolicy&) =
-      delete;
-  HandleFilesystemViaBrokerPolicy& operator=(
-      const HandleFilesystemViaBrokerPolicy&) = delete;
-
   ~HandleFilesystemViaBrokerPolicy() override = default;
 
   ResultExpr EvaluateSyscall(int sysno) const override {
     DCHECK(SandboxBPF::IsValidSyscallNumber(sysno));
     // Broker everything that we're supposed to broker.
     if (broker_process_->IsSyscallAllowed(sysno)) {
-      return Trap(BrokerClient::SIGSYS_Handler,
-                  broker_process_->GetBrokerClientSignalBased());
+      return sandbox::bpf_dsl::Trap(
+          sandbox::syscall_broker::BrokerClient::SIGSYS_Handler,
+          broker_process_->GetBrokerClientSignalBased());
     }
 
     // Otherwise, if this is a syscall that takes a pathname but isn't an
     // allowed command, deny it.
     if (broker_process_->IsSyscallBrokerable(sysno,
                                              /*fast_check_in_client=*/false)) {
-      return Error(denied_errno_);
-    }
-
-    if (sysno == __NR_statx) {
-      const Arg<int> mask(3);
-      return If(mask == STATX_BASIC_STATS, Error(ENOSYS))
-          .Else(Error(denied_errno_));
+      return bpf_dsl::Error(denied_errno_);
     }
 
     // Allow everything else that doesn't take a pathname.
@@ -537,8 +482,10 @@ class HandleFilesystemViaBrokerPolicy : public bpf_dsl::Policy {
   }
 
  private:
-  raw_ptr<BrokerProcess> broker_process_;
+  BrokerProcess* broker_process_;
   int denied_errno_;
+
+  DISALLOW_COPY_AND_ASSIGN(HandleFilesystemViaBrokerPolicy);
 };
 }  // namespace syscall_broker
 
@@ -560,13 +507,10 @@ class BPFTesterBrokerDelegate : public BPFTesterDelegate {
     BrokerTestDelegate::BrokerParams broker_params =
         broker_test_delegate_->ChildSetUpPreSandbox();
 
-    auto policy = absl::make_optional<syscall_broker::BrokerSandboxConfig>(
-        broker_params.allowed_command_set, broker_params.permissions,
-        broker_params.denied_errno);
     broker_process_ = std::make_unique<BrokerProcess>(
-        std::move(policy), broker_type_, fast_check_in_client_);
-    BPF_ASSERT(broker_process_->Fork(base::BindOnce(
-        [](const syscall_broker::BrokerSandboxConfig&) { return true; })));
+        broker_params.denied_errno, broker_params.allowed_command_set,
+        broker_params.permissions, broker_type_, fast_check_in_client_);
+    BPF_ASSERT(broker_process_->Init(base::BindOnce([]() { return true; })));
     broker_test_delegate_->OnBrokerStarted(broker_process_->broker_pid());
 
     BPF_ASSERT(TestUtils::CurrentProcessHasChildren());
@@ -604,7 +548,7 @@ class BPFTesterBrokerDelegate : public BPFTesterDelegate {
 
  private:
   bool fast_check_in_client_;
-  raw_ptr<BrokerTestDelegate> broker_test_delegate_;
+  BrokerTestDelegate* broker_test_delegate_;
   SyscallerType syscaller_type_;
   BrokerType broker_type_;
 
@@ -1268,11 +1212,11 @@ class StatFileNoCommandDelegate final : public StatFileDelegate {
 };
 
 TEST(BrokerProcessIntegrationTest, StatFileNoCommandFollowLinks) {
-  RunAllBrokerTests<StatFileNoCommandDelegate</*follow_links=*/true>>();
+  RunAllBrokerTests<StatFileNoCommandDelegate<true>>();
 }
 
 TEST(BrokerProcessIntegrationTest, StatFileNoCommandNoFollowLinks) {
-  RunAllBrokerTests<StatFileNoCommandDelegate</*follow_links=*/false>>();
+  RunAllBrokerTests<StatFileNoCommandDelegate<false>>();
 }
 
 // Allows the STAT command without any file permissions.
@@ -1298,11 +1242,11 @@ class StatFilesNoPermissionDelegate final : public StatFileDelegate {
 };
 
 TEST(BrokerProcessIntegrationTest, StatFilesNoPermissionFollowLinks) {
-  RunAllBrokerTests<StatFilesNoPermissionDelegate</*follow_links=*/true>>();
+  RunAllBrokerTests<StatFilesNoPermissionDelegate<true>>();
 }
 
 TEST(BrokerProcessIntegrationTest, StatFilesNoPermissionNoFollowLinks) {
-  RunAllBrokerTests<StatFilesNoPermissionDelegate</*follow_links=*/false>>();
+  RunAllBrokerTests<StatFilesNoPermissionDelegate<false>>();
 }
 
 // Nonexistent file with permissions to see file.
@@ -1347,14 +1291,12 @@ class StatNonexistentFileWithPermissionsDelegate final
 
 TEST(BrokerProcessIntegrationTest,
      StatNonexistentFileWithPermissionsFollowLinks) {
-  RunAllBrokerTests<
-      StatNonexistentFileWithPermissionsDelegate</*follow_links=*/true>>();
+  RunAllBrokerTests<StatNonexistentFileWithPermissionsDelegate<true>>();
 }
 
 TEST(BrokerProcessIntegrationTest,
      StatNonexistentFileWithPermissionsNoFollowLinks) {
-  RunAllBrokerTests<
-      StatNonexistentFileWithPermissionsDelegate</*follow_links=*/false>>();
+  RunAllBrokerTests<StatNonexistentFileWithPermissionsDelegate<false>>();
 }
 
 // Nonexistent file with permissions to create file.
@@ -1398,14 +1340,12 @@ class StatNonexistentFileWithCreatePermissionsDelegate final
 
 TEST(BrokerProcessIntegrationTest,
      StatNonexistentFileWithCreatePermissionsFollowLinks) {
-  RunAllBrokerTests<StatNonexistentFileWithCreatePermissionsDelegate<
-      /*follow_links=*/true>>();
+  RunAllBrokerTests<StatNonexistentFileWithCreatePermissionsDelegate<true>>();
 }
 
 TEST(BrokerProcessIntegrationTest,
      StatNonexistentFileWithCreatePermissionsNoFollowLinks) {
-  RunAllBrokerTests<StatNonexistentFileWithCreatePermissionsDelegate<
-      /*follow_links=*/false>>();
+  RunAllBrokerTests<StatNonexistentFileWithCreatePermissionsDelegate<false>>();
 }
 
 // Actual file with permissions to see file.
@@ -1447,11 +1387,11 @@ class StatFileWithPermissionsDelegate final : public StatFileDelegate {
 };
 
 TEST(BrokerProcessIntegrationTest, StatFileWithPermissionsFollowLinks) {
-  RunAllBrokerTests<StatFileWithPermissionsDelegate</*follow_links=*/true>>();
+  RunAllBrokerTests<StatFileWithPermissionsDelegate<true>>();
 }
 
 TEST(BrokerProcessIntegrationTest, StatFileWithPermissionsNoFollowLinks) {
-  RunAllBrokerTests<StatFileWithPermissionsDelegate</*follow_links=*/false>>();
+  RunAllBrokerTests<StatFileWithPermissionsDelegate<false>>();
 }
 
 class RenameTestDelegate : public BrokerTestDelegate {
@@ -1481,16 +1421,6 @@ class RenameTestDelegate : public BrokerTestDelegate {
   }
 
  protected:
-  void ExpectRenamed() {
-    EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
-    EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
-  }
-
-  void ExpectNotRenamed() {
-    EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
-    EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
-  }
-
   std::string oldpath_;
   std::string newpath_;
 };
@@ -1513,7 +1443,13 @@ class RenameNoCommandDelegate final : public RenameTestDelegate {
   }
 
   void ParentTearDown() override {
-    ExpectNotRenamed();
+    if (true) {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
+    } else {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
+    }
     RenameTestDelegate::ParentTearDown();
   }
 };
@@ -1538,7 +1474,13 @@ class RenameNoPermNewDelegate final : public RenameTestDelegate {
   }
 
   void ParentTearDown() override {
-    ExpectNotRenamed();
+    if (true) {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
+    } else {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
+    }
     RenameTestDelegate::ParentTearDown();
   }
 };
@@ -1563,7 +1505,13 @@ class RenameNoPermOldDelegate final : public RenameTestDelegate {
   }
 
   void ParentTearDown() override {
-    ExpectNotRenamed();
+    if (true) {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
+    } else {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
+    }
     RenameTestDelegate::ParentTearDown();
   }
 };
@@ -1590,7 +1538,13 @@ class RenameReadPermNewDelegate final : public RenameTestDelegate {
   }
 
   void ParentTearDown() override {
-    ExpectNotRenamed();
+    if (true) {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
+    } else {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
+    }
     RenameTestDelegate::ParentTearDown();
   }
 };
@@ -1617,7 +1571,13 @@ class RenameReadPermOldDelegate final : public RenameTestDelegate {
   }
 
   void ParentTearDown() override {
-    ExpectNotRenamed();
+    if (true) {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
+    } else {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
+    }
     RenameTestDelegate::ParentTearDown();
   }
 };
@@ -1643,7 +1603,13 @@ class RenameWritePermsBothDelegate final : public RenameTestDelegate {
   }
 
   void ParentTearDown() override {
-    ExpectRenamed();
+    if (false) {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) == 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) < 0);
+    } else {
+      EXPECT_TRUE(access(oldpath_.c_str(), 0) < 0);
+      EXPECT_TRUE(access(newpath_.c_str(), 0) == 0);
+    }
     RenameTestDelegate::ParentTearDown();
   }
 };

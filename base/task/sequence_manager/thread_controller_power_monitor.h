@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_TASK_SEQUENCE_MANAGER_THREAD_CONTROLLER_POWER_MONITOR_H_
 #define BASE_TASK_SEQUENCE_MANAGER_THREAD_CONTROLLER_POWER_MONITOR_H_
 
-#include "base/base_export.h"
 #include "base/power_monitor/power_observer.h"
 
 namespace base {
@@ -15,7 +14,7 @@ namespace internal {
 // A helper class that keeps track of the power state and handles power
 // notifications. The class register itself to the PowerMonitor and receives
 // notifications on the bound thread (see BindToCurrentThread(...)).
-class BASE_EXPORT ThreadControllerPowerMonitor : public PowerSuspendObserver {
+class BASE_EXPORT ThreadControllerPowerMonitor : public PowerObserver {
  public:
   ThreadControllerPowerMonitor();
   ~ThreadControllerPowerMonitor() override;
@@ -38,7 +37,7 @@ class BASE_EXPORT ThreadControllerPowerMonitor : public PowerSuspendObserver {
   static void OverrideUsePowerMonitorForTesting(bool use_power_monitor);
   static void ResetForTesting();
 
-  // base::PowerSuspendObserver:
+  // base::PowerObserver:
   void OnSuspend() override;
   void OnResume() override;
 

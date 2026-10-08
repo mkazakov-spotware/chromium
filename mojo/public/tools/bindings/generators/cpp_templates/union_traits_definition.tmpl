@@ -9,7 +9,7 @@ bool UnionTraits<{{mojom_type}}::DataView, {{mojom_type}}Ptr>::Read(
 
   switch (input.tag()) {
 {%- for field in union.fields %}
-    case Tag::k{{field.name|under_to_camel}}: {
+    case Tag::{{field.name|upper}}: {
 {%-   set name = field.name %}
 {%-   set kind = field.kind %}
 {%-   set serializer_type = kind|unmapped_type_for_serializer %}
@@ -41,12 +41,7 @@ bool UnionTraits<{{mojom_type}}::DataView, {{mojom_type}}Ptr>::Read(
     }
 {%- endfor %}
     default:
-{%  if union.extensible %}
-      *output = UnionType::New{{union.default_field.name|under_to_camel}}({});
-      return true;
-{%- else %}
       return false;
-{%- endif %}
   }
   return true;
 }

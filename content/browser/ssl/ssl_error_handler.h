@@ -1,12 +1,16 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_SSL_SSL_ERROR_HANDLER_H_
 #define CONTENT_BROWSER_SSL_SSL_ERROR_HANDLER_H_
 
-#include "base/memory/raw_ptr.h"
+#include <string>
+
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "content/common/content_export.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/global_request_id.h"
 #include "net/ssl/ssl_info.h"
@@ -27,7 +31,7 @@ class WebContents;
 // call exactly one of those methods exactly once.
 class SSLErrorHandler {
  public:
-  class Delegate {
+  class CONTENT_EXPORT Delegate {
    public:
     // Called when SSLErrorHandler decides to cancel the request because of
     // the SSL error.
@@ -43,14 +47,11 @@ class SSLErrorHandler {
 
   SSLErrorHandler(WebContents* web_contents,
                   const base::WeakPtr<Delegate>& delegate,
-                  bool is_primary_main_frame_request,
+                  bool is_main_frame_request,
                   const GURL& url,
                   int net_error,
                   const net::SSLInfo& ssl_info,
                   bool fatal);
-
-  SSLErrorHandler(const SSLErrorHandler&) = delete;
-  SSLErrorHandler& operator=(const SSLErrorHandler&) = delete;
 
   virtual ~SSLErrorHandler();
 
@@ -58,9 +59,7 @@ class SSLErrorHandler {
 
   const GURL& request_url() const { return request_url_; }
 
-  bool is_primary_main_frame_request() const {
-    return is_primary_main_frame_request_;
-  }
+  bool is_main_frame_request() const { return is_main_frame_request_; }
 
   WebContents* web_contents() const { return web_contents_; }
 
@@ -69,7 +68,7 @@ class SSLErrorHandler {
   bool fatal() const { return fatal_; }
 
   // Cancels the associated net::URLRequest.
-  void CancelRequest();
+  CONTENT_EXPORT void CancelRequest();
 
   // Continue the net::URLRequest ignoring any previous errors.  Note that some
   // errors cannot be ignored, in which case this will result in the request
@@ -88,8 +87,8 @@ class SSLErrorHandler {
   // The URL for the request that generated the error.
   const GURL request_url_;
 
-  // Whether this request is for the primary main frame's html.
-  const bool is_primary_main_frame_request_;
+  // Whether this request is for the main frame's html.
+  const bool is_main_frame_request_;
 
   // The net::SSLInfo associated with the request that generated the error.
   const net::SSLInfo ssl_info_;
@@ -101,7 +100,9 @@ class SSLErrorHandler {
   const bool fatal_;
 
   // The WebContents associated with the request that generated the error.
-  raw_ptr<WebContents> web_contents_;
+  WebContents* web_contents_;
+
+  DISALLOW_COPY_AND_ASSIGN(SSLErrorHandler);
 };
 
 }  // namespace content

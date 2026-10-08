@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "build/branding_buildflags.h"
 #include "chrome/common/channel_info.h"
 #include "components/version_info/version_info.h"
-#import "net/base/mac/url_conversions.h"
 #import "third_party/mozilla/NSWorkspace+Utils.h"
 
 namespace shell_integration {
@@ -40,6 +39,9 @@ bool IsIdentifierDefaultProtocolClient(NSString* identifier,
 // applies only for the current user. Returns false if this cannot be done, or
 // if the operation fails.
 bool SetAsDefaultBrowser() {
+  if (!CanSetAsDefaultBrowser())
+    return false;
+
   // We really do want the outer bundle here, not the main bundle since setting
   // a shortcut to Chrome as the default browser doesn't make sense.
   NSString* identifier = [base::mac::OuterBundle() bundleIdentifier];
@@ -84,19 +86,22 @@ bool SetAsDefaultProtocolClient(const std::string& protocol) {
   if (!identifier)
     return false;
 
-  NSString* protocol_ns = base::SysUTF8ToNSString(protocol);
+  NSString* protocol_ns = [NSString stringWithUTF8String:protocol.c_str()];
   OSStatus return_code =
       LSSetDefaultHandlerForURLScheme(base::mac::NSToCFCast(protocol_ns),
                                       base::mac::NSToCFCast(identifier));
   return return_code == noErr;
 }
 
-DefaultWebClientSetPermission
-GetPlatformSpecificDefaultWebClientSetPermission() {
+DefaultWebClientSetPermission GetDefaultWebClientSetPermission() {
+  if (chrome::GetChannel() == version_info::Channel::CANARY) {
+    return SET_DEFAULT_NOT_ALLOWED;
+  }
+
   return SET_DEFAULT_UNATTENDED;
 }
 
-std::u16string GetApplicationNameForProtocol(const GURL& url) {
+base::string16 GetApplicationNameForProtocol(const GURL& url) {
   NSURL* ns_url = [NSURL URLWithString:
       base::SysUTF8ToNSString(url.possibly_invalid_spec())];
   base::ScopedCFTypeRef<CFErrorRef> out_err;
@@ -104,33 +109,12 @@ std::u16string GetApplicationNameForProtocol(const GURL& url) {
       (CFURLRef)ns_url, kLSRolesAll, out_err.InitializeInto()));
   if (out_err) {
     // likely kLSApplicationNotFoundErr
-    return std::u16string();
+    return base::string16();
   }
   NSString* appPath = [base::mac::CFToNSCast(openingApp.get()) path];
   NSString* appDisplayName =
       [[NSFileManager defaultManager] displayNameAtPath:appPath];
   return base::SysNSStringToUTF16(appDisplayName);
-}
-
-std::vector<base::FilePath> GetAllApplicationPathsForURL(const GURL& url) {
-  NSURL* ns_url = net::NSURLWithGURL(url);
-  NSArray* app_urls = nil;
-  if (@available(macos 12.0, *)) {
-    app_urls =
-        [[NSWorkspace sharedWorkspace] URLsForApplicationsToOpenURL:ns_url];
-  } else {
-    CFArrayRef urls =
-        LSCopyApplicationURLsForURL(base::mac::NSToCFCast(ns_url), kLSRolesAll);
-    app_urls = [base::mac::CFToNSCast(urls) autorelease];
-  }
-  std::vector<base::FilePath> app_paths;
-  if ([app_urls count] == 0)
-    return app_paths;
-  app_paths.reserve([app_urls count]);
-  for (NSURL* app_url in app_urls) {
-    app_paths.push_back(base::mac::NSURLToFilePath(app_url));
-  }
-  return app_paths;
 }
 
 // Attempt to determine if this instance of Chrome is the default browser and
@@ -203,10 +187,9 @@ DefaultWebClientState IsDefaultProtocolClient(const std::string& protocol) {
   if (!my_identifier)
     return UNKNOWN_DEFAULT;
 
-  return IsIdentifierDefaultProtocolClient(my_identifier,
-                                           base::SysUTF8ToNSString(protocol))
-             ? IS_DEFAULT
-             : NOT_DEFAULT;
+  NSString* protocol_ns = [NSString stringWithUTF8String:protocol.c_str()];
+  return IsIdentifierDefaultProtocolClient(my_identifier, protocol_ns) ?
+      IS_DEFAULT : NOT_DEFAULT;
 }
 
 }  // namespace shell_integration

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <memory>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -33,11 +33,6 @@ class ElevatedNativeMessagingHost
                               bool elevate_process,
                               base::TimeDelta host_timeout,
                               extensions::NativeMessageHost::Client* client);
-
-  ElevatedNativeMessagingHost(const ElevatedNativeMessagingHost&) = delete;
-  ElevatedNativeMessagingHost& operator=(const ElevatedNativeMessagingHost&) =
-      delete;
-
   ~ElevatedNativeMessagingHost() override;
 
   // extensions::NativeMessagingChannel::EventHandle implementation.
@@ -62,7 +57,7 @@ class ElevatedNativeMessagingHost
   // Handle of the parent window.
   intptr_t parent_window_handle_;
 
-  // Indicates whether the launched process should be elevated when launched.
+  // Indicates whether the launched process should be elevated when lauinched.
   // Note: Binaries with uiaccess run at a higher UIPI level than the launching
   // process so they still need to be launched and controlled by this class but
   // do not require traditional elevation to function.
@@ -72,7 +67,7 @@ class ElevatedNativeMessagingHost
   base::TimeDelta host_process_timeout_;
 
   // EventHandler of the parent process.
-  raw_ptr<extensions::NativeMessageHost::Client> client_;
+  extensions::NativeMessageHost::Client* client_;
 
   // Native messaging channel used to communicate with the elevated host.
   std::unique_ptr<extensions::NativeMessagingChannel> elevated_channel_;
@@ -81,6 +76,8 @@ class ElevatedNativeMessagingHost
   base::OneShotTimer elevated_host_timer_;
 
   base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(ElevatedNativeMessagingHost);
 };
 
 }  // namespace remoting

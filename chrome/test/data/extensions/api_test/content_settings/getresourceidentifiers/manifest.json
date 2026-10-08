@@ -6,6 +6,6 @@
   "permissions": [ "contentSettings" ],
   "background": {
     "scripts": ["test.js"],
-    "persistent": true
+    "persistent": false
   }
 }

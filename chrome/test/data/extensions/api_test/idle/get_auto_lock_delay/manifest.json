@@ -6,8 +6,7 @@
   "background": {
     "scripts": [
       "test.js"
-    ],
-    "persistent": true
+    ]
   },
   "permissions": [
     "idle"

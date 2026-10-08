@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/network/public/mojom/restricted_cookie_manager.mojom.h"
@@ -34,11 +35,6 @@ class AwProxyingRestrictedCookieManager
       int frame_id,
       mojo::PendingReceiver<network::mojom::RestrictedCookieManager> receiver);
 
-  AwProxyingRestrictedCookieManager(const AwProxyingRestrictedCookieManager&) =
-      delete;
-  AwProxyingRestrictedCookieManager& operator=(
-      const AwProxyingRestrictedCookieManager&) = delete;
-
   ~AwProxyingRestrictedCookieManager() override;
 
   // network::mojom::RestrictedCookieManager interface:
@@ -51,7 +47,6 @@ class AwProxyingRestrictedCookieManager
                           const GURL& url,
                           const net::SiteForCookies& site_for_cookies,
                           const url::Origin& top_frame_origin,
-                          net::CookieInclusionStatus status,
                           SetCanonicalCookieCallback callback) override;
   void AddChangeListener(
       const GURL& url,
@@ -103,6 +98,8 @@ class AwProxyingRestrictedCookieManager
   int frame_id_;
 
   base::WeakPtrFactory<AwProxyingRestrictedCookieManager> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AwProxyingRestrictedCookieManager);
 };
 
 }  // namespace android_webview

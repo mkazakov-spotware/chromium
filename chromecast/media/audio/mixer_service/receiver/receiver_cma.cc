@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chromecast/media/audio/mixer_service/mixer_socket.h"
@@ -21,14 +21,7 @@ namespace media {
 namespace mixer_service {
 
 namespace {
-
-constexpr base::TimeDelta kInactivityTimeout = base::Seconds(5);
-
-enum MessageTypes : int {
-  kPushResult = 1,
-  kEndOfStream,
-};
-
+constexpr base::TimeDelta kInactivityTimeout = base::TimeDelta::FromSeconds(5);
 }  // namespace
 
 class ReceiverCma::UnusedSocket : public MixerSocket::Delegate {
@@ -40,9 +33,6 @@ class ReceiverCma::UnusedSocket : public MixerSocket::Delegate {
     socket_->SetDelegate(this);
   }
 
-  UnusedSocket(const UnusedSocket&) = delete;
-  UnusedSocket& operator=(const UnusedSocket&) = delete;
-
   ~UnusedSocket() override = default;
 
  private:
@@ -51,6 +41,8 @@ class ReceiverCma::UnusedSocket : public MixerSocket::Delegate {
 
   ReceiverCma* const receiver_;
   const std::unique_ptr<MixerSocket> socket_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnusedSocket);
 };
 
 class ReceiverCma::Stream : public MixerSocket::Delegate,
@@ -67,9 +59,6 @@ class ReceiverCma::Stream : public MixerSocket::Delegate,
                             &Stream::OnInactivityTimeout);
   }
 
-  Stream(const Stream&) = delete;
-  Stream& operator=(const Stream&) = delete;
-
   ~Stream() override = default;
 
   // MixerSocket::Delegate implementation:
@@ -85,8 +74,7 @@ class ReceiverCma::Stream : public MixerSocket::Delegate,
 
       pushed_eos_ = false;
       cma_audio_.reset(new mixer_service::CmaBackendShim(
-          weak_factory_.GetWeakPtr(),
-          base::SequencedTaskRunner::GetCurrentDefault(),
+          weak_factory_.GetWeakPtr(), base::SequencedTaskRunnerHandle::Get(),
           message.output_stream_params(), receiver_->backend_manager()));
     }
 
@@ -96,11 +84,6 @@ class ReceiverCma::Stream : public MixerSocket::Delegate,
         return true;
       }
       cma_audio_->SetVolumeMultiplier(message.set_stream_volume().volume());
-    }
-
-    if (message.has_eos_played_out()) {
-      // Explicit EOS.
-      return HandleAudioData(nullptr, 0, INT64_MIN);
     }
 
     return true;
@@ -140,12 +123,20 @@ class ReceiverCma::Stream : public MixerSocket::Delegate,
   // CmaBackendShim::Delegate implementation:
   void OnBufferPushed(CmaBackendShim::RenderingDelay rendering_delay) override {
     if (!pushed_eos_) {
+      int64_t next_playout_timestamp;
+      if (rendering_delay.timestamp_microseconds ==
+          std::numeric_limits<int64_t>::min()) {
+        next_playout_timestamp = std::numeric_limits<int64_t>::min();
+      } else {
+        next_playout_timestamp = rendering_delay.timestamp_microseconds +
+                                 rendering_delay.delay_microseconds;
+      }
+
       mixer_service::BufferPushResult message;
-      message.set_delay_timestamp(rendering_delay.timestamp_microseconds);
-      message.set_delay(rendering_delay.delay_microseconds);
+      message.set_next_playback_timestamp(next_playout_timestamp);
       mixer_service::Generic generic;
       *(generic.mutable_push_result()) = message;
-      socket_->SendProto(kPushResult, generic);
+      socket_->SendProto(generic);
       last_send_time_ = base::TimeTicks::Now();
     }
 
@@ -157,7 +148,7 @@ class ReceiverCma::Stream : public MixerSocket::Delegate,
     mixer_service::EosPlayedOut message;
     mixer_service::Generic generic;
     *generic.mutable_eos_played_out() = message;
-    socket_->SendProto(kEndOfStream, generic);
+    socket_->SendProto(generic);
     last_send_time_ = base::TimeTicks::Now();
 
     cma_audio_.reset();
@@ -182,6 +173,8 @@ class ReceiverCma::Stream : public MixerSocket::Delegate,
   base::TimeTicks last_receive_time_;
 
   base::WeakPtrFactory<Stream> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(Stream);
 };
 
 ReceiverCma::ReceiverCma(MediaPipelineBackendManager* backend_manager)

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 namespace content {
 class BrowserContext;
 class NavigationEntry;
-class NavigationEntryRestoreContext;
 }
 
 namespace sessions {
@@ -46,14 +45,9 @@ class SESSIONS_EXPORT ContentSerializedNavigationBuilder {
   // Convert the given SerializedNavigationEntry into a NavigationEntry with the
   // given context.  The NavigationEntry will have a transition type of
   // PAGE_TRANSITION_RELOAD and a new unique ID.
-  // If a |restore_context| is passed to multiple invocations of this function,
-  // it will detect equivalent per-frame state across different
-  // SerializedNavigationEntries and de-duplicate the resulting per-frame
-  // session history state.
   static std::unique_ptr<content::NavigationEntry> ToNavigationEntry(
       const SerializedNavigationEntry* navigation,
-      content::BrowserContext* browser_context,
-      content::NavigationEntryRestoreContext* restore_context);
+      content::BrowserContext* browser_context);
 
   // Converts a set of SerializedNavigationEntrys into a list of
   // NavigationEntrys with the given context.

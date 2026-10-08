@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 
 namespace blink {
 
-class CSSVisibilityNonInterpolableValue final : public NonInterpolableValue {
+class CSSVisibilityNonInterpolableValue : public NonInterpolableValue {
  public:
   ~CSSVisibilityNonInterpolableValue() final = default;
 
@@ -59,7 +59,7 @@ struct DowncastTraits<CSSVisibilityNonInterpolableValue> {
   }
 };
 
-class UnderlyingVisibilityChecker final
+class UnderlyingVisibilityChecker
     : public CSSInterpolationType::CSSConversionChecker {
  public:
   explicit UnderlyingVisibilityChecker(EVisibility visibility)
@@ -200,7 +200,7 @@ void CSSVisibilityInterpolationType::ApplyStandardPropertyValue(
   EVisibility visibility =
       To<CSSVisibilityNonInterpolableValue>(non_interpolable_value)
           ->Visibility(fraction);
-  state.StyleBuilder().SetVisibility(visibility);
+  state.Style()->SetVisibility(visibility);
 }
 
 }  // namespace blink

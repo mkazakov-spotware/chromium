@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <jni.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "base/supports_user_data.h"
 
 namespace content {
@@ -22,8 +21,7 @@ class RenderFrameHostTestExt : public base::SupportsUserData::Data {
   void ExecuteJavaScript(JNIEnv* env,
                          const base::android::JavaParamRef<jobject>& obj,
                          const base::android::JavaParamRef<jstring>& jscript,
-                         const base::android::JavaParamRef<jobject>& jcallback,
-                         jboolean with_user_gesture);
+                         const base::android::JavaParamRef<jobject>& jcallback);
   // This calls InsertVisualStateCallback(). See it for details on the return
   // value.
   void UpdateVisualState(JNIEnv* env,
@@ -39,7 +37,7 @@ class RenderFrameHostTestExt : public base::SupportsUserData::Data {
       jint height);
 
  private:
-  const raw_ptr<RenderFrameHostImpl> render_frame_host_;
+  RenderFrameHostImpl* const render_frame_host_;
 };
 
 }  // namespace content

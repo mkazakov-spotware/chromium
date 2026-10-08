@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,10 @@ import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ntp.NewTabPageUma;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.query_tiles.QueryTileUtils;
 import org.chromium.chrome.browser.suggestions.SuggestionsDependencyFactory;
 import org.chromium.chrome.browser.suggestions.SuggestionsMetrics;
 import org.chromium.chrome.browser.suggestions.SuggestionsNavigationDelegate;
 import org.chromium.chrome.browser.suggestions.mostvisited.MostVisitedSites;
-import org.chromium.chrome.browser.tasks.ReturnToChromeUtil;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
@@ -66,20 +64,7 @@ public class TileGroupDelegateImpl implements TileGroup.Delegate {
             recordOpenedTile(item);
         }
 
-        mNavigationDelegate.navigateToSuggestionUrl(windowDisposition, url, false);
-        QueryTileUtils.onMostVisitedTileClicked();
-    }
-
-    @Override
-    public void openMostVisitedItemInGroup(int windowDisposition, Tile item) {
-        assert !mIsDestroyed;
-
-        String url = item.getUrl().getSpec();
-
-        recordOpenedTile(item);
-
-        mNavigationDelegate.navigateToSuggestionUrl(windowDisposition, url, true);
-        QueryTileUtils.onMostVisitedTileClicked();
+        mNavigationDelegate.navigateToSuggestionUrl(windowDisposition, url);
     }
 
     @Override
@@ -145,7 +130,6 @@ public class TileGroupDelegateImpl implements TileGroup.Delegate {
     private void recordOpenedTile(Tile tile) {
         NewTabPageUma.recordAction(NewTabPageUma.ACTION_OPENED_MOST_VISITED_TILE);
         RecordUserAction.record("MobileNTPMostVisited");
-        ReturnToChromeUtil.onMVTileOpened();
         mMostVisitedSites.recordOpenedMostVisitedItem(tile);
     }
 }

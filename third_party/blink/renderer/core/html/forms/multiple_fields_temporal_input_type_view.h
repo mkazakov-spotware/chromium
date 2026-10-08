@@ -85,7 +85,7 @@ class MultipleFieldsTemporalInputTypeView final
   Element& PickerOwnerElement() const final;
   bool SetupDateTimeChooserParameters(DateTimeChooserParameters&) final;
   void DidEndChooser() final;
-  String AriaLabelForPickerIndicator() const final;
+  String AriaRoleForPickerIndicator() const final;
 
   // ClearButtonElement::ClearButtonOwner functions.
   void FocusAndSelectClearButtonOwner() override;
@@ -94,12 +94,9 @@ class MultipleFieldsTemporalInputTypeView final
 
   // InputTypeView functions
   void Blur() final;
-  ControlPart AutoAppearance() const override;
-  void OpenPopupView() override;
   void ClosePopupView() override;
   bool HasOpenedPopup() const override;
-  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject(
-      scoped_refptr<ComputedStyle> original_style) override;
+  void CustomStyleForLayoutObject(ComputedStyle& style) override;
   void CreateShadowSubtree() final;
   void DestroyShadowSubtree() final;
   void DisabledAttributeChanged() final;

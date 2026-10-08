@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/fido/ctap_get_assertion_request.h"
 
+#include <algorithm>
 #include <limits>
 #include <utility>
 
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "components/cbor/writer.h"
 #include "device/fido/device_response_converter.h"
 #include "device/fido/fido_constants.h"
@@ -20,8 +20,8 @@ namespace device {
 namespace {
 bool IsGetAssertionOptionMapFormatCorrect(
     const cbor::Value::MapValue& option_map) {
-  return base::ranges::all_of(
-      option_map, [](const auto& param) {
+  return std::all_of(
+      option_map.begin(), option_map.end(), [](const auto& param) {
         return param.first.is_string() &&
                (param.first.GetString() == kUserPresenceMapKey ||
                 param.first.GetString() == kUserVerificationMapKey) &&
@@ -31,8 +31,8 @@ bool IsGetAssertionOptionMapFormatCorrect(
 
 bool AreGetAssertionRequestMapKeysCorrect(
     const cbor::Value::MapValue& request_map) {
-  return base::ranges::all_of(
-      request_map, [](const auto& param) {
+  return std::all_of(
+      request_map.begin(), request_map.end(), [](const auto& param) {
         return (param.first.is_integer() && 1u <= param.first.GetInteger() &&
                 param.first.GetInteger() <= 7u);
       });
@@ -65,22 +65,22 @@ CtapGetAssertionRequest::HMACSecret&
 CtapGetAssertionRequest::HMACSecret::operator=(const HMACSecret&) = default;
 
 // static
-absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
+base::Optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
     const cbor::Value::MapValue& request_map,
     const ParseOpts& opts) {
   if (!AreGetAssertionRequestMapKeysCorrect(request_map))
-    return absl::nullopt;
+    return base::nullopt;
 
   const auto rp_id_it = request_map.find(cbor::Value(1));
   if (rp_id_it == request_map.end() || !rp_id_it->second.is_string())
-    return absl::nullopt;
+    return base::nullopt;
 
   const auto client_data_hash_it = request_map.find(cbor::Value(2));
   if (client_data_hash_it == request_map.end() ||
       !client_data_hash_it->second.is_bytestring() ||
       client_data_hash_it->second.GetBytestring().size() !=
           kClientDataHashLength) {
-    return absl::nullopt;
+    return base::nullopt;
   }
   base::span<const uint8_t, kClientDataHashLength> client_data_hash(
       client_data_hash_it->second.GetBytestring().data(),
@@ -93,11 +93,11 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
   const auto allow_list_it = request_map.find(cbor::Value(3));
   if (allow_list_it != request_map.end()) {
     if (!allow_list_it->second.is_array())
-      return absl::nullopt;
+      return base::nullopt;
 
     const auto& credential_descriptors = allow_list_it->second.GetArray();
     if (credential_descriptors.empty())
-      return absl::nullopt;
+      return base::nullopt;
 
     std::vector<PublicKeyCredentialDescriptor> allow_list;
     for (const auto& credential_descriptor : credential_descriptors) {
@@ -105,7 +105,7 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
           PublicKeyCredentialDescriptor::CreateFromCBORValue(
               credential_descriptor);
       if (!allowed_credential)
-        return absl::nullopt;
+        return base::nullopt;
 
       allow_list.push_back(std::move(*allowed_credential));
     }
@@ -115,37 +115,45 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
   const auto extensions_it = request_map.find(cbor::Value(4));
   if (extensions_it != request_map.end()) {
     if (!extensions_it->second.is_map()) {
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     const cbor::Value::MapValue& extensions = extensions_it->second.GetMap();
     if (opts.reject_all_extensions && !extensions.empty()) {
-      return absl::nullopt;
+      return base::nullopt;
     }
 
     for (const auto& extension : extensions) {
       if (!extension.first.is_string()) {
-        return absl::nullopt;
+        return base::nullopt;
       }
 
       const std::string& extension_id = extension.first.GetString();
-      if (extension_id == kExtensionHmacSecret) {
+      if (extension_id == kExtensionAndroidClientData) {
+        base::Optional<AndroidClientDataExtensionInput>
+            android_client_data_ext =
+                AndroidClientDataExtensionInput::Parse(extension.second);
+        if (!android_client_data_ext) {
+          return base::nullopt;
+        }
+        request.android_client_data_ext = std::move(*android_client_data_ext);
+      } else if (extension_id == kExtensionHmacSecret) {
         if (!extension.second.is_map()) {
-          return absl::nullopt;
+          return base::nullopt;
         }
         const auto& hmac_extension = extension.second.GetMap();
 
         auto hmac_it = hmac_extension.find(cbor::Value(1));
         if (hmac_it == hmac_extension.end() || !hmac_it->second.is_map()) {
-          return absl::nullopt;
+          return base::nullopt;
         }
-        const absl::optional<pin::KeyAgreementResponse> key(
+        const base::Optional<pin::KeyAgreementResponse> key(
             pin::KeyAgreementResponse::ParseFromCOSE(hmac_it->second.GetMap()));
 
         hmac_it = hmac_extension.find(cbor::Value(2));
         if (hmac_it == hmac_extension.end() ||
             !hmac_it->second.is_bytestring()) {
-          return absl::nullopt;
+          return base::nullopt;
         }
         const std::vector<uint8_t>& encrypted_salts =
             hmac_it->second.GetBytestring();
@@ -153,7 +161,7 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
         hmac_it = hmac_extension.find(cbor::Value(3));
         if (hmac_it == hmac_extension.end() ||
             !hmac_it->second.is_bytestring()) {
-          return absl::nullopt;
+          return base::nullopt;
         }
         const std::vector<uint8_t>& salts_auth =
             hmac_it->second.GetBytestring();
@@ -161,28 +169,15 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
         if (!key ||
             (encrypted_salts.size() != 32 && encrypted_salts.size() != 64) ||
             salts_auth.size() != 16) {
-          return absl::nullopt;
+          return base::nullopt;
         }
 
         request.hmac_secret.emplace(key->X962(), encrypted_salts, salts_auth);
       } else if (extension_id == kExtensionLargeBlobKey) {
         if (!extension.second.is_bool() || !extension.second.GetBool()) {
-          return absl::nullopt;
+          return base::nullopt;
         }
         request.large_blob_key = true;
-      } else if (extension_id == kExtensionCredBlob) {
-        if (!extension.second.is_bool() || !extension.second.GetBool()) {
-          return absl::nullopt;
-        }
-        request.get_cred_blob = true;
-      } else if (extension_id == kExtensionDevicePublicKey) {
-        // There's not currently any support for the ep bit in assertion
-        // requests so DPK requests are assumed to be ep=1 only.
-        request.device_public_key = DevicePublicKeyRequest::FromCBOR(
-            extension.second, /* ep_approved_by_browser= */ false);
-        if (!request.device_public_key) {
-          return absl::nullopt;
-        }
       }
     }
   }
@@ -190,11 +185,11 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
   const auto option_it = request_map.find(cbor::Value(5));
   if (option_it != request_map.end()) {
     if (!option_it->second.is_map())
-      return absl::nullopt;
+      return base::nullopt;
 
     const auto& option_map = option_it->second.GetMap();
     if (!IsGetAssertionOptionMapFormatCorrect(option_map))
-      return absl::nullopt;
+      return base::nullopt;
 
     const auto user_presence_option =
         option_map.find(cbor::Value(kUserPresenceMapKey));
@@ -215,7 +210,7 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
   const auto pin_auth_it = request_map.find(cbor::Value(6));
   if (pin_auth_it != request_map.end()) {
     if (!pin_auth_it->second.is_bytestring())
-      return absl::nullopt;
+      return base::nullopt;
 
     request.pin_auth = pin_auth_it->second.GetBytestring();
   }
@@ -225,12 +220,12 @@ absl::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
     if (!pin_protocol_it->second.is_unsigned() ||
         pin_protocol_it->second.GetUnsigned() >
             std::numeric_limits<uint8_t>::max()) {
-      return absl::nullopt;
+      return base::nullopt;
     }
-    absl::optional<PINUVAuthProtocol> pin_protocol =
+    base::Optional<PINUVAuthProtocol> pin_protocol =
         ToPINUVAuthProtocol(pin_protocol_it->second.GetUnsigned());
     if (!pin_protocol) {
-      return absl::nullopt;
+      return base::nullopt;
     }
     request.pin_protocol = *pin_protocol;
   }
@@ -260,7 +255,7 @@ CtapGetAssertionRequest& CtapGetAssertionRequest::operator=(
 
 CtapGetAssertionRequest::~CtapGetAssertionRequest() = default;
 
-std::pair<CtapRequestCommand, absl::optional<cbor::Value>>
+std::pair<CtapRequestCommand, base::Optional<cbor::Value>>
 AsCTAPRequestValuePair(const CtapGetAssertionRequest& request) {
   cbor::Value::MapValue cbor_map;
   cbor_map[cbor::Value(1)] = cbor::Value(request.rp_id);
@@ -276,6 +271,11 @@ AsCTAPRequestValuePair(const CtapGetAssertionRequest& request) {
 
   cbor::Value::MapValue extensions;
 
+  if (request.android_client_data_ext) {
+    extensions.emplace(kExtensionAndroidClientData,
+                       AsCBOR(*request.android_client_data_ext));
+  }
+
   if (request.large_blob_key) {
     extensions.emplace(kExtensionLargeBlobKey, cbor::Value(true));
   }
@@ -288,15 +288,6 @@ AsCTAPRequestValuePair(const CtapGetAssertionRequest& request) {
     hmac_extension.emplace(2, hmac_secret.encrypted_salts);
     hmac_extension.emplace(3, hmac_secret.salts_auth);
     extensions.emplace(kExtensionHmacSecret, std::move(hmac_extension));
-  }
-
-  if (request.get_cred_blob) {
-    extensions.emplace(kExtensionCredBlob, true);
-  }
-
-  if (request.device_public_key) {
-    extensions.emplace(kExtensionDevicePublicKey,
-                       request.device_public_key->ToCBOR());
   }
 
   if (!extensions.empty()) {
@@ -333,10 +324,10 @@ AsCTAPRequestValuePair(const CtapGetAssertionRequest& request) {
                         cbor::Value(std::move(cbor_map)));
 }
 
-std::pair<CtapRequestCommand, absl::optional<cbor::Value>>
+std::pair<CtapRequestCommand, base::Optional<cbor::Value>>
 AsCTAPRequestValuePair(const CtapGetNextAssertionRequest&) {
   return std::make_pair(CtapRequestCommand::kAuthenticatorGetNextAssertion,
-                        absl::nullopt);
+                        base::nullopt);
 }
 
 }  // namespace device

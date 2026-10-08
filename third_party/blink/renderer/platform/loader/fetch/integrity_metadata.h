@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,8 +56,10 @@ enum class IntegrityAlgorithm : uint8_t { kSha256, kSha384, kSha512 };
 namespace WTF {
 
 template <>
-struct DefaultHash<blink::IntegrityAlgorithm>
-    : IntHash<blink::IntegrityAlgorithm> {};
+struct DefaultHash<blink::IntegrityAlgorithm> {
+  STATIC_ONLY(DefaultHash);
+  typedef IntHash<blink::IntegrityAlgorithm> Hash;
+};
 
 template <>
 struct HashTraits<blink::IntegrityAlgorithm>
@@ -67,4 +69,4 @@ struct HashTraits<blink::IntegrityAlgorithm>
 
 }  // namespace WTF
 
-#endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_INTEGRITY_METADATA_H_
+#endif

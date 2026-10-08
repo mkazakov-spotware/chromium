@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "ash/root_window_controller.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
+#include "ash/window_factory.h"
 #include "ash/wm/container_finder.h"
 #include "ash/wm/window_util.h"
 #include "base/command_line.h"
@@ -73,10 +74,6 @@ class TestWindow : public views::WidgetDelegateView {
     SetModalType(modal ? ui::MODAL_TYPE_SYSTEM : ui::MODAL_TYPE_NONE);
     SetPreferredSize(gfx::Size(50, 50));
   }
-
-  TestWindow(const TestWindow&) = delete;
-  TestWindow& operator=(const TestWindow&) = delete;
-
   ~TestWindow() override = default;
 
   // The window needs be closed from widget in order for
@@ -84,15 +81,14 @@ class TestWindow : public views::WidgetDelegateView {
   static void CloseTestWindow(aura::Window* window) {
     views::Widget::GetWidgetForNativeWindow(window)->Close();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestWindow);
 };
 
 class EventTestWindow : public TestWindow {
  public:
   explicit EventTestWindow(bool modal) : TestWindow(modal), mouse_presses_(0) {}
-
-  EventTestWindow(const EventTestWindow&) = delete;
-  EventTestWindow& operator=(const EventTestWindow&) = delete;
-
   ~EventTestWindow() override = default;
 
   aura::Window* ShowTestWindowWithContext(aura::Window* context) {
@@ -119,15 +115,13 @@ class EventTestWindow : public TestWindow {
 
  private:
   int mouse_presses_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventTestWindow);
 };
 
 class TransientWindowObserver : public aura::WindowObserver {
  public:
   TransientWindowObserver() : destroyed_(false) {}
-
-  TransientWindowObserver(const TransientWindowObserver&) = delete;
-  TransientWindowObserver& operator=(const TransientWindowObserver&) = delete;
-
   ~TransientWindowObserver() override = default;
 
   bool destroyed() const { return destroyed_; }
@@ -137,6 +131,8 @@ class TransientWindowObserver : public aura::WindowObserver {
 
  private:
   bool destroyed_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransientWindowObserver);
 };
 
 }  // namespace
@@ -479,7 +475,7 @@ TEST_F(SystemModalContainerLayoutManagerTest, ModalTransientChildEvents) {
   aura::test::EventCountDelegate control_delegate;
   control_delegate.set_window_component(HTCLIENT);
   std::unique_ptr<aura::Window> child =
-      std::make_unique<aura::Window>(&control_delegate);
+      window_factory::NewWindow(&control_delegate);
   child->SetType(aura::client::WINDOW_TYPE_CONTROL);
   child->Init(ui::LAYER_TEXTURED);
   modal1_transient->AddChild(child.get());
@@ -552,12 +548,11 @@ TEST_F(SystemModalContainerLayoutManagerTest, ShowModalWhileHidden) {
 TEST_F(SystemModalContainerLayoutManagerTest, ChangeCapture) {
   std::unique_ptr<aura::Window> widget_window(ShowToplevelTestWindow(false));
   views::test::CaptureTrackingView* view = new views::test::CaptureTrackingView;
-  views::View* client_view =
+  views::View* contents_view =
       views::Widget::GetWidgetForNativeView(widget_window.get())
-          ->non_client_view()
-          ->client_view();
-  client_view->AddChildView(view);
-  view->SetBoundsRect(client_view->bounds());
+          ->GetContentsView();
+  contents_view->AddChildView(view);
+  view->SetBoundsRect(contents_view->bounds());
 
   gfx::Point center(view->width() / 2, view->height() / 2);
   views::View::ConvertPointToScreen(view, &center);
@@ -668,11 +663,11 @@ TEST_F(SystemModalContainerLayoutManagerTest, ShowNormalBackgroundOrLocked) {
 
     // Normal system modal window while blocked, but it belongs to the normal
     // window.  Shouldn't show blocked system modal background, but normal.
-    std::unique_ptr<aura::Window> modal_window_while_blocked(
+    std::unique_ptr<aura::Window> modal_window(
         ShowTestWindowWithParent(parent.get(), true));
     EXPECT_TRUE(AllRootWindowsHaveModalBackgrounds());
     EXPECT_FALSE(AllRootWindowsHaveLockedModalBackgrounds());
-    TestWindow::CloseTestWindow(modal_window_while_blocked.release());
+    TestWindow::CloseTestWindow(modal_window.release());
 
     // Close |lock_parent| before unlocking so that Shell::OnLockStateChanged
     // does not DCHECK on finding a system modal in Lock layer when unlocked.
@@ -687,7 +682,7 @@ TEST_F(SystemModalContainerLayoutManagerTest, ShowNormalBackgroundOrLocked) {
 }
 
 TEST_F(SystemModalContainerLayoutManagerTest, MultiDisplays) {
-  UpdateDisplay("600x500,600x500");
+  UpdateDisplay("500x500,500x500");
 
   std::unique_ptr<aura::Window> normal(ShowToplevelTestWindow(false));
   normal->SetBounds(gfx::Rect(100, 100, 50, 50));
@@ -725,11 +720,11 @@ TEST_F(SystemModalContainerLayoutManagerTest, MultiDisplays) {
   EXPECT_TRUE(AllRootWindowsHaveModalBackgrounds());
   EXPECT_TRUE(wm::IsActiveWindow(modal1.get()));
 
-  UpdateDisplay("600x500");
+  UpdateDisplay("500x500");
   EXPECT_TRUE(AllRootWindowsHaveModalBackgrounds());
   EXPECT_TRUE(wm::IsActiveWindow(modal1.get()));
 
-  UpdateDisplay("600x500,700x600");
+  UpdateDisplay("500x500,600x600");
   EXPECT_TRUE(AllRootWindowsHaveModalBackgrounds());
   EXPECT_TRUE(wm::IsActiveWindow(modal1.get()));
 
@@ -874,7 +869,7 @@ TEST_F(SystemModalContainerLayoutManagerTest, VisibilityChange) {
 
   // Make sure that a child visibility change should not cause
   // inconsistent state.
-  std::unique_ptr<aura::Window> child = std::make_unique<aura::Window>(nullptr);
+  std::unique_ptr<aura::Window> child = window_factory::NewWindow();
   child->SetType(aura::client::WINDOW_TYPE_CONTROL);
   child->Init(ui::LAYER_TEXTURED);
   modal_window->AddChild(child.get());
@@ -896,10 +891,6 @@ namespace {
 class InputTestDelegate : public aura::test::TestWindowDelegate {
  public:
   InputTestDelegate() = default;
-
-  InputTestDelegate(const InputTestDelegate&) = delete;
-  InputTestDelegate& operator=(const InputTestDelegate&) = delete;
-
   ~InputTestDelegate() override = default;
 
   void RunTest(AshTestBase* test_base) {
@@ -973,6 +964,8 @@ class InputTestDelegate : public aura::test::TestWindowDelegate {
   int scroll_event_count_ = 0;
   int touch_event_count_ = 0;
   int gesture_event_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(InputTestDelegate);
 };
 
 }  // namespace
@@ -984,7 +977,7 @@ TEST_F(SystemModalContainerLayoutManagerTest, BlockAllEvents) {
 
 // Make sure that events are properly blocked in multi displays environment.
 TEST_F(SystemModalContainerLayoutManagerTest, BlockEventsInMultiDisplays) {
-  UpdateDisplay("600x500, 600x500");
+  UpdateDisplay("500x500, 500x500");
   InputTestDelegate delegate;
   delegate.RunTest(this);
 }

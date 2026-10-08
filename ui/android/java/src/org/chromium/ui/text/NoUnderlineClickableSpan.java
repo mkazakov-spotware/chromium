@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.text;
 
-import android.content.Context;
 import android.content.res.Resources;
 import android.text.TextPaint;
 import android.text.style.ClickableSpan;
@@ -12,9 +11,9 @@ import android.view.View;
 
 import androidx.annotation.ColorRes;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.ui.R;
-import org.chromium.ui.util.AttrUtils;
 
 /**
  * Shows a blue clickable link with underlines turned off.
@@ -24,23 +23,21 @@ public class NoUnderlineClickableSpan extends ClickableSpan {
     private final Callback<View> mOnClick;
 
     /**
-     * @param context The {@link Context} used for accessing colors.
+     * @param resources The {@link Resources} used for accessing colors.
      * @param onClickCallback The callback notified when the span is clicked.
      */
-    public NoUnderlineClickableSpan(Context context, Callback<View> onClickCallback) {
-        mColor = AttrUtils.resolveColor(context.getTheme(), R.attr.globalClickableSpanColor,
-                R.color.default_text_color_link_baseline);
-        mOnClick = onClickCallback;
+    public NoUnderlineClickableSpan(Resources resources, Callback<View> onClickCallback) {
+        this(resources, R.color.default_text_color_link, onClickCallback);
     }
 
     /**
-     * @param context The {@link Resources} used for accessing colors.
+     * @param resources The {@link Resources} used for accessing colors.
      * @param colorResId The {@link ColorRes} of this clickable span.
      * @param onClickCallback The callback notified when the span is clicked.
      */
     public NoUnderlineClickableSpan(
-            Context context, @ColorRes int colorResId, Callback<View> onClickCallback) {
-        mColor = context.getColor(colorResId);
+            Resources resources, @ColorRes int colorResId, Callback<View> onClickCallback) {
+        mColor = ApiCompatibilityUtils.getColor(resources, colorResId);
         mOnClick = onClickCallback;
     }
 

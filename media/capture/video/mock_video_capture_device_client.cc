@@ -1,11 +1,8 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/capture/video/mock_video_capture_device_client.h"
-
-#include "base/memory/raw_ptr.h"
-#include "media/base/video_frame.h"
 
 using testing::_;
 using testing::Invoke;
@@ -25,7 +22,7 @@ class StubBufferHandle : public VideoCaptureBufferHandle {
 
  private:
   const size_t mapped_size_;
-  const raw_ptr<uint8_t> data_;
+  uint8_t* const data_;
 };
 
 class StubBufferHandleProvider
@@ -41,6 +38,11 @@ class StubBufferHandleProvider
     return {};
   }
 
+  mojo::ScopedSharedBufferHandle DuplicateAsMojoBuffer() override {
+    NOTREACHED();
+    return mojo::ScopedSharedBufferHandle();
+  }
+
   std::unique_ptr<VideoCaptureBufferHandle> GetHandleForInProcessAccess()
       override {
     return std::make_unique<StubBufferHandle>(mapped_size_, data_);
@@ -52,7 +54,7 @@ class StubBufferHandleProvider
 
  private:
   const size_t mapped_size_;
-  const raw_ptr<uint8_t> data_;
+  uint8_t* const data_;
 };
 
 class StubReadWritePermission
@@ -62,7 +64,7 @@ class StubReadWritePermission
   ~StubReadWritePermission() override { delete[] data_; }
 
  private:
-  const raw_ptr<uint8_t> data_;
+  uint8_t* const data_;
 };
 
 VideoCaptureDevice::Client::Buffer CreateStubBuffer(int buffer_id,
@@ -113,9 +115,7 @@ MockVideoCaptureDeviceClient::CreateMockClientWithBufferAllocator(
                     VideoCaptureDevice::Client::Buffer* buffer) {
             EXPECT_GT(dimensions.GetArea(), 0);
             const VideoCaptureFormat frame_format(dimensions, 0.0, format);
-            *buffer = CreateStubBuffer(
-                0, VideoFrame::AllocationSize(frame_format.pixel_format,
-                                              frame_format.frame_size));
+            *buffer = CreateStubBuffer(0, frame_format.ImageAllocationSize());
             return VideoCaptureDevice::Client::ReserveResult::kSucceeded;
           }));
   ON_CALL(*result, OnIncomingCapturedData(_, _, _, _, _, _, _, _, _))

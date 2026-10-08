@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,8 @@ UsbInternalsTest.prototype = {
   __proto__: testing.Test.prototype,
 
   /** @override */
-  browsePreload: 'chrome://usb-internals/',
+  browsePreload:
+      'chrome://usb-internals/test_loader.html?module=usb_internals_test.js',
 
   /** @override */
   isAsync: true,
@@ -30,15 +31,7 @@ UsbInternalsTest.prototype = {
   ],
 };
 
-TEST_F('UsbInternalsTest', 'WebUIValueRenderTest', async function() {
-  const module = await import('chrome://resources/js/static_types.js');
-  const script = document.createElement('script');
-  script.type = 'module';
-  script.onload = () => {
-    // Run all registered tests.
-    mocha.run();
-  };
-  script.src =
-      module.getTrustedScriptURL`chrome://webui-test/usb_internals_test.js`;
-  document.body.appendChild(script);
+TEST_F('UsbInternalsTest', 'WebUIValueRenderTest', function() {
+  // Run all registered tests.
+  mocha.run();
 });

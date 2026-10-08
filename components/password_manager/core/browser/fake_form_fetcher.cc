@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/containers/contains.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
 #include "components/password_manager/core/browser/statistics_table.h"
@@ -38,9 +37,9 @@ const std::vector<InteractionsStats>& FakeFormFetcher::GetInteractionsStats()
   return stats_;
 }
 
-std::vector<const PasswordForm*> FakeFormFetcher::GetInsecureCredentials()
-    const {
-  return insecure_credentials_;
+base::span<const CompromisedCredentials>
+FakeFormFetcher::GetCompromisedCredentials() const {
+  return base::make_span(compromised_);
 }
 
 std::vector<const PasswordForm*> FakeFormFetcher::GetNonFederatedMatches()
@@ -52,12 +51,12 @@ std::vector<const PasswordForm*> FakeFormFetcher::GetFederatedMatches() const {
   return federated_;
 }
 
-bool FakeFormFetcher::IsBlocklisted() const {
-  return is_blocklisted_;
+bool FakeFormFetcher::IsBlacklisted() const {
+  return is_blacklisted_;
 }
 
 bool FakeFormFetcher::IsMovingBlocked(const autofill::GaiaIdHash& destination,
-                                      const std::u16string& username) const {
+                                      const base::string16& username) const {
   // This is analogous to the implementation in
   // MultiStoreFormFetcher::IsMovingBlocked().
   for (const std::vector<const PasswordForm*>& matches_vector :
@@ -68,11 +67,9 @@ bool FakeFormFetcher::IsMovingBlocked(const autofill::GaiaIdHash& destination,
       // entries anyway).
       if (form->IsUsingAccountStore())
         continue;
-      // Ignore non-exact matches for blocking moving.
-      if (password_manager_util::GetMatchType(*form) !=
-          password_manager_util::GetLoginMatchType::kExact) {
+      // Ignore PSL matches for blocking moving.
+      if (form->is_public_suffix_match)
         continue;
-      }
       if (form->username_value != username)
         continue;
       if (base::Contains(form->moving_blocked_for_list, destination))
@@ -108,8 +105,8 @@ void FakeFormFetcher::SetNonFederated(
                                          &best_matches_, &preferred_match_);
 }
 
-void FakeFormFetcher::SetBlocklisted(bool is_blocklisted) {
-  is_blocklisted_ = is_blocklisted;
+void FakeFormFetcher::SetBlacklisted(bool is_blacklisted) {
+  is_blacklisted_ = is_blacklisted;
 }
 
 void FakeFormFetcher::NotifyFetchCompleted() {
@@ -117,15 +114,4 @@ void FakeFormFetcher::NotifyFetchCompleted() {
   for (Consumer& consumer : consumers_)
     consumer.OnFetchCompleted();
 }
-
-absl::optional<PasswordStoreBackendError>
-FakeFormFetcher::GetProfileStoreBackendError() const {
-  return profile_store_backend_error_;
-}
-
-void FakeFormFetcher::SetProfileStoreBackendError(
-    absl::optional<PasswordStoreBackendError> error) {
-  profile_store_backend_error_ = error;
-}
-
 }  // namespace password_manager

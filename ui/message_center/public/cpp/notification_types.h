@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,7 @@ namespace message_center {
 // recoded in a histogram, updates should not change the entries' values.
 enum NotificationType {
   NOTIFICATION_TYPE_SIMPLE = 0,
-  DEPRECATED_NOTIFICATION_TYPE_BASE_FORMAT =
-      1,  // Use NOTIFICATION_TYPE_SIMPLE instead.
+  NOTIFICATION_TYPE_BASE_FORMAT = 1,
   NOTIFICATION_TYPE_IMAGE = 2,
   NOTIFICATION_TYPE_MULTIPLE = 3,
   NOTIFICATION_TYPE_PROGRESS = 4,  // Notification with progress bar.

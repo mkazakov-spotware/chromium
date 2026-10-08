@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "gpu/command_buffer/service/gl_utils.h"
 #include "gpu/command_buffer/service/indexed_buffer_binding_host.h"
@@ -84,7 +83,7 @@ class GPU_GLES2_EXPORT TransformFeedback : public IndexedBufferBindingHost {
   ~TransformFeedback() override;
 
   // The manager that owns this Buffer.
-  raw_ptr<TransformFeedbackManager> manager_;
+  TransformFeedbackManager* manager_;
 
   GLuint client_id_;
   GLuint service_id_;
@@ -106,10 +105,6 @@ class GPU_GLES2_EXPORT TransformFeedbackManager {
   // out-of-bounds buffer accesses.
   TransformFeedbackManager(GLuint max_transform_feedback_separate_attribs,
                            bool needs_emulation);
-
-  TransformFeedbackManager(const TransformFeedbackManager&) = delete;
-  TransformFeedbackManager& operator=(const TransformFeedbackManager&) = delete;
-
   ~TransformFeedbackManager();
 
   void MarkContextLost() {
@@ -150,6 +145,8 @@ class GPU_GLES2_EXPORT TransformFeedbackManager {
 
   bool needs_emulation_;
   bool lost_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransformFeedbackManager);
 };
 
 }  // namespace gles2

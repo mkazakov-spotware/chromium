@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <CoreText/CoreText.h>
 
 #include <limits>
-#include <string>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -18,8 +17,7 @@
 #import "base/mac/foundation_util.h"
 #include "base/mac/scoped_cftyperef.h"
 #import "base/mac/scoped_nsobject.h"
-#include "base/memory/read_only_shared_memory_region.h"
-#include "base/numerics/safe_conversions.h"
+#include "base/strings/string16.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
@@ -29,7 +27,7 @@ namespace content {
 namespace {
 
 std::unique_ptr<FontLoader::ResultInternal> LoadFontOnFileThread(
-    const std::u16string& font_name,
+    const base::string16& font_name,
     const float font_point_size) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
@@ -78,22 +76,22 @@ std::unique_ptr<FontLoader::ResultInternal> LoadFontOnFileThread(
 
   auto result = std::make_unique<FontLoader::ResultInternal>();
 
-  // Note: despite the fact that CTFontDescriptorFromBuffer() takes a uint32_t
-  // size, this intentionally works with int32_t since base::ReadFile()'s max
-  // size arg is an int...
-  int32_t font_file_size_32 = base::checked_cast<int32_t>(font_file_size_64);
-  auto region_and_mapping =
-      base::ReadOnlySharedMemoryRegion::Create(font_file_size_32);
-
-  if (!region_and_mapping.IsValid()) {
+  int32_t font_file_size_32 = static_cast<int32_t>(font_file_size_64);
+  result->font_data = mojo::SharedBufferHandle::Create(font_file_size_32);
+  if (!result->font_data.is_valid()) {
     DLOG(ERROR) << "Failed to create shmem area for " << font_name;
     return nullptr;
   }
-  result->font_data = std::move(region_and_mapping.region);
 
-  int32_t amt_read =
-      base::ReadFile(font_path, region_and_mapping.mapping.GetMemoryAs<char>(),
-                     font_file_size_32);
+  mojo::ScopedSharedBufferMapping mapping =
+      result->font_data->Map(font_file_size_32);
+  if (!mapping) {
+    DLOG(ERROR) << "Failed to create shmem mapping for " << font_name;
+    return nullptr;
+  }
+
+  int32_t amt_read = base::ReadFile(
+      font_path, static_cast<char*>(mapping.get()), font_file_size_32);
   if (amt_read != font_file_size_32) {
     DLOG(ERROR) << "Failed to read font data for " << font_path.value();
     return nullptr;
@@ -114,7 +112,7 @@ std::unique_ptr<FontLoader::ResultInternal> LoadFontOnFileThread(
 void ReplyOnUIThread(FontLoader::LoadedCallback callback,
                      std::unique_ptr<FontLoader::ResultInternal> result) {
   if (!result) {
-    std::move(callback).Run(base::ReadOnlySharedMemoryRegion(), 0);
+    std::move(callback).Run(mojo::ScopedSharedBufferHandle(), 0);
     return;
   }
 
@@ -129,7 +127,7 @@ FontLoader::ResultInternal::ResultInternal() = default;
 FontLoader::ResultInternal::~ResultInternal() = default;
 
 // static
-void FontLoader::LoadFont(const std::u16string& font_name,
+void FontLoader::LoadFont(const base::string16& font_name,
                           const float font_point_size,
                           LoadedCallback callback) {
   // Tasks are triggered when font loading in the sandbox fails. Usually due to
@@ -146,14 +144,15 @@ void FontLoader::LoadFont(const std::u16string& font_name,
 
 // static
 bool FontLoader::CTFontDescriptorFromBuffer(
-    base::ReadOnlySharedMemoryRegion font_data,
+    mojo::ScopedSharedBufferHandle font_data,
+    uint32_t font_data_size,
     base::ScopedCFTypeRef<CTFontDescriptorRef>* out_descriptor) {
   out_descriptor->reset();
-  base::ReadOnlySharedMemoryMapping mapping = font_data.Map();
-  if (!mapping.IsValid())
+  mojo::ScopedSharedBufferMapping mapping = font_data->Map(font_data_size);
+  if (!mapping)
     return false;
 
-  NSData* data = [NSData dataWithBytes:mapping.memory() length:mapping.size()];
+  NSData* data = [NSData dataWithBytes:mapping.get() length:font_data_size];
   base::ScopedCFTypeRef<CTFontDescriptorRef> data_descriptor(
       CTFontManagerCreateFontDescriptorFromData(base::mac::NSToCFCast(data)));
 
@@ -166,7 +165,7 @@ bool FontLoader::CTFontDescriptorFromBuffer(
 
 // static
 std::unique_ptr<FontLoader::ResultInternal> FontLoader::LoadFontForTesting(
-    const std::u16string& font_name,
+    const base::string16& font_name,
     const float font_point_size) {
   return LoadFontOnFileThread(font_name, font_point_size);
 }

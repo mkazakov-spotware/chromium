@@ -1,23 +1,24 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/policy/browser_dm_token_storage_ios.h"
+#include "ios/chrome/browser/policy/browser_dm_token_storage_ios.h"
 
 #import <Foundation/Foundation.h>
 
-#import "base/base64url.h"
-#import "base/files/file_util.h"
-#import "base/files/important_file_writer.h"
-#import "base/hash/sha1.h"
-#import "base/ios/device_util.h"
-#import "base/mac/backup_util.h"
-#import "base/path_service.h"
-#import "base/strings/string_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/strings/utf_string_conversions.h"
-#import "base/task/thread_pool.h"
+#include "base/base64url.h"
+#include "base/files/file_util.h"
+#include "base/files/important_file_writer.h"
+#include "base/hash/sha1.h"
+#include "base/ios/device_util.h"
+#include "base/path_service.h"
+#include "base/strings/string_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/task/post_task.h"
+#include "base/task/thread_pool.h"
 #import "components/policy/core/common/policy_loader_ios_constants.h"
+#include "ios/chrome/browser/file_metadata_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -53,7 +54,7 @@ bool GetDmTokenFilePath(base::FilePath* token_file_path,
 bool StoreDMTokenInDirAppDataDir(const std::string& token,
                                  const std::string& client_id) {
   base::FilePath token_file_path;
-  if (!GetDmTokenFilePath(&token_file_path, client_id, /*create_dir=*/true)) {
+  if (!GetDmTokenFilePath(&token_file_path, client_id, true)) {
     NOTREACHED();
     return false;
   }
@@ -62,18 +63,8 @@ bool StoreDMTokenInDirAppDataDir(const std::string& token,
     return false;
   }
 
-  base::mac::SetBackupExclusion(token_file_path);
+  SetSkipSystemBackupAttributeToItem(token_file_path, true);
   return true;
-}
-
-bool DeleteDMTokenFromAppDataDir(const std::string& client_id) {
-  base::FilePath token_file_path;
-  if (!GetDmTokenFilePath(&token_file_path, client_id, /*create_dir=*/false)) {
-    NOTREACHED();
-    return false;
-  }
-
-  return base::DeleteFile(token_file_path);
 }
 
 }  // namespace
@@ -84,7 +75,7 @@ BrowserDMTokenStorageIOS::BrowserDMTokenStorageIOS()
 BrowserDMTokenStorageIOS::~BrowserDMTokenStorageIOS() {}
 
 std::string BrowserDMTokenStorageIOS::InitClientId() {
-  return ios::device_util::GetVendorId();
+  return ios::device_util::GetDeviceIdentifier(nullptr);
 }
 
 std::string BrowserDMTokenStorageIOS::InitEnrollmentToken() {
@@ -94,8 +85,9 @@ std::string BrowserDMTokenStorageIOS::InitEnrollmentToken() {
       raw_policies[base::SysUTF8ToNSString(kEnrollmentTokenPolicyName)];
 
   if (token) {
-    return std::string(base::TrimWhitespaceASCII(base::SysNSStringToUTF8(token),
-                                                 base::TRIM_ALL));
+    return base::TrimWhitespaceASCII(base::SysNSStringToUTF8(token),
+                                     base::TRIM_ALL)
+        .as_string();
   }
 
   return std::string();
@@ -103,15 +95,14 @@ std::string BrowserDMTokenStorageIOS::InitEnrollmentToken() {
 
 std::string BrowserDMTokenStorageIOS::InitDMToken() {
   base::FilePath token_file_path;
-  if (!GetDmTokenFilePath(&token_file_path, InitClientId(),
-                          /*create_dir=*/false))
+  if (!GetDmTokenFilePath(&token_file_path, InitClientId(), false))
     return std::string();
 
   std::string token;
   if (!base::ReadFileToString(token_file_path, &token))
     return std::string();
 
-  return std::string(base::TrimWhitespaceASCII(token, base::TRIM_ALL));
+  return base::TrimWhitespaceASCII(token, base::TRIM_ALL).as_string();
 }
 
 bool BrowserDMTokenStorageIOS::InitEnrollmentErrorOption() {
@@ -123,11 +114,6 @@ BrowserDMTokenStorage::StoreTask BrowserDMTokenStorageIOS::SaveDMTokenTask(
     const std::string& token,
     const std::string& client_id) {
   return base::BindOnce(&StoreDMTokenInDirAppDataDir, token, client_id);
-}
-
-BrowserDMTokenStorage::StoreTask BrowserDMTokenStorageIOS::DeleteDMTokenTask(
-    const std::string& client_id) {
-  return base::BindOnce(&DeleteDMTokenFromAppDataDir, client_id);
 }
 
 scoped_refptr<base::TaskRunner>

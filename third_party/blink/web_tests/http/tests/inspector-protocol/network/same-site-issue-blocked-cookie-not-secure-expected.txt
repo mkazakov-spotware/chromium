@@ -2,9 +2,9 @@ Verifies that setting a cookie with SameSite=None and without Secure triggers an
 
 Inspector issue:{
     issue : {
-        code : CookieIssue
+        code : SameSiteCookieIssue
         details : {
-            cookieIssueDetails : {
+            sameSiteCookieIssueDetails : {
                 cookie : {
                     domain : cookie.test
                     name : name

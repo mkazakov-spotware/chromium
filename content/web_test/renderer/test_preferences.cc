@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,7 @@ void TestPreferences::Reset() {
   caret_browsing_enabled = false;
   allow_universal_access_from_file_urls = false;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   editing_behavior = blink::mojom::EditingBehavior::kEditingMacBehavior;
 #else
   editing_behavior = blink::mojom::EditingBehavior::kEditingWindowsBehavior;
@@ -37,6 +37,7 @@ void TestPreferences::Reset() {
 
   tabs_to_links = false;
   hyperlink_auditing_enabled = false;
+  should_respect_image_orientation = false;
   asynchronous_spell_checking_enabled = false;
   web_security_enabled = true;
   disable_reading_from_canvas = false;

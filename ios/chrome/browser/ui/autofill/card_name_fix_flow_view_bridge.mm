@@ -1,22 +1,23 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <memory>
-#import <string>
+#include <memory>
+#include <string>
 
-#import "base/mac/foundation_util.h"
-#import "base/strings/sys_string_conversions.h"
-#import "base/values.h"
-#import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/ui/autofill/card_name_fix_flow_view_bridge.h"
+#include "base/mac/foundation_util.h"
+#include "base/strings/sys_string_conversions.h"
+#include "base/values.h"
+#include "components/strings/grit/components_strings.h"
+#include "ios/chrome/browser/ui/autofill/card_name_fix_flow_view_bridge.h"
 #import "ios/chrome/browser/ui/list_model/list_model.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_text_edit_item.h"
 #import "ios/chrome/browser/ui/table_view/cells/table_view_text_header_footer_item.h"
+#import "ios/chrome/browser/ui/util/label_link_controller.h"
 #import "ios/chrome/browser/ui/util/rtl_geometry.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -65,7 +66,7 @@ CardNameFixFlowController* CardNameFixFlowViewBridge::GetController() {
 }
 
 void CardNameFixFlowViewBridge::OnConfirmedName(
-    const std::u16string& confirmed_name) {
+    const base::string16& confirmed_name) {
   controller_->OnNameAccepted(confirmed_name);
   PerformClose();
 }
@@ -76,13 +77,11 @@ void CardNameFixFlowViewBridge::OnDismissed() {
 }
 
 void CardNameFixFlowViewBridge::PerformClose() {
-  base::WeakPtr<CardNameFixFlowViewBridge> weak_this =
+  base::WeakPtr<CardNameFixFlowViewBridge> weakSelf =
       weak_ptr_factory_.GetWeakPtr();
   [view_controller_ dismissViewControllerAnimated:YES
                                        completion:^{
-                                         if (weak_this) {
-                                           weak_this->DeleteSelf();
-                                         }
+                                         weakSelf->DeleteSelf();
                                        }];
 }
 
@@ -98,7 +97,7 @@ void CardNameFixFlowViewBridge::DeleteSelf() {
   NSString* _confirmedName;
   TableViewTextHeaderFooterView* _footerView;
 
-  // Owns `self`.
+  // Owns |self|.
   autofill::CardNameFixFlowViewBridge* _bridge;  // weak
 }
 

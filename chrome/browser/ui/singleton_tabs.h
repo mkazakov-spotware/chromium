@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,12 @@ class GURL;
 // is created.
 void ShowSingletonTab(Browser* browser, const GURL& url);
 
+// Same as ShowSingletonTab, but does not ignore ref.
+void ShowSingletonTabRespectRef(Browser* browser, const GURL& url);
+
 // As ShowSingletonTab, but if the current tab is the new tab page or
 // about:blank, then overwrite it with the passed contents.
-void ShowSingletonTabOverwritingNTP(Browser* browser, NavigateParams* params);
+void ShowSingletonTabOverwritingNTP(Browser* browser, NavigateParams params);
 
 // Creates a NavigateParams struct for a singleton tab navigation.
 NavigateParams GetSingletonTabNavigateParams(Browser* browser, const GURL& url);

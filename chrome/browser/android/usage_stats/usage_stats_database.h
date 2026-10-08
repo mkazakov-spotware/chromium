@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,8 @@
 #include "base/callback_forward.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/queue.h"
+#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/leveldb_proto/public/proto_database.h"
@@ -50,9 +52,6 @@ class UsageStatsDatabase {
 
   // Initializes the database with user |profile|.
   explicit UsageStatsDatabase(Profile* profile);
-
-  UsageStatsDatabase(const UsageStatsDatabase&) = delete;
-  UsageStatsDatabase& operator=(const UsageStatsDatabase&) = delete;
 
   ~UsageStatsDatabase();
 
@@ -156,6 +155,8 @@ class UsageStatsDatabase {
   base::queue<base::OnceClosure> token_mapping_db_callbacks_;
 
   base::WeakPtrFactory<UsageStatsDatabase> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(UsageStatsDatabase);
 };
 
 }  // namespace usage_stats

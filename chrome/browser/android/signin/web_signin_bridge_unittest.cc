@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "components/signin/public/base/account_consistency_method.h"
 #include "components/signin/public/base/test_signin_client.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
-#include "components/signin/public/identity_manager/set_accounts_in_cookie_result.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -29,38 +28,6 @@ class StubAccountReconcilorDelegate : public signin::AccountReconcilorDelegate {
   bool ShouldAbortReconcileIfPrimaryHasError() const override { return true; }
 };
 
-class StubAccountReconcilor : public AccountReconcilor {
- public:
-  StubAccountReconcilor(signin::IdentityManager* identity_manager,
-                        SigninClient* client)
-      : AccountReconcilor(identity_manager,
-                          client,
-                          std::make_unique<StubAccountReconcilorDelegate>()) {}
-  ~StubAccountReconcilor() override {
-    EXPECT_FALSE(perform_logout_all_accounts_called_);
-    EXPECT_FALSE(perform_set_cookies_called_);
-  }
-
-  void PerformLogoutAllAccountsAction() override {
-    perform_logout_all_accounts_called_ = true;
-  }
-
-  void PerformSetCookiesAction(
-      const signin::MultiloginParameters& parameters) override {
-    perform_set_cookies_called_ = true;
-  }
-
-  void SimulateLogoutAllAccountsFinished() {
-    EXPECT_TRUE(perform_logout_all_accounts_called_);
-    perform_logout_all_accounts_called_ = false;
-    OnLogOutFromCookieCompleted(GoogleServiceAuthError::AuthErrorNone());
-  }
-
- private:
-  bool perform_set_cookies_called_ = false;
-  bool perform_logout_all_accounts_called_ = false;
-};
-
 class WebSigninBridgeTest : public ::testing::Test {
  public:
   WebSigninBridgeTest()
@@ -69,12 +36,10 @@ class WebSigninBridgeTest : public ::testing::Test {
                            &prefs_,
                            signin::AccountConsistencyMethod::kDisabled,
                            &signin_client_) {
-    account_reconcilor_ = std::make_unique<StubAccountReconcilor>(
-        identity_test_env_.identity_manager(), &signin_client_);
+    account_reconcilor_ = std::make_unique<AccountReconcilor>(
+        identity_test_env_.identity_manager(), &signin_client_,
+        std::make_unique<StubAccountReconcilorDelegate>());
   }
-
-  WebSigninBridgeTest(const WebSigninBridgeTest&) = delete;
-  WebSigninBridgeTest& operator=(const WebSigninBridgeTest&) = delete;
 
   ~WebSigninBridgeTest() override { account_reconcilor_->Shutdown(); }
 
@@ -91,7 +56,9 @@ class WebSigninBridgeTest : public ::testing::Test {
   sync_preferences::TestingPrefServiceSyncable prefs_;
   TestSigninClient signin_client_;
   signin::IdentityTestEnvironment identity_test_env_;
-  std::unique_ptr<StubAccountReconcilor> account_reconcilor_;
+  std::unique_ptr<AccountReconcilor> account_reconcilor_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebSigninBridgeTest);
 };
 
 TEST_F(WebSigninBridgeTest,
@@ -103,8 +70,7 @@ TEST_F(WebSigninBridgeTest,
       CreateWebSigninBridge(account, callback.Get());
   EXPECT_CALL(callback, Run(GoogleServiceAuthError()));
 
-  identity_test_env_.SetPrimaryAccount(account.email,
-                                       signin::ConsentLevel::kSync);
+  identity_test_env_.SetPrimaryAccount(account.email);
   signin::CookieParamsForTest cookie_params{account.email, account.gaia};
   identity_test_env_.SetCookieAccounts({cookie_params});
 }
@@ -121,8 +87,7 @@ TEST_F(
   EXPECT_CALL(callback,
               Run(GoogleServiceAuthError(
                   GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS)));
-  identity_test_env_.SetPrimaryAccount(account.email,
-                                       signin::ConsentLevel::kSync);
+  identity_test_env_.SetPrimaryAccount(account.email);
   identity_test_env_.SetInvalidRefreshTokenForAccount(account.account_id);
   identity_test_env_.UpdatePersistentErrorOfRefreshTokenForAccount(
       account.account_id,
@@ -136,7 +101,6 @@ TEST_F(
   identity_test_env_.SetRefreshTokenForAccount(account.account_id);
   signin::CookieParamsForTest cookie_params{account.email, account.gaia};
   identity_test_env_.SetCookieAccounts({cookie_params});
-  account_reconcilor_->SimulateLogoutAllAccountsFinished();
 }
 
 TEST_F(WebSigninBridgeTest,
@@ -150,8 +114,7 @@ TEST_F(WebSigninBridgeTest,
       CreateWebSigninBridge(signin_account, callback.Get());
   EXPECT_CALL(callback, Run(_)).Times(0);
 
-  identity_test_env_.SetPrimaryAccount(non_signin_account.email,
-                                       signin::ConsentLevel::kSync);
+  identity_test_env_.SetPrimaryAccount(non_signin_account.email);
   signin::CookieParamsForTest cookie_params{non_signin_account.email,
                                             non_signin_account.gaia};
   identity_test_env_.SetCookieAccounts({cookie_params});
@@ -167,16 +130,14 @@ TEST_F(WebSigninBridgeTest, ReconcilorErrorShouldTriggerOnSigninFailed) {
               Run(GoogleServiceAuthError(
                   GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS)));
 
-  identity_test_env_.SetPrimaryAccount(account.email,
-                                       signin::ConsentLevel::kSync);
+  identity_test_env_.SetPrimaryAccount(account.email);
   identity_test_env_.SetInvalidRefreshTokenForAccount(account.account_id);
   identity_test_env_.UpdatePersistentErrorOfRefreshTokenForAccount(
       account.account_id,
       GoogleServiceAuthError(
           GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS));
   CoreAccountId account_id1 =
-      identity_test_env_.identity_manager()->GetPrimaryAccountId(
-          signin::ConsentLevel::kSync);
+      identity_test_env_.identity_manager()->GetPrimaryAccountId();
   EXPECT_TRUE(
       identity_test_env_.identity_manager()
           ->HasAccountWithRefreshTokenInPersistentErrorState(account_id1));
@@ -184,8 +145,7 @@ TEST_F(WebSigninBridgeTest, ReconcilorErrorShouldTriggerOnSigninFailed) {
   EXPECT_EQ(signin_metrics::AccountReconcilorState::ACCOUNT_RECONCILOR_ERROR,
             account_reconcilor_->GetState());
   CoreAccountId account_id2 =
-      identity_test_env_.identity_manager()->GetPrimaryAccountId(
-          signin::ConsentLevel::kSync);
+      identity_test_env_.identity_manager()->GetPrimaryAccountId();
   EXPECT_TRUE(
       identity_test_env_.identity_manager()
           ->HasAccountWithRefreshTokenInPersistentErrorState(account_id2));

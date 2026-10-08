@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,9 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
-#include <string>
 
 #include "base/check_op.h"
-#include "base/memory/raw_ptr.h"
-#include "base/strings/string_util_win.h"
+#include "base/strings/string16.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -30,8 +28,8 @@ namespace {
 int uniquifier_ = 0;
 
 struct MockCredential {
-  std::u16string source_principal;
-  std::u16string package;
+  base::string16 source_principal;
+  base::string16 package;
   bool has_explicit_credentials = false;
   int uniquifier = ++uniquifier_;
 
@@ -61,8 +59,8 @@ struct MockCredential {
 };
 
 struct MockContext {
-  raw_ptr<MockCredential> credential = nullptr;
-  std::u16string target_principal;
+  MockCredential* credential = nullptr;
+  base::string16 target_principal;
   int uniquifier = ++uniquifier_;
   int rounds = 0;
 
@@ -121,8 +119,8 @@ SECURITY_STATUS MockSSPILibrary::AcquireCredentialsHandle(
     PTimeStamp ptsExpiry) {
   DCHECK(!SecIsValidHandle(phCredential));
   auto* credential = new MockCredential;
-  credential->source_principal =
-      pszPrincipal ? base::as_u16cstr(pszPrincipal) : u"<Default>";
+  credential->source_principal = pszPrincipal ? base::as_u16cstr(pszPrincipal)
+                                              : STRING16_LITERAL("<Default>");
   credential->package = base::as_u16cstr(package_name_.c_str());
   credential->has_explicit_credentials = !!pvAuthData;
 

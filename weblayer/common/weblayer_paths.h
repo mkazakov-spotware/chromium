@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ enum {
 
   DIR_USER_DATA = PATH_START,  // Directory where user data can be written.
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   DIR_CRASH_DUMPS,  // Directory where crash dumps are written.
 #endif
 

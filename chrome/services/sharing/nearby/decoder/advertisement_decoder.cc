@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,6 @@
 #include "base/strings/string_util.h"
 
 namespace {
-
-// v1 advertisements:
-//   - ParseVersion() --> 0
-//
-// v2 advertisements:
-//   - ParseVersion() --> 1
-//   - Backwards compatible; no changes in advertisement data--aside from the
-//     version number--or parsing logic compared to v1.
-//   - Only used by GmsCore at the moment.
-constexpr int kMaxSupportedAdvertisementParsedVersionNumber = 1;
 
 // The bit mask for parsing and writing Version.
 constexpr uint8_t kVersionBitmask = 0b111;
@@ -71,9 +61,9 @@ std::unique_ptr<sharing::Advertisement> AdvertisementDecoder::FromEndpointInfo(
   uint8_t first_byte = *iter++;
 
   int version = ParseVersion(first_byte);
-  if (version < 0 || version > kMaxSupportedAdvertisementParsedVersionNumber) {
-    LOG(ERROR) << "Failed to parse advertisement; unsupported version number "
-               << version;
+  if (version != 0) {
+    LOG(ERROR) << "Failed to parse advertisement because we failed to parse "
+                  "the version number";
     return nullptr;
   }
 
@@ -100,7 +90,7 @@ std::unique_ptr<sharing::Advertisement> AdvertisementDecoder::FromEndpointInfo(
     return nullptr;
   }
 
-  absl::optional<std::string> optional_device_name;
+  base::Optional<std::string> optional_device_name;
   if (device_name_length > 0) {
     optional_device_name = std::string(iter, iter + device_name_length);
     iter += device_name_length;

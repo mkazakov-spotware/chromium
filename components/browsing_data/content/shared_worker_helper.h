@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,17 @@
 
 #include <list>
 #include <set>
+#include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
 namespace content {
 class StoragePartition;
+class ResourceContext;
 }  // namespace content
 
 namespace browsing_data {
@@ -33,7 +34,7 @@ class SharedWorkerHelper
   struct SharedWorkerInfo {
     SharedWorkerInfo(const GURL& worker,
                      const std::string& name,
-                     const blink::StorageKey& storage_key);
+                     const url::Origin& constructor_origin);
     SharedWorkerInfo(const SharedWorkerInfo& other);
     ~SharedWorkerInfo();
 
@@ -41,16 +42,14 @@ class SharedWorkerHelper
 
     GURL worker;
     std::string name;
-    blink::StorageKey storage_key;
+    url::Origin constructor_origin;
   };
 
   using FetchCallback =
       base::OnceCallback<void(const std::list<SharedWorkerInfo>&)>;
 
-  explicit SharedWorkerHelper(content::StoragePartition* storage_partition);
-
-  SharedWorkerHelper(const SharedWorkerHelper&) = delete;
-  SharedWorkerHelper& operator=(const SharedWorkerHelper&) = delete;
+  SharedWorkerHelper(content::StoragePartition* storage_partition,
+                     content::ResourceContext* resource_context);
 
   // Starts the fetching process returning the list of shared workers, which
   // will notify its completion via |callback|. This must be called only in the
@@ -60,7 +59,7 @@ class SharedWorkerHelper
   // Requests the given Shared Worker to be deleted.
   virtual void DeleteSharedWorker(const GURL& worker,
                                   const std::string& name,
-                                  const blink::StorageKey& storage_key);
+                                  const url::Origin& constructor_origin);
 
  protected:
   virtual ~SharedWorkerHelper();
@@ -68,7 +67,10 @@ class SharedWorkerHelper
  private:
   friend class base::RefCountedThreadSafe<SharedWorkerHelper>;
 
-  raw_ptr<content::StoragePartition> storage_partition_;
+  content::StoragePartition* storage_partition_;
+  content::ResourceContext* resource_context_;
+
+  DISALLOW_COPY_AND_ASSIGN(SharedWorkerHelper);
 };
 
 // This class is an implementation of SharedWorkerHelper that does
@@ -76,17 +78,14 @@ class SharedWorkerHelper
 // info as a parameter.
 class CannedSharedWorkerHelper : public SharedWorkerHelper {
  public:
-  explicit CannedSharedWorkerHelper(
-      content::StoragePartition* storage_partition);
-
-  CannedSharedWorkerHelper(const CannedSharedWorkerHelper&) = delete;
-  CannedSharedWorkerHelper& operator=(const CannedSharedWorkerHelper&) = delete;
+  CannedSharedWorkerHelper(content::StoragePartition* storage_partition,
+                           content::ResourceContext* resource_context);
 
   // Adds Shared Worker to the set of canned Shared Workers that is returned by
   // this helper.
   void AddSharedWorker(const GURL& worker,
                        const std::string& name,
-                       const blink::StorageKey& storage_key);
+                       const url::Origin& constructor_origin);
 
   // Clears the list of canned Shared Workers.
   void Reset();
@@ -105,12 +104,14 @@ class CannedSharedWorkerHelper : public SharedWorkerHelper {
   void StartFetching(FetchCallback callback) override;
   void DeleteSharedWorker(const GURL& worker,
                           const std::string& name,
-                          const blink::StorageKey& storage_key) override;
+                          const url::Origin& constructor_origin) override;
 
  private:
   ~CannedSharedWorkerHelper() override;
 
   std::set<SharedWorkerInfo> pending_shared_worker_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(CannedSharedWorkerHelper);
 };
 
 }  // namespace browsing_data

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,8 +23,6 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/strings/string_piece.h"
-#include "base/strings/string_split.h"
 #include "net/base/net_export.h"
 
 namespace net {
@@ -59,18 +57,6 @@ NET_EXPORT bool GetPreferredExtensionForMimeType(
 NET_EXPORT bool MatchesMimeType(const std::string& mime_type_pattern,
                                 const std::string& mime_type);
 
-// Parses |type_str| for |mime_type| and any |params|. Returns false if mime
-// cannot be parsed, and does not modify |mime_type| or |params|.
-//
-// Returns true when mime can be parsed and:
-// If |mime_type| is non-NULL, sets it to parsed mime string.
-// If |params| is non-NULL, clears it and sets it with name-value pairs of
-// parsed parameters. Parsing of parameters is lenient, and invalid params are
-// ignored.
-NET_EXPORT bool ParseMimeType(const std::string& type_str,
-                              std::string* mime_type,
-                              base::StringPairs* params);
-
 // Returns true if the |type_string| is a correctly-formed mime type specifier
 // with no parameter, i.e. string that matches the following ABNF (see the
 // definition of content ABNF in RFC2045 and media-type ABNF httpbis p2
@@ -83,7 +69,7 @@ NET_EXPORT bool ParseMimeType(const std::string& type_str,
 //
 // This function strips leading and trailing whitespace from the MIME type.
 // TODO: investigate if we should strip strictly HTTP whitespace.
-NET_EXPORT bool ParseMimeTypeWithoutParameter(base::StringPiece type_string,
+NET_EXPORT bool ParseMimeTypeWithoutParameter(const std::string& type_string,
                                               std::string* top_level_type,
                                               std::string* subtype);
 

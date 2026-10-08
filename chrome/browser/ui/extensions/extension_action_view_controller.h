@@ -1,29 +1,25 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_EXTENSIONS_EXTENSION_ACTION_VIEW_CONTROLLER_H_
 #define CHROME_BROWSER_UI_EXTENSIONS_EXTENSION_ACTION_VIEW_CONTROLLER_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/extensions/extension_action_icon_factory.h"
 #include "chrome/browser/extensions/extension_context_menu_model.h"
-#include "chrome/browser/extensions/site_permissions_helper.h"
-#include "chrome/browser/ui/toolbar/toolbar_action_hover_card_types.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_controller.h"
 #include "extensions/browser/extension_host.h"
 #include "extensions/browser/extension_host_observer.h"
-#include "extensions/common/extension.h"
-#include "extensions/common/extension_id.h"
 #include "ui/gfx/image/image.h"
 
 class Browser;
 class ExtensionActionPlatformDelegate;
+class GURL;
 class IconWithBadgeImageSource;
 class ExtensionsContainer;
-enum class PopupShowAction;
 
 namespace extensions {
 class Command;
@@ -31,7 +27,6 @@ class Extension;
 class ExtensionAction;
 class ExtensionRegistry;
 class ExtensionViewHost;
-class SitePermissionsHelper;
 }
 
 // The platform-independent controller for an ExtensionAction that is shown on
@@ -45,20 +40,14 @@ class ExtensionActionViewController
       public extensions::ExtensionContextMenuModel::PopupDelegate,
       public extensions::ExtensionHostObserver {
  public:
-  static std::unique_ptr<ExtensionActionViewController> Create(
-      const extensions::ExtensionId& extension_id,
-      Browser* browser,
-      ExtensionsContainer* extensions_container);
+  // The different options for showing a popup.
+  enum PopupShowAction { SHOW_POPUP, SHOW_POPUP_AND_INSPECT };
 
-  // Returns whether any of `actions` given have access to the `web_contents`.
-  static bool AnyActionHasCurrentSiteAccess(
-      const std::vector<std::unique_ptr<ToolbarActionViewController>>& actions,
-      content::WebContents* web_contents);
-
-  ExtensionActionViewController(const ExtensionActionViewController&) = delete;
-  ExtensionActionViewController& operator=(
-      const ExtensionActionViewController&) = delete;
-
+  ExtensionActionViewController(const extensions::Extension* extension,
+                                Browser* browser,
+                                extensions::ExtensionAction* extension_action,
+                                ExtensionsContainer* extensions_container,
+                                bool in_overflow_mode);
   ~ExtensionActionViewController() override;
 
   // ToolbarActionViewController:
@@ -66,32 +55,25 @@ class ExtensionActionViewController
   void SetDelegate(ToolbarActionViewDelegate* delegate) override;
   gfx::Image GetIcon(content::WebContents* web_contents,
                      const gfx::Size& size) override;
-  std::u16string GetActionName() const override;
-  std::u16string GetAccessibleName(
-      content::WebContents* web_contents) const override;
-  std::u16string GetTooltip(content::WebContents* web_contents) const override;
-  ToolbarActionViewController::HoverCardState GetHoverCardState(
-      content::WebContents* web_contents) const override;
-  extensions::SitePermissionsHelper::SiteInteraction GetSiteInteraction(
+  base::string16 GetActionName() const override;
+  base::string16 GetAccessibleName(content::WebContents* web_contents) const
+      override;
+  base::string16 GetTooltip(content::WebContents* web_contents) const override;
+  PageInteractionStatus GetPageInteractionStatus(
       content::WebContents* web_contents) const override;
   bool IsEnabled(content::WebContents* web_contents) const override;
+  bool HasPopup(content::WebContents* web_contents) const override;
   bool IsShowingPopup() const override;
-  bool IsRequestingSiteAccess(
-      content::WebContents* web_contents) const override;
   void HidePopup() override;
   gfx::NativeView GetPopupNativeView() override;
-  ui::MenuModel* GetContextMenu(
-      extensions::ExtensionContextMenuModel::ContextMenuSource
-          context_menu_source) override;
+  ui::MenuModel* GetContextMenu() override;
   void OnContextMenuShown() override;
   void OnContextMenuClosed() override;
-  void ExecuteUserAction(InvocationSource source) override;
-  void TriggerPopupForAPI(ShowPopupCallback callback) override;
+  bool ExecuteAction(bool by_user, InvocationSource source) override;
   void UpdateState() override;
-  void UpdateHoverCard(ToolbarActionView* action_view,
-                       ToolbarActionHoverCardUpdateType update_type) override;
   void RegisterCommand() override;
   void UnregisterCommand() override;
+  bool DisabledClickOpensMenu() const override;
 
   // ExtensionContextMenuModel::PopupDelegate:
   void InspectPopup() override;
@@ -121,14 +103,6 @@ class ExtensionActionViewController
   bool HasBeenBlockedForTesting(content::WebContents* web_contents) const;
 
  private:
-  // New instances should be instantiated with Create().
-  ExtensionActionViewController(
-      scoped_refptr<const extensions::Extension> extension,
-      Browser* browser,
-      extensions::ExtensionAction* extension_action,
-      extensions::ExtensionRegistry* extension_registry,
-      ExtensionsContainer* extensions_container);
-
   // ExtensionActionIconFactory::Observer:
   void OnIconUpdated() override;
 
@@ -146,20 +120,27 @@ class ExtensionActionViewController
   // returns the preferred controller.
   ExtensionActionViewController* GetPreferredPopupViewController();
 
-  // Begins the process of showing the popup for the extension action on the
-  // current web contents. |by_user| is true if popup is being triggered by a
-  // user action.
+  // Executes the extension action with |show_action|. If
+  // |grant_tab_permissions| is true, this will grant the extension active tab
+  // permissions. Only do this if this was done through a user action (and not
+  // e.g. an API). Returns true if a popup is shown.
+  bool ExecuteAction(PopupShowAction show_action, bool grant_tab_permissions);
+
+  // Begins the process of showing the popup for the extension action, given the
+  // associated |popup_url|. |grant_tab_permissions| is true if active tab
+  // permissions should be given to the extension; this is only true if the
+  // popup is opened through a user action.
   // The popup may not be shown synchronously if the extension is hidden and
   // first needs to slide itself out.
-  void TriggerPopup(PopupShowAction show_action,
-                    bool by_user,
-                    ShowPopupCallback callback);
+  // Returns true if a popup will be shown.
+  bool TriggerPopupWithUrl(PopupShowAction show_action,
+                           const GURL& popup_url,
+                           bool grant_tab_permissions);
 
   // Shows the popup with the given |host|.
   void ShowPopup(std::unique_ptr<extensions::ExtensionViewHost> host,
                  bool grant_tab_permissions,
-                 PopupShowAction show_action,
-                 ShowPopupCallback callback);
+                 PopupShowAction show_action);
 
   // Handles cleanup after the popup closes.
   void OnPopupClosed();
@@ -169,34 +150,48 @@ class ExtensionActionViewController
       content::WebContents* web_contents,
       const gfx::Size& size);
 
+  // Returns true if this extension has a page action and that page action wants
+  // to run on the given |web_contents|.
+  bool PageActionWantsToRun(content::WebContents* web_contents) const;
+
+  // Returns true if this extension uses the activeTab permission and would
+  // probably be able to to access the given |url|. The actual checks when an
+  // activeTab extension tries to run are a little more complicated and can be
+  // seen in ExtensionActionRunner and ActiveTabPermissionGranter.
+  // Note: The rare cases where this gets it wrong should only be for false
+  // positives, where it reports that the extension wants access but it can't
+  // actually be given access when it tries to run.
+  bool HasActiveTabAndCanAccess(const GURL& url) const;
+
+  // Returns true if this extension has been blocked on the given
+  // |web_contents|.
+  bool HasBeenBlocked(content::WebContents* web_contents) const;
+
   // The extension associated with the action we're displaying.
   scoped_refptr<const extensions::Extension> extension_;
 
   // The corresponding browser.
-  const raw_ptr<Browser> browser_;
+  Browser* const browser_;
+
+  // Whether we are displayed in the 3-dot menu or not.
+  // TODO(pbos): Remove when 3-dot menu no longer contains extensions.
+  const bool in_overflow_mode_;
 
   // The browser action this view represents. The ExtensionAction is not owned
   // by this class.
-  const raw_ptr<extensions::ExtensionAction, DanglingUntriaged>
-      extension_action_;
+  extensions::ExtensionAction* const extension_action_;
 
   // The corresponding ExtensionsContainer on the toolbar.
-  const raw_ptr<ExtensionsContainer> extensions_container_;
+  ExtensionsContainer* const extensions_container_;
 
   // The extension popup's host if the popup is visible; null otherwise.
-  raw_ptr<extensions::ExtensionViewHost> popup_host_;
-
-  // Whether the toolbar action has opened an active popup. This is unique from
-  // `popup_host_` since `popup_host_` may be non-null even if the popup hasn't
-  // opened yet if we're waiting on other UI to be ready (e.g. the action to
-  // slide out in the toolbar).
-  bool has_opened_popup_ = false;
+  extensions::ExtensionViewHost* popup_host_;
 
   // The context menu model for the extension.
   std::unique_ptr<extensions::ExtensionContextMenuModel> context_menu_model_;
 
   // Our view delegate.
-  raw_ptr<ToolbarActionViewDelegate> view_delegate_;
+  ToolbarActionViewDelegate* view_delegate_;
 
   // The delegate to handle platform-specific implementations.
   std::unique_ptr<ExtensionActionPlatformDelegate> platform_delegate_;
@@ -208,13 +203,14 @@ class ExtensionActionViewController
   ExtensionActionIconFactory icon_factory_;
 
   // The associated ExtensionRegistry; cached for quick checking.
-  raw_ptr<extensions::ExtensionRegistry> extension_registry_;
+  extensions::ExtensionRegistry* extension_registry_;
 
-  base::ScopedObservation<extensions::ExtensionHost,
-                          extensions::ExtensionHostObserver>
-      popup_host_observation_{this};
+  ScopedObserver<extensions::ExtensionHost, extensions::ExtensionHostObserver>
+      popup_host_observer_{this};
 
   base::WeakPtrFactory<ExtensionActionViewController> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ExtensionActionViewController);
 };
 
 #endif  // CHROME_BROWSER_UI_EXTENSIONS_EXTENSION_ACTION_VIEW_CONTROLLER_H_

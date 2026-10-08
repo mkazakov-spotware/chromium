@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_OPENSCREEN_PLATFORM_TASK_RUNNER_H_
 #define COMPONENTS_OPENSCREEN_PLATFORM_TASK_RUNNER_H_
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "third_party/openscreen/src/platform/api/task_runner.h"
 #include "third_party/openscreen/src/platform/api/time.h"
 
@@ -19,10 +19,6 @@ class TaskRunner final : public openscreen::TaskRunner {
   TaskRunner(TaskRunner&&) = delete;
   TaskRunner& operator=(const TaskRunner&) = delete;
   TaskRunner& operator=(TaskRunner&&) = delete;
-
-  scoped_refptr<base::SequencedTaskRunner> task_runner() {
-    return task_runner_;
-  }
 
   // TaskRunner overrides
   ~TaskRunner() final;

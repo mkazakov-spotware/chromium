@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,11 @@
 
 #include "base/feature_list.h"
 
-BASE_DECLARE_FEATURE(kCrashpadIOS);
+extern const base::Feature kSyntheticCrashReportsForUte;
 
-BASE_DECLARE_FEATURE(kMetrickitNonCrashReport);
+// Returns true if kSyntheticCrashReportsForUte and kLogBreadcrumbs features are
+// both enabled. There is not much value in uploading Synthetic Crash Reports
+// without Breadcrumbs.
+bool EnableSyntheticCrashReportsForUte();
 
 #endif  // IOS_CHROME_BROWSER_CRASH_REPORT_FEATURES_H_

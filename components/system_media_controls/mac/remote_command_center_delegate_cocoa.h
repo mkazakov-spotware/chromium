@@ -1,11 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYSTEM_MEDIA_CONTROLS_MAC_REMOTE_COMMAND_CENTER_DELEGATE_COCOA_H_
 #define COMPONENTS_SYSTEM_MEDIA_CONTROLS_MAC_REMOTE_COMMAND_CENTER_DELEGATE_COCOA_H_
-
-#include "base/memory/raw_ptr.h"
 
 #import <Cocoa/Cocoa.h>
 #import <MediaPlayer/MediaPlayer.h>
@@ -16,10 +14,10 @@ class RemoteCommandCenterDelegate;
 }  // namespace internal
 }  // namespace system_media_controls
 
+API_AVAILABLE(macos(10.12.2))
 @interface RemoteCommandCenterDelegateCocoa : NSObject {
  @private
-  raw_ptr<system_media_controls::internal::RemoteCommandCenterDelegate>
-      _delegate;
+  system_media_controls::internal::RemoteCommandCenterDelegate* _delegate;
 }
 
 - (instancetype)initWithDelegate:
@@ -36,7 +34,6 @@ class RemoteCommandCenterDelegate;
 - (void)setCanPlayPause:(bool)can_playpause;
 - (void)setCanGoNextTrack:(bool)can_go_next_track;
 - (void)setCanGoPreviousTrack:(bool)can_go_prev_track;
-- (void)setCanSeekTo:(bool)can_seek_to;
 
 @end
 

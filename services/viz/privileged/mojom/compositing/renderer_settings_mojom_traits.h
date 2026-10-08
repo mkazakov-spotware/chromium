@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef SERVICES_VIZ_PRIVILEGED_MOJOM_COMPOSITING_RENDERER_SETTINGS_MOJOM_TRAITS_H_
@@ -12,7 +12,7 @@
 #include "services/viz/privileged/mojom/compositing/renderer_settings.mojom-shared.h"
 #include "ui/gfx/geometry/mojom/geometry_mojom_traits.h"
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
 #include "components/viz/common/display/overlay_strategy.h"
 #endif
 
@@ -22,11 +22,6 @@ struct StructTraits<viz::mojom::DebugRendererSettingsDataView,
                     viz::DebugRendererSettings> {
   static bool tint_composited_content(const viz::DebugRendererSettings& input) {
     return input.tint_composited_content;
-  }
-
-  static bool tint_composited_content_modulate(
-      const viz::DebugRendererSettings& input) {
-    return input.tint_composited_content_modulate;
   }
 
   static bool show_overdraw_feedback(const viz::DebugRendererSettings& input) {
@@ -49,11 +44,6 @@ struct StructTraits<viz::mojom::DebugRendererSettingsDataView,
 template <>
 struct StructTraits<viz::mojom::RendererSettingsDataView,
                     viz::RendererSettings> {
-  static bool apply_simple_frame_rate_throttling(
-      const viz::RendererSettings& input) {
-    return input.apply_simple_frame_rate_throttling;
-  }
-
   static bool allow_antialiasing(const viz::RendererSettings& input) {
     return input.allow_antialiasing;
   }
@@ -89,6 +79,14 @@ struct StructTraits<viz::mojom::RendererSettingsDataView,
     return input.slow_down_compositing_scale_factor;
   }
 
+  static bool use_skia_renderer(const viz::RendererSettings& input) {
+    return input.use_skia_renderer;
+  }
+
+  static bool allow_overlays(const viz::RendererSettings& input) {
+    return input.allow_overlays;
+  }
+
   static bool auto_resize_output_surface(const viz::RendererSettings& input) {
     return input.auto_resize_output_surface;
   }
@@ -97,7 +95,7 @@ struct StructTraits<viz::mojom::RendererSettingsDataView,
     return input.requires_alpha_channel;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   static gfx::Size initial_screen_size(const viz::RendererSettings& input) {
     return input.initial_screen_size;
   }
@@ -107,7 +105,7 @@ struct StructTraits<viz::mojom::RendererSettingsDataView,
   }
 #endif
 
-#if BUILDFLAG(IS_OZONE)
+#if defined(USE_OZONE)
   static std::vector<viz::OverlayStrategy> overlay_strategies(
       const viz::RendererSettings& input) {
     return input.overlay_strategies;

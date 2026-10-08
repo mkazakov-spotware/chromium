@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ SettingsPrivateSetPrefFunction::~SettingsPrivateSetPrefFunction() {
 
 ExtensionFunction::ResponseAction SettingsPrivateSetPrefFunction::Run() {
   std::unique_ptr<api::settings_private::SetPref::Params> parameters =
-      api::settings_private::SetPref::Params::Create(args());
+      api::settings_private::SetPref::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   SettingsPrivateDelegate* delegate =
@@ -35,7 +35,7 @@ ExtensionFunction::ResponseAction SettingsPrivateSetPrefFunction::Run() {
   DCHECK(delegate);
 
   settings_private::SetPrefResult result =
-      delegate->SetPref(parameters->name, &parameters->value);
+      delegate->SetPref(parameters->name, parameters->value.get());
   switch (result) {
     case settings_private::SetPrefResult::SUCCESS:
       return RespondNow(OneArgument(base::Value(true)));
@@ -79,18 +79,19 @@ SettingsPrivateGetPrefFunction::~SettingsPrivateGetPrefFunction() {
 
 ExtensionFunction::ResponseAction SettingsPrivateGetPrefFunction::Run() {
   std::unique_ptr<api::settings_private::GetPref::Params> parameters =
-      api::settings_private::GetPref::Params::Create(args());
+      api::settings_private::GetPref::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   SettingsPrivateDelegate* delegate =
       SettingsPrivateDelegateFactory::GetForBrowserContext(browser_context());
   DCHECK(delegate);
 
-  base::Value value = delegate->GetPref(parameters->name);
-  if (value.is_none())
+  std::unique_ptr<base::Value> value = delegate->GetPref(parameters->name);
+  if (value->is_none())
     return RespondNow(Error("Pref * does not exist", parameters->name));
   else
-    return RespondNow(OneArgument(std::move(value)));
+    return RespondNow(
+        OneArgument(base::Value::FromUniquePtrValue(std::move(value))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,7 +122,7 @@ SettingsPrivateSetDefaultZoomFunction::
 ExtensionFunction::ResponseAction
     SettingsPrivateSetDefaultZoomFunction::Run() {
   std::unique_ptr<api::settings_private::SetDefaultZoom::Params> parameters =
-      api::settings_private::SetDefaultZoom::Params::Create(args());
+      api::settings_private::SetDefaultZoom::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters.get());
 
   SettingsPrivateDelegate* delegate =

@@ -1,13 +1,13 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/gcm_driver/gcm_profile_service.h"
 
-#include <memory>
 #include <utility>
+#include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "components/gcm_driver/gcm_driver.h"
 #include "components/gcm_driver/gcm_driver_constants.h"
@@ -16,7 +16,7 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 #if BUILDFLAG(USE_GCM_FROM_PLATFORM)
-#include "base/task/sequenced_task_runner.h"
+#include "base/sequenced_task_runner.h"
 #include "components/gcm_driver/gcm_driver_android.h"
 #else
 #include "base/bind.h"
@@ -42,23 +42,20 @@ class GCMProfileService::IdentityObserver
       signin::IdentityManager* identity_manager,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       GCMDriver* driver);
-
-  IdentityObserver(const IdentityObserver&) = delete;
-  IdentityObserver& operator=(const IdentityObserver&) = delete;
-
   ~IdentityObserver() override;
 
   // signin::IdentityManager::Observer:
-  void OnPrimaryAccountChanged(
-      const signin::PrimaryAccountChangeEvent& event) override;
+  void OnPrimaryAccountSet(
+      const CoreAccountInfo& primary_account_info) override;
+  void OnPrimaryAccountCleared(
+      const CoreAccountInfo& previous_primary_account_info) override;
 
  private:
-  void OnSyncPrimaryAccountSet(const CoreAccountInfo& primary_account_info);
   void StartAccountTracker(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
 
-  raw_ptr<GCMDriver> driver_;
-  raw_ptr<signin::IdentityManager> identity_manager_;
+  GCMDriver* driver_;
+  signin::IdentityManager* identity_manager_;
   std::unique_ptr<GCMAccountTracker> gcm_account_tracker_;
 
   // The account ID that this service is responsible for. Empty when the service
@@ -67,6 +64,8 @@ class GCMProfileService::IdentityObserver
 
   base::WeakPtrFactory<GCMProfileService::IdentityObserver> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(IdentityObserver);
 };
 
 GCMProfileService::IdentityObserver::IdentityObserver(
@@ -76,8 +75,7 @@ GCMProfileService::IdentityObserver::IdentityObserver(
     : driver_(driver), identity_manager_(identity_manager) {
   identity_manager_->AddObserver(this);
 
-  OnSyncPrimaryAccountSet(
-      identity_manager_->GetPrimaryAccountInfo(signin::ConsentLevel::kSync));
+  OnPrimaryAccountSet(identity_manager_->GetPrimaryAccountInfo());
   StartAccountTracker(std::move(url_loader_factory));
 }
 
@@ -87,24 +85,7 @@ GCMProfileService::IdentityObserver::~IdentityObserver() {
   identity_manager_->RemoveObserver(this);
 }
 
-void GCMProfileService::IdentityObserver::OnPrimaryAccountChanged(
-    const signin::PrimaryAccountChangeEvent& event) {
-  switch (event.GetEventTypeFor(signin::ConsentLevel::kSync)) {
-    case signin::PrimaryAccountChangeEvent::Type::kSet:
-      OnSyncPrimaryAccountSet(event.GetCurrentState().primary_account);
-      break;
-    case signin::PrimaryAccountChangeEvent::Type::kCleared:
-      account_id_ = CoreAccountId();
-
-      // Still need to notify GCMDriver for UMA purpose.
-      driver_->OnSignedOut();
-      break;
-    case signin::PrimaryAccountChangeEvent::Type::kNone:
-      break;
-  }
-}
-
-void GCMProfileService::IdentityObserver::OnSyncPrimaryAccountSet(
+void GCMProfileService::IdentityObserver::OnPrimaryAccountSet(
     const CoreAccountInfo& primary_account_info) {
   // This might be called multiple times when the password changes.
   if (primary_account_info.account_id == account_id_)
@@ -115,6 +96,14 @@ void GCMProfileService::IdentityObserver::OnSyncPrimaryAccountSet(
   driver_->OnSignedIn();
 }
 
+void GCMProfileService::IdentityObserver::OnPrimaryAccountCleared(
+    const CoreAccountInfo& previous_primary_account_info) {
+  account_id_ = CoreAccountId();
+
+  // Still need to notify GCMDriver for UMA purpose.
+  driver_->OnSignedOut();
+}
+
 void GCMProfileService::IdentityObserver::StartAccountTracker(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
   if (gcm_account_tracker_)
@@ -123,8 +112,8 @@ void GCMProfileService::IdentityObserver::StartAccountTracker(
   std::unique_ptr<AccountTracker> gaia_account_tracker(
       new AccountTracker(identity_manager_));
 
-  gcm_account_tracker_ = std::make_unique<GCMAccountTracker>(
-      std::move(gaia_account_tracker), identity_manager_, driver_);
+  gcm_account_tracker_.reset(new GCMAccountTracker(
+      std::move(gaia_account_tracker), identity_manager_, driver_));
 
   gcm_account_tracker_->Start();
 }
@@ -157,17 +146,11 @@ GCMProfileService::GCMProfileService(
     scoped_refptr<base::SequencedTaskRunner>& blocking_task_runner)
     : identity_manager_(identity_manager),
       url_loader_factory_(std::move(url_loader_factory)) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   signin::IdentityManager::AccountIdMigrationState id_migration =
       identity_manager_->GetAccountIdMigrationState();
   bool remove_account_mappings_with_email_key =
       (id_migration == signin::IdentityManager::MIGRATION_IN_PROGRESS) ||
       (id_migration == signin::IdentityManager::MIGRATION_DONE);
-#else
-  // Migration is done on non-ChromeOS platforms.
-  bool remove_account_mappings_with_email_key = false;
-#endif
-
   driver_ = CreateGCMDriverDesktop(
       std::move(gcm_client_factory), prefs,
       path.Append(gcm_driver::kGCMStoreDirname),
@@ -178,8 +161,8 @@ GCMProfileService::GCMProfileService(
       product_category_for_subtypes, ui_task_runner, io_task_runner,
       blocking_task_runner);
 
-  identity_observer_ = std::make_unique<IdentityObserver>(
-      identity_manager_, url_loader_factory_, driver_.get());
+  identity_observer_.reset(new IdentityObserver(
+      identity_manager_, url_loader_factory_, driver_.get()));
 }
 #endif  // BUILDFLAG(USE_GCM_FROM_PLATFORM)
 

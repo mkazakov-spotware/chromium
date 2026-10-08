@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 // static
 ScreenshotArea ScreenshotArea::CreateForAllRootWindows() {
   return ScreenshotArea(ScreenshotType::kAllRootWindows, nullptr,
-                        absl::nullopt);
+                        base::nullopt);
 }
 
 // static
 ScreenshotArea ScreenshotArea::CreateForWindow(const aura::Window* window) {
-  return ScreenshotArea(ScreenshotType::kWindow, window, absl::nullopt);
+  return ScreenshotArea(ScreenshotType::kWindow, window, base::nullopt);
 }
 
 // static
@@ -26,5 +26,5 @@ ScreenshotArea::ScreenshotArea(const ScreenshotArea& area) = default;
 
 ScreenshotArea::ScreenshotArea(ScreenshotType type,
                                const aura::Window* window,
-                               absl::optional<const gfx::Rect> rect)
+                               base::Optional<const gfx::Rect> rect)
     : type(type), window(window), rect(rect) {}

@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors
+// Copyright 2017 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef CRASHPAD_UTIL_POSIX_SCOPED_MMAP_H_
 #define CRASHPAD_UTIL_POSIX_SCOPED_MMAP_H_
 
+#include "base/macros.h"
 
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -29,14 +30,7 @@ namespace crashpad {
 //! will be released by calling `munmap()`.
 class ScopedMmap {
  public:
-  //! \brief Constructs this object.
-  //!
-  //! \param can_log `true` if methods of this class may log messages.
-  explicit ScopedMmap(bool can_log = true);
-
-  ScopedMmap(const ScopedMmap&) = delete;
-  ScopedMmap& operator=(const ScopedMmap&) = delete;
-
+  ScopedMmap();
   ~ScopedMmap();
 
   //! \brief Releases the memory-mapped region by calling `munmap()`.
@@ -111,7 +105,8 @@ class ScopedMmap {
  private:
   void* addr_ = MAP_FAILED;
   size_t len_ = 0;
-  bool can_log_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedMmap);
 };
 
 }  // namespace crashpad

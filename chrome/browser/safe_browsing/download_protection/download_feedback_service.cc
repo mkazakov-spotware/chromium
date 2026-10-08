@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "base/files/file_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/supports_user_data.h"
-#include "base/task/task_runner.h"
+#include "base/task_runner.h"
 #include "chrome/browser/download/download_item_model.h"
 #include "chrome/browser/safe_browsing/download_protection/download_feedback.h"
 #include "components/download/public/common/download_item.h"
@@ -88,9 +88,9 @@ void DownloadFeedbackService::MaybeStorePingsForDownload(
     download::DownloadItem* download,
     const std::string& ping,
     const std::string& response) {
-  // We never upload SAFE or ALLOWLISTED_BY_POLICY files.
+  // We never upload SAFE or WHITELISTED_BY_POLICY files.
   if (result == DownloadCheckResult::SAFE ||
-      result == DownloadCheckResult::ALLOWLISTED_BY_POLICY) {
+      result == DownloadCheckResult::WHITELISTED_BY_POLICY) {
     return;
   }
 
@@ -137,6 +137,10 @@ void DownloadFeedbackService::BeginFeedbackForDownload(
       base::BindOnce(&DownloadFeedbackService::BeginFeedbackOrDeleteFile,
                      file_task_runner_, weak_ptr_factory_.GetWeakPtr(), profile,
                      pings->ping_request(), pings->ping_response()));
+  if (download_command == DownloadCommands::KEEP) {
+    DownloadItemModel model(download);
+    DownloadCommands(&model).ExecuteCommand(download_command);
+  }
 }
 
 // static
@@ -152,7 +156,8 @@ void DownloadFeedbackService::BeginFeedbackOrDeleteFile(
       return;
     service->BeginFeedback(profile, ping_request, ping_response, path);
   } else {
-    file_task_runner->PostTask(FROM_HERE, base::GetDeleteFileCallback(path));
+    file_task_runner->PostTask(
+        FROM_HERE, base::BindOnce(base::GetDeleteFileCallback(), path));
   }
 }
 

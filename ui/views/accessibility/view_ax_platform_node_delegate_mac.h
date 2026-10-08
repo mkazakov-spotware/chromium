@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 #define UI_VIEWS_ACCESSIBILITY_VIEW_AX_PLATFORM_NODE_DELEGATE_MAC_H_
 
 #include "ui/views/accessibility/view_ax_platform_node_delegate.h"
-
-#include <string>
 
 namespace views {
 
@@ -22,10 +20,7 @@ class ViewAXPlatformNodeDelegateMac : public ViewAXPlatformNodeDelegate {
 
   // |ViewAXPlatformNodeDelegate| overrides:
   gfx::NativeViewAccessible GetNSWindow() override;
-  gfx::NativeViewAccessible GetParent() const override;
-
-  // |ViewAccessibility| overrides:
-  void OverrideNativeWindowTitle(const std::string& title) override;
+  gfx::NativeViewAccessible GetParent() override;
 };
 
 }  // namespace views

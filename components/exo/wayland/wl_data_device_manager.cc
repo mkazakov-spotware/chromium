@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,17 +85,13 @@ class WaylandDataSourceDelegate : public DataSourceDelegate {
       : client_(client),
         data_source_resource_(source) {}
 
-  WaylandDataSourceDelegate(const WaylandDataSourceDelegate&) = delete;
-  WaylandDataSourceDelegate& operator=(const WaylandDataSourceDelegate&) =
-      delete;
-
   // Overridden from DataSourceDelegate:
   void OnDataSourceDestroying(DataSource* device) override { delete this; }
   bool CanAcceptDataEventsForSurface(Surface* surface) const override {
     return surface &&
            wl_resource_get_client(GetSurfaceResource(surface)) == client_;
   }
-  void OnTarget(const absl::optional<std::string>& mime_type) override {
+  void OnTarget(const base::Optional<std::string>& mime_type) override {
     wl_data_source_send_target(data_source_resource_,
                                mime_type ? mime_type->c_str() : nullptr);
     wl_client_flush(wl_resource_get_client(data_source_resource_));
@@ -135,6 +131,8 @@ class WaylandDataSourceDelegate : public DataSourceDelegate {
  private:
   wl_client* const client_;
   wl_resource* const data_source_resource_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandDataSourceDelegate);
 };
 
 void data_source_offer(wl_client* client,
@@ -165,9 +163,6 @@ class WaylandDataOfferDelegate : public DataOfferDelegate {
   explicit WaylandDataOfferDelegate(wl_resource* offer)
       : data_offer_resource_(offer) {}
 
-  WaylandDataOfferDelegate(const WaylandDataOfferDelegate&) = delete;
-  WaylandDataOfferDelegate& operator=(const WaylandDataOfferDelegate&) = delete;
-
   // Overridden from DataOfferDelegate:
   void OnDataOfferDestroying(DataOffer* device) override { delete this; }
   void OnOffer(const std::string& mime_type) override {
@@ -195,6 +190,8 @@ class WaylandDataOfferDelegate : public DataOfferDelegate {
 
  private:
   wl_resource* const data_offer_resource_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandDataOfferDelegate);
 };
 
 void data_offer_accept(wl_client* client,
@@ -249,14 +246,10 @@ class WaylandDataDeviceDelegate : public DataDeviceDelegate {
         data_device_resource_(device_resource),
         serial_tracker_(serial_tracker) {}
 
-  WaylandDataDeviceDelegate(const WaylandDataDeviceDelegate&) = delete;
-  WaylandDataDeviceDelegate& operator=(const WaylandDataDeviceDelegate&) =
-      delete;
-
   // Overridden from DataDeviceDelegate:
   void OnDataDeviceDestroying(DataDevice* device) override { delete this; }
   bool CanAcceptDataEventsForSurface(Surface* surface) const override {
-    return surface && GetSurfaceResource(surface) &&
+    return surface &&
            wl_resource_get_client(GetSurfaceResource(surface)) == client_;
   }
   DataOffer* OnDataOffer() override {
@@ -309,10 +302,13 @@ class WaylandDataDeviceDelegate : public DataDeviceDelegate {
                  Surface* origin,
                  Surface* icon,
                  uint32_t serial) {
-    absl::optional<wayland::SerialTracker::EventType> event_type =
+    base::Optional<wayland::SerialTracker::EventType> event_type =
         serial_tracker_->GetEventType(serial);
-    if (event_type == absl::nullopt) {
+    if (event_type == base::nullopt) {
       LOG(ERROR) << "The serial passed to StartDrag does not exist.";
+      if (source) {
+        source->Cancelled();
+      }
       return;
     }
     if (event_type == wayland::SerialTracker::EventType::POINTER_BUTTON_DOWN &&
@@ -328,16 +324,22 @@ class WaylandDataDeviceDelegate : public DataDeviceDelegate {
     } else {
       LOG(ERROR) << "The serial passed to StartDrag does not match its "
                     "expected types.";
+      if (source) {
+        source->Cancelled();
+      }
     }
   }
 
   void SetSelection(DataDevice* data_device,
                     DataSource* source,
                     uint32_t serial) {
-    absl::optional<wayland::SerialTracker::EventType> event_type =
+    base::Optional<wayland::SerialTracker::EventType> event_type =
         serial_tracker_->GetEventType(serial);
-    if (event_type == absl::nullopt) {
+    if (event_type == base::nullopt) {
       LOG(ERROR) << "The serial passed to SetSelection does not exist.";
+      if (source) {
+        source->Cancelled();
+      }
       return;
     }
     DCHECK(data_device);
@@ -350,6 +352,8 @@ class WaylandDataDeviceDelegate : public DataDeviceDelegate {
 
   // Owned by Server, which always outlives this delegate.
   SerialTracker* const serial_tracker_;
+
+  DISALLOW_COPY_AND_ASSIGN(WaylandDataDeviceDelegate);
 };
 
 void data_device_start_drag(wl_client* client,

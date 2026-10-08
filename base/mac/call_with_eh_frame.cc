@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 
 #include "build/build_config.h"
 
-namespace base::mac {
+namespace base {
+namespace mac {
 
 #if defined(__x86_64__) || defined(__aarch64__)
 extern "C" _Unwind_Reason_Code __gxx_personality_v0(int,
@@ -48,4 +49,5 @@ void CallWithEHFrame(void (^block)(void)) {
   block();
 }
 #endif  // defined(__x86_64__) || defined(__aarch64__)
-}  // namespace base::mac
+}  // namespace mac
+}  // namespace base

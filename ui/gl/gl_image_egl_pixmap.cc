@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright (c) 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,16 +6,24 @@
 
 #include <memory>
 
-#include "ui/gfx/x/connection.h"
+#include "base/logging.h"
+#include "build/build_config.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gl/buffer_format_utils.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_surface_glx.h"
+#include "ui/gl/gl_visual_picker_glx.h"
 
 namespace gl {
 
 inline EGLDisplay FromXDisplay() {
-  auto* x_display = x11::Connection::Get()->GetXlibDisplay().display();
-  return eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(x_display));
+#if defined(USE_X11)
+  if (!features::IsUsingOzonePlatform()) {
+    if (auto* x_display = x11::Connection::Get()->GetXlibDisplay().display())
+      return eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(x_display));
+  }
+#endif
+  return EGL_NO_DISPLAY;
 }
 
 GLImageEGLPixmap::GLImageEGLPixmap(const gfx::Size& size,

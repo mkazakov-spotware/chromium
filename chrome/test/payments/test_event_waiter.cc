@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,14 +34,11 @@ std::ostream& operator<<(std::ostream& out, TestEvent event) {
     case TestEvent::kAppListReady:
       out << "AppListReady";
       break;
-    case TestEvent::kErrorDisplayed:
-      out << "ErrorDisplayed";
-      break;
     case TestEvent::kPaymentCompleted:
       out << "PaymentCompleted";
       break;
-    case TestEvent::kUIDisplayed:
-      out << "UIDisplayed";
+    case TestEvent::kMinimalUIReady:
+      out << "MinimalUIReady";
       break;
   }
   return out;

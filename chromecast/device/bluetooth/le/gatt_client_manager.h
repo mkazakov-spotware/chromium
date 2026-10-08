@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,9 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/task/single_thread_task_runner.h"
-#include "chromecast/device/bluetooth/le/remote_characteristic.h"
-#include "chromecast/device/bluetooth/le/remote_device.h"
-#include "chromecast/device/bluetooth/le/remote_service.h"
+#include "base/single_thread_task_runner.h"
 #include "chromecast/public/bluetooth/bluetooth_types.h"
 
 namespace base {
@@ -31,6 +29,9 @@ namespace bluetooth {
 
 class BluetoothManagerPlatform;
 class LeScanManager;
+class RemoteCharacteristic;
+class RemoteDevice;
+class RemoteService;
 
 class GattClientManager {
  public:
@@ -69,9 +70,6 @@ class GattClientManager {
       bluetooth_v2_shlib::GattClient* gatt_client,
       BluetoothManagerPlatform* bluetooth_manager,
       LeScanManager* le_scan_manager);
-
-  GattClientManager(const GattClientManager&) = delete;
-  GattClientManager& operator=(const GattClientManager&) = delete;
 
   virtual ~GattClientManager() = default;
 
@@ -132,6 +130,9 @@ class GattClientManager {
 
  protected:
   GattClientManager() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GattClientManager);
 };
 
 }  // namespace bluetooth

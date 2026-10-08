@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,9 +58,13 @@ void LayerAnimationObserver::DetachedFromSequence(
 ////////////////////////////////////////////////////////////////////////////////
 // ImplicitAnimationObserver
 
-ImplicitAnimationObserver::ImplicitAnimationObserver() = default;
+ImplicitAnimationObserver::ImplicitAnimationObserver()
+    : active_(false), destroyed_(nullptr), first_sequence_scheduled_(false) {}
 
-ImplicitAnimationObserver::~ImplicitAnimationObserver() = default;
+ImplicitAnimationObserver::~ImplicitAnimationObserver() {
+  if (destroyed_)
+    *destroyed_ = true;
+}
 
 void ImplicitAnimationObserver::SetActive(bool active) {
   active_ = active;
@@ -85,10 +89,12 @@ bool ImplicitAnimationObserver::WasAnimationCompletedForProperty(
 void ImplicitAnimationObserver::OnLayerAnimationEnded(
     LayerAnimationSequence* sequence) {
   UpdatePropertyAnimationStatus(sequence, ANIMATION_STATUS_COMPLETED);
-  auto weak_this = weak_factory_.GetWeakPtr();
+  bool destroyed = false;
+  destroyed_ = &destroyed;
   sequence->RemoveObserver(this);
-  if (!weak_this)
+  if (destroyed)
     return;
+  destroyed_ = nullptr;
   DCHECK(attached_sequences().find(sequence) == attached_sequences().end());
   CheckCompleted();
 }
@@ -96,10 +102,12 @@ void ImplicitAnimationObserver::OnLayerAnimationEnded(
 void ImplicitAnimationObserver::OnLayerAnimationAborted(
     LayerAnimationSequence* sequence) {
   UpdatePropertyAnimationStatus(sequence, ANIMATION_STATUS_ABORTED);
-  auto weak_this = weak_factory_.GetWeakPtr();
+  bool destroyed = false;
+  destroyed_ = &destroyed;
   sequence->RemoveObserver(this);
-  if (!weak_this)
+  if (destroyed)
     return;
+  destroyed_ = nullptr;
   DCHECK(attached_sequences().find(sequence) == attached_sequences().end());
   CheckCompleted();
 }

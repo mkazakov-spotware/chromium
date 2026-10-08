@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,11 +23,11 @@ class Accelerometer : public Sensor {
                 const SpatialSensorOptions*,
                 ExceptionState&,
                 device::mojom::blink::SensorType,
-                const Vector<mojom::blink::PermissionsPolicyFeature>&);
+                const Vector<mojom::blink::FeaturePolicyFeature>&);
 
-  absl::optional<double> x() const;
-  absl::optional<double> y() const;
-  absl::optional<double> z() const;
+  base::Optional<double> x() const;
+  base::Optional<double> y() const;
+  base::Optional<double> z() const;
 
   void Trace(Visitor*) const override;
 };

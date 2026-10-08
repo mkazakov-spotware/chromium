@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,17 +9,16 @@
 
 #include <memory>
 
+#include "base/optional.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "media/capture/video/video_capture_device.h"
-#include "media/fuchsia/common/sysmem_client.h"
-#include "media/fuchsia/common/vmo_buffer.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "media/fuchsia/common/sysmem_buffer_pool.h"
+#include "media/fuchsia/common/sysmem_buffer_reader.h"
 
 namespace media {
 
-class CAPTURE_EXPORT VideoCaptureDeviceFuchsia final
-    : public VideoCaptureDevice {
+class CAPTURE_EXPORT VideoCaptureDeviceFuchsia : public VideoCaptureDevice {
  public:
   // Returns pixel format to which video frames in the specified sysmem pixel
   // |format| will be converted. PIXEL_FORMAT_UNKNOWN is returned for
@@ -31,7 +30,7 @@ class CAPTURE_EXPORT VideoCaptureDeviceFuchsia final
 
   explicit VideoCaptureDeviceFuchsia(
       fidl::InterfaceHandle<fuchsia::camera3::Device> device);
-  ~VideoCaptureDeviceFuchsia() override;
+  ~VideoCaptureDeviceFuchsia() final;
 
   VideoCaptureDeviceFuchsia(const VideoCaptureDeviceFuchsia&) = delete;
   VideoCaptureDeviceFuchsia& operator=(const VideoCaptureDeviceFuchsia&) =
@@ -39,8 +38,8 @@ class CAPTURE_EXPORT VideoCaptureDeviceFuchsia final
 
   // VideoCaptureDevice implementation.
   void AllocateAndStart(const VideoCaptureParams& params,
-                        std::unique_ptr<Client> client) override;
-  void StopAndDeAllocate() override;
+                        std::unique_ptr<Client> client) final;
+  void StopAndDeAllocate() final;
 
  private:
   // Disconnects the |stream_| and resets related state.
@@ -78,10 +77,11 @@ class CAPTURE_EXPORT VideoCaptureDeviceFuchsia final
       fidl::InterfaceHandle<fuchsia::sysmem::BufferCollectionToken>
           token_handle);
 
-  // Callback for SysmemCollectionClient::AcquireBuffers().
-  void OnBuffersAcquired(
-      std::vector<VmoBuffer> buffers,
-      const fuchsia::sysmem::SingleBufferSettings& buffer_settings);
+  // Callback for SysmemBufferPool::Creator.
+  void OnBufferCollectionCreated(std::unique_ptr<SysmemBufferPool> collection);
+
+  // Callback for SysmemBufferPool::CreateReader().
+  void OnBufferReaderCreated(std::unique_ptr<SysmemBufferReader> reader);
 
   // Calls Stream::GetNextFrame() in a loop to receive incoming frames.
   void ReceiveNextFrame();
@@ -95,12 +95,12 @@ class CAPTURE_EXPORT VideoCaptureDeviceFuchsia final
 
   std::unique_ptr<Client> client_;
 
-  SysmemAllocatorClient sysmem_allocator_;
-  std::unique_ptr<SysmemCollectionClient> buffer_collection_;
-  std::vector<VmoBuffer> buffers_;
-  fuchsia::sysmem::ImageFormatConstraints buffers_format_;
+  media::BufferAllocator sysmem_allocator_;
+  std::unique_ptr<SysmemBufferPool::Creator> buffer_collection_creator_;
+  std::unique_ptr<SysmemBufferPool> buffer_collection_;
+  std::unique_ptr<SysmemBufferReader> buffer_reader_;
 
-  absl::optional<gfx::Size> frame_size_;
+  base::Optional<gfx::Size> frame_size_;
   fuchsia::camera3::Orientation orientation_ =
       fuchsia::camera3::Orientation::UP;
 

@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef REMOTING_CLIENT_JNI_JNI_OAUTH_TOKEN_GETTER_H_
-#define REMOTING_CLIENT_JNI_JNI_OAUTH_TOKEN_GETTER_H_
+#ifndef REMOTING_CLIENT_JNI_JNI_OAUTH_TOKEN_GETTER_
+#define REMOTING_CLIENT_JNI_JNI_OAUTH_TOKEN_GETTER_
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/base/oauth_token_getter.h"
@@ -27,10 +28,6 @@ class JniOAuthTokenGetter : public OAuthTokenGetter {
   };
 
   JniOAuthTokenGetter();
-
-  JniOAuthTokenGetter(const JniOAuthTokenGetter&) = delete;
-  JniOAuthTokenGetter& operator=(const JniOAuthTokenGetter&) = delete;
-
   ~JniOAuthTokenGetter() override;
 
   // OAuthTokenGetter overrides.
@@ -44,8 +41,9 @@ class JniOAuthTokenGetter : public OAuthTokenGetter {
 
   base::WeakPtr<JniOAuthTokenGetter> weak_ptr_;
   base::WeakPtrFactory<JniOAuthTokenGetter> weak_factory_{this};
+  DISALLOW_COPY_AND_ASSIGN(JniOAuthTokenGetter);
 };
 
 }  // namespace remoting
 
-#endif  // REMOTING_CLIENT_JNI_JNI_OAUTH_TOKEN_GETTER_H_
+#endif  // REMOTING_CLIENT_JNI_JNI_OAUTH_TOKEN_GETTER_

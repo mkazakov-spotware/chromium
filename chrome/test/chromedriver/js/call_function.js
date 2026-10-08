@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 var StatusCode = {
   STALE_ELEMENT_REFERENCE: 10,
   JAVA_SCRIPT_ERROR: 17,
-  NO_SUCH_SHADOW_ROOT: 65,
-  DETACHED_SHADOW_ROOT: 66
 };
 
 /**
@@ -28,13 +26,6 @@ var NodeType = {
  * @type {string}
  */
 var ELEMENT_KEY = 'ELEMENT';
-
-/**
- * Dictionary key to use for holding a shadow element ID.
- * @const
- * @type {string}
- */
- var SHADOW_ROOT_KEY = 'shadow-6066-11e4-a52e-4f735466cecf';
 
 /**
  * True if using W3C Element references.
@@ -119,16 +110,34 @@ CacheWithUUID.prototype = {
    */
   retrieveItem: function(id) {
     var item = this.cache_[id];
-    if (item && this.isNodeReachable_(item))
+    if (item)
       return item;
     throw newError('element is not attached to the page document',
                    StatusCode.STALE_ELEMENT_REFERENCE);
   },
 
+  /**
+   * Clears stale items from the cache.
+   */
+  clearStale: function() {
+    for (var id in this.cache_) {
+      var node = this.cache_[id];
+      if (!this.isNodeReachable_(node))
+        delete this.cache_[id];
+    }
+  },
+
+  /**
+    * @private
+    * @param {!Node} node The node to check.
+    * @return {boolean} If the nodes is reachable.
+    */
   isNodeReachable_: function(node) {
     var nodeRoot = getNodeRootThroughAnyShadows(node);
     return (nodeRoot == document.documentElement.parentNode);
   }
+
+
 };
 
 /**
@@ -169,12 +178,28 @@ Cache.prototype = {
    */
   retrieveItem: function(id) {
     var item = this.cache_[id];
-    if (item && this.isNodeReachable_(item))
+    if (item)
       return item;
     throw newError('element is not attached to the page document',
                    StatusCode.STALE_ELEMENT_REFERENCE);
   },
 
+  /**
+   * Clears stale items from the cache.
+   */
+  clearStale: function() {
+    for (var id in this.cache_) {
+      var node = this.cache_[id];
+      if (!this.isNodeReachable_(node))
+        delete this.cache_[id];
+    }
+  },
+
+  /**
+    * @private
+    * @param {!Node} node The node to check.
+    * @return {boolean} If the nodes is reachable.
+    */
   isNodeReachable_: function(node) {
     var nodeRoot = getNodeRootThroughAnyShadows(node);
     return (nodeRoot == document.documentElement.parentNode);
@@ -329,23 +354,11 @@ function jsonSerialize(item, seen) {
   if (isElement(item)) {
     const root = getNodeRootThroughAnyShadows(item);
     const cache = getPageCache(root, w3cEnabled);
-    if (!cache.isNodeReachable_(item)) {
-      if (item instanceof ShadowRoot)
-        throw newError('detached shadow root', StatusCode.DETACHED_SHADOW_ROOT);
+    if (!cache.isNodeReachable_(item))
       throw newError('stale element not found',
                      StatusCode.STALE_ELEMENT_REFERENCE);
-    }
     const ret = {};
-    let key = ELEMENT_KEY;
-    if (item instanceof ShadowRoot) {
-      if (!item.nodeType ||
-          item.nodeType !== item.DOCUMENT_FRAGMENT_NODE ||
-          !item.host) {
-        throw newError('no such shadow root', StatusCode.NO_SUCH_SHADOW_ROOT);
-      }
-      key = SHADOW_ROOT_KEY;
-    }
-    ret[key] = cache.storeItem(item);
+    ret[ELEMENT_KEY] = cache.storeItem(item);
     return ret;
   }
   if (isCollection(item))
@@ -354,7 +367,7 @@ function jsonSerialize(item, seen) {
   // (above) are type 'function', so this check must be performed after.
   if (typeof item === 'function')
     return item;
-  // TODO(crbug.com/1337415): Implement WindowProxy serialization.
+  // TODO(rohpavone): Implement WindowProxy serialization.
   if (typeof item.toJSON === 'function' &&
       (item.hasOwnProperty('toJSON') ||
        Object.getPrototypeOf(item).hasOwnProperty('toJSON')))
@@ -382,22 +395,12 @@ function jsonDeserialize(item, opt_seen, opt_cache) {
       typeof item === 'string' ||
       typeof item === 'function')
     return item;
-  if (item.hasOwnProperty(ELEMENT_KEY) ||
-      item.hasOwnProperty(SHADOW_ROOT_KEY)) {
+  if (item.hasOwnProperty(ELEMENT_KEY)) {
     if (opt_cache === undefined || opt_cache === null) {
       const root = getNodeRootThroughAnyShadows(item);
       opt_cache = getPageCache(root, w3cEnabled);
     }
-    try {
-      return  opt_cache.retrieveItem(item[ELEMENT_KEY] ||
-                                     item[SHADOW_ROOT_KEY]);
-    } catch(err) {
-      if (err.message &&
-          err.message === 'element is not attached to the page document' &&
-          item.hasOwnProperty(SHADOW_ROOT_KEY))
-        throw newError('detached shadow root', StatusCode.DETACHED_SHADOW_ROOT);
-      throw err;
-    }
+    return  opt_cache.retrieveItem(item[ELEMENT_KEY]);
   }
   if (isCollection(item) || typeof item === 'object')
     return cloneWithAlgorithm(item, opt_seen, jsonDeserialize, opt_cache);
@@ -430,6 +433,7 @@ function callFunction(func, args, w3c, opt_unwrappedReturn) {
 
   }
   const cache = getPageCache(null, w3cEnabled);
+  cache.clearStale();
 
   function buildError(error) {
     return {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ namespace blink {
 
 CSSPropertyRef::CSSPropertyRef(const String& name, const Document& document)
     : property_id_(
-          UnresolvedCSSPropertyID(document.GetExecutionContext(), name)) {
+          unresolvedCSSPropertyID(document.GetExecutionContext(), name)) {
   if (property_id_ == CSSPropertyID::kVariable)
     custom_property_ = CustomProperty(AtomicString(name), document);
 }

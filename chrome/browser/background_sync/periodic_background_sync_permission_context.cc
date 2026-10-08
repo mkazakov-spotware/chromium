@@ -1,11 +1,10 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/background_sync/periodic_background_sync_permission_context.h"
 
 #include "base/feature_list.h"
-#include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/installable/installable_utils.h"
 #include "chrome/browser/profiles/profile.h"
@@ -15,10 +14,10 @@
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/browser_thread.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom.h"
+#include "third_party/blink/public/mojom/feature_policy/feature_policy.mojom.h"
 #include "url/origin.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "chrome/browser/android/shortcut_helper.h"
 #endif
 
@@ -27,9 +26,9 @@ namespace features {
 // If enabled, the installability criteria for granting PBS permission is
 // dropped and the content setting is checked. This only applies if the
 // requesting origin matches that of the browser's default search engine.
-BASE_FEATURE(kPeriodicSyncPermissionForDefaultSearchEngine,
-             "PeriodicSyncPermissionForDefaultSearchEngine",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+const base::Feature kPeriodicSyncPermissionForDefaultSearchEngine{
+    "PeriodicSyncPermissionForDefaultSearchEngine",
+    base::FEATURE_DISABLED_BY_DEFAULT};
 
 }  // namespace features
 
@@ -38,8 +37,7 @@ PeriodicBackgroundSyncPermissionContext::
         content::BrowserContext* browser_context)
     : PermissionContextBase(browser_context,
                             ContentSettingsType::PERIODIC_BACKGROUND_SYNC,
-                            blink::mojom::PermissionsPolicyFeature::kNotFound) {
-}
+                            blink::mojom::FeaturePolicyFeature::kNotFound) {}
 
 PeriodicBackgroundSyncPermissionContext::
     ~PeriodicBackgroundSyncPermissionContext() = default;
@@ -56,13 +54,18 @@ bool PeriodicBackgroundSyncPermissionContext::IsPwaInstalled(
   return DoesOriginContainAnyInstalledWebApp(browser_context(), origin);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 bool PeriodicBackgroundSyncPermissionContext::IsTwaInstalled(
     const GURL& origin) const {
   return ShortcutHelper::DoesOriginContainAnyInstalledTrustedWebActivity(
       origin);
 }
 #endif
+
+bool PeriodicBackgroundSyncPermissionContext::IsRestrictedToSecureOrigins()
+    const {
+  return true;
+}
 
 GURL PeriodicBackgroundSyncPermissionContext::GetDefaultSearchEngineUrl()
     const {
@@ -84,7 +87,7 @@ PeriodicBackgroundSyncPermissionContext::GetPermissionStatusInternal(
     const GURL& embedding_origin) const {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   if (IsTwaInstalled(requesting_origin))
     return CONTENT_SETTING_ALLOW;
 #endif
@@ -114,6 +117,7 @@ PeriodicBackgroundSyncPermissionContext::GetPermissionStatusInternal(
 }
 
 void PeriodicBackgroundSyncPermissionContext::DecidePermission(
+    content::WebContents* web_contents,
     const permissions::PermissionRequestID& id,
     const GURL& requesting_origin,
     const GURL& embedding_origin,
@@ -131,12 +135,9 @@ void PeriodicBackgroundSyncPermissionContext::NotifyPermissionSet(
     permissions::BrowserPermissionCallback callback,
     bool persist,
     ContentSetting content_setting,
-    bool is_one_time,
-    bool is_final_decision) {
+    bool is_one_time) {
   DCHECK(!persist);
-  DCHECK(is_final_decision);
-
   permissions::PermissionContextBase::NotifyPermissionSet(
       id, requesting_origin, embedding_origin, std::move(callback), persist,
-      content_setting, is_one_time, is_final_decision);
+      content_setting, is_one_time);
 }

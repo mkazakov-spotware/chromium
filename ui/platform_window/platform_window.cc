@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace ui {
@@ -54,25 +53,5 @@ void PlatformWindow::SetVisibilityChangedAnimationsEnabled(bool enabled) {}
 std::string PlatformWindow::GetWindowUniqueId() const {
   return std::string();
 }
-
-bool PlatformWindow::ShouldUpdateWindowShape() const {
-  return false;
-}
-
-bool PlatformWindow::CanSetDecorationInsets() const {
-  return false;
-}
-
-void PlatformWindow::SetDecorationInsets(const gfx::Insets* insets_px) {}
-
-void PlatformWindow::SetOpaqueRegion(const std::vector<gfx::Rect>* region_px) {}
-
-void PlatformWindow::SetInputRegion(const gfx::Rect* region_px) {}
-
-bool PlatformWindow::IsClientControlledWindowMovementSupported() const {
-  return true;
-}
-
-void PlatformWindow::NotifyStartupComplete(const std::string& startup_id) {}
 
 }  // namespace ui

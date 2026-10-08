@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,51 +7,44 @@
 
 #include <string>
 
-#include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/sequence_checker.h"
-#include "ios/web/public/download/download_task.h"
+#import "ios/web/public/download/download_task.h"
 #include "url/gurl.h"
 
 namespace web {
 
 // Fake implementation for DownloadTask interface. Can be used for testing.
-class FakeDownloadTask final : public DownloadTask {
+class FakeDownloadTask : public DownloadTask {
  public:
   FakeDownloadTask(const GURL& original_url, const std::string& mime_type);
+  ~FakeDownloadTask() override;
 
-  FakeDownloadTask(const FakeDownloadTask&) = delete;
-  FakeDownloadTask& operator=(const FakeDownloadTask&) = delete;
-
-  ~FakeDownloadTask() final;
-
-  // DownloadTask finals:
-  WebState* GetWebState() final;
-  DownloadTask::State GetState() const final;
-  void Start(const base::FilePath& path) final;
-  void Cancel() final;
-  void GetResponseData(ResponseDataReadCallback callback) const final;
-  const base::FilePath& GetResponsePath() const final;
-  NSString* GetIdentifier() const final;
-  const GURL& GetOriginalUrl() const final;
-  NSString* GetHttpMethod() const final;
-  bool IsDone() const final;
-  int GetErrorCode() const final;
-  int GetHttpCode() const final;
-  int64_t GetTotalBytes() const final;
-  int64_t GetReceivedBytes() const final;
-  int GetPercentComplete() const final;
-  std::string GetContentDisposition() const final;
-  std::string GetOriginalMimeType() const final;
-  std::string GetMimeType() const final;
-  base::FilePath GenerateFileName() const final;
-  bool HasPerformedBackgroundDownload() const final;
-  void AddObserver(DownloadTaskObserver* observer) final;
-  void RemoveObserver(DownloadTaskObserver* observer) final;
+  // DownloadTask overrides:
+  WebState* GetWebState() override;
+  DownloadTask::State GetState() const override;
+  void Start(std::unique_ptr<net::URLFetcherResponseWriter> writer) override;
+  void Cancel() override;
+  net::URLFetcherResponseWriter* GetResponseWriter() const override;
+  NSString* GetIndentifier() const override;
+  const GURL& GetOriginalUrl() const override;
+  NSString* GetHttpMethod() const override;
+  bool IsDone() const override;
+  int GetErrorCode() const override;
+  int GetHttpCode() const override;
+  int64_t GetTotalBytes() const override;
+  int64_t GetReceivedBytes() const override;
+  int GetPercentComplete() const override;
+  std::string GetContentDisposition() const override;
+  std::string GetOriginalMimeType() const override;
+  std::string GetMimeType() const override;
+  base::string16 GetSuggestedFilename() const override;
+  bool HasPerformedBackgroundDownload() const override;
+  void AddObserver(DownloadTaskObserver* observer) override;
+  void RemoveObserver(DownloadTaskObserver* observer) override;
 
   // Setters for task properties. Setters invoke OnDownloadUpdated callback.
   void SetWebState(WebState* web_state);
-  void SetState(DownloadTask::State state);
   void SetDone(bool done);
   void SetErrorCode(int error_code);
   void SetHttpCode(int http_code);
@@ -60,19 +53,18 @@ class FakeDownloadTask final : public DownloadTask {
   void SetPercentComplete(int percent_complete);
   void SetContentDisposition(const std::string& content_disposition);
   void SetMimeType(const std::string& mime_type);
-  void SetResponseData(NSData* response_data);
-  void SetGeneratedFileName(const base::FilePath& generated_file_name);
+  void SetSuggestedFilename(const base::string16& suggested_file_name);
   void SetPerformedBackgroundDownload(bool flag);
 
  private:
   // Called when download task was updated.
   void OnDownloadUpdated();
 
-  SEQUENCE_CHECKER(sequence_checker_);
-
   base::ObserverList<DownloadTaskObserver, true>::Unchecked observers_;
+
   WebState* web_state_ = nullptr;
   State state_ = State::kNotStarted;
+  std::unique_ptr<net::URLFetcherResponseWriter> writer_;
   GURL original_url_;
   int error_code_ = 0;
   int http_code_ = -1;
@@ -82,11 +74,11 @@ class FakeDownloadTask final : public DownloadTask {
   int percent_complete_ = -1;
   std::string original_mime_type_;
   std::string mime_type_;
-  base::FilePath generated_file_name_;
+  base::string16 suggested_file_name_;
   bool has_performed_background_download_ = false;
   __strong NSString* identifier_ = nil;
-  base::FilePath response_path_;
-  __strong NSData* response_data_ = nil;
+
+  DISALLOW_COPY_AND_ASSIGN(FakeDownloadTask);
 };
 
 }  // namespace web

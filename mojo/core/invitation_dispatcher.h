@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <stdint.h>
 
 #include "base/containers/flat_map.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "mojo/core/dispatcher.h"
 #include "mojo/core/ports/port_ref.h"
@@ -19,9 +21,6 @@ namespace core {
 class MOJO_SYSTEM_IMPL_EXPORT InvitationDispatcher : public Dispatcher {
  public:
   InvitationDispatcher();
-
-  InvitationDispatcher(const InvitationDispatcher&) = delete;
-  InvitationDispatcher& operator=(const InvitationDispatcher&) = delete;
 
   // Dispatcher:
   Type GetType() const override;
@@ -40,9 +39,11 @@ class MOJO_SYSTEM_IMPL_EXPORT InvitationDispatcher : public Dispatcher {
   base::Lock lock_;
   bool is_closed_ = false;
   PortMapping attached_ports_;
+
+  DISALLOW_COPY_AND_ASSIGN(InvitationDispatcher);
 };
 
 }  // namespace core
 }  // namespace mojo
 
-#endif  // MOJO_CORE_INVITATION_DISPATCHER_H_
+#endif  // MOJO_CORE_INVITATION_DISPATCHER_H

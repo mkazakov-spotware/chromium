@@ -43,14 +43,6 @@
 #pragma once
 #endif
 
-#ifndef DECLSPEC_XFGVIRT
-#if _CONTROL_FLOW_GUARD_XFG
-#define DECLSPEC_XFGVIRT(base, func) __declspec(xfg_virtual(base, func))
-#else
-#define DECLSPEC_XFGVIRT(base, func)
-#endif
-#endif
-
 /* Forward Declarations */ 
 
 #ifndef __IElevator_FWD_DEFINED__
@@ -146,21 +138,6 @@ extern "C"{
 #endif 
 
 
-/* interface __MIDL_itf_elevation_service_idl_0000_0000 */
-/* [local] */ 
-
-typedef 
-enum ProtectionLevel
-    {
-        NONE	= 0,
-        PATH_VALIDATION	= 1
-    } 	ProtectionLevel;
-
-
-
-extern RPC_IF_HANDLE __MIDL_itf_elevation_service_idl_0000_0000_v0_0_c_ifspec;
-extern RPC_IF_HANDLE __MIDL_itf_elevation_service_idl_0000_0000_v0_0_s_ifspec;
-
 #ifndef __IElevator_INTERFACE_DEFINED__
 #define __IElevator_INTERFACE_DEFINED__
 
@@ -184,17 +161,6 @@ EXTERN_C const IID IID_IElevator;
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE EncryptData( 
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error) = 0;
-        
-        virtual HRESULT STDMETHODCALLTYPE DecryptData( 
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error) = 0;
-        
     };
     
     
@@ -204,22 +170,18 @@ EXTERN_C const IID IID_IElevator;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             IElevator * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             IElevator * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             IElevator * This);
         
-        DECLSPEC_XFGVIRT(IElevator, RunRecoveryCRXElevated)
         HRESULT ( STDMETHODCALLTYPE *RunRecoveryCRXElevated )( 
             IElevator * This,
             /* [string][in] */ const WCHAR *crx_path,
@@ -228,21 +190,6 @@ EXTERN_C const IID IID_IElevator;
             /* [string][in] */ const WCHAR *session_id,
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle);
-        
-        DECLSPEC_XFGVIRT(IElevator, EncryptData)
-        HRESULT ( STDMETHODCALLTYPE *EncryptData )( 
-            IElevator * This,
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error);
-        
-        DECLSPEC_XFGVIRT(IElevator, DecryptData)
-        HRESULT ( STDMETHODCALLTYPE *DecryptData )( 
-            IElevator * This,
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error);
         
         END_INTERFACE
     } IElevatorVtbl;
@@ -269,12 +216,6 @@ EXTERN_C const IID IID_IElevator;
 
 #define IElevator_RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle)	\
     ( (This)->lpVtbl -> RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle) ) 
-
-#define IElevator_EncryptData(This,protection_level,plaintext,ciphertext,last_error)	\
-    ( (This)->lpVtbl -> EncryptData(This,protection_level,plaintext,ciphertext,last_error) ) 
-
-#define IElevator_DecryptData(This,ciphertext,plaintext,last_error)	\
-    ( (This)->lpVtbl -> DecryptData(This,ciphertext,plaintext,last_error) ) 
 
 #endif /* COBJMACROS */
 
@@ -311,22 +252,18 @@ EXTERN_C const IID IID_IElevatorChromium;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             IElevatorChromium * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             IElevatorChromium * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             IElevatorChromium * This);
         
-        DECLSPEC_XFGVIRT(IElevator, RunRecoveryCRXElevated)
         HRESULT ( STDMETHODCALLTYPE *RunRecoveryCRXElevated )( 
             IElevatorChromium * This,
             /* [string][in] */ const WCHAR *crx_path,
@@ -335,21 +272,6 @@ EXTERN_C const IID IID_IElevatorChromium;
             /* [string][in] */ const WCHAR *session_id,
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle);
-        
-        DECLSPEC_XFGVIRT(IElevator, EncryptData)
-        HRESULT ( STDMETHODCALLTYPE *EncryptData )( 
-            IElevatorChromium * This,
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error);
-        
-        DECLSPEC_XFGVIRT(IElevator, DecryptData)
-        HRESULT ( STDMETHODCALLTYPE *DecryptData )( 
-            IElevatorChromium * This,
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error);
         
         END_INTERFACE
     } IElevatorChromiumVtbl;
@@ -376,12 +298,6 @@ EXTERN_C const IID IID_IElevatorChromium;
 
 #define IElevatorChromium_RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle)	\
     ( (This)->lpVtbl -> RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle) ) 
-
-#define IElevatorChromium_EncryptData(This,protection_level,plaintext,ciphertext,last_error)	\
-    ( (This)->lpVtbl -> EncryptData(This,protection_level,plaintext,ciphertext,last_error) ) 
-
-#define IElevatorChromium_DecryptData(This,ciphertext,plaintext,last_error)	\
-    ( (This)->lpVtbl -> DecryptData(This,ciphertext,plaintext,last_error) ) 
 
 
 #endif /* COBJMACROS */
@@ -419,22 +335,18 @@ EXTERN_C const IID IID_IElevatorChrome;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             IElevatorChrome * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             IElevatorChrome * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             IElevatorChrome * This);
         
-        DECLSPEC_XFGVIRT(IElevator, RunRecoveryCRXElevated)
         HRESULT ( STDMETHODCALLTYPE *RunRecoveryCRXElevated )( 
             IElevatorChrome * This,
             /* [string][in] */ const WCHAR *crx_path,
@@ -443,21 +355,6 @@ EXTERN_C const IID IID_IElevatorChrome;
             /* [string][in] */ const WCHAR *session_id,
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle);
-        
-        DECLSPEC_XFGVIRT(IElevator, EncryptData)
-        HRESULT ( STDMETHODCALLTYPE *EncryptData )( 
-            IElevatorChrome * This,
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error);
-        
-        DECLSPEC_XFGVIRT(IElevator, DecryptData)
-        HRESULT ( STDMETHODCALLTYPE *DecryptData )( 
-            IElevatorChrome * This,
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error);
         
         END_INTERFACE
     } IElevatorChromeVtbl;
@@ -484,12 +381,6 @@ EXTERN_C const IID IID_IElevatorChrome;
 
 #define IElevatorChrome_RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle)	\
     ( (This)->lpVtbl -> RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle) ) 
-
-#define IElevatorChrome_EncryptData(This,protection_level,plaintext,ciphertext,last_error)	\
-    ( (This)->lpVtbl -> EncryptData(This,protection_level,plaintext,ciphertext,last_error) ) 
-
-#define IElevatorChrome_DecryptData(This,ciphertext,plaintext,last_error)	\
-    ( (This)->lpVtbl -> DecryptData(This,ciphertext,plaintext,last_error) ) 
 
 
 #endif /* COBJMACROS */
@@ -527,22 +418,18 @@ EXTERN_C const IID IID_IElevatorChromeBeta;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             IElevatorChromeBeta * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             IElevatorChromeBeta * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             IElevatorChromeBeta * This);
         
-        DECLSPEC_XFGVIRT(IElevator, RunRecoveryCRXElevated)
         HRESULT ( STDMETHODCALLTYPE *RunRecoveryCRXElevated )( 
             IElevatorChromeBeta * This,
             /* [string][in] */ const WCHAR *crx_path,
@@ -551,21 +438,6 @@ EXTERN_C const IID IID_IElevatorChromeBeta;
             /* [string][in] */ const WCHAR *session_id,
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle);
-        
-        DECLSPEC_XFGVIRT(IElevator, EncryptData)
-        HRESULT ( STDMETHODCALLTYPE *EncryptData )( 
-            IElevatorChromeBeta * This,
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error);
-        
-        DECLSPEC_XFGVIRT(IElevator, DecryptData)
-        HRESULT ( STDMETHODCALLTYPE *DecryptData )( 
-            IElevatorChromeBeta * This,
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error);
         
         END_INTERFACE
     } IElevatorChromeBetaVtbl;
@@ -592,12 +464,6 @@ EXTERN_C const IID IID_IElevatorChromeBeta;
 
 #define IElevatorChromeBeta_RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle)	\
     ( (This)->lpVtbl -> RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle) ) 
-
-#define IElevatorChromeBeta_EncryptData(This,protection_level,plaintext,ciphertext,last_error)	\
-    ( (This)->lpVtbl -> EncryptData(This,protection_level,plaintext,ciphertext,last_error) ) 
-
-#define IElevatorChromeBeta_DecryptData(This,ciphertext,plaintext,last_error)	\
-    ( (This)->lpVtbl -> DecryptData(This,ciphertext,plaintext,last_error) ) 
 
 
 #endif /* COBJMACROS */
@@ -635,22 +501,18 @@ EXTERN_C const IID IID_IElevatorChromeDev;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             IElevatorChromeDev * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             IElevatorChromeDev * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             IElevatorChromeDev * This);
         
-        DECLSPEC_XFGVIRT(IElevator, RunRecoveryCRXElevated)
         HRESULT ( STDMETHODCALLTYPE *RunRecoveryCRXElevated )( 
             IElevatorChromeDev * This,
             /* [string][in] */ const WCHAR *crx_path,
@@ -659,21 +521,6 @@ EXTERN_C const IID IID_IElevatorChromeDev;
             /* [string][in] */ const WCHAR *session_id,
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle);
-        
-        DECLSPEC_XFGVIRT(IElevator, EncryptData)
-        HRESULT ( STDMETHODCALLTYPE *EncryptData )( 
-            IElevatorChromeDev * This,
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error);
-        
-        DECLSPEC_XFGVIRT(IElevator, DecryptData)
-        HRESULT ( STDMETHODCALLTYPE *DecryptData )( 
-            IElevatorChromeDev * This,
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error);
         
         END_INTERFACE
     } IElevatorChromeDevVtbl;
@@ -700,12 +547,6 @@ EXTERN_C const IID IID_IElevatorChromeDev;
 
 #define IElevatorChromeDev_RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle)	\
     ( (This)->lpVtbl -> RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle) ) 
-
-#define IElevatorChromeDev_EncryptData(This,protection_level,plaintext,ciphertext,last_error)	\
-    ( (This)->lpVtbl -> EncryptData(This,protection_level,plaintext,ciphertext,last_error) ) 
-
-#define IElevatorChromeDev_DecryptData(This,ciphertext,plaintext,last_error)	\
-    ( (This)->lpVtbl -> DecryptData(This,ciphertext,plaintext,last_error) ) 
 
 
 #endif /* COBJMACROS */
@@ -743,22 +584,18 @@ EXTERN_C const IID IID_IElevatorChromeCanary;
     {
         BEGIN_INTERFACE
         
-        DECLSPEC_XFGVIRT(IUnknown, QueryInterface)
         HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
             IElevatorChromeCanary * This,
             /* [in] */ REFIID riid,
             /* [annotation][iid_is][out] */ 
             _COM_Outptr_  void **ppvObject);
         
-        DECLSPEC_XFGVIRT(IUnknown, AddRef)
         ULONG ( STDMETHODCALLTYPE *AddRef )( 
             IElevatorChromeCanary * This);
         
-        DECLSPEC_XFGVIRT(IUnknown, Release)
         ULONG ( STDMETHODCALLTYPE *Release )( 
             IElevatorChromeCanary * This);
         
-        DECLSPEC_XFGVIRT(IElevator, RunRecoveryCRXElevated)
         HRESULT ( STDMETHODCALLTYPE *RunRecoveryCRXElevated )( 
             IElevatorChromeCanary * This,
             /* [string][in] */ const WCHAR *crx_path,
@@ -767,21 +604,6 @@ EXTERN_C const IID IID_IElevatorChromeCanary;
             /* [string][in] */ const WCHAR *session_id,
             /* [in] */ DWORD caller_proc_id,
             /* [out] */ ULONG_PTR *proc_handle);
-        
-        DECLSPEC_XFGVIRT(IElevator, EncryptData)
-        HRESULT ( STDMETHODCALLTYPE *EncryptData )( 
-            IElevatorChromeCanary * This,
-            /* [in] */ ProtectionLevel protection_level,
-            /* [in] */ const BSTR plaintext,
-            /* [out] */ BSTR *ciphertext,
-            /* [out] */ DWORD *last_error);
-        
-        DECLSPEC_XFGVIRT(IElevator, DecryptData)
-        HRESULT ( STDMETHODCALLTYPE *DecryptData )( 
-            IElevatorChromeCanary * This,
-            /* [in] */ const BSTR ciphertext,
-            /* [out] */ BSTR *plaintext,
-            /* [out] */ DWORD *last_error);
         
         END_INTERFACE
     } IElevatorChromeCanaryVtbl;
@@ -808,12 +630,6 @@ EXTERN_C const IID IID_IElevatorChromeCanary;
 
 #define IElevatorChromeCanary_RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle)	\
     ( (This)->lpVtbl -> RunRecoveryCRXElevated(This,crx_path,browser_appid,browser_version,session_id,caller_proc_id,proc_handle) ) 
-
-#define IElevatorChromeCanary_EncryptData(This,protection_level,plaintext,ciphertext,last_error)	\
-    ( (This)->lpVtbl -> EncryptData(This,protection_level,plaintext,ciphertext,last_error) ) 
-
-#define IElevatorChromeCanary_DecryptData(This,ciphertext,plaintext,last_error)	\
-    ( (This)->lpVtbl -> DecryptData(This,ciphertext,plaintext,last_error) ) 
 
 
 #endif /* COBJMACROS */
@@ -845,11 +661,6 @@ EXTERN_C const IID LIBID_ElevatorLib;
 #endif /* __ElevatorLib_LIBRARY_DEFINED__ */
 
 /* Additional Prototypes for ALL interfaces */
-
-unsigned long             __RPC_USER  BSTR_UserSize(     unsigned long *, unsigned long            , BSTR * ); 
-unsigned char * __RPC_USER  BSTR_UserMarshal(  unsigned long *, unsigned char *, BSTR * ); 
-unsigned char * __RPC_USER  BSTR_UserUnmarshal(unsigned long *, unsigned char *, BSTR * ); 
-void                      __RPC_USER  BSTR_UserFree(     unsigned long *, BSTR * ); 
 
 /* end of Additional Prototypes */
 

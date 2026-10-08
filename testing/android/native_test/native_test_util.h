@@ -1,9 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef TESTING_ANDROID_NATIVE_TEST_NATIVE_TEST_UTIL_H_
-#define TESTING_ANDROID_NATIVE_TEST_NATIVE_TEST_UTIL_H_
+#ifndef TESTING_ANDROID_NATIVE_TEST_UTIL_
+#define TESTING_ANDROID_NATIVE_TEST_UTIL_
 
 #include <stdio.h>
 #include <string>
@@ -36,4 +36,4 @@ int ArgsToArgv(const std::vector<std::string>& args, std::vector<char*>* argv);
 }  // namespace android
 }  // namespace testing
 
-#endif  // TESTING_ANDROID_NATIVE_TEST_NATIVE_TEST_UTIL_H_
+#endif  // TESTING_ANDROID_NATIVE_TEST_UTIL_

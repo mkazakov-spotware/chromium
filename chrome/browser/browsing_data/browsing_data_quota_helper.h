@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/task/sequenced_task_runner_helpers.h"
-#include "third_party/blink/public/mojom/quota/quota_types.mojom.h"
+#include "base/sequenced_task_runner_helpers.h"
 
 class BrowsingDataQuotaHelper;
 class Profile;
@@ -35,13 +35,14 @@ class BrowsingDataQuotaHelper
     : public base::RefCountedThreadSafe<BrowsingDataQuotaHelper,
                                         BrowsingDataQuotaHelperDeleter> {
  public:
-  // QuotaInfo contains host-based quota and usage information for temporary
-  // storage.
+  // QuotaInfo contains host-based quota and usage information for persistent
+  // and temporary storage.
   struct QuotaInfo {
     QuotaInfo();
     explicit QuotaInfo(const std::string& host);
     QuotaInfo(const std::string& host,
               int64_t temporary_usage,
+              int64_t persistent_usage,
               int64_t syncable_usage);
     ~QuotaInfo();
 
@@ -53,21 +54,18 @@ class BrowsingDataQuotaHelper
 
     std::string host;
     int64_t temporary_usage = 0;
+    int64_t persistent_usage = 0;
     int64_t syncable_usage = 0;
   };
 
   using QuotaInfoArray = std::list<QuotaInfo>;
   using FetchResultCallback = base::OnceCallback<void(const QuotaInfoArray&)>;
 
-  static scoped_refptr<BrowsingDataQuotaHelper> Create(Profile* profile);
-
-  BrowsingDataQuotaHelper(const BrowsingDataQuotaHelper&) = delete;
-  BrowsingDataQuotaHelper& operator=(const BrowsingDataQuotaHelper&) = delete;
+  static BrowsingDataQuotaHelper* Create(Profile* profile);
 
   virtual void StartFetching(FetchResultCallback callback) = 0;
 
-  virtual void DeleteHostData(const std::string& host,
-                              blink::mojom::StorageType type) = 0;
+  virtual void RevokeHostQuota(const std::string& host) = 0;
 
  protected:
   BrowsingDataQuotaHelper();
@@ -76,6 +74,8 @@ class BrowsingDataQuotaHelper
  private:
   friend class base::DeleteHelper<BrowsingDataQuotaHelper>;
   friend struct BrowsingDataQuotaHelperDeleter;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowsingDataQuotaHelper);
 };
 
 #endif  // CHROME_BROWSER_BROWSING_DATA_BROWSING_DATA_QUOTA_HELPER_H_

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/values.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "storage/browser/file_system/file_system_url.h"
 #include "url/gurl.h"
 
@@ -43,12 +43,12 @@ MockRemoteFileSyncService::~MockRemoteFileSyncService() {
 }
 
 void MockRemoteFileSyncService::DumpFiles(const GURL& origin,
-                                          ListCallback callback) {
-  std::move(callback).Run(base::Value::List());
+                                          const ListCallback& callback) {
+  callback.Run(nullptr);
 }
 
-void MockRemoteFileSyncService::DumpDatabase(ListCallback callback) {
-  std::move(callback).Run(base::Value::List());
+void MockRemoteFileSyncService::DumpDatabase(const ListCallback& callback) {
+  callback.Run(nullptr);
 }
 
 void MockRemoteFileSyncService::SetServiceState(RemoteServiceState state) {
@@ -91,25 +91,24 @@ void MockRemoteFileSyncService::AddFileStatusObserverStub(
 
 void MockRemoteFileSyncService::RegisterOriginStub(
     const GURL& origin,
-    SyncStatusCallback callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), SYNC_STATUS_OK));
+    const SyncStatusCallback& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::BindOnce(callback, SYNC_STATUS_OK));
 }
 
 void MockRemoteFileSyncService::DeleteOriginDirectoryStub(
     const GURL& origin,
     UninstallFlag flag,
-    SyncStatusCallback callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(callback), SYNC_STATUS_OK));
+    const SyncStatusCallback& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::BindOnce(callback, SYNC_STATUS_OK));
 }
 
 void MockRemoteFileSyncService::ProcessRemoteChangeStub(
-    SyncFileCallback callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(std::move(callback), SYNC_STATUS_NO_CHANGE_TO_SYNC,
-                     storage::FileSystemURL()));
+    const SyncFileCallback& callback) {
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::BindOnce(callback, SYNC_STATUS_NO_CHANGE_TO_SYNC,
+                                storage::FileSystemURL()));
 }
 
 RemoteServiceState MockRemoteFileSyncService::GetCurrentStateStub() const {

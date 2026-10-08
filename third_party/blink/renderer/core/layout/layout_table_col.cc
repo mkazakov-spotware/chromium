@@ -133,7 +133,7 @@ LayoutTableCol* LayoutTableCol::EnclosingColumnGroup() const {
   if (!Parent()->IsLayoutTableCol())
     return nullptr;
 
-  auto* parent_column_group = To<LayoutTableCol>(Parent());
+  LayoutTableCol* parent_column_group = ToLayoutTableCol(Parent());
   DCHECK(parent_column_group->IsTableColumnGroup());
   DCHECK(IsTableColumn());
   return parent_column_group;
@@ -144,7 +144,7 @@ LayoutTableCol* LayoutTableCol::NextColumn() const {
   // If |this| is a column-group, the next column is the colgroup's first child
   // column.
   if (LayoutObject* first_child = FirstChild())
-    return To<LayoutTableCol>(first_child);
+    return ToLayoutTableCol(first_child);
 
   // Otherwise it's the next column along.
   LayoutObject* next = NextSibling();
@@ -157,7 +157,7 @@ LayoutTableCol* LayoutTableCol::NextColumn() const {
   for (; next && !next->IsLayoutTableCol(); next = next->NextSibling()) {
   }
 
-  return To<LayoutTableCol>(next);
+  return ToLayoutTableCol(next);
 }
 
 }  // namespace blink

@@ -1,15 +1,12 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
 
 import collections
 import itertools
 import json
 import logging
 import time
-
-import six
 
 from pylib.base import base_test_result
 
@@ -95,14 +92,14 @@ def GenerateResultsDict(test_run_results, global_tags=None):
       result_dict = {
           'status': r.GetType(),
           'elapsed_time_ms': r.GetDuration(),
-          'output_snippet': six.ensure_text(r.GetLog(), errors='replace'),
+          'output_snippet': unicode(r.GetLog(), errors='replace'),
           'losless_snippet': True,
           'output_snippet_base64': '',
           'links': r.GetLinks(),
       }
       iteration_data[r.GetName()].append(result_dict)
 
-    all_tests = all_tests.union(set(six.iterkeys(iteration_data)))
+    all_tests = all_tests.union(set(iteration_data.iterkeys()))
     per_iteration_data.append(iteration_data)
 
   return {
@@ -115,18 +112,17 @@ def GenerateResultsDict(test_run_results, global_tags=None):
   }
 
 
-def GenerateJsonTestResultFormatDict(test_run_results, interrupted):
+def GenerateJsonTestResultFormatDict(test_run_results):
   """Create a results dict from |test_run_results| suitable for writing to JSON.
 
   Args:
     test_run_results: a list of base_test_result.TestRunResults objects.
-    interrupted: True if tests were interrupted, e.g. timeout listing tests
   Returns:
     A results dict that mirrors the standard JSON Test Results Format.
   """
 
   tests = {}
-  counts = {'PASS': 0, 'FAIL': 0, 'SKIP': 0, 'CRASH': 0, 'TIMEOUT': 0}
+  counts = {'PASS': 0, 'FAIL': 0}
 
   for test_run_result in test_run_results:
     if isinstance(test_run_result, list):
@@ -143,16 +139,8 @@ def GenerateJsonTestResultFormatDict(test_run_results, interrupted):
 
       element['expected'] = 'PASS'
 
-      if r.GetType() == base_test_result.ResultType.PASS:
-        result = 'PASS'
-      elif r.GetType() == base_test_result.ResultType.SKIP:
-        result = 'SKIP'
-      elif r.GetType() == base_test_result.ResultType.CRASH:
-        result = 'CRASH'
-      elif r.GetType() == base_test_result.ResultType.TIMEOUT:
-        result = 'TIMEOUT'
-      else:
-        result = 'FAIL'
+      result = 'PASS' if r.GetType(
+      ) == base_test_result.ResultType.PASS else 'FAIL'
 
       if 'actual' in element:
         element['actual'] += ' ' + result
@@ -167,7 +155,7 @@ def GenerateJsonTestResultFormatDict(test_run_results, interrupted):
 
   # Fill in required fields.
   return {
-      'interrupted': interrupted,
+      'interrupted': False,
       'num_failures_by_type': counts,
       'path_delimiter': '.',
       'seconds_since_epoch': time.time(),
@@ -194,22 +182,18 @@ def GenerateJsonResultsFile(test_run_result, file_path, global_tags=None,
     logging.info('Generated json results file at %s', file_path)
 
 
-def GenerateJsonTestResultFormatFile(test_run_result, interrupted, file_path,
-                                     **kwargs):
+def GenerateJsonTestResultFormatFile(test_run_result, file_path, **kwargs):
   """Write |test_run_result| to JSON.
 
   This uses the official Chromium Test Results Format.
 
   Args:
     test_run_result: a base_test_result.TestRunResults object.
-    interrupted: True if tests were interrupted, e.g. timeout listing tests
     file_path: The path to the JSON file to write.
   """
   with open(file_path, 'w') as json_result_file:
     json_result_file.write(
-        json.dumps(
-            GenerateJsonTestResultFormatDict(test_run_result, interrupted),
-            **kwargs))
+        json.dumps(GenerateJsonTestResultFormatDict(test_run_result), **kwargs))
     logging.info('Generated json results file at %s', file_path)
 
 
@@ -229,11 +213,10 @@ def ParseResultsFromJson(json_results):
   results_list = []
   testsuite_runs = json_results['per_iteration_data']
   for testsuite_run in testsuite_runs:
-    for test, test_runs in six.iteritems(testsuite_run):
+    for test, test_runs in testsuite_run.iteritems():
       results_list.extend(
           [base_test_result.BaseTestResult(test,
                                            string_as_status(tr['status']),
-                                           duration=tr['elapsed_time_ms'],
-                                           log=tr.get('output_snippet'))
+                                           duration=tr['elapsed_time_ms'])
           for tr in test_runs])
   return results_list

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,17 +17,14 @@ import androidx.test.filters.MediumTest;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags.Add;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.R;
@@ -36,7 +33,6 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.components.javascript_dialogs.JavascriptAppModalDialog;
 import org.chromium.content_public.browser.GestureStateListener;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer;
@@ -52,18 +48,10 @@ import java.util.concurrent.TimeoutException;
  * Test suite for displaying and functioning of app modal JavaScript onbeforeunload dialogs.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@Batch(JavascriptAppModalDialogTest.JAVASCRIPT_DIALOG_BATCH_NAME)
 @Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class JavascriptAppModalDialogTest {
-    public static final String JAVASCRIPT_DIALOG_BATCH_NAME = "javascript_dialog";
-
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, true);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private static final String TAG = "JSAppModalDialogTest";
     private static final String EMPTY_PAGE = UrlUtils.encodeHtmlDataUri(
@@ -75,7 +63,7 @@ public class JavascriptAppModalDialogTest {
 
     @Before
     public void setUp() {
-        sActivityTestRule.loadUrl(EMPTY_PAGE);
+        mActivityTestRule.startMainActivityWithURL(EMPTY_PAGE);
     }
 
     /**
@@ -84,10 +72,9 @@ public class JavascriptAppModalDialogTest {
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1295498")
     @Feature({"Browser", "Main"})
     public void testBeforeUnloadDialog() throws TimeoutException, ExecutionException {
-        sActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
+        mActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
         // JavaScript onbeforeunload dialogs require a user gesture.
         tapViewAndWait();
         executeJavaScriptAndWaitForDialog("history.back();");
@@ -98,10 +85,7 @@ public class JavascriptAppModalDialogTest {
         onView(withText(R.string.cancel)).perform(click());
 
         Assert.assertEquals(BEFORE_UNLOAD_URL,
-                sActivityTestRule.getActivity()
-                        .getCurrentWebContents()
-                        .getLastCommittedUrl()
-                        .getSpec());
+                mActivityTestRule.getActivity().getCurrentWebContents().getLastCommittedUrl());
         executeJavaScriptAndWaitForDialog("history.back();");
 
         jsDialog = getCurrentDialog();
@@ -114,10 +98,7 @@ public class JavascriptAppModalDialogTest {
         onView(withText(R.string.leave)).perform(click());
         onPageLoaded.waitForCallback(callCount);
         Assert.assertEquals(EMPTY_PAGE,
-                sActivityTestRule.getActivity()
-                        .getCurrentWebContents()
-                        .getLastCommittedUrl()
-                        .getSpec());
+                mActivityTestRule.getActivity().getCurrentWebContents().getLastCommittedUrl());
     }
 
     /**
@@ -128,12 +109,11 @@ public class JavascriptAppModalDialogTest {
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1237639")
     @Feature({"Browser", "Main"})
     public void testBeforeUnloadDialogWithNoHistory() throws TimeoutException, ExecutionException {
-        ChromeTabbedActivity activity = sActivityTestRule.getActivity();
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         TabUiTestHelper.verifyTabModelTabCount(activity, 1, 0);
-        sActivityTestRule.loadUrlInNewTab(BEFORE_UNLOAD_URL);
+        mActivityTestRule.loadUrlInNewTab(BEFORE_UNLOAD_URL);
         TabUiTestHelper.verifyTabModelTabCount(activity, 2, 0);
         // JavaScript onbeforeunload dialogs require a user gesture.
         tapViewAndWait();
@@ -153,10 +133,9 @@ public class JavascriptAppModalDialogTest {
      */
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1295498")
     @Feature({"Browser", "Main"})
     public void testBeforeUnloadOnReloadDialog() throws TimeoutException, ExecutionException {
-        sActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
+        mActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
         // JavaScript onbeforeunload dialogs require a user gesture.
         tapViewAndWait();
         executeJavaScriptAndWaitForDialog("window.location.reload();");
@@ -176,7 +155,7 @@ public class JavascriptAppModalDialogTest {
     @MediumTest
     @Feature({"Browser", "Main"})
     public void testDisableRepeatedDialogs() throws TimeoutException, ExecutionException {
-        sActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
+        mActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
         // JavaScript onbeforeunload dialogs require a user gesture.
         tapViewAndWait();
         executeJavaScriptAndWaitForDialog("history.back();");
@@ -186,10 +165,7 @@ public class JavascriptAppModalDialogTest {
         Assert.assertNotNull("No dialog showing.", jsDialog);
         onView(withText(R.string.cancel)).perform(click());
         Assert.assertEquals(BEFORE_UNLOAD_URL,
-                sActivityTestRule.getActivity()
-                        .getCurrentWebContents()
-                        .getLastCommittedUrl()
-                        .getSpec());
+                mActivityTestRule.getActivity().getCurrentWebContents().getLastCommittedUrl());
 
         // Show it again, it should have the option to suppress subsequent dialogs.
         OnEvaluateJavaScriptResultHelper resultHelper =
@@ -202,14 +178,11 @@ public class JavascriptAppModalDialogTest {
                 .check(matches(isChecked()));
         onView(withText(R.string.cancel)).perform(click());
         Assert.assertEquals(BEFORE_UNLOAD_URL,
-                sActivityTestRule.getActivity()
-                        .getCurrentWebContents()
-                        .getLastCommittedUrl()
-                        .getSpec());
+                mActivityTestRule.getActivity().getCurrentWebContents().getLastCommittedUrl());
 
         // Try showing a dialog again and verify it is not shown.
         resultHelper.evaluateJavaScriptForTests(
-                sActivityTestRule.getWebContents(), "history.back();");
+                mActivityTestRule.getWebContents(), "history.back();");
         jsDialog = getCurrentDialog();
         Assert.assertNull("Dialog should not be showing.", jsDialog);
     }
@@ -223,13 +196,13 @@ public class JavascriptAppModalDialogTest {
     @MediumTest
     @Feature({"Browser", "Main"})
     public void testDialogDismissedAfterClosingTab() throws TimeoutException {
-        sActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
+        mActivityTestRule.loadUrl(BEFORE_UNLOAD_URL);
         // JavaScript onbeforeunload dialogs require a user gesture.
         tapViewAndWait();
         executeJavaScriptAndWaitForDialog("history.back();");
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            ChromeTabbedActivity activity = sActivityTestRule.getActivity();
+            ChromeTabbedActivity activity = mActivityTestRule.getActivity();
             activity.getCurrentTabModel().closeTab(activity.getActivityTab());
         });
 
@@ -243,11 +216,10 @@ public class JavascriptAppModalDialogTest {
     private void tapViewAndWait() throws TimeoutException {
         final TapGestureStateListener tapGestureStateListener = new TapGestureStateListener();
         int callCount = tapGestureStateListener.getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            WebContentsUtils.getGestureListenerManager(sActivityTestRule.getWebContents())
-                    .addListener(tapGestureStateListener);
-        });
-        TouchCommon.singleClickView(sActivityTestRule.getActivity().getActivityTab().getView());
+        WebContentsUtils.getGestureListenerManager(mActivityTestRule.getWebContents())
+                .addListener(tapGestureStateListener);
+
+        TouchCommon.singleClickView(mActivityTestRule.getActivity().getActivityTab().getView());
         tapGestureStateListener.waitForTap(callCount);
     }
 
@@ -266,7 +238,7 @@ public class JavascriptAppModalDialogTest {
     private OnEvaluateJavaScriptResultHelper executeJavaScriptAndWaitForDialog(
             final OnEvaluateJavaScriptResultHelper helper, String script) {
         helper.evaluateJavaScriptForTests(
-                sActivityTestRule.getActivity().getCurrentWebContents(), script);
+                mActivityTestRule.getActivity().getCurrentWebContents(), script);
         assertJavascriptAppModalDialogShownState(true);
         return helper;
     }
@@ -280,7 +252,7 @@ public class JavascriptAppModalDialogTest {
                 () -> JavascriptAppModalDialog.getCurrentDialogForTest());
     }
 
-    private static class TapGestureStateListener extends GestureStateListener {
+    private static class TapGestureStateListener implements GestureStateListener {
         private CallbackHelper mCallbackHelper = new CallbackHelper();
 
         public int getCallCount() {
@@ -310,6 +282,6 @@ public class JavascriptAppModalDialogTest {
     }
 
     private TestCallbackHelperContainer getActiveTabTestCallbackHelperContainer() {
-        return new TestCallbackHelperContainer(sActivityTestRule.getWebContents());
+        return new TestCallbackHelperContainer(mActivityTestRule.getWebContents());
     }
 }

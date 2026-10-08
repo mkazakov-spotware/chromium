@@ -1,7 +1,7 @@
 rootWebArea
 ++genericContainer ignored
 ++++genericContainer ignored
-++++++tabList horizontal
+++++++tabPanel
 ++++++++tab name='Item' selected=false
 ++++++++++heading name='Item' hierarchicalLevel=3
 ++++++++++++staticText name='Item'
@@ -10,6 +10,3 @@ rootWebArea
 ++++++++++heading name='Prices' hierarchicalLevel=3
 ++++++++++++staticText name='Prices'
 ++++++++++++++inlineTextBox name='Prices'
-++++++tabPanel name='Item'
-++++++++staticText name='Item tab content'
-++++++++++inlineTextBox name='Item tab content'

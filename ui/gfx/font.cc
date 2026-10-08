@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "ui/gfx/platform_font.h"
-
-#ifndef NDEBUG
-#include <ostream>
-#endif
 
 namespace gfx {
 
@@ -30,7 +26,7 @@ Font& Font::operator=(const Font& other) {
   return *this;
 }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 Font::Font(NativeFont native_font)
     : platform_font_(PlatformFont::CreateFromNativeFont(native_font)) {
 }
@@ -94,7 +90,7 @@ const FontRenderParams& Font::GetFontRenderParams() const {
   return platform_font_->GetFontRenderParams();
 }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 NativeFont Font::GetNativeFont() const {
   return platform_font_->GetNativeFont();
 }

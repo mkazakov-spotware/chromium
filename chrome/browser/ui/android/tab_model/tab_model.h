@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,7 @@
 
 #include <memory>
 
-#include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/flags/android/chrome_session_state.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/android/tab_model/android_live_tab_context.h"
 #include "components/omnibox/browser/location_bar_model.h"
 #include "components/omnibox/browser/location_bar_model_delegate.h"
@@ -86,25 +84,6 @@ class TabModel {
     FROM_STARTUP,
     // Opened from the start surface.
     FROM_START_SURFACE,
-    // Opened from Tab group UI.
-    // Tab group UI include:
-    // - "+" button in the bottom tab strip
-    // - "+" button in the tab grid dialog
-    FROM_TAB_GROUP_UI,
-    // Open from the long press context menu item 'Open in new tab in group'.
-    // Will not be brought to the foreground.
-    FROM_LONGPRESS_BACKGROUND_IN_GROUP,
-    // Opened from an app widget.
-    FROM_APP_WIDGET,
-    // Open from the long press context menu item 'Open in Incognito Tab'.
-    FROM_LONGPRESS_INCOGNITO,
-    // Opened in background from Recent Tabs. This is a non-link launch with no
-    // parent/child relationship. The tab is added to the end of the TabModel.
-    // This does not include opening in the current tab.
-    FROM_RECENT_TABS,
-    // Opened from a Reading list. When going "back" on Android, the Reading
-    // list should be reopened.
-    FROM_READING_LIST,
     // Must be last.
     SIZE
   };
@@ -125,31 +104,9 @@ class TabModel {
     // User-originated switch to existing tab from Omnibox tab switch
     // suggestions.
     FROM_OMNIBOX,
-    // Selection of a previously closed tab when closure is undone.
-    FROM_UNDO,
     // Must be last.
     SIZE
   };
-
-  // Various types of user agent.
-  // Values must be numbered from 0 and can't have gaps.
-  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.tab
-  enum class TabUserAgent {
-    // Choose user agent based on default setting.
-    DEFAULT,
-    // Use mobile user agent.
-    MOBILE,
-    // Use desktop user agent.
-    DESKTOP,
-    // User agent not set, due to an earlier version not having the user agent
-    // bit.
-    UNSET,
-    // Must be last.
-    SIZE
-  };
-
-  TabModel(const TabModel&) = delete;
-  TabModel& operator=(const TabModel&) = delete;
 
   virtual Profile* GetProfile() const;
   virtual bool IsOffTheRecord() const;
@@ -163,7 +120,6 @@ class TabModel {
   virtual content::WebContents* GetWebContentsAt(int index) const = 0;
   // This will return NULL if the tab has not yet been initialized.
   virtual TabAndroid* GetTabAt(int index) const = 0;
-  virtual base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const = 0;
 
   virtual void SetActiveIndex(int index) = 0;
   virtual void CloseTabAt(int index) = 0;
@@ -192,10 +148,8 @@ class TabModel {
   // Removes an observer from this TabModel.
   virtual void RemoveObserver(TabModelObserver* observer) = 0;
 
-  chrome::android::ActivityType activity_type() const { return activity_type_; }
-
  protected:
-  TabModel(Profile* profile, chrome::android::ActivityType activity_type);
+  explicit TabModel(Profile* profile, bool is_tabbed_activity);
   virtual ~TabModel();
 
   // Instructs the TabModel to broadcast a notification that all tabs are now
@@ -205,9 +159,7 @@ class TabModel {
   LocationBarModel* GetLocationBarModel();
 
  private:
-  raw_ptr<Profile, DanglingUntriaged> profile_;
-
-  chrome::android::ActivityType activity_type_;
+  Profile* profile_;
 
   // The LiveTabContext associated with TabModel.
   // Used to restore closed tabs through the TabRestoreService.
@@ -221,6 +173,8 @@ class TabModel {
   // unique within the current session, and is not guaranteed to be unique
   // across sessions.
   SessionID session_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(TabModel);
 };
 
 #endif  // CHROME_BROWSER_UI_ANDROID_TAB_MODEL_TAB_MODEL_H_

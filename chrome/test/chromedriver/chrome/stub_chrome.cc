@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,7 +47,7 @@ Status StubChrome::GetWindowRect(const std::string& id, WindowRect* rect) {
 }
 
 Status StubChrome::SetWindowRect(const std::string& target_id,
-                                 const base::Value::Dict& params) {
+                                 const base::DictionaryValue& params) {
   return Status(kOk);
 }
 
@@ -76,7 +76,7 @@ Status StubChrome::SetAcceptInsecureCerts() {
 }
 
 Status StubChrome::SetPermission(
-    std::unique_ptr<base::Value::Dict> permission_descriptor,
+    std::unique_ptr<base::DictionaryValue> permission_descriptor,
     Chrome::PermissionState desired_state,
     bool one_realm,
     WebView* current_view) {

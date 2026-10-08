@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <bitset>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "ui/events/ozone/evdev/touch_evdev_types.h"
 #include "ui/events/ozone/evdev/touch_filter/palm_detection_filter.h"
@@ -22,10 +23,6 @@ class COMPONENT_EXPORT(EVDEV) OpenPalmDetectionFilter
  public:
   explicit OpenPalmDetectionFilter(
       SharedPalmDetectionFilterState* shared_palm_state);
-
-  OpenPalmDetectionFilter(const OpenPalmDetectionFilter&) = delete;
-  OpenPalmDetectionFilter& operator=(const OpenPalmDetectionFilter&) = delete;
-
   ~OpenPalmDetectionFilter() override;
 
   void Filter(const std::vector<InProgressTouchEvdev>& touches,
@@ -35,6 +32,9 @@ class COMPONENT_EXPORT(EVDEV) OpenPalmDetectionFilter
 
   static const char kFilterName[];
   std::string FilterNameForTesting() const override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(OpenPalmDetectionFilter);
 };
 
 }  // namespace ui

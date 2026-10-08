@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,10 @@
 #define COMPONENTS_POLICY_CORE_COMMON_POLICY_BUNDLE_H_
 
 #include <map>
+#include <memory>
+#include <string>
 
+#include "base/macros.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_namespace.h"
 #include "components/policy/policy_export.h"
@@ -16,27 +19,22 @@ namespace policy {
 // Maps policy namespaces to PolicyMaps.
 class POLICY_EXPORT PolicyBundle {
  public:
-  using MapType = std::map<PolicyNamespace, PolicyMap>;
+  using MapType = std::map<PolicyNamespace, std::unique_ptr<PolicyMap>>;
   using iterator = MapType::iterator;
   using const_iterator = MapType::const_iterator;
 
   PolicyBundle();
-  PolicyBundle(const PolicyBundle&) = delete;
-  PolicyBundle(PolicyBundle&&);
-  PolicyBundle& operator=(const PolicyBundle&) = delete;
-  PolicyBundle& operator=(PolicyBundle&&);
   virtual ~PolicyBundle();
 
-  // Returns the PolicyMap for namespace `ns`. Creates a new map if no entry
-  // for `ns` is present yet.
+  // Returns the PolicyMap for namespace |ns|. Creates a new map if necessary.
   PolicyMap& Get(const PolicyNamespace& ns);
-
-  // Returns the PolicyMap for namespace `ns`. Returns a reference to a static
-  // empty map if no entry for `ns` is present.
   const PolicyMap& Get(const PolicyNamespace& ns) const;
 
-  // Create a clone of `this`.
-  PolicyBundle Clone() const;
+  // Swaps the internal representation of |this| with |other|.
+  void Swap(PolicyBundle* other);
+
+  // |this| becomes a copy of |other|. Any existing PolicyMaps are dropped.
+  void CopyFrom(const PolicyBundle& other);
 
   // Merges the PolicyMaps of |this| with those of |other| for each namespace
   // in common. Also adds copies of the (namespace, PolicyMap) pairs in |other|
@@ -63,6 +61,12 @@ class POLICY_EXPORT PolicyBundle {
 
  private:
   MapType policy_bundle_;
+
+  // An empty PolicyMap that is returned by const Get() for namespaces that
+  // do not exist in |policy_bundle_|.
+  const PolicyMap kEmpty_;
+
+  DISALLOW_COPY_AND_ASSIGN(PolicyBundle);
 };
 
 }  // namespace policy

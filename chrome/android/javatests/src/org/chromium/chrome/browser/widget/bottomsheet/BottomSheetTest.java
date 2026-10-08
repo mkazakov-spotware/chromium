@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@ package org.chromium.chrome.browser.widget.bottomsheet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import static org.chromium.base.test.util.CriteriaHelper.pollUiThread;
 import static org.chromium.chrome.browser.flags.ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE;
@@ -23,12 +20,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.Callback;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Restriction;
-import org.chromium.chrome.browser.tab.TabObscuringHandler;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
+import org.chromium.chrome.browser.ui.TabObscuringHandler;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
@@ -36,11 +32,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent.HeightM
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.TestBottomSheetContent;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.UiRestriction;
 
 import java.util.concurrent.ExecutionException;
@@ -152,28 +144,21 @@ public class BottomSheetTest {
     public void testTabObscuringState() throws TimeoutException {
         CallbackHelper obscuringStateChangedHelper = new CallbackHelper();
         TabObscuringHandler handler = mTestRule.getActivity().getTabObscuringHandler();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            handler.addObserver(
-                    (isTabObscured,
-                            isToolbarObscured) -> obscuringStateChangedHelper.notifyCalled());
-        });
+        handler.addObserver((isObscured) -> obscuringStateChangedHelper.notifyCalled());
         mHighPriorityContent.setHasCustomScrimLifecycle(false);
 
-        assertFalse("The tab should not yet be obscured.", handler.isTabContentObscured());
-        assertFalse("The toolbar should not yet be obscured.", handler.isToolbarObscured());
+        assertFalse("The tab should not yet be obscured.", handler.areAllTabsObscured());
 
         int callCount = obscuringStateChangedHelper.getCallCount();
         showContent(mHighPriorityContent, SheetState.HALF);
         obscuringStateChangedHelper.waitForCallback("The tab should be obscured.", callCount);
-        assertTrue("The tab should be obscured.", handler.isTabContentObscured());
-        assertTrue("The toolbar should be obscured.", handler.isToolbarObscured());
+        assertTrue("The tab should be obscured.", handler.areAllTabsObscured());
 
         callCount = obscuringStateChangedHelper.getCallCount();
         hideSheet();
         obscuringStateChangedHelper.waitForCallback("The tab should not be obscured.", callCount);
 
-        assertFalse("The tab should not be obscured.", handler.isTabContentObscured());
-        assertFalse("The toolbar should not yet be obscured.", handler.isToolbarObscured());
+        assertFalse("The tab should not be obscured.", handler.areAllTabsObscured());
     }
 
     @Test
@@ -181,17 +166,13 @@ public class BottomSheetTest {
     public void testTabObscuringState_customScrim() throws ExecutionException {
         CallbackHelper obscuringStateChangedHelper = new CallbackHelper();
         TabObscuringHandler handler = mTestRule.getActivity().getTabObscuringHandler();
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            handler.addObserver(
-                    (isTabObscured,
-                            isToolbarObscured) -> obscuringStateChangedHelper.notifyCalled());
-        });
+        handler.addObserver((isObscured) -> obscuringStateChangedHelper.notifyCalled());
         mHighPriorityContent.setHasCustomScrimLifecycle(true);
 
-        assertFalse("The tab should not be obscured.", handler.isTabContentObscured());
+        assertFalse("The tab should not be obscured.", handler.areAllTabsObscured());
 
         showContent(mHighPriorityContent, SheetState.HALF);
-        assertFalse("The tab should still not be obscured.", handler.isTabContentObscured());
+        assertFalse("The tab should still not be obscured.", handler.areAllTabsObscured());
 
         hideSheet();
 
@@ -263,48 +244,6 @@ public class BottomSheetTest {
 
         assertEquals("The sheet should be restored to the peek state.", SheetState.PEEK,
                 mSheetController.getSheetState());
-    }
-
-    @Test
-    @MediumTest
-    public void testOffsetController() {
-        mLowPriorityContent.setContentControlsOffset(true);
-
-        BottomSheetObserver forbidStateChanges = new EmptyBottomSheetObserver() {
-            @Override
-            public void onSheetOpened(@StateChangeReason int reason) {
-                fail("onSheetOpened unexpected");
-            }
-
-            @Override
-            public void onSheetClosed(@StateChangeReason int reason) {
-                fail("onSheetClosed unexpected");
-            }
-        };
-        runOnUiThreadBlocking(() -> {
-            assertTrue(mSheetController.requestShowContent(mLowPriorityContent, false));
-
-            Callback<Integer> offsetController = mLowPriorityContent.getOffsetController();
-            assertNotNull(offsetController);
-
-            mSheetController.addObserver(forbidStateChanges);
-
-            int startOffset = mSheetController.getCurrentOffset();
-            int modifiedOffset = startOffset / 2;
-            offsetController.onResult(modifiedOffset);
-            assertEquals(modifiedOffset, mSheetController.getCurrentOffset());
-
-            offsetController.onResult(0);
-            assertEquals(0, mSheetController.getCurrentOffset());
-
-            offsetController.onResult(startOffset);
-            assertEquals(startOffset, mSheetController.getCurrentOffset());
-
-            mSheetController.removeObserver(forbidStateChanges);
-
-            mSheetController.hideContent(mLowPriorityContent, false);
-            assertNull(mLowPriorityContent.getOffsetController());
-        });
     }
 
     private void hideSheet() {

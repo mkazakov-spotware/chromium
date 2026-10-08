@@ -23,15 +23,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_REVEAL_SELECTION_SCOPE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_REVEAL_SELECTION_SCOPE_H_
 
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/member.h"
+#include "base/macros.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -43,8 +43,6 @@ class RevealSelectionScope {
 
  public:
   explicit RevealSelectionScope(LocalFrame&);
-  RevealSelectionScope(const RevealSelectionScope&) = delete;
-  RevealSelectionScope& operator=(const RevealSelectionScope&) = delete;
   ~RevealSelectionScope();
 
   void Trace(Visitor*) const;
@@ -53,6 +51,8 @@ class RevealSelectionScope {
   Editor& GetEditor();
 
   Member<LocalFrame> frame_;
+
+  DISALLOW_COPY_AND_ASSIGN(RevealSelectionScope);
 };
 
 }  // namespace blink

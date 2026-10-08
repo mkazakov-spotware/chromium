@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_VIZ_SERVICE_DISPLAY_EMBEDDER_VSYNC_PARAMETER_LISTENER_H_
 #define COMPONENTS_VIZ_SERVICE_DISPLAY_EMBEDDER_VSYNC_PARAMETER_LISTENER_H_
 
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "components/viz/service/viz_service_export.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -22,10 +23,6 @@ class VIZ_SERVICE_EXPORT VSyncParameterListener {
  public:
   explicit VSyncParameterListener(
       mojo::PendingRemote<mojom::VSyncParameterObserver> observer);
-
-  VSyncParameterListener(const VSyncParameterListener&) = delete;
-  VSyncParameterListener& operator=(const VSyncParameterListener&) = delete;
-
   ~VSyncParameterListener();
 
   void OnVSyncParametersUpdated(base::TimeTicks timebase,
@@ -34,7 +31,8 @@ class VIZ_SERVICE_EXPORT VSyncParameterListener {
  private:
   friend class VSyncParameterListenerTestRunner;
 
-  static constexpr base::TimeDelta kMaxTimebaseSkew = base::Microseconds(25);
+  static constexpr base::TimeDelta kMaxTimebaseSkew =
+      base::TimeDelta::FromMicroseconds(25);
 
   bool ShouldSendUpdate(base::TimeTicks timebase, base::TimeDelta interval);
 
@@ -42,6 +40,8 @@ class VIZ_SERVICE_EXPORT VSyncParameterListener {
 
   base::TimeDelta last_interval_;
   base::TimeDelta last_offset_;
+
+  DISALLOW_COPY_AND_ASSIGN(VSyncParameterListener);
 };
 
 }  // namespace viz

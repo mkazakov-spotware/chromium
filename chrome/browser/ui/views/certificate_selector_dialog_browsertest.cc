@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,28 +27,24 @@ class TestCertificateSelector : public chrome::CertificateSelector {
       : chrome::CertificateSelector(std::move(identities), web_contents) {
     std::unique_ptr<views::Label> label =
         std::make_unique<views::Label>(l10n_util::GetStringFUTF16(
-            IDS_CLIENT_CERT_DIALOG_TEXT, u"example.com"));
+            IDS_CLIENT_CERT_DIALOG_TEXT, base::ASCIIToUTF16("example.com")));
     label->SetMultiLine(true);
     label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     label->SizeToFit(chrome::CertificateSelector::kTableViewWidth);
     InitWithText(std::move(label));
   }
 
-  TestCertificateSelector(const TestCertificateSelector&) = delete;
-  TestCertificateSelector& operator=(const TestCertificateSelector&) = delete;
-
   // chrome::CertificateSelector:
   void AcceptCertificate(
       std::unique_ptr<net::ClientCertIdentity> identity) override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestCertificateSelector);
 };
 
 class CertificateSelectorDialogTest : public DialogBrowserTest {
  public:
   CertificateSelectorDialogTest() {}
-
-  CertificateSelectorDialogTest(const CertificateSelectorDialogTest&) = delete;
-  CertificateSelectorDialogTest& operator=(
-      const CertificateSelectorDialogTest&) = delete;
 
   // DialogBrowserTest:
   void ShowUi(const std::string& name) override {
@@ -67,6 +63,8 @@ class CertificateSelectorDialogTest : public DialogBrowserTest {
  private:
   scoped_refptr<net::X509Certificate> cert_1_;
   scoped_refptr<net::X509Certificate> cert_2_;
+
+  DISALLOW_COPY_AND_ASSIGN(CertificateSelectorDialogTest);
 };
 
 // Invokes a dialog that allows the user select a certificate.

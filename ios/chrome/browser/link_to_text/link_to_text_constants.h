@@ -1,16 +1,14 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_LINK_TO_TEXT_LINK_TO_TEXT_CONSTANTS_H_
 #define IOS_CHROME_BROWSER_LINK_TO_TEXT_LINK_TO_TEXT_CONSTANTS_H_
 
-#include "base/time/time.h"
-
 namespace link_to_text {
 
-// Duration before timing out link generation requests.
-constexpr base::TimeDelta kLinkGenerationTimeout = base::Milliseconds(500);
+// Number of milliseconds before timing out link generation requests.
+extern const double kLinkGenerationTimeoutInMs;
 
 }  // namespace link_to_text
 

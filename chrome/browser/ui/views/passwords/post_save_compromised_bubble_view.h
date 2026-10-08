@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,7 @@ class PostSaveCompromisedBubbleView : public PasswordBubbleViewBase {
   // PasswordBubbleViewBase:
   PostSaveCompromisedBubbleController* GetController() override;
   const PostSaveCompromisedBubbleController* GetController() const override;
-  ui::ImageModel GetWindowIcon() override;
-
-  // View:
-  void AddedToWidget() override;
+  void OnThemeChanged() override;
 
   PostSaveCompromisedBubbleController controller_;
 };

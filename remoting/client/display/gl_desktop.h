@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/client/display/drawable.h"
@@ -25,10 +26,6 @@ class Canvas;
 class GlDesktop : public Drawable {
  public:
   GlDesktop();
-
-  GlDesktop(const GlDesktop&) = delete;
-  GlDesktop& operator=(const GlDesktop&) = delete;
-
   ~GlDesktop() override;
 
   // |frame| can be either a full frame or updated regions only frame.
@@ -52,6 +49,8 @@ class GlDesktop : public Drawable {
   base::WeakPtr<Canvas> canvas_ = nullptr;
   base::ThreadChecker thread_checker_;
   base::WeakPtrFactory<Drawable> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GlDesktop);
 };
 
 }  // namespace remoting

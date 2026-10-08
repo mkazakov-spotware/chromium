@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,14 +26,14 @@ const FillLayer* GetFillLayerForPosition(const CSSProperty& property,
 }
 
 FillLayer* AccessFillLayerForPosition(const CSSProperty& property,
-                                      ComputedStyleBuilder& builder) {
+                                      ComputedStyle& style) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kBackgroundPositionX:
     case CSSPropertyID::kBackgroundPositionY:
-      return &builder.AccessBackgroundLayers();
+      return &style.AccessBackgroundLayers();
     case CSSPropertyID::kWebkitMaskPositionX:
     case CSSPropertyID::kWebkitMaskPositionY:
-      return &builder.AccessMaskLayers();
+      return &style.AccessMaskLayers();
     default:
       NOTREACHED();
       return nullptr;
@@ -74,7 +74,7 @@ struct FillLayerMethods {
 
 }  // namespace
 
-Length::ValueRange LengthListPropertyFunctions::GetValueRange(
+ValueRange LengthListPropertyFunctions::GetValueRange(
     const CSSProperty& property) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kBackgroundPositionX:
@@ -86,26 +86,26 @@ Length::ValueRange LengthListPropertyFunctions::GetValueRange(
     case CSSPropertyID::kTransformOrigin:
     case CSSPropertyID::kWebkitMaskPositionX:
     case CSSPropertyID::kWebkitMaskPositionY:
-      return Length::ValueRange::kAll;
+      return kValueRangeAll;
 
     case CSSPropertyID::kBorderBottomLeftRadius:
     case CSSPropertyID::kBorderBottomRightRadius:
     case CSSPropertyID::kBorderTopLeftRadius:
     case CSSPropertyID::kBorderTopRightRadius:
     case CSSPropertyID::kStrokeDasharray:
-      return Length::ValueRange::kNonNegative;
+    case CSSPropertyID::kContainIntrinsicSize:
+      return kValueRangeNonNegative;
 
     default:
       NOTREACHED();
-      return Length::ValueRange::kAll;
+      return kValueRangeAll;
   }
 }
 
 bool LengthListPropertyFunctions::GetInitialLengthList(
     const CSSProperty& property,
-    const ComputedStyle& initial_style,
     Vector<Length>& result) {
-  return GetLengthList(property, initial_style, result);
+  return GetLengthList(property, ComputedStyle::InitialStyle(), result);
 }
 
 static bool AppendToVector(const LengthPoint& point, Vector<Length>& result) {
@@ -131,7 +131,7 @@ static bool AppendToVector(const TransformOrigin& transform_origin,
 bool LengthListPropertyFunctions::GetLengthList(const CSSProperty& property,
                                                 const ComputedStyle& style,
                                                 Vector<Length>& result) {
-  DCHECK(result.empty());
+  DCHECK(result.IsEmpty());
 
   switch (property.PropertyID()) {
     case CSSPropertyID::kStrokeDasharray: {
@@ -158,6 +158,8 @@ bool LengthListPropertyFunctions::GetLengthList(const CSSProperty& property,
       return AppendToVector(style.BorderTopRightRadius(), result);
     case CSSPropertyID::kTransformOrigin:
       return AppendToVector(style.GetTransformOrigin(), result);
+    case CSSPropertyID::kContainIntrinsicSize:
+      return AppendToVector(style.ContainIntrinsicSize(), result);
 
     case CSSPropertyID::kBackgroundPositionX:
     case CSSPropertyID::kBackgroundPositionY:
@@ -202,51 +204,54 @@ static TransformOrigin TransformOriginFromVector(const Vector<Length>& list) {
 }
 
 void LengthListPropertyFunctions::SetLengthList(const CSSProperty& property,
-                                                ComputedStyleBuilder& builder,
+                                                ComputedStyle& style,
                                                 Vector<Length>&& length_list) {
   switch (property.PropertyID()) {
     case CSSPropertyID::kStrokeDasharray:
-      builder.SetStrokeDashArray(
-          length_list.empty()
+      style.SetStrokeDashArray(
+          length_list.IsEmpty()
               ? nullptr
               : base::MakeRefCounted<SVGDashArray>(std::move(length_list)));
       return;
 
     case CSSPropertyID::kObjectPosition:
-      builder.SetObjectPosition(PointFromVector(length_list));
+      style.SetObjectPosition(PointFromVector(length_list));
       return;
     case CSSPropertyID::kOffsetAnchor:
-      builder.SetOffsetAnchor(PointFromVector(length_list));
+      style.SetOffsetAnchor(PointFromVector(length_list));
       return;
     case CSSPropertyID::kOffsetPosition:
-      builder.SetOffsetPosition(PointFromVector(length_list));
+      style.SetOffsetPosition(PointFromVector(length_list));
       return;
     case CSSPropertyID::kPerspectiveOrigin:
-      builder.SetPerspectiveOrigin(PointFromVector(length_list));
+      style.SetPerspectiveOrigin(PointFromVector(length_list));
       return;
 
     case CSSPropertyID::kBorderBottomLeftRadius:
-      builder.SetBorderBottomLeftRadius(SizeFromVector(length_list));
+      style.SetBorderBottomLeftRadius(SizeFromVector(length_list));
       return;
     case CSSPropertyID::kBorderBottomRightRadius:
-      builder.SetBorderBottomRightRadius(SizeFromVector(length_list));
+      style.SetBorderBottomRightRadius(SizeFromVector(length_list));
       return;
     case CSSPropertyID::kBorderTopLeftRadius:
-      builder.SetBorderTopLeftRadius(SizeFromVector(length_list));
+      style.SetBorderTopLeftRadius(SizeFromVector(length_list));
       return;
     case CSSPropertyID::kBorderTopRightRadius:
-      builder.SetBorderTopRightRadius(SizeFromVector(length_list));
+      style.SetBorderTopRightRadius(SizeFromVector(length_list));
+      return;
+    case CSSPropertyID::kContainIntrinsicSize:
+      style.SetContainIntrinsicSize(SizeFromVector(length_list));
       return;
 
     case CSSPropertyID::kTransformOrigin:
-      builder.SetTransformOrigin(TransformOriginFromVector(length_list));
+      style.SetTransformOrigin(TransformOriginFromVector(length_list));
       return;
 
     case CSSPropertyID::kBackgroundPositionX:
     case CSSPropertyID::kBackgroundPositionY:
     case CSSPropertyID::kWebkitMaskPositionX:
     case CSSPropertyID::kWebkitMaskPositionY: {
-      FillLayer* fill_layer = AccessFillLayerForPosition(property, builder);
+      FillLayer* fill_layer = AccessFillLayerForPosition(property, style);
       FillLayer* prev = nullptr;
       FillLayerMethods fill_layer_methods(property);
       for (wtf_size_t i = 0; i < length_list.size(); i++) {

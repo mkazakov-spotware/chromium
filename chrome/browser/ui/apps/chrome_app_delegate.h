@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,26 +8,22 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/callback_list.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/app_window/app_delegate.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/geometry/rect.h"
 
-class Profile;
 class ScopedKeepAlive;
-class ScopedProfileKeepAlive;
 
-class ChromeAppDelegate : public extensions::AppDelegate {
+class ChromeAppDelegate : public extensions::AppDelegate,
+                          public content::NotificationObserver {
  public:
   // Params:
   //   keep_alive: Whether this object should keep the browser alive.
-  explicit ChromeAppDelegate(Profile* profile, bool keep_alive);
-
-  ChromeAppDelegate(const ChromeAppDelegate&) = delete;
-  ChromeAppDelegate& operator=(const ChromeAppDelegate&) = delete;
-
+  explicit ChromeAppDelegate(bool keep_alive);
   ~ChromeAppDelegate() override;
 
   static void DisableExternalOpenForTesting();
@@ -44,7 +40,7 @@ class ChromeAppDelegate : public extensions::AppDelegate {
 
   // extensions::AppDelegate:
   void InitWebContents(content::WebContents* web_contents) override;
-  void RenderFrameCreated(content::RenderFrameHost* frame_host) override;
+  void RenderViewCreated(content::RenderViewHost* render_view_host) override;
   void ResizeWebContents(content::WebContents* web_contents,
                          const gfx::Size& size) override;
   content::WebContents* OpenURLFromTab(
@@ -55,8 +51,10 @@ class ChromeAppDelegate : public extensions::AppDelegate {
                       std::unique_ptr<content::WebContents> new_contents,
                       const GURL& target_url,
                       WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
+                      const gfx::Rect& initial_rect,
                       bool user_gesture) override;
+  content::ColorChooser* ShowColorChooser(content::WebContents* web_contents,
+                                          SkColor initial_color) override;
   void RunFileChooser(content::RenderFrameHost* render_frame_host,
                       scoped_refptr<content::FileSelectListener> listener,
                       const blink::mojom::FileChooserParams& params) override;
@@ -79,21 +77,26 @@ class ChromeAppDelegate : public extensions::AppDelegate {
   void OnShow() override;
   bool TakeFocus(content::WebContents* web_contents, bool reverse) override;
   content::PictureInPictureResult EnterPictureInPicture(
-      content::WebContents* web_contents) override;
+      content::WebContents* web_contents,
+      const viz::SurfaceId& surface_id,
+      const gfx::Size& natural_size) override;
   void ExitPictureInPicture() override;
 
-  void OnAppTerminating();
+  // content::NotificationObserver:
+  void Observe(int type,
+               const content::NotificationSource& source,
+               const content::NotificationDetails& details) override;
 
   bool has_been_shown_;
   bool is_hidden_;
   bool for_lock_screen_app_;
-  const raw_ptr<Profile> profile_;
   std::unique_ptr<ScopedKeepAlive> keep_alive_;
-  std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive_;
   std::unique_ptr<NewWindowContentsDelegate> new_window_contents_delegate_;
   base::OnceClosure terminating_callback_;
-  base::CallbackListSubscription subscription_;
+  content::NotificationRegistrar registrar_;
   base::WeakPtrFactory<ChromeAppDelegate> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ChromeAppDelegate);
 };
 
 #endif  // CHROME_BROWSER_UI_APPS_CHROME_APP_DELEGATE_H_

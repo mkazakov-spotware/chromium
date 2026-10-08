@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,7 @@ package org.chromium.chrome.browser.browserservices.trustedwebactivityui.control
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.blink.mojom.DisplayMode;
-import org.chromium.cc.input.BrowserControlsState;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappExtras;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CloseButtonVisibilityManager;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar;
@@ -19,8 +16,11 @@ import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarC
 import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.state.CriticalPersistedTabData;
+import org.chromium.chrome.browser.webapps.WebDisplayMode;
+import org.chromium.chrome.browser.webapps.WebappExtras;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
+import org.chromium.content_public.common.BrowserControlsState;
 
 import javax.inject.Inject;
 
@@ -72,7 +72,7 @@ public class TrustedWebActivityBrowserControlsVisibilityManager {
         WebappExtras webappExtras = intentDataProvider.getWebappExtras();
         mShowBrowserControlsForChildTab = (webappExtras != null);
         mShowBrowserControlsInAppMode =
-                (webappExtras != null && webappExtras.displayMode == DisplayMode.MINIMAL_UI);
+                (webappExtras != null && webappExtras.displayMode == WebDisplayMode.MINIMAL_UI);
     }
 
     /**

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/command_line.h"
 #include "base/test/test_suite.h"
-#include "build/build_config.h"
 #include "weblayer/app/content_main_delegate_impl.h"
 #include "weblayer/public/common/switches.h"
 #include "weblayer/shell/app/shell_main_params.h"
@@ -24,7 +23,7 @@ std::string TestLauncherDelegateImpl::GetUserDataDirectoryCommandLineSwitch() {
   return switches::kWebLayerUserDataDir;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 content::ContentMainDelegate*
 TestLauncherDelegateImpl::CreateContentMainDelegate() {
   return new ContentMainDelegateImpl(CreateMainParams());

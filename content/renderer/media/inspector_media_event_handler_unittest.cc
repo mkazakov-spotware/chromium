@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,6 @@ class MockMediaInspectorContext : public blink::MediaInspectorContext {
   virtual ~MockMediaInspectorContext() = default;
 
   blink::WebString CreatePlayer() override { return "TestPlayer"; }
-
-  void DestroyPlayer(const blink::WebString& playerId) override {
-    MockDestroyPlayer();
-  }
 
   void NotifyPlayerEvents(blink::WebString id,
                           const blink::InspectorPlayerEvents& events) override {
@@ -52,9 +48,6 @@ class MockMediaInspectorContext : public blink::MediaInspectorContext {
   MOCK_METHOD1(MockSetPlayerProperties, void(blink::InspectorPlayerProperties));
   MOCK_METHOD1(MockNotifyPlayerErrors, void(blink::InspectorPlayerErrors));
   MOCK_METHOD1(MockNotifyPlayerMessages, void(blink::InspectorPlayerMessages));
-  MOCK_METHOD0(MockDestroyPlayer, void());
-  MOCK_METHOD0(MockIncrementActiveSessionCount, void());
-  MOCK_METHOD0(MockDecrementActiveSessionCount, void());
 };
 
 class InspectorMediaEventHandlerTest : public testing::Test {
@@ -64,11 +57,6 @@ class InspectorMediaEventHandlerTest : public testing::Test {
     handler_ =
         std::make_unique<InspectorMediaEventHandler>(mock_context_.get());
   }
-
-  InspectorMediaEventHandlerTest(const InspectorMediaEventHandlerTest&) =
-      delete;
-  InspectorMediaEventHandlerTest& operator=(
-      const InspectorMediaEventHandlerTest&) = delete;
 
  protected:
   std::unique_ptr<InspectorMediaEventHandler> handler_;
@@ -80,7 +68,8 @@ class InspectorMediaEventHandlerTest : public testing::Test {
     event.id = 0;
     event.type = media::MediaLogRecord::Type::kMediaEventTriggered;
     event.time = base::TimeTicks();
-    event.params.Set("event", media::MediaLogEventTypeSupport<T>::TypeName());
+    event.params.SetString("event",
+                           media::MediaLogEventTypeSupport<T>::TypeName());
     return event;
   }
 
@@ -91,7 +80,7 @@ class InspectorMediaEventHandlerTest : public testing::Test {
     event.type = media::MediaLogRecord::Type::kMediaPropertyChange;
     event.time = base::TimeTicks();
     for (auto p : props) {
-      event.params.Set(std::get<0>(p), std::get<1>(p));
+      event.params.SetString(std::get<0>(p), std::get<1>(p));
     }
     return event;
   }
@@ -101,7 +90,7 @@ class InspectorMediaEventHandlerTest : public testing::Test {
     event.id = 0;
     event.type = media::MediaLogRecord::Type::kMessage;
     event.time = base::TimeTicks();
-    event.params.Set("warning", msg);
+    event.params.SetString("warning", msg);
     return event;
   }
 
@@ -110,11 +99,11 @@ class InspectorMediaEventHandlerTest : public testing::Test {
     error.id = 0;
     error.type = media::MediaLogRecord::Type::kMediaStatus;
     error.time = base::TimeTicks();
-    error.params.Set(media::StatusConstants::kCodeKey, errorcode);
-    error.params.Set(media::StatusConstants::kGroupKey,
-                     media::PipelineStatus::Traits::Group());
+    error.params.SetIntPath(media::MediaLog::kStatusText, errorcode);
     return error;
   }
+
+  DISALLOW_COPY_AND_ASSIGN(InspectorMediaEventHandlerTest);
 };
 
 bool operator==(const blink::InspectorPlayerProperty& lhs,
@@ -149,7 +138,7 @@ bool operator!=(const blink::InspectorPlayerMessage& lhs,
 
 bool operator==(const blink::InspectorPlayerError& lhs,
                 const blink::InspectorPlayerError& rhs) {
-  return lhs.group == rhs.group && lhs.code == rhs.code;
+  return lhs.errorCode == rhs.errorCode;
 }
 
 bool operator!=(const blink::InspectorPlayerError& lhs,
@@ -303,13 +292,15 @@ TEST_F(InspectorMediaEventHandlerTest, PassesPlayAndPauseEvents) {
 }
 
 TEST_F(InspectorMediaEventHandlerTest, PassesErrorEvents) {
-  std::vector<media::MediaLogRecord> errors = {
-      CreateError(media::PIPELINE_ERROR_NETWORK),
-      CreateError(media::PIPELINE_ERROR_EXTERNAL_RENDERER_FAILED)};
+  std::vector<media::MediaLogRecord> errors = {CreateError(5), CreateError(7)};
 
   blink::InspectorPlayerErrors expected_errors;
-  blink::InspectorPlayerError first = {"PipelineStatus", 2, "", {}, {}, {}};
-  blink::InspectorPlayerError second = {"PipelineStatus", 21, "", {}, {}, {}};
+  blink::InspectorPlayerError first = {
+      blink::InspectorPlayerError::Type::kPipelineError,
+      blink::WebString::FromUTF8("5")};
+  blink::InspectorPlayerError second = {
+      blink::InspectorPlayerError::Type::kPipelineError,
+      blink::WebString::FromUTF8("7")};
   expected_errors.emplace_back(first);
   expected_errors.emplace_back(second);
 

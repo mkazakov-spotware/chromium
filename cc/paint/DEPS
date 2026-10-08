@@ -5,7 +5,6 @@ include_rules = [
   "+cc/base",
   "+cc/debug",
   "+cc/paint",
-  "+skia/buildflags.h",
 ]
 
 specific_include_rules = {
@@ -16,14 +15,13 @@ specific_include_rules = {
     "+components/viz/test",
     "+gpu/command_buffer",
   ],
-  "paint_op_reader.cc": [
-    "+components/crash/core/common",
-  ],
   "transfer_cache_fuzzer.cc": [
     "+components/viz/test",
   ],
   "oop_pixeltest.cc": [
-    "+components/viz/service/gl",
     "+gpu/command_buffer",
+  ],
+  "skottie_wrapper.h": [
+    "+third_party/skia",
   ],
 }

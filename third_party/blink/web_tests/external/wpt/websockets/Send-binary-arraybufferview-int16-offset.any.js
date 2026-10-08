@@ -1,18 +1,16 @@
-// META: script=constants.sub.js
-// META: variant=
-// META: variant=?wpt_flags=h2
-// META: variant=?wss
+// META: script=websocket.sub.js
 
-var test = async_test("Send binary data on a WebSocket - ArrayBufferView - Int16Array with offset - Connection should be closed");
+var testOpen = async_test("Send binary data on a WebSocket - ArrayBufferView - Int16Array with offset - Connection should be opened");
+var testMessage = async_test("Send binary data on a WebSocket - ArrayBufferView - Int16Array with offset - Message should be received");
+var testClose = async_test("Send binary data on a WebSocket - ArrayBufferView - Int16Array with offset - Connection should be closed");
 
 var data = "";
 var datasize = 8;
 var view;
-var wsocket = CreateWebSocket(false, false);
+var wsocket = CreateWebSocket(false, false, false);
 var isOpenCalled = false;
-var isMessageCalled = false;
 
-wsocket.addEventListener('open', test.step_func(function(evt) {
+wsocket.addEventListener('open', testOpen.step_func(function(evt) {
   wsocket.binaryType = "arraybuffer";
   data = new ArrayBuffer(datasize);
   view = new Int16Array(data, 2);
@@ -21,20 +19,20 @@ wsocket.addEventListener('open', test.step_func(function(evt) {
   }
   wsocket.send(view);
   isOpenCalled = true;
+  testOpen.done();
 }), true);
 
-wsocket.addEventListener('message', test.step_func(function(evt) {
-  isMessageCalled = true;
+wsocket.addEventListener('message', testMessage.step_func(function(evt) {
   var resultView = new Int16Array(evt.data);
   for (var i = 0; i < resultView.length; i++) {
     assert_equals(resultView[i], view[i], "ArrayBufferView returned is the same");
   }
   wsocket.close();
+  testMessage.done();
 }), true);
 
-wsocket.addEventListener('close', test.step_func(function(evt) {
+wsocket.addEventListener('close', testClose.step_func(function(evt) {
   assert_true(isOpenCalled, "WebSocket connection should be open");
-  assert_true(isMessageCalled, "message should be received")
   assert_equals(evt.wasClean, true, "wasClean should be true");
-  test.done();
+  testClose.done();
 }), true);

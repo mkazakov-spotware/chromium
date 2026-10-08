@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,14 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
-#include "chrome/browser/ui/views/controls/hover_button.h"
 #include "chrome/browser/ui/views/extensions/extension_context_menu_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view_delegate_views.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
+#include "ui/views/controls/button/label_button.h"
+
+class ExtensionsMenuItemView;
 
 namespace views {
 class Button;
@@ -23,44 +23,49 @@ class Button;
 // ExtensionsMenuButton is the single extension action button within a row in
 // the extensions menu. This includes the extension icon and name and triggers
 // the extension action.
-class ExtensionsMenuButton : public HoverButton,
+class ExtensionsMenuButton : public views::LabelButton,
                              public ToolbarActionViewDelegateViews {
  public:
-  METADATA_HEADER(ExtensionsMenuButton);
   ExtensionsMenuButton(Browser* browser,
-                       ToolbarActionViewController* controller);
+                       ExtensionsMenuItemView* parent,
+                       ToolbarActionViewController* controller,
+                       bool allow_pinning);
   ExtensionsMenuButton(const ExtensionsMenuButton&) = delete;
   ExtensionsMenuButton& operator=(const ExtensionsMenuButton&) = delete;
   ~ExtensionsMenuButton() override;
 
-  // HoverButton:
-  void AddedToWidget() override;
-  void OnThemeChanged() override;
+  static const char kClassName[];
 
-  const std::u16string& label_text_for_testing() const {
+  SkColor GetInkDropBaseColor() const override;
+  bool CanShowIconInToolbar() const override;
+
+  const base::string16& label_text_for_testing() const {
     return label()->GetText();
   }
 
  private:
+  // views::LabelButton:
+  const char* GetClassName() const override;
+
   // ToolbarActionViewDelegateViews:
   views::View* GetAsView() override;
   views::FocusManager* GetFocusManagerForAccelerator() override;
   views::Button* GetReferenceButtonForPopup() override;
   content::WebContents* GetCurrentWebContents() const override;
   void UpdateState() override;
-  void ShowContextMenuAsFallback() override;
+  bool IsMenuRunning() const override;
 
   void ButtonPressed();
 
-  const raw_ptr<Browser, DanglingUntriaged> browser_;
+  Browser* const browser_;
+
+  // The container containing this view.
+  ExtensionsMenuItemView* const parent_;
 
   // Responsible for executing the extension's actions.
-  const raw_ptr<ToolbarActionViewController, DanglingUntriaged> controller_;
+  ToolbarActionViewController* const controller_;
+
+  bool allow_pinning_;
 };
-
-BEGIN_VIEW_BUILDER(/* no export */, ExtensionsMenuButton, HoverButton)
-END_VIEW_BUILDER
-
-DEFINE_VIEW_BUILDER(/* no export */, ExtensionsMenuButton)
 
 #endif  // CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSIONS_MENU_BUTTON_H_

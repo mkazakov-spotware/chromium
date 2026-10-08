@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 
 namespace net {
 class IOBuffer;
@@ -28,10 +29,6 @@ class InputStream {
   // |stream| should be an instance of the InputStream Java class.
   // |stream| can't be null.
   InputStream(const base::android::JavaRef<jobject>& stream);
-
-  InputStream(const InputStream&) = delete;
-  InputStream& operator=(const InputStream&) = delete;
-
   virtual ~InputStream();
 
   // Gets the underlying Java object. Guaranteed non-NULL.
@@ -65,6 +62,8 @@ class InputStream {
  private:
   base::android::ScopedJavaGlobalRef<jobject> jobject_;
   base::android::ScopedJavaGlobalRef<jbyteArray> buffer_;
+
+  DISALLOW_COPY_AND_ASSIGN(InputStream);
 };
 
 }  // namespace embedder_support

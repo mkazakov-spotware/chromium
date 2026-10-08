@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview The module loader for loading modules across the network.
@@ -18,66 +26,65 @@
  * until we are certain that script A is finished loading.
  */
 
-goog.module('goog.module.ModuleLoader');
+goog.provide('goog.module.ModuleLoader');
 
-const AbstractModuleLoader = goog.require('goog.module.AbstractModuleLoader');
-const BulkLoader = goog.require('goog.net.BulkLoader');
-const EventHandler = goog.require('goog.events.EventHandler');
-const EventId = goog.require('goog.events.EventId');
-const EventTarget = goog.require('goog.events.EventTarget');
-const EventType = goog.require('goog.net.EventType');
-const GoogEvent = goog.require('goog.events.Event');
-const ModuleInfo = goog.requireType('goog.module.ModuleInfo');
-const SafeScript = goog.require('goog.html.SafeScript');
-const TagName = goog.require('goog.dom.TagName');
-const Timer = goog.require('goog.Timer');
-const TrustedResourceUrl = goog.require('goog.html.TrustedResourceUrl');
-const asserts = goog.require('goog.asserts');
-const browser = goog.require('goog.labs.userAgent.browser');
-const dom = goog.require('goog.dom');
-const events = goog.require('goog.events');
-const functions = goog.require('goog.functions');
-const googArray = goog.require('goog.array');
-const jsloader = goog.require('goog.net.jsloader');
-const legacyconversions = goog.require('goog.html.legacyconversions');
-const log = goog.require('goog.log');
-const product = goog.require('goog.userAgent.product');
-const safe = goog.require('goog.dom.safe');
-const userAgent = goog.require('goog.userAgent');
+goog.require('goog.Timer');
+goog.require('goog.array');
+goog.require('goog.asserts');
+goog.require('goog.dom');
+goog.require('goog.dom.safe');
+goog.require('goog.events');
+goog.require('goog.events.Event');
+goog.require('goog.events.EventHandler');
+goog.require('goog.events.EventId');
+goog.require('goog.events.EventTarget');
+goog.require('goog.functions');
+goog.require('goog.html.TrustedResourceUrl');
+goog.require('goog.labs.userAgent.browser');
+goog.require('goog.log');
+goog.require('goog.module.AbstractModuleLoader');
+goog.require('goog.net.BulkLoader');
+goog.require('goog.net.EventType');
+goog.require('goog.net.jsloader');
+goog.require('goog.userAgent');
+goog.require('goog.userAgent.product');
+
+
 
 /**
  * A class that loads JavaScript modules.
  * @constructor
- * @extends {EventTarget}
- * @implements {AbstractModuleLoader}
+ * @extends {goog.events.EventTarget}
+ * @implements {goog.module.AbstractModuleLoader}
  */
-function ModuleLoader() {
-  ModuleLoader.base(this, 'constructor');
+goog.module.ModuleLoader = function() {
+  goog.module.ModuleLoader.base(this, 'constructor');
 
   /**
    * Event handler for managing handling events.
-   * @type {!EventHandler<!ModuleLoader>}
+   * @type {goog.events.EventHandler<!goog.module.ModuleLoader>}
    * @private
    */
-  this.eventHandler_ = new EventHandler(this);
+  this.eventHandler_ = new goog.events.EventHandler(this);
   this.registerDisposable(this.eventHandler_);
 
   /**
-   * A map from module IDs to ModuleLoader.LoadStatus.
-   * @type {!Object<!Array<string>, !ModuleLoader.LoadStatus>}
+   * A map from module IDs to goog.module.ModuleLoader.LoadStatus.
+   * @type {!Object<Array<string>, goog.module.ModuleLoader.LoadStatus>}
    * @private
    */
   this.loadingModulesStatus_ = {};
-}
-goog.inherits(ModuleLoader, EventTarget);
+};
+goog.inherits(goog.module.ModuleLoader, goog.events.EventTarget);
 
 
 /**
  * A logger.
- * @type {?log.Logger}
+ * @type {goog.log.Logger}
  * @protected
  */
-ModuleLoader.prototype.logger = log.getLogger('goog.module.ModuleLoader');
+goog.module.ModuleLoader.prototype.logger =
+    goog.log.getLogger('goog.module.ModuleLoader');
 
 
 /**
@@ -85,7 +92,7 @@ ModuleLoader.prototype.logger = log.getLogger('goog.module.ModuleLoader');
  * @type {boolean}
  * @private
  */
-ModuleLoader.prototype.debugMode_ = false;
+goog.module.ModuleLoader.prototype.debugMode_ = false;
 
 
 /**
@@ -93,7 +100,7 @@ ModuleLoader.prototype.debugMode_ = false;
  * @type {boolean}
  * @private
  */
-ModuleLoader.prototype.sourceUrlInjection_ = false;
+goog.module.ModuleLoader.prototype.sourceUrlInjection_ = false;
 
 
 /**
@@ -101,23 +108,24 @@ ModuleLoader.prototype.sourceUrlInjection_ = false;
  * @type {boolean}
  * @private
  */
-ModuleLoader.prototype.useScriptTags_ = false;
+goog.module.ModuleLoader.prototype.useScriptTags_ = false;
 
 
 /**
  * @return {boolean} Whether sourceURL affects stack traces.
  */
-ModuleLoader.supportsSourceUrlStackTraces = function() {
-  return product.CHROME ||
-      (browser.isFirefox() && browser.isVersionOrHigher('36'));
+goog.module.ModuleLoader.supportsSourceUrlStackTraces = function() {
+  return goog.userAgent.product.CHROME ||
+      (goog.labs.userAgent.browser.isFirefox() &&
+       goog.labs.userAgent.browser.isVersionOrHigher('36'));
 };
 
 
 /**
  * @return {boolean} Whether sourceURL affects the debugger.
  */
-ModuleLoader.supportsSourceUrlDebugger = function() {
-  return product.CHROME || userAgent.GECKO;
+goog.module.ModuleLoader.supportsSourceUrlDebugger = function() {
+  return goog.userAgent.product.CHROME || goog.userAgent.GECKO;
 };
 
 
@@ -131,7 +139,7 @@ ModuleLoader.supportsSourceUrlDebugger = function() {
  * @const {number}
  * @private
  */
-ModuleLoader.URL_MAX_LENGTH_ = 4043;
+goog.module.ModuleLoader.URL_MAX_LENGTH_ = 4043;
 
 
 /**
@@ -140,18 +148,18 @@ ModuleLoader.URL_MAX_LENGTH_ = 4043;
  * @const {number}
  * @private
  */
-ModuleLoader.SYNTAX_OR_NETWORK_ERROR_CODE_ = -1;
+goog.module.ModuleLoader.SYNTAX_OR_NETWORK_ERROR_CODE_ = -1;
 
 
 
 /**
- * @param {!TrustedResourceUrl} url The url to be loaded.
+ * @param {!goog.html.TrustedResourceUrl} url The url to be loaded.
  * @return {!HTMLScriptElement}
  * @private
  */
-ModuleLoader.createScriptElement_ = function(url) {
-  const script = dom.createElement(TagName.SCRIPT);
-  safe.setScriptSrc(script, url);
+goog.module.ModuleLoader.createScriptElement_ = function(url) {
+  const script = goog.dom.createElement(goog.dom.TagName.SCRIPT);
+  goog.dom.safe.setScriptSrc(script, url);
 
   // Set scriptElt.async = false to guarantee
   // that scripts are loaded in parallel but executed in the insertion order.
@@ -163,22 +171,14 @@ ModuleLoader.createScriptElement_ = function(url) {
 
 
 /**
- * @param {!TrustedResourceUrl} url The url to be pre-loaded.
+ * @param {!goog.html.TrustedResourceUrl} url The url to be pre-loaded.
  * @return {!HTMLLinkElement}
  * @private
  */
-ModuleLoader.createPreloadScriptElement_ = function(url) {
-  const link = dom.createElement(TagName.LINK);
-  safe.setLinkHrefAndRel(link, url, 'preload');
+goog.module.ModuleLoader.createPreloadScriptElement_ = function(url) {
+  const link = goog.dom.createElement(goog.dom.TagName.LINK);
+  goog.dom.safe.setLinkHrefAndRel(link, url, 'preload');
   link.as = 'script';
-
-  // If CSP nonces are used, propagate them to dynamically created scripts.
-  // This is necessary to allow nonce-based CSPs without 'strict-dynamic'.
-  const nonce = safe.getScriptNonce();
-  if (nonce) {
-    link.setAttribute('nonce', nonce);
-  }
-
   return link;
 };
 
@@ -187,7 +187,7 @@ ModuleLoader.createPreloadScriptElement_ = function(url) {
  * Gets the debug mode for the loader.
  * @return {boolean} Whether the debug mode is enabled.
  */
-ModuleLoader.prototype.getDebugMode = function() {
+goog.module.ModuleLoader.prototype.getDebugMode = function() {
   return this.debugMode_;
 };
 
@@ -196,7 +196,7 @@ ModuleLoader.prototype.getDebugMode = function() {
  * @param {boolean} useScriptTags Whether or not to use script tags
  *     (with async=false) for loading.
  */
-ModuleLoader.prototype.setUseScriptTags = function(useScriptTags) {
+goog.module.ModuleLoader.prototype.setUseScriptTags = function(useScriptTags) {
   this.useScriptTags_ = useScriptTags;
 };
 
@@ -206,7 +206,7 @@ ModuleLoader.prototype.setUseScriptTags = function(useScriptTags) {
  * @return {boolean} Whether or not we're using non-async script tags for
  *     loading.
  */
-ModuleLoader.prototype.getUseScriptTags = function() {
+goog.module.ModuleLoader.prototype.getUseScriptTags = function() {
   return this.useScriptTags_;
 };
 
@@ -215,7 +215,7 @@ ModuleLoader.prototype.getUseScriptTags = function() {
  * Sets whether we're using non-async script tags for loading.
  * @param {boolean} debugMode Whether the debug mode is enabled.
  */
-ModuleLoader.prototype.setDebugMode = function(debugMode) {
+goog.module.ModuleLoader.prototype.setDebugMode = function(debugMode) {
   this.debugMode_ = debugMode;
 };
 
@@ -240,7 +240,7 @@ ModuleLoader.prototype.setDebugMode = function(debugMode) {
  *
  * @param {boolean} enabled Whether source url injection is enabled.
  */
-ModuleLoader.prototype.setSourceUrlInjection = function(enabled) {
+goog.module.ModuleLoader.prototype.setSourceUrlInjection = function(enabled) {
   this.sourceUrlInjection_ = enabled;
 };
 
@@ -249,26 +249,29 @@ ModuleLoader.prototype.setSourceUrlInjection = function(enabled) {
  * @return {boolean} Whether we're using source url injection.
  * @private
  */
-ModuleLoader.prototype.usingSourceUrlInjection_ = function() {
+goog.module.ModuleLoader.prototype.usingSourceUrlInjection_ = function() {
   return this.sourceUrlInjection_ ||
-      (this.getDebugMode() && ModuleLoader.supportsSourceUrlStackTraces());
+      (this.getDebugMode() &&
+       goog.module.ModuleLoader.supportsSourceUrlStackTraces());
 };
 
 
 /** @override */
-ModuleLoader.prototype.loadModules = function(
-    ids, moduleInfoMap, {forceReload, onError, onSuccess, onTimeout} = {}) {
-  const loadStatus = this.loadingModulesStatus_[ids] ||
-      ModuleLoader.LoadStatus.createForIds_(ids, moduleInfoMap);
+goog.module.ModuleLoader.prototype.loadModules = function(
+    ids, moduleInfoMap, opt_successFn, opt_errorFn, opt_timeoutFn,
+    opt_forceReload) {
+  var loadStatus = this.loadingModulesStatus_[ids] ||
+      goog.module.ModuleLoader.LoadStatus.createForIds_(ids, moduleInfoMap);
   loadStatus.loadRequested = true;
-  if (loadStatus.successFn && onSuccess) {
+  if (loadStatus.successFn && opt_successFn) {
     // If there already exists a success function, chain it before the passed
     // success functon.
-    loadStatus.successFn = functions.sequence(loadStatus.successFn, onSuccess);
+    loadStatus.successFn =
+        goog.functions.sequence(loadStatus.successFn, opt_successFn);
   } else {
-    loadStatus.successFn = onSuccess || loadStatus.successFn;
+    loadStatus.successFn = opt_successFn || loadStatus.successFn;
   }
-  loadStatus.errorFn = onError || null;
+  loadStatus.errorFn = opt_errorFn || null;
 
   if (!this.loadingModulesStatus_[ids]) {
     // Modules were not prefetched.
@@ -291,36 +294,35 @@ ModuleLoader.prototype.loadModules = function(
 
 /**
  * Evaluate the JS code.
- * @param {!Array<string>} moduleIds The module ids.
+ * @param {Array<string>} moduleIds The module ids.
  * @private
  */
-ModuleLoader.prototype.evaluateCode_ = function(moduleIds) {
-  this.dispatchEvent(new ModuleLoader.RequestSuccessEvent(moduleIds));
+goog.module.ModuleLoader.prototype.evaluateCode_ = function(moduleIds) {
+  this.dispatchEvent(
+      new goog.module.ModuleLoader.RequestSuccessEvent(moduleIds));
 
-  log.info(this.logger, 'evaluateCode ids:' + moduleIds);
-  const loadStatus = this.loadingModulesStatus_[moduleIds];
-  const uris = loadStatus.requestUris;
-  const texts = loadStatus.responseTexts;
-  let error = null;
+  goog.log.info(this.logger, 'evaluateCode ids:' + moduleIds);
+  var loadStatus = this.loadingModulesStatus_[moduleIds];
+  var uris = loadStatus.requestUris;
+  var texts = loadStatus.responseTexts;
+  var error = null;
   try {
     if (this.usingSourceUrlInjection_()) {
-      for (let i = 0; i < uris.length; i++) {
-        const script = legacyconversions.safeScriptFromString(
-            texts[i] + ' //# sourceURL=' + uris[i]);
-        goog.globalEval(SafeScript.unwrapTrustedScript(script));
+      for (var i = 0; i < uris.length; i++) {
+        var uri = uris[i];
+        goog.globalEval(texts[i] + ' //# sourceURL=' + uri);
       }
     } else {
-      const script = legacyconversions.safeScriptFromString(texts.join('\n'));
-      goog.globalEval(SafeScript.unwrapTrustedScript(script));
+      goog.globalEval(texts.join('\n'));
     }
   } catch (e) {
     error = e;
     // TODO(user): Consider throwing an exception here.
-    log.warning(
+    goog.log.warning(
         this.logger, 'Loaded incomplete code for module(s): ' + moduleIds, e);
   }
 
-  this.dispatchEvent(new ModuleLoader.EvaluateCodeEvent(moduleIds));
+  this.dispatchEvent(new goog.module.ModuleLoader.EvaluateCodeEvent(moduleIds));
 
   if (error) {
     this.handleErrorHelper_(
@@ -336,14 +338,15 @@ ModuleLoader.prototype.evaluateCode_ = function(moduleIds) {
  * Handles a successful response to a request for prefetch or load one or more
  * modules.
  *
- * @param {!BulkLoader} bulkLoader The bulk loader.
- * @param {!Array<string>} moduleIds The ids of the modules requested.
+ * @param {goog.net.BulkLoader} bulkLoader The bulk loader.
+ * @param {Array<string>} moduleIds The ids of the modules requested.
  * @private
  */
-ModuleLoader.prototype.handleSuccess_ = function(bulkLoader, moduleIds) {
-  log.info(this.logger, 'Code loaded for module(s): ' + moduleIds);
+goog.module.ModuleLoader.prototype.handleSuccess_ = function(
+    bulkLoader, moduleIds) {
+  goog.log.info(this.logger, 'Code loaded for module(s): ' + moduleIds);
 
-  const loadStatus = this.loadingModulesStatus_[moduleIds];
+  var loadStatus = this.loadingModulesStatus_[moduleIds];
   loadStatus.responseTexts = bulkLoader.getResponseTexts();
 
   if (loadStatus.loadRequested) {
@@ -356,38 +359,39 @@ ModuleLoader.prototype.handleSuccess_ = function(bulkLoader, moduleIds) {
   // is instantiated for any new modules to be loaded. The dispose is called
   // on a timer so that the bulkloader has a chance to release its
   // objects.
-  Timer.callOnce(bulkLoader.dispose, 5, bulkLoader);
+  goog.Timer.callOnce(bulkLoader.dispose, 5, bulkLoader);
 };
 
 
 /** @override */
-ModuleLoader.prototype.prefetchModule = function(id, moduleInfo) {
+goog.module.ModuleLoader.prototype.prefetchModule = function(id, moduleInfo) {
   // Do not prefetch in debug mode
   if (this.getDebugMode()) {
     return;
   }
-  log.info(this.logger, `Prefetching module: ${id}`);
-  let loadStatus = this.loadingModulesStatus_[[id]];
+  goog.log.info(this.logger, `Prefetching module: ${id}`);
+  var loadStatus = this.loadingModulesStatus_[[id]];
   if (loadStatus) {
     return;
   }
-  const moduleInfoMap = {};
+  var moduleInfoMap = {};
   moduleInfoMap[id] = moduleInfo;
-  loadStatus = ModuleLoader.LoadStatus.createForIds_([id], moduleInfoMap);
+  loadStatus =
+      goog.module.ModuleLoader.LoadStatus.createForIds_([id], moduleInfoMap);
   this.loadingModulesStatus_[[id]] = loadStatus;
   if (this.getUseScriptTags()) {
     const links = [];
     const insertPos = document.head || document.documentElement;
-    for (let i = 0; i < loadStatus.trustedRequestUris.length; i++) {
-      const link = ModuleLoader.createPreloadScriptElement_(
+    for (var i = 0; i < loadStatus.trustedRequestUris.length; i++) {
+      const link = goog.module.ModuleLoader.createPreloadScriptElement_(
           loadStatus.trustedRequestUris[i]);
       links.push(link);
       insertPos.insertBefore(link, insertPos.firstChild);
     }
     loadStatus.successFn = () => {
-      for (let i = 0; i < links.length; i++) {
+      for (var i = 0; i < links.length; i++) {
         const link = links[i];
-        dom.removeNode(link);
+        goog.dom.removeNode(link);
       }
     };
   } else {
@@ -399,10 +403,10 @@ ModuleLoader.prototype.prefetchModule = function(id, moduleInfo) {
 /**
  * Downloads a list of JavaScript modules.
  *
- * @param {!Array<string>} ids The module ids in dependency order.
+ * @param {?Array<string>} ids The module ids in dependency order.
  * @private
  */
-ModuleLoader.prototype.downloadModules_ = function(ids) {
+goog.module.ModuleLoader.prototype.downloadModules_ = function(ids) {
   const debugMode = this.getDebugMode();
   const sourceUrlInjection = this.usingSourceUrlInjection_();
   const useScriptTags = this.getUseScriptTags();
@@ -410,7 +414,7 @@ ModuleLoader.prototype.downloadModules_ = function(ids) {
     const effectiveFlag = useScriptTags ?
         'useScriptTags' :
         (debugMode && !sourceUrlInjection) ? 'debug' : 'sourceUrlInjection';
-    log.warning(
+    goog.log.warning(
         this.logger,
         `More than one of debugMode (set to ${debugMode}), ` +
             `useScriptTags (set to ${useScriptTags}), ` +
@@ -418,7 +422,7 @@ ModuleLoader.prototype.downloadModules_ = function(ids) {
             `is enabled. Proceeding with download as if ` +
             `${effectiveFlag} is set to true and the rest to false.`);
   }
-  const loadStatus = asserts.assert(this.loadingModulesStatus_[ids]);
+  const loadStatus = goog.asserts.assert(this.loadingModulesStatus_[ids]);
 
   if (useScriptTags) {
     this.loadWithNonAsyncScriptTag_(loadStatus, ids);
@@ -429,20 +433,20 @@ ModuleLoader.prototype.downloadModules_ = function(ids) {
     // another domain.
     // The scripts need to load serially, so this is much slower than parallel
     // script loads with source url injection.
-    jsloader.safeLoadMany(loadStatus.trustedRequestUris);
+    goog.net.jsloader.safeLoadMany(loadStatus.trustedRequestUris);
   } else {
-    log.info(
+    goog.log.info(
         this.logger,
         'downloadModules ids:' + ids + ' uris:' + loadStatus.requestUris);
 
-    const bulkLoader = new BulkLoader(loadStatus.requestUris);
+    var bulkLoader = new goog.net.BulkLoader(loadStatus.requestUris);
 
-    const eventHandler = this.eventHandler_;
+    var eventHandler = this.eventHandler_;
     eventHandler.listen(
-        bulkLoader, EventType.SUCCESS,
+        bulkLoader, goog.net.EventType.SUCCESS,
         goog.bind(this.handleSuccess_, this, bulkLoader, ids));
     eventHandler.listen(
-        bulkLoader, EventType.ERROR,
+        bulkLoader, goog.net.EventType.ERROR,
         goog.bind(this.handleError_, this, bulkLoader, ids));
     bulkLoader.load();
   }
@@ -452,13 +456,14 @@ ModuleLoader.prototype.downloadModules_ = function(ids) {
 /**
  * Downloads a list of script URIS using <script async=false.../>, which
  * guarantees executuion order.
- * @param {!ModuleLoader.LoadStatus} loadStatus The load status
+ * @param {!goog.module.ModuleLoader.LoadStatus} loadStatus The load status
  *     object for this module-load.
- *  @param {!Array<string>} ids The module ids in dependency order.
+ *  @param {?Array<string>} ids The module ids in dependency order.
  * @private
  */
-ModuleLoader.prototype.loadWithNonAsyncScriptTag_ = function(loadStatus, ids) {
-  log.info(this.logger, `Loading initiated for: ${ids}`);
+goog.module.ModuleLoader.prototype.loadWithNonAsyncScriptTag_ = function(
+    loadStatus, ids) {
+  goog.log.info(this.logger, `Loading initiated for: ${ids}`);
   if (loadStatus.trustedRequestUris.length == 0) {
     if (loadStatus.successFn) {
       loadStatus.successFn();
@@ -471,23 +476,23 @@ ModuleLoader.prototype.loadWithNonAsyncScriptTag_ = function(loadStatus, ids) {
   let lastScript = null;
   const insertPos = document.head || document.documentElement;
 
-  for (let i = 0; i < loadStatus.trustedRequestUris.length; i++) {
+  for (var i = 0; i < loadStatus.trustedRequestUris.length; i++) {
     const url = loadStatus.trustedRequestUris[i];
     const urlLength = loadStatus.requestUris[i].length;
-    asserts.assert(
-        urlLength <= ModuleLoader.URL_MAX_LENGTH_,
+    goog.asserts.assert(
+        urlLength <= goog.module.ModuleLoader.URL_MAX_LENGTH_,
         `Module url length is ${urlLength}, which is greater than limit of ` +
-            `${ModuleLoader.URL_MAX_LENGTH_}. This should never ` +
+            `${goog.module.ModuleLoader.URL_MAX_LENGTH_}. This should never ` +
             `happen.`);
 
-    const scriptElement = ModuleLoader.createScriptElement_(url);
+    const scriptElement = goog.module.ModuleLoader.createScriptElement_(url);
 
     scriptElement.onload = () => {
       scriptElement.onload = null;
       scriptElement.onerror = null;
-      dom.removeNode(scriptElement);
+      goog.dom.removeNode(scriptElement);
       if (scriptElement == lastScript) {
-        log.info(this.logger, `Loading complete for: ${ids}`);
+        goog.log.info(this.logger, `Loading complete for: ${ids}`);
         lastScript = null;
         if (loadStatus.successFn) {
           loadStatus.successFn();
@@ -496,16 +501,18 @@ ModuleLoader.prototype.loadWithNonAsyncScriptTag_ = function(loadStatus, ids) {
     };
 
     scriptElement.onerror = () => {
-      log.error(this.logger, `Network error when loading module(s): ${ids}`);
+      goog.log.error(
+          this.logger, `Network error when loading module(s): ${ids}`);
       scriptElement.onload = null;
       scriptElement.onerror = null;
-      dom.removeNode(scriptElement);
+      goog.dom.removeNode(scriptElement);
       this.handleErrorHelper_(
-          ids, loadStatus.errorFn, ModuleLoader.SYNTAX_OR_NETWORK_ERROR_CODE_);
+          ids, loadStatus.errorFn,
+          goog.module.ModuleLoader.SYNTAX_OR_NETWORK_ERROR_CODE_);
       if (lastScript == scriptElement) {
         lastScript = null;
       } else {
-        log.error(
+        goog.log.error(
             this.logger,
             `Dependent requests were made in parallel with failed request ` +
                 `for module(s) "${ids}". Non-recoverable out-of-order ` +
@@ -520,13 +527,14 @@ ModuleLoader.prototype.loadWithNonAsyncScriptTag_ = function(loadStatus, ids) {
 
 /**
  * Handles an error during a request for one or more modules.
- * @param {!BulkLoader} bulkLoader The bulk loader.
- * @param {!Array<string>} moduleIds The ids of the modules requested.
- * @param {!BulkLoader.LoadErrorEvent} event The load error event.
+ * @param {goog.net.BulkLoader} bulkLoader The bulk loader.
+ * @param {Array<string>} moduleIds The ids of the modules requested.
+ * @param {!goog.net.BulkLoader.LoadErrorEvent} event The load error event.
  * @private
  */
-ModuleLoader.prototype.handleError_ = function(bulkLoader, moduleIds, event) {
-  const loadStatus = this.loadingModulesStatus_[moduleIds];
+goog.module.ModuleLoader.prototype.handleError_ = function(
+    bulkLoader, moduleIds, event) {
+  var loadStatus = this.loadingModulesStatus_[moduleIds];
   // The bulk loader doesn't cancel other requests when a request fails. We will
   // delete the loadStatus in the first failure, so it will be undefined in
   // subsequent errors.
@@ -541,24 +549,24 @@ ModuleLoader.prototype.handleError_ = function(bulkLoader, moduleIds, event) {
   // instantiated for any new modules to be loaded. The dispose is called
   // on another thread so that the bulkloader has a chance to release its
   // objects.
-  Timer.callOnce(bulkLoader.dispose, 5, bulkLoader);
+  goog.Timer.callOnce(bulkLoader.dispose, 5, bulkLoader);
 };
 
 
 /**
  * Handles an error during a request for one or more modules.
- * @param {!Array<string>} moduleIds The ids of the modules requested.
+ * @param {Array<string>} moduleIds The ids of the modules requested.
  * @param {?function(?number)} errorFn The function to call on failure.
  * @param {?number} status The response status.
  * @param {!Error=} opt_error The error encountered, if available.
  * @private
  */
-ModuleLoader.prototype.handleErrorHelper_ = function(
+goog.module.ModuleLoader.prototype.handleErrorHelper_ = function(
     moduleIds, errorFn, status, opt_error) {
-  this.dispatchEvent(
-      new ModuleLoader.RequestErrorEvent(moduleIds, status, opt_error));
+  this.dispatchEvent(new goog.module.ModuleLoader.RequestErrorEvent(
+      moduleIds, status, opt_error));
 
-  log.warning(this.logger, 'Request failed for module(s): ' + moduleIds);
+  goog.log.warning(this.logger, 'Request failed for module(s): ' + moduleIds);
 
   if (errorFn) {
     errorFn(status);
@@ -570,83 +578,87 @@ ModuleLoader.prototype.handleErrorHelper_ = function(
  * Events dispatched by the ModuleLoader.
  * @const
  */
-ModuleLoader.EventType = {
+goog.module.ModuleLoader.EventType = {
   /**
-   * @const {!EventId<
-   *     !ModuleLoader.EvaluateCodeEvent>} Called after the code for
+   * @const {!goog.events.EventId<
+   *     !goog.module.ModuleLoader.EvaluateCodeEvent>} Called after the code for
    *     a module is evaluated.
    */
-  EVALUATE_CODE: new EventId(events.getUniqueId('evaluateCode')),
+  EVALUATE_CODE:
+      new goog.events.EventId(goog.events.getUniqueId('evaluateCode')),
 
   /**
-   * @const {!EventId<
-   *     !ModuleLoader.RequestSuccessEvent>} Called when the
+   * @const {!goog.events.EventId<
+   *     !goog.module.ModuleLoader.RequestSuccessEvent>} Called when the
    *     BulkLoader finishes successfully.
    */
-  REQUEST_SUCCESS: new EventId(events.getUniqueId('requestSuccess')),
+  REQUEST_SUCCESS:
+      new goog.events.EventId(goog.events.getUniqueId('requestSuccess')),
 
   /**
-   * @const {!EventId<
-   *     !ModuleLoader.RequestErrorEvent>} Called when the
+   * @const {!goog.events.EventId<
+   *     !goog.module.ModuleLoader.RequestErrorEvent>} Called when the
    *     BulkLoader fails, or code loading fails.
    */
-  REQUEST_ERROR: new EventId(events.getUniqueId('requestError'))
+  REQUEST_ERROR:
+      new goog.events.EventId(goog.events.getUniqueId('requestError'))
 };
 
 
 
 /**
- * @param {!Array<string>} moduleIds The ids of the modules being evaluated.
+ * @param {Array<string>} moduleIds The ids of the modules being evaluated.
  * @constructor
- * @extends {GoogEvent}
+ * @extends {goog.events.Event}
  * @final
  * @protected
  */
-ModuleLoader.EvaluateCodeEvent = function(moduleIds) {
-  ModuleLoader.EvaluateCodeEvent.base(
-      this, 'constructor', ModuleLoader.EventType.EVALUATE_CODE);
+goog.module.ModuleLoader.EvaluateCodeEvent = function(moduleIds) {
+  goog.module.ModuleLoader.EvaluateCodeEvent.base(
+      this, 'constructor', goog.module.ModuleLoader.EventType.EVALUATE_CODE);
 
   /**
-   * @type {!Array<string>}
+   * @type {Array<string>}
    */
   this.moduleIds = moduleIds;
 };
-goog.inherits(ModuleLoader.EvaluateCodeEvent, GoogEvent);
+goog.inherits(goog.module.ModuleLoader.EvaluateCodeEvent, goog.events.Event);
 
 
 
 /**
- * @param {!Array<string>} moduleIds The ids of the modules being evaluated.
+ * @param {Array<string>} moduleIds The ids of the modules being evaluated.
  * @constructor
- * @extends {GoogEvent}
+ * @extends {goog.events.Event}
  * @final
  * @protected
  */
-ModuleLoader.RequestSuccessEvent = function(moduleIds) {
-  ModuleLoader.RequestSuccessEvent.base(
-      this, 'constructor', ModuleLoader.EventType.REQUEST_SUCCESS);
+goog.module.ModuleLoader.RequestSuccessEvent = function(moduleIds) {
+  goog.module.ModuleLoader.RequestSuccessEvent.base(
+      this, 'constructor', goog.module.ModuleLoader.EventType.REQUEST_SUCCESS);
 
   /**
-   * @type {!Array<string>}
+   * @type {Array<string>}
    */
   this.moduleIds = moduleIds;
 };
-goog.inherits(ModuleLoader.RequestSuccessEvent, GoogEvent);
+goog.inherits(goog.module.ModuleLoader.RequestSuccessEvent, goog.events.Event);
 
 
 
 /**
- * @param {!Array<string>} moduleIds The ids of the modules being evaluated.
+ * @param {?Array<string>} moduleIds The ids of the modules being evaluated.
  * @param {?number} status The response status.
  * @param {!Error=} opt_error The error encountered, if available.
  * @constructor
- * @extends {GoogEvent}
+ * @extends {goog.events.Event}
  * @final
  * @protected
  */
-ModuleLoader.RequestErrorEvent = function(moduleIds, status, opt_error) {
-  ModuleLoader.RequestErrorEvent.base(
-      this, 'constructor', ModuleLoader.EventType.REQUEST_ERROR);
+goog.module.ModuleLoader.RequestErrorEvent = function(
+    moduleIds, status, opt_error) {
+  goog.module.ModuleLoader.RequestErrorEvent.base(
+      this, 'constructor', goog.module.ModuleLoader.EventType.REQUEST_ERROR);
 
   /**
    * @type {?Array<string>}
@@ -659,29 +671,30 @@ ModuleLoader.RequestErrorEvent = function(moduleIds, status, opt_error) {
   /** @type {?Error} */
   this.error = opt_error || null;
 };
-goog.inherits(ModuleLoader.RequestErrorEvent, GoogEvent);
+goog.inherits(goog.module.ModuleLoader.RequestErrorEvent, goog.events.Event);
 
 
 
 /**
  * A class that keeps the state of the module during the loading process. It is
  * used to save loading information between modules download and evaluation.
- *  @param {!Array<!TrustedResourceUrl>} trustedRequestUris the uris
+ *  @param {!Array<!goog.html.TrustedResourceUrl>} trustedRequestUris the uris
  containing the modules implementing ids.
 
  * @constructor
  * @final
  */
-ModuleLoader.LoadStatus = function(trustedRequestUris) {
+goog.module.ModuleLoader.LoadStatus = function(trustedRequestUris) {
   /**
    * The request uris.
    * @final {!Array<string>}
    */
-  this.requestUris = trustedRequestUris.map(TrustedResourceUrl.unwrap);
+  this.requestUris =
+      goog.array.map(trustedRequestUris, goog.html.TrustedResourceUrl.unwrap);
 
   /**
    * A TrustedResourceUrl version of `this.requestUris`
-   * @final {!Array<!TrustedResourceUrl>}
+   * @final {!Array<!goog.html.TrustedResourceUrl>}
    */
   this.trustedRequestUris = trustedRequestUris;
 
@@ -718,21 +731,19 @@ ModuleLoader.LoadStatus = function(trustedRequestUris) {
  *
  * @param {?Array<string>} ids the ids for this module load in dependency
  *   order.
- * @param {!Object<string, !ModuleInfo>} moduleInfoMap A mapping
+ * @param {!Object<string, !goog.module.ModuleInfo>} moduleInfoMap A mapping
  *     from module id to ModuleInfo object.
- * @return {!ModuleLoader.LoadStatus}
+ * @return {!goog.module.ModuleLoader.LoadStatus}
  * @private
  */
-ModuleLoader.LoadStatus.createForIds_ = function(ids, moduleInfoMap) {
+goog.module.ModuleLoader.LoadStatus.createForIds_ = function(
+    ids, moduleInfoMap) {
   if (!ids) {
-    return new ModuleLoader.LoadStatus([]);
+    return new goog.module.ModuleLoader.LoadStatus([]);
   }
   const trustedRequestUris = [];
-  for (let i = 0; i < ids.length; i++) {
-    googArray.extend(trustedRequestUris, moduleInfoMap[ids[i]].getUris());
+  for (var i = 0; i < ids.length; i++) {
+    goog.array.extend(trustedRequestUris, moduleInfoMap[ids[i]].getUris());
   }
-  return new ModuleLoader.LoadStatus(trustedRequestUris);
+  return new goog.module.ModuleLoader.LoadStatus(trustedRequestUris);
 };
-
-
-exports = ModuleLoader;

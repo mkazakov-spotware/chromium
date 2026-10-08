@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,40 +7,31 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/values.h"
 #include "components/signin/core/browser/about_signin_internals.h"
 #include "ios/web/public/webui/web_ui_ios_controller.h"
-#include "ios/web/public/webui/web_ui_ios_message_handler.h"
 
 // The implementation for the chrome://signin-internals page.
-class SignInInternalsUIIOS : public web::WebUIIOSController {
+class SignInInternalsUIIOS : public web::WebUIIOSController,
+                             public AboutSigninInternals::Observer {
  public:
-  SignInInternalsUIIOS(web::WebUIIOS* web_ui, const std::string& host);
+  explicit SignInInternalsUIIOS(web::WebUIIOS* web_ui, const std::string& host);
   ~SignInInternalsUIIOS() override;
-  SignInInternalsUIIOS(const SignInInternalsUIIOS&) = delete;
-  SignInInternalsUIIOS& operator=(const SignInInternalsUIIOS&) = delete;
-};
 
-class SignInInternalsHandlerIOS : public web::WebUIIOSMessageHandler,
-                                  public AboutSigninInternals::Observer {
- public:
-  SignInInternalsHandlerIOS();
-  ~SignInInternalsHandlerIOS() override;
-
-  SignInInternalsHandlerIOS(const SignInInternalsHandlerIOS&) = delete;
-  SignInInternalsHandlerIOS& operator=(const SignInInternalsHandlerIOS&) =
-      delete;
-
-  // web::WebUIIOSMessageHandler:
-  void RegisterMessages() override;
-
-  void HandleGetSignInInfo(const base::Value::List& args);
+  // web::WebUIIOSController implementation.
+  bool OverrideHandleWebUIIOSMessage(const GURL& source_url,
+                                     const std::string& name,
+                                     const base::ListValue& args) override;
 
   // AboutSigninInternals::Observer::OnSigninStateChanged implementation.
-  void OnSigninStateChanged(const base::Value::Dict& info) override;
+  void OnSigninStateChanged(const base::DictionaryValue* info) override;
 
   // Notification that the cookie accounts are ready to be displayed.
-  void OnCookieAccountsFetched(const base::Value::Dict& info) override;
+  void OnCookieAccountsFetched(const base::DictionaryValue* info) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SignInInternalsUIIOS);
 };
 
 #endif  // IOS_CHROME_BROWSER_UI_WEBUI_SIGNIN_INTERNALS_UI_IOS_H_

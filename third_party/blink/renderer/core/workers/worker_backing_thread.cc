@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/location.h"
-#include "base/synchronization/lock.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/web/blink.h"
@@ -21,29 +20,31 @@
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
-#include "third_party/blink/renderer/platform/wtf/hash_set.h"
 
 namespace blink {
 
 namespace {
 
-base::Lock& IsolatesLock() {
-  DEFINE_THREAD_SAFE_STATIC_LOCAL(base::Lock, lock, ());
-  return lock;
+Mutex& IsolatesMutex() {
+  DEFINE_THREAD_SAFE_STATIC_LOCAL(Mutex, mutex, ());
+  return mutex;
 }
 
-HashSet<v8::Isolate*>& Isolates() EXCLUSIVE_LOCKS_REQUIRED(IsolatesLock()) {
+HashSet<v8::Isolate*>& Isolates() {
+#if DCHECK_IS_ON()
+  IsolatesMutex().AssertAcquired();
+#endif
   static HashSet<v8::Isolate*>& isolates = *new HashSet<v8::Isolate*>();
   return isolates;
 }
 
 void AddWorkerIsolate(v8::Isolate* isolate) {
-  base::AutoLock locker(IsolatesLock());
+  MutexLocker lock(IsolatesMutex());
   Isolates().insert(isolate);
 }
 
 void RemoveWorkerIsolate(v8::Isolate* isolate) {
-  base::AutoLock locker(IsolatesLock());
+  MutexLocker lock(IsolatesMutex());
   Isolates().erase(isolate);
 }
 
@@ -56,7 +57,7 @@ void MemoryPressureNotificationToWorkerThreadIsolates(
 }
 
 WorkerBackingThread::WorkerBackingThread(const ThreadCreationParams& params)
-    : backing_thread_(blink::NonMainThread::CreateThread(
+    : backing_thread_(blink::Thread::CreateThread(
           ThreadCreationParams(params).SetSupportsGC(true))) {}
 
 WorkerBackingThread::~WorkerBackingThread() = default;
@@ -69,8 +70,7 @@ void WorkerBackingThread::InitializeOnBackingThread(
   ThreadScheduler* scheduler = BackingThread().Scheduler();
   isolate_ = V8PerIsolateData::Initialize(
       scheduler->V8TaskRunner(),
-      V8PerIsolateData::V8ContextSnapshotMode::kDontUseSnapshot, nullptr,
-      nullptr);
+      V8PerIsolateData::V8ContextSnapshotMode::kDontUseSnapshot);
   scheduler->SetV8Isolate(isolate_);
   AddWorkerIsolate(isolate_);
   V8Initializer::InitializeWorker(isolate_);
@@ -118,7 +118,7 @@ void WorkerBackingThread::ShutdownOnBackingThread() {
 // static
 void WorkerBackingThread::MemoryPressureNotificationToWorkerThreadIsolates(
     v8::MemoryPressureLevel level) {
-  base::AutoLock locker(IsolatesLock());
+  MutexLocker lock(IsolatesMutex());
   for (v8::Isolate* isolate : Isolates())
     isolate->MemoryPressureNotification(level);
 }

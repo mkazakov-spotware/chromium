@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.keyboard_accessory.tab_layout_component;
 
 import static org.chromium.chrome.browser.keyboard_accessory.tab_layout_component.KeyboardAccessoryTabLayoutProperties.ACTIVE_TAB;
-import static org.chromium.chrome.browser.keyboard_accessory.tab_layout_component.KeyboardAccessoryTabLayoutProperties.BUTTON_SELECTION_CALLBACKS;
 import static org.chromium.chrome.browser.keyboard_accessory.tab_layout_component.KeyboardAccessoryTabLayoutProperties.TABS;
 import static org.chromium.chrome.browser.keyboard_accessory.tab_layout_component.KeyboardAccessoryTabLayoutProperties.TAB_SELECTION_CALLBACKS;
 
@@ -24,7 +23,7 @@ import org.chromium.ui.modelutil.PropertyModel;
  */
 class KeyboardAccessoryTabLayoutViewBinder
         implements ListModelChangeProcessor.ViewBinder<ListModel<KeyboardAccessoryData.Tab>,
-                KeyboardAccessoryTabLayoutView, Void> {
+                KeyboardAccessoryTabLayoutView> {
     @Override
     public void onItemsInserted(ListModel<KeyboardAccessoryData.Tab> model,
             KeyboardAccessoryTabLayoutView view, int index, int count) {
@@ -41,7 +40,7 @@ class KeyboardAccessoryTabLayoutViewBinder
 
     @Override
     public void onItemsChanged(ListModel<KeyboardAccessoryData.Tab> model,
-            KeyboardAccessoryTabLayoutView view, int index, int count, Void payload) {
+            KeyboardAccessoryTabLayoutView view, int index, int count) {
         updateAllTabs(view, model);
     }
 
@@ -60,7 +59,7 @@ class KeyboardAccessoryTabLayoutViewBinder
         for (int i = 0; i < model.size(); i++) {
             final int observedIconIndex = i;
             model.get(i).addIconObserver((unusedTypeId, unusedDrawable) -> {
-                onItemsChanged(model, view, observedIconIndex, 1, null);
+                onItemsChanged(model, view, observedIconIndex, 1);
             });
         }
     }
@@ -79,8 +78,6 @@ class KeyboardAccessoryTabLayoutViewBinder
             // Don't add null as listener. It's a valid state but an invalid argument.
             TabLayout.OnTabSelectedListener listener = model.get(TAB_SELECTION_CALLBACKS);
             if (listener != null) view.setTabSelectionAdapter(listener);
-        } else if (propertyKey == BUTTON_SELECTION_CALLBACKS) {
-            // Do nothing.
         } else {
             assert false : "Every possible property update needs to be handled!";
         }

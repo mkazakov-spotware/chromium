@@ -4,33 +4,26 @@ Initial tree...
 
 Application
  Manifest
-  Identity
-  Presentation
-  Protocol Handlers
-  Icons
  Service Workers
  Storage
 Storage
  Local Storage
-  http://127.0.0.1:8000/
+  http://127.0.0.1:8000
   http://devtools.oopif.test:8000
  Session Storage
-  http://127.0.0.1:8000/
+  http://127.0.0.1:8000
   http://devtools.oopif.test:8000
  IndexedDB
-  Database-iframe - http://devtools.oopif.test:8000/
+  Database-iframe - http://devtools.oopif.test:8000
    Database-iframe
-  Database-main-frame - http://127.0.0.1:8000/
+  Database-main-frame - http://127.0.0.1:8000
  Web SQL
  Cookies
   http://127.0.0.1:8000
   http://devtools.oopif.test:8000
- Trust Tokens
- Interest Groups
- Shared Storage
 Cache
  Cache Storage
- Back/forward cache
+ Application Cache
 Background Services
  Background Fetch
  Background Sync
@@ -38,7 +31,6 @@ Background Services
  Payment Handler
  Periodic Background Sync
  Push Messaging
- Reporting API
 Frames
  top
   indexeddb-in-iframe.html
@@ -49,29 +41,22 @@ Remove iframe from page...
 
 Application
  Manifest
-  Identity
-  Presentation
-  Protocol Handlers
-  Icons
  Service Workers
  Storage
 Storage
  Local Storage
-  http://127.0.0.1:8000/
+  http://127.0.0.1:8000
  Session Storage
-  http://127.0.0.1:8000/
+  http://127.0.0.1:8000
  IndexedDB
-  Database-main-frame - http://127.0.0.1:8000/
+  Database-main-frame - http://127.0.0.1:8000
  Web SQL
  Cookies
   http://127.0.0.1:8000
   http://devtools.oopif.test:8000
- Trust Tokens
- Interest Groups
- Shared Storage
 Cache
  Cache Storage
- Back/forward cache
+ Application Cache
 Background Services
  Background Fetch
  Background Sync
@@ -79,7 +64,6 @@ Background Services
  Payment Handler
  Periodic Background Sync
  Push Messaging
- Reporting API
 Frames
  top
   inspected-page.html
@@ -88,33 +72,26 @@ Add iframe to page again...
 
 Application
  Manifest
-  Identity
-  Presentation
-  Protocol Handlers
-  Icons
  Service Workers
  Storage
 Storage
  Local Storage
-  http://127.0.0.1:8000/
+  http://127.0.0.1:8000
   http://devtools.oopif.test:8000
  Session Storage
-  http://127.0.0.1:8000/
+  http://127.0.0.1:8000
   http://devtools.oopif.test:8000
  IndexedDB
-  Database-main-frame - http://127.0.0.1:8000/
-  Database-iframe - http://devtools.oopif.test:8000/
+  Database-main-frame - http://127.0.0.1:8000
+  Database-iframe - http://devtools.oopif.test:8000
    Database-iframe
  Web SQL
  Cookies
   http://127.0.0.1:8000
   http://devtools.oopif.test:8000
- Trust Tokens
- Interest Groups
- Shared Storage
 Cache
  Cache Storage
- Back/forward cache
+ Application Cache
 Background Services
  Background Fetch
  Background Sync
@@ -122,7 +99,6 @@ Background Services
  Payment Handler
  Periodic Background Sync
  Push Messaging
- Reporting API
 Frames
  top
   indexeddb-in-iframe.html

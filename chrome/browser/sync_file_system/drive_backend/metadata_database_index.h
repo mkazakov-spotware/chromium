@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "base/hash/hash.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/sync_file_system/drive_backend/metadata_database_index_interface.h"
 #include "chrome/browser/sync_file_system/drive_backend/tracker_id_set.h"
 
@@ -56,9 +56,6 @@ struct DatabaseContents {
 // Maintains indexes of MetadataDatabase on memory.
 class MetadataDatabaseIndex : public MetadataDatabaseIndexInterface {
  public:
-  MetadataDatabaseIndex(const MetadataDatabaseIndex&) = delete;
-  MetadataDatabaseIndex& operator=(const MetadataDatabaseIndex&) = delete;
-
   ~MetadataDatabaseIndex() override;
 
   static std::unique_ptr<MetadataDatabaseIndex> Create(LevelDBWrapper* db);
@@ -149,7 +146,7 @@ class MetadataDatabaseIndex : public MetadataDatabaseIndexInterface {
   void RemoveFromDirtyTrackerIndexes(const FileTracker& tracker);
 
   std::unique_ptr<ServiceMetadata> service_metadata_;
-  raw_ptr<LevelDBWrapper> db_;  // Not owned
+  LevelDBWrapper* db_;  // Not owned
 
   MetadataByID metadata_by_id_;
   TrackerByID tracker_by_id_;
@@ -164,6 +161,8 @@ class MetadataDatabaseIndex : public MetadataDatabaseIndexInterface {
 
   DirtyTrackers dirty_trackers_;
   DirtyTrackers demoted_dirty_trackers_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetadataDatabaseIndex);
 };
 
 }  // namespace drive_backend

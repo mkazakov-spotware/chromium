@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,10 @@
 // test code.
 @interface FirstRunAppInterface : NSObject
 
-// Resets the UMA collection enabled pref to `enabled`.
+// Triggers the display of the first run UI.
++ (void)showFirstRunUI;
+
+// Resets the UMA collection enabled pref to |enabled|.
 + (void)setUMACollectionEnabled:(BOOL)enabled;
 
 // Returns whether UMA collection is enabled.
@@ -20,6 +23,9 @@
 
 // Resets the UMA collection enabled by default pref to UNKNOWN.
 + (void)resetUMACollectionEnabledByDefault;
+
+// Returns whether the UMA collections checkbox is initially checked.
++ (BOOL)isUMACollectionEnabledByDefault;
 
 // Returns whether sync has finished its first run setup.
 + (BOOL)isSyncFirstSetupComplete;

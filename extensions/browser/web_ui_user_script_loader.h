@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,9 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "extensions/browser/user_script_loader.h"
-#include "extensions/common/mojom/host_id.mojom-forward.h"
 
-class GURL;
 class WebUIURLFetcher;
 
 namespace content {
@@ -25,24 +24,20 @@ class BrowserContext;
 class WebUIUserScriptLoader : public extensions::UserScriptLoader {
  public:
   WebUIUserScriptLoader(content::BrowserContext* browser_context,
-                        const GURL& url);
-
-  WebUIUserScriptLoader(const WebUIUserScriptLoader&) = delete;
-  WebUIUserScriptLoader& operator=(const WebUIUserScriptLoader&) = delete;
-
+                        const HostID& host_id);
   ~WebUIUserScriptLoader() override;
 
  private:
   struct UserScriptRenderInfo;
-  using UserScriptRenderInfoMap = std::map<std::string, UserScriptRenderInfo>;
+  using UserScriptRenderInfoMap = std::map<int, UserScriptRenderInfo>;
 
   // UserScriptLoader:
   void AddScripts(std::unique_ptr<extensions::UserScriptList> scripts,
                   int render_process_id,
-                  int render_frame_id,
-                  ScriptsLoadedCallback callback) override;
+                  int render_frame_id) override;
   void LoadScripts(std::unique_ptr<extensions::UserScriptList> user_scripts,
-                   const std::set<std::string>& added_script_ids,
+                   const std::set<HostID>& changed_hosts,
+                   const std::set<int>& added_script_ids,
                    LoadScriptsCallback callback) override;
 
   // Called at the end of each fetch, tracking whether all fetches are done.
@@ -74,6 +69,8 @@ class WebUIUserScriptLoader : public extensions::UserScriptLoader {
   LoadScriptsCallback scripts_loaded_callback_;
 
   std::vector<std::unique_ptr<WebUIURLFetcher>> fetchers_;
+
+  DISALLOW_COPY_AND_ASSIGN(WebUIUserScriptLoader);
 };
 
 #endif  // EXTENSIONS_BROWSER_WEB_UI_USER_SCRIPT_LOADER_H_

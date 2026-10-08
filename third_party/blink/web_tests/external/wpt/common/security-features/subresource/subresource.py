@@ -1,5 +1,5 @@
 import os, json
-from urllib.parse import parse_qsl, SplitResult, urlencode, urlsplit, urlunsplit
+from six.moves.urllib.parse import parse_qsl, SplitResult, urlencode, urlsplit, urlunsplit
 
 from wptserve.utils import isomorphic_decode, isomorphic_encode
 

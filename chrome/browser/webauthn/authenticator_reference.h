@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <string>
 
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_piece.h"
 #include "device/fido/fido_transport_protocol.h"
 
@@ -15,19 +17,19 @@
 // from the user via the UI.
 struct AuthenticatorReference {
   AuthenticatorReference(base::StringPiece device_id,
+                         base::StringPiece16 authenticator_display_name,
                          device::FidoTransportProtocol transport);
-
-  AuthenticatorReference(const AuthenticatorReference&) = delete;
-  AuthenticatorReference& operator=(const AuthenticatorReference&) = delete;
-
   AuthenticatorReference(AuthenticatorReference&& data);
   AuthenticatorReference& operator=(AuthenticatorReference&& other);
-
   ~AuthenticatorReference();
 
   std::string authenticator_id;
+  base::string16 authenticator_display_name;
   device::FidoTransportProtocol transport;
   bool dispatched = false;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AuthenticatorReference);
 };
 
 #endif  // CHROME_BROWSER_WEBAUTHN_AUTHENTICATOR_REFERENCE_H_

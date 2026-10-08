@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,10 +21,6 @@ struct AllocationSite {
   AllocationSite(AllocatorType allocator,
                  std::vector<Address>&& stack,
                  int context_id);
-
-  AllocationSite(const AllocationSite&) = delete;
-  AllocationSite& operator=(const AllocationSite&) = delete;
-
   ~AllocationSite();
 
   // Type of the allocator responsible for the allocation. Possible values are
@@ -46,6 +42,8 @@ struct AllocationSite {
 
  private:
   const uint32_t hash_;
+
+  DISALLOW_COPY_AND_ASSIGN(AllocationSite);
 };
 
 inline bool operator==(const AllocationSite& a, const AllocationSite& b) {

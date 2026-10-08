@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/download/public/background_service/download_params.h"
 #include "components/offline_pages/core/prefetch/prefetch_downloader.h"
@@ -20,7 +21,7 @@
 class PrefService;
 
 namespace download {
-class BackgroundDownloadService;
+class DownloadService;
 }  // namespace download
 
 namespace offline_pages {
@@ -30,13 +31,9 @@ class PrefetchService;
 // Asynchronously downloads the archive.
 class PrefetchDownloaderImpl : public PrefetchDownloader {
  public:
-  PrefetchDownloaderImpl(download::BackgroundDownloadService* download_service,
+  PrefetchDownloaderImpl(download::DownloadService* download_service,
                          version_info::Channel channel,
                          PrefService* prefs);
-
-  PrefetchDownloaderImpl(const PrefetchDownloaderImpl&) = delete;
-  PrefetchDownloaderImpl& operator=(const PrefetchDownloaderImpl&) = delete;
-
   ~PrefetchDownloaderImpl() override;
 
   // PrefetchDownloader implementation:
@@ -78,10 +75,10 @@ class PrefetchDownloaderImpl : public PrefetchDownloader {
           success_downloads);
 
   // Unowned. It is valid until |this| instance is disposed.
-  raw_ptr<download::BackgroundDownloadService> download_service_;
+  download::DownloadService* download_service_;
 
   // Unowned, owns |this|.
-  raw_ptr<PrefetchService> prefetch_service_ = nullptr;
+  PrefetchService* prefetch_service_ = nullptr;
 
   version_info::Channel channel_;
 
@@ -96,9 +93,11 @@ class PrefetchDownloaderImpl : public PrefetchDownloader {
   std::set<std::string> outstanding_download_ids_;
   std::map<std::string, std::pair<base::FilePath, int64_t>> success_downloads_;
 
-  raw_ptr<PrefService> prefs_;
+  PrefService* prefs_;
 
   base::WeakPtrFactory<PrefetchDownloaderImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchDownloaderImpl);
 };
 
 }  // namespace offline_pages

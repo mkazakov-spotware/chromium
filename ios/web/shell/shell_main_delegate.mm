@@ -1,8 +1,8 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/web/shell/shell_main_delegate.h"
+#include "ios/web/shell/shell_main_delegate.h"
 
 #import "ios/web/shell/shell_web_client.h"
 

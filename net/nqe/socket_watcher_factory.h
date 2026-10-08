@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,15 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/sequence_checker.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "net/nqe/network_quality_estimator_util.h"
 #include "net/socket/socket_performance_watcher.h"
 #include "net/socket/socket_performance_watcher_factory.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class TickClock;
@@ -31,14 +30,16 @@ namespace {
 typedef base::RepeatingCallback<void(
     SocketPerformanceWatcherFactory::Protocol protocol,
     const base::TimeDelta& rtt,
-    const absl::optional<nqe::internal::IPHash>& host)>
+    const base::Optional<nqe::internal::IPHash>& host)>
     OnUpdatedRTTAvailableCallback;
 
 typedef base::RepeatingCallback<bool(base::TimeTicks)> ShouldNotifyRTTCallback;
 
 }  // namespace
 
-namespace nqe::internal {
+namespace nqe {
+
+namespace internal {
 
 // SocketWatcherFactory implements SocketPerformanceWatcherFactory.
 // SocketWatcherFactory is thread safe.
@@ -58,9 +59,6 @@ class SocketWatcherFactory : public SocketPerformanceWatcherFactory {
       OnUpdatedRTTAvailableCallback updated_rtt_observation_callback,
       ShouldNotifyRTTCallback should_notify_rtt_callback,
       const base::TickClock* tick_clock);
-
-  SocketWatcherFactory(const SocketWatcherFactory&) = delete;
-  SocketWatcherFactory& operator=(const SocketWatcherFactory&) = delete;
 
   ~SocketWatcherFactory() override;
 
@@ -85,7 +83,7 @@ class SocketWatcherFactory : public SocketPerformanceWatcherFactory {
 
   // True if socket watchers constructed by this factory can use the RTT from
   // the sockets that are connected to the private addresses.
-  bool allow_rtt_private_address_ = false;
+  bool allow_rtt_private_address_;
 
   // Called every time a new RTT observation is available.
   OnUpdatedRTTAvailableCallback updated_rtt_observation_callback_;
@@ -94,10 +92,14 @@ class SocketWatcherFactory : public SocketPerformanceWatcherFactory {
   // notification should be notified using |updated_rtt_observation_callback_|.
   ShouldNotifyRTTCallback should_notify_rtt_callback_;
 
-  raw_ptr<const base::TickClock> tick_clock_;
+  const base::TickClock* tick_clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(SocketWatcherFactory);
 };
 
-}  // namespace nqe::internal
+}  // namespace internal
+
+}  // namespace nqe
 
 }  // namespace net
 

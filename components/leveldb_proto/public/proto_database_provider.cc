@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 #include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/memory/ptr_util.h"
+#include "base/sequenced_task_runner.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "components/leveldb_proto/internal/shared_proto_database.h"
 
 namespace leveldb_proto {
@@ -26,7 +28,7 @@ ProtoDatabaseProvider::ProtoDatabaseProvider(const base::FilePath& profile_dir,
                                              bool is_in_memory)
     : profile_dir_(profile_dir),
       is_in_memory_(is_in_memory),
-      client_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
+      client_task_runner_(base::SequencedTaskRunnerHandle::Get()) {}
 
 ProtoDatabaseProvider::~ProtoDatabaseProvider() {
   base::AutoLock lock(get_db_lock_);
@@ -52,9 +54,8 @@ void ProtoDatabaseProvider::GetSharedDBInstance(
 
 void ProtoDatabaseProvider::SetSharedDBDeleteObsoleteDelayForTesting(
     base::TimeDelta delay) {
-  base::AutoLock lock(get_db_lock_);
   if (db_)
-    db_->SetDeleteObsoleteDelayForTesting(delay);  // IN-TEST
+    db_->set_delete_obsolete_delay_for_testing(delay);  // IN-TEST
 }
 
 }  // namespace leveldb_proto

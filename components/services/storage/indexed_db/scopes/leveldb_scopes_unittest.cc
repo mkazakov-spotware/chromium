@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <utility>
 
 #include "base/run_loop.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
-#include "components/services/storage/indexed_db/locks/partitioned_lock_manager.h"
+#include "base/threading/sequenced_task_runner_handle.h"
+#include "components/services/storage/indexed_db/scopes/disjoint_range_lock_manager.h"
+#include "components/services/storage/indexed_db/scopes/leveldb_scopes.h"
 #include "components/services/storage/indexed_db/scopes/leveldb_scopes_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/leveldatabase/src/include/leveldb/slice.h"
@@ -27,7 +28,7 @@ class LevelDBScopesStartupTest : public LevelDBScopesTestBase {
 TEST_F(LevelDBScopesStartupTest, CleanupOnRecovery) {
   const int64_t kScopeToCleanUp = 19;
   SetUpRealDatabase();
-  PartitionedLockManager lock_manager;
+  DisjointRangeLockManager lock_manager(3);
   WriteScopesMetadata(kScopeToCleanUp, true);
 
   leveldb::Status failure_callback = leveldb::Status::OK();
@@ -60,7 +61,7 @@ TEST_F(LevelDBScopesStartupTest, RevertWithLocksOnRecoveryWithNoCleanup) {
   const std::string kKeyWithinCleanupDeleteRange = "b2";
   const std::string kCleanupDeleteRangeEnd = "b3";
   SetUpRealDatabase();
-  PartitionedLockManager lock_manager;
+  DisjointRangeLockManager lock_manager(3);
 
   // Tests that the revert execution on startup is performed correctly. This
   // includes:
@@ -69,9 +70,11 @@ TEST_F(LevelDBScopesStartupTest, RevertWithLocksOnRecoveryWithNoCleanup) {
   //   execute the cleanup tasks.
 
   metadata_buffer_.mutable_locks()->Add();
-  metadata_buffer_.mutable_locks()->Mutable(0)->set_partition(0);
-  metadata_buffer_.mutable_locks()->Mutable(0)->mutable_key()->set_key(
+  metadata_buffer_.mutable_locks()->Mutable(0)->set_level(0);
+  metadata_buffer_.mutable_locks()->Mutable(0)->mutable_range()->set_begin(
       simple_lock_begin_);
+  metadata_buffer_.mutable_locks()->Mutable(0)->mutable_range()->set_end(
+      simple_lock_end_);
   WriteScopesMetadata(kScopeToResumeRevert, false);
 
   // Cleanup task that will be ignored.
@@ -100,7 +103,7 @@ TEST_F(LevelDBScopesStartupTest, RevertWithLocksOnRecoveryWithNoCleanup) {
 
   // Verify that the lock was grabbed.
   bool lock_grabbed = false;
-  PartitionedLockHolder locks_receiver;
+  ScopesLocksHolder locks_receiver;
   lock_manager.AcquireLocks(
       {CreateSimpleExclusiveLock()}, locks_receiver.AsWeakPtr(),
       base::BindLambdaForTesting([&]() { lock_grabbed = true; }));
@@ -125,8 +128,8 @@ TEST_F(LevelDBScopesStartupTest, RevertWithLocksOnRecoveryWithNoCleanup) {
   // Ensure the cleanup task was posted & locks were released.
   {
     base::RunLoop loop;
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, loop.QuitClosure());
+    base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                     loop.QuitClosure());
     loop.Run();
   }
   EXPECT_TRUE(lock_grabbed);

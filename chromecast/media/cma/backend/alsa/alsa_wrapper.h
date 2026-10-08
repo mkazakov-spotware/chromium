@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROMECAST_MEDIA_CMA_BACKEND_ALSA_ALSA_WRAPPER_H_
 #define CHROMECAST_MEDIA_CMA_BACKEND_ALSA_ALSA_WRAPPER_H_
 
+#include "base/macros.h"
 #include "media/audio/alsa/alsa_wrapper.h"
 
 namespace chromecast {
@@ -16,10 +17,6 @@ extern const int kAlsaTstampTypeMonotonicRaw;
 class AlsaWrapper : public ::media::AlsaWrapper {
  public:
   AlsaWrapper();
-
-  AlsaWrapper(const AlsaWrapper&) = delete;
-  AlsaWrapper& operator=(const AlsaWrapper&) = delete;
-
   ~AlsaWrapper() override;
 
   virtual int PcmPause(snd_pcm_t* handle, int enable);
@@ -46,6 +43,9 @@ class AlsaWrapper : public ::media::AlsaWrapper {
   virtual int PcmSwParamsSetTstampType(snd_pcm_t* handle,
                                        snd_pcm_sw_params_t* obj,
                                        int val);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AlsaWrapper);
 };
 
 }  // namespace media

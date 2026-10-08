@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define STORAGE_BROWSER_BLOB_SHAREABLE_FILE_REFERENCE_H_
 
 #include "base/component_export.h"
-#include "base/memory/ref_counted.h"
+#include "base/macros.h"
 #include "storage/browser/blob/scoped_file.h"
 
 namespace storage {
@@ -50,9 +50,6 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) ShareableFileReference
   static scoped_refptr<ShareableFileReference> GetOrCreate(
       ScopedFile scoped_file);
 
-  ShareableFileReference(const ShareableFileReference&) = delete;
-  ShareableFileReference& operator=(const ShareableFileReference&) = delete;
-
   // The full file path.
   const base::FilePath& path() const { return scoped_file_.path(); }
 
@@ -72,6 +69,8 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) ShareableFileReference
   ~ShareableFileReference();
 
   ScopedFile scoped_file_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShareableFileReference);
 };
 
 }  // namespace storage

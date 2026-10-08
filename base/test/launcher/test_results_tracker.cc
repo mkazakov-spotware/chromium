@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,14 +18,12 @@
 #include "base/json/json_writer.h"
 #include "base/json/string_escape.h"
 #include "base/logging.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/gtest_util.h"
 #include "base/test/launcher/test_launcher.h"
 #include "base/test/test_switches.h"
 #include "base/time/time.h"
-#include "base/time/time_to_iso8601.h"
 #include "base/values.h"
 
 namespace base {
@@ -113,8 +111,8 @@ TestResultsTracker::~TestResultsTracker() {
     all_tests_aggregator.Add(result);
   }
 
-  fprintf(out_.get(), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  fprintf(out_.get(),
+  fprintf(out_, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+  fprintf(out_,
           "<testsuites name=\"AllTests\" tests=\"%d\" failures=\"%d\""
           " disabled=\"%d\" errors=\"%d\" time=\"%.3f\" timestamp=\"%s\">\n",
           all_tests_aggregator.tests, all_tests_aggregator.failures,
@@ -130,7 +128,7 @@ TestResultsTracker::~TestResultsTracker() {
     for (const TestResult& result : results) {
       aggregator.Add(result);
     }
-    fprintf(out_.get(),
+    fprintf(out_,
             "  <testsuite name=\"%s\" tests=\"%d\" "
             "failures=\"%d\" disabled=\"%d\" errors=\"%d\" time=\"%.3f\" "
             "timestamp=\"%s\">\n",
@@ -140,29 +138,23 @@ TestResultsTracker::~TestResultsTracker() {
             FormatTimeAsIso8601(Time::Now()).c_str());
 
     for (const TestResult& result : results) {
-      fprintf(out_.get(),
-              "    <testcase name=\"%s\" status=\"run\" time=\"%.3f\""
-              "%s classname=\"%s\">\n",
-              result.GetTestName().c_str(), result.elapsed_time.InSecondsF(),
-              (result.timestamp
-                   ? StrCat({" timestamp=\"",
-                             FormatTimeAsIso8601(*result.timestamp), "\""})
-                         .c_str()
-                   : ""),
+      fprintf(out_, "    <testcase name=\"%s\" status=\"run\" time=\"%.3f\""
+              " classname=\"%s\">\n",
+              result.GetTestName().c_str(),
+              result.elapsed_time.InSecondsF(),
               result.GetTestCaseName().c_str());
       if (result.status != TestResult::TEST_SUCCESS) {
         // The actual failure message is not propagated up to here, as it's too
         // much work to escape it properly, and in case of failure, almost
         // always one needs to look into full log anyway.
-        fprintf(out_.get(),
-                "      <failure message=\"\" type=\"\"></failure>\n");
+        fprintf(out_, "      <failure message=\"\" type=\"\"></failure>\n");
       }
-      fprintf(out_.get(), "    </testcase>\n");
+      fprintf(out_, "    </testcase>\n");
     }
-    fprintf(out_.get(), "  </testsuite>\n");
+    fprintf(out_, "  </testsuite>\n");
   }
 
-  fprintf(out_.get(), "</testsuites>\n");
+  fprintf(out_, "</testsuites>\n");
   fclose(out_);
 }
 
@@ -243,8 +235,7 @@ void TestResultsTracker::AddDisabledTest(const std::string& test_name) {
 void TestResultsTracker::AddTestLocation(const std::string& test_name,
                                          const std::string& file,
                                          int line) {
-  test_locations_.insert(std::make_pair(
-      TestNameWithoutDisabledPrefix(test_name), CodeLocation(file, line)));
+  test_locations_.insert(std::make_pair(test_name, CodeLocation(file, line)));
 }
 
 void TestResultsTracker::AddTestPlaceholder(const std::string& test_name) {
@@ -260,59 +251,27 @@ void TestResultsTracker::AddTestResult(const TestResult& result) {
   std::string test_name_without_disabled_prefix =
       TestNameWithoutDisabledPrefix(result.full_name);
   auto it = results_map.find(test_name_without_disabled_prefix);
+  // If the test name is not present in the results map, then we did not
+  // generate a placeholder for the test. We shouldn't record its result either.
+  // It's a test that the delegate ran, e.g. a PRE_XYZ test.
+  if (it == results_map.end())
+    return;
 
   // Record disabled test names without DISABLED_ prefix so that they are easy
   // to compare with regular test names, e.g. before or after disabling.
   AggregateTestResult& aggregate_test_result = it->second;
 
-  // If the current test_result is a PRE test and it failed, insert its result
-  // in the corresponding non-PRE test's place.
-  std::string test_name_without_pre_prefix(test_name_without_disabled_prefix);
-  ReplaceSubstringsAfterOffset(&test_name_without_pre_prefix, 0, "PRE_", "");
-  if (test_name_without_pre_prefix != test_name_without_disabled_prefix) {
-    if (result.status != TestResult::TEST_SUCCESS) {
-      it = results_map.find(test_name_without_pre_prefix);
-      if (!it->second.test_results.empty() &&
-          it->second.test_results.back().status == TestResult::TEST_NOT_RUN) {
-        // Also need to remove the non-PRE test's placeholder.
-        it->second.test_results.pop_back();
-      }
-      it->second.test_results.push_back(result);
-    }
-    // We quit early here and let the non-PRE test detect this result and
-    // modify its result appropriately.
-    return;
-  }
-
   // If the last test result is a placeholder, then get rid of it now that we
-  // have real results.
+  // have real results. It's possible for no placeholder to exist if the test is
+  // setup for another test, e.g. PRE_ComponentAppBackgroundPage is a test whose
+  // sole purpose is to prime the test ComponentAppBackgroundPage.
   if (!aggregate_test_result.test_results.empty() &&
       aggregate_test_result.test_results.back().status ==
           TestResult::TEST_NOT_RUN) {
     aggregate_test_result.test_results.pop_back();
   }
 
-  TestResult result_to_add = result;
-  result_to_add.full_name = test_name_without_disabled_prefix;
-  if (!aggregate_test_result.test_results.empty()) {
-    TestResult prev_result = aggregate_test_result.test_results.back();
-    if (prev_result.full_name != test_name_without_disabled_prefix) {
-      // Some other test's result is in our place! It must be our failed PRE
-      // test. Modify our own result if it failed and we succeeded so we don't
-      // end up silently swallowing PRE-only failures.
-      std::string prev_result_name(prev_result.full_name);
-      ReplaceSubstringsAfterOffset(&prev_result_name, 0, "PRE_", "");
-      CHECK_EQ(prev_result_name, test_name_without_disabled_prefix);
-
-      if (result.status == TestResult::TEST_SUCCESS) {
-        TestResult modified_result(prev_result);
-        modified_result.full_name = test_name_without_disabled_prefix;
-        result_to_add = modified_result;
-      }
-      aggregate_test_result.test_results.pop_back();
-    }
-  }
-  aggregate_test_result.test_results.push_back(result_to_add);
+  aggregate_test_result.test_results.push_back(result);
 }
 
 void TestResultsTracker::AddLeakedItems(
@@ -329,7 +288,7 @@ void TestResultsTracker::GeneratePlaceholderIteration() {
     std::string test_name = TestNameWithoutDisabledPrefix(full_test_name);
 
     TestResult test_result;
-    test_result.full_name = test_name;
+    test_result.full_name = full_test_name;
     test_result.status = TestResult::TEST_NOT_RUN;
 
     // There shouldn't be any existing results when we generate placeholder
@@ -420,77 +379,65 @@ void TestResultsTracker::AddGlobalTag(const std::string& tag) {
 bool TestResultsTracker::SaveSummaryAsJSON(
     const FilePath& path,
     const std::vector<std::string>& additional_tags) const {
-  Value::Dict summary_root;
+  std::unique_ptr<DictionaryValue> summary_root(new DictionaryValue);
 
-  Value::List global_tags;
+  std::unique_ptr<ListValue> global_tags(new ListValue);
   for (const auto& global_tag : global_tags_) {
-    global_tags.Append(global_tag);
+    global_tags->AppendString(global_tag);
   }
   for (const auto& tag : additional_tags) {
-    global_tags.Append(tag);
+    global_tags->AppendString(tag);
   }
-  summary_root.Set("global_tags", std::move(global_tags));
+  summary_root->Set("global_tags", std::move(global_tags));
 
-  Value::List all_tests;
+  std::unique_ptr<ListValue> all_tests(new ListValue);
   for (const auto& test : all_tests_) {
-    all_tests.Append(test);
+    all_tests->AppendString(test);
   }
-  summary_root.Set("all_tests", std::move(all_tests));
+  summary_root->Set("all_tests", std::move(all_tests));
 
-  Value::List disabled_tests;
+  std::unique_ptr<ListValue> disabled_tests(new ListValue);
   for (const auto& disabled_test : disabled_tests_) {
-    disabled_tests.Append(disabled_test);
+    disabled_tests->AppendString(disabled_test);
   }
-  summary_root.Set("disabled_tests", std::move(disabled_tests));
+  summary_root->Set("disabled_tests", std::move(disabled_tests));
 
-  Value::List per_iteration_data;
+  std::unique_ptr<ListValue> per_iteration_data(new ListValue);
 
   // Even if we haven't run any tests, we still have the dummy iteration.
   int max_iteration = iteration_ < 0 ? 0 : iteration_;
 
   for (int i = 0; i <= max_iteration; i++) {
-    Value::Dict current_iteration_data;
+    std::unique_ptr<DictionaryValue> current_iteration_data(
+        new DictionaryValue);
 
     for (const auto& j : per_iteration_data_[i].results) {
-      Value::List test_results;
+      std::unique_ptr<ListValue> test_results(new ListValue);
 
       for (size_t k = 0; k < j.second.test_results.size(); k++) {
         const TestResult& test_result = j.second.test_results[k];
 
-        Value::Dict test_result_value;
+        std::unique_ptr<DictionaryValue> test_result_value(new DictionaryValue);
 
-        test_result_value.Set("status", test_result.StatusAsString());
-        test_result_value.Set(
+        test_result_value->SetStringKey("status", test_result.StatusAsString());
+        test_result_value->SetInteger(
             "elapsed_time_ms",
             static_cast<int>(test_result.elapsed_time.InMilliseconds()));
 
-        if (test_result.thread_id) {
-          test_result_value.Set("thread_id",
-                                static_cast<int>(*test_result.thread_id));
-        }
-        if (test_result.process_num)
-          test_result_value.Set("process_num", *test_result.process_num);
-        if (test_result.timestamp) {
-          // The timestamp is formatted using TimeToISO8601 instead of
-          // FormatTimeAsIso8601 here for a better accuracy that the former
-          // method would include a fraction of second (and the Z suffix).
-          test_result_value.Set("timestamp",
-                                TimeToISO8601(*test_result.timestamp).c_str());
-        }
-
         bool lossless_snippet = false;
         if (IsStringUTF8(test_result.output_snippet)) {
-          test_result_value.Set("output_snippet", test_result.output_snippet);
+          test_result_value->SetString(
+              "output_snippet", test_result.output_snippet);
           lossless_snippet = true;
         } else {
-          test_result_value.Set(
+          test_result_value->SetString(
               "output_snippet",
               "<non-UTF-8 snippet, see output_snippet_base64>");
         }
 
         // TODO(phajdan.jr): Fix typo in JSON key (losless -> lossless)
         // making sure not to break any consumers of this data.
-        test_result_value.Set("losless_snippet", lossless_snippet);
+        test_result_value->SetBoolKey("losless_snippet", lossless_snippet);
 
         // Also include the raw version (base64-encoded so that it can be safely
         // JSON-serialized - there are no guarantees about character encoding
@@ -498,97 +445,80 @@ bool TestResultsTracker::SaveSummaryAsJSON(
         // debugging a test failure related to character encoding.
         std::string base64_output_snippet;
         Base64Encode(test_result.output_snippet, &base64_output_snippet);
-        test_result_value.Set("output_snippet_base64", base64_output_snippet);
+        test_result_value->SetStringKey("output_snippet_base64",
+                                        base64_output_snippet);
         if (!test_result.links.empty()) {
-          Value::Dict links;
+          auto links = std::make_unique<DictionaryValue>();
           for (const auto& link : test_result.links) {
-            Value::Dict link_info;
-            link_info.Set("content", link.second);
-            links.SetByDottedPath(link.first, std::move(link_info));
+            auto link_info = std::make_unique<DictionaryValue>();
+            link_info->SetStringKey("content", link.second);
+            links->Set(link.first, std::move(link_info));
           }
-          test_result_value.Set("links", std::move(links));
+          test_result_value->Set("links", std::move(links));
         }
-        if (!test_result.tags.empty()) {
-          Value::Dict tags;
-          for (const auto& tag : test_result.tags) {
-            Value::Dict tag_info;
-            tag_info.Set("value", tag.second);
-            tags.SetByDottedPath(tag.first, std::move(tag_info));
-          }
-          test_result_value.Set("tags", std::move(tags));
-        }
-        if (!test_result.properties.empty()) {
-          Value::Dict properties;
-          for (const auto& property : test_result.properties) {
-            Value::Dict property_info;
-            property_info.Set("value", property.second);
-            properties.SetByDottedPath(property.first,
-                                       std::move(property_info));
-          }
-          test_result_value.Set("properties", std::move(properties));
-        }
-
-        Value::List test_result_parts;
+        auto test_result_parts = std::make_unique<ListValue>();
         for (const TestResultPart& result_part :
              test_result.test_result_parts) {
-          Value::Dict result_part_value;
-
-          result_part_value.Set("type", result_part.TypeAsString());
-          result_part_value.Set("file", result_part.file_name);
-          result_part_value.Set("line", result_part.line_number);
+          std::unique_ptr<DictionaryValue> result_part_value(
+              new DictionaryValue);
+          result_part_value->SetStringKey("type", result_part.TypeAsString());
+          result_part_value->SetStringKey("file", result_part.file_name);
+          result_part_value->SetIntKey("line", result_part.line_number);
 
           bool lossless_summary = IsStringUTF8(result_part.summary);
           if (lossless_summary) {
-            result_part_value.Set("summary", result_part.summary);
+            result_part_value->SetStringKey("summary", result_part.summary);
           } else {
-            result_part_value.Set("summary",
-                                  "<non-UTF-8 snippet, see summary_base64>");
+            result_part_value->SetString(
+                "summary", "<non-UTF-8 snippet, see summary_base64>");
           }
-          result_part_value.Set("lossless_summary", lossless_summary);
+          result_part_value->SetBoolKey("lossless_summary", lossless_summary);
 
           std::string encoded_summary;
           Base64Encode(result_part.summary, &encoded_summary);
-          result_part_value.Set("summary_base64", encoded_summary);
+          result_part_value->SetStringKey("summary_base64", encoded_summary);
 
           bool lossless_message = IsStringUTF8(result_part.message);
           if (lossless_message) {
-            result_part_value.Set("message", result_part.message);
+            result_part_value->SetStringKey("message", result_part.message);
           } else {
-            result_part_value.Set("message",
-                                  "<non-UTF-8 snippet, see message_base64>");
+            result_part_value->SetString(
+                "message", "<non-UTF-8 snippet, see message_base64>");
           }
-          result_part_value.Set("lossless_message", lossless_message);
+          result_part_value->SetBoolKey("lossless_message", lossless_message);
 
           std::string encoded_message;
           Base64Encode(result_part.message, &encoded_message);
-          result_part_value.Set("message_base64", encoded_message);
+          result_part_value->SetStringKey("message_base64", encoded_message);
 
-          test_result_parts.Append(std::move(result_part_value));
+          test_result_parts->Append(std::move(result_part_value));
         }
-        test_result_value.Set("result_parts", std::move(test_result_parts));
+        test_result_value->Set("result_parts", std::move(test_result_parts));
 
-        test_results.Append(std::move(test_result_value));
+        test_results->Append(std::move(test_result_value));
       }
 
-      current_iteration_data.Set(j.first, std::move(test_results));
+      current_iteration_data->SetWithoutPathExpansion(j.first,
+                                                      std::move(test_results));
     }
-    per_iteration_data.Append(std::move(current_iteration_data));
+    per_iteration_data->Append(std::move(current_iteration_data));
   }
-  summary_root.Set("per_iteration_data", std::move(per_iteration_data));
+  summary_root->Set("per_iteration_data", std::move(per_iteration_data));
 
-  Value::Dict test_locations;
+  std::unique_ptr<DictionaryValue> test_locations(new DictionaryValue);
   for (const auto& item : test_locations_) {
     std::string test_name = item.first;
     CodeLocation location = item.second;
-    Value::Dict location_value;
-    location_value.Set("file", location.file);
-    location_value.Set("line", location.line);
-    test_locations.Set(test_name, std::move(location_value));
+    std::unique_ptr<DictionaryValue> location_value(new DictionaryValue);
+    location_value->SetStringKey("file", location.file);
+    location_value->SetIntKey("line", location.line);
+    test_locations->SetWithoutPathExpansion(test_name,
+                                            std::move(location_value));
   }
-  summary_root.Set("test_locations", std::move(test_locations));
+  summary_root->Set("test_locations", std::move(test_locations));
 
   std::string json;
-  if (!JSONWriter::Write(summary_root, &json))
+  if (!JSONWriter::Write(*summary_root, &json))
     return false;
 
   File output(path, File::FLAG_CREATE_ALWAYS | File::FLAG_WRITE);

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,16 @@
 
 #include "base/bind.h"
 #include "base/location.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/sequenced_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace disk_cache {
 
 BackgroundIO::BackgroundIO(InFlightIO* controller)
-    : io_completed_(base::WaitableEvent::ResetPolicy::MANUAL,
+    : result_(-1),
+      io_completed_(base::WaitableEvent::ResetPolicy::MANUAL,
                     base::WaitableEvent::InitialState::NOT_SIGNALED),
       controller_(controller) {}
 
@@ -31,17 +32,13 @@ void BackgroundIO::Cancel() {
   controller_ = nullptr;
 }
 
-void BackgroundIO::ClearController() {
-  controller_ = nullptr;
-}
-
 BackgroundIO::~BackgroundIO() = default;
 
 // ---------------------------------------------------------------------------
 
 InFlightIO::InFlightIO()
-    : callback_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
-}
+    : callback_task_runner_(base::ThreadTaskRunnerHandle::Get()),
+      running_(false) {}
 
 InFlightIO::~InFlightIO() = default;
 

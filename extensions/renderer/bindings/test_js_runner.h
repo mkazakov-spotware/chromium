@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define EXTENSIONS_RENDERER_BINDINGS_TEST_JS_RUNNER_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "extensions/renderer/bindings/js_runner.h"
 
 namespace extensions {
@@ -33,15 +34,13 @@ class TestJSRunner : public JSRunner {
   class Scope {
    public:
     Scope(std::unique_ptr<JSRunner> runner);
-
-    Scope(const Scope&) = delete;
-    Scope& operator=(const Scope&) = delete;
-
     ~Scope();
 
    private:
     std::unique_ptr<JSRunner> runner_;
     JSRunner* old_runner_;
+
+    DISALLOW_COPY_AND_ASSIGN(Scope);
   };
 
   // A scoped object that allows errors to be thrown from running JS functions.
@@ -50,11 +49,10 @@ class TestJSRunner : public JSRunner {
   class AllowErrors {
    public:
     AllowErrors();
-
-    AllowErrors(const AllowErrors&) = delete;
-    AllowErrors& operator=(const AllowErrors&) = delete;
-
     ~AllowErrors();
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(AllowErrors);
   };
 
   // A scoped object that suspends script execution through the JSRunner. While
@@ -65,20 +63,15 @@ class TestJSRunner : public JSRunner {
   class Suspension {
    public:
     Suspension();
-
-    Suspension(const Suspension&) = delete;
-    Suspension& operator=(const Suspension&) = delete;
-
     ~Suspension();
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Suspension);
   };
 
   TestJSRunner();
   // Provides a callback to be called just before JS will be executed.
-  explicit TestJSRunner(const base::RepeatingClosure& will_call_js);
-
-  TestJSRunner(const TestJSRunner&) = delete;
-  TestJSRunner& operator=(const TestJSRunner&) = delete;
-
+  explicit TestJSRunner(const base::Closure& will_call_js);
   ~TestJSRunner() override;
 
   // JSRunner:
@@ -111,8 +104,10 @@ class TestJSRunner : public JSRunner {
   // Runs all pending calls.
   void Flush();
 
-  base::RepeatingClosure will_call_js_;
+  base::Closure will_call_js_;
   std::vector<PendingCall> pending_calls_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestJSRunner);
 };
 
 }  // namespace extensions

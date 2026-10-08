@@ -1,31 +1,29 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
-
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/format_macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/current_thread.h"
 #include "base/task/sequence_manager/sequence_manager_impl.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/java_handler_thread.h"
 #endif
 
@@ -47,11 +45,11 @@ perf_test::PerfResultReporter SetUpReporter(const std::string& story_name) {
   return reporter;
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 class JavaHandlerThreadForTest : public android::JavaHandlerThread {
  public:
   explicit JavaHandlerThreadForTest(const char* name)
-      : android::JavaHandlerThread(name, base::ThreadType::kDefault) {}
+      : android::JavaHandlerThread(name, base::ThreadPriority::NORMAL) {}
 
   using android::JavaHandlerThread::state;
   using android::JavaHandlerThread::State;
@@ -90,7 +88,7 @@ class ScheduleWorkTest : public testing::Test {
       lastnow = now;
       minimum = std::min(minimum, laptime);
       maximum = std::max(maximum, laptime);
-    } while (now - start < base::Seconds(kTargetTimeSec));
+    } while (now - start < base::TimeDelta::FromSeconds(kTargetTimeSec));
 
     scheduling_times_[index] = now - start;
     if (ThreadTicks::IsSupported())
@@ -104,18 +102,18 @@ class ScheduleWorkTest : public testing::Test {
   }
 
   void ScheduleWork(MessagePumpType target_type, int num_scheduling_threads) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     if (target_type == MessagePumpType::JAVA) {
-      java_thread_ = std::make_unique<JavaHandlerThreadForTest>("target");
+      java_thread_.reset(new JavaHandlerThreadForTest("target"));
       java_thread_->Start();
     } else
 #endif
     {
-      target_ = std::make_unique<Thread>("test");
+      target_.reset(new Thread("test"));
 
       Thread::Options options(target_type, 0u);
       options.message_pump_type = target_type;
-      target_->StartWithOptions(std::move(options));
+      target_->StartWithOptions(options);
 
       // Without this, it's possible for the scheduling threads to start and run
       // before the target thread. In this case, the scheduling threads will
@@ -126,14 +124,10 @@ class ScheduleWorkTest : public testing::Test {
     }
 
     std::vector<std::unique_ptr<Thread>> scheduling_threads;
-    scheduling_times_ =
-        std::make_unique<base::TimeDelta[]>(num_scheduling_threads);
-    scheduling_thread_times_ =
-        std::make_unique<base::TimeDelta[]>(num_scheduling_threads);
-    min_batch_times_ =
-        std::make_unique<base::TimeDelta[]>(num_scheduling_threads);
-    max_batch_times_ =
-        std::make_unique<base::TimeDelta[]>(num_scheduling_threads);
+    scheduling_times_.reset(new base::TimeDelta[num_scheduling_threads]);
+    scheduling_thread_times_.reset(new base::TimeDelta[num_scheduling_threads]);
+    min_batch_times_.reset(new base::TimeDelta[num_scheduling_threads]);
+    max_batch_times_.reset(new base::TimeDelta[num_scheduling_threads]);
 
     for (int i = 0; i < num_scheduling_threads; ++i) {
       scheduling_threads.push_back(std::make_unique<Thread>("posting thread"));
@@ -149,7 +143,7 @@ class ScheduleWorkTest : public testing::Test {
     for (int i = 0; i < num_scheduling_threads; ++i) {
       scheduling_threads[i]->Stop();
     }
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     if (target_type == MessagePumpType::JAVA) {
       java_thread_->Stop();
       java_thread_.reset();
@@ -191,7 +185,7 @@ class ScheduleWorkTest : public testing::Test {
   }
 
   sequence_manager::internal::SequenceManagerImpl* target_message_loop_base() {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     if (java_thread_) {
       return static_cast<sequence_manager::internal::SequenceManagerImpl*>(
           java_thread_->state()->sequence_manager.get());
@@ -202,7 +196,7 @@ class ScheduleWorkTest : public testing::Test {
 
  private:
   std::unique_ptr<Thread> target_;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::unique_ptr<JavaHandlerThreadForTest> java_thread_;
 #endif
   std::unique_ptr<base::TimeDelta[]> scheduling_times_;
@@ -251,7 +245,7 @@ TEST_F(ScheduleWorkTest, ThreadTimeToDefaultFromFourThreads) {
   ScheduleWork(MessagePumpType::DEFAULT, 4);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 TEST_F(ScheduleWorkTest, ThreadTimeToJavaFromOneThread) {
   ScheduleWork(MessagePumpType::JAVA, 1);
 }

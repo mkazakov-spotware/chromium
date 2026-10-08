@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "media/filters/ffmpeg_glue.h"
 
 namespace media {
@@ -19,13 +20,7 @@ namespace media {
 //       this object.
 class MEDIA_EXPORT InMemoryUrlProtocol : public FFmpegURLProtocol {
  public:
-  InMemoryUrlProtocol() = delete;
-
   InMemoryUrlProtocol(const uint8_t* buf, int64_t size, bool streaming);
-
-  InMemoryUrlProtocol(const InMemoryUrlProtocol&) = delete;
-  InMemoryUrlProtocol& operator=(const InMemoryUrlProtocol&) = delete;
-
   virtual ~InMemoryUrlProtocol();
 
   // FFmpegURLProtocol methods.
@@ -40,6 +35,8 @@ class MEDIA_EXPORT InMemoryUrlProtocol : public FFmpegURLProtocol {
   int64_t size_;
   int64_t position_;
   bool streaming_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(InMemoryUrlProtocol);
 };
 
 }  // namespace media

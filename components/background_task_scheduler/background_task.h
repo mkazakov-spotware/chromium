@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_BACKGROUND_TASK_SCHEDULER_BACKGROUND_TASK_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "components/background_task_scheduler/task_parameters.h"
 #include "components/keyed_service/core/simple_factory_key.h"
 
@@ -15,7 +16,6 @@ class BrowserContext;
 
 namespace background_task {
 
-// Boolean parameter indicates whether the task needs to be rescheduled.
 using TaskFinishedCallback = base::OnceCallback<void(bool)>;
 
 // Entry point for callbacks from BackgroundTaskScheduler. Any classes
@@ -26,8 +26,7 @@ class BackgroundTask {
   // The following two methods represent the callback from
   // BackgroundTaskScheduler when your task should start processing. It is
   // invoked on the main thread, and after your task finishes, you should
-  // run the |callback|, with a boolean parameter indicating whether the task
-  // needs to be rescheduled. While this method is running the system holds a
+  // run the |callback|. While this method is running the system holds a
   // wakelock and the wakelock is not released until either the |callback| is
   // invoked, or the system calls onStopTask. Depending on whether Chrome is
   // running in service manager only mode or full browser mode, one or both of
@@ -61,14 +60,14 @@ class BackgroundTask {
   // task will not be rescheduled.
   virtual bool OnStopTask(const TaskParameters& task_params) = 0;
 
-  BackgroundTask(const BackgroundTask&) = delete;
-  BackgroundTask& operator=(const BackgroundTask&) = delete;
-
   // Destructor.
   virtual ~BackgroundTask() {}
 
  protected:
   BackgroundTask() = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BackgroundTask);
 };
 
 }  // namespace background_task

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,7 @@ class ASH_PUBLIC_EXPORT ArcNotificationManagerBase {
     // Invoked when the ArcNotificationManagerBase object (the thing that this
     // observer observes) will be destroyed. In response, the observer, |this|,
     // should call "RemoveObserver(this)", whether directly or indirectly (e.g.
-    // via ScopedObservation::Reset).
+    // via ScopedObserver::Remove).
     virtual void OnArcNotificationManagerDestroyed(
         ArcNotificationManagerBase* arc_notification_manager) = 0;
   };

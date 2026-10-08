@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,11 +44,8 @@ bool DispatchEventFromNativeUiEvent(
     std::move(callback).Run(&scroll_event);
     handled = scroll_event.handled();
   } else if (event->IsGestureEvent()) {
-    // TODO(https://crbug.com/1355835: Missing ui::GestureEvent(const
-    // PlatformEvent&) ctor).
-    auto gesture_event = *(event->AsGestureEvent());
-    std::move(callback).Run(&gesture_event);
-    handled = gesture_event.handled();
+    std::move(callback).Run(event);
+    handled = event->handled();
     // TODO(mohsen): Use the same pattern for scroll/touch/wheel events.
     // Apparently, there is no need for them to wrap the |event|.
   } else {

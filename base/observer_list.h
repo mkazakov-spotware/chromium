@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,16 @@
 #include <algorithm>
 #include <iterator>
 #include <limits>
-#include <ostream>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "base/check.h"
 #include "base/check_op.h"
-#include "base/dcheck_is_on.h"
+#include "base/gtest_prod_util.h"
 #include "base/notreached.h"
 #include "base/observer_list_internal.h"
 #include "base/ranges/algorithm.h"
 #include "base/sequence_checker.h"
+#include "base/stl_util.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -260,7 +258,7 @@ class ObserverList {
       live_iterators_.head()->value()->Invalidate();
     if (check_empty) {
       Compact();
-      DCHECK(observers_.empty()) << "\n" << GetObserversCreationStackString();
+      DCHECK(observers_.empty());
     }
   }
 
@@ -275,7 +273,6 @@ class ObserverList {
       NOTREACHED() << "Observers can only be added once!";
       return;
     }
-    observers_count_++;
     observers_.emplace_back(ObserverStorageType(obs));
   }
 
@@ -287,8 +284,7 @@ class ObserverList {
         observers_, [obs](const auto& o) { return o.IsEqual(obs); });
     if (it == observers_.end())
       return;
-    if (!it->IsMarkedForRemoval())
-      observers_count_--;
+
     if (live_iterators_.empty()) {
       observers_.erase(it);
     } else {
@@ -318,10 +314,9 @@ class ObserverList {
       for (auto& observer : observers_)
         observer.MarkForRemoval();
     }
-    observers_count_ = 0;
   }
 
-  bool empty() const { return !observers_count_; }
+  bool might_have_observers() const { return !observers_.empty(); }
 
  private:
   friend class internal::WeakLinkNode<ObserverList>;
@@ -332,31 +327,12 @@ class ObserverList {
     // Compact() is only ever called when the last iterator is destroyed.
     DETACH_FROM_SEQUENCE(iteration_sequence_checker_);
 
-    observers_.erase(
-        std::remove_if(observers_.begin(), observers_.end(),
-                       [](const auto& o) { return o.IsMarkedForRemoval(); }),
-        observers_.end());
-  }
-
-  std::string GetObserversCreationStackString() const {
-#if EXPENSIVE_DCHECKS_ARE_ON()
-    std::string result;
-    for (const auto& observer : observers_) {
-      result += observer.GetCreationStackString();
-      result += "\n";
-    }
-    return result;
-#else
-    return "For observer stack traces, build with "
-           "`enable_expensive_dchecks=true`.";
-#endif  // EXPENSIVE_DCHECKS_ARE_ON()
+    EraseIf(observers_, [](const auto& o) { return o.IsMarkedForRemoval(); });
   }
 
   std::vector<ObserverStorageType> observers_;
 
   base::LinkedList<internal::WeakLinkNode<ObserverList>> live_iterators_;
-
-  size_t observers_count_{0};
 
   const ObserverListPolicy policy_;
 

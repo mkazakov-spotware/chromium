@@ -1,14 +1,10 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/shell/browser/shell_web_contents_view_delegate.h"
 
-#include "base/memory/raw_ptr.h"
-
-#import <Cocoa/Cocoa.h>
-
-#include <memory>
+#import  <Cocoa/Cocoa.h>
 
 #include "base/command_line.h"
 #include "content/public/browser/context_menu_params.h"
@@ -26,7 +22,6 @@
 #include "content/shell/browser/shell_web_contents_view_delegate_creator.h"
 #include "content/shell/common/shell_switches.h"
 #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
-#include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
 
 using blink::ContextMenuDataEditFlags;
 
@@ -44,7 +39,7 @@ enum {
 
 @interface ShellContextMenuDelegate : NSObject<NSMenuDelegate> {
  @private
-  raw_ptr<content::ShellWebContentsViewDelegate> _delegate;
+  content::ShellWebContentsViewDelegate* _delegate;
 }
 @end
 
@@ -85,9 +80,9 @@ NSMenuItem* MakeContextMenuItem(NSString* title,
 
 namespace content {
 
-std::unique_ptr<WebContentsViewDelegate> CreateShellWebContentsViewDelegate(
-    WebContents* web_contents) {
-  return std::make_unique<ShellWebContentsViewDelegate>(web_contents);
+WebContentsViewDelegate* CreateShellWebContentsViewDelegate(
+  WebContents* web_contents) {
+  return new ShellWebContentsViewDelegate(web_contents);
 }
 
 ShellWebContentsViewDelegate::ShellWebContentsViewDelegate(
@@ -99,7 +94,7 @@ ShellWebContentsViewDelegate::~ShellWebContentsViewDelegate() {
 }
 
 void ShellWebContentsViewDelegate::ShowContextMenu(
-    RenderFrameHost& render_frame_host,
+    RenderFrameHost* render_frame_host,
     const ContextMenuParams& params) {
   if (switches::IsRunWebTestsSwitchPresent())
     return;
@@ -114,7 +109,7 @@ void ShellWebContentsViewDelegate::ShowContextMenu(
   [menu setDelegate:delegate];
   [menu setAutoenablesItems:NO];
 
-  if (params.media_type == blink::mojom::ContextMenuDataMediaType::kNone &&
+  if (params.media_type == blink::ContextMenuDataMediaType::kNone &&
       !has_link && !has_selection && !params_.is_editable) {
     BOOL back_menu_enabled =
         web_contents_->GetController().CanGoBack() ? YES : NO;
@@ -210,9 +205,9 @@ void ShellWebContentsViewDelegate::ShowContextMenu(
   NSWindow* window = [parent_view window];
   NSPoint position = [window mouseLocationOutsideOfEventStream];
   NSTimeInterval eventTime = [currentEvent timestamp];
-  NSEvent* clickEvent = [NSEvent mouseEventWithType:NSEventTypeRightMouseDown
+  NSEvent* clickEvent = [NSEvent mouseEventWithType:NSRightMouseDown
                                            location:position
-                                      modifierFlags:0
+                                      modifierFlags:NSRightMouseDownMask
                                           timestamp:eventTime
                                        windowNumber:[window windowNumber]
                                             context:nil

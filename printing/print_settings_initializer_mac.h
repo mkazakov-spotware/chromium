@@ -1,9 +1,9 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef PRINTING_PRINT_SETTINGS_INITIALIZER_MAC_H_
-#define PRINTING_PRINT_SETTINGS_INITIALIZER_MAC_H_
+#ifndef PRINTING_PRINTING_SETTINGS_INITIALIZER_MAC_H_
+#define PRINTING_PRINTING_SETTINGS_INITIALIZER_MAC_H_
 
 #import <ApplicationServices/ApplicationServices.h>
 
@@ -14,7 +14,7 @@ namespace printing {
 class PrintSettings;
 
 // Initializes a PrintSettings object from the provided device context.
-class COMPONENT_EXPORT(PRINTING) PrintSettingsInitializerMac {
+class PRINTING_EXPORT PrintSettingsInitializerMac {
  public:
   PrintSettingsInitializerMac() = delete;
   PrintSettingsInitializerMac(const PrintSettingsInitializerMac&) = delete;
@@ -28,4 +28,4 @@ class COMPONENT_EXPORT(PRINTING) PrintSettingsInitializerMac {
 
 }  // namespace printing
 
-#endif  // PRINTING_PRINT_SETTINGS_INITIALIZER_MAC_H_
+#endif  // PRINTING_PRINTING_SETTINGS_INITIALIZER_MAC_H_

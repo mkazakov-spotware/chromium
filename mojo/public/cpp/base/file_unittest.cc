@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,8 @@ TEST(FileTest, File) {
                          base::checked_cast<int>(test_content.size()));
 
   base::File file_out;
-  ASSERT_TRUE(mojo::test::SerializeAndDeserialize<mojom::File>(file, file_out));
+  ASSERT_TRUE(
+      mojo::test::SerializeAndDeserialize<mojom::File>(&file, &file_out));
   std::vector<char> content(test_content.size());
   ASSERT_TRUE(file_out.IsValid());
   ASSERT_FALSE(file_out.async());
@@ -53,7 +54,8 @@ TEST(FileTest, AsyncFile) {
   base::File file(path, base::File::FLAG_OPEN | base::File::FLAG_READ |
                             base::File::FLAG_ASYNC);
   base::File file_out;
-  ASSERT_TRUE(mojo::test::SerializeAndDeserialize<mojom::File>(file, file_out));
+  ASSERT_TRUE(
+      mojo::test::SerializeAndDeserialize<mojom::File>(&file, &file_out));
   ASSERT_TRUE(file_out.async());
 }
 
@@ -66,7 +68,8 @@ TEST(FileTest, InvalidFile) {
       base::File::FLAG_CREATE | base::File::FLAG_WRITE | base::File::FLAG_READ);
 
   base::File file = base::File();
-  ASSERT_TRUE(mojo::test::SerializeAndDeserialize<mojom::File>(file, file_out));
+  ASSERT_TRUE(
+      mojo::test::SerializeAndDeserialize<mojom::File>(&file, &file_out));
   EXPECT_FALSE(file_out.IsValid());
 }
 
@@ -88,7 +91,7 @@ TEST(FileTest, ReadOnlyFile) {
 
   base::File file_out;
   ASSERT_TRUE(mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(
-      readonly, file_out));
+      &readonly, &file_out));
   std::vector<char> content(test_content.size());
   ASSERT_TRUE(file_out.IsValid());
   ASSERT_FALSE(file_out.async());
@@ -100,8 +103,8 @@ TEST(FileTest, ReadOnlyFile) {
 }
 
 // This dies only if we can interrogate the underlying platform handle.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_AIX)
+#if defined(OS_WIN) || defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if !defined(OS_NACL) && !defined(OS_AIX)
 TEST(FileTest, ReadOnlyFileDeath) {
 #if defined(OFFICIAL_BUILD)
   const char kReadOnlyFileCheckFailedRegex[] = "";
@@ -127,12 +130,12 @@ TEST(FileTest, ReadOnlyFileDeath) {
 
   base::File file_out;
   EXPECT_DEATH_IF_SUPPORTED(
-      mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(writable,
-                                                               file_out),
+      mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(&writable,
+                                                               &file_out),
       kReadOnlyFileCheckFailedRegex);
 }
-#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_AIX)
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#endif  // !defined(OS_NACL) && !defined(OS_AIX)
+#endif  // defined(OS_WIN) || defined(OS_POSIX) || defined(OS_FUCHSIA)
 
 // This should work on all platforms. This check might be relaxed in which case
 // this test can be removed.
@@ -152,12 +155,12 @@ TEST(FileTest, NonPhysicalFileDeath) {
 
   base::File file_out;
   EXPECT_DEATH_IF_SUPPORTED(
-      mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(file_pipe_a,
-                                                               file_out),
+      mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(&file_pipe_a,
+                                                               &file_out),
       kPhysicalFileCheckFailedRegex);
   EXPECT_DEATH_IF_SUPPORTED(
-      mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(file_pipe_b,
-                                                               file_out),
+      mojo::test::SerializeAndDeserialize<mojom::ReadOnlyFile>(&file_pipe_b,
+                                                               &file_out),
       kPhysicalFileCheckFailedRegex);
 }
 #endif  // DCHECK_IS_ON()

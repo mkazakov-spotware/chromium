@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/base_paths.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "chrome/browser/net/chrome_network_delegate.h"
 #include "chrome/browser/ui/browser.h"
@@ -20,15 +21,9 @@
 #include "net/base/network_delegate.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 
 class ChromeNetworkDelegateBrowserTest : public InProcessBrowserTest {
- public:
-  ChromeNetworkDelegateBrowserTest(const ChromeNetworkDelegateBrowserTest&) =
-      delete;
-  ChromeNetworkDelegateBrowserTest& operator=(
-      const ChromeNetworkDelegateBrowserTest&) = delete;
-
  protected:
   ChromeNetworkDelegateBrowserTest() {}
 
@@ -45,6 +40,9 @@ class ChromeNetworkDelegateBrowserTest : public InProcessBrowserTest {
   }
 
   base::ScopedTempDir scoped_temp_dir_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ChromeNetworkDelegateBrowserTest);
 };
 
 // Ensure that access to a test file, that is not in an accessible location,
@@ -61,7 +59,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNetworkDelegateBrowserTest, AccessToFile) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::TestNavigationObserver observer(web_contents);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(net::ERR_ACCESS_DENIED, observer.last_net_error_code());
 }
 
@@ -87,8 +85,8 @@ IN_PROC_BROWSER_TEST_F(ChromeNetworkDelegateBrowserTest, AccessToSymlink) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::TestNavigationObserver observer(web_contents);
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(net::ERR_ACCESS_DENIED, observer.last_net_error_code());
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)

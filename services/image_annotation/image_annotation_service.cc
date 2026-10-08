@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,14 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/metrics/field_trial_params.h"
 #include "base/time/time.h"
 #include "url/gurl.h"
 
 namespace image_annotation {
 
-BASE_FEATURE(kImageAnnotationServiceExperimental,
-             "ImageAnnotationServiceExperimental",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
+// static
+const base::Feature ImageAnnotationService::kExperiment{
+    "ImageAnnotationServiceExperimental", base::FEATURE_DISABLED_BY_DEFAULT};
 constexpr base::FeatureParam<std::string>
     ImageAnnotationService::kPixelsServerUrl;
 constexpr base::FeatureParam<std::string>
@@ -35,7 +33,7 @@ ImageAnnotationService::ImageAnnotationService(
       annotator_(GURL(kPixelsServerUrl.Get()),
                  GURL(kLangsServerUrl.Get()),
                  kApiKey.Get().empty() ? std::move(api_key) : kApiKey.Get(),
-                 base::Milliseconds(kThrottleMs.Get()),
+                 base::TimeDelta::FromMilliseconds(kThrottleMs.Get()),
                  kBatchSize.Get(),
                  kMinOcrConfidence.Get(),
                  shared_url_loader_factory,

@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2008 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Enable mocking of functions not attached to objects
@@ -20,7 +28,6 @@ goog.provide('goog.testing.MethodMock');
 goog.require('goog.object');
 goog.require('goog.testing.LooseMock');
 goog.require('goog.testing.Mock');
-goog.require('goog.testing.MockInterface');
 goog.require('goog.testing.PropertyReplacer');
 goog.require('goog.testing.StrictMock');
 
@@ -36,9 +43,7 @@ goog.require('goog.testing.StrictMock');
  * @suppress {missingProperties} Mocks do not fit in the type system well.
  */
 goog.testing.FunctionMock = function(opt_functionName, opt_strictness) {
-  'use strict';
   var fn = function() {
-    'use strict';
     var args = Array.prototype.slice.call(arguments);
     args.splice(0, 0, opt_functionName || '[anonymous mocked function]');
     return fn.$mockMethod.apply(fn, args);
@@ -64,7 +69,6 @@ goog.testing.FunctionMock = function(opt_functionName, opt_strictness) {
  *     not defined on goog.testing.MockInterface
  */
 goog.testing.MethodMock = function(scope, functionName, opt_strictness) {
-  'use strict';
   if (!(functionName in scope)) {
     throw new Error(functionName + ' is not a property of the given scope.');
   }
@@ -94,7 +98,6 @@ goog.testing.MethodMock.MockInternalInterface_.prototype.$propertyReplacer_;
  * @this {goog.testing.MockInterface}
  */
 goog.testing.MethodMock.$tearDown = function() {
-  'use strict';
   /** @type {!goog.testing.MethodMock.MockInternalInterface_} */ (this)
       .$propertyReplacer_.reset();
 };
@@ -109,7 +112,6 @@ goog.testing.MethodMock.$tearDown = function() {
  * @return {!goog.testing.MockInterface} The mocked global function.
  */
 goog.testing.GlobalFunctionMock = function(functionName, opt_strictness) {
-  'use strict';
   return goog.testing.MethodMock(goog.global, functionName, opt_strictness);
 };
 
@@ -123,7 +125,6 @@ goog.testing.GlobalFunctionMock = function(functionName, opt_strictness) {
  * @return {!goog.testing.MockInterface} The mocked function.
  */
 goog.testing.createFunctionMock = function(opt_functionName, opt_strictness) {
-  'use strict';
   return goog.testing.FunctionMock(opt_functionName, opt_strictness);
 };
 
@@ -137,7 +138,6 @@ goog.testing.createFunctionMock = function(opt_functionName, opt_strictness) {
  * @return {!goog.testing.MockInterface} The mocked global function.
  */
 goog.testing.createMethodMock = function(scope, functionName, opt_strictness) {
-  'use strict';
   return goog.testing.MethodMock(scope, functionName, opt_strictness);
 };
 
@@ -159,7 +159,6 @@ goog.testing.createMethodMock = function(scope, functionName, opt_strictness) {
  */
 goog.testing.createConstructorMock = function(
     scope, constructorName, opt_strictness) {
-  'use strict';
   var realConstructor = scope[constructorName];
   var constructorMock =
       goog.testing.MethodMock(scope, constructorName, opt_strictness);
@@ -187,6 +186,5 @@ goog.testing.createConstructorMock = function(
  * @return {!goog.testing.MockInterface} The mocked global function.
  */
 goog.testing.createGlobalFunctionMock = function(functionName, opt_strictness) {
-  'use strict';
   return goog.testing.GlobalFunctionMock(functionName, opt_strictness);
 };

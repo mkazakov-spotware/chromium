@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ NotificationLaunchId GetNotificationLaunchId(
   HRESULT hr = notification->get_Content(&document);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kNotificationGetContentFailed);
+        GetNotificationLaunchIdStatus::NOTIFICATION_GET_CONTENT_FAILED);
     DLOG(ERROR) << "Failed to get XML document";
     return NotificationLaunchId();
   }
@@ -36,7 +36,7 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = document->GetElementsByTagName(tag.get(), &elements);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetElementsByTagFailed);
+        GetNotificationLaunchIdStatus::GET_ELEMENTS_BY_TAG_FAILED);
     DLOG(ERROR) << "Failed to get <toast> elements from document";
     return NotificationLaunchId();
   }
@@ -45,7 +45,7 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = elements->get_Length(&length);
   if (length == 0) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kMissingToastElementInDoc);
+        GetNotificationLaunchIdStatus::MISSING_TOAST_ELEMENT_IN_DOC);
     DLOG(ERROR) << "No <toast> elements in document.";
     return NotificationLaunchId();
   }
@@ -54,7 +54,7 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = elements->Item(0, &node);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kItemAtFailed);
+        GetNotificationLaunchIdStatus::ITEM_AT_FAILED);
     DLOG(ERROR) << "Failed to get first <toast> element";
     return NotificationLaunchId();
   }
@@ -63,7 +63,7 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = node->get_Attributes(&attributes);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetAttributesFailed);
+        GetNotificationLaunchIdStatus::GET_ATTRIBUTES_FAILED);
     DLOG(ERROR) << "Failed to get attributes of <toast>";
     return NotificationLaunchId();
   }
@@ -73,14 +73,14 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = attributes->GetNamedItem(id.get(), &leaf);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetNamedItemFailed);
+        GetNotificationLaunchIdStatus::GET_NAMED_ITEM_FAILED);
     DLOG(ERROR) << "Failed to get launch attribute of <toast>";
     return NotificationLaunchId();
   }
 
   if (!leaf) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetNamedItemNull);
+        GetNotificationLaunchIdStatus::GET_NAMED_ITEM_NULL);
     DLOG(ERROR) << "GetNamedItem returned null querying for 'launch' attribute";
     return NotificationLaunchId();
   }
@@ -89,14 +89,14 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = leaf->get_FirstChild(&child);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetFirstChildFailed);
+        GetNotificationLaunchIdStatus::GET_FIRST_CHILD_FAILED);
     DLOG(ERROR) << "Failed to get content of launch attribute";
     return NotificationLaunchId();
   }
 
   if (!child) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetFirstChildNull);
+        GetNotificationLaunchIdStatus::GET_FIRST_CHILD_NULL);
     DLOG(ERROR) << "Launch attribute is a null node";
     return NotificationLaunchId();
   }
@@ -105,7 +105,7 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = child->get_NodeValue(&inspectable);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetNodeValueFailed);
+        GetNotificationLaunchIdStatus::GET_NODE_VALUE_FAILED);
     DLOG(ERROR) << "Failed to get node value of launch attribute";
     return NotificationLaunchId();
   }
@@ -114,7 +114,7 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = inspectable.As<winfoundtn::IPropertyValue>(&property_value);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kConversionToPropValueFailed);
+        GetNotificationLaunchIdStatus::CONVERSION_TO_PROP_VALUE_FAILED);
     DLOG(ERROR) << "Failed to convert node value of launch attribute";
     return NotificationLaunchId();
   }
@@ -123,12 +123,12 @@ NotificationLaunchId GetNotificationLaunchId(
   hr = property_value->GetString(&value_hstring);
   if (FAILED(hr)) {
     LogGetNotificationLaunchIdStatus(
-        GetNotificationLaunchIdStatus::kGetStringFailed);
+        GetNotificationLaunchIdStatus::GET_STRING_FAILED);
     DLOG(ERROR) << "Failed to get string for launch attribute";
     return NotificationLaunchId();
   }
 
-  LogGetNotificationLaunchIdStatus(GetNotificationLaunchIdStatus::kSuccess);
+  LogGetNotificationLaunchIdStatus(GetNotificationLaunchIdStatus::SUCCESS);
 
   ScopedHString value(value_hstring);
   return NotificationLaunchId(value.GetAsUTF8());

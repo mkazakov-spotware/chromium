@@ -1,16 +1,16 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/policy/cloud/user_cloud_policy_invalidator_factory.h"
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/invalidation/profile_invalidation_provider_factory.h"
 #include "chrome/browser/policy/cloud/user_cloud_policy_invalidator.h"
 #include "chrome/browser/profiles/profile.h"
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/policy/core/user_cloud_policy_manager_ash.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/policy/user_cloud_policy_manager_chromeos.h"
 #else
 #include "components/policy/core/common/cloud/user_cloud_policy_manager.h"
 #endif
@@ -24,7 +24,9 @@ UserCloudPolicyInvalidatorFactory*
 }
 
 UserCloudPolicyInvalidatorFactory::UserCloudPolicyInvalidatorFactory()
-    : ProfileKeyedServiceFactory("UserCloudPolicyInvalidator") {
+    : BrowserContextKeyedServiceFactory(
+          "UserCloudPolicyInvalidator",
+          BrowserContextDependencyManager::GetInstance()) {
   DependsOn(invalidation::ProfileInvalidationProviderFactory::GetInstance());
 }
 
@@ -33,13 +35,14 @@ UserCloudPolicyInvalidatorFactory::~UserCloudPolicyInvalidatorFactory() {}
 KeyedService* UserCloudPolicyInvalidatorFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
   Profile* profile = static_cast<Profile*>(context);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  CloudPolicyManager* policy_manager = profile->GetUserCloudPolicyManagerAsh();
+#if defined(OS_CHROMEOS)
+  CloudPolicyManager* policy_manager =
+      profile->GetUserCloudPolicyManagerChromeOS();
 #else
   CloudPolicyManager* policy_manager = profile->GetUserCloudPolicyManager();
 #endif
   if (!policy_manager)
-    return nullptr;
+    return NULL;
 
   return new UserCloudPolicyInvalidator(profile, policy_manager);
 }

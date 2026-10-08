@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <memory>
 #include <utility>
 
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/event_handler.h"
 #include "ui/events/event_target.h"
@@ -23,21 +23,17 @@ class TestEventTargetIterator : public EventTargetIterator {
  public:
   TestEventTargetIterator() {}
 
-  TestEventTargetIterator(const TestEventTargetIterator&) = delete;
-  TestEventTargetIterator& operator=(const TestEventTargetIterator&) = delete;
-
   // EventTargetIterator:
   EventTarget* GetNextTarget() override { return nullptr; }
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(TestEventTargetIterator);
 };
 
 // An EventTarget that holds ownership of its target and delegate EventHandlers.
 class TestEventTarget : public EventTarget {
  public:
   TestEventTarget() {}
-
-  TestEventTarget(const TestEventTarget&) = delete;
-  TestEventTarget& operator=(const TestEventTarget&) = delete;
-
   ~TestEventTarget() override {}
 
   void SetHandler(std::unique_ptr<EventHandler> target_handler,
@@ -58,6 +54,8 @@ class TestEventTarget : public EventTarget {
  private:
   std::unique_ptr<EventHandler> target_handler_;
   std::unique_ptr<EventHandler> delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestEventTarget);
 };
 
 // An EventHandler that sets itself as a target handler for an EventTarget and
@@ -68,10 +66,6 @@ class NestedEventHandler : public EventHandler {
       : target_(target), nesting_(nesting) {
     original_handler_ = target_->SetTargetHandler(this);
   }
-
-  NestedEventHandler(const NestedEventHandler&) = delete;
-  NestedEventHandler& operator=(const NestedEventHandler&) = delete;
-
   ~NestedEventHandler() override {
     EventHandler* handler = target_->SetTargetHandler(original_handler_);
     DCHECK_EQ(this, handler);
@@ -85,9 +79,11 @@ class NestedEventHandler : public EventHandler {
   }
 
  private:
-  raw_ptr<TestEventTarget> target_;
+  TestEventTarget* target_;
   int nesting_;
-  raw_ptr<EventHandler> original_handler_;
+  EventHandler* original_handler_;
+
+  DISALLOW_COPY_AND_ASSIGN(NestedEventHandler);
 };
 
 // An EventHandler that sets itself as a target handler for an EventTarget and
@@ -99,11 +95,6 @@ class TargetDestroyingEventHandler : public EventHandler {
       : target_(target), nesting_(nesting) {
     original_handler_ = target_->SetTargetHandler(this);
   }
-
-  TargetDestroyingEventHandler(const TargetDestroyingEventHandler&) = delete;
-  TargetDestroyingEventHandler& operator=(const TargetDestroyingEventHandler&) =
-      delete;
-
   ~TargetDestroyingEventHandler() override {
     EventHandler* handler = target_->SetTargetHandler(original_handler_);
     DCHECK_EQ(this, handler);
@@ -119,9 +110,11 @@ class TargetDestroyingEventHandler : public EventHandler {
   }
 
  private:
-  raw_ptr<TestEventTarget> target_;
+  TestEventTarget* target_;
   int nesting_;
-  raw_ptr<EventHandler> original_handler_;
+  EventHandler* original_handler_;
+
+  DISALLOW_COPY_AND_ASSIGN(TargetDestroyingEventHandler);
 };
 
 // An EventHandler that can be set to receive events in addition to the target
@@ -131,11 +124,6 @@ class EventCountingEventHandler : public EventHandler {
   EventCountingEventHandler(EventTarget* target, int* count)
       : scoped_target_handler_(new ScopedTargetHandler(target, this)),
         count_(count) {}
-
-  EventCountingEventHandler(const EventCountingEventHandler&) = delete;
-  EventCountingEventHandler& operator=(const EventCountingEventHandler&) =
-      delete;
-
   ~EventCountingEventHandler() override {}
 
  protected:
@@ -143,7 +131,9 @@ class EventCountingEventHandler : public EventHandler {
 
  private:
   std::unique_ptr<ScopedTargetHandler> scoped_target_handler_;
-  raw_ptr<int> count_;
+  int* count_;
+
+  DISALLOW_COPY_AND_ASSIGN(EventCountingEventHandler);
 };
 
 // An EventCountingEventHandler that will also mark the event to stop further
@@ -152,11 +142,6 @@ class EventStopPropagationHandler : public EventCountingEventHandler {
  public:
   EventStopPropagationHandler(EventTarget* target, int* count)
       : EventCountingEventHandler(target, count) {}
-
-  EventStopPropagationHandler(const EventStopPropagationHandler&) = delete;
-  EventStopPropagationHandler& operator=(const EventStopPropagationHandler&) =
-      delete;
-
   ~EventStopPropagationHandler() override {}
 
  protected:
@@ -164,6 +149,9 @@ class EventStopPropagationHandler : public EventCountingEventHandler {
     EventCountingEventHandler::OnEvent(event);
     event->StopPropagation();
   }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EventStopPropagationHandler);
 };
 
 }  // namespace

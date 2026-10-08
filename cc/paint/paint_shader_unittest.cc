@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,7 +48,7 @@ class MockImageProvider : public ImageProvider {
     sk_sp<SkImage> image = SkImage::MakeFromBitmap(bitmap);
     return ScopedResult(DecodedDrawImage(image, nullptr, SkSize::MakeEmpty(),
                                          SkSize::Make(1.0f, 1.0f),
-                                         draw_image.filter_quality(), true));
+                                         draw_image.filter_quality()));
   }
 
   const DrawImage& draw_image() const { return draw_image_; }
@@ -84,7 +84,7 @@ TEST(PaintShaderTest, DecodePaintRecord) {
                                .set_paint_image_generator(generator)
                                .TakePaintImage();
 
-  record->push<DrawImageOp>(paint_image, 0.f, 0.f);
+  record->push<DrawImageOp>(paint_image, 0.f, 0.f, nullptr);
   SkMatrix local_matrix = SkMatrix::Scale(0.5f, 0.5f);
   auto record_shader = PaintShader::MakePaintRecord(
       record, SkRect::MakeWH(100, 100), SkTileMode::kClamp, SkTileMode::kClamp,

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,26 +7,86 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "chromeos/components/cdm_factory_daemon/chromeos_cdm_factory.h"
 #include "media/base/cdm_promise.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/eme_constants.h"
 #include "media/base/subsample_entry.h"
-#include "media/cdm/cdm_context_ref_impl.h"
 
 namespace {
+
+// Copy the cypher bytes as specified by |subsamples| from |src| to |dst|.
+// Clear bytes contained in |src| that are specified by |subsamples| will be
+// skipped. This is used when copying all the protected data out of a sample.
+//
+// NOTE: Before invoking this call the |subsamples| data must have been verified
+// against the length of the |src| array to ensure we won't go out of bounds or
+// have overflow. This can be done with media::VerifySubsamplesMatchSize.
+void ExtractSubsampleCypherBytes(
+    const std::vector<media::SubsampleEntry>& subsamples,
+    const uint8_t* src,
+    uint8_t* dst) {
+  for (const auto& subsample : subsamples) {
+    src += subsample.clear_bytes;
+    memcpy(dst, src, subsample.cypher_bytes);
+    src += subsample.cypher_bytes;
+    dst += subsample.cypher_bytes;
+  }
+}
+
+// Copy the cypher bytes as specified by |subsamples| from |src| to |dst|.
+// Any clear bytes mentioned in |subsamples| will be skipped in |dst|. This is
+// used when copying the decrypted bytes back into the buffer, replacing the
+// encrypted portions.
+//
+// NOTE: Before invoking this call the |subsamples| data must have been verified
+// against the length of the |src| array to ensure we won't go out of bounds or
+// have overflow. This can be done with media::VerifySubsamplesMatchSize.
+void InsertSubsampleCypherBytes(
+    const std::vector<media::SubsampleEntry>& subsamples,
+    const uint8_t* src,
+    uint8_t* dst) {
+  for (const auto& subsample : subsamples) {
+    dst += subsample.clear_bytes;
+    memcpy(dst, src, subsample.cypher_bytes);
+    src += subsample.cypher_bytes;
+    dst += subsample.cypher_bytes;
+  }
+}
+
+// Copy the decrypted data into the output buffer. The buffer will contain
+// all of the data if there was no subsampling or if we were doing CBCS with
+// multiple subsamples. Otherwise we need to copy based on the subsampling.
+scoped_refptr<media::DecoderBuffer> CopyDecryptedDataToDecoderBuffer(
+    scoped_refptr<media::DecoderBuffer> encrypted,
+    const std::vector<uint8_t>& decrypted_data) {
+  scoped_refptr<media::DecoderBuffer> decrypted;
+  if (encrypted->decrypt_config()->subsamples().empty() ||
+      (encrypted->decrypt_config()->encryption_scheme() ==
+           media::EncryptionScheme::kCbcs &&
+       encrypted->decrypt_config()->subsamples().size() > 1)) {
+    decrypted = media::DecoderBuffer::CopyFrom(decrypted_data.data(),
+                                               decrypted_data.size());
+  } else {
+    decrypted = media::DecoderBuffer::CopyFrom(encrypted->data(),
+                                               encrypted->data_size());
+    InsertSubsampleCypherBytes(encrypted->decrypt_config()->subsamples(),
+                               decrypted_data.data(),
+                               decrypted->writable_data());
+  }
+
+  // Copy the auxiliary fields.
+  decrypted->set_timestamp(encrypted->timestamp());
+  decrypted->set_duration(encrypted->duration());
+  decrypted->set_is_key_frame(encrypted->is_key_frame());
+  decrypted->CopySideDataFrom(encrypted->side_data(),
+                              encrypted->side_data_size());
+  return decrypted;
+}
 
 void RejectPromiseConnectionLost(std::unique_ptr<media::CdmPromise> promise) {
   promise->reject(media::CdmPromise::Exception::INVALID_STATE_ERROR, 0,
                   "Mojo connection lost");
-}
-
-void ReportSystemCodeUMA(uint32_t system_code) {
-  base::UmaHistogramSparse("Media.EME.CrosPlatformCdm.SystemCode", system_code);
 }
 
 }  // namespace
@@ -46,7 +106,7 @@ ContentDecryptionModuleAdapter::ContentDecryptionModuleAdapter(
       session_closed_cb_(session_closed_cb),
       session_keys_change_cb_(session_keys_change_cb),
       session_expiration_update_cb_(session_expiration_update_cb),
-      mojo_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {
+      mojo_task_runner_(base::SequencedTaskRunnerHandle::Get()) {
   DVLOG(1) << "Created ContentDecryptionModuleAdapter";
   cros_cdm_remote_.set_disconnect_handler(
       base::BindOnce(&ContentDecryptionModuleAdapter::OnConnectionError,
@@ -183,17 +243,6 @@ media::CdmContext* ContentDecryptionModuleAdapter::GetCdmContext() {
   return this;
 }
 
-void ContentDecryptionModuleAdapter::DeleteOnCorrectThread() const {
-  DVLOG(1) << __func__;
-
-  if (!mojo_task_runner_->RunsTasksInCurrentSequence()) {
-    // When DeleteSoon returns false, |this| will be leaked, which is okay.
-    mojo_task_runner_->DeleteSoon(FROM_HERE, this);
-  } else {
-    delete this;
-  }
-}
-
 std::unique_ptr<media::CallbackRegistration>
 ContentDecryptionModuleAdapter::RegisterEventCB(EventCB event_cb) {
   return event_callbacks_.Register(std::move(event_cb));
@@ -211,24 +260,13 @@ void ContentDecryptionModuleAdapter::GetHwKeyData(
     const media::DecryptConfig* decrypt_config,
     const std::vector<uint8_t>& hw_identifier,
     GetHwKeyDataCB callback) {
-  // Take the fields we want out of the |decrypt_config| in case the pointer
-  // becomes invalid when we are re-posting the task.
-  GetHwKeyDataInternal(decrypt_config->Clone(), hw_identifier,
-                       std::move(callback));
-}
-
-void ContentDecryptionModuleAdapter::GetHwKeyDataInternal(
-    std::unique_ptr<media::DecryptConfig> decrypt_config,
-    const std::vector<uint8_t>& hw_identifier,
-    GetHwKeyDataCB callback) {
   // This can get called from decoder threads or mojo threads, so we may need
   // to repost the task.
   if (!mojo_task_runner_->RunsTasksInCurrentSequence()) {
     mojo_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(&ContentDecryptionModuleAdapter::GetHwKeyDataInternal,
-                       weak_factory_.GetWeakPtr(), std::move(decrypt_config),
-                       hw_identifier, std::move(callback)));
+        FROM_HERE, base::BindOnce(&ContentDecryptionModuleAdapter::GetHwKeyData,
+                                  weak_factory_.GetWeakPtr(), decrypt_config,
+                                  hw_identifier, std::move(callback)));
     return;
   }
   if (!cros_cdm_remote_) {
@@ -236,32 +274,13 @@ void ContentDecryptionModuleAdapter::GetHwKeyDataInternal(
                             std::vector<uint8_t>());
     return;
   }
+  auto cros_decrypt_config = cdm::mojom::DecryptConfig::New();
+  cros_decrypt_config->key_id = decrypt_config->key_id();
+  cros_decrypt_config->iv = decrypt_config->iv();
+  cros_decrypt_config->encryption_scheme = decrypt_config->encryption_scheme();
 
-  cros_cdm_remote_->GetHwKeyData(std::move(decrypt_config), hw_identifier,
+  cros_cdm_remote_->GetHwKeyData(std::move(cros_decrypt_config), hw_identifier,
                                  std::move(callback));
-}
-
-void ContentDecryptionModuleAdapter::GetHwConfigData(
-    GetHwConfigDataCB callback) {
-  ChromeOsCdmFactory::GetHwConfigData(std::move(callback));
-}
-
-void ContentDecryptionModuleAdapter::GetScreenResolutions(
-    GetScreenResolutionsCB callback) {
-  ChromeOsCdmFactory::GetScreenResolutions(std::move(callback));
-}
-
-std::unique_ptr<media::CdmContextRef>
-ContentDecryptionModuleAdapter::GetCdmContextRef() {
-  return std::make_unique<media::CdmContextRefImpl>(base::WrapRefCounted(this));
-}
-
-bool ContentDecryptionModuleAdapter::UsingArcCdm() const {
-  return false;
-}
-
-bool ContentDecryptionModuleAdapter::IsRemoteCdm() const {
-  return false;
 }
 
 void ContentDecryptionModuleAdapter::OnSessionMessage(
@@ -278,9 +297,7 @@ void ContentDecryptionModuleAdapter::OnSessionClosed(
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DVLOG(2) << __func__;
   cdm_session_tracker_.RemoveSession(session_id);
-  // TODO(crbug.com/1208618): Update cdm::mojom::ContentDecryptionModuleClient
-  // to support CdmSessionClosedReason.
-  session_closed_cb_.Run(session_id, media::CdmSessionClosedReason::kClose);
+  session_closed_cb_.Run(session_id);
 }
 
 void ContentDecryptionModuleAdapter::OnSessionKeysChange(
@@ -326,48 +343,114 @@ void ContentDecryptionModuleAdapter::Decrypt(
   }
 
   const media::DecryptConfig* decrypt_config = encrypted->decrypt_config();
-  if (!encrypted->decrypt_config()) {
-    // We still want to send this to the decryptor even if it is not encrypted
-    // because we need that for tracking video on AMD of the clear headers. This
-    // will not be inefficient in other cases because we won't be invoked for
-    // clear content otherwise.
-    DCHECK_EQ(stream_type, Decryptor::kVideo);
-    cros_cdm_remote_->Decrypt(
-        std::vector<uint8_t>(encrypted->data(),
-                             encrypted->data() + encrypted->data_size()),
-        nullptr, true,
-        base::BindOnce(&ContentDecryptionModuleAdapter::OnDecrypt,
-                       base::Unretained(this), stream_type, encrypted,
-                       std::move(decrypt_cb)));
+  if (!decrypt_config) {
+    // If there is no DecryptConfig, then the data is unencrypted so return it
+    // immediately.
+    std::move(decrypt_cb).Run(kSuccess, encrypted);
     return;
   }
 
-  // Subsampling will be undone in the daemon itself, don't undo it here. We
-  // need the clear samples as well on AMD.
+  cdm::mojom::DecryptConfigPtr cros_decrypt_config(
+      cdm::mojom::DecryptConfig::New());
+  cros_decrypt_config->key_id = decrypt_config->key_id();
+  cros_decrypt_config->iv = decrypt_config->iv();
+  if (decrypt_config->HasPattern()) {
+    cros_decrypt_config->encryption_pattern =
+        decrypt_config->encryption_pattern().value();
+  }
+  cros_decrypt_config->encryption_scheme = decrypt_config->encryption_scheme();
+
   const std::vector<media::SubsampleEntry>& subsamples =
       decrypt_config->subsamples();
-  if (!subsamples.empty() &&
-      !VerifySubsamplesMatchSize(subsamples, encrypted->data_size())) {
+  if (subsamples.empty()) {
+    StoreDecryptCallback(stream_type, std::move(decrypt_cb));
+    // No subsamples specified, request decryption of entire block.
+    // TODO(jkardatzke): Evaluate the performance cost here of copying the data
+    // and see if want to use something like MojoDecoderBufferWriter instead.
+    cros_cdm_remote_->Decrypt(
+        std::vector<uint8_t>(encrypted->data(),
+                             encrypted->data() + encrypted->data_size()),
+        std::move(cros_decrypt_config),
+        base::BindOnce(&ContentDecryptionModuleAdapter::OnDecrypt,
+                       base::Unretained(this), stream_type, encrypted,
+                       encrypted->data_size()));
+    return;
+  }
+
+  if (!VerifySubsamplesMatchSize(subsamples, encrypted->data_size())) {
     LOG(ERROR) << "Subsample sizes do not match input size";
     std::move(decrypt_cb).Run(kError, nullptr);
     return;
   }
 
+  // Compute the size of the encrypted portion. Overflow, etc. checked by
+  // the call to VerifySubsamplesMatchSize().
+  size_t total_encrypted_size = 0;
+  for (const auto& subsample : subsamples)
+    total_encrypted_size += subsample.cypher_bytes;
+
+  // No need to decrypt if there is no encrypted data.
+  if (total_encrypted_size == 0) {
+    encrypted->set_decrypt_config(nullptr);
+    std::move(decrypt_cb).Run(kSuccess, encrypted);
+    return;
+  }
+
+  StoreDecryptCallback(stream_type, std::move(decrypt_cb));
+
+  // For CENC, the encrypted portions of all subsamples must form a contiguous
+  // block, such that an encrypted subsample that ends away from a block
+  // boundary is immediately followed by the start of the next encrypted
+  // subsample. We copy all encrypted subsamples to a contiguous buffer, decrypt
+  // them, then copy the decrypted bytes over the encrypted bytes in the output.
+  // For CBCS, if there is more than one sample, then we need to pass the
+  // subsample information or otherwise we would need to call decrypt for each
+  // individual subsample since each subsample uses the same IV and it can't be
+  // decrypted as one large block like CENC.
+  if (decrypt_config->encryption_scheme() == media::EncryptionScheme::kCenc ||
+      subsamples.size() == 1) {
+    std::vector<uint8_t> encrypted_bytes(total_encrypted_size);
+    ExtractSubsampleCypherBytes(subsamples, encrypted->data(),
+                                encrypted_bytes.data());
+    cros_cdm_remote_->Decrypt(
+        std::move(encrypted_bytes), std::move(cros_decrypt_config),
+        base::BindOnce(&ContentDecryptionModuleAdapter::OnDecrypt,
+                       base::Unretained(this), stream_type, encrypted,
+                       total_encrypted_size));
+    return;
+  }
+
+  // We need to specify the subsampling and put that in the decrypt config.
+  for (const auto& sample : subsamples) {
+    cros_decrypt_config->subsamples.push_back(cdm::mojom::SubsampleEntry::New(
+        sample.clear_bytes, sample.cypher_bytes));
+  }
   // TODO(jkardatzke): Evaluate the performance cost here of copying the data
   // and see if want to use something like MojoDecoderBufferWriter instead.
   cros_cdm_remote_->Decrypt(
       std::vector<uint8_t>(encrypted->data(),
                            encrypted->data() + encrypted->data_size()),
-      decrypt_config->Clone(), stream_type == Decryptor::kVideo,
+      std::move(cros_decrypt_config),
       base::BindOnce(&ContentDecryptionModuleAdapter::OnDecrypt,
                      base::Unretained(this), stream_type, encrypted,
-                     std::move(decrypt_cb)));
+                     encrypted->data_size()));
 }
 
 void ContentDecryptionModuleAdapter::CancelDecrypt(StreamType stream_type) {
-  // This method is racey since decryption is on another thread, so don't do
-  // anything special for cancellation since the caller needs to handle the case
-  // where the normal callback occurs even after calling CancelDecrypt anyways.
+  // This can get called from decoder threads or mojo threads, so we may need
+  // to repost the task.
+  if (!mojo_task_runner_->RunsTasksInCurrentSequence()) {
+    mojo_task_runner_->PostTask(
+        FROM_HERE,
+        base::BindOnce(&ContentDecryptionModuleAdapter::CancelDecrypt,
+                       weak_factory_.GetWeakPtr(), stream_type));
+    return;
+  }
+  media::Decryptor::DecryptCB callback =
+      std::move(stream_type == kVideo ? pending_video_decrypt_cb_
+                                      : pending_audio_decrypt_cb_);
+  if (callback)
+    std::move(callback).Run(media::Decryptor::kSuccess, nullptr);
 }
 
 void ContentDecryptionModuleAdapter::InitializeAudioDecoder(
@@ -386,14 +469,14 @@ void ContentDecryptionModuleAdapter::InitializeVideoDecoder(
 
 void ContentDecryptionModuleAdapter::DecryptAndDecodeAudio(
     scoped_refptr<media::DecoderBuffer> encrypted,
-    AudioDecodeCB audio_decode_cb) {
+    const AudioDecodeCB& audio_decode_cb) {
   NOTREACHED()
       << "ContentDecryptionModuleAdapter does not support audio decoding";
 }
 
 void ContentDecryptionModuleAdapter::DecryptAndDecodeVideo(
     scoped_refptr<media::DecoderBuffer> encrypted,
-    VideoDecodeCB video_decode_cb) {
+    const VideoDecodeCB& video_decode_cb) {
   NOTREACHED()
       << "ContentDecryptionModuleAdapter does not support video decoding";
 }
@@ -416,8 +499,7 @@ bool ContentDecryptionModuleAdapter::CanAlwaysDecrypt() {
 ContentDecryptionModuleAdapter::~ContentDecryptionModuleAdapter() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DVLOG(2) << __func__;
-  cdm_session_tracker_.CloseRemainingSessions(
-      session_closed_cb_, media::CdmSessionClosedReason::kInternalError);
+  cdm_session_tracker_.CloseRemainingSessions(session_closed_cb_);
 }
 
 void ContentDecryptionModuleAdapter::OnConnectionError() {
@@ -432,16 +514,13 @@ void ContentDecryptionModuleAdapter::OnConnectionError() {
 
   // We've lost our communication, so reject all outstanding promises and close
   // any open sessions.
-  cdm_promise_adapter_.Clear(
-      media::CdmPromiseAdapter::ClearReason::kConnectionError);
-  cdm_session_tracker_.CloseRemainingSessions(
-      session_closed_cb_, media::CdmSessionClosedReason::kInternalError);
+  cdm_promise_adapter_.Clear();
+  cdm_session_tracker_.CloseRemainingSessions(session_closed_cb_);
 }
 
 void ContentDecryptionModuleAdapter::RejectTrackedPromise(
     uint32_t promise_id,
     cdm::mojom::CdmPromiseResultPtr promise_result) {
-  ReportSystemCodeUMA(promise_result->system_code);
   cdm_promise_adapter_.RejectPromise(promise_id, promise_result->exception,
                                      promise_result->system_code,
                                      promise_result->error_message);
@@ -483,37 +562,52 @@ void ContentDecryptionModuleAdapter::OnSessionPromiseResult(
   cdm_promise_adapter_.ResolvePromise(promise_id, session_id);
 }
 
+void ContentDecryptionModuleAdapter::StoreDecryptCallback(
+    StreamType stream_type,
+    DecryptCB decrypt_cb) {
+  if (stream_type == kVideo) {
+    DCHECK(!pending_video_decrypt_cb_);
+    pending_video_decrypt_cb_ = std::move(decrypt_cb);
+  } else {
+    DCHECK(!pending_audio_decrypt_cb_);
+    pending_audio_decrypt_cb_ = std::move(decrypt_cb);
+  }
+}
+
 void ContentDecryptionModuleAdapter::OnDecrypt(
     StreamType stream_type,
     scoped_refptr<media::DecoderBuffer> encrypted,
-    media::Decryptor::DecryptCB decrypt_cb,
+    size_t expected_decrypt_size,
     media::Decryptor::Status status,
-    const std::vector<uint8_t>& decrypted_data,
-    std::unique_ptr<media::DecryptConfig> decrypt_config_out) {
+    const std::vector<uint8_t>& decrypted_data) {
+  media::Decryptor::DecryptCB callback =
+      std::move(stream_type == kVideo ? pending_video_decrypt_cb_
+                                      : pending_audio_decrypt_cb_);
+  if (!callback) {
+    // This happens if CancelDecrypt was called.
+    DVLOG(1) << __func__ << " decrypt callback empty";
+    return;
+  }
   if (status != media::Decryptor::kSuccess) {
     if (status == media::Decryptor::kNoKey) {
       DVLOG(1) << "Decryption failed due to no key";
     } else {
       LOG(ERROR) << "Failure decrypting data: " << status;
     }
-    std::move(decrypt_cb).Run(status, nullptr);
+    std::move(callback).Run(status, nullptr);
     return;
   }
 
-  scoped_refptr<media::DecoderBuffer> decrypted =
-      media::DecoderBuffer::CopyFrom(decrypted_data.data(),
-                                     decrypted_data.size());
-  // Copy the auxiliary fields.
-  decrypted->set_timestamp(encrypted->timestamp());
-  decrypted->set_duration(encrypted->duration());
-  decrypted->set_is_key_frame(encrypted->is_key_frame());
-  decrypted->CopySideDataFrom(encrypted->side_data(),
-                              encrypted->side_data_size());
+  if (decrypted_data.size() != expected_decrypt_size) {
+    LOG(ERROR) << "Decrypted data size mismatch got: " << decrypted_data.size()
+               << " expected: " << expected_decrypt_size;
+    std::move(callback).Run(media::Decryptor::kError, nullptr);
+    return;
+  }
 
-  if (decrypt_config_out)
-    decrypted->set_decrypt_config(std::move(decrypt_config_out));
-
-  std::move(decrypt_cb).Run(media::Decryptor::kSuccess, std::move(decrypted));
+  std::move(callback).Run(
+      media::Decryptor::kSuccess,
+      CopyDecryptedDataToDecoderBuffer(std::move(encrypted), decrypted_data));
 }
 
 }  // namespace chromeos

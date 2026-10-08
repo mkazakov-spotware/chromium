@@ -16,6 +16,8 @@
 
   dp.Target.onAttachedToTarget(async e => {
     const dp = session.createChild(e.params.sessionId).protocol;
+    await dp.Network.enable();
+    await dp.Audits.enable();
 
     // We expect to receive two issues, one for a speculative prefetch and another for the actual fetch.
     dp.Audits.onIssueAdded(issue => {
@@ -30,9 +32,6 @@
         eventReceived();
       }
     });
-
-    await dp.Network.enable();
-    await dp.Audits.enable();
   });
 
   await page.navigate('https://devtools.test:8443/inspector-protocol/resources/mixed-content-within-oopif.html');

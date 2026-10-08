@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,13 +8,13 @@ from mojom_bindings_generator import MakeImportStackMessage
 from mojom_bindings_generator import ScrambleMethodOrdinals
 
 
-class FakeIface:
+class FakeIface(object):
   def __init__(self):
     self.mojom_name = None
     self.methods = None
 
 
-class FakeMethod:
+class FakeMethod(object):
   def __init__(self, explicit_ordinal=None):
     self.explicit_ordinal = explicit_ordinal
     self.ordinal = explicit_ordinal

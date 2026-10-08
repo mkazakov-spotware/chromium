@@ -1,13 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/geolocation/public_ip_address_location_notifier.h"
 
-#include <memory>
-
 #include "base/bind.h"
-#include "base/task/sequenced_task_runner.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/device/geolocation/wifi_data.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -17,7 +14,8 @@ namespace device {
 namespace {
 // Time to wait before issuing a network geolocation request in response to
 // network change notification. Network changes tend to occur in clusters.
-constexpr base::TimeDelta kNetworkChangeReactionDelay = base::Minutes(5);
+constexpr base::TimeDelta kNetworkChangeReactionDelay =
+    base::TimeDelta::FromMinutes(5);
 }  // namespace
 
 PublicIpAddressLocationNotifier::PublicIpAddressLocationNotifier(
@@ -44,8 +42,8 @@ void PublicIpAddressLocationNotifier::QueryNextPosition(
     QueryNextPositionCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  network_traffic_annotation_tag_ =
-      std::make_unique<net::PartialNetworkTrafficAnnotationTag>(tag);
+  network_traffic_annotation_tag_.reset(
+      new net::PartialNetworkTrafficAnnotationTag(tag));
   // If a network location request is in flight, wait.
   if (network_location_request_) {
     callbacks_.push_back(std::move(callback));
@@ -82,7 +80,7 @@ void PublicIpAddressLocationNotifier::OnConnectionChanged(
   react_to_network_change_closure_.Reset(
       base::BindOnce(&PublicIpAddressLocationNotifier::ReactToNetworkChange,
                      base::Unretained(this)));
-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, react_to_network_change_closure_.callback(),
       kNetworkChangeReactionDelay);
 }
@@ -126,7 +124,7 @@ void PublicIpAddressLocationNotifier::OnNetworkLocationResponse(
     network_changed_since_last_request_ = true;
     DCHECK(!latest_geoposition_.has_value());
   } else {
-    latest_geoposition_ = absl::make_optional(position);
+    latest_geoposition_ = base::make_optional(position);
   }
   // Notify all clients.
   for (QueryNextPositionCallback& callback : callbacks_)

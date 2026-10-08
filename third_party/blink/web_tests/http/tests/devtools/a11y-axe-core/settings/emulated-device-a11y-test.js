@@ -8,11 +8,11 @@
   const devicesWidget = await UI.viewManager.view('devices').widget();
 
   async function testNewDeviceError() {
-    const addDeviceButton = devicesWidget.defaultFocusedElement;
+    const addDeviceButton = devicesWidget._defaultFocusedElement;
     addDeviceButton.click();
 
-    TestRunner.addResult('Invalidating the device pixel ratio');
-    const editor = devicesWidget.list.editor;
+    TestRunner.addResult(`Invalidating the device pixel ratio`);
+    const editor = devicesWidget._list._editor;
     const title = editor.control('title');
     const width = editor.control('width');
     const height = editor.control('height');
@@ -23,7 +23,7 @@
     scale.value = '  zzz.213213';
 
     scale.dispatchEvent(new Event('input'));
-    const errorMessage = devicesWidget.list.editor.errorMessageContainer.textContent;
+    const errorMessage = devicesWidget._list._editor._errorMessageContainer.textContent;
     TestRunner.addResult(`Error message: ${errorMessage}`);
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,20 @@
 
 #import <Foundation/Foundation.h>
 
-#import "ios/chrome/browser/ui/toolbar/adaptive_toolbar_menus_provider.h"
-
+namespace bookmarks {
+class BookmarkModel;
+}
 namespace web {
 class WebState;
 }
-@class BrowserActionFactory;
 class OverlayPresenter;
-class TemplateURLService;
+class PrefService;
 @protocol ToolbarConsumer;
-class WebNavigationBrowserAgent;
 class WebStateList;
 
 // A mediator object that provides the relevant properties of a web state
 // to a consumer.
-@interface ToolbarMediator : NSObject <AdaptiveToolbarMenusProvider>
+@interface ToolbarMediator : NSObject
 
 // Whether the search icon should be in dark mode or not.
 @property(nonatomic, assign, getter=isIncognito) BOOL incognito;
@@ -29,6 +28,12 @@ class WebStateList;
 // The WebStateList that this mediator listens for any changes on the total
 // number of Webstates.
 @property(nonatomic, assign) WebStateList* webStateList;
+
+// The bookmarks model to know if the page is bookmarked.
+@property(nonatomic, assign) bookmarks::BookmarkModel* bookmarkModel;
+
+// Pref service to retrieve preference values.
+@property(nonatomic, assign) PrefService* prefService;
 
 // The consumer for this object. This can change during the lifetime of this
 // object and may be nil.
@@ -39,17 +44,7 @@ class WebStateList;
 // should be enabled.
 @property(nonatomic, assign) OverlayPresenter* webContentAreaOverlayPresenter;
 
-// The template url service to use for checking whether search by image is
-// available.
-@property(nonatomic, assign) TemplateURLService* templateURLService;
-
-// Action factory.
-@property(nonatomic, strong) BrowserActionFactory* actionFactory;
-
-// Helper for Web navigation.
-@property(nonatomic, assign) WebNavigationBrowserAgent* navigationBrowserAgent;
-
-// Updates the consumer to conforms to `webState`.
+// Updates the consumer to conforms to |webState|.
 - (void)updateConsumerForWebState:(web::WebState*)webState;
 
 // Stops observing all objects.

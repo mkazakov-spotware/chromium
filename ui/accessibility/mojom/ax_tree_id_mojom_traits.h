@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,9 +16,9 @@ struct UnionTraits<ax::mojom::AXTreeIDDataView, ui::AXTreeID> {
   static ax::mojom::AXTreeIDDataView::Tag GetTag(const ui::AXTreeID& p) {
     switch (p.type()) {
       case ax::mojom::AXTreeIDType::kUnknown:
-        return ax::mojom::AXTreeIDDataView::Tag::kUnknown;
+        return ax::mojom::AXTreeIDDataView::Tag::UNKNOWN;
       case ax::mojom::AXTreeIDType::kToken:
-        return ax::mojom::AXTreeIDDataView::Tag::kToken;
+        return ax::mojom::AXTreeIDDataView::Tag::TOKEN;
     }
   }
   static uint8_t unknown(const ui::AXTreeID& p) { return 0; }

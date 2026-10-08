@@ -1,8 +1,7 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "content/public/common/result_codes.h"
 #include "content/shell/browser/shell_browser_context.h"
 #include "ui/display/screen.h"
 #include "ui/views/widget/desktop_aura/desktop_screen.h"
@@ -16,7 +15,8 @@ namespace {
 class ViewsContentClientMainPartsDesktopAura
     : public ViewsContentClientMainPartsAura {
  public:
-  explicit ViewsContentClientMainPartsDesktopAura(
+  ViewsContentClientMainPartsDesktopAura(
+      const content::MainFunctionParams& content_params,
       ViewsContentClient* views_content_client);
   ViewsContentClientMainPartsDesktopAura(
       const ViewsContentClientMainPartsDesktopAura&) = delete;
@@ -25,40 +25,32 @@ class ViewsContentClientMainPartsDesktopAura
   ~ViewsContentClientMainPartsDesktopAura() override = default;
 
   // ViewsContentClientMainPartsAura:
-  int PreMainMessageLoopRun() override;
-  void PostMainMessageLoopRun() override;
-
- private:
-  std::unique_ptr<display::Screen> screen_;
+  void PreMainMessageLoopRun() override;
 };
 
 ViewsContentClientMainPartsDesktopAura::ViewsContentClientMainPartsDesktopAura(
+    const content::MainFunctionParams& content_params,
     ViewsContentClient* views_content_client)
-    : ViewsContentClientMainPartsAura(views_content_client) {}
-
-int ViewsContentClientMainPartsDesktopAura::PreMainMessageLoopRun() {
-  ViewsContentClientMainPartsAura::PreMainMessageLoopRun();
-
-  screen_ = views::CreateDesktopScreen();
-
-  views_content_client()->OnPreMainMessageLoopRun(browser_context(), nullptr);
-
-  return content::RESULT_CODE_NORMAL_EXIT;
+    : ViewsContentClientMainPartsAura(content_params, views_content_client) {
 }
 
-void ViewsContentClientMainPartsDesktopAura::PostMainMessageLoopRun() {
-  screen_.reset();
+void ViewsContentClientMainPartsDesktopAura::PreMainMessageLoopRun() {
+  ViewsContentClientMainPartsAura::PreMainMessageLoopRun();
 
-  ViewsContentClientMainPartsAura::PostMainMessageLoopRun();
+  views::CreateDesktopScreen();
+
+  views_content_client()->OnPreMainMessageLoopRun(browser_context(), nullptr);
 }
 
 }  // namespace
 
 // static
 std::unique_ptr<ViewsContentClientMainParts>
-ViewsContentClientMainParts::Create(ViewsContentClient* views_content_client) {
+ViewsContentClientMainParts::Create(
+    const content::MainFunctionParams& content_params,
+    ViewsContentClient* views_content_client) {
   return std::make_unique<ViewsContentClientMainPartsDesktopAura>(
-      views_content_client);
+      content_params, views_content_client);
 }
 
 }  // namespace ui

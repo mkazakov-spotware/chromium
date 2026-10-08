@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,14 +30,15 @@ void NGBaseLayoutAlgorithmTest::AdvanceToLayoutPhase() {
   GetDocument().Lifecycle().AdvanceTo(DocumentLifecycle::kInPerformLayout);
 }
 
-const NGPhysicalBoxFragment* NGBaseLayoutAlgorithmTest::RunBlockLayoutAlgorithm(
+scoped_refptr<const NGPhysicalBoxFragment>
+NGBaseLayoutAlgorithmTest::RunBlockLayoutAlgorithm(
     NGBlockNode node,
     const NGConstraintSpace& space,
     const NGBreakToken* break_token) {
   NGFragmentGeometry fragment_geometry =
-      CalculateInitialFragmentGeometry(space, node, /* break_token */ nullptr);
+      CalculateInitialFragmentGeometry(space, node);
 
-  const NGLayoutResult* result =
+  scoped_refptr<const NGLayoutResult> result =
       NGBlockLayoutAlgorithm(
           {node, fragment_geometry, space, To<NGBlockBreakToken>(break_token)})
           .Layout();
@@ -45,30 +46,30 @@ const NGPhysicalBoxFragment* NGBaseLayoutAlgorithmTest::RunBlockLayoutAlgorithm(
   return To<NGPhysicalBoxFragment>(&result->PhysicalFragment());
 }
 
-std::pair<const NGPhysicalBoxFragment*, NGConstraintSpace>
+std::pair<scoped_refptr<const NGPhysicalBoxFragment>, NGConstraintSpace>
 NGBaseLayoutAlgorithmTest::RunBlockLayoutAlgorithmForElement(Element* element) {
   auto* block_flow = To<LayoutBlockFlow>(element->GetLayoutObject());
   NGBlockNode node(block_flow);
   NGConstraintSpace space =
       NGConstraintSpace::CreateFromLayoutObject(*block_flow);
   NGFragmentGeometry fragment_geometry =
-      CalculateInitialFragmentGeometry(space, node, /* break_token */ nullptr);
+      CalculateInitialFragmentGeometry(space, node);
 
-  const NGLayoutResult* result =
+  scoped_refptr<const NGLayoutResult> result =
       NGBlockLayoutAlgorithm({node, fragment_geometry, space}).Layout();
   return std::make_pair(To<NGPhysicalBoxFragment>(&result->PhysicalFragment()),
                         std::move(space));
 }
 
-const NGPhysicalBoxFragment*
+scoped_refptr<const NGPhysicalBoxFragment>
 NGBaseLayoutAlgorithmTest::RunFieldsetLayoutAlgorithm(
     NGBlockNode node,
     const NGConstraintSpace& space,
     const NGBreakToken* break_token) {
   NGFragmentGeometry fragment_geometry =
-      CalculateInitialFragmentGeometry(space, node, /* break_token */ nullptr);
+      CalculateInitialFragmentGeometry(space, node);
 
-  const NGLayoutResult* result =
+  scoped_refptr<const NGLayoutResult> result =
       NGFieldsetLayoutAlgorithm(
           {node, fragment_geometry, space, To<NGBlockBreakToken>(break_token)})
           .Layout();
@@ -76,11 +77,11 @@ NGBaseLayoutAlgorithmTest::RunFieldsetLayoutAlgorithm(
   return To<NGPhysicalBoxFragment>(&result->PhysicalFragment());
 }
 
-const NGPhysicalBoxFragment*
+scoped_refptr<const NGPhysicalBoxFragment>
 NGBaseLayoutAlgorithmTest::GetBoxFragmentByElementId(const char* id) {
   LayoutObject* layout_object = GetLayoutObjectByElementId(id);
-  CHECK(layout_object && layout_object->IsLayoutNGObject());
-  const NGPhysicalBoxFragment* fragment =
+  CHECK(layout_object && layout_object->IsLayoutNGMixin());
+  scoped_refptr<const NGPhysicalBoxFragment> fragment =
       To<LayoutBlockFlow>(layout_object)->GetPhysicalFragment(0);
   CHECK(fragment);
   return fragment;
@@ -112,7 +113,7 @@ const NGPhysicalBoxFragment* FragmentChildIterator::NextChild(
 NGConstraintSpace ConstructBlockLayoutTestConstraintSpace(
     WritingDirectionMode writing_direction,
     LogicalSize size,
-    bool stretch_inline_size_if_auto,
+    bool shrink_to_fit,
     bool is_new_formatting_context,
     LayoutUnit fragmentainer_space_available) {
   NGFragmentationType block_fragmentation =
@@ -125,13 +126,9 @@ NGConstraintSpace ConstructBlockLayoutTestConstraintSpace(
                                    is_new_formatting_context);
   builder.SetAvailableSize(size);
   builder.SetPercentageResolutionSize(size);
-  builder.SetInlineAutoBehavior(stretch_inline_size_if_auto
-                                    ? NGAutoBehavior::kStretchImplicit
-                                    : NGAutoBehavior::kFitContent);
+  builder.SetIsShrinkToFit(shrink_to_fit);
   builder.SetFragmentainerBlockSize(fragmentainer_space_available);
   builder.SetFragmentationType(block_fragmentation);
-  if (block_fragmentation != NGFragmentationType::kFragmentNone)
-    builder.SetShouldPropagateChildBreakValues();
   return builder.ToConstraintSpace();
 }
 

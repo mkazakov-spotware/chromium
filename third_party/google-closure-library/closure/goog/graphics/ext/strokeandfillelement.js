@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2007 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 
 /**
@@ -12,11 +20,11 @@
 
 goog.provide('goog.graphics.ext.StrokeAndFillElement');
 
+goog.forwardDeclare('goog.graphics.Fill');
+goog.forwardDeclare('goog.graphics.Stroke');
+goog.forwardDeclare('goog.graphics.StrokeAndFillElement');
+goog.forwardDeclare('goog.graphics.ext.Group');
 goog.require('goog.graphics.ext.Element');
-goog.requireType('goog.graphics.Fill');
-goog.requireType('goog.graphics.Stroke');
-goog.requireType('goog.graphics.StrokeAndFillElement');
-goog.requireType('goog.graphics.ext.Group');
 
 
 
@@ -31,7 +39,6 @@ goog.requireType('goog.graphics.ext.Group');
  * @extends {goog.graphics.ext.Element}
  */
 goog.graphics.ext.StrokeAndFillElement = function(group, wrapper) {
-  'use strict';
   goog.graphics.ext.Element.call(this, group, wrapper);
 };
 goog.inherits(
@@ -43,7 +50,6 @@ goog.inherits(
  * @param {goog.graphics.Fill?} fill The fill object.
  */
 goog.graphics.ext.StrokeAndFillElement.prototype.setFill = function(fill) {
-  'use strict';
   this.getWrapper().setFill(fill);
 };
 
@@ -53,7 +59,6 @@ goog.graphics.ext.StrokeAndFillElement.prototype.setFill = function(fill) {
  * @param {goog.graphics.Stroke?} stroke The stroke object.
  */
 goog.graphics.ext.StrokeAndFillElement.prototype.setStroke = function(stroke) {
-  'use strict';
   this.getWrapper().setStroke(stroke);
 };
 
@@ -64,6 +69,5 @@ goog.graphics.ext.StrokeAndFillElement.prototype.setStroke = function(stroke) {
  * @override
  */
 goog.graphics.ext.StrokeAndFillElement.prototype.redraw = function() {
-  'use strict';
   this.getWrapper().reapplyStroke();
 };

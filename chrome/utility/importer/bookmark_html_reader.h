@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/strings/string16.h"
 #include "chrome/common/importer/importer_data_types.h"
 #include "components/favicon_base/favicon_usage_data.h"
 
@@ -73,7 +74,7 @@ bool ParseCharsetFromLine(const std::string& line,
                           std::string* charset);
 bool ParseFolderNameFromLine(const std::string& line,
                              const std::string& charset,
-                             std::u16string* folder_name,
+                             base::string16* folder_name,
                              bool* is_toolbar_folder,
                              base::Time* add_date);
 // See above, this will also put the data: URL of the favicon into |*favicon|
@@ -81,12 +82,12 @@ bool ParseFolderNameFromLine(const std::string& line,
 // the contents of the actual POST (with %s for the search term).
 bool ParseBookmarkFromLine(const std::string& line,
                            const std::string& charset,
-                           std::u16string* title,
+                           base::string16* title,
                            GURL* url,
                            GURL* favicon,
-                           std::u16string* shortcut,
+                           base::string16* shortcut,
                            base::Time* add_date,
-                           std::u16string* post_data);
+                           base::string16* post_data);
 // Save bookmarks imported from browsers with Firefox 2 compatible bookmark
 // systems such as Epiphany. This bookmark format is the same as that of the
 // basic Firefox 2 bookmark, but it misses additional properties and uses
@@ -97,7 +98,7 @@ bool ParseBookmarkFromLine(const std::string& line,
 //   </dl>
 bool ParseMinimumBookmarkFromLine(const std::string& line,
                                   const std::string& charset,
-                                  std::u16string* title,
+                                  base::string16* title,
                                   GURL* url);
 
 }  // namespace internal

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ void ReceiverRtcpEventSubscriber::OnReceiveFrameEvent(
     switch (frame_event.type) {
       case FRAME_PLAYOUT:
         rtcp_event.delay_delta = frame_event.delay_delta;
-        [[fallthrough]];
+        FALLTHROUGH;
       case FRAME_ACK_SENT:
       case FRAME_DECODED:
         rtcp_event.type = frame_event.type;

@@ -25,8 +25,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_PAINT_SCOPED_SVG_PAINT_STATE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_PAINT_SCOPED_SVG_PAINT_STATE_H_
 
-#include "base/dcheck_is_on.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include <memory>
 #include "third_party/blink/renderer/core/paint/object_paint_properties.h"
 #include "third_party/blink/renderer/core/paint/paint_info.h"
 #include "third_party/blink/renderer/platform/graphics/paint/scoped_paint_chunk_properties.h"
@@ -54,8 +53,6 @@ class ScopedSVGTransformState {
     if (!properties)
       return;
 
-    // TODO(https://crbug.com/1278452): Also consider Translate, Rotate,
-    // Scale, and Offset.
     if (const auto* transform_node = properties->Transform()) {
       transform_property_scope_.emplace(
           paint_info.context.GetPaintController(), *transform_node, object,
@@ -64,7 +61,7 @@ class ScopedSVGTransformState {
   }
 
  private:
-  absl::optional<ScopedPaintChunkProperties> transform_property_scope_;
+  base::Optional<ScopedPaintChunkProperties> transform_property_scope_;
 };
 
 class ScopedSVGPaintState {
@@ -92,7 +89,7 @@ class ScopedSVGPaintState {
   const LayoutObject& object_;
   const PaintInfo& paint_info_;
   const DisplayItemClient& display_item_client_;
-  absl::optional<ScopedPaintChunkProperties> scoped_paint_chunk_properties_;
+  base::Optional<ScopedPaintChunkProperties> scoped_paint_chunk_properties_;
   bool should_paint_mask_ = false;
   bool should_paint_clip_path_as_mask_image_ = false;
 #if DCHECK_IS_ON()

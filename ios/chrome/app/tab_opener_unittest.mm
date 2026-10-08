@@ -1,26 +1,19 @@
-// Copyright 2012 The Chromium Authors
+// Copyright 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <Foundation/Foundation.h>
 
-#import "base/threading/thread.h"
-#import "components/sync_preferences/pref_service_mock_factory.h"
-#import "components/sync_preferences/pref_service_syncable.h"
+#include "base/threading/thread.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
-#import "ios/chrome/app/application_delegate/startup_information.h"
+#include "ios/chrome/app/application_delegate/startup_information.h"
 #import "ios/chrome/app/application_delegate/tab_opening.h"
 #import "ios/chrome/app/application_delegate/url_opener.h"
 #import "ios/chrome/app/application_delegate/url_opener_params.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/prefs/browser_prefs.h"
 #import "ios/chrome/browser/ui/main/scene_controller.h"
-#import "ios/chrome/browser/ui/main/scene_controller_testing.h"
 #import "ios/chrome/browser/ui/main/scene_state.h"
-#import "ios/chrome/browser/ui/main/test/stub_browser_interface.h"
 #import "ios/testing/scoped_block_swizzler.h"
-#import "ios/web/public/test/web_task_environment.h"
-#import "testing/platform_test.h"
+#include "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -67,46 +60,21 @@ class TabOpenerTest : public PlatformTest {
         [URLOpener class],
         @selector(handleLaunchOptions:
                             tabOpener:connectionInformation:startupInformation
-                                     :appState:prefService:),
+                                     :appState:),
         swizzle_block_));
   }
 
   SceneController* GetSceneController() {
     if (!scene_controller_) {
-      StubBrowserInterface* browser_interface =
-          [[StubBrowserInterface alloc] init];
-
-      sync_preferences::PrefServiceMockFactory factory;
-      scoped_refptr<user_prefs::PrefRegistrySyncable> registry(
-          new user_prefs::PrefRegistrySyncable);
-      RegisterBrowserStatePrefs(registry.get());
-
-      TestChromeBrowserState::Builder builder;
-      builder.SetPrefService(factory.CreateSyncable(registry.get()));
-      browser_state_ = builder.Build();
-
-      browser_interface.browserState =
-          (ChromeBrowserState*)browser_state_.get();
-
-      SceneController* controller =
+      scene_controller_ =
           [[SceneController alloc] initWithSceneState:scene_state_];
-
-      mockController_ = OCMPartialMock(controller);
-      OCMStub([mockController_ currentInterface]).andReturn(browser_interface);
-
-      scene_controller_ = controller;
     }
     return scene_controller_;
   }
 
  private:
-  web::WebTaskEnvironment task_environment_;
-  // Keep the partial mock object alive to avoid automatic deallocation when out
-  // of scope.
-  id mockController_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  SceneState* scene_state_;
   SceneController* scene_controller_;
+  SceneState* scene_state_;
 
   __block BOOL swizzle_block_executed_;
   HandleLaunchOptions swizzle_block_;

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,9 @@
 #include "net/tools/transport_security_state_generator/cert_util.h"
 #include "net/tools/transport_security_state_generator/spki_hash.h"
 
-namespace net::transport_security_state {
+namespace net {
+
+namespace transport_security_state {
 
 namespace {
 
@@ -129,8 +131,7 @@ PreloadedStateGenerator::~PreloadedStateGenerator() = default;
 std::string PreloadedStateGenerator::Generate(
     const std::string& preload_template,
     const TransportSecurityStateEntries& entries,
-    const Pinsets& pinsets,
-    const base::Time& timestamp) {
+    const Pinsets& pinsets) {
   std::string output = preload_template;
 
   ProcessSPKIHashes(pinsets, &output);
@@ -144,8 +145,9 @@ std::string PreloadedStateGenerator::Generate(
   std::vector<std::unique_ptr<TransportSecurityStateTrieEntry>> trie_entries;
   std::vector<huffman_trie::TrieEntry*> raw_trie_entries;
   for (const auto& entry : entries) {
-    auto trie_entry = std::make_unique<TransportSecurityStateTrieEntry>(
-        expect_ct_report_uri_map, pinsets_map, entry.get());
+    std::unique_ptr<TransportSecurityStateTrieEntry> trie_entry(
+        new TransportSecurityStateTrieEntry(expect_ct_report_uri_map,
+                                            pinsets_map, entry.get()));
     raw_trie_entries.push_back(trie_entry.get());
     trie_entries.push_back(std::move(trie_entry));
   }
@@ -180,9 +182,6 @@ std::string PreloadedStateGenerator::Generate(
 
   ReplaceTag("HSTS_TRIE_BITS", base::NumberToString(new_length), &output);
   ReplaceTag("HSTS_TRIE_ROOT", base::NumberToString(root_position), &output);
-
-  ReplaceTag("PINS_LIST_TIMESTAMP", base::NumberToString(timestamp.ToTimeT()),
-             &output);
 
   return output;
 }
@@ -263,30 +262,30 @@ void PreloadedStateGenerator::ProcessPinsets(const Pinsets& pinset,
 
   const PinsetMap& pinsets = pinset.pinsets();
   for (const auto& current : pinsets) {
-    const std::unique_ptr<Pinset>& pinset_ptr = current.second;
-    std::string uppercased_name = pinset_ptr->name();
+    const std::unique_ptr<Pinset>& pinset = current.second;
+    std::string uppercased_name = pinset->name();
     uppercased_name[0] = base::ToUpperASCII(uppercased_name[0]);
 
     const std::string& accepted_pins_names =
         FormatAcceptedKeyName(uppercased_name);
     certs_output.append(
-        WritePinsetList(accepted_pins_names, pinset_ptr->static_spki_hashes()));
+        WritePinsetList(accepted_pins_names, pinset->static_spki_hashes()));
     certs_output.append(kNewLine);
 
     std::string rejected_pins_names = "kNoRejectedPublicKeys";
-    if (pinset_ptr->bad_static_spki_hashes().size()) {
+    if (pinset->bad_static_spki_hashes().size()) {
       rejected_pins_names = FormatRejectedKeyName(uppercased_name);
-      certs_output.append(WritePinsetList(
-          rejected_pins_names, pinset_ptr->bad_static_spki_hashes()));
+      certs_output.append(WritePinsetList(rejected_pins_names,
+                                          pinset->bad_static_spki_hashes()));
       certs_output.append(kNewLine);
     }
 
     std::string report_uri = "kNoReportURI";
-    if (pinset_ptr->report_uri().size()) {
+    if (pinset->report_uri().size()) {
       report_uri = FormatReportURIName(uppercased_name);
       certs_output.append("static const char " + report_uri + "[] = ");
       certs_output.append("\"");
-      certs_output.append(pinset_ptr->report_uri());
+      certs_output.append(pinset->report_uri());
       certs_output.append("\";");
       certs_output.append(kNewLine);
     }
@@ -298,8 +297,8 @@ void PreloadedStateGenerator::ProcessPinsets(const Pinsets& pinset,
                           rejected_pins_names + ", " + report_uri + "},");
     pinsets_output.append(kNewLine);
 
-    pinset_map->insert(NameIDPair(pinset_ptr->name(),
-                                  static_cast<uint32_t>(pinset_map->size())));
+    pinset_map->insert(
+        NameIDPair(pinset->name(), static_cast<uint32_t>(pinset_map->size())));
   }
 
   pinsets_output.append("}");
@@ -310,4 +309,6 @@ void PreloadedStateGenerator::ProcessPinsets(const Pinsets& pinset,
   ReplaceTag("PINSETS", pinsets_output, tpl);
 }
 
-}  // namespace net::transport_security_state
+}  // namespace transport_security_state
+
+}  // namespace net

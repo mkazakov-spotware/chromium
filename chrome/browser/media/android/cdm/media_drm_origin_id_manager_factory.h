@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_MEDIA_ANDROID_CDM_MEDIA_DRM_ORIGIN_ID_MANAGER_FACTORY_H_
 
 #include "base/memory/singleton.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class MediaDrmOriginIdManager;
 class Profile;
@@ -14,7 +14,8 @@ class Profile;
 // Singleton that owns all MediaDrmOriginIdManagers and associates them with
 // Profiles. Listens for the Profile's destruction notification and cleans up
 // the associated MediaDrmOriginIdManager.
-class MediaDrmOriginIdManagerFactory : public ProfileKeyedServiceFactory {
+class MediaDrmOriginIdManagerFactory
+    : public BrowserContextKeyedServiceFactory {
  public:
   // This may return NULL if origin IDs are not supported by the profile
   // (e.g. incognito).
@@ -31,6 +32,9 @@ class MediaDrmOriginIdManagerFactory : public ProfileKeyedServiceFactory {
 
   // BrowserContextKeyedServiceFactory overrides.
   KeyedService* BuildServiceInstanceFor(
+      content::BrowserContext* context) const override;
+
+  content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
 
   bool ServiceIsCreatedWithBrowserContext() const override;

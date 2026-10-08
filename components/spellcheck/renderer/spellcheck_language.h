@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "base/files/file.h"
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/spellcheck/renderer/spellcheck_worditerator.h"
 
 namespace service_manager {
@@ -34,10 +36,6 @@ class SpellcheckLanguage {
 
   explicit SpellcheckLanguage(
       service_manager::LocalInterfaceProvider* embedder_provider);
-
-  SpellcheckLanguage(const SpellcheckLanguage&) = delete;
-  SpellcheckLanguage& operator=(const SpellcheckLanguage&) = delete;
-
   ~SpellcheckLanguage();
 
   void Init(base::File file, const std::string& language);
@@ -63,13 +61,13 @@ class SpellcheckLanguage {
   //   |*optional_suggestions|. If optional_suggestions is nullptr, suggested
   //   words will not be looked up. Note that doing suggest lookups can be slow.
   SpellcheckWordResult SpellCheckWord(
-      const char16_t* text_begin,
+      const base::char16* text_begin,
       size_t position_in_text,
       size_t text_length,
       int tag,
       size_t* skip_or_misspelling_start,
       size_t* skip_or_misspelling_len,
-      std::vector<std::u16string>* optional_suggestions);
+      std::vector<base::string16>* optional_suggestions);
 
   // Initialize |spellcheck_| if that hasn't happened yet.
   bool InitializeIfNeeded();
@@ -79,7 +77,7 @@ class SpellcheckLanguage {
 
   // Returns true if all the characters in a text string are in the script
   // associated with this spellcheck language.
-  bool IsTextInSameScript(const std::u16string& text) const;
+  bool IsTextInSameScript(const base::string16& text) const;
 
  private:
   friend class SpellCheckTest;
@@ -87,7 +85,7 @@ class SpellcheckLanguage {
 
   // Returns whether or not the given word is a contraction of valid words
   // (e.g. "word:word").
-  bool IsValidContraction(const std::u16string& word, int tag);
+  bool IsValidContraction(const base::string16& word, int tag);
 
   // Represents character attributes used for filtering out characters which
   // are not supported by this SpellCheck object.
@@ -104,6 +102,8 @@ class SpellcheckLanguage {
   // Pointer to a platform-specific spelling engine, if it is in use. This
   // should only be set if hunspell is not used. (I.e. on OSX, for now)
   std::unique_ptr<SpellingEngine> platform_spelling_engine_;
+
+  DISALLOW_COPY_AND_ASSIGN(SpellcheckLanguage);
 };
 
 #endif  // COMPONENTS_SPELLCHECK_RENDERER_SPELLCHECK_LANGUAGE_H_

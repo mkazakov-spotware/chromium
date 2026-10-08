@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,6 +35,8 @@ WebState* WebStateDelegate::OpenURLFromWebState(
   return nullptr;
 }
 
+void WebStateDelegate::HandleContextMenu(WebState*, const ContextMenuParams&) {}
+
 void WebStateDelegate::ShowRepostFormWarningDialog(
     WebState*,
     base::OnceCallback<void(bool)> callback) {
@@ -46,19 +48,27 @@ JavaScriptDialogPresenter* WebStateDelegate::GetJavaScriptDialogPresenter(
   return nullptr;
 }
 
-bool WebStateDelegate::HandlePermissionsDecisionRequest(
-    WebState* source,
-    NSArray<NSNumber*>* permissions,
-    WebStatePermissionDecisionHandler handler) {
-  return false;
-}
-
 void WebStateDelegate::OnAuthRequired(WebState* source,
                                       NSURLProtectionSpace* protection_space,
                                       NSURLCredential* proposed_credential,
                                       AuthCallback callback) {
   std::move(callback).Run(nil, nil);
 }
+
+bool WebStateDelegate::ShouldPreviewLink(WebState* source,
+                                         const GURL& link_url) {
+  return false;
+}
+
+UIViewController* WebStateDelegate::GetPreviewingViewController(
+    WebState* source,
+    const GURL& link_url) {
+  return nullptr;
+}
+
+void WebStateDelegate::CommitPreviewingViewController(
+    WebState* source,
+    UIViewController* previewing_view_controller) {}
 
 UIView* WebStateDelegate::GetWebViewContainer(WebState* source) {
   return nil;
@@ -76,18 +86,21 @@ void WebStateDelegate::Detach(WebState* source) {
 
 void WebStateDelegate::ContextMenuConfiguration(
     WebState* source,
-    const ContextMenuParams& params,
-    void (^completion_handler)(UIContextMenuConfiguration*)) {
-  completion_handler(nil);
-}
+    const GURL& link_url,
+    void (^completion_handler)(UIContextMenuConfiguration*))
+    API_AVAILABLE(ios(13.0)) {}
+
+void WebStateDelegate::ContextMenuDidEnd(WebState* source, const GURL& link_url)
+    API_AVAILABLE(ios(13.0)) {}
 
 void WebStateDelegate::ContextMenuWillCommitWithAnimator(
     WebState* source,
-    id<UIContextMenuInteractionCommitAnimating> animator) {}
+    const GURL& link_url,
+    id<UIContextMenuInteractionCommitAnimating> animator)
+    API_AVAILABLE(ios(13.0)) {}
 
-id<CRWResponderInputView> WebStateDelegate::GetResponderInputView(
-    WebState* source) {
-  return nil;
-}
+void WebStateDelegate::ContextMenuWillPresent(WebState* source,
+                                              const GURL& link_url)
+    API_AVAILABLE(ios(13.0)) {}
 
 }  // web

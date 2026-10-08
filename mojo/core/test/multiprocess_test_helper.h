@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/process/process.h"
 #include "base/test/multiprocess_test.h"
 #include "base/test/test_timeouts.h"
@@ -34,7 +35,7 @@ class MultiprocessTestHelper {
     // Same as CHILD but uses the newer async channel handshake.
     ASYNC,
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
     // Launch the child process as a child in the mojo system, using a named
     // pipe.
     NAMED_CHILD,
@@ -42,17 +43,10 @@ class MultiprocessTestHelper {
     // Launch the child process as an unrelated peer process in the mojo
     // system, using a named pipe.
     NAMED_PEER,
-#endif  //  !BUILDFLAG(IS_FUCHSIA)
-    // This is the same as child; however, it will never advertise any
-    // capabilities.
-    CHILD_WITHOUT_CAPABILITIES
+#endif  //  !defined(OS_FUCHSIA)
   };
 
   MultiprocessTestHelper();
-
-  MultiprocessTestHelper(const MultiprocessTestHelper&) = delete;
-  MultiprocessTestHelper& operator=(const MultiprocessTestHelper&) = delete;
-
   ~MultiprocessTestHelper();
 
   // Start a child process and run the "main" function "named" |test_child_name|
@@ -101,6 +95,8 @@ class MultiprocessTestHelper {
   base::Process test_child_;
 
   std::unique_ptr<IsolatedConnection> isolated_connection_;
+
+  DISALLOW_COPY_AND_ASSIGN(MultiprocessTestHelper);
 };
 
 }  // namespace test

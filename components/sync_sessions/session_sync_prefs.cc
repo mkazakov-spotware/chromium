@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,15 +10,15 @@
 namespace sync_sessions {
 namespace {
 
-// Legacy GUID to identify this client, no longer newly populated by modern
-// clients but honored if present.
-const char kLegacySyncSessionsGUID[] = "sync.session_sync_guid";
+// The GUID session sync will use to identify this client, even across sync
+// disable/enable events.
+const char kSyncSessionsGUID[] = "sync.session_sync_guid";
 
 }  // namespace
 
 // static
 void SessionSyncPrefs::RegisterProfilePrefs(PrefRegistrySimple* registry) {
-  registry->RegisterStringPref(kLegacySyncSessionsGUID, std::string());
+  registry->RegisterStringPref(kSyncSessionsGUID, std::string());
 }
 
 SessionSyncPrefs::SessionSyncPrefs(PrefService* pref_service)
@@ -26,19 +26,14 @@ SessionSyncPrefs::SessionSyncPrefs(PrefService* pref_service)
   DCHECK(pref_service);
 }
 
-SessionSyncPrefs::~SessionSyncPrefs() = default;
+SessionSyncPrefs::~SessionSyncPrefs() {}
 
-std::string SessionSyncPrefs::GetLegacySyncSessionsGUID() const {
-  return pref_service_->GetString(kLegacySyncSessionsGUID);
+std::string SessionSyncPrefs::GetSyncSessionsGUID() const {
+  return pref_service_->GetString(kSyncSessionsGUID);
 }
 
-void SessionSyncPrefs::ClearLegacySyncSessionsGUID() {
-  pref_service_->ClearPref(kLegacySyncSessionsGUID);
-}
-
-void SessionSyncPrefs::SetLegacySyncSessionsGUIDForTesting(
-    const std::string& guid) {
-  pref_service_->SetString(kLegacySyncSessionsGUID, guid);
+void SessionSyncPrefs::SetSyncSessionsGUID(const std::string& guid) {
+  pref_service_->SetString(kSyncSessionsGUID, guid);
 }
 
 }  // namespace sync_sessions

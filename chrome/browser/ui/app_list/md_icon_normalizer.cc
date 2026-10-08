@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,6 @@
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
-#include "ui/gfx/image/image_skia_rep.h"
 
 // The implementation is copied and adapted from the Android Launcher.
 // See com.android.launcher3.graphics.IconNormalizer.java in the Android source.
@@ -220,8 +219,8 @@ void MaybeResizeAndPad(const gfx::Size& required_size,
   }
 
   // Add padding.
-  gfx::Canvas canvas(required_size, 1, /*transparent=*/false);
-  canvas.DrawImageInt(gfx::ImageSkia::CreateFromBitmap(resized, 1),
+  gfx::Canvas canvas(required_size, 1, /* transparent */ false);
+  canvas.DrawImageInt(gfx::ImageSkia(gfx::ImageSkiaRep(resized, 1)),
                       padding.width(), padding.height());
   *bitmap_out = canvas.GetBitmap();
   return;

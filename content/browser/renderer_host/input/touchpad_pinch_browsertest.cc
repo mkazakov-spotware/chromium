@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/bind.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/build_config.h"
 #include "content/browser/renderer_host/input/synthetic_touchpad_pinch_gesture.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/common/input/synthetic_pinch_gesture_params.h"
@@ -67,11 +66,10 @@ void PerformTouchpadPinch(WebContents* web_contents,
                           gfx::PointF position,
                           float scale_factor) {
   RenderWidgetHostImpl* widget_host = RenderWidgetHostImpl::From(
-      web_contents->GetPrimaryMainFrame()->GetRenderViewHost()->GetWidget());
+      web_contents->GetRenderViewHost()->GetWidget());
 
   SyntheticPinchGestureParams params;
-  params.gesture_source_type =
-      content::mojom::GestureSourceType::kTouchpadInput;
+  params.gesture_source_type = SyntheticGestureParams::TOUCHPAD_INPUT;
   params.scale_factor = scale_factor;
   params.anchor = position;
   auto pinch_gesture = std::make_unique<SyntheticTouchpadPinchGesture>(params);
@@ -102,10 +100,6 @@ class TouchpadPinchBrowserTest : public ContentBrowserTest,
           features::kTouchpadAsyncPinchEvents);
     }
   }
-
-  TouchpadPinchBrowserTest(const TouchpadPinchBrowserTest&) = delete;
-  TouchpadPinchBrowserTest& operator=(const TouchpadPinchBrowserTest&) = delete;
-
   ~TouchpadPinchBrowserTest() override = default;
 
  protected:
@@ -136,6 +130,7 @@ class TouchpadPinchBrowserTest : public ContentBrowserTest,
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+  DISALLOW_COPY_AND_ASSIGN(TouchpadPinchBrowserTest);
 };
 
 INSTANTIATE_TEST_SUITE_P(All, TouchpadPinchBrowserTest, testing::Bool());
@@ -159,7 +154,8 @@ IN_PROC_BROWSER_TEST_P(TouchpadPinchBrowserTest,
 // is performed.
 IN_PROC_BROWSER_TEST_P(TouchpadPinchBrowserTest, WheelListenerAllowingPinch) {
   LoadURL();
-  ASSERT_TRUE(ExecJs(shell()->web_contents(), "setListener(false);"));
+  ASSERT_TRUE(
+      content::ExecuteScript(shell()->web_contents(), "setListener(false);"));
   SynchronizeCompositorAndMainThreads();
 
   content::TestPageScaleObserver scale_observer(shell()->web_contents());
@@ -170,12 +166,14 @@ IN_PROC_BROWSER_TEST_P(TouchpadPinchBrowserTest, WheelListenerAllowingPinch) {
   PerformTouchpadPinch(shell()->web_contents(), pinch_position, 1.23);
 
   // Ensure that the page saw the synthetic wheel.
-  ASSERT_EQ(false,
-            EvalJs(shell()->web_contents(),
-                   "handlerPromise.then(function(e) {"
-                   "  window.domAutomationController.send(e.defaultPrevented);"
-                   "});",
-                   EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+  bool default_prevented = false;
+  ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
+      shell()->web_contents(),
+      "handlerPromise.then(function(e) {"
+      "  window.domAutomationController.send(e.defaultPrevented);"
+      "});",
+      &default_prevented));
+  EXPECT_FALSE(default_prevented);
 
   // Since the listener did not cancel the synthetic wheel, we should still
   // change the page scale.
@@ -198,35 +196,38 @@ void TouchpadPinchBrowserTest::EnsureNoScaleChangeWhenCanceled(
       starting_scale_observer.WaitForPageScaleUpdate();
   ASSERT_GT(starting_scale_factor, 0.f);
 
-  ASSERT_TRUE(ExecJs(shell()->web_contents(), "setListener(true);"));
+  ASSERT_TRUE(
+      content::ExecuteScript(shell()->web_contents(), "setListener(true);"));
   SynchronizeCompositorAndMainThreads();
 
   std::move(send_events).Run(shell()->web_contents(), pinch_position);
 
   // Ensure the page handled a wheel event that it was able to cancel.
-  ASSERT_EQ(true,
-            EvalJs(shell()->web_contents(),
-                   "handlerPromise.then(function(e) {"
-                   "  window.domAutomationController.send(e.defaultPrevented);"
-                   "});",
-                   EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+  bool default_prevented = false;
+  ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
+      shell()->web_contents(),
+      "handlerPromise.then(function(e) {"
+      "  window.domAutomationController.send(e.defaultPrevented);"
+      "});",
+      &default_prevented));
+  EXPECT_TRUE(default_prevented);
 
   // We'll check that the previous event(s) did not cause a scale change by
   // performing another pinch that does change the scale.
-  ASSERT_TRUE(ExecJs(shell()->web_contents(),
-                     "reset(); "
-                     "setListener(false);"));
+  ASSERT_TRUE(content::ExecuteScript(shell()->web_contents(),
+                                     "reset(); "
+                                     "setListener(false);"));
   SynchronizeCompositorAndMainThreads();
 
   content::TestPageScaleObserver scale_observer(shell()->web_contents());
   PerformTouchpadPinch(shell()->web_contents(), pinch_position, 2.0);
-
-  ASSERT_EQ(false,
-            EvalJs(shell()->web_contents(),
-                   "handlerPromise.then(function(e) {"
-                   "  window.domAutomationController.send(e.defaultPrevented);"
-                   "});",
-                   EXECUTE_SCRIPT_USE_MANUAL_REPLY));
+  ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
+      shell()->web_contents(),
+      "handlerPromise.then(function(e) {"
+      "  window.domAutomationController.send(e.defaultPrevented);"
+      "});",
+      &default_prevented));
+  EXPECT_FALSE(default_prevented);
 
   const float last_scale_factor = scale_observer.WaitForPageScaleUpdate();
   // The scale changes may be imprecise.
@@ -247,15 +248,8 @@ IN_PROC_BROWSER_TEST_P(TouchpadPinchBrowserTest, WheelListenerPreventingPinch) {
 
 // If the synthetic wheel event for a touchpad double tap is canceled, we
 // should not change the page scale.
-// TODO(crbug.com/1328984): Re-enable this test
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_WheelListenerPreventingDoubleTap \
-  DISABLED_WheelListenerPreventingDoubleTap
-#else
-#define MAYBE_WheelListenerPreventingDoubleTap WheelListenerPreventingDoubleTap
-#endif
 IN_PROC_BROWSER_TEST_P(TouchpadPinchBrowserTest,
-                       MAYBE_WheelListenerPreventingDoubleTap) {
+                       WheelListenerPreventingDoubleTap) {
   LoadURL();
 
   blink::web_pref::WebPreferences prefs =

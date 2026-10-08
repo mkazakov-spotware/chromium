@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@ import static org.chromium.net.test.util.CertTestUtil.CERTS_DIRECTORY;
 
 import androidx.test.filters.MediumTest;
 
-import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.net.test.util.CertTestUtil;
 
 import java.io.IOException;
@@ -26,7 +25,6 @@ import java.util.Arrays;
  * Tests for org.chromium.net.X509Util.
  */
 @RunWith(BaseJUnit4ClassRunner.class)
-@Batch(Batch.UNIT_TESTS)
 public class X509UtilTest {
     private static final String BAD_EKU_TEST_ROOT = "eku-test-root.pem";
     private static final String CRITICAL_CODE_SIGNING_EE = "crit-codeSigning-chain.pem";
@@ -46,13 +44,9 @@ public class X509UtilTest {
         return bytes;
     }
 
-    @After
-    public void tearDown() {
-        try {
-            X509Util.clearTestRootCertificates();
-        } catch (Exception e) {
-            Assert.fail("Could not clear test root certificates: " + e.toString());
-        }
+    @Before
+    public void setUp() {
+        X509Util.setDisableNativeCodeForTest(true);
     }
 
     @Test
@@ -72,5 +66,12 @@ public class X509UtilTest {
 
         Assert.assertTrue(X509Util.verifyKeyUsage(X509Util.createCertificateFromBytes(
                 CertTestUtil.pemToDer(CERTS_DIRECTORY + OK_CERT))));
+
+        try {
+            X509Util.clearTestRootCertificates();
+        } catch (Exception e) {
+            Assert.fail("Could not clear test root certificates: " + e.toString());
+        }
     }
 }
+

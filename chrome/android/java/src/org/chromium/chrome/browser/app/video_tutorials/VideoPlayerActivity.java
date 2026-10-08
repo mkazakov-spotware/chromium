@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import android.util.Pair;
 import android.view.WindowManager;
 
 import org.chromium.base.IntentUtils;
-import org.chromium.chrome.browser.BackPressHelper;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.SynchronousInitializationActivity;
 import org.chromium.chrome.browser.WebContentsFactory;
@@ -27,7 +26,6 @@ import org.chromium.components.embedder_support.view.ContentView;
 import org.chromium.components.version_info.VersionConstants;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.ActivityWindowAndroid;
-import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
 
@@ -48,18 +46,15 @@ public class VideoPlayerActivity extends SynchronousInitializationActivity {
 
         VideoTutorialService videoTutorialService =
                 VideoTutorialServiceFactory.getForProfile(Profile.getLastUsedRegularProfile());
-        IntentRequestTracker intentRequestTracker = IntentRequestTracker.createFromActivity(this);
-        mWindowAndroid = new ActivityWindowAndroid(
-                this, /* listenToActivityState= */ true, intentRequestTracker);
+        mWindowAndroid = new ActivityWindowAndroid(this);
         mCoordinator = VideoTutorialServiceFactory.createVideoPlayerCoordinator(this,
                 videoTutorialService, this::createWebContents, new ChromeLanguageInfoProvider(),
-                this::tryNow, this::finish, intentRequestTracker);
+                this::tryNow, this::finish);
         setContentView(mCoordinator.getView());
 
         int featureType =
                 IntentUtils.safeGetIntExtra(getIntent(), EXTRA_VIDEO_TUTORIAL, FeatureType.INVALID);
         videoTutorialService.getTutorial(featureType, mCoordinator::playVideoTutorial);
-        BackPressHelper.create(this, getOnBackPressedDispatcher(), mCoordinator::onBackPressed);
     }
 
     private Pair<WebContents, ContentView> createWebContents() {
@@ -71,6 +66,12 @@ public class VideoPlayerActivity extends SynchronousInitializationActivity {
                 ViewAndroidDelegate.createBasicDelegate(contentView), contentView, mWindowAndroid,
                 WebContents.createDefaultInternalsHolder());
         return Pair.create(webContents, contentView);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mCoordinator.onBackPressed()) return;
+        super.onBackPressed();
     }
 
     @Override

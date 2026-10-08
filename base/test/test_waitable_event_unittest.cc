@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/test/test_waitable_event.h"
 
 #include "base/bind.h"
-#include "base/task/thread_pool.h"
 #include "base/test/task_environment.h"
 #include "base/threading/scoped_blocking_call_internal.h"
 #include "testing/gtest/include/gtest/gtest.h"

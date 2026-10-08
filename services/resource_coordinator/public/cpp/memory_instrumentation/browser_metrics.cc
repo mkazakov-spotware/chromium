@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,15 +53,14 @@ std::string GetPrivateFootprintHistogramName(HistogramProcessType type) {
 }
 
 base::TimeDelta GetDelayForNextMemoryLog() {
-#if BUILDFLAG(IS_ANDROID)
-  base::TimeDelta mean_time = base::Minutes(5);
+#if defined(OS_ANDROID)
+  base::TimeDelta mean_time = base::TimeDelta::FromMinutes(5);
 #else
-  base::TimeDelta mean_time = base::Minutes(30);
+  base::TimeDelta mean_time = base::TimeDelta::FromMinutes(30);
 #endif
-  // Compute the actual delay before sampling using a Poisson process. Use
-  // `1-RandDouble()` to avoid log(0).
+  // Compute the actual delay before sampling using a Poisson process.
   double uniform = base::RandDouble();
-  return -std::log(1 - uniform) * mean_time;
+  return -std::log(uniform) * mean_time;
 }
 
 }  // namespace memory_instrumentation

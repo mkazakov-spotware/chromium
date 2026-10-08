@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 namespace history {
 
 HistoryMatch::HistoryMatch()
-    : input_location(std::u16string::npos),
+    : input_location(base::string16::npos),
       match_in_scheme(false),
       match_in_subdomain(false),
       innermost_match(true) {}

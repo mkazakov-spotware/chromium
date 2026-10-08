@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -107,12 +107,12 @@ ConflictResolutionPolicyToExtensionEnum(
   return sync_file_system::CONFLICT_RESOLUTION_POLICY_NONE;
 }
 
-absl::optional<base::Value::Dict> CreateDictionaryValueForFileSystemEntry(
+std::unique_ptr<base::DictionaryValue> CreateDictionaryValueForFileSystemEntry(
     const storage::FileSystemURL& url,
     ::sync_file_system::SyncFileType file_type) {
   if (!url.is_valid() ||
       file_type == ::sync_file_system::SYNC_FILE_TYPE_UNKNOWN)
-    return absl::nullopt;
+    return nullptr;
 
   std::string file_path =
       base::FilePath(storage::VirtualPath::GetNormalizedFilePath(url.path()))
@@ -126,15 +126,15 @@ absl::optional<base::Value::Dict> CreateDictionaryValueForFileSystemEntry(
     root_url.append("/");
   }
 
-  base::Value::Dict dict;
-  dict.Set("fileSystemType",
-           storage::GetFileSystemTypeString(url.mount_type()));
-  dict.Set("fileSystemName",
-           storage::GetFileSystemName(url.origin().GetURL(), url.type()));
-  dict.Set("rootUrl", root_url);
-  dict.Set("filePath", file_path);
-  dict.Set("isDirectory",
-           (file_type == ::sync_file_system::SYNC_FILE_TYPE_DIRECTORY));
+  auto dict = std::make_unique<base::DictionaryValue>();
+  dict->SetString("fileSystemType",
+                  storage::GetFileSystemTypeString(url.mount_type()));
+  dict->SetString("fileSystemName", storage::GetFileSystemName(
+                                        url.origin().GetURL(), url.type()));
+  dict->SetString("rootUrl", root_url);
+  dict->SetString("filePath", file_path);
+  dict->SetBoolean("isDirectory",
+                   (file_type == ::sync_file_system::SYNC_FILE_TYPE_DIRECTORY));
 
   return dict;
 }

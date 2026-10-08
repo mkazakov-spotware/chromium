@@ -1,10 +1,8 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gin/public/context_holder.h"
-
-#include <memory>
 
 #include "base/check.h"
 #include "gin/per_context_data.h"
@@ -24,7 +22,7 @@ void ContextHolder::SetContext(v8::Local<v8::Context> context) {
   DCHECK(context_.IsEmpty());
   context_.Reset(isolate_, context);
   context_.AnnotateStrongRetainer("gin::ContextHolder::context_");
-  data_ = std::make_unique<PerContextData>(this, context);
+  data_.reset(new PerContextData(this, context));
 }
 
 }  // namespace gin

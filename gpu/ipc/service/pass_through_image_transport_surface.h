@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/containers/queue.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "gpu/ipc/service/image_transport_surface.h"
 #include "gpu/ipc/service/image_transport_surface_delegate.h"
@@ -27,39 +28,28 @@ class PassThroughImageTransportSurface : public gl::GLSurfaceAdapter {
       gl::GLSurface* surface,
       bool override_vsync_for_multi_window_swap);
 
-  PassThroughImageTransportSurface(const PassThroughImageTransportSurface&) =
-      delete;
-  PassThroughImageTransportSurface& operator=(
-      const PassThroughImageTransportSurface&) = delete;
-
   // GLSurface implementation.
   bool Initialize(gl::GLSurfaceFormat format) override;
-  gfx::SwapResult SwapBuffers(PresentationCallback callback,
-                              gl::FrameData data) override;
+  gfx::SwapResult SwapBuffers(PresentationCallback callback) override;
   void SwapBuffersAsync(SwapCompletionCallback completion_callback,
-                        PresentationCallback presentation_callback,
-                        gl::FrameData data) override;
+                        PresentationCallback presentation_callback) override;
   gfx::SwapResult SwapBuffersWithBounds(const std::vector<gfx::Rect>& rects,
-                                        PresentationCallback callback,
-                                        gl::FrameData data) override;
+                                        PresentationCallback callback) override;
   gfx::SwapResult PostSubBuffer(int x,
                                 int y,
                                 int width,
                                 int height,
-                                PresentationCallback callback,
-                                gl::FrameData data) override;
+                                PresentationCallback callback) override;
   void PostSubBufferAsync(int x,
                           int y,
                           int width,
                           int height,
                           SwapCompletionCallback completion_callback,
-                          PresentationCallback presentation_callback,
-                          gl::FrameData data) override;
-  gfx::SwapResult CommitOverlayPlanes(PresentationCallback callback,
-                                      gl::FrameData data) override;
-  void CommitOverlayPlanesAsync(SwapCompletionCallback completion_callback,
-                                PresentationCallback presentation_callback,
-                                gl::FrameData data) override;
+                          PresentationCallback presentation_callback) override;
+  gfx::SwapResult CommitOverlayPlanes(PresentationCallback callback) override;
+  void CommitOverlayPlanesAsync(
+      SwapCompletionCallback completion_callback,
+      PresentationCallback presentation_callback) override;
   void SetVSyncEnabled(bool enabled) override;
 
  private:
@@ -69,9 +59,7 @@ class PassThroughImageTransportSurface : public gl::GLSurfaceAdapter {
   void UpdateVSyncEnabled();
 
   void StartSwapBuffers(gfx::SwapResponse* response);
-  void FinishSwapBuffers(gfx::SwapResponse response,
-                         uint64_t local_swap_id,
-                         gfx::GpuFenceHandle release_fence);
+  void FinishSwapBuffers(gfx::SwapResponse response, uint64_t local_swap_id);
   void FinishSwapBuffersAsync(SwapCompletionCallback callback,
                               gfx::SwapResponse response,
                               uint64_t local_swap_id,
@@ -99,6 +87,8 @@ class PassThroughImageTransportSurface : public gl::GLSurfaceAdapter {
 
   base::WeakPtrFactory<PassThroughImageTransportSurface> weak_ptr_factory_{
       this};
+
+  DISALLOW_COPY_AND_ASSIGN(PassThroughImageTransportSurface);
 };
 
 }  // namespace gpu

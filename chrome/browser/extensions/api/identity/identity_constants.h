@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,7 @@ extern const char kSetAccountsInCookieFailure[];
 extern const char kInvalidConsentResult[];
 extern const char kCanceled[];
 
-extern const int kCachedRemoteConsentTTLSeconds;
+extern const int kCachedIssueAdviceTTLSeconds;
 }  // namespace identity_constants
 
 }  // namespace extensions

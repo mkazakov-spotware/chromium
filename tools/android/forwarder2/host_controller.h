@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread.h"
 #include "tools/android/forwarder2/forwarders_manager.h"
@@ -45,9 +46,6 @@ class HostController {
       int adb_port,
       int exit_notifier_fd,
       ErrorCallback error_callback);
-
-  HostController(const HostController&) = delete;
-  HostController& operator=(const HostController&) = delete;
 
   ~HostController();
 
@@ -91,6 +89,8 @@ class HostController {
   const scoped_refptr<base::SingleThreadTaskRunner> deletion_task_runner_;
   base::Thread thread_;
   ForwardersManager forwarders_manager_;
+
+  DISALLOW_COPY_AND_ASSIGN(HostController);
 };
 
 }  // namespace forwarder2

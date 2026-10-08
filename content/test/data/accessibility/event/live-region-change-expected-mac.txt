@@ -1,2 +1,1 @@
 AXLiveRegionChanged on AXGroup
-AXTitleChanged on AXStaticText AXValue='After'

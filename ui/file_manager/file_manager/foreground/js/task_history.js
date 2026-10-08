@@ -1,18 +1,12 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {dispatchSimpleEvent} from 'chrome://resources/ash/common/cr_deprecated.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/ash/common/event_target.js';
-
-import {util} from '../../common/js/util.js';
-import {xfm} from '../../common/js/xfm.js';
-
 /**
- * TaskHistory object keeps track of the history of task executions.
- * This is responsible for keeping the history in persistent xfm.storage, too.
+ * TaskHistory object keeps track of the histry of task executions.
+ * This is responsible for keeping the history in persistent storage, too.
  */
-export class TaskHistory extends EventTarget {
+class TaskHistory extends cr.EventTarget {
   constructor() {
     super();
 
@@ -23,16 +17,16 @@ export class TaskHistory extends EventTarget {
      */
     this.lastExecutedTime_ = {};
 
-    xfm.storage.onChanged.addListener(this.onLocalStorageChanged_.bind(this));
+    chrome.storage.onChanged.addListener(
+        this.onLocalStorageChanged_.bind(this));
     this.load_();
   }
 
   /**
    * Records the timing of task execution.
-   * @param {!chrome.fileManagerPrivate.FileTaskDescriptor} descriptor
+   * @param {string} taskId
    */
-  recordTaskExecuted(descriptor) {
-    const taskId = util.makeTaskID(descriptor);
+  recordTaskExecuted(taskId) {
     this.lastExecutedTime_[taskId] = Date.now();
     this.truncate_();
     this.save_();
@@ -41,38 +35,38 @@ export class TaskHistory extends EventTarget {
   /**
    * Gets the time stamp of last execution of given task. If the record is not
    * found, returns 0.
-   * @param {!chrome.fileManagerPrivate.FileTaskDescriptor} descriptor
+   * @param {string} taskId
    * @return {number}
    */
-  getLastExecutedTime(descriptor) {
-    const taskId = util.makeTaskID(descriptor);
+  getLastExecutedTime(taskId) {
     return this.lastExecutedTime_[taskId] ? this.lastExecutedTime_[taskId] : 0;
   }
 
   /**
-   * Loads current history from local xfm.storage.
+   * Loads current history from local storage.
    * @private
    */
   load_() {
-    xfm.storage.local.get(TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME, value => {
-      this.lastExecutedTime_ =
-          value[TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME] || {};
-    });
+    chrome.storage.local.get(
+        TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME, value => {
+          this.lastExecutedTime_ =
+              value[TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME] || {};
+        });
   }
 
   /**
-   * Saves current history to local xfm.storage.
+   * Saves current history to local storage.
    * @private
    */
   save_() {
     const objectToSave = {};
     objectToSave[TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME] =
         this.lastExecutedTime_;
-    xfm.storage.local.set(objectToSave);
+    chrome.storage.local.set(objectToSave);
   }
 
   /**
-   * Handles change event on xfm.storage to update current history.
+   * Handles change event on storage to update current history.
    * @param {!Object<string, !StorageChange>} changes
    * @param {string} areaName
    * @private
@@ -85,7 +79,7 @@ export class TaskHistory extends EventTarget {
     for (const key in changes) {
       if (key == TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME) {
         this.lastExecutedTime_ = changes[key].newValue;
-        dispatchSimpleEvent(this, TaskHistory.EventType.UPDATE);
+        cr.dispatchSimpleEvent(this, TaskHistory.EventType.UPDATE);
       }
     }
   }
@@ -122,11 +116,11 @@ export class TaskHistory extends EventTarget {
  * @enum {string}
  */
 TaskHistory.EventType = {
-  UPDATE: 'update',
+  UPDATE: 'update'
 };
 
 /**
- * This key is used to store the history in chrome's local xfm.storage.
+ * This key is used to store the history in chrome's local storage.
  * @const {string}
  */
 TaskHistory.STORAGE_KEY_LAST_EXECUTED_TIME = 'task-last-executed-time';

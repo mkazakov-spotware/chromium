@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 
 #include "base/bind.h"
 #include "base/debug/stack_trace.h"
+#include "base/macros.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "media/base/pipeline_status.h"
 #include "media/base/serial_runner.h"
@@ -20,10 +21,6 @@ class SerialRunnerTest : public ::testing::Test {
  public:
   SerialRunnerTest()
       : inside_start_(false), done_called_(false), done_status_(PIPELINE_OK) {}
-
-  SerialRunnerTest(const SerialRunnerTest&) = delete;
-  SerialRunnerTest& operator=(const SerialRunnerTest&) = delete;
-
   ~SerialRunnerTest() override = default;
 
   void RunSerialRunner() {
@@ -143,6 +140,8 @@ class SerialRunnerTest : public ::testing::Test {
   // Tracks whether the final done callback was called + resulting status.
   bool done_called_;
   PipelineStatus done_status_;
+
+  DISALLOW_COPY_AND_ASSIGN(SerialRunnerTest);
 };
 
 TEST_F(SerialRunnerTest, Empty) {

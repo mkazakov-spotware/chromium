@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,13 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/memory/ref_counted.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
 
 namespace base {
 class FilePath;
+class Time;
 }
 
 namespace content {
@@ -27,8 +29,15 @@ class HttpResponseHeaders;
 namespace extensions {
 
 using ExtensionProtocolTestHandler =
-    base::RepeatingCallback<void(base::FilePath* directory_path,
-                                 base::FilePath* relative_path)>;
+    base::Callback<void(base::FilePath* directory_path,
+                        base::FilePath* relative_path)>;
+
+// Builds HTTP headers for an extension request. Hashes the time to avoid
+// exposing the exact user installation time of the extension.
+scoped_refptr<net::HttpResponseHeaders> BuildHttpHeaders(
+    const std::string& content_security_policy,
+    bool send_cors_header,
+    const base::Time& last_modified_time);
 
 // Allows tests to set a special handler for chrome-extension:// urls. Note
 // that this goes through all the normal security checks; it's essentially a
@@ -52,8 +61,8 @@ CreateExtensionWorkerMainResourceURLLoaderFactory(
 
 // Creates a new network::mojom::URLLoaderFactory implementation suitable for
 // handling service worker main/imported script requests initiated by the
-// browser process to extension URLs when PlzServiceWorker is enabled or during
-// service worker update check.
+// browser process to extension URLs during service worker update check when
+// ServiceWorkerImportedScriptUpdateCheck is enabled.
 mojo::PendingRemote<network::mojom::URLLoaderFactory>
 CreateExtensionServiceWorkerScriptURLLoaderFactory(
     content::BrowserContext* browser_context);

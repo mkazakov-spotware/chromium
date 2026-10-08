@@ -1,11 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_ZOOM_ZOOM_EVENT_MANAGER_H_
 #define COMPONENTS_ZOOM_ZOOM_EVENT_MANAGER_H_
 
+#include <memory>
+
 #include "base/callback_list.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
@@ -25,10 +28,6 @@ class ZoomEventManagerObserver;
 class ZoomEventManager : public base::SupportsUserData::Data {
  public:
   ZoomEventManager();
-
-  ZoomEventManager(const ZoomEventManager&) = delete;
-  ZoomEventManager& operator=(const ZoomEventManager&) = delete;
-
   ~ZoomEventManager() override;
 
   // Returns the ZoomEventManager for the specified BrowserContext. This
@@ -43,7 +42,8 @@ class ZoomEventManager : public base::SupportsUserData::Data {
   // Add and remove zoom level changed callbacks.
   // TODO(wjmaclean): Convert this callback mechanism to use
   // ZoomEventManagerObserver instead.
-  base::CallbackListSubscription AddZoomLevelChangedCallback(
+  std::unique_ptr<content::HostZoomMap::Subscription>
+  AddZoomLevelChangedCallback(
       content::HostZoomMap::ZoomLevelChangedCallback callback);
 
   // Called by ZoomLevelDelegates when changes are made to the default zoom
@@ -62,11 +62,12 @@ class ZoomEventManager : public base::SupportsUserData::Data {
   }
 
  private:
-  base::RepeatingCallbackList<void(
-      const content::HostZoomMap::ZoomLevelChange&)>
+  base::CallbackList<void(const content::HostZoomMap::ZoomLevelChange&)>
       zoom_level_changed_callbacks_;
   base::ObserverList<ZoomEventManagerObserver>::Unchecked observers_;
   base::WeakPtrFactory<ZoomEventManager> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ZoomEventManager);
 };
 
 }  // namespace zoom

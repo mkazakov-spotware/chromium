@@ -1,105 +1,119 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {$} from 'chrome://resources/js/util_ts.js';
-import {setNodeDisplay, setNodePosition} from './util.js';
 
 /**
  * Base class to represent a "view". A view is an absolutely positioned box on
  * the page.
  */
-export class View {
-  constructor() {
+const View = (function() {
+  'use strict';
+
+  /**
+   * @constructor
+   */
+  function View() {
     this.isVisible_ = true;
   }
 
-  /**
-   * Called to reposition the view on the page. Measurements are in pixels.
-   */
-  setGeometry(left, top, width, height) {
-    this.left_ = left;
-    this.top_ = top;
-    this.width_ = width;
-    this.height_ = height;
-  }
+  View.prototype = {
+    /**
+     * Called to reposition the view on the page. Measurements are in pixels.
+     */
+    setGeometry(left, top, width, height) {
+      this.left_ = left;
+      this.top_ = top;
+      this.width_ = width;
+      this.height_ = height;
+    },
 
-  /**
-   * Called to show/hide the view.
-   */
-  show(isVisible) {
-    this.isVisible_ = isVisible;
-  }
+    /**
+     * Called to show/hide the view.
+     */
+    show(isVisible) {
+      this.isVisible_ = isVisible;
+    },
 
-  isVisible() {
-    return this.isVisible_;
-  }
+    isVisible() {
+      return this.isVisible_;
+    },
 
-  /**
-   * Method of the observer class.
-   *
-   * Called to check if an observer needs the data it is
-   * observing to be actively updated.
-   */
-  isActive() {
-    return this.isVisible();
-  }
+    /**
+     * Method of the observer class.
+     *
+     * Called to check if an observer needs the data it is
+     * observing to be actively updated.
+     */
+    isActive() {
+      return this.isVisible();
+    },
 
-  getLeft() {
-    return this.left_;
-  }
+    getLeft() {
+      return this.left_;
+    },
 
-  getTop() {
-    return this.top_;
-  }
+    getTop() {
+      return this.top_;
+    },
 
-  getWidth() {
-    return this.width_;
-  }
+    getWidth() {
+      return this.width_;
+    },
 
-  getHeight() {
-    return this.height_;
-  }
+    getHeight() {
+      return this.height_;
+    },
 
-  getRight() {
-    return this.getLeft() + this.getWidth();
-  }
+    getRight() {
+      return this.getLeft() + this.getWidth();
+    },
 
-  getBottom() {
-    return this.getTop() + this.getHeight();
-  }
+    getBottom() {
+      return this.getTop() + this.getHeight();
+    },
 
-  setParameters(params) {}
+    setParameters(params) {},
 
-  /**
-   * Called when loading a log file, after clearing all events, but before
-   * loading the new ones.  |polledData| contains the data from all
-   * PollableData helpers.  |tabData| contains the data for the particular
-   * tab.  |logDump| is the entire log dump, which includes the other two
-   * values.  It's included separately so most views don't have to depend on
-   * its specifics.
-   */
-  onLoadLogStart(polledData, tabData, logDump) {}
+    /**
+     * Called when loading a log file, after clearing all events, but before
+     * loading the new ones.  |polledData| contains the data from all
+     * PollableData helpers.  |tabData| contains the data for the particular
+     * tab.  |logDump| is the entire log dump, which includes the other two
+     * values.  It's included separately so most views don't have to depend on
+     * its specifics.
+     */
+    onLoadLogStart(polledData, tabData, logDump) {},
 
-  /**
-   * Called as the final step of loading a log file.  Arguments are the same
-   * as onLoadLogStart.  Returns true to indicate the tab should be shown,
-   * false otherwise.
-   */
-  onLoadLogFinish(polledData, tabData, logDump) {
-    return false;
-  }
-}
+    /**
+     * Called as the final step of loading a log file.  Arguments are the same
+     * as onLoadLogStart.  Returns true to indicate the tab should be shown,
+     * false otherwise.
+     */
+    onLoadLogFinish(polledData, tabData, logDump) {
+      return false;
+    }
+  };
+
+  return View;
+})();
 
 //-----------------------------------------------------------------------------
 
 /**
  * DivView is an implementation of View that wraps a DIV.
  */
-export class DivView extends View {
-  constructor(divId) {
+const DivView = (function() {
+  'use strict';
+
+  // We inherit from View.
+  const superClass = View;
+
+  /**
+   * @constructor
+   */
+  function DivView(divId) {
     // Call superclass's constructor.
-    super();
+    superClass.call(this);
 
     this.node_ = $(divId);
     if (!this.node_) {
@@ -109,28 +123,36 @@ export class DivView extends View {
     // Initialize the default values to those of the DIV.
     this.width_ = this.node_.offsetWidth;
     this.height_ = this.node_.offsetHeight;
-    this.isVisible_ = this.node_.style.display !== 'none';
+    this.isVisible_ = this.node_.style.display != 'none';
   }
 
-  setGeometry(left, top, width, height) {
-    super.setGeometry(this, left, top, width, height);
+  DivView.prototype = {
+    // Inherit the superclass's methods.
+    __proto__: superClass.prototype,
 
-    this.node_.style.position = 'absolute';
-    setNodePosition(this.node_, left, top, width, height);
-  }
+    setGeometry(left, top, width, height) {
+      superClass.prototype.setGeometry.call(this, left, top, width, height);
 
-  show(isVisible) {
-    super.show(isVisible);
-    setNodeDisplay(this.node_, isVisible);
-  }
+      this.node_.style.position = 'absolute';
+      setNodePosition(this.node_, left, top, width, height);
+    },
 
-  /**
-   * Returns the wrapped DIV
-   */
-  getNode() {
-    return this.node_;
-  }
-}
+    show(isVisible) {
+      superClass.prototype.show.call(this, isVisible);
+      setNodeDisplay(this.node_, isVisible);
+    },
+
+    /**
+     * Returns the wrapped DIV
+     */
+    getNode() {
+      return this.node_;
+    }
+  };
+
+  return DivView;
+})();
+
 
 //-----------------------------------------------------------------------------
 
@@ -139,31 +161,46 @@ export class DivView extends View {
  *
  * @param {!View} childView The child view.
  */
-export class WindowView extends View {
-  constructor(childView) {
+const WindowView = (function() {
+  'use strict';
+
+  // We inherit from View.
+  const superClass = View;
+
+  /**
+   * @constructor
+   */
+  function WindowView(childView) {
     // Call superclass's constructor.
-    super();
+    superClass.call(this);
 
     this.childView_ = childView;
     window.addEventListener('resize', this.resetGeometry.bind(this), true);
   }
 
-  setGeometry(left, top, width, height) {
-    super.setGeometry(this, left, top, width, height);
-    this.childView_.setGeometry(left, top, width, height);
-  }
+  WindowView.prototype = {
+    // Inherit the superclass's methods.
+    __proto__: superClass.prototype,
 
-  show() {
-    super.show(isVisible);
-    this.childView_.show(isVisible);
-  }
+    setGeometry(left, top, width, height) {
+      superClass.prototype.setGeometry.call(this, left, top, width, height);
+      this.childView_.setGeometry(left, top, width, height);
+    },
 
-  resetGeometry() {
-    this.setGeometry(
-        0, 0, document.documentElement.clientWidth,
-        document.documentElement.clientHeight);
-  }
-}
+    show() {
+      superClass.prototype.show.call(this, isVisible);
+      this.childView_.show(isVisible);
+    },
+
+    resetGeometry() {
+      this.setGeometry(
+          0, 0, document.documentElement.clientWidth,
+          document.documentElement.clientHeight);
+    }
+  };
+
+  return WindowView;
+})();
 
 /**
  * View that positions two views vertically. The top view should be
@@ -182,36 +219,49 @@ export class WindowView extends View {
  *  |                                   |
  *  +-----------------------------------+
  */
-export class VerticalSplitView extends View {
+const VerticalSplitView = (function() {
+  'use strict';
+
+  // We inherit from View.
+  const superClass = View;
+
   /**
    * @param {!View} topView The top view.
    * @param {!View} bottomView The bottom view.
+   * @constructor
    */
-  constructor(topView, bottomView) {
+  function VerticalSplitView(topView, bottomView) {
     // Call superclass's constructor.
-    super();
+    superClass.call(this);
 
     this.topView_ = topView;
     this.bottomView_ = bottomView;
   }
 
-  setGeometry(left, top, width, height) {
-    super.setGeometry(this, left, top, width, height);
+  VerticalSplitView.prototype = {
+    // Inherit the superclass's methods.
+    __proto__: superClass.prototype,
 
-    const fixedHeight = this.topView_.getHeight();
-    this.topView_.setGeometry(left, top, width, fixedHeight);
+    setGeometry(left, top, width, height) {
+      superClass.prototype.setGeometry.call(this, left, top, width, height);
 
-    this.bottomView_.setGeometry(
-        left, top + fixedHeight, width, height - fixedHeight);
-  }
+      const fixedHeight = this.topView_.getHeight();
+      this.topView_.setGeometry(left, top, width, fixedHeight);
 
-  show(isVisible) {
-    super.show(isVisible);
+      this.bottomView_.setGeometry(
+          left, top + fixedHeight, width, height - fixedHeight);
+    },
 
-    this.topView_.show(isVisible);
-    this.bottomView_.show(isVisible);
-  }
-}
+    show(isVisible) {
+      superClass.prototype.show.call(this, isVisible);
+
+      this.topView_.show(isVisible);
+      this.bottomView_.show(isVisible);
+    }
+  };
+
+  return VerticalSplitView;
+})();
 
 /**
  * View that positions two views horizontally. The left view should be
@@ -231,33 +281,46 @@ export class VerticalSplitView extends View {
  *  |          |                          |
  *  +----------+--------------------------+
  */
-export class HorizontalSplitView extends View {
+const HorizontalSplitView = (function() {
+  'use strict';
+
+  // We inherit from View.
+  const superClass = View;
+
   /**
    * @param {!View} leftView The left view.
    * @param {!View} rightView The right view.
+   * @constructor
    */
-  constructor(leftView, rightView) {
+  function HorizontalSplitView(leftView, rightView) {
     // Call superclass's constructor.
-    super();
+    superClass.call(this);
 
     this.leftView_ = leftView;
     this.rightView_ = rightView;
   }
 
-  setGeometry(left, top, width, height) {
-    super.setGeometry(left, top, width, height);
+  HorizontalSplitView.prototype = {
+    // Inherit the superclass's methods.
+    __proto__: superClass.prototype,
 
-    const fixedWidth = this.leftView_.getWidth();
-    this.leftView_.setGeometry(left, top, fixedWidth, height);
+    setGeometry(left, top, width, height) {
+      superClass.prototype.setGeometry.call(this, left, top, width, height);
 
-    this.rightView_.setGeometry(
-        left + fixedWidth, top, width - fixedWidth, height);
-  }
+      const fixedWidth = this.leftView_.getWidth();
+      this.leftView_.setGeometry(left, top, fixedWidth, height);
 
-  show(isVisible) {
-    super.show(isVisible);
+      this.rightView_.setGeometry(
+          left + fixedWidth, top, width - fixedWidth, height);
+    },
 
-    this.leftView_.show(isVisible);
-    this.rightView_.show(isVisible);
-  }
-}
+    show(isVisible) {
+      superClass.prototype.show.call(this, isVisible);
+
+      this.leftView_.show(isVisible);
+      this.rightView_.show(isVisible);
+    }
+  };
+
+  return HorizontalSplitView;
+})();

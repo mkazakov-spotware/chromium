@@ -1,4 +1,4 @@
-// Copyright 2014 The Crashpad Authors
+// Copyright 2014 The Crashpad Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ bool ProcessSnapshotMac::Initialize(task_t task) {
     return false;
   }
 
-  client_id_.InitializeToZero();
   system_.Initialize(&process_reader_, &snapshot_time_);
 
   InitializeThreads();

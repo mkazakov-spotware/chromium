@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 #define CHROME_BROWSER_UI_AUTOFILL_PAYMENTS_SAVE_CARD_BUBBLE_CONTROLLER_H_
 
 #include <memory>
-#include <string>
 #include <vector>
 
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "components/autofill/core/browser/autofill_client.h"
 #include "components/autofill/core/browser/payments/legal_message_line.h"
 #include "components/autofill/core/browser/sync_utils.h"
@@ -19,18 +20,20 @@
 
 class Profile;
 
+namespace signin_metrics {
+enum class AccessPoint;
+}
+
 namespace autofill {
 
 class CreditCard;
-class AutofillBubbleBase;
+class SaveCardBubbleView;
 enum class BubbleType;
 
-// Interface that exposes controller functionality to save card bubbles.
+// Interface that exposes controller functionality to SaveCardBubbleView.
 class SaveCardBubbleController {
  public:
   SaveCardBubbleController() = default;
-  SaveCardBubbleController(const SaveCardBubbleController&) = delete;
-  SaveCardBubbleController& operator=(const SaveCardBubbleController&) = delete;
   virtual ~SaveCardBubbleController() = default;
 
   // Returns a reference to the SaveCardBubbleController associated with the
@@ -45,18 +48,18 @@ class SaveCardBubbleController {
   static SaveCardBubbleController* Get(content::WebContents* web_contents);
 
   // Returns the title that should be displayed in the bubble.
-  virtual std::u16string GetWindowTitle() const = 0;
+  virtual base::string16 GetWindowTitle() const = 0;
 
   // Returns the explanatory text that should be displayed in the bubble.
   // Returns an empty string if no message should be displayed.
-  virtual std::u16string GetExplanatoryMessage() const = 0;
+  virtual base::string16 GetExplanatoryMessage() const = 0;
 
   // Returns the button label text for save card bubbles.
-  virtual std::u16string GetAcceptButtonText() const = 0;
-  virtual std::u16string GetDeclineButtonText() const = 0;
+  virtual base::string16 GetAcceptButtonText() const = 0;
+  virtual base::string16 GetDeclineButtonText() const = 0;
 
   // Returns the account info of the signed-in user.
-  virtual const AccountInfo& GetAccountInfo() = 0;
+  virtual const AccountInfo& GetAccountInfo() const = 0;
 
   // Returns the profile.
   virtual Profile* GetProfile() const = 0;
@@ -66,7 +69,7 @@ class SaveCardBubbleController {
 
   // Returns the currently active save card bubble view. Can be nullptr if no
   // bubble is visible.
-  virtual AutofillBubbleBase* GetSaveCardBubbleView() const = 0;
+  virtual SaveCardBubbleView* GetSaveCardBubbleView() const = 0;
 
   // Returns whether the dialog should include a textfield requesting the user
   // to confirm/provide cardholder name.
@@ -76,7 +79,14 @@ class SaveCardBubbleController {
   // allowing the user to provide expiration date.
   virtual bool ShouldRequestExpirationDateFromUser() const = 0;
 
+  // Returns whether or not a sign in / sync promo needs to be shown.
+  virtual bool ShouldShowSignInPromo() const = 0;
+
   // Interaction.
+  // OnSyncPromoAccepted is called when the Dice Sign-in promo is clicked.
+  virtual void OnSyncPromoAccepted(
+      const AccountInfo& account,
+      signin_metrics::AccessPoint access_point) = 0;
   // OnSaveButton takes in a struct representing the cardholder name,
   // expiration date month and expiration date year confirmed/entered by the
   // user if they were requested, or struct with empty strings otherwise.
@@ -97,6 +107,9 @@ class SaveCardBubbleController {
   virtual BubbleType GetBubbleType() const = 0;
   // Returns the current sync state.
   virtual AutofillSyncSigninState GetSyncState() const = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SaveCardBubbleController);
 };
 
 }  // namespace autofill

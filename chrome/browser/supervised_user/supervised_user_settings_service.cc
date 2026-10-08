@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,10 @@
 #include "base/callback.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
-#include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
-#include "chrome/browser/supervised_user/supervised_user_constants.h"
 #include "chrome/browser/supervised_user/supervised_user_url_filter.h"
 #include "chrome/common/chrome_constants.h"
 #include "components/prefs/json_pref_store.h"
@@ -25,10 +23,10 @@
 #include "components/sync/model/sync_change.h"
 #include "components/sync/model/sync_change_processor.h"
 #include "components/sync/model/sync_error_factory.h"
-#include "components/sync/protocol/entity_specifics.pb.h"
-#include "components/sync/protocol/managed_user_setting_specifics.pb.h"
+#include "components/sync/protocol/sync.pb.h"
 #include "content/public/browser/browser_thread.h"
 
+using base::DictionaryValue;
 using base::JSONReader;
 using base::UserMetricsAction;
 using base::Value;
@@ -56,40 +54,12 @@ bool SettingShouldApplyToPrefs(const std::string& name) {
                            base::CompareCase::INSENSITIVE_ASCII);
 }
 
-bool SyncChangeIsNewWebsiteApproval(const std::string& name,
-                                    SyncChange::SyncChangeType change_type,
-                                    base::Value* old_value,
-                                    base::Value* new_value) {
-  bool is_host_permission_change =
-      base::StartsWith(name, supervised_users::kContentPackManualBehaviorHosts,
-                       base::CompareCase::INSENSITIVE_ASCII);
-  if (!is_host_permission_change)
-    return false;
-  switch (change_type) {
-    case SyncChange::ACTION_ADD:
-    case SyncChange::ACTION_UPDATE: {
-      DCHECK(new_value && new_value->is_bool());
-      // The change is a new approval if the new value is true, i.e. a new host
-      // is manually allowlisted.
-      return new_value->GetIfBool().value_or(false);
-    }
-    case SyncChange::ACTION_DELETE: {
-      DCHECK(old_value && old_value->is_bool());
-      // The change is a new approval if the old value was false, i.e. a host
-      // that was manually blocked isn't anymore.
-      return !old_value->GetIfBool().value_or(true);
-    }
-    default: {
-      NOTREACHED();
-      return false;
-    }
-  }
-}
-
 }  // namespace
 
 SupervisedUserSettingsService::SupervisedUserSettingsService()
-    : active_(false), initialization_failed_(false) {}
+    : active_(false),
+      initialization_failed_(false),
+      local_settings_(new base::DictionaryValue) {}
 
 SupervisedUserSettingsService::~SupervisedUserSettingsService() {}
 
@@ -117,35 +87,20 @@ void SupervisedUserSettingsService::Init(
   store_->AddObserver(this);
 }
 
-base::CallbackListSubscription
+std::unique_ptr<
+    SupervisedUserSettingsService::SettingsCallbackList::Subscription>
 SupervisedUserSettingsService::SubscribeForSettingsChange(
     const SettingsCallback& callback) {
   if (IsReady()) {
-    base::Value::Dict settings = GetSettingsWithDefault();
-    callback.Run(std::move(settings));
+    std::unique_ptr<base::DictionaryValue> settings = GetSettings();
+    callback.Run(settings.get());
   }
 
   return settings_callback_list_.Add(callback);
 }
 
-base::CallbackListSubscription
-SupervisedUserSettingsService::SubscribeForNewWebsiteApproval(
-    const WebsiteApprovalCallback& callback) {
-  return website_approval_callback_list_.Add(callback);
-}
-
-void SupervisedUserSettingsService::RecordLocalWebsiteApproval(
-    const std::string& host) {
-  // Write the sync setting.
-  std::string setting_key = MakeSplitSettingKey(
-      supervised_users::kContentPackManualBehaviorHosts, host);
-  SaveItem(setting_key, std::make_unique<base::Value>(true));
-
-  // Now notify subscribers of the updates.
-  website_approval_callback_list_.Notify(setting_key);
-}
-
-base::CallbackListSubscription
+std::unique_ptr<
+    SupervisedUserSettingsService::ShutdownCallbackList::Subscription>
 SupervisedUserSettingsService::SubscribeForShutdown(
     const ShutdownCallback& callback) {
   return shutdown_callback_list_.Add(callback);
@@ -153,25 +108,6 @@ SupervisedUserSettingsService::SubscribeForShutdown(
 
 void SupervisedUserSettingsService::SetActive(bool active) {
   active_ = active;
-
-  if (active_) {
-    // Child account supervised users must be signed in.
-    SetLocalSetting(supervised_users::kSigninAllowed,
-                    std::make_unique<base::Value>(true));
-
-    // Always allow cookies, to avoid website compatibility issues.
-    SetLocalSetting(supervised_users::kCookiesAlwaysAllowed,
-                    std::make_unique<base::Value>(true));
-
-    // SafeSearch and GeolocationDisabled are controlled at the account level,
-    // so don't override them client-side.
-  } else {
-    SetLocalSetting(supervised_users::kSigninAllowed, nullptr);
-    SetLocalSetting(supervised_users::kCookiesAlwaysAllowed, nullptr);
-    SetLocalSetting(supervised_users::kForceSafeSearch, nullptr);
-    SetLocalSetting(supervised_users::kGeolocationDisabled, nullptr);
-  }
-
   InformSubscribers();
 }
 
@@ -195,23 +131,29 @@ std::string SupervisedUserSettingsService::MakeSplitSettingKey(
   return prefix + kSplitSettingKeySeparator + key;
 }
 
-void SupervisedUserSettingsService::SaveItem(
+void SupervisedUserSettingsService::UploadItem(
     const std::string& key,
     std::unique_ptr<base::Value> value) {
-  // Update the value in our local dict, and push the changes to sync.
+  DCHECK(!SettingShouldApplyToPrefs(key));
+  PushItemToSync(key, std::move(value));
+}
+
+void SupervisedUserSettingsService::PushItemToSync(
+    const std::string& key,
+    std::unique_ptr<base::Value> value) {
   std::string key_suffix = key;
-  base::Value::Dict* dict = nullptr;
+  base::DictionaryValue* dict = nullptr;
   if (sync_processor_) {
     base::RecordAction(UserMetricsAction("ManagedUsers_UploadItem_Syncing"));
     dict = GetDictionaryAndSplitKey(&key_suffix);
     DCHECK(GetQueuedItems()->empty());
     SyncChangeList change_list;
     SyncData data = CreateSyncDataForSetting(key, *value);
-    SyncChange::SyncChangeType change_type = dict->Find(key_suffix)
-                                                 ? SyncChange::ACTION_UPDATE
-                                                 : SyncChange::ACTION_ADD;
+    SyncChange::SyncChangeType change_type =
+        dict->HasKey(key_suffix) ? SyncChange::ACTION_UPDATE
+                                 : SyncChange::ACTION_ADD;
     change_list.push_back(SyncChange(FROM_HERE, change_type, data));
-    absl::optional<ModelError> error =
+    base::Optional<ModelError> error =
         sync_processor_->ProcessSyncChanges(FROM_HERE, change_list);
     DCHECK(!error.has_value()) << error.value().ToString();
   } else {
@@ -220,25 +162,16 @@ void SupervisedUserSettingsService::SaveItem(
     base::RecordAction(UserMetricsAction("ManagedUsers_UploadItem_Queued"));
     dict = GetQueuedItems();
   }
-  dict->Set(key_suffix, base::Value::FromUniquePtrValue(std::move(value)));
-
-  // Now notify subscribers of the updates.
-  // For simplicity and consistency with ProcessSyncChanges() we notify both
-  // settings keys.
-  store_->ReportValueChanged(kAtomicSettings,
-                             WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
-  store_->ReportValueChanged(kSplitSettings,
-                             WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
-  InformSubscribers();
+  dict->SetWithoutPathExpansion(key_suffix, std::move(value));
 }
 
 void SupervisedUserSettingsService::SetLocalSetting(
     const std::string& key,
     std::unique_ptr<base::Value> value) {
   if (value)
-    local_settings_.Set(key, base::Value::FromUniquePtrValue(std::move(value)));
+    local_settings_->SetWithoutPathExpansion(key, std::move(value));
   else
-    local_settings_.Remove(key);
+    local_settings_->RemoveKey(key);
 
   InformSubscribers();
 }
@@ -271,7 +204,7 @@ void SupervisedUserSettingsService::WaitUntilReadyToSync(
   }
 }
 
-absl::optional<syncer::ModelError>
+base::Optional<syncer::ModelError>
 SupervisedUserSettingsService::MergeDataAndStartSyncing(
     ModelType type,
     const SyncDataList& initial_sync_data,
@@ -282,20 +215,23 @@ SupervisedUserSettingsService::MergeDataAndStartSyncing(
   error_handler_ = std::move(error_handler);
 
   std::set<std::string> seen_keys;
-  for (const auto it : *GetAtomicSettings()) {
-    seen_keys.insert(it.first);
+  for (base::DictionaryValue::Iterator it(*GetAtomicSettings()); !it.IsAtEnd();
+       it.Advance()) {
+    seen_keys.insert(it.key());
   }
   // Getting number of split setting items.
-  for (const auto it : *GetSplitSettings()) {
-    const base::Value& split_setting = it.second;
-    DCHECK(split_setting.is_dict());
-    for (const auto jt : split_setting.GetDict()) {
-      seen_keys.insert(MakeSplitSettingKey(it.first, jt.first));
+  for (base::DictionaryValue::Iterator it(*GetSplitSettings()); !it.IsAtEnd();
+       it.Advance()) {
+    const base::DictionaryValue* dict = nullptr;
+    it.value().GetAsDictionary(&dict);
+    for (base::DictionaryValue::Iterator jt(*dict); !jt.IsAtEnd();
+         jt.Advance()) {
+      seen_keys.insert(MakeSplitSettingKey(it.key(), jt.key()));
     }
   }
 
   // Getting number of queued items.
-  base::Value::Dict* queued_items = GetQueuedItems();
+  base::DictionaryValue* queued_items = GetQueuedItems();
 
   // Clear all atomic and split settings, then recreate them from Sync data.
   Clear();
@@ -307,7 +243,7 @@ SupervisedUserSettingsService::MergeDataAndStartSyncing(
     std::unique_ptr<base::Value> value =
         JSONReader::ReadDeprecated(supervised_user_setting.value());
     // Wrongly formatted input will cause null values.
-    // SetKey below requires non-null values.
+    // SetWithoutPathExpansion below requires non-null values.
     if (!value) {
       DLOG(ERROR) << "Invalid managed user setting value: "
                   << supervised_user_setting.value()
@@ -316,8 +252,8 @@ SupervisedUserSettingsService::MergeDataAndStartSyncing(
     }
     std::string name_suffix = supervised_user_setting.name();
     std::string name_key = name_suffix;
-    base::Value::Dict* dict = GetDictionaryAndSplitKey(&name_suffix);
-    dict->Set(name_suffix, std::move(*value));
+    base::DictionaryValue* dict = GetDictionaryAndSplitKey(&name_suffix);
+    dict->SetWithoutPathExpansion(name_suffix, std::move(value));
     if (seen_keys.find(name_key) == seen_keys.end()) {
       added_sync_keys.insert(name_key);
     }
@@ -332,18 +268,19 @@ SupervisedUserSettingsService::MergeDataAndStartSyncing(
   // Upload all the queued up items (either with an ADD or an UPDATE action,
   // depending on whether they already exist) and move them to split settings.
   SyncChangeList change_list;
-  for (const auto it : *queued_items) {
-    std::string key_suffix = it.first;
+  for (base::DictionaryValue::Iterator it(*queued_items); !it.IsAtEnd();
+       it.Advance()) {
+    std::string key_suffix = it.key();
     std::string name_key = key_suffix;
-    base::Value::Dict* dict = GetDictionaryAndSplitKey(&key_suffix);
-    SyncData data = CreateSyncDataForSetting(it.first, it.second);
-    SyncChange::SyncChangeType change_type = dict->Find(key_suffix)
-                                                 ? SyncChange::ACTION_UPDATE
-                                                 : SyncChange::ACTION_ADD;
+    base::DictionaryValue* dict = GetDictionaryAndSplitKey(&key_suffix);
+    SyncData data = CreateSyncDataForSetting(it.key(), it.value());
+    SyncChange::SyncChangeType change_type =
+        dict->HasKey(key_suffix) ? SyncChange::ACTION_UPDATE
+                                 : SyncChange::ACTION_ADD;
     change_list.push_back(SyncChange(FROM_HERE, change_type, data));
-    dict->Set(key_suffix, it.second.Clone());
+    dict->SetKey(key_suffix, it.value().Clone());
   }
-  queued_items->clear();
+  queued_items->Clear();
 
   // Process all the accumulated changes from the queued items.
   if (!change_list.empty()) {
@@ -352,7 +289,7 @@ SupervisedUserSettingsService::MergeDataAndStartSyncing(
     return sync_processor_->ProcessSyncChanges(FROM_HERE, change_list);
   }
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void SupervisedUserSettingsService::StopSyncing(ModelType type) {
@@ -365,22 +302,25 @@ SyncDataList SupervisedUserSettingsService::GetAllSyncDataForTesting(
     ModelType type) const {
   DCHECK_EQ(syncer::SUPERVISED_USER_SETTINGS, type);
   SyncDataList data;
-  for (const auto it : *GetAtomicSettings()) {
-    data.push_back(CreateSyncDataForSetting(it.first, it.second));
+  for (base::DictionaryValue::Iterator it(*GetAtomicSettings()); !it.IsAtEnd();
+       it.Advance()) {
+    data.push_back(CreateSyncDataForSetting(it.key(), it.value()));
   }
-  for (const auto it : *GetSplitSettings()) {
-    const base::Value& split_setting = it.second;
-    DCHECK(split_setting.is_dict());
-    for (const auto jt : split_setting.DictItems()) {
+  for (base::DictionaryValue::Iterator it(*GetSplitSettings()); !it.IsAtEnd();
+       it.Advance()) {
+    const base::DictionaryValue* dict = nullptr;
+    it.value().GetAsDictionary(&dict);
+    for (base::DictionaryValue::Iterator jt(*dict);
+         !jt.IsAtEnd(); jt.Advance()) {
       data.push_back(CreateSyncDataForSetting(
-          MakeSplitSettingKey(it.first, jt.first), jt.second));
+          MakeSplitSettingKey(it.key(), jt.key()), jt.value()));
     }
   }
   DCHECK_EQ(0u, GetQueuedItems()->size());
   return data;
 }
 
-absl::optional<syncer::ModelError>
+base::Optional<syncer::ModelError>
 SupervisedUserSettingsService::ProcessSyncChanges(
     const base::Location& from_here,
     const SyncChangeList& change_list) {
@@ -390,47 +330,33 @@ SupervisedUserSettingsService::ProcessSyncChanges(
     const ::sync_pb::ManagedUserSettingSpecifics& supervised_user_setting =
         data.GetSpecifics().managed_user_setting();
     std::string key = supervised_user_setting.name();
-    base::Value::Dict* dict = GetDictionaryAndSplitKey(&key);
-    base::Value* old_value = dict->Find(key);
-    base::Value old_value_for_delete;
+    base::DictionaryValue* dict = GetDictionaryAndSplitKey(&key);
     SyncChange::SyncChangeType change_type = sync_change.change_type();
-    base::Value* new_value = nullptr;
-
     switch (change_type) {
       case SyncChange::ACTION_ADD:
       case SyncChange::ACTION_UPDATE: {
-        absl::optional<base::Value> value =
-            JSONReader::Read(supervised_user_setting.value());
-        if (old_value) {
+        std::unique_ptr<base::Value> value =
+            JSONReader::ReadDeprecated(supervised_user_setting.value());
+        if (dict->HasKey(key)) {
           DLOG_IF(WARNING, change_type == SyncChange::ACTION_ADD)
               << "Value for key " << key << " already exists";
         } else {
           DLOG_IF(WARNING, change_type == SyncChange::ACTION_UPDATE)
               << "Value for key " << key << " doesn't exist yet";
         }
-        DLOG_IF(WARNING, !value.has_value())
-            << "Invalid supervised_user_setting: "
-            << supervised_user_setting.value();
-        if (!value.has_value())
-          continue;
-        new_value = dict->Set(key, std::move(*value));
+        dict->SetWithoutPathExpansion(key, std::move(value));
         break;
       }
       case SyncChange::ACTION_DELETE: {
-        DLOG_IF(WARNING, !old_value)
-            << "Trying to delete nonexistent key " << key;
-        if (!old_value)
-          continue;
-        old_value_for_delete = old_value->Clone();
-        old_value = &old_value_for_delete;
-        dict->Remove(key);
+        DLOG_IF(WARNING, !dict->HasKey(key)) << "Trying to delete nonexistent "
+                                             << "key " << key;
+        dict->RemoveKey(key);
         break;
       }
-    }
-
-    if (SyncChangeIsNewWebsiteApproval(supervised_user_setting.name(),
-                                       change_type, old_value, new_value)) {
-      website_approval_callback_list_.Notify(key);
+      case SyncChange::ACTION_INVALID: {
+        NOTREACHED();
+        break;
+      }
     }
   }
   store_->ReportValueChanged(kAtomicSettings,
@@ -439,7 +365,7 @@ SupervisedUserSettingsService::ProcessSyncChanges(
                              WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
   InformSubscribers();
 
-  return absl::nullopt;
+  return base::nullopt;
 }
 
 void SupervisedUserSettingsService::OnPrefValueChanged(const std::string& key) {
@@ -462,69 +388,81 @@ void SupervisedUserSettingsService::OnInitializationCompleted(bool success) {
   InformSubscribers();
 }
 
-const base::Value::Dict& SupervisedUserSettingsService::LocalSettingsForTest()
-    const {
-  return local_settings_;
+const base::DictionaryValue*
+SupervisedUserSettingsService::LocalSettingsForTest() const {
+  return local_settings_.get();
 }
 
-base::Value::Dict* SupervisedUserSettingsService::GetDictionaryAndSplitKey(
+base::DictionaryValue* SupervisedUserSettingsService::GetDictionaryAndSplitKey(
     std::string* key) const {
   size_t pos = key->find_first_of(kSplitSettingKeySeparator);
   if (pos == std::string::npos)
     return GetAtomicSettings();
 
-  base::Value::Dict* split_settings = GetSplitSettings();
+  base::DictionaryValue* split_settings = GetSplitSettings();
   std::string prefix = key->substr(0, pos);
-  base::Value::Dict* dict = split_settings->EnsureDict(prefix);
+  base::DictionaryValue* dict = nullptr;
+  if (!split_settings->GetDictionary(prefix, &dict)) {
+    DCHECK(!split_settings->HasKey(prefix));
+    dict = split_settings->SetDictionary(
+        prefix, std::make_unique<base::DictionaryValue>());
+  }
   key->erase(0, pos + 1);
   return dict;
 }
 
-base::Value::Dict* SupervisedUserSettingsService::GetOrCreateDictionary(
+base::DictionaryValue* SupervisedUserSettingsService::GetOrCreateDictionary(
     const std::string& key) const {
   base::Value* value = nullptr;
   if (!store_->GetMutableValue(key, &value)) {
-    store_->SetValue(key, base::Value(base::Value::Dict()),
-                     WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
+    store_->SetValue(
+        key, std::make_unique<base::Value>(base::Value::Type::DICTIONARY),
+        WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
     store_->GetMutableValue(key, &value);
   }
-  DCHECK(value->is_dict());
-  return &value->GetDict();
+  base::DictionaryValue* dict = nullptr;
+  bool success = value->GetAsDictionary(&dict);
+  DCHECK(success);
+  return dict;
 }
 
-base::Value::Dict* SupervisedUserSettingsService::GetAtomicSettings() const {
+base::DictionaryValue*
+SupervisedUserSettingsService::GetAtomicSettings() const {
   return GetOrCreateDictionary(kAtomicSettings);
 }
 
-base::Value::Dict* SupervisedUserSettingsService::GetSplitSettings() const {
+base::DictionaryValue* SupervisedUserSettingsService::GetSplitSettings() const {
   return GetOrCreateDictionary(kSplitSettings);
 }
 
-base::Value::Dict* SupervisedUserSettingsService::GetQueuedItems() const {
+base::DictionaryValue* SupervisedUserSettingsService::GetQueuedItems() const {
   return GetOrCreateDictionary(kQueuedItems);
 }
 
-base::Value::Dict SupervisedUserSettingsService::GetSettingsWithDefault() {
+std::unique_ptr<base::DictionaryValue>
+SupervisedUserSettingsService::GetSettings() {
   DCHECK(IsReady());
   if (!active_ || initialization_failed_)
-    return base::Value::Dict();
+    return std::unique_ptr<base::DictionaryValue>();
 
-  base::Value::Dict settings(local_settings_.Clone());
+  std::unique_ptr<base::DictionaryValue> settings(local_settings_->DeepCopy());
 
-  base::Value::Dict* atomic_settings = GetAtomicSettings();
-  for (const auto it : *atomic_settings) {
-    if (!SettingShouldApplyToPrefs(it.first))
+  base::DictionaryValue* atomic_settings = GetAtomicSettings();
+  for (base::DictionaryValue::Iterator it(*atomic_settings); !it.IsAtEnd();
+       it.Advance()) {
+    if (!SettingShouldApplyToPrefs(it.key()))
       continue;
 
-    settings.Set(it.first, it.second.Clone());
+    settings->Set(it.key(), std::make_unique<base::Value>(it.value().Clone()));
   }
 
-  base::Value::Dict* split_settings = GetSplitSettings();
-  for (const auto it : *split_settings) {
-    if (!SettingShouldApplyToPrefs(it.first))
+  base::DictionaryValue* split_settings = GetSplitSettings();
+  for (base::DictionaryValue::Iterator it(*split_settings); !it.IsAtEnd();
+       it.Advance()) {
+    if (!SettingShouldApplyToPrefs(it.key()))
       continue;
 
-    settings.Set(it.first, it.second.Clone());
+    settings->Set(it.key(), std::make_unique<base::Value>(it.value().Clone()));
   }
 
   return settings;
@@ -534,6 +472,6 @@ void SupervisedUserSettingsService::InformSubscribers() {
   if (!IsReady())
     return;
 
-  base::Value::Dict settings = GetSettingsWithDefault();
-  settings_callback_list_.Notify(std::move(settings));
+  std::unique_ptr<base::DictionaryValue> settings = GetSettings();
+  settings_callback_list_.Notify(settings.get());
 }

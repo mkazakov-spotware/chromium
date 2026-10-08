@@ -1,18 +1,21 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_SCHEDULER_MAIN_THREAD_RENDER_WIDGET_SIGNALS_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_SCHEDULER_MAIN_THREAD_RENDER_WIDGET_SIGNALS_H_
 
+#include <memory>
+
+#include "base/trace_event/trace_event.h"
+#include "base/trace_event/traced_value.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 
 namespace blink {
 namespace scheduler {
 
-class WidgetSchedulerImpl;
+class WebRenderWidgetSchedulingState;
 
 class PLATFORM_EXPORT RenderWidgetSignals {
   USING_FAST_MALLOC(RenderWidgetSignals);
@@ -37,10 +40,13 @@ class PLATFORM_EXPORT RenderWidgetSignals {
 
   explicit RenderWidgetSignals(Observer* observer);
 
-  void WriteIntoTrace(perfetto::TracedValue context) const;
+  std::unique_ptr<WebRenderWidgetSchedulingState>
+  NewRenderWidgetSchedulingState();
+
+  void AsValueInto(base::trace_event::TracedValue* state) const;
 
  private:
-  friend class WidgetSchedulerImpl;
+  friend class WebRenderWidgetSchedulingState;
 
   void IncNumVisibleRenderWidgets();
   void DecNumVisibleRenderWidgets();

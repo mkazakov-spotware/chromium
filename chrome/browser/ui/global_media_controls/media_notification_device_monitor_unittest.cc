@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,8 @@ class MockDevicesChangedObserver
 class MockMediaNotificationDeviceProvider
     : public MediaNotificationDeviceProvider {
  public:
-  MOCK_METHOD(base::CallbackListSubscription,
+  MOCK_METHOD(std::unique_ptr<MediaNotificationDeviceProvider::
+                                  GetOutputDevicesCallbackList::Subscription>,
               RegisterOutputDeviceDescriptionsCallback,
               (GetOutputDevicesCallback cb),
               (override));
@@ -53,14 +54,14 @@ TEST_F(PollingDeviceMonitorImplTest, DeviceChangeNotifiesObserver) {
   provider.device_descriptions.emplace_back("1", "1", "1");
   EXPECT_CALL(observer, OnDevicesChanged).Times(1);
   monitor.StartMonitoring();
-  task_environment.FastForwardBy(base::Seconds(
+  task_environment.FastForwardBy(base::TimeDelta::FromSeconds(
       PollingDeviceMonitorImpl::get_polling_interval_for_testing()));
 
   // When the monitor polls a second time, the observer should not be notified
   // as the list of devices hasn't changed.
   testing::Mock::VerifyAndClearExpectations(&observer);
   EXPECT_CALL(observer, OnDevicesChanged).Times(0);
-  task_environment.FastForwardBy(base::Seconds(
+  task_environment.FastForwardBy(base::TimeDelta::FromSeconds(
       PollingDeviceMonitorImpl::get_polling_interval_for_testing()));
   testing::Mock::VerifyAndClearExpectations(&observer);
 }

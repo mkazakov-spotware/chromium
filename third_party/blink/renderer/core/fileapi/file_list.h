@@ -29,12 +29,8 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/fileapi/file.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
-
-namespace base {
-class FilePath;
-}
 
 namespace blink {
 
@@ -47,7 +43,7 @@ class CORE_EXPORT FileList final : public ScriptWrappable {
   unsigned length() const { return files_.size(); }
   File* item(unsigned index) const;
 
-  bool IsEmpty() const { return files_.empty(); }
+  bool IsEmpty() const { return files_.IsEmpty(); }
   void clear() { files_.clear(); }
   void Append(File* file) { files_.push_back(file); }
   Vector<base::FilePath> PathsForUserVisibleFiles() const;

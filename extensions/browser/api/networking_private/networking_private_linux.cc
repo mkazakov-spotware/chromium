@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,13 @@
 
 #include <stddef.h>
 
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/observer_list.h"
+#include "base/strings/string16.h"
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/values.h"
 #include "components/onc/onc_constants.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -83,12 +78,12 @@ bool GuidToSsid(const std::string& guid, std::string* ssid) {
 
 // Iterates over the map cloning the contained networks to a
 // list then returns the list.
-base::Value::List CopyNetworkMapToList(
+std::unique_ptr<base::ListValue> CopyNetworkMapToList(
     const NetworkingPrivateLinux::NetworkMap& network_map) {
-  base::Value::List network_list;
+  auto network_list = std::make_unique<base::ListValue>();
 
   for (const auto& network : network_map) {
-    network_list.Append(network.second.Clone());
+    network_list->Append(network.second->CreateDeepCopy());
   }
 
   return network_list;
@@ -128,28 +123,28 @@ void OnNetworkConnectOperationCompleted(
 // from the |dbus_thread_|.
 void GetCachedNetworkPropertiesCallback(
     std::unique_ptr<std::string> error,
-    std::unique_ptr<base::Value> properties,
+    std::unique_ptr<base::DictionaryValue> properties,
     NetworkingPrivateDelegate::DictionaryCallback success_callback,
     NetworkingPrivateDelegate::FailureCallback failure_callback) {
   if (!error->empty()) {
     std::move(failure_callback).Run(*error);
     return;
   }
-  std::move(success_callback).Run(std::move(*properties));
+  std::move(success_callback).Run(std::move(properties));
 }
 
 // Fires the appropriate callback when the network properties are returned
 // from the |dbus_thread_|.
 void GetCachedNetworkPropertiesResultCallback(
     std::unique_ptr<std::string> error,
-    std::unique_ptr<base::Value> properties,
+    std::unique_ptr<base::DictionaryValue> properties,
     NetworkingPrivateDelegate::PropertiesCallback callback) {
   if (!error->empty()) {
     LOG(ERROR) << "GetCachedNetworkProperties failed: " << *error;
-    std::move(callback).Run(absl::nullopt, *error);
+    std::move(callback).Run(base::nullopt, *error);
     return;
   }
-  std::move(callback).Run(std::move(*properties), absl::nullopt);
+  std::move(callback).Run(std::move(*properties), base::nullopt);
 }
 
 }  // namespace
@@ -158,7 +153,7 @@ NetworkingPrivateLinux::NetworkingPrivateLinux()
     : dbus_thread_("Networking Private DBus"), network_manager_proxy_(nullptr) {
   base::Thread::Options thread_options(base::MessagePumpType::IO, 0);
 
-  dbus_thread_.StartWithOptions(std::move(thread_options));
+  dbus_thread_.StartWithOptions(thread_options);
   dbus_thread_.task_runner()->PostTask(
       FROM_HERE, base::BindOnce(&NetworkingPrivateLinux::Initialize,
                                 base::Unretained(this)));
@@ -196,7 +191,7 @@ void NetworkingPrivateLinux::Initialize() {
     LOG(ERROR) << "Platform does not support NetworkManager over DBUS";
   }
 
-  network_map_ = std::make_unique<NetworkMap>();
+  network_map_.reset(new NetworkMap());
 }
 
 bool NetworkingPrivateLinux::CheckNetworkManagerSupported() {
@@ -207,32 +202,33 @@ void NetworkingPrivateLinux::GetProperties(const std::string& guid,
                                            PropertiesCallback callback) {
   if (!network_manager_proxy_) {
     LOG(WARNING) << "NetworkManager over DBus is not supported";
-    std::move(callback).Run(absl::nullopt,
+    std::move(callback).Run(base::nullopt,
                             extensions::networking_private::kErrorNotSupported);
     return;
   }
 
   std::unique_ptr<std::string> error(new std::string);
-  auto network_properties =
-      std::make_unique<base::Value>(base::Value::Type::DICTIONARY);
+  std::unique_ptr<base::DictionaryValue> network_properties(
+      new base::DictionaryValue);
 
   // Runs GetCachedNetworkProperties on |dbus_thread|.
   std::string* error_ptr = error.get();
+  base::DictionaryValue* network_prop_ptr = network_properties.get();
   dbus_thread_.task_runner()->PostTaskAndReply(
       FROM_HERE,
       base::BindOnce(&NetworkingPrivateLinux::GetCachedNetworkProperties,
                      base::Unretained(this), guid,
-                     base::Unretained(network_properties.get()),
+                     base::Unretained(network_prop_ptr),
                      base::Unretained(error_ptr)),
       base::BindOnce(&GetCachedNetworkPropertiesResultCallback,
-                     std::move(error), std::move(network_properties),
+                     base::Passed(&error), base::Passed(&network_properties),
                      std::move(callback)));
 }
 
 void NetworkingPrivateLinux::GetManagedProperties(const std::string& guid,
                                                   PropertiesCallback callback) {
   LOG(WARNING) << "GetManagedProperties is not supported";
-  std::move(callback).Run(absl::nullopt,
+  std::move(callback).Run(base::nullopt,
                           extensions::networking_private::kErrorNotSupported);
 }
 
@@ -245,25 +241,27 @@ void NetworkingPrivateLinux::GetState(const std::string& guid,
   }
 
   std::unique_ptr<std::string> error(new std::string);
-  auto network_properties =
-      std::make_unique<base::Value>(base::Value::Type::DICTIONARY);
+  std::unique_ptr<base::DictionaryValue> network_properties(
+      new base::DictionaryValue);
 
   // Runs GetCachedNetworkProperties on |dbus_thread|.
   std::string* error_ptr = error.get();
+  base::DictionaryValue* network_prop_ptr = network_properties.get();
   dbus_thread_.task_runner()->PostTaskAndReply(
       FROM_HERE,
       base::BindOnce(&NetworkingPrivateLinux::GetCachedNetworkProperties,
                      base::Unretained(this), guid,
-                     base::Unretained(network_properties.get()),
+                     base::Unretained(network_prop_ptr),
                      base::Unretained(error_ptr)),
-      base::BindOnce(&GetCachedNetworkPropertiesCallback, std::move(error),
-                     std::move(network_properties), std::move(success_callback),
-                     std::move(failure_callback)));
+      base::BindOnce(&GetCachedNetworkPropertiesCallback, base::Passed(&error),
+                     base::Passed(&network_properties),
+                     std::move(success_callback), std::move(failure_callback)));
 }
 
-void NetworkingPrivateLinux::GetCachedNetworkProperties(const std::string& guid,
-                                                        base::Value* properties,
-                                                        std::string* error) {
+void NetworkingPrivateLinux::GetCachedNetworkProperties(
+    const std::string& guid,
+    base::DictionaryValue* properties,
+    std::string* error) {
   AssertOnDBusThread();
   std::string ssid;
 
@@ -279,21 +277,28 @@ void NetworkingPrivateLinux::GetCachedNetworkProperties(const std::string& guid,
     return;
   }
 
-  *properties = network_iter->second.Clone();
+  // Make a copy of the properties out of the cached map.
+  std::unique_ptr<base::DictionaryValue> temp_properties(
+      network_iter->second->DeepCopy());
+
+  // Swap the new copy into the dictionary that is shared with the reply.
+  properties->Swap(temp_properties.get());
 }
 
-void NetworkingPrivateLinux::SetProperties(const std::string& guid,
-                                           base::Value properties,
-                                           bool allow_set_shared_config,
-                                           VoidCallback success_callback,
-                                           FailureCallback failure_callback) {
+void NetworkingPrivateLinux::SetProperties(
+    const std::string& guid,
+    std::unique_ptr<base::DictionaryValue> properties,
+    bool allow_set_shared_config,
+    VoidCallback success_callback,
+    FailureCallback failure_callback) {
   ReportNotSupported("SetProperties", std::move(failure_callback));
 }
 
-void NetworkingPrivateLinux::CreateNetwork(bool shared,
-                                           base::Value properties,
-                                           StringCallback success_callback,
-                                           FailureCallback failure_callback) {
+void NetworkingPrivateLinux::CreateNetwork(
+    bool shared,
+    std::unique_ptr<base::DictionaryValue> properties,
+    StringCallback success_callback,
+    FailureCallback failure_callback) {
   ReportNotSupported("CreateNetwork", std::move(failure_callback));
 }
 
@@ -336,7 +341,7 @@ void NetworkingPrivateLinux::GetNetworks(const std::string& network_type,
                      base::Unretained(this), configured_only, visible_only,
                      limit, base::Unretained(network_map_ptr)),
       base::BindOnce(&NetworkingPrivateLinux::OnAccessPointsFound,
-                     base::Unretained(this), std::move(network_map),
+                     base::Unretained(this), base::Passed(&network_map),
                      std::move(success_callback), std::move(failure_callback)));
 }
 
@@ -358,7 +363,7 @@ bool NetworkingPrivateLinux::GetNetworksForScanRequest() {
                      false /* visible_only */, 0 /* limit */,
                      base::Unretained(network_map_ptr)),
       base::BindOnce(&NetworkingPrivateLinux::OnAccessPointsFoundViaScan,
-                     base::Unretained(this), std::move(network_map)));
+                     base::Unretained(this), base::Passed(&network_map)));
 
   return true;
 }
@@ -503,8 +508,9 @@ void NetworkingPrivateLinux::DisconnectFromNetwork(const std::string& guid,
     return;
   }
 
-  std::string connection_state =
-      *network_iter->second.FindStringPath(kAccessPointInfoConnectionState);
+  std::string connection_state;
+  network_iter->second->GetString(kAccessPointInfoConnectionState,
+                                  &connection_state);
   if (connection_state == ::onc::connection_state::kNotConnected) {
     // Already disconnected so nothing to do.
     return;
@@ -543,7 +549,7 @@ void NetworkingPrivateLinux::StartConnect(const std::string& guid,
       FROM_HERE,
       base::BindOnce(&NetworkingPrivateLinux::ConnectToNetwork,
                      base::Unretained(this), guid, base::Unretained(error_ptr)),
-      base::BindOnce(&OnNetworkConnectOperationCompleted, std::move(error),
+      base::BindOnce(&OnNetworkConnectOperationCompleted, base::Passed(&error),
                      std::move(success_callback), std::move(failure_callback)));
 }
 
@@ -563,7 +569,7 @@ void NetworkingPrivateLinux::StartDisconnect(const std::string& guid,
       FROM_HERE,
       base::BindOnce(&NetworkingPrivateLinux::DisconnectFromNetwork,
                      base::Unretained(this), guid, base::Unretained(error_ptr)),
-      base::BindOnce(&OnNetworkConnectOperationCompleted, std::move(error),
+      base::BindOnce(&OnNetworkConnectOperationCompleted, base::Passed(&error),
                      std::move(success_callback), std::move(failure_callback)));
 }
 
@@ -602,47 +608,44 @@ void NetworkingPrivateLinux::SelectCellularMobileNetwork(
                      std::move(failure_callback));
 }
 
-void NetworkingPrivateLinux::GetEnabledNetworkTypes(
-    EnabledNetworkTypesCallback callback) {
-  base::Value network_list(base::Value::Type::LIST);
-  network_list.Append(::onc::network_type::kWiFi);
-  std::move(callback).Run(
-      base::Value::ToUniquePtrValue(std::move(network_list)));
+std::unique_ptr<base::ListValue>
+NetworkingPrivateLinux::GetEnabledNetworkTypes() {
+  std::unique_ptr<base::ListValue> network_list(new base::ListValue);
+  network_list->AppendString(::onc::network_type::kWiFi);
+  return network_list;
 }
 
-void NetworkingPrivateLinux::GetDeviceStateList(
-    DeviceStateListCallback callback) {
+std::unique_ptr<NetworkingPrivateDelegate::DeviceStateList>
+NetworkingPrivateLinux::GetDeviceStateList() {
   std::unique_ptr<DeviceStateList> device_state_list(new DeviceStateList);
   std::unique_ptr<api::networking_private::DeviceStateProperties> properties(
       new api::networking_private::DeviceStateProperties);
   properties->type = api::networking_private::NETWORK_TYPE_WIFI;
   properties->state = api::networking_private::DEVICE_STATE_TYPE_ENABLED;
   device_state_list->push_back(std::move(properties));
-  std::move(callback).Run(std::move(device_state_list));
+  return device_state_list;
 }
 
-void NetworkingPrivateLinux::GetGlobalPolicy(GetGlobalPolicyCallback callback) {
-  std::move(callback).Run(base::Value::ToUniquePtrValue({}));
+std::unique_ptr<base::DictionaryValue>
+NetworkingPrivateLinux::GetGlobalPolicy() {
+  return std::make_unique<base::DictionaryValue>();
 }
 
-void NetworkingPrivateLinux ::GetCertificateLists(
-    GetCertificateListsCallback callback) {
-  std::move(callback).Run(base::Value::ToUniquePtrValue({}));
+std::unique_ptr<base::DictionaryValue>
+NetworkingPrivateLinux ::GetCertificateLists() {
+  return std::make_unique<base::DictionaryValue>();
 }
 
-void NetworkingPrivateLinux::EnableNetworkType(const std::string& type,
-                                               BoolCallback callback) {
-  std::move(callback).Run(false);
+bool NetworkingPrivateLinux::EnableNetworkType(const std::string& type) {
+  return false;
 }
 
-void NetworkingPrivateLinux::DisableNetworkType(const std::string& type,
-                                                BoolCallback callback) {
-  std::move(callback).Run(false);
+bool NetworkingPrivateLinux::DisableNetworkType(const std::string& type) {
+  return false;
 }
 
-void NetworkingPrivateLinux::RequestScan(const std::string& /* type */,
-                                         BoolCallback callback) {
-  std::move(callback).Run(GetNetworksForScanRequest());
+bool NetworkingPrivateLinux::RequestScan(const std::string& /* type */) {
+  return GetNetworksForScanRequest();
 }
 
 void NetworkingPrivateLinux::AddObserver(
@@ -659,31 +662,34 @@ void NetworkingPrivateLinux::OnAccessPointsFound(
     std::unique_ptr<NetworkMap> network_map,
     NetworkListCallback success_callback,
     FailureCallback failure_callback) {
-  base::Value::List network_list = CopyNetworkMapToList(*network_map);
+  std::unique_ptr<base::ListValue> network_list =
+      CopyNetworkMapToList(*network_map);
   // Give ownership to the member variable.
   network_map_.swap(network_map);
-  SendNetworkListChangedEvent(network_list);
+  SendNetworkListChangedEvent(*network_list);
   std::move(success_callback).Run(std::move(network_list));
 }
 
 void NetworkingPrivateLinux::OnAccessPointsFoundViaScan(
     std::unique_ptr<NetworkMap> network_map) {
-  base::Value::List network_list = CopyNetworkMapToList(*network_map);
+  std::unique_ptr<base::ListValue> network_list =
+      CopyNetworkMapToList(*network_map);
   // Give ownership to the member variable.
   network_map_.swap(network_map);
-  SendNetworkListChangedEvent(network_list);
+  SendNetworkListChangedEvent(*network_list);
 }
 
 void NetworkingPrivateLinux::SendNetworkListChangedEvent(
-    const base::Value::List& network_list) {
+    const base::ListValue& network_list) {
   GuidList guidsForEventCallback;
 
   for (const auto& network : network_list) {
-    if (!network.is_dict())
-      continue;
-    if (const std::string* guid =
-            network.GetDict().FindString(kAccessPointInfoGuid)) {
-      guidsForEventCallback.push_back(*guid);
+    std::string guid;
+    const base::DictionaryValue* dict = nullptr;
+    if (network.GetAsDictionary(&dict)) {
+      if (dict->GetString(kAccessPointInfoGuid, &guid)) {
+        guidsForEventCallback.push_back(guid);
+      }
     }
   }
 
@@ -794,7 +800,7 @@ std::unique_ptr<dbus::Response> NetworkingPrivateLinux::GetAccessPointProperty(
 
 bool NetworkingPrivateLinux::GetAccessPointInfo(
     const dbus::ObjectPath& access_point_path,
-    base::Value* access_point_info) {
+    const std::unique_ptr<base::DictionaryValue>& access_point_info) {
   AssertOnDBusThread();
   dbus::ObjectProxy* access_point_proxy = dbus_->GetObjectProxy(
       networking_private::kNetworkManagerNamespace, access_point_path);
@@ -826,9 +832,9 @@ bool NetworkingPrivateLinux::GetAccessPointInfo(
     }
 
     std::string ssidUTF8(ssid_bytes, ssid_bytes + ssid_length);
-    std::u16string ssid = base::UTF8ToUTF16(ssidUTF8);
+    base::string16 ssid = base::UTF8ToUTF16(ssidUTF8);
 
-    access_point_info->SetStringKey(kAccessPointInfoName, ssid);
+    access_point_info->SetString(kAccessPointInfoName, ssid);
   }
 
   // Read signal strength.
@@ -848,8 +854,8 @@ bool NetworkingPrivateLinux::GetAccessPointInfo(
       return false;
     }
 
-    access_point_info->SetIntKey(kAccessPointInfoWifiSignalStrengthDotted,
-                                 strength);
+    access_point_info->SetInteger(kAccessPointInfoWifiSignalStrengthDotted,
+                                  strength);
   }
 
   // Read the security type. This is from the WpaFlags and RsnFlags property
@@ -894,10 +900,9 @@ bool NetworkingPrivateLinux::GetAccessPointInfo(
 
   std::string security;
   MapSecurityFlagsToString(rsn_security_flags | wpa_security_flags, &security);
-  access_point_info->SetStringKey(kAccessPointInfoWifiSecurityDotted, security);
-  access_point_info->SetStringKey(kAccessPointInfoType,
-                                  kAccessPointInfoTypeWifi);
-  access_point_info->SetBoolKey(kAccessPointInfoConnectable, true);
+  access_point_info->SetString(kAccessPointInfoWifiSecurityDotted, security);
+  access_point_info->SetString(kAccessPointInfoType, kAccessPointInfoTypeWifi);
+  access_point_info->SetBoolean(kAccessPointInfoConnectable, true);
   return true;
 }
 
@@ -933,17 +938,19 @@ bool NetworkingPrivateLinux::AddAccessPointsFromDevice(
   }
 
   for (const auto& access_point_path : access_point_paths) {
-    base::Value access_point(base::Value::Type::DICTIONARY);
+    std::unique_ptr<base::DictionaryValue> access_point(
+        new base::DictionaryValue);
 
-    if (GetAccessPointInfo(access_point_path, &access_point)) {
+    if (GetAccessPointInfo(access_point_path, access_point)) {
       std::string connection_state =
           (access_point_path == connected_access_point)
               ? ::onc::connection_state::kConnected
               : ::onc::connection_state::kNotConnected;
 
-      access_point.SetStringKey(kAccessPointInfoConnectionState,
-                                connection_state);
-      std::string ssid = *access_point.FindStringPath(kAccessPointInfoName);
+      access_point->SetString(kAccessPointInfoConnectionState,
+                              connection_state);
+      std::string ssid;
+      access_point->GetString(kAccessPointInfoName, &ssid);
 
       std::string network_guid =
           ConstructNetworkGuid(device_path, access_point_path, ssid);
@@ -952,7 +959,7 @@ bool NetworkingPrivateLinux::AddAccessPointsFromDevice(
       // access point paths, this consolidates them. If it is already
       // in the map it updates the signal strength and GUID paths if this
       // network is stronger or the one that is connected.
-      AddOrUpdateAccessPoint(network_map, network_guid, &access_point);
+      AddOrUpdateAccessPoint(network_map, network_guid, access_point);
     }
   }
 
@@ -962,39 +969,44 @@ bool NetworkingPrivateLinux::AddAccessPointsFromDevice(
 void NetworkingPrivateLinux::AddOrUpdateAccessPoint(
     NetworkMap* network_map,
     const std::string& network_guid,
-    base::Value* access_point) {
-  std::string connection_state =
-      *access_point->FindStringPath(kAccessPointInfoConnectionState);
-  int signal_strength =
-      *access_point->FindIntPath(kAccessPointInfoWifiSignalStrengthDotted);
-  std::u16string ssid =
-      base::UTF8ToUTF16(*access_point->FindStringPath(kAccessPointInfoName));
-  access_point->SetStringPath(kAccessPointInfoGuid, network_guid);
+    std::unique_ptr<base::DictionaryValue>& access_point) {
+  base::string16 ssid;
+  std::string connection_state;
+  int signal_strength;
+
+  access_point->GetString(kAccessPointInfoConnectionState, &connection_state);
+  access_point->GetInteger(kAccessPointInfoWifiSignalStrengthDotted,
+                           &signal_strength);
+  access_point->GetString(kAccessPointInfoName, &ssid);
+  access_point->SetString(kAccessPointInfoGuid, network_guid);
 
   auto existing_access_point_iter = network_map->find(ssid);
 
   if (existing_access_point_iter == network_map->end()) {
     // Unseen access point. Add it to the map.
-    network_map->insert(NetworkMap::value_type(ssid, std::move(*access_point)));
+    network_map->insert(NetworkMap::value_type(ssid, std::move(access_point)));
   } else {
     // Already seen access point. Update the record if this is the connected
     // record or if the signal strength is higher. But don't override a weaker
     // access point if that is the one that is connected.
-    base::Value& existing_access_point = existing_access_point_iter->second;
-    int existing_signal_strength = *existing_access_point.FindIntPath(
-        kAccessPointInfoWifiSignalStrengthDotted);
+    int existing_signal_strength;
+    base::DictionaryValue* existing_access_point =
+        existing_access_point_iter->second.get();
+    existing_access_point->GetInteger(kAccessPointInfoWifiSignalStrengthDotted,
+                                      &existing_signal_strength);
 
-    std::string existing_connection_state =
-        *existing_access_point.FindStringPath(kAccessPointInfoConnectionState);
+    std::string existing_connection_state;
+    existing_access_point->GetString(kAccessPointInfoConnectionState,
+                                     &existing_connection_state);
 
     if ((connection_state == ::onc::connection_state::kConnected) ||
         (!(existing_connection_state == ::onc::connection_state::kConnected) &&
          signal_strength > existing_signal_strength)) {
-      existing_access_point.SetStringPath(kAccessPointInfoConnectionState,
-                                          connection_state);
-      existing_access_point.SetIntPath(kAccessPointInfoWifiSignalStrengthDotted,
-                                       signal_strength);
-      existing_access_point.SetStringPath(kAccessPointInfoGuid, network_guid);
+      existing_access_point->SetString(kAccessPointInfoConnectionState,
+                                       connection_state);
+      existing_access_point->SetInteger(
+          kAccessPointInfoWifiSignalStrengthDotted, signal_strength);
+      existing_access_point->SetString(kAccessPointInfoGuid, network_guid);
     }
   }
 }
@@ -1174,33 +1186,33 @@ bool NetworkingPrivateLinux::SetConnectionStateAndPostEvent(
   // If setting this network to connected, find the previously connected network
   // and disconnect that one. Also retain the guid of that network to fire a
   // changed event.
-  std::string* connected_network_guid = nullptr;
+  std::string connected_network_guid;
   if (connection_state == ::onc::connection_state::kConnected) {
     for (auto& network : *network_map_) {
-      if (std::string* other_connection_state =
-              network.second.FindStringPath(kAccessPointInfoConnectionState)) {
-        if (*other_connection_state == ::onc::connection_state::kConnected) {
-          connected_network_guid =
-              network.second.FindStringPath(kAccessPointInfoGuid);
-          network.second.SetStringPath(kAccessPointInfoConnectionState,
-                                       ::onc::connection_state::kNotConnected);
+      std::string other_connection_state;
+      if (network.second->GetString(kAccessPointInfoConnectionState,
+                                    &other_connection_state)) {
+        if (other_connection_state == ::onc::connection_state::kConnected) {
+          network.second->GetString(kAccessPointInfoGuid,
+                                    &connected_network_guid);
+          network.second->SetString(kAccessPointInfoConnectionState,
+                                    ::onc::connection_state::kNotConnected);
         }
       }
     }
   }
 
   // Set the status.
-  network_iter->second.SetStringPath(kAccessPointInfoConnectionState,
-                                     connection_state);
+  network_iter->second->SetString(kAccessPointInfoConnectionState,
+                                  connection_state);
 
   std::unique_ptr<GuidList> changed_networks(new GuidList());
   changed_networks->push_back(guid);
 
   // Only add a second network if it exists and it is not the same as the
   // network already being added to the list.
-  if (connected_network_guid && !connected_network_guid->empty() &&
-      *connected_network_guid != guid) {
-    changed_networks->push_back(*connected_network_guid);
+  if (!connected_network_guid.empty() && connected_network_guid != guid) {
+    changed_networks->push_back(connected_network_guid);
   }
 
   PostOnNetworksChangedToUIThread(std::move(changed_networks));

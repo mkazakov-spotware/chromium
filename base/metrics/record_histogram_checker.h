@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,7 @@ class BASE_EXPORT RecordHistogramChecker {
 
   // Returns true iff the given histogram should be recorded.
   // This method may be called on any thread, so it should not mutate any state.
-  // |histogram_hash| corresponds to the result of HashMetricNameAs32Bits().
-  virtual bool ShouldRecord(uint32_t histogram_hash) const = 0;
+  virtual bool ShouldRecord(uint64_t histogram_hash) const = 0;
 };
 
 }  // namespace base

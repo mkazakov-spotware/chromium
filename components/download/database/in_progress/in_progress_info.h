@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,11 @@
 #include <string>
 #include <vector>
 
-#include "base/time/time.h"
+#include "base/optional.h"
 #include "components/download/public/common/download_danger_type.h"
 #include "components/download/public/common/download_item.h"
-#include "components/download/public/common/download_item_rename_progress_update.h"
+#include "components/download/public/common/download_schedule.h"
 #include "components/download/public/common/download_url_parameters.h"
-#include "services/network/public/mojom/fetch_api.mojom-shared.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace download {
@@ -37,8 +35,8 @@ struct InProgressInfo {
   // Referrer url.
   GURL referrer_url;
 
-  // The serialized embedder download data.
-  std::string serialized_embedder_download_data;
+  // Site url.
+  GURL site_url;
 
   // Tab url.
   GURL tab_url;
@@ -93,9 +91,6 @@ struct InProgressInfo {
   // by their offset.
   std::vector<DownloadItem::ReceivedSlice> received_slices;
 
-  // The download's |reroute_info|.
-  download::DownloadItemRerouteInfo reroute_info;
-
   // Hash of the downloaded content.
   std::string hash;
 
@@ -129,12 +124,8 @@ struct InProgressInfo {
   // can ony be resumed on WIFI.
   bool metered = false;
 
-  // The credentials mode of the request.
-  ::network::mojom::CredentialsMode credentials_mode =
-      ::network::mojom::CredentialsMode::kInclude;
-
-  int64_t range_request_from = kInvalidRange;
-  int64_t range_request_to = kInvalidRange;
+  // When to start the download. Used by download later feature.
+  base::Optional<DownloadSchedule> download_schedule;
 };
 
 }  // namespace download

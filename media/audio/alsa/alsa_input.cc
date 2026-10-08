@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
 #include "media/audio/alsa/alsa_output.h"
 #include "media/audio/alsa/alsa_util.h"
 #include "media/audio/alsa/alsa_wrapper.h"
@@ -37,7 +38,7 @@ AlsaPcmInputStream::AlsaPcmInputStream(AudioManagerBase* audio_manager,
       params_(params),
       bytes_per_buffer_(params.GetBytesPerBuffer(kSampleFormat)),
       wrapper_(wrapper),
-      buffer_duration_(base::Microseconds(
+      buffer_duration_(base::TimeDelta::FromMicroseconds(
           params.frames_per_buffer() * base::Time::kMicrosecondsPerSecond /
           static_cast<float>(params.sample_rate()))),
       callback_(nullptr),
@@ -51,9 +52,9 @@ AlsaPcmInputStream::AlsaPcmInputStream(AudioManagerBase* audio_manager,
 
 AlsaPcmInputStream::~AlsaPcmInputStream() = default;
 
-AudioInputStream::OpenOutcome AlsaPcmInputStream::Open() {
+bool AlsaPcmInputStream::Open() {
   if (device_handle_)
-    return OpenOutcome::kAlreadyOpen;
+    return false;  // Already open.
 
   uint32_t packet_us = buffer_duration_.InMicroseconds();
   uint32_t buffer_us = packet_us * kNumPacketsInRingBuffer;
@@ -63,7 +64,7 @@ AudioInputStream::OpenOutcome AlsaPcmInputStream::Open() {
 
   if (device_name_ == kAutoSelectDevice) {
     const char* device_names[] = { kDefaultDevice1, kDefaultDevice2 };
-    for (size_t i = 0; i < std::size(device_names); ++i) {
+    for (size_t i = 0; i < base::size(device_names); ++i) {
       device_handle_ = alsa_util::OpenCaptureDevice(
           wrapper_, device_names[i], params_.channels(), params_.sample_rate(),
           kAlsaSampleFormat, buffer_us, packet_us);
@@ -90,8 +91,7 @@ AudioInputStream::OpenOutcome AlsaPcmInputStream::Open() {
     }
   }
 
-  return device_handle_ != nullptr ? OpenOutcome::kSuccess
-                                   : OpenOutcome::kFailed;
+  return device_handle_ != nullptr;
 }
 
 void AlsaPcmInputStream::Start(AudioInputCallback* callback) {
@@ -110,8 +110,9 @@ void AlsaPcmInputStream::Start(AudioInputCallback* callback) {
   if (error < 0) {
     callback_ = nullptr;
   } else {
-    CHECK(capture_thread_.StartWithOptions(
-        base::Thread::Options(base::ThreadType::kRealtimeAudio)));
+    base::Thread::Options options;
+    options.priority = base::ThreadPriority::REALTIME_AUDIO;
+    CHECK(capture_thread_.StartWithOptions(options));
 
     // We start reading data half |buffer_duration_| later than when the
     // buffer might have got filled, to accommodate some delays in the audio
@@ -119,10 +120,10 @@ void AlsaPcmInputStream::Start(AudioInputCallback* callback) {
     base::TimeDelta delay = buffer_duration_ + buffer_duration_ / 2;
     next_read_time_ = base::TimeTicks::Now() + delay;
     running_ = true;
-    capture_thread_.task_runner()->PostDelayedTaskAt(
-        base::subtle::PostDelayedTaskPassKey(), FROM_HERE,
+    capture_thread_.task_runner()->PostDelayedTask(
+        FROM_HERE,
         base::BindOnce(&AlsaPcmInputStream::ReadAudio, base::Unretained(this)),
-        next_read_time_, base::subtle::DelayPolicy::kPrecise);
+        delay);
   }
 }
 
@@ -177,21 +178,20 @@ void AlsaPcmInputStream::ReadAudio() {
   }
 
   if (frames < params_.frames_per_buffer()) {
-    base::TimeTicks now = base::TimeTicks::Now();
     // Not enough data yet or error happened. In both cases wait for a very
     // small duration before checking again.
     // Even Though read callback was behind schedule, there is no data, so
     // reset the next_read_time_.
     if (read_callback_behind_schedule_) {
-      next_read_time_ = now;
+      next_read_time_ = base::TimeTicks::Now();
       read_callback_behind_schedule_ = false;
     }
 
-    base::TimeTicks next_check_time = now + buffer_duration_ / 2;
-    capture_thread_.task_runner()->PostDelayedTaskAt(
-        base::subtle::PostDelayedTaskPassKey(), FROM_HERE,
+    base::TimeDelta next_check_time = buffer_duration_ / 2;
+    capture_thread_.task_runner()->PostDelayedTask(
+        FROM_HERE,
         base::BindOnce(&AlsaPcmInputStream::ReadAudio, base::Unretained(this)),
-        next_check_time, base::subtle::DelayPolicy::kPrecise);
+        next_check_time);
     return;
   }
 
@@ -219,7 +219,7 @@ void AlsaPcmInputStream::ReadAudio() {
                      << wrapper_->StrError(avail_frames);
         avail_frames = 0;  // Error getting number of avail frames, set it to 0
       }
-      base::TimeDelta hardware_delay = base::Seconds(
+      base::TimeDelta hardware_delay = base::TimeDelta::FromSecondsD(
           avail_frames / static_cast<double>(params_.sample_rate()));
 
       callback_->OnData(audio_bus_.get(),
@@ -239,21 +239,21 @@ void AlsaPcmInputStream::ReadAudio() {
   }
 
   next_read_time_ += buffer_duration_;
-  base::TimeTicks now = base::TimeTicks::Now();
-  if (next_read_time_ < now) {
-    base::TimeDelta delay = now - next_read_time_;
+  base::TimeDelta delay = next_read_time_ - base::TimeTicks::Now();
+  if (delay < base::TimeDelta()) {
     DVLOG(1) << "Audio read callback behind schedule by "
-             << (buffer_duration_ + delay).InMicroseconds() << " (us).";
+             << (buffer_duration_ - delay).InMicroseconds()
+             << " (us).";
     // Read callback is behind schedule. Assuming there is data pending in
     // the soundcard, invoke the read callback immediate in order to catch up.
     read_callback_behind_schedule_ = true;
+    delay = base::TimeDelta();
   }
 
-  // If |next_read_time_| is in the past, it will be scheduled immediately.
-  capture_thread_.task_runner()->PostDelayedTaskAt(
-      base::subtle::PostDelayedTaskPassKey(), FROM_HERE,
+  capture_thread_.task_runner()->PostDelayedTask(
+      FROM_HERE,
       base::BindOnce(&AlsaPcmInputStream::ReadAudio, base::Unretained(this)),
-      next_read_time_, base::subtle::DelayPolicy::kPrecise);
+      delay);
 }
 
 void AlsaPcmInputStream::Stop() {

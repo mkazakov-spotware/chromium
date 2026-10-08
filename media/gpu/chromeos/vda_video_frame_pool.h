@@ -1,19 +1,20 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_GPU_CHROMEOS_VDA_VIDEO_FRAME_POOL_H_
 #define MEDIA_GPU_CHROMEOS_VDA_VIDEO_FRAME_POOL_H_
 
+#include <vector>
+
 #include "base/containers/queue.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/optional.h"
+#include "base/sequenced_task_runner.h"
 #include "media/base/video_frame.h"
-#include "media/gpu/chromeos/chromeos_status.h"
 #include "media/gpu/chromeos/dmabuf_video_frame_pool.h"
 #include "media/gpu/chromeos/fourcc.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 class WaitableEvent;
@@ -37,7 +38,7 @@ class VdaVideoFramePool : public DmabufVideoFramePool {
    public:
     // Callback for returning the layout of requested buffer.
     using NotifyLayoutChangedCb =
-        base::OnceCallback<void(CroStatus::Or<GpuBufferLayout>)>;
+        base::OnceCallback<void(base::Optional<GpuBufferLayout>)>;
     // Callback for importing available frames to this pool.
     using ImportFrameCb =
         base::RepeatingCallback<void(scoped_refptr<VideoFrame>)>;
@@ -61,33 +62,29 @@ class VdaVideoFramePool : public DmabufVideoFramePool {
   ~VdaVideoFramePool() override;
 
   // DmabufVideoFramePool implementation.
-  CroStatus::Or<GpuBufferLayout> Initialize(const Fourcc& fourcc,
-                                            const gfx::Size& coded_size,
-                                            const gfx::Rect& visible_rect,
-                                            const gfx::Size& natural_size,
-                                            size_t max_num_frames,
-                                            bool use_protected,
-                                            bool use_linear_buffers) override;
+  base::Optional<GpuBufferLayout> Initialize(const Fourcc& fourcc,
+                                             const gfx::Size& coded_size,
+                                             const gfx::Rect& visible_rect,
+                                             const gfx::Size& natural_size,
+                                             size_t max_num_frames,
+                                             bool use_protected) override;
   scoped_refptr<VideoFrame> GetFrame() override;
   bool IsExhausted() override;
   void NotifyWhenFrameAvailable(base::OnceClosure cb) override;
-  void ReleaseAllFrames() override;
-  absl::optional<GpuBufferLayout> GetGpuBufferLayout() override;
 
  private:
   // Update the layout of the buffers. |vda_| calls this as
   // NotifyLayoutChangedCb.
-  static void OnRequestFramesDone(base::WaitableEvent* done,
-                                  CroStatus::Or<GpuBufferLayout>* layout,
-                                  CroStatus::Or<GpuBufferLayout> layout_value);
+  void OnRequestFramesDone(base::WaitableEvent* done,
+                           base::Optional<GpuBufferLayout> value);
 
   // Thunk to post ImportFrame() to |task_runner|.
   // Because this thunk may be called in any thread, We don't want to
-  // dereference WeakPtr. Therefore we wrap the WeakPtr by absl::optional to
+  // dereference WeakPtr. Therefore we wrap the WeakPtr by base::Optional to
   // avoid the task runner defererencing the WeakPtr.
   static void ImportFrameThunk(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
-      absl::optional<base::WeakPtr<VdaVideoFramePool>> weak_this,
+      base::Optional<base::WeakPtr<VdaVideoFramePool>> weak_this,
       scoped_refptr<VideoFrame> frame);
   // Import an available frame.
   void ImportFrame(scoped_refptr<VideoFrame> frame);
@@ -107,17 +104,19 @@ class VdaVideoFramePool : public DmabufVideoFramePool {
   base::OnceClosure frame_available_cb_;
 
   // The layout of the frames in |frame_pool_|.
-  absl::optional<GpuBufferLayout> layout_;
+  base::Optional<GpuBufferLayout> layout_;
 
   // Data passed from Initialize().
   size_t max_num_frames_ = 0;
-  absl::optional<Fourcc> fourcc_;
+  base::Optional<Fourcc> fourcc_;
   gfx::Size coded_size_;
   gfx::Rect visible_rect_;
   gfx::Size natural_size_;
 
   base::queue<scoped_refptr<VideoFrame>> frame_pool_;
 
+  // Sequence checker for |vda_task_runner_|.
+  SEQUENCE_CHECKER(vda_sequence_checker_);
   // Sequence checker for |parent_task_runner_|.
   SEQUENCE_CHECKER(parent_sequence_checker_);
 

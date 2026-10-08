@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/contains.h"
 #include "base/ranges/algorithm.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "services/device/public/cpp/generic_sensor/sensor_traits.h"
 
@@ -27,13 +28,10 @@ PlatformSensorChromeOS::PlatformSensorChromeOS(
     mojom::SensorType type,
     SensorReadingSharedBuffer* reading_buffer,
     PlatformSensorProvider* provider,
-    mojo::ConnectionErrorWithReasonCallback sensor_device_disconnect_callback,
     double scale,
     mojo::Remote<chromeos::sensors::mojom::SensorDevice> sensor_device_remote)
     : PlatformSensor(type, reading_buffer, provider),
       iio_device_id_(iio_device_id),
-      sensor_device_disconnect_callback_(
-          std::move(sensor_device_disconnect_callback)),
       default_configuration_(
           PlatformSensorConfiguration(GetSensorMaxAllowedFrequency(type))),
       scale_(scale),
@@ -42,9 +40,8 @@ PlatformSensorChromeOS::PlatformSensorChromeOS(
   DCHECK(sensor_device_remote_.is_bound());
   DCHECK_GT(scale_, 0.0);
 
-  sensor_device_remote_.set_disconnect_with_reason_handler(
-      base::BindOnce(&PlatformSensorChromeOS::OnSensorDeviceDisconnect,
-                     weak_factory_.GetWeakPtr()));
+  sensor_device_remote_.set_disconnect_handler(base::BindOnce(
+      &PlatformSensorChromeOS::ResetOnError, weak_factory_.GetWeakPtr()));
 
   sensor_device_remote_->SetTimeout(0);
 
@@ -85,11 +82,6 @@ void PlatformSensorChromeOS::OnSampleUpdated(
     }
   }
 
-  if (num_failed_reads_ > 0 && ++num_recovery_reads_ == kNumRecoveryReads) {
-    num_recovery_reads_ = 0;
-    --num_failed_reads_;
-  }
-
   SensorReading reading;
 
   switch (GetType()) {
@@ -104,7 +96,6 @@ void PlatformSensorChromeOS::OnSampleUpdated(
       break;
 
     case mojom::SensorType::ACCELEROMETER:
-    case mojom::SensorType::GRAVITY:
       DCHECK_EQ(channel_indices_.size(), 4u);
       reading.accel.x = GetScaledValue(sample.at(channel_indices_[0]));
       reading.accel.y = GetScaledValue(sample.at(channel_indices_[1]));
@@ -130,7 +121,8 @@ void PlatformSensorChromeOS::OnSampleUpdated(
   }
 
   reading.raw.timestamp =
-      base::Nanoseconds(sample.at(channel_indices_.back())).InSecondsF();
+      base::TimeDelta::FromNanoseconds(sample.at(channel_indices_.back()))
+          .InSecondsF();
 
   UpdateSharedBufferAndNotifyClients(reading);
 }
@@ -170,7 +162,6 @@ void PlatformSensorChromeOS::OnErrorOccurred(
 
     case chromeos::sensors::mojom::ObserverErrorType::READ_FAILED:
       LOG(ERROR) << "Sensor " << iio_device_id_ << ": Failed to read a sample";
-      OnReadFailure();
       break;
 
     case chromeos::sensors::mojom::ObserverErrorType::READ_TIMEOUT:
@@ -212,6 +203,7 @@ bool PlatformSensorChromeOS::StartSensor(
 void PlatformSensorChromeOS::StopSensor() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
+  sensor_device_remote_.reset();
   receiver_.reset();
 }
 
@@ -227,35 +219,11 @@ PlatformSensorConfiguration PlatformSensorChromeOS::GetDefaultConfiguration() {
   return default_configuration_;
 }
 
-void PlatformSensorChromeOS::SensorReplaced() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  VLOG(1) << "SensorReplaced with id: " << iio_device_id_;
-  ResetReadingBuffer();
-  ResetOnError();
-}
-
 void PlatformSensorChromeOS::ResetOnError() {
   LOG(ERROR) << "ResetOnError of sensor with id: " << iio_device_id_;
+  NotifySensorError();
   sensor_device_remote_.reset();
   receiver_.reset();
-  NotifySensorError();
-}
-
-void PlatformSensorChromeOS::OnSensorDeviceDisconnect(
-    uint32_t custom_reason_code,
-    const std::string& description) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  auto reason =
-      static_cast<chromeos::sensors::mojom::SensorDeviceDisconnectReason>(
-          custom_reason_code);
-  LOG(ERROR) << "OnSensorDeviceDisconnect, reason: " << reason
-             << ", description: " << description;
-
-  std::move(sensor_device_disconnect_callback_)
-      .Run(custom_reason_code, description);
-
-  ResetOnError();
 }
 
 void PlatformSensorChromeOS::StartReadingIfReady() {
@@ -280,37 +248,31 @@ mojo::PendingRemote<chromeos::sensors::mojom::SensorDeviceSamplesObserver>
 PlatformSensorChromeOS::BindNewPipeAndPassRemote() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(!receiver_.is_bound());
-  auto pending_remote = receiver_.BindNewPipeAndPassRemote(main_task_runner());
+  auto pending_remote = receiver_.BindNewPipeAndPassRemote(task_runner_);
 
-  receiver_.set_disconnect_with_reason_handler(
+  receiver_.set_disconnect_handler(
       base::BindOnce(&PlatformSensorChromeOS::OnObserverDisconnect,
                      weak_factory_.GetWeakPtr()));
   return pending_remote;
 }
 
-void PlatformSensorChromeOS::OnObserverDisconnect(
-    uint32_t custom_reason_code,
-    const std::string& description) {
+void PlatformSensorChromeOS::OnObserverDisconnect() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(receiver_.is_bound());
 
-  auto reason =
-      static_cast<chromeos::sensors::mojom::SensorDeviceDisconnectReason>(
-          custom_reason_code);
-  LOG(ERROR) << "OnObserverDisconnect, reason: " << reason
-             << ", description: " << description;
+  LOG(ERROR) << "On Observer Disconnect";
+  receiver_.reset();
 
-  std::move(sensor_device_disconnect_callback_)
-      .Run(custom_reason_code, description);
-
-  ResetOnError();
+  // Try to restart reading.
+  if (sensor_device_remote_.is_bound())
+    StartReadingIfReady();
 }
 
 void PlatformSensorChromeOS::SetRequiredChannels() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(required_channel_ids_.empty());  // Should only be called once.
 
-  absl::optional<std::string> axes_prefix = absl::nullopt;
+  base::Optional<std::string> axes_prefix = base::nullopt;
   switch (GetType()) {
     case mojom::SensorType::AMBIENT_LIGHT:
       required_channel_ids_.push_back(chromeos::sensors::mojom::kLightChannel);
@@ -326,10 +288,6 @@ void PlatformSensorChromeOS::SetRequiredChannels() {
 
     case mojom::SensorType::MAGNETOMETER:
       axes_prefix = chromeos::sensors::mojom::kMagnetometerChannel;
-      break;
-
-    case mojom::SensorType::GRAVITY:
-      axes_prefix = chromeos::sensors::mojom::kGravityChannel;
       break;
 
     default:
@@ -424,20 +382,6 @@ void PlatformSensorChromeOS::SetChannelsEnabledCallback(
 
 double PlatformSensorChromeOS::GetScaledValue(int64_t value) const {
   return value * scale_;
-}
-
-void PlatformSensorChromeOS::OnReadFailure() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (++num_failed_reads_ < kNumFailedReadsBeforeGivingUp) {
-    LOG(ERROR) << "ReadSamples error #" << num_failed_reads_ << " occurred";
-    return;
-  }
-
-  num_failed_reads_ = num_recovery_reads_ = 0;
-
-  LOG(ERROR) << "Too many failed reads";
-  ResetOnError();
 }
 
 }  // namespace device

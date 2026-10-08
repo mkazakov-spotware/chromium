@@ -1,15 +1,14 @@
-#!/usr/bin/env python3
-# Copyright 2014 The Chromium Authors
+#!/usr/bin/env python
+# Copyright 2014 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Code generator for khronos_glcts tests."""
 
-import argparse
 import os
 import re
 import sys
-import typing
+import argparse
 
 TEST_DEF_TEMPLATE = """
 TEST(KhronosGLCTSTest, %(gname)s) {
@@ -33,7 +32,7 @@ BUILT_IN_TESTS = {
   ],
 }
 
-def ReadFileAsLines(filename: str) -> typing.Generator[str, None, None]:
+def ReadFileAsLines(filename):
   """
     Reads a file, yielding each non-blank line
     and lines that don't begin with #
@@ -45,13 +44,13 @@ def ReadFileAsLines(filename: str) -> typing.Generator[str, None, None]:
     if len(line) > 0 and not line.startswith("#"):
       yield line
 
-def ReadRunFile(run_file: str) -> typing.List[str]:
+def ReadRunFile(run_file):
   """
     Find all .test tests in a .run file and return their paths.
     If the .run file contains another .run file, then that is inspected
     too.
   """
-  tests = []
+  tests = list()
   base_dir = os.path.dirname(run_file)
   for line in ReadFileAsLines(run_file):
     _, ext = os.path.splitext(line)
@@ -60,10 +59,10 @@ def ReadRunFile(run_file: str) -> typing.List[str]:
     elif ext == ".run":
       tests += ReadRunFile(os.path.join(base_dir, line))
     else:
-      raise ValueError("Unexpected line '%s' in '%s'" % (line, run_file))
+      raise ValueError, "Unexpected line '%s' in '%s'" % (line, run_file)
   return tests
 
-def GenerateTests(run_files: typing.List[str], output: typing.IO) -> None:
+def GenerateTests(run_files, output):
   """
     Generates code for khronos_glcts_test test-cases that are
     listed in the run_files.
@@ -95,7 +94,7 @@ def GenerateTests(run_files: typing.List[str], output: typing.IO) -> None:
         })
     output.write("\n");
 
-def main() -> int:
+def main():
   """This is the main function."""
   parser = argparse.ArgumentParser()
   parser.add_argument("--outdir", default = ".")
@@ -104,7 +103,7 @@ def main() -> int:
   args = parser.parse_args()
 
   output = open(
-    os.path.join(args.outdir, "khronos_glcts_test_autogen.cc"), "w")
+    os.path.join(args.outdir, "khronos_glcts_test_autogen.cc"), "wb")
 
   try:
     GenerateTests(args.run_files, output)

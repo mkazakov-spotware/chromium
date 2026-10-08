@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/cronet/cronet_global_state.h"
 
-#include <tuple>
-
 #include "base/at_exit.h"
 #include "base/feature_list.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "net/proxy_resolution/configured_proxy_resolution_service.h"
@@ -25,7 +24,7 @@ scoped_refptr<base::SingleThreadTaskRunner> InitializeAndCreateTaskRunner() {
 // Cronet tests sets AtExitManager as part of TestSuite, so statically linked
 // library is not allowed to set its own.
 #if !defined(CRONET_TESTS_IMPLEMENTATION)
-  std::ignore = new base::AtExitManager;
+  ignore_result(new base::AtExitManager);
 #endif
 
   base::FeatureList::InitializeInstance(std::string(), std::string());
@@ -48,7 +47,7 @@ base::SingleThreadTaskRunner* InitTaskRunner() {
 }  // namespace
 
 void EnsureInitialized() {
-  std::ignore = InitTaskRunner();
+  ignore_result(InitTaskRunner());
 }
 
 bool OnInitThread() {
@@ -62,7 +61,7 @@ void PostTaskToInitThread(const base::Location& posted_from,
 
 std::unique_ptr<net::ProxyConfigService> CreateProxyConfigService(
     const scoped_refptr<base::SequencedTaskRunner>& io_task_runner) {
-  return net::ProxyConfigService::CreateSystemProxyConfigService(
+  return net::ConfiguredProxyResolutionService::CreateSystemProxyConfigService(
       io_task_runner);
 }
 

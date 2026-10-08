@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,20 @@
  * Javascript for Sidebar, served from chrome://bluetooth-internals/.
  */
 
-import {assert} from 'chrome://resources/js/assert.js';
-import {PageManager, PageManagerObserver} from './page_manager.js';
+cr.define('sidebar', function() {
+  /** @typedef {{pageName: string, text: string}} */
+  let SidebarItem;
 
-/** @typedef {{pageName: string, text: string}} */
-let SidebarItem;
+  /** @const {!Object}*/
+  const PageManager = cr.ui.pageManager.PageManager;
 
-/**
- * A side menu that lists the currently navigable pages.
- */
-export class Sidebar extends PageManagerObserver {
-  /** @param {!Element} sidebarDiv The div corresponding to the sidebar. */
-  constructor(sidebarDiv) {
-    super();
+  /**
+   * A side menu that lists the currently navigable pages.
+   * @constructor
+   * @param {!Element} sidebarDiv The div corresponding to the sidebar.
+   * @extends {cr.ui.pageManager.PageManager.Observer}
+   */
+  function Sidebar(sidebarDiv) {
     /** @private {!Element} */
     this.sidebarDiv_ = sidebarDiv;
     /** @private {!Element} */
@@ -43,76 +44,75 @@ export class Sidebar extends PageManagerObserver {
         }.bind(this));
   }
 
-  /**
-   * Adds a new list item to the sidebar using the given |item|.
-   * @param {!SidebarItem} item
-   */
-  addItem(item) {
-    const sidebarItem = document.createElement('li');
-    sidebarItem.dataset.pageName = item.pageName.toLowerCase();
+  Sidebar.prototype = {
+    __proto__: PageManager.Observer.prototype,
 
-    const button = document.createElement('button');
-    button.classList.add('custom-appearance');
-    button.textContent = item.text;
-    button.addEventListener('click', this.onItemClick_.bind(this));
-    sidebarItem.appendChild(button);
+    /**
+     * Adds a new list item to the sidebar using the given |item|.
+     * @param {!SidebarItem} item
+     */
+    addItem(item) {
+      const sidebarItem = document.createElement('li');
+      sidebarItem.dataset.pageName = item.pageName.toLowerCase();
 
-    this.sidebarList_.appendChild(sidebarItem);
-  }
+      const button = document.createElement('button');
+      button.classList.add('custom-appearance');
+      button.textContent = item.text;
+      button.addEventListener('click', this.onItemClick_.bind(this));
+      sidebarItem.appendChild(button);
 
-  /**
-   * Closes the sidebar. Only applies to layouts with window width <= 600px.
-   */
-  close() {
-    this.sidebarDiv_.classList.remove('open');
-    document.body.style.overflow = '';
-    document.dispatchEvent(new CustomEvent('contentfocus'));
-  }
+      this.sidebarList_.appendChild(sidebarItem);
+    },
 
-  /**
-   * Opens the sidebar. Only applies to layouts with window width <= 600px.
-   */
-  open() {
-    document.body.style.overflow = 'hidden';
-    this.sidebarDiv_.classList.add('open');
-    document.dispatchEvent(new CustomEvent('contentblur'));
-  }
+    /**
+     * Closes the sidebar. Only applies to layouts with window width <= 600px.
+     */
+    close() {
+      this.sidebarDiv_.classList.remove('open');
+      document.body.style.overflow = '';
+      document.dispatchEvent(new CustomEvent('contentfocus'));
+    },
 
-  /**
-   * Removes a sidebar item where |pageName| matches the item's pageName.
-   * @param {string} pageName
-   */
-  removeItem(pageName) {
-    pageName = pageName.toLowerCase();
-    const query = 'li[data-page-name="' + pageName + '"]';
-    const selection = this.sidebarList_.querySelector(query);
+    /**
+     * Opens the sidebar. Only applies to layouts with window width <= 600px.
+     */
+    open() {
+      document.body.style.overflow = 'hidden';
+      this.sidebarDiv_.classList.add('open');
+      document.dispatchEvent(new CustomEvent('contentblur'));
+    },
 
-    // Devices are only added to the sidebar when the user pressed "Inspect" on
-    // them in the main table. Only try to remove the element if it exists.
-    if (selection) {
-      this.sidebarList_.removeChild(selection);
-    }
-  }
+    /**
+     * Removes a sidebar item where |pageName| matches the item's pageName.
+     * @param {string} pageName
+     */
+    removeItem(pageName) {
+      pageName = pageName.toLowerCase();
+      const query = 'li[data-page-name="' + pageName + '"]';
+      this.sidebarList_.removeChild(this.sidebarList_.querySelector(query));
+    },
 
-  /**
-   * Called when a page is navigated to.
-   * @override
-   * @param {string} path The path of the page being visited.
-   */
-  updateHistory(path) {
-    this.sidebarContent_.querySelectorAll('li').forEach(function(item) {
-      item.classList.toggle('selected', item.dataset.pageName === path);
-    });
-  }
+    /**
+     * Called when a page is navigated to.
+     * @override
+     * @param {string} path The path of the page being visited.
+     */
+    updateHistory(path) {
+      this.sidebarContent_.querySelectorAll('li').forEach(function(item) {
+        item.classList.toggle('selected', item.dataset.pageName === path);
+      });
+    },
 
-  /**
-   * Switches the page based on which sidebar list button was clicked.
-   * @param {!Event} event
-   * @private
-   */
-  onItemClick_(event) {
-    this.close();
-    PageManager.getInstance().showPageByName(
-        event.target.parentNode.dataset.pageName);
-  }
-}
+    /**
+     * Switches the page based on which sidebar list button was clicked.
+     * @param {!Event} event
+     * @private
+     */
+    onItemClick_(event) {
+      this.close();
+      PageManager.showPageByName(event.target.parentNode.dataset.pageName);
+    },
+  };
+
+  return {Sidebar: Sidebar};
+});

@@ -22,7 +22,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_RADIAL_GRADIENT_ELEMENT_H_
 
 #include "third_party/blink/renderer/core/svg/svg_gradient_element.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -48,7 +48,7 @@ class SVGRadialGradientElement final : public SVGGradientElement {
   void Trace(Visitor*) const override;
 
  private:
-  void SvgAttributeChanged(const SvgAttributeChangedParams&) override;
+  void SvgAttributeChanged(const QualifiedName&) override;
 
   LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
 

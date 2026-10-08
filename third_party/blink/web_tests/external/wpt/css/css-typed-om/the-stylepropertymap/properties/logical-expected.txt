@@ -1,5 +1,5 @@
 This is a testharness.js-based test.
-Found 502 tests; 406 PASS, 96 FAIL, 0 TIMEOUT, 0 NOTRUN.
+Found 548 tests; 436 PASS, 112 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS Can set 'margin-block-start' to CSS-wide keywords
 PASS Can set 'margin-block-start' to var() references
 PASS Can set 'margin-block-start' to a percent
@@ -8,6 +8,7 @@ PASS Setting 'margin-block-start' to a time throws TypeError
 PASS Setting 'margin-block-start' to an angle throws TypeError
 PASS Setting 'margin-block-start' to a flexible length throws TypeError
 PASS Setting 'margin-block-start' to a number throws TypeError
+PASS Setting 'margin-block-start' to a position throws TypeError
 PASS Setting 'margin-block-start' to a URL throws TypeError
 PASS Setting 'margin-block-start' to a transform throws TypeError
 PASS Can set 'margin-block-end' to CSS-wide keywords
@@ -18,6 +19,7 @@ PASS Setting 'margin-block-end' to a time throws TypeError
 PASS Setting 'margin-block-end' to an angle throws TypeError
 PASS Setting 'margin-block-end' to a flexible length throws TypeError
 PASS Setting 'margin-block-end' to a number throws TypeError
+PASS Setting 'margin-block-end' to a position throws TypeError
 PASS Setting 'margin-block-end' to a URL throws TypeError
 PASS Setting 'margin-block-end' to a transform throws TypeError
 PASS Can set 'margin-inline-start' to CSS-wide keywords
@@ -28,6 +30,7 @@ PASS Setting 'margin-inline-start' to a time throws TypeError
 PASS Setting 'margin-inline-start' to an angle throws TypeError
 PASS Setting 'margin-inline-start' to a flexible length throws TypeError
 PASS Setting 'margin-inline-start' to a number throws TypeError
+PASS Setting 'margin-inline-start' to a position throws TypeError
 PASS Setting 'margin-inline-start' to a URL throws TypeError
 PASS Setting 'margin-inline-start' to a transform throws TypeError
 PASS Can set 'margin-inline-end' to CSS-wide keywords
@@ -38,6 +41,7 @@ PASS Setting 'margin-inline-end' to a time throws TypeError
 PASS Setting 'margin-inline-end' to an angle throws TypeError
 PASS Setting 'margin-inline-end' to a flexible length throws TypeError
 PASS Setting 'margin-inline-end' to a number throws TypeError
+PASS Setting 'margin-inline-end' to a position throws TypeError
 PASS Setting 'margin-inline-end' to a URL throws TypeError
 PASS Setting 'margin-inline-end' to a transform throws TypeError
 FAIL Can set 'margin-block' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -48,6 +52,7 @@ PASS Setting 'margin-block' to a time throws TypeError
 PASS Setting 'margin-block' to an angle throws TypeError
 PASS Setting 'margin-block' to a flexible length throws TypeError
 PASS Setting 'margin-block' to a number throws TypeError
+PASS Setting 'margin-block' to a position throws TypeError
 PASS Setting 'margin-block' to a URL throws TypeError
 PASS Setting 'margin-block' to a transform throws TypeError
 FAIL Can set 'margin-inline' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -58,6 +63,7 @@ PASS Setting 'margin-inline' to a time throws TypeError
 PASS Setting 'margin-inline' to an angle throws TypeError
 PASS Setting 'margin-inline' to a flexible length throws TypeError
 PASS Setting 'margin-inline' to a number throws TypeError
+PASS Setting 'margin-inline' to a position throws TypeError
 PASS Setting 'margin-inline' to a URL throws TypeError
 PASS Setting 'margin-inline' to a transform throws TypeError
 PASS Can set 'inset-block-start' to CSS-wide keywords
@@ -68,6 +74,7 @@ PASS Setting 'inset-block-start' to a time throws TypeError
 PASS Setting 'inset-block-start' to an angle throws TypeError
 PASS Setting 'inset-block-start' to a flexible length throws TypeError
 PASS Setting 'inset-block-start' to a number throws TypeError
+PASS Setting 'inset-block-start' to a position throws TypeError
 PASS Setting 'inset-block-start' to a URL throws TypeError
 PASS Setting 'inset-block-start' to a transform throws TypeError
 PASS Can set 'inset-block-end' to CSS-wide keywords
@@ -78,6 +85,7 @@ PASS Setting 'inset-block-end' to a time throws TypeError
 PASS Setting 'inset-block-end' to an angle throws TypeError
 PASS Setting 'inset-block-end' to a flexible length throws TypeError
 PASS Setting 'inset-block-end' to a number throws TypeError
+PASS Setting 'inset-block-end' to a position throws TypeError
 PASS Setting 'inset-block-end' to a URL throws TypeError
 PASS Setting 'inset-block-end' to a transform throws TypeError
 PASS Can set 'inset-inline-start' to CSS-wide keywords
@@ -88,6 +96,7 @@ PASS Setting 'inset-inline-start' to a time throws TypeError
 PASS Setting 'inset-inline-start' to an angle throws TypeError
 PASS Setting 'inset-inline-start' to a flexible length throws TypeError
 PASS Setting 'inset-inline-start' to a number throws TypeError
+PASS Setting 'inset-inline-start' to a position throws TypeError
 PASS Setting 'inset-inline-start' to a URL throws TypeError
 PASS Setting 'inset-inline-start' to a transform throws TypeError
 PASS Can set 'inset-inline-end' to CSS-wide keywords
@@ -98,6 +107,7 @@ PASS Setting 'inset-inline-end' to a time throws TypeError
 PASS Setting 'inset-inline-end' to an angle throws TypeError
 PASS Setting 'inset-inline-end' to a flexible length throws TypeError
 PASS Setting 'inset-inline-end' to a number throws TypeError
+PASS Setting 'inset-inline-end' to a position throws TypeError
 PASS Setting 'inset-inline-end' to a URL throws TypeError
 PASS Setting 'inset-inline-end' to a transform throws TypeError
 FAIL Can set 'inset-block' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -108,6 +118,7 @@ PASS Setting 'inset-block' to a time throws TypeError
 PASS Setting 'inset-block' to an angle throws TypeError
 PASS Setting 'inset-block' to a flexible length throws TypeError
 PASS Setting 'inset-block' to a number throws TypeError
+PASS Setting 'inset-block' to a position throws TypeError
 PASS Setting 'inset-block' to a URL throws TypeError
 PASS Setting 'inset-block' to a transform throws TypeError
 FAIL Can set 'inset-inline' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -118,6 +129,7 @@ PASS Setting 'inset-inline' to a time throws TypeError
 PASS Setting 'inset-inline' to an angle throws TypeError
 PASS Setting 'inset-inline' to a flexible length throws TypeError
 PASS Setting 'inset-inline' to a number throws TypeError
+PASS Setting 'inset-inline' to a position throws TypeError
 PASS Setting 'inset-inline' to a URL throws TypeError
 PASS Setting 'inset-inline' to a transform throws TypeError
 PASS Can set 'padding-block-start' to CSS-wide keywords
@@ -128,6 +140,7 @@ PASS Setting 'padding-block-start' to a time throws TypeError
 PASS Setting 'padding-block-start' to an angle throws TypeError
 PASS Setting 'padding-block-start' to a flexible length throws TypeError
 PASS Setting 'padding-block-start' to a number throws TypeError
+PASS Setting 'padding-block-start' to a position throws TypeError
 PASS Setting 'padding-block-start' to a URL throws TypeError
 PASS Setting 'padding-block-start' to a transform throws TypeError
 PASS Can set 'padding-block-end' to CSS-wide keywords
@@ -138,6 +151,7 @@ PASS Setting 'padding-block-end' to a time throws TypeError
 PASS Setting 'padding-block-end' to an angle throws TypeError
 PASS Setting 'padding-block-end' to a flexible length throws TypeError
 PASS Setting 'padding-block-end' to a number throws TypeError
+PASS Setting 'padding-block-end' to a position throws TypeError
 PASS Setting 'padding-block-end' to a URL throws TypeError
 PASS Setting 'padding-block-end' to a transform throws TypeError
 PASS Can set 'padding-inline-start' to CSS-wide keywords
@@ -148,6 +162,7 @@ PASS Setting 'padding-inline-start' to a time throws TypeError
 PASS Setting 'padding-inline-start' to an angle throws TypeError
 PASS Setting 'padding-inline-start' to a flexible length throws TypeError
 PASS Setting 'padding-inline-start' to a number throws TypeError
+PASS Setting 'padding-inline-start' to a position throws TypeError
 PASS Setting 'padding-inline-start' to a URL throws TypeError
 PASS Setting 'padding-inline-start' to a transform throws TypeError
 PASS Can set 'padding-inline-end' to CSS-wide keywords
@@ -158,6 +173,7 @@ PASS Setting 'padding-inline-end' to a time throws TypeError
 PASS Setting 'padding-inline-end' to an angle throws TypeError
 PASS Setting 'padding-inline-end' to a flexible length throws TypeError
 PASS Setting 'padding-inline-end' to a number throws TypeError
+PASS Setting 'padding-inline-end' to a position throws TypeError
 PASS Setting 'padding-inline-end' to a URL throws TypeError
 PASS Setting 'padding-inline-end' to a transform throws TypeError
 FAIL Can set 'padding-block' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -168,6 +184,7 @@ PASS Setting 'padding-block' to a time throws TypeError
 PASS Setting 'padding-block' to an angle throws TypeError
 PASS Setting 'padding-block' to a flexible length throws TypeError
 PASS Setting 'padding-block' to a number throws TypeError
+PASS Setting 'padding-block' to a position throws TypeError
 PASS Setting 'padding-block' to a URL throws TypeError
 PASS Setting 'padding-block' to a transform throws TypeError
 FAIL Can set 'padding-inline' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -178,6 +195,7 @@ PASS Setting 'padding-inline' to a time throws TypeError
 PASS Setting 'padding-inline' to an angle throws TypeError
 PASS Setting 'padding-inline' to a flexible length throws TypeError
 PASS Setting 'padding-inline' to a number throws TypeError
+PASS Setting 'padding-inline' to a position throws TypeError
 PASS Setting 'padding-inline' to a URL throws TypeError
 PASS Setting 'padding-inline' to a transform throws TypeError
 FAIL Can set 'border-block-start' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -189,6 +207,7 @@ PASS Setting 'border-block-start' to a time throws TypeError
 PASS Setting 'border-block-start' to an angle throws TypeError
 PASS Setting 'border-block-start' to a flexible length throws TypeError
 PASS Setting 'border-block-start' to a number throws TypeError
+PASS Setting 'border-block-start' to a position throws TypeError
 PASS Setting 'border-block-start' to a URL throws TypeError
 PASS Setting 'border-block-start' to a transform throws TypeError
 PASS Can set 'border-block-start-width' to CSS-wide keywords
@@ -202,6 +221,7 @@ PASS Setting 'border-block-start-width' to a time throws TypeError
 PASS Setting 'border-block-start-width' to an angle throws TypeError
 PASS Setting 'border-block-start-width' to a flexible length throws TypeError
 PASS Setting 'border-block-start-width' to a number throws TypeError
+PASS Setting 'border-block-start-width' to a position throws TypeError
 PASS Setting 'border-block-start-width' to a URL throws TypeError
 PASS Setting 'border-block-start-width' to a transform throws TypeError
 PASS Can set 'border-block-start-color' to CSS-wide keywords
@@ -213,6 +233,7 @@ PASS Setting 'border-block-start-color' to a time throws TypeError
 PASS Setting 'border-block-start-color' to an angle throws TypeError
 PASS Setting 'border-block-start-color' to a flexible length throws TypeError
 PASS Setting 'border-block-start-color' to a number throws TypeError
+PASS Setting 'border-block-start-color' to a position throws TypeError
 PASS Setting 'border-block-start-color' to a URL throws TypeError
 PASS Setting 'border-block-start-color' to a transform throws TypeError
 PASS Can set 'border-block-start-style' to CSS-wide keywords
@@ -225,6 +246,7 @@ PASS Setting 'border-block-start-style' to a time throws TypeError
 PASS Setting 'border-block-start-style' to an angle throws TypeError
 PASS Setting 'border-block-start-style' to a flexible length throws TypeError
 PASS Setting 'border-block-start-style' to a number throws TypeError
+PASS Setting 'border-block-start-style' to a position throws TypeError
 PASS Setting 'border-block-start-style' to a URL throws TypeError
 PASS Setting 'border-block-start-style' to a transform throws TypeError
 FAIL Can set 'border-block-end' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -236,6 +258,7 @@ PASS Setting 'border-block-end' to a time throws TypeError
 PASS Setting 'border-block-end' to an angle throws TypeError
 PASS Setting 'border-block-end' to a flexible length throws TypeError
 PASS Setting 'border-block-end' to a number throws TypeError
+PASS Setting 'border-block-end' to a position throws TypeError
 PASS Setting 'border-block-end' to a URL throws TypeError
 PASS Setting 'border-block-end' to a transform throws TypeError
 PASS Can set 'border-block-end-width' to CSS-wide keywords
@@ -249,6 +272,7 @@ PASS Setting 'border-block-end-width' to a time throws TypeError
 PASS Setting 'border-block-end-width' to an angle throws TypeError
 PASS Setting 'border-block-end-width' to a flexible length throws TypeError
 PASS Setting 'border-block-end-width' to a number throws TypeError
+PASS Setting 'border-block-end-width' to a position throws TypeError
 PASS Setting 'border-block-end-width' to a URL throws TypeError
 PASS Setting 'border-block-end-width' to a transform throws TypeError
 PASS Can set 'border-block-end-color' to CSS-wide keywords
@@ -260,6 +284,7 @@ PASS Setting 'border-block-end-color' to a time throws TypeError
 PASS Setting 'border-block-end-color' to an angle throws TypeError
 PASS Setting 'border-block-end-color' to a flexible length throws TypeError
 PASS Setting 'border-block-end-color' to a number throws TypeError
+PASS Setting 'border-block-end-color' to a position throws TypeError
 PASS Setting 'border-block-end-color' to a URL throws TypeError
 PASS Setting 'border-block-end-color' to a transform throws TypeError
 PASS Can set 'border-block-end-style' to CSS-wide keywords
@@ -272,6 +297,7 @@ PASS Setting 'border-block-end-style' to a time throws TypeError
 PASS Setting 'border-block-end-style' to an angle throws TypeError
 PASS Setting 'border-block-end-style' to a flexible length throws TypeError
 PASS Setting 'border-block-end-style' to a number throws TypeError
+PASS Setting 'border-block-end-style' to a position throws TypeError
 PASS Setting 'border-block-end-style' to a URL throws TypeError
 PASS Setting 'border-block-end-style' to a transform throws TypeError
 FAIL Can set 'border-inline-start' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -283,6 +309,7 @@ PASS Setting 'border-inline-start' to a time throws TypeError
 PASS Setting 'border-inline-start' to an angle throws TypeError
 PASS Setting 'border-inline-start' to a flexible length throws TypeError
 PASS Setting 'border-inline-start' to a number throws TypeError
+PASS Setting 'border-inline-start' to a position throws TypeError
 PASS Setting 'border-inline-start' to a URL throws TypeError
 PASS Setting 'border-inline-start' to a transform throws TypeError
 PASS Can set 'border-inline-start-width' to CSS-wide keywords
@@ -296,6 +323,7 @@ PASS Setting 'border-inline-start-width' to a time throws TypeError
 PASS Setting 'border-inline-start-width' to an angle throws TypeError
 PASS Setting 'border-inline-start-width' to a flexible length throws TypeError
 PASS Setting 'border-inline-start-width' to a number throws TypeError
+PASS Setting 'border-inline-start-width' to a position throws TypeError
 PASS Setting 'border-inline-start-width' to a URL throws TypeError
 PASS Setting 'border-inline-start-width' to a transform throws TypeError
 PASS Can set 'border-inline-start-color' to CSS-wide keywords
@@ -307,6 +335,7 @@ PASS Setting 'border-inline-start-color' to a time throws TypeError
 PASS Setting 'border-inline-start-color' to an angle throws TypeError
 PASS Setting 'border-inline-start-color' to a flexible length throws TypeError
 PASS Setting 'border-inline-start-color' to a number throws TypeError
+PASS Setting 'border-inline-start-color' to a position throws TypeError
 PASS Setting 'border-inline-start-color' to a URL throws TypeError
 PASS Setting 'border-inline-start-color' to a transform throws TypeError
 PASS Can set 'border-inline-start-style' to CSS-wide keywords
@@ -319,6 +348,7 @@ PASS Setting 'border-inline-start-style' to a time throws TypeError
 PASS Setting 'border-inline-start-style' to an angle throws TypeError
 PASS Setting 'border-inline-start-style' to a flexible length throws TypeError
 PASS Setting 'border-inline-start-style' to a number throws TypeError
+PASS Setting 'border-inline-start-style' to a position throws TypeError
 PASS Setting 'border-inline-start-style' to a URL throws TypeError
 PASS Setting 'border-inline-start-style' to a transform throws TypeError
 FAIL Can set 'border-inline-end' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -330,6 +360,7 @@ PASS Setting 'border-inline-end' to a time throws TypeError
 PASS Setting 'border-inline-end' to an angle throws TypeError
 PASS Setting 'border-inline-end' to a flexible length throws TypeError
 PASS Setting 'border-inline-end' to a number throws TypeError
+PASS Setting 'border-inline-end' to a position throws TypeError
 PASS Setting 'border-inline-end' to a URL throws TypeError
 PASS Setting 'border-inline-end' to a transform throws TypeError
 PASS Can set 'border-inline-end-width' to CSS-wide keywords
@@ -343,6 +374,7 @@ PASS Setting 'border-inline-end-width' to a time throws TypeError
 PASS Setting 'border-inline-end-width' to an angle throws TypeError
 PASS Setting 'border-inline-end-width' to a flexible length throws TypeError
 PASS Setting 'border-inline-end-width' to a number throws TypeError
+PASS Setting 'border-inline-end-width' to a position throws TypeError
 PASS Setting 'border-inline-end-width' to a URL throws TypeError
 PASS Setting 'border-inline-end-width' to a transform throws TypeError
 PASS Can set 'border-inline-end-color' to CSS-wide keywords
@@ -354,6 +386,7 @@ PASS Setting 'border-inline-end-color' to a time throws TypeError
 PASS Setting 'border-inline-end-color' to an angle throws TypeError
 PASS Setting 'border-inline-end-color' to a flexible length throws TypeError
 PASS Setting 'border-inline-end-color' to a number throws TypeError
+PASS Setting 'border-inline-end-color' to a position throws TypeError
 PASS Setting 'border-inline-end-color' to a URL throws TypeError
 PASS Setting 'border-inline-end-color' to a transform throws TypeError
 PASS Can set 'border-inline-end-style' to CSS-wide keywords
@@ -366,6 +399,7 @@ PASS Setting 'border-inline-end-style' to a time throws TypeError
 PASS Setting 'border-inline-end-style' to an angle throws TypeError
 PASS Setting 'border-inline-end-style' to a flexible length throws TypeError
 PASS Setting 'border-inline-end-style' to a number throws TypeError
+PASS Setting 'border-inline-end-style' to a position throws TypeError
 PASS Setting 'border-inline-end-style' to a URL throws TypeError
 PASS Setting 'border-inline-end-style' to a transform throws TypeError
 FAIL Can set 'border-block' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -377,6 +411,7 @@ PASS Setting 'border-block' to a time throws TypeError
 PASS Setting 'border-block' to an angle throws TypeError
 PASS Setting 'border-block' to a flexible length throws TypeError
 PASS Setting 'border-block' to a number throws TypeError
+PASS Setting 'border-block' to a position throws TypeError
 PASS Setting 'border-block' to a URL throws TypeError
 PASS Setting 'border-block' to a transform throws TypeError
 FAIL Can set 'border-block-width' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -390,6 +425,7 @@ PASS Setting 'border-block-width' to a time throws TypeError
 PASS Setting 'border-block-width' to an angle throws TypeError
 PASS Setting 'border-block-width' to a flexible length throws TypeError
 PASS Setting 'border-block-width' to a number throws TypeError
+PASS Setting 'border-block-width' to a position throws TypeError
 PASS Setting 'border-block-width' to a URL throws TypeError
 PASS Setting 'border-block-width' to a transform throws TypeError
 FAIL Can set 'border-block-color' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -401,6 +437,7 @@ PASS Setting 'border-block-color' to a time throws TypeError
 PASS Setting 'border-block-color' to an angle throws TypeError
 PASS Setting 'border-block-color' to a flexible length throws TypeError
 PASS Setting 'border-block-color' to a number throws TypeError
+PASS Setting 'border-block-color' to a position throws TypeError
 PASS Setting 'border-block-color' to a URL throws TypeError
 PASS Setting 'border-block-color' to a transform throws TypeError
 FAIL Can set 'border-block-style' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -413,6 +450,7 @@ PASS Setting 'border-block-style' to a time throws TypeError
 PASS Setting 'border-block-style' to an angle throws TypeError
 PASS Setting 'border-block-style' to a flexible length throws TypeError
 PASS Setting 'border-block-style' to a number throws TypeError
+PASS Setting 'border-block-style' to a position throws TypeError
 PASS Setting 'border-block-style' to a URL throws TypeError
 PASS Setting 'border-block-style' to a transform throws TypeError
 FAIL Can set 'border-inline' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -424,6 +462,7 @@ PASS Setting 'border-inline' to a time throws TypeError
 PASS Setting 'border-inline' to an angle throws TypeError
 PASS Setting 'border-inline' to a flexible length throws TypeError
 PASS Setting 'border-inline' to a number throws TypeError
+PASS Setting 'border-inline' to a position throws TypeError
 PASS Setting 'border-inline' to a URL throws TypeError
 PASS Setting 'border-inline' to a transform throws TypeError
 FAIL Can set 'border-inline-width' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -437,6 +476,7 @@ PASS Setting 'border-inline-width' to a time throws TypeError
 PASS Setting 'border-inline-width' to an angle throws TypeError
 PASS Setting 'border-inline-width' to a flexible length throws TypeError
 PASS Setting 'border-inline-width' to a number throws TypeError
+PASS Setting 'border-inline-width' to a position throws TypeError
 PASS Setting 'border-inline-width' to a URL throws TypeError
 PASS Setting 'border-inline-width' to a transform throws TypeError
 FAIL Can set 'border-inline-color' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -448,6 +488,7 @@ PASS Setting 'border-inline-color' to a time throws TypeError
 PASS Setting 'border-inline-color' to an angle throws TypeError
 PASS Setting 'border-inline-color' to a flexible length throws TypeError
 PASS Setting 'border-inline-color' to a number throws TypeError
+PASS Setting 'border-inline-color' to a position throws TypeError
 PASS Setting 'border-inline-color' to a URL throws TypeError
 PASS Setting 'border-inline-color' to a transform throws TypeError
 FAIL Can set 'border-inline-style' to CSS-wide keywords assert_equals: expected "CSSKeywordValue" but got "CSSStyleValue"
@@ -460,46 +501,51 @@ PASS Setting 'border-inline-style' to a time throws TypeError
 PASS Setting 'border-inline-style' to an angle throws TypeError
 PASS Setting 'border-inline-style' to a flexible length throws TypeError
 PASS Setting 'border-inline-style' to a number throws TypeError
+PASS Setting 'border-inline-style' to a position throws TypeError
 PASS Setting 'border-inline-style' to a URL throws TypeError
 PASS Setting 'border-inline-style' to a transform throws TypeError
-PASS Can set 'border-start-start-radius' to CSS-wide keywords
-PASS Can set 'border-start-start-radius' to var() references
-PASS Can set 'border-start-start-radius' to a percent
-PASS Can set 'border-start-start-radius' to a length
+FAIL Can set 'border-start-start-radius' to CSS-wide keywords Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-start-radius
+FAIL Can set 'border-start-start-radius' to var() references Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-start-radius
+FAIL Can set 'border-start-start-radius' to a percent Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-start-radius
+FAIL Can set 'border-start-start-radius' to a length Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-start-radius
 PASS Setting 'border-start-start-radius' to a time throws TypeError
 PASS Setting 'border-start-start-radius' to an angle throws TypeError
 PASS Setting 'border-start-start-radius' to a flexible length throws TypeError
 PASS Setting 'border-start-start-radius' to a number throws TypeError
+PASS Setting 'border-start-start-radius' to a position throws TypeError
 PASS Setting 'border-start-start-radius' to a URL throws TypeError
 PASS Setting 'border-start-start-radius' to a transform throws TypeError
-PASS Can set 'border-start-end-radius' to CSS-wide keywords
-PASS Can set 'border-start-end-radius' to var() references
-PASS Can set 'border-start-end-radius' to a percent
-PASS Can set 'border-start-end-radius' to a length
+FAIL Can set 'border-start-end-radius' to CSS-wide keywords Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-end-radius
+FAIL Can set 'border-start-end-radius' to var() references Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-end-radius
+FAIL Can set 'border-start-end-radius' to a percent Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-end-radius
+FAIL Can set 'border-start-end-radius' to a length Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-start-end-radius
 PASS Setting 'border-start-end-radius' to a time throws TypeError
 PASS Setting 'border-start-end-radius' to an angle throws TypeError
 PASS Setting 'border-start-end-radius' to a flexible length throws TypeError
 PASS Setting 'border-start-end-radius' to a number throws TypeError
+PASS Setting 'border-start-end-radius' to a position throws TypeError
 PASS Setting 'border-start-end-radius' to a URL throws TypeError
 PASS Setting 'border-start-end-radius' to a transform throws TypeError
-PASS Can set 'border-end-start-radius' to CSS-wide keywords
-PASS Can set 'border-end-start-radius' to var() references
-PASS Can set 'border-end-start-radius' to a percent
-PASS Can set 'border-end-start-radius' to a length
+FAIL Can set 'border-end-start-radius' to CSS-wide keywords Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-start-radius
+FAIL Can set 'border-end-start-radius' to var() references Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-start-radius
+FAIL Can set 'border-end-start-radius' to a percent Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-start-radius
+FAIL Can set 'border-end-start-radius' to a length Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-start-radius
 PASS Setting 'border-end-start-radius' to a time throws TypeError
 PASS Setting 'border-end-start-radius' to an angle throws TypeError
 PASS Setting 'border-end-start-radius' to a flexible length throws TypeError
 PASS Setting 'border-end-start-radius' to a number throws TypeError
+PASS Setting 'border-end-start-radius' to a position throws TypeError
 PASS Setting 'border-end-start-radius' to a URL throws TypeError
 PASS Setting 'border-end-start-radius' to a transform throws TypeError
-PASS Can set 'border-end-end-radius' to CSS-wide keywords
-PASS Can set 'border-end-end-radius' to var() references
-PASS Can set 'border-end-end-radius' to a percent
-PASS Can set 'border-end-end-radius' to a length
+FAIL Can set 'border-end-end-radius' to CSS-wide keywords Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-end-radius
+FAIL Can set 'border-end-end-radius' to var() references Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-end-radius
+FAIL Can set 'border-end-end-radius' to a percent Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-end-radius
+FAIL Can set 'border-end-end-radius' to a length Failed to execute 'set' on 'StylePropertyMap': Invalid propertyName: border-end-end-radius
 PASS Setting 'border-end-end-radius' to a time throws TypeError
 PASS Setting 'border-end-end-radius' to an angle throws TypeError
 PASS Setting 'border-end-end-radius' to a flexible length throws TypeError
 PASS Setting 'border-end-end-radius' to a number throws TypeError
+PASS Setting 'border-end-end-radius' to a position throws TypeError
 PASS Setting 'border-end-end-radius' to a URL throws TypeError
 PASS Setting 'border-end-end-radius' to a transform throws TypeError
 Harness: the test ran to completion.

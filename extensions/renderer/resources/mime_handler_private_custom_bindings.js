@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
  * Custom bindings for the mime handler API.
  */
 
-var exceptionHandler = require('uncaught_exception_handler');
-var logActivity = requireNative('activityLogger');
+var utils = require('utils');
 
 var NO_STREAM_ERROR =
     'Streams are only available from a mime handler view guest.';
@@ -17,34 +16,6 @@ if ((typeof mojo === 'undefined') || !mojo.bindingsLibraryInitialized) {
   loadScript('mojo_bindings');
 }
 loadScript('extensions/common/api/mime_handler.mojom');
-
-// DO NOT USE. This causes problems with safe builtins, and makes migration to
-// native bindings more difficult.
-function handleRequestWithPromiseDoNotUse(
-    binding, apiName, methodName, customizedFunction) {
-  var fullName = apiName + '.' + methodName;
-  var extensionId = requireNative('process').GetExtensionId();
-  binding.setHandleRequest(methodName, function() {
-    logActivity.LogAPICall(extensionId, fullName, $Array.slice(arguments));
-    var stack = exceptionHandler.getExtensionStackTrace();
-    var callback = arguments[arguments.length - 2];
-    var args = $Array.slice(arguments, 0, arguments.length - 2);
-    var keepAlive = require('keep_alive').createKeepAlive();
-    $Function.apply(customizedFunction, this, args).then(function(result) {
-      if (callback) {
-        exceptionHandler.safeCallbackApply(
-            fullName, callback, [result], stack);
-      }
-    }).catch(function(error) {
-      if (callback) {
-        var message = exceptionHandler.safeErrorToString(error, true);
-        bindingUtil.runCallbackWithLastError(message, callback);
-      }
-    }).then(function() {
-      keepAlive.close();
-    });
-  });
-};
 
 var servicePtr = new extensions.mimeHandler.MimeHandlerServicePtr;
 Mojo.bindInterface(
@@ -89,7 +60,7 @@ function constructStreamInfoDict(streamInfo) {
 
 apiBridge.registerCustomHook(function(bindingsAPI) {
   var apiFunctions = bindingsAPI.apiFunctions;
-  handleRequestWithPromiseDoNotUse(
+  utils.handleRequestWithPromiseDoNotUse(
       apiFunctions, 'mimeHandlerPrivate', 'getStreamInfo',
       function() {
     if (!streamInfoPromise)
@@ -97,12 +68,7 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
     return streamInfoPromise.then(constructStreamInfoDict);
   });
 
-  apiFunctions.setHandleRequest(
-      'setPdfPluginAttributes', function(pdfPluginAttributes) {
-        servicePtr.setPdfPluginAttributes(pdfPluginAttributes);
-      });
-
-  handleRequestWithPromiseDoNotUse(
+  utils.handleRequestWithPromiseDoNotUse(
       apiFunctions, 'mimeHandlerPrivate', 'setShowBeforeUnloadDialog',
       function(showDialog) {
     return beforeUnloadControlPtr.setShowBeforeUnloadDialog(showDialog);

@@ -2,7 +2,7 @@
 
 bindings/ contains code for V8-DOM bindings.
 bindings/ is a layer that implements high-performance C++ bindings
-between V8 and DOM per the [Web IDL spec](https://webidl.spec.whatwg.org/).
+between V8 and DOM per the [Web IDL spec](https://heycam.github.io/webidl/).
 
 ## Directory structure
 

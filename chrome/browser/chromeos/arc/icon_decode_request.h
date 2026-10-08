@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "chrome/browser/image_decoder/image_decoder.h"
 
 namespace gfx {
@@ -16,25 +17,11 @@ class ImageSkia;
 
 namespace arc {
 
-// This is used for metrics, so do not remove or reorder existing entries.
-enum class ArcAppShortcutStatus {
-  kEmpty = 0,
-  kNotEmpty = 1,
-
-  // Add any new values above this one, and update kMaxValue to the highest
-  // enumerator value.
-  kMaxValue = kNotEmpty
-};
-
 class IconDecodeRequest : public ImageDecoder::ImageRequest {
  public:
   using SetIconCallback = base::OnceCallback<void(const gfx::ImageSkia& icon)>;
 
   IconDecodeRequest(SetIconCallback set_icon_callback, int dimension_dip);
-
-  IconDecodeRequest(const IconDecodeRequest&) = delete;
-  IconDecodeRequest& operator=(const IconDecodeRequest&) = delete;
-
   ~IconDecodeRequest() override;
 
   // Disables async safe decoding requests when unit tests are executed.
@@ -48,6 +35,9 @@ class IconDecodeRequest : public ImageDecoder::ImageRequest {
   // DisableSafeDecodingForTesting() is called.
   void StartWithOptions(const std::vector<uint8_t>& image_data);
 
+  // If |normalized| is true, MD normalization is applied to the decoded icon.
+  void set_normalized(bool normalized) { normalized_ = normalized; }
+
   // ImageDecoder::ImageRequest:
   void OnImageDecoded(const SkBitmap& bitmap) override;
   void OnDecodeImageFailed() override;
@@ -55,6 +45,9 @@ class IconDecodeRequest : public ImageDecoder::ImageRequest {
  private:
   SetIconCallback set_icon_callback_;
   const int dimension_dip_;
+  bool normalized_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(IconDecodeRequest);
 };
 
 }  // namespace arc

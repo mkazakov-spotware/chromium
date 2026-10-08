@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,15 +13,14 @@ namespace background_task {
 class NativeTaskScheduler : public BackgroundTaskScheduler {
  public:
   NativeTaskScheduler();
-
-  NativeTaskScheduler(const NativeTaskScheduler&) = delete;
-  NativeTaskScheduler& operator=(const NativeTaskScheduler&) = delete;
-
   ~NativeTaskScheduler() override;
 
   // BackgroundTaskScheduler overrides.
   bool Schedule(const TaskInfo& task_info) override;
   void Cancel(int task_id) override;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NativeTaskScheduler);
 };
 
 }  // namespace background_task

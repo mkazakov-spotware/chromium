@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/predictors/autocomplete_action_predictor.h"
 #include "chrome/browser/predictors/predictor_database_factory.h"
+#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 
 namespace predictors {
 
@@ -25,14 +27,20 @@ AutocompleteActionPredictorFactory*
 }
 
 AutocompleteActionPredictorFactory::AutocompleteActionPredictorFactory()
-    : ProfileKeyedServiceFactory(
-          "AutocompleteActionPredictor",
-          ProfileSelections::BuildForRegularAndIncognito()) {
+    : BrowserContextKeyedServiceFactory(
+        "AutocompleteActionPredictor",
+        BrowserContextDependencyManager::GetInstance()) {
   DependsOn(HistoryServiceFactory::GetInstance());
   DependsOn(PredictorDatabaseFactory::GetInstance());
 }
 
 AutocompleteActionPredictorFactory::~AutocompleteActionPredictorFactory() {}
+
+content::BrowserContext*
+AutocompleteActionPredictorFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
+}
 
 KeyedService* AutocompleteActionPredictorFactory::BuildServiceInstanceFor(
     content::BrowserContext* profile) const {

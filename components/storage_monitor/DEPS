@@ -1,5 +1,5 @@
 include_rules = [
-  "+chromeos/ash/components/disks",
+  "+chromeos/disks",
   "+content/public/browser",
   "+content/public/test",
   "+device/udev_linux",

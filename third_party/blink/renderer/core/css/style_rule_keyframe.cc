@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ StyleRuleKeyframe::StyleRuleKeyframe(std::unique_ptr<Vector<double>> keys,
     : StyleRuleBase(kKeyframe), properties_(properties), keys_(*keys) {}
 
 String StyleRuleKeyframe::KeyText() const {
-  DCHECK(!keys_.empty());
+  DCHECK(!keys_.IsEmpty());
 
   StringBuilder key_text;
   for (unsigned i = 0; i < keys_.size(); ++i) {
@@ -26,7 +26,7 @@ String StyleRuleKeyframe::KeyText() const {
     key_text.Append('%');
   }
 
-  return key_text.ReleaseString();
+  return key_text.ToString();
 }
 
 bool StyleRuleKeyframe::SetKeyText(const String& key_text) {
@@ -34,7 +34,7 @@ bool StyleRuleKeyframe::SetKeyText(const String& key_text) {
 
   std::unique_ptr<Vector<double>> keys =
       CSSParser::ParseKeyframeKeyList(key_text);
-  if (!keys || keys->empty())
+  if (!keys || keys->IsEmpty())
     return false;
 
   keys_ = *keys;
@@ -57,10 +57,10 @@ String StyleRuleKeyframe::CssText() const {
   result.Append(" { ");
   String decls = properties_->AsText();
   result.Append(decls);
-  if (!decls.empty())
+  if (!decls.IsEmpty())
     result.Append(' ');
   result.Append('}');
-  return result.ReleaseString();
+  return result.ToString();
 }
 
 void StyleRuleKeyframe::TraceAfterDispatch(blink::Visitor* visitor) const {

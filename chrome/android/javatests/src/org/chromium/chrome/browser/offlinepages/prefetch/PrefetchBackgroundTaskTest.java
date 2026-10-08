@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -131,11 +131,6 @@ public class PrefetchBackgroundTaskTest {
         }
 
         @Override
-        public boolean isScheduled(Context context, int taskId) {
-            return (mTasks.get(taskId) != null);
-        }
-
-        @Override
         public void checkForOSUpgrade(Context context) {}
 
         @Override
@@ -195,11 +190,13 @@ public class PrefetchBackgroundTaskTest {
         });
         OfflineTestUtil.setPrefetchingEnabledByServer(true);
         OfflineTestUtil.setGCMTokenForTesting("dummy_gcm_token");
+
+        PrefetchBackgroundTask.alwaysSupportServiceManagerOnlyForTesting();
     }
 
     @After
     public void tearDown() {
-        mNativeTestRule.assertMinimalBrowserStarted();
+        mNativeTestRule.assertOnlyServiceManagerStarted();
     }
 
     private void scheduleTask(int additionalDelaySeconds) {

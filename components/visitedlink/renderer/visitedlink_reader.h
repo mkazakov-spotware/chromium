@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_VISITEDLINK_RENDERER_VISITEDLINK_READER_H_
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/weak_ptr.h"
@@ -22,10 +23,6 @@ class VisitedLinkReader : public VisitedLinkCommon,
                           public mojom::VisitedLinkNotificationSink {
  public:
   VisitedLinkReader();
-
-  VisitedLinkReader(const VisitedLinkReader&) = delete;
-  VisitedLinkReader& operator=(const VisitedLinkReader&) = delete;
-
   ~VisitedLinkReader() override;
 
   base::RepeatingCallback<
@@ -49,6 +46,8 @@ class VisitedLinkReader : public VisitedLinkCommon,
   mojo::Receiver<mojom::VisitedLinkNotificationSink> receiver_{this};
 
   base::WeakPtrFactory<VisitedLinkReader> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(VisitedLinkReader);
 };
 
 }  // namespace visitedlink

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
-#include "components/password_manager/core/browser/password_check_referrer_android.h"
 
 // Helper class used to access the methods of the java class
 // PasswordCheckupLauncher from multiple native side locations
@@ -22,8 +21,7 @@ class PasswordCheckupLauncherHelper {
   // Launch the bulk password check locally
   static void LaunchLocalCheckup(
       JNIEnv* env,
-      const base::android::JavaRef<jobject>& windowAndroid,
-      password_manager::PasswordCheckReferrerAndroid passwordCheckReferrer);
+      const base::android::JavaRef<jobject>& windowAndroid);
 
   // Launch the bulk password check in the Google Account using an activity
   // rather than a WindowAndroid

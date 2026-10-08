@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 namespace extensions {
 
 RuntimeAPIDelegate::UpdateCheckResult::UpdateCheckResult(
-    const api::runtime::RequestUpdateCheckStatus& status,
+    bool success,
+    const std::string& response,
     const std::string& version)
-    : status(status), version(version) {}
+    : success(success), response(response), version(version) {
+}
 
 bool RuntimeAPIDelegate::OpenOptionsPage(
     const Extension* extension,

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "base/callback_helpers.h"
 #include "base/check.h"
 #include "base/location.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace remoting {
 
@@ -29,15 +29,14 @@ namespace {
 class PaddedDesktopFrame : public webrtc::DesktopFrame {
  public:
   explicit PaddedDesktopFrame(webrtc::DesktopSize size);
-
-  PaddedDesktopFrame(const PaddedDesktopFrame&) = delete;
-  PaddedDesktopFrame& operator=(const PaddedDesktopFrame&) = delete;
-
   ~PaddedDesktopFrame() override;
 
   // Creates a PaddedDesktopFrame that contains copy of |frame|.
   static std::unique_ptr<webrtc::DesktopFrame> CopyOf(
       const webrtc::DesktopFrame& frame);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(PaddedDesktopFrame);
 };
 
 PaddedDesktopFrame::PaddedDesktopFrame(webrtc::DesktopSize size)
@@ -159,8 +158,8 @@ void DualBufferFrameConsumer::RunRenderCallback(
       base::BindOnce(
           callback_, std::move(frame),
           base::BindOnce(base::IgnoreResult(&base::TaskRunner::PostTask),
-                         base::SingleThreadTaskRunner::GetCurrentDefault(),
-                         FROM_HERE, std::move(done))));
+                         base::ThreadTaskRunnerHandle::Get(), FROM_HERE,
+                         std::move(done))));
 }
 
 }  // namespace remoting

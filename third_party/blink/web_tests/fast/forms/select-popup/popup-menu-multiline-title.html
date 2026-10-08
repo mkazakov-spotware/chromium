@@ -2,8 +2,6 @@
 <html>
 <head>
 <script src="../../../resources/js-test.js"></script>
-<script src="../../../resources/testdriver.js"></script>
-<script src="../../../resources/testdriver-vendor.js"></script>
 <script src="../resources/common.js"></script>
 <script src="../resources/picker-common.js"></script>
 </head>
@@ -21,11 +19,11 @@ function openPickerErrorCallback() {
 }
 
 document.getElementById('option1').title = 'bar\nbaz';
-openPickerDeprecatedJsTest(menu, test1, openPickerErrorCallback);
+openPicker(menu, test1, openPickerErrorCallback);
 
 function test1() {
     picker = internals.pagePopupWindow.global.picker;
-    shouldBeEqualToString('picker.selectElement_.options[0].title', 'bar\nbaz');
+    shouldBeEqualToString('picker._selectElement.options[0].title', 'bar\nbaz');
     finishJSTest();
 }
 </script>

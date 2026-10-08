@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,11 +44,6 @@ class PostProcessorRegistry {
   std::unique_ptr<AudioPostProcessor2> Create(const std::string& library_name,
                                               const std::string& config,
                                               int channels);
-
-  // Returns a map of registered libraries and their create functions.
-  const base::flat_map<std::string, CreateFunction>& Libraries() const {
-    return creators_;
-  }
 
  private:
   base::flat_map<std::string /* library_name */, CreateFunction> creators_;

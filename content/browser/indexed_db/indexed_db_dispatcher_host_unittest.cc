@@ -1,10 +1,8 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/indexed_db/indexed_db_dispatcher_host.h"
-
-#include <tuple>
 
 #include "base/barrier_closure.h"
 #include "base/bind.h"
@@ -12,9 +10,9 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/mock_callback.h"
@@ -23,7 +21,6 @@
 #include "base/threading/thread.h"
 #include "base/time/default_clock.h"
 #include "build/build_config.h"
-#include "components/services/storage/public/cpp/buckets/bucket_locator.h"
 #include "content/browser/indexed_db/indexed_db_callbacks.h"
 #include "content/browser/indexed_db/indexed_db_context_impl.h"
 #include "content/browser/indexed_db/indexed_db_database_callbacks.h"
@@ -42,7 +39,6 @@
 #include "storage/browser/test/mock_special_storage_policy.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom.h"
 #include "url/origin.h"
 
@@ -84,7 +80,7 @@ MATCHER_P(MatchesIDBKey, key, "") {
   return arg.Equals(key);
 }
 
-static const char16_t kDatabaseName[] = u"db";
+static const char kDatabaseName[] = "db";
 static const char kOrigin[] = "https://www.example.com";
 
 base::FilePath CreateAndReturnTempDir(base::ScopedTempDir* temp_dir) {
@@ -98,7 +94,7 @@ struct TestDatabaseConnection {
 
   TestDatabaseConnection(scoped_refptr<base::SequencedTaskRunner> task_runner,
                          url::Origin origin,
-                         std::u16string db_name,
+                         base::string16 db_name,
                          int64_t version,
                          int64_t upgrade_txn_id)
       : task_runner(std::move(task_runner)),
@@ -106,20 +102,12 @@ struct TestDatabaseConnection {
         db_name(std::move(db_name)),
         version(version),
         upgrade_txn_id(upgrade_txn_id),
-        open_callbacks(
-            std::make_unique<StrictMock<MockMojoIndexedDBCallbacks>>()),
+        open_callbacks(new StrictMock<MockMojoIndexedDBCallbacks>()),
         connection_callbacks(
-            std::make_unique<
-                StrictMock<MockMojoIndexedDBDatabaseCallbacks>>()) {}
-
-  TestDatabaseConnection(const TestDatabaseConnection&) = delete;
-  TestDatabaseConnection& operator=(const TestDatabaseConnection&) = delete;
-
-  TestDatabaseConnection(TestDatabaseConnection&&) noexcept = default;
-  TestDatabaseConnection& operator=(TestDatabaseConnection&&) noexcept =
+            new StrictMock<MockMojoIndexedDBDatabaseCallbacks>()) {}
+  TestDatabaseConnection& operator=(TestDatabaseConnection&& other) noexcept =
       default;
-
-  ~TestDatabaseConnection() = default;
+  ~TestDatabaseConnection() {}
 
   void Open(blink::mojom::IDBFactory* factory) {
     factory->Open(
@@ -127,15 +115,11 @@ struct TestDatabaseConnection {
         connection_callbacks->CreateInterfacePtrAndBind(), db_name, version,
         version_change_transaction.BindNewEndpointAndPassReceiver(task_runner),
         upgrade_txn_id);
-    // ForcedClose is called on shutdown and depending on ordering and timing
-    // may or may not happen, which is fine.
-    EXPECT_CALL(*connection_callbacks, ForcedClose())
-        .Times(testing::AnyNumber());
   }
 
   scoped_refptr<base::SequencedTaskRunner> task_runner;
   url::Origin origin;
-  std::u16string db_name;
+  base::string16 db_name;
   int64_t version;
   int64_t upgrade_txn_id;
 
@@ -145,6 +129,9 @@ struct TestDatabaseConnection {
 
   std::unique_ptr<MockMojoIndexedDBCallbacks> open_callbacks;
   std::unique_ptr<MockMojoIndexedDBDatabaseCallbacks> connection_callbacks;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestDatabaseConnection);
 };
 
 void TestStatusCallback(base::OnceClosure callback,
@@ -160,15 +147,14 @@ class TestIndexedDBObserver : public storage::mojom::IndexedDBObserver {
       mojo::PendingReceiver<storage::mojom::IndexedDBObserver> receiver)
       : receiver_(this, std::move(receiver)) {}
 
-  void OnIndexedDBListChanged(
-      const storage::BucketLocator& bucket_locator) override {
+  void OnIndexedDBListChanged(const url::Origin& origin) override {
     ++notify_list_changed_count;
   }
 
   void OnIndexedDBContentChanged(
-      const storage::BucketLocator& bucket_locator,
-      const std::u16string& database_name,
-      const std::u16string& object_store_name) override {
+      const url::Origin& origin,
+      const base::string16& database_name,
+      const base::string16& object_store_name) override {
     ++notify_content_changed_count;
   }
 
@@ -187,7 +173,7 @@ class IndexedDBDispatcherHostTest : public testing::Test {
       : special_storage_policy_(
             base::MakeRefCounted<storage::MockSpecialStoragePolicy>()),
         quota_manager_(base::MakeRefCounted<storage::MockQuotaManager>(
-            /*is_incognito=*/false,
+            false /*is_incognito*/,
             CreateAndReturnTempDir(&temp_dir_),
             task_environment_.GetMainThreadTaskRunner(),
             special_storage_policy_)),
@@ -200,48 +186,37 @@ class IndexedDBDispatcherHostTest : public testing::Test {
             task_environment_.GetMainThreadTaskRunner(),
             nullptr)) {}
 
-  IndexedDBDispatcherHostTest(const IndexedDBDispatcherHostTest&) = delete;
-  IndexedDBDispatcherHostTest& operator=(const IndexedDBDispatcherHostTest&) =
-      delete;
+  void TearDown() override {
+    // Cycle the IndexedDBTaskQueue to remove all IDB tasks.
+    {
+      base::RunLoop loop;
+      context_impl_->IDBTaskRunner()->PostTask(FROM_HERE, loop.QuitClosure());
+      loop.Run();
+    }
+    base::RunLoop loop;
+    context_impl_->IDBTaskRunner()->PostTask(FROM_HERE,
+                                             base::BindLambdaForTesting([&]() {
+                                               idb_mojo_factory_.reset();
+                                               loop.Quit();
+                                             }));
+    loop.Run();
+    context_impl_ = nullptr;
+    quota_manager_ = nullptr;
+    task_environment_.RunUntilIdle();
+    // File are leaked if this doesn't return true.
+    ASSERT_TRUE(temp_dir_.Delete());
+  }
 
   void SetUp() override {
     base::RunLoop loop;
     context_impl_->IDBTaskRunner()->PostTask(
         FROM_HERE, base::BindLambdaForTesting([&]() {
           context_impl_->BindIndexedDB(
-              blink::StorageKey::CreateFromStringForTesting(kOrigin),
+              url::Origin::Create(GURL(kOrigin)),
               idb_mojo_factory_.BindNewPipeAndPassReceiver());
           loop.Quit();
         }));
     loop.Run();
-  }
-
-  void TearDown() override {
-    // Cycle the IndexedDBTaskQueue to remove all IDB tasks.
-    {
-      base::RunLoop loop;
-      context_impl_->IDBTaskRunner()->PostTask(
-          FROM_HERE, base::BindLambdaForTesting([&]() {
-            idb_mojo_factory_.reset();
-            loop.Quit();
-          }));
-      loop.Run();
-    }
-
-    // IndexedDBContextImpl must be released on the IDB sequence.
-    {
-      scoped_refptr<base::SequencedTaskRunner> idb_task_runner =
-          context_impl_->IDBTaskRunner();
-      context_impl_->ReleaseOnIDBSequence(std::move(context_impl_));
-      base::RunLoop loop;
-      idb_task_runner->PostTask(FROM_HERE, loop.QuitClosure());
-      loop.Run();
-    }
-
-    quota_manager_ = nullptr;
-    task_environment_.RunUntilIdle();
-    // File are leaked if this doesn't return true.
-    ASSERT_TRUE(temp_dir_.Delete());
   }
 
  protected:
@@ -251,6 +226,8 @@ class IndexedDBDispatcherHostTest : public testing::Test {
   scoped_refptr<storage::MockQuotaManager> quota_manager_;
   scoped_refptr<IndexedDBContextImpl> context_impl_;
   mojo::Remote<blink::mojom::IDBFactory> idb_mojo_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(IndexedDBDispatcherHostTest);
 };
 
 TEST_F(IndexedDBDispatcherHostTest, CloseConnectionBeforeUpgrade) {
@@ -265,7 +242,7 @@ TEST_F(IndexedDBDispatcherHostTest, CloseConnectionBeforeUpgrade) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         connection = std::make_unique<TestDatabaseConnection>(
             context_impl_->IDBTaskRunner(), url::Origin::Create(GURL(kOrigin)),
-            kDatabaseName, kDBVersion, kTransactionId);
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
                                         IndexedDBDatabaseMetadata::NO_VERSION,
@@ -292,11 +269,12 @@ TEST_F(IndexedDBDispatcherHostTest, CloseConnectionBeforeUpgrade) {
   loop2.Run();
 }
 
-TEST_F(IndexedDBDispatcherHostTest, CloseAfterUpgrade) {
+// Flaky on multiple platforms.  http://crbug.com/1001265
+TEST_F(IndexedDBDispatcherHostTest, DISABLED_CloseAfterUpgrade) {
   const int64_t kDBVersion = 1;
   const int64_t kTransactionId = 1;
   const int64_t kObjectStoreId = 10;
-  const char16_t kObjectStoreName[] = u"os";
+  const char kObjectStoreName[] = "os";
   std::unique_ptr<TestDatabaseConnection> connection;
   IndexedDBDatabaseMetadata metadata;
   mojo::PendingAssociatedRemote<blink::mojom::IDBDatabase> pending_database;
@@ -306,8 +284,8 @@ TEST_F(IndexedDBDispatcherHostTest, CloseAfterUpgrade) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
 
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
@@ -346,7 +324,8 @@ TEST_F(IndexedDBDispatcherHostTest, CloseAfterUpgrade) {
         ASSERT_TRUE(connection->database.is_bound());
         ASSERT_TRUE(connection->version_change_transaction.is_bound());
         connection->version_change_transaction->CreateObjectStore(
-            kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(), false);
+            kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+            blink::IndexedDBKeyPath(), false);
         connection->version_change_transaction->Commit(0);
       }));
   loop2.Run();
@@ -360,18 +339,12 @@ TEST_F(IndexedDBDispatcherHostTest, CloseAfterUpgrade) {
   loop3.Run();
 }
 
-// TODO(crbug.com/1282613): Test is flaky on Mac in debug.
-#if BUILDFLAG(IS_MAC) && !defined(NDEBUG)
-#define MAYBE_OpenNewConnectionWhileUpgrading \
-  DISABLED_OpenNewConnectionWhileUpgrading
-#else
-#define MAYBE_OpenNewConnectionWhileUpgrading OpenNewConnectionWhileUpgrading
-#endif
-TEST_F(IndexedDBDispatcherHostTest, MAYBE_OpenNewConnectionWhileUpgrading) {
+// TODO(https://crbug.com/995716) Test is flaky on multiple platforms.
+TEST_F(IndexedDBDispatcherHostTest, DISABLED_OpenNewConnectionWhileUpgrading) {
   const int64_t kDBVersion = 1;
   const int64_t kTransactionId = 1;
   const int64_t kObjectStoreId = 10;
-  const char16_t kObjectStoreName[] = u"os";
+  const char kObjectStoreName[] = "os";
   std::unique_ptr<TestDatabaseConnection> connection1;
   mojo::PendingAssociatedRemote<blink::mojom::IDBDatabase> pending_database1;
   IndexedDBDatabaseMetadata metadata1;
@@ -382,7 +355,7 @@ TEST_F(IndexedDBDispatcherHostTest, MAYBE_OpenNewConnectionWhileUpgrading) {
         // Open connection 1, and expect the upgrade needed.
         connection1 = std::make_unique<TestDatabaseConnection>(
             context_impl_->IDBTaskRunner(), url::Origin::Create(GURL(kOrigin)),
-            kDatabaseName, kDBVersion, kTransactionId);
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
 
         EXPECT_CALL(*connection1->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
@@ -408,8 +381,8 @@ TEST_F(IndexedDBDispatcherHostTest, MAYBE_OpenNewConnectionWhileUpgrading) {
   context_impl_->IDBTaskRunner()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         connection2 = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, 0);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, 0);
 
         // Check that we're called in order and the second connection gets it's
         // database after the first connection completes.
@@ -439,7 +412,8 @@ TEST_F(IndexedDBDispatcherHostTest, MAYBE_OpenNewConnectionWhileUpgrading) {
 
         // Create object store.
         connection1->version_change_transaction->CreateObjectStore(
-            kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(), false);
+            kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+            blink::IndexedDBKeyPath(), false);
         connection1->version_change_transaction->Commit(0);
       }));
   loop2.Run();
@@ -470,7 +444,7 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_PutWithInvalidBlob) {
   const int64_t kDBVersion = 1;
   const int64_t kTransactionId = 1;
   const int64_t kObjectStoreId = 10;
-  const char16_t kObjectStoreName[] = u"os";
+  const char kObjectStoreName[] = "os";
   std::unique_ptr<TestDatabaseConnection> connection;
   IndexedDBDatabaseMetadata metadata;
   mojo::PendingAssociatedRemote<blink::mojom::IDBDatabase> pending_database;
@@ -481,7 +455,7 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_PutWithInvalidBlob) {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
             context_impl_->IDBTaskRunner(), url::Origin::Create(GURL(kOrigin)),
-            kDatabaseName, kDBVersion, kTransactionId);
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
 
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
@@ -531,17 +505,18 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_PutWithInvalidBlob) {
         ASSERT_TRUE(connection->database.is_bound());
         ASSERT_TRUE(connection->version_change_transaction.is_bound());
         connection->version_change_transaction->CreateObjectStore(
-            kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(), false);
+            kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+            blink::IndexedDBKeyPath(), false);
         // Call Put with an invalid blob.
         std::vector<blink::mojom::IDBExternalObjectPtr> external_objects;
         mojo::PendingRemote<blink::mojom::Blob> blob;
         // Ignore the result of InitWithNewPipeAndPassReceiver, to end up with
         // an invalid blob.
-        std::ignore = blob.InitWithNewPipeAndPassReceiver();
+        ignore_result(blob.InitWithNewPipeAndPassReceiver());
         external_objects.push_back(
             blink::mojom::IDBExternalObject::NewBlobOrFile(
                 blink::mojom::IDBBlobInfo::New(std::move(blob), "fakeUUID",
-                                               std::u16string(), 100,
+                                               base::string16(), 100,
                                                nullptr)));
 
         std::string value = "hello";
@@ -554,7 +529,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_PutWithInvalidBlob) {
         new_value->external_objects = std::move(external_objects);
 
         connection->version_change_transaction->Put(
-            kObjectStoreId, std::move(new_value), IndexedDBKey(u"hello"),
+            kObjectStoreId, std::move(new_value),
+            IndexedDBKey(base::UTF8ToUTF16("hello")),
             blink::mojom::IDBPutMode::AddOnly,
             std::vector<IndexedDBIndexKeys>(), put_callback.Get());
         connection->version_change_transaction->Commit(0);
@@ -583,8 +559,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_CompactDatabaseWithConnection) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
                                         IndexedDBDatabaseMetadata::NO_VERSION,
@@ -645,7 +621,7 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileDoingTransaction) {
   const int64_t kDBVersion = 1;
   const int64_t kTransactionId = 1;
   const int64_t kObjectStoreId = 10;
-  const char16_t kObjectStoreName[] = u"os";
+  const char kObjectStoreName[] = "os";
   std::unique_ptr<TestDatabaseConnection> connection;
   IndexedDBDatabaseMetadata metadata;
   mojo::PendingAssociatedRemote<blink::mojom::IDBDatabase> pending_database;
@@ -655,8 +631,8 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileDoingTransaction) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
                                         IndexedDBDatabaseMetadata::NO_VERSION,
@@ -679,7 +655,7 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileDoingTransaction) {
 
   base::RunLoop loop2;
   base::RepeatingClosure quit_closure2 =
-      base::BarrierClosure(3, loop2.QuitClosure());
+      base::BarrierClosure(4, loop2.QuitClosure());
   context_impl_->IDBTaskRunner()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         ::testing::InSequence dummy;
@@ -693,12 +669,16 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileDoingTransaction) {
                     Error(blink::mojom::IDBException::kAbortError, _))
             .Times(1)
             .WillOnce(RunClosure(quit_closure2));
+        EXPECT_CALL(*connection->connection_callbacks, ForcedClose())
+            .Times(1)
+            .WillOnce(RunClosure(quit_closure2));
 
         connection->database.Bind(std::move(pending_database));
         ASSERT_TRUE(connection->database.is_bound());
         ASSERT_TRUE(connection->version_change_transaction.is_bound());
         connection->version_change_transaction->CreateObjectStore(
-            kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(), false);
+            kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+            blink::IndexedDBKeyPath(), false);
         idb_mojo_factory_->AbortTransactionsAndCompactDatabase(base::BindOnce(
             &TestStatusCallback, std::move(quit_closure2), &callback_result));
       }));
@@ -727,8 +707,8 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileUpgrading) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
                                         IndexedDBDatabaseMetadata::NO_VERSION,
@@ -751,7 +731,7 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileUpgrading) {
 
   base::RunLoop loop2;
   base::RepeatingClosure quit_closure2 =
-      base::BarrierClosure(3, loop2.QuitClosure());
+      base::BarrierClosure(4, loop2.QuitClosure());
   context_impl_->IDBTaskRunner()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         ::testing::InSequence dummy;
@@ -763,6 +743,9 @@ TEST_F(IndexedDBDispatcherHostTest, CompactDatabaseWhileUpgrading) {
             .WillOnce(RunClosure(quit_closure2));
         EXPECT_CALL(*connection->open_callbacks,
                     Error(blink::mojom::IDBException::kAbortError, _))
+            .Times(1)
+            .WillOnce(RunClosure(quit_closure2));
+        EXPECT_CALL(*connection->connection_callbacks, ForcedClose())
             .Times(1)
             .WillOnce(RunClosure(quit_closure2));
 
@@ -798,8 +781,8 @@ TEST_F(IndexedDBDispatcherHostTest,
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
         {
           EXPECT_CALL(*connection->open_callbacks,
                       MockedUpgradeNeeded(
@@ -824,7 +807,7 @@ TEST_F(IndexedDBDispatcherHostTest,
 
   base::RunLoop loop2;
   base::RepeatingClosure quit_closure2 =
-      base::BarrierClosure(3, loop2.QuitClosure());
+      base::BarrierClosure(4, loop2.QuitClosure());
   context_impl_->IDBTaskRunner()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         ::testing::InSequence dummy;
@@ -834,6 +817,9 @@ TEST_F(IndexedDBDispatcherHostTest,
         EXPECT_CALL(
             *connection->open_callbacks,
             MockedSuccessDatabase(IsAssociatedInterfacePtrInfoValid(false), _))
+            .Times(1)
+            .WillOnce(RunClosure(quit_closure2));
+        EXPECT_CALL(*connection->connection_callbacks, ForcedClose())
             .Times(1)
             .WillOnce(RunClosure(quit_closure2));
 
@@ -861,7 +847,7 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileDoingTransaction) {
   const int64_t kDBVersion = 1;
   const int64_t kTransactionId = 1;
   const int64_t kObjectStoreId = 10;
-  const char16_t kObjectStoreName[] = u"os";
+  const char kObjectStoreName[] = "os";
   std::unique_ptr<TestDatabaseConnection> connection;
   IndexedDBDatabaseMetadata metadata;
   mojo::PendingAssociatedRemote<blink::mojom::IDBDatabase> pending_database;
@@ -871,8 +857,8 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileDoingTransaction) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
 
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
@@ -896,7 +882,7 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileDoingTransaction) {
 
   base::RunLoop loop2;
   base::RepeatingClosure quit_closure2 =
-      base::BarrierClosure(3, loop2.QuitClosure());
+      base::BarrierClosure(4, loop2.QuitClosure());
   context_impl_->IDBTaskRunner()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         ::testing::InSequence dummy;
@@ -910,12 +896,16 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileDoingTransaction) {
                     Error(blink::mojom::IDBException::kAbortError, _))
             .Times(1)
             .WillOnce(RunClosure(quit_closure2));
+        EXPECT_CALL(*connection->connection_callbacks, ForcedClose())
+            .Times(1)
+            .WillOnce(RunClosure(quit_closure2));
 
         connection->database.Bind(std::move(pending_database));
         ASSERT_TRUE(connection->database.is_bound());
         ASSERT_TRUE(connection->version_change_transaction.is_bound());
         connection->version_change_transaction->CreateObjectStore(
-            kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(), false);
+            kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+            blink::IndexedDBKeyPath(), false);
         idb_mojo_factory_->AbortTransactionsForDatabase(base::BindOnce(
             &TestStatusCallback, std::move(quit_closure2), &callback_result));
       }));
@@ -944,8 +934,8 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileUpgrading) {
       FROM_HERE, base::BindLambdaForTesting([&]() {
         // Open connection.
         connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion, kTransactionId);
 
         EXPECT_CALL(*connection->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
@@ -969,7 +959,7 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileUpgrading) {
 
   base::RunLoop loop2;
   base::RepeatingClosure quit_closure2 =
-      base::BarrierClosure(3, loop2.QuitClosure());
+      base::BarrierClosure(4, loop2.QuitClosure());
   context_impl_->IDBTaskRunner()->PostTask(
       FROM_HERE, base::BindLambdaForTesting([&]() {
         ::testing::InSequence dummy;
@@ -981,6 +971,9 @@ TEST_F(IndexedDBDispatcherHostTest, AbortTransactionsWhileUpgrading) {
             .WillOnce(RunClosure(quit_closure2));
         EXPECT_CALL(*connection->open_callbacks,
                     Error(blink::mojom::IDBException::kAbortError, _))
+            .Times(1)
+            .WillOnce(RunClosure(quit_closure2));
+        EXPECT_CALL(*connection->connection_callbacks, ForcedClose())
             .Times(1)
             .WillOnce(RunClosure(quit_closure2));
 
@@ -1013,8 +1006,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBListChanged) {
   const int64_t kTransactionId3 = 3;
   const int64_t kObjectStoreId = 10;
   const int64_t kIndexId = 100;
-  const char16_t kObjectStoreName[] = u"os";
-  const char16_t kIndexName[] = u"index";
+  const char kObjectStoreName[] = "os";
+  const char kIndexName[] = "index";
 
   mojo::PendingReceiver<storage::mojom::IndexedDBObserver> receiver;
   mojo::PendingRemote<storage::mojom::IndexedDBObserver> remote;
@@ -1032,8 +1025,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBListChanged) {
     context_impl_->IDBTaskRunner()->PostTask(
         FROM_HERE, base::BindLambdaForTesting([&]() {
           connection1 = std::make_unique<TestDatabaseConnection>(
-              context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-              kDBVersion1, kTransactionId1);
+              context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+              base::UTF8ToUTF16(kDatabaseName), kDBVersion1, kTransactionId1);
 
           EXPECT_CALL(*connection1->open_callbacks,
                       MockedUpgradeNeeded(
@@ -1077,11 +1070,12 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBListChanged) {
 
           ASSERT_TRUE(connection1->database.is_bound());
           connection1->version_change_transaction->CreateObjectStore(
-              kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(),
-              false);
+              kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+              blink::IndexedDBKeyPath(), false);
           connection1->database->CreateIndex(
-              kTransactionId1, kObjectStoreId, kIndexId, kIndexName,
-              blink::IndexedDBKeyPath(), false, false);
+              kTransactionId1, kObjectStoreId, kIndexId,
+              base::UTF8ToUTF16(kIndexName), blink::IndexedDBKeyPath(), false,
+              false);
           connection1->version_change_transaction->Commit(0);
         }));
     loop.Run();
@@ -1105,8 +1099,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBListChanged) {
 
           connection2 = std::make_unique<TestDatabaseConnection>(
               context_impl_->IDBTaskRunner(),
-              url::Origin::Create(GURL(kOrigin)), kDatabaseName, kDBVersion2,
-              kTransactionId2);
+              url::Origin::Create(GURL(kOrigin)),
+              base::UTF8ToUTF16(kDatabaseName), kDBVersion2, kTransactionId2);
 
           EXPECT_CALL(*connection2->open_callbacks,
                       MockedUpgradeNeeded(
@@ -1168,8 +1162,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBListChanged) {
         FROM_HERE, base::BindLambdaForTesting([&]() {
           connection2->database->Close();
           connection3 = std::make_unique<TestDatabaseConnection>(
-              context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-              kDBVersion3, kTransactionId3);
+              context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+              base::UTF8ToUTF16(kDatabaseName), kDBVersion3, kTransactionId3);
 
           EXPECT_CALL(*connection3->open_callbacks,
                       MockedUpgradeNeeded(
@@ -1243,7 +1237,7 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBContentChanged) {
   const int64_t kTransactionId1 = 1;
   const int64_t kTransactionId2 = 2;
   const int64_t kObjectStoreId = 10;
-  const char16_t kObjectStoreName[] = u"os";
+  const char kObjectStoreName[] = "os";
 
   mojo::PendingReceiver<storage::mojom::IndexedDBObserver> receiver;
   mojo::PendingRemote<storage::mojom::IndexedDBObserver> remote;
@@ -1262,7 +1256,7 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBContentChanged) {
         // Open connection 1.
         connection1 = std::make_unique<TestDatabaseConnection>(
             context_impl_->IDBTaskRunner(), url::Origin::Create(GURL(kOrigin)),
-            kDatabaseName, kDBVersion1, kTransactionId1);
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion1, kTransactionId1);
 
         EXPECT_CALL(*connection1->open_callbacks,
                     MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
@@ -1309,7 +1303,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBContentChanged) {
         ASSERT_TRUE(connection1->database.is_bound());
         ASSERT_TRUE(connection1->version_change_transaction.is_bound());
         connection1->version_change_transaction->CreateObjectStore(
-            kObjectStoreId, kObjectStoreName, blink::IndexedDBKeyPath(), false);
+            kObjectStoreId, base::UTF8ToUTF16(kObjectStoreName),
+            blink::IndexedDBKeyPath(), false);
 
         std::string value = "value";
         const char* value_data = value.data();
@@ -1320,7 +1315,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBContentChanged) {
         new_value->bits = std::move(value_vector);
 
         connection1->version_change_transaction->Put(
-            kObjectStoreId, std::move(new_value), IndexedDBKey(u"key"),
+            kObjectStoreId, std::move(new_value),
+            IndexedDBKey(base::UTF8ToUTF16("key")),
             blink::mojom::IDBPutMode::AddOnly,
             std::vector<IndexedDBIndexKeys>(), put_callback.Get());
         connection1->version_change_transaction->Commit(0);
@@ -1350,8 +1346,8 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBContentChanged) {
         ::testing::InSequence dummy;
 
         connection2 = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion2, kTransactionId2);
+            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin),
+            base::UTF8ToUTF16(kDatabaseName), kDBVersion2, kTransactionId2);
 
         EXPECT_CALL(*connection2->open_callbacks,
                     MockedUpgradeNeeded(
@@ -1418,117 +1414,6 @@ TEST_F(IndexedDBDispatcherHostTest, DISABLED_NotifyIndexedDBContentChanged) {
                                              loop6.Quit();
                                            }));
   loop6.Run();
-}
-
-TEST_F(IndexedDBDispatcherHostTest, DISABLED_DatabaseOperationSequencing) {
-  const int64_t kDBVersion = 1;
-  const int64_t kTransactionId = 1;
-  const std::u16string kObjectStoreName1 = u"os1";
-  const std::u16string kObjectStoreName2 = u"os2";
-  const std::u16string kObjectStoreName3 = u"os3";
-
-  std::unique_ptr<TestDatabaseConnection> connection;
-  IndexedDBDatabaseMetadata metadata;
-  mojo::PendingAssociatedRemote<blink::mojom::IDBDatabase> pending_database;
-
-  // Open the connection, which will initiate the "upgrade" transaction.
-  base::RunLoop loop;
-  context_impl_->IDBTaskRunner()->PostTask(
-      FROM_HERE, base::BindLambdaForTesting([&]() {
-        // Open connection.
-        connection = std::make_unique<TestDatabaseConnection>(
-            context_impl_->IDBTaskRunner(), ToOrigin(kOrigin), kDatabaseName,
-            kDBVersion, kTransactionId);
-
-        EXPECT_CALL(*connection->open_callbacks,
-                    MockedUpgradeNeeded(IsAssociatedInterfacePtrInfoValid(true),
-                                        IndexedDBDatabaseMetadata::NO_VERSION,
-                                        blink::mojom::IDBDataLoss::None,
-                                        std::string(""), _))
-            .WillOnce(testing::DoAll(MoveArgPointee<0>(&pending_database),
-                                     testing::SaveArg<4>(&metadata),
-                                     QuitLoop(&loop)));
-
-        // Queue open request message.
-        connection->Open(idb_mojo_factory_.get());
-      }));
-  loop.Run();
-
-  ASSERT_TRUE(pending_database.is_valid());
-  EXPECT_EQ(connection->version, metadata.version);
-  EXPECT_EQ(connection->db_name, metadata.name);
-
-  EXPECT_EQ(0ULL, metadata.object_stores.size());
-
-  // Within the "upgrade" transaction, create/delete/create object store. This
-  // should leave only one store around if everything is processed in the
-  // correct order.
-  IndexedDBDatabaseMetadata metadata2;
-  int64_t object_store_id = 1001;
-
-  base::RunLoop loop2;
-  base::RepeatingClosure quit_closure2 =
-      base::BarrierClosure(2, loop2.QuitClosure());
-  context_impl_->IDBTaskRunner()->PostTask(
-      FROM_HERE, base::BindLambdaForTesting([&]() {
-        ::testing::InSequence dummy;
-        EXPECT_CALL(*connection->connection_callbacks, Complete(kTransactionId))
-            .Times(1)
-            .WillOnce(RunClosure(quit_closure2));
-        EXPECT_CALL(
-            *connection->open_callbacks,
-            MockedSuccessDatabase(IsAssociatedInterfacePtrInfoValid(false), _))
-            .Times(1)
-            .WillOnce(testing::DoAll(testing::SaveArg<1>(&metadata2),
-                                     RunClosure(std::move(quit_closure2))));
-
-        connection->database.Bind(std::move(pending_database));
-        ASSERT_TRUE(connection->database.is_bound());
-        ASSERT_TRUE(connection->version_change_transaction.is_bound());
-
-        // This will cause a CreateObjectStoreOperation to be queued and
-        // run synchronously...
-        connection->version_change_transaction->CreateObjectStore(
-            ++object_store_id, kObjectStoreName1, blink::IndexedDBKeyPath(),
-            /*auto_increment=*/false);
-
-        // The following operations will queue operations, but the
-        // operations will run asynchronously.
-
-        // First, delete the previous store. Ensure that this succeeds
-        // even if the previous action completed synchronously.
-        connection->version_change_transaction->DeleteObjectStore(
-            object_store_id);
-
-        // Ensure that a create/delete pair where both parts are queued
-        // succeeds.
-        connection->version_change_transaction->CreateObjectStore(
-            ++object_store_id, kObjectStoreName2, blink::IndexedDBKeyPath(),
-            /*auto_increment=*/false);
-        connection->version_change_transaction->DeleteObjectStore(
-            object_store_id);
-
-        // This store is left over, just to verify that everything
-        // ran correctly.
-        connection->version_change_transaction->CreateObjectStore(
-            ++object_store_id, kObjectStoreName3, blink::IndexedDBKeyPath(),
-            /*auto_increment=*/false);
-
-        connection->version_change_transaction->Commit(0);
-      }));
-  loop2.Run();
-
-  EXPECT_EQ(1ULL, metadata2.object_stores.size());
-  EXPECT_EQ(metadata2.object_stores[object_store_id].name, kObjectStoreName3);
-
-  // Close the connection to finish the test nicely.
-  base::RunLoop loop3;
-  context_impl_->IDBTaskRunner()->PostTask(FROM_HERE,
-                                           base::BindLambdaForTesting([&]() {
-                                             connection.reset();
-                                             loop3.Quit();
-                                           }));
-  loop3.Run();
 }
 
 }  // namespace content

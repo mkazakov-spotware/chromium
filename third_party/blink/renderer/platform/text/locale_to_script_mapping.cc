@@ -155,7 +155,7 @@ UScriptCode ScriptNameToCode(const String& script_name) {
       {"zxxx", USCRIPT_UNWRITTEN_LANGUAGES},
       {"zzzz", USCRIPT_UNKNOWN}};
   for (const auto& kv : kScriptNameCodeList) {
-    if (EqualIgnoringASCIICase(script_name, kv.subtag))
+    if (CodeUnitCompareIgnoringASCIICase(script_name, kv.subtag) == 0)
       return kv.script;
   }
   return USCRIPT_INVALID_CODE;
@@ -445,9 +445,9 @@ UScriptCode LocaleToScriptCodeForFontSelection(const String& locale) {
   String canonical_locale = locale;
   canonical_locale.Replace('_', '-');
 
-  while (!canonical_locale.empty()) {
+  while (!canonical_locale.IsEmpty()) {
     for (const auto& kv : kLocaleScriptList) {
-      if (EqualIgnoringASCIICase(canonical_locale, kv.subtag))
+      if (CodeUnitCompareIgnoringASCIICase(canonical_locale, kv.subtag) == 0)
         return kv.script;
     }
 
@@ -472,7 +472,7 @@ static UScriptCode ScriptCodeForHanFromRegion(const String& region) {
       {"tw", USCRIPT_TRADITIONAL_HAN},
   };
   for (const auto& kv : kRegionScriptList) {
-    if (EqualIgnoringASCIICase(region, kv.subtag))
+    if (CodeUnitCompareIgnoringASCIICase(region, kv.subtag) == 0)
       return kv.script;
   }
   return USCRIPT_COMMON;

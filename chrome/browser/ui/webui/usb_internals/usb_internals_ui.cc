@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,18 +21,21 @@ UsbInternalsUI::UsbInternalsUI(content::WebUI* web_ui)
       content::WebUIDataSource::Create(chrome::kChromeUIUsbInternalsHost);
 
   static constexpr webui::ResourcePath kPaths[] = {
+      {"usb_device.mojom-webui.js", IDR_USB_DEVICE_MOJOM_WEBUI_JS},
       {"usb_enumeration_options.mojom-webui.js",
        IDR_USB_ENUMERATION_OPTIONS_MOJOM_WEBUI_JS},
+      {"usb_manager.mojom-webui.js", IDR_USB_DEVICE_MANAGER_MOJOM_WEBUI_JS},
       {"usb_manager_client.mojom-webui.js",
        IDR_USB_DEVICE_MANAGER_CLIENT_MOJOM_WEBUI_JS},
+      {"usb_manager_test.mojom-webui.js",
+       IDR_USB_DEVICE_MANAGER_TEST_MOJOM_WEBUI_JS},
   };
-  source->AddResourcePaths(kPaths);
+  webui::AddResourcePathsBulk(source, kPaths);
 
   webui::SetupWebUIDataSource(
       source,
-      base::make_span(kUsbInternalsResources, kUsbInternalsResourcesSize),
-      IDR_USB_INTERNALS_USB_INTERNALS_HTML);
-  webui::EnableTrustedTypesCSP(source);
+      base::make_span(kUsbInternalsResources, kUsbInternalsResourcesSize), "",
+      IDR_USB_INTERNALS_HTML);
 
   content::WebUIDataSource::Add(Profile::FromWebUI(web_ui), source);
 }

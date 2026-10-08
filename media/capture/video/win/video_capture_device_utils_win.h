@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,10 +52,10 @@ HRESULT CheckPathInfoForInternal(const PCWSTR device_name);
 bool IsInternalVideoOutput(
     const DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY video_output_tech_type);
 
-static inline double PlatformToCaptureValue(long value) {
+static double PlatformToCaptureValue(long value) {
   return value;
 }
-static inline double PlatformToCaptureStep(long step, double min, double max) {
+static double PlatformToCaptureStep(long step, double min, double max) {
   return step;
 }
 

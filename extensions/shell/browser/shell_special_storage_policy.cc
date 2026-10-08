@@ -1,8 +1,11 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/shell/browser/shell_special_storage_policy.h"
+
+#include "base/bind.h"
+#include "base/callback.h"
 
 namespace extensions {
 
@@ -32,6 +35,11 @@ bool ShellSpecialStoragePolicy::IsStorageSessionOnly(const GURL& origin) {
 
 bool ShellSpecialStoragePolicy::HasSessionOnlyOrigins() {
   return false;
+}
+
+network::DeleteCookiePredicate
+ShellSpecialStoragePolicy::CreateDeleteCookieOnExitPredicate() {
+  return network::DeleteCookiePredicate();
 }
 
 bool ShellSpecialStoragePolicy::HasIsolatedStorage(const GURL& origin) {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,9 +30,10 @@ void HandleTestMessage(int number, bool conditional, const std::string& text) {
 TEST_F(WebUITest, TestHandler) {
   web_ui_->RegisterHandlerCallback("testMessage",
                                    base::BindRepeating(&HandleTestMessage));
-  base::Value::List args;
+  base::Value args(base::Value::Type::LIST);
   args.Append(11);
   args.Append(true);
   args.Append("test text");
-  web_ui_->HandleReceivedMessage("testMessage", args);
+  web_ui_->HandleReceivedMessage("testMessage",
+                                 &base::Value::AsListValue(args));
 }

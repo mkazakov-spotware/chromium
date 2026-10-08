@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,13 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "components/consent_auditor/consent_sync_bridge.h"
 #include "components/sync/model/model_type_change_processor.h"
 #include "components/sync/model/model_type_store.h"
 #include "components/sync/model/model_type_sync_bridge.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace consent_auditor {
 
@@ -26,19 +27,15 @@ class ConsentSyncBridgeImpl : public ConsentSyncBridge,
   ConsentSyncBridgeImpl(
       syncer::OnceModelTypeStoreFactory store_factory,
       std::unique_ptr<syncer::ModelTypeChangeProcessor> change_processor);
-
-  ConsentSyncBridgeImpl(const ConsentSyncBridgeImpl&) = delete;
-  ConsentSyncBridgeImpl& operator=(const ConsentSyncBridgeImpl&) = delete;
-
   ~ConsentSyncBridgeImpl() override;
 
   // ModelTypeSyncBridge implementation.
   std::unique_ptr<syncer::MetadataChangeList> CreateMetadataChangeList()
       override;
-  absl::optional<syncer::ModelError> MergeSyncData(
+  base::Optional<syncer::ModelError> MergeSyncData(
       std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
       syncer::EntityChangeList entity_data) override;
-  absl::optional<syncer::ModelError> ApplySyncChanges(
+  base::Optional<syncer::ModelError> ApplySyncChanges(
       std::unique_ptr<syncer::MetadataChangeList> metadata_change_list,
       syncer::EntityChangeList entity_changes) override;
   void GetData(StorageKeyList storage_keys, DataCallback callback) override;
@@ -64,19 +61,19 @@ class ConsentSyncBridgeImpl : public ConsentSyncBridge,
   // Record events in the deferred queue and clear the queue.
   void ProcessQueuedEvents();
 
-  void OnStoreCreated(const absl::optional<syncer::ModelError>& error,
+  void OnStoreCreated(const base::Optional<syncer::ModelError>& error,
                       std::unique_ptr<syncer::ModelTypeStore> store);
-  void OnReadAllMetadata(const absl::optional<syncer::ModelError>& error,
+  void OnReadAllMetadata(const base::Optional<syncer::ModelError>& error,
                          std::unique_ptr<syncer::MetadataBatch> metadata_batch);
-  void OnCommit(const absl::optional<syncer::ModelError>& error);
+  void OnCommit(const base::Optional<syncer::ModelError>& error);
   void OnReadData(
       DataCallback callback,
-      const absl::optional<syncer::ModelError>& error,
+      const base::Optional<syncer::ModelError>& error,
       std::unique_ptr<syncer::ModelTypeStore::RecordList> data_records,
       std::unique_ptr<syncer::ModelTypeStore::IdList> missing_id_list);
   void OnReadAllData(
       DataCallback callback,
-      const absl::optional<syncer::ModelError>& error,
+      const base::Optional<syncer::ModelError>& error,
       std::unique_ptr<syncer::ModelTypeStore::RecordList> data_records);
 
   // Resubmit all the consents persisted in the store to sync consents, which
@@ -84,7 +81,7 @@ class ConsentSyncBridgeImpl : public ConsentSyncBridge,
   // processor already knows about (i.e. with metadata), but it is allowed.
   void ReadAllDataAndResubmit();
   void OnReadAllDataToResubmit(
-      const absl::optional<syncer::ModelError>& error,
+      const base::Optional<syncer::ModelError>& error,
       std::unique_ptr<syncer::ModelTypeStore::RecordList> data_records);
 
   // Persistent storage for in flight consents. Should remain quite small, as we
@@ -98,6 +95,8 @@ class ConsentSyncBridgeImpl : public ConsentSyncBridge,
       deferred_consents_while_initializing_;
 
   base::WeakPtrFactory<ConsentSyncBridgeImpl> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(ConsentSyncBridgeImpl);
 };
 
 }  // namespace consent_auditor

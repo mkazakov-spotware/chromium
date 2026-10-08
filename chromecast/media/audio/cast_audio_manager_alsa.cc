@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/logging.h"
 #include "base/memory/free_deleter.h"
+#include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "chromecast/media/api/cma_backend_factory.h"
 #include "chromecast/media/audio/audio_buildflags.h"
@@ -26,10 +27,8 @@ const int kDefaultSampleRate = BUILDFLAG(AUDIO_INPUT_SAMPLE_RATE);
 // TODO(jyw): Query the preferred value from media backend.
 const int kDefaultInputBufferSize = 1024;
 
-#if BUILDFLAG(ENABLE_AUDIO_CAPTURE_SERVICE)
 const int kCommunicationsSampleRate = 16000;
 const int kCommunicationsInputBufferSize = 160;  // 10 ms.
-#endif
 
 // Since "default" and "dmix" devices are virtual devices mapped to real
 // devices, we remove them from the list to avoiding duplicate counting.
@@ -55,7 +54,7 @@ bool IsAlsaDeviceAvailable(CastAudioManagerAlsa::StreamType type,
   // it or not.
   if (type == CastAudioManagerAlsa::kStreamCapture) {
     // Check if the device is in the list of invalid devices.
-    for (size_t i = 0; i < std::size(kInvalidAudioInputDevices); ++i) {
+    for (size_t i = 0; i < base::size(kInvalidAudioInputDevices); ++i) {
       if (kInvalidAudioInputDevices[i] == device_name)
         return false;
     }
@@ -82,19 +81,19 @@ std::string UnwantedDeviceTypeWhenEnumerating(
 CastAudioManagerAlsa::CastAudioManagerAlsa(
     std::unique_ptr<::media::AudioThread> audio_thread,
     ::media::AudioLogFactory* audio_log_factory,
-    CastAudioManagerHelper::Delegate* delegate,
     base::RepeatingCallback<CmaBackendFactory*()> backend_factory_getter,
+    CastAudioManagerHelper::GetSessionIdCallback get_session_id_callback,
     scoped_refptr<base::SingleThreadTaskRunner> browser_task_runner,
     scoped_refptr<base::SingleThreadTaskRunner> media_task_runner,
-    external_service_support::ExternalConnector* connector,
+    mojo::PendingRemote<chromecast::mojom::ServiceConnector> connector,
     bool use_mixer)
     : CastAudioManager(std::move(audio_thread),
                        audio_log_factory,
-                       delegate,
                        std::move(backend_factory_getter),
+                       std::move(get_session_id_callback),
                        browser_task_runner,
                        media_task_runner,
-                       connector,
+                       std::move(connector),
                        use_mixer),
       wrapper_(new ::media::AlsaWrapper()) {}
 
@@ -126,18 +125,17 @@ void CastAudioManagerAlsa::GetAudioInputDeviceNames(
     NOTIMPLEMENTED()
         << "Capture Service is not enabled, return a fake AudioParameters.";
     return ::media::AudioParameters();
-#else
+#endif  // BUILDFLAG(ENABLE_AUDIO_CAPTURE_SERVICE)
     return ::media::AudioParameters(::media::AudioParameters::AUDIO_PCM_LINEAR,
                                     ::media::CHANNEL_LAYOUT_MONO,
                                     kCommunicationsSampleRate,
                                     kCommunicationsInputBufferSize);
-#endif  // BUILDFLAG(ENABLE_AUDIO_CAPTURE_SERVICE)
   }
   // TODO(jyw): Be smarter about sample rate instead of hardcoding it.
   // Need to send a valid AudioParameters object even when it will be unused.
   return ::media::AudioParameters(
       ::media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
-      ::media::ChannelLayoutConfig::Stereo(), kDefaultSampleRate,
+      ::media::CHANNEL_LAYOUT_STEREO, kDefaultSampleRate,
       kDefaultInputBufferSize);
 }
 
@@ -168,9 +166,8 @@ void CastAudioManagerAlsa::GetAudioInputDeviceNames(
 #if !BUILDFLAG(ENABLE_AUDIO_CAPTURE_SERVICE)
     NOTIMPLEMENTED() << "Capture Service is not enabled, return nullptr.";
     return nullptr;
-#else
-    return new CastAudioInputStream(this, params, device_name);
 #endif  // BUILDFLAG(ENABLE_AUDIO_CAPTURE_SERVICE)
+    return new CastAudioInputStream(this, params, device_name);
   }
   return new ::media::AlsaPcmInputStream(this, device_name, params,
                                          wrapper_.get());

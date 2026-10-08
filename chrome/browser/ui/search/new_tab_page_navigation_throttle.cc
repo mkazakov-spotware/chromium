@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
-#include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
 #include "url/gurl.h"
 
@@ -35,7 +34,8 @@ NewTabPageNavigationThrottle::MaybeCreateThrottleFor(
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   if (web_contents->GetVisibleURL() != chrome::kChromeUINewTabURL ||
-      !search::IsInstantNTPURL(handle->GetURL(), profile)) {
+      !search::IsInstantNTPURL(handle->GetURL(), profile) ||
+      handle->GetURL() == chrome::kChromeSearchLocalNtpUrl) {
     return nullptr;
   }
 
@@ -65,7 +65,7 @@ content::NavigationThrottle::ThrottleCheckResult
 NewTabPageNavigationThrottle::OpenLocalNewTabPage() {
   content::OpenURLParams params =
       content::OpenURLParams::FromNavigationHandle(navigation_handle());
-  params.url = GURL(chrome::kChromeUINewTabPageThirdPartyURL);
+  params.url = GURL(chrome::kChromeSearchLocalNtpUrl);
   params.is_renderer_initiated = false;
   navigation_handle()->GetWebContents()->OpenURL(std::move(params));
   return content::NavigationThrottle::CANCEL_AND_IGNORE;

@@ -1,16 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/services/file_util/public/cpp/sandboxed_rar_analyzer.h"
 
-#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
@@ -18,7 +17,7 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/safe_browsing/archive_analyzer_results.h"
 #include "chrome/services/file_util/file_util_service.h"
-#include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/features.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
 #include "crypto/sha2.h"
@@ -55,9 +54,9 @@ class SandboxedRarAnalyzerTest : public testing::Test {
     FileUtilService service(remote.InitWithNewPipeAndPassReceiver());
     base::RunLoop run_loop;
     ResultsGetter results_getter(run_loop.QuitClosure(), results);
-    analyzer_ = base::MakeRefCounted<SandboxedRarAnalyzer>(
-        path, results_getter.GetCallback(), std::move(remote));
-    analyzer_->Start();
+    scoped_refptr<SandboxedRarAnalyzer> analyzer(new SandboxedRarAnalyzer(
+        path, results_getter.GetCallback(), std::move(remote)));
+    analyzer->Start();
     run_loop.Run();
   }
 
@@ -104,9 +103,6 @@ class SandboxedRarAnalyzerTest : public testing::Test {
                   safe_browsing::ArchiveAnalyzerResults* results)
         : next_closure_(next_closure), results_(results) {}
 
-    ResultsGetter(const ResultsGetter&) = delete;
-    ResultsGetter& operator=(const ResultsGetter&) = delete;
-
     SandboxedRarAnalyzer::ResultCallback GetCallback() {
       return base::BindOnce(&ResultsGetter::ResultsCallback,
                             base::Unretained(this));
@@ -119,12 +115,11 @@ class SandboxedRarAnalyzerTest : public testing::Test {
     }
 
     base::RepeatingClosure next_closure_;
-    raw_ptr<safe_browsing::ArchiveAnalyzerResults> results_;
+    safe_browsing::ArchiveAnalyzerResults* results_;
+
+    DISALLOW_COPY_AND_ASSIGN(ResultsGetter);
   };
-  // |analzyer_| should be destroyed after task_environment, so that any other
-  // threads with objects holding references to it will be shut down first.
-  // This should make the final reference get released on the main thread.
-  scoped_refptr<SandboxedRarAnalyzer> analyzer_;
+
   content::BrowserTaskEnvironment task_environment_;
 };
 
@@ -144,7 +139,7 @@ const SandboxedRarAnalyzerTest::BinaryData
         "signed.exe",
         CDRDT(WIN_EXECUTABLE),
         kSignedExeSignature,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
         true,
         true,
 #else
@@ -197,31 +192,10 @@ TEST_F(SandboxedRarAnalyzerTest, AnalyzeRarWithPassword) {
 
   ASSERT_TRUE(results.success);
   EXPECT_FALSE(results.has_executable);
-  ASSERT_EQ(results.archived_binary.size(), 1);
+  EXPECT_EQ(results.archived_binary.size(), 1);
   EXPECT_EQ(results.archived_binary[0].file_basename(), "file1.txt");
   EXPECT_FALSE(results.archived_binary[0].is_executable());
   EXPECT_FALSE(results.archived_binary[0].is_archive());
-  EXPECT_TRUE(results.archived_archive_filenames.empty());
-}
-
-TEST_F(SandboxedRarAnalyzerTest, AnalyzeRarWithPasswordMultipleFiles) {
-  // Can list files inside an archive that has password protected data.
-  // passwd_two_fiels.rar contains 2 files: file1.txt and file2.txt
-  base::FilePath path;
-  ASSERT_NO_FATAL_FAILURE(path = GetFilePath("passwd_two_files.rar"));
-
-  safe_browsing::ArchiveAnalyzerResults results;
-  AnalyzeFile(path, &results);
-
-  ASSERT_TRUE(results.success);
-  EXPECT_FALSE(results.has_executable);
-  ASSERT_EQ(results.archived_binary.size(), 2);
-  EXPECT_EQ(results.archived_binary[0].file_basename(), "file1.txt");
-  EXPECT_FALSE(results.archived_binary[0].is_executable());
-  EXPECT_FALSE(results.archived_binary[0].is_archive());
-  EXPECT_EQ(results.archived_binary[1].file_basename(), "file2.txt");
-  EXPECT_FALSE(results.archived_binary[1].is_executable());
-  EXPECT_FALSE(results.archived_binary[1].is_archive());
   EXPECT_TRUE(results.archived_archive_filenames.empty());
 }
 
@@ -324,7 +298,7 @@ TEST_F(SandboxedRarAnalyzerTest,
   ASSERT_TRUE(binary.has_length());
   EXPECT_EQ(kSignedExe.length, binary.length());
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // On windows, we should also have a signature and image header
   ASSERT_TRUE(binary.has_signature());
   ASSERT_TRUE(binary.has_image_headers());
@@ -345,22 +319,6 @@ TEST_F(SandboxedRarAnalyzerTest, AnalyzeMultipartRarContainingExecutable) {
   ASSERT_TRUE(results.success);
   ASSERT_TRUE(results.has_executable);
   EXPECT_EQ(1, results.archived_binary.size());
-  EXPECT_TRUE(results.archived_archive_filenames.empty());
-}
-
-TEST_F(SandboxedRarAnalyzerTest,
-       AnalyzeMultipartRarContainingMultipleExecutables) {
-  base::FilePath path;
-  // Contains one part of two different exe files.
-  ASSERT_NO_FATAL_FAILURE(
-      path = GetFilePath("multipart_multiple_file.part0002.rar"));
-
-  safe_browsing::ArchiveAnalyzerResults results;
-  AnalyzeFile(path, &results);
-
-  ASSERT_TRUE(results.success);
-  ASSERT_TRUE(results.has_executable);
-  EXPECT_EQ(2, results.archived_binary.size());
   EXPECT_TRUE(results.archived_archive_filenames.empty());
 }
 

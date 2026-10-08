@@ -1,8 +1,9 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/nacl/loader/nacl_listener.h"
+#include "base/bind.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -12,11 +13,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
@@ -26,8 +23,9 @@
 #include "base/message_loop/message_pump_type.h"
 #include "base/rand_util.h"
 #include "base/run_loop.h"
-#include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "build/build_config.h"
 #include "components/nacl/common/nacl.mojom.h"
 #include "components/nacl/common/nacl_messages.h"
 #include "components/nacl/common/nacl_service.h"
@@ -43,16 +41,18 @@
 #include "native_client/src/public/nacl_app.h"
 #include "native_client/src/public/nacl_desc.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "content/public/common/zygote/sandbox_support_linux.h"
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/posix/eintr_wrapper.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <io.h>
+
+#include "content/public/common/sandbox_init.h"
 #endif
 
 namespace {
@@ -79,7 +79,7 @@ void LoadStatusCallback(int load_status) {
       static_cast<NaClErrorCode>(load_status));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 int AttachDebugExceptionHandler(const void* info, size_t info_size) {
   std::string info_string(reinterpret_cast<const char*>(info), info_size);
   bool result = false;
@@ -149,17 +149,17 @@ class BrowserValidationDBProxy : public NaClValidationDB {
 
  private:
   // The listener never dies, otherwise this might be a dangling reference.
-  raw_ptr<NaClListener> listener_;
+  NaClListener* listener_;
 };
 
 NaClListener::NaClListener()
     : shutdown_event_(base::WaitableEvent::ResetPolicy::MANUAL,
                       base::WaitableEvent::InitialState::NOT_SIGNALED),
       io_thread_("NaCl_IOThread"),
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
       prereserved_sandbox_size_(0),
 #endif
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
       number_of_cores_(-1),  // unknown/error
 #endif
       is_started_(false) {
@@ -215,18 +215,18 @@ class FileTokenMessageFilter : public IPC::MessageFilter {
 
 void NaClListener::Listen() {
   NaClService service(io_thread_.task_runner());
-  channel_ = IPC::SyncChannel::Create(
-      this, io_thread_.task_runner().get(),
-      base::SingleThreadTaskRunner::GetCurrentDefault(), &shutdown_event_);
+  channel_ = IPC::SyncChannel::Create(this, io_thread_.task_runner().get(),
+                                      base::ThreadTaskRunnerHandle::Get(),
+                                      &shutdown_event_);
   filter_ = channel_->CreateSyncMessageFilter();
   channel_->AddFilter(new FileTokenMessageFilter());
   channel_->Init(service.TakeChannelPipe().release(), IPC::Channel::MODE_CLIENT,
                  true);
-  main_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+  main_task_runner_ = base::ThreadTaskRunnerHandle::Get();
   base::RunLoop().Run();
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 // static
 int NaClListener::MakeSharedMemorySegment(size_t length, int executable) {
   return content::SharedMemoryIPCSupport::MakeSharedMemorySegment(length,
@@ -288,7 +288,7 @@ void NaClListener::OnAddPrefetchedResource(
 
 void NaClListener::OnStart(nacl::NaClStartParams params) {
   is_started_ = true;
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_APPLE)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_APPLE)
   int urandom_fd = HANDLE_EINTR(dup(base::GetUrandomFD()));
   if (urandom_fd < 0) {
     LOG(FATAL) << "Failed to dup() the urandom FD";
@@ -348,11 +348,11 @@ void NaClListener::OnStart(nacl::NaClStartParams params) {
     LOG(FATAL) << "NaClChromeMainArgsCreate() failed";
   }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   args->number_of_cores = number_of_cores_;
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   args->create_memory_object_func = &MakeSharedMemorySegment;
 #endif
 
@@ -361,7 +361,7 @@ void NaClListener::OnStart(nacl::NaClStartParams params) {
   base::PlatformFile irt_handle =
       IPC::PlatformFileForTransitToPlatformFile(params.irt_handle);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   args->irt_fd = _open_osfhandle(reinterpret_cast<intptr_t>(irt_handle),
                                  _O_RDONLY | _O_BINARY);
   if (args->irt_fd < 0) {
@@ -405,18 +405,18 @@ void NaClListener::OnStart(nacl::NaClStartParams params) {
     args->pnacl_mode = 0;
   }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
   args->debug_stub_server_bound_socket_fd =
       IPC::PlatformFileForTransitToPlatformFile(
           params.debug_stub_server_bound_socket);
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   args->attach_debug_exception_handler_func = AttachDebugExceptionHandler;
   args->debug_stub_server_port_selected_handler_func =
       DebugStubPortSelectedHandler;
 #endif
   args->load_status_handler_func = LoadStatusCallback;
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   args->prereserved_sandbox_size = prereserved_sandbox_size_;
 #endif
 

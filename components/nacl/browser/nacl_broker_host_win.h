@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/macros.h"
 #include "base/process/process.h"
 #include "content/public/browser/browser_child_process_host_delegate.h"
 #include "mojo/public/cpp/system/message_pipe.h"
@@ -23,10 +24,6 @@ namespace nacl {
 class NaClBrokerHost : public content::BrowserChildProcessHostDelegate {
  public:
   NaClBrokerHost();
-
-  NaClBrokerHost(const NaClBrokerHost&) = delete;
-  NaClBrokerHost& operator=(const NaClBrokerHost&) = delete;
-
   ~NaClBrokerHost() override;
 
   // This function starts the broker process. It needs to be called
@@ -62,6 +59,8 @@ class NaClBrokerHost : public content::BrowserChildProcessHostDelegate {
 
   std::unique_ptr<content::BrowserChildProcessHost> process_;
   bool is_terminating_;
+
+  DISALLOW_COPY_AND_ASSIGN(NaClBrokerHost);
 };
 
 }  // namespace nacl

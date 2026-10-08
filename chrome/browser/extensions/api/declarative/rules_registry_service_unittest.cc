@@ -1,12 +1,10 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/browser/api/declarative/rules_registry_service.h"
 
 #include <stddef.h>
-
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -36,7 +34,7 @@ void InsertRule(scoped_refptr<extensions::RulesRegistry> registry,
                 const std::string& id) {
   std::vector<extensions::api::events::Rule> add_rules;
   add_rules.emplace_back();
-  add_rules[0].id = id;
+  add_rules[0].id.reset(new std::string(id));
   std::string error = registry->AddRules(kExtensionId, std::move(add_rules));
   EXPECT_TRUE(error.empty());
 }
@@ -68,7 +66,7 @@ class RulesRegistryServiceTest : public testing::Test {
 };
 
 TEST_F(RulesRegistryServiceTest, TestConstructionAndMultiThreading) {
-  RulesRegistryService registry_service(nullptr);
+  RulesRegistryService registry_service(NULL);
 
   int key = RulesRegistryService::kDefaultRulesRegistryID;
   TestRulesRegistry* ui_registry =
@@ -152,7 +150,7 @@ TEST_F(RulesRegistryServiceTest, DefaultRulesRegistryRegistered) {
 
     ASSERT_EQ(test_case.expect_api_enabled,
               FeatureProvider::GetAPIFeature("declarativeWebRequest")
-                  ->IsAvailableToEnvironment(kUnspecifiedContextId)
+                  ->IsAvailableToEnvironment()
                   .is_available());
 
     TestingProfile profile;

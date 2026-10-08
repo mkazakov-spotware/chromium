@@ -1,16 +1,14 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/frame/browser_view.h"
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
-#include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/common/pref_names.h"
@@ -18,11 +16,10 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
-#include "content/public/test/test_navigation_observer.h"
 #include "ui/views/buildflags.h"
 #include "ui/views/test/ax_event_counter.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "chrome/browser/ui/browser_commands_mac.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #endif
@@ -39,7 +36,7 @@ class BrowserViewTest : public InProcessBrowserTest {
   BrowserViewTest& operator=(const BrowserViewTest&) = delete;
 
   void SetUpOnMainThread() override {
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
     // Set the preference to true so we expect to see the top view in
     // fullscreen mode.
     PrefService* prefs = browser()->profile()->GetPrefs();
@@ -66,10 +63,8 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, FullscreenClearsFocus) {
   // Focus starts in the location bar or one of its children.
   EXPECT_TRUE(location_bar_view->Contains(focus_manager->GetFocusedView()));
 
-  FullscreenNotificationObserver fullscreen_observer(browser());
   // Enter into fullscreen mode.
   chrome::ToggleFullscreenMode(browser());
-  fullscreen_observer.Wait();
   EXPECT_TRUE(browser_view->IsFullscreen());
 
   // Focus is released from the location bar.
@@ -83,41 +78,29 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, BrowserFullscreenShowTopView) {
 
   // The top view should always show up in regular mode.
   EXPECT_FALSE(browser_view->IsFullscreen());
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
 
-  {
-    FullscreenNotificationObserver fullscreen_observer(browser());
-    // Enter into fullscreen mode.
-    chrome::ToggleFullscreenMode(browser());
-    fullscreen_observer.Wait();
-  }
+  // Enter into fullscreen mode.
+  chrome::ToggleFullscreenMode(browser());
   EXPECT_TRUE(browser_view->IsFullscreen());
 
   bool top_view_in_browser_fullscreen = false;
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // The top view should show up by default.
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
   // The 'Always Show Bookmarks Bar' should be enabled.
   EXPECT_TRUE(chrome::IsCommandEnabled(browser(), IDC_SHOW_BOOKMARK_BAR));
 
-  {
-    FullscreenNotificationObserver fullscreen_observer(browser());
-    // Return back to normal mode and toggle to not show the top view in full
-    // screen mode.
-    chrome::ToggleFullscreenMode(browser());
-    fullscreen_observer.Wait();
-  }
+  // Return back to normal mode and toggle to not show the top view in full
+  // screen mode.
+  chrome::ToggleFullscreenMode(browser());
   EXPECT_FALSE(browser_view->IsFullscreen());
   chrome::ToggleFullscreenToolbar(browser());
 
-  {
-    FullscreenNotificationObserver fullscreen_observer(browser());
-    // While back to fullscreen mode, the top view no longer shows up.
-    chrome::ToggleFullscreenMode(browser());
-    fullscreen_observer.Wait();
-  }
+  // While back to fullscreen mode, the top view no longer shows up.
+  chrome::ToggleFullscreenMode(browser());
   EXPECT_TRUE(browser_view->IsFullscreen());
-  EXPECT_FALSE(browser_view->GetTabStripVisible());
+  EXPECT_FALSE(browser_view->IsTabStripVisible());
   // The 'Always Show Bookmarks Bar' should be disabled.
   EXPECT_FALSE(chrome::IsCommandEnabled(browser(), IDC_SHOW_BOOKMARK_BAR));
 
@@ -131,7 +114,7 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, BrowserFullscreenShowTopView) {
   if (browser_view->immersive_mode_controller()->IsEnabled())
     top_view_in_browser_fullscreen = true;
 #endif
-  EXPECT_EQ(top_view_in_browser_fullscreen, browser_view->GetTabStripVisible());
+  EXPECT_EQ(top_view_in_browser_fullscreen, browser_view->IsTabStripVisible());
   // The 'Always Show Bookmarks Bar' should be enabled if top view is shown.
   EXPECT_EQ(top_view_in_browser_fullscreen,
             chrome::IsCommandEnabled(browser(), IDC_SHOW_BOOKMARK_BAR));
@@ -141,11 +124,11 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, BrowserFullscreenShowTopView) {
       browser()->exclusive_access_manager()->fullscreen_controller();
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  controller->EnterFullscreenModeForTab(web_contents->GetPrimaryMainFrame());
+  controller->EnterFullscreenModeForTab(web_contents->GetMainFrame());
   EXPECT_TRUE(browser_view->IsFullscreen());
   bool top_view_in_tab_fullscreen =
       browser_view->immersive_mode_controller()->IsEnabled() ? true : false;
-  EXPECT_EQ(top_view_in_tab_fullscreen, browser_view->GetTabStripVisible());
+  EXPECT_EQ(top_view_in_tab_fullscreen, browser_view->IsTabStripVisible());
   // The 'Always Show Bookmarks Bar' should be disabled in tab fullscreen mode.
   EXPECT_EQ(top_view_in_tab_fullscreen,
             chrome::IsCommandEnabled(browser(), IDC_SHOW_BOOKMARK_BAR));
@@ -157,29 +140,17 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, BrowserFullscreenShowTopView) {
   event.windows_key_code = ui::VKEY_ESCAPE;
   browser()->exclusive_access_manager()->HandleUserKeyEvent(event);
   EXPECT_TRUE(browser_view->IsFullscreen());
-  EXPECT_EQ(top_view_in_browser_fullscreen, browser_view->GetTabStripVisible());
+  EXPECT_EQ(top_view_in_browser_fullscreen, browser_view->IsTabStripVisible());
   // This makes sure that the layout was updated accordingly.
   EXPECT_EQ(top_view_in_browser_fullscreen,
             browser_view->tabstrip()->GetVisible());
   EXPECT_EQ(top_view_in_browser_fullscreen,
             chrome::IsCommandEnabled(browser(), IDC_SHOW_BOOKMARK_BAR));
 
-// Adding `FullscreenNotificationObserver` will make the TESTs on Lacros fail
-// determinately, which should have been a no-op.
-// TODO(crbug.com/1351971): Repair this defect.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-  {
-    FullscreenNotificationObserver fullscreen_observer(browser());
-    // Return to regular mode.
-    chrome::ToggleFullscreenMode(browser());
-    fullscreen_observer.Wait();
-  }
-#else
   // Return to regular mode.
   chrome::ToggleFullscreenMode(browser());
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
   EXPECT_FALSE(browser_view->IsFullscreen());
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
 }
 
 // Test whether the top view including toolbar and tab strip appears or hides
@@ -189,89 +160,68 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, TabFullscreenShowTopView) {
 
   // The top view should always show up in regular mode.
   EXPECT_FALSE(browser_view->IsFullscreen());
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
 
   // Enter into tab fullscreen mode.
   FullscreenController* controller =
       browser()->exclusive_access_manager()->fullscreen_controller();
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  controller->EnterFullscreenModeForTab(web_contents->GetPrimaryMainFrame());
+  controller->EnterFullscreenModeForTab(web_contents->GetMainFrame());
   EXPECT_TRUE(browser_view->IsFullscreen());
 
   // The top view should not show up.
-  EXPECT_FALSE(browser_view->GetTabStripVisible());
+  EXPECT_FALSE(browser_view->IsTabStripVisible());
 
   // After exiting the fullscreen mode, the top view should show up again.
   controller->ExitFullscreenModeForTab(web_contents);
   EXPECT_FALSE(browser_view->IsFullscreen());
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
 }
 
 // Test whether bookmark bar shows up or hides correctly for fullscreen modes.
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#define MAYBE_FullscreenShowBookmarkBar DISABLED_FullscreenShowBookmarkBar
-#else
-#define MAYBE_FullscreenShowBookmarkBar FullscreenShowBookmarkBar
-#endif
-IN_PROC_BROWSER_TEST_F(BrowserViewTest, MAYBE_FullscreenShowBookmarkBar) {
+IN_PROC_BROWSER_TEST_F(BrowserViewTest, FullscreenShowBookmarkBar) {
   BrowserView* browser_view = static_cast<BrowserView*>(browser()->window());
 
   // If the bookmark bar is not showing, enable showing it so that we can check
   // its state.
   if (!browser_view->IsBookmarkBarVisible())
     chrome::ToggleBookmarkBar(browser());
-#if BUILDFLAG(IS_MAC)
-  // Disable showing toolbar in fullscreen mode to make its behavior similar to
+#if defined(OS_MAC)
+  // Disable showing toolbar in fullscreen mode to make its bahavior similar to
   // other platforms.
   chrome::ToggleFullscreenToolbar(browser());
 #endif
-  ASSERT_TRUE(AddTabAtIndex(0, GURL("about:blank"), ui::PAGE_TRANSITION_TYPED));
+  AddTabAtIndex(0, GURL("about:blank"), ui::PAGE_TRANSITION_TYPED);
 
   // Now the bookmark bar should show up in regular mode.
   EXPECT_FALSE(browser_view->IsFullscreen());
   EXPECT_TRUE(browser_view->IsBookmarkBarVisible());
 
-  {
-    FullscreenNotificationObserver fullscreen_observer(browser());
-    // Enter into fullscreen mode.
-    chrome::ToggleFullscreenMode(browser());
-    fullscreen_observer.Wait();
-  }
+  // Enter into fullscreen mode.
+  chrome::ToggleFullscreenMode(browser());
   EXPECT_TRUE(browser_view->IsFullscreen());
   if (browser_view->immersive_mode_controller()->IsEnabled())
     EXPECT_TRUE(browser_view->IsBookmarkBarVisible());
   else
     EXPECT_FALSE(browser_view->IsBookmarkBarVisible());
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Test toggling toolbar state in fullscreen mode would also affect bookmark
   // bar state.
   chrome::ToggleFullscreenToolbar(browser());
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
   EXPECT_TRUE(browser_view->IsBookmarkBarVisible());
 
   chrome::ToggleFullscreenToolbar(browser());
-  EXPECT_FALSE(browser_view->GetTabStripVisible());
+  EXPECT_FALSE(browser_view->IsTabStripVisible());
   EXPECT_FALSE(browser_view->IsBookmarkBarVisible());
 #endif
 
-// Adding `FullscreenNotificationObserver` will make the TESTs on Lacros fail
-// determinately, which should have been a no-op.
-// TODO(crbug.com/1351971): Repair this defect.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-  {
-    FullscreenNotificationObserver fullscreen_observer(browser());
-    // Exit from fullscreen mode.
-    chrome::ToggleFullscreenMode(browser());
-    fullscreen_observer.Wait();
-  }
-#else
   // Exit from fullscreen mode.
   chrome::ToggleFullscreenMode(browser());
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
   EXPECT_FALSE(browser_view->IsFullscreen());
-  EXPECT_TRUE(browser_view->GetTabStripVisible());
+  EXPECT_TRUE(browser_view->IsTabStripVisible());
   EXPECT_TRUE(browser_view->IsBookmarkBarVisible());
 }
 
@@ -297,71 +247,3 @@ IN_PROC_BROWSER_TEST_F(BrowserViewTest, WindowActivatedAccessibleEvent) {
   ASSERT_EQ(2, ax_observer_.GetCount(ax::mojom::Event::kWindowActivated));
 }
 #endif
-
-// Class for BrowserView unit tests for the loading animation feature.
-// Creates a Browser with a |features_list| where
-// kStopLoadingAnimationForHiddenWindow is enabled before setting GPU thread.
-class BrowserViewTestWithStopLoadingAnimationForHiddenWindow
-    : public BrowserViewTest {
- public:
-  BrowserViewTestWithStopLoadingAnimationForHiddenWindow() {
-    feature_list_.InitAndEnableFeature(
-        features::kStopLoadingAnimationForHiddenWindow);
-  }
-
-  BrowserViewTestWithStopLoadingAnimationForHiddenWindow(
-      const BrowserViewTestWithStopLoadingAnimationForHiddenWindow&) = delete;
-  BrowserViewTestWithStopLoadingAnimationForHiddenWindow& operator=(
-      const BrowserViewTestWithStopLoadingAnimationForHiddenWindow&) = delete;
-
- protected:
-  BrowserView* browser_view() {
-    return BrowserView::GetBrowserViewForBrowser(browser());
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(BrowserViewTestWithStopLoadingAnimationForHiddenWindow,
-                       LoadingAnimationChangeOnMinimizeAndRestore) {
-  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_watcher(
-      contents, 1, content::MessageLoopRunner::QuitMode::DEFERRED);
-
-  // Navigate without blocking.
-  const GURL test_url = ui_test_utils::GetTestUrl(
-      base::FilePath(base::FilePath::kCurrentDirectory),
-      base::FilePath(FILE_PATH_LITERAL("title2.html")));
-  contents->GetController().LoadURL(test_url, content::Referrer(),
-                                    ui::PAGE_TRANSITION_LINK, std::string());
-  {
-    base::RunLoop run_loop;
-    browser_view()->SetLoadingAnimationStateChangeClosureForTesting(
-        run_loop.QuitClosure());
-
-    // Loading animation is not rendered when browser view is minimized.
-    browser_view()->Minimize();
-    run_loop.Run();
-  }
-
-  EXPECT_TRUE(browser()->tab_strip_model()->TabsAreLoading());
-  EXPECT_FALSE(browser_view()->IsLoadingAnimationRunningForTesting());
-
-  {
-    base::RunLoop run_loop;
-    browser_view()->SetLoadingAnimationStateChangeClosureForTesting(
-        run_loop.QuitClosure());
-
-    // Loading animation is rendered when browser view is restored.
-    browser_view()->Restore();
-    run_loop.Run();
-  }
-
-  EXPECT_TRUE(browser()->tab_strip_model()->TabsAreLoading());
-  EXPECT_TRUE(browser_view()->IsLoadingAnimationRunningForTesting());
-
-  // Now block for the navigation to complete.
-  navigation_watcher.Wait();
-  EXPECT_FALSE(browser()->tab_strip_model()->TabsAreLoading());
-}

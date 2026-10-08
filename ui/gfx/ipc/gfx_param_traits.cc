@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,18 @@
 
 #include <string>
 
-#include "base/format_macros.h"
-#include "base/strings/stringprintf.h"
-#include "build/build_config.h"
 #include "ui/gfx/ipc/geometry/gfx_param_traits.h"
 #include "ui/gfx/range/range.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "ipc/mach_port_mac.h"
 #endif
 
 namespace IPC {
 
 void ParamTraits<gfx::Range>::Write(base::Pickle* m, const gfx::Range& r) {
-  m->WriteUInt32(static_cast<uint32_t>(r.start()));
-  m->WriteUInt32(static_cast<uint32_t>(r.end()));
+  m->WriteUInt32(r.start());
+  m->WriteUInt32(r.end());
 }
 
 bool ParamTraits<gfx::Range>::Read(const base::Pickle* m,
@@ -38,10 +35,10 @@ bool ParamTraits<gfx::Range>::Read(const base::Pickle* m,
 }
 
 void ParamTraits<gfx::Range>::Log(const gfx::Range& r, std::string* l) {
-  l->append(base::StringPrintf("(%" PRIuS ", %" PRIuS ")", r.start(), r.end()));
+  l->append(base::StringPrintf("(%d, %d)", r.start(), r.end()));
 }
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 void ParamTraits<gfx::ScopedRefCountedIOSurfaceMachPort>::Write(
     base::Pickle* m,
     const param_type p) {
@@ -99,7 +96,7 @@ void ParamTraits<gfx::ScopedIOSurface>::Log(const param_type& p,
   }
   l->append(")");
 }
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 void ParamTraits<gfx::SelectionBound>::Write(base::Pickle* m,
                                              const param_type& p) {

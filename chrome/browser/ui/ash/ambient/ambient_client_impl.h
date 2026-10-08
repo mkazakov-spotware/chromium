@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,7 @@
 #include <string>
 
 #include "ash/public/cpp/ambient/ambient_client.h"
-#include "ash/public/cpp/image_downloader.h"
 #include "base/memory/weak_ptr.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GoogleServiceAuthError;
 
@@ -28,31 +26,20 @@ class AmbientClientImpl : public ash::AmbientClient {
 
   // ash::AmbientClient:
   bool IsAmbientModeAllowed() override;
-  void SetAmbientModeAllowedForTesting(bool allowed) override;
   void RequestAccessToken(GetAccessTokenCallback callback) override;
-  void DownloadImage(const std::string& url,
-                     ash::ImageDownloader::DownloadCallback callback) override;
   scoped_refptr<network::SharedURLLoaderFactory> GetURLLoaderFactory() override;
   void RequestWakeLockProvider(
       mojo::PendingReceiver<device::mojom::WakeLockProvider> receiver) override;
   bool ShouldUseProdServer() override;
 
-  const std::map<base::UnguessableToken,
-                 std::unique_ptr<signin::AccessTokenFetcher>>&
-  token_fetchers_for_testing() const {
-    return token_fetchers_;
-  }
-
  private:
-  void OnGetAccessToken(GetAccessTokenCallback callback,
-                        base::UnguessableToken fetcher_id,
-                        const std::string& gaia_id,
-                        GoogleServiceAuthError error,
-                        signin::AccessTokenInfo access_token_info);
+  void GetAccessToken(GetAccessTokenCallback callback,
+                      const std::string& gaia_id,
+                      GoogleServiceAuthError error,
+                      signin::AccessTokenInfo access_token_info);
 
-  std::map<base::UnguessableToken, std::unique_ptr<signin::AccessTokenFetcher>>
-      token_fetchers_;
-  absl::optional<bool> is_allowed_for_testing_;
+  std::unique_ptr<signin::AccessTokenFetcher> access_token_fetcher_;
+
   base::WeakPtrFactory<AmbientClientImpl> weak_factory_{this};
 };
 

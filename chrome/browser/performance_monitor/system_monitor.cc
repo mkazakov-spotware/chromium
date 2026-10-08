@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,14 @@
 
 #include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
-#include "base/notreached.h"
-#include "base/observer_list.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/task_runner_util.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "chrome/browser/performance_monitor/metric_evaluator_helper_win.h"
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include "chrome/browser/performance_monitor/metric_evaluator_helper_posix.h"
 #endif
 
@@ -31,7 +31,8 @@ using MetricRefreshFrequencies =
 SystemMonitor* g_system_metrics_monitor = nullptr;
 
 // The default interval at which the metrics are refreshed.
-constexpr base::TimeDelta kDefaultRefreshInterval = base::Seconds(2);
+constexpr base::TimeDelta kDefaultRefreshInterval =
+    base::TimeDelta::FromSeconds(2);
 
 }  // namespace
 
@@ -206,8 +207,8 @@ void SystemMonitor::UpdateObservedMetrics() {
 
 void SystemMonitor::RefreshCallback() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  blocking_task_runner_->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  base::PostTaskAndReplyWithResult(
+      blocking_task_runner_.get(), FROM_HERE,
       base::BindOnce(&SystemMonitor::EvaluateMetrics, GetMetricsToEvaluate()),
       base::BindOnce(&SystemMonitor::NotifyObservers,
                      weak_factory_.GetWeakPtr()));
@@ -240,17 +241,14 @@ void SystemMonitor::NotifyObservers(SystemMonitor::MetricVector metrics) {
 // static
 std::unique_ptr<MetricEvaluatorsHelper>
 SystemMonitor::CreateMetricEvaluatorsHelper() {
-#if BUILDFLAG(IS_WIN)
-  return base::WrapUnique(new MetricEvaluatorsHelperWin());
-#elif BUILDFLAG(IS_POSIX)
-  return std::make_unique<MetricEvaluatorsHelperPosix>();
-#elif BUILDFLAG(IS_FUCHSIA)
-  // TODO(crbug.com/1166873): Implement this in support of tracing.
-  NOTIMPLEMENTED_LOG_ONCE();
-  return nullptr;
+#if defined(OS_WIN)
+  MetricEvaluatorsHelper* helper = new MetricEvaluatorsHelperWin();
+#elif defined(OS_POSIX)
+  MetricEvaluatorsHelper* helper = new MetricEvaluatorsHelperPosix();
 #else
 #error Unsupported platform
 #endif
+  return base::WrapUnique(helper);
 }
 
 SystemMonitor::MetricEvaluator::MetricEvaluator(Type type) : type_(type) {}
@@ -259,7 +257,7 @@ SystemMonitor::MetricEvaluator::~MetricEvaluator() = default;
 template <typename T>
 SystemMonitor::MetricEvaluatorImpl<T>::MetricEvaluatorImpl(
     Type type,
-    base::OnceCallback<absl::optional<T>()> evaluate_function,
+    base::OnceCallback<base::Optional<T>()> evaluate_function,
     void (SystemObserver::*notify_function)(ObserverArgType))
     : MetricEvaluator(type),
       evaluate_function_(std::move(evaluate_function)),
@@ -289,7 +287,7 @@ void SystemMonitor::MetricEvaluatorImpl<T>::Evaluate() {
   value_ = std::move(evaluate_function_).Run();
 }
 
-absl::optional<base::SystemMetrics>
+base::Optional<base::SystemMetrics>
 MetricEvaluatorsHelper::GetSystemMetricsStruct() {
   return base::SystemMetrics::Sample();
 }

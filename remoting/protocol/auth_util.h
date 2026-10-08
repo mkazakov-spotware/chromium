@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,9 +15,10 @@ namespace net {
 class SSLSocket;
 }  // namespace net
 
-namespace remoting::protocol {
+namespace remoting {
+namespace protocol {
 
-// Labels for use when exporting the SSL shared secret.
+// Labels for use when exporting the SSL master keys.
 extern const char kClientAuthSslExporterLabel[];
 extern const char kHostAuthSslExporterLabel[];
 
@@ -40,6 +41,7 @@ std::string GetAuthBytes(net::SSLSocket* socket,
                          const base::StringPiece& label,
                          const base::StringPiece& shared_secret);
 
-}  // namespace remoting::protocol
+}  // namespace protocol
+}  // namespace remoting
 
 #endif  // REMOTING_PROTOCOL_AUTH_UTIL_H_

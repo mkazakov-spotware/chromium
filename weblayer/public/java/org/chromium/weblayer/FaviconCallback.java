@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,10 @@ import androidx.annotation.Nullable;
 
 /**
  * Informed of changes to the favicon of the current navigation.
+ *
+ * @since 86
  */
-abstract class FaviconCallback {
+public abstract class FaviconCallback {
     /**
      * Called when the favicon of the current navigation has changed. This is called with null when
      * a navigation is started.

@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/input/snap_fling_controller.h"
 
-#include <utility>
 #include "cc/input/snap_fling_curve.h"
 
 namespace cc {
@@ -50,7 +49,7 @@ bool SnapFlingController::HandleGestureScrollUpdate(
   gfx::Vector2dF ending_displacement =
       SnapFlingCurve::EstimateDisplacement(info.delta);
 
-  gfx::PointF target_offset, start_offset;
+  gfx::Vector2dF target_offset, start_offset;
   if (!client_->GetSnapFlingInfoAndSetAnimatingSnapTarget(
           ending_displacement, &start_offset, &target_offset)) {
     state_ = State::kIgnored;
@@ -58,7 +57,6 @@ bool SnapFlingController::HandleGestureScrollUpdate(
   }
 
   if (start_offset == target_offset) {
-    client_->ScrollEndForSnapFling(true /* did_finish */);
     state_ = State::kFinished;
     return true;
   }
@@ -80,7 +78,7 @@ void SnapFlingController::Animate(base::TimeTicks time) {
     return;
   }
   gfx::Vector2dF snapped_delta = curve_->GetScrollDelta(time);
-  gfx::PointF current_offset = client_->ScrollByForSnapFling(snapped_delta);
+  gfx::Vector2dF current_offset = client_->ScrollByForSnapFling(snapped_delta);
   curve_->UpdateCurrentOffset(current_offset);
   client_->RequestAnimationForSnapFling();
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -87,25 +87,26 @@ TEST(SystemSessionAnalyzerTest, StandardCase) {
 
   base::Time time = base::Time::Now();
   analyzer.AddEvent({kIdSessionStart, time});
-  analyzer.AddEvent({kIdSessionEndUnclean, time - base::Seconds(10)});
-  analyzer.AddEvent({kIdSessionStart, time - base::Seconds(20)});
-  analyzer.AddEvent({kIdSessionEnd, time - base::Seconds(22)});
-  analyzer.AddEvent({kIdSessionStart, time - base::Seconds(28)});
+  analyzer.AddEvent(
+      {kIdSessionEndUnclean, time - base::TimeDelta::FromSeconds(10)});
+  analyzer.AddEvent({kIdSessionStart, time - base::TimeDelta::FromSeconds(20)});
+  analyzer.AddEvent({kIdSessionEnd, time - base::TimeDelta::FromSeconds(22)});
+  analyzer.AddEvent({kIdSessionStart, time - base::TimeDelta::FromSeconds(28)});
 
   EXPECT_EQ(SystemSessionAnalyzer::OUTSIDE_RANGE,
-            analyzer.IsSessionUnclean(time - base::Seconds(30)));
+            analyzer.IsSessionUnclean(time - base::TimeDelta::FromSeconds(30)));
   EXPECT_EQ(SystemSessionAnalyzer::CLEAN,
-            analyzer.IsSessionUnclean(time - base::Seconds(25)));
+            analyzer.IsSessionUnclean(time - base::TimeDelta::FromSeconds(25)));
   EXPECT_EQ(SystemSessionAnalyzer::UNCLEAN,
-            analyzer.IsSessionUnclean(time - base::Seconds(20)));
+            analyzer.IsSessionUnclean(time - base::TimeDelta::FromSeconds(20)));
   EXPECT_EQ(SystemSessionAnalyzer::UNCLEAN,
-            analyzer.IsSessionUnclean(time - base::Seconds(15)));
+            analyzer.IsSessionUnclean(time - base::TimeDelta::FromSeconds(15)));
   EXPECT_EQ(SystemSessionAnalyzer::UNCLEAN,
-            analyzer.IsSessionUnclean(time - base::Seconds(10)));
+            analyzer.IsSessionUnclean(time - base::TimeDelta::FromSeconds(10)));
   EXPECT_EQ(SystemSessionAnalyzer::CLEAN,
-            analyzer.IsSessionUnclean(time - base::Seconds(5)));
+            analyzer.IsSessionUnclean(time - base::TimeDelta::FromSeconds(5)));
   EXPECT_EQ(SystemSessionAnalyzer::CLEAN,
-            analyzer.IsSessionUnclean(time + base::Seconds(5)));
+            analyzer.IsSessionUnclean(time + base::TimeDelta::FromSeconds(5)));
 }
 
 TEST(SystemSessionAnalyzerTest, NoEvent) {
@@ -119,8 +120,8 @@ TEST(SystemSessionAnalyzerTest, TimeInversion) {
 
   base::Time time = base::Time::Now();
   analyzer.AddEvent({kIdSessionStart, time});
-  analyzer.AddEvent({kIdSessionEnd, time + base::Seconds(1)});
-  analyzer.AddEvent({kIdSessionStart, time - base::Seconds(1)});
+  analyzer.AddEvent({kIdSessionEnd, time + base::TimeDelta::FromSeconds(1)});
+  analyzer.AddEvent({kIdSessionStart, time - base::TimeDelta::FromSeconds(1)});
 
   EXPECT_EQ(SystemSessionAnalyzer::INITIALIZE_FAILED,
             analyzer.IsSessionUnclean(base::Time::Now()));
@@ -131,8 +132,8 @@ TEST(SystemSessionAnalyzerTest, IdInversion) {
 
   base::Time time = base::Time::Now();
   analyzer.AddEvent({kIdSessionStart, time});
-  analyzer.AddEvent({kIdSessionStart, time - base::Seconds(1)});
-  analyzer.AddEvent({kIdSessionEnd, time - base::Seconds(2)});
+  analyzer.AddEvent({kIdSessionStart, time - base::TimeDelta::FromSeconds(1)});
+  analyzer.AddEvent({kIdSessionEnd, time - base::TimeDelta::FromSeconds(2)});
 
   EXPECT_EQ(SystemSessionAnalyzer::INITIALIZE_FAILED,
             analyzer.IsSessionUnclean(base::Time::Now()));

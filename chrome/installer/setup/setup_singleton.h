@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 
 #include <memory>
 
+#include "base/macros.h"
+#include "base/strings/string16.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/win/scoped_handle.h"
 
@@ -32,16 +34,13 @@ class SetupSingleton {
   // process the exclusive right to modify the Chrome installation described by
   // |installer_state| (installation directory and associated registry keys).
   // May block. |original_state| and |installer_state| are updated using
-  // |command_line| and |initial_preferences| to reflect the new state of the
+  // |command_line| and |master_preferences| to reflect the new state of the
   // installation after acquisition. Returns nullptr on failure.
   static std::unique_ptr<SetupSingleton> Acquire(
       const base::CommandLine& command_line,
-      const InitialPreferences& initial_preferences,
+      const InitialPreferences& master_preferences,
       InstallationState* original_state,
       InstallerState* installer_state);
-
-  SetupSingleton(const SetupSingleton&) = delete;
-  SetupSingleton& operator=(const SetupSingleton&) = delete;
 
   // Releases the exclusive right to modify the Chrome installation.
   ~SetupSingleton();
@@ -56,10 +55,6 @@ class SetupSingleton {
   class ScopedHoldMutex {
    public:
     ScopedHoldMutex();
-
-    ScopedHoldMutex(const ScopedHoldMutex&) = delete;
-    ScopedHoldMutex& operator=(const ScopedHoldMutex&) = delete;
-
     ~ScopedHoldMutex();
 
     // Waits up to a certain amount of time to acquire |mutex|. Returns true on
@@ -68,6 +63,8 @@ class SetupSingleton {
 
    private:
     HANDLE mutex_ = INVALID_HANDLE_VALUE;
+
+    DISALLOW_COPY_AND_ASSIGN(ScopedHoldMutex);
   };
 
   SetupSingleton(base::win::ScopedHandle setup_mutex,
@@ -82,6 +79,8 @@ class SetupSingleton {
   // An event signaled to ask the owner of |setup_mutex_| to release it as soon
   // as possible.
   mutable base::WaitableEvent exit_event_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetupSingleton);
 };
 
 }  // namespace installer

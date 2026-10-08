@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -28,22 +27,18 @@ class TestingSigninErrorHandler : public SigninErrorHandler {
                             content::WebUI* web_ui)
       : SigninErrorHandler(browser, is_system_profile),
         browser_modal_dialog_did_close_(false),
-        profile_picker_dialog_did_close_(false) {
+        user_manager_profile_dialog_did_close_(false) {
     set_web_ui(web_ui);
   }
-
-  TestingSigninErrorHandler(const TestingSigninErrorHandler&) = delete;
-  TestingSigninErrorHandler& operator=(const TestingSigninErrorHandler&) =
-      delete;
 
   void CloseBrowserModalSigninDialog() override {
     browser_modal_dialog_did_close_ = true;
     SigninErrorHandler::CloseBrowserModalSigninDialog();
   }
 
-  void CloseProfilePickerDialog() override {
-    profile_picker_dialog_did_close_ = true;
-    SigninErrorHandler::CloseProfilePickerDialog();
+  void CloseUserManagerProfileDialog() override {
+    user_manager_profile_dialog_did_close_ = true;
+    SigninErrorHandler::CloseUserManagerProfileDialog();
   }
 
   using SigninErrorHandler::HandleSwitchToExistingProfile;
@@ -55,22 +50,21 @@ class TestingSigninErrorHandler : public SigninErrorHandler {
     return browser_modal_dialog_did_close_;
   }
 
-  bool profile_picker_dialog_did_close() {
-    return profile_picker_dialog_did_close_;
+  bool user_manager_profile_dialog_did_close() {
+    return user_manager_profile_dialog_did_close_;
   }
 
  private:
   bool browser_modal_dialog_did_close_;
-  bool profile_picker_dialog_did_close_;
+  bool user_manager_profile_dialog_did_close_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestingSigninErrorHandler);
 };
 
 class SigninErrorHandlerTest : public BrowserWithTestWindowTest {
  public:
   SigninErrorHandlerTest()
       : web_ui_(new content::TestWebUI), handler_(nullptr) {}
-
-  SigninErrorHandlerTest(const SigninErrorHandlerTest&) = delete;
-  SigninErrorHandlerTest& operator=(const SigninErrorHandlerTest&) = delete;
 
   void SetUp() override {
     BrowserWithTestWindowTest::SetUp();
@@ -95,7 +89,7 @@ class SigninErrorHandlerTest : public BrowserWithTestWindowTest {
     web_ui()->AddMessageHandler(std::move(handler));
   }
 
-  void CreateHandlerInProfilePicker() {
+  void CreateHandlerInUserManager() {
     DCHECK(!handler_);
     auto handler = std::make_unique<TestingSigninErrorHandler>(
         nullptr /* browser */, true /* is_system_profile */, web_ui());
@@ -115,7 +109,9 @@ class SigninErrorHandlerTest : public BrowserWithTestWindowTest {
  private:
   std::unique_ptr<content::TestWebUI> web_ui_;
   std::unique_ptr<SigninErrorUI> signin_error_ui_;
-  raw_ptr<TestingSigninErrorHandler> handler_;  // Not owned.
+  TestingSigninErrorHandler* handler_;  // Not owned.
+
+  DISALLOW_COPY_AND_ASSIGN(SigninErrorHandlerTest);
 };
 
 TEST_F(SigninErrorHandlerTest, InBrowserHandleLearnMore) {
@@ -123,12 +119,12 @@ TEST_F(SigninErrorHandlerTest, InBrowserHandleLearnMore) {
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
   EXPECT_EQ(1, tab_strip_model->count());
   EXPECT_EQ(GURL(chrome::kChromeUINewTabURL),
-            tab_strip_model->GetActiveWebContents()->GetVisibleURL());
+            tab_strip_model->GetActiveWebContents()->GetURL());
 
   // Open learn more
   CreateHandlerInBrowser();
-  base::Value::List args;
-  handler()->HandleLearnMore(args);
+  base::ListValue args;
+  handler()->HandleLearnMore(&args);
 
   // Dialog should be closed now.
   EXPECT_TRUE(handler()->browser_modal_dialog_did_close());
@@ -136,7 +132,7 @@ TEST_F(SigninErrorHandlerTest, InBrowserHandleLearnMore) {
   // Verify that the learn more URL was opened.
   EXPECT_EQ(2, tab_strip_model->count());
   EXPECT_EQ(GURL(kSigninErrorLearnMoreUrl),
-            tab_strip_model->GetActiveWebContents()->GetVisibleURL());
+            tab_strip_model->GetActiveWebContents()->GetURL());
 }
 
 TEST_F(SigninErrorHandlerTest, InBrowserHandleLearnMoreAfterBrowserRemoved) {
@@ -144,15 +140,15 @@ TEST_F(SigninErrorHandlerTest, InBrowserHandleLearnMoreAfterBrowserRemoved) {
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
   EXPECT_EQ(1, tab_strip_model->count());
   EXPECT_EQ(GURL(chrome::kChromeUINewTabURL),
-            tab_strip_model->GetActiveWebContents()->GetVisibleURL());
+            tab_strip_model->GetActiveWebContents()->GetURL());
 
   // Inform the handler that the browser was removed;
   CreateHandlerInBrowser();
   handler()->OnBrowserRemoved(browser());
 
   // Open learn more
-  base::Value::List args;
-  handler()->HandleLearnMore(args);
+  base::ListValue args;
+  handler()->HandleLearnMore(&args);
 
   // Dialog is not closed if the browser was removed.
   EXPECT_FALSE(handler()->browser_modal_dialog_did_close());
@@ -160,25 +156,25 @@ TEST_F(SigninErrorHandlerTest, InBrowserHandleLearnMoreAfterBrowserRemoved) {
   // Verify that the learn more URL was not opened as the browser was removed.
   EXPECT_EQ(1, tab_strip_model->count());
   EXPECT_EQ(GURL(chrome::kChromeUINewTabURL),
-            tab_strip_model->GetActiveWebContents()->GetVisibleURL());
+            tab_strip_model->GetActiveWebContents()->GetURL());
 }
 
 TEST_F(SigninErrorHandlerTest, InBrowserTestConfirm) {
   CreateHandlerInBrowser();
-  base::Value::List args;
-  handler()->HandleConfirm(args);
+  base::ListValue args;
+  handler()->HandleConfirm(&args);
 
   // Confirm simply closes the dialog.
   EXPECT_TRUE(handler()->browser_modal_dialog_did_close());
 }
 
-TEST_F(SigninErrorHandlerTest, InProfilePickerTestConfirm) {
-  CreateHandlerInProfilePicker();
-  base::Value::List args;
-  handler()->HandleConfirm(args);
+TEST_F(SigninErrorHandlerTest, InUserManagerTestConfirm) {
+  CreateHandlerInUserManager();
+  base::ListValue args;
+  handler()->HandleConfirm(&args);
 
   // Confirm simply closes the dialog.
-  EXPECT_TRUE(handler()->profile_picker_dialog_did_close());
+  EXPECT_TRUE(handler()->user_manager_profile_dialog_did_close());
 }
 
 }  // namespace

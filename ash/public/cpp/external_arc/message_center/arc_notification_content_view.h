@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,8 @@
 
 #include "ash/public/cpp/external_arc/message_center/arc_notification_item.h"
 #include "ash/public/cpp/external_arc/message_center/arc_notification_surface_manager.h"
-#include "base/gtest_prod_util.h"
+#include "base/macros.h"
 #include "ui/aura/window_observer.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/message_center/views/notification_background_painter.h"
 #include "ui/message_center/views/notification_control_buttons_view.h"
 #include "ui/views/controls/native/native_view_host.h"
@@ -45,29 +44,26 @@ class ArcNotificationContentView
       public ArcNotificationSurfaceManager::Observer,
       public views::WidgetObserver {
  public:
-  METADATA_HEADER(ArcNotificationContentView);
-
-  static int GetNotificationContentViewWidth();
+  static const char kViewClassName[];
 
   ArcNotificationContentView(ArcNotificationItem* item,
                              const message_center::Notification& notification,
                              message_center::MessageView* message_view);
-  ArcNotificationContentView(const ArcNotificationContentView&) = delete;
-  ArcNotificationContentView& operator=(const ArcNotificationContentView&) = delete;
   ~ArcNotificationContentView() override;
+
+  // views::View overrides:
+  const char* GetClassName() const override;
 
   void Update(const message_center::Notification& notification);
   message_center::NotificationControlButtonsView* GetControlButtonsView();
   void UpdateControlButtonsVisibility();
-  void UpdateCornerRadius(float top_radius, float bottom_radius);
+  void UpdateCornerRadius(int top_radius, int bottom_radius);
   void OnSlideChanged(bool in_progress);
   void OnContainerAnimationStarted();
   void OnContainerAnimationEnded();
   void ActivateWidget(bool activate);
 
   bool slide_in_progress() const { return slide_in_progress_; }
-
-  int notification_width() const { return notification_width_; }
 
  private:
   friend class ArcNotificationViewTest;
@@ -107,7 +103,6 @@ class ArcNotificationContentView
   void OnMouseExited(const ui::MouseEvent& event) override;
   void OnFocus() override;
   void OnBlur() override;
-  void OnThemeChanged() override;
   views::FocusTraversable* GetFocusTraversable() override;
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void OnAccessibilityEvent(ax::mojom::Event event) override;
@@ -123,7 +118,7 @@ class ArcNotificationContentView
   void OnWindowDestroying(aura::Window* window) override;
 
   // views::WidgetObserver:
-  void OnWidgetDestroying(views::Widget* widget) override;
+  void OnWidgetClosing(views::Widget* widget) override;
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
 
   // ArcNotificationItem::Observer
@@ -195,21 +190,21 @@ class ArcNotificationContentView
   // Widget which this view tree is currently attached to.
   views::Widget* attached_widget_ = nullptr;
 
-  std::u16string accessible_name_;
+  base::string16 accessible_name_;
 
   // If it's true, the surface gets active when attached to this view.
   bool activate_on_attach_ = false;
 
   // Radiuses of rounded corners. These values are used in UpdateMask().
-  float top_radius_ = 0;
-  float bottom_radius_ = 0;
+  int top_radius_ = 0;
+  int bottom_radius_ = 0;
 
   // Current insets of mask layer.
-  absl::optional<gfx::Insets> mask_insets_;
+  base::Optional<gfx::Insets> mask_insets_;
 
   std::unique_ptr<ui::LayerTreeOwner> surface_copy_;
 
-  const int notification_width_;
+  DISALLOW_COPY_AND_ASSIGN(ArcNotificationContentView);
 };
 
 }  // namespace ash

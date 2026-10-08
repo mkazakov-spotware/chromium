@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <array>
 
+#include "base/macros.h"
 #include "base/threading/thread_checker.h"
 #include "remoting/client/display/canvas.h"
 #include "remoting/client/display/sys_opengl.h"
@@ -21,10 +22,6 @@ class GlCanvas : public Canvas {
  public:
   // gl_version: version number of the OpenGL ES context. Either 2 or 3.
   GlCanvas(int gl_version);
-
-  GlCanvas(const GlCanvas&) = delete;
-  GlCanvas& operator=(const GlCanvas&) = delete;
-
   ~GlCanvas() override;
 
   // Canvas implementation.
@@ -61,6 +58,8 @@ class GlCanvas : public Canvas {
 
   base::ThreadChecker thread_checker_;
   base::WeakPtrFactory<Canvas> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(GlCanvas);
 };
 
 }  // namespace remoting

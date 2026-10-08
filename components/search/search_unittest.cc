@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 
 namespace search {
 
-#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_IOS) && !defined(OS_ANDROID)
 
 TEST(SearchTest, InstantExtendedAPIEnabled) {
   EXPECT_TRUE(IsInstantExtendedAPIEnabled());
 }
 
-#endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_IOS) && !defined(OS_ANDROID)
 
 }  // namespace search

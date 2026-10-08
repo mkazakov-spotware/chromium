@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/wm/session_state_animator.h"
+#include "base/macros.h"
 #include "ui/aura/window.h"
 
 namespace ui {
@@ -25,9 +26,6 @@ class ASH_EXPORT SessionStateAnimatorImpl : public SessionStateAnimator {
     explicit TestApi(SessionStateAnimatorImpl* animator)
         : animator_(animator) {}
 
-    TestApi(const TestApi&) = delete;
-    TestApi& operator=(const TestApi&) = delete;
-
     // Returns true if containers of a given |container_mask|
     // were last animated with |type| (probably; the analysis is fairly ad-hoc).
     // |container_mask| is a bitfield of a Container.
@@ -40,13 +38,11 @@ class ASH_EXPORT SessionStateAnimatorImpl : public SessionStateAnimator {
 
    private:
     SessionStateAnimatorImpl* animator_;  // not owned
+
+    DISALLOW_COPY_AND_ASSIGN(TestApi);
   };
 
   SessionStateAnimatorImpl();
-
-  SessionStateAnimatorImpl(const SessionStateAnimatorImpl&) = delete;
-  SessionStateAnimatorImpl& operator=(const SessionStateAnimatorImpl&) = delete;
-
   ~SessionStateAnimatorImpl() override;
 
   // Fills |containers| with the containers included in |container_mask|.
@@ -62,7 +58,7 @@ class ASH_EXPORT SessionStateAnimatorImpl : public SessionStateAnimator {
                                   AnimationSpeed speed,
                                   base::OnceClosure callback) override;
   AnimationSequence* BeginAnimationSequence(
-      AnimationCallback callback) override;
+      base::OnceClosure callback) override;
   bool IsWallpaperHidden() const override;
   void ShowWallpaper() override;
   void HideWallpaper() override;
@@ -82,6 +78,8 @@ class ASH_EXPORT SessionStateAnimatorImpl : public SessionStateAnimator {
                              SessionStateAnimator::AnimationType type,
                              SessionStateAnimator::AnimationSpeed speed,
                              ui::LayerAnimationObserver* observer);
+
+  DISALLOW_COPY_AND_ASSIGN(SessionStateAnimatorImpl);
 };
 
 }  // namespace ash

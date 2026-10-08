@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 
@@ -26,10 +25,6 @@ class MenuButtonController;
 class AppMenuButton : public ToolbarButton {
  public:
   explicit AppMenuButton(PressedCallback callback);
-
-  AppMenuButton(const AppMenuButton&) = delete;
-  AppMenuButton& operator=(const AppMenuButton&) = delete;
-
   ~AppMenuButton() override;
 
   views::MenuButtonController* menu_button_controller() const {
@@ -49,14 +44,14 @@ class AppMenuButton : public ToolbarButton {
   bool IsMenuShowing() const;
 
   AppMenu* app_menu() { return menu_.get(); }
-  AppMenuModel* app_menu_model() { return menu_model_.get(); }
 
  protected:
   // Show the menu. |menu_model| should be a newly created AppMenuModel.  The
   // other params are forwarded to the created AppMenu.
   void RunMenu(std::unique_ptr<AppMenuModel> menu_model,
                Browser* browser,
-               int run_flags);
+               int run_flags,
+               bool alert_reopen_tab_items);
 
   // Provided for subclasses to handle menu close, before observers are
   // notified. Default implementation does nothing.
@@ -73,7 +68,9 @@ class AppMenuButton : public ToolbarButton {
 
   base::ObserverList<AppMenuButtonObserver>::Unchecked observer_list_;
 
-  raw_ptr<views::MenuButtonController> menu_button_controller_;
+  views::MenuButtonController* menu_button_controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(AppMenuButton);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_APP_MENU_BUTTON_H_

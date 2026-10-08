@@ -1,10 +1,11 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 from . import file_io
-from .observable_array import ObservableArray
 from .typedef import Typedef
+from .union import BackwardCompatibleUnion
+from .union import NewUnion
 from .union import Union
 from .user_defined_type import UserDefinedType
 
@@ -33,9 +34,9 @@ class DatabaseBody(object):
         INTERFACE = 'interface'
         INTERFACE_MIXIN = 'interface mixin'
         NAMESPACE = 'namespace'
-        OBSERVABLE_ARRAY = 'observable array'
         TYPEDEF = 'typedef'
         UNION = 'union'
+        NEW_UNION = 'new union'  # Will replace UNION.
 
         _ALL_ENTRIES = (
             CALLBACK_FUNCTION,
@@ -45,9 +46,9 @@ class DatabaseBody(object):
             INTERFACE,
             INTERFACE_MIXIN,
             NAMESPACE,
-            OBSERVABLE_ARRAY,
             TYPEDEF,
             UNION,
+            NEW_UNION,  # Will replace UNION.
         )
 
         @classmethod
@@ -60,8 +61,9 @@ class DatabaseBody(object):
             self._defs[kind] = {}
 
     def register(self, kind, user_defined_type):
-        assert isinstance(user_defined_type,
-                          (ObservableArray, Typedef, Union, UserDefinedType))
+        assert isinstance(
+            user_defined_type,
+            (Typedef, BackwardCompatibleUnion, NewUnion, UserDefinedType))
         assert kind in DatabaseBody.Kind.values()
         try:
             self.find_by_identifier(user_defined_type.identifier)
@@ -150,11 +152,6 @@ class Database(object):
         return self._view_by_kind(Database._Kind.NAMESPACE)
 
     @property
-    def observable_arrays(self):
-        """Returns all observable arrays."""
-        return self._view_by_kind(Database._Kind.OBSERVABLE_ARRAY)
-
-    @property
     def typedefs(self):
         """Returns all typedef definitions."""
         return self._view_by_kind(Database._Kind.TYPEDEF)
@@ -164,5 +161,9 @@ class Database(object):
         """Returns all union type definitions."""
         return self._view_by_kind(Database._Kind.UNION)
 
+    @property
+    def new_union_types(self):
+        return self._view_by_kind(Database._Kind.NEW_UNION)
+
     def _view_by_kind(self, kind):
-        return list(self._impl.find_by_kind(kind).values())
+        return self._impl.find_by_kind(kind).values()

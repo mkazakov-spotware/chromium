@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,7 +43,7 @@ std::string GetContentUriMimeType(const FilePath& content_uri) {
 }
 
 bool MaybeGetFileDisplayName(const FilePath& content_uri,
-                             std::u16string* file_display_name) {
+                             base::string16* file_display_name) {
   if (!content_uri.IsContentUri())
     return false;
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
@@ -29,7 +30,7 @@ constexpr double kStrongMagnitude = 1.0;  // 100% intensity
 constexpr double kWeakMagnitude = 0.5;    // 50% intensity
 
 constexpr base::TimeDelta kPendingTaskDuration =
-    base::Milliseconds(kDurationMillis);
+    base::TimeDelta::FromMillisecondsD(kDurationMillis);
 
 // An implementation of AbstractHapticGamepad that records how many times its
 // SetVibration and SetZeroVibration methods have been called.
@@ -38,7 +39,7 @@ class FakeHapticGamepad final : public AbstractHapticGamepad {
   FakeHapticGamepad() : set_vibration_count_(0), set_zero_vibration_count_(0) {}
   ~FakeHapticGamepad() override = default;
 
-  void SetVibration(mojom::GamepadEffectParametersPtr params) override {
+  void SetVibration(double strong_magnitude, double weak_magnitude) override {
     set_vibration_count_++;
   }
 
@@ -65,10 +66,6 @@ class AbstractHapticGamepadTest : public testing::Test {
             mojom::GamepadHapticsResult::GamepadHapticsResultError),
         gamepad_(std::make_unique<FakeHapticGamepad>()) {}
 
-  AbstractHapticGamepadTest(const AbstractHapticGamepadTest&) = delete;
-  AbstractHapticGamepadTest& operator=(const AbstractHapticGamepadTest&) =
-      delete;
-
   void TearDown() override { gamepad_->Shutdown(); }
 
   void PostPlayEffect(
@@ -78,16 +75,15 @@ class AbstractHapticGamepadTest : public testing::Test {
       mojom::GamepadHapticsManager::PlayVibrationEffectOnceCallback callback) {
     gamepad_->PlayEffect(
         type,
-        mojom::GamepadEffectParameters::New(
-            duration, start_delay, kStrongMagnitude, kWeakMagnitude,
-            /*left_trigger=*/0, /*right_trigger=*/0),
-        std::move(callback), base::SingleThreadTaskRunner::GetCurrentDefault());
+        mojom::GamepadEffectParameters::New(duration, start_delay,
+                                            kStrongMagnitude, kWeakMagnitude),
+        std::move(callback), base::ThreadTaskRunnerHandle::Get());
   }
 
   void PostResetVibration(
       mojom::GamepadHapticsManager::ResetVibrationActuatorCallback callback) {
     gamepad_->ResetVibration(std::move(callback),
-                             base::SingleThreadTaskRunner::GetCurrentDefault());
+                             base::ThreadTaskRunnerHandle::Get());
   }
 
   // Callback for the first PlayEffect or ResetVibration call in a test.
@@ -111,6 +107,8 @@ class AbstractHapticGamepadTest : public testing::Test {
   std::unique_ptr<FakeHapticGamepad> gamepad_;
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
+
+  DISALLOW_COPY_AND_ASSIGN(AbstractHapticGamepadTest);
 };
 
 TEST_F(AbstractHapticGamepadTest, PlayEffectTest) {

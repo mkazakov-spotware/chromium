@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ TEST_P(ExtensionActionAPIUnitTest, MultiIcons) {
       R"({
            "name": "A test extension that tests multiple browser action icons",
            "version": "1.0",
-           "manifest_version": %d,
+           "manifest_version": 2,
            "%s": {
              "default_icon": {
                "19": "icon19.png",
@@ -43,8 +43,7 @@ TEST_P(ExtensionActionAPIUnitTest, MultiIcons) {
 
   TestExtensionDir test_extension_dir;
   test_extension_dir.WriteManifest(base::StringPrintf(
-      kManifestTemplate, GetManifestVersionForActionType(GetParam()),
-      ActionInfo::GetManifestKeyForActionType(GetParam())));
+      kManifestTemplate, GetManifestKeyForActionType(GetParam())));
 
   {
     std::string icon_file_content;
@@ -83,13 +82,12 @@ TEST_P(ExtensionActionAPIUnitTest, ActionLocalization) {
       R"({
            "name": "Some extension",
            "version": "3.0",
-           "manifest_version": %d,
+           "manifest_version": 2,
            "default_locale": "en",
            "%s": { "default_title": "__MSG_default_action_title__" }
          })";
   test_dir.WriteManifest(
-      base::StringPrintf(kManifest, GetManifestVersionForActionType(GetParam()),
-                         ActionInfo::GetManifestKeyForActionType(GetParam())));
+      base::StringPrintf(kManifest, GetManifestKeyForActionType(GetParam())));
 
   constexpr char kMessages[] =
       R"({

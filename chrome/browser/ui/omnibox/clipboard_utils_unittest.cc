@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "base/strings/string16.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
@@ -44,7 +45,7 @@ class ClipboardUtilsTest : public PlatformTest {
 TEST_F(ClipboardUtilsTest, GetClipboardText) {
   ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
 
-  const std::u16string kPlainText(u"test text");
+  const base::string16 kPlainText(ASCIIToUTF16("test text"));
   const std::string kURL("http://www.example.com/");
 
   // Can we pull straight text off the clipboard?
@@ -55,8 +56,8 @@ TEST_F(ClipboardUtilsTest, GetClipboardText) {
   EXPECT_EQ(kPlainText, GetClipboardText(/*notify_if_restricted=*/false));
 
   // Can we pull a string consists of white-space?
-  const std::u16string kSpace6(u"      ");
-  const std::u16string kSpace1(u" ");
+  const base::string16 kSpace6(ASCIIToUTF16("      "));
+  const base::string16 kSpace1(ASCIIToUTF16(" "));
   {
     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
     clipboard_writer.WriteText(kSpace6);
@@ -65,12 +66,12 @@ TEST_F(ClipboardUtilsTest, GetClipboardText) {
 
   // Does an empty clipboard get empty text?
   clipboard->Clear(ui::ClipboardBuffer::kCopyPaste);
-  EXPECT_EQ(std::u16string(), GetClipboardText(/*notify_if_restricted=*/false));
+  EXPECT_EQ(base::string16(), GetClipboardText(/*notify_if_restricted=*/false));
 
 // Bookmark clipboard apparently not supported on Linux.
 // See TODO on ClipboardText.BookmarkTest.
-#if !BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_MAC)
-  const std::u16string kTitle(u"The Example Company");
+#if !defined(OS_POSIX) || defined(OS_MAC)
+  const base::string16 kTitle(ASCIIToUTF16("The Example Company"));
   // Can we pull a bookmark off the clipboard?
   {
     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
@@ -90,7 +91,7 @@ TEST_F(ClipboardUtilsTest, GetClipboardText) {
 
   // Do we get nothing if there is neither text nor a bookmark?
   {
-    const std::u16string kMarkup(u"<strong>Hi!</string>");
+    const base::string16 kMarkup(ASCIIToUTF16("<strong>Hi!</string>"));
     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
     clipboard_writer.WriteHTML(kMarkup, kURL);
   }
@@ -98,7 +99,7 @@ TEST_F(ClipboardUtilsTest, GetClipboardText) {
 }
 
 TEST_F(ClipboardUtilsTest, TruncateLongText) {
-  const std::u16string almost_long_text =
+  const base::string16 almost_long_text =
       base::ASCIIToUTF16(std::string(kMaxClipboardTextLength, '.'));
   {
     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
@@ -106,7 +107,7 @@ TEST_F(ClipboardUtilsTest, TruncateLongText) {
   }
   EXPECT_EQ(almost_long_text, GetClipboardText(/*notify_if_restricted=*/false));
 
-  const std::u16string long_text =
+  const base::string16 long_text =
       base::ASCIIToUTF16(std::string(kMaxClipboardTextLength + 1, '.'));
   {
     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);

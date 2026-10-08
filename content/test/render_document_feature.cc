@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,15 +24,6 @@ std::vector<std::string> RenderDocumentFeatureLevelValues() {
       GetRenderDocumentLevelName(RenderDocumentLevel::kCrashedFrame),
       GetRenderDocumentLevelName(RenderDocumentLevel::kSubframe),
   };
-}
-
-std::string GetRenderDocumentLevelNameForTestParams(
-    std::string render_document_level) {
-  if (render_document_level ==
-      GetRenderDocumentLevelName(RenderDocumentLevel::kCrashedFrame)) {
-    return "RDCrashedFrame";
-  }
-  return "RDSubframe";
 }
 
 }  // namespace content

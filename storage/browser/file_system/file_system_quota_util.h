@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
 #include "base/component_export.h"
@@ -14,13 +15,12 @@
 #include "base/memory/scoped_refptr.h"
 #include "storage/common/file_system/file_system_types.h"
 
-namespace blink {
-class StorageKey;
-}  // namespace blink
+namespace url {
+class Origin;
+}
 
 namespace storage {
 
-struct BucketLocator;
 class FileSystemContext;
 class QuotaManagerProxy;
 class QuotaReservation;
@@ -33,51 +33,34 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) FileSystemQuotaUtil {
  public:
   virtual ~FileSystemQuotaUtil() = default;
 
-  // Deletes the data on the StorageKey and reports the amount of deleted data
+  // Deletes the data on the origin and reports the amount of deleted data
   // to the quota manager via |proxy|.
-  virtual base::File::Error DeleteStorageKeyDataOnFileTaskRunner(
+  virtual base::File::Error DeleteOriginDataOnFileTaskRunner(
       FileSystemContext* context,
       QuotaManagerProxy* proxy,
-      const blink::StorageKey& storage_key,
-      FileSystemType type) = 0;
-
-  // Deletes the cached default bucket for `storage_key` of type
-  // StorageType::kTemporary. Called when the default bucket is deleted from
-  // Quota service.
-  virtual void DeleteCachedDefaultBucket(
-      const blink::StorageKey& storage_key) = 0;
-
-  // Deletes the data on the bucket and reports the amount of deleted data
-  // to the quota manager via |proxy|.
-  virtual base::File::Error DeleteBucketDataOnFileTaskRunner(
-      FileSystemContext* context,
-      QuotaManagerProxy* proxy,
-      const BucketLocator& bucket_locator,
+      const url::Origin& origin,
       FileSystemType type) = 0;
 
   virtual void PerformStorageCleanupOnFileTaskRunner(FileSystemContext* context,
                                                      QuotaManagerProxy* proxy,
                                                      FileSystemType type) = 0;
 
-  virtual std::vector<blink::StorageKey> GetStorageKeysForTypeOnFileTaskRunner(
+  virtual std::vector<url::Origin> GetOriginsForTypeOnFileTaskRunner(
       FileSystemType type) = 0;
 
-  // Returns the amount of data used for the `storage_key` for usage tracking.
-  virtual int64_t GetStorageKeyUsageOnFileTaskRunner(
+  virtual std::vector<url::Origin> GetOriginsForHostOnFileTaskRunner(
+      FileSystemType type,
+      const std::string& host) = 0;
+
+  // Returns the amount of data used for the origin for usage tracking.
+  virtual int64_t GetOriginUsageOnFileTaskRunner(
       FileSystemContext* file_system_context,
-      const blink::StorageKey& storage_key,
+      const url::Origin& origin,
       FileSystemType type) = 0;
 
-  // Returns the amount of data used for the `bucket_locator` for usage
-  // tracking.
-  virtual int64_t GetBucketUsageOnFileTaskRunner(
-      FileSystemContext* file_system_context,
-      const BucketLocator& bucket_locator,
-      FileSystemType type) = 0;
-
-  // Creates new reservation object for the `storage_key` and the `type`.
+  // Creates new reservation object for the origin and the type.
   virtual scoped_refptr<QuotaReservation>
-  CreateQuotaReservationOnFileTaskRunner(const blink::StorageKey& storage_key,
+  CreateQuotaReservationOnFileTaskRunner(const url::Origin& origin,
                                          FileSystemType type) = 0;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@
 #define CHROME_BROWSER_SSL_KNOWN_INTERCEPTION_DISCLOSURE_INFOBAR_DELEGATE_H_
 
 #include <algorithm>
-#include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
 #include "base/time/default_clock.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 #include "components/infobars/core/infobar_delegate.h"
@@ -61,7 +59,7 @@ class KnownInterceptionDisclosureCooldown {
   std::unique_ptr<base::Clock> clock_ = std::make_unique<base::DefaultClock>();
   bool has_seen_known_interception_ = false;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   base::Time last_dismissal_time_;
 #endif
 };
@@ -80,27 +78,27 @@ class KnownInterceptionDisclosureInfoBarDelegate
 
   // ConfirmInfoBarDelegate:
   infobars::InfoBarDelegate::InfoBarIdentifier GetIdentifier() const override;
-  std::u16string GetLinkText() const override;
+  base::string16 GetLinkText() const override;
   GURL GetLinkURL() const override;
   bool ShouldExpire(const NavigationDetails& details) const override;
   void InfoBarDismissed() override;
-  std::u16string GetMessageText() const override;
+  base::string16 GetMessageText() const override;
   int GetButtons() const override;
   bool Accept() override;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   int GetIconId() const override;
-  std::u16string GetButtonLabel(InfoBarButton button) const override;
+  base::string16 GetButtonLabel(InfoBarButton button) const override;
 
   // This function is the equivalent of GetMessageText(), but for the portion of
   // the infobar below the 'message' title for the Android infobar.
-  std::u16string GetDescriptionText() const;
+  base::string16 GetDescriptionText() const;
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 #endif
 
  private:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 };
 
 #endif  // CHROME_BROWSER_SSL_KNOWN_INTERCEPTION_DISCLOSURE_INFOBAR_DELEGATE_H_

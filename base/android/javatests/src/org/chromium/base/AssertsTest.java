@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.build.BuildConfig;
 
 /**
  * Test that ensures Java asserts are working.
@@ -20,23 +19,20 @@ import org.chromium.build.BuildConfig;
  */
 @RunWith(BaseJUnit4ClassRunner.class)
 public class AssertsTest {
-    private static final String TAG = "AssertsTest";
-
     @Test
     @SmallTest
     @SuppressWarnings("UseCorrectAssertInTests")
     public void testAssertsWorkAsExpected() {
-        Log.i(TAG, "BuildConfig.ENABLE_ASSERTS=%b", BuildConfig.ENABLE_ASSERTS);
-        if (BuildConfig.ENABLE_ASSERTS) {
+        if (BuildConfig.DCHECK_IS_ON) {
             try {
                 assert false;
             } catch (AssertionError e) {
-                // When asserts are enabled, asserts should throw AssertionErrors.
+                // When DCHECK is on, asserts should throw AssertionErrors.
                 return;
             }
             Assert.fail("Java assert unexpectedly didn't fire.");
         } else {
-            // When asserts are disabled, asserts should be removed by proguard.
+            // When DCHECK isn't on, asserts should be removed by proguard.
             assert false : "Java assert unexpectedly fired.";
         }
     }

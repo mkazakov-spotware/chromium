@@ -1,18 +1,16 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PERMISSIONS_PREF_NOTIFICATION_PERMISSION_UI_SELECTOR_H_
 #define CHROME_BROWSER_PERMISSIONS_PREF_NOTIFICATION_PERMISSION_UI_SELECTOR_H_
 
-#include "base/memory/raw_ptr.h"
-#include "components/permissions/permission_ui_selector.h"
+#include "components/permissions/notification_permission_ui_selector.h"
 
 class Profile;
 
 namespace permissions {
 class PermissionRequest;
-enum class RequestType;
 }
 
 // Determines if the quiet prompt UI should be used to display a notification
@@ -22,7 +20,7 @@ enum class RequestType;
 //
 // Each instance of this class is long-lived and can support multiple requests.
 class PrefNotificationPermissionUiSelector
-    : public permissions::PermissionUiSelector {
+    : public permissions::NotificationPermissionUiSelector {
  public:
   // Constructs an instance in the context of the given |profile|.
   explicit PrefNotificationPermissionUiSelector(Profile* profile);
@@ -40,11 +38,8 @@ class PrefNotificationPermissionUiSelector
 
   void Cancel() override;
 
-  bool IsPermissionRequestSupported(
-      permissions::RequestType request_type) override;
-
  private:
-  raw_ptr<Profile> profile_;
+  Profile* profile_;
 };
 
 #endif  // CHROME_BROWSER_PERMISSIONS_PREF_NOTIFICATION_PERMISSION_UI_SELECTOR_H_

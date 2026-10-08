@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 
 namespace storage {
 
-ObfuscatedFileUtilDiskDelegate::ObfuscatedFileUtilDiskDelegate() = default;
+ObfuscatedFileUtilDiskDelegate::ObfuscatedFileUtilDiskDelegate() {}
 
-ObfuscatedFileUtilDiskDelegate::~ObfuscatedFileUtilDiskDelegate() = default;
+ObfuscatedFileUtilDiskDelegate::~ObfuscatedFileUtilDiskDelegate() {}
 
 bool ObfuscatedFileUtilDiskDelegate::DirectoryExists(
     const base::FilePath& path) {
@@ -48,7 +48,7 @@ ObfuscatedFileUtilDiskDelegate::CopyOrMoveModeForDestination(
 
 base::File ObfuscatedFileUtilDiskDelegate::CreateOrOpen(
     const base::FilePath& path,
-    uint32_t file_flags) {
+    int file_flags) {
   return NativeFileUtil::CreateOrOpen(path, file_flags);
 }
 
@@ -85,17 +85,17 @@ base::File::Error ObfuscatedFileUtilDiskDelegate::Truncate(
 base::File::Error ObfuscatedFileUtilDiskDelegate::CopyOrMoveFile(
     const base::FilePath& src_path,
     const base::FilePath& dest_path,
-    FileSystemOperation::CopyOrMoveOptionSet options,
+    FileSystemOperation::CopyOrMoveOption option,
     NativeFileUtil::CopyOrMoveMode mode) {
-  return NativeFileUtil::CopyOrMoveFile(src_path, dest_path, options, mode);
+  return NativeFileUtil::CopyOrMoveFile(src_path, dest_path, option, mode);
 }
 
 base::File::Error ObfuscatedFileUtilDiskDelegate::CopyInForeignFile(
     const base::FilePath& src_path,
     const base::FilePath& dest_path,
-    FileSystemOperation::CopyOrMoveOptionSet options,
+    FileSystemOperation::CopyOrMoveOption option,
     NativeFileUtil::CopyOrMoveMode mode) {
-  return NativeFileUtil::CopyOrMoveFile(src_path, dest_path, options, mode);
+  return NativeFileUtil::CopyOrMoveFile(src_path, dest_path, option, mode);
 }
 
 base::File::Error ObfuscatedFileUtilDiskDelegate::DeleteFile(

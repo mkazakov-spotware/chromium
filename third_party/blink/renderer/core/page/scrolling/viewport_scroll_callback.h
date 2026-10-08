@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include "third_party/blink/renderer/core/page/scrolling/scroll_state_callback.h"
 #include "third_party/blink/renderer/core/scroll/scroll_types.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "ui/events/types/scroll_types.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
 
 namespace blink {
 
@@ -46,7 +45,7 @@ class ViewportScrollCallback : public ScrollStateCallback {
 
  private:
   bool ShouldScrollBrowserControls(const ScrollOffset&,
-                                   ui::ScrollGranularity) const;
+                                   ScrollGranularity) const;
   bool ScrollBrowserControls(ScrollState&);
 
   ScrollResult PerformNativeScroll(ScrollState&);

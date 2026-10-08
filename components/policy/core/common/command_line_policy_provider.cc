@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 #include "build/build_config.h"
 #include "components/policy/core/common/policy_bundle.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/build_info.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 namespace policy {
 
@@ -22,7 +22,7 @@ std::unique_ptr<CommandLinePolicyProvider>
 CommandLinePolicyProvider::CreateIfAllowed(
     const base::CommandLine& command_line,
     version_info::Channel channel) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   if (channel == version_info::Channel::STABLE ||
       channel == version_info::Channel::BETA) {
     return nullptr;
@@ -34,7 +34,7 @@ CommandLinePolicyProvider::CreateIfAllowed(
   return base::WrapUnique(new CommandLinePolicyProvider(command_line));
 #else
   return nullptr;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }
 
 // static
@@ -47,7 +47,7 @@ CommandLinePolicyProvider::CreateForTesting(
 CommandLinePolicyProvider::~CommandLinePolicyProvider() = default;
 
 void CommandLinePolicyProvider::RefreshPolicies() {
-  PolicyBundle bundle = loader_.Load();
+  std::unique_ptr<PolicyBundle> bundle = loader_.Load();
   first_policies_loaded_ = true;
   UpdatePolicy(std::move(bundle));
 }

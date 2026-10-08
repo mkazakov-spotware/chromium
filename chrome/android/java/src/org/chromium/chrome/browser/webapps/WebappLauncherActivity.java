@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,20 +24,20 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.ShortcutHelper;
+import org.chromium.chrome.browser.ShortcutSource;
 import org.chromium.chrome.browser.WarmupManager;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
-import org.chromium.chrome.browser.browserservices.intents.WebappIntentUtils;
+import org.chromium.chrome.browser.browserservices.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.chromium.chrome.browser.firstrun.FirstRunFlowSequencer;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
-import org.chromium.components.webapps.ShortcutSource;
 
 import java.lang.ref.WeakReference;
 
@@ -137,6 +137,10 @@ public class WebappLauncherActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Close the notification tray.
+        ContextUtils.getApplicationContext().sendBroadcast(
+                new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+
         long createTimestamp = SystemClock.elapsedRealtime();
         Intent intent = getIntent();
 
@@ -163,11 +167,7 @@ public class WebappLauncherActivity extends Activity {
 
         if (FirstRunFlowSequencer.launch(this, intent, false /* requiresBroadcast */,
                     shouldPreferLightweightFre(launchData))) {
-            // Do not remove the current task. The full FRE reuses the task due to
-            // android:launchMode arguments, while the LWFRE does not. So removing the task would
-            // break the full FRE. The LWFRE will still clean up the task since this is the only
-            // activity in the current task. See https://crbug.com/1201353 for more details.
-            finish();
+            ApiCompatibilityUtils.finishAndRemoveTask(this);
             return;
         }
 
@@ -226,7 +226,7 @@ public class WebappLauncherActivity extends Activity {
             return true;
         }
 
-        String webappMac = IntentUtils.safeGetStringExtra(intent, WebappConstants.EXTRA_MAC);
+        String webappMac = IntentUtils.safeGetStringExtra(intent, ShortcutHelper.EXTRA_MAC);
         return (isValidMacForUrl(launchData.url, webappMac) || wasIntentFromChrome(intent));
     }
 
@@ -239,7 +239,7 @@ public class WebappLauncherActivity extends Activity {
 
         IntentUtils.safeStartActivity(launchingActivity, launchIntent);
         if (IntentUtils.isIntentForNewTaskOrNewDocument(launchIntent)) {
-            launchingActivity.finishAndRemoveTask();
+            ApiCompatibilityUtils.finishAndRemoveTask(launchingActivity);
         } else {
             launchingActivity.finish();
             launchingActivity.overridePendingTransition(0, R.anim.no_anim);
@@ -264,29 +264,29 @@ public class WebappLauncherActivity extends Activity {
                 sourceIntent, launchData.webApkPackageName, launchData.url);
         launchAfterDelay(
                 launchingActivity.getApplicationContext(), launchIntent, WEBAPK_LAUNCH_DELAY_MS);
-        launchingActivity.finishAndRemoveTask();
+        ApiCompatibilityUtils.finishAndRemoveTask(launchingActivity);
     }
 
     /** Extracts start URL from source intent and launches URL in Chrome tab. */
     private static void launchInTab(Activity launchingActivity, Intent sourceIntent) {
         Context appContext = ContextUtils.getApplicationContext();
-        String webappUrl = IntentUtils.safeGetStringExtra(sourceIntent, WebappConstants.EXTRA_URL);
+        String webappUrl = IntentUtils.safeGetStringExtra(sourceIntent, ShortcutHelper.EXTRA_URL);
         int webappSource = IntentUtils.safeGetIntExtra(
-                sourceIntent, WebappConstants.EXTRA_SOURCE, ShortcutSource.UNKNOWN);
+                sourceIntent, ShortcutHelper.EXTRA_SOURCE, ShortcutSource.UNKNOWN);
 
         if (TextUtils.isEmpty(webappUrl)) return;
 
         Intent launchIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(webappUrl));
         launchIntent.setClassName(
                 appContext.getPackageName(), ChromeLauncherActivity.class.getName());
-        launchIntent.putExtra(WebappConstants.REUSE_URL_MATCHING_TAB_ELSE_NEW_TAB, true);
-        launchIntent.putExtra(WebappConstants.EXTRA_SOURCE, webappSource);
+        launchIntent.putExtra(ShortcutHelper.REUSE_URL_MATCHING_TAB_ELSE_NEW_TAB, true);
+        launchIntent.putExtra(ShortcutHelper.EXTRA_SOURCE, webappSource);
         launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
 
         Log.e(TAG, "Shortcut (%s) opened in Chrome.", webappUrl);
 
         IntentUtils.safeStartActivity(appContext, launchIntent);
-        launchingActivity.finishAndRemoveTask();
+        ApiCompatibilityUtils.finishAndRemoveTask(launchingActivity);
     }
 
     /**

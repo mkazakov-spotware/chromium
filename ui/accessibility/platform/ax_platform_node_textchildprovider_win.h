@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 
 #include <wrl/client.h>
 
-#include "base/component_export.h"
+#include "ui/accessibility/ax_export.h"
 #include "ui/accessibility/platform/ax_platform_node_win.h"
 
 namespace ui {
-class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformNodeTextChildProviderWin
+class AX_EXPORT AXPlatformNodeTextChildProviderWin
     : public CComObjectRootEx<CComMultiThreadModel>,
       public ITextChildProvider {
  public:

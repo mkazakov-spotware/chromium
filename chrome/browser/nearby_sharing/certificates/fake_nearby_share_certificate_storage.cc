@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,17 +71,22 @@ FakeNearbyShareCertificateStorage::FakeNearbyShareCertificateStorage() =
 FakeNearbyShareCertificateStorage::~FakeNearbyShareCertificateStorage() =
     default;
 
+std::vector<std::string>
+FakeNearbyShareCertificateStorage::GetPublicCertificateIds() const {
+  return public_certificate_ids_;
+}
+
 void FakeNearbyShareCertificateStorage::GetPublicCertificates(
     PublicCertificateCallback callback) {
   get_public_certificates_callbacks_.push_back(std::move(callback));
 }
 
-absl::optional<std::vector<NearbySharePrivateCertificate>>
+base::Optional<std::vector<NearbySharePrivateCertificate>>
 FakeNearbyShareCertificateStorage::GetPrivateCertificates() const {
   return private_certificates_;
 }
 
-absl::optional<base::Time>
+base::Optional<base::Time>
 FakeNearbyShareCertificateStorage::NextPublicCertificateExpirationTime() const {
   return next_public_certificate_expiration_time_;
 }
@@ -89,6 +94,14 @@ FakeNearbyShareCertificateStorage::NextPublicCertificateExpirationTime() const {
 void FakeNearbyShareCertificateStorage::ReplacePrivateCertificates(
     const std::vector<NearbySharePrivateCertificate>& private_certificates) {
   private_certificates_ = private_certificates;
+}
+
+void FakeNearbyShareCertificateStorage::ReplacePublicCertificates(
+    const std::vector<nearbyshare::proto::PublicCertificate>&
+        public_certificates,
+    ResultCallback callback) {
+  replace_public_certificates_calls_.emplace_back(public_certificates,
+                                                  std::move(callback));
 }
 
 void FakeNearbyShareCertificateStorage::AddPublicCertificates(
@@ -106,12 +119,17 @@ void FakeNearbyShareCertificateStorage::RemoveExpiredPublicCertificates(
                                                          std::move(callback));
 }
 
+void FakeNearbyShareCertificateStorage::ClearPublicCertificates(
+    ResultCallback callback) {
+  clear_public_certificates_callbacks_.push_back(std::move(callback));
+}
+
 void FakeNearbyShareCertificateStorage::SetPublicCertificateIds(
     const std::vector<std::string>& ids) {
   public_certificate_ids_ = ids;
 }
 
 void FakeNearbyShareCertificateStorage::SetNextPublicCertificateExpirationTime(
-    absl::optional<base::Time> time) {
+    base::Optional<base::Time> time) {
   next_public_certificate_expiration_time_ = time;
 }

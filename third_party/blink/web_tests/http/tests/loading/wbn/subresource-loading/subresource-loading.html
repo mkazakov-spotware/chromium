@@ -1,15 +1,9 @@
 <!DOCTYPE html>
 <head>
   <title>Subresource loading with Web Bundles</title>
-  <script type="webbundle">
-    {
-      "source":"../resources/wbn/hello.wbn",
-      "resources": [
-        "http://127.0.0.1:8000/loading/wbn/resources/wbn/server/hello/script.js",
-        "http://127.0.0.1:8000/loading/wbn/resources/wbn/server/hello/notfound.js"
-      ]
-    }
-  </script>
+  <link rel="webbundle" href="../resources/wbn/hello.wbn"
+        resources="http://127.0.0.1:8000/loading/wbn/resources/wbn/server/hello/script.js
+                   http://127.0.0.1:8000/loading/wbn/resources/wbn/server/hello/notfound.js">
 </head>
 <body>
 <script>
@@ -25,7 +19,7 @@ await new Promise((resolve) => {
     window.addEventListener('load', () => setTimeout(resolve, 0));
   });
 
-if (!HTMLScriptElement.supports('webbundle')) {
+if (!document.createElement('link').relList.supports('webbundle')) {
   console.error("Subresource Web Bundles is not supported");
   testRunner.notifyDone();
   return;
@@ -44,10 +38,7 @@ await new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = 'http://127.0.0.1:8000/loading/wbn/resources/wbn/server/hello/notfound.js';
     script.onload = reject;
-    script.onerror = () => {
-	// Wait for the console message to be logged.
-	setTimeout(resolve, 100);
-    }
+    script.onerror = resolve;
     document.body.appendChild(script);
   });
 

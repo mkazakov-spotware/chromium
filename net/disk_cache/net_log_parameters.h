@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include <stdint.h>
 
-#include "net/disk_cache/disk_cache.h"
+#include <string>
+
 #include "net/log/net_log_with_source.h"
 
 namespace net {
@@ -64,8 +65,8 @@ void NetLogSparseReadWrite(const net::NetLogWithSource& net_log,
                            int child_len);
 
 // Creates NetLog parameters for when a call to GetAvailableRange returns.
-base::Value CreateNetLogGetAvailableRangeResultParams(
-    const disk_cache::RangeResult result);
+base::Value CreateNetLogGetAvailableRangeResultParams(int64_t start,
+                                                      int result);
 
 }  // namespace disk_cache
 

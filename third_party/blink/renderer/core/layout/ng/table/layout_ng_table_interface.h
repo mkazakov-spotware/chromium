@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,8 +23,13 @@ class LayoutNGTableInterface {
   // Non-const version required by TextAutosizer, AXLayoutObject.
   virtual LayoutObject* ToMutableLayoutObject() = 0;
   virtual bool ShouldCollapseBorders() const = 0;
+  // TODO(crbug.com/1081425) Method not used by NG, should be removed.
+  virtual bool HasCollapsedBorders() const = 0;
+  virtual bool IsFixedTableLayout() const = 0;
   virtual int16_t HBorderSpacing() const = 0;
   virtual int16_t VBorderSpacing() const = 0;
+  // TODO(crbug.com/1081425) Method not used by NG, should be removed.
+  virtual bool HasColElements() const = 0;
   virtual unsigned AbsoluteColumnToEffectiveColumn(
       unsigned absolute_column_index) const = 0;
   virtual void RecalcSectionsIfNeeded() const = 0;
@@ -34,18 +39,15 @@ class LayoutNGTableInterface {
   // TODO(crbug.com/1081425) Method not used by NG, should be removed.
   virtual LayoutUnit RowOffsetFromRepeatingHeader() const = 0;
   virtual LayoutNGTableSectionInterface* FirstBodyInterface() const = 0;
-  virtual LayoutNGTableSectionInterface* FirstSectionInterface() const = 0;
+  virtual LayoutNGTableSectionInterface* TopSectionInterface() const = 0;
   // TODO(crbug.com/1081425) Method not used by NG, should be removed.
-  virtual LayoutNGTableSectionInterface* FirstNonEmptySectionInterface()
+  virtual LayoutNGTableSectionInterface* TopNonEmptySectionInterface()
       const = 0;
-  virtual LayoutNGTableSectionInterface* LastSectionInterface() const = 0;
   // TODO(crbug.com/1081425) Method not used by NG, should be removed.
-  virtual LayoutNGTableSectionInterface* LastNonEmptySectionInterface()
+  virtual LayoutNGTableSectionInterface* BottomSectionInterface() const = 0;
+  virtual LayoutNGTableSectionInterface* BottomNonEmptySectionInterface()
       const = 0;
-  virtual LayoutNGTableSectionInterface* NextSectionInterface(
-      const LayoutNGTableSectionInterface*,
-      SkipEmptySectionsValue) const = 0;
-  virtual LayoutNGTableSectionInterface* PreviousSectionInterface(
+  virtual LayoutNGTableSectionInterface* SectionBelowInterface(
       const LayoutNGTableSectionInterface*,
       SkipEmptySectionsValue) const = 0;
   virtual bool IsFirstCell(const LayoutNGTableCellInterface&) const = 0;

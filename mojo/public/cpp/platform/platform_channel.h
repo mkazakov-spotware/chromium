@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "base/command_line.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/process/launch.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/platform/platform_channel_endpoint.h"
@@ -34,14 +35,22 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformChannel {
   // command line when the relevant methods are used on this class.
   static const char kHandleSwitch[];
 
-  using HandlePassingInfo = PlatformChannelEndpoint::HandlePassingInfo;
+// Unfortunately base process support code has no unified handle-passing
+// data pipe, so we have this.
+#if defined(OS_WIN)
+  using HandlePassingInfo = base::HandlesToInheritVector;
+#elif defined(OS_FUCHSIA)
+  using HandlePassingInfo = base::HandlesToTransferVector;
+#elif defined(OS_MAC)
+  using HandlePassingInfo = base::MachPortsForRendezvous;
+#elif defined(OS_POSIX)
+  using HandlePassingInfo = base::FileHandleMappingVector;
+#else
+#error "Unsupported platform."
+#endif
 
   PlatformChannel();
   PlatformChannel(PlatformChannel&& other);
-
-  PlatformChannel(const PlatformChannel&) = delete;
-  PlatformChannel& operator=(const PlatformChannel&) = delete;
-
   ~PlatformChannel();
 
   PlatformChannel& operator=(PlatformChannel&& other);
@@ -53,11 +62,11 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformChannel {
     return remote_endpoint_;
   }
 
-  [[nodiscard]] PlatformChannelEndpoint TakeLocalEndpoint() {
+  PlatformChannelEndpoint TakeLocalEndpoint() WARN_UNUSED_RESULT {
     return std::move(local_endpoint_);
   }
 
-  [[nodiscard]] PlatformChannelEndpoint TakeRemoteEndpoint() {
+  PlatformChannelEndpoint TakeRemoteEndpoint() WARN_UNUSED_RESULT {
     return std::move(remote_endpoint_);
   }
 
@@ -90,13 +99,13 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformChannel {
   // Recovers an endpoint handle which was passed to the calling process by
   // its creator. |value| is a string returned by
   // |PrepareToPassRemoteEndpoint()| in the creator's process.
-  [[nodiscard]] static PlatformChannelEndpoint RecoverPassedEndpointFromString(
-      base::StringPiece value);
+  static PlatformChannelEndpoint RecoverPassedEndpointFromString(
+      base::StringPiece value) WARN_UNUSED_RESULT;
 
   // Like above but extracts the input string from |command_line| via the
   // |kHandleSwitch| flag.
-  [[nodiscard]] static PlatformChannelEndpoint
-  RecoverPassedEndpointFromCommandLine(const base::CommandLine& command_line);
+  static PlatformChannelEndpoint RecoverPassedEndpointFromCommandLine(
+      const base::CommandLine& command_line) WARN_UNUSED_RESULT;
 
   // Indicates whether |RecoverPassedEndpointFromCommandLine()| would succeed.
   static bool CommandLineHasPassedEndpoint(
@@ -105,6 +114,8 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) PlatformChannel {
  private:
   PlatformChannelEndpoint local_endpoint_;
   PlatformChannelEndpoint remote_endpoint_;
+
+  DISALLOW_COPY_AND_ASSIGN(PlatformChannel);
 };
 
 }  // namespace mojo

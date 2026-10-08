@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,24 +7,30 @@
 
 #include <string>
 
+class GURL;
+
 namespace content {
+class BrowserContext;
 class RenderFrameHost;
 }  // namespace content
 
 namespace storage {
 namespace test {
 
-// Gets the text content of a given frame.
-std::string GetFrameContent(content::RenderFrameHost* frame);
+// Helper to validate a given frame contains the |expected| contents as their
+// document body.
+void ExpectFrameContent(content::RenderFrameHost* frame,
+                        const std::string& expected);
+// Helper to validate a given for a given |context| and |host_url| that
+// |expected| cookies are present.
+void ExpectCookiesOnHost(content::BrowserContext* context,
+                         const GURL& host_url,
+                         const std::string& expected);
 
 // Helpers to set and check various types of storage on a given frame. Typically
 // used on page like //chrome/test/data/browsing_data/site_data.html
-void SetStorageForFrame(content::RenderFrameHost* frame, bool include_cookies);
-void SetStorageForWorker(content::RenderFrameHost* frame);
-void ExpectStorageForFrame(content::RenderFrameHost* frame,
-                           bool include_cookies,
-                           bool expected);
-void ExpectStorageForWorker(content::RenderFrameHost* frame, bool expected);
+void SetStorageForFrame(content::RenderFrameHost* frame);
+void ExpectStorageForFrame(content::RenderFrameHost* frame, bool expected);
 
 // Helpers to set and check various types of cross tab info for a given frame.
 // Typically used on page like //chrome/test/data/browsing_data/site_data.html
@@ -32,18 +38,13 @@ void SetCrossTabInfoForFrame(content::RenderFrameHost* frame);
 void ExpectCrossTabInfoForFrame(content::RenderFrameHost* frame, bool expected);
 
 // Helper to request storage access for a frame using
-// document.requestStorageAccess(). Returns true if the promise resolves; false
-// if it rejects.
-bool RequestStorageAccessForFrame(content::RenderFrameHost* frame);
-// Helper to request storage access with a site override for a frame using
-// document.requestStorageAccessForOrigin(origin). Returns true if the promise
-// resolves; false if it rejects.
-bool RequestStorageAccessForOrigin(content::RenderFrameHost* frame,
-                                   const std::string& origin);
-// Helper to see if a frame currently has storage access using
-// document.hasStorageAccess(). Returns true if the promise resolves with a
-// value of true; false otherwise.
-bool HasStorageAccessForFrame(content::RenderFrameHost* frame);
+// document.requestStorageAccess()
+void RequestStorageAccessForFrame(content::RenderFrameHost* frame,
+                                  bool should_resolve);
+// Helper to validate if a frame currently has storage access using
+// document.hasStorageAccess()
+void CheckStorageAccessForFrame(content::RenderFrameHost* frame,
+                                bool access_expected);
 
 }  // namespace test
 }  // namespace storage

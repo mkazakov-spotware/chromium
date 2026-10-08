@@ -1,22 +1,21 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_child_layout_context.h"
 
 #include "third_party/blink/renderer/core/layout/ng/ng_block_break_token.h"
-#include "third_party/blink/renderer/core/layout/ng/ng_box_fragment_builder.h"
 
 namespace blink {
 
 namespace {
 
 struct SameSizeAsNGInlineChildLayoutContext {
-  NGFragmentItemsBuilder items_builder_;
-  absl::optional<NGInlineLayoutStateStack> box_states_;
-  void* pointers[3];
+  NGLogicalLineItems line_items_;
+  base::Optional<NGInlineLayoutStateStack> box_states_;
+  void* pointers[2];
   unsigned number;
-  HeapVector<Member<const NGBlockBreakToken>> propagated_float_break_tokens_;
+  Vector<scoped_refptr<const NGBlockBreakToken>> propagated_float_break_tokens_;
 };
 
 static_assert(
@@ -27,24 +26,12 @@ static_assert(
 
 }  // namespace
 
-NGInlineChildLayoutContext::NGInlineChildLayoutContext(
-    const NGInlineNode& node,
-    NGBoxFragmentBuilder* container_builder)
-    : container_builder_(container_builder),
-      items_builder_(node, container_builder->GetWritingDirection()) {
-  items_builder_.AddLogicalLineItemsPool(&logical_line_items_);
-  container_builder->SetItemsBuilder(ItemsBuilder());
-}
-
-NGInlineChildLayoutContext::~NGInlineChildLayoutContext() {
-  container_builder_->SetItemsBuilder(nullptr);
-  logical_line_items_.clear();
-  propagated_float_break_tokens_.clear();
-}
+NGInlineChildLayoutContext::NGInlineChildLayoutContext() = default;
+NGInlineChildLayoutContext::~NGInlineChildLayoutContext() = default;
 
 NGInlineLayoutStateStack*
 NGInlineChildLayoutContext::BoxStatesIfValidForItemIndex(
-    const HeapVector<NGInlineItem>& items,
+    const Vector<NGInlineItem>& items,
     unsigned item_index) {
   if (box_states_.has_value() && items_ == &items && item_index_ == item_index)
     return &*box_states_;
@@ -56,7 +43,7 @@ void NGInlineChildLayoutContext::ClearPropagatedBreakTokens() {
 }
 
 void NGInlineChildLayoutContext::PropagateBreakToken(
-    const NGBlockBreakToken* token) {
+    scoped_refptr<const NGBlockBreakToken> token) {
   propagated_float_break_tokens_.push_back(token);
 }
 

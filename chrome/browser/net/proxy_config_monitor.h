@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/buildflag.h"
 #include "extensions/buildflags/buildflags.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
@@ -49,9 +49,6 @@ class ProxyConfigMonitor : public net::ProxyConfigService::Observer,
   // |local_state|, for use with NetworkContexts not
   // associated with a profile. Must be destroyed before |local_state|.
   explicit ProxyConfigMonitor(PrefService* local_state);
-
-  ProxyConfigMonitor(const ProxyConfigMonitor&) = delete;
-  ProxyConfigMonitor& operator=(const ProxyConfigMonitor&) = delete;
 
   ~ProxyConfigMonitor() override;
 
@@ -94,8 +91,10 @@ class ProxyConfigMonitor : public net::ProxyConfigService::Observer,
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   mojo::ReceiverSet<network::mojom::ProxyErrorClient> error_receiver_set_;
-  raw_ptr<Profile> profile_ = nullptr;
+  Profile* profile_ = nullptr;
 #endif
+
+  DISALLOW_COPY_AND_ASSIGN(ProxyConfigMonitor);
 };
 
 #endif  // CHROME_BROWSER_NET_PROXY_CONFIG_MONITOR_H_

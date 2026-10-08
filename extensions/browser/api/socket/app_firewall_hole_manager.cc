@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "content/public/browser/browser_context.h"
 #include "extensions/browser/app_window/app_window.h"
 
-using ::ash::FirewallHole;
+using chromeos::FirewallHole;
 using content::BrowserContext;
 
 namespace extensions {
@@ -104,8 +104,8 @@ void AppFirewallHole::OnFirewallHoleOpened(
 }
 
 AppFirewallHoleManager::AppFirewallHoleManager(BrowserContext* context)
-    : context_(context) {
-  observation_.Observe(AppWindowRegistry::Get(context));
+    : context_(context), observer_(this) {
+  observer_.Add(AppWindowRegistry::Get(context));
 }
 
 AppFirewallHoleManager::~AppFirewallHoleManager() {}

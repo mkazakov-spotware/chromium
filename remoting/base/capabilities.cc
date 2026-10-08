@@ -1,12 +1,12 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "remoting/base/capabilities.h"
 
+#include <algorithm>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/stl_util.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
@@ -17,7 +17,8 @@ namespace remoting {
 bool HasCapability(const std::string& capabilities, const std::string& key) {
   std::vector<base::StringPiece> caps = base::SplitStringPiece(
       capabilities, " ", base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-  return base::Contains(caps, base::StringPiece(key));
+  return std::find(caps.begin(), caps.end(), base::StringPiece(key)) !=
+         caps.end();
 }
 
 std::string IntersectCapabilities(const std::string& client_capabilities,

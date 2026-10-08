@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <utility>
 
 #include "ash/assistant/model/assistant_notification_model_observer.h"
-#include "base/containers/contains.h"
-#include "chromeos/ash/services/libassistant/public/cpp/assistant_notification.h"
+#include "base/stl_util.h"
+#include "chromeos/services/assistant/public/cpp/assistant_notification.h"
 
 namespace ash {
 
@@ -74,13 +74,13 @@ void AssistantNotificationModel::RemoveAllNotifications(bool from_server) {
   NotifyAllNotificationsRemoved(from_server);
 }
 
-const assistant::AssistantNotification*
+const chromeos::assistant::AssistantNotification*
 AssistantNotificationModel::GetNotificationById(const std::string& id) const {
   auto it = notifications_.find(id);
   return it != notifications_.end() ? &it->second : nullptr;
 }
 
-std::vector<const assistant::AssistantNotification*>
+std::vector<const chromeos::assistant::AssistantNotification*>
 AssistantNotificationModel::GetNotifications() const {
   std::vector<const AssistantNotification*> notifications;
   for (const auto& notification : notifications_)

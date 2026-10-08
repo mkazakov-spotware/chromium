@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,10 @@
 
 #include <vector>
 
-#include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
 #include "ui/aura/window_observer.h"
+#include "ui/wm/core/wm_core_export.h"
 
 namespace wm {
 
@@ -27,22 +27,18 @@ class TransientWindowObserver;
 // . If a transient parent is hidden, it hides all transient children.
 //   For show operation, please refer to |set_parent_controls_visibility(bool)|.
 // Transient windows are typically used for popups and menus.
-class COMPONENT_EXPORT(UI_WM) TransientWindowManager
-    : public aura::WindowObserver {
+class WM_CORE_EXPORT TransientWindowManager : public aura::WindowObserver {
  public:
   using Windows = std::vector<aura::Window*>;
-
-  TransientWindowManager(const TransientWindowManager&) = delete;
-  TransientWindowManager& operator=(const TransientWindowManager&) = delete;
 
   ~TransientWindowManager() override;
 
   // Returns the TransientWindowManager for |window|, creating if necessary.
-  // This never returns nullptr.
+  // This never returns NULL.
   static TransientWindowManager* GetOrCreate(aura::Window* window);
 
   // Returns the TransientWindowManager for |window| only if it already exists.
-  // WARNING: this may return nullptr.
+  // WARNING: this may return NULL.
   static const TransientWindowManager* GetIfExists(const aura::Window* window);
 
   void AddObserver(TransientWindowObserver* observer);
@@ -89,8 +85,8 @@ class COMPONENT_EXPORT(UI_WM) TransientWindowManager
   void OnWindowStackingChanged(aura::Window* window) override;
   void OnWindowDestroying(aura::Window* window) override;
 
-  raw_ptr<aura::Window> window_;
-  raw_ptr<aura::Window> transient_parent_;
+  aura::Window* window_;
+  aura::Window* transient_parent_;
   Windows transient_children_;
 
   // If non-null we're actively restacking transient as the result of a
@@ -109,6 +105,8 @@ class COMPONENT_EXPORT(UI_WM) TransientWindowManager
   bool pause_transient_descendants_restacking_ = false;
 
   base::ObserverList<TransientWindowObserver>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(TransientWindowManager);
 };
 
 }  // namespace wm

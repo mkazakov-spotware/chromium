@@ -1,17 +1,16 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_UNIFIED_QUIET_MODE_FEATURE_POD_CONTROLLER_H_
 #define ASH_SYSTEM_UNIFIED_QUIET_MODE_FEATURE_POD_CONTROLLER_H_
 
-#include <string>
-
 #include "ash/ash_export.h"
-#include "ash/constants/quick_settings_catalogs.h"
 #include "ash/public/cpp/notifier_settings_observer.h"
 #include "ash/system/unified/feature_pod_controller_base.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/macros.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "ui/message_center/message_center_observer.h"
 
 namespace ash {
@@ -28,18 +27,13 @@ class ASH_EXPORT QuietModeFeaturePodController
  public:
   explicit QuietModeFeaturePodController(
       UnifiedSystemTrayController* tray_controller);
-
-  QuietModeFeaturePodController(const QuietModeFeaturePodController&) = delete;
-  QuietModeFeaturePodController& operator=(
-      const QuietModeFeaturePodController&) = delete;
-
   ~QuietModeFeaturePodController() override;
 
   // FeaturePodControllerBase:
   FeaturePodButton* CreateButton() override;
-  QsFeatureCatalogName GetCatalogName() override;
   void OnIconPressed() override;
   void OnLabelPressed() override;
+  SystemTrayItemUmaType GetUmaType() const override;
 
   // message_center::MessageCenterObserver:
   void OnQuietModeChanged(bool in_quiet_mode) override;
@@ -49,7 +43,7 @@ class ASH_EXPORT QuietModeFeaturePodController
       const std::vector<NotifierMetadata>& notifiers) override;
 
  private:
-  std::u16string GetQuietModeStateTooltip();
+  base::string16 GetQuietModeStateTooltip();
 
   void RecordDisabledNotifierCount(int disabled_count);
 
@@ -57,7 +51,9 @@ class ASH_EXPORT QuietModeFeaturePodController
 
   FeaturePodButton* button_ = nullptr;
 
-  absl::optional<int> last_disabled_count_;
+  base::Optional<int> last_disabled_count_;
+
+  DISALLOW_COPY_AND_ASSIGN(QuietModeFeaturePodController);
 };
 
 }  // namespace ash

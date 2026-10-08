@@ -1,12 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/renderer_context_menu/context_menu_content_type_extension_popup.h"
 
 ContextMenuContentTypeExtensionPopup::ContextMenuContentTypeExtensionPopup(
+    content::WebContents* web_contents,
     const content::ContextMenuParams& params)
-    : ContextMenuContentType(params, false) {}
+    : ContextMenuContentType(web_contents, params, false) {
+}
 
 ContextMenuContentTypeExtensionPopup::~ContextMenuContentTypeExtensionPopup() {
 }

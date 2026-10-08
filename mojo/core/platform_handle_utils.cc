@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,15 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_FUCHSIA)
-#include <lib/zx/process.h>
+#if defined(OS_FUCHSIA)
 #include <lib/zx/vmo.h>
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include "base/files/scoped_file.h"
-#elif BUILDFLAG(IS_WIN)
-#include <windows.h>
-
+#elif defined(OS_WIN)
 #include "base/win/scoped_handle.h"
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_MAC)
 #include "base/mac/scoped_mach_port.h"
 #endif
 
@@ -25,18 +22,18 @@ namespace mojo {
 namespace core {
 
 void ExtractPlatformHandlesFromSharedMemoryRegionHandle(
-    base::subtle::ScopedPlatformSharedMemoryHandle handle,
+    base::subtle::PlatformSharedMemoryRegion::ScopedPlatformHandle handle,
     PlatformHandle* extracted_handle,
     PlatformHandle* extracted_readonly_handle) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   *extracted_handle = PlatformHandle(base::win::ScopedHandle(handle.Take()));
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   *extracted_handle = PlatformHandle(std::move(handle));
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   // This is a Mach port. Same code as above and below, but separated for
   // clarity.
   *extracted_handle = PlatformHandle(std::move(handle));
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   // This is a file descriptor. Same code as above, but separated for clarity.
   *extracted_handle = PlatformHandle(std::move(handle));
 #else
@@ -45,65 +42,25 @@ void ExtractPlatformHandlesFromSharedMemoryRegionHandle(
 #endif
 }
 
-base::subtle::ScopedPlatformSharedMemoryHandle
+base::subtle::PlatformSharedMemoryRegion::ScopedPlatformHandle
 CreateSharedMemoryRegionHandleFromPlatformHandles(
     PlatformHandle handle,
     PlatformHandle readonly_handle) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DCHECK(!readonly_handle.is_valid());
   return handle.TakeHandle();
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   DCHECK(!readonly_handle.is_valid());
   return zx::vmo(handle.TakeHandle());
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_MAC)
   DCHECK(!readonly_handle.is_valid());
   return handle.TakeMachSendRight();
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   DCHECK(!readonly_handle.is_valid());
   return handle.TakeFD();
 #else
   return base::subtle::ScopedFDPair(handle.TakeFD(), readonly_handle.TakeFD());
 #endif
-}
-
-MojoResult UnwrapAndClonePlatformProcessHandle(
-    const MojoPlatformProcessHandle* process_handle,
-    base::Process& process) {
-  if (process_handle->struct_size < sizeof(*process_handle))
-    return MOJO_RESULT_INVALID_ARGUMENT;
-
-#if BUILDFLAG(IS_WIN)
-  base::ProcessHandle in_handle = reinterpret_cast<base::ProcessHandle>(
-      static_cast<uintptr_t>(process_handle->value));
-#else
-  base::ProcessHandle in_handle =
-      static_cast<base::ProcessHandle>(process_handle->value);
-#endif
-
-  if (in_handle == base::kNullProcessHandle) {
-    process = base::Process();
-    return MOJO_RESULT_OK;
-  }
-
-#if BUILDFLAG(IS_WIN)
-  base::ProcessHandle out_handle;
-  if (!::DuplicateHandle(::GetCurrentProcess(), in_handle,
-                         ::GetCurrentProcess(), &out_handle, 0, FALSE,
-                         DUPLICATE_SAME_ACCESS)) {
-    return MOJO_RESULT_INVALID_ARGUMENT;
-  }
-  process = base::Process(out_handle);
-#elif BUILDFLAG(IS_FUCHSIA)
-  zx::process out;
-  if (zx::unowned_process(in_handle)->duplicate(ZX_RIGHT_SAME_RIGHTS, &out) !=
-      ZX_OK) {
-    return MOJO_RESULT_INVALID_ARGUMENT;
-  }
-  process = base::Process(out.release());
-#else
-  process = base::Process(in_handle);
-#endif
-  return MOJO_RESULT_OK;
 }
 
 }  // namespace core

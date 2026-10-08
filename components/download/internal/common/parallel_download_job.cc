@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -195,9 +195,6 @@ void ParallelDownloadJob::BuildParallelRequests() {
   // request's range header will be "Range:100-".
   if (!received_slices.empty() && received_slices.back().finished)
     slices_to_download.pop_back();
-
-  if (slices_to_download.empty())
-    return;
 
   ForkSubRequests(slices_to_download);
   RecordParallelDownloadRequestCount(

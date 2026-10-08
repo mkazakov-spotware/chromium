@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright (c) 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,9 @@
 #include <memory>
 #include <vector>
 
-namespace net::huffman_trie {
+namespace net {
+
+namespace huffman_trie {
 
 namespace {
 class HuffmanNode;
@@ -76,6 +78,8 @@ class HuffmanBuilder {
   std::map<uint8_t, uint32_t> counts_;
 };
 
-}  // namespace net::huffman_trie
+}  // namespace huffman_trie
+
+}  // namespace net
 
 #endif  // NET_TOOLS_HUFFMAN_TRIE_HUFFMAN_HUFFMAN_BUILDER_H_

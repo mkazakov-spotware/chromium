@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
+#include <assert.h>
 #include "opus_multistream.h"
 #include "opus.h"
 #include "test_opus_common.h"
@@ -105,7 +106,7 @@ static int celt_ec_internal_error(void)
               1799,  1799,  1799,  1799, -9721
         };
         err = opus_multistream_encode(enc, pcm, 320, data, 2460);
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_multistream_encoder_ctl(enc, OPUS_SET_VBR(0));
@@ -143,7 +144,7 @@ static int celt_ec_internal_error(void)
              -9510, -9510, -9510, -9510, -9510, -9510, -9510
         };
         err = opus_multistream_encode(enc, pcm, 160, data, 2460);
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_multistream_encoder_ctl(enc, OPUS_SET_VBR(0));
@@ -181,7 +182,7 @@ static int celt_ec_internal_error(void)
              -9510, -9510, -9510, -9510, -9510, -9510, -9510
         };
         err = opus_multistream_encode(enc, pcm, 160, data, 2460);
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_multistream_encoder_ctl(enc, OPUS_SET_VBR(0));
@@ -219,7 +220,7 @@ static int celt_ec_internal_error(void)
              -9510, -9510, -9510, -9510, -9510, -9510, -9510
         };
         err = opus_multistream_encode(enc, pcm, 160, data, 2460);
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_multistream_encoder_ctl(enc, OPUS_SET_VBR(0));
@@ -255,7 +256,7 @@ static int celt_ec_internal_error(void)
               5632
         };
         err = opus_multistream_encode(enc, pcm, 160, data, 2460);
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_VOICE));
     opus_multistream_encoder_ctl(enc, OPUS_SET_VBR(0));
@@ -280,7 +281,7 @@ static int celt_ec_internal_error(void)
                  0,     0,  -256,   226
         };
         err = opus_multistream_encode(enc, pcm, 40, data, 2460);
-        opus_test_assert(err > 0);
+        assert(err > 0);
         /* returns -3 */
     }
     opus_multistream_encoder_destroy(enc);
@@ -333,7 +334,7 @@ static int mscbr_encode_fail10(void)
                  0
         };
         err = opus_multistream_encode(enc, pcm, 20, data, 627300);
-        opus_test_assert(err > 0);
+        assert(err > 0);
         /* returns -1 */
     }
     opus_multistream_encoder_destroy(enc);
@@ -383,7 +384,7 @@ static int mscbr_encode_fail(void)
                  0
         };
         err = opus_multistream_encode(enc, pcm, 20, data, 472320);
-        opus_test_assert(err > 0);
+        assert(err > 0);
         /* returns -1 */
     }
     opus_multistream_encoder_destroy(enc);
@@ -739,7 +740,7 @@ static int surround_analysis_uninit(void)
             -20992, 25859,  5372, 12040, 13307, -4355,-30213,    -9, -6019
         };
         err = opus_multistream_encode(enc, pcm, 960, data, 7380);
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_multistream_encoder_ctl(enc, OPUS_SET_VBR(1));
@@ -884,7 +885,7 @@ static int surround_analysis_uninit(void)
         };
         err = opus_multistream_encode(enc, pcm, 1440, data, 7380);
         /* reads uninitialized data at src/opus_multistream_encoder.c:293 */
-        opus_test_assert(err > 0);
+        assert(err > 0);
     }
     opus_multistream_encoder_destroy(enc);
     return 0;
@@ -934,7 +935,7 @@ static int ec_enc_shrink_assert(void)
     opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(6));
     opus_encoder_ctl(enc, OPUS_SET_BITRATE(6000));
     data_len = opus_encode(enc, pcm1, 960, data, 2000);
-    opus_test_assert(data_len > 0);
+    assert(data_len > 0);
 
     opus_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_VOICE));
     opus_encoder_ctl(enc, OPUS_SET_PREDICTION_DISABLED(1));
@@ -942,12 +943,12 @@ static int ec_enc_shrink_assert(void)
     opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
     opus_encoder_ctl(enc, OPUS_SET_BITRATE(15600));
     data_len = opus_encode(enc, pcm2, 2880, data, 122);
-    opus_test_assert(data_len > 0);
+    assert(data_len > 0);
 
     opus_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_encoder_ctl(enc, OPUS_SET_BITRATE(27000));
     data_len = opus_encode(enc, pcm3, 2880, data, 122); /* assertion failure */
-    opus_test_assert(data_len > 0);
+    assert(data_len > 0);
 
     opus_encoder_destroy(enc);
     return 0;
@@ -969,7 +970,7 @@ static int ec_enc_shrink_assert2(void)
     {
         static const short pcm[960] = { 0 };
         data_len = opus_encode(enc, pcm, 960, data, 2000);
-        opus_test_assert(data_len > 0);
+        assert(data_len > 0);
     }
     opus_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     {
@@ -979,7 +980,7 @@ static int ec_enc_shrink_assert2(void)
             -32768, -32768, 0, 0, -32768, -32768, 0, 0, -32768, -32768
         };
         data_len = opus_encode(enc, pcm, 480, data, 19);
-        opus_test_assert(data_len > 0);
+        assert(data_len > 0);
     }
     opus_encoder_destroy(enc);
     return 0;
@@ -1008,14 +1009,14 @@ static int silk_gain_assert(void)
     opus_encoder_ctl(enc, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
     opus_encoder_ctl(enc, OPUS_SET_BITRATE(6000));
     data_len = opus_encode(enc, pcm1, 160, data, 1000);
-    opus_test_assert(data_len > 0);
+    assert(data_len > 0);
 
     opus_encoder_ctl(enc, OPUS_SET_VBR(0));
     opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(0));
     opus_encoder_ctl(enc, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_MEDIUMBAND));
     opus_encoder_ctl(enc, OPUS_SET_BITRATE(2867));
     data_len = opus_encode(enc, pcm2, 960, data, 1000);
-    opus_test_assert(data_len > 0);
+    assert(data_len > 0);
 
     opus_encoder_destroy(enc);
     return 0;

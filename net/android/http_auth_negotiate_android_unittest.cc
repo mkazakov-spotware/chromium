@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@
 #include "net/log/net_log_with_source.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace net::android {
+namespace net {
+namespace android {
 
 TEST(HttpAuthNegotiateAndroidTest, GenerateAuthToken) {
   base::test::TaskEnvironment task_environment;
@@ -111,4 +112,5 @@ TEST(HttpAuthNegotiateAndroidTest, ParseChallenge_MissingTokenSecondRound) {
             auth.ParseChallenge(&second_challenge));
 }
 
-}  // namespace net::android
+}  // namespace android
+}  // namespace net

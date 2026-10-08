@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,8 @@
 #include "ash/shelf/shelf_focus_cycler.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
+#include "ash/style/default_color_constants.h"
+#include "ash/style/default_colors.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "base/metrics/user_metrics.h"
@@ -42,9 +44,9 @@ void BackButton::PaintButtonContents(gfx::Canvas* canvas) {
   // Use PaintButtonContents instead of SetImage so the icon gets drawn at
   // |GetCenterPoint| coordinates instead of always in the center.
   gfx::ImageSkia img = CreateVectorIcon(
-      kShelfBackIcon,
-      AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kButtonIconColor));
+      kShelfBackIcon, DeprecatedGetContentLayerColor(
+                          AshColorProvider::ContentLayerType::kButtonIconColor,
+                          kShelfButtonColor));
   canvas->DrawImageInt(img, GetCenterPoint().x() - img.width() / 2,
                        GetCenterPoint().y() - img.height() / 2);
 }
@@ -53,7 +55,7 @@ const char* BackButton::GetClassName() const {
   return kViewClassName;
 }
 
-std::u16string BackButton::GetTooltipText(const gfx::Point& p) const {
+base::string16 BackButton::GetTooltipText(const gfx::Point& p) const {
   return GetAccessibleName();
 }
 
@@ -86,11 +88,6 @@ void BackButton::ButtonPressed(views::Button* sender,
 
   window_util::SendBackKeyEvent(
       GetWidget()->GetNativeWindow()->GetRootWindow());
-}
-
-void BackButton::OnThemeChanged() {
-  ShelfControlButton::OnThemeChanged();
-  SchedulePaint();
 }
 
 }  // namespace ash

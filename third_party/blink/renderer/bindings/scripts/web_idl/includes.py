@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors
+# Copyright 2019 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,7 +10,7 @@ from .ir_map import IRMap
 
 
 class Includes(object):
-    """https://webidl.spec.whatwg.org/#include"""
+    """https://heycam.github.io/webidl/#include"""
 
     class IR(IRMap.IR, WithCodeGeneratorInfo, WithComponent, WithDebugInfo):
         def __init__(self,

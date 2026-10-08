@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/time/time.h"
 #include "cc/layers/surface_layer.h"
 #include "components/viz/common/surfaces/surface_id.h"
 #include "third_party/blink/public/platform/web_common.h"
@@ -47,8 +48,6 @@ class BLINK_PLATFORM_EXPORT WebSurfaceLayerBridge {
   virtual void SetContentsOpaque(bool) = 0;
   virtual void CreateSurfaceLayer() = 0;
   virtual void ClearObserver() = 0;
-  virtual void RegisterFrameSinkHierarchy() = 0;
-  virtual void UnregisterFrameSinkHierarchy() = 0;
 };
 
 }  // namespace blink

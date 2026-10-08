@@ -20,7 +20,6 @@
 
 #include "third_party/blink/renderer/core/html/html_meter_element.h"
 
-#include "third_party/blink/renderer/core/display_lock/display_lock_utilities.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
@@ -31,7 +30,7 @@
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "ui/base/ui_base_features.h"
 
@@ -41,7 +40,6 @@ HTMLMeterElement::HTMLMeterElement(Document& document)
     : HTMLElement(html_names::kMeterTag, document) {
   UseCounter::Count(document, WebFeature::kMeterElement);
   EnsureUserAgentShadowRoot();
-  SetHasCustomStyleCallbacks();
 }
 
 HTMLMeterElement::~HTMLMeterElement() = default;
@@ -192,7 +190,8 @@ void HTMLMeterElement::DidAddUserAgentShadowRoot(ShadowRoot& root) {
   inner->AppendChild(bar);
 
   auto* fallback = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  fallback->AppendChild(MakeGarbageCollected<HTMLSlotElement>(GetDocument()));
+  fallback->AppendChild(
+      HTMLSlotElement::CreateUserAgentDefaultSlot(GetDocument()));
   fallback->SetShadowPseudoId(AtomicString("-internal-fallback"));
   root.AppendChild(fallback);
 }
@@ -205,9 +204,7 @@ void HTMLMeterElement::UpdateValueAppearance(double percentage) {
   DEFINE_STATIC_LOCAL(AtomicString, even_less_good_pseudo_id,
                       ("-webkit-meter-even-less-good-value"));
 
-  value_->SetInlineStyleProperty(CSSPropertyID::kInlineSize, percentage,
-                                 CSSPrimitiveValue::UnitType::kPercentage);
-  value_->SetInlineStyleProperty(CSSPropertyID::kBlockSize, 100,
+  value_->SetInlineStyleProperty(CSSPropertyID::kWidth, percentage,
                                  CSSPrimitiveValue::UnitType::kPercentage);
   switch (GetGaugeRegion()) {
     case kGaugeRegionOptimum:
@@ -223,33 +220,13 @@ void HTMLMeterElement::UpdateValueAppearance(double percentage) {
 }
 
 bool HTMLMeterElement::CanContainRangeEndPoint() const {
-  if (DisplayLockUtilities::LockedAncestorPreventingPaint(*this)) {
-    // If this element is DisplayLocked, then we can't access GetComputedStyle.
-    // Even with GetComputedStyle's scoped unlock, this function may be called
-    // during selection modification which prevents lifecycle updates that the
-    // unlock would incur.
-    return false;
-  }
+  GetDocument().UpdateStyleAndLayoutTreeForNode(this);
   return GetComputedStyle() && !GetComputedStyle()->HasEffectiveAppearance();
 }
 
 void HTMLMeterElement::Trace(Visitor* visitor) const {
   visitor->Trace(value_);
   HTMLElement::Trace(visitor);
-}
-
-scoped_refptr<ComputedStyle> HTMLMeterElement::CustomStyleForLayoutObject(
-    const StyleRecalcContext& style_recalc_context) {
-  scoped_refptr<ComputedStyle> style =
-      OriginalStyleForLayoutObject(style_recalc_context);
-  // For vertical writing-mode, we need to set the direction to rtl so that
-  // the meter value bar is rendered bottom up.
-  if (!IsHorizontalWritingMode(style->GetWritingMode())) {
-    ComputedStyleBuilder builder(*style);
-    builder.SetDirection(TextDirection::kRtl);
-    style = builder.TakeStyle();
-  }
-  return style;
 }
 
 }  // namespace blink

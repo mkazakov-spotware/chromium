@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/lazy_instance.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/time/time.h"
 #include "chrome/browser/devtools/global_confirm_info_bar.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
@@ -33,10 +32,10 @@ base::LazyInstance<Delegates>::Leaky g_delegates = LAZY_INSTANCE_INITIALIZER;
 // static
 constexpr base::TimeDelta ExtensionDevToolsInfoBarDelegate::kAutoCloseDelay;
 
-base::CallbackListSubscription ExtensionDevToolsInfoBarDelegate::Create(
-    const std::string& extension_id,
-    const std::string& extension_name,
-    base::OnceClosure destroyed_callback) {
+std::unique_ptr<ExtensionDevToolsInfoBarDelegate::CallbackList::Subscription>
+ExtensionDevToolsInfoBarDelegate::Create(const std::string& extension_id,
+                                         const std::string& extension_name,
+                                         base::OnceClosure destroyed_callback) {
   Delegates& delegates = g_delegates.Get();
   const auto it = delegates.find(extension_id);
   if (it != delegates.end()) {
@@ -49,7 +48,7 @@ base::CallbackListSubscription ExtensionDevToolsInfoBarDelegate::Create(
       new ExtensionDevToolsInfoBarDelegate(extension_id, extension_name));
   auto* delegate_raw = delegate.get();
   delegates[extension_id] = delegate_raw;
-  base::CallbackListSubscription subscription =
+  std::unique_ptr<CallbackList::Subscription> subscription =
       delegate->RegisterDestroyedCallback(std::move(destroyed_callback));
   delegate_raw->infobar_ = GlobalConfirmInfoBar::Show(std::move(delegate));
   return subscription;
@@ -68,7 +67,7 @@ void ExtensionDevToolsInfoBarDelegate::NotifyExtensionDetached(
   if (iter != delegates.cend()) {
     // Infobar_ was set in Create() which makes the following access safe.
     iter->second->timer_.Start(FROM_HERE, kAutoCloseDelay,
-                               iter->second->infobar_.get(),
+                               iter->second->infobar_,
                                &GlobalConfirmInfoBar::Close);
   }
 }
@@ -83,7 +82,7 @@ bool ExtensionDevToolsInfoBarDelegate::ShouldExpire(
   return false;
 }
 
-std::u16string ExtensionDevToolsInfoBarDelegate::GetMessageText() const {
+base::string16 ExtensionDevToolsInfoBarDelegate::GetMessageText() const {
   return l10n_util::GetStringFUTF16(IDS_DEV_TOOLS_INFOBAR_LABEL,
                                     extension_name_);
 }
@@ -106,7 +105,7 @@ ExtensionDevToolsInfoBarDelegate::ExtensionDevToolsInfoBarDelegate(
     : extension_id_(std::move(extension_id)),
       extension_name_(base::UTF8ToUTF16(extension_name)) {}
 
-base::CallbackListSubscription
+std::unique_ptr<ExtensionDevToolsInfoBarDelegate::CallbackList::Subscription>
 ExtensionDevToolsInfoBarDelegate::RegisterDestroyedCallback(
     base::OnceClosure destroyed_callback) {
   return callback_list_.Add(std::move(destroyed_callback));

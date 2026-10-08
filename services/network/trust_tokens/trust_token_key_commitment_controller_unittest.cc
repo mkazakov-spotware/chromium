@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "base/no_destructor.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "net/base/load_flags.h"
@@ -15,14 +16,11 @@
 #include "net/http/http_request_headers.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "net/url_request/url_request.h"
-#include "net/url_request/url_request_context.h"
-#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "services/network/public/mojom/trust_tokens.mojom-forward.h"
 #include "services/network/public/mojom/trust_tokens.mojom.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
-#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "services/network/trust_tokens/trust_token_key_commitment_controller.h"
@@ -106,20 +104,19 @@ class CommitmentWaiter {
 class TrustTokenKeyCommitmentControllerTest : public ::testing::Test {
  public:
   TrustTokenKeyCommitmentControllerTest()
-      : context_(net::CreateTestURLRequestContextBuilder()->Build()),
-        issuer_request_(MakeURLRequest("https://issuer.com/")) {}
+      : issuer_request_(MakeURLRequest("https://issuer.com/")) {}
   ~TrustTokenKeyCommitmentControllerTest() override = default;
 
  protected:
   std::unique_ptr<net::URLRequest> MakeURLRequest(std::string spec) {
-    return context_->CreateRequest(GURL(spec),
-                                   net::RequestPriority::DEFAULT_PRIORITY,
-                                   &delegate_, TRAFFIC_ANNOTATION_FOR_TESTS);
+    return context_.CreateRequest(GURL(spec),
+                                  net::RequestPriority::DEFAULT_PRIORITY,
+                                  &delegate_, TRAFFIC_ANNOTATION_FOR_TESTS);
   }
   const net::URLRequest& IssuerURLRequest() { return *issuer_request_; }
   base::test::TaskEnvironment env_;
   net::TestDelegate delegate_;
-  std::unique_ptr<net::URLRequestContext> context_;
+  net::TestURLRequestContext context_;
   std::unique_ptr<net::URLRequest> issuer_request_;
 };
 
@@ -191,6 +188,8 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, NetworkError) {
       URLLoaderCompletionStatus(
           net::ERR_CONNECTION_REFUSED /* chosen arbitrarily */));
 
+  TrustTokenKeyCommitmentController::Status result_status;
+  mojom::TrustTokenKeyCommitmentResultPtr result;
   CommitmentWaiter waiter;
 
   auto url_request = MakeURLRequest("https://issuer.com/");
@@ -201,7 +200,7 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, NetworkError) {
       TRAFFIC_ANNOTATION_FOR_TESTS, &factory,
       std::make_unique<FixedKeyCommitmentParser>());
 
-  auto [result_status, result] = waiter.WaitForResult();
+  std::tie(result_status, result) = waiter.WaitForResult();
   EXPECT_EQ(result_status.value,
             TrustTokenKeyCommitmentController::Status::Value::kNetworkError);
   EXPECT_EQ(result_status.net_error, net::ERR_CONNECTION_REFUSED);
@@ -214,6 +213,8 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, NetworkSuccessParseFailure) {
   TestURLLoaderFactory factory;
   factory.AddResponse(IssuerDotComKeyCommitmentPath().spec(), "");
 
+  TrustTokenKeyCommitmentController::Status result_status;
+  mojom::TrustTokenKeyCommitmentResultPtr result;
   CommitmentWaiter waiter;
 
   auto url_request = MakeURLRequest("https://issuer.com/");
@@ -224,7 +225,7 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, NetworkSuccessParseFailure) {
       TRAFFIC_ANNOTATION_FOR_TESTS, &factory,
       std::make_unique<FailingKeyCommitmentParser>());
 
-  auto [result_status, result] = waiter.WaitForResult();
+  std::tie(result_status, result) = waiter.WaitForResult();
   EXPECT_EQ(result_status.value,
             TrustTokenKeyCommitmentController::Status::Value::kCouldntParse);
 }
@@ -238,12 +239,14 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, Redirect) {
   redirect_info.status_code = 301;
   redirect_info.new_url = GURL("https://unused-redirect-destination.com/");
   network::TestURLLoaderFactory::Redirects redirects;
-  redirects.emplace_back(redirect_info, network::mojom::URLResponseHead::New());
+  redirects.push_back({redirect_info, network::mojom::URLResponseHead::New()});
   auto head = network::CreateURLResponseHead(net::HTTP_OK);
   factory.AddResponse(IssuerDotComKeyCommitmentPath(), std::move(head),
                       /*content=*/"", network::URLLoaderCompletionStatus(),
                       std::move(redirects));
 
+  TrustTokenKeyCommitmentController::Status result_status;
+  mojom::TrustTokenKeyCommitmentResultPtr result;
   CommitmentWaiter waiter;
 
   auto url_request = MakeURLRequest("https://issuer.com/");
@@ -254,7 +257,7 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, Redirect) {
       TRAFFIC_ANNOTATION_FOR_TESTS, &factory,
       std::make_unique<FailingKeyCommitmentParser>());
 
-  auto [result_status, result] = waiter.WaitForResult();
+  std::tie(result_status, result) = waiter.WaitForResult();
   EXPECT_EQ(result_status.value,
             TrustTokenKeyCommitmentController::Status::Value::kGotRedirected);
 }
@@ -265,6 +268,8 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, Success) {
   TestURLLoaderFactory factory;
   factory.AddResponse(IssuerDotComKeyCommitmentPath().spec(), "", net::HTTP_OK);
 
+  TrustTokenKeyCommitmentController::Status result_status;
+  mojom::TrustTokenKeyCommitmentResultPtr result;
   CommitmentWaiter waiter;
 
   auto url_request = MakeURLRequest("https://issuer.com/");
@@ -275,7 +280,7 @@ TEST_F(TrustTokenKeyCommitmentControllerTest, Success) {
       TRAFFIC_ANNOTATION_FOR_TESTS, &factory,
       std::make_unique<FixedKeyCommitmentParser>());
 
-  auto [result_status, result] = waiter.WaitForResult();
+  std::tie(result_status, result) = waiter.WaitForResult();
   EXPECT_EQ(result_status.value,
             TrustTokenKeyCommitmentController::Status::Value::kOk);
   ASSERT_TRUE(result);

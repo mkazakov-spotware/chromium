@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,9 @@
 #import "ios/web_view/public/cwv_ssl_status.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+// Converts net::CertStatus to CWVCertStatus.
+CWVCertStatus CWVCertStatusFromNetCertStatus(net::CertStatus cert_status);
 
 @interface CWVSSLStatus ()
 

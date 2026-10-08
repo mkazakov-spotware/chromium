@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 #include "components/invalidation/public/topic_invalidation_map.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-namespace invalidation {
+namespace syncer {
 
 ::testing::Matcher<const TopicInvalidationMap&> Eq(
     const TopicInvalidationMap& expected);
 
-}  // namespace invalidation
+}  // namespace syncer
 
 #endif  // COMPONENTS_INVALIDATION_IMPL_TOPIC_INVALIDATION_MAP_TEST_UTIL_H_

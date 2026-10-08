@@ -1,4 +1,4 @@
-# Copyright 2011 The Chromium Authors
+# Copyright (c) 2011 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -78,7 +78,7 @@ def MaybeMakeDirectory(*path):
   file_path = os.path.join(*path)
   try:
     os.makedirs(file_path)
-  except OSError as e:
+  except OSError, e:
     # errno.EEXIST is "File exists".  If we see another error, re-raise.
     if e.errno != errno.EEXIST:
       raise

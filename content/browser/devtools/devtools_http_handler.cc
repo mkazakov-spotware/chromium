@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,29 +6,25 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/guid.h"
 #include "base/json/json_writer.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/strings/escape.h"
+#include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread.h"
 #include "base/values.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "content/browser/devtools/devtools_http_handler.h"
 #include "content/browser/devtools/devtools_manager.h"
@@ -42,25 +38,24 @@
 #include "content/public/common/content_client.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/user_agent.h"
+#include "net/base/escape.h"
 #include "net/base/io_buffer.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
 #include "net/base/url_util.h"
-#include "net/http/http_request_headers.h"
 #include "net/server/http_server.h"
 #include "net/server/http_server_request_info.h"
 #include "net/server/http_server_response_info.h"
 #include "net/socket/server_socket.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "v8/include/v8-version-string.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/build_info.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
-extern const int kCcompressedProtocolJSON;
+#if !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
+#include "content/browser/devtools/grit/devtools_resources.h"  // nogncheck
 #endif
 
 namespace content {
@@ -87,14 +82,6 @@ const char kTargetDevtoolsFrontendUrlField[] = "devtoolsFrontendUrl";
 
 const int32_t kSendBufferSizeForDevTools = 256 * 1024 * 1024;  // 256Mb
 const int32_t kReceiveBufferSizeForDevTools = 100 * 1024 * 1024;  // 100Mb
-
-const char kRemoteUrlPattern[] =
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    "https://chrome-devtools-frontend.appspot.com/serve_internal_file/%s/"
-    "%s.html";
-#else
-    "https://chrome-devtools-frontend.appspot.com/serve_rev/%s/%s.html";
-#endif
 
 constexpr net::NetworkTrafficAnnotationTag
     kDevtoolsHttpHandlerTrafficAnnotation =
@@ -126,7 +113,7 @@ bool RequestIsSafeToServe(const net::HttpServerRequestInfo& info) {
   if (header.empty())
     return true;
   GURL url = GURL("https://" + header);
-  return url.HostIsIPAddress() || net::IsLocalHostname(url.host());
+  return url.HostIsIPAddress() || net::IsLocalHostname(url.host(), nullptr);
 }
 
 }  // namespace
@@ -239,7 +226,7 @@ void TerminateOnUI(std::unique_ptr<base::Thread> thread,
     base::ThreadPool::PostTask(
         FROM_HERE,
         {base::WithBaseSyncPrimitives(), base::TaskPriority::BEST_EFFORT},
-        DoNothingWithBoundArgs(std::move(thread)));
+        BindOnce([](std::unique_ptr<base::Thread>) {}, std::move(thread)));
   }
 }
 
@@ -276,9 +263,9 @@ void StartServerOnHandlerThread(
       socket_factory->CreateForHttpServer();
   std::unique_ptr<net::IPEndPoint> ip_address(new net::IPEndPoint);
   if (server_socket) {
-    server_wrapper =
-        std::make_unique<ServerWrapper>(handler, std::move(server_socket),
-                                        debug_frontend_dir, bundles_resources);
+    server_wrapper.reset(new ServerWrapper(handler, std::move(server_socket),
+                                           debug_frontend_dir,
+                                           bundles_resources));
     if (server_wrapper->GetLocalAddress(ip_address.get()) != net::OK)
       ip_address.reset();
   } else {
@@ -305,7 +292,7 @@ void StartServerOnHandlerThread(
       }
     }
   } else {
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
     // Android uses UNIX domain sockets which don't have an IP address.
     LOG(ERROR) << "Cannot start http server for devtools.";
 #endif
@@ -342,8 +329,6 @@ class DevToolsAgentHostClientImpl : public DevToolsAgentHostClient {
     if (agent_host_)
       agent_host_->DetachClient(this);
   }
-
-  std::string GetTypeForMetrics() override { return "RemoteDebugger"; }
 
   void AgentHostClosed(DevToolsAgentHost* agent_host) override {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -417,7 +402,7 @@ static std::string GetMimeType(const std::string& filename) {
     return "text/css";
   } else if (base::EndsWith(filename, ".js",
                             base::CompareCase::INSENSITIVE_ASCII)) {
-    return "text/javascript";
+    return "application/javascript";
   } else if (base::EndsWith(filename, ".png",
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "image/png";
@@ -430,9 +415,6 @@ static std::string GetMimeType(const std::string& filename) {
   } else if (base::EndsWith(filename, ".svg",
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "image/svg+xml";
-  } else if (base::EndsWith(filename, ".avif",
-                            base::CompareCase::INSENSITIVE_ASCII)) {
-    return "image/avif";
   }
   LOG(ERROR) << "GetMimeType doesn't know mime type for: "
              << filename
@@ -524,9 +506,9 @@ std::string DevToolsHttpHandler::GetFrontendURLInternal(
     std::string type = agent_host->GetType();
     bool is_worker = type == DevToolsAgentHost::kTypeServiceWorker ||
                      type == DevToolsAgentHost::kTypeSharedWorker;
-    frontend_url =
-        base::StringPrintf(kRemoteUrlPattern, GetChromiumGitRevision().c_str(),
-                           is_worker ? "worker_app" : "inspector");
+    frontend_url = base::StringPrintf(
+        "https://chrome-devtools-frontend.appspot.com/serve_rev/%s/%s.html",
+        GetWebKitRevision().c_str(), is_worker ? "worker_app" : "inspector");
   }
   return base::StringPrintf("%s?ws=%s%s%s", frontend_url.c_str(), host.c_str(),
                             kPageUrlPrefix, id.c_str());
@@ -557,15 +539,6 @@ static bool ParseJsonPath(
   return true;
 }
 
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-enum class DevToolsMutatingHttpActionVerb {
-  kGet = 0,
-  kPost = 1,
-  kOther = 2,
-  kMaxValue = kOther,
-};
-
 void DevToolsHttpHandler::OnJsonRequest(
     int connection_id,
     const net::HttpServerRequestInfo& info) {
@@ -587,27 +560,30 @@ void DevToolsHttpHandler::OnJsonRequest(
   std::string command;
   std::string target_id;
   if (!ParseJsonPath(path, &command, &target_id)) {
-    SendJson(connection_id, net::HTTP_NOT_FOUND, absl::nullopt,
+    SendJson(connection_id, net::HTTP_NOT_FOUND, nullptr,
              "Malformed query: " + info.path);
     return;
   }
 
   if (command == "version") {
-    base::Value::Dict version;
-    version.Set("Protocol-Version", DevToolsAgentHost::GetProtocolVersion());
-    version.Set("WebKit-Version", GetWebKitVersion());
-    version.Set("Browser", GetContentClient()->browser()->GetProduct());
-    version.Set("User-Agent", GetContentClient()->browser()->GetUserAgent());
-    version.Set("V8-Version", V8_VERSION_STRING);
+    base::DictionaryValue version;
+    version.SetString("Protocol-Version",
+                      DevToolsAgentHost::GetProtocolVersion());
+    version.SetString("WebKit-Version", GetWebKitVersion());
+    version.SetString("Browser", GetContentClient()->browser()->GetProduct());
+    version.SetString("User-Agent",
+                      GetContentClient()->browser()->GetUserAgent());
+    version.SetString("V8-Version", V8_VERSION_STRING);
     std::string host = info.GetHeaderValue("host");
-    version.Set(
+    version.SetString(
         kTargetWebSocketDebuggerUrlField,
         base::StringPrintf("ws://%s%s", host.c_str(), browser_guid_.c_str()));
-#if BUILDFLAG(IS_ANDROID)
-    version.Set("Android-Package",
-                base::android::BuildInfo::GetInstance()->host_package_name());
+#if defined(OS_ANDROID)
+    version.SetString(
+        "Android-Package",
+        base::android::BuildInfo::GetInstance()->host_package_name());
 #endif
-    SendJson(connection_id, net::HTTP_OK, version, std::string());
+    SendJson(connection_id, net::HTTP_OK, &version, std::string());
     return;
   }
 
@@ -627,37 +603,20 @@ void DevToolsHttpHandler::OnJsonRequest(
   }
 
   if (command == "new") {
-    DevToolsMutatingHttpActionVerb verb;
-    if (base::EqualsCaseInsensitiveASCII(info.method,
-                                         net::HttpRequestHeaders::kGetMethod)) {
-      verb = DevToolsMutatingHttpActionVerb::kGet;
-    } else if (base::EqualsCaseInsensitiveASCII(
-                   info.method, net::HttpRequestHeaders::kPostMethod)) {
-      verb = DevToolsMutatingHttpActionVerb::kPost;
-    } else {
-      verb = DevToolsMutatingHttpActionVerb::kOther;
-    }
-
-    UMA_HISTOGRAM_ENUMERATION("DevTools.MutatingHttpAction", verb);
-    if (verb != DevToolsMutatingHttpActionVerb::kOther) {
-      LOG(ERROR) << "Using unsafe HTTP verb " << info.method
-                 << " to invoke /json/new. This action will stop supporting "
-                    "GET and POST verbs in future versions.";
-    }
-
-    GURL url(base::UnescapeBinaryURLComponent(query));
+    GURL url(net::UnescapeBinaryURLComponent(query));
     if (!url.is_valid())
       url = GURL(url::kAboutBlankURL);
-    scoped_refptr<DevToolsAgentHost> agent_host =
-        delegate_->CreateNewTarget(url);
+    scoped_refptr<DevToolsAgentHost> agent_host = nullptr;
+    agent_host = delegate_->CreateNewTarget(url);
     if (!agent_host) {
-      SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, absl::nullopt,
+      SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, nullptr,
                "Could not create new page");
       return;
     }
     std::string host = info.GetHeaderValue("host");
-    base::Value::Dict descriptor = SerializeDescriptor(agent_host, host);
-    SendJson(connection_id, net::HTTP_OK, descriptor, std::string());
+    std::unique_ptr<base::DictionaryValue> dictionary(
+        SerializeDescriptor(agent_host, host));
+    SendJson(connection_id, net::HTTP_OK, dictionary.get(), std::string());
     return;
   }
 
@@ -665,17 +624,16 @@ void DevToolsHttpHandler::OnJsonRequest(
     scoped_refptr<DevToolsAgentHost> agent_host =
         DevToolsAgentHost::GetForId(target_id);
     if (!agent_host) {
-      SendJson(connection_id, net::HTTP_NOT_FOUND, absl::nullopt,
+      SendJson(connection_id, net::HTTP_NOT_FOUND, nullptr,
                "No such target id: " + target_id);
       return;
     }
 
     if (command == "activate") {
       if (agent_host->Activate()) {
-        SendJson(connection_id, net::HTTP_OK, absl::nullopt,
-                 "Target activated");
+        SendJson(connection_id, net::HTTP_OK, nullptr, "Target activated");
       } else {
-        SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, absl::nullopt,
+        SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, nullptr,
                  "Could not activate target id: " + target_id);
       }
       return;
@@ -683,26 +641,24 @@ void DevToolsHttpHandler::OnJsonRequest(
 
     if (command == "close") {
       if (agent_host->Close()) {
-        SendJson(connection_id, net::HTTP_OK, absl::nullopt,
-                 "Target is closing");
+        SendJson(connection_id, net::HTTP_OK, nullptr, "Target is closing");
       } else {
-        SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, absl::nullopt,
+        SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, nullptr,
                  "Could not close target id: " + target_id);
       }
       return;
     }
   }
-  SendJson(connection_id, net::HTTP_NOT_FOUND, absl::nullopt,
+  SendJson(connection_id, net::HTTP_NOT_FOUND, nullptr,
            "Unknown command: " + command);
 }
 
 void DevToolsHttpHandler::DecompressAndSendJsonProtocol(int connection_id) {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_ANDROID) || defined(OS_FUCHSIA)
   NOTREACHED();
 #else
   scoped_refptr<base::RefCountedMemory> bytes =
-      GetContentClient()->GetDataResourceBytes(kCcompressedProtocolJSON);
-  CHECK(bytes) << "Could not load protocol";
+      GetContentClient()->GetDataResourceBytes(COMPRESSED_PROTOCOL_JSON);
   std::string json_protocol(reinterpret_cast<const char*>(bytes->front()),
                             bytes->size());
 
@@ -713,7 +669,7 @@ void DevToolsHttpHandler::DecompressAndSendJsonProtocol(int connection_id) {
       FROM_HERE, base::BindOnce(&ServerWrapper::SendResponse,
                                 base::Unretained(server_wrapper_.get()),
                                 connection_id, response));
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_ANDROID) || defined(OS_FUCHSIA)
 }
 
 void DevToolsHttpHandler::RespondToJsonList(
@@ -722,31 +678,20 @@ void DevToolsHttpHandler::RespondToJsonList(
     DevToolsAgentHost::List hosts) {
   DevToolsAgentHost::List agent_hosts = std::move(hosts);
   std::sort(agent_hosts.begin(), agent_hosts.end(), TimeComparator);
-  base::Value::List list_value;
-  for (auto& agent_host : agent_hosts) {
-    // TODO(caseq): figure out if it makes sense exposing tab target to
-    // HTTP clients and potentially compatibility risks involved.
-    if (agent_host->GetType() != DevToolsAgentHost::kTypeTab)
-      list_value.Append(SerializeDescriptor(agent_host, host));
-  }
-  SendJson(connection_id, net::HTTP_OK, list_value, std::string());
+  base::ListValue list_value;
+  for (auto& agent_host : agent_hosts)
+    list_value.Append(SerializeDescriptor(agent_host, host));
+  SendJson(connection_id, net::HTTP_OK, &list_value, std::string());
 }
 
 void DevToolsHttpHandler::OnDiscoveryPageRequest(int connection_id) {
-  net::HttpServerResponseInfo response(net::HTTP_OK);
-  response.AddHeader("X-Frame-Options", "DENY");
-  response.SetBody(delegate_->GetDiscoveryPageHTML(),
-                   "text/html; charset=UTF-8");
-
-  thread_->task_runner()->PostTask(
-      FROM_HERE, base::BindOnce(&ServerWrapper::SendResponse,
-                                base::Unretained(server_wrapper_.get()),
-                                connection_id, response));
+  std::string response = delegate_->GetDiscoveryPageHTML();
+  Send200(connection_id, response, "text/html; charset=UTF-8");
 }
 
 void DevToolsHttpHandler::OnFrontendResourceRequest(
     int connection_id, const std::string& path) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   Send404(connection_id);
 #else
   Send200(connection_id,
@@ -768,10 +713,9 @@ void DevToolsHttpHandler::OnWebSocketRequest(
             thread_->task_runner(),
             base::BindRepeating(&DevToolsSocketFactory::CreateForTethering,
                                 base::Unretained(socket_factory_.get())));
-    connection_to_client_[connection_id] =
-        std::make_unique<DevToolsAgentHostClientImpl>(
-            thread_->task_runner(), server_wrapper_.get(), connection_id,
-            browser_agent);
+    connection_to_client_[connection_id].reset(new DevToolsAgentHostClientImpl(
+        thread_->task_runner(), server_wrapper_.get(), connection_id,
+        browser_agent));
     AcceptWebSocket(connection_id, request);
     return;
   }
@@ -790,9 +734,8 @@ void DevToolsHttpHandler::OnWebSocketRequest(
     return;
   }
 
-  connection_to_client_[connection_id] =
-      std::make_unique<DevToolsAgentHostClientImpl>(
-          thread_->task_runner(), server_wrapper_.get(), connection_id, agent);
+  connection_to_client_[connection_id].reset(new DevToolsAgentHostClientImpl(
+      thread_->task_runner(), server_wrapper_.get(), connection_id, agent));
 
   AcceptWebSocket(connection_id, request);
 }
@@ -823,7 +766,7 @@ DevToolsHttpHandler::DevToolsHttpHandler(
       new base::Thread(kDevToolsHandlerThreadName));
   base::Thread::Options options;
   options.message_pump_type = base::MessagePumpType::IO;
-  if (thread->StartWithOptions(std::move(options))) {
+  if (thread->StartWithOptions(options)) {
     auto task_runner = thread->task_runner();
     task_runner->PostTask(
         FROM_HERE,
@@ -847,7 +790,7 @@ void DevToolsHttpHandler::ServerStarted(
 
 void DevToolsHttpHandler::SendJson(int connection_id,
                                    net::HttpStatusCode status_code,
-                                   absl::optional<base::ValueView> value,
+                                   base::Value* value,
                                    const std::string& message) {
   if (!thread_)
     return;
@@ -862,7 +805,6 @@ void DevToolsHttpHandler::SendJson(int connection_id,
   base::JSONWriter::Write(base::Value(message), &json_message);
 
   net::HttpServerResponseInfo response(status_code);
-  response.AddHeader("Content-Security-Policy", "frame-ancestors 'none'");
   response.SetBody(json_value + message, "application/json; charset=UTF-8");
 
   thread_->task_runner()->PostTask(
@@ -912,32 +854,33 @@ void DevToolsHttpHandler::AcceptWebSocket(
                                 connection_id, request));
 }
 
-base::Value::Dict DevToolsHttpHandler::SerializeDescriptor(
+std::unique_ptr<base::DictionaryValue> DevToolsHttpHandler::SerializeDescriptor(
     scoped_refptr<DevToolsAgentHost> agent_host,
     const std::string& host) {
-  base::Value::Dict dictionary;
+  std::unique_ptr<base::DictionaryValue> dictionary(new base::DictionaryValue);
   std::string id = agent_host->GetId();
-  dictionary.Set(kTargetIdField, id);
+  dictionary->SetString(kTargetIdField, id);
   std::string parent_id = agent_host->GetParentId();
   if (!parent_id.empty())
-    dictionary.Set(kTargetParentIdField, parent_id);
-  dictionary.Set(kTargetTypeField, agent_host->GetType());
-  dictionary.Set(kTargetTitleField,
-                 base::EscapeForHTML(agent_host->GetTitle()));
-  dictionary.Set(kTargetDescriptionField, agent_host->GetDescription());
+    dictionary->SetString(kTargetParentIdField, parent_id);
+  dictionary->SetString(kTargetTypeField, agent_host->GetType());
+  dictionary->SetString(kTargetTitleField,
+                        net::EscapeForHTML(agent_host->GetTitle()));
+  dictionary->SetString(kTargetDescriptionField, agent_host->GetDescription());
 
   GURL url = agent_host->GetURL();
-  dictionary.Set(kTargetUrlField, url.spec());
+  dictionary->SetString(kTargetUrlField, url.spec());
 
   GURL favicon_url = agent_host->GetFaviconURL();
   if (favicon_url.is_valid())
-    dictionary.Set(kTargetFaviconUrlField, favicon_url.spec());
+    dictionary->SetString(kTargetFaviconUrlField, favicon_url.spec());
 
-  dictionary.Set(kTargetWebSocketDebuggerUrlField,
-                 base::StringPrintf("ws://%s%s%s", host.c_str(), kPageUrlPrefix,
-                                    id.c_str()));
-  dictionary.Set(kTargetDevtoolsFrontendUrlField,
-                 GetFrontendURLInternal(agent_host, id, host));
+  dictionary->SetString(kTargetWebSocketDebuggerUrlField,
+                        base::StringPrintf("ws://%s%s%s", host.c_str(),
+                                           kPageUrlPrefix, id.c_str()));
+  std::string devtools_frontend_url =
+      GetFrontendURLInternal(agent_host, id, host);
+  dictionary->SetString(kTargetDevtoolsFrontendUrlField, devtools_frontend_url);
 
   return dictionary;
 }

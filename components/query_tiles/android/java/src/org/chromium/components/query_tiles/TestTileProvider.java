@@ -1,12 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.query_tiles;
 
 import org.chromium.base.Callback;
-import org.chromium.url.GURL;
-import org.chromium.url.JUnitTestGURLs;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,8 +86,7 @@ public class TestTileProvider implements TileProvider {
         for (int i = 0; i < count; i++) {
             String id = prefix + "_" + i;
             children.add(new QueryTile(id + "_id", id + "_displayTitle", id + "_accessibilityText",
-                    id + "_queryText",
-                    new GURL[] {JUnitTestGURLs.getGURL(JUnitTestGURLs.EXAMPLE_URL)}, null,
+                    id + "_queryText", new String[] {id + "_url"}, null,
                     buildTiles(id, levelsLeft - 1, count)));
         }
 

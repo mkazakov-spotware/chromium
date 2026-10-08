@@ -1,66 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill_assistant/browser/web/web_controller_util.h"
 
-#include "base/logging.h"
 #include "components/autofill_assistant/browser/devtools/devtools/domains/types_runtime.h"
-#include "components/autofill_assistant/browser/js_flow_util.h"
 #include "components/autofill_assistant/browser/service.pb.h"
 
-// Necessary to avoid a type collision while building for Windows.
-#if defined(GetClassName)
-#undef GetClassName
-#endif  // defined(GetClassName)
-
 namespace autofill_assistant {
-
-namespace {
-
-template <typename S>
-void MaybeAddStackEntry(const S& s,
-                        const std::string& devtools_source_url,
-                        const JsLineOffsets& js_line_offsets,
-                        UnexpectedErrorInfoProto* info) {
-  int line_number = s.GetLineNumber();
-  if (js_line_offsets.contains(devtools_source_url)) {
-    const JsLineOffsetRange& js_line_offset_range =
-        js_line_offsets.at(devtools_source_url);
-
-    // If the line number is outside of the lines for which we want to generate
-    // a stack entry we return.
-    if (line_number < js_line_offset_range.begin ||
-        line_number > js_line_offset_range.end) {
-      return;
-    }
-    // Set the line number relative to the offset range.
-    line_number -= js_line_offset_range.begin;
-  }
-
-  info->add_js_exception_locations(
-      js_flow_util::GetExceptionLocation(devtools_source_url));
-  info->add_js_exception_line_numbers(line_number);
-  info->add_js_exception_column_numbers(s.GetColumnNumber());
-}
-
-void AddStackEntries(const runtime::ExceptionDetails* exception,
-                     const JsLineOffsets& js_line_offsets,
-                     UnexpectedErrorInfoProto* info) {
-  if (!exception->HasStackTrace()) {
-    MaybeAddStackEntry(*exception,
-                       exception->HasUrl() ? exception->GetUrl() : "",
-                       js_line_offsets, info);
-    return;
-  }
-
-  const std::vector<std::unique_ptr<runtime::CallFrame>>& frames =
-      *exception->GetStackTrace()->GetCallFrames();
-  for (const auto& frame : frames) {
-    MaybeAddStackEntry(*frame, frame->GetUrl(), js_line_offsets, info);
-  }
-}
-}  // namespace
 
 ClientStatus UnexpectedErrorStatus(const std::string& file, int line) {
   ClientStatus status(OTHER_ACTION_STATUS);
@@ -86,20 +33,27 @@ ClientStatus UnexpectedDevtoolsErrorStatus(
 ClientStatus JavaScriptErrorStatus(
     const DevtoolsClient::ReplyStatus& reply_status,
     const std::string& file,
-    const int line,
-    const runtime::ExceptionDetails* exception,
-    const JsLineOffsets& js_line_offsets) {
+    int line,
+    const runtime::ExceptionDetails* exception) {
   ClientStatus status = UnexpectedDevtoolsErrorStatus(reply_status, file, line);
   status.set_proto_status(UNEXPECTED_JS_ERROR);
-  if (!exception) {
-    return status;
+  if (exception) {
+    auto* info = status.mutable_details()->mutable_unexpected_error_info();
+    if (exception->HasException() &&
+        exception->GetException()->HasClassName()) {
+      info->set_js_exception_classname(
+          exception->GetException()->GetClassName());
+    }
+    info->set_js_exception_line_number(exception->GetLineNumber());
+    info->set_js_exception_column_number(exception->GetColumnNumber());
   }
+  return status;
+}
 
-  auto* info = status.mutable_details()->mutable_unexpected_error_info();
-  if (exception->HasException() && exception->GetException()->HasClassName()) {
-    info->set_js_exception_classname(exception->GetException()->GetClassName());
-  }
-  AddStackEntries(exception, js_line_offsets, info);
+ClientStatus FillAutofillErrorStatus(ClientStatus status) {
+  status.mutable_details()
+      ->mutable_autofill_error_info()
+      ->set_autofill_error_status(status.proto_status());
   return status;
 }
 

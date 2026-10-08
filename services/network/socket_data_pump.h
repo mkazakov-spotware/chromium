@@ -1,13 +1,15 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_NETWORK_SOCKET_DATA_PUMP_H_
 #define SERVICES_NETWORK_SOCKET_DATA_PUMP_H_
 
+#include <memory>
+
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "mojo/public/cpp/system/data_pipe.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
@@ -59,10 +61,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SocketDataPump {
                  mojo::ScopedDataPipeProducerHandle receive_pipe_handle,
                  mojo::ScopedDataPipeConsumerHandle send_pipe_handle,
                  const net::NetworkTrafficAnnotationTag& traffic_annotation);
-
-  SocketDataPump(const SocketDataPump&) = delete;
-  SocketDataPump& operator=(const SocketDataPump&) = delete;
-
   ~SocketDataPump();
 
  private:
@@ -84,8 +82,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SocketDataPump {
   void OnNetworkWriteCompleted(int result);
   void ShutdownSend();
 
-  const raw_ptr<net::StreamSocket, DanglingUntriaged> socket_;
-  const raw_ptr<Delegate> delegate_;
+  net::StreamSocket* const socket_;
+  Delegate* const delegate_;
 
   // The *stream handles will be null when there's a pending read from |socket_|
   // to |pending_receive_buffer_|, or while there is a pending write from
@@ -113,6 +111,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SocketDataPump {
   const net::NetworkTrafficAnnotationTag traffic_annotation_;
 
   base::WeakPtrFactory<SocketDataPump> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(SocketDataPump);
 };
 
 }  // namespace network

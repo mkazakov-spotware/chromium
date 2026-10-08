@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,20 @@
 #include <utility>
 
 #include "base/check.h"
+
+namespace {
+
+void RecordSuccessMetrics(
+    const std::vector<nearbyshare::proto::ContactRecord>& contacts) {
+  // TODO(https://crbug.com/1105579): Record a success/failure histogram value.
+  // TODO(https://crbug.com/1105579): Record total number of contacts returned.
+}
+
+void RecordFailureMetrics() {
+  // TODO(https://crbug.com/1105579): Record a success/failure histogram value.
+}
+
+}  // namespace
 
 NearbyShareContactDownloader::NearbyShareContactDownloader(
     const std::string& device_id,
@@ -30,6 +44,7 @@ void NearbyShareContactDownloader::Succeed(
     uint32_t num_unreachable_contacts_filtered_out) {
   DCHECK(was_run_);
   DCHECK(success_callback_);
+  RecordSuccessMetrics(contacts);
 
   std::move(success_callback_)
       .Run(std::move(contacts), num_unreachable_contacts_filtered_out);
@@ -38,6 +53,7 @@ void NearbyShareContactDownloader::Succeed(
 void NearbyShareContactDownloader::Fail() {
   DCHECK(was_run_);
   DCHECK(failure_callback_);
+  RecordFailureMetrics();
 
   std::move(failure_callback_).Run();
 }

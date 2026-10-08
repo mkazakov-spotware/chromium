@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 #define COMPONENTS_POLICY_CORE_BROWSER_CONFIGURATION_POLICY_PREF_STORE_H_
 
 #include <memory>
+#include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/strings/string_piece.h"
 #include "base/values.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_service.h"
@@ -38,18 +38,15 @@ class POLICY_EXPORT ConfigurationPolicyPrefStore
       PolicyService* service,
       const ConfigurationPolicyHandlerList* handler_list,
       PolicyLevel level);
-  ConfigurationPolicyPrefStore(const ConfigurationPolicyPrefStore&) = delete;
-  ConfigurationPolicyPrefStore& operator=(const ConfigurationPolicyPrefStore&) =
-      delete;
 
   // PrefStore methods:
   void AddObserver(PrefStore::Observer* observer) override;
   void RemoveObserver(PrefStore::Observer* observer) override;
   bool HasObservers() const override;
   bool IsInitializationComplete() const override;
-  bool GetValue(base::StringPiece key,
+  bool GetValue(const std::string& key,
                 const base::Value** result) const override;
-  base::Value::Dict GetValues() const override;
+  std::unique_ptr<base::DictionaryValue> GetValues() const override;
 
   // PolicyService::Observer methods:
   void OnPolicyUpdated(const PolicyNamespace& ns,
@@ -69,14 +66,14 @@ class POLICY_EXPORT ConfigurationPolicyPrefStore
   PrefValueMap* CreatePreferencesFromPolicies();
 
   // May be null in tests.
-  raw_ptr<BrowserPolicyConnectorBase> policy_connector_;
+  BrowserPolicyConnectorBase* policy_connector_;
 
   // The PolicyService from which policy settings are read.
-  raw_ptr<PolicyService> policy_service_;
+  PolicyService* policy_service_;
 
   // The policy handlers used to convert policies into their corresponding
   // preferences.
-  raw_ptr<const ConfigurationPolicyHandlerList> handler_list_;
+  const ConfigurationPolicyHandlerList* handler_list_;
 
   // The policy level that this PrefStore uses.
   PolicyLevel level_;
@@ -85,6 +82,8 @@ class POLICY_EXPORT ConfigurationPolicyPrefStore
   std::unique_ptr<PrefValueMap> prefs_;
 
   base::ObserverList<PrefStore::Observer, true>::Unchecked observers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConfigurationPolicyPrefStore);
 };
 
 }  // namespace policy

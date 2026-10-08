@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "components/history/core/browser/history_backend_client.h"
 
@@ -20,10 +21,6 @@ class HistoryBackendClientImpl : public history::HistoryBackendClient {
  public:
   explicit HistoryBackendClientImpl(
       scoped_refptr<bookmarks::ModelLoader> model_loader);
-
-  HistoryBackendClientImpl(const HistoryBackendClientImpl&) = delete;
-  HistoryBackendClientImpl& operator=(const HistoryBackendClientImpl&) = delete;
-
   ~HistoryBackendClientImpl() override;
 
  private:
@@ -34,6 +31,8 @@ class HistoryBackendClientImpl : public history::HistoryBackendClient {
 
   // ModelLoader is used to access bookmarks. May be null during testing.
   scoped_refptr<bookmarks::ModelLoader> model_loader_;
+
+  DISALLOW_COPY_AND_ASSIGN(HistoryBackendClientImpl);
 };
 
 #endif  // IOS_CHROME_BROWSER_HISTORY_HISTORY_BACKEND_CLIENT_IMPL_H_

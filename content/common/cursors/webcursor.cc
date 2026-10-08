@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,30 +13,35 @@ namespace content {
 
 WebCursor::WebCursor() = default;
 
-WebCursor::~WebCursor() = default;
+WebCursor::~WebCursor() {
+  CleanupPlatformData();
+}
 
 WebCursor::WebCursor(const ui::Cursor& cursor) {
   SetCursor(cursor);
 }
 
-WebCursor::WebCursor(const WebCursor& other) = default;
+WebCursor::WebCursor(const WebCursor& other) {
+  CopyAllData(other);
+}
+
+WebCursor& WebCursor::operator=(const WebCursor& other) {
+  CleanupPlatformData();
+  CopyAllData(other);
+  return *this;
+}
 
 bool WebCursor::SetCursor(const ui::Cursor& cursor) {
-  // This value is just large enough to accommodate:
-  // - kMaximumCursorSize in Blink's EventHandler
-  // - kCursorSize in Chrome's DevToolsEyeDropper
-  static constexpr int kMaximumCursorSize = 150;
-  // This value limits the underlying bitmap to a reasonable size.
-  static constexpr int kMaximumBitmapSize = 1024;
+  static constexpr int kMaxSize = 1024;
   if (cursor.image_scale_factor() < 0.01f ||
       cursor.image_scale_factor() > 100.f ||
       (cursor.type() == ui::mojom::CursorType::kCustom &&
-       (cursor.custom_bitmap().width() > kMaximumBitmapSize ||
-        cursor.custom_bitmap().height() > kMaximumBitmapSize ||
+       (cursor.custom_bitmap().width() > kMaxSize ||
+        cursor.custom_bitmap().height() > kMaxSize ||
         cursor.custom_bitmap().width() / cursor.image_scale_factor() >
-            kMaximumCursorSize ||
+            kMaxSize ||
         cursor.custom_bitmap().height() / cursor.image_scale_factor() >
-            kMaximumCursorSize))) {
+            kMaxSize))) {
     return false;
   }
 
@@ -57,7 +62,7 @@ bool WebCursor::SetCursor(const ui::Cursor& cursor) {
 
 bool WebCursor::operator==(const WebCursor& other) const {
   return
-#if defined(USE_AURA) || BUILDFLAG(IS_OZONE)
+#if defined(USE_AURA) || defined(USE_OZONE)
       rotation_ == other.rotation_ &&
 #endif
       cursor_ == other.cursor_;
@@ -65,6 +70,11 @@ bool WebCursor::operator==(const WebCursor& other) const {
 
 bool WebCursor::operator!=(const WebCursor& other) const {
   return !(*this == other);
+}
+
+void WebCursor::CopyAllData(const WebCursor& other) {
+  SetCursor(other.cursor_);
+  CopyPlatformData(other);
 }
 
 }  // namespace content

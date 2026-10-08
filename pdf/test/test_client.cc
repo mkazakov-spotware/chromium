@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,8 @@
 
 #include <memory>
 
-#include "base/time/time.h"
 #include "pdf/document_layout.h"
-#include "pdf/loader/url_loader.h"
-#include "third_party/skia/include/core/SkColor.h"
+#include "pdf/ppapi_migration/url_loader.h"
 
 namespace chrome_pdf {
 
@@ -43,18 +41,26 @@ std::unique_ptr<UrlLoader> TestClient::CreateUrlLoader() {
 }
 
 std::vector<PDFEngine::Client::SearchStringResult> TestClient::SearchString(
-    const char16_t* string,
-    const char16_t* term,
+    const base::char16* string,
+    const base::char16* term,
     bool case_sensitive) {
   return std::vector<SearchStringResult>();
 }
 
-bool TestClient::IsPrintPreview() const {
+pp::Instance* TestClient::GetPluginInstance() {
+  return nullptr;
+}
+
+bool TestClient::IsPrintPreview() {
   return false;
 }
 
-SkColor TestClient::GetBackgroundColor() const {
-  return SK_ColorTRANSPARENT;
+uint32_t TestClient::GetBackgroundColor() {
+  return 0;
+}
+
+float TestClient::GetToolbarHeightInScreenCoords() {
+  return 0;
 }
 
 void TestClient::SetSelectedText(const std::string& selected_text) {}

@@ -34,7 +34,7 @@
 
 namespace blink {
 
-bool PointLightSource::SetPosition(const gfx::Point3F& position) {
+bool PointLightSource::SetPosition(const FloatPoint3D& position) {
   if (position_ == position)
     return false;
   position_ = position;
@@ -44,7 +44,7 @@ bool PointLightSource::SetPosition(const gfx::Point3F& position) {
 WTF::TextStream& PointLightSource::ExternalRepresentation(
     WTF::TextStream& ts) const {
   ts << "[type=POINT-LIGHT] ";
-  ts << "[position=\"" << GetPosition().ToString() << "\"]";
+  ts << "[position=\"" << GetPosition() << "\"]";
   return ts;
 }
 

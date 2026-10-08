@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2010 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.ui.editor.LinkDialogTest');
 goog.setTestOnly();
@@ -20,10 +28,8 @@ const LinkDialog = goog.require('goog.ui.editor.LinkDialog');
 const MockControl = goog.require('goog.testing.MockControl');
 const PropertyReplacer = goog.require('goog.testing.PropertyReplacer');
 const TagName = goog.require('goog.dom.TagName');
-const asserts = goog.require('goog.testing.asserts');
 const dom = goog.require('goog.dom');
 const events = goog.require('goog.events');
-const googWindow = goog.require('goog.window');
 const messages = goog.require('goog.ui.editor.messages');
 const mockmatchers = goog.require('goog.testing.mockmatchers');
 const style = goog.require('goog.style');
@@ -68,12 +74,10 @@ function setUpAnchor(href, text, opt_isNew, opt_target, opt_rel) {
  * @param {boolean=} noFollow Whether rel=nofollow checkbox should be shown.
  * @param {boolean=} opt_focusTextToDisplayOnOpenIfEmpty If passed, will call
  *     focusTextToDisplayOnOpenIfEmpty on the dialog.
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function createAndShow(
     document = undefined, openInNewWindow = undefined, noFollow = undefined,
     opt_focusTextToDisplayOnOpenIfEmpty) {
-  /** @suppress {checkTypes} suppression added to enable type checking */
   dialog = new LinkDialog(new DomHelper(document), mockLink);
   if (openInNewWindow) {
     dialog.showOpenLinkInNewWindow(false);
@@ -91,7 +95,6 @@ function createAndShow(
 /**
  * Sets up the mock event handler to expect an OK event with the given text
  * and url.
- * @suppress {missingProperties} suppression added to enable type checking
  */
 function expectOk(linkText, linkUrl, opt_openInNewWindow, opt_noFollow) {
   mockOkHandler.handleEvent(new ArgumentMatcher(
@@ -107,14 +110,12 @@ function expectOk(linkText, linkUrl, opt_openInNewWindow, opt_noFollow) {
 /**
  * Return true if we should use active element in our tests.
  * @return {boolean} .
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function useActiveElement() {
   return BrowserFeature.HAS_ACTIVE_ELEMENT ||
       userAgent.WEBKIT && userAgent.isVersionOrHigher(9);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function getDisplayInput() {
   return dialog.dom.getElement(LinkDialog.Id_.TEXT_TO_DISPLAY);
 }
@@ -131,7 +132,6 @@ function setDisplayInputText(text) {
 }
 
 function getUrlInput() {
-  /** @suppress {visibility} suppression added to enable type checking */
   const elt = dialog.dom.getElement(LinkDialog.Id_.ON_WEB_INPUT);
   assertNotNullNorUndefined('UrlInput must be found', elt);
   return elt;
@@ -141,7 +141,6 @@ function getUrlInputText() {
   return getUrlInput().value;
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function setUrlInputText(text) {
   const urlInput = getUrlInput();
   urlInput.value = text;
@@ -150,7 +149,6 @@ function setUrlInputText(text) {
 }
 
 function getEmailInput() {
-  /** @suppress {visibility} suppression added to enable type checking */
   const elt = dialog.dom.getElement(LinkDialog.Id_.EMAIL_ADDRESS_INPUT);
   assertNotNullNorUndefined('EmailInput must be found', elt);
   return elt;
@@ -160,7 +158,6 @@ function getEmailInputText() {
   return getEmailInput().value;
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function setEmailInputText(text) {
   const emailInput = getEmailInput();
   emailInput.value = text;
@@ -168,13 +165,11 @@ function setEmailInputText(text) {
   fireInputEvent(dialog.emailInputHandler_, KeyCodes.M);
 }
 
-/** @suppress {visibility} suppression added to enable type checking */
 function getOpenInNewWindowCheckboxChecked() {
   return dialog.openInNewWindowCheckbox_.checked;
 }
 
 function setOpenInNewWindowCheckboxChecked(checked) {
-  /** @suppress {visibility} suppression added to enable type checking */
   dialog.openInNewWindowCheckbox_.checked = checked;
 }
 
@@ -185,7 +180,6 @@ function fireInputEvent(input, keyCode) {
   testingEvents.fireBrowserEvent(inputEvent);
 }
 testSuite({
-  /** @suppress {missingProperties} suppression added to enable type checking */
   setUp() {
     anchorElem = dom.createElement(TagName.A);
     dom.appendChild(dom.getDocument().body, anchorElem);
@@ -215,7 +209,7 @@ testSuite({
     mockLink.$returns(anchorElem);
 
     mockWindowOpen = mockCtrl.createFunctionMock('open');
-    stubs.set(googWindow, 'open', mockWindowOpen);
+    stubs.set(window, 'open', mockWindowOpen);
   },
 
   tearDown() {
@@ -229,17 +223,14 @@ testSuite({
    * to the URL view.
    * @param {Document=} document Document to render the dialog into. Defaults to
    *     the main window's document.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testShowNewLinkSwitchToUrl(document = undefined) {
     mockCtrl.$replayAll();
     setUpAnchor('', '', true);  // Must be done before creating the dialog.
     createAndShow(document);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const webRadio =
         dialog.dom.getElement(LinkDialog.Id_.ON_WEB_TAB).firstChild;
-    /** @suppress {visibility} suppression added to enable type checking */
     const emailRadio =
         dialog.dom.getElement(LinkDialog.Id_.EMAIL_ADDRESS_TAB).firstChild;
     assertTrue('Web Radio Button selected', webRadio.checked);
@@ -267,8 +258,6 @@ testSuite({
    * empty, the web tab is selected and focus is in the url input field.
    * @param {Document=} document Document to render the dialog into. Defaults to
    *     the main window's document.
-   * @suppress {visibility,checkTypes,missingProperties} suppression added to
-   * enable type checking
    */
   testShowForNewLink(document = undefined) {
     mockCtrl.$replayAll();
@@ -293,8 +282,6 @@ testSuite({
   /**
    * Fakes that the mock field is using an iframe and does the same test as
    * testShowForNewLink().
-   * @suppress {strictMissingProperties} suppression added to enable type
-   * checking
    */
   testShowForNewLinkWithDiffAppWindow() {
     this.testShowForNewLink(dom.getElement('appWindowIframe').contentDocument);
@@ -303,8 +290,6 @@ testSuite({
   /**
    * Tests that when you show the dialog for a url link, the input fields are
    * filled in, the web tab is selected and focus is in the url input field.
-   * @suppress {visibility,checkTypes,missingProperties} suppression added to
-   * enable type checking
    */
   testShowForUrlLink() {
     mockCtrl.$replayAll();
@@ -331,8 +316,6 @@ testSuite({
   /**
    * Tests that when you show the dialog for a mailto link, the input fields are
    * filled in, the email tab is selected and focus is in the email input field.
-   * @suppress {visibility,checkTypes,missingProperties} suppression added to
-   * enable type checking
    */
   testShowForMailtoLink() {
     mockCtrl.$replayAll();
@@ -365,8 +348,6 @@ testSuite({
    * field.
    * @param {Document=} document Document to render the dialog into. Defaults to
    *     the main window's document.
-   * @suppress {visibility,checkTypes,missingProperties} suppression added to
-   * enable type checking
    */
   testShowForNewLink_focusTextToDisplayOnOpenIfEmpty(document = undefined) {
     mockCtrl.$replayAll();
@@ -398,8 +379,6 @@ testSuite({
    * field.
    * @param {Document=} document Document to render the dialog into. Defaults to
    *     the main window's document.
-   * @suppress {visibility,checkTypes,missingProperties} suppression added to
-   * enable type checking
    */
   testShowForUrlLink_focusTextToDisplayOnOpenIfEmpty(document = undefined) {
     mockCtrl.$replayAll();
@@ -431,8 +410,6 @@ testSuite({
    * input field.
    * @param {Document=} document Document to render the dialog into. Defaults to
    *     the main window's document.
-   * @suppress {visibility,checkTypes,missingProperties} suppression added to
-   * enable type checking
    */
   testShowForMailtoLink_focusTextToDisplayOnOpenIfEmpty(document = undefined) {
     mockCtrl.$replayAll();
@@ -535,7 +512,6 @@ testSuite({
   /**
    * Tests that clicking OK with the url tab selected dispatches an event with
    * the proper link data.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testOkForUrl() {
     expectOk(ANCHOR_TEXT, ANCHOR_URL);
@@ -554,7 +530,6 @@ testSuite({
   /**
    * Tests that clicking OK with the url tab selected but with an email address
    * in the url field dispatches an event with the proper link data.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testOkForUrlWithEmail() {
     expectOk(ANCHOR_TEXT, ANCHOR_MAILTO);
@@ -573,7 +548,6 @@ testSuite({
   /**
    * Tests that clicking OK with the email tab selected dispatches an event with
    * the proper link data.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testOkForEmail() {
     expectOk(ANCHOR_TEXT, ANCHOR_MAILTO);
@@ -590,7 +564,6 @@ testSuite({
     mockCtrl.$verifyAll();
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testOpenLinkInNewWindowNewLink() {
     expectOk(ANCHOR_TEXT, ANCHOR_URL, true);
     expectOk(ANCHOR_TEXT, ANCHOR_URL, false);
@@ -627,7 +600,6 @@ testSuite({
     testingEvents.fireClickSequence(dialog.getOkButtonElement());
   },
 
-  /** @suppress {visibility} suppression added to enable type checking */
   testOpenLinkInNewWindowExistingLink() {
     mockCtrl.$replayAll();
 
@@ -645,10 +617,6 @@ testSuite({
     mockCtrl.$verifyAll();
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testRelNoFollowNewLink() {
     expectOk(ANCHOR_TEXT, ANCHOR_URL, null, true);
     expectOk(ANCHOR_TEXT, ANCHOR_URL, null, false);
@@ -664,7 +632,6 @@ testSuite({
         dialog.relNoFollowCheckbox_.checked);
 
     // Check rel=nofollow and close the dialog.
-    /** @suppress {visibility} suppression added to enable type checking */
     dialog.relNoFollowCheckbox_.checked = true;
     testingEvents.fireClickSequence(dialog.getOkButtonElement());
 
@@ -679,10 +646,6 @@ testSuite({
         dialog.relNoFollowCheckbox_.checked);
   },
 
-  /**
-     @suppress {checkTypes,visibility} suppression added to enable type
-     checking
-   */
   testRelNoFollowExistingLink() {
     mockCtrl.$replayAll();
 
@@ -698,7 +661,6 @@ testSuite({
   /**
    * Test that clicking on the test button opens a new window with the correct
    * options.
-   * @suppress {checkTypes} suppression added to enable type checking
    */
   testWebTestButton() {
     if (userAgent.GECKO) {
@@ -710,23 +672,13 @@ testSuite({
     let width;
 
     mockWindowOpen(
-        ANCHOR_URL,
+        ANCHOR_URL, '_blank',
         new ArgumentMatcher(
-            (options) => !asserts.findDifferences(options, {
-              target: '_blank',
-              width: width,
-              height: height,
-              toolbar: true,
-              scrollbars: true,
-              location: true,
-              statusbar: false,
-              menubar: true,
-              resizable: true,
-              noreferrer: false,
-              noopener: false,
-            }),
-            '2nd arg: window.open() options'),
-        window);
+            (str) => str ==
+                `width=${width},height=${height}` +
+                    ',toolbar=1,scrollbars=1,location=1,statusbar=0,' +
+                    'menubar=1,resizable=1',
+            '3rd arg: (string) window.open() options'));
 
     mockCtrl.$replayAll();
     setUpAnchor(ANCHOR_URL, ANCHOR_TEXT);
@@ -738,7 +690,6 @@ testSuite({
     width = Math.max(size.width - 50, 50);
     height = Math.max(size.height - 50, 50);
 
-    /** @suppress {visibility} suppression added to enable type checking */
     const testLink = testingDom.findTextNode(
         messages.MSG_TEST_THIS_LINK, dialog.dialogInternal_.getElement());
     testingEvents.fireClickSequence(testLink.parentNode);
@@ -759,7 +710,6 @@ testSuite({
       assertEquals(e.url, ANCHOR_URL);
       e.preventDefault();
     });
-    /** @suppress {visibility} suppression added to enable type checking */
     const testLink = testingDom.findTextNode(
         messages.MSG_TEST_THIS_LINK, dialog.dialogInternal_.getElement());
     testingEvents.fireClickSequence(testLink.parentNode);
@@ -770,7 +720,6 @@ testSuite({
   /**
    * Test that the setTextToDisplayVisible() correctly works.
    * options.
-   * @suppress {visibility} suppression added to enable type checking
    */
   testSetTextToDisplayVisible() {
     mockCtrl.$replayAll();

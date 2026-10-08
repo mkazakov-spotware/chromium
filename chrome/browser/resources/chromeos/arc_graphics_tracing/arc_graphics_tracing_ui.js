@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -126,7 +126,8 @@ function setGraphicBuffersModel(model) {
   memoryBands.addChartSources(
       [
         new Events(model.system.memory, 2 /* kSwapRead */, 2 /* kSwapRead */),
-        new Events(model.system.memory, 3 /* kSwapWrite */, 3 /* kSwapWrite */),
+        new Events(
+            model.system.memory, 3 /* kSwapWrite */, 3 /* kSwapWrite */)
       ],
       true /* smooth */);
   // Geom objects and size.

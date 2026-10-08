@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/logging.h"
-#include "ui/gl/gl_display.h"
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/init/gl_factory.h"
 #include "ui/ozone/demo/gl_renderer.h"
@@ -36,13 +34,12 @@ const char kDisableGpu[] = "disable-gpu";
 const char kEnableVulkan[] = "enable-vulkan";
 #endif
 
-scoped_refptr<gl::GLSurface> CreateGLSurface(gl::GLDisplay* display,
-                                             gfx::AcceleratedWidget widget) {
+scoped_refptr<gl::GLSurface> CreateGLSurface(gfx::AcceleratedWidget widget) {
   scoped_refptr<gl::GLSurface> surface;
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSurfaceless))
-    surface = gl::init::CreateSurfacelessViewGLSurface(display, widget);
+    surface = gl::init::CreateSurfacelessViewGLSurface(widget);
   if (!surface)
-    surface = gl::init::CreateViewGLSurface(display, widget);
+    surface = gl::init::CreateViewGLSurface(widget);
   return surface;
 }
 
@@ -50,12 +47,7 @@ scoped_refptr<gl::GLSurface> CreateGLSurface(gl::GLDisplay* display,
 
 SimpleRendererFactory::SimpleRendererFactory() {}
 
-SimpleRendererFactory::~SimpleRendererFactory() {
-  if (display_) {
-    gl::init::ShutdownGL(display_, false);
-    display_ = nullptr;
-  }
-}
+SimpleRendererFactory::~SimpleRendererFactory() {}
 
 bool SimpleRendererFactory::Initialize() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
@@ -72,13 +64,8 @@ bool SimpleRendererFactory::Initialize() {
     }
   }
 #endif
-  if (!command_line->HasSwitch(kDisableGpu)) {
-    display_ = gl::init::InitializeGLOneOff(/*system_device_id=*/0);
-    if (display_) {
-      type_ = GL;
-    } else {
-      type_ = SOFTWARE;
-    }
+  if (!command_line->HasSwitch(kDisableGpu) && gl::init::InitializeGLOneOff()) {
+    type_ = GL;
   } else {
     type_ = SOFTWARE;
   }
@@ -95,7 +82,7 @@ std::unique_ptr<Renderer> SimpleRendererFactory::CreateRenderer(
       surface_factory_ozone->CreatePlatformWindowSurface(widget);
   switch (type_) {
     case GL: {
-      scoped_refptr<gl::GLSurface> surface = CreateGLSurface(display_, widget);
+      scoped_refptr<gl::GLSurface> surface = CreateGLSurface(widget);
       if (!surface)
         LOG(FATAL) << "Failed to create GL surface";
       if (surface->IsSurfaceless()) {

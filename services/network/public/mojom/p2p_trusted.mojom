@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,15 +23,7 @@ interface P2PTrustedSocketManagerClient {
 
 // From the browser process to the network process.
 interface P2PTrustedSocketManager {
-  // Starts dumping of packet headers; the incoming/outgoing arguments control
-  // whether incoming or outgoing or both are dumped.
+  // Start or stop dumping of packet headers.
   StartRtpDump(bool incoming, bool outgoing);
-  // Stops dumping of packet headers; the incoming/outgoing arguments control
-  // whether incoming or outgoing or both are dumped.
   StopRtpDump(bool incoming, bool outgoing);
-
-  // Pauses network change notifications for this socket manager.
-  PauseNetworkChangeNotifications();
-  // Resumes network change notifications for this socket manager.
-  ResumeNetworkChangeNotifications();
 };

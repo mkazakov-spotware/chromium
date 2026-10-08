@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/safe_browsing/chrome_cleaner/settings_resetter_win.h"
 
+#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <utility>
@@ -12,13 +13,12 @@
 #include "base/barrier_closure.h"
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/lock.h"
 #include "base/win/registry.h"
-#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profile_resetter/profile_resetter.h"
 #include "chrome/browser/profiles/profile.h"
@@ -58,8 +58,9 @@ void RecordResetPending(bool value, Profile* profile) {
 
 bool CopyProfilesToReset(const std::vector<Profile*>& profiles,
                          std::vector<Profile*>* profiles_to_reset) {
-  base::ranges::copy_if(profiles, std::back_inserter(*profiles_to_reset),
-                        &ResetPending);
+  std::copy_if(profiles.begin(), profiles.end(),
+               std::back_inserter(*profiles_to_reset),
+               [](Profile* profile) -> bool { return ResetPending(profile); });
   return !profiles_to_reset->empty();
 }
 
@@ -73,9 +74,6 @@ class SettingsResetter : public base::RefCounted<SettingsResetter> {
       std::unique_ptr<PostCleanupSettingsResetter::Delegate> delegate,
       base::OnceClosure done_callback);
 
-  SettingsResetter(const SettingsResetter&) = delete;
-  SettingsResetter& operator=(const SettingsResetter&) = delete;
-
   // Resets settings for all profiles in |profiles_to_reset_| and invokes
   // |done_callback_| when done.
   void Run();
@@ -87,11 +85,11 @@ class SettingsResetter : public base::RefCounted<SettingsResetter> {
   friend class base::RefCounted<SettingsResetter>;
 
   // Resets settings for |profile| according to default values given by
-  // |main_settings|. Used as a callback for
+  // |master_settings|. Used as a callback for
   // DefaultSettingsFetcher::FetchDefaultSettings().
   void OnFetchCompleted(
       Profile* profile,
-      std::unique_ptr<BrandcodedDefaultSettings> main_settings);
+      std::unique_ptr<BrandcodedDefaultSettings> master_settings);
 
   // Removes the settings reset tag for |profile|. If there are no more
   // profiles to reset, invokes |done_callback_| and deletes this object.
@@ -115,6 +113,8 @@ class SettingsResetter : public base::RefCounted<SettingsResetter> {
   base::OnceClosure done_callback_;
 
   std::unique_ptr<PostCleanupSettingsResetter::Delegate> delegate_;
+
+  DISALLOW_COPY_AND_ASSIGN(SettingsResetter);
 };
 
 SettingsResetter::SettingsResetter(
@@ -146,7 +146,7 @@ void SettingsResetter::Run() {
 
 void SettingsResetter::OnFetchCompleted(
     Profile* profile,
-    std::unique_ptr<BrandcodedDefaultSettings> main_settings) {
+    std::unique_ptr<BrandcodedDefaultSettings> master_settings) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   static const ProfileResetter::ResettableFlags kSettingsToReset =
@@ -156,7 +156,7 @@ void SettingsResetter::OnFetchCompleted(
 
   profile_resetters_.push_back(delegate_->GetProfileResetter(profile));
   profile_resetters_.back()->Reset(
-      kSettingsToReset, std::move(main_settings),
+      kSettingsToReset, std::move(master_settings),
       base::BindOnce(&SettingsResetter::OnResetCompleted, this, profile));
 }
 
@@ -172,7 +172,7 @@ void SettingsResetter::OnResetCompleted(Profile* profile) {
 
 // Returns true if there is information of a completed cleanup in the registry.
 bool CleanupCompletedFromRegistry() {
-  std::wstring cleaner_key_path(
+  base::string16 cleaner_key_path(
       chrome_cleaner::kSoftwareRemovalToolRegistryKey);
   cleaner_key_path.append(L"\\").append(chrome_cleaner::kCleanerSubKey);
 
@@ -202,7 +202,7 @@ PostCleanupSettingsResetter::~PostCleanupSettingsResetter() = default;
 
 // static
 bool PostCleanupSettingsResetter::IsEnabled() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return true;
 #else
   return false;
@@ -220,6 +220,7 @@ void PostCleanupSettingsResetter::TagForResetting(Profile* profile) {
   DCHECK(profile);
 
   RecordResetPending(true, profile);
+  UMA_HISTOGRAM_BOOLEAN("SoftwareReporter.TaggedProfileForResetting", true);
 }
 
 void PostCleanupSettingsResetter::ResetTaggedProfiles(

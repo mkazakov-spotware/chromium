@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,22 +9,15 @@
 
 #include "base/component_export.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace switches {
 
-#if BUILDFLAG(IS_ANDROID)
-COMPONENT_EXPORT(UI_BASE) extern const char kDisableOverscrollEdgeEffect[];
-COMPONENT_EXPORT(UI_BASE) extern const char kDisablePullToRefreshEffect[];
-#endif
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
+COMPONENT_EXPORT(UI_BASE) extern const char kDisableAVFoundationOverlays[];
+COMPONENT_EXPORT(UI_BASE) extern const char kDisableMacOverlays[];
 COMPONENT_EXPORT(UI_BASE) extern const char kDisableModalAnimations[];
+COMPONENT_EXPORT(UI_BASE) extern const char kDisableRemoteCoreAnimation[];
 COMPONENT_EXPORT(UI_BASE) extern const char kShowMacOverlayBorders[];
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
-COMPONENT_EXPORT(UI_BASE) extern const char kEnableResourcesFileSharing[];
 #endif
 
 COMPONENT_EXPORT(UI_BASE) extern const char kDisableCompositedAntialiasing[];

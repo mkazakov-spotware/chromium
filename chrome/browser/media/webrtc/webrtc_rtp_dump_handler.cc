@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,9 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "chrome/browser/media/webrtc/webrtc_rtp_dump_writer.h"
 
@@ -31,7 +32,7 @@ void FireGenericDoneCallback(WebRtcRtpDumpHandler::GenericDoneCallback callback,
                              const std::string& error_message) {
   DCHECK(!callback.is_null());
 
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), success, error_message));
 }
 
@@ -62,13 +63,13 @@ WebRtcRtpDumpHandler::~WebRtcRtpDumpHandler() {
   if (incoming_state_ != STATE_NONE && !incoming_dump_path_.empty()) {
     base::ThreadPool::PostTask(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-        base::GetDeleteFileCallback(incoming_dump_path_));
+        base::BindOnce(base::GetDeleteFileCallback(), incoming_dump_path_));
   }
 
   if (outgoing_state_ != STATE_NONE && !outgoing_dump_path_.empty()) {
     base::ThreadPool::PostTask(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-        base::GetDeleteFileCallback(outgoing_dump_path_));
+        base::BindOnce(base::GetDeleteFileCallback(), outgoing_dump_path_));
   }
 }
 
@@ -287,7 +288,7 @@ void WebRtcRtpDumpHandler::OnDumpEnded(base::OnceClosure callback,
     if (!incoming_success) {
       base::ThreadPool::PostTask(
           FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-          base::GetDeleteFileCallback(incoming_dump_path_));
+          base::BindOnce(base::GetDeleteFileCallback(), incoming_dump_path_));
 
       DVLOG(2) << "Deleted invalid incoming dump "
                << incoming_dump_path_.value();
@@ -302,7 +303,7 @@ void WebRtcRtpDumpHandler::OnDumpEnded(base::OnceClosure callback,
     if (!outgoing_success) {
       base::ThreadPool::PostTask(
           FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-          base::GetDeleteFileCallback(outgoing_dump_path_));
+          base::BindOnce(base::GetDeleteFileCallback(), outgoing_dump_path_));
 
       DVLOG(2) << "Deleted invalid outgoing dump "
                << outgoing_dump_path_.value();

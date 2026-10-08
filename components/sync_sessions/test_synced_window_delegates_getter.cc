@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/cxx20_erase.h"
+#include "base/stl_util.h"
 #include "components/sessions/core/serialized_navigation_entry_test_helper.h"
 #include "components/sync_sessions/synced_session.h"
 #include "components/sync_sessions/tab_node_pool.h"
@@ -45,7 +45,7 @@ void TestSyncedTabDelegate::Navigate(const std::string& url,
                                                                    entry.get());
 
   entries_.push_back(std::move(entry));
-  page_language_per_index_.emplace_back();
+  page_language_per_index_.push_back(std::string());
   set_current_entry_index(GetCurrentEntryIndex() + 1);
   notify_cb_.Run(this);
 }
@@ -80,10 +80,19 @@ int TestSyncedTabDelegate::GetCurrentEntryIndex() const {
 }
 
 GURL TestSyncedTabDelegate::GetVirtualURLAtIndex(int i) const {
-  if (static_cast<size_t>(i) >= entries_.size()) {
+  if (static_cast<size_t>(i) >= entries_.size())
     return GURL();
-  }
   return entries_[i]->virtual_url();
+}
+
+GURL TestSyncedTabDelegate::GetFaviconURLAtIndex(int i) const {
+  return GURL();
+}
+
+ui::PageTransition TestSyncedTabDelegate::GetTransitionAtIndex(int i) const {
+  if (static_cast<size_t>(i) >= entries_.size())
+    return ui::PAGE_TRANSITION_LINK;
+  return entries_[i]->transition_type();
 }
 
 std::string TestSyncedTabDelegate::GetPageLanguageAtIndex(int i) const {
@@ -94,9 +103,8 @@ std::string TestSyncedTabDelegate::GetPageLanguageAtIndex(int i) const {
 void TestSyncedTabDelegate::GetSerializedNavigationAtIndex(
     int i,
     sessions::SerializedNavigationEntry* serialized_entry) const {
-  if (static_cast<size_t>(i) >= entries_.size()) {
+  if (static_cast<size_t>(i) >= entries_.size())
     return;
-  }
   *serialized_entry = *entries_[i];
 }
 
@@ -120,12 +128,12 @@ std::string TestSyncedTabDelegate::GetExtensionAppId() const {
   return std::string();
 }
 
-bool TestSyncedTabDelegate::ProfileHasChildAccount() const {
-  return has_child_account_;
+bool TestSyncedTabDelegate::ProfileIsSupervised() const {
+  return is_supervised_;
 }
 
-void TestSyncedTabDelegate::set_has_child_account(bool has_child_account) {
-  has_child_account_ = has_child_account;
+void TestSyncedTabDelegate::set_is_supervised(bool is_supervised) {
+  is_supervised_ = is_supervised;
 }
 
 const std::vector<std::unique_ptr<const sessions::SerializedNavigationEntry>>*
@@ -144,12 +152,10 @@ bool TestSyncedTabDelegate::ShouldSync(SyncSessionsClient* sessions_client) {
   // that there is at least one http:// url.
   int http_count = 0;
   for (auto& entry : entries_) {
-    if (!entry->virtual_url().is_valid()) {
+    if (!entry->virtual_url().is_valid())
       return false;
-    }
-    if (entry->virtual_url().SchemeIsHTTPOrHTTPS()) {
+    if (entry->virtual_url().SchemeIsHTTPOrHTTPS())
       http_count++;
-    }
   }
   return http_count > 0;
 }
@@ -221,6 +227,16 @@ GURL PlaceholderTabDelegate::GetVirtualURLAtIndex(int i) const {
   return GURL();
 }
 
+GURL PlaceholderTabDelegate::GetFaviconURLAtIndex(int i) const {
+  NOTREACHED();
+  return GURL();
+}
+
+ui::PageTransition PlaceholderTabDelegate::GetTransitionAtIndex(int i) const {
+  NOTREACHED();
+  return ui::PageTransition();
+}
+
 std::string PlaceholderTabDelegate::GetPageLanguageAtIndex(int i) const {
   NOTREACHED();
   return std::string();
@@ -232,7 +248,7 @@ void PlaceholderTabDelegate::GetSerializedNavigationAtIndex(
   NOTREACHED();
 }
 
-bool PlaceholderTabDelegate::ProfileHasChildAccount() const {
+bool PlaceholderTabDelegate::ProfileIsSupervised() const {
   NOTREACHED();
   return false;
 }
@@ -272,7 +288,7 @@ int64_t PlaceholderTabDelegate::GetRootTaskIdForNavigationId(int nav_id) const {
 
 TestSyncedWindowDelegate::TestSyncedWindowDelegate(
     SessionID window_id,
-    sync_pb::SyncEnums_BrowserType type)
+    sync_pb::SessionWindow_BrowserType type)
     : window_id_(window_id),
       window_type_(type),
       is_session_restore_in_progress_(false) {}
@@ -281,9 +297,8 @@ TestSyncedWindowDelegate::~TestSyncedWindowDelegate() = default;
 
 void TestSyncedWindowDelegate::OverrideTabAt(int index,
                                              SyncedTabDelegate* delegate) {
-  if (index >= static_cast<int>(tab_delegates_.size())) {
+  if (index >= static_cast<int>(tab_delegates_.size()))
     tab_delegates_.resize(index + 1, nullptr);
-  }
 
   tab_delegates_[index] = delegate;
 }
@@ -315,11 +330,11 @@ int TestSyncedWindowDelegate::GetActiveIndex() const {
 }
 
 bool TestSyncedWindowDelegate::IsTypeNormal() const {
-  return window_type_ == sync_pb::SyncEnums_BrowserType_TYPE_TABBED;
+  return window_type_ == sync_pb::SessionWindow_BrowserType_TYPE_TABBED;
 }
 
 bool TestSyncedWindowDelegate::IsTypePopup() const {
-  return window_type_ == sync_pb::SyncEnums_BrowserType_TYPE_POPUP;
+  return window_type_ == sync_pb::SessionWindow_BrowserType_TYPE_POPUP;
 }
 
 bool TestSyncedWindowDelegate::IsTabPinned(const SyncedTabDelegate* tab) const {
@@ -327,18 +342,16 @@ bool TestSyncedWindowDelegate::IsTabPinned(const SyncedTabDelegate* tab) const {
 }
 
 SyncedTabDelegate* TestSyncedWindowDelegate::GetTabAt(int index) const {
-  if (index >= static_cast<int>(tab_delegates_.size())) {
+  if (index >= static_cast<int>(tab_delegates_.size()))
     return nullptr;
-  }
 
   return tab_delegates_[index];
 }
 
 SessionID TestSyncedWindowDelegate::GetTabIdAt(int index) const {
   SyncedTabDelegate* delegate = GetTabAt(index);
-  if (!delegate) {
+  if (!delegate)
     return SessionID::InvalidValue();
-  }
   return delegate->GetSessionId();
 }
 
@@ -360,7 +373,7 @@ void TestSyncedWindowDelegatesGetter::ResetWindows() {
 }
 
 TestSyncedWindowDelegate* TestSyncedWindowDelegatesGetter::AddWindow(
-    sync_pb::SyncEnums_BrowserType type,
+    sync_pb::SessionWindow_BrowserType type,
     SessionID window_id) {
   windows_.push_back(
       std::make_unique<TestSyncedWindowDelegate>(window_id, type));
@@ -398,9 +411,8 @@ void TestSyncedWindowDelegatesGetter::CloseTab(SessionID tab_id) {
 }
 
 void TestSyncedWindowDelegatesGetter::SessionRestoreComplete() {
-  for (auto& window : windows_) {
+  for (auto& window : windows_)
     window->SetIsSessionRestoreInProgress(false);
-  }
 
   router_.NotifySessionRestoreComplete();
 }
@@ -415,11 +427,10 @@ TestSyncedWindowDelegatesGetter::GetSyncedWindowDelegates() {
 }
 
 const SyncedWindowDelegate* TestSyncedWindowDelegatesGetter::FindById(
-    SessionID session_id) {
-  for (const auto& [window_id, delegate] : delegates_) {
-    if (delegate->GetSessionId() == session_id) {
-      return delegate;
-    }
+    SessionID id) {
+  for (auto window_iter_pair : delegates_) {
+    if (window_iter_pair.second->GetSessionId() == id)
+      return window_iter_pair.second;
   }
   return nullptr;
 }
@@ -439,16 +450,14 @@ void TestSyncedWindowDelegatesGetter::DummyRouter::Stop() {
 
 void TestSyncedWindowDelegatesGetter::DummyRouter::NotifyNav(
     SyncedTabDelegate* tab) {
-  if (handler_) {
+  if (handler_)
     handler_->OnLocalTabModified(tab);
-  }
 }
 
 void TestSyncedWindowDelegatesGetter::DummyRouter::
     NotifySessionRestoreComplete() {
-  if (handler_) {
+  if (handler_)
     handler_->OnSessionRestoreComplete();
-  }
 }
 
 }  // namespace sync_sessions

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ using UsbManualApiTest = extensions::ExtensionApiTest;
 
 // TODO(1020591): The win7 bots do not seem to recognize the MANUAL_ prefix,
 // so we explicitly disable this test.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define MAYBE_MANUAL_ListInterfaces DISABLED_MANUAL_ListInterfaces
 #else
 #define MAYBE_MANUAL_ListInterfaces MANUAL_ListInterfaces

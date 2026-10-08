@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/network/trust_tokens/trust_token_key_commitments.h"
 
 #include "base/base64.h"
-#include "base/ranges/algorithm.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_command_line.h"
 #include "base/test/task_environment.h"
@@ -66,7 +65,7 @@ TEST(TrustTokenKeyCommitments, CanRetrieveRecordForSuitableOrigin) {
 
   auto expectation = mojom::TrustTokenKeyCommitmentResult::New();
   expectation->protocol_version =
-      mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb;
+      mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb;
   expectation->id = 1;
   expectation->batch_size = 5;
 
@@ -93,7 +92,7 @@ TEST(TrustTokenKeyCommitments, CantRetrieveRecordForOriginNotPresent) {
       *SuitableTrustTokenOrigin::Create(GURL("https://an-origin.example"));
   auto an_expectation = mojom::TrustTokenKeyCommitmentResult::New();
   an_expectation->protocol_version =
-      mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb;
+      mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb;
   an_expectation->id = 1;
   an_expectation->batch_size = 5;
 
@@ -122,11 +121,11 @@ TEST(TrustTokenKeyCommitments, MultipleOrigins) {
   };
 
   expectations[0]->protocol_version =
-      mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb;
+      mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb;
   expectations[0]->id = 1;
   expectations[0]->batch_size = 0;
   expectations[1]->protocol_version =
-      mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb;
+      mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb;
   expectations[1]->id = 1;
   expectations[1]->batch_size = 1;
 
@@ -145,8 +144,7 @@ TEST(TrustTokenKeyCommitments, MultipleOrigins) {
 TEST(TrustTokenKeyCommitments, ParseAndSet) {
   TrustTokenKeyCommitments commitments;
   commitments.ParseAndSet(
-      R"( { "https://issuer.example": { "TrustTokenV3PMB": {
-      "protocol_version": "TrustTokenV3PMB", "id": 1, "batchsize": 5 } } } )");
+      R"( { "https://issuer.example": { "protocol_version": "TrustTokenV2PMB", "id": 1, "batchsize": 5 } } )");
 
   EXPECT_TRUE(GetCommitmentForOrigin(
       commitments,
@@ -157,8 +155,7 @@ TEST(TrustTokenKeyCommitments, KeysFromCommandLine) {
   base::test::ScopedCommandLine command_line;
   command_line.GetProcessCommandLine()->AppendSwitchASCII(
       switches::kAdditionalTrustTokenKeyCommitments,
-      R"( { "https://issuer.example": { "TrustTokenV3PMB": {
-      "protocol_version": "TrustTokenV3PMB", "id": 1, "batchsize": 5 } }} )");
+      R"( { "https://issuer.example": { "protocol_version": "TrustTokenV2PMB", "id": 1, "batchsize": 5 } } )");
 
   TrustTokenKeyCommitments commitments;
 
@@ -167,15 +164,14 @@ TEST(TrustTokenKeyCommitments, KeysFromCommandLine) {
       *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example"))));
 
   commitments.ParseAndSet(
-      R"( { "https://issuer.example": { "TrustTokenV3PMB": {
-      "protocol_version": "TrustTokenV3PMB", "id": 1, "batchsize": 10 } }} )");
+      R"( { "https://issuer.example": { "protocol_version": "TrustTokenV2PMB", "id": 1, "batchsize": 10 } } )");
 
   auto result = GetCommitmentForOrigin(
       commitments,
       *SuitableTrustTokenOrigin::Create(GURL("https://issuer.example")));
   ASSERT_TRUE(result);
   EXPECT_EQ(result->protocol_version,
-            mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb);
+            mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb);
   EXPECT_EQ(result->id, 1);
   EXPECT_EQ(result->batch_size, 5);
 }
@@ -190,19 +186,21 @@ TEST(TrustTokenKeyCommitments, FiltersKeys) {
       *SuitableTrustTokenOrigin::Create(GURL("https://an-origin.example"));
   auto commitment_result = mojom::TrustTokenKeyCommitmentResult::New();
   auto expired_key = mojom::TrustTokenVerificationKey::New();
-  expired_key->expiry = base::Time::Now() - base::Minutes(1);
+  expired_key->expiry = base::Time::Now() - base::TimeDelta::FromMinutes(1);
   commitment_result->keys.push_back(std::move(expired_key));
 
   size_t max_keys = TrustTokenMaxKeysForVersion(
-      mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb);
+      mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb);
   for (size_t i = 0; i < max_keys; ++i) {
     auto not_expired_key = mojom::TrustTokenVerificationKey::New();
-    not_expired_key->expiry = base::Time::Now() + base::Minutes(1);
+    not_expired_key->expiry =
+        base::Time::Now() + base::TimeDelta::FromMinutes(1);
     commitment_result->keys.push_back(std::move(not_expired_key));
   }
 
   auto late_to_expire_key = mojom::TrustTokenVerificationKey::New();
-  late_to_expire_key->expiry = base::Time::Now() + base::Minutes(2);
+  late_to_expire_key->expiry =
+      base::Time::Now() + base::TimeDelta::FromMinutes(2);
 
   // We expect to get rid of the expired key and the farthest-in-the-future key
   // (since there are more than |max_keys| many keys yet to expire).
@@ -212,10 +210,12 @@ TEST(TrustTokenKeyCommitments, FiltersKeys) {
 
   auto result = GetCommitmentForOrigin(commitments, origin);
   EXPECT_EQ(result->keys.size(), max_keys);
-  EXPECT_TRUE(base::ranges::all_of(
-      result->keys, [](const mojom::TrustTokenVerificationKeyPtr& key) {
-        return key->expiry == base::Time::Now() + base::Minutes(1);
-      }));
+  EXPECT_TRUE(std::all_of(result->keys.begin(), result->keys.end(),
+                          [](const mojom::TrustTokenVerificationKeyPtr& key) {
+                            return key->expiry ==
+                                   base::Time::Now() +
+                                       base::TimeDelta::FromMinutes(1);
+                          }));
 }
 
 TEST(TrustTokenKeyCommitments, GetSync) {
@@ -223,7 +223,7 @@ TEST(TrustTokenKeyCommitments, GetSync) {
 
   auto expectation = mojom::TrustTokenKeyCommitmentResult::New();
   expectation->protocol_version =
-      mojom::TrustTokenProtocolVersion::kTrustTokenV3Pmb;
+      mojom::TrustTokenProtocolVersion::kTrustTokenV2Pmb;
   expectation->id = 1;
   expectation->batch_size = 5;
 

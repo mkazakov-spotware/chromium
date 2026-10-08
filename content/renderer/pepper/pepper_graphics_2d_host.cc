@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,12 @@
 
 #include "base/bind.h"
 #include "base/check.h"
-#include "base/command_line.h"
 #include "base/location.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/numerics/checked_math.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/single_thread_task_runner.h"
+#include "base/stl_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "cc/paint/paint_flags.h"
@@ -22,9 +23,9 @@
 #include "components/viz/common/resources/bitmap_allocation.h"
 #include "components/viz/common/resources/resource_sizes.h"
 #include "components/viz/common/resources/shared_bitmap.h"
-#include "content/public/renderer/ppapi_gfx_conversion.h"
 #include "content/public/renderer/render_thread.h"
 #include "content/public/renderer/renderer_ppapi_host.h"
+#include "content/renderer/pepper/gfx_conversion.h"
 #include "content/renderer/pepper/pepper_plugin_instance_impl.h"
 #include "content/renderer/pepper/ppb_image_data_impl.h"
 #include "content/renderer/render_thread_impl.h"
@@ -56,10 +57,10 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/size_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/scoped_ns_graphics_context_save_gstate_mac.h"
+#include "ui/gfx/skia_util.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include "base/mac/scoped_cftyperef.h"
 #endif
 
@@ -306,10 +307,8 @@ bool PepperGraphics2DHost::ReadImageData(PP_Resource image,
     // We want to replace the contents of the bitmap rather than blend.
     SkPaint paint;
     paint.setBlendMode(SkBlendMode::kSrc);
-    dest_canvas->drawImageRect(image_data_->GetMappedBitmap().asImage(),
-                               SkRect::Make(src_irect), dest_rect,
-                               SkSamplingOptions(), &paint,
-                               SkCanvas::kStrict_SrcRectConstraint);
+    dest_canvas->drawBitmapRect(
+        image_data_->GetMappedBitmap(), src_irect, dest_rect, &paint);
   }
   return true;
 }
@@ -397,8 +396,7 @@ void PepperGraphics2DHost::Paint(cc::PaintCanvas* canvas,
   // TODO(khushalsagar): Can this be cached on image_data_, and invalidated when
   // the bitmap changes?
   canvas->drawImage(cc::PaintImage::CreateFromBitmap(std::move(backing_bitmap)),
-                    pixel_origin.x(), pixel_origin.y(), SkSamplingOptions(),
-                    &flags);
+                    pixel_origin.x(), pixel_origin.y(), &flags);
 }
 
 void PepperGraphics2DHost::ViewInitiatedPaint() {
@@ -608,7 +606,7 @@ void PepperGraphics2DHost::ReleaseTextureCallback(
 bool PepperGraphics2DHost::PrepareTransferableResource(
     cc::SharedBitmapIdRegistrar* bitmap_registrar,
     viz::TransferableResource* transferable_resource,
-    viz::ReleaseCallback* release_callback) {
+    std::unique_ptr<viz::SingleReleaseCallback>* release_callback) {
   // Reuse the |main_thread_context_| if it is not lost. If it is lost, we can't
   // reuse the shared images, they are invalid. If the compositing mode changed,
   // the context will be lost also, so we get both together.
@@ -683,7 +681,7 @@ bool PepperGraphics2DHost::PrepareTransferableResource(
     }
     if (gpu_mailbox.IsZero()) {
       uint32_t usage =
-          gpu::SHARED_IMAGE_USAGE_GLES2 | gpu::SHARED_IMAGE_USAGE_DISPLAY_READ;
+          gpu::SHARED_IMAGE_USAGE_GLES2 | gpu::SHARED_IMAGE_USAGE_DISPLAY;
       if (overlays_supported)
         usage |= gpu::SHARED_IMAGE_USAGE_SCANOUT;
       gpu_mailbox = sii->CreateSharedImage(
@@ -719,12 +717,13 @@ bool PepperGraphics2DHost::PrepareTransferableResource(
     image_data_->Unmap();
     swizzled.reset();
 
-    *release_callback =
+    *release_callback = viz::SingleReleaseCallback::Create(
         base::BindOnce(&ReleaseTextureCallback, this->AsWeakPtr(),
-                       main_thread_context_, size, gpu_mailbox);
-    *transferable_resource = viz::TransferableResource::MakeGpu(
+                       main_thread_context_, size, gpu_mailbox));
+    *transferable_resource = viz::TransferableResource::MakeGL(
         std::move(gpu_mailbox), GL_LINEAR, texture_target,
-        std::move(out_sync_token), size, format, overlays_supported);
+        std::move(out_sync_token), size, overlays_supported);
+    transferable_resource->format = format;
     composited_output_modified_ = false;
     return true;
   }
@@ -758,9 +757,9 @@ bool PepperGraphics2DHost::PrepareTransferableResource(
 
   *transferable_resource = viz::TransferableResource::MakeSoftware(
       shared_bitmap->id(), pixel_image_size, viz::RGBA_8888);
-  *release_callback = base::BindOnce(
+  *release_callback = viz::SingleReleaseCallback::Create(base::BindOnce(
       &PepperGraphics2DHost::ReleaseSoftwareCallback, this->AsWeakPtr(),
-      std::move(shared_bitmap), std::move(registration));
+      std::move(shared_bitmap), std::move(registration)));
   composited_output_modified_ = false;
   return true;
 }
@@ -900,9 +899,8 @@ void PepperGraphics2DHost::ExecutePaintImageData(PPB_ImageData_Impl* image,
     // We want to replace the contents of the bitmap rather than blend.
     SkPaint paint;
     paint.setBlendMode(SkBlendMode::kSrc);
-    backing_canvas->drawImageRect(
-        image->GetMappedBitmap().asImage(), SkRect::Make(src_irect), dest_rect,
-        SkSamplingOptions(), &paint, SkCanvas::kStrict_SrcRectConstraint);
+    backing_canvas->drawBitmapRect(
+        image->GetMappedBitmap(), src_irect, dest_rect, &paint);
   }
 }
 
@@ -956,10 +954,10 @@ void PepperGraphics2DHost::SendOffscreenFlushAck() {
 
 void PepperGraphics2DHost::ScheduleOffscreenFlushAck() {
   offscreen_flush_pending_ = true;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&PepperGraphics2DHost::SendOffscreenFlushAck, AsWeakPtr()),
-      base::Milliseconds(kOffscreenCallbackDelayMs));
+      base::TimeDelta::FromMilliseconds(kOffscreenCallbackDelayMs));
 }
 
 bool PepperGraphics2DHost::HasPendingFlush() const {

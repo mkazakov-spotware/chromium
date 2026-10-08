@@ -1,14 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_AUTOFILL_PAYMENTS_WEBAUTHN_DIALOG_VIEW_IMPL_H_
 #define CHROME_BROWSER_UI_VIEWS_AUTOFILL_PAYMENTS_WEBAUTHN_DIALOG_VIEW_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_model_observer.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_view.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/window/dialog_delegate.h"
 
 class AuthenticatorRequestSheetView;
@@ -22,11 +21,8 @@ class WebauthnDialogViewImpl : public WebauthnDialogView,
                                public WebauthnDialogModelObserver,
                                public views::DialogDelegateView {
  public:
-  METADATA_HEADER(WebauthnDialogViewImpl);
   WebauthnDialogViewImpl(WebauthnDialogController* controller,
                          WebauthnDialogState dialog_state);
-  WebauthnDialogViewImpl(const WebauthnDialogViewImpl&) = delete;
-  WebauthnDialogViewImpl& operator=(const WebauthnDialogViewImpl&) = delete;
   ~WebauthnDialogViewImpl() override;
 
   // WebauthnDialogView:
@@ -36,10 +32,14 @@ class WebauthnDialogViewImpl : public WebauthnDialogView,
   void OnDialogStateChanged() override;
 
   // views::DialogDelegateView:
+  gfx::Size CalculatePreferredSize() const override;
   bool Accept() override;
   bool Cancel() override;
   bool IsDialogButtonEnabled(ui::DialogButton button) const override;
-  std::u16string GetWindowTitle() const override;
+  ui::ModalType GetModalType() const override;
+  base::string16 GetWindowTitle() const override;
+  bool ShouldShowWindowTitle() const override;
+  bool ShouldShowCloseButton() const override;
 
  private:
   // Closes the dialog.
@@ -48,13 +48,15 @@ class WebauthnDialogViewImpl : public WebauthnDialogView,
   // Re-inits dialog content and resizes.
   void RefreshContent();
 
-  raw_ptr<WebauthnDialogController> controller_ = nullptr;
+  WebauthnDialogController* controller_ = nullptr;
 
-  raw_ptr<AuthenticatorRequestSheetView> sheet_view_ = nullptr;
+  AuthenticatorRequestSheetView* sheet_view_ = nullptr;
 
   // Dialog model owned by |sheet_view_|. Since this dialog owns the
   // |sheet_view_|, the model_ will always be valid.
-  raw_ptr<WebauthnDialogModel> model_ = nullptr;
+  WebauthnDialogModel* model_ = nullptr;
+
+  DISALLOW_COPY_AND_ASSIGN(WebauthnDialogViewImpl);
 };
 
 }  // namespace autofill

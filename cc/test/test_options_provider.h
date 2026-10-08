@@ -1,20 +1,18 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CC_TEST_TEST_OPTIONS_PROVIDER_H_
 #define CC_TEST_TEST_OPTIONS_PROVIDER_H_
 
-#include <vector>
-
+#include "base/containers/flat_map.h"
 #include "cc/paint/image_provider.h"
 #include "cc/paint/image_transfer_cache_entry.h"
 #include "cc/paint/paint_cache.h"
 #include "cc/paint/paint_op_buffer.h"
-#include "cc/paint/skottie_serialization_history.h"
 #include "cc/test/test_skcanvas.h"
 #include "cc/test/transfer_cache_test_helper.h"
-#include "third_party/skia/include/private/chromium/SkChromeRemoteGlyphCache.h"
+#include "third_party/skia/src/core/SkRemoteGlyphCache.h"
 
 namespace cc {
 
@@ -27,10 +25,15 @@ class TestOptionsProvider : public ImageProvider,
   const PaintOp::SerializeOptions& serialize_options() const {
     return serialize_options_;
   }
+  PaintOp::SerializeOptions& mutable_serialize_options() {
+    return serialize_options_;
+  }
   const PaintOp::DeserializeOptions& deserialize_options() const {
     return deserialize_options_;
   }
-
+  PaintOp::DeserializeOptions& mutable_deserialize_options() {
+    return deserialize_options_;
+  }
   ImageProvider* image_provider() { return this; }
   TransferCacheTestHelper* transfer_cache_helper() { return this; }
 
@@ -39,7 +42,7 @@ class TestOptionsProvider : public ImageProvider,
 
   SkStrikeServer* strike_server() { return &strike_server_; }
   SkStrikeClient* strike_client() { return &strike_client_; }
-  sk_sp<SkColorSpace> color_space();
+  sk_sp<SkColorSpace> color_space() { return color_space_; }
   bool can_use_lcd_text() const { return can_use_lcd_text_; }
   bool context_supports_distance_field_text() const {
     return context_supports_distance_field_text_;
@@ -52,7 +55,6 @@ class TestOptionsProvider : public ImageProvider,
 
   void PushFonts();
   void ClearPaintCache();
-  void ForcePurgeSkottieSerializationHistory();
 
  private:
   class DiscardableManager;
@@ -61,13 +63,13 @@ class TestOptionsProvider : public ImageProvider,
   ImageProvider::ScopedResult GetRasterContent(
       const DrawImage& draw_image) override;
 
+  testing::StrictMock<MockCanvas> canvas_;
   std::vector<DrawImage> decoded_images_;
 
   sk_sp<DiscardableManager> discardable_manager_;
   SkStrikeServer strike_server_;
   SkStrikeClient strike_client_;
   sk_sp<SkColorSpace> color_space_;
-  SkottieSerializationHistory skottie_serialization_history_;
   bool can_use_lcd_text_ = true;
   bool context_supports_distance_field_text_ = true;
   int max_texture_size_ = 1024;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,34 +10,27 @@ namespace blink {
 
 namespace {
 
-class ThreadWithCustomScheduler : public MainThread {
+class ThreadWithCustomScheduler : public Thread {
  public:
-  explicit ThreadWithCustomScheduler(
-      ThreadScheduler* scheduler,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner)
-      : scheduler_(scheduler), task_runner_(std::move(task_runner)) {}
+  explicit ThreadWithCustomScheduler(ThreadScheduler* scheduler)
+      : scheduler_(scheduler) {}
   ~ThreadWithCustomScheduler() override {}
 
   ThreadScheduler* Scheduler() override { return scheduler_; }
 
-  scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunner(
-      MainThreadTaskRunnerRestricted) const override {
-    return task_runner_;
+  scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunner() const override {
+    return scheduler_->DeprecatedDefaultTaskRunner();
   }
 
  private:
   ThreadScheduler* scheduler_;
-  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 };
 
 }  // namespace
 
-ScopedSchedulerOverrider::ScopedSchedulerOverrider(
-    ThreadScheduler* scheduler,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner)
-    : main_thread_overrider_(std::make_unique<ThreadWithCustomScheduler>(
-          scheduler,
-          std::move(task_runner))) {}
+ScopedSchedulerOverrider::ScopedSchedulerOverrider(ThreadScheduler* scheduler)
+    : main_thread_overrider_(
+          std::make_unique<ThreadWithCustomScheduler>(scheduler)) {}
 
 ScopedSchedulerOverrider::~ScopedSchedulerOverrider() {}
 

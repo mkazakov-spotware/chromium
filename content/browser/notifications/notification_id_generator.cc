@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@ namespace {
 const char kNotificationTagSeparator = '#';
 const char kPersistentNotificationPrefix = 'p';
 const char kNonPersistentNotificationPrefix = 'n';
-const char kNotificationShownByBrowserFlag = 'b';
 
 }  // namespace
 
@@ -37,23 +36,17 @@ bool NotificationIdGenerator::IsNonPersistentNotification(
 }
 
 // Notification Id is of the following format:
-// p[b]#<origin>#[1|0][<developer_tag>|persistent_notification_id]
+// p#<origin>#[1|0][<developer_tag>|persistent_notification_id]
 std::string NotificationIdGenerator::GenerateForPersistentNotification(
     const GURL& origin,
     const std::string& tag,
-    bool is_shown_by_browser,
     int64_t persistent_notification_id) const {
   DCHECK(origin.is_valid());
-  DCHECK_EQ(origin, origin.DeprecatedGetOriginAsURL());
+  DCHECK_EQ(origin, origin.GetOrigin());
 
   std::stringstream stream;
 
-  stream << kPersistentNotificationPrefix;
-
-  if (is_shown_by_browser)
-    stream << kNotificationShownByBrowserFlag;
-
-  stream << kNotificationTagSeparator;
+  stream << kPersistentNotificationPrefix << kNotificationTagSeparator;
   stream << origin;
   stream << kNotificationTagSeparator;
 
@@ -67,7 +60,7 @@ std::string NotificationIdGenerator::GenerateForPersistentNotification(
 }
 
 // Notification Id is of the following format:
-// n#<origin>#<token>
+// p#<origin>#<token>
 std::string NotificationIdGenerator::GenerateForNonPersistentNotification(
     const url::Origin& origin,
     const std::string& token) const {

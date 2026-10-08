@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "content/public/renderer/render_thread_observer.h"
 #include "content/web_test/common/web_test.mojom.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
@@ -21,11 +22,6 @@ class WebTestRenderThreadObserver : public RenderThreadObserver,
   static WebTestRenderThreadObserver* GetInstance();
 
   WebTestRenderThreadObserver();
-
-  WebTestRenderThreadObserver(const WebTestRenderThreadObserver&) = delete;
-  WebTestRenderThreadObserver& operator=(const WebTestRenderThreadObserver&) =
-      delete;
-
   ~WebTestRenderThreadObserver() override;
 
   TestRunner* test_runner() const { return test_runner_.get(); }
@@ -40,11 +36,11 @@ class WebTestRenderThreadObserver : public RenderThreadObserver,
   // mojom::WebTestRenderThread implementation.
   void SetupRendererProcessForNonTestWindow() override;
   void ReplicateWebTestRuntimeFlagsChanges(
-      base::Value::Dict changed_layout_test_runtime_flags) override;
+      base::Value changed_layout_test_runtime_flags) override;
   void TestFinishedFromSecondaryRenderer() override;
-  void ResetRendererAfterWebTest() override;
+  void ResetRendererAfterWebTest(base::OnceClosure done_callback) override;
   void ProcessWorkItem(mojom::WorkItemPtr work_item) override;
-  void ReplicateWorkQueueStates(base::Value::Dict work_queue_states) override;
+  void ReplicateWorkQueueStates(base::Value work_queue_states) override;
 
   // Helper to bind this class as the mojom::WebTestRenderThread.
   void OnWebTestRenderThreadAssociatedRequest(
@@ -53,6 +49,8 @@ class WebTestRenderThreadObserver : public RenderThreadObserver,
   std::unique_ptr<TestRunner> test_runner_;
 
   mojo::AssociatedReceiver<mojom::WebTestRenderThread> receiver_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(WebTestRenderThreadObserver);
 };
 
 }  // namespace content

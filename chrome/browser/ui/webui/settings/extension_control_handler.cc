@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,8 +26,9 @@ void ExtensionControlHandler::RegisterMessages() {
 }
 
 void ExtensionControlHandler::HandleDisableExtension(
-    const base::Value::List& args) {
-  const std::string& extension_id = args[0].GetString();
+    const base::ListValue* args) {
+  std::string extension_id;
+  CHECK(args->GetString(0, &extension_id));
   extensions::ExtensionService* extension_service =
       extensions::ExtensionSystem::Get(Profile::FromWebUI(web_ui()))
           ->extension_service();

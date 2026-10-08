@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -188,12 +188,22 @@ message SignInGaiaResponse {
   AuthToken auth_token = 4;
 }
 
-message BatchAckMessagesRequest {
+message PullMessagesRequest {
   RequestHeader header = 1;
-  repeated string message_ids = 4;
 }
 
-message BatchAckMessagesResponse {
+message PullMessagesResponse {
+  ResponseHeader header = 1;
+  repeated InboxMessage messages = 2;
+  bool pulled_all = 3;
+}
+
+message AckMessagesRequest {
+  RequestHeader header = 1;
+  repeated ReceiverMessage messages = 4;
+}
+
+message AckMessagesResponse {
   ResponseHeader header = 1;
 }
 

@@ -1,21 +1,21 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/open_in/open_in_toolbar.h"
 
-#import <cmath>
+#include <cmath>
 
-#import "base/check.h"
-#import "base/notreached.h"
+#include "base/check.h"
+#include "base/notreached.h"
 #import "ios/chrome/browser/ui/util/named_guide.h"
-#import "ios/chrome/browser/ui/util/rtl_geometry.h"
+#include "ios/chrome/browser/ui/util/rtl_geometry.h"
 #import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "ui/base/l10n/l10n_util_mac.h"
+#include "ios/chrome/grit/ios_strings.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -39,9 +39,6 @@ const CGFloat kTopBorderHeight = 0.5f;
 
 // The line used as the border at the top of the toolbar.
 @property(nonatomic, strong, readonly) UIView* topBorder;
-
-// The bottomAnchor constraint of the openButton.
-@property(nonatomic, strong) NSLayoutConstraint* openButtonBottomConstraint;
 
 @end
 
@@ -110,8 +107,9 @@ const CGFloat kTopBorderHeight = 0.5f;
   return topBorder;
 }
 
-// Helper to update constraints.
-- (void)updateToolbarConstraints {
+#pragma mark UIView
+
+- (void)didMoveToSuperview {
   if (!self.superview)
     return;
   NamedGuide* guide = [NamedGuide guideWithName:kSecondaryToolbarGuide
@@ -121,29 +119,14 @@ const CGFloat kTopBorderHeight = 0.5f;
     [self.trailingAnchor constraintEqualToAnchor:self.superview.trailingAnchor],
     [self.bottomAnchor constraintEqualToAnchor:self.superview.bottomAnchor],
   ]];
-
-  self.openButtonBottomConstraint.active = NO;
   if (guide) {
-    self.openButtonBottomConstraint =
-        [self.openButton.bottomAnchor constraintEqualToAnchor:guide.topAnchor];
+    [self.openButton.bottomAnchor constraintEqualToAnchor:guide.topAnchor]
+        .active = YES;
   } else {
-    self.openButtonBottomConstraint = [self.openButton.bottomAnchor
-        constraintEqualToAnchor:self.superview.safeAreaLayoutGuide
-                                    .bottomAnchor];
+    [self.openButton.bottomAnchor
+        constraintEqualToAnchor:self.superview.safeAreaLayoutGuide.bottomAnchor]
+        .active = YES;
   }
-  self.openButtonBottomConstraint.active = YES;
-}
-
-#pragma mark UIView
-
-- (void)didMoveToSuperview {
-  [super didMoveToSuperview];
-  [self updateToolbarConstraints];
-}
-
-- (void)didMoveToWindow {
-  [super didMoveToWindow];
-  [self updateToolbarConstraints];
 }
 
 @end

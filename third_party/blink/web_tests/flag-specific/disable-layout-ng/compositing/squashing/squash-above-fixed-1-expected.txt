@@ -6,7 +6,7 @@ CASE 1, original layer tree:
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 1400],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
@@ -19,12 +19,19 @@ CASE 1, original layer tree:
       "transform": 1
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-a' class='overlapping cyan'",
-      "bounds": [200, 1400],
-      "contentsOpaqueForText": true
+      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-b' class='overlapping lime'",
+      "position": [0, 100],
+      "bounds": [200, 100],
+      "contentsOpaque": true,
+      "backgroundColor": "#00FF00"
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "Squashing Layer (first squashed layer: LayoutBlockFlow (relative positioned) DIV id='paragraph-c' class='overlapping cyan')",
+      "position": [0, 200],
+      "bounds": [200, 1100]
+    },
+    {
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true
@@ -47,7 +54,7 @@ CASE 2, scrolling y to 80, new layers will be squashed, so things repaint:
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 1400],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
@@ -61,13 +68,21 @@ CASE 2, scrolling y to 80, new layers will be squashed, so things repaint:
       "transform": 2
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-a' class='overlapping cyan'",
-      "bounds": [200, 1400],
-      "contentsOpaqueForText": true,
+      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-b' class='overlapping lime'",
+      "position": [0, 100],
+      "bounds": [200, 100],
+      "contentsOpaque": true,
+      "backgroundColor": "#00FF00",
       "transform": 1
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "Squashing Layer (first squashed layer: LayoutBlockFlow (relative positioned) DIV id='paragraph-c' class='overlapping cyan')",
+      "position": [0, 200],
+      "bounds": [200, 1100],
+      "transform": 1
+    },
+    {
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true
@@ -99,7 +114,7 @@ CASE 3, scrolling y to 120, no repaints expected:
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 1400],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
@@ -113,13 +128,21 @@ CASE 3, scrolling y to 120, no repaints expected:
       "transform": 2
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-a' class='overlapping cyan'",
-      "bounds": [200, 1400],
-      "contentsOpaqueForText": true,
+      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-b' class='overlapping lime'",
+      "position": [0, 100],
+      "bounds": [200, 100],
+      "contentsOpaque": true,
+      "backgroundColor": "#00FF00",
       "transform": 1
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "Squashing Layer (first squashed layer: LayoutBlockFlow (relative positioned) DIV id='paragraph-c' class='overlapping cyan')",
+      "position": [0, 200],
+      "bounds": [200, 1100],
+      "transform": 1
+    },
+    {
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true
@@ -151,7 +174,7 @@ CASE 4, scrolling y to 170 new layers will be squashed, so things repaint:
 {
   "layers": [
     {
-      "name": "Scrolling background of LayoutView #document",
+      "name": "Scrolling Contents Layer",
       "bounds": [785, 1400],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
@@ -165,13 +188,21 @@ CASE 4, scrolling y to 170 new layers will be squashed, so things repaint:
       "transform": 2
     },
     {
-      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-a' class='overlapping cyan'",
-      "bounds": [200, 1400],
-      "contentsOpaqueForText": true,
+      "name": "LayoutBlockFlow (relative positioned) DIV id='paragraph-b' class='overlapping lime'",
+      "position": [0, 100],
+      "bounds": [200, 100],
+      "contentsOpaque": true,
+      "backgroundColor": "#00FF00",
       "transform": 1
     },
     {
-      "name": "VerticalScrollbar",
+      "name": "Squashing Layer (first squashed layer: LayoutBlockFlow (relative positioned) DIV id='paragraph-c' class='overlapping cyan')",
+      "position": [0, 200],
+      "bounds": [200, 1100],
+      "transform": 1
+    },
+    {
+      "name": "ContentsLayer for Vertical Scrollbar Layer",
       "position": [785, 0],
       "bounds": [15, 600],
       "contentsOpaque": true

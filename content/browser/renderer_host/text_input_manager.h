@@ -1,21 +1,18 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_BROWSER_RENDERER_HOST_TEXT_INPUT_MANAGER_H__
 #define CONTENT_BROWSER_RENDERER_HOST_TEXT_INPUT_MANAGER_H__
 
-#include <string>
 #include <unordered_map>
 #include <utility>
 
 #include "base/i18n/rtl.h"
-#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
+#include "base/strings/string16.h"
 #include "content/common/content_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/ime/mojom/text_input_state.mojom.h"
-#include "ui/base/ime/text_input_client.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/range/range.h"
 #include "ui/gfx/selection_bound.h"
@@ -71,15 +68,11 @@ class CONTENT_EXPORT TextInputManager {
   struct SelectionRegion {
     SelectionRegion();
     SelectionRegion(const SelectionRegion& other);
-    SelectionRegion& operator=(const SelectionRegion& other);
 
     // The begining of the selection region.
     gfx::SelectionBound anchor;
     // The end of the selection region (caret position).
     gfx::SelectionBound focus;
-
-    // The bounding box of the selection region.
-    gfx::Rect bounding_box;
 
     // The following variables are only used on Mac platform.
     // The current caret bounds.
@@ -109,14 +102,14 @@ class CONTENT_EXPORT TextInputManager {
     TextSelection(const TextSelection& other);
     ~TextSelection();
 
-    void SetSelection(const std::u16string& text,
+    void SetSelection(const base::string16& text,
                       size_t offset,
                       const gfx::Range& range);
 
-    const std::u16string& selected_text() const { return selected_text_; }
+    const base::string16& selected_text() const { return selected_text_; }
     size_t offset() const { return offset_; }
     const gfx::Range& range() const { return range_; }
-    const std::u16string& text() const { return text_; }
+    const base::string16& text() const { return text_; }
 
    private:
     // The offset of the text stored in |text| relative to the start of the web
@@ -130,18 +123,14 @@ class CONTENT_EXPORT TextInputManager {
     // and |range_|. It will be an empty string if either |text_| or |range_|
     // are empty of this selection information is invalid (i.e., |range_| does
     // not cover any of |text_|.
-    std::u16string selected_text_;
+    base::string16 selected_text_;
 
     // Part of the text on the page which includes the highlighted text plus
     // possibly several characters before and after it.
-    std::u16string text_;
+    base::string16 text_;
   };
 
   explicit TextInputManager(bool should_do_learning);
-
-  TextInputManager(const TextInputManager&) = delete;
-  TextInputManager& operator=(const TextInputManager&) = delete;
-
   ~TextInputManager();
 
   // Returns the currently active widget, i.e., the RWH which is associated with
@@ -160,15 +149,6 @@ class CONTENT_EXPORT TextInputManager {
   // ui::TEXT_INPUT_TYPE_NONE.
   const ui::mojom::TextInputState* GetTextInputState() const;
 
-  // Returns the current autocorrect range, or an empty range if no autocorrect
-  // range is currently present.
-  gfx::Range GetAutocorrectRange() const;
-
-  // Returns the grammar fragment which contains |range|. If non-existent,
-  // returns nullopt.
-  absl::optional<ui::GrammarFragment> GetGrammarFragment(
-      gfx::Range range) const;
-
   // Returns the selection bounds information for |view|. If |view| == nullptr,
   // it will return the corresponding information for |active_view_| or nullptr
   // if there are no active views.
@@ -184,12 +164,6 @@ class CONTENT_EXPORT TextInputManager {
   // In the case of |active_view_| == nullptr, the method will return nullptr.
   const TextSelection* GetTextSelection(
       RenderWidgetHostViewBase* view = nullptr) const;
-
-  // Returns the bounds of the text control in the root frame.
-  const absl::optional<gfx::Rect> GetTextControlBounds() const;
-
-  // Returns the bounds of the selected text in the root frame.
-  const absl::optional<gfx::Rect> GetTextSelectionBounds() const;
 
   // ---------------------------------------------------------------------------
   // The following methods are called by RWHVs on the tab to update their IME-
@@ -211,7 +185,6 @@ class CONTENT_EXPORT TextInputManager {
                               base::i18n::TextDirection anchor_dir,
                               const gfx::Rect& focus_rect,
                               base::i18n::TextDirection focus_dir,
-                              const gfx::Rect& bounding_box,
                               bool is_anchor_first);
 
   // Notify observers that the selection bounds have been updated. This is also
@@ -226,7 +199,7 @@ class CONTENT_EXPORT TextInputManager {
 
   // Updates the new text selection information for the |view|.
   void SelectionChanged(RenderWidgetHostViewBase* view,
-                        const std::u16string& text,
+                        const base::string16& text,
                         size_t offset,
                         const gfx::Range& range);
 
@@ -275,7 +248,7 @@ class CONTENT_EXPORT TextInputManager {
   // The view with active text input state, i.e., a focused <input> element.
   // It will be nullptr if no such view exists. Note that the active view
   // cannot have a |TextInputState.type| of ui::TEXT_INPUT_TYPE_NONE.
-  raw_ptr<RenderWidgetHostViewBase> active_view_;
+  RenderWidgetHostViewBase* active_view_;
 
   // The following maps track corresponding IME state for views. For each view,
   // the values in the map are initialized and cleared in Register and
@@ -290,6 +263,8 @@ class CONTENT_EXPORT TextInputManager {
   bool should_do_learning_;
 
   base::ObserverList<Observer>::Unchecked observer_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(TextInputManager);
 };
 }
 

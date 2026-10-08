@@ -1,10 +1,9 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/gcm_driver/gcm_account_mapper.h"
 
-#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -295,7 +294,7 @@ void GCMAccountMapperTest::Restart() {
   if (account_mapper_)
     account_mapper_->ShutdownHandler();
   gcm_driver_.RemoveAppHandler(kGCMAccountMapperAppId);
-  account_mapper_ = std::make_unique<GCMAccountMapper>(&gcm_driver_);
+  account_mapper_.reset(new GCMAccountMapper(&gcm_driver_));
   account_mapper_->SetClockForTesting(&clock_);
 }
 
@@ -831,7 +830,7 @@ TEST_F(GCMAccountMapperTest, TokenIsRefreshedWhenRemoving) {
 // tokens are periodically delierverd.
 TEST_F(GCMAccountMapperTest, MultipleAccountMappings) {
   clock()->SetNow(base::Time::Now());
-  base::Time half_hour_ago = clock()->Now() - base::Minutes(30);
+  base::Time half_hour_ago = clock()->Now() - base::TimeDelta::FromMinutes(30);
   GCMAccountMapper::AccountMappings stored_mappings;
   stored_mappings.push_back(MakeAccountMapping(
       kAccountId, AccountMapping::ADDING, half_hour_ago, "acc_id_msg"));
@@ -871,7 +870,7 @@ TEST_F(GCMAccountMapperTest, MultipleAccountMappings) {
   account_tokens.push_back(MakeAccountTokenInfo(kAccountId));
 
   // Advance a day to make sure existing mappings will be reported.
-  clock()->SetNow(clock()->Now() + base::Days(1));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromDays(1));
   mapper()->SetAccountTokens(account_tokens);
 
   expected_mappings[0].status = AccountMapping::MAPPED;
@@ -883,7 +882,7 @@ TEST_F(GCMAccountMapperTest, MultipleAccountMappings) {
   VerifyMappings(
       expected_mappings, GetAccounts(), "Step 2, One account is being removed");
 
-  clock()->SetNow(clock()->Now() + base::Seconds(5));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromSeconds(5));
   gcm_driver().AcknowledgeSendAllMessages();
 
   expected_mappings[0].status_change_timestamp = clock()->Now();
@@ -898,7 +897,7 @@ TEST_F(GCMAccountMapperTest, MultipleAccountMappings) {
   account_tokens.push_back(MakeAccountTokenInfo(kAccountId4));
 
   // Advance a day to make sure existing mappings will be reported.
-  clock()->SetNow(clock()->Now() + base::Days(1));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromDays(1));
   mapper()->SetAccountTokens(account_tokens);
 
   // Mapping from acc_id_0 still in position 0
@@ -909,7 +908,7 @@ TEST_F(GCMAccountMapperTest, MultipleAccountMappings) {
 
   VerifyMappings(expected_mappings, GetAccounts(), "Step 4, Two new accounts");
 
-  clock()->SetNow(clock()->Now() + base::Seconds(1));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromSeconds(1));
   gcm_driver().CompleteSendAllMessages();
 
   expected_mappings[1].status = AccountMapping::ADDING;
@@ -920,7 +919,7 @@ TEST_F(GCMAccountMapperTest, MultipleAccountMappings) {
   VerifyMappings(
       expected_mappings, GetAccounts(), "Step 5, Two accounts being added");
 
-  clock()->SetNow(clock()->Now() + base::Seconds(5));
+  clock()->SetNow(clock()->Now() + base::TimeDelta::FromSeconds(5));
   gcm_driver().AcknowledgeSendAllMessages();
 
   expected_mappings[0].status_change_timestamp = clock()->Now();

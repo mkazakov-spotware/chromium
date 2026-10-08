@@ -1,22 +1,32 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2015 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 goog.module('goog.net.streams.XhrNodeReadableStreamTest');
 goog.setTestOnly();
 
 const NodeReadableStream = goog.require('goog.net.streams.NodeReadableStream');
 const PropertyReplacer = goog.require('goog.testing.PropertyReplacer');
+const XhrNodeReadableStream = goog.require('goog.net.streams.XhrNodeReadableStream');
+const XhrStreamReader = goog.require('goog.net.streams.XhrStreamReader');
+const asserts = goog.require('goog.testing.asserts');
 const testSuite = goog.require('goog.testing.testSuite');
-const {XhrNodeReadableStream} = goog.require('goog.net.streams.xhrNodeReadableStream');
-const {XhrStreamReaderStatus} = goog.require('goog.net.streams.xhrStreamReader');
 
 let xhrReader;
 let xhrStream;
 
 const EventType = NodeReadableStream.EventType;
+const Status = XhrStreamReader.Status;
 
 let propertyReplacer;
 
@@ -29,45 +39,24 @@ class MockXhrStreamReader {
     // mocked API
 
     this.setStatusHandler = function(handler) {
-      /**
-       * @suppress {checkTypes,missingProperties} suppression added to enable
-       * type checking
-       */
       this.statusHandler_ = handler;
     };
 
     this.setDataHandler = function(handler) {
-      /**
-       * @suppress {checkTypes,missingProperties} suppression added to enable
-       * type checking
-       */
       this.dataHandler_ = handler;
     };
 
-    /**
-     * @suppress {missingProperties} suppression added to enable type checking
-     */
     this.getStatus = function() {
       return this.status_;
     };
 
     // simulated events
 
-    /**
-     * @suppress {missingProperties} suppression added to enable type checking
-     */
     this.onData = function(messages) {
       this.dataHandler_(messages);
     };
 
-    /**
-     * @suppress {missingProperties} suppression added to enable type checking
-     */
     this.onStatus = function(status) {
-      /**
-       * @suppress {checkTypes,missingProperties} suppression added to enable
-       * type checking
-       */
       this.status_ = status;
       this.statusHandler_();
     };
@@ -77,7 +66,6 @@ class MockXhrStreamReader {
 testSuite({
   setUp() {
     xhrReader = new MockXhrStreamReader();
-    /** @suppress {checkTypes} suppression added to enable type checking */
     xhrStream = new XhrNodeReadableStream(xhrReader);
 
     propertyReplacer = new PropertyReplacer();
@@ -268,18 +256,17 @@ testSuite({
   },
 
   testOrderedStatusCallbacks() {
-    checkStatusMapping(XhrStreamReaderStatus.ACTIVE, EventType.READABLE);
+    checkStatusMapping(Status.ACTIVE, EventType.READABLE);
 
-    checkStatusMapping(XhrStreamReaderStatus.BAD_DATA, EventType.ERROR);
-    checkStatusMapping(
-        XhrStreamReaderStatus.HANDLER_EXCEPTION, EventType.ERROR);
-    checkStatusMapping(XhrStreamReaderStatus.NO_DATA, EventType.ERROR);
-    checkStatusMapping(XhrStreamReaderStatus.TIMEOUT, EventType.ERROR);
-    checkStatusMapping(XhrStreamReaderStatus.XHR_ERROR, EventType.ERROR);
+    checkStatusMapping(Status.BAD_DATA, EventType.ERROR);
+    checkStatusMapping(Status.HANDLER_EXCEPTION, EventType.ERROR);
+    checkStatusMapping(Status.NO_DATA, EventType.ERROR);
+    checkStatusMapping(Status.TIMEOUT, EventType.ERROR);
+    checkStatusMapping(Status.XHR_ERROR, EventType.ERROR);
 
-    checkStatusMapping(XhrStreamReaderStatus.CANCELLED, EventType.CLOSE);
+    checkStatusMapping(Status.CANCELLED, EventType.CLOSE);
 
-    checkStatusMapping(XhrStreamReaderStatus.SUCCESS, EventType.END);
+    checkStatusMapping(Status.SUCCESS, EventType.END);
 
     function checkStatusMapping(status, event) {
       let delivered = 0;
@@ -317,7 +304,7 @@ testSuite({
   },
 
   testOrderedStatusMultipleCallbacks() {
-    checkStatusMapping(XhrStreamReaderStatus.ACTIVE, EventType.READABLE);
+    checkStatusMapping(Status.ACTIVE, EventType.READABLE);
 
     function checkStatusMapping(status, event) {
       let delivered = 0;

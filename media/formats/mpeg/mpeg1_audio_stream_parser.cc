@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,28 @@ namespace media {
 namespace {
 
 constexpr uint32_t kMPEG1StartCodeMask = 0xffe00000;
+
+// Map that determines which bitrate_index & channel_mode combinations
+// are allowed.
+// Derived from: http://mpgedit.org/mpgedit/mpeg_format/MP3Format.html
+constexpr bool kIsAllowed[17][4] = {
+    {true, true, true, true},     // free
+    {true, false, false, false},  // 32
+    {true, false, false, false},  // 48
+    {true, false, false, false},  // 56
+    {true, true, true, true},     // 64
+    {true, false, false, false},  // 80
+    {true, true, true, true},     // 96
+    {true, true, true, true},     // 112
+    {true, true, true, true},     // 128
+    {true, true, true, true},     // 160
+    {true, true, true, true},     // 192
+    {false, true, true, true},    // 224
+    {false, true, true, true},    // 256
+    {false, true, true, true},    // 320
+    {false, true, true, true},    // 384
+    {false, false, false, false}  // bad
+};
 
 // Maps version and layer information in the frame header
 // into an index for the |kBitrateMap|.
@@ -103,8 +125,15 @@ bool MPEG1AudioStreamParser::ParseHeader(MediaLog* media_log,
     return false;
   }
 
-  // Note: For MPEG2 we don't check if a given bitrate or channel layout is
-  // allowed per spec since all tested decoders don't seem to care.
+  if (layer == kLayer2 && !kIsAllowed[bitrate_index][channel_mode]) {
+    if (media_log) {
+      LIMITED_MEDIA_LOG(DEBUG, media_log, *media_log_limit, 5)
+          << "Invalid MP3 (bitrate_index, channel_mode)"
+          << " combination :" << std::hex << " bitrate_index " << bitrate_index
+          << " channel_mode " << channel_mode;
+    }
+    return false;
+  }
 
   int bitrate = kBitrateMap[bitrate_index][kVersionLayerMap[version][layer]];
 
@@ -187,9 +216,7 @@ bool MPEG1AudioStreamParser::ParseHeader(MediaLog* media_log,
 }
 
 MPEG1AudioStreamParser::MPEG1AudioStreamParser()
-    : MPEGAudioStreamParserBase(kMPEG1StartCodeMask,
-                                AudioCodec::kMP3,
-                                kCodecDelay) {}
+    : MPEGAudioStreamParserBase(kMPEG1StartCodeMask, kCodecMP3, kCodecDelay) {}
 
 MPEG1AudioStreamParser::~MPEG1AudioStreamParser() = default;
 

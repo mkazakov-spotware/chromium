@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,7 +85,7 @@ const AXPosition AXPosition::CreateFirstPositionInObject(
   if (container.IsDetached())
     return {};
 
-  if (container.IsTextObject() || container.IsAtomicTextField()) {
+  if (container.IsTextObject() || container.IsNativeTextControl()) {
     AXPosition position(container);
     position.text_offset_or_child_index_ = 0;
 #if DCHECK_IS_ON()
@@ -120,7 +120,7 @@ const AXPosition AXPosition::CreateLastPositionInObject(
   if (container.IsDetached())
     return {};
 
-  if (container.IsTextObject() || container.IsAtomicTextField()) {
+  if (container.IsTextObject() || container.IsNativeTextControl()) {
     AXPosition position(container);
     position.text_offset_or_child_index_ = position.MaxTextOffset();
 #if DCHECK_IS_ON()
@@ -156,7 +156,7 @@ const AXPosition AXPosition::CreatePositionInTextObject(
     const TextAffinity affinity,
     const AXPositionAdjustmentBehavior adjustment_behavior) {
   if (container.IsDetached() ||
-      !(container.IsTextObject() || container.IsTextField())) {
+      !(container.IsTextObject() || container.IsTextControl())) {
     return {};
   }
 
@@ -266,10 +266,9 @@ const AXPosition AXPosition::FromPosition(
     // same formatting context.
     int container_offset = container->TextOffsetInFormattingContext(0);
     int text_offset =
-        static_cast<int>(
-            container_offset_mapping
+        int{container_offset_mapping
                 ->GetTextContentOffset(parent_anchored_position)
-                .value_or(static_cast<unsigned int>(container_offset))) -
+                .value_or(static_cast<unsigned int>(container_offset))} -
         container_offset;
     DCHECK_GE(text_offset, 0);
     ax_position.text_offset_or_child_index_ = text_offset;
@@ -393,9 +392,6 @@ AXPosition::AXPosition(const AXObject& container)
 const AXObject* AXPosition::ChildAfterTreePosition() const {
   if (!IsValid() || IsTextPosition())
     return nullptr;
-  if (ChildIndex() == container_object_->ChildCountIncludingIgnored())
-    return nullptr;
-  DCHECK_LT(ChildIndex(), container_object_->ChildCountIncludingIgnored());
   return container_object_->ChildAtIncludingIgnored(ChildIndex());
 }
 
@@ -421,8 +417,8 @@ int AXPosition::MaxTextOffset() const {
 
   // TODO(nektar): Make AXObject::TextLength() public and use throughout this
   // method.
-  if (container_object_->IsAtomicTextField())
-    return container_object_->GetValueForControl().length();
+  if (container_object_->IsNativeTextControl())
+    return container_object_->StringValue().length();
 
   const Node* container_node = container_object_->GetNode();
   if (container_object_->IsAXInlineTextBox() || !container_node) {
@@ -449,7 +445,7 @@ int AXPosition::MaxTextOffset() const {
   // compute offset mappings for empty LayoutText objects. Other text objects
   // (such as some list markers) are not affected.
   if (const LayoutText* layout_text = DynamicTo<LayoutText>(layout_object)) {
-    if (layout_text->GetText().empty())
+    if (layout_text->GetText().IsEmpty())
       return container_object_->ComputedName().length();
   }
 
@@ -464,8 +460,8 @@ int AXPosition::MaxTextOffset() const {
       container_offset_mapping->GetMappingUnitsForNode(*container_node);
   if (mapping_units.empty())
     return container_object_->ComputedName().length();
-  return static_cast<int>(mapping_units.back().TextContentEnd() -
-                          mapping_units.front().TextContentStart());
+  return int{mapping_units.back().TextContentEnd() -
+             mapping_units.front().TextContentStart()};
 }
 
 TextAffinity AXPosition::Affinity() const {
@@ -553,7 +549,7 @@ bool AXPosition::IsTextPosition() const {
   if (!container_object_)
     return false;
   return container_object_->IsTextObject() ||
-         container_object_->IsAtomicTextField();
+         container_object_->IsNativeTextControl();
 }
 
 const AXPosition AXPosition::CreateNextPosition() const {
@@ -615,7 +611,7 @@ const AXPosition AXPosition::CreatePreviousPosition() const {
       const AXObject* last_child =
           container_object_->LastChildIncludingIgnored();
       // Dont skip over any intervening text.
-      if (last_child->IsTextObject() || last_child->IsAtomicTextField()) {
+      if (last_child->IsTextObject() || last_child->IsNativeTextControl()) {
         return CreatePositionAfterObject(
             *last_child, AXPositionAdjustmentBehavior::kMoveLeft);
       }
@@ -637,7 +633,7 @@ const AXPosition AXPosition::CreatePreviousPosition() const {
 
   // Dont skip over any intervening text.
   if (object_before_position->IsTextObject() ||
-      object_before_position->IsAtomicTextField()) {
+      object_before_position->IsNativeTextControl()) {
     return CreatePositionAfterObject(*object_before_position,
                                      AXPositionAdjustmentBehavior::kMoveLeft);
   }

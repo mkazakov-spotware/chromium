@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,9 @@
 #include <windows.h>
 
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/strings/string16.h"
 #include "base/threading/thread_checker.h"
 #include "base/win/atl.h"
 #include "chrome/updater/win/install_progress_observer.h"
@@ -23,14 +22,14 @@ namespace updater {
 namespace ui {
 
 // Used to communicate between InstallStoppedWnd and ProgressWnd.
-inline constexpr unsigned int WM_INSTALL_STOPPED = WM_APP;
+constexpr unsigned int WM_INSTALL_STOPPED = WM_APP;
 
 class ProgressWndEvents : public CompleteWndEvents {
  public:
   // Restarts the running browsers.
   // If |restart_all_browsers| is true, all known browsers will be restarted.
   virtual bool DoRestartBrowser(bool restart_all_browsers,
-                                const std::vector<std::u16string>& urls) = 0;
+                                const std::vector<base::string16>& urls) = 0;
 
   // Initiates a reboot and returns whether it was initiated successfully.
   virtual bool DoReboot() = 0;
@@ -88,7 +87,7 @@ class InstallStoppedWnd : public CAxDialogImpl<InstallStoppedWnd>,
 
   THREAD_CHECKER(thread_checker_);
 
-  raw_ptr<WTL::CMessageLoop> message_loop_ = nullptr;
+  WTL::CMessageLoop* message_loop_ = nullptr;
   HWND parent_ = nullptr;
 
   WTL::CFont default_font_;
@@ -117,23 +116,23 @@ class ProgressWnd : public CompleteWnd, public InstallProgressObserver {
   // Overrides for InstallProgressObserver.
   // These functions are called on the thread which owns this window.
   void OnCheckingForUpdate() override;
-  void OnUpdateAvailable(const std::u16string& app_id,
-                         const std::u16string& app_name,
-                         const std::u16string& version_string) override;
-  void OnWaitingToDownload(const std::u16string& app_id,
-                           const std::u16string& app_name) override;
-  void OnDownloading(const std::u16string& app_id,
-                     const std::u16string& app_name,
+  void OnUpdateAvailable(const base::string16& app_id,
+                         const base::string16& app_name,
+                         const base::string16& version_string) override;
+  void OnWaitingToDownload(const base::string16& app_id,
+                           const base::string16& app_name) override;
+  void OnDownloading(const base::string16& app_id,
+                     const base::string16& app_name,
                      int time_remaining_ms,
                      int pos) override;
-  void OnWaitingRetryDownload(const std::u16string& app_id,
-                              const std::u16string& app_name,
+  void OnWaitingRetryDownload(const base::string16& app_id,
+                              const base::string16& app_name,
                               const base::Time& next_retry_time) override;
-  void OnWaitingToInstall(const std::u16string& app_id,
-                          const std::u16string& app_name,
+  void OnWaitingToInstall(const base::string16& app_id,
+                          const base::string16& app_name,
                           bool* can_start_install) override;
-  void OnInstalling(const std::u16string& app_id,
-                    const std::u16string& app_name,
+  void OnInstalling(const base::string16& app_id,
+                    const base::string16& app_name,
                     int time_remaining_ms,
                     int pos) override;
   void OnPause() override;
@@ -170,8 +169,6 @@ class ProgressWnd : public CompleteWnd, public InstallProgressObserver {
   void DeterminePostInstallUrls(const ObserverCompletionInfo& info);
   CompletionCodes GetBundleOverallCompletionCode(
       const ObserverCompletionInfo& info) const;
-  std::wstring GetBundleCompletionErrorMessages(
-      const ObserverCompletionInfo& info) const;
 
   enum class States {
     STATE_INIT = 0,
@@ -195,8 +192,8 @@ class ProgressWnd : public CompleteWnd, public InstallProgressObserver {
 
   std::unique_ptr<InstallStoppedWnd> install_stopped_wnd_;
 
-  raw_ptr<ProgressWndEvents> events_sink_ = nullptr;
-  std::vector<std::u16string> post_install_urls_;
+  ProgressWndEvents* events_sink_ = nullptr;
+  std::vector<base::string16> post_install_urls_;
   bool is_canceled_ = false;
 
   struct ControlState {

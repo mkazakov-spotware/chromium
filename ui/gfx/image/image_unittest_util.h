@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,9 @@
 namespace gfx {
 namespace test {
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 typedef UIImage* PlatformImage;
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_APPLE)
 typedef NSImage* PlatformImage;
 #else
 typedef gfx::ImageSkia PlatformImage;

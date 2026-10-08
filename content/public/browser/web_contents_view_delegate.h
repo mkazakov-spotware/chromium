@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 
 #include "base/callback_forward.h"
 #include "content/common/content_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/gfx/native_widget_types.h"
 
 #if defined(__OBJC__)
@@ -29,11 +28,18 @@ struct DropData;
 // WebContentsView implementation.
 class CONTENT_EXPORT WebContentsViewDelegate {
  public:
+  enum class DropCompletionResult {
+    // The drag and drop operation can continue normally.
+    kContinue,
+
+    // The drag and drop should be aborted.  For example, the data in the
+    // drop does not comply with enterprise policies.
+    kAbort,
+  };
+
   // Callback used with OnPerformDrop() method that is called once
-  // OnPerformDrop() completes. Returns an updated DropData or nothing if the
-  // drop operation should be aborted.
-  using DropCompletionCallback =
-      base::OnceCallback<void(absl::optional<DropData>)>;
+  // OnPerformDrop() completes.
+  using DropCompletionCallback = base::OnceCallback<void(DropCompletionResult)>;
 
   virtual ~WebContentsViewDelegate();
 
@@ -45,20 +51,8 @@ class CONTENT_EXPORT WebContentsViewDelegate {
   virtual WebDragDestDelegate* GetDragDestDelegate();
 
   // Shows a context menu.
-  //
-  // The `render_frame_host` represents the frame that requests the context menu
-  // (typically this frame is focused, but this is not necessarily the case -
-  // see https://crbug.com/1257907#c14).
-  virtual void ShowContextMenu(RenderFrameHost& render_frame_host,
+  virtual void ShowContextMenu(RenderFrameHost* render_frame_host,
                                const ContextMenuParams& params);
-
-  // Dismiss the context menu if one exists.
-  virtual void DismissContextMenu();
-
-  // Tests can use ExecuteCommandForTesting to simulate executing a context menu
-  // item (after first opening the context menu using the ShowContextMenu
-  // method).
-  virtual void ExecuteCommandForTesting(int command_id, int event_flags);
 
   // Store the current focused view and start tracking it.
   virtual void StoreFocus();

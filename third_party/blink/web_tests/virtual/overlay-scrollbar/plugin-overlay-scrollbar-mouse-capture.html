@@ -1,6 +1,5 @@
 <head>
     <script src="../../resources/js-test.js"></script>
-    <script src="../../resources/gesture-util.js"></script>
     <style>
         body {
             /* Hide the horizontal-scrollbar so that clicking right at the
@@ -75,6 +74,6 @@
         var d = document.getElementById('container');
         d.appendChild(plugin);
 
-        waitForCompositorCommit().then(runTest);
+        runTest();
     }
 </script>

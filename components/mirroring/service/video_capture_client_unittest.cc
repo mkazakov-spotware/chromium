@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 
 #include "base/bind.h"
 #include "base/memory/read_only_shared_memory_region.h"
-#include "base/memory/unsafe_shared_memory_region.h"
 #include "base/run_loop.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "components/mirroring/service/fake_video_capture_host.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_frame_metadata.h"
-#include "media/capture/mojom/video_capture_buffer.mojom.h"
 #include "media/capture/mojom/video_capture_types.mojom.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -26,9 +24,7 @@ namespace mirroring {
 
 namespace {
 
-const media::VideoCaptureFeedback kFeedback(0.6, 30.0, 1000);
-
-constexpr bool kNotPremapped = false;
+const media::VideoFrameFeedback kFeedback(0.6, 30.0, 1000);
 
 media::mojom::VideoFrameInfoPtr GetVideoFrameInfo(const gfx::Size& size) {
   media::VideoFrameMetadata metadata;
@@ -36,7 +32,7 @@ media::mojom::VideoFrameInfoPtr GetVideoFrameInfo(const gfx::Size& size) {
   metadata.reference_time = base::TimeTicks();
   return media::mojom::VideoFrameInfo::New(
       base::TimeDelta(), metadata, media::PIXEL_FORMAT_I420, size,
-      gfx::Rect(size), kNotPremapped, gfx::ColorSpace::CreateREC709(), nullptr);
+      gfx::Rect(size), gfx::ColorSpace::CreateREC709(), nullptr);
 }
 
 }  // namespace
@@ -51,9 +47,6 @@ class VideoCaptureClientTest : public ::testing::Test,
     client_ = std::make_unique<VideoCaptureClient>(media::VideoCaptureParams(),
                                                    std::move(host));
   }
-
-  VideoCaptureClientTest(const VideoCaptureClientTest&) = delete;
-  VideoCaptureClientTest& operator=(const VideoCaptureClientTest&) = delete;
 
   ~VideoCaptureClientTest() override {
     if (client_) {
@@ -91,8 +84,8 @@ class VideoCaptureClientTest : public ::testing::Test,
     const bool use_shared_buffer = GetParam();
     if (use_shared_buffer) {
       client_->OnNewBuffer(
-          buffer_id, media::mojom::VideoBufferHandle::NewUnsafeShmemRegion(
-                         base::UnsafeSharedMemoryRegion::Create(buffer_size)));
+          buffer_id, media::mojom::VideoBufferHandle::NewSharedBufferHandle(
+                         mojo::SharedBufferHandle::Create(buffer_size)));
     } else {
       client_->OnNewBuffer(
           buffer_id,
@@ -110,9 +103,7 @@ class VideoCaptureClientTest : public ::testing::Test,
     // Expects to return the buffer after the frame is consumed.
     EXPECT_CALL(*host_impl_, ReleaseBuffer(_, 0, kFeedback))
         .WillOnce(InvokeWithoutArgs(&run_loop, &base::RunLoop::Quit));
-    client_->OnBufferReady(media::mojom::ReadyBuffer::New(
-                               buffer_id, GetVideoFrameInfo(frame_size)),
-                           {});
+    client_->OnBufferReady(buffer_id, GetVideoFrameInfo(frame_size));
     run_loop.Run();
     task_environment_.RunUntilIdle();
   }
@@ -122,6 +113,8 @@ class VideoCaptureClientTest : public ::testing::Test,
   base::MockCallback<base::OnceClosure> error_cb_;
   std::unique_ptr<FakeVideoCaptureHost> host_impl_;
   std::unique_ptr<VideoCaptureClient> client_;
+
+  DISALLOW_COPY_AND_ASSIGN(VideoCaptureClientTest);
 };
 
 TEST_P(VideoCaptureClientTest, Basic) {

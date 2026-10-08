@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,10 +13,9 @@
 #include "base/strings/string_number_conversions.h"
 #include "crypto/nss_util_internal.h"
 #include "crypto/scoped_test_nss_db.h"
-#include "net/cert/known_roots_nss.h"
-#include "net/cert/pki/cert_issuer_source_sync_unittest.h"
-#include "net/cert/pki/parsed_certificate.h"
-#include "net/cert/pki/test_helpers.h"
+#include "net/cert/internal/cert_issuer_source_sync_unittest.h"
+#include "net/cert/internal/parsed_certificate.h"
+#include "net/cert/internal/test_helpers.h"
 #include "net/cert/scoped_nss_types.h"
 #include "net/cert/test_root_certs.h"
 #include "net/cert/x509_util.h"
@@ -28,34 +27,17 @@ namespace net {
 
 namespace {
 
-// Returns true if the provided slot looks like a built-in root.
-bool IsBuiltInRootSlot(PK11SlotInfo* slot) {
-  if (!PK11_IsPresent(slot) || !PK11_HasRootCerts(slot))
-    return false;
-  CERTCertList* cert_list = PK11_ListCertsInSlot(slot);
-  if (!cert_list)
-    return false;
-  bool built_in_cert_found = false;
-  for (CERTCertListNode* node = CERT_LIST_HEAD(cert_list);
-       !CERT_LIST_END(node, cert_list); node = CERT_LIST_NEXT(node)) {
-    if (IsKnownRoot(node->cert)) {
-      built_in_cert_found = true;
-      break;
-    }
-  }
-  CERT_DestroyCertList(cert_list);
-  return built_in_cert_found;
-}
-
 // Returns the slot which holds the built-in root certificates.
-crypto::ScopedPK11Slot GetBuiltInRootCertsSlot() {
+crypto::ScopedPK11Slot GetRootCertsSlot() {
   crypto::AutoSECMODListReadLock auto_lock;
   SECMODModuleList* head = SECMOD_GetDefaultModuleList();
-  for (SECMODModuleList* item = head; item != nullptr; item = item->next) {
+  for (SECMODModuleList* item = head; item != NULL; item = item->next) {
     int slot_count = item->module->loaded ? item->module->slotCount : 0;
     for (int i = 0; i < slot_count; i++) {
       PK11SlotInfo* slot = item->module->slots[i];
-      if (IsBuiltInRootSlot(slot))
+      if (!PK11_IsPresent(slot))
+        continue;
+      if (PK11_HasRootCerts(slot))
         return crypto::ScopedPK11Slot(PK11_ReferenceSlot(slot));
     }
   }
@@ -66,7 +48,7 @@ crypto::ScopedPK11Slot GetBuiltInRootCertsSlot() {
 // it is not specified which one is returned. If none are available, returns
 // nullptr.
 scoped_refptr<ParsedCertificate> GetASSLTrustedBuiltinRoot() {
-  crypto::ScopedPK11Slot root_certs_slot = GetBuiltInRootCertsSlot();
+  crypto::ScopedPK11Slot root_certs_slot = GetRootCertsSlot();
   if (!root_certs_slot)
     return nullptr;
 
@@ -254,8 +236,8 @@ class TrustStoreNSSTestBase : public ::testing::Test {
                 CertificateTrustType expected_trust) {
     bool success = true;
     for (const scoped_refptr<ParsedCertificate>& cert : certs) {
-      CertificateTrust trust =
-          trust_store_nss_->GetTrust(cert.get(), /*debug_data=*/nullptr);
+      CertificateTrust trust;
+      trust_store_nss_->GetTrust(cert.get(), &trust, /*debug_data=*/nullptr);
       if (trust.type != expected_trust) {
         EXPECT_EQ(expected_trust, trust.type) << GetCertString(cert);
         success = false;
@@ -298,16 +280,13 @@ class TrustStoreNSSTestWithSlotFilterType
   std::unique_ptr<TrustStoreNSS> CreateTrustStoreNSS() override {
     switch (GetParam()) {
       case SlotFilterType::kDontFilter:
-        return std::make_unique<TrustStoreNSS>(
-            trustSSL, TrustStoreNSS::kUseSystemTrust,
-            TrustStoreNSS::UseTrustFromAllUserSlots());
+        return std::make_unique<TrustStoreNSS>(trustSSL);
       case SlotFilterType::kDoNotAllowUserSlots:
         return std::make_unique<TrustStoreNSS>(
-            trustSSL, TrustStoreNSS::kUseSystemTrust,
-            /*user_slot_trust_setting=*/nullptr);
+            trustSSL, TrustStoreNSS::DisallowTrustForCertsOnUserSlots());
       case SlotFilterType::kAllowSpecifiedUserSlot:
         return std::make_unique<TrustStoreNSS>(
-            trustSSL, TrustStoreNSS::kUseSystemTrust,
+            trustSSL,
             crypto::ScopedPK11Slot(PK11_ReferenceSlot(test_nssdb_.slot())));
     }
   }
@@ -348,37 +327,6 @@ INSTANTIATE_TEST_SUITE_P(
                       SlotFilterType::kDoNotAllowUserSlots,
                       SlotFilterType::kAllowSpecifiedUserSlot));
 
-// Tests a TrustStoreNSS that ignores system root certs.
-class TrustStoreNSSTestIgnoreSystemCerts : public TrustStoreNSSTestBase {
- public:
-  TrustStoreNSSTestIgnoreSystemCerts() = default;
-  ~TrustStoreNSSTestIgnoreSystemCerts() override = default;
-
-  std::unique_ptr<TrustStoreNSS> CreateTrustStoreNSS() override {
-    return std::make_unique<TrustStoreNSS>(
-        trustSSL, TrustStoreNSS::kIgnoreSystemTrust,
-        TrustStoreNSS::UseTrustFromAllUserSlots());
-  }
-};
-
-TEST_F(TrustStoreNSSTestIgnoreSystemCerts, UserRootTrusted) {
-  AddCertsToNSS();
-  TrustCert(newroot_.get());
-  EXPECT_TRUE(HasTrust({newroot_}, CertificateTrustType::TRUSTED_ANCHOR));
-}
-
-TEST_F(TrustStoreNSSTestIgnoreSystemCerts, UserRootDistrusted) {
-  AddCertsToNSS();
-  DistrustCert(newroot_.get());
-  EXPECT_TRUE(HasTrust({newroot_}, CertificateTrustType::DISTRUSTED));
-}
-
-TEST_F(TrustStoreNSSTestIgnoreSystemCerts, SystemRootCertsIgnored) {
-  scoped_refptr<ParsedCertificate> system_root = GetASSLTrustedBuiltinRoot();
-  ASSERT_TRUE(system_root);
-  EXPECT_TRUE(HasTrust({system_root}, CertificateTrustType::UNSPECIFIED));
-}
-
 // Tests a TrustStoreNSS that does not filter which certificates
 class TrustStoreNSSTestWithoutSlotFilter : public TrustStoreNSSTestBase {
  public:
@@ -386,9 +334,7 @@ class TrustStoreNSSTestWithoutSlotFilter : public TrustStoreNSSTestBase {
   ~TrustStoreNSSTestWithoutSlotFilter() override = default;
 
   std::unique_ptr<TrustStoreNSS> CreateTrustStoreNSS() override {
-    return std::make_unique<TrustStoreNSS>(
-        trustSSL, TrustStoreNSS::kUseSystemTrust,
-        TrustStoreNSS::UseTrustFromAllUserSlots());
+    return std::make_unique<TrustStoreNSS>(trustSSL);
   }
 };
 
@@ -500,9 +446,8 @@ class TrustStoreNSSTestDoNotAllowUserSlots : public TrustStoreNSSTestBase {
   ~TrustStoreNSSTestDoNotAllowUserSlots() override = default;
 
   std::unique_ptr<TrustStoreNSS> CreateTrustStoreNSS() override {
-    return std::make_unique<TrustStoreNSS>(trustSSL,
-                                           TrustStoreNSS::kUseSystemTrust,
-                                           /*user_slot_trust_setting=*/nullptr);
+    return std::make_unique<TrustStoreNSS>(
+        trustSSL, TrustStoreNSS::DisallowTrustForCertsOnUserSlots());
   }
 };
 
@@ -523,7 +468,7 @@ class TrustStoreNSSTestAllowSpecifiedUserSlot : public TrustStoreNSSTestBase {
 
   std::unique_ptr<TrustStoreNSS> CreateTrustStoreNSS() override {
     return std::make_unique<TrustStoreNSS>(
-        trustSSL, TrustStoreNSS::kUseSystemTrust,
+        trustSSL,
         crypto::ScopedPK11Slot(PK11_ReferenceSlot(test_nssdb_.slot())));
   }
 };
@@ -551,10 +496,7 @@ TEST_F(TrustStoreNSSTestAllowSpecifiedUserSlot, CertOnOtherUserSlot) {
 
 class TrustStoreNSSTestDelegate {
  public:
-  TrustStoreNSSTestDelegate()
-      : trust_store_nss_(trustSSL,
-                         TrustStoreNSS::kUseSystemTrust,
-                         TrustStoreNSS::UseTrustFromAllUserSlots()) {}
+  TrustStoreNSSTestDelegate() : trust_store_nss_(trustSSL) {}
 
   void AddCert(scoped_refptr<ParsedCertificate> cert) {
     ASSERT_TRUE(test_nssdb_.is_open());

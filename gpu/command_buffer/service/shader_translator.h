@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
 #include "gpu/gpu_gles2_export.h"
@@ -35,17 +36,13 @@ class ShaderTranslatorInterface
  public:
   ShaderTranslatorInterface() = default;
 
-  ShaderTranslatorInterface(const ShaderTranslatorInterface&) = delete;
-  ShaderTranslatorInterface& operator=(const ShaderTranslatorInterface&) =
-      delete;
-
   // Initializes the translator.
   // Must be called once before using the translator object.
   virtual bool Init(sh::GLenum shader_type,
                     ShShaderSpec shader_spec,
                     const ShBuiltInResources* resources,
                     ShShaderOutput shader_output_language,
-                    const ShCompileOptions& driver_bug_workarounds,
+                    ShCompileOptions driver_bug_workarounds,
                     bool gl_shader_interm_output) = 0;
 
   // Translates the given shader source.
@@ -73,6 +70,7 @@ class ShaderTranslatorInterface
 
  private:
   friend class base::RefCounted<ShaderTranslatorInterface>;
+  DISALLOW_COPY_AND_ASSIGN(ShaderTranslatorInterface);
 };
 
 // Implementation of ShaderTranslatorInterface
@@ -81,13 +79,12 @@ class GPU_GLES2_EXPORT ShaderTranslator : public ShaderTranslatorInterface {
   class DestructionObserver {
    public:
     DestructionObserver();
-
-    DestructionObserver(const DestructionObserver&) = delete;
-    DestructionObserver& operator=(const DestructionObserver&) = delete;
-
     virtual ~DestructionObserver();
 
     virtual void OnDestruct(ShaderTranslator* translator) = 0;
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(DestructionObserver);
   };
 
   ShaderTranslator();
@@ -101,7 +98,7 @@ class GPU_GLES2_EXPORT ShaderTranslator : public ShaderTranslatorInterface {
             ShShaderSpec shader_spec,
             const ShBuiltInResources* resources,
             ShShaderOutput shader_output_language,
-            const ShCompileOptions& driver_bug_workarounds,
+            ShCompileOptions driver_bug_workarounds,
             bool gl_shader_interm_output) override;
 
   // Overridden from ShaderTranslatorInterface.
@@ -124,7 +121,7 @@ class GPU_GLES2_EXPORT ShaderTranslator : public ShaderTranslatorInterface {
  private:
   ~ShaderTranslator() override;
 
-  const ShCompileOptions& GetCompileOptions() const;
+  ShCompileOptions GetCompileOptions() const;
 
   ShHandle compiler_;
   ShCompileOptions compile_options_;
@@ -137,3 +134,4 @@ class GPU_GLES2_EXPORT ShaderTranslator : public ShaderTranslatorInterface {
 }  // namespace gpu
 
 #endif  // GPU_COMMAND_BUFFER_SERVICE_SHADER_TRANSLATOR_H_
+

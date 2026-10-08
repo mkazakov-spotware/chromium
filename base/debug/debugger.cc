@@ -1,17 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/debug/debugger.h"
-
-#include "base/clang_profiling_buildflags.h"
 #include "base/logging.h"
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
-
-#if BUILDFLAG(CLANG_PROFILING)
-#include "base/test/clang_profiling.h"
-#endif
 
 namespace base {
 namespace debug {
@@ -19,7 +13,7 @@ namespace debug {
 static bool is_debug_ui_suppressed = false;
 
 bool WaitForDebugger(int wait_seconds, bool silent) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // The pid from which we know which process to attach to are not output by
   // android ddms, so we have to print it out explicitly.
   DLOG(INFO) << "DebugUtil::WaitForDebugger(pid=" << static_cast<int>(getpid())
@@ -31,17 +25,9 @@ bool WaitForDebugger(int wait_seconds, bool silent) {
         BreakDebugger();
       return true;
     }
-    PlatformThread::Sleep(Milliseconds(100));
+    PlatformThread::Sleep(TimeDelta::FromMilliseconds(100));
   }
   return false;
-}
-
-void BreakDebugger() {
-#if BUILDFLAG(CLANG_PROFILING)
-  WriteClangProfilingProfile();
-#endif
-
-  BreakDebuggerAsyncSafe();
 }
 
 void SetSuppressDebugUI(bool suppress) {

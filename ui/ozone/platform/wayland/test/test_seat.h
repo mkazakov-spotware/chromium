@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <wayland-server-protocol.h>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/ozone/platform/wayland/test/global_object.h"
 
 namespace wl {
@@ -27,10 +27,6 @@ class TestTouch;
 class TestSeat : public GlobalObject {
  public:
   TestSeat();
-
-  TestSeat(const TestSeat&) = delete;
-  TestSeat& operator=(const TestSeat&) = delete;
-
   ~TestSeat() override;
 
   void set_pointer(MockPointer* pointer) { pointer_ = pointer; }
@@ -43,9 +39,11 @@ class TestSeat : public GlobalObject {
   TestTouch* touch() const { return touch_; }
 
  private:
-  raw_ptr<MockPointer> pointer_;
-  raw_ptr<TestKeyboard> keyboard_;
-  raw_ptr<TestTouch> touch_;
+  MockPointer* pointer_;
+  TestKeyboard* keyboard_;
+  TestTouch* touch_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestSeat);
 };
 
 }  // namespace wl

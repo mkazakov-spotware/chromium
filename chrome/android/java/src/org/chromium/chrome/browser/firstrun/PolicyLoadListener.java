@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.firstrun;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
@@ -41,13 +40,6 @@ public class PolicyLoadListener implements OneshotSupplier<Boolean> {
      */
     private @Nullable Boolean mHasRestriction;
 
-    @VisibleForTesting
-    public PolicyLoadListener() {
-        mCallbackController = null;
-        mMightHavePoliciesSupplier = null;
-        mPolicyServiceSupplier = null;
-    }
-
     /**
      * Create the instance and start listening to signals from policy service and app restrictions.
      * @param appRestrictionInfo Class that provides whether app restriction is found on device.
@@ -79,7 +71,7 @@ public class PolicyLoadListener implements OneshotSupplier<Boolean> {
 
     @Override
     public Boolean onAvailable(Callback<Boolean> callback) {
-        return mMightHavePoliciesSupplier.onAvailable(mCallbackController.makeCancelable(callback));
+        return mMightHavePoliciesSupplier.onAvailable(callback);
     }
 
     @Override

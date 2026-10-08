@@ -1,15 +1,15 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 (async function() {
   TestRunner.addResult(`Verify that syncing Node.js contents works fine.\n`);
-  await TestRunner.loadLegacyModule('sources'); await TestRunner.loadTestModule('sources_test_runner');
-  await TestRunner.loadTestModule('bindings_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
+  await TestRunner.loadModule('bindings_test_runner');
 
   var testMapping = BindingsTestRunner.initializeTestMapping();
   // Pretend we are running under V8 front-end.
-  SDK.targetManager.mainFrameTarget().markAsNodeJSForTest();
+  SDK.targetManager.mainTarget().markAsNodeJSForTest();
 
   var content = ['', '', 'var express = require("express");', '//TODO'].join('\n');
 
@@ -24,7 +24,7 @@
   await SourcesTestRunner.addScriptUISourceCode('http://127.0.0.1:8000/nodejs.js', nodeContent);
 
   // Add filesystem UISourceCode and mapping.
-  var fs = new BindingsTestRunner.TestFileSystem('/var/www');
+  var fs = new BindingsTestRunner.TestFileSystem('file:///var/www');
   var fsEntry = fs.root.addFile('nodejs.js', fsContent);
   fs.reportCreated(function() {});
 
@@ -41,7 +41,7 @@
   var testSuite = [
     function addNetworkUISourceCodeRevision(next) {
       var newContent = nodeContent.replace('//TODO', 'network();\n//TODO');
-      TestRunner.addSniffer(Persistence.Persistence.prototype, 'contentSyncedForTest', onSynced);
+      TestRunner.addSniffer(Persistence.Persistence.prototype, '_contentSyncedForTest', onSynced);
       const writePromise = TestRunner.addSnifferPromise(BindingsTestRunner.TestFileSystem.Writer.prototype, 'truncate');
       binding.network.addRevision(newContent);
 
@@ -53,7 +53,7 @@
 
     function setNetworkUISourceCodeWorkingCopy(next) {
       var newContent = nodeContent.replace('//TODO', 'workingCopy1();\n//TODO');
-      TestRunner.addSniffer(Persistence.Persistence.prototype, 'contentSyncedForTest', onSynced);
+      TestRunner.addSniffer(Persistence.Persistence.prototype, '_contentSyncedForTest', onSynced);
       binding.network.setWorkingCopy(newContent);
 
       function onSynced() {
@@ -64,7 +64,7 @@
 
     async function changeFileSystemFile(next) {
       var newContent = fsContent.replace('//TODO', 'filesystem();\n//TODO');
-      TestRunner.addSniffer(Persistence.Persistence.prototype, 'contentSyncedForTest', onSynced);
+      TestRunner.addSniffer(Persistence.Persistence.prototype, '_contentSyncedForTest', onSynced);
       fsEntry.setContent(newContent);
 
       function onSynced() {
@@ -75,7 +75,7 @@
 
     function setFileSystemUISourceCodeWorkingCopy(next) {
       var newContent = fsContent.replace('//TODO', 'workingCopy2();\n//TODO');
-      TestRunner.addSniffer(Persistence.Persistence.prototype, 'contentSyncedForTest', onSynced);
+      TestRunner.addSniffer(Persistence.Persistence.prototype, '_contentSyncedForTest', onSynced);
       binding.fileSystem.setWorkingCopy(newContent);
 
       function onSynced() {

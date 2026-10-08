@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 #define CHROME_BROWSER_PERFORMANCE_MANAGER_PERSISTENCE_SITE_DATA_SITE_DATA_CACHE_FACADE_FACTORY_H_
 
 #include "base/auto_reset.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/threading/sequence_bound.h"
-#include "base/types/pass_key.h"
-#include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "base/util/type_safety/pass_key.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;
 
@@ -46,12 +47,8 @@ class SiteDataCacheFacadeTest;
 //   - At shutdown, when the last SiteDataCacheFacade is destroyed, a task is
 //     posted to ensure that the SiteDataCacheFactory is destroyed on its
 //     sequence.
-class SiteDataCacheFacadeFactory : public ProfileKeyedServiceFactory {
+class SiteDataCacheFacadeFactory : public BrowserContextKeyedServiceFactory {
  public:
-  SiteDataCacheFacadeFactory(const SiteDataCacheFacadeFactory&) = delete;
-  SiteDataCacheFacadeFactory& operator=(const SiteDataCacheFacadeFactory&) =
-      delete;
-
   ~SiteDataCacheFacadeFactory() override;
 
   static SiteDataCacheFacadeFactory* GetInstance();
@@ -72,15 +69,17 @@ class SiteDataCacheFacadeFactory : public ProfileKeyedServiceFactory {
 
   // Should be called early in the creation of a SiteDataCacheFacade to make
   // sure that |cache_factory_| gets created.
-  void OnBeforeFacadeCreated(base::PassKey<SiteDataCacheFacade> key);
+  void OnBeforeFacadeCreated(util::PassKey<SiteDataCacheFacade> key);
 
   // Should be called at the end of the destruction of a SiteDataCacheFacade to
   // release |cache_factory_| if there's no more profile needing it.
-  void OnFacadeDestroyed(base::PassKey<SiteDataCacheFacade> key);
+  void OnFacadeDestroyed(util::PassKey<SiteDataCacheFacade> key);
 
  private:
   // BrowserContextKeyedServiceFactory:
   KeyedService* BuildServiceInstanceFor(
+      content::BrowserContext* context) const override;
+  content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
   bool ServiceIsCreatedWithBrowserContext() const override;
   bool ServiceIsNULLWhileTesting() const override;
@@ -90,6 +89,8 @@ class SiteDataCacheFacadeFactory : public ProfileKeyedServiceFactory {
 
   // The number of SiteDataCacheFacade currently in existence.
   size_t service_instance_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(SiteDataCacheFacadeFactory);
 };
 
 }  // namespace performance_manager

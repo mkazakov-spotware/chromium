@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define COMPONENTS_METRICS_METRICS_ROTATION_SCHEDULER_H_
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/time/time.h"
 #include "components/metrics/metrics_scheduler.h"
 
@@ -22,10 +23,6 @@ class MetricsRotationScheduler : public MetricsScheduler {
       const base::RepeatingClosure& rotation_callback,
       const base::RepeatingCallback<base::TimeDelta(void)>& interval_callback,
       bool fast_startup_for_testing);
-
-  MetricsRotationScheduler(const MetricsRotationScheduler&) = delete;
-  MetricsRotationScheduler& operator=(const MetricsRotationScheduler&) = delete;
-
   ~MetricsRotationScheduler() override;
 
   // Callback from MetricsService when the startup init task has completed.
@@ -57,6 +54,8 @@ class MetricsRotationScheduler : public MetricsScheduler {
 
   // Callback function used to get the standard upload time.
   base::RepeatingCallback<base::TimeDelta(void)> upload_interval_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(MetricsRotationScheduler);
 };
 
 }  // namespace metrics

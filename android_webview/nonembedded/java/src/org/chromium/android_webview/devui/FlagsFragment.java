@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
@@ -18,11 +17,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.text.Editable;
-import android.text.SpannableString;
-import android.text.SpannableStringBuilder;
-import android.text.Spanned;
 import android.text.TextWatcher;
-import android.text.style.BackgroundColorSpan;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -47,10 +42,8 @@ import org.chromium.android_webview.common.DeveloperModeUtils;
 import org.chromium.android_webview.common.Flag;
 import org.chromium.android_webview.common.ProductionSupportedFlagList;
 import org.chromium.android_webview.common.services.IDeveloperUiService;
-import org.chromium.android_webview.common.services.ServiceHelper;
 import org.chromium.android_webview.common.services.ServiceNames;
 import org.chromium.base.Log;
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 
 import java.util.ArrayList;
@@ -70,19 +63,11 @@ public class FlagsFragment extends DevUiBaseFragment {
     private static final String STATE_DEFAULT = "Default";
     private static final String STATE_ENABLED = "Enabled";
     private static final String STATE_DISABLED = "Disabled";
-    private static final String[] sBaseFeatureStates = {
+    private static final String[] sFlagStates = {
             STATE_DEFAULT,
             STATE_ENABLED,
             STATE_DISABLED,
     };
-
-    private static final String[] sCommandLineStates = {
-            STATE_DEFAULT,
-            STATE_ENABLED,
-    };
-
-    private boolean mEnabled;
-    private boolean mShouldReset;
 
     private Map<String, Boolean> mOverriddenFlags = new HashMap<>();
     private FlagsListAdapter mListAdapter;
@@ -91,19 +76,6 @@ public class FlagsFragment extends DevUiBaseFragment {
     private EditText mSearchBar;
 
     private static volatile @Nullable Runnable sFilterListener;
-
-    // Must only be accessed on UI thread.
-    private static @NonNull Flag[] sFlagList = ProductionSupportedFlagList.sFlagList;
-
-    public FlagsFragment(boolean enabled, boolean shouldReset) {
-        mEnabled = enabled;
-        mShouldReset = shouldReset;
-    }
-
-    public FlagsFragment() {
-        // All fragments must have a public no-args constructor
-        // https://developer.android.com/reference/android/app/Fragment
-    }
 
     @Override
     public void onAttach(Context context) {
@@ -130,19 +102,14 @@ public class FlagsFragment extends DevUiBaseFragment {
             mOverriddenFlags = DeveloperModeUtils.getFlagOverrides(mContext.getPackageName());
         }
 
-        Flag[] sortedFlags = sortFlagList(sFlagList);
-        Flag[] flagsAndWarningText = new Flag[sFlagList.length + 1];
+        Flag[] sortedFlags = sortFlagList(ProductionSupportedFlagList.sFlagList);
+        Flag[] flagsAndWarningText = new Flag[ProductionSupportedFlagList.sFlagList.length + 1];
         flagsAndWarningText[0] = null; // the first entry is the warning text
-        for (int i = 0; i < sFlagList.length; i++) {
+        for (int i = 0; i < ProductionSupportedFlagList.sFlagList.length; i++) {
             flagsAndWarningText[i + 1] = sortedFlags[i];
         }
         mListAdapter = new FlagsListAdapter(flagsAndWarningText);
         flagsListView.setAdapter(mListAdapter);
-
-        if (mShouldReset) {
-            mShouldReset = false;
-            resetAllFlags();
-        }
 
         Button resetFlagsButton = view.findViewById(R.id.reset_flags_button);
         resetFlagsButton.setOnClickListener((View flagButton) -> { resetAllFlags(); });
@@ -182,7 +149,7 @@ public class FlagsFragment extends DevUiBaseFragment {
 
     private void setClearTextButtonEnabled(EditText editText, boolean enabled) {
         int iconColor = getResources().getColor(R.color.navigation_unselected);
-        Drawable clearTextIcon = getContext().getDrawable(R.drawable.ic_clear_text);
+        Drawable clearTextIcon = getResources().getDrawable(R.drawable.ic_clear_text);
         clearTextIcon.mutate();
         clearTextIcon.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.SRC_IN));
 
@@ -219,14 +186,8 @@ public class FlagsFragment extends DevUiBaseFragment {
      * {@code R.id.flag_search_bar}.
      */
     @VisibleForTesting
-    public static void setFilterListenerForTesting(@Nullable Runnable listener) {
+    public static void setFilterListener(@Nullable Runnable listener) {
         sFilterListener = listener;
-    }
-
-    @VisibleForTesting
-    public static void setFlagListForTesting(@NonNull Flag[] flagList) {
-        ThreadUtils.assertOnUiThread();
-        sFlagList = flagList;
     }
 
     private void onFilterDone() {
@@ -254,17 +215,13 @@ public class FlagsFragment extends DevUiBaseFragment {
         return sortedFlags;
     }
 
-    private static int booleanToBaseFeatureState(Boolean b) {
+    private static int booleanToState(Boolean b) {
         if (b == null) {
             return /* STATE_DEFAULT */ 0;
         } else if (b) {
             return /* STATE_ENABLED */ 1;
         }
         return /* STATE_DISABLED */ 2;
-    }
-
-    private static int booleanToCommandLineState(Boolean b) {
-        return Boolean.TRUE.equals(b) ? /* STATE_ENABLED */ 1 : /* STATE_DEFAULT */ 0;
     }
 
     private class FlagStateSpinnerSelectedListener implements AdapterView.OnItemSelectedListener {
@@ -277,36 +234,19 @@ public class FlagsFragment extends DevUiBaseFragment {
         @Override
         public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
             String flagName = mFlag.getName();
-
-            int oldState;
-            if (mFlag.isBaseFeature()) {
-                oldState = booleanToBaseFeatureState(mOverriddenFlags.get(flagName));
-            } else {
-                oldState = booleanToCommandLineState(mOverriddenFlags.get(flagName));
-            }
+            int oldState = booleanToState(mOverriddenFlags.get(flagName));
             int newState = position;
 
-            if (mFlag.isBaseFeature()) {
-                switch (sBaseFeatureStates[newState]) {
-                    case STATE_DEFAULT:
-                        mOverriddenFlags.remove(flagName);
-                        break;
-                    case STATE_ENABLED:
-                        mOverriddenFlags.put(flagName, true);
-                        break;
-                    case STATE_DISABLED:
-                        mOverriddenFlags.put(flagName, false);
-                        break;
-                }
-            } else {
-                switch (sCommandLineStates[newState]) {
-                    case STATE_DEFAULT:
-                        mOverriddenFlags.remove(flagName);
-                        break;
-                    case STATE_ENABLED:
-                        mOverriddenFlags.put(flagName, true);
-                        break;
-                }
+            switch (sFlagStates[newState]) {
+                case STATE_DEFAULT:
+                    mOverriddenFlags.remove(flagName);
+                    break;
+                case STATE_ENABLED:
+                    mOverriddenFlags.put(flagName, true);
+                    break;
+                case STATE_DISABLED:
+                    mOverriddenFlags.put(flagName, false);
+                    break;
             }
 
             // Update UI and Service. Only communicate with the service if the map actually updated.
@@ -337,72 +277,36 @@ public class FlagsFragment extends DevUiBaseFragment {
         int COUNT = 2;
     }
 
-    private static class FlagQuery {
-        // Lower-case words from the query. Never contains empty strings.
-        String[] mLowerCaseWords;
+    private static boolean flagMatchesQuery(Flag flag, String lowerCaseQuery) {
+        assert lowerCaseQuery.equals(lowerCaseQuery.toLowerCase(Locale.getDefault()))
+            : "lowerCaseQuery should already be converted to lower case";
 
-        public FlagQuery(CharSequence chars) {
-            String lowerCaseTrimmed = chars.toString().toLowerCase(Locale.getDefault()).trim();
-
-            if (lowerCaseTrimmed.length() == 0) {
-                // This needs to be handled as a special case, since calling
-                // split on an empty string will end up with mLowerCaseWords
-                // containing a single empty string.
-                mLowerCaseWords = new String[0];
-            } else {
-                mLowerCaseWords = lowerCaseTrimmed.split("\\s+");
-            }
-        }
-
-        boolean match(Flag flag) {
-            // If empty query, match every everything (including the warning text)
-            if (mLowerCaseWords.length == 0) {
-                return true;
-            }
-
-            // If the user is searching for something and flag represents the warning text, don't
-            // match the warning text
-            if (flag == null) {
-                return false;
-            }
-
-            // Split the query into words, and look for each word in either the name or the
-            // description, matching case insensitively.
-            String lowerCaseName = flag.getName().toLowerCase(Locale.getDefault());
-            String lowerCaseDescription = flag.getDescription().toLowerCase(Locale.getDefault());
-            for (String word : mLowerCaseWords) {
-                if (!lowerCaseName.contains(word) && !lowerCaseDescription.contains(word)) {
-                    return false;
-                }
-            }
+        // If empty query, match every everything (including the warning text)
+        if (lowerCaseQuery.isEmpty()) {
             return true;
         }
 
-        SpannableString highlight(String text) {
-            SpannableString highlighted = new SpannableString(text);
-            String lowerCaseText = text.toLowerCase(Locale.getDefault());
-            for (String word : mLowerCaseWords) {
-                int fromIndex = 0;
-                while (true) {
-                    int startIndex = lowerCaseText.indexOf(word, fromIndex);
-                    if (startIndex == -1) break;
-                    int endIndex = startIndex + word.length();
-
-                    highlighted.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, endIndex,
-                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-
-                    fromIndex = endIndex;
-                }
-            }
-            return highlighted;
+        // If the user is searching for something and flag represents the warning text, don't
+        // match the warning text
+        if (flag == null) {
+            return false;
         }
+
+        // Match if the flag name contains the query as a substring (case-insensitive)
+        String lowerCaseName = flag.getName().toLowerCase(Locale.getDefault());
+        if (lowerCaseName.contains(lowerCaseQuery)) return true;
+
+        // Or if the flag description contains the query as a substring (case-insensitive)
+        String lowerCaseDescription = flag.getDescription().toLowerCase(Locale.getDefault());
+        if (lowerCaseDescription.contains(lowerCaseQuery)) return true;
+
+        return false;
     }
 
     /**
      * Adapter to create rows of toggleable Flags.
      */
     private class FlagsListAdapter extends ArrayAdapter<Flag> {
-        private FlagQuery mQuery = new FlagQuery("");
         private List<Flag> mItems;
         private final Filter mFilter;
 
@@ -414,11 +318,9 @@ public class FlagsFragment extends DevUiBaseFragment {
                 protected FilterResults performFiltering(CharSequence constraint) {
                     List<Flag> matches = new ArrayList<>();
 
-                    // Do not store in mQuery here, since this is run off the UI
-                    // thread.
-                    FlagQuery query = new FlagQuery(constraint);
+                    String lowerCaseQuery = constraint.toString().toLowerCase(Locale.getDefault());
                     for (Flag flag : flagsAndWarningText) {
-                        if (query.match(flag)) matches.add(flag);
+                        if (flagMatchesQuery(flag, lowerCaseQuery)) matches.add(flag);
                     }
 
                     FilterResults filterResults = new FilterResults();
@@ -429,7 +331,6 @@ public class FlagsFragment extends DevUiBaseFragment {
 
                 @Override
                 protected void publishResults(CharSequence constraint, FilterResults results) {
-                    mQuery = new FlagQuery(constraint);
                     mItems = (List<Flag>) results.values;
                     notifyDataSetChanged();
                     onFilterDone();
@@ -445,37 +346,22 @@ public class FlagsFragment extends DevUiBaseFragment {
             }
 
             TextView flagName = view.findViewById(R.id.flag_name);
-            SpannableString highlightedName = mQuery.highlight(flag.getName());
-            if (flag.getEnabledStateValue() != null) {
-                flagName.setText(new SpannableStringBuilder(highlightedName)
-                                         .append("=" + flag.getEnabledStateValue()));
-            } else {
-                flagName.setText(highlightedName);
-            }
-
             TextView flagDescription = view.findViewById(R.id.flag_description);
-            flagDescription.setText(mQuery.highlight(flag.getDescription()));
-
             Spinner flagToggle = view.findViewById(R.id.flag_toggle);
-            flagToggle.setEnabled(mEnabled);
 
-            ArrayAdapter<String> adapter;
-            if (flag.isBaseFeature()) {
-                adapter = new ArrayAdapter<>(mContext, R.layout.flag_states, sBaseFeatureStates);
-            } else {
-                adapter = new ArrayAdapter<>(mContext, R.layout.flag_states, sCommandLineStates);
+            String label = flag.getName();
+            if (flag.getEnabledStateValue() != null) {
+                label += "=" + flag.getEnabledStateValue();
             }
+            flagName.setText(label);
+            flagDescription.setText(flag.getDescription());
+            ArrayAdapter<String> adapter =
+                    new ArrayAdapter<>(mContext, R.layout.flag_states, sFlagStates);
             adapter.setDropDownViewResource(android.R.layout.select_dialog_singlechoice);
             flagToggle.setAdapter(adapter);
 
             // Populate spinner state from map and update indicators.
-            int state;
-            if (flag.isBaseFeature()) {
-                state = booleanToBaseFeatureState(mOverriddenFlags.get(flag.getName()));
-            } else {
-                state = booleanToCommandLineState(mOverriddenFlags.get(flag.getName()));
-            }
-
+            int state = booleanToState(mOverriddenFlags.get(flag.getName()));
             flagToggle.setSelection(state);
             flagToggle.setOnItemSelectedListener(new FlagStateSpinnerSelectedListener(flag));
             formatListEntry(view, state);
@@ -559,7 +445,7 @@ public class FlagsFragment extends DevUiBaseFragment {
         public void start() {
             Intent intent = new Intent();
             intent.setClassName(mContext.getPackageName(), ServiceNames.DEVELOPER_UI_SERVICE);
-            if (!ServiceHelper.bindService(mContext, intent, this, Context.BIND_AUTO_CREATE)) {
+            if (!mContext.bindService(intent, this, Context.BIND_AUTO_CREATE)) {
                 Log.e(TAG, "Failed to bind to Developer UI service");
             }
         }

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,13 +11,12 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/contains.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ref_counted_memory.h"
+#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
-#include "base/values.h"
 #include "content/browser/resource_context_impl.h"
 #include "content/browser/webui/url_data_manager_backend.h"
 #include "content/browser/webui/url_data_source_impl.h"
@@ -53,7 +52,8 @@ URLDataManager::URLDataManager(BrowserContext* browser_context)
     : browser_context_(browser_context) {
 }
 
-URLDataManager::~URLDataManager() = default;
+URLDataManager::~URLDataManager() {
+}
 
 void URLDataManager::AddDataSource(URLDataSourceImpl* source) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -61,11 +61,12 @@ void URLDataManager::AddDataSource(URLDataSourceImpl* source) {
       ->AddDataSource(source);
 }
 
-void URLDataManager::UpdateWebUIDataSource(const std::string& source_name,
-                                           const base::Value::Dict& update) {
+void URLDataManager::UpdateWebUIDataSource(
+    const std::string& source_name,
+    std::unique_ptr<base::DictionaryValue> update) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   URLDataManagerBackend::GetForBrowserContext(browser_context_)
-      ->UpdateWebUIDataSource(source_name, update);
+      ->UpdateWebUIDataSource(source_name, *update);
 }
 
 // static
@@ -124,9 +125,10 @@ void URLDataManager::AddWebUIDataSource(BrowserContext* browser_context,
   GetFromBrowserContext(browser_context)->AddDataSource(impl);
 }
 
-void URLDataManager::UpdateWebUIDataSource(BrowserContext* browser_context,
-                                           const std::string& source_name,
-                                           const base::Value::Dict& update) {
+void URLDataManager::UpdateWebUIDataSource(
+    BrowserContext* browser_context,
+    const std::string& source_name,
+    std::unique_ptr<base::DictionaryValue> update) {
   GetFromBrowserContext(browser_context)
       ->UpdateWebUIDataSource(source_name, std::move(update));
 }

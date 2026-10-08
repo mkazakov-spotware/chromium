@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "base/callback_forward.h"
 #include "base/files/file.h"
+#include "base/macros.h"
 #include "base/process/process.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -34,10 +35,10 @@ class NativeProcessLauncher {
   // Callback that's called after the process has been launched. |result| is set
   // to false in case of a failure. Handler must take ownership of the IO
   // handles.
-  using LaunchedCallback = base::OnceCallback<void(LaunchResult result,
-                                                   base::Process process,
-                                                   base::File read_file,
-                                                   base::File write_file)>;
+  typedef base::Callback<void(LaunchResult result,
+                              base::Process process,
+                              base::File read_file,
+                              base::File write_file)> LaunchedCallback;
 
   // Creates default launcher for the current OS. |native_view| refers to the
   // window that contains calling page. Can be nullptr, e.g. for background
@@ -56,12 +57,8 @@ class NativeProcessLauncher {
       const std::string& connect_id,
       const std::string& error_arg);
 
-  NativeProcessLauncher() = default;
-
-  NativeProcessLauncher(const NativeProcessLauncher&) = delete;
-  NativeProcessLauncher& operator=(const NativeProcessLauncher&) = delete;
-
-  virtual ~NativeProcessLauncher() = default;
+  NativeProcessLauncher() {}
+  virtual ~NativeProcessLauncher() {}
 
   // Finds native messaging host with the specified name and launches it
   // asynchronously. Also checks that the specified |origin| is permitted to
@@ -71,7 +68,7 @@ class NativeProcessLauncher {
   // closing IO pipes).
   virtual void Launch(const GURL& origin,
                       const std::string& native_host_name,
-                      LaunchedCallback callback) const = 0;
+                      const LaunchedCallback& callback) const = 0;
 
  protected:
   // The following two methods are platform specific and are implemented in
@@ -89,6 +86,9 @@ class NativeProcessLauncher {
                                   base::Process* process,
                                   base::File* read_file,
                                   base::File* write_file);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NativeProcessLauncher);
 };
 
 }  // namespace extensions

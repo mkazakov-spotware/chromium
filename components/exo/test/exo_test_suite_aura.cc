@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,11 @@ ExoTestSuiteAura::~ExoTestSuiteAura() = default;
 
 void ExoTestSuiteAura::Initialize() {
   base::TestSuite::Initialize();
-  display_ = gl::GLSurfaceTestSupport::InitializeOneOff();
+  gl::GLSurfaceTestSupport::InitializeOneOff();
 }
 
 void ExoTestSuiteAura::Shutdown() {
-  gl::GLSurfaceTestSupport::ShutdownGL(display_);
+  gl::GLSurfaceTestSupport::ShutdownGL();
   base::TestSuite::Shutdown();
 }
 

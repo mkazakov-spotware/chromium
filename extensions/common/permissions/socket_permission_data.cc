@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -101,14 +101,15 @@ bool SocketPermissionData::Check(const APIPermission::CheckParam* param) const {
 }
 
 std::unique_ptr<base::Value> SocketPermissionData::ToValue() const {
-  return std::make_unique<base::Value>(GetAsString());
+  return std::unique_ptr<base::Value>(new base::Value(GetAsString()));
 }
 
 bool SocketPermissionData::FromValue(const base::Value* value) {
-  if (!value->is_string())
+  std::string spec;
+  if (!value->GetAsString(&spec))
     return false;
 
-  return Parse(value->GetString());
+  return Parse(spec);
 }
 
 SocketPermissionEntry& SocketPermissionData::entry() {

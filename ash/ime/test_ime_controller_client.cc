@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,10 +36,18 @@ void TestImeControllerClient::SetCapsLockEnabled(bool enabled) {
 }
 
 void TestImeControllerClient::OverrideKeyboardKeyset(
-    input_method::ImeKeyset keyset,
+    chromeos::input_method::ImeKeyset keyset,
     OverrideKeyboardKeysetCallback callback) {
   last_keyset_ = keyset;
   std::move(callback).Run();
+}
+
+void TestImeControllerClient::UpdateMirroringState(bool enabled) {
+  is_mirroring_ = enabled;
+}
+
+void TestImeControllerClient::UpdateCastingState(bool enabled) {
+  is_casting_ = enabled;
 }
 
 void TestImeControllerClient::ShowModeIndicator() {

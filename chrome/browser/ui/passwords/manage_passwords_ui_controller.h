@@ -1,14 +1,14 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_UI_CONTROLLER_H_
 #define CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_UI_CONTROLLER_H_
 
-#include <list>
 #include <memory>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/passwords/manage_passwords_state.h"
 #include "chrome/browser/ui/passwords/passwords_client_ui_delegate.h"
@@ -16,9 +16,8 @@
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/common/buildflags.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
-#include "components/password_manager/core/browser/password_store_interface.h"
+#include "components/password_manager/core/browser/password_store.h"
 #include "components/password_manager/core/browser/ui/post_save_compromised_helper.h"
-#include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
@@ -33,15 +32,10 @@ class WebContents;
 namespace password_manager {
 enum class CredentialType;
 struct InteractionsStats;
-class MovePasswordToAccountStoreHelper;
 class PasswordFeatureManager;
 class PasswordFormManagerForUI;
 class PostSaveCompromisedHelper;
 }  // namespace password_manager
-
-namespace {
-constexpr int kMaxNumberOfTimesBiometricAuthForFillingPromoWillBeShown = 3;
-}
 
 class AccountChooserPrompt;
 struct AccountInfo;
@@ -56,15 +50,11 @@ class PasswordBaseDialogController;
 class ManagePasswordsUIController
     : public content::WebContentsObserver,
       public content::WebContentsUserData<ManagePasswordsUIController>,
-      public password_manager::PasswordStoreInterface::Observer,
+      public password_manager::PasswordStore::Observer,
       public PasswordsLeakDialogDelegate,
       public PasswordsModelDelegate,
       public PasswordsClientUIDelegate {
  public:
-  ManagePasswordsUIController(const ManagePasswordsUIController&) = delete;
-  ManagePasswordsUIController& operator=(const ManagePasswordsUIController&) =
-      delete;
-
   ~ManagePasswordsUIController() override;
 
 #if defined(UNIT_TEST)
@@ -103,25 +93,17 @@ class ManagePasswordsUIController
       const std::vector<const password_manager::PasswordForm*>*
           federated_matches) override;
   void OnCredentialLeak(password_manager::CredentialLeakType leak_dialog_type,
-                        const GURL& url,
-                        const std::u16string& username) override;
+                        const GURL& origin) override;
   void OnShowMoveToAccountBubble(
       std::unique_ptr<password_manager::PasswordFormManagerForUI> form_to_move)
       override;
-  void OnBiometricAuthenticationForFilling(PrefService* prefs) override;
-  void ShowBiometricActivationConfirmation() override;
-  void OnBiometricAuthBeforeFillingDeclined() override;
 
   virtual void NotifyUnsyncedCredentialsWillBeDeleted(
       std::vector<password_manager::PasswordForm> unsynced_credentials);
 
-  // PasswordStoreInterface::Observer:
+  // PasswordStore::Observer:
   void OnLoginsChanged(
-      password_manager::PasswordStoreInterface* store,
       const password_manager::PasswordStoreChangeList& changes) override;
-  void OnLoginsRetained(password_manager::PasswordStoreInterface* store,
-                        const std::vector<password_manager::PasswordForm>&
-                            retained_passwords) override;
 
   // Set the state of the Omnibox icon, and possibly show the associated bubble
   // without user interaction.
@@ -161,8 +143,8 @@ class ManagePasswordsUIController
   void OnNopeUpdateClicked() override;
   void NeverSavePassword() override;
   void OnPasswordsRevealed() override;
-  void SavePassword(const std::u16string& username,
-                    const std::u16string& password) override;
+  void SavePassword(const base::string16& username,
+                    const base::string16& password) override;
   void SaveUnsyncedCredentialsInProfileStore(
       const std::vector<password_manager::PasswordForm>& selected_credentials)
       override;
@@ -178,17 +160,11 @@ class ManagePasswordsUIController
       password_manager::ManagePasswordsReferrer referrer) override;
   void EnableSync(const AccountInfo& account) override;
   void OnDialogHidden() override;
-  // TODO(crbug.com/1353344): Replace AuthenticateUser with
-  // AuthenticateUserWithMessage
   bool AuthenticateUser() override;
-  void AuthenticateUserWithMessage(const std::u16string& message,
-                                   AvailabilityCallback callback) override;
   void AuthenticateUserForAccountStoreOptInAndSavePassword(
-      const std::u16string& username,
-      const std::u16string& password) override;
+      const base::string16& username,
+      const base::string16& password) override;
   void AuthenticateUserForAccountStoreOptInAndMovePassword() override;
-  void AuthenticateUserForAccountStoreOptInAfterSavingLocallyAndMovePassword()
-      override;
   bool ArePasswordsRevealedWhenBubbleIsOpened() const override;
 
 #if defined(UNIT_TEST)
@@ -234,13 +210,12 @@ class ManagePasswordsUIController
   bool IsShowingBubbleForTest() const { return IsShowingBubble(); }
 
   // content::WebContentsObserver:
-  void PrimaryPageChanged(content::Page& page) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
   void OnVisibilityChanged(content::Visibility visibility) override;
 
  private:
   friend class content::WebContentsUserData<ManagePasswordsUIController>;
-
-  void OnReauthCompleted();
 
   // PasswordsLeakDialogDelegate:
   void NavigateToPasswordCheckup(
@@ -274,9 +249,9 @@ class ManagePasswordsUIController
   // it shouldn't anymore.
   void ClearPopUpFlagForBubble();
 
-  // Closes the account chooser gracefully so the callback is called. Closes the
-  // password bubble. Then sets the state to MANAGE_STATE.
-  void DestroyPopups();
+  // Closes the account chooser gracefully so the callback is called. Then sets
+  // the state to MANAGE_STATE.
+  void DestroyAccountChooser();
 
   // content::WebContentsObserver:
   void WebContentsDestroyed() override;
@@ -300,8 +275,8 @@ class ManagePasswordsUIController
   void FinishSavingPasswordAfterAccountStoreOptInAuth(
       const url::Origin& origin,
       password_manager::PasswordFormManagerForUI* form_manager,
-      const std::u16string& username,
-      const std::u16string& password,
+      const base::string16& username,
+      const base::string16& password,
       password_manager::PasswordManagerClient::ReauthSucceeded
           reauth_succeeded);
 
@@ -315,22 +290,6 @@ class ManagePasswordsUIController
       password_manager::PasswordFormManagerForUI* form_manager,
       password_manager::PasswordManagerClient::ReauthSucceeded
           reauth_succeeded);
-
-  // Called from an opt-in/reauth flow that was triggered after a new
-  // account-storage-eligible user saved a password locally. If the opt-in was
-  // successful, this moves the just-saved password into the account store.
-  void MoveJustSavedPasswordAfterAccountStoreOptIn(
-      password_manager::PasswordForm form,
-      password_manager::PasswordManagerClient::ReauthSucceeded
-          reauth_succeeded);
-
-  void OnMoveJustSavedPasswordAfterAccountStoreOptInCompleted(
-      std::list<std::unique_ptr<
-          password_manager::MovePasswordToAccountStoreHelper>>::iterator
-          done_helper_it);
-
-  // Cancels current authentication and releases |biometric_authenticator_|.
-  void CancelAnyOngoingBiometricAuth();
 
   // Timeout in seconds for the manual fallback for saving.
   static int save_fallback_timeout_in_seconds_;
@@ -356,17 +315,6 @@ class ManagePasswordsUIController
   // True iff bubble should pop up with revealed password value.
   bool are_passwords_revealed_when_next_bubble_is_opened_;
 
-  // Contains the helpers currently executing moving tasks. This will almost
-  // always contain either 0 or 1 items.
-  std::list<std::unique_ptr<password_manager::MovePasswordToAccountStoreHelper>>
-      move_to_account_store_helpers_;
-
-  scoped_refptr<device_reauth::BiometricAuthenticator> biometric_authenticator_;
-
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-  bool was_biometric_authentication_for_filling_promo_shown_ = false;
-#endif
-
   // The bubbles of different types can pop up unpredictably superseding each
   // other. However, closing the bubble may affect the state of
   // ManagePasswordsUIController internally. This is undesired if
@@ -379,6 +327,8 @@ class ManagePasswordsUIController
   base::WeakPtrFactory<ManagePasswordsUIController> weak_ptr_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  DISALLOW_COPY_AND_ASSIGN(ManagePasswordsUIController);
 };
 
 #endif  // CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_UI_CONTROLLER_H_

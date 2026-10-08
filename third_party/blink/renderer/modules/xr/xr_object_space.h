@@ -1,15 +1,14 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_OBJECT_SPACE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_OBJECT_SPACE_H_
 
-#include <string>
-
 #include "device/vr/public/mojom/vr_service.mojom-blink-forward.h"
+#include "third_party/blink/renderer/modules/xr/xr_native_origin_information.h"
 #include "third_party/blink/renderer/modules/xr/xr_space.h"
-#include "ui/gfx/geometry/transform.h"
+#include "third_party/blink/renderer/platform/transforms/transformation_matrix.h"
 
 namespace blink {
 
@@ -17,35 +16,33 @@ class XRSession;
 
 // Helper class that returns an XRSpace that tracks the position of object of
 // type T (for example XRPlane, XRAnchor). The type T has to have a
-// NativeOrigin() method, returning a
-// device::mojom::blink::XRNativeOriginInformationPtr, a MojoFromObject()
-// method, returning a absl::Optional<gfx::Transform>, and IsStationary()
-// method returning true if the object is supposed to be treated as stationary
-// for the purposes of anchor creation.
+// MojoFromObject() method, returning a base::Optional<TransformationMatrix>.
 //
-// If the object's MojoFromObject() method returns a absl::nullopt, it means
+// If the object's MojoFromObject() method returns a base::nullopt, it means
 // that the object is not localizable in the current frame (i.e. its pose is
 // unknown) - the `frame.getPose(objectSpace, otherSpace)` will return null.
 // That does not necessarily mean that object tracking is lost - it may be that
 // the object's location will become known in subsequent frames.
 template <typename T>
-class XRObjectSpace final : public XRSpace {
+class XRObjectSpace : public XRSpace {
  public:
   explicit XRObjectSpace(XRSession* session, const T* object)
-      : XRSpace(session),
-        object_(object),
-        is_stationary_(object->IsStationary()) {}
+      : XRSpace(session), object_(object) {}
 
-  absl::optional<gfx::Transform> MojoFromNative() const override {
+  base::Optional<TransformationMatrix> MojoFromNative() override {
     return object_->MojoFromObject();
   }
 
-  device::mojom::blink::XRNativeOriginInformationPtr NativeOrigin()
+  base::Optional<device::mojom::blink::XRNativeOriginInformation> NativeOrigin()
       const override {
-    return object_->NativeOrigin();
+    return XRNativeOriginInformation::Create(object_);
   }
 
-  bool IsStationary() const override { return is_stationary_; }
+  bool IsStationary() const override {
+    // Object spaces are considered stationary - they are supposed to remain
+    // fixed relative to their surroundings (at least locally).
+    return true;
+  }
 
   std::string ToString() const override { return "XRObjectSpace"; }
 
@@ -56,7 +53,6 @@ class XRObjectSpace final : public XRSpace {
 
  private:
   Member<const T> object_;
-  const bool is_stationary_;
 };
 
 }  // namespace blink

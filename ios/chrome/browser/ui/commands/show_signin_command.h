@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,26 +9,22 @@
 
 #include "components/signin/public/base/signin_metrics.h"
 
-@protocol SystemIdentity;
+@class ChromeIdentity;
 
 typedef void (^ShowSigninCommandCompletionCallback)(BOOL succeeded);
 
-typedef NS_ENUM(NSInteger, AuthenticationOperation) {
+enum AuthenticationOperation {
   // Operation to start a re-authenticate operation. The user is presented with
   // the SSOAuth re-authenticate web page.
-  AuthenticationOperationReauthenticate,
-  // Operation to start a sign-in and sync operation. The user is presented with
-  // the sign-in page with the user consent.
-  AuthenticationOperationSigninAndSync,
-  // Operation to start a sign-in only operation. The user is presented with
-  // the consistency web sign-in dialog.
-  AuthenticationOperationSigninOnly,
+  AUTHENTICATION_OPERATION_REAUTHENTICATE,
+
+  // Operation to start a sign-in operation. The user is presented with the
+  // sign-in page with the user consent.
+  AUTHENTICATION_OPERATION_SIGNIN,
+
   // Operation to add a secondary account. The user is presented with the
   // SSOAUth sin-in page.
-  AuthenticationOperationAddAccount,
-  // Operation to start a forced sign-in operation. The user is presented with
-  // the sign-in page with information about the policy and cannot dimiss it.
-  AuthenticationOperationForcedSigninAndSync,
+  AUTHENTICATION_OPERATION_ADD_ACCOUNT,
 };
 
 // A command to perform a sign in operation.
@@ -40,13 +36,13 @@ typedef NS_ENUM(NSInteger, AuthenticationOperation) {
 // Initializes a command to perform the specified operation with a
 // SigninInteractionController and invoke a possibly-nil callback when finished.
 - (instancetype)initWithOperation:(AuthenticationOperation)operation
-                         identity:(id<SystemIdentity>)identity
+                         identity:(ChromeIdentity*)identity
                       accessPoint:(signin_metrics::AccessPoint)accessPoint
                       promoAction:(signin_metrics::PromoAction)promoAction
                          callback:(ShowSigninCommandCompletionCallback)callback
     NS_DESIGNATED_INITIALIZER;
 
-// Initializes a ShowSigninCommand with `identity` and `callback` set to nil.
+// Initializes a ShowSigninCommand with |identity| and |callback| set to nil.
 - (instancetype)initWithOperation:(AuthenticationOperation)operation
                       accessPoint:(signin_metrics::AccessPoint)accessPoint
                       promoAction:(signin_metrics::PromoAction)promoAction;
@@ -63,12 +59,12 @@ typedef NS_ENUM(NSInteger, AuthenticationOperation) {
 // The operation to perform during the sign-in flow.
 @property(nonatomic, readonly) AuthenticationOperation operation;
 
-// Chrome identity is only used for the AuthenticationOperationSigninAndSync
+// Chrome identity is only used for the AUTHENTICATION_OPERATION_SIGNIN
 // operation (should be nil otherwise). If the identity is non-nil, the
 // interaction view controller logins using this identity. If the identity is
 // nil, the interaction view controller asks the user to choose an identity or
 // to add a new one.
-@property(nonatomic, readonly) id<SystemIdentity> identity;
+@property(nonatomic, readonly) ChromeIdentity* identity;
 
 // The access point of this authentication operation.
 @property(nonatomic, readonly) signin_metrics::AccessPoint accessPoint;

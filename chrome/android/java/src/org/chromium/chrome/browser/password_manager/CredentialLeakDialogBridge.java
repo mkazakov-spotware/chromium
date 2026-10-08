@@ -1,40 +1,34 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
 package org.chromium.chrome.browser.password_manager;
-
-import android.app.Activity;
-
-import androidx.annotation.DrawableRes;
-import androidx.annotation.NonNull;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
-import org.chromium.chrome.browser.fullscreen.BrowserControlsManagerSupplier;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabModelSelectorSupplier;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
+
+import java.lang.ref.WeakReference;
 
 /** JNI call glue between the native password manager CredentialLeak class and Java objects. */
 public class CredentialLeakDialogBridge {
     private long mNativeCredentialLeakDialogViewAndroid;
     private final PasswordManagerDialogCoordinator mCredentialLeakDialog;
-    private final WindowAndroid mWindowAndroid;
+    private final WeakReference<ChromeActivity> mActivity;
 
     private CredentialLeakDialogBridge(
-            @NonNull WindowAndroid windowAndroid, long nativeCredentialLeakDialogViewAndroid) {
+            WindowAndroid windowAndroid, long nativeCredentialLeakDialogViewAndroid) {
         mNativeCredentialLeakDialogViewAndroid = nativeCredentialLeakDialogViewAndroid;
-        mWindowAndroid = windowAndroid;
-
-        mCredentialLeakDialog =
-                new PasswordManagerDialogCoordinator(windowAndroid.getModalDialogManager(),
-                        windowAndroid.getActivity().get().findViewById(android.R.id.content),
-                        BrowserControlsManagerSupplier.getValueOrNullFrom(windowAndroid));
+        ChromeActivity activity = (ChromeActivity) windowAndroid.getActivity().get();
+        mActivity = new WeakReference<>(activity);
+        mCredentialLeakDialog = new PasswordManagerDialogCoordinator(
+                activity.getModalDialogManager(), activity.findViewById(android.R.id.content),
+                activity.getBrowserControlsManager(), activity.getControlContainerHeightResource());
     }
 
     @CalledByNative
@@ -45,37 +39,27 @@ public class CredentialLeakDialogBridge {
 
     @CalledByNative
     public void showDialog(String credentialLeakTitle, String credentialLeakDetails,
-            boolean isChangeAutomaticallyAvailable, String positiveButton, String negativeButton) {
-        Activity activity = mWindowAndroid.getActivity().get();
-        if (activity == null) return;
+            String positiveButton, String negativeButton) {
+        if (mActivity.get() == null) return;
 
-        @DrawableRes
-        int headerDrawableId;
-        if (isChangeAutomaticallyAvailable) {
-            headerDrawableId = R.drawable.password_checkup_change_automatically;
-        } else {
-            headerDrawableId = PasswordManagerHelper.usesUnifiedPasswordManagerBranding()
-                    ? R.drawable.password_check_header_red
-                    : R.drawable.password_checkup_warning;
-        };
-
-        PasswordManagerDialogContents contents = createDialogContents(credentialLeakTitle,
-                credentialLeakDetails, headerDrawableId, positiveButton,
-                isChangeAutomaticallyAvailable ? R.drawable.ic_autofill_assistant_white_24dp : 0,
-                negativeButton);
+        PasswordManagerDialogContents contents = createDialogContents(
+                credentialLeakTitle, credentialLeakDetails, positiveButton, negativeButton);
         contents.setPrimaryButtonFilled(negativeButton != null);
         contents.setHelpButtonCallback(this::showHelpArticle);
 
-        mCredentialLeakDialog.initialize(activity, contents);
+        mCredentialLeakDialog.initialize(mActivity.get(), contents);
         mCredentialLeakDialog.showDialog();
     }
 
     private PasswordManagerDialogContents createDialogContents(String credentialLeakTitle,
-            String credentialLeakDetails, int illustrationId, String positiveButton,
-            int positiveButtonIconId, String negativeButton) {
+            String credentialLeakDetails, String positiveButton, String negativeButton) {
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.PASSWORD_CHECK)) {
+            return new PasswordManagerDialogContents(credentialLeakTitle, credentialLeakDetails,
+                    R.drawable.password_check_warning, positiveButton, negativeButton,
+                    this::onClick);
+        }
         return new PasswordManagerDialogContents(credentialLeakTitle, credentialLeakDetails,
-                illustrationId, positiveButton, positiveButtonIconId, negativeButton,
-                this::onClick);
+                R.drawable.password_checkup_warning, positiveButton, negativeButton, this::onClick);
     }
 
     @CalledByNative
@@ -102,15 +86,13 @@ public class CredentialLeakDialogBridge {
     }
 
     private void showHelpArticle() {
-        Activity activity = mWindowAndroid.getActivity().get();
-        if (activity == null) return;
+        if (mActivity.get() == null) return;
 
-        Tab currentTab = TabModelSelectorSupplier.getCurrentTabFrom(mWindowAndroid);
-        if (currentTab == null) return;
-
-        Profile profile = Profile.fromWebContents(currentTab.getWebContents());
-        HelpAndFeedbackLauncherImpl.getInstance().show(activity,
-                activity.getString(R.string.help_context_password_leak_detection), profile, null);
+        Profile profile = Profile.fromWebContents(
+                mActivity.get().getActivityTabProvider().get().getWebContents());
+        HelpAndFeedbackLauncherImpl.getInstance().show(mActivity.get(),
+                mActivity.get().getString(R.string.help_context_password_leak_detection), profile,
+                null);
     }
 
     @NativeMethods

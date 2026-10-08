@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// Copyright 2019 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
 (async function() {
-  await TestRunner.loadTestModule('axe_core_test_runner');
-  await TestRunner.loadTestModule('sources_test_runner');
+  await TestRunner.loadModule('axe_core_test_runner');
+  await TestRunner.loadModule('sources_test_runner');
   await TestRunner.showPanel('sources');
 
   TestRunner.addResult('Testing accessibility in the call stack sidebar pane.');
@@ -15,7 +14,7 @@
           return;
         }
         wrapper = eval('(function call' + depth + '() { callWithAsyncStack(f, depth - 1) }) //# sourceURL=wrapper.js');
-        queueMicrotask(wrapper);
+        Promise.resolve().then(wrapper);
       }
       function testFunction() {
         callWithAsyncStack(() => {debugger}, 5);
@@ -25,9 +24,10 @@
 
   await SourcesTestRunner.startDebuggerTestPromise(/* quiet */ true);
   await SourcesTestRunner.runTestFunctionAndWaitUntilPausedPromise();
-  await TestRunner.addSnifferPromise(Sources.CallStackSidebarPane.prototype, 'updatedForTest');
+  await TestRunner.addSnifferPromise(
+      Sources.CallStackSidebarPane.prototype, '_updatedForTest');
 
-  const callStackPane = Sources.CallStackSidebarPane.instance();
+  const callStackPane = runtime.sharedInstance(Sources.CallStackSidebarPane);
   const callStackElement = callStackPane.contentElement;
   TestRunner.addResult(`Call stack pane content: ${TestRunner.clearSpecificInfoFromStackFrames(callStackElement.deepTextContent())}`);
   TestRunner.addResult('Running the axe-core linter on the call stack sidebar pane.');

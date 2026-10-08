@@ -17,7 +17,8 @@
       </certificate-delete-confirmation-dialog>
     </template>
     <template is="dom-if" if="[[showPasswordEncryptionDialog_]]" restamp>
-      <certificate-password-encryption-dialog>
+      <certificate-password-encryption-dialog
+          model="[[dialogModel_]]">
       </certificate-password-encryption-dialog>
     </template>
     <template is="dom-if" if="[[showPasswordDecryptionDialog_]]" restamp>
@@ -37,7 +38,7 @@
             certificate-type="[[certificateTypeEnum_.PERSONAL]]"
             import-allowed="[[clientImportAllowed]]">
         </certificate-list>
-<if expr="is_chromeos">
+<if expr="chromeos">
         <certificate-provisioning-list></certificate-provisioning-list>
 </if>
       </div>

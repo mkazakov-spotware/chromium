@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "components/password_manager/core/browser/manage_passwords_referrer.h"
 #include "components/password_manager/core/browser/ui/password_check_referrer.h"
@@ -35,8 +34,6 @@ struct AccountInfo;
 // and notify about user actions.
 class PasswordsModelDelegate {
  public:
-  using AvailabilityCallback = base::OnceCallback<void(bool)>;
-
   // Returns WebContents* the model is attached to.
   virtual content::WebContents* GetWebContents() const = 0;
 
@@ -109,8 +106,8 @@ class PasswordsModelDelegate {
   // Called from the model when the user chooses to save a password. The
   // username and password seen on the ui is sent as a parameter, and
   // handled accordingly if user had edited them.
-  virtual void SavePassword(const std::u16string& username,
-                            const std::u16string& password) = 0;
+  virtual void SavePassword(const base::string16& username,
+                            const base::string16& password) = 0;
 
   // Called when the user chooses to save locally some of the unsynced
   // credentials that were deleted from the account store on signout.
@@ -161,44 +158,22 @@ class PasswordsModelDelegate {
   // if the authentication was successful.
   virtual bool AuthenticateUser() = 0;
 
-  // Called from the BiometricAuthenticationForFilling bubble controller when OS
-  // re-auth is needed to enable feature. Runs callback with true parameter
-  // immediately if user authentication is not available for the given platform.
-  // Otherwise, the method schedules a task to show an authentication dialog.
-  virtual void AuthenticateUserWithMessage(const std::u16string& message,
-                                           AvailabilityCallback callback) = 0;
-
   // Called from the Save/Update bubble controller when gaia re-auth is needed
   // to save passwords. This method triggers the reauth flow. Upon successful
   // reauth, it saves the password if it's still relevant. Otherwise, it changes
   // the default destination to local and reopens the save bubble.
   virtual void AuthenticateUserForAccountStoreOptInAndSavePassword(
-      const std::u16string& username,
-      const std::u16string& password) = 0;
+      const base::string16& username,
+      const base::string16& password) = 0;
 
   // Called from the Move bubble controller when gaia re-auth is needed
   // to move passwords. This method triggers the reauth flow. Upon successful
   // reauth, it moves the password.
   virtual void AuthenticateUserForAccountStoreOptInAndMovePassword() = 0;
 
-  // Called from the Save/Update bubble controller when a "new" user (i.e. who
-  // hasn't chosen whether to use the account-scoped storage yet) saves a
-  // password (locally). If the reauth is successful, this moves the just-saved
-  // password into the account store.
-  virtual void
-  AuthenticateUserForAccountStoreOptInAfterSavingLocallyAndMovePassword() = 0;
-
   // Returns true if the password values should be revealed when the bubble is
   // opened.
   virtual bool ArePasswordsRevealedWhenBubbleIsOpened() const = 0;
-
-  // Called from Biometric Authentication promo dialog when the feature is
-  // enabled.
-  virtual void ShowBiometricActivationConfirmation() = 0;
-
-  // Called when user clicked "No thanks" button on Biometric Authentication
-  // before filling promo dialog.
-  virtual void OnBiometricAuthBeforeFillingDeclined() = 0;
 
  protected:
   virtual ~PasswordsModelDelegate() = default;

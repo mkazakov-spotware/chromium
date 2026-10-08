@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,11 @@
 #include <utility>
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
-#include "base/observer_list.h"
+#include "base/stl_util.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
+#include "chrome/browser/prefetch/no_state_prefetch/chrome_prerender_contents_delegate.h"
 #include "chrome/browser/resource_coordinator/resource_coordinator_parts.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_contents.h"
+#include "components/no_state_prefetch/browser/prerender_contents.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
@@ -159,11 +158,11 @@ void TabLoadTracker::StopTracking(content::WebContents* web_contents) {
     observer.OnStopTracking(web_contents, loading_state);
 }
 
-void TabLoadTracker::PrimaryPageChanged(content::WebContents* web_contents) {
+void TabLoadTracker::DidReceiveResponse(content::WebContents* web_contents) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // Only observe top-level navigation that triggers navigation UI.
-  if (!web_contents->ShouldShowLoadingUI())
+  // Only observe top-level navigation to a different document.
+  if (!web_contents->IsLoadingToDifferentDocument())
     return;
 
   auto it = tabs_.find(web_contents);
@@ -226,17 +225,16 @@ TabLoadTracker::LoadingState TabLoadTracker::DetermineLoadingState(
   // Determine if the WebContents is actively loading, using our definition of
   // loading. Start from the assumption that it is UNLOADED.
   LoadingState loading_state = UNLOADED;
-  if (web_contents->ShouldShowLoadingUI() &&
+  if (web_contents->IsLoadingToDifferentDocument() &&
       !web_contents->IsWaitingForResponse()) {
     loading_state = LOADING;
   } else {
     // Determine if the WebContents is already loaded. A loaded WebContents has
-    // a committed navigation entry that is not the initial entry, is not in an
-    // initial navigation, and doesn't require a reload. This can occur during
-    // prerendering, when an already rendered WebContents is swapped in at the
-    // moment of a navigation.
+    // a committed navigation entry, is not in an initial navigation, and
+    // doesn't require a reload. This can occur during prerendering, when an
+    // already rendered WebContents is swapped in at the moment of a navigation.
     content::NavigationController& controller = web_contents->GetController();
-    if (!controller.GetLastCommittedEntry()->IsInitialEntry() &&
+    if (controller.GetLastCommittedEntry() != nullptr &&
         !controller.IsInitialNavigation() && !controller.NeedsReload()) {
       loading_state = LOADED;
     }
@@ -275,7 +273,7 @@ bool TabLoadTracker::IsUiTab(content::WebContents* web_contents) {
   // tabstrip UI or use a platform-independent tabstrip observer interface to
   // learn about |web_contents| associated with the tabstrip, rather than
   // checking for specific cases where |web_contents| is not a ui tab.
-  if (prerender::ChromeNoStatePrefetchContentsDelegate::FromWebContents(
+  if (prerender::ChromePrerenderContentsDelegate::FromWebContents(
           web_contents) != nullptr)
     return false;
   if (web_contents->GetOuterWebContents())

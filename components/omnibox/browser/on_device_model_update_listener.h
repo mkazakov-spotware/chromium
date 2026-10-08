@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,37 +7,37 @@
 
 #include <memory>
 
-#include "base/containers/flat_set.h"
+#include "base/callback.h"
+#include "base/callback_list.h"
 #include "base/files/file_path.h"
 #include "base/no_destructor.h"
 #include "base/threading/thread_checker.h"
 
-// This class is used by OnDeviceHeadSuggestComponentInstaller or
-// OnDeviceTailModelObserver to hold the filenames for the on device models
-// downloaded by corresponding services.
+// This class is used by OnDeviceHeadSuggestComponentInstaller to notify
+// OnDeviceHeadProvider when on device model update is finished.
 class OnDeviceModelUpdateListener {
  public:
+  using ModelUpdateCallback =
+      base::RepeatingCallback<void(const std::string& new_model_filename)>;
+  using UpdateCallbacks = base::CallbackList<void(const std::string&)>;
+  using UpdateSubscription = UpdateCallbacks::Subscription;
 
   static OnDeviceModelUpdateListener* GetInstance();
 
-  // Called by Component Updater when head model update is completed to update
-  // |head_model_dir_| and |head_model_filename_|.
-  void OnHeadModelUpdate(const base::FilePath& model_dir);
+  // Adds a callback which will be run on model update. This method will also
+  // notify the provider immediately if a model is available.
+  std::unique_ptr<UpdateSubscription> AddModelUpdateCallback(
+      ModelUpdateCallback callback);
 
-  // Called by on device tail model observer when tail model update is completed
-  // to update |tail_model_filename_| and |vocab_filename_|.
-  void OnTailModelUpdate(
-      const base::FilePath& model_file,
-      const base::flat_set<base::FilePath>& additional_files);
+  // Called by Component Updater when model update is completed to notify the
+  // on device head provider to reload the model.
+  void OnModelUpdate(const base::FilePath& model_dir);
 
-  std::string head_model_filename() const;
-  std::string tail_model_filename() const;
-  std::string vocab_filename() const;
+  std::string model_filename() const { return model_filename_; }
 
  private:
   friend class base::NoDestructor<OnDeviceModelUpdateListener>;
   friend class OnDeviceHeadProviderTest;
-  friend class OnDeviceModelUpdateListenerTest;
 
   void ResetListenerForTest();
 
@@ -47,17 +47,18 @@ class OnDeviceModelUpdateListener {
   OnDeviceModelUpdateListener& operator=(const OnDeviceModelUpdateListener&) =
       delete;
 
-  // The directory where the on device head model resides.
-  base::FilePath head_model_dir_;
+  // The directory where the on device model resides.
+  base::FilePath model_dir_;
 
-  // The filename of the head model.
-  std::string head_model_filename_;
+  // The filename of the model.
+  std::string model_filename_;
 
-  // The filename of the tail model.
-  std::string tail_model_filename_;
+  // A list of callbacks which will be run on model update.
+  UpdateCallbacks model_update_callbacks_;
 
-  // The filename of the vocabulary file for the tail model.
-  std::string vocab_filename_;
+  // The task runner which will be used to run file operations and
+  // |model_update_callbacks_|.
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   THREAD_CHECKER(thread_checker_);
 };

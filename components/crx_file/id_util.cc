@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,8 @@ static void ConvertHexadecimalToIDAlphabet(std::string* id) {
 
 }  // namespace
 
-namespace crx_file::id_util {
+namespace crx_file {
+namespace id_util {
 
 // First 16 bytes of SHA256 hashed public key.
 const size_t kIdSize = 16;
@@ -71,7 +72,7 @@ std::string HashedIdInHex(const std::string& id) {
 }
 
 base::FilePath MaybeNormalizePath(const base::FilePath& path) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Normalize any drive letter to upper-case. We do this for consistency with
   // net_utils::FilePathToFileURL(), which does the same thing, to make string
   // comparisons simpler.
@@ -86,13 +87,13 @@ base::FilePath MaybeNormalizePath(const base::FilePath& path) {
 #endif
 }
 
-bool IdIsValid(base::StringPiece id) {
+bool IdIsValid(const std::string& id) {
   // Verify that the id is legal.
   if (id.size() != (crx_file::id_util::kIdSize * 2))
     return false;
 
-  for (char ch : id) {
-    ch = base::ToLowerASCII(ch);
+  for (size_t i = 0; i < id.size(); i++) {
+    const char ch = base::ToLowerASCII(id[i]);
     if (ch < 'a' || ch > 'p')
       return false;
   }
@@ -100,4 +101,5 @@ bool IdIsValid(base::StringPiece id) {
   return true;
 }
 
-}  // namespace crx_file::id_util
+}  // namespace id_util
+}  // namespace crx_file

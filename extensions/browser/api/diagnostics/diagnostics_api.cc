@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include "base/json/json_reader.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
-#include "chromeos/ash/components/dbus/debug_daemon/debug_daemon_client.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
+#include "chromeos/dbus/debug_daemon/debug_daemon_client.h"
 
 namespace extensions {
 
@@ -25,25 +26,26 @@ const char kSize[] = "size";
 
 bool ParseResult(const std::string& status, std::string* ip, double* latency) {
   // Parses the result and returns IP and latency.
-  absl::optional<base::Value> parsed_value(base::JSONReader::Read(status));
-  if (!parsed_value || !parsed_value->is_dict())
+  std::unique_ptr<base::Value> parsed_value(
+      base::JSONReader::ReadDeprecated(status));
+  if (!parsed_value)
     return false;
 
-  base::Value::Dict& result = parsed_value->GetDict();
-  if (result.size() != 1)
+  base::DictionaryValue* result = NULL;
+  if (!parsed_value->GetAsDictionary(&result) || result->size() != 1)
     return false;
 
   // Returns the first item.
-  base::Value::Dict::iterator iterator = result.begin();
-  if (!iterator->second.is_dict())
+  base::DictionaryValue::Iterator iterator(*result);
+
+  const base::DictionaryValue* info;
+  if (!iterator.value().GetAsDictionary(&info))
     return false;
 
-  absl::optional<double> avg = iterator->second.GetDict().FindDouble("avg");
-  if (!avg)
+  if (!info->GetDouble("avg", latency))
     return false;
-  *latency = *avg;
 
-  *ip = iterator->first;
+  *ip = iterator.key();
   return true;
 }
 
@@ -55,7 +57,7 @@ DiagnosticsSendPacketFunction::DiagnosticsSendPacketFunction() = default;
 DiagnosticsSendPacketFunction::~DiagnosticsSendPacketFunction() = default;
 
 ExtensionFunction::ResponseAction DiagnosticsSendPacketFunction::Run() {
-  auto params = api::diagnostics::SendPacket::Params::Create(args());
+  auto params = api::diagnostics::SendPacket::Params::Create(*args_);
 
   std::map<std::string, std::string> config;
   config[kCount] = kDefaultCount;
@@ -66,16 +68,18 @@ ExtensionFunction::ResponseAction DiagnosticsSendPacketFunction::Run() {
   if (params->options.size)
     config[kSize] = base::NumberToString(*params->options.size);
 
-  ash::DebugDaemonClient::Get()->TestICMPWithOptions(
-      params->options.ip, config,
-      base::BindOnce(&DiagnosticsSendPacketFunction::OnTestICMPCompleted,
-                     this));
+  chromeos::DBusThreadManager::Get()
+      ->GetDebugDaemonClient()
+      ->TestICMPWithOptions(
+          params->options.ip, config,
+          base::BindOnce(&DiagnosticsSendPacketFunction::OnTestICMPCompleted,
+                         this));
 
   return RespondLater();
 }
 
 void DiagnosticsSendPacketFunction::OnTestICMPCompleted(
-    absl::optional<std::string> status) {
+    base::Optional<std::string> status) {
   std::string ip;
   double latency;
   if (!status.has_value() || !ParseResult(status.value(), &ip, &latency)) {
@@ -86,7 +90,8 @@ void DiagnosticsSendPacketFunction::OnTestICMPCompleted(
   api::diagnostics::SendPacketResult result;
   result.ip = ip;
   result.latency = latency;
-  Respond(OneArgument(base::Value(SendPacket::Results::Create(result))));
+  Respond(OneArgument(
+      base::Value::FromUniquePtrValue(SendPacket::Results::Create(result))));
 }
 
 }  // namespace extensions

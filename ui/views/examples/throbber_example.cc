@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,15 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/controls/throbber.h"
 #include "ui/views/examples/grit/views_examples_resources.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/view.h"
 
-namespace views::examples {
+namespace views {
+namespace examples {
 
 namespace {
 
@@ -23,9 +24,6 @@ class ThrobberView : public View {
     throbber_ = AddChildView(std::make_unique<Throbber>());
     throbber_->Start();
   }
-
-  ThrobberView(const ThrobberView&) = delete;
-  ThrobberView& operator=(const ThrobberView&) = delete;
 
   // View::
   gfx::Size CalculatePreferredSize() const override {
@@ -53,8 +51,10 @@ class ThrobberView : public View {
   }
 
  private:
-  raw_ptr<Throbber> throbber_;
+  Throbber* throbber_;
   bool is_checked_ = false;
+
+  DISALLOW_COPY_AND_ASSIGN(ThrobberView);
 };
 
 }  // namespace
@@ -70,4 +70,5 @@ void ThrobberExample::CreateExampleView(View* container) {
   container->AddChildView(std::make_unique<ThrobberView>());
 }
 
-}  // namespace views::examples
+}  // namespace examples
+}  // namespace views

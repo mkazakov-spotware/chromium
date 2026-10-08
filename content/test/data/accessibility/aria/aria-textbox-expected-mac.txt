@@ -1,5 +1,3 @@
 AXWebArea AXRoleDescription='HTML content'
-++AXTextArea AXRoleDescription='text entry area' AXValue='<newline>    TextBox1<newline>  '
-++++AXStaticText AXRoleDescription='text' AXValue='<newline>    TextBox1<newline>  '
-++AXTextArea AXRoleDescription='text entry area' AXValue='<newline>    TextBox2<newline>  '
-++++AXStaticText AXRoleDescription='text' AXValue='<newline>    TextBox2<newline>  '
+++AXTextField AXRoleDescription='text field' AXValue='TextBox1'
+++AXTextArea AXRoleDescription='text entry area' AXValue='TextBox2'

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 
 #include "base/command_line.h"
 #include "base/component_export.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "base/optional.h"
+#include "content/common/content_export.h"
 
 namespace content {
 
-class SharedFileSwitchValueBuilder final {
+class CONTENT_EXPORT SharedFileSwitchValueBuilder final {
  public:
   void AddEntry(const std::string& key_str, int key_id);
   const std::string& switch_value() const { return switch_value_; }
@@ -23,7 +24,8 @@ class SharedFileSwitchValueBuilder final {
   std::string switch_value_;
 };
 
-absl::optional<std::map<int, std::string>> ParseSharedFileSwitchValue(
+CONTENT_EXPORT
+base::Optional<std::map<int, std::string>> ParseSharedFileSwitchValue(
     const std::string& value);
 
 }  // namespace content

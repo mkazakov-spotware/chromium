@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
+#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
@@ -27,7 +27,6 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "testing/gmock/include/gmock/gmock.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/service_worker/service_worker_status_code.h"
 #include "third_party/re2/src/re2/re2.h"
 #include "url/gurl.h"
@@ -60,8 +59,8 @@ class ContentIndexTest : public InProcessBrowserTest,
     https_server_->ServeFilesFromSourceDirectory("chrome/test/data");
     ASSERT_TRUE(https_server_->Start());
 
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(
-        browser(), https_server_->GetURL("/content_index/content_index.html")));
+    ui_test_utils::NavigateToURL(
+        browser(), https_server_->GetURL("/content_index/content_index.html"));
 
     RunScript("RegisterServiceWorker()");
 
@@ -98,12 +97,10 @@ class ContentIndexTest : public InProcessBrowserTest,
 
   void OnItemUpdated(
       const OfflineItem& item,
-      const absl::optional<offline_items_collection::UpdateDelta>& update_delta)
+      const base::Optional<offline_items_collection::UpdateDelta>& update_delta)
       override {
     NOTREACHED();
   }
-
-  void OnContentProviderGoingDown() override {}
 
   // TabStripModelObserver implementation:
   void TabChangedAt(content::WebContents* contents,
@@ -117,12 +114,12 @@ class ContentIndexTest : public InProcessBrowserTest,
     wait_for_tab_change_ = std::move(closure);
   }
 
-  absl::optional<OfflineItem> GetItem(const ContentId& id) {
-    absl::optional<OfflineItem> out_item;
+  base::Optional<OfflineItem> GetItem(const ContentId& id) {
+    base::Optional<OfflineItem> out_item;
     base::RunLoop run_loop;
     provider_->GetItemById(id,
                            base::BindLambdaForTesting(
-                               [&](const absl::optional<OfflineItem>& item) {
+                               [&](const base::Optional<OfflineItem>& item) {
                                  out_item = item;
                                  run_loop.Quit();
                                }));
@@ -148,10 +145,7 @@ class ContentIndexTest : public InProcessBrowserTest,
  private:
   void RunScript(const std::string& script, std::string* result) {
     ASSERT_TRUE(content::ExecuteScriptAndExtractString(
-        browser()
-            ->tab_strip_model()
-            ->GetActiveWebContents()
-            ->GetPrimaryMainFrame(),
+        browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame(),
         "WrapFunction(async () => " + script + ")", result));
     ASSERT_TRUE(
         base::StartsWith(*result, "ok - ", base::CompareCase::SENSITIVE))
@@ -159,7 +153,7 @@ class ContentIndexTest : public InProcessBrowserTest,
   }
 
   std::map<std::string, OfflineItem> offline_items_;
-  raw_ptr<ContentIndexProviderImpl, DanglingUntriaged> provider_;
+  ContentIndexProviderImpl* provider_;
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
   base::OnceClosure wait_for_tab_change_;
 };
@@ -186,17 +180,6 @@ IN_PROC_BROWSER_TEST_F(ContentIndexTest, OfflineItemObserversReceiveEvents) {
 
   // Expect the description to have been updated.
   EXPECT_NE(description1, offline_items().at("my-id-1").description);
-}
-
-IN_PROC_BROWSER_TEST_F(ContentIndexTest, OfflineItemIframe) {
-  RunScript("AddContentForFrame('my-id-frame')");
-  base::RunLoop().RunUntilIdle();
-
-  // Not a top-level context, provider should ignore the entry.
-  EXPECT_TRUE(offline_items().empty());
-
-  // We should still be able to use the Content Index API against it though.
-  EXPECT_EQ("my-id-frame", RunScript("GetIdsForFrame()"));
 }
 
 IN_PROC_BROWSER_TEST_F(ContentIndexTest, ContextAPI) {
@@ -258,7 +241,7 @@ IN_PROC_BROWSER_TEST_F(ContentIndexTest, LaunchUrl) {
 
   EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
   GURL current_url =
-      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL();
+      browser()->tab_strip_model()->GetActiveWebContents()->GetURL();
   EXPECT_TRUE(base::EndsWith(current_url.spec(),
                              "/content_index/content_index.html",
                              base::CompareCase::SENSITIVE));
@@ -275,8 +258,7 @@ IN_PROC_BROWSER_TEST_F(ContentIndexTest, LaunchUrl) {
   base::RunLoop().RunUntilIdle();
 
   EXPECT_EQ(browser()->tab_strip_model()->count(), 2);
-  current_url =
-      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL();
+  current_url = browser()->tab_strip_model()->GetActiveWebContents()->GetURL();
   EXPECT_TRUE(base::EndsWith(current_url.spec(),
                              "/content_index/content_index.html?launch",
                              base::CompareCase::SENSITIVE));
@@ -291,8 +273,7 @@ IN_PROC_BROWSER_TEST_F(ContentIndexTest, UserDeletedEntryDispatchesEvent) {
   EXPECT_TRUE(GetAllItems().empty());
 }
 
-// TODO(crbug.com/1080922): flaky.
-IN_PROC_BROWSER_TEST_F(ContentIndexTest, DISABLED_MetricsCollected) {
+IN_PROC_BROWSER_TEST_F(ContentIndexTest, MetricsCollected) {
   // Inititally there is no content.
   {
     base::HistogramTester histogram_tester;

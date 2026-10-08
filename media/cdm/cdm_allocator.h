@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "media/base/media_export.h"
 
 namespace cdm {
@@ -26,9 +27,6 @@ class MEDIA_EXPORT CdmAllocator {
   // Callback to create CdmAllocator for the created CDM.
   using CreationCB = base::RepeatingCallback<std::unique_ptr<CdmAllocator>()>;
 
-  CdmAllocator(const CdmAllocator&) = delete;
-  CdmAllocator& operator=(const CdmAllocator&) = delete;
-
   virtual ~CdmAllocator();
 
   // Creates a buffer with at least |capacity| bytes. Caller is required to
@@ -40,6 +38,9 @@ class MEDIA_EXPORT CdmAllocator {
 
  protected:
   CdmAllocator();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CdmAllocator);
 };
 
 }  // namespace media

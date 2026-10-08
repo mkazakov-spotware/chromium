@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <map>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/containers/flat_set.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
+#include "base/scoped_observer.h"
 #include "chrome/browser/command_observer.h"
 #include "chrome/browser/profiles/avatar_menu.h"
 #include "chrome/browser/profiles/avatar_menu_observer.h"
@@ -49,10 +50,6 @@ class DbusAppmenu : public AvatarMenuObserver,
                     public ui::SimpleMenuModel::Delegate {
  public:
   DbusAppmenu(BrowserView* browser_view, uint32_t browser_frame_id);
-
-  DbusAppmenu(const DbusAppmenu&) = delete;
-  DbusAppmenu& operator=(const DbusAppmenu&) = delete;
-
   ~DbusAppmenu() override;
 
   void Initialize(DbusMenu::InitializedCallback callback);
@@ -78,16 +75,6 @@ class DbusAppmenu : public AvatarMenuObserver,
   void AddHistoryItemToMenu(std::unique_ptr<HistoryItem> item,
                             ui::SimpleMenuModel* menu,
                             int index);
-
-  // Creates a menu item with the given |id| and |title| and inserts it in the
-  // history_menu_ at |index|. The creates a submenu with some standard items
-  // and an item for each tab in |tabs|.
-  void AddEntryToHistoryMenu(
-      SessionID id,
-      std::u16string title,
-      int index,
-      const std::vector<std::unique_ptr<sessions::TabRestoreService::Tab>>&
-          tabs);
 
   // Sends a message off to History for data.
   void GetTopSitesData();
@@ -140,9 +127,9 @@ class DbusAppmenu : public AvatarMenuObserver,
                                   ui::Accelerator* accelerator) const override;
 
   // State for the browser window we're tracking.
-  const raw_ptr<Browser> browser_;
-  raw_ptr<Profile> profile_;
-  raw_ptr<BrowserView> browser_view_;
+  Browser* const browser_;
+  Profile* profile_;
+  BrowserView* browser_view_;
   // XID of the browser's frame window that owns this menu.  Deliberately stored
   // as plain int (and not as x11::Window) because it is never used for any
   // calls to the X server, but it is always used for building string paths and
@@ -164,20 +151,20 @@ class DbusAppmenu : public AvatarMenuObserver,
   std::vector<std::unique_ptr<ui::SimpleMenuModel>> toplevel_menus_;
   std::vector<std::unique_ptr<ui::SimpleMenuModel>>
       recently_closed_window_menus_;
-  raw_ptr<ui::SimpleMenuModel> history_menu_ = nullptr;
-  raw_ptr<ui::SimpleMenuModel> profiles_menu_ = nullptr;
+  ui::SimpleMenuModel* history_menu_ = nullptr;
+  ui::SimpleMenuModel* profiles_menu_ = nullptr;
 
   // Tracks value of the kShowBookmarkBar preference.
   PrefChangeRegistrar pref_change_registrar_;
 
   scoped_refptr<history::TopSites> top_sites_;
 
-  raw_ptr<sessions::TabRestoreService> tab_restore_service_;  // weak
+  sessions::TabRestoreService* tab_restore_service_;  // weak
 
   std::unique_ptr<AvatarMenu> avatar_menu_;
 
-  base::ScopedObservation<history::TopSites, history::TopSitesObserver>
-      scoped_observation_{this};
+  ScopedObserver<history::TopSites, history::TopSitesObserver> scoped_observer_{
+      this};
 
   // Maps from history item command ID to HistoryItem data.
   std::map<int, std::unique_ptr<HistoryItem>> history_items_;
@@ -193,6 +180,8 @@ class DbusAppmenu : public AvatarMenuObserver,
 
   // For callbacks may be run after destruction.
   base::WeakPtrFactory<DbusAppmenu> weak_ptr_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DbusAppmenu);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_DBUS_APPMENU_H_

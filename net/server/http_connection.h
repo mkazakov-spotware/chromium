@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 
 #include "base/containers/queue.h"
-#include "base/memory/scoped_refptr.h"
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
 #include "net/base/io_buffer.h"
 
 namespace net {
@@ -32,9 +33,6 @@ class HttpConnection {
     static const int kDefaultMaxBufferSize = 1 * 1024 * 1024;  // 1 Mbytes.
 
     ReadIOBuffer();
-
-    ReadIOBuffer(const ReadIOBuffer&) = delete;
-    ReadIOBuffer& operator=(const ReadIOBuffer&) = delete;
 
     // Capacity.
     int GetCapacity() const;
@@ -64,7 +62,9 @@ class HttpConnection {
     ~ReadIOBuffer() override;
 
     scoped_refptr<GrowableIOBuffer> base_;
-    int max_buffer_size_ = kDefaultMaxBufferSize;
+    int max_buffer_size_;
+
+    DISALLOW_COPY_AND_ASSIGN(ReadIOBuffer);
   };
 
   // IOBuffer of pending data to write which has a queue of pending data. Each
@@ -75,9 +75,6 @@ class HttpConnection {
     static const int kDefaultMaxBufferSize = 1 * 1024 * 1024;  // 1 Mbytes.
 
     QueuedWriteIOBuffer();
-
-    QueuedWriteIOBuffer(const QueuedWriteIOBuffer&) = delete;
-    QueuedWriteIOBuffer& operator=(const QueuedWriteIOBuffer&) = delete;
 
     // Whether or not pending data exists.
     bool IsEmpty() const;
@@ -109,15 +106,13 @@ class HttpConnection {
     // This needs to indirect since we need pointer stability for the payload
     // chunks, as they may be handed out via net::IOBuffer::data().
     base::queue<std::unique_ptr<std::string>> pending_data_;
-    int total_size_ = 0;
-    int max_buffer_size_ = kDefaultMaxBufferSize;
+    int total_size_;
+    int max_buffer_size_;
+
+    DISALLOW_COPY_AND_ASSIGN(QueuedWriteIOBuffer);
   };
 
   HttpConnection(int id, std::unique_ptr<StreamSocket> socket);
-
-  HttpConnection(const HttpConnection&) = delete;
-  HttpConnection& operator=(const HttpConnection&) = delete;
-
   ~HttpConnection();
 
   int id() const { return id_; }
@@ -135,6 +130,8 @@ class HttpConnection {
   const scoped_refptr<QueuedWriteIOBuffer> write_buf_;
 
   std::unique_ptr<WebSocket> web_socket_;
+
+  DISALLOW_COPY_AND_ASSIGN(HttpConnection);
 };
 
 }  // namespace net

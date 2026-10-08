@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "components/drive/service/drive_service_interface.h"
@@ -25,9 +25,6 @@ class DriveServiceWrapper : public base::SupportsWeakPtr<DriveServiceWrapper> {
  public:
   explicit DriveServiceWrapper(drive::DriveServiceInterface* drive_service);
 
-  DriveServiceWrapper(const DriveServiceWrapper&) = delete;
-  DriveServiceWrapper& operator=(const DriveServiceWrapper&) = delete;
-
   void AddNewDirectory(const std::string& parent_resource_id,
                        const std::string& directory_title,
                        const drive::AddNewDirectoryOptions& options,
@@ -40,7 +37,7 @@ class DriveServiceWrapper : public base::SupportsWeakPtr<DriveServiceWrapper> {
   void DownloadFile(
       const base::FilePath& local_cache_path,
       const std::string& resource_id,
-      google_apis::DownloadActionCallback download_action_callback,
+      const google_apis::DownloadActionCallback& download_action_callback,
       const google_apis::GetContentCallback& get_content_callback,
       google_apis::ProgressCallback progress_callback);
 
@@ -80,8 +77,10 @@ class DriveServiceWrapper : public base::SupportsWeakPtr<DriveServiceWrapper> {
                      google_apis::FileListCallback callback);
 
  private:
-  raw_ptr<drive::DriveServiceInterface> drive_service_;
+  drive::DriveServiceInterface* drive_service_;
   SEQUENCE_CHECKER(sequence_checker_);
+
+  DISALLOW_COPY_AND_ASSIGN(DriveServiceWrapper);
 };
 
 }  // namespace drive_backend

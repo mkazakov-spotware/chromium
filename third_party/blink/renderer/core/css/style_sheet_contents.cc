@@ -25,14 +25,13 @@
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/css/style_rule.h"
-#include "third_party/blink/renderer/core/css/style_rule_counter_style.h"
 #include "third_party/blink/renderer/core/css/style_rule_import.h"
 #include "third_party/blink/renderer/core/css/style_rule_namespace.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/node.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
 #include "third_party/blink/renderer/core/loader/resource/css_style_sheet_resource.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/heap.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 
@@ -85,8 +84,6 @@ StyleSheetContents::StyleSheetContents(const CSSParserContext* context,
 StyleSheetContents::StyleSheetContents(const StyleSheetContents& o)
     : owner_rule_(nullptr),
       original_url_(o.original_url_),
-      pre_import_layer_statement_rules_(
-          o.pre_import_layer_statement_rules_.size()),
       import_rules_(o.import_rules_.size()),
       namespace_rules_(o.namespace_rules_.size()),
       child_rules_(o.child_rules_.size()),
@@ -102,13 +99,8 @@ StyleSheetContents::StyleSheetContents(const StyleSheetContents& o)
       has_single_owner_document_(true),
       is_used_from_text_cache_(false),
       parser_context_(o.parser_context_) {
-  for (unsigned i = 0; i < pre_import_layer_statement_rules_.size(); ++i) {
-    pre_import_layer_statement_rules_[i] = To<StyleRuleLayerStatement>(
-        o.pre_import_layer_statement_rules_[i]->Copy());
-  }
-
   // FIXME: Copy import rules.
-  DCHECK(o.import_rules_.empty());
+  DCHECK(o.import_rules_.IsEmpty());
 
   for (unsigned i = 0; i < namespace_rules_.size(); ++i) {
     namespace_rules_[i] =
@@ -132,7 +124,7 @@ bool StyleSheetContents::IsCacheableForResource() const {
   if (!LoadCompleted())
     return false;
   // FIXME: Support copying import rules.
-  if (!import_rules_.empty())
+  if (!import_rules_.IsEmpty())
     return false;
   // FIXME: Support cached stylesheets in import rules.
   if (owner_rule_)
@@ -152,7 +144,7 @@ bool StyleSheetContents::IsCacheableForResource() const {
 
 bool StyleSheetContents::IsCacheableForStyleElement() const {
   // FIXME: Support copying import rules.
-  if (!ImportRules().empty())
+  if (!ImportRules().IsEmpty())
     return false;
   // Until import rules are supported in cached sheets it's not possible for
   // loading to fail.
@@ -166,19 +158,9 @@ bool StyleSheetContents::IsCacheableForStyleElement() const {
 }
 
 void StyleSheetContents::ParserAppendRule(StyleRuleBase* rule) {
-  if (auto* layer_statement_rule = DynamicTo<StyleRuleLayerStatement>(rule)) {
-    if (import_rules_.empty() && namespace_rules_.empty() &&
-        child_rules_.empty()) {
-      pre_import_layer_statement_rules_.push_back(layer_statement_rule);
-      return;
-    }
-    // Falls through, insert it into child_rules_ as a regular rule
-  }
-
   if (auto* import_rule = DynamicTo<StyleRuleImport>(rule)) {
-    // Parser enforces that @import rules come before anything else other than
-    // empty layer statements
-    DCHECK(child_rules_.empty());
+    // Parser enforces that @import rules come before anything else
+    DCHECK(child_rules_.IsEmpty());
     if (import_rule->MediaQueries())
       SetHasMediaQueries();
     import_rules_.push_back(import_rule);
@@ -189,8 +171,8 @@ void StyleSheetContents::ParserAppendRule(StyleRuleBase* rule) {
 
   if (auto* namespace_rule = DynamicTo<StyleRuleNamespace>(rule)) {
     // Parser enforces that @namespace rules come before all rules other than
-    // import/charset rules and empty layer statements
-    DCHECK(child_rules_.empty());
+    // import/charset rules
+    DCHECK(child_rules_.IsEmpty());
     ParserAddNamespace(namespace_rule->Prefix(), namespace_rule->Uri());
     namespace_rules_.push_back(namespace_rule);
     return;
@@ -208,11 +190,6 @@ void StyleSheetContents::SetHasMediaQueries() {
 StyleRuleBase* StyleSheetContents::RuleAt(unsigned index) const {
   SECURITY_DCHECK(index < RuleCount());
 
-  if (index < pre_import_layer_statement_rules_.size())
-    return pre_import_layer_statement_rules_[index].Get();
-
-  index -= pre_import_layer_statement_rules_.size();
-
   if (index < import_rules_.size())
     return import_rules_[index].Get();
 
@@ -227,12 +204,10 @@ StyleRuleBase* StyleSheetContents::RuleAt(unsigned index) const {
 }
 
 unsigned StyleSheetContents::RuleCount() const {
-  return pre_import_layer_statement_rules_.size() + import_rules_.size() +
-         namespace_rules_.size() + child_rules_.size();
+  return import_rules_.size() + namespace_rules_.size() + child_rules_.size();
 }
 
 void StyleSheetContents::ClearRules() {
-  pre_import_layer_statement_rules_.clear();
   for (unsigned i = 0; i < import_rules_.size(); ++i) {
     DCHECK_EQ(import_rules_.at(i)->ParentStyleSheet(), this);
     import_rules_[i]->ClearParentStyleSheet();
@@ -242,70 +217,10 @@ void StyleSheetContents::ClearRules() {
   child_rules_.clear();
 }
 
-static wtf_size_t ReplaceRuleIfExistsInternal(
-    const StyleRuleBase* old_rule,
-    StyleRuleBase* new_rule,
-    HeapVector<Member<StyleRuleBase>>& child_rules) {
-  for (wtf_size_t i = 0; i < child_rules.size(); ++i) {
-    StyleRuleBase* rule = child_rules[i].Get();
-    if (rule == old_rule) {
-      child_rules[i] = new_rule;
-      return i;
-    }
-    if (IsA<StyleRuleGroup>(rule)) {
-      if (ReplaceRuleIfExistsInternal(old_rule, new_rule,
-                                      To<StyleRuleGroup>(rule)->ChildRules()) !=
-          std::numeric_limits<wtf_size_t>::max()) {
-        return 0;  // Dummy non-failure value.
-      }
-    }
-  }
-
-  // Not found.
-  return std::numeric_limits<wtf_size_t>::max();
-}
-
-wtf_size_t StyleSheetContents::ReplaceRuleIfExists(
-    const StyleRuleBase* old_rule,
-    StyleRuleBase* new_rule,
-    wtf_size_t position_hint) {
-  if (position_hint < child_rules_.size() &&
-      child_rules_[position_hint] == old_rule) {
-    child_rules_[position_hint] = new_rule;
-    return position_hint;
-  }
-
-  return ReplaceRuleIfExistsInternal(old_rule, new_rule, child_rules_);
-}
-
 bool StyleSheetContents::WrapperInsertRule(StyleRuleBase* rule,
                                            unsigned index) {
   DCHECK(is_mutable_);
   SECURITY_DCHECK(index <= RuleCount());
-
-  // If the sheet starts with empty layer statements without any import or
-  // namespace rules, we should be able to insert any rule before and between
-  // the empty layer statements. To support this case, we move any existing
-  // empty layer statement to child_rules_ first.
-  if (pre_import_layer_statement_rules_.size() && !import_rules_.size() &&
-      !namespace_rules_.size()) {
-    child_rules_.PrependVector(pre_import_layer_statement_rules_);
-    pre_import_layer_statement_rules_.clear();
-  }
-
-  if (index < pre_import_layer_statement_rules_.size() ||
-      (index == pre_import_layer_statement_rules_.size() &&
-       rule->IsLayerStatementRule())) {
-    // Empty layer statements before import rules should be a continuous block.
-    auto* layer_statement_rule = DynamicTo<StyleRuleLayerStatement>(rule);
-    if (!layer_statement_rule)
-      return false;
-
-    pre_import_layer_statement_rules_.insert(index, layer_statement_rule);
-    return true;
-  }
-
-  index -= pre_import_layer_statement_rules_.size();
 
   if (index < import_rules_.size() ||
       (index == import_rules_.size() && rule->IsImportRule())) {
@@ -339,7 +254,7 @@ bool StyleSheetContents::WrapperInsertRule(StyleRuleBase* rule,
       return false;
     // Inserting @namespace rule when rules other than import/namespace/charset
     // are present is not allowed.
-    if (!child_rules_.empty())
+    if (!child_rules_.IsEmpty())
       return false;
 
     namespace_rules_.insert(index, namespace_rule);
@@ -367,12 +282,6 @@ bool StyleSheetContents::WrapperDeleteRule(unsigned index) {
   DCHECK(is_mutable_);
   SECURITY_DCHECK(index < RuleCount());
 
-  if (index < pre_import_layer_statement_rules_.size()) {
-    pre_import_layer_statement_rules_.EraseAt(index);
-    return true;
-  }
-  index -= pre_import_layer_statement_rules_.size();
-
   if (index < import_rules_.size()) {
     import_rules_[index]->ClearParentStyleSheet();
     import_rules_.EraseAt(index);
@@ -381,7 +290,7 @@ bool StyleSheetContents::WrapperDeleteRule(unsigned index) {
   index -= import_rules_.size();
 
   if (index < namespace_rules_.size()) {
-    if (!child_rules_.empty())
+    if (!child_rules_.IsEmpty())
       return false;
     namespace_rules_.EraseAt(index);
     return true;
@@ -406,17 +315,14 @@ void StyleSheetContents::ParserAddNamespace(const AtomicString& prefix,
 
 const AtomicString& StyleSheetContents::NamespaceURIFromPrefix(
     const AtomicString& prefix) const {
-  auto it = namespaces_.find(prefix);
-  return it != namespaces_.end() ? it->value : WTF::g_null_atom;
+  return namespaces_.at(prefix);
 }
 
 void StyleSheetContents::ParseAuthorStyleSheet(
     const CSSStyleSheetResource* cached_style_sheet) {
-  TRACE_EVENT1("blink,devtools.timeline", "ParseAuthorStyleSheet", "data",
-               [&](perfetto::TracedValue context) {
-                 inspector_parse_author_style_sheet_event::Data(
-                     std::move(context), cached_style_sheet);
-               });
+  TRACE_EVENT1(
+      "blink,devtools.timeline", "ParseAuthorStyleSheet", "data",
+      inspector_parse_author_style_sheet_event::Data(cached_style_sheet));
 
   const ResourceResponse& response = cached_style_sheet->GetResponse();
   CSSStyleSheetResource::MIMETypeCheck mime_type_check =
@@ -428,27 +334,32 @@ void StyleSheetContents::ParseAuthorStyleSheet(
       cached_style_sheet->SheetText(parser_context_, mime_type_check);
 
   source_map_url_ = response.HttpHeaderField(http_names::kSourceMap);
-  if (source_map_url_.empty()) {
+  if (source_map_url_.IsEmpty()) {
     // Try to get deprecated header.
     source_map_url_ = response.HttpHeaderField(http_names::kXSourceMap);
   }
 
   const auto* context =
       MakeGarbageCollected<CSSParserContext>(ParserContext(), this);
-  CSSParser::ParseSheet(
-      context, this, sheet_text, CSSDeferPropertyParsing::kYes, true,
-      sheet_text.IsNull() ? nullptr : cached_style_sheet->TakeTokenizer());
+  CSSParser::ParseSheet(context, this, sheet_text,
+                        CSSDeferPropertyParsing::kYes);
 }
 
-ParseSheetResult StyleSheetContents::ParseString(
+ParseSheetResult StyleSheetContents::ParseString(const String& sheet_text,
+                                                 bool allow_import_rules) {
+  return ParseStringAtPosition(sheet_text, TextPosition::MinimumPosition(),
+                               allow_import_rules);
+}
+
+ParseSheetResult StyleSheetContents::ParseStringAtPosition(
     const String& sheet_text,
-    bool allow_import_rules,
-    std::unique_ptr<CachedCSSTokenizer> tokenizer) {
+    const TextPosition& start_position,
+    bool allow_import_rules) {
   const auto* context =
       MakeGarbageCollected<CSSParserContext>(ParserContext(), this);
   return CSSParser::ParseSheet(context, this, sheet_text,
-                               CSSDeferPropertyParsing::kNo, allow_import_rules,
-                               std::move(tokenizer));
+                               CSSDeferPropertyParsing::kNo,
+                               allow_import_rules);
 }
 
 bool StyleSheetContents::IsLoading() const {
@@ -465,7 +376,7 @@ bool StyleSheetContents::LoadCompleted() const {
     return parent_sheet->LoadCompleted();
 
   StyleSheetContents* root = RootStyleSheet();
-  return root->loading_clients_.empty();
+  return root->loading_clients_.IsEmpty();
 }
 
 void StyleSheetContents::CheckLoaded() {
@@ -479,7 +390,7 @@ void StyleSheetContents::CheckLoaded() {
   }
 
   DCHECK_EQ(this, RootStyleSheet());
-  if (loading_clients_.empty())
+  if (loading_clients_.IsEmpty())
     return;
 
   // Avoid |CSSSStyleSheet| and |OwnerNode| being deleted by scripts that run
@@ -490,7 +401,8 @@ void StyleSheetContents::CheckLoaded() {
   // When a sheet is loaded it is moved from the set of loading clients
   // to the set of completed clients. We therefore need the copy in order to
   // not modify the set while iterating it.
-  HeapVector<Member<CSSStyleSheet>> loading_clients(loading_clients_);
+  HeapVector<Member<CSSStyleSheet>> loading_clients;
+  CopyToVector(loading_clients_, loading_clients);
 
   for (unsigned i = 0; i < loading_clients.size(); ++i) {
     if (loading_clients[i]->LoadCompleted())
@@ -519,18 +431,19 @@ void StyleSheetContents::NotifyLoadedSheet(const CSSStyleSheetResource* sheet) {
   ClearRuleSet();
 }
 
-void StyleSheetContents::SetToPendingState() {
+void StyleSheetContents::StartLoadingDynamicSheet() {
   StyleSheetContents* root = RootStyleSheet();
   for (const auto& client : root->loading_clients_)
-    client->SetToPendingState();
+    client->StartLoadingDynamicSheet();
   // Copy the completed clients to a vector for iteration.
-  // SetToPendingState() will move the style sheet from the completed state
+  // startLoadingDynamicSheet will move the style sheet from the completed state
   // to the loading state which modifies the set of completed clients. We
   // therefore need the copy in order to not modify the set of completed clients
   // while iterating it.
-  HeapVector<Member<CSSStyleSheet>> completed_clients(completed_clients_);
+  HeapVector<Member<CSSStyleSheet>> completed_clients;
+  CopyToVector(root->completed_clients_, completed_clients);
   for (unsigned i = 0; i < completed_clients.size(); ++i)
-    completed_clients[i]->SetToPendingState();
+    completed_clients[i]->StartLoadingDynamicSheet();
 }
 
 StyleSheetContents* StyleSheetContents::RootStyleSheet() const {
@@ -577,12 +490,9 @@ static bool ChildRulesHaveFailedOrCanceledSubresources(
                 .HasFailedOrCanceledSubresources())
           return true;
         break;
-      case StyleRuleBase::kContainer:
       case StyleRuleBase::kMedia:
-      case StyleRuleBase::kLayerBlock:
-      case StyleRuleBase::kScope:
         if (ChildRulesHaveFailedOrCanceledSubresources(
-                To<StyleRuleGroup>(rule)->ChildRules()))
+                To<StyleRuleMedia>(rule)->ChildRules()))
           return true;
         break;
       case StyleRuleBase::kCharset:
@@ -594,13 +504,9 @@ static bool ChildRulesHaveFailedOrCanceledSubresources(
       case StyleRuleBase::kProperty:
       case StyleRuleBase::kKeyframes:
       case StyleRuleBase::kKeyframe:
-      case StyleRuleBase::kLayerStatement:
+      case StyleRuleBase::kScrollTimeline:
       case StyleRuleBase::kSupports:
-      case StyleRuleBase::kFontPaletteValues:
-      case StyleRuleBase::kFontFeatureValues:
-      case StyleRuleBase::kFontFeature:
-      case StyleRuleBase::kPositionFallback:
-      case StyleRuleBase::kTry:
+      case StyleRuleBase::kViewport:
         break;
       case StyleRuleBase::kCounterStyle:
         if (To<StyleRuleCounterStyle>(rule)->HasFailedOrCanceledSubresources())
@@ -651,8 +557,8 @@ void StyleSheetContents::UnregisterClient(CSSStyleSheet* sheet) {
   loading_clients_.erase(sheet);
   completed_clients_.erase(sheet);
 
-  if (!sheet->OwnerDocument() || !loading_clients_.empty() ||
-      !completed_clients_.empty())
+  if (!sheet->OwnerDocument() || !loading_clients_.IsEmpty() ||
+      !completed_clients_.IsEmpty())
     return;
 
   has_single_owner_document_ = true;
@@ -768,7 +674,6 @@ void StyleSheetContents::FindFontFaceRules(
 
 void StyleSheetContents::Trace(Visitor* visitor) const {
   visitor->Trace(owner_rule_);
-  visitor->Trace(pre_import_layer_statement_rules_);
   visitor->Trace(import_rules_);
   visitor->Trace(namespace_rules_);
   visitor->Trace(child_rules_);

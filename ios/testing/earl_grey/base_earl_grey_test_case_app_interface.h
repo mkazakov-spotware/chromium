@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,6 @@
 
 // Logs |message| from the app process (as opposed to the test process).
 + (void)logMessage:(NSString*)message;
-
-// Adjusts the speed property of CALayer to 100 to speed up XCUITests.
-+ (void)enableFastAnimation;
-
-// Calls _terminateWithStatus and exit. This causes UIKit to call
-// applicationWillTerminate, which is a more realistic termination.
-+ (void)gracefulTerminate;
 
 @end
 

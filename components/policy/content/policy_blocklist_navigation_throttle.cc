@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
-#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "url/gurl.h"
 
@@ -41,19 +40,6 @@ PolicyBlocklistNavigationThrottle::PolicyBlocklistNavigationThrottle(
 PolicyBlocklistNavigationThrottle::~PolicyBlocklistNavigationThrottle() =
     default;
 
-bool PolicyBlocklistNavigationThrottle::IsBlockedViewSourceNavigation() {
-  content::NavigationEntry* nav_entry =
-      navigation_handle()->GetNavigationEntry();
-  if (!nav_entry || !nav_entry->IsViewSourceMode())
-    return false;
-
-  GURL view_source_url = GURL(std::string("view-source:") +
-                              navigation_handle()->GetURL().spec());
-
-  return (blocklist_service_->GetURLBlocklistState(view_source_url) ==
-          URLBlocklistState::URL_IN_BLOCKLIST);
-}
-
 content::NavigationThrottle::ThrottleCheckResult
 PolicyBlocklistNavigationThrottle::WillStartRequest() {
   const GURL& url = navigation_handle()->GetURL();
@@ -66,11 +52,6 @@ PolicyBlocklistNavigationThrottle::WillStartRequest() {
   URLBlocklistState blocklist_state =
       blocklist_service_->GetURLBlocklistState(url);
   if (blocklist_state == URLBlocklistState::URL_IN_BLOCKLIST) {
-    return ThrottleCheckResult(BLOCK_REQUEST,
-                               net::ERR_BLOCKED_BY_ADMINISTRATOR);
-  }
-
-  if (IsBlockedViewSourceNavigation()) {
     return ThrottleCheckResult(BLOCK_REQUEST,
                                net::ERR_BLOCKED_BY_ADMINISTRATOR);
   }

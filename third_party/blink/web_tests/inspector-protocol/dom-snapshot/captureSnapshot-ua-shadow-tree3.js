@@ -17,7 +17,7 @@
     response.result.strings[response.result.documents[0].frameId] = '';
     testRunner.log(
         response.result, undefined,
-        ['documentURL', 'frameId', 'backendNodeId', 'bounds', 'shadowRootType']);
+        ['documentURL', 'frameId', 'backendNodeId', 'bounds']);
   }
   testRunner.completeTest();
 })

@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,13 +23,11 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/power_monitor/power_observer.h"
 #include "base/synchronization/lock.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/time/time.h"
-#include "build/build_config.h"
 #include "media/base/audio_decoder.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/audio_renderer.h"
@@ -39,10 +37,10 @@
 #include "media/base/time_source.h"
 #include "media/filters/audio_renderer_algorithm.h"
 #include "media/filters/decoder_stream.h"
-#include "media/renderers/renderer_impl_factory.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "media/renderers/default_renderer_factory.h"
 
 namespace base {
+class SingleThreadTaskRunner;
 class TickClock;
 }  // namespace base
 
@@ -57,7 +55,7 @@ class SpeechRecognitionClient;
 class MEDIA_EXPORT AudioRendererImpl
     : public AudioRenderer,
       public TimeSource,
-      public base::PowerSuspendObserver,
+      public base::PowerObserver,
       public AudioRendererSink::RenderCallback {
  public:
   using PlayDelayCBForTesting = base::RepeatingCallback<void(base::TimeDelta)>;
@@ -75,16 +73,11 @@ class MEDIA_EXPORT AudioRendererImpl
   //
   // |decoders| contains the AudioDecoders to use when initializing.
   AudioRendererImpl(
-      const scoped_refptr<base::SequencedTaskRunner>& task_runner,
+      const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
       AudioRendererSink* sink,
       const CreateAudioDecodersCB& create_audio_decoders_cb,
       MediaLog* media_log,
-      MediaPlayerLoggingID media_player_id,
       SpeechRecognitionClient* speech_recognition_client = nullptr);
-
-  AudioRendererImpl(const AudioRendererImpl&) = delete;
-  AudioRendererImpl& operator=(const AudioRendererImpl&) = delete;
-
   ~AudioRendererImpl() override;
 
   // TimeSource implementation.
@@ -106,21 +99,14 @@ class MEDIA_EXPORT AudioRendererImpl
   void Flush(base::OnceClosure callback) override;
   void StartPlaying() override;
   void SetVolume(float volume) override;
-  void SetLatencyHint(absl::optional<base::TimeDelta> latency_hint) override;
+  void SetLatencyHint(base::Optional<base::TimeDelta> latency_hint) override;
   void SetPreservesPitch(bool preserves_pitch) override;
-  void SetWasPlayedWithUserActivation(
-      bool was_played_with_user_activation) override;
 
-  // base::PowerSuspendObserver implementation.
+  // base::PowerObserver implementation.
   void OnSuspend() override;
   void OnResume() override;
 
   void SetPlayDelayCBForTesting(PlayDelayCBForTesting cb);
-  bool was_unmuted_for_testing() const { return was_unmuted_; }
-
-  void decoded_audio_ready_for_testing() {
-    DecodedAudioReady(DecoderStatus::Codes::kFailed);
-  }
 
  private:
   friend class AudioRendererImplTest;
@@ -152,7 +138,8 @@ class MEDIA_EXPORT AudioRendererImpl
                             OutputDeviceInfo output_device_info);
 
   // Callback from the audio decoder delivering decoded audio samples.
-  void DecodedAudioReady(AudioDecoderStream::ReadResult result);
+  void DecodedAudioReady(AudioDecoderStream::ReadStatus status,
+                         scoped_refptr<AudioBuffer> buffer);
 
   // Handles buffers that come out of decoder (MSE: after passing through
   // |buffer_converter_|).
@@ -240,7 +227,7 @@ class MEDIA_EXPORT AudioRendererImpl
   void EnableSpeechRecognition();
   void TranscribeAudio(scoped_refptr<media::AudioBuffer> buffer);
 
-  scoped_refptr<base::SequencedTaskRunner> task_runner_;
+  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
   std::unique_ptr<AudioBufferConverter> buffer_converter_;
 
@@ -269,17 +256,15 @@ class MEDIA_EXPORT AudioRendererImpl
 
   std::unique_ptr<AudioDecoderStream> audio_decoder_stream_;
 
-  raw_ptr<MediaLog> media_log_;
-
-  MediaPlayerLoggingID player_id_;
+  MediaLog* media_log_;
 
   // Cached copy of audio params that the renderer is initialized with.
   AudioParameters audio_parameters_;
 
   // Passed in during Initialize().
-  raw_ptr<DemuxerStream> demuxer_stream_;
+  DemuxerStream* demuxer_stream_;
 
-  raw_ptr<RendererClient> client_;
+  RendererClient* client_;
 
   // Callback provided during Initialize().
   PipelineStatusCallback init_cb_;
@@ -288,7 +273,7 @@ class MEDIA_EXPORT AudioRendererImpl
   base::OnceClosure flush_cb_;
 
   // Overridable tick clock for testing.
-  raw_ptr<const base::TickClock> tick_clock_;
+  const base::TickClock* tick_clock_;
 
   // Memory usage of |algorithm_| recorded during the last
   // HandleDecodedBuffer_Locked() call.
@@ -312,9 +297,6 @@ class MEDIA_EXPORT AudioRendererImpl
   // Cached volume provided by SetVolume().
   float volume_;
 
-  // A flag indicating whether the audio stream was ever unmuted.
-  bool was_unmuted_ = false;
-
   // After Initialize() has completed, all variables below must be accessed
   // under |lock_|. ------------------------------------------------------------
   base::Lock lock_;
@@ -325,13 +307,11 @@ class MEDIA_EXPORT AudioRendererImpl
 
   // Stored value from last call to SetLatencyHint(). Passed to |algorithm_|
   // during Initialize().
-  absl::optional<base::TimeDelta> latency_hint_;
+  base::Optional<base::TimeDelta> latency_hint_;
 
   // Passed to |algorithm_|. Indicates whether |algorithm_| should or should not
   // make pitch adjustments at playbacks other than 1.0.
   bool preserves_pitch_ = true;
-
-  bool was_played_with_user_activation_ = false;
 
   // Simple state tracking variable.
   State state_;
@@ -390,13 +370,15 @@ class MEDIA_EXPORT AudioRendererImpl
 
   // End variables which must be accessed under |lock_|. ----------------------
 
-#if !BUILDFLAG(IS_ANDROID)
-  raw_ptr<SpeechRecognitionClient> speech_recognition_client_;
+#if !defined(OS_ANDROID)
+  SpeechRecognitionClient* speech_recognition_client_;
   TranscribeAudioCallback transcribe_audio_callback_;
 #endif
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<AudioRendererImpl> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(AudioRendererImpl);
 };
 
 }  // namespace media

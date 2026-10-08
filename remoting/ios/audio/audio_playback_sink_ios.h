@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,10 @@
 #define REMOTING_IOS_AUDIO_AUDIO_PLAYBACK_SINK_IOS_H_
 
 #include <AudioToolbox/AudioToolbox.h>
+
+#include <list>
+#include <memory>
+#include <string>
 
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
@@ -18,10 +22,6 @@ namespace remoting {
 class AudioPlaybackSinkIos : public AudioPlaybackSink {
  public:
   AudioPlaybackSinkIos();
-
-  AudioPlaybackSinkIos(const AudioPlaybackSinkIos&) = delete;
-  AudioPlaybackSinkIos& operator=(const AudioPlaybackSinkIos&) = delete;
-
   ~AudioPlaybackSinkIos() override;
 
   // AudioPlaybackSink implementations.
@@ -94,6 +94,8 @@ class AudioPlaybackSinkIos : public AudioPlaybackSink {
   State state_ = State::STOPPED;
 
   base::WeakPtrFactory<AudioPlaybackSinkIos> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(AudioPlaybackSinkIos);
 };
 
 }  // namespace remoting

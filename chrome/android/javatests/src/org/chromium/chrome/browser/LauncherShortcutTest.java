@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser;
 
+import android.annotation.TargetApi;
 import android.content.Intent;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
@@ -11,7 +12,6 @@ import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.support.test.InstrumentationRegistry;
 
-import androidx.annotation.RequiresApi;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
@@ -34,6 +34,7 @@ import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
+import org.chromium.chrome.browser.tabmodel.EmptyTabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
@@ -53,7 +54,7 @@ import java.util.concurrent.TimeoutException;
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@RequiresApi(VERSION_CODES.N_MR1)
+@TargetApi(VERSION_CODES.N_MR1)
 @MinAndroidSdkLevel(Build.VERSION_CODES.N_MR1)
 public class LauncherShortcutTest {
     // clang-format on
@@ -80,15 +81,13 @@ public class LauncherShortcutTest {
         mActivityTestRule.startMainActivityOnBlankPage();
         mTabModelSelector = mActivityTestRule.getActivity().getTabModelSelector();
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> {
-            TabModelSelectorObserver tabModelSelectorObserver = new TabModelSelectorObserver() {
-                @Override
-                public void onNewTabCreated(Tab tab, @TabCreationState int creationState) {
-                    mTabAddedCallback.notifyCalled();
-                }
-            };
-            mTabModelSelector.addObserver(tabModelSelectorObserver);
-        });
+        TabModelSelectorObserver tabModelSelectorObserver = new EmptyTabModelSelectorObserver() {
+            @Override
+            public void onNewTabCreated(Tab tab, @TabCreationState int creationState) {
+                mTabAddedCallback.notifyCalled();
+            }
+        };
+        mTabModelSelector.addObserver(tabModelSelectorObserver);
     }
 
     @After
@@ -191,7 +190,7 @@ public class LauncherShortcutTest {
         List<ShortcutInfo> shortcuts = shortcutManager.getDynamicShortcuts();
         Assert.assertEquals("Incorrect number of dynamic shortcuts.", 1, shortcuts.size());
         Assert.assertEquals(
-                "Incorrect label", "New Incognito tab", shortcuts.get(0).getLongLabel());
+                "Incorrect label", "New incognito tab", shortcuts.get(0).getLongLabel());
 
         LauncherShortcutActivity.setDynamicShortcutStringForTesting("Foo");
         LauncherShortcutActivity.updateIncognitoShortcut(mActivityTestRule.getActivity());

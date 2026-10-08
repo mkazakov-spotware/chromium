@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,11 +42,6 @@ class TestBackgroundSyncManager : public BackgroundSyncManager {
   TestBackgroundSyncManager(
       scoped_refptr<ServiceWorkerContextWrapper> service_worker_context,
       scoped_refptr<DevToolsBackgroundServicesContextImpl> devtools_context);
-
-  TestBackgroundSyncManager(const TestBackgroundSyncManager&) = delete;
-  TestBackgroundSyncManager& operator=(const TestBackgroundSyncManager&) =
-      delete;
-
   ~TestBackgroundSyncManager() override;
 
   // Force a call to the internal Init() method.
@@ -140,7 +135,7 @@ class TestBackgroundSyncManager : public BackgroundSyncManager {
 
   // Override to avoid actual check for main frame, instead return the value set
   // by tests.
-  void HasMainFrameWindowClient(const blink::StorageKey& key,
+  void HasMainFrameWindowClient(const url::Origin& origin,
                                 BoolCallback callback) override;
 
  private:
@@ -169,6 +164,8 @@ class TestBackgroundSyncManager : public BackgroundSyncManager {
   DispatchSyncCallback dispatch_periodic_sync_callback_;
   base::TimeDelta soonest_one_shot_sync_wakeup_delta_;
   base::TimeDelta soonest_periodic_sync_wakeup_delta_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestBackgroundSyncManager);
 };
 
 }  // namespace content

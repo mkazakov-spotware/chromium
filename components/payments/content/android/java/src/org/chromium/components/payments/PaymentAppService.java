@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.payments;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -64,11 +63,10 @@ public class PaymentAppService implements PaymentAppFactoryInterface {
 
     /**
      * Adds a factory with an id if this id is not added already; otherwise, do nothing.
-     * @param factory The factory to be added, can be null;
+     * @param factory The factory to be added.
      * @param factoryId The id that the caller uses to identify the given factory.
      */
-    public void addUniqueFactory(@Nullable PaymentAppFactoryInterface factory, String factoryId) {
-        if (factory == null) return;
+    public void addUniqueFactory(PaymentAppFactoryInterface factory, String factoryId) {
         assert !factoryId.startsWith(UNTRACKED_FACTORY_ID_PREFIX);
         if (mFactories.containsKey(factoryId)) return;
         mFactories.put(factoryId, factory);
@@ -113,14 +111,8 @@ public class PaymentAppService implements PaymentAppFactoryInterface {
         }
 
         @Override
-        public void onPaymentAppCreationError(
-                String errorMessage, @AppCreationFailureReason int errorReason) {
-            mDelegate.onPaymentAppCreationError(errorMessage, errorReason);
-        }
-
-        @Override
-        public void setCanMakePaymentEvenWithoutApps() {
-            mDelegate.setCanMakePaymentEvenWithoutApps();
+        public void onPaymentAppCreationError(String errorMessage) {
+            mDelegate.onPaymentAppCreationError(errorMessage);
         }
 
         @Override
@@ -139,16 +131,6 @@ public class PaymentAppService implements PaymentAppFactoryInterface {
             }
 
             mDelegate.onDoneCreatingPaymentApps(PaymentAppService.this);
-        }
-
-        @Override
-        public void setOptOutOffered() {
-            mDelegate.setOptOutOffered();
-        }
-
-        @Override
-        public CSPChecker getCSPChecker() {
-            return mDelegate.getCSPChecker();
         }
     }
 

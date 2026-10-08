@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/logging.h"
 #include "base/notreached.h"
-#include "components/sync/engine/nigori/nigori.h"
+#include "components/sync/nigori/nigori.h"
 #include "components/sync/protocol/nigori_specifics.pb.h"
 
 namespace syncer {
@@ -76,8 +76,9 @@ void NigoriKeyBag::CopyFrom(const NigoriKeyBag& other) {
 
 sync_pb::NigoriKeyBag NigoriKeyBag::ToProto() const {
   sync_pb::NigoriKeyBag output;
-  for (const auto& [key_name, nigori] : nigori_map_) {
-    *output.add_key() = NigoriToProto(*nigori, key_name);
+  for (const auto& key_name_and_nigori : nigori_map_) {
+    *output.add_key() =
+        NigoriToProto(*key_name_and_nigori.second, key_name_and_nigori.first);
   }
   return output;
 }
@@ -134,9 +135,10 @@ std::string NigoriKeyBag::AddKeyFromProto(const sync_pb::NigoriKey& key) {
 }
 
 void NigoriKeyBag::AddAllUnknownKeysFrom(const NigoriKeyBag& other) {
-  for (const auto& [key_name, nigori] : other.nigori_map_) {
+  for (const auto& key_name_and_nigori : other.nigori_map_) {
     // Only use this key if we don't already know about it.
-    nigori_map_.emplace(key_name, CloneNigori(*nigori));
+    nigori_map_.emplace(key_name_and_nigori.first,
+                        CloneNigori(*key_name_and_nigori.second));
   }
 }
 
@@ -147,12 +149,15 @@ bool NigoriKeyBag::EncryptWithKey(
   DCHECK(encrypted_output);
   DCHECK(HasKey(key_name));
 
-  encrypted_output->set_blob(
-      nigori_map_.find(key_name)->second->Encrypt(input));
-  encrypted_output->set_key_name(key_name);
+  encrypted_output->Clear();
 
-  // TODO(crbug.com/1368018): returned value is always true, update interface
-  // to return void or `encrypted_output`.
+  if (!nigori_map_.find(key_name)->second->Encrypt(
+          input, encrypted_output->mutable_blob())) {
+    DLOG(ERROR) << "Failed to encrypt data.";
+    return false;
+  }
+
+  encrypted_output->set_key_name(key_name);
   return true;
 }
 

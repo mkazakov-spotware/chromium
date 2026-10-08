@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,31 +8,21 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <cmath>
-#include <utility>
 
 #include "base/auto_reset.h"
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/check.h"
-#include "base/location.h"
-#include "base/notreached.h"
-#include "base/task/sequenced_task_runner.h"
-#include "base/task/single_thread_task_runner.h"
 #include "pdf/paint_ready_rect.h"
-#include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkImage.h"
-#include "third_party/skia/include/core/SkRect.h"
-#include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/skia/include/core/SkSamplingOptions.h"
-#include "third_party/skia/include/core/SkSurface.h"
-#include "ui/gfx/blit.h"
+#include "pdf/ppapi_migration/callback.h"
+#include "pdf/ppapi_migration/geometry_conversions.h"
+#include "pdf/ppapi_migration/graphics.h"
+#include "ppapi/cpp/completion_callback.h"
+#include "ppapi/cpp/module.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/geometry/vector2d.h"
-#include "ui/gfx/geometry/vector2d_f.h"
 
 namespace chrome_pdf {
 
@@ -96,20 +86,10 @@ void PaintManager::SetTransform(float scale,
                                 const gfx::Point& origin,
                                 const gfx::Vector2d& translate,
                                 bool schedule_flush) {
-  if (!surface_)
+  if (!graphics_)
     return;
 
-  if (scale <= 0.0f) {
-    NOTREACHED();
-  } else {
-    // translate_with_origin = origin - scale * origin - translate
-    gfx::Vector2dF translate_with_origin = origin.OffsetFromOrigin();
-    translate_with_origin.Scale(1.0f - scale);
-    translate_with_origin.Subtract(translate);
-
-    // TODO(crbug.com/1263614): Should update be deferred until `Flush()`?
-    client_->UpdateLayerTransform(scale, translate_with_origin);
-  }
+  graphics_->SetLayerTransform(scale, origin, translate);
 
   if (!schedule_flush)
     return;
@@ -126,7 +106,7 @@ void PaintManager::ClearTransform() {
 }
 
 void PaintManager::Invalidate() {
-  if (!surface_ && !has_pending_resize_)
+  if (!graphics_ && !has_pending_resize_)
     return;
 
   EnsureCallbackPending();
@@ -136,7 +116,7 @@ void PaintManager::Invalidate() {
 void PaintManager::InvalidateRect(const gfx::Rect& rect) {
   DCHECK(!in_paint_);
 
-  if (!surface_ && !has_pending_resize_)
+  if (!graphics_ && !has_pending_resize_)
     return;
 
   // Clip the rect to the device area.
@@ -153,7 +133,7 @@ void PaintManager::ScrollRect(const gfx::Rect& clip_rect,
                               const gfx::Vector2d& amount) {
   DCHECK(!in_paint_);
 
-  if (!surface_ && !has_pending_resize_)
+  if (!graphics_ && !has_pending_resize_)
     return;
 
   EnsureCallbackPending();
@@ -181,9 +161,11 @@ void PaintManager::EnsureCallbackPending() {
   if (manual_callback_pending_)
     return;
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&PaintManager::OnManualCallbackComplete,
-                                weak_factory_.GetWeakPtr()));
+  pp::Module::Get()->core()->CallOnMainThread(
+      0,
+      PPCompletionCallbackFromResultCallback(base::BindOnce(
+          &PaintManager::OnManualCallbackComplete, weak_factory_.GetWeakPtr())),
+      0);
   manual_callback_pending_ = true;
 }
 
@@ -201,26 +183,18 @@ void PaintManager::DoPaint() {
   // have an unpainted device bound. The needs_binding flag tells us whether to
   // do this later.
   //
-  // Note that `has_pending_resize_` will always be set on the first DoPaint().
-  DCHECK(surface_ || has_pending_resize_);
+  // Note that |has_pending_resize_| will always be set on the first DoPaint().
+  DCHECK(graphics_ || has_pending_resize_);
   if (has_pending_resize_) {
     plugin_size_ = pending_size_;
     // Only create a new graphics context if the current context isn't big
     // enough or if it is far too big. This avoids creating a new context if
     // we only resize by a small amount.
-    gfx::Size old_size = surface_
-                             ? gfx::Size(surface_->width(), surface_->height())
-                             : gfx::Size();
+    gfx::Size old_size = graphics_ ? graphics_->size() : gfx::Size();
     gfx::Size new_size = GetNewContextSize(old_size, pending_size_);
-    if (old_size != new_size || !surface_) {
-      surface_ =
-          SkSurface::MakeRasterN32Premul(new_size.width(), new_size.height());
-      DCHECK(surface_);
-
-      // TODO(crbug.com/1317832): Can we guarantee repainting some other way?
-      client_->InvalidatePluginContainer();
-
-      device_scale_ = 1.0f;
+    if (old_size != new_size || !graphics_) {
+      graphics_ = client_->CreatePaintGraphics(new_size);
+      graphics_need_to_be_bound_ = true;
 
       // Since we're binding a new one, all of the callbacks have been canceled.
       manual_callback_pending_ = false;
@@ -228,8 +202,8 @@ void PaintManager::DoPaint() {
       weak_factory_.InvalidateWeakPtrs();
     }
 
-    if (pending_device_scale_ != device_scale_)
-      client_->UpdateScale(1.0f / pending_device_scale_);
+    if (pending_device_scale_ != 1.0)
+      graphics_->SetScale(1.0 / pending_device_scale_);
     device_scale_ = pending_device_scale_;
 
     // This must be cleared before calling into the plugin since it may do
@@ -239,7 +213,7 @@ void PaintManager::DoPaint() {
   }
 
   PaintAggregator::PaintUpdate update = aggregator_.GetPendingUpdate();
-  client_->OnPaint(update.paint_rects, ready_rects, pending_rects);
+  client_->OnPaint(update.paint_rects, &ready_rects, &pending_rects);
 
   if (ready_rects.empty() && pending_rects.empty())
     return;  // Nothing was painted, don't schedule a flush.
@@ -250,14 +224,9 @@ void PaintManager::DoPaint() {
     ready_now = aggregator_.GetReadyRects();
     aggregator_.ClearPendingUpdate();
 
-    // First, apply any scroll amount less than the surface's size.
-    if (update.has_scroll &&
-        std::abs(update.scroll_delta.x()) < surface_->width() &&
-        std::abs(update.scroll_delta.y()) < surface_->height()) {
-      // TODO(crbug.com/1263614): Use `SkSurface::notifyContentWillChange()`.
-      gfx::ScrollCanvas(surface_->getCanvas(), update.scroll_rect,
-                        update.scroll_delta);
-    }
+    // Apply any scroll first.
+    if (update.has_scroll)
+      graphics_->Scroll(update.scroll_rect, update.scroll_delta);
 
     view_size_changed_waiting_for_paint_ = false;
   } else {
@@ -286,33 +255,27 @@ void PaintManager::DoPaint() {
   }
 
   for (const auto& ready_rect : ready_now) {
-    SkRect skia_rect = gfx::RectToSkRect(ready_rect.rect());
-    surface_->getCanvas()->drawImageRect(
-        &ready_rect.image(), skia_rect, skia_rect, SkSamplingOptions(), nullptr,
-        SkCanvas::kStrict_SrcRectConstraint);
+    graphics_->PaintImage(ready_rect.image(), ready_rect.rect());
   }
 
   Flush();
 
   first_paint_ = false;
+
+  if (graphics_need_to_be_bound_) {
+    client_->BindPaintGraphics(*graphics_);
+    graphics_need_to_be_bound_ = false;
+  }
 }
 
 void PaintManager::Flush() {
   flush_requested_ = false;
-
-  sk_sp<SkImage> snapshot = surface_->makeImageSnapshot();
-  surface_->getCanvas()->drawImage(snapshot.get(), /*x=*/0, /*y=*/0,
-                                   SkSamplingOptions(), /*paint=*/nullptr);
-  client_->UpdateSnapshot(std::move(snapshot));
-
-  // TODO(crbug.com/1302059): Complete flush synchronously.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&PaintManager::OnFlushComplete,
-                                weak_factory_.GetWeakPtr()));
-  flush_pending_ = true;
+  flush_pending_ = graphics_->Flush(base::BindOnce(
+      &PaintManager::OnFlushComplete, weak_factory_.GetWeakPtr()));
+  DCHECK(flush_pending_);
 }
 
-void PaintManager::OnFlushComplete() {
+void PaintManager::OnFlushComplete(int32_t) {
   DCHECK(flush_pending_);
   flush_pending_ = false;
 
@@ -327,7 +290,7 @@ void PaintManager::OnFlushComplete() {
   }
 }
 
-void PaintManager::OnManualCallbackComplete() {
+void PaintManager::OnManualCallbackComplete(int32_t) {
   DCHECK(manual_callback_pending_);
   manual_callback_pending_ = false;
 

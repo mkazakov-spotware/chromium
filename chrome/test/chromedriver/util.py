@@ -1,12 +1,11 @@
-# Copyright 2012 The Chromium Authors
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Generic utilities for all python scripts."""
 
 import atexit
-import base64
-import http.client
+import httplib
 import json
 import os
 import platform
@@ -18,9 +17,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urlparse
 import zipfile
-
-import requests
 
 import chrome_paths
 
@@ -191,23 +189,47 @@ def RunCommand(cmd, cwd=None, fileName=None):
   return process.returncode
 
 
+def DoesUrlExist(url):
+  """Determines whether a resource exists at the given URL.
+
+  Args:
+    url: URL to be verified.
+
+  Returns:
+    True if url exists, otherwise False.
+  """
+  parsed = urlparse.urlparse(url)
+  try:
+    conn = httplib.HTTPConnection(parsed.netloc)
+    conn.request('HEAD', parsed.path)
+    response = conn.getresponse()
+  except httplib.HTTPException:
+    return False
+  finally:
+    conn.close()
+  # Follow both permanent (301) and temporary (302) redirects.
+  if response.status == 302 or response.status == 301:
+    return DoesUrlExist(response.getheader('location'))
+  return response.status == 200
+
+
 def MarkBuildStepStart(name):
-  print('@@@BUILD_STEP %s@@@' % name)
+  print '@@@BUILD_STEP %s@@@' % name
   sys.stdout.flush()
 
 
 def MarkBuildStepError():
-  print('@@@STEP_FAILURE@@@')
+  print '@@@STEP_FAILURE@@@'
   sys.stdout.flush()
 
 
 def AddBuildStepText(text):
-  print('@@@STEP_TEXT@%s@@@' % text)
+  print '@@@STEP_TEXT@%s@@@' % text
   sys.stdout.flush()
 
 
 def PrintAndFlush(text):
-  print(text)
+  print text
   sys.stdout.flush()
 
 
@@ -218,7 +240,7 @@ def AddLink(label, url):
     label: A string with the name of the label.
     url: A string of the URL.
   """
-  print('@@@STEP_LINK@%s@%s@@@' % (label, url))
+  print '@@@STEP_LINK@%s@%s@@@' % (label, url)
 
 
 def FindProbableFreePorts():
@@ -230,7 +252,7 @@ def FindProbableFreePorts():
   if there is any alternative.
   """
   # This is the range of dynamic ports. See RFC6335 page 10.
-  dynamic_ports = list(range(49152, 65535))
+  dynamic_ports = range(49152, 65535)
   random.shuffle(dynamic_ports)
 
   for port in dynamic_ports:
@@ -269,9 +291,9 @@ def WriteResultToJSONFile(test_suites, results, json_path):
   }
 
   def initialize(test_suite):
-    for test_name in test_suite:
-      if test_name not in output['tests']:
-        output['tests'][test_name] = {
+    for test in test_suite:
+      if test.id() not in output['tests']:
+        output['tests'][test.id()] = {
             'expected': 'PASS',
             'actual': []
         }
@@ -284,9 +306,9 @@ def WriteResultToJSONFile(test_suites, results, json_path):
     fail = []
     for failure in result.failures + result.errors:
       fail.append(failure[0].id())
-    for test_name in test_suite:
-      if test_name not in fail:
-        success.append(test_name)
+    for test in test_suite:
+      if test.id() not in fail:
+        success.append(test.id())
     return {
         'success': success,
         'fail': fail,
@@ -300,7 +322,7 @@ def WriteResultToJSONFile(test_suites, results, json_path):
       output['tests'][f]['actual'].append('FAIL')
 
   num_fails = 0
-  for test_result in output['tests'].values():
+  for test_result in output['tests'].itervalues():
     if test_result['actual'][-1] == 'FAIL':
       num_fails += 1
       test_result['is_unexpected'] = True
@@ -312,58 +334,3 @@ def WriteResultToJSONFile(test_suites, results, json_path):
   with open(json_path, 'w') as script_out_file:
     json.dump(output, script_out_file)
     script_out_file.write('\n')
-
-
-def TryUploadingResultToResultSink(results):
-
-  def parse(result):
-    test_results = []
-    for test_case in result.successes:
-      test_results.append({
-          'testId': test_case.id(),
-          'expected': True,
-          'status': 'PASS',
-      })
-
-    for (test_case, stack_trace) in result.failures + result.errors:
-      test_results.append({
-          'testId': test_case.id(),
-          'expected': False,
-          'status': 'FAIL',
-          # Uses <text-artifact> tag to embed the artifact content
-          # in summaryHtml.
-          'summaryHtml': '<p><text-artifact artifact-id="stack_trace"></p>',
-          # A map of artifacts. The keys are artifact ids which uniquely
-          # identify an artifact within the test result.
-          'artifacts': {
-               'stack_trace': {
-                    'contents': base64.b64encode(stack_trace.encode()).decode(),
-               },
-          },
-      })
-    return test_results
-
-  def getResultSinkTestResults(results):
-    test_results = []
-    for r in results:
-        test_results.extend(parse(r))
-    return test_results
-
-  try:
-    with open(os.environ['LUCI_CONTEXT']) as f:
-      sink = json.load(f)['result_sink']
-  except KeyError:
-    return
-
-  test_results = getResultSinkTestResults(results)
-  # Uploads all test results at once.
-  res = requests.post(
-    url='http://%s/prpc/luci.resultsink.v1.Sink/ReportTestResults' % sink['address'],
-    headers={
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': 'ResultSink %s' % sink['auth_token'],
-    },
-    data=json.dumps({'testResults': test_results})
-  )
-  res.raise_for_status()

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "components/account_id/account_id.h"
 #include "components/policy/core/common/cloud/user_cloud_policy_store_base.h"
@@ -47,13 +48,13 @@ enum PolicyLoadStatusForUma {
 // Struct containing the result of a policy load - if |status| ==
 // LOAD_RESULT_SUCCESS, |policy| is initialized from the policy file on disk.
 // |key| is initialized from the signing key file on disk.
-// |doing_key_rotation| is true if we need to re-download the key again when key
-// loaded from external place is different than the local one.
+// |skip_key_signature_validation| must remain false except if the policy being
+// loaded is from a secure location and no signing key file is provided.
 struct PolicyLoadResult {
   PolicyLoadStatusForUma status;
   enterprise_management::PolicyFetchResponse policy;
   enterprise_management::PolicySigningKey key;
-  bool doing_key_rotation = false;
+  bool skip_key_signature_validation = false;
 };
 
 // Function that takes in a PolicyLoadResult and returns a PolicyLoadResult with
@@ -71,9 +72,8 @@ class POLICY_EXPORT DesktopCloudPolicyStore : public UserCloudPolicyStoreBase {
       const base::FilePath& key_file,
       PolicyLoadFilter policy_load_filter,
       scoped_refptr<base::SequencedTaskRunner> background_task_runner,
-      PolicyScope policy_scope);
-  DesktopCloudPolicyStore(const DesktopCloudPolicyStore&) = delete;
-  DesktopCloudPolicyStore& operator=(const DesktopCloudPolicyStore&) = delete;
+      PolicyScope policy_scope,
+      PolicySource policy_source);
   ~DesktopCloudPolicyStore() override;
 
   // Loads policy immediately on the current thread. Virtual for mocks.
@@ -153,6 +153,8 @@ class POLICY_EXPORT DesktopCloudPolicyStore : public UserCloudPolicyStoreBase {
 
   // WeakPtrFactory used to create callbacks for validating and storing policy.
   base::WeakPtrFactory<DesktopCloudPolicyStore> weak_factory_{this};
+
+  DISALLOW_COPY_AND_ASSIGN(DesktopCloudPolicyStore);
 };
 
 // Implements a cloud policy store that is stored in a simple file in the user's
@@ -172,8 +174,6 @@ class POLICY_EXPORT UserCloudPolicyStore : public DesktopCloudPolicyStore {
       const base::FilePath& policy_file,
       const base::FilePath& key_file,
       scoped_refptr<base::SequencedTaskRunner> background_task_runner);
-  UserCloudPolicyStore(const UserCloudPolicyStore&) = delete;
-  UserCloudPolicyStore& operator=(const UserCloudPolicyStore&) = delete;
   ~UserCloudPolicyStore() override;
 
   // Factory method for creating a UserCloudPolicyStore for a profile with path
@@ -197,6 +197,8 @@ class POLICY_EXPORT UserCloudPolicyStore : public DesktopCloudPolicyStore {
 
   // The account id from signin for validation of the policy.
   AccountId account_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(UserCloudPolicyStore);
 };
 
 }  // namespace policy

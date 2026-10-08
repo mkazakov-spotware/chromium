@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,8 @@ template <> const char* interface_name<PPB_FileIO_1_1>() {
 
 }  // namespace
 
-FileIO::FileIO() {}
+FileIO::FileIO() {
+}
 
 FileIO::FileIO(const InstanceHandle& instance) {
   if (has_interface<PPB_FileIO_1_1>()) {
@@ -40,11 +41,8 @@ FileIO::FileIO(const InstanceHandle& instance) {
   }
 }
 
-FileIO::FileIO(const FileIO& other) : Resource(other) {}
-
-FileIO& FileIO::operator=(const FileIO& other) {
-  Resource::operator=(other);
-  return *this;
+FileIO::FileIO(const FileIO& other)
+    : Resource(other) {
 }
 
 int32_t FileIO::Open(const FileRef& file_ref,

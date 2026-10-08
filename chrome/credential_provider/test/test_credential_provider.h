@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_TEST_TEST_CREDENTIAL_PROVIDER_H_
 #define CHROME_CREDENTIAL_PROVIDER_TEST_TEST_CREDENTIAL_PROVIDER_H_
 
-#include "base/win/atl.h"
-
+#include <atlbase.h>
+#include <atlcom.h>
 #include <atlcomcli.h>
 
 namespace credential_provider {

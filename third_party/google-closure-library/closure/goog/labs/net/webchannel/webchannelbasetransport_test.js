@@ -1,8 +1,16 @@
-/**
- * @license
- * Copyright The Closure Library Authors.
- * SPDX-License-Identifier: Apache-2.0
- */
+// Copyright 2013 The Closure Library Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /**
  * @fileoverview Unit tests for WebChannelBase.@suppress {accessControls}
@@ -18,7 +26,6 @@ const WebChannel = goog.require('goog.net.WebChannel');
 const WebChannelBase = goog.require('goog.labs.net.webChannel.WebChannelBase');
 const WebChannelBaseTransport = goog.require('goog.labs.net.webChannel.WebChannelBaseTransport');
 const Wire = goog.require('goog.labs.net.webChannel.Wire');
-const dispose = goog.require('goog.dispose');
 const events = goog.require('goog.events');
 const functions = goog.require('goog.functions');
 const googJson = goog.require('goog.json');
@@ -37,7 +44,6 @@ function stubChannelRequest() {
 /**
  * Simulates the WebChannelBase firing the open event for the given channel.
  * @param {!WebChannelBase} channel The WebChannelBase.
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function simulateOpenEvent(channel) {
   assertNotNull(channel.getHandler());
@@ -47,7 +53,6 @@ function simulateOpenEvent(channel) {
 /**
  * Simulates the WebChannelBase firing the close event for the given channel.
  * @param {!WebChannelBase} channel The WebChannelBase.
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function simulateCloseEvent(channel) {
   assertNotNull(channel.getHandler());
@@ -57,7 +62,6 @@ function simulateCloseEvent(channel) {
 /**
  * Simulates the WebChannelBase firing the error event for the given channel.
  * @param {!WebChannelBase} channel The WebChannelBase.
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function simulateErrorEvent(channel) {
   assertNotNull(channel.getHandler());
@@ -68,7 +72,6 @@ function simulateErrorEvent(channel) {
  * Simulates the WebChannelBase firing the message event for the given channel.
  * @param {!WebChannelBase} channel The WebChannelBase.
  * @param {String} data The message data.
- * @suppress {checkTypes} suppression added to enable type checking
  */
 function simulateMessageEvent(channel, data) {
   assertNotNull(channel.getHandler());
@@ -82,7 +85,7 @@ testSuite({
   setUp() {},
 
   tearDown() {
-    dispose(webChannel);
+    goog.dispose(webChannel);
     stubs.reset();
   },
 
@@ -107,15 +110,21 @@ testSuite({
     webChannel.open();
     assertFalse(eventFired);
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const channel = webChannel.channel_;
     assertNotNull(channel);
 
     simulateOpenEvent(channel);
     assertTrue(eventFired);
+  },
+
+  testOpenWithTestUrl() {
+    const webChannelTransport = new WebChannelBaseTransport();
+    const options = {'testUrl': `${channelUrl}/footest`};
+    webChannel = webChannelTransport.createWebChannel(channelUrl, options);
+    webChannel.open();
+
+    const testPath = webChannel.channel_.connectionTest_.path_;
+    assertNotNullNorUndefined(testPath);
   },
 
   testOpenWithCustomHeaders() {
@@ -124,10 +133,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const extraHeaders_ = webChannel.channel_.extraHeaders_;
     assertNotNullNorUndefined(extraHeaders_);
     assertEquals('foo-value', extraHeaders_['foo-key']);
@@ -140,10 +145,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const initHeaders_ = webChannel.channel_.initHeaders_;
     assertNotNullNorUndefined(initHeaders_);
     assertEquals('foo-value', initHeaders_['foo-key']);
@@ -155,10 +156,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const initHeaders_ = webChannel.channel_.initHeaders_;
     assertNotNullNorUndefined(initHeaders_);
     assertEquals(
@@ -174,10 +171,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const initHeaders_ = webChannel.channel_.initHeaders_;
     assertNotNullNorUndefined(initHeaders_);
     assertEquals(
@@ -191,10 +184,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const extraHeaders_ = webChannel.channel_.extraHeaders_;
     assertNotNullNorUndefined(extraHeaders_);
     assertEquals('webchannel', extraHeaders_['X-Client-Protocol']);
@@ -205,10 +194,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const extraHeaders_ = webChannel.channel_.extraHeaders_;
     assertNull(extraHeaders_);
   },
@@ -222,10 +207,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const extraHeaders_ = webChannel.channel_.extraHeaders_;
     assertNotNullNorUndefined(extraHeaders_);
     assertEquals('foo-value', extraHeaders_['foo-key']);
@@ -238,10 +219,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const extraParams = webChannel.channel_.extraParams_;
     assertNotNullNorUndefined(extraParams);
   },
@@ -252,10 +229,6 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const httpSessionIdParam = webChannel.channel_.getHttpSessionIdParam();
     assertEquals('xsessionid', httpSessionIdParam);
   },
@@ -269,25 +242,13 @@ testSuite({
     webChannel = webChannelTransport.createWebChannel(channelUrl, options);
     webChannel.open();
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const httpSessionIdParam = webChannel.channel_.getHttpSessionIdParam();
     assertEquals('xsessionid', httpSessionIdParam);
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const extraParams = webChannel.channel_.extraParams_;
     assertUndefined(extraParams['xsessionid']);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testOpenWithCorsEnabled() {
     const webChannelTransport = new WebChannelBaseTransport();
     const options = {'supportsCrossDomainXhr': true};
@@ -326,10 +287,6 @@ testSuite({
     assertEquals('bar', channelMsg.foo);
   },
 
-  /**
-     @suppress {strictMissingProperties} suppression added to enable type
-     checking
-   */
   testSendRawJsonExplicitTrueValue() {
     let channelMsg;
     stubs.set(WebChannelBase.prototype, 'sendMap', (message) => {
@@ -376,10 +333,6 @@ testSuite({
     webChannel.open();
     assertFalse(eventFired);
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const channel = webChannel.channel_;
     assertNotNull(channel);
 
@@ -400,10 +353,6 @@ testSuite({
     webChannel.open();
     assertFalse(eventFired);
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const channel = webChannel.channel_;
     assertNotNull(channel);
 
@@ -411,7 +360,6 @@ testSuite({
     assertTrue(eventFired);
   },
 
-  /** @suppress {checkTypes} suppression added to enable type checking */
   testChannelMessage() {
     const webChannelTransport = new WebChannelBaseTransport();
     webChannel = webChannelTransport.createWebChannel(channelUrl);
@@ -426,65 +374,10 @@ testSuite({
     webChannel.open();
     assertFalse(eventFired);
 
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
     const channel = webChannel.channel_;
     assertNotNull(channel);
 
     simulateMessageEvent(channel, data);
     assertTrue(eventFired);
-  },
-
-  testEnableOriginTrials() {
-    const webChannelTransport = new WebChannelBaseTransport();
-    let options = {
-      'enableOriginTrials': true,
-    };
-    webChannel = webChannelTransport.createWebChannel(channelUrl, options);
-    webChannel.open();
-
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
-    let enabled = webChannel.channel_.enableOriginTrials_;
-    assertTrue(enabled);
-
-    options = {
-      'enableOriginTrials': false,
-    };
-    webChannel = webChannelTransport.createWebChannel(channelUrl, options);
-    webChannel.open();
-
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
-    enabled = webChannel.channel_.enableOriginTrials_;
-    assertFalse(enabled);
-
-    options = {};
-    webChannel = webChannelTransport.createWebChannel(channelUrl, options);
-    webChannel.open();
-
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
-    enabled = webChannel.channel_.enableOriginTrials_;
-    assertTrue(enabled);
-
-    options = undefined;
-    webChannel = webChannelTransport.createWebChannel(channelUrl, options);
-    webChannel.open();
-
-    /**
-     * @suppress {strictMissingProperties} suppression added to enable type
-     * checking
-     */
-    enabled = webChannel.channel_.enableOriginTrials_;
-    assertTrue(enabled);
   },
 });

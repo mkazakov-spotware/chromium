@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ class CommanderController : public CommanderBackend {
   CommanderController& operator=(const CommanderController& other) = delete;
 
   // CommanderBackend overrides.
-  void OnTextChanged(const std::u16string& text, Browser* browser) override;
+  void OnTextChanged(const base::string16& text, Browser* browser) override;
   void OnCommandSelected(size_t command_index, int result_set_id) override;
   void OnCompositeCommandCancelled() override;
   void SetUpdateCallback(ViewModelUpdateCallback callback) override;
@@ -37,12 +37,16 @@ class CommanderController : public CommanderBackend {
 
  private:
   explicit CommanderController(CommandSources sources);
+  // If a delegate is installed, this serves as the delegate's view model
+  // callback, allowing the controller to decorate or mutate the view model
+  // before passing it back to the view, if necessary.
+  void OnDelegateViewModelCallback(CommanderViewModel view_model);
 
   std::vector<std::unique_ptr<CommandItem>> current_items_;
   int current_result_set_id_;
   CommandSources sources_;
   ViewModelUpdateCallback callback_;
-  CommandItem::CompositeCommandProvider composite_command_provider_;
+  std::unique_ptr<CommanderBackend> delegate_;
 };
 
 }  // namespace commander

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,39 +6,25 @@
 #define CC_MOJOM_RENDER_FRAME_METADATA_MOJOM_TRAITS_H_
 
 #include "base/component_export.h"
+#include "base/optional.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "cc/mojom/render_frame_metadata.mojom-shared.h"
 #include "cc/trees/render_frame_metadata.h"
 #include "services/viz/public/cpp/compositing/local_surface_id_mojom_traits.h"
-#include "skia/public/mojom/skcolor4f_mojom_traits.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/skia/include/core/SkColor.h"
 
 namespace mojo {
 
 template <>
 struct COMPONENT_EXPORT(CC_SHARED_MOJOM_TRAITS)
-    StructTraits<cc::mojom::DelegatedInkBrowserMetadataDataView,
-                 cc::DelegatedInkBrowserMetadata> {
-  static bool delegated_ink_is_hovering(
-      const cc::DelegatedInkBrowserMetadata& metadata) {
-    return metadata.delegated_ink_is_hovering;
-  }
-
-  static bool Read(cc::mojom::DelegatedInkBrowserMetadataDataView data,
-                   cc::DelegatedInkBrowserMetadata* out);
-};
-
-template <>
-struct COMPONENT_EXPORT(CC_SHARED_MOJOM_TRAITS)
     StructTraits<cc::mojom::RenderFrameMetadataDataView,
                  cc::RenderFrameMetadata> {
-  static SkColor4f root_background_color(
+  static SkColor root_background_color(
       const cc::RenderFrameMetadata& metadata) {
     return metadata.root_background_color;
   }
 
-  static const absl::optional<gfx::PointF>& root_scroll_offset(
+  static base::Optional<gfx::Vector2dF> root_scroll_offset(
       const cc::RenderFrameMetadata& metadata) {
     return metadata.root_scroll_offset;
   }
@@ -56,9 +42,9 @@ struct COMPONENT_EXPORT(CC_SHARED_MOJOM_TRAITS)
     return metadata.is_mobile_optimized;
   }
 
-  static const absl::optional<cc::DelegatedInkBrowserMetadata>&
-  delegated_ink_metadata(const cc::RenderFrameMetadata& metadata) {
-    return metadata.delegated_ink_metadata;
+  static bool has_delegated_ink_metadata(
+      const cc::RenderFrameMetadata& metadata) {
+    return metadata.has_delegated_ink_metadata;
   }
 
   static float device_scale_factor(const cc::RenderFrameMetadata& metadata) {
@@ -70,7 +56,7 @@ struct COMPONENT_EXPORT(CC_SHARED_MOJOM_TRAITS)
     return metadata.viewport_size_in_pixels;
   }
 
-  static const absl::optional<viz::LocalSurfaceId>& local_surface_id(
+  static const base::Optional<viz::LocalSurfaceId>& local_surface_id(
       const cc::RenderFrameMetadata& metadata) {
     return metadata.local_surface_id;
   }
@@ -98,17 +84,7 @@ struct COMPONENT_EXPORT(CC_SHARED_MOJOM_TRAITS)
     return metadata.new_vertical_scroll_direction;
   }
 
-  static base::TimeDelta previous_surfaces_visual_update_duration(
-      const cc::RenderFrameMetadata& metadata) {
-    return metadata.previous_surfaces_visual_update_duration;
-  }
-
-  static base::TimeDelta current_surface_visual_update_duration(
-      const cc::RenderFrameMetadata& metadata) {
-    return metadata.current_surface_visual_update_duration;
-  }
-
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   static float bottom_controls_height(const cc::RenderFrameMetadata& metadata) {
     return metadata.bottom_controls_height;
   }

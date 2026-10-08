@@ -1,19 +1,16 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/test/ios/wait_util.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_feature.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
-#import "ios/testing/earl_grey/app_launch_manager.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/http_server/html_response_provider.h"
 #import "ios/web/public/test/http_server/html_response_provider_impl.h"
 #import "ios/web/public/test/http_server/http_server.h"
-#import "ios/web/public/test/http_server/http_server_util.h"
+#include "ios/web/public/test/http_server/http_server_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -38,15 +35,8 @@ using web::test::HttpServer;
   [super tearDown];
 }
 
-- (AppLaunchConfiguration)appConfigurationForTestCase {
-  AppLaunchConfiguration config;
-  config.relaunch_policy = ForceRelaunchByCleanShutdown;
-  return config;
-}
-
-// Tests that loading a URL ends up creating an NTP tile and shows it on cold
-// start.
-- (void)testTopSitesTileAfterLoadURLAndColdStart {
+// Tests that loading a URL ends up creating an NTP tile.
+- (void)testTopSitesTileAfterLoadURL {
   std::map<GURL, std::string> responses;
   GURL URL = web::test::HttpServer::MakeUrl("http://simple_tile.html");
   responses[URL] =
@@ -71,12 +61,6 @@ using web::test::HttpServer;
 
   [ChromeEarlGrey openNewTab];
 
-  [[EarlGrey selectElementWithMatcher:
-                 chrome_test_util::StaticTextWithAccessibilityLabel(@"title1")]
-      assertWithMatcher:grey_notNil()];
-
-  [[AppLaunchManager sharedManager]
-      ensureAppLaunchedWithConfiguration:self.appConfigurationForTestCase];
   [[EarlGrey selectElementWithMatcher:
                  chrome_test_util::StaticTextWithAccessibilityLabel(@"title1")]
       assertWithMatcher:grey_notNil()];
@@ -134,16 +118,18 @@ using web::test::HttpServer;
       assertWithMatcher:grey_nil()];
 
   // Clear history and verify that the tile does not exist.
-  [ChromeEarlGrey clearBrowsingHistory];
+  [ChromeEarlGreyUI openSettingsMenu];
+  [ChromeEarlGreyUI tapSettingsMenuButton:SettingsMenuPrivacyButton()];
+  [ChromeEarlGreyUI tapPrivacyMenuButton:ClearBrowsingDataCell()];
+  [ChromeEarlGreyUI tapClearBrowsingDataMenuButton:ClearBrowsingDataButton()];
+  [[EarlGrey selectElementWithMatcher:ConfirmClearBrowsingDataButton()]
+      performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:SettingsDoneButton()]
+      performAction:grey_tap()];
 
-  // Wait for clear browsing data to completed before checking for title2 to
-  // disappear.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          chrome_test_util::StaticTextWithAccessibilityLabel(@"title2")
-                                     timeout:
-                                         base::test::ios::
-                                             kWaitForClearBrowsingDataTimeout];
+  [[EarlGrey selectElementWithMatcher:
+                 chrome_test_util::StaticTextWithAccessibilityLabel(@"title2")]
+      assertWithMatcher:grey_nil()];
 }
 
 @end

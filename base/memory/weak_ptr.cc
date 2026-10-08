@@ -1,14 +1,8 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/memory/weak_ptr.h"
-
-#if DCHECK_IS_ON()
-#include <ostream>
-
-#include "base/debug/stack_trace.h"
-#endif
 
 namespace base {
 namespace internal {
@@ -24,12 +18,8 @@ void WeakReference::Flag::Invalidate() {
   // The flag being invalidated with a single ref implies that there are no
   // weak pointers in existence. Allow deletion on other thread in this case.
 #if DCHECK_IS_ON()
-  std::unique_ptr<debug::StackTrace> bound_at;
-  DCHECK(sequence_checker_.CalledOnValidSequence(&bound_at) || HasOneRef())
-      << "WeakPtrs must be invalidated on the same sequenced thread as where "
-      << "they are bound.\n"
-      << (bound_at ? "This was bound at:\n" + bound_at->ToString() : "")
-      << "Check failed at:";
+  DCHECK(sequence_checker_.CalledOnValidSequence() || HasOneRef())
+      << "WeakPtrs must be invalidated on the same sequenced thread.";
 #endif
   invalidated_.Set();
 }
@@ -44,11 +34,9 @@ bool WeakReference::Flag::MaybeValid() const {
   return !invalidated_.IsSet();
 }
 
-#if DCHECK_IS_ON()
 void WeakReference::Flag::DetachFromSequence() {
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
-#endif
 
 WeakReference::Flag::~Flag() = default;
 
@@ -78,11 +66,9 @@ WeakReferenceOwner::~WeakReferenceOwner() {
 }
 
 WeakReference WeakReferenceOwner::GetRef() const {
-#if DCHECK_IS_ON()
   // If we hold the last reference to the Flag then detach the SequenceChecker.
   if (!HasRefs())
     flag_->DetachFromSequence();
-#endif
 
   return WeakReference(flag_);
 }

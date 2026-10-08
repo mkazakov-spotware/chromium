@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,15 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "base/time/time.h"
 #include "base/version.h"
 #include "components/update_client/crx_downloader.h"
 #include "components/update_client/update_client.h"
 #include "components/update_client/update_client_errors.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace update_client {
 
@@ -31,7 +33,7 @@ struct CrxUpdateItem {
   // caller by responding to the |CrxDataCallback|. If the caller can't
   // provide this value, for instance, in cases where the CRX was uninstalled,
   // then the |component| member will not be present.
-  absl::optional<CrxComponent> component;
+  base::Optional<CrxComponent> component;
 
   // Time when an update check for this CRX has happened.
   base::TimeTicks last_check;

@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/policy/developer_tools_policy_handler.h"
 
+#include "base/optional.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
 #include "chrome/common/pref_names.h"
@@ -14,7 +15,6 @@
 #include "components/prefs/pref_service.h"
 #include "components/prefs/pref_value_map.h"
 #include "components/strings/grit/components_strings.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace policy {
 
@@ -54,15 +54,15 @@ PolicyCheckResult CheckDeveloperToolsDisabled(
 // Returns the target value of the |kDevToolsAvailability| pref derived only
 // from the legacy DeveloperToolsDisabled policy. If this policy is not set or
 // does not have a valid value, returns |nullopt|.
-absl::optional<Availability> GetValueFromDeveloperToolsDisabledPolicy(
+base::Optional<Availability> GetValueFromDeveloperToolsDisabledPolicy(
     const PolicyMap& policies) {
-  const base::Value* developer_tools_disabled = policies.GetValue(
-      key::kDeveloperToolsDisabled, base::Value::Type::BOOLEAN);
+  const base::Value* developer_tools_disabled =
+      policies.GetValue(key::kDeveloperToolsDisabled);
 
   if (CheckDeveloperToolsDisabled(developer_tools_disabled,
                                   nullptr /*error*/) !=
       PolicyCheckResult::kValid) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return developer_tools_disabled->GetBool() ? Availability::kDisallowed
@@ -106,17 +106,15 @@ PolicyCheckResult CheckDeveloperToolsAvailability(
 // Returns the target value of the |kDevToolsAvailability| pref derived only
 // from the DeveloperToolsAvailability policy. If this policy is not set or does
 // not have a valid value, returns |nullopt|.
-absl::optional<Availability> GetValueFromDeveloperToolsAvailabilityPolicy(
+base::Optional<Availability> GetValueFromDeveloperToolsAvailabilityPolicy(
     const PolicyMap& policies) {
-  // It is safe to use `GetValueUnsafe()` because type checking is performed
-  // before the value is used.
   const base::Value* developer_tools_availability =
-      policies.GetValueUnsafe(key::kDeveloperToolsAvailability);
+      policies.GetValue(key::kDeveloperToolsAvailability);
 
   if (CheckDeveloperToolsAvailability(developer_tools_availability,
                                       nullptr /*error*/) !=
       PolicyCheckResult::kValid) {
-    return absl::nullopt;
+    return base::nullopt;
   }
 
   return static_cast<Availability>(developer_tools_availability->GetInt());
@@ -126,9 +124,9 @@ absl::optional<Availability> GetValueFromDeveloperToolsAvailabilityPolicy(
 // both the DeveloperToolsDisabled policy and the
 // DeveloperToolsAvailability policy. If both policies are set,
 // DeveloperToolsAvailability wins.
-absl::optional<Availability> GetValueFromBothPolicies(
+base::Optional<Availability> GetValueFromBothPolicies(
     const PolicyMap& policies) {
-  const absl::optional<Availability> developer_tools_availability =
+  const base::Optional<Availability> developer_tools_availability =
       GetValueFromDeveloperToolsAvailabilityPolicy(policies);
 
   if (developer_tools_availability.has_value()) {
@@ -148,19 +146,15 @@ DeveloperToolsPolicyHandler::~DeveloperToolsPolicyHandler() {}
 bool DeveloperToolsPolicyHandler::CheckPolicySettings(
     const policy::PolicyMap& policies,
     policy::PolicyErrorMap* errors) {
-  // It is safe to use `GetValueUnsafe()` because type checking is performed
-  // before the value is used.
   // Deprecated boolean policy DeveloperToolsDisabled.
   const base::Value* developer_tools_disabled =
-      policies.GetValueUnsafe(key::kDeveloperToolsDisabled);
+      policies.GetValue(key::kDeveloperToolsDisabled);
   PolicyCheckResult developer_tools_disabled_result =
       CheckDeveloperToolsDisabled(developer_tools_disabled, errors);
 
-  // It is safe to use `GetValueUnsafe()` because type checking is performed
-  // before the value is used.
-  // Enumerated policy DeveloperToolsAvailability.
+  // Enumerated policy DeveloperToolsAvailability
   const base::Value* developer_tools_availability =
-      policies.GetValueUnsafe(key::kDeveloperToolsAvailability);
+      policies.GetValue(key::kDeveloperToolsAvailability);
   PolicyCheckResult developer_tools_availability_result =
       CheckDeveloperToolsAvailability(developer_tools_availability, errors);
 
@@ -177,7 +171,7 @@ bool DeveloperToolsPolicyHandler::CheckPolicySettings(
 
 void DeveloperToolsPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
                                                       PrefValueMap* prefs) {
-  const absl::optional<Availability> value = GetValueFromBothPolicies(policies);
+  const base::Optional<Availability> value = GetValueFromBothPolicies(policies);
 
   if (value.has_value()) {
     prefs->SetInteger(prefs::kDevToolsAvailability,

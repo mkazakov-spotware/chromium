@@ -1,13 +1,13 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_PAGE_ACTION_PAGE_ACTION_ICON_LOADING_INDICATOR_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_PAGE_ACTION_PAGE_ACTION_ICON_LOADING_INDICATOR_VIEW_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/time/time.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "base/timer/timer.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/throb_animation.h"
 #include "ui/views/view.h"
@@ -23,16 +23,12 @@ class PageActionIconLoadingIndicatorView : public views::View,
                                            public views::ViewObserver,
                                            public gfx::AnimationDelegate {
  public:
-  METADATA_HEADER(PageActionIconLoadingIndicatorView);
   explicit PageActionIconLoadingIndicatorView(PageActionIconView* parent);
-  PageActionIconLoadingIndicatorView(
-      const PageActionIconLoadingIndicatorView&) = delete;
-  PageActionIconLoadingIndicatorView& operator=(
-      const PageActionIconLoadingIndicatorView&) = delete;
   ~PageActionIconLoadingIndicatorView() override;
 
-  void SetAnimating(bool animating);
-  bool GetAnimating() const;
+  void ShowAnimation();
+  void StopAnimation();
+  bool IsAnimating();
 
   // views::View:
   void OnPaint(gfx::Canvas* canvas) override;
@@ -44,11 +40,13 @@ class PageActionIconLoadingIndicatorView : public views::View,
   void AnimationProgressed(const gfx::Animation* animation) override;
 
  private:
-  absl::optional<base::TimeTicks> throbber_start_time_;
+  base::Optional<base::TimeTicks> throbber_start_time_;
 
   gfx::ThrobAnimation animation_{this};
 
-  const raw_ptr<PageActionIconView> parent_;
+  PageActionIconView* const parent_;
+
+  DISALLOW_COPY_AND_ASSIGN(PageActionIconLoadingIndicatorView);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PAGE_ACTION_PAGE_ACTION_ICON_LOADING_INDICATOR_VIEW_H_

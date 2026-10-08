@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,7 @@
 #include "base/process/kill.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/task/thread_pool.h"
+#include "base/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "third_party/cros_system_api/switches/chrome_switches.h"
 
@@ -102,31 +101,35 @@ bool ProcessProxy::StartWatchingOutput(
 }
 
 void ProcessProxy::OnProcessOutput(ProcessOutputType type,
-                                   const std::string& output) {
+                                   const std::string& output,
+                                   base::OnceClosure callback) {
   if (!callback_runner_.get())
     return;
 
   callback_runner_->PostTask(
       FROM_HERE, base::BindOnce(&ProcessProxy::CallOnProcessOutputCallback,
-                                this, type, output));
+                                this, type, output, std::move(callback)));
 }
 
 void ProcessProxy::CallOnProcessOutputCallback(ProcessOutputType type,
-                                               const std::string& output) {
+                                               const std::string& output,
+                                               base::OnceClosure callback) {
   // We may receive some output even after Close was called (crosh process does
   // not have to quit instantly, or there may be some trailing data left in
   // output stream fds). In that case owner of the callback may be gone so we
   // don't want to send it anything. |callback_set_| is reset when this gets
   // closed.
   if (callback_set_) {
+    output_ack_callback_ = std::move(callback);
     callback_.Run(type, output);
   }
 }
 
 void ProcessProxy::AckOutput() {
-  watcher_runner_->PostTask(FROM_HERE,
-                            base::BindOnce(&ProcessOutputWatcher::AckOutput,
-                                           output_watcher_->GetWeakPtr()));
+  if (output_ack_callback_) {
+    std::move(output_ack_callback_).Run();
+    output_ack_callback_.Reset();
+  }
 }
 
 void ProcessProxy::StopWatching() {
@@ -154,20 +157,14 @@ void ProcessProxy::Close() {
   CloseFdPair(pt_pair_);
 }
 
-void ProcessProxy::Write(const std::string& text,
-                         base::OnceCallback<void(bool)> callback) {
+bool ProcessProxy::Write(const std::string& text) {
   if (!process_launched_)
-    return std::move(callback).Run(false);
+    return false;
 
-  // Use ThreadPool for write to avoid deadlock on registry TaskRunner.
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::TaskPriority::BEST_EFFORT, base::MayBlock()},
-      base::BindOnce(
-          [](int fd, const std::string& text) {
-            return base::WriteFileDescriptor(fd, text);
-          },
-          pt_pair_[PT_MASTER_FD], text),
-      std::move(callback));
+  // We don't want to write '\0' to the pipe.
+  size_t data_size = text.length() * sizeof(*text.c_str());
+  return base::WriteFileDescriptor(
+             pt_pair_[PT_MASTER_FD], text.c_str(), data_size);
 }
 
 bool ProcessProxy::OnTerminalResize(int width, int height) {
@@ -240,8 +237,8 @@ bool ProcessProxy::LaunchProcess(const base::CommandLine& cmdline,
   options.fds_to_remap.push_back(std::make_pair(slave_fd, STDERR_FILENO));
   // Do not set NO_NEW_PRIVS on processes if the system is in dev-mode. This
   // permits sudo in the crosh shell when in developer mode.
-  options.allow_new_privs = base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kSystemInDevMode);
+  options.allow_new_privs = base::CommandLine::ForCurrentProcess()->
+      HasSwitch(chromeos::switches::kSystemInDevMode);
   options.ctrl_terminal_fd = slave_fd;
   // TODO(vapier): Ideally we'd just use the env settings from hterm itself.
   // We can't let the user inject any env var they want, but we should be able
@@ -285,8 +282,8 @@ void ProcessProxy::ClearFdPair(int* pipe) {
   pipe[PT_SLAVE_FD] = base::kInvalidFd;
 }
 
-const base::Process* ProcessProxy::GetProcessForTesting() {
-  return &process_;
+base::ProcessHandle ProcessProxy::GetProcessHandleForTesting() {
+  return process_.IsValid() ? process_.Handle() : base::kNullProcessHandle;
 }
 
 }  // namespace chromeos

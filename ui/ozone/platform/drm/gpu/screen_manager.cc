@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,36 +6,24 @@
 
 #include <xf86drmMode.h>
 #include <memory>
-#include <string>
 #include <utility>
 
-#include "base/containers/flat_set.h"
-#include "base/files/file_path.h"
 #include "base/files/platform_file.h"
-#include "base/json/json_writer.h"
 #include "base/logging.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece_forward.h"
-#include "base/trace_event/typed_macros.h"
-#include "base/values.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "ui/display/types/display_snapshot.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/gpu_fence.h"
 #include "ui/gfx/linux/gbm_buffer.h"
-#include "ui/ozone/common/features.h"
+#include "ui/gfx/skia_util.h"
 #include "ui/ozone/platform/drm/common/drm_util.h"
 #include "ui/ozone/platform/drm/gpu/crtc_controller.h"
 #include "ui/ozone/platform/drm/gpu/drm_device.h"
 #include "ui/ozone/platform/drm/gpu/drm_dumb_buffer.h"
 #include "ui/ozone/platform/drm/gpu/drm_framebuffer.h"
-#include "ui/ozone/platform/drm/gpu/drm_gpu_util.h"
 #include "ui/ozone/platform/drm/gpu/drm_window.h"
 #include "ui/ozone/platform/drm/gpu/hardware_display_controller.h"
 
@@ -48,7 +36,7 @@ namespace {
 bool FillModesetBuffer(const scoped_refptr<DrmDevice>& drm,
                        HardwareDisplayController* controller,
                        SkSurface* surface,
-                       const std::vector<uint64_t>& modifiers) {
+                       uint32_t fourcc_format) {
   DCHECK(!controller->crtc_controllers().empty());
   CrtcController* first_crtc = controller->crtc_controllers()[0].get();
   ScopedDrmCrtcPtr saved_crtc(drm->GetCrtc(first_crtc->crtc()));
@@ -57,6 +45,7 @@ bool FillModesetBuffer(const scoped_refptr<DrmDevice>& drm,
     return false;
   }
 
+  const auto& modifiers = controller->GetFormatModifiers(fourcc_format);
   for (const uint64_t modifier : modifiers) {
     // A value of 0 means DRM_FORMAT_MOD_NONE. If the CRTC has any other
     // modifier (tiling, compression, etc.) we can't read the fb and assume it's
@@ -88,7 +77,7 @@ bool FillModesetBuffer(const scoped_refptr<DrmDevice>& drm,
   // Copy the source buffer. Do not perform any blending.
   paint.setBlendMode(SkBlendMode::kSrc);
   surface->getCanvas()->drawImage(saved_buffer.surface()->makeImageSnapshot(),
-                                  0, 0, SkSamplingOptions(), &paint);
+                                  0, 0, &paint);
   return true;
 }
 
@@ -104,91 +93,17 @@ CrtcController* GetCrtcController(HardwareDisplayController* controller,
   return nullptr;
 }
 
-void ParamsToTracedValue(
-    perfetto::TracedValue context,
-    const ScreenManager::ControllerConfigsList& controllers_params,
-    uint32_t modeset_flag) {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("modeset_flag", modeset_flag);
-
-  auto array = dict.AddArray("param");
-  for (const auto& param : controllers_params) {
-    auto param_dict = array.AppendDictionary();
-    param_dict.Add("display_id", param.display_id);
-    param_dict.Add("crtc", param.crtc);
-    param_dict.Add("connector", param.connector);
-    param_dict.Add("origin", param.origin.ToString());
-
-    {
-      auto drm_dict = param_dict.AddItem("drm");
-      if (param.drm)
-        param.drm->WriteIntoTrace(std::move(drm_dict));
-    }
-
-    {
-      auto mode_dict = param_dict.AddItem("mode");
-      if (param.mode)
-        DrmWriteIntoTraceHelper(*param.mode, std::move(mode_dict));
-    }
-  }
+std::vector<uint64_t> GetModifiersForPrimaryFormat(
+    HardwareDisplayController* controller) {
+  gfx::BufferFormat format = display::DisplaySnapshot::PrimaryFormat();
+  uint32_t fourcc_format = ui::GetFourCCFormatForOpaqueFramebuffer(format);
+  return controller->GetFormatModifiersForModesetting(fourcc_format);
 }
 
-// Returns a JSON-format log for a DRM configuration request represented by
-// `controllers_params`. Note that this function assumes that all controllers in
-// `controllers_params` are a part of the same DRM device.
-std::string GenerateConfigurationLogForController(
-    const ScreenManager::ControllerConfigsList& controllers_params) {
-  DCHECK(!controllers_params.empty());
-
-  base::flat_map<uint64_t, std::string> base_connectors_to_keys;
-  base::Value::Dict drm_device;
-  std::string base_connector_key;
-  for (const auto& param : controllers_params) {
-    const int64_t next_base_connector = param.base_connector_id;
-    const auto& it = base_connectors_to_keys.find(next_base_connector);
-    if (it == base_connectors_to_keys.end()) {
-      base_connector_key = base::StrCat(
-          {"base_connector=", base::NumberToString(next_base_connector)});
-      drm_device.Set(base_connector_key, base::Value::List());
-
-      base_connectors_to_keys.insert(
-          std::make_pair(next_base_connector, base_connector_key));
-    } else {
-      base_connector_key = it->second;
-    }
-
-    std::string mode;
-    if (param.mode) {
-      const std::string size = ModeSize(*(param.mode.get())).ToString();
-      const std::string refresh_rate =
-          base::NumberToString(param.mode->vrefresh);
-      mode = base::StrCat({size, "@", refresh_rate});
-    } else {
-      mode = "Disabled";
-    }
-
-    const std::string display =
-        base::StrCat({"{connector=", base::NumberToString(param.connector), " ",
-                      "crtc=", base::NumberToString(param.crtc), " mode=", mode,
-                      "+(", param.origin.ToString(), ")}"});
-    drm_device.FindList(base_connector_key)->Append(display);
-  }
-  const std::string device_name =
-      controllers_params.back().drm->device_path().BaseName().value();
-  base::Value::Dict drm_config;
-  drm_config.Set(device_name, std::move(drm_device));
-  std::string drm_config_log;
-  const int json_writer_options = IsPrettyPrintDrmModesetConfigLogsEnabled()
-                                      ? base::JSONWriter::OPTIONS_PRETTY_PRINT
-                                      : 0;
-  bool json_status = base::JSONWriter::WriteWithOptions(
-      drm_config, json_writer_options, &drm_config_log);
-  DCHECK(json_status);
-  DCHECK(!drm_config_log.empty());
-  // Remove trailing newline
-  if (json_writer_options)
-    drm_config_log.pop_back();
-  return drm_config_log;
+bool AreAllStatusesTrue(base::flat_map<int64_t, bool>& display_statuses) {
+  auto it = find_if(display_statuses.begin(), display_statuses.end(),
+                    [](const auto status) { return status.second == false; });
+  return (it == display_statuses.end());
 }
 
 }  // namespace
@@ -205,14 +120,11 @@ ScreenManager::ControllerConfigParams::ControllerConfigParams(
     uint32_t crtc,
     uint32_t connector,
     gfx::Point origin,
-    std::unique_ptr<drmModeModeInfo> pmode,
-    uint64_t base_connector)
+    std::unique_ptr<drmModeModeInfo> pmode)
     : display_id(display_id),
       drm(drm),
       crtc(crtc),
       connector(connector),
-      base_connector_id(base_connector ? base_connector
-                                       : static_cast<uint64_t>(connector)),
       origin(origin),
       mode(std::move(pmode)) {}
 
@@ -222,7 +134,6 @@ ScreenManager::ControllerConfigParams::ControllerConfigParams(
       drm(other.drm),
       crtc(other.crtc),
       connector(other.connector),
-      base_connector_id(other.base_connector_id),
       origin(other.origin) {
   if (other.mode) {
     drmModeModeInfo mode_obj = *other.mode.get();
@@ -236,7 +147,6 @@ ScreenManager::ControllerConfigParams::ControllerConfigParams(
       drm(other.drm),
       crtc(other.crtc),
       connector(other.connector),
-      base_connector_id(other.base_connector_id),
       origin(other.origin) {
   if (other.mode) {
     drmModeModeInfo mode_obj = *other.mode.get();
@@ -255,7 +165,7 @@ void ScreenManager::AddDisplayController(const scoped_refptr<DrmDevice>& drm,
   // display configuration in ScreenManager and display::NativeDisplayDelegate
   // creating the display controllers.)
   if (it != controllers_.end()) {
-    VLOG(2) << "Display controller (crtc=" << crtc << ") already present.";
+    LOG(WARNING) << "Display controller (crtc=" << crtc << ") already present.";
     return;
   }
 
@@ -265,9 +175,6 @@ void ScreenManager::AddDisplayController(const scoped_refptr<DrmDevice>& drm,
 
 void ScreenManager::RemoveDisplayControllers(
     const CrtcsWithDrmList& controllers_to_remove) {
-  TRACE_EVENT1("drm", "ScreenManager::RemoveDisplayControllers",
-               "display_count", controllers_to_remove.size());
-
   // Split them to different lists unique to each DRM Device.
   base::flat_map<scoped_refptr<DrmDevice>, CrtcsWithDrmList>
       controllers_for_drm_devices;
@@ -283,11 +190,11 @@ void ScreenManager::RemoveDisplayControllers(
 
   bool should_update_controllers_to_window_mapping = false;
   for (const auto& controllers_on_drm : controllers_for_drm_devices) {
-    CrtcsWithDrmList drm_controllers_to_remove = controllers_on_drm.second;
+    CrtcsWithDrmList controllers_to_remove = controllers_on_drm.second;
 
     CommitRequest commit_request;
     auto drm = controllers_on_drm.first;
-    for (const auto& controller : drm_controllers_to_remove) {
+    for (const auto& controller : controllers_to_remove) {
       uint32_t crtc_id = controller.first;
       auto it = FindDisplayController(drm, crtc_id);
       if (it == controllers_.end())
@@ -316,21 +223,8 @@ void ScreenManager::RemoveDisplayControllers(
     UpdateControllerToWindowMapping();
 }
 
-bool ScreenManager::ConfigureDisplayControllers(
-    const ControllerConfigsList& controllers_params,
-    uint32_t modeset_flag) {
-  TRACE_EVENT_BEGIN2(
-      "drm", "ScreenManager::ConfigureDisplayControllers", "params",
-      ([modeset_flag,
-        &controllers_params](perfetto::TracedValue context) -> void {
-        ParamsToTracedValue(std::move(context), controllers_params,
-                            modeset_flag);
-      }),
-      "before", this);
-
-  // At least one of these flags must be set.
-  DCHECK(modeset_flag & (display::kCommitModeset | display::kTestModeset));
-
+base::flat_map<int64_t, bool> ScreenManager::ConfigureDisplayControllers(
+    const ControllerConfigsList& controllers_params) {
   // Split them to different lists unique to each DRM Device.
   base::flat_map<scoped_refptr<DrmDevice>, ControllerConfigsList>
       displays_for_drm_devices;
@@ -344,56 +238,33 @@ bool ScreenManager::ConfigureDisplayControllers(
     displays_for_drm_devices[params.drm].emplace_back(params);
   }
 
-  const bool commit_modeset = modeset_flag & display::kCommitModeset;
-  const bool is_seamless_modeset = modeset_flag & display::kSeamlessModeset;
-  bool config_success = true;
+  base::flat_map<int64_t, bool> statuses;
   // Perform display configurations together for the same DRM only.
   for (const auto& configs_on_drm : displays_for_drm_devices) {
-    const ControllerConfigsList& drm_controllers_params = configs_on_drm.second;
-    VLOG(1) << "DRM " << (commit_modeset ? "configuring: " : "testing: ")
-            << GenerateConfigurationLogForController(drm_controllers_params);
-
-    if (modeset_flag & display::kTestModeset) {
-      bool test_modeset =
-          TestAndSetPreferredModifiers(drm_controllers_params,
-                                       is_seamless_modeset) ||
-          TestAndSetLinearModifier(drm_controllers_params, is_seamless_modeset);
-      config_success &= test_modeset;
-      VLOG(1) << "Test-modeset " << (test_modeset ? "succeeded." : "failed.");
-      if (!test_modeset)
-        continue;
-    }
-
-    if (commit_modeset) {
-      bool can_modeset_with_overlays =
-          TestModesetWithOverlays(drm_controllers_params, is_seamless_modeset);
-      bool modeset_commit_result =
-          Modeset(drm_controllers_params, can_modeset_with_overlays,
-                  is_seamless_modeset);
-      config_success &= modeset_commit_result;
-      if (modeset_commit_result) {
-        VLOG(1) << "Modeset succeeded.";
-      } else {
-        LOG(ERROR) << "Modeset commit failed after a successful test-modeset.";
-      }
-    }
+    auto display_statuses = TestAndModeset(configs_on_drm.second);
+    statuses.insert(display_statuses.begin(), display_statuses.end());
   }
 
-  if (commit_modeset && config_success)
+  if (AreAllStatusesTrue(statuses))
     UpdateControllerToWindowMapping();
 
-  TRACE_EVENT_END2("drm", "ScreenManager::ConfigureDisplayControllers", "after",
-                   this, "success", config_success);
-  return config_success;
+  return statuses;
 }
 
-bool ScreenManager::TestAndSetPreferredModifiers(
-    const ControllerConfigsList& controllers_params,
-    bool is_seamless_modeset) {
-  TRACE_EVENT1("drm", "ScreenManager::TestAndSetPreferredModifiers",
-               "display_count", controllers_params.size());
+base::flat_map<int64_t, bool> ScreenManager::TestAndModeset(
+    const ControllerConfigsList& controllers_params) {
+  if (!TestModeset(controllers_params)) {
+    base::flat_map<int64_t, bool> statuses;
+    for (const auto& params : controllers_params)
+      statuses.insert(std::make_pair(params.display_id, false));
+    return statuses;
+  }
 
-  CrtcPreferredModifierMap crtcs_preferred_modifier;
+  return Modeset(controllers_params);
+}
+
+bool ScreenManager::TestModeset(
+    const ControllerConfigsList& controllers_params) {
   CommitRequest commit_request;
   auto drm = controllers_params[0].drm;
 
@@ -403,205 +274,64 @@ bool ScreenManager::TestAndSetPreferredModifiers(
     HardwareDisplayController* controller = it->get();
 
     if (params.mode) {
-      uint32_t fourcc_format = ui::GetFourCCFormatForOpaqueFramebuffer(
-          display::DisplaySnapshot::PrimaryFormat());
-      std::vector<uint64_t> modifiers =
-          controller->GetFormatModifiersForTestModeset(fourcc_format);
-      // Test with no overlays to go for a lower bandwidth usage.
-      DrmOverlayPlaneList modeset_planes = GetModesetPlanes(
+      DrmOverlayPlane primary_plane = GetModesetBuffer(
           controller, gfx::Rect(params.origin, ModeSize(*params.mode)),
-          modifiers, /*include_overlays=*/false, /*is_testing=*/true);
-      if (modeset_planes.empty())
-        return false;
-
-      uint64_t primary_modifier =
-          DrmOverlayPlane::GetPrimaryPlane(modeset_planes)
-              ->buffer->format_modifier();
-      crtcs_preferred_modifier[params.crtc] =
-          std::make_pair(modifiers.empty(), primary_modifier);
-
-      GetModesetControllerProps(&commit_request, controller, params.origin,
-                                *params.mode, modeset_planes);
-    } else {
-      controller->GetDisableProps(&commit_request);
-    }
-  }
-
-  uint32_t flags = DRM_MODE_ATOMIC_TEST_ONLY;
-  if (!is_seamless_modeset)
-    flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
-  if (!drm->plane_manager()->Commit(std::move(commit_request), flags)) {
-    return false;
-  }
-
-  SetPreferredModifiers(controllers_params, crtcs_preferred_modifier);
-  return true;
-}
-
-bool ScreenManager::TestAndSetLinearModifier(
-    const ControllerConfigsList& controllers_params,
-    bool is_seamless_modeset) {
-  TRACE_EVENT1("drm", "ScreenManager::TestAndSetLinearModifier",
-               "display_count", controllers_params.size());
-
-  CrtcPreferredModifierMap crtcs_preferred_modifier;
-  CommitRequest commit_request;
-  auto drm = controllers_params[0].drm;
-
-  for (const auto& params : controllers_params) {
-    auto it = FindDisplayController(params.drm, params.crtc);
-    DCHECK(controllers_.end() != it);
-    HardwareDisplayController* controller = it->get();
-
-    uint32_t fourcc_format = ui::GetFourCCFormatForOpaqueFramebuffer(
-        display::DisplaySnapshot::PrimaryFormat());
-    std::vector<uint64_t> modifiers =
-        controller->GetFormatModifiersForTestModeset(fourcc_format);
-    // Test with an empty list if no preferred modifiers are advertised.
-    // Platforms might not support gbm_bo_create_with_modifiers(). If the
-    // platform doesn't expose modifiers, do not attempt to explicitly request
-    // LINEAR otherwise we might CHECK() when trying to allocate buffers.
-    if (!modifiers.empty())
-      modifiers = std::vector<uint64_t>{DRM_FORMAT_MOD_LINEAR};
-    crtcs_preferred_modifier[params.crtc] =
-        std::make_pair(modifiers.empty(), DRM_FORMAT_MOD_LINEAR);
-
-    if (params.mode) {
-      // Test with no overlays to go for a lower bandwidth usage.
-      DrmOverlayPlaneList modeset_planes = GetModesetPlanes(
-          controller, gfx::Rect(params.origin, ModeSize(*params.mode)),
-          modifiers, /*include_overlays=*/false, /*is_testing=*/true);
-      if (modeset_planes.empty())
+          GetModifiersForPrimaryFormat(controller));
+      if (!primary_plane.buffer)
         return false;
 
       GetModesetControllerProps(&commit_request, controller, params.origin,
-                                *params.mode, modeset_planes);
+                                *params.mode, primary_plane);
     } else {
       controller->GetDisableProps(&commit_request);
     }
   }
 
-  uint32_t flags = DRM_MODE_ATOMIC_TEST_ONLY;
-  if (!is_seamless_modeset)
-    flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
-  if (!drm->plane_manager()->Commit(std::move(commit_request), flags)) {
-    return false;
-  }
-
-  SetPreferredModifiers(controllers_params, crtcs_preferred_modifier);
-  return true;
+  return drm->plane_manager()->Commit(
+      std::move(commit_request),
+      DRM_MODE_ATOMIC_TEST_ONLY | DRM_MODE_ATOMIC_ALLOW_MODESET);
 }
 
-void ScreenManager::SetPreferredModifiers(
-    const ControllerConfigsList& controllers_params,
-    const CrtcPreferredModifierMap& crtcs_preferred_modifier) {
-  for (const auto& params : controllers_params) {
-    if (params.mode) {
-      bool was_modifiers_list_empty =
-          crtcs_preferred_modifier.at(params.crtc).first;
-      // No preferred modifiers should be saved as some platforms might not have
-      // bo_create_with_modifiers implemented, this will send the preferred
-      // modifiers list as an empty list.
-      if (!was_modifiers_list_empty) {
-        uint64_t picked_modifier =
-            crtcs_preferred_modifier.at(params.crtc).second;
-        auto it = FindDisplayController(params.drm, params.crtc);
-        DCHECK(*it);
-        it->get()->UpdatePreferredModiferForFormat(
-            display::DisplaySnapshot::PrimaryFormat(), picked_modifier);
-      }
-    }
-  }
-}
-
-bool ScreenManager::TestModesetWithOverlays(
-    const ControllerConfigsList& controllers_params,
-    bool is_seamless_modeset) {
-  TRACE_EVENT1("drm", "ScreenManager::TestModesetWithOverlays", "display_count",
-               controllers_params.size());
-
-  bool does_an_overlay_exist = false;
-
-  CommitRequest commit_request;
-  auto drm = controllers_params[0].drm;
-  for (const auto& params : controllers_params) {
-    auto it = FindDisplayController(params.drm, params.crtc);
-    DCHECK(controllers_.end() != it);
-    HardwareDisplayController* controller = it->get();
-
-    if (params.mode) {
-      uint32_t fourcc_format = GetFourCCFormatForOpaqueFramebuffer(
-          display::DisplaySnapshot::PrimaryFormat());
-      std::vector<uint64_t> modifiers =
-          controller->GetSupportedModifiers(fourcc_format);
-
-      DrmOverlayPlaneList modeset_planes = GetModesetPlanes(
-          controller, gfx::Rect(params.origin, ModeSize(*params.mode)),
-          modifiers, /*include_overlays=*/true, /*is_testing=*/true);
-      DCHECK(!modeset_planes.empty());
-      does_an_overlay_exist |= modeset_planes.size() > 1;
-
-      GetModesetControllerProps(&commit_request, controller, params.origin,
-                                *params.mode, modeset_planes);
-    } else {
-      controller->GetDisableProps(&commit_request);
-    }
-  }
-  // If we have no overlays, report not modesetting with overlays as we haven't
-  // tested with overlays.
-  if (!does_an_overlay_exist)
-    return false;
-
-  uint32_t flags = DRM_MODE_ATOMIC_TEST_ONLY;
-  if (!is_seamless_modeset)
-    flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
-  return drm->plane_manager()->Commit(std::move(commit_request), flags);
-}
-
-bool ScreenManager::Modeset(const ControllerConfigsList& controllers_params,
-                            bool can_modeset_with_overlays,
-                            bool is_seamless_modeset) {
-  TRACE_EVENT2("drm", "ScreenManager::Modeset", "display_count",
-               controllers_params.size(), "modeset_with_overlays",
-               can_modeset_with_overlays);
-
-  CommitRequest commit_request;
-  auto drm = controllers_params[0].drm;
+base::flat_map<int64_t, bool> ScreenManager::Modeset(
+    const ControllerConfigsList& controllers_params) {
+  base::flat_map<int64_t, bool> statuses;
 
   for (const auto& params : controllers_params) {
+    // Commit one controller at a time.
+    CommitRequest commit_request;
+    bool status = true;
     if (params.mode) {
       auto it = FindDisplayController(params.drm, params.crtc);
       DCHECK(controllers_.end() != it);
       HardwareDisplayController* controller = it->get();
 
-      uint32_t fourcc_format = GetFourCCFormatForOpaqueFramebuffer(
-          display::DisplaySnapshot::PrimaryFormat());
-      std::vector<uint64_t> modifiers =
-          controller->GetSupportedModifiers(fourcc_format, /*is_modeset=*/true);
-
-      gfx::Rect bounds = gfx::Rect(params.origin, ModeSize(*params.mode));
-      DrmOverlayPlaneList modeset_planes =
-          GetModesetPlanes(controller, bounds, modifiers,
-                           can_modeset_with_overlays, /*is_testing=*/false);
-
-      SetDisplayControllerForEnableAndGetProps(
-          &commit_request, params.drm, params.crtc, params.connector,
-          params.origin, *params.mode, modeset_planes);
+      DrmOverlayPlane primary_plane = GetModesetBuffer(
+          controller, gfx::Rect(params.origin, ModeSize(*params.mode)),
+          GetModifiersForPrimaryFormat(controller));
+      if (primary_plane.buffer) {
+        SetDisplayControllerForEnableAndGetProps(
+            &commit_request, params.drm, params.crtc, params.connector,
+            params.origin, *params.mode, primary_plane);
+      } else {
+        status = false;
+      }
 
     } else {
-      bool disable_set = SetDisableDisplayControllerForDisableAndGetProps(
+      status = SetDisableDisplayControllerForDisableAndGetProps(
           &commit_request, params.drm, params.crtc);
-      if (!disable_set)
-        return false;
     }
+
+    CommitRequest request_for_update = commit_request;
+    if (status) {
+      status &= params.drm->plane_manager()->Commit(
+          std::move(commit_request), DRM_MODE_ATOMIC_ALLOW_MODESET);
+      UpdateControllerStateAfterModeset(params, request_for_update, status);
+    }
+
+    statuses.insert(std::make_pair(params.display_id, status));
   }
 
-  uint32_t flags = is_seamless_modeset ? 0 : DRM_MODE_ATOMIC_ALLOW_MODESET;
-  bool commit_status = drm->plane_manager()->Commit(commit_request, flags);
-
-  UpdateControllerStateAfterModeset(drm, commit_request, commit_status);
-
-  return commit_status;
+  return statuses;
 }
 
 void ScreenManager::SetDisplayControllerForEnableAndGetProps(
@@ -611,7 +341,7 @@ void ScreenManager::SetDisplayControllerForEnableAndGetProps(
     uint32_t connector,
     const gfx::Point& origin,
     const drmModeModeInfo& mode,
-    const DrmOverlayPlaneList& modeset_planes) {
+    const DrmOverlayPlane& primary) {
   HardwareDisplayControllers::iterator it = FindDisplayController(drm, crtc);
   DCHECK(controllers_.end() != it)
       << "Display controller (crtc=" << crtc << ") doesn't exist.";
@@ -628,10 +358,10 @@ void ScreenManager::SetDisplayControllerForEnableAndGetProps(
       // Otherwise it could apply a mode with the same resolution and refresh
       // rate but with different timings to the other CRTC.
       GetModesetControllerProps(commit_request, controller,
-                                controller->origin(), mode, modeset_planes);
+                                controller->origin(), mode, primary);
     } else {
       // Just get props to re-enable the controller re-using the current state.
-      GetEnableControllerProps(commit_request, controller, modeset_planes);
+      GetEnableControllerProps(commit_request, controller, primary);
     }
     return;
   }
@@ -647,8 +377,7 @@ void ScreenManager::SetDisplayControllerForEnableAndGetProps(
     controller = it->get();
   }
 
-  GetModesetControllerProps(commit_request, controller, origin, mode,
-                            modeset_planes);
+  GetModesetControllerProps(commit_request, controller, origin, mode, primary);
 }
 
 bool ScreenManager::SetDisableDisplayControllerForDisableAndGetProps(
@@ -673,32 +402,31 @@ bool ScreenManager::SetDisableDisplayControllerForDisableAndGetProps(
 }
 
 void ScreenManager::UpdateControllerStateAfterModeset(
-    const scoped_refptr<DrmDevice>& drm,
+    const ControllerConfigParams& config,
     const CommitRequest& commit_request,
     bool did_succeed) {
-  for (const CrtcCommitRequest& crtc_request : commit_request) {
+  for (auto& crtc_request : commit_request) {
     bool was_enabled = (crtc_request.should_enable());
 
     HardwareDisplayControllers::iterator it =
-        FindDisplayController(drm, crtc_request.crtc_id());
+        FindDisplayController(config.drm, crtc_request.crtc_id());
     if (it != controllers_.end()) {
-      it->get()->UpdateState(crtc_request);
+      it->get()->UpdateState(was_enabled, DrmOverlayPlane::GetPrimaryPlane(
+                                              crtc_request.overlays()));
 
       // If the CRTC is mirrored, move it to the mirror controller.
       if (did_succeed && was_enabled)
-        HandleMirrorIfExists(drm, crtc_request, it);
+        HandleMirrorIfExists(config, it);
     }
   }
 }
 
 void ScreenManager::HandleMirrorIfExists(
-    const scoped_refptr<DrmDevice>& drm,
-    const CrtcCommitRequest& crtc_request,
+    const ControllerConfigParams& config,
     const HardwareDisplayControllers::iterator& controller) {
-  gfx::Rect modeset_bounds(crtc_request.origin(),
-                           ModeSize(crtc_request.mode()));
+  gfx::Rect modeset_bounds(config.origin, ModeSize(*config.mode));
   HardwareDisplayControllers::iterator mirror =
-      FindActiveDisplayControllerByLocation(drm, modeset_bounds);
+      FindActiveDisplayControllerByLocation(config.drm, modeset_bounds);
   // TODO(dnicoara): This is hacky, instead the DrmDisplay and
   // CrtcController should be merged and picking the mode should be done
   // properly within HardwareDisplayController.
@@ -706,7 +434,7 @@ void ScreenManager::HandleMirrorIfExists(
     // TODO(markyacoub): RemoveCrtc makes a blocking commit to
     // DisableOverlayPlanes. This should be redesigned and included as part of
     // the Modeset commit.
-    (*mirror)->AddCrtc((*controller)->RemoveCrtc(drm, crtc_request.crtc_id()));
+    (*mirror)->AddCrtc((*controller)->RemoveCrtc(config.drm, config.crtc));
     controllers_.erase(controller);
   }
 }
@@ -813,50 +541,24 @@ void ScreenManager::UpdateControllerToWindowMapping() {
     // otherwise the controller may be waiting for a page flip while the window
     // tries to schedule another buffer.
     if (should_enable) {
-      uint32_t fourcc_format = ui::GetFourCCFormatForOpaqueFramebuffer(
-          display::DisplaySnapshot::PrimaryFormat());
-      std::vector<uint64_t> modifiers =
-          controller->GetSupportedModifiers(fourcc_format);
-      DrmOverlayPlaneList modeset_planes = GetModesetPlanes(
+      DrmOverlayPlane primary_plane = GetModesetBuffer(
           controller,
-          gfx::Rect(controller->origin(), controller->GetModeSize()), modifiers,
-          /*include_overlays=*/true, /*is_testing=*/false);
-      DCHECK(!modeset_planes.empty());
+          gfx::Rect(controller->origin(), controller->GetModeSize()),
+          GetModifiersForPrimaryFormat(controller));
+      DCHECK(primary_plane.buffer);
 
       CommitRequest commit_request;
-      GetEnableControllerProps(&commit_request, controller, modeset_planes);
+      GetEnableControllerProps(&commit_request, controller, primary_plane);
       controller->GetDrmDevice()->plane_manager()->Commit(
           std::move(commit_request), DRM_MODE_ATOMIC_ALLOW_MODESET);
     }
   }
 }
 
-void ScreenManager::WriteIntoTrace(perfetto::TracedValue context) const {
-  auto dict = std::move(context).WriteDictionary();
-
-  dict.Add("hardware_display_controllers", controllers_);
-
-  {
-    auto array = dict.AddArray("drm_devices");
-    base::flat_set<base::FilePath> seen_devices;
-    for (const auto& controller : controllers_) {
-      if (seen_devices.contains(controller->GetDrmDevice()->device_path()))
-        continue;
-
-      seen_devices.insert(controller->GetDrmDevice()->device_path());
-      array.Append(controller->GetDrmDevice());
-    }
-  }
-
-  // TODO(jshargo): also trace WidgetToWindowMap window_map.
-}
-
-DrmOverlayPlaneList ScreenManager::GetModesetPlanes(
+DrmOverlayPlane ScreenManager::GetModesetBuffer(
     HardwareDisplayController* controller,
     const gfx::Rect& bounds,
-    const std::vector<uint64_t>& modifiers,
-    bool include_overlays,
-    bool is_testing) {
+    const std::vector<uint64_t>& modifiers) {
   scoped_refptr<DrmDevice> drm = controller->GetDrmDevice();
   uint32_t fourcc_format = ui::GetFourCCFormatForOpaqueFramebuffer(
       display::DisplaySnapshot::PrimaryFormat());
@@ -867,27 +569,19 @@ DrmOverlayPlaneList ScreenManager::GetModesetPlanes(
           fourcc_format, bounds.size(), GBM_BO_USE_SCANOUT, modifiers);
   if (!buffer) {
     LOG(ERROR) << "Failed to create scanout buffer";
-    return DrmOverlayPlaneList();
+    return DrmOverlayPlane::Error();
   }
 
   // If the current primary plane matches what we need for the next page flip,
-  // clone all last_submitted_planes (matching primary + overlays).
+  // we can clone it.
   DrmWindow* window = FindWindowAt(bounds);
   if (window) {
-    const DrmOverlayPlaneList& last_submitted_planes =
-        window->last_submitted_planes();
-    const DrmOverlayPlane* primary =
-        DrmOverlayPlane::GetPrimaryPlane(last_submitted_planes);
+    const DrmOverlayPlane* primary = window->GetLastModesetBuffer();
+    const DrmDevice* drm = controller->GetDrmDevice().get();
     if (primary && primary->buffer->size() == bounds.size() &&
-        primary->buffer->drm_device() == controller->GetDrmDevice().get() &&
-        primary->buffer->format_modifier() == buffer->GetFormatModifier()) {
-      if (include_overlays) {
-        return DrmOverlayPlane::Clone(last_submitted_planes);
-      } else {
-        DrmOverlayPlaneList modeset_plane;
-        modeset_plane.push_back(primary->Clone());
-        return modeset_plane;
-      }
+        primary->buffer->drm_device() == drm) {
+      if (primary->buffer->format_modifier() == buffer->GetFormatModifier())
+        return primary->Clone();
     }
   }
 
@@ -895,32 +589,28 @@ DrmOverlayPlaneList ScreenManager::GetModesetPlanes(
       drm, buffer.get(), buffer->GetSize(), modifiers);
   if (!framebuffer) {
     LOG(ERROR) << "Failed to add framebuffer for scanout buffer";
-    return DrmOverlayPlaneList();
+    return DrmOverlayPlane::Error();
   }
 
-  if (!is_testing) {
-    sk_sp<SkSurface> surface = buffer->GetSurface();
-    if (!surface) {
-      VLOG(2) << "Can't get a SkSurface from the modeset gbm buffer.";
-    } else if (!FillModesetBuffer(drm, controller, surface.get(), modifiers)) {
-      // If we fail to fill the modeset buffer, clear it black to avoid
-      // displaying an uninitialized framebuffer.
-      surface->getCanvas()->clear(SK_ColorBLACK);
-    }
+  sk_sp<SkSurface> surface = buffer->GetSurface();
+  if (!surface) {
+    VLOG(2) << "Can't get a SkSurface from the modeset gbm buffer.";
+  } else if (!FillModesetBuffer(drm, controller, surface.get(),
+                                buffer->GetFormat())) {
+    // If we fail to fill the modeset buffer, clear it black to avoid displaying
+    // an uninitialized framebuffer.
+    surface->getCanvas()->clear(SK_ColorBLACK);
   }
-
-  DrmOverlayPlaneList modeset_planes;
-  modeset_planes.emplace_back(framebuffer, nullptr);
-  return modeset_planes;
+  return DrmOverlayPlane(framebuffer, nullptr);
 }
 
 void ScreenManager::GetEnableControllerProps(
     CommitRequest* commit_request,
     HardwareDisplayController* controller,
-    const DrmOverlayPlaneList& modeset_planes) {
+    const DrmOverlayPlane& primary) {
   DCHECK(!controller->crtc_controllers().empty());
 
-  controller->GetEnableProps(commit_request, modeset_planes);
+  controller->GetEnableProps(commit_request, primary);
 }
 
 void ScreenManager::GetModesetControllerProps(
@@ -928,11 +618,11 @@ void ScreenManager::GetModesetControllerProps(
     HardwareDisplayController* controller,
     const gfx::Point& origin,
     const drmModeModeInfo& mode,
-    const DrmOverlayPlaneList& modeset_planes) {
+    const DrmOverlayPlane& primary) {
   DCHECK(!controller->crtc_controllers().empty());
 
   controller->set_origin(origin);
-  controller->GetModesetProps(commit_request, modeset_planes, mode);
+  controller->GetModesetProps(commit_request, primary, mode);
 }
 
 DrmWindow* ScreenManager::FindWindowAt(const gfx::Rect& bounds) const {

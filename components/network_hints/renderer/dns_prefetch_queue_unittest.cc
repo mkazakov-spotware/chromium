@@ -1,4 +1,4 @@
-// Copyright 2010 The Chromium Authors
+// Copyright (c) 2010 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <sstream>
 
+#include "base/macros.h"
 #include "components/network_hints/renderer/dns_prefetch_queue.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -26,9 +27,6 @@ class DnsQueueSequentialTester {
                            int32_t read_counter = 0,
                            int32_t write_counter = 0);
 
-  DnsQueueSequentialTester(const DnsQueueSequentialTester&) = delete;
-  DnsQueueSequentialTester& operator=(const DnsQueueSequentialTester&) = delete;
-
   // Return of false means buffer was full, or would not take entry.
   bool Push(void);  // Push the string value of next number.
 
@@ -39,6 +37,7 @@ class DnsQueueSequentialTester {
   DnsQueue* buffer_;
   int32_t read_counter_;   // expected value of next read string.
   int32_t write_counter_;  // Numerical value to write next string.
+  DISALLOW_COPY_AND_ASSIGN(DnsQueueSequentialTester);
 };
 
 DnsQueueSequentialTester::DnsQueueSequentialTester(DnsQueue& buffer,
@@ -181,7 +180,8 @@ TEST(DnsQueueTest, FillThenEmptyCheck) {
   EXPECT_GE(write_success, 10U) << "Couldn't even write 10 one digit strings "
       "in " << buffer_size << " byte buffer";
 
-  while (true) {
+
+  while (1) {
     if (!tester.Pop())
       break;
     write_success--;

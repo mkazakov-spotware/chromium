@@ -1,10 +1,9 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/task/sequence_manager/work_deduplicator.h"
 
-#include <ostream>
 #include <utility>
 #include "base/check_op.h"
 
@@ -13,7 +12,7 @@ namespace sequence_manager {
 namespace internal {
 
 WorkDeduplicator::WorkDeduplicator(
-    scoped_refptr<const AssociatedThreadId> associated_thread)
+    scoped_refptr<AssociatedThreadId> associated_thread)
     : associated_thread_(std::move(associated_thread)) {}
 
 WorkDeduplicator::~WorkDeduplicator() = default;

@@ -1,14 +1,11 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ipc/ipc_perftest_util.h"
 
-#include <tuple>
-
 #include "base/logging.h"
 #include "base/run_loop.h"
-#include "build/build_config.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_perftest_messages.h"
 #include "mojo/core/embedder/embedder.h"
@@ -73,11 +70,11 @@ void ChannelReflectorListener::Send(IPC::Message* message) {
 
 LockThreadAffinity::LockThreadAffinity(int cpu_number)
     : affinity_set_ok_(false) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   const DWORD_PTR thread_mask = static_cast<DWORD_PTR>(1) << cpu_number;
   old_affinity_ = SetThreadAffinityMask(GetCurrentThread(), thread_mask);
   affinity_set_ok_ = old_affinity_ != 0;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(cpu_number, &cpuset);
@@ -94,10 +91,10 @@ LockThreadAffinity::LockThreadAffinity(int cpu_number)
 LockThreadAffinity::~LockThreadAffinity() {
   if (!affinity_set_ok_)
     return;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   auto set_result = SetThreadAffinityMask(GetCurrentThread(), old_affinity_);
   DCHECK_NE(0u, set_result);
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   auto set_result = sched_setaffinity(0, sizeof(old_cpuset_), &old_cpuset_);
   DCHECK_EQ(0, set_result);
 #endif
@@ -117,8 +114,7 @@ int MojoPerfTestClient::Run(MojoHandle handle) {
   base::RunLoop run_loop;
   std::unique_ptr<ChannelProxy> channel = IPC::ChannelProxy::Create(
       handle_.release(), Channel::MODE_CLIENT, listener_.get(),
-      GetIOThreadTaskRunner(),
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      GetIOThreadTaskRunner(), base::ThreadTaskRunnerHandle::Get());
   listener_->Init(channel.get(), run_loop.QuitWhenIdleClosure());
   run_loop.Run();
   return 0;
@@ -132,7 +128,7 @@ ReflectorImpl::ReflectorImpl(mojo::ScopedMessagePipeHandle handle,
           mojo::PendingReceiver<IPC::mojom::Reflector>(std::move(handle))) {}
 
 ReflectorImpl::~ReflectorImpl() {
-  std::ignore = receiver_.Unbind().PassPipe().release();
+  ignore_result(receiver_.Unbind().PassPipe().release());
 }
 
 void ReflectorImpl::Ping(const std::string& value, PingCallback callback) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define MEDIA_RENDERERS_DECRYPTING_RENDERER_FACTORY_H_
 
 #include "base/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "media/base/media_export.h"
 #include "media/base/renderer_factory.h"
 
@@ -26,16 +26,11 @@ class MEDIA_EXPORT DecryptingRendererFactory final : public RendererFactory {
   DecryptingRendererFactory(
       MediaLog* media_log,
       std::unique_ptr<media::RendererFactory> renderer_factory);
-
-  DecryptingRendererFactory(const DecryptingRendererFactory&) = delete;
-  DecryptingRendererFactory& operator=(const DecryptingRendererFactory&) =
-      delete;
-
   ~DecryptingRendererFactory() final;
 
   // RendererFactory implementation.
   std::unique_ptr<Renderer> CreateRenderer(
-      const scoped_refptr<base::SequencedTaskRunner>& media_task_runner,
+      const scoped_refptr<base::SingleThreadTaskRunner>& media_task_runner,
       const scoped_refptr<base::TaskRunner>& worker_task_runner,
       AudioRendererSink* audio_renderer_sink,
       VideoRendererSink* video_renderer_sink,
@@ -43,9 +38,11 @@ class MEDIA_EXPORT DecryptingRendererFactory final : public RendererFactory {
       const gfx::ColorSpace& target_color_space) final;
 
  private:
-  raw_ptr<MediaLog> media_log_;
+  MediaLog* media_log_;
 
   std::unique_ptr<media::RendererFactory> renderer_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(DecryptingRendererFactory);
 };
 
 }  // namespace media

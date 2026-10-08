@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "ppapi/c/pp_instance.h"
 #include "ppapi/c/pp_resource.h"
 #include "ppapi/c/private/ppb_testing_private.h"
@@ -24,10 +25,6 @@ namespace proxy {
 class PPB_Testing_Proxy : public InterfaceProxy {
  public:
   explicit PPB_Testing_Proxy(Dispatcher* dispatcher);
-
-  PPB_Testing_Proxy(const PPB_Testing_Proxy&) = delete;
-  PPB_Testing_Proxy& operator=(const PPB_Testing_Proxy&) = delete;
-
   ~PPB_Testing_Proxy() override;
 
   static const PPB_Testing_Private* GetProxyInterface();
@@ -54,6 +51,8 @@ class PPB_Testing_Proxy : public InterfaceProxy {
   // pointer so we don't have to retrieve it from the dispatcher each time.
   // In the plugin, this value is always NULL.
   const PPB_Testing_Private* ppb_testing_impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(PPB_Testing_Proxy);
 };
 
 }  // namespace proxy

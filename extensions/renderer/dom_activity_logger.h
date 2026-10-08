@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,14 @@
 #include <memory>
 #include <string>
 
-#include "base/values.h"
+#include "base/macros.h"
 #include "extensions/common/dom_action_types.h"
 #include "third_party/blink/public/web/web_dom_activity_logger.h"
-#include "v8/include/v8-forward.h"
+#include "v8/include/v8.h"
+
+namespace base {
+class ListValue;
+}
 
 namespace blink {
 class WebString;
@@ -26,10 +30,6 @@ class DOMActivityLogger: public blink::WebDOMActivityLogger {
  public:
   static const int kMainWorldId = 0;
   explicit DOMActivityLogger(const std::string& extension_id);
-
-  DOMActivityLogger(const DOMActivityLogger&) = delete;
-  DOMActivityLogger& operator=(const DOMActivityLogger&) = delete;
-
   ~DOMActivityLogger() override;
 
   // Check (using the WebKit API) if there is no logger attached to the world
@@ -70,12 +70,14 @@ class DOMActivityLogger: public blink::WebDOMActivityLogger {
   // Helper function to actually send the message across IPC.
   void SendDomActionMessage(const std::string& api_call,
                             const GURL& url,
-                            const std::u16string& url_title,
+                            const base::string16& url_title,
                             DomActionType::Type call_type,
-                            base::Value::List args);
+                            std::unique_ptr<base::ListValue> args);
 
   // The id of the extension with which this logger is associated.
   std::string extension_id_;
+
+  DISALLOW_COPY_AND_ASSIGN(DOMActivityLogger);
 };
 
 }  // namespace extensions

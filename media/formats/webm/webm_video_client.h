@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors
+// Copyright 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,12 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "media/base/encryption_scheme.h"
 #include "media/base/media_export.h"
 #include "media/base/media_log.h"
 #include "media/formats/webm/webm_colour_parser.h"
 #include "media/formats/webm/webm_parser.h"
-#include "media/formats/webm/webm_projection_parser.h"
 
 namespace media {
 class VideoDecoderConfig;
@@ -25,10 +24,6 @@ class VideoDecoderConfig;
 class MEDIA_EXPORT WebMVideoClient : public WebMParserClient {
  public:
   explicit WebMVideoClient(MediaLog* media_log);
-
-  WebMVideoClient(const WebMVideoClient&) = delete;
-  WebMVideoClient& operator=(const WebMVideoClient&) = delete;
-
   ~WebMVideoClient() override;
 
   // Reset this object's state so it can process a new video track element.
@@ -48,7 +43,6 @@ class MEDIA_EXPORT WebMVideoClient : public WebMParserClient {
 
  private:
   friend class WebMVideoClientTest;
-  friend class WebMProjectionParserTest;
 
   // WebMParserClient implementation.
   WebMParserClient* OnListStart(int id) override;
@@ -57,7 +51,7 @@ class MEDIA_EXPORT WebMVideoClient : public WebMParserClient {
   bool OnBinary(int id, const uint8_t* data, int size) override;
   bool OnFloat(int id, double val) override;
 
-  raw_ptr<MediaLog> media_log_;
+  MediaLog* media_log_;
   int64_t pixel_width_;
   int64_t pixel_height_;
   int64_t crop_bottom_;
@@ -68,13 +62,11 @@ class MEDIA_EXPORT WebMVideoClient : public WebMParserClient {
   int64_t display_height_;
   int64_t display_unit_;
   int64_t alpha_mode_;
-  int64_t stereo_mode_;
 
   WebMColourParser colour_parser_;
   bool colour_parsed_ = false;
 
-  WebMProjectionParser projection_parser_;
-  bool projection_parsed_ = false;
+  DISALLOW_COPY_AND_ASSIGN(WebMVideoClient);
 };
 
 }  // namespace media

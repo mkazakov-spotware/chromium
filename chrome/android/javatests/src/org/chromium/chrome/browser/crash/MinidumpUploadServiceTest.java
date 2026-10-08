@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.crash;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.app.job.JobWorkItem;
@@ -16,7 +17,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.test.InstrumentationRegistry;
 
-import androidx.annotation.RequiresApi;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
@@ -648,7 +648,7 @@ public class MinidumpUploadServiceTest {
     /**
      * A JobScheduler wrapper that verifies that the expected properties are set correctly.
      */
-    @RequiresApi(Build.VERSION_CODES.M)
+    @TargetApi(Build.VERSION_CODES.M)
     private static class TestJobScheduler extends JobScheduler {
         static final String SCHEDULE_JOB_FLAG = "scheduleJobFlag";
 

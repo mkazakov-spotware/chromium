@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
-#include <utility>
 
 #include "base/base64.h"
 #include "base/time/time.h"
@@ -26,7 +24,6 @@
 #include "third_party/blink/public/web/web_array_buffer.h"
 #include "third_party/blink/public/web/web_array_buffer_converter.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColorPriv.h"
 #include "third_party/skia/include/core/SkGraphics.h"
@@ -35,13 +32,8 @@
 #include "ui/gfx/codec/jpeg_codec.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/geometry/skia_conversions.h"
-#include "v8/include/v8-container.h"
-#include "v8/include/v8-context.h"
-#include "v8/include/v8-isolate.h"
-#include "v8/include/v8-local-handle.h"
-#include "v8/include/v8-object.h"
-#include "v8/include/v8-primitive.h"
+#include "ui/gfx/skia_util.h"
+#include "v8/include/v8.h"
 
 namespace content {
 
@@ -80,20 +72,25 @@ std::unique_ptr<Picture> ParsePictureStr(v8::Isolate* isolate,
   if (!picture_value)
     return nullptr;
   // Decode the picture from base64.
-  const std::string* encoded = picture_value->GetIfString();
-  return encoded ? CreatePictureFromEncodedString(*encoded) : nullptr;
+  std::string encoded;
+  if (!picture_value->GetAsString(&encoded))
+    return nullptr;
+  return CreatePictureFromEncodedString(encoded);
 }
 
 std::unique_ptr<Picture> ParsePictureHash(v8::Isolate* isolate,
                                           v8::Local<v8::Value> arg) {
   std::unique_ptr<base::Value> picture_value = ParsePictureArg(isolate, arg);
-  if (!picture_value || !picture_value->is_dict())
+  if (!picture_value)
+    return nullptr;
+  const base::DictionaryValue* value = nullptr;
+  if (!picture_value->GetAsDictionary(&value))
     return nullptr;
   // Decode the picture from base64.
-  std::string* encoded = picture_value->GetDict().FindString("skp64");
-  if (!encoded)
+  std::string encoded;
+  if (!value->GetString("skp64", &encoded))
     return nullptr;
-  return CreatePictureFromEncodedString(std::move(*encoded));
+  return CreatePictureFromEncodedString(encoded);
 }
 
 class PicturePlaybackController : public SkPicture::AbortCallback {
@@ -184,13 +181,13 @@ void SkiaBenchmarking::Rasterize(gin::Arguments* args) {
     std::unique_ptr<base::Value> params_value =
         content::V8ValueConverter::Create()->FromV8Value(params, context);
 
-    if (params_value && params_value->is_dict()) {
-      const base::Value::Dict& params_dict = params_value->GetDict();
-      scale = params_dict.FindDouble("scale").value_or(scale);
-      if (absl::optional<int> stop = params_dict.FindInt("stop"))
-        stop_index = *stop;
+    const base::DictionaryValue* params_dict = nullptr;
+    if (params_value.get() && params_value->GetAsDictionary(&params_dict)) {
+      params_dict->GetDouble("scale", &scale);
+      params_dict->GetInteger("stop", &stop_index);
 
-      if (const base::Value* clip_value = params_dict.Find("clip"))
+      const base::Value* clip_value = nullptr;
+      if (params_dict->Get("clip", &clip_value))
         cc::MathUtil::FromValue(clip_value, &clip_rect);
     }
   }
@@ -256,7 +253,7 @@ void SkiaBenchmarking::GetOps(gin::Arguments* args) {
   v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   args->Return(content::V8ValueConverter::Create()->ToV8Value(
-      benchmarking_canvas.Commands(), context));
+      &benchmarking_canvas.Commands(), context));
 }
 
 void SkiaBenchmarking::GetOpTimings(gin::Arguments* args) {

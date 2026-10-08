@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-# Copyright 2017 The Chromium Authors
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+
+import sys
 
 import json5_generator
 import template_expander
@@ -19,8 +21,7 @@ class CSSPropertiesWriter(json5_generator.Writer):
             ('CSSPropertiesWriter requires 4 input json5 files, ' +
              'got {}.'.format(len(json5_file_paths)))
 
-        self._css_properties = css_properties.CSSProperties(
-            json5_file_paths[:3])
+        self._css_properties = css_properties.CSSProperties(json5_file_paths)
 
         # Map of property method name -> (return_type, parameters)
         self._property_methods = {}
@@ -33,15 +34,15 @@ class CSSPropertiesWriter(json5_generator.Writer):
         all_properties = self._css_properties.properties_including_aliases
 
         for property_ in all_properties:
-            property_.property_methods = [
+            property_['property_methods'] = [
                 self._property_methods[method_name]
-                for method_name in property_.property_methods
+                for method_name in property_['property_methods']
             ]
 
         # Clean up all the files that were previously generated. This prevents
         # accidentally including a stale header in the future.
-        old_file = lambda prop: prop.namespace_group.lower() + '/' \
-            + prop.name.to_snake_case()
+        old_file = lambda prop: prop['namespace_group'].lower() + '/' \
+            + prop['name'].to_snake_case()
         old_h = lambda prop: old_file(prop) + '.h'
         old_cc = lambda prop: old_file(prop) + '.cc'
         self._cleanup |= set(map(old_h, all_properties))

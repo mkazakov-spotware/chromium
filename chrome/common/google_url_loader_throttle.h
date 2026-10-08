@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,9 +18,9 @@ class GoogleURLLoaderThrottle
     : public blink::URLLoaderThrottle,
       public base::SupportsWeakPtr<GoogleURLLoaderThrottle> {
  public:
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   GoogleURLLoaderThrottle(const std::string& client_data_header,
-                          bool is_tab_large_enough,
+                          bool night_mode_enabled,
                           chrome::mojom::DynamicParams dynamic_params);
 #else
   explicit GoogleURLLoaderThrottle(chrome::mojom::DynamicParams dynamic_params);
@@ -49,9 +49,9 @@ class GoogleURLLoaderThrottle
 #endif
 
  private:
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   std::string client_data_header_;
-  bool is_tab_large_enough_;
+  bool night_mode_enabled_;
 #endif
   const chrome::mojom::DynamicParams dynamic_params_;
 };

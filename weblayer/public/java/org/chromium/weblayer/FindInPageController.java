@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,10 @@ import org.chromium.weblayer_private.interfaces.StrictModeWorkaround;
  *
  * There is one FindInPageController per {@link Tab}, and only the active tab may have an active
  * find session.
+ *
+ * @since 81
  */
-class FindInPageController {
+public class FindInPageController {
     private final ITab mTab;
 
     protected FindInPageController() {

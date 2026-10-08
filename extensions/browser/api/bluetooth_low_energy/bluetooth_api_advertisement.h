@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "content/public/browser/browser_thread.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 #include "extensions/browser/api/api_resource.h"
@@ -26,11 +27,6 @@ class BluetoothApiAdvertisement : public ApiResource {
  public:
   BluetoothApiAdvertisement(const std::string& owner_extension_id,
                             scoped_refptr<device::BluetoothAdvertisement>);
-
-  BluetoothApiAdvertisement(const BluetoothApiAdvertisement&) = delete;
-  BluetoothApiAdvertisement& operator=(const BluetoothApiAdvertisement&) =
-      delete;
-
   ~BluetoothApiAdvertisement() override;
 
   device::BluetoothAdvertisement* advertisement() {
@@ -51,6 +47,8 @@ class BluetoothApiAdvertisement : public ApiResource {
 
   // The underlying advertisement instance.
   scoped_refptr<device::BluetoothAdvertisement> advertisement_;
+
+  DISALLOW_COPY_AND_ASSIGN(BluetoothApiAdvertisement);
 };
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 
 namespace base {
 class Clock;
@@ -26,10 +26,6 @@ class PrefetchDownloaderQuota {
   static const int64_t kDefaultMaxDailyQuotaBytes;
 
   PrefetchDownloaderQuota(sql::Database* db, const base::Clock* clock);
-
-  PrefetchDownloaderQuota(const PrefetchDownloaderQuota&) = delete;
-  PrefetchDownloaderQuota& operator=(const PrefetchDownloaderQuota&) = delete;
-
   ~PrefetchDownloaderQuota();
 
   // Gets the max daily quota from Finch.
@@ -45,10 +41,12 @@ class PrefetchDownloaderQuota {
 
  private:
   // DB connection. Not owned.
-  raw_ptr<sql::Database> db_;
+  sql::Database* db_;
 
   // Clock used for time related calculation and quota updates in DB. Not owned.
-  raw_ptr<const base::Clock> clock_;
+  const base::Clock* clock_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefetchDownloaderQuota);
 };
 }  // namespace offline_pages
 

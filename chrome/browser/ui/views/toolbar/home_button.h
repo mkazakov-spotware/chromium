@@ -1,40 +1,23 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_VIEWS_TOOLBAR_HOME_BUTTON_H_
 #define CHROME_BROWSER_UI_VIEWS_TOOLBAR_HOME_BUTTON_H_
 
-#include "base/memory/raw_ptr.h"
+#include "base/compiler_specific.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
-#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/views/metadata/metadata_header_macros.h"
 #include "ui/views/metadata/view_factory.h"
-#include "ui/views/view_tracker.h"
 
-class PrefService;
-
-class HomePageUndoBubbleCoordinator {
- public:
-  HomePageUndoBubbleCoordinator(views::View* anchor_view, PrefService* prefs);
-  HomePageUndoBubbleCoordinator(const HomePageUndoBubbleCoordinator&) = delete;
-  HomePageUndoBubbleCoordinator& operator=(
-      const HomePageUndoBubbleCoordinator&) = delete;
-  ~HomePageUndoBubbleCoordinator();
-
-  void Show(const GURL& undo_url, bool undo_value_is_ntp);
-
- private:
-  const raw_ptr<views::View> anchor_view_;
-  const raw_ptr<PrefService> prefs_;
-  views::ViewTracker tracker_;
-};
+class Browser;
 
 class HomeButton : public ToolbarButton {
  public:
   METADATA_HEADER(HomeButton);
 
   explicit HomeButton(PressedCallback callback = PressedCallback(),
-                      PrefService* prefs = nullptr);
+                      Browser* browser = nullptr);
   HomeButton(const HomeButton&) = delete;
   HomeButton& operator=(const HomeButton&) = delete;
   ~HomeButton() override;
@@ -44,17 +27,11 @@ class HomeButton : public ToolbarButton {
                       std::set<ui::ClipboardFormatType>* format_types) override;
   bool CanDrop(const OSExchangeData& data) override;
   int OnDragUpdated(const ui::DropTargetEvent& event) override;
-  views::View::DropCallback GetDropCallback(
-      const ui::DropTargetEvent& event) override;
+  int OnPerformDrop(const ui::DropTargetEvent& event) override;
+  void UpdateIcon() override;
 
  private:
-  void UpdateHomePage(const ui::DropTargetEvent& event,
-                      ui::mojom::DragOperation& output_drag_op);
-
-  const raw_ptr<PrefService> prefs_;
-  HomePageUndoBubbleCoordinator coordinator_;
-
-  base::WeakPtrFactory<HomeButton> weak_ptr_factory_{this};
+  Browser* const browser_;
 };
 
 BEGIN_VIEW_BUILDER(/* no export */, HomeButton, ToolbarButton)

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,11 +34,11 @@ void DemuxerStreamForTest::Read(ReadCB read_cb) {
   }
 
   if ((frame_count_ % cycle_count_) < delayed_frame_count_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&DemuxerStreamForTest::DoRead, base::Unretained(this),
                        std::move(read_cb)),
-        base::Milliseconds(20));
+        base::TimeDelta::FromMilliseconds(20));
     return;
   }
   DoRead(std::move(read_cb));
@@ -54,7 +54,7 @@ void DemuxerStreamForTest::Read(ReadCB read_cb) {
   gfx::Rect visible_rect(640, 480);
   gfx::Size natural_size(640, 480);
   return ::media::VideoDecoderConfig(
-      ::media::VideoCodec::kH264, ::media::VIDEO_CODEC_PROFILE_UNKNOWN,
+      ::media::kCodecH264, ::media::VIDEO_CODEC_PROFILE_UNKNOWN,
       ::media::VideoDecoderConfig::AlphaMode::kIsOpaque,
       ::media::VideoColorSpace(), ::media::kNoTransformation, coded_size,
       visible_rect, natural_size, ::media::EmptyExtraData(),
@@ -77,8 +77,8 @@ void DemuxerStreamForTest::DoRead(ReadCB read_cb) {
   }
 
   scoped_refptr<::media::DecoderBuffer> buffer(new ::media::DecoderBuffer(16));
-  buffer->set_timestamp(frame_count_ *
-                        base::Milliseconds(kDemuxerStreamForTestFrameDuration));
+  buffer->set_timestamp(frame_count_ * base::TimeDelta::FromMilliseconds(
+                                           kDemuxerStreamForTestFrameDuration));
   frame_count_++;
   std::move(read_cb).Run(kOk, buffer);
 }

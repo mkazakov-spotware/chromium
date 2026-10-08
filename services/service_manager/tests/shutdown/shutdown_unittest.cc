@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -74,10 +74,6 @@ class ShutdownTest : public testing::Test {
         test_service_receiver_(
             &test_service_,
             test_service_manager_.RegisterTestInstance(kTestServiceName)) {}
-
-  ShutdownTest(const ShutdownTest&) = delete;
-  ShutdownTest& operator=(const ShutdownTest&) = delete;
-
   ~ShutdownTest() override = default;
 
   Connector* connector() { return test_service_receiver_.GetConnector(); }
@@ -87,6 +83,8 @@ class ShutdownTest : public testing::Test {
   TestServiceManager test_service_manager_;
   Service test_service_;
   ServiceReceiver test_service_receiver_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShutdownTest);
 };
 
 TEST_F(ShutdownTest, ConnectRace) {

@@ -8,4 +8,3 @@ This is another test with a simulated
 drop cap. We use large
 amounts of whitespace to defeat
 the PDFium text-run logic.
-¶

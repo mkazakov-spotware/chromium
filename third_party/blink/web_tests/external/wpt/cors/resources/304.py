@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # A header used to correlate requests and responses
 state_header = b"content-language"
 

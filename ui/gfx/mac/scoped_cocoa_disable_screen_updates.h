@@ -1,10 +1,11 @@
-// Copyright 2011 The Chromium Authors
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_GFX_MAC_SCOPED_COCOA_DISABLE_SCREEN_UPDATES_H_
 #define UI_GFX_MAC_SCOPED_COCOA_DISABLE_SCREEN_UPDATES_H_
 
+#include "base/macros.h"
 #include "ui/gfx/gfx_export.h"
 
 namespace gfx {
@@ -17,13 +18,10 @@ namespace gfx {
 class GFX_EXPORT ScopedCocoaDisableScreenUpdates {
  public:
   ScopedCocoaDisableScreenUpdates();
-
-  ScopedCocoaDisableScreenUpdates(const ScopedCocoaDisableScreenUpdates&) =
-      delete;
-  ScopedCocoaDisableScreenUpdates& operator=(
-      const ScopedCocoaDisableScreenUpdates&) = delete;
-
   ~ScopedCocoaDisableScreenUpdates();
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScopedCocoaDisableScreenUpdates);
 };
 
 }  // namespace gfx

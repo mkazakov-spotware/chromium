@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/check.h"
 #include "chrome/browser/media/webrtc/webrtc_event_log_manager_keyed_service.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/browser_context.h"
 
 namespace webrtc_event_logging {
@@ -18,7 +19,9 @@ WebRtcEventLogManagerKeyedServiceFactory::GetInstance() {
 
 WebRtcEventLogManagerKeyedServiceFactory::
     WebRtcEventLogManagerKeyedServiceFactory()
-    : ProfileKeyedServiceFactory("WebRtcEventLogManagerKeyedService") {}
+    : BrowserContextKeyedServiceFactory(
+          "WebRtcEventLogManagerKeyedService",
+          BrowserContextDependencyManager::GetInstance()) {}
 
 WebRtcEventLogManagerKeyedServiceFactory::
     ~WebRtcEventLogManagerKeyedServiceFactory() = default;

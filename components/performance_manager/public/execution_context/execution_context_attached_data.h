@@ -1,11 +1,9 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_EXECUTION_CONTEXT_EXECUTION_CONTEXT_ATTACHED_DATA_H_
 #define COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_EXECUTION_CONTEXT_EXECUTION_CONTEXT_ATTACHED_DATA_H_
-
-#include <type_traits>
 
 #include "components/performance_manager/public/execution_context/execution_context.h"
 #include "components/performance_manager/public/execution_context/execution_context_registry.h"
@@ -31,25 +29,22 @@ class ExecutionContextAttachedData {
       delete;
   virtual ~ExecutionContextAttachedData() = default;
 
-  // Gets the user data for the given |object|, creating it if it doesn't yet
+  // Gets the user data for the given |node|, creating it if it doesn't yet
   // exist.
-  template <typename NodeTypeOrExecutionContext>
-  static UserDataType* GetOrCreate(const NodeTypeOrExecutionContext* object) {
-    return Dispatch<GetOrCreateFunctor>(ExecutionContext::From(object));
+  static UserDataType* GetOrCreate(const ExecutionContext* ec) {
+    return Dispatch<GetOrCreateFunctor>(ec);
   }
 
-  // Gets the user data for the given |object|, returning nullptr if it doesn't
+  // Gets the user data for the given |node|, returning nullptr if it doesn't
   // exist.
-  template <typename NodeTypeOrExecutionContext>
-  static UserDataType* Get(const NodeTypeOrExecutionContext* object) {
-    return Dispatch<GetFunctor>(ExecutionContext::From(object));
+  static UserDataType* Get(const ExecutionContext* ec) {
+    return Dispatch<GetFunctor>(ec);
   }
 
-  // Destroys the user data associated with the given |object|, returning true
+  // Destroys the user data associated with the given node, returning true
   // on success or false if the user data did not exist to begin with.
-  template <typename NodeTypeOrExecutionContext>
-  static bool Destroy(const NodeTypeOrExecutionContext* object) {
-    return Dispatch<DestroyFunctor>(ExecutionContext::From(object));
+  static bool Destroy(const ExecutionContext* ec) {
+    return Dispatch<DestroyFunctor>(ec);
   }
 
  private:

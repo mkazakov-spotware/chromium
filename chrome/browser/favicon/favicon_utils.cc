@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/monogram_utils.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/platform_locale_settings.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/favicon/core/fallback_url_util.h"
@@ -21,7 +19,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
-#include "ui/gfx/color_analysis.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/image/image.h"
@@ -29,10 +26,6 @@
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/resources/grit/ui_resources.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_features.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace favicon {
 
@@ -48,13 +41,60 @@ const double kDesaturateHue = -1.0;
 const double kDesaturateSaturation = 0.0;
 const double kDesaturateLightness = 0.6;
 
+// Draws a circle of a given |size| and |offset| in the |canvas| and fills it
+// with |background_color|.
+void DrawCircleInCanvas(gfx::Canvas* canvas,
+                        int size,
+                        int offset,
+                        SkColor background_color) {
+  cc::PaintFlags flags;
+  flags.setStyle(cc::PaintFlags::kFill_Style);
+  flags.setAntiAlias(true);
+  flags.setColor(background_color);
+  int corner_radius = size / 2;
+  canvas->DrawRoundRect(gfx::Rect(offset, offset, size, size), corner_radius,
+                        flags);
+}
+
+// Will paint the appropriate letter in the center of specified |canvas| of
+// given |size|.
+void DrawFallbackIconLetter(const GURL& icon_url,
+                            int size,
+                            int offset,
+                            gfx::Canvas* canvas) {
+  // Get the appropriate letter to draw, then eventually draw it.
+  base::string16 icon_text = favicon::GetFallbackIconText(icon_url);
+  if (icon_text.empty())
+    return;
+
+  const double kDefaultFontSizeRatio = 0.5;
+  int font_size = static_cast<int>(size * kDefaultFontSizeRatio);
+  if (font_size <= 0)
+    return;
+
+  gfx::Font::Weight font_weight = gfx::Font::Weight::NORMAL;
+
+#if defined(OS_WIN)
+  font_weight = gfx::Font::Weight::SEMIBOLD;
+#endif
+
+  // TODO(crbug.com/853780): Adjust the text color according to the background
+  // color.
+  canvas->DrawStringRectWithFlags(
+      icon_text,
+      gfx::FontList({l10n_util::GetStringUTF8(IDS_NTP_FONT_FAMILY)},
+                    gfx::Font::NORMAL, font_size, font_weight),
+      kFallbackIconLetterColor, gfx::Rect(offset, offset, size, size),
+      gfx::Canvas::TEXT_ALIGN_CENTER);
+}
+
 // Returns a color based on the hash of |icon_url|'s origin.
 SkColor ComputeBackgroundColorForUrl(const GURL& icon_url) {
   if (!icon_url.is_valid())
     return SK_ColorGRAY;
 
   unsigned char hash[20];
-  const std::string origin = icon_url.DeprecatedGetOriginAsURL().spec();
+  const std::string origin = icon_url.GetOrigin().spec();
   base::SHA1HashBytes(reinterpret_cast<const unsigned char*>(origin.c_str()),
                       origin.size(), hash);
   return SkColorSetRGB(hash[0], hash[1], hash[2]);
@@ -82,15 +122,15 @@ SkBitmap GenerateMonogramFavicon(GURL url, int icon_size, int circle_size) {
   bitmap.allocN32Pixels(icon_size, icon_size, false);
   cc::SkiaPaintCanvas paint_canvas(bitmap);
   gfx::Canvas canvas(&paint_canvas, 1.f);
-
-  std::u16string monogram = favicon::GetFallbackIconText(url);
+  canvas.DrawColor(SK_ColorTRANSPARENT, SkBlendMode::kSrc);
   SkColor fallback_color =
       color_utils::BlendForMinContrast(ComputeBackgroundColorForUrl(url),
                                        kFallbackIconLetterColor)
           .color;
 
-  monogram::DrawMonogramInCanvas(&canvas, icon_size, circle_size, monogram,
-                                 kFallbackIconLetterColor, fallback_color);
+  int offset = (icon_size - circle_size) / 2;
+  DrawCircleInCanvas(&canvas, circle_size, offset, fallback_color);
+  DrawFallbackIconLetter(url, circle_size, offset, &canvas);
   return bitmap;
 }
 
@@ -99,16 +139,10 @@ gfx::Image TabFaviconFromWebContents(content::WebContents* contents) {
 
   favicon::FaviconDriver* favicon_driver =
       favicon::ContentFaviconDriver::FromWebContents(contents);
-  // TODO(crbug.com/3041580): Investigate why some WebContents do not have
-  // an attached ContentFaviconDriver.
-  if (!favicon_driver) {
-    return gfx::Image();
-  }
-
   gfx::Image favicon = favicon_driver->GetFavicon();
 
   // Desaturate the favicon if the navigation entry contains a network error.
-  if (!contents->ShouldShowLoadingUI()) {
+  if (!contents->IsLoadingToDifferentDocument()) {
     content::NavigationController& controller = contents->GetController();
 
     content::NavigationEntry* entry = controller.GetLastCommittedEntry();
@@ -124,13 +158,9 @@ gfx::Image TabFaviconFromWebContents(content::WebContents* contents) {
 }
 
 gfx::Image GetDefaultFavicon() {
-  bool is_dark = false;
-#if !BUILDFLAG(IS_ANDROID)
-  // Android doesn't currently implement NativeTheme::GetInstanceForNativeUi.
   const ui::NativeTheme* native_theme =
       ui::NativeTheme::GetInstanceForNativeUi();
-  is_dark = native_theme && native_theme->ShouldUseDarkColors();
-#endif
+  bool is_dark = native_theme && native_theme->ShouldUseDarkColors();
   int resource_id = is_dark ? IDR_DEFAULT_FAVICON_DARK : IDR_DEFAULT_FAVICON;
   return ui::ResourceBundle::GetSharedInstance().GetNativeImageNamed(
       resource_id);
@@ -165,54 +195,6 @@ void SaveFaviconEvenIfInIncognito(content::WebContents* contents) {
   favicon_service->SetFavicons({page_url}, favicon_status.url,
                                favicon_base::IconType::kFavicon,
                                favicon_status.image);
-}
-
-bool ShouldThemifyFaviconForEntry(content::NavigationEntry* entry) {
-  const GURL& virtual_url = entry->GetVirtualURL();
-  const GURL& actual_url = entry->GetURL();
-
-  if (virtual_url.SchemeIs(content::kChromeUIScheme) &&
-      virtual_url.host_piece() != chrome::kChromeUIAppLauncherPageHost &&
-      virtual_url.host_piece() != chrome::kChromeUIHelpHost &&
-      virtual_url.host_piece() != chrome::kChromeUIVersionHost &&
-      virtual_url.host_piece() != chrome::kChromeUINetExportHost &&
-      virtual_url.host_piece() != chrome::kChromeUINewTabHost) {
-    return true;
-  }
-
-  // Themify favicon for the default NTP and incognito NTP.
-  if (actual_url.SchemeIs(content::kChromeUIScheme)) {
-    return actual_url.host_piece() == chrome::kChromeUINewTabPageHost ||
-           actual_url.host_piece() == chrome::kChromeUINewTabHost;
-  }
-
-  return false;
-}
-
-gfx::ImageSkia ThemeFavicon(const gfx::ImageSkia& source,
-                            SkColor alternate_color,
-                            SkColor active_background,
-                            SkColor inactive_background) {
-  // Choose between leaving the image as-is or masking with |alternate_color|.
-  const SkColor original_color =
-      color_utils::CalculateKMeanColorOfBitmap(*source.bitmap());
-
-  // Compute the minimum contrast of each color against active and inactive
-  // backgrounds.
-  const float original_contrast = std::min(
-      color_utils::GetContrastRatio(original_color, active_background),
-      color_utils::GetContrastRatio(original_color, inactive_background));
-  const float alternate_contrast = std::min(
-      color_utils::GetContrastRatio(alternate_color, active_background),
-      color_utils::GetContrastRatio(alternate_color, inactive_background));
-
-  // Recolor the image if the original has low minimum contrast and recoloring
-  // will improve it.
-  return ((original_contrast < color_utils::kMinimumVisibleContrastRatio) &&
-          (alternate_contrast > original_contrast))
-             ? gfx::ImageSkiaOperations::CreateColorMask(source,
-                                                         alternate_color)
-             : source;
 }
 
 }  // namespace favicon

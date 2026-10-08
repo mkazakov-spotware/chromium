@@ -1,24 +1,22 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/webui/crw_web_ui_scheme_handler.h"
 
-#import <map>
+#include <map>
 
-#import "base/files/file_path.h"
-#import "base/ranges/algorithm.h"
 #import "ios/web/webui/url_fetcher_block_adapter.h"
-#import "ios/web/webui/web_ui_ios_controller_factory_registry.h"
+#include "ios/web/webui/web_ui_ios_controller_factory_registry.h"
 #import "net/base/mac/url_conversions.h"
-#import "url/gurl.h"
+#include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
-// Returns the error code associated with `URL`.
+// Returns the error code associated with |URL|.
 NSInteger GetErrorCodeForUrl(const GURL& URL) {
   web::WebUIIOSControllerFactory* factory =
       web::WebUIIOSControllerFactoryRegistry::GetInstance();
@@ -31,6 +29,7 @@ NSInteger GetErrorCodeForUrl(const GURL& URL) {
   scoped_refptr<network::SharedURLLoaderFactory> _URLLoaderFactory;
 
   // Set of live WebUI fetchers for retrieving data.
+  API_AVAILABLE(ios(11.0))
   std::map<id<WKURLSchemeTask>, std::unique_ptr<web::URLFetcherBlockAdapter>>
       _map;
 }
@@ -45,21 +44,22 @@ NSInteger GetErrorCodeForUrl(const GURL& URL) {
 }
 
 - (void)webView:(WKWebView*)webView
-    startURLSchemeTask:(id<WKURLSchemeTask>)urlSchemeTask {
+    startURLSchemeTask:(id<WKURLSchemeTask>)urlSchemeTask
+    API_AVAILABLE(ios(11.0)) {
   GURL URL = net::GURLWithNSURL(urlSchemeTask.request.URL);
   // Check the mainDocumentURL as the URL might be one of the subresource, so
   // not a WebUI URL itself.
   NSInteger errorCode = GetErrorCodeForUrl(
       net::GURLWithNSURL(urlSchemeTask.request.mainDocumentURL));
   if (errorCode != 0) {
-    NSError* error = [NSError
-        errorWithDomain:NSURLErrorDomain
-                   code:errorCode
-               userInfo:@{
-                 NSURLErrorFailingURLErrorKey : urlSchemeTask.request.URL,
-                 NSURLErrorFailingURLStringErrorKey :
-                     urlSchemeTask.request.URL.absoluteString
-               }];
+    NSError* error =
+        [NSError errorWithDomain:NSURLErrorDomain
+                            code:errorCode
+                        userInfo:@{
+                          NSURLErrorKey : urlSchemeTask.request.URL,
+                          NSURLErrorFailingURLStringErrorKey :
+                              urlSchemeTask.request.URL.absoluteString
+                        }];
     [urlSchemeTask didFailWithError:error];
     return;
   }
@@ -74,24 +74,11 @@ NSInteger GetErrorCodeForUrl(const GURL& URL) {
                 strongSelf.map->find(urlSchemeTask) == strongSelf.map->end()) {
               return;
             }
-            NSString* mimeType = @"text/html";
-            base::FilePath filePath =
-                base::FilePath(fetcher->getUrl().ExtractFileName());
-            if (filePath.Extension() == ".js") {
-              mimeType = @"text/javascript; charset=UTF-8";
-            } else if (filePath.Extension() == ".css") {
-              mimeType = @"text/css; charset=UTF-8";
-            } else if (filePath.Extension() == ".svg") {
-              mimeType = @"image/svg+xml";
-            }
-            NSHTTPURLResponse* response =
-                [[NSHTTPURLResponse alloc] initWithURL:urlSchemeTask.request.URL
-                                            statusCode:200
-                                           HTTPVersion:@"HTTP/1.1"
-                                          headerFields:@{
-                                            @"Content-Type" : mimeType,
-                                            @"Access-Control-Allow-Origin" : @"*"
-                                          }];
+            NSURLResponse* response =
+                [[NSURLResponse alloc] initWithURL:urlSchemeTask.request.URL
+                                          MIMEType:@"text/html"
+                             expectedContentLength:0
+                                  textEncodingName:nil];
             [urlSchemeTask didReceiveResponse:response];
             [urlSchemeTask didReceiveData:data];
             [urlSchemeTask didFinish];
@@ -102,7 +89,8 @@ NSInteger GetErrorCodeForUrl(const GURL& URL) {
 }
 
 - (void)webView:(WKWebView*)webView
-    stopURLSchemeTask:(id<WKURLSchemeTask>)urlSchemeTask {
+    stopURLSchemeTask:(id<WKURLSchemeTask>)urlSchemeTask
+    API_AVAILABLE(ios(11.0)) {
   auto result = _map.find(urlSchemeTask);
   if (result != _map.end()) {
     _map.erase(result);
@@ -111,20 +99,20 @@ NSInteger GetErrorCodeForUrl(const GURL& URL) {
 
 #pragma mark - Private
 
-// Returns a pointer to the `_map` ivar for strongSelf.
+// Returns a pointer to the |_map| ivar for strongSelf.
 - (std::map<id<WKURLSchemeTask>, std::unique_ptr<web::URLFetcherBlockAdapter>>*)
-    map {
+    map API_AVAILABLE(ios(11.0)) {
   return &_map;
 }
 
-// Removes `fetcher` from map of active fetchers.
-- (void)removeFetcher:(web::URLFetcherBlockAdapter*)fetcher {
-  _map.erase(base::ranges::find(
-      _map, fetcher,
-      [](const std::pair<const id<WKURLSchemeTask>,
-                         std::unique_ptr<web::URLFetcherBlockAdapter>>& entry) {
-        return entry.second.get();
-      }));
+// Removes |fetcher| from map of active fetchers.
+- (void)removeFetcher:(web::URLFetcherBlockAdapter*)fetcher
+    API_AVAILABLE(ios(11.0)) {
+  _map.erase(std::find_if(
+      _map.begin(), _map.end(),
+      [fetcher](const std::pair<const id<WKURLSchemeTask>,
+                                std::unique_ptr<web::URLFetcherBlockAdapter>>&
+                    entry) { return entry.second.get() == fetcher; }));
 }
 
 @end

@@ -1,16 +1,8 @@
-# Copyright 2020 The Chromium Authors
+# Copyright 2020 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
--ignorewarnings
--allowaccessmodification
--shrinkunusedprotofields
-
--keep,allowoptimization class Playground {
-  *** main(...);
-}
-
-# Don't allow optimization of native methods or else R8 might remove parameters.
--keepclassmembernames,allowshrinking class ** {
-  native <methods>;
+-keep class Playground {
+  native *** *(...);
+  public static void main(...);
 }

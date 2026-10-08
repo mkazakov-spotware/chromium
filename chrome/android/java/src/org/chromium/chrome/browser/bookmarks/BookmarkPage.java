@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,15 +25,14 @@ public class BookmarkPage extends BasicNativePage {
      * Create a new instance of the bookmarks page.
      * @param componentName The current activity component, used to open bookmarks.
      * @param snackbarManager Allows control over the app snackbar.
-     * @param isIncognito Whether the bookmark UI is loaded in incognito mode.
+     * @param activity The activity to get context and manage fragments.
      * @param host A NativePageHost to load urls.
      */
-    public BookmarkPage(ComponentName componentName, SnackbarManager snackbarManager,
-            boolean isIncognito, NativePageHost host) {
+    public BookmarkPage(
+            ComponentName componentName, SnackbarManager snackbarManager, NativePageHost host) {
         super(host);
 
-        mManager = new BookmarkManager(
-                host.getContext(), componentName, false, isIncognito, snackbarManager);
+        mManager = new BookmarkManager(host.getContext(), componentName, false, snackbarManager);
         mManager.setBasicNativePage(this);
         mTitle = host.getContext().getResources().getString(R.string.bookmarks);
 

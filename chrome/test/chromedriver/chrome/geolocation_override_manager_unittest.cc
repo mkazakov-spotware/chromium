@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,13 @@ namespace {
 void AssertGeolocationCommand(const Command& command,
                               const Geoposition& geoposition) {
   ASSERT_EQ("Page.setGeolocationOverride", command.method);
-
-  ASSERT_EQ(geoposition.latitude,
-            command.params.FindDouble("latitude").value());
-  ASSERT_EQ(geoposition.longitude,
-            command.params.FindDouble("longitude").value());
-  ASSERT_EQ(geoposition.accuracy,
-            command.params.FindDouble("accuracy").value());
+  double latitude, longitude, accuracy;
+  ASSERT_TRUE(command.params.GetDouble("latitude", &latitude));
+  ASSERT_TRUE(command.params.GetDouble("longitude", &longitude));
+  ASSERT_TRUE(command.params.GetDouble("accuracy", &accuracy));
+  ASSERT_EQ(geoposition.latitude, latitude);
+  ASSERT_EQ(geoposition.longitude, longitude);
+  ASSERT_EQ(geoposition.accuracy, accuracy);
 }
 
 }  // namespace
@@ -59,7 +59,7 @@ TEST(GeolocationOverrideManager, SendsCommandOnConnect) {
 TEST(GeolocationOverrideManager, SendsCommandOnNavigation) {
   RecorderDevToolsClient client;
   GeolocationOverrideManager manager(&client);
-  base::Value::Dict main_frame_params;
+  base::DictionaryValue main_frame_params;
   ASSERT_EQ(kOk,
             manager.OnEvent(&client, "Page.frameNavigated", main_frame_params)
                 .code());
@@ -75,8 +75,8 @@ TEST(GeolocationOverrideManager, SendsCommandOnNavigation) {
   ASSERT_NO_FATAL_FAILURE(
       AssertGeolocationCommand(client.commands_[1], geoposition));
 
-  base::Value::Dict sub_frame_params;
-  sub_frame_params.SetByDottedPath("frame.parentId", "id");
+  base::DictionaryValue sub_frame_params;
+  sub_frame_params.SetString("frame.parentId", "id");
   ASSERT_EQ(
       kOk,
       manager.OnEvent(&client, "Page.frameNavigated", sub_frame_params).code());

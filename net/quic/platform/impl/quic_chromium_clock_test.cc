@@ -1,13 +1,13 @@
-// Copyright 2012 The Chromium Authors
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/quic/platform/impl/quic_chromium_clock.h"
 
-#include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace quic::test {
+namespace quic {
+namespace test {
 
 TEST(QuicChromiumClockTest, Now) {
   QuicChromiumClock clock;
@@ -34,4 +34,5 @@ TEST(QuicChromiumClockTest, WallNow) {
   }
 }
 
-}  // namespace quic::test
+}  // namespace test
+}  // namespace quic

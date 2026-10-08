@@ -1,18 +1,17 @@
-// Copyright 2015 The Chromium Authors
+// Copyright (c) 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.js';
-
-import {metrics} from '../../common/js/metrics.js';
-import {util} from '../../common/js/util.js';
-import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
+/**
+ * @fileoverview
+ * @suppress {uselessCode} Temporary suppress because of the line exporting.
+ */
 
 /**
  * Namespace for test related things.
  */
-window.test = window.test || {};
-const test = window.test;
+// eslint-disable-next-line no-var
+var test = test || {};
 
 /**
  * Namespace for test utility functions.
@@ -37,10 +36,16 @@ test.util.sync = {};
 test.util.async = {};
 
 /**
- * Registers message listener, which runs test utility functions.
- * @param {string} path for the JS module runtime_loaded_test_util.js.
+ * Loaded at runtime and invoked by the external message listener to handle
+ * remote call requests.
+ * @type{?function(*, function(*): void)}
  */
-test.util.registerRemoteTestUtils = (path) => {
+test.util.executeTestMessage = null;
+
+/**
+ * Registers message listener, which runs test utility functions.
+ */
+test.util.registerRemoteTestUtils = () => {
   let responsesWaitingForLoad = [];
 
   // Return true for asynchronous functions, which keeps the connection to the
@@ -54,6 +59,7 @@ test.util.registerRemoteTestUtils = (path) => {
          */
         const kTestingExtensionIds = [
           'oobinhbdbiehknkpbpejbbpdbkdjmoco',  // File Manager test extension.
+          'ejhcmmdhhpdhhgmifplfmjobgegbibkn',  // Gallery test extension.
           'ljoplibgfehghmibaoaepfagnmbbfiga',  // Video Player test extension.
           'ddabbgbggambiildohfagdkliahiecfl',  // Audio Player test extension.
         ];
@@ -70,7 +76,7 @@ test.util.registerRemoteTestUtils = (path) => {
         window.IN_TEST = true;
 
         // If testing functions are loaded just run the requested function.
-        if (test.util.executeTestMessage) {
+        if (test.util.executeTestMessage !== null) {
           return test.util.executeTestMessage(request, sendResponse);
         }
 
@@ -85,7 +91,6 @@ test.util.registerRemoteTestUtils = (path) => {
 
         // Asynchronously load the testing functions.
         const script = document.createElement('script');
-        script.type = 'module';
         document.body.appendChild(script);
 
         script.onload = () => {
@@ -98,15 +103,19 @@ test.util.registerRemoteTestUtils = (path) => {
         };
 
         script.onerror = /** Event */ event => {
-          console.error('Failed to load the run-time test script: ', event);
+          console.error('Failed to load the run-time test script: ' + event);
           throw new Error('Failed to load the run-time test script: ' + event);
         };
 
-        const scriptUrl = path || '/background/js/runtime_loaded_test_util.js';
-        console.log('Loading ' + scriptUrl);
-        script.src = scriptUrl;
+        const kFileManagerExtension =
+            'chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj';
+        const kTestScriptUrl = kFileManagerExtension +
+            '/background/js/runtime_loaded_test_util.js';
+        console.log('Loading ' + kTestScriptUrl);
+        script.src = kTestScriptUrl;
         return true;
       });
 };
 
-export {test};
+// eslint-disable-next-line semi,no-extra-semi
+/* #export */ {test};

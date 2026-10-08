@@ -1,5 +1,7 @@
 - name: 2d.transformation.order
   desc: Transformations are applied in the right order
+  testing:
+  - 2d.transformation.order
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -14,6 +16,8 @@
 
 - name: 2d.transformation.scale.basic
   desc: scale() works
+  testing:
+  - 2d.transformation.scale
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -26,6 +30,8 @@
 
 - name: 2d.transformation.scale.zero
   desc: scale() with a scale factor of zero works
+  testing:
+  - 2d.transformation.scale
   code: |
     ctx.fillStyle = '#0f0';
     ctx.fillRect(0, 0, 100, 50);
@@ -51,6 +57,8 @@
 
 - name: 2d.transformation.scale.negative
   desc: scale() with negative scale factors works
+  testing:
+  - 2d.transformation.scale
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -73,6 +81,8 @@
 - name: 2d.transformation.scale.large
   desc: scale() with large scale factors works
   notes: Not really that large at all, but it hits the limits in Firefox.
+  testing:
+  - 2d.transformation.scale
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -85,6 +95,8 @@
 
 - name: 2d.transformation.scale.nonfinite
   desc: scale() with Infinity/NaN is ignored
+  testing:
+  - 2d.nonfinite
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -100,6 +112,8 @@
 
 - name: 2d.transformation.scale.multiple
   desc: Multiple scale()s combine
+  testing:
+  - 2d.transformation.scale.multiple
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -114,6 +128,8 @@
 
 - name: 2d.transformation.rotate.zero
   desc: rotate() by 0 does nothing
+  testing:
+  - 2d.transformation.rotate
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -126,6 +142,8 @@
 
 - name: 2d.transformation.rotate.radians
   desc: rotate() uses radians
+  testing:
+  - 2d.transformation.rotate.radians
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -138,6 +156,8 @@
 
 - name: 2d.transformation.rotate.direction
   desc: rotate() is clockwise
+  testing:
+  - 2d.transformation.rotate.direction
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -150,6 +170,8 @@
 
 - name: 2d.transformation.rotate.wrap
   desc: rotate() wraps large positive values correctly
+  testing:
+  - 2d.transformation.rotate
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -167,6 +189,8 @@
 
 - name: 2d.transformation.rotate.wrapnegative
   desc: rotate() wraps large negative values correctly
+  testing:
+  - 2d.transformation.rotate
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -181,6 +205,8 @@
 
 - name: 2d.transformation.rotate.nonfinite
   desc: rotate() with Infinity/NaN is ignored
+  testing:
+  - 2d.nonfinite
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -196,6 +222,8 @@
 
 - name: 2d.transformation.translate.basic
   desc: translate() works
+  testing:
+  - 2d.transformation.translate
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -208,6 +236,8 @@
 
 - name: 2d.transformation.translate.nonfinite
   desc: translate() with Infinity/NaN is ignored
+  testing:
+  - 2d.nonfinite
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -224,6 +254,8 @@
 
 - name: 2d.transformation.transform.identity
   desc: transform() with the identity matrix does nothing
+  testing:
+  - 2d.transformation.transform
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -236,6 +268,8 @@
 
 - name: 2d.transformation.transform.skewed
   desc: transform() with skewy matrix transforms correctly
+  testing:
+  - 2d.transformation.transform
   code: |
     // Create green with a red square ring inside it
     ctx.fillStyle = '#0f0';
@@ -270,6 +304,8 @@
 
 - name: 2d.transformation.transform.multiply
   desc: transform() multiplies the CTM
+  testing:
+  - 2d.transformation.transform.multiply
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -283,6 +319,8 @@
 
 - name: 2d.transformation.transform.nonfinite
   desc: transform() with Infinity/NaN is ignored
+  testing:
+  - 2d.nonfinite
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -296,7 +334,10 @@
     @assert pixel 50,25 == 0,255,0,255;
   expected: green
 
+
 - name: 2d.transformation.setTransform.skewed
+  testing:
+  - 2d.transformation.setTransform
   code: |
     // Create green with a red square ring inside it
     ctx.fillStyle = '#0f0';
@@ -330,6 +371,8 @@
   expected: green
 
 - name: 2d.transformation.setTransform.multiple
+  testing:
+  - 2d.transformation.setTransform.identity
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -344,6 +387,8 @@
 
 - name: 2d.transformation.setTransform.nonfinite
   desc: setTransform() with Infinity/NaN is ignored
+  testing:
+  - 2d.nonfinite
   code: |
     ctx.fillStyle = '#f00';
     ctx.fillRect(0, 0, 100, 50);
@@ -356,3 +401,5 @@
 
     @assert pixel 50,25 == 0,255,0,255;
   expected: green
+
+

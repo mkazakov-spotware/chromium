@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,21 @@
 #include <memory>
 
 #include "base/memory/weak_ptr.h"
-#include "base/task/sequenced_task_runner_helpers.h"
+#include "base/sequenced_task_runner_helpers.h"
+#include "content/public/renderer/render_view_observer.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-forward.h"
-#include "third_party/blink/public/mojom/widget/platform_widget.mojom.h"
+#include "third_party/blink/public/mojom/page/widget.mojom.h"
 #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url_response.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_local_frame_client.h"
 #include "third_party/blink/public/web/web_navigation_control.h"
-#include "third_party/blink/public/web/web_non_composited_widget_client.h"
 #include "third_party/blink/public/web/web_plugin.h"
 #include "third_party/blink/public/web/web_view_client.h"
-#include "third_party/blink/public/web/web_view_observer.h"
+#include "third_party/blink/public/web/web_widget_client.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/ime/mojom/text_input_state.mojom.h"
 
@@ -31,9 +31,12 @@ namespace blink {
 namespace web_pref {
 struct WebPreferences;
 }  // namespace web_pref
-struct RendererPreferences;
 class WebLocalFrame;
 class WebMouseEvent;
+}
+
+namespace content {
+class RenderView;
 }
 
 // This class implements the WebPlugin interface by forwarding drawing and
@@ -43,7 +46,8 @@ class WebMouseEvent;
 // call web_view->mainFrame()->loadHTMLString() with the HTML data and a fake
 // chrome:// URL as origin.
 
-class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
+class WebViewPlugin : public blink::WebPlugin,
+                      public content::RenderViewObserver {
  public:
   class Delegate {
    public:
@@ -70,7 +74,7 @@ class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
   // and displaying |html_data|. |url| should be a (fake) data:text/html URL;
   // it is only used for navigation and never actually resolved.
   static WebViewPlugin* Create(
-      blink::WebView* web_view,
+      content::RenderView* render_view,
       Delegate* delegate,
       const blink::web_pref::WebPreferences& preferences,
       const std::string& html_data,
@@ -97,12 +101,12 @@ class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
   bool IsErrorPlaceholder() override;
 
   void UpdateAllLifecyclePhases(blink::DocumentUpdateReason reason) override;
-  void Paint(cc::PaintCanvas* canvas, const gfx::Rect& rect) override;
+  void Paint(cc::PaintCanvas* canvas, const blink::WebRect& rect) override;
 
   // Coordinates are relative to the containing window.
-  void UpdateGeometry(const gfx::Rect& window_rect,
-                      const gfx::Rect& clip_rect,
-                      const gfx::Rect& unobscured_rect,
+  void UpdateGeometry(const blink::WebRect& window_rect,
+                      const blink::WebRect& clip_rect,
+                      const blink::WebRect& unobscured_rect,
                       bool is_visible) override;
 
   void UpdateFocus(bool foucsed, blink::mojom::FocusType focus_type) override;
@@ -119,20 +123,20 @@ class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
 
  private:
   friend class base::DeleteHelper<WebViewPlugin>;
-  WebViewPlugin(blink::WebView* web_view,
+  WebViewPlugin(content::RenderView* render_view,
                 Delegate* delegate,
                 const blink::web_pref::WebPreferences& preferences);
   ~WebViewPlugin() override;
 
   blink::WebView* web_view() { return web_view_helper_.web_view(); }
 
-  // blink::WebViewObserver methods:
+  // content::RenderViewObserver methods:
   void OnDestruct() override {}
   void OnZoomLevelChanged() override;
 
   void LoadHTML(const std::string& html_data, const GURL& url);
-  void UpdatePluginForNewGeometry(const gfx::Rect& window_rect,
-                                  const gfx::Rect& unobscured_rect);
+  void UpdatePluginForNewGeometry(const blink::WebRect& window_rect,
+                                  const blink::WebRect& unobscured_rect);
 
   scoped_refptr<base::SingleThreadTaskRunner> GetTaskRunner();
 
@@ -157,24 +161,30 @@ class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
 
   // A helper that handles interaction from WebViewPlugin's internal WebView.
   class WebViewHelper : public blink::WebViewClient,
-                        public blink::WebNonCompositedWidgetClient,
+                        public blink::WebWidgetClient,
                         public blink::WebLocalFrameClient,
                         public blink::mojom::WidgetHost {
    public:
-    WebViewHelper(
-        WebViewPlugin* plugin,
-        const blink::web_pref::WebPreferences& parent_web_preferences,
-        const blink::RendererPreferences& parent_renderer_preferences);
+    WebViewHelper(WebViewPlugin* plugin,
+                  const blink::web_pref::WebPreferences& preferences);
     ~WebViewHelper() override;
 
     blink::WebView* web_view() { return web_view_; }
     blink::WebNavigationControl* main_frame() { return frame_; }
 
     // WebViewClient methods:
-    void InvalidateContainer() override;
+    bool AcceptsLoadDrops() override;
+    bool CanHandleGestureEvent() override;
+    bool CanUpdateLayout() override;
+    void DidInvalidateRect(const blink::WebRect&) override;
 
-    // WebNonCompositedWidgetClient overrides.
-    void ScheduleNonCompositedAnimation() override;
+    // WebWidgetClient methods:
+    bool InterceptStartDragging(const blink::WebDragData&,
+                                blink::DragOperationsMask,
+                                const SkBitmap&,
+                                const gfx::Point&) override;
+    void DidChangeCursor(const ui::Cursor& cursor) override;
+    void ScheduleAnimation() override;
 
     // WebLocalFrameClient methods:
     void BindToFrame(blink::WebNavigationControl* frame) override;
@@ -184,19 +194,14 @@ class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
         override;
 
     // blink::mojom::WidgetHost implementation.
-    void SetCursor(const ui::Cursor& cursor) override;
-    void UpdateTooltipUnderCursor(const std::u16string& tooltip_text,
-                                  base::i18n::TextDirection hint) override;
-    void UpdateTooltipFromKeyboard(const std::u16string& tooltip_text,
-                                   base::i18n::TextDirection hint,
-                                   const gfx::Rect& bounds) override;
-    void ClearKeyboardTriggeredTooltip() override;
+    void SetCursor(const ui::Cursor& cursor) override {}
+    void SetToolTipText(const base::string16& tooltip_text,
+                        base::i18n::TextDirection hint) override;
     void TextInputStateChanged(ui::mojom::TextInputStatePtr state) override {}
     void SelectionBoundsChanged(const gfx::Rect& anchor_rect,
                                 base::i18n::TextDirection anchor_dir,
                                 const gfx::Rect& focus_rect,
                                 base::i18n::TextDirection focus_dir,
-                                const gfx::Rect& bounding_box,
                                 bool is_anchor_first) override {}
     void CreateFrameSink(
         mojo::PendingReceiver<viz::mojom::CompositorFrameSink>
@@ -207,10 +212,6 @@ class WebViewPlugin : public blink::WebPlugin, public blink::WebViewObserver {
             render_frame_metadata_observer_client_receiver,
         mojo::PendingRemote<cc::mojom::RenderFrameMetadataObserver>
             render_frame_metadata_observer) override {}
-
-    // This function sets the "title" attribute to the text value passed by
-    // parameter on the container's element, if possible.
-    void UpdateTooltip(const std::u16string& tooltip_text);
 
    private:
     WebViewPlugin* plugin_;

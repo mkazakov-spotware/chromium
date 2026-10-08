@@ -7,11 +7,9 @@
 
 /*
  * Standard styling for color palettes.
+ *
+ * @provide {goog.css.colorpalette}
  */
-
-@provide 'goog.css.colorpalette';
-
-@require './palette';
 
 .goog-palette-cell .goog-palette-colorswatch {
   border: none;

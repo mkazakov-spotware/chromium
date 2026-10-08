@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
+#include "base/optional.h"
 #include "chrome/browser/vr/databinding/binding_base.h"
 #include "chrome/browser/vr/databinding/vector_element_binding.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace vr {
 
@@ -31,9 +31,6 @@ class VectorBinding : public BindingBase {
       : models_(models),
         added_callback_(added_callback),
         removed_callback_(removed_callback) {}
-
-  VectorBinding(const VectorBinding&) = delete;
-  VectorBinding& operator=(const VectorBinding&) = delete;
 
   ~VectorBinding() {}
 
@@ -75,11 +72,13 @@ class VectorBinding : public BindingBase {
   }
 
  private:
-  raw_ptr<std::vector<M>, DanglingUntriaged> models_ = nullptr;
+  std::vector<M>* models_ = nullptr;
   std::vector<std::unique_ptr<ElementBinding>> bindings_;
-  absl::optional<size_t> last_size_;
+  base::Optional<size_t> last_size_;
   ModelAddedCallback added_callback_;
   ModelRemovedCallback removed_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(VectorBinding);
 };
 
 }  // namespace vr

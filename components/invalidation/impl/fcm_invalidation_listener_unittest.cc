@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors
+// Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
+#include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/task_environment.h"
 #include "components/invalidation/impl/fcm_invalidation_listener.h"
@@ -20,7 +20,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace invalidation {
+namespace syncer {
 
 namespace {
 
@@ -36,8 +36,8 @@ class TestFCMSyncNetworkChannel : public FCMSyncNetworkChannel {
   void StopListening() override {}
 
   void RequestDetailedStatus(
-      const base::RepeatingCallback<void(base::Value::Dict)>& callback)
-      override {}
+      const base::RepeatingCallback<void(const base::DictionaryValue&)>&
+          callback) override {}
 
   using FCMSyncNetworkChannel::DeliverIncomingMessage;
   using FCMSyncNetworkChannel::DeliverToken;
@@ -75,7 +75,7 @@ class FakeDelegate : public FCMInvalidationListener::Delegate {
     auto it = invalidations_.find(topic);
     if (it == invalidations_.end()) {
       ADD_FAILURE() << "No invalidations for topic " << topic;
-      return "";
+      return nullptr;
     } else {
       return it->second.back().payload();
     }
@@ -91,13 +91,52 @@ class FakeDelegate : public FCMInvalidationListener::Delegate {
     }
   }
 
+  bool StartsWithUnknownVersion(const Topic& topic) const {
+    auto it = invalidations_.find(topic);
+    if (it == invalidations_.end()) {
+      ADD_FAILURE() << "No invalidations for topic " << topic;
+      return false;
+    } else {
+      return it->second.front().is_unknown_version();
+    }
+  }
+
   InvalidatorState GetInvalidatorState() const { return state_; }
+
+  void AcknowledgeNthInvalidation(const Topic& topic, size_t n) {
+    List& list = invalidations_[topic];
+    auto it = list.begin() + n;
+    it->Acknowledge();
+  }
+
+  void AcknowledgeAll(const Topic& topic) {
+    List& list = invalidations_[topic];
+    for (auto it = list.begin(); it != list.end(); ++it) {
+      it->Acknowledge();
+    }
+  }
+
+  void DropNthInvalidation(const Topic& topic, size_t n) {
+    List& list = invalidations_[topic];
+    auto it = list.begin() + n;
+    it->Drop();
+    dropped_invalidations_map_.erase(topic);
+    dropped_invalidations_map_.insert(std::make_pair(topic, *it));
+  }
+
+  void RecoverFromDropEvent(const Topic& topic) {
+    auto it = dropped_invalidations_map_.find(topic);
+    if (it != dropped_invalidations_map_.end()) {
+      it->second.Acknowledge();
+      dropped_invalidations_map_.erase(it);
+    }
+  }
 
   // FCMInvalidationListener::Delegate implementation.
   void OnInvalidate(const TopicInvalidationMap& invalidation_map) override {
     TopicSet topics = invalidation_map.GetTopics();
     for (const auto& topic : topics) {
-      const SingleTopicInvalidationSet& incoming =
+      const SingleObjectInvalidationSet& incoming =
           invalidation_map.ForTopic(topic);
       List& list = invalidations_[topic];
       list.insert(list.end(), incoming.begin(), incoming.end());
@@ -134,7 +173,7 @@ class MockSubscriptionManager : public PerUserTopicSubscriptionManager {
                void(const Topics& topics, const std::string& token));
   MOCK_METHOD0(Init, void());
   MOCK_CONST_METHOD1(LookupSubscribedPublicTopicByPrivateTopic,
-                     absl::optional<Topic>(const std::string& private_topic));
+                     base::Optional<Topic>(const std::string& private_topic));
 };
 
 class FCMInvalidationListenerTest : public testing::Test {
@@ -145,7 +184,7 @@ class FCMInvalidationListenerTest : public testing::Test {
         kExtensionsTopic_("EXTENSION"),
         kAppsTopic_("APP"),
         fcm_sync_network_channel_(new TestFCMSyncNetworkChannel()),
-        listener_(base::WrapUnique(fcm_sync_network_channel_.get())),
+        listener_(base::WrapUnique(fcm_sync_network_channel_)),
         fake_delegate_(&listener_) {}
 
   void SetUp() override {
@@ -182,8 +221,28 @@ class FCMInvalidationListenerTest : public testing::Test {
     return fake_delegate_.IsUnknownVersion(topic);
   }
 
+  bool StartsWithUnknownVersion(const Topic& topic) const {
+    return fake_delegate_.StartsWithUnknownVersion(topic);
+  }
+
+  void AcknowledgeNthInvalidation(const Topic& topic, size_t n) {
+    fake_delegate_.AcknowledgeNthInvalidation(topic, n);
+  }
+
+  void DropNthInvalidation(const Topic& topic, size_t n) {
+    return fake_delegate_.DropNthInvalidation(topic, n);
+  }
+
+  void RecoverFromDropEvent(const Topic& topic) {
+    return fake_delegate_.RecoverFromDropEvent(topic);
+  }
+
   InvalidatorState GetInvalidatorState() {
     return fake_delegate_.GetInvalidatorState();
+  }
+
+  void AcknowledgeAll(const Topic& topic) {
+    fake_delegate_.AcknowledgeAll(topic);
   }
 
   void FireInvalidate(const Topic& topic,
@@ -211,8 +270,8 @@ class FCMInvalidationListenerTest : public testing::Test {
  private:
   base::test::SingleThreadTaskEnvironment task_environment_;
   data_decoder::test::InProcessDataDecoder in_process_data_decoder_;
-  raw_ptr<TestFCMSyncNetworkChannel> fcm_sync_network_channel_;
-  raw_ptr<MockSubscriptionManager> subscription_manager_;
+  TestFCMSyncNetworkChannel* fcm_sync_network_channel_;
+  MockSubscriptionManager* subscription_manager_;
 
  protected:
   // Tests need to access these directly.
@@ -372,4 +431,4 @@ TEST_F(FCMInvalidationListenerTest, ReEnableNotifications) {
 
 }  // namespace
 
-}  // namespace invalidation
+}  // namespace syncer

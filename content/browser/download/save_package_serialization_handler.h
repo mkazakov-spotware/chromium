@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
+#include "content/common/content_export.h"
 #include "content/common/frame.mojom.h"
 
 namespace content {
@@ -17,7 +19,7 @@ namespace content {
 // renderer: |did_serialize_data_callback| will report each chunk of data that's
 // being serialized, while |done_callback| will simply notify when the
 // serialization process is finished.
-class SavePackageSerializationHandler
+class CONTENT_EXPORT SavePackageSerializationHandler
     : public mojom::FrameHTMLSerializerHandler {
  public:
   using DidReceiveDataCallback =
@@ -28,11 +30,6 @@ class SavePackageSerializationHandler
       const DidReceiveDataCallback& did_serialize_data_callback,
       DoneCallback done_callback);
 
-  SavePackageSerializationHandler(const SavePackageSerializationHandler&) =
-      delete;
-  SavePackageSerializationHandler& operator=(
-      const SavePackageSerializationHandler&) = delete;
-
   ~SavePackageSerializationHandler() override;
 
   // mojom::FrameHTMLSerializerHandler implementation:
@@ -42,6 +39,8 @@ class SavePackageSerializationHandler
  private:
   const DidReceiveDataCallback did_serialize_data_callback_;
   DoneCallback done_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(SavePackageSerializationHandler);
 };
 
 }  // namespace content

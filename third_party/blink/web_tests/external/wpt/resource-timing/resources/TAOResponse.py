@@ -1,12 +1,8 @@
-import os
-
 def main(request, response):
-    if b'origin' in request.headers:
-      origin = request.headers[b'origin']
-      response.headers.set(b'Access-Control-Allow-Origin', origin)
+    origin = request.headers[b'origin']
+    response.headers.set(b'Access-Control-Allow-Origin', origin)
 
     tao = request.GET.first(b'tao')
-    img = request.GET.first(b'img') if b'img' in request.GET else None
 
     if tao == b'zero':
     # zero TAO value, fail
@@ -18,7 +14,7 @@ def main(request, response):
     # null, fail unless it's an opaque origin
         response.headers.set(b'Timing-Allow-Origin', b'null')
     elif tao == b'Null':
-    # case-insensitive null, fail
+    # case-insentive null, fail
         response.headers.set(b'Timing-Allow-Origin', b'Null')
     elif tao == b'origin':
     # case-sensitive match for origin, pass
@@ -53,12 +49,3 @@ def main(request, response):
         response.headers.set(b'Timing-Allow-Origin', origin.upper())
     else:
         pass
-    response.status = 200
-    if img:
-      response.headers.set(b"Content-Type", b"image/png")
-      with open(request.doc_root + "/resource-timing/resources/blue.png", "rb") as f:
-        response.content = f.read()
-        f.close()
-    else:
-      response.headers.set(b"Content-Type", b"text/plain")
-      response.content = "TEST"

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors
+// Copyright 2015 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #include <memory>
 
-#include "base/no_destructor.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/json_pref_store.h"
-#import "ios/chrome/browser/prefs/pref_names.h"
+#include "ios/chrome/browser/pref_names.h"
 #include "ios/web/public/thread/web_thread.h"
 #include "net/http/http_server_properties.h"
 
@@ -24,27 +23,23 @@ class PrefServiceAdapter : public net::HttpServerProperties::PrefDelegate,
       : pref_store_(std::move(pref_store)),
         path_(prefs::kHttpServerProperties) {}
 
-  PrefServiceAdapter(const PrefServiceAdapter&) = delete;
-  PrefServiceAdapter& operator=(const PrefServiceAdapter&) = delete;
-
   ~PrefServiceAdapter() override {
     if (on_pref_load_callback_)
       pref_store_->RemoveObserver(this);
   }
 
   // PrefDelegate implementation.
-  const base::Value::Dict& GetServerProperties() const override {
+  const base::Value* GetServerProperties() const override {
     const base::Value* value;
     if (pref_store_->GetValue(path_, &value) && value->is_dict()) {
-      return value->GetDict();
+      return value;
     }
 
-    static const base::NoDestructor<base::Value::Dict> empty_dict;
-    return *empty_dict;
+    return nullptr;
   }
-  void SetServerProperties(base::Value::Dict dict,
+  void SetServerProperties(const base::Value& value,
                            base::OnceClosure callback) override {
-    pref_store_->SetValue(path_, base::Value(std::move(dict)),
+    pref_store_->SetValue(path_, value.CreateDeepCopy(),
                           WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
     if (callback)
       pref_store_->CommitPendingWrite(std::move(callback));
@@ -75,9 +70,11 @@ class PrefServiceAdapter : public net::HttpServerProperties::PrefDelegate,
   scoped_refptr<JsonPrefStore> pref_store_;
   const std::string path_;
 
-  // Only non-null while waiting for initial pref load. `this` is observes the
-  // `pref_store_` exactly when non-null.
+  // Only non-null while waiting for initial pref load. |this| is observes the
+  // |pref_store_| exactly when non-null.
   base::OnceClosure on_pref_load_callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(PrefServiceAdapter);
 };
 
 }  // namespace
